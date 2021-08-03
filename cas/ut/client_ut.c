@@ -204,7 +204,6 @@ static void casc_ut_init(struct m0_rpc_server_ctx *sctx,
 	sctx->rsx_xprts = m0_net_all_xprt_get();
 	sctx->rsx_xprts_nr = m0_net_xprt_nr();
 	M0_SET0(&sctx->rsx_motr_ctx);
-	m0_fi_enable_once("m0_rpc_machine_init", "bulk_cutoff_4K");
 	rc = m0_rpc_server_start(sctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = cas_client_init(cctx, cl_ep_addrs[0],

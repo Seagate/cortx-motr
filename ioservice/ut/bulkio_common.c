@@ -139,7 +139,7 @@ static void io_buffers_allocate(struct bulkio_params *bp)
 
 	for (i = 0; i < IO_FOPS_NR; ++i)
 		m0_bufvec_alloc_aligned(&bp->bp_iobuf[i]->nb_buffer,
-					IO_SEGS_NR, M0_0VEC_ALIGN,
+					bp->bp_seg_nr, M0_0VEC_ALIGN,
 					M0_0VEC_SHIFT);
 }
 
@@ -410,11 +410,14 @@ void bulkio_params_init(struct bulkio_params *bp)
 	M0_ALLOC_ARR(bp->bp_writebuf, M0_0VEC_ALIGN);
 	M0_ASSERT(bp->bp_writebuf != NULL);
 
-	io_buffers_allocate(bp);
-
 	bp->bp_xprt = m0_net_xprt_default_get();
 	rc = m0_net_domain_init(&bp->bp_cnetdom, bp->bp_xprt);
 	M0_ASSERT(rc == 0);
+	bp->bp_seg_nr = min32u(IO_SEGS_NR,
+			       (uint32_t)m0_net_domain_get_max_buffer_segments(
+							      &bp->bp_cnetdom));
+
+	io_buffers_allocate(bp);
 
 	for (i = 0; i < IO_FIDS_NR; ++i)
 		bp->bp_offsets[i] = IO_SEG_START_OFFSET;

@@ -72,8 +72,6 @@ enum {
 	CP_SINGLE          = 1,
 	FAIL_NR            = 1,
 	BUF_NR             = 4,
-	SEG_NR             = 256,
-	SEG_SIZE           = 4096,
 	START_DATA         = 101,
 	DEV_ID             = 1,
 	KEY                = 1
@@ -116,6 +114,9 @@ static struct m0_rpc_session      session;
 
 static struct m0_fid gob_fid;
 static struct m0_fid cob_fid;
+
+static m0_bcount_t seg_size;
+static uint32_t seg_nr;
 
 static struct m0_cm_ag_id ag_id = {
 	.ai_hi = {
@@ -356,16 +357,19 @@ static void buffers_verify()
 	int  j;
 	int  rc;
 	int  cnt = 0;
-	char str[SEG_SIZE];
+	char *str = m0_alloc(seg_size * sizeof(char));
+	if (str == NULL)
+		return;
 
 	for (i = 0; i < BUF_NR; ++i) {
-		for (j = 0; j < SEG_NR; ++j) {
-			memset(str, (START_DATA + i), SEG_SIZE);
-			rc = memcmp(r_buf.nb_buffer.ov_buf[cnt], str, SEG_SIZE);
+		for (j = 0; j < seg_nr; ++j) {
+			memset(str, (START_DATA + i), seg_size);
+			rc = memcmp(r_buf.nb_buffer.ov_buf[cnt], str, seg_size);
 			M0_UT_ASSERT(rc == 0);
 			cnt++;
-	    }
+		}
 	}
+	m0_free(str);
 }
 
 /* Passthorugh phase for testing purpose. */
@@ -459,7 +463,7 @@ static void read_and_verify()
 	 * replaced by appropriate data, when the data is read.
 	 */
 	data = ' ';
-	cp_prepare(&r_sns_cp.sc_base, &r_buf, SEG_NR * BUF_NR, SEG_SIZE,
+	cp_prepare(&r_sns_cp.sc_base, &r_buf, seg_nr * BUF_NR, seg_size,
 		   &r_rag.rag_base, data, &read_cp_fom_ops, s0_reqh, 0, false,
 		   recv_cm);
 
@@ -499,7 +503,7 @@ static void receiver_ag_create(struct m0_cm *cm)
 		M0_CNT_INC(rag.rag_acc_inuse_nr);
 		sns_cp = &rag.rag_fc[i].fc_tgt_acc_cp;
 		m0_sns_cm_acc_cp_init(sns_cp, sag);
-		sns_cp->sc_base.c_data_seg_nr = SEG_NR * BUF_NR;
+		sns_cp->sc_base.c_data_seg_nr = seg_nr * BUF_NR;
 		m0_fid_convert_cob2stob(&cob_fid, &sns_cp->sc_stob_id);
 		sns_cp->sc_cobfid = rag.rag_fc[i].fc_tgt_cobfid;
 		sns_cp->sc_is_acc = true;
@@ -540,7 +544,7 @@ static void cm_ready(struct m0_cm *cm)
 	m0_cm_unlock(cm);
 }
 
-static void receiver_init(bool ag_create)
+static void receiver_init(void)
 {
 	int rc;
 
@@ -584,8 +588,6 @@ static void receiver_init(bool ag_create)
 	M0_UT_ASSERT(recv_cm->cm_ops->cmo_start(recv_cm) == 0);
 	m0_cm_state_set(recv_cm, M0_CMS_ACTIVE);
 	m0_cm_unlock(recv_cm);
-	if (ag_create)
-		receiver_ag_create(recv_cm);
 }
 
 static struct m0_cm_cp* sender_cm_cp_alloc(struct m0_cm *cm)
@@ -777,8 +779,10 @@ static void sender_init()
 
 	cm_ready(&sender_cm);
 	ndom = &rmach_ctx.rmc_net_dom;
+	seg_size = m0_net_domain_get_max_buffer_segment_size(ndom);
+	seg_nr = (uint32_t)m0_net_domain_get_max_buffer_segments(ndom);
 	colours = m0_reqh_nr_localities(&rmach_ctx.rmc_reqh);
-	rc = m0_net_buffer_pool_init(&nbp, ndom, 0, SEG_NR, SEG_SIZE,
+	rc = m0_net_buffer_pool_init(&nbp, ndom, 0, seg_nr, seg_size,
 				     colours, M0_0VEC_SHIFT, false);
 	M0_UT_ASSERT(rc == 0);
 	nbp.nbp_ops = &bp_ops;
@@ -905,8 +909,10 @@ static void test_init(bool ag_create)
 
 	m0_fid_gob_make(&gob_fid, 0, 4);
 	m0_fid_convert_gob2cob(&gob_fid, &cob_fid, 0);
-	receiver_init(ag_create);
+	receiver_init();
 	sender_init();
+	if (ag_create)
+		receiver_ag_create(recv_cm);
 	recv_cm_proxy->px_epoch   = sender_cm.cm_epoch;
 	sender_cm_proxy->px_epoch = recv_cm->cm_epoch;
 }
@@ -939,7 +945,7 @@ static void test_cp_send_mismatch_epoch()
 	m0_net_buffer_pool_lock(&nbp);
 	nbuf = m0_net_buffer_pool_get(&nbp, M0_BUFFER_ANY_COLOUR);
 	m0_net_buffer_pool_unlock(&nbp);
-	cp_prepare(&s_sns_cp.sc_base, nbuf, SEG_NR, SEG_SIZE,
+	cp_prepare(&s_sns_cp.sc_base, nbuf, seg_nr, seg_size,
 		   sag, data, &cp_fom_ops,
 		   sender_cm_service->rs_reqh, 0, false,
 		   &sender_cm);
@@ -948,7 +954,7 @@ static void test_cp_send_mismatch_epoch()
 		m0_net_buffer_pool_lock(&nbp);
 		nbuf = m0_net_buffer_pool_get(&nbp, M0_BUFFER_ANY_COLOUR);
 		m0_net_buffer_pool_unlock(&nbp);
-		bv_populate(&nbuf->nb_buffer, data, SEG_NR, SEG_SIZE);
+		bv_populate(&nbuf->nb_buffer, data, seg_nr, seg_size);
 		m0_cm_cp_buf_add(&s_sns_cp.sc_base, nbuf);
 	}
 	m0_tl_for(cp_data_buf, &s_sns_cp.sc_base.c_buffers, nbuf) {
@@ -965,7 +971,7 @@ static void test_cp_send_mismatch_epoch()
 	s_sns_cp.sc_cobfid = cob_fid;
 	m0_fid_convert_cob2stob(&cob_fid, &s_sns_cp.sc_stob_id);
 	s_sns_cp.sc_index = 0;
-	s_sns_cp.sc_base.c_data_seg_nr = SEG_NR * BUF_NR;
+	s_sns_cp.sc_base.c_data_seg_nr = seg_nr * BUF_NR;
 	s_sns_cp.sc_base.c_ag = &sag->sag_base;
 	m0_cm_ag_cp_add(&sag->sag_base, &s_sns_cp.sc_base);
 	/* Assume this as accumulator copy packet to be sent on remote side. */
@@ -1026,7 +1032,7 @@ static void test_cp_send_recv_verify()
         m0_net_buffer_pool_lock(&nbp);
 	nbuf = m0_net_buffer_pool_get(&nbp, M0_BUFFER_ANY_COLOUR);
         m0_net_buffer_pool_unlock(&nbp);
-	cp_prepare(&s_sns_cp.sc_base, nbuf, SEG_NR, SEG_SIZE,
+	cp_prepare(&s_sns_cp.sc_base, nbuf, seg_nr, seg_size,
 		   sag, data, &cp_fom_ops,
 		   sender_cm_service->rs_reqh, 0, false,
 		   &sender_cm);
@@ -1035,7 +1041,7 @@ static void test_cp_send_recv_verify()
 		m0_net_buffer_pool_lock(&nbp);
 		nbuf = m0_net_buffer_pool_get(&nbp, M0_BUFFER_ANY_COLOUR);
 		m0_net_buffer_pool_unlock(&nbp);
-		bv_populate(&nbuf->nb_buffer, data, SEG_NR, SEG_SIZE);
+		bv_populate(&nbuf->nb_buffer, data, seg_nr, seg_size);
 		m0_cm_cp_buf_add(&s_sns_cp.sc_base, nbuf);
 	}
 	m0_tl_for(cp_data_buf, &s_sns_cp.sc_base.c_buffers, nbuf) {
@@ -1052,7 +1058,7 @@ static void test_cp_send_recv_verify()
 	s_sns_cp.sc_cobfid = cob_fid;
 	m0_fid_convert_cob2stob(&cob_fid, &s_sns_cp.sc_stob_id);
 	s_sns_cp.sc_index = 0;
-	s_sns_cp.sc_base.c_data_seg_nr = SEG_NR * BUF_NR;
+	s_sns_cp.sc_base.c_data_seg_nr = seg_nr * BUF_NR;
 	s_sns_cp.sc_base.c_ag = &sag->sag_base;
 	m0_cm_ag_cp_add(&sag->sag_base, &s_sns_cp.sc_base);
 	/* Assume this as accumulator copy packet to be sent on remote side. */

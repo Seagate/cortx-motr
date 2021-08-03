@@ -1787,6 +1787,7 @@ static void spiel_conf_big_db(void)
 	 */
 	m0_fi_enable("m0_conf_segment_size", "const_size");
 	seg_size = m0_conf_segment_size(NULL);
+	m0_fi_disable("m0_conf_segment_size", "const_size");
 	svc_nr = seg_size/svc_str_size + 1;
 	for (i = 0; i < svc_nr; i++) {
 		fid.f_key++;
@@ -1800,7 +1801,6 @@ static void spiel_conf_big_db(void)
 	M0_UT_ASSERT(strlen(cache_str) > seg_size);
 	rc = m0_spiel_tx_commit(&tx);
 	M0_UT_ASSERT(rc == 0);
-	m0_fi_disable("m0_conf_segment_size", "const_size");
 	m0_confx_string_free(cache_str);
 	m0_spiel_tx_close(&tx);
 	spiel_conf_ut_fini();
