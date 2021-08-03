@@ -653,7 +653,7 @@ binaries() {
 
     mkdir -p $outdir
     ## Note, that we intentionally skip `m0tr.ko' as it's too big (42M).
-    for f in m0mkfs m0d m0ham m0ut m0beck m0betool lt-m0client lt-m0touch ${libs[@]}; do
+    for f in m0mkfs m0d m0ham m0ut m0beck m0betool m0client m0touch ${libs[@]}; do
         s=$(path $f binary)
         if [ -n "$s" ]; then
             ## Strip `.0.0' suffix when copying.
