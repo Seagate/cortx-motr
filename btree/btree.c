@@ -2929,6 +2929,37 @@ static void btree_callback_credit(struct m0_be_tx_credit *accum)
 {
 	accum->tc_cb_nr += BTREE_CALLBACK_CREDIT;
 }
+
+/**
+ * This function will calculate credits required to update node and it will add
+ * those credits to @accum.
+ */
+static void btree_node_update_credit(const struct m0_btree  *tree,
+				     struct m0_be_tx_credit *accum)
+{
+ 	m0_bcount_t             node_size;
+	int                     shift;
+
+	shift     = node_shift(tree->t_desc->t_root);
+	node_size =  1ULL << shift;
+
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, node_size));
+}
+
+/**
+ * This function will calculate credits required to perform  @nr update kv
+ * operation and it will add those credits to @accum.
+ */
+static void m0_btree_update_credit(const struct m0_btree  *tree,
+				   struct m0_be_tx_credit *accum,
+				   m0_bcount_t             nr)
+{
+	struct m0_be_tx_credit cred = {};
+
+	btree_node_update_credit(tree, &cred);
+	m0_be_tx_credit_mac(accum, &cred, nr);
+}
+
 #endif
 
 /**
@@ -7118,6 +7149,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				value[i] = value[0];
 
 			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+			m0_btree_update_credit(tree, &cred, 1);
 			btree_callback_credit(&cred);
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
