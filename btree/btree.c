@@ -4457,7 +4457,10 @@ int  btree_sibling_first_key(struct m0_btree_oimpl *oi, struct td *tree,
 
 }
 
-/** Tree GET (lookup) state machine. */
+/**
+ * State machine for fetching exact key / slant key / min key or max key from
+ * the tree.
+ */
 static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op    *bop            = M0_AMB(bop, smop, bo_op);
@@ -4538,16 +4541,18 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 				oi->i_key_found = node_find(&s,
 							    &bop->bo_rec.r_key);
 				lev->l_idx = s.s_idx;
-			} else
-				s.s_idx = bop->bo_opc == M0_BO_MINKEY ?  0 :
-					  node_count(s.s_node);
+			}
 
 			if (node_level(s.s_node) > 0) {
-				if (bop->bo_opc == M0_BO_GET
-				    && oi->i_key_found) {
-					s.s_idx++;
-					lev->l_idx++;
-				}
+				if (bop->bo_opc == M0_BO_GET) {
+					if (oi->i_key_found) {
+						s.s_idx++;
+						lev->l_idx++;
+					}
+				} else
+					s.s_idx = bop->bo_opc == M0_BO_MINKEY ?
+						  0 : node_count(s.s_node);
+
 				node_child(&s, &child);
 				if (!address_in_segment(child)) {
 					node_unlock(lev->l_node);
@@ -7194,9 +7199,9 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		M0_ASSERT(keys_found_count >= keys_put_count);
 
 		/**
-		 * Test for MIN and MAX keys. 
+		 * Test for MIN and MAX keys.
 		 * Testing is difficult since multiple threads will be adding
-		 * or deleting keys from the btree at any time. To get around 
+		 * or deleting keys from the btree at any time. To get around
 		 * this we first quiesce all the threads and then work with
 		 * the current btree to find out the MIN and the MAX values.
 		 * To confirm if the values are MIN and MAX we will iterate
@@ -7207,7 +7212,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 */
 		UT_REQUEST_PEER_THREADS_TO_QUIESCE();
 
-		/** 
+		/**
 		 * Fill a value in the buffer which we know cannot be the
 		 * MIN key
 		 */
@@ -7228,7 +7233,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		M0_ASSERT((get_data.flags == M0_BSC_SUCCESS) ||
 			  (get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY &&
 			   key_iter_start == key_last));
-		/** 
+		/**
 		 * The second condition in the above assert is rare but can
 		 * happen if only one Key is present in the btree. We presume
 		 * that no Keys from other other threads are currently present
