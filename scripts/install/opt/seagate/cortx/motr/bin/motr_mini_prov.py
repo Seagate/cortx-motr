@@ -742,7 +742,7 @@ def lnet_self_ping(self):
     return True
 
 def update_motr_hare_keys_for_all_nodes(self):
-    myhostname = self.server_node["hostname"]
+    hostname = self.server_node["hostname"]
     nodes_info = Conf.get(self._index, 'server_node')
     for value in nodes_info.values():
         host = value["hostname"]
@@ -758,10 +758,10 @@ def update_motr_hare_keys_for_all_nodes(self):
             Conf.save(self._index_motr_hare)
 
     for value in nodes_info.values():
-        if (myhostname == value["hostname"]):
+        if (hostname == value["hostname"]):
             continue
         else:
             host = value["hostname"]
-            cmd = (f"scp  {self._url_motr_hare}"
-                    f" {host}:{self._url_motr_hare}")
+            cmd = (f"scp  {self._motr_hare_conf}"
+                    f" {host}:{self._motr_hare_conf}")
             execute_command(self, cmd)

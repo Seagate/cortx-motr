@@ -39,9 +39,10 @@ class Cmd:
         self._url = args.config
 
         # URL for Hare-Motr keys required for intercomponent communication
-        self._url_motr_hare = "/opt/seagate/cortx/motr/conf/motr_hare_keys.json"
+        self._motr_hare_conf = "/opt/seagate/cortx/motr/conf/motr_hare_keys.json"
+        self._url_motr_hare = f"json://{self._motr_hare_conf}"
         Conf.load(self._index, self._url)
-        Conf.load(self._index_motr_hare, f"json://{self._url_motr_hare}")
+        Conf.load(self._index_motr_hare, self._url_motr_hare)
         self._args = args.args
         self._debug = args.debug
         self.server_node = get_server_node(self)
