@@ -37,11 +37,6 @@
 #include "pool/pool.h"                /* m0_pool_init */
 #include "rm/rm_service.h"            /* m0_rms_type */
 #include "net/lnet/lnet_core_types.h" /* M0_NET_LNET_NIDSTR_SIZE */
-#ifndef __KERNEL__
-#include <unistd.h>                   /* sleep */
-#else
-#include <linux/delay.h>              /* msleep */
-#endif /* __KERNEL__ */
 #include "dtm0/service.h"             /* m0_dtm0_service_find */
 #include "dtm0/helper.h"              /* m0_dtm_client_service_start */
 
@@ -1639,19 +1634,6 @@ int m0_client_init(struct m0_client **m0c_p,
 
 		m0c->m0c_dtms = m0_dtm0_service_find(&m0c->m0c_reqh);
 		M0_ASSERT(m0c->m0c_dtms != NULL);
-
-		/* When in non-UT, we should wait until all the servers
-		 * have established connections with this client.
-		 * TODO: remove this sleep() when a proper start/stop
-		 * procedure is implemented.
-		 */
-		if (!m0_dtm0_in_ut()) {
-#ifndef __KERNEL__
-			sleep(15);
-#else
-			msleep(15000);
-#endif
-		}
 	}
 	if (conf->mc_is_addb_init) {
 		char buf[64];
