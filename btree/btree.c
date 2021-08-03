@@ -2995,23 +2995,19 @@ static void btree_callback_credit(struct m0_be_tx_credit *accum)
 }
 
 /**
- * This function will calculate credits required to update @nr nodes and it will
- * add those credits to @accum.
+ * This function will calculate credits required to update node and it will add
+ * those credits to @accum.
  */
 static void btree_node_update_credit(const struct m0_btree  *tree,
-				     struct m0_be_tx_credit *accum,
-				     m0_bcount_t             nr)
+				     struct m0_be_tx_credit *accum)
 {
-	struct m0_be_tx_credit cred = {};
  	m0_bcount_t             node_size;
 	int                     shift;
 
 	shift     = node_shift(tree->t_desc->t_root);
 	node_size =  1ULL << shift;
 
-	cred = M0_BE_TX_CREDIT(1, node_size);
-
-	m0_be_tx_credit_mac(accum, &cred, nr);
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, node_size));
 }
 
 /**
@@ -3024,7 +3020,7 @@ static void m0_btree_update_credit(const struct m0_btree  *tree,
 {
 	struct m0_be_tx_credit cred = {};
 
-	btree_node_update_credit(tree, &cred, 1);
+	btree_node_update_credit(tree, &cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
