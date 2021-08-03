@@ -502,6 +502,16 @@ static void be_tx_gc(struct m0_be_tx *tx)
 		m0_free(tx);
 }
 
+static void be_tx_callback(struct m0_be_callback *cb, uint64_t num)
+{
+	int i;
+
+	M0_ENTRY("t_callback=%p t_callback_nr=%"PRIu64, cb, num);
+
+	for (i = 0; i < num; i++)
+		cb[i].tc_func(cb[i].tc_data);
+}
+
 static void be_tx_state_move(struct m0_be_tx     *tx,
 			     enum m0_be_tx_state  state,
 			     int                  rc)
@@ -529,6 +539,8 @@ static void be_tx_state_move(struct m0_be_tx     *tx,
 		tx->t_persistent(tx);
 	if (state == M0_BTS_DONE && tx->t_discarded != NULL)
 		tx->t_discarded(tx);
+	if (state == M0_BTS_DONE && tx->t_callback_nr != 0)
+		be_tx_callback(tx->t_callback, tx->t_callback_nr);
 
 	m0_sm_move(&tx->t_sm, rc, state);
 	m0_be_engine__tx_state_set(tx->t_engine, tx, state);
