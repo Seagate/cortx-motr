@@ -604,6 +604,7 @@ enum base_phase {
 	P_FINI,
 	P_COOKIE,
 	P_TIMECHECK,
+	P_TREE_GET,
 	P_NR
 };
 
@@ -868,7 +869,9 @@ static struct segaddr  segaddr_build(const void *addr, int shift);
 #endif
 static void           *segaddr_addr (const struct segaddr *addr);
 static int             segaddr_shift(const struct segaddr *addr);
+#ifndef __KERNEL__
 static uint32_t        segaddr_ntype_get(const struct segaddr *addr);
+#endif
 static bool            segaddr_header_isvalid(const struct segaddr *addr);
 
 /**
@@ -1180,12 +1183,10 @@ static int64_t tree_create(struct node_op *op, struct m0_btree_type *tt,
 #endif
 static int64_t tree_delete(struct node_op *op, struct td *tree,
 			   struct m0_be_tx *tx, int nxt);
-#endif
 static void    tree_put   (struct td *tree);
 
 static int64_t    node_get  (struct node_op *op, struct td *tree,
 			     struct segaddr *addr, int nxt);
-#ifndef __KERNEL__
 static void       node_put  (struct node_op *op, struct nd *node,
 			     struct m0_be_tx *tx);
 #endif
@@ -1195,18 +1196,19 @@ static void       node_put  (struct node_op *op, struct nd *node,
 static struct nd *node_try  (struct td *tree, struct segaddr *addr);
 #endif
 
+#ifndef __KERNEL__
 static int64_t    node_free(struct node_op *op, struct nd *node,
 			    struct m0_be_tx *tx, int nxt);
-#ifndef __KERNEL__
 static int64_t    node_alloc(struct node_op *op, struct td *tree, int shift,
 			     const struct node_type *nt, int ksize, int vsize,
 			     struct m0_be_tx *tx, int nxt);
 static void node_op_fini(struct node_op *op);
 #endif
 #ifndef __KERNEL__
-static void node_init(struct segaddr *addr, int ksize, int vsize,
+static int node_access(struct segaddr *addr, int shift, int nxt);
+static int  node_init(struct segaddr *addr, int ksize, int vsize,
 		      const struct node_type *nt, struct m0_be_seg *seg,
-		      struct m0_be_tx *tx);
+		      struct m0_be_tx *tx, int nxt);
 #endif
 #if 0
 static bool node_verify(const struct nd *node);
@@ -1252,10 +1254,9 @@ static void node_move (struct nd *src, struct nd *tgt, enum direction dir,
 		       int nr, struct m0_be_tx *tx);
 
 static void node_capture(struct slot *slot, struct m0_be_tx *tx);
-#endif
+
 static void node_lock(struct nd *node);
 static void node_unlock(struct nd *node);
-#ifndef __KERNEL__
 static void node_fini(const struct nd *node, struct m0_be_tx *tx);
 #endif
 /**
@@ -1384,11 +1385,6 @@ struct m0_btree_oimpl {
 
 };
 
-static struct td        trees[M0_TREE_COUNT];
-static uint64_t         trees_in_use[ARRAY_SIZE_FOR_BITS(M0_TREE_COUNT,
-							 sizeof(uint64_t))];
-static uint32_t         trees_loaded = 0;
-static struct m0_rwlock trees_lock;
 
 /**
  * Node descriptor LRU list.
@@ -1422,12 +1418,34 @@ M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
 M0_TL_DEFINE(ndlist, static, struct nd);
 
 #ifndef __KERNEL__
-static void node_init(struct segaddr *addr, int ksize, int vsize,
-		      const struct node_type *nt, struct m0_be_seg *seg,
-		      struct m0_be_tx *tx)
+static int node_access(struct segaddr *addr, int shift, int nxt)
 {
+	/**
+	 * TODO: Implement node_access function to ensure that node data has
+	 * been read from BE segment. This operation will be used during
+	 * async mode of btree operations.
+	 */
+	return nxt;
+}
+
+static int node_init(struct segaddr *addr, int ksize, int vsize,
+		     const struct node_type *nt, struct m0_be_seg *seg,
+		     struct m0_be_tx *tx, int nxt)
+{
+	/**
+	 * node_access() will ensure that we have node data loaded in our memory 
+	 * before initialisation.
+	 */
+	nxt = node_access(addr, segaddr_shift(addr), nxt);
+
+	/**
+	 * TODO: Consider adding a state here to return in case node_access()
+	 * requires some time to complete its operation.
+	 */
+
 	nt->nt_init(addr, segaddr_shift(addr), ksize, vsize, nt->nt_id, seg,
 		    tx);
+	return nxt;
 }
 #endif
 
@@ -1634,7 +1652,6 @@ static void node_capture(struct slot *slot, struct m0_be_tx *tx)
 {
 	slot->s_node->n_type->nt_capture(slot, tx);
 }
-#endif
 
 static void node_lock(struct nd *node)
 {
@@ -1646,7 +1663,6 @@ static void node_unlock(struct nd *node)
 	m0_rwlock_write_unlock(&node->n_lock);
 }
 
-#ifndef __KERNEL__
 static void node_fini(const struct nd *node, struct m0_be_tx *tx)
 {
 	node->n_type->nt_fini(node, tx);
@@ -1670,11 +1686,6 @@ struct mod {
 int m0_btree_mod_init(void)
 {
 	struct mod *m;
-
-	M0_SET_ARR0(trees);
-	M0_SET_ARR0(trees_in_use);
-	trees_loaded = 0;
-	m0_rwlock_init(&trees_lock);
 
 	/** Initialtise lru list, active list and lock. */
 	ndlist_tlist_init(&btree_lru_nds);
@@ -1710,7 +1721,6 @@ void m0_btree_mod_fini(void)
 	ndlist_tlist_fini(&btree_active_nds);
 
 	m0_rwlock_fini(&list_lock);
-	m0_rwlock_fini(&trees_lock);
 	m0_free(mod_get());
 }
 
@@ -1796,6 +1806,7 @@ static int segaddr_shift(const struct segaddr *addr)
 	return (addr->as_core & 0xf) + NODE_SHIFT_MIN;
 }
 
+#ifndef __KERNEL__
 /**
  * Returns the node type stored at segment address.
  *
@@ -1812,6 +1823,7 @@ uint32_t segaddr_ntype_get(const struct segaddr *addr)
 	M0_PRE(h->h_node_type == BNT_FIXED_FORMAT);
 	return h->h_node_type;
 }
+#endif
 
 #if 0
 static void node_type_register(const struct node_type *nt)
@@ -1850,24 +1862,20 @@ static void tree_type_unregister(const struct m0_btree_type *tt)
 	m->m_ttype[tt->tt_id] = NULL;
 }
 #endif
-
-struct seg_ops {
-	int64_t    (*so_tree_get)(struct node_op *op,
-			          struct segaddr *addr, int nxt);
-#if 0
-	int64_t    (*so_tree_create)(struct node_op *op,
-	                             struct m0_btree_type *tt,
-				     int rootshift, struct m0_be_tx *tx,
-				     int nxt);
-#endif
-	int64_t    (*so_tree_delete)(struct node_op *op, struct td *tree,
-				     struct m0_be_tx *tx, int nxt);
-	void       (*so_tree_put)(struct td *tree);
-};
-
-static struct seg_ops *segops;
-static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt);
 #ifndef __KERNEL__
+
+static const struct node_type fixed_format;
+
+static const struct node_type *btree_node_format[] = {
+	[BNT_FIXED_FORMAT]                        = &fixed_format,
+	[BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE]    = NULL,
+	[BNT_VARIABLE_KEYSIZE_FIXED_VALUESIZE]    = NULL,
+	[BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE] = NULL,
+};
+#endif
+
+#ifndef __KERNEL__
+
 /**
  * Locates a tree descriptor whose root node points to the node at addr and
  * return this tree to the caller.
@@ -1886,12 +1894,45 @@ static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt);
  */
 static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 {
-	int        nxt_state;
+	struct td              *tree = NULL;
+	struct nd              *node = NULL;
 
-	nxt_state = segops->so_tree_get(op, addr, nxt);
+	if (addr != NULL) {
+		nxt  = node_get(op, NULL, addr, nxt);
+		if (op->no_op.o_sm.sm_rc < 0)
+			return op->no_op.o_sm.sm_rc;
+		node = op->no_node;
+		m0_rwlock_write_lock(&list_lock);
+		tree = node->n_tree;
 
-	return nxt_state;
+		if (tree == NULL) {
+			tree = m0_alloc(sizeof *tree);
+			m0_rwlock_init(&tree->t_lock);
+			m0_rwlock_write_lock(&tree->t_lock);
+
+			tree->t_ref = 1;
+			tree->t_starttime = 0;
+			tree->t_root = node;
+			tree->t_height = node_level(node) + 1;
+			node_lock(node);
+			node->n_tree = tree;
+			node_unlock(node);
+
+		} else {
+			m0_rwlock_write_lock(&tree->t_lock);
+			tree->t_ref++;
+		}
+
+		op->no_node = tree->t_root;
+		op->no_tree = tree;
+		m0_rwlock_write_unlock(&tree->t_lock);
+		m0_rwlock_write_unlock(&list_lock);
+	} else
+		return M0_ERR(-EINVAL);
+
+	return nxt;
 }
+#endif
 
 
 #if 0
@@ -1909,10 +1950,28 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 static int64_t tree_create(struct node_op *op, struct m0_btree_type *tt,
 			   int rootshift, struct m0_be_tx *tx, int nxt)
 {
-	return segops->so_tree_create(op, tt, rootshift, tx, nxt);
+	struct td *tree;
+
+	/**
+	 * Creates root node and then assigns a tree descriptor for this root
+	 * node.
+	 */
+
+	tree_get(op, NULL, nxt);
+
+	tree = op->no_tree;
+	node_alloc(op, tree, rootshift, &fixed_format, 8, 8, tx, nxt);
+
+	m0_rwlock_write_lock(&tree->t_lock);
+	tree->t_root = op->no_node;
+	tree->t_type = tt;
+	m0_rwlock_write_unlock(&tree->t_lock);
+
+	return nxt;
 }
 #endif
 
+#ifndef __KERNEL__
 /**
  * Deletes an existing tree.
  *
@@ -1927,9 +1986,18 @@ static int64_t tree_delete(struct node_op *op, struct td *tree,
 			   struct m0_be_tx *tx, int nxt)
 {
 	M0_PRE(tree != NULL);
-	return segops->so_tree_delete(op, tree, tx, nxt);
+	struct nd *root = tree->t_root;
+
+	op->no_tree = tree;
+	op->no_node = root;
+
+	node_fini(op->no_node, tx);
+	node_free(op, op->no_node, tx, nxt);
+	tree_put(tree);
+
+	return nxt;
 }
-#endif
+
 /**
  * Returns the tree to the free tree pool if the reference count for this tree
  * reaches zero.
@@ -1940,17 +2008,27 @@ static int64_t tree_delete(struct node_op *op, struct td *tree,
  */
 static void tree_put(struct td *tree)
 {
-	segops->so_tree_put(tree);
+	m0_rwlock_write_lock(&list_lock);
+	m0_rwlock_write_lock(&tree->t_lock);
+	M0_ASSERT(tree->t_ref > 0);
+	M0_ASSERT(tree->t_root != NULL);
+
+	tree->t_ref--;
+
+	if (tree->t_ref == 0) {
+		node_lock(tree->t_root);
+		tree->t_root->n_tree = NULL;
+		node_unlock(tree->t_root);
+		m0_rwlock_write_unlock(&tree->t_lock);
+		m0_rwlock_fini(&tree->t_lock);
+		m0_rwlock_write_unlock(&list_lock);
+		m0_free0(&tree);
+		return;
+	}
+	m0_rwlock_write_unlock(&tree->t_lock);
+	m0_rwlock_write_unlock(&list_lock);
+
 }
-
-static const struct node_type fixed_format;
-
-static const struct node_type *btree_node_format[] = {
-	[BNT_FIXED_FORMAT]                        = &fixed_format,
-	[BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE]    = NULL,
-	[BNT_VARIABLE_KEYSIZE_FIXED_VALUESIZE]    = NULL,
-	[BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE] = NULL,
-};
 
 /**
  * This function loads the node descriptor for the node at segaddr in memory.
@@ -1977,9 +2055,12 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	bool                    in_lrulist;
 	uint32_t                ntype;
 
-	if (tree == NULL) {
-		nxt = mem_tree_get(op, addr, nxt);
-	}
+	/**
+	 * TODO: Include function node_access() during async mode of btree
+	 * operations to ensure that the node data is loaded form the segment.
+	 * Also consider adding a state here to return as we might need some
+	 * time to load the node if it is not loaded.
+	 */
 
 	/**
 	 * TODO: Adding list_lock to protect from multiple threads
@@ -1987,7 +2068,9 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	 * Replace it with a different global lock once hash
 	 * functionality is implemented.
 	 */
+
 	m0_rwlock_write_lock(&list_lock);
+
 	/**
 	 * If the node was deleted before node_get can acquire list_lock, then
 	 * restart the tick funcions.
@@ -2071,7 +2154,6 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	return nxt;
 }
 
-#ifndef __KERNEL__
 /**
  * This function decrements the reference count for this node descriptor and if
  * the reference count reaches '0' then the node descriptor is moved to LRU
@@ -2125,6 +2207,7 @@ static struct nd *node_try(struct td *tree, struct segaddr *addr){
 }
 #endif
 
+#ifndef __KERNEL__
 static int64_t node_free(struct node_op *op, struct nd *node,
 			 struct m0_be_tx *tx, int nxt)
 {
@@ -2152,7 +2235,6 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 	return nxt;
 }
 
-#ifndef __KERNEL__
 /**
  * Allocates node in the segment and a node-descriptor if all the resources are
  * available.
@@ -2189,8 +2271,13 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int shift,
 	op->no_addr = segaddr_build(area, shift);
 	op->no_tree = tree;
 
-	node_init(&op->no_addr, ksize, vsize, nt, tree->t_seg, tx);
-
+	nxt_state = node_init(&op->no_addr, ksize, vsize, nt, tree->t_seg, tx,
+			      nxt);
+	/**
+	 * TODO: Consider adding a state here to return in case we might need to
+	 * visit node_init() again to complete its execution.
+	 */
+	
 	nxt_state = node_get(op, tree, &op->no_addr, nxt_state);
 
 	return nxt_state;
@@ -2202,159 +2289,7 @@ static void node_op_fini(struct node_op *op)
 
 #endif
 
-static int64_t mem_tree_get(struct node_op *op, struct segaddr *addr, int nxt)
-{
-	struct td              *tree = NULL;
-	int                     i    = 0;
-	uint32_t                offset;
-	struct nd              *node = NULL;
-	const struct node_type *nt;
-	uint32_t                ntype;
 
-	m0_rwlock_write_lock(&trees_lock);
-
-	M0_ASSERT(trees_loaded <= ARRAY_SIZE(trees));
-
-	/**
-	 *  If existing allocated tree is found then return it after increasing
-	 *  the reference count.
-	 */
-	if (addr != NULL && trees_loaded) {
-		ntype = segaddr_ntype_get(addr);
-		nt = btree_node_format[ntype];
-		node = nt->nt_opaque_get(addr);
-		if (node != NULL && node->n_tree != NULL) {
-			tree = node->n_tree;
-			m0_rwlock_write_lock(&tree->t_lock);
-			if (tree->t_root->n_addr.as_core == addr->as_core) {
-				tree->t_ref++;
-				op->no_node = tree->t_root;
-				op->no_tree = tree;
-				m0_rwlock_write_unlock(&tree->t_lock);
-				m0_rwlock_write_unlock(&trees_lock);
-				return nxt;
-			}
-			m0_rwlock_write_unlock(&tree->t_lock);
-		}
-	}
-
-	/** Assign a free tree descriptor to this tree. */
-	for (i = 0; i < ARRAY_SIZE(trees_in_use); i++) {
-		uint64_t   t = ~trees_in_use[i];
-
-		if (t != 0) {
-			offset = __builtin_ffsl(t);
-			M0_ASSERT(offset != 0);
-			offset--;
-			trees_in_use[i] |= (1ULL << offset);
-			offset += (i * (sizeof trees_in_use[0]) * 8);
-			tree = &trees[offset];
-			trees_loaded++;
-			break;
-		}
-	}
-
-	M0_ASSERT(tree != NULL && tree->t_ref == 0);
-
-	m0_rwlock_init(&tree->t_lock);
-
-	m0_rwlock_write_lock(&tree->t_lock);
-	tree->t_ref++;
-
-	if (addr) {
-		m0_rwlock_write_unlock(&tree->t_lock);
-		node_get(op, tree, addr, nxt);
-		m0_rwlock_write_lock(&tree->t_lock);
-
-		tree->t_root         =  op->no_node;
-		tree->t_root->n_addr = *addr;
-		tree->t_root->n_tree =  tree;
-		tree->t_starttime    =  0;
-		//tree->t_height = tree_height_get(op->no_node);
-	}
-
-	op->no_node = tree->t_root;
-	op->no_tree = tree;
-	//op->no_addr = tree->t_root->n_addr;
-
-	m0_rwlock_write_unlock(&tree->t_lock);
-
-	m0_rwlock_write_unlock(&trees_lock);
-
-	return nxt;
-}
-
-#if 0
-static int64_t mem_tree_create(struct node_op *op, struct m0_btree_type *tt,
-			       int rootshift, struct m0_be_tx *tx, int nxt)
-{
-	struct td *tree;
-
-	/**
-	 * Creates root node and then assigns a tree descriptor for this root
-	 * node.
-	 */
-
-	tree_get(op, NULL, nxt);
-
-	tree = op->no_tree;
-	node_alloc(op, tree, rootshift, &fixed_format, 8, 8, tx, nxt);
-
-	m0_rwlock_write_lock(&tree->t_lock);
-	tree->t_root = op->no_node;
-	tree->t_type = tt;
-	m0_rwlock_write_unlock(&tree->t_lock);
-
-	return nxt;
-}
-#endif
-
-static int64_t mem_tree_delete(struct node_op *op, struct td *tree,
-			       struct m0_be_tx *tx, int nxt)
-{
-	struct nd *root = tree->t_root;
-
-	op->no_tree = tree;
-	op->no_node = root;
-	node_free(op, op->no_node, tx, nxt);
-	tree_put(tree);
-	return nxt;
-}
-
-static void mem_tree_put(struct td *tree)
-{
-	m0_rwlock_write_lock(&tree->t_lock);
-
-	M0_ASSERT(tree->t_ref > 0);
-	M0_ASSERT(tree->t_root != NULL);
-
-	tree->t_ref--;
-
-	if (tree->t_ref == 0) {
-		int i;
-		int array_offset;
-		int bit_offset_in_array;
-
-		m0_rwlock_write_lock(&trees_lock);
-		M0_ASSERT(trees_loaded > 0);
-		i = tree - &trees[0];
-		array_offset = i / (sizeof(trees_in_use[0]) * 8);
-		bit_offset_in_array = i % (sizeof(trees_in_use[0]) * 8);
-		trees_in_use[array_offset] &= ~(1ULL << bit_offset_in_array);
-		trees_loaded--;
-		m0_rwlock_write_unlock(&tree->t_lock);
-		m0_rwlock_fini(&tree->t_lock);
-		m0_rwlock_write_unlock(&trees_lock);
-	}
-	m0_rwlock_write_unlock(&tree->t_lock);
-}
-
-static const struct seg_ops mem_seg_ops = {
-	.so_tree_get     = &mem_tree_get,
-	/* .so_tree_create  = &mem_tree_create, */
-	.so_tree_delete  = &mem_tree_delete,
-	.so_tree_put     = &mem_tree_put,
-};
 
 /**
  *  Structure of the node in persistent store.
@@ -3378,6 +3313,8 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 
 	/* Increase height by one */
 	tree->t_height++;
+	bop->bo_arbor->t_height = tree->t_height;
+	/* Capture this change in transaction */
 
 	/* TBD : This check needs to be removed when debugging is done. */
 	M0_ASSERT(node_expensive_invariant(lev->l_node));
@@ -3990,7 +3927,12 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "P_INIT",
 		.sd_allowed = M0_BITS(P_COOKIE, P_SETUP, P_ACT, P_TIMECHECK,
-				      P_DONE),
+				      P_TREE_GET, P_DONE),
+	},
+	[P_TREE_GET] = {
+		.sd_flags   = 0,
+		.sd_name    = "P_TREE_GET",
+		.sd_allowed = M0_BITS(P_ACT),
 	},
 	[P_COOKIE] = {
 		.sd_flags   = 0,
@@ -4100,8 +4042,10 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 };
 
 static struct m0_sm_trans_descr btree_trans[] = {
-	{ "open/create/close-init", P_INIT, P_ACT  },
-	{ "open/create/close-act", P_ACT, P_DONE },
+	{ "open/close-init", P_INIT, P_ACT },
+	{ "open/close-act", P_ACT, P_DONE },
+	{ "create-init-tree_get", P_INIT, P_TREE_GET },
+	{ "create-tree_get-act", P_TREE_GET, P_ACT },
 	{ "close/destroy", P_INIT, P_DONE},
 	{ "close-init-timecheck", P_INIT, P_TIMECHECK},
 	{ "close-timecheck-repeat", P_TIMECHECK, P_TIMECHECK},
@@ -4233,22 +4177,25 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 		}
 
 		oi->i_nop.no_addr = segaddr_build(data->addr, calc_shift(data->
-							      num_bytes));
-		node_init(&oi->i_nop.no_addr, k_size, v_size,
-			  data->nt, bop->bo_seg, bop->bo_tx);
+						  num_bytes));
+		return node_init(&oi->i_nop.no_addr, k_size, v_size,
+				 data->nt, bop->bo_seg, bop->bo_tx, P_TREE_GET);
 
+	case P_TREE_GET:
 		return tree_get(&oi->i_nop, &oi->i_nop.no_addr, P_ACT);
 
 	case P_ACT:
+		M0_ASSERT(oi->i_nop.no_op.o_sm.sm_rc == 0);
 		oi->i_nop.no_node->n_type = data->nt;
 		oi->i_nop.no_tree->t_type = data->bt;
 		oi->i_nop.no_tree->t_seg  = bop->bo_seg;
 
 		bop->bo_arbor->t_desc           = oi->i_nop.no_tree;
 		bop->bo_arbor->t_type           = data->bt;
+		bop->bo_arbor->t_height         = node_level(oi->i_nop.no_node) + 1;
 
 		m0_rwlock_write_lock(&bop->bo_arbor->t_desc->t_lock);
-		bop->bo_arbor->t_desc->t_height = 1;
+		bop->bo_arbor->t_desc->t_height = bop->bo_arbor->t_height;
 		m0_rwlock_write_unlock(&bop->bo_arbor->t_desc->t_lock);
 
 		m0_free(oi);
@@ -4268,30 +4215,26 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
  */
 int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 {
-	struct m0_btree_op *bop = M0_AMB(bop, smop, bo_op);
+	struct m0_btree_op *bop  = M0_AMB(bop, smop, bo_op);
+	struct td          *tree = bop->bo_arbor->t_desc;
 
 	M0_PRE(bop->bo_op.o_sm.sm_state == P_INIT);
-	M0_PRE(bop->bo_arbor != NULL);
-	M0_PRE(bop->bo_arbor->t_desc != NULL);
-	M0_PRE(node_invariant(bop->bo_arbor->t_desc->t_root));
 
-	/** The following pre-condition is currently a
-	 *  compulsion as the delete routine has not been
-	 *  implemented yet.
-	 *  Once it is implemented, this pre-condition can be
-	 *  modified to compulsorily remove the records and get
-	 *  the node count to 0.
-	 */
-	M0_PRE(node_count(bop->bo_arbor->t_desc->t_root) == 0);
+	if (tree == NULL)
+		return M0_ERR(-EINVAL);
 
-	tree_put(bop->bo_arbor->t_desc);
-	/**
-	 * TODO: Currently just deleting the tree root node, as the assumption
-	 * is tree will only have root node at this point.
-	 */
-	m0_rwlock_write_lock(&list_lock);
-	ndlist_tlink_del_fini(bop->bo_arbor->t_desc->t_root);
-	m0_rwlock_write_unlock(&list_lock);
+	m0_rwlock_write_lock(&tree->t_lock);
+	if (tree->t_ref != 1) {
+		m0_rwlock_write_unlock(&tree->t_lock);
+		return M0_ERR(-EPERM);
+	}
+
+	M0_PRE(node_invariant(tree->t_root));
+	M0_PRE(node_count(tree->t_root) == 0);
+	m0_rwlock_write_unlock(&tree->t_lock);
+	node_fini(tree->t_root, bop->bo_tx);
+	node_put(tree->t_root->n_op, tree->t_root, bop->bo_tx);
+	tree_put(tree);
 
 	/**
 	 * ToDo: We need to capture the changes occuring in the
@@ -4300,9 +4243,7 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 	 * Only those fields that have changed need to be
 	 * updated.
 	 */
-	m0_free(bop->bo_arbor);
-	bop->bo_arbor = NULL;
-
+	m0_free0(&bop->bo_arbor);
 	return P_DONE;
 }
 
@@ -4322,13 +4263,13 @@ int64_t btree_open_tree_tick(struct m0_sm_op *smop)
 	case P_INIT:
 
 		/**
-		 * ToDo:
-		 * Here, we need to add a check to enforce the
-		 * requirement that nodes are valid.
-		 *
-		 * Once the function node_isvalid() is implemented properly,
-		 * we need to add the check here.
+		 * This following check has been added to enforce the
+		 * requirement that nodes have aligned addresses.
+		 * However, in future, this check can be removed if
+		 * such a requirement is invalidated.
 		 */
+		if (!addr_is_aligned(bop->b_data.addr))
+			return M0_ERR(-EFAULT);
 
 		oi = m0_alloc(sizeof *bop->bo_i);
 		if (oi == NULL)
@@ -4341,9 +4282,14 @@ int64_t btree_open_tree_tick(struct m0_sm_op *smop)
 		return tree_get(&oi->i_nop, &oi->i_nop.no_addr, P_ACT);
 
 	case P_ACT:
-		bop->b_data.tree->t_type   = oi->i_nop.no_tree->t_type;
-		bop->b_data.tree->t_height = oi->i_nop.no_tree->t_height;
-		bop->b_data.tree->t_desc   = oi->i_nop.no_tree;
+		M0_ASSERT(oi->i_nop.no_op.o_sm.sm_rc == 0);
+
+		if (!oi->i_nop.no_tree->t_type)
+			oi->i_nop.no_tree->t_type = bop->b_data.bt;
+
+		bop->bo_arbor->t_type   = oi->i_nop.no_tree->t_type;
+		bop->bo_arbor->t_desc   = oi->i_nop.no_tree;
+		bop->bo_arbor->t_height = oi->i_nop.no_tree->t_height;
 
 		m0_free(oi);
 		return P_DONE;
@@ -4366,15 +4312,23 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 	struct td          *tree = bop->bo_arbor->t_desc;
 	struct nd          *node;
 
-	M0_PRE(tree->t_ref != 0);
-
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
+		if (tree == NULL)
+			return M0_ERR(-EINVAL);
+
+		M0_PRE(tree->t_ref != 0);
+
+		m0_rwlock_write_lock(&tree->t_lock);
 		if (tree->t_ref > 1) {
+			m0_rwlock_write_unlock(&tree->t_lock);
+			node_put(tree->t_root->n_op, tree->t_root, bop->bo_tx);
 			tree_put(tree);
 			return P_DONE;
 		}
 		tree->t_starttime = m0_time_now();
+		m0_rwlock_write_unlock(&tree->t_lock);
+
 		/** put tree's root node. */
 		node_put(tree->t_root->n_op, tree->t_root, bop->bo_tx);
 		/** Fallthrough to P_TIMECHECK */
@@ -4400,6 +4354,7 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 	case P_ACT:
 		tree->t_starttime = 0;
 		tree_put(tree);
+		bop->bo_arbor->t_desc = NULL;
 		return P_DONE;
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
@@ -5031,6 +4986,8 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 			else if (node_count_rec(lev->l_node) == 0) {
 				node_set_level(lev->l_node, 0, bop->bo_tx);
 				tree->t_height = 1;
+				bop->bo_arbor->t_height = tree->t_height;
+				/* Capture this change in transaction */
 				flag = true;
 			} else
 				break;
@@ -5080,6 +5037,8 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 
 	node_set_level(lev->l_node, curr_root_level - 1, bop->bo_tx);
 	tree->t_height--;
+	bop->bo_arbor->t_height = tree->t_height;
+	/* Capture this change in transaction */
 
 	node_move(root_child, lev->l_node, D_RIGHT, NR_MAX, bop->bo_tx);
 	M0_ASSERT(node_count_rec(root_child) == 0);
@@ -5530,7 +5489,7 @@ int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
 {
 	bop->b_data.addr      = addr;
 	bop->b_data.num_bytes = nob;
-	bop->b_data.tree      = *out;
+	bop->bo_arbor         = *out;
 
 	m0_sm_op_init(&bop->bo_op, &btree_open_tree_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
@@ -5679,7 +5638,6 @@ static bool                     btree_ut_initialised = false;
 static void btree_ut_init(void)
 {
 	if (!btree_ut_initialised) {
-		segops = (struct seg_ops *)&mem_seg_ops;
 		m0_btree_mod_init();
 		btree_ut_initialised = true;
 	}
@@ -5687,7 +5645,6 @@ static void btree_ut_init(void)
 
 static void btree_ut_fini(void)
 {
-	segops = NULL;
 	m0_btree_mod_fini();
 	btree_ut_initialised = false;
 }
@@ -5714,8 +5671,6 @@ static void ut_node_create_delete(void)
 
 	M0_SET0(&op);
 
-	M0_ASSERT(trees_loaded == 0);
-
 	// Create a Fixed-Format tree.
 	op.no_opc = NOP_ALLOC;
 	/* tree_create(&op, &tt, 10, NULL, 0); */
@@ -5724,7 +5679,6 @@ static void ut_node_create_delete(void)
 
 	M0_ASSERT(tree->t_ref == 1);
 	M0_ASSERT(tree->t_root != NULL);
-	M0_ASSERT(trees_loaded == 1);
 
 	// Add a few nodes to the created tree.
 	op1.no_opc = NOP_ALLOC;
@@ -5746,16 +5700,12 @@ static void ut_node_create_delete(void)
 	tree_clone = op.no_tree;
 	M0_ASSERT(tree_clone->t_ref == 2);
 	M0_ASSERT(tree->t_root == tree_clone->t_root);
-	M0_ASSERT(trees_loaded == 1);
-
 
 	tree_put(tree_clone);
-	M0_ASSERT(trees_loaded == 1);
 
 	// Done playing with the tree - delete it.
 	op.no_opc = NOP_FREE;
 	tree_delete(&op, tree, NULL, 0);
-	M0_ASSERT(trees_loaded == 0);
 
 	btree_ut_fini();
 	M0_LEAVE();
@@ -6002,10 +5952,9 @@ static void ut_node_add_del_rec(void)
 }
 
 /**
- * In this unit test we exercise a few tree operations in both valid and invalid
- * conditions.
+ * In this unit test we exercise a few tree operations in valid conditions only.
  */
-static void ut_basic_tree_oper(void)
+static void ut_basic_tree_oper_cp(void)
 {
 	/** void                   *invalid_addr = (void *)0xbadbadbadbad; */
 	struct m0_btree        *btree;
@@ -6027,24 +5976,19 @@ static void ut_basic_tree_oper(void)
 	/**
 	 *  Run a valid scenario which:
 	 *  1) Creates a btree
-	 *  2) Closes the btree
-	 *  3) Opens the btree
-	 *  4) Closes the btree
-	 *  5) Destroys the btree
+	 *  2) Opens the btree
+	 *  3) Closes the btree
+	 *  4) Destroys the btree
 	 */
 
 	/** Create temp node space*/
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	btree = m0_alloc(sizeof *btree);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
-							     &btree_type, nt,
-							     &b_op, seg, tx));
-	M0_ASSERT(rc == 0);
-
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(b_op.bo_arbor,
-							    &b_op));
+				      &btree_type, nt, &b_op, seg, tx));
 	M0_ASSERT(rc == 0);
 	temp_btree = b_op.bo_arbor;
+
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, 1024,
 							   &btree, &b_op));
 	M0_ASSERT(rc == 0);
@@ -6053,104 +5997,161 @@ static void ut_basic_tree_oper(void)
 	M0_ASSERT(rc == 0);
 	b_op.bo_arbor = temp_btree;
 
-	if (b_op.bo_arbor->t_desc->t_ref > 0) {
-		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_destroy(b_op.bo_arbor,
-							       &b_op, tx));
-		M0_ASSERT(rc == 0);
-	}
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
+							      &b_op, tx));
+	M0_ASSERT(rc == 0);
+	m0_free(btree);
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
-	/** Now run some invalid cases */
-
-	/** Open a non-existent btree */
 	/**
-	 * ToDo: This condition needs to be uncommented once the check for
-	 * node_isvalid is properly implemented in btree_open_tick.
-	 *
-	 * rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-	 *                             m0_btree_open(invalid_addr, 1024, &btree,
-	 *                                           &b_op));
-	 * M0_ASSERT(rc == -EFAULT);
+	 *  Run a valid scenario which:
+	 *  1) Creates a btree
+	 *  2) Destroys the btree
 	 */
-
-	/** Close a non-existent btree */
-	/**
-	 * The following close function are not called as the open operation
-	 * being called before this doesnt increase the t_ref variable for
-	 * given tree descriptor.
-	 *
-	 * m0_btree_close(btree); */
-
-	/** Destroy a non-existent btree */
-	/**
-	 * Commenting this case till the time we can gracefully handle failure.
-	 *
-	 * M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(btree, &b_op));
-	 */
-
 	/** Create a new btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
 							     &btree_type, nt,
 							     &b_op, seg, tx));
 	M0_ASSERT(rc == 0);
-	/** Close it */
-	/**
-	 * The following 2 close functions are not used as there is no open
-	 * operation being called before this. Hence, the t_ref variable for
-	 * tree descriptor has not increased.
-	 *
-	 * m0_btree_close(b_op.bo_arbor);
-	 */
-
-	/** Try closing again */
-	/* m0_btree_close(b_op.bo_arbor); */
-
-	/** Re-open it */
-	/**
-	 * ToDo: This condition needs to be uncommented once the check for
-	 * node_isvalid is properly implemented in btree_open_tick.
-	 *
-	 * rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-	 *                             m0_btree_open(invalid_addr, 1024, &btree,
-	 *                                           &b_op));
-	 * M0_ASSERT(rc == -EFAULT);
-	 */
-
-	/** Open it again */
-	/**
-	 * ToDo: This condition needs to be uncommented once the check for
-	 * node_isvalid is properly implemented in btree_open_tick.
-	 *
-	 * rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-	 *      			 m0_btree_open(invalid_addr, 1024,
-	 *      				       &btree, &b_op));
-	 * M0_ASSERT(rc == -EFAULT);
-	 */
 
 	/** Destory it */
-	if (b_op.bo_arbor->t_desc->t_ref > 0) {
-		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_destroy(b_op.bo_arbor,
-							       &b_op, tx));
-		M0_ASSERT(rc == 0);
-	}
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
+							      &b_op, tx));
+	M0_ASSERT(rc == 0);
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
-	/** Attempt to reopen the destroyed tree */
 
 	/**
-	 * ToDo: This condition needs to be uncommented once the check for
-	 * node_isvalid is properly implemented in btree_open_tick.
-	 *
-	 * rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-	 *      			 m0_btree_open(invalid_addr, 1024,
-	 *      				       &btree, &b_op));
-	 * M0_ASSERT(rc == -EFAULT);
+	 *  Run a valid scenario which:
+	 *  1) Creates a btree
+	 *  2) Opens the btree
+	 *  3) Closes the btree
+	 *  4) Destroys the btree
 	 */
 
+	/** Create temp node space*/
+	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
+				      &btree_type, nt, &b_op, seg, tx));
+	M0_ASSERT(rc == 0);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_close(b_op.bo_arbor, &b_op));
+	M0_ASSERT(rc == 0);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, 1024,
+							   &b_op.bo_arbor,
+							   &b_op));
+	M0_ASSERT(rc == 0);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
+							      &b_op, tx));
+	M0_ASSERT(rc == 0);
+	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
+
 	btree_ut_fini();
+}
+
+/**
+ * In this unit test we exercise a few tree operations in invalid conditions
+ * only.
+ */
+static void ut_basic_tree_oper_icp(void)
+{
+	void                   *invalid_addr = (void *)0xbadbadbadbad;
+	struct m0_btree        *btree;
+	struct m0_btree_type    btree_type = {  .tt_id = M0_BT_UT_KV_OPS,
+						.ksize = 8,
+						.vsize = 8, };
+	struct m0_be_tx        *tx         = NULL;
+	struct m0_be_seg       *seg        = NULL;
+	struct m0_btree_op      b_op       = {};
+	void                   *temp_node;
+	const struct node_type *nt = &fixed_format;
+	int                     rc;
+
+	/** Prepare transaction to capture tree operations. */
+	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
+	m0_be_tx_prep(tx, NULL);
+	btree_ut_init();
+
+	/**
+	 *  Run a invalid scenario which:
+	 *  1) Attempts to create a btree with invalid address
+	 * 
+	 * This scenario is invalid because the root node address is incorrect.
+	 * In this case m0_btree_create() will return -EFAULT.
+	 */
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(invalid_addr, 1024,
+				      &btree_type, nt, &b_op, seg, tx));
+	M0_ASSERT(rc == -EFAULT);
+
+	/**
+	 *  Run a invalid scenario which:
+	 *  1) Attempts to open a btree with invalid address
+	 * 
+	 * This scenario is invalid because the root node address is incorrect.
+	 * In this case m0_btree_open() will return -EFAULT.
+	 */
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(invalid_addr, 1024,
+							   &btree, &b_op));
+	M0_ASSERT(rc == -EFAULT);
+
+	/**
+	 *  Run a invalid scenario which:
+	 *  1) Creates a btree
+	 *  2) Opens the btree
+	 *  3) Destroys the btree
+	 * 
+	 * This scenario is invalid because we are trying to destroy a tree that
+	 * has not been closed. Thus, we should get -EPERM error from
+	 * m0_btree_destroy().
+	 */
+
+	/** Create temp node space*/
+	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
+	btree = m0_alloc(sizeof *btree);
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
+				      &btree_type, nt, &b_op, seg, tx));
+	M0_ASSERT(rc == 0);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, 1024,
+							   &btree, &b_op));
+	M0_ASSERT(rc == 0);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
+							      &b_op, tx));
+	M0_ASSERT(rc == -EPERM);
 	m0_free(btree);
+	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
+
+	/**
+	 *  Run a invalid scenario which:
+	 *  1) Creates a btree
+	 *  2) Close the btree
+	 *  3) Again Attempt to close the btree
+	 * 
+	 * This scenario is invalid because we are trying to destroy a tree that
+	 * has been already destroyed. Thus, we should get -EINVAL error from
+	 * m0_btree_destroy().
+	 */
+
+	/** Create temp node space*/
+	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
+				      &btree_type, nt, &b_op, seg, tx));
+	M0_ASSERT(rc == 0);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(b_op.bo_arbor,
+							    &b_op));
+	M0_ASSERT(rc == 0);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(b_op.bo_arbor,
+							    &b_op));
+	M0_ASSERT(rc == -EINVAL);
+
+	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
+	btree_ut_fini();
 }
 
 struct cb_data {
@@ -6354,10 +6355,10 @@ static void ut_basic_kv_oper(void)
 
 	/** Create temp node space and use it as root node for btree */
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
 							&btree_type, nt,
 							&b_op, seg, tx));
-
+	M0_ASSERT(rc == 0);
 	tree = b_op.bo_arbor;
 
 	for (i = 0; i < 2048; i++) {
@@ -6444,15 +6445,39 @@ static void ut_basic_kv_oper(void)
 		}
 	}
 
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
+	srandom(curr_time);
+	for (i = 0; i < 2048; i++) {
+		uint64_t             key;
+		struct cb_data       delete_data;
+		struct m0_btree_rec  rec;
+		m0_bcount_t          ksize  = sizeof key;
+		void                *k_ptr  = &key;
+
+		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+		btree_callback_credit(&cred);
+
+		/**
+		*  There is a very low possibility of hitting the same key
+		*  again. This is fine as it helps debug the code when insert
+		*  is called with the same key instead of update function.
+		*/
+		key = m0_byteorder_cpu_to_be64(random());
+
+		rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
+
+		delete_data.key       = &rec.r_key;
+
+		ut_cb.c_act        = btree_kv_del_cb;
+		ut_cb.c_datum      = &delete_data;
+
+		M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_del(tree, &rec.r_key,
+								&ut_cb, 0,
+								&kv_op, tx));
+	}
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree, &b_op, tx));
 	M0_ASSERT(rc == 0);
 
-	if (b_op.bo_arbor->t_desc->t_ref > 0) {
-		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_destroy(tree, &b_op,
-							       tx));
-		M0_ASSERT(rc == 0);
-	}
 	btree_ut_fini();
 }
 
@@ -6698,29 +6723,23 @@ static void ut_multi_stream_kv_oper(void)
 		}
 	}
 
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
+
+	/** TBD - Replace the following line to call the credit
+	 *  calculator. */
+	cred = M0_BE_TX_CREDIT(20, 5 * (1 << 10));
+	buf = M0_BUF_INIT((1 << 10), NULL);
+	M0_BE_ALLOC_CREDIT_BUF(&buf, seg, &cred);
+
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
 	M0_ASSERT(rc == 0);
 
-	if (b_op.bo_arbor->t_desc->t_ref > 0) {
-		/** TBD - Replace the following line to call the credit
-		 *  calculator. */
-		cred = M0_BE_TX_CREDIT(20, 5 * (1 << 10));
-		buf = M0_BUF_INIT((1 << 10), NULL);
-		M0_BE_ALLOC_CREDIT_BUF(&buf, seg, &cred);
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree, &b_op, tx));
+	M0_ASSERT(rc == 0);
 
-		m0_be_ut_tx_init(tx, ut_be);
-		m0_be_tx_prep(tx, &cred);
-		rc = m0_be_tx_open_sync(tx);
-		M0_ASSERT(rc == 0);
-
-		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_destroy(tree, &b_op,
-							       tx));
-		M0_ASSERT(rc == 0);
-
-		m0_be_tx_close_sync(tx);
-		m0_be_tx_fini(tx);
-	}
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
 
 	m0_free0(&tx);
 	btree_ut_fini();
@@ -7337,30 +7356,14 @@ static void btree_ut_num_threads_num_trees_kv_oper(int32_t thread_count,
 	}
 
 	for (i = 0; i < tree_count; i++) {
-		// m0_btree_close(ut_trees[i]);
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-				      m0_btree_close(ut_trees[i], &b_op));
+					      m0_btree_destroy(ut_trees[i],
+							       &b_op, tx));
 		M0_ASSERT(rc == 0);
-		/**
-		 * Commenting this code as the delete operation is not done here.
-		 * Due to this, the destroy operation will crash.
-		 *
-		 * M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-		 *	     m0_btree_destroy(ut_trees[i].tree,
-		 * 	      &b_op));
-		 */
 	}
 
 	m0_free(ut_trees);
 
-	/**
-	 * Commenting this code as the delete operation is not done here.
-	 * Due to this, the destroy operation will crash.
-	 *
-	 *
-	 * M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-	 *				 m0_btree_destroy(b_op.bo_arbor, &b_op));
-	 */
 
 	m0_free(ti);
 	btree_ut_fini();
@@ -7461,13 +7464,11 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 * 6) Close the tree
 		 * 7) Destroy the tree
 		 */
-
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_create(temp_node, 1024,
 							      &btree_type, nt,
 							      &b_op, seg, tx));
 		M0_ASSERT(rc == 0);
-
 		tree = b_op.bo_arbor;
 
 		random_r(&ti->ti_random_buf, &rec_count);
@@ -7493,10 +7494,10 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 					      m0_btree_close(tree, &b_op));
 		M0_ASSERT(rc == 0);
 
-		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_open(temp_node,
 							    1024, &tree,
-							    &kv_op));
+							    &b_op));
 		M0_ASSERT(rc == 0);
 
 		ut_cb.c_act = btree_kv_get_cb;
@@ -7516,10 +7517,10 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 					      m0_btree_close(tree, &b_op));
 		M0_ASSERT(rc == 0);
 
-		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_open(temp_node,
 							    1024, &tree,
-							    &kv_op));
+							    &b_op));
 		M0_ASSERT(rc == 0);
 
 		ut_cb.c_act = btree_kv_del_cb;
@@ -7538,16 +7539,9 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		}
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_close(tree, &b_op));
+					      m0_btree_destroy(tree,
+							       &b_op, tx));
 		M0_ASSERT(rc == 0);
-
-		if (b_op.bo_arbor->t_desc->t_ref > 0) {
-			rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-						      m0_btree_destroy(tree,
-								       &b_op,
-								       tx));
-			M0_ASSERT(rc == 0);
-		}
 	}
 
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
@@ -8114,7 +8108,8 @@ struct m0_ut_suite btree_ut = {
 	.ts_init = ut_btree_suite_init,
 	.ts_fini = ut_btree_suite_fini,
 	.ts_tests = {
-		{"basic_tree_op",                   ut_basic_tree_oper},
+		{"basic_tree_op_cp",                ut_basic_tree_oper_cp},
+		{"basic_tree_op_icp",               ut_basic_tree_oper_icp},
 		{"basic_kv_ops",                    ut_basic_kv_oper},
 		{"multi_stream_kv_op",              ut_multi_stream_kv_oper},
 		{"single_thread_single_tree_kv_op", ut_st_st_kv_oper},
