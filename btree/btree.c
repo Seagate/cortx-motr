@@ -2991,13 +2991,6 @@ static void btree_put_credit(const struct m0_btree  *tree,
 	/* Credits for split operation */
 	btree_node_split_credit(tree, &cred);
 	m0_be_tx_credit_mac(accum, &cred, MAX_TREE_HEIGHT);
-
-	/**
-	 * Additional credits required when extranode is used when height needs
-	 * to be inceased.
-	*/
-	btree_node_alloc_credit(tree, accum);
-	btree_node_update_credit(tree, accum);
 }
 
 /**
