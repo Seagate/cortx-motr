@@ -539,7 +539,7 @@ static void be_tx_state_move(struct m0_be_tx     *tx,
 		tx->t_persistent(tx);
 	if (state == M0_BTS_DONE && tx->t_discarded != NULL)
 		tx->t_discarded(tx);
-	if (state == M0_BTS_DONE && tx->t_prepared.tc_cb_nr != 0)
+	if (state == M0_BTS_DONE && tx->t_callback_nr != 0)
 		be_tx_callback(tx->t_callback, tx->t_callback_nr);
 
 	m0_sm_move(&tx->t_sm, rc, state);
