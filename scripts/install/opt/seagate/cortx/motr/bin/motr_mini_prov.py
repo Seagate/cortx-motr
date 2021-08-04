@@ -748,6 +748,7 @@ def update_motr_hare_keys_for_all_nodes(self):
         host = value["hostname"]
         cvg_count = value["storage"]["cvg_count"]
         name = value["name"]
+        self.logger.info(f"update_motr_hare_keys for {host}\n")
         for i in range(int(cvg_count)):
             lv_md_name = f"lv_raw_md{i + 1}"
             cmd = (f"ssh  {host}"
