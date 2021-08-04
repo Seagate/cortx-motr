@@ -123,8 +123,11 @@ void track_ad_btrees(struct stob_ad_0type_rec *rec, bool print_btree)
 			btree_dbg_print(&rec->sa0_ad_domain->sad_adata_ht[i].
 					      sad_adata.em_mapping);
 		}
-		M0_LOG(M0_ALWAYS, "grp_exts");
-		btree_dbg_print(&m0balloc->cb_db_group_extents);
+
+		for (i = 0; i < BALLOC_DEF_INDEXES_NR; i++) {
+			M0_LOG(M0_ALWAYS, "grp_exts index i : %d", i);
+			btree_dbg_print(&m0balloc->cb_db_group_extents[i]);
+		}
 		M0_LOG(M0_ALWAYS, "grp_dsc");
 		btree_dbg_print(&m0balloc->cb_db_group_desc);
 	} else {
@@ -134,7 +137,7 @@ void track_ad_btrees(struct stob_ad_0type_rec *rec, bool print_btree)
 				"cb_db_group_desc btree= %p",
 				&rec->sa0_ad_domain->sad_adata_ht[i].sad_adata.
 				      em_mapping,
-				&m0balloc->cb_db_group_extents,
+				&m0balloc->cb_db_group_extents[0],
 				&m0balloc->cb_db_group_desc);
                 }
         }
