@@ -215,10 +215,9 @@ static int fsp_args_parse(struct m0_fsp_params *params, int argc, char ** argv)
 		return M0_ERR(rc);
 
         /* All mandatory params must be defined. */
-        if (rc == 0 &&
-	    (params->spp_local_addr == NULL || params->spp_hare_addr == NULL ||
-	     params->spp_profile_fid == NULL || params->spp_process_fid == NULL ||
-	     params->spp_fdmi_plugin_fid_s == NULL)) {
+        if (params->spp_local_addr == NULL  || params->spp_hare_addr == NULL   ||
+	    params->spp_profile_fid == NULL || params->spp_process_fid == NULL ||
+	    params->spp_fdmi_plugin_fid_s == NULL) {
 		fsp_usage();
 		return M0_ERR(-EINVAL);
 	}
