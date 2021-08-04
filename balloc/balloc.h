@@ -29,11 +29,13 @@
 #include "lib/types.h"
 #include "lib/list.h"
 #include "lib/mutex.h"
+#include "lib/bitmap.h"
 #include "be/btree.h"
 #include "be/btree_xc.h"
 #include "format/format.h"
 #include "stob/ad.h"
 #include "stob/ad_xc.h"
+#include "lib/bitmap_xc.h"
 
 /**
    @defgroup balloc data-block-allocator
@@ -145,12 +147,6 @@ struct m0_lext {
 	struct m0_ext       le_ext;
 };
 
-/** Linked ld_group_info list */
-struct m0_lld_group_info {
-	struct m0_balloc_group_info *lgi;
-	struct m0_list_link          lg_link;
-};
-
 /**
    In-memory data structure for group
  */
@@ -256,8 +252,8 @@ struct m0_balloc {
 
 	/** array of group info */
 	struct m0_balloc_group_info *cb_group_info;
-	/** Loaded in-memory m0_balloc_group_info */
-	struct m0_list               ld_group_info;
+	/** Loaded inmemory groupno bits identifier */
+	struct m0_bitmap             ld_group_info;
 	/** super block lock */
 	struct m0_be_mutex           cb_sb_mutex;
 	struct m0_be_seg            *cb_be_seg;

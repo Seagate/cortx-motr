@@ -1,4 +1,4 @@
 nobase_motr_include_HEADERS += balloc/balloc.h
 motr_libmotr_la_SOURCES  += balloc/balloc.c
 nodist_motr_libmotr_la_SOURCES  += balloc/balloc_xc.c
-XC_FILES += balloc/balloc_xc.h
+XC_FILES += balloc/balloc_xc.h lib/bitmap_xc.h
