@@ -81,12 +81,21 @@ extern struct m0_reqh_service_type m0_ss_svc_type;
  * due to fragmentation or some other reasons it may be not sufficient, so
  * special "safety" coefficient is introduced to increase space in repair zone.
  * Safety coefficient is defined as "safety mul"/"safety div".
+ *
+ * EOS-23180: Previous safety coefficent[3/2] was causing issues and
+ * repair zone was occupying more space than normal zone. Details are in the bug.
+ * Getting rid of the safety coefficient. Also adding an ASSERT that
+ * repair zone percentage should not cross M0_BC_REPAIR_ZONE_MAX_ALLOWED percent.
+ * User has to make sure repair zone percentage should not cross this by
+ * choosing appropriate spare value.
  */
 enum {
 	/** Multiplier of a repair zone safety coefficient. */
 	M0_BC_REPAIR_ZONE_SAFETY_MUL = 1,
 	/** Divider of a repair zone safety coefficient. */
-	M0_BC_REPAIR_ZONE_SAFETY_DIV = 2
+	M0_BC_REPAIR_ZONE_SAFETY_DIV = 1,
+	/** Maximum allowed repair zone percentage */
+	M0_BC_REPAIR_ZONE_MAX_ALLOWED = 33
 };
 
 M0_TL_DESCR_DEFINE(cs_buffer_pools, "buffer pools in the motr context",
@@ -1415,13 +1424,7 @@ static int be_repair_zone_pcnt_get(struct m0_reqh *reqh,
 			       &croot->rt_imeta_pver)) {
 			continue;
 		}
-		/**
-		 * Replaced K/P with S/P and safety coefficient 3/2 with 1/2
-		 * TODO: These changes should work fine as long as we
-		 * are using replication for DIX (i.e., N = 1). We need
-		 * to work on this formula for N > 1. Filed a Bug EOS-23309
-		 * to track it.
-		 */
+
 		*repair_zone_pcnt = pver_obj->pv_u.subtree.pvs_attr.pa_S *
 			100 /
 			pver_obj->pv_u.subtree.pvs_attr.pa_P *
@@ -1433,6 +1436,8 @@ static int be_repair_zone_pcnt_get(struct m0_reqh *reqh,
 		       pver_obj->pv_u.subtree.pvs_attr.pa_K,
 		       pver_obj->pv_u.subtree.pvs_attr.pa_P,
 		       *repair_zone_pcnt);
+
+		M0_ASSERT(*repair_zone_pcnt <= M0_BC_REPAIR_ZONE_MAX_ALLOWED);
 	}
 	if (rc == 0)
 		m0_conf_diter_fini(&it);
