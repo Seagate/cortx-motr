@@ -1434,7 +1434,7 @@ static int node_init(struct segaddr *addr, int ksize, int vsize,
 		     struct m0_be_tx *tx, int nxt)
 {
 	/**
-	 * node_access() will ensure that we have node data loaded in our memory 
+	 * node_access() will ensure that we have node data loaded in our memory
 	 * before initialisation.
 	 */
 	nxt = node_access(addr, segaddr_shift(addr), nxt);
@@ -2278,7 +2278,7 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int shift,
 	 * TODO: Consider adding a state here to return in case we might need to
 	 * visit node_init() again to complete its execution.
 	 */
-	
+
 	nxt_state = node_get(op, tree, &op->no_addr, nxt_state);
 
 	return nxt_state;
@@ -2931,6 +2931,23 @@ static void btree_callback_credit(struct m0_be_tx_credit *accum)
 }
 
 /**
+ * This function will calculate credits required to allocate node and it will
+ * add those credits to @accum.
+ */
+static void btree_node_alloc_credit(const struct m0_btree  *tree,
+				    struct m0_be_tx_credit *accum)
+{
+	m0_bcount_t             node_size;
+	int                     shift;
+
+	shift     = node_shift(tree->t_desc->t_root);
+	node_size =  1ULL << shift;
+
+	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED,
+			       node_size, shift, accum);
+}
+
+/**
  * This function will calculate credits required to update node and it will add
  * those credits to @accum.
  */
@@ -2944,6 +2961,50 @@ static void btree_node_update_credit(const struct m0_btree  *tree,
 	node_size =  1ULL << shift;
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, node_size));
+}
+
+/**
+ * This function will calculate credits required to split node and it will add
+ * those credits to @accum.
+ */
+static void btree_node_split_credit(const struct m0_btree  *tree,
+				    struct m0_be_tx_credit *accum)
+{
+	btree_node_alloc_credit(tree, accum);
+	/* credits to update two nodes : existing and newly allocated. */
+	struct m0_be_tx_credit cred = {};
+	btree_node_update_credit(tree, &cred);
+	m0_be_tx_credit_mul(&cred, 2);
+
+	m0_be_tx_credit_add(accum, &cred);
+}
+
+/**
+ * This function will calculate credits required for the put KV operation and
+ * add those credits to @accum.
+ */
+static void btree_put_credit(const struct m0_btree  *tree,
+			     struct m0_be_tx_credit *accum)
+{
+	struct m0_be_tx_credit cred = {};
+
+	/* Credits for split operation */
+	btree_node_split_credit(tree, &cred);
+	m0_be_tx_credit_mac(accum, &cred, MAX_TREE_HEIGHT);
+}
+
+/**
+ * This function will calculate credits required to perform  @nr put KV
+ * operations and it will add those credits to @accum.
+ */
+static void m0_btree_put_credit(const struct m0_btree  *tree,
+				struct m0_be_tx_credit *accum,
+				m0_bcount_t             nr)
+{
+	struct m0_be_tx_credit cred = {};
+
+	btree_put_credit(tree, &cred);
+	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
 /**
@@ -6167,7 +6228,7 @@ static void ut_basic_tree_oper_icp(void)
 	/**
 	 *  Run a invalid scenario which:
 	 *  1) Attempts to create a btree with invalid address
-	 * 
+	 *
 	 * This scenario is invalid because the root node address is incorrect.
 	 * In this case m0_btree_create() will return -EFAULT.
 	 */
@@ -6178,7 +6239,7 @@ static void ut_basic_tree_oper_icp(void)
 	/**
 	 *  Run a invalid scenario which:
 	 *  1) Attempts to open a btree with invalid address
-	 * 
+	 *
 	 * This scenario is invalid because the root node address is incorrect.
 	 * In this case m0_btree_open() will return -EFAULT.
 	 */
@@ -6191,7 +6252,7 @@ static void ut_basic_tree_oper_icp(void)
 	 *  1) Creates a btree
 	 *  2) Opens the btree
 	 *  3) Destroys the btree
-	 * 
+	 *
 	 * This scenario is invalid because we are trying to destroy a tree that
 	 * has not been closed. Thus, we should get -EPERM error from
 	 * m0_btree_destroy().
@@ -6219,7 +6280,7 @@ static void ut_basic_tree_oper_icp(void)
 	 *  1) Creates a btree
 	 *  2) Close the btree
 	 *  3) Again Attempt to close the btree
-	 * 
+	 *
 	 * This scenario is invalid because we are trying to destroy a tree that
 	 * has been already destroyed. Thus, we should get -EINVAL error from
 	 * m0_btree_destroy().
@@ -6461,6 +6522,7 @@ static void ut_basic_kv_oper(void)
 		void                *v_ptr  = &value;
 
 		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+		m0_btree_put_credit(tree, &cred, 1);
 		btree_callback_credit(&cred);
 
 		/**
@@ -6696,6 +6758,7 @@ static void ut_multi_stream_kv_oper(void)
 			int k;
 
 			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+			m0_btree_put_credit(tree, &cred, 1);
 			btree_callback_credit(&cred);
 
 			key = i + (stream_num * recs_per_stream);
@@ -7088,6 +7151,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				value[i] = value[0];
 
 			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+			m0_btree_put_credit(tree, &cred, 1);
 			btree_callback_credit(&cred);
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -7118,6 +7182,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		/** Skip initializing the value as this is an error case */
 
 		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+		m0_btree_put_credit(tree, &cred, 1);
 		btree_callback_credit(&cred);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -7745,6 +7810,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 			value = key = i;
 
 			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+			m0_btree_put_credit(tree, &cred, 1);
 			btree_callback_credit(&cred);
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
