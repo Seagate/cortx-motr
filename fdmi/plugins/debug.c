@@ -19,13 +19,13 @@
  *
  */
 
-#if 0
+/*
 M0_INTERNAL void m0_save_m0_xcode_type(int fd, char tab[], const struct m0_xcode_type *xf_type)
 {
 	if (xf_type == NULL)
 		return;
 	int buffer_len = 4096;
-	char buffer[buffer_len];
+	char buffer[buffer_len] = {0};
 	int i = 0;
 	sprintf(buffer, "%sstruct m0_xcode_type: %p { \n", tab,xf_type);
 	write(fd, buffer, strlen(buffer));
@@ -66,14 +66,13 @@ M0_INTERNAL void m0_save_m0_xcode_type(int fd, char tab[], const struct m0_xcode
 
 	sprintf(buffer, "%s}\n", tab); //struct m0_xcode_type
 	write(fd, buffer, strlen(buffer));
-
 }
 
 M0_INTERNAL void m0_save_m0_fol_rec(struct m0_fol_rec *rec, const char *prefix)
 {
-	char filename[32];
+	char filename[32] = {0};
 	int buffer_len = 4096;
-	char buffer[buffer_len];
+	char buffer[buffer_len] = {0};
 	int fd = 0;
 	static int fc = 0;
 	sprintf(filename, "/tmp/fol_rec_%s_%p_%d", prefix, rec, fc);
@@ -82,6 +81,8 @@ M0_INTERNAL void m0_save_m0_fol_rec(struct m0_fol_rec *rec, const char *prefix)
 
 	//open the file
 	fd = open(filename, O_WRONLY | O_CREAT);
+	if (fd == -1)
+		return;
 
 	//using m0_fol_rec_to_str
 	//int len = m0_fol_rec_to_str(rec, buffer, buffer_len);
@@ -234,5 +235,5 @@ M0_INTERNAL void m0_save_m0_fol_rec(struct m0_fol_rec *rec, const char *prefix)
 	close(fd);
 	M0_LEAVE("fol rec ptr=%p\n", rec);
 }
-#endif
+*/
 
