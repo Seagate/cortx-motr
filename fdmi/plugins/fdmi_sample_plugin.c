@@ -22,23 +22,14 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FDMI
 #include "lib/trace.h"
 
-#include "fid/fid.h"
 #include "motr/client.h"
+#include "fid/fid.h"
 #include "motr/client_internal.h"
 #include "lib/getopts.h"	/* M0_GETOPTS */
-#include "lib/trace.h"
 #include "fdmi/fdmi.h"
 #include "fdmi/plugin_dock.h"
 #include "fdmi/service.h"
 #include "reqh/reqh.h"
-#include "ut/ut.h"
-
-#include <unistd.h>
-#include <getopt.h>
-#include <errno.h>
-#include <stddef.h>             /* ptrdiff_t */
-#include <fcntl.h>
-#include <stdio.h>
 
 /**
  * Plugin sample conf params. Here _fsp means "fdmi sample plugin"
