@@ -153,7 +153,7 @@ fi
 
 get_hostname()
 {
-        host=" "
+        host=""
         if [[ -f /etc/salt/minion_id ]] ; then
             host=$(cat /etc/salt/minion_id)
         fi
@@ -206,13 +206,13 @@ main()
 	fi
 
 	if [ -z "$profile_addr" ] ; then
-		profile_addr=$($consul_query_cmd | grep profiles: | sed -n -e 's/^.*\(profiles:\)/\1/p'  | awk '{print $1}'| sed 's/^[^:]*://' | sed 's/:/,/')
+		profile_addr=$($consul_query_cmd | grep profiles | sed -n -e 's/^.*\(profiles\)/\1/p'  | awk '{print $1}' | cut -d'/' -f2 | cut -d':' -f1,2 | sed 's/:/, /g')
 	fi
 
 	if [ -z "$client_addr" ] ; then
 		local cmd="tail -2"
 		[[  $systemd == 1 ]] && cmd="tail -1"
-		client_addr=$(get_endpoints_of m0_client_other | $cmd | head -1)
+		client_addr=$(get_endpoints_of m0_client_other | $cmd)
 	fi
 
 	M0_SPIEL_OPTS="-s $server_addr -l $libmotr_path --client=$client_addr"
