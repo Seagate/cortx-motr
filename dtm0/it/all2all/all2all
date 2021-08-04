@@ -12,8 +12,9 @@ M0CRATE_CFG_IN=$PWD/m0crate.yaml.in
 M0CRATE_CFG=$PWD/m0crate.yaml
 CONFD_XC=/var/lib/hare/confd.xc
 LOOP_IMG_DIR=$TEST_ROOT
-
+CLIENT_PID=
 M0D_DIR_COMMON=$MOTR_VAR_DIR/m0d-0x720000000000000
+ADDB_DUMP_DIR="/tmp/a2a-addb-out"
 
 M0D_ENDPOINTS=()
 M0D_FIDS_DEC=()
@@ -21,6 +22,7 @@ M0D_FIDS_HEX=()
 M0D_PIDS=()
 
 M0D_CLI_FID_DEC=
+M0D_CLI_FID_HEX=
 
 POOL_WIDTH=4
 IPOOL_WIDTH=2
@@ -80,6 +82,7 @@ function get_params_for_ha_msgs()
     M0D_FIDS_HEX=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/'))
     M0D_FIDS_DEC=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e'))
     M0D_CLI_FID_DEC=$(echo $cli_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e')
+    M0D_CLI_FID_HEX=$(echo $cli_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/')
 }
 
 function ha_msg_send_transient()
@@ -134,6 +137,32 @@ function expected_trace_lines_num()
     return 0
 }
 
+function addb_dump()
+{
+    local outdir="${ADDB_DUMP_DIR}"
+    local outfile
+    local inpfile
+    local fid
+    local a2d=$MOTR_ROOT/utils/m0addb2dump
+
+    rm -fR "${outdir}"
+    mkdir "${outdir}"
+
+    for i in ${!M0D_PIDS[@]} ; do
+        fid=$(echo "${M0D_FIDS_HEX[i]}" | awk -F'x' '{ print $2; }')
+        outfile="${outdir}/addb_${fid}.dump"
+        inpfile="${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}/addb-stobs-${M0D_PIDS[i]}/o/100000000000000:2"
+        _info "Dumping ${inpfile} -> ${outfile} ..."
+        $a2d -f "${inpfile}" > "${outfile}"
+    done
+
+    inpfile="$PWD/addb_${CLIENT_PID}/o/100000000000000:2"
+    fid=$(echo "$M0D_CLI_FID_HEX" | awk -F'x' '{ print $2; }')
+    outfile="${outdir}/addb_${fid}.dump"
+    _info "Dumping ${inpfile} -> ${outfile} ..."
+    $a2d -f "${inpfile}" > "${outfile}"
+}
+
 function processes_status_check()
 {
     local rc=0
@@ -169,41 +198,19 @@ function main()
     get_params_for_ha_msgs
     get_m0d_pids
 
-    _info "Checking traces..."
-    expected_trace_lines_num "evented_proc_state" 0 || {
-        fail "HA event handled instead of to be skipped, exiting."
-    }
-
-    _info "Sending TRANSIENT notifications to trigger HA messages handling..."
-    ha_msg_send_transient
-
-    _info "Checking traces..."
-    expected_trace_lines_num "TRANSIENT received" 1 || {
-        fail "Trigger message is not received, exiting."
-    }
-
-    _info "Sending ONLINE notifications to trigger connections logic..."
-    ha_msg_send_online
-
-    _info "Checking traces..."
-    expected_trace_lines_num "DTM0 service: connected" $((${#M0D_ENDPOINTS[@]}-1)) || {
-        fail "Process is not connected, exiting"
-    }
-
     _info "Create m0crate configuration..."
     create_m0crate_cfg
 
     _info "Run the client..."
     $MOTR_ROOT/motr/m0crate/m0crate -S $M0CRATE_CFG &
     cli_pid=$!
-    sleep 3
-    _info "Sending client is ONLINE..."
-    ha_msg_send_cli_online
-    _info "Wait for client..."
-    wait $cli_pid
-
+    wait ${cli_pid}
+    _info "Client pid: ${cli_pid}"
+    CLIENT_PID=${cli_pid}
     stop_cluster
-    
+
+    addb_dump
+
     _info "Checking processes exit status..."
     processes_status_check || {
         _err "TEST STATUS: FAIL"
