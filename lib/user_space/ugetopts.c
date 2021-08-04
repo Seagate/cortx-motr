@@ -187,7 +187,7 @@ int m0_getopts(const char *progname, int argc, char *const *argv,
 			M0_ASSERT(ch == '?');
 			fprintf(stderr, "Unknown option '%c'\n", optopt);
 			usage(progname, opts, nr);
-			exit(EXIT_FAILURE);
+			result = M0_ERR(-EINVAL);
 		}
 	}
 

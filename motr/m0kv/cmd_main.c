@@ -136,12 +136,6 @@ static int opts_get(struct params *par, int *argc, char ***argv)
 					&is_str));
 	if (rc != 0)
 		return M0_ERR(rc);
-
-	if ( *argc <= 2 ) {
-		usage();
-		exit(EXIT_FAILURE);
-	}
-
 	/* All mandatory params must be defined. */
 	if (rc == 0 &&
 	    (par->cp_local_addr == NULL || par->cp_ha_addr == NULL ||
