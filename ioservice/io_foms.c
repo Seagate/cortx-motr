@@ -1058,13 +1058,13 @@ static int align_bufvec(struct m0_fom    *fom,
 	 * Leads to significant pressure reduction on BE layer by means of
 	 * BE allocations minimisation.
 	 */
-	if (all4k && obuf->ov_vec.v_nr == 256) {
+	// if (all4k && obuf->ov_vec.v_nr == 256) {
 		m0_bufvec_pack(obuf);
 
 		/* one block of 1M */
-		M0_ASSERT(obuf->ov_vec.v_nr == 1);
-		M0_ASSERT(obuf->ov_vec.v_count[0] == ((1 << 20) >> bshift));
-	}
+	// 	M0_ASSERT(obuf->ov_vec.v_nr == 1);
+	// 	M0_ASSERT(obuf->ov_vec.v_count[0] == ((1 << 20) >> bshift));
+	// }
 
 	return 0;
 }
