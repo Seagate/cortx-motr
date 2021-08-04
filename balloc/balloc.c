@@ -1037,9 +1037,8 @@ static int balloc_init_internal(struct m0_balloc *bal,
 		goto out;
 	}
 
-	M0_LOG(M0_INFO, "Group Count = %"PRIu64, bal->cb_sb.bsb_groupcount);
-
 	m0_bitmap_init(&bal->ld_group_info, bal->cb_sb.bsb_groupcount);
+	M0_LOG(M0_INFO, "Group Count = %"PRIu64, bal->cb_sb.bsb_groupcount);
 
 	M0_ALLOC_ARR(bal->cb_group_info, bal->cb_sb.bsb_groupcount);
 	rc = bal->cb_group_info == NULL ? M0_ERR(-ENOMEM) : 0;
@@ -3108,6 +3107,7 @@ M0_INTERNAL int m0_balloc_create(uint64_t              cid,
 			cb->cb_container_id = cid;
 
 			balloc_format_init(cb);
+			m0_bitmap_init(&cb->ld_group_info, 1024);
 			m0_be_btree_init(&cb->cb_db_group_extents, seg,
 					 &ge_btree_ops);
 			m0_be_btree_init(&cb->cb_db_group_desc, seg,
