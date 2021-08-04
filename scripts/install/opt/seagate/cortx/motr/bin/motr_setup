@@ -102,7 +102,8 @@ class PrepareCmd(Cmd):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
 
         # Update keys from other nodes 
-        update_motr_hare_keys_for_all_nodes(self)
+        if self.server_node["name"] == "srvnode-1":
+            update_motr_hare_keys_for_all_nodes(self)
         
         # If hare is installed and cluster is up then exit otherwise go ahead
         if pkg_installed(self, "cortx-hare"):
