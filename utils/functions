@@ -89,9 +89,11 @@ m0_modules_remove() {
 }
 
 lnet_up() {
-    modprobe lnet
-    lctl network up >/dev/null
-    local LNET_NID=`lctl list_nids | head -1`
+    if [ "$XPRT" = "lnet" ]; then
+        modprobe lnet
+        lctl network up >/dev/null
+    fi
+    local LNET_NID=$(m0_local_nid_get)
 
     ## LNet endpoint address format (see net/lnet/lnet.h):
     ##     NID:PID:Portal:TMID
@@ -111,7 +113,7 @@ m0_default_xpt()
     local trans
     local user
     user=$(cat $M0_SRC_DIR/scripts/st.d/net_xpt)
-    if [[ "$user" == "libfab" ]]; then
+    if [ "$user" = "libfab" ]; then
         trans=$(whereis fi_info | cut -d ':' -f2)
         $trans > /dev/null
         if [[ $? -eq 0 ]]; then
@@ -125,4 +127,21 @@ m0_default_xpt()
     fi
 
     echo $trans
+}
+
+## To get local nid address
+m0_local_nid_get()
+{
+    local local_nid
+    XPRT=m0_default_xpt
+    if [ "$XPRT" = "lnet" ]
+    then 
+        local_nid=`sudo lctl list_nids | head -1`
+    else
+        local iface=`cat /etc/modprobe.d/lnet.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "(" -f2 | cut -d ")" -f1`
+        local proto=`cat /etc/modprobe.d/lnet.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "=" -f2 | cut -d "(" -f1`
+        local ip_addr=`ip addr show $iface |grep inet| head -1 | awk '{print $2}'|cut -d '/' -f1`
+        local_nid=$ip_addr@$proto
+    fi
+    echo $local_nid
 }

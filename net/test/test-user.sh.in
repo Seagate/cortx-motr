@@ -50,9 +50,9 @@ trap unload_all EXIT
 if [ "$NET_XTR" = "1" ]
 then
 	modprobe_lnet
+	modload_galois
+	modload || exit $?
 fi
-modload_galois
-modload || exit $?
 
 JOB_IDS=
 SCRIPT=@abs_top_srcdir@/net/test/test-user.sh
