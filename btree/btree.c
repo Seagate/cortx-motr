@@ -6525,7 +6525,7 @@ static void ut_basic_kv_oper(void)
 		void                *v_ptr  = &value;
 
 		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
-		m0_btree_put_credit(tree, 1, -1, -1, &cred);
+		m0_btree_put_credit(tree, 1, ksize, vsize, &cred);
 		btree_callback_credit(&cred);
 
 		/**
@@ -6761,7 +6761,7 @@ static void ut_multi_stream_kv_oper(void)
 			int k;
 
 			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
-			m0_btree_put_credit(tree, 1, -1, -1, &cred);
+			m0_btree_put_credit(tree, 1, ksize, vsize, &cred);
 			btree_callback_credit(&cred);
 
 			key = i + (stream_num * recs_per_stream);
@@ -7154,7 +7154,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				value[i] = value[0];
 
 			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
-			m0_btree_put_credit(tree, 1, -1, -1, &cred);
+			m0_btree_put_credit(tree, 1, ksize, vsize, &cred);
 			btree_callback_credit(&cred);
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -7185,7 +7185,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		/** Skip initializing the value as this is an error case */
 
 		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
-		m0_btree_put_credit(tree, 1, -1, -1, &cred);
+		m0_btree_put_credit(tree, 1, ksize, vsize, &cred);
 		btree_callback_credit(&cred);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -7217,7 +7217,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				value[i] = value[0];
 
 			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
-			m0_btree_update_credit(tree, 1, -1, -1, &cred);
+			m0_btree_update_credit(tree, 1, ksize, vsize, &cred);
 			btree_callback_credit(&cred);
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -7812,7 +7812,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 			value = key = i;
 
 			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
-			m0_btree_put_credit(tree, 1, -1, -1, &cred);
+			m0_btree_put_credit(tree, 1, ksize, vsize, &cred);
 			btree_callback_credit(&cred);
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
