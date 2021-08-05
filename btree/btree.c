@@ -6952,10 +6952,10 @@ static void ut_multi_stream_kv_oper(void)
 			M0_ASSERT(rc == 0);
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						 m0_btree_del(tree,
-							      &del_key_in_tree,
-							      &ut_cb, 0,
-							      &kv_op, tx));
+						      m0_btree_del(tree,
+								   &del_key_in_tree,
+								   &ut_cb, 0,
+								   &kv_op, tx));
 			M0_ASSERT(rc == 0 && del_data.flags == M0_BSC_SUCCESS);
 			m0_be_tx_close_sync(tx);
 			m0_be_tx_fini(tx);
@@ -7521,7 +7521,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						      m0_btree_del(tree,
-						      		   &rec.r_key,
+								   &rec.r_key,
 								   &ut_cb, 0,
 								   &kv_op, tx));
 			M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
