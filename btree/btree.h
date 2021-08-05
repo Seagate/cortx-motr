@@ -146,7 +146,22 @@ enum m0_btree_status_codes {
 enum m0_btree_opflag {
 	M0_BOF_UNIQUE = 1 << 0
 };
+/**
+ * Btree functions related to credit management for tree operations
+ */
 
+/**
+ * Calculates the credit needed to create tree using root node and adds this
+ * credit to @accum.
+ */
+void m0_btree_create_credit(const struct node_type *nt,
+			    struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates the credit needed to destroy tree and adds this credit to @accum.
+ */
+void m0_btree_destroy_credit(struct m0_btree *tree,
+			     struct m0_be_tx_credit *accum);
 
 /**
  * Btree functions related to tree management
@@ -315,6 +330,24 @@ void m0_btree_op_fini(struct m0_btree_op *bop);
 
 void m0_btree_op_credit(const struct m0_btree_op *bt,
 			struct m0_be_tx_credit *cr);
+
+void m0_btree_put_credit(const struct m0_btree  *tree,
+			 m0_bcount_t             nr,
+			 m0_bcount_t             ksize,
+			 m0_bcount_t             vsize,
+			 struct m0_be_tx_credit *accum);
+
+void m0_btree_update_credit(const struct m0_btree  *tree,
+			    m0_bcount_t             nr,
+			    m0_bcount_t             ksize,
+			    m0_bcount_t             vsize,
+			    struct m0_be_tx_credit *accum);
+
+void m0_btree_del_credit(const struct m0_btree  *tree,
+			 m0_bcount_t             nr,
+			 m0_bcount_t             ksize,
+			 m0_bcount_t             vsize,
+			 struct m0_be_tx_credit *accum);
 
 #include "btree/internal.h"
 
