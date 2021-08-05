@@ -316,6 +316,24 @@ void m0_btree_op_fini(struct m0_btree_op *bop);
 void m0_btree_op_credit(const struct m0_btree_op *bt,
 			struct m0_be_tx_credit *cr);
 
+void m0_btree_put_credit(const struct m0_btree  *tree,
+			 m0_bcount_t             nr,
+			 m0_bcount_t             ksize,
+			 m0_bcount_t             vsize,
+			 struct m0_be_tx_credit *accum);
+
+void m0_btree_update_credit(const struct m0_btree  *tree,
+			    m0_bcount_t             nr,
+			    m0_bcount_t             ksize,
+			    m0_bcount_t             vsize,
+			    struct m0_be_tx_credit *accum);
+
+void m0_btree_del_credit(const struct m0_btree  *tree,
+			 m0_bcount_t             nr,
+			 m0_bcount_t             ksize,
+			 m0_bcount_t             vsize,
+			 struct m0_be_tx_credit *accum);
+
 #include "btree/internal.h"
 
 int  m0_btree_mod_init(void);
