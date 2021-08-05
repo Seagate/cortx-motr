@@ -732,6 +732,8 @@ static void libfab_txep_comp_read(struct fid_cq *cq, struct m0_fab__tm *tm)
 			fb = fab_bufhash_htable_lookup(
 				&tm->ftm_bufhash.bht_hash,
 				&token[i]);
+		else
+			fb = NULL;
 		if (fb != NULL) {
 			aep = libfab_aep_get(fb->fb_txctx);
 			if ((fb->fb_token & M0_NET_QT_NR) == M0_NET_QT_NR) {
