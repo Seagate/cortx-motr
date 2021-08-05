@@ -105,14 +105,7 @@ main() {
                 warn "$IN_DIR: no such directory"
                 continue
             }
-            [[ -L $IN_DIR ]] && {
-                # As per our design, after failover softlink /var/motr is
-                # created to points /var/motr{1-2}, and since our INPUT_DIR
-                # is globe pattern (/var/motr*) we end up collecting m0traces
-                # and cores twice unnecessary, hence skipped data collection
-                # if IN_DIR is a soft link.
-                continue
-            }
+
             export IN_DIR=$(readlink -f $IN_DIR)
 
             local label=$stage
@@ -752,6 +745,14 @@ m0traces() {
          find . -maxdepth 1 -type d -name m0d-\* | while read dir; do
              find $dir -type f -name m0trace.\* |
                  last_modified "${M0TRACES_M0D_MAX:-}"
+         done
+         find . -maxdepth 1 -type d -name m0u\* | while read dir; do
+             find $dir -type f -name m0trace.\* |
+                 last_modified "${M0TRACES_MAX:-}"
+         done
+         find . -maxdepth 1 -type d -name systest-\* | while read dir; do
+             find $dir -type f -name m0trace.\* |
+                 last_modified "${M0TRACES_MAX:-}"
          done
      } | cut -c3- | sort -u | while read path; do
          _tracedump $path $outdir

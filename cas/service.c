@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2015-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2015-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CAS
 #include "be/op.h"
 #include "be/tx_credit.h"
-#include "dtm0/fop.h"
-#include "dtm0/fop_xc.h"
-#include "dtm0/service.h"
+#include "be/dtm0_log.h"             /* m0_be_dtm0_log API */
+#include "dtm0/fop.h"                /* DTM0 msg and tx_desc */
+#include "dtm0/service.h"            /* m0_dtm0_service API */
 #include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/finject.h"
@@ -1022,52 +1022,44 @@ static void cas_fom_failure(struct cas_fom *fom, int rc, bool ctg_op_fini)
 
 static int cas_dtm0_logrec_credit_add(struct m0_fom *fom0)
 {
-	struct m0_be_tx_credit dtm0logrec_cred = {};
-	struct m0_buf          buf = {};
+	struct m0_be_tx_credit cred = {};
+	struct m0_xcode_ctx    ctx = {};
 	int	               rc;
 
 	M0_ENTRY();
 
-	/*
-	 * TBD: while calculating the credits we need only the
-	 * size of the payload. Check if m0_be_dtm0_log_credit
-	 * needs to be updated to accept a size instead of the
-	 * actual payload.
-	 */
-	rc = m0_xcode_obj_enc_to_buf(
-		&M0_XCODE_OBJ(m0_cas_op_xc, cas_op(fom0)),
-		&buf.b_addr, &buf.b_nob);
-	if (rc == 0) {
-		m0_be_dtm0_log_credit(M0_DTML_PERSISTENT,
-				      &cas_op(fom0)->cg_txd,
-				      &buf,
-				      m0_fom_reqh(fom0)->rh_beseg,
-				      NULL,
-				      &dtm0logrec_cred);
-		m0_be_tx_credit_add(&fom0->fo_tx.tx_betx_cred,
-				    &dtm0logrec_cred);
-		m0_buf_free(&buf);
-	}
+	rc = m0_xcode_data_size(&ctx,
+				&M0_XCODE_OBJ(m0_cas_op_xc, cas_op(fom0)));
+	if (rc < 0)
+		return M0_ERR(rc);
 
-	return M0_RC(rc);
+	M0_ASSERT(rc > 0);
+
+	m0_be_dtm0_log_credit(M0_DTML_EXECUTED,
+			      &cas_op(fom0)->cg_txd,
+			      &((struct m0_buf) { .b_nob = rc }),
+			      m0_fom_reqh(fom0)->rh_beseg,
+			      NULL, &cred);
+	m0_be_tx_credit_add(&fom0->fo_tx.tx_betx_cred, &cred);
+
+	return M0_RC(0);
 }
 
-static int cas_dtm0_logrec_add(struct m0_fom *fom0, struct m0_dtm0_tx_desc *txd,
+static int cas_dtm0_logrec_add(struct m0_fom *fom0,
 			       enum m0_dtm0_tx_pa_state state)
 {
 	/* log the dtm0 logrec before completing the cas op */
 	struct m0_dtm0_service *dtms =
 		m0_dtm0_service_find(fom0->fo_service->rs_reqh);
 	struct m0_dtm0_tx_desc *msg = &cas_op(fom0)->cg_txd;
-	struct m0_buf	        buf = {};
+	struct m0_buf           buf = {};
 	int                     i;
-	int			rc;
+	int                     rc;
 
 	for (i = 0; i < msg->dtd_ps.dtp_nr; ++i) {
 		if (m0_fid_eq(&msg->dtd_ps.dtp_pa[i].p_fid,
-					&dtms->dos_generic.rs_service_fid)) {
-			msg->dtd_ps.dtp_pa[i].p_state =
-				(uint32_t)M0_DTPS_PERSISTENT;
+			      &dtms->dos_generic.rs_service_fid)) {
+			msg->dtd_ps.dtp_pa[i].p_state = state;
 			break;
 		}
 	}
@@ -1232,7 +1224,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 */
 		if (phase == M0_FOPH_TXN_COMMIT_WAIT &&
 		    m0_fom_phase(fom0) == M0_FOPH_FINISH && is_dtm0_used) {
-			rc = m0_dtm0_on_committed(fom0, &cas_op(fom0)->cg_txd);
+			rc = m0_dtm0_on_committed(fom0, &cas_op(fom0)->cg_txd.dtd_id);
 			if (rc != 0)
 				M0_LOG(M0_WARN, "Could not send PERSISTENT "
 				       "messages out");
@@ -1691,7 +1683,6 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		break;
 	case CAS_DTM0:
 		rc = cas_dtm0_logrec_add(&fom->cf_fom,
-					 &cas_op(&fom->cf_fom)->cg_txd,
 					 M0_DTPS_PERSISTENT);
 		if (rc != 0)
 			cas_fom_failure(fom, M0_ERR(rc), opc == CO_CUR);

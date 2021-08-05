@@ -261,8 +261,15 @@ static void obj_namei_cb_launch(struct m0_op_common *oc)
 	m0_sm_group_unlock(&op->op_entity->en_sm_group);
 
 	rc = m0__obj_namei_send(oo);
-	if (rc == 0)
+	if (rc == 0) {
 		m0_sm_move(&op->op_sm, 0, M0_OS_LAUNCHED);
+	} else if (rc == MOTR_MDCOB_LOOKUP_SKIP) {
+		/* This means meta-data lookup is skipped and op state is
+		 * already moved to LAUNCHED --> EXECUTED --> STABLE, so
+		 * skipped m0_sm_move() and resetting rc state to 0
+		 * */
+		(void)rc;
+	}
 
 	M0_LEAVE();
 }
@@ -398,8 +405,8 @@ m0__obj_layout_instance_build(struct m0_client *cinst,
 			      const struct m0_fid *fid,
 			      struct m0_layout_instance **linst)
 {
-	int                     rc = 0;
-	struct m0_layout       *layout;
+	int               rc = -EINVAL;
+	struct m0_layout *layout;
 
 	M0_PRE(cinst != NULL);
 	M0_PRE(linst != NULL);
@@ -410,17 +417,12 @@ m0__obj_layout_instance_build(struct m0_client *cinst,
 	 * to the list unless wrong layout_id is used.
 	 */
 	layout = m0_layout_find(&cinst->m0c_reqh.rh_ldom, layout_id);
-	if (layout == NULL) {
-		rc = -EINVAL;
-		goto out;
+	if (layout != NULL) {
+		*linst = NULL;
+		rc = m0_layout_instance_build(layout, fid, linst);
+		m0_layout_put(layout);
 	}
 
-	*linst = NULL;
-	rc = m0_layout_instance_build(layout, fid, linst);
-	m0_layout_put(layout);
-
-out:
-	M0_LEAVE("rc: %d", rc);
 	return M0_RC(rc);
 }
 
@@ -524,18 +526,20 @@ static int obj_namei_op_init(struct m0_entity *entity,
 
 	/* Get a layout instance for the object. */
 	lid = m0_pool_version2layout_id(&oo->oo_pver,
-				 	m0__obj_layout_id_get(oo));
+					m0__obj_layout_id_get(oo));
 	rc = m0__obj_layout_instance_build(cinst, lid,
 					   &oo->oo_fid, &linst);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_ERR(rc);
 		goto error;
+	}
 	oo->oo_layout_instance = linst;
 
 #ifdef CLIENT_FOR_M0T1FS
 	/* Set the object's parent's fid. */
 	if (!m0_fid_is_set(&cinst->m0c_root_fid) ||
 	    !m0_fid_is_valid(&cinst->m0c_root_fid)) {
-		rc = -EINVAL;
+		rc = M0_ERR(-EINVAL);
 		goto error;
 	}
 	oo->oo_pfid = cinst->m0c_root_fid;
@@ -543,8 +547,10 @@ static int obj_namei_op_init(struct m0_entity *entity,
 	/* Generate a valid oo_name. */
 	obj_name = m0_alloc(M0_OBJ_NAME_MAX_LEN);
 	rc = obj_fid_make_name(obj_name, M0_OBJ_NAME_MAX_LEN, &oo->oo_fid);
-	if (rc != 0)
+	if (rc != 0) {
+		M0_ERR(rc);
 		goto error;
+	}
 	m0_buf_init(&oo->oo_name, obj_name, strlen(obj_name));
 #endif
 	M0_ASSERT(rc == 0);
@@ -569,7 +575,7 @@ static void obj_optimal_lid_set(struct m0_obj *obj,
 	/* Find optimal layout id when pver id is set and layout id is not */
 	if (*lid == 0 && m0_fid_is_set(&obj->ob_attr.oa_pver)) {
 		*lid = m0_layout_find_by_buffsize(ldom, &obj->ob_attr.oa_pver,
-						  obj->ob_attr.oa_obj_size);
+						  obj->ob_attr.oa_buf_size);
 	}
 	/* Set default layout id when both layout id and pver id is unset */
 	else if (*lid == 0 && !m0_fid_is_set(&obj->ob_attr.oa_pver)) {
@@ -799,6 +805,8 @@ int m0_entity_create(struct m0_fid *pool,
 	struct m0_obj *obj;
 
 	M0_ENTRY();
+	if (entity->en_flags & M0_ENF_META)
+		M0_LOG(M0_DEBUG, "M0_ENF_META FLAG is set from application");
 
 	M0_PRE(entity != NULL);
 	M0_PRE(op != NULL);
