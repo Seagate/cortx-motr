@@ -1068,7 +1068,7 @@ struct node_type {
 	void (*nt_capture)(struct slot *slot, struct m0_be_tx *tx);
 
 	/** Returns the header size for credit calculation of tree operations */
-	int  (*nt_credit_size)(void);
+	int  (*nt_create_delete_credit_size)(void);
 
 	/** Gets key size from segment. */
 	/* uint16_t (*nt_ksize_get)(const struct segaddr *addr); */
@@ -2359,7 +2359,7 @@ static bool ff_verify(const struct nd *node);
 static void ff_opaque_set(const struct segaddr *addr, void *opaque);
 static void *ff_opaque_get(const struct segaddr *addr);
 static void ff_capture(struct slot *slot, struct m0_be_tx *tx);
-static int  ff_header_size(void);
+static int  ff_create_delete_credit_size(void);
 /* uint16_t ff_ksize_get(const struct segaddr *addr); */
 /* uint16_t ff_valsize_get(const struct segaddr *addr);  */
 
@@ -2368,41 +2368,41 @@ static int  ff_header_size(void);
  *  contained in it.
  */
 static const struct node_type fixed_format = {
-	.nt_id                    = BNT_FIXED_FORMAT,
-	.nt_name                  = "m0_bnode_fixed_format",
+	.nt_id                        = BNT_FIXED_FORMAT,
+	.nt_name                      = "m0_bnode_fixed_format",
 	//.nt_tag,
-	.nt_init                  = ff_init,
-	.nt_fini                  = ff_fini,
-	.nt_count                 = ff_count,
-	.nt_count_rec             = ff_count_rec,
-	.nt_space                 = ff_space,
-	.nt_level                 = ff_level,
-	.nt_shift                 = ff_shift,
-	.nt_keysize               = ff_keysize,
-	.nt_valsize               = ff_valsize,
-	.nt_isunderflow           = ff_isunderflow,
-	.nt_isoverflow            = ff_isoverflow,
-	.nt_fid                   = ff_fid,
-	.nt_rec                   = ff_rec,
-	.nt_key                   = ff_node_key,
-	.nt_child                 = ff_child,
-	.nt_isfit                 = ff_isfit,
-	.nt_done                  = ff_done,
-	.nt_make                  = ff_make,
-	.nt_find                  = ff_find,
-	.nt_fix                   = ff_fix,
-	.nt_cut                   = ff_cut,
-	.nt_del                   = ff_del,
-	.nt_set_level             = ff_set_level,
-	.nt_move                  = generic_move,
-	.nt_invariant             = ff_invariant,
-	.nt_expensive_invariant   = ff_expensive_invariant,
-	.nt_isvalid               = segaddr_header_isvalid,
-	.nt_verify                = ff_verify,
-	.nt_opaque_set            = ff_opaque_set,
-	.nt_opaque_get            = ff_opaque_get,
-	.nt_capture               = ff_capture,
-	.nt_credit_size           = ff_header_size,
+	.nt_init                      = ff_init,
+	.nt_fini                      = ff_fini,
+	.nt_count                     = ff_count,
+	.nt_count_rec                 = ff_count_rec,
+	.nt_space                     = ff_space,
+	.nt_level                     = ff_level,
+	.nt_shift                     = ff_shift,
+	.nt_keysize                   = ff_keysize,
+	.nt_valsize                   = ff_valsize,
+	.nt_isunderflow               = ff_isunderflow,
+	.nt_isoverflow                = ff_isoverflow,
+	.nt_fid                       = ff_fid,
+	.nt_rec                       = ff_rec,
+	.nt_key                       = ff_node_key,
+	.nt_child                     = ff_child,
+	.nt_isfit                     = ff_isfit,
+	.nt_done                      = ff_done,
+	.nt_make                      = ff_make,
+	.nt_find                      = ff_find,
+	.nt_fix                       = ff_fix,
+	.nt_cut                       = ff_cut,
+	.nt_del                       = ff_del,
+	.nt_set_level                 = ff_set_level,
+	.nt_move                      = generic_move,
+	.nt_invariant                 = ff_invariant,
+	.nt_expensive_invariant       = ff_expensive_invariant,
+	.nt_isvalid                   = segaddr_header_isvalid,
+	.nt_verify                    = ff_verify,
+	.nt_opaque_set                = ff_opaque_set,
+	.nt_opaque_get                = ff_opaque_get,
+	.nt_capture                   = ff_capture,
+	.nt_create_delete_credit_size = ff_create_delete_credit_size,
 	/* .nt_ksize_get          = ff_ksize_get, */
 	/* .nt_valsize_get        = ff_valsize_get, */
 };
@@ -2434,7 +2434,7 @@ uint16_t ff_valsize_get(const struct segaddr *addr)
 	return h->ff_vsize;
 }
 #endif
-static int ff_header_size(void)
+static int ff_create_delete_credit_size(void)
 {
 	struct ff_head *h;
 	return sizeof(*h);
@@ -3035,14 +3035,14 @@ static void m0_btree_update_credit(const struct m0_btree  *tree,
 void m0_btree_create_credit(const struct node_type *nt,
 			    struct m0_be_tx_credit *accum)
 {
-	int size = nt->nt_credit_size();
+	int size = nt->nt_create_delete_credit_size();
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, size));
 }
 
 void m0_btree_destroy_credit(struct m0_btree *tree,
 			     struct m0_be_tx_credit *accum)
 {
-	int size = tree->t_desc->t_root->n_type->nt_credit_size();
+	int size = tree->t_desc->t_root->n_type->nt_create_delete_credit_size();
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, size));
 }
 #endif
