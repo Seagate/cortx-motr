@@ -4503,9 +4503,7 @@ int  btree_sibling_first_key(struct m0_btree_oimpl *oi, struct td *tree,
 			return 0;
 		}
 	}
-	s->s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
-	return 0;
-
+	return M0_ERR(-ENOENT);
 }
 
 /**
@@ -4700,6 +4698,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 								     &s);
 					if (rc != 0) {
 						node_op_fini(&oi->i_nop);
+						lock_op_unlock(tree);
 						return fail(bop, rc);
 					}
 				}
@@ -4710,9 +4709,11 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 				s.s_idx = bop->bo_opc == M0_BO_MINKEY ? 0 :
 					  count - 1;
 				node_rec(&s);
-			} else
+			} else {
 				/** Only root node is present and is empty. */
-				s.s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
+				lock_op_unlock(tree);
+				return fail(bop, M0_ERR(-ENOENT));
+			}
 		}
 
 		bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
@@ -5015,19 +5016,19 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 
 		lev = &oi->i_level[oi->i_used];
 
-		s.s_rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&pkey, &ksize);
-		s.s_rec.r_val	     = M0_BUFVEC_INIT_BUF(&pval, &vsize);
-		s.s_rec.r_flags      = M0_BSC_SUCCESS;
+		s.s_rec	        = REC_INIT(&pkey, &ksize, &pval, &vsize);
+		s.s_rec.r_flags = M0_BSC_SUCCESS;
 
 		/* Return record if idx fit in the node. */
 		if (index_is_valid(lev)) {
 			s.s_node = lev->l_node;
 			s.s_idx  = lev->l_idx;
 			node_rec(&s);
-		} else if (oi->i_pivot == -1)
+		} else if (oi->i_pivot == -1) {
 			/* Handle rightmost/leftmost key case. */
-			s.s_rec.r_flags = M0_BSC_KEY_BTREE_BOUNDARY;
-		else {
+			lock_op_unlock(tree);
+			return fail(bop, M0_ERR(-ENOENT));
+		} else {
 			/* Return sibling record based on flag. */
 			s.s_node = lev->l_sibling;
 			s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
@@ -6375,9 +6376,7 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	/** The caller can look at these flags if he needs to. */
 	datum->flags = rec->r_flags;
 
-	if (rec->r_flags == M0_BSC_KEY_NOT_FOUND ||
-	    rec->r_flags == M0_BSC_KEY_BTREE_BOUNDARY)
-		return rec->r_flags;
+	M0_ASSERT(rec->r_flags == M0_BSC_SUCCESS);
 
 	ksize = m0_vec_count(&datum->key->k_data.ov_vec);
 	M0_PRE(m0_vec_count(&rec->r_key.k_data.ov_vec) <= ksize);
@@ -6646,8 +6645,8 @@ enum {
 
 	MAX_RECS_PER_THREAD    = 100000, /** Records count for each thread */
 
-	MIN_TREE_LOOPS         = 5000,
-	MAX_TREE_LOOPS         = 15000,
+	MIN_TREE_LOOPS         = 1000,
+	MAX_TREE_LOOPS         = 2000,
 	MAX_RECS_FOR_TREE_TEST = 100,
 
 	RANDOM_TREE_COUNT      = -1,
@@ -6663,8 +6662,8 @@ enum {
 
 	MAX_RECS_PER_THREAD    = 100000, /** Records count for each thread */
 
-	MIN_TREE_LOOPS         = 5000,
-	MAX_TREE_LOOPS         = 15000,
+	MIN_TREE_LOOPS         = 1000,
+	MAX_TREE_LOOPS         = 2000,
 	MAX_RECS_FOR_TREE_TEST = 100,
 };
 #endif
@@ -7283,22 +7282,23 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		get_data.check_value = true; /** Compare value with key */
 
-		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					 m0_btree_get(tree,
-						      &rec.r_key, &ut_get_cb,
-						      BOF_EQUAL, &kv_op));
-		M0_ASSERT(get_data.flags == M0_BSC_SUCCESS);
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_get(tree,
+							   &rec.r_key,
+							   &ut_get_cb,
+							   BOF_EQUAL, &kv_op));
+		M0_ASSERT(rc == 0);
 
 		keys_found_count++;
 
 		while (1) {
-			M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						 m0_btree_iter(tree,
-							       &rec.r_key,
-							       &ut_get_cb,
-							       iter_dir,
-							       &kv_op));
-			if (get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY)
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_iter(tree,
+								    &rec.r_key,
+								    &ut_get_cb,
+								    iter_dir,
+								    &kv_op));
+			if (rc == -ENOENT)
 				break;
 
 			keys_found_count++;
@@ -7338,21 +7338,20 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 */
 		get_key[0] = key_last + 1;
 
-		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					 m0_btree_minkey(tree, &ut_get_cb, 0,
-							 &kv_op));
-		M0_ASSERT(get_data.flags == M0_BSC_SUCCESS);
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_minkey(tree, &ut_get_cb,
+							      0, &kv_op));
+		M0_ASSERT(rc == 0);
 
 		for (i = 0; i < ARRAY_SIZE(key); i += sizeof(key[0]))
 			key[i] = get_key[i];
 
-		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					 m0_btree_iter(tree, &rec.r_key,
-						       &ut_get_cb, BOF_NEXT,
-						       &kv_op));
-		M0_ASSERT((get_data.flags == M0_BSC_SUCCESS) ||
-			  (get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY &&
-			   key_iter_start == key_last));
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_iter(tree, &rec.r_key,
+							    &ut_get_cb,
+							    BOF_NEXT, &kv_op));
+		M0_ASSERT((rc == 0) ||
+			  (rc == -ENOENT && key_iter_start == key_last));
 		/**
 		 * The second condition in the above assert is rare but can
 		 * happen if only one Key is present in the btree. We presume
@@ -7364,38 +7363,37 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		for (i = 0; i < ARRAY_SIZE(key); i += sizeof(key[0]))
 			get_key[i] = key[i];
 
-		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					 m0_btree_iter(tree, &rec.r_key,
-						       &ut_get_cb, BOF_PREV,
-						       &kv_op));
-		M0_ASSERT(get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY);
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_iter(tree, &rec.r_key,
+							    &ut_get_cb,
+							    BOF_PREV, &kv_op));
+		M0_ASSERT(rc == -ENOENT);
 
 		get_key[0] = key_iter_start - 1;
 
-		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					 m0_btree_maxkey(tree, &ut_get_cb, 0,
-							 &kv_op));
-		M0_ASSERT(get_data.flags == M0_BSC_SUCCESS);
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_maxkey(tree, &ut_get_cb,
+							      0, &kv_op));
+		M0_ASSERT(rc == 0);
 
 		for (i = 0; i < ARRAY_SIZE(key); i += sizeof(key[0]))
 			key[i] = get_key[i];
 
-		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					 m0_btree_iter(tree, &rec.r_key,
-						       &ut_get_cb, BOF_PREV,
-						       &kv_op));
-		M0_ASSERT((get_data.flags == M0_BSC_SUCCESS) ||
-			  (get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY &&
-			   key_iter_start == key_last));
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_iter(tree, &rec.r_key,
+							    &ut_get_cb,
+							    BOF_PREV, &kv_op));
+		M0_ASSERT((rc == 0) ||
+			  (rc == -ENOENT && key_iter_start == key_last));
 
 		for (i = 0; i < ARRAY_SIZE(key); i += sizeof(key[0]))
 			get_key[i] = key[i];
 
-		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					 m0_btree_iter(tree, &rec.r_key,
-						       &ut_get_cb, BOF_NEXT,
-						       &kv_op));
-		M0_ASSERT(get_data.flags == M0_BSC_KEY_BTREE_BOUNDARY);
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_iter(tree, &rec.r_key,
+							    &ut_get_cb,
+							    BOF_NEXT, &kv_op));
+		M0_ASSERT(rc == -ENOENT);
 
 		UT_START_THREADS();
 
@@ -7606,7 +7604,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(int32_t thread_count,
 
 	if (tree_count == 0)
 		tree_count = thread_count;
-	else if (tree_count == RANDOM_THREAD_COUNT) {
+	else if (tree_count == RANDOM_TREE_COUNT) {
 		tree_count = 1;
 		if (thread_count > 2) {
 			/**
@@ -7830,9 +7828,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		M0_ASSERT(rc == 0);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_open(temp_node,
-							    1024, &tree,
-							    &b_op));
+					      m0_btree_open(temp_node, 1024,
+							    &tree, &b_op));
 		M0_ASSERT(rc == 0);
 
 		ut_cb.c_act = btree_kv_get_cb;
@@ -7892,12 +7889,29 @@ static void btree_ut_num_threads_tree_oper(uint32_t thread_count)
 	uint16_t                     cpu;
 	int                          i;
 	int                          rc;
+	time_t                       curr_time;
+
+	M0_ENTRY();
+
+	time(&curr_time);
+	M0_LOG(M0_INFO, "Using seed %lu", curr_time);
+	srandom(curr_time);
 
 	btree_ut_init();
 	online_cpu_id_get(&cpuid_ptr, &cpu_count);
 
 	if (thread_count == 0)
 		thread_count = cpu_count - 1; /** Skip Core-0 */
+	else if (thread_count == RANDOM_THREAD_COUNT) {
+		thread_count = 1;
+		if (cpu_count > 2) {
+			/**
+			 *  Avoid the extreme cases i.e. thread_count
+			 *  cannot be 1 or cpu_count - 1
+			 */
+			thread_count = (random() % (cpu_count - 2)) + 1;
+		}
+	}
 
 	UT_STOP_THREADS();
 	m0_atomic64_set(&threads_running, 0);
