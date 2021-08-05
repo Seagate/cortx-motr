@@ -1067,6 +1067,9 @@ struct node_type {
 	/** Captures node data in segment */
 	void (*nt_capture)(struct slot *slot, struct m0_be_tx *tx);
 
+	/** Returns the header size for credit calculation of tree operations */
+	int  (*nt_credit_size)(void);
+
 	/** Gets key size from segment. */
 	/* uint16_t (*nt_ksize_get)(const struct segaddr *addr); */
 
@@ -2356,6 +2359,7 @@ static bool ff_verify(const struct nd *node);
 static void ff_opaque_set(const struct segaddr *addr, void *opaque);
 static void *ff_opaque_get(const struct segaddr *addr);
 static void ff_capture(struct slot *slot, struct m0_be_tx *tx);
+static int  ff_header_size(void);
 /* uint16_t ff_ksize_get(const struct segaddr *addr); */
 /* uint16_t ff_valsize_get(const struct segaddr *addr);  */
 
@@ -2398,6 +2402,7 @@ static const struct node_type fixed_format = {
 	.nt_opaque_set            = ff_opaque_set,
 	.nt_opaque_get            = ff_opaque_get,
 	.nt_capture               = ff_capture,
+	.nt_credit_size           = ff_header_size,
 	/* .nt_ksize_get          = ff_ksize_get, */
 	/* .nt_valsize_get        = ff_valsize_get, */
 };
@@ -2429,6 +2434,11 @@ uint16_t ff_valsize_get(const struct segaddr *addr)
 	return h->ff_vsize;
 }
 #endif
+static int ff_header_size(void)
+{
+	struct ff_head *h;
+	return sizeof(*h);
+}
 
 static struct ff_head *ff_data(const struct nd *node)
 {
@@ -3021,6 +3031,20 @@ static void m0_btree_update_credit(const struct m0_btree  *tree,
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
+
+void m0_btree_create_credit(const struct node_type *nt,
+			    struct m0_be_tx_credit *accum)
+{
+	int size = nt->nt_credit_size();
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, size));
+}
+
+void m0_btree_destroy_credit(struct m0_btree *tree,
+			     struct m0_be_tx_credit *accum)
+{
+	int size = tree->t_desc->t_root->n_type->nt_credit_size();
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, size));
+}
 #endif
 
 /**
@@ -6115,6 +6139,7 @@ static void ut_basic_tree_oper_cp(void)
 	struct m0_be_tx        *tx         = NULL;
 	struct m0_be_seg       *seg        = NULL;
 	struct m0_btree_op      b_op       = {};
+	struct m0_be_tx_credit  cred       = {};
 	void                   *temp_node;
 	const struct node_type *nt = &fixed_format;
 	int                     rc;
@@ -6122,6 +6147,8 @@ static void ut_basic_tree_oper_cp(void)
 	/** Prepare transaction to capture tree operations. */
 	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, NULL);
+	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_btree_create_credit(nt, &cred);
 	btree_ut_init();
 	/**
 	 *  Run a valid scenario which:
@@ -6147,6 +6174,8 @@ static void ut_basic_tree_oper_cp(void)
 	M0_ASSERT(rc == 0);
 	b_op.bo_arbor = temp_btree;
 
+	m0_btree_destroy_credit(b_op.bo_arbor, &cred);
+
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
 							      &b_op, tx));
 	M0_ASSERT(rc == 0);
@@ -6159,12 +6188,15 @@ static void ut_basic_tree_oper_cp(void)
 	 *  2) Destroys the btree
 	 */
 	/** Create a new btree */
+	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_btree_create_credit(nt, &cred);
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
 							     &btree_type, nt,
 							     &b_op, seg, tx));
 	M0_ASSERT(rc == 0);
 
+	m0_btree_destroy_credit(b_op.bo_arbor, &cred);
 	/** Destory it */
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
 							      &b_op, tx));
@@ -6180,6 +6212,8 @@ static void ut_basic_tree_oper_cp(void)
 	 */
 
 	/** Create temp node space*/
+	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_btree_create_credit(nt, &cred);
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
 				      &btree_type, nt, &b_op, seg, tx));
@@ -6193,6 +6227,8 @@ static void ut_basic_tree_oper_cp(void)
 							   &b_op.bo_arbor,
 							   &b_op));
 	M0_ASSERT(rc == 0);
+
+	m0_btree_destroy_credit(b_op.bo_arbor, &cred);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
 							      &b_op, tx));
@@ -6216,6 +6252,7 @@ static void ut_basic_tree_oper_icp(void)
 	struct m0_be_tx        *tx         = NULL;
 	struct m0_be_seg       *seg        = NULL;
 	struct m0_btree_op      b_op       = {};
+	struct m0_be_tx_credit  cred       = {};
 	void                   *temp_node;
 	const struct node_type *nt = &fixed_format;
 	int                     rc;
@@ -6232,6 +6269,8 @@ static void ut_basic_tree_oper_icp(void)
 	 * This scenario is invalid because the root node address is incorrect.
 	 * In this case m0_btree_create() will return -EFAULT.
 	 */
+	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_btree_create_credit(nt, &cred);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(invalid_addr, 1024,
 				      &btree_type, nt, &b_op, seg, tx));
 	M0_ASSERT(rc == -EFAULT);
@@ -6259,6 +6298,8 @@ static void ut_basic_tree_oper_icp(void)
 	 */
 
 	/** Create temp node space*/
+	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_btree_create_credit(nt, &cred);
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	btree = m0_alloc(sizeof *btree);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
@@ -6269,6 +6310,7 @@ static void ut_basic_tree_oper_icp(void)
 							   &btree, &b_op));
 	M0_ASSERT(rc == 0);
 
+	m0_btree_destroy_credit(b_op.bo_arbor, &cred);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
 							      &b_op, tx));
 	M0_ASSERT(rc == -EPERM);
@@ -6287,6 +6329,8 @@ static void ut_basic_tree_oper_icp(void)
 	 */
 
 	/** Create temp node space*/
+	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_btree_create_credit(nt, &cred);
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
 				      &btree_type, nt, &b_op, seg, tx));
@@ -6504,6 +6548,8 @@ static void ut_basic_kv_oper(void)
 	 */
 
 	/** Create temp node space and use it as root node for btree */
+	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_btree_create_credit(nt, &cred);
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
 							&btree_type, nt,
@@ -6625,7 +6671,7 @@ static void ut_basic_kv_oper(void)
 								&ut_cb, 0,
 								&kv_op, tx));
 	}
-
+	m0_btree_destroy_credit(b_op.bo_arbor, &cred);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree, &b_op, tx));
 	M0_ASSERT(rc == 0);
 
@@ -6732,6 +6778,8 @@ static void ut_multi_stream_kv_oper(void)
 	/** Create temp node space and use it as root node for btree */
 	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, 10, seg, tx);
 	temp_node = buf.b_addr;
+	m0_btree_create_credit(nt, &cred);
+
 	M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
 							&btree_type, nt,
 							&b_op, seg, tx));
@@ -6927,6 +6975,7 @@ static void ut_multi_stream_kv_oper(void)
 	rc = m0_be_tx_open_sync(tx);
 	M0_ASSERT(rc == 0);
 
+	m0_btree_destroy_credit(tree, &cred);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree, &b_op, tx));
 	M0_ASSERT(rc == 0);
 
@@ -7552,6 +7601,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(int32_t thread_count,
 	uint16_t                      cpu;
 	void                         *temp_node;
 	struct m0_btree_op            b_op         = {};
+	struct m0_be_tx_credit        cred         = {};
 	struct m0_be_tx              *tx           = NULL;
 	struct m0_be_seg             *seg          = NULL;
 	const struct node_type       *nt           = &fixed_format;
@@ -7624,7 +7674,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(int32_t thread_count,
 
 	for (i = 0; i < tree_count; i++) {
 		M0_SET0(&b_op);
-
+		m0_btree_create_credit(nt, &cred);
 		/** Create temp node space and use it as root node for btree */
 		temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 
@@ -7686,6 +7736,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(int32_t thread_count,
 	}
 
 	for (i = 0; i < tree_count; i++) {
+		m0_btree_destroy_credit(ut_trees[i], &cred);
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_destroy(ut_trees[i],
 							       &b_op, tx));
@@ -7794,6 +7845,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 * 6) Close the tree
 		 * 7) Destroy the tree
 		 */
+		m0_btree_create_credit(nt, &cred);
+
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_create(temp_node, 1024,
 							      &btree_type, nt,
@@ -7869,6 +7922,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 			M0_ASSERT(data.flags == M0_BSC_SUCCESS && rc == 0);
 		}
 
+		m0_btree_destroy_credit(tree, &cred);
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_destroy(tree,
 							       &b_op, tx));
