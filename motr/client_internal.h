@@ -106,8 +106,9 @@ enum m0__entity_states {
 enum  m0_pbuf_type {
 	/**
 	 * Explicitly allocated buffers. This is done during:
-	 * i.  Read operation in parity-verify mode (independent of the layout).
-	 * ii. Write operation when the layout is not replicated.
+	 * i.   Read operation in parity-verify mode (independent of the layout).
+	 * ii.  Write operation when the layout is not replicated
+	 * iii. degraded read operation
 	 */
 	M0_PBUF_DIR,
 	/**
