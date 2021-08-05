@@ -6642,8 +6642,8 @@ enum {
 
 	MAX_RECS_PER_THREAD    = 100000, /** Records count for each thread */
 
-	MIN_TREE_LOOPS         = 5000,
-	MAX_TREE_LOOPS         = 15000,
+	MIN_TREE_LOOPS         = 1000,
+	MAX_TREE_LOOPS         = 2000,
 	MAX_RECS_FOR_TREE_TEST = 100,
 
 	RANDOM_TREE_COUNT      = -1,
@@ -6659,8 +6659,8 @@ enum {
 
 	MAX_RECS_PER_THREAD    = 100000, /** Records count for each thread */
 
-	MIN_TREE_LOOPS         = 5000,
-	MAX_TREE_LOOPS         = 15000,
+	MIN_TREE_LOOPS         = 1000,
+	MAX_TREE_LOOPS         = 2000,
 	MAX_RECS_FOR_TREE_TEST = 100,
 };
 #endif
@@ -7602,7 +7602,7 @@ static void btree_ut_num_threads_num_trees_kv_oper(int32_t thread_count,
 
 	if (tree_count == 0)
 		tree_count = thread_count;
-	else if (tree_count == RANDOM_THREAD_COUNT) {
+	else if (tree_count == RANDOM_TREE_COUNT) {
 		tree_count = 1;
 		if (thread_count > 2) {
 			/**
@@ -7826,9 +7826,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		M0_ASSERT(rc == 0);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_open(temp_node,
-							    1024, &tree,
-							    &b_op));
+					      m0_btree_open(temp_node, 1024,
+							    &tree, &b_op));
 		M0_ASSERT(rc == 0);
 
 		ut_cb.c_act = btree_kv_get_cb;
@@ -7888,12 +7887,29 @@ static void btree_ut_num_threads_tree_oper(uint32_t thread_count)
 	uint16_t                     cpu;
 	int                          i;
 	int                          rc;
+	time_t                       curr_time;
+
+	M0_ENTRY();
+
+	time(&curr_time);
+	M0_LOG(M0_INFO, "Using seed %lu", curr_time);
+	srandom(curr_time);
 
 	btree_ut_init();
 	online_cpu_id_get(&cpuid_ptr, &cpu_count);
 
 	if (thread_count == 0)
 		thread_count = cpu_count - 1; /** Skip Core-0 */
+	else if (thread_count == RANDOM_THREAD_COUNT) {
+		thread_count = 1;
+		if (cpu_count > 2) {
+			/**
+			 *  Avoid the extreme cases i.e. thread_count
+			 *  cannot be 1 or cpu_count - 1
+			 */
+			thread_count = (random() % (cpu_count - 2)) + 1;
+		}
+	}
 
 	UT_STOP_THREADS();
 	m0_atomic64_set(&threads_running, 0);
