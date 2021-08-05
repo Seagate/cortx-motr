@@ -163,6 +163,12 @@ M0_INTERNAL uint64_t m0_calculate_cksum_size(struct m0_generic_pi *pi)
 	return 0;
 }
 
+M0_INTERNAL uint64_t max_cksum_size(void)
+{
+	return (sizeof(struct m0_md5_pi) > sizeof(struct m0_md5_inc_context_pi) ?
+			sizeof(struct m0_md5_pi) : sizeof(struct m0_md5_inc_context_pi));
+}
+
 int m0_client_calculate_pi(struct m0_generic_pi *pi,
 		struct m0_pi_seed *seed,
 		struct m0_bufvec *bvec,
