@@ -30,6 +30,8 @@
 #include "lib/trace.h"
 #include "lib/coroutine.h"
 #include "lib/memory.h"
+#include "fop/fom.h"
+
 
 static int locals_alloc_init(struct m0_co_locals_allocator *alloc)
 {
@@ -140,6 +142,111 @@ M0_INTERNAL void m0_co_context_fini(struct m0_co_context *context)
 {
 	locals_alloc_fini(&context->mc_alloc);
 }
+
+enum m0_co_op_state {
+	COR_INVALID,
+	COR_INIT,
+	COR_ACTIVE,
+	COR_DONE,
+};
+
+static struct m0_sm_state_descr co_states[] = {
+	[COR_INIT] = {
+		.sd_flags   = M0_SDF_INITIAL,
+		.sd_name    = "COR_INIT",
+		.sd_allowed = M0_BITS(COR_ACTIVE),
+	},
+	[COR_ACTIVE] = {
+		.sd_flags   = 0,
+		.sd_name    = "COR_ACTIVE",
+		.sd_allowed = M0_BITS(COR_DONE),
+	},
+	[COR_DONE] = {
+		.sd_flags   = M0_SDF_TERMINAL,
+		.sd_name    = "COR_DONE",
+		.sd_allowed = 0,
+	},
+};
+
+static struct m0_sm_trans_descr co_trans[] = {
+	{ "started",   COR_INIT,   COR_ACTIVE },
+	{ "completed", COR_ACTIVE, COR_DONE   },
+};
+
+M0_INTERNAL struct m0_sm_conf co_states_conf = {
+	.scf_name      = "m0_co_op::co_sm",
+	.scf_nr_states = ARRAY_SIZE(co_states),
+	.scf_state     = co_states,
+	.scf_trans_nr  = ARRAY_SIZE(co_trans),
+	.scf_trans     = co_trans
+};
+
+M0_INTERNAL void m0_co_op_init(struct m0_co_op *op)
+{
+	M0_PRE_EX(M0_IS0(op));
+	m0_sm_group_init(&op->co_sm_group);
+	m0_sm_init(&op->co_sm, &co_states_conf, COR_INIT,
+		   &op->co_sm_group);
+}
+M0_EXPORTED(m0_co_op_init);
+
+M0_INTERNAL void m0_co_op_fini(struct m0_co_op *op)
+{
+	m0_sm_group_lock(&op->co_sm_group);
+	M0_PRE(M0_IN(op->co_sm.sm_state, (COR_INIT, COR_DONE)));
+
+	if (op->co_sm.sm_state == COR_INIT) {
+		m0_sm_state_set(&op->co_sm, COR_ACTIVE);
+		m0_sm_state_set(&op->co_sm, COR_DONE);
+	}
+	m0_sm_fini(&op->co_sm);
+	m0_sm_group_unlock(&op->co_sm_group);
+	M0_SET0(op);
+}
+M0_EXPORTED(m0_co_op_fini);
+
+M0_INTERNAL void m0_co_op_reset(struct m0_co_op *op)
+{
+	m0_co_op_fini(op);
+	m0_co_op_init(op);
+}
+M0_EXPORTED(m0_co_op_reset);
+
+M0_INTERNAL void m0_co_op_active(struct m0_co_op *op)
+{
+	m0_sm_group_lock(&op->co_sm_group);
+	m0_sm_state_set(&op->co_sm, COR_ACTIVE);
+	m0_sm_group_unlock(&op->co_sm_group);
+}
+M0_EXPORTED(m0_co_op_active);
+
+M0_INTERNAL void m0_co_op_done(struct m0_co_op *op)
+{
+	m0_sm_group_lock(&op->co_sm_group);
+	m0_sm_state_set(&op->co_sm, COR_DONE);
+	m0_sm_group_unlock(&op->co_sm_group);
+}
+M0_EXPORTED(m0_co_op_done);
+
+M0_INTERNAL int m0_co_op_tick_ret(struct m0_co_op *op,
+				  struct m0_fom   *fom,
+				  int              next_state)
+{
+	enum m0_fom_phase_outcome ret = M0_FSO_AGAIN;
+
+	m0_sm_group_lock(&op->co_sm_group);
+	M0_PRE(M0_IN(op->co_sm.sm_state, (COR_ACTIVE, COR_DONE)));
+
+	if (op->co_sm.sm_state == COR_ACTIVE) {
+		ret = M0_FSO_WAIT;
+		m0_fom_wait_on(fom, &op->co_sm.sm_chan, &fom->fo_cb);
+	}
+	m0_sm_group_unlock(&op->co_sm_group);
+
+	m0_fom_phase_set(fom, next_state);
+	return ret;
+}
+M0_EXPORTED(m0_co_op_tick_ret);
 
 #undef M0_TRACE_SUBSYSTEM
 
