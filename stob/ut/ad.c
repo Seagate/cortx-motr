@@ -561,7 +561,7 @@ void m0_stob_ut_adieu_ad(void)
 	rc = test_ad_fini();
 	M0_ASSERT(rc == 0);
 
-	rc = test_ad_init(true);
+	rc = test_ad_init(false);
 	M0_ASSERT(rc == 0);
 	punch_test();
 	rc = test_ad_fini();

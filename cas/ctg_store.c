@@ -540,8 +540,12 @@ static int ctg_state_create(struct m0_be_seg     *seg,
 			M0_BE_FREE_PTR_SYNC(out, seg, tx);
 			break;
 		}
-		else
+		else {
 			*state = out;
+			m0_mutex_init(&out->cs_meta_cc_chan_guard.bm_u.mutex);
+			m0_chan_init(&out->cs_meta_cc_chan.bch_chan,
+				     &out->cs_meta_cc_chan_guard.bm_u.mutex);
+		}
 	}
         return M0_RC(rc);
 }
@@ -580,6 +584,9 @@ static int ctg_store__init(struct m0_be_seg *seg, struct m0_cas_state *state)
 					&ctg_store.cs_ctidx) ?:
 		m0_ctg_meta_find_ctg(state->cs_meta[i], &m0_cas_dead_index_fid,
 					&ctg_store.cs_dead_index);
+		if (rc != 0)
+			break;
+
 		if (rc == 0) {
 			ctg_init(ctg_store.cs_ctidx, seg);
 			ctg_init(ctg_store.cs_dead_index, seg);
@@ -871,6 +878,10 @@ static bool ctg_op_cb(struct m0_clink *clink)
 	struct m0_buf    *dst;
 	struct m0_buf    *src;
 	int               rc;
+
+	if ( ct == CT_META ) {
+		ctg_chan = &ctg_store.cs_state->cs_meta_cc_chan.bch_chan;
+	}
 
 	if (op->bo_sm.sm_state != M0_BOS_DONE)
 		return true;
@@ -1454,13 +1465,12 @@ M0_INTERNAL void m0_ctg_cursor_kv_get(struct m0_ctg_op *ctg_op,
 	*val = ctg_op->co_out_val;
 }
 
-M0_INTERNAL void m0_ctg_meta_cursor_init(struct m0_ctg_op *ctg_op)
+M0_INTERNAL void m0_ctg_meta_cursor_init(struct m0_ctg_op *ctg_op,
+					 const struct m0_fid *fid)
 {
-	int i;
 	M0_PRE(ctg_op != NULL);
-	for (i = 0; i < CAS_META_HT_SIZE; i++) {
-		m0_ctg_cursor_init(ctg_op, ctg_store.cs_state->cs_meta[i]);
-	}
+	uint16_t ht_idx = m0_cas_get_hash(fid);
+	m0_ctg_cursor_init(ctg_op, ctg_store.cs_state->cs_meta[ht_idx]);
 }
 
 M0_INTERNAL int m0_ctg_meta_cursor_get(struct m0_ctg_op    *ctg_op,
@@ -1883,6 +1893,11 @@ M0_INTERNAL struct m0_cas_ctg *m0_ctg_meta(struct m0_fid *fid)
 	M0_PRE(fid != NULL);
 	uint16_t ht_idx = m0_cas_get_hash(fid);
 	return ctg_store.cs_state->cs_meta[ht_idx];
+}
+
+M0_INTERNAL struct m0_chan *m0_ctg_meta_cc_chan()
+{
+	return &ctg_store.cs_state->cs_meta_cc_chan.bch_chan;
 }
 
 // TODO: Linear time !!!!!!!!!!!!!!!!!!!!!!!!!!!

@@ -247,8 +247,7 @@ static void dix_cm_iter_init(struct m0_dix_cm_iter *iter)
 
 	/* Subscribe to meta catalogue modifications. */
 	m0_clink_init(&iter->di_meta_clink, dix_cm_iter_meta_clink_cb);
-	m0_clink_add_lock(&m0_ctg_meta(&iter->di_cctg_fid)->cc_chan.bch_chan,
-			  &iter->di_meta_clink);
+	m0_clink_add_lock(m0_ctg_meta_cc_chan(), &iter->di_meta_clink);
 }
 
 static void dix_cm_iter_dtx_fini(struct m0_dix_cm_iter *iter)

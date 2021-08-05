@@ -2194,7 +2194,8 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		if (fom->cf_curpos == 0) {
 			if (!m0_ctg_cursor_is_initialised(ctg_op)) {
 				if (ct == CT_META)
-					m0_ctg_meta_cursor_init(ctg_op);
+					m0_ctg_meta_cursor_init(ctg_op,
+								&cid->ci_fid);
 				else
 					m0_ctg_cursor_init(ctg_op, ctg);
 			}

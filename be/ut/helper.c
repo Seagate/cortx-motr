@@ -328,9 +328,9 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		.bc_stob_domain_key	= m0_atomic64_add_return(&dom_key, 1),
 		.bc_seg0_cfg = {
 			.bsc_stob_key	     = BE_UT_SEG_START_ID - 1,
-			.bsc_size	     = 1 << 20,
+			.bsc_size	     = 1 << 24,
 			.bsc_preallocate     = false,
-			.bsc_addr	  = m0_be_ut_seg_allocate_addr(1 << 20),
+			.bsc_addr	  = m0_be_ut_seg_allocate_addr(1 << 24),
 			.bsc_stob_create_cfg = NULL,
 		},
 		.bc_seg_cfg		   = NULL,

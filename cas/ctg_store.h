@@ -91,7 +91,7 @@
 /** Defines hash table size for struct m0_cas_ctg defined inside
  * struct m0_cas_state. This size should be pow of 2. M0_PRE(m0_is_po2(EMAP_HT_SIZE)); at proper place
  */
-enum { CAS_META_HT_SIZE = 32 };
+enum { CAS_META_HT_SIZE = 8 };
 // TODO: Add check for pow2(CAS_META_HT_SIZE)
 /** CAS catalogue. */
 struct m0_cas_ctg {
@@ -154,6 +154,14 @@ struct m0_cas_state {
 	 * because m0_cas_state is saved in seg_dict.
 	 */
         struct m0_cas_ctg      *cs_meta[CAS_META_HT_SIZE];
+	/**
+	 * Channel to announce catalogue modifications (put, delete).
+	 */
+	struct m0_be_chan       cs_meta_cc_chan;
+	/**
+	 * Mutex protecting cc_chan.
+	 */
+	struct m0_be_mutex      cs_meta_cc_chan_guard;
         /**
 	 * Total number of records in all catalogues in catalogue store. It's
 	 * used by repair/re-balance services to report progress.
@@ -264,6 +272,9 @@ M0_INTERNAL void m0_ctg_store_fini(void);
 
 /** Returns a pointer to meta catalogue context. */
 M0_INTERNAL struct m0_cas_ctg *m0_ctg_meta(struct m0_fid *fid);
+
+/** Returns a pointer to channel for meta catalogue modifications. */
+M0_INTERNAL struct m0_chan *m0_ctg_meta_cc_chan();
 
 /** TODO: Temporary */
 M0_INTERNAL struct m0_cas_ctg *m0_ctg_meta_all(const struct m0_cas_ctg *ctg);
@@ -480,7 +491,8 @@ M0_INTERNAL int m0_ctg_drop(struct m0_ctg_op  *ctg_op,
  *
  * @param ctg_op Catalogue operation context.
  */
-M0_INTERNAL void m0_ctg_meta_cursor_init(struct m0_ctg_op *ctg_op);
+M0_INTERNAL void m0_ctg_meta_cursor_init(struct m0_ctg_op *ctg_op,
+					 const struct m0_fid *fid);
 
 /**
  * Positions cursor on catalogue with FID @fid. Should be called after

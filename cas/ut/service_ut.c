@@ -822,10 +822,19 @@ static void meta_cur_none(void)
 static void meta_cur_all(void)
 {
 	struct m0_fid fid = IFID(1, 0);
-	struct m0_cas_id cid = { .ci_fid = m0_cas_meta_fid };
+	struct m0_cas_id cid = { .ci_fid = fid };
+	struct m0_fid fid1 = IFID(1, 1);
+	struct m0_fid fid2 = IFID(1, 2);
+	struct m0_fid fid3 = IFID(1, 3);
 
 	init();
 	meta_fid_submit(&cas_put_fopt, &fid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	meta_fid_submit(&cas_put_fopt, &fid1);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	meta_fid_submit(&cas_put_fopt, &fid2);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	meta_fid_submit(&cas_put_fopt, &fid3);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	meta_fop_submit(&cas_cur_fopt,
 			(struct meta_rec[]) {
@@ -844,12 +853,12 @@ static void meta_cur_all(void)
 	/* nonexistent record */
 	M0_UT_ASSERT(rep_check(4, -ENOENT, BUNSET, BUNSET));
 	M0_UT_ASSERT(m0_fid_eq(repv[0].cr_key.u.ab_buf.b_addr,
-			       &m0_cas_meta_fid));
+			       &fid));
 	M0_UT_ASSERT(m0_fid_eq(repv[1].cr_key.u.ab_buf.b_addr,
-			       &m0_cas_ctidx_fid));
+			       &fid1));
 	M0_UT_ASSERT(m0_fid_eq(repv[2].cr_key.u.ab_buf.b_addr,
-			       &m0_cas_dead_index_fid));
-	M0_UT_ASSERT(m0_fid_eq(repv[3].cr_key.u.ab_buf.b_addr, &fid));
+			       &fid2));
+	M0_UT_ASSERT(m0_fid_eq(repv[3].cr_key.u.ab_buf.b_addr, &fid3));
 	fini();
 }
 
@@ -1872,7 +1881,7 @@ static void create_insert_drop_with_fail(bool inject_fail)
 	 * ones. BE performs quadratic number of checks inside invariants
 	 * comparing to number of capture operations.
 	 */
-	_init(true, true);
+	_init(true, false);
 	/*
 	 * Create 2 catalogs.
 	 */

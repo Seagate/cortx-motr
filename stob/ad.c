@@ -561,11 +561,18 @@ static void stob_ad_domain_create_credit(struct m0_be_seg *seg,
 	struct m0_be_emap map = {};
 	struct m0_buf     data = { .b_nob = sizeof(struct stob_ad_0type_rec) };
 	struct m0_perf_ht 	sad_adata_ht;
+	int		  i;
+
 	M0_BE_ALLOC_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
 	M0_BE_ALLOC_CREDIT_ARR(&sad_adata_ht, EMAP_HT_SIZE, seg, accum);
-	m0_be_emap_init(&map, seg);
-	m0_be_emap_credit(&map, M0_BEO_CREATE, EMAP_HT_SIZE, accum);
-	m0_be_emap_fini(&map);
+
+	for (i = 0; i < EMAP_HT_SIZE; i++ )
+	{
+		m0_be_emap_init(&map, seg);
+		m0_be_emap_credit(&map, M0_BEO_CREATE, 1, accum);
+		m0_be_emap_fini(&map);
+	}
+
 	m0_be_0type_add_credit(seg->bs_domain, &m0_stob_ad_0type,
 			       location_data, &data, accum);
 }
@@ -575,13 +582,19 @@ static void stob_ad_domain_destroy_credit(struct m0_be_seg *seg,
 					  struct m0_be_tx_credit *accum)
 {
 	struct m0_be_emap map = {};
-
+	int		  i;
 	struct m0_perf_ht 	sad_adata_ht;
+
 	M0_BE_FREE_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
 	M0_BE_FREE_CREDIT_ARR(&sad_adata_ht, EMAP_HT_SIZE, seg, accum);
-	m0_be_emap_init(&map, seg);
-	m0_be_emap_credit(&map, M0_BEO_DESTROY, EMAP_HT_SIZE, accum);
-	m0_be_emap_fini(&map);
+
+	for (i = 0; i < EMAP_HT_SIZE; i++ )
+	{
+		m0_be_emap_init(&map, seg);
+		m0_be_emap_credit(&map, M0_BEO_DESTROY, 1, accum);
+		m0_be_emap_fini(&map);
+	}
+
 	m0_be_0type_del_credit(seg->bs_domain, &m0_stob_ad_0type,
 			       location_data, accum);
 }
@@ -668,6 +681,8 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 					  &cfg->adg_id.si_fid),
 			bo_u.u_emap.e_rc);
 			m0_be_emap_fini(emap);
+			if (rc != 0)
+				break;
 		}
 
 		seg0_ad_rec = (struct stob_ad_0type_rec){.sa0_ad_domain = adom}; /* XXX won't be a pointer */
@@ -726,13 +741,16 @@ static int stob_ad_domain_destroy(struct m0_stob_type *type,
 			rc = M0_BE_OP_SYNC_RET(op,
 					       m0_be_emap_destroy(emap, &tx, &op),
 					       bo_u.u_emap.e_rc);
-			rc = rc ?: m0_be_0type_del(&m0_stob_ad_0type,
-						   seg->bs_domain,
-						   &tx, location_data);
+			if (rc != 0)
+				break;
 		}
+
+		rc = rc ?: m0_be_0type_del(&m0_stob_ad_0type,
+					   seg->bs_domain,
+					   &tx, location_data);
 		if (rc == 0)
 			M0_BE_FREE_PTR_SYNC(adom, seg, &tx);
-		 M0_BE_FREE_PTR_SYNC( adom->sad_adata_ht, seg, &tx);
+		M0_BE_FREE_PTR_SYNC( adom->sad_adata_ht, seg, &tx);
 		m0_be_tx_close_sync(&tx);
 	}
 	m0_be_tx_fini(&tx);

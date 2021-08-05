@@ -98,7 +98,7 @@ static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 	ctx->rmc_ut_be.but_stob_domain_location = location;
 	rc = m0_be_ut_backend_init_cfg(&ctx->rmc_ut_be, NULL, true);
 	M0_ASSERT(rc == 0);
-	m0_be_ut_seg_init(&ctx->rmc_ut_seg, &ctx->rmc_ut_be, 1 << 20);
+	m0_be_ut_seg_init(&ctx->rmc_ut_seg, &ctx->rmc_ut_be, 1 << 24);
 	seg = ctx->rmc_ut_seg.bus_seg;
 	grp = m0_be_ut_backend_sm_group_lookup(&ctx->rmc_ut_be);
 
