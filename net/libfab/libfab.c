@@ -1978,17 +1978,22 @@ static void libfab_bdesc_decode(struct m0_fab__buf *fb,
  */
 static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct fid_domain *dp)
 {
-	struct m0_fab__buf    *fbp = nb->nb_xprt_private;
+	struct m0_fab__buf    *fbp;
 	struct m0_fab__buf_mr *mr;
+	struct m0_fab__ndom   *ndom;
 	uint64_t               key;
-	int                    seg_nr = nb->nb_buffer.ov_vec.v_nr;
+	uint32_t               retry_cnt;
+	int                    seg_nr;
 	int                    i;
 	int                    ret = FI_SUCCESS;
-	uint32_t               retry_cnt;
-	struct m0_fab__ndom   *ndom = nb->nb_dom->nd_xprt_private;
 
-	M0_PRE(fbp != NULL && dp != NULL);
-	M0_PRE(seg_nr <= ndom->fnd_seg_nr);
+	M0_PRE(nb != NULL && nb->nb_dom != NULL);
+	fbp = nb->nb_xprt_private;
+	seg_nr = nb->nb_buffer.ov_vec.v_nr;
+	ndom = nb->nb_dom->nd_xprt_private;
+
+	M0_ASSERT(fbp != NULL && dp != NULL && ndom != NULL);
+	M0_ASSERT(seg_nr <= ndom->fnd_seg_nr);
 
 	mr = &fbp->fb_mr;
 	if (fbp->fb_dp == dp)

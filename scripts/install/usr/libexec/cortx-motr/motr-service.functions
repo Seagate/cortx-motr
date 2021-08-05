@@ -257,7 +257,14 @@ m0_get_lnet_nid()
     if [[ -z "$node" || $node == $(hostname -s) ]] ; then
         lnid=${MOTR_NODE_LNID:=$(m0_genders_value_of m0_lnet_nid)}
         if [[ -z "$lnid" || $lnid == auto ]] ; then
-            lnid=$(lctl list_nids | head -n1)
+            if [ "$(m0_get_motr_transport)" = "lnet" ]; then
+                lnid=$(lctl list_nids | head -n1)
+            else
+                local iface=`cat /etc/modprobe.d/lnet.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "(" -f2 | cut -d ")" -f1`
+                local proto=`cat /etc/modprobe.d/lnet.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "=" -f2 | cut -d "(" -f1`
+                local ip_addr=`ip addr show $iface |grep inet| head -1 | awk '{print $2}'|cut -d '/' -f1`
+                lnid=$ip_addr@$proto
+            fi
             [[ -z "$lnid" ]] && \
                 m0_exit 'Failed to auto-detect Lnet NID, please check that' \
                         ' lnet service is running'

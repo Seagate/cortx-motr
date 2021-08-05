@@ -27,8 +27,8 @@
 # This script should only be run before bootstrap (that does mkfs),
 # and it will never be started after Motr mkfs is complete
 
-M0_SRC_DIR=$(readlink -f ${BASH_SOURCE[0]})
-M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*/*/*/*/*}
+M0_SRC_DIR=$(dirname $(readlink -f $0))
+M0_SRC_DIR="$M0_SRC_DIR/../../../../../../../"
 
 . $M0_SRC_DIR/utils/functions # m0_local_nid_get
 
