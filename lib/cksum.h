@@ -156,6 +156,17 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
                 unsigned char *pi_value_without_seed);
 
 /**
+ * Calculate checksum size
+ * @param pi generic pointer for checksum data structure
+ */
+M0_INTERNAL uint64_t m0_calculate_cksum_size(struct m0_generic_pi *pi);
+
+/**
+ * Return max cksum size possible
+ */
+M0_INTERNAL uint64_t max_cksum_size(void);
+
+/**
  * Calculate checksum/protection info for data/KV
  *
  * @param[IN/OUT] pi  Caller will pass Generic pi struct, which will be typecasted to

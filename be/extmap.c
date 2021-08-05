@@ -31,7 +31,11 @@
 #include "lib/finject.h"
 #include "lib/memory.h"
 #include "lib/cksum_utils.h"
+#include "lib/cksum.h"
 #include "format/format.h"  /* m0_format_header_pack */
+
+/* max data units that can be sent in a request */
+#define MAX_DUS 8
 
 /**
    @addtogroup extmap
@@ -885,9 +889,14 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 				   m0_bcount_t             nr,
 				   struct m0_be_tx_credit *accum)
 {
+	uint64_t emap_rec_size;
+
 	M0_PRE(M0_IN(optype, (M0_BEO_CREATE, M0_BEO_DESTROY, M0_BEO_INSERT,
 			      M0_BEO_DELETE, M0_BEO_UPDATE,
 			      M0_BEO_MERGE, M0_BEO_SPLIT, M0_BEO_PASTE)));
+
+	/* emap rec static size + size of max checksum possible */
+	emap_rec_size = sizeof map->em_rec + max_cksum_size() * MAX_DUS;
 
 	switch (optype) {
 	case M0_BEO_CREATE:
@@ -899,31 +908,31 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 		break;
 	case M0_BEO_INSERT:
 		m0_be_btree_insert_credit(&map->em_mapping, nr,
-			sizeof map->em_key, sizeof map->em_rec, accum);
+			sizeof map->em_key, emap_rec_size, accum);
 		break;
 	case M0_BEO_DELETE:
 		m0_be_btree_delete_credit(&map->em_mapping, nr,
-			sizeof map->em_key, sizeof map->em_rec, accum);
+			sizeof map->em_key, emap_rec_size, accum);
 		break;
 	case M0_BEO_UPDATE:
 		m0_be_btree_update_credit(&map->em_mapping, nr,
-			sizeof map->em_rec, accum);
+			emap_rec_size, accum);
 		break;
 	case M0_BEO_MERGE:
 		m0_be_btree_delete_credit(&map->em_mapping, nr,
-			sizeof map->em_key, sizeof map->em_rec, accum);
+			sizeof map->em_key, emap_rec_size, accum);
 		m0_be_btree_insert_credit(&map->em_mapping, nr,
-			sizeof map->em_key, sizeof map->em_rec, accum);
+			sizeof map->em_key, emap_rec_size, accum);
 		m0_be_btree_update_credit(&map->em_mapping, nr,
-			sizeof map->em_rec, accum);
+			emap_rec_size, accum);
 		break;
 	case M0_BEO_SPLIT:
 		m0_be_btree_delete_credit(&map->em_mapping, 1,
-			sizeof map->em_key, sizeof map->em_rec, accum);
+			sizeof map->em_key, emap_rec_size, accum);
 		m0_be_btree_insert_credit(&map->em_mapping, nr,
-			sizeof map->em_key, sizeof map->em_rec, accum);
+			sizeof map->em_key, emap_rec_size, accum);
 		m0_be_btree_update_credit(&map->em_mapping, 1,
-			sizeof map->em_rec, accum);
+			emap_rec_size, accum);
 		M0_BE_CREDIT_INC(nr, M0_BE_CU_EMAP_SPLIT, accum);
 		break;
 	case M0_BEO_PASTE:
