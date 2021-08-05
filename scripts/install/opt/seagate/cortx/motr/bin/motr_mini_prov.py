@@ -684,12 +684,13 @@ def remove_dirs(self, log_dir, patterns):
         # search_pat=/var/motr/**/addb*
         search_pat = "{}/**/{}*".format(log_dir, pattern)
         for dname in glob.glob(search_pat, recursive=True):
+            if "/hax/" in dname:
+                continue
             removed_dirs.append(dname)
             execute_command(self, f"rm -rf {dname}")
         self.logger.info(f"Removed below directories.\n{removed_dirs}")
 
-def remove_logs(self):
-    patterns=["addb", "*trace"]
+def remove_logs(self, patterns):
     for log_dir in MOTR_LOG_DIRS:
         if os.path.exists(log_dir):
             remove_dirs(self, log_dir, patterns)
@@ -740,3 +741,34 @@ def lnet_self_ping(self):
        if ret != 0:
             return False
     return True
+
+def lvm_clean(self):
+    vol_grps=execute_command(self, "vgs|grep vg_srvnode|awk '{print $1}'")[0].split('\n')[0:-1]
+    if (len(vol_grps) == 0):
+        self.logger.info("No cortx volume groups (e.g. vg_srvnode-1_md1) are found \n")
+        return
+    self.logger.info("Executing swapoff -a")
+    swap_off(self)
+    self.logger.info(f"Removing cortx LVM entries from {FSTAB}")
+    execute_command(self, f"sed -i.bak '/vg_srvnode/d' {FSTAB}")
+    for vg in vol_grps:
+        cmd = f"pvs|grep {vg} |" "awk '{print $1}'"
+        pv_names = execute_command(self, cmd)[0].split('\n')[0:-1]
+        cmd = f"lvs|grep {vg} |" "awk '{print $1}'"
+        lv_names = execute_command(self, cmd)[0].split('\n')[0:-1]
+
+        for lv in lv_names:
+            lv_path = f"/dev/{vg}/{lv}"
+            self.logger.info(f"Executing lvchange -an {lv_path}")
+            execute_command(self, f"lvchange -an {lv_path}")
+            self.logger.info(f"Executing lvremove {lv_path}")
+            execute_command(self, f"lvremove {lv_path}")
+        self.logger.info(f"Executing vgchange -an {vg}")
+        execute_command(self, f"vgchange -an {vg}")
+        self.logger.info(f"Executing vgremove {vg}")
+        execute_command(self, f"vgremove {vg}")
+        for pv in pv_names:
+            self.logger.info(f"pvremove {pv}")
+            execute_command(self, f"pvremove {pv}")
+            self.logger.info(f"wipefs -a {pv}")
+            execute_command(self, f"wipefs -a {pv}")
