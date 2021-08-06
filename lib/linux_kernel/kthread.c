@@ -215,8 +215,7 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 				idx1 = idx;
 		}
 	}
-	if (idx1 != -1)
-		m0_thread_tls()->tls_loc = idx1;
+	M0_ASSERT(idx1 != -1); /* At least one processor must be set. */
 
 	nr_allowed = cpumask_weight(cpuset);
 

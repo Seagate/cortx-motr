@@ -143,8 +143,7 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 				idx1 = idx;
 		}
 	}
-	if (idx1 != -1)
-		q->t_tls.tls_loc = idx1;
+	M0_ASSERT(idx1 != -1) /* At least one processor must be set. */
 
 	return -pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
 }
