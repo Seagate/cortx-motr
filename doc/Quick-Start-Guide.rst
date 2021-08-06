@@ -114,11 +114,11 @@ Unit Benchmark
 
 Troubleshooting
 ================
-- If an installation failure due to ``DistributionNotFound: ipaddress``
-  while installing build dependencies,
-  run the following commands::
+- If pip fails to install a package while installing build dependencies,
+  try to manually install the package.
+  run the following commands if package is ipaddress::
 
-    sudo pip install ipaddress
+    sudo pip install python-ipaddress
     sudo scripts/install-build-deps
 
 - If an installation failure occurs due to the dependency of ``pip3`` ,
