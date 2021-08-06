@@ -5556,12 +5556,10 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		int rc = bop->bo_cb.c_act(&bop->bo_cb, &rec);
 		M0_ASSERT(rc == 0);
 
-		if (oi->i_used == 0 || !node_underflow) {
-			/* No Underflow */
-			return P_CAPTURE;
-		} else
-			return btree_del_resolve_underflow(bop);
+		if (oi->i_used == 0 || !node_underflow)
+			return P_CAPTURE; /* No Underflow */
 
+		return btree_del_resolve_underflow(bop);
 	}
 	case P_CAPTURE:
 		btree_tx_nodes_capture(oi, bop->bo_tx);
@@ -8405,7 +8403,6 @@ static void ut_put_update_del_operation(void)
 							 &kv_op, tx));
 		if (rc) {
 			M0_ASSERT(rc == M0_ERR(-ENOENT));
-			printf("M0_BSC_KEY_NOT_FOUND ");
 		} else
 			M0_ASSERT(update_data.flags == M0_BSC_SUCCESS);
 
@@ -8448,7 +8445,6 @@ static void ut_put_update_del_operation(void)
 							       &kv_op, tx));
 		if (rc) {
 			M0_ASSERT(rc == M0_ERR(-ENOENT));
-			printf("M0_BSC_KEY_NOT_FOUND ");
 		} else {
 			M0_ASSERT(del_data.flags == M0_BSC_SUCCESS);
 		}
