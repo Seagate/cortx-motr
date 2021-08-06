@@ -3936,9 +3936,9 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	case P_SANITY_CHECK: {
 		int  rc = 0;
 		if (bop->bo_opc == M0_BO_PUT && oi->i_key_found)
-			rc = M0_BSC_KEY_EXISTS;
+			rc = M0_ERR(-EEXIST);
 		else if (bop->bo_opc == M0_BO_UPDATE && !oi->i_key_found)
-			rc = M0_BSC_KEY_NOT_FOUND;
+			rc = M0_ERR(-ENOENT);
 
 		if (rc) {
 			lock_op_unlock(tree);
@@ -4023,7 +4023,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	}
 	case P_CAPTURE:
 		btree_tx_nodes_capture(oi, bop->bo_tx);
-		bop->bo_op.o_sm.sm_rc = M0_BSC_SUCCESS;
 		lock_op_unlock(tree);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	case P_CLEANUP:
@@ -5524,50 +5523,43 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		 *  to resolve function else return P_CLEANUP.
 		*/
 
-		if (!oi->i_key_found)
-			rec.r_flags = M0_BSC_KEY_NOT_FOUND;
-		else {
-			lev = &oi->i_level[oi->i_used];
-			node_slot.s_node = lev->l_node;
-			node_slot.s_idx  = lev->l_idx;
-
-			node_lock(lev->l_node);
-
-			node_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
-			node_done(&node_slot, bop->bo_tx, true);
-			node_seq_cnt_update(lev->l_node);
-			node_fix(node_slot.s_node, bop->bo_tx);
-			btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
-			/**
-			 * TBD : This check needs to be removed when debugging
-			 * is done.
-			 */
-			M0_ASSERT(node_expensive_invariant(lev->l_node));
-			node_underflow = node_isunderflow(lev->l_node, false);
-			if (oi->i_used != 0  && node_underflow) {
-				node_fini(lev->l_node, bop->bo_tx);
-				lev->l_freenode = true;
-			}
-
-			node_unlock(lev->l_node);
-
-			rec.r_flags = M0_BSC_SUCCESS;
-		}
-		int rc = bop->bo_cb.c_act(&bop->bo_cb, &rec);
-		if (rc) {
-			M0_ASSERT(!oi->i_key_found);
+		if (!oi->i_key_found) {
 			lock_op_unlock(tree);
-			return fail(bop, rc);
+			return fail(bop, M0_ERR(-ENOENT));
 		}
 
-		if (oi->i_key_found) {
-			if (oi->i_used == 0 || !node_underflow) {
-				/* No Underflow */
-				return P_CAPTURE;
-			}
-			return btree_del_resolve_underflow(bop);
+		lev = &oi->i_level[oi->i_used];
+		node_slot.s_node = lev->l_node;
+		node_slot.s_idx  = lev->l_idx;
+
+		node_lock(lev->l_node);
+
+		node_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
+		node_done(&node_slot, bop->bo_tx, true);
+		node_seq_cnt_update(lev->l_node);
+		node_fix(node_slot.s_node, bop->bo_tx);
+		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
+		/**
+		 * TBD : This check needs to be removed when debugging
+		 * is done.
+		 */
+		M0_ASSERT(node_expensive_invariant(lev->l_node));
+		node_underflow = node_isunderflow(lev->l_node, false);
+		if (oi->i_used != 0  && node_underflow) {
+			node_fini(lev->l_node, bop->bo_tx);
+			lev->l_freenode = true;
 		}
-		M0_ASSERT(0);
+
+		node_unlock(lev->l_node);
+
+		rec.r_flags = M0_BSC_SUCCESS;
+		int rc = bop->bo_cb.c_act(&bop->bo_cb, &rec);
+		M0_ASSERT(rc == 0);
+
+		if (oi->i_used == 0 || !node_underflow)
+			return P_CAPTURE; /* No Underflow */
+
+		return btree_del_resolve_underflow(bop);
 	}
 	case P_CAPTURE:
 		btree_tx_nodes_capture(oi, bop->bo_tx);
@@ -6482,8 +6474,9 @@ static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 
 	/** The caller can look at these flags if he needs to. */
 	datum->flags = rec->r_flags;
+	M0_ASSERT(datum->flags == M0_BSC_SUCCESS);
 
-	return rec->r_flags;
+	return 0;
 }
 
 static int btree_kv_update_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
@@ -6841,7 +6834,7 @@ static void ut_multi_stream_kv_oper(void)
 						      m0_btree_put(tree, &rec,
 								   &ut_cb, 0,
 								   &kv_op, tx));
-			M0_ASSERT(rc == M0_BSC_SUCCESS);
+			M0_ASSERT(rc == 0 && put_data.flags == M0_BSC_SUCCESS);
 			m0_be_tx_close_sync(tx);
 			m0_be_tx_fini(tx);
 		}
@@ -6956,11 +6949,13 @@ static void ut_multi_stream_kv_oper(void)
 			rc = m0_be_tx_open_sync(tx);
 			M0_ASSERT(rc == 0);
 
+			rc =
 			M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						 m0_btree_del(tree,
 							      &del_key_in_tree,
 							      &ut_cb, 0,
 							      &kv_op, tx));
+			M0_ASSERT(rc == 0 && del_data.flags == M0_BSC_SUCCESS);
 			m0_be_tx_close_sync(tx);
 			m0_be_tx_fini(tx);
 		}
@@ -7210,8 +7205,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 						      m0_btree_put(tree, &rec,
 								   &ut_cb, 0,
 								   &kv_op, tx));
-			M0_ASSERT(rc == M0_BSC_SUCCESS &&
-				  data.flags == M0_BSC_SUCCESS);
+			M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
 
 			keys_put_count++;
 			key_first += ti->ti_key_incr;
@@ -7240,7 +7234,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_put(tree, &rec, &ut_cb,
 							   0, &kv_op, tx));
-		M0_ASSERT(rc == M0_BSC_KEY_EXISTS);
+		M0_ASSERT(rc == M0_ERR(-EEXIST));
 
 		/** Modify at least 20% of the values which have been inserted. */
 
@@ -7275,8 +7269,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 								      &ut_cb, 0,
 								      &kv_op,
 								      tx));
-			M0_ASSERT(rc == M0_BSC_SUCCESS &&
-				  data.flags == M0_BSC_SUCCESS);
+			M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
 
 			key_first += (ti->ti_key_incr * 5);
 		}
@@ -7300,7 +7293,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 					      m0_btree_update(tree, &rec,
 							      &ut_cb, 0,
 							      &kv_op, tx));
-		M0_ASSERT(rc == M0_BSC_KEY_NOT_FOUND);
+		M0_ASSERT(rc == M0_ERR(-ENOENT));
 
 
 		/** GET and ITERATE over the keys which we inserted above. */
@@ -7525,10 +7518,13 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 			btree_callback_credit(&cred);
 
-			M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						 m0_btree_del(tree, &rec.r_key,
-							      &ut_cb, 0,
-							      &kv_op, tx));
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_del(tree,
+								   &rec.r_key,
+								   &ut_cb, 0,
+								   &kv_op, tx));
+			M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
+
 			del_key = (r % 2 == 0) ?
 						del_key + ti->ti_key_incr :
 						del_key - ti->ti_key_incr;
@@ -7872,8 +7868,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 						      m0_btree_put(tree, &rec,
 								   &ut_cb, 0,
 								   &kv_op, tx));
-			M0_ASSERT(data.flags == M0_BSC_SUCCESS &&
-				  rc == M0_BSC_SUCCESS);
+			M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
 		}
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
@@ -7920,7 +7915,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 								   &rec.r_key,
 								   &ut_cb, 0,
 								   &kv_op, tx));
-			M0_ASSERT(data.flags == M0_BSC_SUCCESS && rc == 0);
+			M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
 		}
 
 		m0_btree_destroy_credit(tree, &cred);
@@ -8357,7 +8352,7 @@ static void ut_put_update_del_operation(void)
 		int rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					 m0_btree_put(tree, &rec, &ut_cb, 0,
 						      &kv_op, tx));
-		M0_ASSERT(rc == M0_BSC_SUCCESS);
+		M0_ASSERT(rc == 0 && put_data.flags == M0_BSC_SUCCESS);
 
 		if (i >= total_records - 5) {
 			int rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -8367,7 +8362,7 @@ static void ut_put_update_del_operation(void)
 								       0,
 								       &kv_op,
 						      		       tx));
-			M0_ASSERT(rc == M0_BSC_KEY_EXISTS);
+			M0_ASSERT(rc == M0_ERR(-EEXIST));
 		}
 
 	}
@@ -8406,10 +8401,10 @@ static void ut_put_update_del_operation(void)
 		int rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					 m0_btree_update(tree, &rec, &ut_cb, 0,
 							 &kv_op, tx));
-		if (rc) {
-			M0_ASSERT(rc == M0_BSC_KEY_NOT_FOUND);
-			printf("M0_BSC_KEY_NOT_FOUND ");
-		}
+		if (rc)
+			M0_ASSERT(rc == M0_ERR(-ENOENT));
+		else
+			M0_ASSERT(update_data.flags == M0_BSC_SUCCESS);
 
 	}
 	printf("level : %d\n", node_level(tree->t_desc->t_root));
@@ -8444,16 +8439,14 @@ static void ut_put_update_del_operation(void)
 		ut_cb.c_act        = btree_kv_del_cb;
 		ut_cb.c_datum      = &del_data;
 
-		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					 m0_btree_del(tree, &rec.r_key,
-						      &ut_cb, 0, &kv_op, tx));
-		if (del_data.flags == M0_BSC_KEY_NOT_FOUND) {
-			printf("M0_BSC_KEY_NOT_FOUND ");
-		} else {
+		int rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						  m0_btree_del(tree, &rec.r_key,
+						      	       &ut_cb, 0,
+							       &kv_op, tx));
+		if (rc)
+			M0_ASSERT(rc == M0_ERR(-ENOENT));
+		else
 			M0_ASSERT(del_data.flags == M0_BSC_SUCCESS);
-		}
-
-
 
 	}
 	printf("\n After deletion:\n");
