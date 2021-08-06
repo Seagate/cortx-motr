@@ -172,7 +172,7 @@ sub main
 
     my @items;
     my @dump_files = File::Find::Rule->or(
-                        File::Find::Rule->directory->name(qw/ut ub it/)->prune->discard,
+                        File::Find::Rule->directory->name(qw/ut ub it demo/)->prune->discard,
                         File::Find::Rule->file()->name('*_xc.yml')
                      )->in( parent_dir() );
 
