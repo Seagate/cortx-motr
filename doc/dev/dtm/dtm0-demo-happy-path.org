@@ -44,14 +44,14 @@ svg.saveas("demo1.svg")
 #+begin_src
 DTM0 happy path scenario.
    - Goals:
-     - To have a unit- and system- test sending clovis PUT/DEL,
+     - To have a unit- and system- test sending client PUT/DEL,
        requests using DTM0 logic of including CAS PUT/DEL,
        requests, PERSISENT FOP, updating DTM0 log;
 
    - Features:
      - DTM0 log;
      - DTM0 service and FOPs;
-     - DTX state machine embedded into clovis PUT/DEL operations;
+     - DTX state machine embedded into client PUT/DEL operations;
      - Integration: A glue around DTM0 service connections;
                     Disable spares;
      - Clock algorithm;
@@ -100,7 +100,7 @@ DTM0 happy path scenario.
 - [50%]   DTM0 service;
 - [50%]   DTM0 fom;
 - [DONE]  CAS rework;
-- [DONE]  Clovis rework;
+- [DONE]  Client rework;
 - [DONE]  overall integration
           effort for happy path;
 - [DONE]  integration test.
@@ -186,7 +186,7 @@ INFO: TEST STATUS: PASSED
 ./motr/utils/m0addb2dump -f -- /var/motr/m0d-0x7200000000000001\:0x1a/addb-stobs/o/100000000000000\:2 > dump_1a.txt
 ./motr/utils/m0addb2dump -f -- /var/motr/m0d-0x7200000000000001\:0x28/addb-stobs/o/100000000000000\:2 > dump_28.txt
 ./motr/utils/m0addb2dump -f -- /var/motr/m0d-0x7200000000000001\:0x9/addb-stobs/o/100000000000000\:2 >  dump_9.txt
-./motr/utils/m0addb2dump -f -- clovis_addb_17730/o/100000000000000:2 > dumpc_26568.txt
+./motr/utils/m0addb2dump -f -- client_addb_17730/o/100000000000000:2 > dumpc_26568.txt
 
 # generate the db
 git clone --recursive git@github.com:Seagate/seagate-tools.git
