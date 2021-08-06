@@ -14,6 +14,7 @@ Milestones:
  - [DONE] [happy]    DTM0 happy path scenario;
  - [DONE] [ststp]    DTM0 start/stop scenarios;
  - [TODO] [recovery] DTM0 recovery scenarios (depends on “HA messages”);
+                     HA related work is planned on PI-3, sprints 3-4.
  - [TODO] [s3-int]   Basic S3 integration (depends on DTM0);
  - [TODO] [test]     DTM0 test;
  - [TODO] [deploy]   DTM0 basic deployment;
@@ -173,6 +174,49 @@ INFO: TEST STATUS: PASSED
 * Analysis (2)
 #+ATTR_HTML: :width 100%
 [[./analysis-dtm0-2.png]]
+* Dependencies
+#+REVEAL_HTML: <div style="font-size: 60%;">
+#+begin_src
+- [Motr] New TRANSIENT state integration into the datapath
+         (IOPath failure scenarios, MDPath failure scenarios).
+- [Hotr] HA related states, constrains (EOS) and usecases.
+- [Hotr,Others] HW Cluster node addition/removal/replacement, OP-20.
+- [Hotr] DTM recovery during DIX/SNS repair.
+- [All] Non-distruptive upgrades (AD-30, MGM-123, MGM-220).
+- [Hotr,S3] S3 integration, S3-10, S3-15.
+- [Hotr,S3] Performance optimisations.
+   - [Hotr,S3] Interleaving (RM?).
+   - [Hotr] BE (PageD, SCALE-25).
+   - [Hotr] BE (SCALE-30).
+   - [Hotr] BE (Grouping, SCALE-40, SCALE-50).
+   - [Hotr] SCALE-70, 300M records in DTM log.
+   - [Hotr] AD-10, AD-20, DTM recovery performance & MTBF.
+
+- [Hotr,Others] Clock related usecases.
+- [Motr] DIX pool support, pools at all. (SCALE-10)
+- [Motr] DIX index creation (2 index write -- GAP!)
+- [Motr,S3] BCKT-50, design.
+- [Motr,S3] BCKT-60, no limits for DTM log.
+- [Motr,S3] GUI-70, GUI-10, MGM-80, MGM-230,
+  Propagation of motr process state in the chain of motr -> HARE -> HA.
+- [All?] MGM-120, It should be possible to gracefully shutdown and restart
+  *any* specified node in the cluster.
+
+- [Hotr] DTM Basic operation, AD-80, MGM-125, MGM-130
+- [Hotr] DTM Recovery AD-83
+- [Motr+?] DTM Runtime settings MGM-10.
+- [Motr+?] Expose performance counter for DTM recovery (objs/sec)? MGM-60,
+  MGM-170, GUI-50.
+
+- [Motr] SEC-160, don't log key/value in any DTM usecase.
+
+- [Hotr] DOC-10, SUP-10, SUP-15, SUP-20, SUP-30, DTM Debugging usecases in
+  production and development environment.
+
+- [All] TST-10, TST-20, TST-30, TST-40, DTM needs help from another teams to
+  write appropriate tests related to the combination of failures,
+  performance (fill 0-100%), to integrate them into CI and perfline.
+#+end_src
 * Questions?
 #+begin_src
 - Anatoliy <anatoliy.bilenko@seagate.com>
