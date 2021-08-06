@@ -8401,9 +8401,9 @@ static void ut_put_update_del_operation(void)
 		int rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					 m0_btree_update(tree, &rec, &ut_cb, 0,
 							 &kv_op, tx));
-		if (rc) {
+		if (rc)
 			M0_ASSERT(rc == M0_ERR(-ENOENT));
-		} else
+		else
 			M0_ASSERT(update_data.flags == M0_BSC_SUCCESS);
 
 	}
@@ -8443,11 +8443,10 @@ static void ut_put_update_del_operation(void)
 						  m0_btree_del(tree, &rec.r_key,
 						      	       &ut_cb, 0,
 							       &kv_op, tx));
-		if (rc) {
+		if (rc)
 			M0_ASSERT(rc == M0_ERR(-ENOENT));
-		} else {
+		else
 			M0_ASSERT(del_data.flags == M0_BSC_SUCCESS);
-		}
 
 	}
 	printf("\n After deletion:\n");
