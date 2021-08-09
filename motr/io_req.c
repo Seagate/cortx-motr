@@ -1309,8 +1309,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 
 	if (dir == CD_COPY_TO_APP) {
 		/* verify the checksum for data read */
-		if ( ioo->ioo_attr.ov_vec.v_nr && !verify_checksum(ioo)) {
-			M0_LOG(M0_ERROR, "CKSUM_FAILED");
+		if ( !verify_checksum(ioo)) {
 			return M0_RC(-EIO);
 		}
 	}

@@ -123,8 +123,8 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 		if (rc != 1) {
 
 			return M0_ERR_INFO(rc, "MD5_Update fail curr_context=%p"
-					"f_container %"PRIx64"f_key %"PRIx64
-					"data_unit_offset %"PRIx64"seed_str %s",
+					"f_container 0x%"PRIx64" f_key 0x%"PRIx64
+					" data_unit_offset 0x%"PRIx64" seed_str %s",
 					curr_context, seed->obj_id.f_container,
 					seed->obj_id.f_key,
 					seed->data_unit_offset,
@@ -214,6 +214,12 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 				m0_client_calculate_pi((struct m0_generic_pi *)&md5_ctx_pi,
 						seed, bvec, M0_PI_NO_FLAG,
 						curr_context, NULL);
+				//YJC_TODO: only for debug, remove this
+                                M0_LOG(M0_DEBUG, "MD5 f_container 0x%"PRIx64" f_key 0x%"PRIx64
+                                        " data_unit_offset 0x%"PRIx64,
+                                        seed->obj_id.f_container,
+                                        seed->obj_id.f_key,
+                                        seed->data_unit_offset);
 				m0_free(curr_context);
 				if (memcmp(((struct m0_md5_inc_context_pi *)pi)->pi_value,
 							md5_ctx_pi.pi_value,
@@ -221,20 +227,20 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 					return true;
 				}
 				else {
-					M0_LOG(M0_DEBUG, "checksum fail "
-							"f_container %"PRIx64"f_key %"PRIx64
-							"data_unit_offset %"PRIx64,
+					M0_LOG(M0_ERROR, "checksum fail "
+							"f_container 0x%"PRIx64" f_key 0x%"PRIx64
+							" data_unit_offset 0x%"PRIx64,
 							seed->obj_id.f_container,
 							seed->obj_id.f_key,
 							seed->data_unit_offset);
+					return false;
 				}
 			}
+		default:
+			M0_IMPOSSIBLE("pi_type = %d", pi->hdr.pi_type);
 	}
-
-	return true;
 #endif
 	return true;
-
 }
 
 M0_EXPORTED(m0_calc_verify_cksum_one_unit);
