@@ -330,10 +330,34 @@ out:
 	return M0_RC_INFO(rc, "origin=%d", dtm0->dos_origin);
 }
 
+/*
+ * Certain UTs manually control the lifetime of recovery machine.
+ * When manual start-stop is disabled, DTM0 service automatically
+ * starts-stops the machine.
+ */
+static bool is_manual_ss_enabled(void)
+{
+	return M0_FI_ENABLED("ut");
+}
+
 static int dtm0_service_start(struct m0_reqh_service *service)
 {
+	struct m0_dtm0_service *dtms = to_dtm(service);
+	int                     rc;
+
         M0_PRE(service != NULL);
-        return dtm_service__origin_fill(service);
+        rc = dtm_service__origin_fill(service);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	if (!is_manual_ss_enabled()) {
+		rc = m0_dtm0_recovery_machine_init(&dtms->dos_remach,
+						   NULL, dtms);
+		if (rc == 0)
+			m0_dtm0_recovery_machine_start(&dtms->dos_remach);
+	}
+
+	return M0_RC(rc);
 }
 
 static void dtm0_service_prepare_to_stop(struct m0_reqh_service *reqh_rs)
@@ -342,6 +366,8 @@ static void dtm0_service_prepare_to_stop(struct m0_reqh_service *reqh_rs)
 
 	M0_PRE(reqh_rs != NULL);
 	dtms = M0_AMB(dtms, reqh_rs, dos_generic);
+	if (!is_manual_ss_enabled())
+		m0_dtm0_recovery_machine_stop(&dtms->dos_remach);
 	dtm0_service_conns_term(dtms);
 }
 
@@ -360,6 +386,9 @@ static void dtm0_service_stop(struct m0_reqh_service *service)
 		m0_be_dtm0_log_fini(dtm0->dos_log);
 		m0_be_dtm0_log_free(&dtm0->dos_log);
 	}
+
+	if (!is_manual_ss_enabled())
+		m0_dtm0_recovery_machine_fini(&dtm0->dos_remach);
 }
 
 static void dtm0_service_fini(struct m0_reqh_service *service)
@@ -377,12 +406,14 @@ M0_INTERNAL int m0_dtm0_stype_init(void)
 				M0_AVI_DTX0_SM_STATE, M0_AVI_DTX0_SM_COUNTER) ?:
 		m0_dtm0_fop_init() ?:
 		m0_reqh_service_type_register(&dtm0_service_type) ?:
-		m0_dtm0_rpc_link_mod_init();
+		m0_dtm0_rpc_link_mod_init() ?:
+		m0_drm_domain_init();
 }
 
 M0_INTERNAL void m0_dtm0_stype_fini(void)
 {
 	extern struct m0_sm_conf m0_dtx_sm_conf;
+	m0_drm_domain_fini();
 	m0_dtm0_rpc_link_mod_fini();
 	m0_reqh_service_type_unregister(&dtm0_service_type);
 	m0_dtm0_fop_fini();
