@@ -66,7 +66,7 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
 
-def execute_command1(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
+def execute_command_with_debug(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
     ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                           shell=True)
@@ -755,6 +755,7 @@ def lnet_self_ping(self):
     return True
 
 def update_motr_hare_keys_for_all_nodes(self):
+    curr_name = ""
     hostname = self.server_node["hostname"]
     nodes_info = Conf.get(self._index, 'server_node')
     for value in nodes_info.values():
@@ -764,13 +765,24 @@ def update_motr_hare_keys_for_all_nodes(self):
         self.logger.info(f"update_motr_hare_keys for {host}\n")
         for i in range(int(cvg_count)):
             lv_md_name = f"lv_raw_md{i + 1}"
-            cmd = (f"ssh  {host}"
-                    f" lvs -o lv_path | grep {lv_md_name}")
+            if (hostname == value["hostname"]):
+                curr_name = value["name"]
+                cmd = (f"lvs -o lv_path | grep {lv_md_name}")
+            else:
+                cmd = (f"ssh  {host}"
+                       f" lvs -o lv_path | grep {lv_md_name}")
             for j in range(5):
-                res = execute_command1(self, cmd)
+                res = execute_command_with_debug(self, cmd)
                 if res[1] == 0:
                     break
-            lv_path = res[0].rstrip("\n")
+            if (res[1] != 0 and hostname == value["hostname"]):
+                # raise error if we are not able to read the lv_path
+                raise MotrError(res[1], f"[ERR] {lv_md_name} not found on {hostname}\n")
+            if res[1] == 0:
+                lv_path = res[0].rstrip("\n")
+            else:
+                # failed to retrieve lv_path after retry, use current node lv_path replaced with node name
+                lv_path = Conf.get(self._index_motr_hare,f"server>{curr_name}>cvg[{i}]>m0d[0]>md_seg1").replace(curr_name,name)
             Conf.set(self._index_motr_hare,f"server>{name}>cvg[{i}]>m0d[0]>md_seg1",f"{lv_path.strip()}")
             Conf.save(self._index_motr_hare)
 
