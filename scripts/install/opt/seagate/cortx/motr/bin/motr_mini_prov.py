@@ -24,6 +24,7 @@ import re
 import subprocess
 import logging
 import glob
+import time
 from cortx.utils.conf_store import Conf
 
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
@@ -67,16 +68,22 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
     return stdout, ps.returncode
 
 def execute_command_with_debug(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
-    ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                          shell=True)
-    stdout, stderr = ps.communicate(timeout=timeout_secs);
-    stdout = str(stdout, 'utf-8')
-    self.logger.debug(f"[CMD] {cmd}\n")
-    self.logger.debug(f"[OUT]\n{stdout}\n")
-    self.logger.debug(f"[ERR]\n{stderr}\n")
-    self.logger.debug(f"[RET] {ps.returncode}\n")
-    return stdout, ps.returncode
+    self.logger.info(f"Executing cmd : '{cmd}'\n")
+    for j in range(1,6):
+        ps = subprocess.run(cmd, stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, timeout=timeout_secs,
+                            stderr=subprocess.PIPE, shell=True)
+        self.logger.info(f"ret={ps.returncode}\n")
+        self.logger.debug(f"Executing {j} time\n")
+        stdout = ps.stdout.decode('utf-8')
+        self.logger.debug(f"[OUT]\n{stdout}\n")
+        self.logger.debug(f"[ERR]\n{ps.stderr.decode('utf-8')}\n")
+        self.logger.debug(f"[RET] {ps.returncode}\n")
+        if ps.returncode != 0:
+            time.sleep(1)
+            continue
+        return stdout, ps.returncode
+    raise MotrError(ps.returncode, f"[ERR] {cmd} failed\n")
 
 def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS):
     self.logger.info(f"Executing cmd : '{cmd}'\n")
@@ -770,18 +777,11 @@ def update_motr_hare_keys_for_all_nodes(self):
             else:
                 cmd = (f"ssh  {host}"
                        f" lvs -o lv_path | grep {lv_md_name}")
-            for j in range(5):
-                res = execute_command_with_debug(self, cmd)
-                if res[1] == 0:
-                    break
-            if (res[1] != 0 and hostname == value["hostname"]):
-                # raise error if we are not able to read the lv_path
-                raise MotrError(res[1], f"[ERR] {lv_md_name} not found on {hostname}\n")
+            res = execute_command_with_debug(self, cmd)
             if res[1] == 0:
                 lv_path = res[0].rstrip("\n")
             else:
-                # failed to retrieve lv_path after retry, use current node lv_path replaced with node name
-                lv_path = Conf.get(self._index_motr_hare,f"server>{curr_name}>cvg[{i}]>m0d[0]>md_seg1").replace(curr_name,name)
+                raise MotrError(res[1], f"[ERR] {lv_md_name} not found on {hostname}\n")
             Conf.set(self._index_motr_hare,f"server>{name}>cvg[{i}]>m0d[0]>md_seg1",f"{lv_path.strip()}")
             Conf.save(self._index_motr_hare)
 
