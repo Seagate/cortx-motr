@@ -117,6 +117,7 @@ struct m0_sm_state_descr dtm0_phases[] = {
 		.sd_name      = "dtm0-entry",
 		.sd_allowed   = M0_BITS(M0_FOPH_DTM0_LOGGING,
 					M0_FOPH_DTM0_TO_CAS,
+					M0_FOPH_DTM0_CAS_DONE,
 					M0_FOPH_SUCCESS,
 					M0_FOPH_FAILURE)
 	},
@@ -147,6 +148,8 @@ struct m0_sm_trans_descr dtm0_phases_trans[] = {
 	{"dtm0-logging-success", M0_FOPH_DTM0_LOGGING, M0_FOPH_SUCCESS},
 
 	{"dtm0-to-cas", M0_FOPH_DTM0_ENTRY, M0_FOPH_DTM0_TO_CAS},
+
+	{"dtm0-empty-rec", M0_FOPH_DTM0_ENTRY, M0_FOPH_DTM0_CAS_DONE},
 
 	{"dtm0-to-cas-fail", M0_FOPH_DTM0_TO_CAS, M0_FOPH_FAILURE},
 	{"dtm0-cas-done", M0_FOPH_DTM0_TO_CAS, M0_FOPH_DTM0_CAS_DONE},
@@ -200,8 +203,10 @@ M0_INTERNAL int m0_dtm0_fop_init(void)
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
 			 .fom_ops   = &dtm0_req_fom_type_ops);
 
-	return m0_fop_type_addb2_instrument(&dtm0_req_fop_fopt) ?:
+	return m0_fop_type_addb2_instrument(&dtm0_req_fop_fopt);
+	/*
 		m0_fop_type_addb2_instrument(&dtm0_redo_fop_fopt);
+		*/
 }
 
 
@@ -574,6 +579,12 @@ static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
 	struct dtm0_fom     *dfom = M0_AMB(dfom, fom, dtf_fom);
 	struct dtm0_req_fop *req  = m0_fop_data(fom->fo_fop);
 	struct m0_fop       *cas_fop = NULL;
+	struct m0_dtm0_service          *svc = m0_dtm0_fom2service(fom);
+	struct m0_dtm0_recovery_machine *m = &svc->dos_remach;
+	const struct m0_dtm0_tx_desc    *txd = &req->dtr_txr;
+
+	M0_PRE(ergo(m0_dtm0_tx_desc_is_none(txd),
+		    !!(req->dtr_flags & M0_BITS(M0_DMF_EOL))));
 
 	M0_ENTRY("fom %p phase %d", fom, phase);
 
@@ -582,7 +593,9 @@ static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
 		result = m0_fom_tick_generic(fom);
 		break;
 	case M0_FOPH_DTM0_ENTRY:
-		m0_fom_phase_set(fom, M0_FOPH_DTM0_TO_CAS);
+		m0_fom_phase_set(fom,
+				 m0_dtm0_tx_desc_is_none(txd) ?
+				 M0_FOPH_DTM0_CAS_DONE : M0_FOPH_DTM0_TO_CAS);
 		break;
 	case M0_FOPH_DTM0_TO_CAS:
 		/* REDO_END()s from all recovering processes received, send
@@ -619,6 +632,25 @@ static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
 					  M0_FOPH_FAILURE);
 		} else {
 			m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+			/*
+			 * TODO: make it async when recovery machine starts
+			 * using a larger sliding window or the amount of
+			 * participants gets bigger than the length of
+			 * the EOL queue.
+			 * At this moment EOLQ_MAX_LEN is 100, and we may
+			 * have at most 3 concurrent EOL. It leaves room
+			 * for 97 pending HA state transitions which is
+			 * far more than enough for a 3 node cluster with
+			 * one single failure.
+			 */
+			/*
+			 * TODO: Consider propagating FOM or its sm_id
+			 * (directly or indirectly) down to the recovery
+			 * machine, so that we may relate REDO FOM
+			 * and the corresponding recovery FOM.
+			 */
+			M0_BE_OP_SYNC(op,
+			      m0_dtm0_recovery_machine_redo_post(m, req, &op));
 		}
 		break;
 	default:
