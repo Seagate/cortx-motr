@@ -139,7 +139,7 @@ static void dump_fol_rec_to_json(struct m0_fol_rec *rec)
 		for (i = 0; i < cg_rec.cr_nr; i++) {
 			int len = 0;
 
-			m0_console_printf("{ ");
+			m0_console_printf("{ \"opcode\"=\"%d\", ", fp_frag->ffrp_fop_code);
 
 			len = sizeof(struct m0_fid);
 			m0_console_printf("\"fid\": \""FID_F"\", ",
