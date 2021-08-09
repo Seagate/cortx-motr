@@ -66,6 +66,19 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
 
+def execute_command1(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
+    ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                          shell=True)
+    stdout, stderr = ps.communicate(timeout=timeout_secs);
+    stdout = str(stdout, 'utf-8')
+    # stderr = str(stderr, 'utf-8')
+    self.logger.debug(f"[CMD] {cmd}\n")
+    self.logger.debug(f"[OUT]\n{stdout}\n")
+    self.logger.debug(f"[ERR]\n{stderr}\n")
+    self.logger.debug(f"[RET] {ps.returncode}\n")
+    return stdout, ps.returncode
+
 def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS):
     self.logger.info(f"Executing cmd : '{cmd}'\n")
     ps = subprocess.run(list(cmd.split(' ')), timeout=timeout_secs)
@@ -753,7 +766,10 @@ def update_motr_hare_keys_for_all_nodes(self):
             lv_md_name = f"lv_raw_md{i + 1}"
             cmd = (f"ssh  {host}"
                     f" lvs -o lv_path | grep {lv_md_name}")
-            res = execute_command(self, cmd)
+            for j in range(5):
+                res = execute_command1(self, cmd)
+                if res[1] == 0:
+                    break
             lv_path = res[0].rstrip("\n")
             Conf.set(self._index_motr_hare,f"server>{name}>cvg[{i}]>m0d[0]>md_seg1",f"{lv_path.strip()}")
             Conf.save(self._index_motr_hare)
