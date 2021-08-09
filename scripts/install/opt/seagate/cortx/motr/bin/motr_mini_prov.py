@@ -72,7 +72,6 @@ def execute_command_with_debug(self, cmd, timeout_secs = TIMEOUT_SECS, verbose =
                           shell=True)
     stdout, stderr = ps.communicate(timeout=timeout_secs);
     stdout = str(stdout, 'utf-8')
-    # stderr = str(stderr, 'utf-8')
     self.logger.debug(f"[CMD] {cmd}\n")
     self.logger.debug(f"[OUT]\n{stdout}\n")
     self.logger.debug(f"[ERR]\n{stderr}\n")
