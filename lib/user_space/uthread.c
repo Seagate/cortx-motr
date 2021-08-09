@@ -130,7 +130,7 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 				  const struct m0_bitmap *processors)
 {
 	size_t    idx;
-	ssize_t   idx1 = -1;
+	size_t    idx1 = M0_PROCESSORS_INVALID_ID;
 	size_t    nr_bits = min64u(processors->b_nr, CPU_SETSIZE);
 	cpu_set_t cpuset;
 
@@ -141,7 +141,7 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 	for (idx = 0; idx < nr_bits; ++idx) {
 		if (m0_bitmap_get(processors, idx)) {
 			CPU_SET(idx, &cpuset);
-			if (idx1 == -1)
+			if (idx1 == M0_PROCESSORS_INVALID_ID)
 				idx1 = idx;
 		}
 	}
