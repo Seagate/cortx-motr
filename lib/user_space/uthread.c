@@ -134,6 +134,8 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 	size_t    nr_bits = min64u(processors->b_nr, CPU_SETSIZE);
 	cpu_set_t cpuset;
 
+	M0_PRE(m0_bitmap_set_nr(processors) > 0);
+
 	CPU_ZERO(&cpuset);
 
 	for (idx = 0; idx < nr_bits; ++idx) {
@@ -143,8 +145,7 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 				idx1 = idx;
 		}
 	}
-	M0_ASSERT(idx1 != -1); /* At least one processor must be set. */
-	q->t_tls.tls_loc = idx1;
+	q->t_tls.tls_cpuid = idx1;
 
 	return -pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
 }

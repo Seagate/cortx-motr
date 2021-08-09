@@ -205,6 +205,8 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 	struct task_struct *p = q->t_h.h_tsk;
 	int                 nr_allowed;
 
+	M0_PRE(m0_bitmap_set_nr(processors) > 0);
+
 	if (!zalloc_cpumask_var(&cpuset, GFP_KERNEL))
 		return M0_ERR(-ENOMEM);
 
@@ -215,8 +217,7 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 				idx1 = idx;
 		}
 	}
-	M0_ASSERT(idx1 != -1); /* At least one processor must be set. */
-	q->t_tls.tls_loc = idx1;
+	q->t_tls.tls_cpuid = idx1;
 
 	nr_allowed = cpumask_weight(cpuset);
 

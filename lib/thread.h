@@ -68,7 +68,7 @@ struct m0_thread_tls {
 	struct m0_thread_arch_tls  tls_arch;
 	struct m0_addb2_mach      *tls_addb2_mach;
 	struct m0_thread          *tls_self;
-	m0_processor_nr_t          tls_loc;
+	m0_processor_nr_t          tls_cpuid;
 	struct m0_addb2_sensor     tls_clock;
 };
 
