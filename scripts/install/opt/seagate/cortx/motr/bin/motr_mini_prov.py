@@ -740,3 +740,30 @@ def lnet_self_ping(self):
        if ret != 0:
             return False
     return True
+
+def update_motr_hare_keys_for_all_nodes(self):
+    hostname = self.server_node["hostname"]
+    nodes_info = Conf.get(self._index, 'server_node')
+    for value in nodes_info.values():
+        host = value["hostname"]
+        cvg_count = value["storage"]["cvg_count"]
+        name = value["name"]
+        self.logger.info(f"update_motr_hare_keys for {host}\n")
+        for i in range(int(cvg_count)):
+            lv_md_name = f"lv_raw_md{i + 1}"
+            cmd = (f"ssh  {host}"
+                    f" lvs -o lv_path | grep {lv_md_name}")
+            res = execute_command(self, cmd)
+            lv_path = res[0].rstrip("\n")
+            Conf.set(self._index_motr_hare,f"server>{name}>cvg[{i}]>m0d[0]>md_seg1",f"{lv_path.strip()}")
+            Conf.save(self._index_motr_hare)
+
+    for value in nodes_info.values():
+        if (hostname == value["hostname"]):
+            continue
+        else:
+            host = value["hostname"]
+            cmd = (f"scp  {self._motr_hare_conf}"
+                    f" {host}:{self._motr_hare_conf}")
+            execute_command(self, cmd)
+
