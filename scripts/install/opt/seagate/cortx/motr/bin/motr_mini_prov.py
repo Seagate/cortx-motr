@@ -39,6 +39,7 @@ IVT_DIR = "/var/log/seagate/motr/ivt"
 MOTR_LOG_DIR = "/var/motr"
 TIMEOUT_SECS = 120
 MACHINE_ID_LEN = 32
+MOTR_LOG_DIRS = [LOGDIR, MOTR_LOG_DIR]
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -664,33 +665,36 @@ def config_logger(self):
                        )
     return logger
 
-def clean_ivt_data(self):
-    if os.path.exists(MOTR_LOG_DIR):
-        self.logger.info("Removing addb directories")
-        dnames_addb = []
-        pattern="{}/**/addb*".format(MOTR_LOG_DIR)
-        for dname in glob.glob(pattern, recursive=True):
-            dnames_addb.append(dname)
-            execute_command(self, f"rm -rf {dname}")
-        self.logger.info(f"Removed below addb directories.\n{dnames_addb}")
-        self.logger.info("Removing trace files")
-        fnames_trace = []
-        pattern="{}/**/*trace*".format(MOTR_LOG_DIR)
-        for fname in glob.glob(pattern, recursive=True):
-            fnames_trace.append(fname)
-            os.remove(fname)
-        self.logger.info(f"Removed below trace files.\n{fnames_trace}")
+def remove_dirs(self, log_dir, patterns):
+    if not os.path.exists(os.path.dirname(log_dir)):
+        self.logger.warning(f"{log_dir} does not exist")
+        return
 
-        self.logger.info("Removing db directories")
-        dnames_db = []
-        pattern="{}/**/db*".format(MOTR_LOG_DIR)
-        for dname in glob.glob(pattern, recursive=True):
-            dnames_db.append(dname)
-            execute_command(self, f"rm -rf {dname}")
-        self.logger.info(f"Removed below db directories.\n{dnames_db}")
-    else:
-        self.logger.warning(f"{MOTR_LOG_DIR} does not exist")
+    if len(patterns) == 0:
+        self.logger.info(f"Removing {log_dir}")
+        execute_command(self, f"rm -rf {log_dir}")
+        return
 
+    for pattern in patterns:
+        removed_dirs = []
+        self.logger.info(f"Removing {pattern} directories from {log_dir}")
+
+        # Search directories for files/dirs with pattern in their names and remove it.
+        # e.g. removes addb* dirs from /var/motr
+        # search_pat=/var/motr/**/addb*
+        search_pat = "{}/**/{}*".format(log_dir, pattern)
+        for dname in glob.glob(search_pat, recursive=True):
+            removed_dirs.append(dname)
+            execute_command(self, f"rm -rf {dname}")
+        self.logger.info(f"Removed below directories.\n{removed_dirs}")
+
+def remove_logs(self):
+    patterns=["addb", "*trace"]
+    for log_dir in MOTR_LOG_DIRS:
+        if os.path.exists(log_dir):
+            remove_dirs(self, log_dir, patterns)
+        else:
+            self.logger.warning(f"{log_dir} does not exist")
     if os.path.exists(IVT_DIR):
         self.logger.info(f"Removing {IVT_DIR}")
         execute_command(self, f"rm -rf {IVT_DIR}")
@@ -736,3 +740,30 @@ def lnet_self_ping(self):
        if ret != 0:
             return False
     return True
+
+def update_motr_hare_keys_for_all_nodes(self):
+    hostname = self.server_node["hostname"]
+    nodes_info = Conf.get(self._index, 'server_node')
+    for value in nodes_info.values():
+        host = value["hostname"]
+        cvg_count = value["storage"]["cvg_count"]
+        name = value["name"]
+        self.logger.info(f"update_motr_hare_keys for {host}\n")
+        for i in range(int(cvg_count)):
+            lv_md_name = f"lv_raw_md{i + 1}"
+            cmd = (f"ssh  {host}"
+                    f" lvs -o lv_path | grep {lv_md_name}")
+            res = execute_command(self, cmd)
+            lv_path = res[0].rstrip("\n")
+            Conf.set(self._index_motr_hare,f"server>{name}>cvg[{i}]>m0d[0]>md_seg1",f"{lv_path.strip()}")
+            Conf.save(self._index_motr_hare)
+
+    for value in nodes_info.values():
+        if (hostname == value["hostname"]):
+            continue
+        else:
+            host = value["hostname"]
+            cmd = (f"scp  {self._motr_hare_conf}"
+                    f" {host}:{self._motr_hare_conf}")
+            execute_command(self, cmd)
+
