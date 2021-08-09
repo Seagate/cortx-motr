@@ -27,6 +27,7 @@
 
 #include "reqh/reqh_service.h"
 #include "dtm0/clk_src.h"
+#include "dtm0/recovery.h"
 
 struct m0_be_dtm0_log;
 struct dtm0_req_fop;
@@ -42,19 +43,20 @@ enum m0_dtm0_service_origin {
  * DTM0 service structure
  */
 struct m0_dtm0_service {
-	struct m0_reqh_service       dos_generic;
-	struct m0_tl                 dos_processes;
-	enum m0_dtm0_service_origin  dos_origin;
-	uint64_t                     dos_magix;
-	struct m0_dtm0_clk_src       dos_clk_src;
-	struct m0_be_dtm0_log       *dos_log;
+	struct m0_reqh_service          dos_generic;
+	struct m0_tl                    dos_processes;
+	enum m0_dtm0_service_origin     dos_origin;
+	uint64_t                        dos_magix;
+	struct m0_dtm0_clk_src          dos_clk_src;
+	struct m0_be_dtm0_log          *dos_log;
+	struct m0_dtm0_recovery_machine dos_remach;
 	/*
 	 * A queue for DTM_TEST message for drlink UTs.
 	 * The UTs are fully responsible for the queue init/fini/get.
 	 * DTM_TEST fom puts dtm0_req_fop::dtr_txr::dtd_id::dti_fid to the
 	 * queue.
 	 */
-	struct m0_be_queue          *dos_ut_queue;
+	struct m0_be_queue             *dos_ut_queue;
 };
 
 extern struct m0_reqh_service_type dtm0_service_type;
