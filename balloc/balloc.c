@@ -453,7 +453,7 @@ static void m0_balloc_release_memory_helper(struct m0_balloc *bal)
 	int                          ic;
 	for (ic = 0; ic < bal->cb_sb.bsb_groupcount; ++ic) {
 		if(m0_bitmap_get(&bal->ld_group_info, ic)) {
-			arr[m_count] = &bal->cb_group_info[ic];;
+			arr[m_count] = &bal->cb_group_info[ic];
 			m_count++;
 		}
 	}
@@ -472,8 +472,8 @@ static void m0_balloc_release_memory_helper(struct m0_balloc *bal)
 		M0_LOG(M0_INFO, "Unloading start on : %d", (int)arr[ic]->bgi_groupno);
 		m0_balloc_lock_group(arr[ic]);
 		m0_balloc_release_extents(arr[ic]);
-		m0_balloc_unlock_group(arr[ic]);
 		m0_bitmap_set(&bal->ld_group_info, arr[ic]->bgi_groupno, false);
+		m0_balloc_unlock_group(arr[ic]);
 	}
 }
 
