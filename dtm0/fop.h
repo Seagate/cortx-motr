@@ -47,15 +47,33 @@ enum m0_dtm0s_msg {
 	DTM_EXECUTE,
 	DTM_EXECUTED,
 	DTM_PERSISTENT,
-	DTM_REDO
+	DTM_REDO,
 } M0_XCA_ENUM;
+
+enum m0_dtm0_msg_flags {
+	M0_DMF_EOL,
+	M0_DMF_EVICTION,
+};
 
 /** A DTM0 message sent as an RPC request to remote DTM0 services. */
 struct dtm0_req_fop {
 	uint32_t               dtr_msg M0_XCA_FENUM(m0_dtm0s_msg);
 	struct m0_dtm0_tx_desc dtr_txr;
 	struct m0_buf          dtr_payload;
+	uint64_t               dtr_flags;
+	/*
+	 * The participant (DTM0 service) that sent this message.
+	 * The initiator is set for DTM_REDO messages.
+	 */
+	struct m0_fid          dtr_initiator;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
+
+
+#define REDO_F "redo={ txid=" DTID0_F ", ini=" FID_F ", is_eol=%d }"
+#define REDO_P(_redo)                       \
+	DTID0_P(&(_redo)->dtr_txr.dtd_id),  \
+	FID_P(&(_redo)->dtr_initiator),      \
+	!!((_redo)->dtr_flags & M0_BITS(M0_DMF_EOL))
 
 struct dtm0_rep_fop {
 	/** Status code of dtm operation. */
