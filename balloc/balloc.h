@@ -29,11 +29,13 @@
 #include "lib/types.h"
 #include "lib/list.h"
 #include "lib/mutex.h"
+#include "lib/bitmap.h" /** bitmap */
 #include "be/btree.h"
 #include "be/btree_xc.h"
 #include "format/format.h"
 #include "stob/ad.h"
 #include "stob/ad_xc.h"
+#include "lib/bitmap_xc.h"
 
 /**
    @defgroup balloc data-block-allocator
@@ -157,6 +159,10 @@ struct m0_balloc_group_info {
 	struct m0_balloc_zone_param  bgi_spare;
 	/** Array of group extents */
 	struct m0_lext              *bgi_extents;
+	/** Last loaded time */
+	uint64_t                     bgi_loaded_time;
+	/** Last used time */
+	uint64_t                     bgi_used_time;
 	/** per-group lock */
 	struct m0_be_mutex           bgi_mutex;
 };
@@ -183,6 +189,7 @@ struct m0_balloc_super_block {
 	m0_bcount_t     bsb_freespare;        /**< nr free spare blocks */
 	m0_bcount_t     bsb_sparesize;        /**< spare blocks per group */
 #endif
+	struct m0_fid   bsb_ad_stob_id;       /** ad stob id */
 	m0_bcount_t	bsb_blocksize;        /**< block size in bytes */
 	m0_bcount_t	bsb_groupsize;        /**< group size in blocks */
 	uint32_t	bsb_bsbits;           /**< block size bits: power of 2*/
@@ -267,6 +274,8 @@ struct m0_balloc {
 
 	/** array of group info */
 	struct m0_balloc_group_info *cb_group_info;
+	/** Loaded inmemory groupno bits identifier */
+	struct m0_bitmap             ld_group_info;
 	/** super block lock */
 	struct m0_be_mutex           cb_sb_mutex;
 	struct m0_be_seg            *cb_be_seg;
@@ -374,6 +383,7 @@ M0_INTERNAL void m0_balloc_debug_dump_group(const char *tag,
 M0_INTERNAL void m0_balloc_lock_group(struct m0_balloc_group_info *grp);
 M0_INTERNAL int m0_balloc_trylock_group(struct m0_balloc_group_info *grp);
 M0_INTERNAL void m0_balloc_unlock_group(struct m0_balloc_group_info *grp);
+M0_INTERNAL void m0_balloc_release_memory(struct m0_balloc *cb);
 
 /** @} end of balloc */
 

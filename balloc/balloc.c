@@ -323,6 +323,7 @@ M0_INTERNAL int m0_balloc_release_extents(struct m0_balloc_group_info *grp)
 	extents_release(grp, M0_BALLOC_SPARE_ZONE);
 	extents_release(grp, M0_BALLOC_NORMAL_ZONE);
 	m0_free0(&grp->bgi_extents);
+	grp->bgi_extents = NULL;
 	return 0;
 }
 
@@ -436,6 +437,54 @@ static int balloc_group_info_load(struct m0_balloc *bal)
 	}
 	return M0_RC(rc);
 }
+static int time_cmp(const void *g0, const void *g1)
+{
+	const struct m0_balloc_group_info *xg0 = (struct m0_balloc_group_info *)g0;
+	const struct m0_balloc_group_info *xg1 = (struct m0_balloc_group_info *)g1;
+
+	return xg0->bgi_used_time > xg1->bgi_used_time;
+}
+
+static int  unload_group_count(int total, int percentile)
+{
+	return (int) ((total * percentile) / 100);
+}
+
+/*
+ * LRU implemntation to unload cb_group_info
+ */
+static void m0_balloc_release_memory_helper(struct m0_balloc *bal)
+{
+	struct m0_balloc_group_info *arr[bal->cb_sb.bsb_groupcount];
+	int                          m_count        = 0;
+	int                          deducted_count = 0;
+	int                          ic;
+	for (ic = 0; ic < bal->cb_sb.bsb_groupcount; ++ic) {
+		if(m0_bitmap_get(&bal->ld_group_info, ic)) {
+			arr[m_count] = &bal->cb_group_info[ic];;
+			m_count++;
+		}
+	}
+	qsort(arr, m_count - 1, sizeof arr[0], &time_cmp);
+
+	deducted_count = unload_group_count(m_count, 70);
+	M0_LOG(M0_INFO, "Total loaded group_info: %d need to unload: %d",
+		m_count, deducted_count);
+	if (m_count - deducted_count <= 4) {
+		 M0_LOG(M0_INFO, "remaining = %d in memory group_info is"
+			"too small, Not unloading any group",
+			m_count - deducted_count);
+		return;
+	}
+	for(ic = 0; ic < deducted_count; ic++) {
+		M0_LOG(M0_INFO, "Unloading start on : %d", (int)arr[ic]->bgi_groupno);
+		m0_balloc_lock_group(arr[ic]);
+		m0_balloc_release_extents(arr[ic]);
+		m0_balloc_unlock_group(arr[ic]);
+		m0_bitmap_set(&bal->ld_group_info, arr[ic]->bgi_groupno, false);
+	}
+}
+
 
 /**
    finalization of the balloc environment.
@@ -462,7 +511,7 @@ static void balloc_fini_internal(struct m0_balloc *bal)
 		m0_be_btree_fini(&bal->cb_db_group_extents[i]);
 	}
 	m0_be_btree_fini(&bal->cb_db_group_desc);
-
+	m0_bitmap_fini(&bal->ld_group_info);
 	M0_LEAVE();
 }
 
@@ -606,6 +655,7 @@ static int balloc_sb_write(struct m0_balloc                *bal,
 	sb->bsb_gsbits		= ffs(req->bfr_groupsize) - 1;
 	sb->bsb_groupcount	= number_of_groups;
 	sb->bsb_indexcount	= req->bfr_indexcount;
+	sb->bsb_ad_stob_id     = req->bfr_fid;
 #ifdef __SPARE_SPACE__
 				  /* should be power of 2*/
 	sb->bsb_sparesize       = req->bfr_spare_reserved_blocks;
@@ -1010,6 +1060,7 @@ static int balloc_init_internal(struct m0_balloc		*bal,
 				 &ge_btree_ops);
 	}
 
+	m0_bitmap_init(&bal->ld_group_info, bal->cb_sb.bsb_groupcount);
 	M0_ALLOC_ARR(bal->cb_group_info, bal->cb_sb.bsb_groupcount);
 	rc = bal->cb_group_info == NULL ? M0_ERR(-ENOMEM) : 0;
 	if (rc == 0) {
@@ -1217,7 +1268,12 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 
 	if (grp->bgi_extents != NULL) {
 		M0_LOG(M0_DEBUG, "Already loaded");
+		grp->bgi_used_time   = cb->cb_sb->bsb_write_time;
 		return M0_RC(0);
+	} else {
+		grp->bgi_loaded_time = cb->cb_sb->bsb_write_time;
+		grp->bgi_used_time   = cb->cb_sb->bsb_write_time;
+		m0_bitmap_set(&cb->ld_group_info, grp->bgi_groupno, true);
 	}
 
 	M0_ALLOC_ARR(grp->bgi_extents, group_fragments_get(grp) +
@@ -1317,7 +1373,12 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 
 	if (grp->bgi_extents != NULL) {
 		M0_LOG(M0_DEBUG, "Already loaded");
+		grp->bgi_used_time   = cb->cb_sb.bsb_write_time;
 		return M0_RC(0);
+	} else {
+		grp->bgi_loaded_time = cb->cb_sb.bsb_write_time;
+		grp->bgi_used_time   = cb->cb_sb.bsb_write_time;
+		m0_bitmap_set(&cb->ld_group_info, grp->bgi_groupno, true);
 	}
 
 	if (group_fragments_get(grp) +
@@ -3091,6 +3152,7 @@ M0_INTERNAL int m0_balloc_create(uint64_t                         cid,
 				return M0_RC(-ENOMEM);
 
 			balloc_format_init(cb);
+			m0_bitmap_init(&cb->ld_group_info, bcfg->bfr_groupcount);
 			for (i = 0; i < bcfg->bfr_indexcount; i++) {
 				m0_be_btree_init(&cb->cb_db_group_extents[i], seg,
 						 &ge_btree_ops);
@@ -3117,6 +3179,11 @@ M0_INTERNAL int m0_balloc_create(uint64_t                         cid,
 		m0_balloc_init(*out);
 
 	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_balloc_release_memory(struct m0_balloc *cb)
+{
+	m0_balloc_release_memory_helper(cb);
 }
 
 #undef M0_TRACE_SUBSYSTEM

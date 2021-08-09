@@ -44,7 +44,7 @@ struct m0_bitmap {
 	size_t    b_nr;
 	/** Words with bits. */
 	uint64_t *b_words;
-};
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(be);;
 
 struct m0_bitmap_onwire {
 	/** size of bo_words. */
