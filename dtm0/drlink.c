@@ -32,6 +32,11 @@
 #include "rpc/rpc_machine.h"         /* m0_rpc_machine */
 #include "rpc/rpc_opcodes.h"         /* M0_DTM0_{RLINK,REQ}_OPCODE */
 
+enum {
+	DRLINK_CONNECT_TIMEOUT_SEC = 1,
+	DRLINK_DISCONN_TIMEOUT_SEC = DRLINK_CONNECT_TIMEOUT_SEC,
+};
+
 struct drlink_fom {
 	struct m0_fom            df_gen;
 	struct m0_co_context     df_co;
@@ -98,21 +103,27 @@ static struct dtm0_req_fop *dtm0_req_fop_dup(const struct dtm0_req_fop *src)
 	if (dst == NULL)
 		return NULL;
 
-	rc = m0_dtm0_tx_desc_copy(&src->dtr_txr, &dst->dtr_txr);
-	if (rc != 0) {
-		M0_ASSERT(rc == -ENOMEM);
-		m0_free(dst);
-		return NULL;
+	/* Replace dynamic parts if there any. */
+	if (!m0_dtm0_tx_desc_is_none(&src->dtr_txr)) {
+		rc = m0_dtm0_tx_desc_copy(&src->dtr_txr, &dst->dtr_txr);
+		if (rc != 0) {
+			M0_ASSERT(rc == -ENOMEM);
+			m0_free(dst);
+			return NULL;
+		}
 	}
 
 	rc = m0_buf_copy(&dst->dtr_payload, &src->dtr_payload);
 	if (rc != 0) {
+		M0_ASSERT(rc == -ENOMEM);
 		m0_dtm0_tx_desc_fini(&dst->dtr_txr);
 		m0_free(dst);
 		return NULL;
 	}
 
 	dst->dtr_msg = src->dtr_msg;
+	dst->dtr_flags = src->dtr_flags;
+	dst->dtr_initiator = src->dtr_initiator;
 
 	return dst;
 }
@@ -207,23 +218,6 @@ static void co_long_write_lock(struct m0_co_context     *context,
 	M0_CO_YIELD_RC(context, outcome);
 }
 
-static void co_rpc_link_connect(struct m0_co_context *context,
-				struct m0_rpc_link   *rlink,
-				struct m0_fom        *fom,
-				int                   next_phase)
-{
-	M0_CO_REENTER(context);
-
-	m0_chan_lock(&rlink->rlk_wait);
-	m0_fom_wait_on(fom, &rlink->rlk_wait, &fom->fo_cb);
-	m0_chan_unlock(&rlink->rlk_wait);
-
-	m0_rpc_link_connect_async(rlink, M0_TIME_NEVER, NULL);
-	m0_fom_phase_set(fom, next_phase);
-
-	M0_CO_YIELD_RC(context, M0_FSO_WAIT);
-}
-
 static int find_or_add(struct m0_dtm0_service *dtms,
 		       const struct m0_fid    *tgt,
 		       struct dtm0_process   **out)
@@ -254,6 +248,7 @@ enum drlink_fom_state {
 	DRF_INIT = M0_FOM_PHASE_INIT,
 	DRF_DONE = M0_FOM_PHASE_FINISH,
 	DRF_LOCKING = M0_FOM_PHASE_NR,
+	DRF_DISCONNECTING,
 	DRF_CONNECTING,
 	DRF_SENDING,
 	DRF_WAITING_FOR_REPLY,
@@ -286,10 +281,15 @@ static struct m0_sm_state_descr drlink_fom_states[] = {
 		.sd_name    = #name,  \
 		.sd_allowed = allowed \
 	}
-	_ST(DRF_LOCKING,           M0_BITS(DRF_CONNECTING,
+	_ST(DRF_LOCKING,           M0_BITS(DRF_DISCONNECTING,
+					   DRF_CONNECTING,
 					   DRF_SENDING,
 					   DRF_FAILED)),
+	_ST(DRF_DISCONNECTING,        M0_BITS(DRF_CONNECTING,
+					      DRF_FAILED)),
 	_ST(DRF_CONNECTING,        M0_BITS(DRF_SENDING,
+					   DRF_CONNECTING,
+					   DRF_DISCONNECTING,
 					   DRF_FAILED)),
 	_ST(DRF_SENDING,           M0_BITS(DRF_DONE,
 					   DRF_WAITING_FOR_REPLY,
@@ -381,30 +381,47 @@ enum dpr_state {
 	DPR_FAILED,
 };
 
-static enum dpr_state dpr_state_infer(struct dtm0_process *proc)
+static enum dpr_state ha_state_infer(const struct m0_confc        *confc,
+				     const struct m0_fid          *fid)
 {
-	/*
-	 * TODO:
-	 * Observe the states of the following enitities:
-	 *	RPC connection
-	 *	RPC session
-	 *	Conf obj
-	 * and then decide whether it is alive, dead or permanently dead.
-	 *
-	 * @verbatim
-	 *	if (conf_obj is ONLINE) {
-	 *		if (conn is ACTIVE && session is in (IDLE, BUSY))
-	 *			return ONLINE;
-	 *		else
-	 *			return TRANSIENT;
-	 *	} else
-	 *		return FAILED;
-	 * @endverbatim
-	 */
-	if (m0_rpc_link_is_connected(&proc->dop_rlink))
-		return DPR_ONLINE;
+	struct m0_conf_obj *obj;
+	enum dpr_state      outcome;
 
-	return DPR_TRANSIENT;
+	obj = m0_conf_cache_lookup(&confc->cc_cache, fid);
+	M0_ASSERT(obj != NULL);
+
+	/*
+	 * Drlink should try to connect to those who are able to accept
+	 * incomming connections.
+	 */
+	outcome = (M0_IN(obj->co_ha_state,
+			 (M0_NC_ONLINE, M0_NC_DTM_RECOVERING))) ?
+		DPR_ONLINE : DPR_FAILED;
+
+	return M0_RC_INFO(outcome, "fid=" FID_F, FID_P(fid));
+}
+
+
+
+static enum dpr_state dpr_state_infer(struct m0_dtm0_service *svc,
+				      struct dtm0_process *proc)
+{
+	enum dpr_state  outcome;
+	bool            is_active;
+	struct m0_reqh  *reqh = svc->dos_generic.rs_reqh;
+	struct m0_confc *confc = reqh != NULL ? m0_reqh2confc(reqh) : NULL;
+
+	outcome = confc != NULL ?
+		ha_state_infer(confc, &proc->dop_rproc_fid) : DPR_TRANSIENT;
+
+	is_active = !proc->dop_rlink.rlk_sess.s_cancelled &&
+		m0_rpc_link_is_connected(&proc->dop_rlink);
+
+	/* Try to reconnect if session is dead but the remote is alive. */
+	if (!is_active && outcome == DPR_ONLINE)
+		outcome = M0_RC(DPR_TRANSIENT);
+
+	return M0_RC_INFO(outcome, "svc=" FID_F, FID_P(&proc->dop_rserv_fid));
 }
 
 /*
@@ -430,7 +447,67 @@ static void drlink_addb_drf2parent_relate(struct drlink_fom *drf)
 		     m0_sm_id_get(&drf->df_gen.fo_sm_phase));
 }
 
+
 #define F M0_CO_FRAME_DATA
+
+/**
+ * Connect-disconnect context for an rpc link.
+ * The context tightens together clink-based notification from rpc link
+ * channel and a co_op.
+ */
+struct rlink_cd_ctx {
+	struct m0_clink dc_clink;
+	struct m0_co_op dc_op;
+};
+
+static bool rlink_cd_cb(struct m0_clink *clink)
+{
+	struct rlink_cd_ctx *dc = M0_AMB(dc, clink, dc_clink);
+	m0_co_op_done(&dc->dc_op);
+	return false;
+}
+
+static void co_rlink_do(struct m0_co_context *context,
+			struct dtm0_process  *proc,
+			enum drlink_fom_state what)
+{
+	struct drlink_fom  *drf  = M0_AMB(drf, context, df_co);
+	struct m0_fom      *fom  = &drf->df_gen;
+	int                 timeout_sec = 0;
+	void              (*action)(struct m0_rpc_link *, m0_time_t,
+				    struct m0_clink *) = NULL;
+
+	M0_CO_REENTER(context, struct rlink_cd_ctx dc;);
+
+	M0_SET0(&F(dc));
+	m0_clink_init(&F(dc).dc_clink, rlink_cd_cb);
+	F(dc).dc_clink.cl_is_oneshot = true;
+	m0_co_op_init(&F(dc).dc_op);
+	m0_co_op_active(&F(dc).dc_op);
+
+	switch (what) {
+	case DRF_CONNECTING:
+		timeout_sec = DRLINK_CONNECT_TIMEOUT_SEC;
+		action = m0_rpc_link_connect_async;
+		break;
+	case DRF_DISCONNECTING:
+		timeout_sec = DRLINK_DISCONN_TIMEOUT_SEC;
+		action = m0_rpc_link_disconnect_async;
+		break;
+	default:
+		M0_IMPOSSIBLE("%d is something that cannot be done", what);
+		break;
+	}
+
+	action(&proc->dop_rlink, m0_time_from_now(timeout_sec, 0),
+	       &F(dc).dc_clink);
+
+	M0_CO_YIELD_RC(context, m0_co_op_tick_ret(&F(dc).dc_op, fom, what));
+
+	m0_co_op_fini(&F(dc).dc_op);
+	m0_clink_fini(&F(dc).dc_clink);
+}
+
 static void drlink_coro_fom_tick(struct m0_co_context *context)
 {
 	int                 rc   = 0;
@@ -466,7 +543,12 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 					      DRF_LOCKING));
 	M0_ASSERT(m0_long_is_write_locked(&F(proc)->dop_llock, fom));
 
-	if (dpr_state_infer(F(proc)) == DPR_TRANSIENT) {
+	if (dpr_state_infer(drf->df_svc, F(proc)) == DPR_TRANSIENT) {
+		if (m0_rpc_link_is_connected(&F(proc)->dop_rlink)) {
+			M0_CO_FUN(context, co_rlink_do(context, F(proc),
+						       DRF_DISCONNECTING));
+		}
+
 		rc = dtm0_process_rlink_reinit(F(proc), drf);
 		if (rc != 0)
 			goto unlock;
@@ -474,15 +556,20 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 		 * TODO handle network failure after link is connected, but
 		 * before the message is successfully sent
 		 */
-		M0_CO_FUN(context, co_rpc_link_connect(context,
-						       &F(proc)->dop_rlink,
-						       fom, DRF_CONNECTING));
+		M0_CO_FUN(context, co_rlink_do(context, F(proc),
+					       DRF_CONNECTING));
 	}
 
-	if (dpr_state_infer(F(proc)) == DPR_FAILED)
-			goto unlock;
+	if (dpr_state_infer(drf->df_svc, F(proc)) == DPR_FAILED) {
+		/*
+		 * Do not send the message if we leaned that we cannot
+		 * connect to the remote side by any means.
+		 */
+		rc = M0_ERR(-EAGAIN);
+		goto unlock;
+	}
 
-	M0_ASSERT(dpr_state_infer(F(proc)) == DPR_ONLINE);
+	M0_ASSERT(dpr_state_infer(drf->df_svc, F(proc)) == DPR_ONLINE);
 	m0_fom_phase_set(fom, DRF_SENDING);
 	rc = dtm0_process_rlink_send(F(proc), drf);
 	if (rc != 0)

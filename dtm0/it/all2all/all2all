@@ -23,9 +23,15 @@ M0D_PIDS=()
 
 M0D_CLI_FID_DEC=
 M0D_CLI_FID_HEX=
+MOD_CLI_EP=
 
 POOL_WIDTH=4
 IPOOL_WIDTH=2
+
+# m0d that got killed
+VICTIM=0
+# m0ds that are alive
+WITNESSES=(1 2)
 
 . ${MOTR_ROOT}/scripts/addb-py/chronometry/common/common_funcs
 
@@ -64,6 +70,8 @@ function create_m0crate_cfg()
     local PROCESS_FID=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client")) | .fid')
     local MOTR_HA_ADDR=$(echo $svcs_json_out | jq -r 'select( .name | contains("hax")) | .ep')
 
+    MOD_CLI_EP=$(echo "$MOTR_LOCAL_ADDR" | sed -E 's/.*@tcp[:](.*)/\1/')
+
     local M0CRATE_CFG_TMP=m0crate_cfg.tmp
     cp $M0CRATE_CFG_IN $M0CRATE_CFG_TMP
     sed -i "s/###__PROF__###/$PROF/g" $M0CRATE_CFG_TMP
@@ -85,56 +93,167 @@ function get_params_for_ha_msgs()
     M0D_CLI_FID_HEX=$(echo $cli_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/')
 }
 
-function ha_msg_send_transient()
+# params
+# (i) whom to send the message (endpoint). Use "cli" for the client; 0, 1, 2, etc. for m0ds.
+# (ii) who has changed its state. Use "cli" or 0, 1, 2.
+# (iii) what happened. Use "transient", "online" etc.
+function ha_msg_send()
 {
-    # Here we send "TRANSIENT" messages to trigger start of
-    # HA messages handling on the m0d side as dtm0 doesn't
-    # handle them until "TRANSIENT" received due to incomplete
-    # implementation on the Hare side.
-    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
-        for j in $(seq 0 $((${#M0D_FIDS_DEC[@]}-1))) ; do
-            if [[ $i -ne $j ]]; then
-                $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_FIDS_DEC[$j]}" "transient"
-                break
-            fi
-        done
+    local whom="$1"
+    local who="$2"
+    local what="$3"
+
+    if [[ "x$whom" == "xcli" ]]; then
+        whom="${MOD_CLI_EP}"
+    else
+        whom="${M0D_ENDPOINTS[$whom]}"
+    fi
+
+    if [[ "x$who" == "xcli" ]]; then
+        who="${M0D_CLI_FID_DEC}"
+    else
+        who="${M0D_FIDS_DEC[$who]}"
+    fi
+
+    _info "ha_msg_send: whom='${whom}', who='${who}', what='${what}'"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "$whom" "^r|$who" "$what"
+}
+
+function ha_msg_send_cli()
+{
+    local whom="cli"
+    local who="$1"
+    local what="$2"
+    ha_msg_send $whom $who $what
+}
+
+# params
+# (i)   who     Who changed its state?
+# (ii)  what    What is the new state?
+function ha_msg_send_m0ds()
+{
+    local who="$1"
+    local what="$2"
+
+    if [[ ${#M0D_ENDPOINTS[@]} -ne ${#M0D_FIDS_DEC[@]} ]]; then
+        echo "The number of endpoints is not equal to the number of fids. How is that possible?"
+        exit 1
+    fi
+
+    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))); do
+        ha_msg_send $i $who $what
     done
 }
 
-function ha_msg_send_online()
+function ha_msg_send_all()
 {
-    # Here we send "ONLINE" messages to trigger connections logic.
-    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
-        for j in $(seq 0 $((${#M0D_FIDS_DEC[@]}-1))) ; do
-            if [[ $i -ne $j ]]; then
-                $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_FIDS_DEC[$j]}" "online"
-            fi
-        done
-    done
+    local who="$1"
+    local what="$2"
+    ha_msg_send_cli  "$who" "$what"
+    ha_msg_send_m0ds "$who" "$what"
 }
 
-function ha_msg_send_cli_online()
+# param
+# (i)   trace_path Path to the trace file
+# (ii)  pattern    String to grep.
+# (iii) exp_cnt    Expected number of lines that match the pattern.
+function expect_trace_lines
 {
-    # Here we send "ONLINE" messages to connect servers to client.
-    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
-        $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_CLI_FID_DEC}" "online"
-    done
+    local trace_path="$1"
+    local pattern="$2"
+    local exp_cnt="$3"
+    local cnt
+    local cmd;
+
+    _info "expect trace: path=$trace_path, pattern=$pattern, exp_cnt=$exp_cnt"
+    cnt=$($MOTR_ROOT/utils/trace/m0trace -i "$trace_path" | grep -c "$pattern")
+    if [[ $cnt -ne $exp_cnt ]]; then
+        _info "Unexpected number of trace lines: $cnt != $exp_cnt"
+        return 1
+    fi
+
+    _info "Found"
+    return 0
 }
 
-function expected_trace_lines_num()
+function expect_trace_lines_from_m0d()
+{
+    local index="$1"
+    local pattern="$2"
+    local exp_cnt="$3"
+    local path="${M0D_DIR_COMMON}${M0D_FIDS_HEX[index]}/m0trace.${M0D_PIDS[index]}"
+
+    if expect_trace_lines "$path" "$pattern" "$exp_cnt"; then
+        return 0;
+    fi
+
+    return 1;
+}
+
+function expect_trace_lines_from_m0ds()
 {
     local pattern="$1"
     local exp_cnt=$2
-    local cnt
 
     for i in ${!M0D_PIDS[@]} ; do
-        cnt=$($MOTR_ROOT/utils/trace/m0trace -i "${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}/m0trace.${M0D_PIDS[i]}" | grep "$pattern" | wc -l)
-        if [[ $cnt -ne $exp_cnt ]]; then
+        if ! expect_trace_lines_from_m0d "$i" "$pattern" "$exp_cnt"; then
+            _info "Not found in ${M0D_PIDS[i]}"
             return 1
         fi
     done
 
-    return 0
+    return 0;
+}
+
+function expect_trace_lines_from_cli()
+{
+    local pattern="$2"
+    local exp_cnt="$3"
+    local path="$PWD/m0trace.$CLIENT_PID"
+    local cnt
+
+    if ! expect_trace_lines "$path" "$pattern" "$exp_cnt"; then
+        return 1;
+    fi
+
+    return 0;
+}
+
+function expect_trace_lines_from_all()
+{
+    local pattern="$2"
+    local exp_cnt="$3"
+
+    if expect_trace_lines_from_m0ds "$pattern" "$exp_cnt" && \
+        expect_trace_lines_from_cli  "$pattern" "$exp_cnt"; then
+        return 0;
+    fi
+
+    return 1
+}
+
+function addb2dump()
+{
+    local inpfile=$1
+    local outfile=$2
+    local a2d=$MOTR_ROOT/utils/m0addb2dump
+    local size
+
+    _info "Dumping ${inpfile} -> ${outfile} ..."
+
+    if ! $a2d -f "${inpfile}" > "${outfile}"; then
+        if [[ "$(stat -c %s ${inpfile})" == "0" ]]; then
+            _info "Skipping empty ADDB file."
+            return 0;
+        else
+            _info "Addb file is not empty but cannot dump it"
+            return 1;
+        fi
+    else
+        echo "OK."
+        return 0;
+    fi
+
 }
 
 function addb_dump()
@@ -143,7 +262,6 @@ function addb_dump()
     local outfile
     local inpfile
     local fid
-    local a2d=$MOTR_ROOT/utils/m0addb2dump
 
     rm -fR "${outdir}"
     mkdir "${outdir}"
@@ -152,15 +270,17 @@ function addb_dump()
         fid=$(echo "${M0D_FIDS_HEX[i]}" | awk -F'x' '{ print $2; }')
         outfile="${outdir}/addb_${fid}.dump"
         inpfile="${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}/addb-stobs-${M0D_PIDS[i]}/o/100000000000000:2"
-        _info "Dumping ${inpfile} -> ${outfile} ..."
-        $a2d -f "${inpfile}" > "${outfile}"
+        addb2dump ${inpfile} ${outfile}
     done
 
-    inpfile="$PWD/addb_${CLIENT_PID}/o/100000000000000:2"
-    fid=$(echo "$M0D_CLI_FID_HEX" | awk -F'x' '{ print $2; }')
-    outfile="${outdir}/addb_${fid}.dump"
-    _info "Dumping ${inpfile} -> ${outfile} ..."
-    $a2d -f "${inpfile}" > "${outfile}"
+    if [[ "x$CLIENT_PID" != "x" ]]; then
+        inpfile="$PWD/addb_${CLIENT_PID}/o/100000000000000:2"
+        fid=$(echo "$M0D_CLI_FID_HEX" | awk -F'x' '{ print $2; }')
+        outfile="${outdir}/addb_${fid}.dump"
+        addb2dump ${inpfile} ${outfile}
+    else
+        _info "Skipping client addb dumps."
+    fi
 }
 
 function processes_status_check()
@@ -186,9 +306,57 @@ function fail()
     exit 1
 }
 
-function main()
+function client_run()
+{
+    _info "Launching the client..."
+    $MOTR_ROOT/motr/m0crate/m0crate -S $M0CRATE_CFG &
+    CLIENT_PID=$!
+    _info "Client pid: ${CLIENT_PID}"
+}
+
+function client_run_gdb()
+{
+    _info "Launching the client under gdb ..."
+    libtool --mode=execute gdb --args $MOTR_ROOT/motr/m0crate/m0crate -S $M0CRATE_CFG
+}
+
+function client_wait()
+{
+    wait ${cli_pid}
+}
+
+function m0kv()
+{
+    local args
+    args=$(python -c "import yaml; \
+        conf = yaml.load(open('$M0CRATE_CFG')); \
+        m = conf['MOTR_CONFIG']; \
+        print('-l %s -h %s -p %s -f %s' % (m['MOTR_LOCAL_ADDR'], m['MOTR_HA_ADDR'], m['PROF'], m['PROCESS_FID']));")
+
+    _info "m0kv $args $@"
+    ${MOTR_UTILS_DIR}/m0kv $args $@
+}
+
+function m0kv_run_sync()
+{
+    m0kv index create "1:5"
+    m0kv -s index put "1:5" mykey myvalue
+    m0kv -s index get "1:5" mykey
+    m0kv index drop "1:5"
+}
+
+function client_run_sync()
+{
+    client_run
+    client_wait
+}
+
+# Phase where we power on the cluster.
+function boot_phase()
 {
     local cli_pid
+
+    _info "Phase recovery:boot"
 
     ${MOTR_UTILS_DIR}/m0setup --init-loop-only -s 1 -d ${TEST_ROOT} --pool-width ${POOL_WIDTH} --ipool-width ${IPOOL_WIDTH}
 
@@ -200,15 +368,91 @@ function main()
 
     _info "Create m0crate configuration..."
     create_m0crate_cfg
+}
 
-    _info "Run the client..."
-    $MOTR_ROOT/motr/m0crate/m0crate -S $M0CRATE_CFG &
-    cli_pid=$!
-    wait ${cli_pid}
-    _info "Client pid: ${cli_pid}"
-    CLIENT_PID=${cli_pid}
+# Phase where we ensure that all m0ds are online
+# from DTM0 perspective.
+function online_phase()
+{
+    _info "Phase recovery:online"
+
+    _info "Wait until every m0d started"
+    while ! expect_trace_lines_from_m0ds "ALL2ALL_STARTED" 1; do
+        :;
+    done
+
+    _info "Let everyone know that all m0ds are online."
+    for i in "${!M0D_PIDS[@]}" ; do
+        ha_msg_send_m0ds "$i" "online";
+    done
+}
+
+# Phase where we perform recovery.
+function recovery_phase()
+{
+    _info "Phase recovery:recovery"
+    local svc_name="m0d@0x720000000000000${M0D_FIDS_HEX[VICTIM]}.service"
+
+    # Execute some KVs requests, so that
+    # DTM0 logs won't be empty.
+
+    client_run_sync
+    # m0kv_run_sync
+
+    ha_msg_send_m0ds "cli" "failed"
+
+    # Kill one of the m0ds.
+    kill -9 "${M0D_PIDS[VICTIM]}"
+
+    # Witnesses should learn that the victim is dead.
+    for witness in ${WITNESSES[@]}; do
+        ha_msg_send $witness "${VICTIM}" "transient"
+    done
+
+    _info "Resurrect the victim: $svc_name"
+    systemctl start "$svc_name"
+
+    # Victim's PID should be updated.
+    M0D_PIDS=()
+    get_m0d_pids
+
+    _info "Wait until the victim gets started."
+    while ! expect_trace_lines_from_m0d ${VICTIM} "ALL2ALL_STARTED" 1; do
+        :;
+    done
+
+    # Replay transient event to the victim.
+    ha_msg_send ${VICTIM} ${VICTIM} "transient"
+
+    # Tell the victim that client is dead.
+    ha_msg_send ${VICTIM} "cli" "failed"
+
+    # Replay online event to the victim
+    for witness in ${WITNESSES[@]}; do
+        ha_msg_send ${VICTIM} $witness "online"
+    done
+
+    # Initiate recovery procedures
+    ha_msg_send_m0ds ${VICTIM} "dtm-recovering"
+
+    _info "Wait until the victim gets recovered."
+    while ! expect_trace_lines_from_m0d ${VICTIM} "ALL2ALL_DTM_RECOVERED" 1; do
+        :;
+    done
+
+    # Tell everyone (except client) that the victim is online.
+    ha_msg_send_m0ds ${VICTIM} "online"
+}
+
+# Phase where we are gathering artifacts
+# and shutting down the cluster.
+function shutdown_phase()
+{
+    _info "Phase recovery:shutdown"
+
+    _info "m0d pids: ${M0D_PIDS[@]}"
+
     stop_cluster
-
     addb_dump
 
     _info "Checking processes exit status..."
@@ -220,4 +464,125 @@ function main()
     _info "TEST STATUS: PASSED"
 }
 
-main
+function recovery_cycle()
+{
+    _info "Starting the recovery cycle"
+
+    boot_phase && \
+        online_phase && \
+        recovery_phase && \
+        shutdown_phase
+}
+
+function simple_boot_cycle()
+{
+    _info "Starting the simple boot cycle"
+
+    boot_phase &&
+        client_run_sync &&
+        shutdown_phase
+}
+
+function print_help()
+{
+    echo -en "
+    The script allows you to check one of the following cases:
+    '$0 ss'  - 'Simple' bootstrap/shutdown of the 3-process cluster.
+    '$0 rec' - 'Recovery procedures' where the cluster is trying to
+       recover a failed participant.
+    Each case is called a 'cycle', and there are several
+    phases withing each cycle. You can use these phases to manually
+    run pieces of the cycles or individual commands. For example:
+        $0 rec boot
+        $0 rec m0kv index create \"1:5\"
+        $0 rec m0kv -s index put \"1:5\" mykey myvalue
+        $0 rec m0kv -s index put \"1:5\" mykey myvalue
+        $0 rec m0kv -s index get \"1:5\" mykey
+        $0 rec m0kv -s index next \"1:5\" \"\\\0\" 1
+        $0 rec m0kv -s index del \"1:5\" mykey
+        $0 rec stop
+
+    Debugging and testing:
+    1. Use DTM0 UTs to ensure recovery machine works
+    with your changes:
+        sudo ./utils/m0run -d -- m0ut -t dtm0-ut
+    2. Use 'dtm0-remach' gdb command to print backtraces
+    of the coroutines:
+        $ m0trace -i <dir/m0trace.pid> | grep recovery_machine_init
+        .... m=0xabcd
+        $ gdb -p <pid>
+        (gdb) p (struct m0_dtm0_recovery_machine *) 0xabcd
+        \$1 = (struct m0_dtm0_recovery_machine *) 0xabcd
+        (gdb) dtm0-remach $1
+        < ... prints information about machine ...>
+
+    Known issues:
+    1. FOM HUNG warnings for recovery FOM. They have
+    one single state for waiting on something, and because
+    of that you may see this warning.
+    \n";
+}
+
+# params:
+# (i) cycle_name Name of the test (cycle)
+# (ii) phase_name Name of a phase in the cycle.
+function main()
+{
+    local cycle_name="$1"
+    local phase_name="$2"
+
+    # Run the whole cycle if phase was not
+    # specified.
+    if [ "x$phase_name" == "x" ]; then
+        case $cycle_name in
+            "ss")
+                simple_boot_cycle;;
+            "rec")
+                recovery_cycle;;
+            "-h")
+                print_help;;
+            "--help")
+                print_help;;
+            *)
+                # Run ordinary all2al by default.
+                simple_boot_cycle;;
+        esac
+    else
+        if [[ "x$cycle_name" == "xrec" ]]; then
+            case $phase_name in
+                "boot")
+                    boot_phase;;
+                "online")
+                    online_phase;;
+                "recovery")
+                    recovery_phase;;
+                "shutdown")
+                    shutdown_phase;;
+                "m0kv")
+                    shift;
+                    shift;
+                    m0kv $@;;
+                "stop")
+                    killall -9 lt-m0ham || true;
+                    killall -9 lt-m0d || true;
+                    killall -9 hax || true;
+                    killall -9 lt-m0crate || true;
+                    killall -9 lt-m0kv || true;
+                    killall -9 lt-m0mkfs || true;
+                    hctl shutdown;;
+                *)
+                    echo "Wrong phase: $phase_name"
+                    echo "Use one of the following: "
+                    echo "  boot online recovery shutdown stop"
+                    exit 1;;
+            esac
+        else
+            echo "Unsupported cycle: $cycle_name."
+            echo "Use 'r' or 's' (recovery, simple)."
+            exit 1
+        fi
+    fi
+
+}
+
+main $@
