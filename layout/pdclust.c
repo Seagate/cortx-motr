@@ -396,12 +396,11 @@ M0_INTERNAL struct m0_layout *m0_pdl_to_layout(struct m0_pdclust_layout *pl)
 	return &pl->pl_base.sl_base;
 }
 
-M0_INTERNAL struct m0_pdclust_instance *m0_layout_instance_to_pdi(const struct
-							 m0_layout_instance *li)
+M0_INTERNAL struct m0_pdclust_instance *
+m0_layout_instance_to_pdi(const struct m0_layout_instance *li)
 {
-	struct m0_pdclust_instance *pi;
-	pi = bob_of(li, struct m0_pdclust_instance, pi_base,
-		    &pdclust_instance_bob);
+	struct m0_pdclust_instance *pi = bob_of(li, struct m0_pdclust_instance,
+						pi_base, &pdclust_instance_bob);
 	M0_POST(pdclust_instance_invariant(pi));
 	return pi;
 }

@@ -282,10 +282,8 @@ M0_INTERNAL int ut_m0_client_init(struct m0_client **instance)
 		sm = &(*instance)->m0c_initlift_sm;
 		(*instance)->m0c_initlift_direction = STARTUP;
 
-		for (i = IL_UNINITIALISED + 1;
-		     i <= IL_RPC;
-		     //i <= IL_AST_THREAD;
-		     i++) {
+		for (i = IL_UNINITIALISED + 1; i <= IL_RPC;
+		     /*i <= IL_AST_THREAD;*/ i++) {
 			ut_test_m0_client_init_floor_tick(*instance,
 							  sm->sm_state,
 							  i);
