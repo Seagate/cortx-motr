@@ -697,7 +697,6 @@ def remove_dirs(self, log_dir, patterns):
 
     for pattern in patterns:
         removed_dirs = []
-        self.logger.info(f"Removing {pattern} directories from {log_dir}")
 
         # Search directories for files/dirs with pattern in their names and remove it.
         # e.g. removes addb* dirs from /var/motr
@@ -708,7 +707,8 @@ def remove_dirs(self, log_dir, patterns):
                 continue
             removed_dirs.append(dname)
             execute_command(self, f"rm -rf {dname}")
-        self.logger.info(f"Removed below directories.\n{removed_dirs}")
+        if len(removed_dirs) > 0:
+            self.logger.info(f"Removed below directories of pattern {pattern} from {log_dir}.\n{removed_dirs}")
 
 def remove_logs(self, patterns):
     for log_dir in MOTR_LOG_DIRS:
@@ -795,6 +795,7 @@ def update_motr_hare_keys_for_all_nodes(self):
             execute_command(self, cmd)
 
 def lvm_clean(self):
+    self.logger.info(f"Removing cortx lvms")
     vol_grps=execute_command(self, "vgs|grep vg_srvnode|awk '{print $1}'")[0].split('\n')[0:-1]
     if (len(vol_grps) == 0):
         self.logger.info("No cortx volume groups (e.g. vg_srvnode-1_md1) are found \n")
