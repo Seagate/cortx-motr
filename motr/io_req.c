@@ -1150,6 +1150,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 	int attr_idx = 0;
 	m0_bcount_t bytes;
 	
+	M0_ENTRY();
 	usz = m0_obj_layout_id_to_unit_size(
 			m0__obj_lid(ioo->ioo_obj));
 
@@ -1206,7 +1207,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 			i++;
 		}
 
-		if (ioo->ioo_attr.ov_vec.v_count[attr_idx] != 0) {
+		if (ioo->ioo_attr.ov_vec.v_nr && ioo->ioo_attr.ov_vec.v_count[attr_idx] != 0) {
 
 			seed.data_unit_offset   = m0_ivec_cursor_index(&extcur);
 			seed.obj_id.f_container = ioo->ioo_obj->ob_entity.en_id.u_hi;
@@ -1309,7 +1310,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 
 	if (dir == CD_COPY_TO_APP) {
 		/* verify the checksum for data read */
-		if ( !verify_checksum(ioo)) {
+		if (ioo->ioo_attr.ov_vec.v_nr && !verify_checksum(ioo)) {
 			return M0_RC(-EIO);
 		}
 	}

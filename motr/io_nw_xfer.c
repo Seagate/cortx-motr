@@ -551,6 +551,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		M0_ASSERT(ti->ti_dgvec != NULL);
 		ivec  = &ti->ti_dgvec->dr_ivec;
 		bvec  = &ti->ti_dgvec->dr_bufvec;
+		dst_attr = ti->ti_attrbuf.b_addr;
 		auxbvec  = &ti->ti_dgvec->dr_auxbufvec;
 		pattr = ti->ti_dgvec->dr_pageattrs;
 		cnt = page_nr(ioo->ioo_iomap_nr * layout_unit_size(play) *
@@ -957,7 +958,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					buf = bvec->ov_buf[seg];
 					
 					/* Add the size for checksum generated for every segment, skip parity */				
-					if( (filter == PA_DATA) &&
+					if( (filter == PA_DATA) && ioo->ioo_attr.ov_vec.v_nr &&
 						(ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE) ) {
 						delta += ti->ti_cksum_seg_b_nob[seg];
 						fop_cksm_nob += ti->ti_cksum_seg_b_nob[seg];
@@ -981,7 +982,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 					delta -= io_seg_size() - io_di_size(ioo);
 					
-					if( (filter == PA_DATA) &&
+					if( (filter == PA_DATA) && ioo->ioo_attr.ov_vec.v_nr &&
 						(ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE) ) {
 						delta -= ti->ti_cksum_seg_b_nob[seg];
 						fop_cksm_nob -= ti->ti_cksum_seg_b_nob[seg];
@@ -1032,7 +1033,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 
 		/* Assign the checksum buffer for traget */
-		if(filter == PA_DATA) {
+		if(filter == PA_DATA && ioo->ioo_attr.ov_vec.v_nr) {
 			if(m0_is_write_fop(&iofop->if_fop))	{				
 				M0_ASSERT(fop_cksm_nob != 0);
 				/* RPC layer to free crw_di_data_cksum */	
@@ -1044,25 +1045,18 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 						fop_cksm_nob );			
 				dispatched_cksm_nob += fop_cksm_nob;
 				M0_ASSERT(dispatched_cksm_nob <= ti->ti_cksum_copied);
-				rw_fop->crw_is_data_fop = 1;
-		}
-		else {
+			}
+			else {
 				rw_fop->crw_di_data_cksum.b_addr = NULL;
 				rw_fop->crw_di_data_cksum.b_nob = 0;
-				rw_fop->crw_is_data_fop = 2;
 				if(!read_in_write)
-					M0_ASSERT(ioo->ioo_attr.ov_vec.v_count[0]);
+					M0_ASSERT(ergo(ioo->ioo_attr.ov_vec.v_nr, ioo->ioo_attr.ov_vec.v_count[0]));
 			}
 			
-			rw_fop->crw_cksum_size = ( read_in_write || !(ioo->ioo_attr.ov_vec.v_nr) )  ? 
+			rw_fop->crw_cksum_size = ( read_in_write || !(ioo->ioo_attr.ov_vec.v_nr)) ? 
 										0 : ioo->ioo_attr.ov_vec.v_count[0];
-			
-			M0_LOG(M0_DEBUG, "YJC %"PRIu64 ": read_in_write = %s crw_cksum_size = %"PRIu64 " v_count[0] =%"PRIu64,
-					   rw_fop->crw_dummy_id, read_in_write ? "true" : "false", rw_fop->crw_cksum_size,
-					   ioo->ioo_attr.ov_vec.v_count[0]);
 		}
 		else {
-			rw_fop->crw_is_data_fop = 0;
 			rw_fop->crw_di_data_cksum.b_addr = NULL;
 			rw_fop->crw_di_data_cksum.b_nob  = 0;
 			rw_fop->crw_cksum_size = 0;
@@ -1227,7 +1221,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 		goto fail;
 
 	/* Memory allocation for checksum computation */
-	if ( op->op_code == M0_OC_WRITE ) {
+	if ( op->op_code == M0_OC_WRITE && ioo->ioo_attr.ov_vec.v_nr) {
 		uint32_t b_nob;
 		
 		ti->ti_attrbuf.b_addr = NULL;

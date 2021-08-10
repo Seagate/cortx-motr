@@ -214,12 +214,6 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 				m0_client_calculate_pi((struct m0_generic_pi *)&md5_ctx_pi,
 						seed, bvec, M0_PI_NO_FLAG,
 						curr_context, NULL);
-				//YJC_TODO: only for debug, remove this
-                                M0_LOG(M0_DEBUG, "MD5 f_container 0x%"PRIx64" f_key 0x%"PRIx64
-                                        " data_unit_offset 0x%"PRIx64,
-                                        seed->obj_id.f_container,
-                                        seed->obj_id.f_key,
-                                        seed->data_unit_offset);
 				m0_free(curr_context);
 				if (memcmp(((struct m0_md5_inc_context_pi *)pi)->pi_value,
 							md5_ctx_pi.pi_value,
