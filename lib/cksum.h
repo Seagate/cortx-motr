@@ -77,53 +77,54 @@ M0_BASSERT(M0_PI_TYPE_MAX <= 8);
 
 struct m0_pi_hdr {
         /* type of protection algorithm being used */
-        uint8_t pi_type : 8;
+        uint8_t pih_type : 8;
         /*size of PI Structure in multiple of  32 bytes*/
-        uint8_t pi_size : 8;
+        uint8_t pih_size : 8;
 };
 
 struct m0_md5_pi {
 
         /* header for protection info */
-        struct m0_pi_hdr hdr;
+        struct m0_pi_hdr pimd5_hdr;
 #ifndef __KERNEL__
         /* protection value computed for the current data*/
-        unsigned char pi_value[MD5_DIGEST_LENGTH];
+        unsigned char    pimd5_value[MD5_DIGEST_LENGTH];
         /* structure should be 32 byte aligned */
-        char pad[M0_CALC_PAD((sizeof(struct m0_pi_hdr)+ MD5_DIGEST_LENGTH), 32)];
+        char             pimd5_pad[M0_CALC_PAD((sizeof(struct m0_pi_hdr)+
+				   MD5_DIGEST_LENGTH), 32)];
 #endif
 };
 
 struct m0_md5_inc_context_pi {
 
         /* header for protection info */
-        struct m0_pi_hdr hdr;
+        struct m0_pi_hdr pimd5c_hdr;
 #ifndef __KERNEL__
         /*context of previous data unit, required for checksum computation */
-        unsigned char prev_context[sizeof(MD5_CTX)];
+        unsigned char    pimd5c_prev_context[sizeof(MD5_CTX)];
         /* protection value computed for the current data unit.
          * If seed is not provided then this checksum is
          * calculated without seed.
          */
-        unsigned char pi_value[MD5_DIGEST_LENGTH];
+        unsigned char    pimd5c_value[MD5_DIGEST_LENGTH];
         /* structure should be 32 byte aligned */
-        char pad[M0_CALC_PAD((sizeof(struct m0_pi_hdr)+ sizeof(MD5_CTX)+
-                        MD5_DIGEST_LENGTH), 32)];
+        char             pi_md5c_pad[M0_CALC_PAD((sizeof(struct m0_pi_hdr)+
+				     sizeof(MD5_CTX)+MD5_DIGEST_LENGTH), 32)];
 #endif
 };
 
 struct m0_generic_pi {
         /* header for protection info */
-        struct m0_pi_hdr hdr;
+        struct m0_pi_hdr pi_hdr;
         /*pointer to access specific pi structure fields*/
-        void *t_pi;
+        void            *pi_t_pi;
 };
 
 /* seed values for calculating checksum */
 struct m0_pi_seed {
-        struct m0_fid obj_id;
+        struct m0_fid pis_obj_id;
         /* offset within motr object */
-        m0_bindex_t data_unit_offset;
+        m0_bindex_t   pis_data_unit_offset;
 };
 
 /**
@@ -132,7 +133,7 @@ struct m0_pi_seed {
  * @param pi  pi struct m0_md5_inc_context_pi
  *            This function will calculate the checksum and set
  *            pi_value field of struct m0_md5_inc_context_pi.
- * @param seed seed value (obj_id+data_unit_offset) required to calculate
+ * @param seed seed value (pis_obj_id+pis_data_unit_offset) required to calculate
  *             the checksum. If this pointer is NULL that means either
  *             this checksum calculation is meant for KV or user does
  *             not want seeding.
@@ -164,7 +165,7 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
  *                    This api will calculate unit N's context and set value in curr_context.
  *                    IN values - pi_type, pi_size, prev_context
  *                    OUT values - pi_value, prev_context for first data unit.
- * @param[IN] seed seed value (obj_id+data_unit_offset) required to calculate
+ * @param[IN] seed seed value (pis_obj_id+pis_data_unit_offset) required to calculate
  *                 the checksum. If this pointer is NULL that means either
  *                 this checksum calculation is meant for KV or user does
  *                 not want seeding.

@@ -156,14 +156,14 @@ void verify_case_one_two(void)
 		}
 	}
 
-	m0_fid_set(&seed.obj_id, OBJ_CONTAINER, OBJ_KEY);
+	m0_fid_set(&seed.pis_obj_id, OBJ_CONTAINER, OBJ_KEY);
 	for (j = 0; j < DATA_UNIT_COUNT; j++)
 	{
 		memcpy((void *)&tmp_ctx,(void *)curr_context[j],sizeof(MD5_CTX));
-		seed.data_unit_offset = j*SEGS_NR*BUFFER_SIZE;
+		seed.pis_data_unit_offset = j*SEGS_NR*BUFFER_SIZE;
 		snprintf(seed_str,sizeof(seed_str),"%"PRIx64"%"PRIx64"%"PRIx64,
-				seed.obj_id.f_container, seed.obj_id.f_key,
-				seed.data_unit_offset);
+				seed.pis_obj_id.f_container, seed.pis_obj_id.f_key,
+				seed.pis_data_unit_offset);
 
 		rc = MD5_Update(&tmp_ctx, (unsigned char *)seed_str,
 				sizeof(seed_str));
@@ -207,14 +207,14 @@ static void ut_test_pi_api_case_one_two(void)
 	struct m0_md5_inc_context_pi pi;
 	struct m0_pi_seed seed;
 
-	m0_fid_set(&seed.obj_id, OBJ_CONTAINER, OBJ_KEY);
+	m0_fid_set(&seed.pis_obj_id, OBJ_CONTAINER, OBJ_KEY);
 
 	memset(&pi, 0, sizeof(struct m0_md5_inc_context_pi));
-	pi.hdr.pi_type = M0_PI_TYPE_MD5_INC_CONTEXT;
+	pi.pimd5c_hdr.pih_type = M0_PI_TYPE_MD5_INC_CONTEXT;
 
 	for (j = 0; j < DATA_UNIT_COUNT; j++) {
 
-		seed.data_unit_offset = j*SEGS_NR*BUFFER_SIZE;
+		seed.pis_data_unit_offset = j*SEGS_NR*BUFFER_SIZE;
 		if (j == 0) {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
 					&seed, &user_data[j], M0_PI_CALC_UNIT_ZERO,
@@ -234,12 +234,12 @@ static void ut_test_pi_api_case_one_two(void)
 			M0_UT_ASSERT(rc == 0);
 		}
 
-		memcpy(pi.prev_context, curr_context[j], sizeof(MD5_CTX));
-		memcpy(seeded_sum[j], pi.pi_value, MD5_DIGEST_LENGTH);
+		memcpy(pi.pimd5c_prev_context, curr_context[j], sizeof(MD5_CTX));
+		memcpy(seeded_sum[j], pi.pimd5c_value, MD5_DIGEST_LENGTH);
 	}
 
 	memset(&pi, 0, sizeof(struct m0_md5_inc_context_pi));
-	pi.hdr.pi_type = M0_PI_TYPE_MD5_INC_CONTEXT;
+	pi.pimd5c_hdr.pih_type = M0_PI_TYPE_MD5_INC_CONTEXT;
 	rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi, NULL,
 			big_user_data, M0_PI_CALC_UNIT_ZERO,
 			big_curr_context, big_final_sum);
@@ -264,11 +264,11 @@ static void ut_test_pi_api_case_third(void)
 	struct m0_pi_seed seed;
 	unsigned char seeded_final_chunks_value[MD5_DIGEST_LENGTH];
 
-	m0_fid_set(&seed.obj_id, OBJ_CONTAINER, OBJ_KEY);
-	seed.data_unit_offset = (DATA_UNIT_COUNT-1)*SEGS_NR*BUFFER_SIZE;
+	m0_fid_set(&seed.pis_obj_id, OBJ_CONTAINER, OBJ_KEY);
+	seed.pis_data_unit_offset = (DATA_UNIT_COUNT-1)*SEGS_NR*BUFFER_SIZE;
 
 	memset(&pi, 0, sizeof(struct m0_md5_inc_context_pi));
-	pi.hdr.pi_type = M0_PI_TYPE_MD5_INC_CONTEXT;
+	pi.pimd5c_hdr.pih_type = M0_PI_TYPE_MD5_INC_CONTEXT;
 
 	/* STEP 1 */
 	for (j = 0; j < DATA_UNIT_COUNT; j++) {
@@ -292,22 +292,22 @@ static void ut_test_pi_api_case_third(void)
 			M0_UT_ASSERT(rc == 0);
 		}
 
-		memcpy(pi.prev_context, curr_context[j], sizeof(MD5_CTX));
-		memcpy(seeded_sum[j], pi.pi_value, MD5_DIGEST_LENGTH);
+		memcpy(pi.pimd5c_prev_context, curr_context[j], sizeof(MD5_CTX));
+		memcpy(seeded_sum[j], pi.pimd5c_value, MD5_DIGEST_LENGTH);
 	}
 
-	memcpy(&seeded_final_chunks_value, pi.pi_value, MD5_DIGEST_LENGTH);
+	memcpy(&seeded_final_chunks_value, pi.pimd5c_value, MD5_DIGEST_LENGTH);
 
 	/* STEP 2 */
 	memset(&pi, 0, sizeof(struct m0_md5_inc_context_pi));
-	pi.hdr.pi_type = M0_PI_TYPE_MD5_INC_CONTEXT;
+	pi.pimd5c_hdr.pih_type = M0_PI_TYPE_MD5_INC_CONTEXT;
 	rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
 			&seed, big_user_data, M0_PI_CALC_UNIT_ZERO,
 			big_curr_context, big_final_sum);
 	M0_UT_ASSERT(rc == 0);
 
 	/* VERIFICATION */
-	M0_UT_ASSERT(memcmp(&seeded_final_chunks_value, pi.pi_value,
+	M0_UT_ASSERT(memcmp(&seeded_final_chunks_value, pi.pimd5c_value,
 				MD5_DIGEST_LENGTH) == 0);
 	M0_UT_ASSERT(memcmp(final_sum, big_final_sum, MD5_DIGEST_LENGTH) == 0);
 

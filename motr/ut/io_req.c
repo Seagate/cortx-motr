@@ -992,7 +992,7 @@ static void ut_test_ioreq_application_data_copy(void)
 	rc = m0_bufvec_empty_alloc(&user_data, 1);
 	M0_UT_ASSERT(rc == 0);
 
-	seed.obj_id = ioo->ioo_oo.oo_fid;
+	seed.pis_obj_id = ioo->ioo_oo.oo_fid;
 	curr_context = m0_alloc(sizeof(MD5_CTX));
 
 	for (k = 0; k < ioo->ioo_iomap_nr; k++) {
@@ -1004,8 +1004,8 @@ static void ut_test_ioreq_application_data_copy(void)
 				user_data.ov_buf[0] = map->pi_databufs[i][j]->db_buf.b_addr;
 
 				memset(&pi, 0, sizeof(struct m0_md5_inc_context_pi));
-				pi.hdr.pi_type = M0_PI_TYPE_MD5_INC_CONTEXT;
-				seed.data_unit_offset = unit_idx;
+				pi.pimd5c_hdr.pih_type = M0_PI_TYPE_MD5_INC_CONTEXT;
+				seed.pis_data_unit_offset = unit_idx;
 
 				rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
 						&seed, &user_data, M0_PI_CALC_UNIT_ZERO,
