@@ -82,12 +82,11 @@ extern struct m0_reqh_service_type m0_ss_svc_type;
  * special "safety" coefficient is introduced to increase space in repair zone.
  * Safety coefficient is defined as "safety mul"/"safety div".
  *
- * EOS-23180: Previous safety coefficent[3/2] was causing issues and
- * repair zone was occupying more space than normal zone. Details are in the bug.
- * Getting rid of the safety coefficient. Also adding an ASSERT that
- * repair zone percentage should not cross M0_BC_REPAIR_ZONE_MAX_ALLOWED percent.
- * User has to make sure repair zone percentage should not cross this by
- * choosing appropriate spare value.
+ * If repair zone percentage crosses M0_BC_REPAIR_ZONE_MAX_ALLOWED,
+ * user has to choose appropriate spare value.
+ *
+ * @todo We need to revisit the need of spare space reservation once
+ * DIX direct rebalance is implemented.
  */
 enum {
 	/** Multiplier of a repair zone safety coefficient. */
@@ -95,7 +94,7 @@ enum {
 	/** Divider of a repair zone safety coefficient. */
 	M0_BC_REPAIR_ZONE_SAFETY_DIV = 1,
 	/** Maximum allowed repair zone percentage */
-	M0_BC_REPAIR_ZONE_MAX_ALLOWED = 33
+	M0_BC_REPAIR_ZONE_MAX_ALLOWED = 40
 };
 
 M0_TL_DESCR_DEFINE(cs_buffer_pools, "buffer pools in the motr context",
@@ -1431,9 +1430,11 @@ static int be_repair_zone_pcnt_get(struct m0_reqh *reqh,
 			M0_BC_REPAIR_ZONE_SAFETY_MUL /
 			M0_BC_REPAIR_ZONE_SAFETY_DIV;
 
-		M0_LOG(M0_DEBUG, "pver_obj %p K %d P %d percent %d",
+		M0_LOG(M0_DEBUG, "pver_obj %p N %d K %d S %d P %d percent %d",
 		       pver_obj,
+		       pver_obj->pv_u.subtree.pvs_attr.pa_N,
 		       pver_obj->pv_u.subtree.pvs_attr.pa_K,
+		       pver_obj->pv_u.subtree.pvs_attr.pa_S,
 		       pver_obj->pv_u.subtree.pvs_attr.pa_P,
 		       *repair_zone_pcnt);
 
