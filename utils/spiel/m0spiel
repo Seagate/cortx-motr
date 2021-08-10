@@ -700,7 +700,8 @@ The following example illustrates usage of the tool:
 
 Execute commands from command line:
 
-\techo 'print(service_init(Fid(1,1)))' | sudo ./m0spiel''')
+\techo 'print(service_init(Fid(1,1)))' | sudo ./m0spiel\n''')
+
     parser.add_option('--ha', '-s', default=default_ha_ep,
                       help='HA endpoint. Default value: ' +
                       default_ha_ep)
