@@ -2290,7 +2290,11 @@ static void node_op_fini(struct node_op *op)
 
 #endif
 
-
+/**
+ *  --------------------------------------------
+ *  Section START - Fixed Format Node Structure
+ *  --------------------------------------------
+ */
 
 /**
  *  Structure of the node in persistent store.
@@ -2910,6 +2914,493 @@ static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 
 	M0_BTREE_TX_CAPTURE(tx, seg, h, hsize);
 }
+
+/**
+ *  --------------------------------------------
+ *  Section END - Fixed Format Node Structure
+ *  --------------------------------------------
+ */
+
+/**
+ *  --------------------------------------------
+ *  Section START -
+ *  Variable Sized Key and Values Node Structure
+ *  --------------------------------------------
+ *
+ * Proposed node structure
+ *
+ *
+ *                        +--------------------------+
+ *                        |                          |
+ *                 +------+-----------------------+  |
+ *                 |      |                       |  |
+ *             +---+------+-------------------+   |  |
+ *             |   |      |                   |   |  | DIR                    16   11       3  0
+ * +----------+v-+-v--+---v----+-------------++-+-++-++--+--+--+--------------+----+--------+--+
+ * |          |  |    |        |             |  |  |  |  |  |  |              |    |        |  |
+ * | Node Hdr |K0| K1 |   K3   |             +--+--+--+--+--+--+              | V3 |   V1   |V0|
+ * |          |  |    |        |             |  |  |  |  |  |  |              |    |        |  |
+ * +----------+--+----+--------+-------------++-++-+-++--+--+--+--------------+--^-+-----^--+-^+
+ *            0  5    12                      |  |   |                           |       |    |
+ *                                            +--+---+---------------------------+-------+----+
+ *                                               |   |                           |       |
+ *                                               +---+---------------------------+-------+
+ *                                                   |                           |
+ *                                                   +---------------------------+
+ *
+ *
+ *  The above structure represents the way variable sized keys and values may be
+ *  stored in memory.
+ *  Node Hdr or Node Header will store all the relevant info regarding this node
+ *  type.
+ *  The keys wil be added from the start of the node in an increasing way
+ *  whereas the values will be added from the end of the node in a decreasing 
+ *  way.
+ *  Additionally, we will maintain a directory in the central region of the node
+ *  which will contain the offsets to identify the address of the particular
+ *  key and value.
+ *
+ */
+#if 0
+struct dir_rec {
+	uint8_t key_offset;
+	uint8_t val_offset;
+};
+
+struct vkv_head {
+	struct m0_format_header  vkv_fmt;      /*< Node Header */
+	struct node_header       vkv_seg;      /*< Node type information */
+	uint16_t                 vkv_used;     /*< Count of records */
+	uint8_t                  vkv_shift;    /*< Node size as pow-of-2 */
+	uint8_t                  vkv_level;    /*< Level in Btree */
+	struct dir_rec          *dir_address;  /*< starting address of dir */
+
+	/* Removal of ksize and vsize as they are now dynamic */
+
+	struct m0_format_footer  vkv_foot;     /*< Node Footer */
+	void                    *vkv_opaque;   /*< opaque data */
+	/**
+	 *  This space is used to host the Keys and Values upto the size of the
+	 *  node
+	 */
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
+
+static struct vkv_head *vkv_data(const struct nd *node)
+{
+	return segaddr_addr(&node->n_addr);
+}
+
+static struct dir_rec  *vkv_get_dir_address(const struct segaddr *addr, int shift)
+{
+	int size = 1ULL << shift;
+	void *dir_addr = segaddr_addr(addr) + (size/(2*sizeof(int)));
+	return dir_addr;
+}
+
+static void vkv_init(const struct segaddr *addr, int shift, int ksize, int vsize,
+		    uint32_t ntype, struct m0_be_seg *seg, struct m0_be_tx *tx)
+{
+	/**
+	 * @brief  This function will do all the initialisations. Here, it
+	 *         will call a function to create the directory in the middle
+	 *         of the node memory and return the starting address 
+	 */
+	struct vkv_head *h = segaddr_addr(addr);
+	h->dir_address = vkv_get_dir_address(addr, shift);
+}
+
+static void vkv_fini(const struct nd *node, struct m0_be_tx *tx)
+{
+	/**
+	 * @brief This function will do all the finalisations in the header.
+	 */
+	struct vkv_head *h = vkv_data(node);
+
+}
+
+static int  vkv_count(const struct nd *node)
+{
+	/**
+	 * @brief This function returns the count of key in the node space.
+	 *        It is achieved using the vkv_used variable.
+	 */
+	struct vkv_head *h = vkv_data(node);
+
+}
+
+static int  vkv_count_rec(const struct nd *node)
+{
+	/**
+	 * @brief This function returns the count of values in the node space.
+	 *        It is achieved using the vkv_used variable.
+	 */
+	struct vkv_head *h = vkv_data(node);
+
+}
+
+static int  vkv_space(const struct nd *node)
+{
+	/**
+	 * @brief This function returns the space(in bytes) available in the
+	 *        node. This can be achieved by maintaining an entry in the
+	 *        directory of the next location where upcoming KV will be
+	 *        added. Using this entry, we can calculate the available
+	 *        size.
+	 * 
+	 *        directory_size = (sizeof(struct dir_rec))*vkv_used
+	 *        Available size = total_size of node - sizeof(node_header) -
+	 *                         directory_size - (key_offset_of_last_entry -
+	 *                         start_address_of_kv_space) -
+	 *                         (end_address_of_kv_space -
+	 *                          value_offset_of_last_entry)
+	 */
+	struct vkv_head *h = vkv_data(node);
+
+}
+
+static int  vkv_level(const struct nd *node)
+{
+	/**
+	 * @brief This function will return the vkv_level from node_header.
+	 */
+	struct vkv_head *h = vkv_data(node);
+
+}
+
+static int  vkv_shift(const struct nd *node)
+{
+	/**
+	 * @brief This function will return the vkv_shift from node_header.
+	 */
+	struct vkv_head *h = vkv_data(node);
+
+}
+
+static int  vkv_keysize(const struct nd *node)
+{
+	/**
+	 * @brief This function will also require actual key or slot as a 
+	 *        parameter to identify the key in the node. 
+	 *        Changes in nt_valsize function declaration will be required.
+	 *        Once the key is identified, the size can be calculated as a
+	 *        difference of offsets obtained from the dir.
+	 * 
+	 *        key = to search
+	 *        dir = node_header->dir_rec
+	 *        count = node_header->vkv_used
+	 *        start_addr = node_header + sizeof(node_header)
+	 *        while(count > 0) {
+	 *            new_key = start_addr + dir[count].key_offset
+	 *            if (new_key == key)
+	 *               break;
+	 *            count--
+	 *        }
+	 *        keysize = dir[count+1].key_offset - dir[count].key_offset
+	 *        
+	 */
+	struct vkv_head *h = vkv_data(node);
+
+}
+
+static int  vkv_valsize(const struct nd *node)
+{
+	/**
+	 * @brief This function will also require actual value or slot as a 
+	 *        parameter to identify the value in the node. 
+	 *        Changes in nt_valsize function declaration will be required.
+	 *        Once the value is identified, the size can be calculated as a
+	 *        difference of offsets obtained from the dir.
+	 * 
+	 *        val = to search
+	 *        dir = node_header->dir_rec
+	 *        count = node_header->vkv_used
+	 *        start_addr = node->n_addr + segaddr_shift(node->n_addr) - 1
+	 *        while(count > 0) {
+	 *            new_val = start_addr - dir[count].val_offset
+	 *            if (new_val == val)
+	 *               break;
+	 *            count--
+	 *        }
+	 *        valsize = dir[count+1].val_offset - dir[count].val_offset
+	 */
+	struct vkv_head *h = vkv_data(node);
+
+}
+
+static bool vkv_isunderflow(const struct nd *node, bool predict)
+{
+	/**
+	 * @brief This function will identify the possibility of underflow
+	 *        while adding a new record.
+	 * 
+	 * Need to check if ff_used will become less than 0.
+	 */
+}
+
+static bool vkv_isoverflow(const struct nd *node)
+{
+	/**
+	 * @brief This function will identify the possibility of overflow
+	 *        while adding a new record.
+	 *        Modifications will be required in vkv_isoverflow() function
+	 *        declaration as we need to have the sizes of incoming key and
+	 *        value.
+	 *
+	 *        keysize + valsize <= vkv_space(slot->s_node)
+	 */
+}
+
+static void vkv_fid(const struct nd *node, struct m0_fid *fid)
+{
+	
+}
+
+static void *vkv_key(const struct nd *node, int idx)
+{
+	/**
+	 * @brief Return the memory address pointing to key space.
+	 * 
+	 * index = given index
+	 * start_addr = node_header + sizeof(node_header)
+	 * new_key = start_addr + dir[index].key_offset
+	 * return new_key
+	 */
+}
+
+static void *vkv_val(const struct nd *node, int idx)
+{
+	/**
+	 * @brief Return the memory address pointing to value space.
+	 * 
+	 * index = given index
+	 * start_addr =  node->n_addr + segaddr_shift(node->n_addr) - 1
+	 * new_val = start_addr - dir[index].val_offset
+	 * return new_val
+	 */
+}
+
+static void vkv_rec(struct slot *slot)
+{
+	/**
+	 * @brief This function will fill the provided slot with its key and
+	 *        value based on the index provided.
+	 *        vkv_key() and vkv_val() functions should be used to get the
+	 *        memory address pointing to key and val.
+	 *        vkv_keysize() and vkv_valsize() functions should be used to
+	 *        fill the v_count parameter of the slot vector.
+	 */
+}
+
+static void vkv_node_key(struct slot *slot)
+{
+	/**
+	 * @brief This function will fill the provided slot with its key and
+	 *        value based on the index provided.
+	 *        vkv_key() functions should be used to get the
+	 *        memory address pointing to key and val.
+	 *        vkv_keysize() functions should be used to
+	 *        fill the v_count parameter of the slot vector.
+	 */
+}
+
+static void vkv_child(struct slot *slot, struct segaddr *addr)
+{
+	/**
+	 * @brief This function will return the memory address pointing to its
+	 *        child node. We will call the function vkv_val() for this
+	 *        purpose.
+	 *        This function is called for internal nodes.
+	 */
+}
+
+static bool vkv_isfit(struct slot *slot)
+{
+	/**
+	 * @brief This function will determine if the current key and value
+	 *        can be added to the node.
+	 *        It also checks the validity of the record.
+	 *        Modifications will be required in nt_isfit() function
+	 *        declaration as we need to have the sizes of incoming key and
+	 *        value.
+	 *
+	 *        keysize + valsize <= vkv_space(slot->s_node)
+	 */
+}
+
+static void vkv_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
+{
+
+}
+
+static void vkv_make(struct slot *slot, struct m0_be_tx *tx)
+{
+	/**
+	 * @brief This function will create space to add new entry at the
+	 *        given index. It is assumed that the possibility whether this
+	 *        can occur or not is determined before calling this function.
+	 *
+	 *        start_key_addr = vkv_key(slot->s_node, index)
+	 *        start_val_addr = vkv_val(slot->s_node, index)
+	 *        count = num of records i.e. vkv_used
+	 *
+	 *        idx = index
+	 *        while(idx <= count) {
+	 *          total_key_size += vkv_keysize(slot->s_node, idx)
+	 *          total_val_size += vkv_valsize(slot->s_node, idx)
+	 *          idx++
+	 *        }
+	 *
+	 *        //Update directory
+	 *        idx = index
+	 *        temp_count = count
+	 *        while(temp_count >= idx) {
+	 *          dir_rec[temp_count+1].key_offset = dir_rec[temp_count].key_offset
+	 *          dir_rec[temp_count+1].val_offset = dir_rec[temp_count].val_offset
+	 * 
+	 *          dir_rec[temp_count+1].key_offset = dir_rec[temp_count+1].key_offset + incoming_key_size
+	 *          dir_rec[temp_count+1].val_offset = dir_rec[temp_count+1].val_offset + incoming_value_size
+	 *          temp_count --
+	 *        }
+	 *        
+	 *        memmove(start_key_addr + incoming_key_size,start_key_addr,total_key_size)
+	 *        memmove(start_val_addr + incoming_val_size,start_val_addr,total_val_size)
+	 *
+	 *        vkv_used++
+	 * */
+
+}
+
+static bool vkv_find(struct slot *slot, const struct m0_btree_key *key)
+{
+	/**
+	 * @brief This function will return the index in the directory that
+	 *        points to given key.
+	 *        A binary search algorithm can be implemented here similar to
+	 *        current implementation in ff_find.
+	 */
+}
+
+static void vkv_fix(const struct nd *node, struct m0_be_tx *tx)
+{
+	/**
+	 * @brief This function will do any post processing required after the
+	 *        node operations.
+	 */
+}
+
+static void vkv_cut(const struct nd *node, int idx, int size,
+		   struct m0_be_tx *tx)
+{
+	/**
+	 * @brief This function changes the size of value for the specified
+	 *        key. Care must be taken to update the indices in the
+	 *        directory while moving the values. Also, there is a need to
+	 *        predetermine if the node directory itself needs to be moved.
+	 */
+}
+
+static void vkv_del(const struct nd *node, int idx, struct m0_be_tx *tx)
+{
+	/**
+	 * @brief This function will delete the given record or KV pair from
+	 *        the node. Keys and values need to moved accordingly, and
+	 *        the new indices should be updated in the node directory.
+	 * 
+	 * 
+	 *        start_key_addr = vkv_key(slot->s_node, index+1)
+	 *        start_val_addr = vkv_val(slot->s_node, index+1)
+	 *        count = num of records i.e. vkv_used
+	 *
+	 *        idx = index + 1
+	 *        while(idx <= count) {
+	 *          total_key_size += vkv_keysize(slot->s_node, idx)
+	 *          total_val_size += vkv_valsize(slot->s_node, idx)
+	 *          idx++
+	 *        }
+	 *
+	 *        //Update directory
+	 *        idx = index + 1
+	 *        while(idx < count) {
+	 *        dir_rec[idx - 1].key_offset = dir_rec[idx].key_offset
+	 *        dir_rec[idx - 1].val_offset = dir_rec[idx].val_offset
+	 * 
+	 *        dir_rec[idx - 1].key_offset = dir_rec[idx - 1].key_offset - outgoing_key_size
+	 *        dir_rec[idx - 1].val_offset = dir_rec[idx - 1].val_offset - outgoing_value_size
+	 *        idx --
+	 *        }
+	 *
+	 *        memmove(start_key_addr, start_key_addr + incoming_key_size,total_key_size)
+	 *        memmove(start_val_addr, start_val_addr + incoming_val_size,total_val_size)
+	 */
+}
+static void vkv_set_level(const struct nd *node, uint8_t new_level,
+			 struct m0_be_tx *tx)
+{
+	/**
+	 * @brief This function will set the level for the given node.
+	 */
+}
+static void vkv_move(struct nd *src, struct nd *tgt,
+			 enum direction dir, int nr, struct m0_be_tx *tx)
+{
+	/**
+	 * @brief This function is used to move data between 2 nodes.
+	 * Need to check if generic move() can be used for this case.
+	 */
+}
+
+static bool vkv_invariant(const struct nd *node)
+{
+	/**
+	 * @brief This function validates the structure of the node.
+	 * Implementation will be thought of once the basic functionality has
+	 * been implemented.
+	 */
+}
+
+static bool vkv_expensive_invariant(const struct nd *node)
+{
+	/**
+	 * @brief This function validates the key order within node.
+	 * Implementation will be thought of once the basic functionality has
+	 * been implemented.
+	 */
+}
+
+static bool vkv_verify(const struct nd *node)
+{
+	/**
+	 * @brief This function verify the data in the node.
+	 */
+}
+
+static void vkv_opaque_set(const struct segaddr *addr, void *opaque)
+{
+	/**
+	 * @brief This function saves the opaque data.
+	 */
+}
+
+static void *vkv_opaque_get(const struct segaddr *addr)
+{
+	/**
+	 * @brief This function return the opaque data.
+	 */
+}
+
+static void vkv_capture(struct slot *slot, struct m0_be_tx *tx)
+{
+	/**
+	 * @brief This function will capture the data in node segment.
+	 */
+}
+#endif
+/**
+ *  --------------------------------------------
+ *  Section END -
+ *  Variable Sized Key and Values Node Structure
+ *  --------------------------------------------
+ */
 
 #ifndef __KERNEL__
 /**
