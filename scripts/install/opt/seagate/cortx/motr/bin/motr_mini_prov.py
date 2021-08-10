@@ -211,6 +211,7 @@ def configure_lnet(self):
 
     execute_command(self, "systemctl enable lnet")
     restart_services(self, ["lnet"])
+    time.sleep(2)
     # Ping to nid
     self.logger.info("Doing ping to nids\n")
     ret = lnet_self_ping(self)
@@ -751,7 +752,7 @@ def lnet_self_ping(self):
     nids = []
 
     op = execute_command(self, "lctl list_nids")
-    nids.append(op[0].rstrip("\n"))
+    nids.append(op[0].strip("\n"))
     self.logger.info(f"nids= {nids}\n")
     for nid in nids:
        cmd = f"lctl ping {nid}"
