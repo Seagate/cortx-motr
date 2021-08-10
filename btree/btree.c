@@ -2970,7 +2970,7 @@ static void ff_node_free_credits(const struct nd *node,
 /**
  *  --------------------------------------------
  *  Section START -
- *  Variable Sized Key and Values Node Structure
+ *  Variable Sized Keys and Values Node Structure
  *  --------------------------------------------
  *
  * Proposed node structure
@@ -2986,7 +2986,7 @@ static void ff_node_free_credits(const struct nd *node,
  *             v   v      v                   |   |  | DIR                    16   11       3  0
  * +----------+--+----+--------+-------------++-+-++-++--+--+--+--------------+----+--------+--+
  * |          |  |    |        |             |  |  |  |  |  |  |              |    |        |  |
- * | Node Hdr |K0| K1 |   K3   |         +-->+--+--+--+--+--+--+              | V3 |   V1V1 |V0|
+ * | Node Hdr |K0| K1 |   K3   |         +-->+--+--+--+--+--+--+              | V3 |   V1   |V0|
  * |          |  |    |        |         |   |  |  |  |  |  |  |              |    |        |  |
  * +--------+-+--+----+--------+---------+---++-++-++-+--+--+--+--------------+----+--------+--+
  *          | 0  5    12                 |    |  |  |                           ^       ^     ^
@@ -2999,12 +2999,12 @@ static void ff_node_free_credits(const struct nd *node,
  *
  *
  *
- *  The above structure represents the way variable sized keys and values may be
- *  stored in memory.
+ *  The above structure represents the way variable sized keys and values will
+ *  be stored in memory.
  *  Node Hdr or Node Header will store all the relevant info regarding this node
  *  type.
- *  The keys wil be added fromstarting from the end of the node header in an
- *  increasing order whereas the values will be added starting from the end of
+ *  The Keys will be added starting from the end of the node header in an
+ *  increasing order whereas the Values will be added starting from the end of
  *  the node such that the Value of the first record will be at the extreme
  *  right, the Value for the second record to the left of the Value of the 
  *  first record and so on.
@@ -3044,7 +3044,7 @@ struct vkv_head {
 	uint16_t                 vkv_used;     /*< Count of records */
 	uint8_t                  vkv_shift;    /*< Node size as pow-of-2 */
 	uint8_t                  vkv_level;    /*< Level in Btree */
-	uint32_t                 dir_offset;  /*< starting address of dir */
+	uint32_t                 vkv_dir_offset;  /*< starting address of dir */
 
 	/* Removal of ksize and vsize as they are now dynamic */
 
@@ -3061,7 +3061,7 @@ static struct vkv_head *vkv_data(const struct nd *node)
 	return segaddr_addr(&node->n_addr);
 }
 
-static uint32_t *vkv_get_dir_address(const struct segaddr *addr, int shift)
+static uint32_t vkv_get_dir_offset(const struct segaddr *addr, int shift)
 {
 	int size = 1ULL << shift;
 	uint32_t dir_off = (size/(2*sizeof(int)));
@@ -3077,7 +3077,7 @@ static void vkv_init(const struct segaddr *addr, int shift, int ksize, int vsize
 	 *         of the node memory and return the starting address 
 	 */
 	struct vkv_head *h = segaddr_addr(addr);
-	h->dir_offset = vkv_get_dir_address(addr, shift);
+	h->dir_offset = vkv_get_dir_offset(addr, shift);
 }
 
 static void vkv_fini(const struct nd *node, struct m0_be_tx *tx)
@@ -3469,7 +3469,7 @@ static void vkv_capture(struct slot *slot, struct m0_be_tx *tx)
 /**
  *  --------------------------------------------
  *  Section END -
- *  Variable Sized Key and Values Node Structure
+ *  Variable Sized Keys and Values Node Structure
  *  --------------------------------------------
  */
 
