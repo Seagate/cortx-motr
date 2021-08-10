@@ -149,9 +149,12 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	struct m0_ivec_cursor   ti_goff_cursor;
 	struct m0_indexvec     *ti_ivec = &ti->ti_ivec;
 	struct m0_indexvec     *ti_goff_ivec = &ti->ti_goff_ivec;
+	void                   *dst;
+	void                   *src;
 
-	void *dst = ioo->ioo_attr.ov_buf[0];
-	void *src = buf->b_addr;
+	M0_PRE(ioo->ioo_attr.ov_vec.v_nr);
+	dst = ioo->ioo_attr.ov_buf[0];
+	src = buf->b_addr;
 
 	if(!buf->b_nob)
 	{
@@ -309,7 +312,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	rw_reply = io_rw_rep_get(reply_fop);
 
 	/* Copy attributes to client if reply received from read operation */
-	if (m0_is_read_rep(reply_fop) && op->op_code == M0_OC_READ) {
+	if (m0_is_read_rep(reply_fop) && op->op_code == M0_OC_READ && ioo->ioo_attr.ov_vec.v_nr) {
 		m0_indexvec_wire2mem(&rwfop->crw_ivec,
 					rwfop->crw_ivec.ci_nr, 0,
 					&rep_attr_ivec);
@@ -1023,7 +1026,6 @@ M0_INTERNAL int ioreq_fop_init(struct ioreq_fop    *fop,
 		 * callback on receiving a reply.
 		 */
 		fop->irf_iofop.if_fop.f_item.ri_ops = &item_ops;
-		rwfop->crw_dummy_id = m0_dummy_id_generate();
 	}
 
 	M0_POST(ergo(rc == 0, ioreq_fop_invariant(fop)));

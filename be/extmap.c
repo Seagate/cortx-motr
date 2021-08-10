@@ -1267,8 +1267,6 @@ be_emap_split(struct m0_be_emap_cursor *it,
 	m0_bindex_t seg_end = it->ec_seg.ee_ext.e_end;
 	uint32_t    i;
 
-	M0_LOG(M0_DEBUG, "YJC end = %"PRIu64"", seg_end);
-
 	for (i = 0; i < vec->iv_vec.v_nr; ++i) {
 		count = vec->iv_vec.v_count[i];
 		if (count == 0)
