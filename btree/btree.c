@@ -1679,8 +1679,8 @@ static void node_fini(const struct nd *node, struct m0_be_tx *tx)
 	node->n_type->nt_fini(node, tx);
 }
 
-static void node_free_credits(const struct nd *node,
-			      struct m0_be_tx_credit *accum)
+static void node_free_credits(const struct nd *node, m0_bcount_t ksize,
+			      m0_bcount_t vsize, struct m0_be_tx_credit *accum)
 {
 	node->n_type->nt_node_free_credits(node, accum);
 }
@@ -3009,21 +3009,14 @@ static void btree_node_update_credit(const struct m0_btree  *tree,
  * This function will calculate credits required for the delete KV operation and
  * add those credits to @accum.
  */
-static void btree_del_credit(const struct m0_btree  *tree,
-			     struct m0_be_tx_credit *accum)
+static void btree_del_credit(const struct m0_btree  *tree, m0_bcount_t ksize,
+			     m0_bcount_t vsize, struct m0_be_tx_credit *accum)
 {
 	struct m0_be_tx_credit cred = {};
 
 	/* Credits for freeing the node. */
-	node_free_credits(tree->t_desc->t_root, &cred);
+	node_free_credits(tree->t_desc->t_root, ksize, vsize, &cred);
 	m0_be_tx_credit_mac(accum, &cred, MAX_TREE_HEIGHT);
-
-	/**
-	 * Credits for update node:
-	 * After deletetion of record, if node is not underflowed, node will get
-	 * updated.
-	 */
-	btree_node_update_credit(tree, accum);
 }
 
 /**
@@ -3084,7 +3077,7 @@ void m0_btree_del_credit(const struct m0_btree  *tree,
 {
 	struct m0_be_tx_credit cred = {};
 
-	btree_del_credit(tree, &cred);
+	btree_del_credit(tree, ksize, vsize, &cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
