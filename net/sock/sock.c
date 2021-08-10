@@ -793,11 +793,6 @@ struct ma {
 	bool                       t_shutdown;
 	/** List of finalised sock structures. */
 	struct m0_tl               t_deathrow;
-	/**
-	 * A lock used for synchronisation with the poller thread during
-	 * transfer machine shutdown. See the comment in poller().
-	 */
-	struct m0_mutex            t_endlock;
 	/** List of completed buffers. */
 	struct m0_tl               t_done;
 };
@@ -1361,44 +1356,19 @@ static void poller(struct ma *ma)
 	 */
 	ma_event_post(ma, M0_NET_TM_STARTED);
 	while (1) {
+		if (ma->t_shutdown)
+			break;
 		nr = epoll_wait(ma->t_epollfd, ev, ARRAY_SIZE(ev), 1000);
 		if (nr == -1) {
 			M0_LOG(M0_DEBUG, "epoll: %i.", -errno);
 			M0_ASSERT(errno == EINTR);
 			continue;
 		}
-		M0_LOG(M0_DEBUG, "Got: %d.", nr);
-		/*
-		 * Synchronisation between the poller thread and ma shutdown
-		 * process (ma__fini()) is complicated.
-		 *
-		 * ma__fini() is called under the ma lock and has to wait for
-		 * the thread termination. ma__fini() cannot release the ma
-		 * lock, because ma invariants are broken at this point. The
-		 * thread cannot take ma lock, because that would deadlock with
-		 * ma__fini().
-		 *
-		 * A separate lock ma->t_endlock is introduced. ma__fini() sets
-		 * ma->t_shutdown under both ma lock and ma->t_endlock (taken in
-		 * this order), and immediately releases ->t_endlock.
-		 *
-		 * The poller thread takes locks in the opposite direction
-		 * through the trylock-repeat loop below.
-		 */
-		while (1) {
-			m0_mutex_lock(&ma->t_endlock);
-			if (ma->t_shutdown)
-				break;
-			else if (m0_mutex_trylock(&ma->t_ma->ntm_mutex) != 0) {
-				m0_mutex_unlock(&ma->t_endlock);
-				ma_lock(ma);
-				ma_unlock(ma);
-			} else
-				break;
-		}
-		m0_mutex_unlock(&ma->t_endlock); /* It is safe to unlock. */
+		/* Check again because epoll() may block for some time */
 		if (ma->t_shutdown)
 			break;
+		M0_LOG(M0_DEBUG, "Got: %d.", nr);
+		ma_lock(ma);
 		M0_ASSERT(ma_is_locked(ma) && ma_invariant(ma));
 		for (i = 0; i < nr; ++i) {
 			struct sock *s = ev[i].data.ptr;
@@ -1463,7 +1433,6 @@ static int ma_init(struct m0_net_transfer_mc *net)
 		ma->t_ma = net;
 		s_tlist_init(&ma->t_deathrow);
 		b_tlist_init(&ma->t_done);
-		m0_mutex_init(&ma->t_endlock);
 		result = 0;
 	} else
 		result = M0_ERR(-ENOMEM);
@@ -1494,14 +1463,18 @@ static void ma__fini(struct ma *ma)
 
 	M0_PRE(ma_is_locked(ma));
 	if (!ma->t_shutdown) {
-		/* See comment in poller(). */
-		m0_mutex_lock(&ma->t_endlock);
+		/* Set the shutdown flag.
+		 * Release the lock and wait for poller(), so that the poller()
+		 * will get a chance to detect this flag and exit.
+		 */
 		ma->t_shutdown = true;
-		m0_mutex_unlock(&ma->t_endlock);
+		ma_unlock(ma);
 		if (ma->t_poller.t_func != NULL) {
 			m0_thread_join(&ma->t_poller);
 			m0_thread_fini(&ma->t_poller);
 		}
+		/* Go on finalizing the ma */
+		ma_lock(ma);
 		m0_tl_for(m0_nep, &ma->t_ma->ntm_end_points, net) {
 			struct ep   *ep = ep_net(net);
 			struct sock *sock;
@@ -1521,7 +1494,6 @@ static void ma__fini(struct ma *ma)
 		ma_prune(ma);
 		b_tlist_fini(&ma->t_done);
 		s_tlist_fini(&ma->t_deathrow);
-		m0_mutex_fini(&ma->t_endlock);
 		M0_ASSERT(m0_nep_tlist_is_empty(&ma->t_ma->ntm_end_points));
 		ma->t_ma->ntm_ep = NULL;
 	}
