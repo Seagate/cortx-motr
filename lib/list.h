@@ -322,6 +322,20 @@ M0_INTERNAL size_t m0_list_length(const struct m0_list *list);
 	&var->member == (void *)head;					\
 })
 
+/**
+ * Empties the list by taking its elements to @pos and removing them
+ * one after another starting from head.
+ *
+ * @param head    of list.
+ * @param pos     current list element.
+ * @param type    containing m0_list_link @member.
+ * @param member  field name at the @type.
+ */
+#define m0_list_teardown(head, pos, type, member) \
+  while (!m0_list_is_empty((head)) && \
+         ((pos) = m0_list_entry((head)->l_head, type, member)) && \
+         (m0_list_del(&(pos)->member), true))
+
 /** @} end of list group */
 #endif /* __MOTR_LIB_LIST_H__ */
 
