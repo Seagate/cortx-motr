@@ -303,9 +303,8 @@ static struct m0_be_dtm0_log *persistent_log_create(void)
 
 	m0_dtm0_clk_src_init(&cs, M0_DTM0_CS_PHYS);
 
-	// Calculate credits
+	/* Calculate credits */
 	m0_be_dtm0_log_credit(M0_DTML_CREATE, NULL, NULL, seg, NULL, &cred);
-	//
 
 	M0_ALLOC_PTR(tx);
 	M0_UT_ASSERT(tx != NULL);
@@ -314,18 +313,18 @@ static struct m0_be_dtm0_log *persistent_log_create(void)
 	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
 
-	// Create log and initialize it
+	/* Create log and initialize it */
 	rc = m0_be_dtm0_log_create(tx, seg, &log);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_be_dtm0_log_init(log, NULL, &cs, true);
+	rc = m0_be_dtm0_log_init(log, seg, &cs, true);
 	M0_UT_ASSERT(rc == 0);
-	//
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
 	m0_free(tx);
 	M0_LEAVE();
+
 	return log;
 }
 
