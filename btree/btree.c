@@ -2305,6 +2305,12 @@ static void node_op_fini(struct node_op *op)
 struct ff_head {
 	struct m0_format_header  ff_fmt;    /*< Node Header */
 	struct node_header       ff_seg;    /*< Node type information */
+
+	/** 
+	 * The above 2 structures should always be together with node_header
+	 * following the m0_format_header.
+	 */
+
 	uint16_t                 ff_used;   /*< Count of records */
 	uint8_t                  ff_shift;  /*< Node size as pow-of-2 */
 	uint8_t                  ff_level;  /*< Level in Btree */
@@ -2940,35 +2946,54 @@ static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
  * Proposed node structure
  *
  *
+/*
  *                        +--------------------------+
  *                        |                          |
  *                 +------+-----------------------+  |
  *                 |      |                       |  |
  *             +---+------+-------------------+   |  |
- *             |   |      |                   |   |  | DIR                    16   11       3  0
- * +----------+v-+-v--+---v----+-------------++-+-++-++--+--+--+--------------+----+--------+--+
+ *             |   |      |                   |   |  |
+ *             v   v      v                   |   |  | DIR                    16   11       3  0
+ * +----------+--+----+--------+-------------++-+-++-++--+--+--+--------------+----+--------+--+
  * |          |  |    |        |             |  |  |  |  |  |  |              |    |        |  |
- * | Node Hdr |K0| K1 |   K3   |             +--+--+--+--+--+--+              | V3 |   V1   |V0|
- * |          |  |    |        |             |  |  |  |  |  |  |              |    |        |  |
- * +----------+--+----+--------+-------------++-++-+-++--+--+--+--------------+--^-+-----^--+-^+
- *            0  5    12                      |  |   |                           |       |    |
- *                                            +--+---+---------------------------+-------+----+
- *                                               |   |                           |       |
- *                                               +---+---------------------------+-------+
- *                                                   |                           |
- *                                                   +---------------------------+
+ * | Node Hdr |K0| K1 |   K3   |         +-->+--+--+--+--+--+--+              | V3 |   V1V1 |V0|
+ * |          |  |    |        |         |   |  |  |  |  |  |  |              |    |        |  |
+ * +--------+-+--+----+--------+---------+---++-++-++-+--+--+--+--------------+----+--------+--+
+ *          | 0  5    12                 |    |  |  |                           ^       ^     ^
+ *          +----------------------------+    |  |  |                           |       |     |
+ *                                            +--+--+---------------------------+-------+-----+
+ *                                               |  |                           |       |
+ *                                               +--+---------------------------+-------+
+ *                                                  |                           |
+ *                                                  +---------------------------+
+ *
  *
  *
  *  The above structure represents the way variable sized keys and values may be
  *  stored in memory.
  *  Node Hdr or Node Header will store all the relevant info regarding this node
  *  type.
- *  The keys wil be added from the start of the node in an increasing way
- *  whereas the values will be added from the end of the node in a decreasing 
- *  way.
+ *  The keys wil be added fromstarting from the end of the node header in an
+ *  increasing order whereas the values will be added starting from the end of
+ *  the node such that the Value of the first record will be at the extreme
+ *  right, the Value for the second record to the left of the Value of the 
+ *  first record and so on.
+ *  This way the Keys start populating from the left of the node (after the 
+ *  Node Header) while the Values start populating from the right of the node.
+ *  As the records get added the empty space between the Keys list and the
+ *  Values list starts to shrink.
+ *
  *  Additionally, we will maintain a directory in the central region of the node
  *  which will contain the offsets to identify the address of the particular
  *  key and value.
+ *  This Directory starts in the center of the empty space between Keys and
+ *  Values and will float in this region so that if addition of the new record
+ *  causes either Key or Value to overwrite the Directory then the Directory
+ *  will need to be shifted to make space for the incoming Key/Value; 
+ *  accordingly the Directory pointer in the Node Header will be updated. If no
+ *  space exists to add the new Record then an Overflow has happened and the new
+ *  record cannot be inserted in this node. The credit calculations for the
+ *  addition of the Record need to account for the moving of this Directory.
  *
  */
 #if 0
@@ -2980,18 +3005,24 @@ struct dir_rec {
 struct vkv_head {
 	struct m0_format_header  vkv_fmt;      /*< Node Header */
 	struct node_header       vkv_seg;      /*< Node type information */
+
+	/** 
+	 * The above 2 structures should always be together with node_header
+	 * following the m0_format_header.
+	 */
+
 	uint16_t                 vkv_used;     /*< Count of records */
 	uint8_t                  vkv_shift;    /*< Node size as pow-of-2 */
 	uint8_t                  vkv_level;    /*< Level in Btree */
-	struct dir_rec          *dir_address;  /*< starting address of dir */
+	uint32_t                 dir_offset;  /*< starting address of dir */
 
 	/* Removal of ksize and vsize as they are now dynamic */
 
 	struct m0_format_footer  vkv_foot;     /*< Node Footer */
 	void                    *vkv_opaque;   /*< opaque data */
 	/**
-	 *  This space is used to host the Keys and Values upto the size of the
-	 *  node
+	 *  This space is used to host the Keys, Values and Directory upto the
+	 *  size of the node.
 	 */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
@@ -3000,11 +3031,11 @@ static struct vkv_head *vkv_data(const struct nd *node)
 	return segaddr_addr(&node->n_addr);
 }
 
-static struct dir_rec  *vkv_get_dir_address(const struct segaddr *addr, int shift)
+static uint32_t *vkv_get_dir_address(const struct segaddr *addr, int shift)
 {
 	int size = 1ULL << shift;
-	void *dir_addr = segaddr_addr(addr) + (size/(2*sizeof(int)));
-	return dir_addr;
+	uint32_t dir_off = (size/(2*sizeof(int)));
+	return dir_off;
 }
 
 static void vkv_init(const struct segaddr *addr, int shift, int ksize, int vsize,
@@ -3016,7 +3047,7 @@ static void vkv_init(const struct segaddr *addr, int shift, int ksize, int vsize
 	 *         of the node memory and return the starting address 
 	 */
 	struct vkv_head *h = segaddr_addr(addr);
-	h->dir_address = vkv_get_dir_address(addr, shift);
+	h->dir_offset = vkv_get_dir_address(addr, shift);
 }
 
 static void vkv_fini(const struct nd *node, struct m0_be_tx *tx)
@@ -3171,7 +3202,7 @@ static void *vkv_key(const struct nd *node, int idx)
 	 * @brief Return the memory address pointing to key space.
 	 * 
 	 * index = given index
-	 * start_addr = node_header + sizeof(node_header)
+	 * start_addr = node->n_addr + sizeof(node_header)
 	 * new_key = start_addr + dir[index].key_offset
 	 * return new_key
 	 */
