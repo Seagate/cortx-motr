@@ -3310,34 +3310,45 @@ static void vkvv_make(struct slot *slot, struct m0_be_tx *tx)
 	 *        given index. It is assumed that the possibility whether this
 	 *        can occur or not is determined before calling this function.
 	 *
+	 *        We will maintain an extra record than vkvv_used in the
+	 *        directory. Maintaining this extra offset value will help in
+	 *        size calculations.
+	 *
 	 *        start_key_addr = vkvv_key(slot->s_node, index)
 	 *        start_val_addr = vkvv_val(slot->s_node, index)
 	 *        count = num of records i.e. vkvv_used
 	 *
-	 *        idx = index
-	 *        while(idx <= count) {
-	 *          total_key_size += vkvv_keysize(slot->s_node, idx)
-	 *          total_val_size += vkvv_valsize(slot->s_node, idx)
-	 *          idx++
-	 *        }
+	 *        if(index==count) {
+	 *          //No need to do memmove() as data will added to the end of
+	 *          //current series of keys and values. Just update the
+	 *          //directory to keep a record of the next possible offset.
+	 *          dir_rec[index+1].key_offset = dir_rec[index].key_offset + incoming_key_size
+	 *          dir_rec[index+1].val_offset = dir_rec[index].val_offset + incoming_val_size
 	 *
-	 *        //Update directory
-	 *        idx = index
-	 *        temp_count = count
-	 *        while(temp_count >= idx) {
-	 *          dir_rec[temp_count+1].key_offset = dir_rec[temp_count].key_offset
-	 *          dir_rec[temp_count+1].val_offset = dir_rec[temp_count].val_offset
+	 *        } else {
+	 *
+	 *          total_key_size = dir_rec[count+1].key_offset - dir_rec[index].key_offset
+	 *          total_val_size = dir_rec[count+1].val_offset - dir_rec[index].val_offset
+	 *
+	 *          //Update directory
+	 *          idx = index
+	 *          temp_count = count
+	 *          while(temp_count >= idx) {
+	 *            dir_rec[temp_count+1].key_offset = dir_rec[temp_count].key_offset
+	 *            dir_rec[temp_count+1].val_offset = dir_rec[temp_count].val_offset
 	 * 
-	 *          dir_rec[temp_count+1].key_offset = dir_rec[temp_count+1].key_offset + incoming_key_size
-	 *          dir_rec[temp_count+1].val_offset = dir_rec[temp_count+1].val_offset + incoming_value_size
-	 *          temp_count --
-	 *        }
-	 *        
-	 *        memmove(start_key_addr + incoming_key_size,start_key_addr,total_key_size)
-	 *        memmove(start_val_addr + incoming_val_size,start_val_addr,total_val_size)
+	 *            dir_rec[temp_count+1].key_offset = dir_rec[temp_count+1].key_offset + incoming_key_size
+	 *            dir_rec[temp_count+1].val_offset = dir_rec[temp_count+1].val_offset + incoming_value_size
+	 *            temp_count --
+	 *          }
 	 *
+	 *          memmove(start_key_addr + incoming_key_size,start_key_addr,total_key_size)
+	 *          memmove(start_val_addr - incoming_val_size,start_val_addr,total_val_size)
+	 *        }
 	 *        vkvv_used++
-	 * */
+	 *
+	 *
+	 */
 
 }
 
@@ -3378,30 +3389,40 @@ static void vkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	 *        the new indices should be updated in the node directory.
 	 * 
 	 * 
-	 *        start_key_addr = vkvv_key(slot->s_node, index+1)
-	 *        start_val_addr = vkvv_val(slot->s_node, index+1)
+	 *        start_key_addr = vkvv_key(slot->s_node, index)
+	 *        start_val_addr = vkvv_val(slot->s_node, index)
 	 *        count = num of records i.e. vkvv_used
 	 *
-	 *        idx = index + 1
-	 *        while(idx <= count) {
-	 *          total_key_size += vkvv_keysize(slot->s_node, idx)
-	 *          total_val_size += vkvv_valsize(slot->s_node, idx)
-	 *          idx++
-	 *        }
+	 *        if(index==count) {
+	 *          //No need to do memmove() as data will be removed from the
+	 *          //end of current series of keys and values. Just update the
+	 *          //directory entry to keep a record.
+	 *          dir_rec[index+1].key_offset = 0
+	 *          dir_rec[index+1].val_offset = 0
 	 *
-	 *        //Update directory
-	 *        idx = index + 1
-	 *        while(idx < count) {
-	 *        dir_rec[idx - 1].key_offset = dir_rec[idx].key_offset
-	 *        dir_rec[idx - 1].val_offset = dir_rec[idx].val_offset
+	 *        } else {
+	 *
+	 *          total_key_size = dir_rec[count+1].key_offset - dir_rec[index+1].key_offset
+	 *          total_val_size = dir_rec[count+1].val_offset - dir_rec[index+1].val_offset
+	 *
+	 *          //Update directory
+	 *          idx = index
+	 *
+	 *          while(idx <= count) {
+	 *            dir_rec[idx].key_offset = dir_rec[idx+1].key_offset
+	 *            dir_rec[idx].val_offset = dir_rec[idx+1].val_offset
 	 * 
-	 *        dir_rec[idx - 1].key_offset = dir_rec[idx - 1].key_offset - outgoing_key_size
-	 *        dir_rec[idx - 1].val_offset = dir_rec[idx - 1].val_offset - outgoing_value_size
-	 *        idx --
+	 *            dir_rec[idx].key_offset = dir_rec[idx].key_offset - outgoing_key_size
+	 *            dir_rec[idx].val_offset = dir_rec[idx].val_offset - outgoing_value_size
+	 *            idx ++
+	 *          }
+	 *          dir_rec[idx].key_offset = 0
+	 *          dir_rec[idx].val_offset = 0
+	 *          memmove(start_key_addr,start_key_addr + outgoing_key_size,total_key_size)
+	 *          memmove(start_val_addr,start_val_addr - outgoing_val_size,total_val_size)
 	 *        }
+	 *        vkvv_used--
 	 *
-	 *        memmove(start_key_addr, start_key_addr + incoming_key_size,total_key_size)
-	 *        memmove(start_val_addr, start_val_addr + incoming_val_size,total_val_size)
 	 */
 }
 static void vkvv_set_level(const struct nd *node, uint8_t new_level,
