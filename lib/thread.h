@@ -68,6 +68,13 @@ struct m0_thread_tls {
 	struct m0_thread_arch_tls  tls_arch;
 	struct m0_addb2_mach      *tls_addb2_mach;
 	struct m0_thread          *tls_self;
+	/**
+	 * Thread's locality index at fd_localities.
+	 *
+	 * @note m0_processor_id_get() cannot be used for this purpose,
+	 *       because thread's affinity can be re-set externally by,
+	 *       say, numad service.
+	 */
 	m0_processor_nr_t          tls_cpuid;
 	struct m0_addb2_sensor     tls_clock;
 };
@@ -232,6 +239,13 @@ M0_INTERNAL int m0_thread_signal(struct m0_thread *q, int sig);
 
    The user space implementation calls pthread_setaffinity_np and the kernel
    implementation modifies fields of the task_struct directly.
+
+   @note the function sets tls_cpuid to the 1st cpu specified at @processors
+         bitmap, which is used later by m0_locality_here(). That's why this
+         function can be called one time only for a specific thread (usually
+         during the process initialisation). In case there is a need to call
+         it several times to re-set thread's affinity, the logic of setting
+         tls_cpuid should be moved to a new API.
 
    @see http://www.kernel.org/doc/man-pages/online/pages/man3/pthread_setaffinity_np.3.html
    @see lib/processor.h
