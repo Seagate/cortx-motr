@@ -697,19 +697,20 @@ def remove_dirs(self, log_dir, patterns):
 
     for pattern in patterns:
         removed_dirs = []
-        self.logger.info(f"Removing {pattern} directories from {log_dir}")
 
         # Search directories for files/dirs with pattern in their names and remove it.
         # e.g. removes addb* dirs from /var/motr
         # search_pat=/var/motr/**/addb*
         search_pat = "{}/**/{}*".format(log_dir, pattern)
         for dname in glob.glob(search_pat, recursive=True):
+            if "/hax/" in dname:
+                continue
             removed_dirs.append(dname)
             execute_command(self, f"rm -rf {dname}")
-        self.logger.info(f"Removed below directories.\n{removed_dirs}")
+        if len(removed_dirs) > 0:
+            self.logger.info(f"Removed below directories of pattern {pattern} from {log_dir}.\n{removed_dirs}")
 
-def remove_logs(self):
-    patterns=["addb", "*trace"]
+def remove_logs(self, patterns):
     for log_dir in MOTR_LOG_DIRS:
         if os.path.exists(log_dir):
             remove_dirs(self, log_dir, patterns)
@@ -718,8 +719,6 @@ def remove_logs(self):
     if os.path.exists(IVT_DIR):
         self.logger.info(f"Removing {IVT_DIR}")
         execute_command(self, f"rm -rf {IVT_DIR}")
-    else:
-        self.logger.warning(f"{IVT_DIR} does not exist")
 
 def check_services(self, services):
     for service in services:
@@ -751,7 +750,7 @@ def lnet_self_ping(self):
     nids = []
 
     op = execute_command(self, "lctl list_nids")
-    nids.append(op[0].rstrip("\n"))
+    nids.append(op[0].strip("\n"))
     self.logger.info(f"nids= {nids}\n")
     for nid in nids:
        cmd = f"lctl ping {nid}"
@@ -797,3 +796,34 @@ def update_motr_hare_keys_for_all_nodes(self):
                     f" {host}:{self._motr_hare_conf}")
             execute_command(self, cmd)
 
+def lvm_clean(self):
+    self.logger.info(f"Removing cortx lvms")
+    vol_grps=execute_command(self, "vgs|grep vg_srvnode|awk '{print $1}'")[0].split('\n')[0:-1]
+    if (len(vol_grps) == 0):
+        self.logger.info("No cortx volume groups (e.g. vg_srvnode-1_md1) are found \n")
+        return
+    self.logger.info("Executing swapoff -a")
+    swap_off(self)
+    self.logger.info(f"Removing cortx LVM entries from {FSTAB}")
+    execute_command(self, f"sed -i.bak '/vg_srvnode/d' {FSTAB}")
+    for vg in vol_grps:
+        cmd = f"pvs|grep {vg} |" "awk '{print $1}'"
+        pv_names = execute_command(self, cmd)[0].split('\n')[0:-1]
+        cmd = f"lvs|grep {vg} |" "awk '{print $1}'"
+        lv_names = execute_command(self, cmd)[0].split('\n')[0:-1]
+
+        for lv in lv_names:
+            lv_path = f"/dev/{vg}/{lv}"
+            self.logger.info(f"Executing lvchange -an {lv_path}")
+            execute_command(self, f"lvchange -an {lv_path}")
+            self.logger.info(f"Executing lvremove {lv_path}")
+            execute_command(self, f"lvremove {lv_path}")
+        self.logger.info(f"Executing vgchange -an {vg}")
+        execute_command(self, f"vgchange -an {vg}")
+        self.logger.info(f"Executing vgremove {vg}")
+        execute_command(self, f"vgremove {vg}")
+        for pv in pv_names:
+            self.logger.info(f"pvremove {pv}")
+            execute_command(self, f"pvremove {pv}")
+            self.logger.info(f"wipefs -a {pv}")
+            execute_command(self, f"wipefs -a {pv}")
