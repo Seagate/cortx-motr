@@ -64,8 +64,6 @@ struct m0_thread;
 struct m0_thread_tls {
 	/** m0 instance this thread belong to. */
 	struct m0                 *tls_m0_instance;
-	/** Platform specific part of tls. Defined in lib/PLATFORM/thread.h. */
-	struct m0_thread_arch_tls  tls_arch;
 	struct m0_addb2_mach      *tls_addb2_mach;
 	struct m0_thread          *tls_self;
 	/**
@@ -76,7 +74,11 @@ struct m0_thread_tls {
 	 *       say, numad service.
 	 */
 	m0_processor_nr_t          tls_loci;
+	/** Warned about the thread migration to another CPU. */
+	bool                       tls_warned;
 	struct m0_addb2_sensor     tls_clock;
+	/** Platform specific part of tls. Defined in lib/PLATFORM/thread.h. */
+	struct m0_thread_arch_tls  tls_arch;
 };
 
 /**
