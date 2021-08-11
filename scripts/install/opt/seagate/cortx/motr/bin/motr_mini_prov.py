@@ -797,7 +797,7 @@ def update_motr_hare_keys_for_all_nodes(self):
             execute_command(self, cmd)
 
 def lvm_clean(self):
-    self.logger.info(f"Removing cortx lvms")
+    self.logger.info("Removing cortx lvms")
     vol_grps=execute_command(self, "vgs|grep vg_srvnode|awk '{print $1}'")[0].split('\n')[0:-1]
     if (len(vol_grps) == 0):
         self.logger.info("No cortx volume groups (e.g. vg_srvnode-1_md1) are found \n")
