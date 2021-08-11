@@ -39,7 +39,7 @@
 
 extern struct m0_addb_ctx m0_addb_ctx;
 enum {
-ATTR_SIZE = 16,
+	ATTR_SIZE = 16,
 };
 
 static int noop_lock_init(struct m0_obj *obj)
@@ -126,7 +126,9 @@ static int alloc_vecs(struct m0_indexvec *ext, struct m0_bufvec *data,
 	return rc;
 }
 
-static int write_dummy_hash_data(struct m0_uint128 id, struct m0_bufvec *attr, struct m0_bufvec *data)
+static int write_dummy_hash_data(struct m0_uint128 id,
+				 struct m0_bufvec *attr,
+				 struct m0_bufvec *data)
 {
 	int i;
 	int nr_unit;
@@ -137,7 +139,7 @@ static int write_dummy_hash_data(struct m0_uint128 id, struct m0_bufvec *attr, s
 		memset(attr->ov_buf[i], dummy_cksum++, ATTR_SIZE);
 		attr->ov_vec.v_count[i] = ATTR_SIZE;
 	}
-	
+
 	return i;
 }
 
@@ -420,7 +422,8 @@ int m0_write(struct m0_container *container, char *src,
 		if (bcount < blks_per_io) {
 			cleanup_vecs(&data, &attr, &ext);
 			rc = alloc_vecs(&ext, &data, &attr, bcount,
-					block_size, m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id),
+					block_size,
+					m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id),
 					ATTR_SIZE );
 			if (rc != 0)
 				goto cleanup;
@@ -500,7 +503,7 @@ int m0_read(struct m0_container *container,
 	uint32_t                      bcount;
 	const struct m0_obj_lock_ops *lock_ops;
 	uint64_t                      bytes_read;
-	
+
 	lock_ops = take_locks ? &lock_enabled_ops : &lock_disabled_ops;
 
 	/* If input file is not given, write to stdout */
@@ -540,12 +543,12 @@ int m0_read(struct m0_container *container,
 
 	if (blks_per_io == 0)
 		blks_per_io = M0_MAX_BLOCK_COUNT;
-	
+
 	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size,
 					m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id), ATTR_SIZE );
 	if (rc != 0)
 		goto cleanup;
-	
+
 	while (block_count > 0) {
 		bytes_read = 0;
 		bcount = (block_count > blks_per_io) ?
@@ -553,7 +556,8 @@ int m0_read(struct m0_container *container,
 		if (bcount < blks_per_io) {
 			cleanup_vecs(&data, &attr, &ext);
 			rc = alloc_vecs(&ext, &data, &attr, bcount,
-					block_size, m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id), ATTR_SIZE );			
+					block_size,
+					m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id), ATTR_SIZE );			
 			if (rc != 0)
 				goto cleanup;
 		}
@@ -801,7 +805,8 @@ int m0_write_cc(struct m0_container *container,
 		bcount = (block_count > M0_MAX_BLOCK_COUNT) ?
 			  M0_MAX_BLOCK_COUNT : block_count;
 		rc = alloc_prepare_vecs(&ext, &data, &attr, bcount,
-					       block_size, &last_index, m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id),
+					       block_size, &last_index,
+					       m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id),
 					       ATTR_SIZE );
 		if (rc != 0)
 			goto cleanup;
@@ -850,8 +855,9 @@ int m0_read_cc(struct m0_container *container,
 	struct m0_rm_lock_req  req;
 
 	rc = alloc_prepare_vecs(&ext, &data, &attr, block_count,
-				       block_size, &last_index, m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id),
-					   ATTR_SIZE );
+				       block_size, &last_index,
+				       m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id),
+				       ATTR_SIZE );
 	if (rc != 0)
 		return rc;
 	instance = container->co_realm.re_instance;

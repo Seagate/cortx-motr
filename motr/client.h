@@ -593,31 +593,6 @@ enum m0_entity_type {
 	M0_ET_IDX
 } M0_XCA_ENUM;
 
-#define m0_buf_print(buf, seg, msg) \
-do { \
-	struct m0_vec *vec = &(buf)->ov_vec; \
-	char *dst = (char *)(buf)->ov_buf[seg]; \
-	M0_LOG(M0_DEBUG, msg " count[%d] = %"PRIu64 \
-			"ov buf = %c%c", \
-			seg, vec->v_count[seg], dst[0], dst[1]); \
-}while(0)
-
-/**
- * Prints all vector in bufvec
- */
-#define m0_client_bufvec_print(buf, dbuf, msg, print_data) \
-do { \
-	uint32_t i;\
-	struct m0_vec *vec = &(buf)->ov_vec; \
-	for (i = 0; i < vec->v_nr; ++i) { \
-		if (print_data) \
-			m0_cksum_print((buf), i, (dbuf), msg); \
-		else \
-			m0_buf_print((buf), i, msg); \
-	} \
-}while(0)
-
-
 /**
  * Flags passed to m0_entitiy_create(), m0_entity_open() to specify
  * application's behaviour.
@@ -1840,7 +1815,6 @@ int m0_client_layout_op(struct m0_obj          *obj,
 int m0_client_layout_capture(struct m0_client_layout *layout,
 		      struct m0_obj *obj,
 		      struct m0_client_layout **out);
-
 
 /* Allocate/free in-memory layout data struct for an object. */
 struct m0_client_layout*

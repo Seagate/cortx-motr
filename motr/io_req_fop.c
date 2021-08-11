@@ -103,9 +103,6 @@ M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop)
 
 /**
  * Copies correct part of attribute buffer to client's attribute bufvec.
- */
-
-/**
  * Populates client application's attribute bufvec from the attribute buffer
  * received from reply fop.
  *
@@ -113,21 +110,21 @@ M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop)
  *
  *  1. rep_ivec* will be COB offset received from target
  *     | rep_index[0] || rep_index[1] || rep_index[2] |
- *     
- *  2. ti_ivec will be COB offset while sending 
- *     | ti_index[0] || ti_index[1] || ti_index[2] || ti_index[3] |     
+ *
+ *  2. ti_ivec will be COB offset while sending
+ *     | ti_index[0] || ti_index[1] || ti_index[2] || ti_index[3] |
  *     *Note: rep_ivec will be subset of ti_ivec
- * 
- *  3. ti_goff_ivec will be GOB offset while sending 
+ *
+ *  3. ti_goff_ivec will be GOB offset while sending
  *     Note: rep_ivec will be subset of ti_ivec
  *
  * Steps:
  *   1. Bring reply ivec to start of unit
  *   2. Then move cursor of ti_vec so that it matches rep_ivec start.
  *      Move the ti_goff_ivec for by the same size
- *      Note: This will make all vec aligned 
- *   3. Then iterate over rep_ivec one unit at a time till we process all 
- *      extents, get corresponding GOB offset and use GOB Offset and GOB 
+ *      Note: This will make all vec aligned
+ *   3. Then iterate over rep_ivec one unit at a time till we process all
+ *      extents, get corresponding GOB offset and use GOB Offset and GOB
  *      Extents (ioo_ext) to locate the checksum add and copy one checksum
  *      to the application checksum buffer.
  * @param rep_ivec m0_indexvec representing the extents spanned by IO.
@@ -156,53 +153,46 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	dst = ioo->ioo_attr.ov_buf[0];
 	src = buf->b_addr;
 
-	if(!buf->b_nob)
-	{
+	if (!buf->b_nob) {
 		/* Return as no checksum is present */
 		return;
 	}
-	
+
 	unit_size = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
 	cs_sz = ioo->ioo_attr.ov_vec.v_count[0];
 
 	m0_ivec_cursor_init(&rep_cursor, rep_ivec);
 	m0_ivec_cursor_init(&ti_cob_cursor, ti_ivec);
 	m0_ivec_cursor_init(&ti_goff_cursor, ti_goff_ivec);
-	
-	rep_index 	= m0_ivec_cursor_index(&rep_cursor);
-    ti_cob_index 	= m0_ivec_cursor_index(&ti_cob_cursor);
-	ti_goff_index 	= m0_ivec_cursor_index(&ti_goff_cursor); 
+
+	rep_index	= m0_ivec_cursor_index(&rep_cursor);
+	ti_cob_index	= m0_ivec_cursor_index(&ti_cob_cursor);
+	ti_goff_index	= m0_ivec_cursor_index(&ti_goff_cursor);
 
 	/* Move rep_cursor on unit boundary */
-	off = rep_index % unit_size; 	
-	if(off)
-	{
-		if( m0_ivec_cursor_move(&rep_cursor, unit_size - off) )
-		{
+	off = rep_index % unit_size;
+	if (off) {
+		if (m0_ivec_cursor_move(&rep_cursor, unit_size - off)) {
 			rep_index = m0_ivec_cursor_index(&rep_cursor);
 		}
-		else
-		{
+		else {
 			M0_ASSERT(false);
 		}
 	}
 	M0_ASSERT(ti_cob_index <= rep_index);
-	
+
 	/* Move ti index to rep index */
-	if(ti_cob_index != rep_index)
-	{
-		if( m0_ivec_cursor_move(&ti_cob_cursor,  rep_index - ti_cob_index) && 
-			m0_ivec_cursor_move(&ti_goff_cursor, rep_index - ti_cob_index) )
-		{
-			ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
-			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor); 	
+	if (ti_cob_index != rep_index) 	{
+		if (m0_ivec_cursor_move(&ti_cob_cursor,  rep_index - ti_cob_index) && 
+		    m0_ivec_cursor_move(&ti_goff_cursor, rep_index - ti_cob_index)) {
+			ti_cob_index  = m0_ivec_cursor_index(&ti_cob_cursor);
+			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
 		}
-		else
-		{
-			M0_ASSERT(false);
+		else {
+			M0_IMPOSSIBLE("cursor invalid");
 		}
 	}
-	
+
 	/**
 	 * Cursor iterating over segments spanned by this IO. At each iteration
 	 * index of reply fop is matched with all the target offsets stored in
@@ -221,21 +211,25 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	 do {
 		rep_index = m0_ivec_cursor_index(&rep_cursor);
 		ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
- 		ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor); 
-		
+		ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
+
 		M0_ASSERT(rep_index == ti_cob_index);
 		/* GOB offset should be in span of application provided GOB extent */
-		M0_ASSERT(ti_goff_index <= ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr-1] + ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]);
+		M0_ASSERT(ti_goff_index <=
+		          (ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr-1] +
+			   ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]));
 
-		dst = m0_extent_vec_get_checksum_addr( &ioo->ioo_attr,
-							ti_goff_index, &ioo->ioo_ext, unit_size, cs_sz );
-		
+		dst = m0_extent_vec_get_checksum_addr(&ioo->ioo_attr,
+						      ti_goff_index,
+						      &ioo->ioo_ext,
+						      unit_size, cs_sz );
+
 		memcpy(dst, src, cs_sz);
 		src += cs_sz;
 
 		/* Source is m0_buf and we have to copy all the checksum one at a time */
 		M0_ASSERT(src <= (buf->b_addr + buf->b_nob));
-		
+
 	} while (!m0_ivec_cursor_move(&rep_cursor, unit_size) &&
 		     !m0_ivec_cursor_move(&ti_cob_cursor, unit_size) &&
 		     !m0_ivec_cursor_move(&ti_goff_cursor, unit_size));
@@ -312,7 +306,8 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	rw_reply = io_rw_rep_get(reply_fop);
 
 	/* Copy attributes to client if reply received from read operation */
-	if (m0_is_read_rep(reply_fop) && op->op_code == M0_OC_READ && ioo->ioo_attr.ov_vec.v_nr) {
+	if (m0_is_read_rep(reply_fop) && op->op_code ==
+		                         M0_OC_READ && ioo->ioo_attr.ov_vec.v_nr) {
 		m0_indexvec_wire2mem(&rwfop->crw_ivec,
 					rwfop->crw_ivec.ci_nr, 0,
 					&rep_attr_ivec);

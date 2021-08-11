@@ -1139,17 +1139,20 @@ static int application_data_copy(struct pargrp_iomap      *map,
  */
 static bool verify_checksum(struct m0_op_io *ioo)
 {
-	struct m0_pi_seed seed;
-	struct m0_bufvec user_data = {};
-	int usz, rc, count, i;
-	struct m0_generic_pi *pi_ondisk;
+	struct m0_pi_seed         seed;
+	struct m0_bufvec          user_data = {};
+	int                       usz;
+	int                       rc;
+	int                       count;
+	int                       i;
+	struct m0_generic_pi     *pi_ondisk;
 	struct m0_bufvec_cursor   datacur;
 	struct m0_bufvec_cursor   tmp_datacur;
 	struct m0_ivec_cursor     extcur;
-	uint32_t nr_seg;
-	int attr_idx = 0;
-	m0_bcount_t bytes;
-	
+	uint32_t                  nr_seg;
+	int                       attr_idx = 0;
+	m0_bcount_t               bytes;
+
 	M0_ENTRY();
 	usz = m0_obj_layout_id_to_unit_size(
 			m0__obj_lid(ioo->ioo_obj));
@@ -1232,9 +1235,8 @@ static bool verify_checksum(struct m0_op_io *ioo)
 		return true;
 	}
 	else {
-	/* something wrong, we terminated early */
-		M0_ASSERT(0);
-		return true;
+		/* something wrong, we terminated early */
+		M0_IMPOSSIBLE("something wrong while arranging data");
 	}
 }
 
@@ -1309,8 +1311,12 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 	}
 
 	if (dir == CD_COPY_TO_APP) {
-		/* verify the checksum for data read */
-		if (ioo->ioo_attr.ov_vec.v_nr && !verify_checksum(ioo)) {
+		/* verify the checksum during data read.
+		 * skip checksum verification during degraded I/O
+		 */
+		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
+		    ioo->ioo_attr.ov_vec.v_nr &&
+		    !verify_checksum(ioo)) {
 			return M0_RC(-EIO);
 		}
 	}
