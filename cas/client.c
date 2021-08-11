@@ -164,6 +164,7 @@ static int creq_op_alloc(uint64_t           recs_nr,
 	struct m0_cas_op  *op;
 	struct m0_cas_rec *rec;
 
+	M0_PRE(recs_nr > 0);
 	if (M0_FI_ENABLED("cas_alloc_fail"))
 		return M0_ERR(-ENOMEM);
 
