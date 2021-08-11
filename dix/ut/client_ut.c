@@ -374,7 +374,7 @@ void pdclust_map(void)
 	pool_ver.pv_attr.pa_N = DIX_M0T1FS_LAYOUT_N;
 	pool_ver.pv_attr.pa_K = DIX_M0T1FS_LAYOUT_K;
 	pool_ver.pv_attr.pa_P = DIX_M0T1FS_LAYOUT_P;
-  pool_ver.pv_attr.pa_S = DIX_M0T1FS_LAYOUT_S;
+	pool_ver.pv_attr.pa_S = DIX_M0T1FS_LAYOUT_S;
 	rc = fd_ut_tree_init(&pool_ver.pv_fd_tree, 1);
 	M0_UT_ASSERT(rc == 0);
 	fd_child_nr[0] = DIX_M0T1FS_LAYOUT_P;

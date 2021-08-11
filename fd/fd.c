@@ -928,8 +928,8 @@ static void permuted_tgt_get(struct m0_pdclust_instance *pi, uint64_t omega,
 static struct m0_fd_perm_cache *cache_get(struct m0_pdclust_instance *pi,
 					  struct m0_fd_tree_node *node)
 {
-	return
-	   &pi->pi_perm_cache->fcg_cache[node->ftn_depth][node->ftn_abs_idx];
+	return &pi->pi_perm_cache->fcg_cache[node->ftn_depth]
+	                                    [node->ftn_abs_idx];
 }
 
 static void fd_permute(struct m0_fd_perm_cache *cache,

@@ -184,7 +184,6 @@ struct m0_fd_perm_cache {
 };
 
 struct m0_fd_perm_cache_grid {
-
 	/** Height of the grid. */
 	uint32_t                  fcg_height;
 	/** Permutation caches associated with the tree nodes. */
