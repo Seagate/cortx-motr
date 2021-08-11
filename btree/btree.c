@@ -4266,7 +4266,11 @@ static void btree_node_update_credit(const struct m0_btree  *tree,
 	shift     = node_shift(tree->t_desc->t_root);
 	node_size =  1ULL << shift;
 
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, node_size));
+	/**
+	 *  TBD - This routine should call the node specific routine to find out
+	 *  the credits that might be needed for the update operation.
+	 */
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
 }
 
 
@@ -4279,6 +4283,10 @@ static void btree_del_credit(const struct m0_btree  *tree, m0_bcount_t ksize,
 {
 	struct m0_be_tx_credit cred = {};
 
+	/**
+	 *  TBD - This routine should call the node specific routine to find out
+	 *  the credits that might be needed for the update operation.
+	 */
 	/* Credits for freeing the node. */
 	node_free_credits(tree->t_desc->t_root, ksize, vsize, &cred);
 	m0_be_tx_credit_mac(accum, &cred, MAX_TREE_HEIGHT);
@@ -4339,6 +4347,7 @@ void m0_btree_del_credit(const struct m0_btree  *tree,
 	node_free_credit(tree->t_desc->t_root, ksize, vsize, &cred);
 	m0_be_tx_credit_mul(&cred, MAX_TREE_HEIGHT);
 
+	btree_callback_credit(&cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
@@ -4356,15 +4365,6 @@ void m0_btree_update_credit(const struct m0_btree  *tree,
 	 * If the new value size is different than existing value size. It
 	 * is required to allocate credit same as put operation.
 	 */
-	m0_btree_put_credit(tree, nr, ksize, vsize, accum);
-}
-
-void m0_btree_del_credit(const struct m0_btree  *tree,
-			 m0_bcount_t             nr,
-			 m0_bcount_t             ksize,
-			 m0_bcount_t             vsize,
-			 struct m0_be_tx_credit *accum)
-{
 	m0_btree_put_credit(tree, nr, ksize, vsize, accum);
 }
 
@@ -5747,9 +5747,10 @@ int64_t btree_open_tree_tick(struct m0_sm_op *smop)
 		if (!oi->i_nop.no_tree->t_type)
 			oi->i_nop.no_tree->t_type = bop->b_data.bt;
 
-		bop->bo_arbor->t_type   = oi->i_nop.no_tree->t_type;
-		bop->bo_arbor->t_desc   = oi->i_nop.no_tree;
-		bop->bo_arbor->t_height = oi->i_nop.no_tree->t_height;
+		bop->bo_arbor->t_type        = oi->i_nop.no_tree->t_type;
+		bop->bo_arbor->t_desc        = oi->i_nop.no_tree;
+		bop->bo_arbor->t_height      = oi->i_nop.no_tree->t_height;
+		bop->bo_arbor->t_desc->t_seg = bop->bo_seg;
 
 		m0_free(oi);
 		return P_DONE;
@@ -6968,11 +6969,12 @@ void m0_btree_lrulist_purge(uint64_t count)
 }
 
 int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
-		   struct m0_btree_op *bop)
+		   struct m0_be_seg *seg, struct m0_btree_op *bop)
 {
 	bop->b_data.addr      = addr;
 	bop->b_data.num_bytes = nob;
 	bop->bo_arbor         = *out;
+	bop->bo_seg           = seg;
 
 	m0_sm_op_init(&bop->bo_op, &btree_open_tree_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
@@ -7506,7 +7508,8 @@ static void ut_basic_tree_oper_cp(void)
 	temp_btree = b_op.bo_arbor;
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, 1024,
-							   &btree, &b_op));
+							   &btree, seg,
+							   &b_op));
 	M0_ASSERT(rc == 0);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(btree, &b_op));
@@ -7564,7 +7567,7 @@ static void ut_basic_tree_oper_cp(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, 1024,
 							   &b_op.bo_arbor,
-							   &b_op));
+							   seg, &b_op));
 	M0_ASSERT(rc == 0);
 
 	m0_btree_destroy_credit(b_op.bo_arbor, &cred);
@@ -7622,7 +7625,7 @@ static void ut_basic_tree_oper_icp(void)
 	 * In this case m0_btree_open() will return -EFAULT.
 	 */
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(invalid_addr, 1024,
-							   &btree, &b_op));
+							   &btree, seg, &b_op));
 	M0_ASSERT(rc == -EFAULT);
 
 	/**
@@ -7646,7 +7649,7 @@ static void ut_basic_tree_oper_icp(void)
 	M0_ASSERT(rc == 0);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, 1024,
-							   &btree, &b_op));
+							   &btree, seg, &b_op));
 	M0_ASSERT(rc == 0);
 
 	m0_btree_destroy_credit(b_op.bo_arbor, &cred);
@@ -7907,7 +7910,6 @@ static void ut_basic_kv_oper(void)
 
 		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 		m0_btree_put_credit(tree, 1, ksize, vsize, &cred);
-		btree_callback_credit(&cred);
 
 		/**
 		 *  There is a very low possibility of hitting the same key
@@ -7990,7 +7992,6 @@ static void ut_basic_kv_oper(void)
 
 		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 		m0_btree_del_credit(tree, 1, ksize, -1, &cred);
-		btree_callback_credit(&cred);
 
 		/**
 		*  There is a very low possibility of hitting the same key
@@ -8262,8 +8263,7 @@ static void ut_multi_stream_kv_oper(void)
 	}
 
 	cred = M0_BE_TX_CREDIT(0, 0);
-	m0_btree_del_credit(tree, 1, ksize, vsize, &cred);
-	btree_callback_credit(&cred);
+	m0_btree_del_credit(tree, 1, ksize, -1, &cred);
 
 	for (i = 1; i <= recs_per_stream; i++) {
 		uint64_t            del_key;
@@ -8495,15 +8495,12 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 	put_cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 	m0_btree_put_credit(tree, 1, ksize, vsize, &put_cred);
-	btree_callback_credit(&put_cred);
 
 	update_cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 	m0_btree_update_credit(tree, 1, ksize, vsize, &update_cred);
-	btree_callback_credit(&update_cred);
 
 	del_cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
-	m0_btree_del_credit(tree, 1, ksize, vsize, &del_cred);
-	btree_callback_credit(&del_cred);
+	m0_btree_del_credit(tree, 1, ksize, -1, &del_cred);
 
 	while (key_iter_start <= key_end) {
 		uint64_t key_first;
@@ -9283,7 +9280,6 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 	const struct node_type *nt             = &fixed_format;
 	struct m0_be_tx         tx_data         = {};
 	struct m0_be_tx        *tx             = &tx_data;
-	struct m0_be_seg       *seg            = NULL;
 	struct m0_be_tx_credit  cred           = {};
 	int                     rc;
 	uint32_t                rnode_sz       = 1024;
@@ -9343,7 +9339,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rc = m0_be_tx_open_sync(tx);
 		M0_ASSERT(rc == 0);
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_create(rnode, 1024,
+					      m0_btree_create(rnode, rnode_sz,
 							      &btree_type, nt,
 							      &b_op, seg, tx));
 		M0_ASSERT(rc == 0);
@@ -9359,7 +9355,6 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 		m0_btree_put_credit(tree, 1, ksize, vsize, &cred);
-		btree_callback_credit(&cred);
 		for (i = 1; i <= rec_count; i++) {
 			value = key = i;
 
@@ -9382,8 +9377,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		M0_ASSERT(rc == 0);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_open(rnode, 1024,
-							    &tree, &b_op));
+					      m0_btree_open(rnode, rnode_sz,
+							    &tree, seg, &b_op));
 		M0_ASSERT(rc == 0);
 
 		ut_cb.c_act = btree_kv_get_cb;
@@ -9406,14 +9401,13 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_open(rnode,
 							    1024, &tree,
-							    &b_op));
+							    seg, &b_op));
 		M0_ASSERT(rc == 0);
 
 		ut_cb.c_act = btree_kv_del_cb;
 
 		cred = M0_BE_TX_CREDIT(0, 0);
 		m0_btree_del_credit(tree, 1, ksize, -1, &cred);
-		btree_callback_credit(&cred);
 		for (i = 1; i <= rec_count; i++) {
 			value = key = i;
 
