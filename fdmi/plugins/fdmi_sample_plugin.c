@@ -103,8 +103,16 @@ static struct m0_reqh_service *fsp_fdmi_service = NULL;
 #define MAX_LEN 8192
 static char buffer[MAX_LEN];
 
+static char *to_str(void *addr, int len)
+{
+	if (len > MAX_LEN - 1)
+		len = MAX_LEN - 1;
+	memcpy(buffer, addr, len);
+	buffer[len] = '\0';
+	return buffer;
+}
 
-static char *to_hex(void *addr, int len)
+M0_UNUSED static char *to_hex(void *addr, int len)
 {
 	int i, j;
 	if ((2 * len) > MAX_LEN) {
@@ -113,7 +121,7 @@ static char *to_hex(void *addr, int len)
 	}
 	for(i = 0, j = 0; i < (2 * len) && j < len; ++j)
 		i += sprintf(buffer + i, "%02x", ((char *)addr)[j]);
-	buffer[2 * len - 2] = '\0';
+	buffer[2 * len] = '\0';
 	return buffer;
 }
 
@@ -131,20 +139,20 @@ static void dump_fol_rec_to_json(struct m0_fol_rec *rec)
 		for (i = 0; i < cg_rec.cr_nr; i++) {
 			int len = 0;
 
-			m0_console_printf("{ ");
+			m0_console_printf("{ \"opcode\": \"%d\", ", fp_frag->ffrp_fop_code);
 
 			len = sizeof(struct m0_fid);
-			m0_console_printf("\"fid\": \"%s\", ",
-					  to_hex((void *)&cas_op->cg_id.ci_fid, len));
+			m0_console_printf("\"fid\": \""FID_F"\", ",
+					  FID_P(&cas_op->cg_id.ci_fid));
 
 			len = cr_rec[i].cr_key.u.ab_buf.b_nob;
 			m0_console_printf("\"cr_key\": \"%s\", ",
-					  to_hex(cr_rec[i].cr_key.u.ab_buf.b_addr, len));
+					  to_str(cr_rec[i].cr_key.u.ab_buf.b_addr, len));
 
 			len = cr_rec[i].cr_val.u.ab_buf.b_nob;
 			if (len > 0) {
 				m0_console_printf("\"cr_val\": \"%s\"",
-						  to_hex(cr_rec[i].cr_val.u.ab_buf.b_addr, len));
+						  to_str(cr_rec[i].cr_val.u.ab_buf.b_addr, len));
 			} else {
 				m0_console_printf("\"cr_val\": \"0\"");
 			}
@@ -164,7 +172,7 @@ static void fsp_usage(void)
 		"Usage example for common arguments: \n"
 		"fdmi_sample_plugin -l 192.168.52.53@tcp:12345:4:1 "
 		"-h 192.168.52.53@tcp:12345:1:1 "
-		"-p 0x7000000000000001:0x37 -f 0x7200000000000001:0x19"
+		"-p 0x7000000000000001:0x37 -f 0x7200000000000001:0x19 "
 		"-g 0x6c00000000000001:0x51"
 		"\n");
 }
@@ -298,7 +306,7 @@ static int init_fdmi_plugin(struct m0_fsp_params *params)
 	fsp_pdo = m0_fdmi_plugin_dock_api_get();
 
 	rc = fsp_pdo->fpo_register_filter(&params->spp_fdmi_plugin_fid, &fd, &pcb);
-	fprintf(stderr, "Plugin registration failed: rc=%d\n", rc);
+	fprintf(stderr, "Plugin registration: rc=%d\n", rc);
 	if (rc != 0)
 		return rc;
 
