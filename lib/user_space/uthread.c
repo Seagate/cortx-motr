@@ -145,7 +145,7 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 				idx1 = idx;
 		}
 	}
-	q->t_tls.tls_cpuid = idx1;
+	q->t_tls.tls_loci = idx1;
 
 	return -pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
 }
