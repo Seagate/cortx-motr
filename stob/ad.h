@@ -242,8 +242,8 @@ M0_INTERNAL m0_bcount_t m0_stob_ad_spares_calc(m0_bcount_t grp);
 /**
  * Calculates checksum address for a cob segment and unit size
  */
-M0_INTERNAL void * m0_stob_ad_get_checksum_addr(struct m0_stob_io *io, m0_bindex_t off);
-
+M0_INTERNAL void * m0_stob_ad_get_checksum_addr(struct m0_stob_io *io,
+						m0_bindex_t off);
 
 /** @} end group stobad */
 

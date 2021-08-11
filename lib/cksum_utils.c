@@ -46,7 +46,6 @@ M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start( m0_bindex_t ext_start,
 	m0_bcount_t cs_nob;
 	M0_ASSERT(unit_sz);
 	cs_nob = ( (ext_start + ext_len - 1)/unit_sz - ext_start/unit_sz );
-	cs_nob = ( (ext_start + ext_len - 1)/unit_sz - ext_start/unit_sz );
 
 	// Add handling for case 1 and 5
 	if( (ext_start % unit_sz) == 0 )
@@ -104,8 +103,7 @@ M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec, m0_binde
 	int i;
 
 	/* Get the checksum nobs consumed till reaching the off in given io */
-	for (i = 0; i < vec->iv_vec.v_nr; i++)
-	{
+	for (i = 0; i < vec->iv_vec.v_nr; i++)  {
 		ext.e_start = vec->iv_index[i];
 		ext.e_end = vec->iv_index[i] + vec->iv_vec.v_count[i];
 
@@ -113,7 +111,7 @@ M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec, m0_binde
 		 * within the span of current extent
 		 *      | iv_index[0] || iv_index[1] | iv_index[2] || iv_index[3] |
 		 */
-		if(m0_ext_is_in(&ext, off))
+		if (m0_ext_is_in(&ext, off))
 		{
 			attr_nob += ( m0_extent_get_unit_offset(off, ext.e_start, unit_sz) * cs_sz);
 			break;
@@ -132,7 +130,7 @@ M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec, m0_binde
 	// get the checksum_addr
 	m0_bufvec_cursor_init(&cksum_cursor, cksum_vec);
 
-	if( attr_nob )
+	if ( attr_nob )
 	{
 		m0_bufvec_cursor_move(&cksum_cursor, attr_nob);
 	}

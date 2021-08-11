@@ -36,7 +36,6 @@
 #include "lib/types.h"
 #include "lib/assert.h"           /* M0_CASSERT */
 #include "lib/buf.h"              /* m0_buf */
-//#include "lib/vec.h"              /* m0_indexvec */
 
 #define _QUOTE(s) #s
 #define M0_QUOTE(s) _QUOTE(s)

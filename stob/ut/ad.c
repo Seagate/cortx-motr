@@ -300,7 +300,7 @@ static int test_ad_fini(void)
 		m0_free(read_buf[i]);
 
 	m0_free(read_cksm_buf[0]);
-	
+
 	for (i = 0; i < ARRAY_SIZE(zero_buf); ++i)
 		m0_free(zero_buf[i]);
 
@@ -338,7 +338,7 @@ static void test_write(int nr, struct m0_dtx *tx)
 	// Checksum for i buf_size blocks
 	io.si_cksum.b_addr = user_cksm_buf[0];
 	io.si_cksum.b_nob  = ( nr * AD_CS_SZ );
-	
+
 	rc = m0_stob_io_private_setup(&io, obj_fore);
 	M0_UT_ASSERT(rc == 0);
 	m0_stob_ad_balloc_set(&io, M0_BALLOC_NORMAL_ZONE);
@@ -538,9 +538,9 @@ static void test_ad(void)
 	for (i = 1; i <= NR; ++i) {
 		int j;
 		test_read(i);
-		for (j = 0; j < i; ++j) {					
+		for (j = 0; j < i; ++j) {
 			M0_ASSERT(memcmp(user_buf[j], read_buf[j], buf_size) == 0);
-	 		M0_ASSERT(memcmp(user_cksm_buf[j], read_cksm_buf[j], AD_CS_SZ) == 0);
+			M0_ASSERT(memcmp(user_cksm_buf[j], read_cksm_buf[j], AD_CS_SZ) == 0);
 		}
 	}
 }
@@ -557,10 +557,9 @@ static void punch_test(void)
 		int j;
 		test_punch(i);
 		test_read(i);
-		for (j = 0; j < i; ++j) {			
+		for (j = 0; j < i; ++j) {
 			M0_ASSERT(memcmp(zero_buf[j], read_buf[j], buf_size) == 0);
 		}
-			
 	}
 }
 

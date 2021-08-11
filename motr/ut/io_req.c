@@ -913,21 +913,21 @@ static void ut_test_ioreq_parity_recalc(void)
 
 static void ut_test_ioreq_application_data_copy(void)
 {
-	int               i;
-	int               j;
-	int               k;
-	int               rc;
-	struct m0_op_io  *ioo;
-	struct m0_obj    *obj;
-	struct m0_client *instance;
-	struct m0_bufvec  stashed;
-	struct m0_bufvec  stashed1;
-	struct m0_bufvec user_data = {};
+	int                          i;
+	int                          j;
+	int                          k;
+	int                          rc;
+	struct m0_op_io             *ioo;
+	struct m0_obj               *obj;
+	struct m0_client            *instance;
+	struct m0_bufvec             stashed;
+	struct m0_bufvec             stashed1;
+	struct m0_bufvec             user_data = {};
 	struct m0_md5_inc_context_pi pi;
-	int               unit_idx = 0;
-	struct m0_pi_seed seed;
-	unsigned char *curr_context;
-	int buf_idx = 0;
+	int                          unit_idx = 0;
+	struct m0_pi_seed            seed;
+	unsigned char               *curr_context;
+	int                          buf_idx = 0;
 
 	/* init client */
 	instance = dummy_instance;
