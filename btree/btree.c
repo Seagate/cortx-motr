@@ -1071,11 +1071,42 @@ struct node_type {
 	int  (*nt_create_delete_credit_size)(void);
 
 	/**
-	 * Calculates credits required to free the node and adds those credits
-	 * to @accum
+	 * Calculates credits required to allocate the node and adds those
+	 * credits to @accum.
 	 */
-	void (*nt_node_free_credits)(const struct nd *node,
+	void (*nt_node_alloc_credit)(const struct nd *node,
 				     struct m0_be_tx_credit *accum);
+
+	/**
+	 * Calculates credits required to free the node and adds those credits
+	 * to @accum.
+	 */
+	void (*nt_node_free_credit)(const struct nd *node,
+				    struct m0_be_tx_credit *accum);
+
+	/**
+	 * Calculates credits required to put record in the node and adds those
+	 * credits to @accum.
+	 */
+	void (*nt_rec_put_credit)(const struct nd *node, m0_bcount_t ksize,
+				  m0_bcount_t vsize,
+				  struct m0_be_tx_credit *accum);
+
+	/**
+	 * Calculates credits required to update the record and adds those
+	 * credits to @accum.
+	 */
+	void (*nt_rec_update_credit)(const struct nd *node, m0_bcount_t ksize,
+				     m0_bcount_t vsize,
+				     struct m0_be_tx_credit *accum);
+
+	/**
+	 * Calculates credits required to delete the record and adds those
+	 * credits to @accum.
+	 */
+	void (*nt_rec_del_credit)(const struct nd *node, m0_bcount_t ksize,
+				  m0_bcount_t vsize,
+				  struct m0_be_tx_credit *accum);
 
 	/** Gets key size from segment. */
 	/* uint16_t (*nt_ksize_get)(const struct segaddr *addr); */
@@ -1679,11 +1710,40 @@ static void node_fini(const struct nd *node, struct m0_be_tx *tx)
 	node->n_type->nt_fini(node, tx);
 }
 
-static void node_free_credits(const struct nd *node, m0_bcount_t ksize,
+static void node_alloc_credit(const struct nd *node, m0_bcount_t ksize,
 			      m0_bcount_t vsize, struct m0_be_tx_credit *accum)
 {
-	node->n_type->nt_node_free_credits(node, accum);
+	node->n_type->nt_node_alloc_credit(node, accum);
 }
+
+static void node_free_credit(const struct nd *node, m0_bcount_t ksize,
+			     m0_bcount_t vsize, struct m0_be_tx_credit *accum)
+{
+	node->n_type->nt_node_free_credit(node, accum);
+}
+
+static void node_rec_put_credit(const struct nd *node, m0_bcount_t ksize,
+				m0_bcount_t vsize,
+				struct m0_be_tx_credit *accum)
+{
+	node->n_type->nt_rec_put_credit(node, ksize, vsize, accum);
+}
+
+#if 0
+static void node_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
+				   m0_bcount_t vsize,
+				   struct m0_be_tx_credit *accum)
+{
+	node->n_type->nt_rec_update_credit(node, ksize, vsize, accum);
+}
+
+static void node_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
+				m0_bcount_t vsize,
+				struct m0_be_tx_credit *accum)
+{
+	node->n_type->nt_rec_del_credit(node, ksize, vsize, accum);
+}
+#endif
 
 #endif
 
@@ -2321,7 +2381,7 @@ struct ff_head {
 	struct m0_format_header  ff_fmt;    /*< Node Header */
 	struct node_header       ff_seg;    /*< Node type information */
 
-	/** 
+	/**
 	 * The above 2 structures should always be together with node_header
 	 * following the m0_format_header.
 	 */
@@ -2384,8 +2444,19 @@ static bool ff_verify(const struct nd *node);
 static void ff_opaque_set(const struct segaddr *addr, void *opaque);
 static void *ff_opaque_get(const struct segaddr *addr);
 static void ff_capture(struct slot *slot, struct m0_be_tx *tx);
-static void ff_node_free_credits(const struct nd *node,
+static void ff_node_alloc_credit(const struct nd *node,
 				 struct m0_be_tx_credit *accum);
+static void ff_node_free_credit(const struct nd *node,
+				struct m0_be_tx_credit *accum);
+static void ff_rec_put_credit(const struct nd *node, m0_bcount_t ksize,
+			      m0_bcount_t vsize,
+			      struct m0_be_tx_credit *accum);
+static void ff_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
+				m0_bcount_t vsize,
+				struct m0_be_tx_credit *accum);
+static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
+			      m0_bcount_t vsize,
+			      struct m0_be_tx_credit *accum);
 static int  ff_create_delete_credit_size(void);
 /* uint16_t ff_ksize_get(const struct segaddr *addr); */
 /* uint16_t ff_valsize_get(const struct segaddr *addr);  */
@@ -2430,7 +2501,11 @@ static const struct node_type fixed_format = {
 	.nt_opaque_get                = ff_opaque_get,
 	.nt_capture                   = ff_capture,
 	.nt_create_delete_credit_size = ff_create_delete_credit_size,
-	.nt_node_free_credits         = ff_node_free_credits,
+	.nt_node_alloc_credit         = ff_node_alloc_credit,
+	.nt_node_free_credit          = ff_node_free_credit,
+	.nt_rec_put_credit            = ff_rec_put_credit,
+	.nt_rec_update_credit         = ff_rec_update_credit,
+	.nt_rec_del_credit            = ff_rec_del_credit,
 	/* .nt_ksize_get          = ff_ksize_get, */
 	/* .nt_valsize_get        = ff_valsize_get, */
 };
@@ -2948,8 +3023,20 @@ static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 
 	M0_BTREE_TX_CAPTURE(tx, seg, h, hsize);
 }
-static void ff_node_free_credits(const struct nd *node,
-				 struct m0_be_tx_credit *accum)
+
+static void ff_node_alloc_credit(const struct nd *node,
+				struct m0_be_tx_credit *accum)
+{
+	struct ff_head *h           = ff_data(node);
+	int             shift       = h->ff_shift;
+	int             node_size   = 1ULL << shift;
+
+	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED,
+			       node_size, shift, accum);
+}
+
+static void ff_node_free_credit(const struct nd *node,
+				struct m0_be_tx_credit *accum)
 {
 	struct ff_head *h           = ff_data(node);
 	int             shift       = h->ff_shift;
@@ -2961,6 +3048,37 @@ static void ff_node_free_credits(const struct nd *node,
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, header_size));
 }
+
+static void ff_rec_put_credit(const struct nd *node, m0_bcount_t ksize,
+			      m0_bcount_t vsize,
+			      struct m0_be_tx_credit *accum)
+{
+	int            shift     = ff_shift(node);
+	m0_bcount_t    node_size = 1ULL << shift;
+
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
+}
+
+static void ff_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
+				 m0_bcount_t vsize,
+				 struct m0_be_tx_credit *accum)
+{
+	int            shift     = ff_shift(node);
+	m0_bcount_t    node_size = 1ULL << shift;
+
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
+}
+
+static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
+			      m0_bcount_t vsize,
+			      struct m0_be_tx_credit *accum)
+{
+	int            shift     = ff_shift(node);
+	m0_bcount_t    node_size = 1ULL << shift;
+
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
+}
+
 /**
  *  --------------------------------------------
  *  Section END - Fixed Format Node Structure
@@ -3006,9 +3124,9 @@ static void ff_node_free_credits(const struct nd *node,
  *  The Keys will be added starting from the end of the node header in an
  *  increasing order whereas the Values will be added starting from the end of
  *  the node such that the Value of the first record will be at the extreme
- *  right, the Value for the second record to the left of the Value of the 
+ *  right, the Value for the second record to the left of the Value of the
  *  first record and so on.
- *  This way the Keys start populating from the left of the node (after the 
+ *  This way the Keys start populating from the left of the node (after the
  *  Node Header) while the Values start populating from the right of the node.
  *  As the records get added the empty space between the Keys list and the
  *  Values list starts to shrink.
@@ -3019,7 +3137,7 @@ static void ff_node_free_credits(const struct nd *node,
  *  This Directory starts in the center of the empty space between Keys and
  *  Values and will float in this region so that if addition of the new record
  *  causes either Key or Value to overwrite the Directory then the Directory
- *  will need to be shifted to make space for the incoming Key/Value; 
+ *  will need to be shifted to make space for the incoming Key/Value;
  *  accordingly the Directory pointer in the Node Header will be updated. If no
  *  space exists to add the new Record then an Overflow has happened and the new
  *  record cannot be inserted in this node. The credit calculations for the
@@ -3035,7 +3153,7 @@ struct dir_rec {
 struct vkvv_head {
 	struct m0_format_header  vkvv_fmt;      /*< Node Header */
 	struct node_header       vkvv_seg;      /*< Node type information */
-	/** 
+	/**
 	 * The above 2 structures should always be together with node_header
 	 * following the m0_format_header.
 	 */
@@ -3073,7 +3191,7 @@ static void vkvv_init(const struct segaddr *addr, int shift, int ksize, int vsiz
 	/**
 	 * @brief  This function will do all the initialisations. Here, it
 	 *         will call a function to create the directory in the middle
-	 *         of the node memory and return the starting address 
+	 *         of the node memory and return the starting address
 	 */
 	struct vkvv_head *h = segaddr_addr(addr);
 	h->vkvv_dir_offset = vkvv_get_dir_offset(addr, shift);
@@ -3116,7 +3234,7 @@ static int  vkvv_space(const struct nd *node)
 	 *        directory of the next location where upcoming KV will be
 	 *        added. Using this entry, we can calculate the available
 	 *        size.
-	 * 
+	 *
 	 *        directory_size = (sizeof(struct dir_rec))*vkvv_used
 	 *        Available size = total_size of node - sizeof(node_header) -
 	 *                         directory_size - (key_offset_of_last_entry -
@@ -3149,12 +3267,12 @@ static int  vkvv_shift(const struct nd *node)
 static int  vkvv_keysize(const struct nd *node)
 {
 	/**
-	 * @brief This function will also require actual key or slot as a 
-	 *        parameter to identify the key in the node. 
+	 * @brief This function will also require actual key or slot as a
+	 *        parameter to identify the key in the node.
 	 *        Changes in nt_valsize function declaration will be required.
 	 *        Once the key is identified, the size can be calculated as a
 	 *        difference of offsets obtained from the dir.
-	 * 
+	 *
 	 *        key = to search
 	 *        dir = node_header->dir_rec
 	 *        count = node_header->vkvv_used
@@ -3166,7 +3284,7 @@ static int  vkvv_keysize(const struct nd *node)
 	 *            count--
 	 *        }
 	 *        keysize = dir[count+1].key_offset - dir[count].key_offset
-	 *        
+	 *
 	 */
 	struct vkvv_head *h = vkvv_data(node);
 
@@ -3175,12 +3293,12 @@ static int  vkvv_keysize(const struct nd *node)
 static int  vkvv_valsize(const struct nd *node)
 {
 	/**
-	 * @brief This function will also require actual value or slot as a 
-	 *        parameter to identify the value in the node. 
+	 * @brief This function will also require actual value or slot as a
+	 *        parameter to identify the value in the node.
 	 *        Changes in nt_valsize function declaration will be required.
 	 *        Once the value is identified, the size can be calculated as a
 	 *        difference of offsets obtained from the dir.
-	 * 
+	 *
 	 *        val = to search
 	 *        dir = node_header->dir_rec
 	 *        count = node_header->vkvv_used
@@ -3202,7 +3320,7 @@ static bool vkvv_isunderflow(const struct nd *node, bool predict)
 	/**
 	 * @brief This function will identify the possibility of underflow
 	 *        while adding a new record.
-	 * 
+	 *
 	 * Need to check if ff_used will become less than 0.
 	 */
 }
@@ -3222,14 +3340,14 @@ static bool vkvv_isoverflow(const struct nd *node)
 
 static void vkvv_fid(const struct nd *node, struct m0_fid *fid)
 {
-	
+
 }
 
 static void *vkvv_key(const struct nd *node, int idx)
 {
 	/**
 	 * @brief Return the memory address pointing to key space.
-	 * 
+	 *
 	 * index = given index
 	 * start_addr = node->n_addr + sizeof(node_header)
 	 * new_key = start_addr + dir[index].key_offset
@@ -3241,7 +3359,7 @@ static void *vkvv_val(const struct nd *node, int idx)
 {
 	/**
 	 * @brief Return the memory address pointing to value space.
-	 * 
+	 *
 	 * index = given index
 	 * start_addr =  node->n_addr + segaddr_shift(node->n_addr) - 1
 	 * new_val = start_addr - dir[index].val_offset
@@ -3335,7 +3453,7 @@ static void vkvv_make(struct slot *slot, struct m0_be_tx *tx)
 	 *          while(temp_count >= idx) {
 	 *            dir_rec[temp_count+1].key_offset = dir_rec[temp_count].key_offset
 	 *            dir_rec[temp_count+1].val_offset = dir_rec[temp_count].val_offset
-	 * 
+	 *
 	 *            dir_rec[temp_count+1].key_offset = dir_rec[temp_count+1].key_offset + incoming_key_size
 	 *            dir_rec[temp_count+1].val_offset = dir_rec[temp_count+1].val_offset + incoming_value_size
 	 *            temp_count --
@@ -3386,8 +3504,8 @@ static void vkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	 * @brief This function will delete the given record or KV pair from
 	 *        the node. Keys and values need to moved accordingly, and
 	 *        the new indices should be updated in the node directory.
-	 * 
-	 * 
+	 *
+	 *
 	 *        start_key_addr = vkvv_key(slot->s_node, index)
 	 *        start_val_addr = vkvv_val(slot->s_node, index)
 	 *        count = num of records i.e. vkvv_used
@@ -3410,7 +3528,7 @@ static void vkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	 *          while(idx <= count) {
 	 *            dir_rec[idx].key_offset = dir_rec[idx+1].key_offset
 	 *            dir_rec[idx].val_offset = dir_rec[idx+1].val_offset
-	 * 
+	 *
 	 *            dir_rec[idx].key_offset = dir_rec[idx].key_offset - outgoing_key_size
 	 *            dir_rec[idx].val_offset = dir_rec[idx].val_offset - outgoing_value_size
 	 *            idx ++
@@ -3513,81 +3631,23 @@ static void btree_callback_credit(struct m0_be_tx_credit *accum)
 }
 
 /**
- * This function will calculate credits required to allocate node and it will
- * add those credits to @accum.
- */
-static void btree_node_alloc_credit(const struct m0_btree  *tree,
-				    struct m0_be_tx_credit *accum)
-{
-	m0_bcount_t             node_size;
-	int                     shift;
-
-	shift     = node_shift(tree->t_desc->t_root);
-	node_size =  1ULL << shift;
-
-	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED,
-			       node_size, shift, accum);
-}
-
-/**
- * This function will calculate credits required to update node and it will add
- * those credits to @accum.
- */
-static void btree_node_update_credit(const struct m0_btree  *tree,
-				     struct m0_be_tx_credit *accum)
-{
- 	m0_bcount_t             node_size;
-	int                     shift;
-
-	shift     = node_shift(tree->t_desc->t_root);
-	node_size =  1ULL << shift;
-
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, node_size));
-}
-
-
-/**
- * This function will calculate credits required for the delete KV operation and
- * add those credits to @accum.
- */
-static void btree_del_credit(const struct m0_btree  *tree, m0_bcount_t ksize,
-			     m0_bcount_t vsize, struct m0_be_tx_credit *accum)
-{
-	struct m0_be_tx_credit cred = {};
-
-	/* Credits for freeing the node. */
-	node_free_credits(tree->t_desc->t_root, ksize, vsize, &cred);
-	m0_be_tx_credit_mac(accum, &cred, MAX_TREE_HEIGHT);
-}
-
-/**
  * This function will calculate credits required to split node and it will add
  * those credits to @accum.
  */
 static void btree_node_split_credit(const struct m0_btree  *tree,
+				    m0_bcount_t             ksize,
+				    m0_bcount_t             vsize,
 				    struct m0_be_tx_credit *accum)
 {
-	btree_node_alloc_credit(tree, accum);
-	/* credits to update two nodes : existing and newly allocated. */
 	struct m0_be_tx_credit cred = {};
-	btree_node_update_credit(tree, &cred);
+
+	node_alloc_credit(tree->t_desc->t_root, ksize, vsize, accum);
+
+	/* credits to update two nodes : existing and newly allocated. */
+	node_rec_put_credit(tree->t_desc->t_root, ksize, vsize, &cred);
 	m0_be_tx_credit_mul(&cred, 2);
 
 	m0_be_tx_credit_add(accum, &cred);
-}
-
-/**
- * This function will calculate credits required for the put KV operation and
- * add those credits to @accum.
- */
-static void btree_put_credit(const struct m0_btree  *tree,
-			     struct m0_be_tx_credit *accum)
-{
-	struct m0_be_tx_credit cred = {};
-
-	/* Credits for split operation */
-	btree_node_split_credit(tree, &cred);
-	m0_be_tx_credit_mac(accum, &cred, MAX_TREE_HEIGHT);
 }
 
 /**
@@ -3602,7 +3662,10 @@ void m0_btree_put_credit(const struct m0_btree  *tree,
 {
 	struct m0_be_tx_credit cred = {};
 
-	btree_put_credit(tree, &cred);
+	/* Credits for split operation */
+	btree_node_split_credit(tree, ksize, vsize, &cred);
+	m0_be_tx_credit_mul(&cred, MAX_TREE_HEIGHT);
+
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
@@ -3618,7 +3681,10 @@ void m0_btree_del_credit(const struct m0_btree  *tree,
 {
 	struct m0_be_tx_credit cred = {};
 
-	btree_del_credit(tree, ksize, vsize, &cred);
+	/* Credits for freeing the node. */
+	node_free_credit(tree->t_desc->t_root, ksize, vsize, &cred);
+	m0_be_tx_credit_mul(&cred, MAX_TREE_HEIGHT);
+
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
@@ -3632,10 +3698,11 @@ void m0_btree_update_credit(const struct m0_btree  *tree,
 			    m0_bcount_t             vsize,
 			    struct m0_be_tx_credit *accum)
 {
-	struct m0_be_tx_credit cred = {};
-
-	btree_node_update_credit(tree, &cred);
-	m0_be_tx_credit_mac(accum, &cred, nr);
+	/**
+	 * If the new value size is different than existing value size. It
+	 * is required to allocate credit same as put operation.
+	 */
+	m0_btree_put_credit(tree, nr, ksize, vsize, accum);
 }
 
 
