@@ -455,7 +455,8 @@ static int  unload_group_count(int total, int percentile)
 /*
  * LRU implemntation to unload cb_group_info
  */
-static int m0_balloc_release_memory_internal(struct m0_balloc *bal)
+static int m0_balloc_release_memory_internal(struct m0_balloc *bal,
+					     m0_bcount_t percentile)
 {
 	struct m0_balloc_group_info *arr[bal->cb_sb.bsb_groupcount];
 	int                          m_count        = 0;
@@ -470,7 +471,10 @@ static int m0_balloc_release_memory_internal(struct m0_balloc *bal)
 	}
 	qsort(arr, m_count - 1, sizeof arr[0], &time_cmp);
 
-	deducted_count = unload_group_count(m_count, 70);
+	if(percentile <= 0 || percentile >100)
+		percentile = BALLOC_DEF_PERCENTILE_UNLOAD;
+
+	deducted_count = unload_group_count(m_count, percentile);
 	M0_LOG(M0_INFO, "ad stob-id: "FID_F" Total loaded group: %d"
 			"unloading : %d groups",
 			FID_P(&bal->cb_sb.bsb_ad_stob_id),
@@ -3066,10 +3070,11 @@ static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
 	return M0_RC(rc);
 }
 
-static int  balloc_release_memory(struct m0_ad_balloc *ballroom)
+static int  balloc_release_memory(struct m0_ad_balloc *ballroom,
+				  m0_bcount_t percentile)
 {
-	struct m0_balloc *cb= b2m0(ballroom);
-	return m0_balloc_release_memory_internal(cb);
+	struct m0_balloc *cb = b2m0(ballroom);
+	return m0_balloc_release_memory_internal(cb, percentile);
 }
 
 static void balloc_fini(struct m0_ad_balloc *ballroom)

@@ -128,7 +128,8 @@ struct m0_ad_balloc_ops {
  	 * release in-memory extents list.
  	 *
  	 */ 
-	int (*bo_release_mem)(struct m0_ad_balloc *ballroom);
+	int (*bo_release_mem)(struct m0_ad_balloc *ballroom,
+			      uint64_t percentile);
 };
 
 enum { AD_PATHLEN = 4096 };

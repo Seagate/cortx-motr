@@ -239,6 +239,7 @@ enum {
 	BALLOC_DEF_INDEXES_NR           = 1,
 	/** Used as minimal group size */
 	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768,
+	BALLOC_DEF_PERCENTILE_UNLOAD    = 75,
 };
 
 /**
