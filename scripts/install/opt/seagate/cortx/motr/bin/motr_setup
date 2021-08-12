@@ -100,10 +100,6 @@ class PrepareCmd(Cmd):
 
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
-
-        # Update keys from other nodes 
-        if self.server_node["name"] == "srvnode-1":
-            update_motr_hare_keys_for_all_nodes(self)
         
         # If hare is installed and cluster is up then exit otherwise go ahead
         if pkg_installed(self, "cortx-hare"):
@@ -147,6 +143,10 @@ class ConfigCmd(Cmd):
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
         motr_config(self)
+
+        # Update keys from other nodes 
+        if self.server_node["name"] == "srvnode-1":
+            update_motr_hare_keys_for_all_nodes(self)
         self.logger.info("SUCCESS\n")
 
 class InitCmd(Cmd):
