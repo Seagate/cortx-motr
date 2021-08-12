@@ -383,7 +383,6 @@ M0_INTERNAL void m0_balloc_debug_dump_group(const char *tag,
 M0_INTERNAL void m0_balloc_lock_group(struct m0_balloc_group_info *grp);
 M0_INTERNAL int m0_balloc_trylock_group(struct m0_balloc_group_info *grp);
 M0_INTERNAL void m0_balloc_unlock_group(struct m0_balloc_group_info *grp);
-M0_INTERNAL void m0_balloc_release_memory(struct m0_balloc *cb);
 
 /** @} end of balloc */
 

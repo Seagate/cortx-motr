@@ -124,6 +124,11 @@ struct m0_ad_balloc_ops {
 	int  (*bo_reserve_extent)(struct m0_ad_balloc *ballroom,
 				 struct m0_be_tx *tx, struct m0_ext *ext,
 				 uint64_t alloc_zone);
+	/**
+ 	 * release in-memory extents list.
+ 	 *
+ 	 */ 
+	int (*bo_release_mem)(struct m0_ad_balloc *ballroom);
 };
 
 enum { AD_PATHLEN = 4096 };

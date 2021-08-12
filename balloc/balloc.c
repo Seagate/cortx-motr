@@ -294,7 +294,7 @@ static struct m0_lext* lext_create(struct m0_ext *ex)
 	return le;
 }
 
-static void extents_release(struct m0_balloc_group_info *grp,
+static int extents_release(struct m0_balloc_group_info *grp,
 			    enum m0_balloc_allocation_flag zone_type)
 {
 	struct m0_list_link         *l;
@@ -312,6 +312,7 @@ static void extents_release(struct m0_balloc_group_info *grp,
 	       "bzp_frags=%d", (int)zone_type, grp, grp->bgi_groupno,
 	       (int)frags, (int)zp->bzp_fragments);
 	M0_ASSERT(ergo(frags > 0, frags == zp->bzp_fragments));
+	return (frags * sizeof(le));
 }
 
 M0_INTERNAL int m0_balloc_release_extents(struct m0_balloc_group_info *grp)
@@ -319,12 +320,13 @@ M0_INTERNAL int m0_balloc_release_extents(struct m0_balloc_group_info *grp)
 
 
 	M0_PRE(m0_mutex_is_locked(bgi_mutex(grp)));
+	int total = 0;
 
-	extents_release(grp, M0_BALLOC_SPARE_ZONE);
-	extents_release(grp, M0_BALLOC_NORMAL_ZONE);
+	total += extents_release(grp, M0_BALLOC_SPARE_ZONE);
+	total += extents_release(grp, M0_BALLOC_NORMAL_ZONE);
 	m0_free0(&grp->bgi_extents);
 	grp->bgi_extents = NULL;
-	return 0;
+	return total;
 }
 
 M0_INTERNAL void m0_balloc_lock_group(struct m0_balloc_group_info *grp)
@@ -453,12 +455,13 @@ static int  unload_group_count(int total, int percentile)
 /*
  * LRU implemntation to unload cb_group_info
  */
-static void m0_balloc_release_memory_helper(struct m0_balloc *bal)
+static int m0_balloc_release_memory_internal(struct m0_balloc *bal)
 {
 	struct m0_balloc_group_info *arr[bal->cb_sb.bsb_groupcount];
 	int                          m_count        = 0;
 	int                          deducted_count = 0;
 	int                          ic;
+	int                          total          = 0;
 	for (ic = 0; ic < bal->cb_sb.bsb_groupcount; ++ic) {
 		if(m0_bitmap_get(&bal->ld_group_info, ic)) {
 			arr[m_count] = &bal->cb_group_info[ic];;
@@ -468,21 +471,30 @@ static void m0_balloc_release_memory_helper(struct m0_balloc *bal)
 	qsort(arr, m_count - 1, sizeof arr[0], &time_cmp);
 
 	deducted_count = unload_group_count(m_count, 70);
-	M0_LOG(M0_INFO, "Total loaded group_info: %d need to unload: %d",
-		m_count, deducted_count);
+	M0_LOG(M0_INFO, "ad stob-id: "FID_F" Total loaded group: %d"
+			"unloading : %d groups",
+			FID_P(&bal->cb_sb.bsb_ad_stob_id),
+			m_count, deducted_count);
 	if (m_count - deducted_count <= 4) {
 		 M0_LOG(M0_INFO, "remaining = %d in memory group_info is"
 			"too small, Not unloading any group",
 			m_count - deducted_count);
-		return;
+		return 0;
 	}
+
 	for(ic = 0; ic < deducted_count; ic++) {
-		M0_LOG(M0_INFO, "Unloading start on : %d", (int)arr[ic]->bgi_groupno);
+		M0_LOG(M0_INFO, "Unloading extents of ad(stob-id: "FID_F") "
+			"groupno: %d from memory",
+			FID_P(&bal->cb_sb.bsb_ad_stob_id),
+			(int)arr[ic]->bgi_groupno);
 		m0_balloc_lock_group(arr[ic]);
-		m0_balloc_release_extents(arr[ic]);
+		total += m0_balloc_release_extents(arr[ic]);
 		m0_balloc_unlock_group(arr[ic]);
 		m0_bitmap_set(&bal->ld_group_info, arr[ic]->bgi_groupno, false);
 	}
+	M0_LOG(M0_INFO, "ad stob-id: "FID_F" released : %d bytes memory",
+		FID_P(&bal->cb_sb.bsb_ad_stob_id), total);
+	return total;
 }
 
 
@@ -1287,6 +1299,10 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		return M0_RC(0);
 	}
 
+	M0_LOG(M0_INFO, "loading extents list of (ad stob-id: "FID_F") "
+		"groupno : %d into memory",
+		FID_P(&cb->cb_sb.bsb_ad_stob_id),
+		(int)grp->bgi_groupno);
 	spare_range.e_start = grp->bgi_spare.bzp_range.e_start;
 	spare_range.e_end = (grp->bgi_groupno + 1) << cb->cb_sb.bsb_gsbits;
 
@@ -1392,6 +1408,10 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	if (grp->bgi_extents == NULL)
 		return M0_RC(-ENOMEM);
 
+	M0_LOG(M0_INFO, "loading extents list of (ad stob-id: "FID_F") "
+		"groupno : %d into memory",
+		FID_P(&cb->cb_sb.bsb_ad_stob_id),
+		(int)grp->bgi_groupno);
 	spare_range.e_start = grp->bgi_spare.bzp_range.e_start;
 	spare_range.e_end = (grp->bgi_groupno + 1) << cb->cb_sb.bsb_gsbits;
 	
@@ -2999,7 +3019,6 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 			 (unsigned long long)freeblocks,
 			 (unsigned long long)motr->cb_sb.bsb_freeblocks);
 
-
 	return M0_RC(rc);
 }
 
@@ -3047,6 +3066,12 @@ static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
 	return M0_RC(rc);
 }
 
+static int  balloc_release_memory(struct m0_ad_balloc *ballroom)
+{
+	struct m0_balloc *cb= b2m0(ballroom);
+	return m0_balloc_release_memory_internal(cb);
+}
+
 static void balloc_fini(struct m0_ad_balloc *ballroom)
 {
 	struct m0_balloc *motr = b2m0(ballroom);
@@ -3066,6 +3091,7 @@ static const struct m0_ad_balloc_ops balloc_ops = {
 	.bo_alloc_credit   = balloc_alloc_credit,
 	.bo_free_credit    = balloc_free_credit,
 	.bo_reserve_extent = balloc_reserve_extent,
+	.bo_release_mem    = balloc_release_memory,
 };
 
 static int balloc_trees_create(struct m0_balloc    *bal,
@@ -3179,11 +3205,6 @@ M0_INTERNAL int m0_balloc_create(uint64_t                         cid,
 		m0_balloc_init(*out);
 
 	return M0_RC(rc);
-}
-
-M0_INTERNAL void m0_balloc_release_memory(struct m0_balloc *cb)
-{
-	m0_balloc_release_memory_helper(cb);
 }
 
 #undef M0_TRACE_SUBSYSTEM
