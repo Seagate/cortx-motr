@@ -67,7 +67,8 @@ struct m0_thread_tls {
 	struct m0_addb2_mach      *tls_addb2_mach;
 	struct m0_thread          *tls_self;
 	/**
-	 * Thread's locality index at fd_localities.
+	 * First cpu to which the thread was confined (or 0 if not confined).
+	 * Used as thread's locality index in m0_locality_here().
 	 *
 	 * @note m0_processor_id_get() cannot be used for this purpose,
 	 *       because thread's affinity can be re-set externally by,
