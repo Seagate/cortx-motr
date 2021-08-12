@@ -3035,7 +3035,6 @@ struct dir_rec {
 struct vkvv_head {
 	struct m0_format_header  vkvv_fmt;      /*< Node Header */
 	struct node_header       vkvv_seg;      /*< Node type information */
-
 	/** 
 	 * The above 2 structures should always be together with node_header
 	 * following the m0_format_header.
@@ -3077,7 +3076,7 @@ static void vkvv_init(const struct segaddr *addr, int shift, int ksize, int vsiz
 	 *         of the node memory and return the starting address 
 	 */
 	struct vkvv_head *h = segaddr_addr(addr);
-	h->dir_offset = vkvv_get_dir_offset(addr, shift);
+	h->vkvv_dir_offset = vkvv_get_dir_offset(addr, shift);
 }
 
 static void vkvv_fini(const struct nd *node, struct m0_be_tx *tx)
