@@ -26,8 +26,9 @@
 #include "lib/cksum_utils.h"
 
 
-M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start( m0_bindex_t ext_start,
-						m0_bindex_t ext_len, m0_bindex_t unit_sz )
+M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start(m0_bindex_t ext_start,
+						     m0_bindex_t ext_len,
+						     m0_bindex_t unit_sz )
 {
 
 	/* Compute how many unit starts in a given extent spans:
@@ -47,32 +48,38 @@ M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start( m0_bindex_t ext_start,
 	M0_ASSERT(unit_sz);
 	cs_nob = ( (ext_start + ext_len - 1)/unit_sz - ext_start/unit_sz );
 
-	// Add handling for case 1 and 5
-	if( (ext_start % unit_sz) == 0 )
+	/** Add handling for case 1 and 5 */
+	if ((ext_start % unit_sz) == 0)
 		cs_nob++;
 
 	return cs_nob;
 }
 
 
-M0_INTERNAL m0_bcount_t m0_extent_get_unit_offset( m0_bindex_t off,
-						m0_bindex_t base_off, m0_bindex_t unit_sz)
+M0_INTERNAL m0_bcount_t m0_extent_get_unit_offset(m0_bindex_t off,
+						  m0_bindex_t base_off,
+						  m0_bindex_t unit_sz)
 {
 	M0_ASSERT(unit_sz);
 	/* Unit size we get from layout id using m0_obj_layout_id_to_unit_size(lid) */
 	return (off - base_off)/unit_sz;
 }
 
-M0_INTERNAL void * m0_extent_get_checksum_addr(void *b_addr, m0_bindex_t off,
-					m0_bindex_t base_off, m0_bindex_t unit_sz, m0_bcount_t cs_size )
+M0_INTERNAL void * m0_extent_get_checksum_addr(void *b_addr,
+					       m0_bindex_t off,
+					       m0_bindex_t base_off,
+					       m0_bindex_t unit_sz,
+					       m0_bcount_t cs_size)
 {
 	M0_ASSERT(unit_sz && cs_size);
 	return (char *)b_addr + m0_extent_get_unit_offset(off, base_off, unit_sz) *
-		cs_size;
+		                cs_size;
 }
 
-M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob( m0_bindex_t ext_start,
-						m0_bindex_t ext_length, m0_bindex_t unit_sz, m0_bcount_t cs_size )
+M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob(m0_bindex_t ext_start,
+						   m0_bindex_t ext_length,
+						   m0_bindex_t unit_sz,
+						   m0_bcount_t cs_size )
 {
 	M0_ASSERT(unit_sz && cs_size);
 	return m0_extent_get_num_unit_start(ext_start, ext_length, unit_sz) * cs_size;
@@ -91,8 +98,11 @@ M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob( m0_bindex_t ext_start,
  * addr for CS3.
  */
 
-M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec, m0_bindex_t off,
-						void *ivec, m0_bindex_t unit_sz, m0_bcount_t cs_sz )
+M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec,
+						   m0_bindex_t off,
+						   void *ivec,
+						   m0_bindex_t unit_sz,
+						   m0_bcount_t cs_sz )
 {
 	void *cksum_addr = NULL;
 	struct m0_ext ext;
@@ -111,30 +121,26 @@ M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec, m0_binde
 		 * within the span of current extent
 		 *      | iv_index[0] || iv_index[1] | iv_index[2] || iv_index[3] |
 		 */
-		if (m0_ext_is_in(&ext, off))
-		{
+		if (m0_ext_is_in(&ext, off)) {
 			attr_nob += ( m0_extent_get_unit_offset(off, ext.e_start, unit_sz) * cs_sz);
 			break;
 		}
-		else
-		{
+		else {
 			/* off is not in the current extent, so account increment the b_addr */
 			attr_nob +=  m0_extent_get_checksum_nob(ext.e_start,
 					vec->iv_vec.v_count[i], unit_sz, cs_sz);
 		}
 	}
 
-	/* Assert to make sure the the offset is lying within the extent */
-	M0_ASSERT(i < vec->iv_vec.v_nr );
+	/** Assert to make sure the the offset is lying within the extent */
+	M0_ASSERT(i < vec->iv_vec.v_nr);
 
-	// get the checksum_addr
+	/** get the checksum_addr */
 	m0_bufvec_cursor_init(&cksum_cursor, cksum_vec);
 
-	if ( attr_nob )
-	{
+	if (attr_nob) {
 		m0_bufvec_cursor_move(&cksum_cursor, attr_nob);
 	}
 	cksum_addr = m0_bufvec_cursor_addr(&cksum_cursor);
-
 	return cksum_addr;
 }
