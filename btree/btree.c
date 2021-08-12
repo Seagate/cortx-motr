@@ -1729,6 +1729,7 @@ static void node_rec_put_credit(const struct nd *node, m0_bcount_t ksize,
 	node->n_type->nt_rec_put_credit(node, ksize, vsize, accum);
 }
 
+#if 0
 static void node_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
 				   m0_bcount_t vsize,
 				   struct m0_be_tx_credit *accum)
@@ -1736,7 +1737,6 @@ static void node_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
 	node->n_type->nt_rec_update_credit(node, ksize, vsize, accum);
 }
 
-#if 0
 static void node_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 				m0_bcount_t vsize,
 				struct m0_be_tx_credit *accum)
@@ -3629,54 +3629,6 @@ static void btree_callback_credit(struct m0_be_tx_credit *accum)
 {
 	accum->tc_cb_nr += BTREE_CALLBACK_CREDIT;
 }
-#if 0
-/**
- * This function will calculate credits required to allocate node and it will
- * add those credits to @accum.
- */
-static void btree_node_alloc_credit(const struct m0_btree  *tree,
-				    struct m0_be_tx_credit *accum)
-{
-	m0_bcount_t             node_size;
-	int                     shift;
-
-	shift     = node_shift(tree->t_desc->t_root);
-	node_size =  1ULL << shift;
-
-	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED,
-			       node_size, shift, accum);
-}
-
-/**
- * This function will calculate credits required to update node and it will add
- * those credits to @accum.
- */
-static void btree_node_update_credit(const struct m0_btree  *tree,
-				     struct m0_be_tx_credit *accum)
-{
- 	m0_bcount_t             node_size;
-	int                     shift;
-
-	shift     = node_shift(tree->t_desc->t_root);
-	node_size =  1ULL << shift;
-
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, node_size));
-}
-#endif
-
-/**
- * This function will calculate credits required for the delete KV operation and
- * add those credits to @accum.
- */
-static void btree_del_credit(const struct m0_btree  *tree, m0_bcount_t ksize,
-			     m0_bcount_t vsize, struct m0_be_tx_credit *accum)
-{
-	struct m0_be_tx_credit cred = {};
-
-	/* Credits for freeing the node. */
-	node_free_credit(tree->t_desc->t_root, ksize, vsize, &cred);
-	m0_be_tx_credit_mac(accum, &cred, MAX_TREE_HEIGHT);
-}
 
 /**
  * This function will calculate credits required to split node and it will add
@@ -3687,29 +3639,15 @@ static void btree_node_split_credit(const struct m0_btree  *tree,
 				    m0_bcount_t             vsize,
 				    struct m0_be_tx_credit *accum)
 {
-	node_alloc_credit(tree->t_desc->t_root, ksize, vsize, accum);
-	/* credits to update two nodes : existing and newly allocated. */
 	struct m0_be_tx_credit cred = {};
+
+	node_alloc_credit(tree->t_desc->t_root, ksize, vsize, accum);
+
+	/* credits to update two nodes : existing and newly allocated. */
 	node_rec_put_credit(tree->t_desc->t_root, ksize, vsize, &cred);
 	m0_be_tx_credit_mul(&cred, 2);
 
 	m0_be_tx_credit_add(accum, &cred);
-}
-
-/**
- * This function will calculate credits required for the put KV operation and
- * add those credits to @accum.
- */
-static void btree_put_credit(const struct m0_btree  *tree,
-			     m0_bcount_t             ksize,
-			     m0_bcount_t             vsize,
-			     struct m0_be_tx_credit *accum)
-{
-	struct m0_be_tx_credit cred = {};
-
-	/* Credits for split operation */
-	btree_node_split_credit(tree, ksize, vsize, &cred);
-	m0_be_tx_credit_mac(accum, &cred, MAX_TREE_HEIGHT);
 }
 
 /**
@@ -3724,7 +3662,10 @@ void m0_btree_put_credit(const struct m0_btree  *tree,
 {
 	struct m0_be_tx_credit cred = {};
 
-	btree_put_credit(tree, ksize, vsize, &cred);
+	/* Credits for split operation */
+	btree_node_split_credit(tree, ksize, vsize, &cred);
+	m0_be_tx_credit_mul(&cred, MAX_TREE_HEIGHT);
+
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
@@ -3740,7 +3681,10 @@ void m0_btree_del_credit(const struct m0_btree  *tree,
 {
 	struct m0_be_tx_credit cred = {};
 
-	btree_del_credit(tree, ksize, vsize, &cred);
+	/* Credits for freeing the node. */
+	node_free_credit(tree->t_desc->t_root, ksize, vsize, &cred);
+	m0_be_tx_credit_mul(&cred, MAX_TREE_HEIGHT);
+
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
@@ -3754,10 +3698,19 @@ void m0_btree_update_credit(const struct m0_btree  *tree,
 			    m0_bcount_t             vsize,
 			    struct m0_be_tx_credit *accum)
 {
+	/* Credits required if new value size is same as existing value size. */
+	/*
 	struct m0_be_tx_credit cred = {};
 
 	node_rec_update_credit(tree->t_desc->t_root, ksize, vsize, &cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
+	*/
+
+	/**
+	 * If the new value size is different than existing value size. It
+	 * is required to allocated credit same as put operation.
+	 */
+	m0_btree_put_credit(tree, nr, ksize, vsize, accum);
 }
 
 
