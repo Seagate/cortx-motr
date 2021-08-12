@@ -2156,6 +2156,7 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 	struct m0_fom             *fom0   = &fom->cf_fom;
 	uint32_t                   flags  = cas_op(fom0)->cg_flags;
 	struct m0_buf              kbuf;
+	struct m0_buf              lbuf;
 	struct m0_buf              vbuf;
 	struct m0_buf              lbuf;
 	struct m0_cas_id          *cid;
@@ -2434,6 +2435,11 @@ static int cas_prep_send(struct cas_fom *fom, enum m0_cas_opcode opc,
 	case CTG_OP_COMBINE(CO_GET, CT_META):
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
+		m0_ctg_lookup_result(ctg_op, &val);
+		rc = cas_place(&fom->cf_out_val, &val, rpc_cutoff);
+		/* Here we also need to free the memory after m0_buf_free() */
+		m0_buf_free(&ctg_op->co_out_val);
+		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 	case CTG_OP_COMBINE(CO_PUT, CT_META):
 		/* Nothing to do: return code is all the user gets. */
