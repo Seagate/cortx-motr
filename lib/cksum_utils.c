@@ -67,7 +67,7 @@ M0_INTERNAL void * m0_extent_get_checksum_addr(void *b_addr, m0_bindex_t off,
 					m0_bindex_t base_off, m0_bindex_t unit_sz, m0_bcount_t cs_size )
 {
 	M0_ASSERT(unit_sz && cs_size);
-	return b_addr + m0_extent_get_unit_offset(off, base_off, unit_sz) *
+	return (char *)b_addr + m0_extent_get_unit_offset(off, base_off, unit_sz) *
 		cs_size;
 }
 

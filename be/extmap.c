@@ -531,7 +531,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	struct m0_buf          cksum[3]  = {{0, NULL},
 					   {0, NULL},
 					   {0, NULL}};
-	m0_bcount_t	       chunk_cs_count  = 0;
+	m0_bcount_t	       chunk_cs_count;
 	m0_bcount_t            cksum_unit_size = 0;
 
 	m0_bcount_t            consumed;

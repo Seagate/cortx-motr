@@ -668,7 +668,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				src_attr = m0_extent_vec_get_checksum_addr( &ioo->ioo_attr, goff,
 						&ioo->ioo_ext, unit_sz, cs_sz);
 				M0_ASSERT(b_nob == cs_sz);
-				memcpy(dst_attr + ti->ti_cksum_copied, src_attr, b_nob);
+				memcpy((char *)dst_attr + ti->ti_cksum_copied, src_attr, b_nob);
 
 				/* Track checksum copied as we need to do overallocation for
 				 * ti_attrbuf for traget and while sending FOP we use this
