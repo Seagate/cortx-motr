@@ -3698,17 +3698,9 @@ void m0_btree_update_credit(const struct m0_btree  *tree,
 			    m0_bcount_t             vsize,
 			    struct m0_be_tx_credit *accum)
 {
-	/* Credits required if new value size is same as existing value size. */
-	/*
-	struct m0_be_tx_credit cred = {};
-
-	node_rec_update_credit(tree->t_desc->t_root, ksize, vsize, &cred);
-	m0_be_tx_credit_mac(accum, &cred, nr);
-	*/
-
 	/**
 	 * If the new value size is different than existing value size. It
-	 * is required to allocated credit same as put operation.
+	 * is required to allocate credit same as put operation.
 	 */
 	m0_btree_put_credit(tree, nr, ksize, vsize, accum);
 }
