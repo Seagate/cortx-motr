@@ -2155,6 +2155,7 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 	struct m0_fom             *fom0   = &fom->cf_fom;
 	uint32_t                   flags  = cas_op(fom0)->cg_flags;
 	struct m0_buf              kbuf;
+	struct m0_buf              lbuf;
 	struct m0_buf              vbuf;
 	struct m0_cas_id          *cid;
 	enum m0_fom_phase_outcome  ret = M0_FSO_AGAIN;
@@ -2181,7 +2182,29 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		ret = m0_ctg_insert(ctg_op, ctg, &kbuf, &vbuf, next);
 		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
-		ret = m0_ctg_delete(ctg_op, ctg, &kbuf, next);
+		/*
+		 * Lookup for the value of that is going to delete soon.
+		 */
+		ret = m0_ctg_lookup(ctg_op, ctg, &kbuf, next);
+		if (ret == 0) {
+			/*
+			 * Here @lbuf refers to the memory piece inside
+			 * the btree that will be killed and rebalanced
+			 * after m0_ctg_delete(). Let's save it for now.
+			 */
+			m0_ctg_lookup_result(ctg_op, &lbuf);
+
+			/*
+			 * ->co_out_val is not used for del op, we can
+			 * use it here to deliver the lookup result.
+			 */
+			m0_buf_copy(&ctg_op->co_out_val, &lbuf);
+
+			/*
+			 * Delete the key. Value is saved now.
+			 */
+			ret = m0_ctg_delete(ctg_op, ctg, &kbuf, next);
+		}
 		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
 		/*
@@ -2390,6 +2413,11 @@ static int cas_prep_send(struct cas_fom *fom, enum m0_cas_opcode opc,
 	case CTG_OP_COMBINE(CO_GET, CT_META):
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
+		m0_ctg_lookup_result(ctg_op, &val);
+		rc = cas_place(&fom->cf_out_val, &val, rpc_cutoff);
+		/* Here we also need to free the memory after m0_buf_free() */
+		m0_buf_free(&ctg_op->co_out_val);
+		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 	case CTG_OP_COMBINE(CO_PUT, CT_META):
 		/* Nothing to do: return code is all the user gets. */
