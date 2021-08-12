@@ -92,7 +92,7 @@ M0_INTERNAL bool m0_bitmap_get(const struct m0_bitmap *map, size_t idx);
    @param map bitmap to query
    @return index of the first set bit. If not found, -1 is returned.
  */
-M0_INTERNAL size_t m0_bitmap_ffs(const struct m0_bitmap *map);
+M0_INTERNAL int m0_bitmap_ffs(const struct m0_bitmap *map);
 
 /**
    Find first zero (a.k.a unset, false) bit from a bitmap.
@@ -100,7 +100,7 @@ M0_INTERNAL size_t m0_bitmap_ffs(const struct m0_bitmap *map);
    @param map bitmap to query
    @return index of the first zero bit. If no zero bit found, -1 is returned.
  */
-M0_INTERNAL size_t m0_bitmap_ffz(const struct m0_bitmap *map);
+M0_INTERNAL int m0_bitmap_ffz(const struct m0_bitmap *map);
 
 /**
    Set a bit value in a bitmap.
