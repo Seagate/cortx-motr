@@ -400,7 +400,6 @@ def ConvertCobAdstob(cob_f_container, cob_f_key):
     M0_FID_DEVICE_ID_MASK = 72057589742960640
     M0_FID_TYPE_MASK = 72057594037927935
 
-    device_id = (int(cob_f_container, 16) & M0_FID_DEVICE_ID_MASK) >> M0_FID_DEVICE_ID_OFFSET
     # m0_fid_tassume()
     tid = 2 # STOB_TYPE_AD = 0x02
     stob_f_container = ((tid << (64 - 8 )) | (int(cob_f_container, 16) & M0_FID_TYPE_MASK))

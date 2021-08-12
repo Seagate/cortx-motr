@@ -621,6 +621,7 @@ static void test_paste_checksum_validation(void)
 
 	/* Segment 2 - Pasted Chunk lookup : CS = B */
 	rc = be_emap_lookup(emap, &prefix, e.e_start, &it);
+	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_start);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_end );
 	M0_UT_ASSERT(seg->ee_val         == e_val[idx]);
@@ -680,6 +681,7 @@ static void test_paste_checksum_validation(void)
 
 	/* Segment 2 - Pasted Chunk lookup : CS = P */
 	rc = be_emap_lookup(emap, &prefix, e.e_start, &it);
+	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_start);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_end );
 	M0_UT_ASSERT(seg->ee_val         == e_val[idx]);

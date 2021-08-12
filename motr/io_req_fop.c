@@ -150,7 +150,6 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	void                   *src;
 
 	M0_PRE(ioo->ioo_attr.ov_vec.v_nr);
-	dst = ioo->ioo_attr.ov_buf[0];
 	src = buf->b_addr;
 
 	if (!buf->b_nob) {
@@ -167,7 +166,6 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 
 	rep_index	= m0_ivec_cursor_index(&rep_cursor);
 	ti_cob_index	= m0_ivec_cursor_index(&ti_cob_cursor);
-	ti_goff_index	= m0_ivec_cursor_index(&ti_goff_cursor);
 
 	/* Move rep_cursor on unit boundary */
 	off = rep_index % unit_size;
@@ -183,14 +181,8 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 
 	/* Move ti index to rep index */
 	if (ti_cob_index != rep_index) 	{
-		if (m0_ivec_cursor_move(&ti_cob_cursor,  rep_index - ti_cob_index) && 
-		    m0_ivec_cursor_move(&ti_goff_cursor, rep_index - ti_cob_index)) {
-			ti_cob_index  = m0_ivec_cursor_index(&ti_cob_cursor);
-			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
-		}
-		else {
-			M0_IMPOSSIBLE("cursor invalid");
-		}
+		M0_ASSERT (m0_ivec_cursor_move(&ti_cob_cursor,  rep_index - ti_cob_index) && 
+		           m0_ivec_cursor_move(&ti_goff_cursor, rep_index - ti_cob_index));
 	}
 
 	/**
@@ -225,7 +217,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 						      unit_size, cs_sz );
 
 		memcpy(dst, src, cs_sz);
-		src += cs_sz;
+		src = (char *)src + cs_sz;
 
 		/* Source is m0_buf and we have to copy all the checksum one at a time */
 		M0_ASSERT(src <= (buf->b_addr + buf->b_nob));
