@@ -180,10 +180,11 @@ M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
 
 	/*
 	 * There is no concurrency at this stage yet, but we take
-	 * the lock here for the same of check at plop_alloc_init().
+	 * the lock here because of the check at plop_alloc_init().
 	 */
 	m0_mutex_lock(&plan->lp_lock);
 
+	/* plops are added in LIFO order, so DONE goes 1st. */
 	plop_done = plop_alloc_init(plan, M0_LAT_DONE, NULL);
 	if (plop_done == NULL) {
 		rc = M0_ERR(-ENOMEM);
@@ -191,10 +192,7 @@ M0_INTERNAL struct m0_layout_plan * m0_layout_plan_build(struct m0_op *op)
 	}
 
 	m0_htable_for(tioreqht, ti, &ioo->ioo_nwxfer.nxr_tioreqs_hash) {
-		/*
-		 * ti reqs go in reverse order (by ti_goff) in this loop,
-		 * so we need to add OUT_READ plop 1st to the list.
-		 */
+		/* Add OUT_READ before READ (LIFO order).  */
 		plop_out = plop_alloc_init(plan, M0_LAT_OUT_READ, NULL);
 		rc = add_plops_relation(plop_done, plop_out);
 		if (rc != 0)
