@@ -205,6 +205,8 @@ struct m0_ctg_op {
 	struct m0_buf             co_out_key;
 	/** Value out buffer. */
 	struct m0_buf             co_out_val;
+	/** Value out buffer for lookup done on del op. */
+	struct m0_buf             co_tmp_buf;
 	struct m0_buf             co_mem_buf;
 	/** Operation code to be executed. */
 	int                       co_opcode;
