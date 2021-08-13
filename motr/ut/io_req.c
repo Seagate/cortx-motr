@@ -928,6 +928,9 @@ static void ut_test_ioreq_application_data_copy(void)
 	struct m0_pi_seed            seed;
 	unsigned char               *curr_context;
 	int                          buf_idx = 0;
+	enum m0_pi_calc_flag         flag = M0_PI_CALC_UNIT_ZERO;
+	struct m0_ivec_cursor        extcur;
+	//int l;
 
 	/* init client */
 	instance = dummy_instance;
@@ -945,7 +948,7 @@ static void ut_test_ioreq_application_data_copy(void)
 
 	/* With some fake buffers to read/write into */
 	stashed = ioo->ioo_data;
-	rc = m0_bufvec_alloc(&ioo->ioo_data, 6*4, UT_DEFAULT_BLOCK_SIZE/4);
+	rc = m0_bufvec_alloc(&ioo->ioo_data, 6, UT_DEFAULT_BLOCK_SIZE);
 	M0_UT_ASSERT(rc == 0);
 
 	stashed1 = ioo->ioo_attr;
@@ -992,29 +995,40 @@ static void ut_test_ioreq_application_data_copy(void)
 	rc = m0_bufvec_empty_alloc(&user_data, 1);
 	M0_UT_ASSERT(rc == 0);
 
-	seed.pis_obj_id = ioo->ioo_oo.oo_fid;
+	seed.pis_obj_id.f_container = ioo->ioo_obj->ob_entity.en_id.u_hi;
+	seed.pis_obj_id.f_key       = ioo->ioo_obj->ob_entity.en_id.u_lo;
+
 	curr_context = m0_alloc(sizeof(MD5_CTX));
+	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
+	memset(&pi, 0, sizeof(struct m0_md5_inc_context_pi));
 
 	for (k = 0; k < ioo->ioo_iomap_nr; k++) {
+
 		struct pargrp_iomap *map = ioo->ioo_iomaps[k];
 
-		for (i = 0; i < map->pi_max_row; i++) {
-			for (j = 0; j < map->pi_max_col; j++) {
+		for (j = 0; j < map->pi_max_col; j++) {
+
+			if (unit_idx != 0) {
+				flag = M0_PI_NO_FLAG; 
+				memcpy(pi.pimd5c_prev_context, curr_context, sizeof(MD5_CTX));
+			}
+
+			for (i = 0; i < map->pi_max_row; i++) {
 				user_data.ov_vec.v_count[0] = map->pi_databufs[i][j]->db_buf.b_nob;
 				user_data.ov_buf[0] = map->pi_databufs[i][j]->db_buf.b_addr;
 
-				memset(&pi, 0, sizeof(struct m0_md5_inc_context_pi));
 				pi.pimd5c_hdr.pih_type = M0_PI_TYPE_MD5_INC_CONTEXT;
-				seed.pis_data_unit_offset = unit_idx;
+				seed.pis_data_unit_offset = m0_ivec_cursor_index(&extcur);
 
 				rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-						&seed, &user_data, M0_PI_CALC_UNIT_ZERO,
+						&seed, &user_data, flag,
 						curr_context, NULL);
 				M0_UT_ASSERT(rc == 0);
-
-				memcpy(ioo->ioo_attr.ov_buf[unit_idx], &pi, sizeof(struct m0_md5_inc_context_pi));
-				unit_idx++;
 			}
+
+			memcpy(ioo->ioo_attr.ov_buf[unit_idx], &pi, sizeof(struct m0_md5_inc_context_pi));
+			unit_idx++;
+			m0_ivec_cursor_move(&extcur, UT_DEFAULT_BLOCK_SIZE);
 		}
 	}
 
