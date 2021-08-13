@@ -8257,10 +8257,6 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		for (i = 1; i < ARRAY_SIZE(key); i++)
 			key[i] = key[0];
 
-		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
-		m0_btree_del_credit(tree, 1, ksize, -1, &cred);
-		btree_callback_credit(&cred);
-
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_del(tree, &rec.r_key,
 							   &ut_cb, 0, &kv_op,
@@ -8275,11 +8271,10 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				key[i] = key[0];
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						      m0_btree_get(tree,
+						      m0_btree_del(tree,
 								   &rec.r_key,
-								   &ut_get_cb,
-								   BOF_EQUAL,
-								   &kv_op));
+								   &ut_cb, 0,
+								   &kv_op, tx));
 			M0_ASSERT(rc == -ENOENT);
 		}
 
