@@ -287,10 +287,15 @@ static int fdmi_service_start(struct m0_client *m0c)
 	return M0_RC(rc);
 }
 
-static void fdmi_service_stop(void)
+static void fdmi_service_stop(struct m0_client *m0c)
 {
+	struct m0_reqh *reqh = &m0c->m0c_reqh;
+
 	if (fsp_fdmi_service != NULL) {
+		m0_reqh_service_prepare_to_stop(fsp_fdmi_service);
+		m0_reqh_idle_wait_for(reqh, fsp_fdmi_service);
 		m0_reqh_service_stop(fsp_fdmi_service);
+		m0_reqh_service_fini(fsp_fdmi_service);
 		fsp_fdmi_service = NULL;
 	}
 }
@@ -353,7 +358,7 @@ static int fsp_init(struct m0_fsp_params *params)
 
 	rc = init_fdmi_plugin(params);
 	if (rc != 0) {
-		fdmi_service_stop();
+		fdmi_service_stop(fsp_client);
 		m0_client_fini(fsp_client, true);
 	}
 	return rc;
@@ -362,6 +367,7 @@ static int fsp_init(struct m0_fsp_params *params)
 static void fsp_fini(struct m0_fsp_params *params)
 {
 	fini_fdmi_plugin(params);
+	fdmi_service_stop(fsp_client);
 
 	/* Client stops its services including FDMI */
 	m0_client_fini(fsp_client, true);
