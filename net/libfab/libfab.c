@@ -807,16 +807,19 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		
 		M0_ASSERT(libfab_tm_is_locked(tm) && libfab_tm_invariant(tm));
 
+		libfab_handle_connect_request_events(tm);
+		libfab_txep_comp_read(tm->ftm_tx_cq, tm);
+
 		if (ev_cnt > 0) {
 			ctx = ev.data.ptr;
-			if (ctx->evctx_type == FAB_COMMON_Q_EVENT) {
-				/* Check the common queue of the
-				   transfer machine for events */
-				libfab_handle_connect_request_events(tm);
-				libfab_txep_comp_read(tm->ftm_tx_cq, tm);
-			} else {
-				/* Check the private queue of the
-				   endpoint for events */
+			if (ctx->evctx_type != FAB_COMMON_Q_EVENT) {
+			// 	/* Check the common queue of the
+			// 	   transfer machine for events */
+			// 	libfab_handle_connect_request_events(tm);
+			// 	libfab_txep_comp_read(tm->ftm_tx_cq, tm);
+			// } else {
+			// 	/* Check the private queue of the
+			// 	   endpoint for events */
 				xep = ctx->evctx_ep;
 				aep = libfab_aep_get(xep);
 				libfab_txep_event_check(xep, aep, tm);
