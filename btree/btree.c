@@ -5651,11 +5651,10 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 
 		m0_rwlock_write_lock(&bop->bo_arbor->t_desc->t_lock);
 		bop->bo_arbor->t_desc->t_height = bop->bo_arbor->t_height;
-		m0_rwlock_write_unlock(&bop->bo_arbor->t_desc->t_lock);
-
 		_slot.s_node      = oi->i_nop.no_node;
 		_slot.s_idx       = 0;
 		node_capture(&_slot, bop->bo_tx);
+		m0_rwlock_write_unlock(&bop->bo_arbor->t_desc->t_lock);
 
 		m0_free(oi);
 		bop->bo_i = NULL;
