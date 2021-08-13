@@ -783,7 +783,7 @@ def update_motr_hare_keys_for_all_nodes(self):
                     lvm_find = list(filter(r.match,res[0].split()))
                     lv_path = lvm_find[0].strip()
                 except Exception as e:
-                    self.logger.info(f"exception pass attempt: {host}\n")
+                    self.logger.info(f"exception pass {e}\n")
             else:
                 cmd = (f"ssh  {host}"
                        f" \"lvs -o lv_path\"")
@@ -795,7 +795,7 @@ def update_motr_hare_keys_for_all_nodes(self):
                         lvm_find = list(filter(r.match,res[0].split()))
                         lv_path = lvm_find[0].strip()
                     except Exception as e:
-                        self.logger.info(f"exception pass attempt: {host}\n")
+                        self.logger.info(f"exception pass {e}\n")
                     if lv_path:
                         self.logger.info(f"found lvm {lv_path} after {retry} count")
                         break
