@@ -84,7 +84,7 @@ def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = Fa
             time.sleep(cmd_retry_delay)
             continue
         return stdout, ps.returncode
-    return None
+    return
 
 def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS):
     self.logger.info(f"Executing cmd : '{cmd}'\n")
@@ -773,6 +773,7 @@ def update_motr_hare_keys_for_all_nodes(self):
         name = value["name"]
         self.logger.info(f"update_motr_hare_keys for {host}\n")
         for i in range(int(cvg_count)):
+            lv_path = None
             lv_md_name = f"lv_raw_md{i + 1}"
             if (hostname == value["hostname"]):
                 cmd = ("lvs -o lv_path")
@@ -781,8 +782,8 @@ def update_motr_hare_keys_for_all_nodes(self):
                 try:
                     lvm_find = list(filter(r.match,res[0].split()))
                     lv_path = lvm_find[0].strip()
-                except:
-                    pass
+                except Exception as e:
+                    self.logger.info(f"exception pass attempt: {host}\n")
             else:
                 cmd = (f"ssh  {host}"
                        f" \"lvs -o lv_path\"")
@@ -793,8 +794,8 @@ def update_motr_hare_keys_for_all_nodes(self):
                     try:
                         lvm_find = list(filter(r.match,res[0].split()))
                         lv_path = lvm_find[0].strip()
-                    except:
-                        pass
+                    except Exception as e:
+                        self.logger.info(f"exception pass attempt: {host}\n")
                     if lv_path:
                         self.logger.info(f"found lvm {lv_path} after {retry} count")
                         break
@@ -806,7 +807,6 @@ def update_motr_hare_keys_for_all_nodes(self):
                              f" with value {lv_path} in {self._motr_hare_conf}")
             Conf.set(self._index_motr_hare,f"server>{name}>cvg[{i}]>m0d[0]>md_seg1",f"{lv_path.strip()}")
             Conf.save(self._index_motr_hare)
-            lv_path = None
 
     for value in nodes_info.values():
         if (hostname == value["hostname"]):
