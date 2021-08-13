@@ -48,7 +48,8 @@ def e(bucket, key, ea):
     return R * dix(key, obj_list_rec(bucket, key, ea));
 
 def i(size):
-    return P * (cob() + ad(size*(N+K)/N/P, U(size)));
+    p = min(P, size / U(size));
+    return p * (cob() + ad(size*(N+K)/N/P, U(size)));
 
 # obj_list_rec(key, ea) is the size of S3 json-formatted value in
 # object_list_idx_oid index.
@@ -120,9 +121,16 @@ def tabulate():
         S = 0;
         P = 7*6;
         r2md = md(16, 20, 1024, size);
-        print "{0:10} {1:6} {2:.4} {3:6} {4:.4}".format(size, int(r1md),
-                                                      r1md/size, int(r2md),
-                                                      r2md/size);
+        r2 = True;
+        R = 8;
+        N = 8;
+        K = 7;
+        S = 0;
+        P = 15*(106 - 2 - 7);
+        lcmd = md(16, 20, 1024, size);
+        print "{:10}, {:10}, {:10.3}, {:10}, {:10.3}, {:10}, {:10.3}".format \
+            (size, int(r1md), r1md/size, int(r2md), r2md/size,
+             int(lcmd), lcmd/size);
 
 if __name__ == "__main__":
     tabulate()
