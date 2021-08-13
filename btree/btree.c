@@ -4231,67 +4231,6 @@ static void btree_callback_credit(struct m0_be_tx_credit *accum)
 	accum->tc_cb_nr += BTREE_CB_CREDIT_CNT;
 }
 
-static void btree_node_alloc_credit2(int shift, struct m0_be_tx_credit *accum)
-{
-	m0_bcount_t node_size;
-
-	node_size = 1ULL << shift;
-	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED,
-			       node_size, shift, accum);
-}
-
-/**
- * This function will calculate credits required to allocate node and it will
- * add those credits to @accum.
- */
-static void btree_node_alloc_credit(const struct m0_btree  *tree,
-				    struct m0_be_tx_credit *accum)
-{
-	int                     shift;
-
-	shift = node_shift(tree->t_desc->t_root);
-	btree_node_alloc_credit2(shift, accum);
-}
-
-/**
- * This function will calculate credits required to update node and it will add
- * those credits to @accum.
- */
-static void btree_node_update_credit(const struct m0_btree  *tree,
-				     struct m0_be_tx_credit *accum)
-{
- 	m0_bcount_t             node_size;
-	int                     shift;
-
-	shift     = node_shift(tree->t_desc->t_root);
-	node_size =  1ULL << shift;
-
-	/**
-	 *  TBD - This routine should call the node specific routine to find out
-	 *  the credits that might be needed for the update operation.
-	 */
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
-}
-
-
-/**
- * This function will calculate credits required for the delete KV operation and
- * add those credits to @accum.
- */
-static void btree_del_credit(const struct m0_btree  *tree, m0_bcount_t ksize,
-			     m0_bcount_t vsize, struct m0_be_tx_credit *accum)
-{
-	struct m0_be_tx_credit cred = {};
-
-	/**
-	 *  TBD - This routine should call the node specific routine to find out
-	 *  the credits that might be needed for the update operation.
-	 */
-	/* Credits for freeing the node. */
-	node_free_credits(tree->t_desc->t_root, ksize, vsize, &cred);
-	m0_be_tx_credit_mac(accum, &cred, MAX_TREE_HEIGHT);
-}
-
 /**
  * This function will calculate credits required to split node and it will add
  * those credits to @accum.
@@ -5651,8 +5590,8 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 
 		m0_rwlock_write_lock(&bop->bo_arbor->t_desc->t_lock);
 		bop->bo_arbor->t_desc->t_height = bop->bo_arbor->t_height;
-		_slot.s_node      = oi->i_nop.no_node;
-		_slot.s_idx       = 0;
+		_slot.s_node                    = oi->i_nop.no_node;
+		_slot.s_idx                     = 0;
 		node_capture(&_slot, bop->bo_tx);
 		m0_rwlock_write_unlock(&bop->bo_arbor->t_desc->t_lock);
 
@@ -8950,11 +8889,18 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		for (i = 1; i < ARRAY_SIZE(key); i++)
 			key[i] = key[0];
 
+		m0_be_ut_tx_init(tx, ut_be);
+		m0_be_tx_prep(tx, &del_cred);
+		rc = m0_be_tx_open_sync(tx);
+		M0_ASSERT(rc == 0);
+
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_del(tree, &rec.r_key,
 							   &ut_cb, 0, &kv_op,
 							   tx));
 		M0_ASSERT(rc == -ENOENT);
+		m0_be_tx_close_sync(tx);
+		m0_be_tx_fini(tx);
 
 		if (key_first != key_last) {
 			key[0] = (key_last << (sizeof(ti->ti_thread_id) * 8)) +
@@ -8963,12 +8909,19 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			for (i = 1; i < ARRAY_SIZE(key); i++)
 				key[i] = key[0];
 
+			m0_be_ut_tx_init(tx, ut_be);
+			m0_be_tx_prep(tx, &del_cred);
+			rc = m0_be_tx_open_sync(tx);
+			M0_ASSERT(rc == 0);
+
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						      m0_btree_del(tree,
 								   &rec.r_key,
 								   &ut_cb, 0,
 								   &kv_op, tx));
 			M0_ASSERT(rc == -ENOENT);
+			m0_be_tx_close_sync(tx);
+			m0_be_tx_fini(tx);
 		}
 
 		key_iter_start = key_last + ti->ti_key_incr;
