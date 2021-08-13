@@ -5381,8 +5381,10 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			if (bop->bo_flags & BOF_EQUAL) {
 				if (oi->i_key_found)
 					node_rec(&s);
-				else
-					s.s_rec.r_flags = M0_BSC_KEY_NOT_FOUND;
+				else {
+					lock_op_unlock(tree);
+					return fail(bop, M0_ERR(-ENOENT));
+				}
 			} else {
 				if (lev->l_idx < count)
 					node_rec(&s);
