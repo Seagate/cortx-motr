@@ -3122,11 +3122,11 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * Node header will contain all the relevant information about the node
  * including node type.
  *
- * The key region will be start after the node header region. Keys will be added
+ * The key region will start after the node header region. Keys will be added
  * (from the end of node header region) in the sorted order and each key will be
- * associated with offset which will be the offset for the value. The offset for
- * value will be useful to get absolute address of value associated with that
- * key.
+ * followed with a field containing the byte-offset of the value (within the
+ * node). The offset for value will be useful to get absolute address of value
+ * associated with that key.
  *
  * The values will be added from the end of the node such that value for the
  * first record will be present at the end of the node. To get the starting
