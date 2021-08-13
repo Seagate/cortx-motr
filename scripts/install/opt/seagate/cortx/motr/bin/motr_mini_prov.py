@@ -821,7 +821,7 @@ def lvm_clean(self):
             execute_command(self, f"lvremove {lv_path}")
             if os.path.exists(lv_path):
                 self.logger.info("Removing dmsetup entries using cmd "
-                                 f"\'dmsetup remove {{lv_path}}\'")
+                                 f"\'dmsetup remove {lv_path}\'")
                 execute_command(self, f"dmsetup remove {lv_path}")
 
         # Removing volume groups
