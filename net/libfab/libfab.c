@@ -49,6 +49,7 @@ static char     *protf[]  = { "unix", "inet", "inet6" };
 static char     *socktype[] = { "stream", "dgram" };
 static uint64_t  mr_key_idx = 0;
 static uint32_t  buf_token = 0;
+static uint32_t  rr_queue[M0_NET_QT_NR+1];
 /** 
  * Bitmap of used transfer machine identifiers. 1 is for used,
  * and 0 is for free.
@@ -77,14 +78,21 @@ M0_TL_DEFINE(fab_bulk, static, struct m0_fab__bulk_op);
 
 static uint32_t libfab_bht_func(const struct m0_htable *ht, const void *key)
 {
-	/* Max number of buckets = 7
-	   The last 3 bits in the token is the bucket id */
-	return (*(uint32_t *)key & 0x7);
+	union m0_fab__token *token = (union m0_fab__token *)key;
+
+	/* Max buckets = ((M0_NET_QT_NR + 1) * FAB_NUM_BUCKETS_PER_QTYPE)
+	   The bucket id is defined by the queue_id and the queue_num
+	   fields of the token */
+	return ((token->t_Fields.tf_queue_id * FAB_NUM_BUCKETS_PER_QTYPE) +
+		token->t_Fields.tf_queue_num);
 }
 
 static bool libfab_bht_key_eq(const void *key1, const void *key2)
 {
-	return ((*(const uint32_t *)key1) == (*(const uint32_t *)key2));
+	union m0_fab__token *token1 = (union m0_fab__token *)key1;
+	union m0_fab__token *token2 = (union m0_fab__token *)key2;
+
+	return (token1->t_val == token2->t_val);
 }
 
 M0_HT_DESCR_DEFINE(fab_bufhash, "Hash of bufs", static, struct m0_fab__buf,
@@ -166,12 +174,13 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
 static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm,
 			      void *ctx);
 static inline struct m0_fab__active_ep *libfab_aep_get(struct m0_fab__ep *ep);
+static int libfab_ping_op(struct m0_fab__active_ep *ep, struct m0_fab__buf *fb);
 static int libfab_bulk_op(struct m0_fab__active_ep *ep, struct m0_fab__buf *fb);
 static inline bool libfab_is_verbs(struct m0_fab__tm *tm);
-static int libfab_bulklist_add(struct m0_fab__tm *tm, struct m0_fab__buf *fb,
-				struct m0_fab__active_ep *aep);
+static int libfab_txbuf_list_add(struct m0_fab__tm *tm, struct m0_fab__buf *fb,
+				 struct m0_fab__active_ep *aep);
 static uint32_t libfab_wr_cnt_get(struct m0_fab__buf *fb);
-static void libfab_bulk_buf_process(struct m0_fab__tm *tm);
+static void libfab_bufq_process(struct m0_fab__tm *tm);
 static uint32_t libfab_buf_token_get(struct m0_fab__buf *fb);
 
 /* libfab init and fini() : initialized in motr init */
@@ -816,7 +825,7 @@ static void libfab_poller(struct m0_fab__tm *tm)
 			}
 		}
 
-		libfab_bulk_buf_process(tm);
+		libfab_bufq_process(tm);
 		if (m0_time_sub(m0_time_now(), tm->ftm_tmout_check) >=
 								 m0_time(1,0))
 			libfab_tm_buf_timeout(tm);
@@ -2083,9 +2092,9 @@ static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
 			case M0_NET_QT_ACTIVE_BULK_RECV:
 			case M0_NET_QT_ACTIVE_BULK_SEND:
 				fbp->fb_wr_cnt = libfab_wr_cnt_get(fbp);
-				ret = libfab_bulklist_add(libfab_buf_ma(nb),
-							  fbp, aep);
-				libfab_bulk_buf_process(libfab_buf_ma(nb));
+				ret = libfab_txbuf_list_add(libfab_buf_ma(nb),
+							    fbp, aep);
+				libfab_bufq_process(libfab_buf_ma(nb));
 				break;
 			default:
 				M0_LOG(M0_ERROR, "Invalid qtype=%d",
@@ -2400,8 +2409,8 @@ static inline bool libfab_is_verbs(struct m0_fab__tm *tm)
 /**
  * Add bulk operation into transfer machine bulk operation list.
  */
-static int libfab_bulklist_add(struct m0_fab__tm *tm, struct m0_fab__buf *fb,
-				struct m0_fab__active_ep *aep)
+static int libfab_txbuf_list_add(struct m0_fab__tm *tm, struct m0_fab__buf *fb,
+				 struct m0_fab__active_ep *aep)
 {
 	struct m0_fab__bulk_op *op;
 
@@ -2472,7 +2481,7 @@ static uint32_t libfab_wr_cnt_get(struct m0_fab__buf *fb)
 /**
  * Process bulk operation from transfer machine bulk operation list.
  */
-static void libfab_bulk_buf_process(struct m0_fab__tm *tm)
+static void libfab_bufq_process(struct m0_fab__tm *tm)
 {
 	struct m0_fab__bulk_op *op;
 	uint32_t                available;
@@ -2481,7 +2490,6 @@ static void libfab_bulk_buf_process(struct m0_fab__tm *tm)
 					FAB_TCP_SOCK_MAX_QUEUE_SIZE;
 
 	m0_tl_for(fab_bulk, &tm->ftm_bulk, op) {
-		/* Keeping 64 entries on CQ for rpc messages */
 		if (op->fbl_aep->aep_bulk_cnt < total)
 			available = total - op->fbl_aep->aep_bulk_cnt;
 		else
@@ -2490,12 +2498,41 @@ static void libfab_bulk_buf_process(struct m0_fab__tm *tm)
 		   libfabric queue and the endpoint is in connected state. */
 		if (op->fbl_buf->fb_wr_cnt <= available &&
 		    op->fbl_aep->aep_tx_state == FAB_CONNECTED) {
-			libfab_bulk_op(op->fbl_aep, op->fbl_buf);
+			if (op->fbl_buf->fb_nb->nb_qtype == M0_NET_QT_MSG_SEND)
+				libfab_ping_op(op->fbl_aep, op->fbl_buf);
+			else
+				libfab_bulk_op(op->fbl_aep, op->fbl_buf);
 			fab_bulk_tlist_del(op);
 			op->fbl_buf->fb_bulk_op = NULL;
 			m0_free(op);
 		}
 	} m0_tl_endfor;
+}
+
+/** 
+ * This function will call the ping transfer operation (send/recv) on the
+ * net-buffer.
+ */
+static int libfab_ping_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
+{
+	struct fi_msg op_msg;
+	struct iovec  iv;
+	int           ret;
+
+	iv.iov_base = fb->fb_nb->nb_buffer.ov_buf[0];
+	iv.iov_len = fb->fb_nb->nb_buffer.ov_vec.v_count[0];
+	op_msg.msg_iov = &iv;
+	op_msg.desc = fb->fb_mr.bm_desc;
+	op_msg.iov_count = 1;
+	op_msg.addr = 0;
+	op_msg.context = &fb->fb_token;
+	op_msg.data = 0;
+	fb->fb_wr_cnt = 1;
+	ret = fi_sendmsg(aep->aep_txep, &op_msg, FI_COMPLETION);
+	if (ret == FI_SUCCESS)
+		aep->aep_bulk_cnt += fb->fb_wr_cnt;
+
+	return ret;
 }
 
 /** 
@@ -2599,12 +2636,21 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
  */
 static uint32_t libfab_buf_token_get(struct m0_fab__buf *fb)
 {
-	uint32_t ret = (fb->fb_nb == NULL) ? M0_NET_QT_NR : fb->fb_nb->nb_qtype;
+	union m0_fab__token token;
+
+	token.t_val = 0;
+	token.t_Fields.tf_queue_id = (fb->fb_nb == NULL) ? M0_NET_QT_NR :
+				     fb->fb_nb->nb_qtype;
 	++buf_token;
-	if (buf_token >= (1 << 24))
-		buf_token = 1;
-	ret |= (buf_token << 8);
-	return ret;
+	if (buf_token == 0)
+		++buf_token;	/* 0 is treated as an invalid value for token*/
+	/* Queue selection round robin for a queue type */
+	++rr_queue[token.t_Fields.tf_queue_id];
+
+	token.t_Fields.tf_queue_num = rr_queue[token.t_Fields.tf_queue_id];
+	token.t_Fields.tf_tag = buf_token;
+
+	return token.t_val;
 }
 
 static int libfab_domain_params_get(struct m0_fab__ndom *fab_ndom)
@@ -2762,7 +2808,8 @@ static int libfab_ma_init(struct m0_net_transfer_mc *ntm)
 		fab_bulk_tlist_init(&ftm->ftm_bulk);
 		ftm->ftm_bufhash.bht_magic = M0_NET_LIBFAB_BUF_HT_HEAD_MAGIC;
 		rc = fab_bufhash_htable_init(&ftm->ftm_bufhash.bht_hash,
-					     (M0_NET_QT_NR + 1));
+					     ((M0_NET_QT_NR + 1) *
+					      FAB_NUM_BUCKETS_PER_QTYPE));
 	} else
 		rc = M0_ERR(-ENOMEM);
 
@@ -2969,10 +3016,6 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	struct m0_fab__active_ep *aep;
 	struct iovec              iv;
 	struct m0_fab__ep_name    epname;
-	struct fi_msg             op_msg;
-	uint32_t                  q_size = libfab_is_verbs(ma) ?
-					  FAB_VERBS_MAX_QUEUE_SIZE :
-					  FAB_TCP_SOCK_MAX_QUEUE_SIZE;
 	int                       ret = 0;
 
 	M0_ENTRY("fb=%p nb=%p q=%d l=%"PRIu64, fbp, nb, nb->nb_qtype,
@@ -3009,21 +3052,10 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		
 		if (aep->aep_tx_state != FAB_CONNECTED)
 			ret = libfab_conn_init(ep, ma, fbp);
-		else if (aep->aep_bulk_cnt >= q_size)
-			ret = -EAGAIN;
 		else {
-			iv.iov_base = nb->nb_buffer.ov_buf[0];
-			iv.iov_len = nb->nb_buffer.ov_vec.v_count[0];
-			op_msg.msg_iov = &iv;
-			op_msg.desc = fbp->fb_mr.bm_desc;
-			op_msg.iov_count = 1;
-			op_msg.addr = 0;
-			op_msg.context = &fbp->fb_token;
-			op_msg.data = 0;
-			fbp->fb_wr_cnt = 1;
-			ret = fi_sendmsg(aep->aep_txep, &op_msg, FI_COMPLETION);
-			if (ret == FI_SUCCESS)
-				aep->aep_bulk_cnt += fbp->fb_wr_cnt;
+			fbp->fb_wr_cnt = nb->nb_buffer.ov_vec.v_nr;
+			ret = libfab_txbuf_list_add(ma, fbp, aep);
+			libfab_bufq_process(ma);
 		}
 		break;
 	}
@@ -3068,8 +3100,8 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 			ret = libfab_conn_init(ep, ma, fbp);
 		else {
 			fbp->fb_wr_cnt = libfab_wr_cnt_get(fbp);
-			ret = libfab_bulklist_add(ma, fbp, aep);
-			libfab_bulk_buf_process(ma);
+			ret = libfab_txbuf_list_add(ma, fbp, aep);
+			libfab_bufq_process(ma);
 		}
 		break;
 	}

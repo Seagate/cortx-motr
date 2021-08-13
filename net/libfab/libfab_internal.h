@@ -101,6 +101,8 @@ enum m0_fab__libfab_params {
 	FAB_MAX_RX_CQ_EV               = 256,
 	/** Max receive buffers in a shared receive pool */
 	FAB_MAX_SRX_SIZE               = 4096,
+	/** Max receive buffers in a shared receive pool */
+	FAB_NUM_BUCKETS_PER_QTYPE      = 128
 };
 
 /**
@@ -157,6 +159,20 @@ enum m0_fab__ep_iface {
 	FAB_LO,
 	FAB_TCP,
 	FAB_O2IB
+};
+
+union m0_fab__token
+{
+	uint32_t t_val;
+	struct
+	{
+		/* m0_log2(roundup_power2(M0_NET_QT_NR+1)) */
+		uint32_t tf_queue_id  : 3;
+		/* m0_log2(LIBFAB_AL_NUM_HASH_Q_PER_QUEUE) */
+		uint32_t tf_queue_num : 7;
+		/* 32 - m0_log2(LIBFAB_AL_NUM_HASH_Q_PER_QUEUE) - m0_log2(roundup_power2(M0_NET_QT_NR+1)) */
+		uint32_t tf_tag       : 22;
+	} t_Fields;
 };
 
 /**

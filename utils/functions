@@ -112,7 +112,14 @@ m0_default_xpt()
 {
     local trans
     local user
+
+    touch $M0_SRC_DIR/scripts/st.d/net_xpt
     user=$(cat $M0_SRC_DIR/scripts/st.d/net_xpt)
+    if [ "$user" = "" ]; then
+        echo "libfab" > $M0_SRC_DIR/scripts/st.d/net_xpt
+        user=$(cat $M0_SRC_DIR/scripts/st.d/net_xpt)
+    fi
+
     if [ "$user" = "libfab" ]; then
         trans=$(whereis fi_info | cut -d ':' -f2)
         $trans > /dev/null
