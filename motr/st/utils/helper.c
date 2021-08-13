@@ -256,6 +256,7 @@ static int create_object(struct m0_entity *entity)
 	M0_LOG(M0_DEBUG, "post create object, obj->ob_attr.oa_pver :"FID_F,
 	       FID_P(&obj->ob_attr.oa_pver));
 
+	M0_ASSERT(false);
 	m0_op_fini(ops[0]);
 	m0_op_free(ops[0]);
 
