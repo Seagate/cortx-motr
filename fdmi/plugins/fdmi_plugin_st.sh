@@ -63,6 +63,23 @@ do_some_kv_operations()
 			rc=$?
 			echo "m0kv failed"
 		}
+
+		echo "Now, let's delete 'key2' from this index"
+		$M0_SRC_DIR/utils/m0kv ${MOTR_PARAM}                                       \
+					index del    "$DIX_FID" "key2"                     \
+				 || {
+			rc=$?
+			echo "'m0kv index del' failed"
+		}
+
+		echo "Now, let's get 'key2' from this index again. It should fail."
+		$M0_SRC_DIR/utils/m0kv ${MOTR_PARAM}                                       \
+					index get    "$DIX_FID" "key2"                     \
+				 && {
+			rc=$?
+			echo "'m0kv index get' is expected to fail, but not"
+		}
+
 	done
 	return $rc
 }
