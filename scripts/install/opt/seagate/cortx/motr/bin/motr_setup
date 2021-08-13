@@ -45,8 +45,8 @@ class Cmd:
         Conf.load(self._index_motr_hare, self._url_motr_hare)
         self._args = args.args
         self._debug = args.debug
-        self.server_node = get_server_node(self)
         self.logger = config_logger(self)
+        self.server_node = get_server_node(self)
 
     @property
     def args(self) -> str:

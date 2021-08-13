@@ -812,18 +812,42 @@ def lvm_clean(self):
         cmd = f"lvs|grep {vg} |" "awk '{print $1}'"
         lv_names = execute_command(self, cmd)[0].split('\n')[0:-1]
 
+        # Removing logical volumes
         for lv in lv_names:
             lv_path = f"/dev/{vg}/{lv}"
             self.logger.info(f"Executing lvchange -an {lv_path}")
             execute_command(self, f"lvchange -an {lv_path}")
             self.logger.info(f"Executing lvremove {lv_path}")
             execute_command(self, f"lvremove {lv_path}")
+            if os.path.exists(lv_path):
+                self.logger.info("Removing dmsetup entries using cmd "
+                                 f"\'dmsetup remove {{lv_path}}\'")
+                execute_command(self, f"dmsetup remove {lv_path}")
+
+        # Removing volume groups
         self.logger.info(f"Executing vgchange -an {vg}")
         execute_command(self, f"vgchange -an {vg}")
         self.logger.info(f"Executing vgremove {vg}")
         execute_command(self, f"vgremove {vg}")
+
+        # Removing physical volumes
         for pv in pv_names:
-            self.logger.info(f"pvremove {pv}")
+            self.logger.info(f"Executing pvremove {pv}")
             execute_command(self, f"pvremove {pv}")
-            self.logger.info(f"wipefs -a {pv}")
+            self.logger.info(f"Executing wipefs -a {pv}")
             execute_command(self, f"wipefs -a {pv}")
+
+    # In some case, we still have dm entries even though all VG, LV, PV
+    # are removed. This is observed in hw setups where lvms are not cleaned up
+    remove_dm_entries(self)
+
+def remove_dm_entries(self):
+    cmd = "ls -l /dev/vg_srvnode*/* | awk '{print $9}'"
+    lv_paths = execute_command(self, cmd)[0].split('\n')
+    for lv_path in lv_paths:
+        if lv_path == '':
+            continue
+        else:
+            if os.path.exists(lv_path):
+                self.logger.info(f"dmsetup remove {lv_path}")
+                execute_command(self, f"dmsetup remove {lv_path}")
