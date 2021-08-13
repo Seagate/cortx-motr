@@ -3142,6 +3142,12 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 struct fkvv_head {
 	struct m0_format_header  fkvv_fmt;    /*< Node Header */
 	struct node_header       fkvv_seg;    /*< Node type information */
+
+	/**
+	 * The above 2 structures should always be together with node_header
+	 * following the m0_format_header.
+	 */
+
 	uint16_t                 fkvv_used;   /*< Count of records */
 	uint8_t                  fkvv_shift;  /*< Node size as pow-of-2 */
 	uint8_t                  fkvv_level;  /*< Level in Btree */
