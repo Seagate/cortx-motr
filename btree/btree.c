@@ -3085,6 +3085,600 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *  --------------------------------------------
  */
 
+#if 0
+/**
+ *  --------------------------------------------------------
+ *  Section START -
+ *  Fix Sized Keys and Variable Sized Value Node Structure
+ *  ---------------------------------------------------------
+ */
+
+/**
+ *
+ * Proposed Node Structure for Fix Sized Keys and Variable Sized Value :
+ *
+ * +-----------+----+-+----+-+----+-+------------------------------------+----+----+----+
+ * |           |    | |    | |    | |                                    |    |    |    |
+ * |           |    | |    | |    | |                                    |    |    |    |
+ * |Node Header| K0 | | K1 | | K2 | | ----->                      <----- | V2 | V1 | V0 |
+ * |           |    | |    | |    | |                                    |    |    |    |
+ * |           |    | |    | |    | |                                    |    |    |    |
+ * +-----------+----+++----+++----+++------------------------------------+----+----+----+
+ *                   |      |      |                                     ^    ^    ^
+ *                   |      |      |                                     |    |    |
+ *                   |      |      |                                     |    |    |
+ *                   +------+------+-------------------------------------+    |    |
+ *                          |      |                                          |    |
+ *                          +------+------------------------------------------+    |
+ *                                 |                                               |
+ *                                 +-----------------------------------------------+
+ *
+ * The above structure represents the way fixed key size and variable value size
+ * node format will get stored in memory.
+ *
+ * Node can be mainly divided into three region, node header, region for keys
+ * and region for values.
+ *
+ * Node header will contain all the relevant information about the node
+ * including node type.
+ *
+ * The key region will start after the node header region. Keys will be added
+ * (from the end of node header region) in the sorted order and each key will be
+ * followed with a field containing the byte-offset of the value (within the
+ * node). The offset for value will be useful to get absolute address of value
+ * associated with that key.
+ *
+ * The values will be added from the end of the node such that value for the
+ * first record will be present at the end of the node. To get the starting
+ * address of value at index i, we will add offset associated with ith key to
+ * the end address of the node; the size of the value will be difference of
+ * offset for value at index i and offset for previous value.
+ *
+ * In this way, keys (which will also include offset for value) will be added
+ * from right to left starting after node header region and value will be added
+ * from left to right starting from end of the node.
+ *
+ */
+struct fkvv_head {
+	struct m0_format_header  fkvv_fmt;    /*< Node Header */
+	struct node_header       fkvv_seg;    /*< Node type information */
+
+	/**
+	 * The above 2 structures should always be together with node_header
+	 * following the m0_format_header.
+	 */
+
+	uint16_t                 fkvv_used;   /*< Count of records */
+	uint8_t                  fkvv_shift;  /*< Node size as pow-of-2 */
+	uint8_t                  fkvv_level;  /*< Level in Btree */
+	uint16_t                 fkvv_ksize;  /*< Size of key in bytes */
+	struct m0_format_footer  fkvv_foot;   /*< Node Footer */
+	void                    *fkvv_opaque; /*< opaque data */
+	/**
+	 *  This space is used to host the Keys and Values upto the size of the
+	 *  node
+	 */
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
+
+static void fkvv_init(const struct segaddr *addr, int shift, int ksize,
+		      int vsize, uint32_t ntype, struct m0_be_seg *seg,
+		      struct m0_be_tx *tx);
+static void fkvv_fini(const struct nd *node, struct m0_be_tx *tx);
+static int  fkvv_count(const struct nd *node);
+static int  fkvv_count_rec(const struct nd *node);
+static int  fkvv_space(const struct nd *node);
+static int  fkvv_level(const struct nd *node);
+static int  fkvv_shift(const struct nd *node);
+static int  fkvv_keysize(const struct nd *node);
+static int  fkvv_valsize(const struct nd *node);
+static bool fkvv_isunderflow(const struct nd *node, bool predict);
+static bool fkvv_isoverflow(const struct nd *node);
+static void fkvv_fid(const struct nd *node, struct m0_fid *fid);
+static void fkvv_rec(struct slot *slot);
+static void fkvv_node_key(struct slot *slot);
+static void fkvv_child(struct slot *slot, struct segaddr *addr);
+static bool fkvv_isfit(struct slot *slot);
+static void fkvv_done(struct slot *slot, struct m0_be_tx *tx, bool modified);
+static void fkvv_make(struct slot *slot, struct m0_be_tx *tx);
+static bool fkvv_find(struct slot *slot, const struct m0_btree_key *key);
+static void fkvv_fix(const struct nd *node, struct m0_be_tx *tx);
+static void fkvv_cut(const struct nd *node, int idx, int size,
+		   struct m0_be_tx *tx);
+static void fkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx);
+static void fkvv_set_level(const struct nd *node, uint8_t new_level,
+			 struct m0_be_tx *tx);
+static bool fkvv_invariant(const struct nd *node);
+static bool fkvv_expensive_invariant(const struct nd *node);
+static bool fkvv_verify(const struct nd *node);
+static void fkvv_opaque_set(const struct segaddr *addr, void *opaque);
+static void *fkvv_opaque_get(const struct segaddr *addr);
+static void fkvv_capture(struct slot *slot, struct m0_be_tx *tx);
+static int  fkvv_create_delete_credit_size(void);
+static const struct node_type fixed_key_variable_value_format = {
+	.nt_id                        = BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+	.nt_name                      = "m0_bnode_fixed_key_variable_val_format",
+	//.nt_tag,
+	.nt_init                      = fkvv_init,
+	.nt_fini                      = fkvv_fini,
+	.nt_count                     = fkvv_count,
+	.nt_count_rec                 = fkvv_count_rec,
+	.nt_space                     = fkvv_space,
+	.nt_level                     = fkvv_level,
+	.nt_shift                     = fkvv_shift,
+	.nt_keysize                   = fkvv_keysize,
+	.nt_valsize                   = fkvv_valsize,
+	.nt_isunderflow               = fkvv_isunderflow,
+	.nt_isoverflow                = fkvv_isoverflow,
+	.nt_fid                       = fkvv_fid,
+	.nt_rec                       = fkvv_rec,
+	.nt_key                       = fkvv_node_key,
+	.nt_child                     = fkvv_child,
+	.nt_isfit                     = fkvv_isfit,
+	.nt_done                      = fkvv_done,
+	.nt_make                      = fkvv_make,
+	.nt_find                      = fkvv_find,
+	.nt_fix                       = fkvv_fix,
+	.nt_cut                       = fkvv_cut,
+	.nt_del                       = fkvv_del,
+	.nt_set_level                 = fkvv_set_level,
+	.nt_move                      = generic_move,
+	.nt_invariant                 = fkvv_invariant,
+	.nt_expensive_invariant       = fkvv_expensive_invariant,
+	.nt_isvalid                   = segaddr_header_isvalid,
+	.nt_verify                    = fkvv_verify,
+	.nt_opaque_set                = fkvv_opaque_set,
+	.nt_opaque_get                = fkvv_opaque_get,
+	.nt_capture                   = fkvv_capture,
+	.nt_create_delete_credit_size = fkvv_create_delete_credit_size,
+};
+
+static void fkvv_init(const struct segaddr *addr, int shift, int ksize,
+		      int vsize, uint32_t ntype, struct m0_be_seg *seg,
+		      struct m0_be_tx *tx)
+{
+	struct fkvv_head *h   = segaddr_addr(addr);
+
+	M0_PRE(ksize != 0);
+	M0_SET0(h);
+
+	h->fkvv_shift           = shift;
+	h->fkvv_ksize           = ksize;
+	h->fkvv_seg.h_node_type = ntype;
+	h->fkvv_opaque          = NULL;
+
+	m0_format_header_pack(&h->fkvv_fmt, &(struct m0_format_tag){
+		.ot_version       = M0_BE_BNODE_FORMAT_VERSION,
+		.ot_type          = M0_FORMAT_TYPE_BE_BNODE,
+		.ot_footer_offset = offsetof(struct fkvv_head, fkvv_foot)
+	});
+	m0_format_footer_update(h);
+
+	/**
+	 * This is the only time we capture the opaque data of the header. No
+	 * other place should the opaque data get captured and written to BE
+	 * segment.
+	 */
+}
+
+static struct fkvv_head *fkvv_data(const struct nd *node)
+{
+	return segaddr_addr(&node->n_addr);
+}
+
+static void fkvv_fini(const struct nd *node, struct m0_be_tx *tx)
+{
+	struct fkvv_head *h = fkvv_data(node);
+	m0_format_header_pack(&h->fkvv_fmt, &(struct m0_format_tag){
+		.ot_version       = 0,
+		.ot_type          = 0,
+		.ot_footer_offset = 0
+	});
+
+	h->fkvv_fmt.hd_magic = 0;
+}
+
+static int fkvv_count(const struct nd *node)
+{
+	int used = fkvv_data(node)->fkvv_used;
+	if (fkvv_data(node)->fkvv_level > 0)
+		used --;
+	return used;
+}
+
+static int fkvv_count_rec(const struct nd *node)
+{
+	return fkvv_data(node)->fkvv_used;
+}
+
+static int fkvv_space(const struct nd *node)
+{
+	/**
+	 * This function will return total space available in the node.
+	 *
+	 * struct fkvv_head *h     = fkvv_data(node);
+	 * int               count = h->fkvv_used;
+	 * int               total_key_size;
+	 * int               total_val_size;
+	 * return (1ULL << h->fkvv_shift) - sizeof *h - total_key_size - total_val_size;
+	 *
+	 */
+}
+
+static int fkvv_level(const struct nd *node)
+{
+	return fkvv_data(node)->fkvv_level;
+}
+
+static int fkvv_shift(const struct nd *node)
+{
+	return fkvv_data(node)->fkvv_shift;
+}
+
+static int fkvv_keysize(const struct nd *node)
+{
+	return fkvv_data(node)->fkvv_ksize;
+}
+
+static int fkvv_valsize(const struct nd *node)
+{
+	/**
+	 * This function will return value size present in node. As, the value
+	 * size will be not be fixed for fixed key, variable value size format
+	 * returning -1.
+	*/
+	return -1;
+}
+
+static bool fkvv_isunderflow(const struct nd *node, bool predict)
+{
+	/**
+	 * This function should will predict or determine underflow for node.
+	 * If predict is set as true, function determines if there is
+	 * possibility of underflow else it determines if there is an underflow
+	 * at node.
+	*/
+
+}
+
+static bool fkvv_isoverflow(const struct nd *node)
+{
+	/**
+	 * This function will predict if there is possibility of overflow after
+	 * adding record.
+	 * Size of value needs to be passed to this function to determine
+	 * overflow possibility.
+	 */
+}
+
+static void fkvv_fid(const struct nd *node, struct m0_fid *fid)
+{
+}
+
+static uint32_t *fkvv_val_offset_get(const struct nd *node, int idx)
+{
+	/**
+	 * This function will return pointer to the offset of value at given
+	 * index @idx.
+	 *
+	 * struct fkvv_head *h              = fkvv_data(node);
+	 * void             *start_addr     = h + 1;
+	 * uint32_t         *p_offset;
+	 *
+	 * p_offset = start_addr + (h->fkvv_ksize + ((h->fkvv_ksize + sizeof(uint32_t)) * idx));
+	 *
+	 * return p_offset;
+	 */
+
+}
+
+static void fkvv_val_offset_set(const struct nd *node, int idx, uint32_t offset_val)
+{
+	/**
+	 * This function will set offset for value at given index @idx equal to
+	 * given @offset_val
+	 *
+	 * uint32_t         *p_offset;
+	 *
+	 * p_offset = fkvv_val_offset_get(node, idx);
+	 * p_offset = offset_val;
+	 */
+}
+
+static void *fkvv_key(const struct nd *node, int idx)
+{
+	/**
+	 * This function will return starting address of key present at index
+	 * @idx.
+	 *
+	 * struct fkvv_head *h    = fkvv_data(node);
+	 * void             *area = h + 1;
+	 *
+	 * M0_PRE(ergo(!(h->fkvv_used == 0 && idx == 0),
+	 * 		(0 <= idx && idx <= h->fkvv_used)));
+	 *
+	 * return area + (h->fkvv_ksize + sizeof(uint32_t)) * idx;
+	 */
+
+}
+
+static void *fkvv_val(const struct nd *node, int idx)
+{
+	/**
+	 * This function will return starting address of key present at index
+	 * @idx.
+	 *
+	 * void             *start_node_addr = fkvv_data(node);
+	 * struct fkvv_head *h               = start_node_addr;
+	 *
+	 * void             *end_node_addr;
+	 * uint32_t         *value_offset;
+	 *
+	 * end_node_addr = start_node_addr + (1ULL << h->fkvv_shift);
+	 * value_offset  = fkvv_val_offset_get(node, idx);
+	 * M0_PRE(ergo(!(h->fkvv_used == 0 && idx == 0),
+	 * 	(0 <= idx && idx <= h->fkvv_used)));
+	 *
+	 * return end_node_addr - *(value_offset);
+	 */
+
+}
+
+static void fkvv_rec(struct slot *slot)
+{
+	/**
+	 * This function will receive slot which will have index; based on the
+	 * index we need to fill the record provided in slot.
+	 *
+	 * slot->s_rec.r_key.k_data.ov_buf[0] and slot->s_rec.r_val.ov_buf[0]
+	 * should be filled with memory address of key and value at given index
+	 * resepctively.
+	 * Similarly, v_count[0] should be filled with size of key/value.
+	*/
+	#if 0
+	struct fkvv_head *h = fkvv_data(slot->s_node);
+
+	M0_PRE(ergo(!(h->fkvv_used == 0 && slot->s_idx == 0),
+		    slot->s_idx <= h->fkvv_used));
+
+	slot->s_rec.r_val.ov_vec.v_nr = 1;
+	slot->s_rec.r_val.ov_vec.v_count[0] = total_val_size;
+	slot->s_rec.r_val.ov_buf[0] = fkvv_val(slot->s_node, slot->s_idx);
+	fkvv_node_key(slot);
+	#endif
+}
+
+static void fkvv_node_key(struct slot *slot)
+{
+	/**
+	 * This function will receive slot which will have index; based on the
+	 * index we need to fill the slot->s_rec.r_key provided in slot.
+	 *
+	 * slot->s_rec.r_key.k_data.ov_buf[0] should be filled with memory
+	 * address of key.
+	 * Similarly, v_count[0] should be filled with size of key.
+	 */
+
+	#if 0
+	const struct nd  *node = slot->s_node;
+	struct fkvv_head   *h    = fkvv_data(node);
+
+	M0_PRE(ergo(!(h->fkvv_used == 0 && slot->s_idx == 0),
+		    slot->s_idx <= h->fkvv_used));
+
+	slot->s_rec.r_key.k_data.ov_vec.v_nr = 1;
+	slot->s_rec.r_key.k_data.ov_vec.v_count[0] = h->fkvv_ksize;
+	slot->s_rec.r_key.k_data.ov_buf[0] = fkvv_key(slot->s_node, slot->s_idx);
+	#endif
+}
+
+static void fkvv_child(struct slot *slot, struct segaddr *addr)
+{
+	/**
+	 * This function will return the memory address pointing to its child
+	 * node. We will call the function fkvv_val() for this purpose.
+	 * This function is called for internal nodes.
+	 */
+}
+
+static bool fkvv_isfit(struct slot *slot)
+{
+	/**
+	 * This function will determine if the given record provided by
+	 * the solt can be added to the node.
+	 */
+}
+
+static void fkvv_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
+{
+	/**
+	 * Function implementation is not needed yet. In future if we want to
+	 * calculate checksum per record, we might want to implement this
+	 * function.
+	*/
+}
+
+static void fkvv_make(struct slot *slot, struct m0_be_tx *tx)
+{
+	/**
+	 * This function will make space for given record at given index; record
+	 * and index will be provided with slot.
+	 *
+	 * After making space for key and value at given index, it will also
+	 * update the offset for value and set the offset for new value.
+	 *
+	 */
+	#if 0
+	if (idx == 0) {
+		offset_for_new_val = incoming_val_size;
+	} else {
+		val_offset_at_prev_idx = fkvv_val_offset_get(slot->s_node, slot->s_idx - 1);
+		offset_for_new_val = *val_offset_at_prev_idx + incoming_val_size;
+	}
+
+	if(slot->s_idx == h->fkvv_used) {
+		h->fkvv_used++;
+		fkvv_val_offset_set(slot->s_node, idx, offset_for_new_val);
+		return;
+	}
+
+	/* calculate source addresses for memmove */
+	addr_key_at_idx = fkvv_key(slot->s_node, idx);
+	addr_val_at_last_idx = fkvv_val(slot->s_node, h->fkvv_used - 1);
+
+	/*calculate total key and value size required to move */
+
+	total_key_size = (key_offset_area_size) * (h->fkvv_used - slot->s_idx);
+
+	if (idx == 0){
+		total_val_size = (*fkvv_val_offset_get(slot->s_node, h->fkvv_used-1));
+	} else {
+		total_val_size = (*fkvv_val_offset_get(slot->s_node, h->fkvv_used-1)) - (*fkvv_val_offset_get(slot->s_node, idx -1));
+	}
+
+	memmove(addr_key_at_idx + key_offset_area_size, addr_key_at_idx, total_key_size);
+	memmove(addr_val_at_last_idx - incoming_val_size, addr_val_at_last_idx , total_val_size);
+
+	h->fkvv_used++;
+
+	/* update value offset */
+	fkvv_val_offset_set(slot->s_node, idx, offset_for_new_val);
+	for(i = idx+1; i < h->fkvv_used; i++)
+	{
+		val_offset_at_i = fkvv_val_offset_get(slot->s_node, i);
+		*val_offset_at_i = *val_offset_at_i + incoming_val_size;
+	}
+	#endif
+}
+
+static bool fkvv_find(struct slot *slot, const struct m0_btree_key *key)
+{
+	return 0;
+}
+
+static void fkvv_fix(const struct nd *node, struct m0_be_tx *tx)
+{
+
+}
+
+static void fkvv_cut(const struct nd *node, int idx, int size,
+		   struct m0_be_tx *tx)
+{
+
+}
+
+static void fkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx)
+{
+	#if 0
+	if (idx == h->fkvv_used - 1){
+		h->fkvv_used--;
+		return;
+	}
+
+	key_offset_area_size = h->fkvv_ksize + sizeof(uint32_t);
+	if (idx == 0)
+		value_size = val_offset_at_idx;
+	else
+		value_size = val_offset_at_idx - val_offset_at_prev_idx;
+
+
+
+	addr_key_at_i = fkvv_key(node, idx);
+	addr_val_at_i = fkvv_val(node, idx);
+
+	total_key_size = (key_offset_area_size) * (h->fkvv_used - slot->s_idx - 1);
+	total_val_size = val_offset_of_last - val_offset_of_i;
+
+	memmove(addr_key_at_i, addr_key_at_i + key_offset_area_size, total_key_size);
+	memmove(addr_val_at_i + value_size, addr_val_at_i, total_value_size);
+
+	h->fkvv_used--;
+
+	/* Update value offset */
+	for( int i=idx;i<h->fkvv_used;i++)
+		val_offset_at_i = val_offset_at_i - value_size;
+	#endif
+
+}
+
+static void fkvv_set_level(const struct nd *node, uint8_t new_level,
+			 struct m0_be_tx *tx)
+{
+	struct fkvv_head *h = fkvv_data(node);
+
+	h->fkvv_level = new_level;
+}
+
+static bool fkvv_invariant(const struct nd *node)
+{
+	/**
+	 * This function perform basic validation of node.
+	 */
+	#if 0
+	const struct fkvv_head *h = fkvv_data(node);
+
+	/* TBD: add check for h_tree_type after initializing it in node_init. */
+	return  _0C(h->fkvv_fmt.hd_magic == M0_FORMAT_HEADER_MAGIC) &&
+		_0C(h->fkvv_seg.h_node_type == BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE) &&
+		_0C(h->fkvv_ksize != 0) &&
+		_0C(h->fkvv_shift == segaddr_shift(&node->n_addr));
+	#endif
+}
+
+static bool fkvv_expensive_invariant(const struct nd *node)
+{
+	/**
+	 * This function validates if the keys are in sorted order or not.
+	 */
+}
+
+static bool fkvv_verify(const struct nd *node)
+{
+	/**
+	 * This function verify the data in the node header.
+	 */
+}
+
+static void fkvv_opaque_set(const struct segaddr *addr, void *opaque)
+{
+	/**
+	 * This function saves the opaque data.
+	 */
+	struct fkvv_head *h = segaddr_addr(addr);
+	h->fkvv_opaque = opaque;
+	/** This change should NEVER be captured.*/
+}
+
+static void *fkvv_opaque_get(const struct segaddr *addr)
+{
+	/**
+	 * This function return the opaque data.
+	 */
+	struct fkvv_head *h = segaddr_addr(addr);
+	return h->fkvv_opaque;
+}
+
+static void fkvv_capture(struct slot *slot, struct m0_be_tx *tx)
+{
+	/**
+	 * This function will capture the data in node segment.
+	 */
+}
+
+static int fkvv_create_delete_credit_size(void)
+{
+	/**
+	 * This function will return credits required for btree create and
+	 * destroy operation.
+	*/
+}
+
+/**
+ *  --------------------------------------------------------
+ *  Section END -
+ *  Fixed Sized Keys and Variable Sized Value Node Structure
+ *  ---------------------------------------------------------
+ */
+#endif
 /**
  *  --------------------------------------------
  *  Section START -
