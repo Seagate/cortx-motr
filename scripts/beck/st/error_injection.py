@@ -66,7 +66,7 @@ parser.add_argument('-huge', action='store_true', default=False, dest='hugeCorru
                     help='Induce Huge amount of corruption in Metadata')
 parser.add_argument('-seed', action='store', default=0, type=float, dest='seed',
                     help='Seed is used to initialize the "random" library: to initialize the random generation')
-parser.add_argument('-emap', action='store', dest='corrupt_emap', help='Induce Error in Emap specified by Cob Id')
+parser.add_argument('-corrupt_emap', action='store', dest='corrupt_emap', help='Induce Error in Emap specified by Cob Id')
 parser.add_argument('-list_emap', action='store_true', default=False, dest='list_emap',
                     help='Display all Emap keys with device id')
 parser.add_argument('-parse_size', action='store', dest='parse_size', type=int,
@@ -396,8 +396,6 @@ def ConvertAdstob2Cob(stob_f_container, stob_f_key):
 
 # This function take cob_f_cotainer, cob_f_key and returns stob_f_container, stob_f_key
 def ConvertCobAdstob(cob_f_container, cob_f_key):
-    M0_FID_DEVICE_ID_OFFSET = 32
-    M0_FID_DEVICE_ID_MASK = 72057589742960640
     M0_FID_TYPE_MASK = 72057594037927935
 
     # m0_fid_tassume()
@@ -409,9 +407,11 @@ def ConvertCobAdstob(cob_f_container, cob_f_key):
 
 # This function corrupt Emap Record specified by Cob Id
 def CorruptEmap(recordType, stob_f_container, stob_f_key):
+    count = 0
     read_metadata_file()
     lookupList = recordDict[recordType]
-    logger.info("Offset List of {} = {} ".format(recordType, lookupList))
+    # logger.info("Offset List of {} = {} ".format(recordType, lookupList))
+    logger.info("*****Corrupting BE_EMAP_KEY for Cob ID {}*****".format(args.corrupt_emap))
 
     for offset in lookupList:
         emap_key_data, offset = ReadCompleteRecord(offset)
@@ -419,37 +419,39 @@ def CorruptEmap(recordType, stob_f_container, stob_f_key):
             # 16 bytes of BE_EMAP_KEY (footer) + 16 bytes of BE_EMAP_REC(header) gives offset of corresponding BE_EMAP_REC
             rec_offset = offset + 32
             emap_rec_data, rec_offset = ReadCompleteRecord(rec_offset)
-            logger.info("** Metadata at offset {}, BE_EMAP_KEY ek_prefix = {}:{}, ek_offset = {}".format(offset-24,
-                        emap_key_data[0], emap_key_data[1], emap_key_data[2]))
-            logger.info("** Metadata at offset {}, BE_EMAP_REC er_start = {}, er_value = {}, er_unit_size = {}, er_cs_nob = {}, checksum = {}".format(
-                        offset+32, emap_rec_data[0], emap_rec_data[1], emap_rec_data[2], emap_rec_data[3], emap_rec_data[4:],))
+
             # Check er_cs_nob and if it is not 0 then go and corrupt last checksum 8 bytes
             if emap_rec_data[3] != "0x0":
+                logger.info("** Metadata at offset {}, BE_EMAP_KEY ek_prefix = {}:{}, ek_offset = {}".format(offset-24,
+                        emap_key_data[0], emap_key_data[1], emap_key_data[2]))
+                logger.info("** Metadata at offset {}, BE_EMAP_REC er_start = {}, er_value = {}, er_unit_size = {}, er_cs_nob = {}, checksum = {}".format(
+                        offset+32, emap_rec_data[0], emap_rec_data[1], emap_rec_data[2], emap_rec_data[3], emap_rec_data[4:]))
                 EditMetadata(rec_offset-8)
+                count = count + 1
                 print()
-
+    return count
 
 def ListAllEmapPerDevice():
-    print("Listing all emap keys and emap records with device id")
+    logger.info("*****Listing all emap keys and emap records with device id*****")
     recordType = "BE_EMAP_KEY"
     read_metadata_file()
     lookupList = recordDict[recordType]
-    logger.info(lookupList)
+    # logger.info(lookupList)
 
     for offset in lookupList:
         print()
         emap_key_data , offset = ReadCompleteRecord(offset)
         stob_f_container_hex = emap_key_data[0]
         stob_f_key_hex = emap_key_data[1]
-        cob_f_container, cob_f_key, device_id = ConvertAdstob2Cob(stob_f_container_hex, stob_f_key_hex)
+        _, _, device_id = ConvertAdstob2Cob(stob_f_container_hex, stob_f_key_hex)
         # 16 bytes of BE_EMAP_KEY (footer) + 16 bytes of BE_EMAP_REC(header) gives offset of Corresponding BE_EMAP_REC
         emap_rec_offset = offset + 32
-        emap_rec_data, rec_offset = ReadCompleteRecord(emap_rec_offset)
+        emap_rec_data, _ = ReadCompleteRecord(emap_rec_offset)
 
         logger.info("** Metadata at offset {}, BE_EMAP_KEY ek_prefix = {}:{}, ek_offset = {}, Device ID = {}".format(offset,
                     emap_key_data[0], emap_key_data[1], emap_key_data[2], device_id))
         logger.info("** Metadata at offset {}, BE_EMAP_REC er_start = {}, er_value = {}, er_unit_size = {}, er_cs_nob = {}, checksum = {}".format(
-                    emap_rec_offset, emap_rec_data[0], emap_rec_data[1], emap_rec_data[2], emap_rec_data[3], emap_rec_data[4:],))
+                    emap_rec_offset, emap_rec_data[0], emap_rec_data[1], emap_rec_data[2], emap_rec_data[3], emap_rec_data[4:]))
 
 
 def VerifyLengthOfRecord(recordDict):
@@ -527,7 +529,7 @@ elif args.corrupt_emap:
     cob_f_container = hex(int(_f_container, 16))
     cob_f_key = hex(int(_f_key, 16))
     stob_f_container, stob_f_key = ConvertCobAdstob(cob_f_container, cob_f_key)
-    CorruptEmap("BE_EMAP_KEY", stob_f_container, stob_f_key)
+    noOfErrs = CorruptEmap("BE_EMAP_KEY", stob_f_container, stob_f_key)
 
 elif args.list_emap:
     ListAllEmapPerDevice()
