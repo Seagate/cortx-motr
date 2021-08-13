@@ -423,9 +423,9 @@ def CorruptEmap(recordType, stob_f_container, stob_f_key):
             # Check er_cs_nob and if it is not 0 then go and corrupt last checksum 8 bytes
             if emap_rec_data[3] != "0x0":
                 logger.info("** Metadata at offset {}, BE_EMAP_KEY ek_prefix = {}:{}, ek_offset = {}".format(offset-24,
-                        emap_key_data[0], emap_key_data[1], emap_key_data[2]))
+                            emap_key_data[0], emap_key_data[1], emap_key_data[2]))
                 logger.info("** Metadata at offset {}, BE_EMAP_REC er_start = {}, er_value = {}, er_unit_size = {}, er_cs_nob = {}, checksum = {}".format(
-                        offset+32, emap_rec_data[0], emap_rec_data[1], emap_rec_data[2], emap_rec_data[3], emap_rec_data[4:]))
+                            offset+32, emap_rec_data[0], emap_rec_data[1], emap_rec_data[2], emap_rec_data[3], emap_rec_data[4:]))
                 EditMetadata(rec_offset-8)
                 count = count + 1
                 print()
