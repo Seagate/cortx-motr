@@ -7969,7 +7969,6 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 							      &kv_op, tx));
 		M0_ASSERT(rc == M0_ERR(-ENOENT));
 
-
 		/** GET and ITERATE over the keys which we inserted above. */
 
 		/**  Randomly decide the iteration direction. */
@@ -8206,6 +8205,77 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			keys_put_count--;
 
 			UT_THREAD_QUIESCE_IF_REQUESTED();
+		}
+
+		/**
+		 *  Verify deleted Keys are not 'visible'.
+		 *  We try to read the first key and last key added in this
+		 *  iteration from the btree and make sure ENOENT error is
+		 *  returned for each of the Keys.
+		 */
+		key_first = key_iter_start;
+
+		key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+			 ti->ti_thread_id;
+		key[0] = m0_byteorder_cpu_to_be64(key[0]);
+		for (i = 1; i < ARRAY_SIZE(key); i++)
+			key[i] = key[0];
+
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_get(tree,
+							   &rec.r_key,
+							   &ut_get_cb,
+							   BOF_EQUAL, &kv_op));
+		M0_ASSERT(rc == -ENOENT);
+
+		if (key_first != key_last) {
+			key[0] = (key_last << (sizeof(ti->ti_thread_id) * 8)) +
+				 ti->ti_thread_id;
+			key[0] = m0_byteorder_cpu_to_be64(key[0]);
+			for (i = 1; i < ARRAY_SIZE(key); i++)
+				key[i] = key[0];
+
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_get(tree,
+								   &rec.r_key,
+								   &ut_get_cb,
+								   BOF_EQUAL,
+								   &kv_op));
+			M0_ASSERT(rc == -ENOENT);
+		}
+
+		/**
+		 *  Try to delete the first key and last key added in this
+		 *  iteration from the btree and make sure ENOENT error is
+		 *  returned for each of the Keys.
+		 */
+		key_first = key_iter_start;
+
+		key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+			 ti->ti_thread_id;
+		key[0] = m0_byteorder_cpu_to_be64(key[0]);
+		for (i = 1; i < ARRAY_SIZE(key); i++)
+			key[i] = key[0];
+
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_del(tree, &rec.r_key,
+							   &ut_cb, 0, &kv_op,
+							   tx));
+		M0_ASSERT(rc == -ENOENT);
+
+		if (key_first != key_last) {
+			key[0] = (key_last << (sizeof(ti->ti_thread_id) * 8)) +
+				 ti->ti_thread_id;
+			key[0] = m0_byteorder_cpu_to_be64(key[0]);
+			for (i = 1; i < ARRAY_SIZE(key); i++)
+				key[i] = key[0];
+
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_del(tree,
+								   &rec.r_key,
+								   &ut_cb, 0,
+								   &kv_op, tx));
+			M0_ASSERT(rc == -ENOENT);
 		}
 
 		key_iter_start = key_last + ti->ti_key_incr;
