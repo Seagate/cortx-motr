@@ -24,6 +24,7 @@ import re
 import subprocess
 import logging
 import glob
+import time
 from cortx.utils.conf_store import Conf
 
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
@@ -65,6 +66,24 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
     if ps.returncode != 0:
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
+
+def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
+    self.logger.info(f"Executing cmd : '{cmd}' \n")
+    for j in range(1,6):
+        ps = subprocess.run(cmd, stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, timeout=timeout_secs,
+                            stderr=subprocess.PIPE, shell=True)
+        self.logger.info(f"ret={ps.returncode}")
+        self.logger.debug(f"Executing {j} time")
+        stdout = ps.stdout.decode('utf-8')
+        self.logger.debug(f"[OUT]{stdout}")
+        self.logger.debug(f"[ERR]{ps.stderr.decode('utf-8')}")
+        self.logger.debug(f"[RET] {ps.returncode}")
+        if ps.returncode != 0:
+            time.sleep(1)
+            continue
+        return stdout, ps.returncode
+    raise MotrError(ps.returncode, f"[ERR] {cmd} failed")
 
 def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS):
     self.logger.info(f"Executing cmd : '{cmd}'\n")
@@ -532,6 +551,7 @@ def get_nids(self, nodes):
         else:
             cmd = (f"ssh  {node}"
                     " lctl list_nids")
+
         op = execute_command(self, cmd)
         nids.append(op[0].rstrip("\n"))
 
@@ -770,3 +790,40 @@ def lnet_self_ping(self):
        if ret != 0:
             return False
     return True
+
+def update_motr_hare_keys_for_all_nodes(self):
+    hostname = self.server_node["hostname"]
+    nodes_info = Conf.get(self._index, 'server_node')
+    for value in nodes_info.values():
+        host = value["hostname"]
+        cvg_count = value["storage"]["cvg_count"]
+        name = value["name"]
+        self.logger.info(f"update_motr_hare_keys for {host}\n")
+        for i in range(int(cvg_count)):
+            lv_md_name = f"lv_raw_md{i + 1}"
+            if (hostname == value["hostname"]):
+                cmd = ("lvs -o lv_path")
+            else:
+                cmd = (f"ssh  {host}"
+                       f" \"lvs -o lv_path\"")
+            res = execute_command_verbose(self, cmd)
+            r = re.compile(f".*{lv_md_name}")
+            lvm_find = list(filter(r.match,res[0].split()))
+            if res[1] == 0:
+                lv_path = lvm_find[0].strip()
+            else:
+                raise MotrError(res[1], f"[ERR] {lv_md_name} not found on {hostname}\n")
+            self.logger.info(f"setting key server>{name}>cvg[{i}]>m0d[0]>md_seg1"
+                             f" with value {lv_path} in {self._motr_hare_conf}")
+            Conf.set(self._index_motr_hare,f"server>{name}>cvg[{i}]>m0d[0]>md_seg1",f"{lv_path.strip()}")
+            Conf.save(self._index_motr_hare)
+
+    for value in nodes_info.values():
+        if (hostname == value["hostname"]):
+            continue
+        else:
+            host = value["hostname"]
+            cmd = (f"scp  {self._motr_hare_conf}"
+                    f" {host}:{self._motr_hare_conf}")
+            execute_command(self, cmd)
+

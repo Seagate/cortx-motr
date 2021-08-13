@@ -31,10 +31,18 @@ from motr_mini_prov import *
 class Cmd:
     """Setup Command"""
     _index = "conf"
+    
+    # Index for Hare-Motr keys required for intercomponent communication
+    _index_motr_hare = "conf_motr_hare"
 
     def __init__(self, args: dict):
         self._url = args.config
+
+        # URL for Hare-Motr keys required for intercomponent communication
+        self._motr_hare_conf = "/opt/seagate/cortx/motr/conf/motr_hare_keys.json"
+        self._url_motr_hare = f"json://{self._motr_hare_conf}"
         Conf.load(self._index, self._url)
+        Conf.load(self._index_motr_hare, self._url_motr_hare)
         self._args = args.args
         self._debug = args.debug
         self.server_node = get_server_node(self)
@@ -92,7 +100,7 @@ class PrepareCmd(Cmd):
 
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
-
+        
         # If hare is installed and cluster is up then exit otherwise go ahead
         if pkg_installed(self, "cortx-hare"):
             if cluster_up(self):
@@ -135,6 +143,10 @@ class ConfigCmd(Cmd):
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
         motr_config(self)
+
+        # Update keys from other nodes 
+        if self.server_node["name"] == "srvnode-1":
+            update_motr_hare_keys_for_all_nodes(self)
         self.logger.info("SUCCESS\n")
 
 class InitCmd(Cmd):
@@ -236,5 +248,4 @@ def main(argv: dict):
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv))
-
 
