@@ -147,8 +147,10 @@ static void segments_sort(struct m0_indexvec *ivec, struct m0_bufvec *data,
 				M0_SWAP(COUNT(ivec, i), COUNT(ivec, j));
 				M0_SWAP(BUFVI(data, i), BUFVI(data, j));
 				M0_SWAP(BUFVC(data, i), BUFVC(data, j));
-				M0_SWAP(BUFVI(attr, i), BUFVI(attr, j));
-				M0_SWAP(BUFVC(attr, i), BUFVC(attr, j));
+				if (attr) {
+					M0_SWAP(BUFVI(attr, i), BUFVI(attr, j));
+					M0_SWAP(BUFVC(attr, i), BUFVC(attr, j));
+				}
 			}
 		}
 	}
