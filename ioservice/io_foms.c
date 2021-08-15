@@ -563,6 +563,7 @@
 
  */
 
+#define M0_OBJ_LAYOUT_ID(lid)  (lid & 0x0000ffffffffffff)
 /**
  * @addtogroup io_foms
  * @{
@@ -2059,7 +2060,7 @@ static int stob_io_create(struct m0_fom *fom)
 	rwfop = io_rw_get(fom->fo_fop);
 	rw_replyfop = io_rw_rep_get(fom->fo_rep_fop);
 	/** TODO: Check this and use function call */
-	unit_size = (m0_lid_to_unit_map[rwfop->crw_lid]) >>
+	unit_size = (m0_lid_to_unit_map[M0_OBJ_LAYOUT_ID(rwfop->crw_lid)]) >>
 			m0_stob_block_shift(fom_obj->fcrw_stob);
 	if ((m0_is_read_fop(fom->fo_fop)) && rwfop->crw_cksum_size ) {
 		/* For read this is not used so making it NULL */

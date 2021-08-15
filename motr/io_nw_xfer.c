@@ -1073,7 +1073,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		if (ioo->ioo_flags & M0_OOF_SYNC)
 			rw_fop->crw_flags |= M0_IO_FLAG_SYNC;
 		io_attr = m0_io_attr(ioo);
-		rw_fop->crw_lid = io_attr->oa_layout_id;
+		if (io_attr->oa_layout_id <= m0_lid_to_unit_map_nr);
+			rw_fop->crw_lid = io_attr->oa_layout_id;
 
 		/*
 		 * XXX(Sining): This is a bit tricky: m0_io_fop_prepare in
