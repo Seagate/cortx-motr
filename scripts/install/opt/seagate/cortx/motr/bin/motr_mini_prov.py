@@ -700,11 +700,10 @@ def remove_dirs(self, log_dir, patterns):
 
         # Search directories for files/dirs with pattern in their names and remove it.
         # e.g. removes addb* dirs from /var/motr
-        # search_pat=/var/motr/**/addb*
-        search_pat = "{}/**/{}*".format(log_dir, pattern)
+        # search_pat=/var/motr/addb*
+
+        search_pat = "{}/{}*".format(log_dir, pattern)
         for dname in glob.glob(search_pat, recursive=True):
-            if "/hax/" in dname:
-                continue
             removed_dirs.append(dname)
             execute_command(self, f"rm -rf {dname}")
         if len(removed_dirs) > 0:
