@@ -52,17 +52,22 @@ class MotrError(Exception):
     def __str__(self):
         return f"error[{self._rc}]: {self._desc}"
 
-
-def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
-    ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                          shell=True)
-    stdout, stderr = ps.communicate(timeout=timeout_secs);
-    stdout = str(stdout, 'utf-8')
-    if self._debug or verbose:
-        self.logger.debug(f"[CMD] {cmd}\n")
-        self.logger.debug(f"[OUT]\n{stdout}\n")
-        self.logger.debug(f"[RET] {ps.returncode}\n")
+def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False, retries = 1):
+    for i in range(retries):
+        self.logger.info(f"Retry: {i}. Executing cmd: '{cmd}'")
+        ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              shell=True)
+        stdout, stderr = ps.communicate(timeout=timeout_secs);
+        stdout = str(stdout, 'utf-8')
+        self.logger.info(f"ret={ps.returncode}\n")
+        if self._debug or verbose:
+            self.logger.debug(f"[CMD] {cmd}\n")
+            self.logger.debug(f"[OUT]\n{stdout}\n")
+            self.logger.debug(f"[RET] {ps.returncode}\n")
+        if ps.returncode == 0:
+            break
+        time.sleep(1)
     if ps.returncode != 0:
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
@@ -85,10 +90,14 @@ def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = Fa
         return stdout, ps.returncode
     raise MotrError(ps.returncode, f"[ERR] {cmd} failed")
 
-def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS):
-    self.logger.info(f"Executing cmd : '{cmd}'\n")
-    ps = subprocess.run(list(cmd.split(' ')), timeout=timeout_secs)
-    self.logger.info(f"ret={ps.returncode}\n")
+def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS, retries = 1):
+    for i in range(retries):
+        self.logger.info(f"Retry: {i}. Executing cmd : '{cmd}'\n")
+        ps = subprocess.run(list(cmd.split(' ')), timeout=timeout_secs)
+        self.logger.info(f"ret={ps.returncode}\n")
+        if ps.returncode == 0:
+            break
+        time.sleep(1)
     return ps.returncode
 
 def check_type(var, vtype, msg):
@@ -227,7 +236,7 @@ def swap_on(self):
 
 def swap_off(self):
     cmd = "swapoff -a"
-    execute_command(self, cmd)
+    execute_command(self, cmd, retries=3)
 
 def add_swap_fstab(self, dev_name):
     '''
@@ -812,7 +821,7 @@ def get_vol_grps(self):
         for device in metadata_devices:
             cmd = f"pvs | grep {device} " "| awk '{print $2}'"
             ret = execute_command(self, cmd)
-            if ret[0]: 
+            if ret[0]:
                 vol_grps.append(ret[0].strip())
     return vol_grps
 
