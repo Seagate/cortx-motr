@@ -796,12 +796,34 @@ def update_motr_hare_keys_for_all_nodes(self):
                     f" {host}:{self._motr_hare_conf}")
             execute_command(self, cmd)
 
+# Get voulme groups created on metadata devices mentioned in config file
+def get_vol_grps(self):
+    cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
+
+    vol_grps = []
+    for i in range(int(cvg_cnt)):
+        cvg_item = cvg[i]
+        try:
+            metadata_devices = cvg_item["metadata_devices"]
+        except:
+            raise MotrError(errno.EINVAL, "metadata devices not found\n")
+        check_type(metadata_devices, list, "metadata_devices")
+        self.logger.info(f"lvm metadata_devices: {metadata_devices}")
+
+        for device in metadata_devices:
+            cmd = f"pvs | grep {device} " "| awk '{print $2}'"
+            ret = execute_command(self, cmd)
+            if ret[0]: 
+                vol_grps.append(ret[0].strip())
+    return vol_grps
+
 def lvm_clean(self):
     self.logger.info("Removing cortx lvms")
-    vol_grps=execute_command(self, "vgs|grep vg_srvnode|awk '{print $1}'")[0].split('\n')[0:-1]
+    vol_grps = get_vol_grps(self)
     if (len(vol_grps) == 0):
         self.logger.info("No cortx volume groups (e.g. vg_srvnode-1_md1) are found \n")
         return
+    self.logger.info(f"Volume groups found: {vol_grps}")
     self.logger.info("Executing swapoff -a")
     swap_off(self)
     self.logger.info(f"Removing cortx LVM entries from {FSTAB}")
