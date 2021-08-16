@@ -525,6 +525,7 @@ static int obj_io_init(struct m0_obj      *obj,
 	if (M0_IN(opcode, (M0_OC_READ, M0_OC_WRITE))) {
 		ioo->ioo_data = *data;
 		ioo->ioo_attr_mask = mask;
+		/** If checksum is disabled, then attr is NULL */
 		if (attr != NULL && attr->ov_vec.v_nr)
 			ioo->ioo_attr = *attr;
 		else
@@ -697,7 +698,6 @@ int m0_obj_op(struct m0_obj       *obj,
 	M0_ENTRY("obj_id: " U128X_F " opcode = %s", U128_P(&obj->ob_entity.en_id),
 		 opcode == M0_OC_READ ? "read" : opcode == M0_OC_WRITE ? "write" :  \
 		 opcode == M0_OC_FREE ? "free" : "UNKNOWN");
-	//M0_ASSERT(attr == NULL);
 	M0_PRE(obj != NULL);
 	M0_PRE(op != NULL);
 	M0_PRE(ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOHOLE))));
@@ -741,7 +741,7 @@ int m0_obj_op(struct m0_obj       *obj,
 		.ia_opcode = opcode,
 		.ia_ext    = ext,
 		.ia_data   = data,
-		.ia_attr   = NULL,
+		.ia_attr   = attr,
 		.ia_mask   = mask,
 		.ia_flags  = flags
 	};

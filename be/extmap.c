@@ -1013,9 +1013,6 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	if (rec->er_cksum_nob ) {
 		memcpy( (void *)&rec_buf_ptr->er_footer,
 				ext->ee_cksum_buf.b_addr, rec->er_cksum_nob );
-
-		// TODO: How to manage the credit inc/dec ?
-		// M0_BE_CREDIT_INC(rec->er_cs_nob, M0_BE_CU_BTREE_INSERT, tx->t_prepared);
 	}
 
 	emap_rec_init(rec_buf_ptr);
