@@ -24,6 +24,7 @@ import re
 import subprocess
 import logging
 import glob
+import time
 from cortx.utils.conf_store import Conf
 
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
@@ -39,6 +40,7 @@ IVT_DIR = "/var/log/seagate/motr/ivt"
 MOTR_LOG_DIR = "/var/motr"
 TIMEOUT_SECS = 120
 MACHINE_ID_LEN = 32
+MOTR_LOG_DIRS = [LOGDIR, MOTR_LOG_DIR]
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -64,6 +66,25 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
     if ps.returncode != 0:
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
+
+def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
+    self.logger.info(f"Executing cmd : '{cmd}' \n")
+    cmd_retry_delay = 1
+    for cmd_retry_count in range(1,6):
+        ps = subprocess.run(cmd, stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, timeout=timeout_secs,
+                            stderr=subprocess.PIPE, shell=True)
+        self.logger.info(f"ret={ps.returncode}")
+        self.logger.debug(f"Executing {cmd_retry_count} time")
+        stdout = ps.stdout.decode('utf-8')
+        self.logger.debug(f"[OUT]{stdout}")
+        self.logger.debug(f"[ERR]{ps.stderr.decode('utf-8')}")
+        self.logger.debug(f"[RET] {ps.returncode}")
+        if ps.returncode != 0:
+            time.sleep(cmd_retry_delay)
+            continue
+        return stdout, ps.returncode
+    return
 
 def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS):
     self.logger.info(f"Executing cmd : '{cmd}'\n")
@@ -505,6 +526,7 @@ def get_nids(self, nodes):
         else:
             cmd = (f"ssh  {node}"
                     " lctl list_nids")
+
         op = execute_command(self, cmd)
         nids.append(op[0].rstrip("\n"))
 
@@ -664,33 +686,36 @@ def config_logger(self):
                        )
     return logger
 
-def clean_ivt_data(self):
-    if os.path.exists(MOTR_LOG_DIR):
-        self.logger.info("Removing addb directories")
-        dnames_addb = []
-        pattern="{}/**/addb*".format(MOTR_LOG_DIR)
-        for dname in glob.glob(pattern, recursive=True):
-            dnames_addb.append(dname)
-            execute_command(self, f"rm -rf {dname}")
-        self.logger.info(f"Removed below addb directories.\n{dnames_addb}")
-        self.logger.info("Removing trace files")
-        fnames_trace = []
-        pattern="{}/**/*trace*".format(MOTR_LOG_DIR)
-        for fname in glob.glob(pattern, recursive=True):
-            fnames_trace.append(fname)
-            os.remove(fname)
-        self.logger.info(f"Removed below trace files.\n{fnames_trace}")
+def remove_dirs(self, log_dir, patterns):
+    if not os.path.exists(os.path.dirname(log_dir)):
+        self.logger.warning(f"{log_dir} does not exist")
+        return
 
-        self.logger.info("Removing db directories")
-        dnames_db = []
-        pattern="{}/**/db*".format(MOTR_LOG_DIR)
-        for dname in glob.glob(pattern, recursive=True):
-            dnames_db.append(dname)
-            execute_command(self, f"rm -rf {dname}")
-        self.logger.info(f"Removed below db directories.\n{dnames_db}")
-    else:
-        self.logger.warning(f"{MOTR_LOG_DIR} does not exist")
+    if len(patterns) == 0:
+        self.logger.info(f"Removing {log_dir}")
+        execute_command(self, f"rm -rf {log_dir}")
+        return
 
+    for pattern in patterns:
+        removed_dirs = []
+        self.logger.info(f"Removing {pattern} directories from {log_dir}")
+
+        # Search directories for files/dirs with pattern in their names and remove it.
+        # e.g. removes addb* dirs from /var/motr
+        # search_pat=/var/motr/**/addb*
+        search_pat = "{}/**/{}*".format(log_dir, pattern)
+        for dname in glob.glob(search_pat, recursive=True):
+            removed_dirs.append(dname)
+            execute_command(self, f"rm -rf {dname}")
+        self.logger.info(f"Removed below directories.\n{removed_dirs}")
+
+def remove_logs(self):
+    patterns=["addb", "*trace"]
+    for log_dir in MOTR_LOG_DIRS:
+        if os.path.exists(log_dir):
+            remove_dirs(self, log_dir, patterns)
+        else:
+            self.logger.warning(f"{log_dir} does not exist")
     if os.path.exists(IVT_DIR):
         self.logger.info(f"Removing {IVT_DIR}")
         execute_command(self, f"rm -rf {IVT_DIR}")
@@ -736,3 +761,59 @@ def lnet_self_ping(self):
        if ret != 0:
             return False
     return True
+
+def update_motr_hare_keys_for_all_nodes(self):
+    hostname = self.server_node["hostname"]
+    nodes_info = Conf.get(self._index, 'server_node')
+    retry_count = 60
+    retry_delay = 2
+    for value in nodes_info.values():
+        host = value["hostname"]
+        cvg_count = value["storage"]["cvg_count"]
+        name = value["name"]
+        self.logger.info(f"update_motr_hare_keys for {host}\n")
+        for i in range(int(cvg_count)):
+            lv_path = None
+            lv_md_name = f"lv_raw_md{i + 1}"
+            if (hostname == value["hostname"]):
+                cmd = ("lvs -o lv_path")
+                res = execute_command_verbose(self, cmd)
+                r = re.compile(f".*{lv_md_name}")
+                try:
+                    lvm_find = list(filter(r.match,res[0].split()))
+                    lv_path = lvm_find[0].strip()
+                except Exception as e:
+                    self.logger.info(f"exception pass {e}\n")
+            else:
+                cmd = (f"ssh  {host}"
+                       f" \"lvs -o lv_path\"")
+                for retry in range(1, retry_count):
+                    self.logger.info(f"Getting LVM data for {host}, attempt: {retry}\n")
+                    res = execute_command_verbose(self, cmd)
+                    r = re.compile(f".*{lv_md_name}")
+                    try:
+                        lvm_find = list(filter(r.match,res[0].split()))
+                        lv_path = lvm_find[0].strip()
+                    except Exception as e:
+                        self.logger.info(f"exception pass {e}\n")
+                    if lv_path:
+                        self.logger.info(f"found lvm {lv_path} after {retry} count")
+                        break
+                    else:
+                        time.sleep(retry_delay)
+            if not lv_path:
+                raise MotrError(res[1], f"[ERR] {lv_md_name} not found on {host}\n")
+            self.logger.info(f"setting key server>{name}>cvg[{i}]>m0d[0]>md_seg1"
+                             f" with value {lv_path} in {self._motr_hare_conf}")
+            Conf.set(self._index_motr_hare,f"server>{name}>cvg[{i}]>m0d[0]>md_seg1",f"{lv_path.strip()}")
+            Conf.save(self._index_motr_hare)
+
+    for value in nodes_info.values():
+        if (hostname == value["hostname"]):
+            continue
+        else:
+            host = value["hostname"]
+            cmd = (f"scp  {self._motr_hare_conf}"
+                    f" {host}:{self._motr_hare_conf}")
+            execute_command(self, cmd)
+
