@@ -9950,6 +9950,7 @@ static void ut_put_update_del_operation(void)
 
 static int ut_btree_suite_init(void)
 {
+	uint64_t be_seg_size = 10ULL * 1024ULL * 1024ULL * 1024ULL; /** 10GB */
 	M0_ENTRY();
 
 	M0_ALLOC_PTR(ut_be);
@@ -9959,7 +9960,7 @@ static int ut_btree_suite_init(void)
 	M0_ASSERT(ut_seg != NULL);
 	/* Init BE */
 	m0_be_ut_backend_init(ut_be);
-	m0_be_ut_seg_init(ut_seg, ut_be, 1ULL << 24);
+	m0_be_ut_seg_init(ut_seg, ut_be, be_seg_size);
 	seg = ut_seg->bus_seg;
 
 	M0_LEAVE();
