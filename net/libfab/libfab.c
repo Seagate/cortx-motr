@@ -509,7 +509,7 @@ static void libfab_tm_event_post(struct m0_fab__tm *tm,
  * Finds queued buffers that timed out and completes them with a
  * ETIMEDOUT error.
  */
-static void libfab_tm_buf_timeout(struct m0_fab__tm *ftm)
+M0_UNUSED static void libfab_tm_buf_timeout(struct m0_fab__tm *ftm)
 {
 	struct m0_net_transfer_mc *net = ftm->ftm_ntm;
 	int                        i;
@@ -829,9 +829,9 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		}
 
 		libfab_bufq_process(tm);
-		if (m0_time_sub(m0_time_now(), tm->ftm_tmout_check) >=
-								 m0_time(1,0))
-			libfab_tm_buf_timeout(tm);
+	//	if (m0_time_sub(m0_time_now(), tm->ftm_tmout_check) >=
+	//							 m0_time(1,0))
+	//		libfab_tm_buf_timeout(tm);
 		libfab_tm_buf_done(tm);
 
 		M0_ASSERT(libfab_tm_invariant(tm));
