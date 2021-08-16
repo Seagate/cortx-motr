@@ -406,7 +406,7 @@ M0_INTERNAL unsigned m0_conf_pver_level(const struct m0_conf_obj *obj)
 		return M0_CONF_PVER_LVL_DRIVES;
 	M0_IMPOSSIBLE("Bad argument: "FID_F, FID_P(&obj->co_id));
 }
- /* page break */
+ /* page break */
 
 /** Finds or creates virtual pool version, described by a formulaic one. */
 static int

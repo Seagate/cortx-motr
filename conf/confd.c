@@ -427,7 +427,6 @@
  *
  * @see confd_dlspec
  */
-
 /**
  * @defgroup confd_dlspec confd Internals
  *

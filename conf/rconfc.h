@@ -177,7 +177,6 @@ struct m0_rpc_item;
  *
  * @see @ref rconfc_dfspec "Detailed Functional Specification"
  */
-
 /**
  * @defgroup rconfc_dfspec Redundant Configuration Client (rconfc)
  * @brief Detailed Functional Specification.

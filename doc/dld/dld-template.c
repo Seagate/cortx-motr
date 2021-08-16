@@ -573,7 +573,6 @@
    is landed into dev.
 
  */
-
 
 #include "doc/dld/dld_template.h"
 

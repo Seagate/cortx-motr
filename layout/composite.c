@@ -158,7 +158,7 @@ M0_UNUSED static int composite_decode(struct m0_layout *l,
 			    struct m0_be_tx *tx,
 			    uint32_t user_count)
 {
-	
+
 	/*@code
 	struct m0_composite_layout *cl;
 
@@ -202,7 +202,7 @@ M0_UNUSED static int composite_encode(struct m0_layout *l,
 			    struct m0_be_tx *tx,
 			    struct m0_bufvec_cursor *out)
 {
-	
+
 	/*@code
 
 	M0_PRE(M0_IN(op, (M0_LXO_DB_ADD, M0_LXO_DB_UPDATE,
@@ -221,7 +221,7 @@ M0_UNUSED static int composite_encode(struct m0_layout *l,
 
 	@endcode*/
 
-	
+
 	return 0;
 }
 

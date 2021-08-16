@@ -125,7 +125,6 @@ struct dld_sample_ds1 {
 
    @see @ref DLDDFS "Sample Detailed Functional Specification"
  */
-
 /**
    @defgroup DLDDFS Motr Sample Module
    @brief Detailed functional specification template.
@@ -153,7 +152,6 @@ struct dld_sample_ds1 {
 
    @{
  */
-
 
 /** Data structure to do something. */
 struct dld_sample_ds1 {

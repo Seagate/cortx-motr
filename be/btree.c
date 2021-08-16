@@ -183,7 +183,7 @@ static inline int key_eq(const struct m0_be_btree *btree,
 {
 	return be_btree_compare(btree, key0, key1) ==  0;
 }
-
+
 /* ------------------------------------------------------------------
  * Btree internals implementation
  * ------------------------------------------------------------------ */
@@ -2088,7 +2088,7 @@ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *tree,
 	m0_rwlock_read_unlock(btree_rwlock(tree));
 	m0_be_op_done(op);
 }
-
+
 /* ------------------------------------------------------------------
  * Btree external inplace interfaces implementation
  * ------------------------------------------------------------------ */
@@ -2200,7 +2200,7 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_tx           *tx,
 	}
 	M0_LEAVE();
 }
-
+
 /* ------------------------------------------------------------------
  * Btree cursor interfaces implementation
  * ------------------------------------------------------------------ */

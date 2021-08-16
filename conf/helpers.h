@@ -167,7 +167,6 @@ M0_INTERNAL int m0_conf_process2service_get(struct m0_confc *confc,
 					    const struct m0_fid *process_fid,
 					    enum m0_conf_service_type stype,
 					    struct m0_fid *sfid);
-
 /* --------------------------------- >8 --------------------------------- */
 
 /**

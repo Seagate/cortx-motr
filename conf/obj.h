@@ -173,7 +173,6 @@ struct m0_xcode_type;
  *
  * @see @ref conf_dfspec_obj "Detailed Functional Specification"
  */
-
 /**
  * @defgroup conf_dfspec_obj Configuration Objects
  * @brief Detailed Functional Specification.
@@ -347,7 +346,6 @@ M0_INTERNAL bool m0_conf_obj_is_stub(const struct m0_conf_obj *obj);
 struct m0_conf_obj *m0_conf_obj_grandparent(const struct m0_conf_obj *obj);
 
 enum { M0_CONF_OBJ_TYPE_MAX = 256 };
-
 /* ------------------------------------------------------------------
  * Concrete configuration objects
  * ------------------------------------------------------------------ */
