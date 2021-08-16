@@ -194,30 +194,23 @@ M0_INTERNAL int m0_thread_signal(struct m0_thread *q, int sig)
 	return M0_ERR(-ENOSYS);
 }
 
-M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
-				  const struct m0_bitmap *processors)
+M0_INTERNAL int m0_thread_arch_confine(struct m0_thread *q,
+				       const struct m0_bitmap *processors)
 {
 	int                 result = 0;
 	size_t              idx;
-	size_t              idx1 = M0_PROCESSORS_INVALID_ID;
 	size_t              nr_bits = min64u(processors->b_nr, nr_cpu_ids);
 	cpumask_var_t       cpuset;
 	struct task_struct *p = q->t_h.h_tsk;
 	int                 nr_allowed;
 
-	M0_PRE(m0_bitmap_set_nr(processors) > 0);
-
 	if (!zalloc_cpumask_var(&cpuset, GFP_KERNEL))
 		return M0_ERR(-ENOMEM);
 
 	for (idx = 0; idx < nr_bits; ++idx) {
-		if (m0_bitmap_get(processors, idx)) {
+		if (m0_bitmap_get(processors, idx))
 			cpumask_set_cpu(idx, cpuset);
-			if (idx1 == M0_PROCESSORS_INVALID_ID)
-				idx1 = idx;
-		}
 	}
-	q->t_tls.tls_loci = idx1;
 
 	nr_allowed = cpumask_weight(cpuset);
 

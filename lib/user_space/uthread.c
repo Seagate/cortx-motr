@@ -126,26 +126,19 @@ M0_INTERNAL int m0_thread_signal(struct m0_thread *q, int sig)
 	return -pthread_kill(q->t_h.h_id, sig);
 }
 
-M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
-				  const struct m0_bitmap *processors)
+M0_INTERNAL int m0_thread_arch_confine(struct m0_thread *q,
+				       const struct m0_bitmap *processors)
 {
 	size_t    idx;
-	size_t    idx1 = M0_PROCESSORS_INVALID_ID;
 	size_t    nr_bits = min64u(processors->b_nr, CPU_SETSIZE);
 	cpu_set_t cpuset;
-
-	M0_PRE(m0_bitmap_set_nr(processors) > 0);
 
 	CPU_ZERO(&cpuset);
 
 	for (idx = 0; idx < nr_bits; ++idx) {
-		if (m0_bitmap_get(processors, idx)) {
+		if (m0_bitmap_get(processors, idx))
 			CPU_SET(idx, &cpuset);
-			if (idx1 == M0_PROCESSORS_INVALID_ID)
-				idx1 = idx;
-		}
 	}
-	q->t_tls.tls_loci = idx1;
 
 	return -pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
 }

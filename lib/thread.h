@@ -337,6 +337,9 @@ M0_INTERNAL int m0_thread_arch_adopt(struct m0_thread *thread,
 				     struct m0 *instance, bool full);
 M0_INTERNAL void m0_thread_arch_shun(void);
 
+M0_INTERNAL int m0_thread_arch_confine(struct m0_thread *q,
+				       const struct m0_bitmap *processors);
+
 /** @} end of thread group */
 #endif /* __MOTR_LIB_THREAD_H__ */
 
