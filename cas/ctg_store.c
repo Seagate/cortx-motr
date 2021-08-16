@@ -985,7 +985,8 @@ static int ctg_op_tick_ret(struct m0_ctg_op *ctg_op,
 
 	if (!op_is_active)
 		clink->cl_cb(clink);
-	m0_fom_phase_set(fom, next_state);
+	if (next_state >= 0)
+		m0_fom_phase_set(fom, next_state);
 	return ret;
 }
 

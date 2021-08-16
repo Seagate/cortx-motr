@@ -1193,6 +1193,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		M0_LOG(M0_DEBUG, "Got CAS with txid: " DTID0_F,
 		       DTID0_P(&op->cg_txd.dtd_id));
 	}
+
 	switch (phase) {
 	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
 
@@ -2156,7 +2157,10 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 	uint32_t                   flags  = cas_op(fom0)->cg_flags;
 	struct m0_buf              kbuf;
 	struct m0_buf              vbuf;
+	struct m0_buf              lbuf;
 	struct m0_cas_id          *cid;
+	struct m0_cas_op          *op;
+	struct m0_cas_rec         *rec;
 	enum m0_fom_phase_outcome  ret = M0_FSO_AGAIN;
 
 	cas_incoming_kv(fom, rec_pos, &kbuf, &vbuf);
@@ -2181,6 +2185,46 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		ret = m0_ctg_insert(ctg_op, ctg, &kbuf, &vbuf, next);
 		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
+		op = cas_op(fom0);
+		rec = cas_at(op, rec_pos);
+
+		/*
+		 * Lookup for the value that is going to delete soon.
+		 * Passing -1 for the next phase indicating we don't
+		 * have the next phase yet.
+		 */
+		ret = m0_ctg_lookup(ctg_op, ctg, &kbuf, -1);
+		if (ctg_op->co_rc != 0) {
+			M0_LOG(M0_DEBUG, "Failed lookup on delete. rc=%d", ret);
+			break;
+		}
+		m0_ctg_lookup_result(ctg_op, &lbuf);
+
+		/*
+		 * Copy the lookup result and the key to m0_cas_op buffers.
+		 * We need this because del operation in the balanaced tree
+		 * will rebalance the tree that makes the looked-up value
+		 * not avaialble afterwards.
+		 *
+		 * Since m0_cas_op is completely added to the fol rec, we
+		 * have these buffers available for the FDMI and don't have
+		 * to send them to to the client.
+		 */
+
+                /* Both buffers released in cas_fom_fini(). */
+		m0_rpc_at_init(&rec->cr_key);
+		rec->cr_key.ab_type = M0_RPC_AT_INLINE;
+		rec->cr_key.u.ab_buf = M0_BUF_INIT0;
+		m0_buf_copy(&rec->cr_key.u.ab_buf, &kbuf);
+
+		m0_rpc_at_init(&rec->cr_val);
+		rec->cr_val.ab_type = M0_RPC_AT_INLINE;
+		rec->cr_val.u.ab_buf = M0_BUF_INIT0;
+		m0_buf_copy(&rec->cr_val.u.ab_buf, &lbuf);
+
+		/* Now deleting the key. */
+		m0_ctg_op_fini(ctg_op);
+		m0_ctg_op_init(ctg_op, fom0, flags);
 		ret = m0_ctg_delete(ctg_op, ctg, &kbuf, next);
 		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
@@ -2302,36 +2346,13 @@ static int cas_ctidx_delete(struct cas_fom *fom, const struct m0_cas_id *in_cid,
 	struct m0_ctg_op          *ctg_op = &fom->cf_ctg_op;
 	enum m0_fom_phase_outcome  ret    = M0_FSO_AGAIN;
 	struct m0_buf              kbuf;
-	struct m0_buf              lbuf;
 
 	if (m0_ctg_op_rc(ctg_op) == 0) {
 		m0_ctg_op_fini(ctg_op);
 		m0_ctg_op_init(ctg_op, fom0, 0);
-
-		/* The key is a component catalogue FID. */
-		kbuf = M0_BUF_INIT_PTR_CONST(&in_cid->ci_fid);
-
-		/*
-		 * Lookup for the value that is going to delete soon.
-		 */
-		ret = m0_ctg_lookup(ctg_op, m0_ctg_ctidx(), &kbuf, next);
-		if (ret != 0)
-			return ret;
-		/*
-		 * Here @lbuf refers to the memory piece inside
-		 * the btree that will be killed and rebalanced
-		 * after m0_ctg_delete(). Let's save it for now.
-		 */
-		m0_ctg_lookup_result(ctg_op, &lbuf);
-
-		/** This allocates memory for ->co_tmp_val */
-		m0_buf_copy(&ctg_op->co_tmp_buf, &lbuf);
-
-		m0_ctg_op_fini(ctg_op);
-		m0_ctg_op_init(ctg_op, fom0, 0);
-		ret = m0_ctg_delete(ctg_op, m0_ctg_ctidx(), &kbuf, next);
-		if (ret != 0)
-			m0_buf_free(&ctg_op->co_tmp_buf);
+                /* The key is a component catalogue FID. */
+                kbuf = M0_BUF_INIT_PTR_CONST(&in_cid->ci_fid);
+	        ret = m0_ctg_delete(ctg_op, m0_ctg_ctidx(), &kbuf, next);
 	} else
 		m0_fom_phase_set(fom0, next);
 	return ret;
@@ -2412,13 +2433,7 @@ static int cas_prep_send(struct cas_fom *fom, enum m0_cas_opcode opc,
 		break;
 	case CTG_OP_COMBINE(CO_GET, CT_META):
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
-		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
-		if (ctg_op->co_tmp_buf.b_nob > 0) {
-			rc = cas_place(&fom->cf_out_val, &ctg_op->co_tmp_buf, rpc_cutoff);
-			m0_buf_free(&ctg_op->co_tmp_buf);
-		}
-		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 	case CTG_OP_COMBINE(CO_PUT, CT_META):
 		/* Nothing to do: return code is all the user gets. */
