@@ -67,23 +67,24 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
 
-def execute_command_with_debug(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
-    self.logger.info(f"Executing cmd : '{cmd}'\n")
-    for j in range(1,6):
+def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
+    self.logger.info(f"Executing cmd : '{cmd}' \n")
+    cmd_retry_delay = 1
+    for cmd_retry_count in range(1,6):
         ps = subprocess.run(cmd, stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, timeout=timeout_secs,
                             stderr=subprocess.PIPE, shell=True)
-        self.logger.info(f"ret={ps.returncode}\n")
-        self.logger.debug(f"Executing {j} time\n")
+        self.logger.info(f"ret={ps.returncode}")
+        self.logger.debug(f"Executing {cmd_retry_count} time")
         stdout = ps.stdout.decode('utf-8')
-        self.logger.debug(f"[OUT]\n{stdout}\n")
-        self.logger.debug(f"[ERR]\n{ps.stderr.decode('utf-8')}\n")
-        self.logger.debug(f"[RET] {ps.returncode}\n")
+        self.logger.debug(f"[OUT]{stdout}")
+        self.logger.debug(f"[ERR]{ps.stderr.decode('utf-8')}")
+        self.logger.debug(f"[RET] {ps.returncode}")
         if ps.returncode != 0:
-            time.sleep(1)
+            time.sleep(cmd_retry_delay)
             continue
         return stdout, ps.returncode
-    raise MotrError(ps.returncode, f"[ERR] {cmd} failed\n")
+    return
 
 def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS):
     self.logger.info(f"Executing cmd : '{cmd}'\n")
@@ -525,6 +526,7 @@ def get_nids(self, nodes):
         else:
             cmd = (f"ssh  {node}"
                     " lctl list_nids")
+
         op = execute_command(self, cmd)
         nids.append(op[0].rstrip("\n"))
 
@@ -763,23 +765,46 @@ def lnet_self_ping(self):
 def update_motr_hare_keys_for_all_nodes(self):
     hostname = self.server_node["hostname"]
     nodes_info = Conf.get(self._index, 'server_node')
+    retry_count = 60
+    retry_delay = 2
     for value in nodes_info.values():
         host = value["hostname"]
         cvg_count = value["storage"]["cvg_count"]
         name = value["name"]
         self.logger.info(f"update_motr_hare_keys for {host}\n")
         for i in range(int(cvg_count)):
+            lv_path = None
             lv_md_name = f"lv_raw_md{i + 1}"
             if (hostname == value["hostname"]):
-                cmd = (f"lvs -o lv_path | grep {lv_md_name}")
+                cmd = ("lvs -o lv_path")
+                res = execute_command_verbose(self, cmd)
+                r = re.compile(f".*{lv_md_name}")
+                try:
+                    lvm_find = list(filter(r.match,res[0].split()))
+                    lv_path = lvm_find[0].strip()
+                except Exception as e:
+                    self.logger.info(f"exception pass {e}\n")
             else:
                 cmd = (f"ssh  {host}"
-                       f" lvs -o lv_path | grep {lv_md_name}")
-            res = execute_command_with_debug(self, cmd)
-            if res[1] == 0:
-                lv_path = res[0].rstrip("\n")
-            else:
-                raise MotrError(res[1], f"[ERR] {lv_md_name} not found on {hostname}\n")
+                       f" \"lvs -o lv_path\"")
+                for retry in range(1, retry_count):
+                    self.logger.info(f"Getting LVM data for {host}, attempt: {retry}\n")
+                    res = execute_command_verbose(self, cmd)
+                    r = re.compile(f".*{lv_md_name}")
+                    try:
+                        lvm_find = list(filter(r.match,res[0].split()))
+                        lv_path = lvm_find[0].strip()
+                    except Exception as e:
+                        self.logger.info(f"exception pass {e}\n")
+                    if lv_path:
+                        self.logger.info(f"found lvm {lv_path} after {retry} count")
+                        break
+                    else:
+                        time.sleep(retry_delay)
+            if not lv_path:
+                raise MotrError(res[1], f"[ERR] {lv_md_name} not found on {host}\n")
+            self.logger.info(f"setting key server>{name}>cvg[{i}]>m0d[0]>md_seg1"
+                             f" with value {lv_path} in {self._motr_hare_conf}")
             Conf.set(self._index_motr_hare,f"server>{name}>cvg[{i}]>m0d[0]>md_seg1",f"{lv_path.strip()}")
             Conf.save(self._index_motr_hare)
 
