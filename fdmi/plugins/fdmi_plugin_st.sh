@@ -63,7 +63,6 @@ do_some_kv_operations()
 					      get    "$DIX_FID" "key1"                     \
 					      put    "$DIX_FID" "key2" "something1_anotherstring2*YETanotherstring3"      \
 					      get    "$DIX_FID" "key2"                     \
-					      del    "$DIX_FID" "key2"                     \
 				 || {
 			rc=$?
 			echo "m0kv failed"

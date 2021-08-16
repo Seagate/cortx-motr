@@ -2185,7 +2185,6 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		ret = m0_ctg_insert(ctg_op, ctg, &kbuf, &vbuf, next);
 		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
-<<<<<<< HEAD
 		op = cas_op(fom0);
 		rec = cas_at(op, rec_pos);
 
@@ -2226,8 +2225,6 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		/* Now deleting the key. */
 		m0_ctg_op_fini(ctg_op);
 		m0_ctg_op_init(ctg_op, fom0, flags);
-=======
->>>>>>> - changed the originl approch and do the lookup in a more comphortable place, whcih is only used for btree record del, not meta index del
 		ret = m0_ctg_delete(ctg_op, ctg, &kbuf, next);
 		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
@@ -2349,7 +2346,6 @@ static int cas_ctidx_delete(struct cas_fom *fom, const struct m0_cas_id *in_cid,
 	struct m0_ctg_op          *ctg_op = &fom->cf_ctg_op;
 	enum m0_fom_phase_outcome  ret    = M0_FSO_AGAIN;
 	struct m0_buf              kbuf;
-	struct m0_buf              lbuf;
 
 	if (m0_ctg_op_rc(ctg_op) == 0) {
 		m0_ctg_op_fini(ctg_op);
@@ -2437,13 +2433,7 @@ static int cas_prep_send(struct cas_fom *fom, enum m0_cas_opcode opc,
 		break;
 	case CTG_OP_COMBINE(CO_GET, CT_META):
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
-		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
-		if (ctg_op->co_tmp_buf.b_nob > 0) {
-			rc = cas_place(&fom->cf_out_val, &ctg_op->co_tmp_buf, rpc_cutoff);
-			m0_buf_free(&ctg_op->co_tmp_buf);
-		}
-		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 	case CTG_OP_COMBINE(CO_PUT, CT_META):
 		/* Nothing to do: return code is all the user gets. */
