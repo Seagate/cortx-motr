@@ -416,6 +416,7 @@ struct m0_be_tx {
 	 * in second phase of FDMI work.
 	 */
 	struct m0_sm_ast       t_fdmi_put_ast;
+	m0_bcount_t dev_idx;
 };
 
 /**

@@ -609,6 +609,10 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 			 * after waiting for so_ref to drop to 1, then there is
 			 * nothing more to be done in this phase.
 			 */
+			if(m0_fid_validate_cob(&cob_op->fco_cfid))
+			{
+				fom->dev_idx = m0_fid_cob_device_id(&cob_op->fco_cfid);	
+			}
 			if (!cob_is_md(cob_op) &&
 			    fop_type == M0_COB_OP_DELETE &&
 			    cob_op->fco_stob != NULL) {

@@ -1399,6 +1399,7 @@ void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 	fom->fo_ops	    = ops;
 	fom->fo_transitions = 0;
 	fom->fo_local	    = false;
+	fom->dev_idx = 0xFFFF;
 	m0_fom_callback_init(&fom->fo_cb);
 	runq_tlink_init(fom);
 

@@ -41,7 +41,6 @@
 #include "addb2/addb2.h"
 #include "addb2/identifier.h"
 #include "dtm0/service.h"	/* m0_dtm0_is_a_volatile_dtm */
-
 /**
    @addtogroup fom
    @{
@@ -249,11 +248,11 @@ static int fom_tx_init(struct m0_fom *fom)
 {
 	uint64_t tx_sm_id;
 	uint64_t phase_sm_id;
-
+	
 	if (fom_is_update(fom)) {
 		m0_dtx_init(&fom->fo_tx, m0_fom_reqh(fom)->rh_beseg->bs_domain,
 			    &fom->fo_loc->fl_group);
-
+		fom->fo_tx.tx_betx.dev_idx =  fom->dev_idx;
 		phase_sm_id = m0_sm_id_get(&fom->fo_sm_phase);
 		tx_sm_id = m0_sm_id_get(&fom->fo_tx.tx_betx.t_sm);
 		M0_ADDB2_ADD(M0_AVI_FOM_TO_TX, phase_sm_id, tx_sm_id);

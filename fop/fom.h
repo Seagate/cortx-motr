@@ -531,6 +531,7 @@ struct m0_fom {
 #if FOM_PHASE_DEBUG
 	int                       fo_log[32];
 #endif
+	uint64_t                  dev_idx;
 	uint64_t                  fo_magic;
 };
 

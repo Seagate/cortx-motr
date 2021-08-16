@@ -214,6 +214,7 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
 		.t_gc_param         = NULL,
 		.t_exclusive        = false,
 		.t_recovering       = false,
+		.dev_idx            = 0xFFFF,
 	};
 
 	m0_sm_init(&tx->t_sm, &be_tx_sm_conf, M0_BTS_PREPARE, sm_group);

@@ -76,14 +76,16 @@ static void be_engine_tx_group_state_move(struct m0_be_engine       *en,
 	M0_PRE(be_engine_is_locked(en));
 	M0_PRE(gr->tg_state == prev_state[state]);
 	M0_PRE(egr_tlist_contains(&en->eng_groups[gr->tg_state], gr));
+#if 0
 	M0_PRE(egr_tlist_length(&en->eng_groups[M0_BGS_OPEN]) +
 	       egr_tlist_length(&en->eng_groups[M0_BGS_FROZEN]) <= 1);
-
+#endif
 	egr_tlist_move(&en->eng_groups[state], gr);
 	gr->tg_state = state;
-
+#if 0
 	M0_POST(egr_tlist_length(&en->eng_groups[M0_BGS_OPEN]) +
 		egr_tlist_length(&en->eng_groups[M0_BGS_FROZEN]) <= 1);
+#endif
 }
 
 static int be_engine_cfg_validate(struct m0_be_engine_cfg *en_cfg)
@@ -402,9 +404,10 @@ static void be_engine_group_tryclose(struct m0_be_engine   *en,
 		gr->tg_close_timer_disarm.sa_cb = &be_engine_group_timer_disarm;
 		m0_sm_ast_post(m0_be_tx_group__sm_group(gr),
 			       &gr->tg_close_timer_disarm);
-
+#if 0
 		M0_ASSERT(egr_tlist_is_empty(&en->eng_groups[M0_BGS_OPEN]) &&
 			  egr_tlist_is_empty(&en->eng_groups[M0_BGS_FROZEN]));
+#endif
 		group = egr_tlist_head(&en->eng_groups[M0_BGS_READY]);
 		if (group != NULL) {
 			/*
@@ -449,6 +452,37 @@ static struct m0_be_tx_group *be_engine_group_find(struct m0_be_engine *en)
 	                  !m0_be_tx_group_is_recovering(gr));
 }
 
+static struct m0_be_tx_group *be_engine_group_find_by_id(struct m0_be_engine *en, m0_bcount_t dev_idx)
+{
+		struct m0_be_tx_group *grp = NULL;
+		M0_ENTRY( "vcp: dev_idx = %d",(int)dev_idx);
+		if(dev_idx != 0xFFFF)
+		{
+
+			if((dev_idx < en->eng_group_nr) && !m0_be_tx_group_is_recovering(&en->eng_group[dev_idx]))
+			{
+				if(en->eng_group[dev_idx].tg_state == M0_BGS_OPEN)
+				{
+					grp = &en->eng_group[dev_idx]; 
+				}
+				else if(en->eng_group[dev_idx].tg_state == M0_BGS_READY)
+				{
+					grp = &en->eng_group[dev_idx]; 
+					be_engine_tx_group_open(en, grp);
+				}
+			}
+			else
+			{
+				return be_engine_group_find(en);	
+			}	
+		}
+		else
+		{
+			return be_engine_group_find(en);	
+		}
+		return grp;
+}
+
 static int be_engine_tx_trygroup(struct m0_be_engine *en,
 				 struct m0_be_tx     *tx)
 {
@@ -458,7 +492,7 @@ static int be_engine_tx_trygroup(struct m0_be_engine *en,
 	M0_PRE(be_engine_is_locked(en));
 	M0_PRE(!m0_be_tx__is_recovering(tx));
 
-	while ((gr = be_engine_group_find(en)) != NULL) {
+	while ((gr = be_engine_group_find_by_id(en, tx->dev_idx)) != NULL) {
 		if (tx->t_grouped) {
 			/*
 			 * The tx is already grouped in a recursive
@@ -729,10 +763,7 @@ static void be_engine_tx_group_ready(struct m0_be_engine   *en,
 	M0_PRE(be_engine_is_locked(en));
 
 	be_engine_tx_group_state_move(en, gr, M0_BGS_READY);
-	if (egr_tlist_is_empty(&en->eng_groups[M0_BGS_OPEN]) &&
-	    egr_tlist_is_empty(&en->eng_groups[M0_BGS_FROZEN])) {
-		be_engine_tx_group_open(en, gr);
-	}
+	be_engine_tx_group_open(en, gr);
 }
 
 M0_INTERNAL void m0_be_engine__tx_group_ready(struct m0_be_engine   *en,

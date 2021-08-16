@@ -53,7 +53,7 @@
 #include "reqh/reqh.h"
 
 #include "format/format.h"         /* m0_format_footer_update */
-
+#include "ioservice/fid_convert.h"
 /**
    @addtogroup cob
    @{
@@ -901,7 +901,13 @@ static int cob_oi_lookup(struct m0_cob *cob)
 	}
 
 	oldkey = cob->co_oikey;
-	ht_idx = cob_get_hash(&oldkey.cok_fid);
+	if(m0_fid_validate_cob(&oldkey.cok_fid))
+	{
+
+	  	ht_idx = m0_fid_cob_device_id(&oldkey.cok_fid);	
+  	}
+	else ht_idx = 0;
+
 	/*
 	 * Find the name from the object index table. Note the key buffer
 	 * is out of scope outside of this function, but the record is good
@@ -1462,7 +1468,11 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
 
 	m0_cob_oikey_make(&oikey, &nsrec->cnr_fid, cob->co_nsrec.cnr_cntr);
 
-	ht_idx = cob_get_hash(&oikey.cok_fid);
+	if(m0_fid_validate_cob(&oikey.cok_fid))
+	{
+		ht_idx = m0_fid_cob_device_id(&oikey.cok_fid);	
+	}
+	else ht_idx = 0;
 	m0_buf_init(&key, &oikey, sizeof oikey);
 	m0_buf_init(&val, nskey, m0_cob_nskey_size(nskey));
 	rc = cob_table_insert(&cob->co_dom->cd_object_index[ht_idx], tx, &key, &val);
@@ -1523,7 +1533,11 @@ M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
 	 */
 	m0_cob_oikey_make(&oikey, m0_cob_fid(cob), nsrec.cnr_linkno);
 	m0_buf_init(&key, &oikey, sizeof oikey);
-	ht_idx = cob_get_hash(&oikey.cok_fid);
+	if(m0_fid_validate_cob(&oikey.cok_fid))
+	{
+		ht_idx = m0_fid_cob_device_id(&oikey.cok_fid);	
+  	}
+	else ht_idx = 0;
 	rc = cob_table_delete(&cob->co_dom->cd_object_index[ht_idx], tx, &key);
 
 out:
@@ -1570,7 +1584,11 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
 
 	/* Update object index */
 
-	ht_idx = cob_get_hash(&oikey.cok_fid);
+	if(m0_fid_validate_cob(&oikey.cok_fid))
+	{
+		ht_idx = m0_fid_cob_device_id(&oikey.cok_fid);	
+  	}
+	else ht_idx = 0;
 	m0_buf_init(&key, &oikey, sizeof oikey);
 	m0_buf_init(&val, tgtkey, m0_cob_nskey_size(tgtkey));
 	rc = cob_table_update(&cob->co_dom->cd_object_index[ht_idx], tx, &key, &val);
