@@ -220,6 +220,7 @@ def configure_lnet(self):
 
     execute_command(self, "systemctl enable lnet")
     restart_services(self, ["lnet"])
+    time.sleep(2)
     # Ping to nid
     self.logger.info("Doing ping to nids\n")
     ret = lnet_self_ping(self)
