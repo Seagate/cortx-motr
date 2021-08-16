@@ -27,8 +27,6 @@
 #include "lib/string.h" /* sscanf */
 #include "lib/errno.h"  /* EINVAL */
 #include "lib/buf.h"    /* m0_buf */
-#include "lib/vec.h"    /* m0_indexvec */
-#include "lib/ext.h"    /* m0_ext */
 #include "lib/trace.h"  /* M0_RC */
 
 void __dummy_function(void)

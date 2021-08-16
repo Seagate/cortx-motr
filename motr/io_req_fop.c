@@ -103,7 +103,6 @@ M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop)
 
 /**
  * Copies correct part of attribute buffer to client's attribute bufvec.
- * Populates client application's attribute bufvec from the attribute buffer
  * received from reply fop.
  *
  *     | CS0 | CS1 | CS2 | CS3 | CS4 | CS5 | CS6 |
@@ -174,6 +173,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 			rep_index = m0_ivec_cursor_index(&rep_cursor);
 		}
 		else {
+			/** invalid cusror position */
 			M0_ASSERT(false);
 		}
 	}
@@ -196,9 +196,6 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	 * m0_op_io::ioo_attr which needs to be populated for the current
 	 * target offset(represented by rep_index).
 	 *
-	 * The current segment number is stored in rep_seg which represents the
-	 * offset from where the data is to be transferred from attribute
-	 * buffer to application's bufvec.
 	 */
 	 do {
 		rep_index = m0_ivec_cursor_index(&rep_cursor);

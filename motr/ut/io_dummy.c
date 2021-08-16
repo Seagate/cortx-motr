@@ -413,11 +413,7 @@ ut_dummy_ioo_create(struct m0_client *instance, int num_io_maps)
 	M0_ALLOC_ARR(ioo->ioo_data.ov_buf, 1);
 	M0_ALLOC_ARR(ioo->ioo_data.ov_buf[0], 1);
 
-	ioo->ioo_attr.ov_vec.v_nr = 1;
-	M0_ALLOC_ARR(ioo->ioo_attr.ov_vec.v_count, 1);
-	ioo->ioo_attr.ov_vec.v_count[0] = CKSUM_SIZE;
-	M0_ALLOC_ARR(ioo->ioo_attr.ov_buf, 1);
-	M0_ALLOC_ARR(ioo->ioo_attr.ov_buf[0], 1);
+	M0_SET0(&ioo->ioo_attr);
 
 	/* failed sessions*/
 	M0_ALLOC_ARR(ioo->ioo_failed_session, 1);

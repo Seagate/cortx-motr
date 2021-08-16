@@ -33,17 +33,23 @@ M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start(m0_bindex_t ext_start,
 
 	/* Compute how many unit starts in a given extent spans:
 	 * Illustration below shows how extents can be received w.r.t unit size (4)
-	 *    | Unit 0 || Unit 1 || Unit 2 || Unit 3 || Unit 4 ||
-	 * 1. | e1 |                            => 1 (0,2)(ext_start,ext_len)
-	 * 2. |   e2   |                        => 1 (0,4) ending on unit 0
-	 * 3. |   e2    |                       => 1 (0,5) ending on unit 1 start
-	 * 4.        |  e3     |        => 1 (2,5)
-	 * 5.  | e4 |                           => 0 (1,3) within unit 0
-	 * 6.          |         |  => 1 (3,5) ending on unit 1 end
-	 * 7.          |          | => 2 (3,6) ending on unit 2 start
+	 *    | Unit 0|| Unit 1|| Unit 2|| Unit 3 |
+	      |0|1|2|3||4|5|6|7||8|9|a|b|
+	 * 1. | e1|                            => 1 (0,2)(ext_start,ext_len)
+	 * 2. |   e2  |                        => 1 (0,4) ending on unit 0
+	 * 3. |   e2     |                     => 2 (0,5) ending on unit 1's start
+	 * 4.   |   e3   |                     => 1 (2,5)
+	 * 5.   | e4 |                         => 0 (1,3) within unit 0
+	 * 6.     | e5 |                       => 1 (3,5) ending on unit 1 end
+	 * 7.       |   e6    |                => 2 (3,8) ending on unit 2
 	 * To compute how many DU start we need to find the DU Index of
 	 * start and end.
+	 * Overall: compute unit start and end index, difference would give us
+	 * number of unit boundaries in extent span, but it would miss start
+	 * unit if it is on unit boundary, so we need to additionally check for
+	 * same.
 	 */
+
 	m0_bcount_t cs_nob;
 	M0_ASSERT(unit_sz);
 	cs_nob = ( (ext_start + ext_len - 1)/unit_sz - ext_start/unit_sz );

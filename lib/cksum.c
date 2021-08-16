@@ -44,7 +44,7 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 	M0_PRE(pi != NULL);
 	M0_PRE(curr_context != NULL);
 	M0_PRE(ergo(bvec != NULL && bvec->ov_vec.v_nr != 0,
-				bvec->ov_vec.v_count != NULL &&
+				bvec != NULL && bvec->ov_vec.v_count != NULL &&
 				bvec->ov_buf != NULL));
 
 	/* This call is for first data unit, need to initialize prev_context */
@@ -147,17 +147,13 @@ M0_INTERNAL uint64_t m0_calculate_cksum_size(struct m0_generic_pi *pi)
 {
 	M0_ENTRY();
 #ifndef __KERNEL__
-	switch(pi->pi_hdr.pih_type) {
-
-		case M0_PI_TYPE_MD5_INC_CONTEXT:
-		{
-			return sizeof(struct m0_md5_inc_context_pi);
-		}
-		case M0_PI_TYPE_MD5:
-		{
-			return sizeof(struct m0_md5_pi);
-		}
-
+	switch (pi->pi_hdr.pih_type) {
+	case M0_PI_TYPE_MD5_INC_CONTEXT:
+		return sizeof(struct m0_md5_inc_context_pi);
+		break;
+	case M0_PI_TYPE_MD5:
+		return sizeof(struct m0_md5_pi);
+		break;
 	}
 #endif
 	return 0;
@@ -179,16 +175,15 @@ int m0_client_calculate_pi(struct m0_generic_pi *pi,
 	int rc = 0;
 	M0_ENTRY();
 #ifndef __KERNEL__
-	switch(pi->pi_hdr.pih_type) {
-
-		case M0_PI_TYPE_MD5_INC_CONTEXT:
-		{
-			struct m0_md5_inc_context_pi *md5_context_pi = 
-				(struct m0_md5_inc_context_pi *) pi;
-			rc = m0_calculate_md5_inc_context(md5_context_pi, seed, bvec,
-					flag, curr_context,
-					pi_value_without_seed);
+	switch (pi->pi_hdr.pih_type) {
+	case M0_PI_TYPE_MD5_INC_CONTEXT: {
+		struct m0_md5_inc_context_pi *md5_context_pi =
+			(struct m0_md5_inc_context_pi *) pi;
+		rc = m0_calculate_md5_inc_context(md5_context_pi, seed, bvec,
+				                  flag, curr_context,
+						  pi_value_without_seed);
 		}
+		break;
 	}
 #endif
 	return M0_RC(rc);
@@ -201,43 +196,41 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
                                    struct m0_bufvec *bvec)
 {
 #ifndef __KERNEL__
-	switch(pi->pi_hdr.pih_type) {
-		case M0_PI_TYPE_MD5_INC_CONTEXT:
-			{
-				struct m0_md5_inc_context_pi md5_ctx_pi;
-				unsigned char *curr_context = m0_alloc(sizeof(MD5_CTX));
-				memset(&md5_ctx_pi, 0, sizeof(struct m0_md5_inc_context_pi));
-				if (curr_context == NULL) {
-					return false;
-				}
-				memcpy(md5_ctx_pi.pimd5c_prev_context,
-						((struct m0_md5_inc_context_pi *)pi)->pimd5c_prev_context,
-						sizeof(MD5_CTX));
-
-
-				md5_ctx_pi.pimd5c_hdr.pih_type =
-					M0_PI_TYPE_MD5_INC_CONTEXT;
-				m0_client_calculate_pi((struct m0_generic_pi *)&md5_ctx_pi,
-						seed, bvec, M0_PI_NO_FLAG,
-						curr_context, NULL);
-				m0_free(curr_context);
-				if (memcmp(((struct m0_md5_inc_context_pi *)pi)->pimd5c_value,
-							md5_ctx_pi.pimd5c_value,
-							MD5_DIGEST_LENGTH) == 0) {
-					return true;
-				}
-				else {
-					M0_LOG(M0_ERROR, "checksum fail "
-							"f_container 0x%"PRIx64" f_key 0x%"PRIx64
-							" data_unit_offset 0x%"PRIx64,
-							seed->pis_obj_id.f_container,
-							seed->pis_obj_id.f_key,
-							seed->pis_data_unit_offset);
-					return false;
-				}
-			}
-		default:
-			M0_IMPOSSIBLE("pi_type = %d", pi->pi_hdr.pih_type);
+	switch (pi->pi_hdr.pih_type) {
+	case M0_PI_TYPE_MD5_INC_CONTEXT:
+	{
+		struct m0_md5_inc_context_pi md5_ctx_pi;
+		unsigned char *curr_context = m0_alloc(sizeof(MD5_CTX));
+		memset(&md5_ctx_pi, 0, sizeof(struct m0_md5_inc_context_pi));
+		if (curr_context == NULL) {
+			return false;
+		}
+		memcpy(md5_ctx_pi.pimd5c_prev_context,
+		       ((struct m0_md5_inc_context_pi *)pi)->pimd5c_prev_context,
+		       sizeof(MD5_CTX));
+		md5_ctx_pi.pimd5c_hdr.pih_type = M0_PI_TYPE_MD5_INC_CONTEXT;
+		m0_client_calculate_pi((struct m0_generic_pi *)&md5_ctx_pi,
+					seed, bvec, M0_PI_NO_FLAG,
+					curr_context, NULL);
+		m0_free(curr_context);
+		if (memcmp(((struct m0_md5_inc_context_pi *)pi)->pimd5c_value,
+			   md5_ctx_pi.pimd5c_value,
+			   MD5_DIGEST_LENGTH) == 0) {
+			return true;
+		}
+		else {
+			M0_LOG(M0_ERROR, "checksum fail "
+					 "f_container 0x%"PRIx64" f_key 0x%"PRIx64
+					 " data_unit_offset 0x%"PRIx64,
+					 seed->pis_obj_id.f_container,
+					 seed->pis_obj_id.f_key,
+					 seed->pis_data_unit_offset);
+				return false;
+		}
+		break;
+	}
+	default:
+		M0_IMPOSSIBLE("pi_type = %d", pi->pi_hdr.pih_type);
 	}
 #endif
 	return true;
