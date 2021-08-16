@@ -2591,7 +2591,7 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 		/* Verify m0_layout_instance_to_pdi(). */
 		li = &pi->pi_base;
 		M0_UT_ASSERT(m0_layout_instance_to_pdi(li) == pi);
-		rc = m0_fd_cache_grid_build(l, pi);
+		rc = m0_fd_cache_grid_build(l, &pi->pi_perm_cache);
 		M0_UT_ASSERT(rc == 0);
 
 #if 0
@@ -2604,7 +2604,7 @@ static int test_pdclust_instance_obj(uint32_t enum_id, uint64_t lid,
 			M0_UT_ASSERT(m0_layout_instance_to_enum(li) ==
 				     &lin_enum->lle_base);
 
-		/* Delete the pdclust instance object. */
+		m0_fd_cache_grid_destroy(l, pi->pi_perm_cache);
 		m0_layout_instance_fini(&pi->pi_base);
 		M0_UT_ASSERT(m0_ref_read(&l->l_ref) == 1);
 	}

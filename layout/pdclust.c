@@ -822,7 +822,7 @@ static int pdclust_instance_build(struct m0_layout           *l,
 	M0_ALLOC_PTR(pi);
 err1_injected:
 	if (pi != NULL) {
-		rc = m0_fd_cache_grid_build(l, pi);
+		rc = m0_fd_cache_grid_build(l, &pi->pi_perm_cache);
 		if (rc != 0)
 			return M0_RC(rc);
 
@@ -893,7 +893,7 @@ M0_INTERNAL void pdclust_instance_fini(struct m0_layout_instance *li)
 	pl = m0_layout_to_pdl(layout);
 	if (pl->pl_attr.pa_K > 0)
 		m0_parity_math_fini(&pi->pi_math);
-	m0_fd_cache_grid_destroy(layout, pi);
+	m0_fd_cache_grid_destroy(layout, pi->pi_perm_cache);
 	m0_layout__instance_fini(&pi->pi_base);
 	m0_mutex_fini(&pi->pi_mutex);
 	m0_pdclust_instance_bob_fini(pi);

@@ -675,7 +675,7 @@ rewind:
 }
 
 M0_INTERNAL int m0_fd_cache_grid_build(struct m0_layout *layout,
-				       struct m0_pdclust_instance *pi)
+				       struct m0_fd_perm_cache_grid **out)
 {
 	int                            rc;
 	struct m0_pool_version        *pver;
@@ -687,7 +687,7 @@ M0_INTERNAL int m0_fd_cache_grid_build(struct m0_layout *layout,
 	uint32_t                       nxt_lvl_nodes;
 	uint32_t                       level;
 
-	M0_PRE(layout != NULL && pi != NULL && layout->l_pver != NULL);
+	M0_PRE(layout != NULL && out != NULL && layout->l_pver != NULL);
 
 	pver = layout->l_pver;
 	tree = &pver->pv_fd_tree;
@@ -701,7 +701,6 @@ M0_INTERNAL int m0_fd_cache_grid_build(struct m0_layout *layout,
 		rc = M0_ERR(-ENOMEM);
 		goto err;
 	}
-	pi->pi_perm_cache = cgrid;
 
 	for (level = 0, nxt_lvl_nodes = 1; level < tree->ft_depth; ++level) {
 		rc = m0_fd__tree_cursor_init(&cursor, tree, level);
@@ -726,20 +725,21 @@ M0_INTERNAL int m0_fd_cache_grid_build(struct m0_layout *layout,
 			}
 		} while (m0_fd__tree_cursor_next(&cursor));
 	}
+
+	*out = cgrid;
 	return M0_RC(0);
  err:
-	m0_fd_cache_grid_destroy(layout, pi);
+	m0_fd_cache_grid_destroy(layout, cgrid);
 	return M0_ERR(rc);
 }
 
 M0_INTERNAL void m0_fd_cache_grid_destroy(struct m0_layout *layout,
-				          struct m0_pdclust_instance *pi)
+				          struct m0_fd_perm_cache_grid *cgrid)
 {
 	int                           rc;
 	struct m0_pool_version       *pver = layout->l_pver;
 	struct m0_fd_tree            *tree = &pver->pv_fd_tree;
 	struct m0_fd_perm_cache      *cache;
-	struct m0_fd_perm_cache_grid *cgrid = pi->pi_perm_cache;
 	struct m0_fd__tree_cursor     cursor;
 	struct m0_fd_tree_node       *node;
 	uint32_t                      level;
@@ -772,7 +772,6 @@ M0_INTERNAL int m0_fd_perm_cache_init(struct m0_fd_perm_cache *cache,
 	uint64_t         *permute;
 	uint64_t         *inverse;
 	uint64_t         *lcode;
-
 
 	M0_PRE(cache != NULL);
 

@@ -72,7 +72,7 @@ static void test_cache_init_fini(void)
 		rc = fd_ut_tree_level_populate(tree, children_nr, i, TA_SYMM);
 		M0_UT_ASSERT(rc == 0);
 	}
-	rc = m0_fd_cache_grid_build(&l, &pi);
+	rc = m0_fd_cache_grid_build(&l, &pi.pi_perm_cache);
 	M0_UT_ASSERT(rc == 0);
 	cache_grid = pi.pi_perm_cache;
 	/*
@@ -90,7 +90,7 @@ static void test_cache_init_fini(void)
 		} while (m0_fd__tree_cursor_next(&cursor));
 	}
 
-	m0_fd_cache_grid_destroy(&l, &pi);
+	m0_fd_cache_grid_destroy(&l, pi.pi_perm_cache);
 	m0_fd_tree_destroy(tree);
 }
 

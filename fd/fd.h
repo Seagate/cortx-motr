@@ -331,16 +331,14 @@ M0_INTERNAL int m0_fd_perm_cache_init(struct m0_fd_perm_cache *cache,
 M0_INTERNAL void m0_fd_perm_cache_fini(struct m0_fd_perm_cache *cache);
 
 /**
- * Creates a permutation cache per node of the failure
- * domains tree, and stores it in the layout instance.
+ * Creates a permutation cache per node of the failure domains tree.
  */
-M0_INTERNAL int m0_fd_cache_grid_build(struct m0_layout *layout,
-				       struct m0_pdclust_instance *pi);
+M0_INTERNAL int m0_fd_cache_grid_build(struct m0_layout *,
+				       struct m0_fd_perm_cache_grid **out);
 
 /** Frees the memory for cache grid and its members. */
-M0_INTERNAL void m0_fd_cache_grid_destroy(struct m0_layout *layout,
-				         struct m0_pdclust_instance *pi);
-
+M0_INTERNAL void m0_fd_cache_grid_destroy(struct m0_layout *,
+					  struct m0_fd_perm_cache_grid *);
 
 /** @} end group Failure_Domains */
 /* __MOTR_LAYOUT_FD_H__ */

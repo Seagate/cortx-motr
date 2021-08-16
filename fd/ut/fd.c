@@ -314,9 +314,9 @@ void fd_uniformity_check(struct m0_pool_version *pv)
 		gfid.f_container = m0_rnd(4300000000, &seed);
 		gfid.f_key = m0_rnd(4353234, &seed);
 		pi.pi_base.li_gfid = gfid;
-		m0_fd_cache_grid_build(pi.pi_base.li_l, &pi);
+		m0_fd_cache_grid_build(pi.pi_base.li_l, &pi.pi_perm_cache);
 		fd_stats_generate(&pi, F_SIZE, &stats);
-		m0_fd_cache_grid_destroy(pi.pi_base.li_l, &pi);
+		m0_fd_cache_grid_destroy(pi.pi_base.li_l, pi.pi_perm_cache);
 	}
 	M0_UT_ASSERT(uniformity_check(&stats));
 	fd_stats_fini(&stats);
@@ -454,7 +454,7 @@ static void fd_mapping_check(struct m0_pool_version *pv)
 	seed = m0_time_now();
 	omega = m0_rnd(123456, &seed);
 	pi.pi_base.li_l->l_pver = pv;
-	rc = m0_fd_cache_grid_build(pi.pi_base.li_l, &pi);
+	rc = m0_fd_cache_grid_build(pi.pi_base.li_l, &pi.pi_perm_cache);
 	M0_UT_ASSERT(rc == 0);
 	for (row = omega * C; row < (omega + 1) * C; ++row) {
 		src.sa_group = row;
@@ -478,7 +478,7 @@ static void fd_mapping_check(struct m0_pool_version *pv)
 			++unmapped;
 	}
 	M0_UT_ASSERT(unmapped + pv->pv_fd_tile.ft_cols == P);
-	m0_fd_cache_grid_destroy(pi.pi_base.li_l, &pi);
+	m0_fd_cache_grid_destroy(pi.pi_base.li_l, pi.pi_perm_cache);
 	m0_free(pi.pi_base.li_l);
 }
 
@@ -707,7 +707,7 @@ static void fd_tolerance_check(struct m0_pool_version *pv)
 		seed = m0_time_now();
 		omega = m0_rnd(123456, &seed);
 		pi.pi_base.li_l->l_pver = pv;
-		m0_fd_cache_grid_build(pi.pi_base.li_l, &pi);
+		m0_fd_cache_grid_build(pi.pi_base.li_l, &pi.pi_perm_cache);
 		fail_cnt = 0;
 		for (row = omega * C; row < (omega + 1) * C; ++row) {
 			src.sa_group = row;
@@ -722,7 +722,7 @@ static void fd_tolerance_check(struct m0_pool_version *pv)
 			fail_cnt = 0;
 		}
 		m0_free(failed_domains);
-		m0_fd_cache_grid_destroy(pi.pi_base.li_l, &pi);
+		m0_fd_cache_grid_destroy(pi.pi_base.li_l, pi.pi_perm_cache);
 	}
 }
 
