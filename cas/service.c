@@ -2211,7 +2211,7 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		 * to send them to to the client.
 		 */
 
-                /* Both buffers released in cas_fom_fini(). */
+		/* Both buffers released in cas_fom_fini(). */
 		m0_rpc_at_init(&rec->cr_key);
 		rec->cr_key.ab_type = M0_RPC_AT_INLINE;
 		rec->cr_key.u.ab_buf = M0_BUF_INIT0;
@@ -2350,9 +2350,9 @@ static int cas_ctidx_delete(struct cas_fom *fom, const struct m0_cas_id *in_cid,
 	if (m0_ctg_op_rc(ctg_op) == 0) {
 		m0_ctg_op_fini(ctg_op);
 		m0_ctg_op_init(ctg_op, fom0, 0);
-                /* The key is a component catalogue FID. */
-                kbuf = M0_BUF_INIT_PTR_CONST(&in_cid->ci_fid);
-	        ret = m0_ctg_delete(ctg_op, m0_ctg_ctidx(), &kbuf, next);
+		/* The key is a component catalogue FID. */
+		kbuf = M0_BUF_INIT_PTR_CONST(&in_cid->ci_fid);
+		ret = m0_ctg_delete(ctg_op, m0_ctg_ctidx(), &kbuf, next);
 	} else
 		m0_fom_phase_set(fom0, next);
 	return ret;

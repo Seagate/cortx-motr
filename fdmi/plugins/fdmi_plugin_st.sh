@@ -68,21 +68,21 @@ do_some_kv_operations()
 			echo "m0kv failed"
 		}
 
-                echo "Now, let's delete 'key2' from this index. The plugin must show the del op coming"
-                $M0_SRC_DIR/utils/m0kv ${MOTR_PARAM}                                       \
-                                        index del    "$DIX_FID" "key2"                     \
-                                 || {
-                        rc=$?
-                        echo "m0kv index del failed"
-                }
+		echo "Now, let's delete 'key2' from this index. The plugin must show the del op coming"
+		$M0_SRC_DIR/utils/m0kv ${MOTR_PARAM}                                       \
+					index del    "$DIX_FID" "key2"                     \
+				 || {
+			rc=$?
+			echo "m0kv index del failed"
+		}
 
-                echo "Now, let's get 'key2' from this index again. It should fail."
-                $M0_SRC_DIR/utils/m0kv ${MOTR_PARAM}                                       \
-                                        index get    "$DIX_FID" "key2"                     \
-                                 && {
-                        rc=22 # EINVAL to indicate the test is failed
-                        echo "m0kv index get expected to fail, but did not."
-                }
+		echo "Now, let's get 'key2' from this index again. It should fail."
+		$M0_SRC_DIR/utils/m0kv ${MOTR_PARAM}                                       \
+				index get    "$DIX_FID" "key2"                     \
+				 && {
+			rc=22 # EINVAL to indicate the test is failed
+			echo "m0kv index get expected to fail, but did not."
+		}
 
 	done
 	return $rc
@@ -97,14 +97,14 @@ start_fdmi_plugin()
 		    -h ${lnet_nid}:$HA_EP -p $PROF_OPT    \
 		    -f $M0T1FS_PROC_ID                    "
 
-	$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin $MOTR_PARAM -g $FDMI_FILTER_FID &
+	$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin $MOTR_PARAM -g "$FDMI_FILTER_FID" &
 	sleep 5
 
 	# Checking for the pid of the started plugin process
-        local pid=$(pgrep -f "lt-fdmi_sample_plugin")
+	local pid=$(pgrep -f "lt-fdmi_sample_plugin")
 	if test "x$pid" = x; then
-	    echo "Failed to start FDMI plugin"
-	    rc=22 # EINVAL to indidate plugin start is failed
+		echo "Failed to start FDMI plugin"
+		rc=22 # EINVAL to indidate plugin start is failed
 	fi
 	return $rc
 }
@@ -112,11 +112,11 @@ start_fdmi_plugin()
 
 stop_fdmi_plugin()
 {
-        local pid=$(pgrep -f "lt-fdmi_sample_plugin")
+	local pid=$(pgrep -f "lt-fdmi_sample_plugin")
 	if test "x$pid" != x; then
-	    echo "Terminating ${pid}"
-	    kill -TERM "${pid}"
-	    wait "${pid}"
+		echo "Terminating ${pid}"
+		kill -TERM "${pid}"
+	wait "${pid}"
 	fi
 	return 0
 }
@@ -147,7 +147,7 @@ motr_fdmi_plugin_test()
 		# if kv operations fail.
 		rc=$?
 		echo "Test failed with error $rc"
-        }
+	}
 
 	# wait_and_exit
 
