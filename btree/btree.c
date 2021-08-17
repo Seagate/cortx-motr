@@ -4228,7 +4228,8 @@ static void vkvv_capture(struct slot *slot, struct m0_be_tx *tx)
  */
 static void btree_callback_credit(struct m0_be_tx_credit *accum)
 {
-	accum->tc_cb_nr += BTREE_CB_CREDIT_CNT;
+	struct m0_be_tx_credit cb_cred = M0_BE_TX_CB_CREDIT(0,  0, 1);
+	m0_be_tx_credit_add(accum,  &cb_cred);
 }
 
 /**
@@ -4246,6 +4247,7 @@ static void btree_node_split_credit(const struct m0_btree  *tree,
 
 	/* credits to update two nodes : existing and newly allocated. */
 	node_rec_put_credit(tree->t_desc->t_root, ksize, vsize, &cred);
+	btree_callback_credit(&cred);
 	m0_be_tx_credit_mul(&cred, 2);
 
 	m0_be_tx_credit_add(accum, &cred);
@@ -4266,7 +4268,6 @@ void m0_btree_put_credit(const struct m0_btree  *tree,
 	/* Credits for split operation */
 	btree_node_split_credit(tree, ksize, vsize, &cred);
 	m0_be_tx_credit_mul(&cred, MAX_TREE_HEIGHT);
-	btree_callback_credit(&cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
@@ -4284,9 +4285,8 @@ void m0_btree_del_credit(const struct m0_btree  *tree,
 
 	/* Credits for freeing the node. */
 	node_free_credit(tree->t_desc->t_root, ksize, vsize, &cred);
-	m0_be_tx_credit_mul(&cred, MAX_TREE_HEIGHT);
-
 	btree_callback_credit(&cred);
+	m0_be_tx_credit_mul(&cred, MAX_TREE_HEIGHT);
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
@@ -7972,6 +7972,8 @@ enum {
 
 	RANDOM_TREE_COUNT      = -1,
 	RANDOM_THREAD_COUNT    = -1,
+
+	BE_UT_SEG_SIZE         = 0,
 };
 #else
 enum {
@@ -7989,6 +7991,8 @@ enum {
 
 	RANDOM_TREE_COUNT      = -1,
 	RANDOM_THREAD_COUNT    = -1,
+
+	BE_UT_SEG_SIZE         = 10ULL * 1024ULL * 1024ULL * 1024ULL,
 };
 #endif
 
@@ -9948,9 +9952,9 @@ static void ut_put_update_del_operation(void)
 }
 #endif
 
+
 static int ut_btree_suite_init(void)
 {
-	uint64_t be_seg_size = 10ULL * 1024ULL * 1024ULL * 1024ULL; /** 10GB */
 	M0_ENTRY();
 
 	M0_ALLOC_PTR(ut_be);
@@ -9960,7 +9964,7 @@ static int ut_btree_suite_init(void)
 	M0_ASSERT(ut_seg != NULL);
 	/* Init BE */
 	m0_be_ut_backend_init(ut_be);
-	m0_be_ut_seg_init(ut_seg, ut_be, be_seg_size);
+	m0_be_ut_seg_init(ut_seg, ut_be, BE_UT_SEG_SIZE);
 	seg = ut_seg->bus_seg;
 
 	M0_LEAVE();
