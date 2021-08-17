@@ -146,19 +146,11 @@ M0_INTERNAL void m0_locality_fini(struct m0_locality *loc)
 M0_INTERNAL struct m0_locality *m0_locality_here(void)
 {
 	struct locality_global *glob = loc_glob();
-	struct m0_thread_tls   *tls;
 
 	if (glob->lg_dom == NULL || m0_thread_self() == &glob->lg_ast_thread)
 		return &glob->lg_fallback;
-	else {
-		tls = m0_thread_tls();
-		if (tls->tls_loci != m0_processor_id_get() &&
-		    !tls->tls_warned) {
-			M0_LOG(M0_WARN, "thread migrated to another CPU core");
-			tls->tls_warned = true;
-		}
-		return m0_locality_get(tls->tls_loci);
-	}
+	else
+		return m0_locality_get(m0_thread_tls()->tls_loci);
 }
 
 M0_INTERNAL struct m0_locality *m0_locality_get(uint64_t value)
@@ -312,10 +304,19 @@ void m0_locality_chore_fini(struct m0_locality_chore *chore)
 
 M0_INTERNAL void m0_locality_chores_run(struct m0_locality *locality)
 {
-	struct chore_local *chloc;
+	struct chore_local   *chloc;
+	struct m0_thread_tls *tls;
 
 	M0_PRE(m0_sm_group_is_locked(locality->lo_grp));
 	M0_ASSERT(locality == m0_locality_here());
+
+	tls = m0_thread_tls();
+	if (tls->tls_loci != m0_processor_id_get() && !tls->tls_warned) {
+		M0_LOG(M0_WARN, "thread migrated to another CPU core: "
+		       "was %d, now %d", (int)tls->tls_loci,
+		       (int)m0_processor_id_get());
+		tls->tls_warned = true;
+	}
 
 	m0_tl_for(chore_l, &locality->lo_chores, chloc) {
 		struct m0_locality_chore *chore = chloc->lo_chore;

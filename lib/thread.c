@@ -68,7 +68,6 @@ int m0_thread_init(struct m0_thread *q, int (*init)(void *),
 	 * of `q'. */
 	q->t_tls.tls_m0_instance = m0_get();
 	q->t_tls.tls_self = q;
-	q->t_tls.tls_loci = m0_processor_id_get();
 
 	result = m0_thread_init_impl(q, q->t_namebuf);
 	if (result != 0)
@@ -108,6 +107,7 @@ M0_INTERNAL void *m0_thread_trampoline(void *arg)
 	M0_PRE(t->t_tls.tls_m0_instance != NULL);
 	M0_PRE(t->t_tls.tls_self == t);
 
+	t->t_tls.tls_loci = m0_processor_id_get();
 	m0_set(t->t_tls.tls_m0_instance);
 	m0_addb2_global_thread_enter();
 	if (t->t_init != NULL) {
