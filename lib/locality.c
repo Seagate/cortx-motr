@@ -146,11 +146,19 @@ M0_INTERNAL void m0_locality_fini(struct m0_locality *loc)
 M0_INTERNAL struct m0_locality *m0_locality_here(void)
 {
 	struct locality_global *glob = loc_glob();
+	struct m0_thread_tls   *tls;
 
 	if (glob->lg_dom == NULL || m0_thread_self() == &glob->lg_ast_thread)
 		return &glob->lg_fallback;
-	else
-		return m0_locality_get(m0_processor_id_get());
+	else {
+		tls = m0_thread_tls();
+		if (tls->tls_loci != m0_processor_id_get() &&
+		    !tls->tls_warned) {
+			M0_LOG(M0_WARN, "thread migrated to another CPU core");
+			tls->tls_warned = true;
+		}
+		return m0_locality_get(tls->tls_loci);
+	}
 }
 
 M0_INTERNAL struct m0_locality *m0_locality_get(uint64_t value)
