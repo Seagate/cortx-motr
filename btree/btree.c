@@ -569,7 +569,7 @@
 #include <unistd.h>
 #endif
 
-#define AVOID_BE_SEGMENT    0
+#define AVOID_BE_SEGMENT    1
 /**
  *  --------------------------------------------
  *  Section START - BTree Structure and Operations
@@ -5549,7 +5549,6 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
-#if 0
 		/**
 		 * This following check has been added to enforce the
 		 * requirement that nodes have aligned addresses.
@@ -5558,7 +5557,6 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 		 */
 		if (!addr_is_aligned(data->addr))
 			return M0_ERR(-EFAULT);
-#endif
 
 		oi = m0_alloc(sizeof *bop->bo_i);
 		if (oi == NULL)
@@ -5615,6 +5613,7 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op *bop  = M0_AMB(bop, smop, bo_op);
 	struct td          *tree = bop->bo_arbor->t_desc;
+	struct slot         _slot;
 
 	M0_PRE(bop->bo_op.o_sm.sm_state == P_INIT);
 
@@ -5631,6 +5630,9 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 	M0_PRE(node_count(tree->t_root) == 0);
 	m0_rwlock_write_unlock(&tree->t_lock);
 	node_fini(tree->t_root, bop->bo_tx);
+	_slot.s_node                    = tree->t_root;
+	_slot.s_idx                     = 0;
+	node_capture(&_slot, bop->bo_tx);
 	node_put(tree->t_root->n_op, tree->t_root, bop->bo_tx);
 	tree_put(tree);
 
