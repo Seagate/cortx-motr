@@ -78,7 +78,17 @@ M0_INTERNAL void m0_locality_init(struct m0_locality *loc,
 M0_INTERNAL void m0_locality_fini(struct m0_locality *loc);
 
 /**
- * Returns locality corresponding to the core the call is made on.
+ * Returns locality corresponding to the CPU core the thread (from which
+ * the call is made) was initially run on.
+ *
+ * Locality threads are bound to the cores (unless the affinity
+ * is not reset externally, for example, by numad), see loc_thr_init().
+ * All the rest threads might change their CPU cores over time. In any case,
+ * the returned locality is always the same and corresponds to the CPU core
+ * the thread was run the very first time.
+ *
+ * If the call is made from the global fallback locality thread, returns the
+ * fallback locality (lg_fallback), regardless of the CPU core it runs on.
  *
  * @post result->lo_grp != NULL
  */
