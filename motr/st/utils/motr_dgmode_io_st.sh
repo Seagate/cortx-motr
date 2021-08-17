@@ -70,7 +70,7 @@ main()
 	rc=0
 
 	BLOCKSIZE=16384 #4096
-	BLOCKCOUNT=3
+	BLOCKCOUNT=6
 	echo "dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file"
 	dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file \
               2> $MOTR_TEST_LOGFILE || {
