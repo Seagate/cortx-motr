@@ -63,6 +63,7 @@ M0_INTERNAL void m0_be_tx_credit_sub(struct m0_be_tx_credit *c0,
 
 	c0->tc_reg_nr   -= c1->tc_reg_nr;
 	c0->tc_reg_size -= c1->tc_reg_size;
+	c0->tc_cb_nr    -= c1->tc_cb_nr;
 	if (M0_DEBUG_BE_CREDITS) {
 		for (i = 0; i < M0_BE_CU_NR; ++i) {
 			M0_PRE(c0->tc_balance[i] >= c1->tc_balance[i]);
@@ -75,6 +76,7 @@ M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k)
 {
 	c->tc_reg_nr   *= k;
 	c->tc_reg_size *= k;
+	c->tc_cb_nr    *= k;
 
 	if (M0_DEBUG_BE_CREDITS)
 		m0_forall(i, M0_BE_CU_NR, c->tc_balance[i] *= k, true);
@@ -84,6 +86,7 @@ M0_INTERNAL void m0_be_tx_credit_mul_bp(struct m0_be_tx_credit *c, unsigned bp)
 {
 	c->tc_reg_nr   = c->tc_reg_nr   * bp / 10000;
 	c->tc_reg_size = c->tc_reg_size * bp / 10000;
+	c->tc_cb_nr    = c->tc_cb_nr    * bp / 10000;
 }
 
 M0_INTERNAL void m0_be_tx_credit_mac(struct m0_be_tx_credit *c,
@@ -114,8 +117,9 @@ M0_INTERNAL void m0_be_tx_credit_max(struct m0_be_tx_credit       *c,
 				     const struct m0_be_tx_credit *c0,
 				     const struct m0_be_tx_credit *c1)
 {
-	*c = M0_BE_TX_CREDIT(max_check(c0->tc_reg_nr,   c1->tc_reg_nr),
-			     max_check(c0->tc_reg_size, c1->tc_reg_size));
+	*c = M0_BE_TX_CB_CREDIT(max_check(c0->tc_reg_nr,   c1->tc_reg_nr),
+				max_check(c0->tc_reg_size, c1->tc_reg_size),
+				max_check(c0->tc_cb_nr,    c1->tc_cb_nr));
 }
 
 M0_INTERNAL void m0_be_tx_credit_add_max(struct m0_be_tx_credit       *c,

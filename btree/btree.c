@@ -627,7 +627,7 @@ enum {
 	MAX_VAL_SIZE             = 8,
 	MAX_TRIALS               = 3,
 	MAX_TREE_HEIGHT          = 5,
-	BTREE_CALLBACK_CREDIT    = MAX_TREE_HEIGHT * 2 + 1,
+	BTREE_CB_CREDIT_CNT      = MAX_TREE_HEIGHT * 2 + 1,
 	INTERNAL_NODE_VALUE_SIZE = sizeof(void *),
 };
 
@@ -1413,7 +1413,7 @@ struct m0_btree_oimpl {
 	 * modified as a part of KV operations. The nodes in this array are
 	 * later captured in P_CAPTURE state of the KV_tick() function.
 	 */
-	struct node_capture_info   i_capture[BTREE_CALLBACK_CREDIT];
+	struct node_capture_info   i_capture[BTREE_CB_CREDIT_CNT];
 
 	/**
 	 * Flag for indicating if root child needs to be freed. After deleting
@@ -4221,7 +4221,7 @@ static void vkvv_capture(struct slot *slot, struct m0_be_tx *tx)
  */
 static void btree_callback_credit(struct m0_be_tx_credit *accum)
 {
-	accum->tc_cb_nr += BTREE_CALLBACK_CREDIT;
+	accum->tc_cb_nr += BTREE_CB_CREDIT_CNT;
 }
 
 /**
@@ -4543,7 +4543,7 @@ static void btree_node_capture_enlist(struct m0_btree_oimpl *oi,
 
 	M0_PRE(addr != NULL);
 
-	for (i = 0; i < BTREE_CALLBACK_CREDIT; i++) {
+	for (i = 0; i < BTREE_CB_CREDIT_CNT; i++) {
 		if (arr[i].nc_node == NULL) {
 			arr[i].nc_node = addr;
 			arr[i].nc_idx  = start_idx;
@@ -4592,7 +4592,7 @@ static void btree_tx_nodes_capture(struct m0_btree_oimpl *oi,
 	struct slot          node_slot;
 	int                       i;
 
-	for (i = 0; i < BTREE_CALLBACK_CREDIT; i++) {
+	for (i = 0; i < BTREE_CB_CREDIT_CNT; i++) {
 		if (arr[i].nc_node == NULL)
 			break;
 
