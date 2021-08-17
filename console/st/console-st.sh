@@ -42,12 +42,10 @@ CONF_FILE_PATH=$M0_SRC_DIR/ut/diter.xc
 CONF_PROFILE='<0x7000000000000001:0>'
 
 NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91  # required by `common.sh'
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh  # modload_galois
 
 start_server()
 {
 	modprobe lnet
-	modload_galois
 	echo 8 >/proc/sys/kernel/printk
 	modload
 
@@ -132,7 +130,6 @@ stop_server()
 {
 	{ pkill $(basename "$SERVER") && wait; } || true
 	modunload
-	modunload_galois
 }
 
 check_reply()
