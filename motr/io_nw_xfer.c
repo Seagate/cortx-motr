@@ -1054,9 +1054,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			else {
 				rw_fop->crw_di_data_cksum.b_addr = NULL;
 				rw_fop->crw_di_data_cksum.b_nob = 0;
-				if (!read_in_write)
-					M0_ASSERT(ergo(ioo->ioo_attr.ov_vec.v_nr,
-					               ioo->ioo_attr.ov_vec.v_count[0]));
 			}
 
 			rw_fop->crw_cksum_size = (read_in_write ||
