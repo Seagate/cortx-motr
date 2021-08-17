@@ -52,17 +52,22 @@ class MotrError(Exception):
     def __str__(self):
         return f"error[{self._rc}]: {self._desc}"
 
-
-def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
-    ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                          shell=True)
-    stdout, stderr = ps.communicate(timeout=timeout_secs);
-    stdout = str(stdout, 'utf-8')
-    if self._debug or verbose:
-        self.logger.debug(f"[CMD] {cmd}\n")
-        self.logger.debug(f"[OUT]\n{stdout}\n")
-        self.logger.debug(f"[RET] {ps.returncode}\n")
+def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False, retries = 1):
+    for i in range(retries):
+        self.logger.info(f"Retry: {i}. Executing cmd: '{cmd}'")
+        ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              shell=True)
+        stdout, stderr = ps.communicate(timeout=timeout_secs);
+        stdout = str(stdout, 'utf-8')
+        self.logger.info(f"ret={ps.returncode}\n")
+        if self._debug or verbose:
+            self.logger.debug(f"[CMD] {cmd}\n")
+            self.logger.debug(f"[OUT]\n{stdout}\n")
+            self.logger.debug(f"[RET] {ps.returncode}\n")
+        if ps.returncode == 0:
+            break
+        time.sleep(1)
     if ps.returncode != 0:
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
@@ -86,10 +91,14 @@ def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = Fa
         return stdout, ps.returncode
     return
 
-def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS):
-    self.logger.info(f"Executing cmd : '{cmd}'\n")
-    ps = subprocess.run(list(cmd.split(' ')), timeout=timeout_secs)
-    self.logger.info(f"ret={ps.returncode}\n")
+def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS, retries = 1):
+    for i in range(retries):
+        self.logger.info(f"Retry: {i}. Executing cmd : '{cmd}'\n")
+        ps = subprocess.run(list(cmd.split(' ')), timeout=timeout_secs)
+        self.logger.info(f"ret={ps.returncode}\n")
+        if ps.returncode == 0:
+            break
+        time.sleep(1)
     return ps.returncode
 
 def check_type(var, vtype, msg):
@@ -212,6 +221,7 @@ def configure_lnet(self):
 
     execute_command(self, "systemctl enable lnet")
     restart_services(self, ["lnet"])
+    time.sleep(2)
     # Ping to nid
     self.logger.info("Doing ping to nids\n")
     ret = lnet_self_ping(self)
@@ -228,7 +238,7 @@ def swap_on(self):
 
 def swap_off(self):
     cmd = "swapoff -a"
-    execute_command(self, cmd)
+    execute_command(self, cmd, retries=3)
 
 def add_swap_fstab(self, dev_name):
     '''
@@ -698,19 +708,19 @@ def remove_dirs(self, log_dir, patterns):
 
     for pattern in patterns:
         removed_dirs = []
-        self.logger.info(f"Removing {pattern} directories from {log_dir}")
 
         # Search directories for files/dirs with pattern in their names and remove it.
         # e.g. removes addb* dirs from /var/motr
-        # search_pat=/var/motr/**/addb*
-        search_pat = "{}/**/{}*".format(log_dir, pattern)
+        # search_pat=/var/motr/addb*
+
+        search_pat = "{}/{}*".format(log_dir, pattern)
         for dname in glob.glob(search_pat, recursive=True):
             removed_dirs.append(dname)
             execute_command(self, f"rm -rf {dname}")
-        self.logger.info(f"Removed below directories.\n{removed_dirs}")
+        if len(removed_dirs) > 0:
+            self.logger.info(f"Removed below directories of pattern {pattern} from {log_dir}.\n{removed_dirs}")
 
-def remove_logs(self):
-    patterns=["addb", "*trace"]
+def remove_logs(self, patterns):
     for log_dir in MOTR_LOG_DIRS:
         if os.path.exists(log_dir):
             remove_dirs(self, log_dir, patterns)
@@ -719,8 +729,6 @@ def remove_logs(self):
     if os.path.exists(IVT_DIR):
         self.logger.info(f"Removing {IVT_DIR}")
         execute_command(self, f"rm -rf {IVT_DIR}")
-    else:
-        self.logger.warning(f"{IVT_DIR} does not exist")
 
 def check_services(self, services):
     for service in services:
@@ -752,7 +760,7 @@ def lnet_self_ping(self):
     nids = []
 
     op = execute_command(self, "lctl list_nids")
-    nids.append(op[0].rstrip("\n"))
+    nids.append(op[0].strip("\n"))
     self.logger.info(f"nids= {nids}\n")
     for nid in nids:
        cmd = f"lctl ping {nid}"
@@ -817,3 +825,80 @@ def update_motr_hare_keys_for_all_nodes(self):
                     f" {host}:{self._motr_hare_conf}")
             execute_command(self, cmd)
 
+# Get voulme groups created on metadata devices mentioned in config file
+def get_vol_grps(self):
+    cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
+
+    vol_grps = []
+    for i in range(int(cvg_cnt)):
+        cvg_item = cvg[i]
+        try:
+            metadata_devices = cvg_item["metadata_devices"]
+        except:
+            raise MotrError(errno.EINVAL, "metadata devices not found\n")
+        check_type(metadata_devices, list, "metadata_devices")
+        self.logger.info(f"lvm metadata_devices: {metadata_devices}")
+
+        for device in metadata_devices:
+            cmd = f"pvs | grep {device} " "| awk '{print $2}'"
+            ret = execute_command(self, cmd)
+            if ret[0]:
+                vol_grps.append(ret[0].strip())
+    return vol_grps
+
+def lvm_clean(self):
+    self.logger.info("Removing cortx lvms")
+    vol_grps = get_vol_grps(self)
+    if (len(vol_grps) == 0):
+        self.logger.info("No cortx volume groups (e.g. vg_srvnode-1_md1) are found \n")
+        return
+    self.logger.info(f"Volume groups found: {vol_grps}")
+    self.logger.info("Executing swapoff -a")
+    swap_off(self)
+    self.logger.info(f"Removing cortx LVM entries from {FSTAB}")
+    execute_command(self, f"sed -i.bak '/vg_srvnode/d' {FSTAB}")
+    for vg in vol_grps:
+        cmd = f"pvs|grep {vg} |" "awk '{print $1}'"
+        pv_names = execute_command(self, cmd)[0].split('\n')[0:-1]
+        cmd = f"lvs|grep {vg} |" "awk '{print $1}'"
+        lv_names = execute_command(self, cmd)[0].split('\n')[0:-1]
+
+        # Removing logical volumes
+        for lv in lv_names:
+            lv_path = f"/dev/{vg}/{lv}"
+            self.logger.info(f"Executing lvchange -an {lv_path}")
+            execute_command(self, f"lvchange -an {lv_path}")
+            self.logger.info(f"Executing lvremove {lv_path}")
+            execute_command(self, f"lvremove {lv_path}")
+            if os.path.exists(lv_path):
+                self.logger.info("Removing dmsetup entries using cmd "
+                                 f"\'dmsetup remove {lv_path}\'")
+                execute_command(self, f"dmsetup remove {lv_path}")
+
+        # Removing volume groups
+        self.logger.info(f"Executing vgchange -an {vg}")
+        execute_command(self, f"vgchange -an {vg}")
+        self.logger.info(f"Executing vgremove {vg}")
+        execute_command(self, f"vgremove {vg}")
+
+        # Removing physical volumes
+        for pv in pv_names:
+            self.logger.info(f"Executing pvremove {pv}")
+            execute_command(self, f"pvremove {pv}")
+            self.logger.info(f"Executing wipefs -a {pv}")
+            execute_command(self, f"wipefs -a {pv}")
+
+    # In some case, we still have dm entries even though all VG, LV, PV
+    # are removed. This is observed in hw setups where lvms are not cleaned up
+    remove_dm_entries(self)
+
+def remove_dm_entries(self):
+    cmd = "ls -l /dev/vg_srvnode*/* | awk '{print $9}'"
+    lv_paths = execute_command(self, cmd)[0].split('\n')
+    for lv_path in lv_paths:
+        if lv_path == '':
+            continue
+        else:
+            if os.path.exists(lv_path):
+                self.logger.info(f"dmsetup remove {lv_path}")
+                execute_command(self, f"dmsetup remove {lv_path}")
