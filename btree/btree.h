@@ -180,7 +180,7 @@ void m0_btree_destroy_credit(struct m0_btree *tree,
  * @return 0 if successful.
  */
 int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
-		   struct m0_btree_op *bop);
+		   struct m0_be_seg *seg, struct m0_btree_op *bop);
 
 /**
  * Closes the opened or created tree represented by arbor. Once the close
