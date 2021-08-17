@@ -115,7 +115,7 @@ Unit Benchmark
 Troubleshooting
 ================
 - If pip fails to install a package while installing build dependencies,
-  try to manually install the package.
+  try installing packages using pip installer.
   run the following commands if package is ipaddress::
 
     sudo pip install python-ipaddress
