@@ -55,7 +55,7 @@ do_some_kv_operations()
 			    -h ${lnet_nid}:$HA_EP -p $PROF_OPT \
 			    -f $M0T1FS_PROC_ID -s "
 
-		$M0_SRC_DIR/utils/m0kv ${MOTR_PARAM}                                       \
+		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
 					index create "$DIX_FID"                            \
 					      put    "$DIX_FID" "somekey" "somevalue"      \
 					      get    "$DIX_FID" "somekey"                  \
@@ -69,7 +69,7 @@ do_some_kv_operations()
 		}
 
 		echo "Now, let's delete 'key2' from this index. The plugin must show the del op coming"
-		$M0_SRC_DIR/utils/m0kv ${MOTR_PARAM}                                       \
+		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
 					index del    "$DIX_FID" "key2"                     \
 				 || {
 			rc=$?
@@ -77,11 +77,20 @@ do_some_kv_operations()
 		}
 
 		echo "Now, let's get 'key2' from this index again. It should fail."
-		$M0_SRC_DIR/utils/m0kv ${MOTR_PARAM}                                       \
+		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
 				index get    "$DIX_FID" "key2"                     \
 				 && {
 			rc=22 # EINVAL to indicate the test is failed
 			echo "m0kv index get expected to fail, but did not."
+		}
+		sleep 1
+		echo "Now, let's delete 'key2' from this index again."
+		echo "It should fail, and the plugin must NOT show the del op coming."
+		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+                                       index del    "$DIX_FID" "key2"                     \
+                    && {
+                    rc=22 # EINVAL to indicate the test is failed
+                    echo "m0kv index del should fail, but did not"
 		}
 
 	done
@@ -97,7 +106,7 @@ start_fdmi_plugin()
 		    -h ${lnet_nid}:$HA_EP -p $PROF_OPT    \
 		    -f $M0T1FS_PROC_ID                    "
 
-	$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin $MOTR_PARAM -g "$FDMI_FILTER_FID" &
+	"$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin" $MOTR_PARAM -g $FDMI_FILTER_FID &
 	sleep 5
 
 	# Checking for the pid of the started plugin process
@@ -142,11 +151,13 @@ motr_fdmi_plugin_test()
 	echo
 	echo
 
-	start_fdmi_plugin && do_some_kv_operations || {
+	start_fdmi_plugin && {
+	    do_some_kv_operations || {
 		# Make the rc available for the caller and fail the test
 		# if kv operations fail.
 		rc=$?
 		echo "Test failed with error $rc"
+	    }
 	}
 
 	# wait_and_exit

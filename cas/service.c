@@ -2208,7 +2208,7 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		 *
 		 * Since m0_cas_op is completely added to the fol rec, we
 		 * have these buffers available for the FDMI and don't have
-		 * to send them to to the client.
+		 * to send them to the client.
 		 */
 
 		/* Both buffers released in cas_fom_fini(). */
