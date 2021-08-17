@@ -114,10 +114,11 @@ Unit Benchmark
 
 Troubleshooting
 ================
-- If the pip installation fails while installing build dependencies,
-  run the following commands::
+- If pip fails to install a package while installing build dependencies,
+  try installing packages using pip installer.
+  run the following commands if package is ipaddress::
 
-    sudo python -m pip uninstall pip setuptools
+    sudo pip install python-ipaddress
     sudo scripts/install-build-deps
 
 - If an installation failure occurs due to the dependency of ``pip3`` ,
