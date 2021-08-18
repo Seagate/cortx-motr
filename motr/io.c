@@ -696,8 +696,8 @@ int m0_obj_op(struct m0_obj       *obj,
 	enum m0_client_layout_type type;
 
 	M0_ENTRY("obj_id: " U128X_F " opcode = %s", U128_P(&obj->ob_entity.en_id),
-		 opcode == M0_OC_READ ? "read" : opcode == M0_OC_WRITE ? "write" :  \
-		 opcode == M0_OC_FREE ? "free" : "UNKNOWN");
+		  opcode == M0_OC_READ ? "read" : opcode == M0_OC_WRITE ? "write" :  \
+		  opcode == M0_OC_FREE ? "free" : "");
 	M0_PRE(obj != NULL);
 	M0_PRE(op != NULL);
 	M0_PRE(ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOHOLE))));
@@ -730,7 +730,6 @@ int m0_obj_op(struct m0_obj       *obj,
 		}
 		layout_alloc = true;
 	}
-	//M0_ASSERT(obj->ob_attr.oa_layout_id <= 32);
 
 	/* Build object's IO requests using its layout. */
 	obj_io_args_check(obj, opcode, ext, data, attr, mask);
