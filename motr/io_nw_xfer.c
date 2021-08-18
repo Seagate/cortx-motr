@@ -1514,9 +1514,6 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 			if (rc != 0)
 				goto err;
 
-			if (op_code == M0_OC_WRITE && do_cobs)
-				m0_bitmap_set(&units_spanned, unit, true);
-
 			ti->ti_ops->tio_seg_add(ti, &src, &tgt, r_ext.e_start,
 						m0_ext_length(&r_ext), iomap);
 			if (op_code == M0_OC_WRITE && do_cobs &&
