@@ -304,7 +304,7 @@ void m0_locality_chore_fini(struct m0_locality_chore *chore)
 
 M0_INTERNAL void m0_locality_chores_run(struct m0_locality *locality)
 {
-	struct chore_local   *chloc;
+	struct chore_local *chloc;
 
 	M0_PRE(m0_sm_group_is_locked(locality->lo_grp));
 	M0_ASSERT(locality == m0_locality_here());

@@ -1258,15 +1258,12 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain **out)
 				}
 
 				m0_locality_chore_init(&dom->fd_hung_foms_chore,
-				       &hung_foms_chore_ops,
-				       NULL,
-				       M0_MKTIME(HUNG_FOP_SEC_PERIOD, 0),
-				       0);
+				       &hung_foms_chore_ops, NULL,
+				       M0_MKTIME(HUNG_FOP_SEC_PERIOD, 0), 0);
+
 				m0_locality_chore_init(&dom->fd_locm_warn_chore,
-				       &locm_warn_chore_ops,
-				       NULL,
-				       M0_MKTIME(LOCM_CHECK_PERIOD_SEC, 0),
-				       0);
+				       &locm_warn_chore_ops, NULL,
+				       M0_MKTIME(LOCM_CHECK_PERIOD_SEC, 0), 0);
 			}
 		} else
 			result = M0_ERR(-ENOMEM);
@@ -1285,8 +1282,8 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 {
 	int i;
 
-	m0_locality_chore_fini(&dom->fd_hung_foms_chore);
 	m0_locality_chore_fini(&dom->fd_locm_warn_chore);
+	m0_locality_chore_fini(&dom->fd_hung_foms_chore);
 	if (dom->fd_localities != NULL) {
 		for (i = dom->fd_localities_nr - 1; i >= 0; --i) {
 			if (dom->fd_localities[i] != NULL)
