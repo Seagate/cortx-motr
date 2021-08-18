@@ -31,7 +31,7 @@ from motr_mini_prov import *
 class Cmd:
     """Setup Command"""
     _index = "conf"
-    
+
     # Index for Hare-Motr keys required for intercomponent communication
     _index_motr_hare = "conf_motr_hare"
 
@@ -45,8 +45,8 @@ class Cmd:
         Conf.load(self._index_motr_hare, self._url_motr_hare)
         self._args = args.args
         self._debug = args.debug
-        self.server_node = get_server_node(self)
         self.logger = config_logger(self)
+        self.server_node = get_server_node(self)
 
     @property
     def args(self) -> str:
@@ -100,7 +100,7 @@ class PrepareCmd(Cmd):
 
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
-        
+
         # If hare is installed and cluster is up then exit otherwise go ahead
         if pkg_installed(self, "cortx-hare"):
             if cluster_up(self):
@@ -191,7 +191,12 @@ class ResetCmd(Cmd):
         super().__init__(args)
 
     def process(self):
-        remove_logs(self)
+        if pkg_installed(self, "cortx-hare"):
+            if cluster_up(self):
+                self.logger.warning("Cluster is already up...Exiting.\n")
+                return
+        patterns = ["addb", "*trace"]
+        remove_logs(self, patterns)
         pass
 
 class CleanupCmd(Cmd):
@@ -202,6 +207,20 @@ class CleanupCmd(Cmd):
         super().__init__(args)
 
     def process(self):
+        if (len(self._args) > 1):
+            self.logger.error(f"Invalid number of arguments of 'cleanup'\n")
+            self.logger.error(f"usage: <prog> [-h] <cmd> --config <url> <args>\n")
+            self.logger.error(f"Ex: /opt/seagate/cortx/motr/bin/motr_setup cleanup --config <config_url> [pre-factory]")
+            return
+        if pkg_installed(self, "cortx-hare"):
+            if cluster_up(self):
+                self.logger.warning("Cluster is already up...Exiting.\n")
+                return
+
+        patterns = ["addb", "*trace", "m0d"]
+        remove_logs(self, patterns)
+        if (len(self._args) == 1) and (self._args[0] == "pre-factory"):
+            lvm_clean(self)
         pass
 
 class UpgradeCmd(Cmd):

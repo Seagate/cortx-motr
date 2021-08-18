@@ -31,6 +31,7 @@
 #  include "lib/linux_kernel/thread.h"
 #endif
 #include "lib/semaphore.h"
+#include "lib/processor.h"
 
 #include "lib/list.h"
 #include "addb2/counter.h"               /* m0_addb2_sensor */
@@ -63,11 +64,22 @@ struct m0_thread;
 struct m0_thread_tls {
 	/** m0 instance this thread belong to. */
 	struct m0                 *tls_m0_instance;
-	/** Platform specific part of tls. Defined in lib/PLATFORM/thread.h. */
-	struct m0_thread_arch_tls  tls_arch;
 	struct m0_addb2_mach      *tls_addb2_mach;
 	struct m0_thread          *tls_self;
+	/**
+	 * First cpu to which the thread was confined (or 0 if not confined).
+	 * Used as thread's locality index in m0_locality_here().
+	 *
+	 * @note m0_processor_id_get() cannot be used for this purpose,
+	 *       because thread's affinity can be re-set externally by,
+	 *       say, numad service.
+	 */
+	m0_processor_nr_t          tls_loci;
+	/** Warned about the thread migration to another CPU. */
+	bool                       tls_warned;
 	struct m0_addb2_sensor     tls_clock;
+	/** Platform specific part of tls. Defined in lib/PLATFORM/thread.h. */
+	struct m0_thread_arch_tls  tls_arch;
 };
 
 /**
@@ -231,6 +243,13 @@ M0_INTERNAL int m0_thread_signal(struct m0_thread *q, int sig);
    The user space implementation calls pthread_setaffinity_np and the kernel
    implementation modifies fields of the task_struct directly.
 
+   @note the function sets tls_loci to the 1st cpu specified at @processors
+         bitmap, which is used later by m0_locality_here(). That's why this
+         function can be called one time only for a specific thread (usually
+         during the process initialisation). In case there is a need to call
+         it several times to re-set thread's affinity, the logic of setting
+         tls_loci should be moved to a new API.
+
    @see http://www.kernel.org/doc/man-pages/online/pages/man3/pthread_setaffinity_np.3.html
    @see lib/processor.h
    @see kthread
@@ -317,6 +336,9 @@ M0_INTERNAL void m0_thread_shun(void);
 M0_INTERNAL int m0_thread_arch_adopt(struct m0_thread *thread,
 				     struct m0 *instance, bool full);
 M0_INTERNAL void m0_thread_arch_shun(void);
+
+M0_INTERNAL int m0_thread_arch_confine(struct m0_thread *q,
+				       const struct m0_bitmap *processors);
 
 /** @} end of thread group */
 #endif /* __MOTR_LIB_THREAD_H__ */

@@ -75,23 +75,27 @@ void test_bitmap(void)
 
 	m0_bitmap_set(&bm, 0, true);
 	M0_UT_ASSERT(m0_bitmap_get(&bm, 0) == true);
+	M0_UT_ASSERT(m0_bitmap_ffs(&bm) == 0);
 	m0_bitmap_set(&bm, 0, false);
 
 	m0_bitmap_set(&bm, 1, true);
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
 		M0_UT_ASSERT(m0_bitmap_get(&bm, idx) == (idx == 1));
 	}
+	M0_UT_ASSERT(m0_bitmap_ffs(&bm) == 1);
 
 	m0_bitmap_set(&bm, 2, true);
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
 		M0_UT_ASSERT(m0_bitmap_get(&bm, idx) == (idx == 1 || idx == 2));
 	}
+	M0_UT_ASSERT(m0_bitmap_ffs(&bm) == 1);
 
 	m0_bitmap_set(&bm, 64, true);
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
 		M0_UT_ASSERT(m0_bitmap_get(&bm, idx) ==
 			     (idx == 1 || idx == 2 || idx == 64));
 	}
+	M0_UT_ASSERT(m0_bitmap_ffs(&bm) == 1);
 
 	m0_bitmap_set(&bm, 2, false);
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
@@ -100,6 +104,7 @@ void test_bitmap(void)
 	}
 
 	m0_bitmap_set(&bm, 1, false);
+	M0_UT_ASSERT(m0_bitmap_ffs(&bm) == 64);
 	m0_bitmap_set(&bm, 64, false);
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
 		M0_UT_ASSERT(m0_bitmap_get(&bm, idx) == false);
