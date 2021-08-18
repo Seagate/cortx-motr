@@ -375,6 +375,35 @@ M0_INTERNAL void m0_stob_mod_fini(void)
 	m0_xc_stob_stob_fini();
 }
 
+static uint32_t stob_cids[32];
+static uint32_t current_stob_id_count = 0;
+
+M0_INTERNAL void m0_stob_store_cid(uint32_t cid)
+{
+	stob_cids[current_stob_id_count++] = cid;
+}
+
+M0_INTERNAL m0_bcount_t m0_stob_get_idx_for_cid(uint32_t cid)
+{
+	int i;
+	m0_bcount_t idx_for_cid = 0xFFFF;
+
+	for(i = 0; i <  current_stob_id_count; i++)
+	{
+		if(stob_cids[i] == cid)
+		{
+			idx_for_cid = i;
+			break;
+		}
+	}
+	return idx_for_cid;
+}
+
+M0_INTERNAL void m0_stob_clean_cid_store()
+{
+	memset(&stob_cids[0], 0, sizeof(stob_cids));
+}
+
 /** @} end group stob */
 #undef M0_TRACE_SUBSYSTEM
 

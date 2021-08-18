@@ -611,7 +611,7 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 			 */
 			if(m0_fid_validate_cob(&cob_op->fco_cfid))
 			{
-				fom->dev_idx = m0_fid_cob_device_id(&cob_op->fco_cfid);	
+				fom->dev_idx = m0_stob_get_idx_for_cid(m0_fid_cob_device_id(&cob_op->fco_cfid));
 			}
 			if (!cob_is_md(cob_op) &&
 			    fop_type == M0_COB_OP_DELETE &&

@@ -763,7 +763,14 @@ static void be_engine_tx_group_ready(struct m0_be_engine   *en,
 	M0_PRE(be_engine_is_locked(en));
 
 	be_engine_tx_group_state_move(en, gr, M0_BGS_READY);
-	be_engine_tx_group_open(en, gr);
+	if (egr_tlist_is_empty(&en->eng_groups[M0_BGS_OPEN]) &&
+	    egr_tlist_is_empty(&en->eng_groups[M0_BGS_FROZEN])) {
+		be_engine_tx_group_open(en, gr);
+	}
+	else
+	{
+		be_engine_got_tx_grouping(en);
+	}
 }
 
 M0_INTERNAL void m0_be_engine__tx_group_ready(struct m0_be_engine   *en,

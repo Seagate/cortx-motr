@@ -903,8 +903,7 @@ static int cob_oi_lookup(struct m0_cob *cob)
 	oldkey = cob->co_oikey;
 	if(m0_fid_validate_cob(&oldkey.cok_fid))
 	{
-
-	  	ht_idx = m0_fid_cob_device_id(&oldkey.cok_fid);	
+		ht_idx = m0_stob_get_idx_for_cid(m0_fid_cob_device_id(&oldkey.cok_fid));
   	}
 	else ht_idx = 0;
 
@@ -1470,7 +1469,7 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
 
 	if(m0_fid_validate_cob(&oikey.cok_fid))
 	{
-		ht_idx = m0_fid_cob_device_id(&oikey.cok_fid);	
+		ht_idx = m0_stob_get_idx_for_cid(m0_fid_cob_device_id(&oikey.cok_fid));
 	}
 	else ht_idx = 0;
 	m0_buf_init(&key, &oikey, sizeof oikey);
@@ -1535,7 +1534,7 @@ M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
 	m0_buf_init(&key, &oikey, sizeof oikey);
 	if(m0_fid_validate_cob(&oikey.cok_fid))
 	{
-		ht_idx = m0_fid_cob_device_id(&oikey.cok_fid);	
+		ht_idx = m0_stob_get_idx_for_cid(m0_fid_cob_device_id(&oikey.cok_fid));
   	}
 	else ht_idx = 0;
 	rc = cob_table_delete(&cob->co_dom->cd_object_index[ht_idx], tx, &key);
@@ -1586,7 +1585,7 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
 
 	if(m0_fid_validate_cob(&oikey.cok_fid))
 	{
-		ht_idx = m0_fid_cob_device_id(&oikey.cok_fid);	
+		ht_idx = m0_stob_get_idx_for_cid(m0_fid_cob_device_id(&oikey.cok_fid));
   	}
 	else ht_idx = 0;
 	m0_buf_init(&key, &oikey, sizeof oikey);

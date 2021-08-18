@@ -2245,7 +2245,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 		m0_fom_phase_set(fom, M0_FOPH_TXN_INIT);
   	        if(m0_fid_validate_cob(&rwfop->crw_fid))
 		{
-			fom->dev_idx = m0_fid_cob_device_id(&rwfop->crw_fid);	
+			fom->dev_idx = m0_stob_get_idx_for_cid(m0_fid_cob_device_id(&rwfop->crw_fid));
 			//fom->is_data_write = 1;
 		}
 		return M0_RC(M0_FSO_AGAIN);

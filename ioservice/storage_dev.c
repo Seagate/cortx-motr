@@ -537,6 +537,7 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 			if (rc != 0)
 				goto stob_put;
 		}
+		m0_stob_store_cid(cid);
 		device->isd_stob = stob;
 	}
 

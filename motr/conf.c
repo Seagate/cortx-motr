@@ -462,8 +462,8 @@ M0_INTERNAL int cs_conf_storage_init(struct cs_stobs        *stob,
 	 * See m0_storage_dev_attach() comment in cs_storage_devs_init().
 	 */
 	m0_storage_devs_lock(devs);
-	rc = cs_conf_storage_attach_by_srv(stob, devs, svc_fid, confc,
-					   group_nr, index_nr, force);
+	m0_stob_clean_cid_store();
+	rc = cs_conf_storage_attach_by_srv(stob, devs, svc_fid, confc, force);
 	m0_storage_devs_unlock(devs);
 	return M0_RC(rc);
 }
