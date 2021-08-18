@@ -75,8 +75,6 @@ struct m0_thread_tls {
 	 *       say, numad service.
 	 */
 	m0_processor_nr_t          tls_loci;
-	/** Warned about the thread migration to another CPU. */
-	bool                       tls_warned;
 	struct m0_addb2_sensor     tls_clock;
 	/** Platform specific part of tls. Defined in lib/PLATFORM/thread.h. */
 	struct m0_thread_arch_tls  tls_arch;

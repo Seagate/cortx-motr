@@ -305,18 +305,9 @@ void m0_locality_chore_fini(struct m0_locality_chore *chore)
 M0_INTERNAL void m0_locality_chores_run(struct m0_locality *locality)
 {
 	struct chore_local   *chloc;
-	struct m0_thread_tls *tls;
 
 	M0_PRE(m0_sm_group_is_locked(locality->lo_grp));
 	M0_ASSERT(locality == m0_locality_here());
-
-	tls = m0_thread_tls();
-	if (tls->tls_loci != m0_processor_id_get() && !tls->tls_warned) {
-		M0_LOG(M0_WARN, "thread migrated to another CPU core: "
-		       "was %d, now %d", (int)tls->tls_loci,
-		       (int)m0_processor_id_get());
-		tls->tls_warned = true;
-	}
 
 	m0_tl_for(chore_l, &locality->lo_chores, chloc) {
 		struct m0_locality_chore *chore = chloc->lo_chore;
