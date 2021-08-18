@@ -4579,6 +4579,7 @@ static void btree_tx_commit_cb(void *payload)
 {
 	struct nd *node = payload;
 
+	m0_rwlock_write_lock(&list_lock);
 	node_lock(node);
 	M0_ASSERT(node->n_txref != 0);
 	node->n_txref--;
@@ -4587,9 +4588,11 @@ static void btree_tx_commit_cb(void *payload)
 		node_unlock(node);
 		m0_rwlock_fini(&node->n_lock);
 		m0_free(node);
+		m0_rwlock_write_unlock(&list_lock);
 		return;
 	}
 	node_unlock(node);
+	m0_rwlock_write_unlock(&list_lock);
 }
 
 static void btree_tx_nodes_capture(struct m0_btree_oimpl *oi,
