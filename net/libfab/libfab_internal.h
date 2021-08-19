@@ -55,8 +55,9 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  */
 enum m0_fab__libfab_params {
 	/** Fabric memory registration access. */
-	FAB_MR_ACCESS                  = (FI_READ | FI_WRITE | FI_RECV | FI_SEND |
-				          FI_REMOTE_READ | FI_REMOTE_WRITE),
+	FAB_MR_ACCESS                  = (FI_READ | FI_WRITE | FI_RECV |
+					  FI_SEND | FI_REMOTE_READ |
+					  FI_REMOTE_WRITE),
 	/** Fabric memory registration offset. */
 	FAB_MR_OFFSET                  = 0,
 	/** Fabric memory registration flag. */
@@ -69,6 +70,8 @@ enum m0_fab__libfab_params {
 	FAB_VERBS_MAX_BULK_SEG_SIZE    = 1048576,
 	/** Max number of active work requests for Verbs */
 	FAB_VERBS_MAX_QUEUE_SIZE       = 224,
+	/** Max number of iov that can be sent in fi_sendmsg() for Verbs */
+	FAB_VERBS_MAX_IOV_PER_TX       = 1,
 
 	/** Max number of IOV in read/write command for TCP/Socket provider
 	 * (max number of segments) */
@@ -78,6 +81,11 @@ enum m0_fab__libfab_params {
 	FAB_TCP_SOCK_MAX_BULK_SEG_SIZE = 4096,
 	/** Max number of active work requests for TCP/Socket provider */
 	FAB_TCP_SOCK_MAX_QUEUE_SIZE    = 1024,
+	/** Max number of iov that can be sent in fi_sendmsg() for TCP/Socket */
+	FAB_TCP_SOCK_MAX_IOV_PER_TX    = 4,
+
+	/** Array size of iovec per tx (select max of tcp and verbs) */
+	FAB_MAX_IOV_PER_TX             = 4,
 
 	/** Max segment size for rpc buffer ( 1MB but can be changed ) */
 	FAB_MAX_RPC_SEG_SIZE           = (1 << 20),
