@@ -19,7 +19,6 @@
  *
  */
 
-
 #include "fd/fd.h"
 #include "fd/fd_internal.h" /* m0_fd__tree_root_create */
 #include "fd/ut/common.h"   /* la_N */
@@ -35,8 +34,8 @@
 #include "lib/trace.h"
 
 enum {
-	FID_CNT = 100000,
-	F_SIZE  = 10,
+	FID_CNT = 10000,
+	F_SIZE  = 20,
 	DEV_THR = 10,
 };
 /* Conf parameters. */
@@ -214,11 +213,11 @@ static uint64_t pool_width_calc(struct m0_fd_tree *tree)
 static bool uniformity_check(struct fd_stats *stats)
 {
 
-	struct m0_fd_tree         *tree;
-	struct m0_fd__tree_cursor  cursor_coarse;
-	struct m0_fd__tree_cursor  cursor_fine;
+	struct m0_fd_tree         *tree = stats->fs_tree;
 	struct m0_fd_tree_node    *child;
 	struct m0_fd_tree_node    *node;
+	struct m0_fd__tree_cursor  cursor_coarse;
+	struct m0_fd__tree_cursor  cursor_fine;
 	uint32_t                   start_idx;
 	uint32_t                   end_idx;
 	uint32_t                   dev_max;
@@ -233,7 +232,6 @@ static bool uniformity_check(struct fd_stats *stats)
 	uint32_t                   j;
 	int                        rc;
 
-	tree = stats->fs_tree;
 	rc = m0_fd__tree_cursor_init(&cursor_coarse, tree, tree->ft_depth - 1);
 	M0_UT_ASSERT(rc == 0);
 	do {
@@ -250,7 +248,7 @@ static bool uniformity_check(struct fd_stats *stats)
 		M0_UT_ASSERT(ergo(tree->ft_depth == 1,
 				  (stats->fs_attr.pa_P ==
 				   (end_idx - start_idx + 1))));
-		for (i = start_idx; i < end_idx + 1; ++i) {
+		for (i = start_idx; i <= end_idx; ++i) {
 			max = 0;
 			min = UINT32_MAX;
 			total = 0;
@@ -264,25 +262,26 @@ static bool uniformity_check(struct fd_stats *stats)
 					++skip_cnt;
 					continue;
 				}
-				if (stats->fs_incidence[i][j] == 0)
-					return false;
 				max = max32u(max, stats->fs_incidence[i][j]);
 				min = min32u(min, stats->fs_incidence[i][j]);
 				total += stats->fs_incidence[i][j];
+				if (stats->fs_incidence[i][j] == 0)
+					M0_LOG(M0_FATAL, "0incident: %d %d depth=%d start=%d end=%d",
+					       i, j, (int)tree->ft_depth, start_idx, end_idx);
 			}
 			skip_cnt = tree->ft_depth == 1 ? skip_cnt :
 				skip_cnt + end_idx - start_idx + 1;
 			co_disks = stats->fs_attr.pa_P - skip_cnt;
 			avg = total / co_disks;
 			dev_max = max32u(max - avg, avg - min);
-			M0_UT_ASSERT(dev_max * 100 / avg < DEV_THR);
-			if ((dev_max * 100/ avg ) > DEV_THR) {
-				M0_UT_LOG(M0_FATAL, "\nmax=%d\tmin=%d\tavg=%d",
+			if ((dev_max * 100/ avg ) >= DEV_THR) {
+				M0_LOG(M0_FATAL, "max=%d\tmin=%d\tavg=%d",
 					  (int)max, (int)min, (int)avg);
 				return false;
 			}
 		}
 	} while (m0_fd__tree_cursor_next(&cursor_coarse));
+
 	return true;
 }
 
@@ -290,7 +289,6 @@ static bool dev_in_range(uint32_t j, uint32_t range_start, uint32_t range_end)
 {
 	return j >= range_start && j <= range_end;
 }
-
 
 void fd_uniformity_check(struct m0_pool_version *pv)
 //static void fd_uniformity_check(struct m0_pool_version *pv)
@@ -313,6 +311,7 @@ void fd_uniformity_check(struct m0_pool_version *pv)
 	for (i = 0; i < FID_CNT; ++i) {
 		gfid.f_container = m0_rnd(4300000000, &seed);
 		gfid.f_key = m0_rnd(4353234, &seed);
+		//M0_LOG(M0_FATAL, "gfid="FID_F, FID_P(&gfid));
 		pi.pi_base.li_gfid = gfid;
 		m0_fd_cache_grid_build(pi.pi_base.li_l, &pi.pi_perm_cache);
 		fd_stats_generate(&pi, F_SIZE, &stats);
@@ -330,36 +329,31 @@ static int fd_stats_init(struct fd_stats *stats,
 	uint32_t i;
 	int      rc = 0;
 
-	stats->fs_incidence = m0_alloc(pattr->pa_P *
-				       sizeof stats->fs_incidence[0]);
+	M0_ALLOC_ARR(stats->fs_incidence, pattr->pa_P);
 	if (stats->fs_incidence == NULL) {
 		rc = -ENOMEM;
 		goto out;
 	}
 	for (i = 0; i < pattr->pa_P; ++i) {
-		stats->fs_incidence[i] = m0_alloc(pattr->pa_P *
-					sizeof stats->fs_incidence[i][0]);
+		M0_ALLOC_ARR(stats->fs_incidence[i], pattr->pa_P);
 		if (stats->fs_incidence[i] == NULL) {
 			rc = -ENOMEM;
 			goto out;
 		}
 	}
-	stats->fs_usage = m0_alloc(pattr->pa_P *
-				   sizeof stats->fs_usage[0]);
+	M0_ALLOC_ARR(stats->fs_usage, pattr->pa_P);
 	if (stats->fs_usage == NULL) {
 		rc = -ENOMEM;
 		goto out;
 	}
 	for (i = 0; i < pattr->pa_P; ++i) {
-		stats->fs_usage[i] = m0_alloc((M0_PUT_NR + 1) *
-					       sizeof stats->fs_usage[i][0]);
+		M0_ALLOC_ARR(stats->fs_usage[i], M0_PUT_NR + 1);
 		if (stats->fs_usage[i] == NULL) {
 			rc = -ENOMEM;
 			goto out;
 		}
 	}
-	stats->fs_where = m0_alloc((pattr->pa_N + 2 * pattr->pa_K) *
-				   sizeof stats->fs_where[0]);
+	M0_ALLOC_ARR(stats->fs_where, pattr->pa_N + pattr->pa_K + pattr->pa_S);
 	if (stats->fs_where == NULL) {
 		rc = -ENOMEM;
 		goto out;
@@ -396,39 +390,42 @@ enum m0_pdclust_unit_type unit_classify(const struct m0_pdclust_attr *attr,
 		return M0_PUT_SPARE;
 }
 
-static void fd_stats_generate(struct m0_pdclust_instance *pi, uint32_t groups_nr,
-			     struct fd_stats *stat)
+static void fd_stats_generate(struct m0_pdclust_instance *pi,
+			      uint32_t groups_nr, struct fd_stats *stat)
 {
+	uint32_t                    i;
+	uint32_t                    group;
+	uint32_t                    unit;
+	uint32_t                   *where;
+	struct m0_pdclust_attr     *attr = &stat->fs_attr;
+	uint32_t                    gsz = attr->pa_N + attr->pa_K + attr->pa_S;
 	struct m0_pdclust_src_addr  src;
 	struct m0_pdclust_src_addr  src1;
 	struct m0_pdclust_tgt_addr  tgt;
-	uint32_t                   *where;
-	uint32_t                    group;
-	uint32_t                    unit;
-	uint32_t                    i;
-	uint32_t                    G;
 
-	G = stat->fs_attr.pa_N + 2 * stat->fs_attr.pa_K;
 	for (group = 0; group < groups_nr; ++group) {
 		src.sa_group = group;
-		for (unit = 0; unit < G; ++unit) {
+		for (unit = 0; unit < gsz; ++unit) {
 			src.sa_unit = unit;
 			m0_fd_fwd_map(pi, &src, &tgt);
 			m0_fd_bwd_map(pi, &tgt, &src1);
 			M0_UT_ASSERT(memcmp(&src, &src1, sizeof src) == 0);
 			stat->fs_where[unit] = tgt.ta_obj;
 			stat->fs_usage[tgt.ta_obj][M0_PUT_NR]++;
-			stat->fs_usage[tgt.ta_obj][unit_classify(&stat->fs_attr,
-						                 unit)]++;
+			stat->fs_usage[tgt.ta_obj][unit_classify(attr, unit)]++;
 		}
 		where = stat->fs_where;
-		for (unit = 0; unit < G; ++unit) {
-			for (i = 0; i < G; ++i) {
+		for (unit = 0; unit < gsz; ++unit) {
+			for (i = 0; i < gsz; ++i) {
 				if (unit == i)
 					continue;
 				stat->fs_incidence[where[unit]][where[i]]++;
+				if (where[unit] == 0 && where[i] == 70)
+					M0_LOG(M0_FATAL, "i=%d j=%d n=%d", where[unit],
+					       where[i], stat->fs_incidence[where[unit]][where[i]]);
 			}
 		}
+	//	M0_LOG(M0_FATAL, "grp=%d", group);
 	}
 }
 
@@ -566,9 +563,8 @@ static uint32_t pool_width_count(uint64_t *children, uint32_t depth)
 	uint32_t i;
 	uint32_t cnt = 1;
 
-	for (i = 0; i < depth; ++i) {
+	for (i = 0; i < depth; ++i)
 		cnt *= children[i];
-	}
 
 	return cnt;
 }
@@ -641,7 +637,7 @@ static void test_pv2fd_conv(void)
 		memcpy(pool_ver.pv_fd_tol_vec, pv->pv_u.subtree.pvs_tolerance,
 		       M0_CONF_PVER_HEIGHT * sizeof pool_ver.pv_fd_tol_vec[0]);
 		fd_mapping_check(&pool_ver);
-	//	fd_uniformity_check(&pool_ver);
+		fd_uniformity_check(&pool_ver);
 		fd_tolerance_check(&pool_ver);
 		m0_fd_tree_destroy(&pool_ver.pv_fd_tree);
 		m0_fd_tile_destroy(&pool_ver.pv_fd_tile);
