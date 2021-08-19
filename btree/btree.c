@@ -3110,6 +3110,8 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *
  * Proposed Node Structure for Fix Sized Keys and Variable Sized Value :
  *
+ * Leaf Node Structure :
+ *
  * +-----------+----+-+----+-+----+-+------------------------------------+----+----+----+
  * |           |    | |    | |    | |                                    |    |    |    |
  * |           |    | |    | |    | |                                    |    |    |    |
@@ -3150,6 +3152,23 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * In this way, keys (which will also include offset for value) will be added
  * from right to left starting after node header region and value will be added
  * from left to right starting from end of the node.
+ *
+ *
+ * Internal Node Structure:
+ *
+ * +-----------+----+----+----+------------------------------------+----+----+----+
+ * |           |    |    |    |                                    |    |    |    |
+ * |           |    |    |    |                                    |    |    |    |
+ * |Node Header| K0 | K1 | K2 | ----->                      <----- | V2 | V1 | V0 |
+ * |           |    |    |    |                                    |    |    |    |
+ * |           |    |    |    |                                    |    |    |    |
+ * +-----------+----+----+----+------------------------------------+----+----+----+
+ *
+ * The internal node stucture is similar to the leaf node structure, except
+ * it does not store offset values along with the keys.
+ * For internal nodes, as values will be the pointer to internal or leaf node,
+ * the value size will be fixed. Therefore, there is no need to store offset
+ * values along with the keys.
  *
  */
 struct fkvv_head {
