@@ -1295,6 +1295,10 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 	       (char*)ep->fep_name.fen_str_addr, fi->fabric_attr->prov_name);
 	hints->fabric_attr->prov_name = NULL;
 	tm->ftm_fab->fab_fi = fi;
+	tm->ftm_fab->fab_prov = !strcmp(fi->fabric_attr->prov_name, "verbs") ?
+				FAB_FABRIC_PROV_VERBS :
+				(!strcmp(fi->fabric_attr->prov_name, "tcp") ?
+				 FAB_FABRIC_PROV_TCP : FAB_FABRIC_PROV_SOCK);
 	fi_freeinfo(hints);
 	
 	rc = fi_fabric(tm->ftm_fab->fab_fi->fabric_attr, &tm->ftm_fab->fab_fab,
@@ -2402,7 +2406,7 @@ static inline struct m0_fab__active_ep *libfab_aep_get(struct m0_fab__ep *ep)
  */
 static inline bool libfab_is_verbs(struct m0_fab__tm *tm)
 {
-	return (!strcmp(tm->ftm_fab->fab_fi->fabric_attr->prov_name, "verbs"));
+	return (tm->ftm_fab->fab_prov == FAB_FABRIC_PROV_VERBS);
 }
 
 /**
@@ -2835,6 +2839,7 @@ static int libfab_ma_start(struct m0_net_transfer_mc *ntm, const char *name)
 		libfab_ep_addr_decode(ftm->ftm_pep, name, fnd);
 
 		ftm->ftm_fab = libfab_newfab_init(fnd);
+		ftm->ftm_fab->fab_prov = FAB_FABRIC_PROV_NONE;
 		rc = libfab_passive_ep_create(ftm->ftm_pep, ftm);
 		if (rc != FI_SUCCESS)
 			return M0_RC(rc);

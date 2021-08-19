@@ -106,6 +106,17 @@ enum m0_fab__libfab_params {
 };
 
 /**
+ * Represents the fabric provider for the transfer machine
+ */
+enum m0_fab__prov_type {
+	FAB_FABRIC_PROV_NONE,
+	FAB_FABRIC_PROV_VERBS,
+	FAB_FABRIC_PROV_TCP,
+	FAB_FABRIC_PROV_SOCK,
+	FAB_FABRIC_PROV_OTHERS
+};
+
+/**
  * Represents the state of a libfab active endpoint
  */
 enum m0_fab__conn_status {
@@ -223,19 +234,22 @@ struct m0_fab__ndom {
  */
 struct m0_fab__fab {
 	/** Magic number for list of fabric interfaces in transfer machine*/
-	uint64_t           fab_magic;
+	uint64_t               fab_magic;
 
 	/** Fabric interface info */
-	struct fi_info    *fab_fi;
+	struct fi_info        *fab_fi;
 	
 	/** Fabric fid */
-	struct fid_fabric *fab_fab;
+	struct fid_fabric     *fab_fab;
 
 	/** Domain fid */
-	struct fid_domain *fab_dom;
+	struct fid_domain     *fab_dom;
 
 	/** Link in the list of fabrics */
-	struct m0_tlink    fab_link;
+	struct m0_tlink        fab_link;
+
+	/** Fabric provider type */
+	enum m0_fab__prov_type fab_prov;
 };
 
 /**
