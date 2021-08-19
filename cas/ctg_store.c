@@ -1306,7 +1306,7 @@ M0_INTERNAL int m0_ctg_lookup_delete(struct m0_ctg_op    *ctg_op,
 	ctg_op->co_opcode = CO_DEL;
 
 	/*
-	 * Here pass true to disallow failures injecations. Some
+	 * Here pass false to disallow failures injecations. Some
 	 * UT are tailored with idea in mind that only one injection
 	 * of particular type is touched at a run. ctg_buf_get() has
 	 * the falure injection that we need to avoid here to make
