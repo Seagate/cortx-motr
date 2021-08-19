@@ -42,6 +42,7 @@ CONF_FILE_PATH=$M0_SRC_DIR/ut/diter.xc
 CONF_PROFILE='<0x7000000000000001:0>'
 
 NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91  # required by `common.sh'
+. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh  # modload
 
 start_server()
 {
