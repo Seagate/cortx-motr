@@ -81,7 +81,7 @@ M0_INTERNAL void m0_locality_fini(struct m0_locality *loc);
  * Returns locality corresponding to the CPU core the thread (from which
  * the call is made) was initially run on.
  *
- * Locality threads are bind to the cores (unless the affinity
+ * Locality threads are bound to the cores (unless the affinity
  * is not reset externally, for example, by numad), see loc_thr_init().
  * All the rest threads might change their CPU cores over time. In any case,
  * the returned locality is always the same and corresponds to the CPU core
