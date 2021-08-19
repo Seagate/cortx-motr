@@ -8941,6 +8941,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 	m0_atomic64_dec(&threads_running);
 	/** Free resources. */
 	m0_free(ti->ti_rnd_state_ptr);
+
+	m0_be_ut_backend_thread_exit(ut_be);
 }
 
 /**
@@ -9419,6 +9421,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
+
+	m0_be_ut_backend_thread_exit(ut_be);
 }
 
 static void btree_ut_num_threads_tree_oper(uint32_t thread_count)
