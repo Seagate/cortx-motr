@@ -8638,7 +8638,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		if ((key_last - key_first) > (ti->ti_key_incr * 2))
 			key_first += ti->ti_key_incr;
 
-		arr_count = (key_first % KEY_ARR_SIZE) + 2 ;
+		arr_count = (key_first % KEY_ARR_SIZE) + 2;
 		ksize = ksize_random ?  arr_count * sizeof(key[0]):
 			ti->ti_key_size;
 
@@ -8675,10 +8675,10 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			 *  conditions useful to mimic and test btree operations
 			 *  in a loaded system.
 			 */
-			arr_count = (key_first % KEY_ARR_SIZE) + 2 ;
+			arr_count = (key_first % KEY_ARR_SIZE) + 2;
 			ksize = ksize_random ?  arr_count * sizeof(key[0]):
 						ti->ti_key_size;
-			arr_count = (key_first % VAL_ARR_SIZE) + 2 ;
+			arr_count = (key_first % VAL_ARR_SIZE) + 2;
 			vsize = vsize_random ?  arr_count * sizeof(value[0]) :
 						ti->ti_value_size;
 
@@ -8718,7 +8718,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 * exist in the btree.
 		 */
 		key_first = key_iter_start;
-		arr_count = (key_first % KEY_ARR_SIZE) + 2 ;
+		arr_count = (key_first % KEY_ARR_SIZE) + 2;
 		ksize = ksize_random ?  arr_count * sizeof(key[0]):
 			ti->ti_key_size;
 
@@ -8752,7 +8752,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		if (r % 2) {
 			/** Iterate forward. */
 			iter_dir = BOF_NEXT;
-			arr_count = (key_first % KEY_ARR_SIZE) + 2 ;
+			arr_count = (key_first % KEY_ARR_SIZE) + 2;
 			ksize = ksize_random ?  arr_count * sizeof(key[0]):
 						ti->ti_key_size;
 
@@ -8766,7 +8766,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		} else {
 			/** Iterate backward. */
 			iter_dir = BOF_PREV;
-			arr_count = (key_last % KEY_ARR_SIZE) + 2 ;
+			arr_count = (key_last % KEY_ARR_SIZE) + 2;
 			ksize = ksize_random ?  arr_count * sizeof(key[0]):
 						ti->ti_key_size;
 
@@ -8925,7 +8925,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			cb = ut_get_cb;
 
 			do {
-				arr_count = (slant_key % KEY_ARR_SIZE) + 2 ;
+				arr_count = (slant_key % KEY_ARR_SIZE) + 2;
 				ksize = ksize_random ?
 					arr_count * sizeof(key[0]):
 					ti->ti_key_size;
@@ -8975,7 +8975,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		ut_cb.c_act   = btree_kv_del_cb;
 		ut_cb.c_datum = &data;
 		while (keys_put_count) {
-			arr_count = (del_key % KEY_ARR_SIZE) + 2 ;
+			arr_count = (del_key % KEY_ARR_SIZE) + 2;
 			ksize = ksize_random ?  arr_count * sizeof(key[0]):
 						ti->ti_key_size;
 
@@ -9015,7 +9015,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 */
 		key_first = key_iter_start;
 
-		arr_count = (key_first % KEY_ARR_SIZE) + 2 ;
+		arr_count = (key_first % KEY_ARR_SIZE) + 2;
 		ksize = ksize_random ?  arr_count * sizeof(key[0]):
 					ti->ti_key_size;
 
@@ -9034,7 +9034,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		M0_ASSERT(rc == -ENOENT);
 
 		if (key_first != key_last) {
-			arr_count = (key_last % KEY_ARR_SIZE) + 2 ;
+			arr_count = (key_last % KEY_ARR_SIZE) + 2;
 			ksize = ksize_random ?  arr_count * sizeof(key[0]):
 						ti->ti_key_size;
 
@@ -9061,7 +9061,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 */
 		key_first = key_iter_start;
 
-		arr_count = (key_first % KEY_ARR_SIZE) + 2 ;
+		arr_count = (key_first % KEY_ARR_SIZE) + 2;
 		ksize = ksize_random ?  arr_count * sizeof(key[0]):
 					ti->ti_key_size;
 
@@ -9086,7 +9086,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		m0_be_tx_fini(tx);
 
 		if (key_first != key_last) {
-			arr_count = (key_last % KEY_ARR_SIZE) + 2 ;
+			arr_count = (key_last % KEY_ARR_SIZE) + 2; 
 			ksize = ksize_random ?  arr_count * sizeof(key[0]):
 						ti->ti_key_size;
 
