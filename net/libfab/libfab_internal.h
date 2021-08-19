@@ -349,8 +349,11 @@ struct m0_fab__ep {
 	/** Network endpoint structure linked into a per-tm list */
 	struct m0_net_end_point    fep_nep;
 	
-	/** ipaddr, port and strname */
-	struct m0_fab__ep_name     fep_name;
+	/** ipaddr, port and strname in printable format*/
+	struct m0_fab__ep_name     fep_name_p;
+
+	/** Name in numeric format <IP_Addr, 32bit>:<Port, 32 bit> */
+	uint64_t                   fep_name_n;
 	
 	/** Active endpoint */
 	struct m0_fab__active_ep  *fep_aep;
