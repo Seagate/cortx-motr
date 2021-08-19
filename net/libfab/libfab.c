@@ -509,7 +509,7 @@ static void libfab_tm_event_post(struct m0_fab__tm *tm,
  * Finds queued buffers that timed out and completes them with a
  * ETIMEDOUT error.
  */
-M0_UNUSED static void libfab_tm_buf_timeout(struct m0_fab__tm *ftm)
+static void libfab_tm_buf_timeout(struct m0_fab__tm *ftm)
 {
 	struct m0_net_transfer_mc *net = ftm->ftm_ntm;
 	int                        i;
@@ -807,19 +807,15 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		
 		M0_ASSERT(libfab_tm_is_locked(tm) && libfab_tm_invariant(tm));
 
+		/* Check the common queue of the transfer machine for events */
 		libfab_handle_connect_request_events(tm);
 		libfab_txep_comp_read(tm->ftm_tx_cq, tm);
 
 		if (ev_cnt > 0) {
 			ctx = ev.data.ptr;
 			if (ctx->evctx_type != FAB_COMMON_Q_EVENT) {
-			// 	/* Check the common queue of the
-			// 	   transfer machine for events */
-			// 	libfab_handle_connect_request_events(tm);
-			// 	libfab_txep_comp_read(tm->ftm_tx_cq, tm);
-			// } else {
-			// 	/* Check the private queue of the
-			// 	   endpoint for events */
+				/* Check the private queue of the
+				   endpoint for events */
 				xep = ctx->evctx_ep;
 				aep = libfab_aep_get(xep);
 				libfab_txep_event_check(xep, aep, tm);
@@ -829,9 +825,9 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		}
 
 		libfab_bufq_process(tm);
-	//	if (m0_time_sub(m0_time_now(), tm->ftm_tmout_check) >=
-	//							 m0_time(1,0))
-	//		libfab_tm_buf_timeout(tm);
+		if (m0_time_sub(m0_time_now(), tm->ftm_tmout_check) >=
+								 m0_time(1,0))
+			libfab_tm_buf_timeout(tm);
 		libfab_tm_buf_done(tm);
 
 		M0_ASSERT(libfab_tm_invariant(tm));
