@@ -1907,7 +1907,6 @@ uint32_t segaddr_ntype_get(const struct segaddr *addr)
 	struct node_header *h  =  segaddr_addr(addr) +
 				  sizeof(struct m0_format_header);
 
-	/** Modify M0_IN as and when more node type support is addedd. */
 	M0_IN(h->h_node_type, (BNT_FIXED_FORMAT,
 			       BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE));
 	return h->h_node_type;
@@ -3328,6 +3327,7 @@ static void fkvv_fini(const struct nd *node, struct m0_be_tx *tx)
 	});
 
 	h->fkvv_fmt.hd_magic = 0;
+	h->fkvv_opaque       = NULL;
 }
 
 static int fkvv_count(const struct nd *node)
