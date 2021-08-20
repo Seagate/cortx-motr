@@ -7707,12 +7707,12 @@ static int btree_kv_get_oper_cb(struct m0_btree_cb *cb,
 
 	m0_bufvec_cursor_init(&scur, &rec->r_key.k_data);
 	m0_bufvec_cursor_copyfrom(&scur, &ksize, sizeof(ksize));
-	M0_PRE(ksize <= MAX_KEY_SIZE &&
+	M0_PRE(ksize <= MAX_KEY_SIZE + sizeof(uint64_t) &&
 	       m0_vec_count(&rec->r_key.k_data.ov_vec) == ksize);
 
 	m0_bufvec_cursor_init(&scur, &rec->r_val);
 	m0_bufvec_cursor_copyfrom(&scur, &vsize, sizeof(vsize));
-	M0_PRE(vsize <= MAX_VAL_SIZE &&
+	M0_PRE(vsize <= MAX_VAL_SIZE + sizeof(uint64_t) &&
 	       m0_vec_count(&rec->r_val.ov_vec) == vsize);
 
 	m0_bufvec_cursor_init(&dcur, &datum->key->k_data);
@@ -8591,8 +8591,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			arr_count = (key_first % VAL_ARR_SIZE) + 2;
 			vsize = vsize_random ?  arr_count * sizeof(value[0]) :
 						ti->ti_value_size;
-			M0_ASSERT(ksize <= MAX_KEY_SIZE &&
-				  vsize <= MAX_VAL_SIZE);
+			M0_ASSERT(ksize <= MAX_KEY_SIZE + sizeof(key[0]) &&
+				  vsize <= MAX_VAL_SIZE + sizeof(value[0]));
 			key[0]   = ksize;
 			value[0] = vsize;
 			/**
