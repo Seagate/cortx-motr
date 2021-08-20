@@ -3578,7 +3578,7 @@ static void fkvv_make_internal(struct slot *slot, struct m0_be_tx *tx)
 	int               total_val_size;
 
 
-	if(h->fkvv_used == 0 || slot->s_idx == h->fkvv_used) {
+	if (h->fkvv_used == 0 || slot->s_idx == h->fkvv_used) {
 		h->fkvv_used++;
 		return;
 	}
@@ -3621,7 +3621,7 @@ static void fkvv_make_leaf(struct slot *slot, struct m0_be_tx *tx)
 		new_val_offset  = *prev_val_offset + new_val_size;
 	}
 
-	if(slot->s_idx == h->fkvv_used) {
+	if (slot->s_idx == h->fkvv_used) {
 		h->fkvv_used++;
 		curr_val_offset  = fkvv_val_offset_get(slot->s_node, idx);
 		*curr_val_offset = new_val_offset;
@@ -3647,7 +3647,7 @@ static void fkvv_make_leaf(struct slot *slot, struct m0_be_tx *tx)
 	curr_val_offset  = fkvv_val_offset_get(slot->s_node, idx);
 	*curr_val_offset = new_val_offset;
 
-	for(i = idx + 1; i < h->fkvv_used; i++) {
+	for (i = idx + 1; i < h->fkvv_used; i++) {
 		curr_val_offset  = fkvv_val_offset_get(slot->s_node, i);
 		*curr_val_offset = *curr_val_offset + new_val_size;
 	}
@@ -3787,7 +3787,7 @@ static void fkvv_del_leaf(const struct nd *node, int idx, struct m0_be_tx *tx)
 	h->fkvv_used--;
 
 	/* Update value offset */
-	for(i = idx; i < h->fkvv_used; i++) {
+	for (i = idx; i < h->fkvv_used; i++) {
 		curr_val_offset = fkvv_val_offset_get(node, i);
 		*curr_val_offset = *curr_val_offset - value_size;
 	}
