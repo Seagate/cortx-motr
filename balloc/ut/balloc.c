@@ -334,6 +334,25 @@ void test_balloc_group_size()
 	}
 }
 
+void test_balloc_group_count()
+{
+	struct m0_ad_balloc_format_req  bcfg;
+	int                             gc = 32;
+	int                             sz;
+	int                             iter;
+
+	/* Test various group counts, 32, 64, 128, 256, 512, 1024 */
+	for (iter = 1; iter <= 6; iter++) {
+		sz = BALLOC_DEF_CONTAINER_SIZE/(1 << BALLOC_DEF_BLOCK_SHIFT)/ gc;
+		sz = 1 << m0_log2(sz);
+		sz = max64u(sz, BALLOC_DEF_BLOCKS_PER_GROUP);
+		prepare_balloc_config(&bcfg, BALLOC_DEF_CONTAINER_SIZE,
+				      sz, BALLOC_DEF_INDEXES_NR);
+		test_balloc_helper(&bcfg, false);	
+		gc *= 2;
+	}
+}
+
 void test_balloc_group_size_zero()
 {
 	struct m0_ad_balloc_format_req  bcfg;
@@ -373,6 +392,7 @@ struct m0_ut_suite balloc_ut = {
 		{ "balloc defult test", test_balloc},
 		{ "reserve blocks for extmap", test_reserve_extent},
 		{ "balloc different group size", test_balloc_group_size},
+		{ "balloc different group count", test_balloc_group_count},
 		{ "balloc default group count[group_size = 0]", test_balloc_group_size_zero},
 		{ "balloc deafult group count[group_size = MAX]", test_balloc_group_size_max},
 		{ "balloc different index counts", test_balloc_index_count},
