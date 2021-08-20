@@ -88,7 +88,8 @@ static struct m0_be_seg *cas_seg(struct m0_be_domain *dom);
 
 static int  ctg_berc         (struct m0_ctg_op *ctg_op);
 static int  ctg_buf          (const struct m0_buf *val, struct m0_buf *buf);
-static int  ctg_buf_get      (struct m0_buf *dst, const struct m0_buf *src);
+static int  ctg_buf_get      (struct m0_buf *dst, const struct m0_buf *src,
+			      bool enabled_fi);
 static void ctg_fid_key_fill (void *key, const struct m0_fid *fid);
 static void ctg_init         (struct m0_cas_ctg *ctg, struct m0_be_seg *seg);
 static void ctg_fini         (struct m0_cas_ctg *ctg);
@@ -166,11 +167,12 @@ static void ctg_memcpy(void *dst, const void *src, uint64_t nob)
 	memcpy(dst + M0_CAS_CTG_KV_HDR_SIZE, src, nob);
 }
 
-static int ctg_buf_get(struct m0_buf *dst, const struct m0_buf *src)
+static int ctg_buf_get(struct m0_buf *dst, const struct m0_buf *src,
+		       bool enabled_fi)
 {
 	m0_bcount_t nob = src->b_nob;
 
-	if (M0_FI_ENABLED("cas_alloc_fail"))
+	if (enabled_fi && M0_FI_ENABLED("cas_alloc_fail"))
 		return M0_ERR(-ENOMEM);
 	dst->b_nob  = src->b_nob + M0_CAS_CTG_KV_HDR_SIZE;
 	dst->b_addr = m0_alloc(dst->b_nob);
@@ -985,7 +987,15 @@ static int ctg_op_tick_ret(struct m0_ctg_op *ctg_op,
 
 	if (!op_is_active)
 		clink->cl_cb(clink);
-	m0_fom_phase_set(fom, next_state);
+	/*
+	 * In some cases we don't want to set the next phase
+	 * if this function is used as helper for something
+	 * else. We use it for lookup on "del" op to populate
+	 * the deleted value into the FDMI record.
+	 */
+	if (next_state >= 0)
+		m0_fom_phase_set(fom, next_state);
+
 	return ret;
 }
 
@@ -1098,7 +1108,7 @@ static int ctg_meta_exec(struct m0_ctg_op    *ctg_op,
 		ctg_op->co_rc = ctg_buf_get(&ctg_op->co_key,
 					    &M0_BUF_INIT_CONST(
 						    sizeof(struct m0_fid),
-						    fid));
+						    fid), true);
 	if (ctg_op->co_rc != 0) {
 		ret = M0_FSO_AGAIN;
 		m0_fom_phase_set(ctg_op->co_fom, next_phase);
@@ -1191,7 +1201,7 @@ M0_INTERNAL int m0_ctg_dead_index_insert(struct m0_ctg_op  *ctg_op,
 	 * Put struct m0_cas_ctg* into dead_index as a key, keep value empty.
 	 */
 	ctg_op->co_rc = ctg_buf_get(&ctg_op->co_key,
-				    &M0_BUF_INIT_CONST(sizeof(ctg), &ctg));
+				    &M0_BUF_INIT_CONST(sizeof(ctg), &ctg), true);
 	if (ctg_op->co_rc != 0) {
 		ret = M0_FSO_AGAIN;
 		m0_fom_phase_set(ctg_op->co_fom, next_phase);
@@ -1213,7 +1223,7 @@ static int ctg_exec(struct m0_ctg_op    *ctg_op,
 	if (!M0_IN(ctg_op->co_opcode, (CO_MIN, CO_TRUNC, CO_DROP)) &&
 	    (ctg_op->co_opcode != CO_CUR ||
 	     ctg_op->co_cur_phase != CPH_NEXT))
-		ctg_op->co_rc = ctg_buf_get(&ctg_op->co_key, key);
+		ctg_op->co_rc = ctg_buf_get(&ctg_op->co_key, key, true);
 
 	if (ctg_op->co_rc != 0)
 		m0_fom_phase_set(ctg_op->co_fom, next_phase);
@@ -1245,6 +1255,76 @@ M0_INTERNAL int m0_ctg_insert(struct m0_ctg_op    *ctg_op,
 	ctg_op->co_opcode = CO_PUT;
 	ctg_op->co_val = *val;
 	return ctg_exec(ctg_op, ctg, key, next_phase);
+}
+
+M0_INTERNAL int m0_ctg_lookup_delete(struct m0_ctg_op    *ctg_op,
+				     struct m0_cas_ctg   *ctg,
+				     const struct m0_buf *key,
+				     struct m0_buf       *val,
+				     int                  flags,
+				     int                  next_phase)
+{
+	struct m0_fom             *fom0;
+	int                        ret = M0_FSO_AGAIN;
+
+	M0_PRE(ctg_op != NULL);
+	M0_PRE(ctg != NULL);
+	M0_PRE(key != NULL);
+	M0_PRE(val != NULL);
+	M0_PRE(ctg_op->co_beop.bo_sm.sm_state == M0_BOS_INIT);
+
+	fom0 = ctg_op->co_fom;
+
+	/* Lookup the value first. */
+	ctg_op->co_ctg = ctg;
+	ctg_op->co_ct = CT_BTREE;
+	ctg_op->co_opcode = CO_GET;
+
+	/* Here pass true to allow failures injection. */
+	ctg_op->co_rc = ctg_buf_get(&ctg_op->co_key, key, true);
+
+	/* Pass -1 as the next_phase to indicate we don't set it now. */
+	if (ctg_op->co_rc == 0)
+		ctg_op_exec(ctg_op, -1);
+	if (ctg_op->co_rc != 0) {
+		m0_fom_phase_set(fom0, next_phase);
+		return ret;
+	}
+
+	/*
+	 * Copy value with allocation because it refers the memory
+	 * chunk that will not be avilable after the delete op.
+	 */
+	m0_buf_copy(val, &ctg_op->co_out_val);
+	m0_ctg_op_fini(ctg_op);
+
+	/* Now delete the value by key. */
+	m0_ctg_op_init(ctg_op, fom0, flags);
+
+	ctg_op->co_ctg = ctg;
+	ctg_op->co_ct = CT_BTREE;
+	ctg_op->co_opcode = CO_DEL;
+
+	/*
+	 * Here pass false to disallow failures injecations. Some
+	 * UT are tailored with idea in mind that only one injection
+	 * of particular type is touched at a run. ctg_buf_get() has
+	 * the falure injection that we need to avoid here to make
+	 * cas UT happy.
+	 */
+	ctg_op->co_rc = ctg_buf_get(&ctg_op->co_key, key, false);
+
+	if (ctg_op->co_rc != 0) {
+		m0_buf_free(val);
+		m0_fom_phase_set(fom0, next_phase);
+		return ret;
+	}
+
+	ret = ctg_op_exec(ctg_op, next_phase);
+	if (ctg_op->co_rc != 0)
+		m0_buf_free(val);
+
+	return ret;
 }
 
 M0_INTERNAL int m0_ctg_delete(struct m0_ctg_op    *ctg_op,
