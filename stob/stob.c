@@ -401,6 +401,7 @@ M0_INTERNAL m0_bcount_t m0_stob_get_idx_for_cid(uint32_t cid)
 
 M0_INTERNAL void m0_stob_clean_cid_store()
 {
+	current_stob_id_count = 0;
 	memset(&stob_cids[0], 0, sizeof(stob_cids));
 }
 
