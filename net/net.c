@@ -220,19 +220,11 @@ M0_INTERNAL void m0_net_print_xprt(void)
 }
 M0_EXPORTED(m0_net_print_xprt);
 
-M0_INTERNAL bool m0_net_check_xprt(const struct m0_net_xprt *xprt)
+M0_INTERNAL bool m0_net_xprt_is_registered(const struct m0_net_xprt *xprt)
 {
-	bool                found = false;
-	int                 i;
-
-	for (i = 0; i < ARRAY_SIZE(xprts); ++i)
-	{
-		if (xprts[i] == xprt)
-			found = true;
-	}
-	return found;
+	return m0_exists(i, ARRAY_SIZE(xprts), xprts[i] == xprt);
 }
-M0_EXPORTED(m0_net_check_xprt);
+M0_EXPORTED(m0_net_xprt_is_registered);
 
 M0_INTERNAL m0_bcount_t default_xo_rpc_max_seg_size(struct m0_net_domain *ndom)
 {

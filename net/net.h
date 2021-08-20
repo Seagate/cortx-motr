@@ -1792,10 +1792,10 @@ int m0_net_xprt_nr(void);
  *  This function is only for UT.
  */
 M0_INTERNAL void m0_net_print_xprt(void);
-/** Search xprt in arrey of availabe transport.
- *  This function is only for UT.
+/**
+ * Search xprt in arrey of availabe transport. This function is only for UT.
  */
-M0_INTERNAL bool m0_net_check_xprt(const struct m0_net_xprt *xprt);
+M0_INTERNAL bool m0_net_xprt_is_registered(const struct m0_net_xprt *xprt);
 
 M0_INTERNAL m0_bcount_t default_xo_rpc_max_seg_size(struct m0_net_domain *ndom);
 M0_INTERNAL uint32_t    default_xo_rpc_max_segs_nr(struct m0_net_domain *ndom);
