@@ -9388,7 +9388,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 	M0_LEAVE();
 }
 
-static void ut_st_st_oper(void)
+static void ut_st_st_kv_oper(void)
 {
 	int i;
 	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
@@ -9398,7 +9398,7 @@ static void ut_st_st_oper(void)
 	}
 }
 
-static void ut_mt_st_oper(void)
+static void ut_mt_st_kv_oper(void)
 {
 	int i;
 	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
@@ -9408,7 +9408,7 @@ static void ut_mt_st_oper(void)
 	}
 }
 
-static void ut_mt_mt_oper(void)
+static void ut_mt_mt_kv_oper(void)
 {
 	int i;
 	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
@@ -9418,7 +9418,7 @@ static void ut_mt_mt_oper(void)
 	}
 }
 
-static void ut_rt_rt_oper(void)
+static void ut_rt_rt_kv_oper(void)
 {
 	int i;
 	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
@@ -10235,11 +10235,11 @@ struct m0_ut_suite btree_ut = {
 		{"basic_tree_op_icp",               ut_basic_tree_oper_icp},
 		{"basic_kv_ops",                    ut_basic_kv_oper},
 		{"multi_stream_kv_op",              ut_multi_stream_kv_oper},
-		{"single_thread_single_tree_kv_op", ut_st_st_oper},
+		{"single_thread_single_tree_kv_op", ut_st_st_kv_oper},
 		{"single_thread_tree_op",           ut_st_tree_oper},
-		{"multi_thread_single_tree_kv_op",  ut_mt_st_oper},
-		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_oper},
-		{"random_threads_and_trees_kv_op",  ut_rt_rt_oper},
+		{"multi_thread_single_tree_kv_op",  ut_mt_st_kv_oper},
+		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
+		{"random_threads_and_trees_kv_op",  ut_rt_rt_kv_oper},
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
 		{"node_create_delete",              ut_node_create_delete},
 		{"node_add_del_rec",                ut_node_add_del_rec},
