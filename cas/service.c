@@ -1185,6 +1185,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		M0_LOG(M0_DEBUG, "Got CAS with txid: " DTID0_F,
 		       DTID0_P(&op->cg_txd.dtd_id));
 	}
+
 	switch (phase) {
 	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
 
@@ -2145,9 +2146,11 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 	struct m0_ctg_op          *ctg_op = &fom->cf_ctg_op;
 	struct m0_fom             *fom0   = &fom->cf_fom;
 	uint32_t                   flags  = cas_op(fom0)->cg_flags;
+	struct m0_buf              lbuf   = M0_BUF_INIT0;
 	struct m0_buf              kbuf;
 	struct m0_buf              vbuf;
 	struct m0_cas_id          *cid;
+	struct m0_cas_rec         *rec;
 	enum m0_fom_phase_outcome  ret = M0_FSO_AGAIN;
 
 	cas_incoming_kv(fom, rec_pos, &kbuf, &vbuf);
@@ -2172,7 +2175,18 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		ret = m0_ctg_insert(ctg_op, ctg, &kbuf, &vbuf, next);
 		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
-		ret = m0_ctg_delete(ctg_op, ctg, &kbuf, next);
+		ret = m0_ctg_lookup_delete(ctg_op, ctg, &kbuf, &lbuf, flags, next);
+		if (ctg_op->co_rc == 0) {
+			rec = cas_at(cas_op(fom0), rec_pos);
+
+			/*
+			 * Here @lbuf is allocated in m0_ctg_lookup_delete()
+			 * and released in cas_fom_fini().
+			 */
+			m0_rpc_at_init(&rec->cr_val);
+			rec->cr_val.ab_type = M0_RPC_AT_INLINE;
+			rec->cr_val.u.ab_buf = lbuf;
+		}
 		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
 		/*
