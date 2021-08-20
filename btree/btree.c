@@ -961,9 +961,6 @@ struct node_type {
 	/** Cleanup of the node if any before deallocation */
 	void (*nt_fini)(const struct nd *node, struct m0_be_tx *tx);
 
-	/** Returns count of keys in the node */
-	int  (*nt_count)(const struct nd *node);
-
 	/** Returns count of records/values in the node*/
 	int  (*nt_count_rec)(const struct nd *node);
 
@@ -1262,7 +1259,10 @@ static int  node_init(struct segaddr *addr, int ksize, int vsize,
 #if 0
 static bool node_verify(const struct nd *node);
 #endif
+/* Returns the number of valid key in the node. */
 static int  node_count(const struct nd *node);
+
+/* Returns the number of records in the node. */
 static int  node_count_rec(const struct nd *node);
 static int  node_space(const struct nd *node);
 static int  node_level(const struct nd *node);
@@ -1537,8 +1537,12 @@ static bool node_isvalid(const struct nd *node)
 #endif
 static int node_count(const struct nd *node)
 {
+	int key_count;
 	M0_PRE(node_invariant(node));
-	return node->n_type->nt_count(node);
+	key_count = node->n_type->nt_count_rec(node);
+	if (IS_INTERNAL_NODE(node))
+		key_count--;
+	return key_count;
 }
 
 static int node_count_rec(const struct nd *node)
@@ -2425,7 +2429,6 @@ enum m0_be_bnode_format_version {
 static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 		    uint32_t ntype, struct m0_be_seg *seg, struct m0_be_tx *tx);
 static void ff_fini(const struct nd *node, struct m0_be_tx *tx);
-static int  ff_count(const struct nd *node);
 static int  ff_count_rec(const struct nd *node);
 static int  ff_space(const struct nd *node);
 static int  ff_level(const struct nd *node);
@@ -2484,7 +2487,6 @@ static const struct node_type fixed_format = {
 	//.nt_tag,
 	.nt_init                      = ff_init,
 	.nt_fini                      = ff_fini,
-	.nt_count                     = ff_count,
 	.nt_count_rec                 = ff_count_rec,
 	.nt_space                     = ff_space,
 	.nt_level                     = ff_level,
@@ -2707,14 +2709,6 @@ static void ff_fini(const struct nd *node, struct m0_be_tx *tx)
 	});
 
 	h->ff_fmt.hd_magic = 0;
-}
-
-static int ff_count(const struct nd *node)
-{
-	int used = ff_data(node)->ff_used;
-	if (ff_data(node)->ff_level > 0)
-		used --;
-	return used;
 }
 
 static int ff_count_rec(const struct nd *node)
@@ -3111,21 +3105,21 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *
  * Leaf Node Structure :
  *
- * +-----------+----+-+----+-+----+-+------------------------------------+----+----+----+
- * |           |    | |    | |    | |                                    |    |    |    |
- * |           |    | |    | |    | |                                    |    |    |    |
- * |Node Header| K0 | | K1 | | K2 | | ----->                      <----- | V2 | V1 | V0 |
- * |           |    | |    | |    | |                                    |    |    |    |
- * |           |    | |    | |    | |                                    |    |    |    |
- * +-----------+----+++----+++----+++------------------------------------+----+----+----+
- *                   |      |      |                                     ^    ^    ^
- *                   |      |      |                                     |    |    |
- *                   |      |      |                                     |    |    |
- *                   +------+------+-------------------------------------+    |    |
- *                          |      |                                          |    |
- *                          +------+------------------------------------------+    |
- *                                 |                                               |
- *                                 +-----------------------------------------------+
+ * +-----------+----+------+----+------+----+------+--------------------+----+----+----+
+ * |           |    |      |    |      |    |      |                    |    |    |    |
+ * |           |    |      |    |      |    |      |                    |    |    |    |
+ * |Node Header| K0 |V0_off| K1 |V1_off| K2 |V2_off| ----->      <----- | V2 | V1 | V0 |
+ * |           |    |      |    |      |    |      |                    |    |    |    |
+ * |           |    |      |    |      |    |      |                    |    |    |    |
+ * +-----------+----+------+----+------+----+------+--------------------+----+----+----+
+ *                      |           |           |                       ^    ^    ^
+ *                      |           |           |                       |    |    |
+ *                      |           |           |                       |    |    |
+ *                      |           |           +-----------------------+    |    |
+ *                      |           |                                        |    |
+ *                      |           +----------------------------------------+    |
+ *                      |                                                         |
+ *                      +---------------------------------------------------------+
  *
  * The above structure represents the way fixed key size and variable value size
  * node format will get stored in memory.
@@ -3197,7 +3191,6 @@ static void fkvv_init(const struct segaddr *addr, int shift, int ksize,
 		      int vsize, uint32_t ntype, struct m0_be_seg *seg,
 		      struct m0_be_tx *tx);
 static void fkvv_fini(const struct nd *node, struct m0_be_tx *tx);
-static int  fkvv_count(const struct nd *node);
 static int  fkvv_count_rec(const struct nd *node);
 static int  fkvv_space(const struct nd *node);
 static int  fkvv_level(const struct nd *node);
@@ -3247,7 +3240,6 @@ static const struct node_type fixed_ksize_variable_vsize_format = {
 	//.nt_tag,
 	.nt_init                      = fkvv_init,
 	.nt_fini                      = fkvv_fini,
-	.nt_count                     = fkvv_count,
 	.nt_count_rec                 = fkvv_count_rec,
 	.nt_space                     = fkvv_space,
 	.nt_level                     = fkvv_level,
@@ -3328,14 +3320,6 @@ static void fkvv_fini(const struct nd *node, struct m0_be_tx *tx)
 
 	h->fkvv_fmt.hd_magic = 0;
 	h->fkvv_opaque       = NULL;
-}
-
-static int fkvv_count(const struct nd *node)
-{
-	int used = fkvv_data(node)->fkvv_used;
-	if (IS_INTERNAL_NODE(node))
-		used --;
-	return used;
 }
 
 static int fkvv_count_rec(const struct nd *node)
