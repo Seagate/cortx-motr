@@ -7707,12 +7707,12 @@ static int btree_kv_get_oper_cb(struct m0_btree_cb *cb,
 
 	m0_bufvec_cursor_init(&scur, &rec->r_key.k_data);
 	m0_bufvec_cursor_copyfrom(&scur, &ksize, sizeof(ksize));
-	M0_PRE(ksize <= MAX_KEY_SIZE &&
+	M0_PRE(ksize <= MAX_KEY_SIZE + sizeof(uint64_t) &&
 	       m0_vec_count(&rec->r_key.k_data.ov_vec) == ksize);
 
 	m0_bufvec_cursor_init(&scur, &rec->r_val);
 	m0_bufvec_cursor_copyfrom(&scur, &vsize, sizeof(vsize));
-	M0_PRE(vsize <= MAX_VAL_SIZE &&
+	M0_PRE(vsize <= MAX_VAL_SIZE + sizeof(uint64_t) &&
 	       m0_vec_count(&rec->r_val.ov_vec) == vsize);
 
 	m0_bufvec_cursor_init(&dcur, &datum->key->k_data);
@@ -7757,7 +7757,8 @@ static int btree_kv_get_oper_cb(struct m0_btree_cb *cb,
 			v_off += sizeof(value);
 			key = ~key;
 			while (v_off < vsize) {
-				m0_bufvec_cursor_copyfrom(&vcur, &value, vsize);
+				m0_bufvec_cursor_copyfrom(&vcur, &value,
+							  sizeof(value));
 				if (key != value)
 					M0_ASSERT(0);
 				v_off += vsize;
@@ -8591,8 +8592,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			arr_count = (key_first % VAL_ARR_SIZE) + 2;
 			vsize = vsize_random ?  arr_count * sizeof(value[0]) :
 						ti->ti_value_size;
-			M0_ASSERT(ksize <= MAX_KEY_SIZE &&
-				  vsize <= MAX_VAL_SIZE);
+			M0_ASSERT(ksize <= MAX_KEY_SIZE + sizeof(key[0]) &&
+				  vsize <= MAX_VAL_SIZE + sizeof(value[0]));
 			key[0]   = ksize;
 			value[0] = vsize;
 			/**
@@ -9086,7 +9087,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		m0_be_tx_fini(tx);
 
 		if (key_first != key_last) {
-			arr_count = (key_last % KEY_ARR_SIZE) + 2; 
+			arr_count = (key_last % KEY_ARR_SIZE) + 2;
 			ksize = ksize_random ?  arr_count * sizeof(key[0]):
 						ti->ti_key_size;
 
@@ -9389,45 +9390,45 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 
 static void ut_st_st_kv_oper(void)
 {
-	btree_ut_kv_oper(1, 1, BNT_FIXED_FORMAT);
+	int i;
+	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
+	{
+		if (btree_node_format[i] != NULL)
+			btree_ut_kv_oper(1, 1, i);
+	}
 }
 
 static void ut_mt_st_kv_oper(void)
 {
-	btree_ut_kv_oper(0, 1, BNT_FIXED_FORMAT);
+	int i;
+	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
+	{
+		if (btree_node_format[i] != NULL)
+			btree_ut_kv_oper(0, 1, i);
+	}
 }
 
 static void ut_mt_mt_kv_oper(void)
 {
-	btree_ut_kv_oper(0, 0, BNT_FIXED_FORMAT);
+	int i;
+	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
+	{
+		if (btree_node_format[i] != NULL)
+			btree_ut_kv_oper(0, 0, i);
+	}
 }
 
 static void ut_rt_rt_kv_oper(void)
 {
-	btree_ut_kv_oper(RANDOM_THREAD_COUNT, RANDOM_TREE_COUNT,
-			 BNT_FIXED_FORMAT);
+	int i;
+	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
+	{
+		if (btree_node_format[i] != NULL)
+			btree_ut_kv_oper(RANDOM_THREAD_COUNT, RANDOM_TREE_COUNT,
+					 i);
+	}
 }
 
-static void ut_st_st_var_kv_oper(void)
-{
-	btree_ut_kv_oper(1, 1, BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE);
-}
-
-static void ut_mt_st_var_kv_oper(void)
-{
-	btree_ut_kv_oper(0, 1, BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE);
-}
-
-static void ut_mt_mt_var_kv_oper(void)
-{
-	btree_ut_kv_oper(0, 0, BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE);
-}
-
-static void ut_rt_rt_var_kv_oper(void)
-{
-	btree_ut_kv_oper(RANDOM_THREAD_COUNT, RANDOM_TREE_COUNT,
-			 BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE);
-}
 /**
  * This routine is a thread handler which primarily involves in creating,
  * opening, closing and destroying btree. To run out-of-sync with other threads
@@ -10230,22 +10231,18 @@ struct m0_ut_suite btree_ut = {
 	.ts_init = ut_btree_suite_init,
 	.ts_fini = ut_btree_suite_fini,
 	.ts_tests = {
-		{"basic_tree_op_cp",                    ut_basic_tree_oper_cp},
-		{"basic_tree_op_icp",                   ut_basic_tree_oper_icp},
-		{"basic_kv_ops",                        ut_basic_kv_oper},
-		{"multi_stream_kv_op",                  ut_multi_stream_kv_oper},
-		{"single_thread_single_tree_kv_op",     ut_st_st_kv_oper},
-		{"single_thread_tree_op",               ut_st_tree_oper},
-		{"multi_thread_single_tree_kv_op",      ut_mt_st_kv_oper},
-		{"multi_thread_multi_tree_kv_op",       ut_mt_mt_kv_oper},
-		{"random_threads_and_trees_kv_op",      ut_rt_rt_kv_oper},
-		{"single_thread_single_tree_var_kv_op", ut_st_st_var_kv_oper},
-		{"multi_thread_single_tree_var_kv_op",  ut_mt_st_var_kv_oper},
-		{"multi_thread_multi_tree_var_kv_op",   ut_mt_mt_var_kv_oper},
-		{"random_threads_and_trees_var_kv_op",  ut_rt_rt_var_kv_oper},
-		{"multi_thread_tree_op",                ut_mt_tree_oper},
-		{"node_create_delete",                  ut_node_create_delete},
-		{"node_add_del_rec",                    ut_node_add_del_rec},
+		{"basic_tree_op_cp",                ut_basic_tree_oper_cp},
+		{"basic_tree_op_icp",               ut_basic_tree_oper_icp},
+		{"basic_kv_ops",                    ut_basic_kv_oper},
+		{"multi_stream_kv_op",              ut_multi_stream_kv_oper},
+		{"single_thread_single_tree_kv_op", ut_st_st_kv_oper},
+		{"single_thread_tree_op",           ut_st_tree_oper},
+		{"multi_thread_single_tree_kv_op",  ut_mt_st_kv_oper},
+		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
+		{"random_threads_and_trees_kv_op",  ut_rt_rt_kv_oper},
+		{"multi_thread_tree_op",            ut_mt_tree_oper},
+		{"node_create_delete",              ut_node_create_delete},
+		{"node_add_del_rec",                ut_node_add_del_rec},
 		/* {"btree_kv_add_upd_del",            ut_put_update_del_operation}, */
 		{NULL, NULL}
 	}
