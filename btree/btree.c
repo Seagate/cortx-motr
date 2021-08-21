@@ -713,6 +713,16 @@ enum {
 
 #define m0_be_ut_backend_fini(ut_be)                                         \
 	do { } while (0)
+
+#define m0_be_seg_close(ut_seg)                                              \
+	do { } while (0)
+
+#define m0_be_seg_open(ut_seg)                                               \
+	do { } while (0)
+
+#define madvise(rnode, rnode_sz, MADV_NORMAL)                                \
+	-1, errno = ENOMEM
+
 #endif
 
 #if 0
