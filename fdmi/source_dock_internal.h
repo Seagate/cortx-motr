@@ -186,11 +186,6 @@ M0_INTERNAL void m0_fdmi__record_deinit(struct m0_fdmi_src_rec *src_rec);
 M0_INTERNAL enum m0_fdmi_rec_type_id
 m0_fdmi__sd_rec_type_id_get(struct m0_fdmi_src_rec *src_rec);
 
-/** Handles received reply for sent FDMI record. */
-M0_INTERNAL int m0_fdmi__handle_reply(struct m0_fdmi_src_dock *sd_ctx,
-				      struct m0_fdmi_src_rec  *src_rec,
-				      int                      send_res);
-
 /** Release FDMI record handle by record id */
 M0_INTERNAL int m0_fdmi__handle_release(struct m0_uint128 *fdmi_rec_id);
 
