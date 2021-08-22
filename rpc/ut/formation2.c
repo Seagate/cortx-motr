@@ -139,13 +139,6 @@ static m0_bcount_t twoway_item_size(const struct m0_rpc_item *item)
 	return 10;
 }
 
-static bool twoway_item_try_merge(struct m0_rpc_item *container,
-				  struct m0_rpc_item *component,
-				  m0_bcount_t         limit)
-{
-	return false;
-}
-
 static void item_get_noop(struct m0_rpc_item *item)
 {
 	/* Do nothing */
@@ -158,14 +151,13 @@ static void item_put_noop(struct m0_rpc_item *item)
 
 static struct m0_rpc_item_type_ops twoway_item_type_ops = {
 	.rito_payload_size = twoway_item_size,
-	.rito_try_merge    = twoway_item_try_merge,
 	.rito_item_get     = item_get_noop,
 	.rito_item_put     = item_put_noop,
 };
 
 static struct m0_rpc_item_type twoway_item_type = {
 	.rit_flags = M0_RPC_ITEM_TYPE_REQUEST,
-	.rit_ops   = &twoway_item_type_ops,
+	.rit_ops   = &twoway_item_type_ops
 };
 
 static m0_bcount_t oneway_item_size(const struct m0_rpc_item *item)

@@ -64,9 +64,6 @@ static void io_item_replied (struct m0_rpc_item *item);
 static void io_fop_replied  (struct m0_fop *fop, struct m0_fop *bkpfop);
 static void io_fop_desc_get (struct m0_fop *fop,
 			     struct m0_net_buf_desc_data **desc);
-static int  io_fop_coalesce (struct m0_fop *res_fop, uint64_t size);
-static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
-			     uint64_t size);
 
 struct m0_fop_type m0_fop_cob_readv_fopt;
 struct m0_fop_type m0_fop_cob_writev_fopt;
@@ -109,8 +106,7 @@ const struct m0_rpc_item_ops io_req_rpc_item_ops = {
 };
 
 static const struct m0_rpc_item_type_ops io_item_type_ops = {
-	M0_FOP_DEFAULT_ITEM_TYPE_OPS,
-        .rito_io_coalesce = item_io_coalesce,
+	M0_FOP_DEFAULT_ITEM_TYPE_OPS
 };
 
 static int io_fol_frag_undo_redo_op(struct m0_fop_fol_frag *frag,
@@ -228,7 +224,6 @@ static int io_fol_cd_rec_frag_redo(struct m0_fop_fol_frag *frag,
 
 const struct m0_fop_type_ops io_fop_rwv_ops = {
 	.fto_fop_replied = io_fop_replied,
-	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 	.fto_undo        = io_fol_frag_undo_redo_op,
 	.fto_redo        = io_fol_frag_undo_redo_op,
@@ -678,12 +673,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    The IO coalescing subsystem from ioservice primarily works on IO segments.
    IO segment is in-memory structure that represents a contiguous chunk of
    IO data along with extent information.
-   An internal data structure ioseg represents the IO segment.
-   - ioseg An in-memory structure used to represent a segment of IO data.
 
    @subsubsection bulkclient-lspec-sub1 Subcomponent Subroutines
-
-   - ioseg_get() - Retrieves an ioseg given its index in zero vector.
 
    @subsection bulkclient-lspec-state State Specification
 
@@ -717,9 +708,9 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
    @subsection bulkclient-lspec-thread Threading and Concurrency Model
 
-   No need of explicit locking for structures like m0_io_fop and ioseg
-   since they are taken care by locking at upper layers like locking at
-   the m0t1fs part for dispatching IO requests.
+   No need of explicit locking for structures like m0_io_fop since they are
+   taken care by locking at upper layers like locking at the m0t1fs part for
+   dispatching IO requests.
 
    @subsection bulkclient-lspec-numa NUMA optimizations
 
@@ -806,53 +797,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
    @{
  */
-
-/**
- * Generic io segment that represents a contiguous stream of bytes
- * along with io extent. This structure is typically used by io coalescing
- * code from ioservice.
- */
-struct ioseg {
-	/* Magic constant to verify sanity of structure. */
-	uint64_t		 is_magic;
-	/* Index in target object to start io from. */
-	m0_bindex_t		 is_index;
-	/* Number of bytes in io segment. */
-	m0_bcount_t		 is_size;
-	/* Starting address of buffer. */
-	void			*is_buf;
-	/*
-	 * Linkage to have such IO segments in a list hanging off
-	 * io_seg_set::iss_list.
-	 */
-	struct m0_tlink		 is_linkage;
-};
-
-/** Represents coalesced set of io segments. */
-struct io_seg_set {
-	/** Magic constant to verify sanity of structure. */
-	uint64_t	iss_magic;
-	/** List of struct ioseg. */
-	struct m0_tl	iss_list;
-};
-
-M0_TL_DESCR_DEFINE(iosegset, "list of coalesced io segments", static,
-		   struct ioseg, is_linkage, is_magic,
-		   M0_IOS_IO_SEGMENT_MAGIC, M0_IOS_IO_SEGMENT_SET_MAGIC);
-
-M0_TL_DEFINE(iosegset, static, struct ioseg);
-
-static void ioseg_get(const struct m0_0vec *zvec, uint32_t seg_index,
-		      struct ioseg *seg)
-{
-	M0_PRE(zvec != NULL);
-	M0_PRE(seg_index < zvec->z_bvec.ov_vec.v_nr);
-	M0_PRE(seg != NULL);
-
-	seg->is_index = zvec->z_index[seg_index];
-	seg->is_size = zvec->z_bvec.ov_vec.v_count[seg_index];
-	seg->is_buf = zvec->z_bvec.ov_buf[seg_index];
-}
 
 static bool io_fop_invariant(struct m0_io_fop *iofop)
 {
@@ -1070,22 +1014,6 @@ M0_INTERNAL struct m0_fop_cob_rw_reply *io_rw_rep_get(struct m0_fop *fop)
 	}
 }
 
-static struct m0_0vec *io_0vec_get(struct m0_rpc_bulk_buf *rbuf)
-{
-	M0_PRE(rbuf != NULL);
-
-	return &rbuf->bb_zerovec;
-}
-
-static void ioseg_unlink_free(struct ioseg *ioseg)
-{
-	M0_PRE(ioseg != NULL);
-	M0_PRE(iosegset_tlink_is_in(ioseg));
-
-	iosegset_tlist_del(ioseg);
-	m0_free(ioseg);
-}
-
 /**
    Returns if given 2 fops belong to same type.
  */
@@ -1097,174 +1025,6 @@ static bool io_fop_type_equal(const struct m0_fop *fop1,
 	M0_PRE(fop2 != NULL);
 
 	return fop1->f_type == fop2->f_type;
-}
-
-static int io_fop_seg_init(struct ioseg **ns, const struct ioseg *cseg)
-{
-	struct ioseg *new_seg = 0;
-
-	M0_PRE(ns != NULL);
-	M0_PRE(cseg != NULL);
-
-	M0_ALLOC_PTR(new_seg);
-	if (new_seg == NULL)
-		return M0_ERR(-ENOMEM);
-
-	*ns = new_seg;
-	M0_ASSERT(new_seg != NULL); /* suppress compiler warning on next stmt */
-	*new_seg = *cseg;
-	iosegset_tlink_init(new_seg);
-	return 0;
-}
-
-static int io_fop_seg_add_cond(struct ioseg *cseg, const struct ioseg *nseg)
-{
-	int           rc;
-	struct ioseg *new_seg;
-
-	M0_PRE(cseg != NULL);
-	M0_PRE(nseg != NULL);
-
-	if (nseg->is_index < cseg->is_index) {
-		rc = io_fop_seg_init(&new_seg, nseg);
-		if (rc != 0)
-			return M0_RC(rc);
-
-		iosegset_tlist_add_before(cseg, new_seg);
-	} else
-		rc = -EINVAL;
-
-	return M0_RC(rc);
-}
-
-static void io_fop_seg_coalesce(const struct ioseg *seg,
-				struct io_seg_set *aggr_set)
-{
-	int           rc;
-	struct ioseg *new_seg;
-	struct ioseg *ioseg;
-
-	M0_PRE(seg != NULL);
-	M0_PRE(aggr_set != NULL);
-
-	/*
-	 * Coalesces all io segments in increasing order of offset.
-	 * This will create new net buffer/s which will be associated with
-	 * only one io fop and it will be sent on wire. While rest of io fops
-	 * will hang off a list m0_rpc_item::ri_compound_items.
-	 */
-	m0_tl_for(iosegset, &aggr_set->iss_list, ioseg) {
-		rc = io_fop_seg_add_cond(ioseg, seg);
-		if (rc == 0 || rc == -ENOMEM)
-			return;
-	} m0_tl_endfor;
-
-	rc = io_fop_seg_init(&new_seg, seg);
-	if (rc != 0)
-		return;
-	iosegset_tlist_add_tail(&aggr_set->iss_list, new_seg);
-}
-
-static void io_fop_segments_coalesce(const struct m0_0vec *iovec,
-				     struct io_seg_set *aggr_set)
-{
-	uint32_t     i;
-	struct ioseg seg = { 0 };
-
-	M0_PRE(iovec != NULL);
-	M0_PRE(aggr_set != NULL);
-
-	/*
-	 * For each segment from incoming IO vector, check if it can
-	 * be merged with any of the existing segments from aggr_set.
-	 * If yes, merge it else, add a new entry in aggr_set.
-	 */
-	for (i = 0; i < iovec->z_bvec.ov_vec.v_nr; ++i) {
-		ioseg_get(iovec, i, &seg);
-		io_fop_seg_coalesce(&seg, aggr_set);
-	}
-}
-
-/*
- * Creates and populates net buffers as needed using the list of
- * coalesced io segments.
- */
-static int io_netbufs_prepare(struct m0_fop *coalesced_fop,
-			      struct io_seg_set *seg_set)
-{
-	int			 rc;
-	int32_t			 max_segs_nr;
-	int32_t			 curr_segs_nr;
-	int32_t			 nr;
-	m0_bcount_t		 max_bufsize;
-	m0_bcount_t		 curr_bufsize;
-	uint32_t		 segs_nr;
-	struct ioseg		*ioseg;
-	struct m0_net_domain	*netdom;
-	struct m0_rpc_bulk	*rbulk;
-	struct m0_rpc_bulk_buf	*buf;
-
-	M0_PRE(coalesced_fop != NULL);
-	M0_PRE(seg_set != NULL);
-	M0_PRE(!iosegset_tlist_is_empty(&seg_set->iss_list));
-
-	netdom = m0_fop_domain_get(coalesced_fop);
-	max_bufsize = m0_net_domain_get_max_buffer_size(netdom);
-	max_segs_nr = m0_net_domain_get_max_buffer_segments(netdom);
-	rbulk = m0_fop_to_rpcbulk(coalesced_fop);
-	curr_segs_nr = iosegset_tlist_length(&seg_set->iss_list);
-
-	while (curr_segs_nr != 0) {
-		curr_bufsize = 0;
-		segs_nr = 0;
-		/*
-		 * Calculates the number of segments that can fit into max
-		 * buffer size. These are needed to add a m0_rpc_bulk_buf
-		 * structure into struct m0_rpc_bulk. Selected io segments
-		 * are removed from io segments list, hence the loop always
-		 * starts from the first element.
-		 */
-		m0_tl_for(iosegset, &seg_set->iss_list, ioseg) {
-			if (curr_bufsize + ioseg->is_size <= max_bufsize &&
-			    segs_nr <= max_segs_nr) {
-				curr_bufsize += ioseg->is_size;
-				++segs_nr;
-			} else
-				break;
-		} m0_tl_endfor;
-
-		rc = m0_rpc_bulk_buf_add(rbulk, segs_nr, curr_bufsize,
-					 netdom, NULL, &buf);
-		if (rc != 0)
-			goto cleanup;
-
-		nr = 0;
-		m0_tl_for(iosegset, &seg_set->iss_list, ioseg) {
-			rc = m0_rpc_bulk_buf_databuf_add(buf, ioseg->is_buf,
-							 ioseg->is_size,
-							 ioseg->is_index,
-							 netdom);
-
-			/*
-			 * Since size and fragment calculations are made before
-			 * hand, this buffer addition should succeed.
-			 */
-			M0_ASSERT(rc == 0);
-
-			ioseg_unlink_free(ioseg);
-			if (++nr == segs_nr)
-				break;
-		} m0_tl_endfor;
-		M0_POST(m0_vec_count(&buf->bb_zerovec.z_bvec.ov_vec) <=
-			max_bufsize);
-		M0_POST(buf->bb_zerovec.z_bvec.ov_vec.v_nr <= max_segs_nr);
-		curr_segs_nr -= segs_nr;
-	}
-	return 0;
-cleanup:
-	M0_ASSERT(rc != 0);
-	m0_rpc_bulk_buflist_empty(rbulk);
-	return M0_RC(rc);
 }
 
 /* Deallocates memory claimed by index vector/s from io fop wire format. */
@@ -1441,33 +1201,6 @@ out:
 	return M0_RC(rc);
 }
 
-static void io_fop_bulkbuf_move(struct m0_fop *src, struct m0_fop *dest)
-{
-	struct m0_rpc_bulk	*sbulk;
-	struct m0_rpc_bulk	*dbulk;
-	struct m0_rpc_bulk_buf	*rbuf;
-	struct m0_fop_cob_rw	*srw;
-	struct m0_fop_cob_rw	*drw;
-
-	M0_PRE(src != NULL);
-	M0_PRE(dest != NULL);
-
-	sbulk = m0_fop_to_rpcbulk(src);
-	dbulk = m0_fop_to_rpcbulk(dest);
-	m0_mutex_lock(&sbulk->rb_mutex);
-	m0_tl_teardown(rpcbulk, &sbulk->rb_buflist, rbuf) {
-		rpcbulk_tlist_add(&dbulk->rb_buflist, rbuf);
-	}
-	dbulk->rb_bytes = sbulk->rb_bytes;
-	dbulk->rb_rc = sbulk->rb_rc;
-	m0_mutex_unlock(&sbulk->rb_mutex);
-
-	srw = io_rw_get(src);
-	drw = io_rw_get(dest);
-	drw->crw_desc = srw->crw_desc;
-	drw->crw_ivec = srw->crw_ivec;
-}
-
 static int io_fop_desc_alloc(struct m0_fop *fop, struct m0_rpc_bulk *rbulk)
 {
 	struct m0_fop_cob_rw	*rw;
@@ -1546,35 +1279,6 @@ err:
 }
 
 /*
- * Creates new net buffers from aggregate list and adds them to
- * associated m0_rpc_bulk object. Also calls m0_io_fop_prepare() to
- * allocate memory for net buf desc sequence and index vector
- * sequence in io fop wire format.
- */
-static int io_fop_desc_ivec_prepare(struct m0_fop *fop,
-				    struct io_seg_set *aggr_set)
-{
-	int			rc;
-	struct m0_rpc_bulk     *rbulk;
-
-	M0_PRE(fop != NULL);
-	M0_PRE(aggr_set != NULL);
-
-	rbulk = m0_fop_to_rpcbulk(fop);
-
-	rc = io_netbufs_prepare(fop, aggr_set);
-	if (rc != 0) {
-		return M0_RC(rc);
-	}
-
-	rc = m0_io_fop_prepare(fop);
-	if (rc != 0)
-		m0_rpc_bulk_buflist_empty(rbulk);
-
-	return M0_RC(rc);
-}
-
-/*
  * Deallocates memory for sequence of net buf desc and sequence of index
  * vectors from io fop wire format.
  */
@@ -1595,167 +1299,6 @@ M0_INTERNAL size_t m0_io_fop_size_get(struct m0_fop *fop)
 
 	m0_xcode_ctx_init(&ctx, &M0_FOP_XCODE_OBJ(fop));
 	return m0_xcode_length(&ctx);
-}
-
-/**
- * Coalesces the io fops with same fid and intent (read/write). A list of
- * coalesced io segments is generated which is attached to a single
- * io fop - res_fop (which is already bound to a session) in form of
- * one of more network buffers and rest of the io fops hang off a list
- * m0_rpc_item::ri_compound_items in resultant fop.
- * The index vector array from io fop is also populated from the list of
- * coalesced io segments.
- * The res_fop contents are backed up and restored on receiving reply
- * so that upper layer is transparent of these operations.
- * @see item_io_coalesce().
- * @see m0_io_fop_init().
- * @see m0_rpc_bulk_init().
- */
-static int io_fop_coalesce(struct m0_fop *res_fop, uint64_t size)
-{
-	int			   rc;
-	struct m0_fop		  *fop;
-	struct m0_fop		  *bkp_fop;
-	struct m0_tl		  *items_list;
-	struct m0_0vec		  *iovec;
-	struct ioseg		  *ioseg;
-	struct m0_io_fop	  *cfop;
-	struct io_seg_set	   aggr_set;
-	struct m0_rpc_item	  *item;
-	struct m0_rpc_bulk	  *rbulk;
-	struct m0_rpc_bulk	  *bbulk;
-	struct m0_fop_cob_rw	  *rw;
-	struct m0_rpc_bulk_buf    *rbuf;
-	struct m0_net_transfer_mc *tm;
-
-	M0_PRE(res_fop != NULL);
-	M0_PRE(m0_is_io_fop(res_fop));
-
-	M0_ALLOC_PTR(cfop);
-	if (cfop == NULL)
-		return M0_ERR(-ENOMEM);
-
-	rw = io_rw_get(res_fop);
-	rc = m0_io_fop_init(cfop, &rw->crw_gfid, res_fop->f_type, NULL);
-	if (rc != 0) {
-		m0_free(cfop);
-		return M0_RC(rc);
-	}
-	tm = m0_fop_tm_get(res_fop);
-	bkp_fop = &cfop->if_fop;
-	aggr_set.iss_magic = M0_IOS_IO_SEGMENT_SET_MAGIC;
-	iosegset_tlist_init(&aggr_set.iss_list);
-
-	/*
-	 * Traverses the fop_list, get the IO vector from each fop,
-	 * pass it to a coalescing routine and get result back
-	 * in another list.
-	 */
-	items_list = &res_fop->f_item.ri_compound_items;
-	M0_ASSERT(!rpcitem_tlist_is_empty(items_list));
-
-	m0_tl_for(rpcitem, items_list, item) {
-		fop = m0_rpc_item_to_fop(item);
-		rbulk = m0_fop_to_rpcbulk(fop);
-		m0_mutex_lock(&rbulk->rb_mutex);
-		m0_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
-			iovec = io_0vec_get(rbuf);
-			io_fop_segments_coalesce(iovec, &aggr_set);
-		} m0_tl_endfor;
-		m0_mutex_unlock(&rbulk->rb_mutex);
-	} m0_tl_endfor;
-
-	/*
-	 * Removes m0_rpc_bulk_buf from the m0_rpc_bulk::rb_buflist and
-	 * add it to same list belonging to bkp_fop.
-	 */
-	io_fop_bulkbuf_move(res_fop, bkp_fop);
-
-	/*
-	 * Prepares net buffers from set of io segments, allocates memory
-	 * for net buf desriptors and index vectors and populates the index
-	 * vectors
-	 */
-	rc = io_fop_desc_ivec_prepare(res_fop, &aggr_set);
-	if (rc != 0)
-		goto cleanup;
-
-	/*
-	 * Adds the net buffers from res_fop to transfer machine and
-	 * populates res_fop with net buf descriptor/s got from network
-	 * buffer addition.
-	 */
-	rw = io_rw_get(res_fop);
-	rbulk = m0_fop_to_rpcbulk(res_fop);
-	rc = m0_rpc_bulk_store(rbulk, res_fop->f_item.ri_session->s_conn,
-			       rw->crw_desc.id_descs, &m0_rpc__buf_bulk_cb);
-	if (rc != 0) {
-		m0_io_fop_destroy(res_fop);
-		goto cleanup;
-	}
-
-	/*
-	 * Checks if current size of res_fop fits into the size
-	 * provided as input.
-	 */
-	if (m0_io_fop_size_get(res_fop) > size) {
-		m0_mutex_lock(&rbulk->rb_mutex);
-		m0_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
-			m0_net_buffer_del(rbuf->bb_nbuf, tm);
-		} m0_tl_endfor;
-		m0_mutex_unlock(&rbulk->rb_mutex);
-		m0_io_fop_destroy(res_fop);
-		goto cleanup;
-	}
-
-	/*
-	 * Removes the net buffers belonging to coalesced member fops
-	 * from transfer machine since these buffers are coalesced now
-	 * and are part of res_fop.
-	 */
-	m0_tl_for(rpcitem, items_list, item) {
-		fop = m0_rpc_item_to_fop(item);
-		if (fop == res_fop)
-			continue;
-		rbulk = m0_fop_to_rpcbulk(fop);
-		m0_mutex_lock(&rbulk->rb_mutex);
-		m0_tl_for(rpcbulk, &rbulk->rb_buflist, rbuf) {
-			m0_net_buffer_del(rbuf->bb_nbuf, tm);
-		} m0_tl_endfor;
-		m0_mutex_unlock(&rbulk->rb_mutex);
-	} m0_tl_endfor;
-
-	/*
-	 * Removes the net buffers from transfer machine contained by rpc bulk
-	 * structure belonging to res_fop since they will be replaced by
-	 * new coalesced net buffers.
-	 */
-	bbulk = m0_fop_to_rpcbulk(bkp_fop);
-	rbulk = m0_fop_to_rpcbulk(res_fop);
-	m0_mutex_lock(&bbulk->rb_mutex);
-	m0_mutex_lock(&rbulk->rb_mutex);
-	m0_tl_teardown(rpcbulk, &bbulk->rb_buflist, rbuf) {
-		rpcbulk_tlist_add(&rbulk->rb_buflist, rbuf);
-		m0_net_buffer_del(rbuf->bb_nbuf, tm);
-		rbulk->rb_bytes -= m0_vec_count(&rbuf->bb_nbuf->
-						nb_buffer.ov_vec);
-	}
-	m0_mutex_unlock(&rbulk->rb_mutex);
-	m0_mutex_unlock(&bbulk->rb_mutex);
-
-	M0_LOG(M0_DEBUG, "io fops coalesced successfully.");
-	rpcitem_tlist_add(items_list, &bkp_fop->f_item);
-	return M0_RC(rc);
-cleanup:
-	M0_ASSERT(rc != 0);
-	m0_tl_for(iosegset, &aggr_set.iss_list, ioseg) {
-		ioseg_unlink_free(ioseg);
-	} m0_tl_endfor;
-	iosegset_tlist_fini(&aggr_set.iss_list);
-	io_fop_bulkbuf_move(bkp_fop, res_fop);
-	m0_io_fop_fini(cfop);
-	m0_free(cfop);
-	return M0_RC(rc);
 }
 
 __attribute__((unused))
@@ -1813,8 +1356,6 @@ static void io_item_replied(struct m0_rpc_item *item)
 {
 	struct m0_fop		   *fop;
 	struct m0_fop		   *rfop;
-	struct m0_fop		   *bkpfop;
-	struct m0_rpc_item	   *ritem;
 	struct m0_rpc_bulk	   *rbulk;
 	struct m0_fop_cob_rw_reply *reply;
 
@@ -1829,97 +1370,6 @@ static void io_item_replied(struct m0_rpc_item *item)
 	reply = io_rw_rep_get(rfop);
 	M0_ASSERT(ergo(reply->rwr_rc == 0,
 		       reply->rwr_count == rbulk->rb_bytes));
-
-if (0) /* if (0) is used instead of #if 0 to avoid code rot. */
-{
-	/** @todo Rearrange IO item merging code to work with new
-		  formation code.
-	 */
-	/*
-	 * Restores the contents of main coalesced fop from the first
-	 * rpc item in m0_rpc_item::ri_compound_items list. This item
-	 * is inserted by io coalescing code.
-	 */
-	if (!rpcitem_tlist_is_empty(&item->ri_compound_items)) {
-		M0_LOG(M0_DEBUG, "Reply received for coalesced io fops.");
-		ritem = rpcitem_tlist_pop(&item->ri_compound_items);
-		bkpfop = m0_rpc_item_to_fop(ritem);
-		if (fop->f_type->ft_ops->fto_fop_replied != NULL)
-			fop->f_type->ft_ops->fto_fop_replied(fop, bkpfop);
-	}
-
-	/*
-	 * The rpc_item->ri_chan is signaled by sessions code
-	 * (rpc_item_replied()) which is why only member coalesced items
-	 * (items which were member of a parent coalesced item) are
-	 * signaled from here as they are not sent on wire but hang off
-	 * a list from parent coalesced item.
-	 */
-	m0_tl_for(rpcitem, &item->ri_compound_items, ritem) {
-		fop = m0_rpc_item_to_fop(ritem);
-		rbulk = m0_fop_to_rpcbulk(fop);
-		m0_mutex_lock(&rbulk->rb_mutex);
-		M0_ASSERT(rbulk != NULL && m0_tlist_is_empty(&rpcbulk_tl,
-			  &rbulk->rb_buflist));
-		/* Notifies all member coalesced items of completion status. */
-		rbulk->rb_rc = item->ri_error;
-		m0_mutex_unlock(&rbulk->rb_mutex);
-		/* XXX Use rpc_item_replied()
-		       But we'll fix it later because this code path will need
-		       significant changes because of new formation code.
-		 */
-		/* m0_chan_broadcast(&ritem->ri_chan); */
-	} m0_tl_endfor;
-}
-}
-
-static void item_io_coalesce(struct m0_rpc_item *head, struct m0_list *list,
-			     uint64_t size)
-{
-	/* Coalescing RPC items is not yet supported */
-if (0)
-{
-	int			 rc;
-	struct m0_fop		*bfop;
-	struct m0_rpc_item	*item;
-
-	M0_PRE(head != NULL);
-	M0_PRE(list != NULL);
-	M0_PRE(size > 0);
-
-	if (m0_list_is_empty(list))
-		return;
-
-	/*
-	 * Traverses through the list and finds out items that match with
-	 * head on basis of fid and intent (read/write). Matching items
-	 * are removed from session->s_unbound_items list and added to
-	 * head->compound_items list.
-	 */
-	bfop = m0_rpc_item_to_fop(head);
-
-	if (rpcitem_tlist_is_empty(&head->ri_compound_items))
-		return;
-
-	/*
-	 * Add the bound item to list of compound items as this will
-	 * include the bound item's io vector in io coalescing
-	 */
-	rpcitem_tlist_add(&head->ri_compound_items, head);
-
-	rc = bfop->f_type->ft_ops->fto_io_coalesce(bfop, size);
-	if (rc != 0) {
-		m0_tl_teardown(rpcitem, &head->ri_compound_items, item) {
-			(void)item; /* remove the "unused variable" warning.*/
-		}
-	} else {
-		/*
-		 * Item at head is the backup item which is not present
-		 * in sessions unbound list.
-		 */
-		rpcitem_tlist_del(head);
-	}
-}
 }
 
 M0_INTERNAL m0_bcount_t m0_io_fop_byte_count(struct m0_io_fop *iofop)

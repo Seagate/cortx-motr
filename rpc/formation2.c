@@ -51,10 +51,6 @@ static void frm_fill_packet(struct m0_rpc_frm *frm, struct m0_rpc_packet *p);
 static void frm_fill_packet_from_item_sources(struct m0_rpc_frm    *frm,
 					      struct m0_rpc_packet *p);
 static int  frm_packet_ready(struct m0_rpc_frm *frm, struct m0_rpc_packet *p);
-static void frm_try_merging_item(struct m0_rpc_frm  *frm,
-				 struct m0_rpc_item *item,
-				 m0_bcount_t         limit);
-
 static bool item_less_or_equal(const struct m0_rpc_item *i0,
 			       const struct m0_rpc_item *i1);
 static void item_move_to_urgent_queue(struct m0_rpc_frm *frm,
@@ -65,8 +61,6 @@ static m0_bcount_t available_space_in_packet(const struct m0_rpc_packet *p,
 static bool item_will_exceed_packet_size(struct m0_rpc_item         *item,
 					 const struct m0_rpc_packet *p,
 					 const struct m0_rpc_frm    *frm);
-
-static bool item_supports_merging(const struct m0_rpc_item *item);
 
 static void drop_all_items(struct m0_rpc_frm *frm);
 
@@ -496,7 +490,6 @@ static void frm_fill_packet(struct m0_rpc_frm *frm, struct m0_rpc_packet *p)
 {
 	struct m0_rpc_item *item;
 	struct m0_tl       *q;
-	m0_bcount_t         limit;
 
 	M0_ENTRY("frm: %p packet: %p", frm, p);
 
@@ -523,10 +516,6 @@ static void frm_fill_packet(struct m0_rpc_frm *frm, struct m0_rpc_packet *p)
 				continue;
 			m0_rpc_item_get(item);
 			frm_remove(frm, item);
-			if (item_supports_merging(item)) {
-				limit = available_space_in_packet(p, frm);
-				frm_try_merging_item(frm, item, limit);
-			}
 			M0_ASSERT(!item_will_exceed_packet_size(item, p, frm));
 			m0_rpc_packet_add_item(p, item);
 			m0_rpc_item_change_state(item, M0_RPC_ITEM_SENDING);
@@ -557,14 +546,6 @@ static bool item_will_exceed_packet_size(struct m0_rpc_item         *item,
 					 const struct m0_rpc_frm    *frm)
 {
 	return m0_rpc_item_size(item) > available_space_in_packet(p, frm);
-}
-
-static bool item_supports_merging(const struct m0_rpc_item *item)
-{
-	M0_PRE(item->ri_type != NULL &&
-	       item->ri_type->rit_ops != NULL);
-
-	return item->ri_type->rit_ops->rito_try_merge != NULL;
 }
 
 static void frm_fill_packet_from_item_sources(struct m0_rpc_frm    *frm,
@@ -651,17 +632,6 @@ static void __itemq_remove(struct m0_rpc_item *item)
 {
 	itemq_tlink_del_fini(item);
 	item->ri_itemq = NULL;
-}
-
-static void frm_try_merging_item(struct m0_rpc_frm  *frm,
-				 struct m0_rpc_item *item,
-				 m0_bcount_t         limit)
-{
-	M0_ENTRY("frm: %p item: %p limit: %llu", frm, item,
-						 (unsigned long long)limit);
-	/** @todo XXX implement item merging */
-	M0_LEAVE();
-	return;
 }
 
 /**

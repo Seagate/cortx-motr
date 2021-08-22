@@ -266,8 +266,6 @@ M0_INTERNAL struct m0_fop_type *m0_fop_type_find(uint32_t opcode);
 struct m0_fop_type_ops {
 	/** Action to be taken on receiving reply of a fop. */
 	void (*fto_fop_replied)(struct m0_fop *fop, struct m0_fop *bfop);
-	/** Try to coalesce multiple fops into one. */
-	int (*fto_io_coalesce)(struct m0_fop *fop, uint64_t rpc_size);
 	/** Returns the net buf desc in io fop. */
 	void (*fto_io_desc_get)(struct m0_fop *fop,
 			        struct m0_net_buf_desc_data **desc);
