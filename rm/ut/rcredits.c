@@ -28,6 +28,7 @@
 #include "ut/ut.h"
 #include "rm/ut/rmut.h"
 #include "rm/ut/rings.h"
+#include "rpc/rpc_machine_internal.h"
 
 /* Maximum test servers for all test cases */
 static enum rm_server      test_servers_nr;
@@ -933,14 +934,14 @@ static void test_debtor_death(void)
 
 static void rm_ctx_creditor_track(enum rm_server srv_id)
 {
-	struct m0_rm_owner  *owner = rm_ctxs[srv_id].rc_test_data.rd_owner;
-	struct m0_rm_remote *creditor = owner->ro_creditor;
-	struct m0_confc     *confc;
-	const char          *rem_ep;
-	int                  rc;
+	struct m0_rm_owner      *owner = rm_ctxs[srv_id].rc_test_data.rd_owner;
+	struct m0_rm_remote     *creditor = owner->ro_creditor;
+	struct m0_confc         *confc;
+	struct m0_net_end_point *rem_ep;
+	int                      rc;
 
 	confc = m0_reqh2confc(&rm_ctxs[srv_id].rc_rmach_ctx.rmc_reqh);
-	rem_ep = m0_rpc_conn_addr(creditor->rem_session->s_conn);
+	rem_ep = creditor->rem_session->s_conn->c_rpcchan->rc_destep;
 	rc = m0_rm_ha_subscribe_sync(confc, rem_ep, &creditor->rem_tracker);
 	M0_ASSERT(rc == 0);
 }
