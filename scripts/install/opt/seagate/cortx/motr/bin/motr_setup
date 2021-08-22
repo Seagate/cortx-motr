@@ -47,7 +47,7 @@ class Cmd:
         self._debug = args.debug
         self.logger = config_logger(self)
         self.server_node = get_server_node(self)
-
+        self.k8 = args.k8
     @property
     def args(self) -> str:
         return self._args
@@ -89,6 +89,8 @@ class Cmd:
         parser1.add_argument('args', nargs='*', default=[], help='args')
         parser1.add_argument('--debug', '-d', help='enable debug print',
                          action="store_true")
+        parser1.add_argument('--k8', '-k', help='Run in Kubernate',
+                             action="store_true")
         parser1.set_defaults(command=cls)
 
 class PrepareCmd(Cmd):
@@ -127,11 +129,15 @@ class PostInstallCmd(Cmd):
             if cluster_up(self):
                 self.logger.warning("Cluster is already up...Exiting.\n")
                 return
-        if not lvm_exist(self):
-            config_lvm(self)
+        if self.k8:
+            config_part(self)
+            return
         else:
-            self.logger.error("There are LVM configurations present on the system. "
-                              "Skipping LVM creation.\n")
+            if lvm_exist(self):
+                config_lvm(self)
+            else:
+                self.logger.error("There are LVM configurations present on the system. "
+                                  "Skipping LVM creation.\n")
 
 class ConfigCmd(Cmd):
     """Config Setup Cmd"""
@@ -142,11 +148,15 @@ class ConfigCmd(Cmd):
 
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
-        motr_config(self)
 
-        # Update keys from other nodes 
+        #motr_config(self)
+
+        # Update keys from other nodes
         if self.server_node["name"] == "srvnode-1":
-            update_motr_hare_keys_for_all_nodes(self)
+            if self.k8:
+                update_motr_hare_keys_for_all_nodes(self, k8=self.k8)
+            else:
+                update_motr_hare_keys_for_all_nodes(self, k8=False)
         self.logger.info("SUCCESS\n")
 
 class InitCmd(Cmd):
@@ -207,6 +217,7 @@ class CleanupCmd(Cmd):
         super().__init__(args)
 
     def process(self):
+        print(f"On line 210.........self._args={self._args}")
         if (len(self._args) > 1):
             self.logger.error(f"Invalid number of arguments of 'cleanup'\n")
             self.logger.error(f"usage: <prog> [-h] <cmd> --config <url> <args>\n")
@@ -220,7 +231,10 @@ class CleanupCmd(Cmd):
         patterns = ["addb", "*trace", "m0d"]
         remove_logs(self, patterns)
         if (len(self._args) == 1) and (self._args[0] == "pre-factory"):
-            lvm_clean(self)
+            if not self.k8:
+                lvm_clean(self)
+            else:
+                part_clean(self)
         pass
 
 class UpgradeCmd(Cmd):

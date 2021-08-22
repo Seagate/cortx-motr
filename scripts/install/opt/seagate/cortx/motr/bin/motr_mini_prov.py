@@ -52,12 +52,15 @@ class MotrError(Exception):
     def __str__(self):
         return f"error[{self._rc}]: {self._desc}"
 
-def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False, retries = 1):
+def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
+                    retries = 1, stdin = None):
     for i in range(retries):
         self.logger.info(f"Retry: {i}. Executing cmd: '{cmd}'")
         ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               shell=True)
+        if stdin:
+            ps.stdin.write(stdin.encode())
         stdout, stderr = ps.communicate(timeout=timeout_secs);
         stdout = str(stdout, 'utf-8')
         self.logger.info(f"ret={ps.returncode}\n")
@@ -170,8 +173,13 @@ def validate_motr_rpm(self):
 
 def motr_config(self):
     # Just to check if lnet is working properly
-    if not verify_lnet(self):
-       raise MotrError(errno.EINVAL, "lent is not up.")
+    if self.k8:
+        if not verify_libfabric(self):
+            raise MotrError(errno.EINVAL, "libfabric is not up.")
+    else:
+        if not verify_lnet(self):
+            raise MotrError(errno.EINVAL, "lent is not up.")
+
     is_hw = is_hw_node(self)
     if is_hw:
         self.logger.info(f"Executing {MOTR_CONFIG_SCRIPT}")
@@ -228,9 +236,22 @@ def configure_lnet(self):
     if not ret:
        raise MotrError(errno.EINVAL, "lent self ping failed\n")
 
-
 def configure_libfabric(self):
-    raise MotrError(errno.EINVAL, "libfabric not implemented\n")
+    try:
+        iface = Conf.get(self._index,
+        f'cluster>{self._server_id}')['network']['data']['private_interfaces']
+        iface = iface[0]
+        cmd = "fi_info"
+        execute_command(self, cmd)
+    except:
+        raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
+
+def verify_libfabric(self):
+    try:
+        cmd = "fi_info"
+        execute_command(self, cmd)
+    except:
+        raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
 
 def swap_on(self):
     cmd = "swapon -a"
@@ -770,7 +791,7 @@ def lnet_self_ping(self):
             return False
     return True
 
-def update_motr_hare_keys_for_all_nodes(self):
+def update_motr_hare_keys_for_all_nodes(self, k8=False):
     hostname = self.server_node["hostname"]
     nodes_info = Conf.get(self._index, 'server_node')
     retry_count = 60
@@ -782,21 +803,14 @@ def update_motr_hare_keys_for_all_nodes(self):
         self.logger.info(f"update_motr_hare_keys for {host}\n")
         for i in range(int(cvg_count)):
             lv_path = None
-            lv_md_name = f"lv_raw_md{i + 1}"
-            if (hostname == value["hostname"]):
-                cmd = ("lvs -o lv_path")
-                res = execute_command_verbose(self, cmd)
-                r = re.compile(f".*{lv_md_name}")
-                try:
-                    lvm_find = list(filter(r.match,res[0].split()))
-                    lv_path = lvm_find[0].strip()
-                except Exception as e:
-                    self.logger.info(f"exception pass {e}\n")
+            if not k8:
+                lv_md_name = f"lv_raw_md{i + 1}"
             else:
-                cmd = (f"ssh  {host}"
-                       f" \"lvs -o lv_path\"")
-                for retry in range(1, retry_count):
-                    self.logger.info(f"Getting LVM data for {host}, attempt: {retry}\n")
+                lv_md_name = f"raw_md{i + 1}"
+
+            if (hostname == value["hostname"]):
+                if not k8:
+                    cmd = ("lvs -o lv_path")
                     res = execute_command_verbose(self, cmd)
                     r = re.compile(f".*{lv_md_name}")
                     try:
@@ -804,11 +818,42 @@ def update_motr_hare_keys_for_all_nodes(self):
                         lv_path = lvm_find[0].strip()
                     except Exception as e:
                         self.logger.info(f"exception pass {e}\n")
-                    if lv_path:
-                        self.logger.info(f"found lvm {lv_path} after {retry} count")
-                        break
-                    else:
-                        time.sleep(retry_delay)
+                else:
+                    cmd = "lsblk -lo name,label|grep raw_md1|awk '{print $1}'"
+                    res = execute_command_verbose(self, cmd)
+                    if res[1] == 0:
+                        # e.g. res[0] is sdb1. Absoulte path of sdb is /dev/sdb1
+                        lv_path = "/dev/"+f"{res[0]}"
+            else:
+                if not k8:
+                    cmd = (f"ssh  {host}"
+                           f" \"lvs -o lv_path\"")
+                    for retry in range(1, retry_count):
+                        self.logger.info(f"Getting LVM data for {host}, attempt: {retry}\n")
+                        res = execute_command_verbose(self, cmd)
+                        r = re.compile(f".*{lv_md_name}")
+                        try:
+                            lvm_find = list(filter(r.match,res[0].split()))
+                            lv_path = lvm_find[0].strip()
+                        except Exception as e:
+                            self.logger.info(f"exception pass {e}\n")
+                        if lv_path:
+                            self.logger.info(f"found lvm {lv_path} after {retry} count")
+                            break
+                        else:
+                            time.sleep(retry_delay)
+                else:
+                    cmd = (f"ssh  {host}"
+                           " \"lsblk -lo name,label|grep raw_md1|awk \'{print $1}\'\"")
+                    for retry in range(1, retry_count):
+                        self.logger.info(f"Getting LVM data for {host}, attempt: {retry}\n")
+                        res = execute_command_verbose(self, cmd)
+                        if res[0] == 0 and (len(res[1]) > 0):
+                            lv_path = "/dev/"+f"{res[0]}"
+                            self.logger.info(f"found {lv_path} after {retry} count")
+                            break
+                        else:
+                            time.sleep(retry_delay)
             if not lv_path:
                 raise MotrError(res[1], f"[ERR] {lv_md_name} not found on {host}\n")
             self.logger.info(f"setting key server>{name}>cvg[{i}]>m0d[0]>md_seg1"
@@ -902,3 +947,143 @@ def remove_dm_entries(self):
             if os.path.exists(lv_path):
                 self.logger.info(f"dmsetup remove {lv_path}")
                 execute_command(self, f"dmsetup remove {lv_path}")
+
+def config_part(self):
+    cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
+    dev_count = 1
+    config_dict = read_config(MOTR_SYS_CFG)
+    for i in range(int(cvg_cnt)):
+        cvg_item = cvg[i]
+        try:
+            metadata_devices = cvg_item["metadata_devices"]
+        except:
+            raise MotrError(errno.EINVAL, "metadata devices not found\n")
+        check_type(metadata_devices, list, "metadata_devices")
+        self.logger.info(f"\nlvm metadata_devices: {metadata_devices}\n\n")
+
+        # Currently only one metadata device in one cvg
+        for device in metadata_devices:
+            ret = create_parts(self, dev_count, device)
+            if ret != 0:
+                return ret
+            dev_count += 1
+    return ret
+
+def get_disk_size(self, device):
+    cmd = f"fdisk -l {device} |" f"grep {device}:" "| awk '{print $5}'"
+    ret = execute_command(self, cmd)
+    return ret[0].strip()
+
+def create_part(self, device, label, sz, part_num):
+    ret = 0
+    cmd = f"fdisk {device}"
+    stdin_str = str("n\np\n"+f"{part_num}"+"\n\n+" + f"{sz}" + "\nw\n")
+
+    ret = execute_command(self, cmd, stdin=stdin_str, verbose=True)[1]
+
+    if ret == 0:
+        # Set label
+        time.sleep(5)
+        part_name = f"{device}{part_num}"
+        cmd = f"mkfs.ext4 {part_name} -L {label}"
+        ret = execute_command(self, cmd, verbose=True)[1]
+    return ret
+
+# cvg_o metadata_disk = /dev_sdb
+# /dev/disk/by-label/lv_be_log1 -> ../../sdb1
+# /dev/disk/by-label/lv_raw_md1 -> ../../sdb2
+# Size of /dev/sdb1 = min(MOTR_M0D_BESEG_SIZE, 0.04*disk_size(/dev/sdb))
+# Size of /dev/sdb2 = disk_size(/dev/sdb) - Size of /dev/sdb1
+
+# cvg_1 metadata_disk = /dev/sde
+# /dev/disk/by-label/lv_be_log2 -> ../../sde1
+# /dev/disk/by-label/lv_raw_md2 -> ../../sde2
+# Size of /dev/sde1 = min(MOTR_M0D_BESEG_SIZE, 0.04*disk_size(/dev/sde))
+# Size of /dev/sde2 = disk_size(/dev/sde) - Size of /dev/sde1
+
+def create_parts(self, dev_count, device):
+    raw_md_label = f"raw_md{dev_count}"
+    be_log_label = f"be_log{dev_count}"
+
+    config_dict = read_config(MOTR_SYS_CFG)
+    disk_size = int(get_disk_size(self, device))
+    if config_dict['MOTR_M0D_BESEG_SIZE']:
+        self.logger.info(f"MOTR_M0D_BESEG_SIZE = {config_dict['MOTR_M0D_BESEG_SIZE']}")
+        if (int(config_dict['MOTR_M0D_BESEG_SIZE']) > 0):
+            be_log_part_sz = int(config_dict['MOTR_M0D_BESEG_SIZE'])
+        else:
+            be_log_part_sz = int(0.04 * disk_size)
+    else:
+        be_log_part_sz = int(0.04 * disk_size)
+
+    raw_md_part_sz = int(disk_size) - int(be_log_part_sz)
+    be_log_part_sz_GB = str(int(be_log_part_sz/(1024*1024*1024)))+'G'
+    raw_md_part_sz_GB = str(int(raw_md_part_sz/(1024*1024*1024)*0.8)) + 'G'
+
+    self.logger.info(f"be_log_part_sz_GB = {be_log_part_sz_GB}")
+    self.logger.info(f"raw_md_part_sz_GB = {raw_md_part_sz_GB}")
+
+    ret = create_part(self, device, be_log_label, be_log_part_sz_GB, 1)
+    if ret == 0:
+        ret = create_part(self, device, raw_md_label, raw_md_part_sz_GB, 2)
+    return ret
+
+
+def read_config(file):
+    fp = open(file, "r")
+    file_data = fp.read()
+    config_dict = {}
+    for line in file_data.splitlines():
+        if line.startswith('#') or (len(line.strip()) == 0):
+            continue
+        entry = line.split('=',1)
+        config_dict[entry[0]] = entry[1]
+    return config_dict
+
+def part_clean(self):
+    cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
+    dev_count = 1
+    ret = 0
+    for i in range(int(cvg_cnt)):
+        cvg_item = cvg[i]
+        try:
+            metadata_devices = cvg_item["metadata_devices"]
+        except:
+            raise MotrError(errno.EINVAL, "metadata devices not found\n")
+        check_type(metadata_devices, list, "metadata_devices")
+        self.logger.info(f"\nlvm metadata_devices: {metadata_devices}\n\n")
+        for device in metadata_devices:
+            ret = delete_parts(self, dev_count, device)
+            #if ret != 0:
+            #    return ret
+            dev_count += 1
+    return ret
+
+# It will give num of partitions + 1.
+# To get partition numbers, subract 1 from output
+def get_part_count(self, device):
+   dpath, fname = os.path.split(device)
+   cmd = f"lsblk -o name | grep -c {fname}"
+   ret = int(execute_command(self, cmd, verbose=True)[0]) - 1
+   return ret
+
+def delete_parts(self, dev_count, device):
+    # Delete 2 partitions be_log, raw_md
+    total_parts = get_part_count(self, device)
+    if total_parts == 0:
+        self.logger.info(f"No partitions found on {device}")
+        return
+    self.logger.info(f"No. of partitions={total_parts} on {device}")
+    for i in range(int(total_parts)):
+        part_num = i + 1
+        ret = delete_part(self, device, part_num)
+        if ret != 0:
+            self.logger.error(f"Deletion of partition({part_num}) failed on {device}")
+            return ret
+        time.sleep(2)
+
+def delete_part(self, device, part_num):
+    cmd = f"fdisk {device}"
+    stdin_str = str("d\n"+f"{part_num}"+"\n" + "w\n")
+    ret = execute_command(self, cmd, stdin=stdin_str, verbose=True)
+    return ret[1]
