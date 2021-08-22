@@ -115,11 +115,11 @@ struct m0_rm_ha_tracker {
 	 * Once subscribed to remote's death notification from HA, the remote
 	 * endpoint is kept until unsubscription.
 	 */
-	char                   *rht_ep;
+	struct m0_net_end_point *rht_ep;
 	/**
 	 * Last known state of the remote owner.
 	 */
-	enum m0_ha_obj_state    rht_state;
+	enum m0_ha_obj_state     rht_state;
 };
 
 /**
@@ -175,11 +175,11 @@ M0_INTERNAL void m0_rm_ha_tracker_fini(struct m0_rm_ha_tracker *tracker);
  *                criteria
  * @param tracker initialised tracker structure
  */
-M0_INTERNAL int m0_rm_ha_subscriber_init(struct m0_rm_ha_subscriber *sbscr,
-					 struct m0_sm_group         *grp,
-					 struct m0_confc            *confc,
-					 const char                 *rem_ep,
-					 struct m0_rm_ha_tracker    *tracker);
+M0_INTERNAL void m0_rm_ha_subscriber_init(struct m0_rm_ha_subscriber *sbscr,
+					  struct m0_sm_group         *grp,
+					  struct m0_confc            *confc,
+					  struct m0_net_end_point    *rem_ep,
+					  struct m0_rm_ha_tracker    *tracker);
 
 /**
  * Start asynchronous subscription process.
@@ -202,7 +202,7 @@ M0_INTERNAL void m0_rm_ha_subscriber_fini(struct m0_rm_ha_subscriber *sbscr);
  * Arguments have the same meaning as in m0_rm_ha_subscriber_init().
  */
 M0_INTERNAL int m0_rm_ha_subscribe_sync(struct m0_confc         *confc,
-					const char              *rem_ep,
+					struct m0_net_end_point *rem_ep,
 					struct m0_rm_ha_tracker *tracker);
 
 /**

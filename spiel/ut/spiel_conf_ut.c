@@ -34,6 +34,7 @@
 #include "conf/load_fop.h"  /* m0_conf_segment_size */
 #include "conf/helpers.h"   /* m0_confc_expired_cb */
 #include "conf/ut/common.h"
+#include "conf/ut/rpc_helpers.h"  /* m0_ut_rpc_machine_start */
 #include "lib/finject.h"
 #include "lib/fs.h"         /* m0_file_read */
 #include "ut/misc.h"        /* M0_UT_PATH */
@@ -1942,13 +1943,18 @@ static void spiel_conf_expired(void)
 					   &ut_reqh.sur_confd_srv.rsx_motr_ctx);
 	struct m0_spiel_tx       tx;
 	struct m0_rm_ha_tracker  tracker;
-	char                    *rm_ep = "0@lo:12345:34:1";
+	struct m0_rpc_machine    mach;
+	struct m0_net_end_point *ep;
 	int                      rc;
 
+	rc = m0_ut_rpc_machine_start(&mach, m0_net_xprt_default_get(),
+				     CLIENT_ENDPOINT_ADDR);
+	M0_UT_ASSERT(rc == 0);
+	m0_net_end_point_create(&ep, &mach.rm_tm, "0@lo:12345:34:1");
 	m0_fi_enable("rm_ha_sbscr_diter_next", "subscribe");
 	spiel_conf_ut_init();
 	m0_rm_ha_tracker_init(&tracker, NULL);
-	m0_rm_ha_subscribe_sync(confc, rm_ep, &tracker);
+	m0_rm_ha_subscribe_sync(confc, ep, &tracker);
 	spiel_conf_create_configuration(&spiel, &tx);
 	rc = m0_spiel_tx_commit(&tx);
 	M0_UT_ASSERT(rc == 0);
@@ -1956,6 +1962,8 @@ static void spiel_conf_expired(void)
 	m0_rm_ha_tracker_fini(&tracker);
 	spiel_conf_ut_fini();
 	m0_fi_disable("rm_ha_sbscr_diter_next", "subscribe");
+	m0_net_end_point_put(ep);
+	m0_ut_rpc_machine_stop(&mach);
 }
 
 static void spiel_conf_wlock_get_fail(void)

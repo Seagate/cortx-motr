@@ -31,6 +31,7 @@
 #include "fop/fom_generic.h"
 #include "rpc/service.h"
 #include "rpc/rpc.h"
+#include "rpc/rpc_machine_internal.h"
 #include "reqh/reqh.h"
 #include "conf/confc.h"     /* m0_confc */
 
@@ -517,32 +518,26 @@ static int remote_create(struct m0_rm_remote          **rem,
 static int rfom_debtor_subscribe(struct rm_request_fom *rfom,
 				 struct m0_rm_remote   *debtor)
 {
-	struct m0_confc       *confc;
-	struct m0_rpc_item    *item;
-	const char            *ep;
-	struct m0_fom         *fom;
-	int                    rc;
+	struct m0_confc         *confc;
+	struct m0_rpc_item      *item;
+	struct m0_net_end_point *ep;
+	struct m0_fom           *fom;
 
 	M0_PRE(rfom != NULL);
 	fom = &rfom->rf_fom;
 	item = &fom->fo_fop->f_item;
-	ep = m0_rpc_item_remote_ep_addr(item);
-	M0_ASSERT(ep != NULL);
+	ep = item->ri_session->s_conn->c_rpcchan->rc_destep;
 	/* Already subscribed? Then we are fine. */
 	if (m0_clink_is_armed(&debtor->rem_tracker.rht_clink))
 		return M0_RC(-EEXIST);
 	/* get confc instance HA to be notifying on */
 	confc = m0_reqh2confc(item->ri_rmachine->rm_reqh);
-	rc = m0_rm_ha_subscriber_init(&rfom->rf_sbscr, &fom->fo_loc->fl_group,
-				confc, ep, &debtor->rem_tracker);
-	if (rc == 0) {
-		m0_fom_phase_set(fom, FOPH_RM_REQ_DEBTOR_SUBSCRIBE);
-		m0_fom_wait_on(fom, &rfom->rf_sbscr.rhs_sm.sm_chan,
-			       &fom->fo_cb);
-		m0_rm_ha_subscribe(&rfom->rf_sbscr);
-	}
-
-	return M0_RC(rc);
+	m0_rm_ha_subscriber_init(&rfom->rf_sbscr, &fom->fo_loc->fl_group,
+				 confc, ep, &debtor->rem_tracker);
+	m0_fom_phase_set(fom, FOPH_RM_REQ_DEBTOR_SUBSCRIBE);
+	m0_fom_wait_on(fom, &rfom->rf_sbscr.rhs_sm.sm_chan, &fom->fo_cb);
+	m0_rm_ha_subscribe(&rfom->rf_sbscr);
+	return M0_RC(0);
 }
 
 /*
@@ -699,7 +694,7 @@ static int debtor_subscription_check(struct m0_fom *fom)
 			rem = m0_rm_remote_find(&rfom->rf_in);
 			M0_ASSERT(rem != NULL);
 			M0_LOG(M0_DEBUG, "Can't subscribe to debtor with ep %s:"
-			       " rc=%d", rem->rem_tracker.rht_ep,
+			       " rc=%d", rem->rem_tracker.rht_ep->nep_addr,
 			       rfom->rf_sbscr.rhs_sm.sm_rc);
 			M0_RM_REMOTE_PUT(rem);
 		}

@@ -36,6 +36,7 @@
 #include "conf/obj_ops.h"   /* m0_conf_obj_get_lock */
 #include "reqh/reqh.h"      /* m0_reqh */
 #include "rm/rm_ha.h"
+#include "net/net.h"        /* m0_net_end_point_create, m0_net_end_point_put */
 
 /**
  * @addtogroup rm-ha
@@ -100,22 +101,34 @@ static void rm_ha_sbscr_ast_post(struct m0_rm_ha_subscriber *sbscr,
 	m0_sm_ast_post(sbscr->rhs_sm.sm_grp, &sbscr->rhs_ast);
 }
 
-static bool rm_ha_rms_is_located(struct m0_conf_obj         *next,
-				 struct m0_rm_ha_subscriber *sbscr)
+static bool rm_ha_rms_is_located(struct m0_conf_obj      *next,
+				 struct m0_net_end_point *rem_ep)
 {
-	struct m0_conf_service *svc;
-	const char            **ep;
+	struct m0_conf_service  *svc;
+	const char             **addr;
+	struct m0_net_end_point *ep;
+	int                      rc;
 
 	/* looking for rmservice having the given endpoint */
 	M0_ASSERT(m0_conf_obj_type(next) == &M0_CONF_SERVICE_TYPE);
 	svc = M0_CONF_CAST(next, m0_conf_service);
 	if (svc->cs_type == M0_CST_RMS) {
-		ep = svc->cs_endpoints;
-		while (*ep != NULL) {
-			if (m0_streq(*ep, sbscr->rhs_tracker->rht_ep)) {
+		addr = svc->cs_endpoints;
+		while (*addr != NULL) {
+			/*
+			 * End-point string names cannot be directly compared,
+			 * because the remote end-point (extracted from an
+			 * incoming network request) can be canonicalised (e.g.,
+			 * DNS names resolved, etc.).
+			 */
+			rc = m0_net_end_point_create(&ep, rem_ep->nep_tm,
+						     *addr);
+			if (rc != 0)
+				continue;
+			m0_net_end_point_put(ep);
+			if (ep == rem_ep)
 				return true;
-			}
-			++ep;
+			++addr;
 		}
 	}
 	return false;
@@ -135,7 +148,7 @@ static void rm_ha_sbscr_diter_next(struct m0_rm_ha_subscriber *sbscr)
 	while ((rc = m0_conf_diter_next(&sbscr->rhs_diter, rm_ha_svc_filter)) ==
 			M0_CONF_DIRNEXT) {
 		next = m0_conf_diter_result(&sbscr->rhs_diter);
-		if (rm_ha_rms_is_located(next, sbscr) ||
+		if (rm_ha_rms_is_located(next, sbscr->rhs_tracker->rht_ep) ||
 		    M0_FI_ENABLED("subscribe")) {
 			m0_clink_add_lock(
 				     &m0_conf_obj2reqh(next)->rh_conf_cache_exp,
@@ -269,17 +282,15 @@ static void rm_ha_conf_open(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 /**
  * Helper function to locate RMS conf object with the given endpoint.
  */
-static int rm_remote_ep_to_rms_obj(struct m0_confc     *confc,
-				   const char          *rem_ep,
-				   struct m0_conf_obj **obj)
+static int rm_remote_ep_to_rms_obj(struct m0_confc         *confc,
+				   struct m0_net_end_point *rem_ep,
+				   struct m0_conf_obj     **obj)
 {
-	struct m0_conf_obj     *next;
-	struct m0_conf_obj     *root;
-	struct m0_conf_diter    it;
-	struct m0_conf_service *svc;
-	const char            **ep;
-	bool                    found = false;
-	int                     rc;
+	struct m0_conf_obj      *next;
+	struct m0_conf_obj      *root;
+	struct m0_conf_diter     it;
+	bool                     found = false;
+	int                      rc;
 
 	M0_PRE(confc != NULL);
 	M0_PRE(rem_ep != NULL);
@@ -299,26 +310,18 @@ static int rm_remote_ep_to_rms_obj(struct m0_confc     *confc,
 
 	while (!found) {
 		rc = m0_conf_diter_next_sync(&it, rm_ha_svc_filter);
-		if(rc != M0_CONF_DIRNEXT)
+		if (rc != M0_CONF_DIRNEXT)
 			break;
 		next = m0_conf_diter_result(&it);
-		svc = M0_CONF_CAST(next, m0_conf_service);
-		if (svc->cs_type !=  M0_CST_RMS)
-			continue;
-		ep = svc->cs_endpoints;
-		while (*ep != NULL) {
-			if (m0_streq(*ep, rem_ep)) {
-				/*
-				 * we need the object guaranteed
-				 * to be pinned on return, because it is used
-				 * outside of function.
-				 */
-				m0_conf_obj_get_lock(next);
-				*obj = next;
-				found = true;
-				break;
-			}
-			++ep;
+		if (rm_ha_rms_is_located(next, rem_ep)) {
+			/*
+			 * We need the object guaranteed to be pinned on return,
+			 * because it is used outside of function.
+			 */
+			m0_conf_obj_get_lock(next);
+			*obj = next;
+			found = true;
+			break;
 		}
 	}
 	m0_conf_diter_fini(&it);
@@ -337,19 +340,17 @@ static bool rm_ha_conf_expired_cb(struct m0_clink *cl)
 	return true;
 }
 
-M0_INTERNAL int m0_rm_ha_subscriber_init(struct m0_rm_ha_subscriber *sbscr,
-					 struct m0_sm_group         *grp,
-					 struct m0_confc            *confc,
-					 const char                 *rem_ep,
-					 struct m0_rm_ha_tracker    *tracker)
+M0_INTERNAL void m0_rm_ha_subscriber_init(struct m0_rm_ha_subscriber *sbscr,
+					  struct m0_sm_group         *grp,
+					  struct m0_confc            *confc,
+					  struct m0_net_end_point    *rem_ep,
+					  struct m0_rm_ha_tracker    *tracker)
 {
-	tracker->rht_ep = m0_strdup(rem_ep);
-	if (tracker->rht_ep == NULL)
-		return M0_ERR(-ENOMEM);
+	m0_net_end_point_get(rem_ep);
+	tracker->rht_ep = rem_ep;
 	sbscr->rhs_tracker = tracker;
 	sbscr->rhs_confc = confc;
 	m0_sm_init(&sbscr->rhs_sm, &rm_ha_sbscr_sm_conf, RM_HA_SBSCR_INIT, grp);
-	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_rm_ha_subscribe(struct m0_rm_ha_subscriber *sbscr)
@@ -358,7 +359,7 @@ M0_INTERNAL void m0_rm_ha_subscribe(struct m0_rm_ha_subscriber *sbscr)
 }
 
 M0_INTERNAL int m0_rm_ha_subscribe_sync(struct m0_confc         *confc,
-					const char              *rem_ep,
+					struct m0_net_end_point *rem_ep,
 					struct m0_rm_ha_tracker *tracker)
 {
 	struct m0_conf_obj *obj;
@@ -367,7 +368,7 @@ M0_INTERNAL int m0_rm_ha_subscribe_sync(struct m0_confc         *confc,
 	M0_ASSERT(confc != NULL);
 	M0_ASSERT(rem_ep != NULL);
 
-	/**
+	/*
 	 * @todo Ideally this function should be implemented through
 	 * asynchronous m0_rm_ha_subscribe(). The problem is that
 	 * m0_rm_ha_subscriber internally locks confc sm group. For global confc
@@ -375,9 +376,8 @@ M0_INTERNAL int m0_rm_ha_subscribe_sync(struct m0_confc         *confc,
 	 * m0_rm_ha_subscriber_init(). Usually users requesting synchronous
 	 * operation don't have another option, except locality0 sm group.
 	 */
-	tracker->rht_ep = m0_strdup(rem_ep);
-	if (tracker->rht_ep == NULL)
-		return M0_ERR(-ENOMEM);
+	m0_net_end_point_get(rem_ep);
+	tracker->rht_ep = rem_ep;
 	rc = rm_remote_ep_to_rms_obj(confc, rem_ep, &obj);
 	if (rc == 0) {
 		m0_clink_add_lock(&m0_conf_obj2reqh(obj)->rh_conf_cache_exp,
@@ -409,7 +409,10 @@ M0_INTERNAL void m0_rm_ha_tracker_fini(struct m0_rm_ha_tracker *tracker)
 {
 	m0_clink_fini(&tracker->rht_clink);
 	m0_clink_fini(&tracker->rht_conf_exp);
-	m0_free(tracker->rht_ep);
+	if (tracker->rht_ep != NULL) {
+		m0_net_end_point_put(tracker->rht_ep);
+		tracker->rht_ep = NULL;
+	}
 }
 
 M0_INTERNAL void m0_rm_ha_unsubscribe(struct m0_rm_ha_tracker *tracker)

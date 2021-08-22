@@ -3574,7 +3574,7 @@ static void rm_remote_death_handler(struct m0_rm_remote *remote)
 				if (rc != 0)
 					M0_LOG(M0_WARN, "continuing even"
 					       " after rc = %d with ep = %s",
-					       rc, remote->rem_tracker.rht_ep);
+				     rc, remote->rem_tracker.rht_ep->nep_addr);
 			}
 		} m0_tl_endfor;
 
