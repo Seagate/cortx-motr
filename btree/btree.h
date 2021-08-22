@@ -271,6 +271,25 @@ void m0_btree_put(struct m0_btree *arbor, const struct m0_btree_rec *rec,
 		  struct m0_btree_op *bop, struct m0_be_tx *tx);
 
 /**
+ * Updates the record in the tree. The callback is called with the location
+ * where the updated value should be written in the tree.
+ *
+ * @param arbor is the pointer to btree.
+ * @param rec   represents the record which needs to be updted. Note that,
+ *              user may or may not provide valid value but record should be
+ *              provided with valid key, key size and value size as this
+ *              information is needed for correct operation.
+ * @param cb    routine to be called to PUT the record.
+ * @param flags
+ * @param bop   Btree operation related parameters.
+ * @param tx    represents the transaction of which the current operation is
+ *              part of.
+ */
+void m0_btree_update(struct m0_btree *arbor, const struct m0_btree_rec *rec,
+		     const struct m0_btree_cb *cb, uint64_t flags,
+		     struct m0_btree_op *bop, struct m0_be_tx *tx);
+
+/**
  * Deletes the record in the tree. The callback is called with the location
  * where the original key and value should are present in the tree.
  *
