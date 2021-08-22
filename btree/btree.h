@@ -154,7 +154,7 @@ enum m0_btree_opflag {
  * Calculates the credit needed to create tree using root node and adds this
  * credit to @accum.
  */
-void m0_btree_create_credit(const struct node_type *nt,
+void m0_btree_create_credit(const struct m0_btree_type *bt,
 			    struct m0_be_tx_credit *accum);
 
 /**
