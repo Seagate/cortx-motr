@@ -60,19 +60,16 @@ static int check_read_fom_tick(struct m0_fom *fom);
 
 static const struct m0_fop_type_ops bulkio_stob_create_ops = {
 	.fto_fop_replied = io_fop_replied,
-	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
 static const struct m0_fop_type_ops bulkio_server_write_fop_ut_ops = {
 	.fto_fop_replied = io_fop_replied,
-	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
 
 static const struct m0_fop_type_ops bulkio_server_read_fop_ut_ops = {
 	.fto_fop_replied = io_fop_replied,
-	.fto_io_coalesce = io_fop_coalesce,
 	.fto_io_desc_get = io_fop_desc_get,
 };
 

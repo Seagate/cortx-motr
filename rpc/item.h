@@ -383,20 +383,6 @@ struct m0_rpc_item_type_ops {
 	   @see m0_fop_payload_size()
 	 */
 	m0_bcount_t (*rito_payload_size)(const struct m0_rpc_item *item);
-
-	/**
-	   Return true iff item1 and item2 are equal.
-	   @todo XXX Implement rito_eq for fops
-	 */
-	bool (*rito_eq)(const struct m0_rpc_item *i1,
-			const struct m0_rpc_item *i2);
-
-	/**
-	   Coalesce rpc items that share same fid and intent(read/write).
-	 */
-	void (*rito_io_coalesce)(struct m0_rpc_item *head,
-				 struct m0_list *list, uint64_t size);
-
 	/**
 	   Serialises item at location given by cur.
 	   @see m0_fop_item_type_default_encode()
@@ -411,10 +397,6 @@ struct m0_rpc_item_type_ops {
 	int (*rito_decode)(const struct m0_rpc_item_type *item_type,
 			   struct m0_rpc_item **item,
 			   struct m0_bufvec_cursor *cur);
-
-	bool (*rito_try_merge)(struct m0_rpc_item *container,
-			       struct m0_rpc_item *component,
-			       m0_bcount_t         limit);
 
 	/**
 	   RPC item type specific routine that will take reference on the item.
