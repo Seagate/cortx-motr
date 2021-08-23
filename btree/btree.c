@@ -567,9 +567,10 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/mman.h>
 #endif
 
-#define AVOID_BE_SEGMENT    1
+#define AVOID_BE_SEGMENT    0
 /**
  *  --------------------------------------------
  *  Section START - BTree Structure and Operations
@@ -712,6 +713,16 @@ enum {
 
 #define m0_be_ut_backend_fini(ut_be)                                         \
 	do { } while (0)
+
+#define m0_be_seg_close(ut_seg)                                              \
+	do { } while (0)
+
+#define m0_be_seg_open(ut_seg)                                               \
+	do { } while (0)
+
+#define madvise(rnode, rnode_sz, MADV_NORMAL)                                \
+	-1, errno = ENOMEM
+
 #endif
 
 #if 0
@@ -9746,6 +9757,430 @@ static void ut_mt_tree_oper(void)
 }
 
 /**
+ * This unit test exercises different KV operations and confirms the changes
+ * persist across cluster reboots.
+ */
+static void ut_btree_persistence(void)
+{
+	void                   *rnode;
+	int                     i;
+	struct m0_btree_cb      ut_cb;
+	struct m0_be_tx         tx_data         = {};
+	struct m0_be_tx        *tx              = &tx_data;
+	struct m0_be_tx_credit  cred            = {};
+	struct m0_btree_op      b_op            = {};
+	uint64_t                rec_count       = MAX_RECS_PER_STREAM;
+	struct m0_btree_op      kv_op           = {};
+	struct m0_btree        *tree;
+	const struct node_type *nt              = &fixed_format;
+	struct m0_btree_type    btree_type      = {
+						.tt_id = M0_BT_UT_KV_OPS,
+						.ksize = sizeof(uint64_t),
+						.vsize = btree_type.ksize * 2,
+						};
+	uint64_t                key;
+	uint64_t                value[btree_type.vsize / sizeof(uint64_t)];
+	m0_bcount_t             ksize           = sizeof key;
+	m0_bcount_t             vsize           = sizeof value;
+	void                   *k_ptr           = &key;
+	void                   *v_ptr           = &value;
+	int                     rc;
+	struct m0_buf           buf;
+	uint32_t                rnode_sz        = 1024;
+	uint32_t                rnode_sz_shift;
+	struct m0_btree_rec     rec = {
+			.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+			.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+		};
+	struct cb_data          put_data;
+	struct cb_data          get_data;
+
+	M0_ENTRY();
+
+	rec_count = (rec_count / 2) * 2; /** Make rec_count a multiple of 2 */
+
+	btree_ut_init();
+	/**
+	 *  Run the following scenario:
+	 *  1) Create a btree
+	 *  2) Add records in the created tree.
+	 *  3) Reload the BE segment.
+	 *  4) Confirm all the records are present in the tree.
+	 *  5) Delete records with EVEN numbered Keys.
+	 *  6) Reload the BE segment.
+	 *  7) Confirm all the records with EVEN numbered Keys are missing while
+	 *     the records with ODD numbered Keys are present in the tree.
+	 *  8) Now add back records with EVEN numbered Keys (the same records
+	 *     which were deleted in step 6)
+	 *  9) Delete records with ODD numbered Keys from the btree.
+	 * 10) Reload the BE segment.
+	 * 11) Confirm records with EVEN numbered Keys are present while the
+	 *     records with ODD numbered Keys are missing from the tree.
+	 * 12) Delete all records with EVEN numbered Keys from the tree.
+	 * 13) Reload the BE segment.
+	 * 14) Search for the records with all the EVEN and ODD numbered Keys,
+	 *     no record should be found in the tree.
+	 * 15) Destroy the btree
+	 * 16) Reload the BE segment.
+	 * 17) Try to open the destroyed tree. This should fail.
+	 *
+	 *  Capture each operation in a separate transaction.
+	 */
+
+	M0_ASSERT(rnode_sz != 0 && m0_is_po2(rnode_sz));
+	rnode_sz_shift = __builtin_ffsl(rnode_sz) - 1;
+	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED, rnode_sz,
+			       rnode_sz_shift, &cred);
+	m0_btree_create_credit(nt, &cred);
+
+	/** Prepare transaction to capture tree operations. */
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
+	M0_ASSERT(rc == 0);
+
+	/** Create temp node space and use it as root node for btree */
+	buf = M0_BUF_INIT(rnode_sz, NULL);
+	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	rnode = buf.b_addr;
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
+							     &btree_type, nt,
+							     &b_op, seg, tx));
+	M0_ASSERT(rc == M0_BSC_SUCCESS);
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
+
+	tree = b_op.bo_arbor;
+
+	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+	m0_btree_put_credit(tree, 1, ksize, vsize, &cred);
+
+	put_data.key       = &rec.r_key;
+	put_data.value     = &rec.r_val;
+
+	ut_cb.c_act        = btree_kv_put_cb;
+	ut_cb.c_datum      = &put_data;
+
+	for (i = 1; i <= rec_count; i++) {
+		int      k;
+
+		key = m0_byteorder_cpu_to_be64(i);
+		for (k = 0; k < ARRAY_SIZE(value); k++)
+			value[k] = key;
+
+		m0_be_ut_tx_init(tx, ut_be);
+		m0_be_tx_prep(tx, &cred);
+		rc = m0_be_tx_open_sync(tx);
+		M0_ASSERT(rc == 0);
+
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_put(tree, &rec,
+							   &ut_cb, 0,
+							   &kv_op, tx));
+		M0_ASSERT(rc == 0 && put_data.flags == M0_BSC_SUCCESS);
+		m0_be_tx_close_sync(tx);
+		m0_be_tx_fini(tx);
+	}
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
+	M0_ASSERT(rc == 0);
+
+	/** Re-map the BE segment.*/
+	m0_be_seg_close(ut_seg->bus_seg);
+	rc = madvise(rnode, rnode_sz, MADV_NORMAL);
+	M0_ASSERT(rc == -1 && errno == ENOMEM); /** Assert BE segment unmapped*/
+	m0_be_seg_open(ut_seg->bus_seg);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_open(rnode, rnode_sz, &tree, seg,
+						    &b_op));
+	M0_ASSERT(rc == 0);
+
+	get_data.key         = &rec.r_key;
+	get_data.value       = &rec.r_val;
+	get_data.check_value = true;
+
+	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+	m0_btree_del_credit(tree, 1, ksize, vsize, &cred);
+
+	for (i = 1; i <= rec_count; i++) {
+		uint64_t             f_key;
+		void                *f_key_ptr  = &f_key;
+		m0_bcount_t          f_key_size  = sizeof f_key;
+		struct m0_btree_key  key_in_tree;
+
+		f_key = m0_byteorder_cpu_to_be64(i);
+		key_in_tree.k_data =
+				    M0_BUFVEC_INIT_BUF(&f_key_ptr, &f_key_size);
+		ut_cb.c_act             = btree_kv_get_cb;
+		ut_cb.c_datum           = &get_data;
+
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_get(tree,
+							   &key_in_tree,
+							   &ut_cb, BOF_EQUAL,
+							   &kv_op));
+		M0_ASSERT(rc == M0_BSC_SUCCESS &&
+			  i == m0_byteorder_be64_to_cpu(key));
+
+		if (i % 2 == 0) {
+			m0_be_ut_tx_init(tx, ut_be);
+			m0_be_tx_prep(tx, &cred);
+			rc = m0_be_tx_open_sync(tx);
+			M0_ASSERT(rc == 0);
+
+			ut_cb.c_act             = btree_kv_del_cb;
+			ut_cb.c_datum           = &get_data;
+
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_del(tree,
+								   &key_in_tree,
+								   &ut_cb, 0,
+								   &kv_op, tx));
+			M0_ASSERT(rc == 0);
+			m0_be_tx_close_sync(tx);
+			m0_be_tx_fini(tx);
+		}
+	}
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
+	M0_ASSERT(rc == 0);
+
+	/** Re-map the BE segment.*/
+	m0_be_seg_close(ut_seg->bus_seg);
+	rc = madvise(rnode, rnode_sz, MADV_NORMAL);
+	M0_ASSERT(rc == -1 && errno == ENOMEM); /** Assert BE segment unmapped*/
+	m0_be_seg_open(ut_seg->bus_seg);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_open(rnode, rnode_sz, &tree, seg,
+						    &b_op));
+	M0_ASSERT(rc == 0);
+
+	get_data.key         = &rec.r_key;
+	get_data.value       = &rec.r_val;
+	get_data.check_value = true;
+
+	for (i = 1; i <= rec_count; i++) {
+		int                  k;
+		uint64_t             f_key;
+		void                *f_key_ptr  = &f_key;
+		m0_bcount_t          f_key_size  = sizeof f_key;
+		struct m0_btree_key  key_in_tree;
+
+		f_key = m0_byteorder_cpu_to_be64(i);
+		key_in_tree.k_data =
+				    M0_BUFVEC_INIT_BUF(&f_key_ptr, &f_key_size);
+		ut_cb.c_act             = btree_kv_get_cb;
+		ut_cb.c_datum           = &get_data;
+
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_get(tree,
+							   &key_in_tree,
+							   &ut_cb, BOF_EQUAL,
+							   &kv_op));
+		M0_ASSERT((i % 2 != 0 && rc == M0_BSC_SUCCESS) ||
+			  (i % 2 == 0 && rc == M0_ERR(-ENOENT)));
+
+		if (i % 2 != 0) {
+			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+			m0_btree_del_credit(tree, 1, ksize, vsize, &cred);
+
+			m0_be_ut_tx_init(tx, ut_be);
+			m0_be_tx_prep(tx, &cred);
+			rc = m0_be_tx_open_sync(tx);
+			M0_ASSERT(rc == 0);
+
+			ut_cb.c_act             = btree_kv_del_cb;
+			ut_cb.c_datum           = &get_data;
+
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_del(tree,
+								   &key_in_tree,
+								   &ut_cb, 0,
+								   &kv_op, tx));
+			M0_ASSERT(rc == 0);
+			m0_be_tx_close_sync(tx);
+			m0_be_tx_fini(tx);
+		} else {
+			cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+			m0_btree_put_credit(tree, 1, ksize, vsize, &cred);
+
+			m0_be_ut_tx_init(tx, ut_be);
+			m0_be_tx_prep(tx, &cred);
+			rc = m0_be_tx_open_sync(tx);
+			M0_ASSERT(rc == 0);
+
+			key = m0_byteorder_cpu_to_be64(i);
+			for (k = 0; k < ARRAY_SIZE(value); k++)
+				value[k] = key;
+
+			ut_cb.c_act        = btree_kv_put_cb;
+			ut_cb.c_datum      = &put_data;
+
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_put(tree, &rec,
+								   &ut_cb, 0,
+								   &kv_op, tx));
+			M0_ASSERT(rc == 0 && put_data.flags == M0_BSC_SUCCESS);
+			m0_be_tx_close_sync(tx);
+			m0_be_tx_fini(tx);
+		}
+	}
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
+	M0_ASSERT(rc == 0);
+
+	/** Re-map the BE segment.*/
+	m0_be_seg_close(ut_seg->bus_seg);
+	rc = madvise(rnode, rnode_sz, MADV_NORMAL);
+	M0_ASSERT(rc == -1 && errno == ENOMEM); /** Assert BE segment unmapped*/
+	m0_be_seg_open(ut_seg->bus_seg);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_open(rnode, rnode_sz, &tree, seg,
+						    &b_op));
+	M0_ASSERT(rc == 0);
+
+	get_data.key         = &rec.r_key;
+	get_data.value       = &rec.r_val;
+	get_data.check_value = true;
+
+	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+	m0_btree_del_credit(tree, 1, ksize, vsize, &cred);
+
+	for (i = 1; i <= rec_count; i++) {
+		uint64_t             f_key;
+		void                *f_key_ptr  = &f_key;
+		m0_bcount_t          f_key_size  = sizeof f_key;
+		struct m0_btree_key  key_in_tree;
+
+		f_key = m0_byteorder_cpu_to_be64(i);
+		key_in_tree.k_data =
+				    M0_BUFVEC_INIT_BUF(&f_key_ptr, &f_key_size);
+		ut_cb.c_act        = btree_kv_get_cb;
+		ut_cb.c_datum      = &get_data;
+
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_get(tree,
+							   &key_in_tree,
+							   &ut_cb, BOF_EQUAL,
+							   &kv_op));
+		M0_ASSERT((i % 2 == 0 && rc == M0_BSC_SUCCESS) ||
+			  (i % 2 != 0 && rc == M0_ERR(-ENOENT)));
+
+		if (i % 2 == 0) {
+			m0_be_ut_tx_init(tx, ut_be);
+			m0_be_tx_prep(tx, &cred);
+			rc = m0_be_tx_open_sync(tx);
+			M0_ASSERT(rc == 0);
+
+			ut_cb.c_act             = btree_kv_del_cb;
+			ut_cb.c_datum           = &get_data;
+
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_del(tree,
+								   &key_in_tree,
+								   &ut_cb, 0,
+								   &kv_op, tx));
+			M0_ASSERT(rc == 0);
+			m0_be_tx_close_sync(tx);
+			m0_be_tx_fini(tx);
+		}
+	}
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
+	M0_ASSERT(rc == 0);
+
+	/** Re-map the BE segment.*/
+	m0_be_seg_close(ut_seg->bus_seg);
+	rc = madvise(rnode, rnode_sz, MADV_NORMAL);
+	M0_ASSERT(rc == -1 && errno == ENOMEM); /** Assert BE segment unmapped*/
+	m0_be_seg_open(ut_seg->bus_seg);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_open(rnode, rnode_sz, &tree, seg,
+						    &b_op));
+	M0_ASSERT(rc == 0);
+
+	get_data.key         = &rec.r_key;
+	get_data.value       = &rec.r_val;
+	get_data.check_value = true;
+
+	for (i = 1; i <= rec_count; i++) {
+		uint64_t            f_key;
+		void                *f_key_ptr  = &f_key;
+		m0_bcount_t         f_key_size  = sizeof f_key;
+		struct m0_btree_key key_in_tree;
+
+		f_key = m0_byteorder_cpu_to_be64(i);
+		key_in_tree.k_data =
+				     M0_BUFVEC_INIT_BUF(&f_key_ptr, &f_key_size);
+		ut_cb.c_act        = btree_kv_get_cb;
+		ut_cb.c_datum      = &get_data;
+
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_get(tree,
+							   &key_in_tree,
+							   &ut_cb, BOF_EQUAL,
+							   &kv_op));
+		M0_ASSERT(rc == M0_ERR(-ENOENT));
+	}
+
+	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_btree_destroy_credit(tree, &cred);
+
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
+	M0_ASSERT(rc == 0);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree, &b_op, tx));
+	M0_ASSERT(rc == 0);
+
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
+
+	/** Re-map the BE segment.*/
+	m0_be_seg_close(ut_seg->bus_seg);
+	rc = madvise(rnode, rnode_sz, MADV_NORMAL);
+	M0_ASSERT(rc == -1 && errno == ENOMEM); /** Assert BE segment unmapped*/
+	m0_be_seg_open(ut_seg->bus_seg);
+
+	/**
+	 *  The following #if 0 is to be removed once m0_btree_open function
+	 *  is coded to return error when a root node with invalid contents
+	 *  is passed.
+	 */
+#if 0
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_open(rnode, rnode_sz, &tree, seg,
+						    &b_op));
+	M0_ASSERT(rc == 0);
+#endif
+
+	/** Delete temp node space which was used as root node for the tree. */
+	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
+			       rnode_sz_shift, &cred);
+
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
+	M0_ASSERT(rc == 0);
+
+	buf = M0_BUF_INIT(rnode_sz, rnode);
+	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
+
+	btree_ut_fini();
+}
+
+/**
  * Commenting this ut as it is not required as a part for test-suite but my
  * required for testing purpose
 **/
@@ -10246,6 +10681,7 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
 		{"random_threads_and_trees_kv_op",  ut_rt_rt_kv_oper},
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
+		{"btree_persistence",               ut_btree_persistence},
 		{"node_create_delete",              ut_node_create_delete},
 		{"node_add_del_rec",                ut_node_add_del_rec},
 		/* {"btree_kv_add_upd_del",            ut_put_update_del_operation}, */
