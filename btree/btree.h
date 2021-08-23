@@ -154,7 +154,7 @@ enum m0_btree_opflag {
  * Calculates the credit needed to create tree using root node and adds this
  * credit to @accum.
  */
-void m0_btree_create_credit(const struct node_type *nt,
+void m0_btree_create_credit(const struct m0_btree_type *bt,
 			    struct m0_be_tx_credit *accum);
 
 /**
@@ -208,7 +208,6 @@ void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop);
  * @param addr is the address of exsiting root node in BE segment.
  * @param nob is the size of the root node in BE segment.
  * @param bt provides more information about the btree to be created.
- * @param nt provides the node type which will be attached to this btree.
  * @param bop is consumed by the m0_btree_create for its operation. It contains
  *        the field bo_arbor which holds the tree pointer to be used by the
  *        caller after the call completes.
@@ -216,8 +215,8 @@ void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop);
  * @param tx pointer to the transaction struture to capture BE segment changes.
  */
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
-		     const struct node_type *nt, struct m0_btree_op *bop,
-		     struct m0_be_seg *seg, struct m0_be_tx *tx);
+		     struct m0_btree_op *bop, struct m0_be_seg *seg,
+		     struct m0_be_tx *tx);
 
 /**
  * Destroys the opened or created tree represented by arbor. Once the destroy
