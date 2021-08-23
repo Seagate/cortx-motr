@@ -75,10 +75,10 @@ enum m0_fab__libfab_params {
 
 	/** Max number of IOV in read/write command for TCP/Socket provider
 	 * (max number of segments) */
-	FAB_TCP_SOCK_IOV_MAX           = 256,
+	FAB_TCP_SOCK_IOV_MAX           = 128, //256,
 	/** Max segment size for bulk buffers for TCP/Socket provider
 	 * (4k but can be increased) */
-	FAB_TCP_SOCK_MAX_BULK_SEG_SIZE = 16384,//4096,
+	FAB_TCP_SOCK_MAX_BULK_SEG_SIZE = 131072, //16384,//4096,
 	/** Max number of active work requests for TCP/Socket provider */
 	FAB_TCP_SOCK_MAX_QUEUE_SIZE    = 1024,
 	/** Max number of iov that can be sent in fi_sendmsg() for TCP/Socket */
