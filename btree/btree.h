@@ -154,7 +154,7 @@ enum m0_btree_opflag {
  * Calculates the credit needed to create tree using root node and adds this
  * credit to @accum.
  */
-void m0_btree_create_credit(const struct node_type *nt,
+void m0_btree_create_credit(const struct m0_btree_type *bt,
 			    struct m0_be_tx_credit *accum);
 
 /**
@@ -208,7 +208,6 @@ void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop);
  * @param addr is the address of exsiting root node in BE segment.
  * @param nob is the size of the root node in BE segment.
  * @param bt provides more information about the btree to be created.
- * @param nt provides the node type which will be attached to this btree.
  * @param bop is consumed by the m0_btree_create for its operation. It contains
  *        the field bo_arbor which holds the tree pointer to be used by the
  *        caller after the call completes.
@@ -216,8 +215,8 @@ void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop);
  * @param tx pointer to the transaction struture to capture BE segment changes.
  */
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
-		     const struct node_type *nt, struct m0_btree_op *bop,
-		     struct m0_be_seg *seg, struct m0_be_tx *tx);
+		     struct m0_btree_op *bop, struct m0_be_seg *seg,
+		     struct m0_be_tx *tx);
 
 /**
  * Destroys the opened or created tree represented by arbor. Once the destroy
@@ -261,14 +260,31 @@ void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
  *              provided with valid key, key size and value size as this
  *              information is needed for correct operation.
  * @param cb    routine to be called to PUT the record.
- * @param flags
  * @param bop   Btree operation related parameters.
  * @param tx    represents the transaction of which the current operation is
  *              part of.
  */
 void m0_btree_put(struct m0_btree *arbor, const struct m0_btree_rec *rec,
-		  const struct m0_btree_cb *cb, uint64_t flags,
-		  struct m0_btree_op *bop, struct m0_be_tx *tx);
+		  const struct m0_btree_cb *cb, struct m0_btree_op *bop,
+		  struct m0_be_tx *tx);
+
+/**
+ * Updates the record in the tree. The callback is called with the location
+ * where the updated value should be written in the tree.
+ *
+ * @param arbor is the pointer to btree.
+ * @param rec   represents the record which needs to be updated. Note that,
+ *              user may or may not provide valid value but record should be
+ *              provided with valid key, key size and value size as this
+ *              information is needed for correct operation.
+ * @param cb    routine to be called to PUT the record.
+ * @param bop   Btree operation related parameters.
+ * @param tx    represents the transaction of which the current operation is
+ *              part of.
+ */
+void m0_btree_update(struct m0_btree *arbor, const struct m0_btree_rec *rec,
+		     const struct m0_btree_cb *cb, struct m0_btree_op *bop,
+		     struct m0_be_tx *tx);
 
 /**
  * Deletes the record in the tree. The callback is called with the location
@@ -276,14 +292,13 @@ void m0_btree_put(struct m0_btree *arbor, const struct m0_btree_rec *rec,
  *
  * @param arbor is the pointer to btree.
  * @param key   points to the Key whose record is to be deleted from the tree.
- * @param flags
  * @param bop   Btree operation related parameters.
  * @param tx    represents the transaction of which the current operation is
  *              part of.
  */
 void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
-		  const struct m0_btree_cb *cb, uint64_t flags,
-		  struct m0_btree_op *bop, struct m0_be_tx *tx);
+		  const struct m0_btree_cb *cb, struct m0_btree_op *bop,
+		  struct m0_be_tx *tx);
 
 /**
  * Iterates through the tree and finds next/previous key from the given search
