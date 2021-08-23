@@ -65,9 +65,9 @@ enum m0_fab__libfab_params {
 	/** Key used for memory registration. */
 	FAB_MR_KEY                     = 0xABCD,
 	/** Max number of IOV in read/write command for Verbs */
-	FAB_VERBS_IOV_MAX              = 1,
+	FAB_VERBS_IOV_MAX              = 32,//1,
 	/** Max segment size for bulk buffers for Verbs */
-	FAB_VERBS_MAX_BULK_SEG_SIZE    = 1048576,
+	FAB_VERBS_MAX_BULK_SEG_SIZE    = 32768,//1048576,
 	/** Max number of active work requests for Verbs */
 	FAB_VERBS_MAX_QUEUE_SIZE       = 224,
 	/** Max number of iov that can be sent in fi_sendmsg() for Verbs */
@@ -75,17 +75,17 @@ enum m0_fab__libfab_params {
 
 	/** Max number of IOV in read/write command for TCP/Socket provider
 	 * (max number of segments) */
-	FAB_TCP_SOCK_IOV_MAX           = 128, //256,
+	FAB_TCP_SOCK_IOV_MAX           = 256, //128, //256,
 	/** Max segment size for bulk buffers for TCP/Socket provider
 	 * (4k but can be increased) */
-	FAB_TCP_SOCK_MAX_BULK_SEG_SIZE = 131072, //16384,//4096,
+	FAB_TCP_SOCK_MAX_BULK_SEG_SIZE = 16384,// 4096,//131072, //16384,//4096,
 	/** Max number of active work requests for TCP/Socket provider */
 	FAB_TCP_SOCK_MAX_QUEUE_SIZE    = 1024,
 	/** Max number of iov that can be sent in fi_sendmsg() for TCP/Socket */
-	FAB_TCP_SOCK_MAX_IOV_PER_TX    = 4,
+	FAB_TCP_SOCK_MAX_IOV_PER_TX    = 8,
 
 	/** Array size of iovec per tx (select max of tcp and verbs) */
-	FAB_MAX_IOV_PER_TX             = 4,
+	FAB_MAX_IOV_PER_TX             = 8,
 
 	/** Max segment size for rpc buffer ( 1MB but can be changed ) */
 	FAB_MAX_RPC_SEG_SIZE           = (1 << 20),
