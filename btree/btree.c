@@ -9757,36 +9757,37 @@ static void ut_mt_tree_oper(void)
 static void ut_btree_persistence(void)
 {
 	void                   *rnode;
-	int                    i;
-	struct m0_btree_cb     ut_cb;
-	struct m0_be_tx        tx_data         = {};
-	struct m0_be_tx        *tx             = &tx_data;
-	struct m0_be_tx_credit cred            = {};
-	struct m0_btree_op     b_op            = {};
-	uint64_t               rec_count       = MAX_RECS_PER_STREAM;
-	struct m0_btree_op     kv_op           = {};
+	int                     i;
+	struct m0_btree_cb      ut_cb;
+	struct m0_be_tx         tx_data         = {};
+	struct m0_be_tx        *tx              = &tx_data;
+	struct m0_be_tx_credit  cred            = {};
+	struct m0_btree_op      b_op            = {};
+	uint64_t                rec_count       = MAX_RECS_PER_STREAM;
+	struct m0_btree_op      kv_op           = {};
 	struct m0_btree        *tree;
-	const struct node_type *nt             = &fixed_format;
-	struct m0_btree_type   btree_type      = {.tt_id = M0_BT_UT_KV_OPS,
-		       .ksize = sizeof(uint64_t),
-		       .vsize = btree_type.ksize * 2,
-	       };
-	uint64_t               key;
-	uint64_t               value[btree_type.vsize / sizeof(uint64_t)];
-	m0_bcount_t            ksize           = sizeof key;
-	m0_bcount_t            vsize           = sizeof value;
-	void                   *k_ptr          = &key;
-	void                   *v_ptr          = &value;
-	int                    rc;
-	struct m0_buf          buf;
-	uint32_t               rnode_sz        = 1024;
-	uint32_t               rnode_sz_shift;
-	struct m0_btree_rec    rec = {
+	const struct node_type *nt              = &fixed_format;
+	struct m0_btree_type    btree_type      = {
+						.tt_id = M0_BT_UT_KV_OPS,
+						.ksize = sizeof(uint64_t),
+						.vsize = btree_type.ksize * 2,
+						};
+	uint64_t                key;
+	uint64_t                value[btree_type.vsize / sizeof(uint64_t)];
+	m0_bcount_t             ksize           = sizeof key;
+	m0_bcount_t             vsize           = sizeof value;
+	void                   *k_ptr           = &key;
+	void                   *v_ptr           = &value;
+	int                     rc;
+	struct m0_buf           buf;
+	uint32_t                rnode_sz        = 1024;
+	uint32_t                rnode_sz_shift;
+	struct m0_btree_rec     rec = {
 			.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 		};
-	struct cb_data         put_data;
-	struct cb_data         get_data;
+	struct cb_data          put_data;
+	struct cb_data          get_data;
 
 	M0_ENTRY();
 
@@ -10102,9 +10103,6 @@ static void ut_btree_persistence(void)
 	get_data.value       = &rec.r_val;
 	get_data.check_value = true;
 
-	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
-	m0_btree_del_credit(tree, 1, ksize, vsize, &cred);
-
 	for (i = 1; i <= rec_count; i++) {
 		uint64_t            f_key;
 		void                *f_key_ptr  = &f_key;
@@ -10159,7 +10157,7 @@ static void ut_btree_persistence(void)
 
 	/** Delete temp node space which was used as root node for the tree. */
 	cred = M0_BE_TX_CREDIT(0, 0);
-	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED, rnode_sz,
+	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
 			       rnode_sz_shift, &cred);
 
 	m0_be_ut_tx_init(tx, ut_be);
