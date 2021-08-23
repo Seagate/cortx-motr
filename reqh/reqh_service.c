@@ -70,7 +70,7 @@ enum {
 	 * If endpoint is unreachable the timeout allows to disconnect from
 	 * reqh service when -ETIMEDOUT is returned.
 	 */
-	REQH_SVC_CONNECT_TIMEOUT = 1,
+	REQH_SVC_CONNECT_TIMEOUT = 10,
 };
 
 M0_TL_DESCR_DECLARE(abandoned_svc_ctxs, M0_EXTERN);
