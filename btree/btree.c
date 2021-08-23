@@ -1650,10 +1650,50 @@ static void node_make(struct slot *slot, struct m0_be_tx *tx)
 }
 
 #ifndef __KERNEL__
-static bool node_find(struct slot *slot, const struct m0_btree_key *key)
+static bool node_find(struct slot *slot, const struct m0_btree_key *find_key)
 {
+	int                      i     = -1;
+	int                      j     = node_count(slot->s_node);
+	struct m0_btree_key      key;
+	void                    *p_key;
+	struct slot              key_slot;
+	m0_bcount_t              ksize;
+	struct m0_bufvec_cursor  cur_1;
+	struct m0_bufvec_cursor  cur_2;
+	int                      diff;
+	int                      m;
+
+	key.k_data           = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
+	key_slot.s_node      = slot->s_node;
+	key_slot.s_rec.r_key = key;
+
 	M0_PRE(node_invariant(slot->s_node));
-	return slot->s_node->n_type->nt_find(slot, key);
+	M0_PRE(find_key->k_data.ov_vec.v_nr == 1);
+
+	while (i + 1 < j) {
+		m = (i + j) / 2;
+
+		key_slot.s_idx = m;
+		node_key(&key_slot);
+
+		m0_bufvec_cursor_init(&cur_1, &key.k_data);
+		m0_bufvec_cursor_init(&cur_2, &find_key->k_data);
+		diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
+
+		M0_ASSERT(i < m && m < j);
+		if (diff < 0)
+			i = m;
+		else if (diff > 0)
+			j = m;
+		else {
+			i = j = m;
+			break;
+		}
+	}
+
+	slot->s_idx = j;
+
+	return (i == j);
 }
 #endif
 
@@ -2447,7 +2487,6 @@ static void ff_child(struct slot *slot, struct segaddr *addr);
 static bool ff_isfit(struct slot *slot);
 static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified);
 static void ff_make(struct slot *slot, struct m0_be_tx *tx);
-static bool ff_find(struct slot *slot, const struct m0_btree_key *key);
 static void ff_fix(const struct nd *node, struct m0_be_tx *tx);
 static void ff_cut(const struct nd *node, int idx, int size,
 		   struct m0_be_tx *tx);
@@ -2504,7 +2543,6 @@ static const struct node_type fixed_format = {
 	.nt_isfit                     = ff_isfit,
 	.nt_done                      = ff_done,
 	.nt_make                      = ff_make,
-	.nt_find                      = ff_find,
 	.nt_fix                       = ff_fix,
 	.nt_cut                       = ff_cut,
 	.nt_del                       = ff_del,
@@ -2831,49 +2869,6 @@ static void ff_make(struct slot *slot, struct m0_be_tx *tx)
 	/** Capture these changes in ff_capture.*/
 }
 
-static bool ff_find(struct slot *slot, const struct m0_btree_key *find_key)
-{
-	struct ff_head          *h     = ff_data(slot->s_node);
-	int                      i     = -1;
-	int                      j     = node_count(slot->s_node);
-	struct m0_btree_key      key;
-	void                    *p_key;
-	m0_bcount_t              ksize = h->ff_ksize;
-	struct m0_bufvec_cursor  cur_1;
-	struct m0_bufvec_cursor  cur_2;
-	int                      diff;
-	int                      m;
-
-	key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
-
-	M0_PRE(find_key->k_data.ov_vec.v_count[0] == h->ff_ksize);
-	M0_PRE(find_key->k_data.ov_vec.v_nr == 1);
-
-	while (i + 1 < j) {
-		m = (i + j) / 2;
-
-		key.k_data.ov_buf[0] = ff_key(slot->s_node, m);
-
-		m0_bufvec_cursor_init(&cur_1, &key.k_data);
-		m0_bufvec_cursor_init(&cur_2, &find_key->k_data);
-		diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
-
-		M0_ASSERT(i < m && m < j);
-		if (diff < 0)
-			i = m;
-		else if (diff > 0)
-			j = m;
-		else {
-			i = j = m;
-			break;
-		}
-	}
-
-	slot->s_idx = j;
-
-	return (i == j);
-}
-
 static void ff_fix(const struct nd *node, struct m0_be_tx *tx)
 {
 	struct ff_head *h = ff_data(node);
@@ -3107,21 +3102,21 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *
  * Leaf Node Structure :
  *
- * +-----------+----+------+----+------+----+------+--------------------+----+----+----+
- * |           |    |      |    |      |    |      |                    |    |    |    |
- * |           |    |      |    |      |    |      |                    |    |    |    |
- * |Node Header| K0 |V0_off| K1 |V1_off| K2 |V2_off| ----->      <----- | V2 | V1 | V0 |
- * |           |    |      |    |      |    |      |                    |    |    |    |
- * |           |    |      |    |      |    |      |                    |    |    |    |
- * +-----------+----+------+----+------+----+------+--------------------+----+----+----+
- *                      |           |           |                       ^    ^    ^
- *                      |           |           |                       |    |    |
- *                      |           |           |                       |    |    |
- *                      |           |           +-----------------------+    |    |
- *                      |           |                                        |    |
- *                      |           +----------------------------------------+    |
- *                      |                                                         |
- *                      +---------------------------------------------------------+
+ * +-----------+----+------+----+------+----+------+------------+----+----+----+
+ * |           |    |      |    |      |    |      |            |    |    |    |
+ * |           |    |      |    |      |    |      |            |    |    |    |
+ * |Node Header| K0 |V0_off| K1 |V1_off| K2 |V2_off| --->  <--- | V2 | V1 | V0 |
+ * |           |    |      |    |      |    |      |            |    |    |    |
+ * |           |    |      |    |      |    |      |            |    |    |    |
+ * +-----------+----+------+----+------+----+------+------------+----+----+----+
+ *                      |           |           |               ^    ^    ^
+ *                      |           |           |               |    |    |
+ *                      |           |           |               |    |    |
+ *                      |           |           +---------------+    |    |
+ *                      |           |                                |    |
+ *                      |           +------------------------------ -+    |
+ *                      |                                                 |
+ *                      +-------------------------------------------------+
  *
  * The above structure represents the way fixed key size and variable value size
  * node format will get stored in memory.
@@ -3151,19 +3146,18 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *
  * Internal Node Structure:
  *
- * +-----------+----+----+----+------------------------------------+----+----+----+
- * |           |    |    |    |                                    |    |    |    |
- * |           |    |    |    |                                    |    |    |    |
- * |Node Header| K0 | K1 | K2 | ----->                      <----- | V2 | V1 | V0 |
- * |           |    |    |    |                                    |    |    |    |
- * |           |    |    |    |                                    |    |    |    |
- * +-----------+----+----+----+------------------------------------+----+----+----+
+ * +-----------+----+----+----+--------------------------------+----+----+----+
+ * |           |    |    |    |                                |    |    |    |
+ * |           |    |    |    |                                |    |    |    |
+ * |Node Header| K0 | K1 | K2 | ----->                  <----- | V2 | V1 | V0 |
+ * |           |    |    |    |                                |    |    |    |
+ * |           |    |    |    |                                |    |    |    |
+ * +-----------+----+----+----+--------------------------------+----+----+----+
  *
- * The internal node stucture is similar to the leaf node structure, except
- * it does not store offset values along with the keys.
- * For internal nodes, as values will be the pointer to internal or leaf node,
- * the value size will be fixed. Therefore, there is no need to store offset
- * values along with the keys.
+ * The internal node structure is laid out similar to the leaf node structure.
+ * Since the record values in internal nodes are pointers to child nodes all the
+ * values are of a constant size; this eliminates the need to maintain an offset
+ * to Value close to the corresponding Key as it is done in the leaf node.
  *
  */
 struct fkvv_head {
@@ -3209,7 +3203,6 @@ static void fkvv_child(struct slot *slot, struct segaddr *addr);
 static bool fkvv_isfit(struct slot *slot);
 static void fkvv_done(struct slot *slot, struct m0_be_tx *tx, bool modified);
 static void fkvv_make(struct slot *slot, struct m0_be_tx *tx);
-static bool fkvv_find(struct slot *slot, const struct m0_btree_key *key);
 static void fkvv_fix(const struct nd *node, struct m0_be_tx *tx);
 static void fkvv_cut(const struct nd *node, int idx, int size,
 		     struct m0_be_tx *tx);
@@ -3257,7 +3250,6 @@ static const struct node_type fixed_ksize_variable_vsize_format = {
 	.nt_isfit                     = fkvv_isfit,
 	.nt_done                      = fkvv_done,
 	.nt_make                      = fkvv_make,
-	.nt_find                      = fkvv_find,
 	.nt_fix                       = fkvv_fix,
 	.nt_cut                       = fkvv_cut,
 	.nt_del                       = fkvv_del,
@@ -3643,49 +3635,6 @@ static void fkvv_make(struct slot *slot, struct m0_be_tx *tx)
 {
 	(IS_INTERNAL_NODE(slot->s_node)) ? fkvv_make_internal(slot, tx)
 					 : fkvv_make_leaf(slot, tx);
-}
-
-static bool fkvv_find(struct slot *slot, const struct m0_btree_key *find_key)
-{
-	struct fkvv_head        *h     = fkvv_data(slot->s_node);
-	int                      i     = -1;
-	int                      j     = node_count(slot->s_node);
-	struct m0_btree_key      key;
-	void                    *p_key;
-	m0_bcount_t              ksize = h->fkvv_ksize;
-	struct m0_bufvec_cursor  cur_1;
-	struct m0_bufvec_cursor  cur_2;
-	int                      diff;
-	int                      m;
-
-	key.k_data = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
-
-	M0_PRE(find_key->k_data.ov_vec.v_count[0] == h->fkvv_ksize);
-	M0_PRE(find_key->k_data.ov_vec.v_nr == 1);
-
-	while (i + 1 < j) {
-		m = (i + j) / 2;
-
-		key.k_data.ov_buf[0] = fkvv_key(slot->s_node, m);
-
-		m0_bufvec_cursor_init(&cur_1, &key.k_data);
-		m0_bufvec_cursor_init(&cur_2, &find_key->k_data);
-		diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
-
-		M0_ASSERT(i < m && m < j);
-		if (diff < 0)
-			i = m;
-		else if (diff > 0)
-			j = m;
-		else {
-			i = j = m;
-			break;
-		}
-	}
-
-	slot->s_idx = j;
-
-	return (i == j);
 }
 
 static void fkvv_fix(const struct nd *node, struct m0_be_tx *tx)
