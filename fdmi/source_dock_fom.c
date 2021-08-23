@@ -611,6 +611,7 @@ static int sd_fom_process_matched_filters(struct m0_fdmi_src_dock *sd_ctx,
 		M0_ASSERT(rc == 0);
 
 		/* Adding a ref.It will be dropped when reply is received. */
+		m0_fdmi__fs_get(src_rec);
 		m0_ref_get(&src_rec->fsr_ref);
 		M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
 				 U128_P(&src_rec->fsr_rec_id),
@@ -623,7 +624,6 @@ static int sd_fom_process_matched_filters(struct m0_fdmi_src_dock *sd_ctx,
 			 * "FDMI record release" is received.
 			 */
 			m0_fdmi__fs_get(src_rec);
-
 			m0_ref_get(&src_rec->fsr_ref);
 			M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
 					 U128_P(&src_rec->fsr_rec_id),
@@ -638,6 +638,7 @@ static int sd_fom_process_matched_filters(struct m0_fdmi_src_dock *sd_ctx,
 					 U128_P(&src_rec->fsr_rec_id),
 					 (int)m0_ref_read(&src_rec->fsr_ref));
 			m0_ref_put(&src_rec->fsr_ref);
+			m0_fdmi__fs_put(src_rec);
 		}
 		m0_fop_put_lock(fop);
 	}
@@ -756,11 +757,11 @@ static int fdmi_sd_fom_tick(struct m0_fom *fom)
 			 * there is still a ref held while sending this record
 			 * to plugin).
 			 */
-			m0_fdmi__fs_put(src_rec);
 			M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
 					 U128_P(&src_rec->fsr_rec_id),
 					 (int)m0_ref_read(&src_rec->fsr_ref) - 1);
 			m0_ref_put(&src_rec->fsr_ref);
+			m0_fdmi__fs_put(src_rec);
 			return M0_RC(M0_FSO_AGAIN);
 		}
 	}
@@ -786,12 +787,20 @@ static int m0_fdmi__handle_reply(struct m0_fdmi_src_dock *sd_ctx,
 			 U128_P(&src_rec->fsr_rec_id),
 			 (int)m0_ref_read(&src_rec->fsr_ref));
 	if (send_res != 0) {
-		/* There will not be "FDMI release" coming. So, put the ref. */
-		m0_fdmi__fs_put(src_rec);
-		M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
+		/* There will not be "FDMI release" coming, because
+		 * we failed to send FDMI notification to plugin.
+		 * This may happen when plugin side is down or network is down.
+		 */
+		M0_LOG(M0_WARN, "src_rec ="U128X_F" ref cnt:%d",
 				 U128_P(&src_rec->fsr_rec_id),
 				 (int)m0_ref_read(&src_rec->fsr_ref) - 1);
+		/*
+		 * TODO Re-sending the notification request is needed.
+		 * This is a process of recovery.
+		 * But now, I am just releasing the references.
+		 */
 		m0_ref_put(&src_rec->fsr_ref);
+		m0_fdmi__fs_put(src_rec);
 	}
 	return M0_RC(0);
 }
@@ -817,6 +826,7 @@ static void fdmi_rec_notif_replied(struct m0_rpc_item *item)
 			 U128_P(&src_rec->fsr_rec_id),
 			 (int)m0_ref_read(&src_rec->fsr_ref) - 1);
 	m0_ref_put(&src_rec->fsr_ref);
+	m0_fdmi__fs_put(src_rec);
 	m0_fdmi__handle_reply(src_dock, src_rec, rc);
 	m0_rpc_conn_pool_put(&src_dock->fsdc_sd_fom.fsf_conn_pool,
 			     item->ri_session);
@@ -927,12 +937,11 @@ static int m0_fdmi__handle_release(struct m0_uint128 *fdmi_rec_id)
 		return M0_RC(0);
 	}
 
-	m0_fdmi__fs_put(src_rec);
-
 	M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
 			 U128_P(&src_rec->fsr_rec_id),
 			 (int)m0_ref_read(&src_rec->fsr_ref) - 1);
 	m0_ref_put(&src_rec->fsr_ref);
+	m0_fdmi__fs_put(src_rec);
 
 	/* @todo Phase 2: clear map <fdmi record id, endpoint>. */
 	return M0_RC(0);

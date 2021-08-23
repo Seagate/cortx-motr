@@ -103,10 +103,10 @@ M0_INTERNAL void m0_fdmi_source_dock_fini(struct m0_fdmi_src_dock *src_dock)
 
 M0_INTERNAL bool m0_fdmi__record_is_valid(struct m0_fdmi_src_rec *src_rec)
 {
-	return  src_rec != NULL &&
-		src_rec->fsr_src != NULL &&
-		src_rec->fsr_src_ctx != NULL &&
-		src_rec->fsr_magic == M0_FDMI_SRC_DOCK_REC_MAGIC;
+	return  _0C(src_rec != NULL) &&
+		_0C(src_rec->fsr_src != NULL) &&
+		_0C(src_rec->fsr_src_ctx != NULL) &&
+		_0C(src_rec->fsr_magic == M0_FDMI_SRC_DOCK_REC_MAGIC);
 }
 
 static void src_rec_free(struct m0_ref *ref)
@@ -228,12 +228,13 @@ M0_INTERNAL void m0_fdmi__record_post(struct m0_fdmi_src_rec *src_rec)
 
 	/* Init ref cnt to 1, to be droppped when it is processed/released. */
 	m0_ref_init(&src_rec->fsr_ref, 1, src_rec_free);
-	M0_LOG(M0_DEBUG, "fdmi rec id" U128X_F " ref cnt=%d",
+	M0_LOG(M0_DEBUG, "fdmi rec id=" U128X_F " ref cnt=%d",
 			 U128_P(&src_rec->fsr_rec_id),
 			 (int)m0_ref_read(&src_rec->fsr_ref));
 
 	/** @todo Phase 2: Call m0_fdmi__fs_get(), remove inc_ref in FOL
 	 * source */
+	m0_fdmi__fs_get(src_rec);
 
 	m0_mutex_lock(&src_dock->fsdc_list_mutex);
 	fdmi_record_list_tlist_add_tail(
@@ -352,6 +353,8 @@ M0_INTERNAL void m0_fdmi__fs_get(struct m0_fdmi_src_rec *src_rec)
 	M0_ENTRY("src_rec=%p", src_rec);
 	M0_ASSERT(m0_fdmi__record_is_valid(src_rec));
 
+	M0_LOG(M0_DEBUG, "fs get for "U128X_F,
+			 U128_P(&src_rec->fsr_rec_id));
 	if (src_rec->fsr_src->fs_get != NULL) {
 		src_rec->fsr_src->fs_get(src_rec);
 	}
@@ -364,6 +367,8 @@ M0_INTERNAL void m0_fdmi__fs_put(struct m0_fdmi_src_rec *src_rec)
 	M0_ENTRY("src_rec=%p", src_rec);
 	M0_ASSERT(m0_fdmi__record_is_valid(src_rec));
 
+	M0_LOG(M0_DEBUG, "fs put for "U128X_F,
+			 U128_P(&src_rec->fsr_rec_id));
 	if (src_rec->fsr_src->fs_put != NULL)
 		src_rec->fsr_src->fs_put(src_rec);
 
