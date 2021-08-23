@@ -4335,7 +4335,7 @@ static const struct node_type* btree_nt_from_bt(const struct m0_btree_type *bt)
 void m0_btree_create_credit(const struct m0_btree_type *bt,
 			    struct m0_be_tx_credit *accum)
 {
-	const struct node_type *nt = btree_nt_from_bt( bt);
+	const struct node_type *nt = btree_nt_from_bt(bt);
 	int size = nt->nt_create_delete_credit_size();
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, size));
 }
@@ -9762,38 +9762,37 @@ static void ut_mt_tree_oper(void)
  */
 static void ut_btree_persistence(void)
 {
-	void                   *rnode;
-	int                     i;
-	struct m0_btree_cb      ut_cb;
-	struct m0_be_tx         tx_data         = {};
-	struct m0_be_tx        *tx              = &tx_data;
-	struct m0_be_tx_credit  cred            = {};
-	struct m0_btree_op      b_op            = {};
-	uint64_t                rec_count       = MAX_RECS_PER_STREAM;
-	struct m0_btree_op      kv_op           = {};
-	struct m0_btree        *tree;
-	const struct node_type *nt              = &fixed_format;
-	struct m0_btree_type    btree_type      = {
-						.tt_id = M0_BT_UT_KV_OPS,
-						.ksize = sizeof(uint64_t),
-						.vsize = btree_type.ksize * 2,
+	void                        *rnode;
+	int                          i;
+	struct m0_btree_cb           ut_cb;
+	struct m0_be_tx             tx_data         = {};
+	struct m0_be_tx            *tx              = &tx_data;
+	struct m0_be_tx_credit      cred            = {};
+	struct m0_btree_op          b_op            = {};
+	uint64_t                    rec_count       = MAX_RECS_PER_STREAM;
+	struct m0_btree_op          kv_op           = {};
+	struct m0_btree            *tree;
+	const struct m0_btree_type  bt              = {
+						     .tt_id = M0_BT_UT_KV_OPS,
+						     .ksize = sizeof(uint64_t),
+						     .vsize = bt.ksize * 2,
 						};
-	uint64_t                key;
-	uint64_t                value[btree_type.vsize / sizeof(uint64_t)];
-	m0_bcount_t             ksize           = sizeof key;
-	m0_bcount_t             vsize           = sizeof value;
-	void                   *k_ptr           = &key;
-	void                   *v_ptr           = &value;
-	int                     rc;
-	struct m0_buf           buf;
-	uint32_t                rnode_sz        = 1024;
-	uint32_t                rnode_sz_shift;
-	struct m0_btree_rec     rec = {
-			.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-			.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
-		};
-	struct cb_data          put_data;
-	struct cb_data          get_data;
+	uint64_t                    key;
+	uint64_t                    value[bt.vsize / sizeof(uint64_t)];
+	m0_bcount_t                 ksize           = sizeof key;
+	m0_bcount_t                 vsize           = sizeof value;
+	void                       *k_ptr           = &key;
+	void                       *v_ptr           = &value;
+	int                         rc;
+	struct m0_buf               buf;
+	uint32_t                    rnode_sz        = 1024;
+	uint32_t                    rnode_sz_shift;
+	struct m0_btree_rec         rec             = {
+			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+			};
+	struct cb_data              put_data;
+	struct cb_data              get_data;
 
 	M0_ENTRY();
 
@@ -9832,7 +9831,7 @@ static void ut_btree_persistence(void)
 	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED, rnode_sz,
 			       rnode_sz_shift, &cred);
-	m0_btree_create_credit(nt, &cred);
+	m0_btree_create_credit(&bt, &cred);
 
 	/** Prepare transaction to capture tree operations. */
 	m0_be_ut_tx_init(tx, ut_be);
@@ -9846,7 +9845,7 @@ static void ut_btree_persistence(void)
 	rnode = buf.b_addr;
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
-							     &btree_type, nt,
+							     &bt,
 							     &b_op, seg, tx));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
 	m0_be_tx_close_sync(tx);
@@ -9877,7 +9876,7 @@ static void ut_btree_persistence(void)
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_put(tree, &rec,
-							   &ut_cb, 0,
+							   &ut_cb,
 							   &kv_op, tx));
 		M0_ASSERT(rc == 0 && put_data.flags == M0_BSC_SUCCESS);
 		m0_be_tx_close_sync(tx);
@@ -9937,7 +9936,7 @@ static void ut_btree_persistence(void)
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						      m0_btree_del(tree,
 								   &key_in_tree,
-								   &ut_cb, 0,
+								   &ut_cb,
 								   &kv_op, tx));
 			M0_ASSERT(rc == 0);
 			m0_be_tx_close_sync(tx);
@@ -9999,7 +9998,7 @@ static void ut_btree_persistence(void)
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						      m0_btree_del(tree,
 								   &key_in_tree,
-								   &ut_cb, 0,
+								   &ut_cb,
 								   &kv_op, tx));
 			M0_ASSERT(rc == 0);
 			m0_be_tx_close_sync(tx);
@@ -10022,7 +10021,7 @@ static void ut_btree_persistence(void)
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						      m0_btree_put(tree, &rec,
-								   &ut_cb, 0,
+								   &ut_cb,
 								   &kv_op, tx));
 			M0_ASSERT(rc == 0 && put_data.flags == M0_BSC_SUCCESS);
 			m0_be_tx_close_sync(tx);
@@ -10083,7 +10082,7 @@ static void ut_btree_persistence(void)
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						      m0_btree_del(tree,
 								   &key_in_tree,
-								   &ut_cb, 0,
+								   &ut_cb,
 								   &kv_op, tx));
 			M0_ASSERT(rc == 0);
 			m0_be_tx_close_sync(tx);
