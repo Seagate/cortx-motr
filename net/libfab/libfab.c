@@ -22,8 +22,156 @@
 /**
  * @addtogroup netlibfab
  *
+ * Overview
+ * --------
+ *
+ * net/libfab/libfab.[ch] contains an implementation of the interfaces defined
+ * in net/net.h. Together these interfaces define a network transport layer used
+ * by motr. A network transport provides unreliable, unordered, asynchronous
+ * point-to-point messaging interface.
+ *
+ * Libfabric network transport is implemented using libfabric library.
+ * It is user-space only.
+ *
+ * Libfabric has no inherent fragmentation restrictions on segment size and
+ * buffer length. Using a large number of small segments is pure overhead
+ * because it will increase send/recv operations. Hence, to get best
+ * performance, optimal values of segment size and number of segments should
+ * be used.
+ *
+ * Data structures
+ * ---------------
+ *
+ * libfab_internal.h introduces data-structures corresponding to the
+ * abstractions in net.h and some of the additional data structures required for
+ * libfabtic transport.
+ *
+ * The libfabric end-point structure (struct m0_fab__ep) keeps
+ * a) A passive endpoint which is mainly used for listening connection requests,
+ * loopback ping and bulk operations and endpoint resources.
+ * B) A active endpoint which is used for
+ * transmit and receive operation with remote endpoint, it also stores current
+ * connection state for Tx and Rx endpoints and endpoint resources.
+ *
+ * The libfabric transfer machine data structure (struct m0_fab__tm) contains
+ * hashtable for buffers associated with tm, this is required to keep track of
+ * valid operations within tm. In some cases, buffers are cancelled by RPC
+ * layer and libfabric library does not provide mechanism to cancel ongoing
+ * operation on respective buffer in such cases buffer token is removed from
+ * hashtable and if same buffer is re-used for other operation then
+ * new unique hash key is generated and added into hashtable.
+ *
+ *
+ * Whenever any net buffer is posted successfully then unique token is generated
+ * and token is added into hashtable.
+ * Before generating a completion event of any buffer (i.e. libfab_buf_done()),
+ * token lookup is done within hashtable to check if buffer is valid,
+ * If token in present then token for that buffer is removed from hashtable
+ * while doing buffer completion operation, else buffer completion is skipped.
+ *
+ * Libfabric module is having two types of activities:
+ *
+ * 1) Synchronous Activity: These are initiated by net/net.h entry-points
+ *                          being called by a user and
+ * 2) Asynchronous Activity: Initiated by network related events, such as
+ *                           incoming connections or buffer completions.
+ *
+ * Synchronous activities:
+ * ----------------------
+ *
+ * A buffer is added to a transfer machine
+ * (m0_net_buf_add()->...->libfab_buf_add()).
+ *
+ * If the buffer is added to M0_NET_QT_MSG_RECV queue it is just placed on the
+ * libfabric internal receive queue, waiting for the incoming data.
+ *
+ * If the buffer is added to M0_NET_QT_MSG_SEND, M0_NET_QT_ACTIVE_BULK_RECV,
+ * M0_NET_QT_ACTIVE_BULK_SEND then if the connection is established between two
+ * endpoints then buffer is posted to libfabric library, else connection request
+ * is sent to remote endpoint and buffer is added into send list, once
+ * connection is establihsed in poller thread then all then buffers from send
+ * list gets posted to libfabric library.
+ * If buffer is added to M0_NET_QT_PASSIVE_BULK_RECV,
+ * M0_NET_QT_PASSIVE_BULK_SEND queue buffer descriptors are encoded and in case
+ * of M0_NET_QT_PASSIVE_BULK_SEND dummy buffer is posted for remote end
+ * completion if extra receieve buffer is not available.
+ *
+ * Asynchronous activities:
+ * -----------------------
+ *
+ * When a transfer machine is started, an end-point, representing the
+ * local peer, is created, i.e. a passive libfabric endpoint is created.
+ * This is a "listening endpoint" and poller thread checks for
+ * new incoming connection request events on this endpoint.
+ *
+ * The starting point of asynchronous activity associated with a libfabric
+ * transfer machine is libfab_poller(). Currently, this function is ran as a
+ * separate thread.
+ *
+ * The poller thread checks for connection request events and transmitting
+ * buffer completions, even poller thread checks for receiving buffer completion
+ * events using epoll_wait() a list of libfabric evert queues configured.
+ *
+ * In case of RMA operations, single RMA operation is split into multiple
+ * requests based on segment size on local and remote endpoint, and
+ * buffer completion event shall be generated once last request is processed.
+ * In case of M0_NET_QT_ACTIVE_BULK_RECV, one extra dummy message is sent to
+ * remote endpoint (target of RDMA) to notify operation completion.
+ *
+ * Concurrency
+ * -----------
+ *
+ * Libfabric module uses a very simple locking model: all state transitions are
+ * protected by a per-tm mutex: m0_net_transfer_mc::ntm_mutex. For synchronous
+ * activity, this mutex is taken by the entry-point code in net/ and is not
+ * released until the entry-point completes. For asynchronous activity,
+ * libfab_poller() keeps the lock taken most of the time.
+ *
+ * Few points about concurrency:
+ *     - the tm lock is not held while epoll_wait() is executed by
+ *       libfab_poller().
+ *
+ *     - buffer completion (buf_done()) includes removing the buffer from its
+ *       queue and invoking a user-supplied call-back
+ *       (m0_net_buffer::nb_callbacks). Completion can happen both
+ *       asynchronously (when a transfer operation completes for the buffer or
+ *       the buffer times out (ma_buf_timeout())) and synchronously (when the
+ *       buffer is canceled by the user (m0_net_buf_del()->...->buf_del()). The
+ *       difficulty is that net.h interface specifies that the transfer machine
+ *       lock is to be released before invoking the call-back. This cannot be
+ *       done in a synchronous context (to avoid breaking invariants), so in
+ *       this case the buffer is queued to a special ma::t_done queue which is
+ *       processed asynchronously by ma_buf_done().
+ *
+ * Libfabric interface:
+ * --------------------
+ *
+ * Libfabric module uses fi_endpoint() to create transport level communication
+ * portals. Libfabric supports two types of endpoints: Passive endpoint and
+ * Active endpoint. Passive endpoints are most often used to listen for
+ * incoming connection requests. However, a passive endpoint may be used to
+ * reserve a fabric address that can be granted to an active endpoint.
+ * Active endpoints belong to access domains and can perform data transfers.
+ *
+ * Below Libfabric interfaces are used:
+ * 1) fi_fabric : Used for fabric domain operations.
+ *    Reference: https://ofiwg.github.io/libfabric/v1.6.2/man/fi_fabric.3.html
+ *
+ * 2) fi_domain: Used for accessing fabric domain.
+ *    Reference: https://ofiwg.github.io/libfabric/v1.1.1/man/fi_domain.3.html
+ *
+ * 3) fi_endpoint: USed for fabric endpoint operations.
+ *    Reference: https://ofiwg.github.io/libfabric/master/man/fi_endpoint.3.html
+ *
+ * 4) fi_mr: Used for memory region operations.
+ *    Reference: https://ofiwg.github.io/libfabric/v1.1.1/man/fi_mr.3.html
+ *
+ * 5) fi_rma: Used for remote memory access operations.
+ *    Reference: https://ofiwg.github.io/libfabric/v1.1.1/man/fi_rma.3.html
+ *
  * @{
  */
+
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
 #include "lib/trace.h"          /* M0_ENTRY() */

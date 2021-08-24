@@ -338,10 +338,10 @@ struct m0_fab__ep {
 	/** ipaddr, port and strname */
 	struct m0_fab__ep_name     fep_name;
 	
-	/** Active endpoint */
+	/** Active endpoint, this is used for TX and RX operation */
 	struct m0_fab__active_ep  *fep_aep;
 
-	/** Passive endpoint */
+	/** Passive endpoint, this is used for listening and loopback */
 	struct m0_fab__passive_ep *fep_listen;
 	
 	/** List of buffers to send after connection establishment */
@@ -358,7 +358,18 @@ struct m0_fab__tm {
 	/** Net transfer machine */
 	struct m0_net_transfer_mc      *ftm_ntm;
 	
-	/** Poller thread */
+	/**
+	 * Poller thread.
+	 *
+	 * All asynchronous activity happens in this thread:
+	 *
+	 *     - Notifications about incoming connection requests;
+	 *
+	 *     - Buffer completion events (libfab_buf_done());
+	 *
+	 *     - Buffer timeouts (libfab_tm_buf_timeout());
+	 *
+	 */
 	struct m0_thread                ftm_poller;
 	
 	/** Epoll file descriptor */
