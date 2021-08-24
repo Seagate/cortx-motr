@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2016-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2016-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,6 +69,13 @@ struct m0_dtm0_service;
 struct m0_dtx;
 
 #ifdef CLIENT_FOR_M0T1FS
+
+/**
+ * motr clients other than S3, may not store pver in meta-data,
+ * thus they have to use md-cob lookup to get pver attribute.
+ */
+#define MOTR_MDCOB_LOOKUP_SKIP 3
+
 /**
  * Maximum length for an object's name.
  */
@@ -99,8 +106,9 @@ enum m0__entity_states {
 enum  m0_pbuf_type {
 	/**
 	 * Explicitly allocated buffers. This is done during:
-	 * i.  Read operation in parity-verify mode (independent of the layout).
-	 * ii. Write operation when the layout is not replicated.
+	 * i.   Read operation in parity-verify mode (independent of the layout).
+	 * ii.  Write operation when the layout is not replicated
+	 * iii. degraded read operation
 	 */
 	M0_PBUF_DIR,
 	/**
@@ -264,9 +272,16 @@ struct m0_op_io {
 	uint64_t                          ioo_magic;
 
 	struct m0_obj                    *ioo_obj;
+
+	/** GOB Offset extents */
 	struct m0_indexvec                ioo_ext;
+
 	struct m0_bufvec                  ioo_data;
+	/** Assumption: Checksum buff is liner stored in ov_buf
+	 *  and v_nr will be the number of checksum units
+	 */
 	struct m0_bufvec                  ioo_attr;
+
 	uint64_t                          ioo_attr_mask;
 	/** A bit-mask of m0_op_obj_flags. */
 	uint32_t                          ioo_flags;

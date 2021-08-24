@@ -23,18 +23,27 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ISCS
 #include "lib/trace.h"
 
+#include "lib/hash.h"
+#include "lib/memory.h"
+#include "lib/chan.h"
+#include "lib/finject.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc_machine.h"
+#ifndef __KERNEL__
+#include "ioservice/fid_convert.h" /* m0_fid_convert_cob2stob */
+#include "ioservice/storage_dev.h" /* m0_storage_dev_stob_find */
+#include "motr/setup.h"       /* m0_cs_storage_devs_get */
+#endif
+#include "conf/helpers.h"     /* m0_confc_root_open */
+#include "conf/diter.h"       /* m0_conf_diter_next_sync */
+#include "conf/obj_ops.h"     /* M0_CONF_DIRNEXT */
+#include "spiel/spiel.h"      /* m0_spiel_process_lib_load */
 #include "iscservice/isc.h"
 #include "iscservice/isc_service.h"
-#include "lib/hash.h"
-#include "lib/memory.h"
-#include "lib/chan.h"
-#include "lib/finject.h"
 
 static void isc_comp_cleanup(struct m0_fom *fom, int rc, int next_phase);
 static int comp_ref_get(struct m0_htable *comp_ht, struct m0_isc_comp_req *req);
@@ -94,9 +103,10 @@ struct m0_sm_state_descr isc_fom_phases[] = {
 
 static size_t fom_home_locality(const struct m0_fom *fom)
 {
-	struct m0_isc_comp_req *comp_req = M0_AMB(comp_req, fom, icr_fom);
+	static int cnt = 0;
 
-	return m0_fid_hash(&comp_req->icr_comp_fid);
+	/* Distribute all reqs evenly among all available localities. */
+	return cnt++;
 }
 
 static struct m0_rpc_machine *fom_rmach(const struct m0_fom *fom)
@@ -678,6 +688,250 @@ M0_INTERNAL int m0_isc_comp_state_probe(const struct m0_fid *fid)
 	M0_LEAVE();
 	return state;
 }
+
+static int isc_spiel_prepare(struct m0_spiel *spiel, struct m0_fid *profile,
+			     struct m0_reqh *reqh)
+{
+	int  rc;
+	char profile_str[M0_FID_STR_LEN];
+
+	rc = m0_spiel_init(spiel, reqh);
+	if (rc != 0)
+		return M0_ERR_INFO(rc, "spiel initialisation failed");
+
+	snprintf(profile_str, M0_FID_STR_LEN, FID_F, FID_P(profile));
+	rc = m0_spiel_cmd_profile_set(spiel, profile_str);
+	if (rc != 0) {
+		m0_spiel_fini(spiel);
+		return M0_ERR_INFO(rc, "invalid profile: %s",
+				   (char*)profile_str);
+	}
+
+	rc = m0_spiel_rconfc_start(spiel, NULL);
+	if (rc != 0) {
+		m0_spiel_fini(spiel);
+		return M0_ERR_INFO(rc, "rconfc startup failed");
+	}
+
+	return 0;
+}
+
+static void isc_spiel_destroy(struct m0_spiel *spiel)
+{
+	m0_spiel_rconfc_stop(spiel);
+	m0_spiel_fini(spiel);
+}
+
+static bool conf_obj_is_svc(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
+}
+
+M0_INTERNAL int m0_isc_lib_register(const char *libpath, struct m0_fid *profile,
+				    struct m0_reqh *reqh)
+{
+	int                     rc;
+	struct m0_confc        *confc;
+	struct m0_conf_root    *root = NULL;
+	struct m0_conf_process *proc;
+	struct m0_conf_service *svc;
+	struct m0_conf_diter    it;
+	struct m0_spiel        *spiel_inst;
+
+	M0_ALLOC_PTR(spiel_inst);
+	if (spiel_inst == NULL)
+		return M0_ERR(-ENOMEM);
+
+	rc = isc_spiel_prepare(spiel_inst, profile, reqh);
+	if (rc != 0) {
+		m0_free(spiel_inst);
+		return M0_ERR_INFO(rc, "spiel initialization failed");
+	}
+
+	confc = m0_reqh2confc(reqh);
+	rc = m0_confc_root_open(confc, &root);
+	if (rc != 0) {
+		M0_ERR_INFO(rc, "configuration open failed");
+		goto out;
+	}
+
+	rc = m0_conf_diter_init(&it, confc,
+				&root->rt_obj,
+				M0_CONF_ROOT_NODES_FID,
+				M0_CONF_NODE_PROCESSES_FID,
+				M0_CONF_PROCESS_SERVICES_FID);
+	if (rc != 0)
+		goto out;
+
+	while (M0_CONF_DIRNEXT ==
+	       (rc = m0_conf_diter_next_sync(&it, conf_obj_is_svc))) {
+
+		svc = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_service);
+		if (svc->cs_type != M0_CST_ISCS)
+			continue;
+		proc = M0_CONF_CAST(m0_conf_obj_grandparent(&svc->cs_obj),
+				    m0_conf_process);
+		rc = m0_spiel_process_lib_load(spiel_inst, &proc->pc_obj.co_id,
+					       libpath);
+		if (rc != 0) {
+			M0_ERR_INFO(rc, "loading of %s library failed for "
+				        "process "FID_F, libpath,
+					 FID_P(&proc->pc_obj.co_id));
+			break;
+		}
+	}
+
+	m0_conf_diter_fini(&it);
+ out:
+	if (root != NULL)
+		m0_confc_close(&root->rt_obj);
+	isc_spiel_destroy(spiel_inst);
+	m0_free(spiel_inst);
+
+	return rc;
+}
+
+#ifndef __KERNEL__
+static void bufvec_pack(struct m0_bufvec *bv, uint32_t shift)
+{
+	uint32_t i;
+
+	for (i = 0; i < bv->ov_vec.v_nr; i++) {
+		bv->ov_vec.v_count[i] >>= shift;
+		bv->ov_buf[i] = m0_stob_addr_pack(bv->ov_buf[i], shift);
+	}
+}
+
+static void bufvec_open(struct m0_bufvec *bv, uint32_t shift)
+{
+	uint32_t i;
+
+	for (i = 0; i < bv->ov_vec.v_nr; i++) {
+		bv->ov_vec.v_count[i] <<= shift;
+		bv->ov_buf[i] = m0_stob_addr_open(bv->ov_buf[i], shift);
+	}
+}
+
+static int bufvec_alloc_init(struct m0_bufvec *bv, struct m0_io_indexvec *iiv,
+			     uint32_t shift)
+{
+	int   rc;
+	int   i;
+	char *p;
+
+	p = m0_alloc_aligned(m0_io_count(iiv), shift);
+	if (p == NULL)
+		return M0_ERR_INFO(-ENOMEM, "failed to allocate buf");
+
+	rc = m0_bufvec_empty_alloc(bv, iiv->ci_nr);
+	if (rc != 0) {
+		m0_free(p);
+		return M0_ERR_INFO(rc, "failed to allocate bufvec");
+	}
+
+	for (i = 0; i < iiv->ci_nr; i++) {
+		bv->ov_buf[i] = p;
+		bv->ov_vec.v_count[i] = iiv->ci_iosegs[i].ci_count;
+		p += iiv->ci_iosegs[i].ci_count;
+	}
+
+	return 0;
+}
+
+M0_INTERNAL int m0_isc_io_launch(struct m0_stob_io *stio,
+				 struct m0_fid *cob,
+				 struct m0_io_indexvec *iv,
+				 struct m0_fom *fom)
+{
+	int                rc;
+	uint32_t           shift = 0;
+	struct m0_stob_id  stob_id;
+	struct m0_stob    *stob = NULL;
+
+	if (iv->ci_nr == 0) {
+		rc = M0_ERR_INFO(-EINVAL, "no io segments given");
+		goto err;
+	}
+
+	m0_stob_io_init(stio);
+	stio->si_opcode = SIO_READ;
+
+	m0_fid_convert_cob2stob(cob, &stob_id);
+	rc = m0_storage_dev_stob_find(m0_cs_storage_devs_get(),
+				      &stob_id, &stob);
+	if (rc != 0) {
+		M0_ERR_INFO(rc, "failed to find stob by cob="FID_F, FID_P(cob));
+		goto err;
+	}
+
+	shift = m0_stob_block_shift(stob);
+	stio->si_obj = stob; /* for m0_isc_io_fini() in case of err */
+
+	rc = m0_indexvec_wire2mem(iv, iv->ci_nr, shift, &stio->si_stob);
+	if (rc != 0) {
+		M0_ERR_INFO(rc, "failed to make cob ivec");
+		goto err;
+	}
+
+	rc = bufvec_alloc_init(&stio->si_user, iv, shift);
+	if (rc != 0) {
+		M0_ERR_INFO(rc, "failed to allocate bufvec");
+		goto err;
+	}
+
+	bufvec_pack(&stio->si_user, shift);
+
+	rc = m0_stob_io_private_setup(stio, stob);
+	if (rc != 0) {
+		M0_ERR_INFO(rc, "failed to setup adio for stob="FID_F,
+			    FID_P(&stob->so_id.si_fid));
+		goto err;
+	}
+
+	/* make sure the fom is waked up on I/O completion */
+	m0_mutex_lock(&stio->si_mutex);
+	m0_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
+	m0_mutex_unlock(&stio->si_mutex);
+
+	rc = m0_stob_io_prepare_and_launch(stio, stob, NULL, NULL);
+	if (rc != 0) {
+		m0_mutex_lock(&stio->si_mutex);
+		m0_fom_callback_cancel(&fom->fo_cb);
+		m0_mutex_unlock(&stio->si_mutex);
+		M0_ERR_INFO(rc, "failed to launch io for stob="FID_F,
+			    FID_P(&stob->so_id.si_fid));
+	}
+ err:
+	if (rc != 0 && stob != NULL) {
+		bufvec_open(&stio->si_user, shift);
+		m0_isc_io_fini(stio);
+	}
+
+	return rc;
+}
+
+M0_INTERNAL int64_t m0_isc_io_res(struct m0_stob_io *stio, char **buf)
+{
+	uint32_t shift = m0_stob_block_shift(stio->si_obj);
+
+	bufvec_open(&stio->si_user, shift);
+	*buf = stio->si_user.ov_buf[0];
+
+	return stio->si_count << shift;
+}
+
+M0_INTERNAL void m0_isc_io_fini(struct m0_stob_io *stio)
+{
+	struct m0_stob *stob = stio->si_obj;
+
+	m0_indexvec_free(&stio->si_stob);
+	m0_free(stio->si_user.ov_buf[0]);
+	m0_bufvec_free2(&stio->si_user);
+	m0_stob_io_fini(stio);
+	m0_storage_dev_stob_put(m0_cs_storage_devs_get(), stob);
+}
+#endif /* !__KERNEL__ */
+
 
 #undef M0_TRACE_SUBSYSTEM
 

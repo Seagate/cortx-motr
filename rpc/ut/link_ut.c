@@ -38,8 +38,8 @@
 
 enum {
 	RLUT_MAX_RPCS_IN_FLIGHT = 10,
-	RLUT_CONN_TIMEOUT       = 4, /* seconds */
-	RLUT_SESS_TIMEOUT       = 2, /* seconds */
+	RLUT_CONN_TIMEOUT       = 40, /* seconds */
+	RLUT_SESS_TIMEOUT       = 20, /* seconds */
 };
 
 struct m0_clink clink;

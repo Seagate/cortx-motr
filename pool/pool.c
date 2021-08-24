@@ -588,28 +588,30 @@ m0_pool_version_find(struct m0_pools_common *pc, const struct m0_fid *id)
 	struct m0_pool_version *pv;
 	struct m0_conf_root    *root;
 	struct m0_conf_pver    *pver = NULL;
-	int                     rc;
+	int                     rc = 0;
 
 	M0_ENTRY(FID_F, FID_P(id));
 	M0_PRE(pc != NULL);
 
 	m0_mutex_lock(&pc->pc_mutex);
 	pv = m0_pool_version_lookup(pc, id);
-	if (pv != NULL) {
-		rc = 0;
+	if (pv != NULL)
 		goto end;
-	}
+
 	rc = m0_confc_root_open(pc->pc_confc, &root);
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "Cannot open root object");
+		M0_LOG(M0_ERROR, "Failed to open conf-root object: rc=%d", rc);
 		goto end;
 	}
 	rc = m0_conf_pver_find_by_fid(id, root, &pver) ?:
 		m0_pool_version_append(pc, pver, &pv);
 	m0_confc_close(&root->rt_obj);
-end:
+ end:
 	m0_mutex_unlock(&pc->pc_mutex);
-	return rc == 0 ? pv : NULL;
+	if (rc != 0)
+		pv = NULL;
+	M0_LEAVE("pv=%p", pv);
+	return pv;
 }
 
 static bool is_md_pool(const struct m0_pools_common *pc,
@@ -726,7 +728,7 @@ static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
 	 */
 	while ((rc = m0_conf_diter_next_sync(&it, obj_is_enclosurev)) ==
 		M0_CONF_DIRNEXT) {
-		/* We filter only controllerv objects. */
+		/* We filter only enclosurev objects. */
 		M0_CNT_INC(nr_nodes);
 	}
 

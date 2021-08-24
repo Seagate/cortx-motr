@@ -60,7 +60,7 @@ MOTR_M0T1FS_MOUNTPOINT='/mnt/m0t1fs'
 #MOTR_M0D_PARITY_UNITS=1
 
 # Maximum size of rpc message, in bytes.
-#MOTR_M0D_MAX_RPC_MSG_SIZE=65536
+MOTR_M0D_MAX_RPC_MSG_SIZE=524288
 
 # Minimum rpc receive queue length.
 #MOTR_M0D_MIN_RPC_RECVQ_LEN=16

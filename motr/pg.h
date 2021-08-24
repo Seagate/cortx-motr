@@ -781,6 +781,9 @@ struct target_ioreq {
 	/** Linkage to link in to nw_xfer_request::nxr_tioreqs_hash table. */
 	struct m0_hlink                ti_link;
 
+	/** Offest in the global object. Has meaning for data units only. */
+	m0_bindex_t                    ti_goff;
+
 	/**
 	 * Index vector containing IO segments with cob offsets and
 	 * their length.
@@ -795,12 +798,26 @@ struct target_ioreq {
 	 */
 	struct m0_indexvec             ti_trunc_ivec;
 
+
 	/**
 	 * Buffer vector corresponding to index vector above.
 	 * This buffer is in sync with ::ti_ivec.
 	 */
 	struct m0_bufvec               ti_bufvec;
 	struct m0_bufvec               ti_auxbufvec;
+
+	// TODO: Combine this into one struct for checksums
+	struct m0_buf                  ti_attrbuf;
+	m0_bcount_t		       ti_cksum_copied;
+
+	/* Array for segment having b_nob value of checksum */
+	uint32_t                      *ti_cksum_seg_b_nob;
+
+	/**
+	 * Index vector containing segment number of attribute bufvec
+	 * m0_op_io::ioo_attr for this target.
+	 */
+	struct m0_indexvec             ti_goff_ivec;
 
 	/**
 	 * Degraded mode read/write IO vector.

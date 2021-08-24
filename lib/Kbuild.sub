@@ -9,6 +9,7 @@ m0tr_objects += lib/assert.o \
                   lib/buf_xc.o \
                   lib/chan.o \
                   lib/combinations.o \
+                  lib/coroutine.o \
                   lib/cond.o \
                   lib/cookie.o \
                   lib/cookie_xc.o \
@@ -25,6 +26,8 @@ m0tr_objects += lib/assert.o \
                   lib/m0lib.o \
                   lib/memory.o \
                   lib/misc.o \
+                  lib/cksum.o \
+                  lib/cksum_utils.o \
                   lib/mutex.o \
                   lib/queue.o \
                   lib/protocol_xc.o \
