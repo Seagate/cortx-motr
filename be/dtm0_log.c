@@ -35,6 +35,7 @@
 #include "lib/trace.h"
 #include "dtm0/fop.h"  /* dtm0_req_fop */
 #include "motr/magic.h"
+#include "be/op.h"     /* m0_be_op_init and so on */
 
 
 M0_TL_DESCR_DEFINE(lrec, "DTM0 Log", static, struct m0_dtm0_log_rec,
@@ -101,6 +102,8 @@ M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log  *log,
 	M0_PRE(equi(is_plog, seg != NULL));
 
 	m0_mutex_init(&log->dl_lock);
+	m0_mutex_init(&log->dl_watcher_lock);
+	log->dl_watcher = NULL;
 	log->dl_is_persistent = is_plog;
 	log->dl_cs = cs;
 	log->dl_seg = seg;
@@ -111,9 +114,11 @@ M0_INTERNAL int m0_be_dtm0_log_init(struct m0_be_dtm0_log  *log,
 M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log *log)
 {
 	M0_PRE(m0_be_dtm0_log__invariant(log));
+	m0_mutex_fini(&log->dl_watcher_lock);
 	m0_mutex_fini(&log->dl_lock);
 	lrec_tlist_fini(log->u.dl_inmem);
 	log->dl_cs = NULL;
+	log->dl_watcher = NULL;
 }
 
 M0_INTERNAL void m0_be_dtm0_log_free(struct m0_be_dtm0_log **in_log)
@@ -396,6 +401,27 @@ static void plog_rec_fini(struct m0_dtm0_log_rec **dl_lrec,
 	*dl_lrec = NULL;
 }
 
+static void dtm0_log_watcher_notify(struct m0_be_dtm0_log *log)
+{
+	m0_mutex_lock(&log->dl_watcher_lock);
+	if (log->dl_watcher != NULL) {
+		m0_be_op_done(log->dl_watcher);
+		log->dl_watcher = NULL;
+	}
+	m0_mutex_unlock(&log->dl_watcher_lock);
+}
+
+M0_INTERNAL void m0_be_dtm0_log_watcher_set(struct m0_be_dtm0_log *log,
+					    struct m0_be_op *watcher)
+{
+	M0_PRE(ergo(watcher != NULL,
+		    watcher->bo_sm.sm_state == M0_BOS_ACTIVE));
+
+	m0_mutex_lock(&log->dl_watcher_lock);
+	log->dl_watcher = watcher;
+	m0_mutex_unlock(&log->dl_watcher_lock);
+}
+
 static int dtm0_log__insert(struct m0_be_dtm0_log  *log,
 			    struct m0_be_tx        *tx,
 			    struct m0_dtm0_tx_desc *txd,
@@ -417,6 +443,8 @@ static int dtm0_log__insert(struct m0_be_dtm0_log  *log,
 			return rc;
 		lrec_tlink_init_at_tail(rec, log->u.dl_inmem);
 	}
+
+	dtm0_log_watcher_notify(log);
 
 	return rc;
 }
@@ -549,6 +577,7 @@ M0_INTERNAL int m0_be_dtm0_volatile_log_insert(struct m0_be_dtm0_log  *log,
 		return M0_ERR(rc);
 
 	lrec_tlink_init_at_tail(rec, log->u.dl_inmem);
+	dtm0_log_watcher_notify(log);
 	return M0_RC(rc);
 }
 
@@ -671,6 +700,14 @@ M0_INTERNAL void m0_be_dtm0_log_pmsg_post(struct m0_be_dtm0_log *log,
 		m0_dtm0_dtx_pmsg_post(&rec->dlr_dtx, fop);
 
 	M0_LEAVE();
+}
+
+M0_INTERNAL const struct m0_dtm0_log_rec *
+m0_be_dtm0_log_last_inserted(struct m0_be_dtm0_log *log)
+{
+	return log->dl_is_persistent ?
+		lrec_be_list_tail(log->u.dl_persist) :
+		lrec_tlist_tail(log->u.dl_inmem);
 }
 
 #undef M0_TRACE_SUBSYSTEM

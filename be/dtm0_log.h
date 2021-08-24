@@ -205,6 +205,21 @@ struct m0_be_dtm0_log {
 		/** Volatile list, used if !dl_is_persistent */
 		struct m0_tl      *dl_inmem;
 	} u;
+
+	/**
+	 * A be op to be DONE when the log gets a new record.
+	 * The watcher (if set to non-NULL) is put to DONE state if
+	 * a new record is added to the log. The watcher uses "shot and
+	 * forget" signaling: once it gets DONE, it gets detached from
+	 * the log. The user is responsible for setting the watcher
+	 * again when new notification is needed. The log does not
+	 * own the be_op: the user must ensure that watcher is not set at
+	 * the time when the log is getting finalised.
+	 * Use-case: Asynchronous awaiting for new records in the log.
+	 * @see m0_be_dtm0_log_watcher_set
+	 */
+	struct m0_be_op           *dl_watcher;
+	struct m0_mutex            dl_watcher_lock;
 };
 
 /**
@@ -518,6 +533,23 @@ M0_INTERNAL void m0_be_dtm0_volatile_log_update(struct m0_be_dtm0_log  *log,
  */
 M0_INTERNAL void m0_be_dtm0_log_pmsg_post(struct m0_be_dtm0_log *log,
 					  struct m0_fop         *fop);
+
+/**
+ * Arm/disarm the log watcher (see ::m0_be_dtm0_log::dl_watcher).
+ * @param[opt] A be op to be set as the watcher, or NULL if the existing
+ *             watcher needs to be cleared.
+ * @pre A non-NULL watcher is ACTIVE.
+ */
+M0_INTERNAL void m0_be_dtm0_log_watcher_set(struct m0_be_dtm0_log *log,
+					    struct m0_be_op *watcher);
+
+/**
+ * The very last (realtime-wise) record added to the log.
+ * The function is supposed to be used only in UT.
+ */
+M0_INTERNAL const struct m0_dtm0_log_rec *
+m0_be_dtm0_log_last_inserted(struct m0_be_dtm0_log *log);
+
 
 /** @} */ /* end DTM0Internals */
 

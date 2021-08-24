@@ -605,6 +605,216 @@ static void m0_be_ut_dtm0_log_test(void)
 	M0_LEAVE();
 }
 
+static void dtm0_log_update_sync(struct m0_be_dtm0_log *log,
+				 struct m0_dtm0_tx_desc *txd)
+{
+	int                     rc;
+	struct m0_be_tx_credit  cred = {};
+	struct m0_be_tx         tx   = {};
+	struct m0_buf           payload = {};
+
+	m0_be_dtm0_log_credit(M0_DTML_EXECUTED, txd, &payload,
+			      seg, NULL, &cred);
+
+	m0_be_ut_tx_init(&tx, ut_be);
+	m0_be_tx_prep(&tx, &cred);
+	rc = m0_be_tx_open_sync(&tx);
+	M0_UT_ASSERT(rc == 0);
+	m0_mutex_lock(&log->dl_lock);
+	rc = m0_be_dtm0_log_update(log, &tx, txd, &payload);
+	M0_UT_ASSERT(rc == 0);
+	m0_mutex_unlock(&log->dl_lock);
+	m0_be_tx_close_sync(&tx);
+	m0_be_tx_fini(&tx);
+}
+
+struct threaded_log_update_ctx {
+	bool                    c_shutdown;
+	struct m0_semaphore     c_next_run;
+	struct m0_dtm0_tx_desc *c_txd;
+	struct m0_be_dtm0_log  *c_log;
+	struct m0_be_op        *c_op;
+};
+
+enum {
+	TLUC_NR_RECORDS_PER_RUN = 10,
+	TLUC_NR_RUNS = 10,
+};
+
+static void producer(struct threaded_log_update_ctx *c)
+{
+	int                     i;
+	struct m0_be_dtm0_log  *log = c->c_log;
+	struct m0_dtm0_tx_desc *txd = c->c_txd;
+
+	while (1) {
+		m0_semaphore_down(&c->c_next_run);
+		if (c->c_shutdown)
+			break;
+
+		for (i = 0; i < TLUC_NR_RECORDS_PER_RUN; ++i) {
+			m0_dtm0_clk_src_now(log->dl_cs, &txd->dtd_id.dti_ts);
+			dtm0_log_update_sync(log, txd);
+		}
+	}
+}
+
+static void consumer(struct threaded_log_update_ctx *c)
+{
+	int                           i;
+	struct m0_be_op              *op = c->c_op;
+	struct m0_be_dtm0_log        *log = c->c_log;
+	const struct m0_dtm0_log_rec *tail = NULL;
+
+	tail = m0_be_dtm0_log_last_inserted(log);
+
+	for (i = 0; i < TLUC_NR_RUNS; ++i) {
+		m0_be_op_reset(op);
+		m0_be_op_active(op);
+		m0_be_dtm0_log_watcher_set(log, op);
+		m0_semaphore_up(&c->c_next_run);
+		m0_be_op_wait(op);
+
+		M0_UT_ASSERT(m0_be_op_is_done(op));
+		M0_UT_ASSERT(log->dl_watcher == NULL);
+		/* Something new was supposed to show up. */
+		M0_UT_ASSERT(tail != m0_be_dtm0_log_last_inserted(log));
+		tail = m0_be_dtm0_log_last_inserted(log);
+	}
+
+	m0_semaphore_up(&c->c_next_run);
+	c->c_shutdown = true;
+}
+
+/*
+ * Case: Insert a bunch of records in one thread (producer),
+ * and ensure the watcher is triggered (eventually) in the other
+ * thread (consumer). Verify that the log has "new" records
+ * after the watcher is triggered.
+ */
+static void use_dtm0_watcher_threaded(struct m0_be_dtm0_log *log)
+{
+	struct m0_dtm0_tx_desc         txd  = {};
+	struct m0_be_op                op = {};
+	int                            rc;
+	struct m0_thread               cons = {};
+	struct threaded_log_update_ctx tluc = {};
+
+	rc = m0_dtm0_tx_desc_init(&txd, 1);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_dtm0_clk_src_now(log->dl_cs, &txd.dtd_id.dti_ts);
+	txd.dtd_id.dti_fid = g_process_fid;
+	txd.dtd_ps.dtp_pa->p_state = M0_DTPS_EXECUTED;
+	txd.dtd_ps.dtp_pa->p_fid = g_process_fid;
+
+	m0_be_op_init(&op);
+
+	m0_semaphore_init(&tluc.c_next_run, 0);
+	tluc.c_shutdown = false;
+	tluc.c_log = log;
+	tluc.c_txd = &txd;
+	tluc.c_op = &op;
+
+	rc = M0_THREAD_INIT(&cons, struct threaded_log_update_ctx *,
+			    NULL, &consumer, &tluc,
+			    "cons");
+	M0_UT_ASSERT(rc == 0);
+
+	/*
+	 * Produce records right here in order to avoid troubles with the
+	 * BE UT engine threading model.
+	 */
+	producer(&tluc);
+
+	m0_thread_join(&cons);
+	m0_semaphore_fini(&tluc.c_next_run);
+}
+
+static void use_dtm0_watcher(struct m0_be_dtm0_log *log)
+{
+	struct m0_dtm0_tx_desc  txd  = {};
+	struct m0_be_op         op = {};
+	int                     rc;
+
+	rc = m0_dtm0_tx_desc_init(&txd, 1);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_dtm0_clk_src_now(log->dl_cs, &txd.dtd_id.dti_ts);
+	txd.dtd_id.dti_fid = g_process_fid;
+	txd.dtd_ps.dtp_pa->p_state = M0_DTPS_EXECUTED;
+	txd.dtd_ps.dtp_pa->p_fid = g_process_fid;
+
+	/*
+	 * Case: Set up the watcher and ensure it gets DONE
+	 * after a log record is inserted.
+	 */
+	m0_be_op_init(&op);
+	m0_be_op_active(&op);
+	m0_be_dtm0_log_watcher_set(log, &op);
+	M0_UT_ASSERT(log->dl_watcher != NULL);
+	M0_UT_ASSERT(!m0_be_op_is_done(&op));
+	dtm0_log_update_sync(log, &txd);
+	M0_UT_ASSERT(log->dl_watcher == NULL);
+	M0_UT_ASSERT(m0_be_op_is_done(&op));
+
+	/*
+	 * Case: Ensure updates of an existing log record
+	 * do not trigger the watcher but insertion of a new record
+	 * still triggers it.
+	 */
+	m0_be_op_reset(&op);
+	m0_be_op_active(&op);
+	m0_be_dtm0_log_watcher_set(log, &op);
+	txd.dtd_ps.dtp_pa->p_state = M0_DTPS_PERSISTENT;
+	dtm0_log_update_sync(log, &txd);
+	M0_UT_ASSERT(!m0_be_op_is_done(&op));
+	M0_UT_ASSERT(log->dl_watcher != NULL);
+	m0_dtm0_clk_src_now(log->dl_cs, &txd.dtd_id.dti_ts);
+	dtm0_log_update_sync(log, &txd);
+	M0_UT_ASSERT(m0_be_op_is_done(&op));
+	M0_UT_ASSERT(log->dl_watcher == NULL);
+
+	m0_be_op_fini(&op);
+}
+
+static void dtm0_watcher(void)
+{
+	struct m0_dtm0_clk_src cs;
+	struct m0_be_dtm0_log *log;
+
+	M0_ENTRY();
+	M0_ALLOC_PTR(ut_be);
+	M0_UT_ASSERT(ut_be != NULL);
+	M0_ALLOC_PTR(ut_seg);
+	M0_UT_ASSERT(ut_seg != NULL);
+	m0_be_ut_backend_init(ut_be);
+	m0_be_ut_seg_init(ut_seg, ut_be, 1ULL << 24);
+	seg = ut_seg->bus_seg;
+
+	m0_dtm0_clk_src_init(&cs, M0_DTM0_CS_PHYS);
+
+	log = persistent_log_create();
+	M0_UT_ASSERT(log != NULL);
+
+	m0_be_ut_seg_reload(ut_seg);
+	m0_be_dtm0_log_init(log, seg, &cs, true);
+
+	use_dtm0_watcher(log);
+	use_dtm0_watcher_threaded(log);
+
+	persistent_log_destroy(log);
+
+	m0_be_ut_seg_reload(ut_seg);
+	m0_be_ut_seg_fini(ut_seg);
+	m0_be_ut_backend_fini(ut_be);
+	m0_free(ut_seg);
+	m0_free(ut_be);
+
+	M0_LEAVE();
+
+}
+
 struct m0_ut_suite dtm0_log_ut = {
 	.ts_name   = "dtm0-log-ut",
 	.ts_init   = NULL,
@@ -612,6 +822,7 @@ struct m0_ut_suite dtm0_log_ut = {
 	.ts_tests  = {
 		{ "dtm0-log-list",       test_volatile_dtm0_log },
 		{ "dtm0-log-persistent", m0_be_ut_dtm0_log_test },
+		{ "dtm0-watcher",        dtm0_watcher           },
 		{ NULL, NULL }
 	}
 };
