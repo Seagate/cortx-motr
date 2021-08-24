@@ -163,7 +163,7 @@ def validate_motr_rpm(self):
     kernel_ver = op.replace('\n', '')
     check_type(kernel_ver, str, "kernel version")
 
-    if not self.k8
+    if not self.k8:
         kernel_module = f"/lib/modules/{kernel_ver}/kernel/fs/motr/m0tr.ko"
         self.logger.info(f"Checking for {kernel_module}\n")
         validate_file(kernel_module)
