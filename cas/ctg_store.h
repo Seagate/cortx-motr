@@ -91,7 +91,7 @@
 /** Defines hash table size for struct m0_cas_ctg defined inside
  * struct m0_cas_state. This size should be pow of 2. M0_PRE(m0_is_po2(EMAP_HT_SIZE)); at proper place
  */
-enum { CAS_META_HT_SIZE = 8 };
+enum { CAS_META_HT_SIZE = 32 };
 // TODO: Add check for pow2(CAS_META_HT_SIZE)
 /** CAS catalogue. */
 struct m0_cas_ctg {

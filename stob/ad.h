@@ -130,7 +130,7 @@ enum { AD_PATHLEN = 4096 };
 
 /** Defines hash table size for struct m0_be_emap. This size should be pow of 2.
  */
-#define   EMAP_HT_SIZE  m0_fom_dom()->fd_localities_nr
+#define   EMAP_HT_SIZE  1
 
 struct m0_perf_ht {
         struct m0_be_emap       sad_adata;
