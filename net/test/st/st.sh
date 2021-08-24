@@ -42,13 +42,11 @@ role_space()
 
 unload_all() {
 	modunload
-	modunload_galois
 }
 trap unload_all EXIT
 
 modprobe_lnet
 lctl network up > /dev/null
-modload_galois
 modload || exit $?
 
 sandbox_init
