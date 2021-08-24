@@ -55,8 +55,9 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
  */
 enum m0_fab__libfab_params {
 	/** Fabric memory registration access. */
-	FAB_MR_ACCESS                  = (FI_READ | FI_WRITE | FI_RECV | FI_SEND |
-				          FI_REMOTE_READ | FI_REMOTE_WRITE),
+	FAB_MR_ACCESS                  = (FI_READ | FI_WRITE | FI_RECV |
+					  FI_SEND | FI_REMOTE_READ |
+					  FI_REMOTE_WRITE),
 	/** Fabric memory registration offset. */
 	FAB_MR_OFFSET                  = 0,
 	/** Fabric memory registration flag. */
@@ -69,6 +70,8 @@ enum m0_fab__libfab_params {
 	FAB_VERBS_MAX_BULK_SEG_SIZE    = 1048576,
 	/** Max number of active work requests for Verbs */
 	FAB_VERBS_MAX_QUEUE_SIZE       = 224,
+	/** Max number of iov that can be sent in fi_sendmsg() for Verbs */
+	FAB_VERBS_MAX_IOV_PER_TX       = 1,
 
 	/** Max number of IOV in read/write command for TCP/Socket provider
 	 * (max number of segments) */
@@ -78,6 +81,11 @@ enum m0_fab__libfab_params {
 	FAB_TCP_SOCK_MAX_BULK_SEG_SIZE = 4096,
 	/** Max number of active work requests for TCP/Socket provider */
 	FAB_TCP_SOCK_MAX_QUEUE_SIZE    = 1024,
+	/** Max number of iov that can be sent in fi_sendmsg() for TCP/Socket */
+	FAB_TCP_SOCK_MAX_IOV_PER_TX    = 4,
+
+	/** Array size of iovec per tx (select max of tcp and verbs) */
+	FAB_MAX_IOV_PER_TX             = 4,
 
 	/** Max segment size for rpc buffer ( 1MB but can be changed ) */
 	FAB_MAX_RPC_SEG_SIZE           = (1 << 20),
@@ -90,7 +98,7 @@ enum m0_fab__libfab_params {
 	/** Max number of completion events to read from a completion queue */
 	FAB_MAX_COMP_READ              = 256,
 	/** Max timeout for waiting on fd in epoll_wait */
-	FAB_WAIT_FD_TMOUT              = 100,
+	FAB_WAIT_FD_TMOUT              = 10,
 	/** Max event entries for active endpoint event queue */
 	FAB_MAX_AEP_EQ_EV              = 8,
 	/** Max event entries for passive endpoint event queue */
@@ -101,8 +109,19 @@ enum m0_fab__libfab_params {
 	FAB_MAX_RX_CQ_EV               = 256,
 	/** Max receive buffers in a shared receive pool */
 	FAB_MAX_SRX_SIZE               = 4096,
-	/** Max receive buffers in a shared receive pool */
+	/** Max number of buckets per Qtype */
 	FAB_NUM_BUCKETS_PER_QTYPE      = 128
+};
+
+/**
+ * Represents the fabric provider for the transfer machine
+ */
+enum m0_fab__prov_type {
+	FAB_FABRIC_PROV_NONE,
+	FAB_FABRIC_PROV_VERBS,
+	FAB_FABRIC_PROV_TCP,
+	FAB_FABRIC_PROV_SOCK,
+	FAB_FABRIC_PROV_OTHERS
 };
 
 /**
@@ -223,19 +242,22 @@ struct m0_fab__ndom {
  */
 struct m0_fab__fab {
 	/** Magic number for list of fabric interfaces in transfer machine*/
-	uint64_t           fab_magic;
+	uint64_t               fab_magic;
 
 	/** Fabric interface info */
-	struct fi_info    *fab_fi;
+	struct fi_info        *fab_fi;
 	
 	/** Fabric fid */
-	struct fid_fabric *fab_fab;
+	struct fid_fabric     *fab_fab;
 
 	/** Domain fid */
-	struct fid_domain *fab_dom;
+	struct fid_domain     *fab_dom;
 
 	/** Link in the list of fabrics */
-	struct m0_tlink    fab_link;
+	struct m0_tlink        fab_link;
+
+	/** Fabric provider type */
+	enum m0_fab__prov_type fab_prov;
 };
 
 /**
@@ -335,8 +357,11 @@ struct m0_fab__ep {
 	/** Network endpoint structure linked into a per-tm list */
 	struct m0_net_end_point    fep_nep;
 	
-	/** ipaddr, port and strname */
-	struct m0_fab__ep_name     fep_name;
+	/** ipaddr, port and strname in printable format*/
+	struct m0_fab__ep_name     fep_name_p;
+
+	/** Name in numeric format <IP_Addr, 32bit>:<Port, 32 bit> */
+	uint64_t                   fep_name_n;
 	
 	/** Active endpoint, this is used for TX and RX operation */
 	struct m0_fab__active_ep  *fep_aep;
