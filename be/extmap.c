@@ -757,7 +757,6 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 	map->em_rec.er_value = val;
 	map->em_rec.er_cksum_nob = 0;
 	emap_rec_init(&map->em_rec);
-	m0_format_footer_update(&map->em_rec);
 
 	++map->em_version;
 	M0_LOG(M0_DEBUG, "Nob: key = %"PRIu64" val = %"PRIu64" ",
