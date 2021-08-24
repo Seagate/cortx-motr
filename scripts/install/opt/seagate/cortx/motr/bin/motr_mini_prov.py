@@ -163,9 +163,10 @@ def validate_motr_rpm(self):
     kernel_ver = op.replace('\n', '')
     check_type(kernel_ver, str, "kernel version")
 
-    kernel_module = f"/lib/modules/{kernel_ver}/kernel/fs/motr/m0tr.ko"
-    self.logger.info(f"Checking for {kernel_module}\n")
-    validate_file(kernel_module)
+    if not self.k8
+        kernel_module = f"/lib/modules/{kernel_ver}/kernel/fs/motr/m0tr.ko"
+        self.logger.info(f"Checking for {kernel_module}\n")
+        validate_file(kernel_module)
 
     self.logger.info(f"Checking for {MOTR_SYS_CFG}\n")
     validate_file(MOTR_SYS_CFG)
@@ -819,7 +820,7 @@ def update_motr_hare_keys_for_all_nodes(self, k8=False):
                     except Exception as e:
                         self.logger.info(f"exception pass {e}\n")
                 else:
-                    cmd = "lsblk -lo name,label|grep raw_md1|awk '{print $1}'"
+                    cmd = f"lsblk -lo name,label|grep {lv_md_name}|""awk '{print $1}'"
                     res = execute_command_verbose(self, cmd)
                     if res[1] == 0:
                         # e.g. res[0] is sdb1. Absoulte path of sdb is /dev/sdb1
@@ -844,7 +845,8 @@ def update_motr_hare_keys_for_all_nodes(self, k8=False):
                             time.sleep(retry_delay)
                 else:
                     cmd = (f"ssh  {host}"
-                           " \"lsblk -lo name,label|grep raw_md1|awk \'{print $1}\'\"")
+                           f"\" lsblk -lo name,label|grep {lv_md_name}|"
+                            "awk \'{print $1}\'\"")
                     for retry in range(1, retry_count):
                         self.logger.info(f"Getting LVM data for {host}, attempt: {retry}\n")
                         res = execute_command_verbose(self, cmd)
