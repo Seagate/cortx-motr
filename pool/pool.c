@@ -1687,7 +1687,7 @@ M0_INTERNAL int m0_pool_version_append(struct m0_pools_common  *pc,
 		if (rc != 0)
 			return M0_ERR(rc);
 	}
-	M0_ASSERT(cp != NULL); 
+	M0_ASSERT(cp != NULL);
 	p = pool_find(pc, &cp->pl_obj.co_id);
 	M0_ASSERT(p != NULL);
 

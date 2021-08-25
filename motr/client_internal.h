@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2016-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2016-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -443,7 +443,11 @@ struct m0_client_layout_ops {
 /** miscallaneous constants */
 enum {
 	/*  4K, typical linux/intel page size */
+#ifdef CONFIG_X86_64
 	M0_DEFAULT_BUF_SHIFT        = 12,
+#else  //aarch64
+	M0_DEFAULT_BUF_SHIFT        = 16,
+#endif
 	/* 512, typical disk sector */
 	M0_MIN_BUF_SHIFT            = 9,
 
@@ -464,8 +468,14 @@ enum {
 	 * These constants are used to create buffers acceptable to the
 	 * network code.
 	 */
+	
+#ifdef CONFIG_X86_64
 	M0_NETBUF_MASK              = 4096 - 1,
 	M0_NETBUF_SHIFT             = 12,
+#else  //aarch64
+	M0_NETBUF_MASK              = 65536 - 1,
+	M0_NETBUF_SHIFT             = 16,
+#endif
 };
 
 /**

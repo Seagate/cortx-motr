@@ -138,7 +138,7 @@ static m0_bcount_t composite_max_recsize(struct m0_layout_domain *dom)
 	return 0;
 }
 
-#if 0
+#if 0 /* unused code */
 M0_UNUSED static const struct m0_layout_ops composite_ops;
 
 /**
@@ -158,8 +158,8 @@ M0_UNUSED static int composite_decode(struct m0_layout *l,
 			    struct m0_be_tx *tx,
 			    uint32_t user_count)
 {
-	
-	/*@code
+	/*
+	@code
 	struct m0_composite_layout *cl;
 
 	M0_PRE(M0_IN(op, (M0_LXO_DB_LOOKUP, M0_LXO_BUFFER_OP));
@@ -180,8 +180,8 @@ M0_UNUSED static int composite_decode(struct m0_layout *l,
 	}
 
 	*out = &cl->cl_base;
-	@endcode*/
-	
+	@endcode
+	*/
 
 	return 0;
 }
@@ -202,8 +202,8 @@ M0_UNUSED static int composite_encode(struct m0_layout *l,
 			    struct m0_be_tx *tx,
 			    struct m0_bufvec_cursor *out)
 {
-	
-	/*@code
+	/*
+	@code
 
 	M0_PRE(M0_IN(op, (M0_LXO_DB_ADD, M0_LXO_DB_UPDATE,
 			  M0_LXO_DB_DELETE, M0_LXO_BUFFER_OP)));
@@ -219,9 +219,9 @@ M0_UNUSED static int composite_encode(struct m0_layout *l,
 		m0_layout object l.
 	}
 
-	@endcode*/
+	@endcode
+	*/
 
-	
 	return 0;
 }
 

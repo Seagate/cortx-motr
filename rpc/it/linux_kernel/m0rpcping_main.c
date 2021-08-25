@@ -43,7 +43,7 @@ M0_INTERNAL void cleanup_module(void)
  * marker is necessary to remove the warnings, keeping this blank to make
  * compiler happy.
  */
-MODULE_LICENSE("GPL");
+MODULE_LICENSE();
 
 /*
  *  Local variables:
