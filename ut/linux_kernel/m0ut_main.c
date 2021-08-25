@@ -1,7 +1,7 @@
 /* -*- C -*- */
 /*
  * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -34,8 +34,8 @@
  * marker is necessary to remove the warnings, keeping this blank to make
  * compiler happy.
  */
+MODULE_LICENSE();
 
-/* Added GPL per suggestions to avoid compilation error, may need to be reviewed */
 static char *tests;
 module_param(tests, charp, S_IRUGO);
 MODULE_PARM_DESC(tests, " list of tests to run in format"
@@ -180,7 +180,6 @@ static void __exit m0_ut_module_fini(void)
 module_init(m0_ut_module_init)
 module_exit(m0_ut_module_fini)
 
-MODULE_LICENSE("GPL");
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

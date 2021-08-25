@@ -135,7 +135,7 @@
  *	m0_conf_diter_fini(&it);
  * @endcode
  */
-
+
 /**
  * @defgroup confditer Configuration directory iterator
  * @{

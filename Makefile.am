@@ -147,7 +147,6 @@ if MOTR_IDX_STORE_CASS
 override RPMBUILD_FLAGS += --with cassandra
 endif
 
-
 ################################################################################
 #                     Internal programs required for build                  {{{1
 ################################################################################

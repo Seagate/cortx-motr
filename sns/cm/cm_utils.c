@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,8 +54,12 @@ enum {
 	SNS_DEFAULT_K = 1,
 	SNS_DEFAULT_S = 1,
 	SNS_DEFAULT_P = 5,
-	SNS_DEFAULT_UNIT_SIZE = 4096,
+	SNS_DEFAULT_UNIT_SIZE = PAGE_SIZE,
+#ifdef CONFIG_X86_64
 	SNS_DEFAULT_LAYOUT_ID = 1
+#else  //aarch64
+	SNS_DEFAULT_LAYOUT_ID = 5
+#endif	
 };
 
 M0_INTERNAL int

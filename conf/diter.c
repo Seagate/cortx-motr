@@ -176,7 +176,7 @@
  * Current iterator design does not impose any restrictions on the number of
  * directory levels that can be traversed.
  */
-
+
 /**
  * @addtogroup confditer
  * @{
