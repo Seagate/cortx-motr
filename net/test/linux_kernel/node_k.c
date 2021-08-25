@@ -32,7 +32,7 @@
  * marker is necessary to remove the warnings, keeping this blank to make
  * compiler happy.
  */
-
+MODULE_LICENSE();
 
 static char	    *addr = NULL;
 static char	    *addr_console = NULL;
@@ -67,7 +67,6 @@ static void __exit m0_net_test_module_fini(void)
 module_init(m0_net_test_module_init)
 module_exit(m0_net_test_module_fini)
 
-MODULE_LICENSE("GPL");
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

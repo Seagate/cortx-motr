@@ -50,7 +50,7 @@ struct m0_fid_arr;
  *
  * @see @ref conf_dfspec_objops "Detailed Functional Specification"
  */
-
+
 /**
  * @defgroup conf_dfspec_objops Configuration Object Operations
  * @brief Detailed Functional Specification.

@@ -51,7 +51,7 @@ M0_BE_LIST_DESCR_DEFINE(rds, "list of active_record in ar_domain_subsystem",
 			M0_BE_ACT_REC_DOM_SUB_MAGIC, M0_BE_ACT_REC_DOM_SUB_MAGIC);
 M0_BE_LIST_DEFINE(rds, static, struct m0_be_active_record);
 
-
+
 /* ----------------------------------------------------------------------
  * m0_be_active_record_domain
  * ---------------------------------------------------------------------- */
@@ -251,7 +251,7 @@ m0_be_active_record_domain_credit(struct m0_be_active_record_domain *dom,
 		break;
 	}
 }
-
+
 /* ----------------------------------------------------------------------
  * m0_be_active_record
  * ---------------------------------------------------------------------- */

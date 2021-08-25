@@ -26,7 +26,7 @@
 #include "fdmi/module.h"
 #include "module/instance.h"
 
-#if 0
+#if 0 /* unused code */
 M0_UNUSED static int level_fdmi_enter(struct m0_module *module);
 M0_UNUSED static void level_fdmi_leave(struct m0_module *module);
 

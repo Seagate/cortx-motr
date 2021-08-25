@@ -95,13 +95,13 @@ BuildRequires:  make
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
 %if %{rhel} <= 7
-    %if  "%{?CONFIG_ARCH_TYPE}"=="x86_64"
-	BuildRequires:  gccxml
-    %else
-	#BuildRequires:  castxml
-    %endif
+%if  "%{?CONFIG_ARCH_TYPE}"=="x86_64"
+BuildRequires:  gccxml
 %else
-     BuildRequires:  castxml
+#BuildRequires:  castxml
+%endif
+%else
+BuildRequires:  castxml
 %endif
 
 BuildRequires:  glibc-headers

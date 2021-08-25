@@ -229,7 +229,7 @@ int main(int argc, char **argv)
 	int                         rc;
 	uint32_t                    cache_nr;
 	uint64_t                   *cache_len;
-	uint64_t                    unitsize = 4096;
+	uint64_t                    unitsize = PAGE_SIZE;
 	struct m0_pool_version      pool_ver;
 	struct m0_layout           *l;
 	struct m0_pdclust_layout   *play;

@@ -328,7 +328,7 @@ struct m0_conf_obj;
  *
  * @see @ref confc_dfspec "Detailed Functional Specification"
  */
-
+
 /**
  * @defgroup confc_dfspec Configuration Client (confc)
  * @brief Detailed Functional Specification.
