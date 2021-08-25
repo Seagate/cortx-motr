@@ -152,6 +152,12 @@ main() {
         echo "OK$(_time $t)" >&2
     done
 
+    # Helps in debugging, If m0reportbug fails due to huge size
+    echo "du -sh $LIVE_CORE_DIR" >&2
+    du_output=`du -sh "$LIVE_CORE_DIR" 2>&1`
+    echo "$du_output" >&2
+    echo "The size of $LIVE_CORE_DIR is : $du_size"
+
     # Create directory and put only latest files created into it.
     TEMP_WORKSPACE="$LIVE_CORE_DIR/tmpspace/"
     rm -rf "$TEMP_WORKSPACE"
