@@ -314,6 +314,11 @@ High-level requirements from Clarification section are refined as following:
      - b-tree operations are implemented as non-blocking state machines
      - [r.btree.r2p0]
 
+   * - [**r.btree.del-old**] **New** (2021.08.25)
+     - b-tree delete operation returns old value
+     - [r.btree.features]
+
+
 **Performance related requirements**
      
 .. list-table:: 
