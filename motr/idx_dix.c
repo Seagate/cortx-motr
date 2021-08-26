@@ -569,7 +569,7 @@ static void dix_build(const struct m0_op_idx *oi,
 	out->dd_fid = *OI_IFID(oi);
 	/* Pool version and layout type which are passed by consumers like S3 */
 	if (M0_IN(opcode, (M0_IC_GET, M0_IC_PUT, M0_IC_DEL, M0_IC_NEXT))) {
-		if ((idx->in_attr.idx_layout_type == DIX_LTYPE_DESCR) 
+		if ((idx->in_attr.idx_layout_type == DIX_LTYPE_DESCR)
 		    && (m0_fid_is_set(&idx->in_attr.idx_pver))
 		    && (m0_fid_is_valid(&idx->in_attr.idx_pver))) {
 			M0_LOG(M0_DEBUG, "Opcode: %u, DIX pool version:"FID_F"",
@@ -589,7 +589,7 @@ static void dix_build(const struct m0_op_idx *oi,
 		 * - city hash function;
 		 * - infinity identity mask (use key as is);
 		 * - default pool version (the same as for root index).
-		 * In future client user will be able to pass layout as an 
+		 * In future client user will be able to pass layout as an
 		 * argument.
 		 */
 		out->dd_layout.dl_type = DIX_LTYPE_DESCR;
@@ -687,6 +687,7 @@ static int dix_req_create(struct m0_op_idx  *oi,
 
 static void dix_req_destroy(struct dix_req *req)
 {
+	M0_PRE(req->idr_ast.sa_next == NULL);
 	M0_ENTRY();
 	m0_clink_fini(&req->idr_clink);
 	m0_bufvec_free(&req->idr_start_key);
@@ -972,7 +973,7 @@ static uint32_t dix_set_cas_flags(struct m0_op_idx *oi)
 	if (oi->oi_flags & M0_OIF_NO_DTM)
 		flags |= COF_NO_DTM;
 	return flags;
-} 
+}
 
 static void dix_index_create_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
@@ -1086,7 +1087,7 @@ static void dix_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ENTRY();
 	dix_dreq_prepare(dix_req, &dix, oi);
 	flags = dix_set_cas_flags(oi);
-	
+
 	rc = m0_dix_put(dreq, &dix, oi->oi_keys, oi->oi_vals, oi->oi_dtx,
 			flags);
 	if (rc != 0)
@@ -1192,7 +1193,7 @@ out:
 	m0_semaphore_up(&oi->oi_oc.oc_op.op_sema);
 	M0_LEAVE();
 }
-	
+
 M0_INTERNAL int m0__idx_cancel(struct m0_op_idx *oi)
 {
 	struct m0_sm_ast   *op_ast;
@@ -1248,10 +1249,10 @@ static int dix_index_create(struct m0_op_idx *oi)
 	int             rc;
 
 	M0_ASSERT(dix_iname_args_are_valid(oi));
-	/* 
+	/*
 	 * @todo: User application (S3) need to set M0_OIF_CROW and
  	 * M0_OIF_SKIP_LAYOUT index flags as a configurable parameter.
- 	 * Remove this logic once configuration option is available in S3. 
+ 	 * Remove this logic once configuration option is available in S3.
   	 */
 	dix_set_idx_flags(oi);
 	rc = dix_req_create(oi, &req);
@@ -1268,11 +1269,11 @@ static int dix_index_delete(struct m0_op_idx *oi)
 	int             rc;
 
 	M0_ASSERT(dix_iname_args_are_valid(oi));
-	/* 
+	/*
 	 * @todo: User application (S3) need to set M0_OIF_CROW and
  	 * M0_OIF_SKIP_LAYOUT index flags as a configurable parameter.
- 	 * Remove this logic once configuration option is available in S3. 
-  	 */	
+ 	 * Remove this logic once configuration option is available in S3.
+  	 */
 	dix_set_idx_flags(oi);
 	rc = dix_req_create(oi, &req);
 	if (rc != 0)
@@ -1288,13 +1289,13 @@ static int dix_index_lookup(struct m0_op_idx *oi)
 	int             rc;
 
 	M0_ASSERT(dix_iname_args_are_valid(oi));
-	/* 
+	/*
 	 * @todo: User application (S3) need to set M0_OIF_CROW and
  	 * M0_OIF_SKIP_LAYOUT index flags as a configurable parameter.
- 	 * Remove this logic once configuration option is available in S3. 
-  	 */	
+ 	 * Remove this logic once configuration option is available in S3.
+  	 */
 	dix_set_idx_flags(oi);
-	if (oi->oi_flags & M0_OIF_SKIP_LAYOUT) 
+	if (oi->oi_flags & M0_OIF_SKIP_LAYOUT)
 		rc = dix_req_create(oi, &req);
 	else
 		rc = dix_mreq_create(oi, &req);
@@ -1324,11 +1325,11 @@ static int dix_put(struct m0_op_idx *oi)
 	struct dix_req *req;
 	int             rc;
 
-	/* 
+	/*
 	 * @todo: User application (S3) need to set M0_OIF_CROW and
  	 * M0_OIF_SKIP_LAYOUT index flags as a configurable parameter.
- 	 * Remove this logic once configuration option is available in S3. 
-  	 */	
+ 	 * Remove this logic once configuration option is available in S3.
+  	 */
 	dix_set_idx_flags(oi);
 
 	rc = dix_req_create(oi, &req);
