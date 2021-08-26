@@ -144,7 +144,7 @@ static inline bool is_page_read(struct data_buf *dbuf)
  */
 M0_INTERNAL bool data_buf_invariant(const struct data_buf *db)
 {
-	return M0_RC(db != NULL &&
+	return (db != NULL &&
 	       data_buf_bob_check(db) &&
 	       ergo(db->db_buf.b_addr != NULL, db->db_buf.b_nob > 0));
 }
@@ -1459,7 +1459,15 @@ static int pargrp_iomap_pages_mark_as_failed(struct pargrp_iomap       *map,
 
 		if (row == row_nr)
 			continue;
-
+		if (type == M0_PUT_PARITY) {
+			/*
+			 * Setting parity buffer type to M0_PBUF_DIR, So that
+			 * it will free the buffer allocated for dgread path.
+			 * This buffer will be freed in
+			 * pargrp_iomap_fini() --> data_buf_dealloc_fini()
+			 */
+			ioo->ioo_pbuf_type = M0_PBUF_DIR;
+		}
 		for (row = 0; row < row_nr; ++row) {
 			if (bufs[row][col] == NULL) {
 				bufs[row][col] =

@@ -126,8 +126,8 @@ M0_INTERNAL int m0_thread_signal(struct m0_thread *q, int sig)
 	return -pthread_kill(q->t_h.h_id, sig);
 }
 
-M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
-				  const struct m0_bitmap *processors)
+M0_INTERNAL int m0_thread_arch_confine(struct m0_thread *q,
+				       const struct m0_bitmap *processors)
 {
 	size_t    idx;
 	size_t    nr_bits = min64u(processors->b_nr, CPU_SETSIZE);

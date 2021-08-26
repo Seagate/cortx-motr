@@ -26,7 +26,7 @@ export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 ### When modifying this script, please increment VERSION and add new
 ### entry to the 'History' section below.
 ### ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-VERSION=0.53
+VERSION=0.54
 
 OUT_DATA_DIR=m0reportbug-data
 OUT_CORES_DIR=m0reportbug-cores
@@ -105,14 +105,7 @@ main() {
                 warn "$IN_DIR: no such directory"
                 continue
             }
-            [[ -L $IN_DIR ]] && {
-                # As per our design, after failover softlink /var/motr is
-                # created to points /var/motr{1-2}, and since our INPUT_DIR
-                # is globe pattern (/var/motr*) we end up collecting m0traces
-                # and cores twice unnecessary, hence skipped data collection
-                # if IN_DIR is a soft link.
-                continue
-            }
+
             export IN_DIR=$(readlink -f $IN_DIR)
 
             local label=$stage
@@ -450,6 +443,10 @@ _path_src() {
         m0tr.ko) echo "$src/$name";;
         m0ham|lt-m0ham) echo "$src/ha/.libs/$name";;
         m0ut|lt-m0ut) echo "$src/ut/.libs/$name";;
+        m0client|lt-m0client) echo "$src/motr/st/utils/.libs/$name";;
+        m0touch|lt-m0touch) echo "$src/motr/st/utils/.libs/$name";;
+        m0cp|lt-m0cp) echo "$src/motr/st/utils/.libs/$name";;
+        m0cat|lt-m0cat) echo "$src/motr/st/utils/.libs/$name";;
         m0beck|m0betool) echo "$src/be/tool/.libs/$name";;
         libmotr-ut.so) echo "$src/ut/.libs/$name.0.0.0";;
         libmotr-xcode-ff2c.so) echo "$src/xcode/ff2c/.libs/$name.0.0.0";;
@@ -651,7 +648,7 @@ binaries() {
 
     mkdir -p $outdir
     ## Note, that we intentionally skip `m0tr.ko' as it's too big (42M).
-    for f in m0mkfs m0d m0ham m0ut m0beck m0betool ${libs[@]}; do
+    for f in m0mkfs m0d m0ham m0ut m0beck m0betool m0client m0touch m0cp m0cat ${libs[@]}; do
         s=$(path $f binary)
         if [ -n "$s" ]; then
             ## Strip `.0.0' suffix when copying.
@@ -752,6 +749,14 @@ m0traces() {
          find . -maxdepth 1 -type d -name m0d-\* | while read dir; do
              find $dir -type f -name m0trace.\* |
                  last_modified "${M0TRACES_M0D_MAX:-}"
+         done
+         find . -maxdepth 1 -type d -name m0u\* | while read dir; do
+             find $dir -type f -name m0trace.\* |
+                 last_modified "${M0TRACES_MAX:-}"
+         done
+         find . -maxdepth 1 -type d -name systest-\* | while read dir; do
+             find $dir -type f -name m0trace.\* |
+                 last_modified "${M0TRACES_MAX:-}"
          done
      } | cut -c3- | sort -u | while read path; do
          _tracedump $path $outdir
@@ -891,6 +896,9 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2021-08-10 0.54    Added binaries m0cp, m0cat, m0client and m0touch
+###                    in support bundle.
+###
 ### 2020-10-19 0.53    Added addb-files options to collect addb files from
 ###                    both server(ioservice) and client(s3server)
 ###

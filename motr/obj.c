@@ -806,7 +806,7 @@ int m0_entity_create(struct m0_fid *pool,
 
 	M0_ENTRY();
 	if (entity->en_flags & M0_ENF_META)
-		M0_LOG(M0_DEBUG,"EOF_META FLAG is set from application");
+		M0_LOG(M0_DEBUG, "M0_ENF_META FLAG is set from application");
 
 	M0_PRE(entity != NULL);
 	M0_PRE(op != NULL);

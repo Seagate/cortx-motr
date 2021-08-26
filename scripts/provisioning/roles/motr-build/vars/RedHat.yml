@@ -51,6 +51,8 @@ motr_build_deps_pkgs:
   - systemd-devel
   - libedit-devel
   - yasm
+  - openssl
+  - openssl-devel
 
 motr_build_deps_python3_pkgs:
   - python36
