@@ -135,6 +135,7 @@
 
 enum {
 	LOC_IDLE_NR = 1,
+	LOCM_CHECK_PERIOD_SEC = 10*60,
 	HUNG_FOP_SEC_PERIOD   = 5,
 	HUNG_FOP_TIME_SEC_MAX = 2*60,
 	HUNG_FOP_TIME_SEC_IEM = 5*60,
@@ -197,6 +198,8 @@ static int loc_thr_create(struct m0_fom_locality *loc);
 
 static void hung_foms_notify(struct m0_locality_chore *chore,
 			     struct m0_locality *loc, void *place);
+static void locm_warn_notify(struct m0_locality_chore *chore,
+			     struct m0_locality *loc, void *place);
 
 static struct m0_sm_conf fom_states_conf0;
 M0_INTERNAL struct m0_sm_conf fom_states_conf;
@@ -214,6 +217,14 @@ static struct m0_fom_domain_ops m0_fom_dom_ops = {
  */
 static const struct m0_locality_chore_ops hung_foms_chore_ops = {
 	.co_tick = hung_foms_notify
+};
+
+/**
+ * Chore which checks and warns about migrated locality threads.
+ * (Locality threads should not migrate to another CPU core.)
+ */
+static const struct m0_locality_chore_ops locm_warn_chore_ops = {
+	.co_tick = locm_warn_notify
 };
 
 static void group_lock(struct m0_fom_locality *loc)
@@ -1170,6 +1181,18 @@ static void hung_foms_notify(struct m0_locality_chore *chore,
 			   dom->fd_ops->fdo_time_is_out(dom, fom));
 }
 
+static void locm_warn_notify(struct m0_locality_chore *chore,
+			     struct m0_locality *loc, void *place)
+{
+	struct m0_thread_tls *tls = m0_thread_tls();
+
+	if (tls->tls_loci != m0_processor_id_get()) {
+		M0_LOG(M0_WARN, "locality thread migrated to another CPU core"
+		       " (was %d, now %d), it might affect performance",
+		       (int)tls->tls_loci, (int)m0_processor_id_get());
+	}
+}
+
 M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain **out)
 {
 	struct m0_fom_domain   *dom;
@@ -1235,10 +1258,12 @@ M0_INTERNAL int m0_fom_domain_init(struct m0_fom_domain **out)
 				}
 
 				m0_locality_chore_init(&dom->fd_hung_foms_chore,
-				       &hung_foms_chore_ops,
-				       NULL,
-				       M0_MKTIME(HUNG_FOP_SEC_PERIOD, 0),
-				       0);
+				       &hung_foms_chore_ops, NULL,
+				       M0_MKTIME(HUNG_FOP_SEC_PERIOD, 0), 0);
+
+				m0_locality_chore_init(&dom->fd_locm_warn_chore,
+				       &locm_warn_chore_ops, NULL,
+				       M0_MKTIME(LOCM_CHECK_PERIOD_SEC, 0), 0);
 			}
 		} else
 			result = M0_ERR(-ENOMEM);
@@ -1257,6 +1282,7 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 {
 	int i;
 
+	m0_locality_chore_fini(&dom->fd_locm_warn_chore);
 	m0_locality_chore_fini(&dom->fd_hung_foms_chore);
 	if (dom->fd_localities != NULL) {
 		for (i = dom->fd_localities_nr - 1; i >= 0; --i) {

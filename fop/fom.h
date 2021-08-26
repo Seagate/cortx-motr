@@ -335,6 +335,8 @@ struct m0_fom_domain {
 	const struct m0_fom_domain_ops *fd_ops;
 	/** Long living foms detecting chore. */
 	struct m0_locality_chore        fd_hung_foms_chore;
+	/** Locality thread migration warning chore. */
+	struct m0_locality_chore        fd_locm_warn_chore;
 	struct m0_addb2_sys            *fd_addb2_sys;
 };
 
