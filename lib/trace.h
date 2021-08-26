@@ -179,7 +179,7 @@
  * functions, one can quickly pinpoint the moment when a particular error
  * occurred.
  */
-#define M0_RC_HOOK (0)
+#define M0_RC_HOOK (1)
 
 #if M0_RC_HOOK
 M0_INTERNAL void m0_rc_hook(int rc);

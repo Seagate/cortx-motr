@@ -79,7 +79,7 @@ _check_st_skip_list() {
 incr_mmap() {
     # In WSL /proc/sys/vm/max_map_count is absent. See EOS-7296 for details.
     if [ -f /proc/sys/vm/max_map_count ]; then
-        $SUDO sysctl -q -w vm.max_map_count=30000000
+        : #$SUDO sysctl -q -w vm.max_map_count=30000000
     fi
 }
 

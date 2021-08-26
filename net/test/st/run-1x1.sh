@@ -20,8 +20,8 @@
 
 set -eu
 
-# set -x
-# export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+set -x
+export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
 # The same values as in client-server UT
 ADDR_CONSOLE4CLIENTS="$LNET_PREFIX:298"

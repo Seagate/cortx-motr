@@ -389,7 +389,7 @@ ulimit -n 65536
 # Increase the maximum number of memory map areas a process may have.
 # m0d process may allocate and madvise() at least 2,000,000 memory map areas.
 # See MOTR-2171 for more details.
-sysctl -q -w vm.max_map_count=30000000
+# sysctl -q -w vm.max_map_count=30000000
 
 if [[ -n "$debugger" ]] ; then
     # libmotr will attach debugger in case of panic, disable this as we already

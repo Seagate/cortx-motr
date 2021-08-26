@@ -215,7 +215,7 @@ static int spiel_cmd_send(struct m0_rpc_machine *rmachine,
 	if (rc == 0) {
 		conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
 		if (M0_FI_ENABLED("timeout"))
-			timeout = M0_TIME_ONE_SECOND;
+			timeout = 2 * M0_TIME_ONE_SECOND;
 		rc = m0_rpc_link_connect_sync(rpc_link, conn_timeout);
 
 		if (rc == 0) {

@@ -474,7 +474,7 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 	if (rc < 0)
 		return M0_ERR_INFO(rc, "TM initialization");
 
-	if (net_dom->nd_xprt == &m0_net_lnet_xprt)
+	if (false && net_dom->nd_xprt == &m0_net_lnet_xprt)
 		min_recv_size = m0_rpc_max_msg_size(net_dom, msg_size);
 	else
 		min_recv_size = 1;
