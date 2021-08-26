@@ -968,11 +968,11 @@ struct node_type {
 
 	/** Initializes newly allocated node */
 	void (*nt_init)(const struct segaddr *addr, int shift, int ksize,
-			int vsize, uint32_t ntype, struct m0_be_seg *seg,
-			struct m0_fid fid, struct m0_be_tx *tx);
+			int vsize, uint32_t ntype, uint64_t gen,
+			struct m0_fid fid);
 
 	/** Cleanup of the node if any before deallocation */
-	void (*nt_fini)(const struct nd *node, struct m0_be_tx *tx);
+	void (*nt_fini)(const struct nd *node);
 
 	/** Returns count of records/values in the node*/
 	int  (*nt_count_rec)(const struct nd *node);
@@ -1009,7 +1009,7 @@ struct node_type {
 	bool  (*nt_isoverflow)(const struct nd *node,
 			       const struct m0_btree_rec *rec);
 
-	/** Returns unique FID for this btree. */
+	/** Returns FID stored in the node. */
 	void (*nt_fid)  (const struct nd *node, struct m0_fid *fid);
 
 	/** Returns record (KV pair) for specific index. */
@@ -1031,10 +1031,10 @@ struct node_type {
 	 *  Node changes related to last record have completed; any post
 	 *  processing related to the record needs to be done in this function.
 	 */
-	void (*nt_done)(struct slot *slot, struct m0_be_tx *tx, bool modified);
+	void (*nt_done)(struct slot *slot, bool modified);
 
 	/** Makes space in the node for inserting new entry at specific index */
-	void (*nt_make) (struct slot *slot, struct m0_be_tx *tx);
+	void (*nt_make) (struct slot *slot);
 
 	/** Returns index of the record containing the key in the node */
 	bool (*nt_find) (struct slot *slot, const struct m0_btree_key *key);
@@ -1043,25 +1043,23 @@ struct node_type {
 	 *  All the changes to the node have completed. Any post processing can
 	 *  be done here.
 	 */
-	void (*nt_fix)  (const struct nd *node, struct m0_be_tx *tx);
+	void (*nt_fix)  (const struct nd *node);
 
 	/**
 	 *  Changes the size of the value (increase or decrease) for the
 	 *  specified key
 	 */
-	void (*nt_cut)  (const struct nd *node, int idx, int size,
-			 struct m0_be_tx *tx);
+	void (*nt_cut)  (const struct nd *node, int idx, int size);
 
 	/** Deletes the record from the node at specific index */
-	void (*nt_del)  (const struct nd *node, int idx, struct m0_be_tx *tx);
+	void (*nt_del)  (const struct nd *node, int idx);
 
 	/** Updates the level of node */
-	void (*nt_set_level)  (const struct nd *node, uint8_t new_level,
-			       struct m0_be_tx *tx);
+	void (*nt_set_level)  (const struct nd *node, uint8_t new_level);
 
 	/** Moves record(s) between nodes */
-	void (*nt_move) (struct nd *src, struct nd *tgt,
-			 enum direction dir, int nr, struct m0_be_tx *tx);
+	void (*nt_move) (struct nd *src, struct nd *tgt, enum direction dir,
+			 int nr);
 
 	/** Validates node composition */
 	bool (*nt_invariant)(const struct nd *node);
@@ -1125,11 +1123,6 @@ struct node_type {
 				  m0_bcount_t vsize,
 				  struct m0_be_tx_credit *accum);
 
-	/** Gets key size from segment. */
-	/* uint16_t (*nt_ksize_get)(const struct segaddr *addr); */
-
-	/** Gets value size from segment. */
-	/* uint16_t (*nt_valsize_get)(const struct segaddr *addr); */
 };
 
 /**
@@ -1246,8 +1239,7 @@ static void    tree_put   (struct td *tree);
 
 static int64_t    node_get  (struct node_op *op, struct td *tree,
 			     struct segaddr *addr, int nxt);
-static void       node_put  (struct node_op *op, struct nd *node,
-			     struct m0_be_tx *tx);
+static void       node_put  (struct node_op *op, struct nd *node);
 #endif
 
 
@@ -1266,8 +1258,8 @@ static void node_op_fini(struct node_op *op);
 #ifndef __KERNEL__
 static int node_access(struct segaddr *addr, int shift, int nxt);
 static int  node_init(struct segaddr *addr, int ksize, int vsize,
-		      const struct node_type *nt, struct m0_be_seg *seg,
-		      struct m0_fid fid, struct m0_be_tx *tx, int nxt);
+		      const struct node_type *nt, uint64_t gen,
+		      struct m0_fid fid, int nxt);
 #endif
 #if 0
 static bool node_verify(const struct nd *node);
@@ -1297,30 +1289,28 @@ static void node_key  (struct slot *slot);
 static void node_child(struct slot *slot, struct segaddr *addr);
 #endif
 static bool node_isfit(struct slot *slot);
-static void node_done(struct slot *slot, struct m0_be_tx *tx, bool modified);
-static void node_make(struct slot *slot, struct m0_be_tx *tx);
+static void node_done(struct slot *slot, bool modified);
+static void node_make(struct slot *slot);
 
 #ifndef __KERNEL__
 static bool node_find (struct slot *slot, const struct m0_btree_key *key);
 #endif
 static void node_seq_cnt_update (struct nd *node);
-static void node_fix  (const struct nd *node, struct m0_be_tx *tx);
+static void node_fix  (const struct nd *node);
 #if 0
-static void node_cut  (const struct nd *node, int idx, int size,
-		       struct m0_be_tx *tx);
+static void node_cut  (const struct nd *node, int idx, int size);
 #endif
-static void node_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
+static void node_del  (const struct nd *node, int idx);
 #ifndef __KERNEL__
-static void node_set_level  (const struct nd *node, uint8_t new_level,
-			     struct m0_be_tx *tx);
+static void node_set_level  (const struct nd *node, uint8_t new_level);
 static void node_move (struct nd *src, struct nd *tgt, enum direction dir,
-		       int nr, struct m0_be_tx *tx);
+		       int nr);
 
 static void node_capture(struct slot *slot, struct m0_be_tx *tx);
 
 static void node_lock(struct nd *node);
 static void node_unlock(struct nd *node);
-static void node_fini(const struct nd *node, struct m0_be_tx *tx);
+static void node_fini(const struct nd *node);
 #endif
 /**
  * Common node header.
@@ -1494,8 +1484,8 @@ static int node_access(struct segaddr *addr, int shift, int nxt)
 }
 
 static int node_init(struct segaddr *addr, int ksize, int vsize,
-		     const struct node_type *nt, struct m0_be_seg *seg,
-		     struct m0_fid fid, struct m0_be_tx *tx, int nxt)
+		     const struct node_type *nt, uint64_t gen,
+		     struct m0_fid fid, int nxt)
 {
 	/**
 	 * node_access() will ensure that we have node data loaded in our memory
@@ -1508,8 +1498,8 @@ static int node_init(struct segaddr *addr, int ksize, int vsize,
 	 * requires some time to complete its operation.
 	 */
 
-	nt->nt_init(addr, segaddr_shift(addr), ksize, vsize, nt->nt_id, seg,
-		    fid, tx);
+	nt->nt_init(addr, segaddr_shift(addr), ksize, vsize, nt->nt_id, gen,
+		    fid);
 	return nxt;
 }
 #endif
@@ -1649,16 +1639,16 @@ static bool node_isfit(struct slot *slot)
 	return slot->s_node->n_type->nt_isfit(slot);
 }
 
-static void node_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
+static void node_done(struct slot *slot, bool modified)
 {
 	M0_PRE(node_invariant(slot->s_node));
-	slot->s_node->n_type->nt_done(slot, tx, modified);
+	slot->s_node->n_type->nt_done(slot, modified);
 }
 
-static void node_make(struct slot *slot, struct m0_be_tx *tx)
+static void node_make(struct slot *slot)
 {
 	M0_PRE(node_invariant(slot->s_node));
-	slot->s_node->n_type->nt_make(slot, tx);
+	slot->s_node->n_type->nt_make(slot);
 }
 
 #ifndef __KERNEL__
@@ -1719,42 +1709,40 @@ static void node_seq_cnt_update(struct nd *node)
 	node->n_seq++;
 }
 
-static void node_fix(const struct nd *node, struct m0_be_tx *tx)
+static void node_fix(const struct nd *node)
 {
 	M0_PRE(node_invariant(node));
-	node->n_type->nt_fix(node, tx);
+	node->n_type->nt_fix(node);
 }
 
 #if 0
-static void node_cut(const struct nd *node, int idx, int size,
-		     struct m0_be_tx *tx)
+static void node_cut(const struct nd *node, int idx, int size)
 {
 	M0_PRE(node_invariant(node));
-	node->n_type->nt_cut(node, idx, size, tx);
+	node->n_type->nt_cut(node, idx, size);
 }
 #endif
 
-static void node_del(const struct nd *node, int idx, struct m0_be_tx *tx)
+static void node_del(const struct nd *node, int idx)
 {
 	M0_PRE(node_invariant(node));
-	node->n_type->nt_del(node, idx, tx);
+	node->n_type->nt_del(node, idx);
 }
 
 #ifndef __KERNEL__
-static void node_set_level(const struct nd *node, uint8_t new_level,
-			   struct m0_be_tx *tx)
+static void node_set_level(const struct nd *node, uint8_t new_level)
 {
 	M0_PRE(node_invariant(node));
-	node->n_type->nt_set_level(node, new_level, tx);
+	node->n_type->nt_set_level(node, new_level);
 }
 
 static void node_move(struct nd *src, struct nd *tgt, enum direction dir,
-		      int nr, struct m0_be_tx *tx)
+		      int nr)
 {
 	M0_PRE(node_invariant(src));
 	M0_PRE(node_invariant(tgt));
 	M0_IN(dir,(D_LEFT, D_RIGHT));
-	tgt->n_type->nt_move(src, tgt, dir, nr, tx);
+	tgt->n_type->nt_move(src, tgt, dir, nr);
 }
 
 static void node_capture(struct slot *slot, struct m0_be_tx *tx)
@@ -1772,9 +1760,9 @@ static void node_unlock(struct nd *node)
 	m0_rwlock_write_unlock(&node->n_lock);
 }
 
-static void node_fini(const struct nd *node, struct m0_be_tx *tx)
+static void node_fini(const struct nd *node)
 {
-	node->n_type->nt_fini(node, tx);
+	node->n_type->nt_fini(node);
 }
 
 static void node_alloc_credit(const struct nd *node, m0_bcount_t ksize,
@@ -2138,7 +2126,7 @@ static int64_t tree_delete(struct node_op *op, struct td *tree,
 	op->no_tree = tree;
 	op->no_node = root;
 
-	node_fini(op->no_node, tx);
+	node_fini(op->no_node);
 	node_free(op, op->no_node, tx, nxt);
 	tree_put(tree);
 
@@ -2308,10 +2296,9 @@ static int64_t node_get(struct node_op *op, struct td *tree,
  *
  * @param op load operation to perform.
  * @param node node descriptor.
- * @param tx changes will be captured in this transaction.
  *
  */
-static void node_put(struct node_op *op, struct nd *node, struct m0_be_tx *tx)
+static void node_put(struct node_op *op, struct nd *node)
 {
 
 	M0_PRE(node != NULL);
@@ -2421,8 +2408,8 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int shift,
 	op->no_addr = segaddr_build(area, shift);
 	op->no_tree = tree;
 
-	nxt_state = node_init(&op->no_addr, ksize, vsize, nt, tree->t_seg,
-			      tree->t_fid, tx, nxt);
+	nxt_state = node_init(&op->no_addr, ksize, vsize, nt,
+			      tree->t_seg->bs_gen, tree->t_fid, nxt);
 	/**
 	 * TODO: Consider adding a state here to return in case we might need to
 	 * visit node_init() again to complete its execution.
@@ -2482,9 +2469,8 @@ enum m0_be_bnode_format_version {
 };
 
 static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
-		    uint32_t ntype, struct m0_be_seg *seg, struct m0_fid fid,
-		    struct m0_be_tx *tx);
-static void ff_fini(const struct nd *node, struct m0_be_tx *tx);
+		    uint32_t ntype, uint64_t gen, struct m0_fid fid);
+static void ff_fini(const struct nd *node);
 static int  ff_count_rec(const struct nd *node);
 static int  ff_space(const struct nd *node);
 static int  ff_level(const struct nd *node);
@@ -2499,16 +2485,14 @@ static void ff_rec(struct slot *slot);
 static void ff_node_key(struct slot *slot);
 static void ff_child(struct slot *slot, struct segaddr *addr);
 static bool ff_isfit(struct slot *slot);
-static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified);
-static void ff_make(struct slot *slot, struct m0_be_tx *tx);
-static void ff_fix(const struct nd *node, struct m0_be_tx *tx);
-static void ff_cut(const struct nd *node, int idx, int size,
-		   struct m0_be_tx *tx);
-static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx);
-static void ff_set_level(const struct nd *node, uint8_t new_level,
-			 struct m0_be_tx *tx);
-static void generic_move(struct nd *src, struct nd *tgt,
-			 enum direction dir, int nr, struct m0_be_tx *tx);
+static void ff_done(struct slot *slot, bool modified);
+static void ff_make(struct slot *slot);
+static void ff_fix(const struct nd *node);
+static void ff_cut(const struct nd *node, int idx, int size);
+static void ff_del(const struct nd *node, int idx);
+static void ff_set_level(const struct nd *node, uint8_t new_level);
+static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
+			 int nr);
 static bool ff_invariant(const struct nd *node);
 static bool ff_expensive_invariant(const struct nd *node);
 static bool ff_verify(const struct nd *node);
@@ -2529,8 +2513,6 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 			      m0_bcount_t vsize,
 			      struct m0_be_tx_credit *accum);
 static int  ff_create_delete_credit_size(void);
-/* uint16_t ff_ksize_get(const struct segaddr *addr); */
-/* uint16_t ff_valsize_get(const struct segaddr *addr);  */
 
 /**
  *  Implementation of node which supports fixed format/size for Keys and Values
@@ -2575,37 +2557,8 @@ static const struct node_type fixed_format = {
 	.nt_rec_put_credit            = ff_rec_put_credit,
 	.nt_rec_update_credit         = ff_rec_update_credit,
 	.nt_rec_del_credit            = ff_rec_del_credit,
-	/* .nt_ksize_get          = ff_ksize_get, */
-	/* .nt_valsize_get        = ff_valsize_get, */
 };
 
-#if 0
-/**
- * Returns the key size stored at segment address.
- *
- * @param seg_addr points to the formatted segment address.
- *
- * @return key size
- */
-uint16_t ff_ksize_get(const struct segaddr *addr)
-{
-	struct ff_head *h  =  segaddr_addr(addr);
-	return h->ff_ksize;
-}
-
-/**
- * Returns the value size stored at segment address.
- *
- * @param seg_addr points to the formatted segment address.
- *
- * @return value size
- */
-uint16_t ff_valsize_get(const struct segaddr *addr)
-{
-	struct ff_head *h  =  segaddr_addr(addr);
-	return h->ff_vsize;
-}
-#endif
 static int ff_create_delete_credit_size(void)
 {
 	struct ff_head *h;
@@ -2725,8 +2678,7 @@ static bool segaddr_header_isvalid(const struct segaddr *addr)
 }
 
 static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
-		    uint32_t ntype, struct m0_be_seg *seg, struct m0_fid fid,
-		    struct m0_be_tx *tx)
+		    uint32_t ntype, uint64_t gen, struct m0_fid fid)
 {
 	struct ff_head *h   = segaddr_addr(addr);
 
@@ -2738,7 +2690,7 @@ static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 	h->ff_ksize           = ksize;
 	h->ff_vsize           = vsize;
 	h->ff_seg.h_node_type = ntype;
-	h->ff_seg.h_gen       = seg->bs_gen;
+	h->ff_seg.h_gen       = gen;
 	h->ff_seg.h_fid       = fid;
 	h->ff_opaque          = NULL;
 
@@ -2756,7 +2708,7 @@ static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 	 */
 }
 
-static void ff_fini(const struct nd *node, struct m0_be_tx *tx)
+static void ff_fini(const struct nd *node)
 {
 	struct ff_head *h = ff_data(node);
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
@@ -2866,7 +2818,7 @@ static bool ff_isfit(struct slot *slot)
 	return h->ff_ksize + h->ff_vsize <= ff_space(slot->s_node);
 }
 
-static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
+static void ff_done(struct slot *slot, bool modified)
 {
 	/**
 	 * not needed yet. In future if we want to calculate checksum per
@@ -2874,7 +2826,7 @@ static void ff_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
 	*/
 }
 
-static void ff_make(struct slot *slot, struct m0_be_tx *tx)
+static void ff_make(struct slot *slot)
 {
 	const struct nd *node  = slot->s_node;
 	struct ff_head  *h     = ff_data(node);
@@ -2888,7 +2840,7 @@ static void ff_make(struct slot *slot, struct m0_be_tx *tx)
 	/** Capture these changes in ff_capture.*/
 }
 
-static void ff_fix(const struct nd *node, struct m0_be_tx *tx)
+static void ff_fix(const struct nd *node)
 {
 	struct ff_head *h = ff_data(node);
 
@@ -2896,13 +2848,12 @@ static void ff_fix(const struct nd *node, struct m0_be_tx *tx)
 	/** Capture changes in ff_capture */
 }
 
-static void ff_cut(const struct nd *node, int idx, int size,
-		   struct m0_be_tx *tx)
+static void ff_cut(const struct nd *node, int idx, int size)
 {
 	M0_PRE(size == ff_data(node)->ff_vsize);
 }
 
-static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
+static void ff_del(const struct nd *node, int idx)
 {
 	struct ff_head   *h     = ff_data(node);
 	int               rsize = h->ff_ksize + h->ff_vsize;
@@ -2915,8 +2866,7 @@ static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	/** Capture changes in ff_capture */
 }
 
-static void ff_set_level(const struct nd *node, uint8_t new_level,
-			 struct m0_be_tx *tx)
+static void ff_set_level(const struct nd *node, uint8_t new_level)
 {
 	struct ff_head *h = ff_data(node);
 
@@ -2937,8 +2887,8 @@ static void *ff_opaque_get(const struct segaddr *addr)
 	return h->ff_opaque;
 }
 
-static void generic_move(struct nd *src, struct nd *tgt,
-			 enum direction dir, int nr, struct m0_be_tx *tx)
+static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
+			 int nr)
 {
 	struct slot  rec;
 	struct slot  tmp;
@@ -2990,7 +2940,7 @@ static void generic_move(struct nd *src, struct nd *tgt,
 		rec.s_idx  = tgtidx;
 		if (!node_isfit(&rec))
 			break;
-		node_make(&rec, tx);
+		node_make(&rec);
 
 		/** Get the location in the target node where the record from
 		 *  the source node will be copied later
@@ -3005,19 +2955,19 @@ static void generic_move(struct nd *src, struct nd *tgt,
 			       m0_vec_count(&rec.s_rec.r_key.k_data.ov_vec));
 		m0_bufvec_copy(&tmp.s_rec.r_val, &rec.s_rec.r_val,
 			       m0_vec_count(&rec.s_rec.r_val.ov_vec));
-		node_del(src, srcidx, tx);
+		node_del(src, srcidx);
 		if (nr > 0)
 			nr--;
-		node_done(&tmp, tx, true);
+		node_done(&tmp, true);
 		if (dir == D_LEFT)
 			tgtidx++;
 		else
 			srcidx--;
 	}
 	node_seq_cnt_update(src);
-	node_fix(src, tx);
+	node_fix(src);
 	node_seq_cnt_update(tgt);
-	node_fix(tgt, tx);
+	node_fix(tgt);
 }
 
 static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
@@ -3203,9 +3153,9 @@ struct fkvv_head {
 #define OFFSET_SIZE sizeof(uint32_t)
 
 static void fkvv_init(const struct segaddr *addr, int shift, int ksize,
-		      int vsize, uint32_t ntype, struct m0_be_seg *seg,
-		      struct m0_fid fid, struct m0_be_tx *tx);
-static void fkvv_fini(const struct nd *node, struct m0_be_tx *tx);
+		      int vsize, uint32_t ntype, uint64_t gen,
+		      struct m0_fid fid);
+static void fkvv_fini(const struct nd *node);
 static int  fkvv_count_rec(const struct nd *node);
 static int  fkvv_space(const struct nd *node);
 static int  fkvv_level(const struct nd *node);
@@ -3220,14 +3170,12 @@ static void fkvv_rec(struct slot *slot);
 static void fkvv_node_key(struct slot *slot);
 static void fkvv_child(struct slot *slot, struct segaddr *addr);
 static bool fkvv_isfit(struct slot *slot);
-static void fkvv_done(struct slot *slot, struct m0_be_tx *tx, bool modified);
-static void fkvv_make(struct slot *slot, struct m0_be_tx *tx);
-static void fkvv_fix(const struct nd *node, struct m0_be_tx *tx);
-static void fkvv_cut(const struct nd *node, int idx, int size,
-		     struct m0_be_tx *tx);
-static void fkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx);
-static void fkvv_set_level(const struct nd *node, uint8_t new_level,
-			   struct m0_be_tx *tx);
+static void fkvv_done(struct slot *slot, bool modified);
+static void fkvv_make(struct slot *slot);
+static void fkvv_fix(const struct nd *node);
+static void fkvv_cut(const struct nd *node, int idx, int size);
+static void fkvv_del(const struct nd *node, int idx);
+static void fkvv_set_level(const struct nd *node, uint8_t new_level);
 static bool fkvv_invariant(const struct nd *node);
 static bool fkvv_expensive_invariant(const struct nd *node);
 static bool fkvv_verify(const struct nd *node);
@@ -3295,8 +3243,8 @@ static struct fkvv_head *fkvv_data(const struct nd *node)
 }
 
 static void fkvv_init(const struct segaddr *addr, int shift, int ksize,
-		      int vsize, uint32_t ntype, struct m0_be_seg *seg,
-		      struct m0_fid fid, struct m0_be_tx *tx)
+		      int vsize, uint32_t ntype, uint64_t gen,
+		      struct m0_fid fid)
 {
 	struct fkvv_head *h       = segaddr_addr(addr);
 
@@ -3306,7 +3254,7 @@ static void fkvv_init(const struct segaddr *addr, int shift, int ksize,
 	h->fkvv_shift             = shift;
 	h->fkvv_ksize             = ksize;
 	h->fkvv_seg.h_node_type   = ntype;
-	h->fkvv_seg.h_gen         = seg->bs_gen;
+	h->fkvv_seg.h_gen         = gen;
 	h->fkvv_seg.h_fid         = fid;
 	h->fkvv_opaque            = NULL;
 
@@ -3324,7 +3272,7 @@ static void fkvv_init(const struct segaddr *addr, int shift, int ksize,
 	 */
 }
 
-static void fkvv_fini(const struct nd *node, struct m0_be_tx *tx)
+static void fkvv_fini(const struct nd *node)
 {
 	struct fkvv_head *h       = fkvv_data(node);
 	m0_format_header_pack(&h->fkvv_fmt, &(struct m0_format_tag){
@@ -3561,7 +3509,7 @@ static bool fkvv_isfit(struct slot *slot)
 	return rsize <= fkvv_space(slot->s_node);
 }
 
-static void fkvv_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
+static void fkvv_done(struct slot *slot, bool modified)
 {
 	/**
 	 * Function implementation is not needed yet. In future if we want to
@@ -3570,7 +3518,7 @@ static void fkvv_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
 	*/
 }
 
-static void fkvv_make_internal(struct slot *slot, struct m0_be_tx *tx)
+static void fkvv_make_internal(struct slot *slot)
 {
 	struct fkvv_head *h  = fkvv_data(slot->s_node);
 	void             *key_addr;
@@ -3596,7 +3544,7 @@ static void fkvv_make_internal(struct slot *slot, struct m0_be_tx *tx)
 	h->fkvv_used++;
 }
 
-static void fkvv_make_leaf(struct slot *slot, struct m0_be_tx *tx)
+static void fkvv_make_leaf(struct slot *slot)
 {
 	struct fkvv_head *h = fkvv_data(slot->s_node);
 	uint32_t         *curr_val_offset;
@@ -3640,7 +3588,7 @@ static void fkvv_make_leaf(struct slot *slot, struct m0_be_tx *tx)
 				 *last_val_offset - *prev_val_offset;
 
 	memmove(key_addr + unit_key_offset_rsize, key_addr, total_key_size);
-	memmove(val_addr - new_val_size, val_addr , total_val_size);
+	memmove(val_addr - new_val_size, val_addr, total_val_size);
 
 	h->fkvv_used++;
 
@@ -3654,13 +3602,13 @@ static void fkvv_make_leaf(struct slot *slot, struct m0_be_tx *tx)
 	}
 }
 
-static void fkvv_make(struct slot *slot, struct m0_be_tx *tx)
+static void fkvv_make(struct slot *slot)
 {
-	(IS_INTERNAL_NODE(slot->s_node)) ? fkvv_make_internal(slot, tx)
-					 : fkvv_make_leaf(slot, tx);
+	(IS_INTERNAL_NODE(slot->s_node)) ? fkvv_make_internal(slot)
+					 : fkvv_make_leaf(slot);
 }
 
-static void fkvv_fix(const struct nd *node, struct m0_be_tx *tx)
+static void fkvv_fix(const struct nd *node)
 {
 	struct fkvv_head *h = fkvv_data(node);
 
@@ -3668,14 +3616,12 @@ static void fkvv_fix(const struct nd *node, struct m0_be_tx *tx)
 	/** Capture changes in fkvv_capture */
 }
 
-static void fkvv_cut(const struct nd *node, int idx, int size,
-		   struct m0_be_tx *tx)
+static void fkvv_cut(const struct nd *node, int idx, int size)
 {
 
 }
 
-static void fkvv_del_internal(const struct nd *node, int idx,
-			      struct m0_be_tx *tx)
+static void fkvv_del_internal(const struct nd *node, int idx)
 {
 	struct fkvv_head *h     = fkvv_data(node);
 	void             *key_addr;
@@ -3685,7 +3631,7 @@ static void fkvv_del_internal(const struct nd *node, int idx,
 
 	M0_PRE(h->fkvv_used > 0 && idx < h->fkvv_used);
 
-	if (idx == h->fkvv_used - 1){
+	if (idx == h->fkvv_used - 1) {
 		h->fkvv_used--;
 		return;
 	}
@@ -3702,7 +3648,7 @@ static void fkvv_del_internal(const struct nd *node, int idx,
 	h->fkvv_used--;
 }
 
-static void fkvv_del_leaf(const struct nd *node, int idx, struct m0_be_tx *tx)
+static void fkvv_del_leaf(const struct nd *node, int idx)
 {
 	struct fkvv_head *h     = fkvv_data(node);
 	int               key_offset_rsize;
@@ -3718,7 +3664,7 @@ static void fkvv_del_leaf(const struct nd *node, int idx, struct m0_be_tx *tx)
 
 	M0_PRE(h->fkvv_used > 0 && idx < h->fkvv_used);
 
-	if (idx == h->fkvv_used - 1){
+	if (idx == h->fkvv_used - 1) {
 		h->fkvv_used--;
 		return;
 	}
@@ -3751,14 +3697,13 @@ static void fkvv_del_leaf(const struct nd *node, int idx, struct m0_be_tx *tx)
 	}
 }
 
-static void fkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx)
+static void fkvv_del(const struct nd *node, int idx)
 {
-	(IS_INTERNAL_NODE(node)) ? fkvv_del_internal(node, idx, tx)
-				 : fkvv_del_leaf(node, idx, tx);
+	(IS_INTERNAL_NODE(node)) ? fkvv_del_internal(node, idx)
+				 : fkvv_del_leaf(node, idx);
 }
 
-static void fkvv_set_level(const struct nd *node, uint8_t new_level,
-			   struct m0_be_tx *tx)
+static void fkvv_set_level(const struct nd *node, uint8_t new_level)
 {
 	struct fkvv_head *h = fkvv_data(node);
 
@@ -4074,7 +4019,7 @@ static uint32_t vkvv_get_dir_offset(const struct segaddr *addr, int shift)
 }
 
 static void vkvv_init(const struct segaddr *addr, int shift, int ksize, int vsize,
-		    uint32_t ntype, struct m0_be_seg *seg, struct m0_be_tx *tx)
+		    uint32_t ntype, uint64_t gen, struct m0_fid fid)
 {
 	/**
 	 * @brief  This function will do all the initialisations. Here, it
@@ -4085,7 +4030,7 @@ static void vkvv_init(const struct segaddr *addr, int shift, int ksize, int vsiz
 	h->vkvv_dir_offset = vkvv_get_dir_offset(addr, shift);
 }
 
-static void vkvv_fini(const struct nd *node, struct m0_be_tx *tx)
+static void vkvv_fini(const struct nd *node)
 {
 	/**
 	 * @brief This function will do all the finalisations in the header.
@@ -4303,12 +4248,12 @@ static bool vkvv_isfit(struct slot *slot)
 	 */
 }
 
-static void vkvv_done(struct slot *slot, struct m0_be_tx *tx, bool modified)
+static void vkvv_done(struct slot *slot, bool modified)
 {
 
 }
 
-static void vkvv_make(struct slot *slot, struct m0_be_tx *tx)
+static void vkvv_make(struct slot *slot)
 {
 	/**
 	 * @brief This function will create space to add a new entry at the
@@ -4367,7 +4312,7 @@ static bool vkvv_find(struct slot *slot, const struct m0_btree_key *key)
 	 */
 }
 
-static void vkvv_fix(const struct nd *node, struct m0_be_tx *tx)
+static void vkvv_fix(const struct nd *node)
 {
 	/**
 	 * @brief This function will do any post processing required after the
@@ -4375,8 +4320,7 @@ static void vkvv_fix(const struct nd *node, struct m0_be_tx *tx)
 	 */
 }
 
-static void vkvv_cut(const struct nd *node, int idx, int size,
-		   struct m0_be_tx *tx)
+static void vkvv_cut(const struct nd *node, int idx, int size)
 {
 	/**
 	 * @brief This function changes the size of value for the specified
@@ -4386,7 +4330,7 @@ static void vkvv_cut(const struct nd *node, int idx, int size,
 	 */
 }
 
-static void vkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx)
+static void vkvv_del(const struct nd *node, int idx)
 {
 	/**
 	 * @brief This function will delete the given record or KV pair from
@@ -4430,15 +4374,15 @@ static void vkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	 *
 	 */
 }
-static void vkvv_set_level(const struct nd *node, uint8_t new_level,
-			 struct m0_be_tx *tx)
+
+static void vkvv_set_level(const struct nd *node, uint8_t new_level)
 {
 	/**
 	 * @brief This function will set the level for the given node.
 	 */
 }
-static void vkvv_move(struct nd *src, struct nd *tgt,
-			 enum direction dir, int nr, struct m0_be_tx *tx)
+static void vkvv_move(struct nd *src, struct nd *tgt, enum direction dir,
+		      int nr)
 {
 	/**
 	 * @brief This function is used to move data between 2 nodes.
@@ -4771,16 +4715,16 @@ static void level_alloc(struct m0_btree_oimpl *oi, int height)
 	oi->i_level = m0_alloc(height * (sizeof *oi->i_level));
 }
 
-static void level_put(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
+static void level_put(struct m0_btree_oimpl *oi)
 {
 	int i;
 	for (i = 0; i <= oi->i_used; ++i) {
 		if (oi->i_level[i].l_node != NULL) {
-			node_put(&oi->i_nop, oi->i_level[i].l_node, tx);
+			node_put(&oi->i_nop, oi->i_level[i].l_node);
 			oi->i_level[i].l_node = NULL;
 		}
 		if (oi->i_level[i].l_sibling != NULL) {
-			node_put(&oi->i_nop, oi->i_level[i].l_sibling, tx);
+			node_put(&oi->i_nop, oi->i_level[i].l_sibling);
 			oi->i_level[i].l_sibling = NULL;
 		}
 	}
@@ -4798,13 +4742,12 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 	int i;
 
 	/** Put all the nodes back. */
-	level_put(oi, tx);
+	level_put(oi);
 	/** Free up allocated nodes. */
 	for (i = 0; i < oi->i_height; ++i) {
 		if (oi->i_level[i].l_alloc != NULL) {
 			if (oi->i_level[i].i_alloc_in_use)
-				node_put(&oi->i_nop, oi->i_level[i].l_alloc,
-					 tx);
+				node_put(&oi->i_nop, oi->i_level[i].l_alloc);
 			else {
 				oi->i_nop.no_opc = NOP_FREE;
 				/**
@@ -4813,7 +4756,7 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 				 * phase in put_tick and I/O delay would have
 				 * happened during the allocation.
 				 */
-				node_fini(oi->i_level[i].l_alloc, tx);
+				node_fini(oi->i_level[i].l_alloc);
 				node_free(&oi->i_nop, oi->i_level[i].l_alloc,
 					  tx, 0);
 				oi->i_level[i].l_alloc = NULL;
@@ -4828,10 +4771,10 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 		 * used if l_alloc at root level is used.
 		 */
 		if (oi->i_level[0].i_alloc_in_use)
-			node_put(&oi->i_nop, oi->i_extra_node, tx);
+			node_put(&oi->i_nop, oi->i_extra_node);
 		else {
 			oi->i_nop.no_opc = NOP_FREE;
-			node_fini(oi->i_extra_node, tx);
+			node_fini(oi->i_extra_node);
 			node_free(&oi->i_nop, oi->i_extra_node, tx, 0);
 			oi->i_extra_node = NULL;
 		}
@@ -4955,12 +4898,12 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_lock(lev->l_node);
 	node_lock(oi->i_extra_node);
 
-	node_set_level(oi->i_extra_node, curr_max_level, bop->bo_tx);
+	node_set_level(oi->i_extra_node, curr_max_level);
 
-	node_move(lev->l_node, oi->i_extra_node, D_RIGHT, NR_MAX, bop->bo_tx);
+	node_move(lev->l_node, oi->i_extra_node, D_RIGHT, NR_MAX);
 	M0_ASSERT(node_count_rec(lev->l_node) == 0);
 
-	node_set_level(lev->l_node, curr_max_level + 1, bop->bo_tx);
+	node_set_level(lev->l_node, curr_max_level + 1);
 
 	/* 2) add new 2 records at root node. */
 
@@ -4972,13 +4915,13 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_slot.s_rec = bop->bo_rec;
 
 	/* M0_ASSERT(node_isfit(&node_slot)) */
-	node_make(&node_slot, bop->bo_tx);
+	node_make(&node_slot);
 	node_slot.s_rec = REC_INIT(&p_key, &ksize, &p_val, &vsize);
 	node_rec(&node_slot);
 	COPY_RECORD(&node_slot.s_rec, &bop->bo_rec);
 	/* if we need to update vec_count for node, update here */
 
-	node_done(&node_slot, bop->bo_tx, true);
+	node_done(&node_slot, true);
 
 	/* Add second rec at root */
 
@@ -4992,15 +4935,15 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	bop->bo_rec.r_val.ov_buf[0] = &(oi->i_extra_node->n_addr);
 	node_slot.s_idx  = 1;
 	node_slot.s_rec = bop->bo_rec;
-	node_make(&node_slot, bop->bo_tx);
+	node_make(&node_slot);
 	node_slot.s_rec = REC_INIT(&p_key, &ksize, &p_val, &vsize);
 	node_rec(&node_slot);
 	COPY_VALUE(&node_slot.s_rec, &bop->bo_rec);
 	/* if we need to update vec_count for root slot, update at this place */
 
-	node_done(&node_slot, bop->bo_tx, true);
+	node_done(&node_slot, true);
 	node_seq_cnt_update(lev->l_node);
-	node_fix(lev->l_node, bop->bo_tx);
+	node_fix(lev->l_node);
 	/**
 	 * Note : not capturing l_node as it must have already been captured in
 	 * btree_put_makespace_phase().
@@ -5031,13 +4974,10 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
  * @param l_node It is the current node, from where we want to move record.
  * @param rec It is the given record for which we want to find slot
  * @param tgt result of record find will get stored in tgt slot
- * @param tx It represents the transaction of which the current operation is
- * part of.
  */
 static void btree_put_split_and_find(struct nd *allocated_node,
 				     struct nd *current_node,
-				     struct m0_btree_rec *rec, struct slot *tgt,
-				     struct m0_be_seg *seg, struct m0_be_tx *tx)
+				     struct m0_btree_rec *rec, struct slot *tgt)
 {
 	struct slot              right_slot;
 	struct slot              left_slot;
@@ -5055,9 +4995,9 @@ static void btree_put_split_and_find(struct nd *allocated_node,
 
 	/* 1)Move some records from current node to new node */
 
-	node_set_level(allocated_node, node_level(current_node), tx);
+	node_set_level(allocated_node, node_level(current_node));
 
-	node_move(current_node, allocated_node, D_LEFT, NR_EVEN, tx);
+	node_move(current_node, allocated_node, D_LEFT, NR_EVEN);
 
 	/*2) Find appropriate slot for given record */
 
@@ -5135,25 +5075,23 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 
 	lev->i_alloc_in_use = true;
 
-	btree_put_split_and_find(lev->l_alloc, lev->l_node, &bop->bo_rec, &tgt,
-				 bop->bo_seg, bop->bo_tx);
+	btree_put_split_and_find(lev->l_alloc, lev->l_node, &bop->bo_rec, &tgt);
 
 	tgt.s_rec = bop->bo_rec;
-	node_make (&tgt, bop->bo_tx);
+	node_make (&tgt);
 	tgt.s_rec = REC_INIT(&p_key, &ksize, &p_val, &vsize);
 	node_rec(&tgt);
 	tgt.s_rec.r_flags = M0_BSC_SUCCESS;
 	int rc = bop->bo_cb.c_act(&bop->bo_cb, &tgt.s_rec);
 	if (rc) {
 		/* If callback failed, undo make space, splitted node */
-		node_del(tgt.s_node, tgt.s_idx, bop->bo_tx);
-		node_done(&tgt, bop->bo_tx, true);
+		node_del(tgt.s_node, tgt.s_idx);
+		node_done(&tgt, true);
 		tgt.s_node == lev->l_node ? node_seq_cnt_update(lev->l_node) :
 					    node_seq_cnt_update(lev->l_alloc);
-		node_fix(lev->l_node, bop->bo_tx);
+		node_fix(lev->l_node);
 
-		node_move(lev->l_alloc, lev->l_node, D_RIGHT,
-		          NR_MAX, bop->bo_tx);
+		node_move(lev->l_alloc, lev->l_node, D_RIGHT, NR_MAX);
 		lev->i_alloc_in_use = false;
 
 		node_unlock(lev->l_alloc);
@@ -5161,10 +5099,10 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		lock_op_unlock(bop->bo_arbor->t_desc);
 		return fail(bop, rc);
 	}
-	node_done(&tgt, bop->bo_tx, true);
+	node_done(&tgt, true);
 	tgt.s_node == lev->l_node ? node_seq_cnt_update(lev->l_node) :
 				    node_seq_cnt_update(lev->l_alloc);
-	node_fix(tgt.s_node, bop->bo_tx);
+	node_fix(tgt.s_node);
 	btree_node_capture_enlist(oi, lev->l_alloc, 0);
 	btree_node_capture_enlist(oi, lev->l_node, 0);
 
@@ -5195,16 +5133,16 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 
 			node_lock(lev->l_node);
 
-			node_make(&node_slot, bop->bo_tx);
+			node_make(&node_slot);
 			node_slot.s_rec = REC_INIT(&p_key_1, &ksize_1,
 						   &p_val_1, &vsize_1);
 			node_rec(&node_slot);
 			rec = &new_rec;
 			COPY_RECORD(&node_slot.s_rec, rec);
 
-			node_done(&node_slot, bop->bo_tx, true);
+			node_done(&node_slot, true);
 			node_seq_cnt_update(lev->l_node);
-			node_fix(lev->l_node, bop->bo_tx);
+			node_fix(lev->l_node);
 			btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
 
 			/**
@@ -5222,18 +5160,18 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		lev->i_alloc_in_use = true;
 
 		btree_put_split_and_find(lev->l_alloc, lev->l_node, &new_rec,
-					 &tgt, bop->bo_seg, bop->bo_tx);
+					 &tgt);
 
 		tgt.s_rec = new_rec;
-		node_make(&tgt, bop->bo_tx);
+		node_make(&tgt);
 		tgt.s_rec = REC_INIT(&p_key_1, &ksize_1, &p_val_1, &vsize_1);
 		node_rec(&tgt);
 		COPY_RECORD(&tgt.s_rec,  &new_rec);
 
-		node_done(&tgt, bop->bo_tx, true);
+		node_done(&tgt, true);
 		tgt.s_node == lev->l_node ? node_seq_cnt_update(lev->l_node) :
 					    node_seq_cnt_update(lev->l_alloc);
-		node_fix(tgt.s_node, bop->bo_tx);
+		node_fix(tgt.s_node);
 		btree_node_capture_enlist(oi, lev->l_alloc, 0);
 		btree_node_capture_enlist(oi, lev->l_node, 0);
 
@@ -5503,7 +5441,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			} else {
 				/* If height is same, put back all the nodes. */
 				lock_op_unlock(tree);
-				level_put(oi, bop->bo_tx);
+				level_put(oi);
 				return P_DOWN;
 			}
 		}
@@ -5536,7 +5474,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			return btree_put_makespace_phase(bop);
 
 		node_lock(lev->l_node);
-		node_make(&slot_for_right_node, bop->bo_tx);
+		node_make(&slot_for_right_node);
 		/** Fall through if there is no overflow.  **/
 	}
 	case P_ACT: {
@@ -5572,20 +5510,19 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		if (rc) {
 			/* handle if callback fail i.e undo make */
 			if (bop->bo_opc == M0_BO_PUT) {
-				node_del(node_slot.s_node, node_slot.s_idx,
-					 bop->bo_tx);
-				node_done(&node_slot, bop->bo_tx, true);
+				node_del(node_slot.s_node, node_slot.s_idx);
+				node_done(&node_slot, true);
 				node_seq_cnt_update(lev->l_node);
-				node_fix(lev->l_node, bop->bo_tx);
+				node_fix(lev->l_node);
 			}
 
 			node_unlock(lev->l_node);
 			lock_op_unlock(tree);
 			return fail(bop, rc);
 		}
-		node_done(&node_slot, bop->bo_tx, true);
+		node_done(&node_slot, true);
 		node_seq_cnt_update(lev->l_node);
-		node_fix(lev->l_node, bop->bo_tx);
+		node_fix(lev->l_node);
 		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
 
 		/**
@@ -5875,7 +5812,7 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 		oi->i_nop.no_addr = segaddr_build(data->addr, calc_shift(data->
 						  num_bytes));
 		return node_init(&oi->i_nop.no_addr, k_size, v_size,
-				 data->nt, bop->bo_seg, data->fid, bop->bo_tx,
+				 data->nt, bop->bo_seg->bs_gen, data->fid,
 				 P_TREE_GET);
 
 	case P_TREE_GET:
@@ -5934,11 +5871,11 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 	M0_PRE(node_invariant(tree->t_root));
 	M0_PRE(node_count(tree->t_root) == 0);
 	m0_rwlock_write_unlock(&tree->t_lock);
-	node_fini(tree->t_root, bop->bo_tx);
+	node_fini(tree->t_root);
 	_slot.s_node                    = tree->t_root;
 	_slot.s_idx                     = 0;
 	node_capture(&_slot, bop->bo_tx);
-	node_put(tree->t_root->n_op, tree->t_root, bop->bo_tx);
+	node_put(tree->t_root->n_op, tree->t_root);
 	tree_put(tree);
 
 	/**
@@ -6029,7 +5966,7 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 		m0_rwlock_write_lock(&tree->t_lock);
 		if (tree->t_ref > 1) {
 			m0_rwlock_write_unlock(&tree->t_lock);
-			node_put(tree->t_root->n_op, tree->t_root, bop->bo_tx);
+			node_put(tree->t_root->n_op, tree->t_root);
 			tree_put(tree);
 			return P_DONE;
 		}
@@ -6037,7 +5974,7 @@ int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 		m0_rwlock_write_unlock(&tree->t_lock);
 
 		/** put tree's root node. */
-		node_put(tree->t_root->n_op, tree->t_root, bop->bo_tx);
+		node_put(tree->t_root->n_op, tree->t_root);
 		/** Fallthrough to P_TIMECHECK */
 	case P_TIMECHECK:
 		/**
@@ -6262,7 +6199,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			} else {
 				/* If height is same, put back all the nodes. */
 				lock_op_unlock(tree);
-				level_put(oi, bop->bo_tx);
+				level_put(oi);
 				return P_DOWN;
 			}
 		}
@@ -6611,7 +6548,7 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			} else {
 				/* If height is same, put back all the nodes. */
 				lock_op_unlock(tree);
-				level_put(oi, bop->bo_tx);
+				level_put(oi);
 				return P_DOWN;
 			}
 		}
@@ -6698,10 +6635,10 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		lev = &oi->i_level[used_count];
 		node_lock(lev->l_node);
 
-		node_del(lev->l_node, lev->l_idx, bop->bo_tx);
+		node_del(lev->l_node, lev->l_idx);
 		node_slot.s_node = lev->l_node;
 		node_slot.s_idx  = lev->l_idx;
-		node_done(&node_slot, bop->bo_tx, true);
+		node_done(&node_slot, true);
 
 		/**
 		 * once underflow is resolved at child by deleteing child node
@@ -6721,7 +6658,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 			if (node_count_rec(lev->l_node) > 1)
 				flag = true;
 			else if (node_count_rec(lev->l_node) == 0) {
-				node_set_level(lev->l_node, 0, bop->bo_tx);
+				node_set_level(lev->l_node, 0);
 				tree->t_height = 1;
 				bop->bo_arbor->t_height = tree->t_height;
 				/* Capture this change in transaction */
@@ -6730,7 +6667,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 				break;
 		}
 		node_seq_cnt_update(lev->l_node);
-		node_fix(node_slot.s_node, bop->bo_tx);
+		node_fix(node_slot.s_node);
 		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
 		/**
 		 * TBD : This check needs to be removed when debugging is
@@ -6740,7 +6677,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 
 		node_underflow = node_isunderflow(lev->l_node, false);
 		if (used_count != 0 && node_underflow) {
-			node_fini(lev->l_node, bop->bo_tx);
+			node_fini(lev->l_node);
 			lev->l_freenode = true;
 		}
 
@@ -6765,19 +6702,19 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	curr_root_level  = node_level(lev->l_node);
 	root_slot.s_node = lev->l_node;
 	root_slot.s_idx  = 0;
-	node_del(lev->l_node, 0, bop->bo_tx);
-	node_done(&root_slot, bop->bo_tx, true);
+	node_del(lev->l_node, 0);
+	node_done(&root_slot, true);
 
 	/* l_sib is node below root which is root's only child */
 	root_child = oi->i_level[1].l_sibling;
 	node_lock(root_child);
 
-	node_set_level(lev->l_node, curr_root_level - 1, bop->bo_tx);
+	node_set_level(lev->l_node, curr_root_level - 1);
 	tree->t_height--;
 	bop->bo_arbor->t_height = tree->t_height;
 	/* Capture this change in transaction */
 
-	node_move(root_child, lev->l_node, D_RIGHT, NR_MAX, bop->bo_tx);
+	node_move(root_child, lev->l_node, D_RIGHT, NR_MAX);
 	M0_ASSERT(node_count_rec(root_child) == 0);
 	btree_node_capture_enlist(oi, lev->l_node, 0);
 	btree_node_capture_enlist(oi, root_child, 0);
@@ -7095,7 +7032,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			} else {
 				/* If height is same, put back all the nodes. */
 				lock_op_unlock(tree);
-				level_put(oi, bop->bo_tx);
+				level_put(oi);
 				return P_DOWN;
 			}
 		}
@@ -7123,10 +7060,10 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 
 		node_lock(lev->l_node);
 
-		node_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
-		node_done(&node_slot, bop->bo_tx, true);
+		node_del(node_slot.s_node, node_slot.s_idx);
+		node_done(&node_slot, true);
 		node_seq_cnt_update(lev->l_node);
-		node_fix(node_slot.s_node, bop->bo_tx);
+		node_fix(node_slot.s_node);
 		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
 		/**
 		 * TBD : This check needs to be removed when debugging
@@ -7135,7 +7072,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		M0_ASSERT(node_expensive_invariant(lev->l_node));
 		node_underflow = node_isunderflow(lev->l_node, false);
 		if (oi->i_used != 0  && node_underflow) {
-			node_fini(lev->l_node, bop->bo_tx);
+			node_fini(lev->l_node);
 			lev->l_freenode = true;
 		}
 
@@ -7517,7 +7454,7 @@ static bool add_rec(struct nd *node,
 		node_find(&slot, &find_key);
 	}
 
-	node_make(&slot, NULL);
+	node_make(&slot);
 
 	slot.s_rec.r_key.k_data.ov_buf = &p_key;
 	slot.s_rec.r_val.ov_buf = &p_val;
@@ -7696,7 +7633,7 @@ static void ut_node_add_del_rec(void)
 		i = node_count(node1) - 1;
 		while (node_count(node1) != 0) {
 			int j = rand() % node_count(node1);
-			node_del(node1, j, NULL);
+			node_del(node1, j);
 			M0_ASSERT(i-- == node_count(node1));
 		}
 	}
@@ -10585,7 +10522,7 @@ static void ut_traversal(struct td *tree)
 		}
 		if (element != root) {
 			struct node_op  i_nop;
-			node_put(&i_nop, element, NULL);
+			node_put(&i_nop, element);
 		}
 	}
 }
@@ -10725,7 +10662,7 @@ static void ut_invariant_check(struct td *tree)
 		}
 		if (element != root) {
 			struct node_op  i_nop;
-			node_put(&i_nop, element, NULL);
+			node_put(&i_nop, element);
 		}
 	}
 }
