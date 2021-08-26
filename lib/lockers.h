@@ -82,6 +82,7 @@ struct m0_lockers_type {
 
 struct m0_lockers {
 	void *loc_slots[0];
+	bool available;
 };
 
 #define M0_LOCKERS_DECLARE(scope, name, max) \
@@ -159,6 +160,8 @@ M0_INTERNAL void m0_lockers_clear(const struct m0_lockers_type *lt,
 M0_INTERNAL bool m0_lockers_is_empty(const struct m0_lockers_type *lt,
 				     const struct m0_lockers      *lockers,
 				     uint32_t                      key);
+
++M0_INTERNAL bool m0_lockers_available(struct m0_lockers *lockers);
 
 #define M0_LOCKERS_DEFINE(scope, name, field) \
 	M0_LOCKERS__DEFINE(scope, name, name, field)

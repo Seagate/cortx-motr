@@ -415,6 +415,11 @@ static void fom_ready(struct m0_fom *fom)
 	struct m0_fom_locality *loc;
 	bool                    empty;
 
+	if (!m0_locality_lockers_available(fo_loc->fl_locality.lo_lockers)) {
+		fom_state_set(fom, M0_FOS_FINISH);
+		return;
+	}
+
 	fom_state_set(fom, M0_FOS_READY);
 	loc = fom->fo_loc;
 	empty = runq_tlist_is_empty(&loc->fl_runq);
@@ -1297,6 +1302,11 @@ M0_INTERNAL void m0_fom_locality_inc(struct m0_fom *fom)
 	unsigned                key = fom->fo_service->rs_fom_key;
 	struct m0_fom_locality *loc = fom->fo_loc;
 	uint64_t                cnt;
+
+	if (!m0_locality_lockers_available(fo_loc->fl_locality.lo_lockers))
+	{
+		return;
+	}
 
 	M0_ASSERT(key != 0);
 	cnt = (uint64_t)m0_locality_lockers_get(&loc->fl_locality, key);

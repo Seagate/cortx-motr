@@ -39,6 +39,7 @@ M0_INTERNAL void m0_lockers_init(const struct m0_lockers_type *lt,
 {
 	memset(lockers->loc_slots, 0,
 	       lt->lot_max * sizeof lockers->loc_slots[0]);
+	lockers->available = true;
 }
 
 M0_INTERNAL int m0_lockers_allot(struct m0_lockers_type *lt)
@@ -96,12 +97,19 @@ M0_INTERNAL bool m0_lockers_is_empty(const struct m0_lockers_type *lt,
 M0_INTERNAL void m0_lockers_fini(struct m0_lockers_type *lt,
 				 struct m0_lockers      *lockers)
 {
+	lockers->available = false;
 }
 
 static bool key_is_valid(const struct m0_lockers_type *lt, int key)
 {
 	return key < lt->lot_max && lt->lot_inuse[key];
 }
+
+M0_INTERNAL bool m0_lockers_available(struct m0_lockers *lockers)
+{
+	return lockers->available;
+}
+
 
 /** @} end of lockers group */
 
