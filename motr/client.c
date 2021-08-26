@@ -592,10 +592,7 @@ M0_INTERNAL int m0_op_get(struct m0_op **op, size_t size)
 	return M0_RC(0);
 }
 
-/**
- * Cancel a launched single operation, called from m0_op_cancel.
- *
- */
+/** Cancel a launched single operation, called from m0_op_cancel. */
 M0_INTERNAL void m0_op_cancel_one(struct m0_op *op)
 {
 	struct m0_op_common *oc;
@@ -609,28 +606,15 @@ M0_INTERNAL void m0_op_cancel_one(struct m0_op *op)
 					  M0_OS_FAILED)));
 
 	oc = bob_of(op, struct m0_op_common, oc_op, &oc_bobtype);
+	/*
+	 * Not implemented for opcodes M0_OC_ALLOC, M0_ET_REALM, M0_EO_INVALID,
+	 * M0_EO_SYNC, M0_EO_GETATTR, M0_EO_SETATTR, M0_EO_LAYOUT_GET,
+	 * M0_EO_LAYOUT_SET.
+	 */
 	M0_PRE(oc->oc_cb_cancel != NULL);
-
 	m0_sm_group_lock(&op->op_sm_group);
-
-	if (!M0_IN(op->op_sm.sm_state, (M0_OS_STABLE,
-				        M0_OS_FAILED))) {
-		if (oc->oc_cb_cancel != NULL) {
-			/*
-			 * Not implemented for opcodes M0_OC_ALLOC,
-			 * M0_ET_REALM, M0_EO_INVALID,
-			 * M0_EO_SYNC, M0_EO_GETATTR,
-			 * M0_EO_SETATTR, M0_EO_LAYOUT_GET,
-			 * M0_EO_LAYOUT_SET
-			 */
-			oc->oc_cb_cancel(oc);
-		} else {
-			op->op_rc = M0_ERR(-EINVAL);
-			m0_sm_move(&op->op_sm, op->op_rc, M0_OS_FAILED);
-		}
-	}
-
-	/* Call the op-type's cancel function */
+	if (!M0_IN(op->op_sm.sm_state, (M0_OS_STABLE, M0_OS_FAILED)))
+		oc->oc_cb_cancel(oc);
 	m0_sm_group_unlock(&op->op_sm_group);
 
 	M0_LEAVE();
@@ -856,6 +840,7 @@ void m0_op_fini(struct m0_op *op)
 					  M0_OS_STABLE,
 					  M0_OS_FAILED)));
 	M0_PRE(op->op_size >= sizeof *oc);
+	M0_PRE(op->op_parent_ast.sa_next == NULL);
 
 	oc = bob_of(op, struct m0_op_common, oc_op, &oc_bobtype);
 	if (oc->oc_cb_fini != NULL)

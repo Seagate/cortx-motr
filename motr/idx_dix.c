@@ -554,7 +554,7 @@ static void dix_build(const struct m0_op_idx *oi,
 	out->dd_fid = *OI_IFID(oi);
 	/* Pool version and layout type which are passed by consumers like S3 */
 	if (M0_IN(opcode, (M0_IC_GET, M0_IC_PUT, M0_IC_DEL, M0_IC_NEXT))) {
-		if ((idx->in_attr.idx_layout_type == DIX_LTYPE_DESCR) 
+		if ((idx->in_attr.idx_layout_type == DIX_LTYPE_DESCR)
 		    && (m0_fid_is_set(&idx->in_attr.idx_pver))
 		    && (m0_fid_is_valid(&idx->in_attr.idx_pver))) {
 			M0_LOG(M0_DEBUG, "Opcode: %u, DIX pool version:"FID_F"",
@@ -573,7 +573,7 @@ static void dix_build(const struct m0_op_idx *oi,
 		 * - city hash function;
 		 * - infinity identity mask (use key as is);
 		 * - default pool version (the same as for root index).
-		 * In future client user will be able to pass layout as an 
+		 * In future client user will be able to pass layout as an
 		 * argument.
 		 */
 		out->dd_layout.dl_type = DIX_LTYPE_DESCR;
@@ -671,6 +671,7 @@ static int dix_req_create(struct m0_op_idx  *oi,
 
 static void dix_req_destroy(struct dix_req *req)
 {
+	M0_PRE(req->idr_ast.sa_next == NULL);
 	M0_ENTRY();
 	m0_clink_fini(&req->idr_clink);
 	m0_bufvec_free(&req->idr_start_key);
@@ -1177,54 +1178,27 @@ static void dix_next_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_LEAVE();
 }
 
-/* Cancels launched index operation by cancelling rpc items. */
-static void idx_op_cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-	struct m0_op_idx        *oi = ast->sa_datum;
-	struct dix_req          *req;
-	struct m0_dix_req       *dreq;
-
-	M0_ENTRY();
-	if (oi->oi_in_completion)
-		return;
-
-	req = oi->oi_dix_req;
-	if (idx_is_distributed(oi)) {
-		dreq = req->idr_meta ? &req->idr_mreq.dmr_req :
-				       &req->idr_dreq;
-		m0_dix_req_cancel(dreq);
-	} else {
-		cas_index_cancel(req);
-	}
-	M0_LEAVE();
-}
-	
 M0_INTERNAL int m0__idx_cancel(struct m0_op_idx *oi)
 {
-	struct m0_sm_ast   *op_ast;
 	struct dix_req     *req;
 	struct m0_dix_req  *dreq;
 
 	M0_ENTRY();
 	M0_PRE(oi != NULL);
 
-	op_ast = &oi->oi_ast;
-	op_ast->sa_cb = idx_op_cancel_ast;
-	op_ast->sa_datum = oi;
-
 	req = oi->oi_dix_req;
-	dreq = req->idr_meta ? &req->idr_mreq.dmr_req :
-			       &req->idr_dreq;
+	dreq = req->idr_meta ? &req->idr_mreq.dmr_req : &req->idr_dreq;
 	/*
-	 * Do no post cancel ast when oi completion/fail
-	 * already called and for not handled types.
+	 * Do no post cancel ast when oi completion/fail already called and for
+	 * not handled types.
 	 */
-	if (!M0_IN(dreq->dr_type, (DIX_CREATE,
-				   DIX_DELETE,
-				   DIX_CCTGS_LOOKUP)) &&
-	    !oi->oi_in_completion)
-		m0_sm_ast_post(oi->oi_sm_grp, op_ast);
-
+	if (!M0_IN(dreq->dr_type, (DIX_CREATE, DIX_DELETE, DIX_CCTGS_LOOKUP)) &&
+	    !oi->oi_in_completion) {
+		if (idx_is_distributed(oi))
+			m0_dix_req_cancel(dreq);
+		else
+			cas_index_cancel(req);
+	}
 	return M0_RC(0);
 }
 

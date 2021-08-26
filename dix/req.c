@@ -2541,6 +2541,7 @@ M0_INTERNAL void m0_dix_req_fini(struct m0_dix_req *req)
 	uint32_t i;
 
 	M0_PRE(m0_dix_req_is_locked(req));
+	M0_PRE(req->dr_ast.sa_next == NULL);
 	for (i = 0; i < req->dr_indices_nr; i++)
 		m0_dix_fini(&req->dr_indices[i]);
 	m0_free(req->dr_indices);

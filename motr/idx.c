@@ -399,6 +399,7 @@ static void idx_op_cb_fini(struct m0_op_common *oc)
 
 	oi = bob_of(oc, struct m0_op_idx, oi_oc, &oi_bobtype);
 	M0_PRE(m0__idx_op_invariant(oi));
+	M0_PRE(oi->oi_ast.sa_next == NULL);
 
 	m0_op_common_bob_fini(&oi->oi_oc);
 	m0_ast_rc_bob_fini(&oi->oi_ar);
