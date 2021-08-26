@@ -29,6 +29,7 @@ from cortx.utils.conf_store import Conf
 
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
+LIBFAB_CONF_FILE = "/etc/libfab.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
 MOTR_SYS_CFG = "/etc/sysconfig/motr"
 MOTR_WORKLOAD_DIR = "/opt/seagate/cortx/motr/workload"
@@ -240,6 +241,11 @@ def configure_libfabric(self):
         iface_type = self.server_node['network']['data']['interface_type']
     except:
         raise MotrError(errno.EINVAL, "interface_type not found\n")
+
+    libfab_config = (f"networks={iface_type}({iface}) ")
+    self.logger.info(f"libfab config: {libfab_config}")
+    with open(LIBFAB_CONF_FILE, "w") as fp:
+        fp.write(libfab_config)
 
     sys.stdout.write(f"iface type: {iface_type}\n")
     cmd = "fi_info"

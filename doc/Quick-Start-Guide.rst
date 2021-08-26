@@ -29,7 +29,7 @@ Build
     cd cortx-motr
     sudo scripts/install-build-deps
 
-2. Check the Lustre network interface configuration::
+2. If using lnet as the transport, check the Lustre network interface configuration::
 
     sudo vi /etc/modprobe.d/lnet.conf
 
@@ -40,7 +40,14 @@ Build
     sudo modprobe lnet
     sudo lctl list_nids
 
-3. To build Motr, run::
+3. If using libfabric as the transport, check the Libfabric network interface configuration::
+
+    sudo vi /etc/libfab.conf
+
+   Use ``ip a`` command to get a list of network interfaces.
+   Then modify ``libfab.conf`` to use one of the listed network interfaces.
+
+4. To build Motr, run::
 
     scripts/m0 make
 

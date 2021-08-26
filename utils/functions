@@ -112,27 +112,22 @@ m0_default_xpt()
 {
     local trans
     local user
-
     touch $M0_SRC_DIR/scripts/st.d/net_xpt
     user=$(cat $M0_SRC_DIR/scripts/st.d/net_xpt)
-    if [ "$user" = "" ]; then
-        echo "libfab" > $M0_SRC_DIR/scripts/st.d/net_xpt
-        user=$(cat $M0_SRC_DIR/scripts/st.d/net_xpt)
-    fi
-
-    if [ "$user" = "libfab" ]; then
+    if [[ "$user" == "libfab" ||  "$user" == "" ]]; then
         trans=$(whereis fi_info | cut -d ':' -f2)
-        $trans > /dev/null
-        if [[ $? -eq 0 ]]; then
+        if [[ ! -z "$trans" ]]; then
              trans=libfab
         else
              echo 'libfab is not installed. lnet is selected' >&2
              trans=lnet
         fi
+        if [ "$user" = "" ]; then
+            echo $trans > $M0_SRC_DIR/scripts/st.d/net_xpt
+        fi
     else
         trans=lnet
     fi
-
     echo $trans
 }
 
@@ -145,8 +140,8 @@ m0_local_nid_get()
     then 
         local_nid=`sudo lctl list_nids | head -1`
     else
-        local iface=`cat /etc/modprobe.d/lnet.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "(" -f2 | cut -d ")" -f1`
-        local proto=`cat /etc/modprobe.d/lnet.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "=" -f2 | cut -d "(" -f1`
+        local iface=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "(" -f2 | cut -d ")" -f1`
+        local proto=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "=" -f2 | cut -d "(" -f1`
         local ip_addr=`ip addr show $iface |grep inet| head -1 | awk '{print $2}'|cut -d '/' -f1`
         local_nid=$ip_addr@$proto
     fi

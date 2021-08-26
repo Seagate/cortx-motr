@@ -149,7 +149,7 @@ static int net_test_buf_init(struct m0_net_buffer *buf,
 	if (size > buf_size_max)
 		return -E2BIG;
 
-	if (is_pingbuf)
+	if (USE_LIBFAB && is_pingbuf)
 		seg_size_max = buf_size_max;
 	else
 		seg_size_max = m0_net_domain_get_max_buffer_segment_size(dom);

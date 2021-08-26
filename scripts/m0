@@ -40,17 +40,9 @@ PROG="${0##*/}"
 M0_SRC_DIR="$(readlink -f $0)"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
+. $M0_SRC_DIR/utils/functions #m0_default_xpt
+
 SUDO="${SUDO-sudo -E}"  # the absence of ':' is important
-
-## By default libfab is used as transport
-## to change use NET_XPT=lnet along with m0 script
-_transport_select() {
-
-    NET_XPT=${NET_XPT:-libfab}
-    echo $NET_XPT
-    touch $M0_SRC_DIR/scripts/st.d/net_xpt
-    echo $NET_XPT > $M0_SRC_DIR/scripts/st.d/net_xpt
-}
 
 # libfab doesnot need kernel based ST
 _libfab_st_list() {
@@ -203,7 +195,7 @@ cmd_run_st() {
     local list_p=0
     local trans
 
-    trans=$(_transport_select)
+    trans=$(m0_default_xpt)
 
     if [ "${1:-}" = '-l' ]; then
         list_p=1

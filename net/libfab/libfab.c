@@ -566,15 +566,15 @@ static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
 	if( name == NULL || name[0] == 0)
 		result =  M0_ERR(-EPROTO);
 	else if ((strncmp(name, "libfab", 6)) == 0)
-		result = libfab_ep_addr_decode_native(name, node, nodeSize, 
+		result = libfab_ep_addr_decode_native(name, node, nodeSize,
 						      port, portSize);
 	else if (name[0] < '0' || name[0] > '9')
 		/* sock format */
-		result = libfab_ep_addr_decode_sock(name, node, nodeSize, 
+		result = libfab_ep_addr_decode_sock(name, node, nodeSize,
 						    port, portSize);
 	else
 		/* Lnet format. */
-		result = libfab_ep_addr_decode_lnet(name, node, nodeSize, 
+		result = libfab_ep_addr_decode_lnet(name, node, nodeSize,
 						    port, portSize, fnd);
 
 	if (result == FI_SUCCESS)

@@ -260,8 +260,8 @@ m0_get_lnet_nid()
             if [ "$(m0_get_motr_transport)" = "lnet" ]; then
                 lnid=$(lctl list_nids | head -n1)
             else
-                local iface=`cat /etc/modprobe.d/lnet.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "(" -f2 | cut -d ")" -f1`
-                local proto=`cat /etc/modprobe.d/lnet.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "=" -f2 | cut -d "(" -f1`
+                local iface=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "(" -f2 | cut -d ")" -f1`
+                local proto=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "=" -f2 | cut -d "(" -f1`
                 local ip_addr=`ip addr show $iface |grep inet| head -1 | awk '{print $2}'|cut -d '/' -f1`
                 lnid=$ip_addr@$proto
             fi
@@ -283,8 +283,7 @@ m0_get_motr_transport()
     local trans
 
     trans=$(whereis fi_info | cut -d ':' -f2)
-    $trans > /dev/null
-    if [[ $? == 0 ]]; then
+    if [[ $trans != "" ]]; then
         trans="libfab"
     else
         trans="lnet"

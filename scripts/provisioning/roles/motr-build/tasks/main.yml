@@ -324,6 +324,27 @@
         - ./configure
         - make -j4
         - make install
+
+    - name: write libfab config file on vmware_desktop provider
+      lineinfile:
+        path:   /etc/libfab.conf
+        create: yes
+        regexp: '^networks='
+        # In VMware eth0 (NAT) is always the interface for Motr:
+        line:   'networks=tcp(eth0)'
+      when: ansible_virtualization_type == "VMware"
+      tags: libfab
+
+    - name: write libfab config file on other providers
+      lineinfile:
+        path:   /etc/libfab.conf
+        create: yes
+        regexp: '^networks='
+        # eth1 (host-only) interface is used for LNet in this case.
+        # (Note: VirtualBox won't inter-connect the nodes on NAT interfaces.)
+        line:   'networks=tcp(eth1)'
+      when: ansible_virtualization_type != "VMware"
+      tags: libfab
   when: ansible_os_family == 'RedHat'
   tags:
     - libfab
