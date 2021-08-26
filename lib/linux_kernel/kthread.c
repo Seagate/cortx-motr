@@ -194,8 +194,8 @@ M0_INTERNAL int m0_thread_signal(struct m0_thread *q, int sig)
 	return M0_ERR(-ENOSYS);
 }
 
-M0_INTERNAL int m0_thread_arch_confine(struct m0_thread *q,
-				       const struct m0_bitmap *processors)
+M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
+				  const struct m0_bitmap *processors)
 {
 	int                 result = 0;
 	size_t              idx;
@@ -207,11 +207,9 @@ M0_INTERNAL int m0_thread_arch_confine(struct m0_thread *q,
 	if (!zalloc_cpumask_var(&cpuset, GFP_KERNEL))
 		return M0_ERR(-ENOMEM);
 
-	for (idx = 0; idx < nr_bits; ++idx) {
+	for (idx = 0; idx < nr_bits; ++idx)
 		if (m0_bitmap_get(processors, idx))
 			cpumask_set_cpu(idx, cpuset);
-	}
-
 	nr_allowed = cpumask_weight(cpuset);
 
 	if (nr_allowed == 0) {

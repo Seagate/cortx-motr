@@ -68,7 +68,6 @@ int m0_thread_init(struct m0_thread *q, int (*init)(void *),
 	 * of `q'. */
 	q->t_tls.tls_m0_instance = m0_get();
 	q->t_tls.tls_self = q;
-	q->t_tls.tls_loci = m0_processor_id_get();
 
 	result = m0_thread_init_impl(q, q->t_namebuf);
 	if (result != 0)
@@ -136,19 +135,6 @@ M0_INTERNAL void m0_thread_shun(void)
 {
 	m0_thread_arch_shun();
 }
-
-M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
-				  const struct m0_bitmap *processors)
-{
-	int cpu_idx = m0_bitmap_ffs(processors);
-
-	M0_PRE(cpu_idx >= 0);
-
-	q->t_tls.tls_loci = cpu_idx;
-
-	return m0_thread_arch_confine(q, processors);
-}
-
 
 /** @} end of thread group */
 
