@@ -955,9 +955,6 @@ static void ut_test_ioreq_application_data_copy(void)
 	rc = m0_bufvec_alloc(&ioo->ioo_attr, 6, sizeof(struct m0_md5_inc_context_pi));
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_bufvec_alloc(&ioo->ioo_attr, 6, UT_DEFAULT_BLOCK_SIZE);
-	M0_UT_ASSERT(rc == 0);
-
 	/* extents and buffers must be the same size */
 	ioo->ioo_ext.iv_index[0] = 0;
 	ioo->ioo_ext.iv_vec.v_count[0] = 6 * UT_DEFAULT_BLOCK_SIZE;

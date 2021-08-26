@@ -1168,7 +1168,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 		/* calculate number of segments required for 1 data unit */
 		nr_seg = 0;
 		count = usz;
-		while (count > 0) {
+		while (count > 0 && !m0_bufvec_cursor_move(&tmp_datacur, 0)) {
 			nr_seg++;
 			bytes = m0_bufvec_cursor_step(&tmp_datacur);
 			if (bytes < count) {
@@ -1193,7 +1193,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 		 */
 		i = 0;
 		count = usz;
-		while (count > 0) {
+		while (count > 0 && !m0_bufvec_cursor_move(&datacur, 0)) {
 			bytes = m0_bufvec_cursor_step(&datacur);
 			if (bytes < count) {
 				user_data.ov_vec.v_count[i] = bytes;
@@ -1261,9 +1261,11 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 	m0_bindex_t               pgstart;
 	m0_bindex_t               pgend;
 	m0_bcount_t               count;
+	m0_bcount_t               total_count;
 	struct m0_bufvec_cursor   appdatacur;
 	struct m0_ivec_cursor     extcur;
 	struct m0_pdclust_layout  *play;
+	int                       usz;
 
 	M0_ENTRY("op_io : %p, %s application. filter = 0x%x", ioo,
 		 dir == CD_COPY_FROM_APP ? (char *)"from" : (char *)"to",
@@ -1276,6 +1278,8 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
 
 	play = pdlayout_get(ioo);
+	usz = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
+	total_count = 0;
 
 	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
 		M0_ASSERT_EX(pargrp_iomap_invariant(ioo->ioo_iomaps[i]));
@@ -1292,6 +1296,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 						   m0__page_size(ioo)),
 				       pgstart + m0_ivec_cursor_step(&extcur));
 			count = pgend - pgstart;
+			total_count += count;
 
 			/*
 			* This takes care of finding correct page from
@@ -1313,9 +1318,11 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 	if (dir == CD_COPY_TO_APP) {
 		/* verify the checksum during data read.
 		 * skip checksum verification during degraded I/O
+		 * and if read is not in multiple of DU
 		 */
 		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
 		    ioo->ioo_attr.ov_vec.v_nr &&
+		    total_count % usz == 0 &&
 		    !verify_checksum(ioo)) {
 			return M0_RC(-EIO);
 		}

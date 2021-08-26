@@ -104,9 +104,9 @@ M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob(m0_bindex_t ext_start,
  * addr for CS3.
  */
 
-M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec,
+M0_INTERNAL void * m0_extent_vec_get_checksum_addr(struct m0_bufvec *cksum_buf_vec,
 						   m0_bindex_t off,
-						   void *ivec,
+						   struct m0_indexvec *ivec,
 						   m0_bindex_t unit_sz,
 						   m0_bcount_t cs_sz )
 {
