@@ -8913,7 +8913,85 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 			UT_THREAD_QUIESCE_IF_REQUESTED();
 		}
+		/** Verify btree_update for value size increase/descrease. */
+		/** Enable it once overwrite+valsize changes are in. */
+#if 0
+		key_first     = key_iter_start;
+		ut_cb.c_act   = btree_kv_update_cb;
+		ut_cb.c_datum = &data;
+		while (vsize_random && key_first <= key_last) {
+			arr_count = (key_first % VAL_ARR_SIZE) + 2;
+			/**
+			 * Skip updating value size for max val size as
+			 * it can create array outbound for val[]
+			 */
+			if (arr_count >= VAL_ARR_SIZE + 1) {
+				key_first += (ti->ti_key_incr * 5);
+				continue;
+			}
+			/** Test value size increase case. */
+			vsize = (arr_count + 1) * sizeof(value[0]);
+			arr_count = (key_first % KEY_ARR_SIZE) + 2;
+			ksize = ksize_random ?
+				arr_count * sizeof(key[0]):
+				ti->ti_key_size;
 
+			key[0]   = ksize;
+			value[0] = vsize;
+
+			key[1] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+				 ti->ti_thread_id;
+			key[1] = m0_byteorder_cpu_to_be64(key[1]);
+			for (i = 2; i < ksize / sizeof(key[0]); i++)
+				key[i] = key[1];
+
+			value[1] = key[1];
+			for (i = 2; i < vsize / sizeof(value[0]); i++)
+				value[i] = value[1];
+
+			m0_be_ut_tx_init(tx, ut_be);
+			m0_be_tx_prep(tx, &update_cred);
+			rc = m0_be_tx_open_sync(tx);
+			M0_ASSERT(rc == 0);
+
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_update(tree,
+								      &rec,
+								      &ut_cb,
+								      &kv_op,
+								      tx));
+			M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
+
+			m0_be_tx_close_sync(tx);
+			m0_be_tx_fini(tx);
+
+			/** Test value size decrease case. */
+			vsize = vsize - sizeof(value[0]);
+			value[0] = vsize;
+			value[1] = key[1];
+			for (i = 2; i < vsize / sizeof(value[0]); i++)
+				value[i] = value[1];
+
+			m0_be_ut_tx_init(tx, ut_be);
+			m0_be_tx_prep(tx, &update_cred);
+			rc = m0_be_tx_open_sync(tx);
+			M0_ASSERT(rc == 0);
+
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_update(tree,
+								      &rec,
+								      &ut_cb,
+								      &kv_op,
+								      tx));
+			M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
+
+			m0_be_tx_close_sync(tx);
+			m0_be_tx_fini(tx);
+
+			key_first += (ti->ti_key_incr * 5);
+		}
+
+#endif
 		/**
 		 * Execute one error case where we PUT a key which already
 		 * exists in the btree.
