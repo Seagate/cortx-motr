@@ -8925,7 +8925,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			 * Skip updating value size for max val size as
 			 * it can create array outbound for val[]
 			 */
-			if (arr_count == VAL_ARR_SIZE + 1) {
+			if (arr_count >= VAL_ARR_SIZE + 1) {
 				key_first += (ti->ti_key_incr * 5);
 				continue;
 			}
