@@ -7485,8 +7485,10 @@ void m0_btree_cursor_kv_get(struct m0_btree_cursor *it,
 			       struct m0_buf *key,
 			       struct m0_buf *val)
 {
-	*key = M0_BUF_INIT(it->bc_key.b_nob, it->bc_key.b_addr);
-	*val = M0_BUF_INIT(it->bc_val.b_nob, it->bc_val.b_addr);
+	if (key)
+		*key = M0_BUF_INIT(it->bc_key.b_nob, it->bc_key.b_addr);
+	if (val)
+		*val = M0_BUF_INIT(it->bc_val.b_nob, it->bc_val.b_addr);
 }
 
 #endif
