@@ -7313,6 +7313,136 @@ void m0_btree_update(struct m0_btree *arbor, const struct m0_btree_rec *rec,
 		      &btree_conf, &bop->bo_sm_group);
 }
 
+struct cursor_cb_data {
+	struct m0_btree_rec ccd_rec;
+	m0_bcount_t         ccd_keysz;
+	m0_bcount_t         ccd_valsz;
+};
+
+static int btree_cursor_kv_get_cb(struct m0_btree_cb  *cb,
+				  struct m0_btree_rec *rec)
+{
+	struct m0_btree_cursor  *datum = cb->c_datum;
+	struct m0_bufvec_cursor  cur;
+
+	/** Currently we support bufvec with only one segment. */
+	M0_ASSERT(M0_BUFVEC_SEG_COUNT(&rec->r_key.k_data) == 1 &&
+		  M0_BUFVEC_SEG_COUNT(&rec->r_val) == 1);
+
+	/** Save returned Key and Value in the iterator */
+	m0_bufvec_cursor_init(&cur, &rec->r_key.k_data);
+	datum->bc_key = M0_BUF_INIT(m0_bufvec_cursor_step(&cur),
+				    m0_bufvec_cursor_addr(&cur));
+
+	m0_bufvec_cursor_init(&cur, &rec->r_val);
+	datum->bc_val = M0_BUF_INIT(m0_bufvec_cursor_step(&cur),
+				    m0_bufvec_cursor_addr(&cur));
+
+	return 0;
+}
+
+void m0_btree_cursor_init(struct m0_btree_cursor *it,
+			  struct m0_btree       *arbor)
+{
+	M0_SET0(it);
+	it->bc_arbor = arbor;
+}
+
+void m0_btree_cursor_fini(struct m0_btree_cursor *it)
+{
+}
+
+int m0_btree_cursor_get(struct m0_btree_cursor     *it,
+			 const struct m0_btree_key *key,
+			 bool                       slant)
+{
+	struct m0_btree_op    kv_op = {};
+	struct m0_btree_cb    cursor_cb;
+	uint64_t              flags = slant ? BOF_SLANT : BOF_EQUAL;
+	int                   rc;
+
+	cursor_cb.c_act   = btree_cursor_kv_get_cb;
+	cursor_cb.c_datum = it;
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_get(it->bc_arbor, key,
+						   &cursor_cb, flags, &kv_op));
+	return rc;
+}
+
+static int btree_cursor_iter(struct m0_btree_cursor *it,
+			     enum m0_btree_op_flags  dir)
+{
+	struct m0_btree_op    kv_op = {};
+	struct m0_btree_cb    cursor_cb;
+	struct m0_btree_key   key;
+	int                   rc;
+
+	M0_ASSERT(M0_IN(dir, (BOF_NEXT, BOF_PREV)));
+
+	cursor_cb.c_act   = btree_cursor_kv_get_cb;
+	cursor_cb.c_datum = it;
+
+	key.k_data = M0_BUFVEC_INIT_BUF(it->bc_key.b_addr, &it->bc_key.b_nob);
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_iter(it->bc_arbor,
+						    &key,
+						    &cursor_cb, dir, &kv_op));
+	return rc;
+}
+
+int m0_btree_cursor_next(struct m0_btree_cursor *it)
+{
+	return btree_cursor_iter(it, BOF_NEXT);
+}
+
+int m0_btree_cursor_prev(struct m0_btree_cursor *it)
+{
+	return btree_cursor_iter(it, BOF_PREV);
+}
+
+int m0_btree_cursor_first(struct m0_btree_cursor *it)
+{
+	struct m0_btree_op    kv_op = {};
+	struct m0_btree_cb    cursor_cb;
+	int                   rc;
+
+	cursor_cb.c_act   = btree_cursor_kv_get_cb;
+	cursor_cb.c_datum = it;
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_minkey(it->bc_arbor, &cursor_cb,
+						      0, &kv_op));
+	return rc;
+}
+
+int m0_btree_cursor_last(struct m0_btree_cursor *it)
+{
+	struct m0_btree_op    kv_op = {};
+	struct m0_btree_cb    cursor_cb;
+	int                   rc;
+
+	cursor_cb.c_act   = btree_cursor_kv_get_cb;
+	cursor_cb.c_datum = it;
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_maxkey(it->bc_arbor, &cursor_cb,
+						      0, &kv_op));
+	return rc;
+}
+
+void m0_btree_cursor_put(struct m0_btree_cursor *it)
+{
+	/** Do nothing. */
+}
+
+void m0_btree_cursor_kv_get(struct m0_btree_cursor *it,
+			       struct m0_buf *key,
+			       struct m0_buf *val)
+{
+	if (key)
+		*key = M0_BUF_INIT(it->bc_key.b_nob, it->bc_key.b_addr);
+	if (val)
+		*val = M0_BUF_INIT(it->bc_val.b_nob, it->bc_val.b_addr);
+}
+
 #endif
 
 #ifndef __KERNEL__
