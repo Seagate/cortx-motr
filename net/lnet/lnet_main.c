@@ -814,6 +814,7 @@
 #include "lib/errno.h"
 #include "lib/misc.h"
 #include "lib/memory.h"
+#include "lib/string.h"                          /* m0_streq */
 #include "net/net_internal.h"
 #include "net/lnet/lnet_core.h"
 #include "net/lnet/lnet_xo.h"
@@ -921,16 +922,20 @@ M0_BASSERT(M0_NET_LNET_PID == LUSTRE_SRV_LNET_PID);
 
 M0_INTERNAL int m0_net_lnet_init(void)
 {
+#if !defined(ENABLE_SOCK_MOCK_LNET) || defined(__KERNEL__)
 	m0_net_xprt_register(&m0_net_lnet_xprt);
-	m0_net_xprt_default_set(&m0_net_lnet_xprt);
-
+	if (m0_streq(M0_DEFAULT_NETWORK, "LNET"))
+		m0_net_xprt_default_set(&m0_net_lnet_xprt);
+#endif
 	return M0_RC(nlx_core_init());
 }
 
 M0_INTERNAL void m0_net_lnet_fini(void)
 {
 	nlx_core_fini();
+#if !defined(ENABLE_SOCK_MOCK_LNET) || defined(__KERNEL__)
 	m0_net_xprt_deregister(&m0_net_lnet_xprt);
+#endif
 }
 
 M0_INTERNAL int m0_net_lnet_ep_addr_net_cmp(const char *addr1,
