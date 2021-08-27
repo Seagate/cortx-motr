@@ -1082,6 +1082,7 @@ static bool sock_invariant(const struct sock *s);
 static struct ma *buf_ma(struct buf *buf);
 static bool buf_invariant(const struct buf *buf);
 static void buf_fini     (struct buf *buf);
+static bool buf_accepted (struct buf *buf);
 static int  buf_accept   (struct buf *buf, struct mover *m);
 static void buf_done     (struct buf *buf, int rc);
 static void buf_complete (struct buf *buf);
@@ -1109,7 +1110,7 @@ static int pk_iov_prep(struct mover *m, struct iovec *iv, int nr,
 		       struct m0_bufvec *bv, m0_bcount_t size, int *count);
 static void pk_header_init(struct mover *m, struct sock *s);
 static int  pk_header_done(struct mover *m);
-static void pk_done  (struct mover *m);
+static int  pk_done  (struct mover *m);
 static void pk_encdec(struct mover *m, enum m0_xcode_what what);
 static void pk_decode(struct mover *m);
 static void pk_encode(struct mover *m);
@@ -2875,6 +2876,11 @@ static int buf_accept(struct buf *buf, struct mover *m)
 	return result;
 }
 
+static bool buf_accepted(struct buf *buf)
+{
+	return buf->b_done.b_words > 0;
+}
+
 /**
  * Finalises the buffer after transfer completes (including failures and
  * cancellations). Note that buffer completion event hasn't yet been
@@ -2885,8 +2891,6 @@ static void buf_fini(struct buf *buf)
 {
 	mover_fini(&buf->b_writer);
 	b_tlink_fini(buf);
-	if (buf->b_done.b_words > 0)
-		m0_bitmap_fini(&buf->b_done);
 	if (buf->b_other != NULL) {
 		EP_PUT(buf->b_other, buf);
 		buf->b_other = NULL;
@@ -2908,6 +2912,8 @@ static void buf_done(struct buf *buf, int rc)
 	       buf->b_buf != NULL ? buf->b_buf->nb_length : -1, rc); */
 	if (buf->b_writer.m_sm.sm_rc == 0) /* Reuse this field for result. */
 		buf->b_writer.m_sm.sm_rc = rc;
+	if (buf->b_done.b_words > 0)
+		m0_bitmap_fini(&buf->b_done);
 	/*
 	 * Multiple buf_done() calls on the same buffer are possible if the
 	 * buffer is cancelled.
@@ -3336,6 +3342,7 @@ static int pk_header_done(struct mover *m)
 		if (!M0_IS0(&buf->b_peer) &&
 		    memcmp(&buf->b_peer, &p->p_src, sizeof p->p_src) != 0)
 			return M0_ERR(-EPERM);
+		/* @todo Check that buf is on the correct passive queue. */
 	}
 	if (isget) {
 		if (p->p_idx != 0 || p->p_nr != 1 || p->p_size != 0 ||
@@ -3404,17 +3411,21 @@ static int pk_header_done(struct mover *m)
  * If all packets for the buffer have been received, complete the
  * buffer. Disassociate the buffer from the reader.
  */
-static void pk_done(struct mover *m)
+static int pk_done(struct mover *m)
 {
 	struct buf    *buf = m->m_buf;
 	struct packet *pk  = &m->m_pk;
 
-	M0_PRE(!m0_bitmap_get(&buf->b_done, pk->p_idx));
 	M0_PRE(mover_is_reader(m));
+	if (!buf_accepted(m->m_buf))
+		return M0_RC(-ECANCELED);
+	if (m0_bitmap_get(&buf->b_done, pk->p_idx))
+		return M0_ERR(-EPROTO);
 	m->m_buf = NULL;
 	m0_bitmap_set(&buf->b_done, pk->p_idx, true);
 	if (m0_bitmap_ffz(&buf->b_done) == -1)
 		buf_done(buf, 0); /* If all packets have been received, done. */
+	return 0;
 }
 
 static void pk_encdec(struct mover *m, enum m0_xcode_what what)
@@ -3485,15 +3496,18 @@ static int stream_header(struct mover *self, struct sock *s)
  */
 static int stream_interval(struct mover *self, struct sock *s)
 {
-	int result = pk_io(self, s, HAS_READ, NULL, pk_tsize(self));
+	int result;
+
+	if (!buf_accepted(self->m_buf))
+		return M0_RC(-ECANCELED);
+	result = pk_io(self, s, HAS_READ, NULL, pk_tsize(self));
 	return result >= 0 ? pk_state(self) : result;
 }
 
 /** Completes processing of an incoming packet. */
 static int stream_pk_done(struct mover *self, struct sock *s)
 {
-	pk_done(self);
-	return R_IDLE;
+	return pk_done(self) ?: R_IDLE;
 }
 
 /**
@@ -3579,6 +3593,8 @@ static int dgram_header(struct mover *self, struct sock *s)
  */
 static int dgram_interval(struct mover *self, struct sock *s)
 {
+	if (!buf_accepted(self->m_buf))
+		return M0_RC(-ECANCELED);
 	return pk_state(self);
 }
 
@@ -3587,8 +3603,7 @@ static int dgram_interval(struct mover *self, struct sock *s)
  */
 static int dgram_pk_done(struct mover *self, struct sock *s)
 {
-	pk_done(self);
-	return R_IDLE;
+	return pk_done(self) ?: R_IDLE;
 }
 
 /**
