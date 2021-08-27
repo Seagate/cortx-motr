@@ -24,6 +24,7 @@
 #include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
+#include "lib/string.h"                          /* m0_streq */
 #include "net/bulk_emulation/mem_xprt_pvt.h"
 
 /**
@@ -47,7 +48,7 @@ M0_INTERNAL int m0_mem_xprt_init(void)
 {
 	m0_list_init(&mem_domains);
 	m0_net_xprt_register(&m0_net_bulk_mem_xprt);
-	if (m0_net_xprt_default_get() == NULL)
+	if (m0_streq(M0_DEFAULT_NETWORK, "MEMBULK"))
 		m0_net_xprt_default_set(&m0_net_bulk_mem_xprt);
 	return 0;
 }
