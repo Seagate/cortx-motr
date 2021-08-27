@@ -645,12 +645,15 @@ static void ut_test_ioreq_iomaps_destroy(void)
 {
 	struct m0_client *instance;
 	struct m0_op_io  *ioo;
+	struct m0_realm   realm;
 
 	/* initialise client */
 	instance = dummy_instance;
 
 	/* Base case. */
 	ioo = ut_dummy_ioo_create(instance, 1);
+	ut_realm_entity_setup(&realm, ioo->ioo_oo.oo_oc.oc_op.op_entity,
+			      instance);
 
 	ioreq_iomaps_destroy(ioo);
 
