@@ -50,6 +50,12 @@ struct m0_btree_op {
 	struct m0_btree_idata  b_data;
 };
 
+struct m0_btree_cursor {
+	struct m0_buf    bc_key;
+	struct m0_buf    bc_val;
+	struct m0_btree *bc_arbor;
+};
+
 /** @} end of btree group */
 #endif /* __MOTR_BTREE_INTERNAL_H__ */
 
