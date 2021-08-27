@@ -28,6 +28,7 @@
 #include "lib/vec.h"
 #include "xcode/xcode_attr.h"
 #include "lib/errno.h"
+#include "fid/fid.h"  /** struct m0_fid */
 
 /**
  * @defgroup btree
@@ -103,6 +104,7 @@ struct m0_btree_idata {
 	const struct node_type     *nt;
 	int                         ks;
 	int                         vs;
+	struct m0_fid               fid;
 };
 
 enum m0_btree_rec_type {
@@ -213,11 +215,12 @@ void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop);
  *        the field bo_arbor which holds the tree pointer to be used by the
  *        caller after the call completes.
  * @param seg points to the BE segment which will host the nodes of the tree.
+ * @param fid unique fid of the tree.
  * @param tx pointer to the transaction struture to capture BE segment changes.
  */
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 		     struct m0_btree_op *bop, struct m0_be_seg *seg,
-		     struct m0_be_tx *tx);
+		     const struct m0_fid *fid, struct m0_be_tx *tx);
 
 /**
  * Destroys the opened or created tree represented by arbor. Once the destroy
