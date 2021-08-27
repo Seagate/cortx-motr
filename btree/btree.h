@@ -334,7 +334,7 @@ void m0_btree_minkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
  * @param arbor is the pointer to btree.
  */
 void m0_btree_cursor_init(struct m0_btree_cursor *it,
-			 struct m0_btree        *arbor);
+			  struct m0_btree        *arbor);
 
 /**
  * Finalizes cursor.
@@ -354,8 +354,8 @@ void m0_btree_cursor_fini(struct m0_btree_cursor *it);
  * @return 0 if successful.
  */
 int m0_btree_cursor_get(struct m0_btree_cursor    *it,
-			 const struct m0_btree_key *key,
-			 bool                       slant);
+			const struct m0_btree_key *key,
+			bool                       slant);
 
 /**
  * Fills cursor internal buffers with key and value obtained from the
