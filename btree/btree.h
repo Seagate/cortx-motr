@@ -45,6 +45,7 @@ struct m0_btree_rec;
 struct m0_btree_cb;
 struct m0_btree_key;
 struct m0_btree_idata;
+struct m0_btree_cursor;
 
 enum m0_btree_types {
 	M0_BT_INVALID = 1,
@@ -325,6 +326,89 @@ void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
  */
 void m0_btree_minkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
 		     uint64_t flags, struct m0_btree_op *bop);
+
+/**
+ * Initialises cursor and its internal structures.
+ *
+ * @param it    is pointer to cursor structure allocated by the caller.
+ * @param arbor is the pointer to btree.
+ */
+void m0_btree_cursor_init(struct m0_btree_cursor *it,
+			  struct m0_btree        *arbor);
+
+/**
+ * Finalizes cursor.
+ *
+ * @param it  is pointer to cursor structure allocated by the caller.
+ */
+void m0_btree_cursor_fini(struct m0_btree_cursor *it);
+
+/**
+ * Fills cursor internal buffers with current key and value obtained from the
+ * tree.
+ *
+ * @param it    is pointer to cursor structure.
+ * @param key   is the Key to be searched in the btree.
+ * @param slant is TRUE if slant-search is to be executed.
+ *
+ * @return 0 if successful.
+ */
+int m0_btree_cursor_get(struct m0_btree_cursor    *it,
+			const struct m0_btree_key *key,
+			bool                       slant);
+
+/**
+ * Fills cursor internal buffers with key and value obtained from the
+ * next position in tree. The operation is unprotected from concurrent btree
+ * updates and user should protect it with external lock.
+ *
+ * @param it  is pointer to cursor structure.
+ */
+int m0_btree_cursor_next(struct m0_btree_cursor *it);
+
+/**
+ * Fills cursor internal buffers with prev key and value obtained from the
+ * tree.
+ *
+ * @param it  is pointer to cursor structure.
+ */
+int m0_btree_cursor_prev(struct m0_btree_cursor *it);
+
+/**
+ * Moves cursor to the first key in the btree.
+ *
+ * @param it  is pointer to cursor structure.
+ */
+int m0_btree_cursor_first(struct m0_btree_cursor *it);
+
+/**
+ * Moves cursor to the last key in the btree.
+ *
+ * @param it  is pointer to cursor structure.
+ */
+int m0_btree_cursor_last(struct m0_btree_cursor *it);
+
+/**
+ * Releases cursor values.
+ *
+ * @param it  is pointer to cursor structure.
+ */
+void m0_btree_cursor_put(struct m0_btree_cursor *it);
+
+/**
+ * Sets key and value buffers to point on internal structures of cursor
+ * representing current key and value, cursor is placed on.
+ *
+ * Any of @key and @val pointers can be NULL, but not both.
+ *
+ * @param it  is pointer to cursor structure.
+ * @param key will point to the cursor pointed Key by this routine.
+ * @param val will point to the cursor pointed Value by this routine.
+ */
+void m0_btree_cursor_kv_get(struct m0_btree_cursor *it,
+			    struct m0_buf          *key,
+			    struct m0_buf          *val);
+
 
 /**
  * Returns the records corresponding to maximum key of the btree.
