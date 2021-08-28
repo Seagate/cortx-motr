@@ -28,6 +28,7 @@
 #include "motr/magic.h"	/* M0_NET_TEST_NETWORK_BD_MAGIC */
 
 #include "net/net.h"		/* m0_net_buffer */
+#include "net/net_internal.h"   /* m0_net__ep_invariant */
 
 #include "net/test/network.h"
 
@@ -251,7 +252,10 @@ bool m0_net_test_network_ctx_invariant(struct m0_net_test_network_ctx *ctx)
 {
 	M0_PRE(ctx != NULL);
 
-	return ctx->ntc_ep_nr <= ctx->ntc_cfg.ntncfg_ep_max;
+	return  _0C(ctx->ntc_ep_nr <= ctx->ntc_cfg.ntncfg_ep_max) &&
+		_0C(m0_forall(i, ctx->ntc_ep_nr,
+			      m0_net__ep_invariant(ctx->ntc_ep[i],
+						   ctx->ntc_tm, false)));
 }
 
 static int net_test_network_ctx_initfini(struct m0_net_test_network_ctx *ctx,
