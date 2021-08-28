@@ -642,7 +642,11 @@ enum {
 #define M0_BTREE_TX_CB_CAPTURE(tx, node, cb)                                 \
 			      m0_be_tx_cb_capture(tx, node, cb)
 #else
-#define M0_BTREE_TX_CB_CAPTURE(tx, node, cb)
+#define M0_BTREE_TX_CB_CAPTURE(tx, node, cb)                                 \
+	do {                                                                 \
+		typeof(cb) __cb = (cb);                                      \
+		(__cb) = (__cb);                                             \
+	} while (0)
 #endif
 
 #if (AVOID_BE_SEGMENT == 1)
@@ -661,8 +665,6 @@ enum {
 #define M0_BTREE_TX_CB_CAPTURE(tx, node, cb)                                 \
 	do {                                                                 \
 		typeof(cb) __cb = (cb);                                      \
-		(tx)   = (tx);                                               \
-		(node) = (node);                                             \
 		(__cb) = (__cb);                                             \
 	} while (0)
 
@@ -711,10 +713,15 @@ enum {
 	do { } while (0)
 
 #define m0_be_ut_seg_init(ut_seg, ut_be, size)                               \
-	do { } while (0)
+	do {                                                                 \
+		M0_ALLOC_PTR(ut_seg->bus_seg);                               \
+		ut_seg->bus_seg->bs_gen = m0_time_now();                     \
+	} while (0)
 
 #define m0_be_ut_seg_fini(ut_seg)                                            \
-	do { } while (0)
+	do {                                                                 \
+		m0_free(ut_seg->bus_seg);                                    \
+	} while (0)
 
 #define m0_be_ut_backend_fini(ut_be)                                         \
 	do { } while (0)
@@ -4773,7 +4780,6 @@ static bool address_in_segment(struct segaddr addr)
 	return true;
 }
 
-#ifndef __KERNEL__
 /**
  * Callback to be invoked on transaction commit.
  */
@@ -4796,7 +4802,6 @@ static void btree_tx_commit_cb(void *payload)
 	node_unlock(node);
 	m0_rwlock_write_unlock(&list_lock);
 }
-#endif
 
 static void btree_tx_nodes_capture(struct m0_btree_oimpl *oi,
 				  struct m0_be_tx *tx)
