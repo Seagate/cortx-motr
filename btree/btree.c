@@ -569,7 +569,7 @@
 #include <sys/mman.h>
 #endif
 
-#define AVOID_BE_SEGMENT    0
+#define AVOID_BE_SEGMENT    1
 /**
  *  --------------------------------------------
  *  Section START - BTree Structure and Operations
@@ -2000,11 +2000,13 @@ static void tree_type_unregister(const struct m0_btree_type *tt)
 
 static const struct node_type fixed_format;
 static const struct node_type fixed_ksize_variable_vsize_format;
+static const struct node_type variable_kv_format;
+
 static const struct node_type *btree_node_format[] = {
 	[BNT_FIXED_FORMAT]                        = &fixed_format,
 	[BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE]    = &fixed_ksize_variable_vsize_format,
 	[BNT_VARIABLE_KEYSIZE_FIXED_VALUESIZE]    = NULL,
-	[BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE] = NULL,
+	[BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE] = &variable_kv_format,
 };
 #endif
 
@@ -2716,7 +2718,7 @@ static void ff_fini(const struct nd *node)
 		.ot_type          = 0,
 		.ot_footer_offset = 0
 	});
-
+	h->ff_opaque       = NULL;
 	h->ff_fmt.hd_magic = 0;
 }
 
@@ -3924,9 +3926,32 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *  Variable Sized Keys and Values Node Structure
  *  --------------------------------------------
  *
- * Proposed node structure
+ * Proposed internal node structure
+ *
+ * +----------+----+------+----+----------------+----+----+----+----+----+----+
+ * |          |    |      |    |                |    |    |    |    |    |    |
+ * | Node Hdr | K0 |  K1  | K2 +-->          <--+ K2 | V2 | K1 | V1 | K0 | V0 |
+ * |          |    |      |    |                | Off|    | Off|    | Off|    |
+ * +----------+----+------+----+-----------------+++--------+++-------+++-----+
+ *                 ^      ^    ^                  |          |         |
+ *                 |      |    |                  |          |         |
+ *                 +------+----+------------------+----------+---------+
+ *                        |    |                  |          |
+ *                        +----+------------------+----------+
+ *                             |                  |
+ *                             +------------------+
+ *
+ * For the internal nodes, the above structure will be used.
+ * The internal nodes will have keys of variable size whereas the values will be
+ * of fixed size as they are pointers to child nodes.
+ * The Keys will be added starting from the end of the node header in an
+ * increasing order whereas the Values will be added starting from the end of
+ * the node in a descreasing order where each value will be followed by the
+ * offset pointing to the Key associated with that particular Value.
+ * Using this structure, the overhead of maintaining a directory is reduced.
  *
  *
+ * Proposed leaf node structure
  *
  *                        +--------------------------+
  *                        |                          |
@@ -3977,29 +4002,115 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *  addition of the Record need to account for the moving of this Directory.
  *
  */
-#if 0
-struct dir_rec {
-	uint8_t key_offset;
-	uint8_t val_offset;
+#define INT_OFFSET sizeof(uint16_t)
+
+static void vkvv_init(const struct segaddr *addr, int shift, int ksize,
+		      int vsize, uint32_t ntype, uint64_t gen,
+		      struct m0_fid fid);
+static void vkvv_fini(const struct nd *node);
+static int  vkvv_count_rec(const struct nd *node);
+static int  vkvv_space(const struct nd *node);
+static int  vkvv_level(const struct nd *node);
+static int  vkvv_shift(const struct nd *node);
+static int  vkvv_keysize(const struct nd *node);
+static int  vkvv_valsize(const struct nd *node);
+static bool vkvv_isunderflow(const struct nd *node, bool predict);
+static bool vkvv_isoverflow(const struct nd *node,
+			    const struct m0_btree_rec *rec);
+static void vkvv_fid(const struct nd *node, struct m0_fid *fid);
+static void vkvv_rec(struct slot *slot);
+static void vkvv_node_key(struct slot *slot);
+static void vkvv_child(struct slot *slot, struct segaddr *addr);
+static bool vkvv_isfit(struct slot *slot);
+static void vkvv_done(struct slot *slot, bool modified);
+static void vkvv_make(struct slot *slot);
+static void vkvv_fix(const struct nd *node);
+static void vkvv_cut(const struct nd *node, int idx, int size);
+static void vkvv_del(const struct nd *node, int idx);
+static void vkvv_set_level(const struct nd *node, uint8_t new_level);
+static bool vkvv_invariant(const struct nd *node);
+static bool vkvv_expensive_invariant(const struct nd *node);
+static bool vkvv_verify(const struct nd *node);
+static void vkvv_opaque_set(const struct segaddr *addr, void *opaque);
+static void *vkvv_opaque_get(const struct segaddr *addr);
+static void vkvv_capture(struct slot *slot, struct m0_be_tx *tx);
+static int  vkvv_create_delete_credit_size(void);
+static void vkvv_node_alloc_credit(const struct nd *node,
+				struct m0_be_tx_credit *accum);
+static void vkvv_node_free_credit(const struct nd *node,
+				struct m0_be_tx_credit *accum);
+static void vkvv_rec_put_credit(const struct nd *node, m0_bcount_t ksize,
+			      m0_bcount_t vsize,
+			      struct m0_be_tx_credit *accum);
+static void vkvv_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
+				 m0_bcount_t vsize,
+				 struct m0_be_tx_credit *accum);
+static void vkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
+			      m0_bcount_t vsize,
+			      struct m0_be_tx_credit *accum);
+
+static const struct node_type variable_kv_format = {
+	.nt_id                        = BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+	.nt_name                      = "m0_bnode_variable_kv_size_format",
+	.nt_init                      = vkvv_init,
+	.nt_fini                      = vkvv_fini,
+	.nt_count_rec                 = vkvv_count_rec,
+	.nt_space                     = vkvv_space,
+	.nt_level                     = vkvv_level,
+	.nt_shift                     = vkvv_shift,
+	.nt_keysize                   = vkvv_keysize,
+	.nt_valsize                   = vkvv_valsize,
+	.nt_isunderflow               = vkvv_isunderflow,
+	.nt_isoverflow                = vkvv_isoverflow,
+	.nt_fid                       = vkvv_fid,
+	.nt_rec                       = vkvv_rec,
+	.nt_key                       = vkvv_node_key,
+	.nt_child                     = vkvv_child,
+	.nt_isfit                     = vkvv_isfit,
+	.nt_done                      = vkvv_done,
+	.nt_make                      = vkvv_make,
+	.nt_fix                       = vkvv_fix,
+	.nt_cut                       = vkvv_cut,
+	.nt_del                       = vkvv_del,
+	.nt_set_level                 = vkvv_set_level,
+	.nt_move                      = generic_move,
+	.nt_invariant                 = vkvv_invariant,
+	.nt_expensive_invariant       = vkvv_expensive_invariant,
+	.nt_isvalid                   = segaddr_header_isvalid,
+	.nt_verify                    = vkvv_verify,
+	.nt_opaque_set                = vkvv_opaque_set,
+	.nt_opaque_get                = vkvv_opaque_get,
+	.nt_capture                   = vkvv_capture,
+	.nt_create_delete_credit_size = vkvv_create_delete_credit_size,
+	.nt_node_alloc_credit         = vkvv_node_alloc_credit,
+	.nt_node_free_credit          = vkvv_node_free_credit,
+	.nt_rec_put_credit            = vkvv_rec_put_credit,
+	.nt_rec_update_credit         = vkvv_rec_update_credit,
+	.nt_rec_del_credit            = vkvv_rec_del_credit,
+	//.nt_node_free_credits         = NULL,
+	/* .nt_ksize_get          = ff_ksize_get, */
+	/* .nt_valsize_get        = ff_valsize_get, */
 };
 
+struct dir_rec {
+	uint16_t key_offset;
+	uint16_t val_offset;
+};
 struct vkvv_head {
-	struct m0_format_header  vkvv_fmt;      /*< Node Header */
-	struct node_header       vkvv_seg;      /*< Node type information */
+	struct m0_format_header  vkvv_fmt;        /*< Node Header */
+	struct node_header       vkvv_seg;        /*< Node type information */
 	/**
 	 * The above 2 structures should always be together with node_header
 	 * following the m0_format_header.
 	 */
 
-	uint16_t                 vkvv_used;     /*< Count of records */
-	uint8_t                  vkvv_shift;    /*< Node size as pow-of-2 */
-	uint8_t                  vkvv_level;    /*< Level in Btree */
-	uint32_t                 vkvv_dir_offset;  /*< starting address of dir */
+	uint16_t                 vkvv_used;       /*< Count of records */
+	uint8_t                  vkvv_shift;      /*< Node size as pow-of-2 */
+	uint8_t                  vkvv_level;      /*< Level in Btree */
+	uint32_t                 vkvv_dir_offset; /*< starting address of dir */
 
-	/* Removal of ksize and vsize as they are now dynamic */
-
-	struct m0_format_footer  vkvv_foot;     /*< Node Footer */
-	void                    *vkvv_opaque;   /*< opaque data */
+	struct m0_format_footer  vkvv_foot;       /*< Node Footer */
+	void                    *vkvv_opaque;     /*< opaque data */
 	/**
 	 *  This space is used to host the Keys, Values and Directory upto the
 	 *  size of the node.
@@ -4013,21 +4124,41 @@ static struct vkvv_head *vkvv_data(const struct nd *node)
 
 static uint32_t vkvv_get_dir_offset(const struct segaddr *addr, int shift)
 {
-	int size = 1ULL << shift;
-	uint32_t dir_off = (size/(2*sizeof(int)));
+	int      size    = 1ULL << shift;
+	uint32_t dir_off = (size/2);
 	return dir_off;
 }
 
-static void vkvv_init(const struct segaddr *addr, int shift, int ksize, int vsize,
-		    uint32_t ntype, uint64_t gen, struct m0_fid fid)
+static uint16_t vkvv_get_vspace(void)
+{
+	return sizeof(void *) + INT_OFFSET;
+}
+
+static void vkvv_init(const struct segaddr *addr, int shift, int ksize,
+		      int vsize, uint32_t ntype, uint64_t gen,
+		      struct m0_fid fid)
 {
 	/**
 	 * @brief  This function will do all the initialisations. Here, it
-	 *         will call a function to create the directory in the middle
-	 *         of the node memory and return the starting address
+	 *         will call a function to return the offset for the directory
+	 *         present in the middle of the node memory for leaf nodes.
 	 */
-	struct vkvv_head *h = segaddr_addr(addr);
-	h->vkvv_dir_offset = vkvv_get_dir_offset(addr, shift);
+	struct vkvv_head *h     = segaddr_addr(addr);
+	M0_SET0(h);
+
+	h->vkvv_dir_offset      = vkvv_get_dir_offset(addr, shift);
+	h->vkvv_shift           = shift;
+	h->vkvv_seg.h_node_type = ntype;
+	h->vkvv_seg.h_gen       = gen;
+	h->vkvv_seg.h_fid       = fid;
+	h->vkvv_opaque          = NULL;
+
+	m0_format_header_pack(&h->vkvv_fmt, &(struct m0_format_tag){
+		.ot_version       = M0_BE_BNODE_FORMAT_VERSION,
+		.ot_type          = M0_FORMAT_TYPE_BE_BNODE,
+		.ot_footer_offset = offsetof(struct vkvv_head, vkvv_foot)
+	});
+	m0_format_footer_update(h);
 }
 
 static void vkvv_fini(const struct nd *node)
@@ -4036,17 +4167,32 @@ static void vkvv_fini(const struct nd *node)
 	 * @brief This function will do all the finalisations in the header.
 	 */
 	struct vkvv_head *h = vkvv_data(node);
+	m0_format_header_pack(&h->vkvv_fmt, &(struct m0_format_tag){
+		.ot_version       = 0,
+		.ot_type          = 0,
+		.ot_footer_offset = 0
+	});
 
+	h->vkvv_fmt.hd_magic = 0;
+	h->vkvv_opaque       = NULL;
 }
 
-static int  vkvv_count(const struct nd *node)
+static uint16_t *vkvv_get_key_offset(const struct nd *node, int idx)
 {
-	/**
-	 * @brief This function returns the count of key in the node space.
-	 *        It is achieved using the vkvv_used variable.
-	 */
-	struct vkvv_head *h = vkvv_data(node);
+	struct vkvv_head *h          = vkvv_data(node);
+	uint16_t          vspace     = vkvv_get_vspace();
+	uint16_t          size       = 1ULL << h->vkvv_shift;
+	void             *start_addr = (void*)h + size - vspace;
+	uint16_t         *offset;
 
+	offset = start_addr - vspace*idx;
+	return offset;
+}
+
+static struct dir_rec *vkvv_get_dir_addr(const struct nd *node)
+{
+	struct vkvv_head *h = vkvv_data(node);
+	return ((void *)h +sizeof(*h) + h->vkvv_dir_offset);
 }
 
 static int  vkvv_count_rec(const struct nd *node)
@@ -4055,8 +4201,7 @@ static int  vkvv_count_rec(const struct nd *node)
 	 * @brief This function returns the count of values in the node space.
 	 *        It is achieved using the vkvv_used variable.
 	 */
-	struct vkvv_head *h = vkvv_data(node);
-
+	return vkvv_data(node)->vkvv_used;
 }
 
 static int  vkvv_space(const struct nd *node)
@@ -4067,25 +4212,35 @@ static int  vkvv_space(const struct nd *node)
 	 *        directory of the next location where upcoming KV will be
 	 *        added. Using this entry, we can calculate the available
 	 *        size.
-	 *
-	 *        directory_size = (sizeof(struct dir_rec))*vkvv_used
-	 *        Available size = total_size of node - sizeof(node_header) -
-	 *                         directory_size - (key_offset_of_last_entry -
-	 *                         start_address_of_kv_space) -
-	 *                         (end_address_of_kv_space -
-	 *                          value_offset_of_last_entry)
 	 */
-	struct vkvv_head *h = vkvv_data(node);
+	struct vkvv_head      *h          = vkvv_data(node);
+	uint16_t               total_size = 1ULL << h->vkvv_shift;
 
-}
+	uint16_t               size_of_all_keys;
+	uint16_t               size_of_all_values;
+	uint16_t               available_size;
+	struct dir_rec        *rec;
+	int                    dir_size;
+	uint16_t              *offset;
 
-static int  vkvv_level(const struct nd *node)
-{
-	/**
-	 * @brief This function will return the vkvv_level from node_header.
-	 */
-	struct vkvv_head *h = vkvv_data(node);
+	if (h->vkvv_level == 0) {
+		rec                = vkvv_get_dir_addr(node);
+		dir_size           = (sizeof(struct dir_rec))*
+				     (h->vkvv_used + 1);
+		size_of_all_keys   = rec[h->vkvv_used].key_offset;
+		size_of_all_values = rec[h->vkvv_used].val_offset;
+		available_size     = total_size - sizeof(*h) -
+				     dir_size - size_of_all_keys -
+				     size_of_all_values;
+	} else {
+		offset             = vkvv_get_key_offset(node, h->vkvv_used-1);
+		size_of_all_values = vkvv_get_vspace()*h->vkvv_used;
+		size_of_all_keys   = *offset;
+		available_size     = total_size - sizeof(*h) -
+				     size_of_all_values - size_of_all_keys;
+	}
 
+	return available_size;
 }
 
 static int  vkvv_shift(const struct nd *node)
@@ -4093,72 +4248,55 @@ static int  vkvv_shift(const struct nd *node)
 	/**
 	 * @brief This function will return the vkvv_shift from node_header.
 	 */
-	struct vkvv_head *h = vkvv_data(node);
+	return vkvv_data(node)->vkvv_shift;
+}
 
+static int  vkvv_level(const struct nd *node)
+{
+	/**
+	 * @brief This function will return the vkvv_level from node_header.
+	 */
+	return vkvv_data(node)->vkvv_level;
 }
 
 static int  vkvv_keysize(const struct nd *node)
 {
 	/**
-	 * @brief This function will also require actual key or slot as a
-	 *        parameter to identify the key in the node.
-	 *        Changes in nt_valsize function declaration will be required.
-	 *        Once the key is identified, the size can be calculated as a
-	 *        difference of offsets obtained from the dir.
-	 *
-	 *        key = to search
-	 *        dir = node_header->dir_rec
-	 *        count = node_header->vkvv_used
-	 *        start_addr = node_header + sizeof(node_header)
-	 *        while(count > 0) {
-	 *            new_key = start_addr + dir[count].key_offset
-	 *            if (new_key == key)
-	 *               break;
-	 *            count--
-	 *        }
-	 *        keysize = dir[count+1].key_offset - dir[count].key_offset
-	 *
+	 * @brief This function will return the -1 as the key size because all
+	 *        the keys, for leaf or internal node, will be of variable size.
 	 */
-	struct vkvv_head *h = vkvv_data(node);
-
+	return -1;
 }
 
 static int  vkvv_valsize(const struct nd *node)
 {
 	/**
-	 * @brief This function will also require actual value or slot as a
-	 *        parameter to identify the value in the node.
-	 *        Changes in nt_valsize function declaration will be required.
-	 *        Once the value is identified, the size can be calculated as a
-	 *        difference of offsets obtained from the dir.
-	 *
-	 *        val = to search
-	 *        dir = node_header->dir_rec
-	 *        count = node_header->vkvv_used
-	 *        start_addr = node->n_addr + segaddr_shift(node->n_addr) - 1
-	 *        while(count > 0) {
-	 *            new_val = start_addr - dir[count].val_offset
-	 *            if (new_val == val)
-	 *               break;
-	 *            count--
-	 *        }
-	 *        valsize = dir[count+1].val_offset - dir[count].val_offset
+	 * @brief This function will return the -1 as the value size for leaf
+	 *        nodes because the values are of variable size. Whereas for
+	 *        internal nodes, the values will essentially be pointers to the
+	 *        child nodes which will have a constant size.
 	 */
-	struct vkvv_head *h = vkvv_data(node);
-
+	if (vkvv_level(node) != 0)
+		return sizeof(void *);
+	else
+		return -1;
 }
 
 static bool vkvv_isunderflow(const struct nd *node, bool predict)
 {
 	/**
 	 * @brief This function will identify the possibility of underflow
-	 *        while adding a new record.
-	 *
-	 * Need to check if ff_used will become less than 0.
+	 *        while adding a new record. We need to check if ff_used will
+	 *        become 0 or not.
 	 */
+	int16_t rec_count = vkvv_data(node)->vkvv_used;
+	if (predict && rec_count != 0)
+		rec_count--;
+	return  rec_count == 0;
 }
 
-static bool vkvv_isoverflow(const struct nd *node)
+static bool vkvv_isoverflow(const struct nd *node,
+			    const struct m0_btree_rec *rec)
 {
 	/**
 	 * @brief This function will identify the possibility of overflow
@@ -4166,9 +4304,21 @@ static bool vkvv_isoverflow(const struct nd *node)
 	 *        Modifications will be required in vkvv_isoverflow() function
 	 *        declaration as we need to have the sizes of incoming key and
 	 *        value.
-	 *
-	 *        keysize + valsize <= vkvv_space(slot->s_node)
 	 */
+	m0_bcount_t vsize;
+	m0_bcount_t ksize;
+	uint16_t    dir_entry;
+
+	if (vkvv_level(node) == 0){
+		ksize     = m0_vec_count(&rec->r_key.k_data.ov_vec);
+		vsize     = m0_vec_count(&rec->r_val.ov_vec);
+		dir_entry = sizeof(struct dir_rec);
+	} else {
+		ksize     = MAX_KEY_SIZE + sizeof(uint64_t);
+		vsize     = vkvv_get_vspace();
+		dir_entry = 0;
+	}
+	return (ksize + vsize + dir_entry < vkvv_space(node)) ? false : true;
 }
 
 static void vkvv_fid(const struct nd *node, struct m0_fid *fid)
@@ -4176,40 +4326,126 @@ static void vkvv_fid(const struct nd *node, struct m0_fid *fid)
 
 }
 
+static uint16_t vkvv_lnode_rec_key_size(const struct nd *node, int idx)
+{
+	struct vkvv_head *h   = vkvv_data(node);
+	struct dir_rec   *rec = (void *)h +sizeof(*h) + h->vkvv_dir_offset;
+
+	return rec[idx+1].key_offset - rec[idx].key_offset;
+}
+
+static uint16_t vkvv_inode_rec_key_size(const struct nd *node, int idx)
+{
+	uint16_t *offset;
+	uint16_t *prev_offset;
+
+	if (idx == 0){
+		offset = vkvv_get_key_offset(node,idx);
+		return *offset;
+	} else {
+		offset      = vkvv_get_key_offset(node,idx);
+		prev_offset = vkvv_get_key_offset(node,idx-1);
+		return (*offset - *prev_offset);
+	}
+}
+
+static uint16_t vkvv_rec_key_size(const struct nd *node, int idx)
+{
+	/**
+	 * @brief This function is used to get the size of the key at the given
+	 *        index. This can be achieved by checking the difference in
+	 *        offsets of the current key and the key immediately after it.
+	 */
+	struct vkvv_head *h = vkvv_data(node);
+	if (h->vkvv_level == 0)
+		return vkvv_lnode_rec_key_size(node, idx);
+	else
+		return vkvv_inode_rec_key_size(node, idx);
+}
+
+static uint16_t vkvv_lnode_rec_val_size(const struct nd *node, int idx)
+{
+	struct vkvv_head *h   = vkvv_data(node);
+	struct dir_rec   *rec = (void *)h +sizeof(*h) + h->vkvv_dir_offset;
+
+	return rec[idx+1].val_offset - rec[idx].val_offset;
+}
+
+static uint16_t vkvv_rec_val_size(const struct nd *node, int idx)
+{
+	/**
+	 * @brief This function is used to get the size of the value at the
+	 *        given index. This can be achieved by checking the difference
+	 *        in offsets of the current key and the key immediately after
+	 *        it.
+	 */
+	struct vkvv_head *h    = vkvv_data(node);
+	if (h->vkvv_level == 0)
+		return vkvv_lnode_rec_val_size(node,idx);
+	else
+		return vkvv_valsize(node);
+}
+
+static void *vkvv_lnode_key(const struct nd *node, int idx)
+{
+	struct vkvv_head *h   = vkvv_data(node);
+	struct dir_rec   *rec = (void *)h +sizeof(*h) + h->vkvv_dir_offset;
+
+	return ((void*)h + sizeof(*h) + rec[idx].key_offset);
+}
+
+static void *vkvv_inode_key(const struct nd *node, int idx)
+{
+	struct vkvv_head *h = vkvv_data(node);
+	uint16_t         *offset;
+
+	if (idx == 0)
+		return ((void*)h + sizeof(*h));
+	else {
+		offset = vkvv_get_key_offset(node,idx-1);
+		return ((void*)h + sizeof(*h) + *offset);
+	}
+}
+
 static void *vkvv_key(const struct nd *node, int idx)
 {
 	/**
 	 * @brief Return the memory address pointing to key space.
-	 *
-	 * index = given index
-	 * start_addr = node->n_addr + sizeof(node_header)
-	 * new_key = start_addr + dir[index].key_offset
-	 * return new_key
 	 */
+
+	if (vkvv_level(node) == 0)
+		return vkvv_lnode_key(node,idx);
+	else
+		return vkvv_inode_key(node,idx);
+}
+
+static void *vkvv_lnode_val(const struct nd *node, int idx)
+{
+	struct vkvv_head *h    = vkvv_data(node);
+	int               size = 1ULL << h->vkvv_shift;
+	struct dir_rec   *rec  = vkvv_get_dir_addr(node);
+
+	return ((void*)h + size - rec[idx].val_offset);
+}
+
+static void *vkvv_inode_val(const struct nd *node, int idx)
+{
+	struct vkvv_head *h      = vkvv_data(node);
+	uint16_t          size   = 1ULL << h->vkvv_shift;
+	uint16_t          vspace = vkvv_get_vspace();
+
+	return ((void*)h + size - vspace*idx + INT_OFFSET);
 }
 
 static void *vkvv_val(const struct nd *node, int idx)
 {
 	/**
 	 * @brief Return the memory address pointing to value space.
-	 *
-	 * index = given index
-	 * start_addr =  node->n_addr + segaddr_shift(node->n_addr) - 1
-	 * new_val = start_addr - dir[index].val_offset
-	 * return new_val
 	 */
-}
-
-static void vkvv_rec(struct slot *slot)
-{
-	/**
-	 * @brief This function will fill the provided slot with its key and
-	 *        value based on the index provided.
-	 *        vkvv_key() and vkvv_val() functions should be used to get the
-	 *        memory address pointing to key and val.
-	 *        vkvv_keysize() and vkvv_valsize() functions should be used to
-	 *        fill the v_count parameter of the slot vector.
-	 */
+	if (vkvv_level(node) == 0)
+		return vkvv_lnode_val(node,idx);
+	else
+		return vkvv_inode_val(node,idx);
 }
 
 static void vkvv_node_key(struct slot *slot)
@@ -4222,16 +4458,132 @@ static void vkvv_node_key(struct slot *slot)
 	 *        vkvv_keysize() functions should be used to
 	 *        fill the v_count parameter of the slot vector.
 	 */
+	const struct nd  *node = slot->s_node;
+	struct vkvv_head *h    = vkvv_data(node);
+
+	M0_PRE(ergo(!(h->vkvv_used == 0 && slot->s_idx == 0),
+		    slot->s_idx <= h->vkvv_used));
+
+	slot->s_rec.r_key.k_data.ov_vec.v_nr = 1;
+	slot->s_rec.r_key.k_data.ov_vec.v_count[0] =
+		vkvv_rec_key_size(slot->s_node, slot->s_idx);
+	slot->s_rec.r_key.k_data.ov_buf[0] =
+		vkvv_key(slot->s_node, slot->s_idx);
+}
+
+static bool vkvv_rec_is_valid(const struct slot *slot)
+{
+	m0_bcount_t ksize;
+	m0_bcount_t vsize;
+
+	ksize = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
+	vsize = m0_vec_count(&slot->s_rec.r_val.ov_vec);
+
+	return _0C(ksize > 0) &&
+	       _0C(ergo(IS_INTERNAL_NODE(slot->s_node),
+			vsize == INTERNAL_NODE_VALUE_SIZE));
+}
+
+static void vkvv_rec(struct slot *slot)
+{
+	/**
+	 * @brief This function will fill the provided slot with its key and
+	 *        value based on the index provided.
+	 *        vkvv_key() and vkvv_val() functions are used to get the
+	 *        memory address pointing to key and value.
+	 *        vkvv_keysize() and vkvv_valsize() functions are used to
+	 *        fill the v_count parameter of the s_rec for key and value.
+	 */
+
+	struct vkvv_head *h = vkvv_data(slot->s_node);
+
+	M0_PRE(ergo(!(h->vkvv_used == 0 && slot->s_idx == 0),
+		    slot->s_idx <= h->vkvv_used));
+
+	slot->s_rec.r_val.ov_vec.v_nr = 1;
+	slot->s_rec.r_val.ov_vec.v_count[0] =
+		vkvv_rec_val_size(slot->s_node, slot->s_idx);
+	slot->s_rec.r_val.ov_buf[0] =
+		vkvv_val(slot->s_node, slot->s_idx+1);
+	vkvv_node_key(slot);
+	M0_POST(vkvv_rec_is_valid(slot));
+
+}
+
+// static bool vkvv_segaddr_header_isvalid(const struct segaddr *addr)
+// {
+// 	struct vkvv_head     *h = segaddr_addr(addr);
+// 	struct m0_format_tag  tag;
+
+// 	if (h->vkvv_fmt.hd_magic != M0_FORMAT_HEADER_MAGIC)
+// 		return false;
+
+// 	m0_format_header_unpack(&tag, &h->vkvv_fmt);
+// 	if (tag.ot_version != M0_BE_BNODE_FORMAT_VERSION ||
+// 	    tag.ot_type != M0_FORMAT_TYPE_BE_BNODE)
+// 	    return false;
+
+// 	return true;
+// }
+
+static bool vkvv_invariant(const struct nd *node)
+{
+	/**
+	 * @brief This function validates the structure of the node.
+	 */
+	struct vkvv_head *h = vkvv_data(node);
+
+	return  _0C(h->vkvv_fmt.hd_magic == M0_FORMAT_HEADER_MAGIC) &&
+		_0C(h->vkvv_seg.h_node_type ==
+		    BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE) &&
+		_0C(h->vkvv_shift == segaddr_shift(&node->n_addr));
+}
+
+static bool vkvv_expensive_invariant(const struct nd *node)
+{
+	/**
+	 * @brief This function validates the key order within node.
+	 * Implementation will be thought of once the basic functionality has
+	 * been implemented.
+	 */
+	return true;
+}
+
+static void vkvv_opaque_set(const struct segaddr *addr, void *opaque)
+{
+	struct vkvv_head *h = segaddr_addr(addr);
+	h->vkvv_opaque = opaque;
+}
+
+static void *vkvv_opaque_get(const struct segaddr *addr)
+{
+	struct vkvv_head *h = segaddr_addr(addr);
+	return h->vkvv_opaque;
+}
+
+static int vkvv_create_delete_credit_size(void)
+{
+	struct vkvv_head *h;
+	return sizeof(*h);
 }
 
 static void vkvv_child(struct slot *slot, struct segaddr *addr)
 {
 	/**
 	 * @brief This function will return the memory address pointing to its
-	 *        child node. We will call the function vkvv_val() for this
-	 *        purpose.
-	 *        This function is called for internal nodes.
+	 *        child node.
 	 */
+	struct vkvv_head *h              = vkvv_data(slot->s_node);
+	int               total_size     = 1ULL << h->vkvv_shift;
+	void             *start_val_addr = (void*)h + total_size;
+	int               index          = slot->s_idx;
+	uint16_t          vspace         = vkvv_get_vspace();
+	void             *new_addr;
+
+	if (h->vkvv_level > 0) {
+		new_addr = start_val_addr - vspace*(index+1) + INT_OFFSET;
+		*addr    = *(struct segaddr *)new_addr;
+	}
 }
 
 static bool vkvv_isfit(struct slot *slot)
@@ -4239,13 +4591,19 @@ static bool vkvv_isfit(struct slot *slot)
 	/**
 	 * @brief This function will determine if the current key and value
 	 *        can be added to the node.
-	 *        It also checks the validity of the record.
-	 *        Modifications will be required in nt_isfit() function
-	 *        declaration as we need to have the sizes of incoming key and
-	 *        value.
-	 *
-	 *        keysize + valsize <= vkvv_space(slot->s_node)
 	 */
+	m0_bcount_t ksize = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
+	m0_bcount_t vsize;
+	uint16_t    dir_entry;
+
+	if (vkvv_level(slot->s_node) == 0) {
+		dir_entry = sizeof(struct dir_rec);
+		vsize     = m0_vec_count(&slot->s_rec.r_val.ov_vec);
+	} else {
+		dir_entry = 0;
+		vsize     = vkvv_get_vspace();
+	}
+	return ksize + vsize + dir_entry <= vkvv_space(slot->s_node);
 }
 
 static void vkvv_done(struct slot *slot, bool modified)
@@ -4253,6 +4611,230 @@ static void vkvv_done(struct slot *slot, bool modified)
 
 }
 
+static bool vkvv_is_dir_overlap(struct slot *slot)
+{
+	uint16_t          ksize          =
+		slot->s_rec.r_key.k_data.ov_vec.v_count[0];
+	uint16_t          vsize          = slot->s_rec.r_val.ov_vec.v_count[0];
+	struct vkvv_head *h              = vkvv_data(slot->s_node);
+	int               count          = h->vkvv_used;
+
+	void             *start_dir_addr = vkvv_get_dir_addr(slot->s_node);
+	void             *key_addr       = vkvv_key(slot->s_node, count);
+	void             *val_addr       = vkvv_val(slot->s_node, count);
+	void             *end_dir_addr   = start_dir_addr +
+					   sizeof(struct dir_rec)*(count + 2);
+
+	if (key_addr + ksize > start_dir_addr ||
+	    val_addr - vsize < end_dir_addr)
+		return true;
+	else
+		return false;
+}
+
+static void vkvv_move_dir(struct slot *slot)
+{
+	struct vkvv_head *h              = vkvv_data(slot->s_node);
+	int               count          = h->vkvv_used;
+	uint16_t          ksize          =
+		slot->s_rec.r_key.k_data.ov_vec.v_count[0];
+	uint16_t          vsize          = slot->s_rec.r_val.ov_vec.v_count[0];
+
+	void             *start_dir_addr = vkvv_get_dir_addr(slot->s_node);
+	uint16_t          dir_size       = sizeof(struct dir_rec)*(count + 2);
+	void             *end_dir_addr   = start_dir_addr + dir_size;
+	void             *key_addr       = vkvv_key(slot->s_node, count);
+	void             *val_addr       = vkvv_val(slot->s_node, count);
+	void             *temp_dir_buffer;
+	uint16_t          diff;
+
+	/* Key space overlaps with directory */
+	if (key_addr + ksize > start_dir_addr) {
+		diff = (key_addr + ksize) - start_dir_addr;
+		temp_dir_buffer = m0_alloc(dir_size);
+		//memmove(start_dir_addr + diff, start_dir_addr, dir_size);
+		memcpy(temp_dir_buffer, start_dir_addr, dir_size);
+		memcpy(start_dir_addr + diff, temp_dir_buffer, dir_size);
+		h->vkvv_dir_offset += diff;
+		m0_free(temp_dir_buffer);
+		return;
+	}
+
+	/* Value space overlaps with directory */
+	if (val_addr - vsize < end_dir_addr) {
+		diff = end_dir_addr - (val_addr - vsize);
+		temp_dir_buffer = m0_alloc(dir_size);
+		//memmove(start_dir_addr - diff, start_dir_addr, dir_size);
+		memcpy(temp_dir_buffer, start_dir_addr, dir_size);
+		memcpy(start_dir_addr - diff, temp_dir_buffer, dir_size);
+		h->vkvv_dir_offset -= diff;
+		m0_free(temp_dir_buffer);
+		return;
+	}
+}
+
+static void vkvv_lnode_make(struct slot *slot)
+{
+	int               index          = slot->s_idx;
+	uint16_t          ksize          =
+		slot->s_rec.r_key.k_data.ov_vec.v_count[0];
+	uint16_t          vsize          = slot->s_rec.r_val.ov_vec.v_count[0];
+	struct vkvv_head *h              = vkvv_data(slot->s_node);
+	struct dir_rec   *rec            = vkvv_get_dir_addr(slot->s_node);
+	int               count          = h->vkvv_used;
+	void             *temp_key_buffer;
+	void             *temp_val_buffer;
+	void             *start_key_addr;
+	void             *start_val_addr;
+	int               t_count;
+	uint16_t          total_ksize;
+	uint16_t          total_vsize;
+
+	if(vkvv_is_dir_overlap(slot)){
+		vkvv_move_dir(slot);
+		rec =  vkvv_get_dir_addr(slot->s_node);;
+	}
+
+	if (index == count) {
+		/**
+		 * No need to do memmove() as data will be added to the end of
+		 * current series of keys and values. Just update the
+		 * directory to keep a record of the next possible offset.
+		 */
+		rec[index+1].key_offset = rec[index].key_offset + ksize;
+		rec[index+1].val_offset = rec[index].val_offset + vsize;
+	} else {
+		start_key_addr = vkvv_key(slot->s_node, index);
+		start_val_addr = vkvv_val(slot->s_node, index);
+		t_count        = count;
+		total_ksize    = rec[count].key_offset -
+				 rec[index].key_offset;
+		total_vsize    = rec[count].val_offset -
+				 rec[index].val_offset;
+
+		while (t_count >= index) {
+			rec[t_count+1].key_offset = rec[t_count].key_offset;
+			rec[t_count+1].val_offset = rec[t_count].val_offset;
+
+			rec[t_count+1].key_offset = rec[t_count+1].key_offset +
+							ksize;
+			rec[t_count+1].val_offset = rec[t_count+1].val_offset +
+							vsize;
+			t_count --;
+		}
+
+		temp_key_buffer = m0_alloc(total_ksize);
+		temp_val_buffer = m0_alloc(total_vsize);
+
+		memcpy(temp_key_buffer, start_key_addr, total_ksize);
+		//memset(start_key_addr, '0', total_ksize);
+		memcpy(start_key_addr + ksize, temp_key_buffer, total_ksize);
+
+		memcpy(temp_val_buffer, start_val_addr - total_vsize,
+		       total_vsize);
+		//memset(start_val_addr - total_vsize, '0', total_vsize);
+		memcpy(start_val_addr - total_vsize - vsize, temp_val_buffer,
+		       total_vsize);
+
+		m0_free(temp_key_buffer);
+		m0_free(temp_val_buffer);
+	}
+}
+
+
+static void vkvv_inode_make(struct slot *slot)
+{
+	int               index          = slot->s_idx;
+	uint16_t          ksize          =
+		slot->s_rec.r_key.k_data.ov_vec.v_count[0];
+	struct vkvv_head *h              = vkvv_data(slot->s_node);
+	uint16_t          count          = h->vkvv_used;
+	uint16_t          vspace         = vkvv_get_vspace();
+	uint16_t          vsize          = vspace;
+	void             *temp_key_buffer;
+	void             *temp_val_buffer;
+	uint16_t         *count_offset;
+	uint16_t         *index_offset;
+	uint16_t         *index_offset_2;
+	uint16_t         *t_offset;
+	uint16_t         *t_offset_2;
+	uint16_t          total_ksize;
+	uint16_t          total_vsize;
+	uint16_t         *offset;
+	int               t_count;
+	void             *start_key_addr;
+	void             *start_val_addr;
+
+	if (index == count) {
+		/**
+		 * No need to do memmove() as data will be added to the end of
+		 * current series of keys and values. Just update the
+		 * directory to keep a record of the next possible offset.
+		 */
+
+		index_offset = vkvv_get_key_offset(slot->s_node, index);
+
+		if(index==0)
+			*index_offset = ksize;
+		else {
+			 index_offset_2 = vkvv_get_key_offset(slot->s_node,
+							      index - 1);
+			*index_offset   = *index_offset_2 + ksize;
+		}
+	} else {
+		start_key_addr = vkvv_key(slot->s_node, index);
+		start_val_addr = vkvv_val(slot->s_node, index);
+		total_vsize    = vspace *(count - index);
+		t_count        = count;
+
+		if(index == 0) {
+			index_offset = vkvv_get_key_offset(slot->s_node,
+							   count-1);
+			total_ksize  = *index_offset;
+		} else {
+			count_offset = vkvv_get_key_offset(slot->s_node,
+							   count - 1);
+			index_offset = vkvv_get_key_offset(slot->s_node,
+							   index - 1);
+			total_ksize  = *count_offset - *index_offset;
+		}
+
+		start_val_addr -= INT_OFFSET;
+		temp_key_buffer = m0_alloc(total_ksize);
+		temp_val_buffer = m0_alloc(total_vsize);
+
+		memcpy(temp_key_buffer, start_key_addr, total_ksize);
+		//memset(start_key_addr, '0', total_ksize);
+		memcpy(start_key_addr + ksize, temp_key_buffer, total_ksize);
+
+		memcpy(temp_val_buffer, start_val_addr - total_vsize,
+		       total_vsize);
+		//memset(start_val_addr - total_vsize, '0', total_vsize);
+		memcpy(start_val_addr - total_vsize - vsize, temp_val_buffer,
+		       total_vsize);
+
+		m0_free(temp_key_buffer);
+		m0_free(temp_val_buffer);
+		// memmove(start_key_addr + ksize, start_key_addr, total_ksize);
+		// memmove(start_val_addr - total_vsize - vsize, start_val_addr -
+		// 	total_vsize, total_vsize);
+		while (t_count > index) {
+			offset = vkvv_get_key_offset(slot->s_node, t_count);
+			*offset = *offset + ksize;
+			t_count --;
+		}
+
+		if (index == 0) {
+			t_offset  = vkvv_get_key_offset(slot->s_node, t_count);
+			*t_offset = ksize;
+		} else {
+			t_offset   = vkvv_get_key_offset(slot->s_node, t_count);
+			t_offset_2 = vkvv_get_key_offset(slot->s_node, t_count
+							 - 1);
+			*t_offset  = *t_offset_2 + ksize;
+		}
+	}
+}
 static void vkvv_make(struct slot *slot)
 {
 	/**
@@ -4263,53 +4845,14 @@ static void vkvv_make(struct slot *slot)
 	 *        We will maintain an extra record than vkvv_used in the
 	 *        directory. Maintaining this extra offset value will help in
 	 *        size calculations.
-	 *
-	 *        start_key_addr = vkvv_key(slot->s_node, index)
-	 *        start_val_addr = vkvv_val(slot->s_node, index)
-	 *        count = num of records i.e. vkvv_used
-	 *
-	 *        if(index==count) {
-	 *          //No need to do memmove() as data will added to the end of
-	 *          //current series of keys and values. Just update the
-	 *          //directory to keep a record of the next possible offset.
-	 *          dir_rec[index+1].key_offset = dir_rec[index].key_offset + incoming_key_size
-	 *          dir_rec[index+1].val_offset = dir_rec[index].val_offset + incoming_val_size
-	 *
-	 *        } else {
-	 *
-	 *          total_key_size = dir_rec[count+1].key_offset - dir_rec[index].key_offset
-	 *          total_val_size = dir_rec[count+1].val_offset - dir_rec[index].val_offset
-	 *
-	 *          //Update directory
-	 *          idx = index
-	 *          temp_count = count
-	 *          while(temp_count >= idx) {
-	 *            dir_rec[temp_count+1].key_offset = dir_rec[temp_count].key_offset
-	 *            dir_rec[temp_count+1].val_offset = dir_rec[temp_count].val_offset
-	 *
-	 *            dir_rec[temp_count+1].key_offset = dir_rec[temp_count+1].key_offset + incoming_key_size
-	 *            dir_rec[temp_count+1].val_offset = dir_rec[temp_count+1].val_offset + incoming_value_size
-	 *            temp_count --
-	 *          }
-	 *
-	 *          memmove(start_key_addr + incoming_key_size,start_key_addr,total_key_size)
-	 *          memmove(start_val_addr - incoming_val_size,start_val_addr,total_val_size)
-	 *        }
-	 *        vkvv_used++
-	 *
-	 *
 	 */
+	struct vkvv_head *h = vkvv_data(slot->s_node);
 
-}
-
-static bool vkvv_find(struct slot *slot, const struct m0_btree_key *key)
-{
-	/**
-	 * @brief This function will return the index in the directory that
-	 *        points to given key.
-	 *        A binary search algorithm can be implemented here similar to
-	 *        current implementation in ff_find.
-	 */
+	if (vkvv_level(slot->s_node) == 0)
+		vkvv_lnode_make(slot);
+	else
+		vkvv_inode_make(slot);
+	h->vkvv_used++;
 }
 
 static void vkvv_fix(const struct nd *node)
@@ -4318,6 +4861,8 @@ static void vkvv_fix(const struct nd *node)
 	 * @brief This function will do any post processing required after the
 	 *        node operations.
 	 */
+	struct vkvv_head *h              = vkvv_data(node);
+	m0_format_footer_update(h);
 }
 
 static void vkvv_cut(const struct nd *node, int idx, int size)
@@ -4330,49 +4875,116 @@ static void vkvv_cut(const struct nd *node, int idx, int size)
 	 */
 }
 
-static void vkvv_del(const struct nd *node, int idx)
+static void vkvv_lnode_del(const struct nd *node, int idx)
 {
 	/**
 	 * @brief This function will delete the given record or KV pair from
 	 *        the node. Keys and values need to moved accordingly, and
 	 *        the new indices should be updated in the node directory.
-	 *
-	 *
-	 *        start_key_addr = vkvv_key(slot->s_node, index)
-	 *        start_val_addr = vkvv_val(slot->s_node, index)
-	 *        count = num of records i.e. vkvv_used
-	 *
-	 *        if(index==count) {
-	 *          //No need to do memmove() as data will be removed from the
-	 *          //end of current series of keys and values. Just update the
-	 *          //directory entry to keep a record.
-	 *          dir_rec[index+1].key_offset = 0
-	 *          dir_rec[index+1].val_offset = 0
-	 *
-	 *        } else {
-	 *
-	 *          total_key_size = dir_rec[count+1].key_offset - dir_rec[index+1].key_offset
-	 *          total_val_size = dir_rec[count+1].val_offset - dir_rec[index+1].val_offset
-	 *
-	 *          //Update directory
-	 *          idx = index
-	 *
-	 *          while(idx <= count) {
-	 *            dir_rec[idx].key_offset = dir_rec[idx+1].key_offset
-	 *            dir_rec[idx].val_offset = dir_rec[idx+1].val_offset
-	 *
-	 *            dir_rec[idx].key_offset = dir_rec[idx].key_offset - outgoing_key_size
-	 *            dir_rec[idx].val_offset = dir_rec[idx].val_offset - outgoing_value_size
-	 *            idx ++
-	 *          }
-	 *          dir_rec[idx].key_offset = 0
-	 *          dir_rec[idx].val_offset = 0
-	 *          memmove(start_key_addr,start_key_addr + outgoing_key_size,total_key_size)
-	 *          memmove(start_val_addr,start_val_addr - outgoing_val_size,total_val_size)
-	 *        }
-	 *        vkvv_used--
-	 *
 	 */
+	int               index          = idx;
+	void             *start_key_addr = vkvv_key(node, idx);
+	void             *start_val_addr = vkvv_val(node, idx);
+	struct vkvv_head *h              = vkvv_data(node);
+	struct dir_rec   *rec            = vkvv_get_dir_addr(node);
+	int               count          = h->vkvv_used;
+	uint16_t          ksize          = rec[index+1].key_offset -
+					   rec[index].key_offset;
+	uint16_t          vsize          = rec[index+1].val_offset -
+					   rec[index].val_offset;
+	uint16_t          total_ksize;
+	uint16_t          total_vsize;
+	int               temp_idx;
+
+	if (index == count-1) {
+		/**
+		 * No need to do memmove() as data will be added to the end of
+		 * current series of keys and values. Just update the
+		 * directory to keep a record of the next possible offset.
+		 */
+		rec[index+1].key_offset = 0;
+		rec[index+1].val_offset = 0;
+	} else {
+		total_ksize = rec[count].key_offset -
+				  rec[index+1].key_offset;
+		total_vsize = rec[count].val_offset -
+				  rec[index+1].val_offset;
+		temp_idx    = index;
+
+		while (temp_idx < count) {
+			rec[temp_idx].key_offset = rec[temp_idx+1].key_offset;
+			rec[temp_idx].val_offset = rec[temp_idx+1].val_offset;
+
+			rec[temp_idx].key_offset = rec[temp_idx].key_offset -
+						   ksize;
+			rec[temp_idx].val_offset = rec[temp_idx].val_offset -
+						   vsize;
+			temp_idx++;
+		}
+		rec[temp_idx].key_offset = 0;
+		rec[temp_idx].val_offset = 0;
+
+		memmove(start_key_addr, start_key_addr + ksize, total_ksize);
+		memmove(start_val_addr - total_vsize, start_val_addr -
+			total_vsize -vsize, total_vsize);
+
+	}
+}
+
+static void vkvv_inode_del(const struct nd *node, int idx)
+{
+	int               index          = idx;
+	void             *start_key_addr = vkvv_key(node, index);
+	void             *start_val_addr = vkvv_val(node, index);
+	uint16_t          ksize          = vkvv_inode_rec_key_size(node, index);
+	struct vkvv_head *h              = vkvv_data(node);
+	int               count          = h->vkvv_used;
+	uint16_t          vspace         = vkvv_get_vspace();
+	uint16_t          vsize          = vspace;
+	uint16_t         *offset;
+	uint16_t          total_ksize;
+	uint16_t          total_vsize;
+	int               t_count;
+	uint16_t         *count_offset;
+	uint16_t         *index_offset;
+
+
+	if (index == count - 1) {
+		/**
+		 * No need to do memmove() as data will be added to the end of
+		 * current series of keys and values. Just update the
+		 * directory to keep a record of the next possible offset.
+		 */
+		offset = vkvv_get_key_offset(node, index);
+		*offset  = 0;
+	} else {
+		t_count = count - 1;
+		total_vsize = vspace *(count - index - 1);
+		count_offset = vkvv_get_key_offset(node, count-1);
+		index_offset = vkvv_get_key_offset(node, index);;
+		total_ksize   = *count_offset - *index_offset;
+
+		start_val_addr -= INT_OFFSET;
+		memmove(start_key_addr, start_key_addr + ksize, total_ksize);
+		memmove(start_val_addr - total_vsize, start_val_addr -
+			total_vsize -vsize, total_vsize);
+		while (t_count > index) {
+			offset = vkvv_get_key_offset(node, t_count-1);
+			*offset = *offset - ksize;
+			t_count --;
+		}
+	}
+}
+
+static void vkvv_del(const struct nd *node, int idx)
+{
+	struct vkvv_head *h = vkvv_data(node);
+
+	if (vkvv_level(node) == 0)
+		vkvv_lnode_del(node,idx);
+	else
+		vkvv_inode_del(node,idx);
+	h->vkvv_used--;
 }
 
 static void vkvv_set_level(const struct nd *node, uint8_t new_level)
@@ -4380,32 +4992,9 @@ static void vkvv_set_level(const struct nd *node, uint8_t new_level)
 	/**
 	 * @brief This function will set the level for the given node.
 	 */
-}
-static void vkvv_move(struct nd *src, struct nd *tgt, enum direction dir,
-		      int nr)
-{
-	/**
-	 * @brief This function is used to move data between 2 nodes.
-	 * Need to check if generic move() can be used for this case.
-	 */
-}
+	struct vkvv_head *h = vkvv_data(node);
+	h->vkvv_level = new_level;
 
-static bool vkvv_invariant(const struct nd *node)
-{
-	/**
-	 * @brief This function validates the structure of the node.
-	 * Implementation will be thought of once the basic functionality has
-	 * been implemented.
-	 */
-}
-
-static bool vkvv_expensive_invariant(const struct nd *node)
-{
-	/**
-	 * @brief This function validates the key order within node.
-	 * Implementation will be thought of once the basic functionality has
-	 * been implemented.
-	 */
 }
 
 static bool vkvv_verify(const struct nd *node)
@@ -4413,20 +5002,9 @@ static bool vkvv_verify(const struct nd *node)
 	/**
 	 * @brief This function verify the data in the node.
 	 */
-}
-
-static void vkvv_opaque_set(const struct segaddr *addr, void *opaque)
-{
-	/**
-	 * @brief This function saves the opaque data.
-	 */
-}
-
-static void *vkvv_opaque_get(const struct segaddr *addr)
-{
-	/**
-	 * @brief This function return the opaque data.
-	 */
+	struct vkvv_head *h = vkvv_data(node);
+	return m0_format_footer_verify(h, true) == 0;
+	return true;
 }
 
 static void vkvv_capture(struct slot *slot, struct m0_be_tx *tx)
@@ -4435,7 +5013,64 @@ static void vkvv_capture(struct slot *slot, struct m0_be_tx *tx)
 	 * @brief This function will capture the data in node segment.
 	 */
 }
-#endif
+
+static void vkvv_node_alloc_credit(const struct nd *node,
+				struct m0_be_tx_credit *accum)
+{
+	struct vkvv_head *h           = vkvv_data(node);
+	int               shift       = h->vkvv_shift;
+	int               node_size   = 1ULL << shift;
+
+	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED,
+			       node_size, shift, accum);
+}
+
+static void vkvv_node_free_credit(const struct nd *node,
+				struct m0_be_tx_credit *accum)
+{
+	struct vkvv_head *h           = vkvv_data(node);
+	int               shift       = h->vkvv_shift;
+	int               node_size   = 1ULL << shift;
+	int               header_size = sizeof(*h);
+
+	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED,
+			       node_size, shift, accum);
+
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, header_size));
+}
+
+static void vkvv_rec_put_credit(const struct nd *node, m0_bcount_t ksize,
+			      m0_bcount_t vsize,
+			      struct m0_be_tx_credit *accum)
+{
+	struct vkvv_head *h         = vkvv_data(node);
+	int               shift     = h->vkvv_shift;
+	int               node_size = 1ULL << shift;
+
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
+}
+
+static void vkvv_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
+				 m0_bcount_t vsize,
+				 struct m0_be_tx_credit *accum)
+{
+	struct vkvv_head *h         = vkvv_data(node);
+	int               shift     = h->vkvv_shift;
+	int               node_size = 1ULL << shift;
+
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
+}
+
+static void vkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
+			      m0_bcount_t vsize,
+			      struct m0_be_tx_credit *accum)
+{
+	struct vkvv_head *h         = vkvv_data(node);
+	int               shift     = h->vkvv_shift;
+	int               node_size = 1ULL << shift;
+
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
+}
 /**
  *  --------------------------------------------
  *  Section END -
@@ -4547,7 +5182,7 @@ static const struct node_type* btree_nt_from_bt(const struct m0_btree_type *bt)
 	else if (bt->ksize == -1 && bt->vsize != -1)
 		M0_ASSERT(0); /** Currently we do not support this */
 	else
-		M0_ASSERT(0); /** Replace with correct type. */
+		return &variable_kv_format; /** Replace with correct type. */
 }
 
 void m0_btree_create_credit(const struct m0_btree_type *bt,
@@ -7671,11 +8306,26 @@ void get_rec_at_index(struct nd *node, int idx, uint64_t *key,  uint64_t *val)
 
 	node_rec(&slot);
 
-	if (key != NULL)
-		*key = *(uint64_t *)p_key;
+	/*
+	 *if (key != NULL)
+	 *	*key = *(uint64_t *)p_key;
+	 *
+	 *if (val != NULL)
+	 *	*val = *(uint64_t *)p_val;
+	 */
 
-	if (val != NULL)
-		*val = *(uint64_t *)p_val;
+	if (key != NULL) {
+		key[0] = ((uint64_t *)p_key)[0];
+		key[1] = ((uint64_t *)p_key)[1];
+		key[2] = ((uint64_t *)p_key)[2];
+		key[3] = ((uint64_t *)p_key)[3];
+		key[4] = ((uint64_t *)p_key)[4];
+
+	}
+	if (val != NULL) {
+		val[0] = ((uint64_t *)p_val)[0];
+		val[1] = ((uint64_t *)p_val)[1];
+	}
 }
 
 void get_key_at_index(struct nd *node, int idx, uint64_t *key)
@@ -7695,9 +8345,11 @@ void get_key_at_index(struct nd *node, int idx, uint64_t *key)
 	slot.s_rec.r_key.k_data.ov_buf = &p_key;
 
 	node_key(&slot);
-
-	if (key != NULL)
-		*key = *(uint64_t *)p_key;
+	if (key != NULL) {
+		key[0] = ((uint64_t *)p_key)[0];
+		key[1] = ((uint64_t *)p_key)[1];
+		// *key = *(uint64_t *)p_key;
+	}
 }
 /**
  * This unit test will create a tree, add a node and then populate the node with
@@ -8052,10 +8704,14 @@ static int btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 
 	m0_bufvec_cursor_init(&scur, &datum->key->k_data);
 	m0_bufvec_cursor_init(&dcur, &rec->r_key.k_data);
+	rec->r_key.k_data.ov_vec.v_count[0] =
+	m0_vec_count(&datum->key->k_data.ov_vec);
 	m0_bufvec_cursor_copy(&dcur, &scur, ksize);
 
 	m0_bufvec_cursor_init(&scur, datum->value);
 	m0_bufvec_cursor_init(&dcur, &rec->r_val);
+	rec->r_val.ov_vec.v_count[0]=
+	m0_vec_count(&datum->value->ov_vec);
 	m0_bufvec_cursor_copy(&dcur, &scur, vsize);
 
 	return 0;
@@ -8069,6 +8725,7 @@ static int btree_kv_get_oper_cb(struct m0_btree_cb *cb,
 	m0_bcount_t              ksize;
 	m0_bcount_t              vsize;
 	struct cb_data          *datum = cb->c_datum;
+	int                      i = 0;
 
 	/** The caller can look at these flags if he needs to. */
 	datum->flags = rec->r_flags;
@@ -8076,21 +8733,27 @@ static int btree_kv_get_oper_cb(struct m0_btree_cb *cb,
 	M0_ASSERT(rec->r_flags == M0_BSC_SUCCESS);
 
 	m0_bufvec_cursor_init(&scur, &rec->r_key.k_data);
+	m0_bufvec_cursor_move(&scur, sizeof(ksize));
 	m0_bufvec_cursor_copyfrom(&scur, &ksize, sizeof(ksize));
 	M0_PRE(ksize <= MAX_KEY_SIZE + sizeof(uint64_t) &&
 	       m0_vec_count(&rec->r_key.k_data.ov_vec) == ksize);
 
 	m0_bufvec_cursor_init(&scur, &rec->r_val);
+	m0_bufvec_cursor_move(&scur, sizeof(vsize));
 	m0_bufvec_cursor_copyfrom(&scur, &vsize, sizeof(vsize));
 	M0_PRE(vsize <= MAX_VAL_SIZE + sizeof(uint64_t) &&
 	       m0_vec_count(&rec->r_val.ov_vec) == vsize);
 
 	m0_bufvec_cursor_init(&dcur, &datum->key->k_data);
 	m0_bufvec_cursor_init(&scur, &rec->r_key.k_data);
+	datum->key->k_data.ov_vec.v_count[0] =
+	m0_vec_count(&rec->r_key.k_data.ov_vec);
 	m0_bufvec_cursor_copy(&dcur, &scur, ksize);
 
 	m0_bufvec_cursor_init(&dcur, datum->value);
 	m0_bufvec_cursor_init(&scur, &rec->r_val);
+	datum->value->ov_vec.v_count[0]=
+	m0_vec_count(&rec->r_val.ov_vec);
 	m0_bufvec_cursor_copy(&dcur, &scur, vsize);
 
 	if (datum->check_value) {
@@ -8102,15 +8765,19 @@ static int btree_kv_get_oper_cb(struct m0_btree_cb *cb,
 		uint64_t                value;
 
 		m0_bufvec_cursor_init(&kcur, &rec->r_key.k_data);
-		m0_bufvec_cursor_move(&kcur, sizeof(key));
 		m0_bufvec_cursor_copyfrom(&kcur, &key, sizeof(key));
 		m0_bufvec_cursor_init(&vcur, &rec->r_val);
-		m0_bufvec_cursor_move(&vcur, sizeof(value));
-		v_off += sizeof(value);
 
 		while (v_off < vsize) {
 
 			m0_bufvec_cursor_copyfrom(&vcur, &value, sizeof(value));
+			if (i==1) {
+				v_off += sizeof(value);
+				i++;
+				continue;
+			}
+			i++;
+
 			if (key != value)
 				check_failed = true;
 			v_off += sizeof(value);
@@ -8123,15 +8790,22 @@ static int btree_kv_get_oper_cb(struct m0_btree_cb *cb,
 		if (check_failed) {
 			v_off = 0;
 			m0_bufvec_cursor_init(&vcur, &rec->r_val);
-			m0_bufvec_cursor_move(&vcur, sizeof(value));
-			v_off += sizeof(value);
 			key = ~key;
+			i=0;
+
 			while (v_off < vsize) {
 				m0_bufvec_cursor_copyfrom(&vcur, &value,
 							  sizeof(value));
+				if (i==1) {
+					v_off += sizeof(value);
+					i++;
+					continue;
+				}
+				i++;
+
 				if (key != value)
 					M0_ASSERT(0);
-				v_off += vsize;
+				v_off += sizeof(value);
 			}
 		}
 	}
@@ -8233,6 +8907,8 @@ static int btree_kv_update_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 
 	m0_bufvec_cursor_init(&scur, datum->value);
 	m0_bufvec_cursor_init(&dcur, &rec->r_val);
+	rec->r_val.ov_vec.v_count[0]=
+	m0_vec_count(&datum->value->ov_vec);
 	m0_bufvec_cursor_copy(&dcur, &scur, vsize);
 
 	return 0;
@@ -8965,23 +9641,23 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 						ti->ti_value_size;
 			M0_ASSERT(ksize <= MAX_KEY_SIZE + sizeof(key[0]) &&
 				  vsize <= MAX_VAL_SIZE + sizeof(value[0]));
-			key[0]   = ksize;
-			value[0] = vsize;
+			key[1]   = ksize;
+			value[1] = vsize;
 			/**
 			 *  Embed the thread-id in LSB so that different threads
 			 *  will target the same node thus causing race
 			 *  conditions useful to mimic and test btree operations
 			 *  in a loaded system.
 			 */
-			key[1] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+			key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
-			key[1] = m0_byteorder_cpu_to_be64(key[1]);
+			key[0] = m0_byteorder_cpu_to_be64(key[0]);
 			for (i = 2; i < ksize / sizeof(key[0]); i++)
-				key[i] = key[1];
+				key[i] = key[0];
 
-			value[1] = key[1];
+			value[0] = key[0];
 			for (i = 2; i < vsize / sizeof(value[0]); i++)
-				value[i] = value[1];
+				value[i] = value[0];
 
 			m0_be_ut_tx_init(tx, ut_be);
 			m0_be_tx_prep(tx, &put_cred);
@@ -9092,12 +9768,12 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		ksize = ksize_random ?  arr_count * sizeof(key[0]):
 			ti->ti_key_size;
 
-		key[0] = ksize;
-		key[1] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+		key[1] = ksize;
+		key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
 			 ti->ti_thread_id;
-		key[1] = m0_byteorder_cpu_to_be64(key[1]);
+		key[0] = m0_byteorder_cpu_to_be64(key[0]);
 		for (i = 2; i < ksize / sizeof(key[0]); i++)
-			key[i] = key[1];
+			key[i] = key[0];
 		/** Skip initializing the value as this is an error case */
 
 		m0_be_ut_tx_init(tx, ut_be);
@@ -9132,18 +9808,18 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			vsize = vsize_random ?  arr_count * sizeof(value[0]) :
 						ti->ti_value_size;
 
-			key[0]   = ksize;
-			value[0] = vsize;
+			key[1]   = ksize;
+			value[1] = vsize;
 
-			key[1] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+			key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
-			key[1] = m0_byteorder_cpu_to_be64(key[1]);
+			key[0] = m0_byteorder_cpu_to_be64(key[0]);
 			for (i = 2; i < ksize / sizeof(key[0]); i++)
-				key[i] = key[1];
+				key[i] = key[0];
 
-			value[1] = ~key[1];
+			value[0] = ~key[0];
 			for (i = 2; i < vsize / sizeof(value[0]); i++)
-				value[i] = value[1];
+				value[i] = value[0];
 
 			m0_be_ut_tx_init(tx, ut_be);
 			m0_be_tx_prep(tx, &update_cred);
@@ -9172,12 +9848,12 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		ksize = ksize_random ?  arr_count * sizeof(key[0]):
 			ti->ti_key_size;
 
-		key[0]   = ksize;
-		key[1] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+		key[1]   = ksize;
+		key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
 			 (typeof(ti->ti_thread_id))-1;
-		key[1] = m0_byteorder_cpu_to_be64(key[1]);
+		key[0] = m0_byteorder_cpu_to_be64(key[0]);
 		for (i = 2; i < ksize / sizeof(key[0]); i++)
-			key[i] = key[1];
+			key[i] = key[0];
 		/** Skip initializing the value as this is an error case */
 
 		m0_be_ut_tx_init(tx, ut_be);
@@ -9206,13 +9882,13 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			ksize = ksize_random ?  arr_count * sizeof(key[0]):
 						ti->ti_key_size;
 
-			key[0]   = ksize;
-			key[1] = (key_first <<
+			key[1]   = ksize;
+			key[0] = (key_first <<
 				  (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
-			key[1] = m0_byteorder_cpu_to_be64(key[1]);
+			key[0] = m0_byteorder_cpu_to_be64(key[0]);
 			for (i = 2; i < ksize / sizeof(key[0]); i++)
-				key[i] = key[1];
+				key[i] = key[0];
 		} else {
 			/** Iterate backward. */
 			iter_dir = BOF_PREV;
@@ -9220,13 +9896,13 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			ksize = ksize_random ?  arr_count * sizeof(key[0]):
 						ti->ti_key_size;
 
-			key[0]   = ksize;
-			key[1] = (key_last <<
+			key[1]   = ksize;
+			key[0] = (key_last <<
 				  (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
-			key[1] = m0_byteorder_cpu_to_be64(key[1]);
+			key[0] = m0_byteorder_cpu_to_be64(key[0]);
 			for (i = 2; i < ksize / sizeof(key[0]) ; i++)
-				key[i] = key[1];
+				key[i] = key[0];
 		}
 		get_ksize = ksize;
 		get_data.check_value = true; /** Compare value with key */
@@ -9253,9 +9929,10 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				keys_found_count++;
 
 			/** Copy over the gotten key for the next search. */
-			ksize = get_ksize;
-			for (i = 0; i < get_ksize / sizeof(get_key[0]); i++)
+			ksize = get_ksize = get_key[1];
+			for (i = 0; i < ksize / sizeof(get_key[0]); i++) {
 				key[i] = get_key[i];
+			}
 
 			UT_THREAD_QUIESCE_IF_REQUESTED();
 		}
@@ -9380,13 +10057,13 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 					arr_count * sizeof(key[0]):
 					ti->ti_key_size;
 
-				key[0]   = ksize;
-				key[1] = (slant_key <<
+				key[1]   = ksize;
+				key[0] = (slant_key <<
 					  (sizeof(ti->ti_thread_id) * 8)) +
 					 ti->ti_thread_id;
-				key[1] = m0_byteorder_cpu_to_be64(key[1]);
+				key[0] = m0_byteorder_cpu_to_be64(key[0]);
 				for (i = 2; i < ksize / sizeof(key[0]); i++)
-					key[i] = key[1];
+					key[i] = key[0];
 
 				M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 							 m0_btree_get(tree,
@@ -9402,7 +10079,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				 *  that the got value (without the embedded
 				 *  thread ID) is more than the slant value.
 				 */
-				got_key = m0_byteorder_cpu_to_be64(get_key[1]);
+				got_key = m0_byteorder_cpu_to_be64(get_key[0]);
 				got_key >>= (sizeof(ti->ti_thread_id) * 8);
 				M0_ASSERT(got_key == slant_key + 1);
 
@@ -9429,12 +10106,12 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			ksize = ksize_random ?  arr_count * sizeof(key[0]):
 						ti->ti_key_size;
 
-			key[0]   = ksize;
-			key[1] = (del_key << (sizeof(ti->ti_thread_id) * 8)) +
+			key[1]   = ksize;
+			key[0] = (del_key << (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
-			key[1] = m0_byteorder_cpu_to_be64(key[1]);
+			key[0] = m0_byteorder_cpu_to_be64(key[0]);
 			for (i = 2; i < ksize / sizeof(key[0]); i++)
-				key[i] = key[1];
+				key[i] = key[0];
 
 			m0_be_ut_tx_init(tx, ut_be);
 			m0_be_tx_prep(tx, &del_cred);
@@ -9469,12 +10146,12 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		ksize = ksize_random ?  arr_count * sizeof(key[0]):
 					ti->ti_key_size;
 
-		key[0]   = ksize;
-		key[1] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+		key[1]   = ksize;
+		key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
 			 ti->ti_thread_id;
-		key[1] = m0_byteorder_cpu_to_be64(key[1]);
+		key[0] = m0_byteorder_cpu_to_be64(key[0]);
 		for (i = 2; i < ksize / sizeof(key[0]); i++)
-			key[i] = key[1];
+			key[i] = key[0];
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_get(tree,
@@ -9488,12 +10165,12 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			ksize = ksize_random ?  arr_count * sizeof(key[0]):
 						ti->ti_key_size;
 
-			key[0] = ksize;
-			key[1] = (key_last << (sizeof(ti->ti_thread_id) * 8)) +
+			key[1] = ksize;
+			key[0] = (key_last << (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
-			key[1] = m0_byteorder_cpu_to_be64(key[1]);
+			key[0] = m0_byteorder_cpu_to_be64(key[0]);
 			for (i = 2; i < ksize / sizeof(key[0]); i++)
-				key[i] = key[1];
+				key[i] = key[0];
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						      m0_btree_get(tree,
@@ -9515,12 +10192,12 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		ksize = ksize_random ?  arr_count * sizeof(key[0]):
 					ti->ti_key_size;
 
-		key[0]   = ksize;
-		key[1] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+		key[1]   = ksize;
+		key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
 			 ti->ti_thread_id;
-		key[1] = m0_byteorder_cpu_to_be64(key[1]);
+		key[0] = m0_byteorder_cpu_to_be64(key[0]);
 		for (i = 2; i < ksize / sizeof(key[0]); i++)
-			key[i] = key[1];
+			key[i] = key[0];
 
 		m0_be_ut_tx_init(tx, ut_be);
 		m0_be_tx_prep(tx, &del_cred);
@@ -9540,12 +10217,12 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			ksize = ksize_random ?  arr_count * sizeof(key[0]):
 						ti->ti_key_size;
 
-			key[0] = ksize;
-			key[1] = (key_last << (sizeof(ti->ti_thread_id) * 8)) +
+			key[1] = ksize;
+			key[0] = (key_last << (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
-			key[1] = m0_byteorder_cpu_to_be64(key[1]);
+			key[0] = m0_byteorder_cpu_to_be64(key[0]);
 			for (i = 2; i < ksize / sizeof(key[0]); i++)
-				key[i] = key[1];
+				key[i] = key[0];
 
 			m0_be_ut_tx_init(tx, ut_be);
 			m0_be_tx_prep(tx, &del_cred);
