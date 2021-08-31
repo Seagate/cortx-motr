@@ -569,7 +569,7 @@
 #include <sys/mman.h>
 #endif
 
-#define AVOID_BE_SEGMENT    1
+#define AVOID_BE_SEGMENT    0
 /**
  *  --------------------------------------------
  *  Section START - BTree Structure and Operations
@@ -2824,7 +2824,8 @@ static void ff_make(struct slot *slot)
 }
 
 static void ff_val_resize(struct slot *slot, int vsize_diff)
-{	struct ff_head  *h     = ff_data(slot->s_node);
+{
+	struct ff_head  *h     = ff_data(slot->s_node);
 
 	M0_PRE(vsize_diff == 0);
 	M0_PRE(!IS_INTERNAL_NODE(slot->s_node));
@@ -5061,7 +5062,6 @@ static void btree_put_split_and_find(struct nd *allocated_node,
  * @param bop structure for btree operation which contains all required data.
  * @return int64_t return state which needs to get executed next.
  */
-
 static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 {
 	struct m0_btree_oimpl *oi         = bop->bo_i;
@@ -5107,7 +5107,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 			     m0_vec_count(&tgt.s_rec.r_val.ov_vec);
 		M0_ASSERT(vsize_diff > 0);
 		node_val_resize(&tgt, vsize_diff);
-		node_rec(&tgt);//or update the size vector
+		node_rec(&tgt);
 	}
 
 	tgt.s_rec.r_flags = M0_BSC_SUCCESS;
@@ -5492,7 +5492,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	}
 	case P_MAKESPACE: {
 		struct slot node_slot;
-		M0_ASSERT(!oi->i_key_found);
 		lev = &oi->i_level[oi->i_used];
 		node_slot = (struct slot){
 			.s_node = lev->l_node,
@@ -5512,7 +5511,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			void                *p_key;
 			m0_bcount_t          vsize;
 			void                *p_val;
-			int                  vsize_diff;
 			int                  new_vsize;
 			int                  old_vsize;
 
