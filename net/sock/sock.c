@@ -2882,11 +2882,6 @@ static int buf_accept(struct buf *buf, struct mover *m)
 	return result;
 }
 
-static bool buf_accepted(struct buf *buf)
-{
-	return buf->b_done.b_words > 0;
-}
-
 /**
  * Finalises the buffer after transfer completes (including failures and
  * cancellations). Note that buffer completion event hasn't yet been
