@@ -4033,6 +4033,7 @@ static void vkvv_child(struct slot *slot, struct segaddr *addr);
 static bool vkvv_isfit(struct slot *slot);
 static void vkvv_done(struct slot *slot, bool modified);
 static void vkvv_make(struct slot *slot);
+static void vkvv_val_resize(struct slot *slot, int vsize_diff);
 static void vkvv_fix(const struct nd *node);
 static void vkvv_cut(const struct nd *node, int idx, int size);
 static void vkvv_del(const struct nd *node, int idx);
@@ -4078,6 +4079,7 @@ static const struct node_type variable_kv_format = {
 	.nt_isfit                     = vkvv_isfit,
 	.nt_done                      = vkvv_done,
 	.nt_make                      = vkvv_make,
+	.nt_val_resize                = vkvv_val_resize,
 	.nt_fix                       = vkvv_fix,
 	.nt_cut                       = vkvv_cut,
 	.nt_del                       = vkvv_del,
@@ -4163,7 +4165,7 @@ static void vkvv_init(const struct segaddr *addr, int shift, int ksize,
 	h->vkvv_opaque          = NULL;
 
 	m0_format_header_pack(&h->vkvv_fmt, &(struct m0_format_tag){
-		.ot_version       = M0_BE_BNODE_FORMAT_VERSION,
+		.ot_version       = M0_BTREE_NODE_FORMAT_VERSION,
 		.ot_type          = M0_FORMAT_TYPE_BE_BNODE,
 		.ot_footer_offset = offsetof(struct vkvv_head, vkvv_foot)
 	});
@@ -4854,6 +4856,35 @@ static void vkvv_make(struct slot *slot)
 	else
 		vkvv_inode_make(slot);
 	h->vkvv_used++;
+}
+
+static void vkvv_val_resize(struct slot *slot, int vsize_diff)
+{
+	struct vkvv_head *h     = vkvv_data(slot->s_node);
+	struct dir_rec   *rec   = vkvv_get_dir_addr(slot->s_node);
+	int               idx   = slot->s_idx;
+	int               count = h->vkvv_used;
+	void             *start_val_addr;
+	uint16_t          total_vsize;
+	void             *temp_buffer;
+
+	M0_PRE(slot->s_idx < h->vkvv_used && h->vkvv_used > 0);
+
+	if (idx == count -1) {
+		rec[idx+1].val_offset += vsize_diff;
+	} else {
+		start_val_addr = vkvv_val(slot->s_node, idx+1);
+		total_vsize    = rec[count].val_offset - rec[idx+1].val_offset;
+		while (count > idx) {
+			rec[count].val_offset += vsize_diff;
+			count --;
+		}
+		temp_buffer = m0_alloc(total_vsize);
+		memcpy(temp_buffer, start_val_addr - total_vsize, total_vsize);
+		memcpy(start_val_addr - total_vsize - vsize_diff, temp_buffer,
+		       total_vsize);
+		m0_free(temp_buffer);
+	}
 }
 
 static void vkvv_fix(const struct nd *node)
@@ -9639,18 +9670,18 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				arr_count * sizeof(key[0]):
 				ti->ti_key_size;
 
-			key[0]   = ksize;
-			value[0] = vsize;
+			key[1]   = ksize;
+			value[1] = vsize;
 
-			key[1] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+			key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
-			key[1] = m0_byteorder_cpu_to_be64(key[1]);
+			key[0] = m0_byteorder_cpu_to_be64(key[0]);
 			for (i = 2; i < ksize / sizeof(key[0]); i++)
-				key[i] = key[1];
+				key[i] = key[0];
 
-			value[1] = key[1];
+			value[0] = key[0];
 			for (i = 2; i < vsize / sizeof(value[0]); i++)
-				value[i] = value[1];
+				value[i] = value[0];
 
 			m0_be_ut_tx_init(tx, ut_be);
 			m0_be_tx_prep(tx, &update_cred);
@@ -9670,10 +9701,10 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 			/** Test value size decrease case. */
 			vsize = vsize - sizeof(value[0]);
-			value[0] = vsize;
-			value[1] = key[1];
+			value[1] = vsize;
+			value[0] = key[0];
 			for (i = 2; i < vsize / sizeof(value[0]); i++)
-				value[i] = value[1];
+				value[i] = value[0];
 
 			m0_be_ut_tx_init(tx, ut_be);
 			m0_be_tx_prep(tx, &update_cred);
