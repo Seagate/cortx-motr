@@ -570,7 +570,7 @@
 #include <sys/mman.h>
 #endif
 
-#define AVOID_BE_SEGMENT    0
+#define AVOID_BE_SEGMENT    1
 /**
  *  --------------------------------------------
  *  Section START - BTree Structure and Operations
@@ -1036,7 +1036,10 @@ struct node_type {
 	/** Makes space in the node for inserting new entry at specific index */
 	void (*nt_make) (struct slot *slot, struct m0_be_tx *tx);
 
-	/** Resize the existing value. Needed as thepart of update val operation. */
+	/**
+	 * Resize the existing value. If vsize_diff < 0, value size will get
+	 * decreased by vsize_diff else it will get increased by vsize_diff.
+	 */
 	void (*nt_val_resize) (struct slot *slot, int vsize_diff);
 
 	/** Returns index of the record containing the key in the node */
@@ -3670,7 +3673,7 @@ static void fkvv_make(struct slot *slot, struct m0_be_tx *tx)
 }
 
 static void fkvv_val_resize(struct slot *slot, int vsize_diff)
-{ /* if diff is +ve expand , if diff is -ve shrink value. */
+{
 	struct fkvv_head *h = fkvv_data(slot->s_node);
 	void             *val_addr;
 	uint32_t         *curr_val_offset;
@@ -3683,9 +3686,9 @@ static void fkvv_val_resize(struct slot *slot, int vsize_diff)
 
 	curr_val_offset = fkvv_val_offset_get(slot->s_node, slot->s_idx);
 	last_val_offset = fkvv_val_offset_get(slot->s_node, h->fkvv_used - 1);
-	//M0_PRE(vsize_diff == 0);
-	val_addr       = fkvv_val(slot->s_node, h->fkvv_used - 1);
-	total_val_size = *last_val_offset - *curr_val_offset;
+
+	val_addr        = fkvv_val(slot->s_node, h->fkvv_used - 1);
+	total_val_size  = *last_val_offset - *curr_val_offset;
 
 	memmove(val_addr - vsize_diff, val_addr , total_val_size);
 	for (i = slot->s_idx; i < h->fkvv_used; i++) {
@@ -5192,7 +5195,10 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	tgt.s_rec.r_flags = M0_BSC_SUCCESS;
 	int rc = bop->bo_cb.c_act(&bop->bo_cb, &tgt.s_rec);
 	if (rc) {
-		/* If callback failed, undo make space, splitted node */
+		/**
+		 * Handle callback failure by reverting changes on
+		 * btree
+		 */
 		if (bop->bo_opc == M0_BO_PUT)
 			node_del(tgt.s_node, tgt.s_idx, bop->bo_tx);
 		else
@@ -5319,6 +5325,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	uint64_t               flags          = bop->bo_flags;
 	struct m0_btree_oimpl *oi             = bop->bo_i;
 	bool                   lock_acquired  = bop->bo_flags & BOF_LOCKALL;
+	int                    vsize_diff     = 0;
 	struct level          *lev;
 
 	switch (bop->bo_op.o_sm.sm_state) {
@@ -5420,18 +5427,12 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 						&child_node_addr, P_NEXTDOWN);
 			} else {
 				node_unlock(lev->l_node);
-				if ((bop->bo_opc == M0_BO_UPDATE && oi->i_key_found == false)
-				 || (bop->bo_opc == M0_BO_PUT && oi->i_key_found == true) ) {
-					/**
-					 * TBD : Revisit  this part, while
-					 * implmenting UPDATE operation for
-					 * variable value size.
-					 */
+				if ((bop->bo_opc == M0_BO_UPDATE &&
+				     oi->i_key_found == false) ||
+				    (bop->bo_opc == M0_BO_PUT &&
+				     oi->i_key_found == true))
 					return P_LOCK;
-				}
 
-				// if (oi->i_key_found)
-				// 	return P_LOCK;
 				/**
 				 * Initialize i_alloc_lev to level of leaf
 				 * node.
@@ -5593,17 +5594,28 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			m0_bcount_t          vsize;
 			void                *p_val;
 			int                  vsize_diff;
+			int                  new_vsize;
+			int                  old_vsize;
 
 			node_slot.s_rec  = REC_INIT(&p_key, &ksize,
 						    &p_val, &vsize);
 			node_rec(&node_slot);
-			vsize_diff = m0_vec_count(&bop->bo_rec.r_val.ov_vec) -
-				     m0_vec_count(&node_slot.s_rec.r_val.ov_vec);
-			if (vsize_diff > 0 && node_space(lev->l_node) < vsize_diff)
-				return btree_put_makespace_phase(bop);
 
-			node_lock(lev->l_node);
-			node_val_resize(&node_slot, vsize_diff);
+			new_vsize = m0_vec_count(&bop->bo_rec.r_val.ov_vec);
+			old_vsize = m0_vec_count(&node_slot.s_rec.r_val.ov_vec);
+
+			vsize_diff = new_vsize - old_vsize;
+
+			if (vsize_diff <= 0 ||
+			    node_space(lev->l_node) >= vsize_diff) {
+				/**
+				 * If new value size is able to accomodate in
+				 * node.
+				 */
+				node_lock(lev->l_node);
+				node_val_resize(&node_slot, vsize_diff);
+			} else
+				return btree_put_makespace_phase(bop);
 		}
 		/** Fall through if there is no overflow.  **/
 	}
@@ -5635,13 +5647,16 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		node_slot.s_rec.r_flags = M0_BSC_SUCCESS;
 		rc = bop->bo_cb.c_act(&bop->bo_cb, &node_slot.s_rec);
 		if (rc) {
-			/* handle if callback failed i.e undo make */
-			if (bop->bo_opc == M0_BO_PUT) {
+			/**
+			 * Handle callback failure by reverting changes on
+			 * btree
+			 */
+			if (bop->bo_opc == M0_BO_PUT)
 				node_del(node_slot.s_node, node_slot.s_idx,
 					 bop->bo_tx);
-			} else {
-				//resize value
-			}
+			else
+				node_val_resize(&node_slot, -vsize_diff);
+
 			node_done(&node_slot, bop->bo_tx, true);
 			node_seq_cnt_update(lev->l_node);
 			node_fix(lev->l_node, bop->bo_tx);
