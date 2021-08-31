@@ -3620,7 +3620,7 @@ static void fkvv_val_resize(struct slot *slot, int vsize_diff)
 	val_addr        = fkvv_val(slot->s_node, h->fkvv_used - 1);
 	total_val_size  = *last_val_offset - *curr_val_offset;
 
-	memmove(val_addr - vsize_diff, val_addr , total_val_size);
+	memmove(val_addr - vsize_diff, val_addr, total_val_size);
 	for (i = slot->s_idx; i < h->fkvv_used; i++) {
 		curr_val_offset  = fkvv_val_offset_get(slot->s_node, i);
 		*curr_val_offset = *curr_val_offset + vsize_diff;
@@ -5064,8 +5064,8 @@ static void btree_put_split_and_find(struct nd *allocated_node,
  */
 static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 {
-	struct m0_btree_oimpl *oi         = bop->bo_i;
-	struct level          *lev = &oi->i_level[oi->i_used];
+	struct m0_btree_oimpl *oi        = bop->bo_i;
+	struct level          *lev       = &oi->i_level[oi->i_used];
 	m0_bcount_t            ksize;
 	void                  *p_key;
 	m0_bcount_t            vsize;
