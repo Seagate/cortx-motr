@@ -50,6 +50,17 @@ struct m0_btree_op {
 	struct m0_btree_idata  b_data;
 };
 
+enum m0_btree_node_format_version {
+	M0_BTREE_NODE_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_BE_BNODE_FORMAT_VERSION */
+	/*M0_BTREE_NODE_FORMAT_VERSION_2,*/
+	/*M0_BTREE_NODE_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_BTREE_NODE_FORMAT_VERSION = M0_BTREE_NODE_FORMAT_VERSION_1
+};
+
 struct m0_btree_cursor {
 	struct m0_buf    bc_key;
 	struct m0_buf    bc_val;
