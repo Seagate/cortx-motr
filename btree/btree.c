@@ -569,7 +569,7 @@
 #include <sys/mman.h>
 #endif
 
-#define AVOID_BE_SEGMENT    1
+#define AVOID_BE_SEGMENT    0
 /**
  *  --------------------------------------------
  *  Section START - BTree Structure and Operations
@@ -1954,7 +1954,8 @@ uint32_t segaddr_ntype_get(const struct segaddr *addr)
 				  sizeof(struct m0_format_header);
 
 	M0_IN(h->h_node_type, (BNT_FIXED_FORMAT,
-			       BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE));
+			       BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+			       BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE));
 	return h->h_node_type;
 }
 #endif
@@ -2411,7 +2412,7 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int shift,
 	op->no_tree = tree;
 
 	nxt_state = node_init(&op->no_addr, ksize, vsize, nt,
-			      tree->t_seg->bs_gen, tree->t_fid, nxt);
+			      0, tree->t_fid, nxt);
 	/**
 	 * TODO: Consider adding a state here to return in case we might need to
 	 * visit node_init() again to complete its execution.
@@ -4379,7 +4380,7 @@ static uint16_t vkvv_rec_val_size(const struct nd *node, int idx)
 	 *        in offsets of the current key and the key immediately after
 	 *        it.
 	 */
-	struct vkvv_head *h    = vkvv_data(node);
+	struct vkvv_head *h = vkvv_data(node);
 	if (h->vkvv_level == 0)
 		return vkvv_lnode_rec_val_size(node,idx);
 	else
@@ -4652,7 +4653,6 @@ static void vkvv_move_dir(struct slot *slot)
 	if (key_addr + ksize > start_dir_addr) {
 		diff = (key_addr + ksize) - start_dir_addr;
 		temp_dir_buffer = m0_alloc(dir_size);
-		//memmove(start_dir_addr + diff, start_dir_addr, dir_size);
 		memcpy(temp_dir_buffer, start_dir_addr, dir_size);
 		memcpy(start_dir_addr + diff, temp_dir_buffer, dir_size);
 		h->vkvv_dir_offset += diff;
@@ -4664,7 +4664,6 @@ static void vkvv_move_dir(struct slot *slot)
 	if (val_addr - vsize < end_dir_addr) {
 		diff = end_dir_addr - (val_addr - vsize);
 		temp_dir_buffer = m0_alloc(dir_size);
-		//memmove(start_dir_addr - diff, start_dir_addr, dir_size);
 		memcpy(temp_dir_buffer, start_dir_addr, dir_size);
 		memcpy(start_dir_addr - diff, temp_dir_buffer, dir_size);
 		h->vkvv_dir_offset -= diff;
@@ -4727,12 +4726,10 @@ static void vkvv_lnode_make(struct slot *slot)
 		temp_val_buffer = m0_alloc(total_vsize);
 
 		memcpy(temp_key_buffer, start_key_addr, total_ksize);
-		//memset(start_key_addr, '0', total_ksize);
 		memcpy(start_key_addr + ksize, temp_key_buffer, total_ksize);
 
 		memcpy(temp_val_buffer, start_val_addr - total_vsize,
 		       total_vsize);
-		//memset(start_val_addr - total_vsize, '0', total_vsize);
 		memcpy(start_val_addr - total_vsize - vsize, temp_val_buffer,
 		       total_vsize);
 
@@ -4804,22 +4801,18 @@ static void vkvv_inode_make(struct slot *slot)
 		temp_val_buffer = m0_alloc(total_vsize);
 
 		memcpy(temp_key_buffer, start_key_addr, total_ksize);
-		//memset(start_key_addr, '0', total_ksize);
 		memcpy(start_key_addr + ksize, temp_key_buffer, total_ksize);
 
 		memcpy(temp_val_buffer, start_val_addr - total_vsize,
 		       total_vsize);
-		//memset(start_val_addr - total_vsize, '0', total_vsize);
 		memcpy(start_val_addr - total_vsize - vsize, temp_val_buffer,
 		       total_vsize);
 
 		m0_free(temp_key_buffer);
 		m0_free(temp_val_buffer);
-		// memmove(start_key_addr + ksize, start_key_addr, total_ksize);
-		// memmove(start_val_addr - total_vsize - vsize, start_val_addr -
-		// 	total_vsize, total_vsize);
+
 		while (t_count > index) {
-			offset = vkvv_get_key_offset(slot->s_node, t_count);
+			offset  = vkvv_get_key_offset(slot->s_node, t_count);
 			*offset = *offset + ksize;
 			t_count --;
 		}
@@ -4861,7 +4854,7 @@ static void vkvv_fix(const struct nd *node)
 	 * @brief This function will do any post processing required after the
 	 *        node operations.
 	 */
-	struct vkvv_head *h              = vkvv_data(node);
+	struct vkvv_head *h = vkvv_data(node);
 	m0_format_footer_update(h);
 }
 
@@ -4895,6 +4888,8 @@ static void vkvv_lnode_del(const struct nd *node, int idx)
 	uint16_t          total_ksize;
 	uint16_t          total_vsize;
 	int               temp_idx;
+	void             *temp_key_buffer;
+	void             *temp_val_buffer;
 
 	if (index == count-1) {
 		/**
@@ -4924,10 +4919,19 @@ static void vkvv_lnode_del(const struct nd *node, int idx)
 		rec[temp_idx].key_offset = 0;
 		rec[temp_idx].val_offset = 0;
 
-		memmove(start_key_addr, start_key_addr + ksize, total_ksize);
-		memmove(start_val_addr - total_vsize, start_val_addr -
-			total_vsize -vsize, total_vsize);
+		temp_key_buffer = m0_alloc(total_ksize);
+		temp_val_buffer = m0_alloc(total_vsize);
 
+		memcpy(temp_key_buffer, start_key_addr + ksize, total_ksize);
+		memcpy(start_key_addr, temp_key_buffer, total_ksize);
+
+		memcpy(temp_val_buffer, start_val_addr - total_vsize - vsize,
+		       total_vsize);
+		memcpy(start_val_addr - total_vsize, temp_val_buffer,
+		       total_vsize);
+
+		m0_free(temp_key_buffer);
+		m0_free(temp_val_buffer);
 	}
 }
 
@@ -4947,7 +4951,8 @@ static void vkvv_inode_del(const struct nd *node, int idx)
 	int               t_count;
 	uint16_t         *count_offset;
 	uint16_t         *index_offset;
-
+	void             *temp_key_buffer;
+	void             *temp_val_buffer;
 
 	if (index == count - 1) {
 		/**
@@ -4955,19 +4960,30 @@ static void vkvv_inode_del(const struct nd *node, int idx)
 		 * current series of keys and values. Just update the
 		 * directory to keep a record of the next possible offset.
 		 */
-		offset = vkvv_get_key_offset(node, index);
-		*offset  = 0;
+		offset  = vkvv_get_key_offset(node, index);
+		*offset = 0;
 	} else {
-		t_count = count - 1;
-		total_vsize = vspace *(count - index - 1);
+		t_count      = count - 1;
+		total_vsize  = vspace *(count - index - 1);
 		count_offset = vkvv_get_key_offset(node, count-1);
 		index_offset = vkvv_get_key_offset(node, index);;
-		total_ksize   = *count_offset - *index_offset;
+		total_ksize  = *count_offset - *index_offset;
 
 		start_val_addr -= INT_OFFSET;
-		memmove(start_key_addr, start_key_addr + ksize, total_ksize);
-		memmove(start_val_addr - total_vsize, start_val_addr -
-			total_vsize -vsize, total_vsize);
+		temp_key_buffer = m0_alloc(total_ksize);
+		temp_val_buffer = m0_alloc(total_vsize);
+
+		memcpy(temp_key_buffer, start_key_addr + ksize, total_ksize);
+		memcpy(start_key_addr, temp_key_buffer, total_ksize);
+
+		memcpy(temp_val_buffer, start_val_addr - total_vsize - vsize,
+		       total_vsize);
+		memcpy(start_val_addr - total_vsize, temp_val_buffer,
+		       total_vsize);
+
+		m0_free(temp_key_buffer);
+		m0_free(temp_val_buffer);
+
 		while (t_count > index) {
 			offset = vkvv_get_key_offset(node, t_count-1);
 			*offset = *offset - ksize;
@@ -5007,11 +5023,71 @@ static bool vkvv_verify(const struct nd *node)
 	return true;
 }
 
+static void vkvv_calc_size_for_capture(struct slot *slot, int count,
+				       int *p_ksize, int *p_vsize, int *p_dsize)
+{
+	int idx = slot->s_idx;
+	struct dir_rec *rec;
+	uint16_t *t_ksize_1;
+	uint16_t *t_ksize_2;
+
+	if (vkvv_level(slot->s_node) == 0) {
+		 rec     = vkvv_get_dir_addr(slot->s_node);
+		*p_ksize = rec[count].key_offset - rec[idx].key_offset;
+		*p_vsize = rec[count].val_offset - rec[idx].val_offset;
+		*p_dsize = (sizeof(struct dir_rec))*(count - idx + 1);
+	} else {
+		*p_dsize = 0;
+		*p_vsize = vkvv_get_vspace()*(count - idx);
+		if (idx == 0) {
+			t_ksize_1 = vkvv_get_key_offset(slot->s_node, count-1);
+			*p_ksize  = *t_ksize_1;
+		} else {
+			t_ksize_1 = vkvv_get_key_offset(slot->s_node, count-1);
+			t_ksize_2 = vkvv_get_key_offset(slot->s_node, idx-1);
+			*p_ksize  = *t_ksize_1 - *t_ksize_2;
+		}
+	}
+}
+
 static void vkvv_capture(struct slot *slot, struct m0_be_tx *tx)
 {
 	/**
 	 * @brief This function will capture the data in node segment.
 	 */
+	struct vkvv_head *h     = vkvv_data(slot->s_node);
+	struct m0_be_seg *seg   = slot->s_node->n_tree->t_seg;
+	struct dir_rec   *rec   = vkvv_get_dir_addr(slot->s_node);
+	m0_bcount_t       hsize = sizeof(*h) - sizeof(h->vkvv_opaque);
+
+	void *key_addr;
+	int   ksize;
+	int  *p_ksize = &ksize;
+	void *val_addr;
+	int   vsize;
+	int  *p_vsize = &vsize;
+	void *dir_addr;
+	int   dsize;
+	int  *p_dsize = &dsize;
+
+	if (slot->s_idx < h->vkvv_used) {
+		key_addr = vkvv_key(slot->s_node, slot->s_idx);
+		val_addr = vkvv_val(slot->s_node, h->vkvv_used);
+		if (node_level(slot->s_node) != 0)
+			val_addr -= INT_OFFSET;
+
+		dir_addr = rec + slot->s_idx;
+		vkvv_calc_size_for_capture(slot, h->vkvv_used, p_ksize, p_vsize,
+				      p_dsize);
+		M0_BTREE_TX_CAPTURE(tx, seg, key_addr, ksize);
+		M0_BTREE_TX_CAPTURE(tx, seg, val_addr, vsize);
+		if (node_level(slot->s_node) == 0)
+			M0_BTREE_TX_CAPTURE(tx, seg, dir_addr, dsize);
+
+	} else if (h->vkvv_opaque == NULL)
+		hsize += sizeof(h->vkvv_opaque);
+
+	M0_BTREE_TX_CAPTURE(tx, seg, h, hsize);
 }
 
 static void vkvv_node_alloc_credit(const struct nd *node,
@@ -5047,7 +5123,7 @@ static void vkvv_rec_put_credit(const struct nd *node, m0_bcount_t ksize,
 	int               shift     = h->vkvv_shift;
 	int               node_size = 1ULL << shift;
 
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
 }
 
 static void vkvv_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
@@ -5058,7 +5134,7 @@ static void vkvv_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
 	int               shift     = h->vkvv_shift;
 	int               node_size = 1ULL << shift;
 
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
 }
 
 static void vkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
@@ -5069,7 +5145,7 @@ static void vkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 	int               shift     = h->vkvv_shift;
 	int               node_size = 1ULL << shift;
 
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
 }
 /**
  *  --------------------------------------------
@@ -6447,7 +6523,7 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 		oi->i_nop.no_addr = segaddr_build(data->addr, calc_shift(data->
 						  num_bytes));
 		return node_init(&oi->i_nop.no_addr, k_size, v_size,
-				 data->nt, bop->bo_seg->bs_gen, data->fid,
+				 data->nt, 0, data->fid,
 				 P_TREE_GET);
 
 	case P_TREE_GET:
@@ -10528,7 +10604,8 @@ static void ut_mt_st_kv_oper(void)
 	int i;
 	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
 	{
-		if (btree_node_format[i] != NULL)
+		if (btree_node_format[i] != NULL &&
+		    i != BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE)
 			btree_ut_kv_oper(0, 1, i);
 	}
 }
@@ -10538,7 +10615,8 @@ static void ut_mt_mt_kv_oper(void)
 	int i;
 	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
 	{
-		if (btree_node_format[i] != NULL)
+		if (btree_node_format[i] != NULL &&
+		    i != BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE)
 			btree_ut_kv_oper(0, 0, i);
 	}
 }
@@ -10548,7 +10626,8 @@ static void ut_rt_rt_kv_oper(void)
 	int i;
 	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
 	{
-		if (btree_node_format[i] != NULL)
+		if (btree_node_format[i] != NULL &&
+		    i != BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE)
 			btree_ut_kv_oper(RANDOM_THREAD_COUNT, RANDOM_TREE_COUNT,
 					 i);
 	}
