@@ -10449,12 +10449,12 @@ static void ut_btree_persistence(void)
 	 *  is coded to return error when a root node with invalid contents
 	 *  is passed.
 	 */
-#if 0
+
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(rnode, rnode_sz, &tree, seg,
 						    &b_op));
-	M0_ASSERT(rc == 0);
-#endif
+	M0_ASSERT(rc == -ECHILD);
+
 
 	/** Delete temp node space which was used as root node for the tree. */
 	cred = M0_BE_TX_CREDIT(0, 0);
