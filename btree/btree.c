@@ -2425,17 +2425,6 @@ struct ff_head {
 	 */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
-enum m0_be_bnode_format_version {
-	M0_BE_BNODE_FORMAT_VERSION_1 = 1,
-
-	/* future versions, uncomment and update M0_BE_BNODE_FORMAT_VERSION */
-	/*M0_BE_BNODE_FORMAT_VERSION_2,*/
-	/*M0_BE_BNODE_FORMAT_VERSION_3,*/
-
-	/** Current version, should point to the latest version present */
-	M0_BE_BNODE_FORMAT_VERSION = M0_BE_BNODE_FORMAT_VERSION_1
-};
-
 static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 		    uint32_t ntype, uint64_t gen, struct m0_fid fid);
 static void ff_fini(const struct nd *node);
@@ -2638,7 +2627,7 @@ static bool segaddr_header_isvalid(const struct segaddr *addr)
 		return false;
 
 	m0_format_header_unpack(&tag, &h->ff_fmt);
-	if (tag.ot_version != M0_BE_BNODE_FORMAT_VERSION ||
+	if (tag.ot_version != M0_BTREE_NODE_FORMAT_VERSION ||
 	    tag.ot_type != M0_FORMAT_TYPE_BE_BNODE)
 	    return false;
 
@@ -2663,7 +2652,7 @@ static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 	h->ff_opaque          = NULL;
 
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
-		.ot_version       = M0_BE_BNODE_FORMAT_VERSION,
+		.ot_version       = M0_BTREE_NODE_FORMAT_VERSION,
 		.ot_type          = M0_FORMAT_TYPE_BE_BNODE,
 		.ot_footer_offset = offsetof(struct ff_head, ff_foot)
 	});
@@ -3227,7 +3216,7 @@ static void fkvv_init(const struct segaddr *addr, int shift, int ksize,
 	h->fkvv_opaque            = NULL;
 
 	m0_format_header_pack(&h->fkvv_fmt, &(struct m0_format_tag){
-		.ot_version       = M0_BE_BNODE_FORMAT_VERSION,
+		.ot_version       = M0_BTREE_NODE_FORMAT_VERSION,
 		.ot_type          = M0_FORMAT_TYPE_BE_BNODE,
 		.ot_footer_offset = offsetof(struct fkvv_head, fkvv_foot)
 	});
@@ -7344,7 +7333,7 @@ static int btree_cursor_iter(struct m0_btree_cursor *it,
 	cursor_cb.c_act   = btree_cursor_kv_get_cb;
 	cursor_cb.c_datum = it;
 
-	key.k_data = M0_BUFVEC_INIT_BUF(it->bc_key.b_addr, &it->bc_key.b_nob);
+	key.k_data = M0_BUFVEC_INIT_BUF(&it->bc_key.b_addr, &it->bc_key.b_nob);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 				      m0_btree_iter(it->bc_arbor,
 						    &key,
