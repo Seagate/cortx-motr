@@ -1082,7 +1082,6 @@ static bool sock_invariant(const struct sock *s);
 static struct ma *buf_ma(struct buf *buf);
 static bool buf_invariant(const struct buf *buf);
 static void buf_fini     (struct buf *buf);
-static bool buf_accepted (struct buf *buf);
 static int  buf_accept   (struct buf *buf, struct mover *m);
 static void buf_done     (struct buf *buf, int rc);
 static void buf_complete (struct buf *buf);
@@ -3428,7 +3427,7 @@ static int pk_done(struct mover *m)
 	struct packet *pk  = &m->m_pk;
 
 	M0_PRE(mover_is_reader(m));
-	if (!buf_accepted(m->m_buf))
+	if (m->m_buf == NULL)
 		return M0_RC(-ECANCELED);
 	if (m0_bitmap_get(&buf->b_done, pk->p_idx))
 		return M0_ERR(-EPROTO);
@@ -3509,7 +3508,7 @@ static int stream_interval(struct mover *self, struct sock *s)
 {
 	int result;
 
-	if (!buf_accepted(self->m_buf))
+	if (self->m_buf == NULL)
 		return M0_RC(-ECANCELED);
 	result = pk_io(self, s, HAS_READ, NULL, pk_tsize(self));
 	return result >= 0 ? pk_state(self) : result;
@@ -3604,7 +3603,7 @@ static int dgram_header(struct mover *self, struct sock *s)
  */
 static int dgram_interval(struct mover *self, struct sock *s)
 {
-	if (!buf_accepted(self->m_buf))
+	if (self->m_buf == NULL)
 		return M0_RC(-ECANCELED);
 	return pk_state(self);
 }
