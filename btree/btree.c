@@ -8370,7 +8370,77 @@ static void ut_multi_stream_kv_oper(void)
 							   &ut_cb, BOF_EQUAL,
 							   &kv_op));
 		M0_ASSERT(rc == M0_BSC_SUCCESS &&
-			  i== m0_byteorder_be64_to_cpu(key));
+			  i == m0_byteorder_be64_to_cpu(key));
+	}
+
+	{
+		/** UT for Cursor verification. */
+		struct m0_btree_cursor *cursor;
+		struct m0_buf           cur_key;
+		struct m0_buf           cur_val;
+		uint64_t                find_key;
+		void                   *find_key_ptr  = &find_key;
+		m0_bcount_t             find_key_size = sizeof find_key;
+		struct m0_btree_key     find_key_in_tree;
+
+		M0_ALLOC_PTR(cursor);
+		M0_ASSERT(cursor != NULL);
+
+		m0_btree_cursor_init(cursor, tree);
+		/** Get and verify the first key. */
+		find_key = m0_byteorder_cpu_to_be64(1);
+		find_key_in_tree.k_data =
+			M0_BUFVEC_INIT_BUF(&find_key_ptr, &find_key_size);
+		rc = m0_btree_cursor_get(cursor, &find_key_in_tree, false);
+		M0_ASSERT(rc == 0);
+
+		m0_btree_cursor_kv_get(cursor, &cur_key, &cur_val);
+		key = *(uint64_t*)cur_key.b_addr;
+		M0_ASSERT(m0_byteorder_be64_to_cpu(key) == 1);
+
+		/** Verify the next key till the last key of btree.*/
+		for (i = 1; i < (recs_per_stream*stream_count); i++) {
+			rc = m0_btree_cursor_next(cursor);
+			M0_ASSERT(rc == 0);
+			m0_btree_cursor_kv_get(cursor, &cur_key, &cur_val);
+			key = *(uint64_t*)cur_key.b_addr;
+			M0_ASSERT(m0_byteorder_be64_to_cpu(key) - 1 == i);
+		}
+		/** There should not be any key after last key.*/
+		rc = m0_btree_cursor_next(cursor);
+		M0_ASSERT(rc == -ENOENT);
+
+		/**
+		 * Cursor is at the last key. Verify the previous key till the
+		 * first key of btree.
+		 */
+		for (i = (recs_per_stream*stream_count); i > 1; i--) {
+			rc = m0_btree_cursor_prev(cursor);
+			M0_ASSERT(rc == 0);
+			m0_btree_cursor_kv_get(cursor, &cur_key, &cur_val);
+			key = *(uint64_t*)cur_key.b_addr;
+			M0_ASSERT(m0_byteorder_be64_to_cpu(key) + 1 == i);
+		}
+		/** There should not be any key before first key.*/
+		rc = m0_btree_cursor_prev(cursor);
+		M0_ASSERT(rc == -ENOENT);
+
+		/** The last key should be equal to max key. */
+		rc = m0_btree_cursor_last(cursor);
+		M0_ASSERT(rc == 0);
+		m0_btree_cursor_kv_get(cursor, &cur_key, &cur_val);
+		key = *(uint64_t*)cur_key.b_addr;
+		M0_ASSERT(m0_byteorder_be64_to_cpu(key) ==
+			  (recs_per_stream*stream_count));
+
+		/** The first key should be equal to min key. */
+		rc = m0_btree_cursor_first(cursor);
+		M0_ASSERT(rc == 0);
+		m0_btree_cursor_kv_get(cursor, &cur_key, &cur_val);
+		key = *(uint64_t*)cur_key.b_addr;
+		M0_ASSERT(m0_byteorder_be64_to_cpu(key) == 1);
+		m0_btree_cursor_fini(cursor);
+		m0_free(cursor);
 	}
 
 	cred = M0_BE_TX_CREDIT(0, 0);
