@@ -447,7 +447,10 @@ M0_INTERNAL int m0_fop_fol_add(struct m0_fop *fop, struct m0_fop *rep,
 
 	m0_fol_frag_init(frag, rp, &m0_fop_fol_frag_type);
 	m0_fol_frag_add(&dtx->tx_fol_rec, frag);
+	M0_LOG(M0_ALWAYS, "m0_fop_fol_add");
+	M0_ASSERT(false);
 	return 0;
+
 }
 
 struct m0_rpc_machine *m0_fop_session_machine(const struct m0_rpc_session *s)
