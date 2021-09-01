@@ -183,14 +183,13 @@ enum m0_fab__ep_iface {
 union m0_fab__token
 {
 	uint32_t t_val;
-	struct
-	{
+	struct {
 		/* m0_log2(roundup_power2(M0_NET_QT_NR+1)) */
-		uint32_t tf_queue_id  : 3;
+		uint32_t tf_queue_id  : 4;
 		/* m0_log2(LIBFAB_AL_NUM_HASH_Q_PER_QUEUE) */
-		uint32_t tf_queue_num : 7;
+		uint32_t tf_queue_num : 8;
 		/* 32 - m0_log2(LIBFAB_AL_NUM_HASH_Q_PER_QUEUE) - m0_log2(roundup_power2(M0_NET_QT_NR+1)) */
-		uint32_t tf_tag       : 22;
+		uint32_t tf_tag       : 20;
 	} t_Fields;
 };
 
@@ -334,6 +333,9 @@ struct m0_fab__active_ep {
 	
 	/** count of active bulk ops for the transmit endpoint */
 	volatile uint32_t         aep_bulk_cnt;
+
+	/** flag to indicate that the tx queue of the endpoint is full */
+	bool                      aep_txq_full;
 };
 
 /**
@@ -464,6 +466,26 @@ struct m0_fab__bdesc {
 };
 
 /**
+ * Libfab structure buffer params
+ */
+struct m0_fab__buf_xfer_params {
+	/** Local index to track how many buffer segment sent */
+	uint32_t bxp_loc_sidx;
+
+	/** Remote Index to track how many buffer segment sent */
+	uint32_t bxp_rem_sidx;
+
+	/** Current transfer length sent */
+	uint32_t bxp_xfer_len;
+
+	/** Current remote segment offset */
+	uint32_t bxp_rem_soff;
+
+	/** Current remote segment offset */
+	uint32_t bxp_loc_soff;
+};
+
+/**
  * Libfab structure of buffer params
  */
 struct m0_fab__buf {
@@ -518,8 +540,9 @@ struct m0_fab__buf {
 	/** Count of work request generated for bulk rma operation */
 	volatile uint32_t                fb_wr_cnt;
 
-	/** Count of work request completions for bulk rma operation */
-	volatile uint32_t                fb_wr_comp_cnt;
+	/** Bulk buffer current transfer parmas */
+	struct m0_fab__buf_xfer_params   fb_xfer_params;
+
 
 	/** Pointer to the m0_fab__bulk_op structure */
 	void*                            fb_bulk_op;
