@@ -2195,7 +2195,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	 * restart the tick funcions.
 	 */
 	if (!segaddr_header_isvalid(addr)) {
-		op->no_op.o_sm.sm_rc = M0_ERR(-ECHILD);
+		op->no_op.o_sm.sm_rc = M0_ERR(-EINVAL);
 		m0_rwlock_write_unlock(&list_lock);
 		return nxt;
 	}
@@ -9947,7 +9947,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 					      m0_btree_open(rnode,
 							    1024, &tree,
 							    seg, &b_op));
-		M0_ASSERT(rc == -ECHILD);
+		M0_ASSERT(rc == -EINVAL);
 	}
 
 	m0_atomic64_dec(&threads_running);
@@ -10455,7 +10455,7 @@ static void ut_btree_persistence(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(rnode, rnode_sz, &tree, seg,
 						    &b_op));
-	M0_ASSERT(rc == -ECHILD);
+	M0_ASSERT(rc == -EINVAL);
 
 
 	/** Delete temp node space which was used as root node for the tree. */
