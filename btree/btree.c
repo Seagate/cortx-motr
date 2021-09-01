@@ -2394,7 +2394,7 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int shift,
 	op->no_tree = tree;
 
 	nxt_state = node_init(&op->no_addr, ksize, vsize, nt,
-			      0, tree->t_fid, nxt);
+			      tree->t_seg->bs_gen, tree->t_fid, nxt);
 	/**
 	 * TODO: Consider adding a state here to return in case we might need to
 	 * visit node_init() again to complete its execution.
@@ -4521,22 +4521,6 @@ static void vkvv_rec(struct slot *slot)
 
 }
 
-// static bool vkvv_segaddr_header_isvalid(const struct segaddr *addr)
-// {
-// 	struct vkvv_head     *h = segaddr_addr(addr);
-// 	struct m0_format_tag  tag;
-
-// 	if (h->vkvv_fmt.hd_magic != M0_FORMAT_HEADER_MAGIC)
-// 		return false;
-
-// 	m0_format_header_unpack(&tag, &h->vkvv_fmt);
-// 	if (tag.ot_version != M0_BE_BNODE_FORMAT_VERSION ||
-// 	    tag.ot_type != M0_FORMAT_TYPE_BE_BNODE)
-// 	    return false;
-
-// 	return true;
-// }
-
 static bool vkvv_invariant(const struct nd *node)
 {
 	/**
@@ -6597,7 +6581,7 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 		oi->i_nop.no_addr = segaddr_build(data->addr, calc_shift(data->
 						  num_bytes));
 		return node_init(&oi->i_nop.no_addr, k_size, v_size,
-				 data->nt, 0, data->fid,
+				 data->nt, bop->bo_seg->bs_gen, data->fid,
 				 P_TREE_GET);
 
 	case P_TREE_GET:
