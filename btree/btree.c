@@ -2398,7 +2398,7 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int shift,
 	op->no_tree = tree;
 
 	nxt_state = node_init(&op->no_addr, ksize, vsize, nt,
-			      tree->t_seg->bs_gen, tree->t_fid, nxt);
+			       tree->t_seg->bs_gen, tree->t_fid, nxt);
 	/**
 	 * TODO: Consider adding a state here to return in case we might need to
 	 * visit node_init() again to complete its execution.
@@ -5903,11 +5903,6 @@ int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 		if (oi == NULL)
 			return M0_ERR(-ENOMEM);
 		bop->bo_i = oi;
-		bop->bo_arbor = m0_alloc(sizeof *bop->bo_arbor);
-		if (bop->bo_arbor == NULL) {
-			m0_free(oi);
-			return M0_ERR(-ENOMEM);
-		}
 
 		oi->i_nop.no_addr = segaddr_build(data->addr, calc_shift(data->
 						  num_bytes));
@@ -5978,14 +5973,6 @@ int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 	node_put(tree->t_root->n_op, tree->t_root);
 	tree_put(tree);
 
-	/**
-	 * ToDo: We need to capture the changes occuring in the
-	 * root node after tree_descriptor has been freed using
-	 * m0_be_tx_capture().
-	 * Only those fields that have changed need to be
-	 * updated.
-	 */
-	m0_free0(&bop->bo_arbor);
 	return P_DONE;
 }
 
@@ -7266,12 +7253,12 @@ void m0_btree_lrulist_purge(uint64_t count)
 	m0_rwlock_write_unlock(&list_lock);
 }
 
-int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
+int  m0_btree_open(void *addr, int nob, struct m0_btree *out,
 		   struct m0_be_seg *seg, struct m0_btree_op *bop)
 {
 	bop->b_data.addr      = addr;
 	bop->b_data.num_bytes = nob;
-	bop->bo_arbor         = *out;
+	bop->bo_arbor         = out;
 	bop->bo_seg           = seg;
 
 	m0_sm_op_init(&bop->bo_op, &btree_open_tree_tick, &bop->bo_op_exec,
@@ -7287,8 +7274,9 @@ void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop)
 }
 
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
-		     struct m0_btree_op *bop, struct m0_be_seg *seg,
-		     const struct m0_fid *fid, struct m0_be_tx *tx)
+		     struct m0_btree_op *bop, struct m0_btree *tree,
+		     struct m0_be_seg *seg, const struct m0_fid *fid,
+		     struct m0_be_tx *tx)
 {
 	bop->b_data.addr        = addr;
 	bop->b_data.num_bytes   = nob;
@@ -7297,6 +7285,7 @@ void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
 	bop->b_data.fid         = *fid;
 	bop->bo_tx              = tx;
 	bop->bo_seg             = seg;
+	bop->bo_arbor           = tree;
 
 	m0_sm_op_init(&bop->bo_op, &btree_create_tree_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
@@ -7648,8 +7637,8 @@ void get_key_at_index(struct nd *node, int idx, uint64_t *key)
  */
 static void ut_basic_tree_oper_cp(void)
 {
-	/** void                   *invalid_addr = (void *)0xbadbadbadbad; */
-	struct m0_btree        *btree;
+	struct m0_btree         btree = {};
+	struct m0_btree         btree_2 = {};
 	struct m0_btree        *temp_btree;
 	struct m0_btree_type    btree_type = {  .tt_id = M0_BT_UT_KV_OPS,
 						.ksize = 8,
@@ -7678,19 +7667,20 @@ static void ut_basic_tree_oper_cp(void)
 
 	/** Create temp node space*/
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	btree = m0_alloc(sizeof *btree);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
-				      &btree_type, &b_op, seg, &fid, tx));
+				      &btree_type, &b_op, &btree, seg, &fid,
+				      tx));
 	M0_ASSERT(rc == 0);
 	temp_btree = b_op.bo_arbor;
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, 1024,
-							   &btree, seg,
+							   &btree_2, seg,
 							   &b_op));
 	M0_ASSERT(rc == 0);
 
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(btree, &b_op));
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(&btree_2, &b_op));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree_2);
 	b_op.bo_arbor = temp_btree;
 
 	m0_btree_destroy_credit(b_op.bo_arbor, &cred);
@@ -7698,7 +7688,7 @@ static void ut_basic_tree_oper_cp(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
 							      &b_op, tx));
 	M0_ASSERT(rc == 0);
-	m0_free(btree);
+	M0_SET0(&btree);
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
 	/**
@@ -7712,8 +7702,8 @@ static void ut_basic_tree_oper_cp(void)
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
 							     &btree_type,
-							     &b_op, seg, &fid,
-							     tx));
+							     &b_op, &btree, seg,
+							     &fid, tx));
 	M0_ASSERT(rc == 0);
 
 	m0_btree_destroy_credit(b_op.bo_arbor, &cred);
@@ -7721,6 +7711,7 @@ static void ut_basic_tree_oper_cp(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
 							      &b_op, tx));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
 	/**
@@ -7736,15 +7727,17 @@ static void ut_basic_tree_oper_cp(void)
 	m0_btree_create_credit(&btree_type, &cred);
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
-				      &btree_type, &b_op, seg, &fid, tx));
+				      &btree_type, &b_op, &btree, seg, &fid,
+				      tx));
 	M0_ASSERT(rc == 0);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_close(b_op.bo_arbor, &b_op));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, 1024,
-							   &b_op.bo_arbor,
+							   b_op.bo_arbor,
 							   seg, &b_op));
 	M0_ASSERT(rc == 0);
 
@@ -7753,6 +7746,7 @@ static void ut_basic_tree_oper_cp(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
 							      &b_op, tx));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
 	btree_ut_fini();
@@ -7765,7 +7759,7 @@ static void ut_basic_tree_oper_cp(void)
 static void ut_basic_tree_oper_icp(void)
 {
 	void                   *invalid_addr = (void *)0xbadbadbadbad;
-	struct m0_btree        *btree;
+	struct m0_btree         btree;
 	struct m0_btree_type    btree_type = {  .tt_id = M0_BT_UT_KV_OPS,
 						.ksize = 8,
 						.vsize = 8, };
@@ -7792,7 +7786,8 @@ static void ut_basic_tree_oper_icp(void)
 	cred = M0_BE_TX_CREDIT(0, 0);
 	m0_btree_create_credit(&btree_type, &cred);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(invalid_addr, 1024,
-				      &btree_type, &b_op, seg, &fid, tx));
+				      &btree_type, &b_op, &btree, seg, &fid,
+				      tx));
 	M0_ASSERT(rc == -EFAULT);
 
 	/**
@@ -7821,9 +7816,9 @@ static void ut_basic_tree_oper_icp(void)
 	cred = M0_BE_TX_CREDIT(0, 0);
 	m0_btree_create_credit(&btree_type, &cred);
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	btree = m0_alloc(sizeof *btree);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
-				      &btree_type, &b_op, seg, &fid, tx));
+				      &btree_type, &b_op, &btree, seg, &fid,
+				      tx));
 	M0_ASSERT(rc == 0);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, 1024,
@@ -7834,7 +7829,7 @@ static void ut_basic_tree_oper_icp(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
 							      &b_op, tx));
 	M0_ASSERT(rc == -EPERM);
-	m0_free(btree);
+	M0_SET0(&btree);
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
 	/**
@@ -7853,16 +7848,19 @@ static void ut_basic_tree_oper_icp(void)
 	m0_btree_create_credit(&btree_type, &cred);
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
-				      &btree_type, &b_op, seg, &fid, tx));
+				      &btree_type, &b_op, &btree, seg, &fid,
+				      tx));
 	M0_ASSERT(rc == 0);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(b_op.bo_arbor,
 							    &b_op));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(b_op.bo_arbor,
 							    &b_op));
 	M0_ASSERT(rc == -EINVAL);
+	M0_SET0(&btree);
 
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 	btree_ut_fini();
@@ -8126,6 +8124,7 @@ static void ut_basic_kv_oper(void)
 	struct m0_be_tx_credit  cred        = {};
 	struct m0_btree_op      b_op        = {};
 	struct m0_btree        *tree;
+	struct m0_btree         btree = {};
 	void                   *temp_node;
 	int                     i;
 	time_t                  curr_time;
@@ -8160,8 +8159,8 @@ static void ut_basic_kv_oper(void)
 	m0_btree_create_credit(&btree_type, &cred);
 	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
-							&btree_type,
-							&b_op, seg, &fid, tx));
+							&btree_type, &b_op,
+							&btree, seg, &fid, tx));
 	M0_ASSERT(rc == 0);
 	tree = b_op.bo_arbor;
 
@@ -8281,6 +8280,7 @@ static void ut_basic_kv_oper(void)
 	m0_btree_destroy_credit(b_op.bo_arbor, &cred);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree, &b_op, tx));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	btree_ut_fini();
 }
@@ -8354,6 +8354,7 @@ static void ut_multi_stream_kv_oper(void)
 	uint64_t                recs_per_stream = 0;
 	struct m0_btree_op      kv_op           = {};
 	struct m0_btree        *tree;
+	struct m0_btree         btree = {};
 	struct m0_btree_type    btree_type      = {.tt_id = M0_BT_UT_KV_OPS,
 						  .ksize = sizeof(uint64_t),
 						  .vsize = btree_type.ksize*2,
@@ -8418,8 +8419,8 @@ static void ut_multi_stream_kv_oper(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &btree_type,
-							     &b_op, seg, &fid,
-							     tx));
+							     &b_op, &btree, seg,
+							     &fid, tx));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -8684,6 +8685,7 @@ static void ut_multi_stream_kv_oper(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree, &b_op, tx));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	/** Delete temp node space which was used as root node for the tree. */
 	buf = M0_BUF_INIT(rnode_sz, rnode);
@@ -9682,6 +9684,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 
 	M0_ALLOC_ARR(ut_trees, tree_count);
 	M0_ASSERT(ut_trees != NULL);
+	struct m0_btree btree[tree_count];
 
 	/**
 	 *  Add credits count needed for allocating node space and creating node
@@ -9709,7 +9712,8 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 		M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					 m0_btree_create(rnode, rnode_sz,
 							 &btree_type, &b_op,
-							 seg, &fid, tx));
+							 &btree[i], seg, &fid,
+							 tx));
 		M0_ASSERT(rc == M0_BSC_SUCCESS);
 
 		m0_be_tx_close_sync(tx);
@@ -9778,7 +9782,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 					      m0_btree_destroy(ut_trees[i],
 							       &b_op, tx));
 		M0_ASSERT(rc == 0);
-
+		M0_SET0(&btree[i]);
 		buf = M0_BUF_INIT(rnode_sz, rnode);
 		M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 		m0_be_tx_close_sync(tx);
@@ -9910,6 +9914,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 	while (loop_count--) {
 		struct m0_btree_op b_op      = {};
 		struct m0_btree    *tree;
+		struct m0_btree    btree;
 		int32_t            rec_count;
 		uint32_t           i;
 
@@ -9935,8 +9940,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_create(rnode, rnode_sz,
 							      &btree_type,
-							      &b_op, seg, &fid,
-							      tx));
+							      &b_op, &btree,
+							      seg, &fid, tx));
 		M0_ASSERT(rc == 0);
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
@@ -9970,10 +9975,11 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_close(tree, &b_op));
 		M0_ASSERT(rc == 0);
+		M0_SET0(&btree);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_open(rnode, rnode_sz,
-							    &tree, seg, &b_op));
+							    tree, seg, &b_op));
 		M0_ASSERT(rc == 0);
 
 		ut_cb.c_act = btree_kv_get_cb;
@@ -9992,10 +9998,11 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_close(tree, &b_op));
 		M0_ASSERT(rc == 0);
+		M0_SET0(&btree);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_open(rnode,
-							    1024, &tree,
+							    1024, tree,
 							    seg, &b_op));
 		M0_ASSERT(rc == 0);
 
@@ -10033,13 +10040,15 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 					      m0_btree_destroy(tree,
 							       &b_op, tx));
 		M0_ASSERT(rc == 0);
+		M0_SET0(&btree);
+
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
 
 		/** Error Case */
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_open(rnode,
-							    1024, &tree,
+							    1024, tree,
 							    seg, &b_op));
 		M0_ASSERT(rc == -EINVAL);
 	}
@@ -10167,6 +10176,7 @@ static void ut_btree_persistence(void)
 	uint64_t                    rec_count       = MAX_RECS_PER_STREAM;
 	struct m0_btree_op          kv_op           = {};
 	struct m0_btree            *tree;
+	struct m0_btree             btree;
 	const struct m0_btree_type  bt              = {
 						     .tt_id = M0_BT_UT_KV_OPS,
 						     .ksize = sizeof(uint64_t),
@@ -10242,8 +10252,8 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &bt,
-							     &b_op, seg, &fid,
-							     tx));
+							     &b_op, &btree,seg,
+							     &fid, tx));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -10282,6 +10292,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -10290,7 +10301,7 @@ static void ut_btree_persistence(void)
 	m0_be_seg_open(ut_seg->bus_seg);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-				      m0_btree_open(rnode, rnode_sz, &tree, seg,
+				      m0_btree_open(rnode, rnode_sz, tree, seg,
 						    &b_op));
 	M0_ASSERT(rc == 0);
 
@@ -10343,6 +10354,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -10351,7 +10363,7 @@ static void ut_btree_persistence(void)
 	m0_be_seg_open(ut_seg->bus_seg);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-				      m0_btree_open(rnode, rnode_sz, &tree, seg,
+				      m0_btree_open(rnode, rnode_sz, tree, seg,
 						    &b_op));
 	M0_ASSERT(rc == 0);
 
@@ -10428,6 +10440,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -10436,7 +10449,7 @@ static void ut_btree_persistence(void)
 	m0_be_seg_open(ut_seg->bus_seg);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-				      m0_btree_open(rnode, rnode_sz, &tree, seg,
+				      m0_btree_open(rnode, rnode_sz, tree, seg,
 						    &b_op));
 	M0_ASSERT(rc == 0);
 
@@ -10489,6 +10502,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -10497,7 +10511,7 @@ static void ut_btree_persistence(void)
 	m0_be_seg_open(ut_seg->bus_seg);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-				      m0_btree_open(rnode, rnode_sz, &tree, seg,
+				      m0_btree_open(rnode, rnode_sz, tree, seg,
 						    &b_op));
 	M0_ASSERT(rc == 0);
 
@@ -10535,6 +10549,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree, &b_op, tx));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -10547,7 +10562,7 @@ static void ut_btree_persistence(void)
 
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-				      m0_btree_open(rnode, rnode_sz, &tree, seg,
+				      m0_btree_open(rnode, rnode_sz, tree, seg,
 						    &b_op));
 	M0_ASSERT(rc == -EINVAL);
 
