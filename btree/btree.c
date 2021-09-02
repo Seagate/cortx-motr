@@ -7084,10 +7084,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		 * successful.
 		 */
 	case P_ACT: {
-		m0_bcount_t          ksize;
-		void                *p_key;
-		m0_bcount_t          vsize;
-		void                *p_val;
+
 		struct slot         node_slot;
 		bool                node_underflow;
 		int                 rc;
@@ -7105,12 +7102,23 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 
 		node_slot.s_node = lev->l_node;
 		node_slot.s_idx  = lev->l_idx;
-		node_slot.s_rec  = REC_INIT(&p_key, &ksize, &p_val, &vsize);
 
-		node_rec(&node_slot);
-		node_slot.s_rec.r_flags = M0_BSC_SUCCESS;
-		rc = bop->bo_cb.c_act(&bop->bo_cb, &node_slot.s_rec);
-		M0_ASSERT(rc == 0);
+		if (bop->bo_cb.c_act != NULL) {
+			m0_bcount_t          ksize;
+			void                *p_key;
+			m0_bcount_t          vsize;
+			void                *p_val;
+
+			node_slot.s_rec  = REC_INIT(&p_key, &ksize,
+						    &p_val, &vsize);
+			node_rec(&node_slot);
+			node_slot.s_rec.r_flags = M0_BSC_SUCCESS;
+			rc = bop->bo_cb.c_act(&bop->bo_cb, &node_slot.s_rec);
+			if (rc) {
+				lock_op_unlock(tree);
+				return fail(bop, rc);
+			}
+		}
 
 		node_lock(lev->l_node);
 
