@@ -3157,12 +3157,14 @@ static bool mover_is_writer(const struct mover *m)
 
 static void mover_fail(struct mover *m, struct sock *s, int rc)
 {
-	m0_sm_state_set(&m->m_sm, R_FAIL);
-	if (m->m_op->v_error != NULL)
-		m->m_op->v_error(m, s, rc);
-	m0_sm_state_set(&m->m_sm, R_DONE);
-	if (s != NULL)
-		stype[s->s_ep->e_a.a_socktype].st_error(m, s);
+	if (m->m_sm.sm_conf != NULL) {
+		m0_sm_state_set(&m->m_sm, R_FAIL);
+		if (m->m_op->v_error != NULL)
+			m->m_op->v_error(m, s, rc);
+		m0_sm_state_set(&m->m_sm, R_DONE);
+		if (s != NULL)
+			stype[s->s_ep->e_a.a_socktype].st_error(m, s);
+	}
 }
 
 /**
