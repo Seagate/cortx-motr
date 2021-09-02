@@ -2398,7 +2398,7 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int shift,
 	op->no_tree = tree;
 
 	nxt_state = node_init(&op->no_addr, ksize, vsize, nt,
-			      tree->t_seg->bs_gen, tree->t_fid, nxt);
+			       tree->t_seg->bs_gen, tree->t_fid, nxt);
 	/**
 	 * TODO: Consider adding a state here to return in case we might need to
 	 * visit node_init() again to complete its execution.
@@ -7638,6 +7638,7 @@ void get_key_at_index(struct nd *node, int idx, uint64_t *key)
 static void ut_basic_tree_oper_cp(void)
 {
 	struct m0_btree         btree = {};
+	struct m0_btree         btree_2 = {};
 	struct m0_btree        *temp_btree;
 	struct m0_btree_type    btree_type = {  .tt_id = M0_BT_UT_KV_OPS,
 						.ksize = 8,
@@ -7673,12 +7674,13 @@ static void ut_basic_tree_oper_cp(void)
 	temp_btree = b_op.bo_arbor;
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, 1024,
-							   &btree, seg,
+							   &btree_2, seg,
 							   &b_op));
 	M0_ASSERT(rc == 0);
 
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(&btree, &b_op));
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(&btree_2, &b_op));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree_2);
 	b_op.bo_arbor = temp_btree;
 
 	m0_btree_destroy_credit(b_op.bo_arbor, &cred);
@@ -7853,6 +7855,7 @@ static void ut_basic_tree_oper_icp(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(b_op.bo_arbor,
 							    &b_op));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(b_op.bo_arbor,
 							    &b_op));
