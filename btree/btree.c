@@ -7141,7 +7141,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		 * successful.
 		 */
 	case P_ACT: {
-		struct m0_btree_rec rec;
+
 		struct slot         node_slot;
 		bool                node_underflow;
 		int                 rc;
@@ -7156,8 +7156,26 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		}
 
 		lev = &oi->i_level[oi->i_used];
+
 		node_slot.s_node = lev->l_node;
 		node_slot.s_idx  = lev->l_idx;
+
+		if (bop->bo_cb.c_act != NULL) {
+			m0_bcount_t          ksize;
+			void                *p_key;
+			m0_bcount_t          vsize;
+			void                *p_val;
+
+			node_slot.s_rec  = REC_INIT(&p_key, &ksize,
+						    &p_val, &vsize);
+			node_rec(&node_slot);
+			node_slot.s_rec.r_flags = M0_BSC_SUCCESS;
+			rc = bop->bo_cb.c_act(&bop->bo_cb, &node_slot.s_rec);
+			if (rc) {
+				lock_op_unlock(tree);
+				return fail(bop, rc);
+			}
+		}
 
 		node_lock(lev->l_node);
 
@@ -7178,10 +7196,6 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		}
 
 		node_unlock(lev->l_node);
-
-		rec.r_flags = M0_BSC_SUCCESS;
-		rc = bop->bo_cb.c_act(&bop->bo_cb, &rec);
-		M0_ASSERT(rc == 0);
 
 		if (oi->i_used == 0 || !node_underflow)
 			return P_CAPTURE; /* No Underflow */
@@ -8055,11 +8069,22 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	return 0;
 }
 
+/**
+ * Callback will be called before deleting value. If needed, caller can copy the
+ * content of record.
+ */
 static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
+	m0_bcount_t              ksize;
 	struct cb_data          *datum = cb->c_datum;
 
-	/** The caller can look at these flags if he needs to. */
+	/** The caller can look at the record if he needs to. */
+	ksize = m0_vec_count(&datum->key->k_data.ov_vec);
+	M0_PRE(ksize <= MAX_KEY_SIZE + sizeof(uint64_t) &&
+	       m0_vec_count(&rec->r_key.k_data.ov_vec) == ksize);
+	M0_PRE(m0_vec_count(&rec->r_val.ov_vec) <=
+	       MAX_VAL_SIZE + sizeof(uint64_t));
+
 	datum->flags = rec->r_flags;
 	M0_ASSERT(datum->flags == M0_BSC_SUCCESS);
 
