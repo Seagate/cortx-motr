@@ -109,7 +109,10 @@ def check_type(var, vtype, msg):
         raise MotrError(errno.EINVAL, f"Invalid {msg} type. Expected: {vtype}")
 
 def get_machine_id(self):
-    cmd = "cat /etc/machine-id"
+    if self.k8:
+        cmd = "hostname"
+    else:
+        cmd = "cat /etc/machine-id"
     machine_id = execute_command(self, cmd)
     machine_id = machine_id[0].split('\n')[0]
     check_type(machine_id, str, "machine-id")
@@ -239,11 +242,10 @@ def configure_lnet(self):
 
 def configure_libfabric(self):
     try:
-        iface = Conf.get(self._index,
-        f'cluster>{self._server_id}')['network']['data']['private_interfaces']
+        iface = self.server_node['network']['data']['private_interfaces']
         iface = iface[0]
         cmd = "fi_info"
-        execute_command(self, cmd)
+        execute_command(self, cmd, verbose=True)
     except:
         raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
 
@@ -987,6 +989,20 @@ def create_part(self, device, label, sz, part_num):
         # Set label
         time.sleep(5)
         part_name = f"{device}{part_num}"
+        # check if device node is created?
+        # If not, create it.
+        if not os.path.exists(part_name):
+            only_dev_name = f"{part_name}".split("/")[-1]
+            cmd = f"cat /proc/partitions | grep {only_dev_name} | " "awk '{print $1}'"
+            major = execute_command(self, cmd, verbose=True)[0]
+            major = major.strip('\n')
+            cmd = f"cat /proc/partitions | grep {only_dev_name} | " "awk '{print $2}'"
+            minor = execute_command(self, cmd, verbose=True)[0]
+            minor = minor.strip('\n')
+            cmd = f"mknod {part_name} b {major} {minor}"
+            execute_command(self, cmd, verbose=True)
+            cmd = f"stat {part_name}"
+            execute_command(self, cmd, verbose=True)
         cmd = f"mkfs.ext4 {part_name} -L {label}"
         ret = execute_command(self, cmd, verbose=True)[1]
     return ret
