@@ -182,7 +182,7 @@ void m0_btree_destroy_credit(struct m0_btree *tree,
  *
  * @return 0 if successful.
  */
-int  m0_btree_open(void *addr, int nob, struct m0_btree **out,
+int  m0_btree_open(void *addr, int nob, struct m0_btree *out,
 		   struct m0_be_seg *seg, struct m0_btree_op *bop);
 
 /**
@@ -219,8 +219,9 @@ void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop);
  * @param tx pointer to the transaction struture to capture BE segment changes.
  */
 void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
-		     struct m0_btree_op *bop, struct m0_be_seg *seg,
-		     const struct m0_fid *fid, struct m0_be_tx *tx);
+		     struct m0_btree_op *bop, struct m0_btree *tree,
+		     struct m0_be_seg *seg, const struct m0_fid *fid,
+		     struct m0_be_tx *tx);
 
 /**
  * Destroys the opened or created tree represented by arbor. Once the destroy
