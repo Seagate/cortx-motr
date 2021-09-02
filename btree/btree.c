@@ -1183,6 +1183,12 @@ struct nd {
 	struct node_op         *n_op;
 
 	/**
+	 *  Size of the node on BE segment pointed by this nd. Added here for
+	 *  easy reference.
+	 */
+	uint32_t                n_size;
+
+	/**
 	 * flag for indicating if node on BE segment is valid or not, but it
 	 * does not indicated anything about node descriptor validity.
 	 */
@@ -2198,7 +2204,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 	 * restart the tick funcions.
 	 */
 	if (!segaddr_header_isvalid(addr)) {
-		op->no_op.o_sm.sm_rc = M0_ERR(-ECHILD);
+		op->no_op.o_sm.sm_rc = M0_ERR(-EINVAL);
 		m0_rwlock_write_unlock(&list_lock);
 		return nxt;
 	}
@@ -2266,6 +2272,7 @@ static int64_t node_get(struct node_op *op, struct td *tree,
 		node->n_seq           = m0_time_now();
 		node->n_ref           = 1;
 		node->n_txref         = 0;
+		node->n_size          = 1ULL << nt->nt_shift(node);
 		node->n_be_node_valid = true;
 		m0_rwlock_init(&node->n_lock);
 		op->no_node           = node;
@@ -2331,7 +2338,7 @@ static int64_t node_free(struct node_op *op, struct nd *node,
 			 struct m0_be_tx *tx, int nxt)
 {
 	int           shift = node->n_type->nt_shift(node);
-	int           size = 1ULL << shift;
+	int           size  = 1ULL << shift;
 	struct m0_buf buf;
 
 	m0_rwlock_write_lock(&list_lock);
@@ -2984,9 +2991,8 @@ static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 static void ff_node_alloc_credit(const struct nd *node,
 				struct m0_be_tx_credit *accum)
 {
-	struct ff_head *h           = ff_data(node);
-	int             shift       = h->ff_shift;
-	int             node_size   = 1ULL << shift;
+	int             node_size   = node->n_size;
+	int             shift       = __builtin_ffsl(node_size) - 1;
 
 	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED,
 			       node_size, shift, accum);
@@ -2995,10 +3001,9 @@ static void ff_node_alloc_credit(const struct nd *node,
 static void ff_node_free_credit(const struct nd *node,
 				struct m0_be_tx_credit *accum)
 {
-	struct ff_head *h           = ff_data(node);
-	int             shift       = h->ff_shift;
-	int             node_size   = 1ULL << shift;
-	int             header_size = sizeof(*h);
+	int             node_size   = node->n_size;
+	int             shift       = __builtin_ffsl(node_size) - 1;
+	int             header_size = sizeof(struct ff_head);
 
 	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED,
 			       node_size, shift, accum);
@@ -3010,8 +3015,7 @@ static void ff_rec_put_credit(const struct nd *node, m0_bcount_t ksize,
 			      m0_bcount_t vsize,
 			      struct m0_be_tx_credit *accum)
 {
-	int            shift     = ff_shift(node);
-	m0_bcount_t    node_size = 1ULL << shift;
+	int             node_size   = node->n_size;
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
 }
@@ -3020,8 +3024,7 @@ static void ff_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
 				 m0_bcount_t vsize,
 				 struct m0_be_tx_credit *accum)
 {
-	int            shift     = ff_shift(node);
-	m0_bcount_t    node_size = 1ULL << shift;
+	int             node_size   = node->n_size;
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
 }
@@ -3030,8 +3033,7 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 			      m0_bcount_t vsize,
 			      struct m0_be_tx_credit *accum)
 {
-	int            shift     = ff_shift(node);
-	m0_bcount_t    node_size = 1ULL << shift;
+	int             node_size   = node->n_size;
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
 }
@@ -3870,9 +3872,8 @@ static int fkvv_create_delete_credit_size(void)
 static void fkvv_node_alloc_credit(const struct nd *node,
 				struct m0_be_tx_credit *accum)
 {
-	struct fkvv_head *h           = fkvv_data(node);
-	int               shift       = h->fkvv_shift;
-	int               node_size   = 1ULL << shift;
+	int             node_size   = node->n_size;
+	int             shift       = __builtin_ffsl(node_size) - 1;
 
 	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED,
 			       node_size, shift, accum);
@@ -3881,10 +3882,9 @@ static void fkvv_node_alloc_credit(const struct nd *node,
 static void fkvv_node_free_credit(const struct nd *node,
 				  struct m0_be_tx_credit *accum)
 {
-	struct fkvv_head *h           = fkvv_data(node);
-	int               shift       = h->fkvv_shift;
-	int               node_size   = 1ULL << shift;
-	int               header_size = sizeof(*h);
+	int             node_size   = node->n_size;
+	int             shift       = __builtin_ffsl(node_size) - 1;
+	int             header_size = sizeof(struct fkvv_head);
 
 	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED,
 			       node_size, shift, accum);
@@ -3896,8 +3896,7 @@ static void fkvv_rec_put_credit(const struct nd *node, m0_bcount_t ksize,
 			        m0_bcount_t vsize,
 				struct m0_be_tx_credit *accum)
 {
-	int            shift     = fkvv_shift(node);
-	m0_bcount_t    node_size = 1ULL << shift;
+	int             node_size   = node->n_size;
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
 }
@@ -3906,8 +3905,7 @@ static void fkvv_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
 				   m0_bcount_t vsize,
 				   struct m0_be_tx_credit *accum)
 {
-	int            shift     = fkvv_shift(node);
-	m0_bcount_t    node_size = 1ULL << shift;
+	int             node_size   = node->n_size;
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
 }
@@ -3916,8 +3914,7 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 				m0_bcount_t vsize,
 				struct m0_be_tx_credit *accum)
 {
-	int            shift     = fkvv_shift(node);
-	m0_bcount_t    node_size = 1ULL << shift;
+	int             node_size   = node->n_size;
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
 }
@@ -5120,6 +5117,18 @@ static void vkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *  --------------------------------------------
  */
 
+static const struct node_type* btree_nt_from_bt(const struct m0_btree_type *bt)
+{
+	if (bt->ksize != -1 && bt->vsize != -1)
+		return &fixed_format;
+	else if (bt->ksize != -1 && bt->vsize == -1)
+		return &fixed_ksize_variable_vsize_format;
+	else if (bt->ksize == -1 && bt->vsize != -1)
+		M0_ASSERT(0); /** Currently we do not support this */
+	else
+		return &variable_kv_format;; /** Replace with correct type. */
+}
+
 /**
  *  --------------------------------------------
  *  Section START - Btree Credit
@@ -5160,10 +5169,6 @@ static void btree_node_split_credit(const struct m0_btree  *tree,
 	m0_be_tx_credit_add(accum, &cred);
 }
 
-/**
- * This function will calculate credits required to perform  @nr put KV
- * operations and it will add those credits to @accum.
- */
 void m0_btree_put_credit(const struct m0_btree  *tree,
 			 m0_bcount_t             nr,
 			 m0_bcount_t             ksize,
@@ -5178,10 +5183,30 @@ void m0_btree_put_credit(const struct m0_btree  *tree,
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
-/**
- * This function will calculate credits required to perform @nr delete KV
- * operations and it will add those credits to @accum.
- */
+void m0_btree_put_credit2(const struct m0_btree_type *type,
+			  int                         nob,
+			  m0_bcount_t                 nr,
+			  m0_bcount_t                 ksize,
+			  m0_bcount_t                 vsize,
+			  struct m0_be_tx_credit     *accum)
+{
+	struct m0_btree dummy_btree;
+	struct td       dummy_td;
+	struct nd       dummy_nd;
+
+	dummy_nd.n_size = nob;
+	dummy_nd.n_type = btree_nt_from_bt(type);
+	dummy_nd.n_tree = &dummy_td;
+
+	dummy_td.t_root = &dummy_nd;
+	dummy_td.t_type = type;
+
+	dummy_btree.t_desc = &dummy_td;
+	dummy_btree.t_type = type;
+
+	m0_btree_put_credit(&dummy_btree, nr, ksize, vsize, accum);
+}
+
 void m0_btree_del_credit(const struct m0_btree  *tree,
 			 m0_bcount_t             nr,
 			 m0_bcount_t             ksize,
@@ -5197,10 +5222,30 @@ void m0_btree_del_credit(const struct m0_btree  *tree,
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
-/**
- * This function will calculate credits required to perform  @nr update kv
- * operation and it will add those credits to @accum.
- */
+void m0_btree_del_credit2(const struct m0_btree_type *type,
+			  int                         nob,
+			  m0_bcount_t                 nr,
+			  m0_bcount_t                 ksize,
+			  m0_bcount_t                 vsize,
+			  struct m0_be_tx_credit     *accum)
+{
+	struct m0_btree dummy_btree;
+	struct td       dummy_td;
+	struct nd       dummy_nd;
+
+	dummy_nd.n_size = nob;
+	dummy_nd.n_type = btree_nt_from_bt(type);
+	dummy_nd.n_tree = &dummy_td;
+
+	dummy_td.t_root = &dummy_nd;
+	dummy_td.t_type = type;
+
+	dummy_btree.t_desc = &dummy_td;
+	dummy_btree.t_type = type;
+
+	m0_btree_del_credit(&dummy_btree, nr, ksize, vsize, accum);
+}
+
 void m0_btree_update_credit(const struct m0_btree  *tree,
 			    m0_bcount_t             nr,
 			    m0_bcount_t             ksize,
@@ -5214,16 +5259,28 @@ void m0_btree_update_credit(const struct m0_btree  *tree,
 	m0_btree_put_credit(tree, nr, ksize, vsize, accum);
 }
 
-static const struct node_type* btree_nt_from_bt(const struct m0_btree_type *bt)
+void m0_btree_update_credit2(const struct m0_btree_type *type,
+			     int                         nob,
+			     m0_bcount_t                 nr,
+			     m0_bcount_t                 ksize,
+			     m0_bcount_t                 vsize,
+			     struct m0_be_tx_credit     *accum)
 {
-	if (bt->ksize != -1 && bt->vsize != -1)
-		return &fixed_format;
-	else if (bt->ksize != -1 && bt->vsize == -1)
-		return &fixed_ksize_variable_vsize_format;
-	else if (bt->ksize == -1 && bt->vsize != -1)
-		M0_ASSERT(0); /** Currently we do not support this */
-	else
-		return &variable_kv_format; /** Replace with correct type. */
+	struct m0_btree dummy_btree;
+	struct td       dummy_td;
+	struct nd       dummy_nd;
+
+	dummy_nd.n_size = nob;
+	dummy_nd.n_type = btree_nt_from_bt(type);
+	dummy_nd.n_tree = &dummy_td;
+
+	dummy_td.t_root = &dummy_nd;
+	dummy_td.t_type = type;
+
+	dummy_btree.t_desc = &dummy_td;
+	dummy_btree.t_type = type;
+
+	m0_btree_update_credit(&dummy_btree, nr, ksize, vsize, accum);
 }
 
 void m0_btree_create_credit(const struct m0_btree_type *bt,
@@ -7753,7 +7810,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		 * successful.
 		 */
 	case P_ACT: {
-		struct m0_btree_rec rec;
+
 		struct slot         node_slot;
 		bool                node_underflow;
 		int                 rc;
@@ -7768,8 +7825,26 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		}
 
 		lev = &oi->i_level[oi->i_used];
+
 		node_slot.s_node = lev->l_node;
 		node_slot.s_idx  = lev->l_idx;
+
+		if (bop->bo_cb.c_act != NULL) {
+			m0_bcount_t          ksize;
+			void                *p_key;
+			m0_bcount_t          vsize;
+			void                *p_val;
+
+			node_slot.s_rec  = REC_INIT(&p_key, &ksize,
+						    &p_val, &vsize);
+			node_rec(&node_slot);
+			node_slot.s_rec.r_flags = M0_BSC_SUCCESS;
+			rc = bop->bo_cb.c_act(&bop->bo_cb, &node_slot.s_rec);
+			if (rc) {
+				lock_op_unlock(tree);
+				return fail(bop, rc);
+			}
+		}
 
 		node_lock(lev->l_node);
 
@@ -7790,10 +7865,6 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		}
 
 		node_unlock(lev->l_node);
-
-		rec.r_flags = M0_BSC_SUCCESS;
-		rc = bop->bo_cb.c_act(&bop->bo_cb, &rec);
-		M0_ASSERT(rc == 0);
 
 		if (oi->i_used == 0 || !node_underflow)
 			return P_CAPTURE; /* No Underflow */
@@ -8179,14 +8250,12 @@ static bool                     btree_ut_initialised = false;
 static void btree_ut_init(void)
 {
 	if (!btree_ut_initialised) {
-		m0_btree_mod_init();
 		btree_ut_initialised = true;
 	}
 }
 
 static void btree_ut_fini(void)
 {
-	m0_btree_mod_fini();
 	btree_ut_initialised = false;
 }
 
@@ -8708,11 +8777,22 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	return 0;
 }
 
+/**
+ * Callback will be called before deleting value. If needed, caller can copy the
+ * content of record.
+ */
 static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
+	m0_bcount_t              ksize;
 	struct cb_data          *datum = cb->c_datum;
 
-	/** The caller can look at these flags if he needs to. */
+	/** The caller can look at the record if he needs to. */
+	ksize = m0_vec_count(&datum->key->k_data.ov_vec);
+	M0_PRE(ksize <= MAX_KEY_SIZE + sizeof(uint64_t) &&
+	       m0_vec_count(&rec->r_key.k_data.ov_vec) == ksize);
+	M0_PRE(m0_vec_count(&rec->r_val.ov_vec) <=
+	       MAX_VAL_SIZE + sizeof(uint64_t));
+
 	datum->flags = rec->r_flags;
 	M0_ASSERT(datum->flags == M0_BSC_SUCCESS);
 
@@ -9058,6 +9138,13 @@ static void ut_multi_stream_kv_oper(void)
 
 	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 	m0_btree_put_credit(tree, 1, ksize, vsize, &cred);
+	{
+		struct m0_be_tx_credit  cred2 = {};
+
+		m0_btree_put_credit2(&btree_type, rnode_sz, 1, ksize, vsize,
+				     &cred2);
+		M0_ASSERT(m0_be_tx_credit_eq(&cred,  &cred2));
+	}
 
 	for (i = 1; i <= recs_per_stream; i++) {
 		struct cb_data       put_data;
@@ -9248,6 +9335,13 @@ static void ut_multi_stream_kv_oper(void)
 
 	cred = M0_BE_TX_CREDIT(0, 0);
 	m0_btree_del_credit(tree, 1, ksize, -1, &cred);
+	{
+		struct m0_be_tx_credit  cred2 = {};
+
+		m0_btree_del_credit2(&btree_type, rnode_sz, 1, ksize, vsize,
+				     &cred2);
+		M0_ASSERT(m0_be_tx_credit_eq(&cred,  &cred2));
+	}
 
 	for (i = 1; i <= recs_per_stream; i++) {
 		uint64_t            del_key;
@@ -10655,6 +10749,13 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		M0_ASSERT(rc == 0);
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
+
+		/** Error Case */
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+					      m0_btree_open(rnode,
+							    1024, &tree,
+							    seg, &b_op));
+		M0_ASSERT(rc == -EINVAL);
 	}
 
 	m0_atomic64_dec(&threads_running);
@@ -11158,17 +11259,12 @@ static void ut_btree_persistence(void)
 	M0_ASSERT(rc == -1 && errno == ENOMEM); /** Assert BE segment unmapped*/
 	m0_be_seg_open(ut_seg->bus_seg);
 
-	/**
-	 *  The following #if 0 is to be removed once m0_btree_open function
-	 *  is coded to return error when a root node with invalid contents
-	 *  is passed.
-	 */
-#if 0
+
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(rnode, rnode_sz, &tree, seg,
 						    &b_op));
-	M0_ASSERT(rc == 0);
-#endif
+	M0_ASSERT(rc == -EINVAL);
+
 
 	/** Delete temp node space which was used as root node for the tree. */
 	cred = M0_BE_TX_CREDIT(0, 0);
