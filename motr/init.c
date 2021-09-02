@@ -66,6 +66,7 @@
 #else
 #  include "be/tx_service.h"    /* m0_be_txs_register */
 #  include "be/be.h"            /* m0_backend_init */
+#  include "btree/btree.h"      /* m0_btree_mod_init */
 #  include "conf/confd.h"       /* m0_confd_register */
 #  include "mdstore/mdstore.h"  /* m0_mdstore_mod_init */
 #endif
@@ -211,6 +212,7 @@ struct init_fini_call subsystem[] = {
 #ifdef __KERNEL__
 	{ &m0t1fs_init,         &m0t1fs_fini,         "m0t1fs" },
 #else
+	{ &m0_btree_mod_init,   &m0_btree_mod_fini,   "btree" },
 	{ &m0_backend_init,     &m0_backend_fini,     "be" },
 	{ &m0_be_txs_register,  &m0_be_txs_unregister, "be-tx-service" },
 	{ &m0_confd_register,   &m0_confd_unregister, "confd" },
