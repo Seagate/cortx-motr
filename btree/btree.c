@@ -7510,14 +7510,12 @@ static bool                     btree_ut_initialised = false;
 static void btree_ut_init(void)
 {
 	if (!btree_ut_initialised) {
-		m0_btree_mod_init();
 		btree_ut_initialised = true;
 	}
 }
 
 static void btree_ut_fini(void)
 {
-	m0_btree_mod_fini();
 	btree_ut_initialised = false;
 }
 
