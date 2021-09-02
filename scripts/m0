@@ -40,6 +40,78 @@ M0_SRC_DIR="$(readlink -f $0)"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
 SUDO="${SUDO-sudo -E}"  # the absence of ':' is important
+_libfab_st_list() {
+    st_name=$1
+    found_st=false
+    st_libfab_skip=(01net
+		    02rpcping
+                    03console
+                    04sss
+		    05confgen
+		    06conf
+		    06hagen
+		    06ham
+		    07m0d-fatal
+                    07mount
+                    07mount-fail
+                    08spiel
+		    08spiel-multiple-confd
+                    08spiel-sns-repair
+                    08spiel-sns-repair-quiesce
+                    10pver-assign
+                    11m0t1fs
+                    11m0t1fs-rconfc-fail
+                    12fsync
+                    12fwait
+                    13dgmode-io
+                    14poolmach
+                    15sns-repair-shutdown
+                    15sns-repair-single
+                    16sns-repair-multi
+                    17sns-repair-concurrent-io
+                    18sns-repair-quiesce
+                    18sns-repair-quiesce-failure
+                    19sns-repair-abort
+                    20rpc-session-cancel
+                    21fsync-single-node
+                    22sns-repair-ios-fail
+                    23sns-abort-quiesce
+                    23spiel-dix-repair
+                    23spiel-dix-repair-quiesce
+	            24motr-dix-repair
+		    24stob-domain-recreate-on-corruption
+		    25m0kv
+                    26motr-user-kernel-tests
+                    34sns-repair-1n-1f
+                    40motr-dgmode
+		    41motr-conf-update
+		    42motr-utils
+		    43m0crate
+		    44motr-rm-lock-cc-io
+                    45motr-rmw
+                    51kem
+	            53clusterusage-alert
+		    60sns-repair-motr-1f
+		    61sns-repair-motr-1n-1f
+		    62sns-repair-motr-mf
+		    63sns-repair-motr-1k-1f
+		    64sns-repair-motr-ios-fail
+                    65sns-repair-motr-abort
+                    66sns-repair-motr-abort-quiesce)
+
+    i=0
+    while [ $i -lt ${#st_libfab_skip[@]} ]
+    do
+        if [[ "${st_libfab_skip[$i]}" == "$st_name" ]]; then
+            found_st=true
+            break
+        fi
+
+        i=`expr $i + 1`
+    done
+
+    echo "$found_st"
+}
 
 # Increase the maximum number of memory map areas a process may have.
 # m0d process may allocate and madvise() at least 2,000,000 memory map areas.
@@ -156,8 +228,18 @@ cmd_run_st() {
             while read f; do
                 if [ $list_p -eq 1 ]; then
                     echo ${f##*/}
+		    chk=$(_libfab_st_list ${f##*/})
+		    if [[ "$chk" == "true" ]]; then
+			echo "<< ${f##*/} >> can not be run for libfab" >&2
+			continue
+		    fi
                 else
                     echo "<< ${f##*/} >>" >&2
+		    chk=$(_libfab_st_list ${f##*/})
+		    if [[ "$chk" == "true" ]]; then
+			echo "<< ${f##*/} >> can not be run for libfab" >&2
+			continue
+		    fi
                     export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
                     _time $f || return $?
                 fi
