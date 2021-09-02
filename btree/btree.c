@@ -7672,6 +7672,7 @@ static void ut_basic_tree_oper_cp(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
 							      &b_op, tx));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
 	/**
@@ -7694,6 +7695,7 @@ static void ut_basic_tree_oper_cp(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
 							      &b_op, tx));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
 	/**
@@ -7716,6 +7718,7 @@ static void ut_basic_tree_oper_cp(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_close(b_op.bo_arbor, &b_op));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, 1024,
 							   b_op.bo_arbor,
@@ -7727,6 +7730,7 @@ static void ut_basic_tree_oper_cp(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
 							      &b_op, tx));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
 	btree_ut_fini();
@@ -7809,6 +7813,7 @@ static void ut_basic_tree_oper_icp(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
 							      &b_op, tx));
 	M0_ASSERT(rc == -EPERM);
+	M0_SET0(&btree);
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 
 	/**
@@ -7838,6 +7843,7 @@ static void ut_basic_tree_oper_icp(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(b_op.bo_arbor,
 							    &b_op));
 	M0_ASSERT(rc == -EINVAL);
+	M0_SET0(&btree);
 
 	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
 	btree_ut_fini();
@@ -8246,6 +8252,7 @@ static void ut_basic_kv_oper(void)
 	m0_btree_destroy_credit(b_op.bo_arbor, &cred);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree, &b_op, tx));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	btree_ut_fini();
 }
@@ -8650,6 +8657,7 @@ static void ut_multi_stream_kv_oper(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree, &b_op, tx));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	/** Delete temp node space which was used as root node for the tree. */
 	buf = M0_BUF_INIT(rnode_sz, rnode);
@@ -9746,7 +9754,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 					      m0_btree_destroy(ut_trees[i],
 							       &b_op, tx));
 		M0_ASSERT(rc == 0);
-
+		M0_SET0(&btree[i]);
 		buf = M0_BUF_INIT(rnode_sz, rnode);
 		M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 		m0_be_tx_close_sync(tx);
@@ -9939,6 +9947,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_close(tree, &b_op));
 		M0_ASSERT(rc == 0);
+		M0_SET0(&btree);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_open(rnode, rnode_sz,
@@ -9961,6 +9970,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_close(tree, &b_op));
 		M0_ASSERT(rc == 0);
+		M0_SET0(&btree);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_open(rnode,
@@ -10002,6 +10012,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 					      m0_btree_destroy(tree,
 							       &b_op, tx));
 		M0_ASSERT(rc == 0);
+		M0_SET0(&btree);
+
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
 
@@ -10252,6 +10264,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -10313,6 +10326,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -10398,6 +10412,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -10459,6 +10474,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -10505,6 +10521,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree, &b_op, tx));
 	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
