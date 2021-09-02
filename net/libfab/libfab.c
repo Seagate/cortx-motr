@@ -746,16 +746,17 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 	struct fid_eq            *eq;
 	struct fi_eq_err_entry    eq_err;
 	struct fi_eq_cm_entry    *cm_entry;
-	char                      entry[(sizeof(struct fi_eq_cm_entry) + 
+	char                      entry[(sizeof(struct fi_eq_cm_entry) +
 					sizeof(struct m0_fab__conn_data))];
 	uint32_t                  event;
 	int                       rc;
-	char                      straddr[LIBFAB_ADDR_STRLEN_MAX] = { '\0' };
+	char                      straddr[LIBFAB_ADDR_STRLEN_MAX];
 
 	eq = tm->ftm_pep->fep_listen->pep_res.fpr_eq;
 	rc = fi_eq_read(eq, &event, &entry, sizeof(entry), 0);
 	if (rc >= (int)sizeof(struct fi_eq_cm_entry) && event == FI_CONNREQ) {
 		memset(&en, 0, sizeof(en));
+		memset(&straddr, 0, sizeof(straddr));
 		cm_entry = (struct fi_eq_cm_entry *)entry;
 		cd = (struct m0_fab__conn_data*)cm_entry->data;
 		libfab_straddr_gen(cd, straddr, sizeof(straddr), &en);
@@ -898,8 +899,7 @@ static void libfab_txep_comp_read(struct fid_cq *cq, struct m0_fab__tm *tm)
 						 &tm->ftm_bufhash.bht_hash, fb);
 				M0_ASSERT(aep->aep_bulk_cnt);
 				--aep->aep_bulk_cnt;
-				if (aep->aep_txq_full)
-					aep->aep_txq_full = false;
+				aep->aep_txq_full = false;
 				m0_free(fb);
 			} else {
 				if (M0_IN(fb->fb_nb->nb_qtype,
@@ -909,8 +909,7 @@ static void libfab_txep_comp_read(struct fid_cq *cq, struct m0_fab__tm *tm)
 					M0_ASSERT(aep->aep_bulk_cnt >=
 								 fb->fb_wr_cnt);
 					aep->aep_bulk_cnt -= fb->fb_wr_cnt;
-					if (aep->aep_txq_full)
-						aep->aep_txq_full = false;
+					aep->aep_txq_full = false;
 				}
 				libfab_target_notify(fb);
 				libfab_buf_done(fb, 0);
@@ -2465,6 +2464,7 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
 			M0_LOG(M0_ERROR,"ep_txres_free failed %d",rc);
 	}
 	aep->aep_tx_state = FAB_NOT_CONNECTED;
+	aep->aep_txq_full = false;
 	ep->fep_connlink = FAB_CONNLINK_DOWN;
 
 	if (isVerbs) {
