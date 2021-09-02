@@ -151,6 +151,7 @@ AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in atomic functions])
 AH_TEMPLATE([ENABLE_DATA_INTEGRITY],  [Enable data integrity.])
 AH_TEMPLATE([ENABLE_FREE_POISON],     [Poison freed memory for debugging.])
 AH_TEMPLATE([ENABLE_DETAILED_BACKTRACE],[Enable detailed backtraces on crash using gdb.])
+AH_TEMPLATE([ENABLE_SOCK_MOCK_LNET],  [Enable LNet simulation in net/sock. Forces sock to pretend to be lnet. With this option end-points prefixed with "lnet:" are interpreted by sock.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
 AH_TEMPLATE([ENABLE_DTM0],            [Enable DTM0 mode.])
 AH_TEMPLATE([M0_BE_SEGMENT_SIZE],     [BE segment size in MiB.])
@@ -158,6 +159,7 @@ AH_TEMPLATE([M0_TRACE_KBUF_SIZE],     [Kernel space trace buffer size in MiB.])
 AH_TEMPLATE([M0_TRACE_UBUF_SIZE],     [User space trace buffer size in MiB.])
 AH_TEMPLATE([ENABLE_RESTRICTED_TRACE_MODE],[Enable restricted trace mode, when only some trace records get logged.])
 AH_TEMPLATE([M0_TRACE_HIGHEST_ALLOWED_LEVEL],[Highest trace level that is allowed to be logged.])
+AH_TEMPLATE([M0_DEFAULT_NETWORK],     [Default network transport type.])
 AH_TEMPLATE([M0_LUSTRE_VERSION],      [Autodetected Lustre version represented as integer])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT],     [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV],        [Have fops->readv function])
@@ -291,6 +293,16 @@ AC_ARG_ENABLE([detailed-backtrace],
 )
 AS_IF([test x$enable_detailed_backtrace = xyes],
       AC_DEFINE([ENABLE_DETAILED_BACKTRACE]))
+
+# sock-mock-lnet {{{3
+AC_ARG_ENABLE([sock-mock-lnet],
+        AC_HELP_STRING([--enable-sock-mock-lnet],
+		       [enable lnet emulation in sock/net]),
+        [],
+        [enable_sock_mock_lnet=no]
+)
+AS_IF([test x$enable_sock_mock_lnet = xyes],
+      AC_DEFINE([ENABLE_SOCK_MOCK_LNET]))
 
 # sync-atomic {{{3
 AC_ARG_ENABLE([sync-atomic],
@@ -432,6 +444,27 @@ AS_IF([test -n "$with_trace_max_level"],
 allowed values are: M0_DEBUG, M0_INFO, M0_NOTICE, M0_WARN, M0_ERROR, M0_FATAL, M0_ALWAYS])
               ]
         )
+      ]
+)
+
+# default-network {{{3
+AC_ARG_WITH([default-network],
+        [AS_HELP_STRING([--with-default-network=<SOCK|LNET|LF|MEMBULK>],
+                        [selects the network transport used by default, i.e., to interpret end-points not starting with the transport prefix. The default default is LNET for now])]
+)
+AS_IF([test -n "$with_default_network"],
+      [
+        AS_IF([case "$with_default_network" in (SOCK|LNET|LF|MEMBULK) true ;; (*) false ;; esac],
+              [
+                AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["$with_default_network"])
+              ],[
+                AC_MSG_ERROR([Invalid argument for --with-default-network option ($with_default_network),
+allowed values are: SOCK, LNET, MEMBULK and LF])
+              ]
+        )
+      ],
+      [
+	AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["LNET"])
       ]
 )
 
