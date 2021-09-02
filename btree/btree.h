@@ -331,6 +331,17 @@ void m0_btree_minkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
 		     uint64_t flags, struct m0_btree_op *bop);
 
 /**
+ * Returns the records corresponding to maximum key of the btree.
+ *
+ * @param arbor Btree parameteres.
+ * @param cb    Callback routine to return operation output.
+ * @param flags Operation specific flags (cookie, lockall etc.).
+ * @param bop   Btree operation related parameters.
+ */
+void m0_btree_maxkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
+		     uint64_t flags, struct m0_btree_op *bop);
+
+/**
  * Initialises cursor and its internal structures.
  *
  * @param it    is pointer to cursor structure allocated by the caller.
@@ -413,17 +424,6 @@ void m0_btree_cursor_kv_get(struct m0_btree_cursor *it,
 			    struct m0_buf          *val);
 
 
-/**
- * Returns the records corresponding to maximum key of the btree.
- *
- * @param arbor Btree parameteres.
- * @param cb    Callback routine to return operation output.
- * @param flags Operation specific flags (cookie, lockall etc.).
- * @param bop   Btree operation related parameters.
- */
-void m0_btree_maxkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
-		     uint64_t flags, struct m0_btree_op *bop);
-
 void m0_btree_op_init(struct m0_btree_op *bop, enum m0_btree_opcode *opc,
 		      struct m0_btree *arbor,
 		      struct m0_btree_key *key, const struct m0_btree_cb *cb,
@@ -433,23 +433,137 @@ void m0_btree_op_fini(struct m0_btree_op *bop);
 void m0_btree_op_credit(const struct m0_btree_op *bt,
 			struct m0_be_tx_credit *cr);
 
+/**
+ * Calculates credits required to perform 'nr' Put KV operations. The calculated
+ * credits will be added to the existing value in accum.
+ * The routine assumes that each of the Keys and Values to be Put will be of
+ * size ksize and vsize respectively.
+ *
+ * @param tree  is the pointer to btree.
+ * @param nr    is the number of records for which the credit count is desired.
+ * @param ksize is the size of the Key which will be added.
+ * @param vsize is the size of the Value which will be added.
+ * @param accum will contain the calculated credits.
+ */
 void m0_btree_put_credit(const struct m0_btree  *tree,
 			 m0_bcount_t             nr,
 			 m0_bcount_t             ksize,
 			 m0_bcount_t             vsize,
 			 struct m0_be_tx_credit *accum);
 
+/**
+ * Calculates credits required to perform 'nr' Put KV operations. The calculated
+ * credits will be added to the existing value in accum.
+ * The routine assumes that each of the Keys and Values to be Put will be of
+ * size ksize and vsize respectively.
+ * This routine should be used when m0_btree is not available but the type of
+ * the node used in the btree is known.
+ *
+ * Note: Avoid using this routine unless the m0_btree is not available since
+ * this routine is slower when compared to m0_btree_put_credit().
+ *
+ * @param type      points to the type of btree.
+ * @param rnode_nob is the byte count of root node of this btree.
+ * @param nr        is the number of records for which the credit count is
+ *                  desired.
+ * @param ksize     is the size of the Key which will be added.
+ * @param vsize     is the size of the Value which will be added.
+ * @param accum     will contain the calculated credits.
+ */
+void m0_btree_put_credit2(const struct m0_btree_type *type,
+			  int                         rnode_nob,
+			  m0_bcount_t                 nr,
+			  m0_bcount_t                 ksize,
+			  m0_bcount_t                 vsize,
+			  struct m0_be_tx_credit     *accum);
+
+/**
+ * Calculates credits required to perform 'nr' Update KV operations. The
+ * calculated credits will be added to the existing value in accum.
+ * The routine assumes that each of the Keys and Values to be Updated will be of
+ * size ksize and vsize respectively.
+ *
+ * @param tree  is the pointer to btree.
+ * @param nr    is the number of records for which the credit count is desired.
+ * @param ksize is the size of the Key which will be added.
+ * @param vsize is the size of the Value which will be added.
+ * @param accum will contain the calculated credits.
+ */
 void m0_btree_update_credit(const struct m0_btree  *tree,
 			    m0_bcount_t             nr,
 			    m0_bcount_t             ksize,
 			    m0_bcount_t             vsize,
 			    struct m0_be_tx_credit *accum);
 
+/**
+ * Calculates credits required to perform 'nr' Update KV operations. The
+ * calculated credits will be added to the existing value in accum.
+ * The routine assumes that each of the Keys and Values to be Updated will be of
+ * size ksize and vsize respectively.
+ * This routine should be used when m0_btree is not available but the type of
+ * the node used in the btree is known.
+ *
+ * Note: Avoid using this routine unless the m0_btree is not available since
+ * this routine is slower when compared to m0_btree_update_credit().
+ *
+ * @param type      points to the type of btree.
+ * @param rnode_nob is the byte count of root node of this btree.
+ * @param nr        is the number of records for which the credit count is
+ *                  desired.
+ * @param ksize     is the size of the Key which will be added.
+ * @param vsize     is the size of the Value which will be added.
+ * @param accum     will contain the calculated credits.
+ */
+void m0_btree_update_credit2(const struct m0_btree_type *type,
+			     int                         rnode_nob,
+			     m0_bcount_t                 nr,
+			     m0_bcount_t                 ksize,
+			     m0_bcount_t                 vsize,
+			     struct m0_be_tx_credit     *accum);
+
+/**
+ * Calculates credits required to perform 'nr' Delete KV operations. The
+ * calculated credits will be added to the existing value in accum.
+ * The routine assumes that each of the Keys and Values to be Deleted will be of
+ * size ksize and vsize respectively.
+ *
+ * @param tree  is the pointer to btree.
+ * @param nr    is the number of records for which the credit count is desired.
+ * @param ksize is the size of the Key which will be added.
+ * @param vsize is the size of the Value which will be added.
+ * @param accum will contain the calculated credits.
+ */
 void m0_btree_del_credit(const struct m0_btree  *tree,
 			 m0_bcount_t             nr,
 			 m0_bcount_t             ksize,
 			 m0_bcount_t             vsize,
 			 struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates credits required to perform 'nr' Delete KV operations. The
+ * calculated credits will be added to the existing value in accum.
+ * The routine assumes that each of the Keys and Values to be Deleted will be of
+ * size ksize and vsize respectively.
+ * This routine should be used when m0_btree is not available but the type of
+ * the node used in the btree is known.
+ *
+ * Note: Avoid using this routine unless the m0_btree is not available since
+ * this routine is slower when compared to m0_btree_del_credit().
+ *
+ * @param type      points to the type of btree.
+ * @param rnode_nob is the byte count of root node of this btree.
+ * @param nr        is the number of records for which the credit count is
+ *                  desired.
+ * @param ksize     is the size of the Key which will be added.
+ * @param vsize     is the size of the Value which will be added.
+ * @param accum     will contain the calculated credits.
+ */
+void m0_btree_del_credit2(const struct m0_btree_type *type,
+			  int                         rnode_nob,
+			  m0_bcount_t                 nr,
+			  m0_bcount_t                 ksize,
+			  m0_bcount_t                 vsize,
+			  struct m0_be_tx_credit     *accum);
 
 #include "btree/internal.h"
 
