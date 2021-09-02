@@ -1160,7 +1160,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 	m0_bufvec_cursor_init(&datacur, &ioo->ioo_data);
 	m0_bufvec_cursor_init(&tmp_datacur, &ioo->ioo_data);
 	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
-
+    M0_LOG(M0_ALWAYS,"rajat verify_checksum check 1");
 	while ( !m0_bufvec_cursor_move(&datacur, 0) &&
 		!m0_ivec_cursor_move(&extcur, 0) &&
 		attr_idx < ioo->ioo_attr.ov_vec.v_nr){
@@ -1168,7 +1168,8 @@ static bool verify_checksum(struct m0_op_io *ioo)
 		/* calculate number of segments required for 1 data unit */
 		nr_seg = 0;
 		count = usz;
-		while (count > 0) {
+		M0_LOG(M0_ALWAYS,"rajat verify_checksum check 2");
+		while (count > 0 && !m0_bufvec_cursor_move(&tmp_datacur, 0)) {
 			nr_seg++;
 			bytes = m0_bufvec_cursor_step(&tmp_datacur);
 			if (bytes < count) {
@@ -1180,6 +1181,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 				count = 0;
 			}
 		}
+		M0_LOG(M0_ALWAYS,"rajat verify_checksum check 3");
 
 		/* allocate an empty buf vec */
 		rc = m0_bufvec_empty_alloc(&user_data, nr_seg);
@@ -1187,13 +1189,14 @@ static bool verify_checksum(struct m0_op_io *ioo)
 			M0_LOG(M0_ERROR, "buffer allocation failed, rc %d", rc);
 			return false;
 		}
+		M0_LOG(M0_ALWAYS,"rajat verify_checksum check 4attr_idx : %d v_vount : %"PRIu64, attr_idx, ioo->ioo_attr.ov_vec.v_count[attr_idx]);
 
 		/* populate the empty buf vec with data pointers
 		 * and create 1 data unit worth of buf vec
 		 */
 		i = 0;
 		count = usz;
-		while (count > 0) {
+		while (count > 0 && !m0_bufvec_cursor_move(&datacur, 0)) {
 			bytes = m0_bufvec_cursor_step(&datacur);
 			if (bytes < count) {
 				user_data.ov_vec.v_count[i] = bytes;
@@ -1209,7 +1212,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 			}
 			i++;
 		}
-
+		M0_LOG(M0_ALWAYS,"rajat verify_checksum check 5 , attr_idx : %d v_vount : %"PRIu64, attr_idx, ioo->ioo_attr.ov_vec.v_count[attr_idx]);
 		if (ioo->ioo_attr.ov_vec.v_nr && ioo->ioo_attr.ov_vec.v_count[attr_idx] != 0) {
 
 			seed.pis_data_unit_offset   = m0_ivec_cursor_index(&extcur);
@@ -1217,8 +1220,10 @@ static bool verify_checksum(struct m0_op_io *ioo)
 			seed.pis_obj_id.f_key       = ioo->ioo_obj->ob_entity.en_id.u_lo;
 
 			pi_ondisk = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[attr_idx];
-
+			M0_LOG(M0_ALWAYS,"rajat verify_checksum check 6");
+            M0_LOG(M0_ALWAYS,"unit size in verify checksum : %d, lid : %"PRIu64, usz, m0__obj_lid(ioo->ioo_obj));
 			if (!m0_calc_verify_cksum_one_unit(pi_ondisk, &seed, &user_data)) {
+				M0_LOG(M0_ALWAYS,"rajat verify_checksum check 7");
 				return false;
 			}
 		}
@@ -1228,14 +1233,17 @@ static bool verify_checksum(struct m0_op_io *ioo)
 
 		m0_bufvec_free2(&user_data);
 	}
+	M0_LOG(M0_ALWAYS,"rajat verify_checksum check 8");
 
 	if (m0_bufvec_cursor_move(&datacur, 0) &&
 	    m0_ivec_cursor_move(&extcur, 0) &&
 	    attr_idx == ioo->ioo_attr.ov_vec.v_nr) {
+		M0_LOG(M0_ALWAYS,"rajat verify_checksum check 9");
 		return true;
 	}
 	else {
 		/* something wrong, we terminated early */
+		M0_LOG(M0_ALWAYS,"rajat verify_checksum check 8");
 		M0_IMPOSSIBLE("something wrong while arranging data");
 	}
 }
@@ -1261,6 +1269,8 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 	m0_bindex_t               pgstart;
 	m0_bindex_t               pgend;
 	m0_bcount_t               count;
+	m0_bcount_t               total_count;
+	int                       usz;
 	struct m0_bufvec_cursor   appdatacur;
 	struct m0_ivec_cursor     extcur;
 	struct m0_pdclust_layout  *play;
@@ -1271,11 +1281,14 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 
 	M0_PRE(M0_IN(dir, (CD_COPY_FROM_APP, CD_COPY_TO_APP)));
 	M0_PRE_EX(m0_op_io_invariant(ioo));
+	M0_LOG(M0_ALWAYS,"rajat in ioreq v_count 1 : %"PRIu64,ioo->ioo_attr.ov_vec.v_count[0]);
 
 	m0_bufvec_cursor_init(&appdatacur, &ioo->ioo_data);
 	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
-
+    M0_LOG(M0_ALWAYS,"rajat in ioreq v_count 2 : %"PRIu64,ioo->ioo_attr.ov_vec.v_count[0]);
 	play = pdlayout_get(ioo);
+	usz = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
+	total_count = 0;
 
 	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
 		M0_ASSERT_EX(pargrp_iomap_invariant(ioo->ioo_iomaps[i]));
@@ -1283,6 +1296,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		count    = 0;
 		grpstart = data_size(play) * ioo->ioo_iomaps[i]->pi_grpid;
 		grpend   = grpstart + data_size(play);
+		M0_LOG(M0_ALWAYS,"rajat in ioreq v_count 3 : %"PRIu64,ioo->ioo_attr.ov_vec.v_count[0]);
 
 		while (!m0_ivec_cursor_move(&extcur, count) &&
 			m0_ivec_cursor_index(&extcur) < grpend) {
@@ -1292,6 +1306,8 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 						   m0__page_size(ioo)),
 				       pgstart + m0_ivec_cursor_step(&extcur));
 			count = pgend - pgstart;
+			total_count += count;
+			M0_LOG(M0_ALWAYS,"rajat in ioreq v_count 4 : %"PRIu64,ioo->ioo_attr.ov_vec.v_count[0]);
 
 			/*
 			* This takes care of finding correct page from
@@ -1309,13 +1325,14 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		}
 
 	}
+	M0_LOG(M0_ALWAYS,"rajat in ioreq v_count 5 : %"PRIu64,ioo->ioo_attr.ov_vec.v_count[0]);
 
 	if (dir == CD_COPY_TO_APP) {
 		/* verify the checksum during data read.
 		 * skip checksum verification during degraded I/O
 		 */
 		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
-		    ioo->ioo_attr.ov_vec.v_nr &&
+		    total_count % usz == 0 &&
 		    !verify_checksum(ioo)) {
 			return M0_RC(-EIO);
 		}

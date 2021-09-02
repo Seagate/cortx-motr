@@ -942,6 +942,22 @@ int32_t m0_rc(const struct m0_op *op)
 }
 M0_EXPORTED(m0_rc);
 
+void print_pi(void *pi,int size)
+{
+	int i;
+	char arr[size * 3];
+	char *ptr = pi;
+	M0_LOG(M0_ALWAYS,">>>>>>>>>>>>>>>>>>[PI Values]<<<<<<<<<<<<<<<<<");
+	for ( i = 0; i < size; i++)
+	{
+		sprintf(&arr[i*3],"%02x ",ptr[i] & 0xff);
+	}
+	M0_LOG(M0_ALWAYS,"%s ",(char *)arr);
+	M0_LOG(M0_ALWAYS,">>>>>>>>>>>>>>>>>>[PI Values]<<<<<<<<<<<<<<<<<");
+}
+
+M0_EXPORTED(print_pi);
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*
