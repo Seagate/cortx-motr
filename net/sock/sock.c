@@ -3546,7 +3546,7 @@ static int stream_interval(struct mover *self, struct sock *s)
 	if (self->m_buf == NULL)
 		return M0_ERR(-ECANCELED);
 	if (self->m_buf->b_rc != 0)
-		return M0_ERR(self->m_sm.sm_rc);
+		return M0_ERR(self->m_buf->b_rc);
 	result = pk_io(self, s, HAS_READ, NULL, pk_tsize(self));
 	return result >= 0 ? pk_state(self) : result;
 }
