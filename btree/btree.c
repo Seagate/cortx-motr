@@ -2401,7 +2401,7 @@ static int64_t node_alloc(struct node_op *op, struct td *tree, int shift,
 	op->no_tree = tree;
 
 	nxt_state = node_init(&op->no_addr, ksize, vsize, nt,
-			       tree->t_seg->bs_gen, tree->t_fid, nxt);
+			      tree->t_seg->bs_gen, tree->t_fid, nxt);
 	/**
 	 * TODO: Consider adding a state here to return in case we might need to
 	 * visit node_init() again to complete its execution.
@@ -2817,7 +2817,7 @@ static void ff_make(struct slot *slot)
 
 	M0_PRE(ff_rec_is_valid(slot));
 	M0_PRE(ff_isfit(slot));
-	memmove(start + rsize, start, rsize * (h->ff_used - slot->s_idx));
+	m0_memmove(start + rsize, start, rsize * (h->ff_used - slot->s_idx));
 	h->ff_used++;
 	/** Capture these changes in ff_capture.*/
 }
@@ -2852,7 +2852,7 @@ static void ff_del(const struct nd *node, int idx)
 
 	M0_PRE(idx < h->ff_used);
 	M0_PRE(h->ff_used > 0);
-	memmove(start, start + rsize, rsize * (h->ff_used - idx - 1));
+	m0_memmove(start, start + rsize, rsize * (h->ff_used - idx - 1));
 	h->ff_used--;
 	/** Capture changes in ff_capture */
 }
@@ -3526,8 +3526,9 @@ static void fkvv_make_internal(struct slot *slot)
 	total_key_size = h->fkvv_ksize * (h->fkvv_used - slot->s_idx);
 	total_val_size = INTERNAL_NODE_VALUE_SIZE * (h->fkvv_used - slot->s_idx);
 
-	memmove(key_addr + h->fkvv_ksize, key_addr, total_key_size);
-	memmove(val_addr - INTERNAL_NODE_VALUE_SIZE, val_addr, total_val_size);
+	m0_memmove(key_addr + h->fkvv_ksize, key_addr, total_key_size);
+	m0_memmove(val_addr - INTERNAL_NODE_VALUE_SIZE, val_addr,
+		   total_val_size);
 
 	h->fkvv_used++;
 }
@@ -3575,8 +3576,8 @@ static void fkvv_make_leaf(struct slot *slot)
 	total_val_size         = (idx == 0) ? *last_val_offset :
 				 *last_val_offset - *prev_val_offset;
 
-	memmove(key_addr + unit_key_offset_rsize, key_addr, total_key_size);
-	memmove(val_addr - new_val_size, val_addr, total_val_size);
+	m0_memmove(key_addr + unit_key_offset_rsize, key_addr, total_key_size);
+	m0_memmove(val_addr - new_val_size, val_addr, total_val_size);
 
 	h->fkvv_used++;
 
@@ -3614,7 +3615,7 @@ static void fkvv_val_resize(struct slot *slot, int vsize_diff)
 	val_addr        = fkvv_val(slot->s_node, h->fkvv_used - 1);
 	total_val_size  = *last_val_offset - *curr_val_offset;
 
-	memmove(val_addr - vsize_diff, val_addr, total_val_size);
+	m0_memmove(val_addr - vsize_diff, val_addr, total_val_size);
 	for (i = slot->s_idx; i < h->fkvv_used; i++) {
 		curr_val_offset  = fkvv_val_offset_get(slot->s_node, i);
 		*curr_val_offset = *curr_val_offset + vsize_diff;
@@ -3655,8 +3656,9 @@ static void fkvv_del_internal(const struct nd *node, int idx)
 	total_key_size = h->fkvv_ksize * (h->fkvv_used - idx - 1);
 	total_val_size = INTERNAL_NODE_VALUE_SIZE * (h->fkvv_used - idx - 1);
 
-	memmove(key_addr, key_addr + h->fkvv_ksize, total_key_size);
-	memmove(val_addr + INTERNAL_NODE_VALUE_SIZE, val_addr, total_val_size);
+	m0_memmove(key_addr, key_addr + h->fkvv_ksize, total_key_size);
+	m0_memmove(val_addr + INTERNAL_NODE_VALUE_SIZE, val_addr,
+		   total_val_size);
 
 	h->fkvv_used--;
 }
@@ -3698,8 +3700,8 @@ static void fkvv_del_leaf(const struct nd *node, int idx)
 	total_key_size = (key_offset_rsize) * (h->fkvv_used - idx - 1);
 	total_val_size = *last_val_offset - *curr_val_offset;
 
-	memmove(key_addr, key_addr + key_offset_rsize, total_key_size);
-	memmove(val_addr + value_size, val_addr, total_val_size);
+	m0_memmove(key_addr, key_addr + key_offset_rsize, total_key_size);
+	m0_memmove(val_addr + value_size, val_addr, total_val_size);
 
 	h->fkvv_used--;
 
@@ -4151,7 +4153,7 @@ static void vkvv_init(const struct segaddr *addr, int shift, int ksize,
 	struct vkvv_head *h     = segaddr_addr(addr);
 	M0_SET0(h);
 
-	h->vkvv_dir_offset      = (1ULL << shift)/2;
+	h->vkvv_dir_offset      = ((1ULL << shift) - sizeof(*h))/2;
 	h->vkvv_shift           = shift;
 	h->vkvv_seg.h_node_type = ntype;
 	h->vkvv_seg.h_gen       = gen;
@@ -4654,7 +4656,7 @@ static void vkvv_move_dir(struct slot *slot)
 	/* Key space overlaps with directory */
 	if (key_addr + ksize > start_dir_addr) {
 		diff = (key_addr + ksize) - start_dir_addr;
-		memmove(start_dir_addr + diff, start_dir_addr, dir_size);
+		m0_memmove(start_dir_addr + diff, start_dir_addr, dir_size);
 		h->vkvv_dir_offset += diff;
 		return;
 	}
@@ -4662,7 +4664,7 @@ static void vkvv_move_dir(struct slot *slot)
 	/* Value space overlaps with directory */
 	if (val_addr - vsize < end_dir_addr) {
 		diff = end_dir_addr - (val_addr - vsize);
-		memmove(start_dir_addr - diff, start_dir_addr, dir_size);
+		m0_memmove(start_dir_addr - diff, start_dir_addr, dir_size);
 		h->vkvv_dir_offset -= diff;
 		return;
 	}
@@ -4691,7 +4693,7 @@ static void vkvv_lnode_make(struct slot *slot)
 
 	if (index == count) {
 		/**
-		 * No need to do memmove() as data will be added to the end of
+		 * No need to do m0_memmove() as data will be added to the end of
 		 * current series of keys and values. Just update the
 		 * directory to keep a record of the next possible offset.
 		 */
@@ -4717,9 +4719,9 @@ static void vkvv_lnode_make(struct slot *slot)
 			t_count --;
 		}
 
-		memmove(start_key_addr + ksize, start_key_addr, total_ksize);
-		memmove(start_val_addr - total_vsize - vsize, start_val_addr -
-			total_vsize, total_vsize);
+		m0_memmove(start_key_addr + ksize, start_key_addr, total_ksize);
+		m0_memmove(start_val_addr - total_vsize - vsize,
+			   start_val_addr - total_vsize, total_vsize);
 	}
 }
 
@@ -4747,7 +4749,7 @@ static void vkvv_inode_make(struct slot *slot)
 
 	if (index == count) {
 		/**
-		 * No need to do memmove() as data will be added to the end of
+		 * No need to do m0_memmove() as data will be added to the end of
 		 * current series of keys and values. Just update the
 		 * directory to keep a record of the next possible offset.
 		 */
@@ -4781,9 +4783,9 @@ static void vkvv_inode_make(struct slot *slot)
 
 		start_val_addr -= INT_OFFSET;
 
-		memmove(start_key_addr + ksize, start_key_addr, total_ksize);
-		memmove(start_val_addr - total_vsize - vsize, start_val_addr -
-			total_vsize, total_vsize);
+		m0_memmove(start_key_addr + ksize, start_key_addr, total_ksize);
+		m0_memmove(start_val_addr - total_vsize - vsize,
+			   start_val_addr - total_vsize, total_vsize);
 
 		while (t_count > index) {
 			offset  = vkvv_get_key_offset(slot->s_node, t_count);
@@ -4796,8 +4798,8 @@ static void vkvv_inode_make(struct slot *slot)
 			*t_offset = ksize;
 		} else {
 			t_offset   = vkvv_get_key_offset(slot->s_node, t_count);
-			t_offset_2 = vkvv_get_key_offset(slot->s_node, t_count
-							 - 1);
+			t_offset_2 = vkvv_get_key_offset(slot->s_node,
+							 t_count - 1);
 			*t_offset  = *t_offset_2 + ksize;
 		}
 	}
@@ -4844,8 +4846,8 @@ static void vkvv_val_resize(struct slot *slot, int vsize_diff)
 			rec[count].val_offset += vsize_diff;
 			count --;
 		}
-		memmove(start_val_addr - total_vsize - vsize_diff,start_val_addr
-			 - total_vsize, total_vsize);
+		m0_memmove(start_val_addr - total_vsize - vsize_diff,
+			   start_val_addr - total_vsize, total_vsize);
 	}
 }
 
@@ -4892,7 +4894,7 @@ static void vkvv_lnode_del(const struct nd *node, int idx)
 
 	if (index == count - 1) {
 		/**
-		 * No need to do memmove() as data will be added to the end of
+		 * No need to do m0_memmove() as data will be added to the end of
 		 * current series of keys and values. Just update the
 		 * directory to keep a record of the next possible offset.
 		 */
@@ -4918,9 +4920,9 @@ static void vkvv_lnode_del(const struct nd *node, int idx)
 		rec[temp_idx].key_offset = 0;
 		rec[temp_idx].val_offset = 0;
 
-		memmove(start_key_addr, start_key_addr + ksize, total_ksize);
-		memmove(start_val_addr - total_vsize, start_val_addr -
-			total_vsize - vsize, total_vsize);
+		m0_memmove(start_key_addr, start_key_addr + ksize, total_ksize);
+		m0_memmove(start_val_addr - total_vsize, start_val_addr -
+			   total_vsize - vsize, total_vsize);
 	}
 }
 
@@ -4943,7 +4945,7 @@ static void vkvv_inode_del(const struct nd *node, int idx)
 
 	if (index == count - 1) {
 		/**
-		 * No need to do memmove() as data will be added to the end of
+		 * No need to do m0_memmove() as data will be added to the end of
 		 * current series of keys and values. Just update the
 		 * directory to keep a record of the next possible offset.
 		 */
@@ -4958,9 +4960,9 @@ static void vkvv_inode_del(const struct nd *node, int idx)
 
 		start_val_addr -= INT_OFFSET;
 
-		memmove(start_key_addr, start_key_addr + ksize, total_ksize);
-		memmove(start_val_addr - total_vsize, start_val_addr -
-			total_vsize - vsize, total_vsize);
+		m0_memmove(start_key_addr, start_key_addr + ksize, total_ksize);
+		m0_memmove(start_val_addr - total_vsize, start_val_addr -
+			   total_vsize - vsize, total_vsize);
 
 		while (t_count > index) {
 			offset = vkvv_get_key_offset(node, t_count - 1);
@@ -5097,7 +5099,7 @@ static void vkvv_rec_put_credit(const struct nd *node, m0_bcount_t ksize,
 {
 	int             node_size   = node->n_size;
 
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(4, node_size));
 }
 
 static void vkvv_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
@@ -5106,7 +5108,7 @@ static void vkvv_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
 {
 	int             node_size   = node->n_size;
 
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(4, node_size));
 }
 
 static void vkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
@@ -5115,7 +5117,7 @@ static void vkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 {
 	int             node_size   = node->n_size;
 
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(4, node_size));
 }
 /**
  *  --------------------------------------------
