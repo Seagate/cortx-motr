@@ -2900,7 +2900,6 @@ static void buf_terminate(struct buf *buf, int rc)
 		 * Close the writer. This triggers ->v_error() and ->st_error().
 		 */
 		mover_fail(&buf->b_writer, buf->b_writer.m_sock, rc);
-		M0_ASSERT(buf->b_rc == rc);
 		if (buf->b_other != NULL) {
 			m0_tl_for(s, &buf->b_other->e_sock, sock) {
 				if (sock->s_reader.m_buf == buf)
