@@ -1268,7 +1268,9 @@ static void net_bulk_worker_cb(struct node_bulk_ctx *ctx, bool pending)
 		m0_net_test_nh_sd_copy_locked(&ctx->nbc_nh);
 		/* wait for STOP command or buffer event */
 		if (!ctx->nbc_callback_executed)
-			m0_chan_wait(&ctx->nbc_stop_clink);
+			m0_chan_timedwait(&ctx->nbc_stop_clink,
+					  m0_time_now() +
+					  M0_MKTIME(0, 100 * M0_TIME_ONE_MSEC));
 	}
 }
 
