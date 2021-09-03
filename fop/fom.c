@@ -1337,6 +1337,7 @@ void m0_fom_fini(struct m0_fom *fom)
 	m0_sm_fini(&fom->fo_sm_state);
 	runq_tlink_fini(fom);
 	m0_fom_callback_fini(&fom->fo_cb);
+	m0_atomic64_dec(&fom->fo_service->rs_fom_queued);
 
 	if (fom->fo_fop != NULL) {
 		M0_LOG(M0_DEBUG, "fom: %p fop %p item %p[%u] rep fop %p",
@@ -1406,6 +1407,7 @@ void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 	fom->fo_service = m0_reqh_service_find(fom_type->ft_rstype, reqh);
 
 	M0_ASSERT(fom->fo_service != NULL);
+	m0_atomic64_inc(&fom->fo_service->rs_fom_queued);
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_fom_init);

@@ -597,7 +597,7 @@ M0_INTERNAL void m0_reqh_idle_wait_for(struct m0_reqh *reqh,
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&reqh->rh_sm_grp.s_chan, &clink);
-	while (!m0_fom_domain_is_idle_for(service))
+	while (!m0_fom_domain_is_idle_for(service) && m0_atomic64_get(&service->rs_fom_queued) != 0)
 		m0_chan_wait(&clink);
 	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
