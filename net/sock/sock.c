@@ -3773,6 +3773,7 @@ static int get_pk(struct mover *cmd, struct sock *s)
 static void get_done(struct mover *w, struct sock *s)
 {
 	ep_del(w);
+	mover_fini(w);
 }
 
 static struct m0_sm_state_descr sock_conf_state[] = {
