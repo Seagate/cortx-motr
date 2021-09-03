@@ -90,6 +90,8 @@ BuildRequires:  perl-YAML-LibYAML
 BuildRequires:  kernel-devel = %{kernel_ver_requires}
 BuildRequires:  %{lustre_devel}
 BuildRequires:  libuuid-devel
+BuildRequires:  openssl
+BuildRequires:  openssl-devel
 BuildRequires:  binutils-devel
 %if %{rhel} <= 7
 BuildRequires:  python36-ply
@@ -114,6 +116,8 @@ Requires:       kernel = %{kernel_ver_requires}
 Requires:       %{lustre}
 Requires:       libaio
 Requires:       libyaml
+#Supported openssl versions -- CentOS 7 its 1.0.2k, RHEL8 its 1.1.1
+Requires:       openssl
 Requires:       gdb
 Requires:       genders
 Requires:       sysvinit-tools
@@ -227,7 +231,7 @@ find %{buildroot} \
     sed -e 's#^%{buildroot}##' >> tests-ut.files
 
 sort -o tests-ut.files tests-ut.files
-find %{buildroot} -type f | sed -e 's#^%{buildroot}##' | sort |
+find %{buildroot} -type f -o -type l | sed -e 's#^%{buildroot}##' | sort |
     comm -13 tests-ut.files - | sed -e 's#^#%{buildroot}#' > tests-ut.exclude
 xargs -a tests-ut.exclude rm -rv
 
@@ -290,7 +294,7 @@ fi
 %exclude /lib/modules/*/kernel/fs/motr/m0rpc*
 %exclude /lib/modules/*/kernel/fs/motr/m0ut*
 %exclude /usr/bin/workload*
-%endif # with ut
+%endif
 
 %if %{with ivt}
 %files ivt -f ivt.files
