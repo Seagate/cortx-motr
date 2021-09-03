@@ -5071,9 +5071,8 @@ static void vkvv_capture(struct slot *slot, struct m0_be_tx *tx)
 static void vkvv_node_alloc_credit(const struct nd *node,
 				struct m0_be_tx_credit *accum)
 {
-	struct vkvv_head *h           = vkvv_data(node);
-	int               shift       = h->vkvv_shift;
-	int               node_size   = 1ULL << shift;
+	int             node_size   = node->n_size;
+	int             shift       = __builtin_ffsl(node_size) - 1;
 
 	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED,
 			       node_size, shift, accum);
@@ -5082,10 +5081,9 @@ static void vkvv_node_alloc_credit(const struct nd *node,
 static void vkvv_node_free_credit(const struct nd *node,
 				struct m0_be_tx_credit *accum)
 {
-	struct vkvv_head *h           = vkvv_data(node);
-	int               shift       = h->vkvv_shift;
-	int               node_size   = 1ULL << shift;
-	int               header_size = sizeof(*h);
+	int             node_size   = node->n_size;
+	int             shift       = __builtin_ffsl(node_size) - 1;
+	int             header_size = sizeof(struct vkvv_head);
 
 	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED,
 			       node_size, shift, accum);
@@ -5097,9 +5095,7 @@ static void vkvv_rec_put_credit(const struct nd *node, m0_bcount_t ksize,
 			      m0_bcount_t vsize,
 			      struct m0_be_tx_credit *accum)
 {
-	struct vkvv_head *h         = vkvv_data(node);
-	int               shift     = h->vkvv_shift;
-	int               node_size = 1ULL << shift;
+	int             node_size   = node->n_size;
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
 }
@@ -5108,9 +5104,7 @@ static void vkvv_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
 				 m0_bcount_t vsize,
 				 struct m0_be_tx_credit *accum)
 {
-	struct vkvv_head *h         = vkvv_data(node);
-	int               shift     = h->vkvv_shift;
-	int               node_size = 1ULL << shift;
+	int             node_size   = node->n_size;
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
 }
@@ -5119,9 +5113,7 @@ static void vkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 			      m0_bcount_t vsize,
 			      struct m0_be_tx_credit *accum)
 {
-	struct vkvv_head *h         = vkvv_data(node);
-	int               shift     = h->vkvv_shift;
-	int               node_size = 1ULL << shift;
+	int             node_size   = node->n_size;
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
 }
