@@ -19,8 +19,8 @@
  *
  */
 
-
-#include "lib/finject.h"
+#include "lib/string.h"
+#include "reqh/reqh.h"                          /* m0_reqh_addb2_init */
 #include "net/test/node_bulk.h"		/* m0_net_test_node_bulk_init */
 #include "net/test/initfini.h"
 
@@ -36,12 +36,24 @@
 
 int m0_net_test_init(void)
 {
-	return m0_net_test_node_bulk_init();
+	int rc;
+	char location[256];
+	static const char pattern[] = "linuxstob:./nettest-addb.%"PRId64;
+
+	snprintf(location, sizeof location, pattern, m0_pid());
+	rc = m0_reqh_addb2_init(NULL, location, 0xaddb10ca, true, true, 0);
+	if (rc == 0) {
+		rc = m0_net_test_node_bulk_init();
+		if (rc != 0)
+			m0_reqh_addb2_fini(NULL);
+	}
+	return rc;
 }
 
 void m0_net_test_fini(void)
 {
 	m0_net_test_node_bulk_fini();
+	m0_reqh_addb2_fini(NULL);
 }
 
 /** @} end of NetTestInitFiniInternals group */
