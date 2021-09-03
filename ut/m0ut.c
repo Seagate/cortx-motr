@@ -384,7 +384,7 @@ int main(int argc, char *argv[])
 		    M0_VOIDARG('L', "list available test suites with"
 				    " their tests",
 				LAMBDA(void, (void) {
-						list_ut = ture;
+						list_ut = true;
 						with_tests = true;
 				})),
 		    M0_STRINGARG('m', "trace mask, either numeric (HEX/DEC) or"
