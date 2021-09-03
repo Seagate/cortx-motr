@@ -635,7 +635,9 @@
 #include "net/buffer_pool.h"
 #include "net/net_internal.h"              /* m0_net__tm_invariant */
 #include "format/format.h"
+#include "addb2/addb2.h"
 
+#include "net/sock/addb2.h"
 #include "net/sock/xcode.h"
 #include "net/sock/xcode_xc.h"
 
@@ -1165,8 +1167,8 @@ static void ip4_decode(struct addr *a, const struct sockaddr *sa);
 static void ip6_encode(const struct addr *a, struct sockaddr *sa);
 static void ip6_decode(struct addr *a, const struct sockaddr *sa);
 
-static const struct m0_sm_conf sock_conf;
-static const struct m0_sm_conf rw_conf;
+struct m0_sm_conf sock_conf;
+struct m0_sm_conf rw_conf;
 
 static const struct mover_op_vec stream_reader_op;
 static const struct mover_op_vec dgram_reader_op;
@@ -1389,6 +1391,7 @@ static void poller(struct ma *ma)
 	 * Because of this, we do not assert ma states here.
 	 */
 	ma_event_post(ma, M0_NET_TM_STARTED);
+	M0_ADDB2_PUSH(M0_AVI_SOCK_POLLER, (uint64_t)ma);
 	while (1) {
 		if (ma->t_shutdown)
 			break;
@@ -1433,6 +1436,8 @@ static void poller(struct ma *ma)
 		M0_ASSERT(ma_invariant(ma));
 		ma_unlock(ma);
 	}
+	m0_addb2_pop(M0_AVI_SOCK_POLLER);
+	m0_addb2_force(0);
 }
 
 /**
@@ -2117,6 +2122,7 @@ static int sock_init(int fd, struct ep *src, struct ep *tgt, uint32_t flags)
 	EP_GET(ep, sock);
 	s_tlink_init_at(s, &ep->e_sock);
 	m0_sm_init(&s->s_sm, &sock_conf, state, &ma->t_ma->ntm_group);
+	m0_sm_addb2_counter_init(&s->s_sm);
 	mover_init(&s->s_reader, ma, stype[ep->e_a.a_socktype].st_reader);
 	s->s_reader.m_sock = s;
 	result = sock_init_fd(fd, s, src, flags);
@@ -2291,7 +2297,17 @@ static bool sock_event(struct sock *s, uint32_t ev)
 		if ((ev & (EPOLLOUT|EPOLLIN)) == EPOLLOUT) {
 			/* Successful connection. */
 			m0_sm_state_set(&s->s_sm, S_OPEN);
-		} else if ((ev & (EPOLLOUT|EPOLLIN)) == (EPOLLOUT|EPOLLIN)) {
+		} else if ((ev & (EPOLLOUT|EPOLLIN)) == (EPOLLOUT|EPOLLIN) ||
+			   /*
+			    * Contrary to Messrs. G. R. Wright and W. R. Stevens
+			    * (TCP/IP Illustrated, Volume 2, 1995, 27.7; UNIX
+			    * Network Programming Volume 1, 2003, p. 547) and
+			    * the rest of the world, Linux sometimes fails a
+			    * connection by setting some of the error bits
+			    * instead of EPOLLOUT.
+			    */
+			   ((ev & (EPOLLOUT|EPOLLIN)) == EPOLLIN &&
+			    (ev & (EPOLLHUP|EPOLLERR|EPOLLRDHUP)) != 0)) {
 			/* Failed connection. */
 			sock_done(s, false);
 		} else {
@@ -2997,6 +3013,9 @@ static void buf_complete(struct buf *buf)
 	buf->b_offset = 0;
 	buf->b_length = 0;
 	M0_ASSERT(ma_invariant(ma));
+	M0_ADDB2_ADD(M0_AVI_SOCK_BUF_EVENT, (uint64_t)buf, nb->nb_qtype,
+		     m0_time_sub(ev.nbe_time, nb->nb_add_time) >> 10,
+		     ev.nbe_status, ev.nbe_length);
 	ma_unlock(ma);
 	m0_net_buffer_event_post(&ev);
 	ma_lock(ma);
@@ -3044,6 +3063,7 @@ static void mover_init(struct mover *m, struct ma *ma,
 	M0_SET0(m);
 	m_tlink_init(m);
 	m0_sm_init(&m->m_sm, &rw_conf, R_IDLE, &ma->t_ma->ntm_group);
+	m0_sm_addb2_counter_init(&m->m_sm);
 	m->m_op = vop;
 	M0_POST(mover_invariant(m));
 }
@@ -3812,7 +3832,8 @@ static struct m0_sm_trans_descr sock_conf_trans[] = {
 	{ "close",         S_OPEN,       S_DELETED }
 };
 
-static const struct m0_sm_conf sock_conf = {
+/* used in addb2/dump.c */
+struct m0_sm_conf sock_conf = {
 	.scf_name      = "sock",
 	.scf_nr_states = ARRAY_SIZE(sock_conf_state),
 	.scf_state     = sock_conf_state,
@@ -3877,7 +3898,8 @@ static struct m0_sm_trans_descr rw_conf_trans[] = {
 	{ "done",           R_FAIL,       R_DONE },
 };
 
-static const struct m0_sm_conf rw_conf = {
+/* used in addb2/dump.c */
+struct m0_sm_conf rw_conf = {
 	.scf_name      = "reader-writer",
 	.scf_nr_states = ARRAY_SIZE(rw_conf_state),
 	.scf_state     = rw_conf_state,
@@ -3999,6 +4021,16 @@ M0_INTERNAL int m0_net_sock_mod_init(void)
 {
 	int result;
 
+	/*
+	 * Ignore SIGPIPE that a write to socket gets when RST is received.
+	 *
+	 * A more elegant approach is to use sendmsg(2) with MSG_NOSIGNAL flag
+	 * instead of writev(2).
+	 */
+	result = sigaction(SIGPIPE,
+			   &(struct sigaction){ .sa_handler = SIG_IGN }, NULL);
+	if (result != 0)
+		return M0_ERR(-errno);
 	if (MOCK_LNET) {
 		m0_net_xprt_register(&m0_net_lnet_xprt);
 		if (m0_streq(M0_DEFAULT_NETWORK, "LNET"))
@@ -4008,15 +4040,17 @@ M0_INTERNAL int m0_net_sock_mod_init(void)
 		if (m0_streq(M0_DEFAULT_NETWORK, "SOCK"))
 			m0_net_xprt_default_set(&m0_net_sock_xprt);
 	}
-	/*
-	 * Ignore SIGPIPE that a write to socket gets when RST is received.
-	 *
-	 * A more elegant approach is to use sendmsg(2) with MSG_NOSIGNAL flag
-	 * instead of writev(2).
-	 */
-	result = sigaction(SIGPIPE,
-			   &(struct sigaction){ .sa_handler = SIG_IGN }, NULL);
-	return result != 0 ? M0_ERR(-errno) : 0;
+	m0_sm_conf_init(&rw_conf);
+	m0_sm_conf_init(&sock_conf);
+	result = m0_sm_addb2_init(&rw_conf, M0_AVI_SOCK_MOVER,
+				  M0_AVI_SOCK_MOVER_COUNTER);
+	if (result == 0) {
+		result = m0_sm_addb2_init(&sock_conf, M0_AVI_SOCK_SOCK,
+					  M0_AVI_SOCK_SOCK_COUNTER);
+		if (result != 0)
+			m0_sm_addb2_fini(&rw_conf);
+	}
+	return 0;
 }
 
 M0_INTERNAL void m0_net_sock_mod_fini(void)
@@ -4025,6 +4059,10 @@ M0_INTERNAL void m0_net_sock_mod_fini(void)
 		m0_net_xprt_deregister(&m0_net_lnet_xprt);
 	else
 		m0_net_xprt_deregister(&m0_net_sock_xprt);
+	m0_sm_addb2_fini(&sock_conf);
+	m0_sm_addb2_fini(&rw_conf);
+	m0_sm_conf_fini(&sock_conf);
+	m0_sm_conf_fini(&rw_conf);
 }
 
 M0_INTERNAL void mover__print(const struct mover *m)

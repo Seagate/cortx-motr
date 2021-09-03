@@ -82,6 +82,7 @@
 #include "stob/addb2.h"
 #include "stob/addb2_xc.h"                /* m0_xc_m0_stio_req_states_enum */
 #include "net/addb2.h"
+#include "net/sock/addb2.h"
 #include "ioservice/io_addb2.h"
 #include "cas/cas_addb2.h"
 #include "m0t1fs/linux_kernel/m0t1fs_addb2.h"
@@ -500,6 +501,19 @@ static void _clock(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 	}
 }
 
+static void netq(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
+{
+	static const char *qname[M0_NET_QT_NR] = {
+		[M0_NET_QT_MSG_RECV]          = "recv",
+		[M0_NET_QT_MSG_SEND]          = "send",
+		[M0_NET_QT_PASSIVE_BULK_RECV] = "pas-recv",
+		[M0_NET_QT_PASSIVE_BULK_SEND] = "pas-send",
+		[M0_NET_QT_ACTIVE_BULK_RECV]  = "act-recv",
+		[M0_NET_QT_ACTIVE_BULK_SEND]  = "act-send"
+	};
+	sprintf(buf, IS_IN_ARRAY(v[0], qname) ? qname[v[0]] : "wrong");
+}
+
 static void duration(struct m0_addb2__context *ctx, const uint64_t *v,
                      char *buf)
 {
@@ -873,6 +887,30 @@ static void drm_state_counter(struct m0_addb2__context *ctx, char *buf)
 	sm_trans(&m0_drm_sm_conf, "drm", ctx, buf);
 }
 
+static void sock(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
+{
+	extern const struct m0_sm_conf sock_conf;
+	sm_state(&sock_conf, ctx, v, buf);
+}
+
+static void sock_counter(struct m0_addb2__context *ctx, char *buf)
+{
+	extern const struct m0_sm_conf sock_conf;
+	sm_trans(&sock_conf, "sock", ctx, buf);
+}
+
+static void mover(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
+{
+	extern const struct m0_sm_conf rw_conf;
+	sm_state(&rw_conf, ctx, v, buf);
+}
+
+static void mover_counter(struct m0_addb2__context *ctx, char *buf)
+{
+	extern const struct m0_sm_conf rw_conf;
+	sm_trans(&rw_conf, "mover", ctx, buf);
+}
+
 extern struct m0_sm_conf op_states_conf;
 static void beop_state_counter(struct m0_addb2__context *ctx, char *buf)
 {
@@ -1174,9 +1212,21 @@ struct m0_addb2__id_intrp ids[] = {
 	  .ii_spec   = &beop_state_counter },
 	{ M0_AVI_BE_TX_TO_GROUP,  "tx-to-gr", { &dec, &dec, &dec },
 	  { "tx_id", "gr_id", "inout" } },
-	{ M0_AVI_NET_BUF,         "net-buf",         { &ptr, &dec, &_clock,
+	{ M0_AVI_NET_BUF,         "net-buf",         { &ptr, &netq, &_clock,
 						       &duration, &dec, &dec },
 	  { "buf", "qtype", "time", "duration", "status", "len" } },
+	{ M0_AVI_SOCK_BUF_EVENT,  "sock-buf",        { &ptr, &netq,
+						       &duration, &dec, &dec },
+	  { "buf", "qtype", "duration", "status", "len" } },
+	{ M0_AVI_SOCK_POLLER,        "sock-poller", { &ptr } },
+	{ M0_AVI_SOCK_MOVER,    "sock-mover-state",    { &mover, SKIP2 } },
+	{ M0_AVI_SOCK_SOCK,    "sock-sock-state",    { &sock, SKIP2 } },
+	{ M0_AVI_SOCK_MOVER_COUNTER,  "",
+	  .ii_repeat = M0_AVI_SOCK_MOVER_COUNTER_END - M0_AVI_SOCK_MOVER_COUNTER,
+	  .ii_spec = &mover_counter },
+	{ M0_AVI_SOCK_SOCK_COUNTER,  "",
+	  .ii_repeat = M0_AVI_SOCK_SOCK_COUNTER_END - M0_AVI_SOCK_SOCK_COUNTER,
+	  .ii_spec = &sock_counter },
 	{ M0_AVI_FOP_TYPES_RANGE_START,   "",
 	  .ii_repeat = M0_AVI_FOP_TYPES_RANGE_END-M0_AVI_FOP_TYPES_RANGE_START,
 	  .ii_spec   = &fop_counter },

@@ -2,7 +2,8 @@ nobase_motr_include_HEADERS += net/sock/sock.h
 
 motr_libmotr_la_SOURCES  += \
 			    net/sock/sock.c \
-			    net/sock/xcode.h
+			    net/sock/xcode.h \
+			    net/sock/addb2.h
 
 nodist_motr_libmotr_la_SOURCES  += \
 			    net/sock/xcode_xc.c
