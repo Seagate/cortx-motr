@@ -87,6 +87,11 @@ void m0_arch_free(void *data)
 	free(data);
 }
 
+M0_INTERNAL void m0_memmove(void *tgt, void *src, size_t size)
+{
+	memmove(tgt,src,size);
+}
+
 M0_INTERNAL void m0_arch_allocated_zero(void *data, size_t size)
 {
 	memset(data, 0, size);
