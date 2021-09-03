@@ -431,10 +431,12 @@ M0_INTERNAL uint64_t m0_dummy_id_generate(void)
 M0_INTERNAL void m0_rc_hook(int rc)
 {
 }
+M0_EXPORTED(m0_rc_hook);
 
 M0_INTERNAL void m0_err_hook(int rc)
 {
 }
+M0_EXPORTED(m0_err_hook);
 #endif
 
 /*
