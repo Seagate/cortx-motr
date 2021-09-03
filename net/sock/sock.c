@@ -1769,7 +1769,7 @@ static void buf_deregister(struct m0_net_buffer *nb)
 	struct buf *buf = nb->nb_xprt_private;
 
 	M0_PRE(nb->nb_flags == M0_NET_BUF_REGISTERED && buf_invariant(buf));
-	M0_PRE(&buf->b_writer.m_sm.sm_conf == NULL);
+	M0_PRE(buf->b_writer.m_sm.sm_conf == NULL);
 	M0_PRE(buf->b_other == NULL);
 	M0_PRE(M0_IS0(&buf->b_peer));
 	M0_PRE(buf->b_offset == 0);
@@ -2897,8 +2897,7 @@ static void buf_terminate(struct buf *buf, int rc)
 	M0_PRE(rc != 0);
 	if (buf->b_rc == 0) {
 		/*
-		 * Close the writer. This triggers ->v_error(), ->st_error() and
-		 * buf_done().
+		 * Close the writer. This triggers ->v_error() and ->st_error().
 		 */
 		mover_fail(&buf->b_writer, buf->b_writer.m_sock, rc);
 		M0_ASSERT(buf->b_rc == rc);
@@ -2908,6 +2907,7 @@ static void buf_terminate(struct buf *buf, int rc)
 					mover_fail(&sock->s_reader, sock, rc);
 			} m0_tl_endfor;
 		}
+		buf_done(buf, rc);
 	}
 }
 
