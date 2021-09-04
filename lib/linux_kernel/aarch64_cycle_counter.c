@@ -27,9 +27,10 @@
 #include <linux/module.h>
 #include <linux/version.h>
 
-/* Module for ARM64 linux platform to provide
-** user space access of perf monitor registers*/
-#ifndef CONFIG_X86_64
+/** Module for ARM64 linux platform to provide
+ *  user space access of perf monitor registers
+ */
+#ifdef CONFIG_AARCH64
 static void enable_user_space_access_pccnt(void *dt)
 {
 	uint64_t pmcr_val;
@@ -47,7 +48,6 @@ static void enable_user_space_access_pccnt(void *dt)
 
 static void disable_user_space_pccnt_access(void *dt)
 {
-
 	/* Enables the cycle counter register */
 	asm volatile("msr pmcntenset_el0, %0" :: "r" (0 << 31));
 
@@ -57,7 +57,6 @@ static void disable_user_space_pccnt_access(void *dt)
 
 int  start_cycle_counter(void)
 {
-
 	/* Call the function on each cpu with NULL param and wait for completion*/
 	on_each_cpu(enable_user_space_access_pccnt, NULL, 1);
 	return 0;
@@ -65,7 +64,6 @@ int  start_cycle_counter(void)
 
 void  finish_cycle_counter(void)
 {
-	
 	/* Call the function on each cpu with NULL param and wait for completion*/
 	on_each_cpu(disable_user_space_pccnt_access, NULL, 1);
 }

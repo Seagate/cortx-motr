@@ -642,8 +642,7 @@ M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 {
 	return smp_processor_id();
 }
-#else    /*CONFIG_AARCH64*/
-
+#elif defined CONFIG_AARCH64
 /**
    Convert bitmap from one format to another. Copy cpumask bitmap to m0_bitmap.
 
@@ -656,7 +655,6 @@ M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
    @see lib/processor.h
    @see lib/bitmap.h
  */
-
 static void processors_bitmap_copy(struct m0_bitmap *dest,
 				   const cpumask_t *src,
 				   uint32_t bmpsz)
@@ -734,7 +732,7 @@ M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 	return smp_processor_id();
 }
 
-#endif
+#endif /*CONFIG_AARCH64*/
 
 #undef M0_TRACE_SUBSYSTEM
 

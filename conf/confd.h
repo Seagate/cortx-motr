@@ -134,7 +134,7 @@
  *
  * @see confd_dfspec
  */
-
+
 /**
  * @defgroup confd_dfspec Configuration Service (confd)
  * @brief Detailed Functional Specification.

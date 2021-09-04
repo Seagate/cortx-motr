@@ -62,7 +62,7 @@ M0_TL_DECLARE(m0_conf_cache, M0_INTERNAL, struct m0_conf_obj);
  *
  * @see @ref conf_dfspec_cache "Detailed Functional Specification"
  */
-
+
 /**
  * @defgroup conf_dfspec_cache Configuration Cache
  * @brief Detailed Functional Specification.

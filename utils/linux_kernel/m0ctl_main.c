@@ -126,7 +126,6 @@ void __exit m0ctl_exit(void)
 module_init(m0ctl_init);
 module_exit(m0ctl_exit);
 
-MODULE_LICENSE();
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

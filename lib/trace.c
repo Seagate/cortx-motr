@@ -161,8 +161,7 @@ static inline uint64_t m0_rdtsc(void)
 	__asm__ __volatile__("rdtsc" : "=a"(count_lo), "=d"(count_hi));
 
 	return ((uint64_t)count_lo) | (((uint64_t)count_hi) << 32);
-#else   /*aarch64*/
-
+#elif defined CONFIG_AARCH64   /*aarch64*/
 	uint64_t cycle;
 
 	asm volatile("mrs %0, pmccntr_el0" : "=r"(cycle));

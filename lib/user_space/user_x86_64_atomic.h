@@ -33,7 +33,7 @@
 
    Implementation of atomic operations for Linux user space uses x86_64/aarch64 
    assembly language instructions (with gcc syntax). "Lock" prefix is used
-   everywhere for x86_64 platform where as the aarch64 uses it own set of atomic 
+   everywhere for x86_64 platform whereas the aarch64 uses its own set of atomic 
    assembely instruction to ensure atomicity ---no optimisation for non-SMP 
    configurations in present.
  */
@@ -73,7 +73,7 @@ static inline void m0_atomic64_inc(struct m0_atomic64 *a)
 	asm volatile("lock incq %0"
 		     : "=m" (a->a_value)
 		     : "m" (a->a_value));
-#else  /*aarch64*/
+#elif defined CONFIG_AARCH64 /* aarch64 */
 	m0_atomic64_add(a, (int64_t)1);
 #endif
 }
@@ -91,7 +91,7 @@ static inline void m0_atomic64_dec(struct m0_atomic64 *a)
 	asm volatile("lock decq %0"
 		     : "=m" (a->a_value)
 		     : "m" (a->a_value));
-#else  /*aarch64*/
+#elif defined CONFIG_AARCH64 /* aarch64 */
 	m0_atomic64_sub(a, (int64_t)1);
 #endif
 }
@@ -105,7 +105,7 @@ static inline void m0_atomic64_add(struct m0_atomic64 *a, int64_t num)
 	asm volatile("lock addq %1,%0"
 		     : "=m" (a->a_value)
 		     : "er" (num), "m" (a->a_value));
-#else /*aarch64*/
+#elif defined CONFIG_AARCH64 /* aarch64 */
 	long		result;
 	unsigned long	tmp;
 	asm volatile("// atomic64_add \n"		\
@@ -128,7 +128,7 @@ static inline void m0_atomic64_sub(struct m0_atomic64 *a, int64_t num)
 	asm volatile("lock subq %1,%0"
 		     : "=m" (a->a_value)
 		     : "er" (num), "m" (a->a_value));
-#else /*aarch64*/
+#elif defined CONFIG_AARCH64 /* aarch64 */
 	long		result;
 	unsigned long	tmp;
 	
@@ -162,7 +162,7 @@ static inline int64_t m0_atomic64_add_return(struct m0_atomic64 *a,
 		     : "+r" (delta), "+m" (a->a_value)
 		     : : "memory");
 	return delta + result;
-#else  /*aarch64*/
+#elif defined CONFIG_AARCH64 /* aarch64 */
 	int64_t		result;
 	uint64_t	tmp;
 
@@ -178,6 +178,7 @@ static inline int64_t m0_atomic64_add_return(struct m0_atomic64 *a,
 		     : "memory");
 	return result;
 #endif
+	return 0;
 }
 
 /**
@@ -192,7 +193,7 @@ static inline int64_t m0_atomic64_sub_return(struct m0_atomic64 *a,
 {
 #ifdef CONFIG_X86_64
 	return m0_atomic64_add_return(a, -delta);
-#else  /*aarch64*/
+#elif defined CONFIG_AARCH64 /* aarch64 */
 	int64_t		result;
 	uint64_t	tmp;
 
@@ -208,6 +209,7 @@ static inline int64_t m0_atomic64_sub_return(struct m0_atomic64 *a,
 		      : "memory");
 	return result;
 #endif
+	return 0;
 }
 
 static inline bool m0_atomic64_inc_and_test(struct m0_atomic64 *a)
@@ -219,9 +221,10 @@ static inline bool m0_atomic64_inc_and_test(struct m0_atomic64 *a)
 		     : "=m" (a->a_value), "=qm" (result)
 		     : "m" (a->a_value) : "memory");
 	return result != 0;
-#else
+#elif defined CONFIG_AARCH64 /* aarch64 */
 	return (m0_atomic64_add_return(a, 1) == 0);
 #endif
+	return 0;
 }
 
 static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a)
@@ -233,9 +236,10 @@ static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a)
 		     : "=m" (a->a_value), "=qm" (result)
 		     : "m" (a->a_value) : "memory");
 	return result != 0;
-#else
+#elif defined CONFIG_AARCH64 /* aarch64 */
 	return (m0_atomic64_sub_return(a, 1) == 0);
 #endif
+	return 0;
 }
 
 static inline bool m0_atomic64_cas(int64_t * loc, int64_t oldval, int64_t newval)
@@ -250,9 +254,18 @@ static inline bool m0_atomic64_cas(int64_t * loc, int64_t oldval, int64_t newval
 		     : "r" (newval), "0" (oldval)
 		     : "memory");
 	return val == oldval;
-#else		 /*aarch64*/
-	unsigned long	tmp;
-	unsigned long	old=0;
+
+/** Since the undersigend commented code being processor specific assembly instruction,
+ * This would act more comprehensible while porting to other platform.
+ * Since this code has few flaws, not debugged yet.It is not working as of now.
+ * The gcc specific routine is called in place of it which has no public source code available.
+ * So it is kept as part of documentation for future reference and implementation.
+ */
+#elif defined CONFIG_AARCH64 /* aarch64 */
+/*	unsigned long	tmp;
+	int64_t	 old=0;
+
+	M0_CASSERT(8 == sizeof oldval);
 
 	asm volatile("// atomic64_cas_return \n"		\
 		     "  prfm    pstl1strm, %[v]\n"		\
@@ -269,13 +282,20 @@ static inline bool m0_atomic64_cas(int64_t * loc, int64_t oldval, int64_t newval
 		     :);
 	return old == oldval;// need to be reviewed
 #endif
+	return 0;
+*/
+
+	M0_CASSERT(8 == sizeof oldval);
+	return __atomic_compare_exchange_n(loc, &oldval, newval, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+#endif
+	return 0;
 }
 
 static inline void m0_mb(void)
 {
 #ifdef CONFIG_X86_64
 	asm volatile("mfence":::"memory");
-#else
+#elif defined CONFIG_AARCH64 /* aarch64 */
 	asm volatile("dsb sy":::"memory");
 #endif
 }
