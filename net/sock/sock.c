@@ -804,6 +804,7 @@ struct ma {
 	struct m0_addb2_hist       t_addb[M0_NET_QT_NR * M0_AVI_SOCK_Q_NR];
 	struct m0_addb2_hist       t_epoll_wait;
 	struct m0_addb2_hist       t_epoll_nr;
+	struct m0_addb2_hist       t_frag[2]; /* [0] reads, [1] writes. */
 };
 
 /**
@@ -1409,6 +1410,8 @@ static void poller(struct ma *ma)
 	m0_addb2_hist_add_auto(&ma->t_epoll_wait, 100,
 			       M0_AVI_SOCK_EPOLL_WAIT, -1);
 	m0_addb2_hist_add_auto(&ma->t_epoll_nr, 100, M0_AVI_SOCK_EPOLL_NR, -1);
+	m0_addb2_hist_add_auto(&ma->t_frag[0], 100, M0_AVI_SOCK_FRAG_READ, -1);
+	m0_addb2_hist_add_auto(&ma->t_frag[1], 100, M0_AVI_SOCK_FRAG_WRITE, -1);
 	while (1) {
 		m0_time_t now = m0_time_now();
 		if (ma->t_shutdown)
@@ -1456,6 +1459,8 @@ static void poller(struct ma *ma)
 		M0_ASSERT(ma_invariant(ma));
 		ma_unlock(ma);
 	}
+	m0_addb2_hist_del(&ma->t_frag[1]);
+	m0_addb2_hist_del(&ma->t_frag[0]);
 	m0_addb2_hist_del(&ma->t_epoll_nr);
 	m0_addb2_hist_del(&ma->t_epoll_wait);
 	for (i = 0; i < ARRAY_SIZE(ma->t_addb); ++i)
@@ -3358,6 +3363,7 @@ static int pk_io(struct mover *m, struct sock *s, uint64_t flag,
 		 * the buffer, try to io some more.
 		 */
 		s->s_flags |= (rc == count ? flag : 0);
+		m0_addb2_hist_mod(&ep_ma(s->s_ep)->t_frag[flag==HAS_WRITE], rc);
 	} else if (errno == EWOULDBLOCK) { /* Overshoot (see s_flags above). */
 		rc = 0;
 	} else if (errno == EINTR) { /* Nothing was ioed, repeat. */

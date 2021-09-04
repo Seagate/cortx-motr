@@ -1253,6 +1253,8 @@ struct m0_addb2__id_intrp ids[] = {
 	  .ii_spec = &sock_q },
 	{ M0_AVI_SOCK_EPOLL_WAIT,      "sock-epoll-wait",  { HIST } },
 	{ M0_AVI_SOCK_EPOLL_NR,      "sock-epoll-nr",  { HIST } },
+	{ M0_AVI_SOCK_FRAG_READ,      "sock-frag-read",  { HIST } },
+	{ M0_AVI_SOCK_FRAG_WRITE,      "sock-frag-write",  { HIST } },
 	{ M0_AVI_FOP_TYPES_RANGE_START,   "",
 	  .ii_repeat = M0_AVI_FOP_TYPES_RANGE_END-M0_AVI_FOP_TYPES_RANGE_START,
 	  .ii_spec   = &fop_counter },
