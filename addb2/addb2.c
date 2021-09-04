@@ -1072,9 +1072,10 @@ static void sensor_place(struct m0_addb2_mach *m, struct m0_addb2_sensor *s)
 	{
 		uint64_t area[nr]; /* VLA! */
 
-		s->s_ops->so_snapshot(s, area);
-		add(m, tag(SENSOR | nr, s->s_id), nr, area);
-		record_consume(m, s->s_id, nr, area);
+		if (s->s_ops->so_snapshot(s, area) == 0) {
+			add(m, tag(SENSOR | nr, s->s_id), nr, area);
+			record_consume(m, s->s_id, nr, area);
+		}
 	}
 }
 

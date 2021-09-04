@@ -295,7 +295,7 @@ struct m0_addb2_sensor_ops {
 	 * "area" points to a buffer, where ->so_snapshot() should write out its
 	 * payload, no more than m0_addb2_sensor::s_nr elements.
 	 */
-	void (*so_snapshot)(struct m0_addb2_sensor *s, uint64_t *area);
+	int  (*so_snapshot)(struct m0_addb2_sensor *s, uint64_t *area);
 	/**
 	 * Invoked by IMPLEMENTATION when the sensor goes out of context, i.e.,
 	 * when the label, which was top-most when the sensor was added, is

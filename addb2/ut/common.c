@@ -97,10 +97,11 @@ const uint64_t SENSOR_MARKER = 0x5555555555555555;
 uint64_t seq = 0;
 bool sensor_finalised;
 
-static void snapshot(struct m0_addb2_sensor *s, uint64_t *area)
+static int snapshot(struct m0_addb2_sensor *s, uint64_t *area)
 {
 	area[0] = SENSOR_MARKER;
 	area[1] = ++seq;
+	return 0;
 }
 
 static void sensor_fini(struct m0_addb2_sensor *s)

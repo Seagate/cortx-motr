@@ -34,6 +34,7 @@
 #include "lib/time.h"
 #include "lib/tlist.h"
 #include "lib/arith.h"        /* min64u, max64u, m0_addu64_will_overflow */
+#include "lib/errno.h"        /* ENOENT */
 
 #include "addb2/counter.h"
 #include "addb2/internal.h"
@@ -132,14 +133,17 @@ void m0_addb2_local_counter_mod(struct m0_addb2_local_counter *lc,
 	m0_addb2_counter_mod_with(m0_locality_data(lc->lc_key), val, datum);
 }
 
-M0_INTERNAL void m0_addb2__counter_snapshot(struct m0_addb2_sensor *s,
-					    uint64_t *area)
+M0_INTERNAL int m0_addb2__counter_snapshot(struct m0_addb2_sensor *s,
+					   uint64_t *area)
 {
 	struct m0_addb2_counter      *counter = M0_AMB(counter, s, co_sensor);
 	struct m0_addb2_counter_data *d       = &counter->co_val;
 
+	if (d->cod_nr == 0)
+		return -ENOENT;
 	*(struct m0_addb2_counter_data *)area = *d;
 	m0_addb2__counter_data_init(d);
+	return 0;
 }
 
 static void counter_fini(struct m0_addb2_sensor *s)
@@ -170,11 +174,12 @@ M0_INTERNAL void m0_addb2__counter_data_init(struct m0_addb2_counter_data *d)
 	d->cod_min = UINT64_MAX;
 }
 
-static void list_counter_snapshot(struct m0_addb2_sensor *s, uint64_t *area)
+static int list_counter_snapshot(struct m0_addb2_sensor *s, uint64_t *area)
 {
 	struct m0_addb2_list_counter *counter = M0_AMB(counter, s, lc_sensor);
 
 	area[0] = m0_list_length(&counter->lc_list->t_head);
+	return 0;
 }
 
 static const struct m0_addb2_sensor_ops list_sensor_ops = {
@@ -182,9 +187,10 @@ static const struct m0_addb2_sensor_ops list_sensor_ops = {
 	.so_fini     = &counter_fini
 };
 
-static void clock_counter_snapshot(struct m0_addb2_sensor *s, uint64_t *area)
+static int clock_counter_snapshot(struct m0_addb2_sensor *s, uint64_t *area)
 {
 	/* Do nothing, addb2/addb2.c:sensor_place() already added time-stamp. */
+	return 0;
 }
 
 static const struct m0_addb2_sensor_ops clock_sensor_ops = {

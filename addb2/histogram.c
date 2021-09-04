@@ -28,6 +28,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_ADDB
 #include "lib/trace.h"
+#include "lib/errno.h"                    /* ENOENT */
 #include "addb2/histogram.h"
 #include "addb2/internal.h"               /* m0_addb2__counter_snapshot */
 
@@ -100,17 +101,23 @@ int m0_addb2_hist_bucket(const struct m0_addb2_hist *hist, int64_t val)
 	return idx;
 }
 
-static void hist_snapshot(struct m0_addb2_sensor *s, uint64_t *area)
+static int hist_snapshot(struct m0_addb2_sensor *s, uint64_t *area)
 {
 	struct m0_addb2_hist      *hist = M0_AMB(hist, s, hi_counter.co_sensor);
 	struct m0_addb2_hist_data *hd   = &hist->hi_data;
 	int                        i;
+	int                        result;
 
-	m0_addb2__counter_snapshot(s, area);
+	if (hist->hi_skip > 0)
+		return -ENOENT;
+	result = m0_addb2__counter_snapshot(s, area);
+	if (result < 0)
+		return result;
 	area += M0_ADDB2_COUNTER_VALS;
 	*(struct m0_addb2_hist_data *)area = *hd;
 	for (i = 0; i < ARRAY_SIZE(hd->hd_bucket); ++i)
 		hd->hd_bucket[i] = 0;
+	return 0;
 }
 
 static void hist_fini(struct m0_addb2_sensor *s)

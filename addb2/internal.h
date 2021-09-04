@@ -81,7 +81,7 @@ enum storage_constants {
 struct m0_addb2_counter_data;
 struct m0_addb2_sensor;
 
-M0_INTERNAL void m0_addb2__counter_snapshot(struct m0_addb2_sensor *s,
+M0_INTERNAL int  m0_addb2__counter_snapshot(struct m0_addb2_sensor *s,
 					    uint64_t *area);
 M0_INTERNAL void m0_addb2__counter_data_init(struct m0_addb2_counter_data *d);
 
