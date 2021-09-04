@@ -2999,11 +2999,10 @@ static void buf_done(struct buf *buf, int rc)
 /** Invokes completion call-back (releasing tm lock). */
 static void buf_complete(struct buf *buf)
 {
-	struct ma *ma = buf_ma(buf);
-	m0_time_t  start;
-	int        qtype = nb->nb_qtype;
-
-	struct m0_net_buffer *nb = buf->b_buf;
+	struct m0_net_buffer *nb    = buf->b_buf;
+	struct ma            *ma    = buf_ma(buf);
+	int                   qtype = nb->nb_qtype;
+	m0_time_t             start;
 	struct m0_net_buffer_event ev = {
 		.nbe_buffer = nb,
 		.nbe_status = buf->b_rc == -EALREADY ? 0 : buf->b_rc,
