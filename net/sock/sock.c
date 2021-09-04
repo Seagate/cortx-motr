@@ -2092,28 +2092,29 @@ static void sock_done(struct sock *s, bool balance)
 
 	M0_PRE(ma_is_locked(ma));
 	M0_PRE(s->s_ep != NULL);
-	M0_PRE(s->s_reader.m_sm.sm_conf != NULL);
 	M0_PRE(s->s_sm.sm_conf != NULL);
 	M0_PRE(sock_invariant(s));
 
 	TLOG(SOCK_F, SOCK_P(s));
 	/* This function can be called multiple times, should be idempotent. */
-	if (s->s_fd > 0)
-		sock_close(s);
-	if (s->s_sm.sm_state != S_DELETED) { /* sock_close() might finalise. */
-		mover_fini(&s->s_reader);
-		M0_ASSERT(sock_writer(s) == NULL);
-		if (s->s_fd > 0) {
-			int result = sock_ctl(s, EPOLL_CTL_DEL, 0);
-			M0_ASSERT(ergo(result != 0, errno == ENOENT));
-			shutdown(s->s_fd, SHUT_RDWR);
-			close(s->s_fd);
-			s->s_fd = -1;
+	if (s->s_reader.m_sm.sm_conf != NULL) {
+		if (s->s_fd > 0)
+			sock_close(s);
+		if (s->s_sm.sm_state != S_DELETED) { /* sock_close()    */
+			mover_fini(&s->s_reader);    /* might finalise. */
+			M0_ASSERT(sock_writer(s) == NULL);
+			if (s->s_fd > 0) {
+				int result = sock_ctl(s, EPOLL_CTL_DEL, 0);
+				M0_ASSERT(ergo(result != 0, errno == ENOENT));
+				shutdown(s->s_fd, SHUT_RDWR);
+				close(s->s_fd);
+				s->s_fd = -1;
+			}
+			m0_sm_state_set(&s->s_sm, S_DELETED);
+			s_tlist_move(&ma->t_deathrow, s);
+			if (balance)
+				(void)ep_balance(s->s_ep);
 		}
-		m0_sm_state_set(&s->s_sm, S_DELETED);
-		s_tlist_move(&ma->t_deathrow, s);
-		if (balance)
-			(void)ep_balance(s->s_ep);
 	}
 }
 
