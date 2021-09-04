@@ -59,19 +59,11 @@ void m0_net_test_ringbuf_fini(struct m0_net_test_ringbuf *rb)
 
 bool m0_net_test_ringbuf_invariant(const struct m0_net_test_ringbuf *rb)
 {
-	int64_t start;
-	int64_t end;
+	int64_t start = m0_atomic64_get(&rb->ntr_start);
+	int64_t end   = m0_atomic64_get(&rb->ntr_end);
 
-	if (rb == NULL || rb->ntr_buf == NULL)
-		return false;
-
-	start = m0_atomic64_get(&rb->ntr_start);
-	end   = m0_atomic64_get(&rb->ntr_end);
-	if (start > end)
-		return false;
-	if (end - start > rb->ntr_size)
-		return false;
-	return true;
+	return  _0C(rb != NULL) && _0C(rb->ntr_buf != NULL) &&
+		_0C(start <= end) && _0C(end - start <= rb->ntr_size);
 }
 
 void m0_net_test_ringbuf_push(struct m0_net_test_ringbuf *rb, size_t value)
