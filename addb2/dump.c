@@ -501,9 +501,9 @@ static void _clock(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 	}
 }
 
-static void netq(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
+static const char *qname(int q)
 {
-	static const char *qname[M0_NET_QT_NR] = {
+	static const char *qn[M0_NET_QT_NR] = {
 		[M0_NET_QT_MSG_RECV]          = "recv",
 		[M0_NET_QT_MSG_SEND]          = "send",
 		[M0_NET_QT_PASSIVE_BULK_RECV] = "pas-recv",
@@ -511,7 +511,12 @@ static void netq(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 		[M0_NET_QT_ACTIVE_BULK_RECV]  = "act-recv",
 		[M0_NET_QT_ACTIVE_BULK_SEND]  = "act-send"
 	};
-	sprintf(buf, IS_IN_ARRAY(v[0], qname) ? qname[v[0]] : "wrong");
+	return IS_IN_ARRAY(q, qn) ? qn[q] : "wrong";
+}
+
+static void netq(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
+{
+	sprintf(buf, qname(v[0]));
 }
 
 static void duration(struct m0_addb2__context *ctx, const uint64_t *v,
@@ -899,6 +904,22 @@ static void sock_counter(struct m0_addb2__context *ctx, char *buf)
 	sm_trans(&sock_conf, "sock", ctx, buf);
 }
 
+static void sock_q(struct m0_addb2__context *ctx, char *buf)
+{
+	int idx    = ctx->c_val->va_id - M0_AVI_SOCK_Q_INIT;
+	int qtype  = idx / M0_AVI_SOCK_Q_NR;
+	int bstage = idx % M0_AVI_SOCK_Q_NR;
+	int nob;
+	static const char *stagename[] = {
+		"accept", "done", "cb-start", "cb-end"
+	};
+
+	M0_ASSERT(0 <= qtype && qtype < M0_NET_QT_NR);
+	M0_ASSERT(0 <= bstage && bstage < ARRAY_SIZE(stagename));
+	nob = sprintf(buf, "sock-q[%s][%s]: ", qname(qtype), stagename[bstage]);
+	hist(ctx, &ctx->c_val->va_data[0], buf + nob);
+}
+
 static void mover(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 {
 	extern const struct m0_sm_conf rw_conf;
@@ -1227,6 +1248,11 @@ struct m0_addb2__id_intrp ids[] = {
 	{ M0_AVI_SOCK_SOCK_COUNTER,  "",
 	  .ii_repeat = M0_AVI_SOCK_SOCK_COUNTER_END - M0_AVI_SOCK_SOCK_COUNTER,
 	  .ii_spec = &sock_counter },
+	{ M0_AVI_SOCK_Q_INIT,    "",
+	  .ii_repeat = M0_AVI_SOCK_Q_NR * M0_NET_QT_NR - 1,
+	  .ii_spec = &sock_q },
+	{ M0_AVI_SOCK_EPOLL_WAIT,      "sock-epoll-wait",  { HIST } },
+	{ M0_AVI_SOCK_EPOLL_NR,      "sock-epoll-nr",  { HIST } },
 	{ M0_AVI_FOP_TYPES_RANGE_START,   "",
 	  .ii_repeat = M0_AVI_FOP_TYPES_RANGE_END-M0_AVI_FOP_TYPES_RANGE_START,
 	  .ii_spec   = &fop_counter },

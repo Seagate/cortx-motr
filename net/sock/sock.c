@@ -636,6 +636,7 @@
 #include "net/net_internal.h"              /* m0_net__tm_invariant */
 #include "format/format.h"
 #include "addb2/addb2.h"
+#include "addb2/histogram.h"
 
 #include "net/sock/addb2.h"
 #include "net/sock/xcode.h"
@@ -800,6 +801,9 @@ struct ma {
 	struct m0_tl               t_deathrow;
 	/** List of completed buffers. */
 	struct m0_tl               t_done;
+	struct m0_addb2_hist       t_addb[M0_NET_QT_NR * M0_AVI_SOCK_Q_NR];
+	struct m0_addb2_hist       t_epoll_wait;
+	struct m0_addb2_hist       t_epoll_nr;
 };
 
 /**
@@ -929,6 +933,7 @@ struct buf {
 	 * packet::p_totalsize.
 	 */
 	m0_bindex_t           b_length;
+	m0_time_t             b_last;
 };
 
 /** A socket: connection to an end-point. */
@@ -1060,6 +1065,8 @@ static bool ma_invariant(const struct ma *ma);
 static void ma_event_post (struct ma *ma, enum m0_net_tm_state state);
 static void ma_buf_done   (struct ma *ma);
 static void ma_buf_timeout(struct ma *ma);
+static void ma_hist       (struct ma *ma, int qtype, int idx,
+			   m0_time_t end, m0_time_t start);
 static struct buf *ma_recv_buf(struct ma *ma, m0_bcount_t len);
 
 static struct ep *ma_src(struct ma *ma);
@@ -1107,6 +1114,7 @@ static int  buf_accept   (struct buf *buf, struct mover *m);
 static void buf_done     (struct buf *buf, int rc);
 static void buf_terminate(struct buf *buf, int rc);
 static void buf_complete (struct buf *buf);
+static void buf_hist     (struct buf *buf, int idx);
 
 static int bdesc_create(struct addr *addr, struct buf *buf,
 			struct m0_net_buf_desc *out);
@@ -1166,6 +1174,8 @@ static void ip4_encode(const struct addr *a, struct sockaddr *sa);
 static void ip4_decode(struct addr *a, const struct sockaddr *sa);
 static void ip6_encode(const struct addr *a, struct sockaddr *sa);
 static void ip6_decode(struct addr *a, const struct sockaddr *sa);
+
+static m0_time_t msec(m0_time_t a, m0_time_t b);
 
 struct m0_sm_conf sock_conf;
 struct m0_sm_conf rw_conf;
@@ -1392,15 +1402,25 @@ static void poller(struct ma *ma)
 	 */
 	ma_event_post(ma, M0_NET_TM_STARTED);
 	M0_ADDB2_PUSH(M0_AVI_SOCK_POLLER, (uint64_t)ma);
+	for (i = 0; i < ARRAY_SIZE(ma->t_addb); ++i) {
+		m0_addb2_hist_add_auto(&ma->t_addb[i], 100,
+				       M0_AVI_SOCK_Q_INIT + i, -1);
+	}
+	m0_addb2_hist_add_auto(&ma->t_epoll_wait, 100,
+			       M0_AVI_SOCK_EPOLL_WAIT, -1);
+	m0_addb2_hist_add_auto(&ma->t_epoll_nr, 100, M0_AVI_SOCK_EPOLL_NR, -1);
 	while (1) {
+		m0_time_t now = m0_time_now();
 		if (ma->t_shutdown)
 			break;
 		nr = epoll_wait(ma->t_epollfd, ev, ARRAY_SIZE(ev), 1000);
+		m0_addb2_hist_mod(&ma->t_epoll_wait, msec(m0_time_now(), now));
 		if (nr == -1) {
 			M0_LOG(M0_DEBUG, "epoll: %i.", -errno);
 			M0_ASSERT(errno == EINTR);
 			continue;
 		}
+		m0_addb2_hist_mod(&ma->t_epoll_nr, nr);
 		/* Check again because epoll() may block for some time */
 		if (ma->t_shutdown)
 			break;
@@ -1436,6 +1456,10 @@ static void poller(struct ma *ma)
 		M0_ASSERT(ma_invariant(ma));
 		ma_unlock(ma);
 	}
+	m0_addb2_hist_del(&ma->t_epoll_nr);
+	m0_addb2_hist_del(&ma->t_epoll_wait);
+	for (i = 0; i < ARRAY_SIZE(ma->t_addb); ++i)
+		m0_addb2_hist_del(&ma->t_addb[i]);
 	m0_addb2_pop(M0_AVI_SOCK_POLLER);
 	m0_addb2_force(0);
 }
@@ -1859,8 +1883,10 @@ static int buf_add(struct m0_net_buffer *nb)
 	}
 	if (result != 0)
 		mover_fini(w);
-	else
+	else {
 		buf->b_rc = 0;
+		buf->b_last = m0_time_now();
+	}
 	M0_POST(ma_is_locked(ma) && ma_invariant(ma) && buf_invariant(buf));
 	TLOG(B_F, B_P(buf));
 	return M0_RC(result);
@@ -2891,12 +2917,13 @@ static int buf_accept(struct buf *buf, struct mover *m)
 		buf->b_length = p->p_totalsize;
 		result = ep_create(buf_ma(buf),
 				   &src->bd_addr, NULL, &buf->b_other);
-#ifdef EP_DEBUG
 		if (result == 0) {
+			buf_hist(buf, M0_AVI_SOCK_Q_ACCEPT);
+#ifdef EP_DEBUG
 			M0_CNT_DEC(buf->b_other->e_r_find);
 			M0_CNT_INC(buf->b_other->e_r_buf);
-		}
 #endif
+		}
 	} else if (buf->b_done.b_nr != p->p_nr) {
 		result = M0_ERR(-EPROTO);
 	} else if (buf->b_length != p->p_totalsize) {
@@ -2965,13 +2992,16 @@ static void buf_done(struct buf *buf, int rc)
 		M0_ASSERT(!b_tlink_is_in(buf));
 		buf->b_rc = rc;
 		b_tlist_add_tail(&ma->t_done, buf);
+		buf_hist(buf, M0_AVI_SOCK_Q_DONE);
 	}
 }
 
 /** Invokes completion call-back (releasing tm lock). */
 static void buf_complete(struct buf *buf)
 {
-	struct ma *ma  = buf_ma(buf);
+	struct ma *ma = buf_ma(buf);
+	m0_time_t  start;
+	int        qtype = nb->nb_qtype;
 
 	struct m0_net_buffer *nb = buf->b_buf;
 	struct m0_net_buffer_event ev = {
@@ -2979,12 +3009,11 @@ static void buf_complete(struct buf *buf)
 		.nbe_status = buf->b_rc == -EALREADY ? 0 : buf->b_rc,
 		.nbe_time   = m0_time_now()
 	};
-	if (M0_IN(nb->nb_qtype, (M0_NET_QT_MSG_RECV,
-				 M0_NET_QT_PASSIVE_BULK_RECV,
-				 M0_NET_QT_ACTIVE_BULK_RECV))) {
+	if (M0_IN(qtype, (M0_NET_QT_MSG_RECV, M0_NET_QT_PASSIVE_BULK_RECV,
+			  M0_NET_QT_ACTIVE_BULK_RECV))) {
 		ev.nbe_length = buf->b_length;
 	}
-	if (nb->nb_qtype == M0_NET_QT_MSG_RECV) {
+	if (qtype == M0_NET_QT_MSG_RECV) {
 		if (ev.nbe_status == 0 && buf->b_other != NULL) {
 			ev.nbe_ep = &buf->b_other->e_ep;
 			EP_GET(buf->b_other, find);
@@ -3013,16 +3042,41 @@ static void buf_complete(struct buf *buf)
 	buf->b_offset = 0;
 	buf->b_length = 0;
 	M0_ASSERT(ma_invariant(ma));
-	M0_ADDB2_ADD(M0_AVI_SOCK_BUF_EVENT, (uint64_t)buf, nb->nb_qtype,
-		     m0_time_sub(ev.nbe_time, nb->nb_add_time) >> 10,
+	M0_ADDB2_ADD(M0_AVI_SOCK_BUF_EVENT, (uint64_t)buf, qtype,
+		     msec(ev.nbe_time, nb->nb_add_time),
 		     ev.nbe_status, ev.nbe_length);
+	buf_hist(buf, M0_AVI_SOCK_Q_CB_START);
+	start = buf->b_last;
 	ma_unlock(ma);
 	m0_net_buffer_event_post(&ev);
 	ma_lock(ma);
+	/*
+	 * Update histogram manually---the buffer can be already de-allocated at
+	 * this point.
+	 */
+	ma_hist(ma, qtype, M0_AVI_SOCK_Q_CB_END, m0_time_now(), start);
 	M0_ASSERT(ma_invariant(ma));
 	M0_ASSERT(M0_IN(ma->t_ma->ntm_state, (M0_NET_TM_STARTED,
 					      M0_NET_TM_STOPPING)));
 	ma->t_ma->ntm_callback_counter--;
+}
+
+/** Updates per-queue histogram for the buffer. */
+static void buf_hist(struct buf *buf, int idx)
+{
+	m0_time_t now = m0_time_now();
+	ma_hist(buf_ma(buf), buf->b_buf->nb_qtype, idx, now, buf->b_last);
+	buf->b_last = now;
+}
+
+/** Updates per-queue histogram. */
+static void ma_hist(struct ma *ma, int qtype, int idx,
+		    m0_time_t end, m0_time_t start)
+{
+	int idx0 = qtype * M0_AVI_SOCK_Q_NR + idx - M0_AVI_SOCK_Q_INIT;
+
+	M0_PRE(IS_IN_ARRAY(idx0, ma->t_addb));
+	m0_addb2_hist_mod(&ma->t_addb[idx0], msec(end, start));
 }
 
 /** Creates the descriptor for a (passive) network buffer. */
@@ -3794,6 +3848,11 @@ static void get_done(struct mover *w, struct sock *s)
 {
 	ep_del(w);
 	mover_fini(w);
+}
+
+static m0_time_t msec(m0_time_t a, m0_time_t b)
+{
+	return m0_time_sub(a, b) >> 10;
 }
 
 static struct m0_sm_state_descr sock_conf_state[] = {
