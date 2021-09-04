@@ -2332,8 +2332,7 @@ static bool sock_event(struct sock *s, uint32_t ev)
 			    * connection by setting some of the error bits
 			    * instead of EPOLLOUT.
 			    */
-			   ((ev & (EPOLLOUT|EPOLLIN)) == EPOLLIN &&
-			    (ev & (EPOLLHUP|EPOLLERR|EPOLLRDHUP)) != 0)) {
+			   (ev & EV_ERR) != 0) {
 			/* Failed connection. */
 			sock_done(s, false);
 		} else {
