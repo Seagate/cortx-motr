@@ -278,7 +278,7 @@
  * m0_sm_group::s_clink is signaled.  See @ref sm (search for
  * `"ast" thread'.)
  */
-
+
 /**
  * @defgroup confc_dlspec confc Internals
  *
@@ -398,7 +398,7 @@ static const struct m0_sm_conf confc_ctx_states_conf = {
 	.scf_nr_states = S_NR,
 	.scf_state     = confc_ctx_states
 };
-
+
 /* ------------------------------------------------------------------
  * Bob types and invariants
  * ------------------------------------------------------------------ */
@@ -782,7 +782,7 @@ M0_INTERNAL struct m0_conf_obj *m0_confc_ctx_result(struct m0_confc_ctx *ctx)
 	M0_LEAVE("retval=%p", res);
 	return res;
 }
-
+
 /* ----------------------------------------------------------------
  * sm_waiter
  * ---------------------------------------------------------------- */
@@ -837,7 +837,7 @@ static int sm_waiter_wait(struct sm_waiter *w, struct m0_conf_obj **result)
 
 	return M0_RC(rc);
 }
-
+
 /* ------------------------------------------------------------------
  * open/close
  * ------------------------------------------------------------------ */
@@ -982,7 +982,7 @@ path_copy(const struct m0_fid *src, struct m0_fid *dest, size_t dest_sz)
 
 	return M0_RC(0);
 }
-
+
 /* ------------------------------------------------------------------
  * readdir
  * ------------------------------------------------------------------ */
@@ -1037,7 +1037,7 @@ M0_INTERNAL int m0_confc_readdir_sync(struct m0_conf_obj *dir,
 	sm_waiter_fini(&w);
 	return M0_RC(rc);
 }
-
+
 /* ------------------------------------------------------------------
  * Casts
  * ------------------------------------------------------------------ */
@@ -1066,7 +1066,7 @@ static struct m0_confc_ctx *ast_to_ctx(struct m0_sm_ast *ast)
 {
 	return bob_of(ast, struct m0_confc_ctx, fc_ast, &ctx_bob);
 }
-
+
 /* ------------------------------------------------------------------
  * State transitions
  *
@@ -1318,7 +1318,7 @@ static uint64_t *confc_cache_ver(struct m0_confc_ctx *ctx)
 {
 	return &ctx->fc_confc->cc_cache.ca_ver;
 }
-
+
 /* ------------------------------------------------------------------
  * Walkies
  *
@@ -1463,7 +1463,7 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 	}
 	return M0_RC(-1);
 }
-
+
 /* ------------------------------------------------------------------
  * AST
  * ------------------------------------------------------------------ */
@@ -1636,7 +1636,7 @@ cache_grow(struct m0_confc *confc, const struct m0_conf_fetch_resp *resp)
 	confc_unlock(confc);
 	return M0_RC(rc);
 }
-
+
 /* ------------------------------------------------------------------
  * Networking
  * ------------------------------------------------------------------ */
@@ -1838,7 +1838,7 @@ static bool request_check(const struct m0_confc_ctx *ctx)
 		item->ri_session == m0_confc2sess(ctx->fc_confc) &&
 		item_to_ctx(item) == ctx;
 }
-
+
 /* ------------------------------------------------------------------
  * Locking
  * ------------------------------------------------------------------ */

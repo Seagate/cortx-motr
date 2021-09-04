@@ -62,7 +62,7 @@ struct m0_confx;
  *
  * @see @ref conf_dfspec_preload "Detailed Functional Specification"
  */
-
+
 /**
  * @defgroup conf_dfspec_preload Pre-Loading of Configuration Cache
  * @brief Detailed Functional Specification.

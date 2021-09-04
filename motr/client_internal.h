@@ -445,7 +445,7 @@ enum {
 	/*  4K, typical linux/intel page size */
 #ifdef CONFIG_X86_64
 	M0_DEFAULT_BUF_SHIFT        = 12,
-#else  //aarch64
+#elif defined CONFIG_AARCH64 /*aarch64*/
 	M0_DEFAULT_BUF_SHIFT        = 16,
 #endif
 	/* 512, typical disk sector */
@@ -472,7 +472,7 @@ enum {
 #ifdef CONFIG_X86_64
 	M0_NETBUF_MASK              = 4096 - 1,
 	M0_NETBUF_SHIFT             = 12,
-#else  //aarch64
+#elif defined CONFIG_AARCH64 /*aarch64*/
 	M0_NETBUF_MASK              = 65536 - 1,
 	M0_NETBUF_SHIFT             = 16,
 #endif

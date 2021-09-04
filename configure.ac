@@ -123,6 +123,10 @@ AS_CASE([$host_os],
         [AC_MSG_ERROR([Unsupported platform detected!])]
 )
 
+#
+# Checking for Platform support -------------------------------------------{{{1
+#
+
 ARCH=
 AC_CANONICAL_HOST
 AS_CASE([$host_cpu],
@@ -131,14 +135,21 @@ AS_CASE([$host_cpu],
         [AC_MSG_ERROR("Only X86_64 and aarch64 platforms supported")]
 )
 
-AS_IF([test x$ARCH = xx86_64 ],
+# Check for X86_64 platform -------------{{{2
+AS_IF([test x$ARCH = xx86_64],
       [
         AC_DEFINE([CONFIG_X86_64])
       ]
 )
+
+# Check for AARCH64 platform ------------{{{2
+AS_IF([test x$ARCH = xaarch64],
+      [
+        AC_DEFINE([CONFIG_AARCH64])
+      ]
+)
+
 AC_SUBST([ARCH])
-
-
 
 #
 # Configuration options --------------------------------------------------- {{{1
@@ -187,7 +198,9 @@ AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
 AH_TEMPLATE([HAVE_ISAL],              [Have Intel ISA-L available])
-AH_TEMPLATE([CONFIG_X86_64],          [])
+AH_TEMPLATE([CONFIG_X86_64],          [Support for X86_64 platform])
+AH_TEMPLATE([CONFIG_AARCH64],         [Support for AARCH64 platform])
+
 
 # enable/disable options ------------------------------ {{{2
 

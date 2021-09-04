@@ -24,17 +24,15 @@
 #define __MOTR_LIB_LINUX_CCNT_A_H__
 
 /**
-   This function starts the cycle counter functionlity in each CPU on the node 
-   at the time of cluster startup.
-   This is needed for performance measurement. 
-
+ *   This function starts the cycle counter functionlity in each CPU on the node
+ *   at the time of cluster startup
+ *   This is needed for performance measurement.
  */
 int  start_cycle_counter(void);
 
 /**
-   This function stops the cycle counter functionlity in each CPU on the node 
-   at the time of cluster shutdown.
-
+ *  This function stops the cycle counter functionlity in each CPU on the node
+ *  at the time of cluster shutdown
  */
 void finish_cycle_counter(void);
 

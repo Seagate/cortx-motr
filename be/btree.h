@@ -152,7 +152,7 @@ enum m0_be_btree_op {
 /** Btree fid type */
 M0_EXTERN const struct m0_fid_type m0_btree_fid_type;
 
-
+
 /* ------------------------------------------------------------------
  * Btree construction
  * ------------------------------------------------------------------ */
@@ -221,7 +221,7 @@ M0_INTERNAL void m0_be_btree_truncate(struct m0_be_btree *tree,
 				      struct m0_be_op    *op,
 				      m0_bcount_t         limit);
 
-
+
 /* ------------------------------------------------------------------
  * Btree credits
  * ------------------------------------------------------------------ */
@@ -446,7 +446,7 @@ M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *tree,
 M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *tree,
 				    struct m0_be_op *op,
 				    struct m0_buf *out);
-
+
 /* ------------------------------------------------------------------
  * Btree in-place manipulation
  * ------------------------------------------------------------------ */
@@ -552,7 +552,7 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
  */
 M0_INTERNAL void m0_be_btree_release(struct m0_be_tx           *tx,
 				     struct m0_be_btree_anchor *anchor);
-
+
 /* ------------------------------------------------------------------
  * Btree cursor
  * ------------------------------------------------------------------ */

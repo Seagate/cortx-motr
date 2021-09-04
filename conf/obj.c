@@ -298,7 +298,7 @@
  * - Configuration one-pager
  *
  */
-
+
 M0_INTERNAL bool m0_conf_obj_is_stub(const struct m0_conf_obj *obj)
 {
 	M0_PRE(M0_IN(obj->co_status,
