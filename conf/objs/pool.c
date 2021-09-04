@@ -156,7 +156,7 @@
   doc/motr-design-doc-list.rst
   - Pools in Configuration Schema
  */
-
+
 #define XCAST(xobj) ((struct m0_confx_pool *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_pool, xp_header) == 0);
 

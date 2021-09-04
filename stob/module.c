@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2014-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2014-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 #include "stob/module.h"
 #include "module/instance.h"
 
-#if 0
+#if 0 /* unused code */
 M0_UNUSED static int level_stob_enter(struct m0_module *module);
 M0_UNUSED static void level_stob_leave(struct m0_module *module);
 

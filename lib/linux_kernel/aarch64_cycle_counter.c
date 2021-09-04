@@ -27,9 +27,10 @@
 #include <linux/module.h>
 #include <linux/version.h>
 
-/* Module for ARM64 linux platform to provide
-** user space access of perf monitor registers*/
-#ifndef CONFIG_X86_64
+/** Module for ARM64 linux platform to provide
+ * user space access of perf monitor registers
+ */
+#ifdef CONFIG_AARCH64
 static void enable_user_space_access_pccnt(void *dt)
 {
 	uint64_t pmcr_val;

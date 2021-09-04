@@ -19,10 +19,9 @@
                         )
 
 %define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
-
 %if  "%{?CONFIG_ARCH_TYPE}" == "x86_64"
 %define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.x86_64$//' )
-%else
+%else if "%{?CONFIG_ARCH_TYPE}" == "aarch64"
 %define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.aarch64$//' )
 %endif
 
@@ -59,9 +58,9 @@ Summary:        CORTX Motr
 Group:          System Environment/Base
 License:        Seagate
 Source:         %{name}-%{version}.tar.gz
-%if  "%{?CONFIG_ARCH_TYPE}"=="x86_64"
+%if  "%{?CONFIG_ARCH_TYPE}" == "x86_64"
 BuildArch:      x86_64
-%else
+%else if  "%{?CONFIG_ARCH_TYPE}" == "aarch64"
 BuildArch:      aarch64
 %endif
 ExcludeArch:    i686
@@ -71,9 +70,9 @@ Provides:       %{name}-modules = %{version}-%{release}
 Obsoletes:      mero
 Obsoletes:      eos-core
 Provides:       motr = %{version}-%{release}
-%if  "%{?CONFIG_ARCH_TYPE}"=="x86_64"
+%if  "%{?CONFIG_ARCH_TYPE}" == "x86_64"
 Provides:       motr(x86_64) = %{version}-%{release}
-%else
+%else if  "%{?CONFIG_ARCH_TYPE}" == "aarch64"
 Provides:       motr(aarch64) = %{version}-%{release}
 %endif
 Provides:       motr-libs = %{version}-%{release}
@@ -86,9 +85,9 @@ BuildRequires:  make
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
 %if %{rhel} <= 7
-%if  "%{?CONFIG_ARCH_TYPE}"=="x86_64"
+%if  "%{?CONFIG_ARCH_TYPE}" == "x86_64"
 BuildRequires:  gccxml
-%else
+%else if  "%{?CONFIG_ARCH_TYPE}"=="aarch64"
 #BuildRequires:  castxml
 %endif
 %else
@@ -206,12 +205,11 @@ CORTX Motr IVT.
 %if  "%{CONFIG_ARCH_TYPE}"=="x86_64"
 #x86_64 platform
 %configure %{with_linux} %{with_lustre} %{configure_opts} 
-%else		
+%else if  "%{?CONFIG_ARCH_TYPE}" == "aarch64"
 #aarch64 platform
 %configure %{with_linux} %{with_lustre} %{configure_opts} enable_castxml=yes  
 %endif
 make %{?_smp_mflags}
-%endif
 
 %install
 rm -rf %{buildroot}

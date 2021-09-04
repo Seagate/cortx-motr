@@ -527,7 +527,7 @@ enum {
 	M0_SEG_SHIFT = 12,
 	M0_SEG_SIZE  = 4096,
 };
-#else  /*aarch64*/
+#elif defined CONFIG_AARCH64 /*aarch64*/
 enum {
 	M0_0VEC_SHIFT = 16,
 	M0_0VEC_ALIGN = (1 << M0_0VEC_SHIFT),
