@@ -799,6 +799,8 @@ struct ma {
 	bool                       t_shutdown;
 	/** List of finalised sock structures. */
 	struct m0_tl               t_deathrow;
+	/** Channel to signal for non-automatic delivery. */
+	struct m0_chan            *t_delivery_chan;
 	/** List of completed buffers. */
 	struct m0_tl               t_done;
 	struct m0_addb2_hist       t_addb[M0_NET_QT_NR * M0_AVI_SOCK_Q_NR];
@@ -1449,7 +1451,8 @@ static void poller(struct ma *ma)
 		 * Deliver buffer completion events and re-provision receive
 		 * queue if necessary.
 		 */
-		ma_buf_done(ma);
+		if (ma->t_ma->ntm_bev_auto_deliver)
+			ma_buf_done(ma);
 		M0_ASSERT(ma_invariant(ma));
 		/*
 		 * This is the only place, where sock structures are freed,
@@ -1915,22 +1918,31 @@ static void buf_del(struct m0_net_buffer *nb)
 	buf_terminate(buf, -ECANCELED);
 }
 
-static int bev_deliver_sync(struct m0_net_transfer_mc *ma)
+static int bev_deliver_sync(struct m0_net_transfer_mc *tm)
 {
 	return 0;
 }
 
-static void bev_deliver_all(struct m0_net_transfer_mc *ma)
+static void bev_deliver_all(struct m0_net_transfer_mc *tm)
 {
+	struct ma *ma = tm->ntm_xprt_private;
+	ma_buf_done(ma);
+	ma->t_delivery_chan = NULL;
 }
 
-static bool bev_pending(struct m0_net_transfer_mc *ma)
+static bool bev_pending(struct m0_net_transfer_mc *tm)
 {
-	return false;
+	struct ma *ma = tm->ntm_xprt_private;
+	M0_PRE(ma_is_locked(ma) && ma_invariant(ma));
+	return !b_tlist_is_empty(&ma->t_done);
 }
 
-static void bev_notify(struct m0_net_transfer_mc *ma, struct m0_chan *chan)
+static void bev_notify(struct m0_net_transfer_mc *tm, struct m0_chan *chan)
 {
+	struct ma *ma = tm->ntm_xprt_private;
+	M0_PRE(ma_is_locked(ma) && ma_invariant(ma));
+	M0_PRE(ma->t_delivery_chan == NULL);
+	ma->t_delivery_chan = chan;
 }
 
 /**
@@ -2998,6 +3010,8 @@ static void buf_done(struct buf *buf, int rc)
 		buf->b_rc = rc;
 		b_tlist_add_tail(&ma->t_done, buf);
 		buf_hist(buf, M0_AVI_SOCK_Q_DONE);
+		if (ma->t_delivery_chan != NULL)
+			m0_chan_signal_lock(ma->t_delivery_chan);
 	}
 }
 

@@ -1422,7 +1422,7 @@ static int node_bulk_test_init_fini(struct node_bulk_ctx *ctx,
 	net_cfg.ntncfg_buf_bulk_nr   = ctx->nbc_buf_bulk_nr,
 	net_cfg.ntncfg_ep_max	     = icmd->ntci_ep.ntsl_nr,
 	net_cfg.ntncfg_timeouts	     = m0_net_test_network_timeouts_never();
-	net_cfg.ntncfg_sync	     = false;
+	net_cfg.ntncfg_sync	     = true;
 	/* configure timeouts */
 	to_send  = icmd->ntci_buf_send_timeout;
 	to_bulk  = icmd->ntci_buf_bulk_timeout;
