@@ -1276,11 +1276,12 @@ static void net_bulk_worker_cb(struct node_bulk_ctx *ctx, bool pending)
 
 static void node_bulk_worker(struct node_bulk_ctx *ctx)
 {
-	struct m0_clink tm_clink;
-	struct m0_chan  tm_chan = {};
-	struct m0_mutex tm_chan_mutex = {};
-	bool		pending;
-	bool		running;
+	struct m0_clink            tm_clink;
+	struct m0_chan             tm_chan       = {};
+	struct m0_mutex            tm_chan_mutex = {};
+	struct m0_net_transfer_mc *tm            = ctx->nbc_net.ntc_tm;
+	bool                       pending;
+	bool                       running;
 
 	M0_PRE(ctx != NULL);
 
@@ -1308,11 +1309,21 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
 				server_process_unused_ping(ctx);
 			}
 		}
-		/* notification for buffer events */
-		pending = m0_net_buffer_event_pending(ctx->nbc_net.ntc_tm);
-		if (!pending) {
-			m0_net_buffer_event_notify(ctx->nbc_net.ntc_tm,
-						   &tm_chan);
+		if (ctx->nbc_net.ntc_cfg.ntncfg_sync) {
+			/* notification for buffer events */
+			pending = m0_net_buffer_event_pending(tm);
+			if (!pending) {
+				m0_net_buffer_event_notify(tm, &tm_chan);
+			}
+			ctx->nbc_callback_executed = false;
+			/*
+			 * execute network buffer callbacks in this thread
+			 * context
+			 */
+			m0_net_buffer_event_deliver_all(tm);
+			M0_ASSERT(ergo(pending, ctx->nbc_callback_executed));
+			/* state transitions from final states */
+			node_bulk_state_transition_auto_all(ctx);
 		}
 		net_bulk_worker_cb(ctx, pending);
 		if (running && node_bulk_is_stopping(ctx)) {
@@ -1411,7 +1422,7 @@ static int node_bulk_test_init_fini(struct node_bulk_ctx *ctx,
 	net_cfg.ntncfg_buf_bulk_nr   = ctx->nbc_buf_bulk_nr,
 	net_cfg.ntncfg_ep_max	     = icmd->ntci_ep.ntsl_nr,
 	net_cfg.ntncfg_timeouts	     = m0_net_test_network_timeouts_never();
-	net_cfg.ntncfg_sync	     = true;
+	net_cfg.ntncfg_sync	     = false;
 	/* configure timeouts */
 	to_send  = icmd->ntci_buf_send_timeout;
 	to_bulk  = icmd->ntci_buf_bulk_timeout;
