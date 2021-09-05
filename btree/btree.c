@@ -8033,14 +8033,17 @@ void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
 		  const struct m0_btree_cb *cb, struct m0_btree_op *bop,
 		  struct m0_be_tx *tx)
 {
-	bop->bo_opc       = M0_BO_DEL;
-	bop->bo_arbor     = arbor;
-	bop->bo_rec.r_key = *key;
-	bop->bo_cb        = *cb;
-	bop->bo_tx        = tx;
-	bop->bo_flags     = 0;
-	bop->bo_seg       = arbor->t_desc->t_seg;
-	bop->bo_i         = NULL;
+	bop->bo_opc        = M0_BO_DEL;
+	bop->bo_arbor      = arbor;
+	bop->bo_rec.r_key  = *key;
+	if (cb == NULL)
+		M0_SET0(&bop->bo_cb);
+	else
+		bop->bo_cb = *cb;
+	bop->bo_tx         = tx;
+	bop->bo_flags      = 0;
+	bop->bo_seg        = arbor->t_desc->t_seg;
+	bop->bo_i          = NULL;
 
 	m0_sm_op_init(&bop->bo_op, &btree_del_kv_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
@@ -9371,9 +9374,11 @@ static void ut_multi_stream_kv_oper(void)
 		ut_cb.c_datum = &del_data;
 
 		for (stream_num = 0; stream_num < stream_count; stream_num++) {
+			struct m0_btree_cb *del_cb;
 			del_key = i + (stream_num * recs_per_stream);
 			del_key = m0_byteorder_cpu_to_be64(del_key);
 
+			del_cb = (del_key % 5 == 0) ? NULL : &ut_cb;
 			m0_be_ut_tx_init(tx, ut_be);
 			m0_be_tx_prep(tx, &cred);
 			rc = m0_be_tx_open_sync(tx);
@@ -9382,7 +9387,7 @@ static void ut_multi_stream_kv_oper(void)
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						      m0_btree_del(tree,
 							      &del_key_in_tree,
-							      &ut_cb,
+							      del_cb,
 							      &kv_op, tx));
 			M0_ASSERT(rc == 0 && del_data.flags == M0_BSC_SUCCESS);
 			m0_be_tx_close_sync(tx);
