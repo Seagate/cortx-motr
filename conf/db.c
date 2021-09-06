@@ -412,8 +412,9 @@ M0_INTERNAL int m0_confdb_create(struct m0_be_seg      *seg,
 		put_cb.c_act       = confd_btree_kv_put_cb;
 		put_cb.c_datum     = &rec;
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					      m0_btree_put(&btree, &rec, &put_cb,
-							   &kv_op, tx));
+					      m0_btree_put(&btree, &rec,
+							   &put_cb, &kv_op,
+							   tx));
 		if (rc != 0) {
 			/** Delete all objects added to the btree. */
 			while (i--) {
@@ -424,11 +425,11 @@ M0_INTERNAL int m0_confdb_create(struct m0_be_seg      *seg,
 				k_ptr = (struct m0_fid *)
 					     m0_conf_objx_fid(obj_ctx.oc_obj);
 				M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-							 m0_btree_del(&btree,
-								      &rec.r_key,
-								      NULL,
-								      &kv_op,
-								      tx));
+							m0_btree_del(&btree,
+								     &rec.r_key,
+								     NULL,
+								     &kv_op,
+								     tx));
 			}
 		}
 	}
