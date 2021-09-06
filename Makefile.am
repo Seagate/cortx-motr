@@ -1047,6 +1047,7 @@ dist_pkglibexec_SCRIPTS  = scripts/install/usr/libexec/cortx-motr/motr-service.f
                            scripts/install/usr/libexec/cortx-motr/motr-server \
                            scripts/install/usr/libexec/cortx-motr/motr-dixinit \
                            scripts/install/usr/libexec/cortx-motr/motr-trace \
+                           scripts/install/usr/libexec/cortx-motr/motr-deploy-container \
                            scripts/install/usr/libexec/cortx-motr/motr-free-space-monitor
 
 ################################################################################

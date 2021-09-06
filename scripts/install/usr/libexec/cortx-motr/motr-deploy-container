@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+#set -x
+set -e
+
+MOTR_LIBEXEC="/usr/libexec/cortx-motr"
+MOTR_MKFS="$MOTR_LIBEXEC/motr-mkfs"
+MOTR_SERVER="$MOTR_LIBEXEC/motr-server"
+MOTR_STATUS_PATH="/var/motr/status"
+MOTR_MKFS_DIR="/var/motr/m0d" 
+MOTR_SYSCONFIG="/etc/sysconfig/m0d"
+ha_config="/etc/sysconfig/m0d-${1#m0d-}"
+
+# Kubernetes PATH
+CORTX_PATH="/etc/cortx"
+CORTX_SYSCONFIG="/etc/cortx/motr/sysconfig"
+CORTX_KUBE_CONFIG="/etc/cortx/KUBERNETES"
+
+service="ha"
+ha_proxy=false
+mkfs_force=false
+mkfs_dir_present=false
+confd_proxy="/etc/motr/confd.xc"
+POD_DEPLOY=false
+
+
+help()
+{
+    [[ $1 == stdout ]] && usage || usage >&2
+    exit 1
+}
+
+
+usage()
+{
+    cat <<USAGE_END
+Usage: $PROG_NAME [-h|--help] [-s] [-d] [-H]
+   -s              Enter the service that needs to be invoked
+                   [ha|confd|ios|<fids>]
+   -d              Enter <m0mkfs|m0d> script with the file
+		   name to be deployed
+		   ${0} -d <m0mkfs|m0d> <motr_confd_1>
+
+   -H|--ha-proxy   Instead of actual HA. pseudo HA is created
+		   which is similar to motr ST setups
+
+   -f|--mkfs-force Overwrite MKFS by force
+
+   -h|--help       Print this help screen.
+USAGE_END
+}
+
+get_fids() 
+{
+	srv_index=$1
+	IFS=$'\n'
+	for FIDS_LINE in `cat $CORTX_KUBE_CONFIG`; do
+		index=$(echo $FIDS_LINE | cut -d "-" -f 1)
+		if [[ "$index" == "$srv_index" ]] ; then
+			fids=$(echo $FIDS_LINE | cut -d "-" -f 2)
+			break
+		fi
+	done
+	unset IFS
+
+	if [[ -f "$CORTX_SYSCONFIG/m0d-$fids" ]] ; then
+		echo "$fids"
+	else
+		echo "NIL"
+	fi
+}
+
+#
+# Parse CLI options
+#
+
+parse_cli_options()
+{
+
+    TEMP=$( getopt --options dhsf \
+                   --longoptions help,--ha-proxy \
+                   --name "$PROG_NAME" -- "$@" )
+
+    [[ $? -ne 0 ]] && help
+
+    # Note the quotes around `$TEMP': they are essential!
+    eval set -- "$TEMP"
+
+    while true ; do
+        case "$1" in
+            -h|--help)          help stdout ;;
+            -s)                 service=$3;     shift;;
+	    -d)                 POD_DEPLOY=true; deploy_script=$3; deploy_srv=$4;  shift;;
+            -f|--mkfs-force)    mkfs_force=true;  shift ;;
+            --)                 shift; break ;;
+             *)                 echo 'getopt: internal error...'; exit 1 ;;
+        esac
+    done
+}
+
+start_m0mkfs_server() 
+{
+	$MOTR_MKFS $1
+}
+
+start_m0d_server()
+{
+	$MOTR_SERVER "m0d-$1"
+}
+
+#Make sure this function is called only 
+#during "-s" sequence of the script
+start_all_service() {
+	if [[ $deploy_script == "m0mkfs" ]]; then
+		start_m0mkfs_server $1
+	fi
+	start_m0d_server $1
+}
+
+update_local_ip()
+{
+    filename="$1"
+    IP=`ip addr show eth0|grep inet| head -1|awk '{print $2}'|cut -d '/' -f1`
+    sed -r 's/(\b[0-9]{1,3}\.){3}[0-9]{1,3}\b'/"$IP"/ $filename > temp
+    cp temp $filename 
+    rm temp
+}    
+#start of the program
+
+if [[ "$#" -le 1 ]]; then
+	echo "Invalid arguments"
+	usage
+	exit
+fi
+
+parse_cli_options "$@"
+
+if [[ $POD_DEPLOY == true ]] ; then
+	if [[ -z $deploy_script || -z $deploy_srv ]]; then
+		echo "Invalid options"
+		usage
+		exit 1
+	fi
+	echo "POD Deployment with service : $deploy_srv"
+	if [[ -f $CORTX_KUBE_CONFIG ]] ; then
+		#source $CORTX_SYSCONFIG/$deploy_srv
+		service=$(get_fids $deploy_srv)
+		if [[ $service == "NIL" ]]; then
+			echo "No fids found for given index $deploy_srv in $CORTX_KUBE_CONFIG"
+			exit 1
+		fi
+	else
+		echo "File $CORTX_SYSCONFIG/$deploy_srv not present"
+		exit 1;
+	fi
+else
+	echo "Starting Service : $service"
+
+	#update_local_ip "$confd_proxy"
+	ha_config="$MOTR_SYSCONFIG-$service"
+	update_local_ip "$ha_config"
+
+
+	ha_config="$MOTR_SYSCONFIG-$service"
+	[[ -r $ha_config ]] && source $ha_config
+
+
+	MKFS_DIR="$MOTR_MKFS_DIR-$service/stob/o"
+	if [[ -d "$MKFS_DIR" ]]; then
+		mkfs_dir_present=true;
+		echo "mkfs_dir_present $mkfs_dir_present"
+	fi
+
+	# starting the mkfs for each service ha, confd, ios
+	if [[ "$mkfs_force" = "true" || "$mkfs_dir_present" = "false" ]]; then
+		deploy_script="m0mkfs"
+	fi
+	
+	start_all_service $service
+	exit
+fi
+
+if [[ $deploy_script == "m0mkfs" ]] ; then
+	start_m0mkfs_server $service
+fi
+
+#starting the server
+if [[ $deploy_script == "m0d" ]] ; then
+	start_m0d_server "$service"
+fi

@@ -180,6 +180,7 @@
 
 #include <netinet/in.h>         /* INET_ADDRSTRLEN */
 #include <arpa/inet.h>          /* inet_pton, htons */
+#include <netdb.h>              /* hostent */
 #include <sched.h>              /* sched_yield */
 #include <stdlib.h>             /* atoi */
 #include <sys/epoll.h>          /* struct epoll_event */
@@ -194,7 +195,7 @@
 
 static char     *providers[] = { "verbs", "tcp", "sockets" };
 static char     *protf[]  = { "unix", "inet", "inet6" };
-static char     *socktype[] = { "stream", "dgram" };
+static char     *socktype[] = { "tcp", "o2ib", "stream", "dgram" };
 static uint64_t  mr_key_idx = 0;
 static uint32_t  buf_token = 0;
 static uint32_t  rr_queue[M0_NET_QT_NR+1];
@@ -330,6 +331,7 @@ static uint32_t libfab_wr_cnt_get(struct m0_fab__buf *fb);
 static void libfab_bufq_process(struct m0_fab__tm *tm);
 static uint32_t libfab_buf_token_get(struct m0_fab__buf *fb);
 
+
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
 {
@@ -341,6 +343,43 @@ M0_INTERNAL int m0_net_libfab_init(void)
 M0_INTERNAL void m0_net_libfab_fini(void)
 {
 	m0_net_xprt_deregister(&m0_net_libfab_xprt);
+}
+
+static int libfab_hostname_to_ip(char *hostname , char* ip)
+{
+	struct hostent *hname;
+	struct in_addr **addr;
+	int             i;
+	int             n;
+	char           *cp;
+	char            name[50];
+
+	cp = strchr(hostname, '@');
+	if (cp == NULL)
+		return M0_ERR(-EINVAL);
+
+	n = cp - hostname;
+	memcpy(name, hostname, n);
+	name[n] = '\0';
+	M0_LOG(M0_ALWAYS, "in %s out %s", (char*)hostname, (char*)name);
+	if ((hname = gethostbyname(name)) == NULL)
+	{
+		// get the host info
+		M0_LOG(M0_ERROR, "gethostbyname error %s", (char*)name);
+		return M0_ERR(-EPROTO);
+	}
+
+	addr = (struct in_addr **) hname->h_addr_list;
+	for(i = 0; addr[i] != NULL; i++)
+	{
+		//Return the first one;
+		strcpy(ip , inet_ntoa(*addr[i]));
+		n=strlen(ip);
+		M0_LOG(M0_ALWAYS, "%s[%s]", (char*)name, (char*)ip);
+		return M0_RC(n);
+	}
+
+	return M0_ERR(-EPROTO);
 }
 
 /**
@@ -427,12 +466,14 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
  */
 static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
 				      size_t nodeSize, char *port,
-				      size_t portSize)
+				      size_t portSize, uint8_t *addr_frmt)
 {
 	int   shift = 0;
 	int   f;
 	int   s;
 	char *at;
+	char  ip[LIBFAB_ADDR_LEN_MAX];
+	int   n;
 
 	for (f = 0; f < ARRAY_SIZE(protf); ++f) {
 		if (protf[f] != NULL) {
@@ -464,48 +505,87 @@ static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
 		M0_PRE(portSize >= (strlen(at)+1));
 		memcpy(port, at, (strlen(at)+1));
 	}
-	M0_ASSERT(nodeSize >= (at - ep_name));
-	memcpy(node, ep_name, ((at - ep_name)-1));
+	//M0_ASSERT(nodeSize >= (at - ep_name));
+	n = libfab_hostname_to_ip((char *)ep_name, ip);
+        if (n > 0) {
+                memcpy(node, ip, n);
+                *addr_frmt = FAB_NATIVE_HOSTNAME_FORMAT;
+        }
+        else {
+		memcpy(node, ep_name, ((at - ep_name)-1));
+                *addr_frmt = FAB_NATIVE_IP_FORMAT;
+        }
+
 	return 0;
 }
-
+#if 0
 /**
  * Used to decode the ip and port from the given end point
  * ep_name : endpoint address from domain
  * node    : copy ip address from ep_name
  * port    : copy port number from ep_name
- * Example of ep_name IPV4 192.168.0.1:4235
- *                    IPV6 [4002:db1::1]:4235
+ * Example of ep_name IPV4 192.168.0.1@tcp:4235
+ *                    IPV6 [4002:db1::1]@tcp:4235
+*                          <hostname FQDN>@tcp:4235
  */
 static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
 					size_t nodeSize, char *port,
-					size_t portSize)
+					size_t portSize, uint8_t *addr_frmt)
 {
 	char   *name;
 	char   *cp;
-	size_t  n;
+	char    dbg[10];
+	char    ip[LIBFAB_ADDR_LEN_MAX];
+	int     n;
 	int     rc = 0;
 
 	M0_PRE(ep_name != NULL);
 
 	M0_ENTRY("ep_name=%s", ep_name);
 
-	name = (char *)ep_name + strlen("libfab:");
+	//name = (char *)ep_name + strlen("fab_i:");
 
-	if( name[0] == '[' ) {
-		/* IPV6 pattern */
-		cp = strchr(name, ']');
-		if (cp == NULL)
-			return M0_ERR(-EINVAL);
-
-		name++;
-		n = cp - name;
-		if (n == 0 )
-			return M0_ERR(-EINVAL);
-		cp++;
-		if (*cp != ':')
+	/* IPV6 pattern */
+	cp = strchr(ep_name, ':');
+	if (cp == NULL)
 		return M0_ERR(-EINVAL);
-		cp++;
+
+	n = cp - ep_name;
+	if (n == 0 )
+		return M0_ERR(-EINVAL);
+
+	memcpy(dbg, cp, n);
+	// Print AF_FAMILY
+	M0_LOG(M0_ERROR,"Stream %s", dbg);
+
+	cp++;
+	name = cp;
+	cp = strchr(ep_name, ':');
+	if (cp == NULL)
+		return M0_ERR(-EINVAL);
+
+	n = cp - name;
+	if (n == 0 )
+		return M0_ERR(-EINVAL);
+
+	memcpy(dbg, cp, n);
+	// Print STREAM
+	M0_LOG(M0_ERROR,"Stream %s", dbg);
+
+	cp++;
+	name = cp;
+	cp = strchr(ep_name, '@');
+	
+	n = cp - name;
+	if (n == 0 )
+		return M0_ERR(-EINVAL);
+
+	memcpy(dbg, cp, n);
+	// Print STREAM
+	M0_LOG(M0_ERROR,"Stream %s", dbg);
+
+	cp++;
+#if 0
 	} else {
 		/* IPV4 pattern */
 		cp = strchr(name, ':');
@@ -519,10 +599,28 @@ static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
 		++cp;
 	}
 
-	if ((nodeSize < (n+1)) || (portSize < (strlen(cp)+1)))
+	if (/*(nodeSize < (n+1)) || */(portSize < (strlen(cp)+1)))
 		return M0_ERR(-EINVAL);
 
-	memcpy(node, name, n);
+	if (addr_frmt == FAB_NATIVE_IP_FORMAT)
+		memcpy(node, name, n);
+	else {
+		n = libfab_hostname_to_ip(name, ip);
+		if (n < 0)
+			return M0_ERR(n);
+		memcpy(node, ip, n);
+	}*/
+#endif
+	n = libfab_hostname_to_ip(name, ip);
+	if (n < 0) {
+		memcpy(node, name, n);
+		*addr_frmt = FAB_NATIVE_HOSTNAME_FORMAT;
+	}
+	else {
+		memcpy(node, ip, n);
+		*addr_frmt = FAB_NATIVE_IP_FORMAT;
+	}
+
 	node[n] = '\0';
 
 	n=strlen(cp);
@@ -531,7 +629,7 @@ static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
 
 	return M0_RC(rc);
 }
-
+#endif
 /**
  * Parses network address.
  *
@@ -547,9 +645,9 @@ static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
  *     - sock format, see socket(2):
  *           family:type:ipaddr[@port]
  *
- *     - libfab compatible format
- *       for example IPV4 libfab:192.168.0.1:4235
- *                   IPV6 libfab:[4002:db1::1]:4235
+ *     - libfab also follows sock addr format 
+ *           family:type:ipaddr@port
+ *           family:type:hostname@port
  *
  */
 static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
@@ -559,23 +657,24 @@ static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
 	char *port = ep->fep_name_p.fen_port;
 	size_t nodeSize = ARRAY_SIZE(ep->fep_name_p.fen_addr);
 	size_t portSize = ARRAY_SIZE(ep->fep_name_p.fen_port);
+	uint8_t addr_fmt = 0;
 	int result;
 
 	M0_ENTRY("name=%s", name);
 	
 	if( name == NULL || name[0] == 0)
 		result =  M0_ERR(-EPROTO);
-	else if ((strncmp(name, "libfab", 6)) == 0)
-		result = libfab_ep_addr_decode_native(name, node, nodeSize,
-						      port, portSize);
-	else if (name[0] < '0' || name[0] > '9')
-		/* sock format */
+	else if ((strncmp(name, "inet", 4)) == 0 ) {
 		result = libfab_ep_addr_decode_sock(name, node, nodeSize,
-						    port, portSize);
-	else
+						      port, portSize, &addr_fmt);
+		ep->fep_name_p.fen_addr_frmt = addr_fmt;
+	}
+	else {
 		/* Lnet format. */
+		ep->fep_name_p.fen_addr_frmt = FAB_LNET_FORMAT;
 		result = libfab_ep_addr_decode_lnet(name, node, nodeSize,
 						    port, portSize, fnd);
+	}
 
 	if (result == FI_SUCCESS)
 		strcpy(ep->fep_name_p.fen_str_addr, name);
@@ -711,18 +810,26 @@ static void libfab_straddr_gen(struct m0_fab__conn_data *cd, char *buf,
 			       uint8_t len, struct m0_fab__ep_name *en)
 {
 	libfab_ep_ntop(cd->fcd_netaddr, en);
-	if (cd->fcd_tmid == 0xFFFF)
-		sprintf(buf, "%s@%s:12345:%d:*",
-			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
-			cd->fcd_iface == FAB_LO ? "lo" : 
+	if (cd->fcd_addr_frmt == FAB_LNET_FORMAT) {
+		if (cd->fcd_tmid == 0xFFFF)
+			sprintf(buf, "%s@%s:12345:%d:*",
+				cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
+				cd->fcd_iface == FAB_LO ? "lo" :
+					((cd->fcd_iface == FAB_TCP) ? "tcp" :
+								      "o2ib"),
+				cd->fcd_portal);
+		else
+			sprintf(buf, "%s@%s:12345:%d:%d",
+				cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
+				cd->fcd_iface == FAB_LO ? "lo" :
 				((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
-			cd->fcd_portal);
-	else
-		sprintf(buf, "%s@%s:12345:%d:%d",
-			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
-			cd->fcd_iface == FAB_LO ? "lo" : 
-			((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
-			cd->fcd_portal, cd->fcd_tmid);
+				cd->fcd_portal, cd->fcd_tmid);
+	} else if (cd->fcd_addr_frmt == FAB_NATIVE_IP_FORMAT) {
+		sprintf(buf, "fab_i:%s@%s:%s", en->fen_addr,
+			cd->fcd_iface == FAB_TCP ? "tcp" : "o2ib",
+			en->fen_port);
+	} else if (cd->fcd_addr_frmt == FAB_NATIVE_HOSTNAME_FORMAT)
+		sprintf(buf, "%s", cd->fcd_hostname);
 
 	M0_ASSERT(len >= strlen(buf));
 }
@@ -1011,6 +1118,36 @@ static bool libfab_ep_cmp(struct m0_fab__ep *ep, const char *name,
 	return ret;
 }
 
+static int libfab_addr_port_verify(struct m0_net_transfer_mc *tm, const char *name,
+			    struct m0_fab__ep_name *epn,
+			    struct m0_fab__ep *ep)
+{
+	struct m0_fab__ep_name  name_p = ep->fep_name_p;
+	uint8_t                 addr_frmt = name_p.fen_addr_frmt;
+	char                   *wc = NULL;
+	int                     rc = FI_SUCCESS;
+	struct m0_fab__tm      *ma;
+	struct m0_fab__active_ep *aep;
+
+	/* Wildchar can be present only in LNET_ADDR_FORMAT */
+	wc = strchr(name, '*');
+	if ((wc != NULL && strcmp(name_p.fen_port, epn->fen_port) != 0) ||
+	    (addr_frmt == FAB_NATIVE_HOSTNAME_FORMAT &&
+	      (strcmp(name_p.fen_addr, epn->fen_addr) != 0 ||
+	       strcmp(name_p.fen_port, epn->fen_port) != 0))) {
+		strcpy(ep->fep_name_p.fen_addr, epn->fen_addr);
+		strcpy(ep->fep_name_p.fen_port, epn->fen_port);
+		libfab_ep_pton(&ep->fep_name_p,
+				&ep->fep_name_n);
+		aep = libfab_aep_get(ep);
+		ma = tm->ntm_xprt_private;
+		if (aep->aep_tx_state == FAB_CONNECTED)
+			rc = libfab_txep_init(aep, ma, ep);
+	}
+
+	return rc;
+}
+
 /**
  * Search for the ep in the existing ep list using one of the following -
  *   1) Name in str format      OR
@@ -1026,11 +1163,9 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 {
 	struct m0_net_end_point  *net;
 	struct m0_fab__ep        *ep;
-	struct m0_fab__active_ep *aep;
-	struct m0_fab__tm        *ma;
 	uint64_t                  ep_name_n = 0;
 	char                      ep_str[LIBFAB_ADDR_STRLEN_MAX + 9] = {'\0'};
-	char                     *wc = NULL;
+	//char                     *wc = NULL;
 	int                       rc = 0;
 
 	if (epn != NULL)
@@ -1054,20 +1189,25 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 	} else {
 		ep = libfab_ep(net);
 		*epp = &ep->fep_nep;
+		//ep_name_p = ep->fep_name_p;
 		if (name != NULL && epn != NULL) {
-			wc = strchr(name,'*');
-			if (wc != NULL &&
-			    strcmp(ep->fep_name_p.fen_port, epn->fen_port)
-									 != 0) {
-				strcpy(ep->fep_name_p.fen_addr, epn->fen_addr);
-				strcpy(ep->fep_name_p.fen_port, epn->fen_port);
-				libfab_ep_pton(&ep->fep_name_p,
-					       &ep->fep_name_n);
-				aep = libfab_aep_get(ep);
-				ma = tm->ntm_xprt_private;
-				if (aep->aep_tx_state == FAB_CONNECTED)
-					rc = libfab_txep_init(aep, ma, ep);
-			}
+			rc = libfab_addr_port_verify(tm, name, epn, ep);
+
+			//LNET  		IP_ADDR@tcp:12345:PORTAL:TMID
+			//NATIVE_HOSTNAME	FAB_S:HOSTNAME@tcp:PORT
+			// wc = strchr(name, '*');
+			// if ((wc != NULL &&
+			//     strcmp(ep->fep_name_p.fen_port, epn->fen_port)
+			// 						 != 0)) {
+			// 	strcpy(ep->fep_name_p.fen_addr, epn->fen_addr);
+			// 	strcpy(ep->fep_name_p.fen_port, epn->fen_port);
+			// 	libfab_ep_pton(&ep->fep_name_p,
+			// 		       &ep->fep_name_n);
+			// 	aep = libfab_aep_get(ep);
+			// 	ma = tm->ntm_xprt_private;
+			// 	if (aep->aep_tx_state == FAB_CONNECTED)
+			// 		rc = libfab_txep_init(aep, ma, ep);
+			// }
 		}
 		if (rc == FI_SUCCESS)
 			libfab_ep_get(ep);
@@ -2325,10 +2465,11 @@ static struct m0_fab__fab *libfab_newfab_init(struct m0_fab__ndom *fnd)
 static void libfab_conn_data_fill(struct m0_fab__conn_data *cd,
 				  struct m0_fab__tm *tm)
 {
-	char *h_ptr = tm->ftm_pep->fep_name_p.fen_str_addr;
-	char *t_ptr;
-	char  str_portal[10]={'\0'};
-	int   len;
+	char   *h_ptr = tm->ftm_pep->fep_name_p.fen_str_addr;
+	char   *t_ptr;
+	char    str_portal[10]={'\0'};
+	uint8_t addr_frmt = tm->ftm_pep->fep_name_p.fen_addr_frmt;
+	int     len;
 
 	cd->fcd_netaddr = tm->ftm_pep->fep_name_n;
 	if (strncmp(h_ptr, "0@lo", 4) == 0)
@@ -2342,15 +2483,19 @@ static void libfab_conn_data_fill(struct m0_fab__conn_data *cd,
 	}
 
 	h_ptr = strchr(h_ptr, ':');
-	h_ptr = strchr(h_ptr+1, ':');	/* Skip the pid "12345" */
-	t_ptr = strchr(h_ptr+1, ':');
-	len = t_ptr - (h_ptr+1);
-	strncpy(str_portal, h_ptr+1, len);
-	cd->fcd_portal = (uint16_t)atoi(str_portal);
-	if(*(t_ptr+1) == '*')
-		cd->fcd_tmid = 0xFFFF;
-	else
-		cd->fcd_tmid = (uint16_t)atoi(t_ptr+1);
+	if (addr_frmt == FAB_LNET_FORMAT) {
+		h_ptr = strchr(h_ptr+1, ':');	/* Skip the pid "12345" */
+		t_ptr = strchr(h_ptr+1, ':');
+		len = t_ptr - (h_ptr+1);
+		strncpy(str_portal, h_ptr+1, len);
+		cd->fcd_portal = (uint16_t)atoi(str_portal);
+		if(*(t_ptr+1) == '*')
+			cd->fcd_tmid = 0xFFFF;
+		else
+			cd->fcd_tmid = (uint16_t)atoi(t_ptr+1);
+	} else if (addr_frmt == FAB_NATIVE_HOSTNAME_FORMAT)
+		strcpy(cd->fcd_hostname, tm->ftm_pep->fep_name_p.fen_str_addr);
+	cd->fcd_addr_frmt = addr_frmt;
 }
 
 /**

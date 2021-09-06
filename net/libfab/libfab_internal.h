@@ -180,6 +180,14 @@ enum m0_fab__ep_iface {
 	FAB_O2IB
 };
 
+enum m0_fab__addr_fmt {
+	FAB_LNET_FORMAT,
+	FAB_SOCK_FORMAT,
+	FAB_NATIVE_IP_FORMAT,
+	FAB_NATIVE_HOSTNAME_FORMAT,
+	FAB_INVALID_FORMAT
+};
+
 union m0_fab__token
 {
 	uint32_t t_val;
@@ -272,6 +280,8 @@ struct m0_fab__ep_name {
 
 	/** address in string format as passed by the net layer */
 	char fen_str_addr[LIBFAB_ADDR_STRLEN_MAX];
+
+	uint8_t fen_addr_frmt;
 };
 
 /**
@@ -546,6 +556,10 @@ struct m0_fab__conn_data {
 	
 	/** interface type */
 	uint8_t  fcd_iface;
+
+	uint8_t  fcd_addr_frmt;
+
+	char fcd_hostname[LIBFAB_ADDR_STRLEN_MAX];
 };
 
 /**

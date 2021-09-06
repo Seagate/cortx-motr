@@ -100,11 +100,11 @@ m0_server()
     [[ -r $user_config ]]   && source $user_config
 
     # apply global system tweaks
-    if [[ -n "$KERNEL_HUGEPAGE_DEFRAG" ]] ; then
-        local hpdefrag_file='/sys/kernel/mm/transparent_hugepage/defrag'
-        echo "$KERNEL_HUGEPAGE_DEFRAG" > $hpdefrag_file
-        m0_log "$hpdefrag_file: $(cat $hpdefrag_file)"
-    fi
+    #if [[ -n "$KERNEL_HUGEPAGE_DEFRAG" ]] ; then
+    #    local hpdefrag_file='/sys/kernel/mm/transparent_hugepage/defrag'
+    #    echo "$KERNEL_HUGEPAGE_DEFRAG" > $hpdefrag_file
+    #    m0_log "$hpdefrag_file: $(cat $hpdefrag_file)"
+    #fi
 
     # validate Halon config
     if [[ $service == m0d-* ]] ; then
@@ -240,7 +240,7 @@ m0_server()
     ulimit -n 65536
 
     # Increase vm.max_map_count. MOTR-2171 MOTR-2396
-    sysctl -w vm.max_map_count=30000000
+    #sysctl -w vm.max_map_count=30000000
 
     # use custom trace files location if it's specified
     [[ -z "$MOTR_M0D_TRACE_DIR" ]] || {
