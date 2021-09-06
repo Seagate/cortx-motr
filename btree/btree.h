@@ -177,7 +177,8 @@ void m0_btree_destroy_credit(struct m0_btree *tree,
  *
  * @param addr is the address of exsiting root node in BE segment.
  * @param nob is the size of the root node in BE segment.
- * @param out has the handle to the opened btree used in subsequent operations.
+ * @param out points to the btree structure which can be used in subsequent
+ *        btree operations.
  * @param bop is consumed by the m0_btree_open for its operation.
  *
  * @return 0 if successful.
