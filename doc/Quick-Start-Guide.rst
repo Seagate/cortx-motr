@@ -168,6 +168,8 @@ The files will be generated at doc/html/ folder.
 
 Tested by:
 
+- Sep 6, 2021: Rose Wambui (rose.wambui@seagate.com) in CentOS 7.8.2003 on a Mac running VirtualBox 6.1.
+
 - June 21, 2021: Daniar Kurniawan (daniar@uchicago.edu) in CentOS 7.9.2003 on a Chameleon node (type=compute_skylake).
 
 - May 23, 2021: Bo Wei (bo.b.wei@seagate.com) in CentOS 7.9.2009 on a Windows laptop running VirtualBox 6.1.
