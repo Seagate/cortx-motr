@@ -576,13 +576,6 @@
  *  --------------------------------------------
  */
 
-struct td;
-struct m0_btree {
-	const struct m0_btree_type *t_type;
-	unsigned                    t_height;
-	struct td                  *t_desc;
-};
-
 enum base_phase {
 	P_INIT = M0_SOS_INIT,
 	P_DONE = M0_SOS_DONE,
