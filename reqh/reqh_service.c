@@ -405,9 +405,10 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	unsigned        key;
 
 	M0_PRE(m0_reqh_service_bob_check(service));
-	M0_PRE(m0_fom_domain_is_idle_for(service));
+	//M0_PRE(m0_fom_domain_is_idle_for(service));
 	reqh = service->rs_reqh;
 	key = service->rs_type->rst_key;
+	M0_LOG(M0_DEBUG,"SHIPRA: My code executed");
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	M0_ASSERT(m0_reqh_service_invariant(service));
