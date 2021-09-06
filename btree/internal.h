@@ -67,6 +67,14 @@ struct m0_btree_cursor {
 	struct m0_btree *bc_arbor;
 };
 
+struct td;
+struct m0_btree {
+	const struct m0_btree_type *t_type;
+	unsigned                    t_height;
+	struct td                  *t_desc;
+};
+
+
 /** @} end of btree group */
 #endif /* __MOTR_BTREE_INTERNAL_H__ */
 
