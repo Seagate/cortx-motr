@@ -344,6 +344,13 @@ static void dtx_persistent_ast_cb(struct m0_sm_group *grp,
 
 	M0_ENTRY("dtx=%p, fop=%p", dtx, fop);
 
+	if (M0_IS0(dtx)) {
+		M0_LOG(M0_DEBUG, "Dtx has already reached DONE state, "
+		       "ignoring P msg for " DTID0_F ".",
+		       DTID0_P(&txd->dtd_id));
+		goto out;
+	}
+
 	m0_dtm0_tx_desc_apply(&dtx->dd_txd, txd);
 	dtx_log_update(dtx);
 
@@ -355,6 +362,7 @@ static void dtx_persistent_ast_cb(struct m0_sm_group *grp,
 		m0_sm_state_set(&dtx->dd_sm, M0_DDS_STABLE);
 	}
 
+out:
 	m0_free(pma);
 	m0_fop_put_lock(fop); /* it was taken in ::m0_dtm0_dtx_post_pmsg */
 	M0_LEAVE();

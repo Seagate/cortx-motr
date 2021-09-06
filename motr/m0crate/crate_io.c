@@ -322,7 +322,8 @@ int cr_io_vector_prep(struct m0_workload_io *cwi,
 	m0_bitmap_fini(&segment_indices);
 	op_ctx->coc_buf_vec = buf_vec;
 	op_ctx->coc_index_vec = index_vec;
-	op_ctx->coc_attr = attr;
+	/**TODO: set attr to NULL to disable cksum, enable after addding cksum in ST */
+	op_ctx->coc_attr = NULL;
 
 	return 0;
 enomem:
@@ -979,9 +980,9 @@ bool cr_time_not_expired(struct workload *w)
 	time_now = m0_time_now();
 
 	if (cwi->cwi_execution_time == M0_TIME_NEVER)
-		return false;
+		return true;
 	return	m0_time_sub(time_now, cwi->cwi_start_time) <
-		cwi->cwi_execution_time ? false : true;
+		cwi->cwi_execution_time ? true : false;
 }
 
 /** Returns bandwidth in bytes / sec. */
@@ -1003,7 +1004,7 @@ void run(struct workload *w, struct workload_task *tasks)
 	if (M0_IN(cwi->cwi_opcode, (CR_POPULATE, CR_CLEANUP)) &&
 	    !entity_id_is_valid(&cwi->cwi_start_obj_id))
 		cwi->cwi_start_obj_id = M0_ID_APP;
-	for (i = 0; i < cwi->cwi_rounds || cr_time_not_expired(w); i++) {
+	for (i = 0; i < cwi->cwi_rounds && cr_time_not_expired(w); i++) {
 		rc = cr_tasks_prepare(w, tasks);
 		if (rc != 0) {
 			cr_tasks_release(w, tasks);

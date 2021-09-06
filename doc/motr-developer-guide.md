@@ -324,24 +324,26 @@ The steps to compile, build and run this example.
 ## More examples, utilities, and applications
 
 *   More Cortx Motr examples (object) and utilities are:
-    *   m0cp : motr/st/utils/copy.c
-    *   m0cat : motr/st/utils/cat.c
-    *   m0touch : motr/st/utils/touch.c
-    *   m0unlink: motr/st/utils/unlink.c
-    *   m0client: motr/st/utils/client.c
+    *   [m0cp](/motr/st/utils/copy.c)
+    *   [m0cat](/motr/st/utils/cat.c)
+    *   [m0touch](/motr/st/utils/touch.c)
+    *   [m0unlink](/motr/st/utils/unlink.c)
+    *   [m0client](/motr/st/utils/client.c)
 *   More Cortx Motr examples (index) and utilities are:
-    *   m0kv : motr/m0kv/
+    *   [m0kv](/motr/m0kv/)
 *   A Cortx Motr performance utility:
-    *   m0crate: motr/m0crate/
+    *   [m0crate](/motr/m0crate/)
 *   A Cortx Motr GO bindings:
-    *   [bindings/go/mio/](/bindings/go)
+    *   [bindings/go/](/bindings/go)
 *   A Cortx Motr HSM utility and application:
-    *   hsm/
+    *   [hsm/](/hsm/)
 *   A Cortx Motr Python wrapper:
-    *   spiel/
+    *   [spiel/](/spiel)
 *   A S3Server using Motr client APIs to access Cortx Motr services:
     *   https://github.com/Seagate/cortx-s3server  
         This is one of the components of Cortx project.
 *   A library which uses Motr client APIs to access Cortx Motr services, to provide file system accessibility:
     *   https://github.com/Seagate/cortx-posix  
         This is one of the components of Cortx project.
+*   In-Store Computation (aka Function Shipping) demo:
+    *   [iscservice/demo/](/iscservice/demo)
