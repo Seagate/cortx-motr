@@ -531,7 +531,7 @@ M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg,
 		if (rc == 0) {
 			rc = __confdb_free(&btree, seg, tx);
 			if (rc == 0 || rc == -ENOENT) {
-				rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 						m0_btree_destroy(&btree, &b_op,
 								 tx));
 				M0_BE_FREE_ALIGN_ARR_SYNC(rnode, seg, tx);
