@@ -378,6 +378,10 @@ M0_INTERNAL void m0_stob_mod_fini(void)
 static uint32_t stob_cids[32];
 static uint32_t current_stob_id_count = 0;
 
+M0_INTERNAL m0_bcount_t m0_stob_get_max_cid(void)
+{
+	return current_stob_id_count;
+}
 M0_INTERNAL void m0_stob_store_cid(uint32_t cid)
 {
 	stob_cids[current_stob_id_count++] = cid;

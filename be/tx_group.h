@@ -38,6 +38,7 @@ struct m0_be_tx;
 struct be_recovering_tx;
 struct m0_be_op;
 
+#define GROUP_DEV_ID_MAX 0x10
 /**
  * @defgroup be Meta-data back-end
  *

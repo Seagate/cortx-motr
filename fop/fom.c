@@ -53,7 +53,7 @@
 #include "fdmi/fol_fdmi_src.h"
 #include "motr/iem.h"
 #include "ioservice/io_fops.h"
-
+#include "ioservice/fid_convert.h"
 /**
  * @addtogroup fom
  *
@@ -622,6 +622,7 @@ M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom)
 	M0_ASSERT(m0_locality_invariant(loc));
 }
 
+static uint64_t  m0_loc_current_locality_grpOffset[0x20];
 M0_INTERNAL void m0_fom_queue(struct m0_fom *fom)
 {
 	struct m0_fom_domain *dom;
@@ -631,22 +632,23 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom)
 	M0_PRE(fom != NULL);
 
 	dom = m0_fom_dom();
-
-	if((fom->fo_fop != NULL) && m0_is_io_fop(fom->fo_fop))
+	if((fom->fo_fop != NULL) && m0_is_write_fop(fom->fo_fop))
 	{
 		struct m0_fop_cob_rw    *rwfop;
+		uint64_t dev_idx;
+		uint64_t  dev_max = m0_stob_get_max_cid();
 		rwfop = io_rw_get(fom->fo_fop);
-		si_fid = &rwfop->crw_fid;
-		loc_idx = m0_fid_hash(si_fid) % dom->fd_localities_nr;
-		// M0_LOG(M0_ALWAYS, "KC inside if fid_hash = %"PRIu64,m0_fid_hash(si_fid));
-		// M0_LOG(M0_ALWAYS,"KC inside if si_fid = %"PRIu64":%"PRIu64 ,si_fid->f_container, si_fid->f_key);
+                dev_idx = m0_stob_get_idx_for_cid(m0_fid_cob_device_id(&rwfop->crw_fid));
+		//loc_idx = m0_fid_hash(si_fid) % dom->fd_localities_nr;
+	        m0_loc_current_locality_grpOffset[dev_idx] %= dev_max;
+		loc_idx = ((dom->fd_localities_nr/dev_max) * dev_idx) + m0_loc_current_locality_grpOffset[dev_idx];
+		m0_loc_current_locality_grpOffset[dev_idx]++;
 	}
 	else
 	{
 		loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
-		// M0_LOG(M0_ALWAYS, "KC inside else fid_hash");
 	}
-
+	loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
 	M0_ASSERT(loc_idx < dom->fd_localities_nr);
 	fom->fo_loc = dom->fd_localities[loc_idx];
 	fom->fo_loc_idx = loc_idx;

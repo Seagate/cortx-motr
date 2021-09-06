@@ -357,6 +357,7 @@ M0_INTERNAL int m0_stob_fd(struct m0_stob *stob);
 M0_INTERNAL int m0_stob_mod_init(void);
 M0_INTERNAL void m0_stob_mod_fini(void);
 
+M0_INTERNAL m0_bcount_t m0_stob_get_max_cid(void);
 M0_INTERNAL void m0_stob_store_cid(uint32_t cid);
 M0_INTERNAL m0_bcount_t m0_stob_get_idx_for_cid(uint32_t cid);
 M0_INTERNAL void m0_stob_clean_cid_store(void);

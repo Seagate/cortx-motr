@@ -45,6 +45,7 @@
 #include "be/ut/helper.h"	/* m0_be_ut_backend */
 #include "be/tx_internal.h"	/* m0_be_tx__reg_area */
 #include "be/seg0.h"            /* m0_be_0type_register */
+#include "be/tx_group.h"
 
 const struct m0_bob_type m0_ut_be_backend_bobtype;
 M0_BOB_DEFINE(M0_INTERNAL, &m0_ut_be_backend_bobtype, m0_be_ut_backend);
@@ -275,7 +276,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 	*cfg = (struct m0_be_domain_cfg) {
 	    .bc_engine = {
 		.bec_tx_active_max        = 0x100,
-		.bec_group_nr		  = 0x20,
+		.bec_group_nr		  = (0x2 * GROUP_DEV_ID_MAX),
 		.bec_group_cfg = {
 			.tgc_tx_nr_max	  = 128,
 			.tgc_seg_nr_max	  = 256,
@@ -336,7 +337,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		.bc_seg_cfg		   = NULL,
 		.bc_seg_nr		   = 0,
 		.bc_pd_cfg = {
-			.bpdc_seg_io_nr = 0x20,
+			.bpdc_seg_io_nr = (0x2 * GROUP_DEV_ID_MAX),
 		},
 		.bc_log_discard_cfg = {
 			.ldsc_items_max         = 0x100,

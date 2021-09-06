@@ -461,15 +461,32 @@ static struct m0_be_tx_group *be_engine_group_find_by_id(struct m0_be_engine *en
 
 			if((dev_idx < en->eng_group_nr) && !m0_be_tx_group_is_recovering(&en->eng_group[dev_idx]))
 			{
-				if(en->eng_group[dev_idx].tg_state == M0_BGS_OPEN)
+				if((en->eng_group[dev_idx].tg_state == M0_BGS_OPEN))
 				{
 					grp = &en->eng_group[dev_idx]; 
 				}
-				else if(en->eng_group[dev_idx].tg_state == M0_BGS_READY)
+#if 1
+				// check if its partner is open
+				else if((en->eng_group[dev_idx + GROUP_DEV_ID_MAX].tg_state == M0_BGS_OPEN))
+				{
+					grp = &en->eng_group[dev_idx + GROUP_DEV_ID_MAX]; 
+				}
+
+				// if the partner is not frozen come from ready to open state
+				else if((en->eng_group[dev_idx].tg_state == M0_BGS_READY) &&
+                                         (en->eng_group[dev_idx + GROUP_DEV_ID_MAX].tg_state != M0_BGS_FROZEN))
 				{
 					grp = &en->eng_group[dev_idx]; 
 					be_engine_tx_group_open(en, grp);
 				}
+
+				else if((en->eng_group[dev_idx + GROUP_DEV_ID_MAX].tg_state == M0_BGS_READY) &&
+                                         (en->eng_group[dev_idx ].tg_state != M0_BGS_FROZEN))
+				{
+					grp = &en->eng_group[dev_idx + GROUP_DEV_ID_MAX]; 
+					be_engine_tx_group_open(en, grp);
+				}
+#endif
 			}
 			else
 			{
