@@ -46,8 +46,8 @@ class Cmd:
         self._args = args.args
         self._debug = args.debug
         self.logger = config_logger(self)
-        self.server_node = get_server_node(self)
         self.k8 = args.k8
+        self.server_node = get_server_node(self)
     @property
     def args(self) -> str:
         return self._args
@@ -149,7 +149,9 @@ class ConfigCmd(Cmd):
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
 
-        #motr_config(self)
+        motr_config(self)
+        if self.k8:
+            return
 
         # Update keys from other nodes
         if self.server_node["name"] == "srvnode-1":

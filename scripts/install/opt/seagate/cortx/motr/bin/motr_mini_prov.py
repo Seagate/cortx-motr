@@ -255,6 +255,7 @@ def verify_libfabric(self):
         execute_command(self, cmd)
     except:
         raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
+    return True
 
 def swap_on(self):
     cmd = "swapon -a"
