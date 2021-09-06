@@ -6997,14 +6997,12 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 		 *  subtree else return key not exist.
 		 */
 		if (bop->bo_opc == M0_BO_GET) {
-			if (bop->bo_flags & BOF_EQUAL) {
-				if (oi->i_key_found)
-					node_rec(&s);
-				else {
-					lock_op_unlock(tree);
-					return fail(bop, M0_ERR(-ENOENT));
-				}
-			} else {
+			if (oi->i_key_found)
+				node_rec(&s);
+			else if (bop->bo_flags & BOF_EQUAL) {
+				lock_op_unlock(tree);
+				return fail(bop, M0_ERR(-ENOENT));
+			} else { /** bop->bo_flags & BOF_SLANT */
 				if (lev->l_idx < count)
 					node_rec(&s);
 				else {
@@ -8035,14 +8033,17 @@ void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
 		  const struct m0_btree_cb *cb, struct m0_btree_op *bop,
 		  struct m0_be_tx *tx)
 {
-	bop->bo_opc       = M0_BO_DEL;
-	bop->bo_arbor     = arbor;
-	bop->bo_rec.r_key = *key;
-	bop->bo_cb        = *cb;
-	bop->bo_tx        = tx;
-	bop->bo_flags     = 0;
-	bop->bo_seg       = arbor->t_desc->t_seg;
-	bop->bo_i         = NULL;
+	bop->bo_opc        = M0_BO_DEL;
+	bop->bo_arbor      = arbor;
+	bop->bo_rec.r_key  = *key;
+	if (cb == NULL)
+		M0_SET0(&bop->bo_cb);
+	else
+		bop->bo_cb = *cb;
+	bop->bo_tx         = tx;
+	bop->bo_flags      = 0;
+	bop->bo_seg        = arbor->t_desc->t_seg;
+	bop->bo_i          = NULL;
 
 	m0_sm_op_init(&bop->bo_op, &btree_del_kv_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
@@ -9373,9 +9374,11 @@ static void ut_multi_stream_kv_oper(void)
 		ut_cb.c_datum = &del_data;
 
 		for (stream_num = 0; stream_num < stream_count; stream_num++) {
+			struct m0_btree_cb *del_cb;
 			del_key = i + (stream_num * recs_per_stream);
 			del_key = m0_byteorder_cpu_to_be64(del_key);
 
+			del_cb = (del_key % 5 == 0) ? NULL : &ut_cb;
 			m0_be_ut_tx_init(tx, ut_be);
 			m0_be_tx_prep(tx, &cred);
 			rc = m0_be_tx_open_sync(tx);
@@ -9384,7 +9387,7 @@ static void ut_multi_stream_kv_oper(void)
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						      m0_btree_del(tree,
 							      &del_key_in_tree,
-							      &ut_cb,
+							      del_cb,
 							      &kv_op, tx));
 			M0_ASSERT(rc == 0 && del_data.flags == M0_BSC_SUCCESS);
 			m0_be_tx_close_sync(tx);
@@ -9496,6 +9499,8 @@ static struct m0_atomic64 threads_running;
  */
 static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 {
+	int rc;
+
 	M0_ALLOC_ARR(ti->ti_rnd_state_ptr, 64);
 	if (ti->ti_rnd_state_ptr == NULL) {
 		return -ENOMEM;
@@ -9507,7 +9512,10 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 
 	srandom_r(ti->ti_thread_id + 1, &ti->ti_random_buf);
 
-	return m0_thread_confine(&ti->ti_q, &ti->ti_cpu_map);
+	rc = m0_thread_confine(&ti->ti_q, &ti->ti_cpu_map);
+
+	m0_bitmap_fini(&ti->ti_cpu_map);
+	return rc;
 }
 
 /**
@@ -9906,6 +9914,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				key[i] = key[0];
 		}
 		get_ksize = ksize;
+		get_vsize = ti->ti_value_size;
 		get_data.check_value = true; /** Compare value with key */
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -10041,7 +10050,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 			M0_ASSERT(key_first >= 1);
 
-			slant_key = key_first - 1;
+			slant_key = key_first;
 			get_data.check_value = false;
 
 			/**
@@ -10059,7 +10068,14 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 					ti->ti_key_size;
 
 				key[1]   = ksize;
-				key[0] = (slant_key <<
+				/**
+				 *  Alternate between using the exact number as
+				 *  Key for slant and a previous number as Key
+				 *  for slant to test for both scenarios.
+				 */
+				key[0] = (slant_key % 2) ? slant_key - 1 :
+							   slant_key;
+				key[0] = (key[0] <<
 					  (sizeof(ti->ti_thread_id) * 8)) +
 					 ti->ti_thread_id;
 				key[0] = m0_byteorder_cpu_to_be64(key[0]);
@@ -10082,7 +10098,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 				 */
 				got_key = m0_byteorder_cpu_to_be64(get_key[0]);
 				got_key >>= (sizeof(ti->ti_thread_id) * 8);
-				M0_ASSERT(got_key == slant_key + 1);
+				M0_ASSERT(got_key == slant_key);
 
 				slant_key += ti->ti_key_incr;
 
@@ -10289,6 +10305,8 @@ static void online_cpu_id_get(uint16_t **cpuid_ptr, uint16_t *cpu_count)
 			}
 		}
 	}
+
+	m0_bitmap_fini(&map_cpu_online);
 }
 
 void btree_ut_kv_size_get(enum btree_node_type bnt, int *ksize, int *vsize)
@@ -10509,6 +10527,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 		m0_be_tx_fini(tx);
 	}
 
+	m0_free0(&cpuid_ptr);
 	m0_free(ut_trees);
 	m0_free(ti);
 	btree_ut_fini();
@@ -10869,6 +10888,7 @@ static void btree_ut_num_threads_tree_oper(uint32_t thread_count)
 		m0_thread_fini(&ti[i].ti_q);
 	}
 
+	m0_free0(&cpuid_ptr);
 	m0_free(ti);
 	btree_ut_fini();
 }
