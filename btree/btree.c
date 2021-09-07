@@ -1783,6 +1783,7 @@ static void node_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
 {
 	node->n_type->nt_rec_update_credit(node, ksize, vsize, accum);
 }
+#endif
 
 static void node_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 				m0_bcount_t vsize,
@@ -1790,7 +1791,6 @@ static void node_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 {
 	node->n_type->nt_rec_del_credit(node, ksize, vsize, accum);
 }
-#endif
 
 
 static struct mod *mod_get(void)
@@ -5221,7 +5221,13 @@ void m0_btree_del_credit(const struct m0_btree  *tree,
 	node_free_credit(tree->t_desc->t_root, ksize, vsize, &cred);
 	btree_callback_credit(&cred);
 	m0_be_tx_credit_mul(&cred, MAX_TREE_HEIGHT);
+
+	/* Credits for deleting record from the node. */
+	node_rec_del_credit(tree->t_desc->t_root, ksize, vsize, &cred);
+	btree_callback_credit(&cred);
+
 	m0_be_tx_credit_mac(accum, &cred, nr);
+
 }
 
 void m0_btree_del_credit2(const struct m0_btree_type *type,
