@@ -942,7 +942,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		/* TODO: can this loop become a function call?
 		 * -- too many levels of indentation */
 		while (seg < SEG_NR(ivec) &&
-			m0_io_fop_size_get(&iofop->if_fop) + delta < maxsize) {
+			m0_io_fop_size_get(&iofop->if_fop) + delta < maxsize &&
+			bbsegs < m0_net_domain_get_max_buffer_segments(ndom)) {
 
 			/*
 			* Adds a page to rpc bulk buffer only if it passes
