@@ -2151,7 +2151,9 @@ static void sock_done(struct sock *s, bool balance)
 			M0_ASSERT(sock_writer(s) == NULL);
 			if (s->s_fd > 0) {
 				int result = sock_ctl(s, EPOLL_CTL_DEL, 0);
-				M0_ASSERT(ergo(result != 0, errno == ENOENT));
+				if (result != 0 && result != -ENOENT)
+					M0_LOG(M0_ERROR, "Strange errno: %i.",
+					       result);
 				SOP(shutdown, s->s_fd, SHUT_RDWR);
 				SOP(close, s->s_fd);
 				s->s_fd = -1;
@@ -2427,7 +2429,8 @@ static int sock_ctl(struct sock *s, int op, uint32_t flags)
 			s->s_flags |= WRITE_POLL;
 		else
 			s->s_flags &= ~WRITE_POLL;
-	}
+	} else
+		result = M0_ERR(-errno);
 	return result;
 }
 
@@ -2579,7 +2582,6 @@ static int ep_balance(struct ep *ep)
 		s = s_tlist_head(&ep->e_sock);
 		if (s != NULL)
 			result = sock_ctl(s, EPOLL_CTL_MOD, 0);
-		M0_ASSERT(result == 0);
 	} else {
 		s = m0_tl_find(s, s, &ep->e_sock, M0_IN(s->s_sm.sm_state,
 						(S_CONNECTING, S_OPEN)));
@@ -2593,8 +2595,6 @@ static int ep_balance(struct ep *ep)
 			/* Make sure that at least one socket is writable. */
 			if (!(s->s_flags & WRITE_POLL))
 				result = sock_ctl(s, EPOLL_CTL_MOD, EPOLLOUT);
-			else
-				result = 0;
 		}
 	}
 	return result;
@@ -4293,7 +4293,7 @@ struct sock_ut_conf {
 	int uc_epoll_raise_garbage;
 	int uc_epoll_break;
 	int uc_epoll_ctl_err;
-	uint64_t uc_delay_ns;
+	int uc_delay_ns;
 };
 
 enum { M_EPHEMERAL_LO = 32768, M_EPHEMERAL_HI = 60999 };
@@ -4338,7 +4338,8 @@ struct mock_fd {
 	int       md_tail;
 };
 
-static void ut_init(const struct sock_ops *sop, struct sock_ut_conf *conf)
+static void ut_init(const struct sock_ops *sop, struct sock_ut_conf *conf,
+		    int seed)
 {
 	int result;
 
@@ -4349,7 +4350,8 @@ static void ut_init(const struct sock_ops *sop, struct sock_ut_conf *conf)
 	M0_ALLOC_ARR(m_table, m_conf->uc_maxfd);
 	M0_ASSERT(m_table != 0);
 	m_ephemeral = M_EPHEMERAL_LO;
-	m_seed = time(NULL) + m0_pid();
+	m_seed = time(NULL) + m0_pid() + seed;
+	m_gen = 0;
 	sops = sop;
 	m0_fi_enable("sock_ut", "ut");
 	result = m0_net_domain_init(&m_dom, MOCK_LNET ?
@@ -4359,7 +4361,7 @@ static void ut_init(const struct sock_ops *sop, struct sock_ut_conf *conf)
 
 static void ut_fini(void)
 {
-	m0_net_domain_fini(&m_dom);
+	M0_SET0(&m_dom); /* Cannot finalise: transport can be broken. */
 	m0_fi_disable("sock_ut", "ut");
 	sops = NULL;
 	m0_semaphore_fini(&m_tm_state);
@@ -4367,6 +4369,13 @@ static void ut_fini(void)
 	m0_mutex_fini(&m_ut_lock);
 	m0_free(m_table);
 	m_conf = NULL;
+}
+
+/* @@MOCK */
+
+static int mock_rnd(int max)
+{
+	return (m0_rnd64(&m_seed) >> 32) % max;
 }
 
 static bool mock_fd_invariant(const struct mock_fd *fd)
@@ -4379,16 +4388,20 @@ static bool mock_fd_invariant(const struct mock_fd *fd)
 
 static bool mock_dice(int value)
 {
-	return value > 0 && m0_rnd(10000, &m_seed) > value;
+	return value > 0 && mock_rnd(10000) > value;
 }
 
 #define MOCK_DICE(field) mock_dice(m_conf->uc_ ## field)
 
 static int mock_prologue(void)
 {
-	if (MOCK_DICE(delay))
-		m0_nanosleep(m_conf->uc_delay_ns, NULL);
 	m0_mutex_lock(&m_mock_lock);
+	if (MOCK_DICE(delay)) {
+		int delay = mock_rnd(m_conf->uc_delay_ns);
+		m0_mutex_unlock(&m_mock_lock);
+		m0_nanosleep(delay, NULL);
+		m0_mutex_lock(&m_mock_lock);
+	}
 	return MOCK_DICE(err);
 }
 
@@ -4404,7 +4417,7 @@ static int mock_ret(int rc)
 
 static int mock_err(void)
 {
-	return -m0_rnd(100, &m_seed) - 1;
+	return -mock_rnd(100) - 1;
 }
 
 static struct mock_fd *get_fd(int ftype)
@@ -4462,6 +4475,12 @@ static struct mock_fd *userfd(int fdnum)
 	fd  = &m_table[idx];
 	M0_ASSERT(mock_fd_invariant(fd) && fd->md_gen == gen);
 	return fd;
+}
+
+static bool is_closed(int fdnum, struct mock_fd *fd)
+{
+	return fd->md_flags & ((fdnum & TGT_MASK) ?
+			       MF_CLOSED_TGT : MF_CLOSED_SRC);
 }
 
 static int mock_ep(const struct sockaddr *addr)
@@ -4560,8 +4579,9 @@ static ssize_t mock_readv(int fdnum, const struct iovec *iov, int iovcnt)
 		return mock_ret(mock_err());
 	fd = userfd(fdnum);
 	M0_PRE(fd->md_type == MT_SOCK);
-	M0_PRE(fd->md_flags == MF_CONNECTED);
-	if (fd->md_head >= fd->md_tail || MOCK_DICE(readv_again))
+	M0_PRE((fd->md_flags & MF_CONNECTED) && !is_closed(fdnum, fd));
+	if (fd->md_head >= fd->md_tail || !(fdnum & TGT_MASK) ||
+	    MOCK_DICE(readv_again))
 		return mock_ret(-EWOULDBLOCK);
 	if (MOCK_DICE(readv_0))
 		return mock_ret(0);
@@ -4592,8 +4612,10 @@ static ssize_t mock_writev(int fdnum, const struct iovec *iov, int iovcnt)
 		return mock_ret(mock_err());
 	fd = userfd(fdnum);
 	M0_PRE(fd->md_type == MT_SOCK);
-	M0_PRE(fd->md_flags == MF_CONNECTED);
-	if (fd->md_tail - fd->md_head > fd->md_len || MOCK_DICE(writev_again))
+	M0_PRE(!(fdnum & TGT_MASK));
+	M0_PRE((fd->md_flags & MF_CONNECTED) && !is_closed(fdnum, fd));
+	if (fd->md_tail - fd->md_head > fd->md_len || (fdnum & TGT_MASK) ||
+	    MOCK_DICE(writev_again))
 		return mock_ret(-EWOULDBLOCK);
 	if (MOCK_DICE(writev_0))
 		return mock_ret(0);
@@ -4664,17 +4686,15 @@ static int mock_epoll_wait(int fdnum, struct epoll_event *events,
 		bool in  = ee->ee_event.events & EPOLLIN;
 		bool out = ee->ee_event.events & EPOLLOUT;
 		bool connected;
-		uint64_t closed;
 		uint32_t mask = 0;
 		bool tgt;
 		if (ee->ee_fd == 0)
 			continue;
 		tgt = ee->ee_fd & TGT_MASK;
-		closed = tgt ? MF_CLOSED_TGT : MF_CLOSED_SRC;
 		fd = userfd(ee->ee_fd);
 		M0_ASSERT(fd->md_type == MT_SOCK);
-		connected = (fd->md_flags & MF_CONNECTED) && !(fd->md_flags &
-							       closed);
+		connected = (fd->md_flags & MF_CONNECTED) &&
+			!is_closed(ee->ee_fd, fd);
 		if (MOCK_DICE(epoll_raise_err))
 			mask |= EPOLLERR;
 		if (MOCK_DICE(epoll_raise_in))
@@ -4799,7 +4819,7 @@ static struct m0_net_tm_callbacks m_tm_cb = {
 	.ntc_event_cb = &tm_event_cb
 };
 
-static void tm_init(struct m0_net_transfer_mc *tm, const char *addr)
+static int tm_init(struct m0_net_transfer_mc *tm, const char *addr)
 {
 	int result;
 
@@ -4807,24 +4827,29 @@ static void tm_init(struct m0_net_transfer_mc *tm, const char *addr)
 	tm->ntm_state = M0_NET_TM_UNDEFINED;
 	tm->ntm_callbacks = &m_tm_cb;
 	result = m0_net_tm_init(tm, &m_dom);
-	M0_ASSERT(result == 0);
+	if (result != 0)
+		return result;
 	result = m0_net_tm_start(tm, addr);
-	M0_ASSERT(result == 0);
+	if (result != 0)
+		return result;
 	while (tm->ntm_state == M0_NET_TM_STARTING)
 		m0_semaphore_down(&m_tm_state);
-	M0_ASSERT(tm->ntm_state == M0_NET_TM_STARTED);
+	return tm->ntm_state == M0_NET_TM_STARTED ? 0 : -EINVAL;
 }
 
-static void tm_fini(struct m0_net_transfer_mc *tm)
+static int tm_fini(struct m0_net_transfer_mc *tm)
 {
 	int result;
 
 	result = m0_net_tm_stop(tm, false);
-	M0_ASSERT(result == 0);
+	if (result != 0)
+		return result;
 	while (tm->ntm_state == M0_NET_TM_STOPPING)
 		m0_semaphore_down(&m_tm_state);
-	M0_ASSERT(tm->ntm_state == M0_NET_TM_STOPPED);
+	if (tm->ntm_state != M0_NET_TM_STOPPED)
+		return -EINVAL;
 	m0_net_tm_fini(tm);
+	return 0;
 }
 
 struct ub_op;
@@ -4873,8 +4898,8 @@ const struct m0_net_buffer_callbacks m_buf_cb = {
 	}
 };
 
-static void ut_buf_queue(struct ut_buf *buf, struct m0_net_transfer_mc *tm,
-			 int qtype, const char *addr, m0_time_t to, char *msg)
+static int ut_buf_queue(struct ut_buf *buf, struct m0_net_transfer_mc *tm,
+			int qtype, const char *addr, m0_time_t to, char *msg)
 {
 	int                   result;
 	struct m0_net_buffer *nb = &buf->ub_buf;
@@ -4884,7 +4909,8 @@ static void ut_buf_queue(struct ut_buf *buf, struct m0_net_transfer_mc *tm,
 	m0_semaphore_init(&buf->ub_sem, 0);
 	if (addr != NULL) {
 		result = m0_net_end_point_create(&buf->ub_ep, tm, addr);
-		M0_ASSERT(result == 0);
+		if (result != 0)
+			return result;
 	}
 	buf->ub_msg = msg;
 	buf->ub_len = strlen(msg) + 1;
@@ -4893,17 +4919,20 @@ static void ut_buf_queue(struct ut_buf *buf, struct m0_net_transfer_mc *tm,
 	nb->nb_offset    = 0;
 	nb->nb_qtype     = qtype;
 	nb->nb_callbacks = &m_buf_cb;
-	nb->nb_timeout   = to;
 	nb->nb_ep        = buf->ub_ep;
 	nb->nb_min_receive_size = 1;
 	nb->nb_max_receive_msgs = 1;
 	nb->nb_app_private      = buf;
 	result = m0_net_buffer_register(nb, &m_dom);
-	M0_ASSERT(result == 0);
+	if (result != 0)
+		return result;
+	nb->nb_timeout = to;
 	result = m0_net_buffer_add(nb, tm);
-	M0_ASSERT(result == 0);
+	if (result != 0)
+		return result;
 	buf->ub_busy = true;
 	m0_mutex_unlock(&m_ut_lock);
+	return 0;
 }
 
 static void ut_buf_wait(struct ut_buf *ub)
@@ -4918,47 +4947,152 @@ static void ut_buf_wait(struct ut_buf *ub)
 	m0_mutex_unlock(&m_ut_lock);
 }
 
-static void smoke_with(const struct sock_ops *sop, struct sock_ut_conf *conf)
+static int smoke_do(bool canfail)
 {
 	struct m0_net_transfer_mc tm0;
 	struct m0_net_transfer_mc tm1;
 	struct ut_buf             ub0;
 	struct ut_buf             ub1;
 	char                      msg[] = "What hath GOD wrought?";
-	char                      rep[] = "−− −−− .−. ... . −.−. −−− −.. .";
+	char                      rep[] = "-- --- .-. ... . -.-. --- -.. .";
 	char                     *addr0 = "inet:stream:127.0.0.1@3001";
 	char                     *addr1 = "inet:stream:127.0.0.1@3002";
+	m0_time_t                 to;
+	int                       result;
 
-	ut_init(sop, conf);
-	tm_init(&tm0, addr0);
-	tm_init(&tm1, addr1);
-	ut_buf_queue(&ub1, &tm1, M0_NET_QT_MSG_RECV, NULL,  M0_TIME_NEVER, rep);
-	ut_buf_queue(&ub0, &tm0, M0_NET_QT_MSG_SEND, addr1, M0_TIME_NEVER, msg);
+	to = canfail ? m0_time_from_now(1, 0) : M0_TIME_NEVER;
+	result = tm_init(&tm0, addr0);
+	if (result != 0)
+		return result;
+	result = tm_init(&tm1, addr1);
+	if (result != 0)
+		return result;
+	result = ut_buf_queue(&ub1, &tm1, M0_NET_QT_MSG_RECV, NULL,  to, rep);
+	if (result != 0)
+		return result;
+	result = ut_buf_queue(&ub0, &tm0, M0_NET_QT_MSG_SEND, addr1, to, msg);
+	if (result != 0)
+		return result;
 	ut_buf_wait(&ub1);
 	ut_buf_wait(&ub0);
-	M0_ASSERT(memcmp(msg, rep, ARRAY_SIZE(msg)) == 0);
-	tm_fini(&tm1);
-	tm_fini(&tm0);
+	M0_ASSERT(ergo(!canfail, memcmp(msg, rep, ARRAY_SIZE(msg)) == 0));
+	result = tm_fini(&tm1);
+	if (result != 0)
+		return result;
+	result = tm_fini(&tm0);
+	return result;
+}
+
+static void smoke_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
+		       int seed, bool canfail)
+{
+	int result;
+
+	ut_init(sop, conf, seed);
+	result = smoke_do(canfail);
+	M0_ASSERT(ergo(!canfail, result == 0));
 	ut_fini();
 }
 
 static void std_smoke(void)
 {
-	smoke_with(&std_ops, &conf_0);
+	smoke_with(&std_ops, &conf_0, 0, false);
 }
 
 static void mock_smoke(void)
 {
-	smoke_with(&mock_ops, &conf_0);
+	smoke_with(&mock_ops, &conf_0, 0, false);
 }
+
+static struct sock_ut_conf conf_delay = {
+	.uc_maxfd       = 1000,
+	.uc_sockbuf_len = 1000,
+	.uc_epoll_len   = 1000,
+	.uc_delay       = 8000,
+	.uc_delay_ns    = M0_TIME_ONE_SECOND / 10
+};
+
+static void delay_smoke(void)
+{
+	int i;
+	for (i = 0; i < 10; ++i)
+		smoke_with(&mock_ops, &conf_delay, i, false);
+}
+
+static struct sock_ut_conf conf_stutter = {
+	.uc_maxfd        = 1000,
+	.uc_sockbuf_len  = 1000,
+	.uc_epoll_len    = 1000,
+	.uc_accept4_miss = 8000,
+	.uc_readv_again  = 8000,
+	.uc_readv_0      = 8000,
+	.uc_readv_break  = 8000,
+	.uc_writev_again = 8000,
+	.uc_writev_0     = 8000,
+	.uc_writev_break = 8000,
+	.uc_epoll_break  = 8000
+};
+
+static void stutter_smoke(void)
+{
+	int i;
+	for (i = 0; i < 10; ++i)
+		smoke_with(&mock_ops, &conf_stutter, i, false);
+}
+
+static struct sock_ut_conf conf_spam = {
+	.uc_maxfd            = 1000,
+	.uc_sockbuf_len      = 1000,
+	.uc_epoll_len        = 1000,
+	.uc_err              = 5000,
+	.uc_socket_err       = 5000,
+	.uc_accept4_err      = 5000,
+	.uc_listen_err       = 5000,
+	.uc_bind_err         = 5000,
+	.uc_connect_err      = 5000,
+	.uc_readv_err        = 5000,
+	.uc_writev_err       = 5000,
+	.uc_setsockopt_err   = 5000,
+	.uc_close_err        = 5000,
+	.uc_epoll_create_err = 5000,
+	.uc_epoll_wait_err   = 5000,
+	.uc_epoll_ctl_err    = 5000,
+};
+
+static void spam_smoke(void)
+{
+	int i;
+	for (i = 0; i < 10; ++i)
+		smoke_with(&mock_ops, &conf_spam, i, true);
+}
+
+static struct sock_ut_conf conf_adhd = {
+	.uc_maxfd            = 1000,
+	.uc_sockbuf_len      = 1000,
+	.uc_epoll_len        = 1000,
+	.uc_readv_skip       = 5000,
+	.uc_readv_flip       = 1000
+};
+
+static void adhd_smoke(void)
+{
+	int i;
+	for (i = 0; i < 10; ++i)
+		smoke_with(&mock_ops, &conf_adhd, i, true);
+}
+
 
 struct m0_ut_suite net_sock_ut = {
 	.ts_name = "sock-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "std-smoke",  &std_smoke,  "Nikita" },
-		{ "mock-smoke", &mock_smoke, "Nikita" },
+		{ "std-smoke",     &std_smoke,     "Nikita" },
+		{ "mock-smoke",    &mock_smoke,    "Nikita" },
+		{ "delay-smoke",   &delay_smoke,   "Nikita" },
+		{ "stutter-smoke", &stutter_smoke, "Nikita" },
+		{ "spam-smoke",    &spam_smoke,    "Nikita" },
+		{ "adhd-smoke",    &adhd_smoke,    "Nikita" },
 		{ NULL, NULL }
 	}
 };
