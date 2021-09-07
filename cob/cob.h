@@ -33,7 +33,7 @@
 #include "lib/bitstring_xc.h"
 #include "fid/fid.h"
 #include "mdservice/md_fid.h"
-#include "be/btree.h"
+#include "btree/btree.h"
 #include "be/btree_xc.h"
 
 /* import */
@@ -267,11 +267,22 @@ struct m0_cob_domain {
 	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
 	 * before the m0_format_footer, where only persistent fields allowed
 	 */
-	struct m0_be_btree      cd_object_index;
-	struct m0_be_btree      cd_namespace;
-	struct m0_be_btree      cd_fileattr_basic;
-	struct m0_be_btree      cd_fileattr_omg;
-	struct m0_be_btree      cd_fileattr_ea;
+	struct m0_btree *cd_object_index;
+	struct m0_btree *cd_namespace;
+	struct m0_btree *cd_fileattr_basic;
+	struct m0_btree *cd_fileattr_omg;
+	struct m0_btree *cd_fileattr_ea;
+	uint8_t          cd_oi_node[1024] __attribute__((aligned(1024)));
+	uint8_t          cd_ns_node[1024] __attribute__((aligned(1024)));
+	uint8_t          cd_fa_basic_node[1024] __attribute__((aligned(1024)));
+	uint8_t          cd_fa_omg_node[1024] __attribute__((aligned(1024)));
+	uint8_t          cd_fa_ea_node[1024] __attribute__((aligned(1024)));
+#if 0
+	uint8_t  cd_object_index[1024] __attribute__ ((aligned(1024)));
+	uint8_t  cd_namespace[1024]__attribute__ ((aligned(1024)));
+	uint8_t  cd_fileattr_basic[1024]__attribute__ ((aligned(1024)));
+	uint8_t  cd_fileattr_ea[1024]__attribute__ ((aligned(1024)));
+#endif
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_cob_domain_format_version {
@@ -600,7 +611,7 @@ struct m0_rdpg {
  */
 struct m0_cob_iterator {
 	struct m0_cob            *ci_cob;      /**< the cob we iterate */
-	struct m0_be_btree_cursor ci_cursor;   /**< cob iterator cursor */
+	struct m0_btree_cursor    ci_cursor;   /**< cob iterator cursor */
 	struct m0_cob_nskey      *ci_key;      /**< current iterator pos */
 };
 
@@ -609,7 +620,7 @@ struct m0_cob_iterator {
  */
 struct m0_cob_ea_iterator {
 	struct m0_cob            *ci_cob;      /**< the cob we iterate */
-	struct m0_be_btree_cursor ci_cursor;   /**< cob iterator cursor */
+	struct m0_btree_cursor    ci_cursor;   /**< cob iterator cursor */
 	struct m0_cob_eakey      *ci_key;      /**< current iterator pos */
 	struct m0_cob_earec      *ci_rec;      /**< current iterator rec */
 };

@@ -64,7 +64,7 @@ static void ut_tx_open(struct m0_be_tx *tx, struct m0_be_tx_credit *credit)
 static int _locate(int c, int k)
 {
 	struct m0_fid       fid;
-	struct m0_cob_oikey oikey;
+	struct m0_cob_oikey oikey = {};
 	int                 rc;
 
 	m0_fid_set(&fid, c, k);
@@ -131,7 +131,7 @@ static void test_init(void)
 
 static void test_fini(void)
 {
-	int rc;
+	int                     rc;
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 	rc = m0_cob_domain_destroy(dom, grp, &ut_be.but_dom);
@@ -144,9 +144,9 @@ static void test_create(void)
 {
 	struct m0_be_tx_credit	accum = {};
 	struct m0_cob_nskey    *key;
-	struct m0_cob_nsrec	nsrec;
+	struct m0_cob_nsrec	nsrec = {};
 	struct m0_cob_fabrec  *fabrec;
-	struct m0_cob_omgrec	omgrec;
+	struct m0_cob_omgrec	omgrec = {};
 	struct m0_fid		pfid;
 	struct m0_be_tx		tx_;
 	struct m0_be_tx	       *tx = &tx_;
