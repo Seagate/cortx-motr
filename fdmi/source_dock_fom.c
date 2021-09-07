@@ -620,7 +620,7 @@ static int sd_fom_process_matched_filters(struct m0_fdmi_src_dock *sd_ctx,
 		rc = sd_fom_send_record(&sd_ctx->fsdc_sd_fom, fop, endpoint);
 		if (rc == 0) {
 			/*
-			 * Adding a ref. It will be dropped when 
+			 * Adding a ref. It will be dropped when
 			 * "FDMI record release" is received.
 			 */
 			m0_fdmi__fs_get(src_rec);

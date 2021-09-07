@@ -181,7 +181,7 @@ servers_stop()
 		echo -n "----- $pid stopping--------"
 		if checkpid $pid 2>&1; then
 			# TERM first, then KILL if not dead
-			kill -KILL $pid &>/dev/null
+			kill -TERM $pid &>/dev/null
 			proc=$(ps -o ppid= $pid)
 			if [[ $proc -eq $$ ]]; then
 				## $pid is spawned by current shell
