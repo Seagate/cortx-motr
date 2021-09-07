@@ -610,7 +610,7 @@ static int sd_fom_process_matched_filters(struct m0_fdmi_src_dock *sd_ctx,
 		rc = payload_encode(src_rec, fop);
 		M0_ASSERT(rc == 0);
 
-		/* Adding a ref.It will be dropped when reply is received. */
+		/* Adding a ref. It will be dropped when reply is received. */
 		m0_fdmi__fs_get(src_rec);
 		m0_ref_get(&src_rec->fsr_ref);
 		M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
