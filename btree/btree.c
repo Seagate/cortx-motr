@@ -3108,6 +3108,130 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * to Value close to the corresponding Key as it is done in the leaf node.
  *
  */
+/**
+ * CRC Support:
+ *
+ * A btree node consists of node header, keys, values and dictionary(in case
+ * of variable key/value size format). Due to bugs in the code, storage bitrot,
+ * memory bitrot etc., the btree node can get corrupted. CRC will be used to
+ * detect such corruption in the btree node.
+ *
+ * Common Assumptions:
+ *	a. For internal nodes, Motr will calculate CRCs of only Keys.
+ *	b. For internal nodes, Motr will not calculate CRCs of values instead
+ *	some sanity checks will be used to verify the values.
+ *	c. CRC is updated when a record us added or deleted.
+ *	d. While traversing down the tree for the first time  for any operation
+ *	(get/delete/put), CRC will not be checked.
+ *	e. For get and delete operation if tree traversal reaches leaf node and
+ *	do not find the record then tree traversal will be re-initiated with CRC
+ *	check on.
+ *	f. For insert operation, any corruption in node can result in tree
+ *	traversal pointing to wrong memory location. Since CRC is not verified
+ *	during tree traversal, we cannot determine if there was any corruption
+ *	and the memory location(at the end of tree traversal) is wrong. We have
+ *	two options to handle this issue:
+ *		i. We do not worry about this issue and add the new record at
+ *		whatever location we have found and continue. This is because
+ *		the path is corrupted anyways and there is no way to recover the
+ *		bad path and reach the correct location.
+ *		ii.We worry about this issue if we have a way to fix the tree
+ *		while online by having a redundant tree which can be used to fix
+ *		this broken tree. In which case we want to make sure that the
+ *		new record is not added now but only after the current tree is
+ *		fixed.
+ *
+ * There are two proposal for supporting CRCs in the node:
+ *
+ * 1. User Provided CRC: The btree user will provide checksum as part of value.
+ * The checksum can cover either the value or key+value of the record. The
+ * algorithm used for calculating the checksum is known only to the btree user.
+ * Motr is agnostic of the checksum details provided by the user. Motr will
+ * calculate the CRC of only keys and can store it in either of the following
+ * two ways:
+ *	a. Motr will checksum all the keys and store checksum in the node header.
+ *		i. The checksum is verified when node is loaded from the disk.
+ *		ii. The checksum is updated when record is added/deleted.
+ *		iii. The checksum is not updated when record is updated since
+ *		the keys do not change in update operation.
+ *
+ *		Pros: Checksum will require less space.
+ *		Cons: On record addition/deletion, whole node needs to be
+ *		traversed for calculating CRC of the keys.
+ *
+ * +------+----+----+----+----+-------------------------------+----+----+----+
+ * |      |CRC |    |    |    |                               |    |    |    |
+ * |      +----+    |    |    |                               |    |    |    |
+ * |Node Header| K0 | K1 | K2 |  ----->                <----- | V2 | V1 | V0 |
+ * |           |    |    |    |                               |    |    |    |
+ * |           |    |    |    |                               |    |    |    |
+ * +-----------+----+----+----+-------------------------------+----+----+----+
+ *
+ *	b. Motr will calculate individual checksum for each key and save it next
+ *	to the key in the node.
+ *		i.Checksum of all the keys are verified when node is loaded from
+ *		the disk.
+ *		ii.Only the checksum of the newly added key is calculated and
+ *		stored after the key.
+ *		iii. The checksum is deleted along with the respective deleted
+ *		key.
+ *		iv. The checksum is not updated when record is updated since
+ *		the keys do not change in update operation.
+ *
+ *		Pros: On record addition/deletion no need to recalculate CRCs.
+ *		Cons: Checksums will require more space.
+ *
+ * +-----------+----+----+----+----+---------------------------+----+----+----+
+ * |           |    |    |    |    |                           |    |    |    |
+ * |           |    |    |    |    |                           |    |    |    |
+ * |Node Header| K0 |CRC0| K1 |CRC1|  ----->            <----- | V2 | V1 | V0 |
+ * |           |    |    |    |    |                           |    |    |    |
+ * |           |    |    |    |    |                           |    |    |    |
+ * +-----------+----+----+----+----+---------------------------+----+----+----+
+ *
+ * 2. User does not provide checksum in the record. It is the responsibility of
+ * Motr to calculate and verify CRC. Motr can store CRC in either of the
+ * following two ways:
+ *	a. Motr will checksum all the keys and values and store in the node
+ *	header.
+ *		i. The checksum is verified when node is loaded from the disk.
+ *		ii. The checksum is updated when record is added/deleted/updated.
+ *
+ *		Pros: Checksum will require less space.
+ *		Cons: On record addition/deletion, whole node needs to be
+ *		traversed for calculating CRC of the keys.
+ *
+ * +------+----+----+----+----+-------------------------------+----+----+----+
+ * |      |CRC |    |    |    |                               |    |    |    |
+ * |      +----+    |    |    |                               |    |    |    |
+ * |Node Header| K0 | K1 | K2 |  ----->                <----- | V2 | V1 | V0 |
+ * |           |    |    |    |                               |    |    |    |
+ * |           |    |    |    |                               |    |    |    |
+ * +-----------+----+----+----+-------------------------------+----+----+----+
+ *
+ *	b. Mote will calculate individual checksum for each key and save it next
+ *	to the key in the node.
+ *		i.Checksum of all the keys are verified when node is loaded from
+ *		the disk.
+ *		ii.Only the checksum of the newly added key is calculated and
+ *		stored after the key.
+ *		iii. The checksum is deleted along with the respective deleted
+ *		key.
+ *		iv. The checksum is not updated when record is updated since
+ *		the keys do not change in update operation.
+ *
+ *		Pros: On record addition/deletion no need to recalculate CRCs.
+ *		Cons: Checksums will require more space.
+ *
+ * +-----------+----+----+----+----+---------------------------+----+----+----+
+ * |           |    |    |    |    |                           |    |    |    |
+ * |           |    |    |    |    |                           |    |    |    |
+ * |Node Header| K0 |CRC0| K1 |CRC1|  ----->            <----- | V2 | V1 | V0 |
+ * |           |    |    |    |    |                           |    |    |    |
+ * |           |    |    |    |    |                           |    |    |    |
+ * +-----------+----+----+----+----+---------------------------+----+----+----+
+ *
+ */
 struct fkvv_head {
 	struct m0_format_header  fkvv_fmt;    /*< Node Header */
 	struct node_header       fkvv_seg;    /*< Node type information */
