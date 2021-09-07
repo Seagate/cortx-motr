@@ -132,6 +132,7 @@ enum m0_operations {
 	CR_DELETE,
 	CR_POPULATE,
 	CR_CLEANUP,
+	CR_READ_ONLY,
 	CR_OPS_NR
 };
 
