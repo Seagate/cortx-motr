@@ -484,6 +484,7 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 	M0_PRE(dom->cd_id.id != 0);
 
 	M0_ALLOC_PTR(dom->cd_object_index);
+	M0_ASSERT(dom->cd_object_index);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(dom->cd_oi_node,
 						    sizeof dom->cd_oi_node,
@@ -492,6 +493,7 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 	M0_ASSERT(rc == 0);
 
 	M0_ALLOC_PTR(dom->cd_namespace);
+	M0_ASSERT(dom->cd_namespace);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(&dom->cd_ns_node,
 						    sizeof dom->cd_ns_node,
@@ -500,6 +502,7 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 	M0_ASSERT(rc == 0);
 
 	M0_ALLOC_PTR(dom->cd_fileattr_basic);
+	M0_ASSERT(dom->cd_fileattr_basic);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(&dom->cd_fa_basic_node,
 						    sizeof dom->cd_fa_basic_node,
@@ -508,6 +511,7 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 	M0_ASSERT(rc == 0);
 
 	M0_ALLOC_PTR(dom->cd_fileattr_omg);
+	M0_ASSERT(dom->cd_fileattr_omg);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(&dom->cd_fa_omg_node,
 						    sizeof dom->cd_fa_omg_node,
@@ -516,6 +520,7 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 	M0_ASSERT(rc == 0);
 
 	M0_ALLOC_PTR(dom->cd_fileattr_ea);
+	M0_ASSERT(dom->cd_fileattr_ea);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(&dom->cd_fa_ea_node,
 						    sizeof dom->cd_fa_ea_node,
@@ -592,6 +597,10 @@ M0_INTERNAL int m0_cob_domain_credit_add(struct m0_cob_domain          *dom,
 	m0_be_0type_add_credit(bedom, &m0_be_cob0, cdid_str, &data, cred);
 	M0_BE_ALLOC_CREDIT_PTR(dom, seg, cred);
 
+	m0_be_tx_credit_add(cred, &(M0_BE_TX_CREDIT(1, sizeof dom->cd_header)));
+	m0_be_tx_credit_add(cred, &(M0_BE_TX_CREDIT(1, sizeof dom->cd_id)));
+	m0_be_tx_credit_add(cred, &(M0_BE_TX_CREDIT(1, sizeof dom->cd_footer)));
+
 	bt = (struct m0_btree_type){.tt_id = M0_BT_COB_OBJECT_INDEX,
 				    .ksize = sizeof(struct m0_cob_oikey),
 				    .vsize = m0_cob_max_nskey_size(),
@@ -657,11 +666,13 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 		.ot_type    = M0_FORMAT_TYPE_COB_DOMAIN,
 		.ot_footer_offset = offsetof(struct m0_cob_domain, cd_footer)
 	});
+	M0_BE_TX_CAPTURE_PTR(seg, tx, &dom->cd_header);
 
 	dom->cd_id = *cdid;
+	M0_BE_TX_CAPTURE_PTR(seg, tx, &dom->cd_id);
 
 	m0_format_footer_update(dom);
-	M0_BE_TX_CAPTURE_PTR(seg, tx, dom);
+	M0_BE_TX_CAPTURE_PTR(seg, tx, &dom->cd_footer);
 
 	bt = (struct m0_btree_type){.tt_id = M0_BT_COB_OBJECT_INDEX,
 		.ksize = sizeof(struct m0_cob_oikey),
@@ -820,8 +831,8 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 	m0_buf_init(&key, &omgkey, sizeof omgkey);
 	cob_table_delete(dom->cd_fileattr_omg, tx, &key);
 
-	rc = m0_cob_nskey_make(&nskey, &M0_COB_ROOT_FID, M0_COB_ROOT_NAME,
-			       strlen(M0_COB_ROOT_NAME));
+	m0_cob_nskey_make(&nskey, &M0_COB_ROOT_FID, M0_COB_ROOT_NAME,
+			  strlen(M0_COB_ROOT_NAME));
 	rc = m0_cob_lookup(dom, nskey, M0_CA_NSKEY_FREE, &cob);
 	m0_cob_delete(cob, tx);
 
@@ -840,7 +851,7 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 	M0_SET0(tx);
 	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, &cred);
-	m0_be_tx_exclusive_open_sync(tx);
+	rc = m0_be_tx_exclusive_open_sync(tx);
 	if (rc != 0)
 		goto tx_fini_return;
 
@@ -958,12 +969,12 @@ static int cob_table_insert(struct m0_btree *tree, struct m0_be_tx *tx,
 			   .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			   .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 			};
-	struct m0_btree_cb   ut_put_cb = {.c_act = btree_insert_callback,
+	struct m0_btree_cb   insert_cb = {.c_act = btree_insert_callback,
 					  .c_datum = &rec,
 					 };
 
 	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					m0_btree_put(tree, &rec, &ut_put_cb,
+					m0_btree_put(tree, &rec, &insert_cb,
 						     &kv_op, tx));
 }
 
@@ -990,13 +1001,13 @@ static int cob_table_lookup(struct m0_btree *tree, struct m0_buf *key,
 			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 			};
-	struct m0_btree_cb   ut_get_cb = {.c_act = btree_lookup_callback,
+	struct m0_btree_cb   lookup_cb = {.c_act = btree_lookup_callback,
 					  .c_datum = &rec,
 					 };
 
 	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					m0_btree_get(tree, &rec.r_key,
-						     &ut_get_cb,
+						     &lookup_cb,
 						     BOF_EQUAL, &kv_op));
 }
 
@@ -1671,8 +1682,10 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 	struct m0_cob_omgkey  omgkey = {};
 	struct m0_cob_fabkey  fabkey = {};
 	int                   rc;
-	uint64_t              old_omgid    = nsrec->cnr_omgid;
-	uint32_t              old_cnr_cntr = nsrec->cnr_cntr;
+	uint64_t              old_omgid    = (nsrec != NULL) ? nsrec->cnr_omgid
+							     : 0;
+	uint32_t              old_cnr_cntr = (nsrec != NULL) ? nsrec->cnr_cntr
+							     : 0;
 
 
 	M0_PRE(cob != NULL);
@@ -2056,7 +2069,7 @@ M0_INTERNAL void m0_cob_nsrec_init(struct m0_cob_nsrec *nsrec)
 M0_INTERNAL int m0_cob_setattr(struct m0_cob *cob, struct m0_cob_attr *attr,
 			       struct m0_be_tx *tx)
 {
-	struct m0_cob_nsrec   nsrec_prev = {};
+	struct m0_cob_nsrec   nsrec_prev;
 	struct m0_cob_nsrec  *nsrec = NULL;
 	struct m0_cob_fabrec *fabrec = NULL;
 	struct m0_cob_omgrec *omgrec = NULL;
