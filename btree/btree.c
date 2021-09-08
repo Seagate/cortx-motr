@@ -5800,7 +5800,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	struct slot            tgt;
 	struct slot            node_slot;
 	int                    i;
-	int                    vsize_diff;
+	int                    vsize_diff = 0;
 	int                    rc;
 
 	/**
