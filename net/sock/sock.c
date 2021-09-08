@@ -5164,7 +5164,7 @@ static void g_event_cb(const struct m0_net_buffer_event *ev)
 {
 	struct g_buf *me = ev->nbe_buffer->nb_app_private;
 	struct g_buf *it;
-	struct g_op  *op  = buf->gb_op;
+	struct g_op  *op  = me->gb_op;
 	int           self;
 
 	m0_mutex_lock(&m_ut_lock);
