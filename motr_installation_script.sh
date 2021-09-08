@@ -32,3 +32,4 @@ modprobe lnet
 lctl list_nids
 
 scripts/m0 make
+
