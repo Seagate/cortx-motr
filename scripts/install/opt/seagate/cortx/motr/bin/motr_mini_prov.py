@@ -129,6 +129,32 @@ def get_server_node(self):
     check_type(server_node, dict, "server_node")
     return server_node
 
+def get_cluster(self):
+    """Get cluster."""
+    try:
+        cluster = Conf.get(self._index, 'cluster')
+    except:
+        raise MotrError(errno.EINVAL, "cluster does not exist in ConfStore")
+
+    check_type(cluster, dict, "cluster")
+    return cluster
+
+def get_logical_node_class(self):
+    """Get logical_node_class."""
+    try:
+        logical_node_class = self.cluster['logical_node_class']
+    except:
+        raise MotrError(errno.EINVAL, f"logical_node_class does not exist in ConfStore")
+    check_type(logical_node_class, list, "logical_node_class")
+    return logical_node_class
+
+def get_storage(self):
+    for elem in self.logical_node_class:
+        if 'storage' in elem.keys():
+            if elem['storage']:
+                return elem['storage']
+    raise MotrError(errno.EINVAL, f"storage does not exist in ConfStore")
+
 def restart_services(self, services):
     for service in services:
         self.logger.info(f"Restarting {service} service\n")
@@ -449,6 +475,16 @@ def get_cvg_cnt_and_cvg(self):
     # Check if cvg is non empty
     if not cvg:
         raise MotrError(errno.EINVAL, "cvg is empty\n")
+    return cvg_cnt, cvg
+
+def get_cvg_cnt_and_cvg_k8(self):
+    try:
+        cvg = self.storage
+        cvg_cnt = len(cvg)
+    except:
+        raise MotrError(errno.EINVAL, "cvg not found\n")
+    # Check if cvg type is list
+    check_type(cvg, list, "cvg")
     return cvg_cnt, cvg
 
 def update_bgsize(self):
@@ -954,7 +990,10 @@ def remove_dm_entries(self):
                 execute_command(self, f"dmsetup remove {lv_path}")
 
 def config_part(self):
-    cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
+    if self.k8:
+        cvg_cnt, cvg = get_cvg_cnt_and_cvg_k8(self)
+    else:
+        cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
     dev_count = 1
     config_dict = read_config(MOTR_SYS_CFG)
     for i in range(int(cvg_cnt)):

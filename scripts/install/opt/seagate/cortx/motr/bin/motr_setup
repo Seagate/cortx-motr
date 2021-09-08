@@ -47,7 +47,12 @@ class Cmd:
         self._debug = args.debug
         self.logger = config_logger(self)
         self.k8 = args.k8
-        self.server_node = get_server_node(self)
+        if not self.k8:
+            self.server_node = get_server_node(self)
+        else:
+            self.cluster = get_cluster(self)
+            self.logical_node_class = get_logical_node_class(self)
+            self.storage = get_storage(self)
     @property
     def args(self) -> str:
         return self._args

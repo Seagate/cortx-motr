@@ -1,0 +1,62 @@
+cluster:
+  name: cortx-cluster
+  logical_node_class:
+    - name: storage_node
+      components:
+        - name: motr             # (motr_setup --services=io)
+          services: 
+            - io
+        - name: hare             # (hare_setup --services=all)
+        - name: s3
+          services:              # (s3_setup --services=io,auth,bg_consumer)
+            - io
+            - auth
+            - bg_consumer
+        - name: utils
+          services:              # (utils_setup --services=message_bus)
+            - message_bus
+      storage:
+        - name: cvg-01
+          type: <type>
+          metadata_devices:
+            - /dev/sdd
+          data_devices:
+            - /dev/sdb
+            - /dev/sdc
+        - name: cvg-02
+          type: <type>
+          metadata_devices:
+            - /dev/sdg
+          data_devices:
+            - /dev/sde
+            - /dev/sdf
+    - name: control_node
+      components: 
+        - name: csm             # (csm_setup --services=agent)
+          services:
+            - agent
+        - name: motr            # (motr_setup --services=fsm)
+          services:
+            - fsm
+        - name: s3              # (s3_setup --services=bg_producer)
+          services:
+            - bg_producer
+  storage_sets:
+    - name: storage-set-1
+      durability:
+        sns: 8+7+0
+        dix: 1+7+0
+      logical_nodes:
+        - name: pod-1
+          id: <Pod1 Unique ID>  # Also Available in /etc/machine-id in the Pod
+          hostname: pod-1.colo.seagate.com
+          class: storage_node
+        - name: pod-2
+          id: <Pod1 Unique ID>
+          hostname: pod-2.colo.seagate.com
+          class: control_node
+        - name: pod-*          # TBD: Future Optimization
+          id: <Pod1 Unique ID>
+          hostname: pod-*.colo.seagate.com
+          class: storage_node
+          index: 0-14
