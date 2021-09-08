@@ -4489,16 +4489,20 @@ static int tgt_fdnum(const struct mock_fd *fd)
 	return TGT_MASK | src_fdnum(fd);
 }
 
-static struct mock_fd *userfd(int fdnum)
+static struct mock_fd *userfd0(int fdnum)
 {
 	int idx;
 	int gen;
-	struct mock_fd *fd;
 
 	fdnum &= ~TGT_MASK;
 	idx = (fdnum & 0x7fff) - 10;
 	gen = fdnum >> 15;
-	fd  = &m_table[idx];
+	return &m_table[idx];
+}
+
+static struct mock_fd *userfd(int fdnum)
+{
+	struct mock_fd *fd = userfd(fdnum);
 	M0_ASSERT(mock_fd_invariant(fd) && fd->md_gen == gen);
 	return fd;
 }
@@ -4663,7 +4667,9 @@ static int mock_close(int fdnum)
 	struct mock_fd *fd;
 	if (mock_prologue() || MOCK_DICE(close_err))
 		return mock_ret(mock_err());
-	fd = userfd(fdnum);
+	fd = userfd0(fdnum);
+	if (fd->md_gen != (fdnum & ~TGT_MASK) >> 15)
+		return;  /* The slot can be closed and re-used. */
 	if (fd->md_type == MT_SOCK) {
 		fd->md_flags |= (fdnum & TGT_MASK) ?
 			MF_CLOSED_TGT : MF_CLOSED_SRC;
@@ -4671,6 +4677,7 @@ static int mock_close(int fdnum)
 		    (MF_CLOSED_TGT | MF_CLOSED_SRC))
 			fd->md_type = MT_FREE;
 	} else {
+		fd->md_type = MT_FREE;
 	}
 	return mock_ret(0);
 }
