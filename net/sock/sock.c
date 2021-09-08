@@ -714,7 +714,12 @@ enum sock_flags {
 	/** Non blocking write is possible on the sock. */
 	HAS_WRITE  = M0_BITS(M_WRITE),
 	/** Non-blocking writes are monitored for this sock by epoll(2). */
-	WRITE_POLL = M0_BITS(M_NR + 1)
+	WRITE_POLL = M0_BITS(M_NR + 1),
+	/**
+	 * M0_NET_QT_MSG_SEND packet, received on this socket, requires receive
+	 * queue re-provisioning.
+	 */
+	MORE_BUFS  = M0_BITS(M_NR + 2)
 };
 
 /**
@@ -3562,8 +3567,11 @@ static int pk_header_done(struct mover *m)
 			 * to break out of the loop and to re-provision the
 			 * queue.
 			 */
-			if (pool != NULL &&
-			    m0_mutex_trylock(&pool->nbp_mutex) == 0) {
+			if (pool == NULL)
+				return M0_ERR(-ENOMEM); /* Drop the packet. */
+			if (m->m_sock->s_flags & MORE_BUFS)
+				return M0_ERR(-ENOMEM); /* Already tried. */
+			if (m0_mutex_trylock(&pool->nbp_mutex) == 0) {
 				m0_net__tm_provision_buf(tm);
 				/* Got the lock. Add 2 buffers. */
 				m0_net__tm_provision_buf(tm);
@@ -3571,8 +3579,10 @@ static int pk_header_done(struct mover *m)
 				buf = ma_recv_buf(ma, p->p_totalsize);
 			}
 		}
-		if (buf == NULL)
+		if (buf == NULL) {
+			m->m_sock->s_flags |= MORE_BUFS;
 			return -ENOBUFS; /* Not always a error. */
+		}
 	}
 	return buf_accept(buf, m) ?: R_INTERVAL;
 }
@@ -3640,6 +3650,7 @@ static int stream_idle(struct mover *self, struct sock *s)
  */
 static int stream_pk(struct mover *self, struct sock *s)
 {
+	s->s_flags &= ~MORE_BUFS;
 	self->m_nob = 0;
 	return R_HEADER;
 }
@@ -3724,6 +3735,7 @@ static int dgram_idle(struct mover *self, struct sock *s)
  */
 static int dgram_pk(struct mover *self, struct sock *s)
 {
+	s->s_flags &= ~MORE_BUFS;
 	if (self->m_scratch == NULL) {
 		self->m_scratch = m0_alloc(pk_size(self, s));
 		if (self->m_scratch == NULL)
