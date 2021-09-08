@@ -5379,7 +5379,7 @@ static void glaring_init(const struct sock_ops *sop, struct sock_ut_conf *conf,
 	ut_init(sop, conf);
 	g_tm_nr = tm_nr;
 	g_op_nr = op_nr;
-	g_to = M0_TIME_NEVER;
+	g_to = canfail ? M0_MKTIME(5, 0) : M0_TIME_NEVER;
 	g_par = 0;
 	g_canfail = canfail;
 	M0_ALLOC_ARR(g_tm, tm_nr);
@@ -5427,7 +5427,7 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 	for (step = 0; step < 3; ++step, scale *= 3) {
 		scuare = scale * scale;
 		c.uc_maxfd = max32(c.uc_maxfd, 10 * scuare);
-		c.uc_epoll_len = max32(c.uc_maxfd, 10 * scuare);
+		c.uc_epoll_len = max32(c.uc_epoll_len, 10 * scuare);
 		glaring_init(sop, &c, scale, scuare, canfail);
 		for (i = 0; i < 10 * scuare; ++i)
 			g_op_select();
