@@ -139,6 +139,21 @@ main() {
         echo "OK$(_time $t)" >&2
     done
 
+    # Create directory and put only latest files created into it.
+    TEMP_WORKSPACE="$LIVE_CORE_DIR/tmpspace/"
+    rm -rf "$TEMP_WORKSPACE"
+    ls -t "$LIVE_CORE_DIR" | head -1 | while read FileName
+    do
+        if [ "$FileName" ]
+        then
+            mkdir -p "$TEMP_WORKSPACE"
+            cp -r "$LIVE_CORE_DIR/$FileName" "$TEMP_WORKSPACE"
+        else
+            echo "No files found"
+        fi
+    done
+    LIVE_CORE_DIR="$TEMP_WORKSPACE"
+
     # Collects live/compressed core generated in /var/crash
     if [ -d $LIVE_CORE_DIR ]; then
         IN_DIR=${LIVE_CORE_DIR}
