@@ -5420,16 +5420,18 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 {
 	struct sock_ut_conf c = *conf;
 	int scale = 10;
+	int scuare;
 	int step;
 	int i;
 
 	for (step = 0; step < 3; ++step, scale *= 3) {
-		c.uc_maxfd = max32(c.uc_maxfd, 10*scale*scale);
-		c.uc_epoll_len = max32(c.uc_maxfd, 10*scale*scale);
-		glaring_init(sop, &c, scale, scale*scale, canfail);
-		for (i = 0; i < scale*scale*scale; ++i)
+		scuare = scale * scale;
+		c.uc_maxfd = max32(c.uc_maxfd, 10 * scuare);
+		c.uc_epoll_len = max32(c.uc_maxfd, 10 * scuare);
+		glaring_init(sop, &c, scale, scuare, canfail);
+		for (i = 0; i < 10 * scuare; ++i)
 			g_op_select();
-		for (i = 0; i < scale*scale; ++i)
+		for (i = 0; i < scuare; ++i)
 			m0_semaphore_down(&g_op_free);
 		glaring_fini();
 	}
