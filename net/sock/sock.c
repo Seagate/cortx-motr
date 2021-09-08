@@ -4503,7 +4503,8 @@ static struct mock_fd *userfd0(int fdnum)
 static struct mock_fd *userfd(int fdnum)
 {
 	struct mock_fd *fd = userfd(fdnum);
-	M0_ASSERT(mock_fd_invariant(fd) && fd->md_gen == gen);
+	M0_ASSERT(mock_fd_invariant(fd) &&
+		  fd->md_gen == (fdnum & ~TGT_MASK) >> 15);
 	return fd;
 }
 
@@ -4669,7 +4670,7 @@ static int mock_close(int fdnum)
 		return mock_ret(mock_err());
 	fd = userfd0(fdnum);
 	if (fd->md_gen != (fdnum & ~TGT_MASK) >> 15)
-		return;  /* The slot can be closed and re-used. */
+		return mock_ret(0);  /* The slot can be closed and re-used. */
 	if (fd->md_type == MT_SOCK) {
 		fd->md_flags |= (fdnum & TGT_MASK) ?
 			MF_CLOSED_TGT : MF_CLOSED_SRC;
