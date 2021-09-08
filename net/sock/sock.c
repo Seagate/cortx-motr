@@ -5079,7 +5079,9 @@ static void adhd_smoke(void)
 		smoke_with(&mock_ops, &conf_adhd, true);
 }
 
-static void smoked(void)
+static void iterate_perm(void (*f)(const struct sock_ops *sop,
+				   struct sock_ut_conf *conf, bool canfail),
+			 const struct sock_ops *sop)
 {
 	int i;
 	int j;
@@ -5105,8 +5107,13 @@ static void smoked(void)
 				cfail |= canfail[j];
 			}
 		}
-		smoke_with(&mock_ops, &comb, cfail);
+		(*f)(sop, &comb, cfail);
 	}
+}
+
+static void smoked(void)
+{
+	iterate_perm(&smoke_with, &mock_ops);
 }
 
 /*
@@ -5159,6 +5166,8 @@ static int           g_op_nr;
 static int           g_tm_nr;
 static m0_time_t     g_to;
 static struct m0_semaphore g_op_free;
+static int           g_par;
+static bool          g_canfail;
 
 static void g_event_cb(const struct m0_net_buffer_event *ev)
 {
@@ -5180,6 +5189,7 @@ static void g_event_cb(const struct m0_net_buffer_event *ev)
 		it->gb_op = NULL;
 		op->go_used = false;
 		m0_semaphore_up(&g_op_free);
+		g_par--;
 	}
 	me->gb_buf.nb_ep = NULL;
 	me->gb_queued = false;
@@ -5300,6 +5310,18 @@ static void g_op_fini(struct g_op *op)
 {
 }
 
+static struct g_buf *g_buf_get(void)
+{
+	int           i;
+	int           buf_nr = 2 * g_op_nr;
+	struct g_buf *buf;
+	for (i = mock_rnd(buf_nr); g_buf[i % buf_nr].gb_used; ++i)
+		;
+	buf = &g_buf[i % buf_nr];
+	buf->gb_used = true;
+	return buf;
+}
+
 static void g_op_select(void)
 {
 	struct g_tm  *tm0;
@@ -5308,7 +5330,6 @@ static void g_op_select(void)
 	struct g_buf *b[2];
 	int           i;
 	int           larger;
-	int           buf_nr = 2 * g_op_nr;
 	int           result;
 	struct m0_net_buffer *nb[2];
 
@@ -5321,16 +5342,8 @@ static void g_op_select(void)
 		;
 	M0_ASSERT(!op->go_used);
 	op->go_used = true;
-	for (i = mock_rnd(buf_nr); g_buf[i % buf_nr].gb_used; ++i)
-		;
-	b[0] = &g_buf[i % buf_nr];
-	M0_ASSERT(!b[0]->gb_used);
-	b[0]->gb_used = true;
-	for (i += mock_rnd(buf_nr - 1); g_buf[i % buf_nr].gb_used; ++i)
-		;
-	b[1] = &g_buf[i % buf_nr];
-	M0_ASSERT(!b[1]->gb_used);
-	b[1]->gb_used = true;
+	b[0] = g_buf_get();
+	b[1] = g_buf_get();
 	m0_mutex_unlock(&m_ut_lock);
 
 	larger = b[1]->gb_buf.nb_length >= b[0]->gb_buf.nb_length;
@@ -5355,17 +5368,20 @@ static void g_op_select(void)
 		M0_ASSERT(result == 0);
 	}
 	result = m0_net_buffer_add(nb[1], &tm1->gt_tm);
+	g_par++;
 	M0_ASSERT(result == 0);
 }
 
 static void glaring_init(const struct sock_ops *sop, struct sock_ut_conf *conf,
-			 int tm_nr, int op_nr)
+			 int tm_nr, int op_nr, bool canfail)
 {
 	int i;
 	ut_init(sop, conf);
 	g_tm_nr = tm_nr;
 	g_op_nr = op_nr;
 	g_to = M0_TIME_NEVER;
+	g_par = 0;
+	g_canfail = canfail;
 	M0_ALLOC_ARR(g_tm, tm_nr);
 	M0_ASSERT(g_tm != NULL);
 	for (i = 0; i < tm_nr; ++i)
@@ -5400,19 +5416,34 @@ static void glaring_fini()
 }
 
 static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
-			 int tm_nr, int op_nr, int nr)
+			 bool canfail)
 {
-	glaring_init(sop, conf, tm_nr, op_nr);
-	while (nr-- > 0)
-		g_op_select();
-	while (op_nr-- > 0)
-		m0_semaphore_down(&g_op_free);
-	glaring_fini();
+	struct sock_ut_conf c = *conf;
+	int scale = 10;
+	int step;
+	int i;
+
+	for (step = 0; step < 3; ++step, scale *= 3) {
+		c.uc_maxfd = max32(c.uc_maxfd, 10*scale*scale);
+		c.uc_epoll_len = max32(c.uc_maxfd, 10*scale*scale);
+		glaring_init(sop, &c, scale, scale*scale, canfail);
+		for (i = 0; i < scale*scale*scale; ++i)
+			g_op_select();
+		for (i = 0; i < scale*scale; ++i)
+			m0_semaphore_down(&g_op_free);
+		glaring_fini();
+	}
 }
 
 static void tabby(void)
 {
-	glaring_with(&std_ops, &conf_0, 100, 1000, 10000);
+	glaring_with(&std_ops, &conf_0, false);
+}
+
+/* Felis silvestrus. */
+static void wildcat(void)
+{
+	iterate_perm(glaring_with, &mock_ops);
 }
 
 struct m0_ut_suite net_sock_ut = {
@@ -5428,6 +5459,7 @@ struct m0_ut_suite net_sock_ut = {
 		{ "adhd-smoke",    &adhd_smoke,    "Nikita" },
 		{ "smoked",        &smoked,        "Nikita" },
 		{ "tabby",         &tabby,         "Nikita" },
+		{ "wildcat",       &wildcat,       "Nikita" },
 		{ NULL, NULL }
 	}
 };
