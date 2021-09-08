@@ -3117,15 +3117,15 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * detect such corruption in the btree node.
  *
  * Common Assumptions:
- *	a. For internal nodes, Motr will calculate CRCs of only Keys.
+ *	a. For internal nodes, Motr will calculate CRCs of only keys.
  *	b. For internal nodes, Motr will not calculate CRCs of values instead
  *	some sanity checks will be used to verify the values.
- *	c. CRC is updated when a record us added or deleted.
- *	d. While traversing down the tree for the first time  for any operation
+ *	c. CRC is updated when a record is added or deleted.
+ *	d. While traversing down the tree for the first time for any operation
  *	(get/delete/put), CRC will not be checked.
- *	e. For get and delete operation if tree traversal reaches leaf node and
- *	do not find the record then tree traversal will be re-initiated with CRC
- *	check on.
+ *	e. For get and delete operation, if tree traversal reaches leaf node and
+ *	does not find the record then tree traversal will be re-initiated with
+ *	CRC check on.
  *	f. For insert operation, any corruption in node can result in tree
  *	traversal pointing to wrong memory location. Since CRC is not verified
  *	during tree traversal, we cannot determine if there was any corruption
@@ -3135,7 +3135,7 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *		whatever location we have found and continue. This is because
  *		the path is corrupted anyways and there is no way to recover the
  *		bad path and reach the correct location.
- *		ii.We worry about this issue if we have a way to fix the tree
+ *		ii. We worry about this issue if we have a way to fix the tree
  *		while online by having a redundant tree which can be used to fix
  *		this broken tree. In which case we want to make sure that the
  *		new record is not added now but only after the current tree is
@@ -3169,9 +3169,9 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *
  *	b. Motr will calculate individual checksum for each key and save it next
  *	to the key in the node.
- *		i.Checksum of all the keys are verified when node is loaded from
- *		the disk.
- *		ii.Only the checksum of the newly added key is calculated and
+ *		i. Checksum of all the keys are verified when node is loaded
+ *		from the disk.
+ *		ii. Only the checksum of the newly added key is calculated and
  *		stored after the key.
  *		iii. The checksum is deleted along with the respective deleted
  *		key.
@@ -3209,11 +3209,11 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * |           |    |    |    |                               |    |    |    |
  * +-----------+----+----+----+-------------------------------+----+----+----+
  *
- *	b. Mote will calculate individual checksum for each key and save it next
+ *	b. Motr will calculate individual checksum for each key and save it next
  *	to the key in the node.
- *		i.Checksum of all the keys are verified when node is loaded from
- *		the disk.
- *		ii.Only the checksum of the newly added key is calculated and
+ *		i. Checksum of all the keys are verified when node is loaded
+ *		from the disk.
+ *		ii. Only the checksum of the newly added key is calculated and
  *		stored after the key.
  *		iii. The checksum is deleted along with the respective deleted
  *		key.
