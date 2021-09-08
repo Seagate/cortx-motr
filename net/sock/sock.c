@@ -5440,7 +5440,7 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 		scuare = scale * scale;
 		c.uc_maxfd = max32(c.uc_maxfd, 2 * scuare);
 		c.uc_epoll_len = max32(c.uc_epoll_len, 2 * scuare);
-		glaring_init(sop, &c, scale, scuare, canfail);
+		glaring_init(sop, &c, scale, scuare, canfail|true);
 		for (i = 0; i < 2 * scuare; ++i)
 			g_op_select();
 		for (i = 0; i < scuare; ++i)
