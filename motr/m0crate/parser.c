@@ -437,8 +437,8 @@ int copy_value(struct workload *load, int max_workload, int *index,
 				if (!strcmp(value, "unlimited"))
 					cw->cwi_execution_time = M0_TIME_NEVER;
 				else
-					cw->cwi_execution_time = parse_int(value,
-							           EXEC_TIME);
+					cw->cwi_execution_time = m0_time((uint64_t)parse_int(value, EXEC_TIME),
+									 (long)0);
 			}
 			break;
 		case KEY_PREFIX:
