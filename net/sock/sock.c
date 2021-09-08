@@ -4492,11 +4492,9 @@ static int tgt_fdnum(const struct mock_fd *fd)
 static struct mock_fd *userfd0(int fdnum)
 {
 	int idx;
-	int gen;
 
 	fdnum &= ~TGT_MASK;
 	idx = (fdnum & 0x7fff) - 10;
-	gen = fdnum >> 15;
 	return &m_table[idx];
 }
 
