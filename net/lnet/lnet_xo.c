@@ -675,11 +675,18 @@ static const struct m0_net_xprt_ops nlx_xo_xprt_ops = {
    @{
  */
 
+#if !defined(ENABLE_SOCK_MOCK_LNET) || defined(__KERNEL__)
 const struct m0_net_xprt m0_net_lnet_xprt = {
 	.nx_name = "lnet",
 	.nx_ops  = &nlx_xo_xprt_ops
 };
 M0_EXPORTED(m0_net_lnet_xprt);
+#else
+const struct m0_net_xprt m0_net_lnet_mocked_xprt = {
+	.nx_name = "lnet",
+	.nx_ops  = &nlx_xo_xprt_ops
+};
+#endif
 
 /**
    @}
