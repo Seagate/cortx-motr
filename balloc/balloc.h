@@ -29,7 +29,8 @@
 #include "lib/types.h"
 #include "lib/list.h"
 #include "lib/mutex.h"
-#include "be/btree.h"
+#include "btree/btree.h"
+// #include "btree/btree_xc.h"
 #include "be/btree_xc.h"
 #include "format/format.h"
 #include "stob/ad.h"
@@ -236,9 +237,13 @@ struct m0_balloc {
 	 * before the m0_format_footer, where only persistent fields allowed
 	 */
 	/** db for free extent */
-	struct m0_be_btree           cb_db_group_extents;
+	struct m0_btree             *cb_db_group_extents;
 	/** db for group desc */
-	struct m0_be_btree           cb_db_group_desc;
+	struct m0_btree             *cb_db_group_desc;
+
+	/** Root nodes for cb_db_group_extents and cb_db_group_desc btrees. */
+	uint8_t                 cb_ge_node[1024] __attribute__((aligned(1024)));
+	uint8_t                 cb_gd_node[1024] __attribute__((aligned(1024)));
 
 	/*
 	 * volatile-only fields
