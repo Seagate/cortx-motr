@@ -4882,16 +4882,6 @@ struct ut_buf {
 	struct m0_net_end_point *ub_ep;
 };
 
-enum {
-	B_SEND,
-	B_RECV,
-	B_NR
-};
-
-struct ut_op {
-	struct ut_buf  *uo_buf[B_NR];
-};
-
 static void buf_event_cb(const struct m0_net_buffer_event *ev)
 {
 	struct ut_buf *ub = ev->nbe_buffer->nb_app_private;
@@ -5119,6 +5109,312 @@ static void smoked(void)
 	}
 }
 
+/*
+ * @@GLARING
+ *
+ * "Glaring" is the proper collective noun for cats (teste Book of Saint
+ * Albans).
+ */
+
+enum {
+	O_MSG,
+	O_BLK_RECV,
+	O_BLK_SEND,
+
+	O_NR
+};
+
+static const int qtypes[O_NR][2] = {
+	{ M0_NET_QT_MSG_RECV,          M0_NET_QT_MSG_SEND },
+	{ M0_NET_QT_PASSIVE_BULK_RECV, M0_NET_QT_ACTIVE_BULK_SEND },
+	{ M0_NET_QT_PASSIVE_BULK_SEND, M0_NET_QT_ACTIVE_BULK_RECV }
+};
+
+static const int receiver[O_NR] = { 0, 0, 1 };
+
+struct g_tm {
+	struct m0_net_transfer_mc   gt_tm;
+	struct m0_net_end_point   **gt_other;
+};
+
+struct g_op;
+
+struct g_buf {
+	struct m0_net_buffer gb_buf;
+	bool                 gb_used;
+	bool                 gb_queued;
+	struct g_op         *gb_op;
+};
+
+struct g_op {
+	bool          go_used;
+	int           go_opc;
+	struct g_buf *go_buf[2];
+};
+
+static struct g_tm  *g_tm;
+static struct g_buf *g_buf;
+static struct g_op  *g_op;
+static int           g_op_nr;
+static int           g_tm_nr;
+static m0_time_t     g_to;
+static struct m0_semaphore g_op_free;
+
+static void g_event_cb(const struct m0_net_buffer_event *ev)
+{
+	struct g_buf *me = ev->nbe_buffer->nb_app_private;
+	struct g_buf *it;
+	struct g_op  *op  = buf->gb_op;
+	int           self;
+
+	m0_mutex_lock(&m_ut_lock);
+	M0_ASSERT(ev->nbe_buffer == &buf->gb_buf);
+	M0_ASSERT(me->gb_used);
+	M0_ASSERT(me == op->go_buf[0] || me == op->go_buf[1]);
+	self = me == op->go_buf[1];
+	it = op->go_buf[1 - self];
+	if (!it->gb_queued) {
+		me->gb_used = false;
+		it->gb_used = false;
+		me->gb_op = NULL;
+		it->gb_op = NULL;
+		op->go_used = false;
+		m0_semaphore_up(&g_op_free);
+	}
+	me->gb_buf.nb_ep = NULL;
+	me->gb_queued = false;
+	m0_mutex_unlock(&m_ut_lock);
+}
+
+const struct m0_net_buffer_callbacks g_buf_cb = {
+	.nbc_cb = {
+		[M0_NET_QT_MSG_RECV]          = &g_event_cb,
+		[M0_NET_QT_MSG_SEND]          = &g_event_cb,
+		[M0_NET_QT_PASSIVE_BULK_RECV] = &g_event_cb,
+		[M0_NET_QT_PASSIVE_BULK_SEND] = &g_event_cb,
+		[M0_NET_QT_ACTIVE_BULK_RECV]  = &g_event_cb,
+		[M0_NET_QT_ACTIVE_BULK_SEND]  = &g_event_cb
+	}
+};
+
+static void g_buf_init(struct g_buf *buf)
+{
+	int                   result;
+	struct m0_net_buffer *nb = &buf->gb_buf;
+	struct m0_bufvec     *vec = &nb->nb_buffer;
+	m0_bcount_t seg_nr_max =
+		min64(m0_net_domain_get_max_buffer_segments(&m_dom), 2048);
+	m0_bcount_t seg_max =
+		min64(m0_net_domain_get_max_buffer_segment_size(&m_dom),
+		      1024 * 1024);
+	m0_bcount_t nob = min64(m0_net_domain_get_max_buffer_size(&m_dom),
+				16 * 1024 * 1024);
+	int idx = 0;
+	int i;
+	m0_bcount_t frag[seg_nr_max]; /* VLA */
+
+	while (nob > 0 && idx < seg_nr_max) {
+		m0_bcount_t seg = min64(nob, mock_rnd(mock_rnd(2) ?
+						      seg_max : 10) + 1);
+		nob -= frag[idx++] = seg;
+	}
+	M0_ALLOC_ARR(vec->ov_buf, idx);
+	M0_ASSERT(vec->ov_buf != NULL);
+	M0_ALLOC_ARR(vec->ov_vec.v_count, idx);
+	M0_ASSERT(vec->ov_vec.v_count != NULL);
+	vec->ov_vec.v_nr = idx;
+	for (i = 0; i < idx; ++i) {
+		vec->ov_vec.v_count[i] = frag[i];
+		vec->ov_buf[i] = m0_alloc(frag[i]);
+		M0_ASSERT(vec->ov_buf[i] != NULL);
+	}
+	nb->nb_length    = m0_vec_count(&nb->nb_buffer.ov_vec);
+	nb->nb_offset    = 0;
+	nb->nb_callbacks = &g_buf_cb;
+	nb->nb_min_receive_size = 1;
+	nb->nb_max_receive_msgs = 1;
+	nb->nb_app_private      = buf;
+	result = m0_net_buffer_register(nb, &m_dom);
+	M0_ASSERT(result == 0);
+}
+
+static void g_buf_fini(struct g_buf *buf)
+{
+	int i;
+	struct m0_bufvec *vec = &buf->gb_buf.nb_buffer;
+	M0_ASSERT(!buf->gb_used);
+	M0_ASSERT(buf->gb_op == NULL);
+	if (buf->gb_buf.nb_flags & M0_NET_BUF_REGISTERED)
+		m0_net_buffer_deregister(&buf->gb_buf, &m_dom);
+	if (vec->ov_buf != NULL) {
+		for (i = 0; i < vec->ov_vec.v_nr; ++i) {
+			if (vec->ov_buf[i] != NULL)
+				m0_free(vec->ov_buf[i]);
+		}
+		m0_free0(&vec->ov_buf);
+	}
+	m0_free0(&vec->ov_vec.v_count);
+}
+
+static void g_tm_init(struct g_tm *tm)
+{
+	static const char fmt[] = "inet:stream:127.0.0.1@%i";
+	char pad[100];
+
+	sprintf(pad, fmt, (int)(tm - g_tm) + 3000);
+	tm_init(&tm->gt_tm, pad);
+	M0_ALLOC_ARR(tm->gt_other, g_tm_nr);
+	M0_ASSERT(tm->gt_other != NULL);
+}
+
+static void g_tm_fini(struct g_tm *tm)
+{
+	int i;
+	if (tm->gt_other != NULL) {
+		for (i = 0; i < g_tm_nr; ++i)
+			if (tm->gt_other[i] != NULL)
+				m0_net_end_point_put(tm->gt_other[i]);
+		m0_free0(&tm->gt_other);
+	}
+	tm_fini(&tm->gt_tm);
+}
+
+static void g_tm_lookup(struct g_tm *tm)
+{
+	int i;
+	int result;
+	for (i = 0; i < g_tm_nr; ++i) {
+		if (i == tm - g_tm)
+			continue;
+		result = m0_net_end_point_create(&tm->gt_other[i], &tm->gt_tm,
+					       g_tm[i].gt_tm.ntm_ep->nep_addr);
+		M0_ASSERT(result == 0);
+	}
+}
+
+static void g_op_init(struct g_op *op)
+{
+}
+
+static void g_op_fini(struct g_op *op)
+{
+}
+
+static void g_op_select(void)
+{
+	struct g_tm  *tm0;
+	struct g_tm  *tm1;
+	struct g_op  *op;
+	struct g_buf *b[2];
+	int           i;
+	int           larger;
+	int           buf_nr = 2 * g_op_nr;
+	int           result;
+	struct m0_net_buffer *nb[2];
+
+	m0_semaphore_down(&g_op_free);
+	m0_mutex_lock(&m_ut_lock);
+	tm0 = &g_tm[mock_rnd(g_tm_nr)];
+	tm1 = &g_tm[(tm0 - g_tm + mock_rnd(g_tm_nr - 1) + 1) % g_tm_nr];
+	M0_ASSERT(tm0 != tm1);
+	for (op = &g_op[0]; op < &g_op[g_op_nr] && op->go_used; ++op)
+		;
+	M0_ASSERT(!op->go_used);
+	op->go_used = true;
+	for (i = mock_rnd(buf_nr); g_buf[i % buf_nr].gb_used; ++i)
+		;
+	b[0] = &g_buf[i % buf_nr];
+	M0_ASSERT(!b[0]->gb_used);
+	b[0]->gb_used = true;
+	for (i += mock_rnd(buf_nr - 1); g_buf[i % buf_nr].gb_used; ++i)
+		;
+	b[1] = &g_buf[i % buf_nr];
+	M0_ASSERT(!b[1]->gb_used);
+	b[1]->gb_used = true;
+	m0_mutex_unlock(&m_ut_lock);
+
+	larger = b[1]->gb_buf.nb_length >= b[0]->gb_buf.nb_length;
+	op->go_opc = mock_rnd(O_NR);
+	op->go_buf[    receiver[op->go_opc]] = b[    larger];
+	op->go_buf[1 - receiver[op->go_opc]] = b[1 - larger];
+	nb[0] = &op->go_buf[0]->gb_buf;
+	nb[1] = &op->go_buf[1]->gb_buf;
+	if (op->go_opc == O_MSG)
+		nb[1]->nb_ep = tm1->gt_other[tm0 - g_tm];
+	for (i = 0; i < 2; ++i) {
+		nb[i]->nb_timeout = g_to == M0_TIME_NEVER ?
+			g_to : m0_time_now() + g_to;
+		nb[i]->nb_qtype = qtypes[op->go_opc][i];
+		b[i]->gb_op = op;
+		b[i]->gb_queued = true;
+	}
+	result = m0_net_buffer_add(nb[0], &tm0->gt_tm);
+	M0_ASSERT(result == 0);
+	if (op->go_opc != O_MSG) {
+		result = m0_net_desc_copy(&nb[0]->nb_desc, &nb[1]->nb_desc);
+		M0_ASSERT(result == 0);
+	}
+	result = m0_net_buffer_add(nb[1], &tm1->gt_tm);
+	M0_ASSERT(result == 0);
+}
+
+static void glaring_init(const struct sock_ops *sop, struct sock_ut_conf *conf,
+			 int tm_nr, int op_nr)
+{
+	int i;
+	ut_init(sop, conf);
+	g_tm_nr = tm_nr;
+	g_op_nr = op_nr;
+	g_to = M0_TIME_NEVER;
+	M0_ALLOC_ARR(g_tm, tm_nr);
+	M0_ASSERT(g_tm != NULL);
+	for (i = 0; i < tm_nr; ++i)
+		g_tm_init(&g_tm[i]);
+	for (i = 0; i < tm_nr; ++i)
+		g_tm_lookup(&g_tm[i]);
+	M0_ALLOC_ARR(g_buf, 2 * op_nr);
+	M0_ASSERT(g_buf != NULL);
+	for (i = 0; i < 2 * op_nr; ++i)
+		g_buf_init(&g_buf[i]);
+	M0_ALLOC_ARR(g_op, op_nr);
+	M0_ASSERT(g_op != NULL);
+	for (i = 0; i < op_nr; ++i)
+		g_op_init(&g_op[i]);
+	m0_semaphore_init(&g_op_free, op_nr);
+}
+
+static void glaring_fini()
+{
+	int i;
+	m0_semaphore_fini(&g_op_free);
+	for (i = 0; i < g_op_nr; ++i)
+		g_op_fini(&g_op[i]);
+	m0_free0(&g_op);
+	for (i = 0; i < 2 * g_op_nr; ++i)
+		g_buf_fini(&g_buf[i]);
+	m0_free0(&g_buf);
+	for (i = 0; i < g_tm_nr; ++i)
+		g_tm_fini(&g_tm[i]);
+	m0_free0(&g_tm);
+	ut_fini();
+}
+
+static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
+			 int tm_nr, int op_nr, int nr)
+{
+	glaring_init(sop, conf, tm_nr, op_nr);
+	while (nr-- > 0)
+		g_op_select();
+	while (op_nr-- > 0)
+		m0_semaphore_down(&g_op_free);
+	glaring_fini();
+}
+
+static void tabby(void)
+{
+	glaring_with(&std_ops, &conf_0, 100, 1000, 10000);
+}
+
 struct m0_ut_suite net_sock_ut = {
 	.ts_name = "sock-ut",
 	.ts_init = NULL,
@@ -5131,6 +5427,7 @@ struct m0_ut_suite net_sock_ut = {
 		{ "spam-smoke",    &spam_smoke,    "Nikita" },
 		{ "adhd-smoke",    &adhd_smoke,    "Nikita" },
 		{ "smoked",        &smoked,        "Nikita" },
+		{ "tabby",         &tabby,         "Nikita" },
 		{ NULL, NULL }
 	}
 };
