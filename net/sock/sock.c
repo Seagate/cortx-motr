@@ -4500,7 +4500,7 @@ static struct mock_fd *userfd0(int fdnum)
 
 static struct mock_fd *userfd(int fdnum)
 {
-	struct mock_fd *fd = userfd(fdnum);
+	struct mock_fd *fd = userfd0(fdnum);
 	M0_ASSERT(mock_fd_invariant(fd) &&
 		  fd->md_gen == (fdnum & ~TGT_MASK) >> 15);
 	return fd;
