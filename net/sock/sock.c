@@ -5168,7 +5168,7 @@ static void g_event_cb(const struct m0_net_buffer_event *ev)
 	int           self;
 
 	m0_mutex_lock(&m_ut_lock);
-	M0_ASSERT(ev->nbe_buffer == &buf->gb_buf);
+	M0_ASSERT(ev->nbe_buffer == &me->gb_buf);
 	M0_ASSERT(me->gb_used);
 	M0_ASSERT(me == op->go_buf[0] || me == op->go_buf[1]);
 	self = me == op->go_buf[1];
