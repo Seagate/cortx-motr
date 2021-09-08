@@ -218,7 +218,10 @@ def motr_config(self):
 def configure_net(self):
     """Wrapper function to detect lnet/libfabric transport."""
     try:
-        transport_type = self.server_node['network']['data']['transport_type']
+        if self.k8:
+            transport_type = "libfabric"
+        else:
+            transport_type = self.server_node['network']['data']['transport_type']
     except:
         raise MotrError(errno.EINVAL, "transport_type not found")
 
@@ -267,20 +270,12 @@ def configure_lnet(self):
        raise MotrError(errno.EINVAL, "lent self ping failed\n")
 
 def configure_libfabric(self):
-    try:
-        iface = self.server_node['network']['data']['private_interfaces']
-        iface = iface[0]
-        cmd = "fi_info"
-        execute_command(self, cmd, verbose=True)
-    except:
-        raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
+    cmd = "fi_info"
+    execute_command(self, cmd, verbose=True)
 
 def verify_libfabric(self):
-    try:
-        cmd = "fi_info"
-        execute_command(self, cmd)
-    except:
-        raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
+    cmd = "fi_info"
+    execute_command(self, cmd)
     return True
 
 def swap_on(self):
