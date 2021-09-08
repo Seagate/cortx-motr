@@ -4379,7 +4379,6 @@ static uint32_t vkvv_rec_key_size(const struct nd *node, int idx)
 
 static uint32_t vkvv_lnode_rec_val_size(const struct nd *node, int idx)
 {
-	struct vkvv_head *h   = vkvv_data(node);
 	struct dir_rec   *rec = vkvv_get_dir_addr(node);
 
 	return rec[idx+1].val_offset - rec[idx].val_offset;
