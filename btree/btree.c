@@ -10572,36 +10572,33 @@ static void ut_st_st_kv_oper(void)
 
 static void ut_mt_st_kv_oper(void)
 {
-	// int i;
-	// for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
-	// {
-	// 	if (btree_node_format[i] != NULL &&
-	// 	    i != BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE)
-			btree_ut_kv_oper(0, 1, 4);
-	// }
+	int i;
+	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
+	{
+		if (btree_node_format[i] != NULL)
+			btree_ut_kv_oper(0, 1, i);
+	}
 }
 
 static void ut_mt_mt_kv_oper(void)
 {
-	// int i;
-	// for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
-	// {
-	// 	if (btree_node_format[i] != NULL &&
-	// 	    i != BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE)
-			btree_ut_kv_oper(0, 0, 4);
-	// }
+	int i;
+	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
+	{
+		if (btree_node_format[i] != NULL)
+			btree_ut_kv_oper(0, 0, i);
+	}
 }
 
 static void ut_rt_rt_kv_oper(void)
 {
-	// int i;
-	// for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
-	// {
-	// 	if (btree_node_format[i] != NULL &&
-	// 	    i != BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE)
+	int i;
+	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
+	{
+		if (btree_node_format[i] != NULL)
 			btree_ut_kv_oper(RANDOM_THREAD_COUNT, RANDOM_TREE_COUNT,
-					 4);
-	// }
+					 i);
+	}
 }
 
 /**
