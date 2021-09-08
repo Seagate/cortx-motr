@@ -4233,9 +4233,14 @@ static int  vkvv_space(const struct nd *node)
 	if (h->vkvv_level == 0) {
 		rec                = vkvv_get_dir_addr(node);
 		dir_size           = (sizeof(struct dir_rec)) *
-				     (h->vkvv_used + 1);
-		size_of_all_keys   = rec[h->vkvv_used].key_offset;
-		size_of_all_values = rec[h->vkvv_used].val_offset;
+				     (h->vkvv_used + 2);
+		if (h->vkvv_used == 0){
+			size_of_all_keys   = 0;
+			size_of_all_values = 0;
+		} else {
+			size_of_all_keys   = rec[h->vkvv_used].key_offset;
+			size_of_all_values = rec[h->vkvv_used].val_offset;
+		}
 		available_size     = total_size - sizeof(*h) -
 				     dir_size - size_of_all_keys -
 				     size_of_all_values;
@@ -4338,8 +4343,7 @@ static void vkvv_fid(const struct nd *node, struct m0_fid *fid)
 
 static uint32_t vkvv_lnode_rec_key_size(const struct nd *node, int idx)
 {
-	struct vkvv_head *h   = vkvv_data(node);
-	struct dir_rec   *rec = (void *)h + sizeof(*h) + h->vkvv_dir_offset;
+	struct dir_rec *rec = vkvv_get_dir_addr(node);
 
 	return rec[idx+1].key_offset - rec[idx].key_offset;
 }
@@ -4376,7 +4380,7 @@ static uint32_t vkvv_rec_key_size(const struct nd *node, int idx)
 static uint32_t vkvv_lnode_rec_val_size(const struct nd *node, int idx)
 {
 	struct vkvv_head *h   = vkvv_data(node);
-	struct dir_rec   *rec = (void *)h + sizeof(*h) + h->vkvv_dir_offset;
+	struct dir_rec   *rec = vkvv_get_dir_addr(node);
 
 	return rec[idx+1].val_offset - rec[idx].val_offset;
 }
@@ -4400,7 +4404,7 @@ static uint32_t vkvv_rec_val_size(const struct nd *node, int idx)
 static void *vkvv_lnode_key(const struct nd *node, int idx)
 {
 	struct vkvv_head *h   = vkvv_data(node);
-	struct dir_rec   *rec = (void *)h + sizeof(*h) + h->vkvv_dir_offset;
+	struct dir_rec   *rec = vkvv_get_dir_addr(node);
 
 	return ((void*)h + sizeof(*h) + rec[idx].key_offset);
 }
@@ -4824,14 +4828,33 @@ static void vkvv_make(struct slot *slot)
 
 static void vkvv_val_resize(struct slot *slot, int vsize_diff)
 {
-	struct vkvv_head *h     = vkvv_data(slot->s_node);
-	struct dir_rec   *rec   = vkvv_get_dir_addr(slot->s_node);
-	int               idx   = slot->s_idx;
-	int               count = h->vkvv_used;
+	struct vkvv_head *h              = vkvv_data(slot->s_node);
+	struct dir_rec   *rec            = vkvv_get_dir_addr(slot->s_node);
+	int               idx            = slot->s_idx;
+	int               count          = h->vkvv_used;
+	void             *end_val_addr   = vkvv_val(slot->s_node, count);
+	uint32_t          dir_size       = sizeof(struct dir_rec) * (count + 1);
+	void             *start_dir_addr = (void*)rec;
+	void             *end_dir_addr   = start_dir_addr + dir_size;
+	void             *end_key_addr   = vkvv_key(slot->s_node, count);
 	void             *start_val_addr;
 	uint32_t          total_vsize;
+	int               diff;
 
 	M0_PRE(slot->s_idx < h->vkvv_used && h->vkvv_used > 0);
+
+	if (vsize_diff > 0 &&
+	    (end_val_addr - end_dir_addr) < vsize_diff) {
+		diff = vsize_diff - (end_val_addr - end_dir_addr);
+
+		if (start_dir_addr - end_key_addr < diff ||
+		    (end_val_addr - end_dir_addr) < 0)
+			M0_ASSERT(0);
+
+		m0_memmove(start_dir_addr - diff, start_dir_addr, dir_size);
+		h->vkvv_dir_offset -= diff;
+		rec = vkvv_get_dir_addr(slot->s_node);
+	}
 
 	if (idx == count - 1) {
 		rec[idx+1].val_offset += vsize_diff;
@@ -4881,10 +4904,8 @@ static void vkvv_lnode_del(const struct nd *node, int idx)
 	struct vkvv_head *h              = vkvv_data(node);
 	struct dir_rec   *rec            = vkvv_get_dir_addr(node);
 	int               count          = h->vkvv_used;
-	uint32_t          ksize          = rec[index + 1].key_offset -
-					   rec[index].key_offset;
-	uint32_t          vsize          = rec[index + 1].val_offset -
-					   rec[index].val_offset;
+	uint32_t          ksize;
+	uint32_t          vsize;
 	uint32_t          total_ksize;
 	uint32_t          total_vsize;
 	int               temp_idx;
@@ -4895,13 +4916,17 @@ static void vkvv_lnode_del(const struct nd *node, int idx)
 		 * current series of keys and values. Just update the
 		 * directory to keep a record of the next possible offset.
 		 */
+		if (index == 0) {
+			rec[index].key_offset = 0;
+			rec[index].val_offset = 0;
+		}
 		rec[index + 1].key_offset = 0;
 		rec[index + 1].val_offset = 0;
 	} else {
-		total_ksize = rec[count].key_offset -
-				  rec[index + 1].key_offset;
-		total_vsize = rec[count].val_offset -
-				  rec[index + 1].val_offset;
+		ksize       = rec[index + 1].key_offset - rec[index].key_offset;
+		vsize       = rec[index + 1].val_offset - rec[index].val_offset;
+		total_ksize = rec[count].key_offset - rec[index + 1].key_offset;
+		total_vsize = rec[count].val_offset - rec[index + 1].val_offset;
 		temp_idx    = index;
 
 		while (temp_idx < count) {
@@ -9689,82 +9714,82 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 			UT_THREAD_QUIESCE_IF_REQUESTED();
 		}
-		// /** Verify btree_update for value size increase/descrease. */
+		/** Verify btree_update for value size increase/descrease. */
 
-		// key_first     = key_iter_start;
-		// ut_cb.c_act   = btree_kv_update_cb;
-		// ut_cb.c_datum = &data;
-		// while (vsize_random && key_first <= key_last) {
-		// 	arr_count = (key_first % VAL_ARR_SIZE) + 2;
-		// 	/**
-		// 	 * Skip updating value size for max val size as
-		// 	 * it can create array outbound for val[]
-		// 	 */
-		// 	if (arr_count >= VAL_ARR_SIZE + 1) {
-		// 		key_first += (ti->ti_key_incr * 5);
-		// 		continue;
-		// 	}
-		// 	/** Test value size increase case. */
-		// 	vsize = (arr_count + 1) * sizeof(value[0]);
-		// 	arr_count = (key_first % KEY_ARR_SIZE) + 2;
-		// 	ksize = ksize_random ?
-		// 		arr_count * sizeof(key[0]):
-		// 		ti->ti_key_size;
+		key_first     = key_iter_start;
+		ut_cb.c_act   = btree_kv_update_cb;
+		ut_cb.c_datum = &data;
+		while (vsize_random && key_first <= key_last) {
+			arr_count = (key_first % VAL_ARR_SIZE) + 2;
+			/**
+			 * Skip updating value size for max val size as
+			 * it can create array outbound for val[]
+			 */
+			if (arr_count >= VAL_ARR_SIZE + 1) {
+				key_first += (ti->ti_key_incr * 5);
+				continue;
+			}
+			/** Test value size increase case. */
+			vsize = (arr_count + 1) * sizeof(value[0]);
+			arr_count = (key_first % KEY_ARR_SIZE) + 2;
+			ksize = ksize_random ?
+				arr_count * sizeof(key[0]):
+				ti->ti_key_size;
 
-		// 	key[1]   = ksize;
-		// 	value[1] = vsize;
+			key[1]   = ksize;
+			value[1] = vsize;
 
-		// 	key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
-		// 		 ti->ti_thread_id;
-		// 	key[0] = m0_byteorder_cpu_to_be64(key[0]);
-		// 	for (i = 2; i < ksize / sizeof(key[0]); i++)
-		// 		key[i] = key[0];
+			key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+				 ti->ti_thread_id;
+			key[0] = m0_byteorder_cpu_to_be64(key[0]);
+			for (i = 2; i < ksize / sizeof(key[0]); i++)
+				key[i] = key[0];
 
-		// 	value[0] = key[0];
-		// 	for (i = 2; i < vsize / sizeof(value[0]); i++)
-		// 		value[i] = value[0];
+			value[0] = key[0];
+			for (i = 2; i < vsize / sizeof(value[0]); i++)
+				value[i] = value[0];
 
-		// 	m0_be_ut_tx_init(tx, ut_be);
-		// 	m0_be_tx_prep(tx, &update_cred);
-		// 	rc = m0_be_tx_open_sync(tx);
-		// 	M0_ASSERT(rc == 0);
+			m0_be_ut_tx_init(tx, ut_be);
+			m0_be_tx_prep(tx, &update_cred);
+			rc = m0_be_tx_open_sync(tx);
+			M0_ASSERT(rc == 0);
 
-		// 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-		// 				      m0_btree_update(tree,
-		// 						      &rec,
-		// 						      &ut_cb,
-		// 						      &kv_op,
-		// 						      tx));
-		// 	M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_update(tree,
+								      &rec,
+								      &ut_cb,
+								      &kv_op,
+								      tx));
+			M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
 
-		// 	m0_be_tx_close_sync(tx);
-		// 	m0_be_tx_fini(tx);
+			m0_be_tx_close_sync(tx);
+			m0_be_tx_fini(tx);
 
-		// 	/** Test value size decrease case. */
-		// 	vsize = vsize - sizeof(value[0]);
-		// 	value[1] = vsize;
-		// 	value[0] = key[0];
-		// 	for (i = 2; i < vsize / sizeof(value[0]); i++)
-		// 		value[i] = value[0];
+			/** Test value size decrease case. */
+			vsize = vsize - sizeof(value[0]);
+			value[1] = vsize;
+			value[0] = key[0];
+			for (i = 2; i < vsize / sizeof(value[0]); i++)
+				value[i] = value[0];
 
-		// 	m0_be_ut_tx_init(tx, ut_be);
-		// 	m0_be_tx_prep(tx, &update_cred);
-		// 	rc = m0_be_tx_open_sync(tx);
-		// 	M0_ASSERT(rc == 0);
+			m0_be_ut_tx_init(tx, ut_be);
+			m0_be_tx_prep(tx, &update_cred);
+			rc = m0_be_tx_open_sync(tx);
+			M0_ASSERT(rc == 0);
 
-		// 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-		// 				      m0_btree_update(tree,
-		// 						      &rec,
-		// 						      &ut_cb,
-		// 						      &kv_op,
-		// 						      tx));
-		// 	M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_update(tree,
+								      &rec,
+								      &ut_cb,
+								      &kv_op,
+								      tx));
+			M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
 
-		// 	m0_be_tx_close_sync(tx);
-		// 	m0_be_tx_fini(tx);
+			m0_be_tx_close_sync(tx);
+			m0_be_tx_fini(tx);
 
-		// 	key_first += (ti->ti_key_incr * 5);
-		// }
+			key_first += (ti->ti_key_incr * 5);
+		}
 
 		/**
 		 * Execute one error case where we PUT a key which already
