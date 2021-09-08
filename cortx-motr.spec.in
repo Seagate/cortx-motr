@@ -215,7 +215,7 @@ find %{buildroot} -type f | sed -e 's#^%{buildroot}##' | sort |
 
 make DESTDIR=%{buildroot} install-tests
 
-find %{buildroot} -name m0tr.ko -o -name m0ut.ko -o -name galois.ko \
+find %{buildroot} -name m0tr.ko -o -name m0ut.ko -o \
 	     | sed -e 's#^%{buildroot}##' > tests-ut.files
 
 find %{buildroot} \
@@ -226,8 +226,7 @@ find %{buildroot} \
         -o -name m0gentestds \
         -o -name 'm0kut*' \
         -o -name 'libtestlib*.so*' \
-        -o -name 'libmotr*.so*' \
-        -o -name 'libgalois*.so*' |
+        -o -name 'libmotr*.so*' |
     sed -e 's#^%{buildroot}##' >> tests-ut.files
 
 sort -o tests-ut.files tests-ut.files

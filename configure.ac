@@ -887,21 +887,6 @@ OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
-# Checking galois --------------------------------------------------------- {{{1
-
-GALOIS_REL_PATH="extra-libs/galois"
-GALOIS_SRC="$SRCDIR/$GALOIS_REL_PATH"
-GALOIS_ABS_SRC="$ABS_SRCDIR/$GALOIS_REL_PATH"
-GALOIS_INCLUDES="-I$GALOIS_ABS_SRC/include"
-KGALOIS_INCLUDES="-I$GALOIS_ABS_SRC/include"
-GALOIS_LIBS="$GALOIS_ABS_SRC/src/libgalois.la"
-
-AC_SUBST([GALOIS_SYMVERS], [$GALOIS_ABS_SRC/src/linux_kernel/Module.symvers])
-
-AS_IF([! test -x $GALOIS_SRC/configure],
-      [ test -x $GALOIS_SRC/autogen.sh && ( cd $GALOIS_SRC; ./autogen.sh ) ]
-)
-
 # Checking libyaml -------------------------------------------------------- {{{1
 
 AS_IF([test x$enable_system_libs = xyes],
@@ -922,8 +907,6 @@ AS_IF([test x$enable_system_libs = xyes],
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
-AC_SUBST([GALOIS_ABS_SRC])
-AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
 
 #
@@ -978,7 +961,7 @@ AS_IF([test x$enable_mcheck = xyes],
 # Set up build variables -------------------------------------------------- {{{1
 #
 
-M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
+M0_CPPFLAGS="$YAML_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
 
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
@@ -1006,7 +989,7 @@ M0_KCPPFLAGS="-DM0_INTERNAL='' -DM0_EXTERN=extern \
               -include'$ABS_BUILDDIR/config.h' \
               -iquote '$ABS_BUILDDIR' \
               -iquote '$ABS_SRCDIR' \
-              $LUSTRE_INCLUDES $KGALOIS_INCLUDES $M0_KCPPFLAGS"
+              $LUSTRE_INCLUDES $M0_KCPPFLAGS"
 
 M0_KCFLAGS="-Wall -Werror -Wno-attributes $M0_KCFLAGS"
 
@@ -1057,8 +1040,6 @@ AC_CONFIG_FILES([net/test/demo/demo-config.sh], [chmod +x net/test/demo/demo-con
 AC_CONFIG_FILES([utils/modload-all.sh], [chmod +x utils/modload-all.sh])
 AC_CONFIG_FILES([scripts/systemtap/kem/Makefile])
 
-AC_CONFIG_SUBDIRS([extra-libs/galois])
-
 AC_OUTPUT
 
 #
@@ -1096,7 +1077,6 @@ echo "PTHREAD_LIBS   :  \"$PTHREAD_LIBS\""
 echo "AIO_LIBS       :  \"$AIO_LIBS\""
 echo "RT_LIBS        :  \"$RT_LIBS\""
 echo "PROFILER_LIBS  :  \"$PROFILER_LIBS\""
-echo "GALOIS_LIBS    :  \"$GALOIS_LIBS\""
 echo "YAML_LIBS      :  \"$YAML_LIBS\""
 echo "UUID_LIBS      :  \"$UUID_LIBS\""
 echo "ISAL_LIBS      :  \"$ISAL_LIBS\""

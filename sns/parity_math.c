@@ -87,29 +87,27 @@ static void fail_idx_xor_recover(struct m0_parity_math *math,
 				 const uint32_t failure_index);
 
 /**
- * Below are some functions which has two separate implementations for using
- * Galois and Intel ISA library. At a time any one of the function is
- * called depending on whether Intel ISA library is present or not. If
- * Intel ISA library is present, it will use implementation specific to Intel
- * ISA and use Intel ISA APIs for encoding and recovery, else it will use
- * Galois library arithmetic functions.
+ * Below are some functions which has two separate implementations for user
+ * space and kernel space. Intel ISA library is used in user space only. Hence
+ * implementation of these functions in kernel space are empty for now and will
+ * be removed once kernel space compilation is removed.
  */
 
 /**
  * This function initialize fields required to use Reed Solomon algorithm.
- * It has two separate implementations for using Galois and Intel ISA library.
+ * It has two separate implementations for user space and kernel space for now.
  */
 static int reed_solomon_init(struct m0_parity_math *math);
 
 /**
  * This function clears fields used by Reed Solomon algorithm.
- * It has two separate implementations for using Galois and Intel ISA library.
+ * It has two separate implementations for user space and kernel space for now.
  */
 static void reed_solomon_fini(struct m0_parity_math *math);
 
 /**
  * This function calculates parity fields using Reed Solomon algorithm.
- * It has two separate implementations for using Galois and Intel ISA library.
+ * It has two separate implementations for user space and kernel space for now.
  */
 static void reed_solomon_encode(struct m0_parity_math *math,
 				const struct m0_buf *data,
@@ -117,7 +115,7 @@ static void reed_solomon_encode(struct m0_parity_math *math,
 
 /**
  * This function calculates differential parity using Reed Solomon algorithm.
- * It has two separate implementations for using Galois and Intel ISA library.
+ * It has two separate implementations for user space and kernel space for now.
  */
 static int reed_solomon_diff(struct m0_parity_math *math,
 			     struct m0_buf         *old,
@@ -127,8 +125,8 @@ static int reed_solomon_diff(struct m0_parity_math *math,
 
 /**
  * This function recovers failed data and/or parity using Reed Solomon
- * algorithm. It has two separate implementations for using Galois and Intel
- * ISA library.
+ * algorithm.  * It has two separate implementations for user space and kernel
+ * space for now.
  */
 static int reed_solomon_recover(struct m0_parity_math *math,
 				struct m0_buf *data,
@@ -139,7 +137,7 @@ static int reed_solomon_recover(struct m0_parity_math *math,
 /**
  * Recovers data or parity units partially or fully depending on the parity
  * calculation algorithm, given the failure index.
- * It has two separate implementations for using Galois and Intel ISA library.
+ * It has two separate implementations for user space and kernel space for now.
  */
 static void fail_idx_reed_solomon_recover(struct m0_parity_math *math,
 					  struct m0_buf *data,
@@ -149,7 +147,7 @@ static void fail_idx_reed_solomon_recover(struct m0_parity_math *math,
 /**
  * Initialize fields, specific to Reed Solomon implementation, which are
  * required for incremental recovery.
- * It has two separate implementations for using Galois and Intel ISA library.
+ * It has two separate implementations for user space and kernel space for now.
  * @param[in]  math    - Pointer to parity math structure.
  * @param[out] ir      - Pointer to incremental recovery structure.
  */
@@ -157,7 +155,7 @@ static void ir_rs_init(const struct m0_parity_math *math, struct m0_sns_ir *ir);
 
 /**
  * This function registers failed index.
- * It has two separate implementations for using Galois and Intel ISA library.
+ * It has two separate implementations for user space and kernel space for now.
  * @param[in, out] ir           - pointer to incremental recovery structure.
  * @param[in]      failed_index - index of the failed block in a parity group.
  */
@@ -167,7 +165,7 @@ static void ir_failure_register(struct m0_sns_ir *ir,
 /**
  * Computes data-recovery matrix. Populates dependency bitmaps for failed
  * blocks.
- * It has two separate implementations for using Galois and Intel ISA library.
+ * It has two separate implementations for user space and kernel space for now.
  * @param[in, out] ir       - pointer to incremental recovery structure.
  * @retval         0          on success.
  * @retval         -ENOMEM    on failure to acquire memory.
@@ -177,7 +175,7 @@ static int ir_mat_compute(struct m0_sns_ir *ir);
 
 /**
  * Core routine to recover failed block using current alive block.
- * It has two separate implementations for using Galois and Intel ISA library.
+ * It has two separate implementations for user space and kernel space for now.
  * @param[in] ir           - Pointer to incremental recovery structure.
  * @param[in] alive_block  - Pointer to the alive block.
  * @retval    0            - success otherwise failure
@@ -186,7 +184,7 @@ static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
 
 /**
  * Returns last usable block index.
- * It has two separate implementations for using Galois and Intel ISA library.
+ * It has two separate implementations for user space and kernel space for now.
  */
 static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 				     uint32_t block_idx);
@@ -285,9 +283,8 @@ static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
 /**
  * Recovery of each failed block depends upon subset of alive blocks.
  * This routine prepares a bitmap indicating this dependency. If a bit at
- *  location 'x' is set 'true' then it implies that f_block has no dependency
- *  on block with index 'x'.
- * It has two separate implementations for using Galois and Intel ISA library.
+ * location 'x' is set 'true' then it implies that f_block has no dependency
+ * on block with index 'x'.
  */
 static void dependency_bitmap_prepare(struct m0_sns_ir_block *f_block,
 				      struct m0_sns_ir *ir);
