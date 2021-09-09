@@ -150,7 +150,7 @@ M0_INTERNAL struct m0_locality *m0_locality_here(void)
 	if (glob->lg_dom == NULL || m0_thread_self() == &glob->lg_ast_thread)
 		return &glob->lg_fallback;
 	else
-		return m0_locality_get(m0_thread_tls()->tls_loci);
+		return m0_locality_get(m0_processor_id_get());
 }
 
 M0_INTERNAL struct m0_locality *m0_locality_get(uint64_t value)
