@@ -5123,21 +5123,21 @@ static struct sock_ut_conf conf_delay = {
 	.uc_sockbuf_len = 1000,
 	.uc_epoll_len   = 1000,
 	.uc_delay       = 1000,
-	.uc_delay_ns    = M0_TIME_ONE_SECOND / 100
+	.uc_delay_ns    = M0_TIME_ONE_SECOND / 500
 };
 
 static struct sock_ut_conf conf_stutter = {
 	.uc_maxfd        = 1000,
 	.uc_sockbuf_len  = 1000,
 	.uc_epoll_len    = 1000,
-	.uc_accept4_miss = 8000,
-	.uc_readv_again  = 8000,
-	.uc_readv_0      = 8000,
-	.uc_readv_break  = 8000,
-	.uc_writev_again = 8000,
-	.uc_writev_0     = 8000,
-	.uc_writev_break = 8000,
-	.uc_epoll_break  = 8000
+	.uc_accept4_miss = 1000,
+	.uc_readv_again  = 1000,
+	.uc_readv_0      = 1000,
+	.uc_readv_break  = 1000,
+	.uc_writev_again = 1000,
+	.uc_writev_0     = 1000,
+	.uc_writev_break = 1000,
+	.uc_epoll_break  = 1000
 };
 
 static struct sock_ut_conf conf_spam = {
@@ -5641,6 +5641,7 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 		for (i = 0; i < square; ++i)
 			m0_semaphore_down(&g_op_free);
 	}
+	/*
 	printf("\npar-max: %i\n", g_par_max);
 	for (i = 0; i < ARRAY_SIZE(g_err); ++i) {
 		printf("%i: %i %"PRId64" %i %i %i %i %i %"PRId64"\n", i,
@@ -5649,6 +5650,7 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 		       g_err[i].e_timeout, g_err[i].e_cancelled,
 		       g_err[i].e_error,   g_err[i].e_time);
 	}
+	*/
 	glaring_fini();
 }
 
