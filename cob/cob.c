@@ -543,35 +543,35 @@ void m0_cob_domain_fini(struct m0_cob_domain *dom)
 	if (dom->cd_object_index != NULL) {
 		M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					 m0_btree_close(dom->cd_object_index,
-							       &b_op));
+							&b_op));
 		m0_free0(&dom->cd_object_index);
 	}
 
 	if (dom->cd_namespace != NULL) {
 		M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					 m0_btree_close(dom->cd_namespace,
-							       &b_op));
+							&b_op));
 		m0_free0(&dom->cd_namespace);
 	}
 
 	if (dom->cd_fileattr_basic != NULL) {
 		M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					 m0_btree_close(dom->cd_fileattr_basic,
-							       &b_op));
+							&b_op));
 		m0_free0(&dom->cd_fileattr_basic);
 	}
 
 	if (dom->cd_fileattr_omg != NULL) {
 		M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					 m0_btree_close(dom->cd_fileattr_omg,
-							       &b_op));
+							&b_op));
 		m0_free0(&dom->cd_fileattr_omg);
 	}
 
 	if (dom->cd_fileattr_ea != NULL) {
 		M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					 m0_btree_close(dom->cd_fileattr_ea,
-							       &b_op));
+							&b_op));
 		m0_free0(&dom->cd_fileattr_ea);
 	}
 }
@@ -689,9 +689,9 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 	M0_ASSERT(rc == 0);
 
 	bt = (struct m0_btree_type){.tt_id = M0_BT_COB_NAMESPACE,
-		.ksize = -1,
-		.vsize = -1,
-	};
+				    .ksize = -1,
+				    .vsize = -1,
+				   };
 	fid = M0_FID_TINIT('b', M0_BBT_COB_NAMESPACE, cdid->id);
 	M0_ALLOC_PTR(dom->cd_namespace);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
