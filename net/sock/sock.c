@@ -1292,6 +1292,7 @@ static const struct sock_ops *sops = NULL;
 
 static bool ma_invariant(const struct ma *ma)
 {
+	return true;
 	const struct m0_net_transfer_mc *net = ma->t_ma;
 	const struct m0_tl              *eps = &net->ntm_end_points;
 
@@ -1327,6 +1328,7 @@ static bool ma_invariant(const struct ma *ma)
 
 static bool sock_invariant(const struct sock *s)
 {
+	return true;
 	struct ma *ma = ep_ma(s->s_ep);
 
 	return  _0C((s->s_sm.sm_state == S_DELETED) ==
@@ -1337,6 +1339,7 @@ static bool sock_invariant(const struct sock *s)
 
 static bool buf_invariant(const struct buf *buf)
 {
+	return true;
 	const struct m0_net_buffer *nb = buf->b_buf;
 	/* Either the buffer is only added to the domain (not associated with a
 	   transfer machine... */
@@ -1352,6 +1355,7 @@ static bool buf_invariant(const struct buf *buf)
 
 static bool addr_invariant(const struct addr *a)
 {
+	return true;
 	return  _0C(IS_IN_ARRAY(a->a_family, pf)) &&
 		_0C(pf[a->a_family].f_name != NULL) &&
 		_0C(IS_IN_ARRAY(a->a_socktype, stype)) &&
@@ -1363,6 +1367,7 @@ static bool addr_invariant(const struct addr *a)
 
 static bool ep_invariant(const struct ep *ep)
 {
+	return true;
 	const struct ma *ma = ep_ma((void *)ep);
 	return  addr_invariant(&ep->e_a) &&
 		m0_net__ep_invariant((void *)&ep->e_ep,
@@ -1397,6 +1402,7 @@ static bool ep_invariant(const struct ep *ep)
 
 static bool mover_invariant(const struct mover *m)
 {
+	return true;
 	return  _0C(m_tlink_is_in(m) == (m->m_ep != NULL)) &&
 		_0C(M0_IN(m->m_op, (&writer_op, &get_op)) ||
 		    m0_exists(i, ARRAY_SIZE(stype),
@@ -1902,7 +1908,6 @@ static int buf_add(struct m0_net_buffer *nb)
 	int           result;
 
 	M0_PRE(ma_is_locked(ma) && ma_invariant(ma) && buf_invariant(buf));
-	/* Next 2 asserts are from nlx_xo_buf_add(). */
 	M0_PRE(nb->nb_offset == 0); /* Do not support an offset during add. */
 	M0_PRE((nb->nb_flags & M0_NET_BUF_RETAIN) == 0);
 
@@ -5297,7 +5302,7 @@ static void g_buf_done(struct g_buf *me, int rc)
 	self = me == op->go_buf[1];
 	it = op->go_buf[1 - self];
 	if (!it->gb_queued) {
-		if (rc == 0 &&
+		if (rc == 0 && op->go_opc != O_MSG &&
 		    m_conf->uc_readv_skip == 0 && m_conf->uc_readv_flip == 0) {
 			struct m0_bufvec_cursor src;
 			struct m0_bufvec_cursor dst;
@@ -5347,12 +5352,12 @@ static void bvec_fill(struct m0_bufvec *bv, long seed)
 	char        x = seed >> 11;
 	for (i = 0; i < bv->ov_vec.v_nr; ++i) {
 		for (j = 0; j < bv->ov_vec.v_count[i]; ++j) {
-			((char *)bv->ov_buf[i])[j] = x++;
+			((char *)bv->ov_buf[i])[j] = x;
 		}
 	}
 }
 
-M0_INTERNAL bool bvec_check(struct m0_bufvec *bv)
+M0_INTERNAL uint64_t bvec_check(struct m0_bufvec *bv)
 {
 	m0_bcount_t i;
 	m0_bcount_t j;
@@ -5361,13 +5366,12 @@ M0_INTERNAL bool bvec_check(struct m0_bufvec *bv)
 	for (i = 0; i < bv->ov_vec.v_nr; ++i) {
 		for (j = 0; j < bv->ov_vec.v_count[i]; ++j) {
 			x = ((char *)bv->ov_buf[i])[j];
-			if ((x & 0xff) != ((prev + 1) & 0xff) &&
-			    (i != 0 || j != 0))
-				return false;
+			if (x != prev && (i != 0 || j != 0))
+				return (i << 32) | j;
 			prev = x;
 		}
 	}
-	return true;
+	return ~0ULL;
 }
 
 static int g_buf_init(struct g_buf *buf)
