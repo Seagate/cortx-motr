@@ -3448,7 +3448,7 @@ static int pk_io(struct mover *m, struct sock *s, uint64_t flag,
 	int          rc;
 
 	M0_PRE(M0_IN(flag, (HAS_READ, HAS_WRITE)));
-	if (mover_is_reader(m) && m->b_buf != NULL) {
+	if (mover_is_reader(m) && m->m_buf != NULL) {
 		rc = mover_matches(m);
 		if (rc != 0)
 			return rc;
