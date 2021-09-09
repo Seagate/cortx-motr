@@ -64,7 +64,7 @@ static void ut_tx_open(struct m0_be_tx *tx, struct m0_be_tx_credit *credit)
 static int _locate(int c, int k)
 {
 	struct m0_fid       fid;
-	struct m0_cob_oikey oikey;
+	struct m0_cob_oikey oikey = {};
 	int                 rc;
 
 	m0_fid_set(&fid, c, k);
@@ -142,15 +142,15 @@ static void test_fini(void)
 
 static void test_create(void)
 {
-	struct m0_be_tx_credit	accum = {};
+	struct m0_be_tx_credit  accum = {};
 	struct m0_cob_nskey    *key;
-	struct m0_cob_nsrec	nsrec;
-	struct m0_cob_fabrec  *fabrec;
-	struct m0_cob_omgrec	omgrec;
-	struct m0_fid		pfid;
-	struct m0_be_tx		tx_;
+	struct m0_cob_nsrec     nsrec = {};
+	struct m0_cob_fabrec   *fabrec;
+	struct m0_cob_omgrec    omgrec = {};
+	struct m0_fid           pfid;
+	struct m0_be_tx         tx_;
 	struct m0_be_tx	       *tx = &tx_;
-	int			rc;
+	int                     rc;
 
 	M0_SET0(&nsrec);
 	M0_SET0(&omgrec);
@@ -189,11 +189,11 @@ static void test_create(void)
 static void test_add_name(void)
 {
 	struct m0_cob_nskey    *nskey;
-	struct m0_fid		pfid;
-	struct m0_be_tx		tx_;
+	struct m0_fid           pfid;
+	struct m0_be_tx         tx_;
 	struct m0_be_tx	       *tx = &tx_;
-	int			rc;
-	struct m0_be_tx_credit	accum = {};
+	int                     rc;
+	struct m0_be_tx_credit  accum = {};
 
 	/* pfid, filename */
 	m0_fid_set(&pfid, 0x123, 0x456);
@@ -232,11 +232,11 @@ static void test_add_name(void)
 static void test_del_name(void)
 {
 	struct m0_cob_nskey    *nskey;
-	struct m0_fid		pfid;
-	struct m0_be_tx		tx_;
-	struct m0_be_tx	       *tx = &tx_;
-	int			rc;
-	struct m0_be_tx_credit	accum = {};
+	struct m0_fid           pfid;
+	struct m0_be_tx         tx_;
+	struct m0_be_tx        *tx = &tx_;
+	int                     rc;
+	struct m0_be_tx_credit  accum = {};
 
 	/* pfid, filename */
 	m0_fid_set(&pfid, 0x123, 0x456);
@@ -315,10 +315,10 @@ static void test_locate(void)
 
 static void test_delete(void)
 {
-	struct m0_be_tx		tx_;
+	struct m0_be_tx         tx_;
 	struct m0_be_tx	       *tx = &tx_;
-	int		        rc;
-	struct m0_be_tx_credit	accum = {};
+	int                     rc;
+	struct m0_be_tx_credit  accum = {};
 
 	/* gets ref */
 	rc = _locate(0xabc, 0xdef);

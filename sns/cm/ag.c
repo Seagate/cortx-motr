@@ -116,7 +116,7 @@ static bool _is_fid_valid(struct m0_sns_cm_ag_iter *ai, struct m0_fid *fid)
 
 	if (!m0_sns_cm_fid_is_valid(scm, fid))
 		return false;
-	rc = m0_cob_ns_rec_of(&cdom->cd_namespace, fid, &fid_out, &nsrec);
+	rc = m0_cob_ns_rec_of(cdom->cd_namespace, fid, &fid_out, &nsrec);
 	if (rc == 0 && m0_fid_eq(fid, &fid_out))
 		return true;
 	return false;
@@ -241,7 +241,7 @@ static int ai_pm_set(struct m0_sns_cm_ag_iter *ai, struct m0_fid *pv_id)
 
 	pver_id = pv_id;
 	if (pver_id == NULL) {
-		rc = m0_cob_ns_rec_of(&scm->sc_cob_dom->cd_namespace,
+		rc = m0_cob_ns_rec_of(scm->sc_cob_dom->cd_namespace,
 				      &ai->ai_fid, &fid, &nsrec);
 		if (rc == 0)
 			pver_id = &nsrec->cnr_pver;
@@ -289,7 +289,7 @@ static int ai_fid_next(struct m0_sns_cm_ag_iter *ai)
 
 	do {
 		M0_CNT_INC(fid_curr.f_key);
-		rc = m0_cob_ns_rec_of(&scm->sc_cob_dom->cd_namespace,
+		rc = m0_cob_ns_rec_of(scm->sc_cob_dom->cd_namespace,
 				      &fid_curr, &fid, &nsrec);
 		fid_curr = fid;
 	} while (rc == 0 &&
