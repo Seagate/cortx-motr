@@ -3011,10 +3011,12 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 {
 	struct cob_action        *ca = container_of(act, struct cob_action,
 						    coa_act);
-	struct m0_be_btree       *ios_ns = &act->a_builder->b_ios_cdom->
+#ifdef NEW_BTREE_INTEGRATION_COMPLETE
+	struct m0_btree          *ios_ns = act->a_builder->b_ios_cdom->
 								cd_namespace;
-	struct m0_be_btree       *mds_ns = &act->a_builder->b_mds_cdom->
+	struct m0_btree          *mds_ns = act->a_builder->b_mds_cdom->
 								cd_namespace;
+#endif
 	struct m0_cob             cob = {};
 	struct m0_cob_nskey      *nskey = ca->coa_key.b_addr;
 	struct m0_cob_nsrec      *nsrec = ca->coa_val.b_addr;
@@ -3028,12 +3030,14 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 
 	m0_mutex_lock(&beck_builder.b_coblock);
 
+#ifdef NEW_BTREE_INTEGRATION_COMPLETE
 	if (m0_fid_eq(&ca->coa_fid, &ios_ns->bb_backlink.bli_fid))
 		m0_cob_init(act->a_builder->b_ios_cdom, &cob);
 	else if (m0_fid_eq(&ca->coa_fid, &mds_ns->bb_backlink.bli_fid))
 		m0_cob_init(act->a_builder->b_mds_cdom, &cob);
 	else
 		rc = -ENODATA;
+#endif
 
 	cob.co_nsrec = *nsrec;
 	rc = rc ?: m0_cob_name_add(&cob, nskey, nsrec, tx);

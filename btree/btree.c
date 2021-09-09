@@ -3530,7 +3530,7 @@ static void fkvv_make_leaf(struct slot *slot)
 {
 	struct fkvv_head *h = fkvv_data(slot->s_node);
 	uint32_t         *curr_val_offset;
-	uint32_t         *prev_val_offset;
+	uint32_t         *prev_val_offset   = NULL;
 	uint32_t         *last_val_offset;
 	uint32_t          new_val_offset;
 	void             *key_addr;
@@ -5368,13 +5368,10 @@ void m0_btree_destroy_credit(struct m0_btree *tree,
 			       m0_vec_count(&__src_rec ->r_val.ov_vec));       \
 	})
 
-#define REC_INIT(pp_key, p_ksize, pp_val, p_vsize)                             \
+#define REC_INIT(p_rec, pp_key, p_ksz, pp_val, p_vsz)                          \
 	({                                                                     \
-		struct m0_btree_rec __rec;                                     \
-									       \
-		__rec.r_key.k_data = M0_BUFVEC_INIT_BUF((pp_key), (p_ksize));  \
-		__rec.r_val        = M0_BUFVEC_INIT_BUF((pp_val), (p_vsize));  \
-		__rec;                                                         \
+		(p_rec)->r_key.k_data = M0_BUFVEC_INIT_BUF((pp_key), (p_ksz)); \
+		(p_rec)->r_val        = M0_BUFVEC_INIT_BUF((pp_val), (p_vsz)); \
 	})
 
 /** Insert operation section start point: */
@@ -5690,7 +5687,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 
 	/* M0_ASSERT(node_isfit(&node_slot)) */
 	node_make(&node_slot);
-	node_slot.s_rec = REC_INIT(&p_key, &ksize, &p_val, &vsize);
+	REC_INIT(&node_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 	node_rec(&node_slot);
 	COPY_RECORD(&node_slot.s_rec, &bop->bo_rec);
 	/* if we need to update vec_count for node, update here */
@@ -5710,7 +5707,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_slot.s_idx  = 1;
 	node_slot.s_rec = bop->bo_rec;
 	node_make(&node_slot);
-	node_slot.s_rec = REC_INIT(&p_key, &ksize, &p_val, &vsize);
+	REC_INIT(&node_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 	node_rec(&node_slot);
 	COPY_VALUE(&node_slot.s_rec, &bop->bo_rec);
 	/* if we need to update vec_count for root slot, update at this place */
@@ -5776,7 +5773,7 @@ static void btree_put_split_and_find(struct nd *allocated_node,
 	/*2) Find appropriate slot for given record */
 
 	right_slot.s_idx = 0;
-	right_slot.s_rec = REC_INIT(&p_key, &ksize, &p_val, &vsize);
+	REC_INIT(&right_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 	node_key(&right_slot);
 
 	m0_bufvec_cursor_init(&cur_1, &rec->r_key.k_data);
@@ -5793,7 +5790,7 @@ static void btree_put_split_and_find(struct nd *allocated_node,
 	 */
 	if (node_level(tgt->s_node) > 0 && tgt->s_node == left_slot.s_node) {
 		left_slot.s_idx = node_count(left_slot.s_node);
-		left_slot.s_rec = REC_INIT(&p_key, &ksize, &p_val, &vsize);
+		REC_INIT(&left_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 		node_key(&left_slot);
 		m0_bufvec_cursor_init(&cur_2, &left_slot.s_rec.r_key.k_data);
 		diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
@@ -5855,11 +5852,11 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	if (bop->bo_opc == M0_BO_PUT) {
 		tgt.s_rec = bop->bo_rec;
 		node_make (&tgt);
-		tgt.s_rec = REC_INIT(&p_key, &ksize, &p_val, &vsize);
+		REC_INIT(&tgt.s_rec, &p_key, &ksize, &p_val, &vsize);
 		node_rec(&tgt);
 	} else {
 		/* bop->bo_opc == M0_BO_UPDATE */
-		tgt.s_rec = REC_INIT(&p_key, &ksize, &p_val, &vsize);
+		REC_INIT(&tgt.s_rec, &p_key, &ksize, &p_val, &vsize);
 		node_rec(&tgt);
 		vsize_diff = m0_vec_count(&bop->bo_rec.r_val.ov_vec) -
 			     m0_vec_count(&tgt.s_rec.r_val.ov_vec);
@@ -5909,7 +5906,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	/* Initialized new record which will get inserted at parent */
 	node_slot.s_node = lev->l_node;
 	node_slot.s_idx = 0;
-	node_slot.s_rec = REC_INIT(&p_key, &ksize, &p_val, &vsize);
+	REC_INIT(&node_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 	node_key(&node_slot);
 	new_rec.r_key = node_slot.s_rec.r_key;
 
@@ -5927,7 +5924,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 			node_lock(lev->l_node);
 
 			node_make(&node_slot);
-			node_slot.s_rec = REC_INIT(&p_key_1, &ksize_1,
+			REC_INIT(&node_slot.s_rec, &p_key_1, &ksize_1,
 						   &p_val_1, &vsize_1);
 			node_rec(&node_slot);
 			rec = &new_rec;
@@ -5957,7 +5954,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 
 		tgt.s_rec = new_rec;
 		node_make(&tgt);
-		tgt.s_rec = REC_INIT(&p_key_1, &ksize_1, &p_val_1, &vsize_1);
+		REC_INIT(&tgt.s_rec, &p_key_1, &ksize_1, &p_val_1, &vsize_1);
 		node_rec(&tgt);
 		COPY_RECORD(&tgt.s_rec,  &new_rec);
 
@@ -5979,7 +5976,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 
 		node_slot.s_node = lev->l_alloc;
 		node_slot.s_idx = node_count(node_slot.s_node);
-		node_slot.s_rec = REC_INIT(&p_key, &ksize, &p_val, &vsize);
+		REC_INIT(&node_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 		node_key(&node_slot);
 		new_rec.r_key = node_slot.s_rec.r_key;
 		newv_ptr = &(lev->l_alloc->n_addr);
@@ -6272,7 +6269,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			int                  new_vsize;
 			int                  old_vsize;
 
-			node_slot.s_rec  = REC_INIT(&p_key, &ksize,
+			REC_INIT(&node_slot.s_rec, &p_key, &ksize,
 						    &p_val, &vsize);
 			node_rec(&node_slot);
 
@@ -6307,7 +6304,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		node_slot.s_node = lev->l_node;
 		node_slot.s_idx  = lev->l_idx;
 
-		node_slot.s_rec = REC_INIT(&p_key, &ksize, &p_val, &vsize);
+		REC_INIT(&node_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 		node_rec(&node_slot);
 
 		/**
@@ -7016,8 +7013,8 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 
 		s.s_node        = lev->l_node;
 		s.s_idx         = lev->l_idx;
-		s.s_rec	        = REC_INIT(&pkey, &ksize, &pval, &vsize);
 		s.s_rec.r_flags = M0_BSC_SUCCESS;
+		REC_INIT(&s.s_rec, &pkey, &ksize, &pval, &vsize);
 
 		count = node_count(s.s_node);
 		/**
@@ -7362,7 +7359,7 @@ int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 
 		lev = &oi->i_level[oi->i_used];
 
-		s.s_rec	        = REC_INIT(&pkey, &ksize, &pval, &vsize);
+		REC_INIT(&s.s_rec, &pkey, &ksize, &pval, &vsize);
 		s.s_rec.r_flags = M0_BSC_SUCCESS;
 
 		/* Return record if idx fit in the node. */
@@ -7863,7 +7860,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			m0_bcount_t          vsize;
 			void                *p_val;
 
-			node_slot.s_rec  = REC_INIT(&p_key, &ksize,
+			REC_INIT(&node_slot.s_rec, &p_key, &ksize,
 						    &p_val, &vsize);
 			node_rec(&node_slot);
 			node_slot.s_rec.r_flags = M0_BSC_SUCCESS;
