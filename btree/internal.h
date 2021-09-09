@@ -74,7 +74,6 @@ struct m0_btree {
 	struct td                  *t_desc;
 };
 
-
 /** @} end of btree group */
 #endif /* __MOTR_BTREE_INTERNAL_H__ */
 
