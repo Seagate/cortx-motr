@@ -912,7 +912,7 @@ static int cob_table_delete(struct m0_btree *tree, struct m0_be_tx *tx,
 }
 
 
-static int btree_update_callback(struct m0_btree_cb  *cb,
+static int cob_table_update_callback(struct m0_btree_cb  *cb,
 				 struct m0_btree_rec *rec)
 {
 	struct m0_btree_rec     *datum = cb->c_datum;
@@ -935,7 +935,7 @@ static int cob_table_update(struct m0_btree *tree, struct m0_be_tx *tx,
 			   .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			   .r_val        = M0_BUFVEC_INIT_BUF( &v_ptr, &vsize),
 			};
-	struct m0_btree_cb   ut_put_cb = {.c_act = btree_update_callback,
+	struct m0_btree_cb   ut_put_cb = {.c_act = cob_table_update_callback,
 					  .c_datum = &rec,
 					  };
 
@@ -944,7 +944,7 @@ static int cob_table_update(struct m0_btree *tree, struct m0_be_tx *tx,
 							&kv_op, tx));
 }
 
-static int btree_insert_callback(struct m0_btree_cb  *cb,
+static int cob_table_insert_callback(struct m0_btree_cb  *cb,
 				 struct m0_btree_rec *rec)
 {
 	struct m0_btree_rec     *datum = cb->c_datum;
@@ -969,7 +969,7 @@ static int cob_table_insert(struct m0_btree *tree, struct m0_be_tx *tx,
 			   .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			   .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 			};
-	struct m0_btree_cb   insert_cb = {.c_act = btree_insert_callback,
+	struct m0_btree_cb   insert_cb = {.c_act = cob_table_insert_callback,
 					  .c_datum = &rec,
 					 };
 
@@ -978,7 +978,7 @@ static int cob_table_insert(struct m0_btree *tree, struct m0_be_tx *tx,
 						     &kv_op, tx));
 }
 
-static int btree_lookup_callback(struct m0_btree_cb  *cb,
+static int cob_table_lookup_callback(struct m0_btree_cb  *cb,
 				 struct m0_btree_rec *rec)
 {
 	struct m0_btree_rec     *datum = cb->c_datum;
@@ -1001,7 +1001,7 @@ static int cob_table_lookup(struct m0_btree *tree, struct m0_buf *key,
 			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 			};
-	struct m0_btree_cb   lookup_cb = {.c_act = btree_lookup_callback,
+	struct m0_btree_cb   lookup_cb = {.c_act = cob_table_lookup_callback,
 					  .c_datum = &rec,
 					 };
 
