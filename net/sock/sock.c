@@ -5297,7 +5297,8 @@ static void g_buf_done(struct g_buf *me, int rc)
 	self = me == op->go_buf[1];
 	it = op->go_buf[1 - self];
 	if (!it->gb_queued) {
-		if (m_conf->uc_readv_skip == 0 && m_conf->uc_readv_flip == 0) {
+		if (rc == 0 &&
+		    m_conf->uc_readv_skip == 0 && m_conf->uc_readv_flip == 0) {
 			struct m0_bufvec_cursor src;
 			struct m0_bufvec_cursor dst;
 
