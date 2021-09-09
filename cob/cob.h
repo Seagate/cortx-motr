@@ -33,7 +33,7 @@
 #include "lib/bitstring_xc.h"
 #include "fid/fid.h"
 #include "mdservice/md_fid.h"
-#include "be/btree.h"
+#include "btree/btree.h"
 #include "be/btree_xc.h"
 
 /* import */
@@ -231,6 +231,17 @@ enum {
 };
 
 /**
+ *  If the following define is made an enum then the compiler throws an error,
+ *  hence using it as a #define constant.
+ */
+#define M0_COB_ROOT_NODE_ALIGN (4 * 1024)
+
+enum {
+	M0_COB_ROOT_NODE_SIZE = (8 * 1024),
+
+	/** This should align to Block size on the storage. Change as needed */
+};
+/**
    Unique cob domain identifier.
 
    A cob_domain identifier distinguishes domains within a single
@@ -263,15 +274,33 @@ struct m0_cob_domain {
 	struct m0_format_header cd_header;
 	struct m0_cob_domain_id cd_id;
 	struct m0_format_footer cd_footer;
-	/*
-	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
-	 * before the m0_format_footer, where only persistent fields allowed
+	/**
+	 * The new BTree does not have a tree structure persistent on BE seg.
+	 * Instead we have the root node occupying the same location where the
+	 * old m0_be_btree used to be placed. To minimize the changes to the
+	 * code we have the pointers to m0_btree (new BTree) placed here and the
+	 * root nodes follow them aligned to a Block boundary.
 	 */
-	struct m0_be_btree      cd_object_index;
-	struct m0_be_btree      cd_namespace;
-	struct m0_be_btree      cd_fileattr_basic;
-	struct m0_be_btree      cd_fileattr_omg;
-	struct m0_be_btree      cd_fileattr_ea;
+	struct m0_btree *cd_object_index;   /** Pointer to OI tree. */
+	struct m0_btree *cd_namespace;      /** Pointer to namespace tree */
+	struct m0_btree *cd_fileattr_basic; /** Pointer to fileattr_ba tree */
+	struct m0_btree *cd_fileattr_omg;   /** Pointer to fileattr_omg tree */
+	struct m0_btree *cd_fileattr_ea;    /** Pointer to fileattr_ea tree */
+
+	/**
+	 *  Root nodes for the above trees follow here. These root nodes
+	 *  are aligned to Block boundary for performance reasons.
+	 */
+	uint8_t          cd_oi_node[M0_COB_ROOT_NODE_SIZE]
+			      __attribute__((aligned(M0_COB_ROOT_NODE_ALIGN)));
+	uint8_t          cd_ns_node[M0_COB_ROOT_NODE_SIZE]
+			      __attribute__((aligned(M0_COB_ROOT_NODE_ALIGN)));
+	uint8_t          cd_fa_basic_node[M0_COB_ROOT_NODE_SIZE]
+			      __attribute__((aligned(M0_COB_ROOT_NODE_ALIGN)));
+	uint8_t          cd_fa_omg_node[M0_COB_ROOT_NODE_SIZE]
+			      __attribute__((aligned(M0_COB_ROOT_NODE_ALIGN)));
+	uint8_t          cd_fa_ea_node[M0_COB_ROOT_NODE_SIZE]
+			      __attribute__((aligned(M0_COB_ROOT_NODE_ALIGN)));
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_cob_domain_format_version {
@@ -600,7 +629,7 @@ struct m0_rdpg {
  */
 struct m0_cob_iterator {
 	struct m0_cob            *ci_cob;      /**< the cob we iterate */
-	struct m0_be_btree_cursor ci_cursor;   /**< cob iterator cursor */
+	struct m0_btree_cursor    ci_cursor;   /**< cob iterator cursor */
 	struct m0_cob_nskey      *ci_key;      /**< current iterator pos */
 };
 
@@ -609,7 +638,7 @@ struct m0_cob_iterator {
  */
 struct m0_cob_ea_iterator {
 	struct m0_cob            *ci_cob;      /**< the cob we iterate */
-	struct m0_be_btree_cursor ci_cursor;   /**< cob iterator cursor */
+	struct m0_btree_cursor    ci_cursor;   /**< cob iterator cursor */
 	struct m0_cob_eakey      *ci_key;      /**< current iterator pos */
 	struct m0_cob_earec      *ci_rec;      /**< current iterator rec */
 };
