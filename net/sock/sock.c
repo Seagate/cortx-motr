@@ -894,6 +894,12 @@ struct mover {
 	 * socket.
 	 */
 	void                      *m_scratch;
+	/**
+	 * The buffer generation that data are trasnferred with.
+	 *
+	 * @see buf::b_gen.
+	 */
+	int                        m_gen;
 };
 
 /**
@@ -943,6 +949,12 @@ struct buf {
 	 */
 	m0_bindex_t           b_length;
 	m0_time_t             b_last;
+	/**
+	 * Number of times the buffer was added to a queue.
+	 *
+	 * @see mover::m_gen.
+	 */
+	int                   b_gen;
 };
 
 /** A socket: connection to an end-point. */
@@ -1163,6 +1175,7 @@ static int  mover_op  (struct mover *m, struct sock *s, int op);
 static void mover_fail(struct mover *m, struct sock *s, int rc);
 static bool mover_is_reader(const struct mover *m);
 static bool mover_is_writer(const struct mover *m);
+static int  mover_matches  (const struct mover *m);
 static bool mover_invariant(const struct mover *m);
 
 static m0_bcount_t pk_size (const struct mover *m, const struct sock *s);
@@ -1936,6 +1949,7 @@ static int buf_add(struct m0_net_buffer *nb)
 	} else {
 		buf->b_rc = 0;
 		buf->b_last = m0_time_now();
+		buf->b_gen++;
 	}
 	M0_POST(ma_is_locked(ma) && ma_invariant(ma) && buf_invariant(buf));
 	TLOG(B_F, B_P(buf));
@@ -2979,6 +2993,7 @@ static int buf_accept(struct buf *buf, struct mover *m)
 		if (result != 0)
 			return result;
 		m->m_buf      = buf;
+		m->m_gen      = buf->b_gen;
 		buf->b_peer   = *src;
 		buf->b_length = p->p_totalsize;
 		result = ep_create(buf_ma(buf),
@@ -3289,6 +3304,26 @@ static bool mover_is_writer(const struct mover *m)
 	return M0_IN(m->m_op, (&writer_op, &get_op));
 }
 
+/** True, iff the mover still matches its buffer. */
+static int mover_matches(const struct mover *m)
+{
+	struct buf *buf = m->m_buf;
+
+	M0_PRE(mover_is_reader(m));
+	if (buf == NULL)
+		/*
+		 * The buffer might have been terminated (timeout,
+		 * cancellation), and then deregistered.
+		 */
+		return M0_ERR(-ECANCELED);
+	if (buf->b_rc != 0) /* The buffer has already been terminated. */
+		return M0_ERR(buf->b_rc);
+	if (buf->b_gen != m->m_gen)
+		/* The buffer might have been re-queued after termination. */
+		return M0_ERR(-ENOENT);
+	return 0;
+}
+
 static void mover_fail(struct mover *m, struct sock *s, int rc)
 {
 	if (m->m_sm.sm_conf != NULL) {
@@ -3413,6 +3448,11 @@ static int pk_io(struct mover *m, struct sock *s, uint64_t flag,
 	int          rc;
 
 	M0_PRE(M0_IN(flag, (HAS_READ, HAS_WRITE)));
+	if (mover_is_reader(m) && m->b_buf != NULL) {
+		rc = mover_matches(m);
+		if (rc != 0)
+			return rc;
+	}
 	nr = pk_iov_prep(m, iv, ARRAY_SIZE(iv),
 			 bv ?: m->m_buf != NULL ?
 			 &m->m_buf->b_buf->nb_buffer : NULL, tgt, &count);
@@ -3607,12 +3647,12 @@ static int pk_done(struct mover *m)
 {
 	struct buf    *buf = m->m_buf;
 	struct packet *pk  = &m->m_pk;
+	int            result;
 
 	M0_PRE(mover_is_reader(m));
-	if (buf == NULL)
-		return M0_ERR(-ECANCELED);
-	if (buf->b_rc != 0)
-		return M0_ERR(buf->b_rc);
+	result = mover_matches(m);
+	if (result != 0)
+		return result;
 	if (m0_bitmap_get(&buf->b_done, pk->p_idx))
 		return M0_ERR(-EPROTO);
 	m->m_buf = NULL;
@@ -3662,6 +3702,7 @@ static int stream_pk(struct mover *self, struct sock *s)
 {
 	s->s_flags &= ~MORE_BUFS;
 	self->m_nob = 0;
+	self->m_gen = 0;
 	return R_HEADER;
 }
 
@@ -3691,13 +3732,7 @@ static int stream_header(struct mover *self, struct sock *s)
  */
 static int stream_interval(struct mover *self, struct sock *s)
 {
-	int result;
-
-	if (self->m_buf == NULL)
-		return M0_ERR(-ECANCELED);
-	if (self->m_buf->b_rc != 0)
-		return M0_ERR(self->m_buf->b_rc);
-	result = pk_io(self, s, HAS_READ, NULL, pk_tsize(self));
+	int result = pk_io(self, s, HAS_READ, NULL, pk_tsize(self));
 	return result >= 0 ? pk_state(self) : result;
 }
 
@@ -3792,8 +3827,10 @@ static int dgram_header(struct mover *self, struct sock *s)
  */
 static int dgram_interval(struct mover *self, struct sock *s)
 {
-	if (self->m_buf == NULL)
-		return M0_RC(-ECANCELED);
+	int result = mover_matches(self);
+
+	if (result != 0)
+		return result;
 	return pk_state(self);
 }
 
@@ -5088,20 +5125,20 @@ static struct sock_ut_conf conf_spam = {
 	.uc_maxfd            = 1000,
 	.uc_sockbuf_len      = 1000,
 	.uc_epoll_len        = 1000,
-	.uc_err              =  100,
-	.uc_socket_err       =  100,
-	.uc_accept4_err      =  100,
-	.uc_listen_err       =  100,
-	.uc_bind_err         =  100,
-	.uc_connect_err      =  100,
-	.uc_readv_err        =  100,
-	.uc_writev_err       =  100,
-	.uc_setsockopt_err   =  100,
-	.uc_close_err        =  100,
-	.uc_epoll_create_err =  100,
-	.uc_epoll_wait_err   =  100,
-	.uc_epoll_ctl_err    =  100,
-	.uc_alloc_err        =  100
+	.uc_err              =   10,
+	.uc_socket_err       =  10,
+	.uc_accept4_err      =  10,
+	.uc_listen_err       =  10,
+	.uc_bind_err         =  10,
+	.uc_connect_err      =  10,
+	.uc_readv_err        =  10,
+	.uc_writev_err       =  10,
+	.uc_setsockopt_err   =  10,
+	.uc_close_err        =  10,
+	.uc_epoll_create_err =  10,
+	.uc_epoll_wait_err   =  10,
+	.uc_epoll_ctl_err    =  10,
+	.uc_alloc_err        =  10
 };
 
 static void spam_smoke(void)
@@ -5115,8 +5152,8 @@ static struct sock_ut_conf conf_adhd = {
 	.uc_maxfd            = 1000,
 	.uc_sockbuf_len      = 1000,
 	.uc_epoll_len        = 1000,
-	.uc_readv_skip       = 1000,
-	.uc_readv_flip       = 1000
+	.uc_readv_skip       = 10,
+	.uc_readv_flip       = 10
 };
 
 static void adhd_smoke(void)
@@ -5214,9 +5251,10 @@ static int           g_tm_nr;
 static m0_time_t     g_to;
 static struct m0_semaphore g_op_free;
 static int           g_par;
+static int           g_par_max;
 static bool          g_canfail;
 
-struct g_err {
+static struct g_err {
 	int         e_queued;
 	m0_bcount_t e_nob;
 	int         e_done;
@@ -5224,9 +5262,10 @@ struct g_err {
 	int         e_timeout;
 	int         e_cancelled;
 	int         e_error;
-};
+	m0_time_t   e_time;
+} g_err[O_NR];
 
-static void g_buf_done(struct g_buf *me)
+static void g_buf_done(struct g_buf *me, int rc)
 {
 	struct g_buf *it;
 	struct g_op  *op  = me->gb_op;
@@ -5234,6 +5273,19 @@ static void g_buf_done(struct g_buf *me)
 
 	M0_ASSERT(me->gb_used);
 	M0_ASSERT(me == op->go_buf[0] || me == op->go_buf[1]);
+	g_err[op->go_opc].e_done++;
+	if (rc == 0) {
+		g_err[op->go_opc].e_success++;
+		g_err[op->go_opc].e_nob +=
+			m0_vec_count(&me->gb_buf.nb_buffer.ov_vec);
+		g_err[op->go_opc].e_time +=
+			m0_time_now() - me->gb_buf.nb_add_time;
+	} else if (rc == -ETIMEDOUT)
+		g_err[op->go_opc].e_timeout++;
+	else if (rc == -ECANCELED)
+		g_err[op->go_opc].e_cancelled++;
+	else
+		g_err[op->go_opc].e_error++;
 	self = me == op->go_buf[1];
 	it = op->go_buf[1 - self];
 	if (!it->gb_queued) {
@@ -5256,7 +5308,7 @@ static void g_event_cb(const struct m0_net_buffer_event *ev)
 
 	m0_mutex_lock(&m_ut_lock);
 	M0_ASSERT(ev->nbe_buffer == &me->gb_buf);
-	g_buf_done(me);
+	g_buf_done(me, ev->nbe_status);
 	m0_mutex_unlock(&m_ut_lock);
 }
 
@@ -5434,8 +5486,10 @@ static void g_op_select(void)
 		b[i]->gb_queued = true;
 	}
 	g_par++;
+	g_par_max = max64(g_par, g_par_max);
 	result = m0_net_buffer_add(nb[0], &tm0->gt_tm);
 	if (result == 0) {
+		g_err[op->go_opc].e_queued++;
 		if (op->go_opc != O_MSG)
 			result = m0_net_desc_copy(&nb[0]->nb_desc,
 						  &nb[1]->nb_desc);
@@ -5443,12 +5497,14 @@ static void g_op_select(void)
 			if (op->go_opc == O_MSG)
 				nb[1]->nb_ep = tm1->gt_other[tm0 - g_tm];
 			result = m0_net_buffer_add(nb[1], &tm1->gt_tm);
-			if (result != 0)
-				g_buf_done(op->go_buf[1]);
+			if (result == 0)
+				g_err[op->go_opc].e_queued++;
+			else
+				g_buf_done(op->go_buf[1], result);
 		}
 	} else {
 		op->go_buf[1]->gb_queued = false;
-		g_buf_done(op->go_buf[0]);
+		g_buf_done(op->go_buf[0], result);
 	}
 }
 
@@ -5460,9 +5516,11 @@ static int glaring_init(const struct sock_ops *sop, struct sock_ut_conf *conf,
 	ut_init(sop, conf);
 	g_tm_nr = tm_nr;
 	g_op_nr = op_nr;
-	g_to = canfail ? M0_MKTIME(10, 0) : M0_TIME_NEVER;
+	g_to = canfail ? M0_MKTIME(60, 0) : M0_TIME_NEVER;
 	g_par = 0;
+	g_par_max = 0;
 	g_canfail = canfail;
+	M0_SET_ARR0(g_err);
 	M0_ALLOC_ARR(g_tm, tm_nr);
 	if (g_tm == NULL)
 		return -ENOMEM;
@@ -5520,19 +5578,27 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 {
 	struct sock_ut_conf c = *conf;
 	int scale = 10;
-	int scuare;
+	int square;
 	int step;
 	int i;
 
 	for (step = 0; step < 2; ++step, scale *= 2) {
-		scuare = scale * scale;
-		c.uc_maxfd = max32(c.uc_maxfd, 2 * scuare);
-		c.uc_epoll_len = max32(c.uc_epoll_len, 2 * scuare);
-		if (glaring_init(sop, &c, scale, scuare, canfail|true) == 0) {
-			for (i = 0; i < 2 * scuare; ++i)
+		square = scale * scale;
+		c.uc_maxfd = max32(c.uc_maxfd, 2 * square);
+		c.uc_epoll_len = max32(c.uc_epoll_len, 2 * square);
+		if (glaring_init(sop, &c, scale, square, canfail|true) == 0) {
+			for (i = 0; i < 2 * square; ++i)
 				g_op_select();
-			for (i = 0; i < scuare; ++i)
+			for (i = 0; i < square; ++i)
 				m0_semaphore_down(&g_op_free);
+		}
+		printf("\npar-max: %i\n", g_par_max);
+		for (i = 0; i < ARRAY_SIZE(g_err); ++i) {
+			printf("%i: %i %"PRId64" %i %i %i %i %i %"PRId64"\n", i,
+			       g_err[i].e_queued,  g_err[i].e_nob,
+			       g_err[i].e_done,    g_err[i].e_success,
+			       g_err[i].e_timeout, g_err[i].e_cancelled,
+			       g_err[i].e_error,   g_err[i].e_time);
 		}
 		glaring_fini();
 	}
