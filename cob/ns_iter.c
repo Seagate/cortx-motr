@@ -53,46 +53,52 @@ M0_INTERNAL int m0_cob_ns_iter_init(struct m0_cob_fid_ns_iter *iter,
 	return 0;
 }
 
-M0_INTERNAL int m0_cob_ns_rec_of(struct m0_be_btree *cob_namespace,
+M0_INTERNAL int m0_cob_ns_rec_of(struct m0_btree     *cob_namespace,
 				 const struct m0_fid *key_gfid,
-				 struct m0_fid *next_gfid,
+				 struct m0_fid       *next_gfid,
 				 struct m0_cob_nsrec **nsrec)
 {
-        struct m0_cob_nskey       *key = NULL;
-        struct m0_buf              kbuf;
-        struct m0_buf              nbuf;
-        struct m0_be_btree_cursor  it;
-	uint32_t                   cob_idx = 0;
-        char                       nskey_bs[UINT32_STR_LEN];
-        uint32_t                   nskey_bs_len;
-	int                        rc;
+	struct m0_cob_nskey    *key = NULL;
+	m0_bcount_t             ksize;
+	struct m0_btree_key     find_key;
+	struct m0_buf           kbuf;
+	struct m0_buf           nbuf;
+	struct m0_btree_cursor  it;
+	uint32_t                cob_idx = 0;
+	char                    nskey_bs[UINT32_STR_LEN];
+	uint32_t                nskey_bs_len;
+	int                     rc;
 
-        m0_be_btree_cursor_init(&it, cob_namespace);
+	m0_btree_cursor_init(&it, cob_namespace);
 	M0_SET0(&nskey_bs);
-        snprintf(nskey_bs, UINT32_STR_LEN, "%u", cob_idx);
-        nskey_bs_len = strlen(nskey_bs);
+	snprintf(nskey_bs, UINT32_STR_LEN, "%u", cob_idx);
+	nskey_bs_len = strlen(nskey_bs);
 
-        rc = m0_cob_nskey_make(&key, key_gfid, nskey_bs,
+	rc = m0_cob_nskey_make(&key, key_gfid, nskey_bs,
 			       nskey_bs_len);
-        if (rc != 0)
-                return M0_RC(rc);
+	if (rc != 0)
+		return M0_RC(rc);
 
-	m0_buf_init(&kbuf, key, m0_cob_nskey_size(key) + UINT32_STR_LEN);
-        rc = m0_be_btree_cursor_get_sync(&it, &kbuf, true);
+	ksize = m0_cob_nskey_size(key) + UINT32_STR_LEN;
+	find_key = (struct m0_btree_key){
+			.k_data = M0_BUFVEC_INIT_BUF((void *)&key, &ksize),
+			};
+	rc = m0_btree_cursor_get(&it, &find_key, true);
 	if (rc == 0) {
 		/*
 		 * Assign the fetched value to gfid, which is treated as
 		 * iterator output.
 		 */
-		struct m0_cob_nskey* k;
+		struct m0_cob_nskey *k;
 
-		m0_be_btree_cursor_kv_get(&it, &kbuf, &nbuf);
+		m0_btree_cursor_kv_get(&it, &kbuf, &nbuf);
 		k = (struct m0_cob_nskey *)kbuf.b_addr;
 		*nsrec = (struct m0_cob_nsrec *)nbuf.b_addr;
 		*next_gfid = k->cnk_pfid;
 	}
+
 	m0_free(key);
-        m0_be_btree_cursor_fini(&it);
+	m0_btree_cursor_fini(&it);
 
 	return M0_RC(rc);
 }
@@ -108,7 +114,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 	M0_PRE(gfid != NULL);
 
 	key_fid = iter->cni_last_fid;
-	rc = m0_cob_ns_rec_of(&iter->cni_cdom->cd_namespace, &key_fid, gfid,
+	rc = m0_cob_ns_rec_of(iter->cni_cdom->cd_namespace, &key_fid, gfid,
 			      nsrec);
 	if (rc == 0) {
 		/* Container (f_container) value remains same, typically 0. */
