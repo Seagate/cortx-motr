@@ -604,6 +604,7 @@
  * @{
  */
 
+#include "lib/vec.h"
 #include <sys/epoll.h>                     /* epoll_create */
 
 #include <sys/types.h>
@@ -4321,6 +4322,40 @@ M0_INTERNAL void ma__print(const struct ma *ma)
 	}
 }
 
+#include <ctype.h>
+
+M0_INTERNAL void bvec__print(const struct m0_bufvec *bv)
+{
+	m0_bcount_t             idx;
+	struct m0_bufvec_cursor cur;
+	bool        first = true;
+	int         prev;
+	int         next;
+	m0_bcount_t rep = 1;
+
+	m0_bufvec_cursor_init(&cur, bv);
+	printf("[");
+	for (idx = 0; !m0_bufvec_cursor_move(&cur, 0); ++idx, prev = next) {
+		char *addr = m0_bufvec_cursor_addr(&cur);
+		next = *addr;
+		if (m0_bufvec_cursor_move(&cur, 1))
+			next = 10001;
+		if (first)
+			first = false;
+		else if (next != prev) {
+			if (isprint(prev))
+				printf("%c", prev & 0xff);
+			else
+				printf("\\%x", prev & 0xff);
+			if (rep > 1)
+				printf(" <*%"PRId64">", rep);
+			rep = 1;
+		} else
+			rep++;
+	}
+	printf("]\n");
+}
+
 /*
  * @UT
  */
@@ -5109,28 +5144,28 @@ static struct sock_ut_conf conf_spam = {
 	.uc_maxfd            = 1000,
 	.uc_sockbuf_len      = 1000,
 	.uc_epoll_len        = 1000,
-	.uc_err              =   10,
-	.uc_socket_err       =  10,
-	.uc_accept4_err      =  10,
-	.uc_listen_err       =  10,
-	.uc_bind_err         =  10,
-	.uc_connect_err      =  10,
-	.uc_readv_err        =  10,
-	.uc_writev_err       =  10,
-	.uc_setsockopt_err   =  10,
-	.uc_close_err        =  10,
-	.uc_epoll_create_err =  10,
-	.uc_epoll_wait_err   =  10,
-	.uc_epoll_ctl_err    =  10,
-	.uc_alloc_err        =  10
+	.uc_err              = 1000,
+	.uc_socket_err       = 1000,
+	.uc_accept4_err      = 1000,
+	.uc_listen_err       = 1000,
+	.uc_bind_err         = 1000,
+	.uc_connect_err      = 1000,
+	.uc_readv_err        = 1000,
+	.uc_writev_err       = 1000,
+	.uc_setsockopt_err   = 1000,
+	.uc_close_err        = 1000,
+	.uc_epoll_create_err = 1000,
+	.uc_epoll_wait_err   = 1000,
+	.uc_epoll_ctl_err    = 1000,
+	.uc_alloc_err        = 1000
 };
 
 static struct sock_ut_conf conf_adhd = {
 	.uc_maxfd            = 1000,
 	.uc_sockbuf_len      = 1000,
 	.uc_epoll_len        = 1000,
-	.uc_readv_skip       = 10,
-	.uc_readv_flip       = 10
+	.uc_readv_skip       = 1000,
+	.uc_readv_flip       = 1000
 };
 
 static struct sock_ut_conf *ut_confs[] = {
@@ -5262,12 +5297,14 @@ static void g_buf_done(struct g_buf *me, int rc)
 	self = me == op->go_buf[1];
 	it = op->go_buf[1 - self];
 	if (!it->gb_queued) {
-		struct m0_bufvec_cursor src;
-		struct m0_bufvec_cursor dst;
+		if (m_conf->uc_readv_skip == 0 && m_conf->uc_readv_flip == 0) {
+			struct m0_bufvec_cursor src;
+			struct m0_bufvec_cursor dst;
 
-		m0_bufvec_cursor_init(&src, &me->gb_buf.nb_buffer);
-		m0_bufvec_cursor_init(&dst, &it->gb_buf.nb_buffer);
-		M0_ASSERT(m0_bufvec_cursor_cmp(&src, &dst) == 0);
+			m0_bufvec_cursor_init(&src, &me->gb_buf.nb_buffer);
+			m0_bufvec_cursor_init(&dst, &it->gb_buf.nb_buffer);
+			M0_ASSERT(m0_bufvec_cursor_cmp(&src, &dst) == 0);
+		}
 		me->gb_used = false;
 		it->gb_used = false;
 		me->gb_op = NULL;
@@ -5302,6 +5339,36 @@ const struct m0_net_buffer_callbacks g_buf_cb = {
 	}
 };
 
+static void bvec_fill(struct m0_bufvec *bv, long seed)
+{
+	m0_bcount_t i;
+	m0_bcount_t j;
+	char        x = seed >> 11;
+	for (i = 0; i < bv->ov_vec.v_nr; ++i) {
+		for (j = 0; j < bv->ov_vec.v_count[i]; ++j) {
+			((char *)bv->ov_buf[i])[j] = x++;
+		}
+	}
+}
+
+M0_INTERNAL bool bvec_check(struct m0_bufvec *bv)
+{
+	m0_bcount_t i;
+	m0_bcount_t j;
+	char        x;
+	char        prev;
+	for (i = 0; i < bv->ov_vec.v_nr; ++i) {
+		for (j = 0; j < bv->ov_vec.v_count[i]; ++j) {
+			x = ((char *)bv->ov_buf[i])[j];
+			if ((x & 0xff) != ((prev + 1) & 0xff) &&
+			    (i != 0 || j != 0))
+				return false;
+			prev = x;
+		}
+	}
+	return true;
+}
+
 static int g_buf_init(struct g_buf *buf)
 {
 	struct m0_net_buffer *nb = &buf->gb_buf;
@@ -5334,7 +5401,6 @@ static int g_buf_init(struct g_buf *buf)
 		vec->ov_buf[i] = m0_alloc(frag[i]);
 		if (vec->ov_buf[i] == NULL)
 			return -ENOMEM;
-		memset(vec->ov_buf[i], i + (long)buf, frag[i]);
 	}
 	nb->nb_length    = m0_vec_count(&nb->nb_buffer.ov_vec);
 	nb->nb_offset    = 0;
@@ -5464,6 +5530,7 @@ static void g_op_select(void)
 		nb[i]->nb_qtype = qtypes[op->go_opc][i];
 		b[i]->gb_op = op;
 		b[i]->gb_queued = true;
+		bvec_fill(&b[i]->gb_buf.nb_buffer, (long)b[i]);
 	}
 	g_par++;
 	g_par_max = max64(g_par, g_par_max);
