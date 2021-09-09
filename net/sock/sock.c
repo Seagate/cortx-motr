@@ -5262,6 +5262,12 @@ static void g_buf_done(struct g_buf *me, int rc)
 	self = me == op->go_buf[1];
 	it = op->go_buf[1 - self];
 	if (!it->gb_queued) {
+		struct m0_bufvec_cursor src;
+		struct m0_bufvec_cursor dst;
+
+		m0_bufvec_cursor_init(&src, &me->gb_buf.nb_buffer);
+		m0_bufvec_cursor_init(&dst, &it->gb_buf.nb_buffer);
+		M0_ASSERT(m0_bufvec_cursor_cmp(&src, &dst) == 0);
 		me->gb_used = false;
 		it->gb_used = false;
 		me->gb_op = NULL;
@@ -5328,6 +5334,7 @@ static int g_buf_init(struct g_buf *buf)
 		vec->ov_buf[i] = m0_alloc(frag[i]);
 		if (vec->ov_buf[i] == NULL)
 			return -ENOMEM;
+		memset(vec->ov_buf[i], i + (long)buf, frag[i]);
 	}
 	nb->nb_length    = m0_vec_count(&nb->nb_buffer.ov_vec);
 	nb->nb_offset    = 0;
@@ -5561,6 +5568,7 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 		for (i = 0; i < square; ++i)
 			m0_semaphore_down(&g_op_free);
 	}
+	/*
 	printf("\npar-max: %i\n", g_par_max);
 	for (i = 0; i < ARRAY_SIZE(g_err); ++i) {
 		printf("%i: %i %"PRId64" %i %i %i %i %i %"PRId64"\n", i,
@@ -5569,6 +5577,7 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 		       g_err[i].e_timeout, g_err[i].e_cancelled,
 		       g_err[i].e_error,   g_err[i].e_time);
 	}
+	*/
 	glaring_fini();
 }
 
@@ -5581,7 +5590,7 @@ static void glaring_comb(const struct sock_ops *sop, struct sock_ut_conf *conf,
 	glaring_with(sop, &comb, canfail, scale, 0, 0);
 }
 
-extern const struct m0_ut *m0_ut_current_test;
+extern const struct m0_ut *m0_ut_current_test __attribute__((weak));
 
 struct sock_ut_test {
 	void (*sut_f)(const struct sock_ops *sop, struct sock_ut_conf *conf,
@@ -5625,7 +5634,7 @@ struct m0_ut_suite *m0_net_sock_ut_build(void)
 	ADD("mock-smoke",    &smoke_with, &mock_ops, &conf_0,       false,  1);
 	ADD("delay-smoke",   &smoke_with, &mock_ops, &conf_delay,   false, 10);
 	ADD("stutter-smoke", &smoke_with, &mock_ops, &conf_stutter, false, 10);
-	ADD("spam-smoke",    &smoke_with, &mock_ops, &conf_spam,    false, 10);
+	ADD("spam-smoke",    &smoke_with, &mock_ops, &conf_spam,     true, 10);
 	ADD("adhd-smoke",    &smoke_with, &mock_ops, &conf_adhd,     true, 10);
 	for (scale = 1; scale < 3; scale++) {
 		m0_asprintf(&name, "tabby-%i", 10 * scale);
