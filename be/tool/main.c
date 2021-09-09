@@ -85,12 +85,11 @@ void track_cob_btrees(struct m0_cob_domain *cdom, bool print_btree)
 {
 	if (print_btree) {
 		M0_LOG(M0_ALWAYS, "cd_object_index ");
-		btree_dbg_print(&cdom->cd_object_index);
+		btree_dbg_print((struct m0_be_btree *)cdom->cd_object_index);
 		M0_LOG(M0_ALWAYS, "cd_namespace ");
-		btree_dbg_print(&cdom->cd_namespace);
+		btree_dbg_print((struct m0_be_btree *)cdom->cd_namespace);
 		M0_LOG(M0_ALWAYS, "cd_fileattr_basic ");
-		btree_dbg_print(&cdom->
-				cd_fileattr_basic);
+		btree_dbg_print((struct m0_be_btree *)cdom->cd_fileattr_basic);
 	} else
 		M0_LOG(M0_ALWAYS,"M0_BE:COB "
 				"cd_object_index btree = %p "
