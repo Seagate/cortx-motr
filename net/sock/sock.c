@@ -5046,8 +5046,8 @@ static void ut_buf_wait(struct ut_buf *ub)
 	m0_mutex_unlock(&m_ut_lock);
 }
 
-static void smoke_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
-		       bool canfail)
+static void smoke_with_1(const struct sock_ops *sop, struct sock_ut_conf *conf,
+			 bool canfail)
 {
 	struct m0_net_transfer_mc tm0   = {};
 	struct m0_net_transfer_mc tm1   = {};
@@ -5075,14 +5075,12 @@ static void smoke_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 	ut_fini();
 }
 
-static void std_smoke(void)
+static void smoke_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
+		       bool canfail, int rep, int n2, int n3)
 {
-	smoke_with(&std_ops, &conf_0, false);
-}
-
-static void mock_smoke(void)
-{
-	smoke_with(&mock_ops, &conf_0, false);
+	int i;
+	for (i = 0; i < rep; ++i)
+		smoke_with_1(sop, conf, canfail);
 }
 
 static struct sock_ut_conf conf_delay = {
@@ -5092,13 +5090,6 @@ static struct sock_ut_conf conf_delay = {
 	.uc_delay       = 1000,
 	.uc_delay_ns    = M0_TIME_ONE_SECOND / 100
 };
-
-static void delay_smoke(void)
-{
-	int i;
-	for (i = 0; i < 10; ++i)
-		smoke_with(&mock_ops, &conf_delay, false);
-}
 
 static struct sock_ut_conf conf_stutter = {
 	.uc_maxfd        = 1000,
@@ -5113,13 +5104,6 @@ static struct sock_ut_conf conf_stutter = {
 	.uc_writev_break = 8000,
 	.uc_epoll_break  = 8000
 };
-
-static void stutter_smoke(void)
-{
-	int i;
-	for (i = 0; i < 10; ++i)
-		smoke_with(&mock_ops, &conf_stutter, false);
-}
 
 static struct sock_ut_conf conf_spam = {
 	.uc_maxfd            = 1000,
@@ -5141,13 +5125,6 @@ static struct sock_ut_conf conf_spam = {
 	.uc_alloc_err        =  10
 };
 
-static void spam_smoke(void)
-{
-	int i;
-	for (i = 0; i < 10; ++i)
-		smoke_with(&mock_ops, &conf_spam, true);
-}
-
 static struct sock_ut_conf conf_adhd = {
 	.uc_maxfd            = 1000,
 	.uc_sockbuf_len      = 1000,
@@ -5156,48 +5133,44 @@ static struct sock_ut_conf conf_adhd = {
 	.uc_readv_flip       = 10
 };
 
-static void adhd_smoke(void)
-{
-	int i;
-	for (i = 0; i < 10; ++i)
-		smoke_with(&mock_ops, &conf_adhd, true);
-}
+static struct sock_ut_conf *ut_confs[] = {
+	&conf_delay, &conf_stutter, &conf_spam, &conf_adhd
+};
+static bool ut_canfail[] = {
+	false, false, true, true
+};
+static char ut_conf_name[] = {
+	'd', 's', 'S', 'a'
+};
 
-static void iterate_perm(void (*f)(const struct sock_ops *sop,
-				   struct sock_ut_conf *conf, bool canfail),
-			 const struct sock_ops *sop)
+M0_BASSERT(ARRAY_SIZE(ut_confs) == ARRAY_SIZE(ut_canfail));
+M0_BASSERT(ARRAY_SIZE(ut_confs) == ARRAY_SIZE(ut_conf_name));
+
+static void comb_build(int bits, bool *canfail, struct sock_ut_conf *comb)
 {
-	int i;
 	int j;
 	int k;
-	static struct sock_ut_conf *confs[] = {
-		&conf_delay, &conf_stutter, &conf_spam, &conf_adhd
-	};
-	static bool canfail[] = {
-		false, false, true, true
-	};
-	M0_CASSERT(ARRAY_SIZE(confs) == ARRAY_SIZE(canfail));
-	for (i = 1; i < (1 << ARRAY_SIZE(confs)); ++i) {
-		struct sock_ut_conf comb  = {};
-		bool                cfail = false;
-		for (j = 0; j < ARRAY_SIZE(confs); ++j) {
-			if (i & (1 << j)) {
-				int *dst = (void *)&comb;
-				int *src = (void *)confs[j];
-				for (k = 0; k < sizeof comb / sizeof(int); ++k){
-					if (src[k] != 0)
-						dst[k] = src[k];
-				}
-				cfail |= canfail[j];
+	M0_SET0(comb);
+	*canfail = false;
+	for (j = 0; j < ARRAY_SIZE(ut_confs); ++j) {
+		if (bits & (1 << j)) {
+			int *dst = (void *)comb;
+			int *src = (void *)ut_confs[j];
+			for (k = 0; k < sizeof *comb / sizeof(int); ++k){
+				if (src[k] != 0)
+					dst[k] = src[k];
 			}
+			*canfail |= ut_canfail[j];
 		}
-		(*f)(sop, &comb, cfail);
 	}
 }
 
-static void smoked(void)
+static void smoked_comb(const struct sock_ops *sop, struct sock_ut_conf *conf,
+			bool canfail, int bits, int rep, int n3)
 {
-	iterate_perm(&smoke_with, &mock_ops);
+	struct sock_ut_conf comb;
+	comb_build(bits, &canfail, &comb);
+	smoke_with(sop, &comb, canfail, rep, 0, 0);
 }
 
 /*
@@ -5516,7 +5489,7 @@ static int glaring_init(const struct sock_ops *sop, struct sock_ut_conf *conf,
 	ut_init(sop, conf);
 	g_tm_nr = tm_nr;
 	g_op_nr = op_nr;
-	g_to = canfail ? M0_MKTIME(60, 0) : M0_TIME_NEVER;
+	g_to = canfail ? M0_MKTIME(5, 0) : M0_TIME_NEVER;
 	g_par = 0;
 	g_par_max = 0;
 	g_canfail = canfail;
@@ -5574,63 +5547,117 @@ static void glaring_fini()
 }
 
 static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
-			 bool canfail)
+			 bool canfail, int scale, int n2, int n3)
 {
 	struct sock_ut_conf c = *conf;
-	int scale = 10;
-	int square;
-	int step;
+	int square = scale * scale;
 	int i;
 
-	for (step = 0; step < 2; ++step, scale *= 2) {
-		square = scale * scale;
-		c.uc_maxfd = max32(c.uc_maxfd, 2 * square);
-		c.uc_epoll_len = max32(c.uc_epoll_len, 2 * square);
-		if (glaring_init(sop, &c, scale, square, canfail|true) == 0) {
-			for (i = 0; i < 2 * square; ++i)
-				g_op_select();
-			for (i = 0; i < square; ++i)
-				m0_semaphore_down(&g_op_free);
-		}
-		printf("\npar-max: %i\n", g_par_max);
-		for (i = 0; i < ARRAY_SIZE(g_err); ++i) {
-			printf("%i: %i %"PRId64" %i %i %i %i %i %"PRId64"\n", i,
-			       g_err[i].e_queued,  g_err[i].e_nob,
-			       g_err[i].e_done,    g_err[i].e_success,
-			       g_err[i].e_timeout, g_err[i].e_cancelled,
-			       g_err[i].e_error,   g_err[i].e_time);
-		}
-		glaring_fini();
+	c.uc_maxfd = max32(c.uc_maxfd, 2 * square);
+	c.uc_epoll_len = max32(c.uc_epoll_len, 2 * square);
+	if (glaring_init(sop, &c, scale, square, canfail|true) == 0) {
+		for (i = 0; i < 2 * square; ++i)
+			g_op_select();
+		for (i = 0; i < square; ++i)
+			m0_semaphore_down(&g_op_free);
 	}
-}
-
-static void tabby(void)
-{
-	glaring_with(&std_ops, &conf_0, false);
+	printf("\npar-max: %i\n", g_par_max);
+	for (i = 0; i < ARRAY_SIZE(g_err); ++i) {
+		printf("%i: %i %"PRId64" %i %i %i %i %i %"PRId64"\n", i,
+		       g_err[i].e_queued,  g_err[i].e_nob,
+		       g_err[i].e_done,    g_err[i].e_success,
+		       g_err[i].e_timeout, g_err[i].e_cancelled,
+		       g_err[i].e_error,   g_err[i].e_time);
+	}
+	glaring_fini();
 }
 
 /* Felis silvestrus. */
-static void wildcat(void)
+static void glaring_comb(const struct sock_ops *sop, struct sock_ut_conf *conf,
+			 bool canfail, int bits, int scale, int n3)
 {
-	iterate_perm(glaring_with, &mock_ops);
+	struct sock_ut_conf comb;
+	comb_build(bits, &canfail, &comb);
+	glaring_with(sop, &comb, canfail, scale, 0, 0);
 }
 
-struct m0_ut_suite net_sock_ut = {
-	.ts_name = "sock-ut",
-	.ts_init = NULL,
-	.ts_fini = NULL,
-	.ts_tests = {
-		{ "std-smoke",     &std_smoke,     "Nikita" },
-		{ "mock-smoke",    &mock_smoke,    "Nikita" },
-		{ "delay-smoke",   &delay_smoke,   "Nikita" },
-		{ "stutter-smoke", &stutter_smoke, "Nikita" },
-		{ "spam-smoke",    &spam_smoke,    "Nikita" },
-		{ "adhd-smoke",    &adhd_smoke,    "Nikita" },
-		{ "smoked",        &smoked,        "Nikita" },
-		{ "tabby",         &tabby,         "Nikita" },
-		{ "wildcat",       &wildcat,       "Nikita" },
-		{ NULL, NULL }
+extern const struct m0_ut *m0_ut_current_test;
+
+struct sock_ut_test {
+	void (*sut_f)(const struct sock_ops *sop, struct sock_ut_conf *conf,
+		      bool canfail, int n1, int n2, int n3);
+	const struct sock_ops *sut_sop;
+	struct sock_ut_conf   *sut_conf;
+	bool                   sut_canfail;
+	int                    sut_n1;
+	int                    sut_n2;
+	int                    sut_n3;
+} sock_ut_test[M0_UT_SUITE_TESTS_MAX];
+
+static struct m0_ut_suite net_sock_ut;
+
+static void sock_ut_entry(void)
+{
+	int idx = m0_ut_current_test - &net_sock_ut.ts_tests[0];
+	struct sock_ut_test *sut = &sock_ut_test[idx];
+	M0_PRE(IS_IN_ARRAY(idx, sock_ut_test));
+	sut->sut_f(sut->sut_sop, sut->sut_conf, sut->sut_canfail,
+		   sut->sut_n1, sut->sut_n2, sut->sut_n3);
+}
+
+struct m0_ut_suite *m0_net_sock_ut_build(void)
+{
+	int   pos = 0;
+	int   i;
+	int   j;
+	int   scale;
+	char *name;
+
+#define ADD(name, ...) ({						\
+	M0_ASSERT(pos < ARRAY_SIZE(sock_ut_test));			\
+	sock_ut_test[pos] = (struct sock_ut_test){ __VA_ARGS__ };	\
+	net_sock_ut.ts_tests[pos] = (struct m0_ut){ name, &sock_ut_entry, \
+						    "Nikita" };		\
+	pos++;								\
+})
+
+	ADD("std-smoke",     &smoke_with, &std_ops,  &conf_0,       false,  1);
+	ADD("mock-smoke",    &smoke_with, &mock_ops, &conf_0,       false,  1);
+	ADD("delay-smoke",   &smoke_with, &mock_ops, &conf_delay,   false, 10);
+	ADD("stutter-smoke", &smoke_with, &mock_ops, &conf_stutter, false, 10);
+	ADD("spam-smoke",    &smoke_with, &mock_ops, &conf_spam,    false, 10);
+	ADD("adhd-smoke",    &smoke_with, &mock_ops, &conf_adhd,     true, 10);
+	for (scale = 1; scale < 3; scale++) {
+		m0_asprintf(&name, "tabby-%i", 10 * scale);
+		M0_ASSERT(name != NULL);
+		ADD(name, &glaring_with, &std_ops, &conf_0, false, 10 * scale);
 	}
+	for (i = 1; i < (1 << ARRAY_SIZE(ut_confs)); ++i) {
+		char pad[] = "-----------------------------";
+		bool cfail = false;
+		for (j = 0; j < ARRAY_SIZE(ut_confs); ++j) {
+			if (i & (1 << j)) {
+				cfail |= ut_canfail[j];
+				pad[j] = ut_conf_name[j];
+			}
+		}
+		pad[j] = 0;
+		m0_asprintf(&name, "smoked-%s", pad);
+		M0_ASSERT(name != NULL);
+		ADD(name, &smoked_comb, &mock_ops, NULL, cfail, i, 10, 0);
+		for (scale = 1; scale < 3; scale++) {
+			m0_asprintf(&name, "wildcat-%i-%s", 10 * scale, pad);
+			M0_ASSERT(name != NULL);
+			ADD(name, &glaring_comb, &mock_ops, NULL, cfail, i,
+			    10 * scale);
+		}
+	}
+	return &net_sock_ut;
+#undef ADD
+}
+
+static struct m0_ut_suite net_sock_ut = {
+	.ts_name = "sock-ut"
 };
 
 #undef MOCK_DICE
