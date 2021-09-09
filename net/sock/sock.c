@@ -2163,7 +2163,17 @@ static void sock_done(struct sock *s, bool balance)
 					M0_LOG(M0_ERROR, "Strange errno: %i.",
 					       result);
 				SOP(shutdown, s->s_fd, SHUT_RDWR);
-				SOP(close, s->s_fd);
+				/*
+				 * What if epoll_ctl(CTL_DEL) and close(2) fail
+				 * for some obscure reason? The kernel continues
+				 * to deliver epoll(2) notifications for the
+				 * socket, but the sock structure is no longer
+				 * here. Bad. At least notify the user.
+				 */
+				result = SOP(close, s->s_fd);
+				if (result != 0)
+					M0_LOG(M0_FATAL, "Cannot close: %i.",
+					       -errno);
 				s->s_fd = -1;
 			}
 			m0_sm_state_set(&s->s_sm, S_DELETED);
@@ -4664,21 +4674,39 @@ static ssize_t mock_writev(int fdnum, const struct iovec *iov, int iovcnt)
 static int mock_close(int fdnum)
 {
 	struct mock_fd *fd;
-	if (mock_prologue() || MOCK_DICE(close_err))
-		return mock_ret(mock_err());
+	/*
+	 * Special case: close() has to close the descriptor even if it fails.
+	 */
+	int ret = mock_prologue() || MOCK_DICE(close_err) ? mock_err() : 0;
 	fd = userfd0(fdnum);
 	if (fd->md_gen != (fdnum & ~TGT_MASK) >> 15)
-		return mock_ret(0);  /* The slot can be closed and re-used. */
+		return mock_ret(ret);  /* The slot can be closed and re-used. */
 	if (fd->md_type == MT_SOCK) {
+		int i;
+		int j;
 		fd->md_flags |= (fdnum & TGT_MASK) ?
 			MF_CLOSED_TGT : MF_CLOSED_SRC;
 		if ((fd->md_flags & (MF_CLOSED_TGT | MF_CLOSED_SRC)) ==
-		    (MF_CLOSED_TGT | MF_CLOSED_SRC))
+		    (MF_CLOSED_TGT | MF_CLOSED_SRC)) {
+			/* Clean from all epoll tables. */
+			for (i = 0; i < m_conf->uc_maxfd; ++i) {
+				struct mock_fd *scan = &m_table[i];
+				if (scan->md_type == MT_EPOLL) {
+					for (j = 0; j < scan->md_tail; ++j) {
+						struct mock_epoll_entry *ee =
+						       &scan->md_buf.u_epoll[j];
+						if (ee->ee_fd != 0 &&
+						    userfd(ee->ee_fd) == fd)
+							ee->ee_fd = 0;
+					}
+				}
+			}
 			fd->md_type = MT_FREE;
+		}
 	} else {
 		fd->md_type = MT_FREE;
 	}
-	return mock_ret(0);
+	return mock_ret(ret);
 }
 
 static int mock_shutdown(int fdnum, int how)
@@ -4852,7 +4880,7 @@ static struct m0_net_tm_callbacks m_tm_cb = {
 	.ntc_event_cb = &tm_event_cb
 };
 
-static void tm_init(struct m0_net_transfer_mc *tm, const char *addr)
+static int tm_init(struct m0_net_transfer_mc *tm, const char *addr)
 {
 	int result;
 
@@ -4867,6 +4895,7 @@ static void tm_init(struct m0_net_transfer_mc *tm, const char *addr)
 				m0_semaphore_down(&m_tm_state);
 		}
 	}
+	return tm->ntm_state == M0_NET_TM_STARTED ? 0 : -EINVAL;
 }
 
 static void tm_fini(struct m0_net_transfer_mc *tm)
@@ -5187,15 +5216,22 @@ static struct m0_semaphore g_op_free;
 static int           g_par;
 static bool          g_canfail;
 
-static void g_event_cb(const struct m0_net_buffer_event *ev)
+struct g_err {
+	int         e_queued;
+	m0_bcount_t e_nob;
+	int         e_done;
+	int         e_success;
+	int         e_timeout;
+	int         e_cancelled;
+	int         e_error;
+};
+
+static void g_buf_done(struct g_buf *me)
 {
-	struct g_buf *me = ev->nbe_buffer->nb_app_private;
 	struct g_buf *it;
 	struct g_op  *op  = me->gb_op;
 	int           self;
 
-	m0_mutex_lock(&m_ut_lock);
-	M0_ASSERT(ev->nbe_buffer == &me->gb_buf);
 	M0_ASSERT(me->gb_used);
 	M0_ASSERT(me == op->go_buf[0] || me == op->go_buf[1]);
 	self = me == op->go_buf[1];
@@ -5210,7 +5246,17 @@ static void g_event_cb(const struct m0_net_buffer_event *ev)
 		g_par--;
 	}
 	me->gb_buf.nb_ep = NULL;
+	m0_net_desc_free(&me->gb_buf.nb_desc);
 	me->gb_queued = false;
+}
+
+static void g_event_cb(const struct m0_net_buffer_event *ev)
+{
+	struct g_buf *me = ev->nbe_buffer->nb_app_private;
+
+	m0_mutex_lock(&m_ut_lock);
+	M0_ASSERT(ev->nbe_buffer == &me->gb_buf);
+	g_buf_done(me);
 	m0_mutex_unlock(&m_ut_lock);
 }
 
@@ -5225,9 +5271,8 @@ const struct m0_net_buffer_callbacks g_buf_cb = {
 	}
 };
 
-static void g_buf_init(struct g_buf *buf)
+static int g_buf_init(struct g_buf *buf)
 {
-	int                   result;
 	struct m0_net_buffer *nb = &buf->gb_buf;
 	struct m0_bufvec     *vec = &nb->nb_buffer;
 	m0_bcount_t seg_nr_max =
@@ -5247,14 +5292,17 @@ static void g_buf_init(struct g_buf *buf)
 		nob -= frag[idx++] = seg;
 	}
 	M0_ALLOC_ARR(vec->ov_buf, idx);
-	M0_ASSERT(vec->ov_buf != NULL);
+	if (vec->ov_buf == NULL)
+		return -ENOMEM;
 	M0_ALLOC_ARR(vec->ov_vec.v_count, idx);
-	M0_ASSERT(vec->ov_vec.v_count != NULL);
+	if (vec->ov_vec.v_count == NULL)
+		return -ENOMEM;
 	vec->ov_vec.v_nr = idx;
 	for (i = 0; i < idx; ++i) {
 		vec->ov_vec.v_count[i] = frag[i];
 		vec->ov_buf[i] = m0_alloc(frag[i]);
-		M0_ASSERT(vec->ov_buf[i] != NULL);
+		if (vec->ov_buf[i] == NULL)
+			return -ENOMEM;
 	}
 	nb->nb_length    = m0_vec_count(&nb->nb_buffer.ov_vec);
 	nb->nb_offset    = 0;
@@ -5262,8 +5310,7 @@ static void g_buf_init(struct g_buf *buf)
 	nb->nb_min_receive_size = 1;
 	nb->nb_max_receive_msgs = 1;
 	nb->nb_app_private      = buf;
-	result = m0_net_buffer_register(nb, &m_dom);
-	M0_ASSERT(result == 0);
+	return m0_net_buffer_register(nb, &m_dom);
 }
 
 static void g_buf_fini(struct g_buf *buf)
@@ -5282,17 +5329,22 @@ static void g_buf_fini(struct g_buf *buf)
 		m0_free0(&vec->ov_buf);
 	}
 	m0_free0(&vec->ov_vec.v_count);
+	M0_SET0(buf);
 }
 
-static void g_tm_init(struct g_tm *tm)
+static int g_tm_init(struct g_tm *tm)
 {
 	static const char fmt[] = "inet:stream:127.0.0.1@%i";
 	char pad[100];
+	int result;
 
 	sprintf(pad, fmt, (int)(tm - g_tm) + 3000);
-	tm_init(&tm->gt_tm, pad);
-	M0_ALLOC_ARR(tm->gt_other, g_tm_nr);
-	M0_ASSERT(tm->gt_other != NULL);
+	result = tm_init(&tm->gt_tm, pad);
+	if (result == 0) {
+		M0_ALLOC_ARR(tm->gt_other, g_tm_nr);
+		result = tm->gt_other != NULL ? 0 : -ENOMEM;
+	}
+	return result;
 }
 
 static void g_tm_fini(struct g_tm *tm)
@@ -5305,9 +5357,10 @@ static void g_tm_fini(struct g_tm *tm)
 		m0_free0(&tm->gt_other);
 	}
 	tm_fini(&tm->gt_tm);
+	M0_SET0(tm);
 }
 
-static void g_tm_lookup(struct g_tm *tm)
+static int g_tm_lookup(struct g_tm *tm)
 {
 	int i;
 	int result;
@@ -5316,8 +5369,10 @@ static void g_tm_lookup(struct g_tm *tm)
 			continue;
 		result = m0_net_end_point_create(&tm->gt_other[i], &tm->gt_tm,
 					       g_tm[i].gt_tm.ntm_ep->nep_addr);
-		M0_ASSERT(result == 0);
+		if (result != 0)
+			return result;
 	}
+	return 0;
 }
 
 static void g_op_init(struct g_op *op)
@@ -5326,6 +5381,7 @@ static void g_op_init(struct g_op *op)
 
 static void g_op_fini(struct g_op *op)
 {
+	M0_SET0(op);
 }
 
 static struct g_buf *g_buf_get(void)
@@ -5370,8 +5426,6 @@ static void g_op_select(void)
 	op->go_buf[1 - receiver[op->go_opc]] = b[1 - larger];
 	nb[0] = &op->go_buf[0]->gb_buf;
 	nb[1] = &op->go_buf[1]->gb_buf;
-	if (op->go_opc == O_MSG)
-		nb[1]->nb_ep = tm1->gt_other[tm0 - g_tm];
 	for (i = 0; i < 2; ++i) {
 		nb[i]->nb_timeout = g_to == M0_TIME_NEVER ?
 			g_to : m0_time_now() + g_to;
@@ -5379,56 +5433,84 @@ static void g_op_select(void)
 		b[i]->gb_op = op;
 		b[i]->gb_queued = true;
 	}
-	result = m0_net_buffer_add(nb[0], &tm0->gt_tm);
-	M0_ASSERT(result == 0);
-	if (op->go_opc != O_MSG) {
-		result = m0_net_desc_copy(&nb[0]->nb_desc, &nb[1]->nb_desc);
-		M0_ASSERT(result == 0);
-	}
-	result = m0_net_buffer_add(nb[1], &tm1->gt_tm);
 	g_par++;
-	M0_ASSERT(result == 0);
+	result = m0_net_buffer_add(nb[0], &tm0->gt_tm);
+	if (result == 0) {
+		if (op->go_opc != O_MSG)
+			result = m0_net_desc_copy(&nb[0]->nb_desc,
+						  &nb[1]->nb_desc);
+		if (result == 0) {
+			if (op->go_opc == O_MSG)
+				nb[1]->nb_ep = tm1->gt_other[tm0 - g_tm];
+			result = m0_net_buffer_add(nb[1], &tm1->gt_tm);
+			if (result != 0)
+				g_buf_done(op->go_buf[1]);
+		}
+	} else {
+		op->go_buf[1]->gb_queued = false;
+		g_buf_done(op->go_buf[0]);
+	}
 }
 
-static void glaring_init(const struct sock_ops *sop, struct sock_ut_conf *conf,
-			 int tm_nr, int op_nr, bool canfail)
+static int glaring_init(const struct sock_ops *sop, struct sock_ut_conf *conf,
+			int tm_nr, int op_nr, bool canfail)
 {
 	int i;
+	int result;
 	ut_init(sop, conf);
 	g_tm_nr = tm_nr;
 	g_op_nr = op_nr;
-	g_to = canfail ? M0_MKTIME(5, 0) : M0_TIME_NEVER;
+	g_to = canfail ? M0_MKTIME(10, 0) : M0_TIME_NEVER;
 	g_par = 0;
 	g_canfail = canfail;
 	M0_ALLOC_ARR(g_tm, tm_nr);
-	M0_ASSERT(g_tm != NULL);
-	for (i = 0; i < tm_nr; ++i)
-		g_tm_init(&g_tm[i]);
-	for (i = 0; i < tm_nr; ++i)
-		g_tm_lookup(&g_tm[i]);
+	if (g_tm == NULL)
+		return -ENOMEM;
+	for (i = 0; i < tm_nr; ++i) {
+		result = g_tm_init(&g_tm[i]);
+		if (result != 0)
+			return result;
+	}
+	for (i = 0; i < tm_nr; ++i) {
+		result = g_tm_lookup(&g_tm[i]);
+		if (result != 0)
+			return result;
+	}
 	M0_ALLOC_ARR(g_buf, 2 * op_nr);
-	M0_ASSERT(g_buf != NULL);
-	for (i = 0; i < 2 * op_nr; ++i)
-		g_buf_init(&g_buf[i]);
+	if (g_buf == NULL)
+		return -ENOMEM;
+	for (i = 0; i < 2 * op_nr; ++i) {
+		result = g_buf_init(&g_buf[i]);
+		if (result != 0)
+			return result;
+	}
 	M0_ALLOC_ARR(g_op, op_nr);
-	M0_ASSERT(g_op != NULL);
+	if (g_op == NULL)
+		return -ENOMEM;
 	for (i = 0; i < op_nr; ++i)
 		g_op_init(&g_op[i]);
 	m0_semaphore_init(&g_op_free, op_nr);
+	return 0;
 }
 
 static void glaring_fini()
 {
 	int i;
 	m0_semaphore_fini(&g_op_free);
-	for (i = 0; i < g_op_nr; ++i)
-		g_op_fini(&g_op[i]);
+	if (g_op != NULL) {
+		for (i = 0; i < g_op_nr; ++i)
+			g_op_fini(&g_op[i]);
+	}
 	m0_free0(&g_op);
-	for (i = 0; i < 2 * g_op_nr; ++i)
-		g_buf_fini(&g_buf[i]);
+	if (g_buf != NULL) {
+		for (i = 0; i < 2 * g_op_nr; ++i)
+			g_buf_fini(&g_buf[i]);
+	}
 	m0_free0(&g_buf);
-	for (i = 0; i < g_tm_nr; ++i)
-		g_tm_fini(&g_tm[i]);
+	if (g_tm != NULL) {
+		for (i = 0; i < g_tm_nr; ++i)
+			g_tm_fini(&g_tm[i]);
+	}
 	m0_free0(&g_tm);
 	ut_fini();
 }
@@ -5446,11 +5528,12 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 		scuare = scale * scale;
 		c.uc_maxfd = max32(c.uc_maxfd, 2 * scuare);
 		c.uc_epoll_len = max32(c.uc_epoll_len, 2 * scuare);
-		glaring_init(sop, &c, scale, scuare, canfail|true);
-		for (i = 0; i < 2 * scuare; ++i)
-			g_op_select();
-		for (i = 0; i < scuare; ++i)
-			m0_semaphore_down(&g_op_free);
+		if (glaring_init(sop, &c, scale, scuare, canfail|true) == 0) {
+			for (i = 0; i < 2 * scuare; ++i)
+				g_op_select();
+			for (i = 0; i < scuare; ++i)
+				m0_semaphore_down(&g_op_free);
+		}
 		glaring_fini();
 	}
 }
