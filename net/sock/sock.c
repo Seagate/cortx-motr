@@ -2187,7 +2187,7 @@ static void sock_done(struct sock *s, bool balance)
 				 */
 				result = SOP(close, s->s_fd);
 				if (result != 0)
-					M0_LOG(M0_FATAL, "Cannot close: %i.",
+					M0_LOG(M0_ERROR, "Cannot close: %i.",
 					       -errno);
 				s->s_fd = -1;
 			}
@@ -5508,6 +5508,11 @@ static void g_op_select(void)
 
 	m0_semaphore_down(&g_op_free);
 	m0_mutex_lock(&m_ut_lock);
+	if (mock_rnd(20) < 15) {
+		b[0] = &g_buf[mock_rnd(2 * g_op_nr)];
+		m0_net_buffer_del(&b[0]->gb_buf,
+				  b[0]->gb_buf.nb_tm ?: &g_tm[0].gt_tm);
+	}
 	tm0 = &g_tm[mock_rnd(g_tm_nr)];
 	tm1 = &g_tm[(tm0 - g_tm + mock_rnd(g_tm_nr - 1) + 1) % g_tm_nr];
 	M0_ASSERT(tm0 != tm1);
@@ -5636,7 +5641,6 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 		for (i = 0; i < square; ++i)
 			m0_semaphore_down(&g_op_free);
 	}
-	/*
 	printf("\npar-max: %i\n", g_par_max);
 	for (i = 0; i < ARRAY_SIZE(g_err); ++i) {
 		printf("%i: %i %"PRId64" %i %i %i %i %i %"PRId64"\n", i,
@@ -5645,7 +5649,6 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 		       g_err[i].e_timeout, g_err[i].e_cancelled,
 		       g_err[i].e_error,   g_err[i].e_time);
 	}
-	*/
 	glaring_fini();
 }
 
