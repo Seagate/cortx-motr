@@ -358,6 +358,8 @@ static void check_all_fi_disabled(void)
 #endif /* ENABLE_FAULT_INJECTION */
 }
 
+const struct m0_ut *m0_ut_current_test = NULL;
+
 static void run_test(const struct m0_ut *test, size_t max_name_len)
 {
 	static const char padding[256] = { [0 ... 254] = ' ', [255] = '\0' };
@@ -386,6 +388,7 @@ static void run_test(const struct m0_ut *test, size_t max_name_len)
 	mem_before = m0_allocated_total();
 	start      = m0_time_now();
 
+	m0_ut_current_test = test;
 	/* run the test */
 	test->t_proc();
 
