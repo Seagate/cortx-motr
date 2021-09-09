@@ -190,6 +190,7 @@
 #include "lib/hash.h"           /* m0_htable */
 #include "lib/memory.h"         /* M0_ALLOC_PTR()*/
 #include "libfab_internal.h"
+#include "lib/string.h"         /* m0_streq */
 #include "net/net_internal.h"   /* m0_net__buffer_invariant() */
 
 #define U32_TO_VPTR(a)     ((void*)((uintptr_t)a))
@@ -336,7 +337,8 @@ static uint32_t libfab_buf_token_get(struct m0_fab__buf *fb);
 M0_INTERNAL int m0_net_libfab_init(void)
 {
 	m0_net_xprt_register(&m0_net_libfab_xprt);
-	m0_net_xprt_default_set(&m0_net_libfab_xprt);
+	if (m0_streq(M0_DEFAULT_NETWORK, "LF"))
+		m0_net_xprt_default_set(&m0_net_libfab_xprt);
 	return M0_RC(0);
 }
 

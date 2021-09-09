@@ -874,7 +874,7 @@ AS_IF([! test -z "$with_libfab"],
         M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS $LIB_FAB_INCLUDES"
       ],
 )
-AS_IF([test x$enable_libfab = xyes],
+AS_IF([test x$enable_libfab = xyes || test "x$with_default_network" = "xLF" ],
       [
 	MOTR_SEARCH_LIBS([fi_fabric], [fabric], [LIBFAB_LIBS],
                   [fi_fabric cannot be found! Try to install libfabric package]
@@ -897,6 +897,7 @@ AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
 		      [
 			M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
 			enable_libfab=yes
+			AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["LF"])
 		      ]
 		)
 	      ], []
