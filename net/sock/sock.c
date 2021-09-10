@@ -1278,7 +1278,7 @@ static const struct socktype stype[] = {
 #define EP_GET(e, f) \
 	({ struct ep *__ep = (e); ep_get(__ep); M0_CNT_INC(__ep->e_r_ ## f); })
 #define EP_PUT(e, f) \
-	({ struct ep *__ep = (e); ep_put(__ep); M0_CNT_DEC(__ep->e_r_ ## f); })
+	({ struct ep *__ep = (e); M0_CNT_DEC(__ep->e_r_ ## f); ep_put(__ep); })
 #else
 #define EP_GET(e, f) ep_get(e)
 #define EP_PUT(e, f) ep_put(e)
@@ -5165,6 +5165,26 @@ static struct sock_ut_conf conf_spam = {
 	.uc_alloc_err        = 1000
 };
 
+static struct sock_ut_conf conf_spamik = {
+	.uc_maxfd            = 1000,
+	.uc_sockbuf_len      = 1000,
+	.uc_epoll_len        = 1000,
+	.uc_err              =   10,
+	.uc_socket_err       =  100,
+	.uc_accept4_err      =  100,
+	.uc_listen_err       =  100,
+	.uc_bind_err         =  100,
+	.uc_connect_err      =  100,
+	.uc_readv_err        =  100,
+	.uc_writev_err       =  100,
+	.uc_setsockopt_err   =  100,
+	.uc_close_err        =  100,
+	.uc_epoll_create_err =  100,
+	.uc_epoll_wait_err   =   10,
+	.uc_epoll_ctl_err    =  100,
+	.uc_alloc_err        =  100
+};
+
 static struct sock_ut_conf conf_adhd = {
 	.uc_maxfd            = 1000,
 	.uc_sockbuf_len      = 1000,
@@ -5176,6 +5196,11 @@ static struct sock_ut_conf conf_adhd = {
 static struct sock_ut_conf *ut_confs[] = {
 	&conf_delay, &conf_stutter, &conf_spam, &conf_adhd
 };
+
+static struct sock_ut_conf *ut_confs1[] = {
+	&conf_delay, &conf_stutter, &conf_spamik, &conf_adhd
+};
+
 static bool ut_canfail[] = {
 	false, false, true, true
 };
@@ -5185,8 +5210,10 @@ static char ut_conf_name[] = {
 
 M0_BASSERT(ARRAY_SIZE(ut_confs) == ARRAY_SIZE(ut_canfail));
 M0_BASSERT(ARRAY_SIZE(ut_confs) == ARRAY_SIZE(ut_conf_name));
+M0_BASSERT(ARRAY_SIZE(ut_confs) == ARRAY_SIZE(ut_confs1));
 
-static void comb_build(int bits, bool *canfail, struct sock_ut_conf *comb)
+static void comb_build(int bits, bool *canfail, struct sock_ut_conf *comb,
+		       struct sock_ut_conf **confs)
 {
 	int j;
 	int k;
@@ -5195,7 +5222,7 @@ static void comb_build(int bits, bool *canfail, struct sock_ut_conf *comb)
 	for (j = 0; j < ARRAY_SIZE(ut_confs); ++j) {
 		if (bits & (1 << j)) {
 			int *dst = (void *)comb;
-			int *src = (void *)ut_confs[j];
+			int *src = (void *)confs[j];
 			for (k = 0; k < sizeof *comb / sizeof(int); ++k){
 				if (src[k] != 0)
 					dst[k] = src[k];
@@ -5209,7 +5236,7 @@ static void smoked_comb(const struct sock_ops *sop, struct sock_ut_conf *conf,
 			bool canfail, int bits, int rep, int n3)
 {
 	struct sock_ut_conf comb;
-	comb_build(bits, &canfail, &comb);
+	comb_build(bits, &canfail, &comb, ut_confs);
 	smoke_with(sop, &comb, canfail, rep, 0, 0);
 }
 
@@ -5284,6 +5311,7 @@ static void g_buf_done(struct g_buf *me, int rc)
 	struct g_op  *op  = me->gb_op;
 	int           self;
 
+	m0_mutex_lock(&m_ut_lock);
 	M0_ASSERT(me->gb_used);
 	M0_ASSERT(me == op->go_buf[0] || me == op->go_buf[1]);
 	g_err[op->go_opc].e_done++;
@@ -5322,16 +5350,15 @@ static void g_buf_done(struct g_buf *me, int rc)
 	me->gb_buf.nb_ep = NULL;
 	m0_net_desc_free(&me->gb_buf.nb_desc);
 	me->gb_queued = false;
+	m0_mutex_unlock(&m_ut_lock);
 }
 
 static void g_event_cb(const struct m0_net_buffer_event *ev)
 {
 	struct g_buf *me = ev->nbe_buffer->nb_app_private;
 
-	m0_mutex_lock(&m_ut_lock);
 	M0_ASSERT(ev->nbe_buffer == &me->gb_buf);
 	g_buf_done(me, ev->nbe_status);
-	m0_mutex_unlock(&m_ut_lock);
 }
 
 const struct m0_net_buffer_callbacks g_buf_cb = {
@@ -5556,9 +5583,9 @@ static void g_op_select(void)
 			result = m0_net_buffer_add(nb[1], &tm1->gt_tm);
 			if (result == 0)
 				g_err[op->go_opc].e_queued++;
-			else
-				g_buf_done(op->go_buf[1], result);
 		}
+		if (result != 0)
+			g_buf_done(op->go_buf[1], result);
 	} else {
 		op->go_buf[1]->gb_queued = false;
 		g_buf_done(op->go_buf[0], result);
@@ -5571,6 +5598,9 @@ static int glaring_init(const struct sock_ops *sop, struct sock_ut_conf *conf,
 	int i;
 	int result;
 	ut_init(sop, conf);
+	/* Enable realiable allocations for setup. */
+	if (conf->uc_alloc_err > 0)
+		m0_fi_disable("m0_alloc", "fail_allocation");
 	g_tm_nr = tm_nr;
 	g_op_nr = op_nr;
 	g_to = canfail ? M0_MKTIME(5, 0) : M0_TIME_NEVER;
@@ -5605,6 +5635,9 @@ static int glaring_init(const struct sock_ops *sop, struct sock_ut_conf *conf,
 	for (i = 0; i < op_nr; ++i)
 		g_op_init(&g_op[i]);
 	m0_semaphore_init(&g_op_free, op_nr);
+	if (conf->uc_alloc_err > 0)
+		m0_fi_enable_each_nth_time("m0_alloc", "fail_allocation",
+					   10000 / conf->uc_alloc_err);
 	return 0;
 }
 
@@ -5639,23 +5672,26 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 
 	c.uc_maxfd = max32(c.uc_maxfd, 2 * square);
 	c.uc_epoll_len = max32(c.uc_epoll_len, 2 * square);
-	if (glaring_init(sop, &c, scale, square, canfail|true) == 0) {
+	for (i = 0; i < 10; ++i) {
+		if (glaring_init(sop, &c, scale, square, canfail|true) == 0)
+			break;
+		glaring_fini();
+	}
+	if (i < 10) {
 		for (i = 0; i < 2 * square; ++i)
 			g_op_select();
 		for (i = 0; i < square; ++i)
 			m0_semaphore_down(&g_op_free);
+		printf("\npar-max: %i\n", g_par_max);
+		for (i = 0; i < ARRAY_SIZE(g_err); ++i) {
+			printf("%i: %i %"PRId64" %i %i %i %i %i %"PRId64"\n", i,
+			       g_err[i].e_queued,  g_err[i].e_nob,
+			       g_err[i].e_done,    g_err[i].e_success,
+			       g_err[i].e_timeout, g_err[i].e_cancelled,
+			       g_err[i].e_error,   g_err[i].e_time);
+		}
+		glaring_fini();
 	}
-	/*
-	printf("\npar-max: %i\n", g_par_max);
-	for (i = 0; i < ARRAY_SIZE(g_err); ++i) {
-		printf("%i: %i %"PRId64" %i %i %i %i %i %"PRId64"\n", i,
-		       g_err[i].e_queued,  g_err[i].e_nob,
-		       g_err[i].e_done,    g_err[i].e_success,
-		       g_err[i].e_timeout, g_err[i].e_cancelled,
-		       g_err[i].e_error,   g_err[i].e_time);
-	}
-	*/
-	glaring_fini();
 }
 
 /* Felis silvestrus. */
@@ -5663,7 +5699,7 @@ static void glaring_comb(const struct sock_ops *sop, struct sock_ut_conf *conf,
 			 bool canfail, int bits, int scale, int n3)
 {
 	struct sock_ut_conf comb;
-	comb_build(bits, &canfail, &comb);
+	comb_build(bits, &canfail, &comb, ut_confs1);
 	glaring_with(sop, &comb, canfail, scale, 0, 0);
 }
 
