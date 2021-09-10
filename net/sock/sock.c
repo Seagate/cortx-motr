@@ -5682,6 +5682,7 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 			g_op_select();
 		for (i = 0; i < square; ++i)
 			m0_semaphore_down(&g_op_free);
+		/*
 		printf("\npar-max: %i\n", g_par_max);
 		for (i = 0; i < ARRAY_SIZE(g_err); ++i) {
 			printf("%i: %i %"PRId64" %i %i %i %i %i %"PRId64"\n", i,
@@ -5690,6 +5691,7 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 			       g_err[i].e_timeout, g_err[i].e_cancelled,
 			       g_err[i].e_error,   g_err[i].e_time);
 		}
+		*/
 		glaring_fini();
 	}
 }
