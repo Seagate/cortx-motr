@@ -5275,6 +5275,7 @@ struct g_buf {
 	bool                 gb_used;
 	bool                 gb_queued;
 	struct g_op         *gb_op;
+	int                  gb_rc;
 };
 
 struct g_op {
@@ -5315,6 +5316,7 @@ static void g_buf_done(struct g_buf *me, int rc)
 	M0_ASSERT(me->gb_used);
 	M0_ASSERT(me == op->go_buf[0] || me == op->go_buf[1]);
 	g_err[op->go_opc].e_done++;
+	me->gb_rc = rc;
 	if (rc == 0) {
 		g_err[op->go_opc].e_success++;
 		g_err[op->go_opc].e_nob +=
@@ -5330,7 +5332,7 @@ static void g_buf_done(struct g_buf *me, int rc)
 	self = me == op->go_buf[1];
 	it = op->go_buf[1 - self];
 	if (!it->gb_queued) {
-		if (rc == 0 && op->go_opc != O_MSG &&
+		if (rc == 0 && it->gb_rc == 0 && op->go_opc != O_MSG &&
 		    m_conf->uc_readv_skip == 0 && m_conf->uc_readv_flip == 0) {
 			struct m0_bufvec_cursor src;
 			struct m0_bufvec_cursor dst;
