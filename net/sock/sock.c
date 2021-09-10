@@ -5389,7 +5389,7 @@ M0_INTERNAL uint64_t bvec_check(struct m0_bufvec *bv)
 	m0_bcount_t i;
 	m0_bcount_t j;
 	char        x;
-	char        prev;
+	char        prev = 0;
 	for (i = 0; i < bv->ov_vec.v_nr; ++i) {
 		for (j = 0; j < bv->ov_vec.v_count[i]; ++j) {
 			x = ((char *)bv->ov_buf[i])[j];
