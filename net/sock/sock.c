@@ -5034,7 +5034,7 @@ static const struct sock_ops std_ops = {
 
 static struct sock_ut_conf conf_0 = {
 	.uc_maxfd       = 1000,
-	.uc_sockbuf_len = 1000,
+	.uc_sockbuf_len = 64000,
 	.uc_epoll_len   = 1000
 };
 
@@ -5216,7 +5216,7 @@ static void smoke_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 
 static struct sock_ut_conf conf_delay = {
 	.uc_maxfd       = 1000,
-	.uc_sockbuf_len = 1000,
+	.uc_sockbuf_len = 64000,
 	.uc_epoll_len   = 1000,
 	.uc_delay       = 1000,
 	.uc_delay_ns    = M0_TIME_ONE_SECOND / 500
@@ -5224,7 +5224,7 @@ static struct sock_ut_conf conf_delay = {
 
 static struct sock_ut_conf conf_stutter = {
 	.uc_maxfd        = 1000,
-	.uc_sockbuf_len  = 1000,
+	.uc_sockbuf_len  = 64000,
 	.uc_epoll_len    = 1000,
 	.uc_accept4_miss = 1000,
 	.uc_readv_again  = 1000,
@@ -5238,7 +5238,7 @@ static struct sock_ut_conf conf_stutter = {
 
 static struct sock_ut_conf conf_spam = {
 	.uc_maxfd            = 1000,
-	.uc_sockbuf_len      = 1000,
+	.uc_sockbuf_len      = 64000,
 	.uc_epoll_len        = 1000,
 	.uc_err              = 1000,
 	.uc_socket_err       = 1000,
@@ -5258,7 +5258,7 @@ static struct sock_ut_conf conf_spam = {
 
 static struct sock_ut_conf conf_spamik = {
 	.uc_maxfd            = 1000,
-	.uc_sockbuf_len      = 1000,
+	.uc_sockbuf_len      = 64000,
 	.uc_epoll_len        = 1000,
 	.uc_err              =   10,
 	.uc_socket_err       =  100,
@@ -5278,7 +5278,7 @@ static struct sock_ut_conf conf_spamik = {
 
 static struct sock_ut_conf conf_adhd = {
 	.uc_maxfd            = 1000,
-	.uc_sockbuf_len      = 1000,
+	.uc_sockbuf_len      = 64000,
 	.uc_epoll_len        = 1000,
 	.uc_readv_skip       = 1000,
 	.uc_readv_flip       = 1000
@@ -5310,6 +5310,7 @@ static void comb_build(int bits, bool *canfail, struct sock_ut_conf *comb,
 	int k;
 	M0_SET0(comb);
 	*canfail = false;
+	*comb = conf_0;
 	for (j = 0; j < ARRAY_SIZE(ut_confs); ++j) {
 		if (bits & (1 << j)) {
 			int *dst = (void *)comb;
@@ -5629,7 +5630,7 @@ static void g_op_select(void)
 
 	m0_semaphore_down(&g_op_free);
 	m0_mutex_lock(&m_ut_lock);
-	if (mock_rnd(20) < 15) {
+	if (0 && mock_rnd(20) < 15) {
 		b[0] = &g_buf[mock_rnd(2 * g_op_nr)];
 		m0_net_buffer_del(&b[0]->gb_buf,
 				  b[0]->gb_buf.nb_tm ?: &g_tm[0].gt_tm);
@@ -5763,7 +5764,7 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 	c.uc_maxfd = max32(c.uc_maxfd, 2 * square);
 	c.uc_epoll_len = max32(c.uc_epoll_len, 2 * square);
 	for (i = 0; i < 10; ++i) {
-		if (glaring_init(sop, &c, scale, square, canfail|true) == 0)
+		if (glaring_init(sop, &c, scale, square, canfail || true) == 0)
 			break;
 		glaring_fini();
 	}
@@ -5772,6 +5773,7 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 			g_op_select();
 		for (i = 0; i < square; ++i)
 			m0_semaphore_down(&g_op_free);
+		/*
 		printf("\npar-max: %i\n", g_par_max);
 		for (i = 0; i < ARRAY_SIZE(g_err); ++i) {
 			printf("%i: %i %"PRId64" %i %i %i %i %i %"PRId64"\n", i,
@@ -5780,6 +5782,7 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 			       g_err[i].e_timeout, g_err[i].e_cancelled,
 			       g_err[i].e_error,   g_err[i].e_time);
 		}
+		*/
 		glaring_fini();
 	}
 }
@@ -5849,7 +5852,7 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 		ADD(NAME("tabby-%i", 10 * scale),
 		    &glaring_with, &std_ops, &conf_0, false, 10 * scale);
 	}
-	for (i = 1; i < (1 << ARRAY_SIZE(ut_confs)); ++i) {
+	for (i = 0; i < (1 << ARRAY_SIZE(ut_confs)); ++i) {
 		char pad[] = "-----------------------------";
 		bool cfail = false;
 		for (j = 0; j < ARRAY_SIZE(ut_confs); ++j) {
