@@ -3563,6 +3563,7 @@ static int pk_header_done(struct mover *m)
 		return M0_ERR(-EPROTO); /* and fetch I know not what? */
 	if (hasdst) {
 		enum { BFLAGS = M0_NET_BUF_QUEUED | M0_NET_BUF_REGISTERED };
+		int qtype;
 		result = m0_cookie_dereference(&p->p_dst.bd_cookie, &cookie);
 		if (result != 0)
 			return M0_ERR_INFO(result,
@@ -3579,8 +3580,11 @@ static int pk_header_done(struct mover *m)
 		if (!M0_IS0(&buf->b_peer) &&
 		    memcmp(&buf->b_peer, &p->p_src, sizeof p->p_src) != 0)
 			return M0_ERR(-EPERM);
-		if (!M0_IN(buf->b_buf->nb_qtype, (M0_NET_QT_PASSIVE_BULK_SEND,
-						  M0_NET_QT_PASSIVE_BULK_RECV)))
+		qtype = buf->b_buf->nb_qtype;
+		if (isget && qtype != M0_NET_QT_PASSIVE_BULK_SEND)
+			return M0_ERR(-EPERM);
+		if (!isget && !M0_IN(qtype, (M0_NET_QT_ACTIVE_BULK_RECV,
+					     M0_NET_QT_PASSIVE_BULK_RECV)))
 			return M0_ERR(-EPERM);
 	}
 	if (isget) {
@@ -3588,8 +3592,6 @@ static int pk_header_done(struct mover *m)
 		if (p->p_idx != 0 || p->p_nr != 1 || p->p_size != 0 ||
 		    p->p_offset != 0 || !hasdst)
 			return M0_ERR(-EPROTO);
-		if (buf->b_buf->nb_qtype != M0_NET_QT_PASSIVE_BULK_SEND)
-			return M0_ERR(-EPERM);
 		buf->b_peer = p->p_src;
 		mover_init(w, ma, &writer_op);
 		w->m_buf = buf;
