@@ -1804,16 +1804,18 @@ static void ma_buf_done(struct ma *ma)
 static struct buf *ma_recv_buf(struct ma *ma, const struct packet *p)
 {
 	struct m0_net_buffer *nb;
-	nb = m0_tl_find(m0_net_tm, nb, &ma->t_ma->ntm_q[M0_NET_QT_MSG_RECV], ({
-			struct buf *b = nb->nb_xprt_private;
+	struct buf           *b;
+	struct buf           *large = NULL;
 
-			/* Already receiving... */
-			memcmp(&b->b_peer, &p->p_src, sizeof p->p_src) == 0 ||
-			/* ... or idle and has enough space. */
-			(b->b_done.b_words == NULL &&
-			 m0_vec_count(&nb->nb_buffer.ov_vec) >= p->p_totalsize);
-	      }));
-	return nb != NULL ? nb->nb_xprt_private : NULL;
+	m0_tl_for(m0_net_tm, &ma->t_ma->ntm_q[M0_NET_QT_MSG_RECV], nb) {
+		b = nb->nb_xprt_private;
+		if (memcmp(&b->b_peer, &p->p_src, sizeof p->p_src) == 0)
+			return b; /* Already receiving. */
+		else if (large == NULL && b->b_done.b_words == NULL &&
+			 m0_vec_count(&nb->nb_buffer.ov_vec) >= p->p_totalsize)
+			large = b; /* Idle and has enough space. */
+	} m0_tl_endfor;
+	return large;
 }
 
 /** Returns the "self" end-point of a transfer machine. */
