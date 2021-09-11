@@ -177,7 +177,7 @@ extern struct m0_ut_suite xcode_ut;
 extern struct m0_ut_suite sns_flock_ut;
 extern struct m0_ut_suite ut_suite_pi;
 extern struct m0_ut_suite btree_ut;
-extern struct m0_ut_suite *m0_net_sock_ut_build(void);
+M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void);
 
 #if defined(ENABLE_LUSTRE)
 #define LNET_ENABLED (true)
