@@ -41,6 +41,8 @@ MOTR_LOG_DIR = "/var/motr"
 TIMEOUT_SECS = 120
 MACHINE_ID_LEN = 32
 MOTR_LOG_DIRS = [LOGDIR, MOTR_LOG_DIR]
+BE_LOG_SZ = 4*1024*1024*1024 #4G
+BE_SEG0_SZ = 128 * 1024 *1024 #128M
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -1042,45 +1044,52 @@ def create_part(self, device, label, sz, part_num):
         ret = execute_command(self, cmd, verbose=True)[1]
     return ret
 
+# /dev/sdb1 = BE log file path = 4G
+# /dev/sdb2 = BE seg0 file path = 128M
+# /dev/sdb3 = [size(metadata_disk)] - [size(/dev/sdb1) + size(/dev/sdb2)]
+
 # cvg_o metadata_disk = /dev_sdb
 # /dev/disk/by-label/lv_be_log1 -> ../../sdb1
-# /dev/disk/by-label/lv_raw_md1 -> ../../sdb2
+# /dev/disk/by-label/lv_be_seg1 -> ../../sdb2
+# /dev/disk/by-label/lv_raw_md1 -> ../../sdb3
 # Size of /dev/sdb1 = min(MOTR_M0D_BESEG_SIZE, 0.04*disk_size(/dev/sdb))
-# Size of /dev/sdb2 = disk_size(/dev/sdb) - Size of /dev/sdb1
+# Size of /dev/sdb2 = 128M
+# Size of /dev/sdb3 = disk_size(/dev/sdb) - Size of /dev/sdb1
 
 # cvg_1 metadata_disk = /dev/sde
 # /dev/disk/by-label/lv_be_log2 -> ../../sde1
+# /dev/disk/by-label/lv_be_seg2 -> ../../sde2
 # /dev/disk/by-label/lv_raw_md2 -> ../../sde2
 # Size of /dev/sde1 = min(MOTR_M0D_BESEG_SIZE, 0.04*disk_size(/dev/sde))
-# Size of /dev/sde2 = disk_size(/dev/sde) - Size of /dev/sde1
+# Size of /dev/sde2 = 128M
+# Size of /dev/sde3 = disk_size(/dev/sde) - Size of /dev/sde1
 
 def create_parts(self, dev_count, device):
     raw_md_label = f"raw_md{dev_count}"
     be_log_label = f"be_log{dev_count}"
+    be_seg_label = f"be_seg{dev_count}"
 
-    config_dict = read_config(MOTR_SYS_CFG)
     disk_size = int(get_disk_size(self, device))
-    if config_dict['MOTR_M0D_BESEG_SIZE']:
-        self.logger.info(f"MOTR_M0D_BESEG_SIZE = {config_dict['MOTR_M0D_BESEG_SIZE']}")
-        if (int(config_dict['MOTR_M0D_BESEG_SIZE']) > 0):
-            be_log_part_sz = int(config_dict['MOTR_M0D_BESEG_SIZE'])
-        else:
-            be_log_part_sz = int(0.04 * disk_size)
-    else:
-        be_log_part_sz = int(0.04 * disk_size)
 
-    raw_md_part_sz = int(disk_size) - int(be_log_part_sz)
+    be_log_part_sz = BE_LOG_SZ #4GB
+    be_seg_part_sz = BE_SEG0_SZ  #128MB
+    raw_md_part_sz = int(disk_size) - int(be_log_part_sz + be_seg_part_sz)
+
     be_log_part_sz_GB = str(int(be_log_part_sz/(1024*1024*1024)))+'G'
-    raw_md_part_sz_GB = str(int(raw_md_part_sz/(1024*1024*1024)*0.8)) + 'G'
+    be_seg_part_sz_MB = str(int(be_seg_part_sz/(1024*1024)))+'M'
+    raw_md_part_sz_GB = str(int(raw_md_part_sz/(1024*1024*1024))) + 'G'
 
     self.logger.info(f"be_log_part_sz_GB = {be_log_part_sz_GB}")
+    self.logger.info(f"be_seg_MB = {be_seg_part_sz_MB}")
     self.logger.info(f"raw_md_part_sz_GB = {raw_md_part_sz_GB}")
+
 
     ret = create_part(self, device, be_log_label, be_log_part_sz_GB, 1)
     if ret == 0:
-        ret = create_part(self, device, raw_md_label, raw_md_part_sz_GB, 2)
+        ret = create_part(self, device, be_seg_label, be_seg_part_sz_MB, 2)
+        if ret == 0:
+            ret = create_part(self, device, raw_md_label, raw_md_part_sz_GB, 3)
     return ret
-
 
 def read_config(file):
     fp = open(file, "r")
