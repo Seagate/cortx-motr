@@ -652,6 +652,8 @@
 #define MOCK_LNET (0)
 #endif
 
+#define USE_INVARIANTS (0)
+
 struct sock;
 struct mover;
 struct addr;
@@ -1291,6 +1293,7 @@ static const struct sock_ops *sops = NULL;
 	({ in_ut() ? sops->so_ ## op(__VA_ARGS__) : op(__VA_ARGS__); })
 
 
+#if USE_INVARIANTS
 static bool ma_invariant(const struct ma *ma)
 {
 	const struct m0_net_transfer_mc *net = ma->t_ma;
@@ -1403,6 +1406,42 @@ static bool mover_invariant(const struct mover *m)
 		    m0_exists(i, ARRAY_SIZE(stype),
 			      stype[i].st_reader == m->m_op));
 }
+
+/* USE_INVARIANTS */
+#else
+
+static bool ma_invariant(const struct ma *ma)
+{
+	return true;
+}
+
+static bool sock_invariant(const struct sock *s)
+{
+	return true;
+}
+
+static bool buf_invariant(const struct buf *buf)
+{
+	return true;
+}
+
+static bool addr_invariant(const struct addr *a)
+{
+	return true;
+}
+
+static bool ep_invariant(const struct ep *ep)
+{
+	return true;
+}
+
+static bool mover_invariant(const struct mover *m)
+{
+	return true;
+}
+
+/* USE_INVARIANTS */
+#endif
 
 /** Used as m0_net_xprt_ops::xo_dom_init(). */
 static int dom_init(const struct m0_net_xprt *xprt, struct m0_net_domain *dom)
@@ -2791,8 +2830,8 @@ static int addr_parse_lnet(struct addr *addr, const char *name)
 				   "portal: %u, tmid: %u", portal, tmid);
 	sin.sin_port     = htons(tmid | (1 << 10) | ((portal - 30) << 11));
 	addr->a_family   = PF_INET;
-	addr->a_socktype = SOCK_DGRAM; /* SOCK_STREAM */
-	addr->a_protocol = IPPROTO_UDP; /* IPPROTO_TCP */
+	addr->a_socktype = SOCK_STREAM;
+	addr->a_protocol = IPPROTO_TCP;
 	autotm[tmid] = 1;
 	addr_decode(addr, (void *)&sin);
 	return M0_RC(0);
@@ -4472,6 +4511,11 @@ struct mock_epoll_entry {
 	struct epoll_event ee_event;
 };
 
+struct dgram {
+	int   d_size;
+	void *d_payload;
+};
+
 struct mock_fd {
 	int       md_type;
 	int       md_gen;
@@ -4482,6 +4526,7 @@ struct mock_fd {
 	union {
 		char                    *u_sock;
 		struct mock_epoll_entry *u_epoll;
+
 	}         md_buf;
 	int       md_len;
 	int       md_head;
@@ -5131,7 +5176,7 @@ static void ut_buf_wait(struct ut_buf *ub)
 	m0_mutex_unlock(&m_ut_lock);
 }
 
-#define ST "dgram"
+#define ST "stream"
 static void smoke_with_1(const struct sock_ops *sop, struct sock_ut_conf *conf,
 			 bool canfail)
 {
@@ -5584,7 +5629,7 @@ static void g_op_select(void)
 
 	m0_semaphore_down(&g_op_free);
 	m0_mutex_lock(&m_ut_lock);
-	if (0 && mock_rnd(20) < 15) {
+	if (mock_rnd(20) < 15) {
 		b[0] = &g_buf[mock_rnd(2 * g_op_nr)];
 		m0_net_buffer_del(&b[0]->gb_buf,
 				  b[0]->gb_buf.nb_tm ?: &g_tm[0].gt_tm);
@@ -5778,13 +5823,19 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 	int   i;
 	int   j;
 	int   scale;
-	char *name;
+
+#define NAME(fmt, ...) ({			\
+	char *__name = NULL;			\
+	m0_asprintf(&__name, fmt, __VA_ARGS__); \
+	M0_ASSERT(__name != NULL);		\
+	__name;				\
+})
 
 #define ADD(name, ...) ({						\
 	M0_ASSERT(pos < ARRAY_SIZE(sock_ut_test));			\
 	sock_ut_test[pos] = (struct sock_ut_test){ __VA_ARGS__ };	\
 	net_sock_ut.ts_tests[pos] = (struct m0_ut){ name, &sock_ut_entry, \
-						    "Nikita" };		\
+						    "Nikita" };	\
 	pos++;								\
 })
 
@@ -5795,9 +5846,8 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 	ADD("spam-smoke",    &smoke_with, &mock_ops, &conf_spam,     true, 10);
 	ADD("adhd-smoke",    &smoke_with, &mock_ops, &conf_adhd,     true, 10);
 	for (scale = 1; scale < 3; scale++) {
-		m0_asprintf(&name, "tabby-%i", 10 * scale);
-		M0_ASSERT(name != NULL);
-		ADD(name, &glaring_with, &std_ops, &conf_0, false, 10 * scale);
+		ADD(NAME("tabby-%i", 10 * scale),
+		    &glaring_with, &std_ops, &conf_0, false, 10 * scale);
 	}
 	for (i = 1; i < (1 << ARRAY_SIZE(ut_confs)); ++i) {
 		char pad[] = "-----------------------------";
@@ -5809,18 +5859,17 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 			}
 		}
 		pad[j] = 0;
-		m0_asprintf(&name, "smoked-%s", pad);
-		M0_ASSERT(name != NULL);
-		ADD(name, &smoked_comb, &mock_ops, NULL, cfail, i, 10, 0);
+		ADD(NAME("smoked-%s", pad),
+		    &smoked_comb, &mock_ops, NULL, cfail, i, 10, 0);
 		for (scale = 1; scale < 3; scale++) {
-			m0_asprintf(&name, "wildcat-%i-%s", 10 * scale, pad);
-			M0_ASSERT(name != NULL);
-			ADD(name, &glaring_comb, &mock_ops, NULL, cfail, i,
+			ADD(NAME("wildcat-%i-%s", 10 * scale, pad),
+			    &glaring_comb, &mock_ops, NULL, cfail, i,
 			    10 * scale);
 		}
 	}
 	return &net_sock_ut;
 #undef ADD
+#undef NAME
 }
 
 static struct m0_ut_suite net_sock_ut = {
@@ -5841,6 +5890,7 @@ static struct m0_ut_suite net_sock_ut = {
 #undef B_P
 #undef TLOG
 #undef EP_DEBUG
+#undef USE_INVARIANTS
 #undef MOCK_LNET
 #undef SOP
 #undef M0_TRACE_SUBSYSTEM
