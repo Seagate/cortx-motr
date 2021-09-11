@@ -3590,7 +3590,7 @@ static int pk_header_done(struct mover *m)
 	if (isget) {
 		struct mover *w = &buf->b_writer;
 		if (p->p_idx != 0 || p->p_nr != 1 || p->p_size != 0 ||
-		    p->p_offset != 0 || !hasdst)
+		    p->p_offset != 0 || !hasdst || !hassrc)
 			return M0_ERR(-EPROTO);
 		buf->b_peer = p->p_src;
 		mover_init(w, ma, &writer_op);
