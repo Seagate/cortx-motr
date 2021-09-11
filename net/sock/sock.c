@@ -3594,15 +3594,17 @@ static int pk_header_done(struct mover *m)
 		mover_init(w, ma, &writer_op);
 		w->m_buf = buf;
 		/*
-		 * For stream sockets a GET packet usually arrives from the peer
-		 * that wants the data (although the protocol does not mandate
-		 * this). For datagram sockets, GETs come arbitrary sockets.
+		 * Here a packet GET(src = ip0:port0:bd0, dst =_ip1:port1:bd1)
+		 * is received from ip0:ephemeral end-point. The data can be
+		 * sent back either through the ephemeral address or to a new
+		 * ip0:port0 end-point. For now, keep the number of sockets
+		 * minimal.
 		 */
-		if (ep_eq(m->m_sock->s_ep, &buf->b_peer.bd_addr))
+		if (true || ep_eq(m->m_sock->s_ep, &p->p_src.bd_addr))
 			result = ep_add(m->m_sock->s_ep, w);
 		else {
 			struct ep *ep;
-			result = ep_create(ma, &buf->b_peer.bd_addr, NULL, &ep);
+			result = ep_create(ma, &p->p_src.bd_addr, NULL, &ep);
 			if (result == 0) {
 				result = ep_add(ep, w);
 				EP_PUT(ep, find);
