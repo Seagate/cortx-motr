@@ -3528,7 +3528,9 @@ static int pk_io(struct mover *m, struct sock *s, uint64_t flag,
 		rc = 0;
 	} else if (errno == EINTR) { /* Nothing was ioed, repeat. */
 		rc = 0;
-	} else
+	} else if (M0_IN(rc, (EPIPE, ECONNRESET)))
+		rc = M0_RC(-errno);
+	else
 		rc = M0_ERR(-errno);
 	/*
 	 * printf("%s -> %s, %p: flag: %" PRIx64 ", tgt: %" PRIu64 ", nob %" PRIu64 ","
