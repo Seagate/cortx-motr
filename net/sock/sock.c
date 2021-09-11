@@ -5632,7 +5632,7 @@ static void g_op_select(void)
 
 	m0_semaphore_down(&g_op_free);
 	m0_mutex_lock(&m_ut_lock);
-	if (0 && mock_rnd(20) < 15) {
+	if (mock_rnd(20) < 15) {
 		b[0] = &g_buf[mock_rnd(2 * g_op_nr)];
 		m0_net_buffer_del(&b[0]->gb_buf,
 				  b[0]->gb_buf.nb_tm ?: &g_tm[0].gt_tm);
