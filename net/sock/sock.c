@@ -1115,7 +1115,7 @@ static void ma_buf_done   (struct ma *ma);
 static void ma_buf_timeout(struct ma *ma);
 static void ma_hist       (struct ma *ma, int qtype, int idx,
 			   m0_time_t end, m0_time_t start);
-static struct buf *ma_recv_buf(struct ma *ma, m0_bcount_t len);
+static struct buf *ma_recv_buf(struct ma *ma, const struct packet *p);
 
 static struct ep *ma_src(struct ma *ma);
 
@@ -1132,6 +1132,7 @@ static void ep_release(struct m0_ref *ref);
 static bool ep_invariant(const struct ep *ep);
 static int  ep_add(struct ep *ep, struct mover *w);
 static void ep_del(struct mover *w);
+static bool ep_is_listening(const struct ep *ep);
 static int  ep_balance(struct ep *ep);
 
 static int   addr_resolve     (struct addr *addr, const char *name);
@@ -1292,7 +1293,6 @@ static const struct sock_ops *sops = NULL;
 
 static bool ma_invariant(const struct ma *ma)
 {
-	return true;
 	const struct m0_net_transfer_mc *net = ma->t_ma;
 	const struct m0_tl              *eps = &net->ntm_end_points;
 
@@ -1306,8 +1306,7 @@ static bool ma_invariant(const struct ma *ma)
 		     s_tlist_is_empty(&ma->t_deathrow)) ||
 		    (ma->t_poller.t_func != NULL && ma->t_epollfd >= 0 &&
 		     m0_tl_exists(m0_nep, nep, eps,
-				  m0_tl_exists(s, s, &ep_net(nep)->e_sock,
-					  s->s_sm.sm_state == S_LISTENING))) ||
+				  ep_is_listening(ep_net(nep)))) ||
 		    ma->t_shutdown) &&
 		/* In STARTED state ma is fully initialised. */
 		_0C(ergo(net->ntm_state == M0_NET_TM_STARTED,
@@ -1328,7 +1327,6 @@ static bool ma_invariant(const struct ma *ma)
 
 static bool sock_invariant(const struct sock *s)
 {
-	return true;
 	struct ma *ma = ep_ma(s->s_ep);
 
 	return  _0C((s->s_sm.sm_state == S_DELETED) ==
@@ -1339,7 +1337,6 @@ static bool sock_invariant(const struct sock *s)
 
 static bool buf_invariant(const struct buf *buf)
 {
-	return true;
 	const struct m0_net_buffer *nb = buf->b_buf;
 	/* Either the buffer is only added to the domain (not associated with a
 	   transfer machine... */
@@ -1348,6 +1345,7 @@ static bool buf_invariant(const struct buf *buf)
 		/* it is queued to a machine. */
 		(_0C(nb->nb_flags & (M0_NET_BUF_REGISTERED|M0_NET_BUF_QUEUED))&&
 		 _0C(nb->nb_tm != NULL) &&
+		 _0C(buf->b_rc <= 0) &&
 		 _0C(ergo(buf->b_writer.m_sm.sm_conf != NULL,
 			  mover_invariant(&buf->b_writer))) &&
 		 _0C(m0_net__buffer_invariant(nb)));
@@ -1355,7 +1353,6 @@ static bool buf_invariant(const struct buf *buf)
 
 static bool addr_invariant(const struct addr *a)
 {
-	return true;
 	return  _0C(IS_IN_ARRAY(a->a_family, pf)) &&
 		_0C(pf[a->a_family].f_name != NULL) &&
 		_0C(IS_IN_ARRAY(a->a_socktype, stype)) &&
@@ -1367,7 +1364,6 @@ static bool addr_invariant(const struct addr *a)
 
 static bool ep_invariant(const struct ep *ep)
 {
-	return true;
 	const struct ma *ma = ep_ma((void *)ep);
 	return  addr_invariant(&ep->e_a) &&
 		m0_net__ep_invariant((void *)&ep->e_ep,
@@ -1402,7 +1398,6 @@ static bool ep_invariant(const struct ep *ep)
 
 static bool mover_invariant(const struct mover *m)
 {
-	return true;
 	return  _0C(m_tlink_is_in(m) == (m->m_ep != NULL)) &&
 		_0C(M0_IN(m->m_op, (&writer_op, &get_op)) ||
 		    m0_exists(i, ARRAY_SIZE(stype),
@@ -1743,8 +1738,7 @@ static void ma_event_post(struct ma *ma, enum m0_net_tm_state state)
 	 */
 	if (state == M0_NET_TM_STARTED) {
 		listen = m0_tl_find(m0_nep, ne, &ma->t_ma->ntm_end_points,
-		    m0_tl_exists(s, sock, &ep_net(ne)->e_sock,
-				 sock->s_sm.sm_state == S_LISTENING));
+				    ep_is_listening(ep_net(ne)));
 		M0_ASSERT(listen != NULL);
 	} else
 		listen = NULL;
@@ -1805,17 +1799,19 @@ static void ma_buf_done(struct ma *ma)
 }
 
 /**
- * Finds a buffer on M0_NET_QT_MSG_RECV queue, ready to receive "len" bytes of
- * data.
+ * Finds a buffer on M0_NET_QT_MSG_RECV queue, ready to receive this packet.
  */
-static struct buf *ma_recv_buf(struct ma *ma, m0_bcount_t len)
+static struct buf *ma_recv_buf(struct ma *ma, const struct packet *p)
 {
 	struct m0_net_buffer *nb;
-	nb = m0_tl_find(m0_net_tm, nb, &ma->t_ma->ntm_q[M0_NET_QT_MSG_RECV],({
+	nb = m0_tl_find(m0_net_tm, nb, &ma->t_ma->ntm_q[M0_NET_QT_MSG_RECV], ({
 			struct buf *b = nb->nb_xprt_private;
 
-			b->b_done.b_words == NULL &&
-			m0_vec_count(&nb->nb_buffer.ov_vec) >= len;
+			/* Already receiving... */
+			memcmp(&b->b_peer, &p->p_src, sizeof p->p_src) == 0 ||
+			/* ... or idle and has enough space. */
+			(b->b_done.b_words == NULL &&
+			 m0_vec_count(&nb->nb_buffer.ov_vec) >= p->p_totalsize);
 	      }));
 	return nb != NULL ? nb->nb_xprt_private : NULL;
 }
@@ -2249,24 +2245,27 @@ static int sock_init(int fd, struct ep *src, struct ep *tgt, uint32_t flags)
 			state = S_OPEN;
 		} else if (tgt == NULL) {
 			/* Listening. */
-			if (ep->e_a.a_socktype == SOCK_STREAM)
-				result = SOP(listen, s->s_fd, 128);
-			if (result == 0)
-				/*
-				 * Will be readable on an incoming connection.
-				 */
-				state = S_LISTENING;
-			else
-				result = M0_ERR(-errno);
-		} else {
-			/* Connecting. */
 			if (ep->e_a.a_socktype == SOCK_STREAM) {
-				struct sockaddr_storage sa = {};
-
-				addr_encode(&ep->e_a, (void *)&sa);
-				result = SOP(connect, s->s_fd,
-					     (void *)&sa, sizeof sa);
+				result = SOP(listen, s->s_fd, 128);
+				if (result == 0)
+					/*
+					 * Will be readable on an incoming
+					 * connection.
+					 */
+					state = S_LISTENING;
+				else
+					result = M0_ERR(-errno);
+			} else {
+				M0_ASSERT(ep->e_a.a_socktype == SOCK_DGRAM);
+				state = S_OPEN;
 			}
+		} else {
+			struct sockaddr_storage sa = {};
+			M0_ASSERT(M0_IN(ep->e_a.a_socktype, (SOCK_STREAM,
+							     SOCK_DGRAM)));
+			/* Connecting. */
+			addr_encode(&ep->e_a, (void *)&sa);
+			result = SOP(connect, s->s_fd, (void *)&sa, sizeof sa);
 			if (result == 0) {
 				state = S_OPEN;
 			} else if (errno == EINPROGRESS) {
@@ -2598,6 +2597,12 @@ static void ep_del(struct mover *w)
 	}
 }
 
+/** True if this end point accepts incoming connections. */
+static bool ep_is_listening(const struct ep *ep)
+{
+	int state = ep->e_a.a_socktype == SOCK_STREAM ? S_LISTENING : S_OPEN;
+	return m0_tl_exists(s, s, &ep->e_sock, s->s_sm.sm_state == state);
+}
 /**
  * Updates end-point when a writer is added or removed.
  *
@@ -3557,6 +3562,7 @@ static int pk_header_done(struct mover *m)
 	if (!hassrc && !hasdst)         /* Go I know not whither */
 		return M0_ERR(-EPROTO); /* and fetch I know not what? */
 	if (hasdst) {
+		enum { BFLAGS = M0_NET_BUF_QUEUED | M0_NET_BUF_REGISTERED };
 		result = m0_cookie_dereference(&p->p_dst.bd_cookie, &cookie);
 		if (result != 0)
 			return M0_ERR_INFO(result,
@@ -3566,34 +3572,49 @@ static int pk_header_done(struct mover *m)
 		buf = container_of(cookie, struct buf, b_cookie);
 		if (buf_ma(buf) != ma)
 			return M0_ERR(-EPERM);
-		if ((buf->b_buf->nb_flags &
-		     (M0_NET_BUF_QUEUED|M0_NET_BUF_REGISTERED)) !=
-		    (M0_NET_BUF_QUEUED|M0_NET_BUF_REGISTERED))
+		if ((buf->b_buf->nb_flags & BFLAGS) != BFLAGS)
 			return M0_ERR(-EPERM);
 		if (buf->b_rc != 0)
 			return M0_ERR(buf->b_rc);
 		if (!M0_IS0(&buf->b_peer) &&
 		    memcmp(&buf->b_peer, &p->p_src, sizeof p->p_src) != 0)
 			return M0_ERR(-EPERM);
-		/* @todo Check that buf is on the correct passive queue. */
+		if (!M0_IN(buf->b_buf->nb_qtype, (M0_NET_QT_PASSIVE_BULK_SEND,
+						  M0_NET_QT_PASSIVE_BULK_RECV)))
+			return M0_ERR(-EPERM);
 	}
 	if (isget) {
+		struct mover *w = &buf->b_writer;
 		if (p->p_idx != 0 || p->p_nr != 1 || p->p_size != 0 ||
 		    p->p_offset != 0 || !hasdst)
 			return M0_ERR(-EPROTO);
 		if (buf->b_buf->nb_qtype != M0_NET_QT_PASSIVE_BULK_SEND)
 			return M0_ERR(-EPERM);
 		buf->b_peer = p->p_src;
-		mover_init(&buf->b_writer, ma, &writer_op);
-		buf->b_writer.m_buf = buf;
-		result = ep_add(m->m_sock->s_ep, &buf->b_writer);
+		mover_init(w, ma, &writer_op);
+		w->m_buf = buf;
+		/*
+		 * For stream sockets a GET packet usually arrives from the peer
+		 * that wants the data (although the protocol does not mandate
+		 * this). For datagram sockets, GETs come arbitrary sockets.
+		 */
+		if (ep_eq(m->m_sock->s_ep, &buf->b_peer.bd_addr))
+			result = ep_add(m->m_sock->s_ep, w);
+		else {
+			struct ep *ep;
+			result = ep_create(ma, &buf->b_peer.bd_addr, NULL, &ep);
+			if (result == 0) {
+				result = ep_add(ep, w);
+				EP_PUT(ep, find);
+			}
+		}
 		if (result != 0)
 			buf_terminate(buf, result);
 		return R_IDLE;
 	}
 	if (!hasdst) {
 		/* Select a buffer from the receive queue. */
-		buf = ma_recv_buf(ma, p->p_totalsize);
+		buf = ma_recv_buf(ma, p);
 		if (buf == NULL) {
 			struct m0_net_transfer_mc *tm   = ma->t_ma;
 			struct m0_net_buffer_pool *pool = tm->ntm_recv_pool;
@@ -3624,15 +3645,15 @@ static int pk_header_done(struct mover *m)
 			 * queue.
 			 */
 			if (pool == NULL)
-				return M0_ERR(-ENOMEM); /* Drop the packet. */
+				return M0_ERR(-ENODATA); /* Drop the packet. */
 			if (m->m_sock->s_flags & MORE_BUFS)
-				return M0_ERR(-ENOMEM); /* Already tried. */
+				return M0_ERR(-ENODATA); /* Already tried. */
 			if (m0_mutex_trylock(&pool->nbp_mutex) == 0) {
 				m0_net__tm_provision_buf(tm);
 				/* Got the lock. Add 2 buffers. */
 				m0_net__tm_provision_buf(tm);
 				m0_net_buffer_pool_unlock(pool);
-				buf = ma_recv_buf(ma, p->p_totalsize);
+				buf = ma_recv_buf(ma, p);
 			}
 		}
 		if (buf == NULL) {
@@ -3709,6 +3730,7 @@ static int stream_pk(struct mover *self, struct sock *s)
 	s->s_flags &= ~MORE_BUFS;
 	self->m_nob = 0;
 	self->m_gen = 0;
+	M0_ASSERT(self->m_buf == NULL);
 	return R_HEADER;
 }
 
@@ -3787,6 +3809,9 @@ static int dgram_idle(struct mover *self, struct sock *s)
 static int dgram_pk(struct mover *self, struct sock *s)
 {
 	s->s_flags &= ~MORE_BUFS;
+	self->m_nob = 0;
+	self->m_gen = 0;
+	self->m_buf = NULL;
 	if (self->m_scratch == NULL) {
 		self->m_scratch = m0_alloc(pk_size(self, s));
 		if (self->m_scratch == NULL)
@@ -3803,6 +3828,8 @@ static int dgram_pk(struct mover *self, struct sock *s)
  *
  * Parse and verify the header (pk_header_done()), then copy the payload in the
  * associated buffer.
+ *
+ * If this fails for whatever reason, jump to R_IDLE.
  */
 static int dgram_header(struct mover *self, struct sock *s)
 {
@@ -3810,19 +3837,26 @@ static int dgram_header(struct mover *self, struct sock *s)
 	m0_bcount_t dsize;
 	struct m0_bufvec bv = M0_BUFVEC_INIT_BUF(&self->m_scratch, &maxsize);
 	struct m0_bufvec_cursor cur;
+
+	M0_ASSERT(self->m_nob == 0);
 	int result = pk_io(self, s, HAS_READ, &bv,
 			   sizeof self->m_pkbuf + maxsize);
 	if (result < 0)
-		return M0_ERR(result);
-	if (self->m_nob < sizeof self->m_pkbuf)
-		return M0_ERR(-EPROTO);
+		return R_IDLE;
+	if (self->m_nob == 0)
+		return R_IDLE; /* -EWOULDBLOCK. */
 	result = pk_header_done(self);
 	if (result < 0)
-		return M0_ERR(result);
+		return R_IDLE;
+	if (self->m_buf == NULL)
+		return R_IDLE; /* GET packet processed. */
 	dsize = self->m_pk.p_size;
-	if (self->m_nob != sizeof self->m_pkbuf + dsize)
-		return M0_ERR(-EMSGSIZE);
-	m0_bufvec_cursor_init(&cur, &bv);
+	if (self->m_nob != sizeof self->m_pkbuf + dsize) {
+		M0_LOG(M0_ERROR, "Wrong packet size: %"PRId64" != %"PRId64".",
+		       self->m_nob, sizeof self->m_pkbuf + dsize);
+		return R_IDLE;
+	}
+	m0_bufvec_cursor_init(&cur, &self->m_buf->b_buf->nb_buffer);
 	m0_bufvec_cursor_move(&cur, self->m_pk.p_offset);
 	m0_data_to_bufvec_copy(&cur, self->m_scratch, dsize);
 	return pk_state(self);
@@ -3890,7 +3924,7 @@ static int writer_pk(struct mover *w, struct sock *s)
 	m0_bcount_t size   = w->m_buf->b_buf->nb_length;
 
 	w->m_nob = 0;
-	w->m_pk.p_size = min64u(pksize, size - pk_dnob(w));
+	w->m_pk.p_size = min64u(pksize, size - w->m_pk.p_offset);
 	pk_encode(w);
 	w->m_sock = s; /* Lock the socket and the writer together. */
 	return R_HEADER;
@@ -4042,7 +4076,7 @@ static struct m0_sm_state_descr rw_conf_state[] = {
 		.sd_allowed = M0_BITS(R_PK, R_DONE, R_FAIL)
 	},
 	[R_PK] = {
-		.sd_name = "datagram",
+		.sd_name = "packet",
 		.sd_allowed = M0_BITS(R_HEADER, R_FAIL)
 	},
 	[R_HEADER] = {
@@ -4055,7 +4089,7 @@ static struct m0_sm_state_descr rw_conf_state[] = {
 		.sd_allowed = M0_BITS(R_INTERVAL, R_PK_DONE, R_FAIL)
 	},
 	[R_PK_DONE] = {
-		.sd_name = "datagram-done",
+		.sd_name = "packet-done",
 		.sd_allowed = M0_BITS(R_PK, R_IDLE, R_DONE, R_FAIL)
 	},
 	[R_FAIL] = {
@@ -5086,6 +5120,7 @@ static void ut_buf_wait(struct ut_buf *ub)
 	m0_mutex_unlock(&m_ut_lock);
 }
 
+#define ST "stream"
 static void smoke_with_1(const struct sock_ops *sop, struct sock_ut_conf *conf,
 			 bool canfail)
 {
@@ -5095,8 +5130,8 @@ static void smoke_with_1(const struct sock_ops *sop, struct sock_ut_conf *conf,
 	struct ut_buf             ub1   = {};
 	char                      msg[] = "What hath GOD wrought?";
 	char                      rep[] = "-- --- .-. ... . -.-. --- -.. .";
-	char                     *addr0 = "inet:stream:127.0.0.1@3001";
-	char                     *addr1 = "inet:stream:127.0.0.1@3002";
+	char                     *addr0 = "inet:" ST ":127.0.0.1@3001";
+	char                     *addr1 = "inet:" ST ":127.0.0.1@3002";
 	m0_time_t                 to;
 
 	ut_init(sop, conf);
@@ -5374,11 +5409,11 @@ const struct m0_net_buffer_callbacks g_buf_cb = {
 	}
 };
 
-static void bvec_fill(struct m0_bufvec *bv, long seed)
+static void bvec_fill(struct m0_bufvec *bv)
 {
 	m0_bcount_t i;
 	m0_bcount_t j;
-	char        x = seed >> 11;
+	char        x = ((long)bv) >> 11;
 	for (i = 0; i < bv->ov_vec.v_nr; ++i) {
 		for (j = 0; j < bv->ov_vec.v_count[i]; ++j) {
 			((char *)bv->ov_buf[i])[j] = x;
@@ -5390,14 +5425,11 @@ M0_INTERNAL uint64_t bvec_check(struct m0_bufvec *bv)
 {
 	m0_bcount_t i;
 	m0_bcount_t j;
-	char        x;
-	char        prev = 0;
+	char        x = ((long)bv) >> 11;
 	for (i = 0; i < bv->ov_vec.v_nr; ++i) {
 		for (j = 0; j < bv->ov_vec.v_count[i]; ++j) {
-			x = ((char *)bv->ov_buf[i])[j];
-			if (x != prev && (i != 0 || j != 0))
+			if (((char *)bv->ov_buf[i])[j] != x)
 				return (i << 32) | j;
-			prev = x;
 		}
 	}
 	return ~0ULL;
@@ -5413,7 +5445,7 @@ static int g_buf_init(struct g_buf *buf)
 		min64(m0_net_domain_get_max_buffer_segment_size(&m_dom),
 		      1024 * 1024);
 	m0_bcount_t nob = min64(m0_net_domain_get_max_buffer_size(&m_dom),
-				16 * 1024 * 1024);
+				1024 * 1024);
 	int idx = 0;
 	int i;
 	m0_bcount_t frag[seg_nr_max]; /* VLA */
@@ -5466,7 +5498,7 @@ static void g_buf_fini(struct g_buf *buf)
 
 static int g_tm_init(struct g_tm *tm)
 {
-	static const char fmt[] = "inet:stream:127.0.0.1@%i";
+	static const char fmt[] = "inet:" ST ":127.0.0.1@%i";
 	char pad[100];
 	int result;
 
@@ -5569,7 +5601,7 @@ static void g_op_select(void)
 		nb[i]->nb_qtype = qtypes[op->go_opc][i];
 		b[i]->gb_op = op;
 		b[i]->gb_queued = true;
-		bvec_fill(&b[i]->gb_buf.nb_buffer, (long)b[i]);
+		bvec_fill(&b[i]->gb_buf.nb_buffer);
 	}
 	g_par++;
 	g_par_max = max64(g_par, g_par_max);
@@ -5731,7 +5763,7 @@ static void sock_ut_entry(void)
 		   sut->sut_n1, sut->sut_n2, sut->sut_n3);
 }
 
-struct m0_ut_suite *m0_net_sock_ut_build(void)
+M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 {
 	int   pos = 0;
 	int   i;
