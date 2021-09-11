@@ -67,7 +67,6 @@ void test_bitmap(void)
 
 	M0_UT_ASSERT(m0_bitmap_init(&bm, UT_BITMAP_SIZE) == 0);
 	M0_UT_ASSERT(bm.b_nr == UT_BITMAP_SIZE);
-	M0_UT_ASSERT(bm.b_words != NULL);
 
 	for (idx = 0; idx < UT_BITMAP_SIZE; ++idx) {
 		M0_UT_ASSERT(m0_bitmap_get(&bm, idx) == false);
@@ -112,7 +111,6 @@ void test_bitmap(void)
 
 	m0_bitmap_fini(&bm);
 	M0_UT_ASSERT(bm.b_nr == 0);
-	M0_UT_ASSERT(bm.b_words == NULL);
 
 	test_bitmap_copy();
 }
@@ -125,7 +123,6 @@ void test_bitmap_onwire(void)
 
 	M0_UT_ASSERT(m0_bitmap_init(&in_bm, UT_BITMAP_SIZE) == 0);
 	M0_UT_ASSERT(in_bm.b_nr == UT_BITMAP_SIZE);
-	M0_UT_ASSERT(in_bm.b_words != NULL);
 
 	m0_bitmap_set(&in_bm, 1, true);
 	m0_bitmap_set(&in_bm, 7, true);

@@ -86,7 +86,7 @@ process_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	rc = m0_bitmap_onwire_init(&d->xr_cores, s->pc_cores.b_nr);
 	if (rc != 0)
 		return M0_ERR(rc);
-	if (s->pc_cores.b_words != NULL)
+	if (s->pc_cores.b_nr != 0)
 		m0_bitmap_store(&s->pc_cores, &d->xr_cores);
 
 	d->xr_mem_limit_as      = s->pc_memlimit_as;

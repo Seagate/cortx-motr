@@ -1026,8 +1026,7 @@ M0_EXPORTED(m0_spiel_node_add);
 
 static bool spiel_cores_is_valid(const struct m0_bitmap *cores)
 {
-	return cores != NULL && m0_exists(i, cores->b_nr,
-					  cores->b_words[i] != 0);
+	return cores != NULL && m0_bitmap_ffs(cores) != -1;
 }
 
 int m0_spiel_process_add(struct m0_spiel_tx  *tx,

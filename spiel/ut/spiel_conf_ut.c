@@ -1044,13 +1044,10 @@ static void spiel_conf_create_fail(void)
 	struct m0_fid                 fake_fid =
 					spiel_obj_fid[SPIEL_UT_OBJ_PROFILE];
 	struct m0_bitmap              bitmap;
-	uint64_t                      zero_mask[] = {0, 0};
-	struct m0_bitmap              zero_bitmap = {
-					.b_nr = 2,
-					.b_words = zero_mask
-					};
+	struct m0_bitmap              zero_bitmap;
 
 	spiel_conf_ut_init();
+	m0_bitmap_init(&zero_bitmap, 32);
 	m0_bitmap_init(&bitmap, 32);
 	m0_bitmap_set(&bitmap, 0, true);
 	m0_bitmap_set(&bitmap, 1, true);

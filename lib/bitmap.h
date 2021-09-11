@@ -42,7 +42,10 @@
 struct m0_bitmap {
 	/** Number of bits in this map. */
 	size_t    b_nr;
-	/** Words with bits. */
+	/**
+	 * Words with bits. It ->b_nr is does not exceed 64, bits are stored
+	 * directly in ->b_words.
+	 */
 	uint64_t *b_words;
 };
 

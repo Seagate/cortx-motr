@@ -421,7 +421,7 @@ static void nlx_xo_tm_fini(struct m0_net_transfer_mc *tm)
 	if (tp->xtm_ev_thread.t_state != TS_PARKED)
 		m0_thread_join(&tp->xtm_ev_thread);
 
-	if (tp->xtm_processors.b_words != NULL)
+	if (tp->xtm_processors.b_nr != 0)
 		m0_bitmap_fini(&tp->xtm_processors);
 	m0_cond_fini(&tp->xtm_ev_cond);
 	tm->ntm_xprt_private = NULL;
@@ -469,7 +469,7 @@ static int nlx_xo_tm_confine(struct m0_net_transfer_mc *tm,
 	M0_PRE(nlx_tm_invariant(tm));
 	M0_PRE(m0_mutex_is_locked(&tm->ntm_mutex));
 	M0_PRE(processors != NULL);
-	if (tp->xtm_processors.b_words != NULL)
+	if (tp->xtm_processors.b_nr != 0)
 		m0_bitmap_fini(&tp->xtm_processors);
 	rc = m0_bitmap_init(&tp->xtm_processors, processors->b_nr);
 	if (rc == 0)
