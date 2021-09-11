@@ -3528,7 +3528,7 @@ static int pk_io(struct mover *m, struct sock *s, uint64_t flag,
 		rc = 0;
 	} else if (errno == EINTR) { /* Nothing was ioed, repeat. */
 		rc = 0;
-	} else if (M0_IN(rc, (EPIPE, ECONNRESET)))
+	} else if (M0_IN(errno, (EPIPE, ECONNRESET)))
 		rc = M0_RC(-errno);
 	else
 		rc = M0_ERR(-errno);
