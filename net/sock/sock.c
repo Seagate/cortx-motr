@@ -900,9 +900,9 @@ struct mover {
 	/**
 	 * The buffer generation that data are trasnferred with.
 	 *
-	 * @see buf::b_gen.
+	 * @see buf::b_cookie.
 	 */
-	int                        m_gen;
+	uint64_t                   m_gen;
 };
 
 /**
@@ -952,12 +952,6 @@ struct buf {
 	 */
 	m0_bindex_t           b_length;
 	m0_time_t             b_last;
-	/**
-	 * Number of times the buffer was added to a queue.
-	 *
-	 * @see mover::m_gen.
-	 */
-	int                   b_gen;
 };
 
 /** A socket: connection to an end-point. */
@@ -1036,6 +1030,8 @@ struct sock_ops {
 	ssize_t (*so_writev)      (int fd, const struct iovec *iov, int iovcnt);
 	int     (*so_close)       (int fd);
 	int     (*so_shutdown)    (int fd, int how);
+	int     (*so_getsockopt)  (int fd, int level, int optname,
+				   void *optval, socklen_t *optlen);
 	int     (*so_setsockopt)  (int fd, int level, int optname,
 				   const void *optval, socklen_t optlen);
 
@@ -1953,6 +1949,7 @@ static int buf_add(struct m0_net_buffer *nb)
 	else if (qt == M0_NET_QT_ACTIVE_BULK_RECV)
 		mover_init(w, ma, &get_op);
 	w->m_buf = buf;
+	m0_cookie_new(&buf->b_cookie);
 	switch (qt) {
 	case M0_NET_QT_MSG_RECV:
 		result = 0;
@@ -1967,7 +1964,6 @@ static int buf_add(struct m0_net_buffer *nb)
 	}
 	case M0_NET_QT_PASSIVE_BULK_RECV: /* For passive buffers, generate */
 	case M0_NET_QT_PASSIVE_BULK_SEND: /* the buffer descriptor. */
-		m0_cookie_new(&buf->b_cookie);
 		result = bdesc_create(&ma_src(ma)->e_a, buf, &nb->nb_desc);
 		break;
 	case M0_NET_QT_ACTIVE_BULK_RECV: /* For active buffers, decode the */
@@ -1992,7 +1988,6 @@ static int buf_add(struct m0_net_buffer *nb)
 	} else {
 		buf->b_rc = 0;
 		buf->b_last = m0_time_now();
-		buf->b_gen++;
 	}
 	M0_POST(ma_is_locked(ma) && ma_invariant(ma) && buf_invariant(buf));
 	TLOG(B_F, B_P(buf));
@@ -2453,21 +2448,27 @@ static bool sock_event(struct sock *s, uint32_t ev)
 			       "Unexpected event while listening: %x.", ev);
 		break;
 	case S_CONNECTING:
-		if ((ev & (EPOLLOUT|EPOLLIN)) == EPOLLOUT) {
-			/* Successful connection. */
-			m0_sm_state_set(&s->s_sm, S_OPEN);
-		} else if ((ev & (EPOLLOUT|EPOLLIN)) == (EPOLLOUT|EPOLLIN) ||
-			   /*
-			    * Contrary to Messrs. G. R. Wright and W. R. Stevens
-			    * (TCP/IP Illustrated, Volume 2, 1995, 27.7; UNIX
-			    * Network Programming Volume 1, 2003, p. 547) and
-			    * the rest of the world, Linux sometimes fails a
-			    * connection by setting some of the error bits
-			    * instead of EPOLLOUT.
-			    */
-			   (ev & EV_ERR) != 0) {
-			/* Failed connection. */
-			sock_done(s, false);
+		if ((ev & (EPOLLOUT|EPOLLIN)) == EPOLLOUT ||
+		    (ev & (EPOLLOUT|EPOLLIN)) == (EPOLLOUT|EPOLLIN) ||
+		    /*
+		     * Contrary to Messrs. G. R. Wright and W. R. Stevens
+		     * (TCP/IP Illustrated, Volume 2, 1995, 27.7; UNIX Network
+		     * Programming Volume 1, 2003, p. 547) and the rest of the
+		     * world, Linux sometimes fails a connection by setting some
+		     * of the error bits instead of EPOLLOUT.
+		     */
+		    (ev & EV_ERR) != 0) {
+			int       status;
+			socklen_t status_len = sizeof status;
+			result = SOP(getsockopt, s->s_fd, SOL_SOCKET, SO_ERROR,
+				     &status, &status_len);
+			if (result == 0 && status == 0)
+				m0_sm_state_set(&s->s_sm, S_OPEN);
+			else {
+				M0_LOG(M0_ERROR, "Connection failed: %i/%i/%x.",
+				       result, status, ev);
+				sock_done(s, false);
+			}
 		} else {
 			M0_LOG(M0_ERROR,
 			       "Unexpected event while connecting: %x.", ev);
@@ -3070,7 +3071,7 @@ static int buf_accept(struct buf *buf, struct mover *m)
 	}
 	if (result == 0) {
 		m->m_buf = buf;
-		m->m_gen = buf->b_gen;
+		m->m_gen = buf->b_cookie;
 	}
 	return result;
 }
@@ -3374,7 +3375,7 @@ static int mover_matches(const struct mover *m)
 		return M0_RC(-ECANCELED);
 	if (buf->b_rc != 0) /* The buffer has already been terminated. */
 		return M0_RC(buf->b_rc);
-	if (buf->b_gen != m->m_gen)
+	if (buf->b_cookie != m->m_gen)
 		/* The buffer might have been re-queued after termination. */
 		return M0_RC(-ENOENT);
 	return 0;
@@ -4473,6 +4474,7 @@ struct sock_ut_conf {
 	int uc_writev_again;
 	int uc_writev_0;
 	int uc_writev_break;
+	int uc_getsockopt_err;
 	int uc_setsockopt_err;
 	int uc_close_err;
 	int uc_epoll_create_err;
@@ -4886,6 +4888,19 @@ static int mock_shutdown(int fdnum, int how)
 	return mock_close(fdnum);
 }
 
+static int mock_getsockopt(int fd, int level, int optname,
+			   void *optval, socklen_t *optlen)
+{
+	if (mock_prologue() || MOCK_DICE(getsockopt_err))
+		return mock_ret(mock_err());
+	else {
+		M0_ASSERT(optname == SO_ERROR);
+		*(int *)optval = 0;
+		*optlen = sizeof(int);
+		return mock_ret(0);
+	}
+}
+
 static int mock_setsockopt(int fd, int level, int optname,
 			   const void *optval, socklen_t optlen)
 {
@@ -5020,6 +5035,7 @@ static const struct sock_ops mock_ops = {
 	.so_writev       = &mock_writev,
 	.so_close        = &mock_close,
 	.so_shutdown     = &mock_shutdown,
+	.so_getsockopt   = &mock_getsockopt,
 	.so_setsockopt   = &mock_setsockopt,
 	.so_epoll_create = &mock_epoll_create,
 	.so_epoll_wait   = &mock_epoll_wait,
@@ -5036,6 +5052,7 @@ static const struct sock_ops std_ops = {
 	.so_writev       = &writev,
 	.so_close        = &close,
 	.so_shutdown     = &shutdown,
+	.so_getsockopt   = &getsockopt,
 	.so_setsockopt   = &setsockopt,
 	.so_epoll_create = &epoll_create,
 	.so_epoll_wait   = &epoll_wait,
@@ -5172,6 +5189,15 @@ static int mstd_shutdown(int fdnum, int how)
 	return shutdown(fdnum, how);
 }
 
+static int mstd_getsockopt(int fd, int level, int optname,
+			   void *optval, socklen_t *optlen)
+{
+	if (mstd_prologue() || MOCK_DICE(getsockopt_err))
+		return mstd_ret(mock_err());
+	else
+		return getsockopt(fd, level, optname, optval, optlen);
+}
+
 static int mstd_setsockopt(int fd, int level, int optname,
 			   const void *optval, socklen_t optlen)
 {
@@ -5233,6 +5259,7 @@ static const struct sock_ops mstd_ops = {
 	.so_writev       = &mstd_writev,
 	.so_close        = &mstd_close,
 	.so_shutdown     = &mstd_shutdown,
+	.so_getsockopt   = &mstd_getsockopt,
 	.so_setsockopt   = &mstd_setsockopt,
 	.so_epoll_create = &mstd_epoll_create,
 	.so_epoll_wait   = &mstd_epoll_wait,
@@ -5386,6 +5413,32 @@ static void ut_buf_wait(struct ut_buf *ub)
 }
 
 #define ST "stream"
+static void smoke_self(const struct sock_ops *sop, struct sock_ut_conf *conf,
+		       bool canfail, int n1, int n2, int n3)
+{
+	struct m0_net_transfer_mc tm    = {};
+	struct ut_buf             ub0   = {};
+	struct ut_buf             ub1   = {};
+	char                      msg[] = "It is a truth universally...";
+	char                      rep[] = "Stately, plump Buck Mulligan...";
+	char                     *addr  = "inet:" ST ":127.0.0.1@3001";
+	m0_time_t                 to;
+
+	ut_init(sop, conf);
+	to = canfail ? m0_time_from_now(1, 0) : M0_TIME_NEVER;
+	tm_init(&tm, addr);
+	if (tm.ntm_state == M0_NET_TM_STARTED) {
+		ut_buf_queue(&ub1, &tm, M0_NET_QT_MSG_RECV, NULL,  to, rep);
+		ut_buf_queue(&ub0, &tm, M0_NET_QT_MSG_SEND, addr, to, msg);
+		ut_buf_wait(&ub1);
+		ut_buf_wait(&ub0);
+		M0_ASSERT(ergo(!canfail,
+			       memcmp(msg, rep, ARRAY_SIZE(msg)) == 0));
+	}
+	tm_fini(&tm);
+	ut_fini();
+}
+
 static void smoke_with_1(const struct sock_ops *sop, struct sock_ut_conf *conf,
 			 bool canfail)
 {
@@ -5798,8 +5851,6 @@ static int g_tm_lookup(struct g_tm *tm)
 	int i;
 	int result;
 	for (i = 0; i < g_tm_nr; ++i) {
-		if (i == tm - g_tm)
-			continue;
 		result = m0_net_end_point_create(&tm->gt_other[i], &tm->gt_tm,
 					       g_tm[i].gt_tm.ntm_ep->nep_addr);
 		if (result != 0)
@@ -5848,8 +5899,7 @@ static void g_op_select(void)
 			m0_net_buffer_del(&b[0]->gb_buf, b[0]->gb_buf.nb_tm);
 	}
 	tm0 = &g_tm[mock_rnd(g_tm_nr)];
-	tm1 = &g_tm[(tm0 - g_tm + mock_rnd(g_tm_nr - 1) + 1) % g_tm_nr];
-	M0_ASSERT(tm0 != tm1);
+	tm1 = &g_tm[mock_rnd(g_tm_nr)];
 	for (op = &g_op[0]; op < &g_op[g_op_nr] && op->go_used; ++op)
 		;
 	M0_ASSERT(!op->go_used);
@@ -6104,6 +6154,7 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 	pos++;								\
 })
 
+	ADD("self-smoke",    &smoke_self, &std_ops,  &conf_0,       false);
 	ADD("std-smoke",     &smoke_with, &std_ops,  &conf_0,       false,  1);
 	ADD("mstd-smoke",    &smoke_with, &mstd_ops, &conf_0,       false,  1);
 	ADD("mock-smoke",    &smoke_with, &mock_ops, &conf_0,       false,  1);
@@ -6141,9 +6192,9 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 						    &glaring_comb, sops[s],
 						    NULL, cfail, i, scale[j],
 						    gauge[k] << 16 | conc[t]);
+					}
 				}
 			}
-		}
 		}
 	}
 	return &net_sock_ut;
