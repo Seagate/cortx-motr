@@ -255,7 +255,7 @@ M0_INTERNAL void m0_stream_restore(const struct m0_ut_redirect *redir);
 M0_INTERNAL bool m0_error_mesg_match(FILE * fp, const char *mesg);
 #endif
 
-M0_EXTERN struct m0_fid g_process_fid;
+extern struct m0_fid g_process_fid;
 
 /** @} ut end group */
 #endif /* __MOTR_UT_UT_H__ */
