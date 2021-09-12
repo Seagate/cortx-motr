@@ -194,7 +194,6 @@ static void tests_add(struct m0_ut_module *m)
 
 	/* sort test suites in alphabetic order */
 	m0_ut_add(m, &libm0_ut, true); /* test lib first */
-	m0_ut_add(m, m0_net_sock_ut_build(), true);
 	m0_ut_add(m, &addb2_base_ut, true);
 	m0_ut_add(m, &addb2_consumer_ut, true);
 	m0_ut_add(m, &addb2_hist_ut, true);
@@ -286,6 +285,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &m0_net_libfab_ut, USE_LIBFAB);
 	m0_ut_add(m, &m0_net_misc_ut, true);
 	m0_ut_add(m, &m0_net_module_ut, true);
+	m0_ut_add(m, m0_net_sock_ut_build(), true);
 	m0_ut_add(m, &m0_net_test_ut, true);
 	m0_ut_add(m, &m0_net_tm_prov_ut, true);
 	m0_ut_add(m, &m0d_ut, true);
