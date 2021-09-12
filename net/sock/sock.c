@@ -5781,9 +5781,10 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 	struct sock_ut_conf c = *conf;
 	int square = scale * scale;
 	int i;
+	int opnum = 2 * square;
 
-	c.uc_maxfd = max32(c.uc_maxfd, 2 * square);
-	c.uc_epoll_len = max32(c.uc_epoll_len, 2 * square);
+	c.uc_maxfd = max32(c.uc_maxfd, opnum);
+	c.uc_epoll_len = max32(c.uc_epoll_len, opnum);
 	for (i = 0; i < 10; ++i) {
 		if (glaring_init(sop, &c, scale, square, canfail || true) == 0)
 			break;
@@ -5795,7 +5796,8 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 			int result;
 			M0_SET0(&t[i]);
 			result = M0_THREAD_INIT(&t[i], int, NULL, &g_do,
-						2 * square, "glaring");
+						max32(opnum / nr_threads, 3),
+						"glaring");
 			M0_ASSERT(result == 0);
 		}
 		for (i = 0; i < nr_threads; ++i) {
@@ -5880,9 +5882,9 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 	int j;
 	int k;
 	int t;
-	int scale[] = { 10, 40 };
-	int gauge[] = { 1, 100, 1000 };
-	int conc[] = { 1, 9 };
+	int scale[] = { 2, 8 };
+	int gauge[] = { 1, 1000 };
+	int conc[] = { 1, 5 };
 
 #define NAME(fmt, ...) ({			\
 	char *__name = NULL;			\
