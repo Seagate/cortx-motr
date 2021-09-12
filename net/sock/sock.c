@@ -4805,7 +4805,7 @@ static ssize_t mock_readv(int fdnum, const struct iovec *iov, int iovcnt)
 				continue;
 			byte = fd->md_buf.u_sock[fd->md_head++ % fd->md_len];
 			if (MOCK_DICE(readv_flip))
-				byte ^= 8;
+				byte ^= (1 << mock_rnd(8));
 			((char *)iov[i].iov_base)[j] = byte;
 			++nob;
 		}
@@ -5042,6 +5042,203 @@ static const struct sock_ops std_ops = {
 	.so_epoll_ctl    = &epoll_ctl
 };
 
+/** @@MOCKSTD */
+
+static int mstd_prologue(void)
+{
+	if (MOCK_DICE(delay))
+		m0_nanosleep(mock_rnd(m_conf->uc_delay_ns), NULL);
+	return MOCK_DICE(err);
+}
+
+static int mstd_ret(int rc)
+{
+	if (rc < 0) {
+		errno = -rc;
+		return -1;
+	} else
+		return rc;
+}
+
+static int mstd_socket(int family, int type, int proto)
+{
+	if (mstd_prologue() || MOCK_DICE(socket_err))
+		return mstd_ret(mock_err());
+	return socket(family, type, proto);
+}
+
+static int mstd_accept4(int fdnum, struct sockaddr *addr,
+			socklen_t *addrlen, int flags)
+{
+	if (mstd_prologue() || MOCK_DICE(accept4_err))
+		return mstd_ret(mock_err());
+	if (MOCK_DICE(accept4_miss))
+		return mstd_ret(-EWOULDBLOCK);
+	return accept4(fdnum, addr, addrlen, flags);
+}
+
+static int mstd_listen(int fdnum, int backlog)
+{
+	if (mstd_prologue() || MOCK_DICE(listen_err))
+		return mstd_ret(mock_err());
+	return listen(fdnum, backlog);
+}
+
+static int mstd_bind(int fdnum, const struct sockaddr *addr, socklen_t addrlen)
+{
+	if (mstd_prologue() || MOCK_DICE(bind_err))
+		return mstd_ret(mock_err());
+	return bind(fdnum, addr, addrlen);
+}
+
+static int mstd_connect(int fdnum,
+			const struct sockaddr *addr, socklen_t addrlen)
+{
+	if (mstd_prologue() || MOCK_DICE(connect_err))
+		return mstd_ret(mock_err());
+	return connect(fdnum, addr, addrlen);
+}
+
+static ssize_t mstd_readv(int fdnum, const struct iovec *iov, int iovcnt)
+{
+	ssize_t nob;
+	ssize_t count;
+	int i;
+	int j;
+	if (mstd_prologue() || MOCK_DICE(readv_err))
+		return mstd_ret(mock_err());
+	if (MOCK_DICE(readv_again))
+		return mstd_ret(-EWOULDBLOCK);
+	if (MOCK_DICE(readv_0))
+		return mstd_ret(0);
+	nob = readv(fdnum, iov, iovcnt);
+	if (nob > 0 && m_conf->uc_readv_flip  > 0) {
+		count = 0;
+		for (i = 0; count < nob && i < iovcnt; ++i) {
+			for (j = 0; count < nob && j < iov[i].iov_len; ++j) {
+				if (MOCK_DICE(readv_flip))
+					((char *)iov[i].iov_base)[j] ^=
+						(1 << mock_rnd(8));
+				++count;
+			}
+		}
+		M0_ASSERT(nob == count);
+	}
+	return nob;
+}
+
+static ssize_t mstd_writev(int fdnum, const struct iovec *iov, int iovcnt)
+{
+	size_t *orig = NULL;
+	size_t  origlen;
+	ssize_t nob;
+	int i;
+	int j;
+	if (mstd_prologue() || MOCK_DICE(writev_err))
+		return mstd_ret(mock_err());
+	if (MOCK_DICE(writev_again))
+		return mstd_ret(-EWOULDBLOCK);
+	if (MOCK_DICE(writev_0))
+		return mstd_ret(0);
+	if (m_conf->uc_writev_break > 0) {
+		for (i = 0; i < iovcnt && orig == NULL; ++i) {
+			for (j = 0; j < iov[i].iov_len; ++j) {
+				if (MOCK_DICE(writev_break)) {
+					orig = (void *)&iov[i].iov_len;
+					origlen = iov[i].iov_len;
+					*((size_t *)&iov[i].iov_len) = j;
+					iovcnt = i;
+					break;
+				}
+			}
+		}
+	}
+	nob = writev(fdnum, iov, iovcnt);
+	if (orig != NULL)
+		*orig = origlen;
+	return nob;
+}
+
+static int mstd_close(int fdnum)
+{
+	int result = close(fdnum);
+	if (mstd_prologue() || MOCK_DICE(close_err))
+		return mstd_ret(mock_err());
+	return result;
+}
+
+static int mstd_shutdown(int fdnum, int how)
+{
+	return shutdown(fdnum, how);
+}
+
+static int mstd_setsockopt(int fd, int level, int optname,
+			   const void *optval, socklen_t optlen)
+{
+	if (mstd_prologue() || MOCK_DICE(setsockopt_err))
+		return mstd_ret(mock_err());
+	else
+		return setsockopt(fd, level, optname, optval, optlen);
+}
+
+static int mstd_epoll_create(int size)
+{
+	if (mstd_prologue() || MOCK_DICE(epoll_create_err))
+		return mstd_ret(mock_err());
+	return epoll_create(size);
+}
+
+static int mstd_epoll_wait(int fdnum, struct epoll_event *events,
+			   int maxevents, int timeout)
+{
+	int nr;
+	int i;
+	if (mstd_prologue() || MOCK_DICE(epoll_wait_err))
+		return mstd_ret(mock_err());
+	nr = epoll_wait(fdnum, events, maxevents, timeout);
+	for (i = 0; i < nr; ++i) {
+		uint32_t mask = 0;
+		if (MOCK_DICE(epoll_raise_err))
+			mask |= EPOLLERR;
+		if (MOCK_DICE(epoll_raise_in))
+			mask |= EPOLLIN;
+		if (MOCK_DICE(epoll_raise_out))
+			mask |= EPOLLOUT;
+		if (MOCK_DICE(epoll_raise_garbage))
+			mask |= ~EPOLLIN;
+		events[i].events |= mask;
+		if (MOCK_DICE(epoll_break)) {
+			nr = i;
+			break;
+		}
+	}
+	return nr;
+}
+
+static int mstd_epoll_ctl(int epfdnum, int op, int fdnum,
+			  struct epoll_event *event)
+{
+	if (mstd_prologue() || MOCK_DICE(epoll_ctl_err))
+		return mstd_ret(mock_err());
+	return epoll_ctl(epfdnum, op, fdnum, event);
+}
+
+static const struct sock_ops mstd_ops = {
+	.so_socket       = &mstd_socket,
+	.so_accept4      = &mstd_accept4,
+	.so_listen       = &mstd_listen,
+	.so_bind         = &mstd_bind,
+	.so_connect      = &mstd_connect,
+	.so_readv        = &mstd_readv,
+	.so_writev       = &mstd_writev,
+	.so_close        = &mstd_close,
+	.so_shutdown     = &mstd_shutdown,
+	.so_setsockopt   = &mstd_setsockopt,
+	.so_epoll_create = &mstd_epoll_create,
+	.so_epoll_wait   = &mstd_epoll_wait,
+	.so_epoll_ctl    = &mstd_epoll_ctl
+};
+
 #include "ut/ut.h"
 
 static struct sock_ut_conf conf_0 = {
@@ -5241,10 +5438,10 @@ static struct sock_ut_conf conf_stutter = {
 	.uc_accept4_miss = 1000,
 	.uc_readv_again  = 1000,
 	.uc_readv_0      = 1000,
-	.uc_readv_break  = 1000,
+	.uc_readv_break  =   10,
 	.uc_writev_again = 1000,
 	.uc_writev_0     = 1000,
-	.uc_writev_break = 1000,
+	.uc_writev_break =   10,
 	.uc_epoll_break  = 1000
 };
 
@@ -5293,7 +5490,7 @@ static struct sock_ut_conf conf_adhd = {
 	.uc_sockbuf_len      = 64000,
 	.uc_epoll_len        = 1000,
 	.uc_readv_skip       = 1000,
-	.uc_readv_flip       = 1000
+	.uc_readv_flip       =  100
 };
 
 static struct sock_ut_conf *ut_confs[] = {
@@ -5806,6 +6003,9 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 		}
 		for (i = 0; i < square; ++i)
 			m0_semaphore_down(&g_op_free);
+		/* Serialise with call-back completion. */
+		m0_mutex_lock(&m_ut_lock);
+		m0_mutex_unlock(&m_ut_lock);
 		if (getenv("M0_SOCK_UT_PRINT") != NULL) {
 			printf("\npar-max: %i\n", g_par_max);
 			printf("   %5s %5s %5s %5s %5s %5s %5s "
@@ -5882,9 +6082,12 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 	int j;
 	int k;
 	int t;
+	int s;
 	int scale[] = { 2, 8 };
 	int gauge[] = { 1, 1000 };
 	int conc[] = { 1, 5 };
+	const struct sock_ops *sops[] = { &mock_ops, &mstd_ops };
+	const char *sops_name[] = { "wildcat", "chartreux" };
 
 #define NAME(fmt, ...) ({			\
 	char *__name = NULL;			\
@@ -5902,6 +6105,7 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 })
 
 	ADD("std-smoke",     &smoke_with, &std_ops,  &conf_0,       false,  1);
+	ADD("mstd-smoke",    &smoke_with, &mstd_ops, &conf_0,       false,  1);
 	ADD("mock-smoke",    &smoke_with, &mock_ops, &conf_0,       false,  1);
 	ADD("delay-smoke",   &smoke_with, &mock_ops, &conf_delay,   false, 10);
 	ADD("stutter-smoke", &smoke_with, &mock_ops, &conf_stutter, false, 10);
@@ -5929,14 +6133,17 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 		for (j = 0; j < ARRAY_SIZE(scale); j++) {
 			for (k = 0; k < ARRAY_SIZE(gauge); ++k) {
 				for (t = 0; t < ARRAY_SIZE(conc); ++t) {
-					ADD(NAME("wildcat-%i-%s/%i*%i",
-						 scale[j], pad,
-						 gauge[k], conc[t]),
-					    &glaring_comb, &mock_ops, NULL,
-					    cfail, i,
-					    scale[j], gauge[k] << 16 | conc[t]);
+					for (s = 0; s < ARRAY_SIZE(sops); ++s) {
+						ADD(NAME("%s-%i-%s/%i*%i",
+							 sops_name[s],
+							 scale[j], pad,
+							 gauge[k], conc[t]),
+						    &glaring_comb, sops[s],
+						    NULL, cfail, i, scale[j],
+						    gauge[k] << 16 | conc[t]);
 				}
 			}
+		}
 		}
 	}
 	return &net_sock_ut;
