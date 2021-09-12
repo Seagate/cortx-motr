@@ -72,7 +72,7 @@ struct m0_ut {
 	bool        t_enabled;
 };
 
-enum { M0_UT_SUITE_TESTS_MAX = 128 };
+enum { M0_UT_SUITE_TESTS_MAX = 512 };
 
 struct m0_ut_suite {
 	struct m0_module           ts_module;

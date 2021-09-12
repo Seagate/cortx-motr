@@ -3618,7 +3618,8 @@ static int pk_header_done(struct mover *m)
 					   p->p_dst.bd_cookie.co_addr,
 					   p->p_dst.bd_cookie.co_generation);
 		buf = container_of(cookie, struct buf, b_cookie);
-		if (buf_ma(buf) != ma)
+		if (buf->b_buf == NULL || buf->b_buf->nb_tm == NULL ||
+		    buf_ma(buf) != ma)
 			return M0_RC(-EPERM);
 		if ((buf->b_buf->nb_flags & BFLAGS) != BFLAGS)
 			return M0_RC(-EPERM);
@@ -4534,6 +4535,8 @@ struct mock_fd {
 	int       md_tail;
 };
 
+static void mock_fini(void);
+
 static void ut_init(const struct sock_ops *sop, struct sock_ut_conf *conf)
 {
 	int result;
@@ -4565,6 +4568,7 @@ static void ut_fini(void)
 		m0_fi_disable("m0_alloc", "fail_allocation");
 	m0_fi_disable("sock_ut", "ut");
 	sops = NULL;
+	mock_fini();
 	m0_semaphore_fini(&m_tm_state);
 	m0_mutex_fini(&m_mock_lock);
 	m0_mutex_fini(&m_ut_lock);
@@ -4999,6 +5003,17 @@ static int mock_epoll_ctl(int epfdnum, int op, int fdnum,
 	return mock_ret(0);
 }
 
+static void mock_fini(void)
+{
+	int i;
+	struct mock_fd *fd;
+	for (i = 0; i < m_conf->uc_maxfd; ++i) {
+		fd = &m_table[i];
+		if (fd->md_type != MT_FREE && fd->md_buf.u_sock != NULL)
+			m0_free(fd->md_buf.u_sock);
+	}
+}
+
 static const struct sock_ops mock_ops = {
 	.so_socket       = &mock_socket,
 	.so_accept4      = &mock_accept4,
@@ -5393,6 +5408,7 @@ static struct g_err {
 	m0_bcount_t e_nob;
 	int         e_done;
 	int         e_success;
+	int         e_verified;
 	int         e_timeout;
 	int         e_cancelled;
 	int         e_error;
@@ -5433,6 +5449,7 @@ static void g_buf_done(struct g_buf *me, int rc)
 			m0_bufvec_cursor_init(&src, &me->gb_buf.nb_buffer);
 			m0_bufvec_cursor_init(&dst, &it->gb_buf.nb_buffer);
 			M0_ASSERT(m0_bufvec_cursor_cmp(&src, &dst) == 0);
+			g_err[op->go_opc].e_verified++;
 		}
 		me->gb_used = false;
 		it->gb_used = false;
@@ -5443,6 +5460,7 @@ static void g_buf_done(struct g_buf *me, int rc)
 		g_par--;
 	}
 	me->gb_buf.nb_ep = NULL;
+	me->gb_buf.nb_tm = NULL;
 	m0_net_desc_free(&me->gb_buf.nb_desc);
 	me->gb_queued = false;
 	m0_mutex_unlock(&m_ut_lock);
@@ -5633,8 +5651,8 @@ static void g_op_select(void)
 	m0_mutex_lock(&m_ut_lock);
 	if (mock_rnd(20) < 15) {
 		b[0] = &g_buf[mock_rnd(2 * g_op_nr)];
-		m0_net_buffer_del(&b[0]->gb_buf,
-				  b[0]->gb_buf.nb_tm ?: &g_tm[0].gt_tm);
+		if (b[0]->gb_used && b[0]->gb_buf.nb_tm != NULL)
+			m0_net_buffer_del(&b[0]->gb_buf, b[0]->gb_buf.nb_tm);
 	}
 	tm0 = &g_tm[mock_rnd(g_tm_nr)];
 	tm1 = &g_tm[(tm0 - g_tm + mock_rnd(g_tm_nr - 1) + 1) % g_tm_nr];
@@ -5645,6 +5663,8 @@ static void g_op_select(void)
 	op->go_used = true;
 	b[0] = g_buf_get();
 	b[1] = g_buf_get();
+	g_par++;
+	g_par_max = max64(g_par, g_par_max);
 	m0_mutex_unlock(&m_ut_lock);
 
 	larger = b[1]->gb_buf.nb_length >= b[0]->gb_buf.nb_length;
@@ -5661,8 +5681,6 @@ static void g_op_select(void)
 		b[i]->gb_queued = true;
 		bvec_fill(&b[i]->gb_buf.nb_buffer);
 	}
-	g_par++;
-	g_par_max = max64(g_par, g_par_max);
 	result = m0_net_buffer_add(nb[0], &tm0->gt_tm);
 	if (result == 0) {
 		g_err[op->go_opc].e_queued++;
@@ -5755,8 +5773,14 @@ static void glaring_fini()
 	ut_fini();
 }
 
+static void g_do(int nr)
+{
+	while (nr-- > 0)
+		g_op_select();
+}
+
 static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
-			 bool canfail, int scale, int n2, int n3)
+			 bool canfail, int scale, int nr_threads, int n3)
 {
 	struct sock_ut_conf c = *conf;
 	int square = scale * scale;
@@ -5770,20 +5794,33 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 		glaring_fini();
 	}
 	if (i < 10) {
-		for (i = 0; i < 2 * square; ++i)
-			g_op_select();
+		struct m0_thread t[nr_threads]; /* VLA */
+		for (i = 0; i < nr_threads; ++i) {
+			int result;
+			M0_SET0(&t[i]);
+			result = M0_THREAD_INIT(&t[i], int, NULL, &g_do,
+						2 * square, "glaring");
+			M0_ASSERT(result == 0);
+		}
+		for (i = 0; i < nr_threads; ++i) {
+			m0_thread_join(&t[i]);
+			m0_thread_fini(&t[i]);
+		}
 		for (i = 0; i < square; ++i)
 			m0_semaphore_down(&g_op_free);
 		if (getenv("M0_SOCK_UT_PRINT") != NULL) {
 			printf("\npar-max: %i\n", g_par_max);
+			printf("   %4s %4s %4s %4s %4s %4s %4s "
+			       "%15s %15s %s\n", "queu", "done", "succ", "ver",
+			       "to", "can", "err", "nob", "time", "MB/s");
 			for (i = 0; i < ARRAY_SIZE(g_err); ++i) {
-				printf("%i: %i %"PRId64" %i %i %i %i %i %"
-				       PRId64" %f\n", i,
-				       g_err[i].e_queued,  g_err[i].e_nob,
-				       g_err[i].e_done,    g_err[i].e_success,
-				       g_err[i].e_timeout, g_err[i].e_cancelled,
-				       g_err[i].e_error,   g_err[i].e_time,
-				       1000.0 * g_err[i].e_nob/g_err[i].e_time);
+				struct g_err *e = &g_err[i];
+				printf("%i: %4i %4i %4i %4i %4i %4i %4i "
+				       "%15"PRId64" %15"PRId64" %f\n", i,
+				       e->e_queued, e->e_done, e->e_success,
+				       e->e_verified, e->e_timeout,
+				       e->e_cancelled, e->e_error, e->e_nob,
+				       e->e_time, 1000.0 * e->e_nob/e->e_time);
 			}
 		}
 		glaring_fini();
@@ -5792,13 +5829,14 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 
 /* Felis silvestrus. */
 static void glaring_comb(const struct sock_ops *sop, struct sock_ut_conf *conf,
-			 bool canfail, int bits, int scale, int gauge)
+			 bool canfail, int bits, int scale, int gaugeconc)
 {
 	struct sock_ut_conf comb;
 	static struct sock_ut_conf scaled[ARRAY_SIZE(ut_confs1)];
 	static struct sock_ut_conf *ref[ARRAY_SIZE(ut_confs1)];
 	int i;
 	int j;
+	int gauge = gaugeconc >> 16;
 
 	for (i = 0; i < ARRAY_SIZE(scaled); ++i) {
 		int *field = (void *)&scaled[i];
@@ -5811,7 +5849,7 @@ static void glaring_comb(const struct sock_ops *sop, struct sock_ut_conf *conf,
 		scaled[i].uc_epoll_len   = conf_0.uc_epoll_len;
 	}
 	comb_build(bits, &canfail, &comb, ref);
-	glaring_with(sop, &comb, canfail, scale, 0, 0);
+	glaring_with(sop, &comb, canfail, scale, gaugeconc & 0xffff, 0);
 }
 
 extern const struct m0_ut *m0_ut_current_test __attribute__((weak));
@@ -5840,10 +5878,14 @@ static void sock_ut_entry(void)
 
 M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 {
-	int   pos = 0;
-	int   i;
-	int   j;
-	int   scale;
+	int pos = 0;
+	int i;
+	int j;
+	int k;
+	int t;
+	int scale[] = { 10, 40 };
+	int gauge[] = { 1, 100, 1000 };
+	int conc[] = { 1, 9 };
 
 #define NAME(fmt, ...) ({			\
 	char *__name = NULL;			\
@@ -5866,9 +5908,12 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 	ADD("stutter-smoke", &smoke_with, &mock_ops, &conf_stutter, false, 10);
 	ADD("spam-smoke",    &smoke_with, &mock_ops, &conf_spam,     true, 10);
 	ADD("adhd-smoke",    &smoke_with, &mock_ops, &conf_adhd,     true, 10);
-	for (scale = 1; scale < 3; scale++) {
-		ADD(NAME("tabby-%i", 10 * scale),
-		    &glaring_with, &std_ops, &conf_0, false, 10 * scale);
+	for (j = 0; j < ARRAY_SIZE(scale); j++) {
+		for (t = 0; t < ARRAY_SIZE(conc); ++t) {
+			ADD(NAME("tabby-%i*%i", scale[j], conc[t]),
+			    &glaring_with,
+			    &std_ops, &conf_0, false, scale[j], conc[t]);
+		}
 	}
 	for (i = 0; i < (1 << ARRAY_SIZE(ut_confs)); ++i) {
 		char pad[] = "-----------------------------";
@@ -5882,13 +5927,15 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 		pad[j] = 0;
 		ADD(NAME("smoked-%s", pad),
 		    &smoked_comb, &mock_ops, NULL, cfail, i, 10, 0);
-		for (scale = 1; scale < 3; scale++) {
-			int gauge = 1;
-			for (gauge = 1; gauge < 1000; gauge *= 30) {
-				ADD(NAME("wildcat-%i-%s/%i", 10 * scale, pad,
-					 gauge),
-				    &glaring_comb, &mock_ops, NULL, cfail, i,
-				    10 * scale, gauge);
+		for (j = 0; j < ARRAY_SIZE(scale); j++) {
+			for (k = 0; k < ARRAY_SIZE(gauge); ++k) {
+				for (t = 0; t < ARRAY_SIZE(conc); ++t) {
+					ADD(NAME("wildcat-%i-%s/%i*%i", j, pad,
+						 gauge[k], conc[t]),
+					    &glaring_comb, &mock_ops, NULL,
+					    cfail, i,
+					    scale[j], gauge[k] << 16 | conc[t]);
+				}
 			}
 		}
 	}
