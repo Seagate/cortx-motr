@@ -5006,12 +5006,8 @@ static int mock_epoll_ctl(int epfdnum, int op, int fdnum,
 static void mock_fini(void)
 {
 	int i;
-	struct mock_fd *fd;
-	for (i = 0; i < m_conf->uc_maxfd; ++i) {
-		fd = &m_table[i];
-		if (fd->md_type != MT_FREE && fd->md_buf.u_sock != NULL)
-			m0_free(fd->md_buf.u_sock);
-	}
+	for (i = 0; i < m_conf->uc_maxfd; ++i)
+		m0_free(m_table[i].md_buf.u_sock);
 }
 
 static const struct sock_ops mock_ops = {
@@ -5810,12 +5806,13 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 			m0_semaphore_down(&g_op_free);
 		if (getenv("M0_SOCK_UT_PRINT") != NULL) {
 			printf("\npar-max: %i\n", g_par_max);
-			printf("   %4s %4s %4s %4s %4s %4s %4s "
-			       "%15s %15s %s\n", "queu", "done", "succ", "ver",
-			       "to", "can", "err", "nob", "time", "MB/s");
+			printf("   %5s %5s %5s %5s %5s %5s %5s "
+			       "%15s %15s %s\n", "queue", "done", "succ",
+			       "verif", "timeo", "cncl", "err", "nob", "time",
+			       "MB/s");
 			for (i = 0; i < ARRAY_SIZE(g_err); ++i) {
 				struct g_err *e = &g_err[i];
-				printf("%i: %4i %4i %4i %4i %4i %4i %4i "
+				printf("%i: %5i %5i %5i %5i %5i %5i %5i "
 				       "%15"PRId64" %15"PRId64" %f\n", i,
 				       e->e_queued, e->e_done, e->e_success,
 				       e->e_verified, e->e_timeout,
@@ -5930,7 +5927,8 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 		for (j = 0; j < ARRAY_SIZE(scale); j++) {
 			for (k = 0; k < ARRAY_SIZE(gauge); ++k) {
 				for (t = 0; t < ARRAY_SIZE(conc); ++t) {
-					ADD(NAME("wildcat-%i-%s/%i*%i", j, pad,
+					ADD(NAME("wildcat-%i-%s/%i*%i",
+						 scale[j], pad,
 						 gauge[k], conc[t]),
 					    &glaring_comb, &mock_ops, NULL,
 					    cfail, i,
