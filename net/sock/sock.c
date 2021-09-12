@@ -5774,26 +5774,43 @@ static void glaring_with(const struct sock_ops *sop, struct sock_ut_conf *conf,
 			g_op_select();
 		for (i = 0; i < square; ++i)
 			m0_semaphore_down(&g_op_free);
-		/*
 		printf("\npar-max: %i\n", g_par_max);
-		for (i = 0; i < ARRAY_SIZE(g_err); ++i) {
-			printf("%i: %i %"PRId64" %i %i %i %i %i %"PRId64"\n", i,
-			       g_err[i].e_queued,  g_err[i].e_nob,
-			       g_err[i].e_done,    g_err[i].e_success,
-			       g_err[i].e_timeout, g_err[i].e_cancelled,
-			       g_err[i].e_error,   g_err[i].e_time);
+		if (getenv("M0_SOCK_UT_PRINT") != NULL) {
+			for (i = 0; i < ARRAY_SIZE(g_err); ++i) {
+				printf("%i: %i %"PRId64" %i %i %i %i %i %"
+				       PRId64" %f\n", i,
+				       g_err[i].e_queued,  g_err[i].e_nob,
+				       g_err[i].e_done,    g_err[i].e_success,
+				       g_err[i].e_timeout, g_err[i].e_cancelled,
+				       g_err[i].e_error,   g_err[i].e_time,
+				       1000.0 * g_err[i].e_nob/g_err[i].e_time);
+			}
 		}
-		*/
 		glaring_fini();
 	}
 }
 
 /* Felis silvestrus. */
 static void glaring_comb(const struct sock_ops *sop, struct sock_ut_conf *conf,
-			 bool canfail, int bits, int scale, int n3)
+			 bool canfail, int bits, int scale, int gauge)
 {
 	struct sock_ut_conf comb;
-	comb_build(bits, &canfail, &comb, ut_confs1);
+	static struct sock_ut_conf scaled[ARRAY_SIZE(ut_confs1)];
+	static struct sock_ut_conf *ref[ARRAY_SIZE(ut_confs1)];
+	int i;
+	int j;
+
+	for (i = 0; i < ARRAY_SIZE(scaled); ++i) {
+		int *field = (void *)&scaled[i];
+		scaled[i] = *ut_confs1[i];
+		ref[i] = &scaled[i];
+		for (j = 0; j < sizeof scaled[i] / sizeof(int); ++j)
+			field[j] /= gauge;
+		scaled[i].uc_maxfd       = conf_0.uc_maxfd;
+		scaled[i].uc_sockbuf_len = conf_0.uc_sockbuf_len;
+		scaled[i].uc_epoll_len   = conf_0.uc_epoll_len;
+	}
+	comb_build(bits, &canfail, &comb, ref);
 	glaring_with(sop, &comb, canfail, scale, 0, 0);
 }
 
@@ -5866,9 +5883,13 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 		ADD(NAME("smoked-%s", pad),
 		    &smoked_comb, &mock_ops, NULL, cfail, i, 10, 0);
 		for (scale = 1; scale < 3; scale++) {
-			ADD(NAME("wildcat-%i-%s", 10 * scale, pad),
-			    &glaring_comb, &mock_ops, NULL, cfail, i,
-			    10 * scale);
+			int gauge = 1;
+			for (gauge = 1; gauge < 1000; gauge *= 30) {
+				ADD(NAME("wildcat-%i-%s/%i", 10 * scale, pad,
+					 gauge),
+				    &glaring_comb, &mock_ops, NULL, cfail, i,
+				    10 * scale, gauge);
+			}
 		}
 	}
 	return &net_sock_ut;
