@@ -2844,8 +2844,8 @@ static int addr_parse_lnet(struct addr *addr, const char *name)
 				   "portal: %u, tmid: %u", portal, tmid);
 	sin.sin_port     = htons(tmid | (1 << 10) | ((portal - 30) << 11));
 	addr->a_family   = PF_INET;
-	addr->a_socktype = SOCK_DGRAM;
-	addr->a_protocol = IPPROTO_UDP;
+	addr->a_socktype = SOCK_STREAM;
+	addr->a_protocol = IPPROTO_TCP;
 	autotm[tmid] = 1;
 	addr_decode(addr, (void *)&sin);
 	return M0_RC(0);
