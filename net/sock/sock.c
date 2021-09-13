@@ -5174,7 +5174,7 @@ static ssize_t mstd_readv(int fdnum, const struct iovec *iov, int iovcnt)
 	if (MOCK_DICE(readv_0))
 		return mstd_ret(0);
 	nob = readv(fdnum, iov, iovcnt);
-	if (nob > 0 && m_conf->uc_readv_flip  > 0) {
+	if (nob > 0 && m_conf->uc_readv_flip > 0 && sops != &mstd_d_ops) {
 		count = 0;
 		for (i = 0; count < nob && i < iovcnt; ++i) {
 			for (j = 0; count < nob && j < iov[i].iov_len; ++j) {
@@ -5203,7 +5203,7 @@ static ssize_t mstd_sendmsg(int fdnum, const struct msghdr *msg, int flags)
 		return mstd_ret(-EWOULDBLOCK);
 	if (MOCK_DICE(sendmsg_0))
 		return mstd_ret(0);
-	if (m_conf->uc_sendmsg_break > 0) {
+	if (m_conf->uc_sendmsg_break > 0 && sops != &mstd_d_ops) {
 		for (i = 0; i < m->msg_iovlen && orig == NULL; ++i) {
 			for (j = 0; j < m->msg_iov[i].iov_len; ++j) {
 				if (MOCK_DICE(sendmsg_break)) {
