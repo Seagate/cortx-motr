@@ -85,6 +85,21 @@ enum {
 	M0_BSIGNED_MAX = 0x7fffffffffffffff
 };
 
+/*
+ * Print binary values.
+ */
+#define PRI_BIT(v, b) (((v) & (1ULL << (b))) ? '1' : '0')
+#define PRIb8 "%c%c%c%c%c%c%c%c"
+#define PRFb8(v) PRI_BIT(v, 7), PRI_BIT(v, 6), PRI_BIT(v, 5), PRI_BIT(v, 4), \
+	PRI_BIT(v, 3), PRI_BIT(v, 2), PRI_BIT(v, 1), PRI_BIT(v, 0)
+
+#define PRIb16 PRIb8  "-" PRIb8
+#define PRIb32 PRIb16 "-" PRIb16
+#define PRIb64 PRIb32 "-" PRIb32
+#define PRFb16(v) PRFb8 ((v) >>  8), PRFb8 (v)
+#define PRFb32(v) PRFb16((v) >> 16), PRFb16(v)
+#define PRFb64(v) PRFb32((v) >> 32), PRFb32(v)
+
 #endif /* __MOTR_LIB_TYPES_H__ */
 
 /*
