@@ -3141,7 +3141,7 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *		new record is not added now but only after the current tree is
  *		fixed.
  *
- * There are two proposal for supporting CRCs in the node:
+ * These are the proposal for supporting CRCs in the node:
  *
  * 1. User Provided CRC: The btree user will provide checksum as part of value.
  * The checksum can cover either the value or key+value of the record. The
@@ -3190,7 +3190,8 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * +-----------+----+----+----+----+---------------------------+----+----+----+
  *
  * 2. User does not provide checksum in the record. It is the responsibility of
- * Motr to calculate and verify CRC. Motr can store CRC in either of the
+ * Motr to calculate and verify CRC. Motr can use any of the CRC calculator
+ * routines to store/verify the CRC. Motr can store CRC in either of the
  * following two ways:
  *	a. Motr will checksum all the keys and values and store in the node
  *	header.
@@ -3231,6 +3232,20 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * |           |    |    |    |    |                           |    |    |    |
  * +-----------+----+----+----+----+---------------------------+----+----+----+
  *
+ * 3. User provides the details of the checksum calculator routine to Motr. The
+ * checksum calculator routine will be identified by a unique id. User will
+ * calculate the checksum by using a routine and share the routine's unique id
+ * with Motr. Motr can verify the checksum of the leaf nodes using the checksum
+ * calculator(identified by the unique id). CRC will be calculated over both
+ * keys and values of the leaf nodes for better integrity.
+ *	Pros: As both user and Motr will be using the same checksum calculator
+ *	routine, any corruption will be captured at Motr level.
+ *
+ * 4. User does not include CRC in the record and also does not want Motr to
+ * calculate CRC. Btree will save the record as it received from the user.
+ *	Pros: The performance can be slightly better as it will remove CRC
+ *	storage and calculation.
+ *	Cons: Any metadata corruption will result in undefined behavior.
  */
 struct fkvv_head {
 	struct m0_format_header  fkvv_fmt;    /*< Node Header */
