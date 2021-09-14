@@ -1864,7 +1864,7 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 	}
 
 	/* Set layout id and pver for CREATE op.*/
-	if (cr->cr_opcode == M0_EO_CREATE || cr->cr_opcode == M0_ENF_DELETE) {
+	if (cr->cr_opcode == M0_EO_CREATE || cr->cr_opcode == M0_EO_DELETE) {
 		cr->cr_cob_attr->ca_lid = obj->ob_attr.oa_layout_id;
 		 if (obj->ob_entity.en_flags & M0_ENF_META) {
 			/* For create operation setting up pool version locally
