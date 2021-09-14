@@ -799,7 +799,7 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 	int                     rc;
 	struct m0_btree_op      b_op  = {};
 	struct m0_cob_omgkey    omgkey = {};
-	struct m0_cob_nskey    *nskey;
+	struct m0_cob_nskey    *nskey = NULL;
 	struct m0_buf           key;
 	struct m0_cob          *cob;
 
@@ -832,7 +832,7 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 	cob_table_delete(dom->cd_fileattr_omg, tx, &key);
 
 	m0_cob_nskey_make(&nskey, &M0_COB_ROOT_FID, M0_COB_ROOT_NAME,
-			  strlen(M0_COB_ROOT_NAME));
+			       strlen(M0_COB_ROOT_NAME));
 	rc = m0_cob_lookup(dom, nskey, M0_CA_NSKEY_FREE, &cob);
 	m0_cob_delete(cob, tx);
 

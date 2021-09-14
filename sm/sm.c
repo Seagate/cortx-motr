@@ -482,7 +482,7 @@ void m0_sm_state_set(struct m0_sm *mach, int state)
 }
 M0_EXPORTED(m0_sm_state_set);
 
-void m0_sm_state_and_rc_set(struct m0_sm *mach, int state, int32_t rc)
+M0_INTERNAL void m0_sm_state_and_rc_set(struct m0_sm *mach, int state, int32_t rc)
 {
 	M0_PRE(m0_sm_invariant(mach));
 	state_set(mach, state, rc);
