@@ -99,7 +99,6 @@ noinst_LTLIBRARIES =
 man_MANS   =
 
 EXTRA_DIST  = autogen.sh cortx-motr.spec.in README.rst LICENCE .gdbinit
-EXTRA_DIST += extra-libs/.gitignore
 CLEANFILES  =
 DISTCLEANFILES = @LUSTRE_CONFIG_LINK@ utils/ub.sh
 MAN_PAGES  =
@@ -1567,8 +1566,7 @@ clean-local: $(KERNEL_MODULES_CLEAN) clean-doc
 # we don't want to use the default kernel clean command, i.e.:
 #   $(MAKE) -C $(KDIR) M=$(PWD) $(AM_MAKEFLAGS) clean
 # because it's a bit dummy - it uses `find` to recursively delete all *.o, *.a
-# and *.ko files, which will mess up our user-space build in .libs/ directories
-# and delete library files under extra-libs/;
+# and *.ko files, which will mess up our user-space build in .libs/ directories;
 # instead we use our own `find` command, which excludes some paths we need to
 # keep, to clean up kernel build
 .PHONY: clean-kernel-modules
@@ -1578,7 +1576,7 @@ clean-kernel-modules:
 	@rm -vf $(top_builddir)/Module.markers
 	@rm -vf $(top_builddir)/modules.order
 	@find $(top_builddir) \
-		\( -name .git -o -name .libs -o -name extra-libs \) -prune \
+		\( -name .git -o -name .libs \) -prune \
 		-o \( -name '*.o' -o -name '*.ko' -o -name '.*.cmd' \
 		      -o -name '*.ko.*' -o -name '.*.d' -o -name '.*.tmp' \
 		      -o -name '*.mod.c' \
