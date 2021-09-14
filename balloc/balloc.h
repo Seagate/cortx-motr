@@ -30,7 +30,6 @@
 #include "lib/list.h"
 #include "lib/mutex.h"
 #include "btree/btree.h"
-// #include "btree/btree_xc.h"
 #include "be/btree_xc.h"
 #include "format/format.h"
 #include "stob/ad.h"
