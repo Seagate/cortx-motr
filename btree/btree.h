@@ -158,14 +158,14 @@ enum m0_btree_opflag {
  * Calculates the credit needed to create tree using root node and adds this
  * credit to @accum.
  */
-void m0_btree_create_credit(const struct m0_btree_type *bt,
-			    struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_btree_create_credit(const struct m0_btree_type *bt,
+					struct m0_be_tx_credit *accum);
 
 /**
  * Calculates the credit needed to destroy tree and adds this credit to @accum.
  */
-void m0_btree_destroy_credit(struct m0_btree *tree,
-			     struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_btree_destroy_credit(struct m0_btree *tree,
+					 struct m0_be_tx_credit *accum);
 
 /**
  * Btree functions related to tree management
@@ -184,8 +184,8 @@ void m0_btree_destroy_credit(struct m0_btree *tree,
  *
  * @return 0 if successful.
  */
-int  m0_btree_open(void *addr, int nob, struct m0_btree *out,
-		   struct m0_be_seg *seg, struct m0_btree_op *bop);
+M0_INTERNAL int  m0_btree_open(void *addr, int nob, struct m0_btree *out,
+			       struct m0_be_seg *seg, struct m0_btree_op *bop);
 
 /**
  * Closes the opened or created tree represented by arbor. Once the close
@@ -198,7 +198,7 @@ int  m0_btree_open(void *addr, int nob, struct m0_btree *out,
  *
  * @param arbor is the btree which needs to be closed.
  */
-void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop);
+M0_INTERNAL void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop);
 
 /**
  * Creates a new btree with the root node created at the address passed as the
@@ -220,10 +220,11 @@ void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop);
  * @param fid unique fid of the tree.
  * @param tx pointer to the transaction struture to capture BE segment changes.
  */
-void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
-		     struct m0_btree_op *bop, struct m0_btree *tree,
-		     struct m0_be_seg *seg, const struct m0_fid *fid,
-		     struct m0_be_tx *tx);
+M0_INTERNAL void m0_btree_create(void *addr, int nob,
+				 const struct m0_btree_type *bt,
+				 struct m0_btree_op *bop, struct m0_btree *tree,
+				 struct m0_be_seg *seg,
+				 const struct m0_fid *fid, struct m0_be_tx *tx);
 
 /**
  * Destroys the opened or created tree represented by arbor. Once the destroy
@@ -236,8 +237,8 @@ void m0_btree_create(void *addr, int nob, const struct m0_btree_type *bt,
  * @param bop is consumed by the m0_btree_destroy for its operation.
  * @param tx pointer to the transaction structure to capture BE segment changes.
  */
-void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop,
-		      struct m0_be_tx *tx);
+M0_INTERNAL void m0_btree_destroy(struct m0_btree *arbor,
+				  struct m0_btree_op *bop, struct m0_be_tx *tx);
 
 /**
  * Searches for the key/slant key provided as the search key. The callback
@@ -253,9 +254,10 @@ void m0_btree_destroy(struct m0_btree *arbor, struct m0_btree_op *bop,
  * @param flags Operation specific flags (cookie, slant etc.).
  * @param bop   Btree operation related parameters.
  */
-void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
-		  const struct m0_btree_cb *cb, uint64_t flags,
-		  struct m0_btree_op *bop);
+M0_INTERNAL void m0_btree_get(struct m0_btree *arbor,
+			      const struct m0_btree_key *key,
+			      const struct m0_btree_cb *cb, uint64_t flags,
+			      struct m0_btree_op *bop);
 
 /**
  * Inserts the record in the tree. The callback is called with the location
@@ -271,9 +273,10 @@ void m0_btree_get(struct m0_btree *arbor, const struct m0_btree_key *key,
  * @param tx    represents the transaction of which the current operation is
  *              part of.
  */
-void m0_btree_put(struct m0_btree *arbor, const struct m0_btree_rec *rec,
-		  const struct m0_btree_cb *cb, struct m0_btree_op *bop,
-		  struct m0_be_tx *tx);
+M0_INTERNAL void m0_btree_put(struct m0_btree *arbor,
+			      const struct m0_btree_rec *rec,
+			      const struct m0_btree_cb *cb,
+			      struct m0_btree_op *bop, struct m0_be_tx *tx);
 
 /**
  * Updates the record in the tree. The callback is called with the location
@@ -289,9 +292,10 @@ void m0_btree_put(struct m0_btree *arbor, const struct m0_btree_rec *rec,
  * @param tx    represents the transaction of which the current operation is
  *              part of.
  */
-void m0_btree_update(struct m0_btree *arbor, const struct m0_btree_rec *rec,
-		     const struct m0_btree_cb *cb, struct m0_btree_op *bop,
-		     struct m0_be_tx *tx);
+M0_INTERNAL void m0_btree_update(struct m0_btree *arbor,
+				 const struct m0_btree_rec *rec,
+				 const struct m0_btree_cb *cb,
+				 struct m0_btree_op *bop, struct m0_be_tx *tx);
 
 /**
  * Deletes the record in the tree. The callback is called with the location
@@ -303,9 +307,10 @@ void m0_btree_update(struct m0_btree *arbor, const struct m0_btree_rec *rec,
  * @param tx    represents the transaction of which the current operation is
  *              part of.
  */
-void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
-		  const struct m0_btree_cb *cb, struct m0_btree_op *bop,
-		  struct m0_be_tx *tx);
+M0_INTERNAL void m0_btree_del(struct m0_btree *arbor,
+			      const struct m0_btree_key *key,
+			      const struct m0_btree_cb *cb,
+			      struct m0_btree_op *bop, struct m0_be_tx *tx);
 
 /**
  * Iterates through the tree and finds next/previous key from the given search
@@ -318,9 +323,10 @@ void m0_btree_del(struct m0_btree *arbor, const struct m0_btree_key *key,
  * @param flags Operation specific flags (cookie, slant, prev, next etc.).
  * @param bop   Btree operation related parameters.
  */
-void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
-		   const struct m0_btree_cb *cb, uint64_t flags,
-		   struct m0_btree_op *bop);
+M0_INTERNAL void m0_btree_iter(struct m0_btree *arbor,
+			       const struct m0_btree_key *key,
+			       const struct m0_btree_cb *cb, uint64_t flags,
+			       struct m0_btree_op *bop);
 
 /**
  * Returns the records corresponding to minimum key of the btree.
@@ -330,8 +336,9 @@ void m0_btree_iter(struct m0_btree *arbor, const struct m0_btree_key *key,
  * @param flags Operation specific flags (cookie, lockall etc.).
  * @param bop   Btree operation related parameters.
  */
-void m0_btree_minkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
-		     uint64_t flags, struct m0_btree_op *bop);
+M0_INTERNAL void m0_btree_minkey(struct m0_btree *arbor,
+				 const struct m0_btree_cb *cb, uint64_t flags,
+				 struct m0_btree_op *bop);
 
 /**
  * Returns the records corresponding to maximum key of the btree.
@@ -341,8 +348,9 @@ void m0_btree_minkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
  * @param flags Operation specific flags (cookie, lockall etc.).
  * @param bop   Btree operation related parameters.
  */
-void m0_btree_maxkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
-		     uint64_t flags, struct m0_btree_op *bop);
+M0_INTERNAL void m0_btree_maxkey(struct m0_btree *arbor,
+				 const struct m0_btree_cb *cb, uint64_t flags,
+				 struct m0_btree_op *bop);
 
 /**
  * Initialises cursor and its internal structures.
@@ -350,15 +358,15 @@ void m0_btree_maxkey(struct m0_btree *arbor, const struct m0_btree_cb *cb,
  * @param it    is pointer to cursor structure allocated by the caller.
  * @param arbor is the pointer to btree.
  */
-void m0_btree_cursor_init(struct m0_btree_cursor *it,
-			  struct m0_btree        *arbor);
+M0_INTERNAL void m0_btree_cursor_init(struct m0_btree_cursor *it,
+				      struct m0_btree        *arbor);
 
 /**
  * Finalizes cursor.
  *
  * @param it  is pointer to cursor structure allocated by the caller.
  */
-void m0_btree_cursor_fini(struct m0_btree_cursor *it);
+M0_INTERNAL void m0_btree_cursor_fini(struct m0_btree_cursor *it);
 
 /**
  * Fills cursor internal buffers with current key and value obtained from the
@@ -370,9 +378,9 @@ void m0_btree_cursor_fini(struct m0_btree_cursor *it);
  *
  * @return 0 if successful.
  */
-int m0_btree_cursor_get(struct m0_btree_cursor    *it,
-			const struct m0_btree_key *key,
-			bool                       slant);
+M0_INTERNAL int m0_btree_cursor_get(struct m0_btree_cursor    *it,
+				    const struct m0_btree_key *key,
+				    bool                       slant);
 
 /**
  * Fills cursor internal buffers with key and value obtained from the
@@ -381,7 +389,7 @@ int m0_btree_cursor_get(struct m0_btree_cursor    *it,
  *
  * @param it  is pointer to cursor structure.
  */
-int m0_btree_cursor_next(struct m0_btree_cursor *it);
+M0_INTERNAL int m0_btree_cursor_next(struct m0_btree_cursor *it);
 
 /**
  * Fills cursor internal buffers with prev key and value obtained from the
@@ -389,28 +397,28 @@ int m0_btree_cursor_next(struct m0_btree_cursor *it);
  *
  * @param it  is pointer to cursor structure.
  */
-int m0_btree_cursor_prev(struct m0_btree_cursor *it);
+M0_INTERNAL int m0_btree_cursor_prev(struct m0_btree_cursor *it);
 
 /**
  * Moves cursor to the first key in the btree.
  *
  * @param it  is pointer to cursor structure.
  */
-int m0_btree_cursor_first(struct m0_btree_cursor *it);
+M0_INTERNAL int m0_btree_cursor_first(struct m0_btree_cursor *it);
 
 /**
  * Moves cursor to the last key in the btree.
  *
  * @param it  is pointer to cursor structure.
  */
-int m0_btree_cursor_last(struct m0_btree_cursor *it);
+M0_INTERNAL int m0_btree_cursor_last(struct m0_btree_cursor *it);
 
 /**
  * Releases cursor values.
  *
  * @param it  is pointer to cursor structure.
  */
-void m0_btree_cursor_put(struct m0_btree_cursor *it);
+M0_INTERNAL void m0_btree_cursor_put(struct m0_btree_cursor *it);
 
 /**
  * Sets key and value buffers to point on internal structures of cursor
@@ -422,9 +430,9 @@ void m0_btree_cursor_put(struct m0_btree_cursor *it);
  * @param key will point to the cursor pointed Key by this routine.
  * @param val will point to the cursor pointed Value by this routine.
  */
-void m0_btree_cursor_kv_get(struct m0_btree_cursor *it,
-			    struct m0_buf          *key,
-			    struct m0_buf          *val);
+M0_INTERNAL void m0_btree_cursor_kv_get(struct m0_btree_cursor *it,
+					struct m0_buf          *key,
+					struct m0_buf          *val);
 
 
 void m0_btree_op_init(struct m0_btree_op *bop, enum m0_btree_opcode *opc,
@@ -448,11 +456,11 @@ void m0_btree_op_credit(const struct m0_btree_op *bt,
  * @param vsize is the size of the Value which will be added.
  * @param accum will contain the calculated credits.
  */
-void m0_btree_put_credit(const struct m0_btree  *tree,
-			 m0_bcount_t             nr,
-			 m0_bcount_t             ksize,
-			 m0_bcount_t             vsize,
-			 struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_btree_put_credit(const struct m0_btree  *tree,
+				     m0_bcount_t             nr,
+				     m0_bcount_t             ksize,
+				     m0_bcount_t             vsize,
+				     struct m0_be_tx_credit *accum);
 
 /**
  * Calculates credits required to perform 'nr' Put KV operations. The calculated
@@ -473,12 +481,12 @@ void m0_btree_put_credit(const struct m0_btree  *tree,
  * @param vsize     is the size of the Value which will be added.
  * @param accum     will contain the calculated credits.
  */
-void m0_btree_put_credit2(const struct m0_btree_type *type,
-			  int                         rnode_nob,
-			  m0_bcount_t                 nr,
-			  m0_bcount_t                 ksize,
-			  m0_bcount_t                 vsize,
-			  struct m0_be_tx_credit     *accum);
+M0_INTERNAL void m0_btree_put_credit2(const struct m0_btree_type *type,
+				      int                         rnode_nob,
+				      m0_bcount_t                 nr,
+				      m0_bcount_t                 ksize,
+				      m0_bcount_t                 vsize,
+				      struct m0_be_tx_credit     *accum);
 
 /**
  * Calculates credits required to perform 'nr' Update KV operations. The
@@ -492,11 +500,11 @@ void m0_btree_put_credit2(const struct m0_btree_type *type,
  * @param vsize is the size of the Value which will be added.
  * @param accum will contain the calculated credits.
  */
-void m0_btree_update_credit(const struct m0_btree  *tree,
-			    m0_bcount_t             nr,
-			    m0_bcount_t             ksize,
-			    m0_bcount_t             vsize,
-			    struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_btree_update_credit(const struct m0_btree  *tree,
+					m0_bcount_t             nr,
+					m0_bcount_t             ksize,
+					m0_bcount_t             vsize,
+					struct m0_be_tx_credit *accum);
 
 /**
  * Calculates credits required to perform 'nr' Update KV operations. The
@@ -517,12 +525,12 @@ void m0_btree_update_credit(const struct m0_btree  *tree,
  * @param vsize     is the size of the Value which will be added.
  * @param accum     will contain the calculated credits.
  */
-void m0_btree_update_credit2(const struct m0_btree_type *type,
-			     int                         rnode_nob,
-			     m0_bcount_t                 nr,
-			     m0_bcount_t                 ksize,
-			     m0_bcount_t                 vsize,
-			     struct m0_be_tx_credit     *accum);
+M0_INTERNAL void m0_btree_update_credit2(const struct m0_btree_type *type,
+					 int                         rnode_nob,
+					 m0_bcount_t                 nr,
+					 m0_bcount_t                 ksize,
+					 m0_bcount_t                 vsize,
+					 struct m0_be_tx_credit     *accum);
 
 /**
  * Calculates credits required to perform 'nr' Delete KV operations. The
@@ -536,11 +544,11 @@ void m0_btree_update_credit2(const struct m0_btree_type *type,
  * @param vsize is the size of the Value which will be added.
  * @param accum will contain the calculated credits.
  */
-void m0_btree_del_credit(const struct m0_btree  *tree,
-			 m0_bcount_t             nr,
-			 m0_bcount_t             ksize,
-			 m0_bcount_t             vsize,
-			 struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_btree_del_credit(const struct m0_btree  *tree,
+				     m0_bcount_t             nr,
+				     m0_bcount_t             ksize,
+				     m0_bcount_t             vsize,
+				     struct m0_be_tx_credit *accum);
 
 /**
  * Calculates credits required to perform 'nr' Delete KV operations. The
@@ -561,17 +569,18 @@ void m0_btree_del_credit(const struct m0_btree  *tree,
  * @param vsize     is the size of the Value which will be added.
  * @param accum     will contain the calculated credits.
  */
-void m0_btree_del_credit2(const struct m0_btree_type *type,
-			  int                         rnode_nob,
-			  m0_bcount_t                 nr,
-			  m0_bcount_t                 ksize,
-			  m0_bcount_t                 vsize,
-			  struct m0_be_tx_credit     *accum);
+M0_INTERNAL void m0_btree_del_credit2(const struct m0_btree_type *type,
+				      int                         rnode_nob,
+				      m0_bcount_t                 nr,
+				      m0_bcount_t                 ksize,
+				      m0_bcount_t                 vsize,
+				      struct m0_be_tx_credit     *accum);
 
 #include "btree/internal.h"
 
-int  m0_btree_mod_init(void);
-void m0_btree_mod_fini(void);
+M0_INTERNAL int  m0_btree_mod_init(void);
+M0_INTERNAL void m0_btree_mod_fini(void);
+M0_INTERNAL void m0_btree_lrulist_purge(uint64_t count);
 
 
 #define M0_BTREE_OP_SYNC_WITH_RC(bop, action)                           \
