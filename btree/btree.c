@@ -5330,9 +5330,9 @@ M0_INTERNAL void m0_btree_create_credit(const struct m0_btree_type *bt,
 					struct m0_be_tx_credit *accum,
 					m0_bcount_t nr)
 {
-	const struct node_type *nt = btree_nt_from_bt(bt);
-	int size = nt->nt_create_delete_credit_size();
-	struct m0_be_tx_credit cred = M0_BE_TX_CREDIT(1, size);
+	const struct node_type *nt   = btree_nt_from_bt(bt);
+	int                     size = nt->nt_create_delete_credit_size();
+	struct m0_be_tx_credit  cred = M0_BE_TX_CREDIT(1, size);
 	m0_be_tx_credit_add(accum, &cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
