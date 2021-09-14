@@ -39,8 +39,8 @@
 // For the usage example, refer to mcp utility.
 package mio
 
-// #cgo CFLAGS: -I/usr/include/motr
 // #cgo CFLAGS: -I../../.. -I../../../extra-libs/galois/include
+// #cgo CFLAGS: -I/usr/include/motr
 // #cgo CFLAGS: -DM0_EXTERN=extern -DM0_INTERNAL=
 // #cgo CFLAGS: -Wno-attributes
 // #cgo LDFLAGS: -L../../../motr/.libs -Wl,-rpath=../../../motr/.libs -lmotr
@@ -48,7 +48,7 @@ package mio
 // #include "lib/types.h"
 // #include "lib/trace.h"   /* m0_trace_set_mmapped_buffer */
 // #include "motr/client.h"
-// #include "motr/layout.h" /* m0c_pools_common */
+// #include "motr/layout.h" /* M0_OBJ_LAYOUT_ID */
 //
 // struct m0_client    *instance = NULL;
 // struct m0_container container;
@@ -369,11 +369,19 @@ func (mio *Mio) getOptimalBlockSz(bufSz int) (bsz, gsz int) {
                   pa.pa_P, pa.pa_N, pa.pa_K, pa.pa_S,
                            pa.pa_N + pa.pa_K + pa.pa_S)
     }
+
     usz := int(C.m0_obj_layout_id_to_unit_size(mio.objLid))
     gsz = usz * int(pa.pa_N) // group size in data units only
-    // should be max 2-times pool-width deep, otherwise we may get -E2BIG
-    maxBs := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N /
-                    (pa.pa_N + pa.pa_K + pa.pa_S))
+
+    // bs should be max 4-times pool-width deep counting by 1MB units or
+    // 8-times deep counting by 512K units, 16-times deep by 256K units,
+    // and so on. Several units to one target will be aggregated to make
+    // fewer network RPCs, disk i/o operations and BE transactions.
+    k := C.uint(128 / ((usz + 0x7fff) / 0x8000))
+    if k == 0 {
+        k = 1
+    }
+    maxBs := int(k * C.uint(usz) * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K))
     maxBs = ((maxBs - 1) / gsz + 1) * gsz // multiple of group size
 
     if bufSz >= maxBs {
