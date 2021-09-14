@@ -1207,9 +1207,7 @@ static int stream_interval(struct mover *self, struct sock *s);
 static int stream_pk_done (struct mover *self, struct sock *s);
 static int dgram_idle     (struct mover *self, struct sock *s);
 static int dgram_pk       (struct mover *self, struct sock *s);
-static int dgram_header   (struct mover *self, struct sock *s);
-static int dgram_interval (struct mover *self, struct sock *s);
-static int dgram_pk_done  (struct mover *self, struct sock *s);
+static int dgram_wrong    (struct mover *self, struct sock *s);
 static int writer_idle    (struct mover *self, struct sock *s);
 static int writer_pk      (struct mover *self, struct sock *s);
 static int writer_write   (struct mover *self, struct sock *s);
@@ -3374,7 +3372,7 @@ static bool mover_is_writer(const struct mover *m)
 	return M0_IN(m->m_op, (&writer_op, &get_op));
 }
 
-/** True, iff the mover still matches its buffer. */
+/** 0 iff the mover still matches its buffer. */
 static int mover_matches(const struct mover *m)
 {
 	struct buf *buf = m->m_buf;
@@ -3879,27 +3877,10 @@ static void stream_error(struct mover *m, struct sock *s)
  */
 static int dgram_idle(struct mover *self, struct sock *s)
 {
-	return R_PK;
-}
-
-/**
- * Starts processing of an incoming packet over a datagram socket.
- *
- * Allocate, if still not allocated, a scratch area for the payload.
- */
-static int dgram_pk(struct mover *self, struct sock *s)
-{
-	s->s_flags &= ~MORE_BUFS;
 	self->m_nob = 0;
 	self->m_gen = 0;
 	self->m_buf = NULL;
-	M0_SET0(&self->m_pk);
-	if (self->m_scratch == NULL) {
-		self->m_scratch = m0_alloc(pk_size(self, s));
-		if (self->m_scratch == NULL)
-			return M0_ERR(-ENOMEM);
-	}
-	return R_HEADER;
+	return R_PK;
 }
 
 /**
@@ -3911,18 +3892,27 @@ static int dgram_pk(struct mover *self, struct sock *s)
  * Parse and verify the header (pk_header_done()), then copy the payload in the
  * associated buffer.
  *
- * If this fails for whatever reason, jump to R_IDLE.
+ * This never fails. If anything wrong happens, jump to R_IDLE.
  */
-static int dgram_header(struct mover *self, struct sock *s)
+static int dgram_pk(struct mover *self, struct sock *s)
 {
 	m0_bcount_t maxsize = pk_size(self, s);
 	m0_bcount_t dsize;
 	struct m0_bufvec bv = M0_BUFVEC_INIT_BUF(&self->m_scratch, &maxsize);
 	struct m0_bufvec_cursor cur;
+	int result;
 
-	M0_ASSERT(self->m_nob == 0);
-	int result = pk_io(self, s, HAS_READ, &bv,
-			   sizeof self->m_pkbuf + maxsize);
+	M0_PRE(self->m_nob == 0);
+	s->s_flags &= ~MORE_BUFS;
+	M0_SET0(&self->m_pk);
+	if (self->m_scratch == NULL) {
+		self->m_scratch = m0_alloc(maxsize);
+		if (self->m_scratch == NULL) {
+			M0_LOG(M0_ERROR, "Cannot allocate datagram scratch.");
+			return R_IDLE;
+		}
+	}
+	result = pk_io(self, s, HAS_READ, &bv, sizeof self->m_pkbuf + maxsize);
 	if (result < 0)
 		return R_IDLE;
 	if (self->m_nob == 0)
@@ -3941,27 +3931,16 @@ static int dgram_header(struct mover *self, struct sock *s)
 	m0_bufvec_cursor_init(&cur, &self->m_buf->b_buf->nb_buffer);
 	m0_bufvec_cursor_move(&cur, self->m_pk.p_offset);
 	m0_data_to_bufvec_copy(&cur, self->m_scratch, dsize);
-	return pk_state(self);
+	pk_done(self);
+	self->m_nob = 0;
+	self->m_gen = 0;
+	self->m_buf = NULL;
+	return R_IDLE;
 }
 
-/**
- * Falls through: the entire packet was processed in dgram_header().
- */
-static int dgram_interval(struct mover *self, struct sock *s)
+static int dgram_wrong(struct mover *self, struct sock *s)
 {
-	int result = mover_matches(self);
-
-	if (result != 0)
-		return result;
-	return pk_state(self);
-}
-
-/**
- * Completes the processing of an incoming packet over a datagram socket.
- */
-static int dgram_pk_done(struct mover *self, struct sock *s)
-{
-	return pk_done(self) ?: R_IDLE;
+	M0_IMPOSSIBLE("Wrong datagram state: %i.", self->m_sm.sm_state);
 }
 
 /**
@@ -4168,7 +4147,7 @@ static struct m0_sm_state_descr rw_conf_state[] = {
 	},
 	[R_PK] = {
 		.sd_name = "packet",
-		.sd_allowed = M0_BITS(R_HEADER, R_FAIL)
+		.sd_allowed = M0_BITS(R_IDLE, R_HEADER, R_FAIL)
 	},
 	[R_HEADER] = {
 		.sd_name = "header",
@@ -4199,6 +4178,7 @@ static struct m0_sm_trans_descr rw_conf_trans[] = {
 	{ "error",          R_IDLE,       R_FAIL },
 	{ "header-start",   R_PK,         R_HEADER },
 	{ "pk-error",       R_PK,         R_FAIL },
+	{ "dgram-done",     R_PK,         R_IDLE },
 	{ "header-cont",    R_HEADER,     R_HEADER },
 	{ "get-send-done",  R_HEADER,     R_PK_DONE },
 	{ "get-rcvd-done",  R_HEADER,     R_IDLE },
@@ -4229,22 +4209,22 @@ struct m0_sm_conf rw_conf = {
 static const struct mover_op_vec stream_reader_op = {
 	.v_name = "stream-reader",
 	.v_op   = {
-		[R_IDLE]     = { [M_READ] = { &stream_idle, true } },
-		[R_PK]       = { [M_READ] = { &stream_pk, false } },
-		[R_HEADER]   = { [M_READ] = { &stream_header, true } },
+		[R_IDLE]     = { [M_READ] = { &stream_idle,     true } },
+		[R_PK]       = { [M_READ] = { &stream_pk,       false } },
+		[R_HEADER]   = { [M_READ] = { &stream_header,   true } },
 		[R_INTERVAL] = { [M_READ] = { &stream_interval, true } },
-		[R_PK_DONE]  = { [M_READ] = { &stream_pk_done, false } }
+		[R_PK_DONE]  = { [M_READ] = { &stream_pk_done,  false } }
 	}
 };
 
 static const struct mover_op_vec dgram_reader_op = {
 	.v_name = "dgram-reader",
 	.v_op   = {
-		[R_IDLE]     = { [M_READ] = { &dgram_idle, true } },
-		[R_PK]       = { [M_READ] = { &dgram_pk, false } },
-		[R_HEADER]   = { [M_READ] = { &dgram_header, true } },
-		[R_INTERVAL] = { [M_READ] = { &dgram_interval, false } },
-		[R_PK_DONE]  = { [M_READ] = { &dgram_pk_done, false } }
+		[R_IDLE]     = { [M_READ] = { &dgram_idle,  true } },
+		[R_PK]       = { [M_READ] = { &dgram_pk,    false } },
+		[R_HEADER]   = { [M_READ] = { &dgram_wrong, false } },
+		[R_INTERVAL] = { [M_READ] = { &dgram_wrong, false } },
+		[R_PK_DONE]  = { [M_READ] = { &dgram_wrong, false } }
 	}
 };
 
@@ -5758,7 +5738,6 @@ static void g_buf_done(struct g_buf *me, int rc)
 	}
 	me->gb_buf.nb_ep = NULL;
 	me->gb_buf.nb_tm = NULL;
-	m0_net_desc_free(&me->gb_buf.nb_desc);
 	me->gb_queued = false;
 	m0_mutex_unlock(&m_ut_lock);
 }
@@ -5856,6 +5835,7 @@ static void g_buf_fini(struct g_buf *buf)
 	struct m0_bufvec *vec = &buf->gb_buf.nb_buffer;
 	M0_ASSERT(!buf->gb_used);
 	M0_ASSERT(buf->gb_op == NULL);
+	m0_net_desc_free(&buf->gb_buf.nb_desc);
 	if (buf->gb_buf.nb_flags & M0_NET_BUF_REGISTERED)
 		m0_net_buffer_deregister(&buf->gb_buf, &m_dom);
 	if (vec->ov_buf != NULL) {
@@ -5975,10 +5955,16 @@ static void g_op_select(void)
 		b[i]->gb_queued = true;
 		bvec_fill(&b[i]->gb_buf.nb_buffer);
 	}
+	m0_net_desc_free(&nb[0]->nb_desc);
+	m0_net_desc_free(&nb[1]->nb_desc);
 	result = m0_net_buffer_add(nb[0], &tm0->gt_tm);
 	if (result == 0) {
 		g_err[op->go_opc].e_queued++;
 		if (op->go_opc != O_MSG)
+			/*
+			 * Even if nb[0] was cancelled, nb descriptor is still
+			 * valid.
+			 */
 			result = m0_net_desc_copy(&nb[0]->nb_desc,
 						  &nb[1]->nb_desc);
 		if (result == 0) {
