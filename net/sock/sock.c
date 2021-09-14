@@ -3932,9 +3932,6 @@ static int dgram_pk(struct mover *self, struct sock *s)
 	m0_bufvec_cursor_move(&cur, self->m_pk.p_offset);
 	m0_data_to_bufvec_copy(&cur, self->m_scratch, dsize);
 	pk_done(self);
-	self->m_nob = 0;
-	self->m_gen = 0;
-	self->m_buf = NULL;
 	return R_IDLE;
 }
 
@@ -6139,6 +6136,7 @@ static void glaring_comb(const struct sock_ops *sop, struct sock_ut_conf *conf,
 }
 
 extern const struct m0_ut *m0_ut_current_test __attribute__((weak));
+extern int m0_ut_seed __attribute__((weak));
 
 struct sock_ut_test {
 	void (*sut_f)(const struct sock_ops *sop, struct sock_ut_conf *conf,
@@ -6236,6 +6234,27 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 						    NULL, cfail, i, scale[j],
 						    gauge[k] << 16 | conc[t]);
 					}
+				}
+			}
+		}
+	}
+	/* Shuffle. */
+	if (m0_ut_seed != -1) {
+		m_seed = m0_ut_seed;
+		if (m_seed == 0)
+			m_seed = time(NULL) ^ (getpid() << 17);
+		for (i = 0; i < pos; ++i) {
+			for (j = 0; j < pos; ++j) {
+				if (mock_rnd(2) == 0) {
+					struct sock_ut_test sut;
+					struct m0_ut        ut;
+					sut             = sock_ut_test[i];
+					sock_ut_test[i] = sock_ut_test[j];
+					sock_ut_test[j] = sut;
+					ut = net_sock_ut.ts_tests[i];
+					net_sock_ut.ts_tests[i] =
+						net_sock_ut.ts_tests[j];
+					net_sock_ut.ts_tests[j] = ut;
 				}
 			}
 		}
