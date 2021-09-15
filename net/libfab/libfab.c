@@ -1041,7 +1041,7 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 	int                       rc = 0;
 
 	if (epn != NULL)
-		libfab_ep_pton(epn, &ep_name_n); 
+		libfab_ep_pton(epn, &ep_name_n);
 
 	M0_ASSERT(libfab_tm_is_locked(tm->ntm_xprt_private));
 	net = m0_tl_find(m0_nep, net, &tm->ntm_end_points,
