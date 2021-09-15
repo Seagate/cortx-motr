@@ -208,6 +208,7 @@ def motr_config(self):
     if self.k8:
         if not verify_libfabric(self):
             raise MotrError(errno.EINVAL, "libfabric is not up.")
+        return
     else:
         if not verify_lnet(self):
             raise MotrError(errno.EINVAL, "lent is not up.")
