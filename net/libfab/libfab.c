@@ -1036,7 +1036,7 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 	struct m0_fab__active_ep *aep;
 	struct m0_fab__tm        *ma;
 	uint64_t                  ep_name_n = 0;
-	char                      ep_str[LIBFAB_ADDR_STRLEN_MAX + 9] = {'\0'};
+	char                      ep_str[LIBFAB_ADDR_STRLEN_MAX + 9];
 	char                     *wc = NULL;
 	int                       rc = 0;
 
@@ -1051,6 +1051,7 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 		if (name != NULL)
 			rc = libfab_ep_create(tm, name, epn, epp);
 		else {
+			memset(&ep_str, 0, sizeof(ep_str));
 			M0_ASSERT(epn != NULL);
 			M0_ASSERT((strlen(epn->fen_addr) + strlen(epn->fen_port)
 				  + 8) < LIBFAB_ADDR_STRLEN_MAX);
