@@ -825,6 +825,8 @@ int m0_entity_delete(struct m0_entity *entity,
 		     struct m0_op **op)
 {
 	M0_ENTRY();
+	if (entity->en_flags & M0_ENF_META)
+		M0_LOG(M0_DEBUG, "M0_ENF_META FLAG is set from application");
 
 	M0_PRE(entity != NULL);
 	M0_PRE(op != NULL);

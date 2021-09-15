@@ -1863,8 +1863,8 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 		skip_meta_data = true;
 	}
 
-	/* Set layout id and pver for CREATE op.*/
-	if (cr->cr_opcode == M0_EO_CREATE || cr->cr_opcode == M0_EO_DELETE) {
+	/* Set layout id and pver for CREATE, DELETE op.*/
+	if (M0_IN(cr->cr_opcode, (M0_EO_CREATE, M0_EO_DELETE))) {
 		cr->cr_cob_attr->ca_lid = obj->ob_attr.oa_layout_id;
 		 if (obj->ob_entity.en_flags & M0_ENF_META) {
 			/* For create operation setting up pool version locally
@@ -1884,8 +1884,8 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 			m0_sm_ast_post(cr->cr_op_sm_grp, &cr->cr_ar.ar_ast);
 		}
 	} else {
-		M0_LOG(M0_DEBUG, "skipped lookup, obj pver is :"FID_F,
-		       FID_P(&obj->ob_attr.oa_pver));
+		M0_LOG(M0_DEBUG, "skipped lookup, obj pver is:"FID_F"cr->cr_opcode:%d",
+		       FID_P(&obj->ob_attr.oa_pver), cr->cr_opcode);
 		/* We are skipping meta-data lookup here as we have received pver
 		 * and LID from application, and hence need to move op state
 		 * LAUNCHED, EXECUTED and STABLE explicitly */
