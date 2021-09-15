@@ -73,14 +73,14 @@ struct balloc_allocation_context {
 static int btree_lookup_callback(struct m0_btree_cb  *cb,
 				 struct m0_btree_rec *rec)
 {
-        struct m0_btree_rec     *datum = cb->c_datum;
+	struct m0_btree_rec     *datum = cb->c_datum;
 
 	/** Copy both keys and values. Keys are copied to cover slant case. */
         m0_bufvec_copy(&datum->r_key.k_data, &rec->r_key.k_data,
 		       m0_vec_count(&rec->r_key.k_data.ov_vec));
         m0_bufvec_copy(&datum->r_val, &rec->r_val,
 		       m0_vec_count(&rec->r_val.ov_vec));
-        return 0;
+	return 0;
 }
 
 static inline int btree_lookup_sync(struct m0_btree     *tree,
@@ -173,7 +173,7 @@ static inline int btree_update_sync(struct m0_btree     *tree,
 				    const struct m0_buf *key,
 				    const struct m0_buf *val)
 {
-	struct m0_btree_op   kv_op        = {};
+	struct m0_btree_op   kv_op = {};
 	void                *k_ptr = key->b_addr;
 	void                *v_ptr = val->b_addr;
 	m0_bcount_t          ksize = key->b_nob;
@@ -208,7 +208,7 @@ static inline int btree_delete_sync(struct m0_btree     *tree,
 				    struct m0_be_tx     *tx,
 				    const struct m0_buf *key)
 {
-	struct m0_btree_op   kv_op        = {};
+	struct m0_btree_op   kv_op = {};
 	void                *k_ptr = key->b_addr;
 	m0_bcount_t          ksize = key->b_nob;
 	struct m0_btree_key  r_key = {
