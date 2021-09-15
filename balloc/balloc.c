@@ -3158,14 +3158,14 @@ M0_INTERNAL int m0_balloc_create(uint64_t              cid,
 		.ksize = M0_MEMBER_SIZE(struct m0_ext, e_start),
 		.vsize = M0_MEMBER_SIZE(struct m0_ext, e_end),
 	};
-	m0_btree_create_credit(&bt, &cred);
+	m0_btree_create_credit(&bt, &cred, 1);
 
 	bt = (struct m0_btree_type){.tt_id = M0_BT_BALLOC_GROUP_DESC,
 		.ksize = M0_MEMBER_SIZE(struct m0_balloc_group_desc,
 					bgd_groupno),
 		.vsize = sizeof(struct m0_balloc_group_desc),
 	};
-	m0_btree_create_credit(&bt, &cred);
+	m0_btree_create_credit(&bt, &cred, 1);
 
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_open_sync(&tx);
