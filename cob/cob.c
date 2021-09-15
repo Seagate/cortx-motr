@@ -605,31 +605,31 @@ M0_INTERNAL int m0_cob_domain_credit_add(struct m0_cob_domain          *dom,
 				    .ksize = sizeof(struct m0_cob_oikey),
 				    .vsize = m0_cob_max_nskey_size(),
 				   };
-	m0_btree_create_credit(&bt, cred); /** Tree cd_object_index */
+	m0_btree_create_credit(&bt, cred, 1); /** Tree cd_object_index */
 
 	bt = (struct m0_btree_type){.tt_id = M0_BT_COB_NAMESPACE,
 				    .ksize = m0_cob_max_nskey_size(),
 				    .vsize = sizeof(struct m0_cob_nsrec),
 				   };
-	m0_btree_create_credit(&bt, cred); /** Tree cd_namespace */
+	m0_btree_create_credit(&bt, cred, 1); /** Tree cd_namespace */
 
 	bt = (struct m0_btree_type){.tt_id = M0_BT_COB_FILEATTR_BASIC,
 				    .ksize = sizeof(struct m0_cob_fabkey),
 				    .vsize = m0_cob_max_fabrec_size(),
 				   };
-	m0_btree_create_credit(&bt, cred); /** Tree cd_fileattr_basic */
+	m0_btree_create_credit(&bt, cred, 1); /** Tree cd_fileattr_basic */
 
 	bt = (struct m0_btree_type){.tt_id = M0_BT_COB_FILEATTR_OMG,
 				    .ksize = sizeof (struct m0_cob_omgkey),
 				    .vsize = sizeof (struct m0_cob_omgrec),
 				   };
-	m0_btree_create_credit(&bt, cred); /** Tree cd_fileattr_omg */
+	m0_btree_create_credit(&bt, cred, 1); /** Tree cd_fileattr_omg */
 
 	bt = (struct m0_btree_type){.tt_id = M0_BT_COB_FILEATTR_EA,
 				    .ksize = m0_cob_max_eakey_size(),
 				    .vsize = m0_cob_max_earec_size(),
 				   };
-	m0_btree_create_credit(&bt, cred); /** Tree cd_fileattr_ea */
+	m0_btree_create_credit(&bt, cred, 1); /** Tree cd_fileattr_ea */
 
 	m0_free(cdid_str);
 	return M0_RC(0);
@@ -842,11 +842,11 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 	seg = m0_be_domain_seg(bedom, dom);
 	m0_be_0type_del_credit(bedom, &m0_be_cob0, cdid_str, &cred);
 	M0_BE_FREE_CREDIT_PTR(dom, seg, &cred);
-	m0_btree_destroy_credit(dom->cd_object_index,   &cred);
-	m0_btree_destroy_credit(dom->cd_namespace,      &cred);
-	m0_btree_destroy_credit(dom->cd_fileattr_basic, &cred);
-	m0_btree_destroy_credit(dom->cd_fileattr_omg,   &cred);
-	m0_btree_destroy_credit(dom->cd_fileattr_ea,    &cred);
+	m0_btree_destroy_credit(dom->cd_object_index,   &cred, 1);
+	m0_btree_destroy_credit(dom->cd_namespace,      &cred, 1);
+	m0_btree_destroy_credit(dom->cd_fileattr_basic, &cred, 1);
+	m0_btree_destroy_credit(dom->cd_fileattr_omg,   &cred, 1);
+	m0_btree_destroy_credit(dom->cd_fileattr_ea,    &cred, 1);
 
 	M0_SET0(tx);
 	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
