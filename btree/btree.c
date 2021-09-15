@@ -5344,7 +5344,8 @@ M0_INTERNAL void m0_btree_destroy_credit(struct m0_btree *tree,
 	int size = tree->t_desc->t_root->n_type->nt_create_delete_credit_size();
 	struct m0_be_tx_credit cred = M0_BE_TX_CREDIT(1, size);
 	m0_be_tx_credit_add(accum, &cred);
-	m0_be_tx_credit_mac(accum, &cred, nr);}
+	m0_be_tx_credit_mac(accum, &cred, nr);
+}
 
 /**
  *  --------------------------------------------
