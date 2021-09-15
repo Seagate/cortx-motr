@@ -114,7 +114,6 @@ type slot struct {
 type iov struct {
     buf     []C.struct_m0_bufvec
     ext     []C.struct_m0_indexvec
-    attr    []C.struct_m0_bufvec
     minBuf  []byte
     ch      chan slot
     wg      sync.WaitGroup
@@ -399,23 +398,18 @@ func pointer2slice(p unsafe.Pointer, n int) []byte {
 func (v *iov) freeVecs(n int) {
     for i := 0; i < n; i++ {
         C.m0_bufvec_free2(&v.buf[i])
-        C.m0_bufvec_free(&v.attr[i])
         C.m0_indexvec_free(&v.ext[i])
     }
 }
 func (v *iov) alloc() error {
     v.buf = make([]C.struct_m0_bufvec, threadsN)
     v.ext = make([]C.struct_m0_indexvec, threadsN)
-    v.attr = make([]C.struct_m0_bufvec, threadsN)
     v.ch = make(chan slot, threadsN) // pool of free slots
 
     var i int
     for i = 0; i < threadsN; i++ {
         v.ch <- slot{i, nil} // fill the pool in
         if C.m0_bufvec_empty_alloc(&v.buf[i], 1) != 0 {
-            break
-        }
-        if C.m0_bufvec_alloc(&v.attr[i], 1, 1) != 0 {
             break
         }
         if C.m0_indexvec_alloc(&v.ext[i], 1) != 0 {
@@ -455,7 +449,6 @@ func (v *iov) prepareBuf(buf []byte, i, bs, gs int, off int64) error {
     *v.buf[i].ov_vec.v_count = C.ulong(bs)
     *v.ext[i].iv_index = C.ulong(off)
     *v.ext[i].iv_vec.v_count = C.ulong(bs)
-    *v.attr[i].ov_vec.v_count = 0
 
     return nil
 }
@@ -524,7 +517,7 @@ func (mio *Mio) write(p []byte, off *int64) (n int, err error) {
         rc := C.m0_obj_op(mio.obj, C.M0_OC_WRITE,
                           &v.ext[slot.idx],
                           &v.buf[slot.idx],
-                          &v.attr[slot.idx], 0, 0, &op)
+                          nil, 0, 0, &op)
         if rc != 0 {
             err = fmt.Errorf("creating m0_op failed: rc=%v", rc)
             break
@@ -592,7 +585,7 @@ func (mio *Mio) read(p []byte, off *int64) (n int, err error) {
         rc := C.m0_obj_op(mio.obj, C.M0_OC_READ,
                           &v.ext[slot.idx],
                           &v.buf[slot.idx],
-                          &v.attr[slot.idx], 0, 0, &op)
+                          nil, 0, 0, &op)
         if rc != 0 {
             err = fmt.Errorf("creating m0_op failed: rc=%v", rc)
             break
