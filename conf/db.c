@@ -265,7 +265,7 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED, rnode_sz,
 			       rnode_sz_shift, accum);
 	m0_be_seg_dict_insert_credit(seg, btree_name, accum);
-	m0_btree_create_credit(&bt, accum);
+	m0_btree_create_credit(&bt, accum, 1);
 
 	for (i = 0; i < conf->cx_nr; ++i) {
 		struct m0_confx_obj *obj;
@@ -461,10 +461,10 @@ M0_INTERNAL void m0_confdb_destroy_credit(struct m0_be_seg *seg,
 	    M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				     m0_btree_open(rnode, rnode_sz,
 						   &btree, seg, &b_op)) == 0) {
-		m0_btree_destroy_credit(&btree, accum);
+		m0_btree_destroy_credit(&btree, accum, 1);
 	} else
 		/** Use the same credit count as btree_create. */
-		m0_btree_create_credit(&bt, accum);
+		m0_btree_create_credit(&bt, accum, 1);
 	m0_be_seg_dict_delete_credit(seg, btree_name, accum);
 
 	M0_ASSERT(rnode_sz > 0 && m0_is_po2(rnode_sz));
