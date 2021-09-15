@@ -89,8 +89,6 @@ int main(int argc, char **argv)
 	m0_utility_args_init(argc, argv, &cat_param,
 			         &dix_conf, &conf, &cat_usage);
 
-	fprintf(stderr, "pver is : "FID_F "\n", FID_P(&cat_param.cup_pver));
-
 	rc = client_init(&conf, &container, &m0_instance);
 	if (rc < 0) {
 		fprintf(stderr, "init failed! rc = %d\n", rc);
