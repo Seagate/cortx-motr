@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,8 +53,12 @@ enum {
 	SNS_DEFAULT_N = 3,
 	SNS_DEFAULT_K = 1,
 	SNS_DEFAULT_P = 5,
-	SNS_DEFAULT_UNIT_SIZE = 4096,
+	SNS_DEFAULT_UNIT_SIZE = PAGE_SIZE,
+#ifdef CONFIG_X86_64
 	SNS_DEFAULT_LAYOUT_ID = 1
+#elif defined CONFIG_AARCH64 /*aarch64*/
+	SNS_DEFAULT_LAYOUT_ID = 5
+#endif	
 };
 
 M0_INTERNAL int
@@ -198,7 +202,7 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 		    !m0_sns_cm_unit_is_spare(fctx, group, i))
 			M0_CNT_INC(nrlu);
 	}
-	M0_LEAVE("number of local units = %lu", nrlu);
+	M0_LEAVE("number of local units = %"PRId64, nrlu);
 
 	return nrlu;
 }

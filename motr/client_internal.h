@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2016-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2016-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,6 +63,8 @@
 #include "fop/fop.h"
 
 struct m0_idx_service_ctx;
+struct m0_dtm0_service;
+struct m0_dtx;
 
 #ifdef CLIENT_FOR_M0T1FS
 /**
@@ -146,24 +148,30 @@ struct m0_ast_rc {
  * 'struct m0_op_io' is the last (and biggest/highest) type, it contains
  * the databuf and paritybuf arrays for reading/writing object data.
  *
- *                   +---m0_op_common---+
+ *                   +---m0_op_common-----------+
  *                   |                          |
- *                   |    +-m0_op-+      |
+ *                   |    +-m0_op--------+      |
  *                   |    |              |      |
  *                   |    +--------------+      |
  *                   |                          |
  *                   +--------------------------+
  *
- *               \/_                        _\/
+ *                  \/_                        _\/
  *
- * +m0_op_io---------------+     +m0_op_idx-------+
- * | +m0_op_obj---------+  |     |                       |
- * | |                         |  |     | [m0_op_common] |
- * | |  [m0_op_common]  |  |     |                       |
- * | |                         |  |     +-----------------------+
- * | +-------------------------+  |
- * |                              |
- * +------------------------------+
+ * +m0_op_io---------------+      +m0_op_idx--------------+
+ * | +m0_op_obj---------+  |      |                       |
+ * | |                  |  |      | [m0_op_common]        |
+ * | |  [m0_op_common]  |  |      |                       |
+ * | |                  |  |      +-----------------------+
+ * | +------------------+  |
+ * |                       |
+ * +-----------------------+
+ *
+ *  +m0_op_md---------------+     +m0_op_sync-------------+
+ *  |                       |     |                       |
+ *  | [m0_op_common]        |     | [m0_op_common]        |
+ *  |                       |     |                       |
+ *  +-----------------------+     +-----------------------+
  *
  */
 struct m0_op_common {
@@ -219,6 +227,9 @@ struct m0_op_idx {
 	struct dix_req     *oi_dix_req;
 	/** To know dix req in completion callback */
 	bool                oi_in_completion;
+
+	/** Distributed transaction associated with the operation */
+	struct m0_dtx      *oi_dtx;
 };
 
 /**
@@ -261,12 +272,12 @@ struct m0_op_io {
 	struct m0_fid                     ioo_pver;
 
 	/** @todo: remove this */
-	uint32_t                          ioo_rc;
+	int32_t                           ioo_rc;
 
 	/**
 	 * Array of struct pargrp_iomap pointers.
 	 * Each pargrp_iomap structure describes the part of parity group
-	 * spanned by segments from ::ir_ivec.
+	 * spanned by segments from ::ioo_ext.
 	 */
 	struct pargrp_iomap             **ioo_iomaps;
 
@@ -432,7 +443,11 @@ struct m0_client_layout_ops {
 /** miscallaneous constants */
 enum {
 	/*  4K, typical linux/intel page size */
+#ifdef CONFIG_X86_64
 	M0_DEFAULT_BUF_SHIFT        = 12,
+#elif defined CONFIG_AARCH64 /*aarch64*/
+	M0_DEFAULT_BUF_SHIFT        = 16,
+#endif
 	/* 512, typical disk sector */
 	M0_MIN_BUF_SHIFT            = 9,
 
@@ -453,8 +468,14 @@ enum {
 	 * These constants are used to create buffers acceptable to the
 	 * network code.
 	 */
+	
+#ifdef CONFIG_X86_64
 	M0_NETBUF_MASK              = 4096 - 1,
 	M0_NETBUF_SHIFT             = 12,
+#elif defined CONFIG_AARCH64 /*aarch64*/
+	M0_NETBUF_MASK              = 65536 - 1,
+	M0_NETBUF_SHIFT             = 16,
+#endif
 };
 
 /**
@@ -575,6 +596,8 @@ struct m0_client {
 #endif
 
 	struct m0_htable                        m0c_rm_ctxs;
+
+	struct m0_dtm0_service                 *m0c_dtms;
 };
 
 /** CPUs semaphore - to control CPUs usage by parity calcs. */

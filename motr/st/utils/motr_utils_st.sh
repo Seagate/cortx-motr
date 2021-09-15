@@ -49,7 +49,7 @@ clean()
 		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
 	done
 
-        if [ ! -z $multiple_pools ] && [ $multiple_pools == 1 ]; then
+        if [ ! -z "$multiple_pools" ] && [ $multiple_pools == 1 ]; then
 		local ios_index=`expr $i + 1`
 		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
         fi
@@ -115,17 +115,17 @@ test_with_N_K()
 	/usr/bin/expect <<EOF
 	set timeout 20
 	spawn $motr_st_util_dir/m0client $MOTR_PARAMS_V > $SANDBOX_DIR/m0client.log
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "touch $object_id3\r"
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "write $object_id2 $src_file $block_size $block_count $blks_per_io\r"
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "read $object_id2 $dest_file $block_size $block_count $blks_per_io\r"
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "delete $object_id3\r"
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "delete $object_id2\r"
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "quit\r"
 EOF
 	echo "m0client test is Successful"
@@ -324,9 +324,10 @@ main()
 		error_handling $? "Failed to copy object"
 	}
 	mkdir $MOTR_TRACE_DIR
-	P=8
+
 	N=1
 	K=0
+	P=8
 	test_with_N_K $N $K $P
 	if [ $rc -ne "0" ]
 	then
@@ -337,6 +338,7 @@ main()
 
 	N=1
 	K=2
+	P=8
 	test_with_N_K $N $K $P
 	rc=$?
 	if [ $rc -ne "0" ]
@@ -348,6 +350,7 @@ main()
 
 	N=4
 	K=2
+	P=8
 	test_with_N_K $N $K $P
 	rc=$?
 	echo $rc

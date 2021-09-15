@@ -30,8 +30,6 @@ MOTR_GENDERS_CONF=/etc/motr/genders
 
 # service local variables
 motr_exec_dir=/usr/libexec/cortx-motr
-user_config=/etc/sysconfig/motr
-kernel_config=/etc/sysconfig/motr-kernel
 service_funcs=$motr_exec_dir/motr-service.functions
 
 
@@ -39,7 +37,7 @@ m0_mkfs()
 {
     local service=$1
 
-    [[ -n $service ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
+    [[ -n "$service" ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
 
     local node_uuid=${MOTR_NODE_UUID:-$(m0_genders_value_of m0_uuid)}
     local be_opts
@@ -47,11 +45,15 @@ m0_mkfs()
     if [[ $service =~ ^ios.* ]] ; then
         be_opts+=" -z ${MOTR_M0D_IOS_BESEG_SIZE:-$default_m0d_ios_beseg_size}"
     else
-        local be_segsize=${MOTR_M0D_BESEG_SIZE:-$(m0_genders_value_of m0_be_segment_size)}
-        be_opts+=" -z ${be_segsize:-$default_m0d_beseg_size}"
+        if [[ -n "$MOTR_BE_SEG_PATH" && -b $MOTR_BE_SEG_PATH ]]; then
+             m0_log 'ios seg size is set to LVM size:$MOTR_M0D_IOS_BESEG_SIZE'
+	else
+	     local be_segsize=${MOTR_M0D_BESEG_SIZE:-$(m0_genders_value_of m0_be_segment_size)}
+             be_opts+=" -z ${be_segsize:-$default_m0d_beseg_size}"
+        fi
     fi
 
-    if [[ -n $MOTR_M0D_BELOG_SIZE ]] ; then
+    if [[ -n "$MOTR_M0D_BELOG_SIZE" ]] ; then
         be_opts+=" -V $MOTR_M0D_BELOG_SIZE"
     elif m0_genders_has_variable m0_be_log_size ; then
         be_opts+=" -V $(m0_genders_value_of m0_be_log_size)"
@@ -64,8 +66,9 @@ source $service_funcs
 
 [[ -r $kernel_config ]] && source $kernel_config
 [[ -r $user_config   ]] && source $user_config
+[[ -r $ha_config     ]] && source $ha_config
 
-if [[ -n $1 ]] ; then
+if [[ -n "$1" ]] ; then
     if [[ ${1,,*} =~ ^(0x)?[0-9a-f]+:(0x)?[0-9a-f]+$ ]] ; then
         service=m0d-$1
     else
@@ -84,7 +87,7 @@ else
     then
         if [[ $all_services == *ha* ]] ; then
             systemctl start motr-mkfs@ha.service
-            if [[ -n $services ]] ; then
+            if [[ -n "$services" ]] ; then
                 systemctl start motr-server-ha.service
                 ha_is_started=true
             fi
@@ -92,7 +95,7 @@ else
 
         if [[ $all_services == *confd* ]] ; then
             systemctl start motr-mkfs@confd.service
-            if [[ -n $services ]] ; then
+            if [[ -n "$services" ]] ; then
                 systemctl start motr-server-confd.service
                 confd_is_started=true
             fi

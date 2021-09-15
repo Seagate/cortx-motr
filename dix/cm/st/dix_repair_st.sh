@@ -87,6 +87,14 @@ device_fail() {
 	return $rc
 }
 
+device_query() {
+	local rc
+	cas_disk_state_get $fail_device
+	rc=$?
+	return $rc
+}
+
+
 dix_repair() {
 	local rc
 	cas_disk_state_set "repair" $fail_device
@@ -162,7 +170,7 @@ lookup() {
 	local lookup="lookup @${fids_file}"
 	local create="create @${fids_file}"
 	echo "Check existing indices after repair and rebalance"
-	${MOTRTOOL} ${create} >/dev/null
+	${MOTRTOOL} ${create}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	device_fail
@@ -174,9 +182,11 @@ lookup() {
 	${MOTRTOOL} ${lookup} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep "found rc" ${out_file} >${rc_file}
-	grep -v "found rc 0" ${rc_file} >${erc_file}
+	grep    "found rc"   ${out_file} | tee ${rc_file}
+	grep -v "found rc 0" ${rc_file}  | tee ${erc_file}
 	[ -s "${erc_file}" ] && return 1
+	device_query
+	echo "lookup test case done"
 	return $rc
 }
 
@@ -188,7 +198,7 @@ insert() {
 	local put="put \"${fid}\" @${keys_file} @${vals_file}"
 	local get="get \"${fid}\" @${keys_file}"
 	echo "Check existing records after repair and rebalance"
-	${MOTRTOOL} ${create} ${put} >/dev/null
+	${MOTRTOOL} ${create} ${put}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	device_fail
@@ -200,15 +210,15 @@ insert() {
 	${MOTRTOOL} ${lookup} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep "found rc" ${out_file} >${rc_file}
-	grep -v "found rc 0" ${rc_file} >${erc_file}
+	grep    "found rc"   ${out_file} | tee ${rc_file}
+	grep -v "found rc 0" ${rc_file}  | tee ${erc_file}
 	[ -s "${erc_file}" ] && return 1
 	${MOTRTOOL} ${get} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep -A 1 "KEY" ${out_file} >${res_out_file}
+	grep -A 1 "KEY" ${out_file} | tee ${res_out_file}
 	local lines
-	let lines=$num*3-1
+	let lines=$(($num*3-1))
 	[ $(cat ${res_out_file} | wc -l) == $lines ] || return 1
 	while read key_line ; do
 		read val_line
@@ -217,6 +227,8 @@ insert() {
 		[ "${val_line}" != "${key_line}" ] && return 1
 		read tmp
 	done < ${res_out_file}
+
+	echo "insert test case done"
 	return $rc
 }
 
@@ -227,8 +239,9 @@ get_during() {
 	local create="create \"${fid}\""
 	local put="put \"${fid}\" @${keys_file} @${vals_file}"
 	local get="get \"${fid}\" @${keys_file}"
+
 	echo "Execute GET record operations between repair and rebalance"
-	${MOTRTOOL} ${create} ${put} >/dev/null
+	${MOTRTOOL} ${create} ${put}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	device_fail
@@ -242,13 +255,13 @@ get_during() {
 	${MOTRTOOL} ${lookup} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep "found rc" ${out_file} >${rc_file}
-	grep -v "found rc 0" ${rc_file} >${erc_file}
+	grep    "found rc"   ${out_file} | tee ${rc_file}
+	grep -v "found rc 0" ${rc_file}  | tee ${erc_file}
 	[ -s "${erc_file}" ] && return 1
 	${MOTRTOOL} ${get} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep -A 1 "KEY" ${out_file} > ${res_out_file}
+	grep -A 1 "KEY" ${out_file} | tee ${res_out_file}
 	local lines
 	let lines=$num*3-1
 	[ $(cat ${res_out_file} | wc -l) == $lines ] || return 1
@@ -267,15 +280,15 @@ get_during() {
 	${MOTRTOOL} ${lookup} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep "found rc" ${out_file} >${rc_file}
-	grep -v "found rc 0" ${rc_file} >${erc_file}
+	grep    "found rc"   ${out_file} | tee ${rc_file}
+	grep -v "found rc 0" ${rc_file}  | tee ${erc_file}
 	[ -s "${erc_file}" ] && return 1
 	${MOTRTOOL} ${get} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep -A 1 "KEY" ${out_file} > ${res_out_file}
+	grep -A 1 "KEY" ${out_file} | tee ${res_out_file}
 	local lines
-	let lines=$num*3-1
+	let lines=$(($num*3-1))
 	[ $(cat ${res_out_file} | wc -l) == $lines ] || return 1
 	while read key_line ; do
 		read val_line
@@ -284,6 +297,8 @@ get_during() {
 		[ "${val_line}" != "${key_line}" ] && return 1
 		read tmp
 	done < ${res_out_file}
+
+	echo "get_during test case done"
 	return $rc
 }
 
@@ -293,8 +308,9 @@ drop_during() {
 	local create="create @${fids_file}"
 	local put="put @${fids_file} @${keys_file} @${vals_file}"
 	local drop="drop @${fids_file}"
+
 	echo "Execute drop index operations between repair and rebalance"
-	${MOTRTOOL} ${create} ${put} >/dev/null
+	${MOTRTOOL} ${create} ${put}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	device_fail
@@ -308,8 +324,8 @@ drop_during() {
 	${MOTRTOOL} ${drop} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep "operation rc:" ${out_file} >${rc_file}
-	grep -v "operation rc: 0" ${rc_file} >${erc_file}
+	grep    "operation rc:"   ${out_file} | tee ${rc_file}
+	grep -v "operation rc: 0" ${rc_file}  | tee ${erc_file}
 	[ -s "${erc_file}" ] && return 1
 	# Execute Rebalance.
 	dix_rebalance_wait
@@ -319,9 +335,11 @@ drop_during() {
 	${MOTRTOOL} ${lookup} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep "found rc" ${out_file} >${rc_file}
-	grep -v "found rc -2" ${rc_file} >${erc_file}
+	grep    "found rc"    ${out_file} | tee ${rc_file}
+	grep -v "found rc -2" ${rc_file}  | tee ${erc_file}
 	[ -s "${erc_file}" ] && return 1
+
+	echo "drop_during test case done"
 	return $rc
 }
 
@@ -332,8 +350,9 @@ put_during() {
 	local create="create \"${fid}\""
 	local put="put \"${fid}\" @${keys_file} @${vals_file}"
 	local get="get \"${fid}\" @${keys_file}"
+
 	echo "Put record into empty index between repair and rebalance"
-	${MOTRTOOL} ${create} >/dev/null
+	${MOTRTOOL} ${create}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	device_fail
@@ -347,8 +366,8 @@ put_during() {
 	${MOTRTOOL} ${put} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep "operation rc:" ${out_file} >${rc_file}
-	grep -v "operation rc: 0" ${rc_file} >${erc_file}
+	grep    "operation rc:"   ${out_file} | tee ${rc_file}
+	grep -v "operation rc: 0" ${rc_file}  | tee ${erc_file}
 	[ -s "${erc_file}" ] && return 1
 	# Execute Rebalance.
 	dix_rebalance_wait
@@ -358,9 +377,9 @@ put_during() {
 	${MOTRTOOL} ${get} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep -A 1 "KEY" ${out_file} > ${res_out_file}
+	grep -A 1 "KEY" ${out_file} | tee ${res_out_file}
 	local lines
-	let lines=$num*3-1
+	let lines=$(($num*3-1))
 	[ $(cat ${res_out_file} | wc -l) == $lines ] || return 1
 	while read key_line ; do
 		read val_line
@@ -369,6 +388,8 @@ put_during() {
 		[ "${val_line}" != "${key_line}" ] && return 1
 		read tmp
 	done < ${res_out_file}
+
+	echo "put_during test case done"
 	return $rc
 }
 
@@ -379,7 +400,7 @@ del_repair() {
 	local put="put \"${fid}\" @${keys_file} @${vals_file}"
 	local get="get \"${fid}\" @${keys_file}"
 	echo "Del records from index in case repair is in active state"
-	${MOTRTOOL} ${create} ${put} >/dev/null
+	${MOTRTOOL} ${create} ${put}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	device_fail
@@ -391,8 +412,8 @@ del_repair() {
 	${MOTRTOOL} ${del} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep "operation rc:" ${out_file} >${rc_file}
-	grep -v "operation rc: 0" ${rc_file} >${erc_file}
+	grep    "operation rc:"   ${out_file} | tee ${rc_file}
+	grep -v "operation rc: 0" ${rc_file}  | tee ${erc_file}
 	[ -s "${erc_file}" ] && return 1
 	dix_rep_wait
 	rc=$?
@@ -400,9 +421,11 @@ del_repair() {
 	${MOTRTOOL} ${get} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep "operation rc:" ${out_file} >${rc_file}
-	grep -v "operation rc: 0" ${rc_file} >${erc_file}
+	grep    "operation rc:" ${out_file}  | tee ${rc_file}
+	grep -v "operation rc: 0" ${rc_file} | tee ${erc_file}
 	[ -s "${erc_file}" ] && return 1
+
+	echo "del_repair test case done"
 	return $rc
 }
 
@@ -412,8 +435,9 @@ del_rebalance() {
 	local del="del \"${fid}\" @${keys_file}"
 	local put="put \"${fid}\" @${keys_file} @${vals_file}"
 	local get="get \"${fid}\" @${keys_file}"
+
 	echo "Del records from index in case repair is in active state"
-	${MOTRTOOL} ${create} ${put} >/dev/null
+	${MOTRTOOL} ${create} ${put}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	device_fail
@@ -426,8 +450,8 @@ del_rebalance() {
 	${MOTRTOOL} ${del} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep "operation rc:" ${out_file} >${rc_file}
-	grep -v "operation rc: 0" ${rc_file} >${erc_file}
+	grep    "operation rc:"   ${out_file} | tee ${rc_file}
+	grep -v "operation rc: 0" ${rc_file}  | tee ${erc_file}
 	[ -s "${erc_file}" ] && return 1
 	dix_reb_wait
 	rc=$?
@@ -435,15 +459,17 @@ del_rebalance() {
 	${MOTRTOOL} ${get} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	grep "operation rc:" ${out_file} >${rc_file}
-	grep -v "operation rc: 0" ${rc_file} >${erc_file}
+	grep    "operation rc:"   ${out_file} | tee ${rc_file}
+	grep -v "operation rc: 0" ${rc_file}  | tee ${erc_file}
 	[ -s "${erc_file}" ] && return 1
+
+	echo "del_rebalance test case done"
 	return $rc
 }
 
 clear_kvs() {
 	local drop="drop @${fids_file}"
-	${MOTRTOOL} ${drop} >/dev/null
+	${MOTRTOOL} ${drop}
 }
 
 st_init() {
@@ -451,10 +477,18 @@ st_init() {
 	local gen="genf ${num} ${fids_file} genv ${num} ${size} ${vals_file}"
 
 	# generate source files for KEYS, VALS, FIDS
-	${MOTRTOOL} ${gen} >/dev/null
+	${MOTRTOOL} ${gen}
 	[ $? != 0 ] && return 1
+
+	# We use this file because it contains human-readable values.
+	cp $M0_SRC_DIR/dix/cm/st/src_vals.txt ${vals_file}
+
 	cp ${vals_file} ${keys_file}
-	ls ${vals_file}
+	ls -l ${fids_file} ${vals_file}
+	echo ${fids_file}
+	cat ${fids_file}
+	echo ${vals_file}
+	cat ${vals_file}
 	return 0
 }
 
@@ -475,8 +509,10 @@ execute_tests() {
 	fi
 	for f in ${tests_list[@]}; do
 		clear_kvs
+		echo "------------ Start to exec $f -------------"
 		(${f})
 		rc=$?
+		echo "------------ Completed $f -----------------"
 		if [ $rc != 0 ]; then
 			echo "Failed: $f"
 			return $rc
@@ -563,7 +599,7 @@ main() {
 	[ $rc != 0 ] && return $rc
 	execute_tests
 	rc=$?
-	[ $rc != 0 ] && return $rc
+	[ $rc != 0 ] && "echo test cases failed"
 	stop
 	if [ $rc -eq 0 ]; then
 		sandbox_fini
@@ -573,20 +609,21 @@ main() {
 	report_and_exit dix-repair-st $rc
 }
 
-arg_list=("$@")
-OPTS=`getopt -o vhni --long verbose,no-setup,no-dixinit,help -n 'parse-options' -- "$@"`
+OPTS=`getopt -o vhni --long verbose,help,no-setup,no-dixinit -n 'parse-options' -- "$@"`
 if [ $? != 0 ] ; then echo "Failed parsing options." >&2 ; exit 1 ; fi
 eval set -- "$OPTS"
 while true; do
 	case "$1" in
-	-v | --verbose ) verbose=1; shift ;;
-	-h | --help )    usage ; exit 0; shift ;;
-	-n | --no-setup ) do_motr_start=0; shift ;;
+	-v | --verbose )    verbose=1; shift ;;
+	-h | --help )       usage ; exit 0; shift ;;
+	-n | --no-setup )   do_motr_start=0; shift ;;
 	-i | --no-dixinit ) do_dixinit=0; shift ;;
-	-- ) shift; break ;;
-	* ) break ;;
+	-- )                shift; break ;;
+	* )                 break ;;
 	esac
 done
+
+arg_list=("$@")
 
 for arg in "${arg_list[@]}"; do
 	if [ "${arg:0:2}" != "--" -a "${arg:0:1}" != "-" ]; then
@@ -595,14 +632,17 @@ for arg in "${arg_list[@]}"; do
 done
 
 if [ ${#tests_list[@]} -eq 0 ]; then
-	declare -a tests_list=(lookup
-			       insert
-			       get_during,
-			       drop_during,
-			       put_during,
-			       del_repair,
-			       del_rebalance)
+	declare -a tests_list=(
+				lookup
+				insert
+#				get_during
+#				drop_during
+#				put_during
+#				del_repair
+#				del_rebalance
+			)
 fi
 
+echo "We are going to test: ${tests_list[@]}"
 trap interrupt SIGINT SIGTERM
 main

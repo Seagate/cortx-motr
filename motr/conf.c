@@ -105,6 +105,7 @@ service_options_add(struct cs_args *args, const struct m0_conf_service *svc)
 		[M0_CST_M0T1FS]  = "",
 		[M0_CST_CLIENT]  = "",
 		[M0_CST_ISCS]    = "",
+		[M0_CST_DTM0]    = "",
 	};
 	int         i;
 	const char *opt;
@@ -173,7 +174,7 @@ cs_conf_to_args(struct cs_args *dest, struct m0_conf_root *root)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	option_add(dest, m0_strdup("lt-m0d")); /* XXX Does the value matter? */
+	option_add(dest, m0_strdup("m0d")); /* XXX Does the value matter? */
 	while ((rc = m0_conf_diter_next_sync(&it, service_and_node)) ==
 		M0_CONF_DIRNEXT) {
 		struct m0_conf_obj *obj = m0_conf_diter_result(&it);
@@ -543,7 +544,7 @@ M0_INTERNAL int cs_conf_device_reopen(struct m0_poolmach *pm,
 	svc = M0_CONF_CAST(m0_conf_obj_grandparent(&sdev->sd_obj),
 			   m0_conf_service);
 	if (is_local_ios(&svc->cs_obj)) {
-		M0_LOG(M0_DEBUG, "sdev size:%ld path:%s FID:"FID_F,
+		M0_LOG(M0_DEBUG, "sdev size: %"PRId64" path: %s FID:"FID_F,
 		       sdev->sd_size, sdev->sd_filename,
 		       FID_P(&sdev->sd_obj.co_id));
 		m0_stob_id_make(0, dev_id, &stob->s_sdom->sd_id, &stob_id);

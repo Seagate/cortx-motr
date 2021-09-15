@@ -76,6 +76,7 @@
 #include "addb2/storage.h"
 #include "addb2/counter.h"
 #include "addb2/histogram.h"
+#include "dtm0/addb2.h"
 
 #include "cob/cob_xc.h"
 #include "stob/addb2.h"
@@ -142,7 +143,9 @@ static void val_dump(struct m0_addb2__context *ctx, const char *prefix,
 static void context_fill(struct m0_addb2__context *ctx,
                          const struct m0_addb2_value *val);
 
-static void file_dump(struct m0_stob_domain *dom, const char *fname);
+static void file_dump(struct m0_stob_domain *dom, const char *fname,
+		      const uint64_t start_time, const uint64_t stop_time);
+
 static int  plugin_load(struct plugin *plugin);
 static void plugin_unload(struct plugin *plugin);
 static int plugins_load(void);
@@ -193,6 +196,8 @@ int main(int argc, char **argv)
 	int                     result;
 	int                     i;
 	int                     rc;
+	uint64_t                start_time = 0;
+	uint64_t                stop_time  = (uint64_t)-1;
 
 	m0_node_uuid_string_set(NULL);
 	result = m0_init(&instance);
@@ -224,7 +229,11 @@ int main(int argc, char **argv)
 			M0_STRINGARG('J', "Embed extra JSON data into every record",
 				    LAMBDA(void, (const char *json_text) {
 					    json_extra_data = strdup(json_text);
-					}))
+					})),
+			M0_FORMATARG('s', "Capture start time in nanosecs since epoch",
+				     "%"PRIu64, &start_time),
+			M0_FORMATARG('e', "Capture finish time in nanosecs since epoch",
+				     "%"PRIu64, &stop_time)
 			);
 	if (result != 0)
 		err(EX_USAGE, "Wrong option: %d", result);
@@ -259,7 +268,7 @@ int main(int argc, char **argv)
 
 	id_init();
 	for (i = optind; i < argc; ++i)
-		file_dump(dom, argv[i]);
+		file_dump(dom, argv[i], start_time, stop_time);
 
 	plugins_unload();
 
@@ -338,7 +347,8 @@ static bool intrps_equal(const struct m0_addb2__id_intrp *intrp0,
     return memcmp(intrp0, intrp1, sizeof(struct m0_addb2__id_intrp)) == 0;
 }
 
-static void file_dump(struct m0_stob_domain *dom, const char *fname)
+static void file_dump(struct m0_stob_domain *dom, const char *fname,
+		      const uint64_t start_time, const uint64_t stop_time)
 {
 	struct m0_stob         *stob;
 	struct m0_addb2_sit    *sit;
@@ -366,7 +376,7 @@ static void file_dump(struct m0_stob_domain *dom, const char *fname)
 	do {
 		result = m0_addb2_sit_init(&sit, stob, offset);
 		if (delay > 0 && result == -EPROTO) {
-			printf("Sleeping for %i seconds (%lx).\n",
+			printf("Sleeping for %i seconds (%"PRIx64").\n",
 			       delay, offset);
 			sleep(delay);
 			continue;
@@ -375,9 +385,12 @@ static void file_dump(struct m0_stob_domain *dom, const char *fname)
 			err(EX_DATAERR, "Cannot initialise iterator: %d",
 			    result);
 		while ((result = m0_addb2_sit_next(sit, &rec)) > 0) {
-			rec_dump(&(struct m0_addb2__context){}, rec);
-			if (rec->ar_val.va_id == M0_AVI_SIT)
-				offset = rec->ar_val.va_data[3];
+			if (start_time <= rec->ar_val.va_time &&
+			    rec->ar_val.va_time <= stop_time) {
+				rec_dump(&(struct m0_addb2__context){}, rec);
+				if (rec->ar_val.va_id == M0_AVI_SIT)
+					offset = rec->ar_val.va_data[3];
+			}
 		}
 		if (result != 0)
 			err(EX_DATAERR, "Iterator error: %d", result);
@@ -422,7 +435,7 @@ static void ptr(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 {
 	if (json_output)
 		/* JSON spec supports only decimal format (int and float) */
-		sprintf(buf, "{\"ptr\":%"PRId64"}", (long)*(void **)v);
+		sprintf(buf, "{\"ptr\":%"PRIu64"}", (uint64_t)*(void **)v);
 	else
 		sprintf(buf, "@%p", *(void **)v);
 }
@@ -468,13 +481,13 @@ static void _clock(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 	if (json_output) {
 		gmtime_r(&ts, &tm);
 		/* ISO8601 formating */
-		sprintf(buf, "\"%04d-%02d-%02dT%02d:%02d:%02d.%09luZ\"",
+		sprintf(buf, "\"%04d-%02d-%02dT%02d:%02d:%02d.%09"PRIu64"Z\"",
 			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 			tm.tm_hour, tm.tm_min, tm.tm_sec,
 			m0_time_nanoseconds(stamp));
 	}else {
 		localtime_r(&ts, &tm);
-		sprintf(buf, "%04d-%02d-%02d-%02d:%02d:%02d.%09lu",
+		sprintf(buf, "%04d-%02d-%02d-%02d:%02d:%02d.%09"PRIu64,
 			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 			tm.tm_hour, tm.tm_min, tm.tm_sec,
 			m0_time_nanoseconds(stamp));
@@ -653,9 +666,9 @@ static void sym(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 			buf += strlen(buf);
 		}
 		if (json_output)
-			sprintf(buf, "\"symbol\":{\"addr\":%"PRId64","
-				     "\"addr_ptr_wrap\":%"PRId64"}",
-				     (long)addr, v[0]);
+			sprintf(buf, "\"symbol\":{\"addr\":%"PRIu64","
+				     "\"addr_ptr_wrap\":%"PRIu64"}",
+				(uint64_t)addr, v[0]);
 		else
 			sprintf(buf, " @%p/%"PRIx64, addr, v[0]);
 	}
@@ -825,10 +838,23 @@ static void tx_state(struct m0_addb2__context *ctx, const uint64_t *v,
 	sm_state(&be_tx_sm_conf, ctx, v, buf);
 }
 
+extern struct m0_sm_conf m0_dtx_sm_conf;
+static void dtx0_state(struct m0_addb2__context *ctx, const uint64_t *v,
+                     char *buf)
+{
+	sm_state(&m0_dtx_sm_conf, ctx, v, buf);
+}
+
 static void tx_state_counter(struct m0_addb2__context *ctx, char *buf)
 {
 	sm_trans(&be_tx_sm_conf, "tx", ctx, buf);
 }
+
+static void dtx0_state_counter(struct m0_addb2__context *ctx, char *buf)
+{
+	sm_trans(&m0_dtx_sm_conf, "dtx0", ctx, buf);
+}
+
 
 extern struct m0_sm_conf op_states_conf;
 static void beop_state_counter(struct m0_addb2__context *ctx, char *buf)
@@ -1111,6 +1137,12 @@ struct m0_addb2__id_intrp ids[] = {
 	  { &dec, &dec, &dec, &dec }, { "id", "opcode", "xid", "session_id" } },
 	{ M0_AVI_RPC_ITEM_ID_FETCH, "rpc-item-id-fetch",
 	  { &dec, &dec, &dec, &dec }, { "id", "opcode", "xid", "session_id" } },
+
+	{ M0_AVI_DTX0_SM_STATE,     "dtx0-state",    { &dtx0_state, SKIP2  } },
+	{ M0_AVI_DTX0_SM_COUNTER,   "",
+	  .ii_repeat = M0_AVI_DTX0_SM_COUNTER_END - M0_AVI_DTX0_SM_COUNTER,
+	  .ii_spec   = &dtx0_state_counter },
+
 	{ M0_AVI_BE_TX_STATE,     "tx-state",        { &tx_state, SKIP2  } },
 	{ M0_AVI_BE_TX_COUNTER,   "",
 	  .ii_repeat = M0_AVI_BE_TX_COUNTER_END - M0_AVI_BE_TX_COUNTER,
@@ -1170,11 +1202,11 @@ struct m0_addb2__id_intrp ids[] = {
 	{ M0_AVI_CLIENT_COB_REQ,      "cob-req-state", { &dec, &cob_req_state },
 	  { "cob_id", "cob_state" } },
 	{ M0_AVI_CLIENT_TO_COB_REQ,   "client-to-cob", { &dec, &dec },
-	  { "id", "cob_id" } },
+	  { "client_id", "cob_id" } },
 	{ M0_AVI_CLIENT_COB_REQ_TO_RPC, "cob-to-rpc",  { &dec, &dec },
 	  { "cob_id", "rpc_id" } },
 	{ M0_AVI_CLIENT_TO_IOO,       "client-to-ioo", { &dec, &dec },
-	  { "id", "ioo_id" } },
+	  { "client_id", "ioo_id" } },
 	{ M0_AVI_IOO_TO_RPC,   "ioo-to-rpc",    { &dec, &dec },
 	  { "ioo_id", "rpc_id" } },
 

@@ -126,7 +126,7 @@ Distributed transaction manager ([dt](#dtm-idea)) allows operations to be
 grouped into distributed transactions, which are guaranteed to be atomic in 
 the face of certain failures.
 
-![Distributed Transaction Manager](https://github.com/Seagate/cortx-motr/blob/Motr_Desc-Guide/doc/Images/1-Distributed-transaction-manager.JPG)
+![](/doc/Images/1-Distributed-transaction-manager.JPG)
 
 Main novel ideas of Motr, that distinguish it from other cluster  file-systems are:
 * fdmi;
@@ -149,9 +149,9 @@ Motr used to be called SCIF and H3S in the earlier documents.
 Lustre is a cluster file-system, designed in late 90s early 00s by Peter Braam 
 at CMU. Lustre was developed by ClusterFS, which was acquired by Sun 
 Microsystems, which was acquired by Oracle, Lustre IP was then acquired by 
-Xyratex, which is in process of being acquired by Seagate—file systems habent 
-sua fata. Lustre is highly successful in the HPC space, running on 7 to 9 
-supercomputers from Top10 list. 
+Xyratex, which was acquired by Seagate—file systems habent sua fata. Lustre
+is highly successful in the HPC space, running on 7 to 9 supercomputers from
+Top10 list.
 Lustre is different from Motr in a number of ways:
 * Lustre is a strictly client-server system. There are client nodes, that issue 
   file system operations to server nodes;
@@ -225,7 +225,9 @@ re-ordering. See NRS in the references below.
 Each node in the cluster runs one or more Motr instances. Each instance has the 
 same overall structure:
 
-![Motr Instance](https://github.com/Seagate/cortx-motr/blob/Motr_Desc-Guide/doc/Images/2-Mero-Instance.JPG)
+
+![](/doc/Images/2-Motr-Instance.jpg)
+
 
 At the heart of Motr instance is [reqh](#reqh-idea) (request handler). Request 
 handler processes requests in form of [fops](#fop-idea) 
@@ -371,7 +373,7 @@ occur in the Motr system.
 The figure below shows the flow of fol records from the nodes where they are 
 generated to fdmi subscribers.
 
-![MapReduce Style Algorithm](https://github.com/Seagate/cortx-motr/blob/Motr_Desc-Guide/doc/Images/3-MapReduce-style-algorithm.JPG)
+![](/doc/Images/3-MapReduce-style-algorithm.JPG)
 
 As a simplified example, consider an fdmi-based application running on a 
 dedicated server, connected to two Motr object stores (source and target) and 
@@ -456,7 +458,7 @@ Fol is used for multiple purposes:
 * system-wide fol is used for [distributed transaction recovery](#dtm-idea);
 * system-wide fol is used to implement [fdmi](#fdmi-idea) event feeds
 
-![File Operation Log](https://github.com/Seagate/cortx-motr/blob/Motr_Desc-Guide/doc/Images/4-File-OperationLog.JPG)
+![](/doc/Images/4-File-OperationLog.JPG)
 
 ### Reality check
 At the moment, clients don't use fol. They will.
@@ -497,7 +499,7 @@ impacting data performance.
 
 The figure below shows subcomponents of the addb subsystem.
 
-![addb Components & Control Flow](https://github.com/Seagate/cortx-motr/blob/Motr_Desc-Guide/doc/Images/5-addb-components-and-control-flow.JPG)
+![](/doc/Images/5-addb-components-and-control-flow.JPG)
 
 Motr code is systematically instrumented to produce addb records. Each record 
 contains context information, which identifies system activity to which the 
@@ -540,7 +542,7 @@ and simulate application behavior in proposed configurations.
 
 The figure below shows the possible uses of addb.
 
-![Interaction of addb](https://github.com/Seagate/cortx-motr/blob/Motr_Desc-Guide/doc/Images/6-Interaction-of-addb.JPG)
+![](/doc/Images/6-Interaction-of-addb.JPG)
 
 ## Monitoring
 The simplest addb use case is cluster monitoring. If an addb record, produced 
@@ -912,7 +914,7 @@ mdservice perhaps)
 
 ## security, architecture
 
-![Security Architecture](https://github.com/Seagate/cortx-motr/blob/Motr_Desc-Guide/doc/Images/7-Security-Architecture.JPG)
+![](/doc/Images/7-Security-Architecture.JPG)
 
 ### References:
 ### Related:
@@ -1064,7 +1066,7 @@ Note that each parity group is mapped individually, which means that each next
 group from the same file would go to a different set of targets (and, hence, a 
 different set of storage devices) than previous.
 
-![Capture](https://github.com/Seagate/cortx-motr/blob/Motr_Desc-Guide/doc/Images/8-Capture.jpg)
+![](/doc/Images/8-Capture.jpg)
 
 ### References:
 * [CMU PDL publications](http://www.pdl.cmu.edu/RAID/publications.shtml) 

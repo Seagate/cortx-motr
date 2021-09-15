@@ -109,7 +109,7 @@ static void test_obj_fini(struct m0_be_tx *tx)
 
 static void test_init(void)
 {
-	struct m0_be_domain_cfg cfg;
+	struct m0_be_domain_cfg *cfg;
 	struct m0_be_tx_credit	cred = {};
 	int			rc;
 
@@ -117,12 +117,17 @@ static void test_init(void)
 
 	/* Init BE */
 	/** XXX @todo break UT into small transactions */
-	M0_SET0(&cfg);
-	m0_be_ut_backend_cfg_default(&cfg);
-	cfg.bc_engine.bec_tx_size_max = M0_BE_TX_CREDIT(1 << 21, 1 << 26);
-	cfg.bc_engine.bec_group_cfg.tgc_size_max =
+	M0_ALLOC_PTR(cfg);
+	M0_UT_ASSERT(cfg != NULL);
+	M0_SET0(cfg);
+	M0_SET0(&be_ut_emap_backend);
+	M0_SET0(&be_ut_emap_seg);
+
+	m0_be_ut_backend_cfg_default(cfg);
+	cfg->bc_engine.bec_tx_size_max = M0_BE_TX_CREDIT(1 << 21, 1 << 26);
+	cfg->bc_engine.bec_group_cfg.tgc_size_max =
 		M0_BE_TX_CREDIT(1 << 22, 1 << 27);
-	rc = m0_be_ut_backend_init_cfg(&be_ut_emap_backend, &cfg, true);
+	rc = m0_be_ut_backend_init_cfg(&be_ut_emap_backend, cfg, true);
 	M0_UT_ASSERT(rc == 0);
 	m0_be_ut_seg_init(&be_ut_emap_seg, &be_ut_emap_backend, 1ULL << 26);
 	be_seg = be_ut_emap_seg.bus_seg;
@@ -149,6 +154,8 @@ static void test_init(void)
 	m0_uint128_init(&prefix, "some random iden");
 	seg = m0_be_emap_seg_get(&it);
 	it_op = m0_be_emap_op(&it);
+
+	m0_free(cfg);
 
 	M0_LEAVE();
 }

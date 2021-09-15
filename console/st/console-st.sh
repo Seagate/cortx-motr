@@ -32,7 +32,6 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
 CLIENT=$M0_SRC_DIR/console/m0console
 SERVER=$M0_SRC_DIR/console/st/server
-SERVER_EXEC=$M0_SRC_DIR/console/st/.libs/lt-server
 
 OUTPUT_FILE=$SANDBOX_DIR/client.log
 YAML_FILE9=$SANDBOX_DIR/req-9.yaml
@@ -48,12 +47,11 @@ NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91  # required by `common.sh'
 start_server()
 {
 	modprobe lnet
-	modload_galois &>/dev/null
+	modload_galois
 	echo 8 >/proc/sys/kernel/printk
 	modload
 
 	_use_systemctl=0
-	source+eu /etc/rc.d/init.d/functions  # import `status' function
 
 	echo -n 'Running m0mkfs... ' >&2
 	##
@@ -74,7 +72,7 @@ start_server()
 
 	$SERVER -v &>$SANDBOX_DIR/server.log &
 	sleep 1
-	status $SERVER_EXEC || die 'Service failed to start'
+	pgrep $(basename "$SERVER") >/dev/null || die 'Service failed to start'
 	echo 'Service started' >&2
 }
 
@@ -132,7 +130,7 @@ EOF
 
 stop_server()
 {
-	killproc $SERVER_EXEC &>/dev/null && wait || true
+	{ pkill $(basename "$SERVER") && wait; } || true
 	modunload
 	modunload_galois
 }
@@ -142,7 +140,7 @@ check_reply()
 	expected="$1"
 	actual=`awk '/replied/ {print $5}' $OUTPUT_FILE`
 	[ -z "$actual" ] && die 'Reply not found'
-	[ $actual -eq $expected ] || die 'Invalid reply'
+	[ "$actual" -eq "$expected" ] || die 'Invalid reply'
 }
 
 test_fop()
@@ -153,7 +151,7 @@ test_fop()
 	local reply="$1"; shift
 
 	echo -n "$message: " >&2
-	$CLIENT -f $request -v "$@" &>$OUTPUT_FILE
+	$CLIENT -f $request -v "$@" | tee $OUTPUT_FILE
 	check_reply $reply
 	echo OK >&2
 }

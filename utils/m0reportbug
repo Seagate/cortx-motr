@@ -26,7 +26,7 @@ export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 ### When modifying this script, please increment VERSION and add new
 ### entry to the 'History' section below.
 ### ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-VERSION=0.50
+VERSION=0.53
 
 OUT_DATA_DIR=m0reportbug-data
 OUT_CORES_DIR=m0reportbug-cores
@@ -41,10 +41,11 @@ CRASH_AGE_MAX=3 # maximal age (days) of vmcore-dmesg.txt files to be collected
 STAGE_TIME_LIMIT=10 # seconds; if a stage runs longer, show its duration
 DEFAULT_INPUT_DIRS_GLOB='/var/motr*'
 IN_DIR=
-CORE_DIR=/var/crash    # path from where m0reportbug will collect cores
+CORE_DIRS=("/var/crash/" "/var/log/crash/") # path from where m0reportbug will collect cores
 RECOVERY_SCRIPT_DIR=/opt/seagate/cortx/motr/libexec    # dir containing recovery traces and scripts
-RECOVERY_LOG_DIR=/var/log/seagate/motr    # dir containing recovery log/logs
+RECOVERY_LOG_DIR=/var/log/seagate/motr/datarecovery    # dir containing recovery log/logs
 LIVE_CORE_DIR=/var/log/seagate/motr
+M0TR_M0D_TRACE_DIR=/var/log/seagate/motr/trace
 
 readonly START_DIR=$PWD
 
@@ -65,6 +66,7 @@ main() {
         ^m0traces
         ^addb # Should go after `m0traces' stage (m0addb2dump creates new
               # m0traces, which we don't want to collect).
+       ^addb-files
         systemd_journal
         sysrq_info
     )
@@ -93,12 +95,21 @@ main() {
 
         case $stage in
             addb) [ ${COLLECT_ADDB_P:-0} -eq 1 ] || continue;;
+            addb-files) [ ${SKIP_ADDB_FILE_P:-0} -eq 1 ] && continue;;
             binaries) [ ${COLLECT_BINARIES_P:-0} -eq 1 ] || continue;;
         esac
 
         for IN_DIR in ${INPUT_DIRS[@]}; do
             [[ -d $IN_DIR ]] || {
                 warn "$IN_DIR: no such directory"
+                continue
+            }
+            [[ -L $IN_DIR ]] && {
+                # As per our design, after failover softlink /var/motr is
+                # created to points /var/motr{1-2}, and since our INPUT_DIR
+                # is globe pattern (/var/motr*) we end up collecting m0traces
+                # and cores twice unnecessary, hence skipped data collection
+                # if IN_DIR is a soft link.
                 continue
             }
             export IN_DIR=$(readlink -f $IN_DIR)
@@ -120,36 +131,88 @@ main() {
         done
     done >>$REPORT
 
-    # Collects live/compressed core generated in /var/crash
-    IN_DIR=${CORE_DIR}
-    local label="backtraces_core $IN_DIR"
-    echo -n "$label... " >&2
-    section "[$label]" >>$REPORT
-    local t=$(date +%s)
-    backtraces_cores >>$REPORT
-    echo "OK$(_time $t)" >&2
+    # Collects compressed core generated in /var/crash and /var/log/crash
+    for IN_DIR in  ${CORE_DIRS[@]}; do 
+        [[ -d $IN_DIR ]] || {
+                warn "$IN_DIR: no such directory"
+                continue
+        }
+        local label="backtraces_core $IN_DIR"
+        echo -n "$label... " >&2
+        section "[$label]" >>$REPORT
+        local t=$(date +%s)
+        backtraces_cores >>$REPORT
+        echo "OK$(_time $t)" >&2
+    done
 
     # Collects live/compressed core generated in /var/crash
-    IN_DIR=${LIVE_CORE_DIR}
-    local label="backtraces_core $IN_DIR"
-    echo -n "$label... " >&2
-    section "[$label]" >>$REPORT
-    local t=$(date +%s)
-    backtraces_cores >>$REPORT
-    # Remove live-cores generated in LIVE_CORE_DIR
-    rm -rf $LIVE_CORE_DIR/core-live.*
-    echo "OK$(_time $t)" >&2
+    if [ -d $LIVE_CORE_DIR ]; then
+        IN_DIR=${LIVE_CORE_DIR}
+        local label="backtraces_core $IN_DIR"
+        echo -n "$label... " >&2
+        section "[$label]" >>$REPORT
+        local t=$(date +%s)
+        backtraces_cores >>$REPORT
+        # Remove live-cores generated in LIVE_CORE_DIR
+        rm -rf $LIVE_CORE_DIR/core-live.*
+        echo "OK$(_time $t)" >&2
+    else
+        warn "$LIVE_CORE_DIR: no such directory"
+    fi
 
     # Collects traces for beck run
-    IN_DIR=${RECOVERY_SCRIPT_DIR}
-    local label="m0traces $IN_DIR"
-    echo -n "$label... " >&2
-    section "[$label]" >>$REPORT
-    local t=$(date +%s)
-    m0traces >>$REPORT
-    echo "OK$(_time $t)" >&2
+    if [ -d $RECOVERY_SCRIPT_DIR ]; then
+        IN_DIR=${RECOVERY_SCRIPT_DIR}
+        local label="m0traces $IN_DIR"
+        echo -n "$label... " >&2
+        section "[$label]" >>$REPORT
+        local t=$(date +%s)
+        m0traces >>$REPORT
+        echo "OK$(_time $t)" >&2
+    else
+        warn "$RECOVERY_SCRIPT_DIR: no such directory"
+    fi
+
+    # Collects traces of m0d process(confd, ios) only
+    M0TR_M0D_TRACE_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_TRACE_DIR" | cut -d '=' -f2)
+    M0D_TRACE_DIR="${M0TR_M0D_TRACE_DIR%\'}"
+    M0D_TRACE_DIR="${M0D_TRACE_DIR#\'}"
+
+    if [[ -d "$M0D_TRACE_DIR" ]]; then
+        IN_DIR=${M0D_TRACE_DIR}
+        local label="m0traces $IN_DIR"
+        echo -n "$label... " >&2
+        section "[$label]" >>$REPORT
+        local t=$(date +%s)
+        m0traces >>$REPORT
+        echo "OK$(_time $t)" >&2
+    else
+        warn "$M0TR_M0D_TRACE_DIR: no such directory"
+    fi
+
+    # Collects addb record files for process(confd, ios and s3server)
+    ADDB_RECORD_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_ADDB_STOB_DIR" | cut -d '=' -f2)
+    ADDB_DIR="${ADDB_RECORD_DIR%\'}"
+    ADDB_DIR="${ADDB_DIR#\'}"
+
+    if [[ -d "$ADDB_DIR" ]]; then
+        IN_DIR=${ADDB_DIR}
+        local label="addb-files $IN_DIR"
+        echo -n "$label... " >&2
+        section "[$label]" >>$REPORT
+        local t=$(date +%s)
+        addb-files >>$REPORT
+        echo "OK$(_time $t)" >&2
+    else
+        warn "$ADDB_DIR: no such directory"
+    fi
 
     popd >/dev/null
+    # Collect rpm-update-logs
+    if [ -f /var/log/motr-rpm-conf-update.log ]; then
+        cp -pv /var/log/motr-rpm-conf-update.log $OUT_DATA_DIR/
+    fi
+
     tar --remove-files -cJf $OUT_DATA_DIR{.tar.xz,}
     local files=$OUT_DATA_DIR.tar.xz
     for t in $OUT_CORES_DIR $OUT_TRACES_DIR; do
@@ -174,7 +237,6 @@ probes() {
         'uptime'
         'm0version'
         'm0d -v'
-        'halond -v'
         'rpm -qi cortx-motr'
         'rpm -qi cortx-hare'
         'rpm -qR cortx-motr'
@@ -198,6 +260,7 @@ probes() {
         ##   which calls m0t1fs code. Will be re-enabled when m0t1fs locking
         ##   is fixed.
         # 'df -h -x m0t1fs -x nfs'
+        'df -h'
         'lspci'
         'gcc --version'
         'ip addr'
@@ -210,7 +273,6 @@ probes() {
         'ls /dev/disk/by-*'
         'dmesg'
         'systemctl status -l'
-        'systemctl status -l halond'
         'systemctl status -l motr-kernel'
         'lctl dk'
         'hctl status'
@@ -256,14 +318,7 @@ misc_files() {
              cp -p $path $outdir/$path
              echo $path
          done
-
-     mkdir -p $outdir
-     f=$outdir/halon-rg.json
-     if hctl halon info graph json >$f 2>/dev/null; then
-         echo ${f##*/}
-     else
-         rm $f
-     fi)
+     )
 
     outdir=$(readlink -f .)/root-misc
     {
@@ -274,11 +329,6 @@ misc_files() {
                 echo $f
                 grep '^MOTR_CONF_XC=' $f | cut -d\' -f2 # may produce duplicates
             done | sort -u
-        for f in /etc/halon/halon_facts.yaml /tmp/halond.log; do
-            if [ -f $f ]; then echo $f; fi
-        done
-        find /var/log/ -type f -name halon.decision.log\*
-        _kdump_files
     } | while read path; do
         [ "$path" != "${path#/}" ] || {
             warn "${FUNCNAME[0]}: Absolute path expected: $path"
@@ -293,11 +343,6 @@ misc_files() {
         echo $path
     done
 
-    if [ -d /var/log/halon-persistence ]; then
-        mkdir -p $outdir/var/log
-        cp -rp /var/log/halon-persistence $outdir/var/log/
-        echo /var/log/halon-persistence
-    fi
     if [ -d ${RECOVERY_LOG_DIR} ]; then
         mkdir -p $outdir/recovery
         cp ${RECOVERY_LOG_DIR}/motr_data_recovery* $outdir/recovery/
@@ -338,7 +383,7 @@ program_from_core() {
                    sed -En "s/^Core was generated by \`([^ ']+).*/\\1/p")
     fi
 
-    if [[ -z $prog ]]; then
+    if [[ -z "$prog" ]]; then
         warn "Cannot deduce program name from \`$core'"
         {
             echo -n '[DEBUG] '
@@ -371,9 +416,8 @@ _path_rpm() {
         libmotr-ut.so|libmotr-xcode-ff2c.so)
             ## Provided by motr-devel-*.rpm (optional).
             echo "?/usr/lib64/$name.0.0.0";;
-        libgalois.so) echo "/usr/lib64/$name.1.0.0";;
+        libgalois.so) echo "/usr/lib64/libgalois-0.1.so";;
         python) type -p python;;
-        halond) readlink -f /usr/bin/halond;;
         *) die "${FUNCNAME[0]}: Unsupported argument: $name";;
     esac
 }
@@ -404,10 +448,9 @@ _path_src() {
         libmotr-ut.so) echo "$src/ut/.libs/$name.0.0.0";;
         libmotr-xcode-ff2c.so) echo "$src/xcode/ff2c/.libs/$name.0.0.0";;
         libgalois.so)
-            echo "$src/extra-libs/galois/src/.libs/$name.1.0.0";;
+            echo "$src/extra-libs/galois/src/.libs//libgalois-0.1.so";;
         lt-m0rwlock) echo "$src/rm/st/.libs/lt-m0rwlock";;
         python) type -p python;;
-        halond) readlink -f /usr/bin/halond;;
         *) die "${FUNCNAME[0]}: Unsupported argument: $name";;
     esac
 }
@@ -478,7 +521,7 @@ EOF
 backtraces_live() {
     local pid task
 
-    pgrep '\<(lt-)?m0|\<(halond|dd|fio|mount)\>' | while read pid; do
+    pgrep '\<(lt-)?m0|\<(dd|fio|mount)\>' | while read pid; do
         local args="$(ps h -o args $pid)"
         [ -n "$args" ] || continue # the process may be gone
         local prog=$(echo $args | cut -d' ' -f1)
@@ -556,7 +599,7 @@ backtraces_cores() {
             prog=$(program_from_core $core)
             # print backtrace only of motr binaries.
             # i.e lt-m0d, m0d, lt-m0kv, m0crate etc.
-            if [[ -n $prog && $prog =~ ^(lt-|)m0[a-z]+ ]]; then
+            if [[ -n "$prog" && $prog =~ ^(lt-|)m0[a-z]+ ]]; then
                 section $core
                 gdb_bt "$(path $prog binary)" $core
             fi
@@ -568,7 +611,7 @@ backtraces_cores() {
     (find "$IN_DIR" -type f -name core\* ! \( -name core\*.xz -o -name core\*.gz \) | while read core; do
          prog=$(program_from_core $core)
          # collects core only of motr programs.
-         if [[ -n $prog && $prog =~ ^(lt-|)m0[a-z]+ ]]; then
+         if [[ -n "$prog" && $prog =~ ^(lt-|)m0[a-z]+ ]]; then
              _coredump $core $outdir
          fi
      done)
@@ -579,17 +622,10 @@ backtraces_cores() {
         # Capture compressed core file only of motr from  IN_DIR
         # i.e. core.m0d.12345.xz/gz, core.0.lt-m0kv.12345.xz/gz
         local fname=$(basename $core)
-        if [[ -n $fname && $fname =~ ^core(.[0-9]+|).(lt-|)m0[a-z]*.[0-9]+.(xz|gz) ]]; then
+        if [[ -n "$fname" && $fname =~ ^core(.[0-9]+|).(lt-|)m0[a-z]*.[0-9]+.(xz|gz) ]]; then
             cp $core $outdir/$IN_DIR/
         fi
     done
-
-    if [ -d /var/lib/halon ]; then
-        (cd /var/lib/halon
-         find . -type f -name core.\* | cut -c3- | while read core; do
-             _coredump $core $outdir/var/lib/halon
-         done)
-    fi
 
     if [ -d $outdir ] && ! rmdir $outdir 2>/dev/null; then
         ## Core dumps were collected. We need to collect binaries.
@@ -609,7 +645,7 @@ binaries() {
 
     mkdir -p $outdir
     ## Note, that we intentionally skip `m0tr.ko' as it's too big (42M).
-    for f in m0mkfs m0d m0ham m0ut m0beck m0betool ${libs[@]} halond; do
+    for f in m0mkfs m0d m0ham m0ut m0beck m0betool ${libs[@]}; do
         s=$(path $f binary)
         if [ -n "$s" ]; then
             ## Strip `.0.0' suffix when copying.
@@ -631,10 +667,11 @@ binaries() {
         fi
     done
     ## copy recovery scripts
-    outdir=$START_DIR/$OUT_CORES_DIR/scripts
-    mkdir -p $outdir
-    cp -pv ${RECOVERY_SCRIPT_DIR}/motr_data_recovery.sh $outdir
-    cp -pv ${RECOVERY_SCRIPT_DIR}/prov-m0-reset $outdir
+    if [ -f ${RECOVERY_SCRIPT_DIR}/motr_data_recovery.sh ]; then
+        outdir=$START_DIR/$OUT_CORES_DIR/scripts
+        mkdir -p $outdir
+        cp -pv ${RECOVERY_SCRIPT_DIR}/motr_data_recovery.sh $outdir
+    fi
 }
 
 _get_jc_cursor() {
@@ -661,7 +698,7 @@ sysrq_info() {
     done
 
     # restore original sysrq functions
-    if [[ -n $old_sysrq ]] ; then
+    if [[ -n "$old_sysrq" ]] ; then
         sysctl --quiet --write kernel.sysrq=$old_sysrq || true
     fi
 }
@@ -701,25 +738,14 @@ m0traces() {
     local m0tracedump=$(path m0tracedump)
     local outdir=$START_DIR/$OUT_TRACES_DIR
 
-    if [[ ! -d $outdir ]]; then
-        ## Kernel buffer.
-        if [ -x "$m0trace" ] && lsmod | grep -q '^m0ctl\b'; then
-            mkdir $outdir
-            $m0trace kernel-buf -Y | _xz >$outdir/kernel-buf.yaml.xz
-            echo $outdir/kernel-buf.yaml.xz
-        fi
-    fi
-
     [ -x "$m0tracedump" ] || return 0 # don't fail
 
     (cd "$IN_DIR"
      {
-         find . -type f -name m0trace.\* | last_modified "${M0TRACES_MAX:-}"
+         find . -maxdepth 1 -type f -name m0trace.\* | last_modified "${M0TRACES_MAX:-}"
          find . -maxdepth 1 -type d -name m0d-\* | while read dir; do
              find $dir -type f -name m0trace.\* |
                  last_modified "${M0TRACES_M0D_MAX:-}"
-         find ./hax -maxdepth 1 -type f -name m0trace.\* |
-             last_modified "${M0TRACES_MAX:-}"
          done
      } | cut -c3- | sort -u | while read path; do
          _tracedump $path $outdir
@@ -733,21 +759,46 @@ addb() {
     local m0addb2dump=$(path m0addb2dump)
     (outdir=$(readlink -f .)/$outdir
      cd "$IN_DIR"
-     find . -type d -name addb-stobs | cut -c3- | while read dir; do
-         find $dir/o -type f -name \*:2 | while read path; do
-             path=$(readlink -f $path)  # convert to absolute path
-             mkdir -p $outdir$(dirname $path)
-             ##
-             ## Note that m0addb2dump needs absolute path.
-             ## If relative path is provided, m0addb2dump fails:
-             ##
-             ## > lt-m0addb2dump: Cannot create stob: -2: No such file
-             ## > or directory
-             $m0addb2dump $path | tail -$ADDB_TAIL | _xz >$outdir$path.xz
-             touch -r $path $outdir$path.xz
-             echo $path.xz
+     for pid in `pgrep m0d`; do
+         find . -type d -name addb-stobs-$pid | cut -c3- | while read dir; do
+	    find $dir/o -type f -name \*:2 | while read path; do
+               path=$(readlink -f $path) # convert to absolute path
+               mkdir -p $outdir$(dirname $path)
+               ##
+               ## Note that m0addb2dump needs absolute path.
+               ## If relative path is provided, m0addb2dump fails:
+               ##
+               ## > lt-m0addb2dump: Cannot create stob: -2: No such file
+               ## > or directory
+               $m0addb2dump $path | tail -$ADDB_TAIL | _xz >$outdir$path.xz
+               touch -r $path $outdir$path.xz
+               echo $path.xz
+            done
          done
      done)
+
+}
+
+addb-files() {
+    echo "addb-files : $IN_DIR"
+    mkdir -p addb_files/$IN_DIR
+
+    for i in $(pgrep s3server) ; do
+        local file_path=$(ls ${IN_DIR}/../s3server-*/addb_*/o/100000000000000\:2 2>/dev/null | grep $i)
+        if [ $? -eq 0 ] && [ -f "$file_path" ]; then
+            echo $file_path
+            cat $file_path | _xz > addb_files/$IN_DIR/s3_addb_${i}.xz;
+       fi
+    done
+
+    for pid in `pgrep m0d`; do
+        for file_path in $(find ${IN_DIR}/m0d-*/addb-stobs-$pid/o  -name "100000000000000:2" 2>/dev/null); do
+            if [ -f "$file_path" ]; then
+                fid=$(echo $file_path | cut -d '/' -f7 | cut -d '-' -f2)
+                cat $file_path | _xz > addb_files/$IN_DIR/m0d_addb__${fid}.xz
+            fi
+        done
+    done
 }
 
 systemd_journal() {
@@ -757,8 +808,12 @@ systemd_journal() {
     fi
     local outdir=$(readlink -f .)
     for ((i = 0; i < nr_boots; ++i)); do
-        journalctl -b -$i | _xz >$outdir/systemd-journal_$i.xz
+        journalctl -b -$i 2>>$REPORT | _xz >$outdir/systemd-journal_$i.xz
     done
+
+    if ((nr_boots == 0)); then
+        journalctl 2>>$REPORT | _xz > $outdir/systemd-journal.xz
+    fi
 }
 
 usage() {
@@ -768,13 +823,14 @@ Gather forensic data, needed to investigate Motr issues, from INPUT_DIR(s)
 and their subdirectories.
 
 Options:
-    -h, --help      Show this help and exit.
-    --addb          Collect ADDB data.
-    -b, --binaries  Collect Motr binaries even if there are no core dumps.
-    --nr-boots      How many boots to query systemd journal for\
+    -h, --help         Show this help and exit.
+    --addb             Collect ADDB data.
+    --skip-addb-files  skip collection of ADDB files
+    -b, --binaries     Collect Motr binaries even if there are no core dumps.
+    --nr-boots         How many boots to query systemd journal for\
  (default is $NR_BOOTS_MAX).
-    -p, --path      Show locations of Motr binaries: m0d, m0tr.ko, etc.
-    -V, --version   Show version number and exit.
+    -p, --path         Show locations of Motr binaries: m0d, m0tr.ko, etc.
+    -V, --version      Show version number and exit.
 
 If no explicit INPUT_DIR arguments are provided, the script will use
 $DEFAULT_INPUT_DIRS_GLOB glob pattern.
@@ -793,13 +849,14 @@ optparse() {
     ## command (e.g., invalid option) will result in program failure.
     ##
     local TEMP # do not assign value here
-    TEMP=$(getopt -o hpbV --long help,addb,binaries,nr-boots:,path,version \
+    TEMP=$(getopt -o hpbV --long help,addb,skip-addb-files,binaries,nr-boots:,path,version \
                   -n "${0##*/}" -- "$@")
     eval set -- "$TEMP"
     while true; do
         case "$1" in
             -h|--help) usage; exit 0;;
             --addb) COLLECT_ADDB_P=1;;
+            --skip-addb-files) SKIP_ADDB_FILE_P=1;;
             -b|--binaries) COLLECT_BINARIES_P=1;;
             --nr-boots) NR_BOOTS_MAX=$2; shift;;
             -p|--path)
@@ -828,6 +885,17 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2020-10-19 0.53    Added addb-files options to collect addb files from
+###                    both server(ioservice) and client(s3server)
+###
+### 2020-10-05 0.52    Removed halon related things since we are not using
+###                    it.Removed collection of kernel buffer because we lack
+###                    of debugfs support.Removed collection of m0traces of
+###                    s3server and hax. Added 'df -h' to probe info. 
+###
+### 2020-10-02 0.51    Added /var/log/crash to CORE_DIRS list since on
+###                    provisioner deployed setup, core would be in /var/log/crash
+###
 ### 2020-09-21 0.50    updated m0reportbug to capture below recovery debug data
 ###                    1.m0betool and m0beck binaries.
 ###                    2.motr_data_recovery.sh and prov-m0-reset scripts

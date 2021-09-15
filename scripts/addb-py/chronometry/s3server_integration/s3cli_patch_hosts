@@ -51,7 +51,7 @@ function add_hostnames() {
             sed -r -i "$SED_CMD" $HOSTS_FILE
         else
             # add new entry
-            if [[ -n `tail -1 $HOSTS_FILE` ]]; then
+            if [[ -n "`tail -1 $HOSTS_FILE`" ]]; then
                 local lf='\n'
             fi
 

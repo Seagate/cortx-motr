@@ -129,27 +129,13 @@ start
 cd $SANDBOX_DIR
 say "mkfs"
 _mkfs
-say "mkfs (truncate addb-stobs id file)"
-cd confd/addb-stobs
-truncate -s 0 id
-cd ../../
-_mkfs
 say "mkfs (truncate stobs id file)"
-cd confd/stobs
-truncate -s 0 id
-cd ../../
+truncate -s 0 confd/stobs/id
 _mkfs
 echo "mkfs force"
 _mkfs -F
-say "mkfs force (truncate addb-stobs id file)"
-cd confd/addb-stobs
-truncate -s 0 id
-cd ../../
-_mkfs -F
 say "mkfs force (truncate stobs id file)"
-cd confd/stobs
-truncate -s 0 id
-cd ../../
+truncate -s 0 confd/stobs/id
 _mkfs -F
 say "Stop"
 stop

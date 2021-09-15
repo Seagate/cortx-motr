@@ -53,7 +53,6 @@ static int rpc_start(struct m0_rpc_server_ctx *rpc_srv)
 	char                log_name[LOG_NAME_MAX_LEN];
 	char                full_ep[EP_MAX_LEN];
 	char                max_rpc_size[RPC_SIZE_MAX_LEN];
-	struct m0_net_xprt *xprt = &m0_net_lnet_xprt;
 
 	snprintf(full_ep, EP_MAX_LEN, "lnet:%s", confd_ep);
 	snprintf(max_rpc_size, RPC_SIZE_MAX_LEN,
@@ -72,8 +71,8 @@ static int rpc_start(struct m0_rpc_server_ctx *rpc_srv)
 
 	M0_SET0(rpc_srv);
 
-	rpc_srv->rsx_xprts         = &xprt;
-	rpc_srv->rsx_xprts_nr      = 1;
+	rpc_srv->rsx_xprts         = m0_net_all_xprt_get();
+	rpc_srv->rsx_xprts_nr      = m0_net_xprt_nr();
 	rpc_srv->rsx_argv          = argv;
 	rpc_srv->rsx_argc          = ARRAY_SIZE(argv);
 	snprintf(log_name, LOG_NAME_MAX_LEN, "confd_%s.log", confd_ep);
@@ -108,6 +107,7 @@ static void storage_dev_test(void)
 	int                      total_size;
 	int                      grp_size;
 	char                    *cwd;
+	char                     tmp_location[128];
 	char                    *fname1, *fname2;
 	int                      block_size = 1 << BALLOC_DEF_BLOCK_SHIFT;
 	struct m0_conf_sdev      sdev = {
@@ -132,7 +132,8 @@ static void storage_dev_test(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* init */
-	domain = m0_stob_domain_find_by_location(location);
+	snprintf(tmp_location, 128, "%s-%d", location, (int)m0_pid());
+	domain = m0_stob_domain_find_by_location(tmp_location);
 	rc = m0_storage_devs_init(&devs,
 				  M0_STORAGE_DEV_TYPE_AD,
 				  rpc_srv.rsx_motr_ctx.cc_reqh_ctx.rc_beseg,

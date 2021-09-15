@@ -24,6 +24,8 @@
 #include "motr/addb.h"
 #include "motr/idx.h"
 #include "motr/sync.h"
+#include "dtm0/dtx.h" /* m0_dtm0_dtx_* API */
+#include "dtm0/service.h" /* m0_dtm0_service_find */
 
 #include "lib/errno.h"
 #include "lib/finject.h"
@@ -111,6 +113,9 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 	struct m0_op_idx    *oi;
 	struct m0_entity    *entity;
 	struct m0_locality  *locality;
+	struct m0_client    *m0c;
+	uint64_t             cid;
+	uint64_t             did;
 
 	M0_ENTRY();
 
@@ -119,6 +124,7 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 
 	/* Initialise the operation's generic part. */
 	entity = &idx->in_entity;
+	m0c = entity->en_realm->re_instance;
 	op->op_code = opcode;
 	rc = m0_op_init(op, &m0_op_conf, entity);
 	if (rc != 0)
@@ -150,41 +156,81 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 	m0_op_idx_bob_init(oi);
 	m0_ast_rc_bob_init(&oi->oi_ar);
 
+	if (ENABLE_DTM0 && M0_IN(op->op_code, (M0_IC_PUT, M0_IC_DEL))) {
+		M0_ASSERT(m0c->m0c_dtms != NULL);
+		oi->oi_dtx = m0_dtx0_alloc(m0c->m0c_dtms, oi->oi_sm_grp);
+		if (oi->oi_dtx == NULL)
+			return M0_ERR(-ENOMEM);
+		did = m0_sm_id_get(&oi->oi_dtx->tx_dtx->dd_sm);
+		cid = m0_sm_id_get(&op->op_sm);
+		M0_ADDB2_ADD(M0_AVI_CLIENT_TO_DIX, cid, did);
+	} else
+		oi->oi_dtx = NULL;
+
 	return M0_RC(0);
 }
 
-/**
- * Completes an index operation by moving the state of all its state machines
- * to successful states.
- */
-static void idx_op_complete(struct m0_op_idx *oi)
+static struct m0_op_idx *ar_ast2oi(struct m0_sm_ast *ast)
 {
-	struct m0_op        *op;
-	struct m0_sm_group  *op_grp;
-	struct m0_sm_group  *en_grp;
+	struct m0_ast_rc *ar;
+	ar = bob_of(ast,  struct m0_ast_rc, ar_ast, &ar_bobtype);
+	return bob_of(ar, struct m0_op_idx, oi_ar, &oi_bobtype);
+}
 
-	M0_ENTRY();
+static void idx_op_complete_state_set(struct m0_sm_group *grp,
+				      struct m0_sm_ast   *ast,
+				      uint64_t            mask)
+{
+	struct m0_op_idx    *oi = ar_ast2oi(ast);
+	struct m0_op        *op = &oi->oi_oc.oc_op;
+	struct m0_sm_group  *op_grp = &op->op_sm_group;
+	struct m0_sm_group  *en_grp = &op->op_entity->en_sm_group;
 
-	M0_PRE(oi != NULL);
-	op = &oi->oi_oc.oc_op;
-	op_grp = &op->op_sm_group;
-	en_grp = &op->op_entity->en_sm_group;
-	m0_sm_group_lock(en_grp);
+	M0_ENTRY("oi=%p, mask=%" PRIu64, oi, mask);
 
-	if (op->op_code == M0_EO_CREATE)
-		m0_sm_move(&op->op_entity->en_sm, 0, M0_ES_OPEN);
-	else if (op->op_code == M0_EO_DELETE)
-		m0_sm_move(&op->op_entity->en_sm, 0, M0_ES_INIT);
-	m0_sm_group_unlock(en_grp);
+	M0_PRE(grp != NULL);
+	M0_PRE(m0_sm_group_is_locked(grp));
+	M0_PRE((mask & ~M0_BITS(M0_OS_EXECUTED, M0_OS_STABLE)) == 0);
+
+	oi->oi_in_completion = true;
+
+	if (M0_IN(op->op_code, (M0_EO_CREATE, M0_EO_DELETE))) {
+		m0_sm_group_lock(en_grp);
+		if (op->op_code == M0_EO_CREATE)
+			m0_sm_move(&op->op_entity->en_sm, 0, M0_ES_OPEN);
+		else if (op->op_code == M0_EO_DELETE)
+			m0_sm_move(&op->op_entity->en_sm, 0, M0_ES_INIT);
+		m0_sm_group_unlock(en_grp);
+	}
 
 	m0_sm_group_lock(op_grp);
-	m0_sm_move(&op->op_sm, 0, M0_OS_EXECUTED);
-	m0_op_executed(op);
-	m0_sm_move(&op->op_sm, 0, M0_OS_STABLE);
-	m0_op_stable(op);
+	if ((mask & M0_BITS(M0_OS_EXECUTED)) != 0) {
+		m0_sm_move(&op->op_sm, 0, M0_OS_EXECUTED);
+		m0_op_executed(op);
+	}
+	if ((mask & M0_BITS(M0_OS_STABLE)) != 0) {
+		m0_sm_move(&op->op_sm, 0, M0_OS_STABLE);
+		m0_op_stable(op);
+		if (oi->oi_dtx != NULL) {
+			m0_dtx0_done(oi->oi_dtx);
+			oi->oi_dtx = NULL;
+		}
+	}
 	m0_sm_group_unlock(op_grp);
 
 	M0_LEAVE();
+}
+
+M0_INTERNAL void idx_op_ast_stable(struct m0_sm_group *grp,
+				   struct m0_sm_ast *ast)
+{
+	idx_op_complete_state_set(grp, ast, M0_BITS(M0_OS_STABLE));
+}
+
+M0_INTERNAL void idx_op_ast_executed(struct m0_sm_group *grp,
+				     struct m0_sm_ast *ast)
+{
+	idx_op_complete_state_set(grp, ast, M0_BITS(M0_OS_EXECUTED));
 }
 
 /**
@@ -196,21 +242,8 @@ static void idx_op_complete(struct m0_op_idx *oi)
 M0_INTERNAL void idx_op_ast_complete(struct m0_sm_group *grp,
 				     struct m0_sm_ast *ast)
 {
-	struct m0_op_idx *oi;
-	struct m0_ast_rc *ar;
-
-	M0_ENTRY();
-
-	M0_PRE(grp != NULL);
-	M0_PRE(m0_sm_group_is_locked(grp));
-	M0_PRE(ast != NULL);
-
-	ar = bob_of(ast,  struct m0_ast_rc, ar_ast, &ar_bobtype);
-	oi = bob_of(ar, struct m0_op_idx, oi_ar, &oi_bobtype);
-	oi->oi_in_completion = true;
-	idx_op_complete(oi);
-
-	M0_LEAVE();
+	idx_op_complete_state_set(grp, ast,
+				  M0_BITS(M0_OS_EXECUTED, M0_OS_STABLE));
 }
 
 /**
@@ -392,6 +425,9 @@ static void idx_op_cb_launch(struct m0_op_common *oc)
 	/* Move to a different state and call the control function. */
 	m0_sm_group_lock(&op->op_entity->en_sm_group);
 
+	if (oi->oi_dtx)
+		m0_dtx0_prepare(oi->oi_dtx);
+
 	switch (op->op_code) {
 	case M0_EO_CREATE:
 		m0_sm_move(&op->op_entity->en_sm, 0,
@@ -528,7 +564,7 @@ void m0_idx_init(struct m0_idx    *idx,
 	M0_PRE(parent != NULL);
 	M0_PRE(id != NULL);
 
-	/* Initalise the entity */
+	/* Initialise the entity */
 	m0_entity_init(&idx->in_entity, parent, id, M0_ET_IDX);
 
 	M0_LEAVE();

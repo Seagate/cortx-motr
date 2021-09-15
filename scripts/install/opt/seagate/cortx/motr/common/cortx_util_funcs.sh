@@ -111,3 +111,16 @@ dbg()
        echo -e "\n$DI[DBG] $1"
     fi
 }
+
+get_platform()
+{
+    plt=$(systemd-detect-virt)
+
+    if [[ $plt = "none" ]]; then
+        plt="physical"
+    else
+        plt="virtual"
+    fi
+
+    echo "$plt"
+}

@@ -144,7 +144,7 @@ int main(int argc, char **argv)
 		fflush(stdin);
 		offset = 0;
 		update_flag = false;
-		m0_console_printf("m0kv >>");
+		m0_console_printf("m0client >>");
 		arg = fgets(cmd, CMD_SIZE, stdin);
 		if (arg == NULL)
 			continue;

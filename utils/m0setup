@@ -35,13 +35,16 @@ readonly ETC_HALON_DIR='/etc/halon'
 readonly LINUXSTOB_MIN_IOS_NUM=3
 readonly DEFAULT_POOL_WIDTH=8
 readonly DEFAULT_IMETA_POOL_WIDTH=4
-readonly MOTR_SYSCONF='/etc/sysconfig/motr'
+SYSCONF_DIR=/etc/sysconfig
+[ -d $SYSCONF_DIR ] || SYSCONF_DIR=/etc/default
+readonly MOTR_SYSCONF="$SYSCONF_DIR/motr"
 
 # variables
 verbose=false
 do_cleanup=false
 do_loop_cleanup=false
 use_existing_loop_imgs=false
+init_loop_only=false
 do_gendisk=true
 do_genfacts=false
 do_mkfs=false
@@ -64,6 +67,7 @@ disk_pattern=
 linuxstob_mode=false
 client_apps=false
 use_m0t1fs=true
+loop_devsused=()
 
 #
 # Usage
@@ -188,7 +192,7 @@ parse_cli_options()
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
     TEMP=$( getopt --options hvclICEGHVAMP:N:K:i:d:m:s:p:z:Z:: \
-                   --longoptions help,verbose,cleanup,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,client-apps,activate-singlenode-services,mkfs,list-disks,no-cas,no-m0t1fs,pool-width:,data-units:,parity-units:,ipool-width:,iparity-units:,ios-number:,loop-img-dir:,motr-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
+                   --longoptions help,verbose,cleanup,init-loop-only,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,client-apps,activate-singlenode-services,mkfs,list-disks,no-cas,no-m0t1fs,pool-width:,data-units:,parity-units:,ipool-width:,iparity-units:,ios-number:,loop-img-dir:,motr-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -203,6 +207,7 @@ parse_cli_options()
             -l|--list-disks)    only_list_disks=true; shift   ;;
             -I|--no-directio)   directio=false;       shift   ;;
             -C)                 do_cleanup=true;      shift   ;;
+            --init-loop-only)   init_loop_only=true;  shift   ;;
             -E|--use-existing-loop-imgs)
                                 use_existing_loop_imgs=true; shift ;;
             -M|--mkfs)          do_mkfs=true;         shift   ;;
@@ -221,14 +226,14 @@ parse_cli_options()
                                 shift 2 ;;
             -Z|--linuxstob-mode)
                                 linuxstob_mode=true
-                                [[ -n $2 ]] && motr_data_dir=$2
+                                [[ -n "$2" ]] && motr_data_dir=$2
                                 do_gendisk=false
                                 directio=false
                                 shift 2 ;;
             -P|--pool-width)    pool_width=$2;        shift 2 ;;
             -N|--data-units)    data_units=$2;        shift 2 ;;
             -K|--parity-units)  parity_units=$2;      shift 2 ;;
-            --pool-width)       ipool_width=$2;       shift 2 ;;
+            --ipool-width)      ipool_width=$2;       shift 2 ;;
             --parity-units)     iparity_units=$2;     shift 2 ;;
             --no-cas)           cas_enabled=false;    shift   ;;
             -i|--ios-number)    ios_num=$2; ios_num_is_set=true; shift 2 ;;
@@ -319,17 +324,33 @@ setup_loop_devices()
     log "Setting up loop devices"
     for i in $(seq $imgs_cnt) ; do
         local img_file="$loop_img_dir/disk$i.img"
-        debug "/dev/loop$i => $img_file"
+        local free_loopdev=$(losetup -f)
+        loop_devsused[$i]=$free_loopdev
+        debug "$free_loopdev => $img_file"
         [[ -e $img_file ]] ||
             die "image file '$img_file' doesn't exist"
-        losetup /dev/loop$i "$img_file"
+        losetup $free_loopdev "$img_file"
     done
 }
 
 cleanup_loop_devices()
 {
+    local imgs_cnt=$pool_width
+
+    if $cas_enabled ; then
+        imgs_cnt=$((pool_width + ipool_width))
+    fi
+
     log "Removing loop devices"
-    losetup -D
+    for i in $(seq $imgs_cnt) ; do
+        local img_file="$loop_img_dir/disk$i.img"
+        if [[ -e $img_file ]] ; then
+            local loop_todel=$(losetup -j $img_file -O name | grep loop)
+            if [[ -n "$loop_todel" ]] ; then
+                losetup -d $loop_todel
+            fi
+        fi
+    done
 }
 
 cleanup_loop_images()
@@ -417,7 +438,7 @@ GENDERS_END
 $hostname  m0_stob_mode=linux
 GENDERS_END
 
-        if [[ -n $linuxstob_stobs_dir ]] ; then
+        if [[ -n "$linuxstob_stobs_dir" ]] ; then
             cat <<GENDERS_END >> $genders_file
 $hostname  m0_stobdir=$linuxstob_stobs_dir
 GENDERS_END
@@ -446,7 +467,7 @@ generate_halon_facts()
     local net_if=$(ip -oneline -4 address show scope global up | grep -v docker |
                    tail -n 1 | awk '{print $2}')
 
-    [[ -n $disks ]] ||
+    [[ -n "$disks" ]] ||
         die "failed to find disks matching '$pattern' pattern"
 
     debug $disks
@@ -465,7 +486,7 @@ generate_halon_facts()
         ln $vopt -sf $motr_role_file $motr_role_file
     fi
 
-    local halond_conf=/etc/sysconfig/halond
+    local halond_conf=$SYSCONF_DIR/halond
 
     if [[ ! -e $halond_conf ]] ; then
         log "Generating $halond_conf"
@@ -491,8 +512,9 @@ generate_disk_configs()
     local vopt=$( $verbose && echo '-v' )
     local disks_per_ios=$(( $pool_width / $ios_num ))
     local start_id=1
+    local pattern=""
 
-    if [[ -n $disk_pattern ]] ; then
+    if [[ -n "$disk_pattern" ]] ; then
         local disks=( $(m0gendisks -l -d $pool_width -p "$disk_pattern") )
     fi
 
@@ -505,7 +527,9 @@ generate_disk_configs()
             $m0gendisks -d $disks_per_ios -S $start_id -o "$disks_conf" $vopt \
                         ${disks[@]:$((start_id - 1)):$disks_per_ios}
         else
-            local pattern="/dev/loop{${start_id}..$(( $start_id + $disks_per_ios - 1 ))}"
+            for j in $(seq $start_id $((disks_per_ios + start_id - 1)) ) ; do
+                pattern+="${loop_devsused[$j]} "
+            done
             debug "$disks_conf $pattern"
             $m0gendisks -d $disks_per_ios -S $start_id -p "$pattern" \
                         -o "$disks_conf" $vopt
@@ -549,6 +573,11 @@ parse_cli_options "$@"
 [[ $UID -eq 0 ]] ||
     die 'Please, run this script with "root" privileges.'
 
+if $init_loop_only ; then
+    init_loop_devices
+    exit 0
+fi
+
 if $use_m0t1fs ; then
     echo "Enabling m0t1fs in $MOTR_SYSCONF"
     sed -i 's/MOTR_M0T1FS=no/MOTR_M0T1FS=yes/g' $MOTR_SYSCONF
@@ -575,7 +604,7 @@ if $activate_singlenode ; then
     exit 0
 fi
 
-if $only_list_disks && [[ -z $disk_pattern ]] ; then
+if $only_list_disks && [[ -z "$disk_pattern" ]] ; then
     die "-l|--list-disks option requires the -p|--disk-pattern option"
 fi
 
@@ -584,7 +613,7 @@ fi
     mkdir -p "$motr_data_dir" ;
 }
 
-[[ -z $linuxstob_stobs_dir || -d $linuxstob_stobs_dir ]] ||
+[[ -z "$linuxstob_stobs_dir" || -d $linuxstob_stobs_dir ]] ||
     die "Path '$linuxstob_stobs_dir' doesn't exist"
 
 if $linuxstob_mode ; then
@@ -611,7 +640,7 @@ if $do_genfacts && ($do_mkfs || [[ $ios_num -gt 1 ]]) ; then
         "'-i|--ios-number' options"
 fi
 
-if [[ -n $disk_pattern ]] ; then
+if [[ -n "$disk_pattern" ]] ; then
     info_msg="disk pattern $disk_pattern"
 elif $linuxstob_mode ; then
     info_msg="${loop_img_size_gb}GiB linuxstobs in '${linuxstob_stobs_dir:-$motr_data_dir}'"
@@ -637,7 +666,7 @@ $only_list_disks ||
     mkdir -p "$ETC_HALON_DIR" ;
 }
 
-if [[ -n $disk_pattern ]] ; then
+if [[ -n "$disk_pattern" ]] ; then
     if $only_list_disks ; then
         $(path_of m0gendisks) -l -d $pool_width -p "$disk_pattern"
         exit 0

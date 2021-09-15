@@ -93,7 +93,7 @@ ioo_to_poolmach(struct m0_op_io *ioo)
 static bool indexvec_segments_overlap(struct m0_indexvec *ivec)
 {
 	uint32_t seg;
-	bool     overlap;
+	bool     overlap = false;
 
 	for (seg = 0; seg < SEG_NR(ivec) - 1; ++seg) {
 		overlap = (INDEX(ivec, seg) + COUNT(ivec, seg)) >
@@ -556,6 +556,7 @@ static int obj_io_init(struct m0_obj      *obj,
 	ioo->ioo_sns_state = SRS_UNINITIALIZED;
 	ioo->ioo_ext = *ext;
 	ioo->ioo_flags = flags;
+	ioo->ioo_flags |= M0_OOF_SYNC;
 	if (M0_IN(opcode, (M0_OC_READ, M0_OC_WRITE))) {
 		ioo->ioo_data = *data;
 		ioo->ioo_attr = *attr;
@@ -732,7 +733,7 @@ int m0_obj_op(struct m0_obj       *obj,
 	M0_PRE(obj != NULL);
 	M0_PRE(op != NULL);
 	M0_PRE(ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOHOLE))));
-	M0_PRE(ergo(opcode != M0_OC_READ, flags == 0));
+	M0_PRE(ergo(opcode != M0_OC_READ, M0_IN(flags, (0, M0_OOF_SYNC))));
 
 	if (M0_FI_ENABLED("fail_op"))
 		return M0_ERR(-EINVAL);

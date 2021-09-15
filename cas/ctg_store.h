@@ -624,9 +624,8 @@ M0_INTERNAL void m0_ctg_try_init(struct m0_cas_ctg *ctg);
  *
  * Should be called after m0_ctg_drop().
  */
-M0_INTERNAL int m0_ctg_fini(struct m0_ctg_op  *ctg_op,
-			    struct m0_cas_ctg *ctg,
-			    int                next_phase);
+M0_INTERNAL void m0_ctg_fini(struct m0_fom     *fom0,
+			     struct m0_cas_ctg *ctg);
 
 /**
  * Calculates credits necessary to move catalogue to "dead index" catalogue.
@@ -759,6 +758,9 @@ M0_INTERNAL int m0_ctg_meta_find_ctg(struct m0_cas_ctg    *meta,
 
 /** Get btree ops for ctg tree. */
 M0_INTERNAL const struct m0_be_btree_kv_ops *m0_ctg_btree_ops(void);
+
+/** Update number of records and record size in cas state. */
+M0_INTERNAL void m0_ctg_state_inc_update(struct m0_be_tx *tx, uint64_t size);
 
 /** @} end of cas-ctg-store group */
 #endif /* __MOTR_CAS_CTG_STORE_H__ */

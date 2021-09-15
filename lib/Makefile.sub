@@ -167,6 +167,5 @@ EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/varr.c \
               lib/linux_kernel/vec.h \
               lib/linux_kernel/ut/main.c \
-              lib/linux_ccnt/aarch64_cycle_counter.h \
-              lib/linux_ccnt/aarch64_cycle_counter.c
-
+              lib/linux_kernel/aarch64_cycle_counter.h \
+              lib/linux_kernel/aarch64_cycle_counter.c

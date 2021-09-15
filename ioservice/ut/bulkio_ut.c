@@ -38,6 +38,9 @@
 #include "fop/fom_generic.c"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
+
+static bool bulkio_stob_created = false;
+
 static struct bulkio_params *bp;
 
 static struct m0_buf payload_buf = M0_BUF_INIT0;
@@ -250,6 +253,7 @@ enum fom_state_transition_tests {
 	TEST07,
 	TEST10,
 	TEST11,
+	TEST12
 };
 
 static int                        i = 0;
@@ -262,8 +266,9 @@ static void empty_buffers_pool(uint32_t colour)
 {
 	i--;
 	m0_net_buffer_pool_lock(buf_pool);
-	do nb_list[++i] = m0_net_buffer_pool_get(buf_pool, colour);
-	while (nb_list[i] != NULL);
+	do {
+		nb_list[++i] = m0_net_buffer_pool_get(buf_pool, colour);
+	} while (nb_list[i] != NULL);
 	m0_net_buffer_pool_unlock(buf_pool);
 }
 
@@ -684,7 +689,15 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	                     rc == M0_FSO_AGAIN &&
 	                     m0_fom_phase(fom) == M0_FOPH_SUCCESS);
 
-	        fill_buffers_pool(colour);
+		fill_buffers_pool(colour);
+		next_write_test = TEST12;
+	} else if (next_write_test == TEST12) {
+		/* @todo XXX Add tests for M0_FOPH_IO_SYNC, M0_IO_FLAG_SYNC. */
+		fom_phase_set(fom, M0_FOPH_IO_SYNC);
+	        rc = m0_io_fom_cob_rw_tick(fom);
+	        M0_UT_ASSERT(m0_fom_rc(fom) == 0 &&
+	                     rc == M0_FSO_AGAIN &&
+	                     m0_fom_phase(fom) == M0_FOPH_QUEUE_REPLY);
 	} else {
 	        M0_UT_ASSERT(0); /* this should not happen */
 	        rc = M0_FSO_WAIT; /* to avoid compiler warning */
@@ -1034,7 +1047,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	                     rc == M0_FSO_AGAIN &&
 	                     m0_fom_phase(fom) == M0_FOPH_SUCCESS);
 
-	        fill_buffers_pool(colour);
+		fill_buffers_pool(colour);
 	} else {
 	        M0_UT_ASSERT(0); /* this should not happen */
 	        rc = M0_FSO_WAIT; /* to avoid compiler warning */
@@ -1084,14 +1097,22 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 	cc.fco_cob_type = M0_COB_IO;
 
 	rc = m0_cc_cob_setup(&cc, ios->rios_cdom, &attr, m0_fom_tx(fom));
-	M0_UT_ASSERT(rc == 0);
+	if (!bulkio_stob_created)
+		M0_UT_ASSERT(rc == 0);
+	else {
+		M0_UT_ASSERT(rc == -EEXIST);
+	}
 
 	rc = m0_stob_find(&stob_id, &fom_obj->fcrw_stob);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_locate(fom_obj->fcrw_stob);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_create(fom_obj->fcrw_stob, &fom->fo_tx, NULL);
-	M0_UT_ASSERT(rc == 0);
+	if (!bulkio_stob_created)
+		M0_UT_ASSERT(rc == 0);
+	else {
+		M0_UT_ASSERT(rc == -EEXIST);
+	}
 
 	m0_cob_oikey_make(&oikey, &cc.fco_cfid, 0);
 	rc = m0_cob_locate(ios->rios_cdom, &oikey, 0, &cob);
@@ -1237,6 +1258,7 @@ static void bulkio_stob_create(void)
 		io_fops_rpc_submit(&targ[i]);
 	}
 	io_fops_destroy(bp);
+	bulkio_stob_created = true;
 }
 
 static void io_fops_submit(uint32_t index, enum M0_RPC_OPCODES op)
@@ -1735,6 +1757,11 @@ static void bulkio_init(void)
 	const char *caddr = "0@lo:12345:34:*";
 	const char *saddr = "0@lo:12345:34:1";
 
+	i = 0;
+	M0_SET0(&nb_list);
+	buf_pool = NULL;
+	next_write_test = TEST00;
+	next_read_test  = TEST00;
 	/*
 	 * Current set of tests work with standalone io_fops, but
 	 * io_fop_di_prepare() relies on the fact that an io_fop is embedded
@@ -1742,6 +1769,7 @@ static void bulkio_init(void)
 	 * for the tests in order to avoid crashes.
 	 */
 	m0_fi_enable("io_fop_di_prepare", "skip_di_for_ut");
+	m0_fi_enable("m0_file_init", "skip_di_for_ut");
 
 	M0_ALLOC_PTR(bp);
 	M0_ASSERT(bp != NULL);
@@ -1770,6 +1798,7 @@ static void bulkio_fini(void)
 	m0_free(bp);
 
 	m0_fi_disable("io_fop_di_prepare", "skip_di_for_ut");
+	m0_fi_disable("m0_file_init", "skip_di_for_ut");
 }
 
 /*

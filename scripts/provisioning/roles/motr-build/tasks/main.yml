@@ -31,6 +31,79 @@
     state: present
     name:  '{{ motr_build_deps_pkgs }}'
 
+- name: Build and install Intel isa-l rpm
+  block:
+  - name: check if isa-l is already installed
+    stat: path=/usr/lib64/libisal.so
+    register: isalibrary
+
+  - name: Install isa-l dependencies
+    when: isalibrary.stat.exists == False
+    command: yum-builddep -y roles/motr-build/tasks/isa-l.spec
+    register: isa_builddep_result
+    changed_when: '"No uninstalled build requires" not in isa_builddep_result.stdout'
+
+  - name: Update spec file
+    replace:
+      path: roles/motr-build/tasks/isa-l.spec
+      regexp: "\r"
+
+  - name: build isa-l rpms
+    command: rpmbuild --define '_isa_l_version 2.30.0' -bb roles/motr-build/tasks/isa-l.spec
+    args:
+      creates: ~/rpmbuild/RPMS/x86_64/isa-l-*.rpm
+
+  - name: read isa-l package version
+    shell: |
+      ls --reverse ~/rpmbuild/RPMS/x86_64/isa-l-*.rpm \
+      | grep -oP '(?<=isa-l-).*(?=\.rpm)' \
+      | head -n1
+    register: isal_version
+    changed_when: false
+    check_mode: no
+
+  - name: install local isa-l rpms
+    yum:
+      name:
+        - /root/rpmbuild/RPMS/x86_64/isa-l-{{ isal_version.stdout }}.rpm
+      state: present
+    tags: isal-custom-build
+
+  - name: clean yum metadata
+    command: yum clean metadata
+    args:
+      warn: no
+    changed_when: false
+
+  - name: create local repo dir
+    file:
+      path: /var/lib/yum/localrepos/isal-local
+      state: directory
+      mode: 0755
+
+  - name: copy isa-l rpm to local repo
+    copy:
+      src: '~/rpmbuild/RPMS/x86_64/isa-l-{{ isal_version.stdout }}.rpm'
+      dest: /var/lib/yum/localrepos/isal-local
+      remote_src: yes
+
+  - name: create local repo
+    command: createrepo --pretty .
+    args:
+      chdir: /var/lib/yum/localrepos/isal-local
+    changed_when: false
+
+  - name: add local repo yum config
+    yum_repository:
+      name:        isal-local
+      file:        isal-local
+      description: isal local
+      baseurl:     file:///var/lib/yum/localrepos/isal-local
+      enabled:     yes
+      gpgcheck:    no
+  tags:
+    - isa-l
+
 - name: install Motr build-time python3 dependencies
   package:
     state: present

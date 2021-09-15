@@ -21,7 +21,6 @@
 
 
 #include "rm/rm_service.h"
-#include "net/lnet/lnet.h" /* m0_net_lnet_xprt */
 #include "rm/ut/rmut.h"    /* rm_ctx */
 #include "rpc/rpclib.h"    /* m0_rpc_server_ctx */
 #include "ut/misc.h"       /* M0_UT_PATH */
@@ -44,14 +43,12 @@ static char *server_argv[] = {
 
 extern struct m0_reqh_service_type m0_rms_type;
 
-static struct m0_net_xprt *xprt        = &m0_net_lnet_xprt;
 static struct rm_ctx  *server_ctx  = &rm_ctxs[SERVER_1];
 static struct rm_ctx  *client_ctx  = &rm_ctxs[SERVER_2];
 static struct m0_clink     tests_clink[TEST_NR];
 extern void flock_client_utdata_ops_set(struct rm_ut_data *data);
 
 static struct m0_rpc_server_ctx sctx = {
-	.rsx_xprts            = &xprt,
 	.rsx_xprts_nr         = 1,
 	.rsx_argv             = server_argv,
 	.rsx_argc             = ARRAY_SIZE(server_argv),
@@ -73,6 +70,11 @@ static void rm_service_stop(struct m0_rpc_server_ctx *sctx)
 
 static void rm_svc_server(const int tid)
 {
+	M0_SET0(&sctx.rsx_motr_ctx);
+
+	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
+
 	rm_service_start(&sctx);
 
 	/* Signal client that server is now up and running */

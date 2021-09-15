@@ -30,10 +30,55 @@ MOTR_GENDERS_CONF=/etc/motr/genders
 MOTR_CONF_XC_DEFAULT=/etc/motr/conf.xc
 
 # service local variables
-user_config=/etc/sysconfig/motr
-ha_config="/etc/sysconfig/m0d-${1#m0d-}"
-kernel_config=/etc/sysconfig/motr-kernel
 service_funcs=/usr/libexec/cortx-motr/motr-service.functions
+
+# BE log resize
+MD_DIR="/var/motr"
+M0BETOOL="m0betool"
+BE_REPLAY="be_recovery_run"
+BE_RESIZE="be_log_resize"
+
+service_fid=""
+
+be_log_resize() {
+   local new_be_log_size=""
+   local current_be_log_size=""
+
+   # Extract current BE log file size
+   new_be_log_size=$(grep -w MOTR_M0D_BELOG_SIZE $user_config | grep -v '#' | cut -d"=" -f2)
+   if [[ -z "$new_be_log_size" ]]; then
+      m0_log "BE log size is not configured"
+      return 0
+   fi
+   m0_log "Given BE log size: $new_be_log_size"
+
+   # Validate current BE LOG file size and New BE LOG file size
+   current_be_log_size=$(ls -l "$MD_DIR"/"$service_fid"/db-log/o/0:28 | awk '{ print $5 }')
+   if [[ $current_be_log_size == "" ]]; then
+      m0_log "Failed to get existing be log size"
+      return 1
+   fi
+
+   if [[ "$current_be_log_size" == "$new_be_log_size" ]]; then
+      m0_log "Current and New BE log sizes are equal"
+      return 0
+   fi
+   m0_log "Current BE log size:  $current_be_log_size"
+
+   # Replay exist BE log
+   if ! $($M0BETOOL $BE_REPLAY $MD_DIR/"$service_fid"/db); then
+      m0_log "m0d service $service_fid  log replay is failed"
+      return 0
+   fi
+   m0_log "Completed log_replay"
+
+   # Resizing BE log file size with new BE log size
+   if ! $($M0BETOOL $BE_RESIZE $MD_DIR/"$service_fid"/db $new_be_log_size); then
+      m0_log "m0d service $service_fid log resize is failed"
+      return 0
+   fi
+   m0_log "Completed log_resize with $new_be_log_size"
+}
 
 m0_server()
 {
@@ -43,7 +88,7 @@ m0_server()
 
     source $service_funcs
 
-    [[ -n $service ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
+    [[ -n "$service" ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
 
     if [[ $service == m0d-* && ! -e $ha_config ]] ; then
         m0_exit "service config file '$ha_config' doesn't exist"
@@ -55,7 +100,7 @@ m0_server()
     [[ -r $user_config ]]   && source $user_config
 
     # apply global system tweaks
-    if [[ -n $KERNEL_HUGEPAGE_DEFRAG ]] ; then
+    if [[ -n "$KERNEL_HUGEPAGE_DEFRAG" ]] ; then
         local hpdefrag_file='/sys/kernel/mm/transparent_hugepage/defrag'
         echo "$KERNEL_HUGEPAGE_DEFRAG" > $hpdefrag_file
         m0_log "$hpdefrag_file: $(cat $hpdefrag_file)"
@@ -63,25 +108,25 @@ m0_server()
 
     # validate Halon config
     if [[ $service == m0d-* ]] ; then
-        [[ -n $MOTR_M0D_EP ]] &&
+        [[ -n "$MOTR_M0D_EP" ]] &&
             m0_log "MOTR_M0D_EP: $MOTR_M0D_EP" ||
                 m0_exit "MOTR_M0D_EP isn't set for $service service"
 
         m0_log "MOTR_PROCESS_FID: $(m0_get_proc_fid_for $service)"
 
-        [[ -z $MOTR_HA_EP ]] ||
+        [[ -z "$MOTR_HA_EP" ]] ||
             m0_log "MOTR_HA_EP: $MOTR_HA_EP"
 
-        if [[ -n $MOTR_M0D_DATA_DIR ]] ; then
+        if [[ -n "$MOTR_M0D_DATA_DIR" ]] ; then
             m0_log "MOTR_M0D_DATA_DIR: $MOTR_M0D_DATA_DIR"
         fi
 
-        if [[ -n $MOTR_CONF_XC ]] ; then
+        if [[ -n "$MOTR_CONF_XC" ]] ; then
             m0_log "MOTR_CONF_XC: $MOTR_CONF_XC"
         fi
     fi
 
-    [[ -n $MOTR_M0D_DEBUGGER ]] && export M0_DEBUGGER=$MOTR_M0D_DEBUGGER
+    [[ -n "$MOTR_M0D_DEBUGGER" ]] && export M0_DEBUGGER=$MOTR_M0D_DEBUGGER
 
     local service_dir=$(m0_get_m0d_data_dir_for $service)
     if [[ $MOTR_M0D_REMOVE_SERVICE_DIR == true ]] && [[ -d "$service_dir" ]] ; then
@@ -98,17 +143,21 @@ m0_server()
     local proc_fid="<$(m0_get_proc_fid_for $service)>"
     local be_seg0_path=
     local be_seg_path=
+    local be_seg_size=
 
     # @todo
     # These BE segment devices needs to pass through Motr configuration
     # (confd.xc) as part of MD service. This change may be workaround to
     # make it use for LDR-R1 data recovery.
-    if [[ -n $MOTR_BE_SEG0_PATH &&  -b $MOTR_BE_SEG0_PATH ]]; then
+    if [[ -n "$MOTR_BE_SEG0_PATH" &&  -b $MOTR_BE_SEG0_PATH ]]; then
         be_seg0_path=" -b $MOTR_BE_SEG0_PATH "
     fi
 
-    if [[ -n $MOTR_BE_SEG_PATH && -b $MOTR_BE_SEG_PATH ]]; then
+    if [[ -n "$MOTR_BE_SEG_PATH" && -b $MOTR_BE_SEG_PATH ]]; then
         be_seg_path=" -B $MOTR_BE_SEG_PATH "
+        if [[ -n "$MOTR_M0D_IOS_BESEG_SIZE" ]]; then
+            be_seg_size=" -z $MOTR_M0D_IOS_BESEG_SIZE"
+        fi
     fi
 
     # mds and rms are expected to read local configuration until the
@@ -153,7 +202,7 @@ m0_server()
         m0d-*) # Halon controlled services
 
                # check if it is a confd process
-               if [[ -n $MOTR_CONF_XC ]] ; then
+               if [[ -n "$MOTR_CONF_XC" ]] ; then
                    stob_type='-T linux'
                    MOTR_M0D_OPTS+=" -c $MOTR_CONF_XC"
                fi
@@ -180,7 +229,7 @@ m0_server()
     fi
 
     local addbstob_dir=${MOTR_M0D_ADDB_STOB_DIR:+$MOTR_M0D_ADDB_STOB_DIR/$service/}
-    [[ -z $addbstob_dir ]] || mkdir -p $addbstob_dir
+    [[ -z "$addbstob_dir" ]] || mkdir -p $addbstob_dir
 
     local binary=$(m0_path_to $cmd)
 
@@ -191,19 +240,29 @@ m0_server()
     sysctl -w vm.max_map_count=30000000
 
     # use custom trace files location if it's specified
-    [[ -z $MOTR_M0D_TRACE_DIR ]] || {
+    [[ -z "$MOTR_M0D_TRACE_DIR" ]] || {
         export M0_TRACE_DIR=$MOTR_M0D_TRACE_DIR/$service
         mkdir -p $M0_TRACE_DIR
     }
 
     # show actual exec commands in log file
-    set -x
+    if [[ -n "$MOTR_MOD_ADDB_RECORD_SIZE" ]]; then
+       addb_opts=" -r ${MOTR_MOD_ADDB_RECORD_SIZE}"
+    fi
 
+    # m0d services log resize
+    if [[ "$2" != "m0mkfs" ]]; then
+       service_fid=$1
+       m0_log "Service FID: $service_fid"
+       be_log_resize
+    fi
+
+    set -x
     exec $binary -e $service_ep \
                     -A linuxstob:${addbstob_dir}addb-stobs \
                     -f $proc_fid $stob_type $stob_path $MOTR_M0D_OPTS \
-                       $be_seg0_path $be_seg_path \
-                       $stob_opts $cmd_opts $MOTR_M0D_EXTRA_OPTS
+                       $be_seg0_path $be_seg_path $be_seg_size \
+                       $stob_opts $cmd_opts $addb_opts $MOTR_M0D_EXTRA_OPTS
 }
 
 

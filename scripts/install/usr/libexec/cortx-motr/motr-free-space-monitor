@@ -32,20 +32,20 @@ import bisect
 import json
 
 LIBMOTR_PATH = "/usr/lib64/libmotr.so"
-MOTR_CONFIG = "/etc/sysconfig/motr"
+SYSCONF_DIR = "/etc/sysconfig"
+if not os.path.isdir(SYSCONF_DIR):
+    SYSCONF_DIR = "/etc/default"
+MOTR_CONFIG = SYSCONF_DIR + "/motr"
 TOTAL_SPACE = "fs_total_disk"
 FREE_SPACE = "fs_free_disk"
 USAGE_PERCENTAGE = "usedprct"
 AVAILABLE = "available"
 USED = "used"
 SIZE = "size"
-FS_ERR_INVL = 1
-FS_ERR_RETRY = 2
-FS_ERR_TIMEOUT = 3
-IEM_ERR_FILE = 4
+FS_SYSTEMD_FAILED = 1
 conf = {}
 
-with open("/etc/sysconfig/motr-free-space-monitor") as f:
+with open(SYSCONF_DIR + "/motr-free-space-monitor") as f:
     for config in f.read().splitlines():
         if config.startswith("#"):
             continue
@@ -65,15 +65,7 @@ iem_work_dir = conf['WORK_DIR'].replace('"', '')
 iem_keep_trace_nr = int(conf['KEEP_TRACE_NUM'])
 log = logging.getLogger('IEM AlertLogs')
 log.setLevel(logging.ERROR)
-GET_STORAGE_DETAILS_CMD = '/usr/bin/m0_filesystem_stats -d ' + '-t ' + fs_stat_timeout
 GET_STORAGE_DETAILS_CMD = 'hctl status --json'
-
-def cleanup_m0trace():
-    trace_filename = iem_work_dir + "/m0trace.*"
-    traces = sorted(glob.iglob(trace_filename), key=os.path.getctime)
-    for cleanup in traces[:-iem_keep_trace_nr]:
-        os.remove(cleanup)
-
 
 def execute_command(command):
     rc = 0
@@ -86,7 +78,6 @@ def execute_command(command):
             pass
         rc = process.returncode
         if not process.stdout or rc != 0:
-            cleanup_m0trace()
             time.sleep(iem_alert_check_interval)
             continue
         console_output = json.loads(process.stdout.decode('utf-8'))
@@ -94,32 +85,34 @@ def execute_command(command):
         if not capacity_info:
             continue
         return capacity_info
-        #return re.sub(' +', ' ', process.stdout.decode('utf-8')).split('\n')
 
-    error_str = {FS_ERR_INVL: "Invalid Arguments",
-                 FS_ERR_TIMEOUT: "Command Timedout",
-                 FS_ERR_RETRY: "Server Busy"}
-    default = "Returned with error:" + str(rc)
-    msg = error_str.get(rc, default)
+    msg = " Returned with error " + str(rc)
     log.error(f"Failed to process command after {iem_max_retry} retry '{command}':{msg}")
     print(process.stderr.decode('utf-8'))
-    sys.exit(rc)
+    sys.exit(FS_SYSTEMD_FAILED)
 
 
 def read_cluster_size():
-    capacity_info = execute_command(GET_STORAGE_DETAILS_CMD)
-    if not capacity_info:
-        return None
-    storage_detail = {}
-    storage_detail[SIZE] = capacity_info[TOTAL_SPACE]
-    storage_detail[USED] = (capacity_info[TOTAL_SPACE] -
-                            capacity_info[FREE_SPACE])
-    storage_detail[AVAILABLE] = capacity_info[FREE_SPACE]
-    if not capacity_info[TOTAL_SPACE]:
-        return None
-    storage_detail[USAGE_PERCENTAGE] = round(100 - (capacity_info[FREE_SPACE] /
-                                                    capacity_info[TOTAL_SPACE])
-                                             * 100, 2)
+    storage_detail = None
+    for count in range(0, iem_max_retry):
+        capacity_info = execute_command(GET_STORAGE_DETAILS_CMD)
+        if not capacity_info:
+            time.sleep(iem_alert_check_interval)
+            storage_detail = None
+            continue
+        storage_detail = {}
+        storage_detail[SIZE] = capacity_info[TOTAL_SPACE]
+        storage_detail[USED] = (capacity_info[TOTAL_SPACE] -
+                                capacity_info[FREE_SPACE])
+        storage_detail[AVAILABLE] = capacity_info[FREE_SPACE]
+        if not capacity_info[TOTAL_SPACE]:
+            time.sleep(iem_alert_check_interval)
+            storage_detail = None
+            continue
+        storage_detail[USAGE_PERCENTAGE] = round(100 - (capacity_info[FREE_SPACE] /
+                                                        capacity_info[TOTAL_SPACE])
+                                                 * 100, 2)
+        break
     return storage_detail
 
 
@@ -133,8 +126,22 @@ def print_iem(usage_percentage):
     evt_id = iem_event_id
     msg = f"Cluster size {usage_percentage}"
     msg_b = msg.encode('utf-8')
-    libmotr.m0_motr_iem(ctypes.c_char_p(file_parm_b), function_parm, line_num,
-                        sev_id, mod_id, evt_id, ctypes.c_char_p(msg_b))
+
+#   Current libmotr api "m0_iem()" is generalize for all IEM alerts from motr.
+#   Which is not allowing to provide free space monitor alert message as
+#   required format, hence added print log to provide alert in required format.
+#   Keeping exiting logic as well (commented) as it may required in LDR-R2
+
+    usage_percentage = int(usage_percentage)
+    if usage_percentage < 85:
+        sev_id="W"
+    else:
+        sev_id="A"
+
+    log.error(f"IEC: {sev_id}S0020020002: Lyve Rack system has reached {usage_percentage}% of the storage capacity and may run out of space soon. You may contact your account team to get additional capacity.");
+#    libmotr.m0_time_init()
+#    libmotr.m0_iem(ctypes.c_char_p(file_parm_b), function_parm, line_num,
+#                        sev_id, mod_id, evt_id, ctypes.c_char_p(msg_b))
 
 
 if __name__ == '__main__':
@@ -157,7 +164,7 @@ if __name__ == '__main__':
     thr_min = min(param_list)
     thr_max = max(param_list)
     iem_alert_low_thresold = thr_min
-    iem_alert_high_thresold = min(100, thr_max + 1)
+    iem_alert_high_thresold = min(100, thr_max)
     iem_min_threshold = iem_alert_low_thresold
     list_len = len(param_list)
     os.makedirs(iem_work_dir, exist_ok=True)
@@ -170,49 +177,45 @@ if __name__ == '__main__':
                     local_libmotr = motr_src_path + '/' + "motr/.libs/libmotr.so"
                     if os.path.isfile(local_libmotr):
                         LIBMOTR_PATH = local_libmotr
-                        GET_STORAGE_DETAILS_CMD = GET_STORAGE_DETAILS_CMD + ' -l ' + LIBMOTR_PATH
                     else:
                         log.error("Could not find libmotr.so")
-                        sys.exit(IEM_ERR_FILE)
+                        sys.exit(FS_SYSTEMD_FAILED)
 
     try:
         libmotr = ctypes.CDLL(LIBMOTR_PATH)
     except Exception as e:
-        log.error(f"Failed to process command {e}")
-        sys.exit(IEM_ERR_FILE)
+        log.error(f"Failed to open libmotr with exception {e}")
+        sys.exit(FS_SYSTEMD_FAILED)
 
-    cleanup_m0trace()
     cluster_usage_prev = 0
     while True:
         send_iem = False
         wait_time = iem_alert_check_interval
         cluster_size = read_cluster_size()
         if not cluster_size:
-            log.error("Could not read filesystem stats")
-            sys.exit(IEM_ERR_FILE)
+                log.error("hctl status could not read filesystem stats")
+                sys.exit(FS_SYSTEMD_FAILED)
 
         cluster_usage_percentage = cluster_size[USAGE_PERCENTAGE]
         if cluster_usage_percentage > iem_min_threshold:
             if (cluster_usage_prev < iem_alert_low_thresold and
-                cluster_usage_percentage > iem_alert_low_thresold):
-                send_iem = True
-            if (cluster_usage_prev < iem_alert_high_thresold and
-                cluster_usage_percentage > iem_alert_high_thresold):
+                cluster_usage_percentage >= iem_alert_low_thresold):
                 send_iem = True
 
+#           update idx as per current usage percent to get current next low from
+#           from threshold list.
+            idx = bisect.bisect_right(param_list, cluster_usage_percentage)
+            if idx >= list_len:
+                idx = list_len - 1
+            iem_alert_low_thresold = param_list[idx]
+
             if send_iem:
-                idx = bisect.bisect_right(param_list, int(iem_alert_low_thresold))
-                if idx >= list_len:
-                    idx = list_len - 1
-                iem_alert_low_new = param_list[idx]
-                if iem_alert_high_thresold > iem_alert_low_thresold:
-                    iem_alert_low_thresold = iem_alert_low_new
-                    print_iem(cluster_usage_percentage)
+                print_iem(cluster_usage_percentage)
             cluster_usage_prev = cluster_usage_percentage
         else:
             if cluster_usage_prev > iem_min_threshold:
                 print_iem(cluster_usage_percentage)
                 cluster_usage_prev = 0
                 iem_alert_low_thresold = thr_min
-                iem_alert_high_thresold = thr_max
+                iem_alert_high_thresold = min(100, thr_max)
         time.sleep(wait_time)

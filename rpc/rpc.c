@@ -33,7 +33,7 @@
 #include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 #include "rpc/service.h"
-
+#include "net/lnet/lnet.h"
 /**
  * @addtogroup rpc
  * @{
@@ -84,11 +84,10 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 {
 	struct m0_rpc_session *session;
 	int                    error;
-
-	M0_LOG(M0_DEBUG, "%p[%s/%u]",
-	       item, item_kind(item), item->ri_type->rit_opcode);
-	M0_ENTRY("item: %p", item);
 	M0_PRE(item != NULL && item->ri_type != NULL);
+
+	M0_ENTRY("%p[%s/%u]",
+	       item, item_kind(item), item->ri_type->rit_opcode);
 	M0_PRE(m0_rpc_item_is_request(item));
 
 	session = item->ri_session;
@@ -285,49 +284,39 @@ M0_INTERNAL uint32_t m0_rpc_bufs_nr(uint32_t len, uint32_t tms_nr)
 M0_INTERNAL m0_bcount_t m0_rpc_max_seg_size(struct m0_net_domain *ndom)
 {
 	M0_PRE(ndom != NULL);
+	M0_PRE(ndom->nd_xprt != NULL);
+	M0_PRE(ndom->nd_xprt->nx_ops->xo_rpc_max_seg_size != NULL);
 
-#ifdef ENABLE_LUSTRE
-	return min64u(m0_net_domain_get_max_buffer_segment_size(ndom),
-		      M0_SEG_SIZE);
-#else
-	return M0_RPC_DEF_MAX_RPC_MSG_SIZE;
-#endif
+	return ndom->nd_xprt->nx_ops->xo_rpc_max_seg_size(ndom);
 }
 
 M0_INTERNAL uint32_t m0_rpc_max_segs_nr(struct m0_net_domain *ndom)
 {
 	M0_PRE(ndom != NULL);
+	M0_PRE(ndom->nd_xprt != NULL);
+	M0_PRE(ndom->nd_xprt->nx_ops->xo_rpc_max_segs_nr != NULL);
 
-#ifdef ENABLE_LUSTRE
-	return m0_net_domain_get_max_buffer_size(ndom) /
-	       m0_rpc_max_seg_size(ndom);
-#else
-	return 1;
-#endif
+	return ndom->nd_xprt->nx_ops->xo_rpc_max_segs_nr(ndom);
 }
 
 M0_INTERNAL m0_bcount_t m0_rpc_max_msg_size(struct m0_net_domain *ndom,
 					    m0_bcount_t rpc_size)
 {
-	m0_bcount_t mbs;
-
 	M0_PRE(ndom != NULL);
+	M0_PRE(ndom->nd_xprt != NULL);
+	M0_PRE(ndom->nd_xprt->nx_ops->xo_rpc_max_msg_size != NULL);
 
-	mbs = m0_net_domain_get_max_buffer_size(ndom);
-	return rpc_size != 0 ? m0_clip64u(M0_SEG_SIZE, mbs, rpc_size) : mbs;
+	return ndom->nd_xprt->nx_ops->xo_rpc_max_msg_size(ndom, rpc_size);
 }
 
 M0_INTERNAL uint32_t m0_rpc_max_recv_msgs(struct m0_net_domain *ndom,
 					  m0_bcount_t rpc_size)
 {
 	M0_PRE(ndom != NULL);
+	M0_PRE(ndom->nd_xprt != NULL);
+	M0_PRE(ndom->nd_xprt->nx_ops->xo_rpc_max_recv_msgs != NULL);
 
-#ifdef ENABLE_LUSTRE
-	return m0_net_domain_get_max_buffer_size(ndom) /
-	       m0_rpc_max_msg_size(ndom, rpc_size);
-#else
-	return 1;
-#endif
+	return ndom->nd_xprt->nx_ops->xo_rpc_max_recv_msgs(ndom, rpc_size);
 }
 
 M0_INTERNAL m0_time_t m0_rpc__down_timeout(void)

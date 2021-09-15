@@ -58,6 +58,20 @@ static void spiel_fop_destroy(struct m0_fop *fop)
 	m0_free(fop);
 }
 
+static void spiel_rpc_link_destroy(struct m0_rpc_link *rlink)
+{
+	M0_LOG(M0_DEBUG, "destroying rpc link %p", rlink);
+	if (rlink != NULL) {
+		if (rlink->rlk_connected) {
+			m0_time_t conn_timeout;
+			conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
+			m0_rpc_link_disconnect_sync(rlink, conn_timeout);
+		}
+		m0_rpc_link_fini(rlink);
+		m0_free(rlink);
+	}
+}
+
 static bool _filter_svc(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
@@ -175,9 +189,10 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel_core *spc,
 static int spiel_cmd_send(struct m0_rpc_machine *rmachine,
 			  const char            *remote_ep,
 			  struct m0_fop         *cmd_fop,
-			  m0_time_t              timeout)
+			  m0_time_t              timeout,
+			  struct m0_rpc_link   **rlink)
 {
-	struct m0_rpc_link *rlink;
+	struct m0_rpc_link *rpc_link;
 	m0_time_t           conn_timeout;
 	int                 rc;
 
@@ -188,31 +203,32 @@ static int spiel_cmd_send(struct m0_rpc_machine *rmachine,
 	M0_PRE(cmd_fop != NULL);
 
 	/* RPC link structure is too big to allocate it on stack */
-	M0_ALLOC_PTR(rlink);
-	if (rlink == NULL)
+	M0_ALLOC_PTR(rpc_link);
+	if (rpc_link == NULL)
 		return M0_ERR(-ENOMEM);
 
-	rc = m0_rpc_link_init(rlink, rmachine, NULL, remote_ep,
+	M0_LOG(M0_DEBUG, "initializing rpc link %p", rlink);
+	rc = m0_rpc_link_init(rpc_link, rmachine, NULL, remote_ep,
 			      SPIEL_MAX_RPCS_IN_FLIGHT);
 	if (rc == 0) {
 		conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
 		if (M0_FI_ENABLED("timeout"))
 			timeout = M0_TIME_ONE_SECOND;
-		rc = m0_rpc_link_connect_sync(rlink, conn_timeout) ?:
-		     m0_rpc_post_with_timeout_sync(cmd_fop,
-						    &rlink->rlk_sess,
-						    NULL,
-						    M0_TIME_IMMEDIATELY,
-						    timeout);
+		rc = m0_rpc_link_connect_sync(rpc_link, conn_timeout);
 
-		if (rlink->rlk_connected) {
-			conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
-			m0_rpc_link_disconnect_sync(rlink, conn_timeout);
+		if (rc == 0) {
+			*rlink = rpc_link;
+			rc = m0_rpc_post_with_timeout_sync(cmd_fop,
+							&rpc_link->rlk_sess,
+							NULL,
+							M0_TIME_IMMEDIATELY,
+							timeout);
+		} else {
+			m0_rpc_link_fini(rpc_link);
+			m0_free(rpc_link);
 		}
-		m0_rpc_link_fini(rlink);
 	}
 
-	m0_free(rlink);
 	return M0_RC(rc);
 }
 
@@ -413,7 +429,8 @@ static int spiel_svc_fop_fill(struct m0_fop          *fop,
 static int spiel_svc_fop_fill_and_send(struct m0_spiel_core *spc,
 				       struct m0_fop        *fop,
 				       const struct m0_fid  *svc_fid,
-				       uint32_t              cmd)
+				       uint32_t              cmd,
+				       struct m0_rpc_link  **rlink)
 {
 	int                     rc;
 	struct m0_conf_service *svc;
@@ -433,7 +450,7 @@ static int spiel_svc_fop_fill_and_send(struct m0_spiel_core *spc,
 	     spiel_ss_ep_for_svc(svc, &ss_ep);
 	if (rc == 0) {
 		rc = spiel_cmd_send(spc->spc_rmachine, ss_ep, fop,
-				    M0_TIME_NEVER);
+				    M0_TIME_NEVER, rlink);
 		m0_free(ss_ep);
 	}
 
@@ -459,8 +476,9 @@ static int spiel_svc_generic_handler(struct m0_spiel_core *spc,
 				     enum m0_sss_req_cmd   cmd,
 				     int                  *status)
 {
-	int            rc;
-	struct m0_fop *fop;
+	int                 rc;
+	struct m0_fop      *fop;
+	struct m0_rpc_link *rlink = NULL;
 
 	M0_ENTRY();
 
@@ -472,13 +490,15 @@ static int spiel_svc_generic_handler(struct m0_spiel_core *spc,
 	if (fop == NULL)
 		return M0_ERR(-ENOMEM);
 
-	rc = spiel_svc_fop_fill_and_send(spc, fop, svc_fid, cmd) ?:
+	rc = spiel_svc_fop_fill_and_send(spc, fop, svc_fid, cmd, &rlink) ?:
 	     spiel_sss_reply_data(fop)->ssr_rc;
 
 	if (rc == 0 && status != NULL)
 		*status = spiel_sss_reply_data(fop)->ssr_state;
 
 	m0_fop_put_lock(fop);
+	spiel_rpc_link_destroy(rlink);
+
 	return M0_RC(rc);
 }
 
@@ -555,6 +575,7 @@ static int spiel_device_command_fop_send(struct m0_spiel_core *spc,
 	struct m0_fop                *fop;
 	struct m0_sss_device_fop_rep *rep;
 	int                           rc;
+	struct m0_rpc_link	     *rlink = NULL;
 
 	fop = m0_sss_device_fop_create(spc->spc_rmachine, cmd, dev_fid);
 	if (fop == NULL)
@@ -563,17 +584,17 @@ static int spiel_device_command_fop_send(struct m0_spiel_core *spc,
 	rc = spiel_cmd_send(spc->spc_rmachine, endpoint, fop,
 			    cmd == M0_DEVICE_FORMAT ?
 				   SPIEL_DEVICE_FORMAT_TIMEOUT :
-				   M0_TIME_NEVER);
+				   M0_TIME_NEVER, &rlink);
 	if (rc == 0) {
 		rep = m0_sss_fop_to_dev_rep(
 				m0_rpc_item_to_fop(fop->f_item.ri_reply));
 		rc = rep->ssdp_rc;
 		if (ha_state != NULL)
 			*ha_state = rep->ssdp_ha_state;
-		m0_fop_put_lock(fop);
-	} else {
-		spiel_fop_destroy(fop);
 	}
+	m0_fop_put_lock(fop);
+	spiel_rpc_link_destroy(rlink);
+
 	return M0_RC(rc);
 }
 
@@ -675,7 +696,8 @@ static int spiel_proc_conf_obj_find(struct m0_spiel_core    *spc,
 
 static int spiel_process_command_send(struct m0_spiel_core *spc,
 				      const struct m0_fid  *proc_fid,
-				      struct m0_fop        *fop)
+				      struct m0_fop        *fop,
+				      struct m0_rpc_link  **rlink)
 {
 	struct m0_conf_process *process;
 	int                     rc;
@@ -695,7 +717,7 @@ static int spiel_process_command_send(struct m0_spiel_core *spc,
 	m0_confc_close(&process->pc_obj);
 
 	rc = spiel_cmd_send(spc->spc_rmachine, process->pc_endpoint, fop,
-			    M0_TIME_NEVER);
+			    M0_TIME_NEVER, rlink);
 	if (rc != 0)
 		spiel_fop_destroy(fop);
 	return M0_RC(rc);
@@ -707,18 +729,18 @@ static struct m0_ss_process_rep *spiel_process_reply_data(struct m0_fop *fop)
 }
 
 /**
- * When reply is not NULL, reply fop remains alive and gets passed to caller for
- * further reply data processing. Otherwise it immediately appears released.
+ * When ssp_rep is not NULL, reply fop data will be copied there.
  */
 static int spiel_process_command_execute(struct m0_spiel_core *spc,
 					 const struct m0_fid  *proc_fid,
 					 int                   cmd,
 					 const struct m0_buf  *param,
-					 struct m0_fop       **reply)
+					 struct m0_ss_process_rep *ssp_rep)
 {
 	struct m0_fop            *fop;
 	struct m0_ss_process_req *req;
 	int                       rc;
+	struct m0_rpc_link       *rlink = NULL;
 
 	M0_ENTRY();
 
@@ -733,15 +755,16 @@ static int spiel_process_command_execute(struct m0_spiel_core *spc,
 	req = m0_ss_fop_process_req(fop);
 	if (param != NULL)
 		req->ssp_param = *param;
-	rc = spiel_process_command_send(spc, proc_fid, fop);
+	rc = spiel_process_command_send(spc, proc_fid, fop, &rlink);
 	req->ssp_param = M0_BUF_INIT0; /* Clean param before destruction. */
 	if (rc == 0) {
 		rc = spiel_process_reply_data(fop)->sspr_rc;
-		if (reply != NULL)
-			*reply = fop;
-		else
-			m0_fop_put_lock(fop);
+		if (ssp_rep != NULL)
+			*ssp_rep = *spiel_process_reply_data(fop);
 	}
+	m0_fop_put_lock(fop);
+	spiel_rpc_link_destroy(rlink);
+
 	return M0_RC(rc);
 }
 
@@ -769,26 +792,19 @@ int m0_spiel_process_reconfig(struct m0_spiel     *spl,
 M0_EXPORTED(m0_spiel_process_reconfig);
 
 static int spiel_process__health(struct m0_spiel_core *spc,
-				 const struct m0_fid  *proc_fid,
-				 struct m0_fop       **reply)
+				 const struct m0_fid  *proc_fid)
 {
-	struct m0_fop *reply_fop;
+	struct m0_ss_process_rep ssp_rep = { 0 };
 	int            rc;
 	int            health;
 
 	M0_ENTRY();
 
-	reply_fop = NULL;
 	health = M0_HEALTH_UNKNOWN;
 	rc = spiel_process_command_execute(spc, proc_fid, M0_PROCESS_HEALTH,
-					   NULL, &reply_fop);
-	if (reply_fop != NULL) {
-		M0_ASSERT(rc == 0);
-		health = spiel_process_reply_data(reply_fop)->sspr_health;
-		if (reply != NULL)
-			*reply = reply_fop;
-		else
-			m0_fop_put_lock(reply_fop);
+					   NULL, &ssp_rep);
+	if (rc == 0) {
+		health = ssp_rep.sspr_health;
 	}
 	return rc < 0 ? M0_ERR(rc) : M0_RC(health);
 }
@@ -796,7 +812,7 @@ static int spiel_process__health(struct m0_spiel_core *spc,
 int m0_spiel_process_health(struct m0_spiel     *spl,
 			    const struct m0_fid *proc_fid)
 {
-	return M0_RC(spiel_process__health(&spl->spl_core, proc_fid, NULL));
+	return M0_RC(spiel_process__health(&spl->spl_core, proc_fid));
 }
 M0_EXPORTED(m0_spiel_process_health);
 
@@ -844,6 +860,7 @@ int m0_spiel_process_list_services(struct m0_spiel              *spl,
 	struct m0_fop                     *fop;
 	struct m0_ss_process_svc_list_rep *rep;
 	int                                rc;
+        struct m0_rpc_link                *rlink = NULL;
 
 	M0_ENTRY();
 
@@ -854,7 +871,7 @@ int m0_spiel_process_list_services(struct m0_spiel              *spl,
 				       M0_PROCESS_RUNNING_LIST, proc_fid);
 	if (fop == NULL)
 		return M0_ERR(-ENOMEM);
-	rc = spiel_process_command_send(&spl->spl_core, proc_fid, fop);
+	rc = spiel_process_command_send(&spl->spl_core, proc_fid, fop, &rlink);
 	if (rc == 0) {
 		rep = m0_ss_fop_process_svc_list_rep(
 				m0_rpc_item_to_fop(fop->f_item.ri_reply));
@@ -862,8 +879,9 @@ int m0_spiel_process_list_services(struct m0_spiel              *spl,
 		if (rc == 0)
 			rc = spiel_running_svcs_list_fill(&rep->sspr_services,
 							  services);
-		m0_fop_put_lock(fop);
 	}
+	m0_fop_put_lock(fop);
+	spiel_rpc_link_destroy(rlink);
 
 	return M0_RC(rc);
 }
@@ -949,6 +967,7 @@ static int spiel_repreb_cmd_send(struct m0_rpc_machine *rmachine,
 		item->ri_deadline = M0_TIME_IMMEDIATELY;
 		m0_fop_get(fop);
 		rc = m0_rpc_post(item);
+		m0_fop_put_lock(fop);
 	}
 	repreb->sr_is_connected = true;
 	return M0_RC(rc);
@@ -1817,6 +1836,7 @@ static bool spiel_proc_item_rlink_cb(struct m0_clink *clink)
 	item->ri_ops            = &spiel_process_health_ops;
 	item->ri_session        = &proc->spi_rlink.rlk_sess;
 	item->ri_prio           = M0_RPC_ITEM_PRIO_MID;
+	item->ri_nr_sent_max    = 5;
 	m0_fop_get(fop);
 	rc = M0_FI_ENABLED("rpc_post") ? -ENOTCONN : m0_rpc_post(item);
 	if (rc != 0) {

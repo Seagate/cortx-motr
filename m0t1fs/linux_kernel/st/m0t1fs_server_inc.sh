@@ -153,15 +153,24 @@ mkiosmddevs()
 	done
 }
 
+# Check if any of $pid (could be plural) are running
+checkpid() {
+    local i
+
+    for i in $* ; do
+        [ -d "/proc/$i" ] && return 0
+    done
+    return 1
+}
+
 servers_stop()
 {
-	prog=$1
-
-	source+eu /etc/rc.d/init.d/functions
+	echo "stopping $1 processes..."
+	local prog=$(basename "$1")
 
 	# shutdown services. mds should be stopped last, because
 	# other ioservices may have connections to mdservice.
-	local pids=$(__pids_pidof $prog)
+	local pids=$(pgrep "$prog")
 	echo === pids of services: $pids ===
 	echo "Shutting down services one by one. mdservice is the last."
 	local delay=5
@@ -180,14 +189,14 @@ servers_stop()
 			else
 				sleep 5
 				if checkpid $pid && sleep 5 &&
-					checkpid $pid && sleep $delay &&
-					checkpid $pid ; then
-				kill -KILL $pid &>/dev/null
-				usleep 100000
+				   checkpid $pid && sleep $delay &&
+				   checkpid $pid ; then
+					kill -KILL $pid &>/dev/null
+					sleep 1
+				fi
 			fi
 		fi
-	fi
-	echo "----- $pid stopped --------"
+		echo "----- $pid stopped --------"
 	done
 	return $rc
 }
@@ -218,15 +227,10 @@ motr_service()
 
         prog_mkfs="$M0_SRC_DIR/utils/mkfs/m0mkfs"
         prog_start="$M0_SRC_DIR/motr/m0d"
-        prog_exec="$M0_SRC_DIR/motr/.libs/lt-m0d"
 
 	if echo $(basename $0) | grep -q 'altogether'; then
 		prog_start="${prog_start}-altogether"
-		prog_exec="${prog_exec}-altogether"
 	fi
-	export prog_exec=$prog_exec
-
-	source+eu /etc/rc.d/init.d/functions
 
 	start() {
 		NR_IOS_DEVS=0
@@ -513,7 +517,7 @@ EOF
 	}
 
 	stop() {
-		servers_stop $prog_exec || rc=$?
+		servers_stop $prog_start || rc=$?
 		unprepare || rc=$?
 		return $rc
 	}

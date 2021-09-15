@@ -78,6 +78,10 @@ BEGIN {
 use 5.010;
 use strict;
 use warnings;
+# suppress experimental warnings about 'given' and 'when'
+# on more recent Perl versions
+use feature qw( switch );
+no if $] >= 5.018, warnings => 'experimental::smartmatch';
 
 # core modules
 use Carp;
@@ -449,7 +453,7 @@ sub get_global_namespace_id
 
 sub get_header_file_id
 {
-    my ($header_file_node) = $dom->findnodes(qq{//File[\@name='$header_file_path']});
+    my ($header_file_node) = $dom->findnodes(qq{//File[contains(\@name, '$header_file_path')]});
 
     croak "Error: unable to find xml tag for header file '$header_file_path' in"
           . " the gccxml's output.\n\nPlease, notice that gccxml writes an exact"

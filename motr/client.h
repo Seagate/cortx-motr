@@ -524,46 +524,46 @@
  * Operation codes for entity, object and index.
  */
 enum m0_entity_opcode {
-	M0_EO_INVALID,
-	M0_EO_CREATE,
-	M0_EO_DELETE,
-	M0_EO_SYNC,
-	M0_EO_OPEN,
-	M0_EO_GETATTR,
-	M0_EO_SETATTR,
-	M0_EO_LAYOUT_GET,
-	M0_EO_LAYOUT_SET,
-	M0_EO_NR
+	M0_EO_INVALID,    /* 0 */
+	M0_EO_CREATE,     /* 1 */
+	M0_EO_DELETE,     /* 2 */
+	M0_EO_SYNC,       /* 3 */
+	M0_EO_OPEN,       /* 4 */
+	M0_EO_GETATTR,    /* 5 */
+	M0_EO_SETATTR,    /* 6 */
+	M0_EO_LAYOUT_GET, /* 7 */
+	M0_EO_LAYOUT_SET, /* 8 */
+	M0_EO_NR          /* 9 */
 } M0_XCA_ENUM;
 
 /** Object operation codes. */
 enum m0_obj_opcode {
 	/** Read object data. */
-	M0_OC_READ = M0_EO_NR + 1,
+	M0_OC_READ = M0_EO_NR + 1,  /* 10 */
 	/** Write object data. */
-	M0_OC_WRITE,
+	M0_OC_WRITE,                /* 11 */
 	/** Pre-allocate space. */
-	M0_OC_ALLOC,
+	M0_OC_ALLOC,                /* 12 */
 	/** De-allocate space, consecutive reads will return 0s. */
-	M0_OC_FREE,
-	M0_OC_NR
+	M0_OC_FREE,                 /* 13 */
+	M0_OC_NR                    /* 14 */
 } M0_XCA_ENUM;
 
 /* Index operation codes. */
 enum m0_idx_opcode {
 	/** Lookup a value with the given key. */
-	M0_IC_GET = M0_OC_NR + 1,
+	M0_IC_GET = M0_OC_NR + 1,  /* 15 */
 	/** Insert or update the value, given a key. */
-	M0_IC_PUT,
+	M0_IC_PUT,                 /* 16 */
 	/** Delete the value, if any, for the given key. */
-	M0_IC_DEL,
+	M0_IC_DEL,                 /* 17 */
 	/** Given a key, return the next key and its value. */
-	M0_IC_NEXT,
+	M0_IC_NEXT,                /* 18 */
 	/** Check an index for an existence. */
-	M0_IC_LOOKUP,
+	M0_IC_LOOKUP,              /* 19 */
 	/** Given an index id, get the list of next indices. */
-	M0_IC_LIST,
-	M0_IC_NR
+	M0_IC_LIST,                /* 20 */
+	M0_IC_NR                   /* 21 */
 } M0_XCA_ENUM;
 
 /**
@@ -574,7 +574,12 @@ enum m0_op_obj_flags {
 	 * Read operation should not see any holes. If a hole is met during
 	 * read, return error instead.
 	 */
-	M0_OOF_NOHOLE = (1 << 0)
+	M0_OOF_NOHOLE = 1 << 0,
+	/**
+	 * Write, alloc and free operations wait for the transaction to become
+	 * persistent before returning.
+	 */
+	M0_OOF_SYNC   = 1 << 1
 } M0_XCA_ENUM;
 
 /**
@@ -695,7 +700,7 @@ struct m0_entity {
  * the implementation when an object is opened.
  */
 struct m0_obj_attr {
-	/** Binary logarithm (bit-shift) of object IO buffer size. */
+	/** Binary logarithm (bit-shift) of object minimal block size. */
 	m0_bcount_t   oa_bshift;
 
 	/** Layout ID for an object. */
@@ -884,6 +889,11 @@ struct m0_config {
 
 	int         mc_idx_service_id;
 	void       *mc_idx_service_conf;
+
+	/**
+ 	 * ADDB size
+ 	 */
+	m0_bcount_t mc_addb_size;
 };
 
 /** The identifier of the root of realm hierarchy. */
@@ -1367,7 +1377,7 @@ void m0_obj_idx_init(struct m0_idx       *idx,
  * @pre ergo(M0_IN(opcode, (M0_OC_ALLOC, M0_OC_FREE)),
  *           data == NULL && attr == NULL && mask == 0)
  * @pre ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOHOLE)))
- * @pre ergo(opcode != M0_OC_READ, flags == 0)
+ * @pre ergo(opcode != M0_OC_READ, M0_IN(flags, (0, M0_OOF_SYNC)))
  *
  * @post ergo(*op != NULL, *op->op_code == opcode &&
  *            *op->op_sm.sm_state == M0_OS_INITIALISED)
@@ -1746,6 +1756,9 @@ m0_client_layout_alloc(enum m0_client_layout_type type);
 void m0_client_layout_free(struct m0_client_layout *layout);
 
 //** @} end of client group */
+
+#include "motr/idx.h" /* export m0_idx operations and services to client. */
+#include "cas/cas.h"
 
 #endif /* __MOTR_CLIENT_H__ */
 

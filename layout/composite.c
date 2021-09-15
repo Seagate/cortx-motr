@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,10 +63,12 @@ M0_INTERNAL void m0_composite_build(struct m0_layout_domain *dom,
 {
 }
 
+#if 0 /* unused code */
 /** Implementation of lo_fini for COMPOSITE layout type. */
 M0_UNUSED  static void composite_fini(struct m0_ref *ref)
 {
 }
+#endif
 
 /* Implementation of lto_allocate for COMPOSITE layout type. */
 static int composite_allocate(struct m0_layout_domain *dom,
@@ -76,6 +78,7 @@ static int composite_allocate(struct m0_layout_domain *dom,
 	return 0;
 }
 
+#if 0 /* unused code */
 /** Implementation of lo_delete for COMPOSITE layout type. */
 M0_UNUSED static void composite_delete(struct m0_layout *l)
 {
@@ -86,6 +89,7 @@ M0_UNUSED static m0_bcount_t composite_recsize(const struct m0_layout *l)
 {
 	return 0;
 }
+#endif
 
 /**
  * Implementation of lto_register for COMPOSITE layout type.
@@ -134,6 +138,7 @@ static m0_bcount_t composite_max_recsize(struct m0_layout_domain *dom)
 	return 0;
 }
 
+#if 0 /* unused code */
 M0_UNUSED static const struct m0_layout_ops composite_ops;
 
 /**
@@ -227,6 +232,7 @@ M0_UNUSED static const struct m0_layout_ops composite_ops = {
 	.lo_decode  = composite_decode,
 	.lo_encode  = composite_encode
 };
+#endif
 
 static const struct m0_layout_type_ops composite_type_ops = {
 	.lto_register    = composite_register,

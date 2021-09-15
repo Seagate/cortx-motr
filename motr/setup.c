@@ -66,6 +66,7 @@
 #include "ioservice/io_service.h"  /* m0_ios_net_buffer_pool_size_set */
 #include "stob/linux.h"
 #include "conf/ha.h"            /* m0_conf_ha_process_event_post */
+#include "dtm0/helper.h"        /* m0_dtm0_log_create */
 
 /**
    @addtogroup m0d
@@ -296,7 +297,7 @@ static bool cs_endpoint_is_duplicate(const struct m0_reqh_context *rctx,
 static int cs_endpoint_validate(struct m0_motr *cctx, const char *ep,
 				const char *xprt_name)
 {
-	struct m0_net_xprt *xprt;
+	struct m0_net_xprt *xprt = NULL;
 
 	M0_ENTRY();
 	M0_PRE(cctx != NULL);
@@ -307,6 +308,8 @@ static int cs_endpoint_validate(struct m0_motr *cctx, const char *ep,
 	xprt = cs_xprt_lookup(xprt_name, cctx->cc_xprts, cctx->cc_xprts_nr);
 	if (xprt == NULL)
 		return M0_RC(-EINVAL);
+	if (m0_net_xprt_default_get() == NULL)
+		m0_net_xprt_default_set(xprt);
 
 	return M0_RC(cs_endpoint_is_duplicate(&cctx->cc_reqh_ctx, xprt, ep) ?
 		     -EADDRINUSE : 0);
@@ -1320,7 +1323,8 @@ static int cs_storage_prepare(struct m0_reqh_context *rctx, bool erase)
 		rc = m0_mdstore_destroy(&rctx->rc_mdstore, grp, bedom);
 
 	rc = rc ?: m0_mdstore_create(&rctx->rc_mdstore, grp, &rctx->rc_cdom_id,
-				     bedom, rctx->rc_beseg);
+				     bedom, rctx->rc_beseg)
+		?: m0_dtm0_log_create(grp, bedom, rctx->rc_beseg);
 	if (rc != 0)
 		goto end;
 	dom = rctx->rc_mdstore.md_dom;
@@ -1614,7 +1618,8 @@ static int cs_storage_setup(struct m0_motr *cctx)
 	}
 
 	rc = m0_reqh_addb2_init(&rctx->rc_reqh, rctx->rc_addb_stlocation,
-				M0_ADDB2_STOB_DOM_KEY, mkfs, force);
+				M0_ADDB2_STOB_DOM_KEY, true, force,
+				rctx->rc_addb_record_file_size);
 	if (rc != 0)
 		goto cleanup_stob;
 
@@ -2244,7 +2249,9 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 			M0_STRINGARG('A', "ADDB storage domain location",
 				LAMBDA(void, (const char *s)
 				{
-					rctx->rc_addb_stlocation = s;
+                                        char tmp_buf[128];
+                                        sprintf(tmp_buf, "%s-%d", s, (int)m0_pid());
+                                        rctx->rc_addb_stlocation = strdup(tmp_buf);
 				})),
 			M0_STRINGARG('d', "Device configuration file",
 				LAMBDA(void, (const char *s)
@@ -2292,6 +2299,14 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				LAMBDA(void, (void)
 				{
 					rctx->rc_fis_enabled = true;
+				})),
+			M0_NUMBERARG('r', "ADDB Record storage size",
+				LAMBDA(void, (int64_t size)
+				{
+					if (size > MAX_ADDB2_RECORD_SIZE)
+						M0_LOG(M0_WARN, "ADDB size is more than recommended");
+					M0_LOG(M0_DEBUG, "ADDB size = %"PRIu64"", size);
+					rctx->rc_addb_record_file_size = size;
 				})),
 			);
 	/* generate reqh fid in case it is all-zero */
@@ -2484,7 +2499,18 @@ static int cs_level_enter(struct m0_module *module)
 	int                     rc;
 
 	M0_ENTRY("cctx=%p level=%d level_name=%s", cctx, level, level_name);
-	if (gotsignal)
+	/** If a signal is recieved in CS_LEVEL_REQH_STOP_WORKAROUND,
+	  * m0_module_fini is called, In m0_module_fini
+	  * CS_LEVEL_RPC_MACHINES_INIT would assert because there are
+	  * active ongoing connection.
+	  * ideally connections are closed in cs_ha_fini during
+	  * cs_level_leave:: CS_LEVEL_REQH_STOP_WORKAROUND.
+	  * In cs_level_enter::CS_LEVEL_REQH_STOP_WORKAROUND, it does nothing
+	  * so just skip the error in CS_LEVEL_REQH_STOP_WORKAROUND
+	  * which will be handled in the next state. during fini, cs_ha_fini
+	  * is called before CS_LEVEL_RPC_MACHINES_INIT
+	 */
+	if (gotsignal && level != CS_LEVEL_REQH_STOP_WORKAROUND)
 		return M0_ERR(-EINTR);
 	switch (level) {
 	case CS_LEVEL_MOTR_INIT:
@@ -2524,6 +2550,10 @@ static int cs_level_enter(struct m0_module *module)
 			cs_ha_connect(cctx);
 		return M0_RC(0);
 	case CS_LEVEL_REQH_STOP_WORKAROUND:
+		/** During cs_level_enter, if signal is recieved, then
+		  * signal handling is skipped and handled in the next state,
+		  * before adding any change refer comments in gotsignal.
+		  */
 		return M0_RC(0);
 	case CS_LEVEL_RCONFC_INIT_START:
 		if (cctx->cc_no_conf)

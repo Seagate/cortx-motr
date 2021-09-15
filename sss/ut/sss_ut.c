@@ -26,7 +26,6 @@
 #include "sss/ss_fops.h"       /* m0_sss_req */
 #include "sss/process_fops.h"  /* m0_ss_process_req */
 #include "sss/device_fops.h"   /* m0_sss_device_fop */
-#include "net/lnet/lnet.h"     /* m0_net_lnet_xprt */
 #include "rpc/rpclib.h"        /* m0_rpc_server_ctx */
 #include "lib/finject.h"
 #include "ut/misc.h"           /* M0_UT_PATH */
@@ -53,7 +52,6 @@ static const struct m0_fid ut_fid = {
 };
 
 static struct m0_net_domain    client_net_dom;
-static struct m0_net_xprt     *xprt = &m0_net_lnet_xprt;
 
 static char *server_argv[] = {
 	"sss_ut", "-T", "AD", "-D", SERVER_DB_NAME,
@@ -64,7 +62,7 @@ static char *server_argv[] = {
 };
 
 static struct m0_rpc_server_ctx sctx = {
-	.rsx_xprts         = &xprt,
+	.rsx_xprts         = NULL,
 	.rsx_xprts_nr      = 1,
 	.rsx_argv          = server_argv,
 	.rsx_argc          = ARRAY_SIZE(server_argv),
@@ -86,7 +84,11 @@ static void rpc_client_and_server_start(void)
 {
 	int rc;
 
-	rc = m0_net_domain_init(&client_net_dom, xprt);
+	M0_SET0(&sctx.rsx_motr_ctx);
+
+	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
+	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
 #if 0
 	/* Test case: memory error on service allocate */
@@ -109,6 +111,8 @@ static void rpc_client_and_server_stop(void)
 	M0_LOG(M0_DEBUG, "stop");
 	rc = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(rc == 0);
+	sctx.rsx_xprts = m0_net_all_xprt_get();
+	sctx.rsx_xprts_nr = m0_net_xprt_nr();
 	m0_rpc_server_stop(&sctx);
 	m0_net_domain_fini(&client_net_dom);
 }
@@ -340,7 +344,7 @@ static void sss_process_lib_load_libc_test(void)
 	struct m0_fop *fop;
 
 	fop = ut_sss_process_create_req(M0_PROCESS_LIB_LOAD);
-	ut_sss_process_param_set(fop, "/lib64/libc.so.6"); /* OK, fragile. */
+	ut_sss_process_param_set(fop, "libc.so.6"); /* OK, fragile. */
 	ut_sss_process_req(fop, 0);
 }
 

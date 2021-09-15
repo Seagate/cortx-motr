@@ -880,13 +880,14 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 	return M0_RC(rc);
 }
 
-static bool is_local_rms(const struct m0_conf_service *svc)
+static bool is_local_svc(const struct m0_conf_service *svc,
+			 enum m0_conf_service_type stype)
 {
 	const struct m0_conf_process *proc;
 	struct m0_rpc_machine        *mach;
 	const char                   *local_ep;
 
-	if (svc->cs_type != M0_CST_RMS)
+	if (svc->cs_type != stype)
 		return false;
 	proc = M0_CONF_CAST(m0_conf_obj_grandparent(&svc->cs_obj),
 			    m0_conf_process);
@@ -972,9 +973,10 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 		 *
 		 * FI services need no service context either.
 		 */
-		if ((!rm_is_set && is_local_rms(svc)) ||
+		if (((!rm_is_set && is_local_svc(svc, M0_CST_RMS)) ||
 		    !M0_IN(svc->cs_type, (M0_CST_CONFD, M0_CST_RMS, M0_CST_HA,
-					  M0_CST_FIS))) {
+					  M0_CST_FIS))) &&
+		    !is_local_svc(svc, M0_CST_DTM0)) {
 			rc = __service_ctx_create(pc, svc, service_connect);
 			if (rc != 0)
 				break;
@@ -1671,7 +1673,7 @@ M0_INTERNAL int m0_pool_version_append(struct m0_pools_common  *pc,
 				       struct m0_conf_pver     *pver,
 				       struct m0_pool_version **pv)
 {
-	struct m0_conf_pool *cp;
+	struct m0_conf_pool *cp = NULL;
 	struct m0_pool      *p;
 	int                  rc;
 
@@ -1685,6 +1687,7 @@ M0_INTERNAL int m0_pool_version_append(struct m0_pools_common  *pc,
 		if (rc != 0)
 			return M0_ERR(rc);
 	}
+	M0_ASSERT(cp != NULL);
 	p = pool_find(pc, &cp->pl_obj.co_id);
 	M0_ASSERT(p != NULL);
 

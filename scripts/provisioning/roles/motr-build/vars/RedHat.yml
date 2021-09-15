@@ -49,6 +49,8 @@ motr_build_deps_pkgs:
   - PyYAML                # required only for tests (m0hagen)
   - rpm-build
   - systemd-devel
+  - libedit-devel
+  - yasm
 
 motr_build_deps_python3_pkgs:
   - python36

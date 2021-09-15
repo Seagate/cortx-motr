@@ -45,6 +45,7 @@
 #include "dix/client_internal.h" /* m0_dix_pver */
 #include "dix/fid_convert.h"
 #include "dix/dix_addb.h"
+#include "dtm0/dtx.h"   /* m0_dtx0_* API */
 
 static struct m0_sm_state_descr dix_req_states[] = {
 	[DIXREQ_INIT] = {
@@ -388,6 +389,7 @@ static void dix_layout_find(struct m0_dix_req *req)
 	uint32_t                k;
 	uint32_t                unknown_nr;
 	int                     rc;
+	M0_ENTRY();
 
 	indices = req->dr_indices;
 	unknown_nr = dix_unknown_layouts_nr(req);
@@ -423,6 +425,7 @@ err:
 		dix_req_state_set(req, DIXREQ_LAYOUT_DISCOVERY);
 	}
 	m0_free(fids);
+	M0_LEAVE();
 }
 
 static int dix_indices_copy(struct m0_dix       **dst_indices,
@@ -606,6 +609,7 @@ static int dix_idxop_pver_analyse(struct m0_dix_idxop_req *idxop_req,
 	enum dix_req_type           type = dreq->dr_type;
 	uint32_t                    i;
 	int                         rc = 0;
+	M0_ENTRY();
 
 	M0_PRE(M0_IN(type, (DIX_CREATE, DIX_DELETE, DIX_CCTGS_LOOKUP)));
 	M0_PRE(ergo(type == DIX_CREATE, (dreq->dr_flags & COF_CROW) == 0));
@@ -661,7 +665,7 @@ static int dix_idxop_pver_analyse(struct m0_dix_idxop_req *idxop_req,
 	if (rc != 0)
 		*creqs_nr = 0;
 	M0_POST(rc == 0 ? *creqs_nr > 0 : *creqs_nr == 0);
-	return rc;
+	return M0_RC(rc);
 }
 
 static int dix_idxop_req_send(struct m0_dix_idxop_req *idxop_req,
@@ -683,6 +687,7 @@ static int dix_idxop_req_send(struct m0_dix_idxop_req *idxop_req,
 	uint32_t                    flags = dreq->dr_flags;
 	uint64_t                    creqs_nr;
 	int                         rc;
+	M0_ENTRY();
 
 	m0_rwlock_read_lock(&pm->pm_lock);
 	rc = dix_idxop_pver_analyse(idxop_req, dreq, &creqs_nr);
@@ -702,6 +707,8 @@ static int dix_idxop_req_send(struct m0_dix_idxop_req *idxop_req,
 			continue;
 		sdev_idx = sdev->pd_sdev_idx;
 		creq = &idxop_req->dcr_creqs[k++];
+		M0_LOG(M0_DEBUG, "creqs_nr=%"PRIu64" this is the %d th creq=%p",
+				 creqs_nr, k-1, creq);
 		creq->ds_parent = dreq;
 		cas_svc = pc->pc_dev2svc[sdev_idx].pds_ctx;
 		M0_ASSERT(cas_svc->sc_type == M0_CST_CAS);
@@ -958,6 +965,7 @@ static void dix_idxop(struct m0_dix_req *req)
 {
 	enum m0_dix_req_state next_state = DIXREQ_INVALID;
 	int                   rc;
+	M0_ENTRY();
 
 	M0_PRE(dix_resolved_nr(req) > 0);
 	/*
@@ -976,6 +984,7 @@ static void dix_idxop(struct m0_dix_req *req)
 		dix_req_state_set(req, next_state);
 	else
 		dix_req_failure(req, M0_ERR(rc));
+	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_dix_create(struct m0_dix_req   *req,
@@ -1029,6 +1038,7 @@ static void dix_ldescr_resolve(struct m0_dix_req *req)
 	int                     i;
 	int                     k;
 	int                     rc;
+	M0_ENTRY();
 
 	/*
 	 * If layout descriptors have DIX_LTYPE_ID, then they should be loaded
@@ -1064,6 +1074,7 @@ err:
 		dix_req_state_set(req, DIXREQ_LID_DISCOVERY);
 	}
 	m0_free(lids);
+	M0_LEAVE();
 }
 
 static void addb2_add_dix_req_attrs(const struct m0_dix_req *req)
@@ -1088,8 +1099,10 @@ static void addb2_add_dix_req_attrs(const struct m0_dix_req *req)
 
 static void dix_discovery_completed(struct m0_dix_req *req)
 {
+	M0_ENTRY();
 	dix_req_state_set(req, DIXREQ_DISCOVERY_DONE);
 	addb2_add_dix_req_attrs(req);
+
 	/*
 	 * All layouts have been resolved, all types are DIX_LTYPE_DESCR,
 	 * perform dix operation.
@@ -1109,11 +1122,13 @@ static void dix_discovery_completed(struct m0_dix_req *req)
 	default:
 		M0_IMPOSSIBLE("Unknown request type %u", req->dr_type);
 	}
+	M0_LEAVE();
 }
 
 static void dix_discovery_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_dix_req *req = container_of(ast, struct m0_dix_req, dr_ast);
+	M0_ENTRY();
 
 	(void)grp;
 	if (dix_unknown_layouts_nr(req) > 0)
@@ -1122,6 +1137,7 @@ static void dix_discovery_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		dix_ldescr_resolve(req);
 	else
 		dix_discovery_completed(req);
+	M0_LEAVE();
 }
 
 static void dix_discovery(struct m0_dix_req *req)
@@ -1251,6 +1267,7 @@ static int dix_cas_rop_alloc(struct m0_dix_req *req, uint32_t sdev,
 			     struct m0_dix_cas_rop **cas_rop)
 {
 	struct m0_dix_rop_ctx *rop = req->dr_rop;
+	M0_ENTRY();
 
 	M0_ALLOC_PTR(*cas_rop);
 	if (*cas_rop == NULL)
@@ -1259,7 +1276,9 @@ static int dix_cas_rop_alloc(struct m0_dix_req *req, uint32_t sdev,
 	(*cas_rop)->crp_sdev_idx = sdev;
 	(*cas_rop)->crp_flags = req->dr_flags;
 	cas_rop_tlink_init_at(*cas_rop, &rop->dg_cas_reqs);
-	return 0;
+
+	return M0_RC_INFO(0, "dix req=%p rop=%p cas_rop=%p sdev=%u",
+			     req, rop, *cas_rop, sdev);
 }
 
 static void dix_cas_rop_fini(struct m0_dix_cas_rop *cas_rop)
@@ -1340,12 +1359,15 @@ static void dix__rop(struct m0_dix_req *req, const struct m0_bufvec *keys,
 	struct m0_dix_rop_ctx *rop;
 	uint32_t               keys_nr;
 	int                    rc;
+	M0_ENTRY();
 
 	M0_PRE(keys != NULL);
 	M0_PRE(req->dr_indices_nr == 1);
 
 	keys_nr = keys->ov_vec.v_nr;
 	M0_PRE(keys_nr != 0);
+	/* We support only one KV pair per request in DTM0. */
+	M0_PRE(ergo(req->dr_dtx != NULL, keys_nr == 1));
 	M0_ALLOC_PTR(rop);
 	if (rop == NULL) {
 		dix_req_failure(req, M0_ERR(-ENOMEM));
@@ -1366,6 +1388,7 @@ static void dix__rop(struct m0_dix_req *req, const struct m0_bufvec *keys,
 		dix_req_failure(req, rc);
 	} else if (dix_req_state(req) != DIXREQ_DEL_PHASE2)
 		dix_req_state_set(req, DIXREQ_INPROGRESS);
+	M0_LEAVE();
 }
 
 static void dix_rop(struct m0_dix_req *req)
@@ -1373,8 +1396,10 @@ static void dix_rop(struct m0_dix_req *req)
 	M0_PRE(req->dr_indices_nr == 1);
 	M0_PRE(dix_unknown_layouts_nr(req) == 0);
 	M0_PRE(req->dr_keys != NULL);
+	M0_ENTRY();
 
 	dix__rop(req, req->dr_keys, NULL);
+	M0_LEAVE();
 }
 
 static void dix_item_rc_update(struct m0_dix_req  *req,
@@ -1443,6 +1468,7 @@ static void dix_get_req_resend(struct m0_dix_req *req)
 	uint32_t          i;
 	uint32_t          k = 0;
 	int               rc;
+	M0_ENTRY();
 
 	keys_nr = m0_count(i, req->dr_items_nr,
 			dix_item_get_has_failed(&req->dr_items[i]) &&
@@ -1486,6 +1512,7 @@ free:
 end:
 	if (rc != 0)
 		dix_req_failure(req, M0_ERR(rc));
+	M0_LEAVE();
 }
 
 static bool dix_del_phase2_is_needed(const struct m0_dix_rec_op *rec_op)
@@ -1627,6 +1654,35 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 }
 
+static void dix_rop_one_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_dix_cas_rop *crop = ast->sa_datum;
+	struct m0_dix_req     *dreq = crop->crp_parent;
+	struct m0_dix_rop_ctx *rop;
+
+	M0_PRE(!dreq->dr_is_meta);
+	M0_PRE(M0_IN(dreq->dr_type, (DIX_PUT, DIX_DEL)));
+	M0_PRE(dreq->dr_dtx != NULL);
+	M0_PRE(dix_req_smgrp(dreq) == dreq->dr_dtx->tx_dtx->dd_sm.sm_grp);
+
+	rop = crop->crp_parent->dr_rop;
+	dix_cas_rop_rc_update(crop, 0);
+
+	m0_dtx0_executed(dreq->dr_dtx, crop->crp_pa_idx);
+
+	if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
+		*ast = (struct m0_sm_ast) {
+			.sa_cb    =  dix_rop_completed,
+			.sa_datum = dreq,
+		};
+		/*
+		 * Bypass the forkq because the dtx and dreq have
+		 * the same sm group.
+		 */
+		dix_rop_completed(grp, ast);
+	}
+}
+
 static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 {
 	struct m0_dix_cas_rop  *crop = container_of(cl, struct m0_dix_cas_rop,
@@ -1654,11 +1710,26 @@ static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 		rop = crop->crp_parent->dr_rop;
 		rop->dg_completed_nr++;
 		M0_PRE(rop->dg_completed_nr <= rop->dg_cas_reqs_nr);
-		if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
-			rop->dg_ast.sa_cb = dix_rop_completed;
-			rop->dg_ast.sa_datum = dreq;
+
+		if (dreq->dr_dtx != NULL) {
+			rop->dg_ast = (struct m0_sm_ast) {
+				.sa_cb = dix_rop_one_completed,
+				.sa_datum = crop,
+			};
+			M0_ASSERT(dix_req_smgrp(dreq) ==
+				  dreq->dr_dtx->tx_dtx->dd_sm.sm_grp);
 			m0_sm_ast_post(dix_req_smgrp(dreq), &rop->dg_ast);
+		} else {
+			if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
+				rop->dg_ast = (struct m0_sm_ast) {
+					.sa_cb = dix_rop_completed,
+					.sa_datum = dreq,
+				};
+				m0_sm_ast_post(dix_req_smgrp(dreq),
+					       &rop->dg_ast);
+			}
 		}
+
 	}
 	return true;
 }
@@ -1674,6 +1745,7 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 	struct m0_reqh_service_ctx *cas_svc;
 	struct m0_dix_layout       *layout = &req->dr_indices[0].dd_layout;
 	int                         rc;
+	M0_ENTRY("req=%p", req);
 
 	M0_PRE(rop->dg_cas_reqs_nr == 0);
 	m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
@@ -1694,6 +1766,12 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 		/** @todo CAS request should copy cctg_id internally. */
 		rc = m0_dix_ldesc_copy(&cctg_id.ci_layout.u.dl_desc,
 				       &layout->u.dl_desc);
+		M0_LOG(M0_DEBUG, "Processing dix_req %p[%u] "FID_F
+				  " creq=%p "FID_F,
+				  req, req->dr_type,
+				  FID_P(&req->dr_indices[0].dd_fid),
+				  creq, FID_P(&cctg_id.ci_fid));
+
 		switch (req->dr_type) {
 		case DIX_GET:
 			rc = m0_cas_get(creq, &cctg_id, &cas_rop->crp_keys);
@@ -1724,12 +1802,26 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 			dix_cas_rop_fini(cas_rop);
 			m0_free(cas_rop);
 		} else {
+			if (req->dr_dtx != NULL) {
+				m0_dtx0_fop_assign(req->dr_dtx,
+						   cas_rop->crp_pa_idx,
+						   creq->ccr_fop);
+			}
 			rop->dg_cas_reqs_nr++;
 		}
 	} m0_tl_endfor;
 
+	M0_LOG(M0_DEBUG, "Processing dix_req %p rop=%p: dg_cas_reqs_nr=%"PRIu64,
+				  req, rop, rop->dg_cas_reqs_nr);
 	if (rop->dg_cas_reqs_nr == 0)
 		return M0_ERR(-EFAULT);
+
+	if (req->dr_dtx != NULL) {
+		rc = m0_dtx0_close(req->dr_dtx);
+		if (rc != 0)
+			return M0_ERR(rc);
+	}
+
 	return M0_RC(0);
 }
 
@@ -1758,7 +1850,10 @@ static uint32_t dix_rop_tgt_iter_max(struct m0_dix_req    *req,
 		 */
 		return m0_dix_liter_P(iter);
 	else
-		return m0_dix_liter_N(iter) + 2 * m0_dix_liter_K(iter);
+		/* Skip spares when DTM0 is enabled */
+		return ENABLE_DTM0 ?
+			m0_dix_liter_N(iter) + m0_dix_liter_K(iter) :
+			m0_dix_liter_N(iter) + 2 * m0_dix_liter_K(iter);
 }
 
 static void dix_rop_tgt_iter_next(const struct m0_dix_req *req,
@@ -2033,6 +2128,8 @@ static void dix_rop_units_set(struct m0_dix_req *req)
 			unit = &rec_op->dgp_units[j];
 			dix_rop_tgt_iter_next(req, rec_op, &tgt,
 					      &unit->dpu_is_spare);
+			M0_ASSERT_INFO(ergo(ENABLE_DTM0, !unit->dpu_is_spare),
+				       "We do not operate with spares in DTM0");
 			pd = m0_dix_tgt2sdev(&rec_op->dgp_iter.dit_linst, tgt);
 			dix_pg_unit_pd_assign(unit, pd);
 		}
@@ -2044,8 +2141,13 @@ static void dix_rop_units_set(struct m0_dix_req *req)
 	 * machine lock to get consistent results.
 	 */
 	if (pm->pm_pver->pv_is_dirty &&
-	    !pool_failed_devs_tlist_is_empty(&pool->po_failed_devices))
+	    !pool_failed_devs_tlist_is_empty(&pool->po_failed_devices)) {
+		if (ENABLE_DTM0)
+			M0_IMPOSSIBLE("DTM0 can not operate when permanently"
+				      " failed devices exist.");
+
 		dix_rop_failures_analyse(req);
+	}
 
 	m0_rwlock_read_unlock(&pm->pm_lock);
 
@@ -2070,18 +2172,21 @@ static bool dix_pg_unit_skip(struct m0_dix_req     *req,
 
 static int dix_cas_rops_alloc(struct m0_dix_req *req)
 {
-	struct m0_dix_rop_ctx  *rop = req->dr_rop;
-	struct m0_dix_rec_op   *rec_op;
-	uint32_t                i;
-	uint32_t                j;
-	uint32_t                max_failures;
-	struct m0_dix_cas_rop **map = rop->dg_target_rop;
-	struct m0_dix_cas_rop  *cas_rop;
-	struct m0_dix_pg_unit  *unit;
-	bool                    del_lock;
-	int                     rc = 0;
+	struct m0_dix_rop_ctx      *rop = req->dr_rop;
+	struct m0_dtx              *dtx = req->dr_dtx;
+	struct m0_pools_common     *pc = req->dr_cli->dx_pc;
+	struct m0_reqh_service_ctx *cas_svc;
+	struct m0_dix_rec_op       *rec_op;
+	uint32_t                    i;
+	uint32_t                    j;
+	uint32_t                    max_failures;
+	struct m0_dix_cas_rop     **map = rop->dg_target_rop;
+	struct m0_dix_cas_rop      *cas_rop;
+	struct m0_dix_pg_unit      *unit;
+	bool                        del_lock;
+	int                         rc = 0;
 
-	M0_ENTRY("req %p", req);
+	M0_ENTRY("req %p %u", req, rop->dg_rec_ops_nr);
 	M0_ASSERT(rop->dg_rec_ops_nr > 0);
 
 	max_failures = dix_rop_max_failures(rop);
@@ -2120,7 +2225,25 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 	if (cas_rop_tlist_is_empty(&rop->dg_cas_reqs))
 		return M0_ERR(-EIO);
 
+	if (dtx != NULL) {
+		M0_ASSERT(!req->dr_is_meta);
+		M0_ASSERT(M0_IN(req->dr_type, (DIX_PUT, DIX_DEL)));
+		rc = m0_dtx0_open(dtx, cas_rop_tlist_length(&rop->dg_cas_reqs));
+		if (rc != 0)
+			goto end;
+	}
+
+	i = 0;
 	m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
+		if (dtx != NULL) {
+			cas_rop->crp_pa_idx = i++;
+			cas_svc = pc->pc_dev2svc[cas_rop->crp_sdev_idx].pds_ctx;
+			M0_ASSERT(cas_svc->sc_type == M0_CST_CAS);
+			rc = m0_dtx0_fid_assign(dtx, cas_rop->crp_pa_idx,
+						&cas_svc->sc_fid);
+			if (rc != 0)
+				goto end;
+		}
 		M0_ALLOC_ARR(cas_rop->crp_attrs, cas_rop->crp_keys_nr);
 		if (cas_rop->crp_attrs == NULL) {
 			rc = M0_ERR(-ENOMEM);

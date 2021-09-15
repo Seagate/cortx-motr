@@ -111,7 +111,7 @@
    The LNet transport is used by specifying this data structure to the
    m0_net_domain_init() subroutine.
  */
-extern struct m0_net_xprt m0_net_lnet_xprt;
+extern const struct m0_net_xprt m0_net_lnet_xprt;
 
 enum {
 	/**
@@ -144,13 +144,13 @@ M0_INTERNAL int m0_net_lnet_ep_addr_net_cmp(const char *addr1,
    @param addrs A NULL-terminated (like argv) array of NID strings is returned.
  */
 M0_INTERNAL int m0_net_lnet_ifaces_get(struct m0_net_domain *dom,
-				       char *const **addrs);
+				       char ***addrs);
 
 /**
    Releases the string array returned by m0_net_lnet_ifaces_get().
  */
 M0_INTERNAL void m0_net_lnet_ifaces_put(struct m0_net_domain *dom,
-					char *const **addrs);
+					char ***addrs);
 
 /* init and fini functions for motr init */
 M0_INTERNAL int m0_net_lnet_init(void);

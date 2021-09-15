@@ -33,7 +33,7 @@
     # are going to be used, which require halon-build dependencies to be
     # installed
     - role: halon-build
-      when: ansible_user == 'vagrant'
+      when: devenv.rc == 0
     - halon-runtime
     - hare-runtime
     - role: iscsi-target

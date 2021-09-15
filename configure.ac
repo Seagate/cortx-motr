@@ -1,5 +1,5 @@
 # Motr version
-m4_define([M0_VERSION_MAJOR],[1])
+m4_define([M0_VERSION_MAJOR],[2])
 m4_define([M0_VERSION_MINOR],[0])
 m4_define([M0_VERSION_PATCH],[0])
 m4_define([M0_VERSION],[M0_VERSION_MAJOR.M0_VERSION_MINOR.M0_VERSION_PATCH])
@@ -58,7 +58,7 @@ AC_SUBST([LT_RELEASE], [$PACKAGE_VERSION])
 #
 # See also
 # https://www.gnu.org/software/libtool/manual/libtool.html#Libtool-versioning
-AC_SUBST([LT_VERSION], [M0_VERSION_MAJOR:M0_VERSION_MINOR:M0_VERSION_PATCH])
+AC_SUBST([LT_VERSION], [M0_VERSION_MAJOR:M0_VERSION_MINOR:0])
 
 # the following variables are only for internal use within this configure script
 # external scripts should use collection of variables, which is automatically
@@ -141,6 +141,34 @@ AC_SUBST([ARCH])
 
 
 #
+# Checking for Platform support -------------------------------------------{{{1
+#
+
+ARCH=
+AC_CANONICAL_HOST
+AS_CASE([$host_cpu],
+        [aarch64], [ARCH=aarch64],
+        [x86_64], [ARCH=x86_64],
+        [AC_MSG_ERROR("Only X86_64 and aarch64 platforms supported")]
+)
+
+# Check for X86_64 platform -------------{{{2
+AS_IF([test x$ARCH = xx86_64],
+      [
+        AC_DEFINE([CONFIG_X86_64])
+      ]
+)
+
+# Check for AARCH64 platform ------------{{{2
+AS_IF([test x$ARCH = xaarch64],
+      [
+        AC_DEFINE([CONFIG_AARCH64])
+      ]
+)
+
+AC_SUBST([ARCH])
+
+#
 # Configuration options --------------------------------------------------- {{{1
 #
 
@@ -153,7 +181,7 @@ AC_ARG_VAR([CXXXML],  [gccxml/castxml command])
 AH_TEMPLATE([MOTR_IDX_STORE_CASS],    [Use Cassandra as KVS backend.])
 AH_TEMPLATE([IDX_CASS_DRV_V22],       [Cassandra driver version >= 2.2.])
 AH_TEMPLATE([ENABLE_LUSTRE],          [Enable LNet network stack from Lustre.])
-AH_TEMPLATE([ENABLE_CASTXML],         [Use CastXML instead of GCC-XML])
+AH_TEMPLATE([ENABLE_GCCXML],          [Use deprecated GCC-XML instead of CastXML])
 AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
 AH_TEMPLATE([ENABLE_RELEASE],         [Enable release mode (this has the same effect as --disable-dev-mode).])
@@ -163,11 +191,13 @@ AH_TEMPLATE([ENABLE_FRAME_POINTERS],  [Enable frame pointers (for better stack t
 AH_TEMPLATE([ENABLE_FAULT_INJECTION], [Enable fault injection.])
 AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([ENABLE_EXPENSIVE_CHECKS],[Enable expensive checks.])
+AH_TEMPLATE([ENABLE_BALLOC_DUMP],     [Enable balloc dumps in trace log.])
 AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in atomic functions])
 AH_TEMPLATE([ENABLE_DATA_INTEGRITY],  [Enable data integrity.])
 AH_TEMPLATE([ENABLE_FREE_POISON],     [Poison freed memory for debugging.])
 AH_TEMPLATE([ENABLE_DETAILED_BACKTRACE],[Enable detailed backtraces on crash using gdb.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
+AH_TEMPLATE([ENABLE_DTM0],            [Enable DTM0 mode.])
 AH_TEMPLATE([M0_BE_SEGMENT_SIZE],     [BE segment size in MiB.])
 AH_TEMPLATE([M0_TRACE_KBUF_SIZE],     [Kernel space trace buffer size in MiB.])
 AH_TEMPLATE([M0_TRACE_UBUF_SIZE],     [User space trace buffer size in MiB.])
@@ -184,7 +214,10 @@ AH_TEMPLATE([HAVE_MALLINFO],          [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
-AH_TEMPLATE([CONFIG_X86_64],          [])
+AH_TEMPLATE([HAVE_ISAL],              [Have Intel ISA-L available])
+AH_TEMPLATE([CONFIG_X86_64],          [Support for X86_64 platform])
+AH_TEMPLATE([CONFIG_AARCH64],         [Support for AARCH64 platform])
+
 
 # enable/disable options ------------------------------ {{{2
 
@@ -279,6 +312,15 @@ AC_ARG_ENABLE([finject],
 AS_IF([test x$enable_finject = xyes],
       AC_DEFINE([ENABLE_FAULT_INJECTION]))
 
+# balloc-dump {{{3
+AC_ARG_ENABLE([balloc_dump],
+        AS_HELP_STRING([--disable-balloc-dump], [disable balloc dumps in trace]),
+        [], [enable_balloc_dump=$enable_dev_mode]
+)
+AS_IF([test x$enable_balloc_dump = xyes],
+      AC_DEFINE([ENABLE_BALLOC_DUMP], 1),
+      AC_DEFINE([ENABLE_BALLOC_DUMP], 0))
+
 # immediate-trace {{{3
 AC_ARG_ENABLE([immediate-trace],
         AC_HELP_STRING([--disable-immediate-trace], [disable immediate tracing]),
@@ -322,6 +364,15 @@ AC_ARG_ENABLE([m0_asserts],
 AS_IF([test x$enable_m0_asserts = xno],
       AC_DEFINE([M0_NDEBUG]))
 
+# dtm0 {{{3
+AC_ARG_ENABLE([dtm0],
+        AS_HELP_STRING([--enable-dtm0],[enable DTM0 mode]),
+        [], [enable_dtm0=no]
+)
+AS_IF([test x$enable_dtm0 = xyes],
+      AC_DEFINE([ENABLE_DTM0], [1]),
+      AC_DEFINE([ENABLE_DTM0], [0]))
+
 # expensive-checks {{{3
 AC_ARG_ENABLE([expensive_checks],
         AS_HELP_STRING([--disable-expensive-checks],[disable expensive checks]),
@@ -362,16 +413,12 @@ AC_ARG_ENABLE([systemd],
         [], [enable_systemd=yes]
 )
 
-# CastXML {{{3
-AC_ARG_ENABLE([castxml],
-        [AS_HELP_STRING([--enable-castxml],
-                        [use CastXML instead of GCC-XML])],
-        [], [enable_castxml=no]
+# GCC-XML {{{3
+AC_ARG_ENABLE([gccxml],
+        [AS_HELP_STRING([--enable-gccxml],
+                        [use deprecated GCC-XML instead of CastXML])],
+        [], [enable_gccxml=no]
 )
-AS_IF([test x$enable_castxml = xyes],
-      AC_DEFINE([ENABLE_CASTXML]))
-AM_CONDITIONAL([ENABLE_CASTXML],
-               [test x$enable_castxml = xyes])
 
 # argument options ------------------------------------ {{{2
 
@@ -472,7 +519,7 @@ AC_ARG_WITH([lustre],
         [AS_HELP_STRING([--with-lustre=path],
                         [set path to lustre headers or built sources dir, default is /usr/src/lustre-*])],
         [LUSTRE=$with_lustre],
-        [LUSTRE=/usr/src/`ls /usr/src | grep lustre- | tail -1`]
+        [LUSTRE=`ls -td /usr/src/lustre-* 2>/dev/null | head -1`]
 )
 AS_IF([test -z "$LUSTRE" || test "x$with_lustre" != "xno" && ! test -d "$LUSTRE/"],
       [AC_MSG_ERROR([Lustre headers not found! Please, install lustre-devel \
@@ -514,21 +561,25 @@ AC_PROG_SED
 AC_PROG_LN_S
 AC_PROG_INSTALL
 
-AS_IF([test x$enable_castxml = xyes],
-      [cxxxml_name=castxml],
+AC_CHECK_PROG(cxxxml_name, castxml, castxml, gccxml)
+AS_IF([test x$enable_gccxml = xyes],
       [cxxxml_name=gccxml]
 )
+AS_IF([test x$cxxxml_name = xgccxml],
+      AC_DEFINE([ENABLE_GCCXML]))
+AM_CONDITIONAL([ENABLE_GCCXML],
+               [test x$cxxxml_name = xgccxml])
 
-# gccxml is required by xcode/m0gccxml2xcode script
+# castxml is required by xcode/m0gccxml2xcode script
 AC_PATH_PROG(CXXXML, $cxxxml_name,, [/usr/bin$PATH_SEPARATOR$PATH])
-AS_IF([test -z $CXXXML],
-      AC_MSG_ERROR([$cxxxml_name is not found: it can be installed from gccxml \
+AS_IF([test -z "$CXXXML"],
+      AC_MSG_ERROR([$cxxxml_name is not found: it can be installed from $cxxxml_name \
 package on Red Hat based systems])
 )
 
-# c++ compiler is required by gccxml
+# c++ compiler is required by gccxml/castxml
 AC_CHECK_PROG(CXX, g++, g++)
-AS_IF([test -z $CXX],
+AS_IF([test -z "$CXX"],
       AC_MSG_ERROR([g++ is not found: it can be installed from gcc-c++ package \
 on Red Hat based systems])
 )
@@ -571,14 +622,14 @@ perl-File-Slurp package on Red Hat based systems])
 AX_PYTHON_MODULE([ply], die_if_absent)
 
 AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
-AS_IF([test -z $POD2MAN],
+AS_IF([test -z "$POD2MAN"],
       AC_MSG_ERROR([pod2man is not found please install perl])
 )
 
 AC_CHECK_PROG(DOXYGEN, doxygen, doxygen, doxygen)
 
 AC_CHECK_PROG(A2X, a2x, a2x)
-AS_IF([test -z $A2X],
+AS_IF([test -z "$A2X"],
       AC_MSG_ERROR([a2x is not found please install asciidoc])
 )
 
@@ -589,7 +640,7 @@ unset BASH
 # bash shell is required by Makefile.am to build kernel modules
 # see 'build-kernel-modules' make target for more details
 AC_CHECK_PROG(BASH, bash, bash)
-AS_IF([test -z $BASH],
+AS_IF([test -z "$BASH"],
       AC_MSG_ERROR([bash is not found: it can be installed from bash package on \
 Red Hat based systems])
 )
@@ -616,6 +667,12 @@ MOTR_SEARCH_LIBS([io_getevents], [aio c], [AIO_LIBS],
 )
 AC_SUBST([AIO_LIBS])
 
+# check for libedit library
+MOTR_SEARCH_LIBS([readline], [c edit], [LIBEDIT_LIBS],
+        [libedit cannot be found! Try to install libedit-devel.]
+)
+AC_SUBST([LIBEDIT_LIBS])
+
 # rt library is required for: aio_read(3), aio_write(3), timer_create(2)
 MOTR_SEARCH_LIBS([aio_read], [rt aio c], [RT_LIBS],
         [aio_read cannot be found! Try to install librt-devel or libaio-devel.]
@@ -631,7 +688,6 @@ MOTR_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
 	[uuid_generate cannot be found! Try to install libuuid and libuuid-devel.])
 AC_SUBST([UUID_LIBS])
 
-
 #
 # Checking for required header files
 #
@@ -641,6 +697,25 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h malloc.h memory.h netdb.h \
                   sys/socket.h sys/time.h unistd.h])
 
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
+AC_CHECK_HEADERS([isa-l.h],   [
+				# check for isa library
+				MOTR_SEARCH_LIBS([ec_encode_data], [c isal], [ISAL_LIBS],
+						[ec_encode_data cannot be found! \
+						 Try to install Intel ISA library package.]
+				)
+				AC_SUBST([ISAL_LIBS])
+
+				# define MACROs
+				AC_DEFINE([HAVE_ISAL])
+				AM_CONDITIONAL([HAVE_ISAL], [true])
+				AC_MSG_NOTICE([INTEL ISA-L Headers Available])
+			      ],
+			      [
+				AM_CONDITIONAL([HAVE_ISAL], [false])
+				AC_MSG_NOTICE([No INTEL ISA-L Headers])
+			      ]
+		)
+
 
 
 AC_HEADER_STDBOOL
@@ -882,7 +957,7 @@ AS_IF([test x$enable_frame_pointers = xyes],
 AS_IF([test x$enable_profiler = xyes],
       [AC_DEFINE([ENABLE_PROFILER])
        AC_CHECK_PROG(PPROF, pprof, pprof)
-       AS_IF([test -z $PPROF],
+       AS_IF([test -z "$PPROF"],
              AC_MSG_ERROR([pprof not found. Try to 'yum install pprof'.]))
        MOTR_SEARCH_LIBS([ProfilerStart], [c profiler], [PROFILER_LIBS],
                         [libprofiler not found. Try to \
@@ -1030,6 +1105,7 @@ echo "PROFILER_LIBS  :  \"$PROFILER_LIBS\""
 echo "GALOIS_LIBS    :  \"$GALOIS_LIBS\""
 echo "YAML_LIBS      :  \"$YAML_LIBS\""
 echo "UUID_LIBS      :  \"$UUID_LIBS\""
+echo "ISAL_LIBS      :  \"$ISAL_LIBS\""
 echo ""
 echo "Gcc            :  \"$BUILD_GCC\""
 AS_IF([test x$with_lustre != xno],[

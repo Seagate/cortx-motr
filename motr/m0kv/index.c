@@ -150,7 +150,7 @@ static int genv(char *filename, int cnt, int size)
 		uuid_unparse(uuid, str_uuid);
 		fprintf(f, "%d ", val_size);
 		fprintf(f, "[0x%x:", size);
-			m0_console_printf("%lu\n", i);
+			m0_console_printf("%"PRIu64"\n", i);
 		for (j = 0; j < len; ++j)
 			fprintf(f, "0x%02x,", str_uuid[j]);
 		for (j = 0; j < size - len - 1; j++)

@@ -1566,9 +1566,9 @@ struct pargrp_iomap_ops {
 	 * read-old approach or read-rest approach.
 	 * pargrp_iomap::pi_rtype will be set to PIR_READOLD or
 	 * PIR_READREST accordingly.
-	 * @param ivec   Source index vector from which pargrp_iomap::pi_ivec
-	 * will be populated. Typically, this is io_request::ir_ivec.
-	 * @param cursor Index vector cursor associated with ivec.
+	 * @param cursor Source index vector cursor from which
+	 *               pargrp_iomap::pi_ivec will be populated.
+	 *               Typically, this is io_request::ir_ivec.
 	 * @pre iomap != NULL && ivec != NULL &&
 	 * m0_vec_count(&ivec->iv_vec) > 0 && cursor != NULL &&
 	 * m0_vec_count(&iomap->iv_vec) == 0
@@ -1576,7 +1576,6 @@ struct pargrp_iomap_ops {
 	 * iomap->pi_databufs != NULL.
 	 */
 	int (*pi_populate)  (struct pargrp_iomap        *iomap,
-			     struct m0_indexvec_varr    *ivv,
 			     struct m0_ivec_varr_cursor *cursor);
 
 	/**
@@ -1797,6 +1796,10 @@ struct target_ioreq {
 
 	/** Fop when the ti_req_type == TI_COB_CREATE. */
 	struct cc_req_fop              ti_cc_fop;
+
+	/** flag to indicate if cc_fop is used */
+	bool                           ti_cc_fop_inited;
+
 	/** Resulting IO fops are sent on this rpc session. */
 	struct m0_rpc_session         *ti_session;
 

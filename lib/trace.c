@@ -161,7 +161,7 @@ static inline uint64_t m0_rdtsc(void)
 	__asm__ __volatile__("rdtsc" : "=a"(count_lo), "=d"(count_hi));
 
 	return ((uint64_t)count_lo) | (((uint64_t)count_hi) << 32);
-#else   /*aarch64*/
+#elif defined CONFIG_AARCH64   /*aarch64*/
 
 	uint64_t cycle;
 
@@ -949,11 +949,11 @@ M0_INTERNAL void m0_trace_buf_header_init(struct m0_trace_buf_header *tbh, size_
 	m0_atomic64_set(&tbh->tbh_rec_cnt, 0);
 
 	strncpy(tbh->tbh_motr_version, bi->bi_version_string,
-		sizeof tbh->tbh_motr_version);
+		sizeof tbh->tbh_motr_version - 1);
 	strncpy(tbh->tbh_motr_git_describe, bi->bi_git_describe,
-		sizeof tbh->tbh_motr_git_describe);
+		sizeof tbh->tbh_motr_git_describe - 1);
 	strncpy(tbh->tbh_motr_kernel_ver, bi->bi_kernel,
-		sizeof tbh->tbh_motr_kernel_ver);
+		sizeof tbh->tbh_motr_kernel_ver - 1);
 
 	m0_arch_trace_buf_header_init(tbh);
 }

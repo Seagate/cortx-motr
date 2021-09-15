@@ -18,6 +18,7 @@ ut_libmotr_ut_la_SOURCES += be/ut/alloc.c           \
                             be/ut/op.c              \
                             be/ut/pool.c            \
                             be/ut/pd.c              \
+                            be/ut/queue.c           \
                             be/ut/recovery.c        \
                             be/ut/seg.c             \
                             be/ut/seg0.c            \
@@ -25,4 +26,5 @@ ut_libmotr_ut_la_SOURCES += be/ut/alloc.c           \
                             be/ut/tx.c              \
                             be/ut/tx_bulk.c         \
                             be/ut/tx_group_format.c \
-                            be/ut/tx_regmap.c
+                            be/ut/tx_regmap.c       \
+                            be/ut/dtm0_log_ut.c

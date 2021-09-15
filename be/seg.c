@@ -93,7 +93,8 @@ static int be_seg_hdr_create(struct m0_stob *stob, struct m0_be_seg_hdr *hdr)
 
 	for (i = 0; i < len; ++i) {
 		const struct m0_be_seg_geom *g = &geom[i];
-		M0_LOG(M0_DEBUG, "stob=%p size=%lu addr=%p offset=%lu id=%lu",
+		M0_LOG(M0_DEBUG, "stob=%p size=%"PRId64" addr=%p "
+		       "offset=%"PRId64" id=%"PRId64,
 		       stob, g->sg_size, g->sg_addr, g->sg_offset, g->sg_id);
 
 		M0_PRE(g->sg_addr != NULL);
@@ -378,6 +379,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 		seg->bs_size     = g->sg_size;
 		seg->bs_addr     = g->sg_addr;
 		seg->bs_offset   = g->sg_offset;
+		seg->bs_gen	 = g->sg_gen;
 		seg->bs_state    = M0_BSS_OPENED;
 		be_seg_madvise(seg, M0_BE_SEG_CORE_DUMP_LIMIT, MADV_DONTDUMP);
 		be_seg_madvise(seg,                      0ULL, MADV_DONTFORK);

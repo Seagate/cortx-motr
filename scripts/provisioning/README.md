@@ -1,5 +1,18 @@
-Build and test environment for Motr
+Build and Test Environment for Motr
 ===================================
+
+* [Quick Start (MacOS)](#quick-start-macos)
+* [Quick Start (Windows)](#quick-start-windows)
+* [Overview](#overview)
+* [Requirements](#requirements)
+* [DevVM provisioning](#devvm-provisioning)
+* [Building and running Motr](#building-and-running-motr)
+* [Try single-node Motr cluster](#try-single-node-motr-cluster)
+* [Vagrant basics](#vagrant-basics)
+* [Streamlining VMs creation and provisioning with snapshots](#streamlining-vms-creation-and-provisioning-with-snapshots)
+* [Managing multiple VM sets with workspaces](#managing-multiple-vm-sets-with-workspaces)
+* [Executing Ansible commands manually](#executing-ansible-commands-manually)
+* [VirtualBox / VMware / Libvirt specifics](#virtualbox--vmware--libvirt-specifics)
 
 Quick Start (MacOS)
 -------------------
@@ -19,15 +32,21 @@ Quick Start (MacOS)
 
           brew install coreutils
 
-    - [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
-    - [Vagrant](https://www.vagrantup.com/downloads.html)
-    - Vagrant plugins
+    - [VMware Fusion](https://www.vmware.com/go/downloadfusion) or
+      [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
+      (VMware is recommended for better experience)
+    - [Vagrant](https://www.vagrantup.com/downloads.html) (and
+      [Vagrant VMware Utility](https://www.vagrantup.com/vmware/downloads) in case of VMware)
+    - Vagrant plugins (for VMware the license needs to be [purchased](https://www.vagrantup.com/vmware))
 
-          vagrant plugin install vagrant-{env,hostmanager,scp,vbguest}
+          vagrant plugin install vagrant-{env,hostmanager,scp}
+          vagrant plugin install vagrant-vmware-desktop # for VMware or
+          
+          vagrant plugin install vagrant-vbguest # for VirtualBox
 
     - Ansible
 
-          brew install ansible
+          brew install ansible # on Linux or macOS hosts
 
 * Configure
     - `m0vg` script (make sure you have `$HOME/bin` in the `$PATH`)
@@ -125,11 +144,17 @@ Quick Start (Windows)
 ---------------------
 
 * Install
-    - [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
-    - [Vagrant](https://www.vagrantup.com/downloads.html)
-    - Vagrant plugins
+    - [VMware Workstation](https://www.vmware.com/go/downloadworkstation) or
+      [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
+      (VMware is recommended for better experience)
+    - [Vagrant](https://www.vagrantup.com/downloads.html) (and
+      [Vagrant VMware Utility](https://www.vagrantup.com/vmware/downloads) in case of VMware)
+    - Vagrant plugins (for VMware the license needs to be [purchased](https://www.vagrantup.com/vmware))
 
-          vagrant plugin install vagrant-{env,hostmanager,scp,vbguest}
+          vagrant plugin install vagrant-{env,hostmanager,scp}
+          vagrant plugin install vagrant-vmware-desktop # for VMware or
+
+          vagrant plugin install vagrant-vbguest # for VirtualBox
 
     - [Git for Windows](https://git-scm.com/download/win)
       During installation, when asked, choose the following options (keep other options to their default setting):
@@ -140,13 +165,19 @@ Quick Start (Windows)
 
 * Configure
 
-    - Open _Git Bash_ terminal, add CRLF configuration option to make sure that Motr/Halon scripts can work on VM
+    - Open _Git Bash_ terminal, add CRLF configuration option to make sure that Motr/Hare scripts can work on VM
 
       ```bash
       git config --global core.autocrlf input
       ```
 
-    - Clone Motr repository somewhere, just as an example let's say it's in `$HOME/src/motr`
+    - Clone Motr repository somewhere, just as an example let's say it's in `$HOME/src/motr`:
+
+      ```bash
+      mkdir -p src
+      cd src
+      git clone --recursive git@github.com:Seagate/cortx-motr.git motr
+      ```
 
     - Create a persistent alias for `m0vg` script:
 
@@ -164,11 +195,13 @@ Quick Start (Windows)
 
     - Follow the steps from _Run_ section under _Quick Start (MacOS)_ above.
 
-      > *NOTE*: during `m0vg up cmu` command execution you may be asked to enter
+      > *NOTE*: during `m0vg up <node>` command execution you may be asked to enter
       > your Windows username and password, and then grant permissions for
-      > creating Windows shared directory - that is required to enable
-      > passwordless ssh access from _cmu_ VM to other VMs, it will be asked
-      > only once when creating _cmu_ VM for the first time.
+      > creating Windows shared directory. To avoid manually entering the
+      > credentials for every node, set SMB_USERNAME/SMB_PASSWORD environment
+      > variables with the correspondent values. Note: make sure SMB_PASSWORD
+      > is [not saved in your bash history](https://stackoverflow.com/a/29188490/3812944)
+      > (for security reasons).
 
 Overview
 --------
@@ -196,17 +229,16 @@ directory containing motr source code is shared with each machine over _NFS_.
 This should provide a short-enough "prepare/build/test" cycle for efficient
 development workflow.
 
-Depending on the host OS, different virtualization providers are supported. On
-_Linux_ those are _Libvirt/KVM_ and _VirtualBox_. On _Mac OS_ - _VirtualBox_
-and _VMware Fusion_.
+Depending on the host OS, different virtualization providers are supported: on
+_Linux_ those are _Libvirt/KVM_ and _VirtualBox_, on _macOS_ - _VMware Fusion_
+and _VirtualBox_, on _Windows_ - _VMware Workstation_ and _VirtualBox_.
 
 Requirements
 ------------
 
 In order to run these scripts, additional tools have to be installed first. It's
-assumed that either _Mac OS_ or _Linux_ is used as a host operating system. It
-should work on a _Windows_ host as well, though some additional configuration
-steps may be required.
+assumed that either _macOS_, _Windows_ or _Linux_ is used as a host operating
+system.
 
 * Minimum Host OS
     - 8GB of RAM
@@ -214,12 +246,15 @@ steps may be required.
     - 2 CPU cores
 
 * Additional Software/Tools:
-    - [VirtualBox](https://www.virtualbox.org/wiki/Downloads) _OR_
-      [VMware Fusion](https://www.vmware.com/products/fusion.html) +
-      [Vagrant VMware plugin](https://www.vagrantup.com/vmware/index.html) (_Mac OS_ only)
+    - [VMware Fusion](https://www.vmware.com/products/fusion.html) (for _macOS_) or
+      [VMware Workstation](https://www.vmware.com/products/workstation-pro.html) (for _Windows_) _OR_
+      [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
+      (VMware is recommended for better experience in terms of memory utilisation)
     - `libvirt + qemu-kvm` (_Linux_ only)
     - [Vagrant](https://www.vagrantup.com/downloads.html)
-    - [Ansible](https://github.com/ansible/ansible) (_Mac OS_ and _Linux_ only)
+    - [Vagrant VMware plugin](https://www.vagrantup.com/vmware) +
+      [Vagrant VMware Utility](https://www.vagrantup.com/vmware/downloads) (in case of VMware)
+    - [Ansible](https://github.com/ansible/ansible) (_macOS_ and _Linux_ only)
     - [Git for Windows](https://git-scm.com/download/win) (_Windows_ only)
 
 On _Ubuntu Linux_ all of the above prerequisites can be installed with a single
@@ -229,14 +264,14 @@ command:
 
 Though, it's actually better to get a more up-to-day versions of _Vagrant_ and
 _Ansible_ than those provided by a distribution. The procedure is same as
-described below for _Mac OS_.
+described below for _macOS_.
 
-On _Mac OS_ the easiest way to install those tools is to download
+On _macOS_ the easiest way to install those tools is to download
 _VirtualBox_/_VMware Fusion_  and _Vagrant_ packages from their official
 web-sites (refer to the links above).
 
 And install _Ansible_ using _Python_ package manager `pip`, which is
-available on _Mac OS_ "out of the box":
+available on _macOS_ "out of the box":
 
 ```bash
 # install for current user only
@@ -259,19 +294,19 @@ brew install ansible
 ```
 
 After _Vagrant_ is installed, a couple of plugins need to be installed also. On
-_Linux_ it is `vagrant-libvirt` (for _kvm_ support), and on _Mac OS_ it's
-`vagrant-vbguest`, when using _VirtualBox_ and `vagrant-vmware-fusion`, when
-using _VMware Fusion_:
+_Linux_ it is `vagrant-libvirt` (for _kvm_ support), and on _macOS_/_Windows_ it's
+`vagrant-vbguest`, when using _VirtualBox_ and `vagrant-vmware-desktop`, when
+using _VMware Fusion/Workstation_:
 
 ```bash
 # linux with Qemu/KVM
 vagrant plugin install vagrant-libvirt
 
-# macos with VirtualBox
+# macOS with VirtualBox
 vagrant plugin install vagrant-vbguest
 
-# macos with VMware Fusion
-vagrant plugin install vagrant-vmware-fusion
+# macOS/Windows with VMware Fusion/Workstation
+vagrant plugin install vagrant-vmware-desktop
 ```
 
 It's highly recommend to install a few more _Vagrant_ plugins for a better user
@@ -389,6 +424,51 @@ To verify them they can be installed with:
 
     sudo yum install rpmbuild/RPMS/x86_64/*
 
+Try single-node Motr cluster
+----------------------------
+
+To bootstrap a single-node cluster [Hare](https://github.com/Seagate/cortx-hare)
+should be installed also. Here is the short script which can be run on the VM
+to prepare everything:
+
+```bash
+[[ -d cortx-motr ]] ||
+    git clone --recurse https://github.com/Seagate/cortx-motr.git &&
+        ln -s cortx-motr motr
+cd motr
+echo 'Building and installing Motr...'
+./autogen.sh && ./configure --disable-expensive-checks && make -j8 &&
+    ./scripts/install-motr-service
+cd -
+
+[[ -d cortx-hare ]] ||
+    git clone --recurse https://github.com/Seagate/cortx-hare.git &&
+        ln -s cortx-hare hare
+cd hare
+echo 'Building and installing Hare...'
+make && make devinstall
+cd -
+
+# Create block devices
+mkdir -p /var/motr
+for i in {0..9}; do
+    dd if=/dev/zero of=/var/motr/disk$i.img bs=1M seek=9999 count=1
+    losetup /dev/loop$i /var/motr/disk$i.img
+done
+
+# Prepare CDF (Cluster Description File)
+[[ -f singlenode.yaml ]] || cp hare/cfgen/examples/singlenode.yaml ./
+sed 's/localhost/cmu/' -i singlenode.yaml
+sed 's/data_iface: eth./data_iface: eth0/' -i singlenode.yaml
+```
+
+After all the above steps completed successfully, the single-node Motr
+cluster is ready for the 1st start:
+
+```bash
+hctl bootstrap --mkfs singlenode.yaml
+```
+
 Vagrant basics
 --------------
 
@@ -442,6 +522,15 @@ vagrant up /ssu/
 # start all VMs
 vagrant up cmu /ssu/ /client/
 ```
+
+> *NOTE*: on Windows host, _Ansible_ is running on guest VMs (not on host) and
+> all the _Ansible_ tasks scripts are rsync-ed to guests at `/vagrant/` folder.
+> So whenever the scripts are updated on host they can be rsync-ed to guests
+> (in order to pick up the changes) with the following command:
+>
+> ```bash
+> m0vg rsync cmu /ssu/ /client/
+> ```
 
 Streamlining VMs creation and provisioning with snapshots
 ---------------------------------------------------------

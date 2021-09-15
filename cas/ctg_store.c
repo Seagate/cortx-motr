@@ -302,20 +302,25 @@ static void ctg_destroy(struct m0_cas_ctg *ctg, struct m0_be_tx *tx)
 	M0_BE_FREE_PTR_SYNC(ctg, cas_seg(tx->t_engine->eng_domain), tx);
 }
 
-M0_INTERNAL int m0_ctg_fini(struct m0_ctg_op  *ctg_op,
-			    struct m0_cas_ctg *ctg,
-			    int                next_phase)
+M0_INTERNAL void m0_ctg_fini(struct m0_fom     *fom,
+			     struct m0_cas_ctg *ctg)
 {
-	struct m0_be_tx *tx = &ctg_op->co_fom->fo_tx.tx_betx;
+	if (ctg != NULL && ctg->cc_inited) {
+		struct m0_dtx   *dtx = &fom->fo_tx;
 
-	ctg_fini(ctg);
-	/*
-	 * TODO: implement asynchronous free after memory free API added into
-	 * ctg_exec in the scope of asynchronus ctidx operations task.
-	 */
-	M0_BE_FREE_PTR_SYNC(ctg, cas_seg(tx->t_engine->eng_domain), tx);
-	m0_fom_phase_set(ctg_op->co_fom, next_phase);
-	return M0_FSO_AGAIN;
+		ctg_fini(ctg);
+		/*
+		 * TODO: implement asynchronous free after memory free API
+		 * added into ctg_exec in the scope of asynchronous ctidx
+		 * operations task.
+		 */
+		if (dtx->tx_state != M0_DTX_INVALID) {
+			struct m0_be_tx *tx = &fom->fo_tx.tx_betx;
+			if (m0_be_tx_state(tx) == M0_BTS_ACTIVE)
+				M0_BE_FREE_PTR_SYNC(ctg,
+					cas_seg(tx->t_engine->eng_domain), tx);
+		}
+	}
 }
 
 /**
@@ -781,7 +786,7 @@ static uint64_t ctg_state_update(struct m0_be_tx *tx, uint64_t size,
 	return *recs_nr;
 }
 
-static void ctg_state_inc_update(struct m0_be_tx *tx, uint64_t size)
+M0_INTERNAL void m0_ctg_state_inc_update(struct m0_be_tx *tx, uint64_t size)
 {
 	(void)ctg_state_update(tx, size, true);
 }
@@ -885,7 +890,7 @@ static bool ctg_op_cb(struct m0_clink *clink)
 			ctg_memcpy(arena, ctg_op->co_val.b_addr,
 				   ctg_op->co_val.b_nob);
 			if (ctg_is_ordinary(ctg_op->co_ctg))
-				ctg_state_inc_update(tx,
+				m0_ctg_state_inc_update(tx,
 					ctg_op->co_key.b_nob -
 				       	M0_CAS_CTG_KV_HDR_SIZE +
 					ctg_op->co_val.b_nob);
@@ -1537,15 +1542,40 @@ M0_INTERNAL void m0_ctg_drop_credit(struct m0_fom          *fom,
 	m0_bcount_t            records_nr;
 	m0_bcount_t            records_ok;
 	struct m0_be_tx_credit record_cred;
+	struct m0_be_tx_credit nodes_cred = {};
 
-	m0_be_btree_clear_credit(&ctg->cc_tree, accum, &record_cred,
+	m0_be_btree_clear_credit(&ctg->cc_tree, &nodes_cred, &record_cred,
 				 &records_nr);
 	records_nr = records_nr ?: 1;
 	for (records_ok = 0;
-	     !m0_be_should_break(m0_fom_tx(fom)->t_engine, accum,
-				 &record_cred) && records_ok < records_nr;
+	     /**
+	      * Take only a half of maximum number of credits, and rely on the
+	      * number of credits for nodes which has to be less than number of
+	      * credits for the records to be deleted. So that we leave the room
+	      * for the credits required for nodes deletion.
+	      */
+	     !m0_be_should_break_half(m0_fom_tx(fom)->t_engine, accum,
+				      &record_cred) && records_ok < records_nr;
 	     records_ok++)
 		m0_be_tx_credit_add(accum, &record_cred);
+
+	/**
+	 * Credits for all nodes are being calculated inside
+	 * m0_be_btree_clear_credit(). This is too much and can exceed allowed
+	 * credits limit.
+	 * Here, all nodes credits are being adjusted respectively to the number
+	 * of records used during deletion (records_ok). Statistically the
+	 * number of node credits after such adjustment has to be reasonable.
+	 * In general, the following relation is fair:
+	 *     deleted_nodes_nr / all_nodes_nr == records_ok / records_nr.
+	 */
+	if (records_ok > 0 && records_nr >= records_ok) {
+		nodes_cred.tc_reg_nr   =
+			nodes_cred.tc_reg_nr   * records_ok / records_nr;
+		nodes_cred.tc_reg_size =
+			nodes_cred.tc_reg_size * records_ok / records_nr;
+	}
+	m0_be_tx_credit_add(accum, &nodes_cred);
 
 	*limit = records_ok;
 }
@@ -1747,12 +1777,14 @@ M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
 	if (rc != 0)
 		return rc;
 	imask = &layout->u.dl_desc.ld_imask;
-	/** @todo Make it asynchronous. */
-	M0_BE_FREE_PTR_SYNC(imask->im_range, cas_seg(tx->t_engine->eng_domain),
-			    tx);
-	imask->im_range = NULL;
-	imask->im_nr = 0;
-
+	if (!m0_dix_imask_is_empty(imask)) {
+		/** @todo Make it asynchronous. */
+		M0_BE_FREE_PTR_SYNC(imask->im_range,
+				    cas_seg(tx->t_engine->eng_domain),
+				    tx);
+		imask->im_range = NULL;
+		imask->im_nr = 0;
+	}
 	/* The key is a component catalogue FID. */
 	ctg_fid_key_fill((void *)&key_data, &cid->ci_fid);
 	key = M0_BUF_INIT_PTR(&key_data);

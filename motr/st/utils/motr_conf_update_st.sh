@@ -48,7 +48,7 @@ clean()
 		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
 	done
 
-        if [ ! -z $multiple_pools ] && [ $multiple_pools == 1 ]; then
+        if [ ! -z "$multiple_pools" ] && [ $multiple_pools == 1 ]; then
 		local ios_index=`expr $i + 1`
 		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
         fi
@@ -107,13 +107,13 @@ io_ops()
 	spawn $motr_st_util_dir/m0client -l $MOTR_LOCAL_EP \
 		-H $MOTR_HA_EP -p $MOTR_PROF_OPT -P $MOTR_PROC_FID \
 		> $SANDBOX_DIR/m0client.log
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "write $object_id $src_file $block_size $block_count $blks_per_io\r"
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "read $object_id $dest_file $block_size $block_count $blks_per_io\r"
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "delete $object_id\r"
-	expect "m0kv >>"
+	expect "m0client >>"
 	send -- "quit\r"
 EOF
 }

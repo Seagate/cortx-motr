@@ -18,10 +18,9 @@
                         )
 
 %define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
-
 %if  "%{?CONFIG_ARCH_TYPE}" == "x86_64"
 %define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.x86_64$//' )
-%else
+%else if "%{?CONFIG_ARCH_TYPE}" == "aarch64"
 %define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.aarch64$//' )
 %endif
 
@@ -58,9 +57,9 @@ Summary:        CORTX Motr
 Group:          System Environment/Base
 License:        Seagate
 Source:         %{name}-%{version}.tar.gz
-%if  "%{?CONFIG_ARCH_TYPE}"=="x86_64"
+%if  "%{?CONFIG_ARCH_TYPE}" == "x86_64"
 BuildArch:      x86_64
-%else
+%else if  "%{?CONFIG_ARCH_TYPE}" == "aarch64"
 BuildArch:      aarch64
 %endif
 ExcludeArch:    i686
@@ -70,9 +69,9 @@ Provides:       %{name}-modules = %{version}-%{release}
 Obsoletes:      mero
 Obsoletes:      eos-core
 Provides:       motr = %{version}-%{release}
-%if  "%{?CONFIG_ARCH_TYPE}"=="x86_64"
+%if  "%{?CONFIG_ARCH_TYPE}" == "x86_64"
 Provides:       motr(x86_64) = %{version}-%{release}
-%else
+%else if  "%{?CONFIG_ARCH_TYPE}" == "aarch64"
 Provides:       motr(aarch64) = %{version}-%{release}
 %endif
 Provides:       motr-libs = %{version}-%{release}
@@ -84,11 +83,16 @@ BuildRequires:  libtool
 BuildRequires:  make
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
-%if  "%{?CONFIG_ARCH_TYPE}"=="x86_64"
+%if %{rhel} <= 7
+%if  "%{?CONFIG_ARCH_TYPE}" == "x86_64"
 BuildRequires:  gccxml
-%else
+%else if  "%{?CONFIG_ARCH_TYPE}"=="aarch64"
 #BuildRequires:  castxml
 %endif
+%else
+BuildRequires:  castxml
+%endif
+
 BuildRequires:  glibc-headers
 BuildRequires:  asciidoc
 BuildRequires:  libyaml-devel
@@ -104,10 +108,20 @@ BuildRequires:  kernel-devel = %{kernel_ver_requires}
 BuildRequires:  %{lustre_devel}
 BuildRequires:  libuuid-devel
 BuildRequires:  binutils-devel
+%if %{rhel} <= 7
 BuildRequires:  python36-ply
+%else
+BuildRequires:  python3-ply
+%endif
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
+%if %{rhel} <= 7
 BuildRequires:  python-devel
+%else
+BuildRequires:  python2-devel
+%endif
+BuildRequires:  libedit-devel
+BuildRequires:  isa-l
 %if %{with cassandra}
 BuildRequires:  libcassandra
 BuildRequires:  libuv
@@ -134,6 +148,8 @@ Requires:       ruby
 Requires:       facter
 Requires:       rubygem-net-ssh
 Requires:       python36-ply
+Requires:       libedit
+Requires:       isa-l
 Requires(pre):  shadow-utils
 Requires(post): findutils
 
@@ -179,7 +195,7 @@ CORTX Motr unit tests (for kernel and user space).
 %if  "%{CONFIG_ARCH_TYPE}"=="x86_64"
 #x86_64 platform
 %configure %{with_linux} %{with_lustre} %{configure_opts} 
-%else		
+%else if  "%{?CONFIG_ARCH_TYPE}" == "aarch64"
 #aarch64 platform
 %configure %{with_linux} %{with_lustre} %{configure_opts} enable_castxml=yes  
 %endif
@@ -246,6 +262,7 @@ fi
 %attr(0770, motr, motr) %{_localstatedir}/motr
 %config %attr(0664, motr, motr) %{_sysconfdir}/sysconfig/*
 %config %attr(0755, root, root) %{_sysconfdir}/cron.hourly/m0trace*
+%config %attr(0755, root, root) %{_sysconfdir}/cron.hourly/m0addb*
 %{_sysconfdir}/systemd/system/*
 %{_sysconfdir}/security/limits.d/90-motr.conf
 /opt/seagate/cortx/motr/*
@@ -291,6 +308,8 @@ getent passwd motr >/dev/null || useradd --system --shell /sbin/nologin \
 %post -e
 /sbin/depmod -a
 systemctl daemon-reload
+echo $(date) &> /var/log/motr-rpm-conf-update.log
+/usr/sbin/m0provision config &>> /var/log/motr-rpm-conf-update.log
 
 if [ x%%{?no_trace_logs} != x ] ; then
     /bin/sed -i -r -e "s/(MOTR_TRACED_KMOD=)yes/\1no/" /etc/sysconfig/motr
@@ -316,12 +335,3 @@ systemctl daemon-reload
 /sbin/depmod -a
 
 %endif # with ut
-
-# Remove source code from debuginfo package.
-%if !%{with debuginfo_sources}
-%define __debug_install_post \
-  %{_rpmconfigdir}/find-debuginfo.sh %{?_missing_build_ids_terminate_build:--strict-build-id} %{?_find_debuginfo_opts} "%{_builddir}/%{?buildsubdir}"; \
-  rm -rf "${RPM_BUILD_ROOT}/usr/src/debug"; \
-  mkdir -p "${RPM_BUILD_ROOT}/usr/src/debug/%{name}-%{version}"; \
-%{nil}
-%endif # debuginfo_sources

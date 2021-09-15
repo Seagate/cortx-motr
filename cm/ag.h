@@ -51,7 +51,7 @@ struct m0_cm_ag_id {
 	struct m0_uint128 ai_lo;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
-#define M0_AG_F U128X_F "::" U128D_F
+#define M0_AG_F U128X_F "::" U128X_F
 #define M0_AG_P(ag) U128_P(&((ag)->ai_hi)), U128_P(&((ag)->ai_lo))
 
 #define ID_LOG(prefix, id) M0_LOG(M0_DEBUG, prefix "=["M0_AG_F"]", M0_AG_P(id))
@@ -59,6 +59,10 @@ struct m0_cm_ag_id {
 	M0_LOG(M0_DEBUG, prefix "=["M0_AG_F"] has incoming: %d",	\
 	       M0_AG_P(id), !!(has_incoming));
 
+#define GRP_END_MARK_ID (struct m0_cm_ag_id) {           \
+        .ai_hi = M0_UINT128((uint64_t)-1, (uint64_t)-1), \
+        .ai_lo = M0_UINT128((uint64_t)-1, (uint64_t)-1)  \
+}
 
 /** Copy Machine Aggregation Group. */
 struct m0_cm_aggr_group {

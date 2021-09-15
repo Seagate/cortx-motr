@@ -327,6 +327,8 @@ struct m0_rconfc {
 	int                       rc_datum;
 	/** AST to be posted when user requests rconfc to stop. */
 	struct m0_sm_ast          rc_stop_ast;
+	/** AST to be posted for cctx_fini. */
+	struct m0_sm_ast          rc_cctx_fini_ast;
 	/** A list of confc instances used during election. */
 	struct m0_tl              rc_herd;
 	/** A list of confd servers running the elected version. */
@@ -427,6 +429,10 @@ struct m0_rconfc {
 	 * unrelated to rconfc internal workings, e.g. start timeout expired.
 	 */
 	uint32_t                    rc_sm_state_on_abort;
+	/**
+	 * quorum is computed once and will de done again after rm revoke.
+	 */
+	bool                        rc_quorum_decision_is_made;
 };
 
 /**

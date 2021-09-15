@@ -46,7 +46,6 @@
 #include "module/instance.h"  /* m0 */
 #include "motr/init.h"        /* m0_init */
 #include "net/net.h"          /* m0_net_domain */
-#include "net/lnet/lnet.h"    /* m0_net_lnet_xprt */
 #include "net/buffer_pool.h"  /* m0_net_buffer_pool */
 #include "reqh/reqh.h"        /* m0_reqh */
 #include "rpc/rpc_machine.h"  /* m0_rpc_machine */
@@ -59,8 +58,9 @@
 #include <getopt.h>           /* getopt_long */
 #include <unistd.h>           /* isatty */
 
-#define HAM_SERVER_EP_DEFAULT "0@lo:12345:63:100"
-#define HAM_CLIENT_EP_DEFAULT "0@lo:12345:63:101"
+#define HAM_SERVER_EP_DEFAULT   "0@lo:12345:63:100"
+#define HAM_CLIENT_EP_DEFAULT   "0@lo:12345:63:101"
+#define HAM_SERVER_WAIT_DEFAULT 0
 
 enum ham_mode { HM_CONNECT, HM_LISTEN, HM_SELF_CHECK };
 
@@ -73,6 +73,7 @@ static struct ham_params {
 	const char   *hp_ep_local;
 	const char   *hp_ep_remote; /* connect mode only */
 	bool          hp_verbose;
+	unsigned int  hp_wait;      /* listen mode only */
 	const char   *hp_progname;
 } g_params;
 
@@ -235,7 +236,7 @@ static void ham_rpc_ctx_init(struct ham_rpc_ctx *ctx,
 	M0_PRE(local_endpoint != NULL && *local_endpoint != '\0');
 	M0_PRE(m0_conf_fid_type(local_process) == &M0_CONF_PROCESS_TYPE);
 
-	rc = m0_net_domain_init(&ctx->mrc_net_dom, &m0_net_lnet_xprt);
+	rc = m0_net_domain_init(&ctx->mrc_net_dom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
 	rc = m0_rpc_net_buffer_pool_setup(
 		&ctx->mrc_net_dom,
@@ -473,6 +474,8 @@ static void ham_help(FILE *stream, char *progname)
 "  -l, --listen       Listen for incoming connections\n"
 "  -s, --source addr  Specify source address to use (doesn't affect -l);\n"
 "                     defaults to "HAM_CLIENT_EP_DEFAULT"\n"
+"  -w, --wait time    Wait in seconds before finishing listening mode\n"
+"                     Default is zero second\n"
 "  -v, --verbose      Explain what is being done\n",
 		/*
 		 * `--self-check' is intentionally left undocumented.
@@ -492,7 +495,6 @@ ham_args_parse(struct ham_params *params, int argc, char *const *argv)
 	/*
 	 * XXX FUTURE: We may want to add
 	 *   -k, --keep-open (Accept multiple connections)
-	 *   -w time, --wait time (Specify connect timeout)
 	 * options in the future; see ncat(1).
 	 */
 	const struct option opts[] = {
@@ -500,6 +502,7 @@ ham_args_parse(struct ham_params *params, int argc, char *const *argv)
 		{ "help",       no_argument, NULL, 'h' },
 		{ "listen",     no_argument, NULL, 'l' },
 		{ "source",     required_argument, NULL, 's' },
+		{ "wait",       required_argument, NULL, 'w' },
 		{ "verbose",    no_argument, NULL, 'v' },
 		{} /* terminator */
 	};
@@ -510,9 +513,10 @@ ham_args_parse(struct ham_params *params, int argc, char *const *argv)
 		.hp_ep_local  = NULL,
 		.hp_ep_remote = NULL,
 		.hp_verbose   = false,
+		.hp_wait      = HAM_SERVER_WAIT_DEFAULT,
 		.hp_progname  = basename(argv[0])
 	};
-	while ((c = getopt_long(argc, argv, "hls:v", opts, NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, "hls:w:v", opts, NULL)) != -1) {
 		switch (c) {
 		case 'c':
 			params->hp_mode = HM_SELF_CHECK;
@@ -528,6 +532,9 @@ ham_args_parse(struct ham_params *params, int argc, char *const *argv)
 			break;
 		case 'v':
 			params->hp_verbose = true;
+			break;
+		case 'w':
+			params->hp_wait = atoi(optarg);
 			break;
 		default:
 			goto err;
@@ -667,6 +674,9 @@ int main(int argc, char **argv)
 		ham_say("Awaiting reply");
 		m0_semaphore_down(&g_sem);
 		M0_ASSERT(m0_semaphore_value(&g_sem) == 0);
+	}
+	if (g_params.hp_mode == HM_LISTEN && g_params.hp_wait > 0) {
+		m0_nanosleep(m0_time(g_params.hp_wait, 0), NULL);
 	}
 	ham_say("Finishing");
 	m0_ha_flush(&ha, hl);

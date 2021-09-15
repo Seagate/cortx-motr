@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -261,7 +261,7 @@ static const struct m0_rpc_item_ops rem_rpc_item_sender_ops = {
 
 M0_UNUSED static const struct m0_rpc_item_ops rem_rpc_item_redo_ops = {
 	.rio_replied = &rem_rpc_redo_replied
-};
+}; 
 
 M0_INTERNAL void m0_dtm_local_remote_init(struct m0_dtm_local_remote *lre,
 					  struct m0_uint128 *id,

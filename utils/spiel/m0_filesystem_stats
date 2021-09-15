@@ -50,7 +50,7 @@ export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 SCRIPT_NAME=`echo $0 | awk -F "/" '{print $NF}'`
 STATUS_FILE=/tmp/get_size_client$USER
 SAVEIFS=$IFS
-TIMEOUT=5
+TIMEOUT=10
 lnet_nids=$(lctl list_nids)
 server_addr=""
 client_addr=""
@@ -58,11 +58,12 @@ profile_addr=""
 systemd=0
 declare libmotr_path="/usr/lib64/libmotr.so"
 declare m0spiel_path="/usr/bin/m0spiel"
-declare consul_path="/opt/seagate/cortx/hare/bin/consul"
+declare consul_path="/usr/bin/consul"
 declare python2_path="/usr/bin/python2"
 consul_query_args="kv get -recurse m0conf"
 consul_query_cmd="$consul_path $consul_query_args"
 motr_conf_file="/etc/sysconfig/motr"
+[ -d /etc/sysconfig ] || motr_conf_file="/etc/default/motr"
 
 exit_with_error()
 {
@@ -150,12 +151,25 @@ if [ $rc -ne 0 ] ; then
 fi
 }
 
+get_hostname()
+{
+        host=" "
+        if [[ -f /etc/salt/minion_id ]] ; then
+            host=$(cat /etc/salt/minion_id)
+        fi
+
+        if [[ -z "$host" ]] ; then
+           host=$(hostname --fqdn)
+        fi
+        echo $host
+}
+
 # Get endpoints of local node's processes that run service(s) of given type.
 get_endpoints_of() {
 	local svc_type=$1
 
 	$consul_query_cmd |
-        awk -F/ -v host=$(hostname --fqdn) -v svc_type=$svc_type '
+        awk -F/ -v host=$(get_hostname) -v svc_type=$svc_type '
 	$3 != host { next }
 	$6 ~ /^endpoint:/ { sub(/^endpoint:/, "", $6); endpoints[$5] = $6 }
 	$6 == "services" && match($7, "^" svc_type ":") { match_p[$5] = 1 }
@@ -180,22 +194,22 @@ main()
 	check_bin_path m0spiel
         if [ ! -s $libmotr_path ] ; then
 	    [[ -r $motr_conf_file ]] && source $motr_conf_file
-	    [[ -n $MOTR_DEVEL_WORKDIR_PATH ]] && \
+	    [[ -n "$MOTR_DEVEL_WORKDIR_PATH" ]] && \
                 libmotr_path=$MOTR_DEVEL_WORKDIR_PATH/motr/.libs/libmotr.so
 	    [[ ! -s $libmotr_path ]] && exit_with_error "libmotr Not Found" 1
         fi
 
-	if [ -z $server_addr ] ; then
+	if [ -z "$server_addr" ] ; then
 		consul_path=$(get_bin_path consul)
 		check_bin_path consul
 		server_addr=$(get_endpoints_of ha | tail -1)
 	fi
 
-	if [ -z $profile_addr ] ; then
+	if [ -z "$profile_addr" ] ; then
 		profile_addr=$($consul_query_cmd | grep profiles: | sed -n -e 's/^.*\(profiles:\)/\1/p'  | awk '{print $1}'| sed 's/^[^:]*://' | sed 's/:/,/')
 	fi
 
-	if [ -z $client_addr ] ; then
+	if [ -z "$client_addr" ] ; then
 		local cmd="tail -2"
 		[[  $systemd == 1 ]] && cmd="tail -1"
 		client_addr=$(get_endpoints_of m0_client_other | $cmd | head -1)
@@ -204,7 +218,7 @@ main()
 	M0_SPIEL_OPTS="-s $server_addr -l $libmotr_path --client=$client_addr"
 	M0_PROFILE_ID=$profile_addr
 
-	if [[ -z $server_addr || -z $libmotr_path || -z $client_addr || -z $profile_addr ]]; then
+	if [[ -z "$server_addr" || -z "$libmotr_path" || -z "$client_addr" || -z "$profile_addr" ]]; then
 		exit_with_error "Invalid Arguments" 1
 	fi
 
@@ -233,12 +247,17 @@ Usage: $SCRIPT_NAME [options]
 
     -l, --libmotr_path     libmotr path
 
+    -t, --timeout          timeout in seconds
+
     -h, --help             this help
 
 Example:
-    $SCRIPT_NAME  [-s ${lnet_nids}:12345:1:1] [-c ${lnet_nids}:12345:1:4]
-                  [-p 0x7000000000000001,0x1e] [-l $libmotr_path ]
-    -c, -s, -l and -p are optional arguments
+    $SCRIPT_NAME  
+    -s ${lnet_nids}:12345:1:1
+    -c ${lnet_nids}:12345:1:4
+    -p 0x7000000000000001,0x1e
+    -l $libmotr_path
+     -c, -s, -l and -p are optional arguments
 
 RETURN :
 0 : SUCCESS

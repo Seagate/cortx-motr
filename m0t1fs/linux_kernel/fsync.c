@@ -54,7 +54,16 @@ M0_TL_DEFINE(fpf, static, struct m0t1fs_fsync_fop_wrapper);
  */
 struct m0t1fs_fsync_interactions fi = {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+/*
+ * Starting from 3.16 generic_file_fsync() tries to flush block
+ * device by calling blkdev_issue_flush(inode->i_sb->s_bdev), but
+ * we don't have any block device.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,16,0)
+	.kernel_fsync   = __generic_file_fsync,
+#else
 	.kernel_fsync   = generic_file_fsync,
+#endif
 #else
 	.kernel_fsync   = &simple_fsync,
 #endif
@@ -378,7 +387,6 @@ int m0t1fs_fsync(struct file *file, struct dentry *dentry, int datasync)
 	M0_LEAVE();
 	return m0t1fs_fsync_core(inode, M0_FSYNC_MODE_ACTIVE);
 }
-
 
 /**
  * Update a m0_reqh_service_txid with the specified be_tx_remid

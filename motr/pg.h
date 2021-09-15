@@ -319,10 +319,10 @@ struct nw_xfer_request {
 /**
  * Represents a map of io extents in a given parity group.
  * Struct m0_op_io contains as many pargrp_iomap structures
- * as the number of parity groups spanned by m0_op_io::ioo_ivec.
+ * as the number of parity groups spanned by m0_op_io::ioo_ext.
  * Typically, the segments from pargrp_iomap::pi_ivec are round_{up/down}
  * to nearest page boundary for respective segments from
- * m0_op_io::ioo_ivec.
+ * m0_op_io::ioo_ext.
  */
 struct pargrp_iomap {
 	uint64_t                        pi_magic;
@@ -334,7 +334,7 @@ struct pargrp_iomap {
 	enum pargrp_iomap_state         pi_state;
 
 	/**
-	 * Part of m0_op_io::ioo_ivec which falls in ::pi_grpid
+	 * Part of m0_op_io::ioo_ext which falls in ::pi_grpid
 	 * parity group.
 	 * All segments are in increasing order of file offset.
 	 * Segment counts in this index vector are multiple of PAGE_SIZE.
@@ -355,24 +355,37 @@ struct pargrp_iomap {
 	 * - number of columns = N.
 	 * Each element of matrix is worth PAGE_SIZE;
 	 * A unit size worth of data holds a contiguous chunk of file data.
-	 * The file offset grows vertically first and then to the next
-	 * data unit.
+	 * The file offset grows vertically first (by rows) and then to
+	 * the next data unit (by columns). For example, if the PAGE_SIZE is
+	 * 4K, and unit size is 16K, for a file/object of 112K length,
+	 * there will be following bufs, with corresponding offsets:
+	 *
+	 * [0k   ][16k  ][32k  ][48k  ][64k  ][80k  ][96k   ]
+	 * [4k   ][20k  ][36k  ][52k  ][68k  ][84k  ][100k  ]
+	 * [8k   ][24k  ][40k  ][56k  ][72k  ][88k  ][104k  ]
+	 * [12k  ][28k  ][44k  ][60k  ][76k  ][92k  ][108k  ]
 	 */
 	struct data_buf              ***pi_databufs;
 
-	/** The maximum row value to use when accessing pi_databufs */
+	/**
+	 * The maximum row value to use when accessing pi_databufs.
+	 * This is essentially the unit size in pages.
+	 */
 	uint32_t                        pi_max_row;
 
-	/** The maximum col value to use when accessing pi_databufs */
+	/**
+	 * The maximum col value to use when accessing pi_databufs. This
+	 * is essentially the number of data units in parity group (N).
+	 */
 	uint32_t                        pi_max_col;
 
 	/**
 	 * Parity units in a parity group.
 	 * Unit size should be multiple of PAGE_SIZE.
-	 * This is a matrix with
+	 * Similar to pi_databufs, this is a matrix with
 	 * - number of rows    = Unit_size / PAGE_SIZE and
 	 * - number of columns = K.
-	 * Each element of matrix is worth PAGE_SIZE;
+	 * Each element of matrix is worth PAGE_SIZE.
 	 */
 	struct data_buf              ***pi_paritybufs;
 
@@ -401,9 +414,9 @@ struct pargrp_iomap_ops {
 	 * read-old approach or read-rest approach.
 	 * pargrp_iomap::pi_rtype will be set to PIR_READOLD or
 	 * PIR_READREST accordingly.
-	 * @param ivec   Source index vector from which pargrp_iomap::pi_ivec
-	 * will be populated. Typically, this is m0_op_io::ioo_ivec.
-	 * @param cursor Index vector cursor associated with ivec.
+	 * @param cursor Source index vector cursor from which
+	 *               pargrp_iomap::pi_ivec will be populated.
+	 *               Typically, this is m0_op_io::ioo_ext.
 	 * @pre iomap != NULL && ivec != NULL &&
 	 * m0_vec_count(&ivec->iv_vec) > 0 && cursor != NULL &&
 	 * m0_vec_count(&iomap->iv_vec) == 0
@@ -411,7 +424,6 @@ struct pargrp_iomap_ops {
 	 * iomap->pi_databufs != NULL.
 	 */
 	int (*pi_populate)  (struct pargrp_iomap      *iomap,
-			     const struct m0_indexvec *ivec,
 			     struct m0_ivec_cursor    *cursor,
 			     struct m0_bufvec_cursor  *buf_cursor);
 
@@ -459,7 +471,7 @@ struct pargrp_iomap_ops {
 	 *
 	 */
 	int (*pi_seg_process)    (struct pargrp_iomap *map,
-				  uint64_t             segid,
+				  uint32_t             segid,
 				  bool                 rmw,
 				  uint64_t             start_buf_index,
 				  struct m0_bufvec_cursor *buf_cursor);
@@ -761,6 +773,10 @@ struct target_ioreq {
 	struct m0_tl                   ti_iofops;
 	/** Fop when the ti_req_type == TI_COB_CREATE|TI_COB_TRUNCATE. */
 	struct cc_req_fop              ti_cc_fop;
+
+	/** flag to indicate if cc_fop is used */
+	bool                           ti_cc_fop_inited;
+
 	/** Resulting IO fops are sent on this rpc session. */
 	struct m0_rpc_session         *ti_session;
 

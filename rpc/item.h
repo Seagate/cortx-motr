@@ -232,6 +232,10 @@ struct m0_rpc_item {
 	uint64_t			 ri_magic;
 	/** Link for m0_rpc_item_cache::ric_items. */
 	struct m0_tlink			 ri_cache_link;
+	/** Link for m0_rpc_session::s_xid_list. */
+	struct m0_tlink			 ri_xid_link;
+	/** xid was assigned in this process, i.e. item is in ri_xid_link. */
+	bool 			         ri_xid_assigned_here;
 	/** After this time item can be safely removed from reply cache */
 	m0_time_t			 ri_cache_deadline;
 };
@@ -594,10 +598,14 @@ M0_INTERNAL void m0_rpc_item_cache_purge(struct m0_rpc_item_cache *ic);
 /** Deletes all items from the cache. */
 M0_INTERNAL void m0_rpc_item_cache_clear(struct m0_rpc_item_cache *ic);
 
+M0_INTERNAL void m0_rpc_item_xid_list_init(struct m0_rpc_session *session);
+M0_INTERNAL void m0_rpc_item_xid_list_fini(struct m0_rpc_session *session);
+
 /** Initialises the pending item cache. */
 M0_INTERNAL void m0_rpc_item_pending_cache_init(struct m0_rpc_session *session);
 /** Finalises the pending item cache. */
 M0_INTERNAL void m0_rpc_item_pending_cache_fini(struct m0_rpc_session *session);
+
 /**
  * Adds item to the pending item cache only if it is not already present
  * there. It is going to be present there in case of resend.

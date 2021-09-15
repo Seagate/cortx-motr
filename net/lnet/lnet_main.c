@@ -921,12 +921,16 @@ M0_BASSERT(M0_NET_LNET_PID == LUSTRE_SRV_LNET_PID);
 
 M0_INTERNAL int m0_net_lnet_init(void)
 {
+	m0_net_xprt_register(&m0_net_lnet_xprt);
+	m0_net_xprt_default_set(&m0_net_lnet_xprt);
+
 	return M0_RC(nlx_core_init());
 }
 
 M0_INTERNAL void m0_net_lnet_fini(void)
 {
 	nlx_core_fini();
+	m0_net_xprt_deregister(&m0_net_lnet_xprt);
 }
 
 M0_INTERNAL int m0_net_lnet_ep_addr_net_cmp(const char *addr1,
@@ -944,7 +948,7 @@ M0_INTERNAL int m0_net_lnet_ep_addr_net_cmp(const char *addr1,
 M0_EXPORTED(m0_net_lnet_ep_addr_net_cmp);
 
 M0_INTERNAL int m0_net_lnet_ifaces_get(struct m0_net_domain *dom,
-				       char *const **addrs)
+				       char ***addrs)
 {
 	struct nlx_xo_domain *dp;
 
@@ -955,7 +959,7 @@ M0_INTERNAL int m0_net_lnet_ifaces_get(struct m0_net_domain *dom,
 M0_EXPORTED(m0_net_lnet_ifaces_get);
 
 M0_INTERNAL void m0_net_lnet_ifaces_put(struct m0_net_domain *dom,
-					char *const **addrs)
+					char ***addrs)
 {
 	struct nlx_xo_domain *dp;
 

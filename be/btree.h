@@ -417,6 +417,19 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *tree,
 				    struct m0_buf *dest_value);
 
 /**
+ * Looks up for a record with the closest key >= given @key.
+ * The result is copied into provided @key and @value buffers.
+ *
+ * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
+ *
+ * @see m0_be_btree_create() regarding @op structure "mission".
+ */
+M0_INTERNAL void m0_be_btree_lookup_slant(struct m0_be_btree *tree,
+					  struct m0_be_op *op,
+					  struct m0_buf *key,
+					  struct m0_buf *value);
+
+/**
  * Looks up for a maximum key value in the given @tree.
  *
  * @see m0_be_btree_create() regarding @op structure "mission".
@@ -550,8 +563,8 @@ M0_INTERNAL void m0_be_btree_release(struct m0_be_tx           *tx,
  * Used for cursor depth-first in-order traversing.
  */
 struct m0_be_btree_cursor_stack_entry {
-	struct m0_be_bnode *bs_node;
 	int                 bs_idx;
+	struct m0_be_bnode *bs_node;
 };
 
 /** Btree configuration constants. */
@@ -567,11 +580,11 @@ enum {
  * with m0_be_btree_cursor_next(), m0_be_btree_cursor_prev().
  */
 struct m0_be_btree_cursor {
-	struct m0_be_bnode                   *bc_node;
 	int                                   bc_pos;
-	struct m0_be_btree_cursor_stack_entry bc_stack[BTREE_HEIGHT_MAX];
 	int                                   bc_stack_pos;
 	struct m0_be_btree                   *bc_tree;
+	struct m0_be_bnode                   *bc_node;
+	struct m0_be_btree_cursor_stack_entry bc_stack[BTREE_HEIGHT_MAX];
 	struct m0_be_op                       bc_op; /* XXX DELETEME */
 };
 
