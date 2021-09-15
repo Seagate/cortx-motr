@@ -481,10 +481,24 @@ static void bulkclient_test(void)
 	m0_free(rm_dom);
 }
 
+int bulkio_client_ut_init( void )
+{
+	m0_fi_enable("libfab_target_notify", "lf_dummy_msg_snd");
+	m0_fi_enable("libfab_buf_done", "lf_dummy_msg_rcv");
+	return 0;
+}
+
+int bulkio_client_ut_fini( void )
+{
+	m0_fi_disable("libfab_target_notify", "lf_dummy_msg_snd");
+	m0_fi_disable("libfab_buf_done", "lf_dummy_msg_rcv");
+	return 0;
+}
+
 struct m0_ut_suite bulkio_client_ut = {
 	.ts_name = "bulk-client-ut",
-	.ts_init = NULL,
-	.ts_fini = NULL,
+	.ts_init = bulkio_client_ut_init,
+	.ts_fini = bulkio_client_ut_fini,
 	.ts_tests = {
 		{ "bulkclient_test", bulkclient_test},
 		{ NULL, NULL }

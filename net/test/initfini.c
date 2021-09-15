@@ -20,6 +20,7 @@
  */
 
 
+#include "lib/finject.h"
 #include "net/test/node_bulk.h"		/* m0_net_test_node_bulk_init */
 #include "net/test/initfini.h"
 
@@ -35,11 +36,15 @@
 
 int m0_net_test_init(void)
 {
+	m0_fi_enable("libfab_target_notify", "lf_dummy_msg_snd");
+	m0_fi_enable("libfab_buf_done", "lf_dummy_msg_rcv");
 	return m0_net_test_node_bulk_init();
 }
 
 void m0_net_test_fini(void)
 {
+	m0_fi_disable("libfab_target_notify", "lf_dummy_msg_snd");
+	m0_fi_disable("libfab_buf_done", "lf_dummy_msg_rcv");
 	m0_net_test_node_bulk_fini();
 }
 

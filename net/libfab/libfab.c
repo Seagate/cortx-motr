@@ -187,6 +187,7 @@
 #include "net/buffer_pool.h"    /* struct m0_net_buffer_pool */
 #include "net/net.h"            /* struct m0_net_domain */
 #include "lib/errno.h"          /* errno */
+#include "lib/finject.h"        /* M0_FI_ENABLED */
 #include "lib/hash.h"           /* m0_htable */
 #include "lib/memory.h"         /* M0_ALLOC_PTR()*/
 #include "libfab_internal.h"
@@ -1922,7 +1923,8 @@ static void libfab_buf_done(struct m0_fab__buf *buf, int rc)
 		if (m0_thread_self() == &ma->ftm_poller) {
 			if (buf->fb_length == (sizeof(uint32_t) * 2)) {
 				ptr = (uint32_t *)nb->nb_buffer.ov_buf[0];
-				if (*ptr == FAB_DUMMY_DATA) {
+				if (M0_FI_ENABLED("lf_dummy_msg_rcv") &&
+				    *ptr == FAB_DUMMY_DATA) {
 					uint32_t token;
 					ptr++;
 					token = *ptr;
@@ -2265,7 +2267,8 @@ static int libfab_target_notify(struct m0_fab__buf *buf)
 	struct fi_msg             op_msg;
 	int                       ret = 0;
 
-	if (buf->fb_nb->nb_qtype == M0_NET_QT_ACTIVE_BULK_RECV) {
+	if (M0_FI_ENABLED("lf_dummy_msg_snd") &&
+	    buf->fb_nb->nb_qtype == M0_NET_QT_ACTIVE_BULK_RECV) {
 		M0_ALLOC_PTR(fbp);
 		if (fbp == NULL)
 			return M0_ERR(-ENOMEM);
