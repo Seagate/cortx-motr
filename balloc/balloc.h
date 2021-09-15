@@ -213,6 +213,16 @@ enum {
 	M0_BALLOC_BUDDY_LOOKUP_MAX = 10,
 };
 
+#define __AAL(x) __attribute__((aligned(x)))
+
+/** Root node alignment for balloc extend and group descriptor trees. */
+#define BALLOC_ROOT_NODE_ALIGN  1024
+
+enum {
+	/** Root node size for balloc extend and group descriptor trees. */
+	BALLOC_ROOT_NODE_SIZE = 1024,
+};
+
 /**
    BE-backed in-memory data structure for the balloc environment.
 
@@ -241,8 +251,10 @@ struct m0_balloc {
 	struct m0_btree             *cb_db_group_desc;
 
 	/** Root nodes for cb_db_group_extents and cb_db_group_desc btrees. */
-	uint8_t                 cb_ge_node[1024] __attribute__((aligned(1024)));
-	uint8_t                 cb_gd_node[1024] __attribute__((aligned(1024)));
+	uint8_t                      cb_ge_node[BALLOC_ROOT_NODE_SIZE]
+					__AAL(BALLOC_ROOT_NODE_ALIGN);
+	uint8_t                      cb_gd_node[BALLOC_ROOT_NODE_SIZE]
+					__AAL(BALLOC_ROOT_NODE_ALIGN);
 
 	/*
 	 * volatile-only fields

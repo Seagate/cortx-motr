@@ -76,9 +76,9 @@ static int btree_lookup_callback(struct m0_btree_cb  *cb,
 	struct m0_btree_rec     *datum = cb->c_datum;
 
 	/** Copy both keys and values. Keys are copied to cover slant case. */
-        m0_bufvec_copy(&datum->r_key.k_data, &rec->r_key.k_data,
+	m0_bufvec_copy(&datum->r_key.k_data, &rec->r_key.k_data,
 		       m0_vec_count(&rec->r_key.k_data.ov_vec));
-        m0_bufvec_copy(&datum->r_val, &rec->r_val,
+	m0_bufvec_copy(&datum->r_val, &rec->r_val,
 		       m0_vec_count(&rec->r_val.ov_vec));
 	return 0;
 }
@@ -96,12 +96,12 @@ static inline int btree_lookup_sync(struct m0_btree     *tree,
 	uint64_t             flags  = slant ? BOF_SLANT : BOF_EQUAL;
 
 	struct m0_btree_rec  rec    = {
-	                    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-	                    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 			};
 	struct m0_btree_cb   get_cb = {.c_act = btree_lookup_callback,
-	                               .c_datum = &rec,
-	                              };
+				       .c_datum = &rec,
+				      };
 
 	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					m0_btree_get(tree, &rec.r_key, &get_cb,
@@ -132,12 +132,12 @@ static inline int btree_insert_sync(struct m0_btree     *tree,
 	m0_bcount_t          ksize = key->b_nob;
 	m0_bcount_t          vsize = val->b_nob;
 	struct m0_btree_rec  rec = {
-	                   .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-	                   .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
-	                };
+			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+			};
 	struct m0_btree_cb   put_cb = {.c_act = btree_insert_callback,
-	                               .c_datum = &rec,
-	                              };
+				       .c_datum = &rec,
+				      };
 
 	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					m0_btree_put(tree, &rec, &put_cb,
