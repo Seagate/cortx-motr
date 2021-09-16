@@ -1853,34 +1853,19 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 	/** Skip meta-data lookup if obj.ob_attr.oa_pver is not empty.
 	 * pver is not empty that means  calling application has
 	 * capability to store meta-data(pver, LID) and has sent pver
-	 * to open entity.
+	 * to open/delete entity.
 	 */
 	skip_meta_data = false;
 	obj = m0__obj_entity(oo->oo_oc.oc_op.op_entity);
-	if ((cr->cr_opcode == M0_EO_GETATTR) &&
+	if ((M0_IN(cr->cr_opcode, (M0_EO_GETATTR, M0_EO_DELETE))) &&
 	     m0_fid_is_set(&obj->ob_attr.oa_pver) &&
-	     m0_fid_is_valid(&obj->ob_attr.oa_pver)) {
+	     m0_fid_is_valid(&obj->ob_attr.oa_pver))
 		skip_meta_data = true;
-	}
 
-	/* Set layout id and pver for CREATE, DELETE op.*/
-	if (M0_IN(cr->cr_opcode, (M0_EO_CREATE, M0_EO_DELETE))) {
+	/* Set layout id and pver for CREATE op.*/
+	if (cr->cr_opcode == M0_EO_CREATE) {
 		cr->cr_cob_attr->ca_lid = obj->ob_attr.oa_layout_id;
-		 if ((obj->ob_entity.en_flags & M0_ENF_META) ||
-		    /**
-		     * FIXME: For now application do not pass M0_ENF_META flag
-		     *  for entity_delete() operation, but it sends pver which is
-		     *  stored in their meta-data. Here we can skip cob lookup
-		     *  if pver is passed by s3 for delete_entity and we can
-		     *  safely assume that application has capability to store
-		     *  meta-data.
-		     *  If application could set M0_ENF_META flag explicitely
-		     *  for delete_entity() opertion along with pver then we
-		     *  need not to rely upon below pver check and the if check
-		     *  can be removed.
-		     */
-		    ((cr->cr_opcode == M0_EO_DELETE) &&
-		     (m0_fid_is_set(&obj->ob_attr.oa_pver)))) {
+		 if (obj->ob_entity.en_flags & M0_ENF_META) {
 			/* For create operation setting up pool version locally
 			* found in pools common, so cob lookup call to server
 			* can be skipped */
