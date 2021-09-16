@@ -40,6 +40,7 @@
 package mio
 
 // #cgo CFLAGS: -I/usr/include/motr
+// #cgo CFLAGS: -I../../..
 // #cgo CFLAGS: -DM0_EXTERN=extern -DM0_INTERNAL=
 // #cgo CFLAGS: -Wno-attributes
 // #cgo LDFLAGS: -L../../../motr/.libs -Wl,-rpath=../../../motr/.libs -lmotr
