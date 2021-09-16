@@ -23,20 +23,21 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BALLOC
 #include "lib/trace.h"
 
-#include <stdio.h>        /* sprintf */
+#include <stdio.h>         /* sprintf */
 #include <stdlib.h>
 #include <memory.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 
-#include "dtm/dtm.h"	  /* m0_dtx */
-#include "be/tx_bulk.h"   /* m0_be_tx_bulk */
-#include "be/op.h"        /* m0_be_op_active */
-#include "lib/misc.h"	  /* M0_SET0 */
+#include "dtm/dtm.h"	   /* m0_dtx */
+#include "be/tx_bulk.h"    /* m0_be_tx_bulk */
+#include "be/op.h"         /* m0_be_op_active */
+#include "lib/misc.h"	   /* M0_SET0 */
 #include "lib/errno.h"
-#include "lib/arith.h"	  /* min_check, m0_is_po2 */
+#include "lib/arith.h"	   /* min_check, m0_is_po2 */
 #include "lib/memory.h"
-#include "lib/locality.h" /* m0_locality0_get */
+#include "lib/byteorder.h" /* m0_byteorder_cpu_to_be64() */
+#include "lib/locality.h"  /* m0_locality0_get */
 #include "balloc.h"
 #include "motr/magic.h"
 
@@ -69,40 +70,154 @@ struct balloc_allocation_context {
 	struct m0_ext                  bac_final;/*< final results */
 };
 
-static inline int btree_lookup_sync(struct m0_be_btree  *tree,
-			       const struct m0_buf *key,
-			       struct m0_buf       *val)
+static int btree_lookup_callback(struct m0_btree_cb  *cb,
+				 struct m0_btree_rec *rec)
 {
-	return M0_BE_OP_SYNC_RET(op, m0_be_btree_lookup(tree, &op, key, val),
-	                         bo_u.u_btree.t_rc);
+	struct m0_btree_rec     *datum = cb->c_datum;
+
+	/** Copy both keys and values. Keys are copied to cover slant case. */
+	m0_bufvec_copy(&datum->r_key.k_data, &rec->r_key.k_data,
+		       m0_vec_count(&rec->r_key.k_data.ov_vec));
+	m0_bufvec_copy(&datum->r_val, &rec->r_val,
+		       m0_vec_count(&rec->r_val.ov_vec));
+	return 0;
 }
 
-static inline int btree_insert_sync(struct m0_be_btree  *tree,
-			       struct m0_be_tx     *tx,
-			       const struct m0_buf *key,
-			       const struct m0_buf *val)
+static inline int btree_lookup_sync(struct m0_btree     *tree,
+				    const struct m0_buf *key,
+				    struct m0_buf       *val,
+				    bool                 slant)
 {
-	return M0_BE_OP_SYNC_RET(op,
-				 m0_be_btree_insert(tree, tx, &op, key, val),
-	                         bo_u.u_btree.t_rc);
+	struct m0_btree_op   kv_op  = {};
+	void                *k_ptr  = key->b_addr;
+	void                *v_ptr  = val->b_addr;
+	m0_bcount_t          ksize  = key->b_nob;
+	m0_bcount_t          vsize  = val->b_nob;
+	uint64_t             flags  = slant ? BOF_SLANT : BOF_EQUAL;
+
+	struct m0_btree_rec  rec    = {
+			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+			};
+	struct m0_btree_cb   get_cb = {.c_act = btree_lookup_callback,
+				       .c_datum = &rec,
+				      };
+
+	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					m0_btree_get(tree, &rec.r_key, &get_cb,
+						     flags, &kv_op));
 }
 
-static inline int btree_update_sync(struct m0_be_btree  *tree,
-			       struct m0_be_tx     *tx,
-			       const struct m0_buf *key,
-			       const struct m0_buf *val)
+static int btree_insert_callback(struct m0_btree_cb  *cb,
+				 struct m0_btree_rec *rec)
 {
-	return M0_BE_OP_SYNC_RET(op,
-				 m0_be_btree_update(tree, tx, &op, key, val),
-	                         bo_u.u_btree.t_rc);
+	struct m0_btree_rec     *datum = cb->c_datum;
+
+	/** Write the Key and Value to the location indicated in rec. */
+	m0_bufvec_copy(&rec->r_key.k_data,  &datum->r_key.k_data,
+		       m0_vec_count(&datum->r_key.k_data.ov_vec));
+	m0_bufvec_copy(&rec->r_val, &datum->r_val,
+		       m0_vec_count(&rec->r_val.ov_vec));
+	return 0;
 }
 
-static inline int btree_delete_sync(struct m0_be_btree  *tree,
-			       struct m0_be_tx     *tx,
-			       const struct m0_buf *key)
+static inline int btree_insert_sync(struct m0_btree     *tree,
+				    struct m0_be_tx     *tx,
+				    const struct m0_buf *key,
+				    const struct m0_buf *val)
 {
-	return M0_BE_OP_SYNC_RET(op, m0_be_btree_delete(tree, tx, &op, key),
-	                         bo_u.u_btree.t_rc);
+	struct m0_btree_op   kv_op = {};
+	void                *k_ptr = key->b_addr;
+	void                *v_ptr = val->b_addr;
+	m0_bcount_t          ksize = key->b_nob;
+	m0_bcount_t          vsize = val->b_nob;
+	struct m0_btree_rec  rec = {
+			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+			};
+	struct m0_btree_cb   put_cb = {.c_act = btree_insert_callback,
+				       .c_datum = &rec,
+				      };
+
+	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					m0_btree_put(tree, &rec, &put_cb,
+						     &kv_op, tx));
+}
+
+static inline int balloc_ext_insert(struct m0_btree *tree, struct m0_be_tx *tx,
+				    struct m0_ext ext)
+{
+	struct m0_buf key;
+	struct m0_buf val;
+
+	ext.e_end = m0_byteorder_cpu_to_be64(ext.e_end);
+	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
+	val = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_start);
+
+	return  btree_insert_sync(tree, tx, &key, &val);
+}
+
+static int btree_update_callback(struct m0_btree_cb  *cb,
+				 struct m0_btree_rec *rec)
+{
+	struct m0_btree_rec     *datum = cb->c_datum;
+
+	/** Only update the Value to the location indicated in rec. */
+	m0_bufvec_copy(&rec->r_val, &datum->r_val,
+		       m0_vec_count(&datum->r_val.ov_vec));
+	return 0;
+}
+
+static inline int btree_update_sync(struct m0_btree     *tree,
+				    struct m0_be_tx     *tx,
+				    const struct m0_buf *key,
+				    const struct m0_buf *val)
+{
+	struct m0_btree_op   kv_op = {};
+	void                *k_ptr = key->b_addr;
+	void                *v_ptr = val->b_addr;
+	m0_bcount_t          ksize = key->b_nob;
+	m0_bcount_t          vsize = val->b_nob;
+	struct m0_btree_rec  rec = {
+		.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+		.r_val        = M0_BUFVEC_INIT_BUF( &v_ptr, &vsize),
+	};
+	struct m0_btree_cb   update_cb = {.c_act = btree_update_callback,
+					  .c_datum = &rec,
+					 };
+
+	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					m0_btree_update(tree, &rec, &update_cb,
+							&kv_op, tx));
+}
+
+static inline int balloc_ext_update(struct m0_btree *tree, struct m0_be_tx *tx,
+				    struct m0_ext ext)
+{
+	struct m0_buf key;
+	struct m0_buf val;
+
+	ext.e_end = m0_byteorder_cpu_to_be64(ext.e_end);
+	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
+	val = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_start);
+
+	return  btree_update_sync(tree, tx, &key, &val);
+}
+
+static inline int btree_delete_sync(struct m0_btree     *tree,
+				    struct m0_be_tx     *tx,
+				    const struct m0_buf *key)
+{
+	struct m0_btree_op   kv_op = {};
+	void                *k_ptr = key->b_addr;
+	m0_bcount_t          ksize = key->b_nob;
+	struct m0_btree_key  r_key = {
+		.k_data  = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+	};
+
+	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					m0_btree_del(tree, &r_key, NULL,
+						     &kv_op, tx));
 }
 
 /* Conducts the basic sanity check on freeblocks and fragments. */
@@ -363,13 +478,16 @@ static int balloc_group_info_init(struct m0_balloc_group_info *gi,
 {
 	struct m0_balloc_group_desc     gd = {};
 	struct m0_balloc_super_block   *sb = &cb->cb_sb;
-	struct m0_buf                   key = M0_BUF_INIT_PTR(&gi->bgi_groupno);
+	struct m0_buf                   key;
+	m0_bindex_t                     groupno;
 	struct m0_buf                   val = M0_BUF_INIT_PTR(&gd);
 	m0_bcount_t                     normal_zone_size;
 	m0_bcount_t                     spare_zone_size;
 	int                             rc;
 
-	rc = btree_lookup_sync(&cb->cb_db_group_desc, &key, &val);
+	groupno = m0_byteorder_cpu_to_be64(gi->bgi_groupno);
+	key = (struct m0_buf)M0_BUF_INIT_PTR(&groupno);
+	rc = btree_lookup_sync(cb->cb_db_group_desc, &key, &val, false);
 	if (rc == 0) {
 		gi->bgi_state   = M0_BALLOC_GROUP_INFO_INIT;
 		gi->bgi_extents = NULL;
@@ -435,6 +553,7 @@ static void balloc_fini_internal(struct m0_balloc *bal)
 {
 	struct m0_balloc_group_info *gi;
 	int                          i;
+	struct m0_btree_op           b_op = {};
 
 	M0_ENTRY();
 
@@ -449,53 +568,18 @@ static void balloc_fini_internal(struct m0_balloc *bal)
 		m0_free0(&bal->cb_group_info);
 	}
 
-	m0_be_btree_fini(&bal->cb_db_group_extents);
-	m0_be_btree_fini(&bal->cb_db_group_desc);
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				 m0_btree_close(bal->cb_db_group_extents,
+						&b_op));
+	m0_free0(&bal->cb_db_group_extents);
+
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				 m0_btree_close(bal->cb_db_group_desc,
+						&b_op));
+	m0_free0(&bal->cb_db_group_desc);
 
 	M0_LEAVE();
 }
-
-static m0_bcount_t ge_tree_kv_size(const void *kv)
-{
-	return sizeof(m0_bindex_t);
-}
-
-static int ge_tree_cmp(const void *k0, const void *k1)
-{
-	const m0_bindex_t *bn0 = (m0_bindex_t*)k0;
-	const m0_bindex_t *bn1 = (m0_bindex_t*)k1;
-
-	return M0_3WAY(*bn0, *bn1);
-}
-
-static const struct m0_be_btree_kv_ops ge_btree_ops = {
-	.ko_type    = M0_BBT_BALLOC_GROUP_EXTENTS,
-	.ko_ksize   = ge_tree_kv_size,
-	.ko_vsize   = ge_tree_kv_size,
-	.ko_compare = ge_tree_cmp
-};
-
-static m0_bcount_t gd_tree_key_size(const void *k)
-{
-	return sizeof ((struct m0_balloc_group_desc*)0)->bgd_groupno;
-}
-
-static m0_bcount_t gd_tree_val_size(const void *v)
-{
-	return sizeof(struct m0_balloc_group_desc);
-}
-
-static int gd_tree_cmp(const void *k0, const void *k1)
-{
-	return memcmp(k0, k1, gd_tree_key_size(NULL));
-}
-
-static const struct m0_be_btree_kv_ops gd_btree_ops = {
-	.ko_type    = M0_BBT_BALLOC_GROUP_DESC,
-	.ko_ksize   = gd_tree_key_size,
-	.ko_vsize   = gd_tree_val_size,
-	.ko_compare = gd_tree_cmp
-};
 
 static void balloc_sb_sync(struct m0_balloc *cb, struct m0_be_tx *tx)
 {
@@ -640,12 +724,13 @@ balloc_group_write_credit(struct m0_balloc               *bal,
                           struct balloc_groups_write_cfg *bgs,
                           struct m0_be_tx_credit         *credit)
 {
-	m0_be_btree_insert_credit(&bal->cb_db_group_extents, 2,
-		M0_MEMBER_SIZE(struct m0_ext, e_start),
-		M0_MEMBER_SIZE(struct m0_ext, e_end), credit);
-	m0_be_btree_insert_credit(&bal->cb_db_group_desc, 2,
-		M0_MEMBER_SIZE(struct m0_balloc_group_desc, bgd_groupno),
-		sizeof(struct m0_balloc_group_desc), credit);
+	m0_btree_put_credit(bal->cb_db_group_extents, 2,
+			    M0_MEMBER_SIZE(struct m0_ext, e_start),
+			    M0_MEMBER_SIZE(struct m0_ext, e_end), credit);
+	m0_btree_put_credit(bal->cb_db_group_desc, 2,
+			    M0_MEMBER_SIZE(struct m0_balloc_group_desc,
+					   bgd_groupno),
+			    sizeof(struct m0_balloc_group_desc), credit);
 }
 
 static void balloc_group_work_put(struct m0_balloc               *bal,
@@ -695,6 +780,7 @@ static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
 	struct m0_ext                   ext;
 	struct m0_buf                   key;
 	struct m0_buf                   val;
+	m0_bindex_t                     groupno;
 	m0_bcount_t                     i = bgc->bgc_i;
 	m0_bcount_t                     spare_size;
 	int                             rc;
@@ -710,9 +796,7 @@ static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
 	m0_ext_init(&ext);
 	balloc_debug_dump_extent("create...", &ext);
 
-	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
-	val = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_start);
-	rc = btree_insert_sync(&bal->cb_db_group_extents, tx, &key, &val);
+	rc = balloc_ext_insert(bal->cb_db_group_extents, tx, ext);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "insert extent failed: group=%llu "
 				 "rc=%d", (unsigned long long)i, rc);
@@ -723,9 +807,7 @@ static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
 	ext.e_start = (i << sb->bsb_gsbits) + sb->bsb_groupsize -
 		spare_size;
 	ext.e_end = ext.e_start + spare_size;
-	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
-	val = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_start);
-	rc = btree_insert_sync(&bal->cb_db_group_extents, tx, &key, &val);
+	rc = balloc_ext_insert(bal->cb_db_group_extents, tx, ext);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "insert extent failed for spares: group=%llu "
 				 "rc=%d", (unsigned long long)i, rc);
@@ -746,10 +828,11 @@ static void balloc_group_write_do(struct m0_be_tx_bulk *tb,
 	gd.bgd_maxchunk   = sb->bsb_groupsize - spare_size;
 	gd.bgd_fragments  = 1;
 	m0_balloc_group_desc_init(&gd);
-	key = (struct m0_buf)M0_BUF_INIT_PTR(&gd.bgd_groupno);
+	groupno = m0_byteorder_cpu_to_be64(gd.bgd_groupno);
+	key = (struct m0_buf)M0_BUF_INIT_PTR(&groupno);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&gd);
 
-	rc = btree_insert_sync(&bal->cb_db_group_desc, tx, &key, &val);
+	rc = btree_insert_sync(bal->cb_db_group_desc, tx, &key, &val);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "insert gd failed: group=%llu rc=%d",
 			(unsigned long long)i, rc);
@@ -894,8 +977,10 @@ static int balloc_format(struct m0_balloc *bal,
 static void balloc_gi_sync_credit(const struct m0_balloc *cb,
 					struct m0_be_tx_credit *accum)
 {
-	m0_be_btree_update_credit(&cb->cb_db_group_desc, 1,
-		sizeof(struct m0_balloc_group_desc), accum);
+	m0_btree_update_credit(cb->cb_db_group_desc, 1,
+			       M0_MEMBER_SIZE(struct m0_balloc_group_desc,
+					      bgd_groupno),
+			       sizeof(struct m0_balloc_group_desc), accum);
 }
 
 static int balloc_gi_sync(struct m0_balloc *cb,
@@ -903,6 +988,7 @@ static int balloc_gi_sync(struct m0_balloc *cb,
 			  struct m0_balloc_group_info *gi)
 {
 	struct m0_balloc_group_desc gd  = {};
+	m0_bindex_t                 groupno;
 	struct m0_buf               key;
 	struct m0_buf               val;
 	int                         rc;
@@ -922,10 +1008,10 @@ static int balloc_gi_sync(struct m0_balloc *cb,
 	gd.bgd_sparestart = gi->bgi_spare.bzp_range.e_start;
 #endif
 	m0_balloc_group_desc_init(&gd);
-
-	key = (struct m0_buf)M0_BUF_INIT_PTR(&gd.bgd_groupno);
+	groupno = m0_byteorder_cpu_to_be64(gd.bgd_groupno);
+	key = (struct m0_buf)M0_BUF_INIT_PTR(&groupno);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&gd);
-	rc = btree_update_sync(&cb->cb_db_group_desc, tx, &key, &val);
+	rc = btree_update_sync(cb->cb_db_group_desc, tx, &key, &val);
 
 	gi->bgi_state &= ~M0_BALLOC_GROUP_INFO_DIRTY;
 
@@ -957,7 +1043,8 @@ static int balloc_init_internal(struct m0_balloc *bal,
 				m0_bcount_t blocks_per_group,
 				m0_bcount_t spare_blocks_per_group)
 {
-	int rc;
+	int                rc;
+	struct m0_btree_op b_op = {};
 
 	M0_ENTRY();
 
@@ -965,8 +1052,29 @@ static int balloc_init_internal(struct m0_balloc *bal,
 	bal->cb_group_info = NULL;
 	m0_mutex_init(&bal->cb_sb_mutex.bm_u.mutex);
 
-	m0_be_btree_init(&bal->cb_db_group_desc, seg, &gd_btree_ops);
-	m0_be_btree_init(&bal->cb_db_group_extents, seg, &ge_btree_ops);
+	M0_ALLOC_PTR(bal->cb_db_group_desc);
+	if (bal->cb_db_group_desc == NULL)
+		return M0_ERR(-ENOMEM);
+
+	M0_ALLOC_PTR(bal->cb_db_group_extents);
+	if (bal->cb_db_group_extents == NULL) {
+		m0_free0(&bal->cb_db_group_desc);
+		return M0_ERR(-ENOMEM);
+	}
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_open(bal->cb_gd_node,
+						    sizeof bal->cb_gd_node,
+						    bal->cb_db_group_desc, seg,
+						    &b_op));
+	M0_ASSERT(rc == 0);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_open(bal->cb_ge_node,
+						    sizeof bal->cb_ge_node,
+						    bal->cb_db_group_extents,
+						    seg, &b_op));
+	M0_ASSERT(rc == 0);
 
 	if (bal->cb_sb.bsb_magic != M0_BALLOC_SB_MAGIC) {
 		struct m0_balloc_format_req req = { 0 };
@@ -1129,7 +1237,7 @@ balloc_normalize_request(struct balloc_allocation_context *bac)
 	}
 
 	/* @todo : removing normalisation for time. */
-	if (size <= 4 ) {
+	if (size <= 4) {
 		size = 4;
 	} else if (size <= 8) {
 		size = 8;
@@ -1178,16 +1286,16 @@ out:
 M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 				       struct m0_balloc_group_info *grp)
 {
-	struct m0_be_btree	  *db_ext = &cb->cb_db_group_extents;
-	struct m0_be_btree_cursor  cursor;
-	struct m0_buf              key;
-	struct m0_buf              val;
-	struct m0_lext            *ex;
-	struct m0_ext              spare_range;
-	struct m0_ext              normal_range;
-	m0_bindex_t                next_key;
-	m0_bcount_t                i;
-	int			   rc = 0;
+	struct m0_btree	       *db_ext = cb->cb_db_group_extents;
+	struct m0_btree_cursor  cursor;
+	struct m0_buf           key;
+	struct m0_buf           val;
+	struct m0_lext         *ex;
+	struct m0_ext           spare_range;
+	struct m0_ext           normal_range;
+	m0_bindex_t             next_key;
+	m0_bcount_t             i;
+	int		        rc = 0;
 
 	M0_ENTRY("grp=%d non-spare-frags=%d spare-frags=%d",
 		 (int)grp->bgi_groupno, (int)group_fragments_get(grp),
@@ -1210,7 +1318,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		return M0_RC(0);
 	}
 
-	m0_be_btree_cursor_init(&cursor, db_ext);
+	m0_btree_cursor_init(&cursor, db_ext);
 
 	spare_range.e_start = grp->bgi_spare.bzp_range.e_start;
 	spare_range.e_end = (grp->bgi_groupno + 1) << cb->cb_sb.bsb_gsbits;
@@ -1224,12 +1332,14 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	next_key = ex->le_ext.e_end;
 	for (i = 0; i < group_fragments_get(grp) +
 	     group_spare_fragments_get(grp); i++, ex++) {
+		next_key = m0_byteorder_cpu_to_be64(next_key);
 		key = (struct m0_buf)M0_BUF_INIT_PTR(&next_key);
-		rc = m0_be_btree_cursor_get_sync(&cursor, &key, true);
+		rc = m0_btree_cursor_get(&cursor, &key, true);
 		if (rc != 0)
 			break;
-		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
+		m0_btree_cursor_kv_get(&cursor, &key, &val);
 		ex->le_ext.e_end   = *(m0_bindex_t*)key.b_addr;
+		ex->le_ext.e_end   = m0_byteorder_be64_to_cpu(ex->le_ext.e_end);
 		ex->le_ext.e_start = *(m0_bindex_t*)val.b_addr;
 		m0_ext_init(&ex->le_ext);
 		if (m0_ext_is_partof(&normal_range, &ex->le_ext))
@@ -1245,7 +1355,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		next_key = ex->le_ext.e_end + 1;
 		/* balloc_debug_dump_extent("loading...", ex); */
 	}
-	m0_be_btree_cursor_fini(&cursor);
+	m0_btree_cursor_fini(&cursor);
 
 	if (i != group_fragments_get(grp) + group_spare_fragments_get(grp))
 		M0_LOG(M0_ERROR, "fragments mismatch: i=%llu frags=%lld",
@@ -1273,17 +1383,17 @@ static void zone_params_update(struct m0_balloc_group_info *grp,
 M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 				       struct m0_balloc_group_info *grp)
 {
-	struct m0_be_btree	  *db_ext = &cb->cb_db_group_extents;
-	struct m0_buf              key;
-	struct m0_buf              val;
-	struct m0_lext            *ex;
-	struct m0_ext              spare_range;
-	struct m0_ext              normal_range;
-	m0_bcount_t                i;
-	m0_bcount_t                normal_frags;
-	m0_bcount_t                spare_frags;
-	m0_bindex_t                next_key;
-	int			   rc = 0;
+	struct m0_btree *db_ext = cb->cb_db_group_extents;
+	struct m0_buf    key;
+	struct m0_buf    val;
+	struct m0_lext  *ex;
+	struct m0_ext    spare_range;
+	struct m0_ext    normal_range;
+	m0_bcount_t      i;
+	m0_bcount_t      normal_frags;
+	m0_bcount_t      spare_frags;
+	m0_bindex_t      next_key;
+	int	         rc = 0;
 
 	M0_ENTRY("grp=%d non-spare-frags=%d spare-frags=%d",
 		 (int)grp->bgi_groupno, (int)group_fragments_get(grp),
@@ -1324,11 +1434,11 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	for (i = 0; i < group_fragments_get(grp) +
 	     group_spare_fragments_get(grp); i++, ex++) {
 		ex->le_ext.e_end = next_key;
+		ex->le_ext.e_end = m0_byteorder_cpu_to_be64(ex->le_ext.e_end);
 		key = M0_BUF_INIT_PTR(&ex->le_ext.e_end);
 		val = M0_BUF_INIT_PTR(&ex->le_ext.e_start);
-		rc = M0_BE_OP_SYNC_RET(op, m0_be_btree_lookup_slant(db_ext, &op,
-								    &key, &val),
-				       bo_u.u_btree.t_rc);
+		rc = btree_lookup_sync(db_ext, &key, &val, true);
+		ex->le_ext.e_end = m0_byteorder_be64_to_cpu(ex->le_ext.e_end);
 		if (rc != 0)
 			break;
 		m0_ext_init(&ex->le_ext);
@@ -1508,17 +1618,18 @@ static void balloc_sb_sync_credit(const struct m0_balloc *bal,
 static void balloc_db_update_credit(const struct m0_balloc *bal, int nr,
 					  struct m0_be_tx_credit *accum)
 {
-	const struct m0_be_btree *tree = &bal->cb_db_group_extents;
-	struct m0_be_tx_credit    cred = {};
+	const struct m0_btree  *tree = bal->cb_db_group_extents;
+	struct m0_be_tx_credit  cred = {};
 
-	m0_be_btree_delete_credit(tree, 1,
-		M0_MEMBER_SIZE(struct m0_ext, e_start),
-		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
-	m0_be_btree_insert_credit(tree, 1,
-		M0_MEMBER_SIZE(struct m0_ext, e_start),
-		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
-	m0_be_btree_update_credit(tree, 2,
-		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
+	m0_btree_del_credit(tree, 1,
+			    M0_MEMBER_SIZE(struct m0_ext, e_start),
+			    M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
+	m0_btree_put_credit(tree, 1,
+			    M0_MEMBER_SIZE(struct m0_ext, e_start),
+			    M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
+	m0_btree_update_credit(tree, 2,
+			       M0_MEMBER_SIZE(struct m0_ext, e_start),
+			       M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
 	balloc_sb_sync_credit(bal, &cred);
 	balloc_gi_sync_credit(bal, &cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
@@ -1560,9 +1671,8 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 				  struct m0_ext *tgt, uint64_t alloc_type,
 				  struct m0_ext *cur)
 {
-	struct m0_be_btree          *db  = &motr->cb_db_group_extents;
+	struct m0_btree             *db  = motr->cb_db_group_extents;
 	struct m0_buf                key;
-	struct m0_buf                val;
 	struct m0_lext              *le;
 	struct m0_lext              *lcur;
 	struct m0_balloc_zone_param *zp;
@@ -1599,6 +1709,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 	       zp->bzp_maxchunk, maxchunk);
 
 	if (cur->e_end == tgt->e_end) {
+		cur->e_end = m0_byteorder_cpu_to_be64(cur->e_end);
 		key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 
 		rc = btree_delete_sync(db, tx, &key);
@@ -1611,9 +1722,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			/* |      |  tgt  |                    | */
 			/* +------+-------+--------------------+ */
 			cur->e_end = tgt->e_start;
-			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
-			val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
-			rc = btree_insert_sync(db, tx, &key, &val);
+			rc = balloc_ext_insert(db, tx, *cur);
 			if (rc != 0)
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(cur));
@@ -1634,10 +1743,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 		/* |     tgt    |                      | */
 		/* +------------+----------------------+ */
 		cur->e_start = tgt->e_end;
-
-		key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
-		val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
-		rc = btree_update_sync(db, tx, &key, &val);
+		rc = balloc_ext_update(db, tx, *cur);
 		if (rc != 0)
 			return M0_RC(rc);
 
@@ -1652,9 +1758,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			le = lext_create(&new);
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
-			key = (struct m0_buf)M0_BUF_INIT_PTR(&new.e_end);
-			val = (struct m0_buf)M0_BUF_INIT_PTR(&new.e_start);
-			rc = btree_insert_sync(db, tx, &key, &val);
+			rc = balloc_ext_insert(db, tx, new);
 			if (rc != 0) {
 				m0_free(le);
 				return M0_RC(rc);
@@ -1692,8 +1796,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 				 struct m0_ext *tgt, uint64_t alloc_flag)
 {
 	struct m0_buf                key;
-	struct m0_buf                val;
-	struct m0_be_btree          *db = &motr->cb_db_group_extents;
+	struct m0_btree             *db = motr->cb_db_group_extents;
 	struct m0_ext               *cur = NULL;
 	struct m0_ext               *pre = NULL;
 	struct m0_lext              *le;
@@ -1755,9 +1858,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			le = lext_create(tgt);
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
-			key = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_end);
-			val = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_start);
-			rc = btree_insert_sync(db, tx, &key, &val);
+			rc = balloc_ext_insert(db, tx, *tgt);
 			if (rc != 0) {
 				m0_free(le);
 				return M0_RC(rc);
@@ -1776,9 +1877,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 				le = lext_create(tgt);
 				if (le == NULL)
 					return M0_RC(-ENOMEM);
-				key = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_end);
-				val = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_start);
-				rc = btree_insert_sync(db, tx, &key, &val);
+				rc = balloc_ext_insert(db, tx, *tgt);
 				if (rc != 0) {
 					m0_free(le);
 					return M0_RC(rc);
@@ -1792,13 +1891,13 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 				/* |           |       tgt free        | */
 				/* +-----------+-----------------------+ */
 				M0_ASSERT(cur->e_end == tgt->e_start);
+				cur->e_end = m0_byteorder_cpu_to_be64(cur->e_end);
 				key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 				rc = btree_delete_sync(db, tx, &key);
 				if (rc != 0)
 					return M0_RC(rc);
 				cur->e_end = tgt->e_end;
-				val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
-				rc = btree_insert_sync(db, tx, &key, &val);
+				rc = balloc_ext_insert(db, tx, *cur);
 				if (rc != 0)
 					return M0_RC(rc);
 				maxchunk = max_check(maxchunk, m0_ext_length(cur));
@@ -1815,9 +1914,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			le = lext_create(tgt);
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
-			key = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_end);
-			val = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_start);
-			rc = btree_insert_sync(db, tx, &key, &val);
+			rc = balloc_ext_insert(db, tx, *tgt);
 			if (rc != 0) {
 				m0_free(le);
 				return M0_RC(rc);
@@ -1833,9 +1930,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			/* +-----+---------+-------------------+ */
 			M0_ASSERT(tgt->e_end == cur->e_start);
 			cur->e_start = tgt->e_start;
-			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
-			val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
-			rc = btree_update_sync(db, tx, &key, &val);
+			rc = balloc_ext_update(db, tx, *cur);
 			if (rc != 0)
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(cur));
@@ -1849,14 +1944,13 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			/* |  pre  |--> <--|    cur free       | */
 			/* |       |  tgt  |                   | */
 			/* +-------+-------+-------------------+ */
+			pre->e_end = m0_byteorder_cpu_to_be64(pre->e_end);
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_end);
 			rc = btree_delete_sync(db, tx, &key);
 			if (rc != 0)
 				return M0_RC(rc);
 			cur->e_start = pre->e_start;
-			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
-			val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
-			rc = btree_update_sync(db, tx, &key, &val);
+			rc = balloc_ext_update(db, tx, *cur);
 			if (rc != 0)
 				return M0_RC(rc);
 			le = container_of(pre, struct m0_lext, le_ext);
@@ -1869,13 +1963,13 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			/* |  pre  |-->       |    cur free    | */
 			/* |       |  tgt  |                   | */
 			/* +-------+-------+-------------------+ */
+			pre->e_end = m0_byteorder_cpu_to_be64(pre->e_end);
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_end);
 			rc = btree_delete_sync(db, tx, &key);
 			if (rc != 0)
 				return M0_RC(rc);
 			pre->e_end = tgt->e_end;
-			val = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_start);
-			rc = btree_insert_sync(db, tx, &key, &val);
+			rc = balloc_ext_insert(db, tx, *pre);
 			if (rc != 0)
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(pre));
@@ -1886,9 +1980,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			/* |          |  tgt  |                | */
 			/* +----------+-------+----------------+ */
 			cur->e_start = tgt->e_start;
-			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
-			val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
-			rc = btree_update_sync(db, tx, &key, &val);
+			rc = balloc_ext_update(db, tx, *cur);
 			if (rc != 0)
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(cur));
@@ -1901,9 +1993,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			le = lext_create(tgt);
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
-			key = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_end);
-			val = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_start);
-			rc = btree_insert_sync(db, tx, &key, &val);
+			rc = balloc_ext_insert(db, tx, *tgt);
 			if (rc != 0) {
 				m0_free(le);
 				return M0_RC(rc);
@@ -2979,29 +3069,61 @@ static const struct m0_ad_balloc_ops balloc_ops = {
 };
 
 static int balloc_trees_create(struct m0_balloc    *bal,
+			       struct m0_be_seg    *seg,
 			       struct m0_be_tx     *tx,
-			       const struct m0_fid *fid)
+			       const struct m0_fid *bfid)
 {
 	int rc;
+	struct m0_btree_type  bt;
+	struct m0_btree_op    b_op = {};
+	struct m0_fid         fid;
 
-	rc = M0_BE_OP_SYNC_RET(op,
-		       m0_be_btree_create(&bal->cb_db_group_extents, tx, &op,
-				  &M0_FID_TINIT('b',
-						M0_BBT_BALLOC_GROUP_EXTENTS,
-						fid->f_key)),
-		       bo_u.u_btree.t_rc);
-	if (rc != 0)
+	M0_ALLOC_PTR(bal->cb_db_group_extents);
+	if (bal->cb_db_group_extents == NULL)
+		return M0_ERR(-ENOMEM);
+
+	M0_ALLOC_PTR(bal->cb_db_group_desc);
+	if (bal->cb_db_group_desc == NULL) {
+		m0_free0(&bal->cb_db_group_extents);
+		return M0_ERR(-ENOMEM);
+	}
+
+	bt = (struct m0_btree_type){.tt_id = M0_BT_BALLOC_GROUP_EXTENTS,
+		.ksize = M0_MEMBER_SIZE(struct m0_ext, e_start),
+		.vsize = M0_MEMBER_SIZE(struct m0_ext, e_end),
+	};
+	fid = M0_FID_TINIT('b', M0_BBT_BALLOC_GROUP_EXTENTS, bfid->f_key);
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_create(bal->cb_ge_node,
+						      sizeof bal->cb_ge_node,
+						      &bt, &b_op,
+						      bal->cb_db_group_extents,
+						      seg, &fid, tx));
+	if (rc != 0) {
+		m0_free0(&bal->cb_db_group_extents);
+		m0_free0(&bal->cb_db_group_desc);
 		return M0_ERR(rc);
+	}
 
-	rc = M0_BE_OP_SYNC_RET(op,
-		       m0_be_btree_create(&bal->cb_db_group_desc, tx, &op,
-				  &M0_FID_TINIT('b', M0_BBT_BALLOC_GROUP_DESC,
-						fid->f_key)),
-		       bo_u.u_btree.t_rc);
+	bt = (struct m0_btree_type){.tt_id = M0_BT_BALLOC_GROUP_DESC,
+		.ksize = M0_MEMBER_SIZE(struct m0_balloc_group_desc,
+					bgd_groupno),
+		.vsize = sizeof(struct m0_balloc_group_desc),
+	};
+	fid = M0_FID_TINIT('b', M0_BBT_BALLOC_GROUP_DESC, bfid->f_key);
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_create(bal->cb_gd_node,
+						      sizeof bal->cb_gd_node,
+						      &bt, &b_op,
+						      bal->cb_db_group_desc,
+						      seg, &fid, tx));
 
 	if (rc != 0) {
-		M0_BE_OP_SYNC(op,
-		      m0_be_btree_destroy(&bal->cb_db_group_extents, tx, &op));
+		M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				m0_btree_destroy(bal->cb_db_group_extents,
+						 &b_op, tx));
+		m0_free0(&bal->cb_db_group_extents);
+		m0_free0(&bal->cb_db_group_desc);
 	}
 
 	return M0_RC(rc);
@@ -3019,10 +3141,10 @@ M0_INTERNAL int m0_balloc_create(uint64_t              cid,
 				 const struct m0_fid  *fid)
 {
 	struct m0_balloc       *cb;
-	struct m0_be_btree      btree = {};
 	struct m0_be_tx         tx    = {};
 	struct m0_be_tx_credit  cred  = {};
 	int                     rc;
+	struct m0_btree_type    bt;
 
 	M0_PRE(seg != NULL);
 	M0_PRE(out != NULL);
@@ -3030,34 +3152,36 @@ M0_INTERNAL int m0_balloc_create(uint64_t              cid,
 	m0_be_tx_init(&tx, 0, seg->bs_domain,
 		      grp, NULL, NULL, NULL, NULL);
 	M0_BE_ALLOC_CREDIT_PTR(cb, seg, &cred);
-	m0_be_btree_init(&btree, seg, &ge_btree_ops);
-	m0_be_btree_create_credit(&btree, 1, &cred);
-	m0_be_btree_fini(&btree);
-	m0_be_btree_init(&btree, seg, &gd_btree_ops);
-	m0_be_btree_create_credit(&btree, 1, &cred);
-	m0_be_btree_fini(&btree);
+	m0_be_tx_credit_add(&cred, &M0_BE_TX_CREDIT_PTR(cb));
+
+	bt = (struct m0_btree_type){.tt_id = M0_BT_BALLOC_GROUP_EXTENTS,
+		.ksize = M0_MEMBER_SIZE(struct m0_ext, e_start),
+		.vsize = M0_MEMBER_SIZE(struct m0_ext, e_end),
+	};
+	m0_btree_create_credit(&bt, &cred, 1);
+
+	bt = (struct m0_btree_type){.tt_id = M0_BT_BALLOC_GROUP_DESC,
+		.ksize = M0_MEMBER_SIZE(struct m0_balloc_group_desc,
+					bgd_groupno),
+		.vsize = sizeof(struct m0_balloc_group_desc),
+	};
+	m0_btree_create_credit(&bt, &cred, 1);
+
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_open_sync(&tx);
 
 	if (rc == 0) {
-		M0_BE_ALLOC_PTR_SYNC(cb, seg, &tx);
+		M0_BE_ALLOC_ALIGN_PTR_SYNC(cb, 10, seg, &tx);
 		if (cb == NULL) {
 			rc = -ENOMEM;
 		} else {
 			cb->cb_container_id = cid;
 
 			balloc_format_init(cb);
-			m0_be_btree_init(&cb->cb_db_group_extents, seg,
-					 &ge_btree_ops);
-			m0_be_btree_init(&cb->cb_db_group_desc, seg,
-					 &gd_btree_ops);
-			rc = balloc_trees_create(cb, &tx, fid);
+			rc = balloc_trees_create(cb, seg, &tx, fid);
 			if (rc == 0) {
 				M0_BE_TX_CAPTURE_PTR(seg, &tx, cb);
 				*out = cb;
-			} else {
-				m0_be_btree_fini(&cb->cb_db_group_extents);
-				m0_be_btree_fini(&cb->cb_db_group_desc);
 			}
 		}
 		m0_be_tx_close_sync(&tx);
