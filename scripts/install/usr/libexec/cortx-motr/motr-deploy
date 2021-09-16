@@ -28,17 +28,17 @@ MOTR_MKFS_DIR="/var/motr/m0d"
 MOTR_SYSCONFIG="/etc/sysconfig/m0d"
 ha_config="/etc/sysconfig/m0d-${1#m0d-}"
 
-# Kubernetes PATH
+# USERMODE PATH
 CORTX_PATH="/etc/cortx"
 CORTX_SYSCONFIG="/etc/cortx/motr/sysconfig"
-CORTX_KUBE_CONFIG="/etc/cortx/KUBERNETES"
+CORTX_FIDS_MAP="/etc/cortx/ENVIRONMENT_TYPES"
 
 service="ha"
 ha_proxy=false
 mkfs_force=false
 mkfs_dir_present=false
 confd_proxy="/etc/motr/confd.xc"
-POD_DEPLOY=false
+STANDALONE_DEPLOY=false
 
 
 help()
@@ -71,7 +71,7 @@ get_fids()
 {
 	srv_index=$1
 	IFS=$'\n'
-	for FIDS_LINE in `cat $CORTX_KUBE_CONFIG`; do
+	for FIDS_LINE in `cat $CORTX_FIDS_MAP`; do
 		index=$(echo $FIDS_LINE | cut -d "-" -f 1)
 		if [[ "$index" == "$srv_index" ]] ; then
 			fids=$(echo $FIDS_LINE | cut -d "-" -f 2)
@@ -107,7 +107,7 @@ parse_cli_options()
         case "$1" in
             -h|--help)          help stdout ;;
             -s)                 service=$3;     shift;;
-	    -d)                 POD_DEPLOY=true; deploy_script=$3; deploy_srv=$4;  shift;;
+	    -d)                 STANDALONE_DEPLOY=true; deploy_script=$3; deploy_srv=$4;  shift;;
             -f|--mkfs-force)    mkfs_force=true;  shift ;;
             --)                 shift; break ;;
              *)                 echo 'getopt: internal error...'; exit 1 ;;
@@ -152,18 +152,18 @@ fi
 
 parse_cli_options "$@"
 
-if [[ $POD_DEPLOY == true ]] ; then
+if [[ $STANDALONE_DEPLOY == true ]] ; then
 	if [[ -z $deploy_script || -z $deploy_srv ]]; then
 		echo "Invalid options"
 		usage
 		exit 1
 	fi
-	echo "POD Deployment with service : $deploy_srv"
-	if [[ -f $CORTX_KUBE_CONFIG ]] ; then
+	echo "Stand-Alone Deployment with service : $deploy_srv"
+	if [[ -f $CORTX_FIDS_MAP ]] ; then
 		#source $CORTX_SYSCONFIG/$deploy_srv
 		service=$(get_fids $deploy_srv)
 		if [[ $service == "NIL" ]]; then
-			echo "No fids found for given index $deploy_srv in $CORTX_KUBE_CONFIG"
+			echo "No fids found for given index $deploy_srv in $CORTX_FIDS_MAP"
 			exit 1
 		fi
 	else
