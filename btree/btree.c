@@ -3119,7 +3119,7 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * Common Assumptions:
  *	a. For internal nodes, Motr will calculate CRCs of only keys.
  *	b. For internal nodes, Motr will not calculate CRCs of values instead
- *	some sanity checks will be used to verify the values.
+ *	sanity checks will verify the validity of values(pointer to child nodes).
  *	c. CRC is updated when a record is added or deleted.
  *	d. While traversing down the tree for the first time for any operation
  *	(get/delete/put), CRC will not be checked.
@@ -3132,16 +3132,19 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *	and the memory location(at the end of tree traversal) is wrong. We have
  *	two options to handle this issue:
  *		i. We do not worry about this issue and add the new record at
- *		whatever location we have found and continue. This is because
- *		the path is corrupted anyways and there is no way to recover the
- *		bad path and reach the correct location.
- *		ii. We worry about this issue if we have a way to fix the tree
- *		while online by having a redundant tree which can be used to fix
- *		this broken tree. In which case we want to make sure that the
- *		new record is not added now but only after the current tree is
- *		fixed.
+ *		whatever location we reach and continue. This is because the
+ *		path to the correct location where the record should be inserted
+ *		is corrupted anyways and there is no way to recover the original
+ *		path leading to the correct location.
+ *		ii. We maintain a redundant tree and during traversal from the
+ *		root node towards the leaf node we confirm the CRC of every Key
+ *		which we encounter. If at any point we discover the Key node is
+ *		corrupted then we fix this corrupt Key using the copy from the
+ *		redundant tree and continue. This way the btree is corrupted
+ *		while online and also the record is inserted at the correct
+ *		location in the tree.
  *
- * These are the proposal for supporting CRCs in the node:
+ * These are the proposals for supporting CRCs in the node:
  *
  * 1. User Provided CRC: The btree user will provide checksum as part of value.
  * The checksum can cover either the value or key+value of the record. The
@@ -3156,8 +3159,8 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *		the keys do not change in update operation.
  *
  *		Pros: Checksum will require less space.
- *		Cons: On record addition/deletion, whole node needs to be
- *		traversed for calculating CRC of the keys.
+ *		Cons: On record addition/deletion, the CRC needs to be
+ *		calculated over all the remaining Keys in the node.
  *
  * +------+----+----+----+----+-------------------------------+----+----+----+
  * |      |CRC |    |    |    |                               |    |    |    |
