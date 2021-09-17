@@ -1809,7 +1809,7 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 	struct cob_req         *cr;
 	struct m0_pool_version *pv;
 	struct m0_op           *op;
-	bool                    skip_meta_data;
+	bool                    skip_meta_data = false;
 
 	M0_ENTRY();
 	M0_PRE(oo != NULL);
@@ -1855,11 +1855,9 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 	 * capability to store meta-data(pver, LID) and has sent pver
 	 * to open/delete entity.
 	 */
-	skip_meta_data = false;
 	obj = m0__obj_entity(oo->oo_oc.oc_op.op_entity);
 	if ((M0_IN(cr->cr_opcode, (M0_EO_GETATTR, M0_EO_DELETE))) &&
-	     m0_fid_is_set(&obj->ob_attr.oa_pver) &&
-	     m0_fid_is_valid(&obj->ob_attr.oa_pver))
+	     (obj->ob_entity.en_flags & M0_ENF_META))
 		skip_meta_data = true;
 
 	/* Set layout id and pver for CREATE op.*/
@@ -1874,7 +1872,7 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 		 }
 	}
 
-	if (! skip_meta_data ) {
+	if (!skip_meta_data) {
 	/* Send requests to services. */
 		rc = cob_req_send(cr);
 		if (rc != 0) {
@@ -1885,14 +1883,27 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 	} else {
 		M0_LOG(M0_DEBUG, "skipped lookup, obj pver is:"FID_F"cr->cr_opcode:%d",
 		       FID_P(&obj->ob_attr.oa_pver), cr->cr_opcode);
-		/* We are skipping meta-data lookup here as we have received pver
-		 * and LID from application, and hence need to move op state
-		 * LAUNCHED, EXECUTED and STABLE explicitly */
-		m0_sm_move(&cr->cr_op->op_sm, 0, M0_OS_LAUNCHED);
-		m0_sm_group_unlock(&cr->cr_op->op_sm_group);
-		cob_complete_op(cr->cr_op);
-		m0_sm_group_lock(&cr->cr_op->op_sm_group);
-		rc = MOTR_MDCOB_LOOKUP_SKIP;
+		if (cr->cr_opcode == M0_EO_DELETE) {
+			/**
+			 * For DELETE entity we skipped data cob if M0_ENF_META
+			 * is set, but we still wants to send data cob. This
+			 * case is handled here by posting cob_ast_ios_io_send
+			 * AST.
+			 */
+                        cr->cr_ar.ar_ast.sa_cb = &cob_ast_ios_io_send;
+			cr->cr_ar.ar_rc = 0;
+                        m0_sm_ast_post(cr->cr_op_sm_grp, &cr->cr_ar.ar_ast);
+			rc = 0;
+		} else {
+			/* We are skipping meta-data lookup here as we have received pver
+			 * and LID from application, and hence need to move op state
+			 * LAUNCHED, EXECUTED and STABLE explicitly */
+			m0_sm_move(&cr->cr_op->op_sm, 0, M0_OS_LAUNCHED);
+			m0_sm_group_unlock(&cr->cr_op->op_sm_group);
+			cob_complete_op(cr->cr_op);
+			m0_sm_group_lock(&cr->cr_op->op_sm_group);
+			rc = MOTR_MDCOB_LOOKUP_SKIP;
+		}
 	}
 
 	return M0_RC(rc);
