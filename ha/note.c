@@ -441,6 +441,7 @@ M0_INTERNAL const char *m0_ha_state2str(enum m0_ha_obj_state state)
 	S_CASE(M0_NC_REPAIR);
 	S_CASE(M0_NC_REPAIRED);
 	S_CASE(M0_NC_REBALANCE);
+	S_CASE(M0_NC_DTM_RECOVERING);
 	default:
 		M0_IMPOSSIBLE("Invalid state: %d", state);
 	}

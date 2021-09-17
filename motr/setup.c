@@ -2647,8 +2647,10 @@ static int cs_level_enter(struct m0_module *module)
 		 * XXX STARTED expected even in the error case.
 		 * It should be fixed either here or in Halon.
 		 */
-		if (cctx->cc_mkfs)
+		if (cctx->cc_mkfs) {
 			cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
+			cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_DTM_RECOVERED);
+		}
 		return M0_RC(0);
 	case CS_LEVEL_RCONFC_FATAL_CALLBACK:
 		if (!cctx->cc_no_conf) { /* otherwise rconfc did not start */
@@ -2712,6 +2714,7 @@ static int cs_level_enter(struct m0_module *module)
 		return M0_RC(0);
 	case CS_LEVEL_STARTED_EVENT_FOR_M0D:
 		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
+		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_DTM_RECOVERED);
 		return M0_RC(0);
 	case CS_LEVEL_START:
 		return M0_RC(0);

@@ -20,9 +20,9 @@ WORKLOAD_SPEC:
                                  # as "all" meaning to fill all keys in the index
       WARMUP_DEL_RATIO: 0        # Ration of keys to be deleted in warmup
       NUM_KVP: 1                # Number of key/value records for index ops
-      RECORD_SIZE: 64            # Size of an key/value record (int [K, M] or random)
+      RECORD_SIZE: 32            # Size of an key/value record (int [K, M] or random)
       MAX_RSIZE: 1M              # Maximum record size (int [K, M])
-      OP_COUNT: 10               # Total operation count (int [K, M] or
+      OP_COUNT: 50               # Total operation count (int [K, M] or
                                  # unlimited = (2 ** 31 - 1) / (128 * NUM_KVP)
       EXEC_TIME: unlimited       # Execution time (secs or "unlimited").
       KEY_PREFIX: random         # Prefix defined for keys (a number of "random")

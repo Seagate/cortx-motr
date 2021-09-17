@@ -70,6 +70,14 @@ enum m0_conf_ha_process_event {
 	 * from the process.
 	 */
 	M0_CONF_HA_PROCESS_STOPPED,
+	/**
+	 * When the process understands that it completed the iteration of the
+	 * DTM log and there’re no new records to send to the recovering process
+	 * it sends REDO.END message. When recovering process receives REDO.END
+	 * from all online processes of the cluster it completes the recovery
+	 * and sends M0_CONF_HA_PROCESS_DTM_RECOVERED() to HARE.
+	 */
+	M0_CONF_HA_PROCESS_DTM_RECOVERED,
 };
 
 /** Defines the source of the process event */

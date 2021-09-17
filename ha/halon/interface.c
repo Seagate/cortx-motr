@@ -773,6 +773,7 @@ static int halon_interface_level_enter(struct m0_module *module)
 		return M0_RC(0);
 	case M0_HALON_INTERFACE_LEVEL_EVENTS_STARTED:
 		halon_interface_process_event(hii, M0_CONF_HA_PROCESS_STARTED);
+		halon_interface_process_event(hii, M0_CONF_HA_PROCESS_DTM_RECOVERED);
 		return M0_RC(0);
 	case M0_HALON_INTERFACE_LEVEL_STARTED:
 		return M0_ERR(-ENOSYS);

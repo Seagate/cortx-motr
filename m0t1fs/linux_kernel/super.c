@@ -1341,6 +1341,7 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 	M0_SET0(&iommstats);
 
 	m0t1fs_ha_process_event(csb, M0_CONF_HA_PROCESS_STARTED);
+	m0t1fs_ha_process_event(csb, M0_CONF_HA_PROCESS_DTM_RECOVERED);
 
 	return M0_RC(0);
 

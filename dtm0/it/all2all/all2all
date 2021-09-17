@@ -26,6 +26,8 @@ M0D_CLI_FID_HEX=
 POOL_WIDTH=4
 IPOOL_WIDTH=2
 
+DATE_STARTED=
+
 . ${MOTR_ROOT}/scripts/addb-py/chronometry/common/common_funcs
 
 
@@ -204,6 +206,7 @@ function fail()
 
 function main()
 {
+    DATE_STARTED=$(date +%H:%M:%S)
     ${MOTR_UTILS_DIR}/m0setup --init-loop-only -s 1 -d ${TEST_ROOT} --pool-width ${POOL_WIDTH} --ipool-width ${IPOOL_WIDTH}
 
     _info "Bootstrapping the cluster using Hare..."
@@ -223,6 +226,9 @@ function main()
     CLIENT_PID=${cli_pid}
 
     stop_cluster
+
+    # dump newly added messages, remove this after inspection completed.
+    journalctl --since $DATE_STARTED | grep -E 'Setting\ process\ status\ in\ KV|Broadcasting\ HA\ stat' | cut -d' ' -f 10-
 
     addb_dump
     _info "Dumping traces..."
