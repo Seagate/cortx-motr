@@ -3092,7 +3092,7 @@ static int balloc_trees_create(struct m0_balloc    *bal,
 		.ksize = M0_MEMBER_SIZE(struct m0_ext, e_start),
 		.vsize = M0_MEMBER_SIZE(struct m0_ext, e_end),
 	};
-	fid = M0_FID_TINIT('b', M0_BBT_BALLOC_GROUP_EXTENTS, bfid->f_key);
+	fid = M0_FID_TINIT('b', M0_BT_BALLOC_GROUP_EXTENTS, bfid->f_key);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(bal->cb_ge_node,
 						      sizeof bal->cb_ge_node,
@@ -3110,7 +3110,7 @@ static int balloc_trees_create(struct m0_balloc    *bal,
 					bgd_groupno),
 		.vsize = sizeof(struct m0_balloc_group_desc),
 	};
-	fid = M0_FID_TINIT('b', M0_BBT_BALLOC_GROUP_DESC, bfid->f_key);
+	fid = M0_FID_TINIT('b', M0_BT_BALLOC_GROUP_DESC, bfid->f_key);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(bal->cb_gd_node,
 						      sizeof bal->cb_gd_node,
