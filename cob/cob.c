@@ -678,7 +678,7 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 		.ksize = sizeof(struct m0_cob_oikey),
 		.vsize = -1,
 	};
-	fid = M0_FID_TINIT('b', M0_BBT_COB_OBJECT_INDEX, cdid->id);
+	fid = M0_FID_TINIT('b', M0_BT_COB_OBJECT_INDEX, cdid->id);
 	M0_ALLOC_PTR(dom->cd_object_index);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_oi_node,
@@ -692,7 +692,7 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 				    .ksize = -1,
 				    .vsize = -1,
 				   };
-	fid = M0_FID_TINIT('b', M0_BBT_COB_NAMESPACE, cdid->id);
+	fid = M0_FID_TINIT('b', M0_BT_COB_NAMESPACE, cdid->id);
 	M0_ALLOC_PTR(dom->cd_namespace);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_ns_node,
@@ -706,7 +706,7 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 		.ksize = sizeof(struct m0_cob_fabkey),
 		.vsize = -1,
 	};
-	fid = M0_FID_TINIT('b', M0_BBT_COB_FILEATTR_BASIC, cdid->id);
+	fid = M0_FID_TINIT('b', M0_BT_COB_FILEATTR_BASIC, cdid->id);
 	M0_ALLOC_PTR(dom->cd_fileattr_basic);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_fa_basic_node,
@@ -720,7 +720,7 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 				     .ksize = sizeof (struct m0_cob_omgkey),
 				     .vsize = sizeof (struct m0_cob_omgrec),
 				   };
-	fid = M0_FID_TINIT('b', M0_BBT_COB_FILEATTR_OMG, cdid->id);
+	fid = M0_FID_TINIT('b', M0_BT_COB_FILEATTR_OMG, cdid->id);
 	M0_ALLOC_PTR(dom->cd_fileattr_omg);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_fa_omg_node,
@@ -734,7 +734,7 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 		.ksize = -1,
 		.vsize = -1,
 	};
-	fid = M0_FID_TINIT('b', M0_BBT_COB_FILEATTR_EA, cdid->id);
+	fid = M0_FID_TINIT('b', M0_BT_COB_FILEATTR_EA, cdid->id);
 	M0_ALLOC_PTR(dom->cd_fileattr_ea);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_fa_ea_node,
