@@ -1852,7 +1852,7 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 
 	/** Skip meta-data lookup if obj.ob_attr.oa_pver is not empty.
 	 * pver is not empty that means  calling application has
-	 * capability to store meta-data(pver, LID) and has sent pver
+	 * capability to store meta-data(pver) and has sent pver
 	 * to open/delete entity.
 	 */
 	obj = m0__obj_entity(oo->oo_oc.oc_op.op_entity);
@@ -1893,10 +1893,10 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
                         cr->cr_ar.ar_ast.sa_cb = &cob_ast_ios_io_send;
 			cr->cr_ar.ar_rc = 0;
                         m0_sm_ast_post(cr->cr_op_sm_grp, &cr->cr_ar.ar_ast);
-			rc = 0;
+                        rc = 0;
 		} else {
-			/* We are skipping meta-data lookup here as we have received pver
-			 * and LID from application, and hence need to move op state
+			/* We are skipping meta-data lookup here as we have received
+			 * pver from application, and hence need to move op state
 			 * LAUNCHED, EXECUTED and STABLE explicitly */
 			m0_sm_move(&cr->cr_op->op_sm, 0, M0_OS_LAUNCHED);
 			m0_sm_group_unlock(&cr->cr_op->op_sm_group);
