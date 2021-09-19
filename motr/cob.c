@@ -1891,7 +1891,7 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 			 * AST.
 			 */
                         cr->cr_ar.ar_ast.sa_cb = &cob_ast_ios_io_send;
-			cr->cr_ar.ar_rc = 0;
+                        cr->cr_ar.ar_rc = 0;
                         m0_sm_ast_post(cr->cr_op_sm_grp, &cr->cr_ar.ar_ast);
                         rc = 0;
 		} else {
