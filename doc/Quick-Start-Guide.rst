@@ -118,7 +118,7 @@ Troubleshooting
   try installing packages using pip installer.
   run the following commands if package is ipaddress::
 
-    sudo pip install python-ipaddress
+    sudo pip install ipaddress
     sudo scripts/install-build-deps
 
 - If an installation failure occurs due to the dependency of ``pip3`` ,
