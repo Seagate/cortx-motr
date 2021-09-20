@@ -3140,7 +3140,7 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *		root node towards the leaf node we confirm the CRC of every Key
  *		which we encounter. If at any point we discover the Key node is
  *		corrupted then we fix this corrupt Key using the copy from the
- *		redundant tree and continue. This way the btree is corrupted
+ *		redundant tree and continue. This way the btree is corrected
  *		while online and also the record is inserted at the correct
  *		location in the tree.
  *
