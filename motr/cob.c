@@ -1885,7 +1885,7 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 		       FID_P(&obj->ob_attr.oa_pver), cr->cr_opcode);
 		if (cr->cr_opcode == M0_EO_DELETE) {
 			/**
-			 * For DELETE entity we skipped data cob if M0_ENF_META
+			 * For DELETE entity we skipped md cob if M0_ENF_META
 			 * is set, but we still wants to send data cob. This
 			 * case is handled here by posting cob_ast_ios_io_send
 			 * AST.
