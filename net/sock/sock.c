@@ -657,7 +657,7 @@
 #define MOCK_LNET (0)
 #endif
 
-#define USE_INVARIANTS (1)
+#define USE_INVARIANTS (0)
 
 struct sock;
 struct mover;
