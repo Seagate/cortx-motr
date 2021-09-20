@@ -344,7 +344,7 @@ AC_ARG_ENABLE([sock-mock-lnet],
         [],
         [enable_sock_mock_lnet=no]
 )
-AS_IF([test x$enable_sock_mock_lnet = xyes],
+AS_IF([test xyes = xyes],
       AC_DEFINE([ENABLE_SOCK_MOCK_LNET]))
 
 # sync-atomic {{{3
@@ -507,7 +507,7 @@ allowed values are: SOCK, LNET, MEMBULK and LF])
         )
       ],
       [
-	AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["LNET"])
+	AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["SOCK"])
       ]
 )
 
