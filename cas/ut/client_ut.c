@@ -38,6 +38,7 @@
 #include "cas/ctg_store.h"             /* m0_ctg_recs_nr */
 #include "lib/finject.h"
 #include "dtm0/dtx.h"                  /* m0_dtm0_dtx */
+#include "cas/cas.h"                   /* m0_cas_kv_ver */
 
 #define SERVER_LOG_FILE_NAME       "cas_server.log"
 #define IFID(x, y) M0_FID_TINIT('i', (x), (y))
@@ -113,6 +114,17 @@ static int bufvec_empty_alloc(struct m0_bufvec *bufvec,
 	M0_UT_ASSERT(bufvec->ov_buf != NULL);
 	return 0;
 }
+
+static int bufvec_cmp(const struct m0_bufvec *left,
+		      const struct m0_bufvec *right)
+{
+	struct m0_bufvec_cursor rcur;
+	struct m0_bufvec_cursor lcur;
+	m0_bufvec_cursor_init(&lcur, left);
+	m0_bufvec_cursor_init(&rcur, right);
+	return m0_bufvec_cursor_cmp(&lcur, &rcur);
+}
+
 
 static void value_create(int size, int num, char *buf)
 {
@@ -1341,16 +1353,6 @@ static int get_reply2bufvec(struct m0_cas_get_reply *get_rep, m0_bcount_t nr,
 	return rc;
 }
 
-static int bufvec_cmp(const struct m0_bufvec *left,
-		      const struct m0_bufvec *right)
-{
-	struct m0_bufvec_cursor rcur;
-	struct m0_bufvec_cursor lcur;
-	m0_bufvec_cursor_init(&lcur, left);
-	m0_bufvec_cursor_init(&rcur, right);
-	return m0_bufvec_cursor_cmp(&lcur, &rcur);
-}
-
 /*
  * Returns "true" if GET operation successfully returns all expected_values
  * (if they have been specified) or all the records exist (if expected_values
@@ -1365,6 +1367,61 @@ static bool has_values(struct m0_cas_id       *index,
 	struct m0_cas_get_reply *get_rep;
 	bool                     result;
 	struct m0_bufvec         actual_values;
+	struct m0_bufvec         empty_values;
+
+	M0_ALLOC_ARR(get_rep, keys->ov_vec.v_nr);
+	M0_UT_ASSERT(get_rep != NULL);
+
+	rc = ut_rec__get(&casc_ut_cctx, index, keys, get_rep, flags);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_bufvec_empty_alloc(&empty_values, keys->ov_vec.v_nr);
+	M0_UT_ASSERT(rc == 0);
+
+	if (expected_values == NULL)
+		expected_values = &empty_values;
+
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
+			       M0_IN(get_rep[i].cge_rc, (0, -ENOENT))));
+
+	if (m0_exists(i, keys->ov_vec.v_nr, get_rep[i].cge_rc == -ENOENT)) {
+		M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
+				       get_rep[i].cge_rc == -ENOENT));
+
+		rc = get_reply2bufvec(get_rep, keys->ov_vec.v_nr,
+				      &actual_values);
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(bufvec_cmp(&actual_values, expected_values) == 0);
+		m0_bufvec_free2(&actual_values);
+		result = false;
+		goto out;
+	} else {
+		rc = get_reply2bufvec(get_rep, keys->ov_vec.v_nr,
+				      &actual_values);
+		M0_UT_ASSERT(rc == 0);
+		result = bufvec_cmp(&actual_values, expected_values) == 0;
+		m0_bufvec_free2(&actual_values);
+	}
+
+out:
+	ut_get_rep_clear(get_rep, keys->ov_vec.v_nr);
+	m0_free(get_rep);
+	m0_bufvec_free(&empty_values);
+	return result;
+}
+
+/*
+ * Returns "true" all values returned by GET operation are the same as
+ * the specified version.
+ */
+static bool has_versions(struct m0_cas_id *index,
+			 const struct m0_bufvec *keys,
+			 uint64_t version,
+			 uint64_t flags)
+{
+	int                      rc;
+	struct m0_cas_get_reply *get_rep;
+	bool                     result;
 
 	M0_ALLOC_ARR(get_rep, keys->ov_vec.v_nr);
 	M0_UT_ASSERT(get_rep != NULL);
@@ -1375,47 +1432,120 @@ static bool has_values(struct m0_cas_id       *index,
 	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
 			       M0_IN(get_rep[i].cge_rc, (0, -ENOENT))));
 
-	if (m0_exists(i, keys->ov_vec.v_nr, get_rep[i].cge_rc == -ENOENT)) {
-		M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
-				       get_rep[i].cge_rc == -ENOENT));
-		return false;
-	}
-
-	if (expected_values != NULL) {
-		rc = get_reply2bufvec(get_rep, keys->ov_vec.v_nr,
-				      &actual_values);
-		M0_UT_ASSERT(rc == 0);
-		result = bufvec_cmp(&actual_values, expected_values) == 0;
-		m0_bufvec_free2(&actual_values);
-	} else
-		result = true;
+	result = m0_forall(i, keys->ov_vec.v_nr,
+			   get_rep[i].cge_ver.ckv_ts.dts_phys == version);
 
 	ut_get_rep_clear(get_rep, keys->ov_vec.v_nr);
 	m0_free(get_rep);
 	return result;
 }
 
-/*
- * Tombstones are not exposed but it is easy to detect them: if the value
- * is visible via a non-versioned GET but not visible via a versioned GET
- * then the record definitely has the tombstone flag set.
- */
 static bool has_tombstones(struct m0_cas_id       *index,
 			   const struct m0_bufvec *keys)
 {
-	return has_values(index, keys, NULL, 0) &&
-		!has_values(index, keys, NULL, COF_VERSIONED);
+	int                      rc;
+	struct m0_cas_get_reply *get_rep;
+	bool                     result;
+
+	M0_ALLOC_ARR(get_rep, keys->ov_vec.v_nr);
+	M0_UT_ASSERT(get_rep != NULL);
+
+	rc = ut_rec__get(&casc_ut_cctx, index, keys, get_rep, COF_VERSIONED);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Ensure the rcs are within the range of allowed rcs. */
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
+			       M0_IN(get_rep[i].cge_rc, (0, -ENOENT))));
+
+	/* Ensure all-or-nothing (either all have tbs or there are no tbs). */
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
+			     get_rep[0].cge_ver.ckv_tombstone ==
+			     get_rep[i].cge_ver.ckv_tombstone));
+
+	/* Ensure -ENOENT matches with tombstone flag. */
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
+		       ergo(!m0_dtm0_ts_is_none(&get_rep[i].cge_ver.ckv_ts),
+				    (get_rep[i].cge_ver.ckv_tombstone ==
+				     (get_rep[i].cge_rc == -ENOENT)))));
+
+	/* Ensure versions are always present on dead records. */
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
+			       ergo(get_rep[i].cge_ver.ckv_tombstone,
+				    !m0_dtm0_ts_is_none(
+						&get_rep[i].cge_ver.ckv_ts))));
+
+	result = get_rep[0].cge_ver.ckv_tombstone;
+
+	ut_get_rep_clear(get_rep, keys->ov_vec.v_nr);
+	memset(get_rep, 0, sizeof(get_rep) * keys->ov_vec.v_nr);
+
+	/*
+	 * Additionally, ensure that all the records are visible
+	 * when versioned behavior is disabled.
+	 */
+	rc = ut_rec__get(&casc_ut_cctx, index, keys, get_rep, 0);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr, get_rep[i].cge_rc == 0));
+	ut_get_rep_clear(get_rep, keys->ov_vec.v_nr);
+
+
+	m0_free(get_rep);
+	return result;
 }
 
-static void next_verified(struct m0_cas_id *index,
-			  struct m0_bufvec *start_key,
-			  uint32_t          requested_keys_nr,
-			  struct m0_bufvec *expected_keys,
-			  int               flags)
+/*
+ * Breaks an array of GET replies down into pieces (keys, values, versions).
+ * In other words, it transmutes a vector of tuples into a tuple of vectors.
+ */
+static void next_reply_breakdown(struct m0_cas_next_reply  *next_rep,
+				 m0_bcount_t                nr,
+				 struct m0_bufvec          *out_key,
+				 struct m0_bufvec          *out_val,
+				 struct m0_cas_kv_ver     **out_ver)
+{
+	int                   rc;
+	m0_bcount_t           i;
+	struct m0_cas_kv_ver *ver;
+
+	rc = m0_bufvec_empty_alloc(out_key, nr);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_empty_alloc(out_val, nr);
+	M0_UT_ASSERT(rc == 0);
+	M0_ALLOC_ARR(ver, nr);
+	M0_UT_ASSERT(ver != NULL);
+
+	for (i = 0; i < nr; ++i) {
+		out_key->ov_buf[i] = next_rep[i].cnp_key.b_addr;
+		out_key->ov_vec.v_count[i] = next_rep[i].cnp_key.b_nob;
+
+		out_val->ov_buf[i] = next_rep[i].cnp_val.b_addr;
+		out_val->ov_vec.v_count[i] = next_rep[i].cnp_val.b_nob;
+
+		ver[i] = next_rep[i].cnp_ver;
+	}
+
+	*out_ver = ver;
+}
+
+
+/*
+ * Ensures that NEXT yields the expected keys, values and versions.
+ * Values and version are optional (ignored when set to NULL).
+ */
+static void next_records_verified(struct m0_cas_id     *index,
+				  struct m0_bufvec     *start_key,
+				  uint32_t              requested_keys_nr,
+				  struct m0_bufvec     *expected_keys,
+				  struct m0_bufvec     *expected_values,
+				  struct m0_cas_kv_ver *expected_versions,
+				  int                   flags)
 {
 	struct m0_cas_next_reply *next_rep;
 	uint64_t                  rep_count;
 	int                       rc;
+	struct m0_bufvec          actual_keys;
+	struct m0_bufvec          actual_values;
+	struct m0_cas_kv_ver     *actual_versions;
 
 	M0_ALLOC_ARR(next_rep, requested_keys_nr);
 	M0_UT_ASSERT(next_rep != NULL);
@@ -1425,21 +1555,52 @@ static void next_verified(struct m0_cas_id *index,
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep_count == requested_keys_nr);
 
-	if (expected_keys == NULL)
+	if (expected_keys == NULL) {
+		M0_UT_ASSERT(expected_values == NULL);
+		M0_UT_ASSERT(expected_versions == NULL);
 		M0_UT_ASSERT(m0_forall(i, rep_count,
 				       next_rep[i].cnp_rc == -ENOENT));
-	else {
+	} else {
 		M0_UT_ASSERT(m0_forall(i, rep_count, next_rep[i].cnp_rc == 0));
 		M0_UT_ASSERT(rep_count == expected_keys->ov_vec.v_nr);
-		M0_UT_ASSERT(m0_forall(i, expected_keys->ov_vec.v_nr,
-				       memcmp(next_rep[i].cnp_key.b_addr,
-					      expected_keys->ov_buf[i],
-					      next_rep[i].cnp_key.b_nob) == 0));
+		next_reply_breakdown(next_rep, rep_count,
+				     &actual_keys,
+				     &actual_values,
+				     &actual_versions);
+		M0_UT_ASSERT(bufvec_cmp(expected_keys,
+					&actual_keys) == 0);
+
+		if (expected_values != NULL)
+			M0_UT_ASSERT(bufvec_cmp(expected_values,
+						&actual_values) == 0);
+		if (expected_versions != NULL)
+			M0_UT_ASSERT(memcmp(expected_versions,
+					    actual_versions,
+					    rep_count *
+					    sizeof(expected_versions[0])) == 0);
+
+		m0_bufvec_free2(&actual_keys);
+		m0_bufvec_free2(&actual_values);
+		m0_free(actual_versions);
 	}
 
 	ut_next_rep_clear(next_rep, rep_count);
 	m0_free(next_rep);
 }
+
+/*
+ * Ensures that NEXT yields the expected keys.
+ */
+static void next_keys_verified(struct m0_cas_id *index,
+			       struct m0_bufvec *start_key,
+			       uint32_t          requested_keys_nr,
+			       struct m0_bufvec *expected_keys,
+			       int               flags)
+{
+	return next_records_verified(index, start_key, requested_keys_nr,
+				     expected_keys, NULL, NULL, flags);
+}
+
 
 static void ut_rec_common_put_verified(struct m0_cas_id       *index,
 				       const struct m0_bufvec *keys,
@@ -1498,7 +1659,9 @@ static void put_get_verified(struct m0_cas_id *index,
 			     int               get_flags)
 {
 	ut_rec_common_put_verified(index, keys, values, version, put_flags);
-	M0_UT_ASSERT(has_values(index, keys, expected_values, get_flags));
+	if (expected_values != NULL)
+		M0_UT_ASSERT(has_values(index, keys, expected_values,
+					get_flags));
 }
 
 /*
@@ -1513,6 +1676,16 @@ static void del_get_verified(struct m0_cas_id *index,
 {
 	ut_rec_common_del_verified(index, keys, version, del_flags);
 	M0_UT_ASSERT(!has_values(index, keys, NULL, get_flags));
+
+	/*
+	 * When version is set to zero, the value actually gets removed, so
+	 * that tombstones are not available. Still, we can ensure that
+	 * versions were wiped out.
+	 */
+	if (version == 0)
+		M0_UT_ASSERT(has_versions(index, keys, 0, COF_VERSIONED));
+	else
+		M0_UT_ASSERT(has_tombstones(index, keys));
 }
 
 
@@ -1523,19 +1696,13 @@ static void del_get_verified(struct m0_cas_id *index,
  *   bufvec target = [buf A, buf B, buf C]
  *   bufvec slice  = target.slice(1)
  *   assert slice == [buf B]
+ *          slice  = target.slice(2)
+ *   assert slice == [buf C]
  * @endverbatim
  */
 #define M0_BUFVEC_SLICE(__bufvec, __idx)		 \
 	M0_BUFVEC_INIT_BUF((__bufvec)->ov_buf + (__idx), \
 			   (__bufvec)->ov_vec.v_count + (__idx))
-
-#define M0_BUFVEC_SUB(__bufvec, __idx, __count)	(struct m0_bufvec) {	\
-	.ov_vec = {							\
-		.v_nr = (__count),					\
-		.v_count = (__bufvec)->ov_vec.v_count + (__idx),	\
-	},								\
-	.ov_buf = (__bufvec)->ov_buf + (__idx)				\
-}
 
 /*
  * A test case where we are verifying that NEXT works well with
@@ -1554,8 +1721,6 @@ static void next_ver(void)
 	struct m0_cas_id        index = {};
 	struct m0_cas_rec_reply rep;
 	const struct m0_fid     ifid = IFID(2, 3);
-
-	m0_fi_enable("cas_fom_tick", "skip-dtm0-phases");
 
 	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
 	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, &rep);
@@ -1584,42 +1749,50 @@ static void next_ver(void)
 	put_get_verified(&index, &keys, &values, &values, version[V_PAST],
 			 COF_VERSIONED | COF_OVERWRITE,
 			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_PAST], COF_VERSIONED));
 
 	/* Only even records will be alive in the future. */
 	del_get_verified(&index, &kodd, version[V_FUTURE],
 			 COF_VERSIONED, COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &kodd,
+				  version[V_FUTURE], COF_VERSIONED));
+	M0_UT_ASSERT(has_versions(&index, &keven,
+				  version[V_PAST], COF_VERSIONED));
 
 	/*
 	 * Case:
 	 * NEXT with the first alive key and the number records equal to
 	 * (number_of_alive_keys - 1) should return all the alive keys.
 	 */
-	next_verified(&index, &M0_BUFVEC_SLICE(&keys, 0),
-		      keys.ov_vec.v_nr / 2, &keven, COF_VERSIONED);
+	next_keys_verified(&index, &M0_BUFVEC_SLICE(&keys, 0),
+			   keys.ov_vec.v_nr / 2, &keven, COF_VERSIONED);
 
 	/*
 	 * Case:
 	 * Requesting one record with NEXT with the first dead key
 	 * should return nothing (ENOENT).
 	 */
-	next_verified(&index, &M0_BUFVEC_SLICE(&kodd, 0), 1, NULL,
-		      COF_VERSIONED);
+	next_keys_verified(&index, &M0_BUFVEC_SLICE(&kodd, 0), 1, NULL,
+			   COF_VERSIONED);
 
 	/*
 	 * Case:
 	 * Requesting one record with NEXT(SLANT) with the first dead key
 	 * should return the second alive key.
 	 */
-	next_verified(&index, &M0_BUFVEC_SLICE(&kodd, 0), 1,
-		      &M0_BUFVEC_SLICE(&keven, 1), COF_SLANT | COF_VERSIONED);
+	next_keys_verified(&index, &M0_BUFVEC_SLICE(&kodd, 0), 1,
+			   &M0_BUFVEC_SLICE(&keven, 1),
+			   COF_SLANT | COF_VERSIONED);
 
 	/*
 	 * Case:
 	 * Requesting NEXT(SLANT) record with with last dead key should
 	 * return -ENOENT.
 	 */
-	next_verified(&index, &M0_BUFVEC_SLICE(&kodd, kodd.ov_vec.v_nr - 1), 1,
-		      NULL, COF_SLANT | COF_VERSIONED);
+	next_keys_verified(&index,
+			   &M0_BUFVEC_SLICE(&kodd, kodd.ov_vec.v_nr - 1), 1,
+			   NULL, COF_SLANT | COF_VERSIONED);
 
 	/*
 	 * Case:
@@ -1627,9 +1800,9 @@ static void next_ver(void)
 	 * start key equal to the first alive record should return one single
 	 * pair with the next alive record.
 	 */
-	next_verified(&index, &M0_BUFVEC_SLICE(&keven, 0), 1,
-		      &M0_BUFVEC_SLICE(&keven, 1),
-		      COF_SLANT | COF_EXCLUDE_START_KEY | COF_VERSIONED);
+	next_keys_verified(&index, &M0_BUFVEC_SLICE(&keven, 0), 1,
+			   &M0_BUFVEC_SLICE(&keven, 1),
+			   COF_SLANT | COF_EXCLUDE_START_KEY | COF_VERSIONED);
 
 	/* Now the index should have no keys. */
 	del_get_verified(&index, &keven, version[V_FUTURE],
@@ -1640,8 +1813,8 @@ static void next_ver(void)
 	 * Requesting one record with NEXT(SLANT) should yield no keys at all
 	 * (ENOENT) on an index that does not have alive records.
 	 */
-	next_verified(&index, &M0_BUFVEC_SLICE(&keys, 0), 1, NULL,
-		      COF_VERSIONED);
+	next_keys_verified(&index, &M0_BUFVEC_SLICE(&keys, 0), 1, NULL,
+			   COF_VERSIONED);
 
 	/*
 	 * Case:
@@ -1649,8 +1822,8 @@ static void next_ver(void)
 	 * NEXT should yield all the keys that were inserted initially even
 	 * if all of them have tombstones.
 	 */
-	next_verified(&index, &M0_BUFVEC_SLICE(&keys, 0),
-		      keys.ov_vec.v_nr, &keys, 0);
+	next_keys_verified(&index, &M0_BUFVEC_SLICE(&keys, 0),
+			   keys.ov_vec.v_nr, &keys, 0);
 
 	/* Now insert a non-versioned record at the "end". */
 	del_get_verified(&index, &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 1),
@@ -1662,15 +1835,17 @@ static void next_ver(void)
 	/*
 	 * Case:
 	 * A record without version should be treaten as an alive record.
-	 * Requesting one record with NEXT(SLANT) with stat key equal to the
-	 * last dead record should the non-versioned record.
+	 * Requesting one record with NEXT(SLANT) with start key equal to the
+	 * last dead record should yield the non-versioned record.
 	 * However, if SLANT was not set it should still return ENOENT.
 	 */
-	next_verified(&index, &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 2), 1,
-		      &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 1),
-		      COF_SLANT | COF_VERSIONED);
-	next_verified(&index, &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 2), 1,
-		      NULL , COF_VERSIONED);
+	next_keys_verified(&index,
+			   &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 2), 1,
+			   &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 1),
+			   COF_SLANT | COF_VERSIONED);
+	next_keys_verified(&index,
+			   &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 2), 1,
+			   NULL , COF_VERSIONED);
 
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&values);
@@ -1680,7 +1855,120 @@ static void next_ver(void)
 	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
-	m0_fi_disable("cas_fom_tick", "skip-dtm0-phases");
+}
+
+/*
+ * A test case where we are verifying that version and tombstones exposed
+ * by CAS API (see COF_VERSIONED and COF_SHOW_DEAD) show expected
+ * behavior with combinations of PUT, DEL and NEXT.
+ */
+static void next_ver_exposed(void)
+{
+	enum { V_PAST, V_FUTURE, V_NR };
+	struct m0_bufvec        keys;
+	struct m0_bufvec        values;
+	struct m0_bufvec        expected_values;
+	struct m0_bufvec        kodd;
+	struct m0_bufvec        keven;
+	int                     rc;
+	uint64_t                version[V_NR] = { 2, 3 };
+	int                     i;
+	struct m0_cas_id        index = {};
+	struct m0_cas_rec_reply rep;
+	struct m0_cas_kv_ver   *versions;
+	bool                    is_even;
+	const struct m0_fid     ifid = IFID(2, 3);
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	index.ci_fid = ifid;
+
+
+	rc = m0_bufvec_alloc(&keys, COUNT, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == COUNT);
+	M0_ALLOC_ARR(versions, keys.ov_vec.v_nr);
+	M0_UT_ASSERT(versions != NULL);
+	rc = m0_bufvec_alloc(&values, keys.ov_vec.v_nr, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&expected_values,
+			     keys.ov_vec.v_nr, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	rc = m0_bufvec_alloc(&kodd, keys.ov_vec.v_nr / 2, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&keven, keys.ov_vec.v_nr / 2, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+
+	for (i = 0; i < keys.ov_vec.v_nr; i++) {
+		is_even = (i & 0x01) == 0 ;
+
+		*(uint64_t*)keys.ov_buf[i] = i;
+		*(uint64_t*)values.ov_buf[i] = i;
+		if (is_even)
+			*(uint64_t*)expected_values.ov_buf[i] = i;
+		else
+			expected_values.ov_vec.v_count[i] = 0;
+
+		memcpy((is_even ? &keven : &kodd)->ov_buf[i / 2],
+		       keys.ov_buf[i], keys.ov_vec.v_count[i]);
+
+		versions[i].ckv_ts.dts_phys =
+			version[!is_even ? V_FUTURE : V_PAST];
+		versions[i].ckv_tombstone = !is_even;
+	}
+
+	/* Insert all the keys. */
+	put_get_verified(&index, &keys, &values, &values, version[V_PAST],
+			 COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+
+	/* Only even records will be alive in the future. */
+	del_get_verified(&index, &kodd, version[V_FUTURE],
+			 COF_VERSIONED, COF_VERSIONED);
+
+	/*
+	 * Case:
+	 * If even records are alive and odd records are dead then
+	 * NEXT must return all the requested keys if COF_SHOW_DEAD is set.
+	 * The dead records must me "younger" then the alive records,
+	 * and the dead record must have tombstones set.
+	 */
+	next_records_verified(&index,
+			      &M0_BUFVEC_SLICE(&keys, 0), keys.ov_vec.v_nr,
+			      &keys, &expected_values, versions,
+			      COF_VERSIONED | COF_SHOW_DEAD);
+
+	/*
+	 * Case:
+	 * When COF_SHOW_DEAD is specified, dead record is not skipped.
+	 */
+	next_records_verified(&index,
+			      &M0_BUFVEC_SLICE(&keys, 1), 1,
+			      &M0_BUFVEC_SLICE(&keys, 1),
+			      &expected_values, versions + 1,
+			      COF_VERSIONED | COF_SHOW_DEAD);
+
+	/*
+	 * Case:
+	 * Dead record is not skipped when (SHOW_DEAD | SLANT) is specified.
+	 */
+	next_records_verified(&index,
+			      &M0_BUFVEC_SLICE(&keys, 1), 1,
+			      &M0_BUFVEC_SLICE(&keys, 1),
+			      &expected_values, versions + 1,
+			      COF_VERSIONED | COF_SHOW_DEAD | COF_SLANT);
+
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+	m0_bufvec_free(&keven);
+	m0_bufvec_free(&kodd);
+	m0_free(versions);
+
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 #undef M0_BUFVEC_SLICE
 
@@ -2045,7 +2333,6 @@ static void put_overwrite_ver(void)
 	 */
 	M0_CASSERT((UINT64_MAX / COUNT) > (1L << V_NR));
 
-	m0_fi_enable("cas_fom_tick", "skip-dtm0-phases");
 	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
 
 	rc = m0_bufvec_alloc(&keys, COUNT, sizeof(uint64_t));
@@ -2072,21 +2359,29 @@ static void put_overwrite_ver(void)
 	put_get_verified(&index, &keys, &vals[V_NOW], &vals[V_NOW],
 			 version[V_NOW], COF_VERSIONED | COF_OVERWRITE,
 			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_NOW], COF_VERSIONED));
 
 	/* PUT at "future" (overwrites "now"). */
 	put_get_verified(&index, &keys, &vals[V_FUTURE], &vals[V_FUTURE],
 			 version[V_FUTURE], COF_VERSIONED | COF_OVERWRITE,
 			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_FUTURE], COF_VERSIONED));
 
 	/* PUT at "past" (values should not be changed) */
 	put_get_verified(&index, &keys, &vals[V_PAST], &vals[V_FUTURE],
 			 version[V_PAST], COF_VERSIONED | COF_OVERWRITE,
 			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_FUTURE], COF_VERSIONED));
 
 	/* However, empty version disables the versioned behavior. */
 	put_get_verified(&index, &keys, &vals[V_PAST], &vals[V_PAST],
 			 version[V_NONE], COF_VERSIONED | COF_OVERWRITE,
 			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_NONE], COF_VERSIONED));
 
 	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
 	M0_UT_ASSERT(rc == 0);
@@ -2118,7 +2413,6 @@ static void put_overwrite_ver(void)
 		m0_bufvec_free(&vals[j]);
 	m0_bufvec_free(&keys);
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
-	m0_fi_disable("cas_fom_tick", "skip-dtm0-phases");
 }
 
 /*
@@ -2130,7 +2424,6 @@ static void put_ver(void)
 	struct m0_bufvec values;
 	int              rc;
 
-	m0_fi_enable("cas_fom_tick", "skip-dtm0-phases");
 	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
 
 	rc = m0_bufvec_alloc(&keys, 1, sizeof(uint64_t));
@@ -2147,7 +2440,6 @@ static void put_ver(void)
 	m0_bufvec_free(&values);
 
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
-	m0_fi_disable("cas_fom_tick", "skip-dtm0-phases");
 }
 
 /*
@@ -2761,7 +3053,6 @@ static void del_ver(void)
 	struct m0_bufvec values;
 	int              rc;
 
-	m0_fi_enable("cas_fom_tick", "skip-dtm0-phases");
 	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
 
 	rc = m0_bufvec_alloc(&keys, 1, sizeof(uint64_t));
@@ -2781,7 +3072,84 @@ static void del_ver(void)
 	m0_bufvec_free(&values);
 
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
-	m0_fi_disable("cas_fom_tick", "skip-dtm0-phases");
+}
+
+/*
+ * Ensures that versions exposed by GET are visible.
+ */
+static void get_ver_exposed(void)
+{
+	struct m0_bufvec        keys;
+	struct m0_bufvec        values;
+	struct m0_cas_rec_reply rep;
+	int                     rc;
+	const struct m0_fid     ifid = IFID(2, 3);
+	struct m0_cas_id        index = {};
+	enum v { V_NONE, V_PAST, V_NOW, V_FUTURE, V_NR};
+	uint64_t                version[V_NR] = { 0, 1, 2, 3,};
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+
+	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	index.ci_fid = ifid;
+
+	rc = m0_bufvec_alloc(&keys, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr != 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
+					*(uint64_t*)values.ov_buf[i] = i * i,
+					true));
+
+	/* Insert @past */
+	put_get_verified(&index, &keys, &values, &values, version[V_PAST],
+			 COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_PAST], COF_VERSIONED));
+
+	/* Delete @future */
+	del_get_verified(&index, &keys, version[V_FUTURE],
+			 COF_VERSIONED, COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_FUTURE], COF_VERSIONED));
+
+	/* Cleanup */
+	del_get_verified(&index, &keys, version[V_NONE], 0, 0);
+
+	/* Delete @now */
+	del_get_verified(&index, &keys, version[V_NOW],
+			 COF_VERSIONED, COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_NOW], COF_VERSIONED));
+	M0_UT_ASSERT(has_tombstones(&index, &keys));
+
+	/* Insert @past */
+	put_get_verified(&index, &keys, &values, NULL, version[V_PAST],
+			 COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_NOW], COF_VERSIONED));
+	M0_UT_ASSERT(has_tombstones(&index, &keys));
+
+	/* Insert @future */
+	put_get_verified(&index, &keys, &values, NULL, version[V_FUTURE],
+			 COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_FUTURE], COF_VERSIONED));
+	M0_UT_ASSERT(!has_tombstones(&index, &keys));
+
+
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 
 static void del(void)
@@ -3315,9 +3683,7 @@ static void put_del_ver_case_execute(const struct put_del_ver_case *c,
 }
 
 /*
- * Versions are not exposed via CAS client API but we can make an educated
- * guess by executing a set of destructive operations to verify
- * the following properties:
+ * The function verifies the following properties:
  *  Put a tombstone:
  *   DEL@version
  *   has_tombstone => true
@@ -3328,9 +3694,9 @@ static void put_del_ver_case_execute(const struct put_del_ver_case *c,
  *   PUT@(version + 1)
  *   has_tombstone => false.
  */
-static void ensure_has_version(struct m0_cas_id *index,
-			       const struct m0_bufvec *keys,
-			       uint64_t version)
+static void verify_version_properties(struct m0_cas_id       *index,
+				      const struct m0_bufvec *keys,
+				      uint64_t                version)
 {
 	int                      rc;
 	struct m0_cas_get_reply *get_rep;
@@ -3441,7 +3807,8 @@ static void put_del_ver_case_verify(const struct put_del_ver_case *c,
 		break;
 	}
 
-	ensure_has_version(index, keys, FUTURE);
+	M0_UT_ASSERT(has_versions(index, keys, FUTURE, COF_VERSIONED));
+	verify_version_properties(index, keys, FUTURE);
 }
 
 static void put_del_ver(void)
@@ -3505,8 +3872,6 @@ static void put_del_ver(void)
 	struct m0_cas_rec_reply rep;
 	const struct m0_fid     ifid = IFID(2, 3);
 
-	m0_fi_enable("cas_fom_tick", "skip-dtm0-phases");
-
 	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
 	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
@@ -3521,7 +3886,6 @@ static void put_del_ver(void)
 	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
-	m0_fi_disable("cas_fom_tick", "skip-dtm0-phases");
 }
 
 struct m0_ut_suite cas_client_ut = {
@@ -3574,6 +3938,8 @@ struct m0_ut_suite cas_client_ut = {
 		{ "del-ver",                del_ver,                "Ivan"   },
 		{ "next-ver",               next_ver,               "Ivan"   },
 		{ "put-del-ver",            put_del_ver,            "Ivan"   },
+		{ "next-ver-exposed",       next_ver_exposed,       "Ivan"   },
+		{ "get-ver-exposed",        get_ver_exposed,        "Ivan"   },
 		{ NULL, NULL }
 	}
 };

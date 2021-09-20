@@ -1178,7 +1178,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	struct m0_cas_ctg  *meta    = m0_ctg_meta();
 	struct m0_cas_ctg  *ctidx   = m0_ctg_ctidx();
 	struct m0_cas_rec  *rec     = NULL;
-	bool                is_dtm0_used =
+	bool                is_dtm0_used = ENABLE_DTM0 &&
 		!m0_dtm0_tx_desc_is_none(&op->cg_txd);
 	bool                is_index_drop;
 	bool                do_ctidx;
@@ -1187,15 +1187,11 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	M0_ENTRY("fom %p phase %d", fom, phase);
 	M0_PRE(ctidx != NULL);
 	M0_PRE(cas_fom_invariant(fom));
-	M0_PRE(ergo(ENABLE_DTM0 && !M0_IS0(&op->cg_txd),
-		    m0_dtm0_tx_desc__invariant(&op->cg_txd)));
+	M0_PRE(ergo(is_dtm0_used, m0_dtm0_tx_desc__invariant(&op->cg_txd)));
 
 	if (!M0_IS0(&op->cg_txd) && phase == M0_FOPH_INIT)
 		M0_LOG(M0_DEBUG, "Got CAS with txid: " DTID0_F,
 		       DTID0_P(&op->cg_txd.dtd_id));
-
-	if (M0_FI_ENABLED("skip-dtm0-phases"))
-		is_dtm0_used = false;
 
 	is_index_drop = op_is_index_drop(opc, ct);
 
@@ -1644,6 +1640,8 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		M0_ASSERT(fom->cf_opos < rep->cgr_rep.cr_nr);
 		rec = cas_out_at(rep, fom->cf_opos);
 		M0_ASSERT(rec != NULL);
+		m0_ctg_op_get_ver(ctg_op,
+				  &cas_out_at(rep, fom->cf_opos)->cr_ver);
 		if (rec->cr_rc == 0) {
 			rec->cr_rc = m0_ctg_op_rc(ctg_op);
 			if (rec->cr_rc == 0) {

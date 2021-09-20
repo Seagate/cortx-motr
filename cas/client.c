@@ -1766,6 +1766,7 @@ M0_INTERNAL void m0_cas_get_rep(const struct m0_cas_req *req,
 	rcvd = &cas_rep->cgr_rep.cr_rec[idx];
 	sent = &req->ccr_rec_orig.cr_rec[idx];
 	rep->cge_rc = rcvd->cr_rc;
+	rep->cge_ver = rcvd->cr_ver;
 	if (rep->cge_rc == 0)
 	      m0_rpc_at_rep_get(&sent->cr_val, &rcvd->cr_val, &rep->cge_val);
 	M0_LEAVE();
@@ -1789,7 +1790,10 @@ M0_INTERNAL int m0_cas_next(struct m0_cas_req *req,
 	M0_PRE(m0_cas_id_invariant(index));
 	/* Only slant, exclude start key, and versioned flags are allowed. */
 	M0_PRE((flags & ~(COF_SLANT | COF_EXCLUDE_START_KEY |
-			  COF_VERSIONED)) == 0);
+			  COF_VERSIONED | COF_SHOW_DEAD)) == 0);
+	/* COF_SHOW_DEAD cannot be used without COF_VERSIONED */
+	M0_PRE(ergo((flags & COF_SHOW_DEAD) != 0,
+		    (flags & COF_VERSIONED) != 0));
 
 	for (i = 0; i < start_keys->ov_vec.v_nr; i++)
 		max_replies_nr += recs_nr[i];
@@ -1829,6 +1833,7 @@ M0_INTERNAL void m0_cas_next_rep(const struct m0_cas_req  *req,
 	M0_PRE(idx < m0_cas_req_nr(req));
 	M0_PRE(req->ccr_ftype == &cas_cur_fopt);
 	rcvd = &cas_rep->cgr_rep.cr_rec[idx];
+	rep->cnp_ver = rcvd->cr_ver;
 	rep->cnp_rc = cas_next_rc(rcvd->cr_rc) ?:
 		      m0_rpc_at_rep_get(NULL, &rcvd->cr_key, &rep->cnp_key) ?:
 		      m0_rpc_at_rep_get(NULL, &rcvd->cr_val, &rep->cnp_val);

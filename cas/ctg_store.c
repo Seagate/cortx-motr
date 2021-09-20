@@ -198,8 +198,8 @@ static int         ctg_cmp   (const void *key0, const void *key1);
 
 static int versioned_put_sync        (struct m0_ctg_op *ctg_op);
 static int versioned_get_sync        (struct m0_ctg_op *op);
-static int versioned_cursor_next_sync(struct m0_ctg_op *op);
-static int versioned_cursor_get_sync (struct m0_ctg_op *op);
+static int versioned_cursor_next_sync(struct m0_ctg_op *op, bool alive_only);
+static int versioned_cursor_get_sync (struct m0_ctg_op *op, bool alive_only);
 
 /**
  * Mutex to provide thread-safety for catalogue store singleton initialisation.
@@ -323,6 +323,19 @@ static uint64_t crv_version_get(const struct cas_rec_ver *crv)
 	return crv->crv_encoded & ~CRV_TBS;
 }
 
+/*
+ * Converts on-disk reprentation into on-wire representation.
+ */
+static struct m0_cas_kv_ver crv_as_cas_kv_ver(const struct cas_rec_ver *crv)
+{
+	return (struct m0_cas_kv_ver) {
+		.ckv_ts = (struct m0_dtm0_ts) {
+			.dts_phys = crv_version_get(crv),
+		},
+		.ckv_tombstone = crv_tbs_is_set(crv),
+	};
+}
+
 static void crv_version_set(struct cas_rec_ver *crv, uint64_t ts)
 {
 	crv->crv_encoded = (crv->crv_encoded & CRV_TBS) | ts;
@@ -370,7 +383,7 @@ static bool crv_is_none(const struct cas_rec_ver *crv)
 #define CRV_P(__crv) crv_version_get(__crv), crv_tbs_is_set(__crv) ? 'd' : 'a'
 
 /**
- * Unpack an an on-disk value data into an in-memory format.
+ * Unpack an an on-disk value data into in-memory format.
  * The function makes "buf" to point to the user-specific data associated
  * with the value (see ::generic_value::gv_data).
  * @param[out] Optional storage for the version of the record.
@@ -412,6 +425,23 @@ static int ctg_vbuf_as_ctg(const struct m0_buf *buf, struct m0_cas_ctg **ctg)
 
 	if (buf->b_nob == sizeof(struct m0_cas_ctg *)) {
 		*ctg = mv->mv_ctg;
+		return M0_RC(0);
+	} else
+		return M0_ERR(-EPROTO);
+}
+
+/**
+ * Get the layout from an unpacked ::layout_value (cctidx value).
+ */
+static int ctg_vbuf_as_layout(const struct m0_buf    *buf,
+			      struct m0_dix_layout **layout)
+{
+	struct layout_value *lv = buf->b_addr - sizeof(struct generic_value);
+
+	M0_ENTRY();
+
+	if (buf->b_nob == sizeof(struct m0_dix_layout)) {
+		*layout = &lv->lv_layout;
 		return M0_RC(0);
 	} else
 		return M0_ERR(-EPROTO);
@@ -628,8 +658,7 @@ M0_INTERNAL int m0_ctg__meta_insert(struct m0_be_btree  *meta,
 	 * It also helps to generalise listing of catalogues
 	 * (see ::m0_ctg_try_init).
 	 */
-	M0_PRE(ergo(ctg == NULL,
-		    m0_fid_eq(fid, &m0_cas_meta_fid)));
+	M0_PRE(ergo(ctg == NULL, m0_fid_eq(fid, &m0_cas_meta_fid)));
 
 	anchor.ba_value.b_nob = value.b_nob;
 	rc = M0_BE_OP_SYNC_RET(op,
@@ -1072,7 +1101,7 @@ static bool ctg_op_cb(struct m0_clink *clink)
 		return true;
 
 	/* Versioned API is synchronous. */
-	if (ctg_op_is_versioned(ctg_op))
+	if (ctg_op->co_is_versioned)
 		return true;
 
 	rc = ctg_berc(ctg_op);
@@ -1298,6 +1327,8 @@ static int ctg_op_exec_versioned(struct m0_ctg_op *ctg_op, int next_phase)
 	int                        opc = ctg_op->co_opcode;
 	int                        ct  = ctg_op->co_ct;
 	struct m0_be_op           *beop = ctg_beop(ctg_op);
+	bool                       alive_only =
+		!(ctg_op->co_flags & COF_SHOW_DEAD);
 
 	M0_PRE(ctg_is_ordinary(ctg_op->co_ctg));
 	M0_PRE(ct == CT_BTREE);
@@ -1314,9 +1345,9 @@ static int ctg_op_exec_versioned(struct m0_ctg_op *ctg_op, int next_phase)
 		break;
 	case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
 		if (ctg_op->co_cur_phase == CPH_GET)
-			rc = versioned_cursor_get_sync(ctg_op);
+			rc = versioned_cursor_get_sync(ctg_op, alive_only);
 		else
-			rc = versioned_cursor_next_sync(ctg_op);
+			rc = versioned_cursor_next_sync(ctg_op, alive_only);
 		break;
 	default:
 		M0_IMPOSSIBLE("The other operations are not allowed here.");
@@ -1357,7 +1388,9 @@ static int ctg_op_exec_versioned(struct m0_ctg_op *ctg_op, int next_phase)
 
 static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 {
-	return ctg_op_is_versioned(ctg_op) ?
+	ctg_op->co_is_versioned = ctg_op_is_versioned(ctg_op);
+
+	return ctg_op->co_is_versioned ?
 		ctg_op_exec_versioned(ctg_op, next_phase) :
 		ctg_op_exec_normal(ctg_op, next_phase);
 }
@@ -1503,7 +1536,6 @@ static int ctg_exec(struct m0_ctg_op    *ctg_op,
 	     ctg_op->co_cur_phase != CPH_NEXT))
 		ctg_op->co_rc = ctg_kbuf_get(&ctg_op->co_key, key);
 
-
 	if (ctg_op->co_rc != 0)
 		m0_fom_phase_set(ctg_op->co_fom, next_phase);
 	else
@@ -1646,6 +1678,17 @@ M0_INTERNAL void m0_ctg_lookup_result(struct m0_ctg_op *ctg_op,
 	M0_PRE(ctg_op->co_rc == 0);
 
 	*buf = ctg_op->co_out_val;
+}
+
+M0_INTERNAL void m0_ctg_op_get_ver(struct m0_ctg_op     *ctg_op,
+				   struct m0_cas_kv_ver *out)
+{
+	M0_PRE(ctg_op != NULL);
+	M0_PRE(out != NULL);
+	M0_PRE(ergo(!m0_dtm0_ts_is_none(&ctg_op->co_out_ver.ckv_ts),
+		    ctg_op->co_is_versioned));
+
+	*out = ctg_op->co_out_ver;
 }
 
 M0_INTERNAL int m0_ctg_minkey(struct m0_ctg_op  *ctg_op,
@@ -1831,6 +1874,7 @@ M0_INTERNAL void m0_ctg_op_init(struct m0_ctg_op *ctg_op,
 	ctg_op->co_fom = fom;
 	ctg_op->co_flags = flags;
 	ctg_op->co_cur_phase = CPH_NONE;
+	ctg_op->co_is_versioned = false;
 }
 
 M0_INTERNAL int m0_ctg_op_rc(struct m0_ctg_op *ctg_op)
@@ -2042,7 +2086,6 @@ M0_INTERNAL int m0_ctg_ctidx_lookup_sync(const struct m0_fid  *fid,
 	struct m0_be_btree_anchor anchor;
 	struct m0_cas_ctg        *ctidx = m0_ctg_ctidx();
 	int                       rc;
-	struct layout_value      *value_data;
 
 	M0_PRE(ctidx != NULL);
 	M0_PRE(fid != NULL);
@@ -2056,14 +2099,9 @@ M0_INTERNAL int m0_ctg_ctidx_lookup_sync(const struct m0_fid  *fid,
 							  &op,
 							  &key,
 							  &anchor),
-			       bo_u.u_btree.t_rc);
-	if (rc == 0) {
-		value_data = anchor.ba_value.b_addr;
-		if (sizeof(value_data) == anchor.ba_value.b_nob) {
-			*layout = &value_data->lv_layout;
-		} else
-			rc = M0_ERR(-EPROTO);
-	}
+			       bo_u.u_btree.t_rc) ?:
+		ctg_vbuf_unpack(&anchor.ba_value, NULL) ?:
+		ctg_vbuf_as_layout(&anchor.ba_value, layout);
 
 	m0_be_btree_release(NULL, &anchor);
 
@@ -2361,6 +2399,9 @@ static bool ctg_op_is_versioned(const struct m0_ctg_op *ctg_op)
 	if (ctg_op->co_fom == NULL)
 		return M0_RC_INFO(false, "No fom, no versions.");
 
+	if (ctg_op->co_fom->fo_fop == NULL)
+		return M0_RC_INFO(false, "No fop, no versions.");
+
 	cas_op = m0_fop_data(ctg_op->co_fom->fo_fop);
 	if (cas_op == NULL)
 		return M0_RC_INFO(false, "No cas op, no versions.");
@@ -2403,7 +2444,7 @@ static void ctg_op_version_get(const struct m0_ctg_op *ctg_op,
 	bool                          tbs;
 
 	M0_ENTRY();
-	M0_PRE(ctg_op_is_versioned(ctg_op));
+	M0_PRE(ctg_op->co_is_versioned);
 
 	if (M0_IN(ctg_op->co_opcode, (CO_PUT, CO_DEL))) {
 		M0_ASSERT_INFO(ctg_op->co_fom != NULL,
@@ -2439,7 +2480,7 @@ static int versioned_put_sync(struct m0_ctg_op *ctg_op)
 	struct cas_rec_ver         old_version = CRV_INIT_NONE;
 	int                        rc;
 
-	M0_PRE(ctg_op_is_versioned(ctg_op));
+	M0_PRE(ctg_op->co_is_versioned);
 	M0_ENTRY();
 
 	ctg_op_version_get(ctg_op, &new_version);
@@ -2494,8 +2535,10 @@ static int versioned_put_sync(struct m0_ctg_op *ctg_op)
 			      &ctg_op->co_val,
 			      &new_version);
 
-		/* TODO: it is too pessimistic. */
-		m0_ctg_state_inc_update(tx, key->b_nob + ctg_op->co_val.b_nob);
+		m0_ctg_state_inc_update(tx,
+					key->b_nob -
+					sizeof(struct generic_key) +
+					ctg_op->co_val.b_nob);
 	}
 
 	return M0_RC(rc);
@@ -2504,6 +2547,7 @@ static int versioned_put_sync(struct m0_ctg_op *ctg_op)
 /*
  * Gets an alive record (without tombstone set) in btree.
  * Returns -ENOENT if tombstone is set.
+ * Always sets co_out_ver if the record physically exists in the tree.
  */
 static int versioned_get_sync(struct m0_ctg_op *ctg_op)
 {
@@ -2512,17 +2556,20 @@ static int versioned_get_sync(struct m0_ctg_op *ctg_op)
 	struct cas_rec_ver         ver;
 	int                        rc;
 
-	M0_PRE(ctg_op_is_versioned(ctg_op));
+	M0_PRE(ctg_op->co_is_versioned);
 
 	rc = M0_BE_OP_SYNC_RET(op,
 			       m0_be_btree_lookup_inplace(btree, &op,
 							  &ctg_op->co_key,
 							  anchor),
-			       bo_u.u_btree.t_rc);
+			       bo_u.u_btree.t_rc) ?:
+		ctg_vbuf_unpack(&anchor->ba_value, &ver);
+
 	if (rc == 0) {
-		rc = ctg_vbuf_unpack(&anchor->ba_value, &ver) ?:
-			(crv_tbs_is_set(&ver) ?  -ENOENT : 0);
-		if (rc == 0)
+		ctg_op->co_out_ver = crv_as_cas_kv_ver(&ver);
+		if (crv_tbs_is_set(&ver))
+			rc = -ENOENT;
+		else
 			ctg_op->co_out_val = anchor->ba_value;
 	}
 
@@ -2531,9 +2578,10 @@ static int versioned_get_sync(struct m0_ctg_op *ctg_op)
 
 /*
  * Synchronously advances the cursor until it reaches an alive
- * key-value pair (without tombstone set) or the end of the tree.
+ * key-value pair (alive_only=true), next key-value pair (alive_only=false),
+ * or the end of the tree.
  */
-static int versioned_cursor_next_sync(struct m0_ctg_op *ctg_op)
+static int versioned_cursor_next_sync(struct m0_ctg_op *ctg_op, bool alive_only)
 {
 	struct m0_be_op           *beop   = ctg_beop(ctg_op);
 	struct cas_rec_ver         ver    = CRV_INIT_NONE;
@@ -2554,8 +2602,15 @@ static int versioned_cursor_next_sync(struct m0_ctg_op *ctg_op)
 		if (rc != 0)
 			break;
 
+		ctg_op->co_out_ver = crv_as_cas_kv_ver(&ver);
+
 		m0_be_op_reset(beop);
-	} while (crv_tbs_is_set(&ver));
+
+	} while (crv_tbs_is_set(&ver) && alive_only);
+
+	/* It should never return dead values. */
+	if (crv_tbs_is_set(&ver))
+		ctg_op->co_out_val = M0_BUF_INIT0;
 
 	return M0_RC(rc);
 }
@@ -2563,23 +2618,26 @@ static int versioned_cursor_next_sync(struct m0_ctg_op *ctg_op)
 /*
  * Positions the cursor at the alive record that corresponds to the
  * specified key or at the alive record next to the specified key
- * depending on the slant flag:
+ * depending on the slant flag. If alive_only=false then it treats
+ * all records as alive.
+ *
+ * The relations between tombstones and slant flag:
  *   Non-slant:
  *     record_at(key) is alive: returns the record.
  *     record_at(key) has tombstone: returns -ENOENT.
  *   Slant:
  *     record_at(key) is alive: returns the record.
  *     record_at(key) has tombstone: finds next alive record.
- * See the ::next_ver UT for examples.
  */
-static int versioned_cursor_get_sync(struct m0_ctg_op *ctg_op)
+static int versioned_cursor_get_sync(struct m0_ctg_op *ctg_op, bool alive_only)
 {
 	struct m0_be_op           *beop   = ctg_beop(ctg_op);
+	struct m0_buf              value  = M0_BUF_INIT0;
 	struct cas_rec_ver         ver    = CRV_INIT_NONE;
 	bool                       slant  = (ctg_op->co_flags & COF_SLANT) != 0;
 	int                        rc;
 
-	M0_PRE(ctg_op_is_versioned(ctg_op));
+	M0_PRE(ctg_op->co_is_versioned);
 
 	m0_be_btree_cursor_get(&ctg_op->co_cur, &ctg_op->co_key, slant);
 	rc = ctg_berc(ctg_op);
@@ -2587,17 +2645,25 @@ static int versioned_cursor_get_sync(struct m0_ctg_op *ctg_op)
 	if (rc == 0) {
 		m0_be_btree_cursor_kv_get(&ctg_op->co_cur,
 					  &ctg_op->co_out_key,
-					  &ctg_op->co_out_val);
+					  &value);
 		rc = ctg_kbuf_unpack(&ctg_op->co_out_key) ?:
-			ctg_vbuf_unpack(&ctg_op->co_out_val, &ver) ?:
-			!crv_tbs_is_set(&ver) ? 0 :
-			(slant ? -EAGAIN : -ENOENT);
-	}
+			ctg_vbuf_unpack(&value, &ver);
+		if (rc == 0) {
+			ctg_op->co_out_ver = crv_as_cas_kv_ver(&ver);
+			if (crv_tbs_is_set(&ver))
+				rc = alive_only ?
+					(slant ? -EAGAIN : -ENOENT) : 0;
+			else
+				ctg_op->co_out_val = value;
+		}
+	} else
+		M0_ASSERT_INFO(rc != EAGAIN,
+			       "btree cursor op returned EAGAIN?");
 
 	m0_be_op_reset(beop);
 
 	if (rc == -EAGAIN)
-		rc = versioned_cursor_next_sync(ctg_op);
+		rc = versioned_cursor_next_sync(ctg_op, alive_only);
 
 	return M0_RC(rc);
 }

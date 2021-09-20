@@ -140,12 +140,12 @@ enum m0_cas_state_format_version {
 
 enum {
 	/**
-	 * Every value has a header that holds its size.
+	 * Every value has a header that holds its size and the version
+	 * of the key-value record.
 	 */
 	M0_CAS_CTG_VAL_HDR_SIZE = sizeof(uint64_t) + sizeof(uint64_t),
 	/**
-	 * Every key has a header that holds the size of the key and
-	 * the version of the key-value pair.
+	 * Every key has a header that holds the size of the key.
 	 */
 	M0_CAS_CTG_KEY_HDR_SIZE = sizeof(uint64_t),
 };
@@ -214,6 +214,8 @@ struct m0_ctg_op {
 	struct m0_buf             co_out_key;
 	/** Value out buffer. */
 	struct m0_buf             co_out_val;
+	/* Version of the co_out_val+co_out_key record. */
+	struct m0_cas_kv_ver      co_out_ver;
 	struct m0_buf             co_mem_buf;
 	/** Operation code to be executed. */
 	int                       co_opcode;
@@ -228,6 +230,12 @@ struct m0_ctg_op {
 	 * operation, see m0_ctg_truncate().
 	 */
 	m0_bcount_t               co_cnt;
+	/**
+	 * A flag to be set when versioned behavior is enabled for
+	 * execution of this operation.
+	 * See ::COF_VERSIONED for details.
+	 */
+	bool                      co_is_versioned;
 };
 
 #define CTG_OP_COMBINE(opc, ct) (((uint64_t)(opc)) | ((ct) << 16))
@@ -460,6 +468,12 @@ M0_INTERNAL int m0_ctg_lookup(struct m0_ctg_op    *ctg_op,
  */
 M0_INTERNAL void m0_ctg_lookup_result(struct m0_ctg_op *ctg_op,
 				      struct m0_buf    *buf);
+
+/**
+ * Returns the version of the record the operation ctg_op worked on.
+ */
+M0_INTERNAL void m0_ctg_op_get_ver(struct m0_ctg_op     *ctg_op,
+				   struct m0_cas_kv_ver *out);
 
 /**
  * Gets the minimal key in the tree (wrapper over m0_be_btree_minkey()).

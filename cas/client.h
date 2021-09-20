@@ -202,9 +202,11 @@ struct m0_cas_ilist_reply {
  * Single value retrieved by m0_cas_get() request.
  */
 struct m0_cas_get_reply {
-	int           cge_rc;
+	int                  cge_rc;
 	/** Retrieved value. Undefined if cge_rc != 0. */
-	struct m0_buf cge_val;
+	struct m0_buf        cge_val;
+	/** Version of the record. */
+	struct m0_cas_kv_ver cge_ver;
 };
 
 /**
@@ -212,13 +214,15 @@ struct m0_cas_get_reply {
  */
 struct m0_cas_next_reply {
 	/** Return code. -ENOENT means that end of index is reached. */
-	int                cnp_rc;
+	int                  cnp_rc;
 	/** Record key. Set if rc == 0. */
-	struct m0_buf      cnp_key;
+	struct m0_buf        cnp_key;
 	/** Record hint. Not used for now. */
-	struct m0_cas_hint cnp_hint;
+	struct m0_cas_hint   cnp_hint;
 	/** Record value. Set if rc == 0. */
-	struct m0_buf      cnp_val;
+	struct m0_buf        cnp_val;
+	/** Version of the record. */
+	struct m0_cas_kv_ver cnp_ver;
 };
 
 /**
@@ -475,11 +479,11 @@ M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
 
 /**
  * A version-aware version of m0_cas_get.
- * It returns the value associated with the given key only this value
- * does not have a tombstone set (i.e., it was not removed).
- * Ssee ::COF_VERSIONED.
+ * It returns the values associated with the given keys only if this values
+ * do not have tombstones set (i.e., they have not been removed).
+ * See ::COF_VERSIONED.
  *
- * TODO: This function will be disolved once ::m0_cas_get gets an extra
+ * TODO: This function may be disolved if ::m0_cas_get gets an extra
  * argument (flags).
  */
 M0_INTERNAL int m0_cas_versioned_get(struct m0_cas_req      *req,

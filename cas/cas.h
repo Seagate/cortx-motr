@@ -137,6 +137,21 @@ struct m0_cas_kv_vec {
 } M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
+ * Version of a CAS record.
+ * A version comprises a physical timestamp and a tombstone flag.
+ * The timestamp is set on the client side whenever the corresponding
+ * record was supposed to be modified by PUT or DEL request.
+ * The tombstone flag is set when the corresponding record has been
+ * "logicaly" removed from the storage (although, it still exists
+ * there as a "dead" record).
+ * See ::COF_VERSIONED for details.
+ */
+struct m0_cas_kv_ver {
+	struct m0_dtm0_ts ckv_ts;
+	bool              ckv_tombstone;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
+
+/**
  * CAS index record.
  */
 struct m0_cas_rec {
@@ -197,6 +212,13 @@ struct m0_cas_rec {
 	 * records.
 	 */
 	uint64_t             cr_rc;
+
+	/**
+	 * Optional version of this record.
+	 * The version is returned as a reply to GET and NEXT requests
+	 * when COF_VERSIONED is specified in the request.
+	 */
+	struct m0_cas_kv_ver cr_ver;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
@@ -296,6 +318,19 @@ enum m0_cas_op_flags {
 	 * use the flag but they do not depend on enabled DTM0).
 	 */
 	COF_VERSIONED = 1 << 9,
+
+	/**
+	 * Makes NEXT return "dead" records (with tombstones) when
+	 * version-aware behavior is specified (see ::COF_VERSIONED).
+	 * By default, COF_VERSIONED does not return dead records for NEXT
+	 * requests but when both flags are specified (VERSIONED | SHOW_DEAD)
+	 * then it yields all records whether they are alive or not.
+	 * It might be used by the client when it wants to analyse the records
+	 * received from several catalogue services, so that it could properly
+	 * merge the results of NEXT operations eliminating inconsistencies.
+	 * In other words, it might be used in degraded mode.
+	 */
+	COF_SHOW_DEAD = 1 << 10,
 };
 
 enum m0_cas_opcode {
