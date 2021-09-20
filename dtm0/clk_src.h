@@ -100,6 +100,8 @@ struct m0_dtm0_ts {
 /** Defines an invalid (but defined) value for a CS.TS. */
 #define M0_DTM0_TS_INIT (struct m0_dtm0_ts) { .dts_phys = UINT64_MAX }
 
+#define M0_DTM0_TS_NONE (struct m0_dtm0_ts) { .dts_phys = 0 }
+
 #define DTS0_P(_ts) ((_ts)->dts_phys)
 #define DTS0_F "@%" PRIu64
 
@@ -142,6 +144,8 @@ M0_INTERNAL void m0_dtm0_clk_src_now(struct m0_dtm0_clk_src *cs,
 				     struct m0_dtm0_ts      *now);
 
 M0_INTERNAL bool m0_dtm0_ts__invariant(const struct m0_dtm0_ts *ts);
+
+M0_INTERNAL bool m0_dtm0_ts_is_none(const struct m0_dtm0_ts *ts);
 
 /** @} end of dtm group */
 #endif /* __MOTR_DTM0_CLK_SRC_H__ */

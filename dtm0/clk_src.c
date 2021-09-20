@@ -115,6 +115,11 @@ static const struct m0_dtm0_clk_src_ops cs_phys_ops = {
 	.cso_now      = cs_phys_now,
 };
 
+M0_INTERNAL bool m0_dtm0_ts_is_none(const struct m0_dtm0_ts *ts)
+{
+	return ts->dts_phys == 0;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*
