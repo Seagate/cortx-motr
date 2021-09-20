@@ -321,6 +321,7 @@
         chdir: '{{ libfabric_src_dir.stdout }}'
         creates: Module.symvers
       with_items:
+        - sed -i 's/(4)/(8)/g' ./prov/tcp/src/tcpx.h
         - ./configure
         - make -j4
         - make install
