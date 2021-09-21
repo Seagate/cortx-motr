@@ -326,6 +326,7 @@ static size_t m0_cob_max_nskey_size(void)
 	return sizeof(struct m0_cob_nskey) + M0_COB_NAME_MAX;
 }
 
+#ifdef NEW_BTREE_INTEGRATION_COMPLETE
 /**
    Namespace table definition.
 */
@@ -346,7 +347,7 @@ static m0_bcount_t ns_vsize(const void *val)
 }
 
 static const struct m0_be_btree_kv_ops cob_ns_ops = {
-	.ko_type    = M0_BBT_COB_NAMESPACE,
+	.ko_type    = M0_BT_COB_NAMESPACE,
 	.ko_ksize   = ns_ksize,
 	.ko_vsize   = ns_vsize,
 	.ko_compare = ns_cmp
@@ -374,7 +375,7 @@ static m0_bcount_t oi_ksize(const void *key)
 }
 
 static const struct m0_be_btree_kv_ops cob_oi_ops = {
-	.ko_type    = M0_BBT_COB_OBJECT_INDEX,
+	.ko_type    = M0_BT_COB_OBJECT_INDEX,
 	.ko_ksize   = oi_ksize,
 	.ko_vsize   = ns_ksize,
 	.ko_compare = oi_cmp
@@ -405,7 +406,7 @@ static m0_bcount_t fb_vsize(const void *val)
 }
 
 static const struct m0_be_btree_kv_ops cob_fab_ops = {
-	.ko_type    = M0_BBT_COB_FILEATTR_BASIC,
+	.ko_type    = M0_BT_COB_FILEATTR_BASIC,
 	.ko_ksize   = fb_ksize,
 	.ko_vsize   = fb_vsize,
 	.ko_compare = fb_cmp
@@ -430,7 +431,7 @@ static m0_bcount_t ea_vsize(const void *val)
 }
 
 static const struct m0_be_btree_kv_ops cob_ea_ops = {
-	.ko_type    = M0_BBT_COB_FILEATTR_EA,
+	.ko_type    = M0_BT_COB_FILEATTR_EA,
 	.ko_ksize   = ea_ksize,
 	.ko_vsize   = ea_vsize,
 	.ko_compare = ea_cmp
@@ -457,11 +458,12 @@ static m0_bcount_t omg_vsize(const void *val)
 }
 
 static const struct m0_be_btree_kv_ops cob_omg_ops = {
-	.ko_type    = M0_BBT_COB_FILEATTR_OMG,
+	.ko_type    = M0_BT_COB_FILEATTR_OMG,
 	.ko_ksize   = omg_ksize,
 	.ko_vsize   = omg_vsize,
 	.ko_compare = omg_cmp
 };
+#endif
 
 M0_UNUSED static char *cob_dom_id_make(char *buf, const struct m0_cob_domain_id *id,
 			     const char *prefix)

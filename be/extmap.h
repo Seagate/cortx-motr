@@ -109,7 +109,7 @@
 #include "lib/types.h"     /* struct m0_uint128 */
 #include "lib/types_xc.h"  /* m0_uint128_xc */
 #include "be/tx.h"
-#include "be/btree.h"
+#include "btree/btree.h"
 #include "be/btree_xc.h"
 
 #include "be/extmap_internal.h"
@@ -205,7 +205,7 @@ struct m0_be_emap_cursor {
 	/** Segment currently reached. */
 	struct m0_be_emap_seg     ec_seg;
 	/** Data-base cursor. */
-	struct m0_be_btree_cursor ec_cursor;
+	struct m0_btree_cursor    ec_cursor;
 	struct m0_be_emap_key     ec_key;
 	struct m0_be_emap_rec     ec_rec;
 	struct m0_buf             ec_keybuf;
