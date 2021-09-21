@@ -1068,7 +1068,7 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 	struct m0_fom_cob_op	      cc;
 	struct m0_reqh_io_service    *ios;
 	struct m0_cob_attr            attr = { {0, } };
-	struct m0_cob_oikey           oikey;
+	struct m0_cob_oikey           oikey = {};
 	struct m0_cob                *cob;
 
 	cob_attr_default_fill(&attr);
