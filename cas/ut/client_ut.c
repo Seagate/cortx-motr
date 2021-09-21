@@ -38,7 +38,7 @@
 #include "cas/ctg_store.h"             /* m0_ctg_recs_nr */
 #include "lib/finject.h"
 #include "dtm0/dtx.h"                  /* m0_dtm0_dtx */
-#include "cas/cas.h"                   /* m0_cas_kv_ver */
+#include "cas/cas.h"                   /* m0_crv      */
 
 #define SERVER_LOG_FILE_NAME       "cas_server.log"
 #define IFID(x, y) M0_FID_TINIT('i', (x), (y))
@@ -1433,7 +1433,7 @@ static bool has_versions(struct m0_cas_id *index,
 			       M0_IN(get_rep[i].cge_rc, (0, -ENOENT))));
 
 	result = m0_forall(i, keys->ov_vec.v_nr,
-			   get_rep[i].cge_ver.ckv_ts.dts_phys == version);
+			   m0_crv_ts(&get_rep[i].cge_ver).dts_phys == version);
 
 	ut_get_rep_clear(get_rep, keys->ov_vec.v_nr);
 	m0_free(get_rep);
@@ -1459,22 +1459,21 @@ static bool has_tombstones(struct m0_cas_id       *index,
 
 	/* Ensure all-or-nothing (either all have tbs or there are no tbs). */
 	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
-			     get_rep[0].cge_ver.ckv_tombstone ==
-			     get_rep[i].cge_ver.ckv_tombstone));
+			     m0_crv_tbs(&get_rep[0].cge_ver)==
+			     m0_crv_tbs(&get_rep[i].cge_ver)));
 
 	/* Ensure -ENOENT matches with tombstone flag. */
 	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
-		       ergo(!m0_dtm0_ts_is_none(&get_rep[i].cge_ver.ckv_ts),
-				    (get_rep[i].cge_ver.ckv_tombstone ==
-				     (get_rep[i].cge_rc == -ENOENT)))));
+		       ergo(!m0_crv_is_none(&get_rep[i].cge_ver),
+				    m0_crv_tbs(&get_rep[i].cge_ver) ==
+				     (get_rep[i].cge_rc == -ENOENT))));
 
 	/* Ensure versions are always present on dead records. */
 	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
-			       ergo(get_rep[i].cge_ver.ckv_tombstone,
-				    !m0_dtm0_ts_is_none(
-						&get_rep[i].cge_ver.ckv_ts))));
+			       ergo(m0_crv_tbs(&get_rep[i].cge_ver),
+				    !m0_crv_is_none(&get_rep[i].cge_ver))));
 
-	result = get_rep[0].cge_ver.ckv_tombstone;
+	result = m0_crv_tbs(&get_rep[0].cge_ver);
 
 	ut_get_rep_clear(get_rep, keys->ov_vec.v_nr);
 	memset(get_rep, 0, sizeof(get_rep) * keys->ov_vec.v_nr);
@@ -1501,11 +1500,11 @@ static void next_reply_breakdown(struct m0_cas_next_reply  *next_rep,
 				 m0_bcount_t                nr,
 				 struct m0_bufvec          *out_key,
 				 struct m0_bufvec          *out_val,
-				 struct m0_cas_kv_ver     **out_ver)
+				 struct m0_crv            **out_ver)
 {
-	int                   rc;
-	m0_bcount_t           i;
-	struct m0_cas_kv_ver *ver;
+	int            rc;
+	m0_bcount_t    i;
+	struct m0_crv *ver;
 
 	rc = m0_bufvec_empty_alloc(out_key, nr);
 	M0_UT_ASSERT(rc == 0);
@@ -1537,7 +1536,7 @@ static void next_records_verified(struct m0_cas_id     *index,
 				  uint32_t              requested_keys_nr,
 				  struct m0_bufvec     *expected_keys,
 				  struct m0_bufvec     *expected_values,
-				  struct m0_cas_kv_ver *expected_versions,
+				  struct m0_crv        *expected_versions,
 				  int                   flags)
 {
 	struct m0_cas_next_reply *next_rep;
@@ -1545,7 +1544,7 @@ static void next_records_verified(struct m0_cas_id     *index,
 	int                       rc;
 	struct m0_bufvec          actual_keys;
 	struct m0_bufvec          actual_values;
-	struct m0_cas_kv_ver     *actual_versions;
+	struct m0_crv            *actual_versions;
 
 	M0_ALLOC_ARR(next_rep, requested_keys_nr);
 	M0_UT_ASSERT(next_rep != NULL);
@@ -1875,7 +1874,7 @@ static void next_ver_exposed(void)
 	int                     i;
 	struct m0_cas_id        index = {};
 	struct m0_cas_rec_reply rep;
-	struct m0_cas_kv_ver   *versions;
+	struct m0_crv          *versions;
 	bool                    is_even;
 	const struct m0_fid     ifid = IFID(2, 3);
 
@@ -1914,9 +1913,12 @@ static void next_ver_exposed(void)
 		memcpy((is_even ? &keven : &kodd)->ov_buf[i / 2],
 		       keys.ov_buf[i], keys.ov_vec.v_count[i]);
 
-		versions[i].ckv_ts.dts_phys =
-			version[!is_even ? V_FUTURE : V_PAST];
-		versions[i].ckv_tombstone = !is_even;
+		m0_crv_init(&versions[i],
+			    &(struct m0_dtm0_ts) {
+				.dts_phys =
+				version[!is_even ? V_FUTURE : V_PAST],
+			    },
+			    !is_even);
 	}
 
 	/* Insert all the keys. */

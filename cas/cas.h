@@ -137,19 +137,26 @@ struct m0_cas_kv_vec {
 } M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
- * Version of a CAS record.
+ * CAS record version and tombstone encoded in on-disk/on-wire format.
+ * Format:
+ *     MSB                             LSB
+ *     +----------------+----------------+
+ *     | 1 bit          | 63 bits        |
+ *     |<- tombstone -> | <- timestamp ->|
+ *     +----------------+----------------+
+ *
  * A version comprises a physical timestamp and a tombstone flag.
  * The timestamp is set on the client side whenever the corresponding
  * record was supposed to be modified by PUT or DEL request.
  * The tombstone flag is set when the corresponding record has been
  * "logicaly" removed from the storage (although, it still exists
  * there as a "dead" record).
- * See ::COF_VERSIONED for details.
+ *
+ * See ::COF_VERSIONED, ::M0_CRV_VER_NONE for details.
  */
-struct m0_cas_kv_ver {
-	struct m0_dtm0_ts ckv_ts;
-	bool              ckv_tombstone;
-} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
+struct m0_crv {
+	uint64_t crv_encoded;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
 
 /**
  * CAS index record.
@@ -218,7 +225,7 @@ struct m0_cas_rec {
 	 * The version is returned as a reply to GET and NEXT requests
 	 * when COF_VERSIONED is specified in the request.
 	 */
-	struct m0_cas_kv_ver cr_ver;
+	struct m0_crv cr_ver;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
@@ -475,6 +482,48 @@ M0_INTERNAL void m0_cas_id_fini(struct m0_cas_id *cid);
 M0_INTERNAL bool m0_cas_id_invariant(const struct m0_cas_id *cid);
 
 M0_INTERNAL bool cas_in_ut(void);
+
+enum {
+	/* Tombstone flag: marks a dead kv pair. We use the MSB here. */
+	M0_CRV_TBS = 1L << (sizeof(uint64_t) * CHAR_BIT - 1),
+	/*
+	 * A special value for the empty version.
+	 * A record with the empty version is always overwritten by any
+	 * PUT or DEL operation that has a valid non-empty version.
+	 * A PUT or DEL operation with the empty version always ignores
+	 * the version-aware behavior: records are actually removed by DEL,
+	 * and overwritten by PUT, no matter what was stored in the catalogue.
+	 */
+	M0_CRV_VER_NONE = 0,
+	/* The maximum possible value of a version. */
+	M0_CRV_VER_MAX = (UINT64_MAX & ~M0_CRV_TBS) - 1,
+	/* The minimum possible value of a version. */
+	M0_CRV_VER_MIN = M0_CRV_VER_NONE + 1,
+};
+
+/*
+ * 100:a == alive record with version 100
+ * 123:d == dead record with version 123
+ */
+#define CRV_F "%" PRIu64 ":%c"
+#define CRV_P(__crv) m0_crv_ts(__crv).dts_phys, m0_crv_tbs(__crv) ? 'd' : 'a'
+
+#define M0_CRV_INIT_NONE ((struct m0_crv) { .crv_encoded = M0_CRV_VER_NONE })
+
+M0_INTERNAL void m0_crv_init(struct m0_crv           *crv,
+			     const struct m0_dtm0_ts *ts,
+			     bool                     tbs);
+
+M0_INTERNAL bool m0_crv_is_none(const struct m0_crv *crv);
+M0_INTERNAL int m0_crv_cmp(const struct m0_crv *left,
+			   const struct m0_crv *right);
+
+M0_INTERNAL bool m0_crv_tbs(const struct m0_crv *crv);
+M0_INTERNAL void m0_crv_tbs_set(struct m0_crv *crv, bool tbs);
+
+M0_INTERNAL struct m0_dtm0_ts m0_crv_ts(const struct m0_crv *crv);
+M0_INTERNAL void m0_crv_ts_set(struct m0_crv           *crv,
+			       const struct m0_dtm0_ts *ts);
 
 /** @} end of cas_dfspec */
 #endif /* __MOTR_CAS_CAS_H__ */

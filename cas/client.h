@@ -206,7 +206,7 @@ struct m0_cas_get_reply {
 	/** Retrieved value. Undefined if cge_rc != 0. */
 	struct m0_buf        cge_val;
 	/** Version of the record. */
-	struct m0_cas_kv_ver cge_ver;
+	struct m0_crv        cge_ver;
 };
 
 /**
@@ -222,7 +222,7 @@ struct m0_cas_next_reply {
 	/** Record value. Set if rc == 0. */
 	struct m0_buf        cnp_val;
 	/** Version of the record. */
-	struct m0_cas_kv_ver cnp_ver;
+	struct m0_crv        cnp_ver;
 };
 
 /**

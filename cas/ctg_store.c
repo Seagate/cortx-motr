@@ -89,30 +89,15 @@ struct generic_key {
 };
 M0_BASSERT(sizeof(struct generic_key) == M0_CAS_CTG_KEY_HDR_SIZE);
 
-/**
- * CAS record version and tombstone encoded in on-disk format.
- * Format:
- *     MSB                             LSB
- *     +----------------+----------------+
- *     | 1 bit          | 63 bits        |
- *     |<- tombstone -> | <- timestamp ->|
- *     +----------------+----------------+
- *
- * @see ::CRV_TBS.
- */
-struct cas_rec_ver {
-	uint64_t  crv_encoded;
-};
-M0_BASSERT(sizeof(struct cas_rec_ver) == 8);
-
 /** Generalised value: versioned counted opaque data. */
 struct generic_value {
 	/* Actual length of gv_data array. */
 	uint64_t           gv_length;
-	struct cas_rec_ver gv_version;
+	struct m0_crv      gv_version;
 	uint8_t            gv_data[0];
 };
 M0_BASSERT(sizeof(struct generic_value) == M0_CAS_CTG_VAL_HDR_SIZE);
+M0_BASSERT(sizeof(struct m0_crv) == 8);
 
 /** The key type used in meta and ctidx catalogues. */
 struct fid_key {
@@ -155,7 +140,7 @@ static int  ctg_buf          (const struct m0_buf *val, struct m0_buf *buf);
 static int  ctg_buf_get      (struct m0_buf *dst, const struct m0_buf *src,
 			      bool enabled_fi);
 static void ctg_fid_key_fill (void *key, const struct m0_fid *fid);
-static int  ctg_vbuf_unpack  (struct m0_buf *buf, struct cas_rec_ver *crv);
+static int  ctg_vbuf_unpack  (struct m0_buf *buf, struct m0_crv *crv);
 static int  ctg_vbuf_as_ctg  (const struct m0_buf *val,
 			      struct m0_cas_ctg **ctg);
 static int  ctg_kbuf_unpack  (struct m0_buf *buf);
@@ -252,7 +237,7 @@ static m0_bcount_t ctg_vbuf_packed_size(const struct m0_buf *value)
  */
 static void ctg_vbuf_pack(struct m0_buf            *dst,
 			  const struct m0_buf      *src,
-			  const struct cas_rec_ver *crv)
+			  const struct m0_crv *crv)
 {
 	struct generic_value *value = dst->b_addr;
 	M0_PRE(dst->b_nob >= ctg_vbuf_packed_size(src));
@@ -284,104 +269,6 @@ static int ctg_kbuf_get(struct m0_buf *dst, const struct m0_buf *src)
 		return M0_ERR(-ENOMEM);
 }
 
-enum {
-	/* Tombstone flag: marks a dead kv pair. We use the MSB here. */
-	CRV_TBS = 1L << (sizeof(uint64_t) * CHAR_BIT - 1),
-	/*
-	 * A special value for the empty version.
-	 * A record with the empty version is always overwritten by any
-	 * PUT or DEL operation that has a valid non-empty version.
-	 * A PUT or DEL operation with the empty version always ignores
-	 * the version-aware behavior: records are actually removed by DEL,
-	 * and overwritten by PUT, no matter what was stored in the catalogue.
-	 */
-	CRV_VER_NONE = 0,
-	/* The maximum possible value of a version. */
-	CRV_VER_MAX = (UINT64_MAX & ~CRV_TBS) - 1,
-	/* The minimum possible value of a version. */
-	CRV_VER_MIN = CRV_VER_NONE + 1,
-};
-
-
-static bool crv_tbs_is_set(const struct cas_rec_ver *crv)
-{
-	return crv->crv_encoded & CRV_TBS;
-}
-
-static void crv_tbs_set(struct cas_rec_ver *crv)
-{
-	crv->crv_encoded |= CRV_TBS;
-}
-
-static void crv_tbs_clear(struct cas_rec_ver *crv)
-{
-	crv->crv_encoded &= ~CRV_TBS;
-}
-
-static uint64_t crv_version_get(const struct cas_rec_ver *crv)
-{
-	return crv->crv_encoded & ~CRV_TBS;
-}
-
-/*
- * Converts on-disk reprentation into on-wire representation.
- */
-static struct m0_cas_kv_ver crv_as_cas_kv_ver(const struct cas_rec_ver *crv)
-{
-	return (struct m0_cas_kv_ver) {
-		.ckv_ts = (struct m0_dtm0_ts) {
-			.dts_phys = crv_version_get(crv),
-		},
-		.ckv_tombstone = crv_tbs_is_set(crv),
-	};
-}
-
-static void crv_version_set(struct cas_rec_ver *crv, uint64_t ts)
-{
-	crv->crv_encoded = (crv->crv_encoded & CRV_TBS) | ts;
-}
-
-static void crv_init(struct cas_rec_ver *crv, uint64_t version, bool tbs)
-{
-	M0_PRE(version <= CRV_VER_MAX);
-	M0_PRE(version >= CRV_VER_MIN);
-
-	crv_version_set(crv, version);
-	(tbs ? crv_tbs_set : crv_tbs_clear)(crv);
-
-	M0_POST(equi(crv_tbs_is_set(crv), tbs));
-	M0_POST(crv_version_get(crv) == version);
-}
-
-#define CRV_INIT_NONE ((struct cas_rec_ver) { .crv_encoded = CRV_VER_NONE })
-
-/*
- * Compare two versions.
- *   Note, tombstones are checked at the end which means that if there are two
- * different operations with the same version (for example, PUT@10 and DEL@10)
- * then the operation that puts the tombstone (DEL@10) is always considered
- * to be "newer" than the other one. It helps to ensure operations have the
- * same order on any server despite the order of execution.
- */
-static int crv_cmp(const struct cas_rec_ver *left,
-		   const struct cas_rec_ver *right)
-{
-	return M0_3WAY(crv_version_get(left), crv_version_get(right)) ?:
-		M0_3WAY(crv_tbs_is_set(left), crv_tbs_is_set(right));
-}
-
-static bool crv_is_none(const struct cas_rec_ver *crv)
-{
-	return memcmp(crv, &CRV_INIT_NONE, sizeof(*crv)) == 0;
-}
-
-/*
- * 100:a == alive record with version 100
- * 123:d == dead record with version 123
- */
-#define CRV_F "%" PRIu64 ":%c"
-#define CRV_P(__crv) crv_version_get(__crv), crv_tbs_is_set(__crv) ? 'd' : 'a'
-
 /**
  * Unpack an an on-disk value data into in-memory format.
  * The function makes "buf" to point to the user-specific data associated
@@ -390,7 +277,7 @@ static bool crv_is_none(const struct cas_rec_ver *crv)
  * @return 0 or else -EPROTO if on-disk/on-wire buffer has invalid length.
  * @see ::ctg_vbuf_pack.
  */
-static int ctg_vbuf_unpack(struct m0_buf *buf, struct cas_rec_ver *crv)
+static int ctg_vbuf_unpack(struct m0_buf *buf, struct m0_crv *crv)
 {
 	struct generic_value *value;
 
@@ -479,7 +366,7 @@ static int ctg_kbuf_unpack(struct m0_buf *buf)
 
 #define GENERIC_VALUE_INIT(__size) (struct generic_value) { \
 	.gv_length  = __size,                               \
-	.gv_version = CRV_INIT_NONE,                        \
+	.gv_version = M0_CRV_INIT_NONE,                     \
 }
 
 #define META_VALUE_INIT(__ctg_ptr) (struct meta_value) {  \
@@ -1144,7 +1031,7 @@ static bool ctg_op_cb(struct m0_clink *clink)
 			break;
 		case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 			ctg_vbuf_pack(&ctg_op->co_anchor.ba_value,
-				      &ctg_op->co_val, &CRV_INIT_NONE);
+				      &ctg_op->co_val, &M0_CRV_INIT_NONE);
 			if (ctg_is_ordinary(ctg_op->co_ctg))
 				m0_ctg_state_inc_update(tx,
 					ctg_op->co_key.b_nob -
@@ -1681,11 +1568,11 @@ M0_INTERNAL void m0_ctg_lookup_result(struct m0_ctg_op *ctg_op,
 }
 
 M0_INTERNAL void m0_ctg_op_get_ver(struct m0_ctg_op     *ctg_op,
-				   struct m0_cas_kv_ver *out)
+				   struct m0_crv *out)
 {
 	M0_PRE(ctg_op != NULL);
 	M0_PRE(out != NULL);
-	M0_PRE(ergo(!m0_dtm0_ts_is_none(&ctg_op->co_out_ver.ckv_ts),
+	M0_PRE(ergo(!m0_crv_is_none(&ctg_op->co_out_ver),
 		    ctg_op->co_is_versioned));
 
 	*out = ctg_op->co_out_ver;
@@ -2436,11 +2323,10 @@ static bool ctg_op_is_versioned(const struct m0_ctg_op *ctg_op)
 }
 
 static void ctg_op_version_get(const struct m0_ctg_op *ctg_op,
-			       struct cas_rec_ver     *out)
+			       struct m0_crv          *out)
 {
 	const struct m0_dtm0_tid     *tid;
 	const struct m0_cas_op       *cas_op;
-	uint64_t                      version;
 	bool                          tbs;
 
 	M0_ENTRY();
@@ -2453,14 +2339,14 @@ static void ctg_op_version_get(const struct m0_ctg_op *ctg_op,
 		M0_ASSERT_INFO(cas_op != NULL, "Versioned op without cas_op?");
 		tbs = ctg_op->co_opcode == CO_DEL;
 		tid = &cas_op->cg_txd.dtd_id;
-		version = tid->dti_ts.dts_phys;
-		crv_init(out, version, tbs);
+		m0_crv_init(out, &tid->dti_ts, tbs);
 
 		M0_LEAVE("ctg_op=%p, cas_op=%p, txid=" DTID0_F ", ver=%" PRIu64
 			 ", ver_enc=%" PRIu64, ctg_op,
-			 cas_op, DTID0_P(tid), version, out->crv_encoded);
+			 cas_op, DTID0_P(tid), tid->dti_ts.dts_phys,
+			 out->crv_encoded);
 	} else {
-		*out = CRV_INIT_NONE;
+		*out = M0_CRV_INIT_NONE;
 		M0_LEAVE("ctg_op=%p, no version", ctg_op);
 	}
 }
@@ -2476,15 +2362,15 @@ static int versioned_put_sync(struct m0_ctg_op *ctg_op)
 	struct m0_be_btree        *btree  = &ctg_op->co_ctg->cc_tree;
 	struct m0_be_btree_anchor *anchor = &ctg_op->co_anchor;
 	struct m0_be_tx           *tx     = &ctg_op->co_fom->fo_tx.tx_betx;
-	struct cas_rec_ver         new_version = CRV_INIT_NONE;
-	struct cas_rec_ver         old_version = CRV_INIT_NONE;
+	struct m0_crv              new_version = M0_CRV_INIT_NONE;
+	struct m0_crv              old_version = M0_CRV_INIT_NONE;
 	int                        rc;
 
 	M0_PRE(ctg_op->co_is_versioned);
 	M0_ENTRY();
 
 	ctg_op_version_get(ctg_op, &new_version);
-	M0_ASSERT_INFO(!crv_is_none(&new_version),
+	M0_ASSERT_INFO(!m0_crv_is_none(&new_version),
 		       "Versioned PUT or DEL without a valid version?");
 
 	/*
@@ -2516,8 +2402,8 @@ static int versioned_put_sync(struct m0_ctg_op *ctg_op)
 	 * than the record to be inserted. Note, <= 0 means that we filter out
 	 * the operations with the exact same version and tombstone.
 	 */
-	if (!crv_is_none(&old_version) &&
-	    crv_cmp(&new_version, &old_version) <= 0)
+	if (!m0_crv_is_none(&old_version) &&
+	    m0_crv_cmp(&new_version, &old_version) <= 0)
 		return M0_RC(0);
 
 	M0_LOG(M0_DEBUG, "Overwriting " CRV_F " with " CRV_F ".",
@@ -2553,7 +2439,6 @@ static int versioned_get_sync(struct m0_ctg_op *ctg_op)
 {
 	struct m0_be_btree        *btree  = &ctg_op->co_ctg->cc_tree;
 	struct m0_be_btree_anchor *anchor = &ctg_op->co_anchor;
-	struct cas_rec_ver         ver;
 	int                        rc;
 
 	M0_PRE(ctg_op->co_is_versioned);
@@ -2563,11 +2448,10 @@ static int versioned_get_sync(struct m0_ctg_op *ctg_op)
 							  &ctg_op->co_key,
 							  anchor),
 			       bo_u.u_btree.t_rc) ?:
-		ctg_vbuf_unpack(&anchor->ba_value, &ver);
+		ctg_vbuf_unpack(&anchor->ba_value, &ctg_op->co_out_ver);
 
 	if (rc == 0) {
-		ctg_op->co_out_ver = crv_as_cas_kv_ver(&ver);
-		if (crv_tbs_is_set(&ver))
+		if (m0_crv_tbs(&ctg_op->co_out_ver))
 			rc = -ENOENT;
 		else
 			ctg_op->co_out_val = anchor->ba_value;
@@ -2584,7 +2468,6 @@ static int versioned_get_sync(struct m0_ctg_op *ctg_op)
 static int versioned_cursor_next_sync(struct m0_ctg_op *ctg_op, bool alive_only)
 {
 	struct m0_be_op           *beop   = ctg_beop(ctg_op);
-	struct cas_rec_ver         ver    = CRV_INIT_NONE;
 	int                        rc;
 
 	do {
@@ -2598,18 +2481,17 @@ static int versioned_cursor_next_sync(struct m0_ctg_op *ctg_op, bool alive_only)
 					  &ctg_op->co_out_key,
 					  &ctg_op->co_out_val);
 		rc = ctg_kbuf_unpack(&ctg_op->co_out_key) ?:
-			ctg_vbuf_unpack(&ctg_op->co_out_val, &ver);
+			ctg_vbuf_unpack(&ctg_op->co_out_val,
+					&ctg_op->co_out_ver);
 		if (rc != 0)
 			break;
 
-		ctg_op->co_out_ver = crv_as_cas_kv_ver(&ver);
-
 		m0_be_op_reset(beop);
 
-	} while (crv_tbs_is_set(&ver) && alive_only);
+	} while (m0_crv_tbs(&ctg_op->co_out_ver) && alive_only);
 
 	/* It should never return dead values. */
-	if (crv_tbs_is_set(&ver))
+	if (m0_crv_tbs(&ctg_op->co_out_ver))
 		ctg_op->co_out_val = M0_BUF_INIT0;
 
 	return M0_RC(rc);
@@ -2633,7 +2515,6 @@ static int versioned_cursor_get_sync(struct m0_ctg_op *ctg_op, bool alive_only)
 {
 	struct m0_be_op           *beop   = ctg_beop(ctg_op);
 	struct m0_buf              value  = M0_BUF_INIT0;
-	struct cas_rec_ver         ver    = CRV_INIT_NONE;
 	bool                       slant  = (ctg_op->co_flags & COF_SLANT) != 0;
 	int                        rc;
 
@@ -2647,10 +2528,9 @@ static int versioned_cursor_get_sync(struct m0_ctg_op *ctg_op, bool alive_only)
 					  &ctg_op->co_out_key,
 					  &value);
 		rc = ctg_kbuf_unpack(&ctg_op->co_out_key) ?:
-			ctg_vbuf_unpack(&value, &ver);
+			ctg_vbuf_unpack(&value, &ctg_op->co_out_ver);
 		if (rc == 0) {
-			ctg_op->co_out_ver = crv_as_cas_kv_ver(&ver);
-			if (crv_tbs_is_set(&ver))
+			if (m0_crv_tbs(&ctg_op->co_out_ver))
 				rc = alive_only ?
 					(slant ? -EAGAIN : -ENOENT) : 0;
 			else

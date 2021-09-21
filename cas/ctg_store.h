@@ -215,7 +215,7 @@ struct m0_ctg_op {
 	/** Value out buffer. */
 	struct m0_buf             co_out_val;
 	/* Version of the co_out_val+co_out_key record. */
-	struct m0_cas_kv_ver      co_out_ver;
+	struct m0_crv             co_out_ver;
 	struct m0_buf             co_mem_buf;
 	/** Operation code to be executed. */
 	int                       co_opcode;
@@ -473,7 +473,7 @@ M0_INTERNAL void m0_ctg_lookup_result(struct m0_ctg_op *ctg_op,
  * Returns the version of the record the operation ctg_op worked on.
  */
 M0_INTERNAL void m0_ctg_op_get_ver(struct m0_ctg_op     *ctg_op,
-				   struct m0_cas_kv_ver *out);
+				   struct m0_crv *out);
 
 /**
  * Gets the minimal key in the tree (wrapper over m0_be_btree_minkey()).
