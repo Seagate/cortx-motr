@@ -919,7 +919,7 @@ static int cob_attr_get(struct m0_cob        *cob,
 
 static int cob_locate(const struct m0_fom *fom, struct m0_cob **cob_out)
 {
-	struct m0_cob_oikey   oikey;
+	struct m0_cob_oikey   oikey = {};
 	struct m0_cob_domain *cdom;
 	struct m0_fid         fid;
 	struct m0_fom_cob_op *cob_op;
