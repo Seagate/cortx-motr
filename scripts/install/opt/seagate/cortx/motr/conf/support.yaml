@@ -1,2 +1,2 @@
 support_bundle:
-    - "sh /opt/seagate/cortx/motr/libexec/m0reportbug-bundler"
+    - /opt/seagate/cortx/motr/libexec/m0reportbug-bundler
