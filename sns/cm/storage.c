@@ -343,7 +343,7 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 	struct m0_sns_cm_cp  *sns_cp = cp2snscp(cp);
 	struct m0_stob_io    *stio;
 	struct m0_cob        *cob;
-	struct m0_cob_oikey   oikey;
+	struct m0_cob_oikey   oikey = {};
 	struct m0_cob_domain *cdom;
 	struct m0_be_tx      *betx;
 	uint64_t              io_size;

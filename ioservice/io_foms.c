@@ -954,7 +954,7 @@ M0_INTERNAL int m0_io_cob_stob_create(struct m0_fom *fom,
 				      bool crow,
 				      struct m0_cob **out)
 {
-	struct m0_cob_oikey   oikey;
+	struct m0_cob_oikey   oikey = {};
 	struct m0_cob        *cob;
 	struct m0_stob_id     stob_id;
 	bool                  cob_recreate = false;
@@ -1088,7 +1088,7 @@ static int align_bufvec(struct m0_fom    *fom,
 static int fom_cob_locate(struct m0_fom *fom)
 {
 	struct m0_io_fom_cob_rw *fom_obj;
-	struct m0_cob_oikey      oikey;
+	struct m0_cob_oikey      oikey = {};
 	struct m0_fop_cob_rw    *rwfop;
 	int                      rc;
 
