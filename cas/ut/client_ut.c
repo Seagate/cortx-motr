@@ -1476,7 +1476,7 @@ static bool has_tombstones(struct m0_cas_id       *index,
 	result = m0_crv_tbs(&get_rep[0].cge_ver);
 
 	ut_get_rep_clear(get_rep, keys->ov_vec.v_nr);
-	memset(get_rep, 0, sizeof(get_rep) * keys->ov_vec.v_nr);
+	memset(get_rep, 0, sizeof(*get_rep) * keys->ov_vec.v_nr);
 
 	/*
 	 * Additionally, ensure that all the records are visible
