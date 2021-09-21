@@ -276,8 +276,8 @@ struct m0_fom_locality {
 	/**
 	 *  Re-scheduling channel that the handler thread waits on for new work.
 	 *
-	 *  @see http://www.tom-yam.or.jp/2238/src/slp.c.html#line2142 for
-	 *  the explanation of the name.
+	 *  @see https://github.com/dspinellis/unix-history-repo/blob/Research-V5/usr/sys/ken/slp.c#L70
+	 *  for the explanation of the name.
 	 */
 	struct m0_chan		       fl_runrun;
 	/**
