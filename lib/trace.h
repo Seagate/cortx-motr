@@ -171,9 +171,31 @@
 #define M0_ENTRY(...) M0_LOG(M0_CALL, "> " __VA_ARGS__)
 #define M0_LEAVE(...) M0_LOG(M0_CALL, "< " __VA_ARGS__)
 
+/**
+ * Set this to 1 to enable "rc hook".
+ *
+ * When rc hook is enabled, every call to M0_RC() invokes an empty function
+ * lib/misc.c:m0_rc_hook() and every call to M0_ERR() invokes an empty function
+ * lib/misc.c:m0_err_hook(). By placing (conditional) break-points in these
+ * functions, one can quickly pinpoint the moment when a particular error
+ * occurred.
+ */
+#define M0_RC_HOOK (0)
+
+#if M0_RC_HOOK
+M0_INTERNAL void m0_rc_hook(int rc);
+M0_INTERNAL void m0_err_hook(int rc);
+#else
+static inline void m0_rc_hook(int rc)
+{;}
+static inline void m0_err_hook(int rc)
+{;}
+#endif
+
 #define M0_RC(rc) ({                        \
 	typeof(rc) __rc = (rc);             \
 	M0_LOG(M0_CALL, "< rc=%d", __rc);   \
+	m0_rc_hook(__rc);                   \
 	__rc;                               \
 })
 
@@ -181,6 +203,7 @@
 	typeof(rc) __rc = (rc);              \
 	M0_ASSERT(__rc != 0);                \
 	M0_LOG(M0_ERROR, "<! rc=%d", __rc);  \
+	m0_err_hook(__rc);                   \
 	__rc;                                \
 })
 
