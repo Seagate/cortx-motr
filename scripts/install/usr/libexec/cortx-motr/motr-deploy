@@ -24,14 +24,14 @@ MOTR_LIBEXEC="/usr/libexec/cortx-motr"
 MOTR_MKFS="$MOTR_LIBEXEC/motr-mkfs"
 MOTR_SERVER="$MOTR_LIBEXEC/motr-server"
 MOTR_STATUS_PATH="/var/motr/status"
-MOTR_MKFS_DIR="/var/motr/m0d" 
-MOTR_SYSCONFIG="/etc/sysconfig/m0d"
-ha_config="/etc/sysconfig/m0d-${1#m0d-}"
+MOTR_MKFS_DIR="/var/motr/m0d"
+MOTR_SYSCONFIG="/etc/sysconfig"
 
 # USERMODE PATH
 CORTX_PATH="/etc/cortx"
 CORTX_SYSCONFIG="/etc/cortx/motr/sysconfig"
 CORTX_FIDS_MAP="/etc/cortx/ENVIRONMENT_TYPES"
+DEFAULT_MACHINE_ID=1
 
 service="ha"
 ha_proxy=false
@@ -39,6 +39,7 @@ mkfs_force=false
 mkfs_dir_present=false
 confd_proxy="/etc/motr/confd.xc"
 STANDALONE_DEPLOY=false
+copy_id=false
 
 
 help()
@@ -52,39 +53,40 @@ usage()
 {
     cat <<USAGE_END
 Usage: $PROG_NAME [-h|--help] [-s] [-d] [-H]
-   -s              Enter the service that needs to be invoked
-                   [ha|confd|ios|<fids>]
-   -d              Enter <m0mkfs|m0d> script with the file
-		   name to be deployed
-		   ${0} -d <m0mkfs|m0d> <motr_confd_1>
-
+   -d              Enter <mkfs|m0d> script with the file
+                   name to be deployed.
+                   /etc/cortx <fids mapping file expected>
+                   ${0} -d <mkfs|m0d> <motr_confd_1>
+   -s              Enter <mkfs|m0d> script with the service
+                   fids to be deployed
+                   ${0} -s <mkfs|m0d> <fids>
+   -m              copy machine id to /etc/machine-id and
+                   /etc/sysconfig files
    -H|--ha-proxy   Instead of actual HA. pseudo HA is created
-		   which is similar to motr ST setups
-
-   -f|--mkfs-force Overwrite MKFS by force
+                   which is similar to motr ST setups
 
    -h|--help       Print this help screen.
 USAGE_END
 }
 
-get_fids() 
+get_fids()
 {
-	srv_index=$1
-	IFS=$'\n'
-	for FIDS_LINE in `cat $CORTX_FIDS_MAP`; do
-		index=$(echo $FIDS_LINE | cut -d "-" -f 1)
-		if [[ "$index" == "$srv_index" ]] ; then
-			fids=$(echo $FIDS_LINE | cut -d "-" -f 2)
-			break
-		fi
-	done
-	unset IFS
+        srv_index=$1
+        IFS=$'\n'
+        for FIDS_LINE in `cat $CORTX_FIDS_MAP`; do
+                index=$(echo $FIDS_LINE | cut -d "-" -f 1)
+                if [[ "$index" == "$srv_index" ]] ; then
+                        fids=$(echo $FIDS_LINE | cut -d "-" -f 2)
+                        break
+                fi
+        done
+        unset IFS
 
-	if [[ -f "$CORTX_SYSCONFIG/m0d-$fids" ]] ; then
-		echo "$fids"
-	else
-		echo "NIL"
-	fi
+        if [[ -f "$CORTX_SYSCONFIG/m0d-$fids" ]] ; then
+                echo "$fids"
+        else
+                echo "NIL"
+        fi
 }
 
 #
@@ -94,7 +96,7 @@ get_fids()
 parse_cli_options()
 {
 
-    TEMP=$( getopt --options dhsf \
+    TEMP=$( getopt --options dhsfm \
                    --longoptions help,--ha-proxy \
                    --name "$PROG_NAME" -- "$@" )
 
@@ -106,102 +108,120 @@ parse_cli_options()
     while true ; do
         case "$1" in
             -h|--help)          help stdout ;;
-            -s)                 service=$3;     shift;;
-	    -d)                 STANDALONE_DEPLOY=true; deploy_script=$3; deploy_srv=$4;  shift;;
-            -f|--mkfs-force)    mkfs_force=true;  shift ;;
+            -s)                 deploy_script=$3; service=$4;     shift;;
+            -d)                 STANDALONE_DEPLOY=true; deploy_script=$3; deploy_srv=$4;  shift;;
+            -m)                 copy_id=true; MACHINE_ID=$3; shift ;;
             --)                 shift; break ;;
              *)                 echo 'getopt: internal error...'; exit 1 ;;
         esac
     done
 }
 
-start_m0mkfs_server() 
+scan_and_update_mach_id()
 {
-	$MOTR_MKFS $1
+        filepath=$1
+        UUID=$2
+        list=$(ls -ltr "$filepath/m0d-"* | tr -s " " | cut -d " " -f9 &2> /dev/null)
+        if [[ $? -eq 0 ]]; then
+                for file in $list
+                do
+                        echo $file
+                        chk=$(source $file; echo $MOTR_NODE_UUID)
+                        echo $chk
+                        if [[ "$UUID" != "$chk" ]]; then
+                                echo "checking $chk $UUID"
+                                sed -i '/MOTR_NODE_UUID/d' $file
+                                sed -i -e '$aMOTR_NODE_UUID='"'$UUID'" $file
+                        fi
+                done
+        fi
+}
+
+copy_machine_id()
+{
+        id=$1
+        value=$(( 100000000000 + $id ))
+        UUID="00000000-0000-0000-0000-"$value
+
+        scan_and_update_mach_id $MOTR_SYSCONFIG $UUID
+        scan_and_update_mach_id $CORTX_SYSCONFIG $UUID
+
+        MACH_ID=$(echo "${UUID//-}")
+        echo $MACH_ID > /etc/machine-id
+}
+
+start_mkfs_server()
+{
+        $MOTR_MKFS $1
 }
 
 start_m0d_server()
 {
-	$MOTR_SERVER "m0d-$1"
+        $MOTR_SERVER "m0d-$1"
 }
 
-#Make sure this function is called only 
+invalid_option()
+{
+        echo "Invalid arguments"
+        usage
+        exit 1
+}
+
+#Make sure this function is called only
 #during "-s" sequence of the script
 start_all_service() {
-	if [[ $deploy_script == "m0mkfs" ]]; then
-		start_m0mkfs_server $1
-	fi
-	start_m0d_server $1
+        if [[ $deploy_script == "mkfs" ]]; then
+                start_mkfs_server $1
+        fi
+        start_m0d_server $1
 }
 
-update_local_ip()
-{
-    filename="$1"
-    IP=`ip addr show eth0|grep inet| head -1|awk '{print $2}'|cut -d '/' -f1`
-    sed -r 's/(\b[0-9]{1,3}\.){3}[0-9]{1,3}\b'/"$IP"/ $filename > temp
-    cp temp $filename 
-    rm temp
-}    
 #start of the program
-
 if [[ "$#" -le 1 ]]; then
-	echo "Invalid arguments"
-	usage
-	exit
+        invalid_option
 fi
 
 parse_cli_options "$@"
 
-if [[ $STANDALONE_DEPLOY == true ]] ; then
-	if [[ -z $deploy_script || -z $deploy_srv ]]; then
-		echo "Invalid options"
-		usage
-		exit 1
-	fi
-	echo "Stand-Alone Deployment with service : $deploy_srv"
-	if [[ -f $CORTX_FIDS_MAP ]] ; then
-		#source $CORTX_SYSCONFIG/$deploy_srv
-		service=$(get_fids $deploy_srv)
-		if [[ $service == "NIL" ]]; then
-			echo "No fids found for given index $deploy_srv in $CORTX_FIDS_MAP"
-			exit 1
-		fi
-	else
-		echo "File $CORTX_SYSCONFIG/$deploy_srv not present"
-		exit 1;
-	fi
-else
-	echo "Starting Service : $service"
+if [[ $copy_id == true ]]; then
+        if [[ -z $MACHINE_ID ]]; then
+                copy_machine_id $DEFAULT_MACHINE_ID
+        else
+                copy_machine_id $MACHINE_ID
+        fi
 
-	#update_local_ip "$confd_proxy"
-	ha_config="$MOTR_SYSCONFIG-$service"
-	update_local_ip "$ha_config"
-
-
-	ha_config="$MOTR_SYSCONFIG-$service"
-	[[ -r $ha_config ]] && source $ha_config
-
-
-	MKFS_DIR="$MOTR_MKFS_DIR-$service/stob/o"
-	if [[ -d "$MKFS_DIR" ]]; then
-		mkfs_dir_present=true;
-		echo "mkfs_dir_present $mkfs_dir_present"
-	fi
-
-	# starting the mkfs for each service ha, confd, ios
-	if [[ "$mkfs_force" = "true" || "$mkfs_dir_present" = "false" ]]; then
-		deploy_script="m0mkfs"
-	fi
-	
-	start_all_service $service
-	exit
+        # After updating machine-id exit the script
+        exit 0
 fi
 
-if [[ $deploy_script == "m0mkfs" ]] ; then
-	start_m0mkfs_server $service
+if [[ -z $deploy_script ]]; then
+        invalid_option
+fi
+
+if [[ $STANDALONE_DEPLOY == true ]] ; then
+        if [[ -z $deploy_srv ]]; then
+                invalid_option
+        fi
+        echo "Stand-Alone Deployment with service : $deploy_srv"
+        if [[ -f $CORTX_FIDS_MAP ]] ; then
+                #source $CORTX_SYSCONFIG/$deploy_srv
+                service=$(get_fids $deploy_srv)
+                if [[ $service == "NIL" ]]; then
+                        echo "No fids found for given index $deploy_srv in $CORTX_FIDS_MAP"
+                        exit 1
+                fi
+        else
+                echo "File $CORTX_SYSCONFIG/$deploy_srv not present"
+                exit 1;
+        fi
+fi
+
+echo "Starting Service : $service"
+if [[ $deploy_script == "mkfs" ]] ; then
+        start_mkfs_server $service
 fi
 
 #starting the server
 if [[ $deploy_script == "m0d" ]] ; then
-	start_m0d_server "$service"
+        start_m0d_server "$service"
 fi
