@@ -84,12 +84,6 @@ void m0_test_lib_uuid(void)
 	M0_UT_ASSERT(u.u_lo == 0);
 	M0_UT_ASSERT(test_identity_op(nil_uuid));
 
-    rc = m0_uuid_parse(uuid3, &u);
-    M0_UT_ASSERT(rc == 0);
-    M0_UT_ASSERT(u.u_hi == 0x9876543210abcdef);
-    M0_UT_ASSERT(u.u_lo == 0xfedcba0123456789);
-    M0_UT_ASSERT(test_identity_op(uuid3));
-
 	rc = m0_uuid_parse(uuid1, &u);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(u.u_hi == 0xabcdef0123456789);
@@ -101,6 +95,12 @@ void m0_test_lib_uuid(void)
 	M0_UT_ASSERT(u.u_hi == 0x9876543210abcdef);
 	M0_UT_ASSERT(u.u_lo == 0xfedcba0123456789);
 	M0_UT_ASSERT(test_identity_op(uuid2));
+
+	rc = m0_uuid_parse(uuid3, &u);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(u.u_hi == 0x9876543210abcdef);
+	M0_UT_ASSERT(u.u_lo == 0xfedcba0123456789);
+	M0_UT_ASSERT(test_identity_op(uuid3));
 
 	rc = m0_uuid_parse(bad1, &u);
 	M0_UT_ASSERT(rc == -EINVAL);
