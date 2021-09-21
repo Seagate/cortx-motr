@@ -236,7 +236,7 @@ M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
 	struct m0_cob        *cob;
 	struct m0_fid         cob_fid;
 	struct m0_dtx         tx = {};
-	struct m0_cob_oikey   oikey;
+	struct m0_cob_oikey   oikey = {};
 	int                   rc;
 
 	m0_fid_convert_gob2cob(gfid, &cob_fid, cont);
