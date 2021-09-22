@@ -2714,7 +2714,16 @@ static int cs_level_enter(struct m0_module *module)
 		return M0_RC(0);
 	case CS_LEVEL_STARTED_EVENT_FOR_M0D:
 		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
-		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_DTM_RECOVERED);
+
+		/* Quite hackerish way enabling DTM recovery on singlenode. */
+		if (access("/tmp/motr_dtm_recovery_v01_enable", F_OK) == 0) {
+			M0_LOG(M0_WARN, "DTM0 limited mode enabled, sending "
+			       "recovered message before "
+			       "actual recovery completed. "
+			       "Use for developement purpose only!");
+			cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_DTM_RECOVERED);
+		}
+
 		return M0_RC(0);
 	case CS_LEVEL_START:
 		return M0_RC(0);

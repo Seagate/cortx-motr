@@ -243,4 +243,14 @@ function main()
     _info "TEST STATUS: PASSED"
 }
 
-main
+function clean()
+{
+    rm -rf m0trace.* m0trace_*
+    rm -rf addb_*
+    rm -rf m0crate.yaml
+}
+
+case $1 in
+    -c|--clean|clean) clean ;;
+    *) main ;;
+esac

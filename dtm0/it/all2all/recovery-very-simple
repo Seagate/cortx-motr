@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+set -e -o pipefail
+# set -x
+
+# A very simple recovery test
+# ===========================
+#
+# Makes sure that added RECOVERING state and its broadcasting over
+# HARE produces expected amount of HA messages to start the real DTM
+# recovery process. To achieve this, it performs the following:
+#
+# - start the hare cluster
+# - stops one of m0d process
+# - restarts one of m0d process with a special flag used for the
+#   recovery
+# - makes sure that a very simple recovery completes and the cluster
+#   is operable.
+#
+
+DATE_STARTED=
+
+MOTR_ROOT=$(realpath ../../..)
+MOTR_UTILS_DIR=${MOTR_ROOT}/utils
+TEST_ROOT=/var/motr/all2all_test
+POOL_WIDTH=4
+IPOOL_WIDTH=2
+
+${MOTR_UTILS_DIR}/m0setup --init-loop-only -s 1 -d ${TEST_ROOT} \
+		 --pool-width ${POOL_WIDTH} --ipool-width ${IPOOL_WIDTH}
+hctl bootstrap --mkfs cdf.yaml
+
+systemctl stop m0d@0x7200000000000001:0x28
+DATE_STARTED=$(date +%H:%M:%S)
+systemctl start m0d@0x7200000000000001:0x28
+
+# remove after recovery code done.
+sleep 5
+journalctl --since $DATE_STARTED | \
+    grep -E 'Setting\ process\ status\ in\ KV|Broadcasting\ HA\ stat' | cut -d' ' -f 10-
+
+hctl shutdown
