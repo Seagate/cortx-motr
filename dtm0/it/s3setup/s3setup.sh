@@ -3,6 +3,8 @@
 set -e
 #set -x
 
+. ../helpers
+
 DEVEL_DIR="/root/cortx"
 MOTR_DIR="${DEVEL_DIR}/cortx-motr"
 HARE_DIR="${DEVEL_DIR}/cortx-hare"
@@ -33,13 +35,10 @@ S3_DIR_COMMON="${S3_VAR_DIR}/s3server-0x720000000000000"
 ADDB_DUMP_DIR="/tmp/s3it-addb-out"
 
 ADDB2DUMP_S3="/usr/sbin/m0addb2dump_s3"
+S3_ADDBPLUGIN_LIB="/opt/seagate/cortx/s3/addb-plugin/libs3addbplugin.so"
 
 S3BENCH_URL="https://github.com/Seagate/s3bench/releases/download/v2021-06-28/s3bench.2021-06-28"
-
-M0D_FIDS_HEX=()
-M0D_PIDS=()
-S3_FID_HEX=
-S3_PID=
+S3BENCH_BIN="${PWD}/s3bench"
 
 NO_BOOTSTRAP=0
 RUN_S3BENCH=0
@@ -103,7 +102,7 @@ function motr_install()
 {
     pushd $MOTR_DIR
     ./scripts/install-motr-service -l
-    rm -f /usr/lib64/libmotr-helpers.so.0 /usr/lib64/libmotr.so.2
+    rm -f /usr/lib64/libmotr-helpers.so.0 /usr/lib64/libmotr.so.2 /usr/lib64/libgalois-0.1.so
     ln -s "${MOTR_DIR}/helpers/.libs/libmotr-helpers.so.0" /usr/lib64/libmotr-helpers.so.0
     ln -s "${MOTR_DIR}/motr/.libs/libmotr.so.2" /usr/lib64/libmotr.so.2
     ln -s "${MOTR_DIR}/extra-libs/galois/src/.libs/libgalois-0.1.so" /usr/lib64/libgalois-0.1.so
@@ -139,40 +138,8 @@ function s3bench_run()
     # Fetch the user from ldap, copy access key (ak) and secret key (sk) from output.
     read ak sk <<< $(ldapsearch -b "ou=accesskeys,dc=s3,dc=seagate,dc=com" -x -w $sgiam_pass -D "cn=sgiamadmin,dc=seagate,dc=com" "(&(objectclass=accesskey))" | egrep "^ak:|^sk:" | awk '{ print $2; }')
 
-    # Get s3bench.
-    if [[ ! -e ./s3bench ]]; then
-        wget $S3BENCH_URL -O ./s3bench
-        chmod +x ./s3bench
-    fi
-
     # Run s3bench.
-    ./s3bench -accessKey $ak -accessSecret "${sk}" -bucket test1 -endpoint http://127.0.0.1  -numClients 4 -numSamples 4 -objectSize 1Mb
-}
-
-function fids_hex_get()
-{
-    local svcs_json_out=$(hctl status --json | jq -r '.nodes[] | .svcs[]')
-    local svc_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("ioservice"))')
-    local s3_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("s3server"))')
-    M0D_FIDS_HEX=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/'))
-    S3_FID_HEX=$(echo $s3_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/')
-}
-
-function pids_get()
-{
-    local pids=""
-    local pid
-
-    for fid in ${M0D_FIDS_HEX[@]} ; do
-        pid=$(ps ax | grep m0d | grep $fid | awk '{ print $1; }')
-        M0D_PIDS+=($pid)
-        pids+="$pid "
-    done
-
-    S3_PID=$(ps ax | grep s3server | grep $S3_FID_HEX | awk '{ print $1; }')
-
-    echo "m0d PIDs: $pids"
-    echo "s3server PID: $S3_PID"
+    $S3BENCH_BIN -accessKey $ak -accessSecret "${sk}" -bucket test1 -endpoint http://127.0.0.1  -numClients 4 -numSamples 4 -objectSize 1Mb
 }
 
 function addb_dump()
@@ -187,28 +154,28 @@ function addb_dump()
     mkdir "${outdir}"
 
     # Dumping addb2 of m0ds
-    for i in ${!M0D_PIDS[@]} ; do
-        fid=$(echo "${M0D_FIDS_HEX[i]}" | awk -F'x' '{ print $2; }')
+    for i in ${!DTM0_IT_M0D_PIDS[@]} ; do
+        fid=$(echo "${DTM0_IT_M0D_FIDS_HEX[i]}" | awk -F'x' '{ print $2; }')
         outfile="${outdir}/addb_${fid}.dump"
-        inpfile="${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}/addb-stobs-${M0D_PIDS[i]}/o/100000000000000:2"
+        inpfile="${M0D_DIR_COMMON}${DTM0_IT_M0D_FIDS_HEX[i]}/addb-stobs-${DTM0_IT_M0D_PIDS[i]}/o/100000000000000:2"
         echo "Dumping ${inpfile} -> ${outfile} ..."
         $a2d -f "${inpfile}" > "${outfile}"
     done
 
     # Dumping addb2 of s3server
-    fid=$(echo "${S3_FID_HEX}" | awk -F'x' '{ print $2; }')
+    fid=$(echo "${DTM0_IT_S3_FID_HEX}" | awk -F'x' '{ print $2; }')
     outfile="${outdir}/addb_${fid}.dump"
-    inpfile="${S3_DIR_COMMON}${S3_FID_HEX}/addb_${S3_PID}/o/100000000000000:2"
+    inpfile="${S3_DIR_COMMON}${DTM0_IT_S3_FID_HEX}/addb_${DTM0_IT_S3_PID}/o/100000000000000:2"
     echo "Dumping ${inpfile} -> ${outfile} ..."
-    $ADDB2DUMP_S3 -f "${inpfile}" > "${outfile}"
+    $ADDB2DUMP_S3 -p $S3_ADDBPLUGIN_LIB -f "${inpfile}" > "${outfile}"
 }
 
 function s3workload()
 {
     cluster_bootstrap
 
-    fids_hex_get
-    pids_get
+    dtm0_it_fids_get
+    dtm0_it_pids_get
 
     s3bench_run
 
@@ -246,6 +213,10 @@ function s3setup()
 
     cfgs_restore
 
+    # Get s3bench.
+    wget $S3BENCH_URL -O $S3BENCH_BIN
+    chmod +x $S3BENCH_BIN
+
     systemctl start haproxy
     /bin/sh -x /opt/seagate/cortx/auth/startauth.sh &
 
@@ -261,8 +232,8 @@ function s3setup()
         exit 0
     fi
 
-    fids_hex_get
-    pids_get
+    dtm0_it_fids_get
+    dtm0_it_pids_get
 
     s3bench_run
 

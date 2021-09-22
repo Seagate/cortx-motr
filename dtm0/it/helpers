@@ -1,0 +1,34 @@
+DTM0_IT_M0D_PIDS=()
+DTM0_IT_S3_PID=
+
+DTM0_IT_M0D_ENDPOINTS=()
+DTM0_IT_M0D_FIDS_HEX=()
+DTM0_IT_M0D_FIDS_DEC=()
+DTM0_IT_CLI_FID_HEX=
+DTM0_IT_CLI_FID_DEC=
+DTM0_IT_S3_FID_HEX=
+DTM0_IT_S3_FID_DEC=
+
+function dtm0_it_fids_get()
+{
+    local svcs_json_out=$(hctl status --json | jq -r '.nodes[] | .svcs[]')
+    local svc_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("ioservice"))')
+    local cli_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client"))')
+    local s3_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("s3server"))')
+    DTM0_IT_M0D_ENDPOINTS=($(echo $svc_json_out | jq -r '.ep' | sed -E 's/.*@tcp[:](.*)/\1/'))
+    DTM0_IT_M0D_FIDS_HEX=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/'))
+    DTM0_IT_M0D_FIDS_DEC=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e'))
+    DTM0_IT_CLI_FID_HEX=$(echo $cli_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/')
+    DTM0_IT_CLI_FID_DEC=$(echo $cli_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e')
+    DTM0_IT_S3_FID_HEX=$(echo $s3_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/')
+    DTM0_IT_S3_FID_DEC=$(echo $s3_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e')
+}
+
+function dtm0_it_pids_get()
+{
+    for fid in ${DTM0_IT_M0D_FIDS_HEX[@]} ; do
+        DTM0_IT_M0D_PIDS+=($(ps ax | grep m0d | grep $fid | awk '{ print $1; }'))
+    done
+
+    DTM0_IT_S3_PID=$(ps ax | grep s3server | grep $DTM0_IT_S3_FID_HEX | awk '{ print $1; }')
+}
