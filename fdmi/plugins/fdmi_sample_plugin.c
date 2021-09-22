@@ -42,6 +42,7 @@ struct m0_fsp_params {
 	char          *spp_process_fid;
 	char          *spp_fdmi_plugin_fid_s;
 	struct m0_fid  spp_fdmi_plugin_fid;
+	bool           spp_output_strings;
 };
 
 /**
@@ -105,22 +106,26 @@ static char buffer[MAX_LEN];
 
 static char *to_str(void *addr, int len)
 {
-	if (len > MAX_LEN - 1)
+	if (len > MAX_LEN - 1) {
 		len = MAX_LEN - 1;
+		fprintf(stderr, "val len (%d) >= MAX_LEN (%d). Truncated.\n",
+			len, MAX_LEN);
+	}
 	memcpy(buffer, addr, len);
 	buffer[len] = '\0';
 	return buffer;
 }
 
-M0_UNUSED static char *to_hex(void *addr, int len)
+static char *to_hex(void *addr, int len)
 {
-	int i, j;
+	int i;
 	if ((2 * len) > MAX_LEN) {
-		fprintf(stderr, "to_hex() failed with (2 * len) > MAX_LEN\n");
-		return NULL;
+		fprintf(stderr, "val len (%d) >= MAX_LEN/2 (%d). Truncated.\n",
+			len, MAX_LEN / 2);
+		len = MAX_LEN / 2 - 1;
 	}
-	for(i = 0, j = 0; i < (2 * len) && j < len; ++j)
-		i += sprintf(buffer + i, "%02x", ((char *)addr)[j]);
+	for(i = 0; i <= len; i++)
+		sprintf(buffer + (i * 2), "%02x", ((char *)addr)[i]);
 	buffer[2 * len] = '\0';
 	return buffer;
 }
@@ -147,12 +152,16 @@ static void dump_fol_rec_to_json(struct m0_fol_rec *rec)
 
 			len = cr_rec[i].cr_key.u.ab_buf.b_nob;
 			m0_console_printf("\"cr_key\": \"%s\", ",
-					  to_str(cr_rec[i].cr_key.u.ab_buf.b_addr, len));
+					  fsp_params.spp_output_strings ?
+					  to_str(cr_rec[i].cr_key.u.ab_buf.b_addr, len) :
+					  to_hex(cr_rec[i].cr_key.u.ab_buf.b_addr, len));
 
 			len = cr_rec[i].cr_val.u.ab_buf.b_nob;
 			if (len > 0) {
 				m0_console_printf("\"cr_val\": \"%s\"",
-						  to_str(cr_rec[i].cr_val.u.ab_buf.b_addr, len));
+						  fsp_params.spp_output_strings ?
+						  to_str(cr_rec[i].cr_val.u.ab_buf.b_addr, len) :
+						  to_hex(cr_rec[i].cr_val.u.ab_buf.b_addr, len));
 			} else {
 				m0_console_printf("\"cr_val\": \"0\"");
 			}
@@ -167,7 +176,7 @@ static void fsp_usage(void)
 	fprintf(stderr,
 		"Usage: fdmi_sample_plugin "
 		"-l local_addr -h ha_addr -p profile_fid -f process_fid "
-		"-g fdmi_plugin_fid\n"
+		"-g fdmi_plugin_fid [-s]\n"
 		"Use -? or -i for more verbose help on common arguments.\n"
 		"Usage example for common arguments: \n"
 		"fdmi_sample_plugin -l 192.168.52.53@tcp:12345:4:1 "
@@ -190,6 +199,7 @@ static int fsp_args_parse(struct m0_fsp_params *params, int argc, char ** argv)
 	params->spp_profile_fid = NULL;
 	params->spp_process_fid = NULL;
 	params->spp_fdmi_plugin_fid_s = NULL;
+	params->spp_output_strings = false;
 
 	rc = M0_GETOPTS("fdmi_sample_plugin", argc, argv,
 			M0_HELPARG('?'),
@@ -218,7 +228,11 @@ static int fsp_args_parse(struct m0_fsp_params *params, int argc, char ** argv)
 				     LAMBDA(void, (const char *str) {
 						     params->spp_fdmi_plugin_fid_s =
 							     (char*)str;
-					     })));
+					     })),
+			M0_VOIDARG('s', "output key/val as string",
+				   LAMBDA(void, (void) {
+						     params->spp_output_strings = true;
+					   })));
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -409,10 +423,12 @@ static void fsp_print_params(struct m0_fsp_params *params)
 		"  hare_ep : %s\n"
 		"  profile_fid : %s\n"
 		"  process_fid : %s\n"
-		"  plugin_fid  : %s\n",
+		"  plugin_fid  : %s\n"
+		"  output as string: %s\n",
 		params->spp_local_addr, params->spp_hare_addr,
 		params->spp_profile_fid, params->spp_process_fid,
-		params->spp_fdmi_plugin_fid_s);
+		params->spp_fdmi_plugin_fid_s,
+		params->spp_output_strings? "true":"false");
 }
 
 int main(int argc, char **argv)
