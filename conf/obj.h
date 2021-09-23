@@ -31,6 +31,7 @@
 #include "fid/fid.h"          /* m0_fid */
 #include "conf/schema.h"      /* m0_conf_service_type */
 #include "fdmi/filter.h"      /* m0_fdmi_filter */
+#include "fdmi/fdmi.h"        /* m0_fdmi_rec_type_id */
 
 struct m0_conf_obj_ops;
 struct m0_confx_obj;
@@ -716,19 +717,39 @@ struct m0_conf_drive {
 
 /** Filters group. All filters in group match record type they work with. */
 struct m0_conf_fdmi_flt_grp {
-	struct m0_conf_obj  ffg_obj;
+	struct m0_conf_obj        ffg_obj;
 	/* Type of the record that filters of this group support. */
-	uint32_t            ffg_rec_type;
+	enum m0_fdmi_rec_type_id  ffg_rec_type;
 	/* Directory of filters for this filters group. */
-	struct m0_conf_dir *ffg_filters;
+	struct m0_conf_dir       *ffg_filters;
 };
 
 struct m0_conf_fdmi_filter {
-	struct m0_conf_obj     ff_obj;
-	struct m0_fid          ff_filter_id;
-	struct m0_fdmi_filter  ff_filter;
+	struct m0_conf_obj            ff_obj;
+	enum m0_fdmi_filter_type_id   ff_type;
+	struct m0_fid                 ff_filter_id;
+	struct m0_fdmi_filter         ff_filter;
 	/** The node this filter is hosted at. */
-	struct m0_conf_node   *ff_node;
+	struct m0_conf_node          *ff_node;
+	/**
+	 * DIX pool version to search kv pairs for substrings for.
+	 * The filter would match a CAS operation iff the pool version for the
+	 * operation matches.
+	 * It's only used when ff_type == M0_FDMI_FILTER_TYPE_KV_SUBSTRING.
+	 */
+	struct m0_conf_pver          *ff_dix_pver;
+	/**
+	 * Substrings to match for M0_FDMI_FILTER_TYPE_KV_SUBSTRING filter.
+	 * The filter would match iff all the substrings are present in the
+	 * value of CAS kv pair. All the pairs in the request would be sent to
+	 * FDMI plugin in this case, regardless of if other kv pairs in the CAS
+	 * request match the filter.
+	 * It might be no string to match, in this case this field should be a
+	 * pointer to a single NULL value and every FDMI record will match it.
+	 *
+	 * NULL-terminated array of C strings. @see m0_bufs_to_strings().
+	 */
+	const char                   **ff_substrings;
 	/**
 	 * Endpoints which are interested in FDMI records matched with
 	 * this filter.
@@ -736,9 +757,9 @@ struct m0_conf_fdmi_filter {
 	 * NULL-terminated array of C strings.
 	 * @note Currently only one endpoint can be in this array.
 	 */
-	const char           **ff_endpoints;
-	struct m0_tlink        ff_linkage;
-	uint64_t               ff_magic;
+	const char                  **ff_endpoints;
+	struct m0_tlink               ff_linkage;
+	uint64_t                      ff_magic;
 };
 
 /* ------------------------------------------------------------------
