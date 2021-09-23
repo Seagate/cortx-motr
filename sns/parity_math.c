@@ -86,8 +86,7 @@ static void fail_idx_xor_recover(struct m0_parity_math *math,
 				 struct m0_buf *parity,
 				 const uint32_t failure_index);
 
-/**
- * Below are some functions which has two separate implementations for using
+/* Below are some functions which has two separate implementations for using
  * Galois and Intel ISA library. At a time any one of the function is
  * called depending on whether Intel ISA library is present or not. If
  * Intel ISA library is present, it will use implementation specific to Intel
@@ -600,7 +599,7 @@ M0_INTERNAL int m0_sns_ir_failure_register(struct m0_bufvec *recov_addr,
 
 	M0_CNT_DEC(ir->si_alive_nr);
 	if (ir->si_alive_nr < ir->si_data_nr)
-		return M0_ERR(-EDQUOT);
+		return M0_ERR(-ERANGE);
 
 	ir_failure_register(ir, failed_index);
 
@@ -609,12 +608,8 @@ M0_INTERNAL int m0_sns_ir_failure_register(struct m0_bufvec *recov_addr,
 
 M0_INTERNAL int m0_sns_ir_mat_compute(struct m0_sns_ir *ir)
 {
-	int ret = 0;
-
 	M0_PRE(ir != NULL);
-
-	ret = ir_mat_compute(ir);
-	return (ret == 0) ? M0_RC(ret) : M0_ERR(ret);
+	return M0_RC(ir_mat_compute(ir));
 }
 
 M0_INTERNAL void m0_sns_ir_fini(struct m0_sns_ir *ir)
@@ -640,7 +635,7 @@ M0_INTERNAL int m0_sns_ir_recover(struct m0_sns_ir *ir,
 				  uint32_t failed_index,
 				  enum m0_sns_ir_block_type block_type)
 {
-	size_t                  block_idx = 0;
+	int                     block_idx = 0;
 	size_t                  b_set_nr;
 	struct m0_sns_ir_block *blocks;
 	struct m0_sns_ir_block *alive_block;
@@ -660,12 +655,9 @@ M0_INTERNAL int m0_sns_ir_recover(struct m0_sns_ir *ir,
 	            ir->si_blocks[failed_index].sib_status ==
 		    M0_SI_BLOCK_FAILED));
 	M0_PRE(ergo(block_type == M0_SI_BLOCK_LOCAL, ir->si_local_nr != 0));
-	if (b_set_nr == 1) {
-		for (block_idx = 0; block_idx < bitmap->b_nr; ++block_idx) {
-			if (m0_bitmap_get(bitmap, block_idx))
-				break;
-		}
-	}
+
+	if (b_set_nr == 1)
+		block_idx = m0_bitmap_ffs(bitmap);
 
 	VALUE_ASSERT_INFO(is_valid_block_idx(ir, block_idx), block_idx);
 
@@ -708,7 +700,7 @@ M0_INTERNAL int m0_sns_ir_recover(struct m0_sns_ir *ir,
 
 /* Parity Math Helper Functions */
 
-/* m0_parity_* are to much eclectic. just more simple names. */
+/* Funtions m0_parity_* are to much eclectic. Just more simple names. */
 static int gadd(int x, int y)
 {
 	return m0_parity_add(x, y);

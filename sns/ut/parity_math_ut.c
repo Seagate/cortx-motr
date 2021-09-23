@@ -1316,7 +1316,7 @@ static void test_invalid_input(void)
 	ret = m0_sns_ir_failure_register(&recov_arr,
 					 failed_arr[i],
 					 &ir);
-	M0_UT_ASSERT(ret == -EDQUOT);
+	M0_UT_ASSERT(ret == -ERANGE);
 	m0_free(failed_arr);
 	m0_sns_ir_fini(&ir);
 	m0_parity_math_fini(&math);
