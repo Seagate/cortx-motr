@@ -169,20 +169,23 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	/* Move rep_cursor on unit boundary */
 	off = rep_index % unit_size;
 	if (off) {
-		if (m0_ivec_cursor_move(&rep_cursor, unit_size - off)) {
+		if (!m0_ivec_cursor_move(&rep_cursor, unit_size - off)) {
 			rep_index = m0_ivec_cursor_index(&rep_cursor);
 		}
 		else {
 			/** invalid cusror position */
-			M0_ASSERT(false);
+			//M0_ASSERT(false);
+			return;
 		}
 	}
 	M0_ASSERT(ti_cob_index <= rep_index);
 
 	/* Move ti index to rep index */
 	if (ti_cob_index != rep_index) 	{
-		M0_ASSERT (m0_ivec_cursor_move(&ti_cob_cursor,  rep_index - ti_cob_index) && 
-		           m0_ivec_cursor_move(&ti_goff_cursor, rep_index - ti_cob_index));
+		if (m0_ivec_cursor_move(&ti_cob_cursor,  rep_index - ti_cob_index) ||
+		    m0_ivec_cursor_move(&ti_goff_cursor, rep_index - ti_cob_index)) {
+			return;
+		}
 	}
 
 	/**
