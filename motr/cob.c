@@ -1358,7 +1358,6 @@ static void cob_ast_ios_io_send(struct m0_sm_group *grp,
 				struct m0_sm_ast *ast)
 {
 	int                      rc;
-	uint32_t                 pool_width;
 	struct m0_ast_rc        *ar;
 	struct m0_client        *cinst;
 	struct m0_pool_version  *pv;
@@ -1382,12 +1381,9 @@ static void cob_ast_ios_io_send(struct m0_sm_group *grp,
 				 FID_P(&cr->cr_pver));
 		goto exit;
 	}
-	pool_width = pv->pv_attr.pa_P;
-	M0_ASSERT(pool_width >= 1);
 
 	/* Send a fop to each COB. */
 	cr->cr_cob_type = M0_COB_IO;
-	cr->cr_icr_nr = pool_width;
 	rc = cob_ios_req_send_async(cr);
 	/*
 	 * If all ios cob requests fail, rc != 0. Otherwise, the rpc item
