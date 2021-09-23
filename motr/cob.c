@@ -301,10 +301,11 @@ M0_INTERNAL void cob_req_ref_put(struct cob_req *cr)
  * @param cinst client instance.
  * @returns instance of cob_req if operation succeeds, NULL otherwise.
  */
-static struct cob_req *cob_req_alloc(struct m0_pool_version *pv)
+static struct cob_req *cob_req_alloc(struct m0_pool_version *pv,
+				     struct m0_client *cinst)
 {
-	struct cob_req        *cr;
-	uint32_t               pool_width;
+	struct cob_req *cr;
+	uint32_t        redundancy = pv->pv_attr.pa_P;
 
 	cr = m0_alloc(sizeof *cr);
 	if (cr == NULL)
@@ -315,9 +316,11 @@ static struct cob_req *cob_req_alloc(struct m0_pool_version *pv)
 
 	/* Initialises and sets FOP related members. */
 	cr->cr_pver = pv->pv_id;
-	pool_width  = pv->pv_attr.pa_P;
-	M0_ALLOC_ARR(cr->cr_ios_fop, pool_width);
-	M0_ALLOC_ARR(cr->cr_ios_replied, pool_width);
+	M0_ASSERT(cinst->m0c_pools_common.pc_md_redundancy >= 1);
+	if (cinst->m0c_pools_common.pc_md_redundancy < redundancy)
+		redundancy = cinst->m0c_pools_common.pc_md_redundancy;
+	M0_ALLOC_ARR(cr->cr_ios_fop, redundancy);
+	M0_ALLOC_ARR(cr->cr_ios_replied, redundancy);
 	if (cr->cr_ios_fop == NULL || cr->cr_ios_replied == NULL) {
 		m0_free(cr->cr_ios_fop);
 		m0_free(cr->cr_ios_replied);
@@ -326,7 +329,10 @@ static struct cob_req *cob_req_alloc(struct m0_pool_version *pv)
 	}
 	m0_ref_init(&cr->cr_ref, 1, cob_req_ref_release);
 	cr->cr_id = m0_dummy_id_generate();
+	cr->cr_icr_nr = redundancy;
+	cr->cr_cinst  = cinst;
 	M0_ADDB2_ADD(M0_AVI_CLIENT_COB_REQ, cr->cr_id, COB_REQ_ACTIVE);
+
 	return cr;
 }
 
@@ -1412,7 +1418,6 @@ static int cob_ios_md_send(struct cob_req *cr)
 	cinst = cr->cr_cinst;
 	M0_ASSERT(cinst != NULL);
 	M0_ASSERT(cinst->m0c_config->mc_is_oostore);
-	M0_ASSERT(cinst->m0c_pools_common.pc_md_redundancy >= 1);
 
 	/*
 	 * Send to each redundant ioservice.
@@ -1421,7 +1426,6 @@ static int cob_ios_md_send(struct cob_req *cr)
 	 * replied). So the content of 'oo' may be changed. Be aware of this
 	 * race condition!
 	 */
-	cr->cr_icr_nr = cinst->m0c_pools_common.pc_md_redundancy;
 	cr->cr_cob_type = M0_COB_MD;
 	rc = (cr->cr_flags & COB_REQ_SYNC) ?
 	     cob_ios_req_send_sync(cr) :
@@ -1820,12 +1824,11 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 				  &oo->oo_pver);
 	if (pv == NULL)
 		return M0_ERR(-EINVAL);
-	cr = cob_req_alloc(pv);
+	cr = cob_req_alloc(pv, cinst);
 	if (cr == NULL)
 		return M0_ERR(-ENOMEM);
 
 	op               = &oo->oo_oc.oc_op;
-	cr->cr_cinst     = cinst;
 	cr->cr_fid       = oo->oo_fid;
 	cr->cr_op        = op;
 	cr->cr_op_sm_grp = oo->oo_sm_grp;
