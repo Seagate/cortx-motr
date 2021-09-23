@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2020-2021 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include "lib/trace.h"
 #include "lib/finject.h"
-
 /**
  * Bob definitions
  */
@@ -424,7 +423,6 @@ void m0_obj_init(struct m0_obj *obj,
 	obj_size = obj->ob_attr.oa_buf_size;
 	obj->ob_attr.oa_layout_id = obj_size == 0 && layout_id == 0 ?
 					M0_DEFAULT_LAYOUT_ID : layout_id;
-	M0_LOG(M0_DEBUG, "YJC: layout id = %"PRIu64, obj->ob_attr.oa_layout_id);
 
 #ifdef OSYNC
 	m0_mutex_init(&obj->ob_pending_tx_lock);

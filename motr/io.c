@@ -147,10 +147,8 @@ static void segments_sort(struct m0_indexvec *ivec, struct m0_bufvec *data,
 				M0_SWAP(COUNT(ivec, i), COUNT(ivec, j));
 				M0_SWAP(BUFVI(data, i), BUFVI(data, j));
 				M0_SWAP(BUFVC(data, i), BUFVC(data, j));
-				if (attr) {
-					M0_SWAP(BUFVI(attr, i), BUFVI(attr, j));
-					M0_SWAP(BUFVC(attr, i), BUFVC(attr, j));
-				}
+				M0_SWAP(BUFVI(attr, i), BUFVI(attr, j));
+				M0_SWAP(BUFVC(attr, i), BUFVC(attr, j));
 			}
 		}
 	}
@@ -524,12 +522,8 @@ static int obj_io_init(struct m0_obj      *obj,
 	ioo->ioo_flags |= M0_OOF_SYNC;
 	if (M0_IN(opcode, (M0_OC_READ, M0_OC_WRITE))) {
 		ioo->ioo_data = *data;
+		ioo->ioo_attr = *attr;
 		ioo->ioo_attr_mask = mask;
-		/** If checksum is disabled, then attr is NULL */
-		if (attr != NULL && attr->ov_vec.v_nr)
-			ioo->ioo_attr = *attr;
-		else
-			M0_SET0(&ioo->ioo_attr);
 	}
 	M0_POST_EX(m0_op_io_invariant(ioo));
 	return M0_RC(0);
@@ -626,7 +620,7 @@ static void obj_io_args_check(struct m0_obj      *obj,
 	M0_ASSERT(m0_vec_count(&ext->iv_vec) %
 			       (1ULL << obj->ob_attr.oa_bshift) == 0);
 	M0_ASSERT(ergo(M0_IN(opcode, (M0_OC_READ, M0_OC_WRITE)),
-		       data != NULL &&
+		       data != NULL && attr != NULL &&
 		       m0_vec_count(&ext->iv_vec) ==
 				m0_vec_count(&data->ov_vec)));
 #ifdef BLOCK_ATTR_SUPPORTED /* Block metadata is not yet supported */
@@ -695,13 +689,12 @@ int m0_obj_op(struct m0_obj       *obj,
 	struct m0_io_args          io_args;
 	enum m0_client_layout_type type;
 
-	M0_ENTRY("obj_id: " U128X_F " opcode = %s", U128_P(&obj->ob_entity.en_id),
-		  opcode == M0_OC_READ ? "read" : opcode == M0_OC_WRITE ? "write" :  \
-		  opcode == M0_OC_FREE ? "free" : "");
+	M0_ENTRY();
 	M0_PRE(obj != NULL);
 	M0_PRE(op != NULL);
 	M0_PRE(ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOHOLE))));
 	M0_PRE(ergo(opcode != M0_OC_READ, M0_IN(flags, (0, M0_OOF_SYNC))));
+
 	if (M0_FI_ENABLED("fail_op"))
 		return M0_ERR(-EINVAL);
 

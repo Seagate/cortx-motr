@@ -30,12 +30,7 @@
 #include "lib/misc.h"
 #include "lib/finject.h"
 #include "lib/memory.h"
-#include "lib/cksum_utils.h"
-#include "lib/cksum.h"
 #include "format/format.h"  /* m0_format_header_pack */
-
-/* max data units that can be sent in a request */
-#define MAX_DUS 8
 
 /**
    @addtogroup extmap
@@ -120,8 +115,7 @@ static int emap_extent_update(struct m0_be_emap_cursor *it,
 static int be_emap_split(struct m0_be_emap_cursor *it,
 			 struct m0_be_tx          *tx,
 			 struct m0_indexvec       *vec,
-			 m0_bindex_t               scan,
-			 struct m0_buf            *cksum);
+			 m0_bindex_t               scan);
 static bool be_emap_caret_invariant(const struct m0_be_emap_caret *car);
 
 static const struct m0_be_btree_kv_ops be_emap_ops = {
@@ -184,14 +178,9 @@ static void emap_key_init(struct m0_be_emap_key *key)
 static void emap_rec_init(struct m0_be_emap_rec *rec)
 {
 	m0_format_header_pack(&rec->er_header, &(struct m0_format_tag){
-		        .ot_version = M0_BE_EMAP_REC_FORMAT_VERSION,
-		        .ot_type    = M0_FORMAT_TYPE_BE_EMAP_REC,
-			/** cksum of size cksum_nob will be present just before
-			 *  footer, update the same in emap header.
-			 */
-		        .ot_footer_offset = offsetof(struct m0_be_emap_rec,
-			                             er_footer)
-			                    + rec->er_cksum_nob
+		.ot_version = M0_BE_EMAP_REC_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_BE_EMAP_REC,
+		.ot_footer_offset = offsetof(struct m0_be_emap_rec, er_footer)
 	});
 	m0_format_footer_update(rec);
 }
@@ -463,57 +452,20 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 
 M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
 				  struct m0_be_tx          *tx,
-				  struct m0_indexvec       *vec,
-				  struct m0_buf            *cksum)
+				  struct m0_indexvec       *vec)
 {
 	M0_PRE(m0_vec_count(&vec->iv_vec) == m0_ext_length(&it->ec_seg.ee_ext));
 	M0_INVARIANT_EX(be_emap_invariant(it));
 
 	m0_be_op_active(&it->ec_op);
 	m0_rwlock_write_lock(emap_rwlock(it->ec_map));
-	be_emap_split(it, tx, vec, it->ec_seg.ee_ext.e_start, cksum);
+	be_emap_split(it, tx, vec, it->ec_seg.ee_ext.e_start);
 	m0_rwlock_write_unlock(emap_rwlock(it->ec_map));
 	m0_be_op_done(&it->ec_op);
 
 	M0_ASSERT_EX(be_emap_invariant(it));
 }
 
-/* This function will paste the extent (ext) into all the existing overlapping
- * extent. It is assumed that cursor is correctly placed so ext is part of
- * cursor-segment (it->ec_seg).
- *
- * 1. Finds the overlap of current-segment with extent (ext)
- * 2. Based on the overlap, atmost 3 sub-segment can get created
- *    (term left/right w.r.t area of current segment left after removing clip area)
- *    a. Left   sub-seg : Overlap of start of cur-seg  with ext
- *        		      |  cur-seg  |
- *                             | clip - ext |
- *                        |Left| => [curr-seg:Start - clip:Start]
- *    b. Middle sub-seg : If ext part (to be pasted) fully overlaps with curr-seg (clip)
- *        			      |         cur-seg              |
- *                               | clip - ext |
- *                        | Left |   Middle   |  Right   |
- *    c. Right  sub-seg : Overalp of end of cur-seg with ext
- *        			      |  cur-seg  |
- *                | clip - ext |
- *                             |Right | => [clip:End - curr-seg:End]
- * 3. EMAP operation for these three segments are performed (not all may be needed)
- * 4. If part of extent (after removing clip) is remaining then new segment is read
- *    (be_emap_next) and again above operations are performed
- *
- * For checksum operation :
- * a. Left Opn  : Reduce the checksum number of byte from checksum of left segment
- * b. Right Opn : Update checksum new start and size
- *
- * During operation like punch, we need to find the size of single unit of checksum
- * this is derived based on unit size (one checksum unit for one data unit) and total
- * checksum size.
- *
- * COB when created has following extent: [0, infinity or -1 ), er_value: AET_HOLE
- * so when x-DU (Data Units) gets pasted extents are:
- * [0, x-DU), er_value: x-DeviceLBA
- * [x-DU, infinity or -1 ), er_value: AET_HOLE
- */
 M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 				  struct m0_be_tx          *tx,
 				  struct m0_ext            *ext,
@@ -528,12 +480,6 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	struct m0_ext          clip;
 	m0_bcount_t            length[3];
 	typeof(val)            bstart[3] = {};
-	struct m0_buf          cksum[3]  = {{0, NULL},
-					   {0, NULL},
-					   {0, NULL}};
-	m0_bcount_t	       chunk_cs_count;
-	m0_bcount_t            cksum_unit_size = 0;
-
 	m0_bcount_t            consumed;
 	uint64_t               val_orig;
 	struct m0_indexvec     vec = {
@@ -567,8 +513,8 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	 * invariant until the loop exits (the map is "porous" during that
 	 * time).
 	 */
-	m0_rwlock_write_lock(emap_rwlock(it->ec_map));
 
+	m0_rwlock_write_lock(emap_rwlock(it->ec_map));
 	while (!m0_ext_is_empty(ext)) {
 		m0_ext_intersection(ext, chunk, &clip);
 		M0_LOG(M0_DEBUG, "ext="EXT_F" chunk="EXT_F" clip="EXT_F,
@@ -584,52 +530,22 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 
 		bstart[1] = val;
 		val_orig  = seg->ee_val;
-		cksum[1] = it->ec_app_cksum_buf;
-
-		if (seg->ee_cksum_buf.b_nob)
-		{
-			// Compute checksum unit size for given segment
-			chunk_cs_count = m0_extent_get_num_unit_start(chunk->e_start,
-			                                              m0_ext_length(chunk),
-								      it->ec_unit_size);
-			M0_ASSERT(chunk_cs_count);
-			cksum_unit_size = seg->ee_cksum_buf.b_nob/chunk_cs_count;
-			M0_ASSERT(cksum_unit_size);
-		}
 
 		if (length[0] > 0) {
 			if (cut_left)
 				cut_left(seg, &clip, val_orig);
 			bstart[0] = seg->ee_val;
-			if (seg->ee_cksum_buf.b_nob) {
-				cksum[0].b_nob = m0_extent_get_checksum_nob(chunk->e_start,
-				                                            length[0],
-									    it->ec_unit_size,
-									    cksum_unit_size);
-				cksum[0].b_addr = seg->ee_cksum_buf.b_addr;
-			}
 		}
 		if (length[2] > 0) {
 			if (cut_right)
 				cut_right(seg, &clip, val_orig);
 			bstart[2] = seg->ee_val;
-			if (seg->ee_cksum_buf.b_nob) {
-				cksum[2].b_nob  = m0_extent_get_checksum_nob(clip.e_end, length[2],
-				                                             it->ec_unit_size, 
-									     cksum_unit_size);
-				cksum[2].b_addr = m0_extent_get_checksum_addr(seg->ee_cksum_buf.b_addr,
-				                                              clip.e_end, 
-									      chunk->e_start,
-									      it->ec_unit_size,
-									      cksum_unit_size);
-			}
 		}
 		if (length[0] == 0 && length[2] == 0 && del)
 			del(seg);
 
 		rc = be_emap_split(it, tx, &vec, length[0] > 0 ?
-						chunk->e_start : ext0.e_start,
-						cksum);
+						chunk->e_start : ext0.e_start);
 		if (rc != 0)
 			break;
 
@@ -755,12 +671,9 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 	m0_format_footer_update(&map->em_key);
 	map->em_rec.er_start = 0;
 	map->em_rec.er_value = val;
-	map->em_rec.er_cksum_nob = 0;
-	emap_rec_init(&map->em_rec);
+	m0_format_footer_update(&map->em_rec);
 
 	++map->em_version;
-	M0_LOG(M0_DEBUG, "Nob: key = %"PRIu64" val = %"PRIu64" ",
-			 map->em_key_buf.b_nob, map->em_val_buf.b_nob );
 	op->bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
 		local_op,
 		m0_be_btree_insert(&map->em_mapping, tx, &local_op,
@@ -786,12 +699,6 @@ M0_INTERNAL void m0_be_emap_obj_delete(struct m0_be_emap *map,
 	struct m0_be_emap_cursor  it_s;
 	struct m0_be_emap_cursor *it = &it_s;
 #endif
-
-	/* Clear record buffer before lookup as it will use m0_buf for allocation
-	 * and saving the variable size record having checksum
-	 */
-	it->ec_recbuf.b_addr = NULL;
-	it->ec_recbuf.b_nob  = 0;
 
 	m0_be_op_active(op);
 
@@ -888,14 +795,9 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 				   m0_bcount_t             nr,
 				   struct m0_be_tx_credit *accum)
 {
-	uint64_t emap_rec_size;
-
 	M0_PRE(M0_IN(optype, (M0_BEO_CREATE, M0_BEO_DESTROY, M0_BEO_INSERT,
 			      M0_BEO_DELETE, M0_BEO_UPDATE,
 			      M0_BEO_MERGE, M0_BEO_SPLIT, M0_BEO_PASTE)));
-
-	/* emap rec static size + size of max checksum possible */
-	emap_rec_size = sizeof map->em_rec + max_cksum_size() * MAX_DUS;
 
 	switch (optype) {
 	case M0_BEO_CREATE:
@@ -907,31 +809,31 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 		break;
 	case M0_BEO_INSERT:
 		m0_be_btree_insert_credit(&map->em_mapping, nr,
-			sizeof map->em_key, emap_rec_size, accum);
+			sizeof map->em_key, sizeof map->em_rec, accum);
 		break;
 	case M0_BEO_DELETE:
 		m0_be_btree_delete_credit(&map->em_mapping, nr,
-			sizeof map->em_key, emap_rec_size, accum);
+			sizeof map->em_key, sizeof map->em_rec, accum);
 		break;
 	case M0_BEO_UPDATE:
 		m0_be_btree_update_credit(&map->em_mapping, nr,
-			emap_rec_size, accum);
+			sizeof map->em_rec, accum);
 		break;
 	case M0_BEO_MERGE:
 		m0_be_btree_delete_credit(&map->em_mapping, nr,
-			sizeof map->em_key, emap_rec_size, accum);
+			sizeof map->em_key, sizeof map->em_rec, accum);
 		m0_be_btree_insert_credit(&map->em_mapping, nr,
-			sizeof map->em_key, emap_rec_size, accum);
+			sizeof map->em_key, sizeof map->em_rec, accum);
 		m0_be_btree_update_credit(&map->em_mapping, nr,
-			emap_rec_size, accum);
+			sizeof map->em_rec, accum);
 		break;
 	case M0_BEO_SPLIT:
 		m0_be_btree_delete_credit(&map->em_mapping, 1,
-			sizeof map->em_key, emap_rec_size, accum);
+			sizeof map->em_key, sizeof map->em_rec, accum);
 		m0_be_btree_insert_credit(&map->em_mapping, nr,
-			sizeof map->em_key, emap_rec_size, accum);
+			sizeof map->em_key, sizeof map->em_rec, accum);
 		m0_be_btree_update_credit(&map->em_mapping, 1,
-			emap_rec_size, accum);
+			sizeof map->em_rec, accum);
 		M0_BE_CREDIT_INC(nr, M0_BE_CU_EMAP_SPLIT, accum);
 		break;
 	case M0_BEO_PASTE:
@@ -963,67 +865,34 @@ be_emap_ksize(const void* k)
 static m0_bcount_t
 be_emap_vsize(const void* d)
 {
-	return sizeof(struct m0_be_emap_rec) +
-		((struct m0_be_emap_rec *)d)->er_cksum_nob;
+	return sizeof(struct m0_be_emap_rec);
 }
 
 static int
 emap_it_pack(struct m0_be_emap_cursor *it,
-             void (*btree_func)(struct m0_be_btree  *btree,
-			        struct m0_be_tx     *tx,
-			        struct m0_be_op     *op,
-			        const struct m0_buf *key,
-			        const struct m0_buf *val),
+	     void (*btree_func)(struct m0_be_btree *btree,
+				struct m0_be_tx    *tx,
+				struct m0_be_op    *op,
+			  const struct m0_buf      *key,
+			  const struct m0_buf      *val),
 	     struct m0_be_tx *tx)
 {
 	const struct m0_be_emap_seg *ext = &it->ec_seg;
 	struct m0_be_emap_key       *key = &it->ec_key;
 	struct m0_be_emap_rec       *rec = &it->ec_rec;
-	struct m0_buf rec_buf  = {};
-	struct m0_be_emap_rec       *rec_buf_ptr;
-	int len, rc;
 
 	key->ek_prefix = ext->ee_pre;
 	key->ek_offset = ext->ee_ext.e_end;
-	emap_key_init(key);
+	m0_format_footer_update(key);
 	rec->er_start  = ext->ee_ext.e_start;
 	rec->er_value  = ext->ee_val;
-	rec->er_cksum_nob = ext->ee_cksum_buf.b_nob;
-	rec->er_unit_size = it->ec_unit_size;
-
-	/* Layout/format of emap-record (if checksum is present) which gets
-	 * written:
-	 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
-	 * It gets stored as contigious buffer, so allocating buffer
-	 */
-
-	/* Total size of buffer needed for storing emap extent & assign */
-	len = sizeof(struct m0_be_emap_rec) + rec->er_cksum_nob;
-	if ((rc = m0_buf_alloc(&rec_buf, len)) != 0) {
-		return rc;
-	}
-
-
-	/* Copy emap record till checksum buf start */
-	rec_buf_ptr = (struct m0_be_emap_rec *)rec_buf.b_addr;
-	*rec_buf_ptr = *rec;
-
-	/* Copy checksum array into emap record */
-	if (rec->er_cksum_nob ) {
-		memcpy( (void *)&rec_buf_ptr->er_footer,
-				ext->ee_cksum_buf.b_addr, rec->er_cksum_nob );
-	}
-
-	emap_rec_init(rec_buf_ptr);
-
+	m0_format_footer_update(rec);
 	++it->ec_map->em_version;
 	it->ec_op.bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
-			op,
-			btree_func(&it->ec_map->em_mapping, tx, &op, &it->ec_keybuf,
-				   &rec_buf),
-			bo_u.u_btree.t_rc);
-
-	m0_buf_free(&rec_buf);
+		op,
+		btree_func(&it->ec_map->em_mapping, tx, &op, &it->ec_keybuf,
+			   &it->ec_recbuf),
+		bo_u.u_btree.t_rc);
 
 	return it->ec_op.bo_u.u_emap.e_rc;
 }
@@ -1048,43 +917,18 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 	rc = op->bo_u.u_btree.t_rc;
 	if (rc == 0) {
 		m0_be_btree_cursor_kv_get(&it->ec_cursor, &keybuf, &recbuf);
-
-		/* Key operation */
 		key = keybuf.b_addr;
+		rec = recbuf.b_addr;
 		it->ec_key = *key;
-
-		/* Record operation */
-		if (it->ec_recbuf.b_addr != NULL) {
-			m0_buf_free(&it->ec_recbuf);
-		}
-
-		/* Layout/format of emap-record (if checksum is present) which gets
-		 * written:
-		 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
-		 * It gets stored as contigious buffer, so allocating buffer
-		 */
-		rc = m0_buf_alloc(&it->ec_recbuf, recbuf.b_nob);
-		if ( rc != 0)
-			return rc;
-
-		/* Copying record buffer and loading into it->ec_rec, note record
-		 * will have incorrect footer in case of b_nob, but it->ec_recbuf
-		 * will have all correct values.
-		 */
-		memcpy(it->ec_recbuf.b_addr, recbuf.b_addr, recbuf.b_nob );
-		rec = it->ec_recbuf.b_addr;
 		it->ec_rec = *rec;
-
+		emap_key_init(&it->ec_key);
+		emap_rec_init(&it->ec_rec);
 		ext->ee_pre         = key->ek_prefix;
 		ext->ee_ext.e_start = rec->er_start;
 		ext->ee_ext.e_end   = key->ek_offset;
 		m0_ext_init(&ext->ee_ext);
 		ext->ee_val         = rec->er_value;
-		ext->ee_cksum_buf.b_nob  = rec->er_cksum_nob;
-		ext->ee_cksum_buf.b_addr = rec->er_cksum_nob ?
-								 (void *)&rec->er_footer : NULL;
-		it->ec_unit_size = rec->er_unit_size;
- 		if (!emap_it_prefix_ok(it))
+		if (!emap_it_prefix_ok(it))
 			rc = -ESRCH;
 	}
 	it->ec_op.bo_u.u_emap.e_rc = rc;
@@ -1097,11 +941,13 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 			 m0_bindex_t               offset,
 			 struct m0_be_emap        *map)
 {
-	/* As EMAP record will now be variable we can't assign fix space */
 	m0_buf_init(&it->ec_keybuf, &it->ec_key, sizeof it->ec_key);
+	m0_buf_init(&it->ec_recbuf, &it->ec_rec, sizeof it->ec_rec);
 
+	emap_key_init(&it->ec_key);
 	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
 	it->ec_key.ek_offset = offset + 1;
+	emap_rec_init(&it->ec_rec);
 
 	it->ec_map = map;
 	it->ec_version = map->em_version;
@@ -1110,10 +956,6 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 
 static void be_emap_close(struct m0_be_emap_cursor *it)
 {
-	if(it->ec_recbuf.b_addr != NULL ) {
-	   m0_buf_free(&it->ec_recbuf);
-	}
-
 	m0_be_btree_cursor_fini(&it->ec_cursor);
 }
 
@@ -1197,7 +1039,7 @@ be_emap_invariant_check(struct m0_be_emap_cursor *it)
 			return false;
 		if (!_0C(m0_format_footer_verify(&it->ec_key, true) == 0))
 			return false;
-		if (!_0C(m0_format_footer_verify(it->ec_recbuf.b_addr, true) == 0))
+		if (!_0C(m0_format_footer_verify(&it->ec_rec, true) == 0))
 			return false;
 		reached = it->ec_seg.ee_ext.e_end;
 		total += m0_ext_length(&it->ec_seg.ee_ext);
@@ -1229,9 +1071,6 @@ be_emap_invariant(struct m0_be_emap_cursor *it)
 	struct m0_be_emap_cursor  scan_s;
 	struct m0_be_emap_cursor *scan = &scan_s;
 #endif
-
-	scan->ec_recbuf.b_addr = NULL;
-	scan->ec_recbuf.b_nob  = 0;
 
 	m0_rwlock_read_lock(emap_rwlock(it->ec_map));
 	rc = be_emap_lookup(it->ec_map, &it->ec_key.ek_prefix, 0, scan);
@@ -1279,8 +1118,7 @@ static int
 be_emap_split(struct m0_be_emap_cursor *it,
 	      struct m0_be_tx          *tx,
 	      struct m0_indexvec       *vec,
-	      m0_bindex_t               scan,
-	      struct m0_buf            *cksum)
+	      m0_bindex_t               scan)
 {
 	int rc = 0;
 	m0_bcount_t count;
@@ -1295,8 +1133,6 @@ be_emap_split(struct m0_be_emap_cursor *it,
 		it->ec_seg.ee_ext.e_start = scan;
 		it->ec_seg.ee_ext.e_end   = scan + count;
 		it->ec_seg.ee_val         = vec->iv_index[i];
-		it->ec_seg.ee_cksum_buf   = cksum[i];
-
 		if (it->ec_seg.ee_ext.e_end == seg_end)
 			/* The end of original segment is reached:
 			 * just update it instead of deleting and

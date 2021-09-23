@@ -26,8 +26,6 @@ m0tr_objects += lib/assert.o \
                   lib/m0lib.o \
                   lib/memory.o \
                   lib/misc.o \
-                  lib/cksum.o \
-                  lib/cksum_utils.o \
                   lib/mutex.o \
                   lib/queue.o \
                   lib/protocol_xc.o \

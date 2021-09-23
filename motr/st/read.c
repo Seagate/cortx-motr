@@ -181,7 +181,7 @@ static int write_objs(void)
 		st_entity_open(&obj.ob_entity);
 
 		/* Create the write request */
-		st_obj_op(&obj, M0_OC_WRITE, &ext, &data, NULL, 0, 0, &ops[0]);
+		st_obj_op(&obj, M0_OC_WRITE, &ext, &data, &attr, 0, 0, &ops[0]);
 
 		/* Launch the write request*/
 		st_op_launch(ops, 1);
@@ -262,7 +262,7 @@ static void read_one_block(void)
 	st_entity_open(&obj.ob_entity);
 
 	/* Create the read request */
-	st_obj_op(&obj, M0_OC_READ, &ext, &data, NULL, 0, 0, &ops[0]);
+	st_obj_op(&obj, M0_OC_READ, &ext, &data, &attr, 0, 0, &ops[0]);
 	ST_ASSERT_FATAL(rc == 0);
 	ST_ASSERT_FATAL(ops[0] != NULL);
 	ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
@@ -343,7 +343,7 @@ static void read_multiple_blocks(void)
 	st_entity_open(&obj.ob_entity);
 
 	/* Create the read request */
-	st_obj_op(&obj, M0_OC_READ, &ext, &data, NULL, 0, 0, &ops[0]);
+	st_obj_op(&obj, M0_OC_READ, &ext, &data, &attr, 0, 0, &ops[0]);
 	ST_ASSERT_FATAL(rc == 0);
 	ST_ASSERT_FATAL(ops[0] != NULL);
 	ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
@@ -438,7 +438,7 @@ static void read_multiple_blocks_into_aligned_buffers(void)
 	st_entity_open(&obj.ob_entity);
 
 	/* Create the read request */
-	st_obj_op(&obj, M0_OC_READ, &ext, &data, NULL, 0, 0, &ops[0]);
+	st_obj_op(&obj, M0_OC_READ, &ext, &data, &attr, 0, 0, &ops[0]);
 	ST_ASSERT_FATAL(rc == 0);
 	ST_ASSERT_FATAL(ops[0] != NULL);
 	ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
@@ -531,7 +531,7 @@ static void read_objs_in_parallel(void)
 		st_entity_open(&objs[i].ob_entity);
 
 		st_obj_op(&objs[i], M0_OC_READ,
-			  &ext[i], &data[i], NULL, 0, 0, &ops[i]);
+			  &ext[i], &data[i], &attr[i], 0, 0, &ops[i]);
 		if (ops[i] == NULL)
 			break;
 	}
