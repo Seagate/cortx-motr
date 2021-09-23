@@ -144,7 +144,7 @@ static inline bool is_page_read(struct data_buf *dbuf)
  */
 M0_INTERNAL bool data_buf_invariant(const struct data_buf *db)
 {
-	return (db != NULL &&
+	return M0_RC(db != NULL &&
 	       data_buf_bob_check(db) &&
 	       ergo(db->db_buf.b_addr != NULL, db->db_buf.b_nob > 0));
 }

@@ -188,7 +188,7 @@ motr_libmotr_la_CPPFLAGS  = -DM0_TARGET='libmotr' $(AM_CPPFLAGS)
 motr_libmotr_la_LDFLAGS   = -version-info @LT_VERSION@ -pthread $(AM_LDFLAGS)
 motr_libmotr_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
                             @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ \
-                            @DL_LIBS@ @CASSANDRA_LIBS@ @UV_LIBS@ @OPENSSL_LIBS@
+                            @DL_LIBS@ @CASSANDRA_LIBS@ @UV_LIBS@
 
 if HAVE_ISAL
 motr_libmotr_la_LIBADD += @ISAL_LIBS@

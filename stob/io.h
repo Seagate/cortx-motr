@@ -404,18 +404,6 @@ struct m0_stob_io {
 	/** IO launch time. */
 	m0_time_t                   si_start;
 	uint64_t                    si_id;
-
-	/* This checksum should be for stob IO, 
-	 * During Write will be populated checksum in this from request FOP  
-	 * During Read stob IO code will populate this  
-	 */
-	struct m0_buf               si_cksum;
-	/* Size of a Data Unit for which checksum is computed */
-	m0_bindex_t                 si_unit_sz;
-	/* Size of single unit of checksum e.g md5 checksum with digest has 128 byte size */
-	m0_bcount_t                 si_cksum_sz;
-	/* Size of checksum actually put into buffer*/
-	m0_bcount_t si_cksum_nob_read;
 };
 
 struct m0_stob_io_op {

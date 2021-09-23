@@ -94,8 +94,6 @@ m0_idx_fini
 m0_idx_op
 m0_op_kick
 m0_rc
-m0_client_calculate_pi
-m0_calc_verify_cksum_one_unit
 m0_obj_write_lock_get
 m0_obj_write_lock_get_sync
 m0_obj_read_lock_get

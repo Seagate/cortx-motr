@@ -191,7 +191,6 @@ struct m0_be_emap_seg {
 	struct m0_ext     ee_ext;
 	/** Value associated with the extent. */
 	uint64_t          ee_val;
-	struct m0_buf     ee_cksum_buf;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /**
@@ -211,9 +210,6 @@ struct m0_be_emap_cursor {
 	struct m0_buf             ec_keybuf;
 	struct m0_buf             ec_recbuf;
 	struct m0_uint128         ec_prefix;
-	m0_bindex_t               ec_unit_size;
-	/** Points to checksum info received in IO FOP (write operation) */
-	struct m0_buf             ec_app_cksum_buf;
 	struct m0_be_op           ec_op;
 };
 
@@ -308,8 +304,7 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
  */
 M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
 				  struct m0_be_tx          *tx,
-				  struct m0_indexvec       *vec,
-				  struct m0_buf            *cksum);
+				  struct m0_indexvec       *vec);
 
 /**
    Paste segment (ext, val) into the map, deleting or truncating overlapping
