@@ -26,7 +26,8 @@ import logging
 import glob
 import time
 from cortx.utils.conf_store import Conf
-
+MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-server"
+MOTR_MKFS_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-mkfs"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
@@ -208,6 +209,8 @@ def motr_config(self):
     if self.k8:
         if not verify_libfabric(self):
             raise MotrError(errno.EINVAL, "libfabric is not up.")
+        self.logger.info(f"Executing {MOTR_CONFIG_SCRIPT}")
+        execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
         return
     else:
         if not verify_lnet(self):
@@ -1150,3 +1153,18 @@ def delete_part(self, device, part_num):
     stdin_str = str("d\n"+f"{part_num}"+"\n" + "w\n")
     ret = execute_command(self, cmd, stdin=stdin_str, verbose=True)
     return ret[1]
+
+# If service is one of [ios,confd,hax] then we expect fid to start the service
+# and start services using motr-mkfs and motr-server.
+# For other services like 'motr-free-space-mon' we do nothing.
+def start_service(self, service, fid):
+    self.logger.info(f"service={service}\nfid={fid}\n")
+    if service in ["ios", "confd", "hax"]:
+        if fid:
+            cmd = f"sh {MOTR_MKFS_SCRIPT_PATH} {fid}"
+            ret = execute_command(self, cmd, verbose=True)
+            cmd = f"sh {MOTR_MKFS_SCRIPT_PATH} {fid}"
+            ret = execute_command(self, cmd, verbose=True)
+    else:
+        self.logger.info(f"NOOP\n")
+    return
