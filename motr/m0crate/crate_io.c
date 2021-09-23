@@ -322,8 +322,7 @@ int cr_io_vector_prep(struct m0_workload_io *cwi,
 	m0_bitmap_fini(&segment_indices);
 	op_ctx->coc_buf_vec = buf_vec;
 	op_ctx->coc_index_vec = index_vec;
-	/**TODO: set attr to NULL to disable cksum, enable after addding cksum in ST */
-	op_ctx->coc_attr = NULL;
+	op_ctx->coc_attr = attr;
 
 	return 0;
 enomem:

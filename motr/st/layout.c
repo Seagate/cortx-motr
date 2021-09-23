@@ -102,7 +102,6 @@ static int write_obj(struct m0_uint128 id)
 	struct m0_bufvec     attr;
 
 	M0_CLIENT_THREAD_ENTER;
-	M0_SET0(&obj);
 
 	/* Prepare the data with 'value' */
 	blk_cnt = 4;
@@ -146,8 +145,7 @@ static int write_obj(struct m0_uint128 id)
 		&obj, &st_layout_container.co_realm,
 		&id, layout_id);
 	st_entity_open(&obj.ob_entity);
-	//M0_ASSERT(obj.ob_attr.oa_layout_id == layout_id);
-	st_obj_op(&obj, M0_OC_WRITE, &ext, &data, NULL, 0, 0, &ops[0]);
+	st_obj_op(&obj, M0_OC_WRITE, &ext, &data, &attr, 0, 0, &ops[0]);
 	st_op_launch(ops, 1);
 	rc = st_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
 					       M0_OS_STABLE),
@@ -631,7 +629,7 @@ static int write_io_segs(struct m0_uint128 id, int nr_io_segs,
 		&obj, &st_layout_container.co_realm,
 		&id, layout_id);
 	st_entity_open(&obj.ob_entity);
-	st_obj_op(&obj, M0_OC_WRITE, &ext, &data, NULL, 0, 0, &ops[0]);
+	st_obj_op(&obj, M0_OC_WRITE, &ext, &data, &attr, 0, 0, &ops[0]);
 	st_op_launch(ops, 1);
 	rc = st_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
 					       M0_OS_STABLE),

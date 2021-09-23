@@ -286,11 +286,8 @@ static int write_data_to_object(struct m0_obj *obj,
 	int                  rc;
 	struct m0_op        *ops[1] = {NULL};
 
-	/** Create write operation
-	 *  CKSUM_TODO: calculate cksum and pass in
-        *  attr instead of NULL
-        */
-	rc = m0_obj_op(obj, M0_OC_WRITE, ext, data, NULL, 0, 0, &ops[0]);
+	/* Create write operation */
+	rc = m0_obj_op(obj, M0_OC_WRITE, ext, data, attr, 0, 0, &ops[0]);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -417,7 +414,7 @@ int m0_write(struct m0_container *container, char *src,
 		M0_ASSERT(rc == bcount);
 
 		/* Copy data to the object*/
-		rc = write_data_to_object(&obj, &ext, &data, NULL);
+		rc = write_data_to_object(&obj, &ext, &data, &attr);
 		if (rc != 0) {
 			fprintf(stderr, "Writing to object failed!\n");
 			break;
@@ -539,7 +536,7 @@ int m0_read(struct m0_container *container,
 		prepare_ext_vecs(&ext, &attr, bcount,
 				 block_size, &last_index);
 
-		rc = read_data_from_object(&obj, &ext, &data, NULL, flags);
+		rc = read_data_from_object(&obj, &ext, &data, &attr, flags);
 		if (rc != 0) {
 			fprintf(stderr, "Reading from object failed!\n");
 			break;

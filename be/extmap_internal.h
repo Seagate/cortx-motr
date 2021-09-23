@@ -108,16 +108,6 @@ struct m0_be_emap_rec {
 	   Value associated with the segment.
 	 */
 	uint64_t                er_value;
-	/** unit_size */
-	m0_bindex_t		er_unit_size;
-
-	/* Note: Layout/format of emap-record (if checksum is present): 
-	 * - [Hdr| Balloc-Ext-Start| Balloc-Ext-Value| CS-nob| CS-Array[...]| Ftr]
-	 * Record gets stored as contigious buffer
-	 * ***** ChecksumArray[0...(er_cksum_nob -1)] *****
-	 */
-	/** checksum buffer size */
-	uint32_t		er_cksum_nob;
 	struct m0_format_footer er_footer;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
