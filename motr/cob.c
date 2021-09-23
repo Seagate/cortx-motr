@@ -1981,14 +1981,13 @@ M0_INTERNAL int m0__obj_attr_get_sync(struct m0_obj *obj)
 	if (pv == NULL)
 		return M0_ERR(-EINVAL);
 	/* Allocate and initialise cob request. */
-	cr = cob_req_alloc(pv);
+	cr = cob_req_alloc(pv, cinst);
 	if (cr == NULL)
 		return M0_ERR(-ENOMEM);
 
 	m0_fid_gob_make(&cr->cr_fid,
 			obj->ob_entity.en_id.u_hi, obj->ob_entity.en_id.u_lo);
 	cr->cr_flags |= COB_REQ_SYNC;
-	cr->cr_cinst  = cinst;
 	rc = cob_make_name(cr);
 	if (rc != 0)
 		goto free_req;
@@ -2050,13 +2049,12 @@ M0_INTERNAL int m0__obj_layout_send(struct m0_obj *obj,
 	pv = m0_pool_version_find(&cinst->m0c_pools_common,
 				  &obj->ob_attr.oa_pver);
 	M0_ASSERT(pv != NULL);
-	cr = cob_req_alloc(pv);
+	cr = cob_req_alloc(pv, cinst);
 	if (cr == NULL)
 		return -ENOMEM;
 
 	m0_fid_gob_make(&cr->cr_fid, ent_id.u_hi, ent_id.u_lo);
 	cr->cr_flags |= COB_REQ_ASYNC;
-	cr->cr_cinst  = cinst;
 	cr->cr_op = op;
 	cr->cr_opcode = op->op_code;
 	cr->cr_op_sm_grp = ol->ol_sm_grp;
