@@ -214,7 +214,7 @@ def motr_config(self):
         return
     else:
         if not verify_lnet(self):
-            raise MotrError(errno.EINVAL, "lent is not up.")
+            raise MotrError(errno.EINVAL, "lnet is not up.")
 
     is_hw = is_hw_node(self)
     if is_hw:
