@@ -104,36 +104,27 @@ function expected_trace_lines_num()
     return 0
 }
 
-function addb_dump()
+function addb2_dump()
 {
-    local outdir="${ADDB_DUMP_DIR}"
-    local outfile
-    local inpfile
-    local fid
-    local a2d=$MOTR_ROOT/utils/m0addb2dump
+    rm -fR "${ADDB_DUMP_DIR}"
+    mkdir "${ADDB_DUMP_DIR}"
 
-    rm -fR "${outdir}"
-    mkdir "${outdir}"
+    _info "Dumping ADDB2..."
 
-    for i in ${!DTM0_IT_M0D_PIDS[@]} ; do
-        fid=$(echo "${DTM0_IT_M0D_FIDS_HEX[i]}" | awk -F'x' '{ print $2; }')
-        outfile="${outdir}/addb_${fid}.dump"
-        inpfile="${M0D_DIR_COMMON}${DTM0_IT_M0D_FIDS_HEX[i]}/addb-stobs-${DTM0_IT_M0D_PIDS[i]}/o/100000000000000:2"
-        _info "Dumping ${inpfile} -> ${outfile} ..."
-        $a2d -f "${inpfile}" > "${outfile}"
-    done
-
-    inpfile="$PWD/addb_${CLIENT_PID}/o/100000000000000:2"
-    fid=$(echo "$DTM0_IT_CLI_FID_HEX" | awk -F'x' '{ print $2; }')
-    outfile="${outdir}/addb_${fid}.dump"
-    _info "Dumping ${inpfile} -> ${outfile} ..."
-    $a2d -f "${inpfile}" > "${outfile}"
+    dtm0_it_m0ds_addb2_dump "${ADDB_DUMP_DIR}" \
+        "${MOTR_ROOT}/utils/m0addb2dump" \
+        "${M0D_DIR_COMMON}"
+    dtm0_it_cli_addb2_dump "${ADDB_DUMP_DIR}" \
+        "${MOTR_ROOT}/utils/m0addb2dump" \
+        "${PWD}/addb_${CLIENT_PID}/o/100000000000000:2"
 }
 
 function traces_dump()
 {
     local fid
     local out
+
+    _info "Dumping traces..."
 
     for i in ${!DTM0_IT_M0D_PIDS[@]} ; do
         fid=$(echo "${DTM0_IT_M0D_FIDS_HEX[i]}" | awk -F'x' '{ print $2; }')
@@ -192,8 +183,7 @@ function main()
 
     stop_cluster
 
-    addb_dump
-    _info "Dumping traces..."
+    addb2_dump
     traces_dump
 
     _info "Checking processes exit status..."

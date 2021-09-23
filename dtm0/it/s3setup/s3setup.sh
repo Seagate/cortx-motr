@@ -34,7 +34,6 @@ S3_VAR_DIR="/var/log/seagate/motr"
 S3_DIR_COMMON="${S3_VAR_DIR}/s3server-0x720000000000000"
 ADDB_DUMP_DIR="/tmp/s3it-addb-out"
 
-ADDB2DUMP_S3="/usr/sbin/m0addb2dump_s3"
 S3_ADDBPLUGIN_LIB="/opt/seagate/cortx/s3/addb-plugin/libs3addbplugin.so"
 
 S3BENCH_URL="https://github.com/Seagate/s3bench/releases/download/v2021-06-28/s3bench.2021-06-28"
@@ -142,32 +141,20 @@ function s3bench_run()
     $S3BENCH_BIN -accessKey $ak -accessSecret "${sk}" -bucket test1 -endpoint http://127.0.0.1  -numClients 4 -numSamples 4 -objectSize 1Mb
 }
 
-function addb_dump()
+function addb2_dump()
 {
-    local outdir="${ADDB_DUMP_DIR}"
-    local outfile
-    local inpfile
-    local fid
-    local a2d="${MOTR_DIR}/utils/m0addb2dump"
+    rm -fR "${ADDB_DUMP_DIR}"
+    mkdir "${ADDB_DUMP_DIR}"
 
-    rm -fR "${outdir}"
-    mkdir "${outdir}"
+    echo "Dumping ADDB2..."
 
-    # Dumping addb2 of m0ds
-    for i in ${!DTM0_IT_M0D_PIDS[@]} ; do
-        fid=$(echo "${DTM0_IT_M0D_FIDS_HEX[i]}" | awk -F'x' '{ print $2; }')
-        outfile="${outdir}/addb_${fid}.dump"
-        inpfile="${M0D_DIR_COMMON}${DTM0_IT_M0D_FIDS_HEX[i]}/addb-stobs-${DTM0_IT_M0D_PIDS[i]}/o/100000000000000:2"
-        echo "Dumping ${inpfile} -> ${outfile} ..."
-        $a2d -f "${inpfile}" > "${outfile}"
-    done
-
-    # Dumping addb2 of s3server
-    fid=$(echo "${DTM0_IT_S3_FID_HEX}" | awk -F'x' '{ print $2; }')
-    outfile="${outdir}/addb_${fid}.dump"
-    inpfile="${S3_DIR_COMMON}${DTM0_IT_S3_FID_HEX}/addb_${DTM0_IT_S3_PID}/o/100000000000000:2"
-    echo "Dumping ${inpfile} -> ${outfile} ..."
-    $ADDB2DUMP_S3 -p $S3_ADDBPLUGIN_LIB -f "${inpfile}" > "${outfile}"
+    dtm0_it_m0ds_addb2_dump "${ADDB_DUMP_DIR}" \
+        "${MOTR_DIR}/utils/m0addb2dump" \
+        "${M0D_DIR_COMMON}"
+    dtm0_it_s3_addb2_dump  "${ADDB_DUMP_DIR}" \
+        "${MOTR_DIR}/utils/m0addb2dump" \
+        "${S3_DIR_COMMON}" \
+        "${S3_ADDBPLUGIN_LIB}"
 }
 
 function s3workload()
@@ -181,7 +168,7 @@ function s3workload()
 
     cluster_stop
 
-    addb_dump
+    addb2_dump
 }
 
 function s3setup()
@@ -198,10 +185,6 @@ function s3setup()
     pcs cluster stop --force
 
     cfgs_backup
-
-    # We need to have original m0addb2dump utility to
-    # dump addb2 stob created by s3server.
-    cp /usr/sbin/m0addb2dump $ADDB2DUMP_S3
 
     rpm -e --nodeps cortx-motr cortx-hare
 
@@ -239,7 +222,7 @@ function s3setup()
 
     cluster_stop
 
-    addb_dump
+    addb2_dump
 }
 
 function main()
