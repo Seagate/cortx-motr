@@ -778,7 +778,8 @@ m0_fol_fdmi_filter_kv_substring(struct m0_fdmi_eval_ctx      *ctx,
 		if (fol_frag->rp_ops->rpo_type != &m0_fop_fol_frag_type)
 			continue;
 		fop_fol_frag = fol_frag->rp_data;
-		if (fop_fol_frag->ffrp_fop_code != M0_CAS_PUT_FOP_OPCODE)
+		if (fop_fol_frag->ffrp_fop_code != M0_CAS_PUT_FOP_OPCODE &&
+		    fop_fol_frag->ffrp_fop_code != M0_CAS_DEL_FOP_OPCODE)
 			continue;
 		cas_op = fop_fol_frag->ffrp_fop;
 		M0_ASSERT(cas_op != NULL);
