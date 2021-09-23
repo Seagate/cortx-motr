@@ -520,7 +520,7 @@ M0_INTERNAL void m0_cas_svc_init(void)
 	cas_fom_phases[M0_FOPH_INIT].sd_allowed |= M0_BITS(CAS_CHECK_PRE);
 	cas_fom_phases[M0_FOPH_TXN_OPEN].sd_allowed |= M0_BITS(CAS_START);
 	cas_fom_phases[M0_FOPH_QUEUE_REPLY].sd_allowed |=
-		M0_BITS(M0_FOPH_TXN_COMMIT_WAIT);
+		M0_BITS(M0_FOPH_TXN_LOGGED_WAIT);
 	m0_sm_conf_init(&cas_sm_conf);
 	m0_reqh_service_type_register(&m0_cas_service_type);
 	m0_cas_gc_init();
@@ -1215,14 +1215,14 @@ static int cas_fom_tick(struct m0_fom *fom0)
 				result = op_sync_wait(fom0);
 		}
 		if (cas_in_ut() && m0_fom_phase(fom0) == M0_FOPH_QUEUE_REPLY) {
-			m0_fom_phase_set(fom0, M0_FOPH_TXN_COMMIT_WAIT);
+			m0_fom_phase_set(fom0, M0_FOPH_TXN_LOGGED_WAIT);
 		}
 
 		/*
-		 * Once the transition TXN_COMMIT_WAIT->FINISH is completed,
+		 * Once the transition TXN_DONE_WAIT->FINISH is completed,
 		 * we need to send out P-msg if DTM0 is in use.
 		 */
-		if (phase == M0_FOPH_TXN_COMMIT_WAIT &&
+		if (phase == M0_FOPH_TXN_DONE_WAIT &&
 		    m0_fom_phase(fom0) == M0_FOPH_FINISH && is_dtm0_used) {
 			rc = m0_dtm0_on_committed(fom0, &cas_op(fom0)->cg_txd.dtd_id);
 			if (rc != 0)
@@ -1702,8 +1702,18 @@ M0_INTERNAL void (*cas__ut_cb_fini)(struct m0_fom *fom);
 
 static void cas_fom_fini(struct m0_fom *fom0)
 {
-	struct cas_fom *fom = M0_AMB(fom, fom0, cf_fom);
-	uint64_t        i;
+	struct m0_cas_rec *rec;
+	struct m0_cas_op  *op = cas_op(fom0);
+	struct cas_fom    *fom = M0_AMB(fom, fom0, cf_fom);
+	uint64_t           i;
+
+	for (i = 0; i < op->cg_rec.cr_nr; i++) {
+		rec = cas_at(op, i);
+
+		/* Finalise input AT buffers. */
+		cas_at_fini(&rec->cr_key);
+		cas_at_fini(&rec->cr_val);
+	}
 
 	if (cas_in_ut() && cas__ut_cb_done != NULL)
 		cas__ut_cb_done(fom0);
@@ -2395,7 +2405,6 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 	struct m0_cas_rec *rec;
 	int                ctg_rc = m0_ctg_op_rc(&fom->cf_ctg_op);
 	int                rc;
-	bool               at_fini = true;
 
 	M0_ASSERT(fom->cf_ipos < op->cg_rec.cr_nr);
 	rec_out = cas_out_at(rep, fom->cf_opos);
@@ -2413,7 +2422,6 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 		      (fom->cf_curpos < rec->cr_rc + 1)))) {
 			/* Continue with the same iteration. */
 			--fom->cf_ipos;
-			at_fini = false;
 		} else {
 			/*
 			 * End the iteration on ctg cursor error because it
@@ -2440,11 +2448,6 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 	M0_LOG(M0_DEBUG, "pos: %"PRId64" rc: %d", fom->cf_opos, rc);
 	rec_out->cr_rc = rc;
 
-	if (at_fini) {
-		/* Finalise input AT buffers. */
-		cas_at_fini(&rec->cr_key);
-		cas_at_fini(&rec->cr_val);
-	}
 	/*
 	 * Out buffers are passed to RPC AT layer. They will be deallocated
 	 * automatically as part of a reply FOP.
@@ -2857,7 +2860,7 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "dtm0-op-done",         CAS_DTM0,             M0_FOPH_SUCCESS },
 	{ "dtm0-op-fail",         CAS_DTM0,             M0_FOPH_FAILURE },
 
-	{ "ut-short-cut",         M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_COMMIT_WAIT }
+	{ "ut-short-cut",         M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_LOGGED_WAIT }
 };
 
 static struct m0_sm_conf cas_sm_conf = {

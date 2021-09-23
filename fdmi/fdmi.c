@@ -449,10 +449,13 @@
    @subsection FDMI-DLD-lspec-fdmi-filter-evaluator FDMI filter evaluator
    FDMI filter evaluator is responsible for filter expression calculation.
    Filter expression is defined in FDMI filter (@ref m0_fdmi_filter) and is
-   represented by tree structure. FDMI filter evaluator traverses filter
-   expression tree and calculates a result. The result is always boolean and
-   indicates whether posted FDMI record notification matches against filter
-   or not.
+   represented either by:
+   - tree structure. FDMI filter evaluator traverses filter expression tree and
+     calculates a result;
+   - CAS pool and a substring for KV pair. FDMI filter checks if all of the
+     substrings are present in value part of kv pair.
+   The result is always boolean and indicates whether posted FDMI record
+   notification matches against filter or not.
 
    @subsection FDMI-DLD-lspec-fdmi-plugin-dock FDMI Plugin dock
    FDMI Plugin dock is responsible for:
