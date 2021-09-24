@@ -10791,29 +10791,31 @@ static void ut_mt_tree_oper(void)
 static bool validate_nodes_on_be_segment(struct segaddr *rnode_segaddr)
 {
 	const struct node_type     *nt;
-	struct node_data {
-		struct segaddr      node_segaddr;
-		uint16_t            rec_idx;
+	struct {
+		struct segaddr node_segaddr;
+		uint16_t       rec_idx;
 		}                   stack[MAX_TREE_HEIGHT + 1];
 	uint32_t                    stack_level = 0;
-	struct nd                   _node;
-	struct slot                 _slot = { .s_node = &_node };
+	struct nd                   n;
+	struct slot                 s       = { .s_node = &n };
 	uint16_t                    rec_idx = 0;
 
 	nt = btree_node_format[segaddr_ntype_get(rnode_segaddr)];
-	_node.n_addr = *rnode_segaddr;
+	n.n_addr = *rnode_segaddr;
 
 	while (true) {
-		if (nt->nt_level(&_node) > 0 &&
-		    rec_idx < nt->nt_count_rec(&_node)) {
-			stack[stack_level] = (struct node_data) {
-						.node_segaddr = _node.n_addr,
-						.rec_idx      = rec_idx,
-						};
+		/**
+		 * Move down towards leaf node only if we have child nodes still
+		 * to traverse.
+		 */
+		if (nt->nt_level(&n) > 0 &&
+		    rec_idx < nt->nt_count_rec(&n)) {
+			stack[stack_level].node_segaddr = n.n_addr,
+			stack[stack_level].rec_idx      = rec_idx,
 			stack_level++;
-			_slot.s_idx = rec_idx;
-			nt->nt_child(&_slot, &_node.n_addr);
-			_node.n_addr.as_core = (uint64_t)segaddr_addr(&_node.n_addr);
+			s.s_idx = rec_idx;
+			nt->nt_child(&s, &n.n_addr);
+			n.n_addr.as_core = (uint64_t)segaddr_addr(&n.n_addr);
 			rec_idx = 0;
 			continue;
 		}
@@ -10823,16 +10825,22 @@ static bool validate_nodes_on_be_segment(struct segaddr *rnode_segaddr)
 		 * parent.
 		 */
 
-		M0_ASSERT(nt->nt_isvalid(&_node.n_addr) &&
-			  nt->nt_opaque_get(&_node.n_addr) == NULL);
+		M0_ASSERT(nt->nt_isvalid(&n.n_addr) &&
+			  nt->nt_opaque_get(&n.n_addr) == NULL);
 		if (stack_level == 0)
 			break;
 
+		/**
+		 * Start moving up towards parent (or grand-parent) till we find
+		 * an ancestor whose child nodes are still to be traversed. If
+		 * we find an ancestor whose child nodes are still to be
+		 * traversed then we pick the next child node on the right.
+		 */
 		do {
 			stack_level--;
-			rec_idx      = stack[stack_level].rec_idx + 1;
-			_node.n_addr = stack[stack_level].node_segaddr;
-		} while (rec_idx >= nt->nt_count_rec(&_node) &&
+			rec_idx  = stack[stack_level].rec_idx + 1;
+			n.n_addr = stack[stack_level].node_segaddr;
+		} while (rec_idx >= nt->nt_count_rec(&n) &&
 			 stack_level > 0);
 	}
 
