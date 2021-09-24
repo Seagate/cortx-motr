@@ -1390,7 +1390,6 @@ static void poller(struct ma *ma)
 	while (1) {
 		if (ma->t_shutdown)
 			break;
-		nr = epoll_wait(ma->t_epollfd, ev, ARRAY_SIZE(ev), 1000);
 		nr = m0_poll(&pd, 1000);
 		if (nr < 0) {
 			M0_LOG(M0_DEBUG, "epoll: %i.", -errno);
@@ -3983,14 +3982,6 @@ const struct m0_net_xprt m0_net_sock_xprt = {
 	.nx_ops  = &xprt_ops
 };
 M0_EXPORTED(m0_net_sock_xprt);
-
-#ifndef ENABLE_LUSTRE
-const struct m0_net_xprt m0_net_lnet_xprt = {
-	.nx_name = "lnet",
-	.nx_ops  = &xprt_ops
-};
-M0_EXPORTED(m0_net_lnet_xprt);
-#endif /* ENABLE_LUSTRE */
 
 M0_INTERNAL int m0_net_sock_mod_init(void)
 {
