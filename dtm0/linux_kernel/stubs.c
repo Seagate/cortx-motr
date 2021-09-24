@@ -21,6 +21,33 @@
 
 #include "dtm0/drlink.h"
 
+struct dtm0_process;
+
+/* static */ int find_or_add(struct m0_dtm0_service *dtms,
+		       const struct m0_fid    *tgt,
+		       struct dtm0_process   **out)
+{
+	return 0;
+}
+
+bool m0_dtm0_recovery_disabled(void)
+{
+	return false;
+}
+
+struct m0_reqh;
+struct m0_motr;
+#include "conf/ha.h"
+M0_INTERNAL void cs_ha_process_event(struct m0_motr                *cctx,
+				     enum m0_conf_ha_process_event  event)
+{
+}
+
+M0_INTERNAL struct m0_motr *m0_cs_ctx_get(struct m0_reqh *reqh)
+{
+	return NULL;
+}
+
 M0_INTERNAL int  m0_dtm0_rpc_link_mod_init(void)
 {
 	return 0;

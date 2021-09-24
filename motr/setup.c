@@ -615,8 +615,8 @@ static bool bad_address(char *addr)
 	return addr == NULL || *addr == '\0';
 }
 
-static void cs_ha_process_event(struct m0_motr                *cctx,
-                                enum m0_conf_ha_process_event  event)
+/* static */ void cs_ha_process_event(struct m0_motr                *cctx,
+				      enum m0_conf_ha_process_event  event)
 {
 	enum m0_conf_ha_process_type type;
 
@@ -2501,6 +2501,14 @@ static struct m0_motr *cs_module2motr(struct m0_module *module)
 {
 	return bob_of(module, struct m0_motr, cc_module, &cs_bob_type);
 }
+/**
+ * Quite hackerish way enabling DTM recovery on singlenode.
+ */
+bool m0_dtm0_recovery_disabled(void)
+{
+	return access("/tmp/motr_dtm_recovery_v01_disabled", F_OK) == 0;
+}
+
 
 static int cs_level_enter(struct m0_module *module)
 {
@@ -2714,15 +2722,9 @@ static int cs_level_enter(struct m0_module *module)
 		return M0_RC(0);
 	case CS_LEVEL_STARTED_EVENT_FOR_M0D:
 		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
-
-		/* Quite hackerish way enabling DTM recovery on singlenode. */
-		if (access("/tmp/motr_dtm_recovery_v01_enable", F_OK) == 0) {
-			M0_LOG(M0_WARN, "DTM0 limited mode enabled, sending "
-			       "recovered message before "
-			       "actual recovery completed. "
-			       "Use for developement purpose only!");
-			cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_DTM_RECOVERED);
-		}
+		if (!m0_dtm0_recovery_disabled())
+			cs_ha_process_event(cctx,
+					    M0_CONF_HA_PROCESS_DTM_RECOVERED);
 
 		return M0_RC(0);
 	case CS_LEVEL_START:

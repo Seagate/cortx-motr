@@ -26,11 +26,20 @@ TEST_ROOT=/var/motr/all2all_test
 POOL_WIDTH=4
 IPOOL_WIDTH=2
 
+rm -f /tmp/motr_dtm_recovery_v01_disabled
 ${MOTR_UTILS_DIR}/m0setup --init-loop-only -s 1 -d ${TEST_ROOT} \
 		 --pool-width ${POOL_WIDTH} --ipool-width ${IPOOL_WIDTH}
 hctl bootstrap --mkfs cdf.yaml
 
+# remove after recovery code done.
+sleep 5
+
 systemctl stop m0d@0x7200000000000001:0x28
+
+# remove after recovery code done.
+sleep 5
+
+touch /tmp/motr_dtm_recovery_v01_disabled
 DATE_STARTED=$(date +%H:%M:%S)
 systemctl start m0d@0x7200000000000001:0x28
 

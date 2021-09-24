@@ -49,6 +49,9 @@ struct dtm0_process {
 	struct m0_tlink         dop_link;
 	uint64_t                dop_magic;
 
+	/** DTM0 service */
+	struct m0_reqh_service *dop_dtms;
+
 	/**
 	 * Listens for an event on process conf object's HA channel.
 	 * Updates dtm0_process status in the clink callback on HA notification.

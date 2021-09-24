@@ -207,7 +207,7 @@ static void co_rpc_link_connect(struct m0_co_context *context,
 	M0_CO_YIELD_RC(context, M0_FSO_WAIT);
 }
 
-static int find_or_add(struct m0_dtm0_service *dtms,
+/* static */ int find_or_add(struct m0_dtm0_service *dtms,
 		       const struct m0_fid    *tgt,
 		       struct dtm0_process   **out)
 {

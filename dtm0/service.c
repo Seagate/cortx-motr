@@ -38,6 +38,11 @@
 #include "reqh/reqh_service.h"       /* m0_reqh_service */
 #include "rpc/rpc_machine.h"         /* m0_rpc_machine */
 
+static int dtm0_service__ha_subscribe(struct m0_reqh_service *service);
+static void dtm0_process__ha_state_unsubscribe(struct dtm0_process *process);
+static void dtm0_process__ha_state_subscribe(struct dtm0_process *process,
+					     struct m0_conf_obj  *obj);
+
 static struct m0_dtm0_service *to_dtm(struct m0_reqh_service *service);
 static int dtm0_service_start(struct m0_reqh_service *service);
 static void dtm0_service_stop(struct m0_reqh_service *service);
@@ -333,7 +338,8 @@ out:
 static int dtm0_service_start(struct m0_reqh_service *service)
 {
         M0_PRE(service != NULL);
-        return dtm_service__origin_fill(service);
+        return dtm_service__origin_fill(service) ?:
+		dtm0_service__ha_subscribe(service);
 }
 
 static void dtm0_service_prepare_to_stop(struct m0_reqh_service *reqh_rs)
@@ -458,6 +464,8 @@ M0_INTERNAL int dtm0_process_init(struct dtm0_process    *proc,
 
 	m0_long_lock_init(&proc->dop_llock);
 
+	proc->dop_dtms = &dtms->dos_generic;
+
 	return M0_RC(0);
 }
 
@@ -466,6 +474,7 @@ M0_INTERNAL void dtm0_process_fini(struct dtm0_process *proc)
 	dopr_tlink_fini(proc);
 	m0_free(proc->dop_rep);
 	m0_long_lock_fini(&proc->dop_llock);
+	dtm0_process__ha_state_unsubscribe(proc);
 }
 
 M0_INTERNAL void dtm0_service_conns_term(struct m0_dtm0_service *service)
@@ -485,6 +494,157 @@ M0_INTERNAL void dtm0_service_conns_term(struct m0_dtm0_service *service)
 
 	M0_LEAVE();
 }
+
+/* --------------------------------- EVENTS --------------------------------- */
+
+#include "conf/confc.h"   /* m0_confc */
+#include "conf/diter.h"   /* m0_conf_diter */
+#include "conf/obj_ops.h" /* M0_CONF_DIRNEXT */
+#include "conf/helpers.h" /* m0_confc_root_open, m0_conf_process2service_get */
+#include "reqh/reqh.h"    /* m0_reqh2confc */
+
+extern bool m0_dtm0_recovery_disabled(void);
+
+#define M0_FID(c_, k_) (const struct m0_fid) { .f_container = c_, .f_key = k_ }
+
+static bool process_clink_cb(struct m0_clink *clink)
+{
+	struct dtm0_process    *process    = M0_AMB(process, clink,
+						    dop_ha_link);
+	struct m0_conf_obj     *process_obj = container_of(clink->cl_chan,
+							   struct m0_conf_obj,
+							   co_ha_chan);
+	struct m0_fid          *evented_proc_fid = &process_obj->co_id;
+	enum m0_ha_obj_state    evented_proc_state = process_obj->co_ha_state;
+	struct m0_reqh_service *dtms = process->dop_dtms;
+	struct dtm0_req_fop     req = { .dtr_msg = DTM_REDO };
+	struct m0_fom           dummy_parent = {};
+	int rc;
+
+	/* XXX: used for simple recovery triggering */
+	if (!m0_dtm0_recovery_disabled())
+		return false;
+
+	/* XXX: used for simple recovery triggering */
+	if (!(m0_fid_eq(evented_proc_fid,
+			&M0_FID(0x7200000000000001,0x28)) &&
+	      evented_proc_state == M0_NC_DTM_RECOVERING))
+		return false;
+
+	M0_ENTRY();
+	M0_LOG(M0_ERROR,
+	       " evented_proc_state=%d"
+	       " evented_proc_fid="FID_F,
+	       evented_proc_state,
+	       FID_P(evented_proc_fid));
+
+	/* XXX: fill dummy txr to avoid txd_invariant() hits */
+	rc = m0_dtm0_tx_desc_init(&req.dtr_txr, 1);
+	M0_ASSERT(rc == 0);
+	req.dtr_txr.dtd_ps.dtp_pa[0].p_fid = M0_FID(0x7200000000000001,0x28);
+	req.dtr_txr.dtd_ps.dtp_pa[0].p_state = M0_DTPS_INPROGRESS;
+	req.dtr_txr.dtd_id = (struct m0_dtm0_tid) {
+		.dti_ts = {.dts_phys = 100 },
+		.dti_fid = M0_FID(0x7200000000000001,0x28),
+	};
+
+	rc = m0_dtm0_req_post(to_dtm(dtms), &req, &process->dop_rserv_fid,
+			      &dummy_parent, true);
+	M0_ASSERT(rc == 0);
+
+	M0_LEAVE();
+	return false;
+}
+
+static void dtm0_process__ha_state_subscribe(struct dtm0_process *process,
+					     struct m0_conf_obj  *obj)
+{
+       M0_ENTRY();
+       m0_clink_init(&process->dop_ha_link, process_clink_cb);
+       m0_clink_add_lock(&obj->co_ha_chan, &process->dop_ha_link);
+       M0_LEAVE();
+}
+
+static void dtm0_process__ha_state_unsubscribe(struct dtm0_process *process)
+{
+       M0_ENTRY();
+       m0_clink_del_lock(&process->dop_ha_link);
+       m0_clink_fini(&process->dop_ha_link);
+       M0_LEAVE();
+}
+
+static bool conf_obj_is_process(const struct m0_conf_obj *obj)
+{
+       return m0_conf_obj_type(obj) == &M0_CONF_PROCESS_TYPE;
+}
+
+extern int find_or_add(struct m0_dtm0_service *dtms,
+		       const struct m0_fid    *tgt,
+		       struct dtm0_process   **out);
+
+static int dtm0_service__ha_subscribe(struct m0_reqh_service *service)
+{
+       struct m0_confc        *confc = m0_reqh2confc(service->rs_reqh);
+       struct m0_conf_root    *root;
+       struct m0_conf_diter    it;
+       struct m0_conf_obj     *obj;
+       struct m0_conf_process *process;
+       struct dtm0_process    *dtm0_process;
+       struct m0_dtm0_service *s;
+       struct m0_fid           rproc_fid;
+       struct m0_fid           rserv_fid;
+       struct m0_fid          *current_proc_fid = &service->rs_reqh->rh_fid;
+
+       int rc;
+
+       M0_ENTRY();
+
+       M0_PRE(service != NULL);
+       s = container_of(service, struct m0_dtm0_service, dos_generic);
+
+       /** UT workaround */
+       if (!m0_confc_is_inited(confc)) {
+               M0_LOG(M0_WARN, "confc is not initiated!");
+               return M0_RC(0);
+       }
+
+       rc = m0_confc_root_open(confc, &root);
+       if (rc != 0)
+               return M0_ERR(rc);
+
+       rc = m0_conf_diter_init(&it, confc,
+                               &root->rt_obj,
+                               M0_CONF_ROOT_NODES_FID,
+                               M0_CONF_NODE_PROCESSES_FID);
+       if (rc != 0) {
+               m0_confc_close(&root->rt_obj);
+               return M0_ERR(rc);
+       }
+
+       while ((rc = m0_conf_diter_next_sync(&it, conf_obj_is_process)) > 0) {
+               obj = m0_conf_diter_result(&it);
+               process = M0_CONF_CAST(obj, m0_conf_process);
+               rproc_fid = process->pc_obj.co_id;
+               rc = m0_conf_process2service_get(confc, &rproc_fid,
+                                                M0_CST_DTM0, &rserv_fid);
+               if (rc == 0) {
+		       /* skip current process */
+                       if (m0_fid_eq(&rproc_fid, current_proc_fid))
+                               continue;
+		       m0_mutex_lock(&s->dos_generic.rs_mutex);
+		       rc = find_or_add(s, &rserv_fid, &dtm0_process);
+		       M0_ASSERT(rc == 0);
+		       m0_mutex_unlock(&s->dos_generic.rs_mutex);
+		       dtm0_process__ha_state_subscribe(dtm0_process, obj);
+               }
+       }
+
+       m0_conf_diter_fini(&it);
+       m0_confc_close(&root->rt_obj);
+
+       return M0_RC(0);
+}
+
 
 /*
  *  Local variables:
