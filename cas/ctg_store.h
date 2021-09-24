@@ -28,11 +28,12 @@
 #include "fop/fom_generic.h"
 #include "fop/fom_long_lock.h"
 #include "be/op.h"
-#include "be/btree.h"
+#include "btree/btree.h"
 #include "be/btree_xc.h"
 #include "be/tx_credit.h"
 #include "format/format.h"
 #include "cas/cas.h"
+#include "stdio.h"
 
 /**
  * @defgroup cas-ctg-store
@@ -88,7 +89,13 @@
  * Every user should take care about locking of CAS catalogues.
  */
 
+#define M0_CTG_ROOT_NODE_ALIGN 1024
 
+enum {
+	M0_CTG_ROOT_NODE_SIZE = 1024,
+
+	/** This should align to Block size on the storage. Change as needed */
+};
 /** CAS catalogue. */
 struct m0_cas_ctg {
 	struct m0_format_header cc_head;
@@ -97,7 +104,9 @@ struct m0_cas_ctg {
 	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
 	 * before the m0_format_footer, where only persistent fields allowed
 	 */
-	struct m0_be_btree      cc_tree;
+	struct m0_btree        *cc_tree;
+	uint8_t                 cc_node[M0_CTG_ROOT_NODE_SIZE]
+			      __attribute__((aligned(M0_CTG_ROOT_NODE_ALIGN)));
 	struct m0_be_long_lock  cc_lock;
 	/** Channel to announce catalogue modifications (put, delete). */
 	struct m0_be_chan       cc_chan;
@@ -171,6 +180,7 @@ struct m0_cas_state {
 
 /** Structure that describes catalogue operation. */
 struct m0_ctg_op {
+	struct m0_cas_ctg *temp_ctg;
 	/** Caller FOM. */
 	struct m0_fom            *co_fom;
 	/** Catalogue for which the operation will be performed. */
@@ -184,9 +194,9 @@ struct m0_ctg_op {
 	 */
 	struct m0_be_op           co_beop;
 	/** BTree anchor used for inplace operations. */
-	struct m0_be_btree_anchor co_anchor;
+	//struct m0_be_btree_anchor co_anchor;
 	/** BTree cursor used for cursor operations. */
-	struct m0_be_btree_cursor co_cur;
+	struct m0_btree_cursor co_cur;
 	/** Shows whether catalogue cursor is initialised. */
 	bool                      co_cur_initialised;
 	/** Current cursor phase. */
@@ -744,7 +754,7 @@ M0_INTERNAL int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 /**
  * Insert record into meta catalogue.
  */
-M0_INTERNAL int m0_ctg__meta_insert(struct m0_be_btree  *meta,
+M0_INTERNAL int m0_ctg__meta_insert(struct m0_btree     *meta,
 				    const struct m0_fid *fid,
 			            struct m0_cas_ctg   *ctg,
 			            struct m0_be_tx     *tx);

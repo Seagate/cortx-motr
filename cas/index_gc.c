@@ -355,7 +355,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		rc = m0_ctg_op_rc(ctg_op);
 		m0_ctg_op_fini(ctg_op);
 		fom->cg_ctg_op_initialized = false;
-		if (rc == 0 && m0_be_btree_is_empty(&fom->cg_ctg->cc_tree)) {
+		if (rc == 0 && m0_btree_is_empty(fom->cg_ctg->cc_tree)) {
 			M0_LOG(M0_DEBUG, "tree cleaned, now drop it");
 			m0_ctg_op_init(ctg_op, fom0, 0);
 			fom->cg_ctg_op_initialized = true;

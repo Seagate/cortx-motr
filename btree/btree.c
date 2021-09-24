@@ -1646,6 +1646,21 @@ static void bnode_val_resize(struct slot *slot, int vsize_diff)
 	slot->s_node->n_type->nt_val_resize(slot, vsize_diff);
 }
 
+static int ctg_cmp(const void *key0, const void *key1)
+{
+	m0_bcount_t knob0 = sizeof(uint64_t) + *(const uint64_t *)key0;
+	m0_bcount_t knob1 = sizeof(uint64_t) + *(const uint64_t *)key1;
+	/**
+	 * @todo Cannot assert on on-disk data, but no interface to report
+	 * errors from here.
+	 */
+	M0_ASSERT(knob0 >= 8);
+	M0_ASSERT(knob1 >= 8);
+
+	return memcmp(key0 + 8, key1 + 8, min_check(knob0, knob1) - 8) ?:
+		M0_3WAY(knob0, knob1);
+}
+
 static bool bnode_find(struct slot *slot, const struct m0_btree_key *find_key)
 {
 	int                      i     = -1;
@@ -1674,7 +1689,8 @@ static bool bnode_find(struct slot *slot, const struct m0_btree_key *find_key)
 
 		m0_bufvec_cursor_init(&cur_1, &key.k_data);
 		m0_bufvec_cursor_init(&cur_2, &find_key->k_data);
-		diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
+		//diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
+		diff = ctg_cmp(key.k_data.ov_buf[0], find_key->k_data.ov_buf[0]);
 
 		M0_ASSERT(i < m && m < j);
 		if (diff < 0)
@@ -3899,7 +3915,8 @@ static bool fkvv_iskey_smaller(const struct nd *node, int cur_key_idx)
 
 	m0_bufvec_cursor_init(&cur_prev, &key_prev.k_data);
 	m0_bufvec_cursor_init(&cur_next, &key_next.k_data);
-	diff = m0_bufvec_cursor_cmp(&cur_prev, &cur_next);
+	//diff = m0_bufvec_cursor_cmp(&cur_prev, &cur_next);
+	diff = ctg_cmp(key_prev.k_data.ov_buf[0], key_next.k_data.ov_buf[0]);
 	if (diff >= 0)
 		return false;
 	return true;
@@ -6150,6 +6167,10 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
+		if (M0_FI_ENABLED("already_exists")){
+			bop->bo_op.o_sm.sm_rc = M0_ERR(-EEXIST);
+			return P_DONE;
+		}
 		M0_ASSERT(bop->bo_i == NULL);
 		bop->bo_i = m0_alloc(sizeof *oi);
 		if (bop->bo_i == NULL) {
@@ -8250,6 +8271,7 @@ M0_INTERNAL void m0_btree_minkey(struct m0_btree *arbor,
 	m0_sm_op_init(&bop->bo_op, &btree_get_kv_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
 }
+
 M0_INTERNAL void m0_btree_maxkey(struct m0_btree *arbor,
 				 const struct m0_btree_cb *cb, uint64_t flags,
 				 struct m0_btree_op *bop)
@@ -8413,6 +8435,12 @@ M0_INTERNAL void m0_btree_cursor_kv_get(struct m0_btree_cursor *it,
 		*val = M0_BUF_INIT(it->bc_val.b_nob, it->bc_val.b_addr);
 }
 
+bool m0_btree_is_empty(struct m0_btree *btree)
+{
+	M0_PRE(btree != NULL);
+	M0_PRE(btree->t_desc->t_root != NULL);
+	return (bnode_count_rec(btree->t_desc->t_root) == 0);
+}
 
 #ifndef __KERNEL__
 /**
