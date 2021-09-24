@@ -746,45 +746,60 @@ MOTR_SEARCH_LIBS([pthread_create], [c pthread], [PTHREAD_LIBS],
 )
 AC_SUBST([PTHREAD_LIBS])
 
-AS_IF([test x$use_linux = xyes],
-
-MOTR_SEARCH_LIBS([MD5_Init], [c crypto], [OPENSSL_LIBS],
-        [MD5_Init cannot be found! Try to install openssl.]
-)
-AC_SUBST([OPENSSL_LIBS])
-
-# check for aio library (io_submit(3) & co.)
-      [MOTR_SEARCH_LIBS([io_getevents], [aio c], [AIO_LIBS],
-        [io_getevents cannot be found! Try to install libaio-devel.])
-       AC_SUBST([AIO_LIBS])
-
-MOTR_SEARCH_LIBS([dlopen], [c dl], [DL_LIBS],
-        [dlopen cannot be found! Try to install libdl.]
-)
-AC_SUBST([DL_LIBS])
-
 # check for libedit library
 MOTR_SEARCH_LIBS([readline], [c edit], [LIBEDIT_LIBS],
-        [libedit cannot be found! Try to install libedit-devel.]
-)
+    [libedit cannot be found! Try to install libedit-devel.])
 AC_SUBST([LIBEDIT_LIBS])
 
-AS_IF([test x$use_linux = xyes],
-# check for aio library (io_submit(3) & co.)
-      [MOTR_SEARCH_LIBS([io_getevents], [aio c], [AIO_LIBS],
+AS_IF([test x$use_linux = xyes], [
+
+    MOTR_SEARCH_LIBS([MD5_Init], [c crypto ssl], [OPENSSL_LIBS],
+        [MD5_Init cannot be found! Try to install openssl.])
+    AC_SUBST([OPENSSL_LIBS])
+
+    # check for aio library (io_submit(3) & co.)
+    MOTR_SEARCH_LIBS([io_getevents], [aio c], [AIO_LIBS],
         [io_getevents cannot be found! Try to install libaio-devel.])
-       AC_SUBST([AIO_LIBS])
+    AC_SUBST([AIO_LIBS])
 
-# rt library is required for: aio_read(3), aio_write(3), timer_create(2)
-       MOTR_SEARCH_LIBS([aio_read], [rt aio c], [RT_LIBS],
-        [aio_read cannot be found! Try to install librt-devel or libaio-devel.]
-)
-AC_SUBST([RT_LIBS])
+    MOTR_SEARCH_LIBS([dlopen], [c dl], [DL_LIBS],
+        [dlopen cannot be found! Try to install libdl.])
+    AC_SUBST([DL_LIBS])
 
-MOTR_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
+    # check for aio library (io_submit(3) & co.)
+      MOTR_SEARCH_LIBS([io_getevents], [aio c], [AIO_LIBS],
+        [io_getevents cannot be found! Try to install libaio-devel.])
+    AC_SUBST([AIO_LIBS])
+
+    # rt library is required for: aio_read(3), aio_write(3), timer_create(2)
+    MOTR_SEARCH_LIBS([aio_read], [rt aio c], [RT_LIBS],
+        [aio_read cannot be found! Try to install librt-devel or libaio-devel.])
+    AC_SUBST([RT_LIBS])
+
+    MOTR_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
 	[uuid_generate cannot be found! Try to install libuuid and libuuid-devel.])
-AC_SUBST([UUID_LIBS])
-])
+    AC_SUBST([UUID_LIBS])
+    AC_CHECK_HEADERS([openssl/md5.h], [], [AC_MSG_ERROR([md5.h cannot be found!])])
+    AC_CHECK_HEADERS([isa-l.h],   [
+				# check for isa library
+				MOTR_SEARCH_LIBS([ec_encode_data], [c isal], [ISAL_LIBS],
+						[ec_encode_data cannot be found! \
+						 Try to install Intel ISA library package.]
+				)
+				AC_SUBST([ISAL_LIBS])
+
+				# define MACROs
+				AC_DEFINE([HAVE_ISAL])
+				AM_CONDITIONAL([HAVE_ISAL], [true])
+				AC_MSG_NOTICE([INTEL ISA-L Headers Available])
+			      ],
+			      [
+				AM_CONDITIONAL([HAVE_ISAL], [false])
+				AC_MSG_NOTICE([No INTEL ISA-L Headers])])
+], # else of AS_IF([test x$use_linux = xyes]
+[
+    AM_CONDITIONAL([HAVE_ISAL], [false])
+]) # end of AS_IF([test x$use_linux = xyes]
 
 #
 # Checking for required header files
@@ -796,8 +811,6 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h malloc.h memory.h netdb.h \
 
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 AC_CHECK_HEADERS([openssl/md5.h], [], [AC_MSG_ERROR([md5.h cannot be found!])])
-
-
 
 AC_HEADER_STDBOOL
 
