@@ -7216,9 +7216,11 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			}
 		}
 
-		bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
+		rc = bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
 
 		lock_op_unlock(tree);
+		if (rc == 0)
+			return fail(bop, rc);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	}
 	case P_CLEANUP:
@@ -7509,6 +7511,7 @@ static int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 		 * successful.
 		 */
 	case P_ACT: {
+		int			 rc;
 		m0_bcount_t		 ksize;
 		m0_bcount_t		 vsize;
 		void			*pkey;
@@ -7536,8 +7539,10 @@ static int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				  bnode_count(s.s_node) - 1;
 			bnode_rec(&s);
 		}
-		bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
+		rc = bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
 		lock_op_unlock(tree);
+		if (rc)
+			return fail(bop, rc);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	}
 	case P_CLEANUP:
