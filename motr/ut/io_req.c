@@ -915,6 +915,7 @@ static void ut_test_ioreq_parity_recalc(void)
 	ut_dummy_ioo_delete(ioo, instance);
 }
 
+#if USE_MD5
 static void ut_test_ioreq_application_data_copy(void)
 {
 	int                          i;
@@ -1013,7 +1014,7 @@ static void ut_test_ioreq_application_data_copy(void)
 		for (j = 0; j < map->pi_max_col; j++) {
 
 			if (unit_idx != 0) {
-				flag = M0_PI_NO_FLAG; 
+				flag = M0_PI_NO_FLAG;
 				memcpy(pi.pimd5c_prev_context, curr_context,
 				       sizeof(MD5_CTX));
 			}
@@ -1078,6 +1079,7 @@ static void ut_test_ioreq_application_data_copy(void)
 	ioo->ioo_data = stashed;
 	ut_dummy_ioo_delete(ioo, instance);
 }
+#endif /* #if USE_MD5 */
 
 static void ut_test_device_check(void)
 {
@@ -1335,8 +1337,10 @@ struct m0_ut_suite ut_suite_io_req = {
 				    &ut_test_ioreq_iomaps_prepare},
 		{ "application_data_copy",
 				    &ut_test_application_data_copy},
+#if USE_MD5
 		{ "ioreq_application_data_copy",
 				    &ut_test_ioreq_application_data_copy},
+#endif
 		{ "ioreq_parity_recalc",
 				    &ut_test_ioreq_parity_recalc},
 		{ "device_check",
