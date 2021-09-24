@@ -6150,6 +6150,14 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
+		if (M0_FI_ENABLED("already_exists")) {
+			/**
+			 * Return error if failure condition is explicitly
+			 * enabled by finject Fault Injection while testing.
+			 */
+			bop->bo_op.o_sm.sm_rc = M0_ERR(-EEXIST);
+			return P_DONE;
+		}
 		M0_ASSERT(bop->bo_i == NULL);
 		bop->bo_i = m0_alloc(sizeof *oi);
 		if (bop->bo_i == NULL) {
@@ -8413,6 +8421,12 @@ M0_INTERNAL void m0_btree_cursor_kv_get(struct m0_btree_cursor *it,
 		*val = M0_BUF_INIT(it->bc_val.b_nob, it->bc_val.b_addr);
 }
 
+bool m0_btree_is_empty(struct m0_btree *btree)
+{
+	M0_PRE(btree != NULL);
+	M0_PRE(btree->t_desc->t_root != NULL);
+	return (bnode_count_rec(btree->t_desc->t_root) == 0);
+}
 
 #ifndef __KERNEL__
 /**
