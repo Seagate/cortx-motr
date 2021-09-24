@@ -54,12 +54,7 @@ static char default_node_uuid[M0_UUID_STRLEN + 1] =
 		"00000000-0000-0000-0000-000000000000"; /* nil UUID */
 
 /** Flag, which specify whether to use a "real" node uuid or a default one. */
-static bool use_default_node_uuid =
-#if defined(M0_LINUX)
-	false;
-#elif defined(M0_DARWIN)
-	true;
-#endif
+static bool use_default_node_uuid = true;
 
 void m0_kmod_uuid_file_set(const char *path)
 {
