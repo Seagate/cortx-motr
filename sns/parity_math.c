@@ -700,7 +700,7 @@ M0_INTERNAL int m0_sns_ir_recover(struct m0_sns_ir *ir,
 
 /* Parity Math Helper Functions */
 
-/* Funtions m0_parity_* are to much eclectic. Just more simple names. */
+/* Functions m0_parity_* are too much eclectic. Just more simple names. */
 static int gadd(int x, int y)
 {
 	return m0_parity_add(x, y);
