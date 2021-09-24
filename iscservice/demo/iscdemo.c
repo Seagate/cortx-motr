@@ -19,6 +19,7 @@
  */
 
 #include <unistd.h>       /* getopt */
+#include <libgen.h>       /* basename */
 
 #include "lib/memory.h"   /* m0_alloc m0_free */
 #include "rpc/conn.h"     /* m0_rpc_conn_addr */
@@ -353,7 +354,7 @@ static void *minmax2_output_prepare(struct m0_buf *result,
  out:
 	/* Print the result. */
 	if (last_unit && prev != NULL) {
-		printf("idx=%lu val=%lf\n", prev->mr_idx, prev->mr_val);
+		printf("idx=%"PRIu64" val=%lf\n", prev->mr_idx, prev->mr_val);
 		mm_result_free_xcode_bufs(prev);
 		m0_free(prev);
 		prev = NULL;
@@ -473,7 +474,7 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 
 		iopl = container_of(plop, struct m0_layout_io_plop, iop_base);
 
-		DBG("req=%d goff=%lu segs=%d\n", reqs_nr, iopl->iop_goff,
+		DBG("req=%d goff=%"PRIu64" segs=%d\n", reqs_nr, iopl->iop_goff,
 		                                 iopl->iop_ext.iv_vec.v_nr);
 		/* Prepare arguments for the computation. */
 		rc = input_prepare(&buf, &comp_fid, iopl, &reply_len, op_type);
@@ -509,7 +510,7 @@ int launch_comp(struct m0_layout_plan *plan, int op_type, bool last)
 	/* Process the replies. */
 	m0_list_teardown(&isc_reqs, req, struct isc_req, cir_link) {
 		iopl = M0_AMB(iopl, req->cir_plop, iop_base);
-		DBG2("req=%d goff=%lu\n", ++reqs_nr, iopl->iop_goff);
+		DBG2("req=%d goff=%"PRIu64"\n", ++reqs_nr, iopl->iop_goff);
 		if (rc == 0 && req->cir_rc == 0) {
 			if (op_type == ICT_PING)
 				out_args = (void*)conn_addr;

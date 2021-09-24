@@ -20,6 +20,7 @@
 
 #include <stdio.h>
 #include <unistd.h>               /* getopt */
+#include <libgen.h>               /* basename */
 #include "motr/client_internal.h" /* m0_client */
 #include "util.h"
 
