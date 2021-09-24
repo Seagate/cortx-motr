@@ -19,10 +19,6 @@
  *
  */
 
-#ifndef __KERNEL__
-#include <openssl/md5.h>
-#endif /* __KERNEL__ */
-
 #include "ut/ut.h"
 #include "motr/client.h"
 #include "motr/client_internal.h"
@@ -33,6 +29,8 @@
 #include "lib/trace.h"          /* M0_LOG */
 
 struct m0_ut_suite ut_suite_pi;
+
+#if HAS_MD5
 
 enum {
 	BUFFER_SIZE = 4096,
@@ -336,6 +334,12 @@ struct m0_ut_suite ut_suite_pi = {
 	}
 };
 
+#else /* HAS_MD5 */
+
+struct m0_ut_suite ut_suite_pi = {
+	.ts_name = "pi_ut"
+};
+
+#endif /* HAS_MD5 */
+
 #undef M0_TRACE_SUBSYSTEM
-
-
