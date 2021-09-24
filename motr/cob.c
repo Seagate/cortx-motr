@@ -268,6 +268,7 @@ static void cob_req_release(struct cob_req *cr) {
 		op->op_priv = NULL;
 	m0_free(cr->cr_ios_fop);
 	m0_free(cr->cr_ios_replied);
+	m0_free(cr->cr_cob_attr);
 	m0_free(cr);
 }
 
@@ -2016,6 +2017,7 @@ M0_INTERNAL int m0__obj_attr_get_sync(struct m0_obj *obj)
 
 free_attr:
 	m0_free(cob_attr);
+	cr->cr_cob_attr = NULL;
 free_name:
 	m0_free(cr->cr_name.b_addr);
 	M0_SET0(&cr->cr_name);
@@ -2080,6 +2082,7 @@ M0_INTERNAL int m0__obj_layout_send(struct m0_obj *obj,
 
 free_attr:
 	m0_free(cob_attr);
+	cr->cr_cob_attr = NULL;
 free_name:
 	m0_free(cr->cr_name.b_addr);
 	M0_SET0(&cr->cr_name);

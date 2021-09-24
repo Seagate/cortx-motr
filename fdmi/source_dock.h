@@ -51,7 +51,7 @@ struct m0_fdmi_src {
 	/* Data owned and populated by source dock. */
 
 	/** Function to post FDMI data */
-	int (*fs_record_post)(struct m0_fdmi_src_rec *src_rec);
+	void (*fs_record_post)(struct m0_fdmi_src_rec *src_rec);
 
 	/* Data owned and populated by source. */
 

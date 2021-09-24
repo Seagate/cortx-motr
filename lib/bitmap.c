@@ -109,16 +109,30 @@ M0_INTERNAL bool m0_bitmap_get(const struct m0_bitmap *map, size_t idx)
 }
 M0_EXPORTED(m0_bitmap_get);
 
-M0_INTERNAL size_t m0_bitmap_ffz(const struct m0_bitmap *map)
+M0_INTERNAL int m0_bitmap_ffs(const struct m0_bitmap *map)
 {
-	size_t idx;
+	int i;
+	int idx;
+
+	for (i = 0; i < M0_BITMAP_WORDS(map->b_nr); i++) {
+		idx = __builtin_ffsll(map->b_words[i]);
+		if (idx > 0)
+			return i * M0_BITMAP_BITS + (idx - 1);
+	}
+	return -1;
+}
+M0_EXPORTED(m0_bitmap_ffs);
+
+M0_INTERNAL int m0_bitmap_ffz(const struct m0_bitmap *map)
+{
+	int idx;
 
 	/* use linux find_first_zero_bit() ? */
 	for (idx = 0; idx < map->b_nr; idx++) {
 		if (!m0_bitmap_get(map, idx))
 			return idx;
 	}
-	return (size_t)-1;
+	return -1;
 }
 M0_EXPORTED(m0_bitmap_ffz);
 

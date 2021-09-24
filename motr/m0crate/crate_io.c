@@ -322,7 +322,8 @@ int cr_io_vector_prep(struct m0_workload_io *cwi,
 	m0_bitmap_fini(&segment_indices);
 	op_ctx->coc_buf_vec = buf_vec;
 	op_ctx->coc_index_vec = index_vec;
-	op_ctx->coc_attr = attr;
+	/**TODO: set attr to NULL to disable cksum, enable after addding cksum in ST */
+	op_ctx->coc_attr = NULL;
 
 	return 0;
 enomem:
@@ -716,6 +717,12 @@ int cr_task_execute(struct m0_task_io *cti)
 			if (rc == 0)
 				cr_op_namei(cwi, cti, CR_DELETE);
 			break;
+		case CR_READ_ONLY:
+			rc = cr_op_namei(cwi, cti, CR_OPEN);
+			if (rc == 0) {
+				cr_op_io(cwi, cti, CR_READ);
+			}
+			break;
 	}
 	return rc;
 }
@@ -879,7 +886,8 @@ int cr_task_prep_one(struct m0_workload_io *cwi,
 
 	if (cwi->cwi_share_object) {
 		cti->cti_ids[0] = cwi->cwi_g.cg_oid;
-	} else if (M0_IN(cwi->cwi_opcode, (CR_POPULATE, CR_CLEANUP))) {
+	} else if (M0_IN(cwi->cwi_opcode, (CR_POPULATE, CR_CLEANUP,
+                                           CR_READ_ONLY))) {
 		int i;
 		for (i = 0; i< cwi->cwi_nr_objs; i++) {
 			cwi->cwi_start_obj_id.u_lo++;
@@ -979,9 +987,9 @@ bool cr_time_not_expired(struct workload *w)
 	time_now = m0_time_now();
 
 	if (cwi->cwi_execution_time == M0_TIME_NEVER)
-		return false;
+		return true;
 	return	m0_time_sub(time_now, cwi->cwi_start_time) <
-		cwi->cwi_execution_time ? false : true;
+		cwi->cwi_execution_time ? true : false;
 }
 
 /** Returns bandwidth in bytes / sec. */
@@ -997,13 +1005,17 @@ void run(struct workload *w, struct workload_task *tasks)
 	uint64_t               read;
 	int                    rc;
 	struct m0_workload_io *cwi = w->u.cw_io;
+	struct m0_uint128      start_obj_id;
 
+	start_obj_id = cwi->cwi_start_obj_id;
 	m0_mutex_init(&cwi->cwi_g.cg_mutex);
 	cwi->cwi_start_time = m0_time_now();
 	if (M0_IN(cwi->cwi_opcode, (CR_POPULATE, CR_CLEANUP)) &&
 	    !entity_id_is_valid(&cwi->cwi_start_obj_id))
 		cwi->cwi_start_obj_id = M0_ID_APP;
-	for (i = 0; i < cwi->cwi_rounds || cr_time_not_expired(w); i++) {
+	for (i = 0; i < cwi->cwi_rounds && cr_time_not_expired(w); i++) {
+		 cr_log(CLL_INFO, "cwi->cwi_rounds : %d, iteration : %d\n",
+                        cwi->cwi_rounds, i);
 		rc = cr_tasks_prepare(w, tasks);
 		if (rc != 0) {
 			cr_tasks_release(w, tasks);
@@ -1014,7 +1026,17 @@ void run(struct workload *w, struct workload_task *tasks)
 		workload_start(w, tasks);
 		workload_join(w, tasks);
 		cr_tasks_release(w, tasks);
+
+		/*
+		 * When cwi->cwi_rounds > 1 then we need to re-set starting
+		 * object id to original one, so the read only operation can
+		 * start reading the populated data from that object index.
+		 **/
+		if (cwi->cwi_opcode == CR_READ_ONLY) {
+			cwi->cwi_start_obj_id = start_obj_id;
+		}
 	}
+
 	m0_mutex_fini(&cwi->cwi_g.cg_mutex);
 	cwi->cwi_finish_time = m0_time_now();
 

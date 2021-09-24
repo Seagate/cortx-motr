@@ -96,6 +96,8 @@ SNS_MOTR_CLI_EP="12345:33:1000"
 POOL_MACHINE_CLI_EP="12345:33:1001"
 SNS_QUIESCE_CLI_EP="12345:33:1002"
 M0HAM_CLI_EP="12345:33:1003"
+FDMI_PLUGIN_EP="12345:33:1004"
+FDMI_FILTER_FID="6c00000000000001:0"
 
 SNS_CLI_EP="12345:33:400"
 
@@ -415,6 +417,14 @@ function build_conf()
 	PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $M0T1FS_PROC"
 	PROC_NAMES="$PROC_NAMES${PROC_NAMES:+, }$M0T1FS_PROCID"
 
+	local FDMI_GROUP_ID="^g|1:0"
+	local FDMI_FILTER_ID="^l|1:0"
+	local FDMI_FILTER_STRINGS="\"something1\", \"anotherstring2\", \"YETanotherstring3\""
+	local FDMI_GROUP="{0x67| (($FDMI_GROUP_ID), 0x1000, [1: $FDMI_FILTER_ID])}"
+	#local FDMI_FILTER="{0x6c| (($FDMI_FILTER_ID), 1, (11, 11), \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, (0, 0), [0], [1: \"$lnet_nid:$FDMI_PLUGIN_EP\"])}"
+	local FDMI_FILTER="{0x6c| (($FDMI_FILTER_ID), 2, $FDMI_FILTER_ID, \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, $DIX_PVERID, [3: $FDMI_FILTER_STRINGS], [1: \"$lnet_nid:$FDMI_PLUGIN_EP\"])}"
+	local FDMI_ITEMS_NR=2
+
 	local i
 	for ((i=0; i < ${#ioservices[*]}; i++, M0D++)); do
 	    local IOS_NAME="$IOS_FID_CON:$i"
@@ -622,13 +632,13 @@ function build_conf()
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
 [$(($IOS_OBJS_NR + $((${#mdservices[*]} * 5)) + $NR_IOS_DEVS + 19
-    + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 5 + $DIX_PVER_OBJ_COUNT)):
+    + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 5 + $DIX_PVER_OBJ_COUNT + $FDMI_ITEMS_NR)):
   {0x74| (($ROOT), 1, (11, 22), $MDPOOLID, $IMETA_PVER, $MD_REDUNDANCY,
 	  [1: \"$pool_width $nr_data_units $nr_parity_units $nr_spare_units\"],
 	  [$node_count: $NODES],
 	  [$site_count: $SITES],
 	  [$pool_count: $POOLS],
-	  [1: $PROF], [0])},
+	  [1: $PROF], [1: $FDMI_GROUP_ID])},
   {0x70| (($PROF), [$pool_count: $POOLS])},
   {0x6e| (($NODE), 16000, 2, 3, 2, [$(($M0D + 1)): ${PROC_NAMES[@]}])},
   $PROC_OBJS,
@@ -636,6 +646,8 @@ function build_conf()
   {0x73| (($HA_SVC_ID), @M0_CST_HA, [1: $HA_ENDPOINT], [0], [0])},
   {0x73| (($FIS_SVC_ID), @M0_CST_FIS, [1: $HA_ENDPOINT], [0], [0])},
   $M0T1FS_RM,
+  $FDMI_GROUP,
+  $FDMI_FILTER,
   $MDS_OBJS,
   $IOS_OBJS,
   $RM_OBJS,
