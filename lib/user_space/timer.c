@@ -129,11 +129,7 @@ M0_INTERNAL int m0_timer_thread_attach(struct m0_timer_locality *loc)
 
 	M0_PRE(loc != NULL);
 
-<<<<<<< HEAD
-	tid = _gettid();
-=======
 	tid = m0_tid();
->>>>>>> Initial commit of Darwin (aka XNU aka macos) port.
 	M0_ASSERT(locality_tid_find(loc, tid) == NULL);
 
 	M0_ALLOC_PTR(tt);
@@ -158,11 +154,7 @@ M0_INTERNAL void m0_timer_thread_detach(struct m0_timer_locality *loc)
 
 	M0_PRE(loc != NULL);
 
-<<<<<<< HEAD
-	tid = _gettid();
-=======
 	tid = m0_tid();
->>>>>>> Initial commit of Darwin (aka XNU aka macos) port.
 	tt = locality_tid_find(loc, tid);
 	M0_ASSERT(tt != NULL);
 
@@ -297,11 +289,7 @@ static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 	M0_PRE(signo == TIMER_SIGNO);
 
 	timer = si->si_value.sival_ptr;
-<<<<<<< HEAD
-	M0_ASSERT_EX(ergo(timer->t_tid != 0, timer->t_tid == _gettid()));
-=======
 	M0_ASSERT_EX(ergo(timer->t_tid != 0, timer->t_tid == m0_tid()));
->>>>>>> Initial commit of Darwin (aka XNU aka macos) port.
 	m0_timer_callback_execute(timer);
 	m0_semaphore_up(&timer->t_cb_sync_sem);
 }
