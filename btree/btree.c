@@ -1645,7 +1645,7 @@ static void bnode_val_resize(struct slot *slot, int vsize_diff)
 	M0_PRE(bnode_invariant(slot->s_node));
 	slot->s_node->n_type->nt_val_resize(slot, vsize_diff);
 }
-
+#if 0
 static int ctg_cmp(const void *key0, const void *key1)
 {
 	m0_bcount_t knob0 = sizeof(uint64_t) + *(const uint64_t *)key0;
@@ -1660,7 +1660,7 @@ static int ctg_cmp(const void *key0, const void *key1)
 	return memcmp(key0 + 8, key1 + 8, min_check(knob0, knob1) - 8) ?:
 		M0_3WAY(knob0, knob1);
 }
-
+#endif
 static bool bnode_find(struct slot *slot, const struct m0_btree_key *find_key)
 {
 	int                      i     = -1;
@@ -1689,8 +1689,8 @@ static bool bnode_find(struct slot *slot, const struct m0_btree_key *find_key)
 
 		m0_bufvec_cursor_init(&cur_1, &key.k_data);
 		m0_bufvec_cursor_init(&cur_2, &find_key->k_data);
-		//diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
-		diff = ctg_cmp(key.k_data.ov_buf[0], find_key->k_data.ov_buf[0]);
+		diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
+		//diff = ctg_cmp(key.k_data.ov_buf[0], find_key->k_data.ov_buf[0]);
 
 		M0_ASSERT(i < m && m < j);
 		if (diff < 0)
@@ -3915,8 +3915,7 @@ static bool fkvv_iskey_smaller(const struct nd *node, int cur_key_idx)
 
 	m0_bufvec_cursor_init(&cur_prev, &key_prev.k_data);
 	m0_bufvec_cursor_init(&cur_next, &key_next.k_data);
-	//diff = m0_bufvec_cursor_cmp(&cur_prev, &cur_next);
-	diff = ctg_cmp(key_prev.k_data.ov_buf[0], key_next.k_data.ov_buf[0]);
+	diff = m0_bufvec_cursor_cmp(&cur_prev, &cur_next);
 	if (diff >= 0)
 		return false;
 	return true;
@@ -8305,7 +8304,11 @@ M0_INTERNAL void m0_btree_update(struct m0_btree *arbor,
 	m0_sm_op_init(&bop->bo_op, &btree_put_kv_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
 }
+M0_INTERNAL void m0_btree_truncate(struct m0_btree *arbor, struct m0_be_tx *tx,
+				   struct m0_btree_op *bop)
+{
 
+}
 struct cursor_cb_data {
 	struct m0_btree_rec ccd_rec;
 	m0_bcount_t         ccd_keysz;

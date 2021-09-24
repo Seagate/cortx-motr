@@ -1955,7 +1955,6 @@ static void init_cgc_fail_fini(void)
 	fini();
 	m0_fi_disable("cgc_fom_tick", "fail_after_index_found");
 }
-#if 0
 struct m0_ut_suite cas_service_ut = {
 	.ts_name   = "cas-service",
 	.ts_owners = "Nikita",
@@ -2014,68 +2013,6 @@ struct m0_ut_suite cas_service_ut = {
 		{ "cctg-create-lookup",      &cctg_create_lookup,    "Sergey" },
 		{ "cctg-create-delete",      &cctg_create_delete,    "Sergey" },
 		{ "server-restart-nomkfs",   &server_restart_nomkfs, "Egor"   },
-		{ NULL, NULL }
-	}
-};
-#endif
-struct m0_ut_suite cas_service_ut = {
-	.ts_name   = "cas-service",
-	.ts_owners = "Nikita",
-	.ts_init   = NULL,
-	.ts_fini   = NULL,
-	.ts_tests  = {
-		{ "init-fini",               &init_fini,             "Nikita" },
-		{ "init-fail",               &init_fail,             "Leonid" },
-		{ "re-init",                 &reinit,                "Egor"   },
-		{ "re-start",                &restart,               "Nikita" },
-		{ "meta-lookup-none",        &meta_lookup_none,      "Nikita" },
-		{ "meta-lookup-2-none",      &meta_lookup_2none,     "Nikita" },
-		{ "meta-lookup-N-none",      &meta_lookup_Nnone,     "Nikita" },
-		{ "create",                  &create,                "Nikita" },
-		{ "create-lookup",           &create_lookup,         "Nikita" },
-		{ "create-create",           &create_create,         "Nikita" },
-		{ "meta-cur-1",              &meta_cur_1,            "Nikita" },
-		{ "meta-cur-0",              &meta_cur_0,            "Nikita" },
-		{ "meta-cur-eot",            &meta_cur_eot,          "Nikita" },
-		{ "meta-cur-empty",          &meta_cur_empty,        "Nikita" },
-		{ "meta-cur-none",           &meta_cur_none,         "Nikita" },
-		{ "meta-cur-all",            &meta_cur_all,          "Leonid" },
-		{ "meta-random",             &meta_random,           "Nikita" },
-		{ "meta-invalid",            &meta_invalid,          "Nikita" },
-		{ "insert",                  &insert,                "Nikita" },
-		{ "insert-lookup",           &insert_lookup,         "Nikita" },
-		{ "insert-delete",           &insert_delete,         "Nikita" },
-		{ "lookup-none",             &lookup_none,           "Nikita" },
-		{ "empty-value",             &empty_value,           "Egor"   },
-		{ "insert-2",                &insert_2,              "Nikita" },
-		{ "delete-2",                &delete_2,              "Nikita" },
-		{ "lookup-N",                &lookup_N,              "Nikita" },
-		{ "lookup-restart",          &lookup_restart,        "Nikita" },
-		{ "cur-N",                   &cur_N,                 "Nikita" },
-		{ "meta-insert-fail",        &meta_insert_fail,      "Leonid" },
-		{ "meta-lookup-fail",        &meta_lookup_fail,      "Leonid" },
-		{ "meta-delete-fail",        &meta_delete_fail,      "Leonid" },
-		{ "insert-fail",             &insert_fail,           "Leonid" },
-		{ "lookup-fail",             &lookup_fail,           "Leonid" },
-		{ "delete-fail",             &delete_fail,           "Leonid" },
-		{ "cur-fail",                &cur_fail,              "Egor"   },
-		{ "multi-insert",            &multi_insert,          "Leonid" },
-		{ "multi-lookup",            &multi_lookup,          "Leonid" },
-		{ "multi-delete",            &multi_delete,          "Leonid" },
-		{ "multi-insert-fail",       &multi_insert_fail,     "Leonid" },
-		{ "multi-lookup-fail",       &multi_lookup_fail,     "Leonid" },
-		{ "multi-delete-fail",       &multi_delete_fail,     "Leonid" },
-		{ "init-cgc-fail-fini",      &init_cgc_fail_fini,    "Hua"    },
-		{ "cctg-create",             &cctg_create,           "Sergey" },
-		{ "cctg-create-lookup",      &cctg_create_lookup,    "Sergey" },
-		{ "server-restart-nomkfs",   &server_restart_nomkfs, "Egor"   },
-		{ "create-delete",           &create_delete,         "Nikita" },
-		{ "recreate",                &recreate,              "Nikita" },
-		{ "meta-mt",                 &meta_mt,               "Nikita" },
-		{ "multi-create-drop",       &multi_create_drop,     "Eugene" },
-		{ "create-insert-drop",      &create_insert_drop,    "Eugene" },
-		{ "create-insert-drop-fail", &create_insert_drop_fail, "Hua"  },
-		{ "cctg-create-delete",      &cctg_create_delete,    "Sergey" },
 		{ NULL, NULL }
 	}
 };

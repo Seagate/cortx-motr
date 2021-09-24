@@ -353,7 +353,8 @@ M0_INTERNAL void m0_btree_minkey(struct m0_btree *arbor,
 M0_INTERNAL void m0_btree_maxkey(struct m0_btree *arbor,
 				 const struct m0_btree_cb *cb, uint64_t flags,
 				 struct m0_btree_op *bop);
-
+M0_INTERNAL void m0_btree_truncate(struct m0_btree *arbor, struct m0_be_tx *tx,
+				   struct m0_btree_op *bop);
 /**
  * Initialises cursor and its internal structures.
  *
