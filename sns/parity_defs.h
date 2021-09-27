@@ -18,7 +18,6 @@
  *
  */
 
-
 #pragma once
 
 #ifndef __MOTR_SNS_PARITY_DEFS_H__

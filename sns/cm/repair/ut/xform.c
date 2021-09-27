@@ -463,16 +463,18 @@ static void ref_parity_calculate(struct m0_parity_math *math,
 {
 	uint32_t                i;
 	int                     ret;
+	uint32_t                unit_count;
+	struct m0_buf          *bufs;
 	struct m0_buf          *parity_bufs;
 	struct m0_bufvec       *parity_bufvecs;
 
 	M0_UT_ASSERT(math != NULL);
 	M0_UT_ASSERT(bufvecs != NULL);
 
-	uint32_t       unit_count = math->pmi_data_count + math->pmi_parity_count;
-	struct m0_buf  bufs[unit_count];
+	unit_count = math->pmi_data_count + math->pmi_parity_count;
 
-	M0_SET_ARR0(bufs);
+	M0_ALLOC_ARR(bufs, unit_count);
+	M0_UT_ASSERT(bufs != NULL);
 
 	buf_initialize(bufs, unit_count, SEG_NR * SEG_SIZE);
 
@@ -495,6 +497,7 @@ static void ref_parity_calculate(struct m0_parity_math *math,
 	}
 
 	buf_free(bufs, unit_count);
+	m0_free(bufs);
 }
 
 /*
@@ -527,9 +530,8 @@ static void test_multi_cp_multi_failures(void)
 		M0_UT_ASSERT(x[i].ov_vec.v_nr == SEG_NR);
 	}
 
-	for (i = 0; i < DATA_NR; i++) {
+	for (i = 0; i < DATA_NR; i++)
 		bv_populate(&x[i], data[i], SEG_NR, SEG_SIZE);
-	}
 
 	ret = m0_parity_math_init(&math, DATA_NR, PARITY_NR);
 	M0_UT_ASSERT(ret == 0);
@@ -591,9 +593,8 @@ static void test_multi_cp_multi_failures(void)
 	M0_ALLOC_ARR(bufs_in_error, unit_count);
 	M0_UT_ASSERT(bufs_in_error != NULL);
 
-	for (i = 0; i < MULTI_FAILURES; ++i) {
+	for (i = 0; i < MULTI_FAILURES; ++i)
 		bufs_in_error[failed_idx[i]] = 1;
-	}
 
 	for (i = 0, j = 0; i < DATA_NR; ++i, ++j) {
 		while (bufs_in_error[j])

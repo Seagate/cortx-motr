@@ -249,10 +249,12 @@ static inline bool is_valid_block_idx(const  struct m0_sns_ir *ir,
  * @param[in]  data_nr   - The number of data blocks for coding.
  * @param[in]  dest_nr   - The number of output blocks to concurrently
  *                         encode/decode.
+ * @retval     0           on success.
+ * @retval     -ENOMEM     on failure to acquire memory.
  */
-static void isal_encode_data_update(struct m0_buf *dest_bufs, struct m0_buf *src_buf,
-				    uint32_t vec_idx, uint8_t *g_tbls,
-				    uint32_t data_nr, uint32_t dest_nr);
+static int isal_encode_data_update(struct m0_buf *dest_bufs, struct m0_buf *src_buf,
+				   uint32_t vec_idx, uint8_t *g_tbls,
+				   uint32_t data_nr, uint32_t dest_nr);
 
 /**
  * Sorts the indices for failed and non-failed data and parity blocks.
@@ -420,6 +422,7 @@ enum {
 	SNS_PARITY_MATH_DATA_BLOCKS_MAX = 1 << (M0_PARITY_GALOIS_W - 1),
 	BAD_FAIL_INDEX = -1,
 	IR_INVALID_COL = UINT8_MAX,
+	MIN_TABLE_LEN = 32,
 };
 
 /* Parity Math Functions. */
@@ -452,12 +455,13 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 	else {
 		math->pmi_parity_algo = M0_PARITY_CAL_ALGO_REED_SOLOMON;
 		ret = reed_solomon_init(math);
+		if (ret != 0) {
+			m0_parity_math_fini(math);
+			return M0_ERR(ret);
+		}
 	}
 
-	if (ret != 0)
-		m0_parity_math_fini(math);
-
-	return (ret == 0) ? M0_RC(ret) : M0_ERR(ret);
+	return M0_RC(ret);
 }
 
 M0_INTERNAL void m0_parity_math_calculate(struct m0_parity_math *math,
@@ -478,7 +482,7 @@ M0_INTERNAL int  m0_parity_math_diff(struct m0_parity_math *math,
 
 	M0_ENTRY();
 	rc = (*diff[math->pmi_parity_algo])(math, old, new, parity, index);
-	return (rc == 0) ? M0_RC(rc) : M0_ERR(rc);
+	return rc == 0 ? M0_RC(rc) : M0_ERR(rc);
 }
 
 M0_INTERNAL int m0_parity_math_recover(struct m0_parity_math *math,
@@ -491,7 +495,7 @@ M0_INTERNAL int m0_parity_math_recover(struct m0_parity_math *math,
 
 	M0_ENTRY();
 	rc = (*recover[math->pmi_parity_algo])(math, data, parity, fails, algo);
-	return (rc == 0) ? M0_RC(rc) : M0_ERR(rc);
+	return rc == 0 ? M0_RC(rc) : M0_ERR(rc);
 }
 
 M0_INTERNAL void m0_parity_math_fail_index_recover(struct m0_parity_math *math,
@@ -946,16 +950,13 @@ static void gfaxpy(struct m0_bufvec *y, struct m0_bufvec *x,
 		/* This is a special case of the 'default' case that follows.
 		 * Here we avoid unnecessary call to gmul.*/
 		case 1:
-			for (i = 0; i <seg_size; ++i) {
-				y_addr[i] = gadd(y_addr[i],
-						 x_addr[i]);
-			}
+			for (i = 0; i <seg_size; ++i)
+				y_addr[i] = gadd(y_addr[i], x_addr[i]);
 			break;
 		default:
-			for (i = 0; i < seg_size; ++i) {
+			for (i = 0; i < seg_size; ++i)
 				y_addr[i] = gadd(y_addr[i], gmul(x_addr[i],
 							         alpha));
-			}
 			break;
 		}
 		step = m0_bufvec_cursor_step(&y_cursor);
@@ -1019,7 +1020,12 @@ static int reed_solomon_init(struct m0_parity_math *math)
 
 	rs = &math->pmi_rs;
 	total_count = math->pmi_data_count + math->pmi_parity_count;
-	tbl_len = math->pmi_data_count * math->pmi_parity_count * 32;
+	/* The encode and decode tables are the expanded tables needed for
+	 * fast encode or decode for erasure codes on blocks of data.  32bytes
+	 * are generated for each input coefficient. Hence total table length
+	 * required is 32 * data_count * parity_count.
+	 */
+	tbl_len = math->pmi_data_count * math->pmi_parity_count * MIN_TABLE_LEN;
 
 	M0_ALLOC_ARR(rs->rs_encode_matrix, (total_count * math->pmi_data_count));
 	if (rs->rs_encode_matrix == NULL)
@@ -1158,10 +1164,10 @@ static int reed_solomon_diff(struct m0_parity_math *math,
 			((uint_fast32_t *)new[index].b_addr)[i];
 
 	/* Update differential parity using differential data. */
-	isal_encode_data_update(parity, &diff_data_buf, index,
-				math->pmi_rs.rs_encode_tbls,
-				math->pmi_data_count,
-				math->pmi_parity_count);
+	ret = isal_encode_data_update(parity, &diff_data_buf, index,
+				      math->pmi_rs.rs_encode_tbls,
+				      math->pmi_data_count,
+				      math->pmi_parity_count);
 
 	m0_free(diff_data_arr);
 	return M0_RC(ret);
@@ -1302,6 +1308,7 @@ static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
 	struct m0_bufvec        *alive_bufvec;
 	struct m0_bufvec        *failed_bufvec;
 	struct m0_buf            in_buf = M0_BUF_INIT0;
+	struct m0_buf           *out_bufs;
 	uint8_t                  curr_idx = UINT8_MAX;
 	uint32_t                 i;
 	uint32_t                 length;
@@ -1310,8 +1317,6 @@ static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
 	M0_ENTRY("ir=%p, alive_block=%p", ir, alive_block);
 
 	rs = &ir->si_rs;
-
-	struct m0_buf            out_bufs[rs->rs_failed_nr];
 
 	/* Check if given alive block is dependecy of any failed block. */
 	for (i = 0; i < rs->rs_failed_nr; i++) {
@@ -1323,7 +1328,10 @@ static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
 	alive_bufvec = alive_block->sib_addr;
 	length = (uint32_t)m0_vec_count(&alive_bufvec->ov_vec);
 
-	M0_SET_ARR0(out_bufs);
+	M0_ALLOC_ARR(out_bufs, rs->rs_failed_nr);
+	if (out_bufs == NULL)
+		return BUF_ALLOC_ERR_INFO(-ENOMEM, "output bufs",
+					  rs->rs_failed_nr);
 
 	for (i = 0; i < rs->rs_failed_nr; i++) {
 		ret = m0_buf_alloc(&out_bufs[i], length);
@@ -1374,9 +1382,13 @@ static int ir_recover(struct m0_sns_ir *ir, struct m0_sns_ir_block *alive_block)
 	}
 
 	/* Recover the data using input buffer and its index. */
-	isal_encode_data_update(out_bufs, &in_buf, curr_idx,
-				rs->rs_decode_tbls, ir->si_data_nr,
-				rs->rs_failed_nr);
+	ret = isal_encode_data_update(out_bufs, &in_buf, curr_idx,
+				      rs->rs_decode_tbls, ir->si_data_nr,
+				      rs->rs_failed_nr);
+	if (ret != 0) {
+		ret = M0_ERR_INFO(ret, "Failed to recover the data.");
+		goto exit;
+	}
 
 	/* Copy recovered data back to failed vectors. */
 	for (i = 0; i < rs->rs_failed_nr; i++) {
@@ -1395,16 +1407,18 @@ exit:
 	m0_buf_free(&in_buf);
 	for (i = 0; i < rs->rs_failed_nr; i++)
 		m0_buf_free(&out_bufs[i]);
+	m0_free(out_bufs);
 
 	return M0_RC(ret);
 }
 
-static void isal_encode_data_update(struct m0_buf *dest_bufs, struct m0_buf *src_buf,
-				    uint32_t vec_idx, uint8_t *g_tbls,
-				    uint32_t data_nr, uint32_t dest_nr)
+static int isal_encode_data_update(struct m0_buf *dest_bufs, struct m0_buf *src_buf,
+				   uint32_t vec_idx, uint8_t *g_tbls,
+				   uint32_t data_nr, uint32_t dest_nr)
 {
-	uint32_t i;
-	uint32_t block_size;
+	uint32_t   i;
+	uint32_t   block_size;
+	uint8_t  **dest_frags;
 
 	M0_ENTRY("dest_bufs=%p, src_buf=%p, vec_idx=%u, "
 		 "g_tbls=%p, data_nr=%u, dest_nr=%u",
@@ -1414,7 +1428,10 @@ static void isal_encode_data_update(struct m0_buf *dest_bufs, struct m0_buf *src
 	M0_PRE(src_buf != NULL);
 	M0_PRE(g_tbls != NULL);
 
-	uint8_t *dest_frags[dest_nr];
+	M0_ALLOC_ARR(dest_frags, dest_nr);
+	if (dest_frags == NULL)
+		return BUF_ALLOC_ERR_INFO(-ENOMEM, "destination fragments",
+					  dest_nr);
 
 	block_size = (uint32_t)src_buf->b_nob;
 
@@ -1426,7 +1443,8 @@ static void isal_encode_data_update(struct m0_buf *dest_bufs, struct m0_buf *src
 	ec_encode_data_update(block_size, data_nr, dest_nr, vec_idx,
 			      g_tbls, (uint8_t *)src_buf->b_addr, dest_frags);
 
-	M0_LEAVE();
+	m0_free(dest_frags);
+	return M0_RC(0);
 }
 
 static void fails_sort(struct m0_reed_solomon *rs, uint8_t *fail,
@@ -1448,8 +1466,7 @@ static void fails_sort(struct m0_reed_solomon *rs, uint8_t *fail,
 			VALUE_ASSERT_INFO(rs->rs_failed_nr < parity_count,
 					  rs->rs_failed_nr);
 			rs->rs_failed_idx[rs->rs_failed_nr++] = i;
-		}
-		else
+		} else
 			rs->rs_alive_idx[alive_nr++] = i;
 	}
 	M0_LEAVE();
@@ -1500,6 +1517,9 @@ static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
 	uint8_t   s;
 	uint8_t   idx;
 	int       ret;
+	uint8_t  *decode_mat = NULL;
+	uint8_t  *temp_mat = NULL;
+	uint8_t  *invert_mat = NULL;
 
 	M0_ENTRY("data_count=%u, parity_count=%u, rs=%p",
 		 data_count, parity_count, rs);
@@ -1509,9 +1529,26 @@ static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
 	total_count = data_count + parity_count;
 	mat_size = total_count * data_count;
 
-	uint8_t   decode_mat[mat_size];
-	uint8_t   temp_mat[mat_size];
-	uint8_t   invert_mat[mat_size];
+	M0_ALLOC_ARR(decode_mat, mat_size);
+	if (decode_mat == NULL) {
+		ret = BUF_ALLOC_ERR_INFO(-ENOMEM, "decode matrix",
+					 mat_size);
+		goto exit;
+	}
+
+	M0_ALLOC_ARR(temp_mat, mat_size);
+	if (temp_mat == NULL) {
+		ret = BUF_ALLOC_ERR_INFO(-ENOMEM, "temp matrix",
+					 mat_size);
+		goto exit;
+	}
+
+	M0_ALLOC_ARR(invert_mat, mat_size);
+	if (invert_mat == NULL) {
+		ret = BUF_ALLOC_ERR_INFO(-ENOMEM, "invert matrix",
+					 mat_size);
+		goto exit;
+	}
 
 	/* Construct temp_mat (matrix that encoded remaining frags)
 	 * by removing erased rows. */
@@ -1524,10 +1561,12 @@ static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
 
 	/* Invert matrix to get recovery matrix. */
 	ret = gf_invert_matrix(temp_mat, invert_mat, data_count);
-	if (ret != 0)
-		return M0_ERR_INFO(ret, "failed to construct an %u x %u "
-				   "inverse of the input matrix",
-				   data_count, data_count);
+	if (ret != 0) {
+		ret = M0_ERR_INFO(ret, "failed to construct an %u x %u "
+				  "inverse of the input matrix",
+				  data_count, data_count);
+		goto exit;
+	}
 
 	/* Create decode matrix. */
 	for (r = 0; r < rs->rs_failed_nr; r++) {
@@ -1537,10 +1576,9 @@ static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
 			for (i = 0; i < data_count; i++)
 				decode_mat[data_count * r + i] =
 					invert_mat[data_count * idx + i];
-		}
-		/* For non-src (parity) erasures need to multiply
-		 * encode matrix * invert */
-		else { /* A parity err */
+		} else { /* A parity err */
+			/* For non-src (parity) erasures need to multiply
+			 * encode matrix * invert */
 			for (i = 0; i < data_count; i++) {
 				s = 0;
 				for (j = 0; j < data_count; j++)
@@ -1554,6 +1592,11 @@ static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
 
 	ec_init_tables(data_count, rs->rs_failed_nr,
 		       decode_mat, rs->rs_decode_tbls);
+
+exit:
+	m0_free(decode_mat);
+	m0_free(temp_mat);
+	m0_free(invert_mat);
 
 	return M0_RC(ret);
 }
@@ -2072,7 +2115,7 @@ static int data_recov_mat_construct(struct m0_sns_ir *ir)
 fini:
 	m0_matrix_fini(&encode_mat);
 	m0_matrix_fini(&encode_mat_inverse);
-	return (ret == 0) ? M0_RC(ret) : M0_ERR(ret);
+	return ret == 0 ? M0_RC(ret) : M0_ERR(ret);
 }
 
 static void submatrix_construct(struct m0_matrix *in_mat,

@@ -108,9 +108,13 @@ struct m0_reed_solomon {
 	/* Pointer to sets of arrays of input coefficients used
 	 * to encode or decode data.*/
 	uint8_t		 *rs_encode_matrix;
-	/* Pointer to concatenated output tables for encode. */
+	/* Pointer to concatenated output tables for encode.
+	 * Must be of size 32 * data_count * parity_count
+	 */
 	uint8_t		 *rs_encode_tbls;
-	/* Pointer to concatenated output tables for decode. */
+	/* Pointer to concatenated output tables for decode.
+	 * Must be of size 32 * data_count * parity_count
+	 */
 	uint8_t		 *rs_decode_tbls;
 	/* Number of failed blocks. */
 	uint32_t	  rs_failed_nr;
