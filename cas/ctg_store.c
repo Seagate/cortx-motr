@@ -396,13 +396,11 @@ M0_INTERNAL int m0_ctg_meta_find_ctg(struct m0_cas_ctg    *meta,
 	uint8_t              key_data[M0_CAS_CTG_KV_HDR_SIZE +
 				      sizeof(struct m0_fid)];
 	struct m0_buf        key;
+	int                  rc;
+	struct m0_btree_op   kv_op = {};
 	void                *k_ptr;
 	m0_bcount_t          ksize;
-	struct m0_btree_op   kv_op = {};
-	int                  rc;
-	struct m0_btree_rec  rec = {
-		.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-		};
+	struct m0_btree_rec  rec = {};
 	struct m0_btree_cb   get_cb = {
 		.c_act = ctg_meta_find_cb,
 		.c_datum = ctg,
@@ -414,7 +412,7 @@ M0_INTERNAL int m0_ctg_meta_find_ctg(struct m0_cas_ctg    *meta,
 	key   = M0_BUF_INIT_PTR(&key_data);
 	k_ptr = key.b_addr;
 	ksize = key.b_nob;
-
+	rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 				      m0_btree_get(meta->cc_tree, &rec.r_key,
 				       		   &get_cb, BOF_EQUAL, &kv_op));
@@ -468,8 +466,7 @@ M0_INTERNAL int m0_ctg__meta_insert(struct m0_btree     *meta,
 	m0_bcount_t                 ksize;
 	m0_bcount_t                 vsize;
 	struct m0_btree_rec         rec = {
-		.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-		.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+
 	};
 	struct ctg_meta_put_cb_data cb_data = {
 		.d_key = &rec.r_key,
@@ -485,6 +482,9 @@ M0_INTERNAL int m0_ctg__meta_insert(struct m0_btree     *meta,
 	k_ptr = key.b_addr;
 	ksize = key.b_nob;
 	vsize = M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg);
+
+	rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+	rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_put(meta, &rec, &put_cb,
 							   &kv_op, tx));
@@ -1933,7 +1933,6 @@ M0_INTERNAL int m0_ctg_ctidx_lookup_sync(const struct m0_fid  *fid,
 	k_ptr = key.b_addr;
 	ksize = key.b_nob;
 
-
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 				      m0_btree_get(ctidx->cc_tree, &rec.r_key,
 						   &get_cb, BOF_EQUAL, &kv_op));
@@ -2010,7 +2009,8 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 	void                *k_ptr;
 	void                *v_ptr;
 	m0_bcount_t          ksize;
-	m0_bcount_t          vsize;
+	m0_bcount_t          vsize = M0_CAS_CTG_KV_HDR_SIZE +
+				     sizeof(struct m0_dix_layout);;
 	struct m0_btree_rec  rec     = {
 			.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
@@ -2030,7 +2030,6 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 	key = M0_BUF_INIT_PTR(&key_data);
 	k_ptr = key.b_addr;
 	ksize = key.b_nob;
-	vsize = M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_dix_layout);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					m0_btree_put(ctidx->cc_tree, &rec,
 						     &put_cb, &kv_op, tx));
@@ -2158,10 +2157,12 @@ M0_INTERNAL struct m0_long_lock *m0_ctg_lock(struct m0_cas_ctg *ctg)
 {
 	return &ctg->cc_lock.bll_u.llock;
 }
+
 M0_INTERNAL const struct m0_be_btree_kv_ops *m0_ctg_btree_ops(void)
 {
 	return &cas_btree_ops;
 }
+
 static const struct m0_be_btree_kv_ops cas_btree_ops = {
 	.ko_type    = M0_BBT_CAS_CTG,
 	.ko_ksize   = &ctg_ksize,

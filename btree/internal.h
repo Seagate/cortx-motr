@@ -66,7 +66,7 @@ struct m0_btree_cursor {
 	struct m0_buf    bc_key;
 	struct m0_buf    bc_val;
 	struct m0_btree *bc_arbor;
-	struct m0_be_op  bc_op; /* XXX DELETEME */
+	struct m0_be_op  bc_op;
 };
 
 struct td;

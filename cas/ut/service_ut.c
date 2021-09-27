@@ -1955,6 +1955,7 @@ static void init_cgc_fail_fini(void)
 	fini();
 	m0_fi_disable("cgc_fom_tick", "fail_after_index_found");
 }
+
 struct m0_ut_suite cas_service_ut = {
 	.ts_name   = "cas-service",
 	.ts_owners = "Nikita",
