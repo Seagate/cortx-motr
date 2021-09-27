@@ -109,11 +109,11 @@ struct m0_reed_solomon {
 	 * to encode or decode data.*/
 	uint8_t		 *rs_encode_matrix;
 	/* Pointer to concatenated output tables for encode.
-	 * Must be of size 32 * data_count * parity_count
+	 * Must be of size MIN_TABLE_LEN * data_count * parity_count
 	 */
 	uint8_t		 *rs_encode_tbls;
 	/* Pointer to concatenated output tables for decode.
-	 * Must be of size 32 * data_count * parity_count
+	 * Must be of size MIN_TABLE_LEN * data_count * parity_count
 	 */
 	uint8_t		 *rs_decode_tbls;
 	/* Number of failed blocks. */
