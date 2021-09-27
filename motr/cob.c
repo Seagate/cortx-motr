@@ -361,7 +361,7 @@ static void cob_req_free(struct cob_req *cr)
 }
 
 static int cob_req_send(struct cob_req *cr)
- {
+{
 	int rc;
 
 	M0_ENTRY();
@@ -722,7 +722,6 @@ static void icrs_complete(struct cob_req *cr)
 		return;
 	}
 
-
 	cob_type = cr->cr_cob_type;
 	if (cob_type == M0_COB_IO ||
 	    M0_IN(cr->cr_opcode,
@@ -733,7 +732,7 @@ static void icrs_complete(struct cob_req *cr)
 	} else {
 		/*
 		 * M0_COB_MD
-		 * Just finish creating metadata in selected io services,
+		 * Just finished creating metadata in selected io services,
 		 * start the 2nd phase now (to prepare COB fops for all io
 		 * services).
 		 */
@@ -1433,9 +1432,9 @@ static int cob_ios_md_send(struct cob_req *cr)
 	return M0_RC(rc);
 }
 
-/**----------------------------------------------------------------------------*
- *                           COB FOP's for mdservice                           *
- *-----------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*
+ *                           COB FOP's for mdservice                          *
+ *----------------------------------------------------------------------------*/
 
 /**
  * Returns the object operation associated to a given RPC item.Items are sent
