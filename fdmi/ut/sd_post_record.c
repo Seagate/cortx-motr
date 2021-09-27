@@ -109,8 +109,7 @@ void fdmi_sd_post_record(void)
 		.fsr_src    = src,
 		.fsr_data   = fdmi_data,
 	};
-	rc = M0_FDMI_SOURCE_POST_RECORD(&g_src_rec);
-	M0_UT_ASSERT(rc == 0);
+	M0_FDMI_SOURCE_POST_RECORD(&g_src_rec);
 	/* Wait until record is processed and released */
 	m0_semaphore_down(&g_sem);
 	m0_fdmi_source_deregister(src);

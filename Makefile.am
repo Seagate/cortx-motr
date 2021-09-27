@@ -696,6 +696,16 @@ motr_examples_example2_LDADD    = $(top_builddir)/motr/libmotr.la
 include $(top_srcdir)/motr/examples/Makefile.sub
 
 #
+# fdmi/plugins/fdmi_sample_plugin --------------------- {{{2
+#
+
+noinst_PROGRAMS    += fdmi/plugins/fdmi_sample_plugin
+fdmi_plugins_fdmi_sample_plugin_CPPFLAGS  = -DM0_TARGET='fdmi_sample_plugin' $(AM_CPPFLAGS)
+fdmi_plugins_fdmi_sample_plugin_LDADD     = $(top_builddir)/motr/libmotr.la
+
+include $(top_srcdir)/fdmi/plugins/Makefile.sub
+
+#
 # motr/crate ----------------------------------------- {{{2
 #
 sbin_PROGRAMS                    += motr/m0crate/m0crate

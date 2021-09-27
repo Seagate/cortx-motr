@@ -190,8 +190,7 @@ static void fdmi_sd_apply_filter_internal(const struct m0_filterc_ops *ops)
 		.fsr_src    = src,
 		.fsr_data   = g_fdmi_data,
 	};
-	rc = M0_FDMI_SOURCE_POST_RECORD(&g_src_rec);
-	M0_UT_ASSERT(rc == 0);
+	M0_FDMI_SOURCE_POST_RECORD(&g_src_rec);
 	/* Wait until record is processed and released */
 	m0_semaphore_down(&g_sem);
 	m0_fdmi_source_deregister(src);
