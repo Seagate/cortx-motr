@@ -302,11 +302,10 @@ M0_INTERNAL void cob_req_ref_put(struct cob_req *cr)
  * @param cinst client instance.
  * @returns instance of cob_req if operation succeeds, NULL otherwise.
  */
-static struct cob_req *cob_req_alloc(struct m0_pool_version *pv,
-				     struct m0_client *cinst)
+static struct cob_req *cob_req_alloc(struct m0_pool_version *pv)
 {
 	struct cob_req *cr;
-	uint32_t        redundancy = pv->pv_attr.pa_P;
+	uint32_t        pool_width = pv->pv_attr.pa_P;
 
 	cr = m0_alloc(sizeof *cr);
 	if (cr == NULL)
@@ -317,11 +316,8 @@ static struct cob_req *cob_req_alloc(struct m0_pool_version *pv,
 
 	/* Initialises and sets FOP related members. */
 	cr->cr_pver = pv->pv_id;
-	M0_ASSERT(cinst->m0c_pools_common.pc_md_redundancy >= 1);
-	if (cinst->m0c_pools_common.pc_md_redundancy < redundancy)
-		redundancy = cinst->m0c_pools_common.pc_md_redundancy;
-	M0_ALLOC_ARR(cr->cr_ios_fop, redundancy);
-	M0_ALLOC_ARR(cr->cr_ios_replied, redundancy);
+	M0_ALLOC_ARR(cr->cr_ios_fop, pool_width);
+	M0_ALLOC_ARR(cr->cr_ios_replied, pool_width);
 	if (cr->cr_ios_fop == NULL || cr->cr_ios_replied == NULL) {
 		m0_free(cr->cr_ios_fop);
 		m0_free(cr->cr_ios_replied);
@@ -330,8 +326,7 @@ static struct cob_req *cob_req_alloc(struct m0_pool_version *pv,
 	}
 	m0_ref_init(&cr->cr_ref, 1, cob_req_ref_release);
 	cr->cr_id = m0_dummy_id_generate();
-	cr->cr_icr_nr = redundancy;
-	cr->cr_cinst  = cinst;
+	cr->cr_icr_nr = pool_width;
 	M0_ADDB2_ADD(M0_AVI_CLIENT_COB_REQ, cr->cr_id, COB_REQ_ACTIVE);
 
 	return cr;
@@ -1359,6 +1354,7 @@ static void cob_ast_ios_io_send(struct m0_sm_group *grp,
 				struct m0_sm_ast *ast)
 {
 	int                      rc;
+	uint32_t                 pool_width;
 	struct m0_ast_rc        *ar;
 	struct m0_client        *cinst;
 	struct m0_pool_version  *pv;
@@ -1382,9 +1378,12 @@ static void cob_ast_ios_io_send(struct m0_sm_group *grp,
 				 FID_P(&cr->cr_pver));
 		goto exit;
 	}
+	pool_width = pv->pv_attr.pa_P;
+	M0_ASSERT(pool_width >= 1);
 
 	/* Send a fop to each COB. */
 	cr->cr_cob_type = M0_COB_IO;
+	cr->cr_icr_nr = pool_width;
 	rc = cob_ios_req_send_async(cr);
 	/*
 	 * If all ios cob requests fail, rc != 0. Otherwise, the rpc item
@@ -1415,6 +1414,7 @@ static int cob_ios_md_send(struct cob_req *cr)
 	cinst = cr->cr_cinst;
 	M0_ASSERT(cinst != NULL);
 	M0_ASSERT(cinst->m0c_config->mc_is_oostore);
+	M0_ASSERT(cinst->m0c_pools_common.pc_md_redundancy >= 1);
 
 	/*
 	 * Send to each redundant ioservice.
@@ -1423,6 +1423,8 @@ static int cob_ios_md_send(struct cob_req *cr)
 	 * replied). So the content of 'oo' may be changed. Be aware of this
 	 * race condition!
 	 */
+	if (cinst->m0c_pools_common.pc_md_redundancy < cr->cr_icr_nr)
+		cr->cr_icr_nr = cinst->m0c_pools_common.pc_md_redundancy;
 	cr->cr_cob_type = M0_COB_MD;
 	rc = (cr->cr_flags & COB_REQ_SYNC) ?
 	     cob_ios_req_send_sync(cr) :
@@ -1821,11 +1823,12 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 				  &oo->oo_pver);
 	if (pv == NULL)
 		return M0_ERR(-EINVAL);
-	cr = cob_req_alloc(pv, cinst);
+	cr = cob_req_alloc(pv);
 	if (cr == NULL)
 		return M0_ERR(-ENOMEM);
 
 	op               = &oo->oo_oc.oc_op;
+	cr->cr_cinst     = cinst;
 	cr->cr_fid       = oo->oo_fid;
 	cr->cr_op        = op;
 	cr->cr_op_sm_grp = oo->oo_sm_grp;
@@ -1978,13 +1981,14 @@ M0_INTERNAL int m0__obj_attr_get_sync(struct m0_obj *obj)
 	if (pv == NULL)
 		return M0_ERR(-EINVAL);
 	/* Allocate and initialise cob request. */
-	cr = cob_req_alloc(pv, cinst);
+	cr = cob_req_alloc(pv);
 	if (cr == NULL)
 		return M0_ERR(-ENOMEM);
 
 	m0_fid_gob_make(&cr->cr_fid,
 			obj->ob_entity.en_id.u_hi, obj->ob_entity.en_id.u_lo);
 	cr->cr_flags |= COB_REQ_SYNC;
+	cr->cr_cinst  = cinst;
 	rc = cob_make_name(cr);
 	if (rc != 0)
 		goto free_req;
@@ -2047,12 +2051,13 @@ M0_INTERNAL int m0__obj_layout_send(struct m0_obj *obj,
 	pv = m0_pool_version_find(&cinst->m0c_pools_common,
 				  &obj->ob_attr.oa_pver);
 	M0_ASSERT(pv != NULL);
-	cr = cob_req_alloc(pv, cinst);
+	cr = cob_req_alloc(pv);
 	if (cr == NULL)
 		return -ENOMEM;
 
 	m0_fid_gob_make(&cr->cr_fid, ent_id.u_hi, ent_id.u_lo);
 	cr->cr_flags |= COB_REQ_ASYNC;
+	cr->cr_cinst  = cinst;
 	cr->cr_op = op;
 	cr->cr_opcode = op->op_code;
 	cr->cr_op_sm_grp = ol->ol_sm_grp;
