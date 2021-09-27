@@ -26,6 +26,7 @@ import logging
 import glob
 import time
 from cortx.utils.conf_store import Conf
+
 MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-server"
 MOTR_MKFS_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-mkfs"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
@@ -110,6 +111,8 @@ def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS, re
 def check_type(var, vtype, msg):
     if not isinstance(var, vtype):
         raise MotrError(errno.EINVAL, f"Invalid {msg} type. Expected: {vtype}")
+    if not bool(var):
+        raise MotrError(errno.EINVAL, f"Empty {msg}.")
 
 def get_machine_id(self):
     if self.k8:
@@ -478,7 +481,33 @@ def get_cvg_cnt_and_cvg(self):
         raise MotrError(errno.EINVAL, "cvg is empty\n")
     return cvg_cnt, cvg
 
+def validate_storage_schema(storage):
+    check_type(storage, list, "storage")
+    for elem in storage:
+        check_type(elem, dict, "storage element")
+        for key, val in elem.items():
+            if key=="name":
+                val_type=str
+                check_type(val, val_type, key)
+            if key=="type":
+                val_type=str
+                check_type(val, val_type, key)
+            if key=="metadata_devices":
+                val_type=list
+                check_type(val, val_type, key)
+                sz = len(val)
+                for i in range(sz):
+                    check_type(val[i], str, f"metadata_devices[{i}]") 
+            if key=="data_devices":
+                val_type=list
+                check_type(val, val_type, key)
+                sz = len(val)
+                for i in range(sz):
+                    check_type(val[i], str, f"data_devices[{i}]") 
+
 def get_cvg_cnt_and_cvg_k8(self):
+
+    validate_storage_schema(self.storage)
     try:
         cvg = self.storage
         cvg_cnt = len(cvg)
