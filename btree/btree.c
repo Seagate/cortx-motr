@@ -8445,199 +8445,6 @@ static void btree_ut_fini(void)
 	btree_ut_initialised = false;
 }
 
-#if 0
-static void get_rec_at_index(struct nd *node, int idx, uint64_t *key,
-			     uint64_t *val)
-{
-	struct slot          slot;
-	m0_bcount_t          ksize;
-	void                *p_key;
-	m0_bcount_t          vsize;
-	void                *p_val;
-
-	M0_SET0(&slot);
-	slot.s_node = node;
-	slot.s_idx  = idx;
-
-	M0_ASSERT(idx<bnode_count(node));
-
-	slot.s_rec.r_key.k_data.ov_vec.v_nr = 1;
-	slot.s_rec.r_key.k_data.ov_vec.v_count = &ksize;
-	slot.s_rec.r_key.k_data.ov_buf = &p_key;
-
-	slot.s_rec.r_val.ov_vec.v_nr = 1;
-	slot.s_rec.r_val.ov_vec.v_count = &vsize;
-	slot.s_rec.r_val.ov_buf = &p_val;
-
-	bnode_rec(&slot);
-
-	/*
-	 *if (key != NULL)
-	 *	*key = *(uint64_t *)p_key;
-	 *
-	 *if (val != NULL)
-	 *	*val = *(uint64_t *)p_val;
-	 */
-
-	if (key != NULL) {
-		key[0] = ((uint64_t *)p_key)[0];
-		key[1] = ((uint64_t *)p_key)[1];
-		key[2] = ((uint64_t *)p_key)[2];
-		key[3] = ((uint64_t *)p_key)[3];
-		key[4] = ((uint64_t *)p_key)[4];
-
-	}
-	if (val != NULL) {
-		val[0] = ((uint64_t *)p_val)[0];
-		val[1] = ((uint64_t *)p_val)[1];
-	}
-}
-
-static void get_key_at_index(struct nd *node, int idx, uint64_t *key)
-{
-	struct slot          slot;
-	m0_bcount_t          ksize;
-	void                *p_key;
-
-	M0_SET0(&slot);
-	slot.s_node = node;
-	slot.s_idx  = idx;
-
-	M0_ASSERT(idx<bnode_count(node));
-
-	slot.s_rec.r_key.k_data.ov_vec.v_nr = 1;
-	slot.s_rec.r_key.k_data.ov_vec.v_count = &ksize;
-	slot.s_rec.r_key.k_data.ov_buf = &p_key;
-
-	bnode_key(&slot);
-	if (key != NULL) {
-		key[0] = ((uint64_t *)p_key)[0];
-		key[1] = ((uint64_t *)p_key)[1];
-		// *key = *(uint64_t *)p_key;
-	}
-}
-#endif
-
-/**
- * In this unit test we exercise a few tree operations in valid conditions only.
- */
-static void ut_basic_tree_oper_cp(void)
-{
-	struct m0_btree         btree = {};
-	struct m0_btree         btree_2 = {};
-	struct m0_btree        *temp_btree;
-	struct m0_btree_type    btree_type = {  .tt_id = M0_BT_UT_KV_OPS,
-						.ksize = 8,
-						.vsize = 8, };
-	struct m0_be_tx        *tx         = NULL;
-	struct m0_be_seg       *seg        = NULL;
-	struct m0_btree_op      b_op       = {};
-	struct m0_be_tx_credit  cred       = {};
-	void                   *temp_node;
-	int                     rc;
-	struct m0_fid           fid        = M0_FID_TINIT('b', 0, 1);
-
-	/** Prepare transaction to capture tree operations. */
-	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
-	m0_be_tx_prep(tx, NULL);
-	cred = M0_BE_TX_CREDIT(0, 0);
-	m0_btree_create_credit(&btree_type, &cred, 1);
-	btree_ut_init();
-	/**
-	 *  Run a valid scenario which:
-	 *  1) Creates a btree
-	 *  2) Opens the btree
-	 *  3) Closes the btree
-	 *  4) Destroys the btree
-	 */
-
-	/** Create temp node space*/
-	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
-				      &btree_type, &b_op, &btree, seg, &fid,
-				      tx));
-	M0_ASSERT(rc == 0);
-	temp_btree = b_op.bo_arbor;
-
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, 1024,
-							   &btree_2, seg,
-							   &b_op));
-	M0_ASSERT(rc == 0);
-
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(&btree_2, &b_op));
-	M0_ASSERT(rc == 0);
-	M0_SET0(&btree_2);
-	b_op.bo_arbor = temp_btree;
-
-	m0_btree_destroy_credit(b_op.bo_arbor, &cred, 1);
-
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
-							      &b_op, tx));
-	M0_ASSERT(rc == 0);
-	M0_SET0(&btree);
-	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
-
-	/**
-	 *  Run a valid scenario which:
-	 *  1) Creates a btree
-	 *  2) Destroys the btree
-	 */
-	/** Create a new btree */
-	cred = M0_BE_TX_CREDIT(0, 0);
-	m0_btree_create_credit(&btree_type, &cred, 1);
-	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
-							     &btree_type,
-							     &b_op, &btree, seg,
-							     &fid, tx));
-	M0_ASSERT(rc == 0);
-
-	m0_btree_destroy_credit(b_op.bo_arbor, &cred, 1);
-	/** Destory it */
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
-							      &b_op, tx));
-	M0_ASSERT(rc == 0);
-	M0_SET0(&btree);
-	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
-
-	/**
-	 *  Run a valid scenario which:
-	 *  1) Creates a btree
-	 *  2) Opens the btree
-	 *  3) Closes the btree
-	 *  4) Destroys the btree
-	 */
-
-	/** Create temp node space*/
-	cred = M0_BE_TX_CREDIT(0, 0);
-	m0_btree_create_credit(&btree_type, &cred, 1);
-	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
-				      &btree_type, &b_op, &btree, seg, &fid,
-				      tx));
-	M0_ASSERT(rc == 0);
-
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-				      m0_btree_close(b_op.bo_arbor, &b_op));
-	M0_ASSERT(rc == 0);
-	M0_SET0(&btree);
-
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, 1024,
-							   b_op.bo_arbor,
-							   seg, &b_op));
-	M0_ASSERT(rc == 0);
-
-	m0_btree_destroy_credit(b_op.bo_arbor, &cred, 1);
-
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
-							      &b_op, tx));
-	M0_ASSERT(rc == 0);
-	M0_SET0(&btree);
-	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
-
-	btree_ut_fini();
-}
-
 /**
  * In this unit test we exercise a few tree operations in invalid conditions
  * only.
@@ -8649,18 +8456,31 @@ static void ut_basic_tree_oper_icp(void)
 	struct m0_btree_type    btree_type = {  .tt_id = M0_BT_UT_KV_OPS,
 						.ksize = 8,
 						.vsize = 8, };
-	struct m0_be_tx        *tx         = NULL;
-	struct m0_be_seg       *seg        = NULL;
+	struct m0_be_tx         tx_data    = {};
+	struct m0_be_tx        *tx         = &tx_data;
 	struct m0_btree_op      b_op       = {};
 	struct m0_be_tx_credit  cred       = {};
 	void                   *temp_node;
 	int                     rc;
 	struct m0_fid           fid        = M0_FID_TINIT('b', 0, 1);
+	uint32_t                rnode_sz   = 1024;
+	uint32_t                rnode_sz_shift;
+	struct m0_buf           buf;
+
+	btree_ut_init();
+
+	M0_ASSERT(rnode_sz != 0 && m0_is_po2(rnode_sz));
+	rnode_sz_shift = __builtin_ffsl(rnode_sz) - 1;
+	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED, rnode_sz,
+			       rnode_sz_shift, &cred);
+	m0_btree_create_credit(&btree_type, &cred, 1);
 
 	/** Prepare transaction to capture tree operations. */
-	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
-	m0_be_tx_prep(tx, NULL);
-	btree_ut_init();
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
+	M0_ASSERT(rc == 0);
 
 	/**
 	 *  Run a invalid scenario which:
@@ -8669,12 +8489,12 @@ static void ut_basic_tree_oper_icp(void)
 	 * This scenario is invalid because the root node address is incorrect.
 	 * In this case m0_btree_create() will return -EFAULT.
 	 */
-	cred = M0_BE_TX_CREDIT(0, 0);
-	m0_btree_create_credit(&btree_type, &cred, 1);
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(invalid_addr, 1024,
-				      &btree_type, &b_op, &btree, seg, &fid,
-				      tx));
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(invalid_addr,
+				      rnode_sz, &btree_type, &b_op, &btree,
+				      seg, &fid, tx));
 	M0_ASSERT(rc == -EFAULT);
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
 
 	/**
 	 *  Run a invalid scenario which:
@@ -8683,8 +8503,9 @@ static void ut_basic_tree_oper_icp(void)
 	 * This scenario is invalid because the root node address is incorrect.
 	 * In this case m0_btree_open() will return -EFAULT.
 	 */
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(invalid_addr, 1024,
-							   &btree, seg, &b_op));
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(invalid_addr,
+							   rnode_sz, &btree,
+							   seg, &b_op));
 	M0_ASSERT(rc == -EFAULT);
 
 	/**
@@ -8698,25 +8519,42 @@ static void ut_basic_tree_oper_icp(void)
 	 * m0_btree_destroy().
 	 */
 
-	/** Create temp node space*/
-	cred = M0_BE_TX_CREDIT(0, 0);
-	m0_btree_create_credit(&btree_type, &cred, 1);
-	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
-				      &btree_type, &b_op, &btree, seg, &fid,
-				      tx));
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
 	M0_ASSERT(rc == 0);
+	/** Create temp node space*/
+	buf = M0_BUF_INIT(rnode_sz, NULL);
+	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	temp_node = buf.b_addr;
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node,
+				      rnode_sz, &btree_type, &b_op, &btree, seg,
+				      &fid, tx));
+	M0_ASSERT(rc == 0);
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
 
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, 1024,
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, rnode_sz,
 							   &btree, seg, &b_op));
 	M0_ASSERT(rc == 0);
 
+	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
+			       rnode_sz_shift, &cred);
 	m0_btree_destroy_credit(b_op.bo_arbor, &cred, 1);
+
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
+	M0_ASSERT(rc == 0);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
 							      &b_op, tx));
 	M0_ASSERT(rc == -EPERM);
 	M0_SET0(&btree);
-	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
+	buf = M0_BUF_INIT(rnode_sz, temp_node);
+	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
 
 	/**
 	 *  Run a invalid scenario which:
@@ -8731,12 +8569,25 @@ static void ut_basic_tree_oper_icp(void)
 
 	/** Create temp node space*/
 	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED, rnode_sz,
+			       rnode_sz_shift, &cred);
 	m0_btree_create_credit(&btree_type, &cred, 1);
-	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
+
+	/** Prepare transaction to capture tree operations. */
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
+	M0_ASSERT(rc == 0);
+
+	buf = M0_BUF_INIT(rnode_sz, NULL);
+	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	temp_node = buf.b_addr;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
 				      &btree_type, &b_op, &btree, seg, &fid,
 				      tx));
 	M0_ASSERT(rc == 0);
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(b_op.bo_arbor,
 							    &b_op));
@@ -8748,7 +8599,28 @@ static void ut_basic_tree_oper_icp(void)
 	M0_ASSERT(rc == -EINVAL);
 	M0_SET0(&btree);
 
-	m0_free_aligned(temp_node, (1024 + sizeof(struct nd)), 10);
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, rnode_sz,
+							   &btree, seg, &b_op));
+	M0_ASSERT(rc == 0);
+
+	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
+			       rnode_sz_shift, &cred);
+	m0_btree_destroy_credit(b_op.bo_arbor, &cred, 1);
+
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
+	M0_ASSERT(rc == 0);
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(b_op.bo_arbor,
+							      &b_op, tx));
+	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
+	buf = M0_BUF_INIT(rnode_sz, temp_node);
+	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
+
 	btree_ut_fini();
 }
 
@@ -9018,181 +8890,6 @@ static int btree_kv_update_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	m0_bufvec_cursor_copy(&dcur, &scur, vsize);
 
 	return 0;
-}
-
-/**
- * This unit test exercises the KV operations for both valid and invalid
- * conditions.
- */
-static void ut_basic_kv_oper(void)
-{
-	struct m0_btree_type    btree_type  = {.tt_id = M0_BT_UT_KV_OPS,
-					      .ksize = 8,
-					      .vsize = 8, };
-	struct m0_be_tx        *tx          = NULL;
-	struct m0_be_seg       *seg         = NULL;
-	struct m0_be_tx_credit  cred        = {};
-	struct m0_btree_op      b_op        = {};
-	struct m0_btree        *tree;
-	struct m0_btree         btree = {};
-	void                   *temp_node;
-	int                     i;
-	time_t                  curr_time;
-	struct m0_btree_cb      ut_cb;
-	uint64_t                first_key = 0;
-	bool                    first_key_initialized = false;
-	struct m0_btree_op      kv_op                 = {};
-	int                     rc;
-	struct m0_fid           fid         = M0_FID_TINIT('b', 0, 1);
-	M0_ENTRY();
-
-	time(&curr_time);
-	M0_LOG(M0_INFO, "Using seed %lu", curr_time);
-	srandom(curr_time);
-
-	/** Prepare transaction to capture tree operations. */
-	m0_be_tx_init(tx, 0, NULL, NULL, NULL, NULL, NULL, NULL);
-	m0_be_tx_prep(tx, NULL);
-	btree_ut_init();
-	/**
-	 *  Run valid scenario:
-	 *  1) Create a btree
-	 *  2) Adds a few records to the created tree.
-	 *  3) Confirms the records are present in the tree.
-	 *  4) Deletes all the records from the tree.
-	 *  4) Close the btree
-	 *  5) Destroy the btree
-	 */
-
-	/** Create temp node space and use it as root node for btree */
-	cred = M0_BE_TX_CREDIT(0, 0);
-	m0_btree_create_credit(&btree_type, &cred, 1);
-	temp_node = m0_alloc_aligned((1024 + sizeof(struct nd)), 10);
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
-							&btree_type, &b_op,
-							&btree, seg, &fid, tx));
-	M0_ASSERT(rc == 0);
-	tree = b_op.bo_arbor;
-
-	for (i = 0; i < 2048; i++) {
-		uint64_t             key;
-		uint64_t             value;
-		struct cb_data       put_data;
-		struct m0_btree_rec  rec;
-		m0_bcount_t          ksize  = sizeof key;
-		m0_bcount_t          vsize  = sizeof value;
-		void                *k_ptr  = &key;
-		void                *v_ptr  = &value;
-
-		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
-		m0_btree_put_credit(tree, 1, ksize, vsize, &cred);
-
-		/**
-		 *  There is a very low possibility of hitting the same key
-		 *  again. This is fine as it helps debug the code when insert
-		 *  is called with the same key instead of update function.
-		 */
-		key = value = m0_byteorder_cpu_to_be64(random());
-
-		if (!first_key_initialized) {
-			first_key = key;
-			first_key_initialized = true;
-		}
-
-		rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
-		rec.r_val          = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
-
-		put_data.key       = &rec.r_key;
-		put_data.value     = &rec.r_val;
-
-		ut_cb.c_act        = btree_kv_put_cb;
-		ut_cb.c_datum      = &put_data;
-
-		M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_put(tree, &rec,
-							      &ut_cb,
-							      &kv_op, tx));
-	}
-
-	{
-		uint64_t             key;
-		uint64_t             value;
-		struct cb_data       get_data;
-		struct m0_btree_key  get_key;
-		struct m0_bufvec     get_value;
-		m0_bcount_t          ksize            = sizeof key;
-		m0_bcount_t          vsize            = sizeof value;
-		void                *k_ptr            = &key;
-		void                *v_ptr            = &value;
-		uint64_t             find_key;
-		void                *find_key_ptr     = &find_key;
-		m0_bcount_t          find_key_size    = sizeof find_key;
-		struct m0_btree_key  find_key_in_tree;
-
-		get_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
-		get_value      = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
-
-		get_data.key    = &get_key;
-		get_data.value  = &get_value;
-
-		ut_cb.c_act   = btree_kv_get_cb;
-		ut_cb.c_datum = &get_data;
-
-		find_key = first_key;
-
-		find_key_in_tree.k_data =
-				M0_BUFVEC_INIT_BUF(&find_key_ptr, &find_key_size);
-
-		M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					 m0_btree_get(tree,
-						      &find_key_in_tree,
-						      &ut_cb, BOF_EQUAL,
-						      &kv_op));
-
-		for (i = 1; i < 2048; i++) {
-			find_key = key;
-			M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						 m0_btree_iter(tree,
-							       &find_key_in_tree,
-							       &ut_cb, BOF_NEXT,
-							       &kv_op));
-		}
-	}
-
-	srandom(curr_time);
-	for (i = 0; i < 2048; i++) {
-		uint64_t             key;
-		struct cb_data       delete_data;
-		struct m0_btree_rec  rec;
-		m0_bcount_t          ksize  = sizeof key;
-		void                *k_ptr  = &key;
-
-		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
-		m0_btree_del_credit(tree, 1, ksize, -1, &cred);
-
-		/**
-		*  There is a very low possibility of hitting the same key
-		*  again. This is fine as it helps debug the code when insert
-		*  is called with the same key instead of update function.
-		*/
-		key = m0_byteorder_cpu_to_be64(random());
-
-		rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
-
-		delete_data.key       = &rec.r_key;
-
-		ut_cb.c_act        = btree_kv_del_cb;
-		ut_cb.c_datum      = &delete_data;
-
-		M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_del(tree, &rec.r_key,
-							      &ut_cb,
-							      &kv_op, tx));
-	}
-	m0_btree_destroy_credit(b_op.bo_arbor, &cred, 1);
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree, &b_op, tx));
-	M0_ASSERT(rc == 0);
-	M0_SET0(&btree);
-
-	btree_ut_fini();
 }
 
 #if (AVOID_BE_SEGMENT == 1)
@@ -11091,6 +10788,65 @@ static void ut_mt_tree_oper(void)
 	btree_ut_num_threads_tree_oper(0);
 }
 
+static bool validate_nodes_on_be_segment(struct segaddr *rnode_segaddr)
+{
+	const struct node_type     *nt;
+	struct {
+		struct segaddr node_segaddr;
+		uint16_t       rec_idx;
+		}                   stack[MAX_TREE_HEIGHT + 1];
+	uint32_t                    stack_level = 0;
+	struct nd                   n;
+	struct slot                 s       = { .s_node = &n };
+	uint16_t                    rec_idx = 0;
+
+	nt = btree_node_format[segaddr_ntype_get(rnode_segaddr)];
+	n.n_addr = *rnode_segaddr;
+
+	while (true) {
+		/**
+		 * Move down towards leaf node only if we have child nodes still
+		 * to traverse.
+		 */
+		if (nt->nt_level(&n) > 0 &&
+		    rec_idx < nt->nt_count_rec(&n)) {
+			stack[stack_level].node_segaddr = n.n_addr,
+			stack[stack_level].rec_idx      = rec_idx,
+			stack_level++;
+			s.s_idx = rec_idx;
+			nt->nt_child(&s, &n.n_addr);
+			n.n_addr.as_core = (uint64_t)segaddr_addr(&n.n_addr);
+			rec_idx = 0;
+			continue;
+		}
+
+		/**
+		 * We are at the leaf node. Validate it before going back to 
+		 * parent.
+		 */
+
+		M0_ASSERT(nt->nt_isvalid(&n.n_addr) &&
+			  nt->nt_opaque_get(&n.n_addr) == NULL);
+		if (stack_level == 0)
+			break;
+
+		/**
+		 * Start moving up towards parent (or grand-parent) till we find
+		 * an ancestor whose child nodes are still to be traversed. If
+		 * we find an ancestor whose child nodes are still to be
+		 * traversed then we pick the next child node on the right.
+		 */
+		do {
+			stack_level--;
+			rec_idx  = stack[stack_level].rec_idx + 1;
+			n.n_addr = stack[stack_level].node_segaddr;
+		} while (rec_idx >= nt->nt_count_rec(&n) &&
+			 stack_level > 0);
+	}
+
+	return true;
+}
+
 /**
  * This unit test exercises different KV operations and confirms the changes
  * persist across cluster reboots.
@@ -11113,6 +10869,8 @@ static void ut_btree_persistence(void)
 						     .ksize = sizeof(uint64_t),
 						     .vsize = bt.ksize * 2,
 						};
+	const struct node_type     *nt;
+	struct segaddr              rnode_segaddr;
 	uint64_t                    key;
 	uint64_t                    value[bt.vsize / sizeof(uint64_t)];
 	m0_bcount_t                 ksize           = sizeof key;
@@ -11231,6 +10989,10 @@ static void ut_btree_persistence(void)
 	M0_ASSERT(rc == -1 && errno == ENOMEM); /** Assert BE segment unmapped*/
 	m0_be_seg_open(ut_seg->bus_seg);
 
+	/** Confirm nodes on BE segment are still valid. */
+	rnode_segaddr.as_core = (uint64_t)rnode;
+	validate_nodes_on_be_segment(&rnode_segaddr);
+
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(rnode, rnode_sz, tree, seg,
 						    &b_op));
@@ -11292,6 +11054,10 @@ static void ut_btree_persistence(void)
 	rc = madvise(rnode, rnode_sz, MADV_NORMAL);
 	M0_ASSERT(rc == -1 && errno == ENOMEM); /** Assert BE segment unmapped*/
 	m0_be_seg_open(ut_seg->bus_seg);
+
+	/** Confirm nodes on BE segment are still valid. */
+	rnode_segaddr.as_core = (uint64_t)rnode;
+	validate_nodes_on_be_segment(&rnode_segaddr);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(rnode, rnode_sz, tree, seg,
@@ -11379,6 +11145,10 @@ static void ut_btree_persistence(void)
 	M0_ASSERT(rc == -1 && errno == ENOMEM); /** Assert BE segment unmapped*/
 	m0_be_seg_open(ut_seg->bus_seg);
 
+	/** Confirm nodes on BE segment are still valid. */
+	rnode_segaddr.as_core = (uint64_t)rnode;
+	validate_nodes_on_be_segment(&rnode_segaddr);
+
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(rnode, rnode_sz, tree, seg,
 						    &b_op));
@@ -11441,6 +11211,10 @@ static void ut_btree_persistence(void)
 	M0_ASSERT(rc == -1 && errno == ENOMEM); /** Assert BE segment unmapped*/
 	m0_be_seg_open(ut_seg->bus_seg);
 
+	/** Confirm nodes on BE segment are still valid. */
+	rnode_segaddr.as_core = (uint64_t)rnode;
+	validate_nodes_on_be_segment(&rnode_segaddr);
+
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(rnode, rnode_sz, tree, seg,
 						    &b_op));
@@ -11491,6 +11265,15 @@ static void ut_btree_persistence(void)
 	M0_ASSERT(rc == -1 && errno == ENOMEM); /** Assert BE segment unmapped*/
 	m0_be_seg_open(ut_seg->bus_seg);
 
+
+	/**
+	 * Confirm root node on BE segment is not valid and the opaque 
+	 * pointer in the node is NULL.
+	 */
+	rnode_segaddr.as_core = (uint64_t)rnode;
+	nt = btree_node_format[segaddr_ntype_get(&rnode_segaddr)];
+	M0_ASSERT(!nt->nt_isvalid(&rnode_segaddr) &&
+		  nt->nt_opaque_get(&rnode_segaddr) == NULL);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(rnode, rnode_sz, tree, seg,
@@ -11826,9 +11609,7 @@ struct m0_ut_suite btree_ut = {
 	.ts_init = ut_btree_suite_init,
 	.ts_fini = ut_btree_suite_fini,
 	.ts_tests = {
-		{"basic_tree_op_cp",                ut_basic_tree_oper_cp},
 		{"basic_tree_op_icp",               ut_basic_tree_oper_icp},
-		{"basic_kv_ops",                    ut_basic_kv_oper},
 		{"multi_stream_kv_op",              ut_multi_stream_kv_oper},
 		{"single_thread_single_tree_kv_op", ut_st_st_kv_oper},
 		{"single_thread_tree_op",           ut_st_tree_oper},
