@@ -45,7 +45,7 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 . $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit
 
-XPRT=$(m0_default_xpt)
+XPRT=$(m0_default_xprt)
 
 start() {
     set +e

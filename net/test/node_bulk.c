@@ -1257,8 +1257,8 @@ static void net_bulk_worker_cb(struct node_bulk_ctx *ctx, bool pending)
 		m0_net_test_nh_sd_copy_locked(&ctx->nbc_nh);
 		/* 
 		 * In case of libfabric, there are no pending callbacks,
-		 * hence do not call m0_net_buffer_event_deliver_all() and
-		 * wait for callback in m0_chan_wait().
+		 * hence do not wait for callback in m0_chan_wait() after
+		 * calling m0_net_buffer_event_deliver_all().
 		 */
 	} else {
 		ctx->nbc_callback_executed = false;

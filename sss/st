@@ -42,7 +42,7 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 . $M0_SRC_DIR/utils/functions # die, opcode, sandbox_init, report_and_exit
 
-XPRT=$(m0_default_xpt)
+XPRT=$(m0_default_xprt)
 
 CONFDB_PATH=$M0_SRC_DIR/ut/diter.xc
 if [ "$(perl -wse 'print int(rand(2))')" -eq 0 ]; then  # 0.5 probability

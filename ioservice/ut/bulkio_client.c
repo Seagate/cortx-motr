@@ -483,15 +483,19 @@ static void bulkclient_test(void)
 
 int bulkio_client_ut_init( void )
 {
-	m0_fi_enable("libfab_target_notify", "lf_dummy_msg_snd");
-	m0_fi_enable("libfab_buf_done", "lf_dummy_msg_rcv");
+	if (USE_LIBFAB) {
+		m0_fi_enable("libfab_target_notify", "lf_dummy_msg_snd");
+		m0_fi_enable("libfab_dummy_msg_rcv_chk", "lf_dummy_msg_rcv");
+	}
 	return 0;
 }
 
 int bulkio_client_ut_fini( void )
 {
-	m0_fi_disable("libfab_target_notify", "lf_dummy_msg_snd");
-	m0_fi_disable("libfab_buf_done", "lf_dummy_msg_rcv");
+	if (USE_LIBFAB) {
+		m0_fi_disable("libfab_target_notify", "lf_dummy_msg_snd");
+		m0_fi_disable("libfab_dummy_msg_rcv_chk", "lf_dummy_msg_rcv");
+	}
 	return 0;
 }
 

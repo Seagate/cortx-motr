@@ -204,7 +204,7 @@ m0_get_transport(){
 ### configuration management part may affect to both m0d.
 m0d_with_rms_start() {
     local path=$SANDBOX_DIR/confd
-    local trans=$(m0_default_xpt);
+    local trans=$(m0_default_xprt);
     local OPTS="-F -D $path/db -T AD -S $path/stobs\
     -A linuxstob:$path/addb-stobs -e $trans:$M0D1_ENDPOINT\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
@@ -231,7 +231,7 @@ m0d_with_rms_start() {
 
 test_m0mkfs() {
     local path=$SANDBOX_DIR/systest-$$
-    local trans=$(m0_default_xpt);
+    local trans=$(m0_default_xprt);
     local OPTS="-D $path/db -T AD -S $path/stobs\
     -A linuxstob:$path/addb-stobs -e $trans:$M0D2_ENDPOINT -c $CONF_FILE\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 \
@@ -246,7 +246,7 @@ test_m0mkfs() {
 
 test_m0d_start() {
     local path=$SANDBOX_DIR/systest-$$
-    local trans=$(m0_default_xpt);
+    local trans=$(m0_default_xprt);
     local OPTS="-D $path/db -T AD -S $path/stobs\
     -A linuxstob:$path/addb-stobs -e $trans:$M0D2_ENDPOINT -c $CONF_FILE\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 \

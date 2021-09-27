@@ -40,7 +40,7 @@ PROG="${0##*/}"
 M0_SRC_DIR="$(readlink -f $0)"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
-. $M0_SRC_DIR/utils/functions #m0_default_xpt
+. $M0_SRC_DIR/utils/functions #m0_default_xprt
 
 SUDO="${SUDO-sudo -E}"  # the absence of ':' is important
 
@@ -179,9 +179,15 @@ cmd_run_ut() {
 }
 
 cmd_run_kut() {
-    rundir_init
-    echo 'Running kernel UT (this may take a while) ...'
-    $SUDO "$M0_SRC_DIR/ut/m0kut" "$@"
+    local trans
+    trans=$(m0_default_xprt)
+    if [[ "$trans" != "libfab" ]]; then
+        rundir_init
+        echo 'Running kernel UT (this may take a while) ...'
+        $SUDO "$M0_SRC_DIR/ut/m0kut" "$@"
+    else
+        echo 'Libfabric runs in userspace only. Kernel UTs are disabled!'
+    fi
 }
 
 cmd_run_ub() {
@@ -195,7 +201,7 @@ cmd_run_st() {
     local list_p=0
     local trans
 
-    trans=$(m0_default_xpt)
+    trans=$(m0_default_xprt)
 
     if [ "${1:-}" = '-l' ]; then
         list_p=1

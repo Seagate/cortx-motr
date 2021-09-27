@@ -110,18 +110,21 @@ enum m0_fab__libfab_params {
 	/** Max receive buffers in a shared receive pool */
 	FAB_MAX_SRX_SIZE               = 4096,
 	/** Max number of buckets per Qtype */
-	FAB_NUM_BUCKETS_PER_QTYPE      = 128
+	FAB_NUM_BUCKETS_PER_QTYPE      = 128,
+	/** Min time interval between buffer timeout check (sec) */
+	FAB_BUF_TMOUT_CHK_INTERVAL     = 1
 };
 
 /**
- * Represents the fabric provider for the transfer machine
+ * Represents the fabric provider for the transfer machine.
+ * The names in the 'const char *provider[]' should match the indices here.
  */
 enum m0_fab__prov_type {
-	FAB_FABRIC_PROV_NONE,
 	FAB_FABRIC_PROV_VERBS,
 	FAB_FABRIC_PROV_TCP,
 	FAB_FABRIC_PROV_SOCK,
-	FAB_FABRIC_PROV_OTHERS
+	/* Add all supported fabric providers above this line */
+	FAB_FABRIC_PROV_MAX
 };
 
 /**
@@ -149,6 +152,7 @@ enum m0_fab__buf_state {
 	FAB_BUF_INITIALIZED,
 	FAB_BUF_REGISTERED,
 	FAB_BUF_QUEUED,
+	FAB_BUF_CANCELED,
 	FAB_BUF_DEREGISTERED
 };
 
@@ -432,11 +436,20 @@ struct m0_fab__tm {
 	/** List of pending bulk operations */
 	struct m0_tl                    ftm_bulk;
 
-	/** Timestamp to monitor the interval for checking buffer timeouts */
+	/** Time when the buffer timeouts should be checked again */
 	m0_time_t                       ftm_tmout_check;
 
 	/** Hash table of buffers associated to the tm */
 	struct m0_fab__bufht            ftm_bufhash;
+
+	/** Memory registration key index */
+	uint64_t                        ftm_mr_key_idx;
+
+	/** Index for queue type for the buffer token */
+	uint32_t                        ftm_rr_qt[M0_NET_QT_NR+1];
+
+	/** Buffer operation id for the transfer machine */
+	uint32_t                        ftm_op_id;
 };
 
 /**

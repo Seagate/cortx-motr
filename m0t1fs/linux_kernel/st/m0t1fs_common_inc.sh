@@ -120,7 +120,7 @@ MAX_RPC_MSG_SIZE=65536
 PVERID='^v|1:10'
 MDPVERID='^v|2:10'
 M0T1FS_PROC_ID='<0x7200000000000001:64>'
-XPRT=$(m0_default_xpt)
+XPRT=$(m0_default_xprt)
 # Single node configuration.
 SINGLE_NODE=0
 

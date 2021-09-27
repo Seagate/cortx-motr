@@ -21,9 +21,9 @@
 M0_SRC_DIR=$(dirname $(readlink -f $0))
 M0_SRC_DIR="$M0_SRC_DIR/../../../"
 
-. $M0_SRC_DIR/utils/functions # m0_default_xpt
+. $M0_SRC_DIR/utils/functions # m0_default_xprt
 
-XPRT=$(m0_default_xpt)
+XPRT=$(m0_default_xprt)
 
 # Get local address and other parameters to start services
 if [ "$XPRT" = "lnet" ]; then

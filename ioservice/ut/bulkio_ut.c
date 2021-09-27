@@ -1804,21 +1804,25 @@ static void bulkio_fini(void)
 	bulkio_params_fini(bp);
 	m0_free(bp);
 
-	m0_fi_disable("io_fop_di_prepare", "skip_di_for_ut");
-	m0_fi_disable("m0_file_init", "skip_di_for_ut");
+	if (USE_LIBFAB) {
+		m0_fi_disable("io_fop_di_prepare", "skip_di_for_ut");
+		m0_fi_disable("m0_file_init", "skip_di_for_ut");
+	}
 }
 
 int bulkio_server_ut_init( void )
 {
-	m0_fi_enable("libfab_target_notify", "lf_dummy_msg_snd");
-	m0_fi_enable("libfab_buf_done", "lf_dummy_msg_rcv");
+	if (USE_LIBFAB) {
+		m0_fi_enable("libfab_target_notify", "lf_dummy_msg_snd");
+		m0_fi_enable("libfab_dummy_msg_rcv_chk", "lf_dummy_msg_rcv");
+	}
 	return 0;
 }
 
 int bulkio_server_ut_fini( void )
 {
 	m0_fi_disable("libfab_target_notify", "lf_dummy_msg_snd");
-	m0_fi_disable("libfab_buf_done", "lf_dummy_msg_rcv");
+	m0_fi_disable("libfab_dummy_msg_rcv_chk", "lf_dummy_msg_rcv");
 	return 0;
 }
 

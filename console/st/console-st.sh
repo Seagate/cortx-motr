@@ -44,7 +44,7 @@ CONF_PROFILE='<0x7000000000000001:0>'
 NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91  # required by `common.sh'
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh  # modload_galois
 
-XPRT=$(m0_default_xpt)
+XPRT=$(m0_default_xprt)
 
 start_server()
 {

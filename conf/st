@@ -53,7 +53,7 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 M0CONFGEN=$M0_SRC_DIR/utils/m0confgen
 
-XPRT=$(m0_default_xpt)
+XPRT=$(m0_default_xprt)
 	
 start() {
    _init

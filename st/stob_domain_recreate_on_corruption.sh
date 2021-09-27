@@ -46,7 +46,7 @@ CONF_FILE=$SANDBOX_DIR/confd/conf.txt
 
 PROC_FID1="<0x7200000000000001:0>"
 
-XPRT=$(m0_default_xpt)
+XPRT=$(m0_default_xprt)
 
 start() {
     sandbox_init
