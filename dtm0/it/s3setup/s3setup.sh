@@ -138,7 +138,7 @@ function s3bench_run()
     read ak sk <<< $(ldapsearch -b "ou=accesskeys,dc=s3,dc=seagate,dc=com" -x -w $sgiam_pass -D "cn=sgiamadmin,dc=seagate,dc=com" "(&(objectclass=accesskey))" | egrep "^ak:|^sk:" | awk '{ print $2; }')
 
     # Run s3bench.
-    $S3BENCH_BIN -accessKey $ak -accessSecret "${sk}" -bucket test1 -endpoint http://127.0.0.1  -numClients 4 -numSamples 4 -objectSize 1Mb
+    $S3BENCH_BIN -accessKey $ak -accessSecret "${sk}" -bucket test1 -endpoint http://127.0.0.1  -numClients 4 -numSamples 4 -objectSize 1Mb -skipCleanup
 }
 
 function addb2_dump()
