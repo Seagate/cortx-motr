@@ -122,6 +122,7 @@ enum m0_btree_opcode {
 	M0_BO_ITER,
 	M0_BO_MINKEY,
 	M0_BO_MAXKEY,
+	M0_BO_TRUNCATE,
 
 	M0_BO_NR
 };
@@ -169,6 +170,15 @@ M0_INTERNAL void m0_btree_destroy_credit(struct m0_btree *tree,
 					 struct m0_be_tx_credit *accum,
 					 m0_bcount_t nr);
 
+/**
+ * Calculates the credits for maximum nodes that can be deleted at a time from
+ * btree. To be on the safer side, the calculation takes half of the
+ * maximum transaction credit as the maximum transaction limit.
+ */
+M0_INTERNAL void m0_btree_truncate_credit(struct m0_be_tx        *tx,
+					  struct m0_btree        *tree,
+					  struct m0_be_tx_credit *accum,
+					  m0_bcount_t            *limit);
 /**
  * Btree functions related to tree management
  */
@@ -355,6 +365,20 @@ M0_INTERNAL void m0_btree_maxkey(struct m0_btree *arbor,
 				 struct m0_btree_op *bop);
 
 /**
+ * Deletes all the nodes except root node. It deletes all the records from the
+ * root node and keeps root node empty. This routine may be called multiple
+ * times to fit into transaction.
+ *
+ * @param arbor Btree parameteres.
+ * @param limit Maximum number of nodes to be deleted.
+ * @param tx    Transaction of which the current operation is part of.
+ * @param bop   Btree operation related parameters.
+ */
+M0_INTERNAL void m0_btree_truncate(struct m0_btree *arbor, m0_bcount_t limit,
+				   struct m0_be_tx *tx,
+				   struct m0_btree_op *bop);
+
+/**
  * Initialises cursor and its internal structures.
  *
  * @param it    is pointer to cursor structure allocated by the caller.
@@ -436,6 +460,10 @@ M0_INTERNAL void m0_btree_cursor_kv_get(struct m0_btree_cursor *it,
 					struct m0_buf          *key,
 					struct m0_buf          *val);
 
+/**
+ * Determines if tree contains zero record.
+ */
+bool m0_btree_is_empty(struct m0_btree *btree);
 
 void m0_btree_op_init(struct m0_btree_op *bop, enum m0_btree_opcode *opc,
 		      struct m0_btree *arbor,

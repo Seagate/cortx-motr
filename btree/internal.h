@@ -46,6 +46,7 @@ struct m0_btree_op {
 	struct m0_be_tx       *bo_tx;
 	struct m0_be_seg      *bo_seg;
 	uint64_t               bo_flags;
+	m0_bcount_t            bo_limit;
 	struct m0_btree_oimpl *bo_i;
 	struct m0_btree_idata  b_data;
 };
