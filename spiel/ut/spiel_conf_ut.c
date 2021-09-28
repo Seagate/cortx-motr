@@ -1972,28 +1972,8 @@ static void spiel_conf_wlock_get_fail(void)
 	spiel_conf_ut_fini();
 }
 
-int spiel_conf_ut_ts_init(void)
-{
-	if (USE_LIBFAB) {
-		m0_fi_enable("libfab_target_notify", "lf_dummy_msg_snd");
-		m0_fi_enable("libfab_dummy_msg_rcv_chk", "lf_dummy_msg_rcv");
-	}
-	return 0;
-}
-
-int spiel_conf_ut_ts_fini(void)
-{
-	if (USE_LIBFAB) {
-		m0_fi_disable("libfab_target_notify", "lf_dummy_msg_snd");
-		m0_fi_disable("libfab_dummy_msg_rcv_chk", "lf_dummy_msg_rcv");
-	}
-	return 0;
-}
-
 struct m0_ut_suite spiel_conf_ut = {
 	.ts_name = "spiel-conf-ut",
-	.ts_init = spiel_conf_ut_ts_init,
-	.ts_fini = spiel_conf_ut_ts_fini,
 	.ts_tests = {
 		{ "create-ok",      spiel_conf_create_ok      },
 		{ "create-fail",    spiel_conf_create_fail    },

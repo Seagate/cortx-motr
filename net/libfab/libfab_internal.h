@@ -231,7 +231,7 @@ struct m0_fab__ndom {
 	struct m0_tl          fnd_fabrics;
 
 	/** local ip address */
-	char                  fnd_loc_ip[16];
+	char                  fnd_loc_ip[INET_ADDRSTRLEN];
 
 	/** Number of segments */
 	uint32_t              fnd_seg_nr;
