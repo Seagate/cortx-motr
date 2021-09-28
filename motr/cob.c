@@ -303,8 +303,8 @@ M0_INTERNAL void cob_req_ref_put(struct cob_req *cr)
  */
 static struct cob_req *cob_req_alloc(struct m0_pool_version *pv)
 {
-	struct cob_req        *cr;
-	uint32_t               pool_width;
+	struct cob_req *cr;
+	uint32_t        pool_width = pv->pv_attr.pa_P;
 
 	cr = m0_alloc(sizeof *cr);
 	if (cr == NULL)
@@ -315,7 +315,6 @@ static struct cob_req *cob_req_alloc(struct m0_pool_version *pv)
 
 	/* Initialises and sets FOP related members. */
 	cr->cr_pver = pv->pv_id;
-	pool_width  = pv->pv_attr.pa_P;
 	M0_ALLOC_ARR(cr->cr_ios_fop, pool_width);
 	M0_ALLOC_ARR(cr->cr_ios_replied, pool_width);
 	if (cr->cr_ios_fop == NULL || cr->cr_ios_replied == NULL) {
@@ -326,7 +325,9 @@ static struct cob_req *cob_req_alloc(struct m0_pool_version *pv)
 	}
 	m0_ref_init(&cr->cr_ref, 1, cob_req_ref_release);
 	cr->cr_id = m0_dummy_id_generate();
+	cr->cr_icr_nr = pool_width;
 	M0_ADDB2_ADD(M0_AVI_CLIENT_COB_REQ, cr->cr_id, COB_REQ_ACTIVE);
+
 	return cr;
 }
 
@@ -359,7 +360,7 @@ static void cob_req_free(struct cob_req *cr)
 }
 
 static int cob_req_send(struct cob_req *cr)
- {
+{
 	int rc;
 
 	M0_ENTRY();
@@ -720,7 +721,6 @@ static void icrs_complete(struct cob_req *cr)
 		return;
 	}
 
-
 	cob_type = cr->cr_cob_type;
 	if (cob_type == M0_COB_IO ||
 	    M0_IN(cr->cr_opcode,
@@ -731,7 +731,7 @@ static void icrs_complete(struct cob_req *cr)
 	} else {
 		/*
 		 * M0_COB_MD
-		 * Just finish creating metadata in selected io services,
+		 * Just finished creating metadata in selected io services,
 		 * start the 2nd phase now (to prepare COB fops for all io
 		 * services).
 		 */
@@ -1421,7 +1421,8 @@ static int cob_ios_md_send(struct cob_req *cr)
 	 * replied). So the content of 'oo' may be changed. Be aware of this
 	 * race condition!
 	 */
-	cr->cr_icr_nr = cinst->m0c_pools_common.pc_md_redundancy;
+	if (cinst->m0c_pools_common.pc_md_redundancy < cr->cr_icr_nr)
+		cr->cr_icr_nr = cinst->m0c_pools_common.pc_md_redundancy;
 	cr->cr_cob_type = M0_COB_MD;
 	rc = (cr->cr_flags & COB_REQ_SYNC) ?
 	     cob_ios_req_send_sync(cr) :
@@ -1430,9 +1431,9 @@ static int cob_ios_md_send(struct cob_req *cr)
 	return M0_RC(rc);
 }
 
-/**----------------------------------------------------------------------------*
- *                           COB FOP's for mdservice                           *
- *-----------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*
+ *                           COB FOP's for mdservice                          *
+ *----------------------------------------------------------------------------*/
 
 /**
  * Returns the object operation associated to a given RPC item.Items are sent
