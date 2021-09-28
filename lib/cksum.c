@@ -27,25 +27,25 @@
 #include "lib/trace.h"
 
 
-M0_INTERNAL int m0_calculate_md5_inc_context(
-		struct m0_md5_inc_context_pi *pi,
-		struct m0_pi_seed *seed,
-		struct m0_bufvec *bvec,
-		enum m0_pi_calc_flag flag,
-		unsigned char *curr_context,
-		unsigned char *pi_value_without_seed)
+M0_INTERNAL int calculate_md5_inc_context(struct m0_md5_inc_context_pi *pi,
+					  struct m0_pi_seed *seed,
+					  struct m0_bufvec *bvec,
+					  enum m0_pi_calc_flag flag,
+					  unsigned char *curr_context,
+					  unsigned char *pi_value_without_seed)
 {
 #ifndef __KERNEL__
 	MD5_CTX context;
-	int i, rc;
+	int     i;
+	int     rc;
 
 	M0_ENTRY();
 
 	M0_PRE(pi != NULL);
 	M0_PRE(curr_context != NULL);
 	M0_PRE(ergo(bvec != NULL && bvec->ov_vec.v_nr != 0,
-				bvec != NULL && bvec->ov_vec.v_count != NULL &&
-				bvec->ov_buf != NULL));
+		    bvec != NULL && bvec->ov_vec.v_count != NULL &&
+		    bvec->ov_buf != NULL));
 
 	/* This call is for first data unit, need to initialize prev_context */
 	if (flag & M0_PI_CALC_UNIT_ZERO) {
@@ -59,7 +59,6 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 	/* memcpy, so that we do not change the prev_context */
 	memcpy(curr_context, &pi->pimd5c_prev_context, sizeof(MD5_CTX));
 
-
 	/* get the curr context by updating it*/
 	if (bvec != NULL) {
 		for (i = 0; i < bvec->ov_vec.v_nr; i++) {
@@ -67,12 +66,12 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 					bvec->ov_vec.v_count[i]);
 			if (rc != 1) {
 				return M0_ERR_INFO(rc, "MD5_Update failed."
-						"curr_context=%p, "
-						"bvec->ov_buf[%d]=%p, "
-						"bvec->ov_vec.v_count[%d]=%lu",
-						curr_context, i,
-						bvec->ov_buf[i], i,
-						bvec->ov_vec.v_count[i]);
+						       "curr_context=%p, "
+						       "bvec->ov_buf[%d]=%p, "
+						       "bvec->ov_vec.v_count[%d]=%lu",
+						       curr_context, i,
+						       bvec->ov_buf[i], i,
+						       bvec->ov_vec.v_count[i]);
 			}
 		}
 	}
@@ -92,9 +91,9 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 		rc = MD5_Final(pi_value_without_seed, &context);
 		if (rc != 1) {
 			return M0_ERR_INFO(rc, "MD5_Final failed"
-					"pi_value_without_seed=%p"
-					"curr_context=%p",
-					pi_value_without_seed, curr_context);
+					       "pi_value_without_seed=%p"
+					       "curr_context=%p",
+					       pi_value_without_seed, curr_context);
 		}
 	}
 
@@ -116,19 +115,19 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 		 */
 		char seed_str[64] = {'\0'};
 		snprintf(seed_str, sizeof(seed_str), "%"PRIx64"%"PRIx64"%"PRIx64,
-				seed->pis_obj_id.f_container, seed->pis_obj_id.f_key,
-				seed->pis_data_unit_offset);
+			 seed->pis_obj_id.f_container, seed->pis_obj_id.f_key,
+			 seed->pis_data_unit_offset);
 		rc = MD5_Update(&context, (unsigned char *)seed_str,
 				sizeof(seed_str));
 		if (rc != 1) {
 
 			return M0_ERR_INFO(rc, "MD5_Update fail curr_context=%p"
-					"f_container 0x%"PRIx64" f_key 0x%"PRIx64
-					" data_unit_offset 0x%"PRIx64" seed_str %s",
-					curr_context, seed->pis_obj_id.f_container,
-					seed->pis_obj_id.f_key,
-					seed->pis_data_unit_offset,
-					(char *)seed_str);
+					       "f_container 0x%"PRIx64" f_key 0x%"PRIx64
+					       " data_unit_offset 0x%"PRIx64" seed_str %s",
+					       curr_context, seed->pis_obj_id.f_container,
+					       seed->pis_obj_id.f_key,
+					       seed->pis_data_unit_offset,
+					       (char *)seed_str);
 		}
 	}
 
@@ -136,11 +135,11 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 		rc = MD5_Final(pi->pimd5c_value, &context);
 		if (rc != 1) {
 			return M0_ERR_INFO(rc, "MD5_Final fail curr_context=%p",
-					curr_context);
+					   curr_context);
 		}
 	}
 #endif
-	return  M0_RC(0);
+	return  0;
 }
 
 M0_INTERNAL uint64_t m0_calculate_cksum_size(struct m0_generic_pi *pi)
@@ -166,11 +165,11 @@ M0_INTERNAL uint64_t max_cksum_size(void)
 }
 
 int m0_client_calculate_pi(struct m0_generic_pi *pi,
-		struct m0_pi_seed *seed,
-		struct m0_bufvec *bvec,
-		enum m0_pi_calc_flag flag,
-		unsigned char *curr_context,
-		unsigned char *pi_value_without_seed)
+			   struct m0_pi_seed *seed,
+			   struct m0_bufvec *bvec,
+			   enum m0_pi_calc_flag flag,
+			   unsigned char *curr_context,
+			   unsigned char *pi_value_without_seed)
 {
 	int rc = 0;
 	M0_ENTRY();
@@ -179,9 +178,9 @@ int m0_client_calculate_pi(struct m0_generic_pi *pi,
 	case M0_PI_TYPE_MD5_INC_CONTEXT: {
 		struct m0_md5_inc_context_pi *md5_context_pi =
 			(struct m0_md5_inc_context_pi *) pi;
-		rc = m0_calculate_md5_inc_context(md5_context_pi, seed, bvec,
-				                  flag, curr_context,
-						  pi_value_without_seed);
+		rc = calculate_md5_inc_context(md5_context_pi, seed, bvec,
+					       flag, curr_context,
+					       pi_value_without_seed);
 		}
 		break;
 	}
@@ -210,8 +209,8 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 		       sizeof(MD5_CTX));
 		md5_ctx_pi.pimd5c_hdr.pih_type = M0_PI_TYPE_MD5_INC_CONTEXT;
 		m0_client_calculate_pi((struct m0_generic_pi *)&md5_ctx_pi,
-					seed, bvec, M0_PI_NO_FLAG,
-					curr_context, NULL);
+				       seed, bvec, M0_PI_NO_FLAG,
+				       curr_context, NULL);
 		m0_free(curr_context);
 		if (memcmp(((struct m0_md5_inc_context_pi *)pi)->pimd5c_value,
 			   md5_ctx_pi.pimd5c_value,
@@ -225,7 +224,7 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 					 seed->pis_obj_id.f_container,
 					 seed->pis_obj_id.f_key,
 					 seed->pis_data_unit_offset);
-				return false;
+			return false;
 		}
 		break;
 	}

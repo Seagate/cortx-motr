@@ -191,16 +191,16 @@ static void init_vecs()
 		memset(user_buf[i], ('a' + i)|1, buf_size);
 	}
 
-	// Allocate contigious buffer for i/p checksums
+	/** Allocate contigious buffer for i/p checksums */
 	memset( user_cksm_buf[0], cs_char++, AD_CS_SZ);	
 	for (i = 1; i < ARRAY_SIZE(user_cksm_buf); ++i) {
-		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_CS_SZ; 	
+		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_CS_SZ;
 		memset( user_cksm_buf[i], cs_char++, AD_CS_SZ);
 	}
 
 	memset( read_cksm_buf[0], 0, AD_CS_SZ);	
 	for (i = 1; i < ARRAY_SIZE(read_cksm_buf); ++i) {
-		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_CS_SZ; 	
+		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_CS_SZ;
 		memset( read_cksm_buf[i], 0, AD_CS_SZ);
 	}
 }
@@ -396,7 +396,7 @@ static void test_read(int nr)
 	io.si_cksum_sz = AD_CS_SZ;
 	// Checksum for i buf_size blocks
 	io.si_cksum.b_addr = read_cksm_buf[0];
-	io.si_cksum.b_nob  = ( nr * AD_CS_SZ );
+	io.si_cksum.b_nob  = (nr * AD_CS_SZ);
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
@@ -497,7 +497,7 @@ static void test_ad_rw_unordered()
 	for (i = NR/2; i < NR; ++i) {
 		stob_vi[i-(NR/2)] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i-(NR/2)], ('a' + i)|1, buf_size);
-		memset(user_cksm_buf[i-(NR/2)], ('A' + i)|1, AD_CS_SZ);		
+		memset(user_cksm_buf[i-(NR/2)], ('A' + i)|1, AD_CS_SZ);	
 	}
 	test_write(NR/2, NULL);
 

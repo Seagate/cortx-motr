@@ -1154,16 +1154,15 @@ static bool verify_checksum(struct m0_op_io *ioo)
 	m0_bcount_t               bytes;
 
 	M0_ENTRY();
-	usz = m0_obj_layout_id_to_unit_size(
-			m0__obj_lid(ioo->ioo_obj));
+	usz = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
 
 	m0_bufvec_cursor_init(&datacur, &ioo->ioo_data);
 	m0_bufvec_cursor_init(&tmp_datacur, &ioo->ioo_data);
 	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
 
-	while ( !m0_bufvec_cursor_move(&datacur, 0) &&
-		!m0_ivec_cursor_move(&extcur, 0) &&
-		attr_idx < ioo->ioo_attr.ov_vec.v_nr){
+	while (!m0_bufvec_cursor_move(&datacur, 0) &&
+	       !m0_ivec_cursor_move(&extcur, 0) &&
+	       attr_idx < ioo->ioo_attr.ov_vec.v_nr){
 
 		/* calculate number of segments required for 1 data unit */
 		nr_seg = 0;
@@ -1174,8 +1173,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 			if (bytes < count) {
 				m0_bufvec_cursor_move(&tmp_datacur, bytes);
 				count -= bytes;
-			}
-			else {
+			} else {
 				m0_bufvec_cursor_move(&tmp_datacur, count);
 				count = 0;
 			}
@@ -1200,8 +1198,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 				user_data.ov_buf[i] = m0_bufvec_cursor_addr(&datacur);
 				m0_bufvec_cursor_move(&datacur, bytes);
 				count -= bytes;
-			}
-			else {
+			} else {
 				user_data.ov_vec.v_count[i] = count;
 				user_data.ov_buf[i] = m0_bufvec_cursor_addr(&datacur);
 				m0_bufvec_cursor_move(&datacur, count);
@@ -1236,7 +1233,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 	}
 	else {
 		/* something wrong, we terminated early */
-		M0_IMPOSSIBLE("something wrong while arranging data");
+		M0_IMPOSSIBLE("something wrong while calculating checksum on read data");
 	}
 }
 

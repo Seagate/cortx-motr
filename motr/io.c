@@ -526,10 +526,11 @@ static int obj_io_init(struct m0_obj      *obj,
 		ioo->ioo_data = *data;
 		ioo->ioo_attr_mask = mask;
 		/** If checksum is disabled, then attr is NULL */
-		if (attr != NULL && attr->ov_vec.v_nr)
+		if (attr != NULL && attr->ov_vec.v_nr) {
 			ioo->ioo_attr = *attr;
-		else
+		} else {
 			M0_SET0(&ioo->ioo_attr);
+		}
 	}
 	M0_POST_EX(m0_op_io_invariant(ioo));
 	return M0_RC(0);
@@ -635,7 +636,7 @@ static void obj_io_args_check(struct m0_obj      *obj,
 		   (m0_vec_count(&ext->iv_vec) >> obj->ob_attr.oa_bshift)));
 #endif
 	M0_ASSERT(ergo(M0_IN(opcode, (M0_OC_ALLOC, M0_OC_FREE)),
-		       data == NULL && attr == NULL && mask == 0));
+		  data == NULL && attr == NULL && mask == 0));
 	/* Block metadata is not yet supported */
 	M0_ASSERT(mask == 0);
 }

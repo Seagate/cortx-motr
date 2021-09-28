@@ -39,8 +39,8 @@ do { \
         char *dst = (char *)(buf)->ov_buf[seg]; \
         char *data = (char *)(dbuf)->ov_buf[seg]; \
         M0_LOG(M0_DEBUG, msg " count[%d] = %"PRIu64 \
-                        " cksum = %c%c data = %c%c", \
-                        seg, vec->v_count[seg], dst[0], dst[1], data[0],data[1]); \
+               " cksum = %c%c data = %c%c", \
+	       seg, vec->v_count[seg], dst[0], dst[1], data[0],data[1]); \
 }while(0)
 
 
@@ -147,13 +147,12 @@ struct m0_pi_seed {
  *                                     Without seed checksum is set in this field.
  */
 
-M0_INTERNAL int m0_calculate_md5_inc_context(
-                struct m0_md5_inc_context_pi *pi,
-                struct m0_pi_seed *seed,
-                struct m0_bufvec *bvec,
-                enum m0_pi_calc_flag flag,
-                unsigned char *curr_context,
-                unsigned char *pi_value_without_seed);
+M0_INTERNAL int calculate_md5_inc_context(struct m0_md5_inc_context_pi *pi,
+					  struct m0_pi_seed *seed,
+					  struct m0_bufvec *bvec,
+					  enum m0_pi_calc_flag flag,
+					  unsigned char *curr_context,
+					  unsigned char *pi_value_without_seed);
 
 /**
  * Calculate checksum size
@@ -196,11 +195,11 @@ M0_INTERNAL uint64_t max_cksum_size(void);
  */
 
 int m0_client_calculate_pi(struct m0_generic_pi *pi,
-                struct m0_pi_seed *seed,
-                struct m0_bufvec *bvec,
-                enum m0_pi_calc_flag flag,
-                unsigned char *curr_context,
-                unsigned char *pi_value_without_seed);
+			   struct m0_pi_seed *seed,
+			   struct m0_bufvec *bvec,
+			   enum m0_pi_calc_flag flag,
+			   unsigned char *curr_context,
+			   unsigned char *pi_value_without_seed);
 
 
 /**

@@ -136,7 +136,9 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 				       struct m0_op_io *ioo,
 				       struct m0_buf *buf)
 {
-	uint32_t                unit_size, off, cs_sz;
+	uint32_t                unit_size;
+	uint32_t                off;
+	uint32_t                cs_sz;
 	m0_bindex_t             rep_index;
 	m0_bindex_t             ti_cob_index;
 	m0_bindex_t             ti_goff_index;
@@ -171,8 +173,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	if (off) {
 		if (m0_ivec_cursor_move(&rep_cursor, unit_size - off)) {
 			rep_index = m0_ivec_cursor_index(&rep_cursor);
-		}
-		else {
+		} else {
 			/** invalid cusror position */
 			M0_ASSERT(false);
 		}
@@ -220,8 +221,8 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 		M0_ASSERT(src <= (buf->b_addr + buf->b_nob));
 
 	} while (!m0_ivec_cursor_move(&rep_cursor, unit_size) &&
-		     !m0_ivec_cursor_move(&ti_cob_cursor, unit_size) &&
-		     !m0_ivec_cursor_move(&ti_goff_cursor, unit_size));
+		 !m0_ivec_cursor_move(&ti_cob_cursor, unit_size) &&
+		 !m0_ivec_cursor_move(&ti_goff_cursor, unit_size));
 }
 
 /**
@@ -295,11 +296,11 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	rw_reply = io_rw_rep_get(reply_fop);
 
 	/* Copy attributes to client if reply received from read operation */
-	if (m0_is_read_rep(reply_fop) && op->op_code ==
-		                         M0_OC_READ && ioo->ioo_attr.ov_vec.v_nr) {
+	if (m0_is_read_rep(reply_fop) &&
+	    op->op_code == M0_OC_READ && ioo->ioo_attr.ov_vec.v_nr) {
 		m0_indexvec_wire2mem(&rwfop->crw_ivec,
-					rwfop->crw_ivec.ci_nr, 0,
-					&rep_attr_ivec);
+				     rwfop->crw_ivec.ci_nr, 0,
+				     &rep_attr_ivec);
 
 		application_attribute_copy(&rep_attr_ivec, tioreq, ioo,
 					   &rw_reply->rwr_di_data_cksum);

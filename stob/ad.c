@@ -338,8 +338,7 @@ M0_INTERNAL void * m0_stob_ad_get_checksum_addr(struct m0_stob_io *io, m0_bindex
 	int           i;
 
 	/* Get the checksum nobs consumed till reaching the off in given io */
-	for (i = 0; i < io->si_stob.iv_vec.v_nr; i++)
-	{
+	for (i = 0; i < io->si_stob.iv_vec.v_nr; i++) {
 		ext.e_start = io->si_stob.iv_index[i];
 		ext.e_end = io->si_stob.iv_index[i] + io->si_stob.iv_vec.v_count[i];
 
@@ -349,11 +348,11 @@ M0_INTERNAL void * m0_stob_ad_get_checksum_addr(struct m0_stob_io *io, m0_bindex
 								 io->si_unit_sz,
 								 io->si_cksum_sz);
 			break;
-		}
-		else {
+		} else {
 			/* off is beyond the current extent, increment the b_addr */
 			b_addr +=  m0_extent_get_checksum_nob(ext.e_start,
-					io->si_stob.iv_vec.v_count[i], io->si_unit_sz, io->si_cksum_sz);
+							      io->si_stob.iv_vec.v_count[i],
+							      io->si_unit_sz, io->si_cksum_sz);
 			M0_ASSERT(b_addr <=io->si_cksum.b_addr + io->si_cksum.b_nob  );
 		}
 	}
@@ -1284,27 +1283,29 @@ static void  stob_ad_get_checksum_for_fragment(struct m0_stob_io *io,
 					       m0_bindex_t off,
 					       m0_bindex_t frag_sz)
 {
-	m0_bindex_t unit_size = io->si_unit_sz;
-	m0_bcount_t cksum_unit_size = io->si_cksum_sz;
-	m0_bcount_t checksum_nob;
-	struct m0_be_emap_seg *ext = &it->ec_seg;
-	void * dst, *src;
+	m0_bindex_t            unit_size = io->si_unit_sz;
+	m0_bcount_t            cksum_unit_size = io->si_cksum_sz;
+	m0_bcount_t            checksum_nob;
+	struct m0_be_emap_seg  *ext = &it->ec_seg;
+	void                   * dst;
+	void                   *src;
 
 	checksum_nob = m0_extent_get_checksum_nob(off, frag_sz, unit_size,
 						  cksum_unit_size);
 	if (checksum_nob) {
-		// we are looking at checksum which need to be added:
-		// get the destination: checksum address to copy in client buffer
+		/** we are looking at checksum which need to be added:
+		 *  get the destination: checksum address to copy in client buffer
+		 */
 		dst = m0_stob_ad_get_checksum_addr(io, off);
-		//get the source: checksum address from segment
+		/** get the source: checksum address from segment */
 		src = m0_extent_get_checksum_addr(ext->ee_cksum_buf.b_addr, off,
 						  ext->ee_ext.e_start,
 						  unit_size, cksum_unit_size);
 
-		// copy from source to client buffer
+		/** copy from source to client buffer */
 		memcpy(dst, src, checksum_nob);
 
-		// update checksum fill count for stio
+		/** update checksum fill count for stio */
 		io->si_cksum_nob_read += checksum_nob;
 		M0_ASSERT(io->si_cksum_nob_read <= io->si_cksum.b_nob);
 	}
@@ -1403,8 +1404,7 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 
 		frags++;
 
-		if (seg->ee_val < AET_MIN)
-		{
+		if (seg->ee_val < AET_MIN) {
 			/* For RMW case, ignore cksum read from fragments */
 			if (io->si_cksum_sz && io->si_unit_sz) 
 				stob_ad_get_checksum_for_fragment(io, it, off, frag_size);
@@ -1688,8 +1688,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 		it.ec_app_cksum_buf.b_nob  = m0_extent_get_checksum_nob(off, m0_ext_length(&todo), 
 							                io->si_unit_sz,
 									io->si_cksum_sz);
-	}
-	else {
+	} else {
 		it.ec_app_cksum_buf.b_addr = NULL;
 		it.ec_app_cksum_buf.b_nob = 0;
 	}

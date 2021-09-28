@@ -933,7 +933,6 @@ static void ut_test_ioreq_application_data_copy(void)
 	int                          buf_idx = 0;
 	enum m0_pi_calc_flag         flag = M0_PI_CALC_UNIT_ZERO;
 	struct m0_ivec_cursor        extcur;
-	//int l;
 
 	/* init client */
 	instance = dummy_instance;
@@ -976,11 +975,11 @@ static void ut_test_ioreq_application_data_copy(void)
 	/* Check multiple blocks of data are copied */
 	for (i = 0; i < ioo->ioo_data.ov_vec.v_nr; i++)
 		memset(ioo->ioo_data.ov_buf[i], 0,
-			ioo->ioo_data.ov_vec.v_count[i]);
+		       ioo->ioo_data.ov_vec.v_count[i]);
 
 	for (i = 0; i < ioo->ioo_attr.ov_vec.v_nr; i++)
 		memset(ioo->ioo_attr.ov_buf[i], 0,
-			ioo->ioo_attr.ov_vec.v_count[i]);
+		       ioo->ioo_attr.ov_vec.v_count[i]);
 
 	for (k = 0; k < ioo->ioo_iomap_nr; k++) {
 		struct pargrp_iomap *map = ioo->ioo_iomaps[k];
@@ -1024,8 +1023,8 @@ static void ut_test_ioreq_application_data_copy(void)
 				seed.pis_data_unit_offset = m0_ivec_cursor_index(&extcur);
 
 				rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-						&seed, &user_data, flag,
-						curr_context, NULL);
+							    &seed, &user_data, flag,
+							    curr_context, NULL);
 				M0_UT_ASSERT(rc == 0);
 			}
 
@@ -1047,11 +1046,10 @@ static void ut_test_ioreq_application_data_copy(void)
 			for (j = 0; j < map->pi_max_col; j++) {
 
 				int count = 0;
-				while (count < map->pi_databufs[i][j]->db_buf.b_nob)
-				{
+				while (count < map->pi_databufs[i][j]->db_buf.b_nob) {
 					M0_UT_ASSERT(memcmp(ioo->ioo_data.ov_buf[buf_idx],
-							map->pi_databufs[i][j]->db_buf.b_addr+count,
-							ioo->ioo_data.ov_vec.v_count[buf_idx]) == 0);
+							    map->pi_databufs[i][j]->db_buf.b_addr+count,
+							    ioo->ioo_data.ov_vec.v_count[buf_idx]) == 0);
 					count += ioo->ioo_data.ov_vec.v_count[buf_idx];
 					buf_idx++;
 				}

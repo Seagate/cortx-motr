@@ -118,10 +118,10 @@ static int test_adieu_init(const char *location,
 	M0_ASSERT(user_cksm_buf[0] != NULL);
 	memset( user_cksm_buf[0], cs_char++, AD_ADIEU_CS_SZ);	
 	for (i = 1; i < ARRAY_SIZE(user_cksm_buf); ++i) {
-		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_ADIEU_CS_SZ; 	
+		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_ADIEU_CS_SZ; 
 		memset( user_cksm_buf[i], cs_char++, AD_ADIEU_CS_SZ);
 	}
-	
+
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i) {
 		read_buf[i] = m0_alloc_aligned(buf_size, block_shift);
 		M0_ASSERT(read_buf[i] != NULL);
@@ -130,9 +130,9 @@ static int test_adieu_init(const char *location,
 	// Allocate contigious buffer for o/p checksums 
 	read_cksm_buf[0] = m0_alloc(AD_ADIEU_CS_SZ * ARRAY_SIZE(read_cksm_buf));
 	M0_ASSERT(read_cksm_buf[0] != NULL);
-	memset( read_cksm_buf[0], 0, AD_ADIEU_CS_SZ);	
+	memset( read_cksm_buf[0], 0, AD_ADIEU_CS_SZ);
 	for (i = 1; i < ARRAY_SIZE(read_cksm_buf); ++i) {
-		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_ADIEU_CS_SZ; 	
+		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_ADIEU_CS_SZ; 
 		memset( read_cksm_buf[i], 0, AD_ADIEU_CS_SZ);
 	}
 
@@ -192,7 +192,7 @@ static void test_write(int i)
 	io.si_cksum_sz = AD_ADIEU_CS_SZ;
 	// Checksum for i buf_size blocks
 	io.si_cksum.b_addr = user_cksm_buf[0];
-	io.si_cksum.b_nob  = ( i * AD_ADIEU_CS_SZ );
+	io.si_cksum.b_nob  = (i * AD_ADIEU_CS_SZ);
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
@@ -231,7 +231,7 @@ static void test_read(int i)
 	io.si_cksum_sz = AD_ADIEU_CS_SZ;
 	// Checksum for i buf_size blocks
 	io.si_cksum.b_addr = read_cksm_buf[0];
-	io.si_cksum.b_nob  = ( i * AD_ADIEU_CS_SZ );
+	io.si_cksum.b_nob  = (i * AD_ADIEU_CS_SZ);
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);

@@ -52,7 +52,7 @@ M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start(m0_bindex_t ext_start,
 
 	m0_bcount_t cs_nob;
 	M0_ASSERT(unit_sz);
-	cs_nob = ( (ext_start + ext_len - 1)/unit_sz - ext_start/unit_sz );
+	cs_nob = ((ext_start + ext_len - 1)/unit_sz - ext_start/unit_sz);
 
 	/** Add handling for case 1 and 5 */
 	if ((ext_start % unit_sz) == 0)
@@ -78,14 +78,15 @@ M0_INTERNAL void * m0_extent_get_checksum_addr(void *b_addr,
 					       m0_bcount_t cs_size)
 {
 	M0_ASSERT(unit_sz && cs_size);
-	return (char *)b_addr + m0_extent_get_unit_offset(off, base_off, unit_sz) *
-		                cs_size;
+	return (char *)b_addr +
+		m0_extent_get_unit_offset(off, base_off, unit_sz) *
+		cs_size;
 }
 
 M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob(m0_bindex_t ext_start,
 						   m0_bindex_t ext_length,
 						   m0_bindex_t unit_sz,
-						   m0_bcount_t cs_size )
+						   m0_bcount_t cs_size)
 {
 	M0_ASSERT(unit_sz && cs_size);
 	return m0_extent_get_num_unit_start(ext_start, ext_length, unit_sz) * cs_size;
@@ -108,15 +109,15 @@ M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec,
 						   m0_bindex_t off,
 						   void *ivec,
 						   m0_bindex_t unit_sz,
-						   m0_bcount_t cs_sz )
+						   m0_bcount_t cs_sz)
 {
-	void *cksum_addr = NULL;
-	struct m0_ext ext;
-	struct m0_indexvec *vec = (struct m0_indexvec *)ivec;
-	struct m0_bufvec *cksum_vec = (struct m0_bufvec *)cksum_buf_vec;
-	struct m0_bufvec_cursor   cksum_cursor;
-	int attr_nob = 0;
-	int i;
+	void                        *cksum_addr = NULL;
+	struct m0_ext                ext;
+	struct m0_indexvec          *vec = (struct m0_indexvec *)ivec;
+	struct m0_bufvec            *cksum_vec = (struct m0_bufvec *)cksum_buf_vec;
+	struct m0_bufvec_cursor      cksum_cursor;
+	int                          attr_nob = 0;
+	int                          i;
 
 	/* Get the checksum nobs consumed till reaching the off in given io */
 	for (i = 0; i < vec->iv_vec.v_nr; i++)  {
@@ -134,7 +135,8 @@ M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec,
 		else {
 			/* off is not in the current extent, so account increment the b_addr */
 			attr_nob +=  m0_extent_get_checksum_nob(ext.e_start,
-					vec->iv_vec.v_count[i], unit_sz, cs_sz);
+				                                vec->iv_vec.v_count[i],
+								unit_sz, cs_sz);
 		}
 	}
 

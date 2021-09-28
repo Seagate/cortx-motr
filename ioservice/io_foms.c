@@ -882,8 +882,8 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
 		 */
 		rwrep->rwr_cksum_nob_read += stio_desc->siod_stob_io.si_cksum_nob_read;
 
-		M0_ASSERT( rwrep->rwr_cksum_nob_read <=
-				rwrep->rwr_di_data_cksum.b_nob );
+		M0_ASSERT(rwrep->rwr_cksum_nob_read <=
+			  rwrep->rwr_di_data_cksum.b_nob);
 	}
 
 	M0_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
@@ -2037,18 +2037,18 @@ static int indexvec_wire2mem(struct m0_fom *fom)
  */
 static int stob_io_create(struct m0_fom *fom)
 {
-	int                      rc = 0;
-	int                      i;
-	int                      j;
-	m0_bcount_t              todo;
-	m0_bcount_t              count = 0;
-	struct m0_io_fom_cob_rw *fom_obj;
-	struct m0_fop_cob_rw    *rwfop;
-	struct m0_stob_io_desc  *siod;
-	struct m0_stob_io       *stio;
+	int                         rc = 0;
+	int                         i;
+	int                         j;
+	m0_bcount_t                 todo;
+	m0_bcount_t                 count = 0;
+	struct m0_io_fom_cob_rw    *fom_obj;
+	struct m0_fop_cob_rw       *rwfop;
+	struct m0_stob_io_desc     *siod;
+	struct m0_stob_io          *stio;
 	struct m0_fop_cob_rw_reply *rw_replyfop;
-	m0_bindex_t unit_size;
-	m0_bindex_t curr_cksum_nob = 0;
+	m0_bindex_t                 unit_size;
+	m0_bindex_t                 curr_cksum_nob = 0;
 
 	M0_PRE(fom != NULL);
 
@@ -2062,8 +2062,8 @@ static int stob_io_create(struct m0_fom *fom)
 	rw_replyfop = io_rw_rep_get(fom->fo_rep_fop);
 	/** CKSUM_TODO: Check this and use function call */
 	unit_size = (m0_lid_to_unit_map[M0_OBJ_LAYOUT_ID(rwfop->crw_lid)]) >>
-			m0_stob_block_shift(fom_obj->fcrw_stob);
-	if ((m0_is_read_fop(fom->fo_fop)) && rwfop->crw_cksum_size ) {
+		     m0_stob_block_shift(fom_obj->fcrw_stob);
+	if ((m0_is_read_fop(fom->fo_fop)) && rwfop->crw_cksum_size) {
 		/* CKSUM_TODO: Enable when cksum for parity is calculated */
 		/** M0_ASSERT(rwfop->crw_di_data_cksum.b_nob == 0); */
 		/** M0_ASSERT(rwfop->crw_di_data_cksum.b_addr == NULL); */
@@ -2073,8 +2073,7 @@ static int stob_io_create(struct m0_fom *fom)
 
 		/* Compute nob based on the COB extents */
 		rw_replyfop->rwr_di_data_cksum.b_nob = 0;
-		for (i = 0; i < fom_obj->fcrw_io.si_stob.iv_vec.v_nr; i++)
-		{
+		for (i = 0; i < fom_obj->fcrw_io.si_stob.iv_vec.v_nr; i++) {
 			rw_replyfop->rwr_di_data_cksum.b_nob +=
 				m0_extent_get_checksum_nob(fom_obj->fcrw_io.si_stob.iv_index[i],
 							   fom_obj->fcrw_io.si_stob.iv_vec.v_count[i],
@@ -2082,16 +2081,15 @@ static int stob_io_create(struct m0_fom *fom)
 						           rwfop->crw_cksum_size);
 		}
 
-		// Its expected to receive atleast on unit start in a fop
+		/** Its expected to receive atleast on unit start in a fop */
 		M0_ASSERT(rw_replyfop->rwr_di_data_cksum.b_nob > 0);
 
-		if (m0_buf_alloc( &rw_replyfop->rwr_di_data_cksum,
-			          rw_replyfop->rwr_di_data_cksum.b_nob) != 0) {
+		if (m0_buf_alloc(&rw_replyfop->rwr_di_data_cksum,
+			         rw_replyfop->rwr_di_data_cksum.b_nob) != 0) {
 			m0_free(fom_obj->fcrw_stio);
 			return M0_ERR(-ENOMEM);
 		}
-	}
-	else {
+	} else {
 		rw_replyfop->rwr_di_data_cksum.b_nob  = 0;
 		rw_replyfop->rwr_di_data_cksum.b_addr = NULL;
 	}
@@ -2115,8 +2113,7 @@ static int stob_io_create(struct m0_fom *fom)
 				       &stio->si_stob);
 		if (rc != 0)
 			break;
-		if ( rwfop->crw_cksum_size)
-		{
+		if (rwfop->crw_cksum_size) {
 			stio->si_cksum_sz = rwfop->crw_cksum_size;
 			stio->si_unit_sz = unit_size;
 
@@ -2129,8 +2126,7 @@ static int stob_io_create(struct m0_fom *fom)
 
 			/** Get the cksum nob expected for given stio */
 			stio->si_cksum.b_nob = 0;
-			for (j = 0; j < stio->si_stob.iv_vec.v_nr; j++)
-			{
+			for (j = 0; j < stio->si_stob.iv_vec.v_nr; j++) {
 				stio->si_cksum.b_nob +=
 					m0_extent_get_checksum_nob(stio->si_stob.iv_index[j],
 								   stio->si_stob.iv_vec.v_count[j],
@@ -2139,13 +2135,12 @@ static int stob_io_create(struct m0_fom *fom)
 			}
 
 			/** assign checksum buffer to repsective stob */
-			if (m0_is_read_fop(fom->fo_fop))  {
+			if (m0_is_read_fop(fom->fo_fop)) {
 				stio->si_cksum.b_addr = rw_replyfop->rwr_di_data_cksum.b_addr +
-										curr_cksum_nob;
-			}
-			else {
+							curr_cksum_nob;
+			} else {
 				stio->si_cksum.b_addr = rwfop->crw_di_data_cksum.b_addr +
-										curr_cksum_nob;
+							curr_cksum_nob;
 			}
 
 			/** Increment the current cksum count */
@@ -2157,9 +2152,9 @@ static int stob_io_create(struct m0_fom *fom)
 	/* Verify that total checksum nob in FOP reply is equal to sum of
 	 * checksum-nob for all stobs
 	 */
-	M0_ASSERT( m0_is_read_fop(fom->fo_fop) ?
-			(curr_cksum_nob == rw_replyfop->rwr_di_data_cksum.b_nob) :
-			(curr_cksum_nob == rwfop->crw_di_data_cksum.b_nob));
+	M0_ASSERT(m0_is_read_fop(fom->fo_fop) ?
+		  (curr_cksum_nob == rw_replyfop->rwr_di_data_cksum.b_nob) :
+		  (curr_cksum_nob == rwfop->crw_di_data_cksum.b_nob));
 
 	if (rc != 0 && i > 0) {
 		while (--i >= 0) {

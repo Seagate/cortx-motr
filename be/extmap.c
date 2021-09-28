@@ -190,8 +190,8 @@ static void emap_rec_init(struct m0_be_emap_rec *rec)
 			 *  footer, update the same in emap header.
 			 */
 		        .ot_footer_offset = offsetof(struct m0_be_emap_rec,
-			                             er_footer)
-			                    + rec->er_cksum_nob
+			                             er_footer) +
+			                    rec->er_cksum_nob
 	});
 	m0_format_footer_update(rec);
 }
@@ -529,8 +529,8 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	m0_bcount_t            length[3];
 	typeof(val)            bstart[3] = {};
 	struct m0_buf          cksum[3]  = {{0, NULL},
-					   {0, NULL},
-					   {0, NULL}};
+					    {0, NULL},
+					    {0, NULL}};
 	m0_bcount_t	       chunk_cs_count;
 	m0_bcount_t            cksum_unit_size = 0;
 
@@ -586,9 +586,8 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 		val_orig  = seg->ee_val;
 		cksum[1] = it->ec_app_cksum_buf;
 
-		if (seg->ee_cksum_buf.b_nob)
-		{
-			// Compute checksum unit size for given segment
+		if (seg->ee_cksum_buf.b_nob) {
+			/** Compute checksum unit size for given segment */
 			chunk_cs_count = m0_extent_get_num_unit_start(chunk->e_start,
 			                                              m0_ext_length(chunk),
 								      it->ec_unit_size);
@@ -760,7 +759,7 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 
 	++map->em_version;
 	M0_LOG(M0_DEBUG, "Nob: key = %"PRIu64" val = %"PRIu64" ",
-			 map->em_key_buf.b_nob, map->em_val_buf.b_nob );
+	       map->em_key_buf.b_nob, map->em_val_buf.b_nob);
 	op->bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
 		local_op,
 		m0_be_btree_insert(&map->em_mapping, tx, &local_op,
@@ -979,9 +978,10 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	const struct m0_be_emap_seg *ext = &it->ec_seg;
 	struct m0_be_emap_key       *key = &it->ec_key;
 	struct m0_be_emap_rec       *rec = &it->ec_rec;
-	struct m0_buf rec_buf  = {};
+	struct m0_buf                rec_buf  = {};
 	struct m0_be_emap_rec       *rec_buf_ptr;
-	int len, rc;
+	int                          len;
+	int                          rc;
 
 	key->ek_prefix = ext->ee_pre;
 	key->ek_offset = ext->ee_ext.e_end;
@@ -1010,8 +1010,8 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 
 	/* Copy checksum array into emap record */
 	if (rec->er_cksum_nob ) {
-		memcpy( (void *)&rec_buf_ptr->er_footer,
-				ext->ee_cksum_buf.b_addr, rec->er_cksum_nob );
+		memcpy((void *)&rec_buf_ptr->er_footer,
+		       ext->ee_cksum_buf.b_addr, rec->er_cksum_nob);
 	}
 
 	emap_rec_init(rec_buf_ptr);
@@ -1019,8 +1019,8 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	++it->ec_map->em_version;
 	it->ec_op.bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
 			op,
-			btree_func(&it->ec_map->em_mapping, tx, &op, &it->ec_keybuf,
-				   &rec_buf),
+			btree_func(&it->ec_map->em_mapping, tx, &op,
+				   &it->ec_keybuf, &rec_buf),
 			bo_u.u_btree.t_rc);
 
 	m0_buf_free(&rec_buf);
@@ -1071,7 +1071,7 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		 * will have incorrect footer in case of b_nob, but it->ec_recbuf
 		 * will have all correct values.
 		 */
-		memcpy(it->ec_recbuf.b_addr, recbuf.b_addr, recbuf.b_nob );
+		memcpy(it->ec_recbuf.b_addr, recbuf.b_addr, recbuf.b_nob);
 		rec = it->ec_recbuf.b_addr;
 		it->ec_rec = *rec;
 
@@ -1082,14 +1082,14 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		ext->ee_val         = rec->er_value;
 		ext->ee_cksum_buf.b_nob  = rec->er_cksum_nob;
 		ext->ee_cksum_buf.b_addr = rec->er_cksum_nob ?
-								 (void *)&rec->er_footer : NULL;
+					   (void *)&rec->er_footer : NULL;
 		it->ec_unit_size = rec->er_unit_size;
  		if (!emap_it_prefix_ok(it))
 			rc = -ESRCH;
 	}
 	it->ec_op.bo_u.u_emap.e_rc = rc;
 
-	return rc;
+	return rc >= 0 ? 0 : M0_ERR(rc);
 }
 
 static void emap_it_init(struct m0_be_emap_cursor *it,
@@ -1110,7 +1110,7 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 
 static void be_emap_close(struct m0_be_emap_cursor *it)
 {
-	if(it->ec_recbuf.b_addr != NULL ) {
+	if (it->ec_recbuf.b_addr != NULL) {
 	   m0_buf_free(&it->ec_recbuf);
 	}
 
