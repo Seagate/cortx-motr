@@ -480,8 +480,10 @@ static void session_failed(struct m0_rpc_session *session, int32_t error)
 					      M0_RPC_SESSION_ESTABLISHING,
 					      M0_RPC_SESSION_IDLE,
 					      M0_RPC_SESSION_BUSY,
+					      M0_RPC_SESSION_FAILED,
 					      M0_RPC_SESSION_TERMINATING)));
-	m0_sm_fail(&session->s_sm, M0_RPC_SESSION_FAILED, error);
+	if (session_state(session) != M0_RPC_SESSION_FAILED)
+		m0_sm_fail(&session->s_sm, M0_RPC_SESSION_FAILED, error);
 
 	M0_ASSERT(m0_rpc_session_invariant(session));
 }
