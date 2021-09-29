@@ -1,0 +1,109 @@
+DTM0_IT_M0D_PIDS=()
+DTM0_IT_S3_PID=
+
+DTM0_IT_M0D_ENDPOINTS=()
+DTM0_IT_M0D_FIDS_HEX=()
+DTM0_IT_M0D_FIDS_DEC=()
+DTM0_IT_CLI_FID_HEX=
+DTM0_IT_CLI_FID_DEC=
+DTM0_IT_S3_FID_HEX=
+DTM0_IT_S3_FID_DEC=
+
+function dtm0_it_fids_get()
+{
+    local svcs_json_out=$(hctl status --json | jq -r '.nodes[] | .svcs[]')
+    local svc_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("ioservice"))')
+    local cli_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client"))')
+    local s3_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("s3server"))')
+    DTM0_IT_M0D_ENDPOINTS=($(echo $svc_json_out | jq -r '.ep' | sed -E 's/.*@tcp[:](.*)/\1/'))
+    DTM0_IT_M0D_FIDS_HEX=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/'))
+    DTM0_IT_M0D_FIDS_DEC=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e'))
+    DTM0_IT_CLI_FID_HEX=$(echo $cli_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/')
+    DTM0_IT_CLI_FID_DEC=$(echo $cli_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e')
+    DTM0_IT_S3_FID_HEX=$(echo $s3_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/')
+    DTM0_IT_S3_FID_DEC=$(echo $s3_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e')
+}
+
+function dtm0_it_pids_get()
+{
+    local pids=""
+    local pid
+
+    for fid in ${DTM0_IT_M0D_FIDS_HEX[@]} ; do
+        pid=$(ps ax | grep m0d | grep $fid | awk '{ print $1; }')
+        DTM0_IT_M0D_PIDS+=($pid)
+        pids+="$pid "
+    done
+
+    echo "m0d PIDs: $pids"
+
+    if [[ ! -z $DTM0_IT_S3_FID_HEX ]]; then
+        DTM0_IT_S3_PID=$(ps ax | grep s3server | grep $DTM0_IT_S3_FID_HEX | awk '{ print $1; }')
+        echo "s3server PID: $DTM0_IT_S3_PID"
+    fi
+}
+
+# Should be called after dtm0_it_[pids|fids]_get() functions to have PIDs and FIDs filled
+#
+# $1 - addb2 dump output dir
+# $2 - path to m0addb2dump binary
+# $3 - m0d common var directory pattern like "/var/motr/m0d-0x720000000000000"
+function dtm0_it_m0ds_addb2_dump()
+{
+    local outdir=$1
+    local a2d=$2
+    local m0d_dir_common=$3
+    local outfile
+    local inpfile
+    local fid
+
+    for i in ${!DTM0_IT_M0D_PIDS[@]} ; do
+        fid=$(echo "${DTM0_IT_M0D_FIDS_HEX[i]}" | awk -F'x' '{ print $2; }')
+        outfile="${outdir}/addb_${fid}.dump"
+        inpfile="${m0d_dir_common}${DTM0_IT_M0D_FIDS_HEX[i]}/addb-stobs-${DTM0_IT_M0D_PIDS[i]}/o/100000000000000:2"
+        echo "Dumping ${inpfile} -> ${outfile} ..."
+        $a2d -f "${inpfile}" > "${outfile}"
+    done
+}
+
+# Should be called after dtm0_it_[pids|fids]_get() functions to have PIDs and FIDs filled
+#
+# $1 - addb2 dump output dir
+# $2 - path to m0addb2dump binary
+# $3 - path to addb2 stob
+function dtm0_it_cli_addb2_dump()
+{
+    local outdir=$1
+    local a2d=$2
+    local inpfile=$3
+    local outfile
+    local fid
+
+    fid=$(echo "$DTM0_IT_CLI_FID_HEX" | awk -F'x' '{ print $2; }')
+    outfile="${outdir}/addb_${fid}.dump"
+    echo "Dumping ${inpfile} -> ${outfile} ..."
+    $a2d -f "${inpfile}" > "${outfile}"
+}
+
+# Should be called after dtm0_it_[pids|fids]_get() functions to have PIDs and FIDs filled
+#
+# $1 - addb2 dump output dir
+# $2 - path to m0addb2dump binary
+# $3 - s3 common var directory pattern like "/var/log/seagate/motr/s3server-0x720000000000000"
+# $4 - path to s3 addb2 plugin
+function dtm0_it_s3_addb2_dump()
+{
+    local outdir=$1
+    local a2d=$2
+    local s3_dir_common=$3
+    local s3_addbplugin_lib=$4
+    local outfile
+    local inpfile
+    local fid
+
+    fid=$(echo "${DTM0_IT_S3_FID_HEX}" | awk -F'x' '{ print $2; }')
+    outfile="${outdir}/addb_${fid}.dump"
+    inpfile="${s3_dir_common}${DTM0_IT_S3_FID_HEX}/addb_${DTM0_IT_S3_PID}/o/100000000000000:2"
+    echo "Dumping ${inpfile} -> ${outfile} ..."
+    $a2d -p $s3_addbplugin_lib -f "${inpfile}" > "${outfile}"
+}

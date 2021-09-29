@@ -16,16 +16,10 @@ CLIENT_PID=
 M0D_DIR_COMMON=$MOTR_VAR_DIR/m0d-0x720000000000000
 ADDB_DUMP_DIR="/tmp/a2a-addb-out"
 
-M0D_ENDPOINTS=()
-M0D_FIDS_DEC=()
-M0D_FIDS_HEX=()
-M0D_PIDS=()
-M0D_CLI_FID_DEC=
-M0D_CLI_FID_HEX=
-
 POOL_WIDTH=4
 IPOOL_WIDTH=2
 
+. ../helpers
 . ${MOTR_ROOT}/scripts/addb-py/chronometry/common/common_funcs
 
 
@@ -37,20 +31,6 @@ function stop_cluster()
 function bootstrap_cluster()
 {
     hctl bootstrap --mkfs $CURRENT_CDF
-}
-
-function get_m0d_pids()
-{
-    local pids=""
-    local pid
-
-    for fid in ${M0D_FIDS_HEX[@]} ; do
-        pid=$(ps ax | grep m0d | grep $fid | awk '{ print $1; }')
-        M0D_PIDS+=($pid)
-        pids+="$pid "
-    done
-
-    _info "m0d PIDs: $pids"
 }
 
 function create_m0crate_cfg()
@@ -72,28 +52,16 @@ function create_m0crate_cfg()
     mv $M0CRATE_CFG_TMP $M0CRATE_CFG
 }
 
-function get_params_for_ha_msgs()
-{
-    local svcs_json_out=$(hctl status --json | jq -r '.nodes[] | .svcs[]')
-    local svc_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("ioservice"))')
-    local cli_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client"))')
-    M0D_ENDPOINTS=($(echo $svc_json_out | jq -r '.ep' | sed -E 's/.*@tcp[:](.*)/\1/'))
-    M0D_FIDS_HEX=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/'))
-    M0D_FIDS_DEC=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e'))
-    M0D_CLI_FID_DEC=$(echo $cli_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e')
-    M0D_CLI_FID_HEX=$(echo $cli_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/')
-}
-
 function ha_msg_send_transient()
 {
     # Here we send "TRANSIENT" messages to trigger start of
     # HA messages handling on the m0d side as dtm0 doesn't
     # handle them until "TRANSIENT" received due to incomplete
     # implementation on the Hare side.
-    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
-        for j in $(seq 0 $((${#M0D_FIDS_DEC[@]}-1))) ; do
+    for i in $(seq 0 $((${#DTM0_IT_M0D_ENDPOINTS[@]}-1))) ; do
+        for j in $(seq 0 $((${#DTM0_IT_M0D_FIDS_DEC[@]}-1))) ; do
             if [[ $i -ne $j ]]; then
-                $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_FIDS_DEC[$j]}" "transient"
+                $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${DTM0_IT_M0D_ENDPOINTS[$i]}" "^r|${DTM0_IT_M0D_FIDS_DEC[$j]}" "transient"
                 break
             fi
         done
@@ -103,10 +71,10 @@ function ha_msg_send_transient()
 function ha_msg_send_online()
 {
     # Here we send "ONLINE" messages to trigger connections logic.
-    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
-        for j in $(seq 0 $((${#M0D_FIDS_DEC[@]}-1))) ; do
+    for i in $(seq 0 $((${#DTM0_IT_M0D_ENDPOINTS[@]}-1))) ; do
+        for j in $(seq 0 $((${#DTM0_IT_M0D_FIDS_DEC[@]}-1))) ; do
             if [[ $i -ne $j ]]; then
-                $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_FIDS_DEC[$j]}" "online"
+                $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${DTM0_IT_M0D_ENDPOINTS[$i]}" "^r|${DTM0_IT_M0D_FIDS_DEC[$j]}" "online"
             fi
         done
     done
@@ -115,8 +83,8 @@ function ha_msg_send_online()
 function ha_msg_send_cli_online()
 {
     # Here we send "ONLINE" messages to connect servers to client.
-    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
-        $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_CLI_FID_DEC}" "online"
+    for i in $(seq 0 $((${#DTM0_IT_M0D_ENDPOINTS[@]}-1))) ; do
+        $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${DTM0_IT_M0D_ENDPOINTS[$i]}" "^r|${DTM0_IT_CLI_FID_DEC}" "online"
     done
 }
 
@@ -126,8 +94,8 @@ function expected_trace_lines_num()
     local exp_cnt=$2
     local cnt
 
-    for i in ${!M0D_PIDS[@]} ; do
-        cnt=$($MOTR_ROOT/utils/trace/m0trace -i "${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}/m0trace.${M0D_PIDS[i]}" | grep "$pattern" | wc -l)
+    for i in ${!DTM0_IT_M0D_PIDS[@]} ; do
+        cnt=$($MOTR_ROOT/utils/trace/m0trace -i "${M0D_DIR_COMMON}${DTM0_IT_M0D_FIDS_HEX[i]}/m0trace.${DTM0_IT_M0D_PIDS[i]}" | grep "$pattern" | wc -l)
         if [[ $cnt -ne $exp_cnt ]]; then
             return 1
         fi
@@ -136,30 +104,19 @@ function expected_trace_lines_num()
     return 0
 }
 
-function addb_dump()
+function addb2_dump()
 {
-    local outdir="${ADDB_DUMP_DIR}"
-    local outfile
-    local inpfile
-    local fid
-    local a2d=$MOTR_ROOT/utils/m0addb2dump
+    rm -fR "${ADDB_DUMP_DIR}"
+    mkdir "${ADDB_DUMP_DIR}"
 
-    rm -fR "${outdir}"
-    mkdir "${outdir}"
+    _info "Dumping ADDB2..."
 
-    for i in ${!M0D_PIDS[@]} ; do
-        fid=$(echo "${M0D_FIDS_HEX[i]}" | awk -F'x' '{ print $2; }')
-        outfile="${outdir}/addb_${fid}.dump"
-        inpfile="${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}/addb-stobs-${M0D_PIDS[i]}/o/100000000000000:2"
-        _info "Dumping ${inpfile} -> ${outfile} ..."
-        $a2d -f "${inpfile}" > "${outfile}"
-    done
-
-    inpfile="$PWD/addb_${CLIENT_PID}/o/100000000000000:2"
-    fid=$(echo "$M0D_CLI_FID_HEX" | awk -F'x' '{ print $2; }')
-    outfile="${outdir}/addb_${fid}.dump"
-    _info "Dumping ${inpfile} -> ${outfile} ..."
-    $a2d -f "${inpfile}" > "${outfile}"
+    dtm0_it_m0ds_addb2_dump "${ADDB_DUMP_DIR}" \
+        "${MOTR_ROOT}/utils/m0addb2dump" \
+        "${M0D_DIR_COMMON}"
+    dtm0_it_cli_addb2_dump "${ADDB_DUMP_DIR}" \
+        "${MOTR_ROOT}/utils/m0addb2dump" \
+        "${PWD}/addb_${CLIENT_PID}/o/100000000000000:2"
 }
 
 function traces_dump()
@@ -167,11 +124,13 @@ function traces_dump()
     local fid
     local out
 
-    for i in ${!M0D_PIDS[@]} ; do
-        fid=$(echo "${M0D_FIDS_HEX[i]}" | awk -F'x' '{ print $2; }')
+    _info "Dumping traces..."
+
+    for i in ${!DTM0_IT_M0D_PIDS[@]} ; do
+        fid=$(echo "${DTM0_IT_M0D_FIDS_HEX[i]}" | awk -F'x' '{ print $2; }')
         out="m0trace_${fid}.dump"
         _info "Dumping ${out}..."
-        $MOTR_ROOT/utils/trace/m0trace -i "${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}/m0trace.${M0D_PIDS[i]}" > "${out}"
+        $MOTR_ROOT/utils/trace/m0trace -i "${M0D_DIR_COMMON}${DTM0_IT_M0D_FIDS_HEX[i]}/m0trace.${DTM0_IT_M0D_PIDS[i]}" > "${out}"
     done
 
     out="m0trace_${CLIENT_PID}.dump"
@@ -183,7 +142,7 @@ function processes_status_check()
 {
     local rc=0
 
-    for fid in ${M0D_FIDS_HEX[@]} ; do
+    for fid in ${DTM0_IT_M0D_FIDS_HEX[@]} ; do
         svc_name="m0d@0x720000000000000${fid}.service"
         systemctl is-failed $svc_name > /dev/null && {
             _err "Process $svc_name failed"
@@ -209,8 +168,8 @@ function main()
     _info "Bootstrapping the cluster using Hare..."
     bootstrap_cluster
 
-    get_params_for_ha_msgs
-    get_m0d_pids
+    dtm0_it_fids_get
+    dtm0_it_pids_get
 
     _info "Create m0crate configuration..."
     create_m0crate_cfg
@@ -224,8 +183,7 @@ function main()
 
     stop_cluster
 
-    addb_dump
-    _info "Dumping traces..."
+    addb2_dump
     traces_dump
 
     _info "Checking processes exit status..."

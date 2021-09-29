@@ -1,0 +1,22 @@
+diff --git a/cfgen/cfgen b/cfgen/cfgen
+index aede6c3..8468f83 100755
+--- a/cfgen/cfgen
++++ b/cfgen/cfgen
+@@ -810,7 +810,7 @@ class ConfProcess(ToDhall):
+         Currently client stores volatile DTM0 log, server stores
+         persistent DTM0 log.
+         """
+-        if proc_t is ProcT.m0_client_other:
++        if proc_t in [ProcT.m0_client_other, ProcT.m0_client_s3]:
+             params = ["origin:in-volatile"]
+         if proc_t is ProcT.m0_server:
+             params = ["origin:in-persistent"]
+@@ -864,7 +864,7 @@ def service_types(proc_t: ProcT,
+     if proc_t is ProcT.hax:
+         ts.append(SvcT.M0_CST_HA)
+     ts.append(SvcT.M0_CST_RMS)
+-    if proc_t is ProcT.m0_client_other:
++    if proc_t in [ProcT.m0_client_other, ProcT.m0_client_s3]:
+         ts.append(SvcT.M0_CST_DTM0)
+     if proc_t is ProcT.m0_server:
+         assert proc_desc is not None

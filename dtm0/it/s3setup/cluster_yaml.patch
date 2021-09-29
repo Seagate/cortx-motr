@@ -1,0 +1,59 @@
+--- /var/lib/hare/cluster.yaml_bak	2021-09-15 13:04:51.953340466 +0000
++++ /var/lib/hare/cluster.yaml	2021-09-16 15:29:31.016555983 +0000
+@@ -22,10 +22,39 @@
+     node: srvnode-1.data.private
+   - path: /dev/sdc4
+     node: srvnode-1.data.private
++  - path: /dev/sdd
++    node: srvnode-1.data.private
+   type: sns
++- allowed_failures:
++    disk: 1
++    ctrl: 1
++    encl: 0
++    rack: 0
++    site: 0
++  spare_units: 0
++  name: storage-set-1__dix
++  data_units: 1
++  parity_units: 2
++  disk_refs:
++  - path: /dev/sdb2
++    node: srvnode-1.data.private
++  - path: /dev/sdb3
++    node: srvnode-1.data.private
++  - path: /dev/sdb4
++    node: srvnode-1.data.private
++  - path: /dev/sdc2
++    node: srvnode-1.data.private
++  - path: /dev/sdc3
++    node: srvnode-1.data.private
++  - path: /dev/sdc4
++    node: srvnode-1.data.private
++  - path: /dev/sdd
++    node: srvnode-1.data.private
++  type: dix
+ profiles:
+ - pools:
+   - storage-set-1__sns
++  - storage-set-1__dix
+   name: Profile_the_pool
+ nodes:
+ - m0_servers:
+@@ -44,12 +73,15 @@
+       meta_data: /dev/vg_srvnode-1_md2/lv_raw_md2
+     runs_confd: false
+   - io_disks:
++      data:
++      - /dev/sdd
++  - io_disks:
+       data: []
+       meta_data: null
+     runs_confd: true
+   data_iface: eth3
+   hostname: srvnode-1.data.private
+   m0_clients:
+-    other: 2
++    other: 0
+     s3: 1
+   data_iface_type: tcp
