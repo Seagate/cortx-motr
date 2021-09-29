@@ -6622,7 +6622,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 		.sd_name    = "P_NEXTDOWN",
 		.sd_allowed = M0_BITS(P_NEXTDOWN, P_ALLOC_REQUIRE,
 				      P_STORE_CHILD, P_SIBLING, P_CLEANUP,
-				      P_LOCK),
+				      P_LOCK, P_ACT),
 	},
 	[P_SIBLING] = {
 		.sd_flags   = 0,
@@ -6670,7 +6670,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_ACT] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_ACT",
-		.sd_allowed = M0_BITS(P_CAPTURE, P_CLEANUP, P_DONE),
+		.sd_allowed = M0_BITS(P_CAPTURE, P_CLEANUP, P_DOWN, P_DONE),
 	},
 	[P_CAPTURE] = {
 		.sd_flags   = 0,
@@ -6724,6 +6724,7 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "put-nextdown-next", P_NEXTDOWN, P_ALLOC_REQUIRE },
 	{ "del-nextdown-load", P_NEXTDOWN, P_STORE_CHILD },
 	{ "get-nextdown-next", P_NEXTDOWN, P_LOCK },
+	{ "truncate-nextdown-act", P_NEXTDOWN, P_ACT },
 	{ "iter-nextdown-sibling", P_NEXTDOWN, P_SIBLING },
 	{ "kvop-nextdown-failed", P_NEXTDOWN, P_CLEANUP },
 	{ "iter-sibling-repeat", P_SIBLING, P_SIBLING },
@@ -6757,6 +6758,7 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "put-makespace-cleanup", P_MAKESPACE, P_CLEANUP },
 	{ "kvop-act", P_ACT, P_CLEANUP },
 	{ "put-del-act", P_ACT, P_CAPTURE },
+	{ "truncate-act-down", P_ACT, P_DOWN },
 	{ "put-capture", P_CAPTURE, P_CLEANUP},
 	{ "del-capture-freenode", P_CAPTURE, P_FREENODE},
 	{ "del-freenode-cleanup", P_FREENODE, P_CLEANUP },
@@ -8164,7 +8166,6 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 	struct m0_btree_op    *bop            = M0_AMB(bop, smop, bo_op);
 	struct td             *tree           = bop->bo_arbor->t_desc;
 	struct m0_btree_oimpl *oi             = bop->bo_i;
-	bool                   lock_acquired  = bop->bo_flags & BOF_LOCKALL;
 	struct level          *lev;
 
 	switch (bop->bo_op.o_sm.sm_state) {
@@ -8175,18 +8176,15 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 			bop->bo_op.o_sm.sm_rc = M0_ERR(-ENOMEM);
 			return P_DONE;
 		}
-		return P_SETUP;
-
+		/** Fall through to P_LOCKDOWN. */
 	case P_LOCKALL:
-		M0_ASSERT(bop->bo_flags & BOF_LOCKALL);
 		return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 				    bop->bo_arbor->t_desc, P_SETUP);
 	case P_SETUP:
 		oi->i_height = tree->t_height;
 		level_alloc(oi, oi->i_height);
 		if (oi->i_level == NULL) {
-			if (lock_acquired)
-				lock_op_unlock(tree);
+			lock_op_unlock(tree);
 			return fail(bop, M0_ERR(-ENOMEM));
 		}
 		oi->i_nop.no_op.o_sm.sm_rc = 0;
@@ -8207,18 +8205,6 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 			bnode_lock(lev->l_node);
 			lev->l_seq = lev->l_node->n_seq;
 
-			/**
-			 * Node validation is required to determine that the
-			 * node(lev->l_node) which is pointed by current thread
-			 * is not freed by any other thread till current thread
-			 * reaches NEXTDOWN phase.
-			 */
-			if (!bnode_isvalid(lev->l_node) || (oi->i_used > 0 &&
-			    bnode_count_rec(lev->l_node) == 0)) {
-				bnode_unlock(lev->l_node);
-				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
-						    P_SETUP);
-			}
 			if (bnode_level(s.s_node) > 0) {
 				s.s_idx = bnode_count(s.s_node);
 
@@ -8226,57 +8212,22 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 				if (!address_in_segment(child)) {
 					bnode_unlock(lev->l_node);
 					bnode_op_fini(&oi->i_nop);
+					lock_op_unlock(tree);
 					return fail(bop, M0_ERR(-EFAULT));
 				}
 				oi->i_used++;
-				if (oi->i_used >= oi->i_height) {
-					/* If height of tree increased. */
-					oi->i_used = oi->i_height - 1;
-					bnode_unlock(lev->l_node);
-					return m0_sm_op_sub(&bop->bo_op,
-							    P_CLEANUP, P_SETUP);
-				}
 				bnode_unlock(lev->l_node);
 				return bnode_get(&oi->i_nop, tree, &child,
 						 P_NEXTDOWN);
 			} else {
 				bnode_unlock(lev->l_node);
-				return P_LOCK;
+				return P_ACT;
 			}
 		} else {
 			bnode_op_fini(&oi->i_nop);
-			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
+			lock_op_unlock(tree);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 		}
-	case P_LOCK:
-		if (!lock_acquired)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
-					    bop->bo_arbor->t_desc, P_CHECK);
-		/** Fall through if LOCK is already acquired. */
-	case P_CHECK:
-		if (!path_check(oi, tree, NULL)) {
-			oi->i_trial++;
-			if (oi->i_trial >= MAX_TRIALS) {
-				M0_ASSERT_INFO((bop->bo_flags & BOF_LOCKALL) ==
-					       0, "Truncate failure in tree"
-					       "lock mode");
-				bop->bo_flags |= BOF_LOCKALL;
-				lock_op_unlock(tree);
-				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
-						    P_LOCKALL);
-			}
-			if (oi->i_height != tree->t_height) {
-				/* If height has changed. */
-				lock_op_unlock(tree);
-				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
-				                    P_SETUP);
-			} else {
-				/* If height is same, put back all the nodes. */
-				lock_op_unlock(tree);
-				level_put(oi);
-				return P_DOWN;
-			}
-		}
-		/** Fall through if path_check is successful. */
 	case P_ACT: {
 		uint64_t        count = oi->i_used;
 		int             i;
@@ -8380,10 +8331,13 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 			node_slot.s_idx  = rec_count - 1;
 			bop->bo_limit--;
 			if (bnode_count_rec(parent->l_node) > 0) {
+				/**
+				 * One of the ancestors has valid record count.
+				 * Traverse the tree again.
+				 */
 				bnode_capture(&node_slot, bop->bo_tx);
-				lock_op_unlock(tree);
-				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
-				                    P_SETUP);
+				level_put(oi);
+				return P_DOWN;
 			}
 			bnode_set_level(parent->l_node, 0);
 			bnode_capture(&node_slot, bop->bo_tx);
