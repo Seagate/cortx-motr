@@ -23,7 +23,7 @@
 package mio
 
 // #cgo CFLAGS: -I/usr/include/motr
-// #cgo CFLAGS: -I../../.. -I../../../extra-libs/galois/include
+// #cgo CFLAGS: -I../../..
 // #cgo CFLAGS: -DM0_EXTERN=extern -DM0_INTERNAL=
 // #include <errno.h> /* EEXIST */
 // #include "motr/client.h"

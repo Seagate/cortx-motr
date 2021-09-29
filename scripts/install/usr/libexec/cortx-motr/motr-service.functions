@@ -102,7 +102,6 @@ _trap_munge()
 declare -rA _path_inside_workdir=(
     [m0tr.ko]='m0tr.ko'
     [m0ctl.ko]='m0ctl.ko'
-    [galois.ko]='extra-libs/galois/src/linux_kernel/galois.ko'
     [m0d]='motr/m0d'
     [m0mkfs]='utils/mkfs/m0mkfs'
     [m0traced]='utils/trace/m0traced'
@@ -185,11 +184,7 @@ m0_load_modules()
     fi
 
     if [ -n "$MOTR_DEVEL_WORKDIR_PATH" ] ; then
-        insmod $(m0_path_to galois.ko) || m0_exit "Failed to load galois module"
-        _trap_munge "rmmod $(m0_path_to galois.ko)" ERR
-
         insmod $(m0_path_to m0tr.ko) $m0tr_params || {
-            rmmod $(m0_path_to galois.ko)
             m0_exit "Failed to load m0tr module"
         }
         _trap_munge "rmmod $(m0_path_to m0tr.ko)" ERR
@@ -197,7 +192,6 @@ m0_load_modules()
         insmod $(m0_path_to m0ctl.ko) || {
             # FIXME: looks wrong, should be able to use `rmmod m0tr`
             rmmod $(m0_path_to m0tr.ko)
-            rmmod $(m0_path_to galois.ko)
             m0_exit "Failed to load m0ctl module"
         }
         _trap_munge "rmmod $(m0_path_to m0ctl.ko)" ERR
@@ -216,7 +210,6 @@ m0_unload_modules()
 
     if [ -n "$MOTR_DEVEL_WORKDIR_PATH" ] ; then
         rmmod m0tr || m0_exit "Failed to unload m0tr module"
-        rmmod galois || m0_exit "Failed to unload galois module"
     else
         modprobe -r m0tr
     fi

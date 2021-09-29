@@ -156,12 +156,10 @@ load_modules()
         source $top_srcdir/m0t1fs/linux_kernel/st/common.sh
         MODLIST="$top_srcdir/m0ut.ko"
         modprobe_lnet
-        modload_galois
         # currently, kernel UT runs as part of loading m0ut module
         modload
         run_lut_helper
         modunload
-        modunload_galois
     else
         local lnet_status=$(service lnet status)
         if [[ $lnet_status != running ]] ; then

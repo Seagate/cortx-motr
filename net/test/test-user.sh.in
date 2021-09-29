@@ -33,12 +33,10 @@ fi
 
 unload_all() {
     modunload
-    modunload_galois
 }
 trap unload_all EXIT
 
 modprobe_lnet
-modload_galois
 modload || exit $?
 
 JOB_IDS=

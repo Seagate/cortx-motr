@@ -818,15 +818,14 @@ static void direct_recover(struct m0_parity_math *math,  struct m0_bufvec *x,
 	ret = m0_sns_ir_mat_compute(&ir);
 	M0_UT_ASSERT(ret == 0);
 
-#if !ISAL_ENCODE_ENABLED
+#if 0 /* NA_FOR_INTEL_ISA */
 	M0_UT_ASSERT(ergo(ir.si_failed_data_nr != 0,
 			  ir.si_data_recovery_mat.m_width ==
 			  ir.si_data_nr));
 
 	ret = m0_matvec_init(&r, ir.si_failed_data_nr);
-#else
+#endif /* NA_FOR_INTEL_ISA */
 	ret = m0_matvec_init(&r, ir.si_rs.rs_failed_nr);
-#endif /* !ISAL_ENCODE_ENABLED */
 	M0_UT_ASSERT(ret == 0);
 
 	reconstruct(&ir, &b, &r);
@@ -902,7 +901,6 @@ static void rhs_prepare(const struct m0_sns_ir *ir, struct m0_matvec *des,
 	}
 }
 
-#if ISAL_ENCODE_ENABLED
 static void reconstruct(const struct m0_sns_ir *ir, const struct m0_matvec *b,
 			struct m0_matvec *r)
 {
@@ -945,7 +943,8 @@ static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
 
 	return true;
 }
-#else
+
+#if 0 /* NA_FOR_INTEL_ISA */
 static void reconstruct(const struct m0_sns_ir *ir, const struct m0_matvec *b,
 			struct m0_matvec *r)
 {
@@ -976,7 +975,7 @@ static bool compare(const struct m0_sns_ir *ir, const uint32_t *failed_arr,
 
 	return true;
 }
-#endif /* ISAL_ENCODE_ENABLED */
+#endif /* NA_FOR_INTEL_ISA */
 
 static void test_incr_recov(void)
 {

@@ -24,6 +24,8 @@
 . `dirname $0`/m0t1fs_client_inc.sh
 . `dirname $0`/m0t1fs_server_inc.sh
 
+testname="m0t1fs"
+
 m0t1fs_test()
 {
 	NODE_UUID=`uuidgen`
@@ -66,6 +68,9 @@ m0t1fs_test()
 main()
 {
 	local rc=0
+
+	check_test_skip_list $testname || return $rc
+
 	echo "System tests start:"
 	echo "Test log will be stored in $MOTR_TEST_LOGFILE."
 
@@ -85,4 +90,4 @@ main()
 
 trap unprepare EXIT
 main
-report_and_exit m0t1fs $?
+report_and_exit $testname $?

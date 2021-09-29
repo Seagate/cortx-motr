@@ -2039,6 +2039,8 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 		rc = -EIO;
 		goto end;
 	}
+
+#if 0 /* NA_FOR_INTEL_ISA */
 	if (parity_math(map->pi_ioo)->pmi_parity_algo ==
 	    M0_PARITY_CAL_ALGO_REED_SOLOMON) {
 		rc = m0_parity_recov_mat_gen(parity_math(map->pi_ioo),
@@ -2046,6 +2048,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 		if (rc != 0)
 			goto end;
 	}
+#endif /* NA_FOR_INTEL_ISA */
 
 	/* Populates data and failed buffers. */
 	for (row = 0; row < rows_nr(play, ioo->ioo_obj); ++row) {
@@ -2073,9 +2076,12 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 			goto end;
 	}
 
+#if 0 /* NA_FOR_INTEL_ISA */
 	if (parity_math(map->pi_ioo)->pmi_parity_algo ==
 	    M0_PARITY_CAL_ALGO_REED_SOLOMON)
 		m0_parity_recov_mat_destroy(parity_math(map->pi_ioo));
+#endif /* NA_FOR_INTEL_ISA */
+
 end:
 	m0_free(data);
 	m0_free(parity);
