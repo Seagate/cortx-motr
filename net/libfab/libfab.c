@@ -313,6 +313,7 @@ static int libfab_check_for_comp(struct fid_cq *cq, uint32_t *ctx,
 				 m0_bindex_t *len, uint64_t *rem_cq_data);
 static void libfab_tm_fini(struct m0_net_transfer_mc *tm);
 static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct m0_fab__tm *tm);
+static int libfab_buf_dom_dereg(struct m0_fab__buf *fbp);
 static void libfab_pending_bufs_send(struct m0_fab__ep *ep);
 static int libfab_target_notify(struct m0_fab__buf *buf);
 static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
@@ -671,6 +672,7 @@ static void libfab_tm_buf_timeout(struct m0_fab__tm *ftm)
 {
 	struct m0_net_transfer_mc *net = ftm->ftm_ntm;
 	struct m0_net_buffer      *nb;
+	struct m0_fab__buf        *fb;
 	int                        i;
 	m0_time_t                  now = m0_time_now();
 
@@ -681,9 +683,11 @@ static void libfab_tm_buf_timeout(struct m0_fab__tm *ftm)
 	for (i = 0; i < ARRAY_SIZE(net->ntm_q); ++i) {
 		m0_tl_for(m0_net_tm, &net->ntm_q[i], nb) {
 			if (nb->nb_timeout < now) {
+				fb = nb->nb_xprt_private;
 				nb->nb_flags |= M0_NET_BUF_TIMED_OUT;
-				libfab_buf_done(nb->nb_xprt_private,
-						-ETIMEDOUT);
+				libfab_buf_dom_dereg(fb);
+				fb->fb_state = FAB_BUF_TIMEDOUT;
+				libfab_buf_done(fb, -ETIMEDOUT);
 			}
 		} m0_tl_endfor;
 	}
@@ -1741,7 +1745,15 @@ static void libfab_buf_fini(struct m0_fab__buf *buf)
 	buf->fb_status = 0;
 	buf->fb_length = 0;
 	buf->fb_token = 0;
-	buf->fb_state = buf->fb_state == FAB_BUF_CANCELED ?
+	/*
+	 * If the buffer operation has timedout or has been cancelled by
+	 * application, then the buffer has also been de-registered to prevent
+	 * data corruption due to any ongoing operations. In such cases, the
+	 * buffer state is reset to FAB_BUF_INITIALIZED so that it will be
+	 * re-registered when the application will try to re-use it.
+	 */
+	buf->fb_state = (buf->fb_state == FAB_BUF_CANCELED ||
+			 buf->fb_state == FAB_BUF_TIMEDOUT) ?
 			FAB_BUF_INITIALIZED : FAB_BUF_REGISTERED;
 
 }
