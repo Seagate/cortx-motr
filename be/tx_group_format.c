@@ -312,9 +312,11 @@ M0_INTERNAL void m0_be_group_format_deallocate(struct m0_be_group_format *gft)
 M0_INTERNAL void m0_be_group_format_prepare(struct m0_be_group_format *gft,
                                             struct m0_be_op           *op)
 {
+	m0_be_op_make_set_and(op);
 	m0_be_op_set_add(op, &gft->gft_pd_io_get);
 	m0_be_op_set_add(op, &gft->gft_log_discard_get);
 	m0_be_op_set_add(op, &gft->gft_all_get);
+	m0_be_op_set_add_finish(op);
 	m0_be_op_active(&gft->gft_all_get);
 	m0_be_log_discard_item_get(gft->gft_cfg.gfc_log_discard,
 	                           &gft->gft_log_discard_get,
@@ -573,8 +575,10 @@ M0_INTERNAL void m0_be_group_format_seg_place(struct m0_be_group_format *gft,
 	m0_be_op_init(gft_op);
 	M0_SET0(&gft->gft_tmp_op);
 	m0_be_op_init(&gft->gft_tmp_op);
+	m0_be_op_make_set_and(op);
 	m0_be_op_set_add(op, gft_op);
 	m0_be_op_set_add(op, &gft->gft_tmp_op);
+	m0_be_op_set_add_finish(op);
 	m0_be_op_active(&gft->gft_tmp_op);
 	m0_be_op_callback_set(gft_op, &be_tx_group_format_seg_io_starting,
 	                      gft, M0_BOS_ACTIVE);

@@ -313,6 +313,7 @@ static void be_log_header_io(struct m0_be_log             *log,
 	lio = m0_be_log_store_rbuf_io_first(&log->lg_store, io_type,
 					    &io_op, &iter);
 	/* log should have at least one header */
+	m0_be_op_make_set_and(op);
 	do {
 		/*
 		 * It is safe to add io_op to op set here.
@@ -323,6 +324,7 @@ static void be_log_header_io(struct m0_be_log             *log,
 		lio = m0_be_log_store_rbuf_io_next(&log->lg_store, io_type,
 						   &io_op, &iter);
 	} while (lio != NULL);
+	m0_be_op_set_add_finish(op);
 }
 
 static void be_log_header_io_sync(struct m0_be_log             *log,
@@ -796,20 +798,15 @@ M0_INTERNAL void m0_be_log_record_io_launch(struct m0_be_log_record *record,
 					    struct m0_be_op         *op)
 {
 	struct m0_be_log *log = record->lgr_log;
-	struct m0_be_op   op2 = {};
 	int               i;
 
 	record->lgr_state = LGR_SCHEDULED;
 	m0_be_log_sched_lock(&log->lg_sched);
+	m0_be_op_make_set_and(op);
 	m0_be_op_set_add(op, &record->lgr_record_op);
+	m0_be_op_set_add_finish(op);
 
-	/* XXX Move op to ACTIVE state. Workaround for several tx_groups. */
-	m0_be_op_init(&op2);
-	m0_be_op_set_add(op, &op2);
-	m0_be_op_active(&op2);
-	m0_be_op_done(&op2);
-	m0_be_op_fini(&op2);
-
+	m0_be_op_make_set_and(&record->lgr_record_op);
 	if (record->lgr_write_header) {
 		m0_be_op_reset(&log->lg_header_write_op);
 		m0_be_op_set_add(&record->lgr_record_op,
@@ -823,6 +820,7 @@ M0_INTERNAL void m0_be_log_record_io_launch(struct m0_be_log_record *record,
 		m0_be_log_sched_add(&log->lg_sched,
 				    record->lgr_io[i], record->lgr_op[i]);
 	}
+	m0_be_op_set_add_finish(&record->lgr_record_op);
 	m0_be_log_sched_unlock(&log->lg_sched);
 }
 

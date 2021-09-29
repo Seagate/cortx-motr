@@ -33,8 +33,10 @@
 
 extern void m0_be_ut_op_usecase(void);
 extern void m0_be_ut_op_mt(void);
-extern void m0_be_ut_op_set_usecase(void);
-extern void m0_be_ut_op_set_tree(void);
+extern void m0_be_ut_op_set_and_usecase(void);
+extern void m0_be_ut_op_set_or_usecase(void);
+extern void m0_be_ut_op_set_and_tree(void);
+extern void m0_be_ut_op_set_random(void);
 
 extern void m0_be_ut_queue_1_1_1(void);
 extern void m0_be_ut_queue_2_1_1(void);
@@ -169,8 +171,10 @@ struct m0_ut_suite be_ut = {
 #ifndef __KERNEL__
 		{ "op-usecase",              m0_be_ut_op_usecase              },
 		{ "op-mt",                   m0_be_ut_op_mt                   },
-		{ "op_set-usecase",          m0_be_ut_op_set_usecase          },
-		{ "op_set-tree",             m0_be_ut_op_set_tree             },
+		{ "op_set_and-usecase",      m0_be_ut_op_set_and_usecase      },
+		{ "op_set_or-usecase",       m0_be_ut_op_set_or_usecase       },
+		{ "op_set_and-tree",         m0_be_ut_op_set_and_tree         },
+		{ "op_set-random",           m0_be_ut_op_set_random           },
 		{ "queue-1_1_1",             m0_be_ut_queue_1_1_1             },
 		{ "queue-2_1_1",             m0_be_ut_queue_2_1_1             },
 		{ "queue-100_1_1",           m0_be_ut_queue_100_1_1           },

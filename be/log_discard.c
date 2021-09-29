@@ -205,8 +205,10 @@ static void be_log_discard_check_sync(struct m0_be_log_discard *ld,
 		if (ld->lds_sync_item != NULL) {
 			ld->lds_sync_in_progress = true;
 			if (ld->lds_flush_op != NULL) {
+				m0_be_op_make_set_and(ld->lds_flush_op);
 				m0_be_op_set_add(ld->lds_flush_op,
 						 &ld->lds_sync_op);
+				m0_be_op_set_add_finish(ld->lds_flush_op);
 				ld->lds_flush_op = NULL;
 			}
 			M0_LOG(M0_DEBUG, "ld=%p lds_sync_item=%p",
