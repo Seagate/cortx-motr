@@ -186,8 +186,8 @@ static void emap_rec_init(struct m0_be_emap_rec *rec)
 	m0_format_header_pack(&rec->er_header, &(struct m0_format_tag){
 		        .ot_version = M0_BE_EMAP_REC_FORMAT_VERSION,
 		        .ot_type    = M0_FORMAT_TYPE_BE_EMAP_REC,
-			/** cksum of size cksum_nob will be present just before
-			 *  footer, update the same in emap header.
+			/* cksum of size cksum_nob will be present just before
+			 * footer, update the same in emap header.
 			 */
 		        .ot_footer_offset = offsetof(struct m0_be_emap_rec,
 			                             er_footer) +
@@ -536,6 +536,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 
 	m0_bcount_t            consumed;
 	uint64_t               val_orig;
+	int                    rc = 0;
 	struct m0_indexvec     vec = {
 		.iv_vec = {
 			.v_nr    = ARRAY_SIZE(length),
@@ -543,7 +544,6 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 		},
 		.iv_index = bstart
 	};
-	int rc = 0;
 
 	M0_PRE(m0_ext_is_in(chunk, ext->e_start));
 	M0_INVARIANT_EX(be_emap_invariant(it));
@@ -587,12 +587,12 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 		cksum[1] = it->ec_app_cksum_buf;
 
 		if (seg->ee_cksum_buf.b_nob) {
-			/** Compute checksum unit size for given segment */
+			/* Compute checksum unit size for given segment */
 			chunk_cs_count = m0_extent_get_num_unit_start(chunk->e_start,
 			                                              m0_ext_length(chunk),
 								      it->ec_unit_size);
 			M0_ASSERT(chunk_cs_count);
-			cksum_unit_size = seg->ee_cksum_buf.b_nob/chunk_cs_count;
+			cksum_unit_size = seg->ee_cksum_buf.b_nob / chunk_cs_count;
 			M0_ASSERT(cksum_unit_size);
 		}
 
@@ -1089,7 +1089,7 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 	}
 	it->ec_op.bo_u.u_emap.e_rc = rc;
 
-	return rc >= 0 ? 0 : M0_ERR(rc);
+	return rc != 0 ? M0_ERR(rc) : rc;
 }
 
 static void emap_it_init(struct m0_be_emap_cursor *it,
@@ -1111,7 +1111,7 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 static void be_emap_close(struct m0_be_emap_cursor *it)
 {
 	if (it->ec_recbuf.b_addr != NULL) {
-	   m0_buf_free(&it->ec_recbuf);
+		m0_buf_free(&it->ec_recbuf);
 	}
 
 	m0_be_btree_cursor_fini(&it->ec_cursor);

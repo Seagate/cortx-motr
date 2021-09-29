@@ -1162,7 +1162,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 
 	while (!m0_bufvec_cursor_move(&datacur, 0) &&
 	       !m0_ivec_cursor_move(&extcur, 0) &&
-	       attr_idx < ioo->ioo_attr.ov_vec.v_nr){
+	       attr_idx < ioo->ioo_attr.ov_vec.v_nr) {
 
 		/* calculate number of segments required for 1 data unit */
 		nr_seg = 0;
@@ -1222,7 +1222,6 @@ static bool verify_checksum(struct m0_op_io *ioo)
 
 		attr_idx++;
 		m0_ivec_cursor_move(&extcur, usz);
-
 		m0_bufvec_free2(&user_data);
 	}
 

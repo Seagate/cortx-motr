@@ -116,7 +116,7 @@ static int test_adieu_init(const char *location,
 	// Allocate contigious buffer for i/p checksums
 	user_cksm_buf[0] = m0_alloc(AD_ADIEU_CS_SZ * ARRAY_SIZE(user_cksm_buf));
 	M0_ASSERT(user_cksm_buf[0] != NULL);
-	memset( user_cksm_buf[0], cs_char++, AD_ADIEU_CS_SZ);	
+	memset( user_cksm_buf[0], cs_char++, AD_ADIEU_CS_SZ);
 	for (i = 1; i < ARRAY_SIZE(user_cksm_buf); ++i) {
 		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_ADIEU_CS_SZ; 
 		memset( user_cksm_buf[i], cs_char++, AD_ADIEU_CS_SZ);

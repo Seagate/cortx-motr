@@ -66,12 +66,12 @@ M0_INTERNAL int calculate_md5_inc_context(struct m0_md5_inc_context_pi *pi,
 					bvec->ov_vec.v_count[i]);
 			if (rc != 1) {
 				return M0_ERR_INFO(rc, "MD5_Update failed."
-						       "curr_context=%p, "
-						       "bvec->ov_buf[%d]=%p, "
-						       "bvec->ov_vec.v_count[%d]=%lu",
-						       curr_context, i,
-						       bvec->ov_buf[i], i,
-						       bvec->ov_vec.v_count[i]);
+						   "curr_context=%p, "
+						   "bvec->ov_buf[%d]=%p, "
+						   "bvec->ov_vec.v_count[%d]=%lu",
+						   curr_context, i,
+						   bvec->ov_buf[i], i,
+						   bvec->ov_vec.v_count[i]);
 			}
 		}
 	}
@@ -91,9 +91,9 @@ M0_INTERNAL int calculate_md5_inc_context(struct m0_md5_inc_context_pi *pi,
 		rc = MD5_Final(pi_value_without_seed, &context);
 		if (rc != 1) {
 			return M0_ERR_INFO(rc, "MD5_Final failed"
-					       "pi_value_without_seed=%p"
-					       "curr_context=%p",
-					       pi_value_without_seed, curr_context);
+					   "pi_value_without_seed=%p"
+					   "curr_context=%p",
+					   pi_value_without_seed, curr_context);
 		}
 	}
 
@@ -122,12 +122,12 @@ M0_INTERNAL int calculate_md5_inc_context(struct m0_md5_inc_context_pi *pi,
 		if (rc != 1) {
 
 			return M0_ERR_INFO(rc, "MD5_Update fail curr_context=%p"
-					       "f_container 0x%"PRIx64" f_key 0x%"PRIx64
-					       " data_unit_offset 0x%"PRIx64" seed_str %s",
-					       curr_context, seed->pis_obj_id.f_container,
-					       seed->pis_obj_id.f_key,
-					       seed->pis_data_unit_offset,
-					       (char *)seed_str);
+					   "f_container 0x%"PRIx64" f_key 0x%"PRIx64
+					   " data_unit_offset 0x%"PRIx64" seed_str %s",
+					   curr_context, seed->pis_obj_id.f_container,
+					   seed->pis_obj_id.f_key,
+					   seed->pis_data_unit_offset,
+					   (char *)seed_str);
 		}
 	}
 
@@ -161,7 +161,7 @@ M0_INTERNAL uint64_t m0_calculate_cksum_size(struct m0_generic_pi *pi)
 M0_INTERNAL uint64_t max_cksum_size(void)
 {
 	return (sizeof(struct m0_md5_pi) > sizeof(struct m0_md5_inc_context_pi) ?
-			sizeof(struct m0_md5_pi) : sizeof(struct m0_md5_inc_context_pi));
+		sizeof(struct m0_md5_pi) : sizeof(struct m0_md5_inc_context_pi));
 }
 
 int m0_client_calculate_pi(struct m0_generic_pi *pi,
@@ -219,11 +219,11 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 		}
 		else {
 			M0_LOG(M0_ERROR, "checksum fail "
-					 "f_container 0x%"PRIx64" f_key 0x%"PRIx64
-					 " data_unit_offset 0x%"PRIx64,
-					 seed->pis_obj_id.f_container,
-					 seed->pis_obj_id.f_key,
-					 seed->pis_data_unit_offset);
+			       "f_container 0x%"PRIx64" f_key 0x%"PRIx64
+			       " data_unit_offset 0x%"PRIx64,
+			       seed->pis_obj_id.f_container,
+			       seed->pis_obj_id.f_key,
+			       seed->pis_data_unit_offset);
 			return false;
 		}
 		break;

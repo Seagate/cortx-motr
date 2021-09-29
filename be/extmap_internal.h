@@ -116,7 +116,7 @@ struct m0_be_emap_rec {
 	 * Record gets stored as contigious buffer
 	 * ***** ChecksumArray[0...(er_cksum_nob -1)] *****
 	 */
-	/** checksum buffer size */
+	/* checksum buffer size */
 	uint32_t		er_cksum_nob;
 	struct m0_format_footer er_footer;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);

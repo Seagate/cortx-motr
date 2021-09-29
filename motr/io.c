@@ -525,7 +525,7 @@ static int obj_io_init(struct m0_obj      *obj,
 	if (M0_IN(opcode, (M0_OC_READ, M0_OC_WRITE))) {
 		ioo->ioo_data = *data;
 		ioo->ioo_attr_mask = mask;
-		/** If checksum is disabled, then attr is NULL */
+		/* If checksum is disabled, then attr is NULL */
 		if (attr != NULL && attr->ov_vec.v_nr) {
 			ioo->ioo_attr = *attr;
 		} else {

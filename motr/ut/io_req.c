@@ -1012,7 +1012,8 @@ static void ut_test_ioreq_application_data_copy(void)
 
 			if (unit_idx != 0) {
 				flag = M0_PI_NO_FLAG; 
-				memcpy(pi.pimd5c_prev_context, curr_context, sizeof(MD5_CTX));
+				memcpy(pi.pimd5c_prev_context, curr_context,
+				       sizeof(MD5_CTX));
 			}
 
 			for (i = 0; i < map->pi_max_row; i++) {
@@ -1028,7 +1029,8 @@ static void ut_test_ioreq_application_data_copy(void)
 				M0_UT_ASSERT(rc == 0);
 			}
 
-			memcpy(ioo->ioo_attr.ov_buf[unit_idx], &pi, sizeof(struct m0_md5_inc_context_pi));
+			memcpy(ioo->ioo_attr.ov_buf[unit_idx], &pi,
+			       sizeof(struct m0_md5_inc_context_pi));
 			unit_idx++;
 			m0_ivec_cursor_move(&extcur, UT_DEFAULT_BLOCK_SIZE);
 		}

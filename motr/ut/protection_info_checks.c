@@ -64,7 +64,7 @@ M0_INTERNAL int pi_init(void)
 	int i;
 	int j;
 	int rc;
-	/** allocate and populate buffers */
+	/* allocate and populate buffers */
 
 	M0_ALLOC_ARR(user_data, DATA_UNIT_COUNT);
 	M0_UT_ASSERT(user_data != NULL);
@@ -162,7 +162,7 @@ void verify_case_one_two(void)
 	m0_fid_set(&seed.pis_obj_id, OBJ_CONTAINER, OBJ_KEY);
 	for (j = 0; j < DATA_UNIT_COUNT; j++) {
 		memcpy((void *)&tmp_ctx,(void *)curr_context[j],sizeof(MD5_CTX));
-		seed.pis_data_unit_offset = j*SEGS_NR*BUFFER_SIZE;
+		seed.pis_data_unit_offset = j * SEGS_NR * BUFFER_SIZE;
 		snprintf(seed_str, sizeof(seed_str),"%"PRIx64"%"PRIx64"%"PRIx64,
 			 seed.pis_obj_id.f_container, seed.pis_obj_id.f_key,
 			 seed.pis_data_unit_offset);
@@ -205,9 +205,10 @@ void verify_case_one_two(void)
 static void ut_test_pi_api_case_one_two(void)
 {
 
-	int j, rc;
+	int                          j;
+	int                          rc;
 	struct m0_md5_inc_context_pi pi;
-	struct m0_pi_seed seed;
+	struct m0_pi_seed            seed;
 
 	m0_fid_set(&seed.pis_obj_id, OBJ_CONTAINER, OBJ_KEY);
 
@@ -216,7 +217,7 @@ static void ut_test_pi_api_case_one_two(void)
 
 	for (j = 0; j < DATA_UNIT_COUNT; j++) {
 
-		seed.pis_data_unit_offset = j*SEGS_NR*BUFFER_SIZE;
+		seed.pis_data_unit_offset = j * SEGS_NR * BUFFER_SIZE;
 		if (j == 0) {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
 						    &seed, &user_data[j],
@@ -225,12 +226,14 @@ static void ut_test_pi_api_case_one_two(void)
 			M0_UT_ASSERT(rc == 0);
 		} else if (j == DATA_UNIT_COUNT - 1) {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-						    &seed, &user_data[j], M0_PI_NO_FLAG,
+						    &seed, &user_data[j],
+						    M0_PI_NO_FLAG,
 						    curr_context[j], final_sum);
 			M0_UT_ASSERT(rc == 0);
 		} else {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-						    &seed, &user_data[j], M0_PI_NO_FLAG,
+						    &seed, &user_data[j],
+						    M0_PI_NO_FLAG,
 						    curr_context[j], NULL);
 			M0_UT_ASSERT(rc == 0);
 		}
@@ -277,17 +280,20 @@ static void ut_test_pi_api_case_third(void)
 
 		if (j == 0) {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-					            NULL, &user_data[j], M0_PI_CALC_UNIT_ZERO,
+					            NULL, &user_data[j],
+						    M0_PI_CALC_UNIT_ZERO,
 					            curr_context[j], NULL);
 			M0_UT_ASSERT(rc == 0);
 		} else if (j == DATA_UNIT_COUNT - 1) {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-					            &seed, &user_data[j], M0_PI_NO_FLAG,
+					            &seed, &user_data[j],
+						    M0_PI_NO_FLAG,
 					            curr_context[j], final_sum);
 			M0_UT_ASSERT(rc == 0);
 		} else {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-						    NULL, &user_data[j], M0_PI_NO_FLAG,
+						    NULL, &user_data[j],
+						    M0_PI_NO_FLAG,
 						    curr_context[j], NULL);
 			M0_UT_ASSERT(rc == 0);
 		}

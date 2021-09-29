@@ -28,7 +28,7 @@
 
 M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start(m0_bindex_t ext_start,
 						     m0_bindex_t ext_len,
-						     m0_bindex_t unit_sz )
+						     m0_bindex_t unit_sz)
 {
 
 	/* Compute how many unit starts in a given extent spans:
@@ -52,9 +52,9 @@ M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start(m0_bindex_t ext_start,
 
 	m0_bcount_t cs_nob;
 	M0_ASSERT(unit_sz);
-	cs_nob = ((ext_start + ext_len - 1)/unit_sz - ext_start/unit_sz);
+	cs_nob = ((ext_start + ext_len - 1) / unit_sz - ext_start / unit_sz);
 
-	/** Add handling for case 1 and 5 */
+	/* Add handling for case 1 and 5 */
 	if ((ext_start % unit_sz) == 0)
 		cs_nob++;
 
@@ -68,7 +68,7 @@ M0_INTERNAL m0_bcount_t m0_extent_get_unit_offset(m0_bindex_t off,
 {
 	M0_ASSERT(unit_sz);
 	/* Unit size we get from layout id using m0_obj_layout_id_to_unit_size(lid) */
-	return (off - base_off)/unit_sz;
+	return (off - base_off) / unit_sz;
 }
 
 M0_INTERNAL void * m0_extent_get_checksum_addr(void *b_addr,
@@ -79,8 +79,8 @@ M0_INTERNAL void * m0_extent_get_checksum_addr(void *b_addr,
 {
 	M0_ASSERT(unit_sz && cs_size);
 	return (char *)b_addr +
-		m0_extent_get_unit_offset(off, base_off, unit_sz) *
-		cs_size;
+	       m0_extent_get_unit_offset(off, base_off, unit_sz) *
+	       cs_size;
 }
 
 M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob(m0_bindex_t ext_start,
@@ -89,7 +89,8 @@ M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob(m0_bindex_t ext_start,
 						   m0_bcount_t cs_size)
 {
 	M0_ASSERT(unit_sz && cs_size);
-	return m0_extent_get_num_unit_start(ext_start, ext_length, unit_sz) * cs_size;
+	return m0_extent_get_num_unit_start(ext_start, ext_length, unit_sz) *
+	       cs_size;
 }
 
 /* This function will get checksum address for application provided checksum buffer
@@ -129,7 +130,9 @@ M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec,
 		 *      | iv_index[0] || iv_index[1] | iv_index[2] || iv_index[3] |
 		 */
 		if (m0_ext_is_in(&ext, off)) {
-			attr_nob += ( m0_extent_get_unit_offset(off, ext.e_start, unit_sz) * cs_sz);
+			attr_nob += (m0_extent_get_unit_offset(off, ext.e_start,
+						               unit_sz) *
+				                               cs_sz);
 			break;
 		}
 		else {
@@ -140,10 +143,10 @@ M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec,
 		}
 	}
 
-	/** Assert to make sure the the offset is lying within the extent */
+	/* Assert to make sure the the offset is lying within the extent */
 	M0_ASSERT(i < vec->iv_vec.v_nr);
 
-	/** get the checksum_addr */
+	/* get the checksum_addr */
 	m0_bufvec_cursor_init(&cksum_cursor, cksum_vec);
 
 	if (attr_nob) {

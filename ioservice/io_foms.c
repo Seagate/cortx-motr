@@ -51,6 +51,7 @@
 #include "balloc/balloc.h"         /* M0_BALLOC_NORMAL_ZONE */
 #include "stob/addb2.h"            /* M0_AVI_STOB_IO_REQ */
 #include "layout/layout.h"         /* m0_lid_to_unit_map */
+#include "motr/layout.h"           /* M0_OBJ_LAYOUT_ID */
 
 /**
    @page DLD-bulk-server DLD of Bulk Server
@@ -563,7 +564,6 @@
 
  */
 
-#define M0_OBJ_LAYOUT_ID(lid)  (lid & 0x0000ffffffffffff)
 /**
  * @addtogroup io_foms
  * @{
@@ -1190,7 +1190,8 @@ M0_INTERNAL int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	stobio_tlist_init(&fom_obj->fcrw_stio_list);
 	stobio_tlist_init(&fom_obj->fcrw_done_list);
 
-	M0_LOG(M0_DEBUG, "fcrw_total_ioivec_cnt = %"PRIu64, fom_obj->fcrw_total_ioivec_cnt);
+	M0_LOG(M0_DEBUG, "fcrw_total_ioivec_cnt = %"PRIu64,
+	       fom_obj->fcrw_total_ioivec_cnt);
 	M0_LOG(M0_DEBUG, "fom=%p : op=%s, desc=%d gfid"FID_F"cob fid"FID_F
 	       "pver"FID_F, fom, m0_is_read_fop(fop) ? "READ" : "WRITE",
 	       rwfop->crw_desc.id_nr, FID_P(&rwfop->crw_gfid),
@@ -2060,13 +2061,13 @@ static int stob_io_create(struct m0_fom *fom)
 
 	rwfop = io_rw_get(fom->fo_fop);
 	rw_replyfop = io_rw_rep_get(fom->fo_rep_fop);
-	/** CKSUM_TODO: Check this and use function call */
+	/* CKSUM_TODO: Check this and use function call */
 	unit_size = (m0_lid_to_unit_map[M0_OBJ_LAYOUT_ID(rwfop->crw_lid)]) >>
 		     m0_stob_block_shift(fom_obj->fcrw_stob);
 	if ((m0_is_read_fop(fom->fo_fop)) && rwfop->crw_cksum_size) {
 		/* CKSUM_TODO: Enable when cksum for parity is calculated */
-		/** M0_ASSERT(rwfop->crw_di_data_cksum.b_nob == 0); */
-		/** M0_ASSERT(rwfop->crw_di_data_cksum.b_addr == NULL); */
+		/* M0_ASSERT(rwfop->crw_di_data_cksum.b_nob == 0); */
+		/* M0_ASSERT(rwfop->crw_di_data_cksum.b_addr == NULL); */
 
 		/* Init tracker variable, this gets updated in stobio_complete_cb */
 		rw_replyfop->rwr_cksum_nob_read = 0;
@@ -2081,7 +2082,7 @@ static int stob_io_create(struct m0_fom *fom)
 						           rwfop->crw_cksum_size);
 		}
 
-		/** Its expected to receive atleast on unit start in a fop */
+		/* Its expected to receive atleast on unit start in a fop */
 		M0_ASSERT(rw_replyfop->rwr_di_data_cksum.b_nob > 0);
 
 		if (m0_buf_alloc(&rw_replyfop->rwr_di_data_cksum,
@@ -2107,7 +2108,8 @@ static int stob_io_create(struct m0_fom *fom)
 
 		todo = rwfop->crw_desc.id_descs[i].bdd_used >>
 			fom_obj->fcrw_bshift;
-		M0_LOG(M0_DEBUG, "i=%d todo=%u, count=%"PRIu64, i, (unsigned)todo, count);
+		M0_LOG(M0_DEBUG, "i=%d todo=%u, count=%"PRIu64,
+		       i, (unsigned)todo, count);
 		rc = m0_indexvec_split(&fom_obj->fcrw_io.si_stob, count, todo,
 				       /* fom_obj->fcrw_bshift */ 0,
 				       &stio->si_stob);
@@ -2124,7 +2126,7 @@ static int stob_io_create(struct m0_fom *fom)
 			 */
 			stio->si_cksum_nob_read = 0;
 
-			/** Get the cksum nob expected for given stio */
+			/* Get the cksum nob expected for given stio */
 			stio->si_cksum.b_nob = 0;
 			for (j = 0; j < stio->si_stob.iv_vec.v_nr; j++) {
 				stio->si_cksum.b_nob +=
@@ -2134,7 +2136,7 @@ static int stob_io_create(struct m0_fom *fom)
 								   stio->si_cksum_sz );
 			}
 
-			/** assign checksum buffer to repsective stob */
+			/* assign checksum buffer to repsective stob */
 			if (m0_is_read_fop(fom->fo_fop)) {
 				stio->si_cksum.b_addr = rw_replyfop->rwr_di_data_cksum.b_addr +
 							curr_cksum_nob;
@@ -2143,7 +2145,7 @@ static int stob_io_create(struct m0_fom *fom)
 							curr_cksum_nob;
 			}
 
-			/** Increment the current cksum count */
+			/* Increment the current cksum count */
 			curr_cksum_nob += stio->si_cksum.b_nob;
 		}
 		count += todo;

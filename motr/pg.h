@@ -806,7 +806,7 @@ struct target_ioreq {
 	struct m0_bufvec               ti_bufvec;
 	struct m0_bufvec               ti_auxbufvec;
 
-	/** TODO: Combine this into one struct for checksums */
+	/* TODO: Combine this into one struct for checksums */
 	struct m0_buf                  ti_attrbuf;
 	m0_bcount_t		       ti_cksum_copied;
 

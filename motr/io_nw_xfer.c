@@ -548,7 +548,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	/* Use ti_dgvec as long as it is dgmode-read/write. */
 	if (ioreq_sm_state(ioo) == IRS_DEGRADED_READING ||
 	    ioreq_sm_state(ioo) == IRS_DEGRADED_WRITING)  {
-		/** CKSUM_TODO: Need to handle degraded write cksum update */
+		/* CKSUM_TODO: Need to handle degraded write cksum update */
 		M0_ASSERT(ti->ti_dgvec != NULL);
 		ivec  = &ti->ti_dgvec->dr_ivec;
 		bvec  = &ti->ti_dgvec->dr_bufvec;
@@ -641,7 +641,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 " with flags 0x%x: ", seg,
 				 INDEX(ivec, seg), COUNT(ivec, seg),
 				 FID_P(&ti->ti_fid), pattr[seg]);
-		/** Ignore hole because of data size not alligned pool width */
+		/* Ignore hole because of data size not alligned pool width */
 		goff_span_ext.e_start = ioo->ioo_ext.iv_index[0];
 		goff_span_ext.e_end = ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr - 1] +
 				      ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr - 1];
@@ -665,10 +665,14 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 * Note: ioo_ext is span of offset for which ioo_attr is provided and
 				 * goff should lie within that span
 				 */
-				src_attr = m0_extent_vec_get_checksum_addr(&ioo->ioo_attr, goff,
-									   &ioo->ioo_ext, unit_sz, cs_sz);
+				src_attr = m0_extent_vec_get_checksum_addr(&ioo->ioo_attr,
+									   goff,
+									   &ioo->ioo_ext,
+									   unit_sz,
+									   cs_sz);
 				M0_ASSERT(b_nob == cs_sz);
-				memcpy((char *)dst_attr + ti->ti_cksum_copied, src_attr, b_nob);
+				memcpy((char *)dst_attr + ti->ti_cksum_copied,
+				       src_attr, b_nob);
 
 				/* Track checksum copied as we need to do overallocation for
 				 * ti_attrbuf for traget and while sending FOP we use this
@@ -683,7 +687,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			ti->ti_cksum_seg_b_nob[seg] = b_nob;
 		} else if (goff_ivec != NULL && unit_type == M0_PUT_DATA &&
 			   opcode == M0_OC_READ && is_goff_in_range) {
-			/**
+			/*
 			 * Storing the values of goff(checksum offset) into the
 			 * goff_ivec according to target offset. This creates a
 			 * mapping between target offset and cheksum offset.

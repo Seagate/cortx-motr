@@ -174,19 +174,19 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 		if (m0_ivec_cursor_move(&rep_cursor, unit_size - off)) {
 			rep_index = m0_ivec_cursor_index(&rep_cursor);
 		} else {
-			/** invalid cusror position */
+			/* invalid cusror position */
 			M0_ASSERT(false);
 		}
 	}
 	M0_ASSERT(ti_cob_index <= rep_index);
 
 	/* Move ti index to rep index */
-	if (ti_cob_index != rep_index) 	{
+	if (ti_cob_index != rep_index) {
 		M0_ASSERT (m0_ivec_cursor_move(&ti_cob_cursor,  rep_index - ti_cob_index) && 
 		           m0_ivec_cursor_move(&ti_goff_cursor, rep_index - ti_cob_index));
 	}
 
-	/**
+	/*
 	 * Cursor iterating over segments spanned by this IO. At each iteration
 	 * index of reply fop is matched with all the target offsets stored in
 	 * target_ioreq::ti_ivec, once matched, the checksum offset is
@@ -212,7 +212,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 		dst = m0_extent_vec_get_checksum_addr(&ioo->ioo_attr,
 						      ti_goff_index,
 						      &ioo->ioo_ext,
-						      unit_size, cs_sz );
+						      unit_size, cs_sz);
 
 		memcpy(dst, src, cs_sz);
 		src = (char *)src + cs_sz;
