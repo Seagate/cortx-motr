@@ -587,9 +587,11 @@ M0_INTERNAL void m0_be_tx_group_reconstruct_tx_open(struct m0_be_tx_group *gr,
 {
 	struct be_recovering_tx *rtx;
 
+	m0_be_op_make_set_and(op);
 	m0_tl_for(rtxs, &gr->tg_txs_recovering, rtx) {
 		m0_be_op_set_add(op, &rtx->rtx_op_open);
 	} m0_tl_endfor;
+	m0_be_op_set_add_finish(op);
 
 	m0_tl_for(rtxs, &gr->tg_txs_recovering, rtx) {
 		m0_be_op_active(&rtx->rtx_op_open);
@@ -603,9 +605,11 @@ m0_be_tx_group_reconstruct_tx_close(struct m0_be_tx_group *gr,
 {
 	struct be_recovering_tx *rtx;
 
+	m0_be_op_make_set_and(op_gc);
 	m0_tl_for(rtxs, &gr->tg_txs_recovering, rtx) {
 		m0_be_op_set_add(op_gc, &rtx->rtx_op_gc);
 	} m0_tl_endfor;
+	m0_be_op_set_add_finish(op_gc);
 
 	m0_tl_for(rtxs, &gr->tg_txs_recovering, rtx) {
 		m0_be_op_active(&rtx->rtx_op_gc);
