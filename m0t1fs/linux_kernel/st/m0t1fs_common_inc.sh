@@ -288,12 +288,15 @@ function dix_pver_build()
 	# Number of parity units (replication factor) for distributed indices.
 	# Calculated automatically as maximum possible parity for the given
 	# number of disks.
-	# If we have SPARE=PARITY, then we will use:
-	#local DIX_PARITY=$(((DIX_DEVS_NR - 1) / 2))
-	#local DIX_SPARE=$DIX_PARITY
-	# If we have SPARE=0, then we can have any number between [1, DIX_DEVS_NR - 1]
-	local DIX_PARITY=$((DIX_DEVS_NR - 1))
-	local DIX_SPARE=0
+	if [ x$ENABLE_FDMI_FILTERS == xYES ] ; then
+		# If we have SPARE=0, then we can have any number between [1, DIX_DEVS_NR - 1]
+		local DIX_PARITY=$((DIX_DEVS_NR - 1))
+		local DIX_SPARE=0
+	else
+		# If we have SPARE=PARITY, then we will use:
+		local DIX_PARITY=$(((DIX_DEVS_NR - 1) / 2))
+		local DIX_SPARE=$DIX_PARITY
+	fi
 
 	# conf objects for disks
 	for ((i=0; i < $DIX_DEVS_NR; i++)); do
