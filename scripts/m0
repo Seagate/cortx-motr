@@ -48,9 +48,11 @@ SUDO="${SUDO-sudo -E}"  # the absence of ':' is important
 _libfab_st_list() {
     st_name=$1
     found_st=false
-    st_libfab_skip=(06conf
+    st_libfab_skip=(04initscripts
+                    06conf
                     07mount
                     07mount-fail
+                    07mount-multiple
                     08spiel
                     08spiel-sns-repair
                     08spiel-sns-repair-quiesce
@@ -75,7 +77,10 @@ _libfab_st_list() {
                     23spiel-dix-repair
                     23spiel-dix-repair-quiesce
                     26motr-user-kernel-tests
+                    28sys-kvs
+                    28sys-kvs-kernel
                     34sns-repair-1n-1f
+                    35m0singlenode
                     40motr-dgmode
                     45motr-rmw
                     51kem)
