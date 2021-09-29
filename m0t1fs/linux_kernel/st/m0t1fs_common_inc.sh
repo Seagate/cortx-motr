@@ -97,11 +97,11 @@ POOL_MACHINE_CLI_EP="12345:33:1001"
 SNS_QUIESCE_CLI_EP="12345:33:1002"
 M0HAM_CLI_EP="12345:33:1003"
 
-FDMI_PLUGIN_EP="12345:33:601"
-FDMI_PLUGIN_EP2="12345:33:602"
+export FDMI_PLUGIN_EP="12345:33:601"
+export FDMI_PLUGIN_EP2="12345:33:602"
 
-FDMI_FILTER_FID="6c00000000000001:0"
-FDMI_FILTER_FID2="6c00000000000002:0"
+export FDMI_FILTER_FID="6c00000000000001:0"
+export FDMI_FILTER_FID2="6c00000000000002:0"
 
 SNS_CLI_EP="12345:33:400"
 
@@ -126,7 +126,7 @@ MAX_RPC_MSG_SIZE=65536
 XPT=lnet
 PVERID='^v|1:10'
 MDPVERID='^v|2:10'
-M0T1FS_PROC_ID='0x7200000000000001:64'
+export M0T1FS_PROC_ID='0x7200000000000001:64'
 
 # Single node configuration.
 SINGLE_NODE=0
@@ -244,7 +244,7 @@ unprepare()
 	return $rc
 }
 
-PROF_OPT='0x7000000000000001:0'
+export PROF_OPT='0x7000000000000001:0'
 
 . `dirname ${BASH_SOURCE[0]}`/common_service_fids_inc.sh
 
@@ -288,7 +288,7 @@ function dix_pver_build()
 	# Number of parity units (replication factor) for distributed indices.
 	# Calculated automatically as maximum possible parity for the given
 	# number of disks.
-	if [ x$ENABLE_FDMI_FILTERS == xYES ] ; then
+	if [ "x$ENABLE_FDMI_FILTERS" == "xYES" ] ; then
 		# If we have SPARE=0, then we can have any number between [1, DIX_DEVS_NR - 1]
 		local DIX_PARITY=$((DIX_DEVS_NR - 1))
 		local DIX_SPARE=0
@@ -436,7 +436,7 @@ function build_conf()
 	local FDMI_FILTER_STRINGS="\"something1\", \"anotherstring2\", \"YETanotherstring3\""
 	local FDMI_FILTER_STRINGS2="\"Bucket-Name\", \"Object-Name\", \"x-amz-meta-replication\""
 
-	if [ x$ENABLE_FDMI_FILTERS == xYES ] ; then
+	if [ "x$ENABLE_FDMI_FILTERS" == "xYES" ] ; then
 		local FDMI_GROUP_DESC="1: $FDMI_GROUP_ID"
 		local FDMI_ITEMS_NR=3
 		# Please NOTE the ending comma at the end of each string here
