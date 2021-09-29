@@ -147,12 +147,12 @@ start_fdmi_plugin()
 
 	if $interactive ; then
 		echo "Please use another terminal and run this command:"
-		echo sudo $PLUGIN_CMD
+		echo sudo ${PLUGIN_CMD}
 		echo "Then switch back to this terminal and press ENTER"
 		read
 	else
-		echo "Please check fdmi plugin output from this file: `pwd`/${fdmi_output_file}"
-		($PLUGIN_CMD 2>&1 |& tee ${fdmi_output_file} ) &
+		echo "Please check fdmi plugin output from this file: $(pwd)/${fdmi_output_file}"
+		(${PLUGIN_CMD} 2>&1 |& tee "${fdmi_output_file}" ) &
 		sleep 5
 	fi
 
@@ -168,21 +168,25 @@ start_fdmi_plugin()
 
 stop_fdmi_plugin()
 {
-	local pids=$(pgrep -f "lt-fdmi_sample_plugin")
-	if test "x$pids" != x; then
-		for pid in $pids; do
-			echo "Terminating ${pid}"
-			kill -KILL "${pid}"
-		done
-	fi
-	if ! $interactive ; then
+	if $interactive ; then
+		echo "Please switch to the plugin terminals and press Ctrl+C "
+		echo "When both plugin applications are terminated, come back"
+		echo "Please press Enter to continue ..." && read
+	else
+		local pids=$(pgrep -f "lt-fdmi_sample_plugin")
+		if test "x$pids" != x; then
+			for pid in $pids; do
+				echo "Terminating ${pid}"
+				kill -KILL "${pid}"
+			done
+		fi
 		echo "The output of $FDMI_FILTER_FID  filter are:"
 		echo "==================>>>======================"
-		cat ${FDMI_FILTER_FID}.txt
+		cat "${FDMI_FILTER_FID}.txt"
 		echo "==================<<<======================"
 		echo "The output of $FDMI_FILTER_FID2 filter are:"
 		echo "==================>>>======================"
-		cat ${FDMI_FILTER_FID2}.txt
+		cat "${FDMI_FILTER_FID2}.txt"
 		echo "==================<<<======================"
 	fi
 
@@ -212,8 +216,8 @@ motr_fdmi_plugin_test()
 	echo
 	echo
 
-	start_fdmi_plugin $FDMI_FILTER_FID $FDMI_PLUGIN_EP &&
-	start_fdmi_plugin $FDMI_FILTER_FID2 $FDMI_PLUGIN_EP2 && {
+	start_fdmi_plugin "$FDMI_FILTER_FID"  "$FDMI_PLUGIN_EP"  &&
+	start_fdmi_plugin "$FDMI_FILTER_FID2" "$FDMI_PLUGIN_EP2" && {
 	    do_some_kv_operations || {
 		# Make the rc available for the caller and fail the test
 		# if kv operations fail.
