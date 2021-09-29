@@ -784,6 +784,22 @@ M0_INTERNAL int m0_poolmach_node_state(struct m0_poolmach *pm,
 	return 0;
 }
 
+M0_INTERNAL int m0_poolmach_device_node_return(struct m0_poolmach *pm,
+					       uint32_t device_index,
+					       struct m0_poolnode **node_out)
+{
+	M0_PRE(pm != NULL);
+	M0_PRE(node_out != NULL);
+
+	if (device_index >= pm->pm_state->pst_nr_devices)
+		return M0_ERR_INFO(-EINVAL, "device index:%d total devices:%d",
+				device_index, pm->pm_state->pst_nr_devices);
+
+	*node_out = pm->pm_state->pst_devices_array[device_index].pd_node;
+
+	return 0;
+}
+
 M0_INTERNAL bool
 m0_poolmach_device_is_in_spare_usage_array(struct m0_poolmach *pm,
 					   uint32_t device_index)

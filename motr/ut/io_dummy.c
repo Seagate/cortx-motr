@@ -419,6 +419,9 @@ ut_dummy_ioo_create(struct m0_client *instance, int num_io_maps)
 	M0_ALLOC_ARR(ioo->ioo_failed_session, 1);
 	ioo->ioo_failed_session[0] = ~(uint64_t)0;
 
+	M0_ALLOC_ARR(ioo->ioo_failed_nodes, 1);
+	ioo->ioo_failed_nodes[0] = ~(uint64_t)0;
+
 	/* fid */
 	//m0_fid_set(&ioo->ioo_oo.oo_fid, 0, 1);
 	m0_fid_gob_make(&ioo->ioo_oo.oo_fid, 0, 1);
@@ -483,6 +486,7 @@ M0_INTERNAL void ut_dummy_ioo_delete(struct m0_op_io *ioo,
 	m0_sm_fini(&ioo->ioo_sm);
 	m0_sm_group_unlock(&instance->m0c_sm_group);
 
+	m0_free(ioo->ioo_failed_nodes);
 	m0_free(ioo->ioo_failed_session);
 	m0_free(ioo->ioo_data.ov_buf[0]);
 	m0_free(ioo->ioo_data.ov_buf);
