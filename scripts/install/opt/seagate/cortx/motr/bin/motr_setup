@@ -157,6 +157,7 @@ class ConfigCmd(Cmd):
 
         motr_config(self)
         if self.k8:
+            motr_config_k8(self)
             return
 
         # Update keys from other nodes
