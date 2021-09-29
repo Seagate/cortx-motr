@@ -47,7 +47,9 @@ class Cmd:
         self._args = args.args
         self._debug = args.debug
         self.logger = config_logger(self)
-        self.k8 = args.k8
+        #self.k8 = args.k8
+        if self._index:
+            self.k8 = Conf.get(self._index, 'cortx>common>environment_type')
         if not self.k8:
             self.server_node = get_server_node(self)
         else:
@@ -155,7 +157,6 @@ class ConfigCmd(Cmd):
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
 
-        motr_config(self)
         if self.k8:
             motr_config_k8(self)
             return
@@ -226,7 +227,6 @@ class CleanupCmd(Cmd):
         super().__init__(args)
 
     def process(self):
-        print(f"On line 210.........self._args={self._args}")
         if (len(self._args) > 1):
             self.logger.error(f"Invalid number of arguments of 'cleanup'\n")
             self.logger.error(f"Usage: <prog> [-h] <cmd> --config <url> <args>\n")
