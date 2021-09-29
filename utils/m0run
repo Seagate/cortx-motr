@@ -212,6 +212,7 @@ run_valgrind_memcheck()
             "$binary $@"
     valgrind \
         --tool=memcheck \
+        --max-threads=4000 \
         --trace-children=yes --track-fds=yes \
         --leak-check=full --track-origins=yes \
         --show-leak-kinds=all --num-callers=32 \

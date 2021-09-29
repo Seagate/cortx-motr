@@ -36,6 +36,8 @@
 #include "lib/semaphore.h" /* m0_semaphore */
 #include "ut/ut.h"         /* M0_UT_ASSERT */
 #include "ut/threads.h"    /* M0_UT_THREADS_DEFINE */
+#include "lib/time.h"      /* m0_time_now */
+
 
 void m0_be_ut_op_usecase(void)
 {
@@ -227,7 +229,7 @@ void m0_be_ut_op_mt(void)
 }
 
 enum {
-	BE_UT_OP_SET_USECASE_NR = 0x1000,
+	BE_UT_OP_SET_AND_USECASE_NR = 0x1000,
 };
 
 /*
@@ -235,34 +237,37 @@ enum {
  *  \__ set[0]
  *  \__ set[1]
  *  ...
- *  \__ set[BE_UT_OP_SET_USECASE_NR - 1]
+ *  \__ set[BE_UT_OP_SET_AND_USECASE_NR - 1]
  */
-void m0_be_ut_op_set_usecase(void)
+void m0_be_ut_op_set_and_usecase(void)
 {
 	struct m0_be_op  op = {};
 	struct m0_be_op *set;
 	int              i;
 
-	M0_ALLOC_ARR(set, BE_UT_OP_SET_USECASE_NR);
+	M0_ALLOC_ARR(set, BE_UT_OP_SET_AND_USECASE_NR);
 	M0_UT_ASSERT(set != NULL);
 	m0_be_op_init(&op);
+	m0_be_op_make_set_and(&op);
 	M0_UT_ASSERT(!m0_be_op_is_done(&op));
-	for (i = 0; i < BE_UT_OP_SET_USECASE_NR; ++i) {
+	for (i = 0; i < BE_UT_OP_SET_AND_USECASE_NR; ++i) {
 		m0_be_op_init(&set[i]);
 		M0_UT_ASSERT(!m0_be_op_is_done(&op));
 		m0_be_op_set_add(&op, &set[i]);
 		M0_UT_ASSERT(!m0_be_op_is_done(&op));
 	}
-	for (i = 0; i < BE_UT_OP_SET_USECASE_NR / 2; ++i) {
+	m0_be_op_set_add_finish(&op);
+	M0_UT_ASSERT(!m0_be_op_is_done(&op));
+	for (i = 0; i < BE_UT_OP_SET_AND_USECASE_NR / 2; ++i) {
 		m0_be_op_active(&set[i]);
 		M0_UT_ASSERT(!m0_be_op_is_done(&op));
 	}
-	for (i = 1; i < BE_UT_OP_SET_USECASE_NR / 2; ++i) {
+	for (i = 1; i < BE_UT_OP_SET_AND_USECASE_NR / 2; ++i) {
 		m0_be_op_done(&set[i]);
 		M0_UT_ASSERT(!m0_be_op_is_done(&op));
 	}
-	for (i = BE_UT_OP_SET_USECASE_NR / 2;
-	     i < BE_UT_OP_SET_USECASE_NR; ++i) {
+	for (i = BE_UT_OP_SET_AND_USECASE_NR / 2;
+	     i < BE_UT_OP_SET_AND_USECASE_NR; ++i) {
 		m0_be_op_active(&set[i]);
 		M0_UT_ASSERT(!m0_be_op_is_done(&op));
 		m0_be_op_done(&set[i]);
@@ -271,11 +276,138 @@ void m0_be_ut_op_set_usecase(void)
 	m0_be_op_done(&set[0]);
 	M0_UT_ASSERT(m0_be_op_is_done(&op));
 
-	for (i = 0; i < BE_UT_OP_SET_USECASE_NR; ++i)
+	for (i = 0; i < BE_UT_OP_SET_AND_USECASE_NR; ++i)
 		m0_be_op_fini(&set[i]);
 	m0_be_op_fini(&op);
 
 	m0_free(set);
+}
+
+enum {
+	BE_UT_OP_SET_OR_USECASE_NR = 0x80,
+};
+
+void m0_be_ut_op_set_or_usecase(void)
+{
+	struct m0_be_op *op;
+	struct m0_be_op *c;  /* children */
+	struct m0_be_op *trigger;
+	unsigned        *done_map;  /* one value == one done */
+	bool             trigger_found;
+	int              i;
+	int              j;
+	int              test_index;
+
+	M0_ALLOC_PTR(op);
+	M0_ASSERT(op != NULL);
+	M0_ALLOC_ARR(c, BE_UT_OP_SET_OR_USECASE_NR);
+	M0_ASSERT(c != NULL);
+	M0_ALLOC_ARR(done_map, BE_UT_OP_SET_OR_USECASE_NR);
+	M0_ASSERT(done_map != NULL);
+
+	M0_UT_ASSERT(!m0_be_op_is_done(op));
+	for (j = 0; j < BE_UT_OP_SET_OR_USECASE_NR; ++j)
+		m0_be_op_init(&c[j]);
+	/*
+	 * 1. Check that op becomes done when one of the children becomes done.
+	 * 2. Check that op becomes done when one of the children is already
+	 *    done before the addition.
+	 */
+	m0_be_op_init(op);
+	for (test_index = 1; test_index <= 2; ++test_index) {
+		for (i = 0; i < BE_UT_OP_SET_OR_USECASE_NR; ++i) {
+			m0_be_op_make_set_or(op);
+			M0_UT_ASSERT(!m0_be_op_is_done(op));
+			if (test_index == 2) {
+				m0_be_op_active(&c[i]);
+				M0_UT_ASSERT(!m0_be_op_is_done(op));
+				m0_be_op_done(&c[i]);
+				M0_UT_ASSERT(!m0_be_op_is_done(op));
+			}
+			for (j = i; j < BE_UT_OP_SET_OR_USECASE_NR; ++j) {
+				m0_be_op_set_add(op, &c[j]);
+				M0_UT_ASSERT(!m0_be_op_is_done(op));
+			}
+			m0_be_op_set_add_finish(op);
+			if (test_index == 1) {
+				M0_UT_ASSERT(!m0_be_op_is_done(op));
+				m0_be_op_active(&c[i]);
+				M0_UT_ASSERT(!m0_be_op_is_done(op));
+				m0_be_op_done(&c[i]);
+			}
+			M0_UT_ASSERT(m0_be_op_is_done(op));
+			M0_UT_ASSERT(m0_be_op_set_triggered_by(op) == &c[i]);
+			if (i != BE_UT_OP_SET_OR_USECASE_NR - 1)
+				m0_be_op_reset(op);
+		}
+		m0_be_op_reset(op);
+		for (j = 0; j < BE_UT_OP_SET_OR_USECASE_NR; ++j)
+			m0_be_op_reset(&c[j]);
+	}
+	/*
+	 * 3. All BE ops become done before the first addition, parent op is
+	 *    DONE nr times after.
+	 * 4. All BE ops become done after the first addition, parent op is DONE
+	 *    nr times after.
+	 */
+	for (test_index = 3; test_index <= 4; ++test_index) {
+		for (j = 0; j < BE_UT_OP_SET_OR_USECASE_NR; ++j)
+			done_map[j] = 0;
+		if (test_index == 3) {
+			for (j = 0; j < BE_UT_OP_SET_OR_USECASE_NR; ++j) {
+				M0_UT_ASSERT(!m0_be_op_is_done(op));
+				m0_be_op_active(&c[j]);
+				M0_UT_ASSERT(!m0_be_op_is_done(op));
+				m0_be_op_done(&c[j]);
+				M0_UT_ASSERT(m0_be_op_is_done(&c[j]));
+			}
+		}
+		for (i = 0; i < BE_UT_OP_SET_OR_USECASE_NR; ++i) {
+			m0_be_op_make_set_or(op);
+			for (j = 0; j < BE_UT_OP_SET_OR_USECASE_NR; ++j) {
+				m0_be_op_set_add(op, &c[j]);
+				M0_UT_ASSERT(!m0_be_op_is_done(op));
+			}
+			m0_be_op_set_add_finish(op);
+			if (test_index == 4 && i == 0) {
+				for (j = 0; j < BE_UT_OP_SET_OR_USECASE_NR;
+				     ++j) {
+					M0_UT_ASSERT(equi(
+					        j == 0, !m0_be_op_is_done(op)));
+					m0_be_op_active(&c[j]);
+					M0_UT_ASSERT(equi(
+					        j == 0, !m0_be_op_is_done(op)));
+					m0_be_op_done(&c[j]);
+					M0_UT_ASSERT(m0_be_op_is_done(op));
+				}
+			}
+			M0_UT_ASSERT(m0_be_op_is_done(op));
+			trigger = m0_be_op_set_triggered_by(op);
+			trigger_found = false;
+			for (j = 0; j < BE_UT_OP_SET_OR_USECASE_NR; ++j) {
+				if (&c[j] == trigger) {
+					done_map[j] = 1;
+					trigger_found = true;
+					break;
+				}
+			}
+			M0_UT_ASSERT(trigger_found);
+			m0_be_op_reset(trigger);
+			m0_be_op_reset(op);
+		}
+		for (j = 0; j < BE_UT_OP_SET_OR_USECASE_NR; ++j)
+			M0_ASSERT(done_map[j] == 1);
+		m0_be_op_reset(op);
+		for (j = 0; j < BE_UT_OP_SET_OR_USECASE_NR; ++j)
+			m0_be_op_reset(&c[j]);
+	}
+	for (j = 0; j < BE_UT_OP_SET_OR_USECASE_NR; ++j)
+		m0_be_op_fini(&c[j]);
+	m0_be_op_fini(op);
+
+	m0_free(done_map);
+	m0_free(c);
+	m0_free(op);
 }
 
 enum {
@@ -287,7 +419,9 @@ enum {
 
 enum be_ut_op_set_tree_cmd {
 	BE_UT_OP_SET_TREE_INIT,
+	BE_UT_OP_SET_TREE_SET_CONVERT,
 	BE_UT_OP_SET_TREE_SET_ADD,
+	BE_UT_OP_SET_TREE_SET_ADD_FINISH,
 	BE_UT_OP_SET_TREE_STATES,
 	BE_UT_OP_SET_TREE_FINI,
 	BE_UT_OP_SET_TREE_SET_ACTIVE,
@@ -305,6 +439,10 @@ static void be_ut_op_set_tree_swap(unsigned *a, unsigned *b)
 	*b =  t;
 }
 
+/*
+ * XXX add random_shuffle function to ut/something.h and use it everywhere
+ * TODO use m0_ut_random_shuffle().
+ */
 static void be_ut_op_set_tree_random_shuffle(unsigned *arr,
                                              unsigned  nr,
                                              bool      keep_half_dist_order,
@@ -345,8 +483,14 @@ static void be_ut_op_set_tree_do(struct m0_be_op            *op,
 	case BE_UT_OP_SET_TREE_INIT:
 		m0_be_op_init(op);
 		break;
+	case BE_UT_OP_SET_TREE_SET_CONVERT:
+		m0_be_op_make_set_and(op);
+		break;
 	case BE_UT_OP_SET_TREE_SET_ADD:
 		m0_be_op_set_add(op, child);
+		break;
+	case BE_UT_OP_SET_TREE_SET_ADD_FINISH:
+		m0_be_op_set_add_finish(op);
 		break;
 	case BE_UT_OP_SET_TREE_FINI:
 		m0_be_op_fini(op);
@@ -421,10 +565,18 @@ static void be_ut_op_set_tree_recursive(struct m0_be_op            *op,
 				be_ut_op_set_tree_recursive(op, cmd, level + 1,
 							    j, seed);
 			}
+			if (cmd == BE_UT_OP_SET_TREE_SET_ADD) {
+				be_ut_op_set_tree_do(
+				        &op[index], NULL,
+				        BE_UT_OP_SET_TREE_SET_ADD_FINISH);
+			}
 		}
 		if (!M0_IN(cmd, (BE_UT_OP_SET_TREE_SET_ADD,
 		                 BE_UT_OP_SET_TREE_STATES)))
 			be_ut_op_set_tree_do(&op[index], NULL, cmd);
+		if (cmd == BE_UT_OP_SET_TREE_INIT && level < level_nr - 1)
+			be_ut_op_set_tree_do(&op[index], NULL,
+					     BE_UT_OP_SET_TREE_SET_CONVERT);
 	}
 	if (cmd == BE_UT_OP_SET_TREE_STATES) {
 		be_ut_op_set_tree_do(&op[index], NULL,
@@ -458,7 +610,7 @@ static void be_ut_op_set_tree_recursive(struct m0_be_op            *op,
  *     ...
  *     \___ op[LEVEL_SIZE + (LEVEL_SIZE - 1) * LEVEL_SIZE + LEVEL_SIZE]
  */
-void m0_be_ut_op_set_tree(void)
+void m0_be_ut_op_set_and_tree(void)
 {
 	struct m0_be_op *op;
 	unsigned         op_nr;
@@ -481,6 +633,350 @@ void m0_be_ut_op_set_tree(void)
 	be_ut_op_set_tree_recursive(op, BE_UT_OP_SET_TREE_FINI,    0, 0, &seed);
 
 	m0_free(op);
+}
+
+enum {
+	BE_UT_OSR_THREAD_NR      = 0x10,
+	BE_UT_OSR_WORKER_PAIR_NR = 0x20,
+	BE_UT_OSR_OPS_PER_PAIR   = 0x8,
+	BE_UT_OSR_ITER_PER_PAIR  = 0x10,
+	BE_UT_OSR_SLEEP_MS       = 3,
+};
+
+struct be_ut_op_set_random_worker_cfg {
+	bool             bosrw_waiter;
+	struct m0_be_op *bosrw_ops;
+	int              bosrw_ops_nr;
+	unsigned        *bosrw_order;
+	struct m0_be_op  bosrw_start;
+	struct m0_be_op  bosrw_finished;
+	struct m0_be_op *bosrw_quit;
+	m0_time_t       *bosrw_time_done;
+	m0_time_t       *bosrw_time_done_received;
+	uint64_t         bosrw_seed;
+};
+
+
+static struct m0_be_op *be_ut_op_set_random_realloc(struct m0_be_op *op)
+{
+	struct m0_be_op *op_new;
+
+	m0_be_op_fini(op);
+	/* allow new op before freeing old to not to get the same memory */
+	M0_ALLOC_PTR(op_new);
+	M0_ASSERT(op_new != NULL);
+	m0_free(op);
+	m0_be_op_init(op_new);
+	return op_new;
+}
+
+static int be_ut_op_set_random_find(struct m0_be_op *needle,
+                                    struct m0_be_op *haystack,
+                                    int haystack_size)
+{
+	int i;
+
+	for (i = 0; i < haystack_size; ++i) {
+		if (&haystack[i] == needle)
+			return i;
+	}
+	M0_IMPOSSIBLE();
+}
+
+static void
+be_ut_op_set_random_work_make(struct be_ut_op_set_random_worker_cfg *doer,
+                              struct be_ut_op_set_random_worker_cfg *waiter,
+                              uint64_t *seed)
+{
+	unsigned i;
+
+	for (i = 0; i < doer->bosrw_ops_nr; ++i)
+		doer->bosrw_order[i] = i;
+	be_ut_op_set_tree_random_shuffle(doer->bosrw_order,
+	                                 doer->bosrw_ops_nr, false, seed);
+	for (i = 0; i < doer->bosrw_ops_nr; ++i) {
+		doer->bosrw_time_done[i]            = M0_TIME_NEVER;
+		waiter->bosrw_time_done_received[i] = M0_TIME_NEVER;
+	}
+}
+
+static void
+be_ut_op_set_random_work_check(struct be_ut_op_set_random_worker_cfg *doer,
+                               struct be_ut_op_set_random_worker_cfg *waiter)
+{
+	int i;
+
+	for (i = 0; i < doer->bosrw_ops_nr; ++i) {
+		M0_UT_ASSERT(doer->bosrw_time_done[i] != M0_TIME_NEVER);
+		M0_UT_ASSERT(waiter->bosrw_time_done_received[i] !=
+			     M0_TIME_NEVER);
+		M0_UT_ASSERT(doer->bosrw_time_done[i] <
+		             waiter->bosrw_time_done_received[i]);
+	}
+}
+
+static void
+be_ut_op_set_random_worker_waiter(struct be_ut_op_set_random_worker_cfg *cfg)
+{
+	struct m0_be_op *trigger;
+	struct m0_be_op *op;
+	int              index;
+	int              i;
+	int              j;
+
+	M0_ENTRY("cfg=%p cfg->bosrw_ops=%p", cfg, cfg->bosrw_ops);
+	M0_ALLOC_PTR(op);
+	M0_ASSERT(op != NULL);
+	m0_be_op_init(op);
+	for (i = 0; i < cfg->bosrw_ops_nr; ++i) {
+		m0_be_op_make_set_or(op);
+		for (j = 0; j < cfg->bosrw_ops_nr; ++j)
+			m0_be_op_set_add(op, &cfg->bosrw_ops[j]);
+		m0_be_op_set_add_finish(op);
+		m0_be_op_wait(op);
+		trigger = m0_be_op_set_triggered_by(op);
+		if (i < cfg->bosrw_ops_nr / 4 ||
+		    i > 3 * cfg->bosrw_ops_nr / 4) {
+			m0_be_op_reset(op);
+		} else {
+			op = be_ut_op_set_random_realloc(op);
+		}
+		M0_LOG(M0_DEBUG, "cfg=%p cfg->bosrw_ops=%p trigger=%p",
+		       cfg, cfg->bosrw_ops, trigger);
+		m0_be_op_reset(trigger);
+		index = be_ut_op_set_random_find(trigger, cfg->bosrw_ops,
+						 cfg->bosrw_ops_nr);
+		M0_UT_ASSERT(cfg->bosrw_time_done_received[index] ==
+		             M0_TIME_NEVER);
+		cfg->bosrw_time_done_received[index] = m0_time_now();
+	}
+	m0_be_op_fini(op);
+	m0_free(op);
+	M0_LEAVE("cfg=%p cfg->bosrw_ops=%p", cfg, cfg->bosrw_ops);
+}
+
+static void
+be_ut_op_set_random_worker_doer(struct be_ut_op_set_random_worker_cfg *cfg,
+                                uint64_t                              *seed)
+{
+	uint64_t delay;
+	int      i;
+	int      index;
+
+	M0_ENTRY("cfg=%p cfg->bosrw_ops=%p", cfg, cfg->bosrw_ops);
+	for (i = 0; i < cfg->bosrw_ops_nr; ++i) {
+		index = cfg->bosrw_order[i];
+		m0_be_op_active(&cfg->bosrw_ops[index]);
+		delay = m0_rnd64(seed) % BE_UT_OSR_SLEEP_MS;
+		m0_nanosleep(M0_MKTIME(0, M0_TIME_ONE_MSEC * delay), NULL);
+		M0_UT_ASSERT(cfg->bosrw_time_done[index] == M0_TIME_NEVER);
+		cfg->bosrw_time_done[index] = m0_time_now();
+		m0_be_op_done(&cfg->bosrw_ops[index]);
+	}
+	M0_LEAVE("cfg=%p cfg->bosrw_ops=%p", cfg, cfg->bosrw_ops);
+}
+
+static void be_ut_op_set_random_worker(void *param)
+{
+	struct be_ut_op_set_random_worker_cfg *cfg = param;
+	struct m0_be_op                       *op;
+	uint64_t                               seed = cfg->bosrw_seed;
+	uint64_t                               i;
+
+	M0_ALLOC_PTR(op);
+	M0_ASSERT(op != NULL);
+	m0_be_op_init(op);
+	for (i = 0;; ++i) {
+		m0_be_op_make_set_or(op);
+		m0_be_op_set_add(op, &cfg->bosrw_start);
+		m0_be_op_set_add(op, cfg->bosrw_quit);
+		m0_be_op_set_add_finish(op);
+		m0_be_op_wait(op);
+		if (m0_be_op_set_triggered_by(op) == cfg->bosrw_quit) {
+			m0_be_op_fini(cfg->bosrw_quit);
+			m0_free(cfg->bosrw_quit);
+			break;
+		}
+		M0_UT_ASSERT(m0_be_op_set_triggered_by(op) ==
+			     &cfg->bosrw_start);
+		if (i % 6 < 3) {
+			m0_be_op_reset(op);
+		} else {
+			op = be_ut_op_set_random_realloc(op);
+		}
+		m0_be_op_reset(&cfg->bosrw_start);
+		m0_be_op_active(&cfg->bosrw_finished);
+		if (cfg->bosrw_waiter)
+			be_ut_op_set_random_worker_waiter(cfg);
+		else
+			be_ut_op_set_random_worker_doer(cfg, &seed);
+		m0_be_op_done(&cfg->bosrw_finished);
+	}
+	m0_be_op_fini(op);
+	m0_free(op);
+}
+
+struct be_ut_op_set_random_thread_cfg {
+	int bosrt_index;
+	int bosrt_worker_pair_nr;
+	int bosrt_ops_per_pair;
+	int bosrt_iter_per_pair;
+};
+
+static void be_ut_op_set_random_thread_func(void *param)
+{
+	struct be_ut_op_set_random_thread_cfg *cfg = param;
+	struct be_ut_op_set_random_worker_cfg *wcfg;
+	struct m0_be_op                       *op;
+	struct m0_be_op                       *ops;
+	struct m0_be_op                       *wait_op;
+	uint64_t                               counter;
+	uint64_t                               seed = cfg->bosrt_index;
+	int                                    pair_nr;
+	int                                    index;
+	int                                    i;
+	int                                    j;
+	int                                   *pos;
+	struct m0_ut_threads_descr             descr = {
+		.utd_thread_func = &be_ut_op_set_random_worker,
+	};
+
+	pair_nr = cfg->bosrt_worker_pair_nr;
+	M0_ALLOC_ARR(wcfg, pair_nr * 2);
+	M0_ASSERT(wcfg != NULL);
+	for (i = 0; i < pair_nr * 2; ++i) {
+		wcfg[i] = (struct be_ut_op_set_random_worker_cfg){
+			.bosrw_waiter = i % 2 != 0,
+			.bosrw_ops_nr = cfg->bosrt_ops_per_pair,
+			.bosrw_seed   = i,
+		};
+		M0_ALLOC_PTR(wcfg[i].bosrw_quit);
+		M0_ASSERT(wcfg[i].bosrw_quit != NULL);
+		m0_be_op_init(&wcfg[i].bosrw_start);
+		m0_be_op_init(&wcfg[i].bosrw_finished);
+		m0_be_op_init(wcfg[i].bosrw_quit);
+		if (i % 2 == 0) {
+			M0_ALLOC_ARR(wcfg[i].bosrw_ops, wcfg[i].bosrw_ops_nr);
+			M0_ASSERT(wcfg[i].bosrw_ops != NULL);
+			for (j = 0; j < wcfg[i].bosrw_ops_nr; ++j)
+				m0_be_op_init(&wcfg[i].bosrw_ops[j]);
+			M0_ALLOC_ARR(wcfg[i].bosrw_order, wcfg[i].bosrw_ops_nr);
+			M0_ASSERT(wcfg[i].bosrw_order != NULL);
+			M0_ALLOC_ARR(wcfg[i].bosrw_time_done,
+			             wcfg[i].bosrw_ops_nr);
+			M0_ASSERT(wcfg[i].bosrw_time_done != NULL);
+			wcfg[i].bosrw_time_done_received = NULL;
+		} else {
+			wcfg[i].bosrw_ops       = wcfg[i-1].bosrw_ops;
+			wcfg[i].bosrw_order     = NULL;
+			wcfg[i].bosrw_time_done = NULL;
+			M0_ALLOC_ARR(wcfg[i].bosrw_time_done_received,
+			             wcfg[i].bosrw_ops_nr);
+		}
+	}
+	M0_ALLOC_PTR(wait_op);
+	M0_ASSERT(wait_op != NULL);
+	m0_be_op_init(wait_op);
+	M0_ALLOC_ARR(ops, pair_nr);
+	M0_ASSERT(ops != NULL);
+	M0_ALLOC_ARR(pos, pair_nr);
+	M0_ASSERT(pos != NULL);
+	for (i = 0; i < pair_nr; ++i) {
+		m0_be_op_init(&ops[i]);
+		m0_be_op_active(&ops[i]);
+		m0_be_op_done(&ops[i]);
+		pos[i] = -1;
+	}
+	m0_ut_threads_start(&descr, pair_nr * 2, wcfg, sizeof *wcfg);
+	counter = 0;
+	while (m0_exists(j, pair_nr, pos[j] < cfg->bosrt_iter_per_pair)) {
+		m0_be_op_make_set_or(wait_op);
+		for (i = 0; i < pair_nr; ++i) {
+			if (pos[i] < cfg->bosrt_iter_per_pair)
+				m0_be_op_set_add(wait_op, &ops[i]);
+		}
+		m0_be_op_set_add_finish(wait_op);
+		m0_be_op_wait(wait_op);
+		op = m0_be_op_set_triggered_by(wait_op);
+		if (counter % (cfg->bosrt_iter_per_pair / 2) <
+		    cfg->bosrt_iter_per_pair / 3) {
+			m0_be_op_reset(wait_op);
+		} else {
+			wait_op = be_ut_op_set_random_realloc(wait_op);
+		}
+		index = be_ut_op_set_random_find(op, ops, pair_nr);
+		m0_be_op_reset(&ops[index]);
+		m0_be_op_reset(&wcfg[2 * index].bosrw_finished);
+		m0_be_op_reset(&wcfg[2 * index + 1].bosrw_finished);
+		if (pos[index] >= 0) {
+			be_ut_op_set_random_work_check(&wcfg[2 * index],
+			                               &wcfg[2 * index + 1]);
+		}
+		++pos[index];
+		if (pos[index] < cfg->bosrt_iter_per_pair) {
+			be_ut_op_set_random_work_make(&wcfg[2 * index],
+			                              &wcfg[2 * index + 1],
+						      &seed);
+			m0_be_op_make_set_and(&ops[index]);
+			m0_be_op_set_add(&ops[index],
+			                 &wcfg[2 * index].bosrw_finished);
+			m0_be_op_set_add(&ops[index],
+			                 &wcfg[2 * index + 1].bosrw_finished);
+			m0_be_op_set_add_finish(&ops[index]);
+			m0_be_op_active(&wcfg[2 * index].bosrw_start);
+			m0_be_op_done(&wcfg[2 * index].bosrw_start);
+			m0_be_op_active(&wcfg[2 * index + 1].bosrw_start);
+			m0_be_op_done(&wcfg[2 * index + 1].bosrw_start);
+		}
+		++counter;
+	}
+	for (i = 0; i < pair_nr * 2; ++i) {
+		m0_be_op_active(wcfg[i].bosrw_quit);
+		m0_be_op_done(wcfg[i].bosrw_quit);
+	}
+	m0_ut_threads_stop(&descr);
+	for (i = 0; i < pair_nr; ++i)
+		m0_be_op_fini(&ops[i]);
+	m0_free(pos);
+	m0_free(ops);
+	m0_be_op_fini(wait_op);
+	m0_free(wait_op);
+	for (i = 0; i < pair_nr * 2; ++i) {
+		m0_free(wcfg[i].bosrw_time_done_received);
+		m0_free(wcfg[i].bosrw_time_done);
+		m0_be_op_fini(&wcfg[i].bosrw_finished);
+		m0_be_op_fini(&wcfg[i].bosrw_start);
+		m0_free(wcfg[i].bosrw_order);
+		if (i % 2 == 0) {
+			for (j = 0; j < wcfg[i].bosrw_ops_nr; ++j)
+				m0_be_op_fini(&wcfg[i].bosrw_ops[j]);
+			m0_free(wcfg[i].bosrw_ops);
+		}
+	}
+	m0_free(wcfg);
+}
+
+M0_UT_THREADS_DEFINE(be_ut_op_set_random, &be_ut_op_set_random_thread_func);
+
+void m0_be_ut_op_set_random(void)
+{
+	struct be_ut_op_set_random_thread_cfg *cfg;
+	int                                    i;
+
+	M0_ALLOC_ARR(cfg, BE_UT_OSR_THREAD_NR);
+	M0_ASSERT(cfg != NULL);
+	for (i = 0; i < BE_UT_OSR_THREAD_NR; ++i) {
+		cfg[i] = (struct be_ut_op_set_random_thread_cfg){
+			.bosrt_index          = i,
+			.bosrt_worker_pair_nr = i < 4 ? i + 1 :
+				BE_UT_OSR_WORKER_PAIR_NR,
+			.bosrt_ops_per_pair   = BE_UT_OSR_OPS_PER_PAIR,
+			.bosrt_iter_per_pair  = BE_UT_OSR_ITER_PER_PAIR,
+		};
+	}
+	M0_UT_THREADS_START(be_ut_op_set_random, BE_UT_OSR_THREAD_NR, cfg);
+	M0_UT_THREADS_STOP(be_ut_op_set_random);
+	m0_free(cfg);
 }
 
 #undef M0_TRACE_SUBSYSTEM

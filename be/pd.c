@@ -159,7 +159,9 @@ M0_INTERNAL void m0_be_pd_io_add(struct m0_be_pd    *pd,
 	 * pre-allocation of be_op's.
 	 */
 	be_pd_io_move(pd, pdio, M0_BPD_IO_IN_PROGRESS);
+	m0_be_op_make_set_and(op);
 	m0_be_op_set_add(op, &pdio->bpi_op);
+	m0_be_op_set_add_finish(op);
 	m0_be_io_sched_lock(&pd->bpd_sched);
 	m0_be_io_sched_add(&pd->bpd_sched, m0_be_pd_io_be_io(pdio),
 			   ext, &pdio->bpi_op);

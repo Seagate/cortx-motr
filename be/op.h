@@ -39,6 +39,56 @@
  * - if you need to debug m0_be_op - just enable logging in
  *   be_op_state_change().
  *
+ *
+ * Op set
+ *
+ * An op could be converted to an op set using m0_be_op_make_set_and() or
+ * m0_be_op_make_set_or(). The function defines if the op set would be AND op
+ * set or OR op set. Another op could be added to an existing op set using
+ * m0_be_op_set_add() - it becomes child op for the parent op set.
+ *
+ * Op set has the following properties:
+ * - children are removed from the op set when they or the op set move to
+ *   M0_BOS_DONE state;
+ * - it couldn't be moved to M0_BOS_ACTIVE or M0_BOS_DONE state manually;
+ * - it's moved to M0_BOS_ACTIVE state automatically when the op is converted to
+ *   an op set;
+ * - it's moved to M0_BOS_DONE state automatically when the last (for AND op
+ *   sets) or the first (for OR op sets) op of from the set is moved to
+ *   M0_BOS_DONE state.
+ * - there is no load balancing or something like this for ops that trigger
+ *   M0_BE_OP_KIND_SET_OR.
+ *
+ * M0_BE_OP_KIND_SET_AND op set workflow:
+ * - m0_be_op_init(parent)
+ * - loop
+ *   - m0_be_op_make_set_and(parent)
+ *   - m0_be_op_set_add(parent, child) for each child
+ *   - m0_be_op_set_add_finish(parent)
+ *   - m0_be_op_wait() or m0_be_op_tick_ret()
+ *   - <all children are DONE>
+ *   - m0_be_op_reset() (if the loop continues to run)
+ * - m0_be_op_fini(parent)
+ *
+ * M0_BE_OP_KIND_SET_OR op set workflow:
+ * - m0_be_op_init(parent)
+ * - loop
+ *   - m0_be_op_make_set_or(parent)
+ *   - m0_be_op_set_add(parent, child) for each child
+ *   - m0_be_op_set_add_finish(parent)
+ *   - m0_be_op_wait() or m0_be_op_tick_ret()
+ *   - <at least one child is DONE>
+ *   - m0_be_op_reset() (if the loop continues to run)
+ * - m0_be_op_fini(parent)
+ *
+ * Locking
+ *
+ * - m0_be_op::bo_cb_active() and m0_be_op()::bo_cb_done() are called with BE op
+ *   lock being held;
+ * - op sm state transition happens with BE op lock being held;
+ * - m0_be_op::bo_cb_gc() is called without BE op lock being held;
+ * - for op sets parent lock MUST be taken before child lock.
+ *
  * Future directions
  * - allow M0_BE_OP_SYNC_RET_WITH() to return user-supplied function;
  * - use m0_be_op::bo_rc instead of t_rc, e_rc.
@@ -64,6 +114,12 @@ enum m0_be_op_state {
 	M0_BOS_GC,
 };
 
+enum m0_be_op_kind {
+	M0_BE_OP_KIND_NORMAL = 1,
+	M0_BE_OP_KIND_SET_AND,
+	M0_BE_OP_KIND_SET_OR,
+};
+
 enum m0_be_op_type {
 	M0_BOP_TREE,
 	M0_BOP_LIST,
@@ -78,6 +134,7 @@ struct m0_be_op {
 	int                 bo_rc;
 	/** bo_rc was set using m0_be_op_rc_set() */
 	bool                bo_rc_is_set;
+	enum m0_be_op_kind  bo_kind;
 	/*
 	 * Workaround.
 	 *
@@ -115,8 +172,13 @@ struct m0_be_op {
 	uint64_t            bo_set_link_magic;
 	/** parent op */
 	struct m0_be_op    *bo_parent;
-	/* is this op an op_set */
-	bool                bo_is_op_set;
+	/**
+	 * The op that has triggered state transition to M0_BOS_DONE for this
+	 * op (which is an op set).
+	 */
+	struct m0_be_op    *bo_set_triggered_by;
+	/** m0_be_op_set_add_finish() is called for the op. */
+	bool                bo_set_addition_finished;
 
 	m0_be_op_cb_t       bo_cb_active;
 	void               *bo_cb_active_param;
@@ -160,6 +222,7 @@ M0_INTERNAL void m0_be_op_callback_set(struct m0_be_op     *op,
  */
 M0_INTERNAL void m0_be_op_wait(struct m0_be_op *op);
 
+
 /**
  * Moves the fom to the "next_state" and arranges for state transitions to
  * continue when "op" completes. Returns value suitable to be returned from
@@ -169,11 +232,36 @@ M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op,
 				  struct m0_fom   *fom,
 				  int              next_state);
 
+
+M0_INTERNAL void m0_be_op_make_set_and(struct m0_be_op *op);
+M0_INTERNAL void m0_be_op_make_set_or(struct m0_be_op *op);
+
 /**
- * Adds @child to @parent, making the latter an "op set".
+ * Adds child to parent.
+ *
+ * @note parent MUST be an op set already.
+ * @see m0_be_op_make_set_and(), m0_be_op_make_set_or().
  */
 M0_INTERNAL void m0_be_op_set_add(struct m0_be_op *parent,
 				  struct m0_be_op *child);
+
+
+/**
+ * This function MUST be called after addition all ops to the op set, but before
+ * calling m0_be_op_wait() or m0_be_op_tick_ret().
+ *
+ * @note other ops MUST NOT be added be added to the op set after this call.
+ * @note the op set MUST have at least one children.
+ * @note op set children SHOULD NOT be finalized before this function completes.
+ */
+M0_INTERNAL void m0_be_op_set_add_finish(struct m0_be_op *op);
+
+/**
+ * Returns the op that directly lead to this op set to become done.
+ * This is the first children which becomes done for OR op set and the last
+ * children which becomes done for AND op set.
+ */
+M0_INTERNAL struct m0_be_op *m0_be_op_set_triggered_by(struct m0_be_op *op);
 
 M0_INTERNAL void m0_be_op_rc_set(struct m0_be_op *op, int rc);
 M0_INTERNAL int  m0_be_op_rc(struct m0_be_op *op);

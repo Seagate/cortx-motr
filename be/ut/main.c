@@ -33,8 +33,10 @@
 
 extern void m0_be_ut_op_usecase(void);
 extern void m0_be_ut_op_mt(void);
-extern void m0_be_ut_op_set_usecase(void);
-extern void m0_be_ut_op_set_tree(void);
+extern void m0_be_ut_op_set_and_usecase(void);
+extern void m0_be_ut_op_set_or_usecase(void);
+extern void m0_be_ut_op_set_and_tree(void);
+extern void m0_be_ut_op_set_random(void);
 
 extern void m0_be_ut_queue_1_1_1(void);
 extern void m0_be_ut_queue_2_1_1(void);
@@ -48,6 +50,7 @@ extern void m0_be_ut_queue_10_1_100(void);
 extern void m0_be_ut_queue_10_5_100(void);
 extern void m0_be_ut_queue_10_100_100(void);
 extern void m0_be_ut_queue_from_1_to_10(void);
+extern void m0_be_ut_queue_layers(void);
 
 extern void m0_be_ut_pool_usecase(void);
 
@@ -169,8 +172,10 @@ struct m0_ut_suite be_ut = {
 #ifndef __KERNEL__
 		{ "op-usecase",              m0_be_ut_op_usecase              },
 		{ "op-mt",                   m0_be_ut_op_mt                   },
-		{ "op_set-usecase",          m0_be_ut_op_set_usecase          },
-		{ "op_set-tree",             m0_be_ut_op_set_tree             },
+		{ "op_set_and-usecase",      m0_be_ut_op_set_and_usecase      },
+		{ "op_set_or-usecase",       m0_be_ut_op_set_or_usecase       },
+		{ "op_set_and-tree",         m0_be_ut_op_set_and_tree         },
+		{ "op_set-random",           m0_be_ut_op_set_random           },
 		{ "queue-1_1_1",             m0_be_ut_queue_1_1_1             },
 		{ "queue-2_1_1",             m0_be_ut_queue_2_1_1             },
 		{ "queue-100_1_1",           m0_be_ut_queue_100_1_1           },
@@ -183,6 +188,7 @@ struct m0_ut_suite be_ut = {
 		{ "queue-10_5_100",          m0_be_ut_queue_10_5_100          },
 		{ "queue-10_100_100",        m0_be_ut_queue_10_100_100        },
 		{ "queue-from_1_to_10",      m0_be_ut_queue_from_1_to_10      },
+		{ "queue-layers",            m0_be_ut_queue_layers            },
 		{ "pool-usecase",            m0_be_ut_pool_usecase            },
 		{ "reg_d_tree",              m0_be_ut_reg_d_tree              },
 // XXX		{ "regmap-simple",           m0_be_ut_regmap_simple           },
