@@ -207,10 +207,32 @@ def validate_motr_rpm(self):
     self.logger.info(f"Checking for {MOTR_SYS_CFG}\n")
     validate_file(MOTR_SYS_CFG)
 
+def update_copy_motr_config_file(self):
+    local_path = Conf.get(self._index, 'cortx>common>storage>local')
+    log_path = Conf.get(self._index, 'cortx>common>storage>log')
+    hostname = get_machine_id(self)
+    MOTR_CONF_DIR = f"{local_path}/hare/sysconfig/motr/{hostname}"
+    MOTR_MOD_DATA_DIR = f"{local_path}/motr"
+    MOTR_CONF_XC = f"{local_path}/hare/confd.xc"
+    MOTR_MOD_ADDB_STOB_DIR = f"{log_path}/motr/addb"
+    MOTR_MOD_ADDB_TRACE_DIR = f"{log_path}/motr/addb"
+
+    f1 = open(f"{MOTR_SYS_CFG}", "a")
+    f1.write(f"MOTR_CONF_DIR={MOTR_CONF_DIR}\n")
+    f1.write(f"MOTR_MOD_DATA_DIR={MOTR_MOD_DATA_DIR}\n")
+    f1.write(f"MOTR_CONF_XC={MOTR_CONF_XC}\n")
+    f1.write(f"MOTR_MOD_ADDB_STOB_DIR={MOTR_MOD_ADDB_STOB_DIR}\n")
+    f1.write(f"MOTR_MOD_ADDB_TRACE_DIR={MOTR_MOD_ADDB_TRACE_DIR}\n")
+    f1.close()
+    self.logger.info(f"Copying {MOTR_SYS_CFG} to {MOTR_CONF_DIR}\n")
+    cmd = "cp {MOTR_SYS_CFG} {MOTR_CONF_DIR}"
+    execute_command(self, cmd)
+
 def motr_config_k8(self):
     if not verify_libfabric(self):
         raise MotrError(errno.EINVAL, "libfabric is not up.")
     self.logger.info(f"Executing {MOTR_CONFIG_SCRIPT}")
+    update_copy_motr_config_file(self)
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
     return
 
