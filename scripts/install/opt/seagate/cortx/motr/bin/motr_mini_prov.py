@@ -162,7 +162,7 @@ def get_node(self):
     except:
         raise MotrError(errno.EINVAL, "node does not exist in ConfStore")
 
-    check_type(cluster, dict, "node")
+    check_type(node, dict, "node")
     return node
 
 def get_cortx(self):
@@ -175,7 +175,7 @@ def get_cortx(self):
     check_type(cortx, dict, "cortx")
     return cortx
 
-def get_data(self, key, key_type):
+def get_value(self, key, key_type):
     """Get data."""
     try:
         val = Conf.get(self._index, key)
@@ -194,8 +194,8 @@ def get_logical_node_class(self):
     check_type(logical_node_class, list, "logical_node_class")
     return logical_node_class
 
-def get_local_storage(self):
-    storage = self.local_node['storage']
+def get_storage(self):
+    storage = self.node['storage']
     check_type(storage, dict, "storage")
     return storage
 
@@ -258,7 +258,7 @@ def validate_motr_rpm(self):
 def update_copy_motr_config_file(self):
     local_path = Conf.get(self._index, 'cortx>common>storage>local')
     log_path = Conf.get(self._index, 'cortx>common>storage>log')
-    hostname = self.local_node['hostname']
+    hostname = self.node['hostname']
     validate_files([MOTR_SYS_CFG, local_path, log_path])
     MOTR_LOCAL_DIR = f"{local_path}/motr"
     if not os.path.exists(MOTR_LOCAL_DIR):
@@ -626,9 +626,9 @@ def validate_storage_schema(storage):
                     check_type(val[i], str, f"data_devices[{i}]")
 
 def get_cvg_cnt_and_cvg_k8(self):
-    #validate_storage_schema(self.local_storage)
+    #validate_storage_schema(self.storage)
     try:
-        cvg = self.local_storage['cvg']
+        cvg = self.storage['cvg']
         cvg_cnt = len(cvg)
     except:
         raise MotrError(errno.EINVAL, "cvg not found\n")
