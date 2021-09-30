@@ -122,58 +122,19 @@ def get_machine_id(self):
     check_type(machine_id, str, "machine-id")
     return machine_id
 
-def get_server_node(self):
+def get_server_node(self, k8):
     """Get current node name using machine-id."""
     try:
         machine_id = get_machine_id(self).strip('\n');
-        server_node = Conf.get(self._index, 'server_node')[machine_id]
+        if k8:
+            server_node = Conf.get(self._index, 'node')[machine_id]
+        else:
+            server_node = Conf.get(self._index, 'server_node')[machine_id]
     except:
         raise MotrError(errno.EINVAL, f"MACHINE_ID {machine_id} does not exist in ConfStore")
 
     check_type(server_node, dict, "server_node")
     return server_node
-
-def get_server_node_k8(self):
-    """Get current node name using machine-id."""
-    try:
-        machine_id = get_machine_id(self).strip('\n');
-        server_node = self.nodes[machine_id]
-    except:
-        raise MotrError(errno.EINVAL, f"MACHINE_ID {machine_id} does not exist in ConfStore")
-
-    check_type(server_node, dict, "server_node")
-    return server_node
-
-
-def get_cluster(self):
-    """Get cluster."""
-    try:
-        cluster = Conf.get(self._index, 'cluster')
-    except:
-        raise MotrError(errno.EINVAL, "cluster does not exist in ConfStore")
-
-    check_type(cluster, dict, "cluster")
-    return cluster
-
-def get_node(self):
-    """Get node."""
-    try:
-        node = Conf.get(self._index, 'node')
-    except:
-        raise MotrError(errno.EINVAL, "node does not exist in ConfStore")
-
-    check_type(node, dict, "node")
-    return node
-
-def get_cortx(self):
-    """Get cortx."""
-    try:
-        cortx = Conf.get(self._index, 'cortx')
-    except:
-        raise MotrError(errno.EINVAL, "cortx does not exist in ConfStore")
-
-    check_type(cortx, dict, "cortx")
-    return cortx
 
 def get_value(self, key, key_type):
     """Get data."""
