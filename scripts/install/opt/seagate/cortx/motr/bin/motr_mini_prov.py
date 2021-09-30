@@ -116,10 +116,7 @@ def check_type(var, vtype, msg):
         raise MotrError(errno.EINVAL, f"Empty {msg}.")
 
 def get_machine_id(self):
-    if self.k8:
-        cmd = "hostname"
-    else:
-        cmd = "cat /etc/machine-id"
+    cmd = "cat /etc/machine-id"
     machine_id = execute_command(self, cmd)
     machine_id = machine_id[0].split('\n')[0]
     check_type(machine_id, str, "machine-id")
@@ -136,8 +133,20 @@ def get_server_node(self):
     check_type(server_node, dict, "server_node")
     return server_node
 
+def get_server_node_k8(self):
+    """Get current node name using machine-id."""
+    try:
+        machine_id = get_machine_id(self).strip('\n');
+        server_node = self.nodes[machine_id]
+    except:
+        raise MotrError(errno.EINVAL, f"MACHINE_ID {machine_id} does not exist in ConfStore")
+
+    check_type(server_node, dict, "server_node")
+    return server_node
+
+
 def get_cluster(self):
-    """Get cluster."""
+    """Get cluster """
     try:
         cluster = Conf.get(self._index, 'cluster')
     except:
@@ -145,6 +154,36 @@ def get_cluster(self):
 
     check_type(cluster, dict, "cluster")
     return cluster
+
+def get_node(self):
+    """Get node"""
+    try:
+        node = Conf.get(self._index, 'node')
+    except:
+        raise MotrError(errno.EINVAL, "node does not exist in ConfStore")
+
+    check_type(cluster, dict, "node")
+    return node
+
+def get_cortx(self):
+    """Get cortx"""
+    try:
+        cortx = Conf.get(self._index, 'cortx')
+    except:
+        raise MotrError(errno.EINVAL, "cortx does not exist in ConfStore")
+
+    check_type(cluster, dict, "cortx")
+    return cortx
+
+def get_data(self, dname, tname):
+    """Get cortx"""
+    try:
+        data = Conf.get(self._index, dname)
+    except:
+        raise MotrError(errno.EINVAL, "{dname} does not exist in ConfStore")
+
+    check_type(data, tname, dname)
+    return data
 
 def get_logical_node_class(self):
     """Get logical_node_class."""
@@ -155,13 +194,17 @@ def get_logical_node_class(self):
     check_type(logical_node_class, list, "logical_node_class")
     return logical_node_class
 
-def get_storage(self):
+def get_local_storage(self):
+    storage = self.local_node['storage']
+    check_type(storage, dict, "storage")
+    return storage
+    '''
     for elem in self.logical_node_class:
         if 'storage' in elem.keys():
             if elem['storage']:
                 return elem['storage']
     raise MotrError(errno.EINVAL, f"storage does not exist in ConfStore")
-
+    '''
 def restart_services(self, services):
     for service in services:
         self.logger.info(f"Restarting {service} service\n")
@@ -175,6 +218,18 @@ def restart_services(self, services):
 def validate_file(file):
     if not os.path.exists(file):
         raise MotrError(errno.ENOENT, f"{file} does not exist")
+
+def validate_files(files):
+    for file in files:
+        if not os.path.exists(file):
+            raise MotrError(errno.ENOENT, f"{file} does not exist")
+
+def create_dirs(self, dirs):
+    for dir in dirs:
+        if not os.path.exists(dir):
+            print(f" On line 230 {dir}")
+            cmd = f"mkdir -p {dir}"
+            execute_command(self, cmd)
 
 def is_hw_node(self):
     try:
@@ -210,12 +265,25 @@ def validate_motr_rpm(self):
 def update_copy_motr_config_file(self):
     local_path = Conf.get(self._index, 'cortx>common>storage>local')
     log_path = Conf.get(self._index, 'cortx>common>storage>log')
-    hostname = get_machine_id(self)
+    hostname = self.local_node['hostname']
+    validate_files([MOTR_SYS_CFG, local_path, log_path])
+    MOTR_LOCAL_DIR = f"{local_path}/motr"
+    if not os.path.exists(MOTR_LOCAL_DIR):
+        cmd = f"mkdir -p {MOTR_LOCAL_DIR}"
+        execute_command(self, cmd)
+    MOTR_LOCAL_SYSCONFIG_DIR = f"{MOTR_LOCAL_DIR}/sysconfig"
+    if not os.path.exists(MOTR_LOCAL_SYSCONFIG_DIR):
+        cmd = f"mkdir -p {MOTR_LOCAL_SYSCONFIG_DIR}"
+        execute_command(self, cmd)
+   
     MOTR_CONF_DIR = f"{local_path}/hare/sysconfig/motr/{hostname}"
     MOTR_MOD_DATA_DIR = f"{local_path}/motr"
     MOTR_CONF_XC = f"{local_path}/hare/confd.xc"
     MOTR_MOD_ADDB_STOB_DIR = f"{log_path}/motr/addb"
-    MOTR_MOD_ADDB_TRACE_DIR = f"{log_path}/motr/addb"
+    MOTR_MOD_ADDB_TRACE_DIR = f"{log_path}/motr/trace"
+    # Skip MOTR_CONF_XC and MOTR_CONF_DIR
+    dirs = [MOTR_MOD_DATA_DIR, MOTR_MOD_ADDB_STOB_DIR, MOTR_MOD_ADDB_TRACE_DIR]
+    create_dirs(self, dirs)
 
     f1 = open(f"{MOTR_SYS_CFG}", "a")
     f1.write(f"MOTR_CONF_DIR={MOTR_CONF_DIR}\n")
@@ -224,14 +292,13 @@ def update_copy_motr_config_file(self):
     f1.write(f"MOTR_MOD_ADDB_STOB_DIR={MOTR_MOD_ADDB_STOB_DIR}\n")
     f1.write(f"MOTR_MOD_ADDB_TRACE_DIR={MOTR_MOD_ADDB_TRACE_DIR}\n")
     f1.close()
-    self.logger.info(f"Copying {MOTR_SYS_CFG} to {MOTR_CONF_DIR}\n")
-    cmd = "cp {MOTR_SYS_CFG} {MOTR_CONF_DIR}"
+
+    cmd = f"cp {MOTR_SYS_CFG} {MOTR_LOCAL_SYSCONFIG_DIR}"
     execute_command(self, cmd)
 
 def motr_config_k8(self):
     if not verify_libfabric(self):
         raise MotrError(errno.EINVAL, "libfabric is not up.")
-    self.logger.info(f"Executing {MOTR_CONFIG_SCRIPT}")
     update_copy_motr_config_file(self)
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
     return
@@ -566,10 +633,9 @@ def validate_storage_schema(storage):
                     check_type(val[i], str, f"data_devices[{i}]")
 
 def get_cvg_cnt_and_cvg_k8(self):
-
-    validate_storage_schema(self.storage)
+    #validate_storage_schema(self.local_storage)
     try:
-        cvg = self.storage
+        cvg = self.local_storage['cvg']
         cvg_cnt = len(cvg)
     except:
         raise MotrError(errno.EINVAL, "cvg not found\n")
@@ -804,7 +870,7 @@ def pkg_installed(self, pkg):
         self.logger.info(f"{pkg} is installed\n")
         return True
     else:
-        self.logger.error(f"{pkg} is not installed\n")
+        self.logger.info(f"{pkg} is not installed\n")
         return False
 
 def test_io(self):
@@ -1090,21 +1156,20 @@ def config_part(self):
         cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
     dev_count = 1
     config_dict = read_config(MOTR_SYS_CFG)
+
     for i in range(int(cvg_cnt)):
         cvg_item = cvg[i]
         try:
-            metadata_devices = cvg_item["metadata_devices"]
+            metadata_device = cvg_item["devices"]["metadata"]
         except:
             raise MotrError(errno.EINVAL, "metadata devices not found\n")
-        check_type(metadata_devices, list, "metadata_devices")
-        self.logger.info(f"\nlvm metadata_devices: {metadata_devices}\n\n")
-
+        check_type(metadata_device, str, "metadata_devices")
+        self.logger.info(f"\nlvm metadata_device: {metadata_device}\n\n")
         # Currently only one metadata device in one cvg
-        for device in metadata_devices:
-            ret = create_parts(self, dev_count, device)
-            if ret != 0:
-                return ret
-            dev_count += 1
+        ret = create_parts(self, dev_count, metadata_device)
+        if ret != 0:
+            return ret
+        dev_count += 1
     return ret
 
 def get_disk_size(self, device):
