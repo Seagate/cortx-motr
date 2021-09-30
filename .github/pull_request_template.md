@@ -6,26 +6,27 @@
 -  For Feature, Post the link for design
 
 # Coding
+   Checklist for Author
 -  [ ] Coding conventions are followed and code is consistent
 
 # Testing 
+  Checklist for Author
 - [ ] Unit and System Tests are added
 - [ ] Test Cases cover Happy Path, Non-Happy Path and Scalability
 - [ ] Testing was performed with RPM
 
-# Review Checklist 
-- [ ] PR is self reviewed
-- [ ] JIRA number/GitHub Issue added to PR
-- [ ] Jira and state/status is updated and JIRA is updated with PR link
-- [ ] Check if the description is clear and explained
-- [ ] Is there a change in filename/package/module or signature? [Y/N]: 
-- [ ] If yes for above point, is a notification sent to all other cortx components? [Y/N]
-- [ ] Side effects on other features (deployment/upgrade)? [Y/N]
-- [ ] Dependencies on other component(s)? [Y/N]
--     If yes for above point, post link to the corresponding PR.
+# Impact Analysis
+  Checklist for Author/Reviewer/GateKeeper
+- [ ] Interface change (if any) are documented
+- [ ] Side effects on other features (deployment/upgrade)
+- [ ] Dependencies on other component(s)
 
 # Review Checklist 
-- [ ] Is perfline test run and the report with and without the changes updated in the PR? [Y/N]: 
+  Checklist for Author
+- [ ] JIRA number/GitHub Issue added to PR
+- [ ] PR is self reviewed
+- [ ] Jira and state/status is updated and JIRA is updated with PR link
+- [ ] Check if the description is clear and explained
 
 # Documentation
   Checklist for Author

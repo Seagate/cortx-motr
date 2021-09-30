@@ -76,10 +76,12 @@ static void be_io_part_init(struct m0_be_io_part *bip,
 	bip->bip_bio = bio;
 	m0_stob_io_init(&bip->bip_sio);
 	m0_clink_init(&bip->bip_clink, be_io_cb);
+	m0_clink_add_lock(&bip->bip_sio.si_wait, &bip->bip_clink);
 }
 
 static void be_io_part_fini(struct m0_be_io_part *bip)
 {
+	m0_clink_del_lock(&bip->bip_clink);
 	m0_clink_fini(&bip->bip_clink);
 	m0_stob_io_fini(&bip->bip_sio);
 }
@@ -99,8 +101,6 @@ static int be_io_part_launch(struct m0_be_io_part *bip)
 	struct m0_stob_io *sio = &bip->bip_sio;
 	int                rc;
 
-	m0_clink_add_lock(&sio->si_wait, &bip->bip_clink);
-
 	M0_ENTRY("sio=%p stob=%p stob_fid="FID_F" "
 		 "si_user=(count=%"PRIu32" size=%llu) "
 		 "si_stob=(count=%"PRIu32" size=%llu)",
@@ -113,8 +113,6 @@ static int be_io_part_launch(struct m0_be_io_part *bip)
 		 (unsigned long long)m0_vec_count(&sio->si_stob.iv_vec));
 
 	rc = m0_stob_io_prepare_and_launch(sio, bip->bip_stob, NULL, NULL);
-	if (rc != 0)
-		m0_clink_del_lock(&bip->bip_clink);
 	return M0_RC(rc);
 }
 
@@ -568,7 +566,6 @@ static bool be_io_cb(struct m0_clink *link)
 	int                   fd;
 	int                   rc;
 
-	m0_clink_del(&bip->bip_clink);
 	/* XXX Temporary workaround. I/O error should be handled gracefully. */
 	M0_ASSERT_INFO(sio->si_rc == 0, "stob I/O operation failed: "
 		       "bio = %p, sio = %p, sio->si_rc = %d",
