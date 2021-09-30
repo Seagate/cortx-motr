@@ -239,7 +239,7 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 	#else
 		p->rt.nr_cpus_allowed = nr_allowed;
 	#endif
-#elif defined CONFIG_AARCH64 /*aarch64*/
+#elif defined CONFIG_AARCH64
 	#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,18,0)
 		cpumask_copy(&p->cpus_allowed, cpuset);
 		p->nr_cpus_allowed = nr_allowed;

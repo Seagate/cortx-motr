@@ -103,7 +103,9 @@ struct processor_node {
 /* Global variables */
 static bool processor_init = false;
 static struct m0_list x86_cpus;
+#endif
 
+#if defined CONFIG_X86_64 || defined CONFIG_AARCH64
 /**
    Convert bitmap from one format to another. Copy cpumask bitmap to m0_bitmap.
 
@@ -130,7 +132,9 @@ static void processors_bitmap_copy(struct m0_bitmap *dest,
 		m0_bitmap_set(dest, bit, val);
 	}
 }
+#endif
 
+#ifdef CONFIG_X86_64
 /**
    Fetch NUMA node id for a given processor.
 
@@ -588,24 +592,31 @@ static int processor_x86cache_create(void)
 
 	return 0;
 }
+#endif
 
-/* ---- Processor Interfaces ---- */
-
+#if defined CONFIG_X86_64 || defined CONFIG_AARCH64
 M0_INTERNAL int m0_processors_init()
 {
+#ifdef CONFIG_X86_64
 	int rc;
 
 	M0_PRE(!processor_init);
 	rc = processor_x86cache_create();
 	processor_init = (rc == 0);
 	return M0_RC(rc);
+#elif defined CONFIG_AARCH64
+	return 0;
+#endif
 }
 
 M0_INTERNAL void m0_processors_fini()
 {
+#ifdef CONFIG_X86_64
 	M0_PRE(processor_init);
 	processor_x86cache_destroy();
 	processor_init = false;
+#elif defined CONFIG_AARCH64
+#endif
 }
 
 M0_INTERNAL m0_processor_nr_t m0_processor_nr_max(void)
@@ -627,7 +638,7 @@ M0_INTERNAL void m0_processors_online(struct m0_bitmap *map)
 {
 	processors_bitmap_copy(map, cpu_online_mask, nr_cpu_ids);
 }
-
+#ifdef CONFIG_X86_64
 M0_INTERNAL int m0_processor_describe(m0_processor_nr_t id,
 				      struct m0_processor_descr *pd)
 {
@@ -637,103 +648,12 @@ M0_INTERNAL int m0_processor_describe(m0_processor_nr_t id,
 
 	return processor_x86_info_get(id, pd);
 }
-
+#endif
 M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 {
 	return smp_processor_id();
 }
-#elif defined CONFIG_AARCH64
-/**
-   Convert bitmap from one format to another. Copy cpumask bitmap to m0_bitmap.
-
-   @param dest -> Processors bitmap for Motr programs.
-   @param src -> Processors bitmap used by Linux kernel.
-   @param bmpsz -> Size of cpumask bitmap (src)
-
-   @pre Assumes memory is alloacted for outbmp and it's initialized.
-   
-   @see lib/processor.h
-   @see lib/bitmap.h
- */
-static void processors_bitmap_copy(struct m0_bitmap *dest,
-				   const cpumask_t *src,
-				   uint32_t bmpsz)
-{
-	uint32_t bit;
-	bool     val;
-
-	M0_PRE(dest->b_nr >= bmpsz);
-
-	for (bit = 0; bit < bmpsz; ++bit) {
-		val = cpumask_test_cpu(bit, src);
-		m0_bitmap_set(dest, bit, val);
-	}
-}
-
-/**
-   Fetch NUMA node id for a given processor.
-
-   @param id -> id of the processor for which information is requested.
-
-   @return id of the NUMA node to which the processor belongs.
- */
-static inline uint32_t processor_numanodeid_get(m0_processor_nr_t id)
-{
-	return cpu_to_node(id);
-}
-
-/**
-   Fetch pipeline id for a given processor.
-   Curently pipeline id is same as processor id.
-
-   @param id -> id of the processor for which information is requested.
-
-   @return id of pipeline for the given processor.
- */
-static inline uint32_t processor_pipelineid_get(m0_processor_nr_t id)
-{
-	return id;
-}
-
-/* ---- Processor Interfaces ---- */
-
-M0_INTERNAL int m0_processors_init()
-{
-	return 0;
-}
-
-M0_INTERNAL void m0_processors_fini()
-{
-}
-
-M0_INTERNAL m0_processor_nr_t m0_processor_nr_max(void)
-{
-	return NR_CPUS;
-}
-
-M0_INTERNAL void m0_processors_possible(struct m0_bitmap *map)
-{
-	processors_bitmap_copy(map, cpu_possible_mask, nr_cpu_ids);
-}
-
-M0_INTERNAL void m0_processors_available(struct m0_bitmap *map)
-{
-	processors_bitmap_copy(map, cpu_present_mask, nr_cpu_ids);
-}
-
-M0_INTERNAL void m0_processors_online(struct m0_bitmap *map)
-{
-	processors_bitmap_copy(map, cpu_online_mask, nr_cpu_ids);
-}
-
-
-M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
-{
-	return smp_processor_id();
-}
-
-#endif /*CONFIG_AARCH64*/
-
+#endif
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of processor group */

@@ -148,10 +148,6 @@ M0_INTERNAL void m0_trace_fini(void)
 	m0_arch_trace_fini();
 }
 
-
-/*
- * XXX x86_64/aarch64 version.
- */
 static inline uint64_t m0_rdtsc(void)
 {
 #ifdef CONFIG_X86_64
@@ -161,11 +157,13 @@ static inline uint64_t m0_rdtsc(void)
 	__asm__ __volatile__("rdtsc" : "=a"(count_lo), "=d"(count_hi));
 
 	return ((uint64_t)count_lo) | (((uint64_t)count_hi) << 32);
-#elif defined CONFIG_AARCH64   /*aarch64*/
+#elif defined CONFIG_AARCH64
 	uint64_t cycle;
 
 	asm volatile("mrs %0, pmccntr_el0" : "=r"(cycle));
 	return cycle;
+#else
+#error  "The Platform is not supported"
 #endif
 }
 

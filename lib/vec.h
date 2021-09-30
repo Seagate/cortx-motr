@@ -527,7 +527,7 @@ enum {
 	M0_SEG_SHIFT = 12,
 	M0_SEG_SIZE  = 4096,
 };
-#elif defined CONFIG_AARCH64 /*aarch64*/
+#elif defined CONFIG_AARCH64
 enum {
 	M0_0VEC_SHIFT = 16,
 	M0_0VEC_ALIGN = (1 << M0_0VEC_SHIFT),
@@ -535,6 +535,8 @@ enum {
 	M0_SEG_SHIFT = 16,
 	M0_SEG_SIZE  = 65536,
 };
+#else
+#error  "The platform is not supported"
 #endif
 
 /**

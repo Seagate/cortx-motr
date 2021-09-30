@@ -73,8 +73,10 @@ static inline void m0_atomic64_inc(struct m0_atomic64 *a)
 	asm volatile("lock incq %0"
 		     : "=m" (a->a_value)
 		     : "m" (a->a_value));
-#elif defined CONFIG_AARCH64 /* aarch64 */
+#elif defined CONFIG_AARCH64
 	m0_atomic64_add(a, (int64_t)1);
+#else
+#error  "The Platform is not supported"
 #endif
 }
 
@@ -91,8 +93,10 @@ static inline void m0_atomic64_dec(struct m0_atomic64 *a)
 	asm volatile("lock decq %0"
 		     : "=m" (a->a_value)
 		     : "m" (a->a_value));
-#elif defined CONFIG_AARCH64 /* aarch64 */
+#elif defined CONFIG_AARCH64
 	m0_atomic64_sub(a, (int64_t)1);
+#else
+#error  "The Platform is not supported"
 #endif
 }
 
@@ -105,7 +109,7 @@ static inline void m0_atomic64_add(struct m0_atomic64 *a, int64_t num)
 	asm volatile("lock addq %1,%0"
 		     : "=m" (a->a_value)
 		     : "er" (num), "m" (a->a_value));
-#elif defined CONFIG_AARCH64 /* aarch64 */
+#elif defined CONFIG_AARCH64
 	long		result;
 	unsigned long	tmp;
 	asm volatile("// atomic64_add \n"		\
@@ -116,7 +120,9 @@ static inline void m0_atomic64_add(struct m0_atomic64 *a, int64_t num)
 		     "  cbnz    %w1, 1b"		\
 		     : "=&r" (result), "=&r" (tmp), "+Q" (a->a_value) \
 		     : "Ir" (num));
-#endif 
+#else
+#error  "The Platform is not supported"
+#endif
 }
 
 /**
@@ -128,7 +134,7 @@ static inline void m0_atomic64_sub(struct m0_atomic64 *a, int64_t num)
 	asm volatile("lock subq %1,%0"
 		     : "=m" (a->a_value)
 		     : "er" (num), "m" (a->a_value));
-#elif defined CONFIG_AARCH64 /* aarch64 */
+#elif defined CONFIG_AARCH64
 	long		result;
 	unsigned long	tmp;
 	
@@ -140,6 +146,8 @@ static inline void m0_atomic64_sub(struct m0_atomic64 *a, int64_t num)
 		     "  cbnz    %w1, 1b"		\
 		     : "=&r" (result), "=&r" (tmp), "+Q" (a->a_value) \
 		     : "Ir" (num));
+#else
+#error  "The Platform is not supported"
 #endif
 }
 
@@ -162,7 +170,7 @@ static inline int64_t m0_atomic64_add_return(struct m0_atomic64 *a,
 		     : "+r" (delta), "+m" (a->a_value)
 		     : : "memory");
 	return delta + result;
-#elif defined CONFIG_AARCH64 /* aarch64 */
+#elif defined CONFIG_AARCH64
 	int64_t		result;
 	uint64_t	tmp;
 
@@ -177,6 +185,8 @@ static inline int64_t m0_atomic64_add_return(struct m0_atomic64 *a,
 		     : "Ir" (delta)  			\
 		     : "memory");
 	return result;
+#else
+#error  "The Platform is not supported"
 #endif
 	return 0;
 }
@@ -193,7 +203,7 @@ static inline int64_t m0_atomic64_sub_return(struct m0_atomic64 *a,
 {
 #ifdef CONFIG_X86_64
 	return m0_atomic64_add_return(a, -delta);
-#elif defined CONFIG_AARCH64 /* aarch64 */
+#elif defined CONFIG_AARCH64
 	int64_t		result;
 	uint64_t	tmp;
 
@@ -208,6 +218,8 @@ static inline int64_t m0_atomic64_sub_return(struct m0_atomic64 *a,
 		      : "Ir" (delta)				\
 		      : "memory");
 	return result;
+#else
+#error  "The Platform is not supported"
 #endif
 	return 0;
 }
@@ -221,8 +233,10 @@ static inline bool m0_atomic64_inc_and_test(struct m0_atomic64 *a)
 		     : "=m" (a->a_value), "=qm" (result)
 		     : "m" (a->a_value) : "memory");
 	return result != 0;
-#elif defined CONFIG_AARCH64 /* aarch64 */
+#elif defined CONFIG_AARCH64
 	return (m0_atomic64_add_return(a, 1) == 0);
+#else
+#error  "The Platform is not supported"
 #endif
 	return 0;
 }
@@ -236,8 +250,10 @@ static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a)
 		     : "=m" (a->a_value), "=qm" (result)
 		     : "m" (a->a_value) : "memory");
 	return result != 0;
-#elif defined CONFIG_AARCH64 /* aarch64 */
+#elif defined CONFIG_AARCH64
 	return (m0_atomic64_sub_return(a, 1) == 0);
+#else
+#error  "The Platform is not supported"
 #endif
 	return 0;
 }
@@ -261,7 +277,7 @@ static inline bool m0_atomic64_cas(int64_t * loc, int64_t oldval, int64_t newval
  * The gcc specific routine is called in place of it which has no public source code available.
  * So it is kept as part of documentation for future reference and implementation.
  */
-#elif defined CONFIG_AARCH64 /* aarch64 */
+#elif defined CONFIG_AARCH64
 /*	unsigned long	tmp;
 	int64_t	 old=0;
 
@@ -287,6 +303,8 @@ static inline bool m0_atomic64_cas(int64_t * loc, int64_t oldval, int64_t newval
 
 	M0_CASSERT(8 == sizeof oldval);
 	return __atomic_compare_exchange_n(loc, &oldval, newval, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+#else
+#error  "The Platform is not supported"
 #endif
 	return 0;
 }
@@ -295,8 +313,10 @@ static inline void m0_mb(void)
 {
 #ifdef CONFIG_X86_64
 	asm volatile("mfence":::"memory");
-#elif defined CONFIG_AARCH64 /* aarch64 */
+#elif defined CONFIG_AARCH64
 	asm volatile("dsb sy":::"memory");
+#else
+#error  "The Platform is not supported"
 #endif
 }
 

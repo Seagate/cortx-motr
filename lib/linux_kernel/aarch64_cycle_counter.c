@@ -22,15 +22,17 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 
+#ifdef CONFIG_AARCH64
+
 #include "lib/trace.h"
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/version.h>
 
-/** Module for ARM64 linux platform to provide
- *  user space access of perf monitor registers
+/**
+ * Module for ARM64 linux platform to provide user space access of 
+ * perf monitor registers
  */
-#ifdef CONFIG_AARCH64
 static void enable_user_space_access_pccnt(void *dt)
 {
 	uint64_t pmcr_val;

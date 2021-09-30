@@ -24,10 +24,10 @@
 #include "module/instance.h"
 
 #if 0 /* unused code */
-M0_UNUSED static int level_stob_enter(struct m0_module *module);
-M0_UNUSED static void level_stob_leave(struct m0_module *module);
+static int level_stob_enter(struct m0_module *module);
+static void level_stob_leave(struct m0_module *module);
 
-M0_UNUSED static const struct m0_modlev levels_stob[] = {
+static const struct m0_modlev levels_stob[] = {
 	[M0_LEVEL_STOB] = {
 		.ml_name = "stob is initialised",
 		.ml_enter = level_stob_enter,
@@ -35,12 +35,12 @@ M0_UNUSED static const struct m0_modlev levels_stob[] = {
 	}
 };
 
-M0_UNUSED static int level_stob_enter(struct m0_module *module)
+static int level_stob_enter(struct m0_module *module)
 {
 	return m0_stob_types_init();
 }
 
-M0_UNUSED static void level_stob_leave(struct m0_module *module)
+static void level_stob_leave(struct m0_module *module)
 {
 	m0_stob_types_fini();
 }

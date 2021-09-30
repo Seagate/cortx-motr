@@ -268,8 +268,10 @@ do {								\
 #ifndef PAGE_SHIFT
   #ifdef  CONFIG_X86_64
     #define PAGE_SHIFT    12
-  #elif defined  CONFIG_AARCH64 /*aarch64*/
+  #elif defined  CONFIG_AARCH64
     #define PAGE_SHIFT    16
+  #else
+    #error  "The platform is not supported"
   #endif
   #define PAGE_SIZE	  (1UL << PAGE_SHIFT)
 #endif
