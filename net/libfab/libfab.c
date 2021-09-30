@@ -66,7 +66,7 @@
  * and token is added into hashtable.
  * Before generating a completion event of any buffer (i.e. libfab_buf_done()),
  * token lookup is done within hashtable to check if buffer operation is valid,
- * If token in present then token for that buffer is removed from hashtable
+ * If token is present then token for that buffer is removed from hashtable
  * while buffer completion callback, else buffer completion event is skipped.
  *
  * Libfabric module is having two types of activities:
@@ -139,7 +139,7 @@
  * 	 and synchronously (when the buffer is canceled by the user.
  * 	 Libfabric code will not support generation of synchronous callback
  * 	 events for buffer cancel operations. It will instead mark the buffer
- * 	 status as cancelled and and add it to a list which will be processed
+ * 	 status as cancelled and add it to a list which will be processed
  * 	 in the poller thread and the callback would be invoked in
  * 	 asynchronous manner only.
  *
@@ -1726,6 +1726,11 @@ static inline struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf)
 static void libfab_buf_fini(struct m0_fab__buf *buf)
 {
 	struct m0_fab__buf *fbp;
+
+	M0_ENTRY("fb=%p q=%d rc=%d", buf, buf->fb_nb->nb_qtype, buf->fb_status);
+
+	libfab_buf_invariant(buf);
+
 	fab_buf_tlink_fini(buf);
 	if (buf->fb_ev_ep != NULL)
 		buf->fb_ev_ep = NULL;
@@ -1733,7 +1738,7 @@ static void libfab_buf_fini(struct m0_fab__buf *buf)
 		fab_bulk_tlist_del(buf->fb_bulk_op);
 		m0_free(buf->fb_bulk_op);
 	}
-	
+
 	if(buf->fb_txctx != NULL) {
 		fbp = m0_tl_find(fab_sndbuf, fbp, &buf->fb_txctx->fep_sndbuf,
 				 fbp == buf);
@@ -1756,6 +1761,7 @@ static void libfab_buf_fini(struct m0_fab__buf *buf)
 			 buf->fb_state == FAB_BUF_TIMEDOUT) ?
 			FAB_BUF_INITIALIZED : FAB_BUF_REGISTERED;
 
+	M0_LEAVE("fb_state=%d", buf->fb_state);
 }
 
 /**
@@ -2198,9 +2204,8 @@ static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
 				M0_ASSERT(0); /* Invalid queue type */
 				break;
 		}
-		if (ret != 0) {
+		if (ret != 0)
 			libfab_buf_done(fbp, ret);
-		}
 	}
 
 	if (nb != NULL)
@@ -2655,10 +2660,8 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 		op_flag = (isread || (!last_seg)) ? 0 : FI_REMOTE_CQ_DATA;
 		op_flag |= last_seg ? FI_COMPLETION : 0;
 		
-		if (isread)
-			ret = fi_readmsg(aep->aep_txep, &op_msg, op_flag);
-		else
-			ret = fi_writemsg(aep->aep_txep, &op_msg, op_flag);
+		ret = isread ? fi_readmsg(aep->aep_txep, &op_msg, op_flag) :
+		      fi_writemsg(aep->aep_txep, &op_msg, op_flag);
 
 		if (ret != 0) {
 			M0_LOG(M0_ERROR,"bulk-op failed %d b=%p q=%d l_seg=%d opcnt=%d",

@@ -820,7 +820,7 @@ static void irfop_fini(struct ioreq_fop *irfop)
 }
 
 /**
- * Helper function ehich will return the buffer address based on the page attr,
+ * Helper function which will return the buffer address based on the page attr,
  * fop phase and aux bufvec.
  */
 static void *buf_aux_chk_get(struct m0_bufvec *aux, enum page_attr p_attr,
