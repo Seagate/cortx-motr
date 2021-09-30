@@ -188,7 +188,7 @@ static inline int64_t m0_atomic64_add_return(struct m0_atomic64 *a,
 #else
 #error  "The Platform is not supported"
 #endif
-	return 0;
+	return 0; /* This statment is required to avoid few compilation error while cortx-hare building */
 }
 
 /**
@@ -221,7 +221,7 @@ static inline int64_t m0_atomic64_sub_return(struct m0_atomic64 *a,
 #else
 #error  "The Platform is not supported"
 #endif
-	return 0;
+	return 0; /* This statment is required to avoid few compilation error while cortx-hare building */
 }
 
 static inline bool m0_atomic64_inc_and_test(struct m0_atomic64 *a)
@@ -238,7 +238,7 @@ static inline bool m0_atomic64_inc_and_test(struct m0_atomic64 *a)
 #else
 #error  "The Platform is not supported"
 #endif
-	return 0;
+	return 0; /* This statment is required to avoid few compilation error while cortx-hare building */
 }
 
 static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a)
@@ -255,7 +255,7 @@ static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a)
 #else
 #error  "The Platform is not supported"
 #endif
-	return 0;
+	return 0; /* This statment is required to avoid few compilation error while cortx-hare building */
 }
 
 static inline bool m0_atomic64_cas(int64_t * loc, int64_t oldval, int64_t newval)
@@ -306,7 +306,7 @@ static inline bool m0_atomic64_cas(int64_t * loc, int64_t oldval, int64_t newval
 #else
 #error  "The Platform is not supported"
 #endif
-	return 0;
+	return 0; /* This statment is required to avoid few compilation error while cortx-hare building */
 }
 
 static inline void m0_mb(void)

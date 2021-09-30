@@ -1,6 +1,6 @@
-# Todo
+# TODO investigate why it's needed on aarch64
 %if "%{?CONFIG_ARCH_TYPE}" == "aarch64"
-undefine _missing_build_ids_terminate_build
+%undefine _missing_build_ids_terminate_build
 %endif
 # feature flags
 %bcond_with ut

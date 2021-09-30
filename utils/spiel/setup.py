@@ -23,7 +23,7 @@ motr = Extension('motr',
                  define_macros=[('M0_INTERNAL', ''), ('M0_EXTERN', 'extern')],
                  include_dirs=['../../', '../../extra-libs/galois/include/'],
                  sources=['motr.c'],
-                 extra_compile_args=['-w'])
+                 extra_compile_args=['-w', '-include''config.h'''])
 
 
 setup(name='motr', version='1.0',

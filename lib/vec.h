@@ -536,7 +536,7 @@ enum {
 	M0_SEG_SIZE  = 65536,
 };
 #else
-#error  "The platform is not supported"
+  #error  "The platform is not supported"
 #endif
 
 /**
