@@ -21,7 +21,7 @@
 Tests:
   - id       : 00userspace-tests
     script   : 'm0 run-ut'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/m0ut
@@ -31,7 +31,7 @@ Tests:
 
   - id       : 01kernel-tests
     script   : 'm0 run-kut'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/m0kut
@@ -46,9 +46,9 @@ Tests:
 #    polltime : 30
 #    builddir : /sbin/
 
-  - id       : 02system-tests
+  - id       : 11m0t1fs
     script   : 'm0 run-st 11m0t1fs'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.11m0t1fs
@@ -56,19 +56,22 @@ Tests:
     polltime : 30
     timeout  : 3000
 
-  - id       : 03net-tests
+  - id       : 01net
     script   : 'm0 run-st 01net'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.01net
     groupname: 01motr-single-node
     polltime : 30
     timeout  : 180
+    #NetconsoleCollector
+    #collect_logs :
+      #- /var/log/motr-*.log
 
-  - id       : 04rpcping-tests
+  - id       : 02rpcping
     script   : 'm0 run-st 02rpcping'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.02rpcping
@@ -76,9 +79,9 @@ Tests:
     polltime : 30
     timeout  : 300
 
-  - id       : 05initscript-tests
+  - id       : 04initscripts
     script   : 'm0 run-st 04initscripts'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.04initscripts
@@ -86,13 +89,10 @@ Tests:
     polltime : 30
     timeout  : 1800
     roles: StoreSyslog  CustomLogCollector
-    #NetconsoleCollector
-    #collect_logs :
-      #- /var/log/motr-*.log
 
-  - id       : 06console-tests
+  - id       : 03console
     script   : 'm0 run-st 03console'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.03console
@@ -100,18 +100,18 @@ Tests:
     polltime : 30
     timeout  : 120
 
-  - id       : 07multi-client-tests
+  - id       : 07mount-multiple
     script   : 'm0 run-st 07mount-multiple'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.07mount-multiple
     groupname: 05motr-single-node
     polltime : 30
     timeout  : 480
 
-  - id       : 08degraded-mode-tests
+  - id       : 13dgmode-io
     script   : 'm0 run-st 13dgmode-io'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.13dgmode-io
@@ -119,9 +119,9 @@ Tests:
     polltime : 30
     timeout  : 900
 
-  - id       : 09poolmach-tests
+  - id       : 14poolmach
     script   : 'm0 run-st 14poolmach'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.14poolmach
@@ -129,9 +129,9 @@ Tests:
     polltime : 30
     timeout  : 480
 
-  - id       : 10sns-single-tests
+  - id       : 15sns-repair-single
     script   : 'm0 run-st 15sns-repair-single'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/sandbox.15sns-repair-single
     #executor : Xperior::Executor::Skip
@@ -139,9 +139,9 @@ Tests:
     polltime : 30
     timeout  : 600
 
-  - id       : 11sns-multi-tests
+  - id       : 16sns-repair-mult
     script   : 'm0 run-st 16sns-repair-multi'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.16sns-repair-multi
@@ -149,9 +149,9 @@ Tests:
     polltime : 30
     timeout  : 900
 
-  - id       : 12sns-cc-io-tests
+  - id       : 17sns-repair-concurrent-io
     script   : 'm0 run-st 17sns-repair-concurrent-io'
-    dir      : src/scripts/
+    dir      : src/scripts
     #executor : Xperior::Executor::MotrTest
     executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.17sns-repair-concurrent-io
@@ -159,9 +159,9 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 13sns-repair-quiesce
+  - id       : 18sns-repair-quiesce
     script   : 'm0 run-st 18sns-repair-quiesce'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.18sns-repair-quiesce
@@ -169,9 +169,9 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 14m0t1fs-fsync-test
+  - id       : 12fsync
     script   : 'm0 run-st 12fsync'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.12fsync
@@ -179,9 +179,9 @@ Tests:
     polltime : 30
     timeout  : 480
 
-  - id       : 15m0t1fs-fwait-test
+  - id       : 12fwait
     script   : 'm0 run-st 12fwait'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.12fwait
@@ -189,9 +189,9 @@ Tests:
     polltime : 30
     timeout  : 480
 
-  - id       : 16conf-st-test
+  - id       : 06conf
     script   : 'm0 run-st 06conf'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.06conf
@@ -199,9 +199,9 @@ Tests:
     polltime : 30
     timeout  : 120
 
-  - id       : 17sss-st-test
+  - id       : 04sss
     script   : 'm0 run-st 04sss'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.04sss
@@ -209,9 +209,9 @@ Tests:
     polltime : 30
     timeout  : 600
 
-  - id       : 18m0mount-test
+  - id       : 07mount
     script   : 'm0 run-st 07mount'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.07mount
@@ -219,9 +219,9 @@ Tests:
     polltime : 30
     timeout  : 360
 
-  - id       : 19sns-abort-test
+  - id       : 19sns-repair-abort
     script   : 'm0 run-st 19sns-repair-abort'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.19sns-repair-abort
@@ -229,9 +229,9 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 20pool-version-test
+  - id       : 10pver-assign
     script   : 'm0 run-st 10pver-assign'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.10pver-assign
@@ -239,9 +239,9 @@ Tests:
     polltime : 30
     timeout  : 900
 
-  - id       : 21spiel-test
+  - id       : 08spiel
     script   : 'm0 run-st 08spiel'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.08spiel
@@ -249,9 +249,9 @@ Tests:
     polltime : 30
     timeout  : 600
 
-  - id       : 22rpc-cancel-test
+  - id       : 20rpc-session-cancel
     script   : 'm0 run-st 20rpc-session-cancel'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.20rpc-session-cancel
@@ -259,9 +259,9 @@ Tests:
     polltime : 30
     timeout  : 900
 
-  - id       : 23m0d-signal-test
+  - id       : 07m0d-fatal
     script   : 'm0 run-st 07m0d-fatal'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.07m0d-fatal
@@ -269,9 +269,9 @@ Tests:
     polltime : 30
     timeout  : 900
 
-  - id       : 24m0d-fsync-test
+  - id       : 21fsync-single-node
     script   : 'm0 run-st 21fsync-single-node'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.21fsync-single-node
@@ -279,9 +279,9 @@ Tests:
     polltime : 30
     timeout  : 900
 
-  - id       : 25spiel-sns-repair-test
+  - id       : 08spiel-sns-repair
     script   : 'm0 run-st 08spiel-sns-repair'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.08spiel-sns-repair
@@ -289,9 +289,9 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 26spiel-sns-repair-quiesce-test
+  - id       : 08spiel-sns-repair-quiesce
     script   : 'm0 run-st 08spiel-sns-repair-quiesce'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.08spiel-sns-repair-quiesce
@@ -299,9 +299,9 @@ Tests:
     polltime : 30
     timeout  : 900
 
-  - id       : 27sns-repair-io-fail-test
+  - id       : 22sns-repair-ios-fail
     script   : 'm0 run-st 22sns-repair-ios-fail'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.22sns-repair-ios-fail
@@ -309,9 +309,9 @@ Tests:
     polltime : 30
     timeout  : 900
 
-  - id       : 28motr-sys-kvs-test
+  - id       : 28sys-kvs
     script   : 'm0 run-st 28sys-kvs'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.28sys-kvs
@@ -319,9 +319,9 @@ Tests:
     polltime : 30
     timeout  : 900
 
-  - id       : 29confgen-test
+  - id       : 05confgen
     script   : 'm0 run-st 05confgen'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.05confgen
@@ -329,9 +329,9 @@ Tests:
     polltime : 30
     timeout  : 300
 
-  - id       : 30hagen-test
+  - id       : 06hagen
     script   : 'm0 run-st 06hagen'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.06hagen
@@ -339,9 +339,9 @@ Tests:
     polltime : 30
     timeout  : 300
 
-  - id       : 31motr-sys-kvs-kernel-test
+  - id       : 28sys-kvs-kernel
     script   : 'm0 run-st 28sys-kvs-kernel'
-    dir      : src/scripts/
+    dir      : src/scripts
    #executor : Xperior::Executor::MotrTest
     executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.28sys-kvs-kernel
@@ -349,18 +349,18 @@ Tests:
     polltime : 30
     timeout  : 900
 
-  - id       : 32m0t1fs-rconfc-fail-test
+  - id       : 11m0t1fs-rconfc-fail
     script   : 'm0 run-st 11m0t1fs-rconfc-fail'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/sandbox.11m0t1fs-rconfc-fail
     groupname: 04motr-single-node
     polltime : 30
     timeout  : 1800
 
-  - id       : 33motr-st
+  - id       : 25m0kv
     script   : 'm0 run-st 25m0kv'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/sandbox.25m0kv
     groupname: 04motr-single-node
@@ -369,7 +369,7 @@ Tests:
 
   - id       : 34sns-repair-1n-1f
     script   : 'm0 run-st 34sns-repair-1n-1f'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/sandbox.34sns-repair-1n-1f
     groupname: 04motr-single-node
@@ -378,7 +378,7 @@ Tests:
 
   - id       : 35m0singlenode
     script   : 'm0 run-st 35m0singlenode'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/sandbox.35m0singlenode
     groupname: 01motr-single-node
@@ -386,26 +386,26 @@ Tests:
     timeout  : 600
 
   - id       : 36spare-reservation
-    script   : m0t1fs_spare_space_reserve.sh
-    dir      : src/m0t1fs/linux_kernel/st/
+    script   : 'm0 run-st 36spare-reservation'
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
-    sandbox  : /var/motr/sandbox.35spare-reservation
+    sandbox  : /var/motr/sandbox.36spare-reservation
     groupname: 03motr-single-node
     polltime : 30
     timeout  : 1800
 
   - id       : 37protocol
-    script   : protocol
-    dir      : src/st/
+    script   : 'm0 run-st 37protocol'
+    dir      : src/scripts
     executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.37protocol
     groupname: 01motr-single-node
     polltime : 30
     timeout  : 180
 
-  - id       : 38sns-abort-quiesce-test
+  - id       : 23sns-abort-quiesce
     script   : 'm0 run-st 23sns-abort-quiesce'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/sandbox.23sns-abort-quiesce
     groupname: 05motr-single-node
@@ -414,9 +414,9 @@ Tests:
 
 # This test is disabled, because debugfs is not available
 # in m0ctl.ko, which is not GPL-licensed
-  - id       : 39mount-fail
+  - id       : 07mount-fail
     script   : 'm0 run-st 07mount-fail'
-    dir      : src/scripts/
+    dir      : src/scripts
     #executor : Xperior::Executor::MotrTest
     executor : Xperior::Executor::Skip
     sandbox  : /var/motr/sandbox.07mount-fail
@@ -426,7 +426,7 @@ Tests:
 
   - id       : 40motr-dgmode
     script   : 'm0 run-st 40motr-dgmode'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/sandbox.40motr-dgmode
     groupname: 05motr-single-node
@@ -436,7 +436,7 @@ Tests:
 #   MOTR-2819
   - id       : 41motr-conf-update
     script   : 'm0 run-st 41motr-conf-update'
-    dir      : src/scripts/
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/sandbox.41motr-conf-update
     groupname: 02motr-single-node
@@ -453,17 +453,17 @@ Tests:
     timeout  : 1800
 
   - id       : 43motr-sync-replication
-    script   : motr_sync_replication_st.sh
-    dir      : src/motr/st/utils/
+    script   : 'm0 run-st 43motr-sync-replication'
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
-    sandbox  : /var/motr/sandbox.41motr-sync-replication
+    sandbox  : /var/motr/sandbox.43motr-sync-replication
     groupname: 05motr-single-node
     polltime : 30
     timeout  : 1800
 
   - id       : 44motr-sns-repair
-    script   : motr_sns_repair_st.sh
-    dir      : src/motr/st/utils/
+    script   : 'm0 run-st 44motr-sns-repair'
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/sandbox.44motr-sns-repair
     groupname: 05motr-single-node
@@ -471,15 +471,15 @@ Tests:
     timeout  : 1800
 
   - id       : 45motr-sns-repair-N-1
-    script   : motr_sns_repair_N_1.sh
-    dir      : src/motr/st/utils/
+    script   : 'm0 run-st 45motr-sns-repair-N-1'
+    dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/sandbox.45motr-sns-repair-N-1
     groupname: 05motr-single-node
     polltime : 30
     timeout  : 1800
 
-  - id       : 46m0crate
+  - id       : 43m0crate
     script   : 'm0 run-st 43m0crate'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
@@ -488,7 +488,7 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 47motr-tests-user-kernel
+  - id       : 26motr-user-kernel-tests
     script   : 'm0 run-st 26motr-user-kernel-tests'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
@@ -497,7 +497,7 @@ Tests:
     polltime : 30
     timeout  : 2400
 
-  - id       : 48motr-raid0-io
+  - id       : 26motr-user-kernel-tests
     script   : 'm0 run-st 26motr-user-kernel-tests'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
@@ -516,7 +516,7 @@ Tests:
     timeout  : 1800
 
 #MOTR-2882
-  - id       : 50motr-rm-lock-cc-io
+  - id       : 44motr-rm-lock-cc-io
     script   : 'm0 run-st 44motr-rm-lock-cc-io'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
@@ -526,7 +526,7 @@ Tests:
     timeout  : 1800
 
 #EOS-282
-  - id       : 51motr-rmw
+  - id       : 45motr-rmw
     script   : 'm0 run-st 45motr-rmw'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
@@ -562,7 +562,7 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 54sns-repair-motr-1f
+  - id       : 60sns-repair-motr-1f
     script   : 'm0 run-st 60sns-repair-motr-1f'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
@@ -571,7 +571,7 @@ Tests:
     polltime : 30
     timeout  : 600
 
-  - id       : 55sns-repair-motr-1n-1f
+  - id       : 61sns-repair-motr-1n-1f
     script   : 'm0 run-st 61sns-repair-motr-1n-1f'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
@@ -580,7 +580,7 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 56sns-repair-motr-mf
+  - id       : 62sns-repair-motr-mf
     script   : 'm0 run-st 62sns-repair-motr-mf'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
@@ -589,7 +589,7 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 57sns-repair-motr-1k-1f
+  - id       : 63sns-repair-motr-1k-1f
     script   : 'm0 run-st 63sns-repair-motr-1k-1f'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
@@ -598,7 +598,7 @@ Tests:
     polltime : 30
     timeout  : 600
 
-  - id       : 58sns-repair-motr-ios-fail
+  - id       : 64sns-repair-motr-ios-fail
     script   : 'm0 run-st 64sns-repair-motr-ios-fail'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
@@ -607,7 +607,7 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 59sns-repair-motr-abort
+  - id       : 65sns-repair-motr-abort
     script   : 'm0 run-st 65sns-repair-motr-abort'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
@@ -616,7 +616,7 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 60sns-repair-motr-abort-quiesce
+  - id       : 66sns-repair-motr-abort-quiesce
     script   : 'm0 run-st 66sns-repair-motr-abort-quiesce'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
@@ -625,7 +625,7 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 61spiel-multi-confd
+  - id       : 08spiel-multi-confd
     script   : 'm0 run-st 08spiel-multiple-confd'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
@@ -634,7 +634,7 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 62dix-repair-st-lookup-insert
+  - id       : 24motr-dix-repair-lookup-insert
     script   : 'm0 run-st 24motr-dix-repair-lookup-insert'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest

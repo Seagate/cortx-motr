@@ -20,4 +20,4 @@
 
 set -eu
 
-exec $SUDO "$M0_SRC_DIR/dix/cm/st/dix_repair_st.sh -v lookup insert"
+exec $SUDO "$M0_SRC_DIR/motr/st/utils/motr_sns_repair_N_1.sh"
