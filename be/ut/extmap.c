@@ -265,7 +265,7 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 		seglen = m0_ext_length(&seg->ee_ext);
 		M0_LOG(M0_DEBUG, "%3i: seglen=%llx", i,
 					(unsigned long long)seglen);
-		total  = len[0]+len[1]; /* 100+50, sum of elements in len[]. */
+		total  = len[0] + len[1]; /* 100+50, sum of elements in len[] */
 		M0_UT_ASSERT(seglen > total);
 		len[ARRAY_SIZE(len) - 1] = seglen - total;
 		M0_SET0(it_op);
@@ -691,7 +691,7 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(seg->ee_ext.e_end   == es[2].e_start);
 	M0_UT_ASSERT(seg->ee_val         == e_val[0]);
 	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == ((cksum[0].b_nob)*
-						 (es[2].e_start - es[0].e_start))/
+						 (es[2].e_start - es[0].e_start)) /
 						 (es[0].e_end - es[0].e_start));
 	M0_UT_ASSERT(memcmp(seg->ee_cksum_buf.b_addr, cksum[0].b_addr,
 			    seg->ee_cksum_buf.b_nob) == 0);
@@ -712,8 +712,8 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(seg->ee_ext.e_start == es[2].e_end);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == es[1].e_end);
 	M0_UT_ASSERT(seg->ee_val         == e_val[1]);
-	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == ((cksum[1].b_nob)*
-						 (es[1].e_end - es[2].e_end))/
+	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == ((cksum[1].b_nob) *
+						 (es[1].e_end - es[2].e_end)) /
 						 (es[1].e_end - es[1].e_start));
 	M0_UT_ASSERT(memcmp(seg->ee_cksum_buf.b_addr, cksum[1].b_addr,
 			    seg->ee_cksum_buf.b_nob) == 0);

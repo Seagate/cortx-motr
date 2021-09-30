@@ -339,7 +339,6 @@ M0_INTERNAL void * m0_stob_ad_get_checksum_addr(struct m0_stob_io *io,
 	int                  i;
 	struct m0_indexvec  *stob = &io->si_stob;
 
-
 	/* Get the checksum nobs consumed till reaching the off in given io */
 	for (i = 0; i < stob->iv_vec.v_nr; i++) {
 		ext.e_start = io->si_stob.iv_index[i];
@@ -1700,7 +1699,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 		/* TODO: DI_FORMAT */
 		it.ec_app_cksum_buf.b_nob  = m0_extent_get_checksum_nob(off,
 									m0_ext_length(&todo), 
-							                io->si_unit_sz,
+									io->si_unit_sz,
 									io->si_cksum_sz);
 	} else {
 		it.ec_app_cksum_buf.b_addr = NULL;

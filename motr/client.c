@@ -37,7 +37,6 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include "lib/trace.h"
 #include "lib/finject.h"
-
 /**
  * Bob definitions
  */

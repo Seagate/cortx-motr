@@ -184,14 +184,14 @@ static void emap_key_init(struct m0_be_emap_key *key)
 static void emap_rec_init(struct m0_be_emap_rec *rec)
 {
 	m0_format_header_pack(&rec->er_header, &(struct m0_format_tag){
-		        .ot_version = M0_BE_EMAP_REC_FORMAT_VERSION,
-		        .ot_type    = M0_FORMAT_TYPE_BE_EMAP_REC,
+			.ot_version = M0_BE_EMAP_REC_FORMAT_VERSION,
+			.ot_type    = M0_FORMAT_TYPE_BE_EMAP_REC,
 			/* cksum of size cksum_nob will be present just before
 			 * footer, update the same in emap header.
 			 */
-		        .ot_footer_offset = offsetof(struct m0_be_emap_rec,
-			                             er_footer) +
-			                    rec->er_cksum_nob
+			.ot_footer_offset = offsetof(struct m0_be_emap_rec,
+						     er_footer) +
+					    rec->er_cksum_nob
 	});
 	m0_format_footer_update(rec);
 }
@@ -487,18 +487,18 @@ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
  *    (term left/right w.r.t area of current segment left after
  *    removing clip area)
  *    a. Left   sub-seg : Overlap of start of cur-seg  with ext
- *        		      |  cur-seg  |
- *                             | clip - ext |
- *                        |Left| => [curr-seg:Start - clip:Start]
+ *			      |  cur-seg  |
+ *			       | clip - ext |
+ *			  |Left| => [curr-seg:Start - clip:Start]
  *    b. Middle sub-seg : If ext part (to be pasted) fully overlaps
- *                        with curr-seg (clip)
+ *			  with curr-seg (clip)
  *        			      |         cur-seg              |
- *                               | clip - ext |
- *                        | Left |   Middle   |  Right   |
+ *				| clip - ext |
+ *			  | Left |   Middle   |  Right   |
  *    c. Right  sub-seg : Overalp of end of cur-seg with ext
  *        			      |  cur-seg  |
- *                | clip - ext |
- *                             |Right | => [clip:End - curr-seg:End]
+ *		  | clip - ext |
+ *			       |Right | => [clip:End - curr-seg:End]
  * 3. EMAP operation for these three segments are performed
  *    (not all may be needed)
  * 4. If part of extent (after removing clip) is remaining then new segment is
@@ -506,7 +506,7 @@ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
  *
  * For checksum operation :
  * a. Left Opn  : Reduce the checksum number of byte 
- *                from checksum of left segment
+ *		  from checksum of left segment
  * b. Right Opn : Update checksum new start and size
  *
  * During operation like punch, we need to find the size of single unit of
@@ -594,7 +594,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 			/* Compute checksum unit size for given segment */
 			/* TODO: DI_FORMAT */
 			chunk_cs_count = m0_extent_get_num_unit_start(chunk->e_start,
-			                                              m0_ext_length(chunk),
+								      m0_ext_length(chunk),
 								      it->ec_unit_size);
 			M0_ASSERT(chunk_cs_count);
 			cksum_unit_size = seg->ee_cksum_buf.b_nob / chunk_cs_count;
@@ -607,7 +607,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 			bstart[0] = seg->ee_val;
 			if (seg->ee_cksum_buf.b_nob) {
 				cksum[0].b_nob = m0_extent_get_checksum_nob(chunk->e_start,
-				                                            length[0],
+									    length[0],
 									    it->ec_unit_size,
 									    cksum_unit_size);
 				cksum[0].b_addr = seg->ee_cksum_buf.b_addr;
@@ -619,10 +619,10 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 			bstart[2] = seg->ee_val;
 			if (seg->ee_cksum_buf.b_nob) {
 				cksum[2].b_nob  = m0_extent_get_checksum_nob(clip.e_end, length[2],
-				                                             it->ec_unit_size, 
+									     it->ec_unit_size, 
 									     cksum_unit_size);
 				cksum[2].b_addr = m0_extent_get_checksum_addr(seg->ee_cksum_buf.b_addr,
-				                                              clip.e_end, 
+									      clip.e_end, 
 									      chunk->e_start,
 									      it->ec_unit_size,
 									      cksum_unit_size);
@@ -632,8 +632,8 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 			del(seg);
 
 		rc = be_emap_split(it, tx, &vec, length[0] > 0 ?
-						chunk->e_start : ext0.e_start,
-						cksum);
+				   chunk->e_start : ext0.e_start,
+				   cksum);
 		if (rc != 0)
 			break;
 
@@ -973,7 +973,7 @@ be_emap_vsize(const void* d)
 
 static int
 emap_it_pack(struct m0_be_emap_cursor *it,
-             void (*btree_func)(struct m0_be_btree  *btree,
+	     void (*btree_func)(struct m0_be_btree  *btree,
 			        struct m0_be_tx     *tx,
 			        struct m0_be_op     *op,
 			        const struct m0_buf *key,
@@ -999,7 +999,7 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	/* Layout/format of emap-record (if checksum is present) which gets
 	 * written:
 	 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
-	 * It gets stored as contigious buffer, so allocating buffer
+	 * It gets stored as contiguous buffer, so allocating buffer
 	 */
 
 	/* Total size of buffer needed for storing emap extent & assign */
@@ -1014,7 +1014,7 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	*rec_buf_ptr = *rec;
 
 	/* Copy checksum array into emap record */
-	if (rec->er_cksum_nob ) {
+	if (rec->er_cksum_nob) {
 		memcpy((void *)&rec_buf_ptr->er_footer,
 		       ext->ee_cksum_buf.b_addr, rec->er_cksum_nob);
 	}
@@ -1023,10 +1023,10 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 
 	++it->ec_map->em_version;
 	it->ec_op.bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
-			op,
-			btree_func(&it->ec_map->em_mapping, tx, &op,
-				   &it->ec_keybuf, &rec_buf),
-			bo_u.u_btree.t_rc);
+		op,
+		btree_func(&it->ec_map->em_mapping, tx, &op,
+			   &it->ec_keybuf, &rec_buf),
+		bo_u.u_btree.t_rc);
 
 	m0_buf_free(&rec_buf);
 
@@ -1069,7 +1069,7 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		 * It gets stored as contigious buffer, so allocating buffer
 		 */
 		rc = m0_buf_alloc(&it->ec_recbuf, recbuf.b_nob);
-		if ( rc != 0)
+		if (rc != 0)
 			return rc;
 
 		/* Copying record buffer and loading into it->ec_rec, note

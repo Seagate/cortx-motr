@@ -1218,7 +1218,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 			pi_ondisk = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[attr_idx];
 
 			if (!m0_calc_verify_cksum_one_unit(pi_ondisk, &seed,
-						           &user_data)) {
+							   &user_data)) {
 				return false;
 			}
 		}
@@ -1262,7 +1262,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 	m0_bcount_t               count;
 	struct m0_bufvec_cursor   appdatacur;
 	struct m0_ivec_cursor     extcur;
-	struct m0_pdclust_layout  *play;
+	struct m0_pdclust_layout *play;
 
 	M0_ENTRY("op_io : %p, %s application. filter = 0x%x", ioo,
 		 dir == CD_COPY_FROM_APP ? (char *)"from" : (char *)"to",

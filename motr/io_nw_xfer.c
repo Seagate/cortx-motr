@@ -508,8 +508,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	uint64_t                   page_size;
 	struct m0_ext              goff_span_ext;
 	bool                       is_goff_in_range;
-	void 			  *dst_attr = NULL;
-	uint32_t 		   b_nob;
+	void                      *dst_attr = NULL;
+	uint32_t                   b_nob;
 	struct m0_indexvec        *ioo_ext;
 
 	M0_PRE(tgt != NULL);
@@ -634,7 +634,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		M0_LOG(M0_DEBUG, "pageaddr=%p, auxpage=%p,"
 				 " index=%6"PRIu64", size=%4"PRIu64
 				 " grpid=%3"PRIu64" flags=%4x for "FID_F,
-		                 bvec->ov_buf[seg], auxbvec->ov_buf[seg],
+				 bvec->ov_buf[seg], auxbvec->ov_buf[seg],
 				 INDEX(ivec, seg), COUNT(ivec, seg),
 				 map->pi_grpid, pattr[seg],
 				 FID_P(&ti->ti_fid));
@@ -653,7 +653,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		 * checksum computation
 		 */
 		is_goff_in_range = m0_ext_is_in(&goff_span_ext, goff) &&
-		                                ioo->ioo_attr.ov_vec.v_nr;
+						ioo->ioo_attr.ov_vec.v_nr;
 		if (dst_attr != NULL && unit_type == M0_PUT_DATA &&
 		    opcode == M0_OC_WRITE && is_goff_in_range) {
 			void         *src_attr;
@@ -662,7 +662,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			cs_sz = ioo->ioo_attr.ov_vec.v_count[0];
 			/* This we can do as page_size <= unit_sz */
 			b_nob = m0_extent_get_checksum_nob(goff,
-			                                   COUNT(ivec, seg),
+							   COUNT(ivec, seg),
 							   unit_sz, cs_sz );
 			if (b_nob) {
 				/* This function will get checksum address from
@@ -1083,7 +1083,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			}
 			/*TODO DI_FORMAT */
 			rw_fop->crw_cksum_size = (read_in_write ||
-			                          !(ioo->ioo_attr.ov_vec.v_nr)) ?
+						  !(ioo->ioo_attr.ov_vec.v_nr)) ?
 						  0 : ioo->ioo_attr.ov_vec.v_count[0];
 		} else {
 			rw_fop->crw_di_data_cksum.b_addr = NULL;
@@ -1257,7 +1257,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 		ti->ti_attrbuf.b_addr = NULL;
 		/* DI_FORMAT */
 		b_nob = (size * ioo->ioo_attr.ov_vec.v_count[0]) /
-		         m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
+			m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
 		rc = m0_buf_alloc(&ti->ti_attrbuf, b_nob);
 		if (rc != 0)
 			goto fail;

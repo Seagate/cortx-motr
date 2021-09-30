@@ -185,8 +185,8 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	if (ti_cob_index != rep_index) {
 		M0_ASSERT (m0_ivec_cursor_move(&ti_cob_cursor,
 					       rep_index - ti_cob_index) && 
-		           m0_ivec_cursor_move(&ti_goff_cursor,
-				               rep_index - ti_cob_index));
+			   m0_ivec_cursor_move(&ti_goff_cursor,
+					       rep_index - ti_cob_index));
 	}
 
 	/*
@@ -212,7 +212,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 		 */
 		ioo_ext = &ioo->ioo_ext;
 		M0_ASSERT(ti_goff_index <=
-		          (ioo_ext->iv_index[ioo_ext->iv_vec.v_nr-1] +
+			  (ioo_ext->iv_index[ioo_ext->iv_vec.v_nr-1] +
 			   ioo_ext->iv_vec.v_count[ioo_ext->iv_vec.v_nr-1]));
 
 		dst = m0_extent_vec_get_checksum_addr(&ioo->ioo_attr,
@@ -239,7 +239,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
  *
  * @param grp The state-machine-group/locality that is processing this callback.
  * @param ast The AST that triggered this callback, used to find the
- *            IO operation.
+ *	      IO operation.
  */
 static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {

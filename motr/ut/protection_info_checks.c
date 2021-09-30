@@ -282,15 +282,15 @@ static void ut_test_pi_api_case_third(void)
 
 		if (j == 0) {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-					            NULL, &user_data[j],
+						    NULL, &user_data[j],
 						    M0_PI_CALC_UNIT_ZERO,
-					            curr_context[j], NULL);
+						    curr_context[j], NULL);
 			M0_UT_ASSERT(rc == 0);
 		} else if (j == DATA_UNIT_COUNT - 1) {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-					            &seed, &user_data[j],
+						    &seed, &user_data[j],
 						    M0_PI_NO_FLAG,
-					            curr_context[j], final_sum);
+						    curr_context[j], final_sum);
 			M0_UT_ASSERT(rc == 0);
 		} else {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,

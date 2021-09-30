@@ -526,11 +526,10 @@ static int obj_io_init(struct m0_obj      *obj,
 		ioo->ioo_data = *data;
 		ioo->ioo_attr_mask = mask;
 		/* If checksum is disabled, then attr is NULL */
-		if (attr != NULL && attr->ov_vec.v_nr) {
+		if (attr != NULL && attr->ov_vec.v_nr)
 			ioo->ioo_attr = *attr;
-		} else {
+		else
 			M0_SET0(&ioo->ioo_attr);
-		}
 	}
 	M0_POST_EX(m0_op_io_invariant(ioo));
 	return M0_RC(0);

@@ -798,7 +798,6 @@ struct target_ioreq {
 	 */
 	struct m0_indexvec             ti_trunc_ivec;
 
-
 	/**
 	 * Buffer vector corresponding to index vector above.
 	 * This buffer is in sync with ::ti_ivec.
@@ -808,7 +807,7 @@ struct target_ioreq {
 
 	/* TODO: Combine this into one struct for checksums */
 	struct m0_buf                  ti_attrbuf;
-	m0_bcount_t		       ti_cksum_copied;
+	m0_bcount_t                    ti_cksum_copied;
 
 	/* Array for segment having b_nob value of checksum */
 	uint32_t                      *ti_cksum_seg_b_nob;

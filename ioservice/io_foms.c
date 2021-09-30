@@ -2083,20 +2083,19 @@ static int stob_io_create(struct m0_fom *fom)
 		rw_replyfop->rwr_di_data_cksum.b_nob = 0;
 		si_stob =  &fom_obj->fcrw_io.si_stob;
 		for (i = 0; i < si_stob->iv_vec.v_nr; i++) {
-
 			rw_replyfop->rwr_di_data_cksum.b_nob +=
 				/* TODO DI_FORMAT */
 				m0_extent_get_checksum_nob(si_stob->iv_index[i],
 							   si_stob->iv_vec.v_count[i],
 							   unit_size,
-						           rwfop->crw_cksum_size);
+							   rwfop->crw_cksum_size);
 		}
 
 		/* Its expected to receive atleast on unit start in a fop */
 		M0_ASSERT(rw_replyfop->rwr_di_data_cksum.b_nob > 0);
 
 		if (m0_buf_alloc(&rw_replyfop->rwr_di_data_cksum,
-			         rw_replyfop->rwr_di_data_cksum.b_nob) != 0) {
+				 rw_replyfop->rwr_di_data_cksum.b_nob) != 0) {
 			m0_free(fom_obj->fcrw_stio);
 			return M0_ERR(-ENOMEM);
 		}

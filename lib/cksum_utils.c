@@ -135,8 +135,8 @@ M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec,
 		 */
 		if (m0_ext_is_in(&ext, off)) {
 			attr_nob += (m0_extent_get_unit_offset(off, ext.e_start,
-						               unit_sz) *
-				                               cs_sz);
+							       unit_sz) *
+							       cs_sz);
 			break;
 		}
 		else {
@@ -144,7 +144,7 @@ M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec,
 			 * increment the b_addr */
 			/*TODO DI_FORMAT */
 			attr_nob +=  m0_extent_get_checksum_nob(ext.e_start,
-				                                vec->iv_vec.v_count[i],
+								vec->iv_vec.v_count[i],
 								unit_sz, cs_sz);
 		}
 	}
