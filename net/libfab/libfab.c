@@ -340,6 +340,7 @@ static int libfab_txbuf_list_add(struct m0_fab__tm *tm, struct m0_fab__buf *fb,
 static void libfab_bufq_process(struct m0_fab__tm *tm);
 static uint32_t libfab_buf_token_get(struct m0_fab__tm *tm,
 				     struct m0_fab__buf *fb);
+static bool libfab_buf_invariant(const struct m0_fab__buf *buf);
 
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
