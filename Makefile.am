@@ -1711,6 +1711,7 @@ __rpm_tests:
 __rpm_ivt:
 	rpmbuild -bb $(RPM_SPEC_DIR)/cortx-motr.spec \
 		 --define "_topdir $(RPMBUILD_DIR)" \
+		 --define "CONFIG_ARCH_TYPE @ARCH@" \
 		 --with ivt \
 		 $(RPMBUILD_FLAGS)
 
