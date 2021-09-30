@@ -8279,7 +8279,8 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 			bnode_child(&node_slot, &child);
 			bnode_get(&oi->i_nop, tree, &child, 0);
 			bnode_fini(oi->i_nop.no_node);
-			bnode_free(&oi->i_nop, oi->i_nop.no_node, bop->bo_tx, 0);
+			bnode_free(&oi->i_nop, oi->i_nop.no_node, bop->bo_tx,
+				   0);
 			bop->bo_limit--;
 		}
 		/**
