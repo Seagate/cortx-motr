@@ -134,7 +134,7 @@ struct m0_be_emap_cursor;
     @retval -ENOENT mapname is not found in the segment dictionary.
  */
 M0_INTERNAL void m0_be_emap_init(struct m0_be_emap *map,
-				 struct m0_be_seg  *db);
+				 struct m0_be_seg  *db, bool check);
 
 /** Release the resources associated with the collection. */
 M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map);

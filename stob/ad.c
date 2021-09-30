@@ -323,7 +323,7 @@ M0_INTERNAL m0_bcount_t m0_stob_ad_spares_calc(m0_bcount_t grp_blocks)
 /* This function will go through si_stob vector
  * Checksum is stored in contigious buffer: si_cksum, while COB extents may not be
  * contigious e.g.
- * Assuming each extent has two DU, so two checksum. 
+ * Assuming each extent has two DU, so two checksum.
  *     | CS0 | CS1 | CS2 | CS3 | CS4 | CS5 | CS6 |
  *     | iv_index[0] |      | iv_index[1] | iv_index[2] |     | iv_index[3] |
  * Now if we have an offset for CS3 then after first travesal b_addr will poin to
@@ -444,7 +444,7 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 				    0, adom->sad_dom_key);
 	dom->sd_private = adom;
 	dom->sd_ops     = &stob_ad_domain_ops;
-	m0_be_emap_init(&adom->sad_adata, seg);
+	m0_be_emap_init(&adom->sad_adata, seg, true);
 
 	ballroom = adom->sad_ballroom;
 	m0_balloc_init(b2m0(ballroom));
@@ -502,7 +502,7 @@ static void stob_ad_domain_create_credit(struct m0_be_seg *seg,
 	struct m0_buf     data = { .b_nob = sizeof(struct stob_ad_0type_rec) };
 
 	M0_BE_ALLOC_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
-	m0_be_emap_init(&map, seg);
+	m0_be_emap_init(&map, seg, true);
 	m0_be_emap_credit(&map, M0_BEO_CREATE, 1, accum);
 	m0_be_emap_fini(&map);
 	m0_be_0type_add_credit(seg->bs_domain, &m0_stob_ad_0type,
@@ -516,7 +516,7 @@ static void stob_ad_domain_destroy_credit(struct m0_be_seg *seg,
 	struct m0_be_emap map = {};
 
 	M0_BE_FREE_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
-	m0_be_emap_init(&map, seg);
+	m0_be_emap_init(&map, seg, true);
 	m0_be_emap_credit(&map, M0_BEO_DESTROY, 1, accum);
 	m0_be_emap_fini(&map);
 	m0_be_0type_del_credit(seg->bs_domain, &m0_stob_ad_0type,
@@ -583,7 +583,7 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 		strcpy(adom->sad_path, location_data);
 		m0_format_footer_update(adom);
 		emap = &adom->sad_adata;
-		m0_be_emap_init(emap, seg);
+		m0_be_emap_init(emap, seg, false);
 		rc = M0_BE_OP_SYNC_RET(
 			op,
 			m0_be_emap_create(emap, &tx, &op,
@@ -640,7 +640,7 @@ static int stob_ad_domain_destroy(struct m0_stob_type *type,
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_exclusive_open_sync(&tx);
 	if (rc == 0) {
-		m0_be_emap_init(emap, seg);
+		m0_be_emap_init(emap, seg, true);
 		rc = M0_BE_OP_SYNC_RET(op, m0_be_emap_destroy(emap, &tx, &op),
 				       bo_u.u_emap.e_rc);
 		rc = rc ?: m0_be_0type_del(&m0_stob_ad_0type, seg->bs_domain,
@@ -1406,7 +1406,7 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 		if (seg->ee_val < AET_MIN)
 		{
 			/* For RMW case, ignore cksum read from fragments */
-			if (io->si_cksum_sz && io->si_unit_sz) 
+			if (io->si_cksum_sz && io->si_unit_sz)
 				stob_ad_get_checksum_for_fragment(io, it, off, frag_size);
 			frags_not_empty++;
 		}
@@ -1685,7 +1685,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 
 		/* Compute checksum units info which belong to this extent (COB off & Sz) */
 		it.ec_app_cksum_buf.b_addr = m0_stob_ad_get_checksum_addr(io, off);
-		it.ec_app_cksum_buf.b_nob  = m0_extent_get_checksum_nob(off, m0_ext_length(&todo), 
+		it.ec_app_cksum_buf.b_nob  = m0_extent_get_checksum_nob(off, m0_ext_length(&todo),
 							                io->si_unit_sz,
 									io->si_cksum_sz);
 	}
