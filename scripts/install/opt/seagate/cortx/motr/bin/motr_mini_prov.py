@@ -1102,109 +1102,10 @@ def remove_dm_entries(self):
                 self.logger.info(f"dmsetup remove {lv_path}")
                 execute_command(self, f"dmsetup remove {lv_path}")
 
-def config_part(self):
-    if self.k8:
-        cvg_cnt, cvg = get_cvg_cnt_and_cvg_k8(self)
-    else:
-        cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
-    dev_count = 1
-    config_dict = read_config(MOTR_SYS_CFG)
-
-    for i in range(int(cvg_cnt)):
-        cvg_item = cvg[i]
-        try:
-            metadata_device = cvg_item["devices"]["metadata"]
-        except:
-            raise MotrError(errno.EINVAL, "metadata devices not found\n")
-        check_type(metadata_device, str, "metadata_devices")
-        self.logger.info(f"\nlvm metadata_device: {metadata_device}\n\n")
-        # Currently only one metadata device in one cvg
-        ret = create_parts(self, dev_count, metadata_device)
-        if ret != 0:
-            return ret
-        dev_count += 1
-    return ret
-
 def get_disk_size(self, device):
     cmd = f"fdisk -l {device} |" f"grep {device}:" "| awk '{print $5}'"
     ret = execute_command(self, cmd)
     return ret[0].strip()
-
-def create_part(self, device, label, sz, part_num):
-    ret = 0
-    cmd = f"fdisk {device}"
-    stdin_str = str("n\np\n"+f"{part_num}"+"\n\n+" + f"{sz}" + "\nw\n")
-
-    ret = execute_command(self, cmd, stdin=stdin_str, verbose=True)[1]
-
-    if ret == 0:
-        # Set label
-        time.sleep(5)
-        part_name = f"{device}{part_num}"
-        # check if device node is created?
-        # If not, create it.
-        if not os.path.exists(part_name):
-            only_dev_name = f"{part_name}".split("/")[-1]
-            cmd = f"cat /proc/partitions | grep {only_dev_name} | " "awk '{print $1}'"
-            major = execute_command(self, cmd, verbose=True)[0]
-            major = major.strip('\n')
-            cmd = f"cat /proc/partitions | grep {only_dev_name} | " "awk '{print $2}'"
-            minor = execute_command(self, cmd, verbose=True)[0]
-            minor = minor.strip('\n')
-            cmd = f"mknod {part_name} b {major} {minor}"
-            execute_command(self, cmd, verbose=True)
-            cmd = f"stat {part_name}"
-            execute_command(self, cmd, verbose=True)
-        cmd = f"mkfs.ext4 {part_name} -L {label}"
-        ret = execute_command(self, cmd, verbose=True)[1]
-    return ret
-
-# /dev/sdb1 = BE log file path = 4G
-# /dev/sdb2 = BE seg0 file path = 128M
-# /dev/sdb3 = [size(metadata_disk)] - [size(/dev/sdb1) + size(/dev/sdb2)]
-
-# cvg_o metadata_disk = /dev_sdb
-# /dev/disk/by-label/lv_be_log1 -> ../../sdb1
-# /dev/disk/by-label/lv_be_seg1 -> ../../sdb2
-# /dev/disk/by-label/lv_raw_md1 -> ../../sdb3
-# Size of /dev/sdb1 = min(MOTR_M0D_BESEG_SIZE, 0.04*disk_size(/dev/sdb))
-# Size of /dev/sdb2 = 128M
-# Size of /dev/sdb3 = disk_size(/dev/sdb) - Size of /dev/sdb1
-
-# cvg_1 metadata_disk = /dev/sde
-# /dev/disk/by-label/lv_be_log2 -> ../../sde1
-# /dev/disk/by-label/lv_be_seg2 -> ../../sde2
-# /dev/disk/by-label/lv_raw_md2 -> ../../sde2
-# Size of /dev/sde1 = min(MOTR_M0D_BESEG_SIZE, 0.04*disk_size(/dev/sde))
-# Size of /dev/sde2 = 128M
-# Size of /dev/sde3 = disk_size(/dev/sde) - Size of /dev/sde1
-
-def create_parts(self, dev_count, device):
-    raw_md_label = f"raw_md{dev_count}"
-    be_log_label = f"be_log{dev_count}"
-    be_seg_label = f"be_seg{dev_count}"
-
-    disk_size = int(get_disk_size(self, device))
-
-    be_log_part_sz = BE_LOG_SZ #4GB
-    be_seg_part_sz = BE_SEG0_SZ  #128MB
-    raw_md_part_sz = int(disk_size) - int(be_log_part_sz + be_seg_part_sz)
-
-    be_log_part_sz_GB = str(int(be_log_part_sz/(1024*1024*1024)))+'G'
-    be_seg_part_sz_MB = str(int(be_seg_part_sz/(1024*1024)))+'M'
-    raw_md_part_sz_GB = str(int(raw_md_part_sz/(1024*1024*1024))) + 'G'
-
-    self.logger.info(f"be_log_part_sz_GB = {be_log_part_sz_GB}")
-    self.logger.info(f"be_seg_MB = {be_seg_part_sz_MB}")
-    self.logger.info(f"raw_md_part_sz_GB = {raw_md_part_sz_GB}")
-
-
-    ret = create_part(self, device, be_log_label, be_log_part_sz_GB, 1)
-    if ret == 0:
-        ret = create_part(self, device, be_seg_label, be_seg_part_sz_MB, 2)
-        if ret == 0:
-            ret = create_part(self, device, raw_md_label, raw_md_part_sz_GB, 3)
-    return ret
 
 def read_config(file):
     fp = open(file, "r")
