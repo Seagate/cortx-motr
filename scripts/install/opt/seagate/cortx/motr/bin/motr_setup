@@ -142,7 +142,6 @@ class PostInstallCmd(Cmd):
                 return
         if self.k8:
             # Partitioning of metadata disk is not required for cortx-m0 release
-            #config_part(self)
             return
         else:
             if lvm_exist(self):

@@ -213,11 +213,13 @@ def validate_file(file):
     if not os.path.exists(file):
         raise MotrError(errno.ENOENT, f"{file} does not exist")
 
+# Check if file paths are valid
 def validate_files(files):
     for file in files:
         if not os.path.exists(file):
             raise MotrError(errno.ENOENT, f"{file} does not exist")
 
+# Create directories
 def create_dirs(self, dirs):
     for entry in dirs:
         if not os.path.exists(entry):
@@ -262,12 +264,10 @@ def update_copy_motr_config_file(self):
     validate_files([MOTR_SYS_CFG, local_path, log_path])
     MOTR_LOCAL_DIR = f"{local_path}/motr"
     if not os.path.exists(MOTR_LOCAL_DIR):
-        cmd = f"mkdir -p {MOTR_LOCAL_DIR}"
-        execute_command(self, cmd)
+        create_dirs(self, [f"{MOTR_LOCAL_DIR}"])
     MOTR_LOCAL_SYSCONFIG_DIR = f"{MOTR_LOCAL_DIR}/sysconfig"
     if not os.path.exists(MOTR_LOCAL_SYSCONFIG_DIR):
-        cmd = f"mkdir -p {MOTR_LOCAL_SYSCONFIG_DIR}"
-        execute_command(self, cmd)
+        create_dirs(self, [f"{MOTR_LOCAL_SYSCONFIG_DIR}"])
 
     MOTR_CONF_DIR = f"{local_path}/hare/sysconfig/motr/{hostname}"
     MOTR_MOD_DATA_DIR = f"{local_path}/motr"
@@ -626,7 +626,6 @@ def validate_storage_schema(storage):
                     check_type(val[i], str, f"data_devices[{i}]")
 
 def get_cvg_cnt_and_cvg_k8(self):
-    #validate_storage_schema(self.storage)
     try:
         cvg = self.storage['cvg']
         cvg_cnt = len(cvg)
@@ -1159,6 +1158,7 @@ def config_part(self):
         check_type(metadata_device, str, "metadata_devices")
         self.logger.info(f"\nlvm metadata_device: {metadata_device}\n\n")
         # Currently only one metadata device in one cvg
+        # partiion logic is not requried for cortx-M0 so below code will not be executed
         ret = create_parts(self, dev_count, metadata_device)
         if ret != 0:
             return ret
