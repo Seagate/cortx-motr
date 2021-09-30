@@ -31,7 +31,7 @@
 
 /**
  * Module for ARM64 linux platform to provide user space access of 
- * perf monitor registers
+ * perf monitor registers.
  */
 static void enable_user_space_access_pccnt(void *dt)
 {

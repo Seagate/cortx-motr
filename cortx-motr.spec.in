@@ -1,4 +1,7 @@
-%undefine _missing_build_ids_terminate_build
+# Todo
+%if "%{?CONFIG_ARCH_TYPE}" == "aarch64"
+undefine _missing_build_ids_terminate_build
+%endif
 # feature flags
 %bcond_with ut
 %bcond_with debuginfo_sources

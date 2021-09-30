@@ -103,7 +103,7 @@ struct processor_node {
 /* Global variables */
 static bool processor_init = false;
 static struct m0_list x86_cpus;
-#endif
+#endif /* CONFIG_X86_64 */
 
 #if defined CONFIG_X86_64 || defined CONFIG_AARCH64
 /**
@@ -132,7 +132,7 @@ static void processors_bitmap_copy(struct m0_bitmap *dest,
 		m0_bitmap_set(dest, bit, val);
 	}
 }
-#endif
+#endif /* CONFIG_X86_64 || CONFIG_AARCH64 */
 
 #ifdef CONFIG_X86_64
 /**
@@ -592,7 +592,7 @@ static int processor_x86cache_create(void)
 
 	return 0;
 }
-#endif
+#endif /* CONFIG_X86_64 */
 
 #if defined CONFIG_X86_64 || defined CONFIG_AARCH64
 M0_INTERNAL int m0_processors_init()
@@ -648,12 +648,12 @@ M0_INTERNAL int m0_processor_describe(m0_processor_nr_t id,
 
 	return processor_x86_info_get(id, pd);
 }
-#endif
+#endif /* CONFIG_X86_64 */
 M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 {
 	return smp_processor_id();
 }
-#endif
+#endif /* CONFIG_X86_64 || CONFIG_AARCH64 */
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of processor group */
