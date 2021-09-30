@@ -281,7 +281,7 @@ static int delete_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 	return rc;
 }
 
-static int btree_insert_callback(struct m0_btree_cb  *cb,
+static int bt_insert_callback(struct m0_btree_cb  *cb,
 				 struct m0_btree_rec *rec)
 {
 	struct m0_btree_rec     *datum = cb->c_datum;
@@ -308,7 +308,7 @@ static int insert_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 			};
-	struct m0_btree_cb   put_cb = {.c_act = btree_insert_callback,
+	struct m0_btree_cb   put_cb = {.c_act = bt_insert_callback,
 				       .c_datum = &rec,
 				      };
 	rc = M0_BTREE_OP_SYNC_WITH_RC(
@@ -317,7 +317,7 @@ static int insert_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 	return rc;
 }
 
-static int btree_update_callback(struct m0_btree_cb  *cb,
+static int bt_update_callback(struct m0_btree_cb  *cb,
 				 struct m0_btree_rec *rec)
 {
 	struct m0_btree_rec     *datum = cb->c_datum;
@@ -342,7 +342,7 @@ static int update_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 		.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 		.r_val        = M0_BUFVEC_INIT_BUF( &v_ptr, &vsize),
 	};
-	struct m0_btree_cb   update_cb = {.c_act = btree_update_callback,
+	struct m0_btree_cb   update_cb = {.c_act = bt_update_callback,
 					  .c_datum = &rec,
 					 };
  	rc = M0_BTREE_OP_SYNC_WITH_RC(
@@ -916,7 +916,7 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 		 .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 		 .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 	      };
-	put_cb = (struct m0_btree_cb) {.c_act = btree_insert_callback,
+	put_cb = (struct m0_btree_cb) {.c_act = bt_insert_callback,
 		 .c_datum = &rec,
 		 };
 
