@@ -384,11 +384,12 @@ m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db, bool check)
 	m0_format_footer_update(map);
 }
 
-M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map)
+M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map, bool check)
 {
 	struct m0_btree_op b_op = {};
 	map->em_version = 0;
-	M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+	if (check)
+		M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				 m0_btree_close(map->em_mapping,
 						&b_op));
 	m0_free0(&map->em_mapping);

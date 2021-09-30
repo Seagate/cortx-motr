@@ -444,7 +444,7 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 				    0, adom->sad_dom_key);
 	dom->sd_private = adom;
 	dom->sd_ops     = &stob_ad_domain_ops;
-	m0_be_emap_init(&adom->sad_adata, seg, true);
+	m0_be_emap_init(&adom->sad_adata, seg, false);
 
 	ballroom = adom->sad_ballroom;
 	m0_balloc_init(b2m0(ballroom));
@@ -464,7 +464,7 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 	if (rc != 0) {
 		if (balloc_inited)
 			ballroom->ab_ops->bo_fini(ballroom);
-		m0_be_emap_fini(&adom->sad_adata);
+		m0_be_emap_fini(&adom->sad_adata, false);
 		m0_free(dom);
 	} else {
 		m0_stob_ad_domain_bob_init(adom);
@@ -488,7 +488,7 @@ static void stob_ad_domain_fini(struct m0_stob_domain *dom)
 	struct m0_ad_balloc      *ballroom = adom->sad_ballroom;
 
 	ballroom->ab_ops->bo_fini(ballroom);
-	m0_be_emap_fini(&adom->sad_adata);
+	m0_be_emap_fini(&adom->sad_adata, false);
 	m0_stob_put(adom->sad_bstore);
 	m0_stob_ad_domain_bob_fini(adom);
 	m0_free(dom);
@@ -502,9 +502,9 @@ static void stob_ad_domain_create_credit(struct m0_be_seg *seg,
 	struct m0_buf     data = { .b_nob = sizeof(struct stob_ad_0type_rec) };
 
 	M0_BE_ALLOC_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
-	m0_be_emap_init(&map, seg, true);
+	m0_be_emap_init(&map, seg, false);
 	m0_be_emap_credit(&map, M0_BEO_CREATE, 1, accum);
-	m0_be_emap_fini(&map);
+	m0_be_emap_fini(&map, false);
 	m0_be_0type_add_credit(seg->bs_domain, &m0_stob_ad_0type,
 			       location_data, &data, accum);
 }
@@ -516,9 +516,9 @@ static void stob_ad_domain_destroy_credit(struct m0_be_seg *seg,
 	struct m0_be_emap map = {};
 
 	M0_BE_FREE_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
-	m0_be_emap_init(&map, seg, true);
+	m0_be_emap_init(&map, seg, false);
 	m0_be_emap_credit(&map, M0_BEO_DESTROY, 1, accum);
-	m0_be_emap_fini(&map);
+	m0_be_emap_fini(&map, false);
 	m0_be_0type_del_credit(seg->bs_domain, &m0_stob_ad_0type,
 			       location_data, accum);
 }
@@ -562,7 +562,7 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 
 	M0_ASSERT(adom == NULL);
 	if (rc == 0)
-		M0_BE_ALLOC_PTR_SYNC(adom, seg, &tx);
+		M0_BE_ALLOC_ALIGN_PTR_SYNC(adom, 10, seg, &tx);
 	if (adom != NULL) {
 		m0_format_header_pack(&adom->sad_header, &(struct m0_format_tag){
 			.ot_version = M0_STOB_AD_DOMAIN_FORMAT_VERSION,
@@ -589,7 +589,7 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 			m0_be_emap_create(emap, &tx, &op,
 					  &cfg->adg_id.si_fid),
 			bo_u.u_emap.e_rc);
-		m0_be_emap_fini(emap);
+		m0_be_emap_fini(emap, true);
 
 		seg0_ad_rec = (struct stob_ad_0type_rec){.sa0_ad_domain = adom}; /* XXX won't be a pointer */
 		m0_format_header_pack(&seg0_ad_rec.sa0_header, &(struct m0_format_tag){

@@ -134,10 +134,10 @@ enum m0_be_emap_format_version {
 	M0_BE_EMAP_FORMAT_VERSION = M0_BE_EMAP_FORMAT_VERSION_1
 };
 
-#define __AAL(x) __attribute__((aligned(x)))
+// #define __AAL(x) __attribute__((aligned(x)))
 
 /** Root node alignment for balloc extend and group descriptor trees. */
-#define EMAP_ROOT_NODE_ALIGN  1024
+#define EMAP_ROOT_NODE_ALIGN 1024
 
 enum {
 	/** Root node size for balloc extend and group descriptor trees. */
@@ -167,7 +167,7 @@ struct m0_be_emap {
 	 *  are aligned to Block boundary for performance reasons.
 	 */
 	uint8_t                 em_mp_node[EMAP_ROOT_NODE_SIZE]
-					__AAL(EMAP_ROOT_NODE_ALIGN);
+				__attribute__((aligned(EMAP_ROOT_NODE_ALIGN)));
 	/*
 	 * volatile-only fields
 	 */
