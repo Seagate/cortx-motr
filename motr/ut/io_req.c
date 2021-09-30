@@ -933,6 +933,8 @@ static void ut_test_ioreq_application_data_copy(void)
 	int                          buf_idx = 0;
 	enum m0_pi_calc_flag         flag = M0_PI_CALC_UNIT_ZERO;
 	struct m0_ivec_cursor        extcur;
+	struct m0_bufvec            *data;
+	struct m0_buf               *buf;
 
 	/* init client */
 	instance = dummy_instance;
@@ -954,7 +956,8 @@ static void ut_test_ioreq_application_data_copy(void)
 	M0_UT_ASSERT(rc == 0);
 
 	stashed1 = ioo->ioo_attr;
-	rc = m0_bufvec_alloc(&ioo->ioo_attr, 6, sizeof(struct m0_md5_inc_context_pi));
+	rc = m0_bufvec_alloc(&ioo->ioo_attr, 6,
+			     sizeof(struct m0_md5_inc_context_pi));
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_bufvec_alloc(&ioo->ioo_attr, 6, UT_DEFAULT_BLOCK_SIZE);
@@ -1017,15 +1020,18 @@ static void ut_test_ioreq_application_data_copy(void)
 			}
 
 			for (i = 0; i < map->pi_max_row; i++) {
-				user_data.ov_vec.v_count[0] = map->pi_databufs[i][j]->db_buf.b_nob;
-				user_data.ov_buf[0] = map->pi_databufs[i][j]->db_buf.b_addr;
+				/* TODO: DI_FORMAT */
+				buf = &map->pi_databufs[i][j]->db_buf;
+				user_data.ov_vec.v_count[0] = buf->b_nob;
+				user_data.ov_buf[0] = buf->b_addr;
 
 				pi.pimd5c_hdr.pih_type = M0_PI_TYPE_MD5_INC_CONTEXT;
 				seed.pis_data_unit_offset = m0_ivec_cursor_index(&extcur);
 
 				rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-							    &seed, &user_data, flag,
-							    curr_context, NULL);
+							    &seed, &user_data,
+							    flag, curr_context,
+							    NULL);
 				M0_UT_ASSERT(rc == 0);
 			}
 
@@ -1048,11 +1054,13 @@ static void ut_test_ioreq_application_data_copy(void)
 			for (j = 0; j < map->pi_max_col; j++) {
 
 				int count = 0;
-				while (count < map->pi_databufs[i][j]->db_buf.b_nob) {
-					M0_UT_ASSERT(memcmp(ioo->ioo_data.ov_buf[buf_idx],
-							    map->pi_databufs[i][j]->db_buf.b_addr+count,
-							    ioo->ioo_data.ov_vec.v_count[buf_idx]) == 0);
-					count += ioo->ioo_data.ov_vec.v_count[buf_idx];
+				data = &ioo->ioo_data;
+				buf = &map->pi_databufs[i][j]->db_buf;
+				while (count < buf->b_nob) {
+					M0_UT_ASSERT(memcmp(data->ov_buf[buf_idx],
+							    buf->b_addr+count,
+							    data->ov_vec.v_count[buf_idx]) == 0);
+					count += data->ov_vec.v_count[buf_idx];
 					buf_idx++;
 				}
 			}

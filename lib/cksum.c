@@ -62,7 +62,8 @@ M0_INTERNAL int calculate_md5_inc_context(struct m0_md5_inc_context_pi *pi,
 	/* get the curr context by updating it*/
 	if (bvec != NULL) {
 		for (i = 0; i < bvec->ov_vec.v_nr; i++) {
-			rc = MD5_Update((MD5_CTX *)curr_context, bvec->ov_buf[i],
+			rc = MD5_Update((MD5_CTX *)curr_context,
+					bvec->ov_buf[i],
 					bvec->ov_vec.v_count[i]);
 			if (rc != 1) {
 				return M0_ERR_INFO(rc, "MD5_Update failed."
@@ -84,7 +85,8 @@ M0_INTERNAL int calculate_md5_inc_context(struct m0_md5_inc_context_pi *pi,
 	if (pi_value_without_seed != NULL) {
 		/* 
 		 * NOTE: MD5_final() changes the context itself and curr_context
-		 * should not be finalised, thus copy it and use it for MD5_final
+		 * should not be finalised, thus copy it and use it for
+		 * MD5_final
 		 */
 		memcpy((void *)&context, (void *)curr_context, sizeof(MD5_CTX));
 
@@ -122,9 +124,12 @@ M0_INTERNAL int calculate_md5_inc_context(struct m0_md5_inc_context_pi *pi,
 		if (rc != 1) {
 
 			return M0_ERR_INFO(rc, "MD5_Update fail curr_context=%p"
-					   "f_container 0x%"PRIx64" f_key 0x%"PRIx64
-					   " data_unit_offset 0x%"PRIx64" seed_str %s",
-					   curr_context, seed->pis_obj_id.f_container,
+					   "f_container 0x%"PRIx64
+					   "f_key 0x%"PRIx64
+					   " data_unit_offset 0x%"PRIx64
+					   " seed_str %s",
+					   curr_context,
+					   seed->pis_obj_id.f_container,
 					   seed->pis_obj_id.f_key,
 					   seed->pis_data_unit_offset,
 					   (char *)seed_str);

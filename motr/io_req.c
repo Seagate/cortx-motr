@@ -1194,6 +1194,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 		while (count > 0) {
 			bytes = m0_bufvec_cursor_step(&datacur);
 			if (bytes < count) {
+				/* DI_FORMAT */
 				user_data.ov_vec.v_count[i] = bytes;
 				user_data.ov_buf[i] = m0_bufvec_cursor_addr(&datacur);
 				m0_bufvec_cursor_move(&datacur, bytes);
@@ -1207,7 +1208,8 @@ static bool verify_checksum(struct m0_op_io *ioo)
 			i++;
 		}
 
-		if (ioo->ioo_attr.ov_vec.v_nr && ioo->ioo_attr.ov_vec.v_count[attr_idx] != 0) {
+		if (ioo->ioo_attr.ov_vec.v_nr &&
+		    ioo->ioo_attr.ov_vec.v_count[attr_idx] != 0) {
 
 			seed.pis_data_unit_offset   = m0_ivec_cursor_index(&extcur);
 			seed.pis_obj_id.f_container = ioo->ioo_obj->ob_entity.en_id.u_hi;
@@ -1215,7 +1217,8 @@ static bool verify_checksum(struct m0_op_io *ioo)
 
 			pi_ondisk = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[attr_idx];
 
-			if (!m0_calc_verify_cksum_one_unit(pi_ondisk, &seed, &user_data)) {
+			if (!m0_calc_verify_cksum_one_unit(pi_ondisk, &seed,
+						           &user_data)) {
 				return false;
 			}
 		}
@@ -1232,7 +1235,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 	}
 	else {
 		/* something wrong, we terminated early */
-		M0_IMPOSSIBLE("something wrong while calculating checksum on read data");
+		M0_IMPOSSIBLE("checksum calculation failed for read data");
 	}
 }
 

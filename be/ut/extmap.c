@@ -249,8 +249,10 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 	rc = be_emap_lookup(emap, &prefix, offset, &it);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_buf_alloc(&cksum[0], (EXTMAP_UT_CS_SIZE * len[0]) / EXTMAP_UT_UNIT_SIZE);
-	m0_buf_alloc(&cksum[1], (EXTMAP_UT_CS_SIZE * len[1]) / EXTMAP_UT_UNIT_SIZE);
+	m0_buf_alloc(&cksum[0],
+		     (EXTMAP_UT_CS_SIZE * len[0]) / EXTMAP_UT_UNIT_SIZE);
+	m0_buf_alloc(&cksum[1],
+		     (EXTMAP_UT_CS_SIZE * len[1]) / EXTMAP_UT_UNIT_SIZE);
 
 	memset(cksum[0].b_addr, 'A', cksum[0].b_nob);
 	memset(cksum[1].b_addr, 'B', cksum[1].b_nob);
@@ -263,7 +265,7 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 		seglen = m0_ext_length(&seg->ee_ext);
 		M0_LOG(M0_DEBUG, "%3i: seglen=%llx", i,
 					(unsigned long long)seglen);
-		total  = len[0]+len[1]; /* 100 + 50, the sum of elements in len[]. */
+		total  = len[0]+len[1]; /* 100+50, sum of elements in len[]. */
 		M0_UT_ASSERT(seglen > total);
 		len[ARRAY_SIZE(len) - 1] = seglen - total;
 		M0_SET0(it_op);
@@ -409,7 +411,8 @@ static void test_paste(void)
 	e1 = e;
 	e_val = 12;
 
-	m0_buf_alloc(&cksum, (EXTMAP_UT_CS_SIZE * m0_ext_length(&e)) / EXTMAP_UT_UNIT_SIZE);
+	m0_buf_alloc(&cksum, (EXTMAP_UT_CS_SIZE * m0_ext_length(&e)) /
+		     EXTMAP_UT_UNIT_SIZE);
 	memset(cksum.b_addr, 'C', cksum.b_nob);
 	it.ec_unit_size = EXTMAP_UT_UNIT_SIZE;
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
@@ -436,7 +439,8 @@ static void test_paste(void)
 	rc = be_emap_lookup(emap, &prefix, e.e_start, &it);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == cksum.b_nob);
-	M0_UT_ASSERT(memcmp(seg->ee_cksum_buf.b_addr, cksum.b_addr, cksum.b_nob) == 0);
+	M0_UT_ASSERT(memcmp(seg->ee_cksum_buf.b_addr, cksum.b_addr,
+			    cksum.b_nob) == 0);
 
 	M0_UT_ASSERT(seg->ee_ext.e_start == e.e_start);
 	M0_UT_ASSERT(seg->ee_ext.e_end   == e.e_end );
@@ -594,7 +598,7 @@ static void test_paste_checksum_validation(void)
 	e.e_end   = 150;
 	es[idx] = e_temp[idx] = e;
 	e_val[idx] = 11;
-	
+
 	m0_buf_alloc(&cksum[idx], (EXTMAP_UT_CS_SIZE * 
 		     m0_ext_length(&e))/EXTMAP_UT_UNIT_SIZE);
 	memset(cksum[idx].b_addr, 'B', cksum[idx].b_nob);

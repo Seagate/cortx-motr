@@ -484,12 +484,14 @@ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
  *
  * 1. Finds the overlap of current-segment with extent (ext)
  * 2. Based on the overlap, atmost 3 sub-segment can get created
- *    (term left/right w.r.t area of current segment left after removing clip area)
+ *    (term left/right w.r.t area of current segment left after
+ *    removing clip area)
  *    a. Left   sub-seg : Overlap of start of cur-seg  with ext
  *        		      |  cur-seg  |
  *                             | clip - ext |
  *                        |Left| => [curr-seg:Start - clip:Start]
- *    b. Middle sub-seg : If ext part (to be pasted) fully overlaps with curr-seg (clip)
+ *    b. Middle sub-seg : If ext part (to be pasted) fully overlaps
+ *                        with curr-seg (clip)
  *        			      |         cur-seg              |
  *                               | clip - ext |
  *                        | Left |   Middle   |  Right   |
@@ -497,20 +499,22 @@ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
  *        			      |  cur-seg  |
  *                | clip - ext |
  *                             |Right | => [clip:End - curr-seg:End]
- * 3. EMAP operation for these three segments are performed (not all may be needed)
- * 4. If part of extent (after removing clip) is remaining then new segment is read
- *    (be_emap_next) and again above operations are performed
+ * 3. EMAP operation for these three segments are performed
+ *    (not all may be needed)
+ * 4. If part of extent (after removing clip) is remaining then new segment is
+ *    read (be_emap_next) and again above operations are performed
  *
  * For checksum operation :
- * a. Left Opn  : Reduce the checksum number of byte from checksum of left segment
+ * a. Left Opn  : Reduce the checksum number of byte 
+ *                from checksum of left segment
  * b. Right Opn : Update checksum new start and size
  *
- * During operation like punch, we need to find the size of single unit of checksum
- * this is derived based on unit size (one checksum unit for one data unit) and total
- * checksum size.
+ * During operation like punch, we need to find the size of single unit of
+ * checksum, this is derived based on unit size
+ * (one checksum unit for one data unit) and total checksum size.
  *
- * COB when created has following extent: [0, infinity or -1 ), er_value: AET_HOLE
- * so when x-DU (Data Units) gets pasted extents are:
+ * COB when created has following extent: [0, infinity or -1 ),
+ * er_value: AET_HOLE, so when x-DU (Data Units) gets pasted extents are:
  * [0, x-DU), er_value: x-DeviceLBA
  * [x-DU, infinity or -1 ), er_value: AET_HOLE
  */
@@ -588,6 +592,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 
 		if (seg->ee_cksum_buf.b_nob) {
 			/* Compute checksum unit size for given segment */
+			/* TODO: DI_FORMAT */
 			chunk_cs_count = m0_extent_get_num_unit_start(chunk->e_start,
 			                                              m0_ext_length(chunk),
 								      it->ec_unit_size);
@@ -786,8 +791,8 @@ M0_INTERNAL void m0_be_emap_obj_delete(struct m0_be_emap *map,
 	struct m0_be_emap_cursor *it = &it_s;
 #endif
 
-	/* Clear record buffer before lookup as it will use m0_buf for allocation
-	 * and saving the variable size record having checksum
+	/* Clear record buffer before lookup as it will use m0_buf for
+	 * allocation and saving the variable size record having checksum
 	 */
 	it->ec_recbuf.b_addr = NULL;
 	it->ec_recbuf.b_nob  = 0;
@@ -1058,18 +1063,18 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 			m0_buf_free(&it->ec_recbuf);
 		}
 
-		/* Layout/format of emap-record (if checksum is present) which gets
-		 * written:
-		 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
+		/* Layout/format of emap-record (if checksum is present) which
+		 * gets written:
+		 * -[Hdr|Balloc-Ext-Start|B-Ext-Value|CS-nob|CS-Array[...]| Ftr]
 		 * It gets stored as contigious buffer, so allocating buffer
 		 */
 		rc = m0_buf_alloc(&it->ec_recbuf, recbuf.b_nob);
 		if ( rc != 0)
 			return rc;
 
-		/* Copying record buffer and loading into it->ec_rec, note record
-		 * will have incorrect footer in case of b_nob, but it->ec_recbuf
-		 * will have all correct values.
+		/* Copying record buffer and loading into it->ec_rec, note
+		 * record will have incorrect footer in case of b_nob,
+		 * but it->ec_recbuf will have all correct values.
 		 */
 		memcpy(it->ec_recbuf.b_addr, recbuf.b_addr, recbuf.b_nob);
 		rec = it->ec_recbuf.b_addr;
@@ -1197,7 +1202,8 @@ be_emap_invariant_check(struct m0_be_emap_cursor *it)
 			return false;
 		if (!_0C(m0_format_footer_verify(&it->ec_key, true) == 0))
 			return false;
-		if (!_0C(m0_format_footer_verify(it->ec_recbuf.b_addr, true) == 0))
+		if (!_0C(m0_format_footer_verify(it->ec_recbuf.b_addr,
+						 true) == 0))
 			return false;
 		reached = it->ec_seg.ee_ext.e_end;
 		total += m0_ext_length(&it->ec_seg.ee_ext);

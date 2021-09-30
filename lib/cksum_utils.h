@@ -55,7 +55,8 @@ M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob(m0_bindex_t ext_start,
                                                    m0_bindex_t unit_sz,
 						   m0_bcount_t cs_size);
 
-M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *b_addr, m0_bindex_t off,
+M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *b_addr,
+						   m0_bindex_t off,
                                                    void *vec,
 						   m0_bindex_t unit_sz,
 						   m0_bcount_t cs_sz);

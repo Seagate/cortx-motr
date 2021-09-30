@@ -864,23 +864,27 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
 	struct m0_fom           *fom   = cb->fc_fom;
 	struct m0_io_fom_cob_rw *fom_obj;
 	struct m0_stob_io_desc  *stio_desc;
+	struct m0_stob_io       *siod_stob_io;
 
 	M0_PRE(m0_fom_group_is_locked(fom));
 	M0_ASSERT(m0_fom_phase(fom) == M0_FOPH_IO_STOB_WAIT);
 	stio_desc = container_of(cb, struct m0_stob_io_desc, siod_fcb);
 	M0_ASSERT(m0_stob_io_desc_invariant(stio_desc));
+	siod_stob_io = &stio_desc->siod_stob_io;
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
 	/* Update checksum count in reply fop for read only */
 	if (m0_is_read_fop(fom->fo_fop)) {
+		/*TODO DI_FORMAT */
 		struct m0_fop_cob_rw_reply *rwrep = io_rw_rep_get(fom->fo_rep_fop);
 
-		/* The si_cksum_nob_read will get updated in function stob_ad_read_prepare
-		 * for every emap segment read with non-zero CS, this value gets updated.
+		/* The si_cksum_nob_read will get updated in function
+		 * stob_ad_read_prepare for every emap segment read with
+		 * non-zero CS, this value gets updated.
 		 */
-		rwrep->rwr_cksum_nob_read += stio_desc->siod_stob_io.si_cksum_nob_read;
+		rwrep->rwr_cksum_nob_read += siod_stob_io->si_cksum_nob_read;
 
 		M0_ASSERT(rwrep->rwr_cksum_nob_read <=
 			  rwrep->rwr_di_data_cksum.b_nob);
@@ -2050,6 +2054,7 @@ static int stob_io_create(struct m0_fom *fom)
 	struct m0_fop_cob_rw_reply *rw_replyfop;
 	m0_bindex_t                 unit_size;
 	m0_bindex_t                 curr_cksum_nob = 0;
+	struct m0_indexvec         *si_stob;
 
 	M0_PRE(fom != NULL);
 
@@ -2069,15 +2074,20 @@ static int stob_io_create(struct m0_fom *fom)
 		/* M0_ASSERT(rwfop->crw_di_data_cksum.b_nob == 0); */
 		/* M0_ASSERT(rwfop->crw_di_data_cksum.b_addr == NULL); */
 
-		/* Init tracker variable, this gets updated in stobio_complete_cb */
+		/* Init tracker variable, this gets updated 
+		 * in stobio_complete_cb
+		 */
 		rw_replyfop->rwr_cksum_nob_read = 0;
 
 		/* Compute nob based on the COB extents */
 		rw_replyfop->rwr_di_data_cksum.b_nob = 0;
-		for (i = 0; i < fom_obj->fcrw_io.si_stob.iv_vec.v_nr; i++) {
+		si_stob =  &fom_obj->fcrw_io.si_stob;
+		for (i = 0; i < si_stob->iv_vec.v_nr; i++) {
+
 			rw_replyfop->rwr_di_data_cksum.b_nob +=
-				m0_extent_get_checksum_nob(fom_obj->fcrw_io.si_stob.iv_index[i],
-							   fom_obj->fcrw_io.si_stob.iv_vec.v_count[i],
+				/* TODO DI_FORMAT */
+				m0_extent_get_checksum_nob(si_stob->iv_index[i],
+							   si_stob->iv_vec.v_count[i],
 							   unit_size,
 						           rwfop->crw_cksum_size);
 		}
@@ -2119,19 +2129,22 @@ static int stob_io_create(struct m0_fom *fom)
 			stio->si_cksum_sz = rwfop->crw_cksum_size;
 			stio->si_unit_sz = unit_size;
 
-			/* This function stob_ad_get_checksum_for_fragment update this values.
-			 * It is read checksum and its compared against the expeted checksum
-			 * nob (si_cksum.b_nob). Increment this value as cksum is put into
-			 * buffer.
+			/* This function stob_ad_get_checksum_for_fragment 
+			 * update this values. It is read checksum and its
+			 * compared against the expeted checksum nob
+			 * (si_cksum.b_nob). Increment this value as cksum is
+			 * put into buffer.
 			 */
 			stio->si_cksum_nob_read = 0;
 
 			/* Get the cksum nob expected for given stio */
 			stio->si_cksum.b_nob = 0;
-			for (j = 0; j < stio->si_stob.iv_vec.v_nr; j++) {
+			si_stob =  &stio->si_stob;
+			/* TODO DI_FORMAT */
+			for (j = 0; j < si_stob->iv_vec.v_nr; j++) {
 				stio->si_cksum.b_nob +=
-					m0_extent_get_checksum_nob(stio->si_stob.iv_index[j],
-								   stio->si_stob.iv_vec.v_count[j],
+					m0_extent_get_checksum_nob(si_stob->iv_index[j],
+								   si_stob->iv_vec.v_count[j],
 								   unit_size,
 								   stio->si_cksum_sz );
 			}

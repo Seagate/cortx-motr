@@ -149,6 +149,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	struct m0_indexvec     *ti_goff_ivec = &ti->ti_goff_ivec;
 	void                   *dst;
 	void                   *src;
+	struct m0_indexvec     *ioo_ext;
 
 	M0_PRE(ioo->ioo_attr.ov_vec.v_nr);
 	src = buf->b_addr;
@@ -182,8 +183,10 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 
 	/* Move ti index to rep index */
 	if (ti_cob_index != rep_index) {
-		M0_ASSERT (m0_ivec_cursor_move(&ti_cob_cursor,  rep_index - ti_cob_index) && 
-		           m0_ivec_cursor_move(&ti_goff_cursor, rep_index - ti_cob_index));
+		M0_ASSERT (m0_ivec_cursor_move(&ti_cob_cursor,
+					       rep_index - ti_cob_index) && 
+		           m0_ivec_cursor_move(&ti_goff_cursor,
+				               rep_index - ti_cob_index));
 	}
 
 	/*
@@ -204,20 +207,25 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 		ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
 
 		M0_ASSERT(rep_index == ti_cob_index);
-		/* GOB offset should be in span of application provided GOB extent */
+		/* GOB offset should be in span of application
+		 * provided GOB extent
+		 */
+		ioo_ext = &ioo->ioo_ext;
 		M0_ASSERT(ti_goff_index <=
-		          (ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr-1] +
-			   ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]));
+		          (ioo_ext->iv_index[ioo_ext->iv_vec.v_nr-1] +
+			   ioo_ext->iv_vec.v_count[ioo_ext->iv_vec.v_nr-1]));
 
 		dst = m0_extent_vec_get_checksum_addr(&ioo->ioo_attr,
 						      ti_goff_index,
-						      &ioo->ioo_ext,
+						      ioo_ext,
 						      unit_size, cs_sz);
 
 		memcpy(dst, src, cs_sz);
 		src = (char *)src + cs_sz;
 
-		/* Source is m0_buf and we have to copy all the checksum one at a time */
+		/* Source is m0_buf and we have to copy all the
+		 * checksum one at a time
+		 */
 		M0_ASSERT(src <= (buf->b_addr + buf->b_nob));
 
 	} while (!m0_ivec_cursor_move(&rep_cursor, unit_size) &&

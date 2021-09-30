@@ -394,7 +394,8 @@ void target_ioreq_fini(struct target_ioreq *ti)
 	m0_free0(&ti->ti_auxbufvec.ov_vec.v_count);
 
 	/* For the write path the ti_attrbuf which is m0_buf will be freed by
-	 * RPC layer, so no need to explicitly free it m0_buf_free(&ti->ti_attrbuf);
+	 * RPC layer, so no need to explicitly free it
+	 * m0_buf_free(&ti->ti_attrbuf);
 	 * TODO: Further validate this by checking if memory is actually freed.
 	 */
 
@@ -509,6 +510,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	bool                       is_goff_in_range;
 	void 			  *dst_attr = NULL;
 	uint32_t 		   b_nob;
+	struct m0_indexvec        *ioo_ext;
 
 	M0_PRE(tgt != NULL);
 	frame = tgt->ta_frame;
@@ -642,10 +644,14 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 INDEX(ivec, seg), COUNT(ivec, seg),
 				 FID_P(&ti->ti_fid), pattr[seg]);
 		/* Ignore hole because of data size not alligned pool width */
-		goff_span_ext.e_start = ioo->ioo_ext.iv_index[0];
-		goff_span_ext.e_end = ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr - 1] +
-				      ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr - 1];
-		/* If ioo_attr struct is not allocated then skip checksum computation */
+		//TODO: DI_FORMAT
+		ioo_ext = &ioo->ioo_ext;
+		goff_span_ext.e_start = ioo_ext->iv_index[0];
+		goff_span_ext.e_end = ioo_ext->iv_index[ioo_ext->iv_vec.v_nr - 1] +
+				      ioo_ext->iv_vec.v_count[ioo_ext->iv_vec.v_nr - 1];
+		/* If ioo_attr struct is not allocated then skip
+		 * checksum computation
+		 */
 		is_goff_in_range = m0_ext_is_in(&goff_span_ext, goff) &&
 		                                ioo->ioo_attr.ov_vec.v_nr;
 		if (dst_attr != NULL && unit_type == M0_PUT_DATA &&
@@ -659,12 +665,16 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			                                   COUNT(ivec, seg),
 							   unit_sz, cs_sz );
 			if (b_nob) {
-				/* This function will get checksum address from application provided
-				 * buffer. Checksum is corresponding to on gob offset and ioo_ext and
-				 * this function helps to locate exact address for the above.
-				 * Note: ioo_ext is span of offset for which ioo_attr is provided and
-				 * goff should lie within that span
+				/* This function will get checksum address from
+				 * application provided buffer. Checksum is
+				 * corresponding to on gob offset and ioo_ext
+				 * and this function helps to locate exact
+				 * address for the above.
+				 * Note: ioo_ext is span of offset for which ioo
+				 * ioo_attr is provided and goff should lie
+				 * within that span.
 				 */
+				// TODO: DI_FORMAT
 				src_attr = m0_extent_vec_get_checksum_addr(&ioo->ioo_attr,
 									   goff,
 									   &ioo->ioo_ext,
@@ -674,14 +684,18 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				memcpy((char *)dst_attr + ti->ti_cksum_copied,
 				       src_attr, b_nob);
 
-				/* Track checksum copied as we need to do overallocation for
-				 * ti_attrbuf for traget and while sending FOP we use this
-				 * counter to send the actual checksum size.
+				/* Track checksum copied as we need to do
+				 * overallocation for ti_attrbuf for traget and
+				 * while sending FOP we use this counter to
+				 * send the actual checksum size.
 				 */
 				ti->ti_cksum_copied += b_nob;
 
-				/* Make sure we are not exceeding the allocated buffer size */
-				M0_ASSERT(ti->ti_cksum_copied <= ti->ti_attrbuf.b_nob);
+				/* Make sure we are not exceeding the allocated
+				 * buffer size
+				 */
+				M0_ASSERT(ti->ti_cksum_copied <=
+					  ti->ti_attrbuf.b_nob);
 			}
 
 			ti->ti_cksum_seg_b_nob[seg] = b_nob;
@@ -964,10 +978,14 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					buf = auxbvec->ov_buf[seg];
 				} else {
 					buf = bvec->ov_buf[seg];
-					/* Add the size for checksum generated for every segment, skip parity */
+					/* Add the size for checksum generated
+					 * for every segment, skip parity
+					 */
 					if ((filter == PA_DATA) &&
 					    ioo->ioo_attr.ov_vec.v_nr &&
-					    (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE)) {
+					    (ioo->ioo_oo.oo_oc.oc_op.op_code ==
+					    M0_OC_WRITE)) {
+						/*TODO DI_FORMAT*/
 						delta += ti->ti_cksum_seg_b_nob[seg];
 						fop_cksm_nob += ti->ti_cksum_seg_b_nob[seg];
 					}
@@ -988,11 +1006,13 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 						bbsegs;
 					bbsegs = 0;
 
+					/* TODO: DI_FORMAT */
 					delta -= io_seg_size() - io_di_size(ioo);
 
 					if ((filter == PA_DATA) &&
 					    ioo->ioo_attr.ov_vec.v_nr &&
-					    (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE)) {
+					    (ioo->ioo_oo.oo_oc.oc_op.op_code ==
+					    M0_OC_WRITE)) {
 						delta -= ti->ti_cksum_seg_b_nob[seg];
 						fop_cksm_nob -= ti->ti_cksum_seg_b_nob[seg];
 					}
@@ -1046,19 +1066,22 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			if (m0_is_write_fop(&iofop->if_fop)) {
 				M0_ASSERT(fop_cksm_nob != 0);
 				/* RPC layer to free crw_di_data_cksum */
-				if (m0_buf_alloc(&rw_fop->crw_di_data_cksum, fop_cksm_nob) != 0)
+				if (m0_buf_alloc(&rw_fop->crw_di_data_cksum,
+						 fop_cksm_nob) != 0)
 					goto fini_fop;
 
 				memcpy(rw_fop->crw_di_data_cksum.b_addr,
-				       ti->ti_attrbuf.b_addr + dispatched_cksm_nob,
+				       ti->ti_attrbuf.b_addr +
+				       dispatched_cksm_nob,
 				       fop_cksm_nob);
 				dispatched_cksm_nob += fop_cksm_nob;
-				M0_ASSERT(dispatched_cksm_nob <= ti->ti_cksum_copied);
+				M0_ASSERT(dispatched_cksm_nob <=
+					  ti->ti_cksum_copied);
 			} else {
 				rw_fop->crw_di_data_cksum.b_addr = NULL;
 				rw_fop->crw_di_data_cksum.b_nob = 0;
 			}
-
+			/*TODO DI_FORMAT */
 			rw_fop->crw_cksum_size = (read_in_write ||
 			                          !(ioo->ioo_attr.ov_vec.v_nr)) ?
 						  0 : ioo->ioo_attr.ov_vec.v_count[0];
@@ -1232,6 +1255,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 		uint32_t b_nob;
 
 		ti->ti_attrbuf.b_addr = NULL;
+		/* DI_FORMAT */
 		b_nob = (size * ioo->ioo_attr.ov_vec.v_count[0]) /
 		         m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
 		rc = m0_buf_alloc(&ti->ti_attrbuf, b_nob);

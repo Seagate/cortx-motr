@@ -118,7 +118,7 @@ static int test_adieu_init(const char *location,
 	M0_ASSERT(user_cksm_buf[0] != NULL);
 	memset( user_cksm_buf[0], cs_char++, AD_ADIEU_CS_SZ);
 	for (i = 1; i < ARRAY_SIZE(user_cksm_buf); ++i) {
-		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_ADIEU_CS_SZ; 
+		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_ADIEU_CS_SZ;
 		memset( user_cksm_buf[i], cs_char++, AD_ADIEU_CS_SZ);
 	}
 
@@ -127,12 +127,12 @@ static int test_adieu_init(const char *location,
 		M0_ASSERT(read_buf[i] != NULL);
 	}
 
-	// Allocate contigious buffer for o/p checksums 
+	// Allocate contigious buffer for o/p checksums
 	read_cksm_buf[0] = m0_alloc(AD_ADIEU_CS_SZ * ARRAY_SIZE(read_cksm_buf));
 	M0_ASSERT(read_cksm_buf[0] != NULL);
 	memset( read_cksm_buf[0], 0, AD_ADIEU_CS_SZ);
 	for (i = 1; i < ARRAY_SIZE(read_cksm_buf); ++i) {
-		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_ADIEU_CS_SZ; 
+		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_ADIEU_CS_SZ;
 		memset( read_cksm_buf[i], 0, AD_ADIEU_CS_SZ);
 	}
 
@@ -285,7 +285,8 @@ static void test_adieu(const char *path)
 
 	for (i = 1; i < NR; ++i) {
 		test_read(i);
-		M0_ASSERT(memcmp(user_buf[i - 1], read_buf[i - 1], buf_size) == 0);
+		M0_ASSERT(memcmp(user_buf[i - 1], read_buf[i - 1],
+				 buf_size) == 0);
 		// TODO: Check how this can be enabled for linux stob
 		// M0_ASSERT(memcmp(user_cksm_buf[i - 1], read_cksm_buf[i - 1], AD_ADIEU_CS_SZ) == 0);
 	}
