@@ -1119,7 +1119,6 @@ def config_part(self):
         check_type(metadata_device, str, "metadata_devices")
         self.logger.info(f"\nlvm metadata_device: {metadata_device}\n\n")
         # Currently only one metadata device in one cvg
-        # partiion logic is not requried for cortx-M0 so below code will not be executed
         ret = create_parts(self, dev_count, metadata_device)
         if ret != 0:
             return ret
