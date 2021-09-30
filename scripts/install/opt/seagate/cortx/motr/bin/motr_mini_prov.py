@@ -146,7 +146,7 @@ def get_server_node_k8(self):
 
 
 def get_cluster(self):
-    """Get cluster """
+    """Get cluster."""
     try:
         cluster = Conf.get(self._index, 'cluster')
     except:
@@ -156,7 +156,7 @@ def get_cluster(self):
     return cluster
 
 def get_node(self):
-    """Get node"""
+    """Get node."""
     try:
         node = Conf.get(self._index, 'node')
     except:
@@ -166,24 +166,24 @@ def get_node(self):
     return node
 
 def get_cortx(self):
-    """Get cortx"""
+    """Get cortx."""
     try:
         cortx = Conf.get(self._index, 'cortx')
     except:
         raise MotrError(errno.EINVAL, "cortx does not exist in ConfStore")
 
-    check_type(cluster, dict, "cortx")
+    check_type(cortx, dict, "cortx")
     return cortx
 
-def get_data(self, dname, tname):
-    """Get cortx"""
+def get_data(self, key, key_type):
+    """Get data."""
     try:
-        data = Conf.get(self._index, dname)
+        val = Conf.get(self._index, key)
     except:
-        raise MotrError(errno.EINVAL, "{dname} does not exist in ConfStore")
+        raise MotrError(errno.EINVAL, "{key} does not exist in ConfStore")
 
-    check_type(data, tname, dname)
-    return data
+    check_type(val, key_type, key)
+    return val
 
 def get_logical_node_class(self):
     """Get logical_node_class."""
@@ -198,13 +198,7 @@ def get_local_storage(self):
     storage = self.local_node['storage']
     check_type(storage, dict, "storage")
     return storage
-    '''
-    for elem in self.logical_node_class:
-        if 'storage' in elem.keys():
-            if elem['storage']:
-                return elem['storage']
-    raise MotrError(errno.EINVAL, f"storage does not exist in ConfStore")
-    '''
+
 def restart_services(self, services):
     for service in services:
         self.logger.info(f"Restarting {service} service\n")
@@ -225,10 +219,9 @@ def validate_files(files):
             raise MotrError(errno.ENOENT, f"{file} does not exist")
 
 def create_dirs(self, dirs):
-    for dir in dirs:
-        if not os.path.exists(dir):
-            print(f" On line 230 {dir}")
-            cmd = f"mkdir -p {dir}"
+    for entry in dirs:
+        if not os.path.exists(entry):
+            cmd = f"mkdir -p {entry}"
             execute_command(self, cmd)
 
 def is_hw_node(self):
@@ -275,7 +268,7 @@ def update_copy_motr_config_file(self):
     if not os.path.exists(MOTR_LOCAL_SYSCONFIG_DIR):
         cmd = f"mkdir -p {MOTR_LOCAL_SYSCONFIG_DIR}"
         execute_command(self, cmd)
-   
+
     MOTR_CONF_DIR = f"{local_path}/hare/sysconfig/motr/{hostname}"
     MOTR_MOD_DATA_DIR = f"{local_path}/motr"
     MOTR_CONF_XC = f"{local_path}/hare/confd.xc"

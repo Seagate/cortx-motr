@@ -53,11 +53,11 @@ class Cmd:
         if not self.k8:
             self.server_node = get_server_node(self)
         else:
-            self.cortx = get_data(self, 'cortx', dict) 
+            self.cortx = get_data(self, 'cortx', dict)
             self.cluster = get_data(self, 'cluster', dict)
             self.nodes = get_data(self, 'node', dict)
             self.local_node = get_server_node_k8(self)
-            self.local_storage = get_local_storage(self) 
+            self.local_storage = get_local_storage(self)
     @property
     def args(self) -> str:
         return self._args
