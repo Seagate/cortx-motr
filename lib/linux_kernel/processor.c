@@ -105,7 +105,7 @@ static bool processor_init = false;
 static struct m0_list x86_cpus;
 #endif /* CONFIG_X86_64 */
 
-#if defined CONFIG_X86_64 || defined CONFIG_AARCH64
+#if defined (CONFIG_X86_64) || defined (CONFIG_AARCH64)
 /**
    Convert bitmap from one format to another. Copy cpumask bitmap to m0_bitmap.
 
@@ -594,7 +594,7 @@ static int processor_x86cache_create(void)
 }
 #endif /* CONFIG_X86_64 */
 
-#if defined CONFIG_X86_64 || defined CONFIG_AARCH64
+#if defined (CONFIG_X86_64) || defined (CONFIG_AARCH64)
 M0_INTERNAL int m0_processors_init()
 {
 #ifdef CONFIG_X86_64

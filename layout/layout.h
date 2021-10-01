@@ -175,7 +175,10 @@ enum {
 	enum { M0_DEFAULT_LAYOUT_ID = 1 };
 #elif defined CONFIG_AARCH64
 	enum { M0_DEFAULT_LAYOUT_ID = 5 }; 
-	/* Pages size on aarch64 Centos 7.9 : 64KB */
+/**
+ * Pages size on aarch64 Centos 7.9 : 64KB
+ * which corresponds to layout Id of 5.
+ */
 #else
 #error  "The platform is not supported"
 #endif
