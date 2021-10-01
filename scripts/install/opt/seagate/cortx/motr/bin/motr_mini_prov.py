@@ -269,14 +269,15 @@ def update_to_file(self, index, url, md_disks):
     ncvgs = len(md_disks)
     self.logger.info(f"index={index}\n_url_motr_hare={url}\nNo. of cvgs={ncvgs}")
     machine_id = get_machine_id(self).strip('\n')
+    hostname = self.node['hostname'] 
     for i in range(ncvgs):
         md = md_disks[i]
         len_md = len(md)
         for j in range(len_md):
             md_disk = md[j]
-            self.logger.info(f"setting key server>{machine_id}>cvg[{i}]>m0d[{j}]>md_seg1"
+            self.logger.info(f"setting key server>{hostname}>cvg[{i}]>m0d[{j}]>md_seg1"
                          f" with value {md_disk} in {url}")
-            Conf.set(index, f"server>{machine_id}>cvg[{i}]>m0d[{j}]>md_seg1",f"{md_disk}")
+            Conf.set(index, f"server>{hostname}>cvg[{i}]>m0d[{j}]>md_seg1",f"{md_disk}")
             Conf.save(index)
 
 def update_motr_hare_keys(self):
