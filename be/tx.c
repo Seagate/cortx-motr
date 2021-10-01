@@ -740,6 +740,37 @@ M0_INTERNAL void m0_be_tx_gc_enable(struct m0_be_tx *tx,
 	tx->t_gc_param   = param;
 }
 
+M0_INTERNAL void m0_be_tx_lsn_set(struct m0_be_tx *tx,
+                                  m0_bindex_t      lsn,
+                                  m0_bindex_t      lsn_discarded)
+{
+	/*
+	 * This function is called from m0_be_tx_group_close().
+	 * When the BE tx group this transaction belongs to is being closed
+	 * the tx sm group is not locked - this is why BE_TX_LOCKED_AT_STATE
+	 * could not be used here.
+	 */
+	M0_PRE(m0_be_tx_state(tx) == M0_BTS_CLOSED);
+
+	tx->t_lsn = lsn;
+	tx->t_lsn_discarded = lsn_discarded;
+	M0_LEAVE("tx=%p t_lsn=%"PRIu64" t_lsn_discarded=%"PRIu64,
+	         tx, tx->t_lsn, tx->t_lsn_discarded);
+}
+
+M0_INTERNAL void m0_be_tx_lsn_get(struct m0_be_tx *tx,
+                                  m0_bindex_t     *lsn,
+                                  m0_bindex_t     *lsn_discarded)
+{
+	M0_ENTRY("tx=%p t_lsn=%"PRIu64" t_lsn_discarded=%"PRIu64,
+	         tx, tx->t_lsn, tx->t_lsn_discarded);
+	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_LOGGED, M0_BTS_PLACED,
+	                                  M0_BTS_DONE)));
+
+	*lsn = tx->t_lsn;
+	*lsn_discarded = tx->t_lsn_discarded;
+}
+
 M0_EXTERN struct m0_sm_conf op_states_conf;
 M0_INTERNAL int m0_be_tx_mod_init(void)
 {

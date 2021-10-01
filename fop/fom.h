@@ -276,8 +276,8 @@ struct m0_fom_locality {
 	/**
 	 *  Re-scheduling channel that the handler thread waits on for new work.
 	 *
-	 *  @see http://www.tom-yam.or.jp/2238/src/slp.c.html#line2142 for
-	 *  the explanation of the name.
+	 *  @see https://github.com/dspinellis/unix-history-repo/blob/Research-V5/usr/sys/ken/slp.c#L70
+	 *  for the explanation of the name.
 	 */
 	struct m0_chan		       fl_runrun;
 	/**
@@ -335,8 +335,6 @@ struct m0_fom_domain {
 	const struct m0_fom_domain_ops *fd_ops;
 	/** Long living foms detecting chore. */
 	struct m0_locality_chore        fd_hung_foms_chore;
-	/** Locality thread migration warning chore. */
-	struct m0_locality_chore        fd_locm_warn_chore;
 	struct m0_addb2_sys            *fd_addb2_sys;
 };
 
@@ -876,6 +874,11 @@ M0_INTERNAL int m0_fom_addb2_init(struct m0_fom_type *type, uint64_t id);
  * added in FOL record fragment.
  */
 M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
+
+/**
+ * Post FDMI record for this fom. FDMI record in this case contains FOL record.
+ */
+M0_INTERNAL void m0_fom_fdmi_record_post(struct m0_fom *fom);
 
 M0_INTERNAL struct m0_reqh *m0_fom2reqh(const struct m0_fom *fom);
 
