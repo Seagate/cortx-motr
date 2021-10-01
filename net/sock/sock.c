@@ -3650,12 +3650,6 @@ static int pk_header_done(struct mover *m)
 		return M0_ERR(-EPROTO);
 	if (!ep_eq(ma_src(ma), &p->p_dst.bd_addr))
 		return M0_ERR(-EPROTO);
-	if (!addr_eq(&m->m_sock->s_ep->e_a, &p->p_src.bd_addr)) {
-		M0_LOG(M0_ERROR, "Wrong source: want: "ADDR_F,
-		       ADDR_P(&m->m_sock->s_ep->e_a));
-		M0_LOG(M0_ERROR, "Got: "ADDR_F, ADDR_P(&p->p_src.bd_addr));
-		return M0_ERR(-EPROTO);
-	}
 	hassrc = !M0_IS0(&p->p_src.bd_cookie);
 	hasdst = !M0_IS0(&p->p_dst.bd_cookie);
 	if (!hassrc && !hasdst)         /* Go I know not whither */
