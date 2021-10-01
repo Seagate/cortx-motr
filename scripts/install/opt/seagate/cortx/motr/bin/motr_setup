@@ -57,7 +57,8 @@ class Cmd:
             self.cluster = get_value(self, 'cluster', dict)
             self.nodes = get_value(self, 'node', dict)
             self.node = get_server_node(self, True)
-            self.storage = get_storage(self)
+            if self.node['type'] == 'storage_node':
+                self.storage = get_storage(self)
     @property
     def args(self) -> str:
         return self._args
