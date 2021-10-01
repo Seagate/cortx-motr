@@ -209,7 +209,7 @@ M0_INTERNAL void m0_fdmi__rec_id_gen(struct m0_fdmi_src_rec *src_rec)
 	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_fdmi__record_post(struct m0_fdmi_src_rec *src_rec)
+M0_INTERNAL void m0_fdmi__record_post(struct m0_fdmi_src_rec *src_rec)
 {
 	struct m0_fdmi_src_dock *src_dock = m0_fdmi_src_dock_get();
 
@@ -233,7 +233,7 @@ M0_INTERNAL int m0_fdmi__record_post(struct m0_fdmi_src_rec *src_rec)
 	m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
 	m0_mutex_unlock(&src_dock->fsdc_list_mutex);
 
-	return M0_RC(0);
+	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_fdmi_source_alloc(enum m0_fdmi_rec_type_id type_id,

@@ -863,7 +863,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	M0_PRE(M0_IN(filter, (PA_DATA, PA_PARITY)));
 
 	rc = m0_rpc_session_validate(ti->ti_session);
-	if (rc != 0 && rc != -ECANCELED)
+	if (rc != 0 && (!M0_IN(rc, (-ECANCELED, -EINVAL))))
 		return M0_ERR(rc);
 
 	xfer = ti->ti_nwxfer;
@@ -942,7 +942,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		/* TODO: can this loop become a function call?
 		 * -- too many levels of indentation */
 		while (seg < SEG_NR(ivec) &&
-			m0_io_fop_size_get(&iofop->if_fop) + delta < maxsize) {
+			m0_io_fop_size_get(&iofop->if_fop) + delta < maxsize &&
+			bbsegs < m0_net_domain_get_max_buffer_segments(ndom)) {
 
 			/*
 			* Adds a page to rpc bulk buffer only if it passes
@@ -1070,8 +1071,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		if (ioo->ioo_flags & M0_OOF_SYNC)
 			rw_fop->crw_flags |= M0_IO_FLAG_SYNC;
 		io_attr = m0_io_attr(ioo);
-		if (io_attr->oa_layout_id <= m0_lid_to_unit_map_nr);
-			rw_fop->crw_lid = io_attr->oa_layout_id;
+		rw_fop->crw_lid = io_attr->oa_layout_id;
 
 		/*
 		 * XXX(Sining): This is a bit tricky: m0_io_fop_prepare in

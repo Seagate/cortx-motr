@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -151,7 +151,7 @@ static void results_print(uint32_t round)
 	uint64_t                  bw_kibps = 0;
 	uint64_t                  iops = 0;
 
-	printf("\t%12.12s: [%7s] %6s %6s %6s %5s %8s %8s %8s %8s %8s %8s %8s %8s\n",
+	printf("\t%12.12s: [%7s] %6s %6s %6s %6s %8s %9s %11s %11s %12s %8s %8s %8s\n",
 	       "bench", "iter", "min", "max", "avg", "std", "sec/op", "op/sec",
 	       "block_size", "time_in_sec", "bytes", "KiB", "BW_KiB", "IOPS");
 	for (set = last; set != NULL; set = set->us_prev) {
@@ -168,8 +168,8 @@ static void results_print(uint32_t round)
 			}
 
 			printf("\t%12.12s: [%7i] %6.2f %6.2f %6.2f %5.2f%%"
-			       " %8.3e/%8.3e %6.2"PRIu32" %6.2f %12.4"PRIu64" "
-			       "%6.2"PRIu64" %6.2"PRIu64" %6.2"PRIu64"\n",
+			       " %8.3e/%8.3e %9.2"PRIu32" %11.2f %13.4"PRIu64" "
+			       "%8.2"PRIu64" %8.2"PRIu64" %8.2"PRIu64"\n",
 			       bench->ub_name, bench->ub_iter,
 			       bench->ub_min, bench->ub_max, avg,
 			       std * 100.0 / avg, avg / bench->ub_iter,
