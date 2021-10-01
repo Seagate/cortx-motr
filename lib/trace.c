@@ -148,7 +148,7 @@ M0_INTERNAL void m0_trace_fini(void)
 	m0_arch_trace_fini();
 }
 
-/* TODO in case user mode support required for AARCH64 different machanism is needed */
+/* TODO in case user mode support required for AARCH64 different mechanism is needed */
 static inline uint64_t m0_rdtsc(void)
 {
 #ifdef CONFIG_X86_64
