@@ -149,9 +149,10 @@ M0_INTERNAL void m0_trace_fini(void)
 }
 
 /**
- * pccnt access from user-space in AARCH64 platform is enabled by 
- * enable_user_space_access_pccnt() call from the kernel module, 
- * so this function will work only if the kernel module is present on this platform. 
+ * pccnt access from user-space in AARCH64 platform 
+ * is enabled by enable_user_space_access_pccnt() call 
+ * from the kernel module, so this function will work only 
+ * if the kernel module is present on this platform. 
  * TODO: investigate how to resolve it for the user-space mode 
  * in case there is no kernel module present.
  */
