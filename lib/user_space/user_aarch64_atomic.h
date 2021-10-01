@@ -183,7 +183,8 @@ static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a)
 
 static inline bool m0_atomic64_cas(int64_t * loc, int64_t oldval, int64_t newval)
 {
-/** Since the undersigend commented code being processor specific assembly instruction,
+/** 
+ * Since the undersigend commented code being processor specific assembly instruction,
  * This would act more comprehensible while porting to other platform.
  * Since this code has few flaws, not debugged yet.It is not working as of now.
  * The gcc specific routine is called in place of it which has no public source code available.
