@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -779,6 +779,25 @@ m0_ivec_varr_cursor_index(const struct m0_ivec_varr_cursor *cur);
 M0_INTERNAL m0_bindex_t
 m0_ivec_varr_cursor_conti(const struct m0_ivec_varr_cursor *cur,
 			  m0_bindex_t dest);
+
+/**
+ * Copies data from m0_bufvec structure to m0_buf structure.
+ * @param[out] buf  - Pointer to m0_buf structure.
+ * @param[in]  bvec - Pointer to m0_bufvec structure.
+ * @retval      0     on success else error codes
+ */
+M0_INTERNAL int m0_bufvec_to_buf_copy(struct m0_buf *buf,
+				      const struct m0_bufvec *bvec);
+
+/**
+ * Copies data from m0_buf structure to m0_bufvec structure.
+ * @param[out] bvec - Pointer to m0_bufvec structure.
+ * @param[in]  buf  - Pointer to m0_buf structure.
+ * @retval      0     on success else error codes
+ */
+M0_INTERNAL int m0_buf_to_bufvec_copy(struct m0_bufvec *bvec,
+				      const struct m0_buf *buf);
+
 /** @} end of vec group */
 
 /* __MOTR_LIB_VEC_H__ */

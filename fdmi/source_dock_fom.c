@@ -31,6 +31,9 @@
 #include "fdmi/source_dock_internal.h"
 #include "fdmi/fops.h"
 
+#include "fdmi/fol_fdmi_src.h"  /* m0_fol_fdmi_filter_kv_substring */
+
+
 static void fdmi_sd_fom_fini(struct m0_fom *fom);
 static int fdmi_sd_fom_tick(struct m0_fom *fom);
 static size_t fdmi_sd_fom_locality(const struct m0_fom *fom);
@@ -196,6 +199,7 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 	int                    rc;
 
 	M0_ENTRY();
+	M0_PRE(!src_dock->fsdc_started);
 
 	m0_semaphore_init(&sd_fom->fsf_shutdown, 0);
 	rpc_mach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
@@ -224,6 +228,7 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 	pending_fops_tlist_init(&sd_fom->fsf_pending_fops);
 	m0_fom_init(fom, &fdmi_sd_fom_type, &fdmi_sd_fom_ops, NULL, NULL, reqh);
 	m0_fom_queue(fom);
+	src_dock->fsdc_started = true;
 	return M0_RC(0);
 }
 
@@ -269,6 +274,8 @@ M0_INTERNAL void
 m0_fdmi__src_dock_fom_stop(struct m0_fdmi_src_dock *src_dock)
 {
 	M0_ENTRY();
+	M0_PRE(src_dock->fsdc_started);
+	src_dock->fsdc_started = false;
 
 	/* Wake up FOM, so it can stop itself */
 	m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
@@ -630,22 +637,46 @@ static int node_eval(void                        *data,
 	return src_rec->fsr_src->fs_node_eval(src_rec, value_desc, value);
 }
 
+static struct m0_fdmi_sd_filter_type_handler fdmi_filter_type_handlers[] = {
+	{
+		.ffth_id      = M0_FDMI_FILTER_TYPE_TREE,
+		.ffth_handler = &m0_fdmi_eval_flt,
+	},
+	{
+		.ffth_id      = M0_FDMI_FILTER_TYPE_KV_SUBSTRING,
+		.ffth_handler = &m0_fol_fdmi_filter_kv_substring,
+	},
+};
+
 static int fdmi_filter_calc(struct fdmi_sd_fom         *sd_fom,
 			    struct m0_fdmi_src_rec     *src_rec,
 			    struct m0_conf_fdmi_filter *fdmi_filter)
 {
-	struct m0_fdmi_eval_var_info get_var_info;
+	struct m0_fdmi_sd_filter_type_handler *handler;
+	struct m0_fdmi_eval_var_info           get_var_info;
+	int                                    rc;
+	int                                    i;
 
-	M0_ENTRY("sd_fom %p, src_rec %p, fdmi_filter %p",
+	M0_ENTRY("sd_fom=%p src_rec=%p fdmi_filter=%p",
 		 sd_fom, src_rec, fdmi_filter);
 	M0_PRE(m0_fdmi__record_is_valid(src_rec));
 
 	get_var_info.user_data    = src_rec;
 	get_var_info.get_value_cb = node_eval;
 
-	return M0_RC(m0_fdmi_eval_flt(&sd_fom->fsf_flt_eval,
-				      &fdmi_filter->ff_filter,
-				      &get_var_info));
+	for (i = 0; i < ARRAY_SIZE(fdmi_filter_type_handlers); ++i) {
+		handler = &fdmi_filter_type_handlers[i];
+		if (handler->ffth_id == fdmi_filter->ff_type) {
+			rc = handler->ffth_handler(&sd_fom->fsf_flt_eval,
+						   fdmi_filter,
+						   &get_var_info);
+			return M0_RC_INFO(rc,
+					  "sd_fom=%p src_rec=%p fdmi_filter=%p",
+					  sd_fom, src_rec, fdmi_filter);
+
+		}
+	}
+	return M0_ERR_INFO(-EINVAL, "ff_filter_id=%d", fdmi_filter->ff_type);
 }
 
 static int fdmi_sd_fom_tick(struct m0_fom *fom)
