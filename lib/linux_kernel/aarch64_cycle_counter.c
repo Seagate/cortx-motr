@@ -18,11 +18,10 @@
  * please email opensource@seagate.com or cortx-questions@seagate.com.
  *
  */
-
+#ifdef CONFIG_AARCH64
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 
-#ifdef CONFIG_AARCH64
 
 #include "lib/trace.h"
 #include <linux/kernel.h>
@@ -69,7 +68,7 @@ void  finish_cycle_counter(void)
 	/* Call the function on each cpu with NULL param and wait for completion*/
 	on_each_cpu(disable_user_space_pccnt_access, NULL, 1);
 }
-#endif
+#endif /* CONFIG_AARCH64 */
 
 #undef M0_TRACE_SUBSYSTEM
 

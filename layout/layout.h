@@ -174,7 +174,7 @@ enum {
 #ifdef CONFIG_X86_64
 	enum { M0_DEFAULT_LAYOUT_ID = 1 };
 #elif defined CONFIG_AARCH64
-	enum { M0_DEFAULT_LAYOUT_ID = 5 };
+	enum { M0_DEFAULT_LAYOUT_ID = 5 }; /* RHEL pages size on aarch64 : 64KB */
 #else
 #error  "The platform is not supported"
 #endif
