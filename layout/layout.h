@@ -173,11 +173,11 @@ enum {
 
 #ifdef CONFIG_X86_64
 	enum { M0_DEFAULT_LAYOUT_ID = 1 };
-#elif defined CONFIG_AARCH64
-/**
- * Layout id defines the object unit size which cannot be less than 
- * the page size:1 - 4KB, 2 - 8KB, 3 - 16KB and so on. The page size on 
- * RHEL aarch64 platform is 64KB, hence the default layout id should be 5 (64KB).
+#elif defined (CONFIG_AARCH64)
+/*
+ * Layout id defines the object unit size which cannot be less than
+ * the page size: 1 - 4KB, 2 - 8KB, 3 - 16KB and so on. On RHEL aarch64
+ * platform the page size is 64KB, hence the default layout id must be 5.
  */
 	enum { M0_DEFAULT_LAYOUT_ID = 5 }; 
 #else

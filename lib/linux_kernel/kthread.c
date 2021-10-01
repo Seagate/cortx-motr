@@ -227,7 +227,7 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 
 		  put_task_struct(p);
 		*/
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0) || defined CONFIG_AARCH64
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0) || defined (CONFIG_AARCH64)
 		cpumask_copy(&p->cpus_allowed, cpuset);
 #else
 		cpumask_copy(&p->cpus_mask, cpuset);

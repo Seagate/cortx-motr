@@ -33,9 +33,9 @@
 #else
 #  ifdef ENABLE_SYNC_ATOMIC
 #    include "lib/user_space/__sync_atomic.h"
-#  elif defined CONFIG_X86_64
+#  elif defined (CONFIG_X86_64)
 #    include "lib/user_space/user_x86_64_atomic.h"
-#  elif defined CONFIG_AARCH64
+#  elif defined (CONFIG_AARCH64)
 #    include "lib/user_space/user_aarch64_atomic.h"
 #  else
 #    error "Platform is not supported"
