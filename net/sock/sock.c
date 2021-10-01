@@ -1055,6 +1055,10 @@ struct sock_ops {
 
 #define SAFE(val, exp, fallback) ((val) != NULL ? (exp) : (fallback))
 
+#define ADDR_F "%i.%i.%i.%i@%i"
+#define ADDR_P(a) (a)->a_data.v_data[0], (a)->a_data.v_data[1],		\
+	(a)->a_data.v_data[2], (a)->a_data.v_data[3], (a)->a_port
+
 #define EP_F "%s"
 #define EP_P(e) SAFE(e, (e)->e_ep.nep_addr, "null")
 #define EP_FL EP_F "->" EP_F
@@ -3646,8 +3650,12 @@ static int pk_header_done(struct mover *m)
 		return M0_ERR(-EPROTO);
 	if (!ep_eq(ma_src(ma), &p->p_dst.bd_addr))
 		return M0_ERR(-EPROTO);
-	if (!addr_eq(&m->m_sock->s_ep->e_a, &p->p_src.bd_addr))
+	if (!addr_eq(&m->m_sock->s_ep->e_a, &p->p_src.bd_addr)) {
+		M0_LOG(M0_ERROR, "Wrong source: want: "ADDR_F,
+		       ADDR_P(&m->m_sock->s_ep->e_a));
+		M0_LOG(M0_ERROR, "Got: "ADDR_F, ADDR_P(&p->p_src.bd_addr));
 		return M0_ERR(-EPROTO);
+	}
 	hassrc = !M0_IS0(&p->p_src.bd_cookie);
 	hasdst = !M0_IS0(&p->p_dst.bd_cookie);
 	if (!hassrc && !hasdst)         /* Go I know not whither */
