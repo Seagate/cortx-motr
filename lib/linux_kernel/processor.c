@@ -132,7 +132,7 @@ static void processors_bitmap_copy(struct m0_bitmap *dest,
 		m0_bitmap_set(dest, bit, val);
 	}
 }
-#endif /* CONFIG_X86_64 || CONFIG_AARCH64 */
+#endif /* (CONFIG_X86_64) || (CONFIG_AARCH64) */
 
 #ifdef CONFIG_X86_64
 /**
@@ -653,7 +653,7 @@ M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 {
 	return smp_processor_id();
 }
-#endif /* CONFIG_X86_64 || CONFIG_AARCH64 */
+#endif /* (CONFIG_X86_64) || (CONFIG_AARCH64) */
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of processor group */
