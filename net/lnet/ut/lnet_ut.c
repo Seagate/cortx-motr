@@ -269,7 +269,7 @@ do {								\
   #ifdef  CONFIG_X86_64
     #define PAGE_SHIFT    12
   #elif defined (CONFIG_AARCH64)
-    #define PAGE_SHIFT    16 
+    #define PAGE_SHIFT    16
     /* Page Size on aarch64 is 64KB, hence Page Shift will be 16 */
   #else
     #error  "The platform is not supported"

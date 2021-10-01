@@ -31,9 +31,9 @@
 /**
    @addtogroup atomic
 
-   Implementation of atomic operations for Linux user space uses x86_64 
+   Implementation of atomic operations for Linux user space uses x86_64
    assembly language instructions (with gcc syntax). "Lock" prefix is used
-   everywhere to ensure atomicity 
+   everywhere to ensure atomicity
    ---no optimisation for non-SMP configurations in present.
  */
 

@@ -66,4 +66,3 @@ m0tr_objects += lib/linux_kernel/finject_init.o \
                   lib/linux_kernel/kuuid.o \
                   lib/linux_kernel/varr.o \
                   lib/linux_kernel/aarch64_cycle_counter.o
-		  

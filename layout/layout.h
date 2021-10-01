@@ -179,7 +179,7 @@ enum {
  * the page size: 1 - 4KB, 2 - 8KB, 3 - 16KB and so on. On RHEL aarch64
  * platform the page size is 64KB, hence the default layout id must be 5.
  */
-	enum { M0_DEFAULT_LAYOUT_ID = 5 }; 
+	enum { M0_DEFAULT_LAYOUT_ID = 5 };
 #else
 #error  "The platform is not supported"
 #endif
