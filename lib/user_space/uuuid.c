@@ -90,7 +90,7 @@ int m0_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 		if (fd < 0) {
 			return M0_ERR_INFO(-EINVAL,
 			                   "open(\"%s\", O_RDONLY)=%d "
-			                   "errno=%d: ",
+					   "errno=%d: ",
 					   uuid_file, fd, errno);
 		}
 		if (read(fd, mid, MACHINE_ID_LEN) == MACHINE_ID_LEN) {
@@ -102,7 +102,7 @@ int m0_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 			buf[M0_UUID_STRLEN] = '\0';
 		} else {
 			rc = M0_ERR_INFO(-EINVAL, "Incorrect data in %s",
-			                 uuid_file);
+					 uuid_file);
 		}
 		close(fd);
 	}

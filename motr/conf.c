@@ -70,7 +70,7 @@ static void option_add(struct cs_args *args, char *s)
 static char *
 strxdup(const char *addr)
 {
-	char		  *s;
+	char *s;
 
 	s = m0_alloc(strlen(addr) + strlen(M0_NET_XPRT_PREFIX_DEFAULT) +
 		     strlen(":") + 1);
