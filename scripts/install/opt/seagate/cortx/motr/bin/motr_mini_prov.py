@@ -122,68 +122,29 @@ def get_machine_id(self):
     check_type(machine_id, str, "machine-id")
     return machine_id
 
-def get_server_node(self):
+def get_server_node(self, k8):
     """Get current node name using machine-id."""
     try:
         machine_id = get_machine_id(self).strip('\n');
-        server_node = Conf.get(self._index, 'server_node')[machine_id]
+        if k8:
+            server_node = Conf.get(self._index, 'node')[machine_id]
+        else:
+            server_node = Conf.get(self._index, 'server_node')[machine_id]
     except:
         raise MotrError(errno.EINVAL, f"MACHINE_ID {machine_id} does not exist in ConfStore")
 
     check_type(server_node, dict, "server_node")
     return server_node
 
-def get_server_node_k8(self):
-    """Get current node name using machine-id."""
+def get_value(self, key, key_type):
+    """Get data."""
     try:
-        machine_id = get_machine_id(self).strip('\n');
-        server_node = self.nodes[machine_id]
+        val = Conf.get(self._index, key)
     except:
-        raise MotrError(errno.EINVAL, f"MACHINE_ID {machine_id} does not exist in ConfStore")
+        raise MotrError(errno.EINVAL, "{key} does not exist in ConfStore")
 
-    check_type(server_node, dict, "server_node")
-    return server_node
-
-
-def get_cluster(self):
-    """Get cluster """
-    try:
-        cluster = Conf.get(self._index, 'cluster')
-    except:
-        raise MotrError(errno.EINVAL, "cluster does not exist in ConfStore")
-
-    check_type(cluster, dict, "cluster")
-    return cluster
-
-def get_node(self):
-    """Get node"""
-    try:
-        node = Conf.get(self._index, 'node')
-    except:
-        raise MotrError(errno.EINVAL, "node does not exist in ConfStore")
-
-    check_type(cluster, dict, "node")
-    return node
-
-def get_cortx(self):
-    """Get cortx"""
-    try:
-        cortx = Conf.get(self._index, 'cortx')
-    except:
-        raise MotrError(errno.EINVAL, "cortx does not exist in ConfStore")
-
-    check_type(cluster, dict, "cortx")
-    return cortx
-
-def get_data(self, dname, tname):
-    """Get cortx"""
-    try:
-        data = Conf.get(self._index, dname)
-    except:
-        raise MotrError(errno.EINVAL, "{dname} does not exist in ConfStore")
-
-    check_type(data, tname, dname)
-    return data
+    check_type(val, key_type, key)
+    return val
 
 def get_logical_node_class(self):
     """Get logical_node_class."""
@@ -194,17 +155,11 @@ def get_logical_node_class(self):
     check_type(logical_node_class, list, "logical_node_class")
     return logical_node_class
 
-def get_local_storage(self):
-    storage = self.local_node['storage']
+def get_storage(self):
+    storage = self.node['storage']
     check_type(storage, dict, "storage")
     return storage
-    '''
-    for elem in self.logical_node_class:
-        if 'storage' in elem.keys():
-            if elem['storage']:
-                return elem['storage']
-    raise MotrError(errno.EINVAL, f"storage does not exist in ConfStore")
-    '''
+
 def restart_services(self, services):
     for service in services:
         self.logger.info(f"Restarting {service} service\n")
@@ -219,16 +174,17 @@ def validate_file(file):
     if not os.path.exists(file):
         raise MotrError(errno.ENOENT, f"{file} does not exist")
 
+# Check if file paths are valid
 def validate_files(files):
     for file in files:
         if not os.path.exists(file):
             raise MotrError(errno.ENOENT, f"{file} does not exist")
 
+# Create directories
 def create_dirs(self, dirs):
-    for dir in dirs:
-        if not os.path.exists(dir):
-            print(f" On line 230 {dir}")
-            cmd = f"mkdir -p {dir}"
+    for entry in dirs:
+        if not os.path.exists(entry):
+            cmd = f"mkdir -p {entry}"
             execute_command(self, cmd)
 
 def is_hw_node(self):
@@ -265,17 +221,15 @@ def validate_motr_rpm(self):
 def update_copy_motr_config_file(self):
     local_path = Conf.get(self._index, 'cortx>common>storage>local')
     log_path = Conf.get(self._index, 'cortx>common>storage>log')
-    hostname = self.local_node['hostname']
+    hostname = self.node['hostname']
     validate_files([MOTR_SYS_CFG, local_path, log_path])
     MOTR_LOCAL_DIR = f"{local_path}/motr"
     if not os.path.exists(MOTR_LOCAL_DIR):
-        cmd = f"mkdir -p {MOTR_LOCAL_DIR}"
-        execute_command(self, cmd)
+        create_dirs(self, [f"{MOTR_LOCAL_DIR}"])
     MOTR_LOCAL_SYSCONFIG_DIR = f"{MOTR_LOCAL_DIR}/sysconfig"
     if not os.path.exists(MOTR_LOCAL_SYSCONFIG_DIR):
-        cmd = f"mkdir -p {MOTR_LOCAL_SYSCONFIG_DIR}"
-        execute_command(self, cmd)
-   
+        create_dirs(self, [f"{MOTR_LOCAL_SYSCONFIG_DIR}"])
+
     MOTR_CONF_DIR = f"{local_path}/hare/sysconfig/motr/{hostname}"
     MOTR_MOD_DATA_DIR = f"{local_path}/motr"
     MOTR_CONF_XC = f"{local_path}/hare/confd.xc"
@@ -633,9 +587,8 @@ def validate_storage_schema(storage):
                     check_type(val[i], str, f"data_devices[{i}]")
 
 def get_cvg_cnt_and_cvg_k8(self):
-    #validate_storage_schema(self.local_storage)
     try:
-        cvg = self.local_storage['cvg']
+        cvg = self.storage['cvg']
         cvg_cnt = len(cvg)
     except:
         raise MotrError(errno.EINVAL, "cvg not found\n")
@@ -1149,109 +1102,10 @@ def remove_dm_entries(self):
                 self.logger.info(f"dmsetup remove {lv_path}")
                 execute_command(self, f"dmsetup remove {lv_path}")
 
-def config_part(self):
-    if self.k8:
-        cvg_cnt, cvg = get_cvg_cnt_and_cvg_k8(self)
-    else:
-        cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
-    dev_count = 1
-    config_dict = read_config(MOTR_SYS_CFG)
-
-    for i in range(int(cvg_cnt)):
-        cvg_item = cvg[i]
-        try:
-            metadata_device = cvg_item["devices"]["metadata"]
-        except:
-            raise MotrError(errno.EINVAL, "metadata devices not found\n")
-        check_type(metadata_device, str, "metadata_devices")
-        self.logger.info(f"\nlvm metadata_device: {metadata_device}\n\n")
-        # Currently only one metadata device in one cvg
-        ret = create_parts(self, dev_count, metadata_device)
-        if ret != 0:
-            return ret
-        dev_count += 1
-    return ret
-
 def get_disk_size(self, device):
     cmd = f"fdisk -l {device} |" f"grep {device}:" "| awk '{print $5}'"
     ret = execute_command(self, cmd)
     return ret[0].strip()
-
-def create_part(self, device, label, sz, part_num):
-    ret = 0
-    cmd = f"fdisk {device}"
-    stdin_str = str("n\np\n"+f"{part_num}"+"\n\n+" + f"{sz}" + "\nw\n")
-
-    ret = execute_command(self, cmd, stdin=stdin_str, verbose=True)[1]
-
-    if ret == 0:
-        # Set label
-        time.sleep(5)
-        part_name = f"{device}{part_num}"
-        # check if device node is created?
-        # If not, create it.
-        if not os.path.exists(part_name):
-            only_dev_name = f"{part_name}".split("/")[-1]
-            cmd = f"cat /proc/partitions | grep {only_dev_name} | " "awk '{print $1}'"
-            major = execute_command(self, cmd, verbose=True)[0]
-            major = major.strip('\n')
-            cmd = f"cat /proc/partitions | grep {only_dev_name} | " "awk '{print $2}'"
-            minor = execute_command(self, cmd, verbose=True)[0]
-            minor = minor.strip('\n')
-            cmd = f"mknod {part_name} b {major} {minor}"
-            execute_command(self, cmd, verbose=True)
-            cmd = f"stat {part_name}"
-            execute_command(self, cmd, verbose=True)
-        cmd = f"mkfs.ext4 {part_name} -L {label}"
-        ret = execute_command(self, cmd, verbose=True)[1]
-    return ret
-
-# /dev/sdb1 = BE log file path = 4G
-# /dev/sdb2 = BE seg0 file path = 128M
-# /dev/sdb3 = [size(metadata_disk)] - [size(/dev/sdb1) + size(/dev/sdb2)]
-
-# cvg_o metadata_disk = /dev_sdb
-# /dev/disk/by-label/lv_be_log1 -> ../../sdb1
-# /dev/disk/by-label/lv_be_seg1 -> ../../sdb2
-# /dev/disk/by-label/lv_raw_md1 -> ../../sdb3
-# Size of /dev/sdb1 = min(MOTR_M0D_BESEG_SIZE, 0.04*disk_size(/dev/sdb))
-# Size of /dev/sdb2 = 128M
-# Size of /dev/sdb3 = disk_size(/dev/sdb) - Size of /dev/sdb1
-
-# cvg_1 metadata_disk = /dev/sde
-# /dev/disk/by-label/lv_be_log2 -> ../../sde1
-# /dev/disk/by-label/lv_be_seg2 -> ../../sde2
-# /dev/disk/by-label/lv_raw_md2 -> ../../sde2
-# Size of /dev/sde1 = min(MOTR_M0D_BESEG_SIZE, 0.04*disk_size(/dev/sde))
-# Size of /dev/sde2 = 128M
-# Size of /dev/sde3 = disk_size(/dev/sde) - Size of /dev/sde1
-
-def create_parts(self, dev_count, device):
-    raw_md_label = f"raw_md{dev_count}"
-    be_log_label = f"be_log{dev_count}"
-    be_seg_label = f"be_seg{dev_count}"
-
-    disk_size = int(get_disk_size(self, device))
-
-    be_log_part_sz = BE_LOG_SZ #4GB
-    be_seg_part_sz = BE_SEG0_SZ  #128MB
-    raw_md_part_sz = int(disk_size) - int(be_log_part_sz + be_seg_part_sz)
-
-    be_log_part_sz_GB = str(int(be_log_part_sz/(1024*1024*1024)))+'G'
-    be_seg_part_sz_MB = str(int(be_seg_part_sz/(1024*1024)))+'M'
-    raw_md_part_sz_GB = str(int(raw_md_part_sz/(1024*1024*1024))) + 'G'
-
-    self.logger.info(f"be_log_part_sz_GB = {be_log_part_sz_GB}")
-    self.logger.info(f"be_seg_MB = {be_seg_part_sz_MB}")
-    self.logger.info(f"raw_md_part_sz_GB = {raw_md_part_sz_GB}")
-
-
-    ret = create_part(self, device, be_log_label, be_log_part_sz_GB, 1)
-    if ret == 0:
-        ret = create_part(self, device, be_seg_label, be_seg_part_sz_MB, 2)
-        if ret == 0:
-            ret = create_part(self, device, raw_md_label, raw_md_part_sz_GB, 3)
-    return ret
 
 def read_config(file):
     fp = open(file, "r")
