@@ -250,9 +250,48 @@ def update_copy_motr_config_file(self):
     cmd = f"cp {MOTR_SYS_CFG} {MOTR_LOCAL_SYSCONFIG_DIR}"
     execute_command(self, cmd)
 
+# Get metadata disks from Confstore of all cvgs
+def get_md_disks(self):
+    md_disks = []
+    cvg_count = self.storage['cvg_count']
+    cvg = self.storage['cvg']
+    for i in range(cvg_count):
+        md_disks_per_cvg = []
+        temp_cvg = cvg[i]
+        if temp_cvg['devices']['metadata']:
+            num_md_disks = len(temp_cvg['devices']['metadata'])
+            md_disks.append(temp_cvg['devices']['metadata'])
+    self.logger.info(f"md_disks on node = {md_disks}\n")
+    return md_disks
+
+# Update metadata disk entries to motr-hare confstore
+def update_to_file(self, index, url, md_disks):
+    ncvgs = len(md_disks)
+    self.logger.info(f"index={index}\n_url_motr_hare={url}\nNo. of cvgs={ncvgs}")
+    machine_id = get_machine_id(self).strip('\n')
+    for i in range(ncvgs):
+        md = md_disks[i]
+        len_md = len(md)
+        for j in range(len_md):
+            md_disk = md[j]
+            self.logger.info(f"setting key server>{machine_id}>cvg[{i}]>m0d[{j}]>md_seg1"
+                         f" with value {md_disk} in {url}")
+            Conf.set(index, f"server>{machine_id}>cvg[{i}]>m0d[{j}]>md_seg1",f"{md_disk}")
+            Conf.save(index)
+
+def update_motr_hare_keys(self):
+    if self.storage:
+        md_disks = get_md_disks(self)
+        update_to_file(self, self._index_motr_hare, self._url_motr_hare , md_disks)
+        
 def motr_config_k8(self):
     if not verify_libfabric(self):
         raise MotrError(errno.EINVAL, "libfabric is not up.")
+
+    # Update motr-hare keys
+    if self.node['type'] == 'storage_node':
+        update_motr_hare_keys(self)
+
     update_copy_motr_config_file(self)
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
     return
