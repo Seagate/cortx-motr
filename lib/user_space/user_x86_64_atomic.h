@@ -33,7 +33,7 @@
 
    Implementation of atomic operations for Linux user space uses x86_64 
    assembly language instructions (with gcc syntax). "Lock" prefix is used
-   everywhere for x86_64 platform assembely instruction to ensure atomicity 
+   everywhere instruction to ensure atomicity 
    ---no optimisation for non-SMP configurations in present.
  */
 
