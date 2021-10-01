@@ -51,13 +51,13 @@ class Cmd:
         if self._index:
             self.k8 = Conf.get(self._index, 'cortx>common>setup_type')
         if not self.k8:
-            self.server_node = get_server_node(self)
+            self.server_node = get_server_node(self, False)
         else:
-            self.cortx = get_data(self, 'cortx', dict) 
-            self.cluster = get_data(self, 'cluster', dict)
-            self.nodes = get_data(self, 'node', dict)
-            self.local_node = get_server_node_k8(self)
-            self.local_storage = get_local_storage(self) 
+            self.cortx = get_value(self, 'cortx', dict)
+            self.cluster = get_value(self, 'cluster', dict)
+            self.nodes = get_value(self, 'node', dict)
+            self.node = get_server_node(self, True)
+            self.storage = get_storage(self)
     @property
     def args(self) -> str:
         return self._args
@@ -141,8 +141,7 @@ class PostInstallCmd(Cmd):
                 self.logger.warning("Cluster is already up...Exiting.\n")
                 return
         if self.k8:
-            # Partitioning of metadata disk is not required for cortx-m0 release
-            #config_part(self)
+            # Nothing required for post_install stage in k8
             return
         else:
             if lvm_exist(self):
