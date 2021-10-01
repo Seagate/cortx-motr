@@ -38,7 +38,7 @@ class Cmd:
 
     def __init__(self, args: dict):
         self._url = args.config
-
+        self._services = args.services
         # URL for Hare-Motr keys required for intercomponent communication
         self._motr_hare_conf = MOTR_HARE_CONF_PATH
         self._url_motr_hare = f"json://{self._motr_hare_conf}"
@@ -287,18 +287,22 @@ class StartCmd(Cmd):
         super().__init__(args)
 
     def process(self):
-        self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
+        self.logger.info(f"Processing cmd={self.name} config={self.url} services={self._services} args={self._args}\n")
         nargs = len(self._args)
-        if (1 <= nargs <= 2):
+        if re.match('^[0-9]*$', self._services):
+            self.logger.error(f"Invalid service name({self._services}).")
+            return
+        if (nargs == 1):
             if pkg_installed(self, "cortx-hare"):
                 if cluster_up(self):
                     self.logger.warning("Cluster is already up...Exiting.\n")
                     return
-            fid = None
-            if nargs == 2:
-                service_name = self._args[0]
-                fid = self._args[1]
-            start_service(self, service_name, fid)
+            svc = self._services
+            idx = int(self._args[0])
+            if idx < 0:
+                self.logger.error(f"Invalid index({idx}).\n")
+                return
+            start_service(self, svc, idx)
         else:
             self.logger.error(f"Invalid number of arguments.\n")
             self.logger.error("Usage: <prog> [-h] <cmd> --config <url> --k8 <service_name> <fid>\n")

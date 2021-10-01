@@ -25,6 +25,7 @@ import subprocess
 import logging
 import glob
 import time
+import yaml
 from cortx.utils.conf_store import Conf
 
 MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-server"
@@ -46,6 +47,7 @@ MACHINE_ID_LEN = 32
 MOTR_LOG_DIRS = [LOGDIR, MOTR_LOG_DIR]
 BE_LOG_SZ = 4*1024*1024*1024 #4G
 BE_SEG0_SZ = 128 * 1024 *1024 #128M
+TEMP_FID_FILE= "/tmp/fid.yaml"
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -1166,17 +1168,58 @@ def delete_part(self, device, part_num):
     ret = execute_command(self, cmd, stdin=stdin_str, verbose=True)
     return ret[1]
 
+def get_fid(self, fids, service, idx):
+    fids_list = []
+    len_fids_list = len(fids)
+
+    # Prepare list of all fids of matching service
+    for i in range(len_fids_list):
+        if fids[i]["name"] == service:
+            fids_list.append(fids[i]["fid"])
+
+    num_fids = len(fids_list)
+    idx = int(idx)
+    if num_fids > 0:
+        if idx < num_fids:
+            return fids_list[idx]
+        else:
+            self.logger.error(f"Invalid index({idx}) of service({service})"
+                              f"Valid index should be in range [0-{num_fids-1}]."
+                              "Returning -1.")
+            return -1
+    else:
+        self.logger.error(f"No fids for service({service}). Returning -1.")
+        return -1
+
+# Fetch fid of service using command 'hctl fetch-fids'
+# First populate a yaml file with the output of command 'hctl fetch-fids'
+# Use this yaml file to get proper fid of required service.
+def fetch_fid(self, service, idx):
+    cmd = "hctl fetch-fids"
+    out = execute_command(self, cmd)
+    self.logger.info(f"Available fids:\n{out[0]}\n")
+    fp = open(TEMP_FID_FILE, "w")
+    fp.write(out[0])
+    fp.close()
+    fp = open(TEMP_FID_FILE, "r")
+    fids = yaml.safe_load(fp)
+    if len(fids) == 0:
+        self.logger.error(f"No fids returned by 'hctl fetch-fids'. Returning -1.\n")
+        return -1
+    fid = get_fid(self, fids, service, idx)
+    return fid
+
 # If service is one of [ios,confd,hax] then we expect fid to start the service
 # and start services using motr-mkfs and motr-server.
 # For other services like 'motr-free-space-mon' we do nothing.
-def start_service(self, service, fid):
-    self.logger.info(f"service={service}\nfid={fid}\n")
-    if service in ["ios", "confd", "hax"]:
-        if fid:
-            cmd = f"sh {MOTR_MKFS_SCRIPT_PATH} {fid}"
-            ret = execute_command(self, cmd, verbose=True)
-            cmd = f"sh {MOTR_MKFS_SCRIPT_PATH} {fid}"
-            ret = execute_command(self, cmd, verbose=True)
-    else:
+def start_service(self, service, idx):
+    self.logger.info(f"service={service}\nidx={idx}\n")
+    fid = fetch_fid(self, service, idx)
+    if fid == -1:
+        return -1
+    if service in ["ioservice", "confd", "hax"]:
+        cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
+        ret = execute_command(self, cmd, verbose=True)
+    elif service == "fsm":
         self.logger.info(f"NOOP\n")
     return
