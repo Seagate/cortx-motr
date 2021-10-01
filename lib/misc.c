@@ -423,6 +423,16 @@ M0_INTERNAL uint64_t m0_dummy_id_generate(void)
 	return (uint64_t)m0_atomic64_add_return(&counter, 1);
 }
 
+#if M0_RC_HOOK
+M0_INTERNAL void m0_rc_hook(int rc)
+{
+}
+
+M0_INTERNAL void m0_err_hook(int rc)
+{
+}
+#endif
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
