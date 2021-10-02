@@ -638,19 +638,8 @@ Tests:
     dir      : src/dix/cm/st/
     executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/sandbox.62dix-repair-st
-    groupname: 03motr-single-node
     polltime : 30
     timeout  : 1800
-
-  - id       : 65fdmi-plugin-multi-filters
-    script   : fdmi_plugin_st.sh
-    dir      : src/fdmi/plugins/
-    executor : Xperior::Executor::MotrTest
-    sandbox  : /var/motr/sandbox.65fdmi-plugin-multi-filters
-    groupname: 02motr-single-node
-    polltime : 30
-    timeout  : 600
-
 
 
 # 25 min
