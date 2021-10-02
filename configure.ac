@@ -202,6 +202,8 @@ AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
 AH_TEMPLATE([HAVE_ISAL],              [Have Intel ISA-L available])
 AH_TEMPLATE([CONFIG_X86_64],          [Support for X86_64 platform])
 AH_TEMPLATE([CONFIG_AARCH64],         [Support for AARCH64 platform])
+AH_TEMPLATE([PAGE_SIZE],              [System page size])
+AH_TEMPLATE([PAGE_SHIFT],             [System page shift])
 
 
 # enable/disable options ------------------------------ {{{2
@@ -1048,13 +1050,16 @@ M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
 # pkg-config database provided within Motr rpm distribution
 M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+' | xargs echo)
 
+PAGE_SIZE=$(getconf PAGE_SIZE)
+PAGE_SHIFT=$(echo "x = l("$PAGE_SIZE")/l(2); scale=0; x/1" | bc -l)
+AC_DEFINE_UNQUOTED([PAGE_SIZE], [$PAGE_SIZE])
+AC_DEFINE_UNQUOTED([PAGE_SHIFT], [$PAGE_SHIFT])
+
 # -Wno-attributes is required to suppress warnings about unrecognized
 # __attribute__, such as __attribute__((gccxml(...))). It's important because we
 # use -Werror, which turns warnings into errors, but we still need to be able to
 # use gccxml attributes.
-PAGE_SIZE=$(getconf PAGE_SIZE)
-PAGE_SHIFT=$(( $((PAGE_SIZE==4096)) ? 12 :  $(($((PAGE_SIZE==65536)) ? 16 :  14)) ))
-M0_CFLAGS="-pipe -Wall -Werror -Wno-attributes -fno-strict-aliasing -DPAGE_SIZE=$PAGE_SIZE -DPAGE_SHIFT=$PAGE_SHIFT $M0_CFLAGS"
+M0_CFLAGS="-pipe -Wall -Werror -Wno-attributes -fno-strict-aliasing $M0_CFLAGS"
 
 # Prevents gcc from introducing common symbols in object files. These symbols
 # are avoided because they break the compilation toolchain that Parallel
