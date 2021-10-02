@@ -43,7 +43,8 @@ class Cmd:
         Conf.load(self._index, self._url)
         self._args = args.args
         self._debug = args.debug
-        #self.k8 = args.k8
+        configure_machine_id(self)
+
         if self._index:
             self.k8 = Conf.get(self._index, 'cortx>common>setup_type')
         if not self.k8:
@@ -55,7 +56,6 @@ class Cmd:
             self.server_node = get_server_node(self, False)
         else:
             # Configure log files and logger
-            self.machine_id = get_machine_id(self)
             self.local_path = get_value(self, 'cortx>common>storage>local', str)
             self.log_path = get_value(self, 'cortx>common>storage>log', str)
             self.share_path = get_value(self, 'cortx>common>storage>shared', str)
@@ -160,6 +160,7 @@ class PostInstallCmd(Cmd):
                 return
         if self.k8:
             # Nothing required for post_install stage in k8
+            self.logger.info("SUCCESS\n")
             return
         else:
             if lvm_exist(self):

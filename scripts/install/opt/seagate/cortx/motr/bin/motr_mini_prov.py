@@ -25,6 +25,7 @@ import subprocess
 import logging
 import glob
 import time
+import uuid
 from cortx.utils.conf_store import Conf
 
 MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-server"
@@ -46,6 +47,7 @@ MACHINE_ID_LEN = 32
 MOTR_LOG_DIRS = [LOGDIR, MOTR_LOG_DIR]
 BE_LOG_SZ = 4*1024*1024*1024 #4G
 BE_SEG0_SZ = 128 * 1024 *1024 #128M
+MACHINE_ID_FILE = "/etc/machine-id"
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -133,17 +135,27 @@ def check_type(var, vtype, msg):
     if not bool(var):
         raise MotrError(errno.EINVAL, f"Empty {msg}.")
 
-def get_machine_id(self):
-    cmd = "cat /etc/machine-id"
-    machine_id = execute_command(self, cmd, logging=False)
-    machine_id = machine_id[0].split('\n')[0]
-    check_type(machine_id, str, "machine-id")
-    return machine_id
+def configure_machine_id(self):
+    if Conf.machine_id:
+        print("Atul on 140.....")
+        self.machine_id = Conf.machine_id
+    elif os.path.exists(MACHINE_ID_FILE):
+        print("Atul on 143.....")
+        cmd = f"cat {MACHINE_ID_FILE}"
+        machine_id = execute_command(self, cmd, logging=False)
+        machine_id = machine_id[0].split('\n')[0]
+        self.machine_id = machine_id
+    else:
+        node_uuid = uuid.uuid4().hex
+        with open(f"{MACHINE_ID_FILE}", "w") as fp:
+            fp.write(f"{node_uuid}\n")
+        self.machine_id = node_uuid
+        print(f"Atul on 153.....{self.machine_id}")
 
 def get_server_node(self, k8):
     """Get current node name using machine-id."""
     try:
-        machine_id = get_machine_id(self).strip('\n');
+        machine_id = self.machine_id;
         if k8:
             server_node = Conf.get(self._index, 'node')[machine_id]
         else:
