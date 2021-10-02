@@ -202,8 +202,6 @@ AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
 AH_TEMPLATE([HAVE_ISAL],              [Have Intel ISA-L available])
 AH_TEMPLATE([CONFIG_X86_64],          [Support for X86_64 platform])
 AH_TEMPLATE([CONFIG_AARCH64],         [Support for AARCH64 platform])
-AH_TEMPLATE([PAGE_SIZE],              [System page size])
-AH_TEMPLATE([PAGE_SHIFT],             [System page shift])
 
 
 # enable/disable options ------------------------------ {{{2
@@ -1050,11 +1048,6 @@ M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
 # pkg-config database provided within Motr rpm distribution
 M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+' | xargs echo)
 
-PAGE_SIZE=$(getconf PAGE_SIZE)
-PAGE_SHIFT=$(echo "x = l("$PAGE_SIZE")/l(2); scale=0; x/1" | bc -l)
-AC_DEFINE_UNQUOTED([PAGE_SIZE], [$PAGE_SIZE])
-AC_DEFINE_UNQUOTED([PAGE_SHIFT], [$PAGE_SHIFT])
-
 # -Wno-attributes is required to suppress warnings about unrecognized
 # __attribute__, such as __attribute__((gccxml(...))). It's important because we
 # use -Werror, which turns warnings into errors, but we still need to be able to
@@ -1065,6 +1058,22 @@ M0_CFLAGS="-pipe -Wall -Werror -Wno-attributes -fno-strict-aliasing $M0_CFLAGS"
 # are avoided because they break the compilation toolchain that Parallel
 # Scientific is using.
 M0_CFLAGS="-fno-common $M0_CFLAGS"
+
+# XXX: it should be done properly, Motr user-space code should not rely on
+# PAGE_SIZE define. Because different arm64 distributions of Linux may have
+# different page sizes. For example, RHEL-based distributions have 64K pages,
+# while Ubuntu-based ones have 4K pages by default.
+AS_IF([test x$host_cpu = xaarch64],
+      [
+        PAGE_SIZE=$(getconf PAGE_SIZE)
+        # Base-2 logarithm computation via bc utility:
+        PAGE_SHIFT=$(echo "x = l("$PAGE_SIZE")/l(2); scale=0; x/1" | bc -l)
+        # Note: it probably would be better to do it via config.h, but
+        # it gives redefine-errors in kernel module compilation.
+        M0_CFLAGS="$M0_CFLAGS -DPAGE_SIZE=$PAGE_SIZE"
+        M0_CFLAGS="$M0_CFLAGS -DPAGE_SHIFT=$PAGE_SIZE"
+      ]
+)
 
 M0_LDFLAGS="-rdynamic $M0_LDFLAGS"
 
