@@ -58,9 +58,22 @@ class MotrError(Exception):
         return f"error[{self._rc}]: {self._desc}"
 
 def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
-                    retries = 1, stdin = None):
+                    retries = 1, stdin = None, logging=True):
+    # logging flag is set False when we execute any command
+    # before logging is configured.
+    # If logging is False, we use print instead of logger
+    # verbose(True) and logging(False) can not be set simultaneously.
+
+    if (verbose == True and logging == False):
+        print("execute_command: verbose and no_logging can not be ON simultaneously.")
+        print("verbose will not be in effect.")
+
     for i in range(retries):
-        self.logger.info(f"Retry: {i}. Executing cmd: '{cmd}'")
+        if logging == False:
+            print(f"Retry: {i}. Executing cmd: '{cmd}'")
+        else:
+            self.logger.info(f"Retry: {i}. Executing cmd: '{cmd}'")
+
         ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               shell=True)
@@ -68,8 +81,13 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
             ps.stdin.write(stdin.encode())
         stdout, stderr = ps.communicate(timeout=timeout_secs);
         stdout = str(stdout, 'utf-8')
-        self.logger.info(f"ret={ps.returncode}\n")
-        if self._debug or verbose:
+
+        if logging == False:
+            print(f"ret={ps.returncode}\n")
+        else:
+            self.logger.info(f"ret={ps.returncode}\n")
+
+        if (self._debug or verbose) and (logging == True):
             self.logger.debug(f"[CMD] {cmd}\n")
             self.logger.debug(f"[OUT]\n{stdout}\n")
             self.logger.debug(f"[RET] {ps.returncode}\n")
@@ -117,7 +135,7 @@ def check_type(var, vtype, msg):
 
 def get_machine_id(self):
     cmd = "cat /etc/machine-id"
-    machine_id = execute_command(self, cmd)
+    machine_id = execute_command(self, cmd, logging=False)
     machine_id = machine_id[0].split('\n')[0]
     check_type(machine_id, str, "machine-id")
     return machine_id
@@ -185,7 +203,7 @@ def create_dirs(self, dirs):
     for entry in dirs:
         if not os.path.exists(entry):
             cmd = f"mkdir -p {entry}"
-            execute_command(self, cmd)
+            execute_command(self, cmd, logging=False)
 
 def is_hw_node(self):
     try:
@@ -219,8 +237,8 @@ def validate_motr_rpm(self):
     validate_file(MOTR_SYS_CFG)
 
 def update_copy_motr_config_file(self):
-    local_path = Conf.get(self._index, 'cortx>common>storage>local')
-    log_path = Conf.get(self._index, 'cortx>common>storage>log')
+    local_path = self.local_path
+    log_path = self.log_path
     hostname = self.node['hostname']
     validate_files([MOTR_SYS_CFG, local_path, log_path])
     MOTR_LOCAL_DIR = f"{local_path}/motr"
@@ -251,9 +269,9 @@ def update_copy_motr_config_file(self):
     execute_command(self, cmd)
 
 # Get metadata disks from Confstore of all cvgs
-def get_md_disks(self):
+def get_md_disks(self, node_info):
     md_disks = []
-    cvg_count = self.storage['cvg_count']
+    cvg_count = node_info['storage']['cvg_count']
     cvg = self.storage['cvg']
     for i in range(cvg_count):
         md_disks_per_cvg = []
@@ -265,11 +283,8 @@ def get_md_disks(self):
     return md_disks
 
 # Update metadata disk entries to motr-hare confstore
-def update_to_file(self, index, url, md_disks):
+def update_to_file(self, index, url, hostname, md_disks):
     ncvgs = len(md_disks)
-    self.logger.info(f"index={index}\n_url_motr_hare={url}\nNo. of cvgs={ncvgs}")
-    machine_id = get_machine_id(self).strip('\n')
-    hostname = self.node['hostname'] 
     for i in range(ncvgs):
         md = md_disks[i]
         len_md = len(md)
@@ -280,19 +295,20 @@ def update_to_file(self, index, url, md_disks):
             Conf.set(index, f"server>{hostname}>cvg[{i}]>m0d[{j}]>md_seg1",f"{md_disk}")
             Conf.save(index)
 
-def update_motr_hare_keys(self):
-    if self.storage:
-        md_disks = get_md_disks(self)
-        update_to_file(self, self._index_motr_hare, self._url_motr_hare , md_disks)
-        
+def update_motr_hare_keys(self, nodes):
+    # k = machine_id. v = node_info
+    for k, v in nodes.items():
+        if v['type'] == 'storage_node':
+            md_disks = get_md_disks(self, v)
+            hostname = v['hostname']
+            update_to_file(self, self._index_motr_hare, self._url_motr_hare, hostname, md_disks)
+
 def motr_config_k8(self):
     if not verify_libfabric(self):
         raise MotrError(errno.EINVAL, "libfabric is not up.")
 
     # Update motr-hare keys
-    if self.node['type'] == 'storage_node':
-        update_motr_hare_keys(self)
-
+    update_motr_hare_keys(self, self.nodes)
     update_copy_motr_config_file(self)
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
     return
@@ -891,20 +907,20 @@ def config_logger(self):
     if not os.path.exists(LOGDIR):
         try:
             os.makedirs(LOGDIR, exist_ok=True)
-            with open(f'{LOGFILE}', 'w'): pass
+            with open(f'{self.logfile}', 'w'): pass
         except:
-            raise MotrError(errno.EINVAL, f"{LOGFILE} creation failed\n")
+            raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
     else:
-        if not os.path.exists(LOGFILE):
+        if not os.path.exists(self.logfile):
             try:
-                with open(f'{LOGFILE}', 'w'): pass
+                with open(f'{self.logfile}', 'w'): pass
             except:
-                raise MotrError(errno.EINVAL, f"{LOGFILE} creation failed\n")
+                raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
     logging.basicConfig(
                         format='%(asctime)s - %(levelname)s - %(message)s',
                         level=logging.DEBUG,
                         handlers=[
-                                  logging.FileHandler(LOGFILE),
+                                  logging.FileHandler(self.logfile),
                                   logging.StreamHandler()
                                  ]
                        )

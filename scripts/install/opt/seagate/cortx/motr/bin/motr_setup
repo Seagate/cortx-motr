@@ -40,25 +40,42 @@ class Cmd:
         self._url = args.config
 
         # URL for Hare-Motr keys required for intercomponent communication
-        self._motr_hare_conf = MOTR_HARE_CONF_PATH
-        self._url_motr_hare = f"json://{self._motr_hare_conf}"
         Conf.load(self._index, self._url)
-        Conf.load(self._index_motr_hare, self._url_motr_hare)
         self._args = args.args
         self._debug = args.debug
-        self.logger = config_logger(self)
         #self.k8 = args.k8
         if self._index:
             self.k8 = Conf.get(self._index, 'cortx>common>setup_type')
         if not self.k8:
+            self.logfile = LOGFILE
+            self.logger = config_logger(self)
+            self._motr_hare_conf = MOTR_HARE_CONF_PATH
+            self._url_motr_hare = f"json://{self._motr_hare_conf}"
+            Conf.load(self._index_motr_hare, self._url_motr_hare)
             self.server_node = get_server_node(self, False)
         else:
+            # Configure log files and logger
+            self.machine_id = get_machine_id(self)
+            self.local_path = get_value(self, 'cortx>common>storage>local', str)
+            self.log_path = get_value(self, 'cortx>common>storage>log', str)
+            self.share_path = get_value(self, 'cortx>common>storage>shared', str)
+            self.local_path_motr = f"{self.local_path}/motr/{self.machine_id}"
+            self._motr_hare_conf = f"{self.local_path_motr}/motr_hare_keys.json"
+            self._url_motr_hare = f"json://{self._motr_hare_conf}"
+            self.log_path_motr = f"{self.log_path}/motr/{self.machine_id}"
+            create_dirs(self, [self.local_path, self.log_path, self.share_path,
+                               self.local_path_motr, self.log_path_motr])
+            self.logfile =  f"{self.log_path_motr}/mini_provisioner"
+            self.logger = config_logger(self)
+
+            # Fetch important data from Confstore
             self.cortx = get_value(self, 'cortx', dict)
             self.cluster = get_value(self, 'cluster', dict)
             self.nodes = get_value(self, 'node', dict)
             self.node = get_server_node(self, True)
             if self.node['type'] == 'storage_node':
                 self.storage = get_storage(self)
+            Conf.load(self._index_motr_hare, self._url_motr_hare)
     @property
     def args(self) -> str:
         return self._args
