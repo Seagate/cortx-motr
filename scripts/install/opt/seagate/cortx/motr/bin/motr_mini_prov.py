@@ -236,6 +236,37 @@ def validate_motr_rpm(self):
     self.logger.info(f"Checking for {MOTR_SYS_CFG}\n")
     validate_file(MOTR_SYS_CFG)
 
+def update_config_file(self, fname, kv_list):
+    lines = []
+    # Get all lines of file in buffer
+    with open(f"{MOTR_SYS_CFG}", "r") as fp:
+        for line in fp:
+            lines.append(line)
+    num_lines = len(lines)
+    self.logger.info(f"Before update, in file {fname}, num_lines={num_lines}\n")
+
+    #Check for keys in file
+    for (k, v) in kv_list:
+        found = False
+        for lno in range(num_lines):
+            # If found, update inline.
+            if lines[lno].startswith(f"{k}="):
+                lines[lno] = f"{k}={v}\n"
+                found = True
+                break
+        # If not found, append
+        if not found:
+            lines.append(f"{k}={v}\n")
+            found = False
+
+    num_lines = len(lines)
+    self.logger.info(f"After update, in file {fname}, num_lines={num_lines}\n")
+
+    # Write buffer to file
+    with open(f"{MOTR_SYS_CFG}", "w+") as fp:
+        for line in lines:
+            fp.write(f"{line}")
+
 def update_copy_motr_config_file(self):
     local_path = self.local_path
     log_path = self.log_path
@@ -257,14 +288,15 @@ def update_copy_motr_config_file(self):
     dirs = [MOTR_MOD_DATA_DIR, MOTR_MOD_ADDB_STOB_DIR, MOTR_MOD_ADDB_TRACE_DIR]
     create_dirs(self, dirs)
 
-    f1 = open(f"{MOTR_SYS_CFG}", "a")
-    f1.write(f"MOTR_CONF_DIR={MOTR_CONF_DIR}\n")
-    f1.write(f"MOTR_MOD_DATA_DIR={MOTR_MOD_DATA_DIR}\n")
-    f1.write(f"MOTR_CONF_XC={MOTR_CONF_XC}\n")
-    f1.write(f"MOTR_MOD_ADDB_STOB_DIR={MOTR_MOD_ADDB_STOB_DIR}\n")
-    f1.write(f"MOTR_MOD_ADDB_TRACE_DIR={MOTR_MOD_ADDB_TRACE_DIR}\n")
-    f1.close()
+    # Update new config keys to config file /etc/sysconfig/motr
+    config_kvs = [("MOTR_CONF_DIR", f"{MOTR_CONF_DIR}"),
+                   ("MOTR_MOD_DATA_DIR", f"{MOTR_MOD_DATA_DIR}"),
+                   ("MOTR_CONF_XC", f"{MOTR_CONF_XC}"),
+                   ("MOTR_MOD_ADDB_STOB_DIR", f"{MOTR_MOD_ADDB_STOB_DIR}"),
+                   ("MOTR_MOD_ADDB_TRACE_DIR", f"{MOTR_MOD_ADDB_TRACE_DIR}")]
+    update_config_file(self, f"{MOTR_SYS_CFG}", config_kvs)
 
+    # Copy config file to new path
     cmd = f"cp {MOTR_SYS_CFG} {MOTR_LOCAL_SYSCONFIG_DIR}"
     execute_command(self, cmd)
 
