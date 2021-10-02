@@ -130,6 +130,16 @@ Tests:
     polltime : 30
     timeout  : 300
 
+  - id       : 07mount
+    script   : 'm0 run-st 07mount'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/motr/sandbox.07mount
+    groupname: 05motr-single-node
+    polltime : 30
+    timeout  : 360
+
 # This test is disabled, because debugfs is not available
 # in m0ctl.ko, which is not GPL-licensed
   - id       : 07mount-fail
@@ -151,16 +161,6 @@ Tests:
     groupname: 02motr-single-node
     polltime : 30
     timeout  : 900
-
-  - id       : 07mount
-    script   : 'm0 run-st 07mount'
-    dir      : src/scripts
-    executor : Xperior::Executor::MotrTest
-    #executor : Xperior::Executor::Skip
-    sandbox  : /var/motr/sandbox.07mount
-    groupname: 05motr-single-node
-    polltime : 30
-    timeout  : 360
 
   - id       : 07mount-multiple
     script   : 'm0 run-st 07mount-multiple'
