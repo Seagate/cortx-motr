@@ -643,15 +643,6 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 67fdmi-plugin-multi-filters
-    script   : 'm0 run-st 67fdmi-plugin-multi-filters'
-    dir      : src/scripts
-    executor : Xperior::Executor::MotrTest
-    sandbox  : /var/motr/sandbox.67fdmi-plugin-multi-filters
-    groupname: 02motr-single-node
-    polltime : 30
-    timeout  : 600
-
 
 # 25 min
 dangerous: 'yes'
