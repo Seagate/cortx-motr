@@ -33,7 +33,7 @@ MOTR_CONF_XC_DEFAULT=/etc/motr/conf.xc
 service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 
 # BE log resize
-MD_DIR="/var/motr"
+MD_DIR=$MOTR_M0D_DATA_DIR
 M0BETOOL="m0betool"
 BE_REPLAY="be_recovery_run"
 BE_RESIZE="be_log_resize"
@@ -100,8 +100,9 @@ m0_server()
     [[ -r $ha_config   ]]   && source $ha_config
     [[ -r $user_config ]]   && source $user_config
 
+    MD_DIR=$MOTR_M0D_DATA_DIR
     if [[ "$cmd" == "m0mkfs" && "$cmd_conf" == "--conf" ]]; then
-        conf_opts="-c $MOTR_CONF_XC"
+        conf_opts="-c $MOTR_M0D_CONF_XC"
     fi
 
     # apply global system tweaks
