@@ -437,7 +437,7 @@ M0_INTERNAL void m0_btree_cursor_kv_get(struct m0_btree_cursor *it,
 					struct m0_buf          *key,
 					struct m0_buf          *val);
 
-bool m0_btree_is_empty(struct m0_btree *btree);
+M0_INTERNAL bool m0_btree_is_empty(struct m0_btree *btree);
 
 void m0_btree_op_init(struct m0_btree_op *bop, enum m0_btree_opcode *opc,
 		      struct m0_btree *arbor,
