@@ -67,14 +67,8 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
     # If logging is False, we use print instead of logger
     # verbose(True) and logging(False) can not be set simultaneously.
 
-    if (verbose == True and logging == False):
-        print("execute_command: verbose and no_logging can not be ON simultaneously.")
-        print("verbose will not be in effect.")
-
     for i in range(retries):
-        if logging == False:
-            print(f"Retry: {i}. Executing cmd: '{cmd}'")
-        else:
+        if logging == True:
             self.logger.info(f"Retry: {i}. Executing cmd: '{cmd}'")
 
         ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
@@ -85,9 +79,7 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
         stdout, stderr = ps.communicate(timeout=timeout_secs);
         stdout = str(stdout, 'utf-8')
 
-        if logging == False:
-            print(f"ret={ps.returncode}\n")
-        else:
+        if logging == True:
             self.logger.info(f"ret={ps.returncode}\n")
 
         if (self._debug or verbose) and (logging == True):
@@ -902,6 +894,8 @@ def lvm_exist(self):
     return True
 
 def cluster_up(self):
+    if self.k8 == "K8":
+        return False
     cmd = '/usr/bin/hctl status'
     self.logger.info(f"Executing cmd : '{cmd}'\n")
     ret = execute_command_without_exception(self, cmd)
@@ -956,7 +950,7 @@ def config_logger(self):
                 raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
     logging.basicConfig(
                         format='%(asctime)s - %(levelname)s - %(message)s',
-                        level=logging.DEBUG,
+                        level=logging.ERROR,
                         handlers=[
                                   logging.FileHandler(self.logfile),
                                   logging.StreamHandler()
