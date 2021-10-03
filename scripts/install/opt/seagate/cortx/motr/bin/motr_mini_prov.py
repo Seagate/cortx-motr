@@ -25,7 +25,6 @@ import subprocess
 import logging
 import glob
 import time
-import uuid
 import yaml
 from cortx.utils.conf_store import Conf
 
@@ -137,22 +136,14 @@ def check_type(var, vtype, msg):
     if not bool(var):
         raise MotrError(errno.EINVAL, f"Empty {msg}.")
 
-def configure_machine_id(self):
+def configure_machine_id(self, phase):
     if Conf.machine_id:
-        print("Atul on 140.....")
         self.machine_id = Conf.machine_id
-    elif os.path.exists(MACHINE_ID_FILE):
-        print("Atul on 143.....")
-        cmd = f"cat {MACHINE_ID_FILE}"
-        machine_id = execute_command(self, cmd, logging=False)
-        machine_id = machine_id[0].split('\n')[0]
-        self.machine_id = machine_id
+        if phase == "start":
+            with open(f"{MACHINE_ID_FILE}", "w") as fp:
+                fp.write(f"{self.machine_id}\n")
     else:
-        node_uuid = uuid.uuid4().hex
-        with open(f"{MACHINE_ID_FILE}", "w") as fp:
-            fp.write(f"{node_uuid}\n")
-        self.machine_id = node_uuid
-        print(f"Atul on 153.....{self.machine_id}")
+        raise MotrError(errno.ENOENT, f"machine id not available in conf")
 
 def get_server_node(self, k8):
     """Get current node name using machine-id."""
@@ -284,6 +275,7 @@ def update_config_file(self, fname, kv_list):
 def update_copy_motr_config_file(self):
     local_path = self.local_path
     log_path = self.log_path
+    machine_id = self.machine_id
     hostname = self.node['hostname']
     validate_files([MOTR_SYS_CFG, local_path, log_path])
     MOTR_LOCAL_DIR = f"{local_path}/motr"
@@ -294,20 +286,20 @@ def update_copy_motr_config_file(self):
         create_dirs(self, [f"{MOTR_LOCAL_SYSCONFIG_DIR}"])
 
     MOTR_CONF_DIR = f"{local_path}/hare/sysconfig/motr/{hostname}"
-    MOTR_MOD_DATA_DIR = f"{local_path}/motr"
-    MOTR_CONF_XC = f"{local_path}/hare/confd.xc"
-    MOTR_MOD_ADDB_STOB_DIR = f"{log_path}/motr/addb"
-    MOTR_MOD_ADDB_TRACE_DIR = f"{log_path}/motr/trace"
+    MOTR_M0D_DATA_DIR = f"{local_path}/motr"
+    MOTR_M0D_CONF_XC = f"{local_path}/hare/config/{machine_id}/confd.xc"
+    MOTR_M0D_ADDB_STOB_DIR = f"{log_path}/motr/addb"
+    MOTR_M0D_TRACE_DIR = f"{log_path}/motr/trace"
     # Skip MOTR_CONF_XC and MOTR_CONF_DIR
-    dirs = [MOTR_MOD_DATA_DIR, MOTR_MOD_ADDB_STOB_DIR, MOTR_MOD_ADDB_TRACE_DIR]
+    dirs = [MOTR_M0D_DATA_DIR, MOTR_M0D_ADDB_STOB_DIR, MOTR_M0D_TRACE_DIR]
     create_dirs(self, dirs)
 
     # Update new config keys to config file /etc/sysconfig/motr
     config_kvs = [("MOTR_CONF_DIR", f"{MOTR_CONF_DIR}"),
-                   ("MOTR_MOD_DATA_DIR", f"{MOTR_MOD_DATA_DIR}"),
-                   ("MOTR_CONF_XC", f"{MOTR_CONF_XC}"),
-                   ("MOTR_MOD_ADDB_STOB_DIR", f"{MOTR_MOD_ADDB_STOB_DIR}"),
-                   ("MOTR_MOD_ADDB_TRACE_DIR", f"{MOTR_MOD_ADDB_TRACE_DIR}")]
+                   ("MOTR_M0D_DATA_DIR", f"{MOTR_M0D_DATA_DIR}"),
+                   ("MOTR_M0D_CONF_XC", f"{MOTR_M0D_CONF_XC}"),
+                   ("MOTR_M0D_ADDB_STOB_DIR", f"{MOTR_M0D_ADDB_STOB_DIR}"),
+                   ("MOTR_M0D_TRACE_DIR", f"{MOTR_M0D_TRACE_DIR}")]
     update_config_file(self, f"{MOTR_SYS_CFG}", config_kvs)
 
     # Copy config file to new path

@@ -44,11 +44,12 @@ class Cmd:
         Conf.load(self._index, self._url)
         self._args = args.args
         self._debug = args.debug
-        configure_machine_id(self)
+        configure_machine_id(self, None)
 
         if self._index:
+            self.k8 = Conf.get(self._index, 'cortx>common>environment_type')
             self.k8 = Conf.get(self._index, 'cortx>common>setup_type')
-        if not self.k8:
+        if self.k8 != "K8":
             self.logfile = LOGFILE
             self.logger = config_logger(self)
             self._motr_hare_conf = MOTR_HARE_CONF_PATH
@@ -321,6 +322,7 @@ class StartCmd(Cmd):
             if idx < 0:
                 self.logger.error(f"Invalid index({idx}).\n")
                 return
+            configure_machine_id(self, name)
             start_service(self, svc, idx)
         else:
             self.logger.error(f"Invalid number of arguments.\n")
