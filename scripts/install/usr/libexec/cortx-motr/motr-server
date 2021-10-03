@@ -33,7 +33,6 @@ MOTR_CONF_XC_DEFAULT=/etc/motr/conf.xc
 service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 
 # BE log resize
-MD_DIR=$MOTR_M0D_DATA_DIR
 M0BETOOL="m0betool"
 BE_REPLAY="be_recovery_run"
 BE_RESIZE="be_log_resize"

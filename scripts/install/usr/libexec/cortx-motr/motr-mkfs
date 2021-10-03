@@ -75,7 +75,8 @@ if [[ -n "$1" ]] ; then
     else
         service=$1
     fi
-    m0_mkfs $service $2
+    opts=$2
+    m0_mkfs $service $opts
 else
     ha_is_started=false
     confd_is_started=false
