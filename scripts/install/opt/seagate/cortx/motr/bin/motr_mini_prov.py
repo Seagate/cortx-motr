@@ -1325,8 +1325,8 @@ def start_service(self, service, idx):
             return -1
     if service in ["ioservice", "confd", "cas"]:
         cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
-        ret = execute_command_verbose(self, cmd)
+        execute_command_verbose(self, cmd)
     elif service == "fsm":
         cmd = f"{MOTR_FSM_SCRIPT_PATH}"
-        ret = execute_command_verbose(self, cmd)
+        execute_command_verbose(self, cmd)
     return
