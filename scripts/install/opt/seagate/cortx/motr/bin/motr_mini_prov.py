@@ -952,28 +952,15 @@ def config_logger(self):
             except:
                 raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
     logger.setLevel(logging.DEBUG)
-    # create file handler which logs even debug messages
+    # create file handler which logs debug message in log file
     fh = logging.FileHandler(self.logfile)
     fh.setLevel(logging.DEBUG)
-    # create console handler with a higher log level
+    # create console handler to log messages ERROR and above
     ch = logging.StreamHandler()
     ch.setLevel(logging.ERROR)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
-    '''
-    logging.basicConfig(
-                        format='%(asctime)s - %(levelname)s - %(message)s',
-                        level=logging.ERROR,
-                        handlers=[
-                                  logging.FileHandler(self.logfile),
-                                  logging.StreamHandler()
-                                 ]
-
-                        #handlers[0].setLevel(logging.DEBUG)
-                        #handlers[1].setLevel(logging.ERROR)
-                       )
-    '''
     logger.addHandler(fh)
     logger.addHandler(ch)
     return logger
@@ -1285,7 +1272,7 @@ def get_fid(self, fids, service, idx):
 
     num_fids = len(fids_list)
 
-    # Since we start index from 1 and list index starts with 0
+    # --idx argument is started from index 1, to read fetch-fids from index 0
     idx = int(idx) - 1
 
     if num_fids > 0:
