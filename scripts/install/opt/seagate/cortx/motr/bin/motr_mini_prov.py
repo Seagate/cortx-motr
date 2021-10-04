@@ -48,7 +48,7 @@ MOTR_LOG_DIRS = [LOGDIR, MOTR_LOG_DIR]
 BE_LOG_SZ = 4*1024*1024*1024 #4G
 BE_SEG0_SZ = 128 * 1024 *1024 #128M
 MACHINE_ID_FILE = "/etc/machine-id"
-TEMP_FID_FILE= "/tmp/fid.yaml"
+TEMP_FID_FILE= "/root/fid.yaml"
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -135,7 +135,7 @@ def configure_machine_id(self, phase):
             with open(f"{MACHINE_ID_FILE}", "w") as fp:
                 fp.write(f"{self.machine_id}\n")
     else:
-        raise MotrError(errno.ENOENT, f"machine id not available in conf")
+        raise MotrError(errno.ENOENT, "machine id not available in conf")
 
 def get_server_node(self, k8):
     """Get current node name using machine-id."""
@@ -304,10 +304,8 @@ def get_md_disks(self, node_info):
     cvg_count = node_info['storage']['cvg_count']
     cvg = self.storage['cvg']
     for i in range(cvg_count):
-        md_disks_per_cvg = []
         temp_cvg = cvg[i]
         if temp_cvg['devices']['metadata']:
-            num_md_disks = len(temp_cvg['devices']['metadata'])
             md_disks.append(temp_cvg['devices']['metadata'])
     self.logger.info(f"md_disks on node = {md_disks}\n")
     return md_disks
@@ -327,7 +325,7 @@ def update_to_file(self, index, url, hostname, md_disks):
 
 def update_motr_hare_keys(self, nodes):
     # k = machine_id. v = node_info
-    for k, v in nodes.items():
+    for v in nodes.values():
         if v['type'] == 'storage_node':
             md_disks = get_md_disks(self, v)
             hostname = v['hostname']
@@ -1290,7 +1288,7 @@ def fetch_fid(self, service, idx):
     fp = open(TEMP_FID_FILE, "r")
     fids = yaml.safe_load(fp)
     if len(fids) == 0:
-        self.logger.error(f"No fids returned by 'hctl fetch-fids'. Returning -1.\n")
+        self.logger.error("No fids returned by 'hctl fetch-fids'. Returning -1.\n")
         return -1
     fid = get_fid(self, fids, service, idx)
     return fid
