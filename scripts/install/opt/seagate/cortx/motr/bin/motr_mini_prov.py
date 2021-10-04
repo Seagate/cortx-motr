@@ -30,6 +30,7 @@ from cortx.utils.conf_store import Conf
 
 MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-server"
 MOTR_MKFS_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-mkfs"
+MOTR_FSM_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-free-space-monitor"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 LIBFAB_CONF_FILE = "/etc/libfab.conf"
@@ -1298,12 +1299,14 @@ def fetch_fid(self, service, idx):
 # For other services like 'motr-free-space-mon' we do nothing.
 def start_service(self, service, idx):
     self.logger.info(f"service={service}\nidx={idx}\n")
-    fid = fetch_fid(self, service, idx)
-    if fid == -1:
-        return -1
-    if service in ["ioservice", "confd", "hax"]:
+    if service != "fsm":
+        fid = fetch_fid(self, service, idx)
+        if fid == -1:
+            return -1
+    if service in ["ioservice", "confd"]:
         cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
         ret = execute_command(self, cmd, verbose=True)
     elif service == "fsm":
-        self.logger.info(f"NOOP\n")
+        cmd = f"{MOTR_FSM_SCRIPT_PATH}"
+        ret = execute_command(self, cmd, verbose=True)
     return

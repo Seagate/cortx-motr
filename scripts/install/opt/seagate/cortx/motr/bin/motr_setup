@@ -307,6 +307,7 @@ class StartCmd(Cmd):
         super().__init__(args)
 
     def process(self):
+        name = "start"
         self.logger.info(f"Processing cmd={self.name} config={self.url} services={self._services} args={self._args}\n")
         nargs = len(self._args)
         if re.match('^[0-9]*$', self._services):
