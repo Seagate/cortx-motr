@@ -158,12 +158,12 @@ class PostInstallCmd(Cmd):
         # If cluster is not up, go ahead. Otherwise, exit.
         if pkg_installed(self, "cortx-hare"):
             if cluster_up(self):
-                self.logger.warning("Cluster is already up...Exiting.\n")
+                self.logger.info("Cluster is already up...Exiting.\n")
                 return
-        if self.k8:
+        if self.k8 == 'K8':
             # Nothing required for post_install stage in k8
             self.logger.info("SUCCESS\n")
-            return
+            return 0
         else:
             if lvm_exist(self):
                 config_lvm(self)
@@ -180,13 +180,13 @@ class ConfigCmd(Cmd):
 
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
-        if self.k8:
+        if self.k8 == 'K8':
             motr_config_k8(self)
             return
 
         # Update keys from other nodes
         if self.server_node["name"] == "srvnode-1":
-            if self.k8:
+            if self.k8 == 'K8':
                 update_motr_hare_keys_for_all_nodes(self, k8=self.k8)
             else:
                 update_motr_hare_keys_for_all_nodes(self, k8=False)

@@ -366,7 +366,7 @@ def motr_config(self):
 
 def configure_net(self):
     """Wrapper function to detect lnet/libfabric transport."""
-    if self.k8:
+    if self.k8 == 'K8':
         transport_type = "libfabric"
         configure_libfabric_k8(self)
         return
