@@ -131,7 +131,7 @@ static void vals_create(int count, int size, struct m0_bufvec *vals)
 	int rc;
 
 	M0_PRE(vals != NULL);
-	rc = m0_bufvec_alloc_aligned(vals, count, size, PAGE_SHIFT);
+	rc = m0_bufvec_alloc_aligned(vals, count, size, m0_pageshift_get());
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < count; i++)
 		value_create(size, i, vals->ov_buf[i]);
