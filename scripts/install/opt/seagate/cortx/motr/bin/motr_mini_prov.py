@@ -49,7 +49,7 @@ MOTR_LOG_DIRS = [LOGDIR, MOTR_LOG_DIR]
 BE_LOG_SZ = 4*1024*1024*1024 #4G
 BE_SEG0_SZ = 128 * 1024 *1024 #128M
 MACHINE_ID_FILE = "/etc/machine-id"
-TEMP_FID_FILE= "/root/fid.yaml"
+TEMP_FID_FILE= "/opt/seagate/cortx/motr/conf/service_fid.yaml"
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -132,9 +132,14 @@ def check_type(var, vtype, msg):
 def configure_machine_id(self, phase):
     if Conf.machine_id:
         self.machine_id = Conf.machine_id
-        if phase == "start":
-            with open(f"{MACHINE_ID_FILE}", "w") as fp:
-                fp.write(f"{self.machine_id}\n")
+        if not os.path.exists(f"{MACHINE_ID_FILE}"):
+            if phase == "start":
+                with open(f"{MACHINE_ID_FILE}", "w") as fp:
+                    fp.write(f"{self.machine_id}\n")
+        else:
+            op = execute_command(self, f"cat {MACHINE_ID_FILE}", logging=False)[0].strip("\n")
+            if op != self.machine_id:
+                raise MotrError(errno.EINVAL, "machine id does not match")
     else:
         raise MotrError(errno.ENOENT, "machine id not available in conf")
 
@@ -271,39 +276,38 @@ def update_copy_motr_config_file(self):
     machine_id = self.machine_id
     hostname = self.node['hostname']
     validate_files([MOTR_SYS_CFG, local_path, log_path])
-    MOTR_LOCAL_DIR = f"{local_path}/motr"
-    if not os.path.exists(MOTR_LOCAL_DIR):
-        create_dirs(self, [f"{MOTR_LOCAL_DIR}"])
-    MOTR_LOCAL_SYSCONFIG_DIR = f"{MOTR_LOCAL_DIR}/sysconfig"
+    MOTR_M0D_DATA_DIR = f"{local_path}/motr"
+    if not os.path.exists(MOTR_M0D_DATA_DIR):
+        create_dirs(self, [f"{MOTR_M0D_DATA_DIR}"])
+    MOTR_LOCAL_SYSCONFIG_DIR = f"{MOTR_M0D_DATA_DIR}/sysconfig"
     if not os.path.exists(MOTR_LOCAL_SYSCONFIG_DIR):
         create_dirs(self, [f"{MOTR_LOCAL_SYSCONFIG_DIR}"])
 
-    MOTR_CONF_DIR = f"{local_path}/hare/sysconfig/motr/{hostname}"
-    MOTR_M0D_DATA_DIR = f"{local_path}/motr"
-    MOTR_M0D_CONF_XC = f"{local_path}/hare/config/{machine_id}/confd.xc"
-    MOTR_M0D_ADDB_STOB_DIR = f"{log_path}/motr/addb"
-    MOTR_M0D_TRACE_DIR = f"{log_path}/motr/trace"
+    MOTR_M0D_CONF_DIR = f"{MOTR_LOCAL_SYSCONFIG_DIR}/{machine_id}"
+    #MOTR_M0D_CONF_XC = f"{MOTR_M0D_CONF_DIR}/confd.xc"
+    MOTR_M0D_ADDB_STOB_DIR = f"{log_path}/motr/{machine_id}/addb"
+    MOTR_M0D_TRACE_DIR = f"{log_path}/motr/{machine_id}/trace"
     # Skip MOTR_CONF_XC and MOTR_CONF_DIR
     dirs = [MOTR_M0D_DATA_DIR, MOTR_M0D_ADDB_STOB_DIR, MOTR_M0D_TRACE_DIR]
     create_dirs(self, dirs)
 
     # Update new config keys to config file /etc/sysconfig/motr
-    config_kvs = [("MOTR_CONF_DIR", f"{MOTR_CONF_DIR}"),
+    config_kvs = [("MOTR_M0D_CONF_DIR", f"{MOTR_M0D_CONF_DIR}"),
                    ("MOTR_M0D_DATA_DIR", f"{MOTR_M0D_DATA_DIR}"),
-                   ("MOTR_M0D_CONF_XC", f"{MOTR_M0D_CONF_XC}"),
+                   #("MOTR_M0D_CONF_XC", f"{MOTR_M0D_CONF_XC}"),
                    ("MOTR_M0D_ADDB_STOB_DIR", f"{MOTR_M0D_ADDB_STOB_DIR}"),
                    ("MOTR_M0D_TRACE_DIR", f"{MOTR_M0D_TRACE_DIR}")]
     update_config_file(self, f"{MOTR_SYS_CFG}", config_kvs)
 
     # Copy config file to new path
-    cmd = f"cp {MOTR_SYS_CFG} {MOTR_LOCAL_SYSCONFIG_DIR}"
+    cmd = f"cp {MOTR_SYS_CFG} {MOTR_M0D_CONF_DIR}"
     execute_command(self, cmd)
 
 # Get metadata disks from Confstore of all cvgs
 def get_md_disks(self, node_info):
     md_disks = []
     cvg_count = node_info['storage']['cvg_count']
-    cvg = node_info['storage']['cvg']
+    cvg = self.storage['cvg']
     for i in range(cvg_count):
         temp_cvg = cvg[i]
         if temp_cvg['devices']['metadata']:
@@ -947,6 +951,17 @@ def config_logger(self):
                 with open(f'{self.logfile}', 'w'): pass
             except:
                 raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
+    logger.setLevel(logging.DEBUG)
+    # create file handler which logs even debug messages
+    fh = logging.FileHandler(self.logfile)
+    fh.setLevel(logging.DEBUG)
+    # create console handler with a higher log level
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.ERROR)
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    fh.setFormatter(formatter)
+    ch.setFormatter(formatter)
+    '''
     logging.basicConfig(
                         format='%(asctime)s - %(levelname)s - %(message)s',
                         level=logging.ERROR,
@@ -954,7 +969,13 @@ def config_logger(self):
                                   logging.FileHandler(self.logfile),
                                   logging.StreamHandler()
                                  ]
+
+                        #handlers[0].setLevel(logging.DEBUG)
+                        #handlers[1].setLevel(logging.ERROR)
                        )
+    '''
+    logger.addHandler(fh)
+    logger.addHandler(ch)
     return logger
 
 def remove_dirs(self, log_dir, patterns):
@@ -1263,7 +1284,10 @@ def get_fid(self, fids, service, idx):
             fids_list.append(fids[i]["fid"])
 
     num_fids = len(fids_list)
-    idx = int(idx)
+
+    # Since we start index from 1 and list index starts with 0
+    idx = int(idx) - 1
+
     if num_fids > 0:
         if idx < num_fids:
             return fids_list[idx]
@@ -1280,7 +1304,8 @@ def get_fid(self, fids, service, idx):
 # First populate a yaml file with the output of command 'hctl fetch-fids'
 # Use this yaml file to get proper fid of required service.
 def fetch_fid(self, service, idx):
-    cmd = "hctl fetch-fids"
+    hare_lib_path = f"{self.local_path}/hare/config/{self.machine_id}"
+    cmd = f"hctl fetch-fids --conf-dir {hare_lib_path}"
     out = execute_command(self, cmd)
     self.logger.info(f"Available fids:\n{out[0]}\n")
     fp = open(TEMP_FID_FILE, "w")
@@ -1299,14 +1324,22 @@ def fetch_fid(self, service, idx):
 # For other services like 'motr-free-space-mon' we do nothing.
 def start_service(self, service, idx):
     self.logger.info(f"service={service}\nidx={idx}\n")
+
+    # Copy confd_path to /etc/sysconfig
+    # confd_path = MOTR_M0D_CONF_DIR/confd.xc
+    confd_path = f"{self.local_path}/motr/sysconfig/{self.machine_id}/confd.xc"
+    create_dirs(self, ["/etc/motr"])
+    cmd = f"cp -f {confd_path} /etc/motr/"
+    execute_command(self, cmd)
+
     if service != "fsm":
         fid = fetch_fid(self, service, idx)
         if fid == -1:
             return -1
-    if service in ["ioservice", "confd"]:
+    if service in ["ioservice", "confd", "cas"]:
         cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
-        ret = execute_command(self, cmd, verbose=True)
+        ret = execute_command_verbose(self, cmd)
     elif service == "fsm":
         cmd = f"{MOTR_FSM_SCRIPT_PATH}"
-        ret = execute_command(self, cmd, verbose=True)
+        ret = execute_command_verbose(self, cmd)
     return

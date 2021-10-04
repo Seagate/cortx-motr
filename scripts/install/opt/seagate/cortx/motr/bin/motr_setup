@@ -40,6 +40,7 @@ class Cmd:
         self._url = args.config
 
         self._services = args.services
+        self._idx = args.idx
         # URL for Hare-Motr keys required for intercomponent communication
         Conf.load(self._index, self._url)
         self._args = args.args
@@ -119,9 +120,8 @@ class Cmd:
         parser1.add_argument('args', nargs='*', default=[], help='args')
         parser1.add_argument('--debug', '-d', help='enable debug print',
                          action="store_true")
-        parser1.add_argument('--k8', '-k', help='Run in Kubernate',
-                             action="store_true")
-        parser1.add_argument('--services', type=str, help='Run in Kubernate with service')
+        parser1.add_argument('--services', type=str, help='Service name')
+        parser1.add_argument('--idx', type=str, help='Service index')
         parser1.set_defaults(command=cls)
 
 class PrepareCmd(Cmd):
@@ -308,32 +308,39 @@ class StartCmd(Cmd):
 
     def process(self):
         name = "start"
-        self.logger.info(f"Processing cmd={self.name} config={self.url} services={self._services} args={self._args}\n")
-        nargs = len(self._args)
+        self.logger.info(f"Processing cmd={self.name} config={self.url} services={self._services} idx={self._idx}\n")
+        nargs = len(self._args) #0
+
         if re.match('^[0-9]*$', self._services):
             self.logger.error(f"Invalid service name({self._services}).")
             return
-        if (nargs == 1):
+        if (nargs == 0):
             if pkg_installed(self, "cortx-hare"):
                 if cluster_up(self):
                     self.logger.warning("Cluster is already up...Exiting.\n")
                     return
             svc = self._services
-            idx = int(self._args[0])
-            if idx < 0:
-                self.logger.error(f"Invalid index({idx}).\n")
+
+            if not self._idx:
+                self._idx = 1
+            idx = int(self._idx)
+            if idx < 1:
+                self.logger.error(f"Invalid index({idx}). Index starts from 1\n")
                 return
             configure_machine_id(self, name)
             start_service(self, svc, idx)
         else:
             self.logger.error(f"Invalid number of arguments.\n")
-            self.logger.error("Usage: <prog> [-h] <cmd> --config <url> --services <service_name> <index>\n")
+            self.logger.error("Usage: <prog> [-h] <cmd> --config <url> --services <service_name>  --idx <index>\n")
             self.logger.error("Ex: /opt/seagate/cortx/motr/bin/motr_setup start"
-                              " --config yaml:///root/atul/provisioner_cluster.yaml "
-                              "--services ioservice 0\n")
+                              " --config yaml:///root/cluster_conf_store.yaml "
+                              "--services ioservice --idx 1\n")
             self.logger.error("Ex: /opt/seagate/cortx/motr/bin/motr_setup start"
-                              " --config yaml:///root/atul/provisioner_cluster.yaml "
-                              "--services fsm 0\n")
+                              " --config yaml:///root/cluster_conf_store.yaml "
+                              "--services fsm\n")
+            self.logger.error("Ex: /opt/seagate/cortx/motr/bin/motr_setup start"
+                              " --config yaml:///root/cluster_conf_store.yaml "
+                              "--services confd\n")
         return
 
 
