@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -229,7 +229,7 @@ int main(int argc, char **argv)
 	int                         rc;
 	uint32_t                    cache_nr;
 	uint64_t                   *cache_len;
-	uint64_t                    unitsize = PAGE_SIZE;
+	uint64_t                    unitsize = 4096;
 	struct m0_pool_version      pool_ver;
 	struct m0_layout           *l;
 	struct m0_pdclust_layout   *play;

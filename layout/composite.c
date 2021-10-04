@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ M0_INTERNAL void m0_composite_build(struct m0_layout_domain *dom,
 
 #if 0 /* unused code */
 /** Implementation of lo_fini for COMPOSITE layout type. */
-M0_UNUSED  static void composite_fini(struct m0_ref *ref)
+static void composite_fini(struct m0_ref *ref)
 {
 }
 #endif
@@ -80,12 +80,12 @@ static int composite_allocate(struct m0_layout_domain *dom,
 
 #if 0 /* unused code */
 /** Implementation of lo_delete for COMPOSITE layout type. */
-M0_UNUSED static void composite_delete(struct m0_layout *l)
+static void composite_delete(struct m0_layout *l)
 {
 }
 
 /** Implementation of lo_recsize() for COMPOSITE layout type. */
-M0_UNUSED static m0_bcount_t composite_recsize(const struct m0_layout *l)
+static m0_bcount_t composite_recsize(const struct m0_layout *l)
 {
 	return 0;
 }
@@ -139,7 +139,7 @@ static m0_bcount_t composite_max_recsize(struct m0_layout_domain *dom)
 }
 
 #if 0 /* unused code */
-M0_UNUSED static const struct m0_layout_ops composite_ops;
+static const struct m0_layout_ops composite_ops;
 
 /**
  * Implementation of lo_decode() for composite layout type.
@@ -152,7 +152,7 @@ M0_UNUSED static const struct m0_layout_ops composite_ops;
  * If it is BUFFER_OP, then the layout is decoded from its representation
  * received through the buffer.
  */
-M0_UNUSED static int composite_decode(struct m0_layout *l,
+static int composite_decode(struct m0_layout *l,
 			    struct m0_bufvec_cursor *cur,
 			    enum m0_layout_xcode_op op,
 			    struct m0_be_tx *tx,
@@ -197,7 +197,7 @@ M0_UNUSED static int composite_decode(struct m0_layout *l,
  * ADD/UPDATE/DELETE. If it is BUFFER_OP, then the layout is stored in the
  * buffer.
  */
-M0_UNUSED static int composite_encode(struct m0_layout *l,
+static int composite_encode(struct m0_layout *l,
 			    enum m0_layout_xcode_op op,
 			    struct m0_be_tx *tx,
 			    struct m0_bufvec_cursor *out)
@@ -225,7 +225,7 @@ M0_UNUSED static int composite_encode(struct m0_layout *l,
 	return 0;
 }
 
-M0_UNUSED static const struct m0_layout_ops composite_ops = {
+static const struct m0_layout_ops composite_ops = {
 	.lo_fini    = composite_fini,
 	.lo_delete  = composite_delete,
 	.lo_recsize = composite_recsize,
