@@ -25,10 +25,12 @@ import subprocess
 import logging
 import glob
 import time
+import yaml
 from cortx.utils.conf_store import Conf
 
 MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-server"
 MOTR_MKFS_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-mkfs"
+MOTR_FSM_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-free-space-monitor"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 LIBFAB_CONF_FILE = "/etc/libfab.conf"
@@ -46,6 +48,8 @@ MACHINE_ID_LEN = 32
 MOTR_LOG_DIRS = [LOGDIR, MOTR_LOG_DIR]
 BE_LOG_SZ = 4*1024*1024*1024 #4G
 BE_SEG0_SZ = 128 * 1024 *1024 #128M
+MACHINE_ID_FILE = "/etc/machine-id"
+TEMP_FID_FILE= "/root/fid.yaml"
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -58,9 +62,16 @@ class MotrError(Exception):
         return f"error[{self._rc}]: {self._desc}"
 
 def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
-                    retries = 1, stdin = None):
+                    retries = 1, stdin = None, logging=True):
+    # logging flag is set False when we execute any command
+    # before logging is configured.
+    # If logging is False, we use print instead of logger
+    # verbose(True) and logging(False) can not be set simultaneously.
+
     for i in range(retries):
-        self.logger.info(f"Retry: {i}. Executing cmd: '{cmd}'")
+        if logging == True:
+            self.logger.info(f"Retry: {i}. Executing cmd: '{cmd}'")
+
         ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               shell=True)
@@ -68,8 +79,11 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
             ps.stdin.write(stdin.encode())
         stdout, stderr = ps.communicate(timeout=timeout_secs);
         stdout = str(stdout, 'utf-8')
-        self.logger.info(f"ret={ps.returncode}\n")
-        if self._debug or verbose:
+
+        if logging == True:
+            self.logger.info(f"ret={ps.returncode}\n")
+
+        if (self._debug or verbose) and (logging == True):
             self.logger.debug(f"[CMD] {cmd}\n")
             self.logger.debug(f"[OUT]\n{stdout}\n")
             self.logger.debug(f"[RET] {ps.returncode}\n")
@@ -115,17 +129,19 @@ def check_type(var, vtype, msg):
     if not bool(var):
         raise MotrError(errno.EINVAL, f"Empty {msg}.")
 
-def get_machine_id(self):
-    cmd = "cat /etc/machine-id"
-    machine_id = execute_command(self, cmd)
-    machine_id = machine_id[0].split('\n')[0]
-    check_type(machine_id, str, "machine-id")
-    return machine_id
+def configure_machine_id(self, phase):
+    if Conf.machine_id:
+        self.machine_id = Conf.machine_id
+        if phase == "start":
+            with open(f"{MACHINE_ID_FILE}", "w") as fp:
+                fp.write(f"{self.machine_id}\n")
+    else:
+        raise MotrError(errno.ENOENT, "machine id not available in conf")
 
 def get_server_node(self, k8):
     """Get current node name using machine-id."""
     try:
-        machine_id = get_machine_id(self).strip('\n');
+        machine_id = self.machine_id;
         if k8:
             server_node = Conf.get(self._index, 'node')[machine_id]
         else:
@@ -185,7 +201,7 @@ def create_dirs(self, dirs):
     for entry in dirs:
         if not os.path.exists(entry):
             cmd = f"mkdir -p {entry}"
-            execute_command(self, cmd)
+            execute_command(self, cmd, logging=False)
 
 def is_hw_node(self):
     try:
@@ -218,9 +234,41 @@ def validate_motr_rpm(self):
     self.logger.info(f"Checking for {MOTR_SYS_CFG}\n")
     validate_file(MOTR_SYS_CFG)
 
+def update_config_file(self, fname, kv_list):
+    lines = []
+    # Get all lines of file in buffer
+    with open(f"{MOTR_SYS_CFG}", "r") as fp:
+        for line in fp:
+            lines.append(line)
+    num_lines = len(lines)
+    self.logger.info(f"Before update, in file {fname}, num_lines={num_lines}\n")
+
+    #Check for keys in file
+    for (k, v) in kv_list:
+        found = False
+        for lno in range(num_lines):
+            # If found, update inline.
+            if lines[lno].startswith(f"{k}="):
+                lines[lno] = f"{k}={v}\n"
+                found = True
+                break
+        # If not found, append
+        if not found:
+            lines.append(f"{k}={v}\n")
+            found = False
+
+    num_lines = len(lines)
+    self.logger.info(f"After update, in file {fname}, num_lines={num_lines}\n")
+
+    # Write buffer to file
+    with open(f"{MOTR_SYS_CFG}", "w+") as fp:
+        for line in lines:
+            fp.write(f"{line}")
+
 def update_copy_motr_config_file(self):
-    local_path = Conf.get(self._index, 'cortx>common>storage>local')
-    log_path = Conf.get(self._index, 'cortx>common>storage>log')
+    local_path = self.local_path
+    log_path = self.log_path
+    machine_id = self.machine_id
     hostname = self.node['hostname']
     validate_files([MOTR_SYS_CFG, local_path, log_path])
     MOTR_LOCAL_DIR = f"{local_path}/motr"
@@ -231,28 +279,65 @@ def update_copy_motr_config_file(self):
         create_dirs(self, [f"{MOTR_LOCAL_SYSCONFIG_DIR}"])
 
     MOTR_CONF_DIR = f"{local_path}/hare/sysconfig/motr/{hostname}"
-    MOTR_MOD_DATA_DIR = f"{local_path}/motr"
-    MOTR_CONF_XC = f"{local_path}/hare/confd.xc"
-    MOTR_MOD_ADDB_STOB_DIR = f"{log_path}/motr/addb"
-    MOTR_MOD_ADDB_TRACE_DIR = f"{log_path}/motr/trace"
+    MOTR_M0D_DATA_DIR = f"{local_path}/motr"
+    MOTR_M0D_CONF_XC = f"{local_path}/hare/config/{machine_id}/confd.xc"
+    MOTR_M0D_ADDB_STOB_DIR = f"{log_path}/motr/addb"
+    MOTR_M0D_TRACE_DIR = f"{log_path}/motr/trace"
     # Skip MOTR_CONF_XC and MOTR_CONF_DIR
-    dirs = [MOTR_MOD_DATA_DIR, MOTR_MOD_ADDB_STOB_DIR, MOTR_MOD_ADDB_TRACE_DIR]
+    dirs = [MOTR_M0D_DATA_DIR, MOTR_M0D_ADDB_STOB_DIR, MOTR_M0D_TRACE_DIR]
     create_dirs(self, dirs)
 
-    f1 = open(f"{MOTR_SYS_CFG}", "a")
-    f1.write(f"MOTR_CONF_DIR={MOTR_CONF_DIR}\n")
-    f1.write(f"MOTR_MOD_DATA_DIR={MOTR_MOD_DATA_DIR}\n")
-    f1.write(f"MOTR_CONF_XC={MOTR_CONF_XC}\n")
-    f1.write(f"MOTR_MOD_ADDB_STOB_DIR={MOTR_MOD_ADDB_STOB_DIR}\n")
-    f1.write(f"MOTR_MOD_ADDB_TRACE_DIR={MOTR_MOD_ADDB_TRACE_DIR}\n")
-    f1.close()
+    # Update new config keys to config file /etc/sysconfig/motr
+    config_kvs = [("MOTR_CONF_DIR", f"{MOTR_CONF_DIR}"),
+                   ("MOTR_M0D_DATA_DIR", f"{MOTR_M0D_DATA_DIR}"),
+                   ("MOTR_M0D_CONF_XC", f"{MOTR_M0D_CONF_XC}"),
+                   ("MOTR_M0D_ADDB_STOB_DIR", f"{MOTR_M0D_ADDB_STOB_DIR}"),
+                   ("MOTR_M0D_TRACE_DIR", f"{MOTR_M0D_TRACE_DIR}")]
+    update_config_file(self, f"{MOTR_SYS_CFG}", config_kvs)
 
+    # Copy config file to new path
     cmd = f"cp {MOTR_SYS_CFG} {MOTR_LOCAL_SYSCONFIG_DIR}"
     execute_command(self, cmd)
+
+# Get metadata disks from Confstore of all cvgs
+def get_md_disks(self, node_info):
+    md_disks = []
+    cvg_count = node_info['storage']['cvg_count']
+    cvg = self.storage['cvg']
+    for i in range(cvg_count):
+        temp_cvg = cvg[i]
+        if temp_cvg['devices']['metadata']:
+            md_disks.append(temp_cvg['devices']['metadata'])
+    self.logger.info(f"md_disks on node = {md_disks}\n")
+    return md_disks
+
+# Update metadata disk entries to motr-hare confstore
+def update_to_file(self, index, url, hostname, md_disks):
+    ncvgs = len(md_disks)
+    for i in range(ncvgs):
+        md = md_disks[i]
+        len_md = len(md)
+        for j in range(len_md):
+            md_disk = md[j]
+            self.logger.info(f"setting key server>{hostname}>cvg[{i}]>m0d[{j}]>md_seg1"
+                         f" with value {md_disk} in {url}")
+            Conf.set(index, f"server>{hostname}>cvg[{i}]>m0d[{j}]>md_seg1",f"{md_disk}")
+            Conf.save(index)
+
+def update_motr_hare_keys(self, nodes):
+    # k = machine_id. v = node_info
+    for v in nodes.values():
+        if v['type'] == 'storage_node':
+            md_disks = get_md_disks(self, v)
+            hostname = v['hostname']
+            update_to_file(self, self._index_motr_hare, self._url_motr_hare, hostname, md_disks)
 
 def motr_config_k8(self):
     if not verify_libfabric(self):
         raise MotrError(errno.EINVAL, "libfabric is not up.")
+
+    # Update motr-hare keys
+    update_motr_hare_keys(self, self.nodes)
     update_copy_motr_config_file(self)
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
     return
@@ -280,7 +365,7 @@ def motr_config(self):
 
 def configure_net(self):
     """Wrapper function to detect lnet/libfabric transport."""
-    if self.k8:
+    if self.k8 == 'K8':
         transport_type = "libfabric"
         configure_libfabric_k8(self)
         return
@@ -808,6 +893,8 @@ def lvm_exist(self):
     return True
 
 def cluster_up(self):
+    if self.k8 == "K8":
+        return False
     cmd = '/usr/bin/hctl status'
     self.logger.info(f"Executing cmd : '{cmd}'\n")
     ret = execute_command_without_exception(self, cmd)
@@ -851,20 +938,20 @@ def config_logger(self):
     if not os.path.exists(LOGDIR):
         try:
             os.makedirs(LOGDIR, exist_ok=True)
-            with open(f'{LOGFILE}', 'w'): pass
+            with open(f'{self.logfile}', 'w'): pass
         except:
-            raise MotrError(errno.EINVAL, f"{LOGFILE} creation failed\n")
+            raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
     else:
-        if not os.path.exists(LOGFILE):
+        if not os.path.exists(self.logfile):
             try:
-                with open(f'{LOGFILE}', 'w'): pass
+                with open(f'{self.logfile}', 'w'): pass
             except:
-                raise MotrError(errno.EINVAL, f"{LOGFILE} creation failed\n")
+                raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
     logging.basicConfig(
                         format='%(asctime)s - %(levelname)s - %(message)s',
-                        level=logging.DEBUG,
+                        level=logging.ERROR,
                         handlers=[
-                                  logging.FileHandler(LOGFILE),
+                                  logging.FileHandler(self.logfile),
                                   logging.StreamHandler()
                                  ]
                        )
@@ -1166,17 +1253,60 @@ def delete_part(self, device, part_num):
     ret = execute_command(self, cmd, stdin=stdin_str, verbose=True)
     return ret[1]
 
+def get_fid(self, fids, service, idx):
+    fids_list = []
+    len_fids_list = len(fids)
+
+    # Prepare list of all fids of matching service
+    for i in range(len_fids_list):
+        if fids[i]["name"] == service:
+            fids_list.append(fids[i]["fid"])
+
+    num_fids = len(fids_list)
+    idx = int(idx)
+    if num_fids > 0:
+        if idx < num_fids:
+            return fids_list[idx]
+        else:
+            self.logger.error(f"Invalid index({idx}) of service({service})"
+                              f"Valid index should be in range [0-{num_fids-1}]."
+                              "Returning -1.")
+            return -1
+    else:
+        self.logger.error(f"No fids for service({service}). Returning -1.")
+        return -1
+
+# Fetch fid of service using command 'hctl fetch-fids'
+# First populate a yaml file with the output of command 'hctl fetch-fids'
+# Use this yaml file to get proper fid of required service.
+def fetch_fid(self, service, idx):
+    cmd = "hctl fetch-fids"
+    out = execute_command(self, cmd)
+    self.logger.info(f"Available fids:\n{out[0]}\n")
+    fp = open(TEMP_FID_FILE, "w")
+    fp.write(out[0])
+    fp.close()
+    fp = open(TEMP_FID_FILE, "r")
+    fids = yaml.safe_load(fp)
+    if len(fids) == 0:
+        self.logger.error("No fids returned by 'hctl fetch-fids'. Returning -1.\n")
+        return -1
+    fid = get_fid(self, fids, service, idx)
+    return fid
+
 # If service is one of [ios,confd,hax] then we expect fid to start the service
 # and start services using motr-mkfs and motr-server.
 # For other services like 'motr-free-space-mon' we do nothing.
-def start_service(self, service, fid):
-    self.logger.info(f"service={service}\nfid={fid}\n")
-    if service in ["ios", "confd", "hax"]:
-        if fid:
-            cmd = f"sh {MOTR_MKFS_SCRIPT_PATH} {fid}"
-            ret = execute_command(self, cmd, verbose=True)
-            cmd = f"sh {MOTR_MKFS_SCRIPT_PATH} {fid}"
-            ret = execute_command(self, cmd, verbose=True)
-    else:
-        self.logger.info(f"NOOP\n")
+def start_service(self, service, idx):
+    self.logger.info(f"service={service}\nidx={idx}\n")
+    if service != "fsm":
+        fid = fetch_fid(self, service, idx)
+        if fid == -1:
+            return -1
+    if service in ["ioservice", "confd"]:
+        cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
+        ret = execute_command(self, cmd, verbose=True)
+    elif service == "fsm":
+        cmd = f"{MOTR_FSM_SCRIPT_PATH}"
+        ret = execute_command(self, cmd, verbose=True)
     return

@@ -39,26 +39,45 @@ class Cmd:
     def __init__(self, args: dict):
         self._url = args.config
 
+        self._services = args.services
         # URL for Hare-Motr keys required for intercomponent communication
-        self._motr_hare_conf = MOTR_HARE_CONF_PATH
-        self._url_motr_hare = f"json://{self._motr_hare_conf}"
         Conf.load(self._index, self._url)
-        Conf.load(self._index_motr_hare, self._url_motr_hare)
         self._args = args.args
         self._debug = args.debug
-        self.logger = config_logger(self)
-        #self.k8 = args.k8
+        configure_machine_id(self, None)
+
         if self._index:
+            self.k8 = Conf.get(self._index, 'cortx>common>environment_type')
             self.k8 = Conf.get(self._index, 'cortx>common>setup_type')
-        if not self.k8:
+        if self.k8 != "K8":
+            self.logfile = LOGFILE
+            self.logger = config_logger(self)
+            self._motr_hare_conf = MOTR_HARE_CONF_PATH
+            self._url_motr_hare = f"json://{self._motr_hare_conf}"
+            Conf.load(self._index_motr_hare, self._url_motr_hare)
             self.server_node = get_server_node(self, False)
         else:
+            # Configure log files and logger
+            self.local_path = get_value(self, 'cortx>common>storage>local', str)
+            self.log_path = get_value(self, 'cortx>common>storage>log', str)
+            self.share_path = get_value(self, 'cortx>common>storage>shared', str)
+            self.local_path_motr = f"{self.local_path}/motr/{self.machine_id}"
+            self._motr_hare_conf = f"{self.local_path_motr}/motr_hare_keys.json"
+            self._url_motr_hare = f"json://{self._motr_hare_conf}"
+            self.log_path_motr = f"{self.log_path}/motr/{self.machine_id}"
+            create_dirs(self, [self.local_path, self.log_path, self.share_path,
+                               self.local_path_motr, self.log_path_motr])
+            self.logfile =  f"{self.log_path_motr}/mini_provisioner"
+            self.logger = config_logger(self)
+
+            # Fetch important data from Confstore
             self.cortx = get_value(self, 'cortx', dict)
             self.cluster = get_value(self, 'cluster', dict)
             self.nodes = get_value(self, 'node', dict)
             self.node = get_server_node(self, True)
             if self.node['type'] == 'storage_node':
                 self.storage = get_storage(self)
+            Conf.load(self._index_motr_hare, self._url_motr_hare)
     @property
     def args(self) -> str:
         return self._args
@@ -139,11 +158,12 @@ class PostInstallCmd(Cmd):
         # If cluster is not up, go ahead. Otherwise, exit.
         if pkg_installed(self, "cortx-hare"):
             if cluster_up(self):
-                self.logger.warning("Cluster is already up...Exiting.\n")
+                self.logger.info("Cluster is already up...Exiting.\n")
                 return
-        if self.k8:
+        if self.k8 == 'K8':
             # Nothing required for post_install stage in k8
-            return
+            self.logger.info("SUCCESS\n")
+            return 0
         else:
             if lvm_exist(self):
                 config_lvm(self)
@@ -160,13 +180,13 @@ class ConfigCmd(Cmd):
 
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
-        if self.k8:
+        if self.k8 == 'K8':
             motr_config_k8(self)
             return
 
         # Update keys from other nodes
         if self.server_node["name"] == "srvnode-1":
-            if self.k8:
+            if self.k8 == 'K8':
                 update_motr_hare_keys_for_all_nodes(self, k8=self.k8)
             else:
                 update_motr_hare_keys_for_all_nodes(self, k8=False)
@@ -287,27 +307,33 @@ class StartCmd(Cmd):
         super().__init__(args)
 
     def process(self):
-        self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
+        name = "start"
+        self.logger.info(f"Processing cmd={self.name} config={self.url} services={self._services} args={self._args}\n")
         nargs = len(self._args)
-        if (1 <= nargs <= 2):
+        if re.match('^[0-9]*$', self._services):
+            self.logger.error(f"Invalid service name({self._services}).")
+            return
+        if (nargs == 1):
             if pkg_installed(self, "cortx-hare"):
                 if cluster_up(self):
                     self.logger.warning("Cluster is already up...Exiting.\n")
                     return
-            fid = None
-            if nargs == 2:
-                service_name = self._args[0]
-                fid = self._args[1]
-            start_service(self, service_name, fid)
+            svc = self._services
+            idx = int(self._args[0])
+            if idx < 0:
+                self.logger.error(f"Invalid index({idx}).\n")
+                return
+            configure_machine_id(self, name)
+            start_service(self, svc, idx)
         else:
             self.logger.error(f"Invalid number of arguments.\n")
-            self.logger.error("Usage: <prog> [-h] <cmd> --config <url> --k8 <service_name> <fid>\n")
+            self.logger.error("Usage: <prog> [-h] <cmd> --config <url> --services <service_name> <index>\n")
             self.logger.error("Ex: /opt/seagate/cortx/motr/bin/motr_setup start"
                               " --config yaml:///root/atul/provisioner_cluster.yaml "
-                              "--k8 ios 0x7200000000000001:0xc\n")
+                              "--services ioservice 0\n")
             self.logger.error("Ex: /opt/seagate/cortx/motr/bin/motr_setup start"
                               " --config yaml:///root/atul/provisioner_cluster.yaml "
-                              "--k8 motr-free-space-mon\n")
+                              "--services fsm 0\n")
         return
 
 
