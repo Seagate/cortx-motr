@@ -27,7 +27,6 @@
 #include <limits.h>    /* CHAR_BIT */
 #include <ctype.h>     /* tolower */
 #include <sys/types.h>
-#include <sys/user.h>  /* PAGE_SIZE */
 #endif
 #include "lib/errno.h"
 #include "lib/atomic.h"
@@ -70,13 +69,16 @@ static const char     trace_magic_symbol_name[] = "trace_magic_symbol";
 
 /* single buffer for now */
 
+/* The bootlog buffer size should be aligned with the page size. */
+enum { BOOTLOG_BUF_SIZE = (1 << 16) }; /* 64K */
+
 /**
  * This buffer is used for early trace records issued before real buffer is
  * initialized by m0_trace_init().
  */
 static struct {
 	struct m0_trace_area  bl_area;
-	char                  bl_buf[PAGE_SIZE];
+	char                  bl_buf[BOOTLOG_BUF_SIZE];
 } bootlog;
 M0_BASSERT(bootlog.bl_buf == bootlog.bl_area.ta_buf);
 
