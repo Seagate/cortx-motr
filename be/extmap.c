@@ -33,6 +33,7 @@
 #include "lib/cksum_utils.h"
 #include "lib/cksum.h"
 #include "format/format.h"  /* m0_format_header_pack */
+#include "lib/byteorder.h"  /** m0_byteorder_cpu_to_be64() */
 
 /* max data units that can be sent in a request */
 #define MAX_DUS 8
@@ -140,17 +141,24 @@ static struct m0_rwlock *emap_rwlock(struct m0_be_emap *emap)
 
 static void bs_key(struct m0_be_emap_key *key)
 {
-	int   size = sizeof(*key)/2;
-	char *tkey = (char *)key;
-	char  a;
-	int   i=0;
+	uint64_t temp;
+	temp = m0_byteorder_cpu_to_be64(((uint64_t*)&key->ek_prefix)[0]);
+	((uint64_t*)&key->ek_prefix)[0] =
+		m0_byteorder_cpu_to_be64(((uint64_t*)&key->ek_prefix)[1]);
+	((uint64_t*)&key->ek_prefix)[1] = temp;
 
-	while (i < size) {
-		a = tkey[i];
-		tkey[i] = tkey[size - i - 1];
-		tkey[size - i - 1] = a;
-		i++;
-	}
+	key->ek_offset = m0_byteorder_cpu_to_be64(key->ek_offset);
+}
+
+static void bs_key_rev(struct m0_be_emap_key *key)
+{
+	uint64_t temp;
+	temp = m0_byteorder_be64_to_cpu(((uint64_t*)&key->ek_prefix)[0]);
+	((uint64_t*)&key->ek_prefix)[0] =
+		m0_byteorder_be64_to_cpu(((uint64_t*)&key->ek_prefix)[1]);
+	((uint64_t*)&key->ek_prefix)[1] = temp;
+
+	key->ek_offset = m0_byteorder_be64_to_cpu(key->ek_offset);
 }
 
 static void emap_dump(struct m0_be_emap_cursor *it)
@@ -925,7 +933,7 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 		&kv_op,
 		m0_btree_put(map->em_mapping, &rec, &put_cb, &kv_op, tx));
 	m0_rwlock_write_unlock(emap_rwlock(map));
-	bs_key(&map->em_key);
+	bs_key_rev(&map->em_key);
 
 	m0_be_op_done(op);
 }
@@ -1184,18 +1192,13 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	emap_rec_init(rec_buf_ptr);
 
 	++it->ec_map->em_version;
-	// it->ec_op.bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
-	// 		op,
-	// 		btree_func(it->ec_map->em_mapping, tx, &kv_op,
-	// 			   &it->ec_keybuf, &rec_buf),
-	// 		bo_u.u_btree.t_rc);
 	bs_key(key);
 
 	it->ec_op.bo_u.u_emap.e_rc =
 			btree_func(it->ec_map->em_mapping, tx, &kv_op,
 				   &it->ec_keybuf, &rec_buf);
 	m0_buf_free(&rec_buf);
-	bs_key(key);
+	bs_key_rev(key);
 
 	return it->ec_op.bo_u.u_emap.e_rc;
 }
@@ -1223,10 +1226,9 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 
 		/* Key operation */
 		key = keybuf.b_addr;
-		if (key != NULL)
-			bs_key(key);
 		it->ec_key = *key;
-
+		if (&it->ec_key != NULL)
+			bs_key_rev(&it->ec_key);
 		/* Record operation */
 		if (it->ec_recbuf.b_addr != NULL) {
 			m0_buf_free(&it->ec_recbuf);
@@ -1249,9 +1251,9 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		rec = it->ec_recbuf.b_addr;
 		it->ec_rec = *rec;
 
-		ext->ee_pre         = key->ek_prefix;
+		ext->ee_pre         = it->ec_key.ek_prefix;
 		ext->ee_ext.e_start = rec->er_start;
-		ext->ee_ext.e_end   = key->ek_offset;
+		ext->ee_ext.e_end   = it->ec_key.ek_offset;
 		m0_ext_init(&ext->ee_ext);
 		ext->ee_val         = rec->er_value;
 		ext->ee_cksum_buf.b_nob  = rec->er_cksum_nob;
@@ -1273,9 +1275,10 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 {
 	/* As EMAP record will now be variable we can't assign fix space */
 	m0_buf_init(&it->ec_keybuf, &it->ec_key, sizeof it->ec_key);
-
+	emap_key_init(&it->ec_key);
 	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
 	it->ec_key.ek_offset = offset + 1;
+	m0_format_footer_update(&it->ec_key);
 
 	it->ec_map = map;
 	it->ec_version = map->em_version;
@@ -1305,7 +1308,8 @@ static int emap_it_get(struct m0_be_emap_cursor *it)
 	m0_be_op_init(op);
 	m0_be_op_active(op);
 	bs_key(&it->ec_key);
-	op->bo_u.u_btree.t_rc = m0_btree_cursor_get(&it->ec_cursor, &r_key, true);
+	op->bo_u.u_btree.t_rc = m0_btree_cursor_get(&it->ec_cursor, &r_key,
+						    true);
 	m0_be_op_done(op);
 	m0_be_op_wait(op);
 	rc = emap_it_open(it);
@@ -1339,7 +1343,9 @@ static int be_emap_next(struct m0_be_emap_cursor *it)
 
 	M0_SET0(op);
 	m0_be_op_init(op);
+	m0_be_op_active(op);
 	m0_btree_cursor_next(&it->ec_cursor);
+	m0_be_op_done(op);
 	m0_be_op_wait(op);
 	rc = emap_it_open(it);
 	m0_be_op_fini(op);
@@ -1355,7 +1361,9 @@ be_emap_prev(struct m0_be_emap_cursor *it)
 
 	M0_SET0(op);
 	m0_be_op_init(op);
+	m0_be_op_active(op);
 	m0_btree_cursor_prev(&it->ec_cursor);
+	m0_be_op_done(op);
 	m0_be_op_wait(op);
 	rc = emap_it_open(it);
 	m0_be_op_fini(op);
