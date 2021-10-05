@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2016-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2016-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -118,6 +118,7 @@ struct m0_cas_ctg {
 	 * meta.
 	 */
 	bool                    cc_inited;
+	//bool                    cc_destroy;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_cas_ctg_format_version {
