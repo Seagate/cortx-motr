@@ -287,8 +287,8 @@ def update_copy_motr_config_file(self):
     MOTR_M0D_CONF_XC = f"{MOTR_M0D_CONF_DIR}/confd.xc"
     MOTR_M0D_ADDB_STOB_DIR = f"{log_path}/motr/{machine_id}/addb"
     MOTR_M0D_TRACE_DIR = f"{log_path}/motr/{machine_id}/trace"
-    # Skip MOTR_CONF_XC and MOTR_CONF_DIR
-    dirs = [MOTR_M0D_DATA_DIR, MOTR_M0D_ADDB_STOB_DIR, MOTR_M0D_TRACE_DIR]
+    # Skip MOTR_CONF_XC
+    dirs = [MOTR_M0D_DATA_DIR, MOTR_M0D_ADDB_STOB_DIR, MOTR_M0D_TRACE_DIR, MOTR_CONF_DIR]
     create_dirs(self, dirs)
 
     # Update new config keys to config file /etc/sysconfig/motr
