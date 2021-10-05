@@ -117,6 +117,8 @@ struct m0_be_io {
 	struct m0_tlink         bio_sched_link;
 	uint64_t                bio_sched_magic;
 	struct m0_be_op         bio_sched_op;
+	/** The op passed to m0_be_io_sched_add() */
+	struct m0_be_op        *bio_sched_op_user;
 	struct m0_ext           bio_ext;
 };
 
