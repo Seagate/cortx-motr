@@ -71,7 +71,7 @@ BuildRequires:  libtool
 BuildRequires:  make
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
-%if %{rhel} <= 7
+%if %{rhel} < 8
 BuildRequires:  gccxml
 %else
 BuildRequires:  castxml
@@ -91,14 +91,14 @@ BuildRequires:  kernel-devel = %{kernel_ver_requires}
 BuildRequires:  %{lustre_devel}
 BuildRequires:  libuuid-devel
 BuildRequires:  binutils-devel
-%if %{rhel} <= 7
+%if %{rhel} < 8
 BuildRequires:  python36-ply
 %else
 BuildRequires:  python3-ply
 %endif
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
-%if %{rhel} <= 7
+%if %{rhel} < 8
 BuildRequires:  python-devel
 %else
 BuildRequires:  python2-devel
@@ -116,7 +116,9 @@ Requires:       libaio
 Requires:       libyaml
 Requires:       gdb
 Requires:       genders
+%if %{rhel} < 8
 Requires:       sysvinit-tools
+%endif
 Requires:       attr
 Requires:       perl
 Requires:       perl-YAML-LibYAML
@@ -130,7 +132,11 @@ Requires:       perl-MCE
 Requires:       ruby
 Requires:       facter
 Requires:       rubygem-net-ssh
+%if %{rhel} < 8
 Requires:       python36-ply
+%else
+Requires:       python3-ply
+%endif
 Requires:       libedit
 Requires:       isa-l
 Requires(pre):  shadow-utils
