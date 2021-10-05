@@ -231,7 +231,8 @@ cmd_run_st() {
                     if [[ "$trans" == "libfab" ]]; then
                         chk=$(_libfab_st_list ${f##*/})
                         if [[ "$chk" == "true" ]]; then
-                            echo "<< ${f##*/} >> can not be run for libfab" >&2
+                            echo "<< ${f##*/} >> Can not be run for libfab" >&1
+                            echo "status: SUCCESS" >&1
                             continue
                         fi
                     fi
