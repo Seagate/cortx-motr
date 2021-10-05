@@ -50,6 +50,7 @@ BE_LOG_SZ = 4*1024*1024*1024 #4G
 BE_SEG0_SZ = 128 * 1024 *1024 #128M
 MACHINE_ID_FILE = "/etc/machine-id"
 TEMP_FID_FILE= "/opt/seagate/cortx/motr/conf/service_fid.yaml"
+CMD_RETRY_COUNT = 5
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -94,10 +95,16 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
 
-def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False):
+# For normal command, we execute command for CMD_RETRY_COUNT(5 default) times and for each retry timeout is of TIMEOUT_SECS(120s default).
+# For daemon(e.g. m0d services), retry_count is 1 and tmeout is 0 so that we just execute this daemon command only once without timeout.
+def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False, set_timeout=True, retry_count = CMD_RETRY_COUNT):
     self.logger.info(f"Executing cmd : '{cmd}' \n")
+    # For commands without timeout
+    if set_timeout == False:
+        timeout_secs = None
+        retry_count = 1
     cmd_retry_delay = 1
-    for cmd_retry_count in range(1,6):
+    for cmd_retry_count in range(retry_count):
         ps = subprocess.run(cmd, stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, timeout=timeout_secs,
                             stderr=subprocess.PIPE, shell=True)
@@ -284,17 +291,17 @@ def update_copy_motr_config_file(self):
         create_dirs(self, [f"{MOTR_LOCAL_SYSCONFIG_DIR}"])
 
     MOTR_M0D_CONF_DIR = f"{MOTR_LOCAL_SYSCONFIG_DIR}/{machine_id}"
-    #MOTR_M0D_CONF_XC = f"{MOTR_M0D_CONF_DIR}/confd.xc"
+    MOTR_M0D_CONF_XC = f"{MOTR_M0D_CONF_DIR}/confd.xc"
     MOTR_M0D_ADDB_STOB_DIR = f"{log_path}/motr/{machine_id}/addb"
     MOTR_M0D_TRACE_DIR = f"{log_path}/motr/{machine_id}/trace"
-    # Skip MOTR_CONF_XC and MOTR_CONF_DIR
-    dirs = [MOTR_M0D_DATA_DIR, MOTR_M0D_ADDB_STOB_DIR, MOTR_M0D_TRACE_DIR]
+    # Skip MOTR_CONF_XC
+    dirs = [MOTR_M0D_DATA_DIR, MOTR_M0D_ADDB_STOB_DIR, MOTR_M0D_TRACE_DIR, MOTR_M0D_CONF_DIR]
     create_dirs(self, dirs)
 
     # Update new config keys to config file /etc/sysconfig/motr
     config_kvs = [("MOTR_M0D_CONF_DIR", f"{MOTR_M0D_CONF_DIR}"),
                    ("MOTR_M0D_DATA_DIR", f"{MOTR_M0D_DATA_DIR}"),
-                   #("MOTR_M0D_CONF_XC", f"{MOTR_M0D_CONF_XC}"),
+                   ("MOTR_M0D_CONF_XC", f"{MOTR_M0D_CONF_XC}"),
                    ("MOTR_M0D_ADDB_STOB_DIR", f"{MOTR_M0D_ADDB_STOB_DIR}"),
                    ("MOTR_M0D_TRACE_DIR", f"{MOTR_M0D_TRACE_DIR}")]
     update_config_file(self, f"{MOTR_SYS_CFG}", config_kvs)
@@ -1316,7 +1323,11 @@ def start_service(self, service, idx):
     # confd_path = MOTR_M0D_CONF_DIR/confd.xc
     confd_path = f"{self.local_path}/motr/sysconfig/{self.machine_id}/confd.xc"
     create_dirs(self, ["/etc/motr"])
+
     cmd = f"cp -f {confd_path} /etc/motr/"
+    execute_command(self, cmd)
+
+    cmd = f"cp -v {self.local_path}/motr/sysconfig/{self.machine_id}/motr /etc/sysconfig/"
     execute_command(self, cmd)
 
     if service != "fsm":
@@ -1325,8 +1336,8 @@ def start_service(self, service, idx):
             return -1
     if service in ["ioservice", "confd", "cas"]:
         cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
-        execute_command_verbose(self, cmd)
+        execute_command_verbose(self, cmd, set_timeout=False)
     elif service == "fsm":
         cmd = f"{MOTR_FSM_SCRIPT_PATH}"
-        execute_command_verbose(self, cmd)
+        execute_command_verbose(self, cmd, set_timeout=False)
     return
