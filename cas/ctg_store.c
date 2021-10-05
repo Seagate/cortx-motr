@@ -1236,8 +1236,9 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 	case CTG_OP_COMBINE(CO_TRUNC, CT_BTREE):
 		m0_be_op_active(beop);
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					      m0_btree_truncate(btree, tx,
-					      			&kv_op));
+					      m0_btree_truncate(btree,
+					      			ctg_op->co_cnt,
+								tx, &kv_op));
 		m0_be_op_done(beop);
 		break;
 	case CTG_OP_COMBINE(CO_DROP, CT_BTREE):
@@ -1759,45 +1760,7 @@ M0_INTERNAL void m0_ctg_drop_credit(struct m0_fom          *fom,
 				    struct m0_cas_ctg      *ctg,
 				    m0_bcount_t            *limit)
 {
-	m0_bcount_t            records_nr = 0;
-	m0_bcount_t            records_ok;
-	struct m0_be_tx_credit record_cred;
-	struct m0_be_tx_credit nodes_cred = {};
-
-	// m0_be_btree_clear_credit(&ctg->cc_tree, &nodes_cred, &record_cred,
-	// 			 &records_nr);
-	records_nr = records_nr ?: 1;
-	for (records_ok = 0;
-	     /**
-	      * Take only a half of maximum number of credits, and rely on the
-	      * number of credits for nodes which has to be less than number of
-	      * credits for the records to be deleted. So that we leave the room
-	      * for the credits required for nodes deletion.
-	      */
-	     !m0_be_should_break_half(m0_fom_tx(fom)->t_engine, accum,
-				      &record_cred) && records_ok < records_nr;
-	     records_ok++)
-		m0_be_tx_credit_add(accum, &record_cred);
-
-	/**
-	 * Credits for all nodes are being calculated inside
-	 * m0_be_btree_clear_credit(). This is too much and can exceed allowed
-	 * credits limit.
-	 * Here, all nodes credits are being adjusted respectively to the number
-	 * of records used during deletion (records_ok). Statistically the
-	 * number of node credits after such adjustment has to be reasonable.
-	 * In general, the following relation is fair:
-	 *     deleted_nodes_nr / all_nodes_nr == records_ok / records_nr.
-	 */
-	if (records_ok > 0 && records_nr >= records_ok) {
-		nodes_cred.tc_reg_nr   =
-			nodes_cred.tc_reg_nr   * records_ok / records_nr;
-		nodes_cred.tc_reg_size =
-			nodes_cred.tc_reg_size * records_ok / records_nr;
-	}
-	m0_be_tx_credit_add(accum, &nodes_cred);
-
-	*limit = records_ok;
+	m0_btree_truncate_credit(m0_fom_tx(fom), ctg->cc_tree, accum, limit);
 }
 
 M0_INTERNAL void m0_ctg_dead_clean_credit(struct m0_be_tx_credit *accum)
