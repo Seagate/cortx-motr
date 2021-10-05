@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 #define __MOTR_BTREE_INTERNAL_H__
 
 #include "sm/op.h"
-#include "be/op.h"
+#include "be/op.h"  /* struct m0_be_op */
 /**
  * @defgroup btree
  *

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -95,11 +95,11 @@ static m0_bcount_t be_emap_ksize(const void* k);
 static m0_bcount_t be_emap_vsize(const void* d);
 #endif
 static int emap_it_pack(struct m0_be_emap_cursor *it,
-			int (*btree_func)(struct m0_btree *btree,
-					   struct m0_be_tx *tx,
+			int (*btree_func)(struct m0_btree     *btree,
+					   struct m0_be_tx    *tx,
 					   struct m0_btree_op *op,
-				     const struct m0_buf   *key,
-				     const struct m0_buf   *val),
+				     const struct m0_buf      *key,
+				     const struct m0_buf      *val),
 			struct m0_be_tx *tx);
 static bool emap_it_prefix_ok(const struct m0_be_emap_cursor *it);
 static int emap_it_open(struct m0_be_emap_cursor *it);
@@ -284,8 +284,8 @@ static int delete_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 				};
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(
-			op,
-			m0_btree_del(btree, &r_key, NULL, op, tx));
+				op,
+				m0_btree_del(btree, &r_key, NULL, op, tx));
 	return rc;
 }
 
@@ -360,7 +360,7 @@ static int update_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 }
 
 M0_INTERNAL void
-m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db, bool check)
+m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db, bool open_tree)
 {
 	struct m0_btree_op b_op = {};
 	int                rc;
@@ -375,16 +375,16 @@ m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db, bool check)
 	emap_key_init(&map->em_key);
 	emap_rec_init(&map->em_rec);
 
-	if (check) {
+	if (open_tree) {
 		M0_ALLOC_PTR(map->em_mapping);
 		if (map->em_mapping == NULL)
 			M0_ASSERT(0);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-						m0_btree_open(&map->em_mp_node,
-								sizeof map->em_mp_node,
-								map->em_mapping, db,
-								&b_op));
+					      m0_btree_open(&map->em_mp_node,
+							sizeof map->em_mp_node,
+							map->em_mapping, db,
+							&b_op));
 		M0_ASSERT(rc == 0);
 	}
 	map->em_seg = db;
@@ -392,14 +392,13 @@ m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db, bool check)
 	m0_format_footer_update(map);
 }
 
-M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map, bool check)
+M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map, bool close_tree)
 {
 	struct m0_btree_op b_op = {};
 	map->em_version = 0;
-	if (check)
+	if (close_tree)
 		M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-				 m0_btree_close(map->em_mapping,
-						&b_op));
+				 m0_btree_close(map->em_mapping, &b_op));
 	m0_free0(&map->em_mapping);
 	m0_rwlock_fini(emap_rwlock(map));
 }
@@ -885,11 +884,11 @@ M0_INTERNAL int m0_be_emap_count(struct m0_be_emap_cursor *it,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
-				       struct m0_be_tx   *tx,
-				       struct m0_be_op   *op,
-			         const struct m0_uint128 *prefix,
-				       uint64_t           val)
+M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap       *map,
+				       struct m0_be_tx         *tx,
+				       struct m0_be_op         *op,
+				       const struct m0_uint128 *prefix,
+				       uint64_t                 val)
 {
 	void               *k_ptr;
 	void               *v_ptr;

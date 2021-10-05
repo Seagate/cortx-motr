@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ static void emap_be_alloc(struct m0_be_tx *tx)
 	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_BE_ALLOC_ALIGN_PTR_SYNC(emap, 10, be_seg, tx);
+	M0_BE_ALLOC_ALIGN_PTR_SYNC(emap, 12, be_seg, tx);
 	M0_UT_ASSERT(emap != NULL);
 
 	m0_be_tx_close_sync(tx);

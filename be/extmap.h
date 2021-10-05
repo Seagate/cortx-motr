@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,7 +109,7 @@
 #include "lib/types.h"     /* struct m0_uint128 */
 #include "lib/types_xc.h"  /* m0_uint128_xc */
 #include "be/tx.h"
-#include "btree/btree.h"
+#include "btree/btree.h"   /* m0_btree_cursor */
 #include "be/btree_xc.h"
 
 #include "be/extmap_internal.h"
@@ -134,10 +134,10 @@ struct m0_be_emap_cursor;
     @retval -ENOENT mapname is not found in the segment dictionary.
  */
 M0_INTERNAL void m0_be_emap_init(struct m0_be_emap *map,
-				 struct m0_be_seg  *db, bool check);
+				 struct m0_be_seg  *db, bool open_tree);
 
 /** Release the resources associated with the collection. */
-M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map, bool check);
+M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map, bool close_tree);
 
 /**
     Create maps collection.
