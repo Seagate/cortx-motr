@@ -300,8 +300,11 @@ extern unsigned int m0_trace_level;
  */
 
 enum {
-	/** Size, reserved for trace buffer header */
-	M0_TRACE_BUF_HEADER_SIZE = 4096,
+	/**
+	 * Size, reserved for trace buffer header. Must be multiple of
+	 * page size on all supported platforms.
+	 */
+	M0_TRACE_BUF_HEADER_SIZE = (1 << 16), /* 64KB */
 	/** Alignment for trace records in trace buffer */
 	M0_TRACE_REC_ALIGN = 8, /* word size on x86_64 */
 };
