@@ -69,7 +69,7 @@ static const char     trace_magic_symbol_name[] = "trace_magic_symbol";
 
 /* single buffer for now */
 
-/* The bootlog buffer size should be aligned with the page size. */
+/* Must be multiple of page size on all supported platforms. */
 enum { BOOTLOG_BUF_SIZE = (1 << 16) }; /* 64K */
 
 /**
