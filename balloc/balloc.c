@@ -583,8 +583,10 @@ static void balloc_fini_internal(struct m0_balloc *bal)
 
 static void balloc_sb_sync(struct m0_balloc *cb, struct m0_be_tx *tx)
 {
-	struct m0_balloc_super_block	*sb = &cb->cb_sb;
-	struct timeval			 now;
+	struct m0_balloc_super_block    *sb = &cb->cb_sb;
+	struct timeval                   now;
+	m0_bcount_t                      bytes;
+	struct m0_buf                    buf;
 
 	M0_ENTRY();
 
@@ -599,7 +601,9 @@ static void balloc_sb_sync(struct m0_balloc *cb, struct m0_be_tx *tx)
 	cb->cb_sb.bsb_state &= ~M0_BALLOC_SB_DIRTY;
 
 	m0_format_footer_update(cb);
-	M0_BE_TX_CAPTURE_PTR(cb->cb_be_seg, tx, cb);
+	bytes = offsetof(typeof(*cb), cb_footer) + sizeof(cb->cb_footer);
+	buf = M0_BUF_INIT(bytes, cb);
+	M0_BE_TX_CAPTURE_BUF(cb->cb_be_seg, tx, &buf);
 
 	M0_LEAVE();
 }
@@ -3178,11 +3182,10 @@ M0_INTERNAL int m0_balloc_create(uint64_t              cid,
 			cb->cb_container_id = cid;
 
 			balloc_format_init(cb);
+			M0_BE_TX_CAPTURE_PTR(seg, &tx, cb);
 			rc = balloc_trees_create(cb, seg, &tx, fid);
-			if (rc == 0) {
-				M0_BE_TX_CAPTURE_PTR(seg, &tx, cb);
+			if (rc == 0)
 				*out = cb;
-			}
 		}
 		m0_be_tx_close_sync(&tx);
 	}
