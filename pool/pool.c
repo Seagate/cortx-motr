@@ -1895,6 +1895,7 @@ M0_INTERNAL uint32_t m0_ha2pm_state_map(enum m0_ha_obj_state hastate)
 		[M0_NC_REPAIR]         = M0_PNDS_SNS_REPAIRING,
 		[M0_NC_REPAIRED]       = M0_PNDS_SNS_REPAIRED,
 		[M0_NC_REBALANCE]      = M0_PNDS_SNS_REBALANCING,
+		[M0_NC_DTM_RECOVERING] = M0_PNDS_ONLINE,
 	};
 	M0_ASSERT (hastate < M0_NC_NR);
 	return ha2pm_statemap[hastate];
