@@ -149,6 +149,25 @@ enum m0_ha_obj_state {
 	 * copied from spare space to the replacement storage.
 	 */
 	M0_NC_REBALANCE,
+	/**
+	 * Recovery is triggered by the incoming NC_DTM_RECOVERING HA state
+	 * message. During this state, processes iterate over their DTM logs,
+	 * pack elements of them, TXRs, into REDO messages and send REDO
+	 * messages to corresponding participants of TXR. Any subsequent failure
+	 * of the process in the cluster restarts the recovery process on all
+	 * alive participants.
+	 *
+	 * DTM_RECOVERING state is transitive for client applications and mkfs,
+	 * meaning that transition from NC_DTM_RECOVERING to NC_ONLINE is
+	 * immediate.
+	 *
+	 * For m0ds (CAS-, IO-services) indicates that the process waits for the
+	 * completion of ongoing DTM recovery process. When the client learns
+	 * the process in DTM_RECOVERING state it treats the process as
+	 * read-only, at least for the meta-data, and skips sending modification
+	 * requests to it.
+	 */
+	M0_NC_DTM_RECOVERING,
 
 	M0_NC_NR
 };
