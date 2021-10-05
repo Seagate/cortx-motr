@@ -284,7 +284,7 @@ def update_copy_motr_config_file(self):
         create_dirs(self, [f"{MOTR_LOCAL_SYSCONFIG_DIR}"])
 
     MOTR_M0D_CONF_DIR = f"{MOTR_LOCAL_SYSCONFIG_DIR}/{machine_id}"
-    #MOTR_M0D_CONF_XC = f"{MOTR_M0D_CONF_DIR}/confd.xc"
+    MOTR_M0D_CONF_XC = f"{MOTR_M0D_CONF_DIR}/confd.xc"
     MOTR_M0D_ADDB_STOB_DIR = f"{log_path}/motr/{machine_id}/addb"
     MOTR_M0D_TRACE_DIR = f"{log_path}/motr/{machine_id}/trace"
     # Skip MOTR_CONF_XC and MOTR_CONF_DIR
@@ -294,7 +294,7 @@ def update_copy_motr_config_file(self):
     # Update new config keys to config file /etc/sysconfig/motr
     config_kvs = [("MOTR_M0D_CONF_DIR", f"{MOTR_M0D_CONF_DIR}"),
                    ("MOTR_M0D_DATA_DIR", f"{MOTR_M0D_DATA_DIR}"),
-                   #("MOTR_M0D_CONF_XC", f"{MOTR_M0D_CONF_XC}"),
+                   ("MOTR_M0D_CONF_XC", f"{MOTR_M0D_CONF_XC}"),
                    ("MOTR_M0D_ADDB_STOB_DIR", f"{MOTR_M0D_ADDB_STOB_DIR}"),
                    ("MOTR_M0D_TRACE_DIR", f"{MOTR_M0D_TRACE_DIR}")]
     update_config_file(self, f"{MOTR_SYS_CFG}", config_kvs)
