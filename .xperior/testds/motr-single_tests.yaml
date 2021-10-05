@@ -647,7 +647,7 @@ Tests:
     script   : 'm0 run-st 67fdmi-plugin-multi-filters'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
-    sandbox  : /var/motr/sandbox.st-67fdmi-plugin-multi-filters
+    sandbox  : /var/motr/root/sandbox.st-67fdmi-plugin-multi-filters
     groupname: 02motr-single-node
     polltime : 30
     timeout  : 600
