@@ -599,7 +599,7 @@ enum base_phase {
 	P_CLEANUP,
 	P_FINI,
 	P_COOKIE,
-	P_TIMECHECK,
+	P_WAITCHECK,
 	P_TREE_GET,
 	P_NR
 };
@@ -6588,7 +6588,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "P_INIT",
-		.sd_allowed = M0_BITS(P_COOKIE, P_SETUP, P_ACT, P_TIMECHECK,
+		.sd_allowed = M0_BITS(P_COOKIE, P_SETUP, P_ACT, P_WAITCHECK,
 				      P_TREE_GET, P_DONE),
 	},
 	[P_TREE_GET] = {
@@ -6691,10 +6691,10 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 		.sd_name    = "P_FINI",
 		.sd_allowed = M0_BITS(P_DONE),
 	},
-	[P_TIMECHECK] = {
+	[P_WAITCHECK] = {
 		.sd_flags   = 0,
-		.sd_name    = "P_TIMECHECK",
-		.sd_allowed = M0_BITS(P_TIMECHECK),
+		.sd_name    = "P_WAITCHECK",
+		.sd_allowed = M0_BITS(P_WAITCHECK),
 	},
 	[P_DONE] = {
 		.sd_flags   = M0_SDF_TERMINAL,
@@ -6709,8 +6709,8 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "create-init-tree_get", P_INIT, P_TREE_GET },
 	{ "create-tree_get-act", P_TREE_GET, P_ACT },
 	{ "close/destroy", P_INIT, P_DONE},
-	{ "close-init-timecheck", P_INIT, P_TIMECHECK},
-	{ "close-timecheck-repeat", P_TIMECHECK, P_TIMECHECK},
+	{ "close-init-timecheck", P_INIT, P_WAITCHECK},
+	{ "close-timecheck-repeat", P_WAITCHECK, P_WAITCHECK},
 	{ "kvop-init-cookie", P_INIT, P_COOKIE },
 	{ "kvop-init", P_INIT, P_SETUP },
 	{ "kvop-cookie-valid", P_COOKIE, P_LOCK },
@@ -6992,13 +6992,13 @@ static int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 
 		/** put tree's root node. */
 		bnode_put(tree->t_root->n_op, tree->t_root);
-		/** Fallthrough to P_TIMECHECK */
-	case P_TIMECHECK:
+		/** Fallthrough to P_WAITCHECK */
+	case P_WAITCHECK:
 		m0_rwlock_write_lock(&list_lock);
 		m0_tl_for(ndlist, &btree_active_nds, node) {
 			if (node->n_tree == tree && node->n_ref > 0) {
 				m0_rwlock_write_unlock(&list_lock);
-				return P_TIMECHECK;
+				return P_WAITCHECK;
 			}
 		} m0_tl_endfor;
 		m0_rwlock_write_unlock(&list_lock);
@@ -8704,7 +8704,7 @@ M0_INTERNAL void m0_btree_cursor_kv_get(struct m0_btree_cursor *it,
 		*val = M0_BUF_INIT(it->bc_val.b_nob, it->bc_val.b_addr);
 }
 
-bool m0_btree_is_empty(struct m0_btree *btree)
+M0_INTERNAL bool m0_btree_is_empty(struct m0_btree *btree)
 {
 	M0_PRE(btree != NULL);
 	M0_PRE(btree->t_desc->t_root != NULL);
