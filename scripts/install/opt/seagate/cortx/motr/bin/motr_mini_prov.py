@@ -111,19 +111,29 @@ def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = Fa
                      f"cmd_retry_delay={cmd_retry_delay}")
 
     for cmd_retry_count in range(retry_count):
-        ps = subprocess.run(cmd, stdin=subprocess.PIPE,
-                            stdout=subprocess.PIPE, timeout=timeout_secs,
-                            stderr=subprocess.PIPE, shell=True)
-        self.logger.info(f"ret={ps.returncode}")
-        self.logger.debug(f"Executing {cmd_retry_count+1} time")
-        stdout = ps.stdout.decode('utf-8')
-        self.logger.debug(f"[OUT]{stdout}")
-        self.logger.debug(f"[ERR]{ps.stderr.decode('utf-8')}")
-        self.logger.debug(f"[RET] {ps.returncode}")
-        if ps.returncode != 0:
-            time.sleep(cmd_retry_delay)
-            continue
-        return stdout, ps.returncode
+        self.logger.debug(f"Curent-Retry={cmd_retry_count+1}. Total-Retries={retry_count}")
+
+        # For normal commands, execute command and return (output,return_code). Caller uses this output.
+        if timeout_secs:
+            ps = subprocess.run(cmd, stdin=subprocess.PIPE,
+                                stdout=subprocess.PIPE, timeout=timeout_secs,
+                                stderr=subprocess.PIPE, shell=True)
+            self.logger.info(f"ret={ps.returncode}")
+            stdout = ps.stdout.decode('utf-8')
+            self.logger.debug(f"[OUT]{stdout}")
+            self.logger.debug(f"[ERR]{ps.stderr.decode('utf-8')}")
+            self.logger.debug(f"[RET] {ps.returncode}")
+            if ps.returncode != 0:
+                time.sleep(cmd_retry_delay)
+                continue
+            else:
+                return stdout, ps.returncode
+        else:
+            # For daemon like commands (e.g. m0d), run it and capture output in logfile.
+            with open(f"{self.logfile}", "a") as fp:
+                ps = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=fp,
+                                      stderr=fp, shell=True)
+            return
     return
 
 def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS, retries = 1):
@@ -1304,7 +1314,7 @@ def get_fid(self, fids, service, idx):
 # First populate a yaml file with the output of command 'hctl fetch-fids'
 # Use this yaml file to get proper fid of required service.
 def fetch_fid(self, service, idx):
-    # Check below if hare_lib_path path is valid
+    # Check if below hare_lib_path path is valid
     hare_lib_path = f"{self.local_path}/hare/config/{self.machine_id}"
     validate_files([hare_lib_path])
 
@@ -1326,7 +1336,7 @@ def fetch_fid(self, service, idx):
 # and start services using motr-mkfs and motr-server.
 # For other services like 'motr-free-space-mon' we do nothing.
 def start_service(self, service, idx):
-    self.logger.info(f"service={service}\nidx={idx}\n")
+    self.logger.info(f"service={service} idx={idx}\n")
 
     # Check if below confd_path and motr_config_path are valid
     confd_path = f"{self.local_path}/motr/sysconfig/{self.machine_id}/confd.xc"
