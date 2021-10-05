@@ -300,7 +300,7 @@ static inline void libfab_tm_evpost_lock(struct m0_fab__tm *tm);
 static inline void libfab_tm_evpost_unlock(struct m0_fab__tm *tm);
 static inline bool libfab_tm_is_locked(const struct m0_fab__tm *tm);
 static void libfab_buf_complete(struct m0_fab__buf *buf);
-static void libfab_buf_done(struct m0_fab__buf *buf, int rc);
+static void libfab_buf_done(struct m0_fab__buf *buf, int rc, bool add_to_list);
 static inline struct m0_fab__tm *libfab_buf_tm(struct m0_fab__buf *buf);
 static inline struct m0_fab__tm *libfab_buf_ma(struct m0_net_buffer *buf);
 static bool libfab_tm_invariant(const struct m0_fab__tm *tm);
@@ -688,7 +688,7 @@ static void libfab_tm_buf_timeout(struct m0_fab__tm *ftm)
 				nb->nb_flags |= M0_NET_BUF_TIMED_OUT;
 				libfab_buf_dom_dereg(fb);
 				fb->fb_state = FAB_BUF_TIMEDOUT;
-				libfab_buf_done(fb, -ETIMEDOUT);
+				libfab_buf_done(fb, -ETIMEDOUT, false);
 			}
 		} m0_tl_endfor;
 	}
@@ -835,7 +835,7 @@ static void libfab_txep_event_check(struct m0_fab__ep *txep,
 	} else if (rc == -ECONNREFUSED && aep->aep_tx_state == FAB_CONNECTING) {
 		libfab_txep_init(aep, tm, txep);
 		m0_tl_teardown(fab_sndbuf, &txep->fep_sndbuf, fbp) {
-			libfab_buf_done(fbp, rc);
+			libfab_buf_done(fbp, rc, false);
 		}
 	}
 	/* All other types of events can be ignored */
@@ -870,7 +870,7 @@ static void libfab_rxep_comp_read(struct fid_cq *cq, struct m0_fab__ep *ep,
 				if (fb->fb_length == 0)
 					fb->fb_length = len[i];
 				fb->fb_ev_ep = ep;
-				libfab_buf_done(fb, 0);
+				libfab_buf_done(fb, 0, false);
 			}
 			if (data[i] != 0) {
 				rem_token = (uint32_t)data[i];
@@ -878,7 +878,7 @@ static void libfab_rxep_comp_read(struct fid_cq *cq, struct m0_fab__ep *ep,
 					&tm->ftm_bufhash.bht_hash,
 					&rem_token);
 				if (fb != NULL)
-					libfab_buf_done(fb, 0);
+					libfab_buf_done(fb, 0, false);
 			}
 		}
 	}
@@ -923,7 +923,7 @@ static void libfab_txep_comp_read(struct fid_cq *cq, struct m0_fab__tm *tm)
 					aep->aep_txq_full = false;
 				}
 				libfab_target_notify(fb);
-				libfab_buf_done(fb, 0);
+				libfab_buf_done(fb, 0, false);
 			}
 		}
 	}
@@ -1892,7 +1892,7 @@ static int libfab_dummy_msg_rcv_chk(struct m0_fab__buf *fbp)
 /**
  * Completes the buffer operation.
  */
-static void libfab_buf_done(struct m0_fab__buf *buf, int rc)
+static void libfab_buf_done(struct m0_fab__buf *buf, int rc, bool add_to_list)
 {
 	struct m0_fab__tm    *ma = libfab_buf_tm(buf);
 	struct m0_net_buffer *nb = buf->fb_nb;
@@ -1907,7 +1907,7 @@ static void libfab_buf_done(struct m0_fab__buf *buf, int rc)
 	if (!fab_buf_tlink_is_in(buf)) {
 		buf->fb_status = buf->fb_status == 0 ? rc : buf->fb_status;
 		/* Try to finalise. */
-		if (m0_thread_self() == &ma->ftm_poller) {
+		if (m0_thread_self() == &ma->ftm_poller && !add_to_list) {
 			if (libfab_dummy_msg_rcv_chk(buf) != 0)
 				libfab_buf_complete(buf);
 		} else {
@@ -2206,7 +2206,7 @@ static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
 				break;
 		}
 		if (ret != 0)
-			libfab_buf_done(fbp, ret);
+			libfab_buf_done(fbp, ret, false);
 	}
 
 	if (nb != NULL)
@@ -2346,6 +2346,21 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 	
 	if (ret == 0)
 		fab_sndbuf_tlink_init_at_tail(fbp, &ep->fep_sndbuf);
+
+	/*
+	 * If fi_connect immediately returns -ECONNREFUSED, that means the
+	 * the remote service has not yet started. In this case, set the buffer
+	 * status as -ECONNREFUSED and return the status as 0 so as to avoid
+	 * flooding the network with repeated retries by the RPC layer. The
+	 * buffer status will be automatically returned when the buf_done list
+	 * is processed.
+	 */
+	if (ret == -ECONNREFUSED) {
+		libfab_buf_done(fbp, -ECONNREFUSED, true);
+		ret = 0;
+		M0_LOG(M0_DEBUG, "Err=%d fb=%p nb=%p", fbp->fb_status, fbp,
+		       fbp->fb_nb);
+	}
 
 	return ret;
 }
@@ -3185,7 +3200,7 @@ static void libfab_buf_del(struct m0_net_buffer *nb)
 
 	libfab_buf_dom_dereg(buf);
 	buf->fb_state = FAB_BUF_CANCELED;
-	libfab_buf_done(buf, -ECANCELED);
+	libfab_buf_done(buf, -ECANCELED, false);
 }
 
 /**
