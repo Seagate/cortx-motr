@@ -638,6 +638,7 @@ M0_INTERNAL void m0_processors_online(struct m0_bitmap *map)
 {
 	processors_bitmap_copy(map, cpu_online_mask, nr_cpu_ids);
 }
+
 #ifdef CONFIG_X86_64
 M0_INTERNAL int m0_processor_describe(m0_processor_nr_t id,
 				      struct m0_processor_descr *pd)
@@ -649,11 +650,14 @@ M0_INTERNAL int m0_processor_describe(m0_processor_nr_t id,
 	return processor_x86_info_get(id, pd);
 }
 #endif /* CONFIG_X86_64 */
+
 M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 {
 	return smp_processor_id();
 }
-#endif /* (CONFIG_X86_64) || (CONFIG_AARCH64) */
+
+#endif /* CONFIG_X86_64 || CONFIG_AARCH64 */
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of processor group */
