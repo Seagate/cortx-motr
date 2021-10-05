@@ -97,19 +97,25 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
 
 # For normal command, we execute command for CMD_RETRY_COUNT(5 default) times and for each retry timeout is of TIMEOUT_SECS(120s default).
 # For daemon(e.g. m0d services), retry_count is 1 and tmeout is 0 so that we just execute this daemon command only once without timeout.
-def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False, set_timeout=True, retry_count = CMD_RETRY_COUNT):
+def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False, retry_count = CMD_RETRY_COUNT):
     self.logger.info(f"Executing cmd : '{cmd}' \n")
+
     # For commands without timeout
-    if set_timeout == False:
-        timeout_secs = None
+    if timeout_secs == None:
         retry_count = 1
-    cmd_retry_delay = 1
+        cmd_retry_delay = 0
+    else:
+        #Delay between retires
+        cmd_retry_delay = 1
+    self.logger.info(f"timeout_secs={timeout_secs} retry_count={retry_count} "
+                     f"cmd_retry_delay={cmd_retry_delay}")
+
     for cmd_retry_count in range(retry_count):
         ps = subprocess.run(cmd, stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, timeout=timeout_secs,
                             stderr=subprocess.PIPE, shell=True)
         self.logger.info(f"ret={ps.returncode}")
-        self.logger.debug(f"Executing {cmd_retry_count} time")
+        self.logger.debug(f"Executing {cmd_retry_count+1} time")
         stdout = ps.stdout.decode('utf-8')
         self.logger.debug(f"[OUT]{stdout}")
         self.logger.debug(f"[ERR]{ps.stderr.decode('utf-8')}")
@@ -1298,7 +1304,10 @@ def get_fid(self, fids, service, idx):
 # First populate a yaml file with the output of command 'hctl fetch-fids'
 # Use this yaml file to get proper fid of required service.
 def fetch_fid(self, service, idx):
+    # Check below if hare_lib_path path is valid
     hare_lib_path = f"{self.local_path}/hare/config/{self.machine_id}"
+    validate_files([hare_lib_path])
+
     cmd = f"hctl fetch-fids --conf-dir {hare_lib_path}"
     out = execute_command(self, cmd)
     self.logger.info(f"Available fids:\n{out[0]}\n")
@@ -1319,15 +1328,21 @@ def fetch_fid(self, service, idx):
 def start_service(self, service, idx):
     self.logger.info(f"service={service}\nidx={idx}\n")
 
-    # Copy confd_path to /etc/sysconfig
-    # confd_path = MOTR_M0D_CONF_DIR/confd.xc
+    # Check if below confd_path and motr_config_path are valid
     confd_path = f"{self.local_path}/motr/sysconfig/{self.machine_id}/confd.xc"
+    motr_config_path = "{self.local_path}/motr/sysconfig/{self.machine_id}/motr"
+    validate_files([confd_path, motr_config_path])
+
     create_dirs(self, ["/etc/motr"])
 
+    # Copy confd_path to /etc/motr
+    # confd_path = MOTR_M0D_CONF_DIR/confd.xc
     cmd = f"cp -f {confd_path} /etc/motr/"
     execute_command(self, cmd)
 
-    cmd = f"cp -v {self.local_path}/motr/sysconfig/{self.machine_id}/motr /etc/sysconfig/"
+    # Copy motr_config_path to /etc/motr
+    # motr_config_path = MOTR_M0D_CONF_DIR/motr
+    cmd = f"cp -v {motr_config_path} /etc/sysconfig/"
     execute_command(self, cmd)
 
     if service != "fsm":
@@ -1336,8 +1351,8 @@ def start_service(self, service, idx):
             return -1
     if service in ["ioservice", "confd", "cas"]:
         cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
-        execute_command_verbose(self, cmd, set_timeout=False)
+        execute_command_verbose(self, cmd, timeout_secs=None)
     elif service == "fsm":
         cmd = f"{MOTR_FSM_SCRIPT_PATH}"
-        execute_command_verbose(self, cmd, set_timeout=False)
+        execute_command_verbose(self, cmd, timeout_secs=None)
     return
