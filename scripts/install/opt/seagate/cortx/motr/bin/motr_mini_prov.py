@@ -97,13 +97,13 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
 
 # For normal command, we execute command for CMD_RETRY_COUNT(5 default) times and for each retry timeout is of TIMEOUT_SECS(120s default).
 # For daemon(e.g. m0d services), retry_count is 1 and tmeout is 0 so that we just execute this daemon command only once without timeout.
-def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False, set_timeout=True retry_count = CMD_RETRY_COUNT):
+def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False, set_timeout=True, retry_count = CMD_RETRY_COUNT):
     self.logger.info(f"Executing cmd : '{cmd}' \n")
     # For commands without timeout
     if set_timeout == False:
         timeout_secs = None
         retry_count = 1
-
+    cmd_retry_delay = 1
     for cmd_retry_count in range(retry_count):
         ps = subprocess.run(cmd, stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, timeout=timeout_secs,
@@ -1327,7 +1327,7 @@ def start_service(self, service, idx):
     cmd = f"cp -f {confd_path} /etc/motr/"
     execute_command(self, cmd)
 
-    cmd = f"cp -v {self.local_path}/motr/sysconfig/{self.machine_id}/motr /etc/sysconfig/")
+    cmd = f"cp -v {self.local_path}/motr/sysconfig/{self.machine_id}/motr /etc/sysconfig/"
     execute_command(self, cmd)
 
     if service != "fsm":
