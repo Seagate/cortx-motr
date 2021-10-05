@@ -597,6 +597,7 @@ enum base_phase {
 	P_CLEANUP,
 	P_FINI,
 	P_COOKIE,
+	P_TIMECHECK,
 	P_TREE_GET,
 	P_NR
 };
@@ -6507,7 +6508,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "P_INIT",
-		.sd_allowed = M0_BITS(P_COOKIE, P_SETUP, P_ACT,
+		.sd_allowed = M0_BITS(P_COOKIE, P_SETUP, P_ACT, P_TIMECHECK,
 				      P_TREE_GET, P_DONE),
 	},
 	[P_TREE_GET] = {
@@ -6610,6 +6611,11 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 		.sd_name    = "P_FINI",
 		.sd_allowed = M0_BITS(P_DONE),
 	},
+	[P_TIMECHECK] = {
+		.sd_flags   = 0,
+		.sd_name    = "P_TIMECHECK",
+		.sd_allowed = M0_BITS(P_TIMECHECK),
+	},
 	[P_DONE] = {
 		.sd_flags   = M0_SDF_TERMINAL,
 		.sd_name    = "P_DONE",
@@ -6623,6 +6629,8 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "create-init-tree_get", P_INIT, P_TREE_GET },
 	{ "create-tree_get-act", P_TREE_GET, P_ACT },
 	{ "close/destroy", P_INIT, P_DONE},
+	{ "close-init-timecheck", P_INIT, P_TIMECHECK},
+	{ "close-timecheck-repeat", P_TIMECHECK, P_TIMECHECK},
 	{ "kvop-init-cookie", P_INIT, P_COOKIE },
 	{ "kvop-init", P_INIT, P_SETUP },
 	{ "kvop-cookie-valid", P_COOKIE, P_LOCK },
@@ -6882,7 +6890,7 @@ static int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op *bop  = M0_AMB(bop, smop, bo_op);
 	struct td          *tree = bop->bo_arbor->t_desc;
-	int                 check = 0;
+	struct nd          *node;
 
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
@@ -6890,21 +6898,32 @@ static int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 			return M0_ERR(-EINVAL);
 
 		M0_PRE(tree->t_ref != 0);
-		/* Fallthrough to P_ACT*/
 
-	case P_ACT:
 		m0_rwlock_write_lock(&tree->t_lock);
 		if (tree->t_ref > 1) {
 			m0_rwlock_write_unlock(&tree->t_lock);
-			check = 1;
+			bnode_put(tree->t_root->n_op, tree->t_root);
+			tree_put(tree);
+			return P_DONE;
 		}
 		m0_rwlock_write_unlock(&tree->t_lock);
 
 		/** put tree's root node. */
 		bnode_put(tree->t_root->n_op, tree->t_root);
+		/** Fallthrough to P_TIMECHECK */
+	case P_TIMECHECK:
+		m0_rwlock_write_lock(&list_lock);
+		m0_tl_for(ndlist, &btree_active_nds, node) {
+			if (node->n_tree == tree && node->n_ref > 0) {
+				m0_rwlock_write_unlock(&list_lock);
+				return P_TIMECHECK;
+			}
+		} m0_tl_endfor;
+		m0_rwlock_write_unlock(&list_lock);
+		/** Fallthrough to P_ACT */
+	case P_ACT:
 		tree_put(tree);
-		if (check == 0)
-			bop->bo_arbor->t_desc = NULL;
+		bop->bo_arbor->t_desc = NULL;
 		return P_DONE;
 	default:
 		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
