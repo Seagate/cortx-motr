@@ -76,8 +76,13 @@ _libfab_st_list() {
                     23spiel-dix-repair-quiesce
                     26motr-user-kernel-tests
                     34sns-repair-1n-1f
+                    35m0singlenode
+                    36spare-reservation
+                    37protocol
                     40motr-dgmode
+                    43motr-sync-replication
                     45motr-rmw
+                    49motr-rpc-cancel
                     51kem)
     i=0
     while [ $i -lt ${#st_libfab_skip[@]} ]
