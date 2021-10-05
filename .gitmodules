@@ -1,4 +1,0 @@
-[submodule "extra-libs/test"]
-	path = extra-libs/test
-	url =
-	ignore = untracked
