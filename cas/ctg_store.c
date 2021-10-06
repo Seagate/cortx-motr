@@ -261,9 +261,10 @@ static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg, bool open)
 		M0_ALLOC_PTR(ctg->cc_tree);
 		M0_ASSERT(ctg->cc_tree);
 		M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-				      m0_btree_open(&ctg->cc_node,
-				      		    sizeof ctg->cc_node,
-						    ctg->cc_tree, seg, &b_op));
+					 m0_btree_open(&ctg->cc_node,
+						       sizeof ctg->cc_node,
+						       ctg->cc_tree, seg,
+						       &b_op));
 	}
 	m0_format_footer_update(ctg);
 }
@@ -280,9 +281,10 @@ static void ctg_fini(struct m0_cas_ctg *ctg, bool close)
 					      m0_btree_close(ctg->cc_tree,
 							     &b_op));
 		M0_ASSERT(rc == 0);
+	}
+	if (ctg->cc_tree != NULL) {
 		m0_free0(&ctg->cc_tree);
 	}
-
 	m0_long_lock_fini(m0_ctg_lock(ctg));
 	m0_chan_fini_lock(&ctg->cc_chan.bch_chan);
 	m0_mutex_fini(&ctg->cc_chan_guard.bm_u.mutex);
@@ -312,6 +314,8 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 
 	ctg_init(ctg, seg, false);
 	M0_ALLOC_PTR(ctg->cc_tree);
+	if (ctg->cc_tree == NULL)
+		return M0_ERR(-ENOMEM);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&ctg->cc_node,
 						      sizeof ctg->cc_node,
@@ -334,10 +338,9 @@ static void ctg_destroy(struct m0_cas_ctg *ctg, struct m0_be_tx *tx)
 	M0_ENTRY();
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(ctg->cc_tree,
-							 &b_op, tx));
+							      &b_op, tx));
 	ctg->cc_destroy = true;
 	M0_ASSERT(rc == 0);
-	m0_free0(&ctg->cc_tree);
 	ctg_fini(ctg, false);
 	M0_BE_FREE_PTR_SYNC(ctg, cas_seg(tx->t_engine->eng_domain), tx);
 }
@@ -413,7 +416,7 @@ M0_INTERNAL int m0_ctg_meta_find_ctg(struct m0_cas_ctg    *meta,
 	rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 				      m0_btree_get(meta->cc_tree, &rec.r_key,
-				       		   &get_cb, BOF_EQUAL, &kv_op));
+						   &get_cb, BOF_EQUAL, &kv_op));
 	return M0_RC(rc);
 }
 
@@ -422,8 +425,7 @@ struct ctg_meta_put_cb_data {
 	struct m0_cas_ctg   *d_ctg;
 };
 
-static int ctg_meta_put_cb(struct m0_btree_cb  *cb,
-			    struct m0_btree_rec *rec)
+static int ctg_meta_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
 	struct m0_bufvec_cursor      scur;
 	struct m0_bufvec_cursor      dcur;
@@ -1197,15 +1199,8 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		rc    = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						 m0_btree_put(btree, &rec, &cb,
 							      &kv_op, tx));
-
-		if (rc) {
-			int rc_destroy;
-			rc_destroy = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-							      m0_btree_destroy(
-							      cas_ctg->cc_tree,
-							      &kv_op, tx));
-			M0_ASSERT(rc_destroy == 0);
-		}
+		if (rc)
+			ctg_destroy(cas_ctg, tx);
 		m0_be_op_done(beop);
 		break;
 	}
