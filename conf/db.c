@@ -445,8 +445,6 @@ M0_INTERNAL void m0_confdb_destroy_credit(struct m0_be_seg *seg,
 					  struct m0_be_tx_credit *accum)
 {
 	uint8_t              *rnode;
-	struct m0_btree       btree;
-	struct m0_btree_op    b_op  = {};
 	int                   rc;
 	struct m0_btree_type  bt    = { .tt_id = M0_BT_CONFDB,
 					.ksize = sizeof (struct m0_fid),
@@ -457,12 +455,9 @@ M0_INTERNAL void m0_confdb_destroy_credit(struct m0_be_seg *seg,
 	M0_ENTRY();
 
 	rc = m0_be_seg_dict_lookup(seg, btree_name, (void **)&rnode);
-	if (rc == 0 &&
-	    M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-				     m0_btree_open(rnode, rnode_sz,
-						   &btree, seg, &b_op)) == 0) {
-		m0_btree_destroy_credit(&btree, accum, 1);
-	} else
+	if (rc == 0)
+		m0_btree_destroy_credit(NULL, &bt, accum, 1);
+	else
 		/** Use the same credit count as btree_create. */
 		m0_btree_create_credit(&bt, accum, 1);
 	m0_be_seg_dict_delete_credit(seg, btree_name, accum);
