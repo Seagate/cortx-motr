@@ -5510,11 +5510,16 @@ M0_INTERNAL void m0_btree_create_credit(const struct m0_btree_type *bt,
 }
 
 M0_INTERNAL void m0_btree_destroy_credit(struct m0_btree *tree,
+					 const struct m0_btree_type *bt,
 					 struct m0_be_tx_credit *accum,
 					 m0_bcount_t nr)
 {
-	int size = tree->t_desc->t_root->n_type->nt_create_delete_credit_size();
-	struct m0_be_tx_credit cred = M0_BE_TX_CREDIT(1, size);
+	const struct node_type *nt   = (tree != NULL) ?
+					tree->t_desc->t_root->n_type :
+					btree_nt_from_bt(bt);
+	int                     size = nt->nt_create_delete_credit_size();
+	struct m0_be_tx_credit  cred = M0_BE_TX_CREDIT(1, size);
+
 	m0_be_tx_credit_add(accum, &cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
@@ -8838,7 +8843,7 @@ static void ut_basic_tree_oper_icp(void)
 	cred = M0_BE_TX_CREDIT(0, 0);
 	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
 			       rnode_sz_shift, &cred);
-	m0_btree_destroy_credit(b_op.bo_arbor, &cred, 1);
+	m0_btree_destroy_credit(b_op.bo_arbor, NULL, &cred, 1);
 
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
@@ -8903,7 +8908,7 @@ static void ut_basic_tree_oper_icp(void)
 	cred = M0_BE_TX_CREDIT(0, 0);
 	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
 			       rnode_sz_shift, &cred);
-	m0_btree_destroy_credit(b_op.bo_arbor, &cred, 1);
+	m0_btree_destroy_credit(b_op.bo_arbor, NULL, &cred, 1);
 
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
@@ -9582,7 +9587,7 @@ static void ut_multi_stream_kv_oper(void)
 	cred = M0_BE_TX_CREDIT(0, 0);
 	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
 			       rnode_sz_shift, &cred);
-	m0_btree_destroy_credit(tree, &cred, 1);
+	m0_btree_destroy_credit(tree, NULL, &cred, 1);
 
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
@@ -10693,7 +10698,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
 			       rnode_sz_shift, &cred);
-	m0_btree_destroy_credit(ut_trees[0], &cred, 1);
+	m0_btree_destroy_credit(ut_trees[0], NULL, &cred, 1);
 	for (i = 0; i < tree_count; i++) {
 		m0_be_ut_tx_init(tx, ut_be);
 		m0_be_tx_prep(tx, &cred);
@@ -10953,7 +10958,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		}
 
 		cred = M0_BE_TX_CREDIT(0, 0);
-		m0_btree_destroy_credit(tree, &cred, 1);
+		m0_btree_destroy_credit(tree, NULL, &cred, 1);
 
 		m0_be_ut_tx_init(tx, ut_be);
 		m0_be_tx_prep(tx, &cred);
@@ -11542,7 +11547,7 @@ static void ut_btree_persistence(void)
 	}
 
 	cred = M0_BE_TX_CREDIT(0, 0);
-	m0_btree_destroy_credit(tree, &cred, 1);
+	m0_btree_destroy_credit(tree, NULL, &cred, 1);
 
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
@@ -11719,7 +11724,7 @@ static void ut_btree_truncate(void)
 	cred = M0_BE_TX_CREDIT(0, 0);
 	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
 			       rnode_sz_shift, &cred);
-	m0_btree_destroy_credit(tree, &cred, 1);
+	m0_btree_destroy_credit(tree, NULL, &cred, 1);
 
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
