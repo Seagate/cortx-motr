@@ -27,18 +27,48 @@ import traceback
 import atexit
 import signal
 import os
+import socket
+import fcntl
+import struct
 from subprocess import Popen, PIPE
 from motr import *
 from ctypes import *
 
 
 
+def get_ip_address(ifname):
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    return socket.inet_ntoa(fcntl.ioctl(
+        s.fileno(),
+        0x8915,  # SIOCGIFADDR
+        struct.pack('256s', ifname[:15].encode('utf-8'))
+    )[20:24])
+
 def address_get():
-    try:
-        p = Popen(['lctl', 'list_nids'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        output, err = p.communicate()
-    except OSError:
-        return ''
+    i = 0
+    for arg in sys.argv:
+        i = i+1
+        if format(str(arg)) == "-l":
+            break
+
+    path = format(str(sys.argv[i]))
+    path = path.rstrip(path.rsplit('/')[-1]) + "../../scripts/st.d/net_xpt"
+    f = open(path, "r")
+    xprt = f.read()
+
+    if "libfab" in xprt :
+        conf = open("/etc/libfab.conf", "r")
+        xprt = conf.read()
+        iface_type = (xprt[xprt.find("=")+1:xprt.find("(")])
+        iface = (xprt[xprt.find("(")+1:xprt.find(")")])
+        ip_addr = get_ip_address(iface)
+        return ip_addr+"@"+iface_type
+    else:
+        try:
+            p = Popen(['lctl', 'list_nids'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+            output, err = p.communicate()
+        except OSError:
+            return ''
     # When the tool is executing without sudo privileges (i. e. with "--help"
     # option) then lctl output will be an empty string)
     return output.split()[0] if output else ''
@@ -585,7 +615,7 @@ class SpielWrapper:
         self.motr.m0_net_xprt_default_get.restype = c_void_p
         xprt = self.motr.m0_net_xprt_default_get()
         if not xprt:
-            xprt = NetXprt.in_dll(self.motr, 'm0_net_lnet_xprt')
+            xprt = NetXprt.in_dll(self.motr, 'm0_net_libfab_xprt')
 
         self.motr.m0_net_domain_init.argtypes = [c_void_p, c_void_p]
         call(self.motr.m0_net_domain_init, domain, xprt)

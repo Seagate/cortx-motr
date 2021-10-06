@@ -21,6 +21,7 @@
 
 
 #include "ut/ut.h"
+#include "lib/arith.h" /* min64 */
 #include "lib/memory.h"/* M0_ALLOC_PTR */
 #include "lib/misc.h"  /* M0_SET0 */
 #include "lib/thread.h"/* M0_THREAD_INIT */
@@ -57,6 +58,9 @@ static void test_init(void)
 	M0_UT_ASSERT(bp.nbp_ndom != NULL);
 	rc = m0_net_domain_init(bp.nbp_ndom, m0_net_xprt_default_get());
 	M0_ASSERT(rc == 0);
+	seg_nr = min32u((uint32_t)m0_net_domain_get_max_buffer_segments(
+								   bp.nbp_ndom),
+			seg_nr);
 	bp.nbp_ops = &b_ops;
 	rc = m0_net_buffer_pool_init(&bp, bp.nbp_ndom,
 				      M0_NET_BUFFER_POOL_THRESHOLD, seg_nr,

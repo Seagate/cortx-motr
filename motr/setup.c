@@ -2647,8 +2647,17 @@ static int cs_level_enter(struct m0_module *module)
 		 * XXX STARTED expected even in the error case.
 		 * It should be fixed either here or in Halon.
 		 */
-		if (cctx->cc_mkfs)
+		if (cctx->cc_mkfs) {
 			cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
+			/*
+			For mkfs, M0_NC_DTM_RECOVERING state is transient,
+			sending M0_CONF_HA_PROCESS_DTM_RECOVERED just after
+			M0_CONF_HA_PROCESS_STARTED.
+
+			cs_ha_process_event(cctx,
+			                    M0_CONF_HA_PROCESS_DTM_RECOVERED);
+			*/
+		}
 		return M0_RC(0);
 	case CS_LEVEL_RCONFC_FATAL_CALLBACK:
 		if (!cctx->cc_no_conf) { /* otherwise rconfc did not start */
@@ -2712,6 +2721,14 @@ static int cs_level_enter(struct m0_module *module)
 		return M0_RC(0);
 	case CS_LEVEL_STARTED_EVENT_FOR_M0D:
 		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
+		/*
+		For m0d, M0_NC_DTM_RECOVERING state is being sent here just for
+		test purposes. The real notification shall be sent inside
+		dtm0_rmsg_fom_tick().
+
+		cs_ha_process_event(cctx,
+				    M0_CONF_HA_PROCESS_DTM_RECOVERED);
+		*/
 		return M0_RC(0);
 	case CS_LEVEL_START:
 		return M0_RC(0);
