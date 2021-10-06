@@ -123,10 +123,10 @@ DIX_PVERID='^v|1:20'
 MAX_NR_FILES=20 # XXX temporary workaround for performance issues
 TM_MIN_RECV_QUEUE_LEN=16
 MAX_RPC_MSG_SIZE=65536
-XPT=lnet
 PVERID='^v|1:10'
 MDPVERID='^v|2:10'
 export M0T1FS_PROC_ID='0x7200000000000001:64'
+XPRT=$(m0_default_xprt)
 
 # Single node configuration.
 SINGLE_NODE=0
@@ -144,9 +144,12 @@ unload_kernel_module()
 
 load_kernel_module()
 {
-	modprobe lnet &>> /dev/null
-	lctl network up &>> /dev/null
-	lnet_nid=`sudo lctl list_nids | head -1`
+	if [ "$XPRT" = "lnet" ]; then
+		modprobe lnet &>> /dev/null
+		lctl network up &>> /dev/null
+	fi
+
+	lnet_nid=$(m0_local_nid_get)
 	server_nid=${server_nid:-$lnet_nid}
 
 	# see if CONFD_EP was not prefixed with lnet_nid to the moment
@@ -169,20 +172,23 @@ load_kernel_module()
 		unload_kernel_module || return $?
 	fi
 
-        insmod $motr_module_path/$motr_module.ko \
-               trace_immediate_mask=$MOTR_MODULE_TRACE_MASK \
-	       trace_print_context=$MOTR_TRACE_PRINT_CONTEXT \
-	       trace_level=$MOTR_TRACE_LEVEL \
-	       node_uuid=${NODE_UUID:-00000000-0000-0000-0000-000000000000} \
-               local_addr=$LADDR \
-	       tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
-	       max_rpc_msg_size=$MAX_RPC_MSG_SIZE
-        if [ $? -ne "0" ]
-        then
-                echo "Failed to insert module \
-                      $motr_module_path/$motr_module.ko"
-                return 1
-        fi
+	if [ "$XPRT" = "lnet" ]
+	then
+        	insmod $motr_module_path/$motr_module.ko \
+        	       trace_immediate_mask=$MOTR_MODULE_TRACE_MASK \
+		       trace_print_context=$MOTR_TRACE_PRINT_CONTEXT \
+		       trace_level=$MOTR_TRACE_LEVEL \
+		       node_uuid=${NODE_UUID:-00000000-0000-0000-0000-000000000000} \
+        	       local_addr=$LADDR \
+		       tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
+		       max_rpc_msg_size=$MAX_RPC_MSG_SIZE
+        	if [ $? -ne "0" ]
+        	then
+        	        echo "Failed to insert module \
+        	              $motr_module_path/$motr_module.ko"
+        	        return 1
+        	fi
+	fi
 }
 
 load_motr_ctl_module()
@@ -695,9 +701,15 @@ function build_conf()
 }
 
 service_eps_get()
-{
-	local lnet_nid=`sudo lctl list_nids | head -1`
+{ 
+	local lnet_nid
 	local service_eps
+	if [ "$XPRT" = "lnet" ]
+	then
+		lnet_nid=`sudo lctl list_nids | head -1`
+	else
+		lnet_nid=$(m0_local_nid_get)
+	fi
 
 	if [ $SINGLE_NODE -eq 1 ] ; then
 		service_eps=(
@@ -723,7 +735,7 @@ MOTR_CLIENT_ONLY=0
 
 service_eps_with_m0t1fs_get()
 {
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid=$(m0_local_nid_get)
 	local service_eps=$(service_eps_get)
 
 	# If client only, we don't have m0t1fs nid.
@@ -737,7 +749,7 @@ service_eps_with_m0t1fs_get()
 
 service_cas_eps_with_m0tifs_get()
 {
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid=$(m0_local_nid_get)
 	local service_eps=(
 		"$lnet_nid:${IOSEP[0]}"
 		"$lnet_nid:${IOSEP[1]}"
@@ -830,7 +842,7 @@ send_ha_events_default()
 	local state=$2
 
 	# Use default endpoints
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid=$(m0_local_nid_get)
 	local ha_ep="$lnet_nid:$HA_EP"
 	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
 
@@ -857,6 +869,7 @@ fids:'
 		yaml="$yaml
   - $fid"
 	done
+	echo "XPRT is $XPRT"
 
 	send_ha_msg_nvec "$yaml" "${remote_eps[*]}" "$local_ep"
 }

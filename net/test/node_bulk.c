@@ -237,6 +237,8 @@ struct node_bulk_ctx {
 	size_t				   nbc_bs_nr;
 	/** Ping buffer states */
 	struct buf_status_ping		  *nbc_bsp;
+	/** Mutex for mutual nbc_rb_bulk_unused ring buf start/end increment */
+	struct m0_mutex			   nbc_bulk_mutex;
 	/** List of unused message buffers */
 	struct m0_net_test_ringbuf	   nbc_rb_ping_unused;
 	/** List of unused bulk buffers */
@@ -575,6 +577,11 @@ static void server_process_unused_ping(struct node_bulk_ctx *ctx)
 
 	M0_PRE(ctx != NULL);
 
+	/*
+	 * Below lock is added for sync between server thread and call back
+	 * from node_bulk_cb().
+	 */
+	m0_mutex_lock(&ctx->nbc_bulk_mutex);
 	nr = m0_net_test_ringbuf_nr(&ctx->nbc_rb_ping_unused);
 	for (i = 0; i < nr; ++i) {
 		index = m0_net_test_ringbuf_pop(&ctx->nbc_rb_ping_unused);
@@ -585,6 +592,7 @@ static void server_process_unused_ping(struct node_bulk_ctx *ctx)
 						 index);
 		}
 	}
+	m0_mutex_unlock(&ctx->nbc_bulk_mutex);
 }
 
 static struct m0_net_buffer *net_buf_bulk_get(struct node_bulk_ctx *ctx,
@@ -1239,6 +1247,34 @@ static bool node_bulk_bufs_unused_all(struct node_bulk_ctx *ctx)
 	       ctx->nbc_bs_nr;
 }
 
+static void net_bulk_worker_cb(struct node_bulk_ctx *ctx, bool pending)
+{
+	if (USE_LIBFAB) {
+		/* execute network buffer callbacks in this thread context */
+		m0_net_buffer_event_deliver_all(ctx->nbc_net.ntc_tm);
+		M0_ASSERT(ergo(pending, ctx->nbc_callback_executed));
+		/* update copy of statistics */
+		m0_net_test_nh_sd_copy_locked(&ctx->nbc_nh);
+		/* 
+		 * In case of libfabric, there are no pending callbacks,
+		 * hence do not wait for callback in m0_chan_wait() after
+		 * calling m0_net_buffer_event_deliver_all().
+		 */
+	} else {
+		ctx->nbc_callback_executed = false;
+		/* execute network buffer callbacks in this thread context */
+		m0_net_buffer_event_deliver_all(ctx->nbc_net.ntc_tm);
+		M0_ASSERT(ergo(pending, ctx->nbc_callback_executed));
+		/* state transitions from final states */
+		node_bulk_state_transition_auto_all(ctx);
+		/* update copy of statistics */
+		m0_net_test_nh_sd_copy_locked(&ctx->nbc_nh);
+		/* wait for STOP command or buffer event */
+		if (!ctx->nbc_callback_executed)
+			m0_chan_wait(&ctx->nbc_stop_clink);
+	}
+}
+
 static void node_bulk_worker(struct node_bulk_ctx *ctx)
 {
 	struct m0_clink tm_clink;
@@ -1277,17 +1313,7 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
 			m0_net_buffer_event_notify(ctx->nbc_net.ntc_tm,
 						   &tm_chan);
 		}
-		ctx->nbc_callback_executed = false;
-		/* execute network buffer callbacks in this thread context */
-		m0_net_buffer_event_deliver_all(ctx->nbc_net.ntc_tm);
-		M0_ASSERT(ergo(pending, ctx->nbc_callback_executed));
-		/* state transitions from final states */
-		node_bulk_state_transition_auto_all(ctx);
-		/* update copy of statistics */
-		m0_net_test_nh_sd_copy_locked(&ctx->nbc_nh);
-		/* wait for STOP command or buffer event */
-		if (!ctx->nbc_callback_executed)
-			m0_chan_wait(&ctx->nbc_stop_clink);
+		net_bulk_worker_cb(ctx, pending);
 		if (running && node_bulk_is_stopping(ctx)) {
 			/* dequeue all queued network buffers */
 			node_bulk_buf_dequeue(ctx);
@@ -1402,6 +1428,7 @@ static int node_bulk_test_init_fini(struct node_bulk_ctx *ctx,
 	if (rc != 0)
 		goto fini;
 	m0_mutex_init(&ctx->nbc_stop_chan_mutex);
+	m0_mutex_init(&ctx->nbc_bulk_mutex);
 	m0_chan_init(&ctx->nbc_stop_chan, &ctx->nbc_stop_chan_mutex);
 	m0_clink_init(&ctx->nbc_stop_clink, NULL);
 	m0_clink_add_lock(&ctx->nbc_stop_chan, &ctx->nbc_stop_clink);
@@ -1412,6 +1439,7 @@ fini:
 	m0_clink_fini(&ctx->nbc_stop_clink);
 	m0_chan_fini_lock(&ctx->nbc_stop_chan);
 	m0_mutex_fini(&ctx->nbc_stop_chan_mutex);
+	m0_mutex_fini(&ctx->nbc_bulk_mutex);
 	m0_net_test_network_ctx_fini(&ctx->nbc_net);
 free_rb_bulk_final:
 	m0_net_test_ringbuf_fini(&ctx->nbc_rb_bulk_final);

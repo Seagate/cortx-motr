@@ -164,6 +164,7 @@ AC_ARG_VAR([CXXXML],  [gccxml/castxml command])
 AH_TEMPLATE([MOTR_IDX_STORE_CASS],    [Use Cassandra as KVS backend.])
 AH_TEMPLATE([IDX_CASS_DRV_V22],       [Cassandra driver version >= 2.2.])
 AH_TEMPLATE([ENABLE_LUSTRE],          [Enable LNet network stack from Lustre.])
+AH_TEMPLATE([ENABLE_LIBFAB],          [Enable Libfabric network stack.])
 AH_TEMPLATE([ENABLE_GCCXML],          [Use deprecated GCC-XML instead of CastXML])
 AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
@@ -899,6 +900,63 @@ AS_IF([test x$enable_isal = xyes],
       ]
 )
 
+#
+# Checking libfabric library----------------------------------------------- {{{1
+#
+
+AC_ARG_ENABLE([libfab],
+        [AS_HELP_STRING([--enable-libfab],
+                        [Use libfabric transport])],
+        [],[enable_libfab=no]
+)
+
+AC_ARG_WITH([libfab],
+        [AS_HELP_STRING([--with-libfab=path],
+                        [set path to user installed libfabric headers and library])],
+        [LIBFABRIC=$with_libfab],
+        [LIBFABRIC=""]
+)
+
+AS_IF([! test -z "$with_libfab"],
+      [
+        LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
+        LIBFAB_LIBS="-L$LIBFABRIC/lib -lfabric"
+        M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS $LIB_FAB_INCLUDES"
+      ],
+)
+AS_IF([test x$enable_libfab = xyes || test "x$with_default_network" = "xLF" ],
+      [
+	MOTR_SEARCH_LIBS([fi_fabric], [fabric], [LIBFAB_LIBS],
+                  [fi_fabric cannot be found! Try to install libfabric package]
+          )
+	AC_CHECK_HEADERS([rdma/fabric.h], [],
+		AC_MSG_ERROR([rdma/fabric.h is not found. Try to install libfabric package])
+          )
+        M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
+      ]
+)
+AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
+      [
+	AC_CHECK_HEADERS([rdma/fabric.h],
+	      [
+		# Check for libfabric library
+		MOTR_SEARCH_LIBS([fi_fabric], [fabric], [LIBFAB_LIBS],
+			  [fi_fabric cannot be found! Try to install libfabric package.]
+		)
+		AS_IF([! test -z LIBFAB_LIBS],
+		      [
+			M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
+			enable_libfab=yes
+			AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["LF"])
+		      ]
+		)
+	      ], []
+	)
+      ]
+)
+AC_SUBST([LIBFAB_LIBS])
+AM_CONDITIONAL([ENABLE_LIBFAB],
+               [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
 
 #
 # Checking Lustre --------------------------------------------------------- {{{1
@@ -1160,6 +1218,8 @@ echo "Motr version :  $PACKAGE_VERSION"
 echo ""
 echo "CONFIGURE_OPTS:  $BUILD_CONFIGURE_OPTS"
 echo ""
+echo "Net XPT        : $BUILD_NET_XPT"
+echo ""
 echo "M0_CPPFLAGS    :  \"$M0_CPPFLAGS\""
 echo "M0_CFLAGS      :  \"$M0_CFLAGS\""
 echo "M0_KCPPFLAGS   :  \"$M0_KCPPFLAGS\""
@@ -1167,6 +1227,7 @@ echo "M0_KCFLAGS     :  \"$M0_KCFLAGS\""
 echo "M0_LDFLAGS     :  \"$M0_LDFLAGS\""
 echo ""
 echo "MATH_LIBS      :  \"$MATH_LIBS\""
+echo "LIBFAB_LIBS    :  \"$LIBFAB_LIBS\""
 echo "PTHREAD_LIBS   :  \"$PTHREAD_LIBS\""
 echo "AIO_LIBS       :  \"$AIO_LIBS\""
 echo "RT_LIBS        :  \"$RT_LIBS\""

@@ -54,7 +54,6 @@ enum {
 	SNS_DEFAULT_K = 1,
 	SNS_DEFAULT_S = 1,
 	SNS_DEFAULT_P = 5,
-	SNS_DEFAULT_UNIT_SIZE = PAGE_SIZE,
 #ifdef CONFIG_X86_64
 	SNS_DEFAULT_LAYOUT_ID = 1
 #elif defined (CONFIG_AARCH64)
@@ -62,6 +61,7 @@ enum {
 #else
 #error  "The platform is not supported"
 #endif
+	SNS_DEFAULT_UNIT_SIZE = 1 << (11 + SNS_DEFAULT_LAYOUT_ID),
 };
 
 M0_INTERNAL int

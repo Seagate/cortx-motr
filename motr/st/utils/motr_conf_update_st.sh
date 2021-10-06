@@ -21,6 +21,9 @@
 motr_st_util_dir=$(dirname $(readlink -f $0))
 m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
+M0_SRC_DIR="$motr_st_util_dir/../../../"
+. $M0_SRC_DIR/utils/functions # m0_default_xprt
+
 . $m0t1fs_dir/common.sh
 . $m0t1fs_dir/m0t1fs_common_inc.sh
 . $m0t1fs_dir/m0t1fs_client_inc.sh
@@ -119,7 +122,7 @@ EOF
 
 revoke_read_lock()
 {
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid=$(m0_local_nid_get)
 	local confd_ep=$CONFD_EP
 	local c_ep="$lnet_nid:12345:34:*"
 	local delay=${1:-5}

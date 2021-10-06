@@ -38,7 +38,7 @@
 static struct m0_client *client_inst = NULL;
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
-#define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
+#define SERVER_ENDPOINT      M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 #define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:2"
 
 static const char SERVER_LOGFILE[] = "lap_ut.log";

@@ -50,10 +50,10 @@ static struct m0_ut_redirect out_redir;
 static struct m0_ut_redirect err_redir;
 static struct m0_rpc_machine cons_mach;
 
-#define CLIENT_ENDPOINT_ADDR       "0@lo:12345:34:2"
+#define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:2"
+#define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
+#define SERVER_ENDPOINT      M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 
-#define SERVER_ENDPOINT_ADDR	   "0@lo:12345:34:1"
-#define SERVER_ENDPOINT		   "lnet:" SERVER_ENDPOINT_ADDR
 #define SERVER_DB_FILE_NAME	   "cons_server_db"
 #define SERVER_STOB_FILE_NAME	   "cons_server_stob"
 #define SERVER_ADDB_STOB_FILE_NAME "linuxstob:cons_server_addb_stob"
@@ -90,7 +90,6 @@ static struct m0_rpc_server_ctx sctx;
 static int cons_init(void)
 {
 	int result;
-
 	timeout = 10;
 	result = m0_console_fop_init();
 	M0_ASSERT(result == 0);

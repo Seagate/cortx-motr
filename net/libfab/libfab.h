@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,38 +20,38 @@
  */
 
 
-#include "lib/finject.h"
-#include "net/test/node_bulk.h"		/* m0_net_test_node_bulk_init */
-#include "net/test/initfini.h"
+#pragma once
 
+#ifndef __MOTR_NET_LIBFAB_LIBFAB_H__
+#define __MOTR_NET_LIBFAB_LIBFAB_H__
+
+M0_INTERNAL int  m0_net_libfab_init(void);
+M0_INTERNAL void m0_net_libfab_fini(void);
+
+#ifdef ENABLE_LIBFAB
+extern struct m0_net_xprt m0_net_libfab_xprt;
+
+
+#endif /* ENABLE_LIBFAB */
 /**
-   @defgroup NetTestInitFiniInternals Initialization/finalization of net-test
-   @ingroup NetTestInternals
-
-   @see
-   @ref net-test
-
-   @{
+ * @defgroup netlibfab
+ *
+ * @{
  */
 
-int m0_net_test_init(void)
-{
-	return m0_net_test_node_bulk_init();
-}
-
-void m0_net_test_fini(void)
-{
-	m0_net_test_node_bulk_fini();
-}
-
-/** @} end of NetTestInitFiniInternals group */
+/** @} end of netlibfab group */
+#endif /* __MOTR_NET_LIBFAB_LIBFAB_H__ */
 
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+ */
+
