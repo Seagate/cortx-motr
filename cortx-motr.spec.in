@@ -114,6 +114,7 @@ BuildRequires:  python-devel
 %else
 BuildRequires:  python2-devel
 %endif
+BuildRequires:  libfabric-devel
 BuildRequires:  libedit-devel
 %if %{with isal}
 BuildRequires:  isa-l

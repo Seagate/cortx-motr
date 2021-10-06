@@ -32,20 +32,31 @@ service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 start()
 {
     source $service_funcs
+    local XPRT=$(m0_get_motr_transport)
+    if [ "$XPRT" == "lnet" ]; then
+        # Re-configure lnet to bring up '--all' interfaces.
+        # It works somehow on CentOS-7 even without this, but on CentOS-8
+        # the --all flag is needed. Otherwise, lnet.service doesn't initialize
+        # any networks, as it is mentioned in the lnetctl manual.
+        [[ `/usr/sbin/lctl list_nids` ]] || /usr/sbin/lnetctl lnet unconfigure
+        /usr/sbin/lnetctl lnet configure --all
+        [[ -r $kernel_config ]] && source $kernel_config
+        [[ -r $user_config   ]] && source $user_config
 
-    [[ -r $kernel_config ]] && source $kernel_config
-    [[ -r $user_config   ]] && source $user_config
-
-    m0_load_modules
+        m0_load_modules
+    fi
 }
 
 stop()
 {
     source $service_funcs
+    local XPRT=$(m0_get_motr_transport)
+    if [ "$XPRT" == "lnet" ]; then
 
-    [ -r $user_config ] && source $user_config
+        [ -r $user_config ] && source $user_config
 
-    m0_unload_modules
+        m0_unload_modules
+    fi
 }
 
 
