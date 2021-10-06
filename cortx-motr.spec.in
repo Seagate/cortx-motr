@@ -234,7 +234,10 @@ CORTX Motr IVT.
 %else if "%{?CONFIG_ARCH_TYPE}" == "aarch64"
 %configure %{with_linux} %{with_lustre} %{configure_opts} enable_castxml=yes
 %endif
+
+%if !%{with ivt}
 make %{?_smp_mflags}
+%endif
 
 %install
 rm -rf %{buildroot}
