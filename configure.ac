@@ -1117,22 +1117,6 @@ M0_CFLAGS="-pipe -Wall -Werror -Wno-attributes -fno-strict-aliasing $M0_CFLAGS"
 # Scientific is using.
 M0_CFLAGS="-fno-common $M0_CFLAGS"
 
-# XXX: it should be done properly, Motr user-space code should not rely on
-# PAGE_SIZE define. Because different arm64 distributions of Linux may have
-# different page sizes. For example, RHEL-based distributions have 64K pages,
-# while Ubuntu-based ones have 4K pages by default.
-AS_IF([test x$host_cpu = xaarch64],
-      [
-        PAGE_SIZE=$(getconf PAGE_SIZE)
-        # Base-2 logarithm computation via bc utility:
-        PAGE_SHIFT=$(echo "x = l("$PAGE_SIZE")/l(2); scale=0; x/1" | bc -l)
-        # Note: it probably would be better to do it via config.h, but
-        # it gives redefine-errors in kernel module compilation.
-        M0_CFLAGS="$M0_CFLAGS -DPAGE_SIZE=$PAGE_SIZE"
-        M0_CFLAGS="$M0_CFLAGS -DPAGE_SHIFT=$PAGE_SIZE"
-      ]
-)
-
 M0_LDFLAGS="-rdynamic $M0_LDFLAGS"
 
 M0_KCPPFLAGS="-DM0_INTERNAL='' -DM0_EXTERN=extern \
