@@ -117,7 +117,8 @@ static int rpc_at_bulk_nb_alloc(struct m0_rpc_at_buf *ab, uint64_t size)
 	M0_ASSERT(M0_IN(ab->ab_type, (M0_RPC_AT_BULK_SEND,
 				      M0_RPC_AT_BULK_RECV)));
 	segs_nr = rpc_at_bulk_segs_nr(atbulk, size, &seg_size);
-	rc = m0_bufvec_alloc_aligned(bvec, segs_nr, seg_size, PAGE_SHIFT);
+	rc = m0_bufvec_alloc_aligned(bvec, segs_nr, seg_size,
+				     m0_pageshift_get());
 	if (rc == 0)
 		nb->nb_qtype = M0_NET_QT_ACTIVE_BULK_RECV;
 	return M0_RC(rc);
@@ -125,7 +126,7 @@ static int rpc_at_bulk_nb_alloc(struct m0_rpc_at_buf *ab, uint64_t size)
 
 static void rpc_at_bulk_nb_free(struct rpc_at_bulk *atbulk)
 {
-	m0_bufvec_free_aligned(&atbulk->ac_nb.nb_buffer, PAGE_SHIFT);
+	m0_bufvec_free_aligned(&atbulk->ac_nb.nb_buffer, m0_pageshift_get());
 }
 
 static int rpc_at_bulk_init(struct m0_rpc_at_buf     *ab,
@@ -476,7 +477,7 @@ M0_INTERNAL int m0_rpc_at_add(struct m0_rpc_at_buf     *ab,
 	 * transmission.
 	 */
 	if (blen < rpc_at_bulk_cutoff(conn) ||
-	    !m0_addr_is_aligned(buf->b_addr, PAGE_SHIFT)) {
+	    !m0_addr_is_aligned(buf->b_addr, m0_pageshift_get())) {
 		ab->ab_type = M0_RPC_AT_INLINE;
 		ab->u.ab_buf = *buf;
 	} else {
