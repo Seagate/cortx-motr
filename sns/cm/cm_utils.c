@@ -55,9 +55,9 @@ enum {
 	SNS_DEFAULT_S = 1,
 	SNS_DEFAULT_P = 5,
 #ifdef CONFIG_X86_64
-	SNS_DEFAULT_LAYOUT_ID = 1
+	SNS_DEFAULT_LAYOUT_ID = 1,
 #elif defined (CONFIG_AARCH64)
-	SNS_DEFAULT_LAYOUT_ID = 5
+	SNS_DEFAULT_LAYOUT_ID = 5,
 #else
 #error  "The platform is not supported"
 #endif
