@@ -157,6 +157,12 @@ enum m0_btree_opflag {
 /**
  * Calculates the credit needed to create tree with @nr nodes and adds this
  * credit to @accum.
+ *
+ * @param bt points to the structure which tells the tree type for whom the
+ *        credit needs to be calculated.
+ * @param accum contains the accumulated credit count.
+ * @param nr is the multiplier which gets the total credits for that many nodes
+ *        of the btree.
  */
 M0_INTERNAL void m0_btree_create_credit(const struct m0_btree_type *bt,
 					struct m0_be_tx_credit *accum,
@@ -165,8 +171,18 @@ M0_INTERNAL void m0_btree_create_credit(const struct m0_btree_type *bt,
 /**
  * Calculates the credit needed to destroy tree with @nr nodes and adds this
  * credit to @accum.
+ * Either tree or bt should be valid (non-NULL). If both are valid then tree is
+ * used to get the credit count.
+ *
+ * @param tree points to the tree for whom the credits need to be calculated.
+ * @param bt points to the structure which tells the tree type for whom the
+ *        credit needs to be calculated.
+ * @param accum contains the accumulated credit count.
+ * @param nr is the multiplier which gets the total credits for that many nodes
+ *        of the btree.
  */
 M0_INTERNAL void m0_btree_destroy_credit(struct m0_btree *tree,
+					 const struct m0_btree_type *bt,
 					 struct m0_be_tx_credit *accum,
 					 m0_bcount_t nr);
 
