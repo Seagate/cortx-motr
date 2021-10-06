@@ -8258,8 +8258,8 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 		 * Tree traversal has reached the leaf node. Delete the leaf
 		 * node.
 		 */
-		bnode_capture(&node_slot, bop->bo_tx);
 		bnode_fini(lev->l_node);
+		bnode_capture(&node_slot, bop->bo_tx);
 		bnode_free(&oi->i_nop, lev->l_node, bop->bo_tx, 0);
 		lev->l_node = NULL;
 		bop->bo_limit--;
