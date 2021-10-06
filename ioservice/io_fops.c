@@ -930,13 +930,13 @@ M0_INTERNAL bool m0_is_io_fop(const struct m0_fop *fop)
 	return m0_is_read_fop(fop) || m0_is_write_fop(fop);
 }
 
-static bool is_read_rep(const struct m0_fop *fop)
+M0_INTERNAL bool m0_is_read_rep(const struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
 	return fop->f_type == &m0_fop_cob_readv_rep_fopt;
 }
 
-static bool is_write_rep(const struct m0_fop *fop)
+M0_INTERNAL bool m0_is_write_rep(const struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
 	return fop->f_type == &m0_fop_cob_writev_rep_fopt;
@@ -944,7 +944,7 @@ static bool is_write_rep(const struct m0_fop *fop)
 
 M0_INTERNAL bool m0_is_io_fop_rep(const struct m0_fop *fop)
 {
-	return is_read_rep(fop) || is_write_rep(fop);
+	return m0_is_read_rep(fop) || m0_is_write_rep(fop);
 }
 
 M0_INTERNAL bool m0_is_cob_create_fop(const struct m0_fop *fop)
@@ -1028,7 +1028,7 @@ M0_INTERNAL uint32_t m0_io_fop_segs_nr(struct m0_fop *fop, uint32_t index)
 	used_size = rwfop->crw_desc.id_descs[index].bdd_used;
 	max_seg_size = m0_net_domain_get_max_buffer_segment_size(
 				m0_fop_domain_get(fop));
-	segs_nr = used_size / max_seg_size;
+	segs_nr = (used_size + max_seg_size - 1) / max_seg_size;
 	M0_LOG(M0_DEBUG, "segs_nr %d", segs_nr);
 
 	return segs_nr;
@@ -1061,7 +1061,7 @@ M0_INTERNAL struct m0_fop_cob_rw_reply *io_rw_rep_get(struct m0_fop *fop)
 	M0_PRE(fop != NULL);
 	M0_PRE(m0_is_io_fop_rep(fop));
 
-	if (is_read_rep(fop)) {
+	if (m0_is_read_rep(fop)) {
 		rfop = m0_fop_data(fop);
 		return &rfop->c_rep;
 	} else {

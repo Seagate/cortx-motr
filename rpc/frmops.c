@@ -271,9 +271,9 @@ static void bufvec_geometry(struct m0_net_domain *ndom,
 
 	M0_ENTRY();
 
-	max_buf_size     = m0_net_domain_get_max_buffer_size(ndom);
-	max_segment_size = m0_net_domain_get_max_buffer_segment_size(ndom);
-	max_nr_segments  = m0_net_domain_get_max_buffer_segments(ndom);
+	max_buf_size     = m0_rpc_max_msg_size(ndom, 0);
+	max_segment_size = m0_rpc_max_seg_size(ndom);
+	max_nr_segments  = m0_rpc_max_segs_nr(ndom);
 
 	M0_LOG(M0_DEBUG,
 		"max_buf_size: %llu max_segment_size: %llu max_nr_seg: %d",
@@ -457,7 +457,13 @@ static void item_done(struct m0_rpc_packet *p, struct m0_rpc_item *item, int rc)
 	 * Item timeout by sending deadline is also counted as sending error
 	 * and the ref, released in processing reply, is released here.
 	 */
-	item->ri_error = item->ri_error ?: rc;
+	/*
+	 * If rc is -ECONNREFUSED, that means the remote service has not yet
+	 * started. In such cases, resend the item after the resend interval
+	 * instead of marking the item as failed and flooding the network with
+	 * connection requests.
+	 */
+	item->ri_error = item->ri_error ?: rc == -ECONNREFUSED ? 0 : rc;
 	if (item->ri_error != 0) {
 		/*
 		 * Normally this put() would call at m0_rpc_item_process_reply(),

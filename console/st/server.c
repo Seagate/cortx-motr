@@ -45,7 +45,7 @@
    @{
  */
 
-#define ENDPOINT  "lnet:" SERVER_ENDPOINT_ADDR
+#define ENDPOINT  M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 #define NAME(ext) "console_st_srv" ext
 
 static int signaled = 0;
