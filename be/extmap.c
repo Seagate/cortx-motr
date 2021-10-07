@@ -1074,7 +1074,11 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 		break;
 	case M0_BEO_DESTROY:
 		M0_ASSERT(nr == 1);
-		m0_btree_destroy_credit(map->em_mapping, accum, 1);
+		bt = (struct m0_btree_type){.tt_id = M0_BT_EMAP_EM_MAPPING,
+			.ksize = sizeof(struct m0_be_emap_key),
+			.vsize = -1,
+		};
+		m0_btree_destroy_credit(map->em_mapping, &bt, accum, 1);
 		break;
 	case M0_BEO_INSERT:
 		m0_btree_put_credit(map->em_mapping, nr,

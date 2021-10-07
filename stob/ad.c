@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -648,7 +648,7 @@ static int stob_ad_domain_destroy(struct m0_stob_type *type,
 		rc = rc ?: m0_be_0type_del(&m0_stob_ad_0type, seg->bs_domain,
 					   &tx, location_data);
 		if (rc == 0)
-			M0_BE_FREE_PTR_SYNC(adom, seg, &tx);
+			M0_BE_FREE_ALIGN_PTR_SYNC(adom, seg, &tx);
 		m0_be_tx_close_sync(&tx);
 	}
 	m0_be_tx_fini(&tx);
