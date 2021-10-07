@@ -599,7 +599,7 @@ enum base_phase {
 	P_CLEANUP,
 	P_FINI,
 	P_COOKIE,
-	P_TIMECHECK,
+	P_WAITCHECK,
 	P_TREE_GET,
 	P_NR
 };
@@ -921,14 +921,6 @@ struct td {
 	int                         t_ref;
 	struct m0_be_seg           *t_seg; /** Segment hosting tree nodes. */
 	struct m0_fid               t_fid; /** Fid of the tree. */
-
-	/**
-	 * Start time is basically used in tree close to calculate certain time-
-	 * frame for other threads to complete their operation when tree_close
-	 * is called. This is used when the nd_active list has more members than
-	 * expected.
-	 */
-	m0_time_t               t_starttime;
 };
 
 /** Special values that can be passed to bnode_move() as 'nr' parameter. */
@@ -2041,7 +2033,6 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 			m0_rwlock_write_lock(&tree->t_lock);
 
 			tree->t_ref = 1;
-			tree->t_starttime = 0;
 			tree->t_root = node;
 			tree->t_height = bnode_level(node) + 1;
 			bnode_fid(node, &tree->t_fid);
@@ -5519,11 +5510,16 @@ M0_INTERNAL void m0_btree_create_credit(const struct m0_btree_type *bt,
 }
 
 M0_INTERNAL void m0_btree_destroy_credit(struct m0_btree *tree,
+					 const struct m0_btree_type *bt,
 					 struct m0_be_tx_credit *accum,
 					 m0_bcount_t nr)
 {
-	int size = tree->t_desc->t_root->n_type->nt_create_delete_credit_size();
-	struct m0_be_tx_credit cred = M0_BE_TX_CREDIT(1, size);
+	const struct node_type *nt   = (tree != NULL) ?
+					tree->t_desc->t_root->n_type :
+					btree_nt_from_bt(bt);
+	int                     size = nt->nt_create_delete_credit_size();
+	struct m0_be_tx_credit  cred = M0_BE_TX_CREDIT(1, size);
+
 	m0_be_tx_credit_add(accum, &cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
@@ -6222,6 +6218,14 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 
 	switch (bop->bo_op.o_sm.sm_state) {
 	case P_INIT:
+		if (M0_FI_ENABLED("already_exists")) {
+			/**
+			 * Return error if failure condition is explicitly
+			 * enabled by finject Fault Injection while testing.
+			 */
+			bop->bo_op.o_sm.sm_rc = M0_ERR(-EEXIST);
+			return P_DONE;
+		}
 		M0_ASSERT(bop->bo_i == NULL);
 		bop->bo_i = m0_alloc(sizeof *oi);
 		if (bop->bo_i == NULL) {
@@ -6589,7 +6593,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "P_INIT",
-		.sd_allowed = M0_BITS(P_COOKIE, P_SETUP, P_ACT, P_TIMECHECK,
+		.sd_allowed = M0_BITS(P_COOKIE, P_SETUP, P_ACT, P_WAITCHECK,
 				      P_TREE_GET, P_DONE),
 	},
 	[P_TREE_GET] = {
@@ -6692,10 +6696,10 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 		.sd_name    = "P_FINI",
 		.sd_allowed = M0_BITS(P_DONE),
 	},
-	[P_TIMECHECK] = {
+	[P_WAITCHECK] = {
 		.sd_flags   = 0,
-		.sd_name    = "P_TIMECHECK",
-		.sd_allowed = M0_BITS(P_TIMECHECK),
+		.sd_name    = "P_WAITCHECK",
+		.sd_allowed = M0_BITS(P_WAITCHECK),
 	},
 	[P_DONE] = {
 		.sd_flags   = M0_SDF_TERMINAL,
@@ -6710,8 +6714,8 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "create-init-tree_get", P_INIT, P_TREE_GET },
 	{ "create-tree_get-act", P_TREE_GET, P_ACT },
 	{ "close/destroy", P_INIT, P_DONE},
-	{ "close-init-timecheck", P_INIT, P_TIMECHECK},
-	{ "close-timecheck-repeat", P_TIMECHECK, P_TIMECHECK},
+	{ "close-init-timecheck", P_INIT, P_WAITCHECK},
+	{ "close-timecheck-repeat", P_WAITCHECK, P_WAITCHECK},
 	{ "kvop-init-cookie", P_INIT, P_COOKIE },
 	{ "kvop-init", P_INIT, P_SETUP },
 	{ "kvop-cookie-valid", P_COOKIE, P_LOCK },
@@ -6989,33 +6993,22 @@ static int64_t btree_close_tree_tick(struct m0_sm_op *smop)
 			tree_put(tree);
 			return P_DONE;
 		}
-		tree->t_starttime = m0_time_now();
 		m0_rwlock_write_unlock(&tree->t_lock);
 
 		/** put tree's root node. */
 		bnode_put(tree->t_root->n_op, tree->t_root);
-		/** Fallthrough to P_TIMECHECK */
-	case P_TIMECHECK:
-		/**
-		 * This code is meant for debugging. In future, this case needs
-		 * to be handled in a better way.
-		 */
+		/** Fallthrough to P_WAITCHECK */
+	case P_WAITCHECK:
 		m0_rwlock_write_lock(&list_lock);
 		m0_tl_for(ndlist, &btree_active_nds, node) {
 			if (node->n_tree == tree && node->n_ref > 0) {
-				if (m0_time_seconds(m0_time_now() -
-						    tree->t_starttime) > 5) {
-					M0_LOG(M0_ERROR, "tree close timeout");
-					M0_ASSERT(false);
-				}
 				m0_rwlock_write_unlock(&list_lock);
-				return P_TIMECHECK;
+				return P_WAITCHECK;
 			}
 		} m0_tl_endfor;
 		m0_rwlock_write_unlock(&list_lock);
 		/** Fallthrough to P_ACT */
 	case P_ACT:
-		tree->t_starttime = 0;
 		tree_put(tree);
 		bop->bo_arbor->t_desc = NULL;
 		return P_DONE;
@@ -7282,9 +7275,11 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			}
 		}
 
-		bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
+		rc = bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
 
 		lock_op_unlock(tree);
+		if (rc != 0)
+			return fail(bop, rc);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	}
 	case P_CLEANUP:
@@ -7575,6 +7570,7 @@ static int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 		 * successful.
 		 */
 	case P_ACT: {
+		int			 rc;
 		m0_bcount_t		 ksize;
 		m0_bcount_t		 vsize;
 		void			*pkey;
@@ -7602,8 +7598,10 @@ static int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				  bnode_count(s.s_node) - 1;
 			bnode_rec(&s);
 		}
-		bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
+		rc = bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
 		lock_op_unlock(tree);
+		if (rc != 0)
+			return fail(bop, rc);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	}
 	case P_CLEANUP:
@@ -8711,7 +8709,7 @@ M0_INTERNAL void m0_btree_cursor_kv_get(struct m0_btree_cursor *it,
 		*val = M0_BUF_INIT(it->bc_val.b_nob, it->bc_val.b_addr);
 }
 
-bool m0_btree_is_empty(struct m0_btree *btree)
+M0_INTERNAL bool m0_btree_is_empty(struct m0_btree *btree)
 {
 	M0_PRE(btree != NULL);
 	M0_PRE(btree->t_desc->t_root != NULL);
@@ -8845,7 +8843,7 @@ static void ut_basic_tree_oper_icp(void)
 	cred = M0_BE_TX_CREDIT(0, 0);
 	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
 			       rnode_sz_shift, &cred);
-	m0_btree_destroy_credit(b_op.bo_arbor, &cred, 1);
+	m0_btree_destroy_credit(b_op.bo_arbor, NULL, &cred, 1);
 
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
@@ -8910,7 +8908,7 @@ static void ut_basic_tree_oper_icp(void)
 	cred = M0_BE_TX_CREDIT(0, 0);
 	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
 			       rnode_sz_shift, &cred);
-	m0_btree_destroy_credit(b_op.bo_arbor, &cred, 1);
+	m0_btree_destroy_credit(b_op.bo_arbor, NULL, &cred, 1);
 
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
@@ -9589,7 +9587,7 @@ static void ut_multi_stream_kv_oper(void)
 	cred = M0_BE_TX_CREDIT(0, 0);
 	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
 			       rnode_sz_shift, &cred);
-	m0_btree_destroy_credit(tree, &cred, 1);
+	m0_btree_destroy_credit(tree, NULL, &cred, 1);
 
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
@@ -10700,7 +10698,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
 			       rnode_sz_shift, &cred);
-	m0_btree_destroy_credit(ut_trees[0], &cred, 1);
+	m0_btree_destroy_credit(ut_trees[0], NULL, &cred, 1);
 	for (i = 0; i < tree_count; i++) {
 		m0_be_ut_tx_init(tx, ut_be);
 		m0_be_tx_prep(tx, &cred);
@@ -10960,7 +10958,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		}
 
 		cred = M0_BE_TX_CREDIT(0, 0);
-		m0_btree_destroy_credit(tree, &cred, 1);
+		m0_btree_destroy_credit(tree, NULL, &cred, 1);
 
 		m0_be_ut_tx_init(tx, ut_be);
 		m0_be_tx_prep(tx, &cred);
@@ -11549,7 +11547,7 @@ static void ut_btree_persistence(void)
 	}
 
 	cred = M0_BE_TX_CREDIT(0, 0);
-	m0_btree_destroy_credit(tree, &cred, 1);
+	m0_btree_destroy_credit(tree, NULL, &cred, 1);
 
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
@@ -11726,7 +11724,7 @@ static void ut_btree_truncate(void)
 	cred = M0_BE_TX_CREDIT(0, 0);
 	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
 			       rnode_sz_shift, &cred);
-	m0_btree_destroy_credit(tree, &cred, 1);
+	m0_btree_destroy_credit(tree, NULL, &cred, 1);
 
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
