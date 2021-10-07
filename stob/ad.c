@@ -444,7 +444,7 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 				    0, adom->sad_dom_key);
 	dom->sd_private = adom;
 	dom->sd_ops     = &stob_ad_domain_ops;
-	m0_be_emap_init(&adom->sad_adata, seg, false);
+	m0_be_emap_init(&adom->sad_adata, seg, true);
 
 	ballroom = adom->sad_ballroom;
 	m0_balloc_init(b2m0(ballroom));
@@ -464,7 +464,7 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 	if (rc != 0) {
 		if (balloc_inited)
 			ballroom->ab_ops->bo_fini(ballroom);
-		m0_be_emap_fini(&adom->sad_adata, false);
+		m0_be_emap_fini(&adom->sad_adata, true);
 		m0_free(dom);
 	} else {
 		m0_stob_ad_domain_bob_init(adom);
@@ -488,7 +488,7 @@ static void stob_ad_domain_fini(struct m0_stob_domain *dom)
 	struct m0_ad_balloc      *ballroom = adom->sad_ballroom;
 
 	ballroom->ab_ops->bo_fini(ballroom);
-	m0_be_emap_fini(&adom->sad_adata, false);
+	m0_be_emap_fini(&adom->sad_adata, true);
 	m0_stob_put(adom->sad_bstore);
 	m0_stob_ad_domain_bob_fini(adom);
 	m0_free(dom);
@@ -502,9 +502,7 @@ static void stob_ad_domain_create_credit(struct m0_be_seg *seg,
 	struct m0_buf     data = { .b_nob = sizeof(struct stob_ad_0type_rec) };
 
 	M0_BE_ALLOC_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
-	m0_be_emap_init(&map, seg, false);
 	m0_be_emap_credit(&map, M0_BEO_CREATE, 1, accum);
-	m0_be_emap_fini(&map, false);
 	m0_be_0type_add_credit(seg->bs_domain, &m0_stob_ad_0type,
 			       location_data, &data, accum);
 }
@@ -516,9 +514,7 @@ static void stob_ad_domain_destroy_credit(struct m0_be_seg *seg,
 	struct m0_be_emap map = {};
 
 	M0_BE_FREE_CREDIT_PTR((struct m0_stob_ad_domain *)NULL, seg, accum);
-	m0_be_emap_init(&map, seg, false);
 	m0_be_emap_credit(&map, M0_BEO_DESTROY, 1, accum);
-	m0_be_emap_fini(&map, false);
 	m0_be_0type_del_credit(seg->bs_domain, &m0_stob_ad_0type,
 			       location_data, accum);
 }
@@ -540,6 +536,8 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 	struct stob_ad_0type_rec  seg0_ad_rec;
 	struct m0_buf             seg0_data;
 	int                       rc;
+	struct m0_buf             buf;
+	m0_bcount_t               size;
 
 	M0_PRE(seg != NULL);
 	M0_PRE(strlen(location_data) < ARRAY_SIZE(adom->sad_path));
@@ -562,7 +560,7 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 
 	M0_ASSERT(adom == NULL);
 	if (rc == 0)
-		M0_BE_ALLOC_ALIGN_PTR_SYNC(adom, 10, seg, &tx);
+		M0_BE_ALLOC_ALIGN_PTR_SYNC(adom, 12, seg, &tx);
 	if (adom != NULL) {
 		m0_format_header_pack(&adom->sad_header, &(struct m0_format_tag){
 			.ot_version = M0_STOB_AD_DOMAIN_FORMAT_VERSION,
@@ -604,7 +602,11 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 		if (rc == 0) {
 			adom->sad_ballroom = &cb->cb_ballroom;
 			m0_format_footer_update(adom);
-			M0_BE_TX_CAPTURE_PTR(seg, &tx, adom);
+			size = offsetof(typeof(*adom), sad_adata) +
+					sizeof(adom->sad_adata.em_header) +
+					sizeof(adom->sad_adata.em_footer);
+			buf = M0_BUF_INIT(size, adom);
+			M0_BE_TX_CAPTURE_BUF(seg, &tx, &buf);
 		}
 
 		m0_be_tx_close_sync(&tx);

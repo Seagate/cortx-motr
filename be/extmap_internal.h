@@ -137,11 +137,11 @@ enum m0_be_emap_format_version {
 // #define __AAL(x) __attribute__((aligned(x)))
 
 /** Root node alignment for balloc extend and group descriptor trees. */
-#define EMAP_ROOT_NODE_ALIGN 1024
+#define EMAP_ROOT_NODE_ALIGN 4096
 
 enum {
 	/** Root node size for balloc extend and group descriptor trees. */
-	EMAP_ROOT_NODE_SIZE = 1024,
+	EMAP_ROOT_NODE_SIZE = 4096,
 };
 
 /**
