@@ -1,12 +1,12 @@
-/* -*- C -*- */
+/*- C -*- */
 /*
- * Copyright (c) 2014-2021 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,41 +16,27 @@
  *
  * For any questions about this software or licensing,
  * please email opensource@seagate.com or cortx-questions@seagate.com.
- *
  */
 
+#pragma once
 
-#include "stob/module.h"
-#include "module/instance.h"
+#ifndef __MOTR_LIB_LINUX_CCNT_A_H__
+#define __MOTR_LIB_LINUX_CCNT_A_H__
 
-#if 0 /* unused code */
-static int level_stob_enter(struct m0_module *module);
-static void level_stob_leave(struct m0_module *module);
+/**
+ *   This function starts the cycle counter functionlity in each CPU on the node
+ *   at the time of cluster startup.
+ *   This is needed for performance measurement.
+ */
+int  start_cycle_counter(void);
 
-static const struct m0_modlev levels_stob[] = {
-	[M0_LEVEL_STOB] = {
-		.ml_name = "stob is initialised",
-		.ml_enter = level_stob_enter,
-		.ml_leave = level_stob_leave,
-	}
-};
+/**
+ *  This function stops the cycle counter functionlity in each CPU on the node
+ *  at the time of cluster shutdown.
+ */
+void finish_cycle_counter(void);
 
-static int level_stob_enter(struct m0_module *module)
-{
-	return m0_stob_types_init();
-}
-
-static void level_stob_leave(struct m0_module *module)
-{
-	m0_stob_types_fini();
-}
-#endif
-
-M0_INTERNAL struct m0_stob_module *m0_stob_module__get(void)
-{
-	return &m0_get()->i_stob_module;
-}
-
+#endif /* __MOTR_LIB_LINUX_CCNT_A_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
