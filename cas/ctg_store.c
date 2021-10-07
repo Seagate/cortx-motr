@@ -308,7 +308,7 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 	if (M0_FI_ENABLED("ctg_create_failure"))
 		return M0_ERR(-EFAULT);
 
-	M0_BE_ALLOC_ALIGN_PTR_SYNC(ctg, 10, seg, tx);
+	M0_BE_ALLOC_ALIGN_PTR_SYNC(ctg, 12, seg, tx);
 	if (ctg == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -532,7 +532,7 @@ static void ctg_meta_insert_credit(struct m0_btree_type   *bt,
 				   struct m0_be_tx_credit *accum)
 {
 	struct m0_cas_ctg *ctg;
-	m0_btree_put_credit2(bt, 10, nr,
+	m0_btree_put_credit2(bt, 12, nr,
 			     M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid),
 			     M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg), accum);
 	/*
@@ -548,7 +548,7 @@ static void ctg_meta_delete_credit(struct m0_btree_type   *bt,
 {
 	struct m0_cas_ctg *ctg;
 
-	m0_btree_del_credit2(bt, 10, nr,
+	m0_btree_del_credit2(bt, 12, nr,
 			     M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid),
 			     M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg), accum);
 	M0_BE_FREE_CREDIT_PTR(ctg, seg, accum);
@@ -580,11 +580,7 @@ static void ctg_store_init_creds_calc(struct m0_be_seg       *seg,
 	ctg_meta_insert_credit(&bt, seg, 3, cred);
 	/* Error case: tree destruction and freeing. */
 	ctg_meta_delete_credit(&bt, seg, 3, cred);
-	/*
-	 * using create credits for tree destroy credits at this plcae, as
-	 * m0_btree_destroy_credit function takes btree as a argument.
-	 */
-	m0_btree_create_credit(&bt, cred, 3);
+	m0_btree_destroy_credit(NULL, &bt, cred, 3);
 	M0_BE_FREE_CREDIT_PTR(state, seg, cred);
 	M0_BE_FREE_CREDIT_PTR(ctidx, seg, cred);
 	/*
@@ -683,7 +679,8 @@ static int ctg_store_create(struct m0_be_seg *seg)
 	struct m0_be_tx_credit  cred   = M0_BE_TX_CREDIT(0, 0);
 	struct m0_sm_group     *grp   = m0_locality0_get()->lo_grp;
 	int                     rc;
-
+	m0_bcount_t             bytes;
+	struct m0_buf           buf;
 	M0_ENTRY();
 	m0_sm_group_lock(grp);
 	m0_be_tx_init(&tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
@@ -731,8 +728,14 @@ static int ctg_store_create(struct m0_be_seg *seg)
 	rc = m0_be_seg_dict_insert(seg, &tx, cas_state_key, state);
 	if (rc != 0)
 		goto dead_index_delete;
-	M0_BE_TX_CAPTURE_PTR(seg, &tx, ctidx);
-	M0_BE_TX_CAPTURE_PTR(seg, &tx, dead_index);
+
+	bytes = offsetof(typeof(*ctidx), cc_foot) + sizeof(ctidx->cc_foot);
+	buf   = M0_BUF_INIT(bytes, ctidx);
+	M0_BE_TX_CAPTURE_BUF(seg, &tx, &buf);
+
+	buf   = M0_BUF_INIT(bytes, dead_index);
+	M0_BE_TX_CAPTURE_BUF(seg, &tx, &buf);
+
 	m0_format_footer_update(state);
 	M0_BE_TX_CAPTURE_PTR(seg, &tx, state);
 	ctg_store.cs_state = state;
