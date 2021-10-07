@@ -124,6 +124,34 @@ AS_CASE([$host_os],
 )
 
 #
+# Checking for Platform support -------------------------------------------{{{1
+#
+
+ARCH=
+AC_CANONICAL_HOST
+AS_CASE([$host_cpu],
+        [aarch64], [ARCH=aarch64],
+        [x86_64], [ARCH=x86_64],
+        [AC_MSG_ERROR("Only X86_64 and aarch64 platforms are supported")]
+)
+
+# Check for X86_64 platform -------------{{{2
+AS_IF([test x$ARCH = xx86_64],
+      [
+        AC_DEFINE([CONFIG_X86_64])
+      ]
+)
+
+# Check for AARCH64 platform ------------{{{2
+AS_IF([test x$ARCH = xaarch64],
+      [
+        AC_DEFINE([CONFIG_AARCH64])
+      ]
+)
+
+AC_SUBST([ARCH])
+
+#
 # Configuration options --------------------------------------------------- {{{1
 #
 
@@ -170,6 +198,9 @@ AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
 AH_TEMPLATE([HAVE_ISAL],              [Have Intel ISA-L available])
+AH_TEMPLATE([CONFIG_X86_64],          [Support for X86_64 platform])
+AH_TEMPLATE([CONFIG_AARCH64],         [Support for AARCH64 platform])
+
 
 # enable/disable options ------------------------------ {{{2
 
@@ -956,7 +987,7 @@ M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
 
 # contains only -D and -I/usr* entries from M0_CPPFLAGS, this is intended for
 # pkg-config database provided within Motr rpm distribution
-M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+' | xargs echo)
+M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+|-inc\S+' | xargs echo)
 
 # -Wno-attributes is required to suppress warnings about unrecognized
 # __attribute__, such as __attribute__((gccxml(...))). It's important because we

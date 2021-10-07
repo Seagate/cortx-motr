@@ -519,13 +519,25 @@ struct m0_0vec {
 	m0_bcount_t              z_count;
 };
 
+#ifdef CONFIG_X86_64
 enum {
 	M0_0VEC_SHIFT = 12,
 	M0_0VEC_ALIGN = (1 << M0_0VEC_SHIFT),
 	M0_0VEC_MASK = M0_0VEC_ALIGN - 1,
 	M0_SEG_SHIFT = 12,
-	M0_SEG_SIZE  = 4096,
+	M0_SEG_SIZE  = (1 << M0_SEG_SHIFT),
 };
+#elif defined (CONFIG_AARCH64)
+enum {
+	M0_0VEC_SHIFT = 16,
+	M0_0VEC_ALIGN = (1 << M0_0VEC_SHIFT),
+	M0_0VEC_MASK = M0_0VEC_ALIGN - 1,
+	M0_SEG_SHIFT = 16,
+	M0_SEG_SIZE  = (1 << M0_SEG_SHIFT),
+};
+#else
+  #error  "The platform is not supported"
+#endif
 
 /**
    Initialize a pre-allocated m0_0vec structure.
