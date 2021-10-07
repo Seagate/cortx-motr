@@ -196,6 +196,7 @@ cmd_run_kut() {
         $SUDO "$M0_SRC_DIR/ut/m0kut" "$@"
     else
         echo 'Libfabric runs in userspace only. Kernel UTs are disabled!'
+        sleep 5
         echo "status: SUCCESS" >&1
     fi
 }
@@ -233,6 +234,7 @@ cmd_run_st() {
                         chk=$(_libfab_st_list ${f##*/})
                         if [[ "$chk" == "true" ]]; then
                             echo "<< ${f##*/} >> Can not be run for libfab" >&1
+                            sleep 5
                             echo "status: SUCCESS" >&1
                             continue
                         fi
