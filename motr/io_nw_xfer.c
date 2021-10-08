@@ -978,7 +978,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					    ioo->ioo_attr.ov_vec.v_nr &&
 					    (ioo->ioo_oo.oo_oc.oc_op.op_code ==
 					    M0_OC_WRITE)) {
-						/*TODO DI_FORMAT*/
 						delta += ti->ti_cksum_seg_b_nob[seg];
 						fop_cksm_nob += ti->ti_cksum_seg_b_nob[seg];
 					}
@@ -1074,7 +1073,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				rw_fop->crw_di_data_cksum.b_addr = NULL;
 				rw_fop->crw_di_data_cksum.b_nob = 0;
 			}
-			/*TODO DI_FORMAT */
 			rw_fop->crw_cksum_size = (read_in_write ||
 						  !(ioo->ioo_attr.ov_vec.v_nr)) ?
 						  0 : ioo->ioo_attr.ov_vec.v_count[0];

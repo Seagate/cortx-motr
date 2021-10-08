@@ -877,7 +877,6 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
 
 	/* Update checksum count in reply fop for read only */
 	if (m0_is_read_fop(fom->fo_fop)) {
-		/*TODO DI_FORMAT */
 		struct m0_fop_cob_rw_reply *rwrep = io_rw_rep_get(fom->fo_rep_fop);
 
 		/* The si_cksum_nob_read will get updated in function
@@ -2084,7 +2083,6 @@ static int stob_io_create(struct m0_fom *fom)
 		si_stob = &fom_obj->fcrw_io.si_stob;
 		for (i = 0; i < si_stob->iv_vec.v_nr; i++) {
 			rw_replyfop->rwr_di_data_cksum.b_nob +=
-				/* TODO DI_FORMAT */
 				m0_extent_get_checksum_nob(si_stob->iv_index[i],
 							   si_stob->iv_vec.v_count[i],
 							   unit_size,
@@ -2139,7 +2137,6 @@ static int stob_io_create(struct m0_fom *fom)
 			/* Get the cksum nob expected for given stio */
 			stio->si_cksum.b_nob = 0;
 			si_stob = &stio->si_stob;
-			/* TODO DI_FORMAT */
 			for (j = 0; j < si_stob->iv_vec.v_nr; j++) {
 				stio->si_cksum.b_nob +=
 					m0_extent_get_checksum_nob(si_stob->iv_index[j],

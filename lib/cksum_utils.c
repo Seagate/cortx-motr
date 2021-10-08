@@ -142,7 +142,6 @@ M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec,
 		else {
 			/* off is not in the current extent, so account
 			 * increment the b_addr */
-			/*TODO DI_FORMAT */
 			attr_nob +=  m0_extent_get_checksum_nob(ext.e_start,
 								vec->iv_vec.v_count[i],
 								unit_sz, cs_sz);

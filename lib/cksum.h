@@ -51,7 +51,6 @@ do { \
  * alignment - power of two, byte alignment
  */
 
-/*TODO DI_FORMAT */
 #define M0_CALC_PAD(size, alignment) \
 		(size%alignment ? (((size/alignment + 1 ) * alignment) - size) : 0)
 
