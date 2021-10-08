@@ -314,7 +314,7 @@ def update_copy_motr_config_file(self):
 def get_md_disks(self, node_info):
     md_disks = []
     cvg_count = node_info['storage']['cvg_count']
-    cvg = self.storage['cvg']
+    cvg = node_info['storage']['cvg']
     for i in range(cvg_count):
         temp_cvg = cvg[i]
         if temp_cvg['devices']['metadata']:
