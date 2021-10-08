@@ -395,8 +395,6 @@ void target_ioreq_fini(struct target_ioreq *ti)
 
 	/* For the write path the ti_attrbuf which is m0_buf will be freed by
 	 * RPC layer, so no need to explicitly free it
-	 * m0_buf_free(&ti->ti_attrbuf);
-	 * TODO: Further validate this by checking if memory is actually freed.
 	 */
 
 	m0_free0(&ti->ti_pageattrs);
@@ -643,8 +641,6 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 " with flags 0x%x: ", seg,
 				 INDEX(ivec, seg), COUNT(ivec, seg),
 				 FID_P(&ti->ti_fid), pattr[seg]);
-		/* Ignore hole because of data size not alligned pool width */
-		//TODO: DI_FORMAT
 		ioo_ext = &ioo->ioo_ext;
 		goff_span_ext.e_start = ioo_ext->iv_index[0];
 		goff_span_ext.e_end = ioo_ext->iv_index[ioo_ext->iv_vec.v_nr - 1] +
