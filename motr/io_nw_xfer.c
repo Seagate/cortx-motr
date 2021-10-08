@@ -946,7 +946,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			goto err;
 		}
 		delta += io_seg_size();
-
 		/*
 		* Adds io segments and io descriptor only if it fits within
 		* permitted size.
