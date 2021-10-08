@@ -347,8 +347,9 @@ def motr_config_k8(self):
     if not verify_libfabric(self):
         raise MotrError(errno.EINVAL, "libfabric is not up.")
 
-    # Update motr-hare keys
-    update_motr_hare_keys(self, self.nodes)
+    # Update motr-hare keys only for storage node
+    if self.node['type'] == 'storage_node':
+        update_motr_hare_keys(self, self.nodes)
     update_copy_motr_config_file(self)
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
     return
