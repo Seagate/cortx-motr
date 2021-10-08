@@ -40,7 +40,6 @@ M0_INTERNAL int calculate_md5_inc_context(struct m0_md5_inc_context_pi *pi,
 	int     rc;
 
 	M0_ENTRY();
-
 	M0_PRE(pi != NULL);
 	M0_PRE(curr_context != NULL);
 	M0_PRE(ergo(bvec != NULL && bvec->ov_vec.v_nr != 0,
@@ -92,8 +91,8 @@ M0_INTERNAL int calculate_md5_inc_context(struct m0_md5_inc_context_pi *pi,
 
 		rc = MD5_Final(pi_value_without_seed, &context);
 		if (rc != 1) {
-			return M0_ERR_INFO(rc, "MD5_Final failed"
-					   "pi_value_without_seed=%p"
+			return M0_ERR_INFO(rc, "MD5_Final failed "
+					   "pi_value_without_seed=%p "
 					   "curr_context=%p",
 					   pi_value_without_seed, curr_context);
 		}
@@ -108,7 +107,6 @@ M0_INTERNAL int calculate_md5_inc_context(struct m0_md5_inc_context_pi *pi,
 	memcpy((void *)&context, (void *)curr_context, sizeof(MD5_CTX));
 
 	if (seed != NULL) {
-
 		/*
 		 * seed_str have string represention for 3 uint64_t(8 bytes)
 		 * range for uint64_t is 0 to 18,446,744,073,709,551,615 at
@@ -122,7 +120,6 @@ M0_INTERNAL int calculate_md5_inc_context(struct m0_md5_inc_context_pi *pi,
 		rc = MD5_Update(&context, (unsigned char *)seed_str,
 				sizeof(seed_str));
 		if (rc != 1) {
-
 			return M0_ERR_INFO(rc, "MD5_Update fail curr_context=%p"
 					   "f_container 0x%"PRIx64
 					   "f_key 0x%"PRIx64
@@ -135,7 +132,6 @@ M0_INTERNAL int calculate_md5_inc_context(struct m0_md5_inc_context_pi *pi,
 					   (char *)seed_str);
 		}
 	}
-
 	if (!(flag & M0_PI_SKIP_CALC_FINAL)) {
 		rc = MD5_Final(pi->pimd5c_value, &context);
 		if (rc != 1) {

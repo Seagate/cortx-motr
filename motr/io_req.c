@@ -1155,7 +1155,6 @@ static bool verify_checksum(struct m0_op_io *ioo)
 
 	M0_ENTRY();
 	usz = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
-
 	m0_bufvec_cursor_init(&datacur, &ioo->ioo_data);
 	m0_bufvec_cursor_init(&tmp_datacur, &ioo->ioo_data);
 	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
@@ -1163,7 +1162,6 @@ static bool verify_checksum(struct m0_op_io *ioo)
 	while (!m0_bufvec_cursor_move(&datacur, 0) &&
 	       !m0_ivec_cursor_move(&extcur, 0) &&
 	       attr_idx < ioo->ioo_attr.ov_vec.v_nr) {
-
 		/* calculate number of segments required for 1 data unit */
 		nr_seg = 0;
 		count = usz;
@@ -1210,19 +1208,15 @@ static bool verify_checksum(struct m0_op_io *ioo)
 
 		if (ioo->ioo_attr.ov_vec.v_nr &&
 		    ioo->ioo_attr.ov_vec.v_count[attr_idx] != 0) {
-
 			seed.pis_data_unit_offset   = m0_ivec_cursor_index(&extcur);
 			seed.pis_obj_id.f_container = ioo->ioo_obj->ob_entity.en_id.u_hi;
 			seed.pis_obj_id.f_key       = ioo->ioo_obj->ob_entity.en_id.u_lo;
-
 			pi_ondisk = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[attr_idx];
-
 			if (!m0_calc_verify_cksum_one_unit(pi_ondisk, &seed,
 							   &user_data)) {
 				return false;
 			}
 		}
-
 		attr_idx++;
 		m0_ivec_cursor_move(&extcur, usz);
 		m0_bufvec_free2(&user_data);

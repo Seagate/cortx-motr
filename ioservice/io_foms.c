@@ -2081,7 +2081,7 @@ static int stob_io_create(struct m0_fom *fom)
 
 		/* Compute nob based on the COB extents */
 		rw_replyfop->rwr_di_data_cksum.b_nob = 0;
-		si_stob =  &fom_obj->fcrw_io.si_stob;
+		si_stob = &fom_obj->fcrw_io.si_stob;
 		for (i = 0; i < si_stob->iv_vec.v_nr; i++) {
 			rw_replyfop->rwr_di_data_cksum.b_nob +=
 				/* TODO DI_FORMAT */
@@ -2138,7 +2138,7 @@ static int stob_io_create(struct m0_fom *fom)
 
 			/* Get the cksum nob expected for given stio */
 			stio->si_cksum.b_nob = 0;
-			si_stob =  &stio->si_stob;
+			si_stob = &stio->si_stob;
 			/* TODO DI_FORMAT */
 			for (j = 0; j < si_stob->iv_vec.v_nr; j++) {
 				stio->si_cksum.b_nob +=
@@ -2393,7 +2393,6 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 
 	fop = fom->fo_fop;
 	rw = io_rw_get(fop);
-
 	M0_LOG(M0_DEBUG, "FOM fini: fom=%p op=%s@"FID_F", nbytes=%lu", fom,
 	       m0_is_read_fop(fop) ? "READ" : "WRITE", FID_P(&rw->crw_fid),
 	       (unsigned long)(fom_obj->fcrw_count << fom_obj->fcrw_bshift));
@@ -2434,16 +2433,6 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 		m0_indexvec_free(&fom_obj->fcrw_io.si_stob);
 	if (fom_obj->fcrw_stio != NULL)
 		stob_io_destroy(fom);
-
-#if 0
-	if (m0_is_read_fop(fop))
-	{
-		struct m0_fop_cob_rw_reply *rw_replyfop = io_rw_rep_get(fom->fo_rep_fop);
-
-		if (rw_replyfop->rwr_di_data_cksum.b_addr)
-			m0_buf_free(&rw_replyfop->rwr_di_data_cksum);
-	}
-#endif
 	m0_fom_fini(fom);
 	m0_free(fom_obj);
 }

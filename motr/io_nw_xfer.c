@@ -697,7 +697,6 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				M0_ASSERT(ti->ti_cksum_copied <=
 					  ti->ti_attrbuf.b_nob);
 			}
-
 			ti->ti_cksum_seg_b_nob[seg] = b_nob;
 		} else if (goff_ivec != NULL && unit_type == M0_PUT_DATA &&
 			   opcode == M0_OC_READ && is_goff_in_range) {
@@ -952,7 +951,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		}
 		delta += io_seg_size();
 
-
 		/*
 		* Adds io segments and io descriptor only if it fits within
 		* permitted size.
@@ -1090,8 +1088,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			rw_fop->crw_di_data_cksum.b_nob  = 0;
 			rw_fop->crw_cksum_size = 0;
 		}
-
-
 		if (ioo->ioo_flags & M0_OOF_SYNC)
 			rw_fop->crw_flags |= M0_IO_FLAG_SYNC;
 		io_attr = m0_io_attr(ioo);

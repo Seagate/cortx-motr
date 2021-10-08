@@ -166,8 +166,8 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	m0_ivec_cursor_init(&ti_cob_cursor, ti_ivec);
 	m0_ivec_cursor_init(&ti_goff_cursor, ti_goff_ivec);
 
-	rep_index	= m0_ivec_cursor_index(&rep_cursor);
-	ti_cob_index	= m0_ivec_cursor_index(&ti_cob_cursor);
+	rep_index = m0_ivec_cursor_index(&rep_cursor);
+	ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
 
 	/* Move rep_cursor on unit boundary */
 	off = rep_index % unit_size;
