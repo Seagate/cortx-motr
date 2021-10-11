@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -173,6 +173,13 @@ struct m0_bufvec {
 	({                                                              \
 		M0_CASSERT(M0_HAS_TYPE((bufvec), struct m0_bufvec *));  \
 		(bufvec)->ov_vec.v_nr;                                  \
+	})
+
+#define M0_BUFVEC_DATA(bufvec)                                          \
+	({                                                              \
+		M0_CASSERT(M0_HAS_TYPE((bufvec), struct m0_bufvec *));  \
+		M0_ASSERT((bufvec)->ov_vec.v_nr == 1);                  \
+		(bufvec)->ov_buf[0];                                    \
 	})
 
 /**
