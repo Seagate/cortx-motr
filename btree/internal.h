@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,19 +36,20 @@ enum m0_btree_opcode;
 struct m0_btree_oimpl;
 
 struct m0_btree_op {
-	struct m0_sm_op        bo_op;
-	struct m0_sm_group     bo_sm_group;
-	struct m0_sm_op_exec   bo_op_exec;
-	enum m0_btree_opcode   bo_opc;
-	struct m0_btree       *bo_arbor;
-	struct m0_btree_rec    bo_rec;
-	struct m0_btree_cb     bo_cb;
-	struct m0_be_tx       *bo_tx;
-	struct m0_be_seg      *bo_seg;
-	uint64_t               bo_flags;
-	m0_bcount_t            bo_limit;
-	struct m0_btree_oimpl *bo_i;
-	struct m0_btree_idata  b_data;
+	struct m0_sm_op             bo_op;
+	struct m0_sm_group          bo_sm_group;
+	struct m0_sm_op_exec        bo_op_exec;
+	enum m0_btree_opcode        bo_opc;
+	struct m0_btree            *bo_arbor;
+	struct m0_btree_rec         bo_rec;
+	struct m0_btree_cb          bo_cb;
+	struct m0_be_tx            *bo_tx;
+	struct m0_be_seg           *bo_seg;
+	uint64_t                    bo_flags;
+	m0_bcount_t                 bo_limit;
+	struct m0_btree_oimpl      *bo_i;
+	struct m0_btree_idata       bo_data;
+	struct m0_btree_rec_key_op  bo_keycmp;
 };
 
 enum m0_btree_node_format_version {
