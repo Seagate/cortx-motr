@@ -25,22 +25,15 @@
 #ifndef __MOTR_SNS_PARITY_OPS_H__
 #define __MOTR_SNS_PARITY_OPS_H__
 
-#include "parity_defs.h"
-
-#if ISAL_ENCODE_ENABLED
+#ifndef __KERNEL__
 #include <isa-l.h>
-#endif /* ISAL_ENCODE_ENABLED */
+#endif /* __KERNEL__ */
 #include "lib/assert.h"
 
 #define M0_PARITY_ZERO		(0)
 #define M0_PARITY_GALOIS_W	(8)
 
 typedef int m0_parity_elem_t;
-
-#if 0 /* NA_FOR_INTEL_ISA */
-M0_INTERNAL int m0_parity_init(void);
-M0_INTERNAL void m0_parity_fini(void);
-#endif /* NA_FOR_INTEL_ISA */
 
 M0_INTERNAL m0_parity_elem_t m0_parity_pow(m0_parity_elem_t x,
 					   m0_parity_elem_t p);
@@ -57,20 +50,20 @@ static inline m0_parity_elem_t m0_parity_sub(m0_parity_elem_t x, m0_parity_elem_
 
 static inline m0_parity_elem_t m0_parity_mul(m0_parity_elem_t x, m0_parity_elem_t y)
 {
-#if ISAL_ENCODE_ENABLED
+#ifndef __KERNEL__
 	return gf_mul(x, y);
 #else
 	return 0;
-#endif /* ISAL_ENCODE_ENABLED */
+#endif /* __KERNEL__ */
 }
 
 static inline m0_parity_elem_t m0_parity_div(m0_parity_elem_t x, m0_parity_elem_t y)
 {
-#if ISAL_ENCODE_ENABLED
+#ifndef __KERNEL__
 	return gf_mul(x, gf_inv(y));
 #else
 	return 0;
-#endif /* ISAL_ENCODE_ENABLED */
+#endif /* __KERNEL__ */
 }
 
 static inline m0_parity_elem_t m0_parity_lt(m0_parity_elem_t x, m0_parity_elem_t y)
