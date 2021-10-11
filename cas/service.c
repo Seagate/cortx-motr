@@ -2034,7 +2034,7 @@ static int cas_place(struct m0_buf *dst, struct m0_buf *src, m0_bcount_t cutoff)
 		return M0_ERR(-ENOMEM);
 
 	if (src->b_nob >= cutoff) {
-		dst->b_addr = m0_alloc_aligned(src->b_nob, PAGE_SHIFT);
+		dst->b_addr = m0_alloc_aligned(src->b_nob, m0_pageshift_get());
 		if (dst->b_addr == NULL)
 			return M0_ERR(-ENOMEM);
 		dst->b_nob = src->b_nob;
@@ -2374,7 +2374,7 @@ static int cas_ctidx_insert(struct cas_fom *fom, const struct m0_cas_id *in_cid,
 
 static m0_bcount_t cas_rpc_cutoff(const struct cas_fom *fom)
 {
-	return cas_in_ut() ? PAGE_SIZE :
+	return cas_in_ut() ? m0_pagesize_get() :
 		m0_fop_rpc_machine(fom->cf_fom.fo_fop)->rm_bulk_cutoff;
 }
 
