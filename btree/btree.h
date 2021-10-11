@@ -93,6 +93,13 @@ struct m0_btree_cb {
 	void *c_datum;
 };
 
+struct m0_btree_rec_key_op {
+	/**
+	 * Key comparison function will return -ve, 0 or +ve value depending on
+	 * how key0 and key1 compare in key ordering.
+	 */
+	int (*rko_keycmp)(const void *key0, const void *key1);
+};
 /**
  * This structure is used to hold the data that is passed to m0_tree_create.
  */
@@ -206,14 +213,19 @@ M0_INTERNAL void m0_btree_truncate_credit(struct m0_be_tx        *tx,
  *
  * @param addr is the address of exsiting root node in BE segment.
  * @param nob is the size of the root node in BE segment.
- * @param out points to the btree structure which can be used in subsequent
+ * @param out points to the User allocated space which can be used in subsequent
  *        btree operations.
+ * @param seg points to the BE segment which hosts the nodes of the tree.
  * @param bop is consumed by the m0_btree_open for its operation.
+ * @param keycmp contains pointer to the key comparison function which is
+ *        provided by the caller and used by the btree routines when working on
+ *        this btree.
  *
  * @return 0 if successful.
  */
 M0_INTERNAL int  m0_btree_open(void *addr, int nob, struct m0_btree *out,
-			       struct m0_be_seg *seg, struct m0_btree_op *bop);
+			       struct m0_be_seg *seg, struct m0_btree_op *bop,
+			       struct m0_btree_rec_key_op *keycmp);
 
 /**
  * Closes the opened or created tree represented by arbor. Once the close
@@ -244,15 +256,21 @@ M0_INTERNAL void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop)
  * @param bop is consumed by the m0_btree_create for its operation. It contains
  *        the field bo_arbor which holds the tree pointer to be used by the
  *        caller after the call completes.
+ * @param tree points to the User allocated space which create will intitialize
+ *        and subsequent btree routines will use it as handle to btree.
  * @param seg points to the BE segment which will host the nodes of the tree.
  * @param fid unique fid of the tree.
  * @param tx pointer to the transaction struture to capture BE segment changes.
+ * @param keycmp contains pointer to the key comparison function which is
+ *        provided by the caller and used by the btree routines when working on
+ *        this btree.
  */
 M0_INTERNAL void m0_btree_create(void *addr, int nob,
 				 const struct m0_btree_type *bt,
 				 struct m0_btree_op *bop, struct m0_btree *tree,
 				 struct m0_be_seg *seg,
-				 const struct m0_fid *fid, struct m0_be_tx *tx);
+				 const struct m0_fid *fid, struct m0_be_tx *tx,
+				 struct m0_btree_rec_key_op *keycmp);
 
 /**
  * Destroys the opened or created tree represented by arbor. Once the destroy
