@@ -165,6 +165,25 @@ static bool ut_dl_verify_log_rec(struct m0_dtm0_log_rec *rec, int rand)
 		txd_check(&rec->dlr_txd, rand);
 }
 
+static void log_iter_test(struct m0_be_dtm0_log *log, int log_rec_max)
+{
+	struct m0_be_dtm0_log_iter iter;
+	struct m0_dtm0_log_rec	   out;
+	int                        rec_nr = 0;
+	int                        rc;
+
+	m0_be_dtm0_log_iter_init(&iter, log);
+	rc = 1;
+	while(rc > 0) {
+		m0_mutex_lock(&log->dl_lock);
+		rc = m0_be_dtm0_log_iter_next(&iter, &out);
+		m0_mutex_unlock(&log->dl_lock);
+		rec_nr++;
+	}
+	/* -1 for 0-rec */
+	M0_UT_ASSERT(rec_nr - 1 == log_rec_max);
+	m0_dtm0_log_iter_rec_fini(&out);
+}
 
 void test_volatile_dtm0_log(void)
 {
@@ -524,6 +543,8 @@ static void persistent_log_operate(struct m0_be_dtm0_log *log)
 		m0_be_tx_fini(tx);
 	}
 
+	log_iter_test(log, UT_DTM0_LOG_MAX_LOG_REC);
+
 	for (i = 0; i < UT_DTM0_LOG_MAX_LOG_REC; ++i) {
 		m0_mutex_lock(&log->dl_lock);
 		rec[i] = m0_be_dtm0_log_find(log, &txd[i].dtd_id);
@@ -605,6 +626,72 @@ static void m0_be_ut_dtm0_log_test(void)
 	M0_LEAVE();
 }
 
+
+static void m0_be_ut_dtm0_log_init_fini(void)
+{
+	struct m0_be_dtm0_log_iter iter;
+	struct m0_dtm0_clk_src     cs;
+	struct m0_be_dtm0_log     *log;
+	int rc;
+
+	m0_dtm0_clk_src_init(&cs, M0_DTM0_CS_PHYS);
+
+	rc = m0_be_dtm0_log_alloc(&log);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_be_dtm0_log_init(log, NULL, &cs, false);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_be_dtm0_log_iter_init(&iter, log);
+	m0_be_dtm0_log_iter_fini(&iter);
+
+	m0_be_dtm0_log_fini(log);
+	m0_be_dtm0_log_free(&log);
+	m0_dtm0_clk_src_fini(&cs);
+}
+
+static void m0_be_ut_dtm0_log_next(void)
+{
+	struct m0_dtm0_tx_desc  txd = {};
+	struct m0_buf           buf = {};
+
+	/* struct m0_be_dtm0_log_iter iter; */
+	/* struct m0_dtm0_log_rec	   out; */
+	struct m0_dtm0_clk_src     cs;
+	struct m0_be_dtm0_log     *log;
+	int rc;
+
+	m0_dtm0_clk_src_init(&cs, M0_DTM0_CS_PHYS);
+
+	rc = m0_be_dtm0_log_alloc(&log);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_be_dtm0_log_init(log, NULL, &cs, false);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = ut_dl_init(&txd, &buf, 42);
+	M0_UT_ASSERT(rc == 0);
+
+	p_state_set(&txd.dtd_ps.dtp_pa[0], M0_DTPS_PERSISTENT);
+	p_state_set(&txd.dtd_ps.dtp_pa[1], M0_DTPS_PERSISTENT);
+	p_state_set(&txd.dtd_ps.dtp_pa[2], M0_DTPS_PERSISTENT);
+	m0_mutex_lock(&log->dl_lock);
+	rc = m0_be_dtm0_log_update(log, NULL, &txd, &buf);
+	M0_UT_ASSERT(rc == 0);
+	m0_mutex_unlock(&log->dl_lock);
+
+	log_iter_test(log, 1);
+
+	/* make log finalisation happy */
+	m0_mutex_lock(&log->dl_lock);
+	rc = m0_be_dtm0_log_prune(log, NULL, &txd.dtd_id);
+	M0_UT_ASSERT(rc == 0);
+	m0_mutex_unlock(&log->dl_lock);
+	m0_be_dtm0_log_fini(log);
+	m0_be_dtm0_log_free(&log);
+	m0_dtm0_clk_src_fini(&cs);
+}
+
 struct m0_ut_suite dtm0_log_ut = {
 	.ts_name   = "dtm0-log-ut",
 	.ts_init   = NULL,
@@ -612,6 +699,8 @@ struct m0_ut_suite dtm0_log_ut = {
 	.ts_tests  = {
 		{ "dtm0-log-list",       test_volatile_dtm0_log },
 		{ "dtm0-log-persistent", m0_be_ut_dtm0_log_test },
+		{ "dtm0-log-init/fini",  m0_be_ut_dtm0_log_init_fini },
+		{ "dtm0-log-next",       m0_be_ut_dtm0_log_next },
 		{ NULL, NULL }
 	}
 };
