@@ -154,11 +154,14 @@ static int confdb_table_init(struct m0_be_seg     *seg,
 			     struct m0_be_tx      *tx,
 			     const struct m0_fid  *btree_fid)
 {
-	uint8_t              *rnode;
-	struct m0_btree_op    b_op = {};
-	struct m0_btree_type  bt;
-	uint32_t              rnode_sz_shift;
-	int                   rc;
+	uint8_t                    *rnode;
+	struct m0_btree_op          b_op = {};
+	struct m0_btree_type        bt;
+	uint32_t                    rnode_sz_shift;
+	int                         rc;
+	struct m0_btree_rec_key_op  keycmp = {
+					.rko_keycmp = (void *)&m0_fid_cmp,
+					};
 
 	M0_ENTRY();
 
@@ -172,7 +175,7 @@ static int confdb_table_init(struct m0_be_seg     *seg,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &bt, &b_op, btree,
 							     seg, btree_fid,
-							     tx));
+							     tx, &keycmp));
 	if (rc != 0)
 		M0_BE_FREE_ALIGN_ARR_SYNC(rnode, seg, tx);
 	else {
@@ -523,7 +526,7 @@ M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg,
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_open(rnode, rnode_sz,
 							    &btree, seg,
-							    &b_op));
+							    &b_op, NULL));
 		if (rc == 0) {
 			rc = __confdb_free(&btree, seg, tx);
 			if (rc == 0 || rc == -ENOENT) {
@@ -621,11 +624,14 @@ static void confx_fill(struct m0_confx *dest, struct m0_btree *btree)
 
 M0_INTERNAL int m0_confdb_read(struct m0_be_seg *seg, struct m0_confx **out)
 {
-	uint8_t            *rnode;
-	struct m0_btree     btree;
-	int                 rc;
-	size_t              nr_objs = 0;
-	struct m0_btree_op  b_op    = {};
+	uint8_t                    *rnode;
+	struct m0_btree             btree;
+	int                         rc;
+	size_t                      nr_objs = 0;
+	struct m0_btree_op          b_op    = {};
+	struct m0_btree_rec_key_op  keycmp  = {
+					.rko_keycmp = (void *) &m0_fid_cmp,
+					};
 
 	M0_ENTRY();
 
@@ -635,7 +641,7 @@ M0_INTERNAL int m0_confdb_read(struct m0_be_seg *seg, struct m0_confx **out)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(rnode, rnode_sz, &btree,
-						    seg, &b_op));
+						    seg, &b_op, &keycmp));
 	if (rc != 0)
 		return M0_RC(rc);
 

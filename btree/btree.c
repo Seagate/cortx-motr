@@ -921,6 +921,7 @@ struct td {
 	int                         t_ref;
 	struct m0_be_seg           *t_seg; /** Segment hosting tree nodes. */
 	struct m0_fid               t_fid; /** Fid of the tree. */
+	struct m0_btree_rec_key_op  t_keycmp;
 };
 
 /** Special values that can be passed to bnode_move() as 'nr' parameter. */
@@ -1292,7 +1293,7 @@ static void bnode_done(struct slot *slot, bool modified);
 static void bnode_make(struct slot *slot);
 static void bnode_val_resize(struct slot *slot, int vsize_diff);
 
-static bool bnode_find (struct slot *slot, const struct m0_btree_key *key);
+static bool bnode_find (struct slot *slot, struct m0_btree_key *key);
 static void bnode_seq_cnt_update (struct nd *node);
 static void bnode_fix  (const struct nd *node);
 #if 0
@@ -1644,18 +1645,19 @@ static void bnode_val_resize(struct slot *slot, int vsize_diff)
 	slot->s_node->n_type->nt_val_resize(slot, vsize_diff);
 }
 
-static bool bnode_find(struct slot *slot, const struct m0_btree_key *find_key)
+static bool bnode_find(struct slot *slot, struct m0_btree_key *find_key)
 {
-	int                      i     = -1;
-	int                      j     = bnode_count(slot->s_node);
-	struct m0_btree_key      key;
-	void                    *p_key;
-	struct slot              key_slot;
-	m0_bcount_t              ksize;
-	struct m0_bufvec_cursor  cur_1;
-	struct m0_bufvec_cursor  cur_2;
-	int                      diff;
-	int                      m;
+	int                         i     = -1;
+	int                         j     = bnode_count(slot->s_node);
+	struct m0_btree_key         key;
+	void                       *p_key;
+	struct slot                 key_slot;
+	m0_bcount_t                 ksize;
+	struct m0_bufvec_cursor     cur_1;
+	struct m0_bufvec_cursor     cur_2;
+	int                         diff;
+	int                         m;
+	struct m0_btree_rec_key_op *keycmp = &slot->s_node->n_tree->t_keycmp;
 
 	key.k_data           = M0_BUFVEC_INIT_BUF(&p_key, &ksize);
 	key_slot.s_node      = slot->s_node;
@@ -1670,9 +1672,18 @@ static bool bnode_find(struct slot *slot, const struct m0_btree_key *find_key)
 		key_slot.s_idx = m;
 		bnode_key(&key_slot);
 
-		m0_bufvec_cursor_init(&cur_1, &key.k_data);
-		m0_bufvec_cursor_init(&cur_2, &find_key->k_data);
-		diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
+		if (keycmp->rko_keycmp != NULL) {
+			void     *key_data;
+			void     *find_data;
+
+			key_data = M0_BUFVEC_DATA(&key.k_data);
+			find_data = M0_BUFVEC_DATA(&find_key->k_data);
+			diff = keycmp->rko_keycmp(key_data, find_data);
+		} else {
+			m0_bufvec_cursor_init(&cur_1, &key.k_data);
+			m0_bufvec_cursor_init(&cur_2, &find_key->k_data);
+			diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
+		}
 
 		M0_ASSERT(i < m && m < j);
 		if (diff < 0)
@@ -2607,9 +2618,15 @@ static bool ff_iskey_smaller(const struct nd *node, int cur_key_idx)
 	p_key_prev = ff_key(node, prev_key_idx);
 	p_key_next = ff_key(node, next_key_idx);
 
-	m0_bufvec_cursor_init(&cur_prev, &key_prev.k_data);
-	m0_bufvec_cursor_init(&cur_next, &key_next.k_data);
-	diff = m0_bufvec_cursor_cmp(&cur_prev, &cur_next);
+	if (node->n_tree->t_keycmp.rko_keycmp != NULL) {
+		diff = node->n_tree->t_keycmp.rko_keycmp(
+					      M0_BUFVEC_DATA(&key_prev.k_data),
+					      M0_BUFVEC_DATA(&key_next.k_data));
+	} else {
+		m0_bufvec_cursor_init(&cur_prev, &key_prev.k_data);
+		m0_bufvec_cursor_init(&cur_next, &key_next.k_data);
+		diff = m0_bufvec_cursor_cmp(&cur_prev, &cur_next);
+	}
 	if (diff >= 0)
 		return false;
 	return true;
@@ -3918,9 +3935,15 @@ static bool fkvv_iskey_smaller(const struct nd *node, int cur_key_idx)
 	p_key_prev = fkvv_key(node, prev_key_idx);
 	p_key_next = fkvv_key(node, next_key_idx);
 
-	m0_bufvec_cursor_init(&cur_prev, &key_prev.k_data);
-	m0_bufvec_cursor_init(&cur_next, &key_next.k_data);
-	diff = m0_bufvec_cursor_cmp(&cur_prev, &cur_next);
+	if (node->n_tree->t_keycmp.rko_keycmp != NULL) {
+		diff = node->n_tree->t_keycmp.rko_keycmp(
+					      M0_BUFVEC_DATA(&key_prev.k_data),
+					      M0_BUFVEC_DATA(&key_next.k_data));
+	} else {
+		m0_bufvec_cursor_init(&cur_prev, &key_prev.k_data);
+		m0_bufvec_cursor_init(&cur_next, &key_next.k_data);
+		diff = m0_bufvec_cursor_cmp(&cur_prev, &cur_next);
+	}
 	if (diff >= 0)
 		return false;
 	return true;
@@ -5992,10 +6015,16 @@ static void btree_put_split_and_find(struct nd *allocated_node,
 	REC_INIT(&right_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 	bnode_key(&right_slot);
 
-	m0_bufvec_cursor_init(&cur_1, &rec->r_key.k_data);
-	m0_bufvec_cursor_init(&cur_2, &right_slot.s_rec.r_key.k_data);
+	if (current_node->n_tree->t_keycmp.rko_keycmp != NULL) {
+		diff = current_node->n_tree->t_keycmp.rko_keycmp(
+				M0_BUFVEC_DATA(&rec->r_key.k_data),
+				M0_BUFVEC_DATA(&right_slot.s_rec.r_key.k_data));
+	} else {
+		m0_bufvec_cursor_init(&cur_1, &rec->r_key.k_data);
+		m0_bufvec_cursor_init(&cur_2, &right_slot.s_rec.r_key.k_data);
 
-	diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
+		diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
+	}
 	tgt->s_node = diff < 0 ? left_slot.s_node : right_slot.s_node;
 
 	/**
@@ -6816,11 +6845,11 @@ static int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 {
 	struct m0_btree_op    *bop    = M0_AMB(bop, smop, bo_op);
 	struct m0_btree_oimpl *oi     = bop->bo_i;
-	struct m0_btree_idata *data   = &bop->b_data;
+	struct m0_btree_idata *data   = &bop->bo_data;
 	int                    k_size = data->bt->ksize == -1 ? MAX_KEY_SIZE :
-					data->bt->ksize;
+								data->bt->ksize;
 	int                    v_size = data->bt->vsize == -1 ? MAX_VAL_SIZE :
-					data->bt->vsize;
+								data->bt->vsize;
 	struct slot            node_slot;
 
 	switch (bop->bo_op.o_sm.sm_state) {
@@ -6854,13 +6883,13 @@ static int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 		oi->i_nop.no_tree->t_type = data->bt;
 		oi->i_nop.no_tree->t_seg  = bop->bo_seg;
 
-		bop->bo_arbor->t_desc           = oi->i_nop.no_tree;
-		bop->bo_arbor->t_type           = data->bt;
-		bop->bo_arbor->t_height         =
-					    bnode_level(oi->i_nop.no_node) + 1;
+		bop->bo_arbor->t_desc     = oi->i_nop.no_tree;
+		bop->bo_arbor->t_type     = data->bt;
+		bop->bo_arbor->t_height   = bnode_level(oi->i_nop.no_node) + 1;
 
 		m0_rwlock_write_lock(&bop->bo_arbor->t_desc->t_lock);
 		bop->bo_arbor->t_desc->t_height = bop->bo_arbor->t_height;
+		bop->bo_arbor->t_desc->t_keycmp = bop->bo_keycmp;
 		node_slot.s_node                = oi->i_nop.no_node;
 		node_slot.s_idx                 = 0;
 		bnode_capture(&node_slot, bop->bo_tx);
@@ -6933,15 +6962,15 @@ static int64_t btree_open_tree_tick(struct m0_sm_op *smop)
 		 * However, in future, this check can be removed if
 		 * such a requirement is invalidated.
 		 */
-		if (!addr_is_aligned(bop->b_data.addr))
+		if (!addr_is_aligned(bop->bo_data.addr))
 			return M0_ERR(-EFAULT);
 
 		oi = m0_alloc(sizeof *bop->bo_i);
 		if (oi == NULL)
 			return M0_ERR(-ENOMEM);
 		bop->bo_i = oi;
-		oi->i_nop.no_addr = segaddr_build(bop->b_data.addr,
-						  calc_shift(bop->b_data.
+		oi->i_nop.no_addr = segaddr_build(bop->bo_data.addr,
+						  calc_shift(bop->bo_data.
 							     num_bytes));
 
 		return tree_get(&oi->i_nop, &oi->i_nop.no_addr, P_ACT);
@@ -6950,13 +6979,14 @@ static int64_t btree_open_tree_tick(struct m0_sm_op *smop)
 		M0_ASSERT(oi->i_nop.no_op.o_sm.sm_rc == 0);
 
 		if (!oi->i_nop.no_tree->t_type)
-			oi->i_nop.no_tree->t_type = bop->b_data.bt;
+			oi->i_nop.no_tree->t_type = bop->bo_data.bt;
 
-		bop->bo_arbor->t_type        = oi->i_nop.no_tree->t_type;
-		bop->bo_arbor->t_desc        = oi->i_nop.no_tree;
-		bop->bo_arbor->t_height      = oi->i_nop.no_tree->t_height;
-		bop->bo_arbor->t_desc->t_seg = bop->bo_seg;
-		bop->bo_arbor->t_desc->t_fid = oi->i_nop.no_tree->t_fid;
+		bop->bo_arbor->t_type           = oi->i_nop.no_tree->t_type;
+		bop->bo_arbor->t_desc           = oi->i_nop.no_tree;
+		bop->bo_arbor->t_height         = oi->i_nop.no_tree->t_height;
+		bop->bo_arbor->t_desc->t_seg    = bop->bo_seg;
+		bop->bo_arbor->t_desc->t_fid    = oi->i_nop.no_tree->t_fid;
+		bop->bo_arbor->t_desc->t_keycmp = bop->bo_keycmp;
 
 		m0_free(oi);
 		return P_DONE;
@@ -8393,12 +8423,19 @@ M0_INTERNAL void m0_btree_lrulist_purge(uint64_t count)
 }
 
 M0_INTERNAL int  m0_btree_open(void *addr, int nob, struct m0_btree *out,
-			       struct m0_be_seg *seg, struct m0_btree_op *bop)
+			       struct m0_be_seg *seg, struct m0_btree_op *bop,
+			       struct m0_btree_rec_key_op *keycmp)
 {
-	bop->b_data.addr      = addr;
-	bop->b_data.num_bytes = nob;
-	bop->bo_arbor         = out;
-	bop->bo_seg           = seg;
+	bop->bo_data.addr      = addr;
+	bop->bo_data.num_bytes = nob;
+	bop->bo_arbor          = out;
+	bop->bo_seg            = seg;
+	if (keycmp == NULL)
+		bop->bo_keycmp  = (struct m0_btree_rec_key_op){
+							    .rko_keycmp = NULL,
+							};
+	else
+		bop->bo_keycmp  = *keycmp;
 
 	m0_sm_op_init(&bop->bo_op, &btree_open_tree_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
@@ -8416,16 +8453,23 @@ M0_INTERNAL void m0_btree_create(void *addr, int nob,
 				 const struct m0_btree_type *bt,
 				 struct m0_btree_op *bop, struct m0_btree *tree,
 				 struct m0_be_seg *seg,
-				 const struct m0_fid *fid, struct m0_be_tx *tx)
+				 const struct m0_fid *fid, struct m0_be_tx *tx,
+				 struct m0_btree_rec_key_op *keycmp)
 {
-	bop->b_data.addr        = addr;
-	bop->b_data.num_bytes   = nob;
-	bop->b_data.bt          = bt;
-	bop->b_data.nt          = btree_nt_from_bt(bt);
-	bop->b_data.fid         = *fid;
+	bop->bo_data.addr       = addr;
+	bop->bo_data.num_bytes  = nob;
+	bop->bo_data.bt         = bt;
+	bop->bo_data.nt         = btree_nt_from_bt(bt);
+	bop->bo_data.fid        = *fid;
 	bop->bo_tx              = tx;
 	bop->bo_seg             = seg;
 	bop->bo_arbor           = tree;
+	if (keycmp == NULL)
+		bop->bo_keycmp  = (struct m0_btree_rec_key_op){
+							    .rko_keycmp = NULL,
+							};
+	else
+		bop->bo_keycmp  = *keycmp;
 
 	m0_sm_op_init(&bop->bo_op, &btree_create_tree_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
@@ -8793,7 +8837,7 @@ static void ut_basic_tree_oper_icp(void)
 	 */
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(invalid_addr,
 				      rnode_sz, &btree_type, &b_op, &btree,
-				      seg, &fid, tx));
+				      seg, &fid, tx, NULL));
 	M0_ASSERT(rc == -EFAULT);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -8807,7 +8851,7 @@ static void ut_basic_tree_oper_icp(void)
 	 */
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(invalid_addr,
 							   rnode_sz, &btree,
-							   seg, &b_op));
+							   seg, &b_op, NULL));
 	M0_ASSERT(rc == -EFAULT);
 
 	/**
@@ -8831,13 +8875,14 @@ static void ut_basic_tree_oper_icp(void)
 	temp_node = buf.b_addr;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node,
 				      rnode_sz, &btree_type, &b_op, &btree, seg,
-				      &fid, tx));
+				      &fid, tx, NULL));
 	M0_ASSERT(rc == 0);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, rnode_sz,
-							   &btree, seg, &b_op));
+							   &btree, seg, &b_op,
+							   NULL));
 	M0_ASSERT(rc == 0);
 
 	cred = M0_BE_TX_CREDIT(0, 0);
@@ -8886,7 +8931,7 @@ static void ut_basic_tree_oper_icp(void)
 	temp_node = buf.b_addr;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
 				      &btree_type, &b_op, &btree, seg, &fid,
-				      tx));
+				      tx, NULL));
 	M0_ASSERT(rc == 0);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -8902,7 +8947,8 @@ static void ut_basic_tree_oper_icp(void)
 	M0_SET0(&btree);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(temp_node, rnode_sz,
-							   &btree, seg, &b_op));
+							   &btree, seg, &b_op,
+							   NULL));
 	M0_ASSERT(rc == 0);
 
 	cred = M0_BE_TX_CREDIT(0, 0);
@@ -9329,7 +9375,7 @@ static void ut_multi_stream_kv_oper(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &btree_type,
 							     &b_op, &btree, seg,
-							     &fid, tx));
+							     &fid, tx, NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -10641,7 +10687,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 					 m0_btree_create(rnode, rnode_sz,
 							 &btree_type, &b_op,
 							 &btree[i], seg, &fid,
-							 tx));
+							 tx, NULL));
 		M0_ASSERT(rc == M0_BSC_SUCCESS);
 
 		m0_be_tx_close_sync(tx);
@@ -10870,7 +10916,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 					      m0_btree_create(rnode, rnode_sz,
 							      &btree_type,
 							      &b_op, &btree,
-							      seg, &fid, tx));
+							      seg, &fid, tx,
+							      NULL));
 		M0_ASSERT(rc == 0);
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
@@ -10908,7 +10955,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_open(rnode, rnode_sz,
-							    tree, seg, &b_op));
+							    tree, seg, &b_op,
+							    NULL));
 		M0_ASSERT(rc == 0);
 
 		ut_cb.c_act = btree_kv_get_cb;
@@ -10930,9 +10978,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		M0_SET0(&btree);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_open(rnode,
-							    1024, tree,
-							    seg, &b_op));
+					      m0_btree_open(rnode, 1024, tree,
+							    seg, &b_op, NULL));
 		M0_ASSERT(rc == 0);
 
 		ut_cb.c_act = btree_kv_del_cb;
@@ -10976,9 +11023,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		/** Error Case */
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_open(rnode,
-							    1024, tree,
-							    seg, &b_op));
+					      m0_btree_open(rnode, 1024, tree,
+							    seg, &b_op, NULL));
 		M0_ASSERT(rc == -EINVAL);
 	}
 
@@ -11244,7 +11290,7 @@ static void ut_btree_persistence(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &bt,
 							     &b_op, &btree,seg,
-							     &fid, tx));
+							     &fid, tx, NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -11297,7 +11343,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(rnode, rnode_sz, tree, seg,
-						    &b_op));
+						    &b_op, NULL));
 	M0_ASSERT(rc == 0);
 
 	get_data.key         = &rec.r_key;
@@ -11363,7 +11409,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(rnode, rnode_sz, tree, seg,
-						    &b_op));
+						    &b_op, NULL));
 	M0_ASSERT(rc == 0);
 
 	get_data.key         = &rec.r_key;
@@ -11453,7 +11499,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(rnode, rnode_sz, tree, seg,
-						    &b_op));
+						    &b_op, NULL));
 	M0_ASSERT(rc == 0);
 
 	get_data.key         = &rec.r_key;
@@ -11519,7 +11565,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(rnode, rnode_sz, tree, seg,
-						    &b_op));
+						    &b_op, NULL));
 	M0_ASSERT(rc == 0);
 
 	get_data.key         = &rec.r_key;
@@ -11579,7 +11625,7 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(rnode, rnode_sz, tree, seg,
-						    &b_op));
+						    &b_op, NULL));
 	M0_ASSERT(rc == -EINVAL);
 
 
@@ -11663,7 +11709,7 @@ static void ut_btree_truncate(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &bt,
 							     &b_op, &btree, seg,
-							     &fid, tx));
+							     &fid, tx, NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
