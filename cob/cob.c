@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -475,8 +475,9 @@ M0_UNUSED static char *cob_dom_id_make(char *buf, const struct m0_cob_domain_id 
  */
 int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 {
-	int                     rc;
-	struct m0_btree_op      b_op = {};
+	int                        rc;
+	struct m0_btree_op         b_op = {};
+	struct m0_btree_rec_key_op keycmp;
 
 	M0_ENTRY("dom=%p id=%"PRIx64"", dom, dom != NULL ? dom->cd_id.id : 0);
 
@@ -485,47 +486,52 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 
 	M0_ALLOC_PTR(dom->cd_object_index);
 	M0_ASSERT(dom->cd_object_index);
+	keycmp.rko_keycmp = oi_cmp;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(dom->cd_oi_node,
 						    sizeof dom->cd_oi_node,
 						    dom->cd_object_index, seg,
-						    &b_op));
+						    &b_op, &keycmp));
 	M0_ASSERT(rc == 0);
 
 	M0_ALLOC_PTR(dom->cd_namespace);
 	M0_ASSERT(dom->cd_namespace);
+	keycmp.rko_keycmp = ns_cmp;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(&dom->cd_ns_node,
 						    sizeof dom->cd_ns_node,
 						    dom->cd_namespace, seg,
-						    &b_op));
+						    &b_op, &keycmp));
 	M0_ASSERT(rc == 0);
 
 	M0_ALLOC_PTR(dom->cd_fileattr_basic);
 	M0_ASSERT(dom->cd_fileattr_basic);
+	keycmp.rko_keycmp = fb_cmp;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(&dom->cd_fa_basic_node,
 						    sizeof dom->cd_fa_basic_node,
 						    dom->cd_fileattr_basic, seg,
-						    &b_op));
+						    &b_op, &keycmp));
 	M0_ASSERT(rc == 0);
 
 	M0_ALLOC_PTR(dom->cd_fileattr_omg);
 	M0_ASSERT(dom->cd_fileattr_omg);
+	keycmp.rko_keycmp = omg_cmp;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(&dom->cd_fa_omg_node,
 						    sizeof dom->cd_fa_omg_node,
 						    dom->cd_fileattr_omg, seg,
-						    &b_op));
+						    &b_op, &keycmp));
 	M0_ASSERT(rc == 0);
 
 	M0_ALLOC_PTR(dom->cd_fileattr_ea);
 	M0_ASSERT(dom->cd_fileattr_ea);
+	keycmp.rko_keycmp = ea_cmp;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(&dom->cd_fa_ea_node,
 						    sizeof dom->cd_fa_ea_node,
 						    dom->cd_fileattr_ea, seg,
-						    &b_op));
+						    &b_op, &keycmp));
 	M0_ASSERT(rc == 0);
 
 	return M0_RC(0);
@@ -643,13 +649,14 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 				  struct m0_be_seg               *seg,
 				  struct m0_be_tx                *tx)
 {
-	struct m0_cob_domain *dom;
-	char                 *cdid_str;
-	struct m0_buf         data = {}; /*XXX*/
-	int                   rc;
-	struct m0_btree_type  bt;
-	struct m0_btree_op    b_op = {};
-	struct m0_fid         fid;
+	struct m0_cob_domain       *dom;
+	char                       *cdid_str;
+	struct m0_buf               data = {}; /*XXX*/
+	int                         rc;
+	struct m0_btree_type        bt;
+	struct m0_btree_op          b_op = {};
+	struct m0_fid               fid;
+	struct m0_btree_rec_key_op  keycmp;
 
 	cob_domain_id2str(&cdid_str, cdid);
 	if (cdid_str == NULL)
@@ -678,6 +685,7 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 		.ksize = sizeof(struct m0_cob_oikey),
 		.vsize = -1,
 	};
+	keycmp.rko_keycmp = oi_cmp;
 	fid = M0_FID_TINIT('b', M0_BT_COB_OBJECT_INDEX, cdid->id);
 	M0_ALLOC_PTR(dom->cd_object_index);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
@@ -685,13 +693,14 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 						      sizeof dom->cd_oi_node,
 						      &bt, &b_op,
 						      dom->cd_object_index, seg,
-						      &fid, tx));
+						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
 
 	bt = (struct m0_btree_type){.tt_id = M0_BT_COB_NAMESPACE,
 				    .ksize = -1,
 				    .vsize = -1,
 				   };
+	keycmp.rko_keycmp = ns_cmp;
 	fid = M0_FID_TINIT('b', M0_BT_COB_NAMESPACE, cdid->id);
 	M0_ALLOC_PTR(dom->cd_namespace);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
@@ -699,13 +708,14 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 						      sizeof dom->cd_ns_node,
 						      &bt, &b_op,
 						      dom->cd_namespace, seg,
-						      &fid, tx));
+						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
 
 	bt = (struct m0_btree_type){.tt_id = M0_BT_COB_FILEATTR_BASIC,
 		.ksize = sizeof(struct m0_cob_fabkey),
 		.vsize = -1,
 	};
+	keycmp.rko_keycmp = fb_cmp;
 	fid = M0_FID_TINIT('b', M0_BT_COB_FILEATTR_BASIC, cdid->id);
 	M0_ALLOC_PTR(dom->cd_fileattr_basic);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
@@ -713,13 +723,14 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 						      sizeof dom->cd_fa_basic_node,
 						      &bt, &b_op,
 						      dom->cd_fileattr_basic,
-						      seg, &fid, tx));
+						      seg, &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
 
 	bt = (struct m0_btree_type){ .tt_id = M0_BT_COB_FILEATTR_OMG,
 				     .ksize = sizeof (struct m0_cob_omgkey),
 				     .vsize = sizeof (struct m0_cob_omgrec),
 				   };
+	keycmp.rko_keycmp = omg_cmp;
 	fid = M0_FID_TINIT('b', M0_BT_COB_FILEATTR_OMG, cdid->id);
 	M0_ALLOC_PTR(dom->cd_fileattr_omg);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
@@ -727,13 +738,14 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 						      sizeof dom->cd_fa_omg_node,
 						      &bt, &b_op,
 						      dom->cd_fileattr_omg, seg,
-						      &fid, tx));
+						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
 
 	bt = (struct m0_btree_type){.tt_id = M0_BT_COB_FILEATTR_EA,
 		.ksize = -1,
 		.vsize = -1,
 	};
+	keycmp.rko_keycmp = ea_cmp;
 	fid = M0_FID_TINIT('b', M0_BT_COB_FILEATTR_EA, cdid->id);
 	M0_ALLOC_PTR(dom->cd_fileattr_ea);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
@@ -741,7 +753,7 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 						      sizeof dom->cd_fa_ea_node,
 						      &bt, &b_op,
 						      dom->cd_fileattr_ea, seg,
-						      &fid, tx));
+						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
 
 	data = M0_BUF_INIT_PTR(&dom);
