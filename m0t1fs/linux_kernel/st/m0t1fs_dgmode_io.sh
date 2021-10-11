@@ -879,8 +879,6 @@ failure_modes_test()
 
 main()
 {
-	check_test_skip_list $testname || return 0
-
 	sandbox_init
 
 	echo '*********************************************************'

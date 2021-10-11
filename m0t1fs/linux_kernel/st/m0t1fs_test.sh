@@ -69,8 +69,6 @@ main()
 {
 	local rc=0
 
-	check_test_skip_list $testname || return $rc
-
 	echo "System tests start:"
 	echo "Test log will be stored in $MOTR_TEST_LOGFILE."
 
