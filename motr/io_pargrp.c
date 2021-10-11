@@ -1348,9 +1348,9 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 						     (i*row_per_seg)+ row][col];
 				data_buf_init(dbuf, ptr, obj_buffer_size(obj),
 					      PA_NONE);
-				ptr = (void*)((uintptr_t)ptr + obj_buffer_size(obj));
+				ptr += obj_buffer_size(obj);
 
-				M0_LOG(M0_DEBUG, "row=%d col=%d dbuf=%p pbuf = %p ptr=%p",
+				M0_LOG(M0_DEBUG, "row=%d col=%d dbuf=%p pbuf=%p ptr=%p",
 				       row, col, dbuf, pbuf, ptr);
 
 				if (M0_IN(op_code, (M0_OC_WRITE,
@@ -1376,7 +1376,7 @@ err:
 				data_buf_fini(buf);
 				m0_free(buf);
 			}
-		}	
+		}
 	}
 
 	return M0_ERR(-ENOMEM);

@@ -116,7 +116,7 @@ rconfc_fatal_test()
 		echo "dd if=/dev/urandom of=$file_base$i bs=$bs count=$count &"
 		dd if=/dev/urandom of=$file_base$i bs=$bs count=$count &
 	done
-	echo "Command to jnject a single-time fault on main m0d side"
+	echo "Command to inject a single-time fault on main m0d side"
 	env ${TRACE_console:-} $M0_SRC_DIR/console/m0console \
 		-f $(opcode M0_FI_COMMAND_OPCODE) -s $FAKE_HA_EP -c $CLIENT_EP\
 		-v -d '("motr_ha_entrypoint_rep_rm_fill", "no_rms_fid", 1, 0, 0)'

@@ -22,9 +22,6 @@
 
 package mio
 
-// #cgo CFLAGS: -I/usr/include/motr
-// #cgo CFLAGS: -I../../..
-// #cgo CFLAGS: -DM0_EXTERN=extern -DM0_INTERNAL=
 // #include <errno.h> /* EEXIST */
 // #include "motr/client.h"
 // #include "motr/layout.h" /* m0c_pools_common */

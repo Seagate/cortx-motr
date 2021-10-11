@@ -29,7 +29,7 @@ Build
     cd cortx-motr
     sudo scripts/install-build-deps
 
-2. Check the Lustre network interface configuration::
+2. If using lnet as the transport, check the Lustre network interface configuration::
 
     sudo vi /etc/modprobe.d/lnet.conf
 
@@ -40,7 +40,33 @@ Build
     sudo modprobe lnet
     sudo lctl list_nids
 
-3. To build Motr, run::
+   Make sure that libfabric package is not installed.
+
+    fi_info --version
+    bash: fi_info: command not found
+
+3. If using libfabric as the transport, check the Libfabric network interface configuration::
+
+    sudo vi /etc/libfab.conf
+
+   Use ``ip a`` command to get a list of network interfaces.
+   Then modify ``libfab.conf`` to use one of the listed network interfaces.
+   Verify the libfab.conf file contents.
+
+    cat /etc/libfab.conf
+    networks=tcp(eth1)
+
+   Please refer the below document for installation.
+   https://seagate-systems.atlassian.net/wiki/spaces/PUB/pages/711230113/Libfabric+setup+and+using+libfabric+with+motr
+
+   Verify that libfabric package is installed.
+
+    fi_info --version
+    fi_info: 1.11.2
+    libfabric: 1.11.2
+    libfabric api: 1.11
+
+4. To build Motr, run::
 
     scripts/m0 make
 

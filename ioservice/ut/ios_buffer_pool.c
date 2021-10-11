@@ -24,49 +24,59 @@
 #include "ut/misc.h"              /* M0_UT_PATH */
 #include "ut/ut.h"
 
+#define TRANSPORTNAME	M0_NET_XPRT_PREFIX_DEFAULT":"
+
 extern const struct m0_tl_descr bufferpools_tl;
 
 /* Motr setup arguments. */
-static char *ios_ut_bp_singledom_cmd[] = { "m0d", "-T", "AD",
-				"-D", "cs_sdb", "-S", "cs_stob",
-				"-A", "linuxstob:cs_addb_stob",
-				"-e", "lnet:0@lo:12345:34:1",
-				"-H", "0@lo:12345:34:1",
-				"-w", "10",
-				"-f", M0_UT_CONF_PROCESS,
-				"-c", M0_UT_PATH("conf.xc")};
+static char *ios_ut_bp_singledom_cmd[] = {
+	"m0d", "-T", "AD",
+	"-D", "cs_sdb", "-S", "cs_stob",
+	"-A", "linuxstob:cs_addb_stob",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-H", "0@lo:12345:34:1",
+	"-w", "10",
+	"-f", M0_UT_CONF_PROCESS,
+	"-c", M0_UT_PATH("conf.xc")
+};
 
-static char *ios_ut_bp_multidom_cmd[] = { "m0d", "-T", "AD",
-				"-D", "cs_sdb", "-S", "cs_stob",
-				"-A", "linuxstob:cs_addb_stob",
-				"-w", "10",
-				"-e", "lnet:0@lo:12345:34:1",
-				"-e", "bulk-mem:127.0.0.1:35678",
-				"-H", "0@lo:12345:34:1",
-				"-f", M0_UT_CONF_PROCESS,
-				"-c", M0_UT_PATH("conf.xc")};
+static char *ios_ut_bp_multidom_cmd[] = {
+	"m0d", "-T", "AD",
+	"-D", "cs_sdb", "-S", "cs_stob",
+	"-A", "linuxstob:cs_addb_stob",
+	"-w", "10",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-e", "bulk-mem:127.0.0.1:35678",
+	"-H", "0@lo:12345:34:1",
+	"-f", M0_UT_CONF_PROCESS,
+	"-c", M0_UT_PATH("conf.xc")
+};
 
-static char *ios_ut_bp_repeatdom_cmd[] = { "m0d", "-T", "AD",
-				"-D", "cs_sdb", "-S", "cs_stob",
-				"-A", "linuxstob:cs_addb_stob",
-				"-w", "10",
-				"-e", "lnet:0@lo:12345:34:1",
-				"-e", "bulk-mem:127.0.0.1:35678",
-				"-e", "bulk-mem:127.0.0.1:35679",
-				"-H", "0@lo:12345:34:1",
-				"-f", M0_UT_CONF_PROCESS,
-				"-c", M0_UT_PATH("conf.xc")};
+static char *ios_ut_bp_repeatdom_cmd[] = {
+	"m0d", "-T", "AD",
+	"-D", "cs_sdb", "-S", "cs_stob",
+	"-A", "linuxstob:cs_addb_stob",
+	"-w", "10",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-e", "bulk-mem:127.0.0.1:35678",
+	"-e", "bulk-mem:127.0.0.1:35679",
+	"-H", "0@lo:12345:34:1",
+	"-f", M0_UT_CONF_PROCESS,
+	"-c", M0_UT_PATH("conf.xc")
+};
 
-static char *ios_ut_bp_onerepeatdom_cmd[] = { "m0d", "-T", "AD",
-				"-D", "cs_sdb", "-S", "cs_stob",
-				"-A", "linuxstob:cs_addb_stob",
-				"-w", "10",
-				"-e", "lnet:0@lo:12345:34:1",
-				"-e", "bulk-mem:127.0.0.1:35678",
-				"-e", "bulk-mem:127.0.0.1:35679",
-				"-H", "0@lo:12345:34:1",
-				"-f", M0_UT_CONF_PROCESS,
-				"-c", M0_UT_PATH("conf.xc")};
+static char *ios_ut_bp_onerepeatdom_cmd[] = {
+	"m0d", "-T", "AD",
+	"-D", "cs_sdb", "-S", "cs_stob",
+	"-A", "linuxstob:cs_addb_stob",
+	"-w", "10",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-e", "bulk-mem:127.0.0.1:35678",
+	"-e", "bulk-mem:127.0.0.1:35679",
+	"-H", "0@lo:12345:34:1",
+	"-f", M0_UT_CONF_PROCESS,
+	"-c", M0_UT_PATH("conf.xc")
+};
 
 #define SERVER_LOG_FILE_NAME "cs_ut.errlog"
 

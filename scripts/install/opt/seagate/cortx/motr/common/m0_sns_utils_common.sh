@@ -18,7 +18,7 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-
+service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 SANDBOX_DIR=/var/motr/sns_sandbox/
 
 IOS_EP=""
@@ -93,7 +93,8 @@ unit_size=(
 # Get luster n/w lid of current host.
 get_lnet_nid()
 {
-        LOCAL_NID=$(sudo lctl list_nids | head -1)
+        source $service_funcs
+        LOCAL_NID=$(m0_get_lnet_nid)
 }
 
 sandbox_init()
