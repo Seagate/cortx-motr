@@ -1,3 +1,7 @@
+# TODO investigate why it's needed on aarch64
+%ifarch aarch64
+%undefine _missing_build_ids_terminate_build
+%endif
 # feature flags
 %bcond_with ut
 %bcond_with debuginfo_sources
@@ -24,7 +28,7 @@
                         )
 
 %define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
-%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.x86_64$//' )
+%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' )
 
 # build number
 %define build_num  %( test -n "$build_number" && echo "$build_number" || echo 1 )
@@ -42,9 +46,11 @@
 # configure options
 %define  configure_release_opts     --enable-release --disable-avx --enable-force-ssse3 --with-trace-kbuf-size=256 --with-trace-ubuf-size=64
 %define  configure_ut_opts          --enable-dev-mode --disable-altogether-mode
+
 %if %{with cassandra}
 %define  configure_cassandra_opts   --with-cassandra
 %endif
+
 %if !%{with isal}
 %define  configure_isal_opts   --disable-isal
 %endif
@@ -62,7 +68,6 @@ Summary:        CORTX Motr
 Group:          System Environment/Base
 License:        Seagate
 Source:         %{name}-%{version}.tar.gz
-BuildArch:      x86_64
 ExcludeArch:    i686
 Provides:       %{name}-libs = %{version}-%{release}
 Provides:       %{name}-modules = %{version}-%{release}
@@ -70,7 +75,7 @@ Provides:       %{name}-modules = %{version}-%{release}
 Obsoletes:      mero
 Obsoletes:      eos-core
 Provides:       motr = %{version}-%{release}
-Provides:       motr(x86-64) = %{version}-%{release}
+Provides:       motr(%{_arch}") = %{version}-%{release}
 Provides:       motr-libs = %{version}-%{release}
 Provides:       motr-modules = %{version}-%{release}
 
@@ -80,11 +85,16 @@ BuildRequires:  libtool
 BuildRequires:  make
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
-%if %{rhel} < 8
+%if %{rhel} < 8 && "%{_arch}" == "aarch64"
+# castxml rpm on rhel 7 is not available, so it has to be
+# built and installed manually.
+#BuildRequires:  castxml
+%else if %{rhel} < 8
 BuildRequires:  gccxml
 %else
 BuildRequires:  castxml
 %endif
+
 BuildRequires:  glibc-headers
 BuildRequires:  asciidoc
 BuildRequires:  libyaml-devel
@@ -208,7 +218,13 @@ CORTX Motr IVT.
 %setup -q
 
 %build
+%ifarch x86_64
 %configure %{with_linux} %{with_lustre} %{configure_opts}
+%endif
+%ifarch aarch64
+%configure %{with_linux} %{with_lustre} %{configure_opts} enable_castxml=yes
+%endif
+
 %if !%{with ivt}
 make %{?_smp_mflags}
 %endif

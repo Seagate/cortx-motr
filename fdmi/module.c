@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2017-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2017-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,10 +27,10 @@
 #include "module/instance.h"
 
 #if 0 /* unused code */
-static int level_fdmi_enter(struct m0_module *module);
-static void level_fdmi_leave(struct m0_module *module);
+M0_UNUSED static int level_fdmi_enter(struct m0_module *module);
+M0_UNUSED static void level_fdmi_leave(struct m0_module *module);
 
-static const struct m0_modlev levels_fdmi[] = {
+M0_UNUSED static const struct m0_modlev levels_fdmi[] = {
 	[M0_LEVEL_FDMI] = {
 		.ml_name = "fdmi is initialised",
 		.ml_enter = level_fdmi_enter,
@@ -38,7 +38,7 @@ static const struct m0_modlev levels_fdmi[] = {
 	}
 };
 
-static int level_fdmi_enter(struct m0_module *module)
+M0_UNUSED static int level_fdmi_enter(struct m0_module *module)
 {
 	return 0;
 }

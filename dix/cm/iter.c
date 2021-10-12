@@ -204,7 +204,7 @@ static int dix_cm_iter_buf_copy(struct m0_buf *dst,
 	M0_PRE(dst->b_nob == 0 && dst->b_addr == NULL);
 
 	return src->b_nob >= cutoff ?
-		m0_buf_copy_aligned(dst, src, PAGE_SHIFT) :
+		m0_buf_copy_aligned(dst, src, m0_pageshift_get()) :
 		m0_buf_copy(dst, src);
 }
 

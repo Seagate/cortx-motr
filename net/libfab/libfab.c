@@ -839,9 +839,11 @@ static void libfab_straddr_gen(struct m0_fab__conn_data *cd, char *buf,
 				((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
 				cd->fcd_portal, cd->fcd_tmid);
 	} else if (cd->fcd_addr_frmt == FAB_NATIVE_IP_FORMAT) {
-		sprintf(buf, "fab_i:%s@%s:%s", en->fen_addr,
-			cd->fcd_iface == FAB_TCP ? "tcp" : "o2ib",
-			en->fen_port);
+		sprintf(buf, "%s@%s:12345:%d:%d",
+			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
+			cd->fcd_iface == FAB_LO ? "lo" : 
+			((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
+			cd->fcd_portal, cd->fcd_tmid);
 	} else if (cd->fcd_addr_frmt == FAB_NATIVE_HOSTNAME_FORMAT)
 		sprintf(buf, "%s", cd->fcd_hostname);
 
@@ -1178,6 +1180,8 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 {
 	struct m0_net_end_point  *net;
 	struct m0_fab__ep        *ep;
+	struct m0_fab__active_ep *aep;
+	struct m0_fab__tm        *ma;
 	uint64_t                  ep_name_n = 0;
 	char                      ep_str[LIBFAB_ADDR_STRLEN_MAX + 9] = {'\0'};
 	//char                     *wc = NULL;

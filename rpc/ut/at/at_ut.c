@@ -152,7 +152,7 @@ M0_INTERNAL void atut__bufdata_alloc(struct m0_buf *buf, size_t size,
 		rc = m0_buf_alloc(buf, size);
 		M0_UT_ASSERT(rc == 0);
 	} else {
-		buf->b_addr = m0_alloc_aligned(size, PAGE_SHIFT);
+		buf->b_addr = m0_alloc_aligned(size, m0_pageshift_get());
 		M0_UT_ASSERT(buf->b_addr != NULL);
 		buf->b_nob = size;
 	}
