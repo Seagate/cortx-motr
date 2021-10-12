@@ -97,7 +97,7 @@ static int emap_it_pack(struct m0_be_emap_cursor *it,
 				     const struct m0_buf      *val),
 			struct m0_be_tx *tx);
 static bool emap_it_prefix_ok(const struct m0_be_emap_cursor *it);
-static int emap_it_open(struct m0_be_emap_cursor *it);
+static int emap_it_open(struct m0_be_emap_cursor *it, int prev_rc);
 static void emap_it_init(struct m0_be_emap_cursor *it,
 			 const struct m0_uint128  *prefix,
 			 m0_bindex_t               offset,
@@ -1171,19 +1171,16 @@ static bool emap_it_prefix_ok(const struct m0_be_emap_cursor *it)
 	return m0_uint128_eq(&it->ec_seg.ee_pre, &it->ec_prefix);
 }
 
-static int emap_it_open(struct m0_be_emap_cursor *it)
+static int emap_it_open(struct m0_be_emap_cursor *it, int prev_rc)
 {
 	struct m0_be_emap_key *key;
 	struct m0_be_emap_rec *rec;
 	struct m0_buf          keybuf;
 	struct m0_buf          recbuf;
 	struct m0_be_emap_seg *ext = &it->ec_seg;
-	struct m0_be_op       *op  = &it->ec_cursor.bc_op;
 	int                    rc;
 
-	M0_PRE(m0_be_op_is_done(op));
-
-	rc = op->bo_u.u_btree.t_rc;
+	rc = prev_rc;
 	if (rc == 0) {
 		m0_btree_cursor_kv_get(&it->ec_cursor, &keybuf, &recbuf);
 
@@ -1248,7 +1245,7 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 
 static void be_emap_close(struct m0_be_emap_cursor *it)
 {
-	if(it->ec_recbuf.b_addr != NULL ) {
+	if (it->ec_recbuf.b_addr != NULL ) {
 	   m0_buf_free(&it->ec_recbuf);
 	}
 
@@ -1257,25 +1254,16 @@ static void be_emap_close(struct m0_be_emap_cursor *it)
 
 static int emap_it_get(struct m0_be_emap_cursor *it)
 {
-	struct m0_be_op    *op = &it->ec_cursor.bc_op;
-	int                 rc;
+	int                 rc = 0;
 	void               *k_ptr = it->ec_keybuf.b_addr;
 	m0_bcount_t         ksize = it->ec_keybuf.b_nob;
 	struct m0_btree_key r_key = {
 		.k_data =  M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 		};
-	M0_SET0(op);
 
-	m0_be_op_init(op);
-	m0_be_op_active(op);
-	op->bo_u.u_btree.t_rc = m0_btree_cursor_get(&it->ec_cursor, &r_key,
+	rc = m0_btree_cursor_get(&it->ec_cursor, &r_key,
 						    true);
-	m0_be_op_done(op);
-	m0_be_op_wait(op);
-	rc = emap_it_open(it);
-	op->bo_u.u_btree.t_rc = 0;
-	m0_be_op_fini(op);
-
+	rc = emap_it_open(it, rc);
 	return rc;
 }
 
@@ -1298,36 +1286,20 @@ static int be_emap_lookup(struct m0_be_emap        *map,
 
 static int be_emap_next(struct m0_be_emap_cursor *it)
 {
-	struct m0_be_op *op = &it->ec_cursor.bc_op;
-	int              rc;
+	int rc;
 
-	M0_SET0(op);
-	m0_be_op_init(op);
-	m0_be_op_active(op);
-	m0_btree_cursor_next(&it->ec_cursor);
-	m0_be_op_done(op);
-	m0_be_op_wait(op);
-	rc = emap_it_open(it);
-	m0_be_op_fini(op);
-
+	rc = m0_btree_cursor_next(&it->ec_cursor);
+	rc = emap_it_open(it, rc);
 	return rc;
 }
 
 static int
 be_emap_prev(struct m0_be_emap_cursor *it)
 {
-	struct m0_be_op *op = &it->ec_cursor.bc_op;
-	int              rc;
+	int rc;
 
-	M0_SET0(op);
-	m0_be_op_init(op);
-	m0_be_op_active(op);
-	m0_btree_cursor_prev(&it->ec_cursor);
-	m0_be_op_done(op);
-	m0_be_op_wait(op);
-	rc = emap_it_open(it);
-	m0_be_op_fini(op);
-
+	rc = m0_btree_cursor_prev(&it->ec_cursor);
+	rc = emap_it_open(it, rc);
 	return rc;
 }
 
