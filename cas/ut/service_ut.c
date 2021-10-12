@@ -1992,7 +1992,7 @@ struct m0_ut_suite cas_service_ut = {
 		{ "lookup-N",                &lookup_N,              "Nikita" },
 		{ "lookup-restart",          &lookup_restart,        "Nikita" },
 		{ "cur-N",                   &cur_N,                 "Nikita" },
-		//{ "meta-mt",                 &meta_mt,               "Nikita" },
+		{ "meta-mt",                 &meta_mt,               "Nikita" },
 		{ "meta-insert-fail",        &meta_insert_fail,      "Leonid" },
 		{ "meta-lookup-fail",        &meta_lookup_fail,      "Leonid" },
 		{ "meta-delete-fail",        &meta_delete_fail,      "Leonid" },
@@ -2014,7 +2014,6 @@ struct m0_ut_suite cas_service_ut = {
 		{ "cctg-create-lookup",      &cctg_create_lookup,    "Sergey" },
 		{ "cctg-create-delete",      &cctg_create_delete,    "Sergey" },
 		{ "server-restart-nomkfs",   &server_restart_nomkfs, "Egor"   },
-		{ "meta-mt",                 &meta_mt,               "Nikita" },
 		{ NULL, NULL }
 	}
 };
