@@ -181,7 +181,6 @@ struct m0_cas_state {
 
 /** Structure that describes catalogue operation. */
 struct m0_ctg_op {
-	struct m0_cas_ctg *temp_ctg;
 	/** Caller FOM. */
 	struct m0_fom            *co_fom;
 	/** Catalogue for which the operation will be performed. */

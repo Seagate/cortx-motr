@@ -258,13 +258,17 @@ static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg, bool open)
 	ctg->cc_inited = true;
 
 	if (open) {
+		struct m0_btree_rec_key_op key_cmp = { .rko_keycmp = ctg_cmp, };
+		int                        rc;
+
 		M0_ALLOC_PTR(ctg->cc_tree);
 		M0_ASSERT(ctg->cc_tree);
-		M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					 m0_btree_open(&ctg->cc_node,
-						       sizeof ctg->cc_node,
-						       ctg->cc_tree, seg,
-						       &b_op));
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+					      m0_btree_open(&ctg->cc_node,
+							    sizeof ctg->cc_node,
+							    ctg->cc_tree, seg,
+							    &b_op, &key_cmp));
+		M0_ASSERT(rc == 0);
 	}
 	m0_format_footer_update(ctg);
 }
@@ -304,6 +308,7 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 	};
 	struct m0_fid        *fid  = &M0_FID_TINIT('b', cas_fid->f_container,
 						   cas_fid->f_key);
+	struct m0_btree_rec_key_op key_cmp = { .rko_keycmp = ctg_cmp, };
 
 	if (M0_FI_ENABLED("ctg_create_failure"))
 		return M0_ERR(-EFAULT);
@@ -320,7 +325,7 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 				      m0_btree_create(&ctg->cc_node,
 						      sizeof ctg->cc_node,
 						      &bt, &b_op, ctg->cc_tree,
-						      seg, fid, tx));
+						      seg, fid, tx, &key_cmp));
 	if (rc != 0) {
 		ctg_fini(ctg, false);
 		M0_BE_FREE_PTR_SYNC(ctg, seg, tx);
@@ -1092,7 +1097,6 @@ static int ctg_op_cb_btree(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 		if (rc == 0 && ct == CT_META) {
 			m0_ctg_try_init(*(struct m0_cas_ctg **)
 					ctg_op->co_out_val.b_addr);
-			ctg_op->temp_ctg  = *(struct m0_cas_ctg **)ctg_op->co_out_val.b_addr;
 		}
 		M0_ASSERT(rc == 0);
 		break;
