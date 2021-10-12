@@ -89,10 +89,6 @@ static void key_print(const struct m0_be_emap_key *k)
 }
 */
 static int be_emap_cmp(const void *key0, const void *key1);
-#ifdef NEW_BTREE_INTEGRATION_COMPLETE
-static m0_bcount_t be_emap_ksize(const void* k);
-static m0_bcount_t be_emap_vsize(const void* d);
-#endif
 static int emap_it_pack(struct m0_be_emap_cursor *it,
 			int (*btree_func)(struct m0_btree     *btree,
 					   struct m0_be_tx    *tx,
@@ -125,14 +121,6 @@ static int be_emap_split(struct m0_be_emap_cursor *it,
 			 struct m0_buf            *cksum);
 static bool be_emap_caret_invariant(const struct m0_be_emap_caret *car);
 
-#ifdef NEW_BTREE_INTEGRATION_COMPLETE
-static const struct m0_be_btree_kv_ops be_emap_ops = {
-	.ko_type    = M0_BT_EMAP_EM_MAPPING,
-	.ko_ksize   = be_emap_ksize,
-	.ko_vsize   = be_emap_vsize,
-	.ko_compare = be_emap_cmp
-};
-#endif
 static struct m0_rwlock *emap_rwlock(struct m0_be_emap *emap)
 {
 	return &emap->em_lock.bl_u.rwlock;
@@ -257,8 +245,8 @@ static int delete_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 	m0_bcount_t          ksize = key->b_nob;
 	int                  rc;
 	struct m0_btree_key  r_key = {
-				.k_data  = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-				};
+		.k_data  = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+		};
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(
 				op,
@@ -290,12 +278,13 @@ static int insert_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 	int                  rc;
 
 	struct m0_btree_rec  rec   = {
-			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
-			};
-	struct m0_btree_cb   put_cb = {.c_act = bt_insert_callback,
-				       .c_datum = &rec,
-				      };
+		.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+		.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+		};
+	struct m0_btree_cb   put_cb = {
+		.c_act = bt_insert_callback,
+		.c_datum = &rec,
+		};
 	rc = M0_BTREE_OP_SYNC_WITH_RC(
 			op,
 			m0_btree_put(btree, &rec, &put_cb, op, tx));
@@ -326,10 +315,11 @@ static int update_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 	struct m0_btree_rec  rec   = {
 		.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 		.r_val        = M0_BUFVEC_INIT_BUF( &v_ptr, &vsize),
-	};
-	struct m0_btree_cb   update_cb = {.c_act = bt_update_callback,
-					  .c_datum = &rec,
-					 };
+		};
+	struct m0_btree_cb   update_cb = {
+		.c_act = bt_update_callback,
+		.c_datum = &rec,
+		};
  	rc = M0_BTREE_OP_SYNC_WITH_RC(
 			op,
 			m0_btree_update(btree, &rec, &update_cb, op, tx));
@@ -400,7 +390,8 @@ M0_INTERNAL void m0_be_emap_create(struct m0_be_emap   *map,
 	if (map->em_mapping == NULL)
 		M0_ASSERT(0);
 
-	bt = (struct m0_btree_type){.tt_id = M0_BT_EMAP_EM_MAPPING,
+	bt = (struct m0_btree_type) {
+		.tt_id = M0_BT_EMAP_EM_MAPPING,
 		.ksize = sizeof(struct m0_be_emap_key),
 		.vsize = -1,
 	};
@@ -871,22 +862,20 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap       *map,
 				       const struct m0_uint128 *prefix,
 				       uint64_t                 val)
 {
-	void               *k_ptr;
-	void               *v_ptr;
-	m0_bcount_t         ksize;
-	m0_bcount_t         vsize;
-	struct m0_btree_rec rec = {};
-	struct m0_btree_cb  put_cb = {};
-	struct m0_btree_op  kv_op = {};
+	void                *k_ptr;
+	void                *v_ptr;
+	m0_bcount_t          ksize;
+	m0_bcount_t          vsize;
+	struct m0_btree_rec  rec = {};
+	struct m0_btree_cb   put_cb = {};
+	struct m0_btree_op   kv_op = {};
 
 	m0_be_op_active(op);
 
 	m0_rwlock_write_lock(emap_rwlock(map));
 	map->em_key.ek_prefix = *prefix;
 	map->em_key.ek_offset = M0_BINDEX_MAX + 1;
-
 	m0_format_footer_update(&map->em_key);
-
 	map->em_rec.er_start = 0;
 	map->em_rec.er_value = val;
 	map->em_rec.er_cksum_nob = 0;
@@ -903,9 +892,9 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap       *map,
 	rec    = (struct m0_btree_rec) {
 		 .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 		 .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
-	      };
+		 };
 	put_cb = (struct m0_btree_cb) {
-		 .c_act = bt_insert_callback,
+		 .c_act   = bt_insert_callback,
 		 .c_datum = &rec,
 		 };
 
@@ -1034,8 +1023,8 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 				   m0_bcount_t             nr,
 				   struct m0_be_tx_credit *accum)
 {
-	struct m0_btree_type   bt;
-	uint64_t emap_rec_size;
+	struct m0_btree_type  bt;
+	uint64_t              emap_rec_size;
 
 	M0_PRE(M0_IN(optype, (M0_BEO_CREATE, M0_BEO_DESTROY, M0_BEO_INSERT,
 			      M0_BEO_DELETE, M0_BEO_UPDATE,
@@ -1046,19 +1035,21 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 
 	switch (optype) {
 	case M0_BEO_CREATE:
-		bt = (struct m0_btree_type){.tt_id = M0_BT_EMAP_EM_MAPPING,
+		bt = (struct m0_btree_type) {
+			.tt_id = M0_BT_EMAP_EM_MAPPING,
 			.ksize = sizeof(struct m0_be_emap_key),
 			.vsize = -1,
-		};
-		m0_btree_create_credit(&bt, accum, 1);
+			};
+		m0_btree_create_credit(&bt, accum, nr);
 		break;
 	case M0_BEO_DESTROY:
 		M0_ASSERT(nr == 1);
-		bt = (struct m0_btree_type){.tt_id = M0_BT_EMAP_EM_MAPPING,
+		bt = (struct m0_btree_type) {
+			.tt_id = M0_BT_EMAP_EM_MAPPING,
 			.ksize = sizeof(struct m0_be_emap_key),
 			.vsize = -1,
-		};
-		m0_btree_destroy_credit(map->em_mapping, &bt, accum, 1);
+			};
+		m0_btree_destroy_credit(map->em_mapping, &bt, accum, nr);
 		break;
 	case M0_BEO_INSERT:
 		m0_btree_put_credit(map->em_mapping, nr,
@@ -1109,21 +1100,6 @@ be_emap_cmp(const void *key0, const void *key1)
 		M0_3WAY(a0->ek_offset, a1->ek_offset);
 }
 
-#ifdef NEW_BTREE_INTEGRATION_COMPLETE
-static m0_bcount_t
-be_emap_ksize(const void* k)
-{
-	return sizeof(struct m0_be_emap_key);
-}
-
-static m0_bcount_t
-be_emap_vsize(const void* d)
-{
-	return sizeof(struct m0_be_emap_rec) +
-		((struct m0_be_emap_rec *)d)->er_cksum_nob;
-}
-#endif
-
 static int
 emap_it_pack(struct m0_be_emap_cursor *it,
              int (*btree_func)(struct m0_btree      *btree,
@@ -1138,7 +1114,7 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 	struct m0_be_emap_rec       *rec = &it->ec_rec;
 	struct m0_buf                rec_buf = {};
 	struct m0_be_emap_rec       *rec_buf_ptr;
-	int len, rc;
+	int                          len, rc;
 	struct m0_btree_op           kv_op = {};
 
 	key->ek_prefix = ext->ee_pre;
@@ -1231,9 +1207,9 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		rec = it->ec_recbuf.b_addr;
 		it->ec_rec = *rec;
 
-		ext->ee_pre         = it->ec_key.ek_prefix;
+		ext->ee_pre         = key->ek_prefix;
 		ext->ee_ext.e_start = rec->er_start;
-		ext->ee_ext.e_end   = it->ec_key.ek_offset;
+		ext->ee_ext.e_end   = key->ek_offset;
 		m0_ext_init(&ext->ee_ext);
 		ext->ee_val         = rec->er_value;
 		ext->ee_cksum_buf.b_nob  = rec->er_cksum_nob;
