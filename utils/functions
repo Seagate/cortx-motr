@@ -108,7 +108,7 @@ lnet_up() {
 }
 
 ## Adding function to identify the default available transport layer
-m0_default_xpt()
+m0_default_xprt()
 {
     local trans
     local user
@@ -135,11 +135,19 @@ m0_default_xpt()
 m0_local_nid_get()
 {
     local local_nid
-    XPRT=m0_default_xpt
+    XPRT=m0_default_xprt
     if [ "$XPRT" = "lnet" ]
     then 
         local_nid=`sudo lctl list_nids | head -1`
     else
+        touch /etc/libfab.conf
+        local netconf=$(cat /etc/libfab.conf)
+        if [[ "$netconf" == "" ]]; then
+            netstat -i > /etc/libfab_tmp.txt
+            local conf=$(sed -n '3p' /etc/libfab_tmp.txt | awk '{print $1;}')
+            echo "networks=tcp($conf)" > /etc/libfab.conf
+            rm /etc/libfab_tmp.txt
+        fi
         local iface=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "(" -f2 | cut -d ")" -f1`
         local proto=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "=" -f2 | cut -d "(" -f1`
         local ip_addr=`ip addr show $iface |grep inet| head -1 | awk '{print $2}'|cut -d '/' -f1`

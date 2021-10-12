@@ -1986,6 +1986,7 @@ static int io_sync(struct m0_fom *fom)
 	struct m0_be_tx         *tx   = m0_fom_tx(fom);
 
 	if ((fobj->fcrw_flags & M0_IO_FLAG_SYNC) &&
+	    fom->fo_tx.tx_state != M0_DTX_INVALID &&
 	    m0_be_tx_state(tx) < M0_BTS_LOGGED) {
 		M0_LOG(M0_DEBUG, "fom wait for tx to be logged");
 		m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);

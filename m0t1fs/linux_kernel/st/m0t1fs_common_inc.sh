@@ -97,6 +97,12 @@ POOL_MACHINE_CLI_EP="12345:33:1001"
 SNS_QUIESCE_CLI_EP="12345:33:1002"
 M0HAM_CLI_EP="12345:33:1003"
 
+export FDMI_PLUGIN_EP="12345:33:601"
+export FDMI_PLUGIN_EP2="12345:33:602"
+
+export FDMI_FILTER_FID="6c00000000000001:0"
+export FDMI_FILTER_FID2="6c00000000000002:0"
+
 SNS_CLI_EP="12345:33:400"
 
 POOL_WIDTH=$(expr ${#IOSEP[*]} \* 5)
@@ -119,8 +125,9 @@ TM_MIN_RECV_QUEUE_LEN=16
 MAX_RPC_MSG_SIZE=65536
 PVERID='^v|1:10'
 MDPVERID='^v|2:10'
-M0T1FS_PROC_ID='<0x7200000000000001:64>'
-XPRT=$(m0_default_xpt)
+export M0T1FS_PROC_ID='0x7200000000000001:64'
+XPRT=$(m0_default_xprt)
+
 # Single node configuration.
 SINGLE_NODE=0
 
@@ -243,7 +250,7 @@ unprepare()
 	return $rc
 }
 
-PROF_OPT='<0x7000000000000001:0>'
+export PROF_OPT='0x7000000000000001:0'
 
 . `dirname ${BASH_SOURCE[0]}`/common_service_fids_inc.sh
 
@@ -287,7 +294,15 @@ function dix_pver_build()
 	# Number of parity units (replication factor) for distributed indices.
 	# Calculated automatically as maximum possible parity for the given
 	# number of disks.
-	local DIX_PARITY=$(((DIX_DEVS_NR - 1) / 2))
+	if [ "x$ENABLE_FDMI_FILTERS" == "xYES" ] ; then
+		# If we have SPARE=0, then we can have any number between [1, DIX_DEVS_NR - 1]
+		local DIX_PARITY=$((DIX_DEVS_NR - 1))
+		local DIX_SPARE=0
+	else
+		# If we have SPARE=PARITY, then we will use:
+		local DIX_PARITY=$(((DIX_DEVS_NR - 1) / 2))
+		local DIX_SPARE=$DIX_PARITY
+	fi
 
 	# conf objects for disks
 	for ((i=0; i < $DIX_DEVS_NR; i++)); do
@@ -306,7 +321,7 @@ function dix_pver_build()
 	done
 	# conf objects for DIX pool version
 	local DIX_POOL="{0x6f| (($DIX_POOLID), 0, [1: $DIX_PVERID])}"
-	local DIX_PVER="{0x76| (($DIX_PVERID), {0| (1, $DIX_PARITY, $DIX_PARITY,
+	local DIX_PVER="{0x76| (($DIX_PVERID), {0| (1, $DIX_PARITY, $DIX_SPARE,
                                                     $DIX_DEVS_NR,
                                                     [5: 0, 0, 0, 0, $DIX_PARITY],
                                                     [1: $DIX_SITEVID])})}"
@@ -419,6 +434,29 @@ function build_conf()
 	local M0T1FS_PROC="{0x72| (($M0T1FS_PROCID), [1:3], 0, 0, 0, 0, \"${m0t1fs_ep}\", [1: $M0T1FS_RMID])}"
 	PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $M0T1FS_PROC"
 	PROC_NAMES="$PROC_NAMES${PROC_NAMES:+, }$M0T1FS_PROCID"
+
+	local FDMI_GROUP_ID="^g|1:0"
+	local FDMI_FILTER_ID="^l|1:0"   #Please refer to $FDMI_FILTER_FID
+	local FDMI_FILTER_ID2="^l|2:0"  #Please refer to $FDMI_FILTER_FID2
+
+	local FDMI_FILTER_STRINGS="\"something1\", \"anotherstring2\", \"YETanotherstring3\""
+	local FDMI_FILTER_STRINGS2="\"Bucket-Name\", \"Object-Name\", \"x-amz-meta-replication\""
+
+	if [ "x$ENABLE_FDMI_FILTERS" == "xYES" ] ; then
+		local FDMI_GROUP_DESC="1: $FDMI_GROUP_ID"
+		local FDMI_ITEMS_NR=3
+		# Please NOTE the ending comma at the end of each string here
+		local FDMI_GROUP="{0x67| (($FDMI_GROUP_ID), 0x1000, [2: $FDMI_FILTER_ID, $FDMI_FILTER_ID2])},"
+		#local FDMI_FILTER="{0x6c| (($FDMI_FILTER_ID), 1, (11, 11), \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, (0, 0), [0], [1: \"$lnet_nid:$FDMI_PLUGIN_EP\"])},"
+		local FDMI_FILTER="{0x6c| (($FDMI_FILTER_ID), 2, $FDMI_FILTER_ID, \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, $DIX_PVERID, [3: $FDMI_FILTER_STRINGS], [1: \"$lnet_nid:$FDMI_PLUGIN_EP\"])},"
+		local FDMI_FILTER2="{0x6c| (($FDMI_FILTER_ID2), 2, $FDMI_FILTER_ID2, \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, $DIX_PVERID, [3: $FDMI_FILTER_STRINGS2], [1: \"$lnet_nid:$FDMI_PLUGIN_EP2\"])},"
+	else
+		local FDMI_GROUP_DESC="0"
+		local FDMI_ITEMS_NR=0
+		local FDMI_GROUP=""
+		local FDMI_FILTER=""
+		local FDMI_FILTER2=""
+	fi
 
 	local i
 	for ((i=0; i < ${#ioservices[*]}; i++, M0D++)); do
@@ -627,13 +665,13 @@ function build_conf()
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
 [$(($IOS_OBJS_NR + $((${#mdservices[*]} * 5)) + $NR_IOS_DEVS + 19
-    + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 5 + $DIX_PVER_OBJ_COUNT)):
+    + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 5 + $DIX_PVER_OBJ_COUNT + $FDMI_ITEMS_NR)):
   {0x74| (($ROOT), 1, (11, 22), $MDPOOLID, $IMETA_PVER, $MD_REDUNDANCY,
 	  [1: \"$pool_width $nr_data_units $nr_parity_units $nr_spare_units\"],
 	  [$node_count: $NODES],
 	  [$site_count: $SITES],
 	  [$pool_count: $POOLS],
-	  [1: $PROF], [0])},
+	  [1: $PROF], [$FDMI_GROUP_DESC])},
   {0x70| (($PROF), [$pool_count: $POOLS])},
   {0x6e| (($NODE), 16000, 2, 3, 2, [$(($M0D + 1)): ${PROC_NAMES[@]}])},
   $PROC_OBJS,
@@ -641,6 +679,9 @@ function build_conf()
   {0x73| (($HA_SVC_ID), @M0_CST_HA, [1: $HA_ENDPOINT], [0], [0])},
   {0x73| (($FIS_SVC_ID), @M0_CST_FIS, [1: $HA_ENDPOINT], [0], [0])},
   $M0T1FS_RM,
+  $FDMI_GROUP
+  $FDMI_FILTER
+  $FDMI_FILTER2
   $MDS_OBJS,
   $IOS_OBJS,
   $RM_OBJS,

@@ -40,7 +40,7 @@ PROG="${0##*/}"
 M0_SRC_DIR="$(readlink -f $0)"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
-. $M0_SRC_DIR/utils/functions #m0_default_xpt
+. $M0_SRC_DIR/utils/functions #m0_default_xprt
 
 SUDO="${SUDO-sudo -E}"  # the absence of ':' is important
 
@@ -48,9 +48,11 @@ SUDO="${SUDO-sudo -E}"  # the absence of ':' is important
 _libfab_st_list() {
     st_name=$1
     found_st=false
-    st_libfab_skip=(06conf
+    st_libfab_skip=(04initscripts
+                    06conf
                     07mount
                     07mount-fail
+                    07mount-multiple
                     08spiel
                     08spiel-sns-repair
                     08spiel-sns-repair-quiesce
@@ -75,9 +77,16 @@ _libfab_st_list() {
                     23spiel-dix-repair
                     23spiel-dix-repair-quiesce
                     26motr-user-kernel-tests
+                    28sys-kvs
+                    28sys-kvs-kernel
                     34sns-repair-1n-1f
+                    35m0singlenode
+                    36spare-reservation
+                    37protocol
                     40motr-dgmode
+                    43motr-sync-replication
                     45motr-rmw
+                    49motr-rpc-cancel
                     51kem)
     i=0
     while [ $i -lt ${#st_libfab_skip[@]} ]
@@ -179,9 +188,16 @@ cmd_run_ut() {
 }
 
 cmd_run_kut() {
-    rundir_init
-    echo 'Running kernel UT (this may take a while) ...'
-    $SUDO "$M0_SRC_DIR/ut/m0kut" "$@"
+    local trans
+    trans=$(m0_default_xprt)
+    if [[ "$trans" != "libfab" ]]; then
+        rundir_init
+        echo 'Running kernel UT (this may take a while) ...'
+        $SUDO "$M0_SRC_DIR/ut/m0kut" "$@"
+    else
+        echo 'Libfabric runs in userspace only. Kernel UTs are disabled!'
+        echo "status: SUCCESS" >&1
+    fi
 }
 
 cmd_run_ub() {
@@ -195,7 +211,7 @@ cmd_run_st() {
     local list_p=0
     local trans
 
-    trans=$(m0_default_xpt)
+    trans=$(m0_default_xprt)
 
     if [ "${1:-}" = '-l' ]; then
         list_p=1
@@ -216,7 +232,8 @@ cmd_run_st() {
                     if [[ "$trans" == "libfab" ]]; then
                         chk=$(_libfab_st_list ${f##*/})
                         if [[ "$chk" == "true" ]]; then
-                            echo "<< ${f##*/} >> can not be run for libfab" >&2
+                            echo "<< ${f##*/} >> Can not be run for libfab" >&1
+                            echo "status: SUCCESS" >&1
                             continue
                         fi
                     fi

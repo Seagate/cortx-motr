@@ -187,9 +187,18 @@ lib_LTLIBRARIES          += motr/libmotr.la
 motr_libmotr_la_CPPFLAGS  = -DM0_TARGET='libmotr' $(AM_CPPFLAGS)
 motr_libmotr_la_LDFLAGS   = -version-info @LT_VERSION@ -pthread $(AM_LDFLAGS)
 motr_libmotr_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
-                            @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ @GALOIS_LIBS@ \
-                            @DL_LIBS@ @CASSANDRA_LIBS@ @UV_LIBS@ @ISAL_LIBS@ \
-                            @OPENSSL_LIBS@ @LIBFAB_LIBS@
+                            @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ \
+                            @DL_LIBS@ @CASSANDRA_LIBS@ @UV_LIBS@ \
+			    @OPENSSL_LIBS@ @LIBFAB_LIBS@
+
+if HAVE_ISAL
+motr_libmotr_la_LIBADD += @ISAL_LIBS@
+else
+motr_libmotr_la_LIBADD += @GALOIS_LIBS@
+# override is needed to allow user to provide some additional options in
+# RPMBUILD_FLAGS variable in command line
+override RPMBUILD_FLAGS += --without isal
+endif
 
 # install directory for public libmotr headers
 motr_includedir             = $(includedir)/motr
@@ -694,6 +703,16 @@ motr_examples_example2_CPPFLAGS = -DM0_TARGET='example2' $(AM_CPPFLAGS)
 motr_examples_example2_LDADD    = $(top_builddir)/motr/libmotr.la
 
 include $(top_srcdir)/motr/examples/Makefile.sub
+
+#
+# fdmi/plugins/fdmi_sample_plugin --------------------- {{{2
+#
+
+noinst_PROGRAMS    += fdmi/plugins/fdmi_sample_plugin
+fdmi_plugins_fdmi_sample_plugin_CPPFLAGS  = -DM0_TARGET='fdmi_sample_plugin' $(AM_CPPFLAGS)
+fdmi_plugins_fdmi_sample_plugin_LDADD     = $(top_builddir)/motr/libmotr.la
+
+include $(top_srcdir)/fdmi/plugins/Makefile.sub
 
 #
 # motr/crate ----------------------------------------- {{{2

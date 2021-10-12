@@ -820,6 +820,17 @@ static void irfop_fini(struct ioreq_fop *irfop)
 }
 
 /**
+ * Helper function which will return the buffer address based on the page attr,
+ * fop phase and aux bufvec.
+ */
+static void *buf_aux_chk_get(struct m0_bufvec *aux, enum page_attr p_attr,
+			     uint32_t seg_idx, bool rd_in_wr)
+{
+	return (p_attr == PA_DATA && rd_in_wr && aux != NULL &&
+		aux->ov_buf[seg_idx] != NULL) ? aux->ov_buf[seg_idx] : NULL;
+}
+
+/**
  * Assembles io fops for the specified target server.
  * This is heavily based on
  * m0t1fs/linux_kernel/file.c::target_ioreq_iofops_prepare
@@ -860,6 +871,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	m0_bcount_t                  xfer_len;
 	m0_bindex_t                  offset;
 	uint32_t                     segnext;
+	uint32_t                     ndom_max_segs;
 
 	M0_ENTRY("prepare io fops for target ioreq %p filter 0x%x, tfid "FID_F,
 		 ti, filter, FID_P(&ti->ti_fid));
@@ -904,6 +916,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	maxsize = m0_rpc_session_get_max_item_payload_size(ti->ti_session);
 
 	max_seg_size = m0_net_domain_get_max_buffer_segment_size(ndom);
+
+	ndom_max_segs = m0_net_domain_get_max_buffer_segments(ndom);
 
 	while (seg < SEG_NR(ivec)) {
 		delta  = 0;
@@ -950,7 +964,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		 * -- too many levels of indentation */
 		while (seg < SEG_NR(ivec) &&
 		       m0_io_fop_size_get(&iofop->if_fop) + delta < maxsize &&
-		       bbsegs < m0_net_domain_get_max_buffer_segments(ndom)) {
+		       bbsegs < ndom_max_segs) {
 
 			/*
 			* Adds a page to rpc bulk buffer only if it passes
@@ -960,13 +974,10 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			    !(pattr[seg] & PA_TRUNC)) {
 				delta += io_seg_size() + io_di_size(ioo);
 
-				if (filter == PA_DATA &&
-				    read_in_write &&
-				    auxbvec != NULL &&
-				    auxbvec->ov_buf[seg] != NULL) {
-					buf = auxbvec->ov_buf[seg];
-				}
-				else {
+				buf = buf_aux_chk_get(auxbvec, filter, seg,
+						      read_in_write);
+
+				if (buf == NULL) {
 					buf = bvec->ov_buf[seg];
 					/* Add the size for checksum generated for every segment, skip parity */
 					if ((filter == PA_DATA) &&
@@ -979,24 +990,23 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 				xfer_len = COUNT(ivec, seg);
 				offset = INDEX(ivec, seg);
-				
+
 				/*
-				* Accommodate multiple pages in a single
-				* net buffer segment, if they are consecutive
-				* pages.
-				*/
+				 * Accommodate multiple pages in a single
+				 * net buffer segment, if they are consecutive
+				 * pages.
+				 */
 				segnext = seg + 1;
 				while (segnext < SEG_NR(ivec) &&
 				       xfer_len < max_seg_size) {
-					if (filter == PA_DATA && 
-					    read_in_write && auxbvec != NULL &&
-					    auxbvec->ov_buf[segnext] != NULL)
-						bufnext =
-						       auxbvec->ov_buf[segnext];
-					else
+					bufnext = buf_aux_chk_get(auxbvec,
+								  filter,
+								  segnext,
+								  read_in_write);
+					if (bufnext == NULL)
 						bufnext = bvec->ov_buf[segnext];
-					if ((m0_bcount_t)buf + xfer_len == 
-					    (m0_bcount_t)bufnext) {
+
+					if (buf + xfer_len == bufnext) {
 						xfer_len += COUNT(ivec, ++seg);
 						segnext = seg + 1;
 					} else
@@ -1104,8 +1114,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		if (ioo->ioo_flags & M0_OOF_SYNC)
 			rw_fop->crw_flags |= M0_IO_FLAG_SYNC;
 		io_attr = m0_io_attr(ioo);
-		if (io_attr->oa_layout_id <= m0_lid_to_unit_map_nr);
-			rw_fop->crw_lid = io_attr->oa_layout_id;
+		rw_fop->crw_lid = io_attr->oa_layout_id;
 
 		/*
 		 * XXX(Sining): This is a bit tricky: m0_io_fop_prepare in

@@ -136,7 +136,7 @@ AC_ARG_VAR([CXXXML],  [gccxml/castxml command])
 AH_TEMPLATE([MOTR_IDX_STORE_CASS],    [Use Cassandra as KVS backend.])
 AH_TEMPLATE([IDX_CASS_DRV_V22],       [Cassandra driver version >= 2.2.])
 AH_TEMPLATE([ENABLE_LUSTRE],          [Enable LNet network stack from Lustre.])
-AH_TEMPLATE([ENABLE_LIBFAB],          [Enable Libfabric network stack ])
+AH_TEMPLATE([ENABLE_LIBFAB],          [Enable Libfabric network stack.])
 AH_TEMPLATE([ENABLE_GCCXML],          [Use deprecated GCC-XML instead of CastXML])
 AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
@@ -702,24 +702,6 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h malloc.h memory.h netdb.h \
 
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 AC_CHECK_HEADERS([openssl/md5.h], [], [AC_MSG_ERROR([md5.h cannot be found!])])
-AC_CHECK_HEADERS([isa-l.h],   [
-				# check for isa library
-				MOTR_SEARCH_LIBS([ec_encode_data], [c isal], [ISAL_LIBS],
-						[ec_encode_data cannot be found! \
-						 Try to install Intel ISA library package.]
-				)
-				AC_SUBST([ISAL_LIBS])
-
-				# define MACROs
-				AC_DEFINE([HAVE_ISAL])
-				AM_CONDITIONAL([HAVE_ISAL], [true])
-				AC_MSG_NOTICE([INTEL ISA-L Headers Available])
-			      ],
-			      [
-				AM_CONDITIONAL([HAVE_ISAL], [false])
-				AC_MSG_NOTICE([No INTEL ISA-L Headers])
-			      ]
-		)
 
 
 
@@ -849,6 +831,43 @@ AS_IF([test x$with_lustre != xno],[
        MOTR_LINUX_WRITE_BEGIN_END
        MOTR_LINUX_SENDFILE
 ])
+
+#
+# Checking Intel ISA library --------------------------------------------------------- {{{1
+#
+AC_ARG_ENABLE([isal],
+        [AS_HELP_STRING([--disable-isal],
+                        [Disable use Intel ISA. Instead use Galois library.])],
+        [],[enable_isal=yes]
+)
+
+AM_CONDITIONAL([HAVE_ISAL],
+               [test "x$enable_isal" = xyes])
+
+
+AS_IF([test x$enable_isal = xyes],
+      [
+              AC_CHECK_HEADERS([isa-l.h],
+              [
+                      # check for isa library
+                      MOTR_SEARCH_LIBS(
+                              [ec_encode_data], [c isal], [ISAL_LIBS],
+                              [ec_encode_data cannot be found! \
+                               Try to install Intel ISA library package.]
+                      )
+                      AC_SUBST([ISAL_LIBS])
+
+                      # define MACROs
+                      AC_DEFINE([HAVE_ISAL])
+                      # AM_CONDITIONAL([HAVE_ISAL], [true])
+                      AC_MSG_NOTICE([INTEL ISA-L Headers Available])
+              ],
+              [
+                      AM_CONDITIONAL([HAVE_ISAL], [false])
+                      AC_MSG_NOTICE([No INTEL ISA-L Headers])
+              ])
+      ]
+)
 
 #
 # Checking libfabric library----------------------------------------------- {{{1
@@ -1169,7 +1188,9 @@ echo "PROFILER_LIBS  :  \"$PROFILER_LIBS\""
 echo "GALOIS_LIBS    :  \"$GALOIS_LIBS\""
 echo "YAML_LIBS      :  \"$YAML_LIBS\""
 echo "UUID_LIBS      :  \"$UUID_LIBS\""
+AS_IF([test x$enable_isal = xyes],[
 echo "ISAL_LIBS      :  \"$ISAL_LIBS\""
+])
 echo "OPENSSL_LIBS   :  \"$OPENSSL_LIBS\""
 echo ""
 echo "Gcc            :  \"$BUILD_GCC\""

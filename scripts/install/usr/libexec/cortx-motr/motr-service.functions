@@ -263,6 +263,14 @@ m0_get_lnet_nid()
             if [ "$(m0_get_motr_transport)" = "lnet" ]; then
                 lnid=$(lctl list_nids | head -n1)
             else
+                touch /etc/libfab.conf
+                local netconf=$(cat /etc/libfab.conf)
+                if [[ "$netconf" == "" ]]; then
+                    netstat -i > /etc/libfab_tmp.txt
+                    local conf=$(sed -n '3p' /etc/libfab_tmp.txt | awk '{print $1;}')
+                    echo "networks=tcp($conf)" > /etc/libfab.conf
+                    rm /etc/libfab_tmp.txt
+                fi
                 local iface=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "(" -f2 | cut -d ")" -f1`
                 local proto=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "=" -f2 | cut -d "(" -f1`
                 local ip_addr=`ip addr show $iface |grep inet| head -1 | awk '{print $2}'|cut -d '/' -f1`

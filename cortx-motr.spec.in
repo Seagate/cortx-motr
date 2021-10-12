@@ -4,6 +4,12 @@
 %bcond_with cassandra
 %bcond_with ivt
 
+# Below line will enable the isal by default. This will add Intel ISA as
+# dependency by default. User can override this by using '--without isal'
+# in makefile to disable it. To change the default value i.e. to disable
+# Intel ISA dependency by default, use '%bcond_with isal'.
+%bcond_without isal
+
 # configure options
 %define with_linux  %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
 %define with_lustre %( test -n "$lustre_src" && echo "--with-lustre=$lustre_src" )
@@ -39,11 +45,14 @@
 %if %{with cassandra}
 %define  configure_cassandra_opts   --with-cassandra
 %endif
+%if !%{with isal}
+%define  configure_isal_opts   --disable-isal
+%endif
 
 %if %{with ivt} || %{with ut}
-%define  configure_opts  %{configure_ut_opts} %{?configure_cassandra_opts}
+%define  configure_opts  %{configure_ut_opts} %{?configure_cassandra_opts} %{?configure_isal_opts}
 %else
-%define  configure_opts  %{configure_release_opts} %{?configure_cassandra_opts}
+%define  configure_opts  %{configure_release_opts} %{?configure_cassandra_opts} %{?configure_isal_opts}
 %endif
 
 Name:           @PACKAGE@
@@ -71,7 +80,7 @@ BuildRequires:  libtool
 BuildRequires:  make
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
-%if %{rhel} <= 7
+%if %{rhel} < 8
 BuildRequires:  gccxml
 %else
 BuildRequires:  castxml
@@ -93,21 +102,23 @@ BuildRequires:  libuuid-devel
 BuildRequires:  openssl
 BuildRequires:  openssl-devel
 BuildRequires:  binutils-devel
-%if %{rhel} <= 7
+%if %{rhel} < 8
 BuildRequires:  python36-ply
 %else
 BuildRequires:  python3-ply
 %endif
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
-%if %{rhel} <= 7
+%if %{rhel} < 8
 BuildRequires:  python-devel
 %else
 BuildRequires:  python2-devel
 %endif
 BuildRequires:  libfabric-devel
 BuildRequires:  libedit-devel
+%if %{with isal}
 BuildRequires:  isa-l
+%endif
 %if %{with cassandra}
 BuildRequires:  libcassandra
 BuildRequires:  libuv
@@ -121,7 +132,9 @@ Requires:       libyaml
 Requires:       openssl
 Requires:       gdb
 Requires:       genders
+%if %{rhel} < 8
 Requires:       sysvinit-tools
+%endif
 Requires:       attr
 Requires:       perl
 Requires:       perl-YAML-LibYAML
@@ -135,9 +148,15 @@ Requires:       perl-MCE
 Requires:       ruby
 Requires:       facter
 Requires:       rubygem-net-ssh
+%if %{rhel} < 8
 Requires:       python36-ply
+%else
+Requires:       python3-ply
+%endif
 Requires:       libedit
+%if %{with isal}
 Requires:       isa-l
+%endif
 Requires(pre):  shadow-utils
 Requires(post): findutils
 

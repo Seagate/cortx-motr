@@ -34,7 +34,7 @@ M0_SRC_DIR=${CWD%/*/*/*}
 . $CWD/st-config.sh
 
 # Get the default net transport
-XPRT=$(m0_default_xpt)
+XPRT=$(m0_default_xprt)
 
 role_space()
 {
