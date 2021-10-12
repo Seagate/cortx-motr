@@ -335,25 +335,6 @@ static int ns_cmp(const void *key0, const void *key1)
 				(const struct m0_cob_nskey *)key1);
 }
 
-#ifdef NEW_BTREE_INTEGRATION_COMPLETE
-static m0_bcount_t ns_ksize(const void *key)
-{
-	return m0_cob_nskey_size(key);
-}
-
-static m0_bcount_t ns_vsize(const void *val)
-{
-	return sizeof(struct m0_cob_nsrec);
-}
-
-static const struct m0_be_btree_kv_ops cob_ns_ops = {
-	.ko_type    = M0_BT_COB_NAMESPACE,
-	.ko_ksize   = ns_ksize,
-	.ko_vsize   = ns_vsize,
-	.ko_compare = ns_cmp
-};
-#endif
-
 /**
    Object index table definition.
 */
@@ -370,20 +351,6 @@ static int oi_cmp(const void *key0, const void *key1)
 	return rc ?: M0_3WAY(cok0->cok_linkno, cok1->cok_linkno);
 }
 
-#ifdef NEW_BTREE_INTEGRATION_COMPLETE
-static m0_bcount_t oi_ksize(const void *key)
-{
-	return sizeof(struct m0_cob_oikey);
-}
-
-static const struct m0_be_btree_kv_ops cob_oi_ops = {
-	.ko_type    = M0_BT_COB_OBJECT_INDEX,
-	.ko_ksize   = oi_ksize,
-	.ko_vsize   = ns_ksize,
-	.ko_compare = oi_cmp
-};
-#endif
-
 /**
    File attributes table definition
  */
@@ -398,25 +365,6 @@ static int fb_cmp(const void *key0, const void *key1)
 	return m0_fid_cmp(&cok0->cfb_fid, &cok1->cfb_fid);
 }
 
-#ifdef NEW_BTREE_INTEGRATION_COMPLETE
-static m0_bcount_t fb_ksize(const void *key)
-{
-	return sizeof(struct m0_cob_fabkey);
-}
-
-static m0_bcount_t fb_vsize(const void *val)
-{
-	return m0_cob_fabrec_size(val);
-}
-
-static const struct m0_be_btree_kv_ops cob_fab_ops = {
-	.ko_type    = M0_BT_COB_FILEATTR_BASIC,
-	.ko_ksize   = fb_ksize,
-	.ko_vsize   = fb_vsize,
-	.ko_compare = fb_cmp
-};
-#endif
-
 /**
    Extended attributes table definition
  */
@@ -424,25 +372,6 @@ static int ea_cmp(const void *key0, const void *key1)
 {
 	return m0_cob_eakey_cmp(key0, key1);
 }
-
-#ifdef NEW_BTREE_INTEGRATION_COMPLETE
-static m0_bcount_t ea_ksize(const void *key)
-{
-	return m0_cob_eakey_size(key);
-}
-
-static m0_bcount_t ea_vsize(const void *val)
-{
-	return m0_cob_earec_size(val);
-}
-
-static const struct m0_be_btree_kv_ops cob_ea_ops = {
-	.ko_type    = M0_BT_COB_FILEATTR_EA,
-	.ko_ksize   = ea_ksize,
-	.ko_vsize   = ea_vsize,
-	.ko_compare = ea_cmp
-};
-#endif
 
 /**
    Omg table definition.
@@ -454,24 +383,6 @@ static int omg_cmp(const void *key0, const void *key1)
 	return M0_3WAY(cok0->cok_omgid, cok1->cok_omgid);
 }
 
-#ifdef NEW_BTREE_INTEGRATION_COMPLETE
-static m0_bcount_t omg_ksize(const void *key)
-{
-	return sizeof(struct m0_cob_omgkey);
-}
-
-static m0_bcount_t omg_vsize(const void *val)
-{
-	return sizeof(struct m0_cob_omgrec);
-}
-
-static const struct m0_be_btree_kv_ops cob_omg_ops = {
-	.ko_type    = M0_BT_COB_FILEATTR_OMG,
-	.ko_ksize   = omg_ksize,
-	.ko_vsize   = omg_vsize,
-	.ko_compare = omg_cmp
-};
-#endif
 
 M0_UNUSED static char *cob_dom_id_make(char *buf, const struct m0_cob_domain_id *id,
 			     const char *prefix)

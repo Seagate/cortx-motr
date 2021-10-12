@@ -1231,10 +1231,9 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 {
 	/* As EMAP record will now be variable we can't assign fix space */
 	m0_buf_init(&it->ec_keybuf, &it->ec_key, sizeof it->ec_key);
-	emap_key_init(&it->ec_key);
 	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
 	it->ec_key.ek_offset = offset + 1;
-	m0_format_footer_update(&it->ec_key);
+	emap_key_init(&it->ec_key);
 
 	it->ec_map = map;
 	it->ec_version = map->em_version;
