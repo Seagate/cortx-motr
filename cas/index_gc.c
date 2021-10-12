@@ -387,6 +387,8 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		m0_ctg_op_fini(ctg_op);
 		m0_ctg_op_init(ctg_op, fom0, 0);
 		fom->cg_ctg_op_initialized = true;
+		fom->cg_ctg_key = M0_BUF_INIT(M0_CAS_CTG_KV_HDR_SIZE,
+					      &fom->cg_ctg);
 		/*
 		 * Now completely forget this ctg by deleting its descriptor
 		 * from "dead index" catalogue.
