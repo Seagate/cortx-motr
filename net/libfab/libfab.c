@@ -1180,8 +1180,8 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 {
 	struct m0_net_end_point  *net;
 	struct m0_fab__ep        *ep;
-	struct m0_fab__active_ep *aep;
-	struct m0_fab__tm        *ma;
+	//struct m0_fab__active_ep *aep;
+	//struct m0_fab__tm        *ma;
 	uint64_t                  ep_name_n = 0;
 	char                      ep_str[LIBFAB_ADDR_STRLEN_MAX + 9] = {'\0'};
 	//char                     *wc = NULL;
