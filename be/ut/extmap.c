@@ -136,7 +136,6 @@ static void test_init(void)
 	be_seg = be_ut_emap_seg.bus_seg;
 
 	emap_be_alloc(&tx1);
-	m0_be_emap_init(emap, be_seg, false);
 
 	m0_be_emap_credit(emap, M0_BEO_CREATE, 1, &cred);
 	m0_be_ut_tx_init(&tx2, &be_ut_emap_backend);
