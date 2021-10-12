@@ -1141,6 +1141,13 @@ static int op_sync_wait(struct m0_fom *fom)
 
 	tx = m0_fom_tx(fom);
 	if (fom->fo_tx.tx_state != M0_DTX_INVALID) {
+		/*
+		 * The above checking of 'fom tx' state must go first
+		 * before any other access or checking on this fom tx,
+		 * because if the fom tx is not initialized, any access
+		 * of this fom tx is not safe or useful.
+		 */
+
 		if (m0_be_tx_state(tx) < M0_BTS_LOGGED) {
 			M0_LOG(M0_DEBUG, "fom wait for tx to be logged");
 			m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
