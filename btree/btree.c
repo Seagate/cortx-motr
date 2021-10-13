@@ -6703,7 +6703,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 	[P_ACT] = {
 		.sd_flags   = 0,
 		.sd_name    = "P_ACT",
-		.sd_allowed = M0_BITS(P_CAPTURE, P_CLEANUP, P_DOWN, P_DONE),
+		.sd_allowed = M0_BITS(P_CAPTURE, P_CLEANUP, P_NEXTDOWN, P_DONE),
 	},
 	[P_CAPTURE] = {
 		.sd_flags   = 0,
@@ -6791,7 +6791,7 @@ static struct m0_sm_trans_descr btree_trans[] = {
 	{ "put-makespace-cleanup", P_MAKESPACE, P_CLEANUP },
 	{ "kvop-act", P_ACT, P_CLEANUP },
 	{ "put-del-act", P_ACT, P_CAPTURE },
-	{ "truncate-act-down", P_ACT, P_DOWN },
+	{ "truncate-act-nextdown", P_ACT, P_NEXTDOWN },
 	{ "put-capture", P_CAPTURE, P_CLEANUP},
 	{ "del-capture-freenode", P_CAPTURE, P_FREENODE},
 	{ "del-freenode-cleanup", P_FREENODE, P_CLEANUP },
@@ -8257,132 +8257,69 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 		}
 	case P_ACT: {
-		uint64_t        count = oi->i_used;
-		int             i;
-		int             rec_count;
-		struct slot     node_slot = {};
-		struct segaddr  child;
-		struct level   *parent;
+		int           rec_count;
+		struct slot   node_slot = {};
+		struct level *parent;
 
-		lev = &oi->i_level[count];
+		lev = &oi->i_level[oi->i_used];
 
 		/**
+		 * lev->l_node points to the node that needs to be truncated.
+		 * Set record count as zero and handle root/non-root case.
+		 */
+		bnode_set_rec_count(lev->l_node, 0);
+		node_slot.s_node = lev->l_node;
+		node_slot.s_idx  = 0;
+		/**
 		 * Case: root node as leaf node.
-		 * Set record count as 0, capture in transaction and exit state
+		 * Mark it as leaf node, capture in transaction and exit state
 		 * machine.
 		 */
-		if (count == 0) {
+		if (oi->i_used == 0) {
 			bnode_set_level(lev->l_node, 0);
-			bnode_set_rec_count(lev->l_node, 0);
-			node_slot.s_node = lev->l_node;
-			node_slot.s_idx  = 0;
 			bnode_capture(&node_slot, bop->bo_tx);
 			lock_op_unlock(tree);
 			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 		}
 		/**
 		 * Case: Tree has more than one level.
-		 * Tree traversal hase reached the leaf node.Take parent node of
-		 * leaf and delete all its child nodes.
-		 * Before deleting all the nodes in parent, delete the last
-		 * accessed node as we do not want to call node_get again for
-		 * this node.
+		 * Tree traversal has reached the leaf node. Delete the leaf
+		 * node.
 		 */
 		bnode_fini(lev->l_node);
+		bnode_capture(&node_slot, bop->bo_tx);
 		bnode_free(&oi->i_nop, lev->l_node, bop->bo_tx, 0);
 		lev->l_node = NULL;
-
 		bop->bo_limit--;
 
-		count--;
-		parent = &oi->i_level[count];
-		node_slot.s_node = parent->l_node;
+		/** Decrease parent's record count. */
+		oi->i_used--;
+		parent = &oi->i_level[oi->i_used];
+		oi->i_nop.no_node = parent->l_node;
 		rec_count = bnode_count_rec(parent->l_node);
-		/** Already freed rightmost node. Decrement rec count .*/
 		rec_count--;
-		for (i = rec_count - 1; i >= 0; i--) {
-			if (bop->bo_limit  <= oi->i_height)
-				break;
-			node_slot.s_idx = i;
-			bnode_child(&node_slot, &child);
-			bnode_get(&oi->i_nop, tree, &child, 0);
-			bnode_fini(oi->i_nop.no_node);
-			bnode_free(&oi->i_nop, oi->i_nop.no_node, bop->bo_tx,
-				   0);
-			bop->bo_limit--;
-		}
-		/**
-		 * Ran out of credit. Set record count and exit state
-		 * machine.
-		 */
-		if (i >= 0 && bop->bo_limit  <= oi->i_height) {
-			bnode_set_rec_count(parent->l_node, i + 1);
-			node_slot.s_node = parent->l_node;
-			node_slot.s_idx  = i + 1;
-			bnode_capture(&node_slot, bop->bo_tx);
-			lock_op_unlock(tree);
-			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
-		}
+		bnode_set_rec_count(parent->l_node, rec_count);
 
 		/**
-		 * Deleted all the child nodes of parents. Parent is empty.
-		 * Reset record count of parent.
+		 * If parent's record count is zero then mark it as leaf node.
 		 */
-		bnode_set_rec_count(parent->l_node, 0);
-		bnode_set_level(parent->l_node, 0);
-		node_slot.s_node = parent->l_node;
-		node_slot.s_idx  = 0;
-		bnode_capture(&node_slot, bop->bo_tx);
-
-		/** Root is the the empty parent. Exit state machine. */
-		if (count == 0) {
-			lock_op_unlock(tree);
-			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
-		}
-
-		/** Parent has ancestors. Delete the parent node. */
-		bnode_fini(parent->l_node);
-		bnode_free(&oi->i_nop, parent->l_node,
-			   bop->bo_tx, 0);
-		parent->l_node = NULL;
-		bop->bo_limit--;
-
-		/**
-		 * Since parent node is deleted, iterate through ancestors and
-		 * adjust record count.
-		 */
-		count--;
-		for (i = count; i >= 0; i--) {
-			parent = &oi->i_level[i];
-			rec_count = bnode_count_rec(parent->l_node);
-			bnode_set_rec_count(parent->l_node, rec_count - 1);
-			node_slot.s_node = parent->l_node;
-			node_slot.s_idx  = rec_count - 1;
-			bop->bo_limit--;
-			if (bnode_count_rec(parent->l_node) > 0) {
-				/**
-				 * One of the ancestors has valid record count.
-				 * Traverse the tree again.
-				 */
-				bnode_capture(&node_slot, bop->bo_tx);
-				level_put(oi);
-				return P_DOWN;
-			}
+		if (rec_count == 0) {
 			bnode_set_level(parent->l_node, 0);
+			node_slot.s_node = parent->l_node;
+			node_slot.s_idx  = 0;
 			bnode_capture(&node_slot, bop->bo_tx);
-			/**
-			 * The node is empty. If it is non-root then delete the
-			 * node.
-			 */
-			if (i != 0) {
-				bnode_fini(parent->l_node);
-				bnode_free(&oi->i_nop, parent->l_node,
-					   bop->bo_tx, 0);
-				parent->l_node = NULL;
-			}
+			bop->bo_limit--;
 		}
-		lock_op_unlock(tree);
-		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
+		/** Exit state machine if ran out of credits. */
+		if (bop->bo_limit <= 2) {
+			node_slot.s_node = parent->l_node;
+			node_slot.s_idx  = rec_count;
+			bnode_capture(&node_slot, bop->bo_tx);
+			lock_op_unlock(tree);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
+		}
+		/** Still have credits, retraverse the tree from parent. */
+		return P_NEXTDOWN;
 	}
 	case P_CLEANUP:
 		level_cleanup(oi, bop->bo_tx);
