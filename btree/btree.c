@@ -730,6 +730,11 @@ enum {
 #define madvise(rnode, rnode_sz, MADV_NORMAL)                                \
 	-1, errno = ENOMEM
 
+#define m0_be_engine_tx_size_max(engine, cred, payload_size)                 \
+	do {                                                                 \
+		*(cred) = M0_BE_TX_CREDIT(50, (4 * 1024));            \
+	} while(0)
+
 #endif
 
 #if 0
@@ -9185,7 +9190,7 @@ enum {
 	MIN_RECS_PER_STREAM    = 5,
 	MAX_RECS_PER_STREAM    = 2048,
 
-	MAX_RECS_PER_THREAD    = 100000, /** Records count for each thread */
+	MAX_RECS_PER_THREAD    = 10000, /** Records count for each thread */
 
 	MIN_TREE_LOOPS         = 1000,
 	MAX_TREE_LOOPS         = 2000,
@@ -11110,8 +11115,10 @@ static bool validate_nodes_on_be_segment(struct segaddr *rnode_segaddr)
 		 * parent.
 		 */
 
-		M0_ASSERT(nt->nt_isvalid(&n.n_addr) &&
-			  nt->nt_opaque_get(&n.n_addr) == NULL);
+		M0_ASSERT(nt->nt_isvalid(&n.n_addr));
+#if (AVOID_BE_SEGMENT == 0)
+		M0_ASSERT(nt->nt_opaque_get(&n.n_addr) == NULL);
+#endif
 		if (stack_level == 0)
 			break;
 
