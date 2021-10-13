@@ -363,7 +363,7 @@ M0_INTERNAL void m0_net_libfab_fini(void)
  * network addresses with wildcard transfer machine identifier (like
  * "192.168.96.128@tcp1:12345:31:*").
  */
-static int libfab_ep_addr_decode_lnet(const char *name, char *node,
+M0_UNUSED static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 				      size_t nodeSize, char *port,
 				      size_t portSize, struct m0_fab__ndom *fnd)
 {
@@ -438,7 +438,7 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
  *                 "inet6:dgram:FE80::0202:B3FF:FE1E:8329@6663" or
  *                 "unix:dgram:/tmp/socket".
  */
-static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
+M0_UNUSED static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
 				      size_t nodeSize, char *port,
 				      size_t portSize)
 {
@@ -490,7 +490,7 @@ static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
  * Example of ep_name IPV4 192.168.0.1:4235
  *                    IPV6 [4002:db1::1]:4235
  */
-static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
+M0_UNUSED static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
 					size_t node_size, char *port,
 					size_t port_size)
 {
@@ -569,31 +569,67 @@ static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
 {
 	char *node = ep->fep_name_p.fen_addr;
 	char *port = ep->fep_name_p.fen_port;
-	size_t nodeSize = ARRAY_SIZE(ep->fep_name_p.fen_addr);
-	size_t portSize = ARRAY_SIZE(ep->fep_name_p.fen_port);
+	size_t nodesize = ARRAY_SIZE(ep->fep_name_p.fen_addr);
+	// size_t portSize = ARRAY_SIZE(ep->fep_name_p.fen_port);
 	int result;
+	struct m0_net_ip_addr addr;
 
 	M0_ENTRY("name=%s", name);
+
+	// M0_ALLOC_PTR(addr);
 	
 	if (name == NULL || name[0] == 0)
 		result =  M0_ERR(-EPROTO);
-	else if (strncmp(name, "libfab:", strlen("libfab:")) == 0)
-		result = libfab_ep_addr_decode_native(name + strlen("libfab:"),
-						      node, nodeSize,
-						      port, portSize);
-	else if (name[0] < '0' || name[0] > '9')
-		/* sock format */
-		result = libfab_ep_addr_decode_sock(name, node, nodeSize,
-						    port, portSize);
-	else
-		/* Lnet format. */
-		result = libfab_ep_addr_decode_lnet(name, node, nodeSize,
-						    port, portSize, fnd);
+	// else if (strncmp(name, "libfab:", strlen("libfab:")) == 0) {
+	// 	result = libfab_ep_addr_decode_native(name + strlen("libfab:"),
+	// 					      node, nodeSize,
+	// 					      port, portSize);
+	// 	M0_LOG(M0_ALWAYS, "KC * node=%s port=%s result=%d", (char *)node, (char *)port, result);
+	// 	result = m0_net_ip_parse(name, addr);
+	// 	M0_ASSERT(result == 0);
+	// }
+	// else if (name[0] < '0' || name[0] > '9') {
+	// 	/* sock format */
+	// 	result = libfab_ep_addr_decode_sock(name, node, nodeSize,
+	// 					    port, portSize);
+	// 	result = m0_net_ip_parse(name, addr);
+	// 	M0_ASSERT(result == 0);
+	// }
+	// else {
+	// 	/* Lnet format. */
+	// 	result = libfab_ep_addr_decode_lnet(name, node, nodeSize,
+	// 					    port, portSize, fnd);
+	// 	M0_LOG(M0_ALWAYS, "KC * node=%s port=%s result=%d", (char *)node, (char *)port, result);
+	// 	result = m0_net_ip_parse(name, addr);
+	// 	M0_ASSERT(result == 0);
+
+	// }
+
+	result = m0_net_ip_parse(name, &addr);
+
+
 
 	if (result == 0)
+	{
 		strcpy(ep->fep_name_p.fen_str_addr, name);
+		if (addr.na_format == M0_NET_IP_LNET_FORMAT)
+			inet_ntop(AF_INET, &addr.na_n.sn[0], node,
+				  nodesize);
+		else if (addr.na_addr.ia.nia_family == M0_NET_IP_AF_INET)
+			inet_ntop(AF_INET, &addr.na_n.sn[0], node,
+				  nodesize);
+		else if (addr.na_addr.ia.nia_family == M0_NET_IP_AF_INET6)
+			inet_ntop(AF_INET6, &addr.na_n.ln[0], node,
+				  nodesize);
+		else
+			M0_LOG(M0_ERROR, "UNIX family is not supported.");
+
+		sprintf(port, "%d", addr.na_port);
+
+	}
 
 	return M0_RC(result);
+
 }
 
 /**
