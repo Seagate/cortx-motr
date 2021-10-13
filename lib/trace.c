@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -150,18 +150,31 @@ M0_INTERNAL void m0_trace_fini(void)
 	m0_arch_trace_fini();
 }
 
-
-/*
- * XXX x86_64 version.
+/**
+ * pccnt access from user-space in AARCH64 platform
+ * is enabled by enable_user_space_access_pccnt() call
+ * from the kernel module, so this function will work only
+ * if the kernel module is present on this platform.
+ * TODO: investigate how to resolve it for the user-space mode
+ * in case there is no kernel module present.
  */
 static inline uint64_t m0_rdtsc(void)
 {
+#ifdef CONFIG_X86_64
 	uint32_t count_hi;
 	uint32_t count_lo;
 
 	__asm__ __volatile__("rdtsc" : "=a"(count_lo), "=d"(count_hi));
 
 	return ((uint64_t)count_lo) | (((uint64_t)count_hi) << 32);
+#elif defined (CONFIG_AARCH64)
+	uint64_t cycle;
+
+	asm volatile("mrs %0, pmccntr_el0" : "=r"(cycle));
+	return cycle;
+#else
+#error  "The Platform is not supported"
+#endif
 }
 
 #define NULL_STRING_STUB  "(null)"
