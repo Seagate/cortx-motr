@@ -210,7 +210,9 @@ cmd_run_st() {
     local f
     local list_p=0
     local trans
-
+ 
+    echo "rinkudebug: 1. entered cmd_run_st" >&1
+    echo "rinkudebug: 2. entered cmd_run_st" >&2
     trans=$(m0_default_xprt)
 
     if [ "${1:-}" = '-l' ]; then
@@ -235,10 +237,12 @@ cmd_run_st() {
                             echo "<< ${f##*/} >> Can not be run for libfab" >&1
                             echo "status: SUCCESS" >&1
                             continue
+                        else
+                            echo "rinkudebug: executing ${f##*/}"
+                            export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
+                            _time $f || return $?
                         fi
                     fi
-                    export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
-                    _time $f || return $?
                 fi
             done
     done
