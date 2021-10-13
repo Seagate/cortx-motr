@@ -378,7 +378,6 @@ static int libfab_hostname_to_ip(char *hostname , char* ip)
 	if ((hname = gethostbyname(name)) == NULL)
 	{
 		// get the host info
-		M0_LOG(M0_ERROR, "gethostbyname error %s", (char*)name);
 		return M0_ERR(-EPROTO);
 	}
 
@@ -388,7 +387,6 @@ static int libfab_hostname_to_ip(char *hostname , char* ip)
 		//Return the first one;
 		strcpy(ip , inet_ntoa(*addr[i]));
 		n=strlen(ip);
-		M0_LOG(M0_ALWAYS, "%s[%s]", (char*)name, (char*)ip);
 		return M0_RC(n);
 	}
 
@@ -531,118 +529,7 @@ static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
 
 	return 0;
 }
-#if 0
-/**
- * Used to decode the ip and port from the given end point
- * ep_name : endpoint address from domain
- * node    : copy ip address from ep_name
- * port    : copy port number from ep_name
- * Example of ep_name IPV4 192.168.0.1@tcp:4235
- *                    IPV6 [4002:db1::1]@tcp:4235
-*                          <hostname FQDN>@tcp:4235
- */
-static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
-					size_t nodeSize, char *port,
-					size_t portSize, uint8_t *addr_frmt)
-{
-	char   *name;
-	char   *cp;
-	char    dbg[10];
-	char    ip[LIBFAB_ADDR_LEN_MAX];
-	int     n;
-	int     rc = 0;
 
-	M0_PRE(ep_name != NULL);
-
-	M0_ENTRY("ep_name=%s", ep_name);
-
-	//name = (char *)ep_name + strlen("fab_i:");
-
-	/* IPV6 pattern */
-	cp = strchr(ep_name, ':');
-	if (cp == NULL)
-		return M0_ERR(-EINVAL);
-
-	n = cp - ep_name;
-	if (n == 0 )
-		return M0_ERR(-EINVAL);
-
-	memcpy(dbg, cp, n);
-	// Print AF_FAMILY
-	M0_LOG(M0_ERROR,"Stream %s", dbg);
-
-	cp++;
-	name = cp;
-	cp = strchr(ep_name, ':');
-	if (cp == NULL)
-		return M0_ERR(-EINVAL);
-
-	n = cp - name;
-	if (n == 0 )
-		return M0_ERR(-EINVAL);
-
-	memcpy(dbg, cp, n);
-	// Print STREAM
-	M0_LOG(M0_ERROR,"Stream %s", dbg);
-
-	cp++;
-	name = cp;
-	cp = strchr(ep_name, '@');
-	
-	n = cp - name;
-	if (n == 0 )
-		return M0_ERR(-EINVAL);
-
-	memcpy(dbg, cp, n);
-	// Print STREAM
-	M0_LOG(M0_ERROR,"Stream %s", dbg);
-
-	cp++;
-#if 0
-	} else {
-		/* IPV4 pattern */
-		cp = strchr(name, ':');
-		if (cp == NULL)
-			return M0_ERR(-EINVAL);
-
-		n = cp - name;
-		if (n == 0)
-			return M0_ERR(-EINVAL);
-
-		++cp;
-	}
-
-	if (/*(nodeSize < (n+1)) || */(portSize < (strlen(cp)+1)))
-		return M0_ERR(-EINVAL);
-
-	if (addr_frmt == FAB_NATIVE_IP_FORMAT)
-		memcpy(node, name, n);
-	else {
-		n = libfab_hostname_to_ip(name, ip);
-		if (n < 0)
-			return M0_ERR(n);
-		memcpy(node, ip, n);
-	}*/
-#endif
-	n = libfab_hostname_to_ip(name, ip);
-	if (n < 0) {
-		memcpy(node, name, n);
-		*addr_frmt = FAB_NATIVE_HOSTNAME_FORMAT;
-	}
-	else {
-		memcpy(node, ip, n);
-		*addr_frmt = FAB_NATIVE_IP_FORMAT;
-	}
-
-	node[n] = '\0';
-
-	n=strlen(cp);
-	strncpy(port, cp, n);
-	port[n] = '\0';
-
-	return M0_RC(0);
-}
-#endif
 /**
  * Parses network address.
  *
@@ -1180,11 +1067,8 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 {
 	struct m0_net_end_point  *net;
 	struct m0_fab__ep        *ep;
-	//struct m0_fab__active_ep *aep;
-	//struct m0_fab__tm        *ma;
 	uint64_t                  ep_name_n = 0;
 	char                      ep_str[LIBFAB_ADDR_STRLEN_MAX + 9] = {'\0'};
-	//char                     *wc = NULL;
 	int                       rc = 0;
 
 	if (epn != NULL)
@@ -1208,26 +1092,9 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 	} else {
 		ep = libfab_ep(net);
 		*epp = &ep->fep_nep;
-		//ep_name_p = ep->fep_name_p;
-		if (name != NULL && epn != NULL) {
+		if (name != NULL && epn != NULL)
 			rc = libfab_addr_port_verify(tm, name, epn, ep);
 
-			//LNET  		IP_ADDR@tcp:12345:PORTAL:TMID
-			//NATIVE_HOSTNAME	FAB_S:HOSTNAME@tcp:PORT
-			// wc = strchr(name, '*');
-			// if ((wc != NULL &&
-			//     strcmp(ep->fep_name_p.fen_port, epn->fen_port)
-			// 						 != 0)) {
-			// 	strcpy(ep->fep_name_p.fen_addr, epn->fen_addr);
-			// 	strcpy(ep->fep_name_p.fen_port, epn->fen_port);
-			// 	libfab_ep_pton(&ep->fep_name_p,
-			// 		       &ep->fep_name_n);
-			// 	aep = libfab_aep_get(ep);
-			// 	ma = tm->ntm_xprt_private;
-			// 	if (aep->aep_tx_state == FAB_CONNECTED)
-			// 		rc = libfab_txep_init(aep, ma, ep);
-			// }
-		}
 		if (rc == 0)
 			libfab_ep_get(ep);
 
