@@ -8,7 +8,7 @@ Prerequisites
 *************
 The prerequisite that is necessary to install the Motr component is mentioned below.
 
-- CentOS 7 or 8 on x86_64 or ARM64 (AArch64) platform.
+- CentOS 7 on x86_64 or ARM64 (AArch64) platform.
 
 - **Ansible** is needed::
 
