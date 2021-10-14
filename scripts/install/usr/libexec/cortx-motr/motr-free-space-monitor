@@ -193,6 +193,10 @@ if __name__ == '__main__':
     while True:
         send_iem = False
         wait_time = iem_alert_check_interval
+        #Noop for K8 deployement, read filesystem stats from consule
+        #instead of hctl status and remove sleep and continue statement
+        time.sleep(wait_time)
+        continue
         cluster_size = read_cluster_size()
         if not cluster_size:
                 log.error("hctl status could not read filesystem stats")
