@@ -32,7 +32,6 @@
 #include "be/op.h"
 #include "module/instance.h"
 #include "fop/fom_long_lock.h"       /* m0_long_lock */
-#include "be/btree.h"
 #include "cas/ctg_store.h"
 #include "cas/index_gc.h"
 
@@ -124,7 +123,9 @@ static int  ctg_exec         (struct m0_ctg_op    *ctg_op,
 static void ctg_store_release(struct m0_ref *ref);
 
 static m0_bcount_t ctg_ksize (const void *key);
+#if 0
 static m0_bcount_t ctg_vsize (const void *val);
+#endif
 static int         ctg_cmp   (const void *key0, const void *key1);
 
 
@@ -137,7 +138,6 @@ static struct m0_mutex cs_init_guard = M0_MUTEX_SINIT(&cs_init_guard);
  * XXX: The following static structures should be either moved to m0 instance to
  * show them to everyone or be a part of high-level context structure.
  */
-static const struct m0_be_btree_kv_ops cas_btree_ops;
 static       struct m0_ctg_store       ctg_store       = {};
 static const        char               cas_state_key[] = "cas-state-nr";
 
@@ -155,13 +155,6 @@ static struct m0_be_op *ctg_beop(struct m0_ctg_op *ctg_op)
 	return ctg_op->co_opcode == CO_CUR ?
 		&ctg_op->co_cur.bc_op : &ctg_op->co_beop;
 }
-
-#if 0
-static int ctg_berc(struct m0_ctg_op *ctg_op)
-{
-	return ctg_beop(ctg_op)->bo_u.u_btree.t_rc;
-}
-#endif
 
 static void ctg_memcpy(void *dst, const void *src, uint64_t nob)
 {
@@ -220,12 +213,12 @@ static m0_bcount_t ctg_ksize(const void *key)
 	/* Size is stored in the header. */
 	return M0_CAS_CTG_KV_HDR_SIZE + *(const uint64_t *)key;
 }
-
+#if 0
 static m0_bcount_t ctg_vsize(const void *val)
 {
 	return ctg_ksize(val);
 }
-
+#endif
 static int ctg_cmp(const void *key0, const void *key1)
 {
 	m0_bcount_t knob0 = ctg_ksize(key0);
@@ -401,7 +394,6 @@ M0_INTERNAL int m0_ctg_meta_find_ctg(struct m0_cas_ctg    *meta,
 			             const struct m0_fid  *ctg_fid,
 			             struct m0_cas_ctg   **ctg)
 {
-
 	uint8_t              key_data[M0_CAS_CTG_KV_HDR_SIZE +
 				      sizeof(struct m0_fid)];
 	struct m0_buf        key;
@@ -459,7 +451,6 @@ M0_INTERNAL int m0_ctg__meta_insert(struct m0_btree     *meta,
 				    struct m0_cas_ctg   *ctg,
 				    struct m0_be_tx     *tx)
 {
-
 	uint8_t                     key_data[M0_CAS_CTG_KV_HDR_SIZE +
 					    sizeof(struct m0_fid)];
 	struct m0_buf               key;
@@ -595,8 +586,8 @@ static int ctg_state_create(struct m0_be_seg     *seg,
 			    struct m0_cas_state **state)
 {
 	struct m0_cas_state *out;
-        struct m0_btree     *bt;
-        int                  rc;
+	struct m0_btree     *bt;
+ 	int                  rc;
 
 	M0_ENTRY();
 	*state = NULL;
@@ -1107,7 +1098,7 @@ static int ctg_op_cb_btree(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 				ctg_op->co_val.b_nob);
 		m0_chan_broadcast_lock(ctg_chan);
 		break;
-	case CTG_OP_COMBINE(CO_PUT, CT_META): {
+	case CTG_OP_COMBINE(CO_PUT, CT_META):
 		/*
 		* After successful insert inplace fill value of meta by length &
 		* pointer to cas_ctg. m0_ctg_create() creates cas_ctg,
@@ -1118,12 +1109,12 @@ static int ctg_op_cb_btree(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 				M0_CAS_CTG_KV_HDR_SIZE) = datum->d_cas_ctg;
 		m0_chan_broadcast_lock(ctg_chan);
 		break;
-	}
 	case CTG_OP_COMBINE(CO_MIN, CT_BTREE): {
 		struct m0_buf *out = &ctg_op->co_out_key;
 		m0_bcount_t ksize  = ctg_ksize(rec->r_key.k_data.ov_buf[0]);
 		M0_ASSERT(ksize == m0_vec_count(&rec->r_key.k_data.ov_vec));
 		m0_buf_init(out, rec->r_key.k_data.ov_buf[0], ksize);
+		break;
 	}
 	}
 	return 0;
@@ -1726,8 +1717,8 @@ M0_INTERNAL void m0_ctg_mark_deleted_credit(struct m0_be_tx_credit *accum)
 {
 	m0_bcount_t         knob;
 	m0_bcount_t         vnob;
-	struct m0_btree *btree  = ctg_store.cs_state->cs_meta->cc_tree;
-	struct m0_btree *mbtree = m0_ctg_dead_index()->cc_tree;
+	struct m0_btree    *btree  = ctg_store.cs_state->cs_meta->cc_tree;
+	struct m0_btree    *mbtree = m0_ctg_dead_index()->cc_tree;
 	struct m0_cas_ctg  *ctg;
 
 	knob = M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid);
@@ -1742,16 +1733,15 @@ M0_INTERNAL void m0_ctg_mark_deleted_credit(struct m0_be_tx_credit *accum)
 
 M0_INTERNAL void m0_ctg_create_credit(struct m0_be_tx_credit *accum)
 {
-	m0_bcount_t         knob;
-	m0_bcount_t         vnob;
-	struct m0_btree *btree = ctg_store.cs_state->cs_meta->cc_tree;
-	struct m0_cas_ctg  *ctg;
-	struct m0_btree_type    bt;
-	bt = (struct m0_btree_type){
+	m0_bcount_t             knob;
+	m0_bcount_t             vnob;
+	struct m0_btree        *btree = ctg_store.cs_state->cs_meta->cc_tree;
+	struct m0_cas_ctg      *ctg;
+	struct m0_btree_type    bt    = {
 		.tt_id = M0_BT_CAS_CTG,
 		.ksize = -1,
 		.vsize = -1,
-	};
+		};
 
 	m0_btree_create_credit(&bt, accum, 1);
 
@@ -1968,7 +1958,6 @@ static int ctg_ctidx_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 					 struct m0_be_tx        *tx)
 {
-
 	uint8_t                      key_data[M0_CAS_CTG_KV_HDR_SIZE +
 					      sizeof(struct m0_fid)];
 	struct m0_cas_ctg           *ctidx  = m0_ctg_ctidx();
@@ -2128,17 +2117,11 @@ M0_INTERNAL struct m0_long_lock *m0_ctg_lock(struct m0_cas_ctg *ctg)
 	return &ctg->cc_lock.bll_u.llock;
 }
 
-M0_INTERNAL const struct m0_be_btree_kv_ops *m0_ctg_btree_ops(void)
+static const struct m0_btree_rec_key_op key_cmp = { .rko_keycmp = ctg_cmp, };
+M0_INTERNAL const struct m0_btree_rec_key_op *m0_ctg_btree_ops(void)
 {
-	return &cas_btree_ops;
+	return &key_cmp;
 }
-
-static const struct m0_be_btree_kv_ops cas_btree_ops = {
-	.ko_type    = M0_BBT_CAS_CTG,
-	.ko_ksize   = &ctg_ksize,
-	.ko_vsize   = &ctg_vsize,
-	.ko_compare = &ctg_cmp
-};
 
 #undef M0_TRACE_SUBSYSTEM
 

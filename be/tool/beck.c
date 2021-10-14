@@ -361,7 +361,7 @@ static int format_header_verify(const struct m0_format_header *h,
 static bool btree_node_pre_is_valid  (const struct m0_be_bnode *node,
 				      struct scanner *s);
 static bool btree_node_post_is_valid (const struct m0_be_bnode *node,
-				      const struct m0_be_btree_kv_ops *ops);
+				      const struct m0_btree_rec_key_op *keycmp);
 static bool btree_kv_is_valid        (struct m0_be_bnode *node,
 				      int index, struct m0_buf *key);
 static void btree_bad_kv_count_update(uint64_t type, int count);
@@ -2409,13 +2409,13 @@ static bool btree_node_pre_is_valid(const struct m0_be_bnode *node,
 }
 
 static bool btree_node_post_is_valid(const struct m0_be_bnode *node,
-				     const struct m0_be_btree_kv_ops *ops)
+				     const struct m0_btree_rec_key_op *kcmp)
 {
 	M0_PRE(node != NULL);
 	return	ergo(node->bt_num_active_key > 1,
 		     m0_forall(i, node->bt_num_active_key - 1,
-			       ops->ko_compare(node->bt_kv_arr[i+1].btree_key,
-					       node->bt_kv_arr[i].btree_key)));
+			       kcmp->rko_keycmp(node->bt_kv_arr[i+1].btree_key,
+						node->bt_kv_arr[i].btree_key)));
 }
 
 static bool btree_kv_is_valid(struct m0_be_bnode *node,

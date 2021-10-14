@@ -194,7 +194,7 @@ struct m0_ctg_op {
 	 */
 	struct m0_be_op           co_beop;
 	/** BTree cursor used for cursor operations. */
-	struct m0_btree_cursor co_cur;
+	struct m0_btree_cursor    co_cur;
 	/** Shows whether catalogue cursor is initialised. */
 	bool                      co_cur_initialised;
 	/** Current cursor phase. */
@@ -765,7 +765,7 @@ M0_INTERNAL int m0_ctg_meta_find_ctg(struct m0_cas_ctg    *meta,
 			             struct m0_cas_ctg   **ctg);
 
 /** Get btree ops for ctg tree. */
-M0_INTERNAL const struct m0_be_btree_kv_ops *m0_ctg_btree_ops(void);
+M0_INTERNAL const struct m0_btree_rec_key_op *m0_ctg_btree_ops(void);
 
 /** Update number of records and record size in cas state. */
 M0_INTERNAL void m0_ctg_state_inc_update(struct m0_be_tx *tx, uint64_t size);
