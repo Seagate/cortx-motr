@@ -642,6 +642,11 @@ enum {
 		typeof(cb) __cb = (cb);                                      \
 		(__cb) = (__cb);                                             \
 	} while (0)
+
+#define m0_be_engine_tx_size_max(en, cred, payload_size)                     \
+	do {                                                                 \
+		*(cred) = M0_BE_TX_CREDIT(0, 0);                             \
+	} while (0)
 #endif
 
 #if (AVOID_BE_SEGMENT == 1)
@@ -5552,7 +5557,6 @@ M0_INTERNAL void m0_btree_destroy_credit(struct m0_btree *tree,
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
-#ifndef __KERNEL__
 M0_INTERNAL void m0_btree_truncate_credit(struct m0_be_tx        *tx,
 					  struct m0_btree        *tree,
 					  struct m0_be_tx_credit *accum,
@@ -5583,7 +5587,6 @@ M0_INTERNAL void m0_btree_truncate_credit(struct m0_be_tx        *tx,
 
 	m0_be_tx_credit_mac(accum, &cred, *limit);
 }
-#endif
 
 /**
  *  --------------------------------------------
