@@ -84,6 +84,14 @@ static int m0_net_hostname_to_ip(char *hostname , char* ip,
 	return M0_ERR(-EPROTO);
 }
 
+/**
+ * This function decodes the inet format address.
+ *  The inet address format is of type
+ *    <family>:<type>:<ipaddr/hostname_FQDN>@<port>
+ *    for example: "inet:tcp:127.0.0.1@3000",
+ *                 "inet:stream:lanl.gov@23",
+ *                 "inet6:dgram:FE80::0202:B3FF:FE1E:8329@6663"
+ */
 
 static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 {
@@ -91,7 +99,7 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 	int          f;
 	int          s;
 	char        *at;
-	char         ip[M0_NET_IP_STRLEN_MAX] = {}; // need to change to what? IPv4 Len?
+	char         ip[M0_NET_IP_STRLEN_MAX] = {};
 	int          n;
 	char         node[M0_NET_IP_STRLEN_MAX] = {};
 	char         port[6] = {};
@@ -148,9 +156,8 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 	return 0;
 }
 
-/** 
- * Bitmap of used transfer machine identifiers. 1 is for used,
- * and 0 is for free.
+/**
+ * Bitmap of used transfer machine identifiers. 1 is for used and 0 is for free.
  */
 static uint8_t ip_autotm[1024] = {};
 
@@ -202,7 +209,7 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 			}
 		}
 	}
-	
+
 	if (s == ARRAY_SIZE(ip_protocol) || ((at = strchr(at, ':')) == NULL))
 		return M0_ERR(-EPROTO);
 
@@ -254,26 +261,25 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 	strcpy(addr->na_p, name);
 
 	m0_net_ip_print(addr);
-
 	return M0_RC(0);
 }
 
 char *m0_net_ip_print(const struct m0_net_ip_addr *na)
 {
 	M0_LOG(M0_DEBUG, "str=%s frmt=%d num=[0x%"PRIx64",0x%"PRIx64"] port=%d",
-           (char*)na->na_p, (int)na->na_format, na->na_n.ln[0], na->na_n.ln[1],
-	   (int)na->na_port);
-    	if (na->na_format == M0_NET_IP_LNET_FORMAT)
-        M0_LOG(M0_DEBUG, "type=%d portal=%d tmid=%d",
-               (int)na->na_addr.la.nla_type,
-               (int)na->na_addr.la.nla_portal,
-               (int)na->na_addr.la.nla_tmid);
-    	else
-        M0_LOG(M0_DEBUG, "family=%d type=%d port=%d",
-               (int)na->na_addr.ia.nia_family,
-               (int)na->na_addr.ia.nia_type,
-               (int)na->na_port);
-    	return NULL;
+		(char*)na->na_p, (int)na->na_format, na->na_n.ln[0], na->na_n.ln[1],
+		(int)na->na_port);
+	if (na->na_format == M0_NET_IP_LNET_FORMAT)
+	M0_LOG(M0_DEBUG, "type=%d portal=%d tmid=%d",
+		(int)na->na_addr.la.nla_type,
+		(int)na->na_addr.la.nla_portal,
+		(int)na->na_addr.la.nla_tmid);
+	else
+	M0_LOG(M0_DEBUG, "family=%d type=%d port=%d",
+		(int)na->na_addr.ia.nia_family,
+		(int)na->na_addr.ia.nia_type,
+		(int)na->na_port);
+	return NULL;
 }
 
 
@@ -284,7 +290,6 @@ int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr)
 		rc = m0_net_ip_lnet_parse(name, addr);
 	else
 		rc = m0_net_ip_inet_parse(name, addr);
-	
 	return rc;
 }
 
@@ -295,7 +300,7 @@ int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr)
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

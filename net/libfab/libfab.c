@@ -549,19 +549,17 @@ M0_UNUSED static int libfab_ep_addr_decode_native(const char *ep_name, char *nod
  *
  * The following address formats are supported:
  *
- *     - lnet compatible, see nlx_core_ep_addr_decode():
+ *     - The lnet compatible format is of type
+ *        <nid>@<type>:<pid>:<portal>:<tmid>
+ *       for example: "10.0.2.15@tcp:12345:34:123",
+ *                    "192.168.96.128@tcp:12345:31:*",
+ *                     see nlx_core_ep_addr_decode()
  *
- *           nid:pid:portal:tmid
- *
- *       for example: "10.0.2.15@tcp:12345:34:123" or
- *       "192.168.96.128@tcp1:12345:31:*"
- *
- *     - sock format, see socket(2):
- *           family:type:ipaddr[@port]
- *
- *     - libfab compatible format
- *       for example IPV4 libfab:192.168.0.1:4235
- *                   IPV6 libfab:[4002:db1::1]:4235
+ *     - The inet address format is of type
+ *         <family>:<type>:<ipaddr/hostname_FQDN>@<port>
+ *        for example: "inet:tcp:127.0.0.1@3000",
+ *                     "inet:stream:lanl.gov@23",
+ *                      "inet6:dgram:FE80::0202:B3FF:FE1E:8329@6663"
  *
  */
 static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
@@ -570,45 +568,15 @@ static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
 	char *node = ep->fep_name_p.fen_addr;
 	char *port = ep->fep_name_p.fen_port;
 	size_t nodesize = ARRAY_SIZE(ep->fep_name_p.fen_addr);
-	// size_t portSize = ARRAY_SIZE(ep->fep_name_p.fen_port);
 	int result;
 	struct m0_net_ip_addr addr;
 
 	M0_ENTRY("name=%s", name);
 
-	// M0_ALLOC_PTR(addr);
-	
 	if (name == NULL || name[0] == 0)
 		result =  M0_ERR(-EPROTO);
-	// else if (strncmp(name, "libfab:", strlen("libfab:")) == 0) {
-	// 	result = libfab_ep_addr_decode_native(name + strlen("libfab:"),
-	// 					      node, nodeSize,
-	// 					      port, portSize);
-	// 	M0_LOG(M0_ALWAYS, "KC * node=%s port=%s result=%d", (char *)node, (char *)port, result);
-	// 	result = m0_net_ip_parse(name, addr);
-	// 	M0_ASSERT(result == 0);
-	// }
-	// else if (name[0] < '0' || name[0] > '9') {
-	// 	/* sock format */
-	// 	result = libfab_ep_addr_decode_sock(name, node, nodeSize,
-	// 					    port, portSize);
-	// 	result = m0_net_ip_parse(name, addr);
-	// 	M0_ASSERT(result == 0);
-	// }
-	// else {
-	// 	/* Lnet format. */
-	// 	result = libfab_ep_addr_decode_lnet(name, node, nodeSize,
-	// 					    port, portSize, fnd);
-	// 	M0_LOG(M0_ALWAYS, "KC * node=%s port=%s result=%d", (char *)node, (char *)port, result);
-	// 	result = m0_net_ip_parse(name, addr);
-	// 	M0_ASSERT(result == 0);
-
-	// }
 
 	result = m0_net_ip_parse(name, &addr);
-
-
-
 	if (result == 0)
 	{
 		strcpy(ep->fep_name_p.fen_str_addr, name);
@@ -625,11 +593,8 @@ static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
 			M0_LOG(M0_ERROR, "UNIX family is not supported.");
 
 		sprintf(port, "%d", addr.na_port);
-
 	}
-
 	return M0_RC(result);
-
 }
 
 /**

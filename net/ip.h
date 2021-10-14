@@ -28,12 +28,14 @@
 #define M0_NET_IP_STRLEN_MAX  100
 #define M0_NET_IP_PORT_MAX    65536
 
+/** Represents format of network address */
 enum m0_net_ip_format {
 	M0_NET_IP_INET_IP_FORMAT,
 	M0_NET_IP_INET_HOSTNAME_FORMAT,
 	M0_NET_IP_LNET_FORMAT
 };
 
+/** Represents family of network address */
 enum m0_net_ip_family {
 	M0_NET_IP_AF_INET,
 	M0_NET_IP_AF_INET6,
@@ -41,6 +43,7 @@ enum m0_net_ip_family {
 	M0_NET_IP_AF_MAX
 };
 
+/** Represent protocol of network address */
 enum m0_net_ip_proto {
 	M0_NET_IP_PROTO_TCP,
 	M0_NET_IP_PROTO_VERBS,
@@ -50,16 +53,21 @@ enum m0_net_ip_proto {
 	M0_NET_IP_PROTO_LO,
 	M0_NET_IP_PROTO_MAX
 };
+
+/** Structure to represent inet address format */
 struct m0_net_ip_inet_addr {
 	uint16_t nia_family;   /* AF_INET, AF_INET6, AF_UNIX */
 	uint16_t nia_type;     /* tcp, verbs, stream, dgram, o2ib, lo */
 };
+
+/** Structure to represent lnet address format */
 struct m0_net_ip_lnet_addr {
-	uint16_t nla_type;     /* tcp, o2ib */
+	uint16_t nla_type;     /* tcp, o2ib, lo */
 	uint16_t nla_portal;
 	uint16_t nla_tmid;
 };
 
+/** Genereic structure to store values related to network address */
 struct m0_net_ip_addr {
 	union {
 		struct m0_net_ip_inet_addr ia;
@@ -75,27 +83,15 @@ struct m0_net_ip_addr {
 };
 
 /**
- * Parses IP addresses, for example
- *
- *  "inet:stream:lanl.gov@23",
- *  "inet6:dgram:FE80::0202:B3FF:FE1E:8329@6663" or
- *  "unix:dgram:/tmp/socket".
- *
- * Based on net/sock/sock.c:addr_parse_native().
+ * This function decodes addresses based on address format type
+ * such as lnet or inet address format.
  */
 int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr);
 
-/*
- * Similarly, take sock.c:addr_print() and create a new function, use it in
- * sock.c and libfabric.c to convert ip addresses to strings.
+/**
+ * This function returns printable ip address format.
  */
 char *m0_net_ip_print(const struct m0_net_ip_addr *nia);
-
-/*
- * Take sock.c:addr_parse_lnet() and create out of it
- */
-// int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr);
-
 
 #endif /* __MOTR_NET_IP_H__ */
 
@@ -104,7 +100,7 @@ char *m0_net_ip_print(const struct m0_net_ip_addr *nia);
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */

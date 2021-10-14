@@ -521,7 +521,8 @@ void m0_net_test_network_ut_addr_decode(void)
 		cfg.ntncfg_ep_max	 = 10;
 		cfg.ntncfg_timeouts	 = m0_net_test_network_timeouts_never();
 
-		rc = m0_net_test_network_ctx_init(&send, &cfg, "0@lo:12345:42:3000");
+		rc = m0_net_test_network_ctx_init(&send, &cfg,
+						  "0@lo:12345:42:3000");
 		M0_UT_ASSERT(rc == 0);
 
 		/* decode: lnet addressing format*/
@@ -529,9 +530,11 @@ void m0_net_test_network_ut_addr_decode(void)
 		M0_UT_ASSERT(rc == 0);
 
 		/* decode: inet addresses of type tcp*/
-		rc = m0_net_test_network_ep_add(&send, "inet:tcp:127.0.0.1@3002");
+		rc = m0_net_test_network_ep_add(&send,
+						"inet:tcp:127.0.0.1@3002");
 		M0_UT_ASSERT(rc == 1);
-		rc = m0_net_test_network_ep_add(&send, "inet:tcp:localhost@3003");
+		rc = m0_net_test_network_ep_add(&send,
+						"inet:tcp:localhost@3003");
 		M0_UT_ASSERT(rc == 2);
 		/* decode: FQDN of type tcp */
 		memset(&hostname, 0, sizeof(hostname));
@@ -558,7 +561,8 @@ void m0_net_test_network_ut_addr_decode(void)
 		*/
 
 		/* decode: inet addresses of type verbs */
-		rc = m0_net_test_network_ep_add(&send, "inet:verbs:127.0.0.1@3007");
+		rc = m0_net_test_network_ep_add(&send,
+						"inet:verbs:127.0.0.1@3007");
 		M0_UT_ASSERT(rc == 4);
 		/* decode: FQDN of type verbs */
 		memset(&ep_str, 0, sizeof(ep_str));
@@ -568,7 +572,7 @@ void m0_net_test_network_ut_addr_decode(void)
 
 		m0_net_test_network_ctx_fini(&send);
 	}
-#endif /*__KERNEL__*/
+#endif /* __KERNEL__ */
 }
 
 /*
@@ -576,7 +580,7 @@ void m0_net_test_network_ut_addr_decode(void)
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */
