@@ -123,7 +123,6 @@ static int  ctg_exec         (struct m0_ctg_op    *ctg_op,
 			      int                  next_phase);
 static void ctg_store_release(struct m0_ref *ref);
 
-
 static m0_bcount_t ctg_ksize (const void *key);
 static m0_bcount_t ctg_vsize (const void *val);
 static int         ctg_cmp   (const void *key0, const void *key1);
@@ -1778,7 +1777,7 @@ M0_INTERNAL void m0_ctg_dead_clean_credit(struct m0_be_tx_credit *accum)
 	struct m0_cas_ctg  *ctg;
 	m0_bcount_t         knob;
 	m0_bcount_t         vnob;
-	struct m0_btree *btree = m0_ctg_dead_index()->cc_tree;
+	struct m0_btree    *btree = m0_ctg_dead_index()->cc_tree;
 	/*
 	 * Define credits for delete from dead index.
 	 */
@@ -2140,7 +2139,6 @@ static const struct m0_be_btree_kv_ops cas_btree_ops = {
 	.ko_vsize   = &ctg_vsize,
 	.ko_compare = &ctg_cmp
 };
-
 
 #undef M0_TRACE_SUBSYSTEM
 

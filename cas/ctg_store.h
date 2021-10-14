@@ -193,8 +193,6 @@ struct m0_ctg_op {
 	 * all operations, but it is marked deprecated in btree.h.
 	 */
 	struct m0_be_op           co_beop;
-	/** BTree anchor used for inplace operations. */
-	//struct m0_be_btree_anchor co_anchor;
 	/** BTree cursor used for cursor operations. */
 	struct m0_btree_cursor co_cur;
 	/** Shows whether catalogue cursor is initialised. */
