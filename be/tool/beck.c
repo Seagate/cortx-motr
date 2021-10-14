@@ -517,7 +517,7 @@ struct ctg_action {
 };
 
 static struct scanner beck_scanner;
-static struct builder beck_builder;
+static struct builder beck_builder = {};
 static struct gen g[MAX_GEN] = {};
 static struct m0_be_seg s_seg = {}; /** Used only in dry-run mode. */
 static struct nv_offset_info nv_off_info;
@@ -747,7 +747,7 @@ int main(int argc, char **argv)
 			errno = 0;
 			ret = mmap(s_seg.bs_addr, s_seg.bs_size,
 					PROT_READ|PROT_WRITE,
-					MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE, 
+					MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE,
 			     		fileno(beck_scanner.s_file),
 					s_seg.bs_offset);
 
@@ -757,7 +757,7 @@ int main(int argc, char **argv)
 			printf("BE segment file %s has been mmaped at "
 			       "address %p for %"PRId64" bytes.\n"
 			       "Please attach to process %u to browse BE "
-			       "segment data.\n", spath, s_seg.bs_addr, 
+			       "segment data.\n", spath, s_seg.bs_addr,
 						s_seg.bs_size, getpid());
 
 			while (1); /* Wait in endless loop for gdb connection */
@@ -1368,10 +1368,12 @@ static struct m0_stob_ad_domain *emap_dom_find(const struct action *act,
 
 	for (i = 0; i < act->a_builder->b_ad_dom_count; i++) {
 		adom = act->a_builder->b_ad_domain[i];
+#ifdef NEW_BTREE_INTEGRATION_COMPLETE
 		if (m0_fid_eq(emap_fid,
 	            &adom->sad_adata.em_mapping.bb_backlink.bli_fid)) {
 			break;
 		}
+#endif
 	}
 	*lockid = i;
 	return (i == act->a_builder->b_ad_dom_count) ? NULL: adom;
@@ -3026,7 +3028,7 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 	struct m0_stob_ad_domain *adom;
 	struct m0_be_emap_cursor  it = {};
 	struct m0_uint128         prefix;
-	int			  id;
+	int                       id = 0;
 
 	m0_mutex_lock(&beck_builder.b_coblock);
 
@@ -3048,9 +3050,11 @@ static void cob_act(struct action *act, struct m0_be_tx *tx)
 		adom = stob_ad_domain2ad(sdom);
 		prefix = M0_UINT128(stob_id.si_fid.f_container,
 				    stob_id.si_fid.f_key);
+#ifdef NEW_BTREE_INTEGRATION_COMPLETE
 		emap_dom_find(&ca->coa_act,
 			      &adom->sad_adata.em_mapping.bb_backlink.bli_fid,
 			      &id);
+#endif
 		m0_mutex_lock(&beck_builder.b_emaplock[id]);
 		rc = M0_BE_OP_SYNC_RET_WITH(&it.ec_op,
 					    m0_be_emap_lookup(&adom->sad_adata,
