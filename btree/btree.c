@@ -1403,7 +1403,7 @@ struct m0_btree_oimpl {
 	unsigned                   i_used;
 
 	/** Array of levels for storing data about each level. **/
-	struct level              *i_level;
+	struct level               i_level[MAX_TREE_HEIGHT];
 
 	/** Level from where sibling nodes needs to be loaded. **/
 	int                        i_pivot;
@@ -5728,11 +5728,6 @@ static void lock_op_unlock(struct td *tree)
 	m0_rwlock_write_unlock(&tree->t_lock);
 }
 
-static void level_alloc(struct m0_btree_oimpl *oi, int height)
-{
-	oi->i_level = m0_alloc(height * (sizeof *oi->i_level));
-}
-
 static void level_put(struct m0_btree_oimpl *oi)
 {
 	int i;
@@ -5797,7 +5792,6 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 			oi->i_extra_node = NULL;
 		}
 	}
-	m0_free(oi->i_level);
 }
 
 /**
@@ -6286,12 +6280,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				    bop->bo_arbor->t_desc, P_SETUP);
 	case P_SETUP:
 		oi->i_height = tree->t_height;
-		level_alloc(oi, oi->i_height);
-		if (oi->i_level == NULL) {
-			if (lock_acquired)
-				lock_op_unlock(tree);
-			return fail(bop, M0_ERR(-ENOMEM));
-		}
+		memset(&oi->i_level, 0, sizeof oi->i_level);
 		bop->bo_i->i_key_found = false;
 		oi->i_nop.no_op.o_sm.sm_rc = 0;
 		/** Fall through to P_DOWN. */
@@ -7142,12 +7131,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 				    bop->bo_arbor->t_desc, P_SETUP);
 	case P_SETUP:
 		oi->i_height = tree->t_height;
-		level_alloc(oi, oi->i_height);
-		if (oi->i_level == NULL) {
-			if (lock_acquired)
-				lock_op_unlock(tree);
-			return fail(bop, M0_ERR(-ENOMEM));
-		}
+		memset(&oi->i_level, 0, sizeof oi->i_level);
 		oi->i_nop.no_op.o_sm.sm_rc = 0;
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
@@ -7365,12 +7349,7 @@ static int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				    bop->bo_arbor->t_desc, P_SETUP);
 	case P_SETUP:
 		oi->i_height = tree->t_height;
-		level_alloc(oi, oi->i_height);
-		if (oi->i_level == NULL) {
-			if (lock_acquired)
-				lock_op_unlock(tree);
-			return fail(bop, M0_ERR(-ENOMEM));
-		}
+		memset(&oi->i_level, 0, sizeof oi->i_level);
 		oi->i_nop.no_op.o_sm.sm_rc = 0;
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
@@ -7936,12 +7915,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 				    bop->bo_arbor->t_desc, P_SETUP);
 	case P_SETUP:
 		oi->i_height = tree->t_height;
-		level_alloc(oi, oi->i_height);
-		if (oi->i_level == NULL) {
-			if (lock_acquired)
-				lock_op_unlock(tree);
-			return fail(bop, M0_ERR(-ENOMEM));
-		}
+		memset(&oi->i_level, 0, sizeof oi->i_level);
 		bop->bo_i->i_key_found = false;
 		oi->i_nop.no_op.o_sm.sm_rc = 0;
 		/** Fall through to P_DOWN. */
@@ -8218,11 +8192,7 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 				    bop->bo_arbor->t_desc, P_SETUP);
 	case P_SETUP:
 		oi->i_height = tree->t_height;
-		level_alloc(oi, oi->i_height);
-		if (oi->i_level == NULL) {
-			lock_op_unlock(tree);
-			return fail(bop, M0_ERR(-ENOMEM));
-		}
+		memset(&oi->i_level, 0, sizeof oi->i_level);
 		oi->i_nop.no_op.o_sm.sm_rc = 0;
 		/** Fall through to P_DOWN. */
 	case P_DOWN:
