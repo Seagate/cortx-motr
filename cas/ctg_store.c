@@ -90,8 +90,8 @@ static int  ctg_buf          (const struct m0_buf *val, struct m0_buf *buf);
 static int  ctg_buf_get      (struct m0_buf *dst, const struct m0_buf *src);
 static void ctg_fid_key_fill (void *key, const struct m0_fid *fid);
 static void ctg_init         (struct m0_cas_ctg *ctg, struct m0_be_seg *seg,
-			      bool open);
-static void ctg_fini         (struct m0_cas_ctg *ctg, bool close);
+			      bool open_tree);
+static void ctg_fini         (struct m0_cas_ctg *ctg, bool close_tree);
 static void ctg_destroy      (struct m0_cas_ctg *ctg, struct m0_be_tx *tx);
 static int  ctg_meta_selfadd (struct m0_btree *meta, struct m0_be_tx *tx);
 static void ctg_meta_delete  (struct m0_btree  *meta,
@@ -242,7 +242,8 @@ static int ctg_cmp(const void *key0, const void *key1)
 		M0_3WAY(knob0, knob1);
 }
 
-static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg, bool open)
+static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg,
+		     bool open_tree)
 {
 	struct m0_btree_op b_op = {};
 
@@ -257,7 +258,7 @@ static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg, bool open)
 	m0_chan_init(&ctg->cc_chan.bch_chan, &ctg->cc_chan_guard.bm_u.mutex);
 	ctg->cc_inited = true;
 
-	if (open) {
+	if (open_tree) {
 		struct m0_btree_rec_key_op key_cmp = { .rko_keycmp = ctg_cmp, };
 		int                        rc;
 
@@ -273,14 +274,14 @@ static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg, bool open)
 	m0_format_footer_update(ctg);
 }
 
-static void ctg_fini(struct m0_cas_ctg *ctg, bool close)
+static void ctg_fini(struct m0_cas_ctg *ctg, bool close_tree)
 {
 	struct m0_btree_op b_op  = {};
 	int                rc;
 	M0_ENTRY("ctg=%p", ctg);
 	ctg->cc_inited = false;
 
-	if (close && !ctg->cc_destroy) {
+	if (close_tree && !ctg->cc_destroy) {
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_close(ctg->cc_tree,
 							     &b_op));
@@ -298,17 +299,18 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 		  struct m0_cas_ctg **out,
 		  const struct m0_fid *cas_fid)
 {
-	struct m0_cas_ctg    *ctg;
-	int                   rc;
-	struct m0_btree_op    b_op = {};
-	struct m0_btree_type  bt = {
+	struct m0_cas_ctg          *ctg;
+	int                         rc;
+	struct m0_btree_op          b_op    = {};
+	struct m0_btree_rec_key_op  key_cmp = { .rko_keycmp = ctg_cmp, };
+	struct m0_fid              *fid     = &M0_FID_TINIT('b',
+							cas_fid->f_container,
+							cas_fid->f_key);
+	struct m0_btree_type        bt      = {
 		.tt_id = M0_BT_CAS_CTG,
 		.ksize = -1,
 		.vsize = -1,
 	};
-	struct m0_fid        *fid  = &M0_FID_TINIT('b', cas_fid->f_container,
-						   cas_fid->f_key);
-	struct m0_btree_rec_key_op key_cmp = { .rko_keycmp = ctg_cmp, };
 
 	if (M0_FI_ENABLED("ctg_create_failure"))
 		return M0_ERR(-EFAULT);
@@ -321,6 +323,7 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 	M0_ALLOC_PTR(ctg->cc_tree);
 	if (ctg->cc_tree == NULL)
 		return M0_ERR(-ENOMEM);
+
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&ctg->cc_node,
 						      sizeof ctg->cc_node,
@@ -373,13 +376,14 @@ M0_INTERNAL void m0_ctg_fini(struct m0_fom     *fom,
 
 static int ctg_meta_find_cb(struct m0_btree_cb  *cb, struct m0_btree_rec *rec)
 {
-	struct m0_cas_ctg **ctg = cb->c_datum;
-	struct m0_buf       val = {
+	struct m0_cas_ctg  **ctg = cb->c_datum;
+	struct m0_buf        buf = {};
+	struct m0_buf        val = {
 		.b_nob =  m0_vec_count(&rec->r_val.ov_vec),
 		.b_addr = rec->r_val.ov_buf[0],
 	};
-	struct m0_buf buf = {};
-	int           rc;
+	int                  rc;
+
 	rc = ctg_buf(&val, &buf);
 	if (rc == 0) {
 		if (buf.b_nob == sizeof(*ctg))
@@ -418,7 +422,8 @@ M0_INTERNAL int m0_ctg_meta_find_ctg(struct m0_cas_ctg    *meta,
 	key   = M0_BUF_INIT_PTR(&key_data);
 	k_ptr = key.b_addr;
 	ksize = key.b_nob;
-	rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+	rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
+
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 				      m0_btree_get(meta->cc_tree, &rec.r_key,
 						   &get_cb, BOF_EQUAL, &kv_op));
@@ -432,26 +437,21 @@ struct ctg_meta_put_cb_data {
 
 static int ctg_meta_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
-	struct m0_bufvec_cursor      scur;
-	struct m0_bufvec_cursor      dcur;
 	m0_bcount_t                  ksize;
 	struct ctg_meta_put_cb_data *datum = cb->c_datum;
-	struct m0_cas_ctg           *ctg  = datum->d_ctg;
+	struct m0_cas_ctg           *ctg   = datum->d_ctg;
 
 	ksize = m0_vec_count(&datum->d_key->k_data.ov_vec);
 	M0_ASSERT(m0_vec_count(&rec->r_key.k_data.ov_vec) == ksize);
+	m0_bufvec_copy(&rec->r_key.k_data, &datum->d_key->k_data, ksize);
 
-	m0_bufvec_cursor_init(&scur, &datum->d_key->k_data);
-	m0_bufvec_cursor_init(&dcur, &rec->r_key.k_data);
-	rec->r_key.k_data.ov_vec.v_count[0] =
-	m0_vec_count(&datum->d_key->k_data.ov_vec);
-	m0_bufvec_cursor_copy(&dcur, &scur, ksize);
 	/**
 	 * Meta entry format: length + ptr to cas_ctg.
 	 * Memory for ctg allocated elsewhere and must be persistent.
 	 */
 	*(uint64_t *)rec->r_val.ov_buf[0] = sizeof(ctg);
-	*(struct m0_cas_ctg**)(rec->r_val.ov_buf[0] + M0_CAS_CTG_KV_HDR_SIZE) = ctg;
+	*(struct m0_cas_ctg**)(rec->r_val.ov_buf[0] +
+			       M0_CAS_CTG_KV_HDR_SIZE) = ctg;
 	return 0;
 }
 
@@ -461,23 +461,21 @@ M0_INTERNAL int m0_ctg__meta_insert(struct m0_btree     *meta,
 				    struct m0_be_tx     *tx)
 {
 
-	uint8_t                    key_data[M0_CAS_CTG_KV_HDR_SIZE +
+	uint8_t                     key_data[M0_CAS_CTG_KV_HDR_SIZE +
 					    sizeof(struct m0_fid)];
 	struct m0_buf               key;
 	int                         rc;
-	struct m0_btree_op          kv_op = {};
+	struct m0_btree_op          kv_op   = {};
 	void                       *k_ptr;
 	void                       *v_ptr;
 	m0_bcount_t                 ksize;
 	m0_bcount_t                 vsize;
-	struct m0_btree_rec         rec = {
-
-	};
+	struct m0_btree_rec         rec     = {};
 	struct ctg_meta_put_cb_data cb_data = {
 		.d_key = &rec.r_key,
 		.d_ctg = ctg,
 	};
-	struct m0_btree_cb         put_cb = {
+	struct m0_btree_cb          put_cb  = {
 		.c_act   = ctg_meta_put_cb,
 		.c_datum = &cb_data,
 	};
@@ -488,8 +486,8 @@ M0_INTERNAL int m0_ctg__meta_insert(struct m0_btree     *meta,
 	ksize = key.b_nob;
 	vsize = M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg);
 
-	rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-	rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+	rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
+	rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_put(meta, &rec, &put_cb,
 							   &kv_op, tx));
@@ -564,8 +562,7 @@ static void ctg_store_init_creds_calc(struct m0_be_seg       *seg,
 				      struct m0_cas_ctg      *ctidx,
 				      struct m0_be_tx_credit *cred)
 {
-	struct m0_btree_type    bt;
-	bt = (struct m0_btree_type){
+	struct m0_btree_type    bt = {
 		.tt_id = M0_BT_CAS_CTG,
 		.ksize = -1,
 		.vsize = -1,
@@ -1049,9 +1046,9 @@ static int ctg_op_tick_ret(struct m0_ctg_op *ctg_op,
 }
 
 struct ctg_op_cb_data {
-	struct m0_ctg_op    *cb_ctg_op;
-	struct m0_btree_rec *cb_rec;
-	struct m0_cas_ctg   *cb_cas_ctg;
+	struct m0_ctg_op    *d_ctg_op;
+	struct m0_btree_rec *d_rec;
+	struct m0_cas_ctg   *d_cas_ctg;
 };
 
 /**
@@ -1061,25 +1058,21 @@ struct ctg_op_cb_data {
 static int ctg_op_cb_btree(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
 	struct ctg_op_cb_data  *datum    = cb->c_datum;
-	struct m0_ctg_op       *ctg_op   = datum->cb_ctg_op;
+	struct m0_ctg_op       *ctg_op   = datum->d_ctg_op;
 	struct m0_be_tx        *tx       = &ctg_op->co_fom->fo_tx.tx_betx;
 	struct m0_chan         *ctg_chan = &ctg_op->co_ctg->cc_chan.bch_chan;
 	int                     opc      = ctg_op->co_opcode;
 	int                     ct       = ctg_op->co_ct;
 	int                     rc;
+
 	M0_PRE(M0_IN(opc,(CO_GET, CO_PUT, CO_MIN)));
 	if (opc == CO_PUT) {
-		struct m0_bufvec_cursor    scur;
-		struct m0_bufvec_cursor    dcur;
-		m0_bcount_t                ksize;
+		m0_bcount_t    ksize;
 
-		ksize = m0_vec_count(&datum->cb_rec->r_key.k_data.ov_vec);
+		ksize = m0_vec_count(&datum->d_rec->r_key.k_data.ov_vec);
 		M0_ASSERT(m0_vec_count(&rec->r_key.k_data.ov_vec) == ksize);
-		m0_bufvec_cursor_init(&scur, &datum->cb_rec->r_key.k_data);
-		m0_bufvec_cursor_init(&dcur, &rec->r_key.k_data);
-		rec->r_key.k_data.ov_vec.v_count[0] =
-		m0_vec_count(&datum->cb_rec->r_key.k_data.ov_vec);
-		m0_bufvec_cursor_copy(&dcur, &scur, ksize);
+		m0_bufvec_copy(&rec->r_key.k_data, &datum->d_rec->r_key.k_data,
+			       ksize);
 	}
 
 	switch (CTG_OP_COMBINE(opc, ct)) {
@@ -1090,13 +1083,14 @@ static int ctg_op_cb_btree(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 			.b_addr = rec->r_val.ov_buf[0],
 		};
 		rc = ctg_buf(&val, &ctg_op->co_out_val);
-		if (rc == 0 && ct == CT_META &&
-			ctg_op->co_out_val.b_nob !=
-			sizeof(struct m0_cas_ctg *))
-			rc = M0_ERR(-EFAULT);
 		if (rc == 0 && ct == CT_META) {
-			m0_ctg_try_init(*(struct m0_cas_ctg **)
-					ctg_op->co_out_val.b_addr);
+			if (ctg_op->co_out_val.b_nob !=
+			    sizeof(struct m0_cas_ctg *)) {
+				rc = M0_ERR(-EFAULT);
+			} else {
+				m0_ctg_try_init(*(struct m0_cas_ctg **)
+						ctg_op->co_out_val.b_addr);
+			}
 		}
 		M0_ASSERT(rc == 0);
 		break;
@@ -1106,7 +1100,7 @@ static int ctg_op_cb_btree(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 		ctg_memcpy(rec->r_val.ov_buf[0], ctg_op->co_val.b_addr,
-				   ctg_op->co_val.b_nob);
+			   ctg_op->co_val.b_nob);
 		if (ctg_is_ordinary(ctg_op->co_ctg))
 			m0_ctg_state_inc_update(tx,
 				ctg_op->co_key.b_nob -
@@ -1114,16 +1108,18 @@ static int ctg_op_cb_btree(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 				ctg_op->co_val.b_nob);
 		m0_chan_broadcast_lock(ctg_chan);
 		break;
-	case CTG_OP_COMBINE(CO_PUT, CT_META):
+	case CTG_OP_COMBINE(CO_PUT, CT_META): {
 		/*
 		* After successful insert inplace fill value of meta by length &
 		* pointer to cas_ctg. m0_ctg_create() creates cas_ctg,
 		* including memory alloc.
 		*/
 		*(uint64_t *)(rec->r_val.ov_buf[0]) = sizeof(struct m0_cas_ctg *);
-		*(struct m0_cas_ctg**)(rec->r_val.ov_buf[0] + M0_CAS_CTG_KV_HDR_SIZE) = datum->cb_cas_ctg;
+		*(struct m0_cas_ctg**)(rec->r_val.ov_buf[0] +
+				M0_CAS_CTG_KV_HDR_SIZE) = datum->cb_cas_ctg;
 		m0_chan_broadcast_lock(ctg_chan);
 		break;
+	}
 	case CTG_OP_COMBINE(CO_MIN, CT_BTREE): {
 		struct m0_buf *out = &ctg_op->co_out_key;
 		m0_bcount_t ksize  = ctg_ksize(rec->r_key.k_data.ov_buf[0]);
@@ -1136,28 +1132,28 @@ static int ctg_op_cb_btree(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 
 static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 {
-	struct m0_buf             *key    = &ctg_op->co_key;
-	struct m0_btree           *btree  = ctg_op->co_ctg->cc_tree;
-	struct m0_btree_cursor    *cur    = &ctg_op->co_cur;
-	struct m0_be_tx           *tx     = &ctg_op->co_fom->fo_tx.tx_betx;
-	struct m0_be_op           *beop   = ctg_beop(ctg_op);
-	int                        opc    = ctg_op->co_opcode;
-	int                        ct     = ctg_op->co_ct;
-	struct m0_btree_op         kv_op  = {};
+	struct m0_buf             *key     = &ctg_op->co_key;
+	struct m0_btree           *btree   = ctg_op->co_ctg->cc_tree;
+	struct m0_btree_cursor    *cur     = &ctg_op->co_cur;
+	struct m0_be_tx           *tx      = &ctg_op->co_fom->fo_tx.tx_betx;
+	struct m0_be_op           *beop    = ctg_beop(ctg_op);
+	int                        opc     = ctg_op->co_opcode;
+	int                        ct      = ctg_op->co_ct;
+	struct m0_btree_op         kv_op   = {};
+	struct m0_btree_rec        rec     = {};
+	struct ctg_op_cb_data      cb_data = {};
+	struct m0_btree_cb         cb = {};
+	int                        rc      = 0;
 	void                      *k_ptr;
 	void                      *v_ptr;
 	m0_bcount_t                ksize;
 	m0_bcount_t                vsize;
-	int                        rc     = 0;
-	struct m0_btree_rec        rec    = {};
-	struct ctg_op_cb_data     cb_data = {
-		.cb_ctg_op = ctg_op,
-		.cb_rec    = &rec,
-	};
-	struct m0_btree_cb         cb = {
-		.c_act   = ctg_op_cb_btree,
-		.c_datum = &cb_data,
-	};
+
+	cb_data.d_ctg_op = ctg_op;
+	cb_data.d_rec    = &rec;
+
+	cb.c_act    = ctg_op_cb_btree;
+	cb.c_datum  = &cb_data;
 
 	k_ptr = key->b_addr;
 	ksize = key->b_nob;
@@ -1195,17 +1191,17 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 				    *Meta key have a fid of index/ctg store.
 				    * It is located after KV header.
 				    */
-				key->b_addr + M0_CAS_CTG_KV_HDR_SIZE);
+				   key->b_addr + M0_CAS_CTG_KV_HDR_SIZE);
 		M0_ASSERT(rc == 0);
 
 		vsize = M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_cas_ctg *);
-		rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
-		rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
-		cb_data.cb_cas_ctg = cas_ctg;
+		rec.r_key.k_data  = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
+		rec.r_val         = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+		cb_data.d_cas_ctg = cas_ctg;
 
-		rc    = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						 m0_btree_put(btree, &rec, &cb,
-							      &kv_op, tx));
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_put(btree, &rec, &cb,
+							   &kv_op, tx));
 		if (rc)
 			ctg_destroy(cas_ctg, tx);
 		m0_be_op_done(beop);
@@ -1223,9 +1219,9 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
 
-		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_put(btree, &rec,
-								   &cb, &kv_op,
-								   tx));
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_put(btree, &rec, &cb,
+							   &kv_op, tx));
 		m0_be_op_done(beop);
 		break;
 	case CTG_OP_COMBINE(CO_GET, CT_BTREE):
@@ -1250,7 +1246,7 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		m0_be_op_active(beop);
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_truncate(btree,
-					      			ctg_op->co_cnt,
+								ctg_op->co_cnt,
 								tx, &kv_op));
 		m0_be_op_done(beop);
 		break;
@@ -1258,7 +1254,7 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		m0_be_op_active(beop);
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_destroy(btree,
-					      		       &kv_op, tx));
+							       &kv_op, tx));
 		ctg_op->co_ctg->cc_destroy = true;
 		m0_be_op_done(beop);
 		break;
@@ -1284,7 +1280,7 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 
 		if (ctg_op->co_cur_phase == CPH_GET)
 			rc = m0_btree_cursor_get(cur, &rec.r_key,
-				       !!(ctg_op->co_flags & COF_SLANT));
+					!!(ctg_op->co_flags & COF_SLANT));
 		else
 			rc = m0_btree_cursor_next(cur);
 		m0_be_op_done(beop);
@@ -1876,7 +1872,7 @@ static int ctg_ctidx_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 			*layout = (struct m0_dix_layout *)buf.b_addr;
 		else
 			rc = M0_ERR_INFO(-EPROTO, "Unexpected: %"PRIx64,
-						buf.b_nob);
+					 buf.b_nob);
 	}
 	return rc;
 }
@@ -1889,13 +1885,11 @@ M0_INTERNAL int m0_ctg_ctidx_lookup_sync(const struct m0_fid  *fid,
 	struct m0_buf        key;
 	struct m0_cas_ctg   *ctidx     = m0_ctg_ctidx();
 	struct m0_btree_op   kv_op     = {};
+	struct m0_btree_rec  rec       = {};
 	void                *k_ptr;
-	void                *v_ptr;
 	m0_bcount_t          ksize;
-	m0_bcount_t          vsize;
 	int                  rc;
-	struct m0_btree_rec  rec = {};
-	struct m0_btree_cb   get_cb = {
+	struct m0_btree_cb   get_cb    = {
 		.c_act   = ctg_ctidx_get_cb,
 		.c_datum = layout,
 		};
@@ -1913,8 +1907,7 @@ M0_INTERNAL int m0_ctg_ctidx_lookup_sync(const struct m0_fid  *fid,
 	k_ptr = key.b_addr;
 	ksize = key.b_nob;
 
-	rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-	rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+	rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 				      m0_btree_get(ctidx->cc_tree, &rec.r_key,
@@ -1924,33 +1917,27 @@ M0_INTERNAL int m0_ctg_ctidx_lookup_sync(const struct m0_fid  *fid,
 }
 
 struct ctg_ctidx_put_cb_data {
-	struct m0_cas_ctg      *cb_ctidx;
-	const struct m0_cas_id *cb_cid;
-	struct m0_be_tx        *cb_tx;
-	struct m0_btree_key    *cb_key;
+	struct m0_cas_ctg      *d_ctidx;
+	const struct m0_cas_id *d_cid;
+	struct m0_be_tx        *d_tx;
+	struct m0_btree_key    *d_key;
 };
 
 static int ctg_ctidx_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
-	struct m0_bufvec_cursor        scur;
-	struct m0_bufvec_cursor        dcur;
 	m0_bcount_t                    ksize;
 	struct ctg_ctidx_put_cb_data  *datum = cb->c_datum;
-	struct m0_cas_ctg             *ctidx = datum->cb_ctidx;
-	const struct m0_cas_id        *cid   = datum->cb_cid;
-	struct m0_be_tx               *tx    = datum->cb_tx;
+	struct m0_cas_ctg             *ctidx = datum->d_ctidx;
+	const struct m0_cas_id        *cid   = datum->d_cid;
+	struct m0_be_tx               *tx    = datum->d_tx;
 	struct m0_dix_layout          *layout;
 	struct m0_ext                 *im_range;
 	const struct m0_dix_imask     *imask;
 	m0_bcount_t                    size;
 
-	ksize = m0_vec_count(&datum->cb_key->k_data.ov_vec);
+	ksize = m0_vec_count(&datum->d_key->k_data.ov_vec);
 	M0_ASSERT(m0_vec_count(&rec->r_key.k_data.ov_vec) == ksize);
-	m0_bufvec_cursor_init(&scur, &datum->cb_key->k_data);
-	m0_bufvec_cursor_init(&dcur, &rec->r_key.k_data);
-	rec->r_key.k_data.ov_vec.v_count[0] =
-	m0_vec_count(&datum->cb_key->k_data.ov_vec);
-	m0_bufvec_cursor_copy(&dcur, &scur, ksize);
+	m0_bufvec_copy(&rec->r_key.k_data, &datum->d_key->k_data, ksize);
 
 	ctg_memcpy(rec->r_val.ov_buf[0], &cid->ci_layout,
 	 	   sizeof(cid->ci_layout));
@@ -1982,36 +1969,38 @@ static int ctg_ctidx_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 					 struct m0_be_tx        *tx)
 {
-	struct m0_btree_op   kv_op        = {};
-	uint8_t                    key_data[M0_CAS_CTG_KV_HDR_SIZE +
-					    sizeof(struct m0_fid)];
-	struct m0_cas_ctg         *ctidx  = m0_ctg_ctidx();
-	struct m0_buf              key;
-	int                        rc;
-	void                *k_ptr;
-	void                *v_ptr;
-	m0_bcount_t          ksize;
-	m0_bcount_t          vsize = M0_CAS_CTG_KV_HDR_SIZE +
-				     sizeof(struct m0_dix_layout);;
-	struct m0_btree_rec  rec     = {};
-	struct ctg_ctidx_put_cb_data cb_data = {
-		.cb_ctidx = ctidx,
-		.cb_cid = cid,
-		.cb_tx  = tx,
 
-	};
+	uint8_t                      key_data[M0_CAS_CTG_KV_HDR_SIZE +
+					      sizeof(struct m0_fid)];
+	struct m0_cas_ctg           *ctidx  = m0_ctg_ctidx();
+	struct m0_buf                key;
+	struct m0_btree_op           kv_op  = {};
+	struct m0_btree_rec          rec    = {};
+	void                        *k_ptr;
+	void                        *v_ptr;
+	m0_bcount_t                  ksize;
+	m0_bcount_t                  vsize;
+	int                          rc;
+	struct ctg_ctidx_put_cb_data cb_data = {
+		.d_ctidx = ctidx,
+		.d_cid = cid,
+		.d_tx  = tx,
+		};
 	struct m0_btree_cb   put_cb = {
 		.c_act   = ctg_ctidx_put_cb,
 		.c_datum = &cb_data,
 		};
+
 	/* The key is a component catalogue FID. */
 	ctg_fid_key_fill((void *)&key_data, &cid->ci_fid);
-	key = M0_BUF_INIT_PTR(&key_data);
+	key   = M0_BUF_INIT_PTR(&key_data);
 	k_ptr = key.b_addr;
 	ksize = key.b_nob;
+	vsize = M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_dix_layout);
 
-	rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-	rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+	rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
+	rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 				      m0_btree_put(ctidx->cc_tree, &rec,
 						   &put_cb, &kv_op, tx));
@@ -2022,18 +2011,16 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
 					 struct m0_be_tx        *tx)
 {
-	struct m0_btree_op   kv_op        = {};
-	void                *k_ptr;
-	m0_bcount_t          ksize;
-	struct m0_btree_key  r_key = {
-				.k_data  = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-			};
 	struct m0_dix_layout *layout;
 	struct m0_dix_imask  *imask;
 	uint8_t               key_data[M0_CAS_CTG_KV_HDR_SIZE +
 		                       sizeof(struct m0_fid)];
 	struct m0_cas_ctg    *ctidx  = m0_ctg_ctidx();
 	struct m0_buf         key;
+	struct m0_btree_op    kv_op  = {};
+	struct m0_btree_key   r_key  = {};
+	void                 *k_ptr;
+	m0_bcount_t           ksize;
 	int                   rc;
 
 	/* Firstly we should free buffer allocated for imask ranges array. */
@@ -2054,6 +2041,8 @@ M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
 	key = M0_BUF_INIT_PTR(&key_data);
 	k_ptr = key.b_addr;
 	ksize = key.b_nob;
+	r_key.k_data  = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
+
 	/** @todo Make it asynchronous. */
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_del(ctidx->cc_tree,
 							   &r_key, NULL,
