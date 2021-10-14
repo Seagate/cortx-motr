@@ -29,17 +29,11 @@
 readonly PROG_NAME=$(basename $0)
 readonly self=$(readlink -f $0)
 readonly base_dir=$(dirname $self)
-readonly singlenonde_services='
-    motr-kernel
-    motr-server-ha
-    motr-server-confd
-    motr-server@mds
-    motr-server@ios1
-    motr-server@cas1
-    motr
-    motr-client
-    motr-singlenode
-'
+M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=${M0_SRC_DIR%/*/*}
+
+. $M0_SRC_DIR/utils/functions # m0_default_xprt
+XPRT=$(m0_default_xprt)
 
 # variables
 verbose=false
@@ -186,13 +180,38 @@ start_singlenode()
     # workaround is to re-load lnet modules, which is done by 'restart'.
     # If lnet module is already loaded, there is no need to reload it,
     # just make sure the lnet.service is started.
-    lsmod | grep -q lnet && systemctl start lnet || {
-        log 'Starting LNet'; systemctl restart lnet; }
-
+    if [ "$XPRT" = "lnet" ]; then
+        lsmod | grep -q lnet && systemctl start lnet || {
+            log 'Starting LNet'; systemctl restart lnet; }
+    fi
     log 'Starting motr-singlenode services'
     systemctl start motr-singlenode &
 
     local status_col=45
+
+
+    if [ "$XPRT" = "lnet" ]
+    then
+        local singlenonde_services='
+            motr-kernel
+            motr-server-ha
+            motr-server-confd
+            motr-server@mds
+            motr-server@ios1
+            motr-server@cas1
+            motr
+            motr-client
+            motr-singlenode'
+    else
+        local singlenonde_services='
+            motr-server-ha
+            motr-server-confd
+            motr-server@mds
+            motr-server@ios1
+            motr-server@cas1
+            motr
+            motr-singlenode'
+    fi
 
     for s in $singlenonde_services ; do
         logn "  waiting for $s  "
@@ -234,8 +253,31 @@ stop_singlenode()
 
     local status_col=57
 
-    for s in motr-singlenode motr-client motr-server@cas1 motr-server@ios1 \
-        motr-server@mds motr-server-confd motr-server-ha motr motr-kernel
+    if [ "$XPRT" = "lnet" ]
+    then
+        local singlenonde_services_list='
+            motr-singlenode
+            motr-client
+            motr-server@cas1
+            motr-server@ios1
+            motr-server@mds
+            motr-server-confd
+            motr-server-ha
+            motr
+            motr-kernel'
+    else
+        local singlenonde_services_list='
+            motr-singlenode
+            motr-server@cas1
+            motr-server@ios1
+            motr-server@mds
+            motr-server-confd
+            motr-server-ha
+            motr'
+    fi
+
+
+    for s in singlenonde_services_list
     do
         logn "  waiting for $s  "
 
@@ -302,33 +344,41 @@ singlenode_status()
     esac
     echo " Autostart:              $color$autostart$NC"
 
-    local lnet=$(get_param_of lnet ActiveState)
-    local lnet_nid=
-    case $lnet in
-        active)   color=$GREEN
-                  lnet_nid=$(lctl list_nids)
-                  atime=$(get_param_of lnet ActiveEnterTimestamp)
-                  ;;
-        failed)   color=$RED ; atime=$(get_param_of lnet InactiveEnterTimestamp) ;;
-        inactive) color=$NC  ; atime= ;;
-        *)        color=$NC  ; atime= ;;
-    esac
-    echo " LNet:                   $color$lnet$NC    $atime"
-    echo ' LNet Network ID:       ' $lnet_nid
+    if [ "$XPRT" = "lnet" ]
+    then
+        local lnet=$(get_param_of lnet ActiveState)
+        local lnet_nid=
+        case $lnet in
+            active)   color=$GREEN
+                      lnet_nid=$(lctl list_nids)
+                      atime=$(get_param_of lnet ActiveEnterTimestamp)
+                      ;;
+            failed)   color=$RED ; atime=$(get_param_of lnet InactiveEnterTimestamp) ;;
+            inactive) color=$NC  ; atime= ;;
+            *)        color=$NC  ; atime= ;;
+        esac
+        echo " LNet:                   $color$lnet$NC    $atime"
+        echo ' LNet Network ID:       ' $lnet_nid
 
-    echo
-    echo '### Kernel --------------------------------------'
+        echo
+        echo '### Kernel --------------------------------------'
 
-    local kernel=$(get_param_of motr-kernel ActiveState)
-    case $kernel in
-        active)   color=$GREEN ; atime=$(get_param_of motr-kernel ActiveEnterTimestamp)  ;;
-        failed)   color=$RED   ; atime=$(get_param_of motr-kernel InactiveEnterTimestamp) ;;
-        inactive) color=$NC    ; atime= ;;
-        *)        color=$NC    ; atime= ;;
-    esac
-    echo " motr-kernel             $color$kernel$NC    $atime"
-    lsmod | grep m0 | awk '{ print "   " $LN }'
+        local kernel=$(get_param_of motr-kernel ActiveState)
+        case $kernel in
+            active)   color=$GREEN ; atime=$(get_param_of motr-kernel ActiveEnterTimestamp)  ;;
+            failed)   color=$RED   ; atime=$(get_param_of motr-kernel InactiveEnterTimestamp) ;;
+            inactive) color=$NC    ; atime= ;;
+            *)        color=$NC    ; atime= ;;
+        esac
+        echo " motr-kernel             $color$kernel$NC    $atime"
+        lsmod | grep m0 | awk '{ print "   " $LN }'
+    else
+         case $lnet in
+         esac
 
+         case $kernel in
+         esac
+    fi
     echo
     echo '### Servers -------------------------------------'
 

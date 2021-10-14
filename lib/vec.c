@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1297,6 +1297,34 @@ m0_ivec_varr_cursor_conti(const struct m0_ivec_varr_cursor *cur,
 	return min64u(max_seg_end, dest);
 }
 M0_EXPORTED(m0_ivec_varr_cursor_conti);
+
+M0_INTERNAL int m0_bufvec_to_buf_copy(struct m0_buf *buf,
+				      const struct m0_bufvec *bvec)
+{
+	struct m0_bufvec_cursor cursor;
+
+	M0_PRE(buf  != NULL);
+	M0_PRE(bvec != NULL);
+
+	m0_bufvec_cursor_init(&cursor, bvec);
+
+	return M0_RC(m0_bufvec_to_data_copy(&cursor, buf->b_addr,
+					    (size_t)buf->b_nob));
+}
+
+M0_INTERNAL int m0_buf_to_bufvec_copy(struct m0_bufvec *bvec,
+				      const struct m0_buf *buf)
+{
+	struct m0_bufvec_cursor cursor;
+
+	M0_PRE(bvec != NULL);
+	M0_PRE(buf  != NULL);
+
+	m0_bufvec_cursor_init(&cursor, bvec);
+
+	return M0_RC(m0_data_to_bufvec_copy(&cursor, buf->b_addr,
+					    (size_t)buf->b_nob));
+}
 
 #undef M0_TRACE_SUBSYSTEM
 

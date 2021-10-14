@@ -135,6 +135,11 @@ M0_INTERNAL int m0_arch_pagesize_get(void)
 	return PAGE_SIZE;
 }
 
+M0_INTERNAL int m0_arch_pageshift_get(void)
+{
+	return PAGE_SHIFT;
+}
+
 /** @} end of memory group */
 
 /*

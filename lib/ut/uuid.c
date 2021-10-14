@@ -28,6 +28,7 @@
 static char *nil_uuid = "00000000-0000-0000-0000-000000000000"; /* nil UUID */
 static char *uuid1    = "abcdef01-2345-6789-abcd-ef0123456789"; /* lc */
 static char *uuid2    = "98765432-10AB-CDEF-FEDC-BA0123456789"; /* uc */
+static char *uuid3    = "9876543210ABCDEFFEDCBA0123456789"; /* uc */
 static char *bad1     = "bad1";
 static char *bad_uuids_len_ok[] = { /* len ok in all cases */
 	"abcdef0101-2345-6789-abcd-0123456789", /* field lengths wrong */
@@ -94,6 +95,12 @@ void m0_test_lib_uuid(void)
 	M0_UT_ASSERT(u.u_hi == 0x9876543210abcdef);
 	M0_UT_ASSERT(u.u_lo == 0xfedcba0123456789);
 	M0_UT_ASSERT(test_identity_op(uuid2));
+
+	rc = m0_uuid_parse(uuid3, &u);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(u.u_hi == 0x9876543210abcdef);
+	M0_UT_ASSERT(u.u_lo == 0xfedcba0123456789);
+	M0_UT_ASSERT(test_identity_op(uuid3));
 
 	rc = m0_uuid_parse(bad1, &u);
 	M0_UT_ASSERT(rc == -EINVAL);

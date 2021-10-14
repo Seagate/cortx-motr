@@ -124,6 +124,34 @@ AS_CASE([$host_os],
 )
 
 #
+# Checking for Platform support -------------------------------------------{{{1
+#
+
+ARCH=
+AC_CANONICAL_HOST
+AS_CASE([$host_cpu],
+        [aarch64], [ARCH=aarch64],
+        [x86_64], [ARCH=x86_64],
+        [AC_MSG_ERROR("Only X86_64 and aarch64 platforms are supported")]
+)
+
+# Check for X86_64 platform -------------{{{2
+AS_IF([test x$ARCH = xx86_64],
+      [
+        AC_DEFINE([CONFIG_X86_64])
+      ]
+)
+
+# Check for AARCH64 platform ------------{{{2
+AS_IF([test x$ARCH = xaarch64],
+      [
+        AC_DEFINE([CONFIG_AARCH64])
+      ]
+)
+
+AC_SUBST([ARCH])
+
+#
 # Configuration options --------------------------------------------------- {{{1
 #
 
@@ -136,6 +164,7 @@ AC_ARG_VAR([CXXXML],  [gccxml/castxml command])
 AH_TEMPLATE([MOTR_IDX_STORE_CASS],    [Use Cassandra as KVS backend.])
 AH_TEMPLATE([IDX_CASS_DRV_V22],       [Cassandra driver version >= 2.2.])
 AH_TEMPLATE([ENABLE_LUSTRE],          [Enable LNet network stack from Lustre.])
+AH_TEMPLATE([ENABLE_LIBFAB],          [Enable Libfabric network stack.])
 AH_TEMPLATE([ENABLE_GCCXML],          [Use deprecated GCC-XML instead of CastXML])
 AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
@@ -172,6 +201,9 @@ AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
 AH_TEMPLATE([HAVE_ISAL],              [Have Intel ISA-L available])
+AH_TEMPLATE([CONFIG_X86_64],          [Support for X86_64 platform])
+AH_TEMPLATE([CONFIG_AARCH64],         [Support for AARCH64 platform])
+
 
 # enable/disable options ------------------------------ {{{2
 
@@ -701,24 +733,6 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h malloc.h memory.h netdb.h \
 
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 AC_CHECK_HEADERS([openssl/md5.h], [], [AC_MSG_ERROR([md5.h cannot be found!])])
-AC_CHECK_HEADERS([isa-l.h],   [
-				# check for isa library
-				MOTR_SEARCH_LIBS([ec_encode_data], [c isal], [ISAL_LIBS],
-						[ec_encode_data cannot be found! \
-						 Try to install Intel ISA library package.]
-				)
-				AC_SUBST([ISAL_LIBS])
-
-				# define MACROs
-				AC_DEFINE([HAVE_ISAL])
-				AM_CONDITIONAL([HAVE_ISAL], [true])
-				AC_MSG_NOTICE([INTEL ISA-L Headers Available])
-			      ],
-			      [
-				AM_CONDITIONAL([HAVE_ISAL], [false])
-				AC_MSG_NOTICE([No INTEL ISA-L Headers])
-			      ]
-		)
 
 
 
@@ -848,6 +862,101 @@ AS_IF([test x$with_lustre != xno],[
        MOTR_LINUX_WRITE_BEGIN_END
        MOTR_LINUX_SENDFILE
 ])
+
+#
+# Checking Intel ISA library --------------------------------------------------------- {{{1
+#
+AC_ARG_ENABLE([isal],
+        [AS_HELP_STRING([--disable-isal],
+                        [Disable use Intel ISA. Instead use Galois library.])],
+        [],[enable_isal=yes]
+)
+
+AM_CONDITIONAL([HAVE_ISAL],
+               [test "x$enable_isal" = xyes])
+
+
+AS_IF([test x$enable_isal = xyes],
+      [
+              AC_CHECK_HEADERS([isa-l.h],
+              [
+                      # check for isa library
+                      MOTR_SEARCH_LIBS(
+                              [ec_encode_data], [c isal], [ISAL_LIBS],
+                              [ec_encode_data cannot be found! \
+                               Try to install Intel ISA library package.]
+                      )
+                      AC_SUBST([ISAL_LIBS])
+
+                      # define MACROs
+                      AC_DEFINE([HAVE_ISAL])
+                      # AM_CONDITIONAL([HAVE_ISAL], [true])
+                      AC_MSG_NOTICE([INTEL ISA-L Headers Available])
+              ],
+              [
+                      AM_CONDITIONAL([HAVE_ISAL], [false])
+                      AC_MSG_NOTICE([No INTEL ISA-L Headers])
+              ])
+      ]
+)
+
+#
+# Checking libfabric library----------------------------------------------- {{{1
+#
+
+AC_ARG_ENABLE([libfab],
+        [AS_HELP_STRING([--enable-libfab],
+                        [Use libfabric transport])],
+        [],[enable_libfab=no]
+)
+
+AC_ARG_WITH([libfab],
+        [AS_HELP_STRING([--with-libfab=path],
+                        [set path to user installed libfabric headers and library])],
+        [LIBFABRIC=$with_libfab],
+        [LIBFABRIC=""]
+)
+
+AS_IF([! test -z "$with_libfab"],
+      [
+        LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
+        LIBFAB_LIBS="-L$LIBFABRIC/lib -lfabric"
+        M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS $LIB_FAB_INCLUDES"
+      ],
+)
+AS_IF([test x$enable_libfab = xyes || test "x$with_default_network" = "xLF" ],
+      [
+	MOTR_SEARCH_LIBS([fi_fabric], [fabric], [LIBFAB_LIBS],
+                  [fi_fabric cannot be found! Try to install libfabric package]
+          )
+	AC_CHECK_HEADERS([rdma/fabric.h], [],
+		AC_MSG_ERROR([rdma/fabric.h is not found. Try to install libfabric package])
+          )
+        M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
+      ]
+)
+AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
+      [
+	AC_CHECK_HEADERS([rdma/fabric.h],
+	      [
+		# Check for libfabric library
+		MOTR_SEARCH_LIBS([fi_fabric], [fabric], [LIBFAB_LIBS],
+			  [fi_fabric cannot be found! Try to install libfabric package.]
+		)
+		AS_IF([! test -z LIBFAB_LIBS],
+		      [
+			M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
+			enable_libfab=yes
+			AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["LF"])
+		      ]
+		)
+	      ], []
+	)
+      ]
+)
+AC_SUBST([LIBFAB_LIBS])
+AM_CONDITIONAL([ENABLE_LIBFAB],
+               [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
 
 #
 # Checking Lustre --------------------------------------------------------- {{{1
@@ -995,7 +1104,7 @@ M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
 
 # contains only -D and -I/usr* entries from M0_CPPFLAGS, this is intended for
 # pkg-config database provided within Motr rpm distribution
-M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+' | xargs echo)
+M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+|-inc\S+' | xargs echo)
 
 # -Wno-attributes is required to suppress warnings about unrecognized
 # __attribute__, such as __attribute__((gccxml(...))). It's important because we
@@ -1093,6 +1202,8 @@ echo "Motr version :  $PACKAGE_VERSION"
 echo ""
 echo "CONFIGURE_OPTS:  $BUILD_CONFIGURE_OPTS"
 echo ""
+echo "Net XPT        : $BUILD_NET_XPT"
+echo ""
 echo "M0_CPPFLAGS    :  \"$M0_CPPFLAGS\""
 echo "M0_CFLAGS      :  \"$M0_CFLAGS\""
 echo "M0_KCPPFLAGS   :  \"$M0_KCPPFLAGS\""
@@ -1100,6 +1211,7 @@ echo "M0_KCFLAGS     :  \"$M0_KCFLAGS\""
 echo "M0_LDFLAGS     :  \"$M0_LDFLAGS\""
 echo ""
 echo "MATH_LIBS      :  \"$MATH_LIBS\""
+echo "LIBFAB_LIBS    :  \"$LIBFAB_LIBS\""
 echo "PTHREAD_LIBS   :  \"$PTHREAD_LIBS\""
 echo "AIO_LIBS       :  \"$AIO_LIBS\""
 echo "RT_LIBS        :  \"$RT_LIBS\""
@@ -1107,7 +1219,9 @@ echo "PROFILER_LIBS  :  \"$PROFILER_LIBS\""
 echo "GALOIS_LIBS    :  \"$GALOIS_LIBS\""
 echo "YAML_LIBS      :  \"$YAML_LIBS\""
 echo "UUID_LIBS      :  \"$UUID_LIBS\""
+AS_IF([test x$enable_isal = xyes],[
 echo "ISAL_LIBS      :  \"$ISAL_LIBS\""
+])
 echo "OPENSSL_LIBS   :  \"$OPENSSL_LIBS\""
 echo ""
 echo "Gcc            :  \"$BUILD_GCC\""
