@@ -46,6 +46,7 @@
 #include "lib/types.h"
 #include "lib/trace.h"
 #include "module/instance.h"
+#include "be/btree.h"
 
 #include "motr/m0crate/logger.h"
 #include "motr/m0crate/workload.h"
@@ -1274,7 +1275,7 @@ static void cr_btree_warmup(struct cr_workload_btree *cwb)
 	{
 		struct m0_key_val dummy_kv;
 
-		cr_btree_key_make(ksize, cwb->cwb_bo[BOT_INSERT].key, pattern, 
+		cr_btree_key_make(ksize, cwb->cwb_bo[BOT_INSERT].key, pattern,
 		&cbk);
 		cr_get_random_string(v, vsize);
 		m0_buf_init(&dummy_kv.kv_key, &cbk, btree_key_size(&cbk));
