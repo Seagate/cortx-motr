@@ -323,25 +323,24 @@ def get_md_disks(self, node_info):
     return md_disks
 
 # Update metadata disk entries to motr-hare confstore
-def update_to_file(self, index, url, hostname, md_disks):
+def update_to_file(self, index, url, machine_id, md_disks):
     ncvgs = len(md_disks)
     for i in range(ncvgs):
         md = md_disks[i]
         len_md = len(md)
         for j in range(len_md):
             md_disk = md[j]
-            self.logger.info(f"setting key server>{hostname}>cvg[{i}]>m0d[{j}]>md_seg1"
+            self.logger.info(f"setting key server>{machine_id}>cvg[{i}]>m0d[{j}]>md_seg1"
                          f" with value {md_disk} in {url}")
-            Conf.set(index, f"server>{hostname}>cvg[{i}]>m0d[{j}]>md_seg1",f"{md_disk}")
+            Conf.set(index, f"server>{machine_id}>cvg[{i}]>m0d[{j}]>md_seg1",f"{md_disk}")
             Conf.save(index)
 
 def update_motr_hare_keys(self, nodes):
-    # k = machine_id. v = node_info
-    for v in nodes.values():
-        if v['type'] == 'storage_node':
-            md_disks = get_md_disks(self, v)
-            hostname = v['hostname']
-            update_to_file(self, self._index_motr_hare, self._url_motr_hare, hostname, md_disks)
+    # key = machine_id value = node_info
+    for machine_id, node_info in nodes.items():
+        if node_info['type'] == 'storage_node':
+            md_disks = get_md_disks(self, node_info)
+            update_to_file(self, self._index_motr_hare, self._url_motr_hare, machine_id, md_disks)
 
 def motr_config_k8(self):
     if not verify_libfabric(self):
