@@ -25,7 +25,6 @@
 #define __MOTR_BTREE_INTERNAL_H__
 
 #include "sm/op.h"
-
 /**
  * @defgroup btree
  *
