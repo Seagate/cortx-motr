@@ -237,7 +237,7 @@ M0_INTERNAL int m0_be_emap_dump(struct m0_be_emap *map)
 	return M0_ERR(rc);
 }
 
-static int delete_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
+static int be_emap_delete_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 			   struct m0_btree_op *op, const struct m0_buf *key,
 			   const struct m0_buf *val)
 {
@@ -254,7 +254,7 @@ static int delete_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 	return rc;
 }
 
-static int bt_insert_callback(struct m0_btree_cb  *cb,
+static int be_emap_insert_callback(struct m0_btree_cb  *cb,
 			      struct m0_btree_rec *rec)
 {
 	struct m0_btree_rec     *datum = cb->c_datum;
@@ -267,7 +267,7 @@ static int bt_insert_callback(struct m0_btree_cb  *cb,
 	return 0;
 }
 
-static int insert_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
+static int be_emap_insert_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 			  struct m0_btree_op *op, const struct m0_buf *key,
 			  const struct m0_buf *val)
 {
@@ -282,7 +282,7 @@ static int insert_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 		.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 		};
 	struct m0_btree_cb   put_cb = {
-		.c_act = bt_insert_callback,
+		.c_act = be_emap_insert_callback,
 		.c_datum = &rec,
 		};
 	rc = M0_BTREE_OP_SYNC_WITH_RC(
@@ -291,7 +291,7 @@ static int insert_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 	return rc;
 }
 
-static int bt_update_callback(struct m0_btree_cb  *cb,
+static int be_emap_update_callback(struct m0_btree_cb  *cb,
 			      struct m0_btree_rec *rec)
 {
 	struct m0_btree_rec     *datum = cb->c_datum;
@@ -302,7 +302,7 @@ static int bt_update_callback(struct m0_btree_cb  *cb,
 	return 0;
 }
 
-static int update_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
+static int be_emap_update_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 			  struct m0_btree_op *op, const struct m0_buf *key,
 			  const struct m0_buf *val)
 {
@@ -317,7 +317,7 @@ static int update_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 		.r_val        = M0_BUFVEC_INIT_BUF( &v_ptr, &vsize),
 		};
 	struct m0_btree_cb   update_cb = {
-		.c_act = bt_update_callback,
+		.c_act = be_emap_update_callback,
 		.c_datum = &rec,
 		};
  	rc = M0_BTREE_OP_SYNC_WITH_RC(
@@ -564,11 +564,11 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 	m0_be_op_active(&it->ec_op);
 
 	m0_rwlock_write_lock(emap_rwlock(it->ec_map));
-	rc = emap_it_pack(it, delete_wrapper, tx);
+	rc = emap_it_pack(it, be_emap_delete_wrapper, tx);
 
 	if (rc == 0 && delta < m0_ext_length(&it->ec_seg.ee_ext)) {
 		it->ec_seg.ee_ext.e_end -= delta;
-		rc = emap_it_pack(it, insert_wrapper, tx);
+		rc = emap_it_pack(it, be_emap_insert_wrapper, tx);
 		inserted = true;
 	}
 
@@ -900,7 +900,7 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap       *map,
 		 .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 		 };
 	put_cb = (struct m0_btree_cb) {
-		 .c_act   = bt_insert_callback,
+		 .c_act   = be_emap_insert_callback,
 		 .c_datum = &rec,
 		 };
 
@@ -941,7 +941,7 @@ M0_INTERNAL void m0_be_emap_obj_delete(struct m0_be_emap *map,
 	if (rc == 0) {
 		M0_ASSERT(m0_be_emap_ext_is_first(&it->ec_seg.ee_ext) &&
 			  m0_be_emap_ext_is_last(&it->ec_seg.ee_ext));
-		rc = emap_it_pack(it, delete_wrapper, tx);
+		rc = emap_it_pack(it, be_emap_delete_wrapper, tx);
 		be_emap_close(it);
 	}
 	m0_rwlock_write_unlock(emap_rwlock(map));
@@ -1395,7 +1395,7 @@ emap_extent_update(struct m0_be_emap_cursor *it,
 
 	it->ec_seg.ee_ext.e_start = es->ee_ext.e_start;
 	it->ec_seg.ee_val = es->ee_val;
-	return emap_it_pack(it, update_wrapper, tx);
+	return emap_it_pack(it, be_emap_update_wrapper, tx);
 }
 
 static int
@@ -1426,9 +1426,9 @@ be_emap_split(struct m0_be_emap_cursor *it,
 			 * inserting again - it is cheaper.
 			 * Note: the segment key in underlying btree
 			 *       is the end offset of its extent. */
-			rc = emap_it_pack(it, update_wrapper, tx);
+			rc = emap_it_pack(it, be_emap_update_wrapper, tx);
 		else
-			rc = emap_it_pack(it, insert_wrapper, tx);
+			rc = emap_it_pack(it, be_emap_insert_wrapper, tx);
 		if (rc != 0)
 			break;
 		scan += count;
@@ -1440,7 +1440,7 @@ be_emap_split(struct m0_be_emap_cursor *it,
 			it->ec_seg.ee_ext.e_end != seg_end)) {
 		m0_bindex_t last_end = it->ec_seg.ee_ext.e_end;
 		it->ec_seg.ee_ext.e_end = seg_end;
-		rc = emap_it_pack(it, delete_wrapper, tx);
+		rc = emap_it_pack(it, be_emap_delete_wrapper, tx);
 		it->ec_key.ek_offset = last_end;
 		m0_format_footer_update(&it->ec_key);
 	}
