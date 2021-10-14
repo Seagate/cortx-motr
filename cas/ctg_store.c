@@ -32,7 +32,7 @@
 #include "be/op.h"
 #include "module/instance.h"
 #include "fop/fom_long_lock.h"       /* m0_long_lock */
-
+#include "be/btree.h"
 #include "cas/ctg_store.h"
 #include "cas/index_gc.h"
 

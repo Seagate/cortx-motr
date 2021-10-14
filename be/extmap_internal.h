@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,9 +40,11 @@
 #include "lib/buf_xc.h"
 #include "lib/types.h"     /* m0_uint128 */
 #include "lib/types_xc.h"
-#include "be/btree.h"      /* m0_btree */
+#include "btree/btree.h"      /* m0_btree */
 #include "be/btree_xc.h"
 
+#include "format/format.h"      /* m0_format_header */
+#include "format/format_xc.h"
 enum m0_be_emap_key_format_version {
 	M0_BE_EMAP_KEY_FORMAT_VERSION_1 = 1,
 
@@ -111,7 +113,7 @@ struct m0_be_emap_rec {
 	/** unit_size */
 	m0_bindex_t		er_unit_size;
 
-	/* Note: Layout/format of emap-record (if checksum is present): 
+	/* Note: Layout/format of emap-record (if checksum is present):
 	 * - [Hdr| Balloc-Ext-Start| Balloc-Ext-Value| CS-nob| CS-Array[...]| Ftr]
 	 * Record gets stored as contigious buffer
 	 * ***** ChecksumArray[0...(er_cksum_nob -1)] *****
@@ -132,6 +134,16 @@ enum m0_be_emap_format_version {
 	M0_BE_EMAP_FORMAT_VERSION = M0_BE_EMAP_FORMAT_VERSION_1
 };
 
+// #define __AAL(x) __attribute__((aligned(x)))
+
+/** Root node alignment for balloc extend and group descriptor trees. */
+#define EMAP_ROOT_NODE_ALIGN 4096
+
+enum {
+	/** Root node size for balloc extend and group descriptor trees. */
+	EMAP_ROOT_NODE_SIZE = 4096,
+};
+
 /**
    m0_be_emap stores a collection of related extent maps. Individual maps
    within a collection are identified by a prefix.
@@ -141,11 +153,21 @@ enum m0_be_emap_format_version {
 struct m0_be_emap {
 	struct m0_format_header em_header;
 	struct m0_format_footer em_footer;
-	/*
-	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
-	 * before the m0_format_footer, where only persistent fields allowed
+	/**
+	 * The new BTree does not have a tree structure persistent on BE seg.
+	 * Instead we have the root node occupying the same location where the
+	 * old m0_be_btree used to be placed. To minimize the changes to the
+	 * code we have the pointers to m0_btree (new BTree) placed here and the
+	 * root nodes follow them aligned to a Block boundary.
 	 */
-	struct m0_be_btree      em_mapping;
+	struct m0_btree        *em_mapping;
+
+	/**
+	 *  Root node for the above tree follows here. These root nodes
+	 *  are aligned to Block boundary for performance reasons.
+	 */
+	uint8_t                 em_mp_node[EMAP_ROOT_NODE_SIZE]
+				__attribute__((aligned(EMAP_ROOT_NODE_ALIGN)));
 	/*
 	 * volatile-only fields
 	 */
