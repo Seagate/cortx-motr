@@ -109,15 +109,16 @@ void track_ad_btrees(struct stob_ad_0type_rec *rec, bool print_btree)
 	struct m0_balloc   *m0balloc;
 	struct m0_be_btree *db_ext;
 	struct m0_be_btree *db_gd;
+	struct m0_be_btree *emap;
 
 	m0balloc = container_of(rec->sa0_ad_domain->sad_ballroom,
 				struct m0_balloc, cb_ballroom);
 	db_ext = (struct m0_be_btree *)m0balloc->cb_db_group_extents;
 	db_gd  = (struct m0_be_btree *)m0balloc->cb_db_group_desc;
-
+	emap   = (struct m0_be_btree *)rec->sa0_ad_domain->sad_adata.em_mapping;
 	if (print_btree) {
 		M0_LOG(M0_ALWAYS, "em_mapping");
-		btree_dbg_print(&rec->sa0_ad_domain->sad_adata.em_mapping);
+		btree_dbg_print(emap);
 		M0_LOG(M0_ALWAYS, "grp_exts");
 		btree_dbg_print(db_ext);
 		M0_LOG(M0_ALWAYS, "grp_dsc");
