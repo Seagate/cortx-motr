@@ -2474,8 +2474,7 @@ static struct cache_slot *cache_insert(struct cache *c,
 	return slot;
 }
 
-static int get_callback(struct m0_btree_cb  *cb,
-			    struct m0_btree_rec *rec)
+static int ctg_get_callback(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
 	struct m0_btree_rec     *datum = cb->c_datum;
 
@@ -2491,7 +2490,6 @@ static int get_callback(struct m0_btree_cb  *cb,
  */
 static int ctg_pver_fid_get(struct m0_fid *fid)
 {
-	struct m0_btree_op   kv_op     = {};
 	struct m0_buf        key;
 	struct m0_buf        val;
 	uint8_t              kdata[M0_CAS_CTG_KV_HDR_SIZE +
@@ -2504,14 +2502,17 @@ static int ctg_pver_fid_get(struct m0_fid *fid)
 	void                *v_ptr;
 	m0_bcount_t          ksize;
 	m0_bcount_t          vsize;
-	struct m0_btree_rec  rec = {
+	struct m0_btree      *btree    = m0_ctg_ctidx()->cc_tree;
+	struct m0_btree_op   kv_op     = {};
+	struct m0_btree_rec  rec       = {
 		.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 		.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 		};
-	struct m0_btree_cb   get_cb = {
-		.c_act = get_callback,
+	struct m0_btree_cb   get_cb    = {
+		.c_act   = ctg_get_callback,
 		.c_datum = &rec,
 		};
+
 	*((uint64_t *)(kdata)) = sizeof(struct m0_fid);
 	key = M0_BUF_INIT(ARRAY_SIZE(kdata), kdata);
 	val = M0_BUF_INIT(ARRAY_SIZE(vdata), vdata);
@@ -2527,7 +2528,7 @@ static int ctg_pver_fid_get(struct m0_fid *fid)
 		vsize = val.b_nob;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					m0_btree_get(m0_ctg_ctidx()->cc_tree,
+					m0_btree_get(btree,
 						     &rec.r_key, &get_cb,
 						     BOF_EQUAL, &kv_op));
 		if (rc == 0)
@@ -2716,8 +2717,7 @@ static struct m0_cas_ctg *ctg_create_meta(struct ctg_action *ca,
 	return cas_ctg;
 }
 
-static int put_callback(struct m0_btree_cb  *cb,
-			struct m0_btree_rec *rec)
+static int ctg_put_callback(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
 	struct m0_btree_rec     *datum = cb->c_datum;
 
@@ -2734,17 +2734,18 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 	struct ctg_action    *ca = M0_AMB(ca, act, cta_act);
 	struct m0_cas_ctg    *cc;
 	int                   rc;
-	struct m0_btree_op    kv_op        = {};
+
 	void                 *k_ptr;
 	void                 *v_ptr;
 	m0_bcount_t           ksize;
 	m0_bcount_t           vsize;
-	struct m0_btree_rec   rec       = {
+	struct m0_btree_op    kv_op    = {};
+	struct m0_btree_rec   rec      = {
 		.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 		.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 		};
-	struct m0_btree_cb   put_cb = {
-		.c_act = put_callback,
+	struct m0_btree_cb    put_cb   = {
+		.c_act   = ctg_put_callback,
 		.c_datum = &rec,
 		};
 

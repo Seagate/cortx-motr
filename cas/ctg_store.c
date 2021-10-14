@@ -1116,7 +1116,7 @@ static int ctg_op_cb_btree(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 		*/
 		*(uint64_t *)(rec->r_val.ov_buf[0]) = sizeof(struct m0_cas_ctg *);
 		*(struct m0_cas_ctg**)(rec->r_val.ov_buf[0] +
-				M0_CAS_CTG_KV_HDR_SIZE) = datum->cb_cas_ctg;
+				M0_CAS_CTG_KV_HDR_SIZE) = datum->d_cas_ctg;
 		m0_chan_broadcast_lock(ctg_chan);
 		break;
 	}
@@ -1254,7 +1254,7 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		m0_be_op_active(beop);
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_destroy(btree,
-							       &kv_op, tx));
+								&kv_op, tx));
 		ctg_op->co_ctg->cc_destroy = true;
 		m0_be_op_done(beop);
 		break;
