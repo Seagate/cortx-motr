@@ -379,12 +379,15 @@ func (mio *Mio) getOptimalBlockSz(bufSz int) (bsz, gsz int) {
     // fewer network RPCs, disk i/o operations and BE transactions.
     // For unit sizes of 32K or less, the koefficient (k) is 128, which
     // makes it 32K * 128 == 4MB - the maximum amount per target when
-    // the performance is still good.
+    // the performance is still good on LNet (which has max 1MB frames).
+    // XXX: it may be different on libfabric, should be re-measured.
     k := C.uint(128 / ((usz + 0x7fff) / 0x8000))
     if k == 0 {
         k = 1
     }
-    maxBs := int(k * C.uint(usz) * pa.pa_P * pa.pa_N / (pa.pa_N + 2 * pa.pa_K))
+    // P * N / (N + K + S) - number of data units to span the pool-width
+    maxBs := int(k * C.uint(usz) * pa.pa_P * pa.pa_N /
+                                  (pa.pa_N + pa.pa_K + pa.pa_S))
     maxBs = ((maxBs - 1) / gsz + 1) * gsz // multiple of group size
 
     if bufSz >= maxBs {
