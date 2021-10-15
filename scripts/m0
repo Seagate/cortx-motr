@@ -234,8 +234,14 @@ cmd_run_st() {
                         chk=$(_libfab_st_list ${f##*/})
                         if [[ "$chk" == "true" ]]; then
                             echo "<< ${f##*/} >> Can not be run for libfab" >&1
-                            sleep 5
-                            echo "status: SUCCESS" >&1
+                            . "$M0_SRC_DIR/utils/functions" # sandbox_init, report_and_exit
+                            export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
+                            rc=0
+                            sandbox_init
+                            sandbox_fini $rc
+                            report_and_exit ${f##*/} $rc
+                            #sleep 5
+                            #echo "status: SUCCESS" >&1
                             continue
                         fi
                     fi
