@@ -201,7 +201,7 @@ cmd_run_kut() {
         rc=0
         sandbox_init
         sandbox_fini $rc
-        report_and_exit ${f##*/} $rc
+        report_and_exit m0kut $rc
     fi
 }
 
