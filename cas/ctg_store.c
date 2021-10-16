@@ -88,9 +88,9 @@ static struct m0_be_seg *cas_seg(struct m0_be_domain *dom);
 static int  ctg_buf          (const struct m0_buf *val, struct m0_buf *buf);
 static int  ctg_buf_get      (struct m0_buf *dst, const struct m0_buf *src);
 static void ctg_fid_key_fill (void *key, const struct m0_fid *fid);
-static void ctg_init         (struct m0_cas_ctg *ctg, struct m0_be_seg *seg,
-			      bool open_tree);
-static void ctg_fini         (struct m0_cas_ctg *ctg, bool close_tree);
+static void ctg_init         (struct m0_cas_ctg *ctg, struct m0_be_seg *seg);
+static void ctg_open         (struct m0_cas_ctg *ctg, struct m0_be_seg *seg);
+static void ctg_fini         (struct m0_cas_ctg *ctg);
 static void ctg_destroy      (struct m0_cas_ctg *ctg, struct m0_be_tx *tx);
 static int  ctg_meta_selfadd (struct m0_btree *meta, struct m0_be_tx *tx);
 static void ctg_meta_delete  (struct m0_btree  *meta,
@@ -213,12 +213,7 @@ static m0_bcount_t ctg_ksize(const void *key)
 	/* Size is stored in the header. */
 	return M0_CAS_CTG_KV_HDR_SIZE + *(const uint64_t *)key;
 }
-#if 0
-static m0_bcount_t ctg_vsize(const void *val)
-{
-	return ctg_ksize(val);
-}
-#endif
+
 static int ctg_cmp(const void *key0, const void *key1)
 {
 	m0_bcount_t knob0 = ctg_ksize(key0);
@@ -234,11 +229,8 @@ static int ctg_cmp(const void *key0, const void *key1)
 		M0_3WAY(knob0, knob1);
 }
 
-static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg,
-		     bool open_tree)
+static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg)
 {
-	struct m0_btree_op b_op = {};
-
 	m0_format_header_pack(&ctg->cc_head, &(struct m0_format_tag){
 		.ot_version = M0_CAS_CTG_FORMAT_VERSION,
 		.ot_type    = M0_FORMAT_TYPE_CAS_CTG,
@@ -249,39 +241,33 @@ static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg,
 	m0_mutex_init(&ctg->cc_chan_guard.bm_u.mutex);
 	m0_chan_init(&ctg->cc_chan.bch_chan, &ctg->cc_chan_guard.bm_u.mutex);
 	ctg->cc_inited = true;
-
-	if (open_tree) {
-		struct m0_btree_rec_key_op key_cmp = { .rko_keycmp = ctg_cmp, };
-		int                        rc;
-
-		M0_ALLOC_PTR(ctg->cc_tree);
-		M0_ASSERT(ctg->cc_tree);
-		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_open(&ctg->cc_node,
-							    sizeof ctg->cc_node,
-							    ctg->cc_tree, seg,
-							    &b_op, &key_cmp));
-		M0_ASSERT(rc == 0);
-	}
 	m0_format_footer_update(ctg);
 }
 
-static void ctg_fini(struct m0_cas_ctg *ctg, bool close_tree)
+static void ctg_open(struct m0_cas_ctg *ctg, struct m0_be_seg *seg)
 {
-	struct m0_btree_op b_op  = {};
-	int                rc;
-	M0_ENTRY("ctg=%p", ctg);
-	ctg->cc_inited = false;
+	struct m0_btree_op         b_op = {};
+	struct m0_btree_rec_key_op key_cmp = { .rko_keycmp = ctg_cmp, };
+	int                        rc;
 
-	if (close_tree && !ctg->cc_destroy) {
-		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_close(ctg->cc_tree,
-							     &b_op));
-		M0_ASSERT(rc == 0);
-	}
-	if (ctg->cc_tree != NULL) {
-		m0_free0(&ctg->cc_tree);
-	}
+	ctg_init(ctg, seg);
+
+	M0_ALLOC_PTR(ctg->cc_tree);
+	M0_ASSERT(ctg->cc_tree);
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+					m0_btree_open(&ctg->cc_node,
+							sizeof ctg->cc_node,
+							ctg->cc_tree, seg,
+							&b_op, &key_cmp));
+	M0_ASSERT(rc == 0);
+}
+
+static void ctg_fini(struct m0_cas_ctg *ctg)
+{
+	M0_ENTRY("ctg=%p", ctg);
+
+	ctg->cc_inited = false;
+	m0_free0(&ctg->cc_tree);
 	m0_long_lock_fini(m0_ctg_lock(ctg));
 	m0_chan_fini_lock(&ctg->cc_chan.bch_chan);
 	m0_mutex_fini(&ctg->cc_chan_guard.bm_u.mutex);
@@ -311,7 +297,7 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 	if (ctg == NULL)
 		return M0_ERR(-ENOMEM);
 
-	ctg_init(ctg, seg, false);
+	ctg_init(ctg, seg);
 	M0_ALLOC_PTR(ctg->cc_tree);
 	if (ctg->cc_tree == NULL)
 		return M0_ERR(-ENOMEM);
@@ -322,7 +308,7 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 						      &bt, &b_op, ctg->cc_tree,
 						      seg, fid, tx, &key_cmp));
 	if (rc != 0) {
-		ctg_fini(ctg, false);
+		ctg_fini(ctg);
 		M0_BE_FREE_PTR_SYNC(ctg, seg, tx);
 	}
 	else
@@ -339,9 +325,8 @@ static void ctg_destroy(struct m0_cas_ctg *ctg, struct m0_be_tx *tx)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(ctg->cc_tree,
 							      &b_op, tx));
-	ctg->cc_destroy = true;
 	M0_ASSERT(rc == 0);
-	ctg_fini(ctg, false);
+	ctg_fini(ctg);
 	M0_BE_FREE_PTR_SYNC(ctg, cas_seg(tx->t_engine->eng_domain), tx);
 }
 
@@ -351,7 +336,7 @@ M0_INTERNAL void m0_ctg_fini(struct m0_fom     *fom,
 	if (ctg != NULL && ctg->cc_inited) {
 		struct m0_dtx   *dtx = &fom->fo_tx;
 
-		ctg_fini(ctg, true);
+		ctg_fini(ctg);
 		/*
 		 * TODO: implement asynchronous free after memory free API
 		 * added into ctg_exec in the scope of asynchronous ctidx
@@ -636,7 +621,7 @@ static int ctg_store__init(struct m0_be_seg *seg, struct m0_cas_state *state)
 
 	ctg_store.cs_state = state;
 	m0_mutex_init(&state->cs_ctg_init_mutex.bm_u.mutex);
-	ctg_init(state->cs_meta, seg, true);
+	ctg_open(state->cs_meta, seg);
 
 	/* Searching for catalogue-index catalogue. */
 	rc = m0_ctg_meta_find_ctg(state->cs_meta, &m0_cas_ctidx_fid,
@@ -644,8 +629,8 @@ static int ctg_store__init(struct m0_be_seg *seg, struct m0_cas_state *state)
 	     m0_ctg_meta_find_ctg(state->cs_meta, &m0_cas_dead_index_fid,
 			          &ctg_store.cs_dead_index);
 	if (rc == 0) {
-		ctg_init(ctg_store.cs_ctidx, seg, true);
-		ctg_init(ctg_store.cs_dead_index, seg, true);
+		ctg_open(ctg_store.cs_ctidx, seg);
+		ctg_open(ctg_store.cs_dead_index, seg);
 	} else {
 		ctg_store.cs_ctidx = NULL;
 		ctg_store.cs_dead_index = NULL;
@@ -902,7 +887,7 @@ M0_INTERNAL void m0_ctg_try_init(struct m0_cas_ctg *ctg)
 	 */
 	if (ctg != NULL && !ctg->cc_inited) {
 		M0_LOG(M0_DEBUG, "ctg_init %p", ctg);
-		ctg_init(ctg, cas_seg(ctg_store.cs_be_domain), true);
+		ctg_open(ctg, cas_seg(ctg_store.cs_be_domain));
 	} else
 		M0_LOG(M0_DEBUG, "ctg %p zero or inited", ctg);
 	m0_mutex_unlock(&ctg_store.cs_state->cs_ctg_init_mutex.bm_u.mutex);
@@ -1245,7 +1230,6 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_destroy(btree,
 								&kv_op, tx));
-		ctg_op->co_ctg->cc_destroy = true;
 		m0_be_op_done(beop);
 		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):

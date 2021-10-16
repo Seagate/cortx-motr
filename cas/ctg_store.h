@@ -118,7 +118,6 @@ struct m0_cas_ctg {
 	 * meta.
 	 */
 	bool                    cc_inited;
-	bool                    cc_destroy;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_cas_ctg_format_version {
