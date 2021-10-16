@@ -313,8 +313,8 @@ def update_copy_motr_config_file(self):
 # Get lists of metadata disks from Confstore of all cvgs
 # Input: node_info
 # Output: [['/dev/sdc'], ['/dev/sdf']]
-#        where ['/dev/sdc'] is list of metadata disks of cvg[0]
-#              ['/dev/sdf'] is list of metadata disks of cvg[1]
+#        where ['/dev/sdc'] is a list of metadata disks of cvg[0]
+#              ['/dev/sdf'] is a list of metadata disks of cvg[1]
 def get_md_disks_lists(self, node_info):
     md_disks_lists = []
     cvg_count = node_info['storage']['cvg_count']
@@ -343,17 +343,19 @@ def get_mdisks_from_list(self, md_lists):
     return md_disks
 
 # Update metadata disk entries to motr-hare confstore
+# Input : List of md disks in node. One disk per cvg
+#         ['/dev/sdc', '/dev/sdf']
+# Output: Add entries of meta data disks to
+#         /opt/seagate/cortx/motr/conf/{machine_id}/motr_hare_keys.json
 def update_to_file(self, index, url, machine_id, md_disks):
     ncvgs = len(md_disks)
+    # There is one md disk per cvg and its type is string
     for i in range(ncvgs):
-        md = md_disks[i]
-        len_md = len(md)
-        for j in range(len_md):
-            md_disk = md[j]
-            self.logger.info(f"setting key server>{machine_id}>cvg[{i}]>m0d[{j}]>md_seg1"
+        md_disk = md_disks[i]
+        self.logger.info(f"setting key server>{machine_id}>cvg[{i}]>m0d[{0}]>md_seg1"
                          f" with value {md_disk} in {url}")
-            Conf.set(index, f"server>{machine_id}>cvg[{i}]>m0d[{j}]>md_seg1",f"{md_disk}")
-            Conf.save(index)
+        Conf.set(index, f"server>{machine_id}>cvg[{i}]>m0d[{0}]>md_seg1",f"{md_disk}")
+        Conf.save(index)
 
 def update_motr_hare_keys(self, nodes):
     # key = machine_id value = node_info
