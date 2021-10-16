@@ -197,7 +197,7 @@ cmd_run_kut() {
     else
         echo 'Libfabric runs in userspace only. Kernel UTs are disabled!'
         . "$M0_SRC_DIR/utils/functions" # sandbox_init, report_and_exit
-        export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
+        export SANDBOX_DIR=$RUNDIR/sandbox.st-m0kut
         rc=0
         sandbox_init
         sandbox_fini $rc
