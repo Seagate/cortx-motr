@@ -515,6 +515,7 @@ void m0_addb2_sensor_del(struct m0_addb2_sensor *s)
 		sensor_tlink_fini(s);
 		mach_put(m);
 	}
+	M0_SET0(s);
 }
 
 struct m0_addb2_mach *
