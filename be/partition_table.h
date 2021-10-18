@@ -95,7 +95,7 @@ struct m0_partition_config
 	m0_bcount_t chunk_size_in_bits;
 	/* Total chunks of all partitions */
 	m0_bcount_t total_chunk_count;
-	char device_path_name[DEVICE_NAME_MAX_SIZE];
+	char *device_path_name;
 }
 
 /**

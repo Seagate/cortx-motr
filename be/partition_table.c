@@ -73,7 +73,6 @@ int m0_be_partition_table_create_init(struct m0_be_domain *domain, bool is_mkfs,
 	int 			      partition_id_index;
 	int 			      offset_count;
 	int			      user_allocation_chunks;
-	int			      partition_name_length;
 	int			      primary_partition_size;
 	int 			      current_device_chunk_offset = 1;
 	struct m0_format_tag          partition_tag;
@@ -121,11 +120,17 @@ int m0_be_partition_table_create_init(struct m0_be_domain *domain, bool is_mkfs,
 		partition_table->version_info = PARTITION_TBL_VERSION;
 		partition_table->chunk_size_in_bits = 
 			partition_config->chunk_size_in_bits;
-		partition_name_length = 
-			strlen(partition_config->device_path_name) + 1;
+
+		if(strlen(partition_config->device_path_name) > 
+			DEVICE_NAME_MAX_SIZE) {
+			M0_LOG(M0_ERROR, "Invalid device path name size");
+			rc = -EINVAL;
+			goto out;
+		}
+		
 		strncpy(partition_table->device_path_name, 
 			partition_config->device_path_name,
-			partition_name_length);
+			DEVICE_NAME_MAX_SIZE);
 	
 		for (partition_id_index = 0; 
 		     partition_id_index < 
@@ -164,12 +169,25 @@ int m0_be_partition_table_create_init(struct m0_be_domain *domain, bool is_mkfs,
 				current_device_chunk_offset++; 
 			}	
 		}
-		if (current_device_chunk_offset !=
+		if (current_device_chunk_offset >
 			partition_config->total_chunk_count) {
-			M0_LOG(M0_ERROR, "Invalid total chunk count");
+			M0_LOG(M0_ERROR, "Invalid current device chunk offset");
 			rc = -EINVAL;
 			goto out;
 		}
+
+		offset_count = 0;
+		while (current_device_chunk_offset <= 
+			partition_config->total_chunk_count) {
+
+			partition_table->pri_part_info[current_device_chunk_offset].partition_id = 
+				M0_PARTITION_ENTRY_FREE;
+			partition_table->pri_part_info[current_device_chunk_offset].user_offset =
+				offset_count;
+			offset_count++;
+			current_device_chunk_offset++; 
+		}
+
 		/* TODO: Allocate fresh memory and copy all data */
 		m0_format_footer_update(partition_table);
 
