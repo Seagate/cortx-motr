@@ -351,15 +351,15 @@ static size_t m0_cob_bcrec_size(void)
 	return sizeof(struct m0_cob_bcrec);
 }
 
-static m0_bcount_t bc_ksize(const void *key)
-{
-	return sizeof(struct m0_cob_bckey);
-}
+// static m0_bcount_t bc_ksize(const void *key)
+// {
+// 	return sizeof(struct m0_cob_bckey);
+// }
 
-static m0_bcount_t bc_vsize(const void *val)
-{
-	return sizeof(struct m0_cob_bcrec);
-}
+// static m0_bcount_t bc_vsize(const void *val)
+// {
+// 	return sizeof(struct m0_cob_bcrec);
+// }
 
 /**
  * Make bytecount key for iterator. Allocate space for key.
@@ -559,12 +559,12 @@ M0_INTERNAL int m0_cob_bc_entries_dump(struct m0_cob_domain *cdom,
 	return M0_RC(0);
 }
 
-static const struct m0_be_btree_kv_ops cob_bc_ops = {
-	.ko_type    = M0_BBT_COB_BYTECOUNT,
-	.ko_ksize   = bc_ksize,
-	.ko_vsize   = bc_vsize,
-	.ko_compare = bc_cmp
-};
+// static const struct m0_be_btree_kv_ops cob_bc_ops = {
+// 	.ko_type    = M0_BBT_COB_BYTECOUNT,
+// 	.ko_ksize   = bc_ksize,
+// 	.ko_vsize   = bc_vsize,
+// 	.ko_compare = bc_cmp
+// };
 
 /**
    Object index table definition.
@@ -688,11 +688,12 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 
 	M0_ALLOC_PTR(dom->cd_bytecount);
 	M0_ASSERT(dom->cd_bytecount);
+	keycmp.rko_keycmp = bc_cmp;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_open(&dom->cd_bc_node,
 						    sizeof dom->cd_bc_node,
 						    dom->cd_bytecount, seg,
-						    &b_op));
+						    &b_op, &keycmp));
 	M0_ASSERT(rc == 0);
 
 	m0_rwlock_init(&dom->cd_lock.bl_u.rwlock);
@@ -813,7 +814,7 @@ M0_INTERNAL int m0_cob_domain_credit_add(struct m0_cob_domain          *dom,
 				    .ksize = m0_cob_bckey_size(),
 				    .vsize = m0_cob_bcrec_size(),
 				   };
-	m0_btree_create_credit(&bt, cred); /** Tree cd_fileattr_ea */
+	m0_btree_create_credit(&bt, cred, 1); /** Tree cd_bytecount */
 
 	m0_free(cdid_str);
 	return M0_RC(0);
@@ -938,6 +939,7 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 		.ksize = m0_cob_bckey_size(),
 		.vsize = m0_cob_bcrec_size(),
 	};
+	keycmp.rko_keycmp = bc_cmp;
 	fid = M0_FID_TINIT('b', M0_BT_COB_BYTECOUNT, cdid->id);
 	M0_ALLOC_PTR(dom->cd_bytecount);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
@@ -945,7 +947,7 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 						      sizeof dom->cd_bc_node,
 						      &bt, &b_op,
 						      dom->cd_bytecount, seg,
-						      &fid, tx));
+						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
 
 	data = M0_BUF_INIT_PTR(&dom);
@@ -1045,21 +1047,12 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 	seg = m0_be_domain_seg(bedom, dom);
 	m0_be_0type_del_credit(bedom, &m0_be_cob0, cdid_str, &cred);
 	M0_BE_FREE_CREDIT_PTR(dom, seg, &cred);
-<<<<<<< HEAD
-	m0_btree_destroy_credit(dom->cd_object_index,   &cred, 1);
-	m0_btree_destroy_credit(dom->cd_namespace,      &cred, 1);
-	m0_btree_destroy_credit(dom->cd_fileattr_basic, &cred, 1);
-	m0_btree_destroy_credit(dom->cd_fileattr_omg,   &cred, 1);
-	m0_btree_destroy_credit(dom->cd_fileattr_ea,    &cred, 1);
-	m0_btree_destroy_credit(dom->cd_bytecount,    &cred, 1);
-=======
 	m0_btree_destroy_credit(dom->cd_object_index,   NULL, &cred, 1);
 	m0_btree_destroy_credit(dom->cd_namespace,      NULL, &cred, 1);
 	m0_btree_destroy_credit(dom->cd_fileattr_basic, NULL, &cred, 1);
 	m0_btree_destroy_credit(dom->cd_fileattr_omg,   NULL, &cred, 1);
 	m0_btree_destroy_credit(dom->cd_fileattr_ea,    NULL, &cred, 1);
 	m0_btree_destroy_credit(dom->cd_bytecount,      NULL, &cred, 1);
->>>>>>> Changes to m0_btree_destroy_credit() for accepting m0_btree_type parameter. (#1115)
 
 	M0_SET0(tx);
 	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
