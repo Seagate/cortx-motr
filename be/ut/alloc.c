@@ -110,7 +110,8 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator  *a,
 			  (M0_BE_OP_SYNC(op,
 				 m0_be_alloc_aligned(a, tx, &op, p, size,
 						     shift,
-						     M0_BITS(M0_BAP_NORMAL))),
+						     M0_BITS(M0_BAP_NORMAL),
+						     false)),
 			   m0_be_alloc_stats_capture(a, tx)));
 		M0_UT_ASSERT(*p != NULL);
 		M0_UT_ASSERT(m0_addr_is_aligned(*p, shift));
@@ -377,7 +378,8 @@ M0_INTERNAL void m0_be_ut_alloc_spare(void)
 						 m0_be_alloc_aligned(a, tx, &op,
 						     &ptrs[i], size,
 						     BE_UT_ALLOC_SHIFT,
-						     scenario[i].zonemask)),
+						     scenario[i].zonemask,
+						     false)),
 					   m0_be_alloc_stats_capture(a, tx)));
 			M0_UT_ASSERT(
 				(ptrs[i] == NULL) == scenario[i].should_fail);
