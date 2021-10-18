@@ -1023,7 +1023,8 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 				     void **ptr,
 				     m0_bcount_t size,
 				     unsigned shift,
-				     uint64_t zonemask)
+				     uint64_t zonemask,
+				     bool chunk_align)
 {
 	enum  m0_be_alloc_zone_type  ztype;
 	struct be_alloc_chunk       *c = NULL;
@@ -1095,7 +1096,12 @@ M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
 			     m0_bcount_t size)
 {
 	m0_be_alloc_aligned(a, tx, op, ptr, size, M0_BE_ALLOC_SHIFT_MIN,
-			    M0_BITS(M0_BAP_NORMAL));
+			    M0_BITS(M0_BAP_NORMAL), false);
+}
+
+M0_INTERNAL size_t m0_be_chunk_header_size(void)
+{
+	return sizeof(struct be_alloc_chunk);
 }
 
 M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
