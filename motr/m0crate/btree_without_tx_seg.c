@@ -75,7 +75,8 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 				     void **ptr,
 				     m0_bcount_t size,
 				     unsigned shift,
-				     uint64_t zonemask)
+				     uint64_t zonemask,
+				     bool chunk_align)
 {
 	*ptr = m0_alloc_aligned(size, shift);
 }
@@ -208,7 +209,7 @@ static inline void *mem_alloc(const struct m0_be_btree *btree,
 		      m0_be_alloc_aligned(tree_allocator(btree),
 					  tx, &op, &p, size,
 					  BTREE_ALLOC_SHIFT,
-					  zonemask));
+					  zonemask, false));
 	M0_ASSERT(p != NULL);
 	return p;
 }

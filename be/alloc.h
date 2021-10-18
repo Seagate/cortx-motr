@@ -240,6 +240,9 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
  * @param zonemask Bit mask of the zones where memory should be allocated.
  *                 The first zone from the bit mask with sufficient space will
  *                 be chosen for allocation, see m0_be_alloc_zone_type.
+ * @param chunk_align Chunk header(be_alloc_chunk) will be aligned to
+ *		      (shift^2)-byte boundary. Memory will follow after chunk
+ *		      header.
  *
  * The memory should be freed using m0_be_free_aligned().
  *
@@ -252,7 +255,8 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 				     void **ptr,
 				     m0_bcount_t size,
 				     unsigned shift,
-				     uint64_t zonemask);
+				     uint64_t zonemask,
+				     bool chunk_align);
 
 /**
  * Allocate memory.
@@ -312,7 +316,10 @@ M0_INTERNAL void m0_be_alloc_stats_credit(struct m0_be_allocator *a,
 M0_INTERNAL void m0_be_alloc_stats_capture(struct m0_be_allocator *a,
                                            struct m0_be_tx        *tx);
 
-
+/**
+ * Returns size of chunk header (be_alloc_chunk).
+ */
+M0_INTERNAL size_t m0_be_chunk_header_size(void);
 /**
  * Allocate array of structures.
  *
@@ -336,7 +343,7 @@ M0_INTERNAL void m0_be_alloc_stats_capture(struct m0_be_allocator *a,
 #define M0_BE_ALLOC_ALIGN_ARR(arr, nr, shift, seg, tx, op)                     \
 		m0_be_alloc_aligned(m0_be_seg_allocator(seg), (tx), (op),      \
 				    (void **)&(arr), (nr) * sizeof((arr)[0]),  \
-				    (shift), M0_BITS(M0_BAP_NORMAL))
+				    (shift), M0_BITS(M0_BAP_NORMAL), false)
 
 #define M0_BE_FREE_ALIGN_ARR(arr, seg, tx, op)                                 \
 		m0_be_free_aligned(m0_be_seg_allocator(seg), (tx), (op), (arr))
@@ -396,7 +403,7 @@ M0_INTERNAL void m0_be_alloc_stats_capture(struct m0_be_allocator *a,
 #define M0_BE_ALLOC_ALIGN_BUF(buf, shift, seg, tx, op)                         \
 		m0_be_alloc_aligned(m0_be_seg_allocator(seg), (tx), (op),      \
 				    &(buf)->b_addr, (buf)->b_nob,              \
-				    shift, M0_BITS(M0_BAP_NORMAL))
+				    shift, M0_BITS(M0_BAP_NORMAL), false)
 
 #define M0_BE_FREE_ALIGN_BUF(buf, shift, seg, tx, op)                          \
 		m0_be_free_aligned(m0_be_seg_allocator(seg), (tx),             \
