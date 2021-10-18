@@ -238,7 +238,7 @@ static void init_fail(void)
 	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
-	m0_fi_enable_once("btree_save", "already_exists");
+	m0_fi_enable_once("btree_put_kv_tick", "already_exists");
 	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	rc = m0_reqh_service_start(cas);
 	M0_UT_ASSERT(rc == -EEXIST);
@@ -260,11 +260,11 @@ static void init_fail(void)
 	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
-	m0_fi_enable_off_n_on_m("btree_save", "already_exists",
+	m0_fi_enable_off_n_on_m("btree_put_kv_tick", "already_exists",
 				1, 1);
 	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	rc = m0_reqh_service_start(cas);
-	m0_fi_disable("btree_save", "already_exists");
+	m0_fi_disable("btree_put_kv_tick", "already_exists");
 	M0_UT_ASSERT(rc == -EEXIST);
 	m0_reqh_service_fini(cas);
 

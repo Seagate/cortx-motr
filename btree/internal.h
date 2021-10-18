@@ -25,6 +25,8 @@
 #define __MOTR_BTREE_INTERNAL_H__
 
 #include "sm/op.h"
+#include "be/op.h"   /* m0_be_op */
+
 /**
  * @defgroup btree
  *
@@ -66,6 +68,7 @@ struct m0_btree_cursor {
 	struct m0_buf    bc_key;
 	struct m0_buf    bc_val;
 	struct m0_btree *bc_arbor;
+	struct m0_be_op  bc_op;
 };
 
 struct td;
