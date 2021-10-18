@@ -123,7 +123,7 @@ static inline void *mem_alloc(const struct m0_be_btree *btree,
 		      m0_be_alloc_aligned(tree_allocator(btree),
 					  tx, &op, &p, size,
 					  BTREE_ALLOC_SHIFT,
-					  zonemask));
+					  zonemask, false));
 	M0_ASSERT(p != NULL);
 	return p;
 }
