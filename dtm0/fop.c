@@ -84,12 +84,32 @@ M0_INTERNAL void m0_dtm0_fop_fini(void)
 }
 
 enum {
-	M0_FOPH_DTM0_LOGGING = M0_FOPH_TYPE_SPECIFIC,
+	M0_FOPH_DTM0_ENTRY = M0_FOPH_TYPE_SPECIFIC,
+	M0_FOPH_DTM0_LOGGING,
+	M0_FOPH_DTM0_CAS_EXEC,
+	M0_FOPH_DTM0_CAS_DONE
 };
 
 struct m0_sm_state_descr dtm0_phases[] = {
+	[M0_FOPH_DTM0_ENTRY] = {
+		.sd_name      = "dtm0-entry",
+		.sd_allowed   = M0_BITS(M0_FOPH_DTM0_LOGGING,
+					M0_FOPH_DTM0_CAS_EXEC,
+					M0_FOPH_SUCCESS,
+					M0_FOPH_FAILURE)
+	},
 	[M0_FOPH_DTM0_LOGGING] = {
 		.sd_name      = "logging",
+		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS,
+					M0_FOPH_FAILURE)
+	},
+	[M0_FOPH_DTM0_CAS_EXEC] = {
+		.sd_name      = "cas-exec",
+		.sd_allowed   = M0_BITS(M0_FOPH_DTM0_CAS_DONE,
+					M0_FOPH_FAILURE)
+	},
+	[M0_FOPH_DTM0_CAS_DONE] = {
+		.sd_name      = "cas-done",
 		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS,
 					M0_FOPH_FAILURE)
 	},
@@ -97,8 +117,20 @@ struct m0_sm_state_descr dtm0_phases[] = {
 
 struct m0_sm_trans_descr dtm0_phases_trans[] = {
 	[ARRAY_SIZE(m0_generic_phases_trans)] =
-	{"dtm0_1-fail", M0_FOPH_TYPE_SPECIFIC, M0_FOPH_FAILURE},
-	{"dtm0_1-success", M0_FOPH_TYPE_SPECIFIC, M0_FOPH_SUCCESS},
+	{"dtm0-entry-fail", M0_FOPH_DTM0_ENTRY, M0_FOPH_FAILURE},
+	{"dtm0-entry-success", M0_FOPH_DTM0_ENTRY, M0_FOPH_SUCCESS},
+
+	{"dtm0-logging", M0_FOPH_DTM0_ENTRY, M0_FOPH_DTM0_LOGGING},
+	{"dtm0-logging-fail", M0_FOPH_DTM0_LOGGING, M0_FOPH_FAILURE},
+	{"dtm0-logging-success", M0_FOPH_DTM0_LOGGING, M0_FOPH_SUCCESS},
+
+	{"dtm0-cas-exec", M0_FOPH_DTM0_ENTRY, M0_FOPH_DTM0_CAS_EXEC},
+
+	{"dtm0-cas-exec-fail", M0_FOPH_DTM0_CAS_EXEC, M0_FOPH_FAILURE},
+	{"dtm0-cas-done", M0_FOPH_DTM0_CAS_EXEC, M0_FOPH_DTM0_CAS_DONE},
+
+	{"dtm0-cas-success", M0_FOPH_DTM0_CAS_DONE, M0_FOPH_SUCCESS},
+	{"dtm0-cas-fail", M0_FOPH_DTM0_CAS_DONE, M0_FOPH_FAILURE},
 };
 
 static struct m0_sm_conf dtm0_conf = {
@@ -316,7 +348,7 @@ out:
  */
 static int dtm0_pmsg_fom_tick(struct m0_fom *fom)
 {
-	int                       result;
+	int                       result = M0_FSO_AGAIN;
 	struct   m0_dtm0_service *svc;
 	struct   m0_buf           buf = {};
 	struct   dtm0_rep_fop    *rep;
@@ -327,7 +359,8 @@ static int dtm0_pmsg_fom_tick(struct m0_fom *fom)
 	M0_PRE(req->dtr_msg == DTM_PERSISTENT);
 	M0_ENTRY("fom %p phase %d", fom, phase);
 
-	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+	switch (phase) {
+	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
 		result = m0_fom_tick_generic(fom);
 		if (m0_dtm0_is_a_persistent_dtm(fom->fo_service) &&
 		    m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
@@ -338,8 +371,13 @@ static int dtm0_pmsg_fom_tick(struct m0_fom *fom)
 					      NULL, &cred);
 			m0_be_tx_credit_add(&fom->fo_tx.tx_betx_cred, &cred);
 		}
-	} else {
-		M0_ASSERT(m0_fom_phase(fom) == M0_FOPH_DTM0_LOGGING);
+		break;
+
+	case M0_FOPH_DTM0_ENTRY:
+		m0_fom_phase_set(fom, M0_FOPH_DTM0_LOGGING);
+		break;
+
+	case M0_FOPH_DTM0_LOGGING:
 		rep = m0_fop_data(fom->fo_rep_fop);
 		svc = m0_dtm0_fom2service(fom);
 		M0_ASSERT(svc != NULL);
@@ -367,7 +405,10 @@ static int dtm0_pmsg_fom_tick(struct m0_fom *fom)
 
 		/* We do not handle any failures of Pmsg processing. */
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
-		result = M0_FSO_AGAIN;
+
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid phase");
 	}
 
 	return M0_RC(result);
@@ -384,7 +425,7 @@ static int dtm0_pmsg_fom_tick(struct m0_fom *fom)
  */
 static int dtm0_emsg_fom_tick(struct m0_fom *fom)
 {
-	int                       result;
+	int                       result = M0_FSO_AGAIN;
 	struct   dtm0_rep_fop    *rep = m0_fop_data(fom->fo_rep_fop);
 	struct   dtm0_req_fop    *req = m0_fop_data(fom->fo_fop);
 	int                       phase = m0_fom_phase(fom);
@@ -400,16 +441,18 @@ static int dtm0_emsg_fom_tick(struct m0_fom *fom)
 
 	M0_ENTRY("fom %p phase %d", fom, phase);
 
-	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+	switch (phase) {
+	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
 		result = m0_fom_tick_generic(fom);
-	} else {
-		M0_ASSERT(m0_fom_phase(fom) == M0_FOPH_DTM0_LOGGING);
-
+		break;
+	case M0_FOPH_DTM0_ENTRY:
 		if (m0_dtm0_is_a_persistent_dtm(fom->fo_service))
 			rep->dr_rc = m0_dtm0_req_post(svc, &executed, tgt, fom,
 						      false);
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
-		result = M0_FSO_AGAIN;
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid phase");
 	}
 
 	return M0_RC(result);
@@ -417,13 +460,19 @@ static int dtm0_emsg_fom_tick(struct m0_fom *fom)
 
 static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
 {
-	int result;
+	int result = M0_FSO_AGAIN;
 	int phase = m0_fom_phase(fom);
+
 	M0_ENTRY("fom %p phase %d", fom, phase);
 
-	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+	switch (phase) {
+	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
 		result = m0_fom_tick_generic(fom);
-	} else {
+		break;
+	case M0_FOPH_DTM0_ENTRY:
+		m0_fom_phase_set(fom, M0_FOPH_DTM0_CAS_EXEC);
+		break;
+	case M0_FOPH_DTM0_CAS_EXEC:
 		/* REDO_END()s from all recovering processes received, send
 		 * RECOVERED() message to the counterpart.
 
@@ -431,7 +480,9 @@ static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
 				    M0_CONF_HA_PROCESS_DTM_RECOVERED);
 		*/
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
-		result = M0_RC(M0_FSO_AGAIN);
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid phase");
 	}
 	return M0_RC(result);
 }
