@@ -8491,6 +8491,7 @@ M0_INTERNAL void m0_btree_minkey(struct m0_btree *arbor,
 	m0_sm_op_init(&bop->bo_op, &btree_get_kv_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
 }
+
 M0_INTERNAL void m0_btree_maxkey(struct m0_btree *arbor,
 				 const struct m0_btree_cb *cb, uint64_t flags,
 				 struct m0_btree_op *bop)
