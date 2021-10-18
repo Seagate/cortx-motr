@@ -1315,16 +1315,8 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
 			if (!pending) {
 				m0_net_buffer_event_notify(tm, &tm_chan);
 			}
-			ctx->nbc_callback_executed = false;
-			/*
-			 * execute network buffer callbacks in this thread
-			 * context
-			 */
-			m0_net_buffer_event_deliver_all(tm);
-			M0_ASSERT(ergo(pending, ctx->nbc_callback_executed));
-			/* state transitions from final states */
-			node_bulk_state_transition_auto_all(ctx);
-		}
+		} else
+			pending = false;
 		net_bulk_worker_cb(ctx, pending);
 		if (running && node_bulk_is_stopping(ctx)) {
 			/* dequeue all queued network buffers */
