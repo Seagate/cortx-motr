@@ -223,9 +223,9 @@ enum { NV_OFFSET_SAVE_DELTA_IN_BYTES = 0x40000000 }; /* 1G */
 enum { NV_OFFSET_SAVE_ACT_DELTA = 1000 };
 
 struct cache_slot {
-        struct m0_fid       cs_fid;
-        uint64_t            cs_flags;
-        struct m0_btree    *cs_tree;
+	struct m0_fid       cs_fid;
+	uint64_t            cs_flags;
+	struct m0_btree    *cs_tree;
 };
 
 /**
@@ -2499,7 +2499,7 @@ static int ctg_pver_fid_get(struct m0_fid *fid)
 	uint8_t              vdata[M0_CAS_CTG_KV_HDR_SIZE +
 				   sizeof(struct m0_dix_layout)];
 	uint64_t             i;
-	int	             rc;
+	int                  rc;
 	void                *k_ptr;
 	void                *v_ptr;
 	m0_bcount_t          ksize;
@@ -2736,7 +2736,7 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 	struct ctg_action    *ca = M0_AMB(ca, act, cta_act);
 	struct m0_cas_ctg    *cc;
 	int                   rc;
-
+	struct m0_btree      *btree;
 	void                 *k_ptr;
 	void                 *v_ptr;
 	m0_bcount_t           ksize;
@@ -2771,13 +2771,14 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 		}
 	}
 	if (!ca->cta_ismeta && ca->cta_slot->cs_tree != NULL) {
+		btree = ca->cta_slot->cs_tree;
 		k_ptr = ca->cta_key.b_addr;
 		ksize = ca->cta_key.b_nob;
 		v_ptr = ca->cta_val.b_addr;
 		vsize = ca->cta_val.b_nob;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					      m0_btree_put(ca->cta_slot->cs_tree,
+					      m0_btree_put(btree,
 							   &rec, &put_cb,
 							   &kv_op, tx));
 		if (rc == 0) {

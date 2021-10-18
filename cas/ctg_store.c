@@ -123,9 +123,7 @@ static int  ctg_exec         (struct m0_ctg_op    *ctg_op,
 static void ctg_store_release(struct m0_ref *ref);
 
 static m0_bcount_t ctg_ksize (const void *key);
-#if 0
-static m0_bcount_t ctg_vsize (const void *val);
-#endif
+
 static int         ctg_cmp   (const void *key0, const void *key1);
 
 
@@ -254,11 +252,10 @@ static void ctg_open(struct m0_cas_ctg *ctg, struct m0_be_seg *seg)
 
 	M0_ALLOC_PTR(ctg->cc_tree);
 	M0_ASSERT(ctg->cc_tree);
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					m0_btree_open(&ctg->cc_node,
-							sizeof ctg->cc_node,
-							ctg->cc_tree, seg,
-							&b_op, &key_cmp));
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_open(&ctg->cc_node,
+							   sizeof ctg->cc_node,
+							   ctg->cc_tree, seg,
+							   &b_op, &key_cmp));
 	M0_ASSERT(rc == 0);
 }
 
@@ -485,7 +482,7 @@ static void ctg_meta_delete(struct m0_btree     *meta,
 	m0_bcount_t          ksize;
 	struct m0_btree_key  r_key = {};
 	struct m0_btree_op   kv_op = {};
-	int rc;
+	int                  rc;
 
 	M0_ENTRY();
 	r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
@@ -605,7 +602,7 @@ static void ctg_state_destroy(struct m0_cas_state *state,
 {
 	struct m0_cas_ctg *meta = state->cs_meta;
 
-        ctg_meta_selfrm(meta->cc_tree, tx);
+	ctg_meta_selfrm(meta->cc_tree, tx);
 	ctg_destroy(meta, tx);
 	M0_BE_FREE_PTR_SYNC(state, seg, tx);
 }
@@ -1060,12 +1057,11 @@ static int ctg_op_cb_btree(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 		rc = ctg_buf(&val, &ctg_op->co_out_val);
 		if (rc == 0 && ct == CT_META) {
 			if (ctg_op->co_out_val.b_nob !=
-			    sizeof(struct m0_cas_ctg *)) {
+			    sizeof(struct m0_cas_ctg *))
 				rc = M0_ERR(-EFAULT);
-			} else {
+			else
 				m0_ctg_try_init(*(struct m0_cas_ctg **)
 						ctg_op->co_out_val.b_addr);
-			}
 		}
 		M0_ASSERT(rc == 0);
 		break;
