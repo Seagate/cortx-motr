@@ -121,14 +121,14 @@ int m0_be_partition_table_create_init(struct m0_be_domain *domain, bool is_mkfs,
 		partition_table->chunk_size_in_bits = 
 			partition_config->chunk_size_in_bits;
 
-		if(strlen(partition_config->device_path_name) > 
+		if(strnlen(partition_config->device_path_name, DEVICE_NAME_MAX_SIZE) > 
 			DEVICE_NAME_MAX_SIZE) {
 			M0_LOG(M0_ERROR, "Invalid device path name size");
 			rc = -EINVAL;
 			goto out;
 		}
 		
-		strncpy(partition_table->device_path_name, 
+		strlcpy(partition_table->device_path_name, 
 			partition_config->device_path_name,
 			DEVICE_NAME_MAX_SIZE);
 	
