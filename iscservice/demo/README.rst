@@ -103,7 +103,7 @@ Benchmark example
 =================
 
 This benchmark was conducted on the SAGE Prototype Cluster (located in
-Jülich Computing Centre). SSD pool was used with 8+3 EC configuration.
+Jülich Computing Centre). SSD pool was used with 8+2 EC configuration.
 
 1GB object::
 
