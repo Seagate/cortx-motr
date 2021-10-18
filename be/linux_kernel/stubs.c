@@ -55,7 +55,8 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 				     void **ptr,
 				     m0_bcount_t size,
 				     unsigned shift,
-				     uint64_t zonemask)
+				     uint64_t zonemask,
+				     bool chunk_align)
 {
 	m0_be_alloc(a, tx, op, ptr, size);
 }
