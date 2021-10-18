@@ -64,6 +64,7 @@ void m0_addb2_hist_add_auto(struct m0_addb2_hist *hist, int skip,
 void m0_addb2_hist_del(struct m0_addb2_hist *hist)
 {
 	m0_addb2_sensor_del(&hist->hi_counter.co_sensor);
+	M0_SET0(hist);
 }
 
 void m0_addb2_hist_mod(struct m0_addb2_hist *hist, int64_t val)
