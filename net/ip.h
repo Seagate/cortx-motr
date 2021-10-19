@@ -32,7 +32,8 @@
 enum m0_net_ip_format {
 	M0_NET_IP_INET_IP_FORMAT,
 	M0_NET_IP_INET_HOSTNAME_FORMAT,
-	M0_NET_IP_LNET_FORMAT
+	M0_NET_IP_LNET_FORMAT,
+	M0_NET_IP_FORMAT_MAX
 };
 
 /** Represents family of network address */
@@ -91,7 +92,7 @@ int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr);
 /**
  * This function returns printable ip address format.
  */
-char *m0_net_ip_print(const struct m0_net_ip_addr *nia);
+int m0_net_ip_print(const struct m0_net_ip_addr *nia, char *buf, uint32_t len);
 
 #endif /* __MOTR_NET_IP_H__ */
 

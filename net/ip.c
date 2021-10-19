@@ -49,8 +49,9 @@ static int m0_net_hostname_to_ip(char *hostname , char* ip,
 	int              i;
 	int              n;
 	char            *cp;
-	char             name[50];
+	char             name[M0_NET_IP_STRLEN_MAX];
 
+	M0_ENTRY("Hostname = %s", (char*)hostname);
 	cp = strchr(hostname, '@');
 	if (cp == NULL)
 		return M0_ERR(-EINVAL);
@@ -58,7 +59,6 @@ static int m0_net_hostname_to_ip(char *hostname , char* ip,
 	n = cp - hostname;
 	memcpy(name, hostname, n);
 	name[n] = '\0';
-	M0_LOG(M0_ALWAYS, "in %s out %s", (char*)hostname, (char*)name);
 	if ((hname = gethostbyname(name)) == NULL)
 	{
 		// get the host info
@@ -72,7 +72,7 @@ static int m0_net_hostname_to_ip(char *hostname , char* ip,
 		//Return the first one;
 		strcpy(ip , inet_ntoa(*addr[i]));
 		n=strlen(ip);
-		M0_LOG(M0_ALWAYS, "%s[%s]", (char*)name, (char*)ip);
+		M0_LOG(M0_DEBUG, "%s[%s]", (char*)name, (char*)ip);
 		if (strcmp(name, ip) == 0)
 			ip_addr->na_format = M0_NET_IP_INET_IP_FORMAT;
 		else
@@ -151,8 +151,6 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 	addr->na_addr.ia.nia_family = f;
 	addr->na_addr.ia.nia_type = s;
 
-	m0_net_ip_print(addr);
-
 	return 0;
 }
 
@@ -189,14 +187,12 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 		na_n = htonl(INADDR_LOOPBACK);
 		inet_ntop(AF_INET, &na_n, node, ARRAY_SIZE(node));
 	} else {
-		// at = strchr(ep_name, '@');
 		if (at == NULL || at - ep_name >= sizeof node)
 			return M0_ERR(-EPROTO);
 
 		M0_PRE(sizeof node >= (at-ep_name)+1);
 		memcpy(node, ep_name, at - ep_name);
 	}
-	// at = at == NULL ? (char *)ep_name : at;
 	at++;
 
 	for (s = 0; s < ARRAY_SIZE(ip_protocol); s++) {
@@ -260,26 +256,67 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 	M0_ASSERT(strlen(name) < ARRAY_SIZE(addr->na_p));
 	strcpy(addr->na_p, name);
 
-	m0_net_ip_print(addr);
 	return M0_RC(0);
 }
 
-char *m0_net_ip_print(const struct m0_net_ip_addr *na)
+M0_UNUSED int m0_net_ip_print(const struct m0_net_ip_addr *na, char *buf, uint32_t len)
 {
+	char *star = NULL;
+	char  node[M0_NET_IP_STRLEN_MAX] = {};
+
 	M0_LOG(M0_DEBUG, "str=%s frmt=%d num=[0x%"PRIx64",0x%"PRIx64"] port=%d",
 		(char*)na->na_p, (int)na->na_format, na->na_n.ln[0], na->na_n.ln[1],
 		(int)na->na_port);
 	if (na->na_format == M0_NET_IP_LNET_FORMAT)
-	M0_LOG(M0_DEBUG, "type=%d portal=%d tmid=%d",
-		(int)na->na_addr.la.nla_type,
-		(int)na->na_addr.la.nla_portal,
-		(int)na->na_addr.la.nla_tmid);
+		M0_LOG(M0_DEBUG, "type=%d portal=%d tmid=%d",
+			(int)na->na_addr.la.nla_type,
+			(int)na->na_addr.la.nla_portal,
+			(int)na->na_addr.la.nla_tmid);
 	else
-	M0_LOG(M0_DEBUG, "family=%d type=%d port=%d",
-		(int)na->na_addr.ia.nia_family,
-		(int)na->na_addr.ia.nia_type,
-		(int)na->na_port);
-	return NULL;
+		M0_LOG(M0_DEBUG, "family=%d type=%d port=%d",
+			(int)na->na_addr.ia.nia_family,
+			(int)na->na_addr.ia.nia_type,
+			(int)na->na_port);
+
+	if (na->na_format == M0_NET_IP_LNET_FORMAT) {
+		inet_ntop(AF_INET, &na->na_n.sn[0], node, ARRAY_SIZE(node));
+
+		star = strchr(na->na_p, '*');
+		if (star != NULL) {
+			sprintf(buf, "%s@%s:12345:%d:*",
+				na->na_addr.la.nla_type == M0_NET_IP_PROTO_LO ? "0" : node,
+				na->na_addr.la.nla_type == M0_NET_IP_PROTO_LO ? "lo" :
+					((na->na_addr.la.nla_type == M0_NET_IP_PROTO_TCP) ? "tcp" :
+								      "o2ib"),
+				na->na_addr.la.nla_portal);
+		} else {
+			sprintf(buf, "%s@%s:12345:%d:%d",
+				na->na_addr.la.nla_type == M0_NET_IP_PROTO_LO ? "0" : node,
+				na->na_addr.la.nla_type == M0_NET_IP_PROTO_LO ? "lo" :
+					((na->na_addr.la.nla_type == M0_NET_IP_PROTO_TCP) ? "tcp" :
+								      "o2ib"),
+				na->na_addr.la.nla_portal, na->na_addr.la.nla_tmid);
+		}
+	} else if (na->na_format == M0_NET_IP_INET_IP_FORMAT) {
+		if (na->na_addr.ia.nia_family == M0_NET_IP_AF_INET) {
+			inet_ntop(AF_INET, &na->na_n.sn[0], node, ARRAY_SIZE(node));
+			sprintf(buf, "inet:%s:%s@%d",
+			ip_protocol[na->na_addr.ia.nia_type],
+			node, na->na_port);
+		} else if (na->na_addr.ia.nia_family == M0_NET_IP_AF_INET6) {
+			inet_ntop(AF_INET6, &na->na_n, node, ARRAY_SIZE(node));
+			sprintf(buf, "inet6:%s:%s@%d",
+			ip_protocol[na->na_addr.ia.nia_type],
+			node, na->na_port);
+		} else if (na->na_addr.ia.nia_family == M0_NET_IP_AF_UNIX) {
+			M0_LOG(M0_DEBUG, "UNIX format is currently not supported");
+		}
+	} else if (na->na_format == M0_NET_IP_INET_HOSTNAME_FORMAT) {
+		M0_ASSERT(len >= strlen(buf));
+		sprintf(buf, "%s", na->na_p);
+	}
+
+	return 0;
 }
 
 
