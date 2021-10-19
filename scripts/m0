@@ -196,7 +196,12 @@ cmd_run_kut() {
         $SUDO "$M0_SRC_DIR/ut/m0kut" "$@"
     else
         echo 'Libfabric runs in userspace only. Kernel UTs are disabled!'
-        echo "status: SUCCESS" >&1
+        . "$M0_SRC_DIR/utils/functions" # sandbox_init, report_and_exit
+        export SANDBOX_DIR=$RUNDIR/sandbox.st-m0kut
+        rc=0
+        sandbox_init
+        sandbox_fini $rc
+        report_and_exit m0kut $rc
     fi
 }
 
@@ -233,8 +238,12 @@ cmd_run_st() {
                         chk=$(_libfab_st_list ${f##*/})
                         if [[ "$chk" == "true" ]]; then
                             echo "<< ${f##*/} >> Can not be run for libfab" >&1
-                            echo "status: SUCCESS" >&1
-                            continue
+                            . "$M0_SRC_DIR/utils/functions" # sandbox_init, report_and_exit
+                            export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
+                            rc=0
+                            sandbox_init
+                            sandbox_fini $rc
+                            report_and_exit ${f##*/} $rc
                         fi
                     fi
                     export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}

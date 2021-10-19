@@ -1140,10 +1140,19 @@ static int op_sync_wait(struct m0_fom *fom)
 	struct m0_be_tx     *tx;
 
 	tx = m0_fom_tx(fom);
-	if (m0_be_tx_state(tx) < M0_BTS_LOGGED) {
-		M0_LOG(M0_DEBUG, "fom wait for tx to be logged");
-		m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
-		return M0_FSO_WAIT;
+	if (fom->fo_tx.tx_state != M0_DTX_INVALID) {
+		/*
+		 * The above checking of 'fom tx' state must go first
+		 * before any other access or checking on this fom tx,
+		 * because if the fom tx is not initialized, any access
+		 * of this fom tx is not safe or useful.
+		 */
+
+		if (m0_be_tx_state(tx) < M0_BTS_LOGGED) {
+			M0_LOG(M0_DEBUG, "fom wait for tx to be logged");
+			m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
+			return M0_FSO_WAIT;
+		}
 	}
 	return M0_FSO_AGAIN;
 }
@@ -2034,7 +2043,7 @@ static int cas_place(struct m0_buf *dst, struct m0_buf *src, m0_bcount_t cutoff)
 		return M0_ERR(-ENOMEM);
 
 	if (src->b_nob >= cutoff) {
-		dst->b_addr = m0_alloc_aligned(src->b_nob, PAGE_SHIFT);
+		dst->b_addr = m0_alloc_aligned(src->b_nob, m0_pageshift_get());
 		if (dst->b_addr == NULL)
 			return M0_ERR(-ENOMEM);
 		dst->b_nob = src->b_nob;
@@ -2374,7 +2383,7 @@ static int cas_ctidx_insert(struct cas_fom *fom, const struct m0_cas_id *in_cid,
 
 static m0_bcount_t cas_rpc_cutoff(const struct cas_fom *fom)
 {
-	return cas_in_ut() ? PAGE_SIZE :
+	return cas_in_ut() ? m0_pagesize_get() :
 		m0_fop_rpc_machine(fom->cf_fom.fo_fop)->rm_bulk_cutoff;
 }
 

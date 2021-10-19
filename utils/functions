@@ -135,7 +135,7 @@ m0_default_xprt()
 m0_local_nid_get()
 {
     local local_nid
-    XPRT=m0_default_xprt
+    XPRT=$(m0_default_xprt)
     if [ "$XPRT" = "lnet" ]
     then 
         local_nid=`sudo lctl list_nids | head -1`
