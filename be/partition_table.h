@@ -36,6 +36,7 @@
 #include "motr/magic.h"
 
 #include "format/format.h"
+#include "be/domain.h"
 
 #define PARTITION_TBL_VERSION               1
 #define DEVICE_NAME_MAX_SIZE                128
@@ -46,7 +47,7 @@
 
 enum m0_partition_name {
 	/* Partition table type   */
-	M0_PARTITION_ENTRY_PARTITION_TABLE = 1,
+	M0_PARTITION_ENTRY_PARTITION_TABLE = 0,
 	/* Log type */
 	M0_PARTITION_ENTRY_LOG,
 	/* Segment0 metadata type */
@@ -58,28 +59,28 @@ enum m0_partition_name {
 	/* Free blocks type */
 	M0_PARTITION_ENTRY_FREE,
 	M0_PARTITION_ENTRY_MAX
-}
+};
 
-/** 
+/**
   Store partition ID and relevant user offset.
  */
 struct primary_partition_info
 {
 	/* Partttion ID to recognize partition name */
 	enum m0_partition_name partition_id;
-	m0_bcount_t user_offset;  
+	m0_bcount_t user_offset;
 
-}
+};
 
 /**
-  Store partition ID and number of chunks need to allocate for 
+  Store partition ID and number of chunks need to allocate for
   partition ID. This info will get from upper layer(hare).
  */
 struct m0_partition_allocation_info
 {
 	enum m0_partition_name partition_id;
-	m0_bcount_t initial_user_allocation_chunks;  
-}
+	m0_bcount_t initial_user_allocation_chunks;
+};
 
 /**
  Partition config will pass the information about partition type
@@ -89,18 +90,18 @@ struct m0_partition_allocation_info
 struct m0_partition_config
 {
 	/* Partition ID and relevant user offset */
-	struct m0_partition_allocation_info *part_alloc_info; 
+	struct m0_partition_allocation_info *part_alloc_info;
 	/* Number of partition types */
 	m0_bcount_t no_of_allocation_entries;
 	m0_bcount_t chunk_size_in_bits;
 	/* Total chunks of all partitions */
 	m0_bcount_t total_chunk_count;
-	char *device_path_name;
-}
+	const char *device_path_name;
+};
 
 /**
- Partition table which contains the information of device space allocation for 
- the different users (e.g. Log, Seg0, Seg1 and Balloc). 
+ Partition table which contains the information of device space allocation for
+ the different users (e.g. Log, Seg0, Seg1 and Balloc).
  It will be stored at zero offset of the device.
  */
 struct m0_be_partition_table
@@ -112,12 +113,14 @@ struct m0_be_partition_table
 	m0_bcount_t chunk_size_in_bits;
 	char device_path_name[DEVICE_NAME_MAX_SIZE];
 	/* Partition info with ID and user offset */
-	struct primary_partition_info *pri_part_info; 
 	struct m0_format_footer par_tbl_footer;
-}
+	struct primary_partition_info *pri_part_info;
+};
 
-int partition_table_create_init(struct m0_be_domain *, bool,
-				struct m0_partition_config *);
+M0_INTERNAL int m0_be_partition_table_create_init(struct m0_be_domain *domain,
+						  bool is_mkfs,
+						  struct m0_partition_config
+						  *part_config);
 
 #endif /* __MOTR_STOB_PARTITION_TABLE_H__ */
 

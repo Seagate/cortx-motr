@@ -157,6 +157,7 @@ enum {
 	M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY,
 	M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_CREATE,
 	M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT,
+	M0_BE_DOMAIN_LEVEL_PARTITION_TABLE_CREATE,
 	M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE,
 	M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE,
 	M0_BE_DOMAIN_LEVEL_NORMAL_LOG_OPEN,
@@ -183,6 +184,11 @@ M0_INTERNAL int m0_be_segobj_opt_begin(struct m0_be_seg         *dict,
 			               const struct m0_be_0type *objtype,
 			               struct m0_buf            *opt,
 			               char                    **suffix);
+M0_INTERNAL int m0_be_domain_stob_open(struct m0_be_domain  *dom,
+				       uint64_t              stob_key,
+				       const char           *stob_create_cfg,
+				       struct m0_stob      **out,
+				       bool                  create);
 M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain *dom,
 					   const struct m0_be_domain_cfg *cfg);
 M0_INTERNAL void

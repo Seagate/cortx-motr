@@ -28,6 +28,7 @@
 #include "lib/locality.h"       /* m0_locality0_get */
 #include "module/instance.h"    /* m0_get */
 #include "be/domain.h"
+#include "be/partition_table.h" /* partition stob */
 #include "be/seg0.h"
 #include "be/seg.h"
 #include "be/seg_internal.h"    /* m0_be_seg_hdr */
@@ -49,6 +50,12 @@ M0_TL_DEFINE(seg, static, struct m0_be_seg);
  *
  * @{
  */
+
+static int be_domain_stob_open(struct m0_be_domain  *dom,
+			       uint64_t              stob_key,
+			       const char           *stob_create_cfg,
+			       struct m0_stob      **out,
+			       bool                  create);
 
 static void be_domain_lock(struct m0_be_domain *dom)
 {
@@ -102,6 +109,16 @@ M0_INTERNAL int m0_be_segobj_opt_begin(struct m0_be_seg         *dict,
 	return m0_be_segobj_opt_iterate(dict, objtype, opt, suffix, true);
 }
 
+
+M0_INTERNAL int m0_be_domain_stob_open(struct m0_be_domain  *dom,
+			       uint64_t              stob_key,
+			       const char           *stob_create_cfg,
+			       struct m0_stob      **out,
+			       bool                  create)
+{
+	return be_domain_stob_open(dom, stob_key, stob_create_cfg,
+				   out, create);
+}
 static const char *id_cut(const char *prefix, const char *key)
 {
 	size_t len;
@@ -662,6 +679,32 @@ M0_INTERNAL void m0_be_domain__0type_unregister(struct m0_be_domain *dom,
 
 static const struct m0_modlev levels_be_domain[];
 
+static int be_domain_get_partition_config(struct m0_be_domain *dom,
+					  struct m0_partition_config *config )
+{
+	config->no_of_allocation_entries = 4; /* Seg0, seg1, log, data */
+	config->chunk_size_in_bits = 30;      /* 1 GB */
+	config->total_chunk_count = 32;     /* device size / chunk size  ~4TB for now*/
+	M0_ALLOC_ARR(config->part_alloc_info,
+		     config->no_of_allocation_entries);
+	if (config->part_alloc_info == NULL) {
+		M0_LOG(M0_ERROR, "Failed allocate memory for part config");
+		return -ENOMEM;
+	}
+	config->part_alloc_info[0].partition_id = M0_PARTITION_ENTRY_SEG0;
+	config->part_alloc_info[0].initial_user_allocation_chunks = 1;
+	config->part_alloc_info[1].partition_id = M0_PARTITION_ENTRY_LOG;
+	config->part_alloc_info[1].initial_user_allocation_chunks = 1;
+	config->part_alloc_info[2].partition_id = M0_PARTITION_ENTRY_SEG1;
+	config->part_alloc_info[2].initial_user_allocation_chunks =
+		(config->total_chunk_count * 10) / 100;
+	config->part_alloc_info[3].partition_id = M0_PARTITION_ENTRY_BALLOC;
+	config->part_alloc_info[3].initial_user_allocation_chunks =
+		(config->total_chunk_count * 85) / 100;
+	config->device_path_name = dom->bd_cfg.bc_seg0_cfg.bsc_stob_create_cfg;
+	return 0;
+}
+
 static int be_domain_level_enter(struct m0_module *module)
 {
 	struct m0_be_domain     *dom = M0_AMB(dom, module, bd_module);
@@ -670,6 +713,7 @@ static int be_domain_level_enter(struct m0_module *module)
 	const char              *level_name;
 	int                      rc;
 	unsigned                 i;
+	struct m0_partition_config partition_config;
 
 	level_name = levels_be_domain[level].ml_name;
 	M0_ENTRY("dom=%p level=%d level_name=%s", dom, level, level_name);
@@ -716,13 +760,19 @@ static int be_domain_level_enter(struct m0_module *module)
 						   cfg->bc_stob_domain_key,
 						 cfg->bc_stob_domain_cfg_create,
 						   &dom->bd_stob_domain));
-
 	case M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT:
 		if (cfg->bc_mkfs_mode)
 			return M0_RC(0);
 		return M0_RC(m0_stob_domain_init(cfg->bc_stob_domain_location,
 						 cfg->bc_stob_domain_cfg_init,
 						 &dom->bd_stob_domain));
+	case M0_BE_DOMAIN_LEVEL_PARTITION_TABLE_CREATE:
+		rc = be_domain_get_partition_config(dom, &partition_config);
+		if (rc )
+			return M0_RC(rc);
+		return M0_RC(m0_be_partition_table_create_init(dom,
+							       cfg->bc_mkfs_mode,
+							       &partition_config));
 	case M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE:
 		cfg->bc_log.lc_got_space_cb = m0_be_engine_got_log_space_cb;
 		cfg->bc_log.lc_full_cb      = m0_be_engine_full_log_cb;
@@ -866,6 +916,8 @@ static void be_domain_level_leave(struct m0_module *module)
 	case M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT:
 		m0_stob_domain_fini(dom->bd_stob_domain);
 		break;
+	case M0_BE_DOMAIN_LEVEL_PARTITION_TABLE_CREATE:
+		break;
 	case M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE:
 		m0_free(dom->bd_cfg.bc_log.lc_store_cfg.
 					lsc_stob_domain_location);
@@ -932,6 +984,7 @@ static const struct m0_modlev levels_be_domain[] = {
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_CREATE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_PARTITION_TABLE_CREATE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_LOG_OPEN),

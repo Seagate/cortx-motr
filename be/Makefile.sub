@@ -21,6 +21,7 @@ nobase_motr_include_HEADERS += \
 			       be/log_sched.h       \
 			       be/log_store.h       \
 			       be/op.h              \
+			       be/partition_table.h \
                                be/pool.h            \
                                be/pd.h              \
                                be/queue.h           \
@@ -60,6 +61,7 @@ motr_libmotr_la_SOURCES += be/alloc.c           \
 			   be/log_sched.c       \
 			   be/log_store.c       \
 			   be/op.c              \
+                           be/partition_table.c \
                            be/pool.c            \
                            be/pd.c              \
 			   be/queue.c           \

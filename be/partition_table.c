@@ -18,19 +18,23 @@
  *
  */
 
-#include "be/m0_be_partition_table.h"
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#include "lib/trace.h"
 
-int verify_partition_table(struct m0_be_partition_table *partition_table)
+#include "be/partition_table.h"
+
+static int verify_partition_table(struct m0_be_partition_table *partition_table)
 {
 	int rc = -1;
 
 	if (partition_table != NULL) {
-		rc = m0_format_footer_verify(partition_table->par_tbl_header,
+		rc = m0_format_footer_verify(&partition_table->par_tbl_header,
 					     true);
 	}
 	return M0_RC(rc);
 }
 
+#if 0 /** unused for now */
 int get_partition_id(const char *partition_name)
 {
 	int rc = M0_PARTITION_ENTRY_MAX + 1;
@@ -50,94 +54,108 @@ int get_partition_id(const char *partition_name)
 	return M0_RC(rc);
 }
 
+#endif
+
 /**
- * Name: m0_be_partition_table_create_init 
+ * Name: m0_be_partition_table_create_init
  * Description:
- *   This function creates partition table and write partition table 
+ *   This function creates partition table and write partition table
  *   on the disk. Again it will read the partitition table from the
  *   disk and validate partiton table.
  * Parameters:
- *   domain    	      - (struct) Domain information to open the STOB     
+ *   domain    	      - (struct) Domain information to open the STOB
  *   is_mkfs          - (bool) To recognise mkfs
- *   partition_config - (struct) Information about partition type and 
+ *   part_config - (struct) Information about partition type and
  *   			 number of chunks for each partition
  * Return Value:
  *   SUCCESS  - Zero
- *   FAILED   - Negative value 
+ *   FAILED   - Negative value
  */
-int m0_be_partition_table_create_init(struct m0_be_domain *domain, bool is_mkfs,
-				      struct m0_partition_config 
-				      *partition_config)
+M0_INTERNAL int m0_be_partition_table_create_init(struct m0_be_domain *domain,
+						  bool is_mkfs,
+						  struct m0_partition_config
+						  *part_config)
 {
 	int			      rc;
-	int 			      partition_id_index;
-	int 			      offset_count;
+	int			      i;
+	int			      p_index;
+	int			      offset_count;
 	int			      user_allocation_chunks;
 	int			      primary_partition_size;
-	int 			      current_device_chunk_offset = 1;
-	struct m0_format_tag          partition_tag;
+	int			      curr_dev_chunk_off = 1;
 	struct m0_stob		     *stob;
 	struct m0_be_partition_table *partition_table = NULL;
+	m0_bcount_t		      f_offset;
 
-	rc = be_domain_stob_open(domain, M0_PARTITION_ENTRY_PARTITION_TABLE,
-				 partition_config->device_path_name, &stob,
+	rc = m0_be_domain_stob_open(domain, M0_PARTITION_ENTRY_PARTITION_TABLE,
+				 part_config->device_path_name, &stob,
 				 true);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Failed domain stob open");
 		goto out;
 	}
 
-	M0_ALLOC_PTR(partition_table);
+	primary_partition_size = (sizeof(struct primary_partition_info) *
+				  part_config->total_chunk_count);
+
+	f_offset = offsetof(struct m0_be_partition_table,
+			    par_tbl_footer);
+	f_offset += primary_partition_size;
+
+	partition_table = m0_alloc(primary_partition_size +
+				   sizeof(struct m0_be_partition_table));
 	if (partition_table == NULL)
 	{
 		M0_LOG(M0_ERROR, "Failed allocate memory for partition_table");
 		rc = -ENOMEM;
 		goto out;
 	}
+	partition_table->pri_part_info = (struct primary_partition_info *)
+					((char *)partition_table +
+					 offsetof(struct m0_be_partition_table,
+						  par_tbl_footer));
 
-	primary_partition_size = (sizeof(struct primary_partition_info) * 
-				  partition_config->total_chunk_count);
+#if 0
 	M0_ALLOC_ARR(partition_table->pri_part_info,
-		     partition_config->total_chunk_count);
+		     part_config->total_chunk_count);
 	if (partition_table->pri_part_info == NULL)
 	{
 		M0_LOG(M0_ERROR, "Failed to allocate memory for pri_part_info");
 		rc = -ENOMEM;
 		goto out;
 	}
-
+#endif
 	if (is_mkfs == true) {
-		m0_format_header_pack(&partition_table->partition_table_header,
+
+		m0_format_header_pack(&partition_table->par_tbl_header,
 				      &(struct m0_format_tag){
 			.ot_version = M0_PARTITION_TABLE_HDR_VERSION,
 			.ot_type    = M0_PARTITION_TABLE_TYPE,
-			.ot_footer_offset = offsetof(struct m0_be_partition_table,
-					             partition_table_footer)
-					             + primary_partition_size
-					             - sizeof(struct primary_partition_info) 
+			.ot_footer_offset = f_offset
 		});
 
 		partition_table->version_info = PARTITION_TBL_VERSION;
-		partition_table->chunk_size_in_bits = 
-			partition_config->chunk_size_in_bits;
+		partition_table->chunk_size_in_bits =
+			part_config->chunk_size_in_bits;
 
-		if(strnlen(partition_config->device_path_name, DEVICE_NAME_MAX_SIZE) > 
+		if(strnlen(part_config->device_path_name,
+			   DEVICE_NAME_MAX_SIZE) >=
 			DEVICE_NAME_MAX_SIZE) {
 			M0_LOG(M0_ERROR, "Invalid device path name size");
 			rc = -EINVAL;
 			goto out;
 		}
-		
-		strlcpy(partition_table->device_path_name, 
-			partition_config->device_path_name,
+
+		strncpy(partition_table->device_path_name,
+			part_config->device_path_name,
 			DEVICE_NAME_MAX_SIZE);
-	
-		for (partition_id_index = 0; 
-		     partition_id_index < 
-		     partition_config->no_of_allocation_entries;
-		     partition_id_index++) {
-			
-			if (partition_config->part_alloc_info[partition_id_index].partition_id 
+
+		for (p_index = 0;
+		     p_index <
+		     part_config->no_of_allocation_entries;
+		     p_index++) {
+
+			if (part_config->part_alloc_info[p_index].partition_id
 				>= M0_PARTITION_ENTRY_MAX) {
 				M0_LOG(M0_ERROR, "Invalid partition type");
 				rc = -EINVAL;
@@ -146,11 +164,11 @@ int m0_be_partition_table_create_init(struct m0_be_domain *domain, bool is_mkfs,
 
 			/* Always expected part_alloc_info first entry is PT
 			 * Is it expected or not? will check with Arc team
-			 * if uncommented below block, need to change 
- 			 * current_device_chunk_offset value to 0 */ 
-#if 0			
-			if ((current_device_chunk_offset == 0) && 
-				(partition_config->part_alloc_info[partition_id_index].partition_id != 
+			 * if uncommented below block, need to change
+ 			 * curr_dev_chunk_off value to 0 */
+#if 0
+			if ((curr_dev_chunk_off == 0) &&
+				(part_config->part_alloc_info[p_index].partition_id !=
 				 M0_PARTITION_ENTRY_PARTITION_TABLE)) {
 					M0_LOG(M0_ERROR, "Invalid partition config");
 					rc = -EINVAL;
@@ -159,40 +177,40 @@ int m0_be_partition_table_create_init(struct m0_be_domain *domain, bool is_mkfs,
 #endif
 
 			offset_count = 0;
-			user_allocation_chunks = partition_config->part_alloc_info[partition_id_index].user_allocation_chunks;
-			for (int i = 0; i < user_allocation_chunks; i++) {
-				partition_table->pri_part_info[current_device_chunk_offset].partition_id = 
-					partition_config->part_alloc_info[partition_id_index].partition_id;
-				partition_table->pri_part_info[current_device_chunk_offset].user_offset =
+			user_allocation_chunks = part_config->part_alloc_info[p_index].initial_user_allocation_chunks;
+			if ((curr_dev_chunk_off + user_allocation_chunks) >
+				part_config->total_chunk_count) {
+				M0_LOG(M0_ERROR, "Invalid current device chunk offset");
+				rc = -EINVAL;
+				goto out;
+			}
+			for (i = 0; i < user_allocation_chunks; i++) {
+				partition_table->pri_part_info[curr_dev_chunk_off].partition_id =
+					part_config->part_alloc_info[p_index].partition_id;
+				partition_table->pri_part_info[curr_dev_chunk_off].user_offset =
 					offset_count;
 				offset_count++;
-				current_device_chunk_offset++; 
-			}	
-		}
-		if (current_device_chunk_offset >
-			partition_config->total_chunk_count) {
-			M0_LOG(M0_ERROR, "Invalid current device chunk offset");
-			rc = -EINVAL;
-			goto out;
+				curr_dev_chunk_off++;
+			}
 		}
 
 		offset_count = 0;
-		while (current_device_chunk_offset <= 
-			partition_config->total_chunk_count) {
+		while (curr_dev_chunk_off <
+			part_config->total_chunk_count) {
 
-			partition_table->pri_part_info[current_device_chunk_offset].partition_id = 
+			partition_table->pri_part_info[curr_dev_chunk_off].partition_id =
 				M0_PARTITION_ENTRY_FREE;
-			partition_table->pri_part_info[current_device_chunk_offset].user_offset =
+			partition_table->pri_part_info[curr_dev_chunk_off].user_offset =
 				offset_count;
 			offset_count++;
-			current_device_chunk_offset++; 
+			curr_dev_chunk_off++;
 		}
 
-		/* TODO: Allocate fresh memory and copy all data */
 		m0_format_footer_update(partition_table);
 
 		rc = m0_be_io_single(stob, SIO_WRITE, partition_table, 0,
-				     sizeof(m0_be_partition_table)
+				     offsetof(struct m0_be_partition_table,
+					      pri_part_info)
 				     + primary_partition_size);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Failed write partition table "
@@ -201,21 +219,26 @@ int m0_be_partition_table_create_init(struct m0_be_domain *domain, bool is_mkfs,
 		}
 	}
 	rc = m0_be_io_single(stob, SIO_READ, partition_table, 0,
-			     sizeof(m0_be_partition_table) +
+			     sizeof(struct m0_be_partition_table) +
 			     primary_partition_size);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Failed read partition table from disk");
 		goto out;
 	}
+	partition_table->pri_part_info = (struct primary_partition_info *)
+					((char *)partition_table +
+					 offsetof(struct m0_be_partition_table,
+						  par_tbl_footer));
 
 	rc = verify_partition_table(partition_table);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Failed partition table verification");
 		goto out;
 	}
+	return M0_RC(rc);
 out:
 	if (partition_table)
-		m0_free0(partition_table);
+		m0_free(partition_table);
 	return M0_RC(rc);
 }
 
