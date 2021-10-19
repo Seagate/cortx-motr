@@ -166,15 +166,25 @@ const struct m0_bob_type ioo_bobtype = {
   * Once MOTR-899 lands into dev, this function will go away.
   */
 static bool is_pver_dud(uint32_t fdev_nr, uint32_t dev_k, uint32_t fsvc_nr,
-			uint32_t svc_k)
+			uint32_t svc_k, uint32_t fnode_nr, uint32_t node_k)
 {
 	if (fdev_nr > 0 && dev_k == 0)
 		return M0_RC(true);
 	if (fsvc_nr > 0 && svc_k == 0)
 		return M0_RC(true);
-	return M0_RC((svc_k + fsvc_nr > 0) ?
-		(fdev_nr * svc_k + fsvc_nr * dev_k) > dev_k * svc_k :
-		fdev_nr > dev_k);
+	if (fnode_nr > 0 && node_k == 0)
+		return M0_RC(true);
+
+	/* Summation of F(l) / K(l) across node, service and device */
+	if (node_k + fnode_nr > 0)
+		return M0_RC((fnode_nr * dev_k * svc_k +
+			     node_k * (fdev_nr * svc_k + fsvc_nr * dev_k)) >
+			     node_k * dev_k * svc_k);
+	else if (svc_k + fsvc_nr > 0)
+		return M0_RC((fdev_nr * svc_k + fsvc_nr * dev_k) >
+			      dev_k * svc_k);
+	else
+		return M0_RC(fdev_nr > dev_k);
 }
 
 /**
@@ -1492,8 +1502,6 @@ static int device_check(struct m0_op_io *ioo)
 		node_state = node_obj->pn_state;
 		m0_rwlock_read_unlock(&pm->pm_lock);
 
-		//TODO: Check if key is enough for distinguishing nodes in a
-		//pool.
 		node_id = node_obj->pn_id.f_key;
 
 		ti->ti_state = state;
@@ -1507,10 +1515,7 @@ static int device_check(struct m0_op_io *ioo)
 			    !is_node_marked(ioo, node_id)) {
 				M0_CNT_INC(fnode_nr);
 				is_session_marked(ioo, ti->ti_session);
-			}
-
-			/* The case when a particular service is down. */
-			else if (!is_session_marked(ioo, ti->ti_session)) {
+			} else if (!is_session_marked(ioo, ti->ti_session)) {
 				M0_CNT_INC(fsvc_nr);
 			}
 		} else if (M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
@@ -1532,19 +1537,24 @@ static int device_check(struct m0_op_io *ioo)
 	M0_LOG(M0_DEBUG, "failed nodes = %d\ttolerance=%d", (int)fnode_nr,
 			 (int)max_node_failures);
 
-	//TODO: Factor in failed nodes for pver dud calculation.
-	if (is_pver_dud(fdev_nr, layout_k(play), fsvc_nr, max_svc_failures))
+	if (is_pver_dud(fdev_nr, layout_k(play), fsvc_nr, max_svc_failures,
+			fnode_nr, max_node_failures))
 		return M0_ERR_INFO(-EIO, "[%p] Failed to recover data "
 				"since number of failed data units "
 				"(%lu) exceeds number of parity "
 				"units in parity group (%lu) OR "
 				"number of failed services (%lu) "
 				"exceeds number of max failures "
+				"supported (%lu) OR "
+				"number of failed nodes (%lu) "
+				"exceeds number of max node failures "
 				"supported (%lu)",
 				ioo, (unsigned long)fdev_nr,
 				(unsigned long)layout_k(play),
 				(unsigned long)fsvc_nr,
-				(unsigned long)max_svc_failures);
+				(unsigned long)max_svc_failures,
+				(unsigned long)fnode_nr,
+				(unsigned long)max_node_failures);
 	return M0_RC(fdev_nr);
 }
 
