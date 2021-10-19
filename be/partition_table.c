@@ -23,6 +23,9 @@
 
 #include "be/partition_table.h"
 
+static bool is_part_table_initilized = false;
+static struct m0_be_partition_table *partition_table = NULL;
+
 static int verify_partition_table(struct m0_be_partition_table *partition_table)
 {
 	int rc = -1;
@@ -84,7 +87,6 @@ M0_INTERNAL int m0_be_partition_table_create_init(struct m0_be_domain *domain,
 	int			      primary_partition_size;
 	int			      curr_dev_chunk_off = 1;
 	struct m0_stob		     *stob;
-	struct m0_be_partition_table *partition_table = NULL;
 	m0_bcount_t		      f_offset;
 
 	rc = m0_be_domain_stob_open(domain, M0_PARTITION_ENTRY_PARTITION_TABLE,
@@ -115,16 +117,6 @@ M0_INTERNAL int m0_be_partition_table_create_init(struct m0_be_domain *domain,
 					 offsetof(struct m0_be_partition_table,
 						  par_tbl_footer));
 
-#if 0
-	M0_ALLOC_ARR(partition_table->pri_part_info,
-		     part_config->total_chunk_count);
-	if (partition_table->pri_part_info == NULL)
-	{
-		M0_LOG(M0_ERROR, "Failed to allocate memory for pri_part_info");
-		rc = -ENOMEM;
-		goto out;
-	}
-#endif
 	if (is_mkfs == true) {
 
 		m0_format_header_pack(&partition_table->par_tbl_header,
@@ -162,22 +154,9 @@ M0_INTERNAL int m0_be_partition_table_create_init(struct m0_be_domain *domain,
 				goto out;
 			}
 
-			/* Always expected part_alloc_info first entry is PT
-			 * Is it expected or not? will check with Arc team
-			 * if uncommented below block, need to change
- 			 * curr_dev_chunk_off value to 0 */
-#if 0
-			if ((curr_dev_chunk_off == 0) &&
-				(part_config->part_alloc_info[p_index].partition_id !=
-				 M0_PARTITION_ENTRY_PARTITION_TABLE)) {
-					M0_LOG(M0_ERROR, "Invalid partition config");
-					rc = -EINVAL;
-					goto out;
-			}
-#endif
-
 			offset_count = 0;
-			user_allocation_chunks = part_config->part_alloc_info[p_index].initial_user_allocation_chunks;
+			user_allocation_chunks =
+				part_config->part_alloc_info[p_index].initial_user_allocation_chunks;
 			if ((curr_dev_chunk_off + user_allocation_chunks) >
 				part_config->total_chunk_count) {
 				M0_LOG(M0_ERROR, "Invalid current device chunk offset");
@@ -235,12 +214,31 @@ M0_INTERNAL int m0_be_partition_table_create_init(struct m0_be_domain *domain,
 		M0_LOG(M0_ERROR, "Failed partition table verification");
 		goto out;
 	}
+	is_part_table_initilized = true;
 	return M0_RC(rc);
 out:
 	if (partition_table)
 		m0_free(partition_table);
 	return M0_RC(rc);
 }
+
+M0_INTERNAL int m0_be_partition_get_part_info(struct m0_be_primary_part_info
+					      *primary_part_info)
+{
+	if ( is_part_table_initilized &&
+	     primary_part_info != NULL) {
+		primary_part_info->chunk_count = partition_table->chunk_count;
+		primary_part_info->chunk_size_in_bits =
+			partition_table->chunk_size_in_bits;
+		primary_part_info->pri_part_info =
+			partition_table->pri_part_info;
+		return 0;
+	}
+	else
+		return -EAGAIN;
+
+}
+
 
 /*
  *  Local variables:

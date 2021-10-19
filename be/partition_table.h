@@ -117,11 +117,20 @@ struct m0_be_partition_table
 	struct primary_partition_info *pri_part_info;
 };
 
+struct m0_be_primary_part_info
+{
+	/* Total chunks of all partitions */
+	m0_bcount_t chunk_count;
+	m0_bcount_t chunk_size_in_bits;
+	const struct primary_partition_info *pri_part_info;
+};
 M0_INTERNAL int m0_be_partition_table_create_init(struct m0_be_domain *domain,
 						  bool is_mkfs,
 						  struct m0_partition_config
 						  *part_config);
 
+M0_INTERNAL int m0_be_partition_get_part_info(struct m0_be_primary_part_info
+					      *primary_part_info);
 #endif /* __MOTR_STOB_PARTITION_TABLE_H__ */
 
 /*
