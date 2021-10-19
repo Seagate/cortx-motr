@@ -364,7 +364,7 @@ M0_INTERNAL void m0_net_libfab_fini(void)
  * network addresses with wildcard transfer machine identifier (like
  * "192.168.96.128@tcp1:12345:31:*").
  */
-static int libfab_ep_addr_decode_lnet(const char *name, char *node,
+M0_UNUSED static int libfab_ep_addr_decode_lnet(const char *name, char *node,
 				      size_t nodeSize, char *port,
 				      size_t portSize, struct m0_fab__ndom *fnd)
 {
@@ -439,7 +439,7 @@ static int libfab_ep_addr_decode_lnet(const char *name, char *node,
  *                 "inet6:dgram:FE80::0202:B3FF:FE1E:8329@6663" or
  *                 "unix:dgram:/tmp/socket".
  */
-static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
+M0_UNUSED static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
 				      size_t nodeSize, char *port,
 				      size_t portSize)
 {
@@ -491,7 +491,7 @@ static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
  * Example of ep_name IPV4 192.168.0.1:4235
  *                    IPV6 [4002:db1::1]:4235
  */
-static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
+M0_UNUSED static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
 					size_t node_size, char *port,
 					size_t port_size)
 {
@@ -550,19 +550,17 @@ static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
  *
  * The following address formats are supported:
  *
- *     - lnet compatible, see nlx_core_ep_addr_decode():
+ *     - The lnet compatible format is of type
+ *        <nid>@<type>:<pid>:<portal>:<tmid>
+ *       for example: "10.0.2.15@tcp:12345:34:123",
+ *                    "192.168.96.128@tcp:12345:31:*",
+ *                     see nlx_core_ep_addr_decode()
  *
- *           nid:pid:portal:tmid
- *
- *       for example: "10.0.2.15@tcp:12345:34:123" or
- *       "192.168.96.128@tcp1:12345:31:*"
- *
- *     - sock format, see socket(2):
- *           family:type:ipaddr[@port]
- *
- *     - libfab compatible format
- *       for example IPV4 libfab:192.168.0.1:4235
- *                   IPV6 libfab:[4002:db1::1]:4235
+ *     - The inet address format is of type
+ *         <family>:<type>:<ipaddr/hostname_FQDN>@<port>
+ *        for example: "inet:tcp:127.0.0.1@3000",
+ *                     "inet:stream:lanl.gov@23",
+ *                      "inet6:dgram:FE80::0202:B3FF:FE1E:8329@6663"
  *
  */
 static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
@@ -570,30 +568,33 @@ static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
 {
 	char *node = ep->fep_name_p.fen_addr;
 	char *port = ep->fep_name_p.fen_port;
-	size_t nodeSize = ARRAY_SIZE(ep->fep_name_p.fen_addr);
-	size_t portSize = ARRAY_SIZE(ep->fep_name_p.fen_port);
+	size_t nodesize = ARRAY_SIZE(ep->fep_name_p.fen_addr);
 	int result;
+	struct m0_net_ip_addr *addr = &ep->fep_name_p.fen_name;
 
 	M0_ENTRY("name=%s", name);
-	
+
 	if (name == NULL || name[0] == 0)
 		result =  M0_ERR(-EPROTO);
-	else if (strncmp(name, "libfab:", strlen("libfab:")) == 0)
-		result = libfab_ep_addr_decode_native(name + strlen("libfab:"),
-						      node, nodeSize,
-						      port, portSize);
-	else if (name[0] < '0' || name[0] > '9')
-		/* sock format */
-		result = libfab_ep_addr_decode_sock(name, node, nodeSize,
-						    port, portSize);
-	else
-		/* Lnet format. */
-		result = libfab_ep_addr_decode_lnet(name, node, nodeSize,
-						    port, portSize, fnd);
 
+	result = m0_net_ip_parse(name, addr);
 	if (result == 0)
+	{
 		strcpy(ep->fep_name_p.fen_str_addr, name);
+		if (addr->na_format == M0_NET_IP_LNET_FORMAT)
+			inet_ntop(AF_INET, &addr->na_n.sn[0], node,
+				  nodesize);
+		else if (addr->na_addr.ia.nia_family == M0_NET_IP_AF_INET)
+			inet_ntop(AF_INET, &addr->na_n.sn[0], node,
+				  nodesize);
+		else if (addr->na_addr.ia.nia_family == M0_NET_IP_AF_INET6)
+			inet_ntop(AF_INET6, &addr->na_n.ln[0], node,
+				  nodesize);
+		else
+			M0_LOG(M0_ERROR, "UNIX family is not supported.");
 
+		sprintf(port, "%d", addr->na_port);
+	}
 	return M0_RC(result);
 }
 
@@ -722,24 +723,28 @@ static void libfab_tm_buf_done(struct m0_fab__tm *ftm)
 /**
  * Constructs an address in string format from the connection data parameters
  */
-static void libfab_straddr_gen(struct m0_fab__conn_data *cd, char *buf,
+/** TODO: Replace this function with m0_net_ip_print()
+ */
+M0_UNUSED static void libfab_straddr_gen(struct m0_fab__conn_data *cd, char *buf,
 			       uint8_t len, struct m0_fab__ep_name *en)
 {
+#if 0
 	libfab_ep_ntop(cd->fcd_netaddr, en);
 	if (cd->fcd_tmid == 0xFFFF)
 		sprintf(buf, "%s@%s:12345:%d:*",
 			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
-			cd->fcd_iface == FAB_LO ? "lo" : 
+			cd->fcd_iface == FAB_LO ? "lo" :
 				((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
 			cd->fcd_portal);
 	else
 		sprintf(buf, "%s@%s:12345:%d:%d",
 			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
-			cd->fcd_iface == FAB_LO ? "lo" : 
+			cd->fcd_iface == FAB_LO ? "lo" :
 			((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
 			cd->fcd_portal, cd->fcd_tmid);
 
 	M0_ASSERT(len >= strlen(buf));
+#endif /* #if 0*/
 }
 
 /**
@@ -763,15 +768,15 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 					sizeof(struct m0_fab__conn_data))];
 	uint32_t                  event;
 	int                       rc;
-	char                      straddr[LIBFAB_ADDR_STRLEN_MAX] = {};
+	// char                      straddr[LIBFAB_ADDR_STRLEN_MAX] = {};
 
 	eq = tm->ftm_pep->fep_listen->pep_res.fpr_eq;
 	rc = fi_eq_read(eq, &event, &entry, sizeof(entry), 0);
 	if (rc >= (int)sizeof(struct fi_eq_cm_entry) && event == FI_CONNREQ) {
 		cm_entry = (struct fi_eq_cm_entry *)entry;
 		cd = (struct m0_fab__conn_data*)(cm_entry->data);
-		libfab_straddr_gen(cd, straddr, sizeof(straddr), &en);
-		rc = libfab_fab_ep_find(tm, &en, straddr, &ep);
+		// libfab_straddr_gen(cd, straddr, sizeof(straddr), &en);
+		rc = libfab_fab_ep_find(tm, &en, cd->fcd_addr.na_p, &ep);
 		if (rc == 0) {
 			rc = libfab_conn_accept(ep, tm, cm_entry->info);
 			if (rc != 0)
@@ -2290,9 +2295,10 @@ static struct m0_fab__fab *libfab_newfab_init(struct m0_fab__ndom *fnd)
  * This function fills out the connection data fields with the appropriate
  * values by parsing the source endpoint address
  */
-static void libfab_conn_data_fill(struct m0_fab__conn_data *cd,
+M0_UNUSED static void libfab_conn_data_fill(struct m0_fab__conn_data *cd,
 				  struct m0_fab__tm *tm)
 {
+#if 0
 	char *h_ptr = tm->ftm_pep->fep_name_p.fen_str_addr;
 	char *t_ptr;
 	char  str_portal[10]={'\0'};
@@ -2319,6 +2325,7 @@ static void libfab_conn_data_fill(struct m0_fab__conn_data *cd,
 		cd->fcd_tmid = 0xFFFF;
 	else
 		cd->fcd_tmid = (uint16_t)atoi(t_ptr+1);
+#endif /* #if 0*/
 }
 
 /**
@@ -2338,7 +2345,8 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 	aep = libfab_aep_get(ep);
 	if (aep->aep_tx_state == FAB_NOT_CONNECTED) {
 		dst = ep->fep_name_n | 0x02;
-		libfab_conn_data_fill(&cd, ma);
+		// libfab_conn_data_fill(&cd, ma);
+		cd.fcd_addr = ma->ftm_pep->fep_name_p.fen_name;
 
 		ret = fi_getopt(&aep->aep_txep->fid, FI_OPT_ENDPOINT,
 				FI_OPT_CM_DATA_SIZE,
