@@ -402,7 +402,7 @@ void m0_net_test_client_server_bulk_ut(void)
 			       64, 0x100000,
 			       8, 16, 0x4000, 0x10000);
 }
-void m0_net_test_xprt_dymanic_reg_dereg_ut(void)
+void m0_net_test_xprt_dynamic_reg_dereg_ut(void)
 {
 	M0_LOG(M0_DEBUG, "Before mem fini\n");
 	m0_net_print_xprt();
