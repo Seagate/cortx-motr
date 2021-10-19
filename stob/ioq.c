@@ -158,6 +158,10 @@ enum {
 	STOB_IOQ_BMASK	= STOB_IOQ_BSIZE - 1
 };
 
+M0_INTERNAL m0_bcount_t get_partition_offset(m0_bcount_t user_offset_in_bytes,
+					     m0_bcount_t partition_id);
+
+
 M0_INTERNAL int m0_stob_linux_io_init(struct m0_stob *stob,
 				      struct m0_stob_io *io)
 {
@@ -219,6 +223,9 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 	bool                  eosrc;
 	bool                  eodst;
 	int                   opcode;
+	int                   part_id;
+
+	part_id = io->si_obj->so_id.si_fid.f_key;
 
 	M0_PRE(M0_IN(io->si_opcode, (SIO_READ, SIO_WRITE)));
 	/* prefix fragments execution mode is not yet supported */
@@ -309,9 +316,12 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 		       (int)(qev - lio->si_qev), i, io->si_opcode,
 		       (unsigned long)off, (unsigned long)chunk_size, result);
 		if (result == 0) {
+			m0_bcount_t dev_off;
+
+			dev_off = get_partition_offset(off, part_id);
 			iocb->u.v.nr = i;
 			qev->iq_nbytes = chunk_size << m0_stob_ioq_bshift(ioq);
-			qev->iq_offset = off << m0_stob_ioq_bshift(ioq);
+			qev->iq_offset = dev_off << m0_stob_ioq_bshift(ioq);
 
 			ioq_queue_put(ioq, qev);
 

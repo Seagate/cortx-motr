@@ -24,8 +24,8 @@
 #define __MOTR_STOB_PARTITION_TABLE_H__
 
 #include <stdint.h>
+#include <string.h>
 
-#include "lib/trace.h"
 #include "lib/misc.h"    /* M0_SET0 */
 #include "lib/arith.h"   /* M0_3WAY */
 #include "lib/errno.h"

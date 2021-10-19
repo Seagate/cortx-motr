@@ -18,6 +18,9 @@
  *
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
+#include "lib/trace.h"
+
 #include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
@@ -29,19 +32,25 @@
 #define MAXCOUNT 13
 
 struct m0_partition_config pt={0};
+static bool is_test_table_initilized = false;
 
 /*
-* The below tables map the user chunk offset to device chunk offset for log,seg0,seg1 and balloc
+* The below tables map the user chunk offset to device chunk offset for
+* log,seg0,seg1 and balloc
 * below example shows an example mapping:
 *
 *    log_table[user chunk offset] = device chunk offset
 *
 * Also there are index for these different tables defined.
 * */
-m0_bcount_t log_table[MAX]={0},log_index=0;
-m0_bcount_t seg0_table[MAX]={0},seg0_index=0;
-m0_bcount_t seg1_table[MAX]={0},seg1_index=0;
-m0_bcount_t balloc_table[MAX]={0},balloc_index=0;
+m0_bcount_t log_table[MAX]={0};
+m0_bcount_t log_index=0;
+m0_bcount_t seg0_table[MAX]={0};
+m0_bcount_t seg0_index=0;
+m0_bcount_t seg1_table[MAX]={0};
+m0_bcount_t seg1_index=0;
+m0_bcount_t balloc_table[MAX]={0};
+m0_bcount_t balloc_index=0;
 
 
 
@@ -78,7 +87,7 @@ static int init_parition_table()
 	/**  populate other tables like M0_PARTITION_ENTRY_LOG,
 	 * M0_PARTITION_ENTRY_SEG0, M0_PARTITION_ENTRY_SEG1, Balloc*/
 	for (primary_part_index = 0;
-	     primary_part_index <= pt.total_chunk_count;
+	     primary_part_index <= pt.chunk_count;
 	     primary_part_index++) {
 		if (pt.pri_part_info[primary_part_index].partition_id ==
 		    M0_PARTITION_ENTRY_LOG)
@@ -93,6 +102,7 @@ static int init_parition_table()
 			 M0_PARTITION_ENTRY_BALLOC)
 			balloc_table[balloc_index++] = primary_part_index;
 	}
+	return 0;
 }
 
 
@@ -103,12 +113,14 @@ static m0_bcount_t get_device_chunk_offset(m0_bcount_t user_chunk_offset_index,
 
 	if (partition_id == M0_PARTITION_ENTRY_LOG)
 		device_chunk_offset = log_table[user_chunk_offset_index];
-	if (partition_id == M0_PARTITION_ENTRY_SEG0)
+	else if (partition_id == M0_PARTITION_ENTRY_SEG0)
 		device_chunk_offset = seg0_table[user_chunk_offset_index];
-	if (partition_id == M0_PARTITION_ENTRY_SEG1)
+	else if (partition_id == M0_PARTITION_ENTRY_SEG1)
 		device_chunk_offset = seg1_table[user_chunk_offset_index];
-	if (partition_id == M0_PARTITION_ENTRY_BALLOC)
+	else if (partition_id == M0_PARTITION_ENTRY_BALLOC)
 		device_chunk_offset = balloc_table[user_chunk_offset_index];
+	else
+		device_chunk_offset = user_chunk_offset_index;
 
 	return(device_chunk_offset);
 }
@@ -116,12 +128,15 @@ static m0_bcount_t get_device_chunk_offset(m0_bcount_t user_chunk_offset_index,
 M0_INTERNAL m0_bcount_t get_partition_offset(m0_bcount_t user_offset_in_bytes,
 					     m0_bcount_t partition_id)
 {
-	m0_bcount_t actual_address=0;
 	m0_bcount_t device_chunk_offset;
 	m0_bcount_t device_offset_in_bytes;
-	m0_bcount_t mask;
 	m0_bcount_t user_chunk_offset_index;
-	m0_bcount_t relative_offset_in_given_chunk;
+
+	if(!is_test_table_initilized){
+		if (!init_parition_table())
+			M0_ERR(-EAGAIN);
+		is_test_table_initilized = true;
+	}
 
 	user_chunk_offset_index =
 		(user_offset_in_bytes >> pt.chunk_size_in_bits);
@@ -140,7 +155,7 @@ M0_INTERNAL m0_bcount_t get_partition_offset(m0_bcount_t user_offset_in_bytes,
 }
 
 
-
+#if 0
 int main(int argc, const char *argv[])
 {
 	m0_bcount_t device_offset_in_bytes=0;
@@ -153,4 +168,6 @@ int main(int argc, const char *argv[])
 
 	return 0;
 }
+#endif
+
 

@@ -21,6 +21,7 @@
 
 
 #include "be/log_store.h"
+#include "be/partition_table.h" /* enum m0_partition_name */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"          /* M0_LOG */
@@ -287,6 +288,7 @@ static int be_log_store_level_enter(struct m0_module *module)
 		/* temporary solution BEGIN */
 		stob_id->si_domain_fid =
 			*m0_stob_domain_id_get(ls->ls_stob_domain);
+		stob_id->si_domain_fid.f_key = M0_PARTITION_ENTRY_LOG;
 		/* temporary solution END */
 		return m0_stob_find(stob_id, &ls->ls_stob);
 	case M0_BE_LOG_STORE_LEVEL_STOB_LOCATE:

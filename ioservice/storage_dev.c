@@ -42,6 +42,7 @@
 #ifndef __KERNEL__
 #  include "pool/pool.h"            /* m0_pools_common */
 #endif
+#include "be/partition_table.h"
 
 /**
    @addtogroup sdev
@@ -490,6 +491,8 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 	struct m0_stob           *stob;
 	const char               *path = fi_no_dev ? NULL : path_orig;
 	int                       rc;
+
+	cid = M0_PARTITION_ENTRY_BALLOC;
 
 	M0_ENTRY("cid=%"PRIu64, cid);
 	M0_PRE(M0_IN(type, (M0_STORAGE_DEV_TYPE_LINUX, M0_STORAGE_DEV_TYPE_AD)));
