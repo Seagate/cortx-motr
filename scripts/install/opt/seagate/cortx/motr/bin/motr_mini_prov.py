@@ -1319,6 +1319,11 @@ def fetch_fid(self, service, idx):
 def start_service(self, service, idx):
     self.logger.info(f"service={service}\nidx={idx}\n")
 
+    if service == "fsm":
+        cmd = f"{MOTR_FSM_SCRIPT_PATH}"
+        execute_command_verbose(self, cmd, set_timeout=False)
+        return
+
     # Copy confd_path to /etc/sysconfig
     # confd_path = MOTR_M0D_CONF_DIR/confd.xc
     confd_path = f"{self.local_path}/motr/sysconfig/{self.machine_id}/confd.xc"
@@ -1330,14 +1335,9 @@ def start_service(self, service, idx):
     cmd = f"cp -v {self.local_path}/motr/sysconfig/{self.machine_id}/motr /etc/sysconfig/"
     execute_command(self, cmd)
 
-    if service != "fsm":
-        fid = fetch_fid(self, service, idx)
-        if fid == -1:
-            return -1
-    if service in ["ioservice", "confd", "cas"]:
-        cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
-        execute_command_verbose(self, cmd, set_timeout=False)
-    elif service == "fsm":
-        cmd = f"{MOTR_FSM_SCRIPT_PATH}"
-        execute_command_verbose(self, cmd, set_timeout=False)
+    fid = fetch_fid(self, service, idx)
+    if fid == -1:
+        return -1
+    cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
+    execute_command_verbose(self, cmd, set_timeout=False)
     return
