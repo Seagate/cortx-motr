@@ -387,7 +387,7 @@ static int libfab_hostname_to_ip(char *hostname , char* ip)
 	n = cp - hostname;
 	memcpy(name, hostname, n);
 	name[n] = '\0';
-	M0_LOG(M0_ALWAYS, "in %s out %s", (char*)hostname, (char*)name);
+	M0_LOG(M0_DEBUG, "in %s out %s", (char*)hostname, (char*)name);
 	if ((hname = gethostbyname(name)) == NULL)
 		return M0_ERR(-EPROTO);
 
@@ -396,7 +396,7 @@ static int libfab_hostname_to_ip(char *hostname , char* ip)
 	{
 		//Return the first one;
 		strcpy(ip , inet_ntoa(*addr[i]));
-		ip[strlen(ip)+1] = '\0';
+		ip[( strlen(inet_ntoa(*addr[i])) ) + 1] = '\0';
 		n=strlen(ip);
 		return M0_RC(n);
 	}
