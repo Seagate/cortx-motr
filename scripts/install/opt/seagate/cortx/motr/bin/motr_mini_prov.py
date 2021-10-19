@@ -369,8 +369,14 @@ def motr_config_k8(self):
     # Update motr-hare keys only for storage node
     if self.node['type'] == 'storage_node':
         update_motr_hare_keys(self, self.nodes)
+
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
-    update_bseg_size(self)
+
+    # Update be_seg size only for storage node
+    if self.node['type'] == 'storage_node':
+        update_bseg_size(self)
+
+    # Modify motr config file
     update_copy_motr_config_file(self)
     return
 
