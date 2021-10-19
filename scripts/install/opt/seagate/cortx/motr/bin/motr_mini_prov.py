@@ -179,7 +179,7 @@ def get_logical_node_class(self):
     try:
         logical_node_class = self.cluster['logical_node_class']
     except:
-        raise MotrError(errno.EINVAL, f"logical_node_class does not exist in ConfStore")
+        raise MotrError(errno.EINVAL, f"{logical_node_class} does not exist in ConfStore")
     check_type(logical_node_class, list, "logical_node_class")
     return logical_node_class
 
@@ -281,7 +281,6 @@ def update_copy_motr_config_file(self):
     local_path = self.local_path
     log_path = self.log_path
     machine_id = self.machine_id
-    hostname = self.node['hostname']
     validate_files([MOTR_SYS_CFG, local_path, log_path])
     MOTR_M0D_DATA_DIR = f"{local_path}/motr"
     if not os.path.exists(MOTR_M0D_DATA_DIR):
@@ -1242,7 +1241,7 @@ def part_clean(self):
 # It will give num of partitions + 1.
 # To get partition numbers, subract 1 from output
 def get_part_count(self, device):
-   dpath, fname = os.path.split(device)
+   fname = os.path.split(device)
    cmd = f"lsblk -o name | grep -c {fname}"
    ret = int(execute_command(self, cmd, verbose=True)[0]) - 1
    return ret

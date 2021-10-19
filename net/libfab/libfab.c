@@ -396,7 +396,6 @@ static int libfab_hostname_to_ip(char *hostname , char* ip)
 	{
 		//Return the first one;
 		strcpy(ip , inet_ntoa(*addr[i]));
-		ip[( strlen(inet_ntoa(*addr[i])) ) + 1] = '\0';
 		n=strlen(ip);
 		return M0_RC(n);
 	}
