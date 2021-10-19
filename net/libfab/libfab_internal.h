@@ -276,6 +276,9 @@ struct m0_fab__ep_name {
 
 	/** address in string format as passed by the net layer */
 	char fen_str_addr[LIBFAB_ADDR_STRLEN_MAX];
+
+	/** network address */
+	struct m0_net_ip_addr fen_name;
 };
 
 /**
@@ -572,17 +575,21 @@ struct m0_fab__buf {
  * Libfab structure of connection data
  */
 struct m0_fab__conn_data {
-	/** address in network byte format */
-	uint64_t fcd_netaddr;
+	// /** address in network byte format */
+	// uint64_t fcd_netaddr;
 	
-	/** portal number */
-	uint16_t fcd_portal;
+	// /** portal number */
+	// uint16_t fcd_portal;
 	
-	/** transfer machine id */
-	uint16_t fcd_tmid;
+	// /** transfer machine id */
+	// uint16_t fcd_tmid;
 	
-	/** interface type */
-	uint8_t  fcd_iface;
+	// /** interface type */
+	// uint8_t  fcd_iface;
+
+	/** network address */
+	// TODO: Reduce size of m0_fab__conn_data to less than 50 bytes in order to work with verbs
+	struct m0_net_ip_addr fcd_addr;
 };
 
 /**
