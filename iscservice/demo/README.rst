@@ -174,7 +174,6 @@ shared among the 3 server nodes (with max 5 SSDs per node).
   185.60user 4.82system 3:29.11elapsed 91%CPU (0avgtext+0avgdata 588maxresident)k
   0inputs+0outputs (0major+265minor)pagefaults 0swaps
 
-
 We can clearly see that the computation with ISC performs more than 2 times faster,
 than on the client node with the client utility (which runs exactly the same logic
 to find min/max as the ISC library). And the bigger the object size, the faster it
