@@ -34,15 +34,17 @@
 
 static struct m0_rpc_server_ctx cm_ut_sctx;
 static const char *SERVER_LOGFILE = "cm_ut.log";
-char  *cm_ut_server_args[] = { "m0d", "-T", "LINUX",
-				"-D", "sr_db", "-S", "sr_stob",
-				"-A", "linuxstob:sr_addb_stob",
-				"-f", M0_UT_CONF_PROCESS,
-				"-w", "10",
-				"-F",
-				"-G", "lnet:0@lo:12345:34:1",
-				"-e", "lnet:0@lo:12345:34:1",
-				"-c", M0_UT_PATH("conf.xc")};
+char  *cm_ut_server_args[] = {
+	"m0d", "-T", "LINUX",
+	"-D", "sr_db", "-S", "sr_stob",
+	"-A", "linuxstob:sr_addb_stob",
+	"-f", M0_UT_CONF_PROCESS,
+	"-w", "10",
+	"-F",
+	"-G", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-c", M0_UT_PATH("conf.xc")
+};
 
 static void cm_ut_server_start(void)
 {

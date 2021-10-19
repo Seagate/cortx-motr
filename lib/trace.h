@@ -36,7 +36,6 @@
 
 #ifndef __KERNEL__
 #include "lib/user_space/trace.h"
-#include <sys/user.h>    /* PAGE_SIZE */
 #endif
 
 /**
@@ -324,12 +323,14 @@ extern unsigned int m0_trace_level;
  */
 
 enum {
-	/** Size, reserved for trace buffer header */
-	M0_TRACE_BUF_HEADER_SIZE = PAGE_SIZE,
+	/**
+	 * Size, reserved for trace buffer header. Must be multiple of
+	 * page size on all supported platforms.
+	 */
+	M0_TRACE_BUF_HEADER_SIZE = (1 << 16), /* 64KB */
 	/** Alignment for trace records in trace buffer */
 	M0_TRACE_REC_ALIGN = 8, /* word size on x86_64 */
 };
-M0_BASSERT(M0_TRACE_BUF_HEADER_SIZE % PAGE_SIZE == 0);
 
 extern struct m0_trace_buf_header *m0_logbuf_header; /**< Trace buffer header pointer */
 extern void      *m0_logbuf;        /**< Trace buffer pointer */

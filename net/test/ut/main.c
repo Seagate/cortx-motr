@@ -48,7 +48,7 @@ extern void m0_net_test_cmd_ut_multiple2(void);
 extern void m0_net_test_client_server_stub_ut(void);
 extern void m0_net_test_client_server_ping_ut(void);
 extern void m0_net_test_client_server_bulk_ut(void);
-extern void m0_net_test_xprt_dymanic_reg_dereg_ut(void);
+extern void m0_net_test_xprt_dynamic_reg_dereg_ut(void);
 
 static int net_test_fini(void)
 {
@@ -80,7 +80,7 @@ struct m0_ut_suite m0_net_test_ut = {
 		{ "client-server-ping",	m0_net_test_client_server_ping_ut },
 #endif
 		{ "client-server-bulk",	m0_net_test_client_server_bulk_ut },
-		{ "xprt-dymanic-reg-dereg",	m0_net_test_xprt_dymanic_reg_dereg_ut },
+		{ "xprt-dynamic-reg-dereg",	m0_net_test_xprt_dynamic_reg_dereg_ut },
 		{ NULL,			NULL				  }
 	}
 };

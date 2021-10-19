@@ -31,6 +31,7 @@ set -eu
 
 umask 0002
 ulimit -c unlimited
+ulimit -n 4096
 
 ## CAUTION! This directory will be removed by superuser.
 RUNDIR=${RUNDIR:-/var/motr/$(id -un)}
@@ -39,7 +40,67 @@ PROG="${0##*/}"
 M0_SRC_DIR="$(readlink -f $0)"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
+. $M0_SRC_DIR/utils/functions #m0_default_xprt
+
 SUDO="${SUDO-sudo -E}"  # the absence of ':' is important
+
+# libfab doesnot need kernel based ST
+_libfab_st_list() {
+    st_name=$1
+    found_st=false
+    st_libfab_skip=(04initscripts
+                    06conf
+                    07mount
+                    07mount-fail
+                    07mount-multiple
+                    08spiel
+                    08spiel-sns-repair
+                    08spiel-sns-repair-quiesce
+                    10pver-assign
+                    11m0t1fs
+                    11m0t1fs-rconfc-fail
+                    12fsync
+                    12fwait
+                    13dgmode-io
+                    14poolmach
+                    15sns-repair-shutdown
+                    15sns-repair-single
+                    16sns-repair-multi
+                    17sns-repair-concurrent-io
+                    18sns-repair-quiesce
+                    18sns-repair-quiesce-failure
+                    19sns-repair-abort
+                    20rpc-session-cancel
+                    21fsync-single-node
+                    22sns-repair-ios-fail
+                    23sns-abort-quiesce
+                    23spiel-dix-repair
+                    23spiel-dix-repair-quiesce
+                    26motr-user-kernel-tests
+                    28sys-kvs
+                    28sys-kvs-kernel
+                    34sns-repair-1n-1f
+                    35m0singlenode
+                    36spare-reservation
+                    37protocol
+                    40motr-dgmode
+                    43motr-sync-replication
+                    45motr-rmw
+                    49motr-rpc-cancel
+                    51kem)
+    i=0
+    while [ $i -lt ${#st_libfab_skip[@]} ]
+    do
+        if [[ "${st_libfab_skip[$i]}" == "$st_name" ]]; then
+            found_st=true
+            break
+        fi
+
+        i=`expr $i + 1`
+    done
+
+    echo "$found_st"
+}
 
 # Increase the maximum number of memory map areas a process may have.
 # m0d process may allocate and madvise() at least 2,000,000 memory map areas.
@@ -127,9 +188,21 @@ cmd_run_ut() {
 }
 
 cmd_run_kut() {
-    rundir_init
-    echo 'Running kernel UT (this may take a while) ...'
-    $SUDO "$M0_SRC_DIR/ut/m0kut" "$@"
+    local trans
+    trans=$(m0_default_xprt)
+    if [[ "$trans" != "libfab" ]]; then
+        rundir_init
+        echo 'Running kernel UT (this may take a while) ...'
+        $SUDO "$M0_SRC_DIR/ut/m0kut" "$@"
+    else
+        echo 'Libfabric runs in userspace only. Kernel UTs are disabled!'
+        . "$M0_SRC_DIR/utils/functions" # sandbox_init, report_and_exit
+        export SANDBOX_DIR=$RUNDIR/sandbox.st-m0kut
+        rc=0
+        sandbox_init
+        sandbox_fini $rc
+        report_and_exit m0kut $rc
+    fi
 }
 
 cmd_run_ub() {
@@ -141,6 +214,9 @@ cmd_run_st() {
     local pattern
     local f
     local list_p=0
+    local trans
+
+    trans=$(m0_default_xprt)
 
     if [ "${1:-}" = '-l' ]; then
         list_p=1
@@ -158,6 +234,18 @@ cmd_run_st() {
                     echo ${f##*/}
                 else
                     echo "<< ${f##*/} >>" >&2
+                    if [[ "$trans" == "libfab" ]]; then
+                        chk=$(_libfab_st_list ${f##*/})
+                        if [[ "$chk" == "true" ]]; then
+                            echo "<< ${f##*/} >> Can not be run for libfab" >&1
+                            . "$M0_SRC_DIR/utils/functions" # sandbox_init, report_and_exit
+                            export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
+                            rc=0
+                            sandbox_init
+                            sandbox_fini $rc
+                            report_and_exit ${f##*/} $rc
+                        fi
+                    fi
                     export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
                     _time $f || return $?
                 fi
@@ -253,6 +341,7 @@ Commands:
 Environment variables:
     CONFIGURE_OPTS      Extra options for './configure' command.
     MAKE_OPTS           Extra options for 'make' command.
+    NET_XPT             Extra option for changing default libfab transport
 
 Motr sources: $M0_SRC_DIR
 UT output:    $RUNDIR
