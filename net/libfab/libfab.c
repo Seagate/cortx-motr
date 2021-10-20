@@ -952,6 +952,7 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		 * Hence, adding a sched_yield() will release the CPU for
 		 * other processes and reduce CPU consumption.
 		 */
+		m0_nanosleep(M0_MKTIME(0 ,0), NULL);
 		sched_yield();
 		ev_cnt = epoll_wait(tm->ftm_epfd, &ev, 1, FAB_WAIT_FD_TMOUT);
 
