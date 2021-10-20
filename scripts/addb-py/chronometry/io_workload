@@ -66,7 +66,7 @@ function stop_hare_cluster()
     hctl shutdown || {
         _warn "Cluster stop FAILED! Trying to go further."
     }
-    
+
     $EX_SRV systemctl reset-failed hare-hax
     set -e
 }
@@ -97,7 +97,6 @@ function cleanup_cluster()
     $EX_SRV lsmod | grep -q m0ctl && ( rmmod m0ctl || echo "Failed to unload m0ctl module" )
     $EX_SRV lsmod | grep -q m0tr && ( rmmod m0tr || echo "Failed to unload m0tr module" )
     $EX_SRV lsmod | grep -q m0gf && ( rmmod m0gf || echo "Failed to unload m0gf module" )
-    $EX_SRV lsmod | grep -q galois && ( rmmod galois || echo "Failed to unload galois module" )
     set -e
 
     $EX_SRV 'rm -rf /var/motr/*'
@@ -114,7 +113,7 @@ function setup_ha()
         $EX_SRV systemctl stop halond
         $EX_SRV systemctl start motr-cleanup
         $EX_SRV systemctl start halon-cleanup
-         
+
    else
         _info "setup Hare"
         CURRENT_CDF="/tmp/cdf.yaml"
@@ -151,7 +150,7 @@ function setup_m0_configs()
 
 function setup_ha_configs()
 {
-   # TODO: Add support for dev VMs.   
+   # TODO: Add support for dev VMs.
    if [[ "$HA_TYPE" == "halon" ]]; then
         _info "setup Halon configs"
         # halon_facts.yaml
@@ -261,10 +260,10 @@ function save_motr_artifacts() {
     fi
 
     mkdir -p $configs_dir
-    
+
     pushd $configs_dir
     cp $MOTR_CONF_FILE ./
-    
+
     if [[ "$HA_TYPE" == "halon" ]]; then
         #Halon configs
         cp $HALOND_CONF_FILE ./
@@ -554,7 +553,7 @@ function run_tests() {
     popd #m0cli_dir
 
     set +e
-    
+
     if [[ "$HA_TYPE" == "halon" ]]; then
        hctl motr status > hctl-motr-status.stop
        hctl motr stop || {

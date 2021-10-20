@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -231,7 +231,6 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fdms_register,    &m0_fdms_unregister,  "fdmi-service" },
 #endif /* __KERNEL__ */
 	{ &m0_cas_module_init,  &m0_cas_module_fini,  "cas" },
-	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
 	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" },
 	{ &m0_ha_mod_init,      &m0_ha_mod_fini,      "ha" },
 	{ &m0_client_global_init, &m0_client_global_fini, "client" },
