@@ -1335,6 +1335,12 @@ def start_service(self, service, idx):
     cmd = f"cp -v {self.local_path}/motr/sysconfig/{self.machine_id}/motr /etc/sysconfig/"
     execute_command(self, cmd)
 
+    if service == "ioservice" or service == "confd":
+        cmd = f"/opt/seagate/cortx/motr/libexec/m0trace_logrotate.sh"
+        execute_command(self, cmd)
+        cmd = f"/opt/seagate/cortx/motr/libexec/m0addb_logrotate.sh"
+        execute_command(self, cmd)
+
     fid = fetch_fid(self, service, idx)
     if fid == -1:
         return -1
