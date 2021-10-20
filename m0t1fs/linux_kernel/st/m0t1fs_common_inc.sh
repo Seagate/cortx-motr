@@ -225,7 +225,6 @@ unload_motr_ctl_module()
 
 prepare()
 {
-	modload_galois >& /dev/null
 	echo 8 > /proc/sys/kernel/printk
 	load_kernel_module || return $?
 	sysctl -w vm.max_map_count=30000000 || return $?
@@ -245,7 +244,6 @@ unprepare()
 	if lsmod | grep m0tr; then
 		unload_kernel_module || rc=$?
 	fi
-	modunload_galois || rc=$?
 	## The absence of `sandbox_fini' is intentional.
 	return $rc
 }

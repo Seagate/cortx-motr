@@ -200,7 +200,6 @@ AH_TEMPLATE([HAVE_MALLINFO],          [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
-AH_TEMPLATE([HAVE_ISAL],              [Have Intel ISA-L available])
 AH_TEMPLATE([CONFIG_X86_64],          [Support for X86_64 platform])
 AH_TEMPLATE([CONFIG_AARCH64],         [Support for AARCH64 platform])
 
@@ -866,38 +865,13 @@ AS_IF([test x$with_lustre != xno],[
 #
 # Checking Intel ISA library --------------------------------------------------------- {{{1
 #
-AC_ARG_ENABLE([isal],
-        [AS_HELP_STRING([--disable-isal],
-                        [Disable use Intel ISA. Instead use Galois library.])],
-        [],[enable_isal=yes]
+MOTR_SEARCH_LIBS([ec_encode_data], [c isal], [ISAL_LIBS],
+        [ec_encode_data cannot be found! Try to install Intel ISA library package.]
 )
-
-AM_CONDITIONAL([HAVE_ISAL],
-               [test "x$enable_isal" = xyes])
-
-
-AS_IF([test x$enable_isal = xyes],
-      [
-              AC_CHECK_HEADERS([isa-l.h],
-              [
-                      # check for isa library
-                      MOTR_SEARCH_LIBS(
-                              [ec_encode_data], [c isal], [ISAL_LIBS],
-                              [ec_encode_data cannot be found! \
-                               Try to install Intel ISA library package.]
-                      )
-                      AC_SUBST([ISAL_LIBS])
-
-                      # define MACROs
-                      AC_DEFINE([HAVE_ISAL])
-                      # AM_CONDITIONAL([HAVE_ISAL], [true])
-                      AC_MSG_NOTICE([INTEL ISA-L Headers Available])
-              ],
-              [
-                      AM_CONDITIONAL([HAVE_ISAL], [false])
-                      AC_MSG_NOTICE([No INTEL ISA-L Headers])
-              ])
-      ]
+AC_SUBST([ISAL_LIBS])
+AC_CHECK_HEADERS([isa-l.h],
+                 [AC_MSG_NOTICE([INTEL ISA-L Headers Available])],
+                 [AC_MSG_ERROR([No INTEL ISA-L Headers])]
 )
 
 #
@@ -1004,21 +978,6 @@ OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
-# Checking galois --------------------------------------------------------- {{{1
-
-GALOIS_REL_PATH="extra-libs/galois"
-GALOIS_SRC="$SRCDIR/$GALOIS_REL_PATH"
-GALOIS_ABS_SRC="$ABS_SRCDIR/$GALOIS_REL_PATH"
-GALOIS_INCLUDES="-I$GALOIS_ABS_SRC/include"
-KGALOIS_INCLUDES="-I$GALOIS_ABS_SRC/include"
-GALOIS_LIBS="$GALOIS_ABS_SRC/src/libgalois.la"
-
-AC_SUBST([GALOIS_SYMVERS], [$GALOIS_ABS_SRC/src/linux_kernel/Module.symvers])
-
-AS_IF([! test -x $GALOIS_SRC/configure],
-      [ test -x $GALOIS_SRC/autogen.sh && ( cd $GALOIS_SRC; ./autogen.sh ) ]
-)
-
 # Checking libyaml -------------------------------------------------------- {{{1
 
 AS_IF([test x$enable_system_libs = xyes],
@@ -1039,8 +998,6 @@ AS_IF([test x$enable_system_libs = xyes],
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
-AC_SUBST([GALOIS_ABS_SRC])
-AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
 
 #
@@ -1095,7 +1052,7 @@ AS_IF([test x$enable_mcheck = xyes],
 # Set up build variables -------------------------------------------------- {{{1
 #
 
-M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
+M0_CPPFLAGS="$YAML_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
 
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
@@ -1123,7 +1080,7 @@ M0_KCPPFLAGS="-DM0_INTERNAL='' -DM0_EXTERN=extern \
               -include'$ABS_BUILDDIR/config.h' \
               -iquote '$ABS_BUILDDIR' \
               -iquote '$ABS_SRCDIR' \
-              $LUSTRE_INCLUDES $KGALOIS_INCLUDES $M0_KCPPFLAGS"
+              $LUSTRE_INCLUDES $M0_KCPPFLAGS"
 
 M0_KCFLAGS="-Wall -Werror -Wno-attributes $M0_KCFLAGS"
 
@@ -1174,8 +1131,6 @@ AC_CONFIG_FILES([net/test/demo/demo-config.sh], [chmod +x net/test/demo/demo-con
 AC_CONFIG_FILES([utils/modload-all.sh], [chmod +x utils/modload-all.sh])
 AC_CONFIG_FILES([scripts/systemtap/kem/Makefile])
 
-AC_CONFIG_SUBDIRS([extra-libs/galois])
-
 AC_OUTPUT
 
 #
@@ -1216,12 +1171,9 @@ echo "PTHREAD_LIBS   :  \"$PTHREAD_LIBS\""
 echo "AIO_LIBS       :  \"$AIO_LIBS\""
 echo "RT_LIBS        :  \"$RT_LIBS\""
 echo "PROFILER_LIBS  :  \"$PROFILER_LIBS\""
-echo "GALOIS_LIBS    :  \"$GALOIS_LIBS\""
 echo "YAML_LIBS      :  \"$YAML_LIBS\""
 echo "UUID_LIBS      :  \"$UUID_LIBS\""
-AS_IF([test x$enable_isal = xyes],[
 echo "ISAL_LIBS      :  \"$ISAL_LIBS\""
-])
 echo "OPENSSL_LIBS   :  \"$OPENSSL_LIBS\""
 echo ""
 echo "Gcc            :  \"$BUILD_GCC\""
