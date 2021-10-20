@@ -75,6 +75,6 @@ Surfing
 =======
 Refer to `Reading - list </doc/reading-list.md>`_ for complete information.
 
-         `$ make doc`
+         ``$ make doc``
 
-         `$ x-www-browser doc/html/index.html`
+         ``$ x-www-browser doc/html/index.html``
