@@ -1506,12 +1506,9 @@ static int device_check(struct m0_op_io *ioo)
 
 		ti->ti_state = state;
 		if (ti->ti_rc == -ECANCELED) {
-			/* Ignore service failures till max node failure is
-			 * reached.
-			 */
+			/* Ignore service failures in a failed node */
 			if (M0_IN(node_state, (M0_PNDS_FAILED,
 					       M0_PNDS_OFFLINE)) &&
-			    fnode_nr < max_node_failures &&
 			    !is_node_marked(ioo, node_id)) {
 				M0_CNT_INC(fnode_nr);
 				is_session_marked(ioo, ti->ti_session);
