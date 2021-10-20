@@ -78,7 +78,7 @@ class Cmd:
             self.node = get_server_node(self, True)
             if self.node['type'] == 'storage_node':
                 self.storage = get_storage(self)
-            Conf.load(self._index_motr_hare, self._url_motr_hare)
+                Conf.load(self._index_motr_hare, self._url_motr_hare)
     @property
     def args(self) -> str:
         return self._args
