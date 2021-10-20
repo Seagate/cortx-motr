@@ -309,15 +309,35 @@ def update_copy_motr_config_file(self):
     cmd = f"cp {MOTR_SYS_CFG} {MOTR_M0D_CONF_DIR}"
     execute_command(self, cmd)
 
-# Get metadata disks from Confstore of all cvgs
-def get_md_disks(self, node_info):
-    md_disks = []
+# Get lists of metadata disks from Confstore of all cvgs
+# Input: node_info
+# Output: [['/dev/sdc'], ['/dev/sdf']]
+#        where ['/dev/sdc'] is list of metadata disks of cvg[0]
+#              ['/dev/sdf'] is list of metadata disks of cvg[1]
+def get_md_disks_lists(self, node_info):
+    md_disks_lists = []
     cvg_count = node_info['storage']['cvg_count']
     cvg = node_info['storage']['cvg']
     for i in range(cvg_count):
         temp_cvg = cvg[i]
         if temp_cvg['devices']['metadata']:
-            md_disks.append(temp_cvg['devices']['metadata'])
+            md_disks_lists.append(temp_cvg['devices']['metadata'])
+    self.logger.info(f"md_disks lists on node = {md_disks_lists}\n")
+    return md_disks_lists
+
+# Get metada disks from list of lists of metadata disks of
+# different cvgs of node
+# Input: [['/dev/sdc'], ['/dev/sdf']]
+#        where ['/dev/sdc'] is ist of metadata disks of cvg[0]
+#              ['/dev/sdf'] is list of metadata disks of cvg[1]
+# Output: ['/dev/sdc', '/dev/sdf']
+def get_mdisks_from_list(self, md_lists):
+    md_disks = []
+    md_len_outer = len(md_lists)
+    for i in range(md_len_outer):
+        md_len_innner = len(md_lists[i])
+        for j in range(md_len_innner):
+            md_disks.append(md_lists[i][j])
     self.logger.info(f"md_disks on node = {md_disks}\n")
     return md_disks
 
@@ -338,8 +358,8 @@ def update_motr_hare_keys(self, nodes):
     # key = machine_id value = node_info
     for machine_id, node_info in nodes.items():
         if node_info['type'] == 'storage_node':
-            md_disks = get_md_disks(self, node_info)
-            update_to_file(self, self._index_motr_hare, self._url_motr_hare, machine_id, md_disks)
+            md_disks_lists = get_md_disks_lists(self, node_info)
+            update_to_file(self, self._index_motr_hare, self._url_motr_hare, machine_id, md_disks_lists)
 
 def motr_config_k8(self):
     if not verify_libfabric(self):
@@ -348,8 +368,15 @@ def motr_config_k8(self):
     # Update motr-hare keys only for storage node
     if self.node['type'] == 'storage_node':
         update_motr_hare_keys(self, self.nodes)
-    update_copy_motr_config_file(self)
+
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
+
+    # Update be_seg size only for storage node
+    if self.node['type'] == 'storage_node':
+        update_bseg_size(self)
+
+    # Modify motr config file
+    update_copy_motr_config_file(self)
     return
 
 def motr_config(self):
@@ -625,7 +652,10 @@ def create_lvm(self, index, metadata_dev):
     return True
 
 def calc_lvm_min_size(self, lv_path, lvm_min_size):
-    cmd = f"lvs {lv_path} -o LV_SIZE --noheadings --units b --nosuffix"
+    if self.k8 == 'K8':
+        cmd = f"lsblk --noheadings --bytes {lv_path} | " "awk '{print $4}'"
+    else:
+        cmd = f"lvs {lv_path} -o LV_SIZE --noheadings --units b --nosuffix"
     res = execute_command(self, cmd)
     lv_size = res[0].rstrip("\n")
     lv_size = int(lv_size)
@@ -691,10 +721,23 @@ def get_cvg_cnt_and_cvg_k8(self):
     check_type(cvg, list, "cvg")
     return cvg_cnt, cvg
 
-def update_bgsize(self):
+def update_bseg_size(self):
     dev_count = 0
     lvm_min_size = None
+    # For k8
+    if self.k8 == 'K8':
+        md_disks_list = get_md_disks_lists(self, self.node)
+        md_disks = get_mdisks_from_list(self, md_disks_list)
+        md_len = len(md_disks)
+        for i in range(md_len):
+            lvm_min_size = calc_lvm_min_size(self, md_disks[i], lvm_min_size)
+        if lvm_min_size:
+            self.logger.info(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
+            cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
+            execute_command(self, cmd)
+        return
 
+    # For non k8
     cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
     for i in range(int(cvg_cnt)):
         cvg_item = cvg[i]
@@ -1318,6 +1361,11 @@ def fetch_fid(self, service, idx):
 def start_service(self, service, idx):
     self.logger.info(f"service={service}\nidx={idx}\n")
 
+    if service == "fsm":
+        cmd = f"{MOTR_FSM_SCRIPT_PATH}"
+        execute_command_verbose(self, cmd, set_timeout=False)
+        return
+
     # Copy confd_path to /etc/sysconfig
     # confd_path = MOTR_M0D_CONF_DIR/confd.xc
     confd_path = f"{self.local_path}/motr/sysconfig/{self.machine_id}/confd.xc"
@@ -1329,14 +1377,9 @@ def start_service(self, service, idx):
     cmd = f"cp -v {self.local_path}/motr/sysconfig/{self.machine_id}/motr /etc/sysconfig/"
     execute_command(self, cmd)
 
-    if service != "fsm":
-        fid = fetch_fid(self, service, idx)
-        if fid == -1:
-            return -1
-    if service in ["ioservice", "confd", "cas"]:
-        cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
-        execute_command_verbose(self, cmd, set_timeout=False)
-    elif service == "fsm":
-        cmd = f"{MOTR_FSM_SCRIPT_PATH}"
-        execute_command_verbose(self, cmd, set_timeout=False)
+    fid = fetch_fid(self, service, idx)
+    if fid == -1:
+        return -1
+    cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
+    execute_command_verbose(self, cmd, set_timeout=False)
     return
