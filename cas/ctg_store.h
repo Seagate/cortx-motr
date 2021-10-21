@@ -89,10 +89,11 @@
  * Every user should take care about locking of CAS catalogues.
  */
 
-#define M0_CTG_ROOT_NODE_ALIGN 4096
+#define M0_CTG_ROOT_NODE_ALIGN 65536
+#define M0_CTG_ROOT_NODE_SHIFT 16
 
 enum {
-	M0_CTG_ROOT_NODE_SIZE = 4096,
+	M0_CTG_ROOT_NODE_SIZE = 65536,
 
 	/** This should align to Block size on the storage. Change as needed */
 };
