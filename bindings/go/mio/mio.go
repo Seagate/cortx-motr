@@ -45,6 +45,7 @@ package mio
 // #cgo CFLAGS: -Wno-attributes
 // #cgo LDFLAGS: -L../../../motr/.libs -Wl,-rpath=../../../motr/.libs -lmotr
 // #include <stdlib.h>
+// #include "config.h"
 // #include "lib/types.h"
 // #include "lib/trace.h"   /* m0_trace_set_mmapped_buffer */
 // #include "motr/client.h"
