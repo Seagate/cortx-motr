@@ -6000,6 +6000,7 @@ static void btree_put_split_and_find(struct nd *allocated_node,
 	void                    *p_key;
 	m0_bcount_t              vsize;
 	void                    *p_val;
+	int                      min_rec_count;
 
 	/* intialised slot for left and right node*/
 	left_slot.s_node  = allocated_node;
@@ -6011,6 +6012,14 @@ static void btree_put_split_and_find(struct nd *allocated_node,
 
 	bnode_move(current_node, allocated_node, D_LEFT, NR_EVEN);
 
+	/**
+	 * Assert that nodes still contain minimum number of records in the node
+	 * required by btree. If Assert fails, increase the node size or
+	 * decrease the object size.
+	 */
+	min_rec_count = bnode_level(current_node) ? 2 : 1;
+	M0_ASSERT(bnode_count_rec(current_node) >= min_rec_count);
+	M0_ASSERT(bnode_count_rec(allocated_node) >= min_rec_count);
 	/*2) Find appropriate slot for given record */
 
 	right_slot.s_idx = 0;
