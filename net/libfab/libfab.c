@@ -348,7 +348,7 @@ static bool libfab_buf_invariant(const struct m0_fab__buf *buf);
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
 {
-	/* With the help of facter command, check if the ebv is VM or HW */
+	/* With the help of facter command, check if the env is VM or HW */
 	is_vm = system("facter 2> /dev/null | grep virtual | grep true > /dev/null") == 0 ?
 		true : false;
 	m0_net_xprt_register(&m0_net_libfab_xprt);
