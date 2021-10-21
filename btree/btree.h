@@ -135,12 +135,13 @@ enum m0_btree_opcode {
 };
 
 enum m0_btree_op_flags {
-	BOF_PREV      = M0_BITS(0),
-	BOF_NEXT      = M0_BITS(1),
-	BOF_LOCKALL   = M0_BITS(2),
-	BOF_COOKIE    = M0_BITS(3),
-	BOF_EQUAL     = M0_BITS(4),
-	BOF_SLANT     = M0_BITS(5),
+	BOF_PREV                 = M0_BITS(0),
+	BOF_NEXT                 = M0_BITS(1),
+	BOF_LOCKALL              = M0_BITS(2),
+	BOF_COOKIE               = M0_BITS(3),
+	BOF_EQUAL                = M0_BITS(4),
+	BOF_SLANT                = M0_BITS(5),
+	BOF_PUT_IF_NOT_EXIST     = M0_BITS(6),
 };
 
 /**

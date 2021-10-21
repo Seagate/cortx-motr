@@ -6112,13 +6112,14 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 
 	btree_put_split_and_find(lev->l_alloc, lev->l_node, &bop->bo_rec, &tgt);
 
-	if (bop->bo_opc == M0_BO_PUT) {
+	if (!oi->i_key_found) {
+		/* PUT operation */
 		tgt.s_rec = bop->bo_rec;
 		bnode_make (&tgt);
 		REC_INIT(&tgt.s_rec, &p_key, &ksize, &p_val, &vsize);
 		bnode_rec(&tgt);
 	} else {
-		/* bop->bo_opc == M0_BO_UPDATE */
+		/* UPDATE operation */
 		REC_INIT(&tgt.s_rec, &p_key, &ksize, &p_val, &vsize);
 		bnode_rec(&tgt);
 		vsize_diff = m0_vec_count(&bop->bo_rec.r_val.ov_vec) -
@@ -6135,7 +6136,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		 * Handle callback failure by reverting changes on
 		 * btree
 		 */
-		if (bop->bo_opc == M0_BO_PUT)
+		if (!oi->i_key_found)
 			bnode_del(tgt.s_node, tgt.s_idx);
 		else
 			bnode_val_resize(&tgt, -vsize_diff);
@@ -6365,12 +6366,13 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 						 &child_node_addr, P_NEXTDOWN);
 			} else {
 				bnode_unlock(lev->l_node);
-				if ((bop->bo_opc == M0_BO_UPDATE &&
-				     oi->i_key_found == false) ||
-				    (bop->bo_opc == M0_BO_PUT &&
-				     oi->i_key_found == true))
+				if (oi->i_key_found && bop->bo_opc == M0_BO_PUT)
 					return P_LOCK;
-
+				if (!oi->i_key_found &&
+				    bop->bo_opc == M0_BO_UPDATE &&
+				    !(bop->bo_flags & BOF_PUT_IF_NOT_EXIST)) {
+					return P_LOCK;
+				}
 				/**
 				 * Initialize i_alloc_lev to level of leaf
 				 * node.
@@ -6500,9 +6502,10 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		/** Fall through if path_check is successful. */
 	case P_SANITY_CHECK: {
 		int  rc = 0;
-		if (bop->bo_opc == M0_BO_PUT && oi->i_key_found)
+		if (oi->i_key_found && bop->bo_opc == M0_BO_PUT)
 			rc = M0_ERR(-EEXIST);
-		else if (bop->bo_opc == M0_BO_UPDATE && !oi->i_key_found)
+		else if (!oi->i_key_found && bop->bo_opc == M0_BO_UPDATE &&
+			 !(bop->bo_flags & BOF_PUT_IF_NOT_EXIST))
 			rc = M0_ERR(-ENOENT);
 
 		if (rc) {
@@ -6518,8 +6521,10 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			.s_node = lev->l_node,
 			.s_idx  = lev->l_idx,
 		};
-		if (bop->bo_opc == M0_BO_PUT) {
-			M0_ASSERT(!oi->i_key_found);
+		if (!oi->i_key_found) {
+			M0_ASSERT(bop->bo_opc == M0_BO_PUT ||
+				  (bop->bo_opc == M0_BO_UPDATE &&
+				   (bop->bo_flags & BOF_PUT_IF_NOT_EXIST)));
 
 			node_slot.s_rec  = bop->bo_rec;
 			if (!bnode_isfit(&node_slot))
@@ -6534,6 +6539,8 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			void                *p_val;
 			int                  new_vsize;
 			int                  old_vsize;
+
+			M0_ASSERT(bop->bo_opc == M0_BO_UPDATE);
 
 			REC_INIT(&node_slot.s_rec, &p_key, &ksize,
 						    &p_val, &vsize);
