@@ -464,7 +464,7 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 	if (M0_FI_ENABLED("ctg_create_failure"))
 		return M0_ERR(-EFAULT);
 
-	M0_BE_ALLOC_ALIGN_PTR_SYNC(ctg, 12, seg, tx);
+	M0_BE_ALLOC_ALIGN_PTR_SYNC(ctg, M0_CTG_ROOT_NODE_SHIFT, seg, tx);
 	if (ctg == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -1299,9 +1299,22 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 
 		if (!!(ctg_op->co_flags & COF_OVERWRITE)) {
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+<<<<<<< HEAD
 					m0_btree_update(btree, &rec, &cb,
 							&kv_op, tx));
 			M0_ASSERT(rc == 0);
+=======
+						      m0_btree_update(btree,
+								      &rec, &cb,
+								      &kv_op,
+								      tx));
+			if (rc) {
+				rc = M0_BTREE_OP_SYNC_WITH_RC(
+					&kv_op, m0_btree_put(btree, &rec, &cb,
+							     &kv_op, tx));
+				M0_ASSERT(rc == 0);
+			}
+>>>>>>> 4e8984ef (EOS-25406: S3 IOs are failing with new btree integrated ctg code (#1167))
 		}
 		else
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
