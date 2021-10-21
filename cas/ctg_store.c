@@ -475,7 +475,7 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 	if (M0_FI_ENABLED("ctg_create_failure"))
 		return M0_ERR(-EFAULT);
 
-	M0_BE_ALLOC_ALIGN_PTR_SYNC(ctg, 12, seg, tx);
+	M0_BE_ALLOC_ALIGN_PTR_SYNC(ctg, M0_CTG_ROOT_NODE_SHIFT, seg, tx);
 	if (ctg == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -688,7 +688,7 @@ static void ctg_meta_insert_credit(struct m0_btree_type   *bt,
 				   struct m0_be_tx_credit *accum)
 {
 	struct m0_cas_ctg *ctg;
-	m0_btree_put_credit2(bt, 12, nr,
+	m0_btree_put_credit2(bt, M0_CTG_ROOT_NODE_SHIFT, nr,
 			     sizeof(struct fid_key),
 			     sizeof(struct meta_value),
 			     accum);
@@ -705,7 +705,7 @@ static void ctg_meta_delete_credit(struct m0_btree_type   *bt,
 {
 	struct m0_cas_ctg *ctg;
 
-	m0_btree_del_credit2(bt, 12, nr,
+	m0_btree_del_credit2(bt, M0_CTG_ROOT_NODE_SHIFT, nr,
 			     sizeof(struct fid_key),
 			     sizeof(struct meta_value),
 			     accum);
@@ -1381,12 +1381,19 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 		rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
 
-		if (!!(ctg_op->co_flags & COF_OVERWRITE))
+		if (!!(ctg_op->co_flags & COF_OVERWRITE)) {
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						      m0_btree_update(btree,
 								      &rec, &cb,
 								      &kv_op,
 								      tx));
+			if (rc) {
+				rc = M0_BTREE_OP_SYNC_WITH_RC(
+					&kv_op, m0_btree_put(btree, &rec, &cb,
+							     &kv_op, tx));
+				M0_ASSERT(rc == 0);
+			}
+		}
 		else
 			rc= M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						     m0_btree_put(btree, &rec,
