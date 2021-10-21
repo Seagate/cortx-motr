@@ -6057,9 +6057,9 @@ static void btree_put_split_and_find(struct nd *allocated_node,
 					      &left_slot.s_rec.r_key.k_data);
 			diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
 		}
- 		if (diff > 0) {
- 			tgt->s_idx = bnode_count(left_slot.s_node) + 1;
- 			return;
+		if (diff > 0) {
+			tgt->s_idx = bnode_count(left_slot.s_node) + 1;
+			return;
 		}
 	}
 	bnode_find(tgt, &rec->r_key);
