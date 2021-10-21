@@ -6039,8 +6039,15 @@ static void btree_put_split_and_find(struct nd *allocated_node,
 		left_slot.s_idx = bnode_count(left_slot.s_node);
 		REC_INIT(&left_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 		bnode_key(&left_slot);
-		m0_bufvec_cursor_init(&cur_2, &left_slot.s_rec.r_key.k_data);
-		diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
+		if (current_node->n_tree->t_keycmp.rko_keycmp != NULL) {
+			diff = current_node->n_tree->t_keycmp.rko_keycmp(
+				 M0_BUFVEC_DATA(&rec->r_key.k_data),
+				 M0_BUFVEC_DATA(&left_slot.s_rec.r_key.k_data));
+		} else {
+			m0_bufvec_cursor_init(&cur_2,
+					      &left_slot.s_rec.r_key.k_data);
+			diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
+		}
 		if (diff > 0) {
 			tgt->s_idx = bnode_count(left_slot.s_node) + 1;
 			return;
