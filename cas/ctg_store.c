@@ -1141,7 +1141,7 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						      m0_btree_update(btree,
 								      &rec, &cb,
-								      &kv_op,
+								      0, &kv_op,
 								      tx));
 			if (rc) {
 				rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
