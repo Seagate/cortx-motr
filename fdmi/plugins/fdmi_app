@@ -63,7 +63,7 @@ def str_decode(encoded):
 # move.
 def process_fdmi_record(kv_record):
     kvs = json.loads(kv_record)
-    fid = str_decode(kvs.get('fid'))
+    fid = kvs.get('fid')
     if fid is None:
         print('Invalid fid in kv_record {}'.format(kv_record), file=sys.stderr)
         return

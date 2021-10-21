@@ -133,6 +133,8 @@ struct m0_fdmi_sd_filter_type_handler {
 		 struct m0_fdmi_eval_var_info *var_info);
 };
 
+M0_INTERNAL void m0_fdmi__enqueue(struct m0_fdmi_src_rec *src_rec);
+
 /** Function posts new fdmi data for analysis by FDMI source dock. */
 M0_INTERNAL void m0_fdmi__record_post(struct m0_fdmi_src_rec *src_rec);
 
