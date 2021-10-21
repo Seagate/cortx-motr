@@ -206,6 +206,9 @@ static const char *providers[FAB_FABRIC_PROV_MAX] = { "verbs",
 static const char *protf[]     = { "inet", "inet6" };
 static const char *socktype[]  = { "stream", "dgram" };
 
+/* This flag is used to indicate whether the env is VM or HW */
+static bool is_vm = false;
+
 /** 
  * Bitmap of used transfer machine identifiers. 1 is for used,
  * and 0 is for free.
@@ -345,6 +348,9 @@ static bool libfab_buf_invariant(const struct m0_fab__buf *buf);
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
 {
+	/* With the help of facter command, check if the ebv is VM or HW */
+	is_vm = system("facter 2> /dev/null | grep virtual | grep true > /dev/null") == 0 ?
+		true : false;
 	m0_net_xprt_register(&m0_net_libfab_xprt);
 	if (m0_streq(M0_DEFAULT_NETWORK, "LF"))
 		m0_net_xprt_default_set(&m0_net_libfab_xprt);
@@ -945,6 +951,9 @@ static void libfab_poller(struct m0_fab__tm *tm)
 
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
 	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
+		/* Add nanosleep of 0ns on VM to reduce CPU load (EOS-25399) */
+		if (is_vm)
+			m0_nanosleep(M0_MKTIME(0 ,0), NULL);
 		/*
 		 * It is observed that with epoll_wait,
 		 * the thread is waiting in a busy-loop for events
@@ -952,7 +961,6 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		 * Hence, adding a sched_yield() will release the CPU for
 		 * other processes and reduce CPU consumption.
 		 */
-		m0_nanosleep(M0_MKTIME(0 ,0), NULL);
 		sched_yield();
 		ev_cnt = epoll_wait(tm->ftm_epfd, &ev, 1, FAB_WAIT_FD_TMOUT);
 
@@ -2803,7 +2811,7 @@ static int libfab_dom_init(const struct m0_net_xprt *xprt,
 	struct m0_fab__ndom *fab_ndom;
 	int                  ret = 0;
 
-	M0_ENTRY();
+	M0_ENTRY("Running on %s", is_vm ? "VM" : "HW");
 
 	M0_ALLOC_PTR(fab_ndom);
 	if (fab_ndom == NULL)
