@@ -64,4 +64,10 @@ make -j rpms |& tee $ARTIFACTS/rpm.log
 cp -av $HOME/rpmbuild/RPMS/x86_64/*.rpm $ARTIFACTS/
 cp -av $HOME/rpmbuild/SRPMS/*.rpm $ARTIFACTS/
 (cd $ARTIFACTS/ ; ln -vs cortx-motr-[[:digit:]]*.x86_64.rpm motr-latest.rpm)
+
+if [[ $TRANSPORTER == 'libfabric' ]]; then
+	continue
+else
+	rpm -e $(rpm -qa libfabric-* )
 fi
+
