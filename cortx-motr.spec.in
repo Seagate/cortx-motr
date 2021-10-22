@@ -1,3 +1,7 @@
+# TODO investigate why it's needed on aarch64
+%ifarch aarch64
+%undefine _missing_build_ids_terminate_build
+%endif
 # feature flags
 %bcond_with ut
 %bcond_with debuginfo_sources
@@ -18,7 +22,7 @@
                         )
 
 %define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
-%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.x86_64$//' )
+%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' )
 
 # build number
 %define build_num  %( test -n "$build_number" && echo "$build_number" || echo 1 )
@@ -36,6 +40,7 @@
 # configure options
 %define  configure_release_opts     --enable-release --disable-avx --enable-force-ssse3 --with-trace-kbuf-size=256 --with-trace-ubuf-size=64
 %define  configure_ut_opts          --enable-dev-mode --disable-altogether-mode
+
 %if %{with cassandra}
 %define  configure_cassandra_opts   --with-cassandra
 %endif
@@ -53,7 +58,6 @@ Summary:        CORTX Motr
 Group:          System Environment/Base
 License:        Seagate
 Source:         %{name}-%{version}.tar.gz
-BuildArch:      x86_64
 ExcludeArch:    i686
 Provides:       %{name}-libs = %{version}-%{release}
 Provides:       %{name}-modules = %{version}-%{release}
@@ -61,7 +65,7 @@ Provides:       %{name}-modules = %{version}-%{release}
 Obsoletes:      mero
 Obsoletes:      eos-core
 Provides:       motr = %{version}-%{release}
-Provides:       motr(x86-64) = %{version}-%{release}
+Provides:       motr(%{_arch}") = %{version}-%{release}
 Provides:       motr-libs = %{version}-%{release}
 Provides:       motr-modules = %{version}-%{release}
 
@@ -71,11 +75,16 @@ BuildRequires:  libtool
 BuildRequires:  make
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
-%if %{rhel} <= 7
+%if %{rhel} < 8 && "%{_arch}" == "aarch64"
+# castxml rpm on rhel 7 is not available, so it has to be
+# built and installed manually.
+#BuildRequires:  castxml
+%else if %{rhel} < 8
 BuildRequires:  gccxml
 %else
 BuildRequires:  castxml
 %endif
+
 BuildRequires:  glibc-headers
 BuildRequires:  asciidoc
 BuildRequires:  libyaml-devel
@@ -93,18 +102,19 @@ BuildRequires:  libuuid-devel
 BuildRequires:  openssl
 BuildRequires:  openssl-devel
 BuildRequires:  binutils-devel
-%if %{rhel} <= 7
+%if %{rhel} < 8
 BuildRequires:  python36-ply
 %else
 BuildRequires:  python3-ply
 %endif
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
-%if %{rhel} <= 7
+%if %{rhel} < 8
 BuildRequires:  python-devel
 %else
 BuildRequires:  python2-devel
 %endif
+BuildRequires:  libfabric-devel
 BuildRequires:  libedit-devel
 BuildRequires:  isa-l
 %if %{with cassandra}
@@ -120,7 +130,9 @@ Requires:       libyaml
 Requires:       openssl
 Requires:       gdb
 Requires:       genders
+%if %{rhel} < 8
 Requires:       sysvinit-tools
+%endif
 Requires:       attr
 Requires:       perl
 Requires:       perl-YAML-LibYAML
@@ -134,7 +146,11 @@ Requires:       perl-MCE
 Requires:       ruby
 Requires:       facter
 Requires:       rubygem-net-ssh
+%if %{rhel} < 8
 Requires:       python36-ply
+%else
+Requires:       python3-ply
+%endif
 Requires:       libedit
 Requires:       isa-l
 Requires(pre):  shadow-utils
@@ -188,7 +204,13 @@ CORTX Motr IVT.
 %setup -q
 
 %build
+%ifarch x86_64
 %configure %{with_linux} %{with_lustre} %{configure_opts}
+%endif
+%ifarch aarch64
+%configure %{with_linux} %{with_lustre} %{configure_opts} enable_castxml=yes
+%endif
+
 %if !%{with ivt}
 make %{?_smp_mflags}
 %endif
@@ -215,7 +237,7 @@ find %{buildroot} -type f | sed -e 's#^%{buildroot}##' | sort |
 
 make DESTDIR=%{buildroot} install-tests
 
-find %{buildroot} -name m0tr.ko -o -name m0ut.ko -o -name galois.ko \
+find %{buildroot} -name m0tr.ko -o -name m0ut.ko -o \
 	     | sed -e 's#^%{buildroot}##' > tests-ut.files
 
 find %{buildroot} \
@@ -226,8 +248,7 @@ find %{buildroot} \
         -o -name m0gentestds \
         -o -name 'm0kut*' \
         -o -name 'libtestlib*.so*' \
-        -o -name 'libmotr*.so*' \
-        -o -name 'libgalois*.so*' |
+        -o -name 'libmotr*.so*' |
     sed -e 's#^%{buildroot}##' >> tests-ut.files
 
 sort -o tests-ut.files tests-ut.files

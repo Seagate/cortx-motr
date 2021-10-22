@@ -119,6 +119,7 @@ static int filterc_send_notif_get_next(struct m0_filterc_iter      *iter,
 		m0_fdmi_filter_root_set(flt, root);
 
 		M0_ALLOC_ARR(conf_flt->ff_endpoints, 1);
+		conf_flt->ff_type = M0_FDMI_FILTER_TYPE_TREE;
 		conf_flt->ff_endpoints[0] = g_rpc_env.ep_addr_remote;
 		conf_flt->ff_filter_id = g_fid;
 		*out = conf_flt;
@@ -277,8 +278,7 @@ void fdmi_sd_send_notif(void)
 		.fsr_data = g_fdmi_data,
 	};
 
-	rc = M0_FDMI_SOURCE_POST_RECORD(&g_src_rec);
-	M0_UT_ASSERT(rc == 0);
+	M0_FDMI_SOURCE_POST_RECORD(&g_src_rec);
 	/* Wait until record is sent over RPC */
 	m0_semaphore_down(&g_sem1);
 	fdmi_ut_packet_send_failed(&g_rpc_env.tre_rpc_machine,
@@ -291,9 +291,16 @@ void fdmi_sd_send_notif(void)
 	M0_UT_ASSERT(rpc_conn_pool_items_tlist_head(&conn_pool->cp_items) ==
 		     rpc_conn_pool_items_tlist_tail(&conn_pool->cp_items));
 	unprepare_rpc_env(&g_rpc_env);
-	rpc_conn_pool_items_tlink_del_fini(pool_item);
-	m0_free(pool_item);
-	pool_item = NULL;
+
+	/*
+	 * At this moment, the pool_item might have been removed from the list
+	 * and been freed in FDMI notification failure handling.
+	 */
+	if (rpc_conn_pool_items_tlink_is_in(pool_item)) {
+		rpc_conn_pool_items_tlink_del_fini(pool_item);
+		m0_free(pool_item);
+		pool_item = NULL;
+	}
 	fdmi_serv_stop_ut();
 	m0_semaphore_fini(&g_sem1);
 	m0_semaphore_fini(&g_sem2);

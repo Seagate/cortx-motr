@@ -89,8 +89,7 @@ M0_INTERNAL int m0_net_buffer_pool_init(struct m0_net_buffer_pool *pool,
 
 	M0_PRE(pool != NULL);
 	M0_PRE(ndom != NULL);
-	M0_PRE(seg_nr   <= m0_net_domain_get_max_buffer_segments(ndom));
-	M0_PRE(seg_size <= m0_net_domain_get_max_buffer_segment_size(ndom));
+	M0_PRE(seg_nr <= m0_net_domain_get_max_buffer_segments(ndom));
 
 	pool->nbp_threshold  = threshold;
 	pool->nbp_ndom       = ndom;

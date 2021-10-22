@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,8 +47,8 @@
  * Parity calculation type indicating various algorithms of parity calculation.
  */
 enum m0_parity_cal_algo {
-        M0_PARITY_CAL_ALGO_XOR,
-        M0_PARITY_CAL_ALGO_REED_SOLOMON,
+	M0_PARITY_CAL_ALGO_XOR,
+	M0_PARITY_CAL_ALGO_REED_SOLOMON,
 	M0_PARITY_CAL_ALGO_NR
 };
 
@@ -84,17 +84,37 @@ struct m0_sns_ir_block {
 	 * blocks required for its recovery.
 	 */
 	struct m0_bitmap	     sib_bitmap;
-	/* Column associated with the block within
-	 * m0_parity_math::pmi_data_recovery_mat. This field is meaningful
-	 * when status of a block is M0_SI_BLOCK_ALIVE.
-	 */
-	uint32_t		     sib_data_recov_mat_col;
-	/* Row associated with the block within its own recovery matrix.
-	 * The field is meaningful when status of a block is M0_SI_BLOCK_FAILED.
-	 */
-	uint32_t		     sib_recov_mat_row;
 	/* Indicates whether a block is available, failed or restored. */
 	enum m0_sns_ir_block_status  sib_status;
+};
+
+/**
+ * Holds information specific to Reed Solomon implementation using Intel ISA.
+ */
+struct m0_reed_solomon {
+	/* Pointer to sets of arrays of input coefficients used
+	 * to encode or decode data.*/
+	uint8_t		 *rs_encode_matrix;
+	/* Pointer to concatenated output tables for encode.
+	 * Must be of size MIN_TABLE_LEN * data_count * parity_count
+	 */
+	uint8_t		 *rs_encode_tbls;
+	/* Pointer to concatenated output tables for decode.
+	 * Must be of size MIN_TABLE_LEN * data_count * parity_count
+	 */
+	uint8_t		 *rs_decode_tbls;
+	/* Number of failed blocks. */
+	uint32_t	  rs_failed_nr;
+	/* Array holding indices of all failed blocks. */
+	uint8_t		 *rs_failed_idx;
+	/* Array holding indices of all alive blocks. */
+	uint8_t		 *rs_alive_idx;
+	/* Array of buffer pointers to be used as source for encoding or
+	 * recovery. */
+	uint8_t		**rs_bufs_in;
+	/* Array of buffer pointers to be used as destination for encoding or
+	 * recovery. */
+	uint8_t		**rs_bufs_out;
 };
 
 /**
@@ -106,41 +126,20 @@ struct m0_parity_math {
 
 	uint32_t		     pmi_data_count;
 	uint32_t		     pmi_parity_count;
-	/* structures used for parity calculation and recovery */
-	struct m0_matvec	     pmi_data;
-	struct m0_matvec	     pmi_parity;
-	/* Vandermonde matrix */
-	struct m0_matrix	     pmi_vandmat;
-	/* Submatrix of Vandermonde matrix used to compute parity. */
-	struct m0_matrix	     pmi_vandmat_parity_slice;
-	/* structures used for non-incremental recovery */
-	struct m0_matrix	     pmi_sys_mat;
-	struct m0_matvec	     pmi_sys_vec;
-	struct m0_matvec	     pmi_sys_res;
-	struct m0_linsys	     pmi_sys;
-	/* Data recovery matrix that's inverse of pmi_sys_mat. */
-	struct m0_matrix	     pmi_recov_mat;
+	struct m0_reed_solomon	     pmi_rs;
 };
 
 /* Holds information essential for incremental recovery. */
 struct m0_sns_ir {
 	uint32_t		si_data_nr;
 	uint32_t		si_parity_nr;
-	uint32_t		si_failed_data_nr;
 	uint32_t		si_alive_nr;
 	/* Number of blocks from a parity group that are available locally
 	 * on a node. */
 	uint32_t		si_local_nr;
 	/* Array holding all blocks */
 	struct m0_sns_ir_block *si_blocks;
-	/* Vandermonde matrix used during RS encoding */
-	struct m0_matrix	si_vandmat;
-	/* Recovery matrix for failed data blocks */
-	struct m0_matrix	si_data_recovery_mat;
-	/* Recovery matrix for failed parity blocks. This is same as
-	 * math::pmi_vandmat_parity_slice.
-	 */
-	struct m0_matrix	si_parity_recovery_mat;
+	struct m0_reed_solomon	si_rs;
 };
 
 /**
@@ -153,7 +152,7 @@ M0_INTERNAL int m0_parity_math_init(struct m0_parity_math *math,
 				    uint32_t data_count, uint32_t parity_count);
 
 /**
-   Deinitializaton of parity math algorithms.
+   Deinitialization of parity math algorithms.
    Frees all memory blocks allocated by m0_parity_math_init().
  */
 M0_INTERNAL void m0_parity_math_fini(struct m0_parity_math *math);
@@ -179,51 +178,45 @@ M0_INTERNAL void m0_parity_math_calculate(struct m0_parity_math *math,
  * @param index   Index of data unit in parity group for which old and new
  * versions are sent.
  */
-M0_INTERNAL void m0_parity_math_diff(struct m0_parity_math *math,
-				     struct m0_buf *old_ver,
-				     struct m0_buf *new_ver,
-				     struct m0_buf *parity, uint32_t index);
+M0_INTERNAL int m0_parity_math_diff(struct m0_parity_math *math,
+				    struct m0_buf *old_ver,
+				    struct m0_buf *new_ver,
+				    struct m0_buf *parity, uint32_t index);
 
 /**
-   Parity block refinement iff one data word of one data unit had changed.
-   @param data[in] - data block, treated as uint8_t block with b_nob elements.
-   @param parity[out] - parity block, treated as uint8_t block with
-                        b_nob elements.
-   @param data_ind_changed[in] - index of data unit recently changed.
-   @pre m0_parity_math_init() succeeded.
+ * Parity block refinement iff one data word of one data unit had changed.
+ * @param[in]  data             - data block, treated as uint8_t block with
+ *                                b_nob elements.
+ * @param[out] parity           - parity block, treated as uint8_t block with
+ *                                b_nob elements.
+ * @param[in]  data_ind_changed - index of data unit recently changed.
+ * @pre m0_parity_math_init() succeeded.
  */
 M0_INTERNAL void m0_parity_math_refine(struct m0_parity_math *math,
 				       struct m0_buf *data,
 				       struct m0_buf *parity,
 				       uint32_t data_ind_changed);
 
-
-M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
-					uint8_t *fail);
-
-
-M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math);
-
 /**
-   Recovers data units' data words from single or multiple errors.
-   If parity also needs to be recovered, user of the function needs
-   to place a separate call for m0_parity_math_calculate().
-   @param data[inout] - data block, treated as uint8_t block with
-			b_nob elements.
-   @param parity[inout] - parity block, treated as uint8_t block with
-                          b_nob elements.
-   @param fail[in] - block with flags, treated as uint8_t block with
-                     b_nob elements, if element is '1' then data or parity
-                     block with given index is treated as broken.
-   @param algo[in] - algorithm for recovery of data in case reed solomon
-                     encoding is used.
-   @pre m0_parity_math_init() succeded.
+ * Recovers data units' data words from single or multiple errors.
+ * If parity also needs to be recovered, user of the function needs
+ * to place a separate call for m0_parity_math_calculate().
+ * @param[in,out] data   - data block, treated as uint8_t block with
+ *                         b_nob elements.
+ * @param[in,out] parity - parity block, treated as uint8_t block with
+ *                         b_nob elements.
+ * @param[in]     fails  - block with flags, treated as uint8_t block with
+ *                         b_nob elements, if element is '1' then data or
+ *                         parity block with given index is treated as broken.
+ * @param[in]     algo   - algorithm for recovery of data in case reed solomon
+ *                         encoding is used.
+ * @pre m0_parity_math_init() succeeded.
  */
-M0_INTERNAL void m0_parity_math_recover(struct m0_parity_math *math,
-					struct m0_buf *data,
-					struct m0_buf *parity,
-					struct m0_buf *fail,
-					enum m0_parity_linsys_algo algo);
+M0_INTERNAL int m0_parity_math_recover(struct m0_parity_math *math,
+				       struct m0_buf *data,
+				       struct m0_buf *parity,
+				       struct m0_buf *fails,
+				       enum m0_parity_linsys_algo algo);
 
 /**
  * Recovers data or parity units partially or fully depending on the parity
@@ -232,7 +225,7 @@ M0_INTERNAL void m0_parity_math_recover(struct m0_parity_math *math,
  * @param data - data block, treated as uint8_t block with b_nob elements.
  * @param parity - parity block, treated as uint8_t block with b_nob elements.
  * @param failure_index - Index of the failed block.
-   @pre m0_parity_math_init() succeded.
+   @pre m0_parity_math_init() succeeded.
  */
 M0_INTERNAL void m0_parity_math_fail_index_recover(struct m0_parity_math *math,
 						   struct m0_buf *data,
@@ -525,16 +518,16 @@ M0_INTERNAL int m0_sns_ir_mat_compute(struct m0_sns_ir *ir);
  *			    on a node or coming from a remote node. All remote
  *			    blocks are assumed to be transformed.
  */
-M0_INTERNAL void m0_sns_ir_recover(struct m0_sns_ir *ir,
-				   struct m0_bufvec *bufvec,
-				   const struct m0_bitmap *bitmap,
-				   uint32_t failed_indexi,
-				   enum m0_sns_ir_block_type block_type);
+M0_INTERNAL int m0_sns_ir_recover(struct m0_sns_ir *ir,
+				  struct m0_bufvec *bufvec,
+				  const struct m0_bitmap *bitmap,
+				  uint32_t failed_index,
+				  enum m0_sns_ir_block_type block_type);
 /**
  * When failures include both data and parity blocks, this function uses
  * local copy of recovered (partially or fully) data-block for recovering
  * failed parity block. On any node, this function can be triggered only once
- * per parity group. Subsequent triggers will result into a no-operaiton.
+ * per parity group. Subsequent triggers will result into a no-operation.
  * @param ir holds information relevant for recovery
  */
 //M0_INTERNAL void m0_sns_ir_local_xform(struct m0_sns_ir *ir);

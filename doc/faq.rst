@@ -17,18 +17,6 @@ GitHub
 
    A: Try https://help.github.com/en/github/authenticating-to-github/authorizing-an-ssh-key-for-use-with-saml-single-sign-on.
 
-#. Q: How to set correct ``galois`` submodule URL after updating the URL for
-   Motr repo?
-
-   A: _::
-
-        > git submodule sync
-        Synchronizing submodule url for 'extra-libs/galois'
-        > grep -A 2 extra-libs .git/config
-        [submodule "extra-libs/galois"]
-       active = true
-       url = git@github.com:Seagate/cortx-motr-galois
-
 #. Q: How to add ssh key that could be used with GitHub?
 
    A: Go to https://github.com/settings/keys, then generate and add ssh key as

@@ -209,10 +209,21 @@ M0_INTERNAL void m0_fdmi__rec_id_gen(struct m0_fdmi_src_rec *src_rec)
 	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_fdmi__record_post(struct m0_fdmi_src_rec *src_rec)
+M0_INTERNAL void m0_fdmi__enqueue(struct m0_fdmi_src_rec *src_rec)
 {
 	struct m0_fdmi_src_dock *src_dock = m0_fdmi_src_dock_get();
 
+	M0_ASSERT(src_rec != NULL && src_rec->fsr_src != NULL);
+
+	m0_mutex_lock(&src_dock->fsdc_list_mutex);
+	fdmi_record_list_tlist_add_tail(
+			&src_dock->fsdc_posted_rec_list, src_rec);
+	m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
+	m0_mutex_unlock(&src_dock->fsdc_list_mutex);
+}
+
+M0_INTERNAL void m0_fdmi__record_post(struct m0_fdmi_src_rec *src_rec)
+{
 	M0_ENTRY("src %p, fdmi_data %p, rec_id "U128X_F_SAFE,
 		 (src_rec ? src_rec->fsr_src : (void*)(-1)),
 		 (src_rec ? src_rec->fsr_data : (void*)(-1)),
@@ -226,14 +237,9 @@ M0_INTERNAL int m0_fdmi__record_post(struct m0_fdmi_src_rec *src_rec)
 
 	/** @todo Phase 2: Call m0_fdmi__fs_get(), remove inc_ref in FOL
 	 * source */
+	m0_fdmi__enqueue(src_rec);
 
-	m0_mutex_lock(&src_dock->fsdc_list_mutex);
-	fdmi_record_list_tlist_add_tail(
-			&src_dock->fsdc_posted_rec_list, src_rec);
-	m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
-	m0_mutex_unlock(&src_dock->fsdc_list_mutex);
-
-	return M0_RC(0);
+	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_fdmi_source_alloc(enum m0_fdmi_rec_type_id type_id,

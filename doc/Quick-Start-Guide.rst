@@ -8,7 +8,7 @@ Prerequisites
 *************
 The prerequisite that is necessary to install the Motr component is mentioned below.
 
-- CentOS-7 for x86_64 platform (ARM64 platform support work is in progress).
+- CentOS 7 on x86_64 or ARM64 (AArch64) platform.
 
 - **Ansible** is needed::
 
@@ -29,7 +29,7 @@ Build
     cd cortx-motr
     sudo scripts/install-build-deps
 
-2. Check the Lustre network interface configuration::
+2. If using lnet as the transport, check the Lustre network interface configuration::
 
     sudo vi /etc/modprobe.d/lnet.conf
 
@@ -40,7 +40,33 @@ Build
     sudo modprobe lnet
     sudo lctl list_nids
 
-3. To build Motr, run::
+   Make sure that libfabric package is not installed.
+
+    fi_info --version
+    bash: fi_info: command not found
+
+3. If using libfabric as the transport, check the Libfabric network interface configuration::
+
+    sudo vi /etc/libfab.conf
+
+   Use ``ip a`` command to get a list of network interfaces.
+   Then modify ``libfab.conf`` to use one of the listed network interfaces.
+   Verify the libfab.conf file contents.
+
+    cat /etc/libfab.conf
+    networks=tcp(eth1)
+
+   Please refer the below document for installation.
+   https://seagate-systems.atlassian.net/wiki/spaces/PUB/pages/711230113/Libfabric+setup+and+using+libfabric+with+motr
+
+   Verify that libfabric package is installed.
+
+    fi_info --version
+    fi_info: 1.11.2
+    libfabric: 1.11.2
+    libfabric api: 1.11
+
+4. To build Motr, run::
 
     scripts/m0 make
 
@@ -118,7 +144,7 @@ Troubleshooting
   try installing packages using pip installer.
   run the following commands if package is ipaddress::
 
-    sudo pip install python-ipaddress
+    sudo pip install ipaddress
     sudo scripts/install-build-deps
 
 - If an installation failure occurs due to the dependency of ``pip3`` ,
@@ -167,6 +193,11 @@ The files will be generated at doc/html/ folder.
 
 
 Tested by:
+- September 20, 2021: Yixuan Li (yixuan.li@seagate.com) in Red Hat Enterprise Linux Server release 7.7 (Maipo) (#5aac28633a149d2c7e6f8d4c502d80dabf7ebb7e)
+
+- Sep 20, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested in CentOS 7.8.2003 x86_64 using CORTX-2.0.0-77 tag on main branch  
+
+- September 15, 2021: Jugal Patil (jugal.patil@seagate.com) tested using CentOS Linux release 7.9.2009 and 7.8.2003 verified with git tag CORTX-2.0.0-77 (#7d4d09cc9fd32ec7690c94298136b372069f3ce3) on main branch
 
 - June 21, 2021: Daniar Kurniawan (daniar@uchicago.edu) in CentOS 7.9.2003 on a Chameleon node (type=compute_skylake).
 

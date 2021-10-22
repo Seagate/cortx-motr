@@ -130,7 +130,7 @@ M0_INTERNAL void *m0_arch_alloc_wired(size_t size, unsigned shift)
 		goto out;
 	}
 
-	rc = madvise((void*)((unsigned long)res & ~(PAGE_SIZE - 1)), 1,
+	rc = madvise((void*)((unsigned long)res & ~(m0_pagesize_get() - 1)), 1,
 		     MADV_DONTFORK);
 	if (rc == -1) {
 		M0_LOG(M0_ERROR, "madvise() failed: rc=%d", errno);
@@ -145,7 +145,7 @@ M0_INTERNAL void m0_arch_free_wired(void *data, size_t size, unsigned shift)
 {
 	int rc;
 
-	rc = madvise((void*)((unsigned long)data & ~(PAGE_SIZE - 1)), 1,
+	rc = madvise((void*)((unsigned long)data & ~(m0_pagesize_get() - 1)), 1,
 		     MADV_DOFORK);
 	if (rc == -1)
 		M0_LOG(M0_WARN, "madvise() failed: rc=%d", errno);
@@ -214,6 +214,11 @@ M0_INTERNAL void m0_arch_memory_fini(void)
 M0_INTERNAL int m0_arch_pagesize_get()
 {
 	return getpagesize();
+}
+
+M0_INTERNAL int m0_arch_pageshift_get()
+{
+	return ffs(getpagesize());
 }
 
 #undef M0_TRACE_SUBSYSTEM
