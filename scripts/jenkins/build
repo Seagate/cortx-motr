@@ -50,6 +50,8 @@ else
     mkdir $ARTIFACTS
 fi
 
+yum remove libfabric libfabric-devel -y
+
 ./autogen.sh |& tee $ARTIFACTS/configure.log
 
 if [[ $1 = docs ]] ; then
@@ -65,3 +67,5 @@ cp -av $HOME/rpmbuild/RPMS/x86_64/*.rpm $ARTIFACTS/
 cp -av $HOME/rpmbuild/SRPMS/*.rpm $ARTIFACTS/
 (cd $ARTIFACTS/ ; ln -vs cortx-motr-[[:digit:]]*.x86_64.rpm motr-latest.rpm)
 fi
+
+yum install http://cortx-storage.colo.seagate.com/releases/cortx/third-party-deps/custom-deps/motr/libfabric/last_successful/libfabric-1.11.2-1.el7.x86_64.rpm http://cortx-storage.colo.seagate.com/releases/cortx/third-party-deps/custom-deps/motr/libfabric/last_successful/libfabric-devel-1.11.2-1.el7.x86_64.rpm -y
