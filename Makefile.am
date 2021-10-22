@@ -78,6 +78,9 @@ AM_CPPFLAGS  = @M0_CPPFLAGS@
 AM_CFLAGS    = @M0_CFLAGS@
 AM_LDFLAGS   = @M0_LDFLAGS@
 
+GALOIS_DIR   = extra-libs/galois
+SUBDIRS = $(GALOIS_DIR)
+
 ################################################################################
 #                               Global variables                            {{{1
 ################################################################################
@@ -99,6 +102,7 @@ noinst_LTLIBRARIES =
 man_MANS   =
 
 EXTRA_DIST  = autogen.sh cortx-motr.spec.in README.rst LICENCE .gdbinit
+EXTRA_DIST += extra-libs/.gitignore
 CLEANFILES  =
 DISTCLEANFILES = @LUSTRE_CONFIG_LINK@ utils/ub.sh
 MAN_PAGES  =
@@ -184,8 +188,17 @@ motr_libmotr_la_CPPFLAGS  = -DM0_TARGET='libmotr' $(AM_CPPFLAGS)
 motr_libmotr_la_LDFLAGS   = -version-info @LT_VERSION@ -pthread $(AM_LDFLAGS)
 motr_libmotr_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
                             @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ \
-                            @DL_LIBS@ @CASSANDRA_LIBS@ @UV_LIBS@ @ISAL_LIBS@ \
-                            @OPENSSL_LIBS@ @LIBFAB_LIBS@
+                            @DL_LIBS@ @CASSANDRA_LIBS@ @UV_LIBS@ \
+			    @OPENSSL_LIBS@ @LIBFAB_LIBS@
+
+if HAVE_ISAL
+motr_libmotr_la_LIBADD += @ISAL_LIBS@
+else
+motr_libmotr_la_LIBADD += @GALOIS_LIBS@
+# override is needed to allow user to provide some additional options in
+# RPMBUILD_FLAGS variable in command line
+override RPMBUILD_FLAGS += --without isal
+endif
 
 # install directory for public libmotr headers
 motr_includedir             = $(includedir)/motr
@@ -1154,6 +1167,7 @@ EXTRA_DIST += \
               sm/Kbuild.sub \
               sm/ut/Kbuild.sub \
               sns/Kbuild.sub \
+              sns/ut/Kbuild.sub \
               spiel/Kbuild.sub \
               sss/Kbuild.sub \
               stats/Kbuild.sub \
@@ -1522,10 +1536,17 @@ libmotr-ut: pre-all
 .PHONY: __libmotr-ut
 __libmotr-ut: config.h Makefile ut/libmotr-ut.la $(HEADERS)
 
+# galois ---------------------------------------------- {{{3
+
+.PHONY: galois
+galois:
+	@echo 'Building galois'
+	@cd $(GALOIS_DIR) && $(MAKE) $(AM_MAKEFLAGS)
+
 # quick ----------------------------------------------- {{{3
 
 .PHONY: quick
-quick: generate-files
+quick: generate-files galois
 	@echo 'Building user-space Unit Tests'
 	@$(MAKE) $(AM_MAKEFLAGS) __quick
 
@@ -1536,12 +1557,12 @@ __quick: __libmotr __libmotr-ut ut/m0ut
 # kuick ----------------------------------------------- {{{3
 
 .PHONY: kuick
-kuick: generate-files
+kuick: generate-files galois
 	@echo 'Building kernel-space Unit Tests'
 	@$(MAKE) $(AM_MAKEFLAGS) build-kernel-modules M0_BUILD_KERNEL_UT_ONLY=yes
 
 .PHONY: motr_st
-motr_st: generate-files
+motr_st: generate-files galois
 	@echo 'Building motr for motr system test.'
 	@$(MAKE) $(AM_MAKEFLAGS) build-kernel-modules M0_BUILD_ST=yes
 
@@ -1578,7 +1599,8 @@ clean-local: $(KERNEL_MODULES_CLEAN) clean-doc
 # we don't want to use the default kernel clean command, i.e.:
 #   $(MAKE) -C $(KDIR) M=$(PWD) $(AM_MAKEFLAGS) clean
 # because it's a bit dummy - it uses `find` to recursively delete all *.o, *.a
-# and *.ko files, which will mess up our user-space build in .libs/ directories;
+# and *.ko files, which will mess up our user-space build in .libs/ directories
+# and delete library files under extra-libs/ and galois.ko module;
 # instead we use our own `find` command, which excludes some paths we need to
 # keep, to clean up kernel build
 .PHONY: clean-kernel-modules
@@ -1588,7 +1610,7 @@ clean-kernel-modules:
 	@rm -vf $(top_builddir)/Module.markers
 	@rm -vf $(top_builddir)/modules.order
 	@find $(top_builddir) \
-		\( -name .git -o -name .libs \) -prune \
+		\( -name .git -o -name .libs -o -name extra-libs \) -prune \
 		-o \( -name '*.o' -o -name '*.ko' -o -name '.*.cmd' \
 		      -o -name '*.ko.*' -o -name '.*.d' -o -name '.*.tmp' \
 		      -o -name '*.mod.c' \
@@ -1627,6 +1649,7 @@ endif
 install-exec-local: $(KERNEL_MODULES_INSTALL)
 
 install-tests:
+	@$(MAKE) -C extra-libs/galois install
 	@$(MAKE) INSTALL_MOD_DIR=kernel/fs/motr/tests $(KERNEL_MODULES_INSTALL) \
 		 install-binPROGRAMS install-sbinPROGRAMS install-binSCRIPTS \
 		 install-sbinSCRIPTS
@@ -1836,6 +1859,7 @@ help:
 	@echo '  quick           - build only user-space UT'
 	@echo '  kuick           - build only kernel-space UT'
 	@echo ''
+	@echo '  galois          - build only libgalois.so and galois.ko'
 	@echo '  libmotr         - build only libmotr library'
 	@echo '  libmotr-ut      - build only libmotr-ut library'
 	@echo '  libmotr-altogether - build only libmotr library'

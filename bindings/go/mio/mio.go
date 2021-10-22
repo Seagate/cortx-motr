@@ -39,7 +39,8 @@
 // For the usage example, refer to mcp utility.
 package mio
 
-// #cgo CFLAGS: -I../../.. -I/usr/include/motr
+// #cgo CFLAGS: -I../../.. -I../../../extra-libs/galois/include
+// #cgo CFLAGS: -I/usr/include/motr
 // #cgo CFLAGS: -DM0_EXTERN=extern -DM0_INTERNAL=
 // #cgo CFLAGS: -Wno-attributes
 // #cgo LDFLAGS: -L../../../motr/.libs -Wl,-rpath=../../../motr/.libs -lmotr

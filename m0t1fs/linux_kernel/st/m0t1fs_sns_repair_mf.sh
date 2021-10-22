@@ -271,6 +271,8 @@ main()
 {
 	local rc=0
 
+	check_test_skip_list $testname || return $rc
+
 	sandbox_init
 
 	NODE_UUID=`uuidgen`

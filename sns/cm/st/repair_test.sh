@@ -51,7 +51,7 @@ cleanup()
 		sleep 2;
 	done
 
-	rmmod m0tr
+	rmmod m0tr galois
 }
 
 main()
