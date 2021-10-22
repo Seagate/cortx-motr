@@ -296,7 +296,7 @@ load_modules()
             # and don't unload them as well (EXIT trap is not set)
             # unless '-f' option was used
             local loaded=false
-            if lsmod | grep -Eq 'm0|galois' ; then
+            if lsmod | grep -Eq 'm0' ; then
                 log 'Motr kernel modules are already loaded'
                 loaded=true
                 if $force_modules_reload ; then

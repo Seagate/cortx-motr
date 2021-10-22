@@ -40,8 +40,6 @@ static size_t fdmi_sd_fom_locality(const struct m0_fom *fom);
 static int sd_fom_send_record(struct fdmi_sd_fom *sd_fom,
 			      struct m0_fop      *fop,
 			      const char         *ep);
-static int sd_fom_process_matched_filters(struct m0_fdmi_src_dock *sd_ctx,
-					  struct m0_fdmi_src_rec  *src_rec);
 static int fdmi_filter_calc(struct fdmi_sd_fom         *sd_fom,
 			    struct m0_fdmi_src_rec     *src_rec,
 			    struct m0_conf_fdmi_filter *fdmi_filter);
@@ -388,6 +386,8 @@ static void fdmi_sd_fom_fini(struct m0_fom *fom)
 	M0_LEAVE();
 }
 
+enum { FDMI_RPC_MAX_RETRIES = 60 }; /* @see M0_RPC_MAX_RETRIES */
+
 static int fdmi_post_fop(struct m0_fop *fop, struct m0_rpc_session *session)
 {
 	struct m0_rpc_item *item;
@@ -403,7 +403,8 @@ static int fdmi_post_fop(struct m0_fop *fop, struct m0_rpc_session *session)
 	item->ri_deadline        = M0_TIME_IMMEDIATELY;
 
 	item->ri_resend_interval = m0_time(M0_RPC_ITEM_RESEND_INTERVAL, 0);
-	item->ri_nr_sent_max     = ~(uint64_t)0;
+	item->ri_nr_sent_max     = (uint64_t)FDMI_RPC_MAX_RETRIES;
+	/* timeout val = (item->ri_resend_interval * item->ri_nr_sent_max) */
 
 	return M0_RC(m0_rpc_post(item));
 }
@@ -420,6 +421,7 @@ static bool pending_fop_clink_cb(struct m0_clink *clink)
 	else
 		m0_rpc_conn_pool_put(&pending_fop->sd_fom->fsf_conn_pool,
 				     pending_fop->fti_session);
+	m0_fop_put_lock(pending_fop->fti_fop);
 	m0_mutex_lock(&sd_fom->fsf_pending_fops_lock);
 	pending_fops_tlist_del(pending_fop);
 	m0_mutex_unlock(&sd_fom->fsf_pending_fops_lock);
@@ -461,7 +463,7 @@ static int sd_fom_send_record(struct fdmi_sd_fom *sd_fom, struct m0_fop *fop,
 	int                    rc;
 	struct m0_rpc_session *session;
 
-	M0_ENTRY("sd_fom %p, fop %p, ep %s", sd_fom, fop, ep);
+	M0_LOG(M0_DEBUG, "sd_fom %p, sending fop %p to ep %s", sd_fom, fop, ep);
 	rc = m0_rpc_conn_pool_get_async(&sd_fom->fsf_conn_pool, ep, &session);
 	if (rc == 0)
 		rc = fdmi_post_fop(fop, session);
@@ -751,6 +753,7 @@ static void fdmi_rec_notif_replied(struct m0_rpc_item *item)
 {
 	struct m0_fdmi_src_rec  *src_rec;
 	struct m0_fdmi_src_dock *src_dock;
+	struct m0_rpc_conn_pool *pool;
 	int                      rc;
 
 	M0_ENTRY("item=%p", item);
@@ -761,12 +764,26 @@ static void fdmi_rec_notif_replied(struct m0_rpc_item *item)
 
 	rc = item->ri_error ?: m0_rpc_item_generic_reply_rc(item->ri_reply);
 	if (rc != 0)
-		M0_LOG(M0_ERROR, "FDMI reply error %d item->ri_error %d",
-		       rc, item->ri_error);
+		M0_LOG(M0_ERROR, "FDMI reply error %d item->ri_error %d to %s",
+		       rc, item->ri_error,
+		       m0_rpc_conn_addr(item->ri_session->s_conn));
 
-	m0_fdmi__handle_reply(src_dock, src_rec, rc);
-	m0_rpc_conn_pool_put(&src_dock->fsdc_sd_fom.fsf_conn_pool,
-			     item->ri_session);
+	pool = &src_dock->fsdc_sd_fom.fsf_conn_pool;
+	m0_rpc_conn_pool_put(pool, item->ri_session);
+	if (rc != 0) {
+		m0_rpc_conn_pool_destroy(pool, item->ri_session);
+
+		/*
+		 * The failed fop will be released.
+		 * Now let's enqueue the FDMI record again. It will be
+		 * processed and sent again.
+		 */
+		M0_LOG(M0_DEBUG, "Enqueue fdmi record again %p, ID:"U128X_F,
+				 src_rec, U128_P(&src_rec->fsr_rec_id));
+		m0_fdmi__enqueue(src_rec);
+	} else
+		m0_fdmi__handle_reply(src_dock, src_rec, rc);
+
 	M0_LEAVE();
 }
 
