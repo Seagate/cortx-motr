@@ -32,6 +32,7 @@
 #include "fid/fid.h"
 #include "lib/cookie.h"
 #include "xcode/xcode_attr.h"
+#include "lib/cksum.h"
 /**
  * @defgroup client
  *
@@ -1817,6 +1818,9 @@ int m0_client_layout_capture(struct m0_client_layout *layout,
 struct m0_client_layout*
 m0_client_layout_alloc(enum m0_client_layout_type type);
 void m0_client_layout_free(struct m0_client_layout *layout);
+
+/* Print PI */
+void print_pi(void *pi,int size);
 
 //** @} end of client group */
 

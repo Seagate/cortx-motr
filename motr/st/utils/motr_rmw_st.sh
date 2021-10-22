@@ -17,7 +17,7 @@
 # For any questions about this software or licensing,
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
-
+set -x
 
 motr_st_util_dir=$(dirname $(readlink -f $0))
 motr_src="$motr_st_util_dir/../../../"

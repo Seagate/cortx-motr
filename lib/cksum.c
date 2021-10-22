@@ -22,6 +22,7 @@
 
 #include "lib/memory.h"               /* m0_alloc, m0_free */
 #include "lib/cksum.h"
+#include "motr/client.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
@@ -213,9 +214,20 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 					seed, bvec, M0_PI_NO_FLAG,
 					curr_context, NULL);
 		m0_free(curr_context);
+		//M0_LOG(M0_ALWAYS,"Pi on disc");
+		//print_pi(pi,sizeof(struct m0_md5_inc_context_pi));
+		//M0_LOG(M0_ALWAYS,"Pi in memory");
+		//print_pi(&md5_ctx_pi,sizeof(struct m0_md5_inc_context_pi));
 		if (memcmp(((struct m0_md5_inc_context_pi *)pi)->pimd5c_value,
 			   md5_ctx_pi.pimd5c_value,
 			   MD5_DIGEST_LENGTH) == 0) {
+			/*M0_LOG(M0_ALWAYS, "seed in success case "
+					 "f_container 0x%"PRIx64" f_key 0x%"PRIx64
+					 " data_unit_offset 0x%"PRIx64,
+					 seed->pis_obj_id.f_container,
+					 seed->pis_obj_id.f_key,
+					 seed->pis_data_unit_offset);	   
+			M0_LOG(M0_ALWAYS,"memcmp successfull returning true");*/
 			return true;
 		}
 		else {
@@ -230,6 +242,15 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 		break;
 	}
 	default:
+	   /* M0_LOG(M0_ALWAYS,"Pi on disc in default case");
+		print_pi(pi,sizeof(struct m0_md5_inc_context_pi));
+		M0_LOG(M0_ALWAYS, "seed in default case "
+					 "f_container 0x%"PRIx64" f_key 0x%"PRIx64
+					 " data_unit_offset 0x%"PRIx64,
+					 seed->pis_obj_id.f_container,
+					 seed->pis_obj_id.f_key,
+					 seed->pis_data_unit_offset);
+				return false; */
 		M0_IMPOSSIBLE("pi_type = %d", pi->pi_hdr.pih_type);
 	}
 #endif

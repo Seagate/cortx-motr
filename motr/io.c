@@ -700,8 +700,14 @@ int m0_obj_op(struct m0_obj       *obj,
 		  opcode == M0_OC_FREE ? "free" : "");
 	M0_PRE(obj != NULL);
 	M0_PRE(op != NULL);
+	M0_PRE(ergo(opcode != M0_OC_FREE, attr != NULL));
+	M0_ASSERT(ergo(opcode != M0_OC_FREE, attr->ov_vec.v_count[attr->ov_vec.v_nr - 1]));
+	M0_ASSERT(ergo(opcode != M0_OC_FREE, attr->ov_vec.v_count[0]));
 	M0_PRE(ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOHOLE))));
 	M0_PRE(ergo(opcode != M0_OC_READ, M0_IN(flags, (0, M0_OOF_SYNC))));
+	/*if(attr != NULL)
+		print_pi(attr->ov_buf[0],sizeof(struct m0_md5_inc_context_pi));*/
+	M0_LOG(M0_ALWAYS,"lid : %"PRIu64, m0__obj_lid(obj));
 	if (M0_FI_ENABLED("fail_op"))
 		return M0_ERR(-EINVAL);
 

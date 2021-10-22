@@ -164,7 +164,7 @@ static void m0_write_cancel(void)
 		st_entity_open(&objs[i].ob_entity);
 		/* Create the write request */
 		st_obj_op(&objs[i], M0_OC_WRITE, &ext, &data,
-			  NULL, 0, 0, &ops[i]);
+			  &attr, 0, 0, &ops[i]);
 	}
 	/*
 	 * Launch the write request for half of the objects and

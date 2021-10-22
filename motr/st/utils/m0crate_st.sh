@@ -19,7 +19,7 @@
 #
 
 
-#set -x
+# set -x
 
 motr_st_util_dir=$( cd "$(dirname "$0")" ; pwd -P )
 motr_dir="$motr_st_util_dir/../../.."
