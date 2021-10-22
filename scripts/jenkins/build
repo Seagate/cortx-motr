@@ -51,7 +51,7 @@ else
 fi
 
 yum remove libfabric libfabric-devel -y
-
+sed -i 's/BuildRequires:  libfabric-devel//' cortx-motr.spec.in
 ./autogen.sh |& tee $ARTIFACTS/configure.log
 
 if [[ $1 = docs ]] ; then
