@@ -30,6 +30,8 @@ set -a
 set -e
 set -o pipefail
 
+# Printing package name
+echo "Package name is: $TRANSPORTER"
 
 WORKSPASE=$(pwd)
 ARTIFACTS=$WORKSPASE/artifacts
@@ -52,6 +54,15 @@ fi
 
 ./autogen.sh |& tee $ARTIFACTS/configure.log
 
+# Checking if package is available or not
+if [[ -z $(rpm -qa $TRANSPORTER) ]]
+then
+        yum install $TRANSPORTER* -y
+else
+        echo "$TRANSPORTER is presen"
+fi
+
+
 if [[ $1 = docs ]] ; then
 ./configure --disable-systemd |& tee -a $ARTIFACTS/configure.log
 make -j doc |& tee $ARTIFACTS/make.log
@@ -66,7 +77,6 @@ cp -av $HOME/rpmbuild/SRPMS/*.rpm $ARTIFACTS/
 (cd $ARTIFACTS/ ; ln -vs cortx-motr-[[:digit:]]*.x86_64.rpm motr-latest.rpm)
 
 fi
-echo "Package name is: $TRANSPORTER"
 
 if [[ "$TRANSPORTER" == "libfabric" ]]; then
 	continue
