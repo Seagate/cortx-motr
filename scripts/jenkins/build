@@ -65,7 +65,8 @@ cp -av $HOME/rpmbuild/RPMS/x86_64/*.rpm $ARTIFACTS/
 cp -av $HOME/rpmbuild/SRPMS/*.rpm $ARTIFACTS/
 (cd $ARTIFACTS/ ; ln -vs cortx-motr-[[:digit:]]*.x86_64.rpm motr-latest.rpm)
 
-echo $TRANSPORTER
+fi
+echo "Package name is: $TRANSPORTER"
 
 if [[ "$TRANSPORTER" == "libfabric" ]]; then
 	continue
