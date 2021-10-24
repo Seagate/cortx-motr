@@ -34,6 +34,8 @@ set -o pipefail
 WORKSPASE=$(pwd)
 ARTIFACTS=$WORKSPASE/artifacts
 
+TRANSPORT=
+
 # for backward compatibility with old Jenkins environment we need to `cd` into
 # 'workdir/src' directory if it exists, that is where old Jenkins jobs stored
 # motr sources
@@ -68,4 +70,4 @@ cp -av $HOME/rpmbuild/SRPMS/*.rpm $ARTIFACTS/
 (cd $ARTIFACTS/ ; ln -vs cortx-motr-[[:digit:]]*.x86_64.rpm motr-latest.rpm)
 fi
 
-yum install http://cortx-storage.colo.seagate.com/releases/cortx/third-party-deps/custom-deps/motr/libfabric/last_successful/libfabric-1.11.2-1.el7.x86_64.rpm http://cortx-storage.colo.seagate.com/releases/cortx/third-party-deps/custom-deps/motr/libfabric/last_successful/libfabric-devel-1.11.2-1.el7.x86_64.rpm -y
+#yum install http://cortx-storage.colo.seagate.com/releases/cortx/third-party-deps/custom-deps/motr/libfabric/last_successful/libfabric-1.11.2-1.el7.x86_64.rpm http://cortx-storage.colo.seagate.com/releases/cortx/third-party-deps/custom-deps/motr/libfabric/last_successful/libfabric-devel-1.11.2-1.el7.x86_64.rpm -y
