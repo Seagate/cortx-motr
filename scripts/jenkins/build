@@ -40,6 +40,11 @@ ARTIFACTS=$WORKSPASE/artifacts
 src_dir=workdir/src
 [[ ! -d $src_dir ]] || cd $src_dir
 
+yum remove libfabric libfabric-devel -y
+
+yum install http://cortx-storage.colo.seagate.com/releases/cortx/third-party-deps/custom-deps/motr/libfabric/last_successful/libfabric-1.11.2-1.el7.x86_64.rpm http://cortx-storage.colo.seagate.com/releases/cortx/third-party-deps/custom-deps/motr/libfabric/last_successful/libfabric-devel-1.11.2-1.el7.x86_64.rpm -y
+
+
 sudo git clean -dfx
 sudo git submodule foreach git clean -dfx
 git submodule update --init
