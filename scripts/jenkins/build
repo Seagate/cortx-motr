@@ -30,12 +30,12 @@ set -a
 set -e
 set -o pipefail
 
+TRANSPORTER="$2"
 # Printing package name
 echo "Package name is: $TRANSPORTER"
 
 WORKSPASE=$(pwd)
 ARTIFACTS=$WORKSPASE/artifacts
-TRANSPORTER="$transporter"
 
 # for backward compatibility with old Jenkins environment we need to `cd` into
 # 'workdir/src' directory if it exists, that is where old Jenkins jobs stored
