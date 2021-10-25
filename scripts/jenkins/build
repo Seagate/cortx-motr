@@ -30,9 +30,9 @@ set -a
 set -e
 set -o pipefail
 
-TRANSPORTER="$2"
+TRANSPORT="$2"
 # Printing package name
-echo "Package name is: $TRANSPORTER"
+echo "Package name is: $TRANSPORT"
 
 WORKSPASE=$(pwd)
 ARTIFACTS=$WORKSPASE/artifacts
@@ -56,12 +56,10 @@ fi
 ./autogen.sh |& tee $ARTIFACTS/configure.log
 
 
-echo "TRANSPORTER is $TRANSPORTER"
-
 # Checking if package is available or not
-if [[ ! -z $(rpm -qa $TRANSPORTER) ]]
+if [[ ! -z $(rpm -qa $TRANSPORT) ]]
 then
-        echo "$TRANSPORTER package is present"
+        echo "$TRANSPORT package is present"
         if [[ -z $(rpm -qa libfabric-devel) ]]
         then
                  yum install http://cortx-storage.colo.seagate.com/releases/cortx/github/stable/centos-7.9.2009/96/prod/3rd_party/motr_uploads/libfabric-devel-1.11.2-1.el7.x86_64.rpm  -y
@@ -88,9 +86,8 @@ cp -av $HOME/rpmbuild/SRPMS/*.rpm $ARTIFACTS/
 
 fi
 
-echo "package name is $TRANSPORTER"
 
-if [[ "$TRANSPORTER" == "libfabric" ]]; then
+if [[ "$TRANSPORT" == "libfabric" ]]; then
 	exit 0
 else
 	rpm -e $(rpm -qa libfabric-*)
