@@ -54,14 +54,22 @@ fi
 
 ./autogen.sh |& tee $ARTIFACTS/configure.log
 
-# Checking if package is available or not
-if [[ -z $(rpm -qa $TRANSPORTER) ]]
-then
-        yum install $TRANSPORTER* -y
-else
-        echo "$TRANSPORTER is presen"
-fi
+TRANSPORTER="libfabric"
 
+# Checking if package is available or not
+if [[ ! -z $(rpm -qa $TRANSPORTER) ]]
+then
+        echo "libfabric package is present"
+        if [[ -z $(rpm -qa libfabric-devel) ]]
+        then
+                 yum install $TRANSPORTER-devel* -y
+        else
+                echo "libfabric-devel packager package are there"
+        fi
+else
+        yum install $TRANSPORTER* -y
+	yum install kmod-lustre-client -y
+fi
 
 if [[ $1 = docs ]] ; then
 ./configure --disable-systemd |& tee -a $ARTIFACTS/configure.log
@@ -78,9 +86,20 @@ cp -av $HOME/rpmbuild/SRPMS/*.rpm $ARTIFACTS/
 
 fi
 
+echo "package name is $TRANSPORTER"
+
 if [[ "$TRANSPORTER" == "libfabric" ]]; then
-	continue
+	exit 0
 else
 	rpm -e $(rpm -qa libfabric-*)
+	modprobe -v lnet
+	lctl network up
+	lctl list_nids
 fi
 
+if [[ -z $(lsmod |grep lnet) ]]
+then
+	echo "Lnet package is successfully enabled"
+else
+	echo "Lnet package is not enabled"
+fi
