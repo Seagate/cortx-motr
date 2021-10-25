@@ -61,7 +61,7 @@ echo "TRANSPORTER is $TRANSPORTER"
 # Checking if package is available or not
 if [[ ! -z $(rpm -qa $TRANSPORTER) ]]
 then
-        echo "libfabric package is present"
+        echo "$TRANSPORTER package is present"
         if [[ -z $(rpm -qa libfabric-devel) ]]
         then
                  yum install http://cortx-storage.colo.seagate.com/releases/cortx/github/stable/centos-7.9.2009/96/prod/3rd_party/motr_uploads/libfabric-devel-1.11.2-1.el7.x86_64.rpm  -y
