@@ -6370,9 +6370,8 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 					return P_LOCK;
 				if (!oi->i_key_found &&
 				    bop->bo_opc == M0_BO_UPDATE &&
-				    !(bop->bo_flags & BOF_PUT_IF_NOT_EXIST)) {
+				    !(bop->bo_flags & BOF_INSERT_IF_NOT_FOUND))
 					return P_LOCK;
-				}
 				/**
 				 * Initialize i_alloc_lev to level of leaf
 				 * node.
@@ -6505,7 +6504,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		if (oi->i_key_found && bop->bo_opc == M0_BO_PUT)
 			rc = M0_ERR(-EEXIST);
 		else if (!oi->i_key_found && bop->bo_opc == M0_BO_UPDATE &&
-			 !(bop->bo_flags & BOF_PUT_IF_NOT_EXIST))
+			 !(bop->bo_flags & BOF_INSERT_IF_NOT_FOUND))
 			rc = M0_ERR(-ENOENT);
 
 		if (rc) {
@@ -6524,7 +6523,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		if (!oi->i_key_found) {
 			M0_ASSERT(bop->bo_opc == M0_BO_PUT ||
 				  (bop->bo_opc == M0_BO_UPDATE &&
-				   (bop->bo_flags & BOF_PUT_IF_NOT_EXIST)));
+				   (bop->bo_flags & BOF_INSERT_IF_NOT_FOUND)));
 
 			node_slot.s_rec  = bop->bo_rec;
 			if (!bnode_isfit(&node_slot))
@@ -9810,7 +9809,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		ut_cb.c_act   = btree_kv_put_cb;
 		ut_cb.c_datum = &data;
 
-		while (key_first <= key_last) {
+		while (key_first <= key_last - ti->ti_key_incr) {
 			/**
 			 * for variable key/value size, the size will increment
 			 * in multiple of 8 after each iteration. The size will
@@ -9862,6 +9861,62 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 			UT_THREAD_QUIESCE_IF_REQUESTED();
 		}
+		/** Verify btree_update with BOF_INSERT_IF_NOT_FOUND flag.
+		 * 1. call update operation for non-existing record, which
+		 *    should return -ENOENT.
+		 * 2. call update operation for non-existing record with,
+		 *    BOF_INSERT_IF_NOT_FOUND flag which should insert record
+		 *    and return success.
+		 */
+		ut_cb.c_datum = &data;
+
+		arr_count = (key_first % KEY_ARR_SIZE) + 2;
+		ksize = ksize_random ?  arr_count * sizeof(key[0]):
+					ti->ti_key_size;
+		arr_count = (key_first % VAL_ARR_SIZE) + 2;
+		vsize = vsize_random ?  arr_count * sizeof(value[0]) :
+					ti->ti_value_size;
+		M0_ASSERT(ksize <= MAX_KEY_SIZE + sizeof(key[0]) &&
+				vsize <= MAX_VAL_SIZE + sizeof(value[0]));
+		key[1]   = ksize;
+		value[1] = vsize;
+
+		key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+				ti->ti_thread_id;
+		key[0] = m0_byteorder_cpu_to_be64(key[0]);
+		for (i = 2; i < ksize / sizeof(key[0]); i++)
+			key[i] = key[0];
+
+		value[0] = key[0];
+		for (i = 2; i < vsize / sizeof(value[0]); i++)
+			value[i] = value[0];
+
+		m0_be_ut_tx_init(tx, ut_be);
+		m0_be_tx_prep(tx, &put_cred);
+		rc = m0_be_tx_open_sync(tx);
+		M0_ASSERT(rc == 0);
+
+		ut_cb.c_act   = btree_kv_update_cb;
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_update(tree, &rec,
+							      &ut_cb, 0,
+							      &kv_op, tx));
+		M0_ASSERT(rc == M0_ERR(-ENOENT));
+
+		ut_cb.c_act   = btree_kv_put_cb;
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					m0_btree_update(tree, &rec,
+							&ut_cb,
+							BOF_INSERT_IF_NOT_FOUND,
+							&kv_op, tx));
+
+		M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
+		m0_be_tx_close_sync(tx);
+		m0_be_tx_fini(tx);
+
+		keys_put_count++;
+		key_first += ti->ti_key_incr;
+
 		/** Verify btree_update for value size increase/descrease. */
 
 		key_first     = key_iter_start;
