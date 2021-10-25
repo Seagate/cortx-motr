@@ -349,7 +349,7 @@ static bool libfab_buf_invariant(const struct m0_fab__buf *buf);
 M0_INTERNAL int m0_net_libfab_init(void)
 {
 	/* With the help of facter command, check if the env is VM or HW */
-	is_vm = system("facter 2> /dev/null | grep virtual | grep true > /dev/null") == 0 ?
+	is_vm = system("cat /proc/cpuinfo | grep hypervisor > /dev/null") == 0 ?
 		true : false;
 	m0_net_xprt_register(&m0_net_libfab_xprt);
 	if (m0_streq(M0_DEFAULT_NETWORK, "LF"))
@@ -2802,7 +2802,7 @@ static int libfab_buf_dom_dereg(struct m0_fab__buf *fbp)
 
 /*============================================================================*/
 
-/** 
+/**
  * Used as m0_net_xprt_ops::xo_dom_init(). 
  */
 static int libfab_dom_init(const struct m0_net_xprt *xprt,
