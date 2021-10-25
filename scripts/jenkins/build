@@ -94,14 +94,5 @@ if [[ "$TRANSPORTER" == "libfabric" ]]; then
 	exit 0
 else
 	rpm -e $(rpm -qa libfabric-*)
-	modprobe -v lnet
-	lctl network up
-	lctl list_nids
 fi
 
-if [[ -z $(lsmod |grep lnet) ]]
-then
-	echo "Lnet package is successfully enabled"
-else
-	echo "Lnet package is not enabled"
-fi
