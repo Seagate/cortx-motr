@@ -89,12 +89,12 @@ BuildRequires:  gcc-c++
   %if "%{_arch}" == "aarch64"
     # castxml rpm is not available on rhel 7,
     # it must be built and installed manually.
-    #BuildRequires:  castxml
+    # BuildRequires:  castxml
   %else
-    BuildRequires:  gccxml
+BuildRequires:  gccxml
   %endif
 %else
-  BuildRequires:  castxml
+BuildRequires:  castxml
 %endif
 BuildRequires:  glibc-headers
 BuildRequires:  asciidoc
