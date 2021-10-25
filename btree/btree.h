@@ -326,8 +326,9 @@ M0_INTERNAL void m0_btree_put(struct m0_btree *arbor,
 			      struct m0_btree_op *bop, struct m0_be_tx *tx);
 
 /**
- * Updates the record in the tree. The callback is called with the location
- * where the updated value should be written in the tree.
+ * Updates or inserts the record in the tree depending on @param flags. The
+ * callback is called with the location where the updated value or new record
+ * should be written in the tree.
  *
  * @param arbor is the pointer to btree.
  * @param rec   represents the record which needs to be updated. Note that,
@@ -335,6 +336,8 @@ M0_INTERNAL void m0_btree_put(struct m0_btree *arbor,
  *              provided with valid key, key size and value size as this
  *              information is needed for correct operation.
  * @param cb    routine to be called to PUT the record.
+ * @param flags If flag is set to BOF_PUT_IF_NOT_EXIST and key is not present,
+ *              the given record will be added to the btree.
  * @param bop   Btree operation related parameters.
  * @param tx    represents the transaction of which the current operation is
  *              part of.
