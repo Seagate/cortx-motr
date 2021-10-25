@@ -1819,9 +1819,6 @@ struct m0_client_layout*
 m0_client_layout_alloc(enum m0_client_layout_type type);
 void m0_client_layout_free(struct m0_client_layout *layout);
 
-/* Print PI */
-void print_pi(void *pi,int size);
-
 //** @} end of client group */
 
 #include "motr/idx.h" /* export m0_idx operations and services to client. */

@@ -344,7 +344,6 @@ M0_INTERNAL void * m0_stob_ad_get_checksum_addr(struct m0_stob_io *io, m0_bindex
 		ext.e_end = io->si_stob.iv_index[i] + io->si_stob.iv_vec.v_count[i];
 
 		if (m0_ext_is_in(&ext, off)) {
-			//M0_LOG(M0_ALWAYS, "SHIPRA: Unit size 1 %lu", io->si_unit_sz);
 			cksum_addr = m0_extent_get_checksum_addr(b_addr, off,
 								 ext.e_start,
 								 io->si_unit_sz,
@@ -353,7 +352,6 @@ M0_INTERNAL void * m0_stob_ad_get_checksum_addr(struct m0_stob_io *io, m0_bindex
 		}
 		else {
 			/* off is beyond the current extent, increment the b_addr */
-			//M0_LOG(M0_ALWAYS, "SHIPRA: Unit size 2 %lu", io->si_unit_sz);
 			b_addr +=  m0_extent_get_checksum_nob(ext.e_start,
 					io->si_stob.iv_vec.v_count[i], io->si_unit_sz, io->si_cksum_sz);
 			M0_ASSERT(b_addr <=io->si_cksum.b_addr + io->si_cksum.b_nob  );
@@ -1292,7 +1290,6 @@ static void  stob_ad_get_checksum_for_fragment(struct m0_stob_io *io,
 	struct m0_be_emap_seg *ext = &it->ec_seg;
 	void * dst, *src;
 
-	//M0_LOG(M0_ALWAYS, "SHIPRA: Unit size 3 %lu", io->si_unit_sz);
 	checksum_nob = m0_extent_get_checksum_nob(off, frag_sz, unit_size,
 						  cksum_unit_size);
 	if (checksum_nob) {
@@ -1409,7 +1406,6 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 		if (seg->ee_val < AET_MIN)
 		{
 			/* For RMW case, ignore cksum read from fragments */
-			//M0_LOG(M0_ALWAYS, "SHIPRA: Unit size 4 %lu", io->si_unit_sz);
 			if (io->si_cksum_sz && io->si_unit_sz) 
 				stob_ad_get_checksum_for_fragment(io, it, off, frag_size);
 			frags_not_empty++;
@@ -1698,12 +1694,8 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 		it.ec_app_cksum_buf.b_nob = 0;
 	}
 
-	//M0_LOG(M0_ALWAYS,"SHIPRA: BEFORE unit size %lu", it.ec_unit_size);
-
 	if (it.ec_unit_size < io->si_unit_sz)
 		it.ec_unit_size = io->si_unit_sz;
-
-	//M0_LOG(M0_ALWAYS,"SHIPRA: AFTER unit size %lu", it.ec_unit_size);
 
 	M0_SET0(&it.ec_op);
 	m0_be_op_init(&it.ec_op);

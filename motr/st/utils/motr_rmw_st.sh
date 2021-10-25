@@ -17,7 +17,6 @@
 # For any questions about this software or licensing,
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
-set -x
 
 motr_st_util_dir=$(dirname $(readlink -f $0))
 motr_src="$motr_st_util_dir/../../../"
@@ -117,7 +116,7 @@ bring_disk_online()
 
 write_and_update()
 {
-	local LID=$1
+	local LID=1
 	local update_count=$2
 
 	echo "m0cp"
@@ -207,7 +206,7 @@ test_rmw()
 
 	for i in 3 5 7 9 11
 	do
-		local LID=$i
+		local LID=1
 		if [ $1 -eq 1 ]
 		then
 			# Replicated Layout
@@ -275,9 +274,9 @@ test_updt_lt_unit_rmw()
 	local mountopt="oostore,verify"
 	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mountopt || return 1
 
-	for i in 3 5 7 9 11 13
+	for i in 1 1 1 1 1 1
 	do
-		local LID=$i
+		local LID=1
 		echo "Testing with layout ID $LID in Healthy mode"
 		local update_count=1
 		create_files $update_count

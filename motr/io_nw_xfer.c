@@ -650,11 +650,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		                      + ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr - 1];
 		/* If ioo_attr struct is not allocated then skip checksum computation */
 		is_goff_in_range = m0_ext_is_in(&goff_span_ext, goff) &&
-		                                ioo->ioo_attr.ov_vec.v_nr;
-		// M0_LOG(M0_ALWAYS,"is_goff_in_range : %d, gob_offset : %d, ext.e_start : %d, ext.e_end : %d,unit_type : %d, opcode : %d", 
-		// 					is_goff_in_range, (unsigned int)gob_offset, (unsigned int)goff_span_ext.e_start, 
-		// 					(unsigned int)goff_span_ext.e_end,
-		// 					(unsigned int)unit_type, (unsigned int)opcode); 
+		                                ioo->ioo_attr.ov_vec.v_nr; 
 		if (dst_attr != NULL && unit_type == M0_PUT_DATA &&
 		    opcode == M0_OC_WRITE && is_goff_in_range) {
 			void         *src_attr = NULL;
@@ -665,10 +661,6 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			b_nob = m0_extent_get_checksum_nob(goff,
 			                                   COUNT(ivec, seg),
 							   unit_sz, cs_sz );
-			if((goff + COUNT(ivec, seg)) % unit_sz == 0){
-			// M0_LOG(M0_ALWAYS,"b_nob : %x, goff : %x, count : %x,unit_sz : %x, cs_sz : %x", 
-			// 				(unsigned int)b_nob, (unsigned int)goff, (unsigned int)COUNT(ivec, seg), (unsigned int)unit_sz, (unsigned int)cs_sz);
-			}
 			if (b_nob) 
 				src_attr = m0_extent_vec_get_checksum_addr( &ioo->ioo_attr, goff,
 						&ioo->ioo_ext, unit_sz, cs_sz);
@@ -679,9 +671,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 * this function helps to locate exact address for the above.
 				 * Note: ioo_ext is span of offset for which ioo_attr is provided and
 				 * goff should lie within that span
-				 */
-				
-				
+				 */				
 				M0_ASSERT(b_nob == cs_sz);
 				memcpy((char *)dst_attr + ti->ti_cksum_copied, src_attr, b_nob);
 				/* Track checksum copied as we need to do overallocation for
@@ -690,8 +680,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 */
 				ti->ti_cksum_copied += b_nob;
 				/* Make sure we are not exceeding the allocated buffer size */
-				M0_ASSERT(ti->ti_cksum_copied <= ti->ti_attrbuf.b_nob);
-				
+				M0_ASSERT(ti->ti_cksum_copied <= ti->ti_attrbuf.b_nob);				
 			}
 
 			ti->ti_cksum_seg_b_nob[seg] = b_nob;
@@ -708,11 +697,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			INDEX(goff_ivec, seg) = goff;
 			COUNT(goff_ivec, seg) = COUNT(ivec, seg);
 			goff_ivec->iv_vec.v_nr++;
-			// M0_LOG(M0_ALWAYS,"ADDED gob_offset : %d, v_nr : %d", (unsigned int)gob_offset, (unsigned int)goff_ivec->iv_vec.v_nr);
-		} else {
-			// M0_LOG(M0_ALWAYS,"SKIPPED gob_offset : %d", (unsigned int)gob_offset);
 		}
-
 		goff += COUNT(ivec, seg);
 		++ivec->iv_vec.v_nr;
 		pgstart = pgend;
@@ -1057,7 +1042,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		/* Assign the checksum buffer for traget */
 		if (filter == PA_DATA && ioo->ioo_attr.ov_vec.v_nr) {
 			if (m0_is_write_fop(&iofop->if_fop) && fop_cksm_nob)	{
-				// M0_ASSERT(fop_cksm_nob != 0);
 				/* RPC layer to free crw_di_data_cksum */
 				if ( m0_buf_alloc(&rw_fop->crw_di_data_cksum, fop_cksm_nob) != 0 )
 					goto fini_fop;

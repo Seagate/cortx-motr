@@ -323,8 +323,7 @@ static void *worker_thread(void *datum)
         struct workload_op    op;
 
         op.wo_task = wt;
-        // ((struct m0_task_io *)wt->u.m0_task)->cti_objs->ob_attr.oa_layout_id = 1;
-	/*
+        /*
 	 * Motr can launch multiple operations in a single go.
 	 * Single operation in a loop won't work for Motr.
 	 */

@@ -246,8 +246,7 @@ int cr_io_vector_prep(struct m0_workload_io *cwi,
 		      struct m0_task_io     *cti,
 		      struct m0_op_context  *op_ctx,
 		      int                    obj_idx,
-		      int                    op_index,
-			  int                    u_sz)
+		      int                    op_index)
 {
 	int                 i;
 	int                 rc;
@@ -401,12 +400,10 @@ int cr_io_write(struct m0_workload_io *cwi,
 		int                    op_index)
 {
 	int rc;
-	// obj->ob_attr.oa_layout_id = 1;
  
 	op_ctx->coc_op_code = CR_WRITE;
 	/** Create object index and buffer vectors. */
-	rc = cr_io_vector_prep(cwi, cti, op_ctx, obj_idx, op_index,
-						m0_obj_layout_id_to_unit_size(m0__obj_lid(obj)));
+	rc = cr_io_vector_prep(cwi, cti, op_ctx, obj_idx, op_index);
 	if (rc != 0)
 		return rc;
 	calculate_checksum(obj, op_ctx->coc_index_vec, op_ctx->coc_buf_vec, op_ctx->coc_attr);
@@ -430,8 +427,7 @@ int cr_io_read(struct m0_workload_io *cwi,
 
 	op_ctx->coc_op_code = CR_READ;
 	/** Create object index and buffer vectors. */
-	rc = cr_io_vector_prep(cwi, cti, op_ctx, obj_idx, op_index,
-						m0_obj_layout_id_to_unit_size(m0__obj_lid(obj)));
+	rc = cr_io_vector_prep(cwi, cti, op_ctx, obj_idx, op_index);
 	if (rc != 0)
 		return rc;
 	rc = m0_obj_op(obj, M0_OC_READ,

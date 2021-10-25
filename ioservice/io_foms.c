@@ -2119,8 +2119,6 @@ static int stob_io_create(struct m0_fom *fom)
 			stio->si_cksum_sz = rwfop->crw_cksum_size;
 			stio->si_unit_sz = unit_size;
 
-			//M0_LOG(M0_ALWAYS, "SHIPRA: cksum size %lu and unit size %lu", stio->si_cksum_sz, stio->si_unit_sz);
-
 			/* This function stob_ad_get_checksum_for_fragment update this values.
 			 * It is read checksum and its compared against the expeted checksum
 			 * nob (si_cksum.b_nob). Increment this value as cksum is put into

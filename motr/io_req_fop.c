@@ -175,7 +175,6 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 		}
 		else {
 			/** invalid cusror position */
-			//M0_ASSERT(false);
 			return;
 		}
 	}
@@ -192,15 +191,6 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 		}
 	}
 	M0_ASSERT(ti_cob_index <= rep_index);
-
-	// /* Move ti index to rep index */
-	// while (ti_cob_index != rep_index) 	{
-	// 	M0_ASSERT(rep_index > ti_cob_index);
-	// 	if (m0_ivec_cursor_move(&ti_cob_cursor, unit_size) ||
-	// 	    m0_ivec_cursor_move(&ti_goff_cursor, unit_size)) {
-	// 		return;
-	// 	}
-	// }
 
 	/**
 	 * Cursor iterating over segments spanned by this IO. At each iteration
@@ -226,7 +216,6 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
 	    }
 
-		// M0_ASSERT(rep_index == ti_cob_index);
 		/* GOB offset should be in span of application provided GOB extent */
 		M0_ASSERT(ti_goff_index <=
 		          (ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr-1] +
@@ -236,10 +225,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 						      ti_goff_index,
 						      &ioo->ioo_ext,
 						      unit_size, cs_sz );
-
-		
-		M0_LOG(M0_ALWAYS,"src : %p, dst : %p, cobidx : %"PRIu64", goff : %"PRIu64, src, dst, ti_cob_index, ti_goff_index);
-		
+		M0_ASSERT(dst);
 		memcpy(dst, src, cs_sz);
 		src = (char *)src + cs_sz;
 
