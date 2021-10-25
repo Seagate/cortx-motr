@@ -67,8 +67,8 @@ then
                 echo "libfabric-devel packager package are there"
         fi
 else
-        yum install $TRANSPORTER* -y
-	yum install kmod-lustre-client -y
+        yum install http://cortx-storage.colo.seagate.com/releases/cortx/github/stable/centos-7.9.2009/96/prod/3rd_party/motr_uploads/libfabric-1.11.2-1.el7.x86_64.rpm http://cortx-storage.colo.seagate.com/releases/cortx/github/stable/centos-7.9.2009/96/prod/3rd_party/motr_uploads/libfabric-devel-1.11.2-1.el7.x86_64.rpm http://cortx-storage.colo.seagate.com/releases/cortx/github/stable/centos-7.9.2009/96/prod/3rd_party/lustre/custom/tcp/kmod-lustre-client-tests-2.12.4.3_114_g7699fab-1.el7.x86_64.rpm -y
+
 fi
 
 if [[ $1 = docs ]] ; then
