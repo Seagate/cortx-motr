@@ -145,6 +145,14 @@ start_fdmi_plugin()
 
 	PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin $MOTR_PARAM -g $fdmi_filter_fid -s"
 
+	# If you want to try and test `fdmi_app`, please uncomment the following
+	MOTR_PARAM="-le ${lnet_nid}:$fdmi_plugin_ep        \
+		    -he ${lnet_nid}:$HA_EP -pf $PROF_OPT    \
+		    -sf $M0T1FS_PROC_ID                     \
+		    -fi $fdmi_filter_fid                    \
+		    --plugin-path $M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin"
+	PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_app $MOTR_PARAM"
+
 	if $interactive ; then
 		echo "Please use another terminal and run this command:"
 		echo sudo ${PLUGIN_CMD}
