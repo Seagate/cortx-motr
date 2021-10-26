@@ -28,6 +28,7 @@
 #include "dtm0/drlink.h"       /* m0_dtm0_req_post */
 #include "dtm0/service.h"      /* m0_dtm0_service */
 #include "be/dtm0_log.h"       /* m0_be_dtm0_log_* */
+#include "be/queue.h"          /* M0_BE_QUEUE_PUT */
 #include "fop/fom_generic.h"   /* M0_FOPH_* */
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -47,6 +48,7 @@ struct dtm0_fom {
 static int dtm0_emsg_fom_tick(struct m0_fom *fom);
 static int dtm0_pmsg_fom_tick(struct m0_fom *fom);
 static int dtm0_rmsg_fom_tick(struct m0_fom *fom);
+static int dtm0_tmsg_fom_tick(struct m0_fom *fom);
 static int dtm0_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			       struct m0_reqh *reqh);
 static void dtm0_fom_fini(struct m0_fom *fom);
@@ -67,6 +69,12 @@ static const struct m0_fom_ops dtm0_rmsg_fom_ops = {
 static const struct m0_fom_ops dtm0_emsg_fom_ops = {
 	.fo_fini = dtm0_fom_fini,
 	.fo_tick = dtm0_emsg_fom_tick,
+	.fo_home_locality = dtm0_fom_locality
+};
+
+static const struct m0_fom_ops dtm0_tmsg_fom_ops = {
+	.fo_fini = dtm0_fom_fini,
+	.fo_tick = dtm0_tmsg_fom_tick,
 	.fo_home_locality = dtm0_fom_locality
 };
 
@@ -179,6 +187,7 @@ static int dtm0_fom_create(struct m0_fop *fop,
 	reply->dr_txr = (struct m0_dtm0_tx_desc) {};
 	reply->dr_rc = 0;
 
+	/* TODO avoid copy-paste */
 	if (req->dtr_msg == DTM_EXECUTE) {
 		M0_ASSERT_INFO(m0_dtm0_in_ut(), "Emsg FOM is only for UTs.");
 		rc = m0_dtm0_tx_desc_copy(&req->dtr_txr, &reply->dr_txr);
@@ -191,6 +200,9 @@ static int dtm0_fom_create(struct m0_fop *fop,
 	} else if (req->dtr_msg == DTM_REDO) {
 		m0_fom_init(&fom->dtf_fom, &fop->f_type->ft_fom_type,
 			    &dtm0_rmsg_fom_ops, fop, repfop, reqh);
+	} else if (req->dtr_msg == DTM_TEST) {
+		m0_fom_init(&fom->dtf_fom, &fop->f_type->ft_fom_type,
+			    &dtm0_tmsg_fom_ops, fop, repfop, reqh);
 	} else
 		M0_IMPOSSIBLE();
 
@@ -288,7 +300,7 @@ M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom            *fom,
 		if (m0_fid_eq(target, source))
 			target = &txd->dtd_id.dti_fid;
 
-		rc = m0_dtm0_req_post(dtms, &req, target, fom, false);
+		rc = m0_dtm0_req_post(dtms, NULL, &req, target, fom, false);
 		if (rc != 0) {
 			M0_LOG(M0_WARN, "Failed to send PERSISTENT msg "
 				    FID_F " -> " FID_F " (%d).",
@@ -406,8 +418,8 @@ static int dtm0_emsg_fom_tick(struct m0_fom *fom)
 		M0_ASSERT(m0_fom_phase(fom) == M0_FOPH_DTM0_LOGGING);
 
 		if (m0_dtm0_is_a_persistent_dtm(fom->fo_service))
-			rep->dr_rc = m0_dtm0_req_post(svc, &executed, tgt, fom,
-						      false);
+			rep->dr_rc = m0_dtm0_req_post(svc, NULL, &executed,
+						      tgt, fom, false);
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		result = M0_FSO_AGAIN;
 	}
@@ -430,6 +442,30 @@ static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
 		cs_ha_process_event(m0_cs_ctx_get(m0_fom_reqh(fom)),
 				    M0_CONF_HA_PROCESS_DTM_RECOVERED);
 		*/
+		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+		result = M0_RC(M0_FSO_AGAIN);
+	}
+	return M0_RC(result);
+}
+
+/** This fom is only being used in UTs. */
+static int dtm0_tmsg_fom_tick(struct m0_fom *fom)
+{
+	struct m0_dtm0_service *svc = m0_dtm0_fom2service(fom);
+	struct dtm0_req_fop    *req = m0_fop_data(fom->fo_fop);
+	int                     phase = m0_fom_phase(fom);
+	int                     result;
+
+	M0_ENTRY("fom %p phase %d", fom, phase);
+
+	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+		result = m0_fom_tick_generic(fom);
+	} else {
+		m0_be_queue_lock(svc->dos_ut_queue);
+		M0_BE_OP_SYNC(op,
+			      M0_BE_QUEUE_PUT(svc->dos_ut_queue, &op,
+			                      &req->dtr_txr.dtd_id.dti_fid));
+		m0_be_queue_unlock(svc->dos_ut_queue);
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		result = M0_RC(M0_FSO_AGAIN);
 	}

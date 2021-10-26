@@ -42,6 +42,7 @@ M0_INTERNAL int m0_dtm0_fop_init(void);
 M0_INTERNAL void m0_dtm0_fop_fini(void);
 
 enum m0_dtm0s_msg {
+	DTM_TEST,
 	DTM_EXECUTE,
 	DTM_EXECUTED,
 	DTM_PERSISTENT,
