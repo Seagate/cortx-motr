@@ -1149,16 +1149,10 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 
 		if (!!(ctg_op->co_flags & COF_OVERWRITE)) {
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						      m0_btree_update(btree,
-								      &rec, &cb,
-								      &kv_op,
-								      tx));
-			if (rc) {
-				rc = M0_BTREE_OP_SYNC_WITH_RC(
-					&kv_op, m0_btree_put(btree, &rec, &cb,
-							     &kv_op, tx));
-				M0_ASSERT(rc == 0);
-			}
+					m0_btree_update(btree, &rec, &cb,
+							BOF_INSERT_IF_NOT_FOUND,
+							&kv_op, tx));
+			M0_ASSERT(rc == 0);
 		}
 		else
 			rc= M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
