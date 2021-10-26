@@ -2,7 +2,7 @@
   "scanSettings": {
     "configMode": "AUTO",
     "configExternalURL": "",
-	  "projectToken": "",
+    "projectToken": "",
     "baseBranches": ["main-whitesource"]
   },
   "checkRunSettings": {
@@ -12,4 +12,4 @@
   "issueSettings": {
     "minSeverityLevel": "NONE"
   }
-}  
+}
