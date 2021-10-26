@@ -874,7 +874,7 @@ static int cob_table_update(struct m0_btree *tree, struct m0_be_tx *tx,
 
 	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					m0_btree_update(tree, &rec, &ut_put_cb,
-							&kv_op, tx));
+							0, &kv_op, tx));
 }
 
 static int cob_table_insert_callback(struct m0_btree_cb  *cb,
