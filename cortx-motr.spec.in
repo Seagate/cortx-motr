@@ -38,7 +38,7 @@
 %define _use_internal_dependency_generator 0
 
 # configure options
-%define  configure_release_opts     --enable-release --disable-avx --enable-force-ssse3 --with-trace-kbuf-size=256 --with-trace-ubuf-size=64
+%define  configure_release_opts     --enable-release --disable-avx --enable-force-ssse3 --with-trace-kbuf-size=256 --with-trace-ubuf-size=16
 %define  configure_ut_opts          --enable-dev-mode --disable-altogether-mode
 
 %if %{with cassandra}
