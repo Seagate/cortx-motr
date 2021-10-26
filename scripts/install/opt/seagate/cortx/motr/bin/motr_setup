@@ -315,10 +315,6 @@ class StartCmd(Cmd):
             self.logger.error(f"Invalid service name({self._services}).")
             return
         if (nargs == 0):
-            if pkg_installed(self, "cortx-hare"):
-                if cluster_up(self):
-                    self.logger.warning("Cluster is already up...Exiting.\n")
-                    return
             svc = self._services
 
             if not self._idx:
