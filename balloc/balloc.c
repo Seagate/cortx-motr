@@ -187,7 +187,7 @@ static inline int btree_update_sync(struct m0_btree     *tree,
 
 	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					m0_btree_update(tree, &rec, &update_cb,
-							&kv_op, tx));
+							0, &kv_op, tx));
 }
 
 static inline int balloc_ext_update(struct m0_btree *tree, struct m0_be_tx *tx,
