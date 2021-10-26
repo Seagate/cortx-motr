@@ -322,7 +322,7 @@ static int be_emap_update_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 		};
  	rc = M0_BTREE_OP_SYNC_WITH_RC(
 			op,
-			m0_btree_update(btree, &rec, &update_cb, op, tx));
+			m0_btree_update(btree, &rec, &update_cb, 0, op, tx));
 	return rc;
 }
 
