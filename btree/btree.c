@@ -9209,13 +9209,13 @@ enum {
 	MAX_STREAM_CNT         = 10,
 
 	MIN_RECS_PER_STREAM    = 5,
-	MAX_RECS_PER_STREAM    = 512,
+	MAX_RECS_PER_STREAM    = 200,
 
-	MAX_RECS_PER_THREAD    = 10000, /** Records count for each thread */
+	MAX_RECS_PER_THREAD    = 1000, /** Records count for each thread */
 
-	MIN_TREE_LOOPS         = 500,
-	MAX_TREE_LOOPS         = 2000,
-	MAX_RECS_FOR_TREE_TEST = 100,
+	MIN_TREE_LOOPS         = 50,
+	MAX_TREE_LOOPS         = 100,
+	MAX_RECS_FOR_TREE_TEST = 50,
 
 	RANDOM_TREE_COUNT      = -1,
 	RANDOM_THREAD_COUNT    = -1,
