@@ -477,7 +477,7 @@ static size_t processor_l1_size_get(m0_processor_nr_t id)
 	uint32_t level;
 	uint32_t sz;
 	int      rc;
-	size_t   size = M0_PROCESSORS_INVALID_ID;
+	size_t   size = 0;
 	char     filename[PATH_MAX];
 	FILE    *fp;
 
@@ -524,7 +524,7 @@ static size_t processor_l2_size_get(m0_processor_nr_t id)
 	uint32_t level;
 	uint32_t sz;
 	int      rc;
-	size_t   size = M0_PROCESSORS_INVALID_ID;
+	size_t   size = 0;
 	char     filename[PATH_MAX];
 	FILE    *fp;
 
