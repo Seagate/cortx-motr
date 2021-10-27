@@ -138,14 +138,13 @@ start_fdmi_plugin()
 	local fdmi_output_file="${fdmi_filter_fid}.txt"
 	local rc=0
 
-	# We are using FDMI_PLUGIN_EP
-	MOTR_PARAM="-l ${lnet_nid}:$fdmi_plugin_ep        \
-		    -h ${lnet_nid}:$HA_EP -p $PROF_OPT    \
-		    -f $M0T1FS_PROC_ID                    "
+	# Using `fdmi_sample_plugin`, which has duplicated records.
+	#MOTR_PARAM="-l ${lnet_nid}:$fdmi_plugin_ep        \
+	#	    -h ${lnet_nid}:$HA_EP -p $PROF_OPT    \
+	#	    -f $M0T1FS_PROC_ID                    "
+	#PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin $MOTR_PARAM -g $fdmi_filter_fid -s"
 
-	PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin $MOTR_PARAM -g $fdmi_filter_fid -s"
-
-	# If you want to try and test `fdmi_app`, please uncomment the following
+	# Using `fdmi_app`, which can de-dup the duplicated records
 	MOTR_PARAM="-le ${lnet_nid}:$fdmi_plugin_ep        \
 		    -he ${lnet_nid}:$HA_EP -pf $PROF_OPT    \
 		    -sf $M0T1FS_PROC_ID                     \
