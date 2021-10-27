@@ -666,4 +666,66 @@ out:
 	return M0_RC(rc);
 }
 
+M0_INTERNAL int m0_confdb_truncate_credit(struct m0_be_seg       *seg,
+					   struct m0_be_tx        *tx,
+					   struct m0_be_tx_credit *accum,
+					   m0_bcount_t            *limit)
+{
+	uint8_t                    *rnode;
+	struct m0_btree             btree;
+	int                         rc;
+	struct m0_btree_op          b_op    = {};
+	struct m0_btree_rec_key_op  keycmp  = {
+					.rko_keycmp = (void *) &m0_fid_cmp,
+					};
+	M0_ENTRY();
+
+	rc = m0_be_seg_dict_lookup(seg, btree_name, (void **)&rnode);
+	if (rc != 0)
+		return M0_RC(rc);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_open(rnode, rnode_sz, &btree,
+						    seg, &b_op, &keycmp));
+	if (rc != 0)
+		return M0_RC(rc);
+
+	m0_btree_truncate_credit(tx, &btree, accum, limit);
+
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(&btree, &b_op));
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_confdb_truncate(struct m0_be_seg *seg,
+				   struct m0_be_tx  *tx,
+				   m0_bcount_t       limit)
+{
+	uint8_t                    *rnode;
+	struct m0_btree             btree;
+	int                         rc;
+	struct m0_btree_op          b_op    = {};
+	struct m0_btree_rec_key_op  keycmp  = {
+					.rko_keycmp = (void *) &m0_fid_cmp,
+					};
+
+	M0_ENTRY();
+
+	rc = m0_be_seg_dict_lookup(seg, btree_name, (void **)&rnode);
+	if (rc != 0)
+		return M0_RC(rc);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_open(rnode, rnode_sz, &btree,
+						    seg, &b_op, &keycmp));
+	if (rc != 0)
+		return M0_RC(rc);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_truncate(&btree, limit,
+							tx, &b_op));
+
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(&btree, &b_op));
+	return M0_RC(rc);
+}
+
 #undef M0_TRACE_SUBSYSTEM
