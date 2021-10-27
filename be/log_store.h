@@ -180,6 +180,8 @@ struct m0_be_log_store_cfg {
 	unsigned          lsc_rbuf_nr;
 	/** Size of redundant buffer. */
 	m0_bcount_t       lsc_rbuf_size;
+	/** confd mode information*/
+	bool lsc_ad_mode; 
 };
 
 struct m0_be_log_store {

@@ -286,9 +286,11 @@ static int be_log_store_level_enter(struct m0_module *module)
 		 * XXX TODO remote this after paged is implemented.
 		 */
 		/* temporary solution BEGIN */
+		ls->ls_stob_domain->sd_ad_mode = ls->ls_cfg.lsc_ad_mode;
 		stob_id->si_domain_fid =
 			*m0_stob_domain_id_get(ls->ls_stob_domain);
-		stob_id->si_domain_fid.f_key = M0_PARTITION_ENTRY_LOG;
+		if(ls->ls_cfg.lsc_ad_mode)		
+			stob_id->si_fid.f_key = M0_PARTITION_ENTRY_LOG;
 		/* temporary solution END */
 		return m0_stob_find(stob_id, &ls->ls_stob);
 	case M0_BE_LOG_STORE_LEVEL_STOB_LOCATE:

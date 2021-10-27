@@ -492,8 +492,6 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 	const char               *path = fi_no_dev ? NULL : path_orig;
 	int                       rc;
 
-	cid = M0_PARTITION_ENTRY_BALLOC;
-
 	M0_ENTRY("cid=%"PRIu64, cid);
 	M0_PRE(M0_IN(type, (M0_STORAGE_DEV_TYPE_LINUX, M0_STORAGE_DEV_TYPE_AD)));
 	M0_PRE(ergo(type == M0_STORAGE_DEV_TYPE_LINUX, path_orig != NULL));
@@ -515,6 +513,7 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 	device->isd_stob = NULL;
 
 	if (type == M0_STORAGE_DEV_TYPE_AD) {
+		cid = M0_PARTITION_ENTRY_BALLOC;
 		m0_stob_id_make(0, cid, &devs->sds_back_domain->sd_id, &stob_id);
 		rc = m0_stob_find(&stob_id, &stob);
 		if (rc != 0)

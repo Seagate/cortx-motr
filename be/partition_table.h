@@ -37,23 +37,23 @@
 
 #include "format/format.h"
 #include "be/domain.h"
+#include "ut/helper.h"
 
 #define PARTITION_TBL_VERSION               1
 #define DEVICE_NAME_MAX_SIZE                128
 #define PARTITION_TABLE_DEVICE_CHUNK_OFFSET 0
 #define PARTITION_TABLE_USER_OFFSET         0
 #define M0_PARTITION_TABLE_HDR_VERSION      1
-#define M0_PARTITION_TABLE_TYPE             1
 
 enum m0_partition_name {
 	/* Partition table type   */
-	M0_PARTITION_ENTRY_PARTITION_TABLE = 0,
+	M0_PARTITION_ENTRY_PARTITION_TABLE = BE_UT_LOG_ID - 1,
 	/* Log type */
-	M0_PARTITION_ENTRY_LOG,
+	M0_PARTITION_ENTRY_LOG = BE_UT_LOG_ID,
 	/* Segment0 metadata type */
-	M0_PARTITION_ENTRY_SEG0,
+	M0_PARTITION_ENTRY_SEG0 = BE_UT_SEG_START_ID - 1,
 	/* Segment1 metadata type */
-	M0_PARTITION_ENTRY_SEG1,
+	M0_PARTITION_ENTRY_SEG1 = BE_UT_SEG_START_ID,
 	/* Balloc type */
 	M0_PARTITION_ENTRY_BALLOC,
 	/* Free blocks type */
@@ -67,7 +67,7 @@ enum m0_partition_name {
 struct primary_partition_info
 {
 	/* Partttion ID to recognize partition name */
-	enum m0_partition_name partition_id;
+	m0_bcount_t partition_id;
 	m0_bcount_t user_offset;
 
 };
@@ -78,7 +78,7 @@ struct primary_partition_info
  */
 struct m0_partition_allocation_info
 {
-	enum m0_partition_name partition_id;
+	m0_bcount_t partition_id;
 	m0_bcount_t initial_user_allocation_chunks;
 };
 

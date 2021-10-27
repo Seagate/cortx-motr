@@ -67,7 +67,7 @@
 #include "stob/linux.h"
 #include "conf/ha.h"            /* m0_conf_ha_process_event_post */
 #include "dtm0/helper.h"        /* m0_dtm0_log_create */
-
+#include "be/partition_table.h"  
 /**
    @addtogroup m0d
    @{
@@ -1086,6 +1086,7 @@ static int cs_storage_init(const char *stob_type,
 						     &stob->s_sdom);
 		if (rc != 0)
 			stob->s_sdom = NULL;
+		stob->s_sdom->sd_ad_mode = 1;
 		rc = rc ?: cs_storage_devs_init(stob, M0_STORAGE_DEV_TYPE_AD,
 						seg, stob_path, false,
 						disable_direct_io);
@@ -1483,9 +1484,14 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 
 	m0_be_ut_backend_cfg_default(&be->but_dom_cfg);
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_dont_zero = false;
-	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_create_cfg =
+		be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_create_cfg =
 		rctx->rc_be_log_path;
+	be->but_dom_cfg.bc_ad_mode = m0_strcaseeq(rctx->rc_stype, m0_cs_stypes[M0_AD_STOB]);
+	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_ad_mode = be->but_dom_cfg.bc_ad_mode;	
 	be->but_dom_cfg.bc_seg0_cfg.bsc_stob_create_cfg = rctx->rc_be_seg0_path;
+	if(be->but_dom_cfg.bc_ad_mode)
+		be->but_dom_cfg.bc_seg0_cfg.bsc_stob_key = M0_PARTITION_ENTRY_SEG0;
+
 	if (!m0_is_po2(rctx->rc_be_log_size))
 		return M0_ERR(-EINVAL);
 	if (rctx->rc_be_log_size > 0) {
@@ -1598,7 +1604,6 @@ static int cs_storage_setup(struct m0_motr *cctx)
 		return M0_RC(0);
 
 	rctx->rc_be.but_dom_cfg.bc_engine.bec_reqh = &rctx->rc_reqh;
-
 	rc = cs_be_init(rctx, &rctx->rc_be, rctx->rc_bepath,
 			rctx->rc_be_seg_preallocate,
 			(mkfs && force), &rctx->rc_beseg);

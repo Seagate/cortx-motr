@@ -108,7 +108,7 @@ enum m0_format_type {
 	M0_FORMAT_TYPE_POOL_SPARE_USAGE,
 	M0_FORMAT_TYPE_CAS_STATE,
 	M0_FORMAT_TYPE_CAS_CTG,
-
+	M0_FORMAT_PARTITION_TABLE_TYPE,
 	/* ---> new items go here <--- */
 
 	/* format types counter */

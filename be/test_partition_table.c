@@ -31,7 +31,6 @@
 #define MAX 1024
 #define MAXCOUNT 13
 
-struct m0_partition_config pt={0};
 static bool is_test_table_initilized = false;
 
 /*
@@ -51,7 +50,7 @@ m0_bcount_t seg1_table[MAX]={0};
 m0_bcount_t seg1_index=0;
 m0_bcount_t balloc_table[MAX]={0};
 m0_bcount_t balloc_index=0;
-
+static struct m0_be_primary_part_info pt={0};
 
 
 static m0_bcount_t calculate_device_offset(m0_bcount_t user_offset_in_bytes,
@@ -75,14 +74,13 @@ static m0_bcount_t calculate_device_offset(m0_bcount_t user_offset_in_bytes,
 
 static int init_parition_table()
 {
-	struct m0_be_primary_part_info pt;
 	m0_bcount_t primary_part_index;
-
+	M0_ENTRY("");
 
 
 	/**  populate the partition table */
 	if ( m0_be_partition_get_part_info(&pt))
-		return -EAGAIN;
+		M0_ASSERT(0);
 
 	/**  populate other tables like M0_PARTITION_ENTRY_LOG,
 	 * M0_PARTITION_ENTRY_SEG0, M0_PARTITION_ENTRY_SEG1, Balloc*/
@@ -102,6 +100,7 @@ static int init_parition_table()
 			 M0_PARTITION_ENTRY_BALLOC)
 			balloc_table[balloc_index++] = primary_part_index;
 	}
+	M0_LEAVE();
 	return 0;
 }
 
@@ -110,7 +109,7 @@ static m0_bcount_t get_device_chunk_offset(m0_bcount_t user_chunk_offset_index,
 				    m0_bcount_t partition_id)
 {
 	m0_bcount_t device_chunk_offset;
-
+	M0_ENTRY();
 	if (partition_id == M0_PARTITION_ENTRY_LOG)
 		device_chunk_offset = log_table[user_chunk_offset_index];
 	else if (partition_id == M0_PARTITION_ENTRY_SEG0)
@@ -121,7 +120,7 @@ static m0_bcount_t get_device_chunk_offset(m0_bcount_t user_chunk_offset_index,
 		device_chunk_offset = balloc_table[user_chunk_offset_index];
 	else
 		device_chunk_offset = user_chunk_offset_index;
-
+	M0_ASSERT(device_chunk_offset);
 	return(device_chunk_offset);
 }
 
@@ -131,10 +130,11 @@ M0_INTERNAL m0_bcount_t get_partition_offset(m0_bcount_t user_offset_in_bytes,
 	m0_bcount_t device_chunk_offset;
 	m0_bcount_t device_offset_in_bytes;
 	m0_bcount_t user_chunk_offset_index;
-
+	if(partition_id ==  M0_PARTITION_ENTRY_PARTITION_TABLE)
+		return user_offset_in_bytes;
 	if(!is_test_table_initilized){
-		if (!init_parition_table())
-			M0_ERR(-EAGAIN);
+		if (init_parition_table())
+			M0_ASSERT(0);
 		is_test_table_initilized = true;
 	}
 
@@ -151,23 +151,10 @@ M0_INTERNAL m0_bcount_t get_partition_offset(m0_bcount_t user_offset_in_bytes,
 	device_offset_in_bytes = calculate_device_offset( user_offset_in_bytes,
 							  pt.chunk_size_in_bits,
 							  device_chunk_offset);
+
+	M0_LOG( M0_DEBUG, "\nDEBUG: device_chunk in bytes: %" PRIu64,
+		device_offset_in_bytes);
 	return(device_offset_in_bytes);
 }
-
-
-#if 0
-int main(int argc, const char *argv[])
-{
-	m0_bcount_t device_offset_in_bytes=0;
-
-	init_parition_table();
-	device_offset_in_bytes = get_partition_offset( 13000, 5);
-
-	M0_LOG( M0_DEBUG, "\n\nPhysical Address:%" PRIu64 "\n",
-		device_offset_in_bytes);
-
-	return 0;
-}
-#endif
 
 

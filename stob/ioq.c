@@ -224,9 +224,10 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 	bool                  eodst;
 	int                   opcode;
 	int                   part_id;
+	bool stob_ad = io->si_obj->so_domain->sd_ad_mode;;
+        m0_bcount_t dev_off;
 
 	part_id = io->si_obj->so_id.si_fid.f_key;
-
 	M0_PRE(M0_IN(io->si_opcode, (SIO_READ, SIO_WRITE)));
 	/* prefix fragments execution mode is not yet supported */
 	M0_ASSERT((io->si_flags & SIF_PREFIX) == 0);
@@ -280,7 +281,12 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 		iocb->u.v.vec = iov;
 		iocb->aio_fildes = lstob->sl_fd;
 		iocb->u.v.nr = min32u(frags, IOV_MAX);
-		iocb->u.v.offset = off << m0_stob_ioq_bshift(ioq);
+	 	if(stob_ad){
+			dev_off = get_partition_offset(off << m0_stob_ioq_bshift(ioq), part_id);
+			iocb->u.v.offset = dev_off;
+		}
+		else
+			iocb->u.v.offset = off << m0_stob_ioq_bshift(ioq);
 		iocb->aio_lio_opcode = opcode;
 
 		for (i = 0; i < iocb->u.v.nr; ++i) {
@@ -315,13 +321,17 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 		       FID_P(m0_stob_fid_get(io->si_obj)), io,
 		       (int)(qev - lio->si_qev), i, io->si_opcode,
 		       (unsigned long)off, (unsigned long)chunk_size, result);
+		M0_LOG(M0_ALWAYS,"stob_ad = %d, part id = %d", stob_ad, part_id);
 		if (result == 0) {
-			m0_bcount_t dev_off;
-
-			dev_off = get_partition_offset(off, part_id);
+			if(stob_ad){
+				dev_off = get_partition_offset(off << m0_stob_ioq_bshift(ioq), part_id);
+				qev->iq_offset = dev_off;
+				M0_LOG(M0_ALWAYS,"iq_offset = %"PRIi64", part id = %d", qev->iq_offset, part_id);
+			}
+			else
+				qev->iq_offset = off << m0_stob_ioq_bshift(ioq);
 			iocb->u.v.nr = i;
 			qev->iq_nbytes = chunk_size << m0_stob_ioq_bshift(ioq);
-			qev->iq_offset = dev_off << m0_stob_ioq_bshift(ioq);
 
 			ioq_queue_put(ioq, qev);
 

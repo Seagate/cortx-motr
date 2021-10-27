@@ -128,6 +128,7 @@ struct m0_be_domain_cfg {
 	unsigned                     bc_seg_nr;
 	struct m0_be_pd_cfg          bc_pd_cfg;
 	struct m0_be_log_discard_cfg bc_log_discard_cfg;
+	bool bc_ad_mode;
 };
 
 struct m0_be_domain {
@@ -148,6 +149,7 @@ struct m0_be_domain {
 	struct m0_be_0type        bd_0type_seg;
 	struct m0_be_pd           bd_pd;
 	struct m0_be_log_discard  bd_log_discard;
+	struct m0_be_partition_table    *bd_partition_table;
 };
 
 /** Levels of m0_be_domain module. */
