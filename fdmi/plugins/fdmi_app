@@ -221,7 +221,7 @@ def get_cluster_info(args):
     # Filter id is used by Motr FDMI subsystem for identifying the
     # FDMI plugins, because there are possible more than one.
     # If the --filter-id is omitted then this program is looking
-    # for the corrct filter id in /etc/motr/confd.xc config file.
+    # for the correct filter id in /etc/motr/confd.xc config file.
     if args.filter_id is None:
         with open(args.config_path) as f:
             for s in f.readlines():
