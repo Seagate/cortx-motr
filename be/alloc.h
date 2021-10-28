@@ -413,6 +413,12 @@ M0_INTERNAL size_t m0_be_chunk_header_size(void);
 		M0_BE_OP_SYNC(__op, M0_BE_ALLOC_ALIGN_BUF((buf), (shift),      \
 							  (seg), (tx), &__op))
 
+#define M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(buf, shift, seg, tx)                  \
+		M0_BE_OP_SYNC(__op,m0_be_alloc_aligned(                        \
+					m0_be_seg_allocator(seg), (tx), &__op, \
+					&(buf)->b_addr, (buf)->b_nob, (shift), \
+					M0_BITS(M0_BAP_NORMAL), true))
+
 #define M0_BE_FREE_ALIGN_BUF_SYNC(buf, shift, seg, tx)                         \
 		M0_BE_OP_SYNC(__op, M0_BE_FREE_ALIGN_BUF((buf), (shift), (seg),\
 							 (tx), &__op))
