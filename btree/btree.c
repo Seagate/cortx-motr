@@ -668,8 +668,8 @@ enum {
 		(__cb) = (__cb);                                             \
 	} while (0)
 
-#undef M0_BE_ALLOC_ALIGN_BUF_SYNC
-#define M0_BE_ALLOC_ALIGN_BUF_SYNC(buf, shift, seg, tx)                      \
+#undef M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC
+#define M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(buf, shift, seg, tx)                \
 		(buf)->b_addr = m0_alloc_aligned((buf)->b_nob, shift)
 
 #undef M0_BE_FREE_ALIGN_BUF_SYNC
@@ -2408,7 +2408,7 @@ static int64_t bnode_alloc(struct node_op *op, struct td *tree, int shift,
 	M0_PRE(bnode_shift_is_valid(shift));
 
 	buf = M0_BUF_INIT(size, NULL);
-	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, shift, tree->t_seg, tx);
+	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, shift, tree->t_seg, tx);
 	area = buf.b_addr;
 
 	M0_ASSERT(area != NULL);
@@ -8809,7 +8809,7 @@ static void ut_basic_tree_oper_icp(void)
 	M0_ASSERT(rc == 0);
 	/** Create temp node space*/
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	temp_node = buf.b_addr;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node,
 				      rnode_sz, &btree_type, &b_op, &btree, seg,
@@ -8865,7 +8865,7 @@ static void ut_basic_tree_oper_icp(void)
 	M0_ASSERT(rc == 0);
 
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	temp_node = buf.b_addr;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
 				      &btree_type, &b_op, &btree, seg, &fid,
@@ -9307,7 +9307,7 @@ static void ut_multi_stream_kv_oper(void)
 
 	/** Create temp node space and use it as root node for btree */
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	rnode = buf.b_addr;
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
@@ -10674,7 +10674,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 
 		/** Create temp node space and use it as root node for btree */
 		buf = M0_BUF_INIT(rnode_sz, NULL);
-		M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+		M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 		rnode = buf.b_addr;
 
 		M0_BTREE_OP_SYNC_WITH_RC(&b_op,
@@ -10874,7 +10874,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 	/** Create temp node space and use it as root node for btree */
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	rnode = buf.b_addr;
 
 	m0_be_tx_close_sync(tx);
@@ -11280,7 +11280,7 @@ static void ut_btree_persistence(void)
 
 	/** Create temp node space and use it as root node for btree */
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	rnode = buf.b_addr;
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
@@ -11699,7 +11699,7 @@ static void ut_btree_truncate(void)
 
 	/** Create temp node space and use it as root node for btree */
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	rnode = buf.b_addr;
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
