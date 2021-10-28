@@ -62,6 +62,20 @@ M0_INTERNAL void m0_confdb_destroy_credit(struct m0_be_seg *seg,
 M0_INTERNAL int m0_confdb_destroy(struct m0_be_seg *seg, struct m0_be_tx *tx);
 
 /**
+ * Calculates BE credits in-order to truncate configuration database from
+ * persistent store. Currently it is only used by conf-ut.
+ */
+M0_INTERNAL int m0_confdb_truncate_credit(struct m0_be_seg       *seg,
+					   struct m0_be_tx        *tx,
+					   struct m0_be_tx_credit *accum,
+					   m0_bcount_t            *limit);
+/**
+ * Truncates configuration data base. Currently only used by conf-ut.
+ */
+M0_INTERNAL int m0_confdb_truncate(struct m0_be_seg *seg,
+				   struct m0_be_tx  *tx,
+				   m0_bcount_t       limit);
+/**
  * Creates m0_confx and populates it with data read from a
  * configuration database.
  *
