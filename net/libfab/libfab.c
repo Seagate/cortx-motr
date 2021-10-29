@@ -349,7 +349,7 @@ static bool libfab_buf_invariant(const struct m0_fab__buf *buf);
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
 {
-	/* Check if the env is VM or HW */
+	/* Check if the env is VM or HW. */
 	is_vm = m0_processor_is_vm();
 	m0_net_xprt_register(&m0_net_libfab_xprt);
 	if (m0_streq(M0_DEFAULT_NETWORK, "LF"))
