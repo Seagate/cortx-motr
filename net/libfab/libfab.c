@@ -190,6 +190,7 @@
 #include "lib/finject.h"        /* M0_FI_ENABLED */
 #include "lib/hash.h"           /* m0_htable */
 #include "lib/memory.h"         /* M0_ALLOC_PTR()*/
+#include "lib/processor.h"      /* m0_processor_is_vm()*/
 #include "libfab_internal.h"
 #include "lib/string.h"         /* m0_streq */
 #include "net/net_internal.h"   /* m0_net__buffer_invariant() */
@@ -206,7 +207,7 @@ static const char *providers[FAB_FABRIC_PROV_MAX] = { "verbs",
 static const char *protf[]     = { "inet", "inet6" };
 static const char *socktype[]  = { "stream", "dgram" };
 
-/* This flag is used to indicate whether the env is VM or HW */
+/* This flag is used to indicate whether the env is VM or HW. */
 static bool is_vm = false;
 
 /** 
@@ -348,9 +349,8 @@ static bool libfab_buf_invariant(const struct m0_fab__buf *buf);
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
 {
-	/* With the help of facter command, check if the env is VM or HW */
-	is_vm = system("cat /proc/cpuinfo | grep hypervisor > /dev/null") == 0 ?
-		true : false;
+	/* Check if the env is VM or HW */
+	is_vm = m0_processor_is_vm();
 	m0_net_xprt_register(&m0_net_libfab_xprt);
 	if (m0_streq(M0_DEFAULT_NETWORK, "LF"))
 		m0_net_xprt_default_set(&m0_net_libfab_xprt);
@@ -951,7 +951,13 @@ static void libfab_poller(struct m0_fab__tm *tm)
 
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
 	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
-		/* Add nanosleep of 0ns on VM to reduce CPU load (EOS-25399) */
+		/*
+		 * The lab team observed a significant increase in the CPU load
+		 * due to the epoll_wait not sleeping when there are no pending
+		 * events.
+		 * The proposed short term fix to support the lab team is adding
+		 * nanosleep of 0ns on VM to reduce CPU load.
+		 */
 		if (is_vm)
 			m0_nanosleep(M0_MKTIME(0 ,0), NULL);
 		/*

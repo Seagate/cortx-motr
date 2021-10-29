@@ -1047,6 +1047,14 @@ static void processor_getcpu_fini(void)
 {
 }
 
+static void processor_cpu_flag_check(unsigned opc, unsigned *r)
+{
+	__asm__ __volatile__ ("cpuid\n\t"
+			      : "=a" (r[0]), "=b" (r[1]),
+				"=c" (r[2]), "=d" (r[3])
+			      : "0" (opc), "1" (0), "2" (0));
+}
+
 /* ---- Processor Interface Implementation ---- */
 
 M0_INTERNAL int m0_processors_init()
@@ -1147,6 +1155,14 @@ M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 		       pg->pg_getcpu_workaround ? "syscall" : "sched_getcpu",
 		       rc, errno);
 	return cpu;
+}
+
+bool m0_processor_is_vm(void)
+{
+	unsigned reg[4] = {};
+
+	processor_cpu_flag_check(0x1, reg);
+	return (reg[2] & (1U << 31)) ? true : false;
 }
 
 #undef M0_TRACE_SUBSYSTEM
