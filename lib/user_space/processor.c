@@ -1157,6 +1157,7 @@ M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 	return cpu;
 }
 
+#ifdef CONFIG_X86_64
 M0_INTERNAL bool m0_processor_is_vm(void)
 {
 	unsigned reg[4] = {};
@@ -1164,6 +1165,13 @@ M0_INTERNAL bool m0_processor_is_vm(void)
 	processor_cpuid_reg_get(0x1, reg);
 	return (reg[2] & (1U << 31)) != 0;
 }
+#else
+M0_INTERNAL bool m0_processor_is_vm(void)
+{
+	return false;
+}
+#endif
+
 
 #undef M0_TRACE_SUBSYSTEM
 
