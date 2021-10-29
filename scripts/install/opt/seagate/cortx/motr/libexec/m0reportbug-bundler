@@ -67,6 +67,8 @@ do
     case "${flag}" in
           b) bundle_id="$OPTARG";;
           t) dest_dir="$OPTARG";;
+          c) config_url="$OPTARG";;
+          s) sevice="$OPTARG";;
     esac
 done
 
