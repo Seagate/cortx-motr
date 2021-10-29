@@ -62,6 +62,16 @@ fi
 bundle_id=${1:-$HOSTNAME}
 dest_dir=${2:-$DEFAULT_DEST_DIR}
 
+while getopts ":b:t:c:s:" flag
+do
+    case "${flag}" in
+          b) bundle_id="$OPTARG";;
+          t) dest_dir="$OPTARG";;
+          c) config_url="$OPTARG";;
+          s) sevice="$OPTARG";;
+    esac
+done
+
 if [[ -z "$bundle_id" || -z "$dest_dir" ]]; then
     die "Invalid argument. Type '$PROG --help' for usage."
 fi
