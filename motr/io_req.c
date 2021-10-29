@@ -1226,8 +1226,8 @@ static bool verify_checksum(struct m0_op_io *ioo)
 	}
 
 	if (m0_bufvec_cursor_move(&datacur, 0) &&
-	    m0_ivec_cursor_move(&extcur, 0) &&
-	    attr_idx == ioo->ioo_attr.ov_vec.v_nr) {
+	    m0_ivec_cursor_move(&extcur, 0)) {
+	    //attr_idx == ioo->ioo_attr.ov_vec.v_nr) {
 		return true;
 	}
 	else {
@@ -1316,6 +1316,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		 */
 		if (ioo->ioo_dgmode_io_sent == false &&
 			total_count % usz == 0 &&
+			ioo->ioo_attr.ov_vec.v_nr &&
 			!is_parity_verify_mode(m0__op_instance( &ioo->ioo_oo.oo_oc.oc_op)) &&
 		    !verify_checksum(ioo)) {
 			return M0_RC(-EIO);
