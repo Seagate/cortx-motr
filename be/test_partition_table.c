@@ -103,7 +103,6 @@ static int init_parition_table()
 	return 0;
 }
 
-
 static m0_bcount_t get_device_chunk_offset(m0_bcount_t user_chunk_offset_index,
 				    m0_bcount_t partition_id)
 {
