@@ -1047,7 +1047,7 @@ static void processor_getcpu_fini(void)
 {
 }
 
-static void processor_cpu_flag_check(unsigned opc, unsigned *r)
+static void processor_cpuid_reg_get(unsigned opc, unsigned *r)
 {
 	__asm__ __volatile__ ("cpuid\n\t"
 			      : "=a" (r[0]), "=b" (r[1]),
@@ -1161,8 +1161,8 @@ bool m0_processor_is_vm(void)
 {
 	unsigned reg[4] = {};
 
-	processor_cpu_flag_check(0x1, reg);
-	return (reg[2] & (1U << 31)) ? true : false;
+	processor_cpuid_reg_get(0x1, reg);
+	return (reg[2] & (1U << 31)) != 0;
 }
 
 #undef M0_TRACE_SUBSYSTEM
