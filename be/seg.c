@@ -321,28 +321,32 @@ static void be_seg_madvise(struct m0_be_seg *seg, m0_bcount_t dump_limit,
 		       seg->bs_addr, seg->bs_size, flag, rc);
 
 }
-static m0_bcount_t be_seg_get_dev_offset(struct m0_be_domain  *bs_domain, struct m0_stob *bs_stob)
+static m0_bcount_t be_seg_get_dev_offset(struct m0_be_domain  *bs_domain,
+					 struct m0_stob *bs_stob)
 {
-	struct m0_be_partition_table *part_table = bs_domain->bd_partition_table;
-	struct primary_partition_info *pri_part_info; 
-	m0_bcount_t part_id = bs_stob->so_id.si_fid.f_key;
-	int i;
-	m0_bcount_t device_chunk_index = 1;
-	m0_bcount_t dev_offset = 0;
+	struct m0_be_partition_table  *part_table;
+	struct primary_partition_info *pri_part_info;
+	m0_bcount_t                    part_id = bs_stob->so_id.si_fid.f_key;
+	int                            i;
+	m0_bcount_t                    device_chunk_index = 1;
+	m0_bcount_t                    dev_offset = 0;
+
 	M0_ENTRY();
+	part_table = bs_domain->bd_partition_table;
 	if(!bs_stob->so_domain->sd_ad_mode)
 		return dev_offset;
 	M0_ASSERT(part_table);
 	pri_part_info = part_table->pri_part_info;
-	for( i = 1; i < part_table->chunk_count; i++ ){
+	for( i = 1; i < part_table->chunk_count; i++ ) {
 		if(pri_part_info[i].partition_id == part_id){
 			device_chunk_index = i;
 			break;
-		}	
+		}
 	}
 	M0_ASSERT(i !=  part_table->chunk_count);
 	dev_offset = device_chunk_index << part_table->chunk_size_in_bits;
-	M0_LEAVE("chunk idx = %"PRIi64", dev_offset = %"PRIi64,device_chunk_index, dev_offset);
+	M0_LEAVE("chunk idx = %"PRIi64", dev_offset = %"PRIi64,
+		 device_chunk_index, dev_offset);
 	return dev_offset;
 }
 
@@ -354,7 +358,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	void                        *p;
 	int                          fd;
 	int                          rc;
-	m0_bcount_t 		    dev_offset;	
+	m0_bcount_t		     dev_offset;
 	M0_ENTRY("seg=%p", seg);
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
 
@@ -390,7 +394,8 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	fd = m0_stob_fd(seg->bs_stob);
 	dev_offset = be_seg_get_dev_offset(seg->bs_domain, seg->bs_stob);
 	p = mmap(g->sg_addr, g->sg_size, PROT_READ | PROT_WRITE,
-		 MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE, fd, g->sg_offset + dev_offset);
+		 MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE,
+		 fd, g->sg_offset + dev_offset);
 	if (p != g->sg_addr) {
 		rc = M0_ERR_INFO(-errno, "p=%p g->sg_addr=%p fd=%d",
 				 p, g->sg_addr, fd);

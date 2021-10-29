@@ -128,28 +128,28 @@ struct m0_be_domain_cfg {
 	unsigned                     bc_seg_nr;
 	struct m0_be_pd_cfg          bc_pd_cfg;
 	struct m0_be_log_discard_cfg bc_log_discard_cfg;
-	bool bc_ad_mode;
+	bool			     bc_ad_mode;
 };
 
 struct m0_be_domain {
-	struct m0_module          bd_module;
-	struct m0_be_domain_cfg   bd_cfg;
-	struct m0_be_engine       bd_engine;
+	struct m0_module	        bd_module;
+	struct m0_be_domain_cfg	        bd_cfg;
+	struct m0_be_engine	        bd_engine;
 	/** The main lock in m0_be_engine. Also it's used in m0_be_log */
-	struct m0_mutex           bd_engine_lock;
+	struct m0_mutex		        bd_engine_lock;
 	/** Protects m0_be_domain::bd_0types and m0_be_domain::bd_segs */
-	struct m0_mutex           bd_lock;
-	struct m0_tl              bd_0types;
-	struct m0_be_0type       *bd_0types_allocated;
+	struct m0_mutex		        bd_lock;
+	struct m0_tl		        bd_0types;
+	struct m0_be_0type	       *bd_0types_allocated;
 	/** List of segments in this domain. First segment in which is seg0. */
-	struct m0_tl              bd_segs;
-	struct m0_be_seg          bd_seg0;
-	struct m0_stob           *bd_seg0_stob;
-	struct m0_stob_domain    *bd_stob_domain;
-	struct m0_be_0type        bd_0type_seg;
-	struct m0_be_pd           bd_pd;
-	struct m0_be_log_discard  bd_log_discard;
-	struct m0_be_partition_table    *bd_partition_table;
+	struct m0_tl                    bd_segs;
+	struct m0_be_seg                bd_seg0;
+	struct m0_stob                 *bd_seg0_stob;
+	struct m0_stob_domain          *bd_stob_domain;
+	struct m0_be_0type              bd_0type_seg;
+	struct m0_be_pd                 bd_pd;
+	struct m0_be_log_discard        bd_log_discard;
+	struct m0_be_partition_table   *bd_partition_table;
 };
 
 /** Levels of m0_be_domain module. */

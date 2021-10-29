@@ -682,9 +682,12 @@ static const struct m0_modlev levels_be_domain[];
 static int be_domain_get_partition_config(struct m0_be_domain *dom,
 					  struct m0_partition_config *config )
 {
-	config->no_of_allocation_entries = 4; /* Seg0, seg1, log, data */
-	config->chunk_size_in_bits = 30;      /* 1 GB */
-	config->total_chunk_count = 64;     /* device size / chunk size  ~4TB for now*/
+	/* Seg0, seg1, log, data */
+	config->no_of_allocation_entries = 4;
+	/* 1 GB */
+	config->chunk_size_in_bits = 30;
+	/* device size / chunk size*, 32GB VM test*/
+	config->total_chunk_count = 32;
 	M0_ALLOC_ARR(config->part_alloc_info,
 		     config->no_of_allocation_entries);
 	if (config->part_alloc_info == NULL) {
@@ -769,12 +772,14 @@ static int be_domain_level_enter(struct m0_module *module)
 	case M0_BE_DOMAIN_LEVEL_PARTITION_TABLE_CREATE:
 		dom->bd_stob_domain->sd_ad_mode = cfg->bc_ad_mode;
 		if(cfg->bc_ad_mode){
-			rc = be_domain_get_partition_config(dom, &partition_config);
+			rc = be_domain_get_partition_config(dom,
+							    &partition_config);
 			if (rc )
 				return M0_RC(rc);
-			return M0_RC(m0_be_partition_table_create_init(dom,
+			rc = m0_be_partition_table_create_init(dom,
 							       cfg->bc_mkfs_mode,
-							       &partition_config));
+							       &partition_config);
+			return M0_RC(rc);
 		}
 		else
 			return M0_RC(0);

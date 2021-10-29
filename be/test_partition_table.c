@@ -64,7 +64,7 @@ static m0_bcount_t calculate_device_offset(m0_bcount_t user_offset_in_bytes,
 	/** chunk_size_in_bits = exponent */
 	mask = (1 << chunk_size_in_bits) - 1;
 	relative_offset_in_given_chunk = user_offset_in_bytes & mask;
-	M0_LOG( M0_DEBUG, "\nDEBUG relative offset in the given chunk: %" PRIu64,
+	M0_LOG( M0_DEBUG, "\nDEBUG relative offset in given chunk: %" PRIu64,
 		relative_offset_in_given_chunk);
 	device_offset_in_bytes = ( device_chunk_offset << chunk_size_in_bits ) +
 				relative_offset_in_given_chunk;

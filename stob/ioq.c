@@ -224,8 +224,8 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 	bool                  eodst;
 	int                   opcode;
 	int                   part_id;
-	bool stob_ad = io->si_obj->so_domain->sd_ad_mode;;
-        m0_bcount_t dev_off;
+	bool		      stob_ad = io->si_obj->so_domain->sd_ad_mode;;
+        m0_bcount_t	      dev_off;
 
 	part_id = io->si_obj->so_id.si_fid.f_key;
 	M0_PRE(M0_IN(io->si_opcode, (SIO_READ, SIO_WRITE)));
@@ -281,8 +281,10 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 		iocb->u.v.vec = iov;
 		iocb->aio_fildes = lstob->sl_fd;
 		iocb->u.v.nr = min32u(frags, IOV_MAX);
-	 	if(stob_ad){
-			dev_off = get_partition_offset(off << m0_stob_ioq_bshift(ioq), part_id);
+		if(stob_ad){
+			dev_off = get_partition_offset(off <<
+						       m0_stob_ioq_bshift(ioq),
+						       part_id);
 			iocb->u.v.offset = dev_off;
 		}
 		else
@@ -324,9 +326,13 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 		M0_LOG(M0_ALWAYS,"stob_ad = %d, part id = %d", stob_ad, part_id);
 		if (result == 0) {
 			if(stob_ad){
-				dev_off = get_partition_offset(off << m0_stob_ioq_bshift(ioq), part_id);
+				dev_off =
+					get_partition_offset(off <<
+							     m0_stob_ioq_bshift(ioq),
+							     part_id);
 				qev->iq_offset = dev_off;
-				M0_LOG(M0_ALWAYS,"iq_offset = %"PRIi64", part id = %d", qev->iq_offset, part_id);
+				M0_LOG(M0_ALWAYS,"iq_offset = %"PRIi64", part id = %d",
+				       qev->iq_offset, part_id);
 			}
 			else
 				qev->iq_offset = off << m0_stob_ioq_bshift(ioq);

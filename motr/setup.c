@@ -67,7 +67,7 @@
 #include "stob/linux.h"
 #include "conf/ha.h"            /* m0_conf_ha_process_event_post */
 #include "dtm0/helper.h"        /* m0_dtm0_log_create */
-#include "be/partition_table.h"  
+#include "be/partition_table.h"
 /**
    @addtogroup m0d
    @{
@@ -1484,13 +1484,16 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 
 	m0_be_ut_backend_cfg_default(&be->but_dom_cfg);
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_dont_zero = false;
-		be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_create_cfg =
+	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_create_cfg =
 		rctx->rc_be_log_path;
-	be->but_dom_cfg.bc_ad_mode = m0_strcaseeq(rctx->rc_stype, m0_cs_stypes[M0_AD_STOB]);
-	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_ad_mode = be->but_dom_cfg.bc_ad_mode;	
+	be->but_dom_cfg.bc_ad_mode = m0_strcaseeq(rctx->rc_stype,
+						  m0_cs_stypes[M0_AD_STOB]);
+	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_ad_mode =
+		be->but_dom_cfg.bc_ad_mode;
 	be->but_dom_cfg.bc_seg0_cfg.bsc_stob_create_cfg = rctx->rc_be_seg0_path;
 	if(be->but_dom_cfg.bc_ad_mode)
-		be->but_dom_cfg.bc_seg0_cfg.bsc_stob_key = M0_PARTITION_ENTRY_SEG0;
+		be->but_dom_cfg.bc_seg0_cfg.bsc_stob_key =
+			M0_PARTITION_ENTRY_SEG0;
 
 	if (!m0_is_po2(rctx->rc_be_log_size))
 		return M0_ERR(-EINVAL);
