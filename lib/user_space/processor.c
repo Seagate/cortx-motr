@@ -1157,7 +1157,7 @@ M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 	return cpu;
 }
 
-bool m0_processor_is_vm(void)
+M0_INTERNAL bool m0_processor_is_vm(void)
 {
 	unsigned reg[4] = {};
 

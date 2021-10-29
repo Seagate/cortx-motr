@@ -234,7 +234,6 @@ m0_node_uuid_string_set
 m0_strtou64
 m0_strtou32
 m0_panic
-m0_processor_is_vm
 m0_quiesce
 m0_resume
 m0_ref_init

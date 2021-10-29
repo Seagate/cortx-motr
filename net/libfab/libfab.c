@@ -207,9 +207,6 @@ static const char *providers[FAB_FABRIC_PROV_MAX] = { "verbs",
 static const char *protf[]     = { "inet", "inet6" };
 static const char *socktype[]  = { "stream", "dgram" };
 
-/* This flag is used to indicate whether the env is VM or HW. */
-static bool is_vm = false;
-
 /** 
  * Bitmap of used transfer machine identifiers. 1 is for used,
  * and 0 is for free.
@@ -349,8 +346,6 @@ static bool libfab_buf_invariant(const struct m0_fab__buf *buf);
 /* libfab init and fini() : initialized in motr init */
 M0_INTERNAL int m0_net_libfab_init(void)
 {
-	/* Check if the env is VM or HW. */
-	is_vm = m0_processor_is_vm();
 	m0_net_xprt_register(&m0_net_libfab_xprt);
 	if (m0_streq(M0_DEFAULT_NETWORK, "LF"))
 		m0_net_xprt_default_set(&m0_net_libfab_xprt);
@@ -953,12 +948,11 @@ static void libfab_poller(struct m0_fab__tm *tm)
 	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
 		/*
 		 * The lab team observed a significant increase in the CPU load
-		 * due to the epoll_wait not sleeping when there are no pending
-		 * events.
+		 * due to the epoll_wait not sleeping.
 		 * The proposed short term fix to support the lab team is adding
 		 * nanosleep of 0ns on VM to reduce CPU load.
 		 */
-		if (is_vm)
+		if (m0_processor_is_vm())
 			m0_nanosleep(M0_MKTIME(0 ,0), NULL);
 		/*
 		 * It is observed that with epoll_wait,
@@ -2817,7 +2811,7 @@ static int libfab_dom_init(const struct m0_net_xprt *xprt,
 	struct m0_fab__ndom *fab_ndom;
 	int                  ret = 0;
 
-	M0_ENTRY("Running on %s", is_vm ? "VM" : "HW");
+	M0_ENTRY("Running on %s", m0_processor_is_vm() ? "VM" : "HW");
 
 	M0_ALLOC_PTR(fab_ndom);
 	if (fab_ndom == NULL)

@@ -215,7 +215,7 @@ M0_INTERNAL int m0_processor_describe(m0_processor_nr_t id,
    @retval 0 if the processor is a physical machine.
            1 if the processor is a virtual machine.
  */
-bool m0_processor_is_vm(void);
+M0_INTERNAL bool m0_processor_is_vm(void);
 
 /** @} end of processor group */
 
