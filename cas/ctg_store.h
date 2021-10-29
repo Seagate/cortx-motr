@@ -89,7 +89,8 @@
  * Every user should take care about locking of CAS catalogues.
  */
 
-#define M0_CTG_ROOT_NODE_ALIGN 65536
+#define M0_CTG_ROOT_NODE_ALIGN 4096
+#define M0_CTG_SHIFT 12
 #define M0_CTG_ROOT_NODE_SHIFT 16
 
 enum {
