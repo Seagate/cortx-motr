@@ -115,6 +115,8 @@ static void reqh_init(bool mkfs, bool use_small_credits)
 {
 	struct m0_be_domain_cfg cfg = {};
 	int                     result;
+	struct m0_be_ut_seg     ut_seg;
+	m0_bcount_t             seg_size = 1 * 1024 * 1024 * 1024;
 
 	M0_SET0(&reqh);
 	M0_SET0(&be);
@@ -132,6 +134,8 @@ static void reqh_init(bool mkfs, bool use_small_credits)
 			M0_BE_TX_CREDIT(6 << 10, 5 << 18);
 	result = m0_be_ut_backend_init_cfg(&be, &cfg, mkfs);
 	M0_ASSERT(result == 0);
+	M0_SET0(&ut_seg);
+	m0_be_ut_seg_init(&ut_seg, &be, seg_size);
 }
 
 static void _init(bool mkfs, bool use_small_credits)
