@@ -41,6 +41,10 @@ static const char *ip_protocol[M0_NET_IP_PROTO_MAX] = { "tcp",
 							"o2ib",
 							"lo" };
 
+/**
+ * This function convert the hostname/FQDN format to ip format.
+ * Here hostname can be FQDN or local machine hostname.
+ */
 static int m0_net_hostname_to_ip(char *hostname , char* ip,
 				 struct m0_net_ip_addr *ip_addr)
 {
@@ -59,17 +63,15 @@ static int m0_net_hostname_to_ip(char *hostname , char* ip,
 	n = cp - hostname;
 	memcpy(name, hostname, n);
 	name[n] = '\0';
-	if ((hname = gethostbyname(name)) == NULL)
-	{
-		// get the host info
+	if ((hname = gethostbyname(name)) == NULL) {
+		/** get the host info */
 		M0_LOG(M0_ERROR, "gethostbyname error %s", (char*)name);
 		return M0_ERR(-EPROTO);
 	}
 
 	addr = (struct in_addr **) hname->h_addr_list;
-	for(i = 0; addr[i] != NULL; i++)
-	{
-		//Return the first one;
+	for(i = 0; addr[i] != NULL; i++) {
+		/** Return the first one */
 		strcpy(ip , inet_ntoa(*addr[i]));
 		n=strlen(ip);
 		M0_LOG(M0_DEBUG, "%s[%s]", (char*)name, (char*)ip);
@@ -79,8 +81,6 @@ static int m0_net_hostname_to_ip(char *hostname , char* ip,
 			ip_addr->na_format = M0_NET_IP_INET_HOSTNAME_FORMAT;
 		return M0_RC(n);
 	}
-
-
 	return M0_ERR(-EPROTO);
 }
 
