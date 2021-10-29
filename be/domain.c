@@ -678,33 +678,33 @@ M0_INTERNAL void m0_be_domain__0type_unregister(struct m0_be_domain *dom,
 }
 
 static const struct m0_modlev levels_be_domain[];
-
+/* TODO This function needs update,used temporary for testing purpose only*/
 static int be_domain_get_partition_config(struct m0_be_domain *dom,
-					  struct m0_partition_config *config )
+					  struct m0_be_ptable_part_config *cfg)
 {
 	/* Seg0, seg1, log, data */
-	config->no_of_allocation_entries = 4;
+	cfg->pc_num_of_alloc_entries = 4;
 	/* 1 GB */
-	config->chunk_size_in_bits = 30;
+	cfg->pc_chunk_size_in_bits = 30;
 	/* device size / chunk size*, 32GB VM test*/
-	config->total_chunk_count = 32;
-	M0_ALLOC_ARR(config->part_alloc_info,
-		     config->no_of_allocation_entries);
-	if (config->part_alloc_info == NULL) {
-		M0_LOG(M0_ERROR, "Failed allocate memory for part config");
+	cfg->pc_total_chunk_count = 32;
+	M0_ALLOC_ARR(cfg->pc_part_alloc_info,
+		     cfg->pc_num_of_alloc_entries);
+	if (cfg->pc_part_alloc_info == NULL) {
+		M0_LOG(M0_ERROR, "Failed allocate memory for part cfg");
 		return -ENOMEM;
 	}
-	config->part_alloc_info[0].partition_id = M0_PARTITION_ENTRY_SEG0;
-	config->part_alloc_info[0].initial_user_allocation_chunks = 1;
-	config->part_alloc_info[1].partition_id = M0_PARTITION_ENTRY_LOG;
-	config->part_alloc_info[1].initial_user_allocation_chunks = 1;
-	config->part_alloc_info[2].partition_id = M0_PARTITION_ENTRY_SEG1;
-	config->part_alloc_info[2].initial_user_allocation_chunks =
-		(config->total_chunk_count * 10) / 100;
-	config->part_alloc_info[3].partition_id = M0_PARTITION_ENTRY_BALLOC;
-	config->part_alloc_info[3].initial_user_allocation_chunks =
-		(config->total_chunk_count * 40) / 100;
-	config->device_path_name = dom->bd_cfg.bc_seg0_cfg.bsc_stob_create_cfg;
+	cfg->pc_part_alloc_info[0].ai_part_id = M0_BE_PTABLE_ENTRY_SEG0;
+	cfg->pc_part_alloc_info[0].ai_def_size_in_chunks = 1;
+	cfg->pc_part_alloc_info[1].ai_part_id = M0_BE_PTABLE_ENTRY_LOG;
+	cfg->pc_part_alloc_info[1].ai_def_size_in_chunks = 1;
+	cfg->pc_part_alloc_info[2].ai_part_id = M0_BE_PTABLE_ENTRY_SEG1;
+	cfg->pc_part_alloc_info[2].ai_def_size_in_chunks =
+		(cfg->pc_total_chunk_count * 10) / 100;
+	cfg->pc_part_alloc_info[3].ai_part_id = M0_BE_PTABLE_ENTRY_BALLOC;
+	cfg->pc_part_alloc_info[3].ai_def_size_in_chunks =
+		(cfg->pc_total_chunk_count * 40) / 100;
+	cfg->pc_dev_path_name = dom->bd_cfg.bc_seg0_cfg.bsc_stob_create_cfg;
 	return 0;
 }
 
@@ -716,7 +716,7 @@ static int be_domain_level_enter(struct m0_module *module)
 	const char              *level_name;
 	int                      rc;
 	unsigned                 i;
-	struct m0_partition_config partition_config;
+	struct m0_be_ptable_part_config partition_config;
 
 	level_name = levels_be_domain[level].ml_name;
 	M0_ENTRY("dom=%p level=%d level_name=%s", dom, level, level_name);
@@ -761,7 +761,7 @@ static int be_domain_level_enter(struct m0_module *module)
 		return M0_RC(m0_stob_domain_create(cfg->bc_stob_domain_location,
 						   cfg->bc_stob_domain_cfg_init,
 						   cfg->bc_stob_domain_key,
-						 cfg->bc_stob_domain_cfg_create,
+						   cfg->bc_stob_domain_cfg_create,
 						   &dom->bd_stob_domain));
 	case M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT:
 		if (cfg->bc_mkfs_mode)
@@ -776,9 +776,9 @@ static int be_domain_level_enter(struct m0_module *module)
 							    &partition_config);
 			if (rc )
 				return M0_RC(rc);
-			rc = m0_be_partition_table_create_init(dom,
-							       cfg->bc_mkfs_mode,
-							       &partition_config);
+			rc = m0_be_ptable_create_init(dom,
+						      cfg->bc_mkfs_mode,
+						      &partition_config);
 			return M0_RC(rc);
 		}
 		else

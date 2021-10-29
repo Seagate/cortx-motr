@@ -324,27 +324,28 @@ static void be_seg_madvise(struct m0_be_seg *seg, m0_bcount_t dump_limit,
 static m0_bcount_t be_seg_get_dev_offset(struct m0_be_domain  *bs_domain,
 					 struct m0_stob *bs_stob)
 {
-	struct m0_be_partition_table  *part_table;
-	struct primary_partition_info *pri_part_info;
-	m0_bcount_t                    part_id = bs_stob->so_id.si_fid.f_key;
-	int                            i;
-	m0_bcount_t                    device_chunk_index = 1;
-	m0_bcount_t                    dev_offset = 0;
+	struct m0_be_ptable_part_table    *part_table;
+	struct m0_be_ptable_pri_part_info *pri_part_info;
+	m0_bcount_t                        part_id;
+	int                                i;
+	m0_bcount_t                        device_chunk_index = 1;
+	m0_bcount_t                        dev_offset = 0;
 
 	M0_ENTRY();
 	part_table = bs_domain->bd_partition_table;
+	part_id = bs_stob->so_id.si_fid.f_key;
 	if(!bs_stob->so_domain->sd_ad_mode)
 		return dev_offset;
 	M0_ASSERT(part_table);
-	pri_part_info = part_table->pri_part_info;
-	for( i = 1; i < part_table->chunk_count; i++ ) {
-		if(pri_part_info[i].partition_id == part_id){
+	pri_part_info = part_table->pt_pri_part_info;
+	for( i = 1; i < part_table->pt_dev_size_in_chunks; i++ ) {
+		if(pri_part_info[i].ppi_part_id == part_id){
 			device_chunk_index = i;
 			break;
 		}
 	}
-	M0_ASSERT(i !=  part_table->chunk_count);
-	dev_offset = device_chunk_index << part_table->chunk_size_in_bits;
+	M0_ASSERT(i !=  part_table->pt_dev_size_in_chunks);
+	dev_offset = device_chunk_index << part_table->pt_chunk_size_in_bits;
 	M0_LEAVE("chunk idx = %"PRIi64", dev_offset = %"PRIi64,
 		 device_chunk_index, dev_offset);
 	return dev_offset;

@@ -39,36 +39,34 @@
 #include "be/domain.h"
 #include "ut/helper.h"
 
-#define PARTITION_TBL_VERSION               1
-#define DEVICE_NAME_MAX_SIZE                128
-#define PARTITION_TABLE_DEVICE_CHUNK_OFFSET 0
-#define PARTITION_TABLE_USER_OFFSET         0
-#define M0_PARTITION_TABLE_HDR_VERSION      1
+#define M0_BE_PTABLE_VERSION               (1)
+#define M0_BE_PTABLE_DEV_NAME_MAX_SIZE     (128)
+#define M0_BE_PTABLE_HDR_VERSION           (1)
 
-enum m0_partition_name {
+enum m0_be_ptable_id {
 	/* Partition table type   */
-	M0_PARTITION_ENTRY_PARTITION_TABLE = BE_UT_LOG_ID - 1,
+	M0_BE_PTABLE_PARTITION_TABLE = (BE_UT_LOG_ID - 1),
 	/* Log type */
-	M0_PARTITION_ENTRY_LOG = BE_UT_LOG_ID,
+	M0_BE_PTABLE_ENTRY_LOG       = BE_UT_LOG_ID,
 	/* Segment0 metadata type */
-	M0_PARTITION_ENTRY_SEG0 = BE_UT_SEG_START_ID - 1,
+	M0_BE_PTABLE_ENTRY_SEG0      = (BE_UT_SEG_START_ID - 1),
 	/* Segment1 metadata type */
-	M0_PARTITION_ENTRY_SEG1 = BE_UT_SEG_START_ID,
+	M0_BE_PTABLE_ENTRY_SEG1      = BE_UT_SEG_START_ID,
 	/* Balloc type */
-	M0_PARTITION_ENTRY_BALLOC,
+	M0_BE_PTABLE_ENTRY_BALLOC,
 	/* Free blocks type */
-	M0_PARTITION_ENTRY_FREE,
-	M0_PARTITION_ENTRY_MAX
+	M0_BE_PTABLE_ENTRY_FREE,
+	M0_BE_PTABLE_ENTRY_MAX
 };
 
 /**
   Store partition ID and relevant user offset.
  */
-struct primary_partition_info
+struct m0_be_ptable_pri_part_info
 {
 	/* Partttion ID to recognize partition name */
-	m0_bcount_t partition_id;
-	m0_bcount_t user_offset;
+	m0_bcount_t ppi_part_id;
+	m0_bcount_t ppi_user_off;
 
 };
 
@@ -76,10 +74,10 @@ struct primary_partition_info
   Store partition ID and number of chunks need to allocate for
   partition ID. This info will get from upper layer(hare).
  */
-struct m0_partition_allocation_info
+struct m0_be_ptable_alloc_info
 {
-	m0_bcount_t partition_id;
-	m0_bcount_t initial_user_allocation_chunks;
+	m0_bcount_t ai_part_id;
+	m0_bcount_t ai_def_size_in_chunks;
 };
 
 /**
@@ -87,16 +85,16 @@ struct m0_partition_allocation_info
  like number of chunks for each partition, chunk size and total
  chunks of all partitions. This info will get from upper layer(hare).
  */
-struct m0_partition_config
+struct m0_be_ptable_part_config
 {
 	/* Partition ID and relevant user offset */
-	struct m0_partition_allocation_info *part_alloc_info;
+	struct m0_be_ptable_alloc_info *pc_part_alloc_info;
 	/* Number of partition types */
-	m0_bcount_t no_of_allocation_entries;
-	m0_bcount_t chunk_size_in_bits;
+	m0_bcount_t                     pc_num_of_alloc_entries;
+	m0_bcount_t                     pc_chunk_size_in_bits;
 	/* Total chunks of all partitions */
-	m0_bcount_t total_chunk_count;
-	const char *device_path_name;
+	m0_bcount_t                     pc_total_chunk_count;
+	const char                     *pc_dev_path_name;
 };
 
 /**
@@ -104,33 +102,33 @@ struct m0_partition_config
  the different users (e.g. Log, Seg0, Seg1 and Balloc).
  It will be stored at zero offset of the device.
  */
-struct m0_be_partition_table
+struct m0_be_ptable_part_table
 {
-	struct m0_format_header par_tbl_header;
-	m0_bcount_t version_info;
+	struct m0_format_header             pt_par_tbl_header;
+	m0_bcount_t                         pt_version_info;
 	/* Total chunks of all partitions */
-	m0_bcount_t chunk_count;
-	m0_bcount_t chunk_size_in_bits;
-	char device_path_name[DEVICE_NAME_MAX_SIZE];
+	m0_bcount_t                         pt_dev_size_in_chunks;
+	m0_bcount_t                         pt_chunk_size_in_bits;
+	char                                pt_device_path_name[M0_BE_PTABLE_DEV_NAME_MAX_SIZE];
 	/* Partition info with ID and user offset */
-	struct m0_format_footer par_tbl_footer;
-	struct primary_partition_info *pri_part_info;
+	struct m0_format_footer             pt_par_tbl_footer;
+	struct m0_be_ptable_pri_part_info  *pt_pri_part_info;
 };
 
-struct m0_be_primary_part_info
+struct m0_be_ptable_part_tbl_info
 {
 	/* Total chunks of all partitions */
-	m0_bcount_t chunk_count;
-	m0_bcount_t chunk_size_in_bits;
-	const struct primary_partition_info *pri_part_info;
+	m0_bcount_t pti_dev_size_in_chunks;
+	m0_bcount_t pti_chunk_size_in_bits;
+	const struct m0_be_ptable_pri_part_info *pti_pri_part_info;
 };
-M0_INTERNAL int m0_be_partition_table_create_init(struct m0_be_domain *domain,
-						  bool is_mkfs,
-						  struct m0_partition_config
-						  *part_config);
+M0_INTERNAL int m0_be_ptable_create_init(struct m0_be_domain *domain,
+					 bool is_mkfs,
+					 struct m0_be_ptable_part_config
+					 *part_config);
 
-M0_INTERNAL int m0_be_partition_get_part_info(struct m0_be_primary_part_info
-					      *primary_part_info);
+M0_INTERNAL int m0_be_ptable_get_part_info(struct m0_be_ptable_part_tbl_info
+					   *primary_part_info);
 #endif /* __MOTR_STOB_PARTITION_TABLE_H__ */
 
 /*

@@ -149,7 +149,7 @@ struct m0_be_domain {
 	struct m0_be_0type              bd_0type_seg;
 	struct m0_be_pd                 bd_pd;
 	struct m0_be_log_discard        bd_log_discard;
-	struct m0_be_partition_table   *bd_partition_table;
+	struct m0_be_ptable_part_table *bd_partition_table;
 };
 
 /** Levels of m0_be_domain module. */

@@ -23,22 +23,22 @@
 
 #include "be/partition_table.h"
 
-static bool is_part_table_initilized = false;
-static struct m0_be_partition_table *partition_table = NULL;
+static bool   is_part_table_initilized = false;
+static struct m0_be_ptable_part_table *partition_table = NULL;
 
-static struct m0_be_partition_table rd_partition_table;
-static int verify_partition_table(struct m0_be_partition_table *partition_table)
+static struct m0_be_ptable_part_table rd_partition_table;
+static int be_ptable_verify_table(struct m0_be_ptable_part_table *part_table)
 {
 	int rc = -1;
 
-	if (partition_table != NULL) {
-		rc = m0_format_footer_verify(partition_table, true);
+	if (part_table != NULL) {
+		rc = m0_format_footer_verify(part_table, true);
 	}
 	return M0_RC(rc);
 }
 
 /**
- * Name: m0_be_partition_table_create_init
+ * Name: m0_be_ptable_create_init
  * Description:
  *   This function creates partition table and write partition table
  *   on the disk. Again it will read the partitition table from the
@@ -52,39 +52,39 @@ static int verify_partition_table(struct m0_be_partition_table *partition_table)
  *   SUCCESS  - Zero
  *   FAILED   - Negative value
  */
-M0_INTERNAL int m0_be_partition_table_create_init(struct m0_be_domain *domain,
-						  bool is_mkfs,
-						  struct m0_partition_config
-						  *part_config)
+M0_INTERNAL int m0_be_ptable_create_init(struct m0_be_domain *domain,
+					 bool is_mkfs,
+					 struct m0_be_ptable_part_config
+					 *part_config)
 {
-	int			      rc;
-	int			      i;
-	int			      p_index;
-	int			      offset_count;
-	int			      user_allocation_chunks;
-	int			      primary_partition_size;
-	int			      curr_dev_chunk_off = 1;
-	struct m0_stob		     *stob;
-	m0_bcount_t		      f_offset;
-	m0_bcount_t                   pri_part_offset;
-	m0_bcount_t		      part_tabl_sz;
-	struct primary_partition_info *ptr_primary_part;
-	void * temp_partition_table = NULL;
+	int			           rc;
+	int			           i;
+	int			           p_index;
+	int			           offset_count;
+	int			           user_allocation_chunks;
+	int			           primary_partition_size;
+	int			           curr_dev_chunk_off = 1;
+	struct m0_stob		          *stob;
+	m0_bcount_t		           f_offset;
+	m0_bcount_t                        pri_part_offset;
+	m0_bcount_t		           part_tabl_sz;
+	struct m0_be_ptable_pri_part_info *ptr_primary_part;
+	void                              *temp_partition_table = NULL;
 
 	M0_ENTRY("mkfs = %d", is_mkfs);
-	rc = m0_be_domain_stob_open(domain, M0_PARTITION_ENTRY_PARTITION_TABLE,
-				 part_config->device_path_name, &stob,
-				 true);
+	rc = m0_be_domain_stob_open(domain, M0_BE_PTABLE_PARTITION_TABLE,
+				    part_config->pc_dev_path_name, &stob,
+				    true);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Failed domain stob open");
 		goto out;
 	}
 
-	primary_partition_size = (sizeof(struct primary_partition_info) *
-				  part_config->total_chunk_count);
+	primary_partition_size = (sizeof(struct m0_be_ptable_pri_part_info) *
+				  part_config->pc_total_chunk_count);
 
-	f_offset = offsetof(struct m0_be_partition_table,
-			    par_tbl_footer);
+	f_offset = offsetof(struct m0_be_ptable_part_table,
+			    pt_par_tbl_footer);
 	f_offset += primary_partition_size;
 	part_tabl_sz = f_offset + sizeof(struct m0_format_footer);
 	partition_table = m0_alloc(part_tabl_sz);
@@ -94,57 +94,58 @@ M0_INTERNAL int m0_be_partition_table_create_init(struct m0_be_domain *domain,
 		rc = -ENOMEM;
 		goto out;
 	}
-	pri_part_offset = offsetof(struct m0_be_partition_table,
-				   par_tbl_footer);
+	pri_part_offset = offsetof(struct m0_be_ptable_part_table,
+				   pt_par_tbl_footer);
 
 	if (is_mkfs == true) {
 
 
-		partition_table->version_info = PARTITION_TBL_VERSION;
-		partition_table->chunk_size_in_bits =
-			part_config->chunk_size_in_bits;
-		partition_table->chunk_count = part_config->total_chunk_count;
-		if(strnlen(part_config->device_path_name,
-			   DEVICE_NAME_MAX_SIZE) >=
-			DEVICE_NAME_MAX_SIZE) {
+		partition_table->pt_version_info = M0_BE_PTABLE_VERSION;
+		partition_table->pt_chunk_size_in_bits =
+			part_config->pc_chunk_size_in_bits;
+		partition_table->pt_dev_size_in_chunks =
+			part_config->pc_total_chunk_count;
+		if(strnlen(part_config->pc_dev_path_name,
+			   M0_BE_PTABLE_DEV_NAME_MAX_SIZE) >=
+			M0_BE_PTABLE_DEV_NAME_MAX_SIZE) {
 			M0_LOG(M0_ERROR, "Invalid device path name size");
 			rc = -EINVAL;
 			goto out;
 		}
 
-		strncpy(partition_table->device_path_name,
-			part_config->device_path_name,
-			DEVICE_NAME_MAX_SIZE);
+		strncpy(partition_table->pt_device_path_name,
+			part_config->pc_dev_path_name,
+			M0_BE_PTABLE_DEV_NAME_MAX_SIZE);
 
-		partition_table->pri_part_info =
-			(struct primary_partition_info *)
+		partition_table->pt_pri_part_info =
+			(struct m0_be_ptable_pri_part_info *)
 			((char *)partition_table + pri_part_offset);
-		ptr_primary_part = partition_table->pri_part_info;
-		ptr_primary_part->user_offset = 0;
-		ptr_primary_part->partition_id =
-			M0_PARTITION_ENTRY_PARTITION_TABLE;
+		ptr_primary_part = partition_table->pt_pri_part_info;
+		ptr_primary_part->ppi_user_off = 0;
+		ptr_primary_part->ppi_part_id =
+			M0_BE_PTABLE_PARTITION_TABLE;
 		ptr_primary_part++;
 		for (p_index = 0;
-		     p_index < part_config->no_of_allocation_entries;
+		     p_index < part_config->pc_num_of_alloc_entries;
 		     p_index++) {
-			struct m0_partition_allocation_info *part_info;
+			struct m0_be_ptable_alloc_info *part_info;
 
-			part_info = &part_config->part_alloc_info[p_index];
+			part_info = &part_config->pc_part_alloc_info[p_index];
 
 			offset_count = 0;
 			user_allocation_chunks =
-				part_info->initial_user_allocation_chunks;
+				part_info->ai_def_size_in_chunks;
 			if ((curr_dev_chunk_off + user_allocation_chunks) >
-				part_config->total_chunk_count) {
+				part_config->pc_total_chunk_count) {
 				M0_LOG(M0_ERROR,
 				       "Invalid current device chunk offset");
 				rc = -EINVAL;
 				goto out;
 			}
 			for (i = 0; i < user_allocation_chunks; i++) {
-				ptr_primary_part->partition_id =
-					part_info->partition_id;
-				ptr_primary_part->user_offset = offset_count;
+				ptr_primary_part->ppi_part_id =
+					part_info->ai_part_id;
+				ptr_primary_part->ppi_user_off = offset_count;
 				offset_count++;
 				curr_dev_chunk_off++;
 				ptr_primary_part++;
@@ -153,16 +154,16 @@ M0_INTERNAL int m0_be_partition_table_create_init(struct m0_be_domain *domain,
 
 		offset_count = 0;
 		while (curr_dev_chunk_off <
-			part_config->total_chunk_count ) {
-			ptr_primary_part->partition_id = M0_PARTITION_ENTRY_FREE;
-			ptr_primary_part->user_offset = offset_count;
+			part_config->pc_total_chunk_count ) {
+			ptr_primary_part->ppi_part_id = M0_BE_PTABLE_ENTRY_FREE;
+			ptr_primary_part->ppi_user_off = offset_count;
 			offset_count++;
 			curr_dev_chunk_off++;
 		}
 
-		m0_format_header_pack(&partition_table->par_tbl_header,
+		m0_format_header_pack(&partition_table->pt_par_tbl_header,
 				      &(struct m0_format_tag){
-			.ot_version = M0_PARTITION_TABLE_HDR_VERSION,
+			.ot_version = M0_BE_PTABLE_HDR_VERSION,
 			.ot_type    = M0_FORMAT_TYPE_PARTITION_TABLE,
 			.ot_footer_offset = f_offset
 		});
@@ -183,25 +184,25 @@ M0_INTERNAL int m0_be_partition_table_create_init(struct m0_be_domain *domain,
 		goto out;
 	}
 
-	rc = verify_partition_table(partition_table);
+	rc = be_ptable_verify_table(partition_table);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Failed partition table verification");
 		M0_ERR(rc);
 	}
 	temp_partition_table = partition_table;
-	if(partition_table->chunk_size_in_bits != 30)
+	if(partition_table->pt_chunk_size_in_bits != 30)
 		M0_ASSERT(0);
 	// copy static info
 	memcpy ((void *)&rd_partition_table, temp_partition_table,
-		offsetof(struct m0_be_partition_table, par_tbl_footer));
+		offsetof(struct m0_be_ptable_part_table, pt_par_tbl_footer));
 	//copy partition info
-	temp_partition_table += offsetof(struct m0_be_partition_table,
-					 par_tbl_footer);
+	temp_partition_table += offsetof(struct m0_be_ptable_part_table,
+					 pt_par_tbl_footer);
 
-	rd_partition_table.pri_part_info = temp_partition_table;
+	rd_partition_table.pt_pri_part_info = temp_partition_table;
 	// copy footer
 	temp_partition_table +=  primary_partition_size;
-        memcpy((void *)&rd_partition_table.par_tbl_footer,
+        memcpy((void *)&rd_partition_table.pt_par_tbl_footer,
 	       temp_partition_table,
 	       sizeof(struct m0_format_footer));
 	is_part_table_initilized = true;
@@ -216,20 +217,20 @@ out:
 }
 
 
-M0_INTERNAL int m0_be_partition_get_part_info(struct m0_be_primary_part_info
-					      *primary_part_info)
+M0_INTERNAL int m0_be_ptable_get_part_info(struct m0_be_ptable_part_tbl_info
+					   *primary_part_info)
 {
 	M0_ENTRY();
-	if ( is_part_table_initilized &&
-	     primary_part_info != NULL) {
-		primary_part_info->chunk_count = rd_partition_table.chunk_count;
-		primary_part_info->chunk_size_in_bits =
-			rd_partition_table.chunk_size_in_bits;
-		primary_part_info->pri_part_info =
-			rd_partition_table.pri_part_info;
+	if ( is_part_table_initilized && primary_part_info != NULL) {
+		primary_part_info->pti_dev_size_in_chunks =
+			rd_partition_table.pt_dev_size_in_chunks;
+		primary_part_info->pti_chunk_size_in_bits =
+			rd_partition_table.pt_chunk_size_in_bits;
+		primary_part_info->pti_pri_part_info =
+			rd_partition_table.pt_pri_part_info;
 		M0_LOG(M0_ALWAYS,"chunk info : %d, %d, ",
-		       (int) primary_part_info->chunk_count,
-		       (int)primary_part_info->chunk_size_in_bits);
+		       (int) primary_part_info->pti_dev_size_in_chunks,
+		       (int)primary_part_info->pti_chunk_size_in_bits);
 		return 0;
 	}
 	else

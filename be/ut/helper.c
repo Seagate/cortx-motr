@@ -45,7 +45,7 @@
 #include "be/ut/helper.h"	/* m0_be_ut_backend */
 #include "be/tx_internal.h"	/* m0_be_tx__reg_area */
 #include "be/seg0.h"            /* m0_be_0type_register */
-#include "be/partition_table.h" /* enum m0_partition_name */
+#include "be/partition_table.h" /* enum m0_be_ptable_id */
 
 const struct m0_bob_type m0_ut_be_backend_bobtype;
 M0_BOB_DEFINE(M0_INTERNAL, &m0_ut_be_backend_bobtype, m0_be_ut_backend);
@@ -328,7 +328,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		.bc_stob_domain_cfg_create = NULL,
 		.bc_stob_domain_key	= m0_atomic64_add_return(&dom_key, 1),
 		.bc_seg0_cfg = {
-			.bsc_stob_key	     = M0_PARTITION_ENTRY_SEG0,
+			.bsc_stob_key	     = M0_BE_PTABLE_ENTRY_SEG0,
 			.bsc_size	     = 1 << 20,
 			.bsc_preallocate     = false,
 			.bsc_addr	  = m0_be_ut_seg_allocate_addr(1 << 20),
@@ -471,7 +471,7 @@ m0_be_ut_backend_seg_add2(struct m0_be_ut_backend	   *ut_be,
 			  struct m0_be_seg		  **out)
 {
 	struct m0_be_0type_seg_cfg seg_cfg = {
-		.bsc_stob_key	     = M0_PARTITION_ENTRY_SEG1,
+		.bsc_stob_key	     = M0_BE_PTABLE_ENTRY_SEG1,
 		.bsc_size	     = size,
 		.bsc_preallocate     = preallocate,
 		.bsc_addr	     = m0_be_ut_seg_allocate_addr(size),

@@ -1493,7 +1493,7 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 	be->but_dom_cfg.bc_seg0_cfg.bsc_stob_create_cfg = rctx->rc_be_seg0_path;
 	if(be->but_dom_cfg.bc_ad_mode)
 		be->but_dom_cfg.bc_seg0_cfg.bsc_stob_key =
-			M0_PARTITION_ENTRY_SEG0;
+			M0_BE_PTABLE_ENTRY_SEG0;
 
 	if (!m0_is_po2(rctx->rc_be_log_size))
 		return M0_ERR(-EINVAL);

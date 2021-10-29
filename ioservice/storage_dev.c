@@ -513,7 +513,7 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 	device->isd_stob = NULL;
 
 	if (type == M0_STORAGE_DEV_TYPE_AD) {
-		cid = M0_PARTITION_ENTRY_BALLOC;
+		cid = M0_BE_PTABLE_ENTRY_BALLOC;
 		m0_stob_id_make(0, cid, &devs->sds_back_domain->sd_id, &stob_id);
 		rc = m0_stob_find(&stob_id, &stob);
 		if (rc != 0)
