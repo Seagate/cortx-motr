@@ -292,7 +292,7 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 	if (M0_FI_ENABLED("ctg_create_failure"))
 		return M0_ERR(-EFAULT);
 
-	M0_BE_ALLOC_ALIGN_PTR_SYNC(ctg, M0_CTG_ROOT_NODE_SHIFT, seg, tx);
+	M0_BE_ALLOC_ALIGN_PTR_SYNC(ctg, M0_CTG_SHIFT, seg, tx);
 	if (ctg == NULL)
 		return M0_ERR(-ENOMEM);
 
