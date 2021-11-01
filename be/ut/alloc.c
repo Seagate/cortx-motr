@@ -429,14 +429,14 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 	M0_UT_ASSERT(a != NULL);
 	M0_SET_ARR0(ut_ptr);
 
-	/** Alloc chunks with chunk_align parameter set as true*/
+	/* Alloc chunks with chunk_align parameter set as true */
 	for (i = 0; i < ut_nr; i++) {
 		j = i;
 		ut_size = m0_rnd64(&j) % BE_UT_ALLOC_SIZE + 1;
 
 		M0_BE_UT_TRANSACT(ut_be, tx, cred,
 			  (m0_be_allocator_credit(a, M0_BAO_ALLOC_ALIGNED,
-						 ut_size, ut_shift, &cred),
+						  ut_size, ut_shift, &cred),
 			   m0_be_alloc_stats_credit(a, &cred)),
 			  (M0_BE_OP_SYNC(op,
 				 m0_be_alloc_aligned(a, tx, &op, &ut_ptr[i],
@@ -447,33 +447,33 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 		M0_UT_ASSERT(ut_ptr[i] != NULL);
 	}
 
-	/** Verify the alignment of the chunks*/
+	/* Verify the alignment of the chunks */
 	for (i = 0; i < ut_nr; i++)
 		M0_UT_ASSERT(m0_addr_is_aligned(ut_ptr[i], ut_shift));
 
-	/** Delete the even numbered chunks*/
+	/* Delete the even numbered chunks */
 	for (i = 0; i < ut_nr; i+=2) {
 		j = i;
 		ut_size = m0_rnd64(&j) % BE_UT_ALLOC_SIZE + 1;
 
 		M0_BE_UT_TRANSACT(ut_be, tx, cred,
 			  (m0_be_allocator_credit(a, M0_BAO_FREE_ALIGNED,
-						 ut_size, ut_shift, &cred),
+						  ut_size, ut_shift, &cred),
 			   m0_be_alloc_stats_credit(a, &cred)),
 			  (M0_BE_OP_SYNC(op,
-					m0_be_free_aligned(a, tx, &op,
-							   ut_ptr[i])),
+					 m0_be_free_aligned(a, tx, &op,
+							    ut_ptr[i])),
 			   m0_be_alloc_stats_capture(a, tx)));
 		ut_ptr[i] = NULL;
 	}
 
-	/** Verify the alignment of the remaining chunks*/
+	/* Verify the alignment of the remaining chunks */
 	for (i = 0; i < ut_nr; i++) {
 		if (ut_ptr[i] != NULL)
 			M0_UT_ASSERT(m0_addr_is_aligned(ut_ptr[i], ut_shift));
 	}
 
-	/** Delete remaining chunks*/
+	/* Delete remaining chunks */
 	for (i = 0; i < ut_nr; i++) {
 		if (ut_ptr[i] != NULL) {
 			j = i;
@@ -485,8 +485,8 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 							&cred),
 				 m0_be_alloc_stats_credit(a, &cred)),
 				(M0_BE_OP_SYNC(op,
-						m0_be_free_aligned(a, tx, &op,
-								ut_ptr[i])),
+					       m0_be_free_aligned(a, tx, &op,
+								  ut_ptr[i])),
 				 m0_be_alloc_stats_capture(a, tx)));
 			ut_ptr[i] = NULL;
 		}
@@ -503,7 +503,8 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 
 	M0_SET_ARR0(ut_ptr);
 
-	/** Alloc some chunks with chunk_align parameter set as true and
+	/**
+	 *  Alloc some chunks with chunk_align parameter set as true and
 	 *  remaining with chunk_align set as false.
 	 */
 	for (i = 0; i < ut_nr; i++) {
@@ -517,7 +518,8 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 						 ut_size, ut_shift, &cred),
 			   m0_be_alloc_stats_credit(a, &cred)),
 			  (M0_BE_OP_SYNC(op,
-				 m0_be_alloc_aligned(a, tx, &op, &ut_ptr[i],
+					 m0_be_alloc_aligned(a, tx, &op,
+						     &ut_ptr[i],
 						     ut_size, ut_shift,
 						     M0_BITS(M0_BAP_NORMAL),
 						     ut_tval)),
@@ -525,7 +527,7 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 		M0_UT_ASSERT(ut_ptr[i] != NULL);
 	}
 
-	/** Verify the alignment of the chunks*/
+	/* Verify the alignment of the chunks */
 	for (i = 0; i < ut_nr; i++) {
 		if (i%2 == 0)
 			M0_UT_ASSERT(m0_addr_is_aligned(ut_ptr[i],
@@ -535,7 +537,8 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 							BE_UT_ALLOC_SHIFT));
 	}
 
-	/** Delete every third chunk to make sure that both type of chunks are
+	/**
+	 *  Delete every third chunk to make sure that both type of chunks are
 	 *  deleted.
 	 */
 	for (i = 0; i < ut_nr; i+=3) {
@@ -547,13 +550,13 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 						 ut_size, ut_shift, &cred),
 			   m0_be_alloc_stats_credit(a, &cred)),
 			  (M0_BE_OP_SYNC(op,
-					m0_be_free_aligned(a, tx, &op,
-							   ut_ptr[i])),
+					 m0_be_free_aligned(a, tx, &op,
+							    ut_ptr[i])),
 			   m0_be_alloc_stats_capture(a, tx)));
 		ut_ptr[i] = NULL;
 	}
 
-	/** Verify the alignment of the remaining chunks*/
+	/* Verify the alignment of the remaining chunks */
 	for (i = 0; i < ut_nr; i++) {
 		if (ut_ptr[i] != NULL) {
 			if (i%2 == 0)
@@ -565,7 +568,7 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 		}
 	}
 
-	/** Delete remaining chunks*/
+	/* Delete remaining chunks */
 	for (i = 0; i < ut_nr; i++) {
 		if (ut_ptr[i] != NULL) {
 			j = i;
