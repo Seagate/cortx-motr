@@ -68,8 +68,11 @@ fi
 if [[ "$TRANSPORT" == "libfabric" ]]; then
         echo "You are using default $TRANSPORT module"
 
-else
+elif [[ ! -z $(rpm -qa | grep libfabric) ]]
+then
         rpm -e $(rpm -qa | grep libfabric)
+	sed -i '/libfabric/d' cortx-motr.spec.in
+else
 	sed -i '/libfabric/d' cortx-motr.spec.in
 fi
 
