@@ -227,8 +227,8 @@ M0_INTERNAL int m0_stob_domain_create(const char *location,
 M0_INTERNAL int m0_stob_domain_truncate(struct m0_stob_domain *dom)
 {
 	const char *location_const = m0_stob_domain_location_get(dom);
-	char	   *location;
-	int	    rc;
+	char       *location;
+	int         rc;
 
 	M0_ENTRY("location=%s", location_const);
 	location = location_const == NULL ? NULL : m0_strdup(location_const);
@@ -275,8 +275,8 @@ M0_INTERNAL int m0_stob_domain_destroy_location(const char *location)
 M0_INTERNAL int m0_stob_domain_truncate_location(const char *location)
 {
 	struct m0_stob_type *type;
-	char		    *location_data;
-	int		     rc;
+	char                *location_data;
+	int                  rc;
 
 	M0_ENTRY("location=%s", location);
 

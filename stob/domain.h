@@ -207,7 +207,6 @@ M0_INTERNAL int m0_stob_domain_destroy_location(const char *location);
  * Truncates a stob domain.
  *
  * It will delete all the record present in stob domain.
- *
  */
 M0_INTERNAL int m0_stob_domain_truncate_location(const char *location);
 
