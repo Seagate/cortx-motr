@@ -62,14 +62,14 @@ then
         echo "$TRANSPORT package is present"
 else
         echo "need to install $TRANSPORT module"
+	yum install ${TRANSPORT} -y
 fi
 
 if [[ "$TRANSPORT" == "libfabric" ]]; then
-        echo "TRANSPORT is $TRANSPORT"
+        echo "You are using default $TRANSPORT module"
+
 else
-        rpm -e $(rpm -qa libfabric*)
-	ls -ltrh 
-	pwd
+        rpm -e $(rpm -qa | grep libfabric)
 	sed -i '/libfabric/d' cortx-motr.spec.in
 fi
 
