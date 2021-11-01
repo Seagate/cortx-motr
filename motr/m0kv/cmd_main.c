@@ -158,6 +158,12 @@ int main(int argc, char **argv)
 	int           subid;
 	struct params params;
 
+	if (argc == 1)
+        {
+	    usage();
+	    return EXIT_FAILURE;
+        }
+
 	m0_instance_setup(&instance);
 	rc = m0_module_init(&instance.i_self, M0_LEVEL_INST_ONCE);
 	if (rc != 0) {
