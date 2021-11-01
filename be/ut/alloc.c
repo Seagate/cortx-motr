@@ -420,6 +420,7 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 	int                      ut_shift = BE_UT_ALLOC_SHIFT - 1;
 	int                      ut_size;
 	bool                     ut_tval;
+	int                      chunk_header_size = m0_be_chunk_header_size();
 
 	m0_be_ut_backend_init(ut_be);
 	m0_be_ut_seg_init(ut_seg, ut_be, BE_UT_ALLOC_SEG_SIZE);
@@ -449,7 +450,8 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 
 	/* Verify the alignment of the chunks */
 	for (i = 0; i < ut_nr; i++)
-		M0_UT_ASSERT(m0_addr_is_aligned(ut_ptr[i], ut_shift));
+		M0_UT_ASSERT(m0_addr_is_aligned(ut_ptr[i] - chunk_header_size,
+						ut_shift));
 
 	/* Delete the even numbered chunks */
 	for (i = 0; i < ut_nr; i += 2) {
@@ -468,13 +470,15 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 	}
 
 	/* Verify the alignment of the remaining chunks */
-	for (i = 0; i < ut_nr; i++) {
+	for (i = 1; i < ut_nr; i += 2) {
 		if (ut_ptr[i] != NULL)
-			M0_UT_ASSERT(m0_addr_is_aligned(ut_ptr[i], ut_shift));
+			M0_UT_ASSERT(
+			m0_addr_is_aligned(ut_ptr[i] - chunk_header_size,
+					   ut_shift));
 	}
 
 	/* Delete remaining chunks */
-	for (i = 0; i < ut_nr; i++) {
+	for (i = 1; i < ut_nr; i += 2) {
 		if (ut_ptr[i] != NULL) {
 			j = i;
 			ut_size = m0_rnd64(&j) % BE_UT_ALLOC_SIZE + 1;
@@ -504,7 +508,7 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 	M0_SET_ARR0(ut_ptr);
 
 	/**
-	 *  Alloc some chunks with chunk_align parameter set as true and
+	 *  Alloc half memory with chunk_align parameter set as true and
 	 *  remaining with chunk_align set as false.
 	 */
 	for (i = 0; i < ut_nr; i++) {
@@ -530,12 +534,14 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 
 	/* Verify the alignment of the chunks */
 	for (i = 0; i < ut_nr; i++) {
-		if (i%2 == 0)
-			M0_UT_ASSERT(m0_addr_is_aligned(ut_ptr[i],
-							BE_UT_ALLOC_SHIFT - 1));
+		if (i % 2 == 0)
+			M0_UT_ASSERT(
+			m0_addr_is_aligned(ut_ptr[i] - chunk_header_size,
+					   BE_UT_ALLOC_SHIFT - 1));
 		else
-			M0_UT_ASSERT(m0_addr_is_aligned(ut_ptr[i],
-							BE_UT_ALLOC_SHIFT));
+			M0_UT_ASSERT(
+			m0_addr_is_aligned(ut_ptr[i] - chunk_header_size,
+					   BE_UT_ALLOC_SHIFT));
 	}
 
 	/**
@@ -559,19 +565,21 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 	}
 
 	/* Verify the alignment of the remaining chunks */
-	for (i = 0; i < ut_nr; i++) {
+	for (i = 0; i < ut_nr && i % 3 != 0; i++) {
 		if (ut_ptr[i] != NULL) {
-			if (i%2 == 0)
-				M0_UT_ASSERT(m0_addr_is_aligned(ut_ptr[i],
-							BE_UT_ALLOC_SHIFT - 1));
+			if (i % 2 == 0)
+				M0_UT_ASSERT(m0_addr_is_aligned(
+						ut_ptr[i] - chunk_header_size,
+						BE_UT_ALLOC_SHIFT - 1));
 			else
-				M0_UT_ASSERT(m0_addr_is_aligned(ut_ptr[i],
-							    BE_UT_ALLOC_SHIFT));
+				M0_UT_ASSERT(m0_addr_is_aligned(
+						ut_ptr[i] - chunk_header_size,
+						BE_UT_ALLOC_SHIFT));
 		}
 	}
 
 	/* Delete remaining chunks */
-	for (i = 0; i < ut_nr; i++) {
+	for (i = 0; i < ut_nr && i % 3 != 0; i++) {
 		if (ut_ptr[i] != NULL) {
 			j = i;
 			ut_size  = m0_rnd64(&j) % BE_UT_ALLOC_SIZE + 1;

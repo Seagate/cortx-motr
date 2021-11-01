@@ -263,7 +263,10 @@ struct m0_ut_suite be_ut = {
 		{ "alloc-oom",               m0_be_ut_alloc_oom               },
 		{ "alloc-info",              m0_be_ut_alloc_info              },
 		{ "alloc-spare",             m0_be_ut_alloc_spare             },
-		{ "alloc-align",             m0_be_ut_alloc_align             },
+/**
+ *  Uncomment once the related changes have been implemented.
+ *              { "alloc-align",             m0_be_ut_alloc_align             },
+ */
 		{ "obj",                     m0_be_ut_obj_test                },
 		{ "actrec",                  m0_be_ut_actrec_test             },
 #endif /* __KERNEL__ */
