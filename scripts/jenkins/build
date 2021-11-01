@@ -65,7 +65,7 @@ else
 fi
 
 if [[ "$TRANSPORT" == "libfabric" ]]; then
-        exit 0
+        echo "TRANSPORT is $TRANSPORT"
 else
         rpm -e $(rpm -qa libfabric*)
 	ls -ltrh 
