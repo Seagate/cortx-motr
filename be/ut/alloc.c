@@ -452,7 +452,7 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 		M0_UT_ASSERT(m0_addr_is_aligned(ut_ptr[i], ut_shift));
 
 	/* Delete the even numbered chunks */
-	for (i = 0; i < ut_nr; i+=2) {
+	for (i = 0; i < ut_nr; i += 2) {
 		j = i;
 		ut_size = m0_rnd64(&j) % BE_UT_ALLOC_SIZE + 1;
 
@@ -510,12 +510,13 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 	for (i = 0; i < ut_nr; i++) {
 		j = i;
 		ut_size  = m0_rnd64(&j) % BE_UT_ALLOC_SIZE + 1;
-		ut_tval  = i%2 == 0 ? true : false;
-		ut_shift = i%2 == 0 ? BE_UT_ALLOC_SHIFT - 1 : BE_UT_ALLOC_SHIFT;
+		ut_tval  = i % 2 == 0 ? true : false;
+		ut_shift = i % 2 == 0 ? BE_UT_ALLOC_SHIFT - 1 :
+					BE_UT_ALLOC_SHIFT;
 
 		M0_BE_UT_TRANSACT(ut_be, tx, cred,
 			  (m0_be_allocator_credit(a, M0_BAO_ALLOC_ALIGNED,
-						 ut_size, ut_shift, &cred),
+						  ut_size, ut_shift, &cred),
 			   m0_be_alloc_stats_credit(a, &cred)),
 			  (M0_BE_OP_SYNC(op,
 					 m0_be_alloc_aligned(a, tx, &op,
@@ -541,13 +542,14 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 	 *  Delete every third chunk to make sure that both type of chunks are
 	 *  deleted.
 	 */
-	for (i = 0; i < ut_nr; i+=3) {
+	for (i = 0; i < ut_nr; i += 3) {
 		j = i;
 		ut_size  = m0_rnd64(&j) % BE_UT_ALLOC_SIZE + 1;
-		ut_shift = i%2 == 0 ? BE_UT_ALLOC_SHIFT - 1 : BE_UT_ALLOC_SHIFT;
+		ut_shift = i % 2 == 0 ? BE_UT_ALLOC_SHIFT - 1 :
+					BE_UT_ALLOC_SHIFT;
 		M0_BE_UT_TRANSACT(ut_be, tx, cred,
 			  (m0_be_allocator_credit(a, M0_BAO_FREE_ALIGNED,
-						 ut_size, ut_shift, &cred),
+						  ut_size, ut_shift, &cred),
 			   m0_be_alloc_stats_credit(a, &cred)),
 			  (M0_BE_OP_SYNC(op,
 					 m0_be_free_aligned(a, tx, &op,
@@ -573,8 +575,8 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 		if (ut_ptr[i] != NULL) {
 			j = i;
 			ut_size  = m0_rnd64(&j) % BE_UT_ALLOC_SIZE + 1;
-			ut_shift = i%2 == 0 ? BE_UT_ALLOC_SHIFT - 1 :
-					      BE_UT_ALLOC_SHIFT;
+			ut_shift = i % 2 == 0 ? BE_UT_ALLOC_SHIFT - 1 :
+						BE_UT_ALLOC_SHIFT;
 			M0_BE_UT_TRANSACT(ut_be, tx, cred,
 				(m0_be_allocator_credit(a, M0_BAO_FREE_ALIGNED,
 							ut_size, ut_shift,
