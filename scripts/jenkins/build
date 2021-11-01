@@ -62,7 +62,7 @@ then
         echo "$TRANSPORT package is present"
 else
         echo "need to install $TRANSPORT module"
-	yum install ${TRANSPORT} -y
+	yum install ${TRANSPORT}* -y
 fi
 
 if [[ "$TRANSPORT" == "libfabric" ]]; then
