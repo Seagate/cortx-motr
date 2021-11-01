@@ -23,6 +23,7 @@
 package mio
 
 // #include <errno.h> /* EEXIST */
+// #include "motr/config.h"
 // #include "motr/client.h"
 // #include "motr/layout.h" /* m0c_pools_common */
 //

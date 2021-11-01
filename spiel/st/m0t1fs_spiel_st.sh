@@ -576,7 +576,7 @@ Usage: ${0##*/} [COMMAND]
 
 Supported commands:
   run      run system tests (default command)
-  insmod   insert Motr kernel modules: m0tr.ko, galois.ko
+  insmod   insert Motr kernel modules: m0tr.ko
   rmmod    remove Motr kernel modules
   sstart   start Motr user-space services
   sstop    stop Motr user-space services
