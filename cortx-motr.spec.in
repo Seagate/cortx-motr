@@ -30,8 +30,6 @@
 %define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
 %define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' )
 
-BuildRequires:  lustre-client-devel
-
 # build number
 %define build_num  %( test -n "$build_number" && echo "$build_number" || echo 1 )
 
