@@ -60,16 +60,20 @@ fi
 if [[ ! -z $(rpm -qa $TRANSPORT) ]]
 then
         echo "$TRANSPORT package is present"
-        if [[ -z $(rpm -qa libfabric-devel) ]]
-        then
-                 yum install http://cortx-storage.colo.seagate.com/releases/cortx/github/stable/centos-7.9.2009/96/prod/3rd_party/motr_uploads/libfabric-devel-1.11.2-1.el7.x86_64.rpm  -y
-        else
-                echo "libfabric-devel packager package are there"
-        fi
 else
-        yum install http://cortx-storage.colo.seagate.com/releases/cortx/github/stable/centos-7.9.2009/96/prod/3rd_party/motr_uploads/libfabric-1.11.2-1.el7.x86_64.rpm http://cortx-storage.colo.seagate.com/releases/cortx/github/stable/centos-7.9.2009/96/prod/3rd_party/motr_uploads/libfabric-devel-1.11.2-1.el7.x86_64.rpm http://cortx-storage.colo.seagate.com/releases/cortx/github/stable/centos-7.9.2009/96/prod/3rd_party/lustre/custom/tcp/kmod-lustre-client-2.12.4.3_114_g7699fab-1.el7.x86_64.rpm -y
-
+        echo "need to install $TRANSPORT module"
 fi
+
+if [[ "$TRANSPORT" == "libfabric" ]]; then
+        exit 0
+else
+        rpm -e $(rpm -qa libfabric*)
+	ls -ltrh 
+	pwd
+	sed -i '/libfabric/d' cortx-motr.spec
+fi
+
+
 
 if [[ $1 = docs ]] ; then
 ./configure --disable-systemd |& tee -a $ARTIFACTS/configure.log
@@ -84,12 +88,5 @@ cp -av $HOME/rpmbuild/RPMS/x86_64/*.rpm $ARTIFACTS/
 cp -av $HOME/rpmbuild/SRPMS/*.rpm $ARTIFACTS/
 (cd $ARTIFACTS/ ; ln -vs cortx-motr-[[:digit:]]*.x86_64.rpm motr-latest.rpm)
 
-fi
-
-
-if [[ "$TRANSPORT" == "libfabric" ]]; then
-	exit 0
-else
-	rpm -e $(rpm -qa libfabric-*)
 fi
 
