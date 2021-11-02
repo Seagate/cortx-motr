@@ -150,10 +150,11 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 
 	n = m0_net_hostname_to_ip((char *)ep_name, ip, addr);
 	if (n == 0)
-		M0_ERR(-EPROTO);
+		return M0_ERR(-EPROTO);
 	else if (n < 0)
-		M0_ERR(n);
+		return M0_ERR(n);
 
+	/** TODO: select ipv4 and ipv6 in inet_pton() according to nw address */
 	inet_pton(AF_INET, ip, &addr->na_n.sn[0]);
 	M0_ASSERT(strlen(name) < ARRAY_SIZE(addr->na_p));
 	strcpy(addr->na_p, name);
