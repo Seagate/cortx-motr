@@ -392,7 +392,7 @@ static void libfab_straddr_gen(struct m0_net_ip_addr *addr,
 static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
 				 struct m0_fab__ndom *fnd)
 {
-	int result;
+	int result = 0;
 
 	M0_ENTRY("name=%s", name);
 
