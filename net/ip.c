@@ -263,14 +263,15 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 	return M0_RC(0);
 }
 
-M0_UNUSED int m0_net_ip_print(const struct m0_net_ip_addr *na, char *buf, uint32_t len)
+M0_UNUSED int m0_net_ip_print(const struct m0_net_ip_addr *na, char *buf,
+			      uint32_t len)
 {
 	char *star = NULL;
 	char  node[M0_NET_IP_STRLEN_MAX] = {};
 
 	M0_LOG(M0_DEBUG, "str=%s frmt=%d num=[0x%"PRIx64",0x%"PRIx64"] port=%d",
-		(char*)na->na_p, (int)na->na_format, na->na_n.ln[0], na->na_n.ln[1],
-		(int)na->na_port);
+		(char*)na->na_p, (int)na->na_format, na->na_n.ln[0],
+		na->na_n.ln[1], (int)na->na_port);
 	if (na->na_format == M0_NET_IP_LNET_FORMAT)
 		M0_LOG(M0_DEBUG, "type=%d portal=%d tmid=%d",
 			(int)na->na_addr.la.nla_type,
@@ -288,32 +289,38 @@ M0_UNUSED int m0_net_ip_print(const struct m0_net_ip_addr *na, char *buf, uint32
 		star = strchr(na->na_p, '*');
 		if (star != NULL) {
 			sprintf(buf, "%s@%s:12345:%d:*",
-				na->na_addr.la.nla_type == M0_NET_IP_PROTO_LO ? "0" : node,
-				na->na_addr.la.nla_type == M0_NET_IP_PROTO_LO ? "lo" :
-					((na->na_addr.la.nla_type == M0_NET_IP_PROTO_TCP) ? "tcp" :
-								      "o2ib"),
-				na->na_addr.la.nla_portal);
+				na->na_addr.la.nla_type == M0_NET_IP_PROTO_LO ?
+				"0" : node,
+				na->na_addr.la.nla_type == M0_NET_IP_PROTO_LO ?
+				"lo" :
+				((na->na_addr.la.nla_type ==
+				  M0_NET_IP_PROTO_TCP) ? "tcp": "o2ib"),
+				  na->na_addr.la.nla_portal);
 		} else {
 			sprintf(buf, "%s@%s:12345:%d:%d",
-				na->na_addr.la.nla_type == M0_NET_IP_PROTO_LO ? "0" : node,
-				na->na_addr.la.nla_type == M0_NET_IP_PROTO_LO ? "lo" :
-					((na->na_addr.la.nla_type == M0_NET_IP_PROTO_TCP) ? "tcp" :
-								      "o2ib"),
-				na->na_addr.la.nla_portal, na->na_addr.la.nla_tmid);
+				na->na_addr.la.nla_type == M0_NET_IP_PROTO_LO ?
+				"0" : node,
+				na->na_addr.la.nla_type == M0_NET_IP_PROTO_LO ?
+				"lo" :
+				((na->na_addr.la.nla_type ==
+				  M0_NET_IP_PROTO_TCP) ? "tcp": "o2ib"),
+				  na->na_addr.la.nla_portal,
+				  na->na_addr.la.nla_tmid);
 		}
 	} else if (na->na_format == M0_NET_IP_INET_IP_FORMAT) {
 		if (na->na_addr.ia.nia_family == M0_NET_IP_AF_INET) {
-			inet_ntop(AF_INET, &na->na_n.sn[0], node, ARRAY_SIZE(node));
+			inet_ntop(AF_INET, &na->na_n.sn[0], node,
+				  ARRAY_SIZE(node));
 			sprintf(buf, "inet:%s:%s@%d",
-			ip_protocol[na->na_addr.ia.nia_type],
-			node, na->na_port);
+				ip_protocol[na->na_addr.ia.nia_type],
+				node, na->na_port);
 		} else if (na->na_addr.ia.nia_family == M0_NET_IP_AF_INET6) {
 			inet_ntop(AF_INET6, &na->na_n, node, ARRAY_SIZE(node));
 			sprintf(buf, "inet6:%s:%s@%d",
-			ip_protocol[na->na_addr.ia.nia_type],
-			node, na->na_port);
+				ip_protocol[na->na_addr.ia.nia_type],
+				node, na->na_port);
 		} else if (na->na_addr.ia.nia_family == M0_NET_IP_AF_UNIX) {
-			M0_LOG(M0_DEBUG, "UNIX format is currently not supported");
+			M0_LOG(M0_DEBUG, "Format is currently not supported");
 		}
 	} else if (na->na_format == M0_NET_IP_INET_HOSTNAME_FORMAT) {
 		M0_ASSERT(len >= strlen(buf));
@@ -322,7 +329,6 @@ M0_UNUSED int m0_net_ip_print(const struct m0_net_ip_addr *na, char *buf, uint32
 
 	return 0;
 }
-
 
 int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr)
 {
