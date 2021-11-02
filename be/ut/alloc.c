@@ -421,6 +421,7 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 	int                      ut_size;
 	bool                     ut_tval;
 	int                      chunk_header_size = m0_be_chunk_header_size();
+	char                    *iptr;
 
 	m0_be_ut_backend_init(ut_be);
 	m0_be_ut_seg_init(ut_seg, ut_be, BE_UT_ALLOC_SEG_SIZE);
@@ -451,9 +452,11 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 	M0_UT_ASSERT(m0_be_allocator__invariant(a));
 
 	/* Verify the alignment of the chunks */
-	for (i = 0; i < ut_nr; i++)
-		M0_UT_ASSERT(m0_addr_is_aligned(ut_ptr[i] - chunk_header_size,
-						ut_shift));
+	for (i = 0; i < ut_nr; i++) {
+		iptr = (char *)ut_ptr[i];
+		iptr = iptr - chunk_header_size;
+		M0_UT_ASSERT(m0_addr_is_aligned(iptr, ut_shift));
+	}
 
 	/* Delete the even numbered chunks */
 	for (i = 0; i < ut_nr; i += 2) {
@@ -474,10 +477,11 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 
 	/* Verify the alignment of the remaining chunks */
 	for (i = 1; i < ut_nr; i += 2) {
-		if (ut_ptr[i] != NULL)
-			M0_UT_ASSERT(
-			m0_addr_is_aligned(ut_ptr[i] - chunk_header_size,
-					   ut_shift));
+		if (ut_ptr[i] != NULL) {
+			iptr = (char *)ut_ptr[i];
+			iptr = iptr - chunk_header_size;
+			M0_UT_ASSERT(m0_addr_is_aligned(iptr, ut_shift));
+		}
 	}
 
 	/* Delete remaining chunks */
@@ -539,14 +543,14 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 
 	/* Verify the alignment of the chunks */
 	for (i = 0; i < ut_nr; i++) {
-		if (i % 2 == 0)
+		if (i % 2 == 0) {
+			iptr = (char *)ut_ptr[i];
+			iptr = iptr - chunk_header_size;
+			M0_UT_ASSERT(m0_addr_is_aligned(iptr,
+							BE_UT_ALLOC_SHIFT - 1));
+		} else
 			M0_UT_ASSERT(
-			m0_addr_is_aligned(ut_ptr[i] - chunk_header_size,
-					   BE_UT_ALLOC_SHIFT - 1));
-		else
-			M0_UT_ASSERT(
-			m0_addr_is_aligned(ut_ptr[i] - chunk_header_size,
-					   BE_UT_ALLOC_SHIFT));
+			m0_addr_is_aligned(ut_ptr[i], BE_UT_ALLOC_SHIFT));
 	}
 
 	/**
@@ -573,14 +577,14 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 	/* Verify the alignment of the remaining chunks */
 	for (i = 0; i < ut_nr && i % 3 != 0; i++) {
 		if (ut_ptr[i] != NULL) {
-			if (i % 2 == 0)
-				M0_UT_ASSERT(m0_addr_is_aligned(
-						ut_ptr[i] - chunk_header_size,
-						BE_UT_ALLOC_SHIFT - 1));
-			else
-				M0_UT_ASSERT(m0_addr_is_aligned(
-						ut_ptr[i] - chunk_header_size,
-						BE_UT_ALLOC_SHIFT));
+			if (i % 2 == 0) {
+				iptr = (char *)ut_ptr[i];
+				iptr = iptr - chunk_header_size;
+				M0_UT_ASSERT(m0_addr_is_aligned(iptr,
+							BE_UT_ALLOC_SHIFT - 1));
+			} else
+				M0_UT_ASSERT(m0_addr_is_aligned(ut_ptr[i],
+							    BE_UT_ALLOC_SHIFT));
 		}
 	}
 
