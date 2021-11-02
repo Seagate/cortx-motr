@@ -42,10 +42,17 @@ static const char *ip_protocol[M0_NET_IP_PROTO_MAX] = { "tcp",
 							"lo" };
 
 /**
+ * Bitmap of used transfer machine identifiers. 1 is for used and 0 is for free.
+ */
+static uint8_t ip_autotm[1024] = {};
+
+/**
  * This function convert the hostname/FQDN format to ip format.
  * Here hostname can be FQDN or local machine hostname.
+ * Return value:  <= 0 in case of error
+ *                > 0 num of bytes when addr resolution is successful
  */
-static int m0_net_hostname_to_ip(char *hostname , char* ip,
+static int m0_net_hostname_to_ip(char *hostname, char *ip,
 				 struct m0_net_ip_addr *ip_addr)
 {
 	struct hostent  *hname;
@@ -64,15 +71,15 @@ static int m0_net_hostname_to_ip(char *hostname , char* ip,
 	memcpy(name, hostname, n);
 	name[n] = '\0';
 	if ((hname = gethostbyname(name)) == NULL) {
-		/** get the host info */
+		/** Get the host info. */
 		M0_LOG(M0_ERROR, "gethostbyname error %s", (char*)name);
 		return M0_ERR(-EPROTO);
 	}
 
-	addr = (struct in_addr **) hname->h_addr_list;
+	addr = (struct in_addr **)hname->h_addr_list;
 	for(i = 0; addr[i] != NULL; i++) {
-		/** Return the first one */
-		strcpy(ip , inet_ntoa(*addr[i]));
+		/** Return the first one. */
+		strcpy(ip, inet_ntoa(*addr[i]));
 		n=strlen(ip);
 		M0_LOG(M0_DEBUG, "%s[%s]", (char*)name, (char*)ip);
 		if (strcmp(name, ip) == 0)
@@ -92,7 +99,6 @@ static int m0_net_hostname_to_ip(char *hostname , char* ip,
  *                 "inet:stream:lanl.gov@23",
  *                 "inet6:dgram:FE80::0202:B3FF:FE1E:8329@6663"
  */
-
 static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 {
 	int          shift = 0;
@@ -101,7 +107,6 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 	char        *at;
 	char         ip[M0_NET_IP_STRLEN_MAX] = {};
 	int          n;
-	char         node[M0_NET_IP_STRLEN_MAX] = {};
 	char         port[6] = {};
 	const char  *ep_name = name;
 	uint32_t     portnum;
@@ -113,6 +118,8 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 				break;
 		}
 	}
+	if (f >= ARRAY_SIZE(ip_family))
+		return M0_ERR(-EINVAL);
 	if (ep_name[shift] != ':')
 		return M0_ERR(-EINVAL);
 	ep_name += shift + 1;
@@ -123,29 +130,31 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 				break;
 		}
 	}
+	if (s >= ARRAY_SIZE(ip_protocol))
+		return M0_ERR(-EINVAL);
 	if (ep_name[shift] != ':')
 		return M0_ERR(-EINVAL);
 	ep_name += shift + 1;
 	at = strchr(ep_name, '@');
-	if (at == NULL) {
+	if (at == NULL)
 		return M0_ERR(-EINVAL);
-	} else {
+	else {
 		at++;
-		if (at == NULL)
+		if (at == NULL || at[0] < '0' || at[0] > '9')
 			return M0_ERR(-EINVAL);
-		memcpy(port, at, (strlen(at)+1));
+		strcpy(port, at);
 		portnum = atoi(port);
 		M0_ASSERT(portnum < M0_NET_IP_PORT_MAX);
 		addr->na_port = (uint16_t)portnum;
 	}
 
 	n = m0_net_hostname_to_ip((char *)ep_name, ip, addr);
-	if (n > 0)
-		memcpy(node, ip, n);
-	else
-		return n == 0 ? M0_ERR(-EPROTO) : M0_ERR(n);
+	if (n == 0)
+		M0_ERR(-EPROTO);
+	else if (n < 0)
+		M0_ERR(n);
 
-	inet_pton(AF_INET, node, &addr->na_n.sn[0]);
+	inet_pton(AF_INET, ip, &addr->na_n.sn[0]);
 	M0_ASSERT(strlen(name) < ARRAY_SIZE(addr->na_p));
 	strcpy(addr->na_p, name);
 	addr->na_addr.ia.nia_family = f;
@@ -153,11 +162,6 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 
 	return 0;
 }
-
-/**
- * Bitmap of used transfer machine identifiers. 1 is for used and 0 is for free.
- */
-static uint8_t ip_autotm[1024] = {};
 
 /**
  * This function decodes the lnet format address and extracts the ip address and
@@ -322,12 +326,10 @@ M0_UNUSED int m0_net_ip_print(const struct m0_net_ip_addr *na, char *buf, uint32
 
 int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr)
 {
-	int rc;
-	if ( name[0] >= '0' && name[0] <= '9')
-		rc = m0_net_ip_lnet_parse(name, addr);
-	else
-		rc = m0_net_ip_inet_parse(name, addr);
-	return rc;
+	M0_PRE(name != NULL);
+	return (name[0] >= '0' && name[0] <= '9') ?
+		m0_net_ip_lnet_parse(name, addr) :
+		m0_net_ip_inet_parse(name, addr);
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -274,6 +274,7 @@ struct m0_fab__ep_name {
 	/** Port range 0-65535 */
 	char fen_port[LIBFAB_PORT_LEN_MAX];
 
+	/** TODO: Replace 'fen_str_addr' with 'fen_name.na_p' */
 	/** address in string format as passed by the net layer */
 	char fen_str_addr[LIBFAB_ADDR_STRLEN_MAX];
 

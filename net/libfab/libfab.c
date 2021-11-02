@@ -350,6 +350,28 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 }
 
 /**
+ * Constructs an address in string format from the connection data parameters
+ */
+/** TODO: Replace this function with m0_net_ip_print() */
+static void libfab_straddr_gen(struct m0_net_ip_addr *addr,
+			       struct m0_fab__ep_name *en)
+{
+	if (addr->na_format == M0_NET_IP_LNET_FORMAT)
+		inet_ntop(AF_INET, &addr->na_n.sn[0], en->fen_addr,
+			  ARRAY_SIZE(en->fen_addr));
+	else if (addr->na_addr.ia.nia_family == M0_NET_IP_AF_INET)
+		inet_ntop(AF_INET, &addr->na_n.sn[0], en->fen_addr,
+			  ARRAY_SIZE(en->fen_addr));
+	else if (addr->na_addr.ia.nia_family == M0_NET_IP_AF_INET6)
+		inet_ntop(AF_INET6, &addr->na_n.ln[0], en->fen_addr,
+			  ARRAY_SIZE(en->fen_addr));
+	else
+		M0_LOG(M0_ERROR, "Family is not supported.");
+
+	sprintf(en->fen_port, "%d", addr->na_port);
+}
+
+/**
  * Parses network address.
  *
  * The following address formats are supported:
@@ -358,46 +380,31 @@ M0_INTERNAL void m0_net_libfab_fini(void)
  *        <nid>@<type>:<pid>:<portal>:<tmid>
  *       for example: "10.0.2.15@tcp:12345:34:123",
  *                    "192.168.96.128@tcp:12345:31:*",
- *                     see nlx_core_ep_addr_decode()
+ *                    see nlx_core_ep_addr_decode()
  *
  *     - The inet address format is of type
  *         <family>:<type>:<ipaddr/hostname_FQDN>@<port>
  *        for example: "inet:tcp:127.0.0.1@3000",
  *                     "inet:stream:lanl.gov@23",
- *                      "inet6:dgram:FE80::0202:B3FF:FE1E:8329@6663"
+ *                     "inet6:dgram:FE80::0202:B3FF:FE1E:8329@6663"
  *
  */
 static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
 				 struct m0_fab__ndom *fnd)
 {
-	char *node = ep->fep_name_p.fen_addr;
-	char *port = ep->fep_name_p.fen_port;
-	size_t nodesize = ARRAY_SIZE(ep->fep_name_p.fen_addr);
 	int result;
-	struct m0_net_ip_addr *addr = &ep->fep_name_p.fen_name;
 
 	M0_ENTRY("name=%s", name);
 
 	if (name == NULL || name[0] == 0)
 		result =  M0_ERR(-EPROTO);
 
-	result = m0_net_ip_parse(name, addr);
+	result = m0_net_ip_parse(name, &ep->fep_name_p.fen_name);
 	if (result == 0)
 	{
 		strcpy(ep->fep_name_p.fen_str_addr, name);
-		if (addr->na_format == M0_NET_IP_LNET_FORMAT)
-			inet_ntop(AF_INET, &addr->na_n.sn[0], node,
-				  nodesize);
-		else if (addr->na_addr.ia.nia_family == M0_NET_IP_AF_INET)
-			inet_ntop(AF_INET, &addr->na_n.sn[0], node,
-				  nodesize);
-		else if (addr->na_addr.ia.nia_family == M0_NET_IP_AF_INET6)
-			inet_ntop(AF_INET6, &addr->na_n.ln[0], node,
-				  nodesize);
-		else
-			M0_LOG(M0_ERROR, "UNIX family is not supported.");
-
-		sprintf(port, "%d", addr->na_port);
+		libfab_straddr_gen(&ep->fep_name_p.fen_name,
+				   &ep->fep_name_p);
 	}
 	return M0_RC(result);
 }
@@ -525,47 +532,6 @@ static void libfab_tm_buf_done(struct m0_fab__tm *ftm)
 }
 
 /**
- * Constructs an address in string format from the connection data parameters
- */
-/** TODO: Replace this function with m0_net_ip_print() */
-static void libfab_straddr_gen(struct m0_fab__conn_data *cd,
-			       struct m0_fab__ep_name *en)
-{
-	struct m0_net_ip_addr *addr = &cd->fcd_addr;
-
-	if (addr->na_format == M0_NET_IP_LNET_FORMAT)
-		inet_ntop(AF_INET, &addr->na_n.sn[0], en->fen_addr,
-			  ARRAY_SIZE(en->fen_addr));
-	else if (addr->na_addr.ia.nia_family == M0_NET_IP_AF_INET)
-		inet_ntop(AF_INET, &addr->na_n.sn[0], en->fen_addr,
-			  ARRAY_SIZE(en->fen_addr));
-	else if (addr->na_addr.ia.nia_family == M0_NET_IP_AF_INET6)
-		inet_ntop(AF_INET6, &addr->na_n.ln[0], en->fen_addr,
-			  ARRAY_SIZE(en->fen_addr));
-	else
-		M0_LOG(M0_ERROR, "Family is not supported.");
-
-	sprintf(en->fen_port, "%d", addr->na_port);
-#if 0
-	libfab_ep_ntop(cd->fcd_netaddr, en);
-	if (cd->fcd_tmid == 0xFFFF)
-		sprintf(buf, "%s@%s:12345:%d:*",
-			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
-			cd->fcd_iface == FAB_LO ? "lo" :
-				((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
-			cd->fcd_portal);
-	else
-		sprintf(buf, "%s@%s:12345:%d:%d",
-			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
-			cd->fcd_iface == FAB_LO ? "lo" :
-			((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
-			cd->fcd_portal, cd->fcd_tmid);
-
-	M0_ASSERT(len >= strlen(buf));
-#endif /* #if 0*/
-}
-
-/**
  * Used to handle incoming connection request events
  * 
  * This function is called from the poller thread and there is no action
@@ -592,7 +558,7 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 	if (rc >= (int)sizeof(struct fi_eq_cm_entry) && event == FI_CONNREQ) {
 		cm_entry = (struct fi_eq_cm_entry *)entry;
 		cd = (struct m0_fab__conn_data*)(cm_entry->data);
-		libfab_straddr_gen(cd, &en);
+		libfab_straddr_gen(&cd->fcd_addr, &en);
 		rc = libfab_fab_ep_find(tm, &en, cd->fcd_addr.na_p, &ep);
 		if (rc == 0) {
 			rc = libfab_conn_accept(ep, tm, cm_entry->info);
