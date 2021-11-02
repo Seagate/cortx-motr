@@ -323,8 +323,7 @@ static void *worker_thread(void *datum)
         struct workload_op    op;
 
         op.wo_task = wt;
-
-	/*
+        /*
 	 * Motr can launch multiple operations in a single go.
 	 * Single operation in a loop won't work for Motr.
 	 */

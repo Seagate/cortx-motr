@@ -18,7 +18,6 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-
 motr_st_util_dir=$(dirname $(readlink -f $0))
 m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
@@ -77,12 +76,15 @@ test_with_N_K()
 	object_id3=0x7300000000000001:0x34
 	object_id4=1048577
 	block_size=4096
-	block_count=5120
+	block_count=100
 	obj_count=5
-	trunc_len=2560
+	#trunc_len=256
+        trunc_len=50
+        #trunc_len=1048576
 	trunc_count=17
+        #trunc_count=256
 	read_verify="false"
-	blks_per_io=100
+	blks_per_io=256
 	MOTR_PARAMS="-l $MOTR_LOCAL_EP -H $MOTR_HA_EP -p $MOTR_PROF_OPT \
                        -P $MOTR_PROC_FID"
 	MOTR_PARAMS_V="-l $MOTR_LOCAL_EP -H $MOTR_HA_EP -p $MOTR_PROF_OPT \
@@ -258,7 +260,7 @@ EOF
 
 	# Truncate range beyond EOF
 	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
-                                 -s $block_size -c $block_count -L 9 \
+                                -s $block_size -c $block_count -L 9 \
                                  -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
 	}

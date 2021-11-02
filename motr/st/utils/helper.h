@@ -40,7 +40,7 @@
   * Currently Client can write at max 100 blocks in
   * a single request. This will change in future.
   */
-enum { M0_MAX_BLOCK_COUNT = 100 };
+enum { M0_MAX_BLOCK_COUNT = 256 };
 
 enum {
 	/** Min block size */
