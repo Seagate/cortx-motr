@@ -153,6 +153,11 @@ M0_INTERNAL void m0_be_emap_create(struct m0_be_emap   *map,
 				   struct m0_be_op     *op,
 				   const struct m0_fid *fid);
 
+M0_INTERNAL void m0_be_emap_truncate(struct m0_be_emap *map,
+				    struct m0_be_tx   *tx,
+				    struct m0_be_op   *op,
+				    m0_bcount_t       *limit);
+
 /** Destroy maps collection. */
 M0_INTERNAL void m0_be_emap_destroy(struct m0_be_emap *map,
 				    struct m0_be_tx   *tx,
@@ -438,6 +443,11 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *emap,
 				   enum m0_be_emap_optype  optype,
 				   m0_bcount_t             nr,
 				   struct m0_be_tx_credit *accum);
+
+M0_INTERNAL void m0_be_emap_truncate_credit(struct m0_be_tx  *tx,
+					    struct m0_be_emap      *map,
+					    struct m0_be_tx_credit *accum,
+					    m0_bcount_t            *limit);
 
 M0_INTERNAL
 struct m0_be_domain *m0_be_emap_seg_domain(const struct m0_be_emap *emap);
