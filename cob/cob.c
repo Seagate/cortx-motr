@@ -795,6 +795,7 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 	m0_cob_nskey_make(&nskey, &M0_COB_ROOT_FID, M0_COB_ROOT_NAME,
 			       strlen(M0_COB_ROOT_NAME));
 	rc = m0_cob_lookup(dom, nskey, M0_CA_NSKEY_FREE, &cob);
+	M0_ASSERT(rc == 0);
 	m0_cob_delete(cob, tx);
 
 	m0_be_tx_close_sync(tx);
