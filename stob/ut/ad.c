@@ -192,15 +192,15 @@ static void init_vecs()
 	}
 
 	// Allocate contigious buffer for i/p checksums
-	memset( user_cksm_buf[0], cs_char++, AD_CS_SZ);	
+	memset( user_cksm_buf[0], cs_char++, AD_CS_SZ);
 	for (i = 1; i < ARRAY_SIZE(user_cksm_buf); ++i) {
-		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_CS_SZ; 	
+		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_CS_SZ;
 		memset( user_cksm_buf[i], cs_char++, AD_CS_SZ);
 	}
 
-	memset( read_cksm_buf[0], 0, AD_CS_SZ);	
+	memset( read_cksm_buf[0], 0, AD_CS_SZ);
 	for (i = 1; i < ARRAY_SIZE(read_cksm_buf); ++i) {
-		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_CS_SZ; 	
+		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_CS_SZ;
 		memset( read_cksm_buf[i], 0, AD_CS_SZ);
 	}
 }
@@ -257,16 +257,16 @@ static int test_ad_init(bool use_small_credits)
 		user_buf[i] = m0_alloc_aligned(buf_size, block_shift);
 		M0_ASSERT(user_buf[i] != NULL);
 	}
-	
+
 	user_cksm_buf[0] = m0_alloc(AD_CS_SZ * ARRAY_SIZE(user_cksm_buf));
 	M0_ASSERT(user_cksm_buf[0] != NULL);
-	
+
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i) {
 		read_buf[i] = m0_alloc_aligned(buf_size, block_shift);
 		M0_ASSERT(read_buf[i] != NULL);
 	}
 
-	// Allocate contigious buffer for o/p checksums 
+	// Allocate contigious buffer for o/p checksums
 	read_cksm_buf[0] = m0_alloc(AD_CS_SZ * ARRAY_SIZE(read_cksm_buf));
 	M0_ASSERT(read_cksm_buf[0] != NULL);
 
@@ -285,6 +285,7 @@ static int test_ad_fini(void)
 	int i;
 
 	m0_stob_put(obj_fore);
+	m0_stob_domain_truncate(dom_fore);
 	m0_stob_domain_destroy(dom_fore);
 	m0_stob_put(obj_back);
 	m0_stob_domain_destroy(dom_back);
@@ -497,7 +498,7 @@ static void test_ad_rw_unordered()
 	for (i = NR/2; i < NR; ++i) {
 		stob_vi[i-(NR/2)] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i-(NR/2)], ('a' + i)|1, buf_size);
-		memset(user_cksm_buf[i-(NR/2)], ('A' + i)|1, AD_CS_SZ);		
+		memset(user_cksm_buf[i-(NR/2)], ('A' + i)|1, AD_CS_SZ);
 	}
 	test_write(NR/2, NULL);
 
