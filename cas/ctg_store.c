@@ -2032,8 +2032,9 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 	int                          rc;
 	struct ctg_ctidx_put_cb_data cb_data = {
 		.d_ctidx = ctidx,
-		.d_cid = cid,
-		.d_tx  = tx,
+		.d_cid   = cid,
+		.d_tx    = tx,
+		.d_key   = &rec.r_key,
 		};
 	struct m0_btree_cb   put_cb = {
 		.c_act   = ctg_ctidx_put_cb,
