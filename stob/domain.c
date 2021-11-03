@@ -224,6 +224,29 @@ M0_INTERNAL int m0_stob_domain_create(const char *location,
 				       str_cfg_create, out, false);
 }
 
+M0_INTERNAL int m0_stob_domain_truncate(struct m0_stob_domain *dom)
+{
+	const char          *location_const = m0_stob_domain_location_get(dom);
+	char                *location;
+	struct m0_stob_type *type;
+	char                *location_data;
+	int                  rc;
+
+	M0_ENTRY("location=%s", location_const);
+	location = location_const == NULL ? NULL : m0_strdup(location_const);
+	rc = location == NULL ? -ENOMEM : 0;
+	if (rc)
+		return M0_RC(rc);
+	rc = stob_domain_type(location, &type);
+	location_data = rc == 0 ? stob_domain_location_data(location) : NULL;
+	rc = rc ?: location_data == NULL ? -ENOMEM : 0;
+	rc = rc ?: type->st_ops->sto_domain_truncate(type, location_data);
+
+	if (!M0_IN(rc, (0, -ENOENT)))
+		return M0_ERR(rc);
+	return M0_RC(rc);
+}
+
 M0_INTERNAL int m0_stob_domain_destroy(struct m0_stob_domain *dom)
 {
 	const char *location_const = m0_stob_domain_location_get(dom);
