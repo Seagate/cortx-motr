@@ -649,13 +649,14 @@ static int stob_ad_domain_truncate(struct m0_stob_type *type,
 								       &tx, &op,
 								       &limit),
 					       bo_u.u_emap.e_rc);
+			M0_ASSERT(rc == 0);
 			m0_be_tx_close_sync(&tx);
 			m0_be_tx_fini(&tx);
 		} else {
 			m0_be_tx_fini(&tx);
 			break;
 		}
-	} while(rc);
+	} while(!m0_btree_is_empty(emap->em_mapping));
 	m0_sm_group_unlock(grp);
 
 	return M0_RC(rc);
