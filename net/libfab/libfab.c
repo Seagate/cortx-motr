@@ -2351,7 +2351,6 @@ static int libfab_dns_resolve_retry(struct m0_fab__ep *ep)
 	int                     rc = 0;
 	uint8_t                 not_used;
 	char                   *fqdn = en->fen_str_addr;
-	// char                    hostname[LIBFAB_ADDR_STRLEN_MAX] = {};
 
 	/* Verify if ip addr is resolved and ip is valid */
 	if (en->fen_addr_frmt == FAB_NATIVE_HOSTNAME_FORMAT &&
