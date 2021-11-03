@@ -623,6 +623,48 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 	return M0_RC(rc);
 }
 
+static int stob_ad_domain_truncate(struct m0_stob_type *type,
+				   const char *location_data)
+{
+	struct m0_stob_ad_domain *adom = stob_ad_domain_locate(location_data);
+	struct m0_sm_group       *grp  = stob_ad_sm_group();
+	struct m0_be_emap        *emap = &adom->sad_adata;
+	struct m0_be_seg         *seg;
+	struct m0_be_tx           tx   = {};
+	struct m0_be_tx_credit    cred = M0_BE_TX_CREDIT(0, 0);
+	int                       rc;
+	m0_bcount_t               limit;
+
+	if (adom == NULL)
+		return 0;
+
+	seg = adom->sad_be_seg;
+	m0_be_emap_init(emap, seg);
+	m0_sm_group_lock(grp);
+	do {
+		m0_be_tx_init(&tx, 0, seg->bs_domain, grp,
+			      NULL, NULL, NULL, NULL);
+		m0_be_emap_truncate_credit(&tx, emap, &cred, &limit);
+		m0_be_tx_prep(&tx, &cred);
+		rc = m0_be_tx_exclusive_open_sync(&tx);
+		if (rc == 0) {
+			rc = M0_BE_OP_SYNC_RET(op, m0_be_emap_truncate(emap,
+								       &tx, &op,
+								       &limit),
+					       bo_u.u_emap.e_rc);
+			M0_ASSERT(rc == 0);
+			m0_be_tx_close_sync(&tx);
+			m0_be_tx_fini(&tx);
+		} else {
+			m0_be_tx_fini(&tx);
+			break;
+		}
+	} while(!m0_btree_is_empty(emap->em_mapping));
+	m0_sm_group_unlock(grp);
+
+	return M0_RC(rc);
+}
+
 static int stob_ad_domain_destroy(struct m0_stob_type *type,
 				  const char *location_data)
 {
@@ -977,6 +1019,7 @@ static struct m0_stob_type_ops stob_ad_type_ops = {
 	.sto_domain_init	     = &stob_ad_domain_init,
 	.sto_domain_create	     = &stob_ad_domain_create,
 	.sto_domain_destroy	     = &stob_ad_domain_destroy,
+	.sto_domain_truncate         = &stob_ad_domain_truncate,
 };
 
 static struct m0_stob_domain_ops stob_ad_domain_ops = {
