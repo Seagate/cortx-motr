@@ -182,6 +182,13 @@ M0_INTERNAL int m0_stob_domain_create(const char *location,
 M0_INTERNAL int m0_stob_domain_destroy(struct m0_stob_domain *dom);
 
 /**
+ * Truncates a stob domain.
+ *
+ * It will delete all the record present in stob domain.
+ */
+M0_INTERNAL int m0_stob_domain_truncate(struct m0_stob_domain *dom);
+
+/**
  * Destroys a stob domain.
  *
  * Stob domain shouldn't be in initialised state at the time of the call.
