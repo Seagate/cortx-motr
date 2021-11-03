@@ -418,6 +418,19 @@ M0_INTERNAL void m0_be_emap_create(struct m0_be_emap   *map,
 	m0_be_op_done(op);
 }
 
+M0_INTERNAL void m0_be_emap_truncate(struct m0_be_emap *map,
+				     struct m0_be_tx   *tx,
+				     struct m0_be_op   *op,
+				     m0_bcount_t       *limit)
+{
+	struct m0_btree_op b_op = {};
+	m0_be_op_active(op);
+	op->bo_u.u_emap.e_rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+			       m0_btree_truncate(map->em_mapping, *limit,
+						 tx, &b_op));
+	m0_be_op_done(op);
+}
+
 M0_INTERNAL void m0_be_emap_destroy(struct m0_be_emap *map,
 				    struct m0_be_tx   *tx,
 				    struct m0_be_op   *op)
@@ -1094,6 +1107,14 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 	default:
 		M0_IMPOSSIBLE("invalid emap operation");
 	}
+}
+
+M0_INTERNAL void m0_be_emap_truncate_credit(struct m0_be_tx        *tx,
+					    struct m0_be_emap      *map,
+					    struct m0_be_tx_credit *accum,
+					    m0_bcount_t            *limit)
+{
+	m0_btree_truncate_credit(tx, map->em_mapping, accum, limit);
 }
 
 static int
