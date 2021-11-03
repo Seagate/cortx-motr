@@ -721,6 +721,34 @@ tx_fini:
 static int cob_table_delete(struct m0_btree *tree, struct m0_be_tx *tx,
 			    struct m0_buf *key);
 
+int cob_domain_truncate(struct m0_btree     *btree,
+			struct m0_sm_group  *grp,
+			struct m0_be_domain *bedom,
+			struct m0_be_tx     *tx)
+{
+	m0_bcount_t             limit;
+	int                     rc;
+	struct m0_btree_op      b_op  = {};
+	struct m0_be_tx_credit  cred;
+	do {
+		M0_SET0(tx);
+		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+		m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
+		m0_btree_truncate_credit(tx, btree, &cred, &limit);
+		m0_be_tx_prep(tx, &cred);
+		rc = m0_be_tx_exclusive_open_sync(tx);
+		if (rc != 0)
+			return M0_RC(rc);
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+					      m0_btree_truncate(btree, limit,
+								tx, &b_op));
+		M0_ASSERT(rc == 0);
+		m0_be_tx_close_sync(tx);
+		m0_be_tx_fini(tx);
+	} while(!m0_btree_is_empty(btree));
+	return M0_RC(rc);
+}
+
 int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 			  struct m0_sm_group   *grp,
 			  struct m0_be_domain  *bedom)
@@ -767,12 +795,29 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 	m0_cob_nskey_make(&nskey, &M0_COB_ROOT_FID, M0_COB_ROOT_NAME,
 			       strlen(M0_COB_ROOT_NAME));
 	rc = m0_cob_lookup(dom, nskey, M0_CA_NSKEY_FREE, &cob);
+	M0_ASSERT(rc == 0);
 	m0_cob_delete(cob, tx);
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
 
 	seg = m0_be_domain_seg(bedom, dom);
+	rc = cob_domain_truncate(dom->cd_object_index,   grp, bedom, tx);
+	if (rc != 0)
+		goto tx_fini_return;
+	rc = cob_domain_truncate(dom->cd_namespace,      grp, bedom, tx);
+	if (rc != 0)
+		goto tx_fini_return;
+	rc = cob_domain_truncate(dom->cd_fileattr_basic, grp, bedom, tx);
+	if (rc != 0)
+		goto tx_fini_return;
+	rc = cob_domain_truncate(dom->cd_fileattr_omg,   grp, bedom, tx);
+	if (rc != 0)
+		goto tx_fini_return;
+	rc = cob_domain_truncate(dom->cd_fileattr_ea,    grp, bedom, tx);
+	if (rc != 0)
+		goto tx_fini_return;
+
 	m0_be_0type_del_credit(bedom, &m0_be_cob0, cdid_str, &cred);
 	M0_BE_FREE_CREDIT_PTR(dom, seg, &cred);
 	m0_btree_destroy_credit(dom->cd_object_index,   NULL, &cred, 1);
