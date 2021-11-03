@@ -112,6 +112,9 @@ struct m0_stob_type_ops {
 	/** @see m0_stob_domain_destroy_location()  */
 	int (*sto_domain_destroy)(struct m0_stob_type *type,
 				  const char *location_data);
+	/** @see m0_stob_domain_truncate_location()  */
+	int (*sto_domain_truncate)(struct m0_stob_type *type,
+				   const char *location_data);
 };
 
 /**
