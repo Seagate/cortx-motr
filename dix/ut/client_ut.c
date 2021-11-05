@@ -1834,7 +1834,7 @@ static void dix_put_dgmode(void)
 
 	/*
 	 * Put record when one drive is failed.
-	 * The record should be inserted in a spare unit.
+	 * The record should be inserted in a parity unit.
 	 */
 	sdev_id = dix_sdev_id(PG_UNIT_DATA);
 	dix_disk_failure_set(sdev_id, M0_PNDS_FAILED);
@@ -1843,7 +1843,7 @@ static void dix_put_dgmode(void)
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
 	M0_UT_ASSERT(dix_cctg_has_replica(&index, &keys, &vals,
-					  dix_sdev_id(PG_UNIT_SPARE0)));
+					  dix_sdev_id(PG_UNIT_PARITY0)));
 	dix_rep_free(&rep);
 	rc = dix_ut_del(&index, &keys, &rep);
 	M0_UT_ASSERT(rc == 0);
@@ -1853,7 +1853,7 @@ static void dix_put_dgmode(void)
 
 	/*
 	 * Put record when the drive with data unit is in repairing state.
-	 * Spare slot should be used instead of this drive.
+	 * Parity slot should be used instead of this drive.
 	 */
 	sdev_id = dix_sdev_id(PG_UNIT_DATA);
 	dix_disk_failure_set(sdev_id, M0_PNDS_SNS_REPAIRING);
@@ -1862,7 +1862,7 @@ static void dix_put_dgmode(void)
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
 	M0_UT_ASSERT(dix_cctg_has_replica(&index, &keys, &vals,
-					  dix_sdev_id(PG_UNIT_SPARE0)));
+					  dix_sdev_id(PG_UNIT_PARITY0)));
 	dix_rep_free(&rep);
 	dix_disk_online_set(sdev_id);
 	M0_UT_ASSERT(!dix_cctg_has_replica(&index, &keys, &vals,
@@ -1871,7 +1871,7 @@ static void dix_put_dgmode(void)
 
 	/*
 	 * Put record when the drive with data unit is in re-balancing state.
-	 * Spare slot and re-balance target should both be updated.
+	 * Parity slot-1 and parity slot-2 should both be updated.
 	 */
 	sdev_id = dix_sdev_id(PG_UNIT_DATA);
 	dix_disk_failure_set(sdev_id, M0_PNDS_SNS_REBALANCING);
@@ -1880,9 +1880,9 @@ static void dix_put_dgmode(void)
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
 	M0_UT_ASSERT(dix_cctg_has_replica(&index, &keys, &vals,
-					  dix_sdev_id(PG_UNIT_DATA)));
+					  dix_sdev_id(PG_UNIT_PARITY0)));
 	M0_UT_ASSERT(dix_cctg_has_replica(&index, &keys, &vals,
-					  dix_sdev_id(PG_UNIT_SPARE0)));
+					  dix_sdev_id(PG_UNIT_PARITY1)));
 	dix_rep_free(&rep);
 	dix_records_erase(&index, &keys);
 	dix_disk_online_set(sdev_id);
@@ -2401,7 +2401,7 @@ static void dix_del_dgmode(void)
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
 	M0_UT_ASSERT(dix_cctg_has_replica(&index, &keys, &vals,
-					  dix_sdev_id(PG_UNIT_SPARE0)));
+					  dix_sdev_id(PG_UNIT_PARITY0)));
 	dix_rep_free(&rep);
 	rc = dix_ut_del(&index, &keys, &rep);
 	M0_UT_ASSERT(rc == 0);
@@ -2414,13 +2414,12 @@ static void dix_del_dgmode(void)
 
 	/*
 	 * Delete record when the drive with data unit is in re-balancing state.
-	 * Spare slot and re-balance target should both be updated.
+	 * Parity slot and re-balance target should be updated.
 	 * Check two cases: when re-balance target was empty and when it wasn't.
 	 */
 	sdev_id = dix_sdev_id(PG_UNIT_DATA);
 	rc = dix_cctg_records_del(&index, &keys, sdev_id);
 	M0_UT_ASSERT(rc == 0);
-	dix_cctg_records_put(&index, &keys, &vals, dix_sdev_id(PG_UNIT_SPARE0));
 	dix_disk_failure_set(sdev_id, M0_PNDS_SNS_REBALANCING);
 	rc = dix_ut_del(&index, &keys, &rep);
 	M0_UT_ASSERT(rc == 0);
@@ -2433,7 +2432,7 @@ static void dix_del_dgmode(void)
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
 	M0_UT_ASSERT(dix_cctg_has_replica(&index, &keys, &vals,
-					  dix_sdev_id(PG_UNIT_DATA)));
+					  dix_sdev_id(PG_UNIT_PARITY0)));
 	dix_rep_free(&rep);
 	rc = dix_ut_del(&index, &keys, &rep);
 	M0_UT_ASSERT(rc == 0);
@@ -2530,14 +2529,14 @@ static void local_failures(void)
 	M0_UT_ASSERT(rc == 0);
 	/*
 	 * Only two CAS requests can be sent successfully, but N + K = 3, so
-	 * no record will be successfully put to all component catalogues.
+	 * two records will be successfully put to all component catalogues.
 	 */
 	m0_fi_enable_off_n_on_m("cas_req_replied_cb", "send-failure", 2, 3);
 	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
 	m0_fi_disable("cas_req_replied_cb", "send-failure");
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
-	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc != 0));
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
 	dix_rep_free(&rep);
 	dix_kv_destroy(&keys, &vals);
 	dix_index_fini(&index);
@@ -3152,7 +3151,7 @@ static void server_is_down(void)
 	dix_index_init(&index, 1);
 	m0_fi_enable_once("cas_sdev_state", "sdev_fail");
 	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
-	M0_UT_ASSERT(rc == -EBADFD);
+	M0_UT_ASSERT(rc == 0);
 	dix_index_fini(&index);
 	ut_service_fini();
 }

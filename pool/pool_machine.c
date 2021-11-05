@@ -720,7 +720,23 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 					event->pe_state);
 		m0_poolmach_event_list_dump_locked(pm);
 	}
-	pm->pm_pver->pv_is_dirty = state->pst_nr_failures > 0;
+
+	/*
+	 * Skipping to mark pool version as dirty in case of dix/md pool.
+	 * Assuming DIX and MD has N=1 always
+	 */
+	if (pm->pm_pver->pv_attr.pa_N != 1) {
+		M0_LOG(M0_DEBUG, "pver is marked dirty: "FID_F,
+		       FID_P(&pm->pm_pver->pv_id));
+		pm->pm_pver->pv_is_dirty = state->pst_nr_failures > 0;
+	} else {
+		pm->pm_pver->pv_is_dirty = state->pst_nr_failures > 
+					   pm->pm_pver->pv_attr.pa_K;
+		if (pm->pm_pver->pv_is_dirty)
+			M0_LOG(M0_DEBUG, "dix/md pool pver is marked dirty: "
+			       FID_F, FID_P(&pm->pm_pver->pv_id));
+	}
+
 	/* Clear any dirty sns flags set during previous repair */
 	pm->pm_pver->pv_sns_flags = state->pst_nr_failures <=
 				    state->pst_max_device_failures ?

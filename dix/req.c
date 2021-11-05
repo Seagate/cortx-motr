@@ -1625,15 +1625,42 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_dix_rop_ctx *rop_del_phase2 = NULL;
 	bool                   del_phase2 = false;
 	struct m0_dix_cas_rop *cas_rop;
+	int		       cas_failures = 0;
+	int		       cas_success = 0;
+	int 		       ret_val;
+
+	M0_ENTRY();
 
 	(void)grp;
 	if (req->dr_type == DIX_NEXT)
 		m0_dix_next_result_prepare(req);
-	else
+	else {
+		M0_LOG(M0_DEBUG, "Total CAS requests: %"PRIu64, rop->dg_cas_reqs_nr);
+		if (rop->dg_cas_reqs_nr > 1) {
+			m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
+				ret_val = cas_rop->crp_creq.ccr_sm.sm_rc;
+				if (ret_val != 0) {
+					cas_failures++;
+			 	} else
+					cas_success++;			
+			} m0_tl_endfor;
+		}
+		M0_LOG(M0_DEBUG, "CAS successes: %d, CAS failures: %d", 
+		       cas_success, cas_failures);
+
 		m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
+			ret_val = cas_rop->crp_creq.ccr_sm.sm_rc;
+			if (cas_success && (ret_val != 0)) {
+				/* One or more CAS requests was executed without 
+ 				 * error, finalising failed CAS. 
+				 */
+				m0_cas_req_fini(&cas_rop->crp_creq);
+				continue;
+			}
 			dix_cas_rop_rc_update(cas_rop, 0);
 			m0_cas_req_fini(&cas_rop->crp_creq);
 		} m0_tl_endfor;
+	}
 
 	if (req->dr_type == DIX_DEL &&
 	    dix_req_state(req) == DIXREQ_INPROGRESS)
