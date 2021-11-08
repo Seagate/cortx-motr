@@ -532,7 +532,7 @@ static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
 		++cp;
 	}
 
-	if (n+1 > node_size || strlen(cp)+1 > port_size)
+	if (n + 1 > node_size || strlen(cp) + 1 > port_size)
 		return M0_ERR(-EINVAL);
 
 	node[0] = '\0';
