@@ -724,21 +724,26 @@ static void libfab_tm_buf_done(struct m0_fab__tm *ftm)
 static void libfab_straddr_gen(struct m0_fab__conn_data *cd, char *buf,
 			       uint8_t len, struct m0_fab__ep_name *en)
 {
+	int rc;
+
 	libfab_ep_ntop(cd->fcd_netaddr, en);
+
 	if (cd->fcd_tmid == 0xFFFF)
-		snprintf(buf, len, "%s@%s:12345:%d:*",
+		rc = snprintf(buf, len, "%s@%s:12345:%d:*",
 			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
 			cd->fcd_iface == FAB_LO ? "lo" : 
 				((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
 			cd->fcd_portal);
 	else
-		snprintf(buf, len, "%s@%s:12345:%d:%d",
+		rc = snprintf(buf, len, "%s@%s:12345:%d:%d",
 			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
 			cd->fcd_iface == FAB_LO ? "lo" : 
 			((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
 			cd->fcd_portal, cd->fcd_tmid);
 
-	M0_ASSERT(len > strlen(buf));
+	M0_ASSERT(rc > 0);
+	M0_ASSERT_INFO(rc >= len, "Net addr should not be truncated "
+		       "(wanted %d, available %d)", rc, (int)len);
 }
 
 /**
