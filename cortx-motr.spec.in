@@ -344,7 +344,6 @@ getent passwd motr >/dev/null || useradd --system --shell /sbin/nologin \
 %post -e
 /sbin/depmod -a
 systemctl daemon-reload
-echo $(date) &> /var/log/motr-rpm-conf-update.log
 
 if [ x%%{?no_trace_logs} != x ] ; then
     /bin/sed -i -r -e "s/(MOTR_TRACED_KMOD=)yes/\1no/" /etc/sysconfig/motr
