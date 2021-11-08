@@ -249,7 +249,6 @@ M0_INTERNAL int m0_net_hostname_to_ip(char *hostname, char *ip,
 		for(i = 0; addr[i] != NULL; i++) {
 			/** Return the first one. */
 			strcpy(ip, inet_ntoa(*addr[i]));
-			n=strlen(ip);
 			M0_LOG(M0_DEBUG, "fqdn=%s ip=%s", (char*)name, ip);
 			return M0_RC(0);
 		}
