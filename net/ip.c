@@ -56,11 +56,11 @@ static uint8_t ip_autotm[1024] = {};
  */
 static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 {
-	uint32_t     portnum;
 	int          shift = 0;
 	int          f;
 	int          s;
 	int          rc;
+	uint16_t     portnum;
 	char         ip[M0_NET_IP_STRLEN_MAX] = {};
 	char         port[M0_NET_IP_PORTLEN_MAX] = {};
 	char        *at;
@@ -94,9 +94,8 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 		if (at == NULL || at[0] < '0' || at[0] > '9')
 			return M0_ERR(-EINVAL);
 		strcpy(port, at);
-		portnum = atoi(port);
-		M0_ASSERT(portnum < M0_NET_IP_PORT_MAX);
-		addr->na_port = (uint16_t)portnum;
+		portnum = (uint16_t)atoi(port);
+		addr->na_port = portnum;
 	}
 
 	rc = m0_net_hostname_to_ip((char *)ep_name, ip, &addr->na_format);
@@ -110,7 +109,7 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 	addr->na_addr.ia.nia_type = s;
 
 	/* Ignore the error due to gethostbyname() as it will be retried. */
-	return rc >=0 ? M0_RC(0) : M0_ERR(rc);
+	return rc >= 0 ? M0_RC(0) : M0_ERR(rc);
 }
 
 /**
@@ -231,6 +230,7 @@ M0_INTERNAL int m0_net_hostname_to_ip(char *hostname, char *ip,
 
 	n = cp - hostname;
 	strncpy(name, hostname, n);
+	name[n] = '\0';
 
 	if (inet_pton(AF_INET, name, &ip_n[0]) == 1 ||
 	    inet_pton(AF_INET6, name, &ip_n[0]) == 1) {
