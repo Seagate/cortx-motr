@@ -742,7 +742,7 @@ static void libfab_straddr_gen(struct m0_fab__conn_data *cd, char *buf,
 			cd->fcd_portal, cd->fcd_tmid);
 
 	M0_ASSERT(rc > 0);
-	M0_ASSERT_INFO(rc >= len, "Net addr should not be truncated "
+	M0_ASSERT_INFO(rc < len, "Net addr should not be truncated "
 		       "(wanted %d, available %d)", rc, (int)len);
 }
 
