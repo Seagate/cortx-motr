@@ -26,6 +26,7 @@
 #define __MOTR_NET_IP_H__
 
 #define M0_NET_IP_STRLEN_MAX  100
+#define M0_NET_IP_PORTLEN_MAX 6
 #define M0_NET_IP_PORT_MAX    65536
 
 /** Represents format of network address */
@@ -87,12 +88,23 @@ struct m0_net_ip_addr {
  * This function decodes addresses based on address format type
  * such as lnet or inet address format.
  */
-int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr);
+M0_INTERNAL int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr);
 
 /**
  * This function returns printable ip address format.
  */
-int m0_net_ip_print(const struct m0_net_ip_addr *nia, char *buf, uint32_t len);
+M0_INTERNAL int m0_net_ip_print(const struct m0_net_ip_addr *nia, char *buf,
+				uint32_t len);
+
+/**
+ * This function convert the hostname/FQDN format to ip format.
+ * Here hostname can be FQDN or local machine hostname.
+ * Return value:  = 0 in case of succesful fqdn to ip resolution.
+ *                > 0 when gethostbyname fails (dns resolution failed).
+ *                < 0 error
+ */
+M0_INTERNAL int m0_net_hostname_to_ip(char *hostname, char *ip,
+				      enum m0_net_ip_format *fmt);
 
 #endif /* __MOTR_NET_IP_H__ */
 

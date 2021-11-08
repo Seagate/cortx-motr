@@ -47,51 +47,6 @@ static const char *ip_protocol[M0_NET_IP_PROTO_MAX] = { "tcp",
 static uint8_t ip_autotm[1024] = {};
 
 /**
- * This function convert the hostname/FQDN format to ip format.
- * Here hostname can be FQDN or local machine hostname.
- * Return value:  <= 0 in case of error
- *                > 0 num of bytes when addr resolution is successful
- */
-static int m0_net_hostname_to_ip(char *hostname, char *ip,
-				 struct m0_net_ip_addr *ip_addr)
-{
-	struct hostent  *hname;
-	struct in_addr **addr;
-	int              i;
-	int              n;
-	char            *cp;
-	char             name[M0_NET_IP_STRLEN_MAX];
-
-	M0_ENTRY("Hostname = %s", (char*)hostname);
-	cp = strchr(hostname, '@');
-	if (cp == NULL)
-		return M0_ERR(-EINVAL);
-
-	n = cp - hostname;
-	memcpy(name, hostname, n);
-	name[n] = '\0';
-	if ((hname = gethostbyname(name)) == NULL) {
-		/** Get the host info. */
-		M0_LOG(M0_ERROR, "gethostbyname error %s", (char*)name);
-		return M0_ERR(-EPROTO);
-	}
-
-	addr = (struct in_addr **)hname->h_addr_list;
-	for(i = 0; addr[i] != NULL; i++) {
-		/** Return the first one. */
-		strcpy(ip, inet_ntoa(*addr[i]));
-		n=strlen(ip);
-		M0_LOG(M0_DEBUG, "%s[%s]", (char*)name, (char*)ip);
-		if (strcmp(name, ip) == 0)
-			ip_addr->na_format = M0_NET_IP_INET_IP_FORMAT;
-		else
-			ip_addr->na_format = M0_NET_IP_INET_HOSTNAME_FORMAT;
-		return M0_RC(n);
-	}
-	return M0_ERR(-EPROTO);
-}
-
-/**
  * This function decodes the inet format address.
  *  The inet address format is of type
  *    <family>:<type>:<ipaddr/hostname_FQDN>@<port>
@@ -101,15 +56,15 @@ static int m0_net_hostname_to_ip(char *hostname, char *ip,
  */
 static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 {
+	uint32_t     portnum;
 	int          shift = 0;
 	int          f;
 	int          s;
-	char        *at;
+	int          rc;
 	char         ip[M0_NET_IP_STRLEN_MAX] = {};
-	int          n;
-	char         port[6] = {};
+	char         port[M0_NET_IP_PORTLEN_MAX] = {};
+	char        *at;
 	const char  *ep_name = name;
-	uint32_t     portnum;
 
 	for (f = 0; f < ARRAY_SIZE(ip_family); ++f) {
 		if (ip_family[f] != NULL) {
@@ -118,9 +73,7 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 				break;
 		}
 	}
-	if (f >= ARRAY_SIZE(ip_family))
-		return M0_ERR(-EINVAL);
-	if (ep_name[shift] != ':')
+	if (f >= ARRAY_SIZE(ip_family) || ep_name[shift] != ':')
 		return M0_ERR(-EINVAL);
 	ep_name += shift + 1;
 	for (s = 0; s < ARRAY_SIZE(ip_protocol); ++s) {
@@ -130,9 +83,7 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 				break;
 		}
 	}
-	if (s >= ARRAY_SIZE(ip_protocol))
-		return M0_ERR(-EINVAL);
-	if (ep_name[shift] != ':')
+	if (s >= ARRAY_SIZE(ip_protocol) || ep_name[shift] != ':')
 		return M0_ERR(-EINVAL);
 	ep_name += shift + 1;
 	at = strchr(ep_name, '@');
@@ -148,20 +99,18 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 		addr->na_port = (uint16_t)portnum;
 	}
 
-	n = m0_net_hostname_to_ip((char *)ep_name, ip, addr);
-	if (n == 0)
-		return M0_ERR(-EPROTO);
-	else if (n < 0)
-		return M0_ERR(n);
+	rc = m0_net_hostname_to_ip((char *)ep_name, ip, &addr->na_format);
+	if (rc == 0)
+		inet_pton(f == M0_NET_IP_AF_INET ? AF_INET : AF_INET6,
+			  ip, &addr->na_n.sn[0]);
 
-	/** TODO: select ipv4 and ipv6 in inet_pton() according to nw address */
-	inet_pton(AF_INET, ip, &addr->na_n.sn[0]);
 	M0_ASSERT(strlen(name) < ARRAY_SIZE(addr->na_p));
 	strcpy(addr->na_p, name);
 	addr->na_addr.ia.nia_family = f;
 	addr->na_addr.ia.nia_type = s;
 
-	return 0;
+	/* Ignore the error due to gethostbyname() as it will be retried. */
+	return rc >=0 ? M0_RC(0) : M0_ERR(rc);
 }
 
 /**
@@ -184,7 +133,7 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 	char         port[6] = {};
 	const char  *ep_name = name;
 	uint32_t     na_n;
-	int          shift = 0;
+	int          shift;
 	int          s;
 
 	at = strchr(ep_name, '@');
@@ -264,6 +213,54 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 	return M0_RC(0);
 }
 
+M0_INTERNAL int m0_net_hostname_to_ip(char *hostname, char *ip,
+				      enum m0_net_ip_format *fmt)
+{
+	struct hostent  *hname;
+	struct in_addr **addr;
+	uint32_t         ip_n[4];
+	int              i;
+	int              n;
+	char            *cp;
+	char             name[M0_NET_IP_STRLEN_MAX] = {};
+
+	M0_ENTRY("Hostname=%s", (char*)hostname);
+	cp = strchr(hostname, '@');
+	if (cp == NULL)
+		return M0_ERR(-EINVAL);
+
+	n = cp - hostname;
+	strncpy(name, hostname, n);
+
+	if (inet_pton(AF_INET, name, &ip_n[0]) == 1 ||
+	    inet_pton(AF_INET6, name, &ip_n[0]) == 1) {
+		/* Copy ip address as it is. */
+		*fmt = M0_NET_IP_INET_IP_FORMAT;
+		strcpy(ip, name);
+	} else {
+		*fmt = M0_NET_IP_INET_HOSTNAME_FORMAT;
+		if ((hname = gethostbyname(name)) == NULL) {
+			M0_LOG(M0_ERROR, "gethostbyname err=%d for %s",
+			       h_errno, (char*)name);
+			/* Return error code for gethostbyname failure */
+			return M0_ERR(h_errno);
+		}
+		addr = (struct in_addr **)hname->h_addr_list;
+		for(i = 0; addr[i] != NULL; i++) {
+			/** Return the first one. */
+			strcpy(ip, inet_ntoa(*addr[i]));
+			n=strlen(ip);
+			M0_LOG(M0_DEBUG, "fqdn=%s ip=%s", (char*)name, ip);
+			return M0_RC(0);
+		}
+
+		/* If no valid addr structure found, then return error */
+		return M0_ERR(-errno);
+	}
+
+	return M0_RC(0);
+}
+
 M0_UNUSED int m0_net_ip_print(const struct m0_net_ip_addr *na, char *buf,
 			      uint32_t len)
 {
@@ -331,7 +328,7 @@ M0_UNUSED int m0_net_ip_print(const struct m0_net_ip_addr *na, char *buf,
 	return 0;
 }
 
-int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr)
+M0_INTERNAL int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr)
 {
 	M0_PRE(name != NULL);
 	return (name[0] >= '0' && name[0] <= '9') ?

@@ -392,7 +392,7 @@ static void libfab_straddr_gen(struct m0_net_ip_addr *addr,
 static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
 				 struct m0_fab__ndom *fnd)
 {
-	int result = 0;
+	int result;
 
 	M0_ENTRY("name=%s", name);
 
@@ -400,8 +400,7 @@ static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
 		result =  M0_ERR(-EPROTO);
 
 	result = m0_net_ip_parse(name, &ep->fep_name_p.fen_name);
-	if (result == 0)
-	{
+	if (result == 0) {
 		strcpy(ep->fep_name_p.fen_str_addr, name);
 		libfab_straddr_gen(&ep->fep_name_p.fen_name,
 				   &ep->fep_name_p);
@@ -2076,6 +2075,40 @@ static struct m0_fab__fab *libfab_newfab_init(struct m0_fab__ndom *fnd)
 }
 
 /**
+ * Try to resolve the fqdn to its corresponding ip if not already resolved
+ * or if the ip is not valid.
+ */
+static int libfab_dns_resolve_retry(struct m0_fab__ep *ep)
+{
+	struct m0_fab__ep_name *en = &ep->fep_name_p;
+	struct m0_net_ip_addr  *nia = &en->fen_name;
+	int                     rc = 0;
+	enum m0_net_ip_format   not_used;
+	char                   *fqdn = nia->na_p;
+
+	/* Verify if ip addr is resolved and ip is valid */
+	if (nia->na_format == M0_NET_IP_INET_HOSTNAME_FORMAT &&
+	    (en->fen_addr[0] < '0' || en->fen_addr[0] > '9')) {
+		fqdn = strchr(fqdn, ':');	/* Skip '<inet/inet6>:' */
+		fqdn = strchr(fqdn + 1, ':');	/* Skip '<tcp/verbs>:' */
+		fqdn++;
+
+		rc = m0_net_hostname_to_ip(fqdn, en->fen_addr, &not_used);
+		if (rc == 0) {
+			libfab_ep_pton(en, &ep->fep_name_n);
+			M0_LOG(M0_DEBUG, "rc=%d ip=%s port=%s fqdn=%s na=%"PRIx64,
+				rc, (char *)en->fen_addr, (char *)en->fen_port,
+				(char *)fqdn, ep->fep_name_n);
+		} else
+			M0_LOG(M0_ERROR, "%s failed with err %d for %s",
+				rc > 0 ? "gethostbyname()" : "hostname_to_ip()",
+				rc, fqdn);
+	}
+
+	return M0_RC(rc);
+}
+
+/**
  * Send out a connection request to the destination of the network buffer
  * and add given buffer into pending buffers list.
  */
@@ -2091,6 +2124,7 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 
 	aep = libfab_aep_get(ep);
 	if (aep->aep_tx_state == FAB_NOT_CONNECTED) {
+		libfab_dns_resolve_retry(ep);
 		dst = ep->fep_name_n | 0x02;
 		cd.fcd_addr = ma->ftm_pep->fep_name_p.fen_name;
 
@@ -2106,7 +2140,7 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 			M0_LOG(M0_DEBUG, " Conn req failed ret=%d dst=%"PRIx64,
 			       ret, dst);
 	}
-	
+
 	if (ret == 0)
 		fab_sndbuf_tlink_init_at_tail(fbp, &ep->fep_sndbuf);
 
