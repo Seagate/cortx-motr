@@ -1,33 +1,70 @@
-# Cortx Motr FDMI Application 
+# CORTX-Motr FDMI Applications / Plugins 
 
-FDMI applications can be seen as traditional object or key-value applications that has a more closed relationship with Cortx-Motr. 
+FDMI stands for File Data Manipulation Interface and it is a feature in CORTX that allows developers to add new capabilities and functionalities to the system without having to natively modify the core code. 
 
-In this folder, we have an example of an FDMI application (fdmi_sample_plugin) that will be compiled as part of the initial Motr compilation using the Makefile.am dependency and the Makefile.sub file.
+This extension interface is really powerful since it gives more flexibility to developers so they can easily modify and deploy in CORTX independently on additional and dedicaded nodes without compromising the fast path for Motr. 
 
-To run a simple test of this example, you can execute the following command inside this directory:
+In addition, this interface inherits the horizontal scalability property form motr while being reliable since it will be transactionally coupled with the core.
+  
+FDMI applications can be seen as traditional object or key-value applications that has a more closed relationship with CORTX-Motr. 
 
-`./fdmi_plugin_st.sh`
+# FDMI Implementations Overview
 
-This shell script starts Motr services using a specific filter configuration, starts the fdmi_plugin_sample application to listen for specific records that match with the filter already setup and do some key-value operations that reflects this specifications. 
+FDMI is a scalable publish-subscribe interface where each Motr instance works as a source and produces records that describe operations. 
 
-The output will show whether the test was successful or not. 
+On the other side, there is a FDMI Application or Plugin that registers a filter in the Motr Filter Database to selects records that match such filters.
 
-A second way to test this fdmi_sample_plugin will be by directly running the fdmi_sample app wrapper with the following command:
+The intial substrings to match metadata fields are setup at the CORTX initialization time.
+
+The FDMI source instances sends matching records to the FDMI Application or Plugin in batches with their transactional contexts.
+
+For each record, the FDMI Application or Plugin performs actions and sends acknowledgements back to the source instances using Motr RPC calls.
+
+# How to create and FDMI Application and run with examples
+
+All FDMI related service code and examples are in the `cortx-motr/fdmi` directory. 
+
+One of the FDMI Application example is within the `plugins` directory named as fdmi_sample_plugin. 
+
+This application was written in C using `motr/client.h` interface and it adds the new Motr client to the cluster and start listening for FDMI records or events that matches the FDMI filter substrings.  
+
+The executable will be compiled as part of the initial Motr compilation using the Makefile.am dependency and the Makefile.sub file.
+
+This program then communicates with the fdmi_app python wrapper by printing to stdout the records. 
+
+To test this application we need to run the fdmi_sample app wrapper typing in the console the following command:
 
 `./fdmi_app`
 
-This method will need to have a Cortx-motr cluster already up and running beforehand that includes FDMI capabilities by adding a fdmi_filters section in the CDF.yaml config file. 
-You can check if your cluster is running with FDMI filter capability by looking at the /etc/motr/confd.xc file in which case will have the specific filter-id for the fdmi_sample_plugin. 
+The basic arguments needed will be picked by default from the `etc/motr/confd.xc` config file if not specified at the time of running.
 
-Example of such record in /etc/motr/confd.xc file will be:
+We will need to have a CORTX-Motr cluster already up and running with FDMI capabilities by adding the fdmi_filters section in the CDF.yaml config file that it is used for deploying with `hctl` command.
+ 
+You can check if your cluster is running with FDMI filter capability by looking at the /etc/motr/confd.xc file in which case will have the specific filter-id specified. 
 
-' {0x6c| ((^l|1:81), 2, ^l|1:81, "", ^n|1:3, ^v|1:66, [1: "Bucket-Name"], [1: "192.168.12.2@tcp:12345:4:1"])},'
+A second sample test that also executes the fdmi_sample_plugin program, you can be run using the following command inside this directory:
 
+`./fdmi_plugin_st.sh`
+
+This shell script starts Motr services using a specific filter configuration in which case we do not need to deploy the CORTX-Motr cluster beforehand using `hctl` command and specifying the fdmi_filter subsection in the CDF.yaml config file.
+
+However, we need to modify manually the `/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh` withing the `build_conf()` function to add the FDMI_FILTER_SUBSTRINGS and the FDMI_FILTER to include the number of substrings used.
+
+The fdmi_plugin_st script starts the fdmi_plugin_sample application to listen for specific records that match with the filter already setup and do some key-value operations that reflects this specifications. 
+
+The output will show whether the test was successful or not.
+
+# Tested by:
+
+* Sep 28, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linus release 7.8.2003 x86_64
+
+# References
+ 
 More details about the FDMI design and settings can be found in this link: 
 
-[FDMI Design](https://github.com/Seagate/cortx-motr/blob/main/fdmi/fdmi.c).
+[FDMI design](https://github.com/Seagate/cortx-motr/blob/main/doc/motr-in-prose.md#fdmi-architecture)
 
+[FDMI code comments](https://github.com/Seagate/cortx-motr/blob/main/fdmi/fdmi.c).
 
-
-
+[FDMI Github Page for Hackathon event] (https://cortx.link/UCD)
 
