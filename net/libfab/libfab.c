@@ -397,7 +397,8 @@ static int libfab_hostname_to_ip(char *hostname, char* ip, uint8_t *addr_fmt)
 		return M0_ERR(-EINVAL);
 
 	n = cp - hostname;
-	strncpy(name, hostname, n);
+	memcpy(name, hostname, n);
+	name[n] = '\0';
 	M0_LOG(M0_DEBUG, "in %s out %s", (char*)hostname, (char*)name);
 
 	/* Check if name is native ip */
@@ -551,7 +552,7 @@ static int libfab_ep_addr_decode_sock(const char *ep_name, char *node,
 	}
 
 	rc = libfab_hostname_to_ip((char *)ep_name, ip, addr_frmt);
-        if (rc == 0)
+	if (rc == 0)
 		strcpy(node, ip);
 
 	/* Ignore the error due to gethostbyname() as it will be retried. */
