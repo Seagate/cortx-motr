@@ -67,23 +67,27 @@ struct m0_net_ip_lnet_addr {
 	uint16_t nla_type;     /* tcp, o2ib, lo */
 	uint16_t nla_portal;
 	uint16_t nla_tmid;
+	bool     nla_autotm;
 };
 
 /** Genereic structure to store values related to network address */
-struct m0_net_ip_addr {
+struct m0_net_ip_params {
 	union {
 		struct m0_net_ip_inet_addr ia;
 		struct m0_net_ip_lnet_addr la;
-	} na_addr;
+	} fmt_pvt;
 	union {
 		uint64_t ln[2];
 		uint32_t sn[4];
-	} na_n;
-	enum m0_net_ip_format      na_format;
-	uint16_t                   na_port;
-	char                       na_p[M0_NET_IP_STRLEN_MAX];
+	} ip_n;
+	enum m0_net_ip_format      nip_format;
+	uint16_t                   nip_port;
 };
 
+struct m0_net_ip_addr {
+	struct m0_net_ip_params  nia_n;
+	char                     nia_p[M0_NET_IP_STRLEN_MAX];
+};
 /**
  * This function decodes addresses based on address format type
  * such as lnet or inet address format.
@@ -93,8 +97,7 @@ M0_INTERNAL int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr);
 /**
  * This function returns printable ip address format.
  */
-M0_INTERNAL int m0_net_ip_print(const struct m0_net_ip_addr *nia, char *buf,
-				uint32_t len);
+M0_INTERNAL int m0_net_ip_print(const struct m0_net_ip_addr *nia);
 
 /**
  * This function convert the hostname/FQDN format to ip format.
