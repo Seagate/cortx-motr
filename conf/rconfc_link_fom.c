@@ -179,7 +179,7 @@ static void rconfc_herd_link_fom_wait_on(struct rconfc_link *lnk,
 		[M0_RLF_SESS_TERMINATING] = rconfc_link__on_conn_terminated,
 	};
 	/*
-	 * Insure that link is cleaned up before next initialization 		
+	 * Ensure that link is cleaned up before next initialization 		
  	 */
 	m0_clink_cleanup(&lnk->rl_fom_clink);
 	m0_clink_init(&lnk->rl_fom_clink, cb[phase]);
