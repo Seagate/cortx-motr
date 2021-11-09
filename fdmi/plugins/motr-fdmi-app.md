@@ -58,7 +58,7 @@ The output will show whether the test was successful or not.
 
 * Sep 28, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linus release 7.8.2003 x86_64
 
-# References
+## References
  
 More details about the FDMI design and settings can be found in this link: 
 
