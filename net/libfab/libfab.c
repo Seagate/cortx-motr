@@ -371,15 +371,27 @@ static void libfab_straddr_copy(struct m0_fab__conn_data *cd, char *buf,
 	M0_ASSERT(len >= strlen(buf));
 }
 
-
-static int libfab_hostname_to_ip(char *hostname , char* ip)
+/**
+ * This function is used to check if the hostname is a fqdn or native ip.
+ * If native ip, then set the addr format as FAB_NATIVE_IP_FORMAT.
+ * If fqdn, then resolve it to ipv4 and set the addr format as
+ * FAB_NATIVE_HOSTNAME_FORMAT.
+ *
+ * Return value -   0 - case of succesful resolution of fqdn format or
+ *                    if hostname is native ip.
+ *                > 0  - if gethostbyname() failed. In such cases, fqdn
+ *                    resolution will be retried during libfab_conn_init.
+ *                < 0  - if no valid addr structure found after fqdn resolution.
+ */
+static int libfab_hostname_to_ip(char *hostname, char* ip, uint8_t *addr_fmt)
 {
 	struct hostent *hname;
 	struct in_addr **addr;
+	uint32_t        ip_n;
 	int             i;
 	int             n;
 	char           *cp;
-	char            name[50];
+	char            name[LIBFAB_ADDR_STRLEN_MAX] = {};
 
 	cp = strchr(hostname, '@');
 	if (cp == NULL)
@@ -389,19 +401,31 @@ static int libfab_hostname_to_ip(char *hostname , char* ip)
 	memcpy(name, hostname, n);
 	name[n] = '\0';
 	M0_LOG(M0_DEBUG, "in %s out %s", (char*)hostname, (char*)name);
-	if ((hname = gethostbyname(name)) == NULL)
-		return M0_ERR(-EPROTO);
 
-	addr = (struct in_addr **) hname->h_addr_list;
-	for(i = 0; addr[i] != NULL; i++)
-	{
-		/* Return the first one. */
-		strcpy(ip , inet_ntoa(*addr[i]));
-		n=strlen(ip);
-		return M0_RC(n);
+	/* Check if name is native ip */
+	if (inet_pton(AF_INET, name, &ip_n) == 1) {
+		/* Copy ip address as it is. */
+		*addr_fmt = FAB_NATIVE_IP_FORMAT;
+		strcpy(ip, name);
+	} else {
+		*addr_fmt = FAB_NATIVE_HOSTNAME_FORMAT;
+		if ((hname = gethostbyname(name)) == NULL)
+			/* Return error code for gethostbyname failure */
+			return M0_ERR(h_errno);
+
+		addr = (struct in_addr **) hname->h_addr_list;
+		for(i = 0; addr[i] != NULL; i++) {
+			/* Return the first one. */
+			strcpy(ip, inet_ntoa(*addr[i]));
+			M0_LOG(M0_DEBUG,"fqdn=%s ip=%s",(char*)name, (char*)ip);
+			return M0_RC(0);
+		}
+
+		/* If no valid addr structure found, then return error */
+		return M0_ERR(-errno);
 	}
 
-	return M0_ERR(-EPROTO);
+	return M0_RC(0);
 }
 
 /**
@@ -493,9 +517,9 @@ static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
 	int   shift = 0;
 	int   f;
 	int   s;
+	int   rc;
 	char *at;
-	char  ip[LIBFAB_ADDR_LEN_MAX];
-	int   n;
+	char  ip[LIBFAB_ADDR_LEN_MAX] = {};
 
 	for (f = 0; f < ARRAY_SIZE(protf); ++f) {
 		if (protf[f] != NULL) {
@@ -529,16 +553,12 @@ static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
 	M0_ASSERT(portSize >= strlen(at) + 1);
 	memcpy(port, at, strlen(at) + 1);
 
-	n = libfab_hostname_to_ip((char *)ep_name, ip);
-        if (n > 0) {
-                memcpy(node, ip, n);
-                *addr_frmt = FAB_NATIVE_HOSTNAME_FORMAT;
-        } else {
-		memcpy(node, ep_name, (at - ep_name) - 1);
-                *addr_frmt = FAB_NATIVE_IP_FORMAT;
-        }
+	rc = libfab_hostname_to_ip((char *)ep_name, ip, addr_frmt);
+	if (rc == 0)
+		strcpy(node, ip);
 
-	return 0;
+	/* Ignore the error due to gethostbyname() as it will be retried. */
+	return rc >= 0 ? M0_RC(0) : M0_ERR(rc);
 }
 
 /**
@@ -2342,6 +2362,35 @@ static void libfab_conn_data_fill(struct m0_fab__conn_data *cd,
 	cd->fcd_addr_frmt = addr_frmt;
 }
 
+static int libfab_dns_resolve_retry(struct m0_fab__ep *ep)
+{
+	struct m0_fab__ep_name *en = &ep->fep_name_p;
+	int                     rc = 0;
+	uint8_t                 not_used;
+	char                   *fqdn = en->fen_str_addr;
+
+	/* Verify if ip addr is resolved and ip is valid */
+	if (en->fen_addr_frmt == FAB_NATIVE_HOSTNAME_FORMAT &&
+	    (en->fen_addr[0] < '0' || en->fen_addr[0] > '9')) {
+		fqdn = strchr(fqdn, ':');	/* Skip '<inet/inet6>:' */
+		fqdn = strchr(fqdn + 1, ':');	/* Skip '<tcp/verbs>:' */
+		fqdn++;
+
+		rc = libfab_hostname_to_ip(fqdn, en->fen_addr, &not_used);
+		if (rc == 0) {
+			libfab_ep_pton(en, &ep->fep_name_n);
+			M0_LOG(M0_DEBUG, "rc=%d ip=%s port=%s fqdn=%s na=%"PRIx64,
+				rc, (char *)en->fen_addr, (char *)en->fen_port,
+				(char *)fqdn, ep->fep_name_n);
+		} else
+			M0_LOG(M0_ERROR, "%s failed with err %d for %s", 
+				rc > 0 ? "gethostbyname()" : "hostname_to_ip()",
+				rc, fqdn);
+	}
+
+	return M0_RC(rc);
+}
+
 /**
  * Send out a connection request to the destination of the network buffer
  * and add given buffer into pending buffers list.
@@ -2358,6 +2407,11 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 
 	aep = libfab_aep_get(ep);
 	if (aep->aep_tx_state == FAB_NOT_CONNECTED) {
+		/*
+		 * Verify if destination addr is resolved and ip is valid.
+		 * If not resolved, try to resolve again.
+		 */
+		libfab_dns_resolve_retry(ep);
 		dst = ep->fep_name_n | 0x02;
 		libfab_conn_data_fill(&cd, ma);
 
@@ -2370,10 +2424,10 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 		if (ret == 0)
 			aep->aep_tx_state = FAB_CONNECTING;
 		else
-			M0_LOG(M0_DEBUG, " Conn req failed ret=%d dst=%"PRIx64,
+			M0_LOG(M0_DEBUG, "Conn req failed ret=%d dst=%"PRIx64,
 			       ret, dst);
 	}
-	
+
 	if (ret == 0)
 		fab_sndbuf_tlink_init_at_tail(fbp, &ep->fep_sndbuf);
 
