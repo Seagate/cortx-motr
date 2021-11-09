@@ -1701,26 +1701,22 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	m0_be_emap_paste(&it, &io->si_tx->tx_betx, &todo, ext->e_start,
 	 LAMBDA(void, (struct m0_be_emap_seg *seg) {
 			/* handle extent deletion. */
-			if (adom->sad_overwrite) {
-				M0_LOG(M0_DEBUG, "del: val=0x%llx",
-					(unsigned long long)seg->ee_val);
-				M0_ASSERT_INFO(seg->ee_val != ext->e_start,
-				"Delete of the same just allocated block");
-				rc = rc ?:
-				     stob_ad_seg_free(io->si_tx, adom, seg,
-						      &seg->ee_ext, seg->ee_val);
-			}
+			M0_LOG(M0_DEBUG, "del: val=0x%llx",
+			       (unsigned long long)seg->ee_val);
+			M0_ASSERT_INFO(seg->ee_val != ext->e_start,
+				       "Delete of the same just allocated block");
+			rc = rc ?:
+			     stob_ad_seg_free(io->si_tx, adom, seg,
+					      &seg->ee_ext, seg->ee_val);
 		 }),
 	 LAMBDA(void, (struct m0_be_emap_seg *seg, struct m0_ext *ext,
 		       uint64_t val) {
 			/* cut left */
 			M0_ASSERT(ext->e_start > seg->ee_ext.e_start);
-
 			seg->ee_val = val;
-			if (adom->sad_overwrite)
-				rc = rc ?:
-				     stob_ad_seg_free(io->si_tx, adom, seg,
-						      ext, val);
+			rc = rc ?:
+			     stob_ad_seg_free(io->si_tx, adom, seg,
+					      ext, val);
 		}),
 	 LAMBDA(void, (struct m0_be_emap_seg *seg, struct m0_ext *ext,
 		       uint64_t val) {
@@ -1735,8 +1731,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 				 * logical extent, because otherwise "cut left"
 				 * already freed it.
 				 */
-				if (adom->sad_overwrite &&
-				    ext->e_start == seg->ee_ext.e_start)
+				if (ext->e_start == seg->ee_ext.e_start)
 					rc = rc ?:
 					     stob_ad_seg_free(io->si_tx, adom,
 							      seg, ext, val);
