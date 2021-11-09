@@ -72,6 +72,6 @@ The steps to delete an existing index: function index\_delete().
 *   Retrieve the result.
 *   Finalize and free the operation with m0\_op\_fini() and m0\_op\_free().
 
-# Tested by:
+# Tested by
 
 *   Sep 28, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linux release 7.8.2003 x86_64
