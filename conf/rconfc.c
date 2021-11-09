@@ -2761,6 +2761,7 @@ static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	struct m0_rconfc *rconfc;
 	struct rlock_ctx *rlx;
+	static uint32_t retry_count = 0;
 
 	M0_ENTRY("in = %p, rc = %d", in, rc);
 	rconfc = rlock_ctx_incoming_to_rconfc(in);
@@ -2776,7 +2777,7 @@ static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 	if (rc == 0)
 		rconfc_ast_post(rconfc, rconfc_version_elect);
 	else if (rlock_ctx_creditor_state(rlx) == ROS_ACTIVE) {
-		if (rc == -ECONNREFUSED) {
+		if (rc == -ECONNREFUSED && retry_count++ < 10) {
 			/** Reset rm request to do the retry operation. */
 			M0_LOG(M0_DEBUG, "retrying read lock request because of \
                                           connection refused error");
