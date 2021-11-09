@@ -191,6 +191,7 @@
 #include "lib/finject.h"        /* M0_FI_ENABLED */
 #include "lib/hash.h"           /* m0_htable */
 #include "lib/memory.h"         /* M0_ALLOC_PTR()*/
+#include "lib/processor.h"      /* m0_processor_is_vm()*/
 #include "libfab_internal.h"
 #include "lib/string.h"         /* m0_streq */
 #include "net/net_internal.h"   /* m0_net__buffer_invariant() */
@@ -963,6 +964,14 @@ static void libfab_poller(struct m0_fab__tm *tm)
 
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
 	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
+		/*
+		 * The lab team observed a significant increase in the CPU load
+		 * due to the epoll_wait not sleeping.
+		 * The proposed short term fix to support the lab team is adding
+		 * nanosleep of 0ns on VM to reduce CPU load.
+		 */
+		if (m0_processor_is_vm())
+			m0_nanosleep(M0_MKTIME(0 ,0), NULL);
 		/*
 		 * It is observed that with epoll_wait,
 		 * the thread is waiting in a busy-loop for events
@@ -2861,7 +2870,7 @@ static int libfab_buf_dom_dereg(struct m0_fab__buf *fbp)
 
 /*============================================================================*/
 
-/** 
+/**
  * Used as m0_net_xprt_ops::xo_dom_init(). 
  */
 static int libfab_dom_init(const struct m0_net_xprt *xprt,
@@ -2870,7 +2879,7 @@ static int libfab_dom_init(const struct m0_net_xprt *xprt,
 	struct m0_fab__ndom *fab_ndom;
 	int                  ret = 0;
 
-	M0_ENTRY();
+	M0_ENTRY("Running on %s", m0_processor_is_vm() ? "VM" : "HW");
 
 	M0_ALLOC_PTR(fab_ndom);
 	if (fab_ndom == NULL)

@@ -561,7 +561,7 @@ static struct m0_fop *fop_create(struct m0_fdmi_src_rec *src_rec,
 		}
 		M0_LOG(M0_DEBUG, "FDMI record id = "U128X_F,
 		       U128_P(&fop_data->fr_rec_id));
-		M0_LOG(M0_DEBUG, "FDMI record type = %d", fop_data->fr_rec_type);
+		M0_LOG(M0_DEBUG, "FDMI record type = %x", fop_data->fr_rec_type);
 		M0_LOG(M0_DEBUG, "*   matched filters count = [%d]",
 		       matched->fmf_count);
 		for (idx = 0; idx < matched->fmf_count; idx++) {
@@ -607,22 +607,42 @@ static int sd_fom_process_matched_filters(struct m0_fdmi_src_dock *sd_ctx,
 		fop = fop_create(src_rec, endpoint);
 		if (fop == NULL)
 			continue;
-		M0_LOG(M0_DEBUG, "will send fdmi rec");
+		M0_LOG(M0_DEBUG, "will send fop=%p fdmi rec:%p", fop, src_rec);
 		fop->f_opaque = src_rec;
 
 		/* @todo check rc and handle errors properly. */
 		rc = payload_encode(src_rec, fop);
+		M0_ASSERT(rc == 0);
 
+		/* Adding a ref. It will be dropped when reply is received. */
+		m0_fdmi__fs_get(src_rec);
 		m0_ref_get(&src_rec->fsr_ref);
-		sd_fom_send_record(&sd_ctx->fsdc_sd_fom, fop, endpoint);
+		M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
+				 U128_P(&src_rec->fsr_rec_id),
+				 (int)m0_ref_read(&src_rec->fsr_ref));
+
+		rc = sd_fom_send_record(&sd_ctx->fsdc_sd_fom, fop, endpoint);
 		if (rc == 0) {
+			/*
+			 * Adding a ref. It will be dropped when
+			 * "FDMI record release" is received.
+			 */
 			m0_fdmi__fs_get(src_rec);
+			m0_ref_get(&src_rec->fsr_ref);
+			M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
+					 U128_P(&src_rec->fsr_rec_id),
+					 (int)m0_ref_read(&src_rec->fsr_ref));
 			/**
 			 * @todo store map <fdmi record id, endpoint>,
 			 * Phase 2
 			 */
 		} else {
+			/* Send failure. Drop ref now. */
+			M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
+					 U128_P(&src_rec->fsr_rec_id),
+					 (int)m0_ref_read(&src_rec->fsr_ref));
 			m0_ref_put(&src_rec->fsr_ref);
+			m0_fdmi__fs_put(src_rec);
 		}
 		m0_fop_put_lock(fop);
 	}
@@ -728,7 +748,7 @@ static int fdmi_sd_fom_tick(struct m0_fom *fom)
 								       src_rec);
 				}
 			} else if (rc != -ENOENT) {
-				/**
+				/*
 				 * -ENOENT error means that configuration does
 				 * not have filters group matching the record
 				 * type. This is fine, ignoring.
@@ -736,13 +756,16 @@ static int fdmi_sd_fom_tick(struct m0_fom *fom)
 				M0_LOG(M0_ERROR,
 				       "FDMI record processing error %d", rc);
 			}
-			/**
+			/*
 			 * Source dock is done with this record (however,
-			 * there are stil locks caused by sending this record
+			 * there is still a ref held while sending this record
 			 * to plugin).
 			 */
-			m0_fdmi__fs_put(src_rec);
+			M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
+					 U128_P(&src_rec->fsr_rec_id),
+					 (int)m0_ref_read(&src_rec->fsr_ref) - 1);
 			m0_ref_put(&src_rec->fsr_ref);
+			m0_fdmi__fs_put(src_rec);
 			return M0_RC(M0_FSO_AGAIN);
 		}
 	}
@@ -770,6 +793,12 @@ static void fdmi_rec_notif_replied(struct m0_rpc_item *item)
 
 	pool = &src_dock->fsdc_sd_fom.fsf_conn_pool;
 	m0_rpc_conn_pool_put(pool, item->ri_session);
+	M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
+			 U128_P(&src_rec->fsr_rec_id),
+			 (int)m0_ref_read(&src_rec->fsr_ref) - 1);
+	m0_ref_put(&src_rec->fsr_ref);
+	m0_fdmi__fs_put(src_rec);
+
 	if (rc != 0) {
 		m0_rpc_conn_pool_destroy(pool, item->ri_session);
 
@@ -781,8 +810,7 @@ static void fdmi_rec_notif_replied(struct m0_rpc_item *item)
 		M0_LOG(M0_DEBUG, "Enqueue fdmi record again %p, ID:"U128X_F,
 				 src_rec, U128_P(&src_rec->fsr_rec_id));
 		m0_fdmi__enqueue(src_rec);
-	} else
-		m0_fdmi__handle_reply(src_dock, src_rec, rc);
+	}
 
 	M0_LEAVE();
 }
