@@ -50,6 +50,7 @@ struct m0_rpc_conn_pool {
 	struct m0_mutex          cp_ch_mutex;
 	m0_time_t                cp_timeout;
 	uint64_t                 cp_max_rpcs_in_flight;
+	struct m0_sm_ast         cp_ast;
 };
 
 M0_INTERNAL int m0_rpc_conn_pool_init(
@@ -87,6 +88,11 @@ struct m0_chan *m0_rpc_conn_pool_session_chan(struct m0_rpc_session *session);
 M0_INTERNAL bool m0_rpc_conn_pool_session_established(
 		struct m0_rpc_session *session);
 
+/**
+ * Destroy this rpc session from this pool.
+ */
+M0_INTERNAL void m0_rpc_conn_pool_destroy(struct m0_rpc_conn_pool *pool,
+					  struct m0_rpc_session   *session);
 #endif /* __MOTR_RPC_CONN_POOL_H__ */
 
 /*

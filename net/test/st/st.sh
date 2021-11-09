@@ -46,7 +46,6 @@ role_space()
 unload_all() {
 	if [ "$XPRT" = "lnet" ]; then
 		modunload
-		modunload_galois
 	fi
 }
 trap unload_all EXIT
@@ -54,7 +53,6 @@ trap unload_all EXIT
 if [ "$XPRT" = "lnet" ]; then
 	modprobe_lnet
 	lctl network up > /dev/null
-	modload_galois
 	modload || exit $?
 fi
 

@@ -43,14 +43,12 @@ fi
 
 unload_all() {
     modunload
-    modunload_galois
 }
 trap unload_all EXIT
 
 if [ "$NET_XTR" = "1" ]
 then
 	modprobe_lnet
-	modload_galois
 	modload || exit $?
 fi
 

@@ -61,9 +61,6 @@ opcode() {
 }
 
 m0_modules_insert() {
-    insmod $M0_SRC_DIR/extra-libs/galois/src/linux_kernel/galois.ko ||
-        die 'Inserting galois.ko failed'
-
     insmod $M0_SRC_DIR/m0tr.ko \
     local_addr=${M0T1FS_ENDPOINT%:*}: \
     max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
@@ -72,12 +69,10 @@ m0_modules_insert() {
     ${M0_TRACE_LEVEL:+trace_level=$M0_TRACE_LEVEL} \
     ${M0_TRACE_PRINT_CONTEXT:+trace_print_context=$M0_TRACE_PRINT_CONTEXT} \
     || {
-        rmmod galois
         die 'Inserting m0tr.ko failed'
     }
     insmod $M0_SRC_DIR/m0ctl.ko || {
         rmmod m0tr
-        rmmod galois
         die 'inserting m0ctl failed'
     }
 }
@@ -85,7 +80,6 @@ m0_modules_insert() {
 m0_modules_remove() {
     rmmod m0ctl || true
     rmmod m0tr || true
-    rmmod galois || true
 }
 
 lnet_up() {

@@ -42,7 +42,7 @@ CONF_FILE_PATH=$M0_SRC_DIR/ut/diter.xc
 CONF_PROFILE='<0x7000000000000001:0>'
 
 NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91  # required by `common.sh'
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh  # modload_galois
+. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh  # modload
 
 XPRT=$(m0_default_xprt)
 
@@ -50,7 +50,6 @@ start_server()
 {
 	if [ "$XPRT" = "lnet" ]; then
 		modprobe lnet
-		modload_galois
 		echo 8 >/proc/sys/kernel/printk
 		modload
 	fi
@@ -137,7 +136,6 @@ stop_server()
 	{ pkill -KILL $(basename "$SERVER") && wait; } || true
 	if [ "$XPRT" = "lnet" ]; then
 		modunload
-		modunload_galois
 	fi
 }
 

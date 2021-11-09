@@ -28,9 +28,8 @@
  * Please change the dir according to you development environment.
  *
  * How to build:
- * gcc -I/work/cortx-motr -I/work/cortx-motr/extra-libs/galois/include \
- *     -DM0_EXTERN=extern -DM0_INTERNAL= -Wno-attributes               \
- *     -L/work/cortx-motr/motr/.libs -lmotr                            \
+ * gcc -I/work/cortx-motr -DM0_EXTERN=extern -DM0_INTERNAL= -Wno-attributes   \
+ *     -L/work/cortx-motr/motr/.libs -lmotr                                   \
  *     example2.c -o example2
  *
  * Please change the configuration according to you development environment.
