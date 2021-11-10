@@ -1711,22 +1711,17 @@ __rpm_mock:
 .PHONY: rpms
 rpms:
 	$(MAKE) __rpm_pre
-	$(MAKE) __rpm_ivt
-	$(MAKE) __rpm_tests
 	$(MAKE) __rpm
 	$(MAKE) __rpm_srpm
-	$(MAKE) __rpm_post
-
-.PHONY: rpms-notests
-rpms-notests:
-	$(MAKE) __rpm_pre
-	$(MAKE) __rpm
 	$(MAKE) __rpm_post
 
 .PHONY: rpms-tests
 rpms-tests:
 	$(MAKE) __rpm_pre
+	$(MAKE) __rpm_ivt
 	$(MAKE) __rpm_tests
+	$(MAKE) __rpm
+	$(MAKE) __rpm_srpm
 	$(MAKE) __rpm_post
 
 .PHONY: rpms-ivt
@@ -1865,8 +1860,7 @@ help:
 	@echo '  dist            - recreate package-version.tar.gz from all source files'
 	@echo '  srpm            - build source rpm package'
 	@echo '  rpms            - build Motr rpm packages'
-	@echo '  rpms-notests    - build Motr rpm packages, excluding tests'
-	@echo '  rpms-tests      - build Motr tests rpm package only'
+	@echo '  rpms-tests      - build Motr rpm with test packages'
 	@echo '  rpms-mock       - build Motr rpm packages using "mock" environment (ensures clean rpm deps)'
 	@echo ''
 	@echo 'Infrastructure targets:'
