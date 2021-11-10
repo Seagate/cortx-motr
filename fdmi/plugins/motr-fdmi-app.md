@@ -50,9 +50,27 @@ This shell script starts Motr services using a specific filter configuration in 
 
 However, we need to modify manually the `/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh` withing the `build_conf()` function to add the FDMI_FILTER_SUBSTRINGS and the FDMI_FILTER to include the number of substrings used.
 
-The fdmi_plugin_st script starts the fdmi_plugin_sample application to listen for specific records that match with the filter already setup and do some key-value operations that reflects this specifications. 
+The `fdmi_plugin_st.sh` script starts the fdmi_plugin_sample application to listen for specific records that match with the filter already setup and do some key-value operations that reflects this specifications. 
 
 The output will show whether the test was successful or not.
+
+## Word count application for Hackathon event
+
+Another fdmi example is the modification of the `fdmi_app` python script, `fdmi_app_word_count` that prints to stdout the most popular words in new PUT object requests.
+
+To run this script, you need to type in the console the following command:
+
+`./fdmi_app_word_count`
+
+To connect to your own AWS Client and read the object data you need to change the `aws_access_key_id` and `aws_secret_access_key` inside the `connect_client()` function. 
+
+This script also allows to emulate FDMI events by polling a local directory for new created files using the `ld` option to pass the directory path and the `np` option for the number of most frequent words that you want to print to stdout.
+
+For this emulation, each file represents a new created object and the file content represents the object data. 
+
+Example of running this application polling the `~/test` directory every 3 seconds and printing the 30 most popular words within each file will be the following command:
+
+`./fdmi_app_word_count -ld ~/test -ss 3 -np 30`
 
 ## Tested by
 
