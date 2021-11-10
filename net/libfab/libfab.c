@@ -361,16 +361,20 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 	m0_net_xprt_deregister(&m0_net_libfab_xprt);
 }
 
-static void libfab_straddr_copy(struct m0_fab__conn_data *cd, char *buf,
+static int libfab_straddr_copy(struct m0_fab__conn_data *cd, char *buf,
                                uint8_t len, struct m0_fab__ep_name *en)
 {
-	snprintf(buf, len, "%s@%s:12345:%d:%d",
+	int rc;
+
+	rc = snprintf(buf, len, "%s@%s:12345:%d:%d",
                       cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
                       cd->fcd_iface == FAB_LO ? "lo" :
                               ((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
                       cd->fcd_portal, cd->fcd_tmid);
 
 	M0_ASSERT(len >= strlen(buf));
+
+	return rc;
 }
 
 /**
@@ -748,19 +752,21 @@ static void libfab_straddr_gen(struct m0_fab__conn_data *cd, char *buf,
 
 	if (cd->fcd_addr_frmt == FAB_LNET_FORMAT) {
 		if (cd->fcd_tmid == 0xFFFF)
-			snprintf(buf, len, "%s@%s:12345:%d:*",
+			rc = snprintf(buf, len, "%s@%s:12345:%d:*",
 				 cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
 				 cd->fcd_iface == FAB_LO ? "lo" :
 					((cd->fcd_iface == FAB_TCP) ? "tcp" :
 								      "o2ib"),
 				 cd->fcd_portal);
 		else
-			libfab_straddr_copy(cd, buf, len, en);
+			rc = libfab_straddr_copy(cd, buf, len, en);
 	} else {
 		if (cd->fcd_addr_frmt == FAB_NATIVE_IP_FORMAT)
-			libfab_straddr_copy(cd, buf, len, en);
+			rc = libfab_straddr_copy(cd, buf, len, en);
 		else if (cd->fcd_addr_frmt == FAB_NATIVE_HOSTNAME_FORMAT)
-			snprintf(buf, len, "%s", cd->fcd_hostname);
+			rc = snprintf(buf, len, "%s", cd->fcd_hostname);
+		else
+			rc = 0;
 	}
 
 	M0_ASSERT(rc > 0);
