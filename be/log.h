@@ -316,7 +316,7 @@ struct m0_be_log {
 
 /* m0_be_log */
 #define BL_F "(lg_current=%" PRIu64 " lg_discarded=%" PRIu64 \
-             " lg_free=%" PRIu64 ")"
+	     " lg_free=%" PRIu64 ")"
 #define BL_P(log) (log)->lg_current, (log)->lg_discarded, (log)->lg_free
 
 /** This structure represents minimal unit for log operations. */
