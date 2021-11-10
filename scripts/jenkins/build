@@ -55,16 +55,14 @@ fi
 
 ./autogen.sh |& tee $ARTIFACTS/configure.log
 
-if [[ $TRANSPORT == "lnet" ]]
-then
+if [[ $TRANSPORT == "lnet" ]]; then
 	TRANSPORT='lustre-client'
 else
-	echo "No need chage value"
+	echo "No need to change TRANSPORT value"
 fi
 
 # Checking if package is available or not
-if [[ ! -z $(rpm -qa $TRANSPORT) ]]
-then
+if [[ ! -z $(rpm -qa $TRANSPORT) ]]; then
         echo "$TRANSPORT package is present"
 else
         echo "need to install $TRANSPORT module"
@@ -73,10 +71,8 @@ fi
 
 if [[ "$TRANSPORT" == "libfabric" ]]; then
         echo "You are using default $TRANSPORT module"
-
 else
-	if  [[ ! -z $(rpm -qa | grep libfabric) ]]
-	then
+	if  [[ ! -z $(rpm -qa | grep libfabric) ]]; then
         	rpm -e $(rpm -qa | grep libfabric)
 	fi
 	sed -i '/libfabric/d' cortx-motr.spec.in
@@ -98,4 +94,3 @@ cp -av $HOME/rpmbuild/SRPMS/*.rpm $ARTIFACTS/
 (cd $ARTIFACTS/ ; ln -vs cortx-motr-[[:digit:]]*.x86_64.rpm motr-latest.rpm)
 
 fi
-
