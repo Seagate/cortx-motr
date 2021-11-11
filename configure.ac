@@ -161,6 +161,15 @@ AC_ARG_VAR([KCFLAGS], [kernel-space CFLAGS])
 AC_ARG_VAR([CXXXML],  [gccxml/castxml command])
 
 # define macros --------------------------------------- {{{2
+#
+# Add include guards to config.h
+#
+AH_TOP([
+#pragma once
+
+#ifndef __MOTR_CONFIG_H__
+#define __MOTR_CONFIG_H__
+])
 AH_TEMPLATE([MOTR_IDX_STORE_CASS],    [Use Cassandra as KVS backend.])
 AH_TEMPLATE([IDX_CASS_DRV_V22],       [Cassandra driver version >= 2.2.])
 AH_TEMPLATE([ENABLE_LUSTRE],          [Enable LNet network stack from Lustre.])
@@ -202,7 +211,9 @@ AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
 AH_TEMPLATE([CONFIG_X86_64],          [Support for X86_64 platform])
 AH_TEMPLATE([CONFIG_AARCH64],         [Support for AARCH64 platform])
-
+AH_BOTTOM([
+#endif /* __MOTR_CONFIG_H__ */
+])
 
 # enable/disable options ------------------------------ {{{2
 
