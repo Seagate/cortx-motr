@@ -88,6 +88,7 @@ struct m0_net_ip_addr {
 	struct m0_net_ip_params  nia_n;
 	char                     nia_p[M0_NET_IP_STRLEN_MAX];
 };
+
 /**
  * This function decodes addresses based on address format type
  * such as lnet or inet address format.
@@ -95,7 +96,8 @@ struct m0_net_ip_addr {
 M0_INTERNAL int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr);
 
 /**
- * This function returns printable ip address format.
+ * This function generates printable address format from
+ * struct m0_net_ip_addr::nia_n into struct m0_net_ip_addr::nia_p.
  */
 M0_INTERNAL int m0_net_ip_print(const struct m0_net_ip_addr *nia);
 
@@ -108,6 +110,12 @@ M0_INTERNAL int m0_net_ip_print(const struct m0_net_ip_addr *nia);
  */
 M0_INTERNAL int m0_net_hostname_to_ip(char *hostname, char *ip,
 				      enum m0_net_ip_format *fmt);
+
+/**
+ * This function is used to compare the fields in struct m0_net_ip_addr.
+ */
+M0_INTERNAL bool m0_net_ip_addr_cmp(struct m0_net_ip_addr *addr1,
+				    struct m0_net_ip_addr *addr2, bool is_ncmp);
 
 #endif /* __MOTR_NET_IP_H__ */
 

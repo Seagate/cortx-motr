@@ -274,10 +274,7 @@ struct m0_fab__ep_name {
 	/** Port range 0-65535 */
 	char fen_port[LIBFAB_PORT_LEN_MAX];
 
-	/** TODO: Replace 'fen_str_addr' with 'fen_name.nia_p' -> done*/
-	/** address in string format as passed by the net layer */
-	// char fen_str_addr[LIBFAB_ADDR_STRLEN_MAX];
-
+	/** TODO: Replace fen_addr and fen_port with m0_net_ip_addr in numeric*/
 	/** network address */
 	struct m0_net_ip_addr fen_name;
 };
@@ -474,8 +471,7 @@ struct m0_fab__buf_mr {
  */
 struct m0_fab__bdesc {
 	/** Remote node address */
-	uint64_t fbd_netaddr; /** TODO: replace with m0_net_ip_params */
-	struct m0_net_ip_params fbd_na; /** TODO: replace with m0_net_ip_params */
+	struct m0_net_ip_params fbd_na;
 
 	/** Remote buffer iov count */
 	uint32_t fbd_iov_cnt;
@@ -578,8 +574,6 @@ struct m0_fab__buf {
  */
 struct m0_fab__conn_data {
 	/** network address */
-	/** TODO: Reduce size of m0_fab__conn_data to less than 50 bytes
-	 * in order to work with verbs -> resolved*/
 	struct m0_net_ip_params fcd_addr;
 };
 
