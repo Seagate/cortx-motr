@@ -8333,31 +8333,61 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 	};
 }
 
+#ifndef __KERNEL__
+static void unmap_node(void* addr, int64_t size)
+{
+	int rc;
+	rc = munmap(addr, size);
+	if (rc != 0)
+		M0_LOG(M0_ERROR, "Unmapping of memory failed");
+}
+
+static void remap_node(void* addr, int64_t size, struct m0_be_seg *seg)
+{
+	void *p;
+	p = mmap(addr, size, PROT_READ | PROT_WRITE,
+		 MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE,
+		 m0_stob_fd(seg->bs_stob), seg->bs_offset);
+	if (p != addr)
+		M0_LOG(M0_ERROR, "Mapping of memory failed");
+
+}
 /**
  * TODO: Call this function to free up node descriptor from LRU list.
  * A daemon should run in parallel to check the health of the system. If it
  * requires more memory the node descriptors can be freed from LRU list.
  *
- * @param count number of node descriptors to be freed.
+ * @param size the total size in bytes to be freed from the swap.
  */
-M0_INTERNAL void m0_btree_lrulist_purge(uint64_t count)
+M0_INTERNAL void m0_btree_lrulist_purge(int64_t size, struct m0_be_tx *tx)
 {
-	struct nd* node;
-	struct nd* prev;
+	struct nd        *node;
+	struct nd        *prev;
+	int64_t           curr_size;
+	void             *rnode;
+	struct m0_be_seg *seg;
 
 	m0_rwlock_write_lock(&list_lock);
 	node = ndlist_tlist_tail(&btree_lru_nds);
-	for (;  node != NULL && count > 0; count --) {
+	while (node != NULL && size > 0) {
+		curr_size = 0;
 		prev = ndlist_tlist_prev(&btree_lru_nds, node);
-		if (node->n_txref == 0) {
+		if (node->n_txref == 0 && node->n_ref == 0) {
+			curr_size = node->n_size;
+			seg = node->n_tree->t_seg;
+			rnode = segaddr_addr(&node->n_addr);
 			ndlist_tlink_del_fini(node);
 			m0_rwlock_fini(&node->n_lock);
+			unmap_node(rnode, curr_size);
+			remap_node(rnode, curr_size, seg);
 			m0_free(node);
 		}
+		size -= curr_size;
 		node = prev;
 	}
 	m0_rwlock_write_unlock(&list_lock);
 }
+#endif
 
 M0_INTERNAL int  m0_btree_open(void *addr, int nob, struct m0_btree *out,
 			       struct m0_be_seg *seg, struct m0_btree_op *bop,
