@@ -98,13 +98,15 @@ do_some_kv_operations()
 			echo "When you have done that, Press Enter to go ..."
 			read
 		else
+			rc=1
 			stop_fdmi_plugin      && sleep 5                         &&
 			start_fdmi_plugin "$FDMI_FILTER_FID"  "$FDMI_PLUGIN_EP"  &&
-			start_fdmi_plugin "$FDMI_FILTER_FID2" "$FDMI_PLUGIN_EP2" || {
+			start_fdmi_plugin "$FDMI_FILTER_FID2" "$FDMI_PLUGIN_EP2" && rc=0
+			if [[ $rc -eq 1 ]] ; then
 				echo "Can not stop and start plug again".
-				rc=1
 				return $rc
-			}
+			fi
+			sleep 5
 		fi
 
 		echo "Let's put {key3: ***}"
@@ -118,8 +120,8 @@ do_some_kv_operations()
 		if $interactive ; then echo "Press Enter to go ..." && read; fi
 
 		echo "Now do more index put ..."
-		echo "Because the plug was restarted, these operations"
-		echo " will trigger failure handling"
+		echo "Because the plug was restarted, these operations "
+		echo "will trigger failure handling"
 		for ((j=0; j<20; j++)); do
 			echo "j=$j"
 			"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
@@ -156,7 +158,7 @@ do_some_kv_operations()
 		}
 		if $interactive ; then echo "Press Enter to go ..." && read; fi
 
-		echo "Sleep 100 seconds, if any failure, this would be engough to recover."
+		echo "Sleep 100 seconds, if any failure, this would be enough to recover."
 		sleep 100
 
 	done
