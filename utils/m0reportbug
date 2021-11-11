@@ -403,6 +403,10 @@ _path_rpm() {
 
     case $name in
         m0d|m0trace|m0tracedump) echo "/usr/bin/$name";;
+        m0cp) echo "/usr/bin/$name";;
+        m0client) echo "/usr/bin/$name";;
+        m0touch) echo "/usr/bin/$name";;
+        m0cat) echo "/usr/bin/$name";;
         m0mkfs) echo "/usr/sbin/$name";;
         m0addb2dump) echo "/usr/sbin/$name";;
         m0beck|m0betool) echo "/usr/sbin/$name";;
@@ -684,6 +688,10 @@ sysrq_info() {
         [t]='show-task-states'
         [m]='show-memory-usage'
     )
+    if [[ "ro"==$(cat /proc/mounts | grep /proc/sysrq-trigger | awk '{print substr($4,1,2)}') ]] ; then
+        return
+    fi
+
     local old_sysrq=$(sysctl --values kernel.sysrq)
 
     # unmask all sysrq functions
