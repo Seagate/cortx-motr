@@ -2582,17 +2582,6 @@ static void *ff_key(const struct nd *node, int idx)
 
 static void *ff_val(const struct nd *node, int idx)
 {
-	// struct ff_head *h    = ff_data(node);
-	// void           *area = h + 1;
-
-	// M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
-	// 	    0 <= idx && idx <= h->ff_used));
-	// return area + (h->ff_ksize + h->ff_vsize) * idx + h->ff_ksize;
-
-	// void             *node_start_addr = ff_data(node);
-	// struct ff_head *h               = node_start_addr;
-	// void             *node_end_addr;
-	// int               value_offset;
 	void           *node_start_addr = ff_data(node);
 	struct ff_head *h               = node_start_addr;
 	void           *node_end_addr;
@@ -2851,22 +2840,11 @@ static void ff_done(struct slot *slot, bool modified)
 
 static void ff_make(struct slot *slot)
 {
-	// const struct nd *node  = slot->s_node;
-	// struct ff_head  *h     = ff_data(node);
-	// int              rsize = h->ff_ksize + h->ff_vsize;
-	// void            *start = ff_key(node, slot->s_idx);
-
-	// M0_PRE(ff_rec_is_valid(slot));
-	// M0_PRE(ff_isfit(slot));
-	// m0_memmove(start + rsize, start, rsize * (h->ff_used - slot->s_idx));
-	// h->ff_used++;
-	/** Capture these changes in ff_capture.*/
-
 	struct ff_head *h  = ff_data(slot->s_node);
-	void             *key_addr;
-	void             *val_addr;
-	int               total_key_size;
-	int               total_val_size;
+	void           *key_addr;
+	void           *val_addr;
+	int             total_key_size;
+	int             total_val_size;
 
 
 	if (h->ff_used == 0 || slot->s_idx == h->ff_used) {
@@ -2910,20 +2888,11 @@ static void ff_cut(const struct nd *node, int idx, int size)
 
 static void ff_del(const struct nd *node, int idx)
 {
-	// struct ff_head   *h     = ff_data(node);
-	// int               rsize = h->ff_ksize + h->ff_vsize;
-	// void             *start = ff_key(node, idx);
-
-	// M0_PRE(idx < h->ff_used);
-	// M0_PRE(h->ff_used > 0);
-	// m0_memmove(start, start + rsize, rsize * (h->ff_used - idx - 1));
-	// h->ff_used--;
-	// /** Capture changes in ff_capture */
 	struct ff_head *h     = ff_data(node);
-	void             *key_addr;
-	void             *val_addr;
-	int               total_key_size;
-	int               total_val_size;
+	void           *key_addr;
+	void           *val_addr;
+	int             total_key_size;
+	int             total_val_size;
 
 	M0_PRE(h->ff_used > 0 && idx < h->ff_used);
 
@@ -3058,8 +3027,6 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 {
 	struct ff_head   *h     = ff_data(slot->s_node);
-	// int               rsize = h->ff_ksize + h->ff_vsize;
-	// void             *start;
 	struct m0_be_seg *seg   = slot->s_node->n_tree->t_seg;
 	m0_bcount_t       hsize = sizeof(*h) - sizeof(h->ff_opaque);
 
@@ -3070,8 +3037,8 @@ static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 	 *  header modifications need to be persisted.
 	 */
 	if (h->ff_used > slot->s_idx) {
-		void *start_key = ff_key(slot->s_node, slot->s_idx);
-		void *last_val  = ff_val(slot->s_node, h->ff_used - 1);
+		void *start_key        = ff_key(slot->s_node, slot->s_idx);
+		void *last_val         = ff_val(slot->s_node, h->ff_used - 1);
 		int   rec_modify_count = h->ff_used - slot->s_idx;
 		int   krsize           = h->ff_ksize * rec_modify_count;
 		int   vrsize           = h->ff_vsize * rec_modify_count;
