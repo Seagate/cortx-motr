@@ -265,21 +265,6 @@ struct m0_fab__fab {
 };
 
 /**
- * Libfab structure of endpoint name
- */
-struct m0_fab__ep_name {
-	/** IP address */
-	char fen_addr[LIBFAB_ADDR_LEN_MAX];
-
-	/** Port range 0-65535 */
-	char fen_port[LIBFAB_PORT_LEN_MAX];
-
-	/** TODO: Replace fen_addr and fen_port with m0_net_ip_addr in numeric*/
-	/** network address */
-	struct m0_net_ip_addr fen_name;
-};
-
-/**
  * Libfab structure of resources associated to a passive endpoint
  */
 struct m0_fab__pep_res{
@@ -365,8 +350,8 @@ struct m0_fab__ep {
 	/** Network endpoint structure linked into a per-tm list */
 	struct m0_net_end_point    fep_nep;
 	
-	/** ipaddr, port and strname in printable format*/
-	struct m0_fab__ep_name     fep_name_p;
+	/** ipaddr, port and strname in printable format */
+	struct m0_net_ip_addr      fep_name;
 
 	/** Name in numeric format <IP_Addr, 32bit>:<Port, 32 bit> */
 	uint64_t                   fep_name_n;

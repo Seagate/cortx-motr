@@ -227,7 +227,7 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 
 	portnum  = tmid | (1 << 10) | ((portal - 30) << 11);
 	M0_ASSERT(portnum < M0_NET_IP_PORT_MAX);
-	sprintf(port, "%d", (int)portnum);
+	snprintf(port, ARRAY_SIZE(port), "%d", (int)portnum);
 	ip_autotm[tmid] = 1;
 
 	addr->nia_n.nip_format = M0_NET_IP_LNET_FORMAT;
@@ -388,8 +388,8 @@ M0_INTERNAL int m0_net_hostname_to_ip(char *hostname, char *ip,
 		return M0_ERR(-EINVAL);
 
 	n = cp - hostname;
-	memcpy(name, hostname, n);
 	name[n] = '\0';
+	strncat(name, hostname, n);
 
 	if (inet_pton(AF_INET, name, &ip_n[0]) == 1 ||
 	    inet_pton(AF_INET6, name, &ip_n[0]) == 1) {
@@ -422,8 +422,7 @@ M0_INTERNAL int m0_net_hostname_to_ip(char *hostname, char *ip,
 M0_INTERNAL bool m0_net_ip_addr_cmp(struct m0_net_ip_addr *addr1,
 				    struct m0_net_ip_addr *addr2, bool is_ncmp)
 {
-	// bool rc = true;
-
+	M0_PRE(addr1 != NULL && addr2 != NULL);
 	if (!is_ncmp)
 		return (strcmp(addr1->nia_p, addr2->nia_p) == 0);
 	else

@@ -70,7 +70,7 @@ struct m0_net_ip_lnet_addr {
 	bool     nla_autotm;
 };
 
-/** Genereic structure to store values related to network address */
+/** Structure for network address parameters */
 struct m0_net_ip_params {
 	union {
 		struct m0_net_ip_inet_addr ia;
@@ -84,6 +84,7 @@ struct m0_net_ip_params {
 	uint16_t                   nip_port;
 };
 
+/** Generic structure to store values related to network address */
 struct m0_net_ip_addr {
 	struct m0_net_ip_params  nia_n;
 	char                     nia_p[M0_NET_IP_STRLEN_MAX];
