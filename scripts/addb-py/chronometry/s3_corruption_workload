@@ -145,7 +145,6 @@ function cleanup_cluster()
     $EX_SRV lsmod | grep -q m0ctl && ( rmmod m0ctl || echo "Failed to unload m0ctl module" )
     $EX_SRV lsmod | grep -q $M0TR_KERNEL_MODULE && ( rmmod $M0TR_KERNEL_MODULE || echo "Failed to unload $M0TR_KERNEL_MODULE module" )
     $EX_SRV lsmod | grep -q m0gf && ( rmmod m0gf || echo "Failed to unload m0gf module" )
-    $EX_SRV lsmod | grep -q galois && ( rmmod galois || echo "Failed to unload galois module" )
     set -e
 
     $EX_SRV 'rm -rf /var/motr/*'
@@ -684,7 +683,7 @@ function run_tests()
     cp $MOTR_SRC_DIR/motr/.libs/lt-m0d ./
     cp /opt/seagate/cortx/s3/bin/s3server ./
     popd
-    
+
     mkdir -p $s3cli_dir
     pushd $s3cli_dir
     prepare_client

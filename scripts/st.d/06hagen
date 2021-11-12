@@ -21,4 +21,4 @@
 set -eu
 
 cd "$M0_SRC_DIR"
-exec utils/m0hagen --self-check
+exec st/m0hagen

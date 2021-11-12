@@ -32,6 +32,12 @@ readonly base_rundir='/var/motr'
 readonly top_srcdir=$(echo $(dirname $self) \
                       | sed -r -e 's#/?utils/?$##' -e 's#^/usr/s?bin##')
 
+M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=${M0_SRC_DIR%/*/*}
+
+. $M0_SRC_DIR/utils/functions # m0_default_xprt
+
+XPRT=$(m0_default_xprt)
 # variables
 verbose=false
 debugger=
@@ -282,40 +288,42 @@ run_valgrind()
 # not found.
 load_modules()
 {
-    if [[ -n "$top_srcdir" ]] ; then
-        source $top_srcdir/utils/modload-all.sh
-    else
-        # don't try to load Motr modules if they already are
-        # and don't unload them as well (EXIT trap is not set)
-        # unless '-f' option was used
-        local loaded=false
-        if lsmod | grep -Eq 'm0|galois' ; then
-            log 'Motr kernel modules are already loaded'
-            loaded=true
-            if $force_modules_reload ; then
-                log 'forcing Motr modules reloading'
-                modprobe -r m0tr
-                loaded=false
-            else
-                return 0
+    if [ "$XPRT" = "lnet" ]; then
+        if [[ -n "$top_srcdir" ]] ; then
+            source $top_srcdir/utils/modload-all.sh
+        else
+            # don't try to load Motr modules if they already are
+            # and don't unload them as well (EXIT trap is not set)
+            # unless '-f' option was used
+            local loaded=false
+            if lsmod | grep -Eq 'm0' ; then
+                log 'Motr kernel modules are already loaded'
+                loaded=true
+                if $force_modules_reload ; then
+                    log 'forcing Motr modules reloading'
+                    modprobe -r m0tr
+                    loaded=false
+                else
+                    return 0
+                fi
             fi
-        fi
 
-        local lnet_status=$(service lnet status)
-        if $force_modules_reload || [[ $lnet_status != running ]] ; then
-            log '(re)starting LNet service'
-            service lnet stop
-            service lnet start
-        fi
+                local lnet_status=$(service lnet status)
+                if $force_modules_reload || [[ $lnet_status != running ]] ; then
+                    log '(re)starting LNet service'
+                    service lnet stop
+                    service lnet start
+                fi
 
-        if ! $loaded ; then
-            log 'loading Motr modules'
-            modprobe m0mtr  "node_uuid=$node_uuid" \
-                            "trace_immediate_mask=$trace_immediate_mask" \
-                            "trace_print_context=$trace_print_context" \
-                            "trace_level=$trace_level"
+            if ! $loaded ; then
+                log 'loading Motr modules'
+                modprobe m0mtr  "node_uuid=$node_uuid" \
+                                "trace_immediate_mask=$trace_immediate_mask" \
+                                "trace_print_context=$trace_print_context" \
+                                "trace_level=$trace_level"
 
-            trap unload_modules EXIT
+                trap unload_modules EXIT
+            fi
         fi
     fi
 }
@@ -369,6 +377,7 @@ load_modules
 
 # enable core dumps
 ulimit -c unlimited
+ulimit -n 65536
 
 # Increase the maximum number of memory map areas a process may have.
 # m0d process may allocate and madvise() at least 2,000,000 memory map areas.

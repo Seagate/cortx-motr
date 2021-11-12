@@ -37,6 +37,7 @@ LOG_LEVEL: 4  # err(0), warn(1), info(2), trace(3), debug(4)
 WORKLOAD_SPEC:               # Workload specification section
    WORKLOAD:                 # First Workload
       WORKLOAD_TYPE: 1       # Index(0), IO(1)
+      #POOL_FID: <0x6f00000000000001:0x2f> # Default pool is used, if not set
       WORKLOAD_SEED: tstamp  # SEED to the random number generator
       OPCODE: 3              # Operation(s) to test: 2-WRITE, 3-WRITE+READ
       IOSIZE: 10m     # Total Size of IO to perform per object

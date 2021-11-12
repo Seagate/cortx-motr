@@ -20,7 +20,7 @@ if [ $# -ne 7 -a $# -ne 12 ]; then
 	echo "  *_cr		-" \
 	     "credentials to run test console/server/client (username@hostname)"
 	echo "  *_if		-" \
-	     "LNET interface for test console (e.g. 172.18.50.161@o2ib)"
+	     "Interface for test console (e.g. 172.18.50.161@o2ib)"
 	exit
 fi
 
@@ -29,17 +29,28 @@ if [ $1 != "console" -a $1 != "server" -a $1 != "client" ]; then
 	exit
 fi
 
+echo "--------------------Test-user-script------------------------"
+echo -n "Enter (1)Lnet (2)libFab :"
+read NET_XTR
+if [ "$NET_XTR" = "1" ]
+then
+	echo "Net transport is LNet"
+else
+	echo "Net transport is Libfab"
+fi
+
 . @abs_top_srcdir@/m0t1fs/linux_kernel/st/common.sh
 
 unload_all() {
     modunload
-    modunload_galois
 }
 trap unload_all EXIT
 
-modprobe_lnet
-modload_galois
-modload || exit $?
+if [ "$NET_XTR" = "1" ]
+then
+	modprobe_lnet
+	modload || exit $?
+fi
 
 JOB_IDS=
 SCRIPT=@abs_top_srcdir@/net/test/test-user.sh
@@ -54,26 +65,68 @@ CLIENT_CR=$4
 CONSOLE_IF=$5
 SERVER_IF=$6
 CLIENT_IF=$7
+TEST_TYPE=$8
 COMMON_PARAMS="$2 $3 $4 $5 $6 $7"
+
+# Bulk parameters
+BD_BUF_NR_CLIENT=16
+BD_BUF_NR_SERVER=32
+BD_BUF_SIZE=64k
+BD_BUF_NR_MAX=16
+
 shift 7
 
 job_id_add() {
 	JOB_IDS="$JOB_IDS $!"
 }
 
-run_console() {
-	@abs_top_srcdir@/net/test/user_space/m0nettest \
+run_libfab_console() {
+        echo "type : $TEST_TYPE msg_nr : $MSG_NR msg_size : $MSG_SIZE con-ser : $CONCUR_SERVER con-cli : $CONCUR_CLIENT"
+        if [ "$TEST_TYPE" == "bulk" ]; then
+            BULK_PARAMETERS="-B $BD_BUF_NR_SERVER \
+                             -b $BD_BUF_NR_CLIENT \
+                             -f $BD_BUF_SIZE \
+                             -g $BD_BUF_NR_MAX"
+        fi
+
+        @abs_top_srcdir@/net/test/user_space/m0nettest \
+                -t $TEST_TYPE \
+                -n $MSG_NR \
+                -s $MSG_SIZE \
+                -E $CONCUR_SERVER \
+                -e $CONCUR_CLIENT \
+                -A "$CONSOLE_IF:$PID:$PORTAL:100" \
+                -a "$CONSOLE_IF:$PID:$PORTAL:101" \
+                -C "$SERVER_IF:$PID:$PORTAL:200" \
+                -c "$CLIENT_IF:$PID:$PORTAL:300" \
+                -D "$SERVER_IF:$PID:$PORTAL:236" \
+                -d "$CLIENT_IF:$PID:$PORTAL:248" \
+                $BULK_PARAMETERS &
+        job_id_add
+}
+
+run_lnet_console() {
+	echo "type : $TEST_TYPE msg_nr : $MSG_NR msg_size : $MSG_SIZE con-ser : $CONCUR_SERVER con-cli : $CONCUR_CLIENT"
+        if [ "$TEST_TYPE" == "bulk" ]; then
+            BULK_PARAMETERS="-B $BD_BUF_NR_SERVER \
+                             -b $BD_BUF_NR_CLIENT \
+                             -f $BD_BUF_SIZE \
+                             -g $BD_BUF_NR_MAX"
+        fi
+
+        @abs_top_srcdir@/net/test/user_space/m0nettest \
 		-t $TEST_TYPE \
-		-n $MSG_NR \
-		-s $MSG_SIZE \
-		-g $CONCUR_SERVER \
-		-h $CONCUR_CLIENT \
-		-a "$CONSOLE_IF:$PID:$PORTAL:100" \
-		-b "$CONSOLE_IF:$PID:$PORTAL:101" \
-		-c "$SERVER_IF:$PID:$PORTAL:200" \
-		-d "$CLIENT_IF:$PID:$PORTAL:300" \
-		-e "$SERVER_IF:$PID:$PORTAL:201" \
-		-f "$CLIENT_IF:$PID:$PORTAL:301" &
+                -n $MSG_NR \
+                -s $MSG_SIZE \
+                -E $CONCUR_SERVER \
+                -e $CONCUR_CLIENT \
+                -A "$CONSOLE_IF:$PID:$PORTAL:100" \
+                -a "$CONSOLE_IF:$PID:$PORTAL:101" \
+                -C "$SERVER_IF:$PID:$PORTAL:200" \
+                -c "$CLIENT_IF:$PID:$PORTAL:300" \
+                -D "$SERVER_IF:$PID:$PORTAL:236" \
+                -d "$CLIENT_IF:$PID:$PORTAL:248" \
+                $BULK_PARAMETERS &
 	job_id_add
 }
 
@@ -97,7 +150,6 @@ run_ssh() {
 }
 
 if [ "$ROLE" = "console" ]; then
-	TEST_TYPE=$1
 	MSG_NR=$2
 	MSG_SIZE=$3
 	CONCUR_SERVER=$4
@@ -122,7 +174,12 @@ if [ "$ROLE" = "console" ]; then
 	fi
 	# time to initialize nodes - magic number
 	sleep 3
-	run_console
+	if [ "$NET_XTR" = "1" ]
+	then
+		run_lnet_console
+	else
+		run_libfab_console
+	fi
 fi
 
 if [ "$ROLE" = "server" ]; then

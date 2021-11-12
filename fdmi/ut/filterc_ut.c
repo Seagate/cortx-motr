@@ -47,7 +47,7 @@ static struct m0_reqh_service *ufc_fdmi_service;
  * ---------------------------------------------------------------- */
 #define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"
 #define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
-#define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
+#define SERVER_ENDPOINT       M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 
 #define SERVER_DB_NAME        "fdmi_filterc_ut.db"
 #define SERVER_STOB_NAME      "fdmi_filterc_ut.stob"
@@ -151,9 +151,7 @@ static int ut_filterc_fco_start(struct m0_filterc_ctx *ctx,
 static void rpc_client_and_server_start(void)
 {
 	int rc;
-
 	M0_SET0(&sctx.rsx_motr_ctx);
-
 	rc = m0_net_domain_init(&client_net_dom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 	sctx.rsx_xprts = m0_net_all_xprt_get();

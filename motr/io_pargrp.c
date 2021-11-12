@@ -1348,9 +1348,9 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 						     (i*row_per_seg)+ row][col];
 				data_buf_init(dbuf, ptr, obj_buffer_size(obj),
 					      PA_NONE);
-				ptr = (void*)((uintptr_t)ptr + obj_buffer_size(obj));
+				ptr += obj_buffer_size(obj);
 
-				M0_LOG(M0_DEBUG, "row=%d col=%d dbuf=%p pbuf = %p ptr=%p",
+				M0_LOG(M0_DEBUG, "row=%d col=%d dbuf=%p pbuf=%p ptr=%p",
 				       row, col, dbuf, pbuf, ptr);
 
 				if (M0_IN(op_code, (M0_OC_WRITE,
@@ -1376,7 +1376,7 @@ err:
 				data_buf_fini(buf);
 				m0_free(buf);
 			}
-		}	
+		}
 	}
 
 	return M0_ERR(-ENOMEM);
@@ -2039,13 +2039,6 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 		rc = -EIO;
 		goto end;
 	}
-	if (parity_math(map->pi_ioo)->pmi_parity_algo ==
-	    M0_PARITY_CAL_ALGO_REED_SOLOMON) {
-		rc = m0_parity_recov_mat_gen(parity_math(map->pi_ioo),
-				(uint8_t *)failed.b_addr);
-		if (rc != 0)
-			goto end;
-	}
 
 	/* Populates data and failed buffers. */
 	for (row = 0; row < rows_nr(play, ioo->ioo_obj); ++row) {
@@ -2073,9 +2066,6 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 			goto end;
 	}
 
-	if (parity_math(map->pi_ioo)->pmi_parity_algo ==
-	    M0_PARITY_CAL_ALGO_REED_SOLOMON)
-		m0_parity_recov_mat_destroy(parity_math(map->pi_ioo));
 end:
 	m0_free(data);
 	m0_free(parity);
