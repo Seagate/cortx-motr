@@ -60,6 +60,11 @@ M0_TL_DESCR_DEFINE(poolmach_equeue, "pool machine events queue", static,
 
 M0_TL_DEFINE(poolmach_equeue, static, struct poolmach_equeue_link);
 
+static struct m0_clink *poolnode_clink(struct m0_poolnode *pnode)
+{
+	return &pnode->pn_clink.bc_u.clink;
+}
+
 static struct m0_clink *pooldev_clink(struct m0_pooldev *pdev)
 {
 	return &pdev->pd_clink.bc_u.clink;
@@ -93,8 +98,34 @@ static int poolmach_state_update(struct m0_poolmach_state *st,
 	M0_ENTRY(FID_F, FID_P(&objv_real->co_id));
 
 	if (m0_conf_obj_type(objv_real) == &M0_CONF_ENCLOSURE_TYPE) {
-		st->pst_nodes_array[*idx_nodes].pn_id = objv_real->co_id;
-		M0_CNT_INC(*idx_nodes);
+		struct m0_conf_enclosure *e;
+		struct m0_conf_node      *n;
+		struct m0_poolmach_event  pme;
+		struct m0_poolnode       *pnode;
+
+		if(*idx_devices != 0)
+			M0_CNT_INC(*idx_nodes);
+
+		pnode =	&st->pst_nodes_array[*idx_nodes];
+
+		e = M0_CONF_CAST(objv_real, m0_conf_enclosure);
+		n = e->ce_node;
+		pnode->pn_id = n->cn_obj.co_id;
+		pnode->pn_index = *idx_nodes;
+		M0_LOG(M0_ALWAYS, "[ABHI] Node FID:"FID_F" Node Index:%"PRIu32" Node object:%p", FID_P(&objv_real->co_id), *idx_nodes, pnode);
+		
+		m0_conf_obj_get_lock(&n->cn_obj);
+		m0_poolnode_clink_add(poolnode_clink(pnode),
+				     &n->cn_obj.co_ha_chan);
+
+		pme.pe_type = M0_POOL_NODE;
+		pme.pe_index = *idx_nodes;
+		pme.pe_state = m0_ha2pm_state_map(n->cn_obj.co_ha_state);
+
+		M0_LOG(M0_ALWAYS, "node:"FID_F"index:%d state:%d",
+				FID_P(&pnode->pn_id), pnode->pn_index,
+				pme.pe_state);
+		rc = m0_poolmach_state_transit(pnode->pn_pm, &pme);
 	} else if (m0_conf_obj_type(objv_real) == &M0_CONF_DRIVE_TYPE) {
 		struct m0_conf_drive     *d;
 		struct m0_poolmach_event  pme;
@@ -130,6 +161,7 @@ static int poolmach_state_update(struct m0_poolmach_state *st,
 static bool poolmach_conf_expired_cb(struct m0_clink *clink)
 {
 	struct m0_pooldev        *dev;
+	struct m0_poolnode       *node;
 	struct m0_clink          *cl;
 	struct m0_conf_obj       *obj;
 	struct m0_poolmach_state *state =
@@ -148,6 +180,20 @@ static bool poolmach_conf_expired_cb(struct m0_clink *clink)
 		M0_ASSERT(m0_conf_obj_invariant(obj));
 		M0_LOG(M0_INFO, "obj "FID_F, FID_P(&obj->co_id));
 		m0_pooldev_clink_del(cl);
+		m0_confc_close(obj);
+		M0_SET0(cl);
+	}
+
+	for (i = 0; i < state->pst_nr_nodes; ++i) {
+		node = &state->pst_nodes_array[i];
+		cl = poolnode_clink(node);
+		if (cl->cl_chan == NULL)
+			continue;
+		obj = container_of(cl->cl_chan, struct m0_conf_obj,
+				   co_ha_chan);
+		M0_ASSERT(m0_conf_obj_invariant(obj));
+		M0_LOG(M0_INFO, "obj "FID_F, FID_P(&obj->co_id));
+		m0_poolnode_clink_del(cl);
 		m0_confc_close(obj);
 		M0_SET0(cl);
 	}
@@ -273,6 +319,8 @@ static void state_init(struct m0_poolmach_state   *state,
 		});
 		state->pst_nodes_array[i].pn_state = M0_PNDS_ONLINE;
 		M0_SET0(&state->pst_nodes_array[i].pn_id);
+		state->pst_nodes_array[i].pn_index = i;
+		state->pst_nodes_array[i].pn_pm = pm;
 		m0_format_footer_update(&state->pst_nodes_array[i]);
 	}
 
@@ -394,6 +442,19 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 		if (pool_failed_devs_tlink_is_in(pd))
 			pool_failed_devs_tlink_del_fini(pd);
 	}
+
+	for (i = 0; i < state->pst_nr_nodes; ++i) {
+		cl = poolnode_clink(&state->pst_nodes_array[i]);
+		if (cl->cl_chan != NULL) {
+			obj = container_of(cl->cl_chan, struct m0_conf_obj,
+					   co_ha_chan);
+			M0_ASSERT(m0_conf_obj_invariant(obj));
+			m0_poolnode_clink_del(cl);
+			M0_SET0(cl);
+			m0_confc_close(obj);
+		}
+	}
+
 	if (!M0_FI_ENABLED("poolmach_init_by_conf_skipped")) {
 		m0_clink_cleanup(exp_clink(state));
 		m0_clink_fini(exp_clink(state));

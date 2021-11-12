@@ -390,6 +390,15 @@ struct m0_poolnode {
 	char                    pn_pad[4];
 	/** Pool node identity. */
 	struct m0_fid           pn_id;
+	/** pool machine this poolnode belongs to */
+	struct m0_poolmach     *pn_pm;
+	/** poolnode index in the poolmachine-state node array*/
+	uint32_t                pn_index;
+	/**
+	 * Link to receive HA state change notification. This will wait on
+	 * disk obj's wait channel i.e. m0_conf_obj::co_ha_chan.
+	 */
+	struct m0_be_clink      pn_clink;
 	struct m0_format_footer pn_footer;
 };
 M0_BASSERT(sizeof(enum m0_pool_nd_state) == 4);
@@ -575,6 +584,17 @@ enum sns_repair_state {
 
 	SRS_NR,
 };
+
+/**
+ * Register clink of poolnode to node conf object's wait channel
+ * to receive HA notifications.
+ */
+M0_INTERNAL void m0_poolnode_clink_add(struct m0_clink *link,
+				       struct m0_chan  *chan);
+/**
+ * Delete clink of poolnode
+ */
+M0_INTERNAL void m0_poolnode_clink_del(struct m0_clink *cl);
 
 /**
  * Register clink of pooldev to disk conf object's wait channel
