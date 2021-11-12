@@ -109,7 +109,7 @@ def process_fdmi_record(kv_record):
     # Check de-dup records
     kv_i = kv_records.get(keystr)
     if kv_i is not None:
-        #print('dup: {}'.format(kv), file=sys.stdout, flush = True)
+        print('dup: {}'.format(kv), file=sys.stdout, flush = True)
         return
     else:
         print('new: {}'.format(kv), file=sys.stdout, flush = True)

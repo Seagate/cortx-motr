@@ -91,23 +91,16 @@ do_some_kv_operations()
 		echo "Now, kill the two fdmi plug app and start them again..."
 		echo "This is to simulate the plugin failure and start"
 
-		if $interactive ; then
-			echo "Now please go to the plugin terminals and "
-			echo "Press CTRL+C to stop them, and then   "
-			echo "Please start them again with the same command"
-			echo "When you have done that, Press Enter to go ..."
-			read
-		else
-			rc=1
-			stop_fdmi_plugin      && sleep 5                         &&
-			start_fdmi_plugin "$FDMI_FILTER_FID"  "$FDMI_PLUGIN_EP"  &&
-			start_fdmi_plugin "$FDMI_FILTER_FID2" "$FDMI_PLUGIN_EP2" && rc=0
-			if [[ $rc -eq 1 ]] ; then
-				echo "Can not stop and start plug again".
-				return $rc
-			fi
-			sleep 5
+		rc=1
+		stop_fdmi_plugin      && sleep 5                         &&
+		start_fdmi_plugin "$FDMI_FILTER_FID"  "$FDMI_PLUGIN_EP"  &&
+		start_fdmi_plugin "$FDMI_FILTER_FID2" "$FDMI_PLUGIN_EP2" && rc=0
+		if [[ $rc -eq 1 ]] ; then
+			echo "Can not stop and start plug again".
+			return $rc
 		fi
+		sleep 5
+		rc=0
 
 		echo "Let's put {key3: ***}"
 		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
