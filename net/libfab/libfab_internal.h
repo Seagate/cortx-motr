@@ -471,7 +471,7 @@ struct m0_fab__buf_mr {
  */
 struct m0_fab__bdesc {
 	/** Remote node address */
-	struct m0_net_ip_params fbd_na;
+	struct m0_net_ip_params fbd_netaddr;
 
 	/** Remote buffer iov count */
 	uint32_t fbd_iov_cnt;

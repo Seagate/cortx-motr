@@ -92,6 +92,13 @@ struct m0_net_ip_addr {
 /**
  * This function decodes addresses based on address format type
  * such as lnet or inet address format.
+ * Example:
+ *        lnet format: <ip>@<type>:<pid=12345>:<portal>:<tmid>
+ *                     for example:"192.168.96.128@tcp:12345:34:1"
+ *        inet format: <family>:<type>:<ipaddr/hostname_FQDN>@<port>
+ *                     for example: "inet:tcp:127.0.0.1@3000"
+ * Return value: 0 in case of success.
+ *               < 0 in case of error.
  */
 M0_INTERNAL int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr);
 
@@ -106,13 +113,16 @@ M0_INTERNAL int m0_net_ip_print(const struct m0_net_ip_addr *nia);
  * Here hostname can be FQDN or local machine hostname.
  * Return value:  = 0 in case of succesful fqdn to ip resolution.
  *                > 0 when gethostbyname fails (dns resolution failed).
- *                < 0 error
+ *                < 0 error.
  */
 M0_INTERNAL int m0_net_hostname_to_ip(char *hostname, char *ip,
 				      enum m0_net_ip_format *fmt);
 
 /**
  * This function is used to compare the fields in struct m0_net_ip_addr.
+ * If is_ncmp is true then numeric address fields are compared else string addr
+ * is compared.
+ * Returns true if addr1 and addr2 are equal else false.
  */
 M0_INTERNAL bool m0_net_ip_addr_cmp(struct m0_net_ip_addr *addr1,
 				    struct m0_net_ip_addr *addr2, bool is_ncmp);
