@@ -109,10 +109,10 @@ def process_fdmi_record(kv_record):
     # Check de-dup records
     kv_i = kv_records.get(keystr)
     if kv_i is not None:
-        #print('dup: {}'.format(kv), file=sys.stderr, flush = True)
+        print('dup: {}'.format(kv), file=sys.stdout, flush = True)
         return
     else:
-        print('new: {}'.format(kv), file=sys.stderr, flush = True)
+        print('new: {}'.format(kv), file=sys.stdout, flush = True)
         kv_records[keystr] = kv
         keystr_LRU.append(keystr)
         return
@@ -121,7 +121,7 @@ def process_fdmi_record(kv_record):
 # Handle SIGNT and SIGTERM. Stop the underlying processes and exit.
 def signal_handler(sig, frame):
     print('CTRL + C pressed', file=sys.stderr)
-    print('Stopping all fdmi_sample_plugin processes...')
+    print('Stopping all fdmi_sample_plugin processes...', file=sys.stderr)
     for p in processes:
         p.send_signal(sig)
         p.wait()
