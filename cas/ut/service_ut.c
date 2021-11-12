@@ -1876,7 +1876,9 @@ static void create_insert_drop_with_fail(bool inject_fail)
 	 * ones. BE performs quadratic number of checks inside invariants
 	 * comparing to number of capture operations.
 	 */
-	_init(true, true);
+	/** Uncomment _init once we found the calculation for small credits. */
+	/* _init(true, true);*/
+	init();
 	/*
 	 * Create 2 catalogs.
 	 */
