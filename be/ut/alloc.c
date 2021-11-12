@@ -575,7 +575,9 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 	M0_UT_ASSERT(m0_be_allocator__invariant(a));
 
 	/* Verify the alignment of the remaining chunks */
-	for (i = 0; i < ut_nr && i % 3 != 0; i++) {
+	for (i = 0; i < ut_nr; i++) {
+		if (i % 3  == 0)
+			continue;
 		if (ut_ptr[i] != NULL) {
 			if (i % 2 == 0) {
 				iptr = (char *)ut_ptr[i];
@@ -589,7 +591,9 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 	}
 
 	/* Delete remaining chunks */
-	for (i = 0; i < ut_nr && i % 3 != 0; i++) {
+	for (i = 0; i < ut_nr; i++) {
+		if (i % 3  == 0)
+			continue;
 		if (ut_ptr[i] != NULL) {
 			j = i;
 			ut_size  = m0_rnd64(&j) % BE_UT_ALLOC_SIZE + 1;
