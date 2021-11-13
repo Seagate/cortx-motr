@@ -579,7 +579,10 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 			cfg->adg_spare_blocks_per_group;
 #endif
 		adom->sad_bstore_id        = cfg->adg_id;
-		adom->sad_overwrite        = false;
+		if (M0_FI_ENABLED("write_undo"))
+			adom->sad_overwrite = false;
+		else
+			adom->sad_overwrite = true;
 		strcpy(adom->sad_path, location_data);
 		m0_format_footer_update(adom);
 		emap = &adom->sad_adata;
@@ -1171,11 +1174,12 @@ static void stob_ad_write_credit(const struct m0_stob_domain *dom,
 	 * of 'emap paste' (that is frags + 1) to verify this idea.
 	 */
 	m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, frags + 1, accum);
-
+#if 0
 	if (adom->sad_overwrite && ballroom->ab_ops->bo_free_credit != NULL) {
 		/* for each emap_paste() seg_free() could be called 3 times */
 		ballroom->ab_ops->bo_free_credit(ballroom, 3 * frags, accum);
 	}
+#endif
 	m0_stob_io_credit(io, m0_stob_dom_get(adom->sad_bstore), accum);
 }
 
@@ -1701,22 +1705,25 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	m0_be_emap_paste(&it, &io->si_tx->tx_betx, &todo, ext->e_start,
 	 LAMBDA(void, (struct m0_be_emap_seg *seg) {
 			/* handle extent deletion. */
-			M0_LOG(M0_DEBUG, "del: val=0x%llx",
-			       (unsigned long long)seg->ee_val);
-			M0_ASSERT_INFO(seg->ee_val != ext->e_start,
-				       "Delete of the same just allocated block");
-			rc = rc ?:
-			     stob_ad_seg_free(io->si_tx, adom, seg,
-					      &seg->ee_ext, seg->ee_val);
+			if (adom->sad_overwrite) {
+				M0_LOG(M0_DEBUG, "del: val=0x%llx",
+				       (unsigned long long)seg->ee_val);
+				M0_ASSERT_INFO(seg->ee_val != ext->e_start,
+					       "Delete of the same just allocated block");
+				rc = rc ?:
+				     stob_ad_seg_free(io->si_tx, adom, seg,
+						      &seg->ee_ext, seg->ee_val);
+			}
 		 }),
 	 LAMBDA(void, (struct m0_be_emap_seg *seg, struct m0_ext *ext,
 		       uint64_t val) {
 			/* cut left */
 			M0_ASSERT(ext->e_start > seg->ee_ext.e_start);
 			seg->ee_val = val;
-			rc = rc ?:
-			     stob_ad_seg_free(io->si_tx, adom, seg,
-					      ext, val);
+			if (adom->sad_overwrite)
+				rc = rc ?:
+				     stob_ad_seg_free(io->si_tx, adom, seg,
+						      ext, val);
 		}),
 	 LAMBDA(void, (struct m0_be_emap_seg *seg, struct m0_ext *ext,
 		       uint64_t val) {
@@ -1731,7 +1738,8 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 				 * logical extent, because otherwise "cut left"
 				 * already freed it.
 				 */
-				if (ext->e_start == seg->ee_ext.e_start)
+				if (adom->sad_overwrite &&
+				    ext->e_start == seg->ee_ext.e_start)
 					rc = rc ?:
 					     stob_ad_seg_free(io->si_tx, adom,
 							      seg, ext, val);
