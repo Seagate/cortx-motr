@@ -532,15 +532,14 @@ static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
 		++cp;
 	}
 
-	if (node_size < (n+1) || port_size < (strlen(cp)+1))
+	if (n + 1 > node_size || strlen(cp) + 1 > port_size)
 		return M0_ERR(-EINVAL);
 
-	strncpy(node, name, n);
-	node[n] = '\0';
+	node[0] = '\0';
+	strncat(node, name, n);
 
-	n=strlen(cp);
-	strncpy(port, cp, n);
-	port[n] = '\0';
+	port[0] = '\0';
+	strncat(port, cp, port_size-1);
 
 	return M0_RC(0);
 }
@@ -725,21 +724,26 @@ static void libfab_tm_buf_done(struct m0_fab__tm *ftm)
 static void libfab_straddr_gen(struct m0_fab__conn_data *cd, char *buf,
 			       uint8_t len, struct m0_fab__ep_name *en)
 {
+	int rc;
+
 	libfab_ep_ntop(cd->fcd_netaddr, en);
+
 	if (cd->fcd_tmid == 0xFFFF)
-		sprintf(buf, "%s@%s:12345:%d:*",
+		rc = snprintf(buf, len, "%s@%s:12345:%d:*",
 			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
 			cd->fcd_iface == FAB_LO ? "lo" : 
 				((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
 			cd->fcd_portal);
 	else
-		sprintf(buf, "%s@%s:12345:%d:%d",
+		rc = snprintf(buf, len, "%s@%s:12345:%d:%d",
 			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
 			cd->fcd_iface == FAB_LO ? "lo" : 
 			((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
 			cd->fcd_portal, cd->fcd_tmid);
 
-	M0_ASSERT(len >= strlen(buf));
+	M0_ASSERT(rc > 0);
+	M0_ASSERT_INFO(rc < len, "Net addr should not be truncated "
+		       "(wanted %d, available %d)", rc, (int)len);
 }
 
 /**
@@ -770,7 +774,7 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 	if (rc >= (int)sizeof(struct fi_eq_cm_entry) && event == FI_CONNREQ) {
 		cm_entry = (struct fi_eq_cm_entry *)entry;
 		cd = (struct m0_fab__conn_data*)(cm_entry->data);
-		libfab_straddr_gen(cd, straddr, sizeof(straddr), &en);
+		libfab_straddr_gen(cd, straddr, ARRAY_SIZE(straddr), &en);
 		rc = libfab_fab_ep_find(tm, &en, straddr, &ep);
 		if (rc == 0) {
 			rc = libfab_conn_accept(ep, tm, cm_entry->info);

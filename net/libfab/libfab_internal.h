@@ -48,7 +48,7 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
 
 #define LIBFAB_ADDR_LEN_MAX	INET6_ADDRSTRLEN
 #define LIBFAB_PORT_LEN_MAX	6
-#define LIBFAB_ADDR_STRLEN_MAX  (LIBFAB_ADDR_LEN_MAX + LIBFAB_PORT_LEN_MAX + 1)
+#define LIBFAB_ADDR_STRLEN_MAX  (LIBFAB_ADDR_LEN_MAX + LIBFAB_PORT_LEN_MAX + 32)
 
 /**
  * Parameters required for libfabric configuration
