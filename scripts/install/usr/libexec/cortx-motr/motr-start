@@ -40,3 +40,5 @@ trap _handle_sigterm SIGTERM SIGKILL
 
 /usr/libexec/cortx-motr/motr-server "$1" &
 PID=$!
+
+wait $PID
