@@ -59,23 +59,6 @@ processes = []
 # Global word_counts dictionary
 word_counts = dict()
 
-def make_request(kv):
-    print ("got requsest to post : {}".format(kv))
-    #try:
-        #json_req = json.loads(kv)
-    #except:
-    #    print ("json loading failed ")
-    try:
-        #print (json_req)
-        #resp = requests.post('http://192.168.56.121:8080' + '/jobs', json=json.loads(kv))
-        # sending request to replicator manager
-        resp = requests.post('http://127.0.0.1:8080' + '/jobs', json=kv)
-        #html = resp.json()
-        #print ("Resonse is : {}".format(html))
-    except:
-        print ("Error occured! : response  : {}".format(resp))
-
-
 def str_decode(encoded):
     if encoded is None:
         return None
@@ -95,8 +78,9 @@ def get_object(client, bucket, object_key):
 def connect_client(kv_records):
     text_obj=[]
 
-    #Init client connection with actual key ID and Secret key for my aws client
-    session = boto3.Session(aws_access_key_id='AKIAu8cBwsNeSeWcX1L0kaCaYg', aws_secret_access_key='j98WQMFokoNuCgHos37Hc3rSfktoVbuVdJzerQIz')
+    #Init client connection with actual key ID and Secret key for the AWS client
+    #Please replace the dummy values for each variable with real ones generated using s3iamcli CreateAccount command
+    session = boto3.Session(aws_access_key_id='KIg', aws_secret_access_key='j98H')
     client = session.resource('s3', region_name='US', endpoint_url='http://s3.seagate.com')
 
     for kv in kv_records:
