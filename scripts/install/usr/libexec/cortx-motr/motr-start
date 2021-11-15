@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
@@ -17,18 +18,25 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-[Unit]
-Description=m0d helper for %i service-FID
-Requires=motr-kernel.service
-Wants=motr-trace@%i.service
-After=motr-kernel.service
-Before=motr-trace@%i.service
+#set -x 
 
-[Service]
-Type=notify
-TimeoutStopSec=5min
-Restart=no
-Environment=SHELL=/bin/bash
-Group=motr
-#ExecStart=/usr/libexec/cortx-motr/motr-server m0d-%i
-ExecStart=/usr/libexec/cortx-motr/motr-start m0d-%i
+PID=
+
+if [[ $# < 1 ]]; then
+        echo "usage - sh $0 <service-fid>"
+        exit 1
+fi
+
+_handle_sigterm() {
+   echo "Caught SIGTERM"
+   if [[ -z $PID ]]; then
+      echo "No m0d process to kill"
+   else
+      kill -KILL $PID 2> /dev/null
+   fi
+}
+
+trap _handle_sigterm SIGTERM SIGKILL
+
+/usr/libexec/cortx-motr/motr-server "$1" &
+PID=$!
