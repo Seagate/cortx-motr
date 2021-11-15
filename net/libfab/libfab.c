@@ -385,15 +385,13 @@ static void libfab_straddr_gen(struct m0_net_ip_params *addr,
 static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
 				 struct m0_fab__ndom *fnd)
 {
-	int result;
-
 	M0_ENTRY("name=%s", name);
+	M0_PRE(name != NULL);
 
-	if (name == NULL || name[0] == 0)
-		result =  M0_ERR(-EPROTO);
-
-	result = m0_net_ip_parse(name, &ep->fep_name);
-	return M0_RC(result);
+	if (name[0] == '\0')
+		return M0_ERR(-EPROTO);
+	else
+		return M0_RC(m0_net_ip_parse(name, &ep->fep_name));
 }
 
 /**

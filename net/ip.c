@@ -298,7 +298,6 @@ static bool m0_net_ip_ia_cmp(struct m0_net_ip_addr *a1,
 
 M0_INTERNAL int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr)
 {
-	M0_PRE(name != NULL);
 	return (name[0] >= '0' && name[0] <= '9') ?
 		m0_net_ip_lnet_parse(name, addr) :
 		m0_net_ip_inet_parse(name, addr);
