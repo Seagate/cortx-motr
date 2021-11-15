@@ -8334,12 +8334,9 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 }
 
 #ifndef __KERNEL__
-static void unmap_node(void* addr, int64_t size)
+static int unmap_node(void* addr, int64_t size)
 {
-	int rc;
-	rc = munmap(addr, size);
-	if (rc != 0)
-		M0_LOG(M0_ERROR, "Unmapping of memory failed");
+	return munmap(addr, size);
 }
 
 static void remap_node(void* addr, int64_t size, struct m0_be_seg *seg)
@@ -8353,19 +8350,23 @@ static void remap_node(void* addr, int64_t size, struct m0_be_seg *seg)
 
 }
 /**
- * TODO: Call this function to free up node descriptor from LRU list.
- * A daemon should run in parallel to check the health of the system. If it
- * requires more memory the node descriptors can be freed from LRU list.
+ * This function will try to unmap and remap the nodes in LRU list to free up
+ * virtual page memory. The amount of memory to be freed will be given, and
+ * attempt will be made to free up the requested size.
  *
  * @param size the total size in bytes to be freed from the swap.
+ *
+ * @return int the total size in bytes that was freed.
  */
-M0_INTERNAL void m0_btree_lrulist_purge(int64_t size, struct m0_be_tx *tx)
+M0_INTERNAL int m0_btree_lrulist_purge(int64_t size)
 {
 	struct nd        *node;
 	struct nd        *prev;
 	int64_t           curr_size;
+	int               total_size = 0;
 	void             *rnode;
 	struct m0_be_seg *seg;
+	int               rc;
 
 	m0_rwlock_write_lock(&list_lock);
 	node = ndlist_tlist_tail(&btree_lru_nds);
@@ -8378,14 +8379,22 @@ M0_INTERNAL void m0_btree_lrulist_purge(int64_t size, struct m0_be_tx *tx)
 			rnode = segaddr_addr(&node->n_addr);
 			ndlist_tlink_del_fini(node);
 			m0_rwlock_fini(&node->n_lock);
-			unmap_node(rnode, curr_size);
-			remap_node(rnode, curr_size, seg);
+			rc = unmap_node(rnode, curr_size);
+			if (rc == 0)
+				remap_node(rnode, curr_size, seg);
+			else
+				M0_LOG(M0_ERROR, "Unmapping of memory failed");
 			m0_free(node);
 		}
-		size -= curr_size;
+
+		if (rc == 0) {
+			size -= curr_size;
+			total_size += curr_size;
+		}
 		node = prev;
 	}
 	m0_rwlock_write_unlock(&list_lock);
+	return total_size;
 }
 #endif
 
