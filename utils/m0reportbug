@@ -703,10 +703,13 @@ sysrq_info() {
         [t]='show-task-states'
         [m]='show-memory-usage'
     )
-    if [[ "ro"==$(cat /proc/mounts | grep /proc/sysrq-trigger | awk '{print substr($4,1,2)}') ]] ; then
-        warn "/proc/sysrq-trigger is ro"
+
+    local fs_access=$(cat /proc/mounts | grep /proc/sysrq-trigger | awk '{print substr($4,1,2)}')
+    if [[ "ro" == "$fs_access" ]] ; then
+        warn "/proc/sysrq-trigger is read-only. Won't be able to collect system information."
         return 0
     fi
+
     local old_sysrq=$(sysctl --values kernel.sysrq)
 
     # unmask all sysrq functions
