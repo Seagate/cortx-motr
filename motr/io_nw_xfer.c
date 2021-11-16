@@ -384,6 +384,8 @@ void target_ioreq_fini(struct target_ioreq *ti)
 	/* Resets the number of segments in vector. */
 	if (ti->ti_ivec.iv_vec.v_nr == 0)
 		ti->ti_ivec.iv_vec.v_nr = ti->ti_bufvec.ov_vec.v_nr;
+	if (opcode == M0_OC_READ)
+		m0_indexvec_free(&ti->ti_goff_ivec);
 
 	m0_indexvec_free(&ti->ti_ivec);
 	if (opcode == M0_OC_FREE)
@@ -565,7 +567,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		bvec  = &ti->ti_bufvec;
 		auxbvec = &ti->ti_auxbufvec;
 		dst_attr = ti->ti_attrbuf.b_addr;
-		goff_ivec = &ti->ti_goff_ivec;
+		if (ti->ti_goff_ivec.iv_index)
+			goff_ivec = &ti->ti_goff_ivec;
 		pattr = ti->ti_pageattrs;
 		cnt = page_nr(ioo->ioo_iomap_nr * layout_unit_size(play) *
 			      layout_n(play), ioo->ioo_obj);
@@ -651,7 +654,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		                        m0__obj_is_di_enabled(ioo);
 		if (dst_attr != NULL && unit_type == M0_PUT_DATA &&
 		    opcode == M0_OC_WRITE && is_goff_in_range) {
-			void         *src_attr;
+			void         *src_attr = NULL;
 			m0_bcount_t   cs_sz;
 
 			cs_sz = ioo->ioo_attr.ov_vec.v_count[0];
@@ -659,30 +662,30 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			b_nob = m0_extent_get_checksum_nob(goff,
 			                                   COUNT(ivec, seg),
 							   unit_sz, cs_sz );
-			if (b_nob) {
+			if (b_nob) 
+				src_attr = m0_extent_vec_get_checksum_addr( &ioo->ioo_attr, goff,
+						&ioo->ioo_ext, unit_sz, cs_sz);
+
+			if (src_attr) {
 				/* This function will get checksum address from application provided
 				 * buffer. Checksum is corresponding to on gob offset and ioo_ext and
 				 * this function helps to locate exact address for the above.
 				 * Note: ioo_ext is span of offset for which ioo_attr is provided and
 				 * goff should lie within that span
-				 */
-				src_attr = m0_extent_vec_get_checksum_addr( &ioo->ioo_attr, goff,
-						&ioo->ioo_ext, unit_sz, cs_sz);
+				 */				
 				M0_ASSERT(b_nob == cs_sz);
 				memcpy((char *)dst_attr + ti->ti_cksum_copied, src_attr, b_nob);
-
 				/* Track checksum copied as we need to do overallocation for
 				 * ti_attrbuf for traget and while sending FOP we use this
 				 * counter to send the actual checksum size.
 				 */
 				ti->ti_cksum_copied += b_nob;
-
 				/* Make sure we are not exceeding the allocated buffer size */
-				M0_ASSERT(ti->ti_cksum_copied <= ti->ti_attrbuf.b_nob);
+				M0_ASSERT(ti->ti_cksum_copied <= ti->ti_attrbuf.b_nob);				
 			}
 
 			ti->ti_cksum_seg_b_nob[seg] = b_nob;
-		} else if (goff_ivec != NULL && unit_type == M0_PUT_DATA &&
+		} else if (goff_ivec != NULL && 
 				opcode == M0_OC_READ && is_goff_in_range) {
 			/**
 			 * Storing the values of goff(checksum offset) into the
@@ -696,7 +699,6 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			COUNT(goff_ivec, seg) = COUNT(ivec, seg);
 			goff_ivec->iv_vec.v_nr++;
 		}
-
 		goff += COUNT(ivec, seg);
 		++ivec->iv_vec.v_nr;
 		pgstart = pgend;
@@ -1086,8 +1088,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 		/* Assign the checksum buffer for traget */
 		if (filter == PA_DATA && m0__obj_is_di_enabled(ioo)) {
-			if (m0_is_write_fop(&iofop->if_fop))	{
-				M0_ASSERT(fop_cksm_nob != 0);
+			if (m0_is_write_fop(&iofop->if_fop) && fop_cksm_nob)	{
 				/* RPC layer to free crw_di_data_cksum */
 				if ( m0_buf_alloc(&rw_fop->crw_di_data_cksum, fop_cksm_nob) != 0 )
 					goto fini_fop;
@@ -1254,6 +1255,8 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 		ti->ti_goff_ivec.iv_vec.v_nr = 0;
 		if (rc != 0)
 			goto fail;
+	} else {
+		ti->ti_goff_ivec.iv_index = NULL;
 	}
 
 	if (op->op_code == M0_OC_FREE) {

@@ -210,11 +210,12 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 		while (ti_cob_index != rep_index) {
 			if (m0_ivec_cursor_move(&ti_cob_cursor, unit_size) ||
 			    m0_ivec_cursor_move(&ti_goff_cursor, unit_size)) {
-				M0_ASSERT(0);
-			}
+					M0_ASSERT(0);
+					return;
+		    }
 			ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
 			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
-		}
+	    }
 
 		/* GOB offset should be in span of application provided GOB extent */
 		M0_ASSERT(ti_goff_index <=
@@ -225,7 +226,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 						      ti_goff_index,
 						      &ioo->ioo_ext,
 						      unit_size, cs_sz);
-                M0_ASSERT(dst != NULL);
+        M0_ASSERT(dst != NULL);
 		memcpy(dst, src, cs_sz);
 		src = (char *)src + cs_sz;
 

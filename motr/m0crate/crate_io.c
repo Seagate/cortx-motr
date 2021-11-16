@@ -99,6 +99,7 @@
 #include "motr/m0crate/workload.h"
 #include "motr/m0crate/crate_client.h"
 #include "motr/m0crate/crate_client_utils.h"
+#include "motr/st/utils/helper.c"
 
 
 void integrity(struct m0_uint128 object_id, unsigned char **md5toverify,
@@ -260,14 +261,23 @@ int cr_io_vector_prep(struct m0_workload_io *cwi,
 	struct m0_bufvec   *attr    = NULL;
 	struct m0_indexvec *index_vec = NULL;
 	struct m0_bitmap    segment_indices;
+	int                 num_unit_per_op;
 
 	index_vec = m0_alloc(sizeof *index_vec);
-	attr = m0_alloc(sizeof *attr);
-	if (index_vec == NULL || attr == NULL)
+	if (index_vec == NULL)
 		goto enomem;
 
-	rc = m0_indexvec_alloc(index_vec, cwi->cwi_bcount_per_op) ?:
-	     m0_bufvec_alloc(attr, cwi->cwi_bcount_per_op, 1);
+	num_unit_per_op = (cwi->cwi_bcount_per_op * cwi->cwi_bs);
+	if (num_unit_per_op) {
+		attr = m0_alloc(sizeof *attr);
+		rc = m0_bufvec_alloc(attr, num_unit_per_op,
+						sizeof(struct m0_md5_inc_context_pi));
+		if (rc != 0)
+			goto enomem;
+	}
+    
+	rc = m0_indexvec_alloc(index_vec, cwi->cwi_bcount_per_op); 
+		 
 	if (rc != 0)
 		goto enomem;
 	/*
@@ -323,14 +333,15 @@ int cr_io_vector_prep(struct m0_workload_io *cwi,
 	op_ctx->coc_buf_vec = buf_vec;
 	op_ctx->coc_index_vec = index_vec;
 	/**TODO: set attr to NULL to disable cksum, enable after addding cksum in ST */
-	op_ctx->coc_attr = NULL;
+	op_ctx->coc_attr = attr;
 
 	return 0;
 enomem:
 	if (index_vec != NULL)
 		m0_indexvec_free(index_vec);
 	m0_bufvec_free(buf_vec);
-	m0_free(attr);
+	if (attr)
+		m0_free(attr);
 	m0_free(index_vec);
 	m0_free(buf_vec);
 	return -ENOMEM;
@@ -397,12 +408,13 @@ int cr_io_write(struct m0_workload_io *cwi,
 		int                    op_index)
 {
 	int rc;
-
+ 
 	op_ctx->coc_op_code = CR_WRITE;
 	/** Create object index and buffer vectors. */
 	rc = cr_io_vector_prep(cwi, cti, op_ctx, obj_idx, op_index);
 	if (rc != 0)
 		return rc;
+	calculate_checksum(obj, op_ctx->coc_index_vec, op_ctx->coc_buf_vec, op_ctx->coc_attr);
 	rc = m0_obj_op(obj, M0_OC_WRITE,
 		       op_ctx->coc_index_vec, op_ctx->coc_buf_vec,
 		       op_ctx->coc_attr, 0, 0, &cti->cti_ops[free_slot]);

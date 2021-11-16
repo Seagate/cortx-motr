@@ -978,7 +978,7 @@ static void ut_test_ioreq_application_data_copy(void)
 		memset(ioo->ioo_data.ov_buf[i], 0,
 			ioo->ioo_data.ov_vec.v_count[i]);
 
-	for (i = 0; i < ioo->ioo_attr.ov_vec.v_nr; i++)
+	for (i = 0; i < (ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI); i++)
 		memset(ioo->ioo_attr.ov_buf[i], 0,
 			ioo->ioo_attr.ov_vec.v_count[i]);
 

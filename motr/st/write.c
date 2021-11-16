@@ -158,7 +158,7 @@ static int write_verify(struct m0_bufvec *data_w, struct m0_uint128 oid,
 
 		/* Create and launch the read requests */
 		st_obj_op(&obj, M0_OC_READ,
-			  &ext_r, &data_r, NULL, 0, 0, &ops_r[0]);
+			  &ext_r, &data_r, &attr_r, 0, 0, &ops_r[0]);
 		if (ops_r[0] == NULL)
 			goto CLEANUP;
 
@@ -251,7 +251,7 @@ static int write_obj(struct m0_uint128 oid, int start,
 	for (i = 0; i < nr_ops; i++) {
 		ops_w[i] = NULL;
 		st_obj_op(&obj, M0_OC_WRITE,
-			  &ext_w[i], &data_w[i], NULL, 0, 0, &ops_w[i]);
+			  &ext_w[i], &data_w[i], &attr_w[i], 0, 0, &ops_w[i]);
 		if (ops_w[i] == NULL)
 			break;
 	}
@@ -449,7 +449,7 @@ static int write_verify_unorder(struct m0_bufvec *data_w, struct m0_uint128 oid,
 		}
 
 		/* Create and launch the read requests */
-		st_obj_op(&obj, M0_OC_READ, &ext_r, &data_r, NULL, 0,
+		st_obj_op(&obj, M0_OC_READ, &ext_r, &data_r, &attr_r, 0,
 			  0, &ops_r[0]);
 		if (ops_r[0] == NULL) {
 			rc = -ENOMEM;
@@ -562,7 +562,7 @@ static int write_unordered_obj(struct m0_uint128 oid, int start, int stride,
 	/* Create and launch write requests */
 	for (i = 0; i < nr_ops; i++) {
 		ops_w[i] = NULL;
-		st_obj_op(&obj, M0_OC_WRITE, &ext_w[i], &data_w[i], NULL,
+		st_obj_op(&obj, M0_OC_WRITE, &ext_w[i], &data_w[i], &attr_w[i],
 			  0, 0, &ops_w[i]);
 		if (ops_w[i] == NULL) {
 			rc = -ENOMEM;

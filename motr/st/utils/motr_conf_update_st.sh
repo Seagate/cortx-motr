@@ -142,7 +142,7 @@ main()
 	dest_file2="$MOTR_TEST_DIR/dest_file2"
 	object_id1=1048580
 	object_id2=1048581
-	block_size=8192
+	block_size=4096
 	block_count=4096
 
 	rm -f $src_file $dest_file

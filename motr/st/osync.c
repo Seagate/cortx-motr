@@ -129,7 +129,7 @@ static int write_obj(struct m0_obj *obj,
 	for (i = 0; i < nr_ops; i++) {
 		ops_w[i] = NULL;
 		st_obj_op(obj, M0_OC_WRITE,
-			  &ext_w[i], &data_w[i], NULL, 0, 0, &ops_w[i]);
+			  &ext_w[i], &data_w[i], &attr_w[i], 0, 0, &ops_w[i]);
 		if (ops_w[i] == NULL)
 			break;
 	}
@@ -373,7 +373,7 @@ static void osync_on_op(void)
 		/* Create and launch write requests */
 		ops_w[i] = NULL;
 		st_obj_op(objs_to_sync + i, M0_OC_WRITE,
-			  &ext_w[i], &data_w[i], NULL, 0, 0, &ops_w[i]);
+			  &ext_w[i], &data_w[i], &attr_w[i], 0, 0, &ops_w[i]);
 		if (ops_w[i] == NULL)
 			break;
 

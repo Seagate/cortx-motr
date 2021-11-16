@@ -22,6 +22,7 @@
 
 #include "lib/memory.h"               /* m0_alloc, m0_free */
 #include "lib/cksum.h"
+#include "motr/client.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
