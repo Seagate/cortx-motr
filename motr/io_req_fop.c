@@ -150,7 +150,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	void                   *dst;
 	void                   *src;
 
-	M0_PRE(ioo->ioo_attr.ov_vec.v_nr);
+	M0_PRE((ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI));
 	src = buf->b_addr;
 
 	if (!buf->b_nob) {
@@ -181,10 +181,19 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	if (off != 0) {
 		if (!m0_ivec_cursor_move(&ti_cob_cursor, unit_size - off)) {
 			ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
+		} else {
+			/** invalid cusror position */
+			return;
+		}
+	}
+	off = ti_cob_index % unit_size;
+	if (off) {
+		if (!m0_ivec_cursor_move(&ti_cob_cursor, unit_size - off)) {
+			ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
 		}
 	}
 	off = ti_goff_index % unit_size;
-	if (off != 0) {
+	if (off) {
 		if (!m0_ivec_cursor_move(&ti_goff_cursor, unit_size - off)) {
 			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
 		}
@@ -208,11 +217,12 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 		while (ti_cob_index != rep_index) {
 			if (m0_ivec_cursor_move(&ti_cob_cursor, unit_size) ||
 			    m0_ivec_cursor_move(&ti_goff_cursor, unit_size)) {
-				M0_ASSERT(0);
-			}
+					M0_ASSERT(0);
+					return;
+		    }
 			ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
 			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
-		}
+	    }
 
 		/* GOB offset should be in span of application provided GOB extent */
 		M0_ASSERT(ti_goff_index <=
@@ -222,8 +232,8 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 		dst = m0_extent_vec_get_checksum_addr(&ioo->ioo_attr,
 						      ti_goff_index,
 						      &ioo->ioo_ext,
-						      unit_size, cs_sz);
-                M0_ASSERT(dst != NULL);
+						      unit_size, cs_sz );
+		M0_ASSERT(dst);
 		memcpy(dst, src, cs_sz);
 		src = (char *)src + cs_sz;
 
@@ -305,7 +315,9 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	/* Copy attributes to client if reply received from read operation */
 	if (m0_is_read_rep(reply_fop) && op->op_code ==
-		                         M0_OC_READ && ioo->ioo_attr.ov_vec.v_nr) {
+		                         M0_OC_READ && (ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI) &&
+								 ioo->ioo_dgmode_io_sent == false &&
+								 !instance->m0c_config->mc_is_read_verify) {
 		m0_indexvec_wire2mem(&rwfop->crw_ivec,
 					rwfop->crw_ivec.ci_nr, 0,
 					&rep_attr_ivec);

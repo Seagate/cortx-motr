@@ -1160,15 +1160,14 @@ static bool verify_checksum(struct m0_op_io *ioo)
 	m0_bufvec_cursor_init(&datacur, &ioo->ioo_data);
 	m0_bufvec_cursor_init(&tmp_datacur, &ioo->ioo_data);
 	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
-
 	while ( !m0_bufvec_cursor_move(&datacur, 0) &&
 		!m0_ivec_cursor_move(&extcur, 0) &&
-		attr_idx < ioo->ioo_attr.ov_vec.v_nr){
+		attr_idx < (ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI)){
 
 		/* calculate number of segments required for 1 data unit */
 		nr_seg = 0;
 		count = usz;
-		while (count > 0) {
+		while (count > 0 && !m0_bufvec_cursor_move(&tmp_datacur, 0)) {
 			nr_seg++;
 			bytes = m0_bufvec_cursor_step(&tmp_datacur);
 			if (bytes < count) {
@@ -1180,7 +1179,6 @@ static bool verify_checksum(struct m0_op_io *ioo)
 				count = 0;
 			}
 		}
-
 		/* allocate an empty buf vec */
 		rc = m0_bufvec_empty_alloc(&user_data, nr_seg);
 		if (rc != 0) {
@@ -1193,7 +1191,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 		 */
 		i = 0;
 		count = usz;
-		while (count > 0) {
+		while (count > 0 && !m0_bufvec_cursor_move(&datacur, 0)) {
 			bytes = m0_bufvec_cursor_step(&datacur);
 			if (bytes < count) {
 				user_data.ov_vec.v_count[i] = bytes;
@@ -1209,15 +1207,13 @@ static bool verify_checksum(struct m0_op_io *ioo)
 			}
 			i++;
 		}
-
-		if (ioo->ioo_attr.ov_vec.v_nr && ioo->ioo_attr.ov_vec.v_count[attr_idx] != 0) {
+		if ((ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI) && ioo->ioo_attr.ov_vec.v_count[attr_idx] != 0) {
 
 			seed.pis_data_unit_offset   = m0_ivec_cursor_index(&extcur);
 			seed.pis_obj_id.f_container = ioo->ioo_obj->ob_entity.en_id.u_hi;
 			seed.pis_obj_id.f_key       = ioo->ioo_obj->ob_entity.en_id.u_lo;
 
 			pi_ondisk = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[attr_idx];
-
 			if (!m0_calc_verify_cksum_one_unit(pi_ondisk, &seed, &user_data)) {
 				return false;
 			}
@@ -1230,8 +1226,8 @@ static bool verify_checksum(struct m0_op_io *ioo)
 	}
 
 	if (m0_bufvec_cursor_move(&datacur, 0) &&
-	    m0_ivec_cursor_move(&extcur, 0) &&
-	    attr_idx == ioo->ioo_attr.ov_vec.v_nr) {
+	    m0_ivec_cursor_move(&extcur, 0)) {
+	    //attr_idx == (ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI)) {
 		return true;
 	}
 	else {
@@ -1261,6 +1257,8 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 	m0_bindex_t               pgstart;
 	m0_bindex_t               pgend;
 	m0_bcount_t               count;
+	m0_bcount_t               total_count;
+	int                       usz;
 	struct m0_bufvec_cursor   appdatacur;
 	struct m0_ivec_cursor     extcur;
 	struct m0_pdclust_layout  *play;
@@ -1271,11 +1269,12 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 
 	M0_PRE(M0_IN(dir, (CD_COPY_FROM_APP, CD_COPY_TO_APP)));
 	M0_PRE_EX(m0_op_io_invariant(ioo));
-
+	
 	m0_bufvec_cursor_init(&appdatacur, &ioo->ioo_data);
 	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
-
-	play = pdlayout_get(ioo);
+    play = pdlayout_get(ioo);
+	usz = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
+	total_count = 0;
 
 	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
 		M0_ASSERT_EX(pargrp_iomap_invariant(ioo->ioo_iomaps[i]));
@@ -1283,7 +1282,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		count    = 0;
 		grpstart = data_size(play) * ioo->ioo_iomaps[i]->pi_grpid;
 		grpend   = grpstart + data_size(play);
-
+		
 		while (!m0_ivec_cursor_move(&extcur, count) &&
 			m0_ivec_cursor_index(&extcur) < grpend) {
 
@@ -1292,6 +1291,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 						   m0__page_size(ioo)),
 				       pgstart + m0_ivec_cursor_step(&extcur));
 			count = pgend - pgstart;
+			total_count += count;
 
 			/*
 			* This takes care of finding correct page from
@@ -1314,8 +1314,10 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		/* verify the checksum during data read.
 		 * skip checksum verification during degraded I/O
 		 */
-		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
-		    ioo->ioo_attr.ov_vec.v_nr &&
+		if (ioo->ioo_dgmode_io_sent == false &&
+			total_count % usz == 0 &&
+			(ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI) &&
+			!is_parity_verify_mode(m0__op_instance( &ioo->ioo_oo.oo_oc.oc_op)) &&
 		    !verify_checksum(ioo)) {
 			return M0_RC(-EIO);
 		}
