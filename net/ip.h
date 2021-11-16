@@ -67,44 +67,66 @@ struct m0_net_ip_lnet_addr {
 	uint16_t nla_type;     /* tcp, o2ib, lo */
 	uint16_t nla_portal;
 	uint16_t nla_tmid;
+	bool     nla_autotm;
 };
 
-/** Genereic structure to store values related to network address */
-struct m0_net_ip_addr {
+/** Structure for network address parameters */
+struct m0_net_ip_params {
 	union {
 		struct m0_net_ip_inet_addr ia;
 		struct m0_net_ip_lnet_addr la;
-	} na_addr;
+	} fmt_pvt;
 	union {
 		uint64_t ln[2];
 		uint32_t sn[4];
-	} na_n;
-	enum m0_net_ip_format      na_format;
-	uint16_t                   na_port;
-	char                       na_p[M0_NET_IP_STRLEN_MAX];
+	} ip_n;
+	enum m0_net_ip_format      nip_format;
+	uint16_t                   nip_port;
+};
+
+/** Generic structure to store values related to network address */
+struct m0_net_ip_addr {
+	struct m0_net_ip_params  nia_n;
+	char                     nia_p[M0_NET_IP_STRLEN_MAX];
 };
 
 /**
  * This function decodes addresses based on address format type
  * such as lnet or inet address format.
+ * Example:
+ *        lnet format: <ip>@<type>:<pid=12345>:<portal>:<tmid>
+ *                     for example:"192.168.96.128@tcp:12345:34:1"
+ *        inet format: <family>:<type>:<ipaddr/hostname_FQDN>@<port>
+ *                     for example: "inet:tcp:127.0.0.1@3000"
+ * Return value: 0 in case of success.
+ *               < 0 in case of error.
  */
 M0_INTERNAL int m0_net_ip_parse(const char *name, struct m0_net_ip_addr *addr);
 
 /**
- * This function returns printable ip address format.
+ * This function generates printable address format from
+ * struct m0_net_ip_addr::nia_n into struct m0_net_ip_addr::nia_p.
  */
-M0_INTERNAL int m0_net_ip_print(const struct m0_net_ip_addr *nia, char *buf,
-				uint32_t len);
+M0_INTERNAL int m0_net_ip_print(const struct m0_net_ip_addr *nia);
 
 /**
  * This function convert the hostname/FQDN format to ip format.
  * Here hostname can be FQDN or local machine hostname.
  * Return value:  = 0 in case of succesful fqdn to ip resolution.
  *                > 0 when gethostbyname fails (dns resolution failed).
- *                < 0 error
+ *                < 0 error.
  */
 M0_INTERNAL int m0_net_hostname_to_ip(char *hostname, char *ip,
 				      enum m0_net_ip_format *fmt);
+
+/**
+ * This function is used to compare the fields in struct m0_net_ip_addr.
+ * If is_ncmp is true then numeric address fields are compared else string addr
+ * is compared.
+ * Returns true if addr1 and addr2 are equal else false.
+ */
+M0_INTERNAL bool m0_net_ip_addr_cmp(struct m0_net_ip_addr *addr1,
+				    struct m0_net_ip_addr *addr2, bool is_ncmp);
 
 #endif /* __MOTR_NET_IP_H__ */
 

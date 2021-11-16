@@ -265,24 +265,6 @@ struct m0_fab__fab {
 };
 
 /**
- * Libfab structure of endpoint name
- */
-struct m0_fab__ep_name {
-	/** IP address */
-	char fen_addr[LIBFAB_ADDR_LEN_MAX];
-
-	/** Port range 0-65535 */
-	char fen_port[LIBFAB_PORT_LEN_MAX];
-
-	/** TODO: Replace 'fen_str_addr' with 'fen_name.na_p' */
-	/** address in string format as passed by the net layer */
-	char fen_str_addr[LIBFAB_ADDR_STRLEN_MAX];
-
-	/** network address */
-	struct m0_net_ip_addr fen_name;
-};
-
-/**
  * Libfab structure of resources associated to a passive endpoint
  */
 struct m0_fab__pep_res{
@@ -368,8 +350,8 @@ struct m0_fab__ep {
 	/** Network endpoint structure linked into a per-tm list */
 	struct m0_net_end_point    fep_nep;
 	
-	/** ipaddr, port and strname in printable format*/
-	struct m0_fab__ep_name     fep_name_p;
+	/** ipaddr, port and strname in printable format */
+	struct m0_net_ip_addr      fep_name;
 
 	/** Name in numeric format <IP_Addr, 32bit>:<Port, 32 bit> */
 	uint64_t                   fep_name_n;
@@ -474,7 +456,7 @@ struct m0_fab__buf_mr {
  */
 struct m0_fab__bdesc {
 	/** Remote node address */
-	uint64_t fbd_netaddr;
+	struct m0_net_ip_params fbd_netaddr;
 
 	/** Remote buffer iov count */
 	uint32_t fbd_iov_cnt;
@@ -577,9 +559,7 @@ struct m0_fab__buf {
  */
 struct m0_fab__conn_data {
 	/** network address */
-	/** TODO: Reduce size of m0_fab__conn_data to less than 50 bytes
-	 * in order to work with verbs */
-	struct m0_net_ip_addr fcd_addr;
+	struct m0_net_ip_params fcd_addr;
 };
 
 /**
