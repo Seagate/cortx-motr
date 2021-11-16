@@ -502,6 +502,7 @@ static void item_sent(struct m0_rpc_item *item)
 		 */
 		M0_ASSERT(m0_rpc_item_is_request(item));
 		M0_ASSERT(item->ri_error == -ECANCELED);
+		m0_rpc_item_sent_invoke(item);
 		return;
 	}
 
@@ -516,8 +517,7 @@ static void item_sent(struct m0_rpc_item *item)
 
 	if (item->ri_nr_sent == 1) { /* not resent */
 		stats->rs_nr_sent_items_uniq++;
-		if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
-			item->ri_ops->rio_sent(item);
+		m0_rpc_item_sent_invoke(item);
 	} else if (item->ri_nr_sent == 2) {
 		/* item with ri_nr_sent >= 2 are counted as 1 in
 		   rs_nr_resent_items i.e. rs_nr_resent_items counts number
