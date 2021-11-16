@@ -8333,31 +8333,72 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 	};
 }
 
-/**
- * TODO: Call this function to free up node descriptor from LRU list.
- * A daemon should run in parallel to check the health of the system. If it
- * requires more memory the node descriptors can be freed from LRU list.
- *
- * @param count number of node descriptors to be freed.
- */
-M0_INTERNAL void m0_btree_lrulist_purge(uint64_t count)
+#ifndef __KERNEL__
+static int unmap_node(void* addr, int64_t size)
 {
-	struct nd* node;
-	struct nd* prev;
+	return munmap(addr, size);
+}
+
+static int remap_node(void* addr, int64_t size, struct m0_be_seg *seg)
+{
+	void *p;
+	p = mmap(addr, size, PROT_READ | PROT_WRITE,
+		 MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE,
+		 m0_stob_fd(seg->bs_stob), seg->bs_offset);
+	if (p == MAP_FAILED)
+		return M0_ERR(-EFAULT);
+	return 0;
+}
+/**
+ * This function will try to unmap and remap the nodes in LRU list to free up
+ * virtual page memory. The amount of memory to be freed will be given, and
+ * attempt will be made to free up the requested size.
+ *
+ * @param size the total size in bytes to be freed from the swap.
+ *
+ * @return int the total size in bytes that was freed.
+ */
+M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
+{
+	struct nd        *node;
+	struct nd        *prev;
+	int64_t           curr_size;
+	int64_t           total_size = 0;
+	void             *rnode;
+	struct m0_be_seg *seg;
+	int               rc;
 
 	m0_rwlock_write_lock(&list_lock);
 	node = ndlist_tlist_tail(&btree_lru_nds);
-	for (;  node != NULL && count > 0; count --) {
-		prev = ndlist_tlist_prev(&btree_lru_nds, node);
-		if (node->n_txref == 0) {
-			ndlist_tlink_del_fini(node);
-			m0_rwlock_fini(&node->n_lock);
-			m0_free(node);
+	while (node != NULL && size > 0) {
+		curr_size = 0;
+		prev      = ndlist_tlist_prev(&btree_lru_nds, node);
+		if (node->n_txref == 0 && node->n_ref == 0) {
+			curr_size = node->n_size;
+			seg       = node->n_tree->t_seg;
+			rnode     = segaddr_addr(&node->n_addr);
+
+			rc = unmap_node(rnode, curr_size);
+			if (rc == 0) {
+				rc = remap_node(rnode, curr_size, seg);
+				if (rc == 0) {
+					size       -= curr_size;
+					total_size += curr_size;
+					ndlist_tlink_del_fini(node);
+					m0_rwlock_fini(&node->n_lock);
+					m0_free(node);
+				} else
+					M0_LOG(M0_ERROR,
+					       "Remapping of memory failed");
+			} else
+				M0_LOG(M0_ERROR, "Unmapping of memory failed");
 		}
 		node = prev;
 	}
 	m0_rwlock_write_unlock(&list_lock);
+	return total_size;
 }
+#endif
 
 M0_INTERNAL int  m0_btree_open(void *addr, int nob, struct m0_btree *out,
 			       struct m0_be_seg *seg, struct m0_btree_op *bop,
