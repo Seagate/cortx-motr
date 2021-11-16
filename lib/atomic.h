@@ -25,6 +25,7 @@
 #ifndef __MOTR_LIB_ATOMIC_H__
 #define __MOTR_LIB_ATOMIC_H__
 
+#include "motr/config.h"  /* CONFIG_X86_64 CONFIG_AARCH64 */
 #include "lib/assert.h"
 #include "lib/types.h"
 
