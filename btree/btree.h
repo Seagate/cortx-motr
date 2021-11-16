@@ -646,9 +646,9 @@ M0_INTERNAL void m0_btree_del_credit2(const struct m0_btree_type *type,
 
 #include "btree/internal.h"
 
-M0_INTERNAL int  m0_btree_mod_init(void);
-M0_INTERNAL void m0_btree_mod_fini(void);
-M0_INTERNAL void m0_btree_lrulist_purge(uint64_t count);
+M0_INTERNAL int     m0_btree_mod_init(void);
+M0_INTERNAL void    m0_btree_mod_fini(void);
+M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size);
 
 
 #define M0_BTREE_OP_SYNC_WITH_RC(bop, action)                           \
