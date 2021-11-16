@@ -8339,14 +8339,15 @@ static int unmap_node(void* addr, int64_t size)
 	return munmap(addr, size);
 }
 
-static void remap_node(void* addr, int64_t size, struct m0_be_seg *seg)
+static int remap_node(void* addr, int64_t size, struct m0_be_seg *seg)
 {
 	void *p;
 	p = mmap(addr, size, PROT_READ | PROT_WRITE,
 		 MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE,
 		 m0_stob_fd(seg->bs_stob), seg->bs_offset);
 	if (p == MAP_FAILED)
-		M0_LOG(M0_ERROR, "Mapping of memory failed");
+		return M0_ERR(-EFAULT);
+	return 0;
 }
 /**
  * This function will try to unmap and remap the nodes in LRU list to free up
@@ -8376,17 +8377,21 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
 			curr_size = node->n_size;
 			seg       = node->n_tree->t_seg;
 			rnode     = segaddr_addr(&node->n_addr);
-			ndlist_tlink_del_fini(node);
-			m0_rwlock_fini(&node->n_lock);
+
 			rc = unmap_node(rnode, curr_size);
 			if (rc == 0) {
-				remap_node(rnode, curr_size, seg);
-				size       -= curr_size;
-				total_size += curr_size;
+				rc = remap_node(rnode, curr_size, seg);
+				if (rc == 0) {
+					size       -= curr_size;
+					total_size += curr_size;
+					ndlist_tlink_del_fini(node);
+					m0_rwlock_fini(&node->n_lock);
+					m0_free(node);
+				} else
+					M0_LOG(M0_ERROR,
+					       "Remapping of memory failed");
 			} else
 				M0_LOG(M0_ERROR, "Unmapping of memory failed");
-
-			m0_free(node);
 		}
 		node = prev;
 	}
