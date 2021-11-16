@@ -32,6 +32,7 @@
 #include "fid/fid.h"
 #include "lib/cookie.h"
 #include "xcode/xcode_attr.h"
+#include "lib/cksum.h"
 /**
  * @defgroup client
  *
@@ -624,7 +625,8 @@ enum m0_entity_type {
 	 * If this flags is set during entity_create() that means application
 	 * do not support update operation. This flag is not in use yet.
 	 */
-	M0_ENF_NO_RMW =  1 << 1
+	M0_ENF_NO_RMW =  1 << 1,
+	M0_ENF_DI = 1 << 2
  } M0_XCA_ENUM;
 
 /**

@@ -1694,7 +1694,8 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 		it.ec_app_cksum_buf.b_nob = 0;
 	}
 
-	it.ec_unit_size = io->si_unit_sz;
+	if (it.ec_unit_size < io->si_unit_sz)
+		it.ec_unit_size = io->si_unit_sz;
 
 	M0_SET0(&it.ec_op);
 	m0_be_op_init(&it.ec_op);

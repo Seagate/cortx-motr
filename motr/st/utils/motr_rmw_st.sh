@@ -46,13 +46,13 @@ update_file="$MOTR_TEST_DIR/update_file"
 dest_file="$MOTR_TEST_DIR/dest_file"
 object_id=1048580
 block_size=4096
-block_count=5200
+block_count=6144
 MOTR_PARAMS="-l $MOTR_LOCAL_EP -H $MOTR_HA_EP -p $MOTR_PROF_OPT \
 	       -P $MOTR_PROC_FID"
-update_offset=4096
 create_files()
 {
 	local update_count=$1
+	local update_offset=$2
 
 	rm -rf $src_file $src_file'2' $dest_file $update_file
 	dd if=/dev/urandom bs=$block_size count=$block_count of=$src_file \
@@ -119,6 +119,7 @@ write_and_update()
 {
 	local LID=$1
 	local update_count=$2
+	local update_offset=$4
 
 	echo "m0cp"
 	$motr_st_util_dir/m0cp $MOTR_PARAMS -o $object_id $src_file \
@@ -219,12 +220,14 @@ test_rmw()
 			layout_type="EC Layout"
 		fi
 
+		local update_offset=$(( 4096 * 2 ** (LID-1) ))
+
 		if [ "$healthy_mode" = "true" ]
 		then
 			echo "Testing with layout ID $LID in Healthy mode"
-			create_files $update_count
+			create_files $update_count $update_offset
 
-			write_and_update $LID $update_count false
+			write_and_update $LID $update_count false $update_offset
 
 			echo "diff"
 			diff $src_file'2' $dest_file'_'$LID || {
@@ -312,9 +315,6 @@ main()
 	echo "Testing RMW in Replicaetd layout"
 	test_rmw 1 false
 #	test_rmw 1 true false
-
-	echo "Testing RMW when update size < unit size"
-	test_updt_lt_unit_rmw
 
 	sandbox_fini
 	return $rc

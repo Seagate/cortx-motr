@@ -36,6 +36,7 @@
 #include "motr/st/utils/helper.h"
 #include "lib/getopts.h"
 #include "motr/client_internal.h"
+#include "lib/cksum.h"
 
 extern struct m0_addb_ctx m0_addb_ctx;
 
@@ -116,11 +117,105 @@ static int alloc_vecs(struct m0_indexvec *ext, struct m0_bufvec *data,
 		m0_indexvec_free(ext);
 		return rc;
 	}
-	rc = m0_bufvec_alloc(attr, block_count, 1);
+	rc = m0_bufvec_alloc(attr, block_count, sizeof(struct m0_md5_inc_context_pi));
 	if (rc != 0) {
 		m0_indexvec_free(ext);
 		m0_bufvec_free(data);
 		return rc;
+	}
+	return rc;
+}
+
+/* This function calculates checksum for data read */
+static int calculate_checksum(struct m0_obj *obj, struct m0_indexvec *ext, struct m0_bufvec *data,struct m0_bufvec *attr)
+{
+	struct m0_pi_seed                  seed;
+	int                                usz;
+	struct m0_bufvec_cursor            datacur;
+	struct m0_bufvec_cursor            tmp_datacur;
+	struct m0_ivec_cursor              extcur;
+	struct m0_bufvec                   user_data = {};
+	unsigned char                      *curr_context;
+	int                                rc = 0;
+    int                                i;
+	int                                count;
+	struct m0_md5_inc_context_pi       pi={};
+	int                                attr_idx = 0;
+	uint32_t                           nr_seg;
+	m0_bcount_t                        bytes;
+	enum m0_pi_calc_flag               flag = M0_PI_CALC_UNIT_ZERO;
+	M0_ENTRY();
+	usz = m0_obj_layout_id_to_unit_size(
+			m0__obj_lid(obj));
+    m0_bufvec_cursor_init(&datacur, data);
+	m0_bufvec_cursor_init(&tmp_datacur, data);
+	m0_ivec_cursor_init(&extcur, ext);
+	curr_context = m0_alloc(sizeof(MD5_CTX));
+    memset(&pi, 0, sizeof(struct m0_md5_inc_context_pi));
+
+	while ( !m0_bufvec_cursor_move(&datacur, 0) &&
+		!m0_ivec_cursor_move(&extcur, 0) &&
+		attr_idx < attr->ov_vec.v_nr){	
+		nr_seg = 0;
+        count = usz;
+		/* calculate number of segments required for 1 data unit */
+		while (count > 0 && !m0_bufvec_cursor_move(&tmp_datacur, 0)) {
+			nr_seg++;
+			bytes = m0_bufvec_cursor_step(&tmp_datacur);
+			if (bytes < count) {
+				m0_bufvec_cursor_move(&tmp_datacur, bytes);
+				count -= bytes;
+			}
+			else {
+				m0_bufvec_cursor_move(&tmp_datacur, count);
+				count = 0;
+			}
+		}
+		/* allocate an empty buf vec */
+	    rc = m0_bufvec_empty_alloc(&user_data, nr_seg);
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "buffer allocation failed, rc %d", rc);
+			return false;
+		}
+		/* populate the empty buf vec with data pointers
+		 * and create 1 data unit worth of buf vec
+		 */
+		i = 0;
+		count = usz;
+		while (count > 0 && !m0_bufvec_cursor_move(&datacur, 0)) {
+			bytes = m0_bufvec_cursor_step(&datacur);
+			if (bytes < count) {
+				user_data.ov_vec.v_count[i] = bytes;
+				user_data.ov_buf[i] = m0_bufvec_cursor_addr(&datacur);
+				m0_bufvec_cursor_move(&datacur, bytes);
+				count -= bytes;
+			}
+			else {
+				user_data.ov_vec.v_count[i] = count;
+				user_data.ov_buf[i] = m0_bufvec_cursor_addr(&datacur);
+				m0_bufvec_cursor_move(&datacur, count);
+				count = 0;
+			}
+			i++;
+		}
+		M0_ASSERT(attr->ov_vec.v_nr && attr->ov_vec.v_count[attr_idx] != 0);
+		if (attr_idx != 0) {
+			flag = M0_PI_NO_FLAG;
+			memcpy(pi.pimd5c_prev_context, curr_context, sizeof(MD5_CTX));
+			}
+		seed.pis_data_unit_offset   = m0_ivec_cursor_index(&extcur);
+		seed.pis_obj_id.f_container = obj->ob_entity.en_id.u_hi;
+		seed.pis_obj_id.f_key       = obj->ob_entity.en_id.u_lo;
+		pi.pimd5c_hdr.pih_type = M0_PI_TYPE_MD5_INC_CONTEXT;
+        rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
+									&seed, &user_data, flag,
+									curr_context, NULL);
+
+        memcpy(attr->ov_buf[attr_idx], &pi,
+				sizeof(struct m0_md5_inc_context_pi));
+		attr_idx++;
+		m0_ivec_cursor_move(&extcur, usz);
+		m0_bufvec_free2(&user_data);
 	}
 	return rc;
 }
@@ -138,7 +233,7 @@ static void prepare_ext_vecs(struct m0_indexvec *ext,
 		*last_index += block_size;
 
 		/* we don't want any attributes */
-		attr->ov_vec.v_count[i] = 0;
+		attr->ov_vec.v_count[i] = sizeof(struct m0_md5_inc_context_pi);
 	}
 }
 
@@ -291,7 +386,7 @@ static int write_data_to_object(struct m0_obj *obj,
 	 *  CKSUM_TODO: calculate cksum and pass in
         *  attr instead of NULL
         */
-	rc = m0_obj_op(obj, M0_OC_WRITE, ext, data, NULL, 0, 0, &ops[0]);
+	rc = m0_obj_op(obj, M0_OC_WRITE, ext, data, attr, 0, 0, &ops[0]);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -417,8 +512,12 @@ int m0_write(struct m0_container *container, char *src,
 		rc = read_data_from_file(fp, &data);
 		M0_ASSERT(rc == bcount);
 
+	    if(1){
+			calculate_checksum(&obj, &ext, &data, &attr);
+		}
+
 		/* Copy data to the object*/
-		rc = write_data_to_object(&obj, &ext, &data, NULL);
+		rc = write_data_to_object(&obj, &ext, &data, &attr);
 		if (rc != 0) {
 			fprintf(stderr, "Writing to object failed!\n");
 			break;
@@ -540,7 +639,7 @@ int m0_read(struct m0_container *container,
 		prepare_ext_vecs(&ext, &attr, bcount,
 				 block_size, &last_index);
 
-		rc = read_data_from_object(&obj, &ext, &data, NULL, flags);
+		rc = read_data_from_object(&obj, &ext, &data, &attr, flags);
 		if (rc != 0) {
 			fprintf(stderr, "Reading from object failed!\n");
 			break;
@@ -788,6 +887,8 @@ int m0_write_cc(struct m0_container *container,
 		/* Read data from source file. */
 		rc = read_data_from_file(fp, &data);
 		M0_ASSERT(rc == bcount);
+		rc = calculate_checksum(&obj, &ext, &data, &attr);
+		M0_ASSERT(rc == 0);
 
 		/* Copy data to the object*/
 		rc = write_data_to_object(&obj, &ext, &data, &attr);

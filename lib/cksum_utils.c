@@ -139,14 +139,18 @@ M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec,
 	}
 
 	/** Assert to make sure the the offset is lying within the extent */
-	M0_ASSERT(i < vec->iv_vec.v_nr);
+	// M0_ASSERT(i < vec->iv_vec.v_nr);
+	if (i < vec->iv_vec.v_nr)
+	{
+		/** get the checksum_addr */
+		m0_bufvec_cursor_init(&cksum_cursor, cksum_vec);
 
-	/** get the checksum_addr */
-	m0_bufvec_cursor_init(&cksum_cursor, cksum_vec);
-
-	if (attr_nob) {
-		m0_bufvec_cursor_move(&cksum_cursor, attr_nob);
+		if (attr_nob) {
+			m0_bufvec_cursor_move(&cksum_cursor, attr_nob);
+		}
+		cksum_addr = m0_bufvec_cursor_addr(&cksum_cursor);
 	}
-	cksum_addr = m0_bufvec_cursor_addr(&cksum_cursor);
+	
+
 	return cksum_addr;
 }
