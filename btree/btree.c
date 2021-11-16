@@ -2577,17 +2577,23 @@ static void *ff_key(const struct nd *node, int idx)
 
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
 		   (0 <= idx && idx <= h->ff_used)));
-	return area + (h->ff_ksize + h->ff_vsize) * idx;
+	return area + h->ff_ksize * idx;
 }
 
 static void *ff_val(const struct nd *node, int idx)
 {
-	struct ff_head *h    = ff_data(node);
-	void           *area = h + 1;
+	void           *node_start_addr = ff_data(node);
+	struct ff_head *h               = node_start_addr;
+	void           *node_end_addr;
+	int             value_offset;
 
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
-		    0 <= idx && idx <= h->ff_used));
-	return area + (h->ff_ksize + h->ff_vsize) * idx + h->ff_ksize;
+		   (0 <= idx && idx <= h->ff_used)));
+
+	node_end_addr = node_start_addr + (1ULL << h->ff_shift);
+	value_offset  = h->ff_vsize * (idx + 1);
+
+	return node_end_addr - value_offset;
 }
 
 static bool ff_rec_is_valid(const struct slot *slot)
@@ -2834,16 +2840,28 @@ static void ff_done(struct slot *slot, bool modified)
 
 static void ff_make(struct slot *slot)
 {
-	const struct nd *node  = slot->s_node;
-	struct ff_head  *h     = ff_data(node);
-	int              rsize = h->ff_ksize + h->ff_vsize;
-	void            *start = ff_key(node, slot->s_idx);
+	struct ff_head *h  = ff_data(slot->s_node);
+	void           *key_addr;
+	void           *val_addr;
+	int             total_key_size;
+	int             total_val_size;
 
-	M0_PRE(ff_rec_is_valid(slot));
-	M0_PRE(ff_isfit(slot));
-	m0_memmove(start + rsize, start, rsize * (h->ff_used - slot->s_idx));
+
+	if (h->ff_used == 0 || slot->s_idx == h->ff_used) {
+		h->ff_used++;
+		return;
+	}
+
+	key_addr       = ff_key(slot->s_node, slot->s_idx);
+	val_addr       = ff_val(slot->s_node, h->ff_used - 1);
+
+	total_key_size = h->ff_ksize * (h->ff_used - slot->s_idx);
+	total_val_size = h->ff_vsize * (h->ff_used - slot->s_idx);
+
+	m0_memmove(key_addr + h->ff_ksize, key_addr, total_key_size);
+	m0_memmove(val_addr - h->ff_vsize, val_addr, total_val_size);
+
 	h->ff_used++;
-	/** Capture these changes in ff_capture.*/
 }
 
 static void ff_val_resize(struct slot *slot, int vsize_diff)
@@ -2870,15 +2888,29 @@ static void ff_cut(const struct nd *node, int idx, int size)
 
 static void ff_del(const struct nd *node, int idx)
 {
-	struct ff_head   *h     = ff_data(node);
-	int               rsize = h->ff_ksize + h->ff_vsize;
-	void             *start = ff_key(node, idx);
+	struct ff_head *h     = ff_data(node);
+	void           *key_addr;
+	void           *val_addr;
+	int             total_key_size;
+	int             total_val_size;
 
-	M0_PRE(idx < h->ff_used);
-	M0_PRE(h->ff_used > 0);
-	m0_memmove(start, start + rsize, rsize * (h->ff_used - idx - 1));
+	M0_PRE(h->ff_used > 0 && idx < h->ff_used);
+
+	if (idx == h->ff_used - 1) {
+		h->ff_used--;
+		return;
+	}
+
+	key_addr       = ff_key(node, idx);
+	val_addr       = ff_val(node, h->ff_used - 1);
+
+	total_key_size = h->ff_ksize * (h->ff_used - idx - 1);
+	total_val_size = h->ff_vsize * (h->ff_used - idx - 1);
+
+	m0_memmove(key_addr, key_addr + h->ff_ksize, total_key_size);
+	m0_memmove(val_addr + h->ff_vsize, val_addr, total_val_size);
+
 	h->ff_used--;
-	/** Capture changes in ff_capture */
 }
 
 static void ff_set_level(const struct nd *node, uint8_t new_level)
@@ -2995,8 +3027,6 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 {
 	struct ff_head   *h     = ff_data(slot->s_node);
-	int               rsize = h->ff_ksize + h->ff_vsize;
-	void             *start;
 	struct m0_be_seg *seg   = slot->s_node->n_tree->t_seg;
 	m0_bcount_t       hsize = sizeof(*h) - sizeof(h->ff_opaque);
 
@@ -3007,9 +3037,15 @@ static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 	 *  header modifications need to be persisted.
 	 */
 	if (h->ff_used > slot->s_idx) {
-		start = ff_key(slot->s_node, slot->s_idx);
-		M0_BTREE_TX_CAPTURE(tx, seg, start,
-				    rsize * (h->ff_used - slot->s_idx));
+		void *start_key        = ff_key(slot->s_node, slot->s_idx);
+		void *last_val         = ff_val(slot->s_node, h->ff_used - 1);
+		int   rec_modify_count = h->ff_used - slot->s_idx;
+		int   krsize           = h->ff_ksize * rec_modify_count;
+		int   vrsize           = h->ff_vsize * rec_modify_count;
+
+
+		M0_BTREE_TX_CAPTURE(tx, seg, start_key, krsize);
+		M0_BTREE_TX_CAPTURE(tx, seg, last_val, vrsize);
 	} else if (h->ff_opaque == NULL)
 		/**
 		 *  This will happen when the node is initialized in which case
@@ -3049,7 +3085,7 @@ static void ff_rec_put_credit(const struct nd *node, m0_bcount_t ksize,
 {
 	int             node_size   = node->n_size;
 
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
 }
 
 static void ff_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
@@ -3058,7 +3094,7 @@ static void ff_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
 {
 	int             node_size   = node->n_size;
 
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
 }
 
 static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
@@ -3067,7 +3103,7 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 {
 	int             node_size   = node->n_size;
 
-	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(2, node_size));
+	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(3, node_size));
 }
 
 /**
