@@ -1,7 +1,7 @@
 =================
 Quick Start Guide
 =================
-This guide provides information on how to get Motr ready.
+This guide provides information on how to get Motr ready and test it. After following this guide, if you would like to actually run a motr cluster, please follow the `cortx-hare quick start guide <https://github.com/Seagate/cortx-hare/blob/main/README.md>`_.
 
 *************
 Prerequisites
@@ -174,6 +174,8 @@ Troubleshooting
        sudo lctl list_nids
 
 - For other errors, please check our `FAQs <https://github.com/Seagate/cortx/blob/master/doc/Build-Installation-FAQ.md>`_.
+
+- After following this guide, if you would like to actually run a motr cluster, please follow the `cortx-hare quick start guide <https://github.com/Seagate/cortx-hare/blob/main/README.md>`_.
 
 Build the documentation
 =======================
