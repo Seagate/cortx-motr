@@ -1015,13 +1015,16 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		// 	}
 		// }
 
-		net = m0_nep_tlist_pop(&tm->ftm_ntm->ntm_end_points);
-		m0_nep_tlist_add_tail(&tm->ftm_ntm->ntm_end_points, net);
-		xep = libfab_ep(net);
-		aep = libfab_aep_get(xep);
-		libfab_txep_event_check(xep, aep, tm);
-		cq = aep->aep_rx_res.frr_cq;
-		libfab_rxep_comp_read(cq, xep, tm);
+		ret = 5;
+		while(ret--) {
+			net = m0_nep_tlist_pop(&tm->ftm_ntm->ntm_end_points);
+			m0_nep_tlist_add_tail(&tm->ftm_ntm->ntm_end_points, net);
+			xep = libfab_ep(net);
+			aep = libfab_aep_get(xep);
+			libfab_txep_event_check(xep, aep, tm);
+			cq = aep->aep_rx_res.frr_cq;
+			libfab_rxep_comp_read(cq, xep, tm);
+		}
 
 		libfab_bufq_process(tm);
 		if (m0_time_is_in_past(tm->ftm_tmout_check))
