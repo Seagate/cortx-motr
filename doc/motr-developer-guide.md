@@ -1,4 +1,4 @@
-# COTRX Motr Developer Guide
+# CORTX Motr Developer Guide
 
 This document describes how to develop a simple application with Motr APIs.  
 This document also list links to more useful Motr applications with richer  
