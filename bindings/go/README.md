@@ -14,6 +14,8 @@ provided there is enough buffer size to accomodate several of such blocks in one
 Read()/Write() request. (For example, see the source code of `mcp` utility and its `-bsz`
 option.)
 
+## mcp
+
 `mcp` (Motr cp) utility is a client application example written in pure Go which uses
 `go/mio` package and has only 97 lines of code (as of 30 Oct 2020). It allows to copy
 Motr objects to/from a file or between themselves:
@@ -65,6 +67,8 @@ The binary will be installed to your `GOBIN` directory
 See the usage example at this discussion thread -
 https://github.com/Seagate/cortx-motr/discussions/285.
 
+## mkv
+
 `mkv` is a simple utility to work with Motr Key-Value Store:
 
 ```Text
@@ -90,3 +94,5 @@ Usage: mkv [options] index_id key [value]
   -u	update value at the existing key
   -v	be more verbose
 ```
+
+The steps to build and install are similar to `mcp` (see above).
