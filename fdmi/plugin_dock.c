@@ -476,7 +476,7 @@ static void pdock_record_release(struct m0_ref *ref)
 	}
 
 	/* FIXME: TEMP */
-	M0_LOG(M0_DEBUG, "Processed FDMI rec "U128X_F". Releasing it now.",
+	M0_LOG(M0_FATAL, "Processed FDMI rec "U128X_F". Releasing it now.",
 			 U128_P(&rreg->frr_rec->fr_rec_id));
 
 	rc = pdock_client_post(req, rreg->frr_sess, &release_ri_ops);
