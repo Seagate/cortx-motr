@@ -64,3 +64,29 @@ The binary will be installed to your `GOBIN` directory
 
 See the usage example at this discussion thread -
 https://github.com/Seagate/cortx-motr/discussions/285.
+
+`mkv` is a simple utility to work with Motr Key-Value Store:
+
+```Text
+Usage: mkv [options] index_id key [value]
+
+ With value present it will be PUT operation.
+ Without value it will be GET operation.
+
+  -c	create index if not present
+  -d	delete the record by the key
+  -ep endpoint
+    	my endpoint address
+  -hax endpoint
+    	local hax endpoint address
+  -proc fid
+    	my process fid
+  -prof fid
+    	cluster profile fid
+  -threads number
+    	number of threads to use (default 1)
+  -trace
+    	generate m0trace.pid file
+  -u	update value at the existing key
+  -v	be more verbose
+```
