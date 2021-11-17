@@ -331,7 +331,7 @@ static void libfab_txep_event_check(struct m0_fab__ep *txep,
 static int libfab_txep_init(struct m0_fab__active_ep *aep,
 			    struct m0_fab__tm *tm, void *ctx);
 static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm,
-			      void *ctx);
+			      void *ctx, char *str);
 static inline struct m0_fab__active_ep *libfab_aep_get(struct m0_fab__ep *ep);
 static int libfab_ping_op(struct m0_fab__active_ep *ep, struct m0_fab__buf *fb);
 static int libfab_bulk_op(struct m0_fab__active_ep *ep, struct m0_fab__buf *fb);
@@ -940,13 +940,15 @@ static void libfab_txep_comp_read(struct fid_cq *cq, struct m0_fab__tm *tm)
  */
 static void libfab_poller(struct m0_fab__tm *tm)
 {
-	struct m0_fab__ev_ctx    *ctx;
+	// struct m0_fab__ev_ctx    *ctx;
 	struct m0_fab__ep        *xep;
 	struct m0_fab__active_ep *aep;
 	struct fid_cq            *cq;
 	struct epoll_event        ev;
 	int                       ev_cnt;
 	int                       ret;
+	struct m0_net_end_point  *net;
+	int rc;
 
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
 	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
@@ -956,8 +958,8 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		 * The proposed short term fix to support the lab team is adding
 		 * nanosleep of 0ns on VM to reduce CPU load.
 		 */
-		if (m0_processor_is_vm())
-			m0_nanosleep(M0_MKTIME(0 ,0), NULL);
+		// if (m0_processor_is_vm())
+		// 	m0_nanosleep(M0_MKTIME(0 ,0), NULL);
 		/*
 		 * It is observed that with epoll_wait,
 		 * the thread is waiting in a busy-loop for events
@@ -965,8 +967,12 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		 * Hence, adding a sched_yield() will release the CPU for
 		 * other processes and reduce CPU consumption.
 		 */
-		sched_yield();
-		ev_cnt = epoll_wait(tm->ftm_epfd, &ev, 1, FAB_WAIT_FD_TMOUT);
+		// sched_yield();
+		rc = fi_trywait(tm->ftm_fab->fab_fab, &tm->ftm_fids[0], tm->ftm_fid_cnt);
+		if (rc == 0)
+			ev_cnt = epoll_wait(tm->ftm_epfd, &ev, 1, FAB_WAIT_FD_TMOUT);
+
+		ev_cnt = ev_cnt;
 
 		while (1) {
 			m0_mutex_lock(&tm->ftm_endlock);
@@ -992,20 +998,30 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		libfab_handle_connect_request_events(tm);
 		libfab_txep_comp_read(tm->ftm_tx_cq, tm);
 
-		if (ev_cnt > 0) {
-			ctx = ev.data.ptr;
-			if (ctx->evctx_type != FAB_COMMON_Q_EVENT) {
-				/*
-				 * Check the private queue of the
-				 * endpoint for events 
-				 */
-				xep = ctx->evctx_ep;
-				aep = libfab_aep_get(xep);
-				libfab_txep_event_check(xep, aep, tm);
-				cq = aep->aep_rx_res.frr_cq;
-				libfab_rxep_comp_read(cq, xep, tm);
-			}
-		}
+		// if (ev_cnt > 0) {
+		// 	for(i=0;i<ev_cnt;i++) {
+		// 	ctx = ev[i].data.ptr;
+		// 	if (ctx != NULL && ctx->evctx_type != FAB_COMMON_Q_EVENT) {
+		// 		/*
+		// 		 * Check the private queue of the
+		// 		 * endpoint for events 
+		// 		 */
+		// 		xep = ctx->evctx_ep;
+		// 		aep = libfab_aep_get(xep);
+		// 		libfab_txep_event_check(xep, aep, tm);
+		// 		cq = aep->aep_rx_res.frr_cq;
+		// 		libfab_rxep_comp_read(cq, xep, tm);
+		// 	}
+		// 	}
+		// }
+
+		net = m0_nep_tlist_pop(&tm->ftm_ntm->ntm_end_points);
+		m0_nep_tlist_add_tail(&tm->ftm_ntm->ntm_end_points, net);
+		xep = libfab_ep(net);
+		aep = libfab_aep_get(xep);
+		libfab_txep_event_check(xep, aep, tm);
+		cq = aep->aep_rx_res.frr_cq;
+		libfab_rxep_comp_read(cq, xep, tm);
 
 		libfab_bufq_process(tm);
 		if (m0_time_is_in_past(tm->ftm_tmout_check))
@@ -1187,7 +1203,7 @@ static int libfab_tm_res_init(struct m0_fab__tm *tm)
 	/* Initialize and bind resources to tx ep */
 	tm->ftm_txcq_ctx.evctx_type = FAB_COMMON_Q_EVENT;
 	tm->ftm_txcq_ctx.evctx_ep = NULL;
-	rc = libfab_waitfd_bind(&tm->ftm_tx_cq->fid, tm, &tm->ftm_txcq_ctx);
+	rc = libfab_waitfd_bind(&tm->ftm_tx_cq->fid, tm, &tm->ftm_txcq_ctx, "tx CQ fid");
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -1223,7 +1239,7 @@ static int libfab_ep_txres_init(struct m0_fab__active_ep *aep,
 	aep->aep_tx_res.ftr_ctx.evctx_type = FAB_PRIVATE_Q_EVENT;
 	aep->aep_tx_res.ftr_ctx.evctx_ep = ctx;
 	rc = libfab_waitfd_bind(&aep->aep_tx_res.ftr_eq->fid, tm,
-				&aep->aep_tx_res.ftr_ctx);
+				&aep->aep_tx_res.ftr_ctx, "tx EQ fid");
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -1255,10 +1271,10 @@ static int libfab_ep_rxres_init(struct m0_fab__active_ep *aep,
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	aep->aep_rx_res.frr_ctx.evctx_type = FAB_PRIVATE_Q_EVENT;
-	aep->aep_rx_res.frr_ctx.evctx_ep = ctx;
+	aep->aep_rx_res.frr_cq_ctx.evctx_type = FAB_PRIVATE_Q_EVENT;
+	aep->aep_rx_res.frr_cq_ctx.evctx_ep = ctx;
 	rc = libfab_waitfd_bind(&aep->aep_rx_res.frr_cq->fid, tm,
-				&aep->aep_rx_res.frr_ctx);
+				&aep->aep_rx_res.frr_cq_ctx, "rx CQ fid");
 	if (rc != 0)
 		return M0_ERR(rc);
 	
@@ -1271,10 +1287,12 @@ static int libfab_ep_rxres_init(struct m0_fab__active_ep *aep,
 	/* Initialise and bind event queue */
 	eq_attr.wait_obj = FI_WAIT_FD;
 	eq_attr.size = FAB_MAX_AEP_EQ_EV;
+	aep->aep_rx_res.frr_eq_ctx.evctx_type = FAB_PRIVATE_Q_EVENT;
+	aep->aep_rx_res.frr_eq_ctx.evctx_ep = ctx;
 	rc = fi_eq_open(fab->fab_fab, &eq_attr, &aep->aep_rx_res.frr_eq,
 			NULL) ? :
 	     libfab_waitfd_bind(&aep->aep_rx_res.frr_eq->fid, tm,
-				&aep->aep_rx_res.frr_ctx) ? :
+				&aep->aep_rx_res.frr_eq_ctx, "rx EQ fid") ? :
 	     fi_ep_bind(aep->aep_rxep, &aep->aep_rx_res.frr_eq->fid, 0) ? :
 	     fi_ep_bind(aep->aep_rxep, &tm->ftm_rctx->fid, 0);
 
@@ -1302,7 +1320,7 @@ static int libfab_pep_res_init(struct m0_fab__passive_ep *pep,
 	pep->pep_res.fpr_ctx.evctx_type = FAB_COMMON_Q_EVENT;
 	pep->pep_res.fpr_ctx.evctx_ep = ctx;
 	rc = libfab_waitfd_bind(&pep->pep_res.fpr_eq->fid, tm,
-				&pep->pep_res.fpr_ctx) ? :
+				&pep->pep_res.fpr_ctx, "pep EQ fid") ? :
 	     fi_pep_bind(pep->pep_pep, &pep->pep_res.fpr_eq->fid, 0);
 	
 	return rc != 0 ? M0_ERR(rc) : M0_RC(0);
@@ -2495,7 +2513,8 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
 /**
  * Associate the event queue or completion queue to the epollfd wait mechanism
  */
-static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm, void *ctx)
+static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm, void *ctx,
+				char *str)
 {
 	struct epoll_event ev;
 	int                fd;
@@ -2507,7 +2526,14 @@ static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm, void *ctx)
 
 	ev.events = EPOLLIN;
 	ev.data.ptr = ctx;
+	M0_LOG(M0_DEBUG,"ADD_TO_EPOLL %s=%p fd=%d ctx=%p tm=%p fid_cnt=%d",
+		str, fid, fd, ctx, tm, tm->ftm_fid_cnt);
 	rc = epoll_ctl(tm->ftm_epfd, EPOLL_CTL_ADD, fd, &ev);
+
+	if (rc == 0) {
+		tm->ftm_fids[tm->ftm_fid_cnt] = fid;
+		tm->ftm_fid_cnt++;
+	}
 
 	return M0_RC(rc);
 }
@@ -2912,6 +2938,8 @@ static int libfab_ma_init(struct m0_net_transfer_mc *ntm)
 		ftm->ftm_state = FAB_TM_INIT;
 		ntm->ntm_xprt_private = ftm;
 		ftm->ftm_ntm = ntm;
+		ftm->ftm_fid_cnt = 0;
+		memset(&ftm->ftm_fids, 0, sizeof(ftm->ftm_fids));
 		fab_buf_tlist_init(&ftm->ftm_done);
 		fab_bulk_tlist_init(&ftm->ftm_bulk);
 		ftm->ftm_bufhash.bht_magic = M0_NET_LIBFAB_BUF_HT_HEAD_MAGIC;

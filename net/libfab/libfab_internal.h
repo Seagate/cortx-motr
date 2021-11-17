@@ -98,7 +98,7 @@ enum m0_fab__libfab_params {
 	/** Max number of completion events to read from a completion queue */
 	FAB_MAX_COMP_READ              = 256,
 	/** Max timeout for waiting on fd in epoll_wait */
-	FAB_WAIT_FD_TMOUT              = 10,
+	FAB_WAIT_FD_TMOUT              = 1000,
 	/** Max event entries for active endpoint event queue */
 	FAB_MAX_AEP_EQ_EV              = 8,
 	/** Max event entries for passive endpoint event queue */
@@ -311,7 +311,8 @@ struct m0_fab__rx_res{
 	struct fid_cq         *frr_cq;
 
 	/** Context to be returned in the epoll_wait event */
-	struct m0_fab__ev_ctx  frr_ctx;
+	struct m0_fab__ev_ctx  frr_cq_ctx;
+	struct m0_fab__ev_ctx  frr_eq_ctx;
 };
 
 /**
@@ -406,6 +407,8 @@ struct m0_fab__tm {
 	
 	/** Epoll file descriptor */
 	int                             ftm_epfd;
+	struct fid                     *ftm_fids[1024];
+	volatile uint32_t               ftm_fid_cnt;
 	
 	/** Fabric parameters of a transfer machine */
 	struct m0_fab__fab             *ftm_fab;
