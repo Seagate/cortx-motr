@@ -75,7 +75,6 @@ else
 	if  [[ ! -z $(rpm -qa | grep libfabric) ]]; then
         	rpm -e $(rpm -qa | grep libfabric)
 	fi
-	sed -i '/libfabric/d' cortx-motr.spec.in
 fi
 
 

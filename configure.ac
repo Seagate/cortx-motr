@@ -907,6 +907,7 @@ AS_IF([! test -z "$with_libfab"],
         LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
         LIBFAB_LIBS="-L$LIBFABRIC/lib -lfabric"
         M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS $LIB_FAB_INCLUDES"
+	BUILD_DEPEND_LIBFAB=""
       ],
 )
 AS_IF([test x$enable_libfab = xyes || test "x$with_default_network" = "xLF" ],
@@ -933,6 +934,7 @@ AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
 			M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
 			enable_libfab=yes
 			AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["LF"])
+			BUILD_DEPEND_LIBFAB="BuildRequires: libfab-devel"
 		      ]
 		)
 	      ], []
@@ -940,6 +942,7 @@ AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
       ]
 )
 AC_SUBST([LIBFAB_LIBS])
+AC_SUBST([BUILD_DEPEND_LIBFAB])
 AM_CONDITIONAL([ENABLE_LIBFAB],
                [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
 
