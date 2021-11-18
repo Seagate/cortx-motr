@@ -98,6 +98,13 @@ ADDB
 
 * addb 1-pager
 
+FDMI
+----
+* [FDMI High Level Decomposition] ()
+* [FDMI Design Notes] ()
+* [FDMI HLD] ()
+
+
 Concurrency
 -----------
 
