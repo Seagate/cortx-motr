@@ -150,7 +150,7 @@ As an optimization, execution plan could be built for every added filter to be k
 plan can be built on every data filtering action to trade off memory consumption for CPU ticks.  
 
 ### 1.10.2 Input Data Filtering  
-![image](./Images/Image6_sequenceDiagram.PNG)  
+![image](./Images/Image6_sequenceDiagram.png)  
 
 *In case of RPC channel failure, input data reference counter has to be decremented. TBD if this to be done explicitly or in context of
 transaction roll-back.  
