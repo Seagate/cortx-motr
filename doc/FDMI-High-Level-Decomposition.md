@@ -1,6 +1,6 @@
 ## Component Diagram  
 
-![image](./images/component-digram.PNG)
+![image](./Images/component-digram.PNG)
 
 Interfaces:
 
@@ -45,7 +45,7 @@ Components responsibilities:
 
 ## Data-flow diagram   
 
-![image](./images/data-flow-diagram.PNG)  
+![image](./Images/data-flow-diagram.PNG)  
 
 ### Data-types
 
