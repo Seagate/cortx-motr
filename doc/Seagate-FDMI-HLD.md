@@ -103,12 +103,12 @@ FDMI consists of APIs implementing particular roles in accordance with FDMI use 
 
   * Self-diagnostic (TBD)
 
-![image](./images/Image1.PNG)  
+![image](./Images/Image1.PNG)  
 
 ## 1.9 FDMI Plugin dock  
 ### 1.9.1 initialization   
 
-![image](./images/Image2_sequenceDiagram.PNG)    
+![image](./Images/Image2_sequenceDiagram.PNG)    
 
 Application starts with plug-in initialization by specifying Plug-in Dock role and providing a callback function pointer for
 processing data notifications from other FDMI instances running Source Dock roles. At this time RPC sink registration is
@@ -123,7 +123,7 @@ Further initialization consists of registering a number of filters in  **filterd
     TBD if we really need to determine the moment when all sources appear to be running filter sets consistent across the whole system. Currently we need to consider if Plug-in should be notified about this point.
 
 ### 1.9.2 Data Processing  
-![image](./images/Image3_sequenceDiagram.PNG)   
+![image](./Images/Image3_sequenceDiagram.PNG)   
 
 Remote FDMI instance running Source Dock role provides data payload via RPC channel. RPC sink calls back local FDMI
 instance running Plug-in Dock role. The latter resolves the receiving RPC sink to plug-in callback, and calls the one passing
@@ -132,7 +132,7 @@ the data to plug-in instance.
 Successful data processing results in returning acknowledge along with confirmation allowing data release, if required.  
 
 ### 1.9.3 De-initialization  
-![image](./images/Image4_sequenceDiagram.PNG)    
+![image](./Images/Image4_sequenceDiagram.PNG)    
 
 Plug-in initiates de-initialization by calling local FDMI. The latter deregisters plug-in’s filter set with filtered service. After
 confirmation it deregisters the associated RPC sink and plug-in’s callback function.  
@@ -141,7 +141,7 @@ All registered sources are notified about changes in filter set, if any occurred
 
 ## 1.10  FDMI Source Dock  
 ### 1.10.1 Initialization  
-![image](./images/Image5_sequenceDiagram.PNG)    
+![image](./Images/Image5_sequenceDiagram.PNG)    
 
 * TBD where to validate, on Source side or inside FDMI  
 
@@ -150,7 +150,7 @@ As an optimization, execution plan could be built for every added filter to be k
 plan can be built on every data filtering action to trade off memory consumption for CPU ticks.  
 
 ### 1.10.2 Input Data Filtering  
-![image](./images/Image6_sequenceDiagram.PNG)  
+![image](./Iages/Image6_sequenceDiagram.PNG)  
 
 *In case of RPC channel failure, input data reference counter has to be decremented. TBD if this to be done explicitly or in context of
 transaction roll-back.  
@@ -174,7 +174,7 @@ When done with traversing, FDMI engine calculates final Boolean result for the f
     The method “get next filter” is the place where the behavior is to be implemented.  
 
 ### 1.10.3 Deferred Input Data Release  
-![image](./images/Image7_DeferredInputDataRelease.PNG)   
+![image](./Images/Image7_DeferredInputDataRelease.PNG)   
 
 Input data may require to remain locked in the Source until the moment when plug-in does not need it anymore. The data processing inside plug-in is an asynchronous process in general, and plug-in is expected to notify corresponding source allowing it to release the data. The message comes from plug-in to FDMI instance hosting the corresponding source.  
 
@@ -183,7 +183,7 @@ Input data may require to remain locked in the Source until the moment when plug
     resource id itself may contain the information, easily deduced or calculated.  
 
 ### 1.10.4 FDMI Service Found Dead  
-![image](./images/Image8_FDMIserviceFoundDead.PNG)  
+![image](./Images/Image8_FDMIserviceFoundDead.PNG)  
 
 
 When interaction between Mero services results in a timeout exceeding pre-configured value, the not responding service needs to be announced dead across the whole system. First of all **confd** service is notified about the service not responding. After being marked dead in **confd** database, the service has to be reported to **filterd** as well. The main purpose is to deregister FDMI sources hosted by the service, if any, to stop propagating **filterd** database changes to those.  
