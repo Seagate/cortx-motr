@@ -69,7 +69,8 @@ https://github.com/Seagate/cortx-motr/discussions/285.
 
 ## mkv
 
-`mkv` is a simple utility to work with Motr Key-Value Store:
+`mkv` is a trivial reference utility which can do two basic operations
+over Motr distributed Key-Value Store (aka Index): PUT and GET.
 
 ```Text
 Usage: mkv [options] index_id key [value]
