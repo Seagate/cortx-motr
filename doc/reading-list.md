@@ -100,9 +100,9 @@ ADDB
 
 FDMI
 ----
-* [FDMI High Level Decomposition] ()
-* [FDMI Design Notes] ()
-* [FDMI HLD] ()
+* [FDMI High Level Decomposition](./FDMI-High-Level-Decomposition.md)
+* [FDMI Design Notes](./Seagate-FDMI-Design-Notes.md)
+* [FDMI HLD](./Seagate-FDMI-HLD.md)
 
 
 Concurrency
