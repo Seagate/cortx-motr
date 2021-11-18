@@ -665,7 +665,8 @@ be_alloc_chunk_trysplit(struct m0_be_allocator *a,
 			enum m0_be_alloc_zone_type ztype,
 			struct m0_be_tx *tx,
 			struct be_alloc_chunk *c,
-			m0_bcount_t size, unsigned shift)
+			m0_bcount_t size, unsigned shift,
+			bool chunk_align)
 {
 	struct be_alloc_chunk *result = NULL;
 	uintptr_t	       alignment = 1UL << shift;
@@ -678,9 +679,16 @@ be_alloc_chunk_trysplit(struct m0_be_allocator *a,
 	if (c->bac_free) {
 		addr_start = (uintptr_t) c;
 		addr_end   = (uintptr_t) &c->bac_mem[c->bac_size];
-		/* find aligned address for memory block */
-		addr_mem   = addr_start + sizeof *c + alignment - 1;
-		addr_mem  &= ~(alignment - 1);
+		if (chunk_align) {
+			/** Align chunk header as per alignment. */
+			addr_mem   = addr_start  + alignment - 1;
+			addr_mem  &= ~(alignment - 1);
+			addr_mem   = addr_mem + sizeof *c;
+		} else {
+			/* find aligned address for memory block */
+			addr_mem   = addr_start + sizeof *c + alignment - 1;
+			addr_mem  &= ~(alignment - 1);
+		}
 		/* if block fits inside free chunk */
 		result = addr_mem + size <= addr_end ?
 			 be_alloc_chunk_split(a, ztype, tx, c,
@@ -1030,6 +1038,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	struct be_alloc_chunk       *c = NULL;
 	m0_bcount_t                  size_to_pick;
 	int                          z;
+	void                        *mem_ptr;
 
 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
 	M0_ASSERT_INFO(size <= (M0_BCOUNT_MAX - (1UL << shift)) / 2,
@@ -1052,7 +1061,8 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	/* XXX If allocation fails then stats are updated for normal zone. */
 	ztype = c != NULL ? z : M0_BAP_NORMAL;
 	if (c != NULL) {
-		c = be_alloc_chunk_trysplit(a, ztype, tx, c, size, shift);
+		c = be_alloc_chunk_trysplit(a, ztype, tx, c, size, shift,
+					    chunk_align);
 		M0_ASSERT(c != NULL);
 		M0_ASSERT(c->bac_zone == ztype);
 		memset(&c->bac_mem, 0, size);
@@ -1065,17 +1075,19 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	/* and ends here */
 
 	M0_LOG(M0_DEBUG, "allocator=%p size=%"PRIu64" shift=%u "
-	       "c=%p c->bac_size=%"PRIu64" ptr=%p", a, size, shift, c,
-	       c == NULL ? 0 : c->bac_size, *ptr);
+	       "c=%p c->bac_size=%"PRIu64" ptr=%p chunk_align=%s", a, size,
+	       shift, c, c == NULL ? 0 : c->bac_size, *ptr,
+	       chunk_align ? "true" : "false");
 	if (*ptr == NULL) {
 		be_allocator_stats_print(&a->ba_h[ztype]->bah_stats);
 		M0_ASSERT(m0_be_allocator__invariant(a));
 	}
 
 	if (c != NULL) {
+		mem_ptr = chunk_align ? (void *)c : (void *)&c->bac_mem;
 		M0_POST(!c->bac_free);
 		M0_POST(c->bac_size >= size);
-		M0_POST(m0_addr_is_aligned(&c->bac_mem, shift));
+		M0_POST(m0_addr_is_aligned(mem_ptr, shift));
 		M0_POST(be_alloc_chunk_is_in(a, ztype, c));
 	}
 	/*
