@@ -2,10 +2,10 @@
 
 ## Architectural View
 
-![image](./images/Architecture-Option1.PNG)  
+![image](./Images/Architecture-Option1.PNG)  
 Fig.1 Architecture Option 1- FDMI Plug-in  
 
-![image](./images/Architecture-Option2.PNG)  
+![image](./Images/Architecture-Option2.PNG)  
 Fig.1 Architecture Option 1- FDMI Plug-in  
 
 The main intention is to provide a streamlined processing of FOL records generated locally on Mero instance, or arrived from other nodes via RPC, and fed to Main Feed API. The central processing mechanism has to be aware of current transaction carried out.
