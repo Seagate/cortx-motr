@@ -721,7 +721,7 @@ tx_fini:
 static int cob_table_delete(struct m0_btree *tree, struct m0_be_tx *tx,
 			    struct m0_buf *key);
 
-int cob_domain_truncate(struct m0_btree     *btree,
+static int cob_domain_truncate(struct m0_btree     *btree,
 			struct m0_sm_group  *grp,
 			struct m0_be_domain *bedom,
 			struct m0_be_tx     *tx)
