@@ -967,7 +967,7 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		 * Hence, adding a sched_yield() will release the CPU for
 		 * other processes and reduce CPU consumption.
 		 */
-		// sched_yield();
+		sched_yield();
 		rc = fi_trywait(tm->ftm_fab->fab_fab, &tm->ftm_fids[0], tm->ftm_fid_cnt);
 		if (rc == 0)
 			ev_cnt = epoll_wait(tm->ftm_epfd, &ev, 1, FAB_WAIT_FD_TMOUT);
@@ -1015,7 +1015,7 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		// 	}
 		// }
 
-		ret = 5;
+		ret = 1;
 		while(ret--) {
 			net = m0_nep_tlist_pop(&tm->ftm_ntm->ntm_end_points);
 			m0_nep_tlist_add_tail(&tm->ftm_ntm->ntm_end_points, net);
@@ -2536,7 +2536,8 @@ static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm, void *ctx,
 	if (rc == 0) {
 		tm->ftm_fids[tm->ftm_fid_cnt] = fid;
 		tm->ftm_fid_cnt++;
-	}
+	} else
+		M0_ASSERT(0);
 
 	return M0_RC(rc);
 }
