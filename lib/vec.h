@@ -25,6 +25,7 @@
 #ifndef __MOTR_LIB_VEC_H__
 #define __MOTR_LIB_VEC_H__
 
+#include "motr/config.h"  /* CONFIG_X86_64 CONFIG_AARCH64 */
 #include "lib/types.h"
 #include "lib/buf.h"
 #include "lib/varr.h"
