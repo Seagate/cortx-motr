@@ -51,7 +51,7 @@ BE_SEG0_SZ = 128 * 1024 *1024 #128M
 MACHINE_ID_FILE = "/etc/machine-id"
 TEMP_FID_FILE= "/opt/seagate/cortx/motr/conf/service_fid.yaml"
 CMD_RETRY_COUNT = 5
-128M = 128 * 1024 *1024
+128M = 128 * 1024 * 1024
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
