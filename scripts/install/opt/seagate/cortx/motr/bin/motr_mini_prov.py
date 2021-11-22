@@ -51,6 +51,7 @@ BE_SEG0_SZ = 128 * 1024 *1024 #128M
 MACHINE_ID_FILE = "/etc/machine-id"
 TEMP_FID_FILE= "/opt/seagate/cortx/motr/conf/service_fid.yaml"
 CMD_RETRY_COUNT = 5
+128M = 128 * 1024 *1024
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -302,7 +303,8 @@ def update_copy_motr_config_file(self):
                    ("MOTR_M0D_DATA_DIR", f"{MOTR_M0D_DATA_DIR}"),
                    ("MOTR_M0D_CONF_XC", f"{MOTR_M0D_CONF_XC}"),
                    ("MOTR_M0D_ADDB_STOB_DIR", f"{MOTR_M0D_ADDB_STOB_DIR}"),
-                   ("MOTR_M0D_TRACE_DIR", f"{MOTR_M0D_TRACE_DIR}")]
+                   ("MOTR_M0D_TRACE_DIR", f"{MOTR_M0D_TRACE_DIR}"),
+                   ("MOTR_MOD_ADDB_RECORD_SIZE", f"{128M}")]
     update_config_file(self, f"{MOTR_SYS_CFG}", config_kvs)
 
     # Copy config file to new path
