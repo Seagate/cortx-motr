@@ -1353,7 +1353,7 @@ static void bnode_fini(const struct nd *node);
 
 enum m0_btree_crc_type {
 	CRC_TYPE_NO_CRC = 0,
-	CRC__TYPE_USER_ENC_CRC,
+	CRC_TYPE_USER_ENC_CRC,
 };
 
 /**
@@ -2345,7 +2345,7 @@ static int64_t bnode_get(struct node_op *op, struct td *tree,
 		nt->nt_opaque_set(addr, node);
 		ndlist_tlink_init_at(op->no_node, &btree_active_nds);
 
-		if (!IS_INTERNAL_NODE(op->no_node) &&
+		if ((!IS_INTERNAL_NODE(op->no_node)) &&
 		    bnode_crctype_get(op->no_node) != CRC_TYPE_NO_CRC) {
 			bnode_crc_validate(op->no_node);
 		    }
@@ -2366,7 +2366,6 @@ static void bnode_crc_validate(struct nd *node)
 	bool              rc = false;
 
 	count = bnode_count(node);
-
 	node_slot.s_node = node;
 	REC_INIT(&node_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 
