@@ -323,8 +323,16 @@
       with_items:
         - sed -i 's/(4)/(8)/g' ./prov/tcp/src/tcpx.h
         - ./configure
-        - make -j4
-        - make install
+        - make rpm
+
+    - name: install local libfabric rpms
+      yum:
+        name:
+          - /root/rpmbuild/RPMS/x86_64/libfabric-1.11.2-1.el7.x86_64.rpm
+          - /root/rpmbuild/RPMS/x86_64/libfabric-devel-1.11.2-1.el7.x86_64.rpm
+        state: present
+      when: ansible_distribution_version is version('7.6.1810', '>')
+      tags: libfabric-custom-build
 
     - name: write libfab config file on vmware_desktop provider
       lineinfile:
