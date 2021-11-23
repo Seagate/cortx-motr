@@ -40,7 +40,7 @@ Build
     sudo modprobe lnet
     sudo lctl list_nids
 
-   Make sure that libfabric package is not installed::
+   Make sure that libfabric package is not installed (refer `Uninstalling libfabric package <https://seagate-systems.atlassian.net/wiki/spaces/PUB/pages/711230113/Libfabric+setup+and+using+libfabric+with+motr#Uninstalling-libfabric-package>`_)::
 
     fi_info --version
     bash: fi_info: command not found
@@ -56,8 +56,7 @@ Build
     cat /etc/libfab.conf
     networks=tcp(eth1)
 
-   Please refer the below document for installation.
-   https://seagate-systems.atlassian.net/wiki/spaces/PUB/pages/711230113/Libfabric+setup+and+using+libfabric+with+motr
+   Please refer the `document <https://seagate-systems.atlassian.net/wiki/spaces/PUB/pages/711230113/Libfabric+setup+and+using+libfabric+with+motr>`_ for installation.   
 
    Verify that libfabric package is installed::
 
@@ -193,6 +192,7 @@ The files will be generated at doc/html/ folder.
 
 
 Tested by:
+
 - September 20, 2021: Yixuan Li (yixuan.li@seagate.com) in Red Hat Enterprise Linux Server release 7.7 (Maipo) (#5aac28633a149d2c7e6f8d4c502d80dabf7ebb7e)
 
 - Sep 20, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested in CentOS 7.8.2003 x86_64 using CORTX-2.0.0-77 tag on main branch  
