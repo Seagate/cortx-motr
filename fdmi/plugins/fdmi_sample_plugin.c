@@ -358,16 +358,11 @@ static void fdmi_plugin_record_ack()
 {
 	struct m0_uint128 rec_id = { 0 };
 	int len;
-	FILE * outf = stderr;
 
 	setvbuf(stdin,  NULL, _IONBF, 0);
-	setvbuf(outf,   NULL, _IONBF, 0);
 	while (1) {
 		len = scanf(" %"SCNx64" : %"SCNx64, &rec_id.u_hi, &rec_id.u_lo);
-		if (len > 0) {
-			fprintf(outf, "ACK \"rec_id\": \""U128X_F"\"\n",
-				U128_P(&rec_id));
-
+		if (len == 2) {
 			if (fsp_params.spp_extra_ref)
 				fsp_pdo->fpo_release_fdmi_rec(&rec_id, NULL);
 		} else {

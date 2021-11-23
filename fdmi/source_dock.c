@@ -461,7 +461,7 @@ M0_INTERNAL int m0_fdmi__handle_release(struct m0_uint128 *fdmi_rec_id)
 		return M0_RC(0);
 	}
 
-	M0_LOG(M0_FATAL, "src_rec ="U128X_F" ref cnt:%d",
+	M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
 			 U128_P(&src_rec->fsr_rec_id),
 			 (int)m0_ref_read(&src_rec->fsr_ref) - 1);
 	m0_ref_put(&src_rec->fsr_ref);
