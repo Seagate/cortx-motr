@@ -75,16 +75,17 @@ BuildRequires:  libtool
 BuildRequires:  make
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
-%if %{rhel} < 8 && "%{_arch}" == "aarch64"
-# castxml rpm on rhel 7 is not available, so it has to be
-# built and installed manually.
-#BuildRequires:  castxml
-%else if %{rhel} < 8
+%if %{rhel} < 8
+  %if "%{_arch}" == "aarch64"
+    # castxml rpm is not available on rhel 7,
+    # it must be built and installed manually.
+    # BuildRequires:  castxml
+  %else
 BuildRequires:  gccxml
+  %endif
 %else
 BuildRequires:  castxml
 %endif
-
 BuildRequires:  glibc-headers
 BuildRequires:  asciidoc
 BuildRequires:  libyaml-devel

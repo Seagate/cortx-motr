@@ -138,7 +138,6 @@ static int test_fs_encode(struct m0_fdmi_src_rec *src_rec,
 
 static void test_fs_get(struct m0_fdmi_src_rec *src_rec)
 {
-	M0_UT_ASSERT(false);
 }
 
 static void test_fs_put(struct m0_fdmi_src_rec *src_rec)

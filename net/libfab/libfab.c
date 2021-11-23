@@ -190,6 +190,7 @@
 #include "lib/finject.h"        /* M0_FI_ENABLED */
 #include "lib/hash.h"           /* m0_htable */
 #include "lib/memory.h"         /* M0_ALLOC_PTR()*/
+#include "lib/processor.h"      /* m0_processor_is_vm()*/
 #include "libfab_internal.h"
 #include "lib/string.h"         /* m0_streq */
 #include "net/net_internal.h"   /* m0_net__buffer_invariant() */
@@ -531,15 +532,14 @@ static int libfab_ep_addr_decode_native(const char *ep_name, char *node,
 		++cp;
 	}
 
-	if (node_size < (n+1) || port_size < (strlen(cp)+1))
+	if (n + 1 > node_size || strlen(cp) + 1 > port_size)
 		return M0_ERR(-EINVAL);
 
-	strncpy(node, name, n);
-	node[n] = '\0';
+	node[0] = '\0';
+	strncat(node, name, n);
 
-	n=strlen(cp);
-	strncpy(port, cp, n);
-	port[n] = '\0';
+	port[0] = '\0';
+	strncat(port, cp, port_size-1);
 
 	return M0_RC(0);
 }
@@ -724,21 +724,26 @@ static void libfab_tm_buf_done(struct m0_fab__tm *ftm)
 static void libfab_straddr_gen(struct m0_fab__conn_data *cd, char *buf,
 			       uint8_t len, struct m0_fab__ep_name *en)
 {
+	int rc;
+
 	libfab_ep_ntop(cd->fcd_netaddr, en);
+
 	if (cd->fcd_tmid == 0xFFFF)
-		sprintf(buf, "%s@%s:12345:%d:*",
+		rc = snprintf(buf, len, "%s@%s:12345:%d:*",
 			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
 			cd->fcd_iface == FAB_LO ? "lo" : 
 				((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
 			cd->fcd_portal);
 	else
-		sprintf(buf, "%s@%s:12345:%d:%d",
+		rc = snprintf(buf, len, "%s@%s:12345:%d:%d",
 			cd->fcd_iface == FAB_LO ? "0" : en->fen_addr,
 			cd->fcd_iface == FAB_LO ? "lo" : 
 			((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
 			cd->fcd_portal, cd->fcd_tmid);
 
-	M0_ASSERT(len >= strlen(buf));
+	M0_ASSERT(rc > 0);
+	M0_ASSERT_INFO(rc < len, "Net addr should not be truncated "
+		       "(wanted %d, available %d)", rc, (int)len);
 }
 
 /**
@@ -769,7 +774,7 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 	if (rc >= (int)sizeof(struct fi_eq_cm_entry) && event == FI_CONNREQ) {
 		cm_entry = (struct fi_eq_cm_entry *)entry;
 		cd = (struct m0_fab__conn_data*)(cm_entry->data);
-		libfab_straddr_gen(cd, straddr, sizeof(straddr), &en);
+		libfab_straddr_gen(cd, straddr, ARRAY_SIZE(straddr), &en);
 		rc = libfab_fab_ep_find(tm, &en, straddr, &ep);
 		if (rc == 0) {
 			rc = libfab_conn_accept(ep, tm, cm_entry->info);
@@ -945,6 +950,14 @@ static void libfab_poller(struct m0_fab__tm *tm)
 
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
 	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
+		/*
+		 * The lab team observed a significant increase in the CPU load
+		 * due to the epoll_wait not sleeping.
+		 * The proposed short term fix to support the lab team is adding
+		 * nanosleep of 0ns on VM to reduce CPU load.
+		 */
+		if (m0_processor_is_vm())
+			m0_nanosleep(M0_MKTIME(0 ,0), NULL);
 		/*
 		 * It is observed that with epoll_wait,
 		 * the thread is waiting in a busy-loop for events
@@ -2793,7 +2806,7 @@ static int libfab_buf_dom_dereg(struct m0_fab__buf *fbp)
 
 /*============================================================================*/
 
-/** 
+/**
  * Used as m0_net_xprt_ops::xo_dom_init(). 
  */
 static int libfab_dom_init(const struct m0_net_xprt *xprt,
@@ -2802,7 +2815,7 @@ static int libfab_dom_init(const struct m0_net_xprt *xprt,
 	struct m0_fab__ndom *fab_ndom;
 	int                  ret = 0;
 
-	M0_ENTRY();
+	M0_ENTRY("Running on %s", m0_processor_is_vm() ? "VM" : "HW");
 
 	M0_ALLOC_PTR(fab_ndom);
 	if (fab_ndom == NULL)

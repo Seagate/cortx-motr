@@ -208,6 +208,15 @@ struct m0_processor_descr {
 M0_INTERNAL int m0_processor_describe(m0_processor_nr_t id,
 				      struct m0_processor_descr *pd);
 
+/**
+   Obtain information on the processor environment by checking the hypervisor
+   feature flag.
+
+   @retval 0 if the processor is a physical machine.
+           1 if the processor is a virtual machine.
+ */
+M0_INTERNAL bool m0_processor_is_vm(void);
+
 /** @} end of processor group */
 
 /* __MOTR_LIB_PROCESSOR_H__ */
