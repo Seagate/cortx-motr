@@ -1288,7 +1288,7 @@ static int64_t    bnode_get  (struct node_op *op, struct td *tree,
 			      struct segaddr *addr, int nxt);
 static void       bnode_put  (struct node_op *op, struct nd *node);
 
-static bool bnode_crc_validate(struct nd *node);
+static void bnode_crc_validate(struct nd *node);
 
 #if 0
 static struct nd *bnode_try  (struct td *tree, struct segaddr *addr);
@@ -1484,6 +1484,7 @@ struct m0_btree_oimpl {
 	bool                       i_root_child_free;
 
 };
+
 
 /**
  * Adding following functions prototype in btree temporarily. It should be move
@@ -2344,15 +2345,16 @@ static int64_t bnode_get(struct node_op *op, struct td *tree,
 		nt->nt_opaque_set(addr, node);
 		ndlist_tlink_init_at(op->no_node, &btree_active_nds);
 
-		if (bnode_crctype_get(op->no_node) != CRC_TYPE_NO_CRC)
-			if (bnode_crc_validate(op->no_node))
-				op->no_op.o_sm.sm_rc = M0_ERR(-EINVAL);
+		if (!IS_INTERNAL_NODE(op->no_node) &&
+		    bnode_crctype_get(op->no_node) != CRC_TYPE_NO_CRC) {
+			bnode_crc_validate(op->no_node);
+		    }
 	}
 	m0_rwlock_write_unlock(&list_lock);
 	return nxt;
 }
 
-static bool bnode_crc_validate(struct nd *node)
+static void bnode_crc_validate(struct nd *node)
 {
 	struct slot       node_slot;
 	m0_bcount_t       ksize;
@@ -2368,22 +2370,22 @@ static bool bnode_crc_validate(struct nd *node)
 	node_slot.s_node = node;
 	REC_INIT(&node_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 
-	for (i=0; i < count; i++)
+	for (i = 0; i < count; i++)
 	{
 		node_slot.s_idx = i;
 		bnode_rec(&node_slot);
 		/* CRC check function can be updated according to CRC type. */
 		rc = m0_crc32_chk(p_val, vsize - 8, p_val + vsize - 8);
-		if (rc) {
+		if (!rc) {
 			M0_MOTR_IEM_DESC(M0_MOTR_IEM_SEVERITY_E_ERROR,
 					 M0_MOTR_IEM_MODULE_IO,
 					 M0_MOTR_IEM_EVENT_MD_ERROR, "%s",
-					 "data corruption at record number: %d \
-					 level: %d", i, bnode_level(node));
-			return rc;
+					 "data corruption for object with \
+					  possible key: %d..., hence removing \
+					  the object", *(int*)p_key);
+			bnode_del(node_slot.s_node, node_slot.s_idx);
 		}
 	}
-	return rc;
 }
 /**
  * This function decrements the reference count for this node descriptor and if
@@ -2518,6 +2520,7 @@ static void bnode_op_fini(struct node_op *op)
 {
 }
 
+
 /**
  *  --------------------------------------------
  *  Section START - Fixed Format Node Structure
@@ -2535,6 +2538,7 @@ struct ff_head {
 	 * The above 2 structures should always be together with node_header
 	 * following the m0_format_header.
 	 */
+
 	uint16_t                 ff_used;   /*< Count of records */
 	uint8_t                  ff_shift;  /*< Node size as pow-of-2 */
 	uint8_t                  ff_level;  /*< Level in Btree */
