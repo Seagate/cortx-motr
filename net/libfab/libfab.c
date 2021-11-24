@@ -759,9 +759,11 @@ static void libfab_straddr_gen(struct m0_fab__conn_data *cd, char *buf,
 		else
 			rc = libfab_straddr_copy(cd, buf, len, en);
 	} else {
-		if (cd->fcd_addr_frmt == FAB_NATIVE_IP_FORMAT)
-			rc = libfab_straddr_copy(cd, buf, len, en);
-		else if (cd->fcd_addr_frmt == FAB_NATIVE_HOSTNAME_FORMAT)
+		if (cd->fcd_addr_frmt == FAB_NATIVE_IP_FORMAT) {
+			rc = snprintf(buf, len, "inet:%s:%s@%s",
+				     ((cd->fcd_iface == FAB_TCP) ? "tcp" : "o2ib"),
+				      en->fen_addr, en->fen_port);
+		} else if (cd->fcd_addr_frmt == FAB_NATIVE_HOSTNAME_FORMAT)
 			rc = snprintf(buf, len, "%s", cd->fcd_hostname);
 		else
 			rc = 0;
@@ -2344,7 +2346,11 @@ static void libfab_conn_data_fill(struct m0_fab__conn_data *cd,
 	if (strncmp(h_ptr, "0@lo", 4) == 0)
 		cd->fcd_iface = FAB_LO;
 	else {
-		h_ptr = strchr(h_ptr, '@');
+		if (addr_frmt == FAB_NATIVE_IP_FORMAT)
+			h_ptr = strchr(h_ptr, ':');
+		else 
+			h_ptr = strchr(h_ptr, '@');
+
 		if (strncmp(h_ptr+1, "tcp", 3) == 0)
 			cd->fcd_iface = FAB_TCP;
 		else
