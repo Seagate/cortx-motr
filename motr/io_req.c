@@ -1162,7 +1162,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
 	while ( !m0_bufvec_cursor_move(&datacur, 0) &&
 		!m0_ivec_cursor_move(&extcur, 0) &&
-		attr_idx < (ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI)){
+		attr_idx < (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI)){
 
 		/* calculate number of segments required for 1 data unit */
 		nr_seg = 0;
@@ -1207,7 +1207,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 			}
 			i++;
 		}
-		if ((ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI) && ioo->ioo_attr.ov_vec.v_count[attr_idx] != 0) {
+		if ((ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) && ioo->ioo_attr.ov_vec.v_count[attr_idx] != 0) {
 
 			seed.pis_data_unit_offset   = m0_ivec_cursor_index(&extcur);
 			seed.pis_obj_id.f_container = ioo->ioo_obj->ob_entity.en_id.u_hi;
@@ -1227,7 +1227,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 
 	if (m0_bufvec_cursor_move(&datacur, 0) &&
 	    m0_ivec_cursor_move(&extcur, 0)) {
-	    //attr_idx == (ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI)) {
+	    //attr_idx == (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI)) {
 		return true;
 	}
 	else {
@@ -1316,7 +1316,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		 */
 		if (ioo->ioo_dgmode_io_sent == false &&
 			total_count % usz == 0 &&
-			(ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI) &&
+			(ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) &&
 			!is_parity_verify_mode(m0__op_instance( &ioo->ioo_oo.oo_oc.oc_op)) &&
 		    !verify_checksum(ioo)) {
 			return M0_RC(-EIO);
