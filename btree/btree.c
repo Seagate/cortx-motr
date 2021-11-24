@@ -675,6 +675,10 @@ enum {
 #define M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(buf, shift, seg, tx)                \
 		(buf)->b_addr = m0_alloc_aligned((buf)->b_nob, shift)
 
+#undef M0_BE_ALLOC_ALIGN_BUF_SYNC
+#define M0_BE_ALLOC_ALIGN_BUF_SYNC(buf, shift, seg, tx)                      \
+		(buf)->b_addr = m0_alloc_aligned((buf)->b_nob, shift)
+
 #undef M0_BE_FREE_ALIGN_BUF_SYNC
 #define M0_BE_FREE_ALIGN_BUF_SYNC(buf, shift, seg, tx)                       \
 		m0_free_aligned((buf)->b_addr, (buf)->b_nob, shift)
@@ -738,6 +742,7 @@ enum {
 #define madvise(rnode, rnode_sz, MADV_NORMAL)                                \
 	-1, errno = ENOMEM
 
+#undef m0_be_engine_tx_size_max
 #define m0_be_engine_tx_size_max(engine, cred, payload_size)                 \
 	do {                                                                 \
 		*(cred) = M0_BE_TX_CREDIT(50, (4 * 1024));            \
