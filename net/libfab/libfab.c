@@ -969,8 +969,8 @@ static void libfab_poller(struct m0_fab__tm *tm)
 
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
 	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
-		if (fi_trywait(tm->ftm_fab->fab_fab, &tm->ftm_fids[0],
-				tm->ftm_fid_cnt) == 0)
+		if (fi_trywait(tm->ftm_fab->fab_fab, tm->ftm_fids.ftf_head,
+			       tm->ftm_fids.ftf_cnt) == 0)
 			ev_cnt = epoll_wait(tm->ftm_epfd, &ev, 1,
 					    FAB_WAIT_FD_TMOUT);
 		else
@@ -1735,8 +1735,9 @@ static int libfab_tm_param_free(struct m0_fab__tm *tm)
 			       rc, (int)tm->ftm_tx_cq->fid.fclass);
 		tm->ftm_tx_cq = NULL;
 	}
-	
+
 	close(tm->ftm_epfd);
+	m0_free(tm->ftm_fids.ftf_head);
 
 	m0_htable_for(fab_bufhash, fbp, &tm->ftm_bufhash.bht_hash) {
 		fab_bufhash_htable_del(&tm->ftm_bufhash.bht_hash, fbp);
@@ -2541,14 +2542,48 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
 }
 
 /**
- * Associate the event queue or completion queue to the epollfd wait mechanism
+ * Grow the size of array for storing more fids.
+ * Returns   0 if successful.
+ *	   < 0 in case of failure.
+ */
+static int libfab_fid_array_grow(struct fid ***arr, uint32_t old_size,
+				 uint32_t incr)
+{
+	struct fid **old = *arr;
+	struct fid **new = NULL;
+	uint32_t     new_size = old_size + incr;
+	int          i;
+
+	M0_PRE(old != NULL && old_size < new_size);
+
+	M0_ALLOC_ARR(new, new_size);
+	if (new == NULL)
+		return M0_ERR(-ENOMEM);
+
+	/* Copy fids from old array to new array. */
+	for (i = 0; i < old_size; i++)
+		new[i] = old[i];
+	*arr = new;
+
+	M0_LOG(M0_DEBUG,"old=%p new=%p old_size=%d new_size=%d",
+	       old, new, old_size, new_size);
+
+	/* Free old array */
+	m0_free(old);
+
+	return M0_RC(0);
+}
+
+/**
+ * Associate the event queue or completion queue to the epollfd wait mechanism.
  */
 static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm, void *ctx)
 {
-	struct m0_fab__ev_ctx *ptr = ctx;
-	struct epoll_event     ev;
-	int                    fd;
-	int                    rc;
+	struct m0_fab__tm_fids *tmfid = &tm->ftm_fids;
+	struct m0_fab__ev_ctx  *ptr = ctx;
+	struct epoll_event      ev;
+	int                     fd;
+	int                     rc;
 
 	rc = fi_control(fid, FI_GETWAIT, &fd);
 	if (rc != 0)
@@ -2556,14 +2591,23 @@ static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm, void *ctx)
 
 	ev.events = EPOLLIN;
 	ev.data.ptr = ptr;
-	M0_LOG(M0_DEBUG, "ADD_TO_EPOLL %s=%p fd=%d ctx=%p tm=%p fid_cnt=%d",
-	       ptr->evctx_dbg, fid, fd, ctx, tm, tm->ftm_fid_cnt);
+	M0_LOG(M0_DEBUG, "ADD_TO_EPOLL %s=%p fd=%d ctx=%p tm=%p pos=%d",
+	       ptr->evctx_dbg, fid, fd, ctx, tm, (int)tmfid->ftf_cnt);
 	rc = epoll_ctl(tm->ftm_epfd, EPOLL_CTL_ADD, fd, &ev);
 
 	if (rc == 0) {
-		tm->ftm_fids[tm->ftm_fid_cnt] = fid;
-		tm->ftm_fid_cnt++;
-		M0_ASSERT(tm->ftm_fid_cnt < ARRAY_SIZE(tm->ftm_fids));
+		if (tmfid->ftf_cnt >= (tmfid->ftf_arr_size - 1)) {
+			rc = libfab_fid_array_grow(&tmfid->ftf_head,
+						   tmfid->ftf_arr_size,
+						   FAB_TM_FID_MALLOC_STEP);
+			if (rc != 0)
+				return M0_ERR(rc);
+			tmfid->ftf_arr_size += FAB_TM_FID_MALLOC_STEP;
+		}
+		tmfid->ftf_head[tmfid->ftf_cnt] = fid;
+		ptr->evctx_pos = tmfid->ftf_cnt;
+		tmfid->ftf_cnt++;
+		M0_ASSERT(tmfid->ftf_cnt < tmfid->ftf_arr_size);
 	} else
 		M0_ASSERT(0);
 
@@ -2577,19 +2621,27 @@ static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm, void *ctx)
 static int libfab_waitfd_unbind(struct fid* fid, struct m0_fab__tm *tm,
 				void *ctx)
 {
-	struct m0_fab__ev_ctx *ptr = ctx;
-	struct epoll_event     ev = {};
-	int                    fd;
-	int                    rc;
+	struct m0_fab__tm_fids *tmfid = &tm->ftm_fids;
+	struct m0_fab__ev_ctx  *ptr = ctx;
+	struct epoll_event      ev = {};
+	int                     fd;
+	int                     rc;
+	int                     i;
 
 	rc = fi_control(fid, FI_GETWAIT, &fd);
 	if (rc != 0)
 		return M0_ERR(rc);
 
 	rc = epoll_ctl(tm->ftm_epfd, EPOLL_CTL_DEL, fd, &ev);
-	if (rc == 0)
-		M0_LOG(M0_DEBUG, "DEL_FROM_EPOLL %s fid=%p fd=%d tm=%p",
-		       ptr->evctx_dbg, fid, fd, tm);
+	if (rc == 0) {
+		M0_LOG(M0_DEBUG, "DEL_FROM_EPOLL %s fid=%p fd=%d tm=%p pos=%d",
+		       ptr->evctx_dbg, fid, fd, tm, ptr->evctx_pos);
+		for (i = ptr->evctx_pos; i < tmfid->ftf_cnt; i++)
+			tmfid->ftf_head[i] = tmfid->ftf_head[i + 1];
+		--tmfid->ftf_cnt;
+		tmfid->ftf_head[tmfid->ftf_cnt] = 0;
+		ptr->evctx_pos = 0;
+	}
 
 	return M0_RC(rc);
 }
@@ -2994,8 +3046,11 @@ static int libfab_ma_init(struct m0_net_transfer_mc *ntm)
 		ftm->ftm_state = FAB_TM_INIT;
 		ntm->ntm_xprt_private = ftm;
 		ftm->ftm_ntm = ntm;
-		ftm->ftm_fid_cnt = 0;
-		memset(&ftm->ftm_fids, 0, sizeof(ftm->ftm_fids));
+		ftm->ftm_fids.ftf_cnt = 0;
+		M0_ALLOC_ARR(ftm->ftm_fids.ftf_head, FAB_TM_FID_MALLOC_STEP);
+		if (ftm->ftm_fids.ftf_head == NULL)
+			return M0_ERR(-ENOMEM);
+		ftm->ftm_fids.ftf_arr_size = FAB_TM_FID_MALLOC_STEP;
 		fab_buf_tlist_init(&ftm->ftm_done);
 		fab_bulk_tlist_init(&ftm->ftm_bulk);
 		ftm->ftm_bufhash.bht_magic = M0_NET_LIBFAB_BUF_HT_HEAD_MAGIC;
