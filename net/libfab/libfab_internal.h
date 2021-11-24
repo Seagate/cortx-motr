@@ -435,11 +435,10 @@ struct m0_fab__tm {
 	
 	/** Epoll file descriptor */
 	int                             ftm_epfd;
+
+	/** Structure for fid management for fi_trywait() */
 	struct m0_fab__tm_fids          ftm_fids;
-	// struct fid                     *ftm_fids;
-	// uint32_t                        ftm_fids_arr_size;
-	// volatile uint32_t               ftm_fid_cnt;
-	
+
 	/** Fabric parameters of a transfer machine */
 	struct m0_fab__fab             *ftm_fab;
 
