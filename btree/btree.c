@@ -898,6 +898,10 @@ static int get_tick(struct m0_btree_op *bop)
  *
  * This allows for 128T nodes (2^47) and total of 64PB (2^56) of meta-data per
  * segment.
+ *
+ * NOTE: Above design is made obsolete from EOS-25149. Now Address of the node
+ * in segment will be stored as it is. The node size will be stored in the
+ * respective node type header.
  */
 struct segaddr {
 	uint64_t as_core;
@@ -909,7 +913,9 @@ enum {
 
 static struct segaddr  segaddr_build(const void *addr, int shift);
 static void           *segaddr_addr (const struct segaddr *addr);
-/* static int             segaddr_shift(const struct segaddr *addr); */
+#if 0
+static int             segaddr_shift(const struct segaddr *addr);
+#endif
 static uint32_t        segaddr_ntype_get(const struct segaddr *addr);
 static bool            segaddr_header_isvalid(const struct segaddr *addr);
 
@@ -1296,7 +1302,9 @@ static int  bnode_count(const struct nd *node);
 static int  bnode_count_rec(const struct nd *node);
 static int  bnode_space(const struct nd *node);
 static int  bnode_level(const struct nd *node);
-/* static int  bnode_shift(const struct nd *node); */
+#if 0
+static int  bnode_shift(const struct nd *node);
+#endif
 static int  bnode_nsize(const struct nd *node);
 static int  bnode_keysize(const struct nd *node);
 static int  bnode_valsize(const struct nd *node);
@@ -2393,7 +2401,6 @@ static struct nd *bnode_try(struct td *tree, struct segaddr *addr){
 static int64_t bnode_free(struct node_op *op, struct nd *node,
 			  struct m0_be_tx *tx, int nxt)
 {
-	/* int           shift = m0_pageshift_get(); */
 	int           size  = node->n_type->nt_nsize(node);
 	struct m0_buf buf;
 
@@ -2495,7 +2502,6 @@ struct ff_head {
 	 */
 
 	uint16_t                 ff_used;   /*< Count of records */
-	/* uint8_t                  ff_shift;  [>< Node size as pow-of-2 <] */
 	uint8_t                  ff_level;  /*< Level in Btree */
 	uint16_t                 ff_ksize;  /*< Size of key in bytes */
 	uint16_t                 ff_vsize;  /*< Size of value in bytes */
@@ -2743,7 +2749,6 @@ static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
 	M0_PRE(vsize != 0);
 	M0_SET0(h);
 
-	/* h->ff_shift           = shift; */
 	h->ff_ksize           = ksize;
 	h->ff_vsize           = vsize;
 	h->ff_nsize           = nsize;
@@ -2797,7 +2802,9 @@ static int ff_level(const struct nd *node)
 
 static int ff_shift(const struct nd *node)
 {
-	/* return ff_data(node)->ff_shift; */
+#if 0
+	return ff_data(node)->ff_shift;
+#endif
 	return 0;
 }
 
@@ -3387,7 +3394,6 @@ struct fkvv_head {
 	 */
 
 	uint16_t                 fkvv_used;   /*< Count of records */
-	/* uint8_t                  fkvv_shift;  [>< Node size as pow-of-2 <] */
 	uint8_t                  fkvv_level;  /*< Level in Btree */
 	uint16_t                 fkvv_ksize;  /*< Size of key in bytes */
 	uint32_t                 fkvv_nsize;  /*< Node size */
@@ -3506,7 +3512,6 @@ static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 	M0_PRE(ksize != 0);
 	M0_SET0(h);
 
-	/* h->fkvv_shift             = shift; */
 	h->fkvv_ksize             = ksize;
 	h->fkvv_nsize             = nsize;
 	h->fkvv_seg.h_node_type   = ntype;
@@ -3592,7 +3597,9 @@ static int fkvv_level(const struct nd *node)
 
 static int fkvv_shift(const struct nd *node)
 {
-	/* return fkvv_data(node)->fkvv_shift; */
+#if 0
+	return fkvv_data(node)->fkvv_shift;
+#endif
 	return 0;
 }
 
@@ -4405,7 +4412,6 @@ struct vkvv_head {
 	 */
 
 	uint16_t                 vkvv_used;       /*< Count of records */
-	/* uint8_t                  vkvv_shift;      [>< Node size as pow-of-2 <] */
 	uint8_t                  vkvv_level;      /*< Level in Btree */
 	uint32_t                 vkvv_dir_offset; /*< Offset pointing to dir */
 	uint32_t                 vkvv_nsize;      /*< Node size */
@@ -4445,7 +4451,6 @@ static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
 	M0_SET0(h);
 
 	h->vkvv_dir_offset      = (nsize - sizeof(*h))/2;
-	/* h->vkvv_shift           = shift; */
 	h->vkvv_nsize           = nsize;
 	h->vkvv_seg.h_node_type = ntype;
 	h->vkvv_seg.h_gen       = gen;
@@ -4562,7 +4567,9 @@ static int  vkvv_space(const struct nd *node)
  */
 static int  vkvv_shift(const struct nd *node)
 {
-	/* return vkvv_data(node)->vkvv_shift; */
+#if 0
+	return vkvv_data(node)->vkvv_shift;
+#endif
 	return 0;
 }
 
@@ -6514,7 +6521,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				 */
 				int ksize = bnode_keysize(lev->l_node);
 				int vsize = bnode_valsize(lev->l_node);
-				/* int shift = bnode_shift(lev->l_node); */
 				int nsize = bnode_nsize(tree->t_root);
 				oi->i_nop.no_opc = NOP_ALLOC;
 				bnode_unlock(lev->l_node);
@@ -6548,7 +6554,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			if (lev->l_alloc == NULL) {
 				int ksize;
 				int vsize;
-				/* int shift; */
 				int nsize;
 				lev->l_alloc = oi->i_nop.no_node;
 				oi->i_nop.no_node = NULL;
@@ -6560,7 +6565,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				}
 				ksize = bnode_keysize(lev->l_node);
 				vsize = bnode_valsize(lev->l_node);
-				/* shift = bnode_shift(lev->l_node); */
 				nsize = bnode_nsize(tree->t_root);
 				oi->i_nop.no_opc = NOP_ALLOC;
 				bnode_unlock(lev->l_node);
