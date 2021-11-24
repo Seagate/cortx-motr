@@ -11884,7 +11884,7 @@ static void ut_lru_test(void)
 	struct m0_be_tx            *tx              = &tx_data;
 	struct m0_be_tx_credit      cred            = {};
 	struct m0_btree_op          b_op            = {};
-	uint64_t                    rec_count       = MAX_RECS_PER_STREAM*100;
+	uint64_t                    rec_count       = MAX_RECS_PER_STREAM*50;
 	struct m0_btree_op          kv_op           = {};
 	struct m0_btree            *tree;
 	struct m0_btree             btree;
