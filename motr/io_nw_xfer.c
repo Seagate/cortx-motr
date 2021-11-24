@@ -650,7 +650,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		                      + ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr - 1];
 		/* If ioo_attr struct is not allocated then skip checksum computation */
 		is_goff_in_range = m0_ext_is_in(&goff_span_ext, goff) &&
-		                                (ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI); 
+		                                (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI); 
 		if (dst_attr != NULL && unit_type == M0_PUT_DATA &&
 		    opcode == M0_OC_WRITE && is_goff_in_range) {
 			void         *src_attr = NULL;
@@ -984,7 +984,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					buf = bvec->ov_buf[seg];
 					/* Add the size for checksum generated for every segment, skip parity */
 					if ((filter == PA_DATA) &&
-					    (ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI) &&
+					    (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) &&
 					    (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE)) {
 						delta += ti->ti_cksum_seg_b_nob[seg];
 						fop_cksm_nob += ti->ti_cksum_seg_b_nob[seg];
@@ -1034,7 +1034,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					delta -= io_seg_size() - io_di_size(ioo);
 
 					if ((filter == PA_DATA) &&
-					    (ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI) &&
+					    (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) &&
 					    (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE)) {
 						delta -= ti->ti_cksum_seg_b_nob[seg];
 						fop_cksm_nob -= ti->ti_cksum_seg_b_nob[seg];
@@ -1088,7 +1088,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 
 		/* Assign the checksum buffer for traget */
-		if (filter == PA_DATA && (ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI)) {
+		if (filter == PA_DATA && (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI)) {
 			if (m0_is_write_fop(&iofop->if_fop) && fop_cksm_nob)	{
 				/* RPC layer to free crw_di_data_cksum */
 				if ( m0_buf_alloc(&rw_fop->crw_di_data_cksum, fop_cksm_nob) != 0 )
@@ -1106,7 +1106,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			}
 
 			rw_fop->crw_cksum_size = (read_in_write ||
-			                          !((ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI))) ?
+			                          !((ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI))) ?
 						 0 : ioo->ioo_attr.ov_vec.v_count[0];
 		}
 		else {
@@ -1276,7 +1276,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 		goto fail;
 
 	/* Memory allocation for checksum computation */
-	if ( op->op_code == M0_OC_WRITE && (ioo->ioo_obj->ob_entity.en_flags == M0_ENF_DI)) {
+	if ( op->op_code == M0_OC_WRITE && (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI)) {
 		uint32_t b_nob;
 
 		ti->ti_attrbuf.b_addr = NULL;
