@@ -40,7 +40,9 @@ Build
     sudo modprobe lnet
     sudo lctl list_nids
 
-   Make sure that libfabric package is not installed::
+   Make sure that libfabric package is not installed.
+   Please refer the following document for un-installation of libfabric package.
+   https://seagate-systems.atlassian.net/wiki/spaces/PUB/pages/711230113/Libfabric+setup+and+using+libfabric+with+motr#Uninstalling-libfabric-package ::
 
     fi_info --version
     bash: fi_info: command not found

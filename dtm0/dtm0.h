@@ -37,6 +37,7 @@
  * DTM0 service registers following FOP types during initialisation:
  * - @ref dtm0_req_fop_fopt
  * - @ref dtm0_rep_fop_fopt
+ * - @ref dtm0_redo_fop_fopt
  *
  * DTM supports three kinds of FOP/FOM operations.
  * - EXECUTED FOP/FOM: when a cas fop is being executed, cas service will check

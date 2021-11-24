@@ -168,8 +168,9 @@ start_fdmi_plugin()
 	# Using `fdmi_sample_plugin`, which has duplicated records.
 	# PLUG_PARAM="-l ${lnet_nid}:$fdmi_plugin_ep        \
 	#	    -h ${lnet_nid}:$HA_EP -p $PROF_OPT    \
-	#	    -f $M0T1FS_PROC_ID                    "
-	# PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin $PLUG_PARAM -g $fdmi_filter_fid -s"
+	#	    -f $M0T1FS_PROC_ID -g $fdmi_filter_fid -s "
+	# if $interactive ; then PLUG_PARAM="$PLUG_PARAM -r"; fi
+	# PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin $PLUG_PARAM"
 
 	# Using `fdmi_app`, which can de-dup the duplicated records
 	 APP_PARAM="-le ${lnet_nid}:$fdmi_plugin_ep        \
