@@ -37,6 +37,12 @@
 #include "dix/client.h"
 #include "dix/meta.h"
 #include "fop/fom_simple.h"     /* m0_fom_simple */
+#include "cas/cas_xc.h"
+#include "dtm0/fop.h"
+#include "dtm0/drlink.h"
+#include "conf/helpers.h"
+#include "dix/fid_convert.h"
+#include "be/dtm0_log.h"
 
 #define WAIT_TIMEOUT               M0_TIME_NEVER
 #define SERVER_LOG_FILE_NAME       "cas_server.log"
@@ -62,9 +68,10 @@ static char *cas_startup_cmd[] = {
 	"-c", M0_SRC_PATH("motr/ut/dix_conf.xc")
 };
 
-static const char         *local_ep_addr = "0@lo:12345:34:2";
-static const char         *srv_ep_addr   = { "0@lo:12345:34:1" };
-static const char         *process_fid   = M0_UT_CONF_PROCESS;
+static const char *local_ep_addr = "0@lo:12345:34:2";
+static const char *srv_ep_addr   = { "0@lo:12345:34:1" };
+static const char *process_fid   = M0_UT_CONF_PROCESS;
+struct m0_fid      pver          = M0_FID_TINIT('v', 1, 100);
 
 static struct m0_rpc_server_ctx dix_ut_sctx = {
 		.rsx_argv             = cas_startup_cmd,
@@ -74,7 +81,6 @@ static struct m0_rpc_server_ctx dix_ut_sctx = {
 
 static void dix_config_init()
 {
-	struct m0_fid pver = M0_FID_TINIT('v', 1, 100);
 	int           rc;
 	struct m0_ext range[] = {{ .e_start = 0, .e_end = IMASK_INF }};
 
@@ -793,6 +799,7 @@ struct dtm0_ut_ctx {
 };
 
 static struct dtm0_ut_ctx duc = {};
+static struct m0_fid cli_dtm0_fid = M0_FID_INIT(0x7300000000000001, 0x1a);
 
 static int duc_setup(void)
 {
@@ -997,6 +1004,158 @@ static void st_dtm0_c(void)
 	idx_teardown();
 }
 
+static void dtm0_ut_cas_op_prepare(const struct m0_fid    *cfid,
+				   struct m0_cas_op       *op,
+				   struct m0_cas_rec      *rec,
+				   uint64_t               *key,
+				   uint64_t               *val,
+				   struct m0_dtm0_tx_desc *txr)
+{
+	int                  rc;
+	struct m0_buf        buf_key = { .b_nob = sizeof(uint64_t),
+					 .b_addr = key };
+	struct m0_buf        buf_val = { .b_nob = sizeof(uint64_t),
+					 .b_addr = val };
+	struct m0_rpc_at_buf at_buf_key = { .u.ab_buf = buf_key,
+					    .ab_type  = M0_RPC_AT_INLINE };
+	struct m0_rpc_at_buf at_buf_val = { .u.ab_buf = buf_val,
+					    .ab_type  = M0_RPC_AT_INLINE };
+
+	rec->cr_key = at_buf_key;
+	rec->cr_val = at_buf_val;
+
+	op->cg_id.ci_layout.dl_type = DIX_LTYPE_DESCR;
+	rc = m0_dix_ldesc_init(&op->cg_id.ci_layout.u.dl_desc,
+			       &(struct m0_ext) { .e_start = 0,
+			       .e_end = IMASK_INF }, 1, HASH_FNC_CITY,
+			       &pver);
+	M0_UT_ASSERT(rc == 0);
+
+	op->cg_id.ci_fid = *cfid;
+	op->cg_rec.cr_nr = 1;
+	op->cg_rec.cr_rec = rec;
+	if (txr != NULL) {
+		rc = m0_dtm0_tx_desc_copy(txr, &op->cg_txd);
+		M0_UT_ASSERT(rc == 0);
+	}
+}
+
+static void dtm0_ut_send_redo(const struct m0_fid *ifid,
+			      uint64_t *key, uint64_t *val)
+{
+	int                     rc;
+	struct dtm0_req_fop     req = { .dtr_msg = DTM_REDO };
+	struct m0_dtm0_tx_desc  txr = {};
+	struct m0_dtm0_clk_src  dcs;
+	struct m0_dtm0_ts       now;
+	struct m0_dtm0_service *dtm0 = ut_m0c->m0c_dtms;
+	struct m0_buf           payload;
+	struct m0_cas_op        cas_op = {};
+	struct m0_cas_rec       cas_rec = {};
+	struct m0_fid           srv_dtm0_fid;
+	struct m0_fid           srv_proc_fid;
+	struct m0_fid           cctg_fid;
+	/*
+	 * FIXME: this zeroed fom is added by DTM0 team mates' request
+	 * to make the merge easier as there is a massive parallel work.
+	 * This fom is passed to m0_dtm0_req_post() to get sm_id without
+	 * checks and errors.
+	 * This fom must be and will be deleted in the next patch by
+	 * Ivan Alekhin.
+	 */
+	struct m0_fom           zero_fom_to_be_deleted = {};
+	/* Extreme hack to convert index fid to component catalogue fid. */
+	uint32_t                sdev_idx = 10;
+
+	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
+	m0_dtm0_clk_src_now(&dcs, &now);
+
+	rc = m0_dtm0_tx_desc_init(&txr, 1);
+	M0_UT_ASSERT(rc == 0);
+
+	/*
+	 * Use zero fid here intentionally to skip triggering of the
+	 * pmsg send logic on the client side as we check REDOs only.
+	 */
+	txr.dtd_ps.dtp_pa[0].p_fid = M0_FID0;
+	txr.dtd_ps.dtp_pa[0].p_state = M0_DTPS_PERSISTENT;
+	txr.dtd_id = (struct m0_dtm0_tid) {
+		.dti_ts = now,
+		.dti_fid = cli_dtm0_fid
+	};
+
+	m0_dix_fid_convert_dix2cctg(ifid, &cctg_fid, sdev_idx);
+
+	dtm0_ut_cas_op_prepare(&cctg_fid, &cas_op, &cas_rec, key, val, &txr);
+
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, &cas_op),
+				     &payload.b_addr, &payload.b_nob);
+	M0_UT_ASSERT(rc == 0);
+
+	req.dtr_txr = txr;
+	req.dtr_payload = payload;
+
+	rc = m0_fid_sscanf(ut_m0_config.mc_process_fid, &srv_proc_fid);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_conf_process2service_get(m0_reqh2confc(&ut_m0c->m0c_reqh),
+					 &srv_proc_fid,
+					 M0_CST_DTM0, &srv_dtm0_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_dtm0_req_post(dtm0, &req, &srv_dtm0_fid,
+			      &zero_fom_to_be_deleted, false);
+	M0_UT_ASSERT(rc == 0);
+}
+
+static void dtm0_ut_read_and_check(uint64_t key, uint64_t val)
+{
+	struct m0_idx      *idx = &duc.duc_idx;
+	struct m0_op       *op = NULL;
+	struct m0_bufvec    keys;
+	struct m0_bufvec    vals;
+	int                 rc;
+	int                *rcs;
+
+	rcs = rcs_alloc(1);
+	rc = m0_bufvec_alloc(&keys, 1, sizeof(uint64_t)) ?:
+	     m0_bufvec_empty_alloc(&vals, 1);
+	M0_UT_ASSERT(rc == 0);
+	*(uint64_t*)keys.ov_buf[0] = key;
+	rc = m0_idx_op(idx, M0_IC_GET, &keys, &vals, rcs, 0, &op);
+	M0_UT_ASSERT(rc == 0);
+	m0_op_launch(&op, 1);
+	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rcs[0] == 0);
+	M0_UT_ASSERT(vals.ov_vec.v_nr == 1);
+	M0_UT_ASSERT(vals.ov_vec.v_count[0] == sizeof(val));
+	M0_UT_ASSERT(vals.ov_buf[0] != NULL);
+	M0_UT_ASSERT(*(uint64_t *)vals.ov_buf[0] == val);
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&vals);
+	m0_op_fini(op);
+	m0_free0(&op);
+	m0_free0(&rcs);
+}
+
+static void st_dtm0_r(void)
+{
+	m0_time_t rem;
+	uint64_t  key = 111;
+	uint64_t  val = 222;
+
+	idx_setup();
+	exec_one_by_one(1, M0_IC_PUT);
+	dtm0_ut_send_redo(&duc.duc_ifid, &key, &val);
+
+	/* XXX dirty hack, but now we don't have completion notification */
+	rem = 2ULL * M0_TIME_ONE_SECOND;
+        while (rem != 0)
+                m0_nanosleep(rem, &rem);
+
+	dtm0_ut_read_and_check(key, val);
+	idx_teardown();
+}
 
 struct m0_ut_suite ut_suite_mt_idx_dix = {
 	.ts_name   = "idx-dix-mt",
@@ -1011,6 +1170,7 @@ struct m0_ut_suite ut_suite_mt_idx_dix = {
 		{ "dtm0_putdel",    st_dtm0_putdel,   "Ivan"     },
 		{ "dtm0_e_then_s",  st_dtm0_e_then_s, "Ivan"     },
 		{ "dtm0_c",         st_dtm0_c,        "Ivan"     },
+		{ "dtm0_r",         st_dtm0_r,        "Sergey"   },
 		{ NULL, NULL }
 	}
 };

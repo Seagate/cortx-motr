@@ -104,6 +104,13 @@ static struct dtm0_req_fop *dtm0_req_fop_dup(const struct dtm0_req_fop *src)
 		return NULL;
 	}
 
+	rc = m0_buf_copy(&dst->dtr_payload, &src->dtr_payload);
+	if (rc != 0) {
+		m0_dtm0_tx_desc_fini(&dst->dtr_txr);
+		m0_free(dst);
+		return NULL;
+	}
+
 	dst->dtr_msg = src->dtr_msg;
 
 	return dst;
@@ -112,6 +119,7 @@ static struct dtm0_req_fop *dtm0_req_fop_dup(const struct dtm0_req_fop *src)
 static void dtm0_req_fop_fini(struct dtm0_req_fop *req)
 {
 	m0_dtm0_tx_desc_fini(&req->dtr_txr);
+	m0_buf_free(&req->dtr_payload);
 }
 
 static int drlink_fom_init(struct drlink_fom            *fom,
@@ -139,7 +147,10 @@ static int drlink_fom_init(struct drlink_fom            *fom,
 	if (owned_req == NULL)
 		return M0_ERR(-ENOMEM);
 
-	fop = m0_fop_alloc(&dtm0_req_fop_fopt, owned_req, mach);
+	fop = m0_fop_alloc(req->dtr_msg == DTM_REDO ?
+			   &dtm0_redo_fop_fopt:
+			   &dtm0_req_fop_fopt,
+			   owned_req, mach);
 	if (fop == NULL) {
 		dtm0_req_fop_fini(owned_req);
 		m0_free(owned_req);
@@ -297,11 +308,13 @@ static void dtm0_rlink_rpc_item_reply_cb(struct m0_rpc_item *item)
 {
 	struct m0_fop *reply = NULL;
 	struct drlink_fom *df = item2drlink_fom(item);
+	uint32_t req_opcode = m0_fop_opcode(m0_rpc_item_to_fop(item));
 
 	M0_ENTRY("item=%p", item);
 
 	M0_PRE(item != NULL);
-	M0_PRE(m0_fop_opcode(m0_rpc_item_to_fop(item)) == M0_DTM0_REQ_OPCODE);
+	M0_PRE(M0_IN(req_opcode, (M0_DTM0_REQ_OPCODE,
+				  M0_DTM0_REDO_OPCODE)));
 
 	if (m0_rpc_item_error(item) == 0) {
 		reply = m0_rpc_item_to_fop(item->ri_reply);
