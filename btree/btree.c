@@ -11901,7 +11901,7 @@ static void ut_lru_test(void)
 	void                       *v_ptr           = &value;
 	int                         rc;
 	struct m0_buf               buf;
-	uint32_t                    rnode_sz        = 1024;
+	uint32_t                    rnode_sz        = 4096;
 	struct m0_fid               fid             = M0_FID_TINIT('b', 0, 1);
 	uint32_t                    rnode_sz_shift;
 	struct m0_btree_rec         rec             = {
@@ -11913,8 +11913,8 @@ static void ut_lru_test(void)
 	 * In this UT, we are testing the functionality of LRU list purge and
 	 * be-allocator with chunk align parameter.
 	 *
-	 * 1. Allocate and fill up the btree with multiple nodes.
-	 * 2. Verify the size increase in memory by adding breakpoint.
+	 * 1. Allocate and fill up the btree with multiple records.
+	 * 2. Verify the size increase in memory.
 	 * 3. Use the m0_btree_lrulist_purge() to reduce the size by freeing up
 	 *    the unused nodes present in LRU list.
 	 * 4. Verify the reduction in size.
@@ -11924,7 +11924,6 @@ static void ut_lru_test(void)
 	btree_ut_init();
 	mem_init = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	printf("Mem Init (%"PRId64").\n",mem_init);
-	sleep(15);
 
 	M0_ASSERT(rnode_sz != 0 && m0_is_po2(rnode_sz));
 	rnode_sz_shift = __builtin_ffsl(rnode_sz) - 1;
@@ -11985,22 +11984,16 @@ static void ut_lru_test(void)
 	}
 
 	mem_after_alloc = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
-	mem_increased = mem_init - mem_after_alloc;
+	mem_increased   = mem_init - mem_after_alloc;
 	printf("Mem After Alloc (%"PRId64") || Mem Increase (%"PRId64").\n",
 	       mem_after_alloc, mem_increased);
-	sleep(15);
 
-	/** Good place to add breakpoint in UT to check increase in virtual
-	 * memory using "free -t" command.
-	 */
 	M0_ASSERT(ndlist_tlist_length(&btree_lru_nds) > 0);
 
-	mem_freed = m0_btree_lrulist_purge(mem_increased/2);
-
+	mem_freed      = m0_btree_lrulist_purge(mem_increased/2);
 	mem_after_free = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	printf("Mem After Free (%"PRId64") || Mem freed (%"PRId64").\n",
 	       mem_after_free, mem_freed);
-	sleep(15);
 
 	btree_ut_fini();
 }
@@ -12315,6 +12308,7 @@ struct m0_ut_suite btree_ut = {
 	.ts_fini = ut_btree_suite_fini,
 	.ts_tests = {
 		{"basic_tree_op_icp",               ut_basic_tree_oper_icp},
+		{"lru_test",                        ut_lru_test},
 		{"multi_stream_kv_op",              ut_multi_stream_kv_oper},
 		{"single_thread_single_tree_kv_op", ut_st_st_kv_oper},
 		{"single_thread_tree_op",           ut_st_tree_oper},
@@ -12324,7 +12318,6 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
 		{"btree_persistence",               ut_btree_persistence},
 		{"btree_truncate",                  ut_btree_truncate},
-		{"lru_test",                        ut_lru_test},
 		{NULL, NULL}
 	}
 };
