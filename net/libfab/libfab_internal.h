@@ -170,9 +170,9 @@ enum m0_fab__event_type {
  */
 enum m0_fab__connlink_status {
 	FAB_CONNLINK_DOWN              = 0x00,
-	FAB_CONNLINK_TXEP_READY        = 0x01,
-	FAB_CONNLINK_RXEP_READY        = 0x02,
-	FAB_CONNLINK_READY_TO_SEND     = 0x03,
+	FAB_CONNLINK_TXEP_RDY          = 0x01,
+	FAB_CONNLINK_RXEP_RDY          = 0x02,
+	FAB_CONNLINK_RDY_TO_SEND       = 0x03,
 	FAB_CONNLINK_PENDING_SEND_DONE = 0x07
 };
 
@@ -204,6 +204,7 @@ union m0_fab__token
 struct m0_fab__ev_ctx {
 	enum m0_fab__event_type  evctx_type;
 	void                    *evctx_ep;
+	char                    *evctx_dbg;
 };
 
 /**
@@ -306,12 +307,14 @@ struct m0_fab__tx_res{
 struct m0_fab__rx_res{
 	/** Event queue for receive endpoint */
 	struct fid_eq         *frr_eq;
-	
+
 	/** Completion Queue for receive operations */
 	struct fid_cq         *frr_cq;
 
-	/** Context to be returned in the epoll_wait event */
+	/** Context to be returned in the epoll_wait event for CQ */
 	struct m0_fab__ev_ctx  frr_cq_ctx;
+
+	/** Context to be returned in the epoll_wait event for EQ */
 	struct m0_fab__ev_ctx  frr_eq_ctx;
 };
 
