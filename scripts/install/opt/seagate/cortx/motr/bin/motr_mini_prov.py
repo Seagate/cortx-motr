@@ -810,10 +810,12 @@ def update_bseg_size(self):
                 lv_list[i] = lv_list[i].strip()
                 lv_path = lv_list[i]
                 lvm_min_size = calc_lvm_min_size(self, lv_path, lvm_min_size)
+'''
     if lvm_min_size:
         self.logger.info(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
         cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
         execute_command(self, cmd)
+'''
 
 def config_lvm(self):
     dev_count = 0
@@ -840,10 +842,12 @@ def config_lvm(self):
             res = execute_command(self, cmd)
             lv_path = res[0].rstrip("\n")
             lvm_min_size = calc_lvm_min_size(self, lv_path, lvm_min_size)
+'''
     if lvm_min_size:
         self.logger.info(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
         cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
         execute_command(self, cmd)
+'''
 
 def get_lnet_xface() -> str:
     """Get lnet interface."""
