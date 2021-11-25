@@ -769,12 +769,9 @@ def get_cvg_cnt_and_cvg_k8(self):
     check_type(cvg, list, "cvg")
     return cvg_cnt, cvg
 
-<<<<<<< HEAD
-=======
 def align_val(val, size):
     return (int(val/size) * size)
 
->>>>>>> 7d39e236cec498c5d58145e3863114b6f6a54e17
 def update_bseg_size(self):
     dev_count = 0
     lvm_min_size = None
@@ -786,10 +783,7 @@ def update_bseg_size(self):
         for i in range(md_len):
             lvm_min_size = calc_lvm_min_size(self, md_disks[i], lvm_min_size)
         if lvm_min_size:
-<<<<<<< HEAD
-=======
             align_val(lvm_min_size, 4096)
->>>>>>> 7d39e236cec498c5d58145e3863114b6f6a54e17
             self.logger.info(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
             cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
             execute_command(self, cmd)
@@ -1421,6 +1415,6 @@ def start_service(self, service, idx):
     execute_command(self, cmd)
 
     #Start motr services
-    cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
-    execute_command_console(self, cmd)
+    cmd = f"{MOTR_SERVER_SCRIPT_PATH} all"
+    execute_command_verbose(self, cmd, set_timeout=False)
     return
