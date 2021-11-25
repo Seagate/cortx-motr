@@ -21,7 +21,10 @@
 #set -x 
 
 PID=
-
+fids=
+SCRIPT_PATH="/usr/libexec/cortx-motr"
+HARE_CONFIG="/etc/cortx/hare/config"
+HARE_CMD="hctl fetch-fids --conf-dir $HARE_CONFIG/$(cat /etc/machine-id)"
 if [[ $# < 1 ]]; then
         echo "usage - sh $0 <service-fid>"
         exit 1
@@ -32,13 +35,38 @@ _handle_sigterm() {
    if [[ -z $PID ]]; then
       echo "No m0d process to kill"
    else
+      PID=$$
       kill -KILL $PID 2> /dev/null
    fi
 }
 
 trap _handle_sigterm SIGTERM SIGKILL
 
-/usr/libexec/cortx-motr/motr-server "$1" &
-PID=$!
+get_fids() {
 
-wait $PID
+	service=$1
+	val=$HARE_CMD | grep -A1 $service | grep -v "name" | tr -s " " | cut -d " " -f3 | grep -v "-"
+	echo $val
+}
+
+start_all_services() {
+
+	#starting confd service
+	fids=$(get_fids confd)
+	sh $SCRIPT_PATH/motr-monitor $fid &
+
+	#starting ioservices
+	fids=$(get_fids ioservice)
+	for fid in $fids; do
+		echo " starting m0d-$fid service"
+		sh $SCRIPT_PATH/motr-monitor $fid &
+	done
+}
+
+if [[ "$1" == "all" ]]; then
+	start_all_services
+else
+	sh $SCRIPT_PATH/motr-monitor $fid &
+fi
+
+wait
