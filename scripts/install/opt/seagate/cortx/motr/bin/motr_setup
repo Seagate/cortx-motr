@@ -61,12 +61,11 @@ class Cmd:
             # Configure log files and logger
             self.local_path = get_value(self, 'cortx>common>storage>local', str)
             self.log_path = get_value(self, 'cortx>common>storage>log', str)
-            self.share_path = get_value(self, 'cortx>common>storage>shared', str)
             self.local_path_motr = f"{self.local_path}/motr/{self.machine_id}"
             self._motr_hare_conf = f"{self.local_path_motr}/motr_hare_keys.json"
             self._url_motr_hare = f"json://{self._motr_hare_conf}"
             self.log_path_motr = f"{self.log_path}/motr/{self.machine_id}"
-            create_dirs(self, [self.local_path, self.log_path, self.share_path,
+            create_dirs(self, [self.local_path, self.log_path,
                                self.local_path_motr, self.log_path_motr])
             self.logfile =  f"{self.log_path_motr}/mini_provisioner"
             self.logger = config_logger(self)
