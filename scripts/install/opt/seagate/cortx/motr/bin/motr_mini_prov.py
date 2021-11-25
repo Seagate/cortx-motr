@@ -28,7 +28,7 @@ import time
 import yaml
 from cortx.utils.conf_store import Conf
 
-MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-server"
+MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-start"
 MOTR_MKFS_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-mkfs"
 MOTR_FSM_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-free-space-monitor"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
@@ -1387,6 +1387,6 @@ def start_service(self, service, idx):
     execute_command(self, cmd)
 
     #Start motr services
-    cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
+    cmd = f"{MOTR_SERVER_SCRIPT_PATH} all"
     execute_command_verbose(self, cmd, set_timeout=False)
     return
