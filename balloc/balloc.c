@@ -997,6 +997,15 @@ static int balloc_init_internal(struct m0_balloc *bal,
 		if (rc != 0)
 			m0_free0(&bal->cb_group_info);
 	}
+
+	/* Added LOG, SEG0 and SEG1 size(1MB+128MB+8GB) as balloc offset in 4K blocks */ 
+ 
+	M0_LOG(M0_DEBUG, "EOS-24529: SEG ID: %"PRIu64, bal->cb_db_group_extents.bb_seg->bs_id);
+	M0_LOG(M0_DEBUG, "EOS-24529: Size: %"PRIu64, bal->cb_db_group_extents.bb_seg->bs_size);
+	M0_LOG(M0_DEBUG, "EOS-24529: Offset: %"PRIu64, bal->cb_db_group_extents.bb_seg->bs_offset);
+	
+	bal->cb_last = (bal->cb_db_group_extents.bb_seg->bs_size + bal->cb_db_group_extents.bb_seg->bs_offset)>>12;
+	M0_LOG(M0_DEBUG, "EOS-24529: Balloc start offset: %"PRIu64, bal->cb_last);
 	rc = rc ?: sb_mount(bal, grp);
 out:
 	if (rc != 0)

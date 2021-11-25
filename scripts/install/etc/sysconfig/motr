@@ -80,6 +80,8 @@ MOTR_M0D_BESEG_SIZE=8589934592
 
 # Backend segment size (in bytes) for IO service. Default is 4 GiB.
 #MOTR_M0D_IOS_BESEG_SIZE=4294967296
+MOTR_M0D_IOS_BESEG_SIZE=1073741824
+
 
 # Backend transactions group configuration parameters.
 #MOTR_M0D_BETXGR_TX_NR_MAX=128
