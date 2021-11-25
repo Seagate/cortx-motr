@@ -72,11 +72,15 @@ def str_decode(encoded):
 # Process the FDMI records in form of JSON and perform some useful actions
 # such as de-dup, logging and/or sending to the replicator program for data
 # move.
-def process_fdmi_record(kv_record):
+def process_fdmi_record(kv_record, p):
     kvs = json.loads(kv_record)
     fid = kvs.get('fid')
     if fid is None:
         print('Invalid fid in kv_record {}'.format(kv_record), file=sys.stderr)
+        return
+    rec_id = kvs.get('rec_id')
+    if fid is None:
+        print('Invalid rec_id in kv_record {}'.format(kv_record), file=sys.stderr)
         return
     cr_key = str_decode(kvs.get('cr_key'))
     if cr_key is None:
@@ -93,10 +97,15 @@ def process_fdmi_record(kv_record):
 
     kv = {
         'op':     op,
+        'rec_id': rec_id,
         'fid':    fid,
         'cr_key': cr_key,
         'cr_val': cr_val
     }
+
+    ri = bytes('{}\n'.format(rec_id), encoding = "utf-8")
+    p.stdin.write(ri)
+    p.stdin.flush()
 
     # This string is used to be the KEY in the `kv_records`
     # 'fid': '<5400000600012345:123450>' the most significant chars are
@@ -109,10 +118,10 @@ def process_fdmi_record(kv_record):
     # Check de-dup records
     kv_i = kv_records.get(keystr)
     if kv_i is not None:
-        #print('dup: {}'.format(kv), file=sys.stderr, flush = True)
+        print('dup: {}'.format(kv), file=sys.stdout, flush = True)
         return
     else:
-        print('new: {}'.format(kv), file=sys.stderr, flush = True)
+        print('new: {}'.format(kv), file=sys.stdout, flush = True)
         kv_records[keystr] = kv
         keystr_LRU.append(keystr)
         return
@@ -121,7 +130,7 @@ def process_fdmi_record(kv_record):
 # Handle SIGNT and SIGTERM. Stop the underlying processes and exit.
 def signal_handler(sig, frame):
     print('CTRL + C pressed', file=sys.stderr)
-    print('Stopping all fdmi_sample_plugin processes...')
+    print('Stopping all fdmi_sample_plugin processes...', file=sys.stderr)
     for p in processes:
         p.send_signal(sig)
         p.wait()
@@ -148,6 +157,7 @@ def get_plugin_cmd(args):
     opts += " -p " + cluster_info['profile_fid']
     opts += " -f " + cluster_info['process_fid']
     opts += " -g " + cluster_info['fdmi_filter_fid']
+    opts += " -r"
     return args.plugin_path + opts
 
 
@@ -260,7 +270,7 @@ def get_cluster_info(args):
 def listen_on_command(command):
     global processes
     p = subprocess.Popen(shlex.split(command), stdin=subprocess.PIPE,
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
     if p is None:
         print('Failed to run {}'.format(command), file=sys.stderr)
         return -1
@@ -273,7 +283,7 @@ def listen_on_command(command):
             fid = "fid"
             record = output.decode("utf-8")
             if fid in record:
-                process_fdmi_record(record)
+                process_fdmi_record(record, p)
 
         rc = p.poll()
         if rc is not None:

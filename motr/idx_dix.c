@@ -581,7 +581,7 @@ static void dix_build(const struct m0_op_idx *oi,
 		m0_dix_ldesc_init(&out->dd_layout.u.dl_desc,
 				  &(struct m0_ext) { .e_start = 0,
 				  .e_end = IMASK_INF }, 1, HASH_FNC_CITY,
-				  (oi->oi_flags & M0_ENF_META) ?
+				  (idx->in_entity.en_flags & M0_ENF_META) ?
 				  &idx->in_attr.idx_pver :
 				  &dix_inst(oi)->di_index_pver);
 	}
