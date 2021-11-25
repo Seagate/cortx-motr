@@ -1102,7 +1102,7 @@ static void dtm0_ut_send_redo(const struct m0_fid *ifid,
 					 M0_CST_DTM0, &srv_dtm0_fid);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_dtm0_req_post(dtm0, &req, &srv_dtm0_fid,
+	rc = m0_dtm0_req_post(dtm0, NULL, &req, &srv_dtm0_fid,
 			      &zero_fom_to_be_deleted, false);
 	M0_UT_ASSERT(rc == 0);
 }
