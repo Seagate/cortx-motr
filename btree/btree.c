@@ -11995,10 +11995,6 @@ static void ut_lru_test(void)
 	M0_ASSERT(ndlist_tlist_length(&btree_lru_nds) > 0);
 
 	mem_freed      = m0_btree_lrulist_purge(mem_increased/2);
-	/** Adding sleep here to let the memory get updated after freeing up of
-	 *  memory in lrulist_purge.
-	 */
-	sleep(10);
 	mem_after_free = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	printf("Mem After Free (%"PRId64") || Mem freed (%"PRId64").\n",
 	       mem_after_free, mem_freed);
