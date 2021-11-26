@@ -1151,6 +1151,11 @@ struct nd {
 	const struct node_type *n_type;
 
 	/**
+	 * BE segment address is needed for LRU nodes because we set tree
+	 * descriptor to NULL and therefore loose access to segment information.
+	 */
+	struct m0_be_seg       *n_seg;
+	/**
 	 * Linkage into node descriptor list.
 	 * ndlist_tl, btree_active_nds, btree_lru_nds.
 	 */
@@ -2060,7 +2065,6 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 			bnode_lock(node);
 			node->n_tree = tree;
 			bnode_unlock(node);
-
 		} else {
 			m0_rwlock_write_lock(&tree->t_lock);
 			tree->t_ref++;
@@ -2290,6 +2294,7 @@ static int64_t bnode_get(struct node_op *op, struct td *tree,
 		node->n_txref         = 0;
 		node->n_size          = 1ULL << nt->nt_shift(node);
 		node->n_be_node_valid = true;
+		node->n_seg           = tree == NULL ? NULL : tree->t_seg;
 		m0_rwlock_init(&node->n_lock);
 		op->no_node           = node;
 		nt->nt_opaque_set(addr, node);
@@ -6935,6 +6940,7 @@ static int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 	case P_ACT:
 		M0_ASSERT(oi->i_nop.no_op.o_sm.sm_rc == 0);
 		oi->i_nop.no_node->n_type = data->nt;
+		oi->i_nop.no_node->n_seg  = bop->bo_seg;
 		oi->i_nop.no_tree->t_type = data->bt;
 		oi->i_nop.no_tree->t_seg  = bop->bo_seg;
 
@@ -8396,13 +8402,14 @@ static int remap_node(void* addr, int64_t size, struct m0_be_seg *seg)
  */
 M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
 {
-	struct nd        *node;
-	struct nd        *prev;
-	int64_t           curr_size;
-	int64_t           total_size = 0;
-	void             *rnode;
-	struct m0_be_seg *seg;
-	int               rc;
+	struct nd              *node;
+	struct nd              *prev;
+	int64_t                 curr_size;
+	int64_t                 total_size = 0;
+	void                   *rnode;
+	struct m0_be_seg       *seg;
+	struct m0_be_allocator *a;
+	int                     rc;
 
 	m0_rwlock_write_lock(&list_lock);
 	node = ndlist_tlist_tail(&btree_lru_nds);
@@ -8411,9 +8418,11 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
 		prev      = ndlist_tlist_prev(&btree_lru_nds, node);
 		if (node->n_txref == 0 && node->n_ref == 0) {
 			curr_size = node->n_size;
-			seg       = node->n_tree->t_seg;
+			seg       = node->n_seg;
+			a         = m0_be_seg_allocator(seg);
 			rnode     = segaddr_addr(&node->n_addr);
 
+			m0_mutex_lock(&a->ba_lock);
 			rc = unmap_node(rnode, curr_size);
 			if (rc == 0) {
 				rc = remap_node(rnode, curr_size, seg);
@@ -8428,6 +8437,7 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
 					       "Remapping of memory failed");
 			} else
 				M0_LOG(M0_ERROR, "Unmapping of memory failed");
+			m0_mutex_unlock(&a->ba_lock);
 		}
 		node = prev;
 	}
@@ -11863,6 +11873,135 @@ static void ut_btree_truncate(void)
 
 	btree_ut_fini();
 }
+
+static void ut_lru_test(void)
+{
+	void                       *rnode;
+	int                         i;
+	int64_t                     mem_after_alloc;
+	int64_t                     mem_init;
+	int64_t                     mem_increased;
+	int64_t                     mem_freed;
+	int64_t                     mem_after_free;
+	struct m0_btree_cb          ut_cb;
+	struct m0_be_tx             tx_data         = {};
+	struct m0_be_tx            *tx              = &tx_data;
+	struct m0_be_tx_credit      cred            = {};
+	struct m0_btree_op          b_op            = {};
+	uint64_t                    rec_count       = MAX_RECS_PER_STREAM*50;
+	struct m0_btree_op          kv_op           = {};
+	struct m0_btree            *tree;
+	struct m0_btree             btree;
+	const struct m0_btree_type  bt              = {
+						     .tt_id = M0_BT_UT_KV_OPS,
+						     .ksize = sizeof(uint64_t),
+						     .vsize = bt.ksize * 2,
+						};
+	uint64_t                    key;
+	uint64_t                    value[bt.vsize / sizeof(uint64_t)];
+	m0_bcount_t                 ksize           = sizeof key;
+	m0_bcount_t                 vsize           = sizeof value;
+	void                       *k_ptr           = &key;
+	void                       *v_ptr           = &value;
+	int                         rc;
+	struct m0_buf               buf;
+	uint32_t                    rnode_sz        = 4096;
+	struct m0_fid               fid             = M0_FID_TINIT('b', 0, 1);
+	uint32_t                    rnode_sz_shift;
+	struct m0_btree_rec         rec             = {
+			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+			};
+	struct cb_data              put_data;
+	/**
+	 * In this UT, we are testing the functionality of LRU list purge and
+	 * be-allocator with chunk align parameter.
+	 *
+	 * 1. Allocate and fill up the btree with multiple records.
+	 * 2. Verify the size increase in memory.
+	 * 3. Use the m0_btree_lrulist_purge() to reduce the size by freeing up
+	 *    the unused nodes present in LRU list.
+	 * 4. Verify the reduction in size.
+	 */
+	M0_ENTRY();
+
+	btree_ut_init();
+	mem_init = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
+	printf("Mem Init (%"PRId64").\n",mem_init);
+
+	M0_ASSERT(rnode_sz != 0 && m0_is_po2(rnode_sz));
+	rnode_sz_shift = __builtin_ffsl(rnode_sz) - 1;
+	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED, rnode_sz,
+			       rnode_sz_shift, &cred);
+	m0_btree_create_credit(&bt, &cred, 1);
+
+	/** Prepare transaction to capture tree operations. */
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
+	M0_ASSERT(rc == 0);
+
+	/** Create temp node space and use it as root node for btree */
+	buf = M0_BUF_INIT(rnode_sz, NULL);
+	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	rnode = buf.b_addr;
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
+							     &bt,
+							     &b_op, &btree, seg,
+							     &fid, tx, NULL));
+	M0_ASSERT(rc == M0_BSC_SUCCESS);
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
+
+	tree = b_op.bo_arbor;
+
+	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+	m0_btree_put_credit(tree, 1, ksize, vsize, &cred);
+
+	put_data.key       = &rec.r_key;
+	put_data.value     = &rec.r_val;
+
+	ut_cb.c_act        = btree_kv_put_cb;
+	ut_cb.c_datum      = &put_data;
+
+	for (i = 1; i <= rec_count; i++) {
+		int      k;
+
+		key = m0_byteorder_cpu_to_be64(i);
+		for (k = 0; k < ARRAY_SIZE(value); k++)
+			value[k] = key;
+
+		m0_be_ut_tx_init(tx, ut_be);
+		m0_be_tx_prep(tx, &cred);
+		rc = m0_be_tx_open_sync(tx);
+		M0_ASSERT(rc == 0);
+
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_put(tree, &rec,
+							   &ut_cb,
+							   &kv_op, tx));
+		M0_ASSERT(rc == 0 && put_data.flags == M0_BSC_SUCCESS);
+		m0_be_tx_close_sync(tx);
+		m0_be_tx_fini(tx);
+	}
+
+	mem_after_alloc = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
+	mem_increased   = mem_init - mem_after_alloc;
+	printf("Mem After Alloc (%"PRId64") || Mem Increase (%"PRId64").\n",
+	       mem_after_alloc, mem_increased);
+
+	M0_ASSERT(ndlist_tlist_length(&btree_lru_nds) > 0);
+
+	mem_freed      = m0_btree_lrulist_purge(mem_increased/2);
+	mem_after_free = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
+	printf("Mem After Free (%"PRId64") || Mem freed (%"PRId64").\n",
+	       mem_after_free, mem_freed);
+
+	btree_ut_fini();
+}
+
 /**
  * Commenting this ut as it is not required as a part for test-suite but my
  * required for testing purpose
@@ -12173,6 +12312,7 @@ struct m0_ut_suite btree_ut = {
 	.ts_fini = ut_btree_suite_fini,
 	.ts_tests = {
 		{"basic_tree_op_icp",               ut_basic_tree_oper_icp},
+		{"lru_test",                        ut_lru_test},
 		{"multi_stream_kv_op",              ut_multi_stream_kv_oper},
 		{"single_thread_single_tree_kv_op", ut_st_st_kv_oper},
 		{"single_thread_tree_op",           ut_st_tree_oper},
