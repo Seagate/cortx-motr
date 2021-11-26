@@ -97,7 +97,7 @@ static void u16_get(const struct m0_xcode_type *xct,
 		    const char *name, void *data)
 {
 	if (m0_console_verbose)
-		printf("%s(%s) = %hd\n", name, xct->xct_name, *(uint16_t *)data);
+		printf("%s(%s) = %hu\n", name, xct->xct_name, *(uint16_t *)data);
 }
 
 static void u16_set(const struct m0_xcode_type *xct,
@@ -108,7 +108,8 @@ static void u16_set(const struct m0_xcode_type *xct,
 
 	if (yaml_support) {
 		tmp_value = cons_yaml_get_unsafe(name);
-		*(uint16_t *)data = atoi((const char *)tmp_value);
+		*(uint16_t *)data = (uint16_t)strtoul((const char *)tmp_value,
+						      NULL, 10);;
 		if (m0_console_verbose)
 			printf("%s(%s) = %u\n", name, xct->xct_name,
 			       *(uint16_t *)data);
