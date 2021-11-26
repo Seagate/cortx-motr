@@ -8402,13 +8402,14 @@ static int remap_node(void* addr, int64_t size, struct m0_be_seg *seg)
  */
 M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
 {
-	struct nd        *node;
-	struct nd        *prev;
-	int64_t           curr_size;
-	int64_t           total_size = 0;
-	void             *rnode;
-	struct m0_be_seg *seg;
-	int               rc;
+	struct nd              *node;
+	struct nd              *prev;
+	int64_t                 curr_size;
+	int64_t                 total_size = 0;
+	void                   *rnode;
+	struct m0_be_seg       *seg;
+	struct m0_be_allocator *a;
+	int                     rc;
 
 	m0_rwlock_write_lock(&list_lock);
 	node = ndlist_tlist_tail(&btree_lru_nds);
@@ -8418,10 +8419,12 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
 		if (node->n_txref == 0 && node->n_ref == 0) {
 			curr_size = node->n_size;
 			seg       = node->n_seg;
+			a         = &seg->bs_allocator;
 			rnode     = segaddr_addr(&node->n_addr);
 
 			rc = unmap_node(rnode, curr_size);
 			if (rc == 0) {
+				m0_mutex_lock(&a->ba_lock);
 				rc = remap_node(rnode, curr_size, seg);
 				if (rc == 0) {
 					size       -= curr_size;
@@ -8432,6 +8435,7 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
 				} else
 					M0_LOG(M0_ERROR,
 					       "Remapping of memory failed");
+				m0_mutex_unlock(&a->ba_lock);
 			} else
 				M0_LOG(M0_ERROR, "Unmapping of memory failed");
 		}
@@ -11991,6 +11995,10 @@ static void ut_lru_test(void)
 	M0_ASSERT(ndlist_tlist_length(&btree_lru_nds) > 0);
 
 	mem_freed      = m0_btree_lrulist_purge(mem_increased/2);
+	/** Adding sleep here to let the memory get updated after freeing up of
+	 *  memory in lrulist_purge.
+	 */
+	sleep(10);
 	mem_after_free = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	printf("Mem After Free (%"PRId64") || Mem freed (%"PRId64").\n",
 	       mem_after_free, mem_freed);
