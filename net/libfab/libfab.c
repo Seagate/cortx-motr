@@ -1800,6 +1800,7 @@ static void libfab_buf_fini(struct m0_fab__buf *buf)
 	if (buf->fb_bulk_op != NULL && fab_bulk_tlink_is_in(buf->fb_bulk_op)) {
 		fab_bulk_tlist_del(buf->fb_bulk_op);
 		m0_free(buf->fb_bulk_op);
+		buf->fb_bulk_op = NULL;
 	}
 
 	if(buf->fb_txctx != NULL) {
