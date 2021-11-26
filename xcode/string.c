@@ -81,6 +81,9 @@ static int string_literal(const struct m0_xcode_cursor *it,
 		case M0_XAT_U8:
 			*M0_XCODE_VAL(obj, 0, 0, uint8_t) = (uint8_t)len;
 			break;
+		case M0_XAT_U16:
+			*M0_XCODE_VAL(obj, 0, 0, uint16_t) = (uint16_t)len;
+			break;
 		case M0_XAT_U32:
 			*M0_XCODE_VAL(obj, 0, 0, uint32_t) = (uint32_t)len;
 			break;
@@ -167,6 +170,7 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 	static const char *fmt[M0_XAT_NR] = {
 		[M0_XAT_VOID] = " %0c %n",
 		[M0_XAT_U8]   = " %i %n",
+		[M0_XAT_U16]  = " %i %n",
 		[M0_XAT_U32]  = " %i %n",
 		[M0_XAT_U64]  = " %li %n"
 	};
