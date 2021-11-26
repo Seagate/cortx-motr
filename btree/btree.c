@@ -8419,7 +8419,7 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
 		if (node->n_txref == 0 && node->n_ref == 0) {
 			curr_size = node->n_size;
 			seg       = node->n_seg;
-			a         = &seg->bs_allocator;
+			a         = m0_be_seg_allocator(seg);
 			rnode     = segaddr_addr(&node->n_addr);
 
 			m0_mutex_lock(&a->ba_lock);
