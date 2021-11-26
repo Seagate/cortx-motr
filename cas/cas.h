@@ -37,6 +37,7 @@
 #include "rpc/at_xc.h"          /* m0_rpc_at_buf_xc */
 #include "fop/fom_generic.h"    /* m0_fop_mod_rep */
 #include "fop/fom_generic_xc.h" /* m0_fop_mod_rep */
+#include "fop/fom_interpose.h"  /* m0_fom_thralldom */
 #include "dix/layout.h"
 #include "dix/layout_xc.h"
 #include "dtm0/tx_desc.h"	/* tx_desc */
@@ -375,6 +376,12 @@ M0_INTERNAL void m0_cas__ut_svc_be_set(struct m0_reqh_service *svc,
 				       struct m0_be_domain *dom);
 M0_INTERNAL struct m0_be_domain *
 m0_cas__ut_svc_be_get(struct m0_reqh_service *svc);
+M0_INTERNAL int m0_cas_fom_spawn(
+	struct m0_fom           *lead,
+	struct m0_fom_thralldom *thrall,
+	struct m0_fop           *cas_fop,
+	void                   (*on_fom_complete)(struct m0_fom_thralldom *,
+						  struct m0_fom           *));
 #else
 #define m0_cas_svc_init()
 #define m0_cas_svc_fini()
