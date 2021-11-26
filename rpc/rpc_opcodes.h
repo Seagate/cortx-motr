@@ -326,6 +326,7 @@ enum M0_RPC_OPCODES {
 	/** DTM0 service. */
 	M0_DTM0_REQ_OPCODE                    = 450,
 	M0_DTM0_REP_OPCODE                    = 451,
+	M0_DTM0_REDO_OPCODE                   = 452,
 	/*
 	 * Identifiers below are for fop-less foms, not fops.
 	 */
