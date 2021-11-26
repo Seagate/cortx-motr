@@ -966,14 +966,23 @@ static void libfab_poller(struct m0_fab__tm *tm)
 	struct epoll_event        ev;
 	int                       ev_cnt;
 	int                       ret;
+	int                       err;
 
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
 	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
-		if (fi_trywait(tm->ftm_fab->fab_fab, tm->ftm_fids.ftf_head,
-			       tm->ftm_fids.ftf_cnt) == 0)
-			ev_cnt = epoll_wait(tm->ftm_epfd, &ev, 1,
-					    FAB_WAIT_FD_TMOUT);
-		else
+		ret = fi_trywait(tm->ftm_fab->fab_fab, tm->ftm_fids.ftf_head,
+				 tm->ftm_fids.ftf_cnt);
+		M0_ASSERT(M0_IN(ret, (0, -EAGAIN)));
+		if (ret == 0) {
+			err = -EINTR;
+			while (err == -EINTR) {
+				ret = epoll_wait(tm->ftm_epfd, &ev, 1,
+						 FAB_WAIT_FD_TMOUT);
+				M0_ASSERT(M0_IN(ret, (-1, 0, 1)));
+				err = ret < 0 ? errno : 0;
+			}
+			ev_cnt = ret > 0 ? ret : 0;
+		} else
 			ev_cnt = 0;
 
 		while (1) {
