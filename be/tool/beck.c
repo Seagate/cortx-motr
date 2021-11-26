@@ -2745,6 +2745,7 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 	struct m0_btree_rec   rec      = {
 		.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 		.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+		.r_crc_type   = CRC_TYPE_NO_CRC,
 		};
 	struct m0_btree_cb    put_cb   = {
 		.c_act   = ctg_put_callback,
@@ -2778,10 +2779,9 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 		vsize = ca->cta_val.b_nob;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					      m0_btree_put(btree, &rec,
-							   CRC_TYPE_NO_CRC,
-							   &put_cb, &kv_op,
-							   tx));
+					      m0_btree_put(btree,
+							   &rec, &put_cb,
+							   &kv_op, tx));
 		if (rc == 0) {
 			m0_ctg_state_inc_update(tx, ca->cta_key.b_nob -
 						M0_CAS_CTG_KV_HDR_SIZE +

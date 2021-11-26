@@ -6244,6 +6244,10 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	if (!oi->i_key_found) {
 		/* PUT operation */
 		tgt.s_rec = bop->bo_rec;
+		/**
+		 * Check if crc type of new record is same as crc type of node.
+		 * If it is not same, perform upgrade operation for node.
+		*/
 		bnode_make (&tgt);
 		REC_INIT(&tgt.s_rec, &p_key, &ksize, &p_val, &vsize);
 		bnode_rec(&tgt);
@@ -6254,6 +6258,10 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		vsize_diff = m0_vec_count(&bop->bo_rec.r_val.ov_vec) -
 			     m0_vec_count(&tgt.s_rec.r_val.ov_vec);
 		M0_ASSERT(vsize_diff > 0);
+		/**
+		 * Check if crc type of new record is same as crc type of node.
+		 * If it is not same, perform upgrade operation for node.
+		*/
 		bnode_val_resize(&tgt, vsize_diff);
 		bnode_rec(&tgt);
 	}
@@ -6662,6 +6670,11 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				return btree_put_makespace_phase(bop);
 
 			bnode_lock(lev->l_node);
+			/**
+			 * Check if crc type of new record is same as crc type
+			 * of node. If it is not same, perform upgrade operation
+			 * for node.
+			*/
 			bnode_make(&node_slot);
 		} else {
 			m0_bcount_t          ksize;
@@ -8636,7 +8649,6 @@ M0_INTERNAL void m0_btree_iter(struct m0_btree *arbor,
 
 M0_INTERNAL void m0_btree_put(struct m0_btree *arbor,
 			      const struct m0_btree_rec *rec,
-			      const enum m0_btree_crc_type crc_type,
 			      const struct m0_btree_cb *cb,
 			      struct m0_btree_op *bop, struct m0_be_tx *tx)
 {
@@ -9514,6 +9526,7 @@ static void ut_multi_stream_kv_oper(void)
 
 		rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val          = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+		rec.r_crc_type     = CRC_TYPE_NO_CRC;
 
 		for (stream_num = 0; stream_num < stream_count; stream_num++) {
 			int k;
@@ -9541,10 +9554,9 @@ static void ut_multi_stream_kv_oper(void)
 			M0_ASSERT(rc == 0);
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						m0_btree_put(tree, &rec,
-							     CRC_TYPE_NO_CRC,
-							     &ut_cb, &kv_op,
-							     tx));
+						      m0_btree_put(tree, &rec,
+								   &ut_cb,
+								   &kv_op, tx));
 			M0_ASSERT(rc == 0 && put_data.flags == M0_BSC_SUCCESS);
 			m0_be_tx_close_sync(tx);
 			m0_be_tx_fini(tx);
@@ -10027,10 +10039,9 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			M0_ASSERT(rc == 0);
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						m0_btree_put(tree, &rec,
-							     CRC_TYPE_NO_CRC,
-							     &ut_cb, &kv_op,
-							     tx));
+						      m0_btree_put(tree, &rec,
+								   &ut_cb,
+								   &kv_op, tx));
 			M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
 			m0_be_tx_close_sync(tx);
 			m0_be_tx_fini(tx);
@@ -10199,9 +10210,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		M0_ASSERT(rc == 0);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					      m0_btree_put(tree, &rec,
-							   CRC_TYPE_NO_CRC,
-							   &ut_cb, &kv_op, tx));
+					      m0_btree_put(tree, &rec, &ut_cb,
+							   &kv_op, tx));
 		M0_ASSERT(rc == M0_ERR(-EEXIST));
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
@@ -11116,10 +11126,9 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 			M0_ASSERT(rc == 0);
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						m0_btree_put(tree, &rec,
-							     CRC_TYPE_NO_CRC,
-							     &ut_cb, &kv_op,
-							     tx));
+						      m0_btree_put(tree, &rec,
+								   &ut_cb,
+								   &kv_op, tx));
 			M0_ASSERT(rc == 0 && data.flags == M0_BSC_SUCCESS);
 			m0_be_tx_close_sync(tx);
 			m0_be_tx_fini(tx);
@@ -11412,6 +11421,7 @@ static void ut_btree_persistence(void)
 	struct m0_btree_rec         rec             = {
 			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+			    .r_crc_type   = CRC_TYPE_NO_CRC,
 			};
 	struct cb_data              put_data;
 	struct cb_data              get_data;
@@ -11500,8 +11510,8 @@ static void ut_btree_persistence(void)
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_put(tree, &rec,
-							   CRC_TYPE_NO_CRC,
-							   &ut_cb, &kv_op, tx));
+							   &ut_cb,
+							   &kv_op, tx));
 		M0_ASSERT(rc == 0 && put_data.flags == M0_BSC_SUCCESS);
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
@@ -11653,11 +11663,10 @@ static void ut_btree_persistence(void)
 			ut_cb.c_act        = btree_kv_put_cb;
 			ut_cb.c_datum      = &put_data;
 
-			rc = M0_BTREE_OP_SYNC_WITH_RC(
-					&kv_op, m0_btree_put(tree, &rec,
-							     CRC_TYPE_NO_CRC,
-							     &ut_cb, &kv_op,
-							     tx));
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_put(tree, &rec,
+								   &ut_cb,
+								   &kv_op, tx));
 			M0_ASSERT(rc == 0 && put_data.flags == M0_BSC_SUCCESS);
 			m0_be_tx_close_sync(tx);
 			m0_be_tx_fini(tx);
@@ -11861,6 +11870,7 @@ static void ut_btree_truncate(void)
 	struct m0_btree_rec         rec             = {
 			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+			    .r_crc_type   = CRC_TYPE_NO_CRC,
 			};
 	struct cb_data              put_data;
 	m0_bcount_t                 limit;
@@ -11921,8 +11931,8 @@ static void ut_btree_truncate(void)
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_put(tree, &rec,
-							   CRC_TYPE_NO_CRC,
-							   &ut_cb, &kv_op, tx));
+							   &ut_cb,
+							   &kv_op, tx));
 		M0_ASSERT(rc == 0 && put_data.flags == M0_BSC_SUCCESS);
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);

@@ -90,6 +90,7 @@ struct m0_btree_rec {
 	struct m0_btree_key r_key;
 	struct m0_bufvec    r_val;
 	uint32_t            r_flags;
+	uint64_t            r_crc_type;
 };
 
 struct m0_btree_cb {
@@ -328,7 +329,6 @@ M0_INTERNAL void m0_btree_get(struct m0_btree *arbor,
  */
 M0_INTERNAL void m0_btree_put(struct m0_btree *arbor,
 			      const struct m0_btree_rec *rec,
-			      const enum m0_btree_crc_type crc_type,
 			      const struct m0_btree_cb *cb,
 			      struct m0_btree_op *bop, struct m0_be_tx *tx);
 

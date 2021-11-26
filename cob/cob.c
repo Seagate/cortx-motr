@@ -951,15 +951,15 @@ static int cob_table_insert(struct m0_btree *tree, struct m0_be_tx *tx,
 	struct m0_btree_rec  rec = {
 			   .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			   .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+			   .r_crc_type   = CRC_TYPE_NO_CRC,
 			};
 	struct m0_btree_cb   insert_cb = {.c_act = cob_table_insert_callback,
 					  .c_datum = &rec,
 					 };
 
 	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					m0_btree_put(tree, &rec,
-						     CRC_TYPE_NO_CRC,
-						     &insert_cb, &kv_op, tx));
+					m0_btree_put(tree, &rec, &insert_cb,
+						     &kv_op, tx));
 }
 
 static int cob_table_lookup_callback(struct m0_btree_cb  *cb,
