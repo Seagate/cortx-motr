@@ -8422,9 +8422,9 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
 			a         = &seg->bs_allocator;
 			rnode     = segaddr_addr(&node->n_addr);
 
+			m0_mutex_lock(&a->ba_lock);
 			rc = unmap_node(rnode, curr_size);
 			if (rc == 0) {
-				m0_mutex_lock(&a->ba_lock);
 				rc = remap_node(rnode, curr_size, seg);
 				if (rc == 0) {
 					size       -= curr_size;
@@ -8435,9 +8435,9 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
 				} else
 					M0_LOG(M0_ERROR,
 					       "Remapping of memory failed");
-				m0_mutex_unlock(&a->ba_lock);
 			} else
 				M0_LOG(M0_ERROR, "Unmapping of memory failed");
+			m0_mutex_unlock(&a->ba_lock);
 		}
 		node = prev;
 	}
