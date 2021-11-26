@@ -2778,9 +2778,10 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 		vsize = ca->cta_val.b_nob;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					      m0_btree_put(btree,
-							   &rec, &put_cb,
-							   &kv_op, tx));
+					      m0_btree_put(btree, &rec,
+							   CRC_TYPE_NO_CRC,
+							   &put_cb, &kv_op,
+							   tx));
 		if (rc == 0) {
 			m0_ctg_state_inc_update(tx, ca->cta_key.b_nob -
 						M0_CAS_CTG_KV_HDR_SIZE +

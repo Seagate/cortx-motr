@@ -140,8 +140,9 @@ static inline int btree_insert_sync(struct m0_btree     *tree,
 				      };
 
 	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					m0_btree_put(tree, &rec, &put_cb,
-						     &kv_op, tx));
+					m0_btree_put(tree, &rec,
+						    CRC_TYPE_NO_CRC, &put_cb,
+						    &kv_op, tx));
 }
 
 static inline int balloc_ext_insert(struct m0_btree *tree, struct m0_be_tx *tx,
@@ -3099,7 +3100,8 @@ static int balloc_trees_create(struct m0_balloc    *bal,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(bal->cb_ge_node,
 						      sizeof bal->cb_ge_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      bal->cb_db_group_extents,
 						      seg, &fid, tx,
 						      &ge_keycmp));
@@ -3118,7 +3120,8 @@ static int balloc_trees_create(struct m0_balloc    *bal,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(bal->cb_gd_node,
 						      sizeof bal->cb_gd_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      bal->cb_db_group_desc,
 						      seg, &fid, tx, NULL));
 

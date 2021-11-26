@@ -612,7 +612,8 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_oi_node,
 						      sizeof dom->cd_oi_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      dom->cd_object_index, seg,
 						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
@@ -627,7 +628,8 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_ns_node,
 						      sizeof dom->cd_ns_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      dom->cd_namespace, seg,
 						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
@@ -642,7 +644,8 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_fa_basic_node,
 						      sizeof dom->cd_fa_basic_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      dom->cd_fileattr_basic,
 						      seg, &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
@@ -657,7 +660,8 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_fa_omg_node,
 						      sizeof dom->cd_fa_omg_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      dom->cd_fileattr_omg, seg,
 						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
@@ -672,7 +676,8 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_fa_ea_node,
 						      sizeof dom->cd_fa_ea_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      dom->cd_fileattr_ea, seg,
 						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
@@ -952,8 +957,9 @@ static int cob_table_insert(struct m0_btree *tree, struct m0_be_tx *tx,
 					 };
 
 	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					m0_btree_put(tree, &rec, &insert_cb,
-						     &kv_op, tx));
+					m0_btree_put(tree, &rec,
+						     CRC_TYPE_NO_CRC,
+						     &insert_cb, &kv_op, tx));
 }
 
 static int cob_table_lookup_callback(struct m0_btree_cb  *cb,

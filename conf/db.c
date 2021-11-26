@@ -173,7 +173,9 @@ static int confdb_table_init(struct m0_be_seg     *seg,
 				     .vsize = -1,
 				   };
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
-							     &bt, &b_op, btree,
+							     &bt,
+							     CRC_TYPE_NO_CRC,
+							     &b_op, btree,
 							     seg, btree_fid,
 							     tx, &keycmp));
 	if (rc != 0)
@@ -416,6 +418,7 @@ M0_INTERNAL int m0_confdb_create(struct m0_be_seg      *seg,
 		put_cb.c_datum     = &rec;
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_put(&btree, &rec,
+							   CRC_TYPE_NO_CRC,
 							   &put_cb, &kv_op,
 							   tx));
 		if (rc != 0) {

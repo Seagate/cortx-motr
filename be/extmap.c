@@ -287,7 +287,8 @@ static int be_emap_insert_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 		};
 	rc = M0_BTREE_OP_SYNC_WITH_RC(
 			op,
-			m0_btree_put(btree, &rec, &put_cb, op, tx));
+			m0_btree_put(btree, &rec, CRC_TYPE_NO_CRC,
+				     &put_cb, op, tx));
 	return rc;
 }
 
@@ -406,7 +407,8 @@ M0_INTERNAL void m0_be_emap_create(struct m0_be_emap   *map,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&map->em_mp_node,
 						      sizeof map->em_mp_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      map->em_mapping,
 						      map->em_seg, &fid, tx,
 						      &keycmp));
@@ -919,7 +921,8 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap       *map,
 
 	op->bo_u.u_emap.e_rc = M0_BTREE_OP_SYNC_WITH_RC(
 		&kv_op,
-		m0_btree_put(map->em_mapping, &rec, &put_cb, &kv_op, tx));
+		m0_btree_put(map->em_mapping, &rec, CRC_TYPE_NO_CRC,
+			     &put_cb, &kv_op, tx));
 	m0_rwlock_write_unlock(emap_rwlock(map));
 
 	m0_be_op_done(op);
