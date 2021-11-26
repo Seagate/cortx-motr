@@ -118,7 +118,7 @@ do_some_kv_operations()
 		for ((j=0; j<20; j++)); do
 			echo "j=$j"
 			"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
-					index put    "$DIX_FID" "key2-$j" "something1_anotherstring2*YETanotherstring3-$j"
+					index put    "$DIX_FID" "iter-äää-$j" "something1_anotherstring2*YETanotherstring3-$j"
 		done
 		if $interactive ; then echo "Press Enter to go ..." && read; fi
 
