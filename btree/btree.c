@@ -12024,7 +12024,7 @@ static void ut_lru_test(void)
 
 	/** Create temp node space and use it as root node for btree */
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	rnode = buf.b_addr;
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,

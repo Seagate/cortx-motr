@@ -70,7 +70,7 @@ struct be_alloc_chunk {
 	/** Is chunk header aligned? */
 	bool                       bac_chunk_align;
 	/** Chunk header or memory alignement as pow-of-2. */
-	uint32_t                   bac_align_shift;
+	uint16_t                   bac_align_shift;
 	/**
 	 * M0_BE_ALLOC_MAGIC1
 	 * Used to find invalid memory access before allocated chunk.
