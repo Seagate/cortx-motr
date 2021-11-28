@@ -122,7 +122,8 @@ struct m0_be_ptable_part_tbl_info
 	m0_bcount_t pti_chunk_size_in_bits;
 	const struct m0_be_ptable_pri_part_info *pti_pri_part_info;
 };
-M0_INTERNAL int m0_be_ptable_create_init(struct m0_be_domain *domain,
+//M0_INTERNAL int m0_be_ptable_create_init(struct m0_be_domain *domain,
+M0_INTERNAL int m0_be_ptable_create_init(uint64_t sd_domain_fid,
 					 bool is_mkfs,
 					 struct m0_be_ptable_part_config
 					 *part_config);

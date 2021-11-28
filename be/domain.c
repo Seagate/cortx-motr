@@ -110,15 +110,40 @@ M0_INTERNAL int m0_be_segobj_opt_begin(struct m0_be_seg         *dict,
 }
 
 
-M0_INTERNAL int m0_be_domain_stob_open(struct m0_be_domain  *dom,
-			       uint64_t              stob_key,
-			       const char           *stob_create_cfg,
-			       struct m0_stob      **out,
-			       bool                  create)
+// M0_INTERNAL int m0_be_domain_stob_open(struct m0_be_domain  *dom,
+// 			       uint64_t              stob_key,
+// 			       const char           *stob_create_cfg,
+// 			       struct m0_stob      **out,
+// 			       bool                  create)
+// {
+// 	return be_domain_stob_open(dom, stob_key, stob_create_cfg,
+// 				   out, create);
+// }
+
+M0_INTERNAL int m0_be_domain_stob_open(uint64_t sd_id,
+                   uint64_t              stob_key,
+                   const char           *stob_create_cfg,
+                   struct m0_stob      **out,
+                   bool                  create)
 {
-	return be_domain_stob_open(dom, stob_key, stob_create_cfg,
-				   out, create);
+    int               rc;
+    struct m0_stob_id stob_id;
+        
+    m0_stob_id_make(0, stob_key, (struct m0_fid *) sd_id, &stob_id);
+    rc = m0_stob_find(&stob_id, out);
+    if (rc == 0) {
+        rc = m0_stob_state_get(*out) == CSS_UNKNOWN ?
+             m0_stob_locate(*out) : 0;
+        rc = rc ?: create && m0_stob_state_get(*out) == CSS_NOENT ?
+             m0_stob_create(*out, NULL, stob_create_cfg) : 0;
+        rc = rc ?: m0_stob_state_get(*out) == CSS_EXISTS ? 0 : -ENOENT;
+        if (rc != 0)
+            m0_stob_put(*out);
+    }
+    M0_POST(ergo(rc == 0, m0_stob_state_get(*out) == CSS_EXISTS));
+    return M0_RC(rc);
 }
+
 static const char *id_cut(const char *prefix, const char *key)
 {
 	size_t len;
@@ -776,7 +801,8 @@ static int be_domain_level_enter(struct m0_module *module)
 							    &partition_config);
 			if (rc )
 				return M0_RC(rc);
-			rc = m0_be_ptable_create_init(dom,
+			// fixme : did a type case of dom to uint64_t on the below line
+			rc = m0_be_ptable_create_init((uint64_t)dom,
 						      cfg->bc_mkfs_mode,
 						      &partition_config);
 			return M0_RC(rc);

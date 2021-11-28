@@ -52,7 +52,8 @@ static int be_ptable_verify_table(struct m0_be_ptable_part_table *part_table)
  *   SUCCESS  - Zero
  *   FAILED   - Negative value
  */
-M0_INTERNAL int m0_be_ptable_create_init(struct m0_be_domain *domain,
+//M0_INTERNAL int m0_be_ptable_create_init(struct m0_be_domain *domain,
+M0_INTERNAL int m0_be_ptable_create_init(uint64_t sd_domain_fid,
 					 bool is_mkfs,
 					 struct m0_be_ptable_part_config
 					 *part_config)
@@ -72,7 +73,7 @@ M0_INTERNAL int m0_be_ptable_create_init(struct m0_be_domain *domain,
 	void                              *temp_partition_table = NULL;
 
 	M0_ENTRY("mkfs = %d", is_mkfs);
-	rc = m0_be_domain_stob_open(domain, M0_BE_PTABLE_PARTITION_TABLE,
+	rc = m0_be_domain_stob_open(sd_domain_fid, M0_BE_PTABLE_PARTITION_TABLE,
 				    part_config->pc_dev_path_name, &stob,
 				    true);
 	if (rc != 0) {
@@ -207,7 +208,8 @@ M0_INTERNAL int m0_be_ptable_create_init(struct m0_be_domain *domain,
 	       sizeof(struct m0_format_footer));
 	is_part_table_initilized = true;
 	m0_stob_put(stob);
-	domain->bd_partition_table = &rd_partition_table;
+	//fixme: commented the below line
+	//domain->bd_partition_table = &rd_partition_table;
 	M0_LEAVE();
 	return M0_RC(rc);
 out:
