@@ -337,6 +337,9 @@ __attribute__((unused)) static void it_print(const struct m0_xcode_cursor *it)
 		case M0_XAT_U8:
 			printf("%c", *(char *)f->s_obj.xo_ptr);
 			break;
+		case M0_XAT_U16:
+			printf("%x", *(uint16_t *)f->s_obj.xo_ptr);
+			break;
 		case M0_XAT_U32:
 			printf("%x", *(uint32_t *)f->s_obj.xo_ptr);
 			break;
@@ -1196,6 +1199,7 @@ struct pair {
 	      struct m0_xcode_type  p_dst;
 } builtins[] = {
 	{ &M0_XT_U8,     {} },
+	{ &M0_XT_U16,    {} },
 	{ &M0_XT_U32,    {} },
 	{ &M0_XT_U64,    {} },
 	{ &M0_XT_OPAQUE, {} }
