@@ -1722,7 +1722,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 				M0_LOG(M0_DEBUG, "del: val=0x%llx",
 					(unsigned long long)seg->ee_val);
 				M0_ASSERT_INFO(seg->ee_val != ext->e_start,
-					       "Delete of the same just allocated block");
+				"Delete of the same just allocated block");
 				rc = rc ?:
 				     stob_ad_seg_free(io->si_tx, adom, seg,
 						      &seg->ee_ext, seg->ee_val);
@@ -1732,6 +1732,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 		       uint64_t val) {
 			/* cut left */
 			M0_ASSERT(ext->e_start > seg->ee_ext.e_start);
+
 			seg->ee_val = val;
 			if (adom->sad_overwrite)
 				rc = rc ?:
