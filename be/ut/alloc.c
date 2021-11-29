@@ -430,7 +430,10 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 	a = m0_be_seg_allocator(ut_seg->bus_seg);
 	M0_UT_ASSERT(a != NULL);
 	M0_SET_ARR0(ut_ptr);
+
+	m0_mutex_lock(&a->ba_lock);
 	M0_UT_ASSERT(m0_be_allocator__invariant(a));
+	m0_mutex_unlock(&a->ba_lock);
 
 	/* Alloc chunks with chunk_align parameter set as true */
 	for (i = 0; i < ut_nr; i++) {
@@ -449,7 +452,9 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 			   m0_be_alloc_stats_capture(a, tx)));
 		M0_UT_ASSERT(ut_ptr[i] != NULL);
 	}
+	m0_mutex_lock(&a->ba_lock);
 	M0_UT_ASSERT(m0_be_allocator__invariant(a));
+	m0_mutex_unlock(&a->ba_lock);
 
 	/* Verify the alignment of the chunks */
 	for (i = 0; i < ut_nr; i++) {
@@ -473,7 +478,9 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 			   m0_be_alloc_stats_capture(a, tx)));
 		ut_ptr[i] = NULL;
 	}
+	m0_mutex_lock(&a->ba_lock);
 	M0_UT_ASSERT(m0_be_allocator__invariant(a));
+	m0_mutex_unlock(&a->ba_lock);
 
 	/* Verify the alignment of the remaining chunks */
 	for (i = 1; i < ut_nr; i += 2) {
@@ -502,7 +509,9 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 			ut_ptr[i] = NULL;
 		}
 	}
+	m0_mutex_lock(&a->ba_lock);
 	M0_UT_ASSERT(m0_be_allocator__invariant(a));
+	m0_mutex_unlock(&a->ba_lock);
 
 	/**
 	 * 1. Allocate multiple chunks with some having chunk_align set to true
@@ -539,7 +548,9 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 			   m0_be_alloc_stats_capture(a, tx)));
 		M0_UT_ASSERT(ut_ptr[i] != NULL);
 	}
+	m0_mutex_lock(&a->ba_lock);
 	M0_UT_ASSERT(m0_be_allocator__invariant(a));
+	m0_mutex_unlock(&a->ba_lock);
 
 	/* Verify the alignment of the chunks */
 	for (i = 0; i < ut_nr; i++) {
@@ -572,10 +583,14 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 			   m0_be_alloc_stats_capture(a, tx)));
 		ut_ptr[i] = NULL;
 	}
+	m0_mutex_lock(&a->ba_lock);
 	M0_UT_ASSERT(m0_be_allocator__invariant(a));
+	m0_mutex_unlock(&a->ba_lock);
 
 	/* Verify the alignment of the remaining chunks */
-	for (i = 0; i < ut_nr && i % 3 != 0; i++) {
+	for (i = 0; i < ut_nr; i++) {
+		if (i % 3  == 0)
+			continue;
 		if (ut_ptr[i] != NULL) {
 			if (i % 2 == 0) {
 				iptr = (char *)ut_ptr[i];
@@ -589,7 +604,9 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 	}
 
 	/* Delete remaining chunks */
-	for (i = 0; i < ut_nr && i % 3 != 0; i++) {
+	for (i = 0; i < ut_nr; i++) {
+		if (i % 3  == 0)
+			continue;
 		if (ut_ptr[i] != NULL) {
 			j = i;
 			ut_size  = m0_rnd64(&j) % BE_UT_ALLOC_SIZE + 1;
@@ -608,7 +625,9 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 		}
 	}
 
+	m0_mutex_lock(&a->ba_lock);
 	M0_UT_ASSERT(m0_be_allocator__invariant(a));
+	m0_mutex_unlock(&a->ba_lock);
 	m0_be_ut_seg_allocator_fini(ut_seg, ut_be);
 	m0_be_ut_seg_fini(ut_seg);
 	m0_be_ut_backend_fini(ut_be);
