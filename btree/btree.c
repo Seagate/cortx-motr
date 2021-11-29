@@ -561,6 +561,7 @@
 
 #include "be/ut/helper.h"  /** m0_be_ut_backend_init() */
 #include "be/engine.h"     /** m0_be_engine_tx_size_max() */
+#include "be/alloc.h"      /** m0_be_chunk_header_size() */
 
 
 #ifndef __KERNEL__
@@ -647,6 +648,8 @@ enum {
 	do {                                                                 \
 		*(cred) = M0_BE_TX_CREDIT(0, 0);                             \
 	} while (0)
+
+#define m0_be_chunk_header_size(void)   80
 #endif
 
 #if (AVOID_BE_SEGMENT == 1)
@@ -670,6 +673,10 @@ enum {
 
 #undef M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC
 #define M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(buf, shift, seg, tx)                \
+		(buf)->b_addr = m0_alloc_aligned((buf)->b_nob, shift)
+
+#undef M0_BE_ALLOC_ALIGN_BUF_SYNC
+#define M0_BE_ALLOC_ALIGN_BUF_SYNC(buf, shift, seg, tx)                      \
 		(buf)->b_addr = m0_alloc_aligned((buf)->b_nob, shift)
 
 #undef M0_BE_FREE_ALIGN_BUF_SYNC
@@ -735,6 +742,7 @@ enum {
 #define madvise(rnode, rnode_sz, MADV_NORMAL)                                \
 	-1, errno = ENOMEM
 
+#undef m0_be_engine_tx_size_max
 #define m0_be_engine_tx_size_max(engine, cred, payload_size)                 \
 	do {                                                                 \
 		*(cred) = M0_BE_TX_CREDIT(50, (4 * 1024));            \
@@ -890,6 +898,10 @@ static int get_tick(struct m0_btree_op *bop)
  *
  * This allows for 128T nodes (2^47) and total of 64PB (2^56) of meta-data per
  * segment.
+ *
+ * NOTE: Above design is made obsolete from EOS-25149. Now Address of the node
+ * in segment will be stored as it is. The node size will be stored in the
+ * respective node type header.
  */
 struct segaddr {
 	uint64_t as_core;
@@ -901,7 +913,6 @@ enum {
 
 static struct segaddr  segaddr_build(const void *addr, int shift);
 static void           *segaddr_addr (const struct segaddr *addr);
-static int             segaddr_shift(const struct segaddr *addr);
 static uint32_t        segaddr_ntype_get(const struct segaddr *addr);
 static bool            segaddr_header_isvalid(const struct segaddr *addr);
 
@@ -972,8 +983,8 @@ struct node_type {
 	const struct m0_format_tag  nt_tag;
 
 	/** Initializes newly allocated node */
-	void (*nt_init)(const struct segaddr *addr, int shift, int ksize,
-			int vsize, uint32_t ntype, uint64_t gen,
+	void (*nt_init)(const struct segaddr *addr, int ksize, int vsize,
+			int nsize, uint32_t ntype, uint64_t gen,
 			struct m0_fid fid);
 
 	/** Cleanup of the node if any before deallocation */
@@ -990,6 +1001,9 @@ struct node_type {
 
 	/** Returns size of the node (as a shift value) */
 	int  (*nt_shift)(const struct nd *node);
+
+	/** Returns size of the node */
+	int  (*nt_nsize)(const struct nd *node);
 
 	/**
 	 * Returns size of the key of node. In case of variable key size return
@@ -1276,8 +1290,8 @@ static int64_t    bnode_alloc(struct node_op *op, struct td *tree, int shift,
 			      const struct node_type *nt, int ksize, int vsize,
 			      struct m0_be_tx *tx, int nxt);
 static void bnode_op_fini(struct node_op *op);
-static int bnode_access(struct segaddr *addr, int shift, int nxt);
-static int  bnode_init(struct segaddr *addr, int ksize, int vsize,
+static int bnode_access(struct segaddr *addr, int nxt);
+static int  bnode_init(struct segaddr *addr, int ksize, int vsize, int nsize,
 		       const struct node_type *nt, uint64_t gen,
 		       struct m0_fid fid, int nxt);
 #if 0
@@ -1290,7 +1304,7 @@ static int  bnode_count(const struct nd *node);
 static int  bnode_count_rec(const struct nd *node);
 static int  bnode_space(const struct nd *node);
 static int  bnode_level(const struct nd *node);
-static int  bnode_shift(const struct nd *node);
+static int  bnode_nsize(const struct nd *node);
 static int  bnode_keysize(const struct nd *node);
 static int  bnode_valsize(const struct nd *node);
 static bool  bnode_isunderflow(const struct nd *node, bool predict);
@@ -1485,7 +1499,7 @@ M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
 		   M0_BTREE_ND_LIST_HEAD_MAGIC);
 M0_TL_DEFINE(ndlist, static, struct nd);
 
-static int bnode_access(struct segaddr *addr, int shift, int nxt)
+static int bnode_access(struct segaddr *addr, int nxt)
 {
 	/**
 	 * TODO: Implement node_access function to ensure that node data has
@@ -1495,7 +1509,7 @@ static int bnode_access(struct segaddr *addr, int shift, int nxt)
 	return nxt;
 }
 
-static int bnode_init(struct segaddr *addr, int ksize, int vsize,
+static int bnode_init(struct segaddr *addr, int ksize, int vsize, int nsize,
 		      const struct node_type *nt, uint64_t gen,
 		      struct m0_fid fid, int nxt)
 {
@@ -1503,15 +1517,14 @@ static int bnode_init(struct segaddr *addr, int ksize, int vsize,
 	 * bnode_access() will ensure that we have node data loaded in our memory
 	 * before initialisation.
 	 */
-	nxt = bnode_access(addr, segaddr_shift(addr), nxt);
+	nxt = bnode_access(addr, nxt);
 
 	/**
 	 * TODO: Consider adding a state here to return in case bnode_access()
 	 * requires some time to complete its operation.
 	 */
 
-	nt->nt_init(addr, segaddr_shift(addr), ksize, vsize, nt->nt_id, gen,
-		    fid);
+	nt->nt_init(addr, ksize, vsize, nsize, nt->nt_id, gen, fid);
 	return nxt;
 }
 
@@ -1574,11 +1587,12 @@ static int bnode_level(const struct nd *node)
 	return (node->n_type->nt_level(node));
 }
 
-static int bnode_shift(const struct nd *node)
+static int bnode_nsize(const struct nd *node)
 {
 	M0_PRE(bnode_invariant(node));
-	return (node->n_type->nt_shift(node));
+	return (node->n_type->nt_nsize(node));
 }
+
 static int bnode_keysize(const struct nd *node)
 {
 	M0_PRE(bnode_invariant(node));
@@ -1878,11 +1892,6 @@ M0_INTERNAL void m0_btree_mod_fini(void)
 	m0_free(mod_get());
 }
 
-static bool bnode_shift_is_valid(int shift)
-{
-	return shift >= NODE_SHIFT_MIN && shift < NODE_SHIFT_MIN + 0x10;
-}
-
 /**
  * Tells if the segment address is aligned to 512 bytes.
  * This function should be called right after the allocation to make sure that
@@ -1898,19 +1907,6 @@ static bool addr_is_aligned(const void *addr)
 }
 
 /**
- * Validates the segment address (of node).
- *
- * @param seg_addr points to the start address (of the node) in the segment.
- *
- * @return True if seg_addr is VALID according to the segment
- *                address semantics.
- */
-static bool segaddr_is_valid(const struct segaddr *seg_addr)
-{
-	return (0xff000000000001f0ull & seg_addr->as_core) == 0;
-}
-
-/**
  * Returns a segaddr formatted segment address.
  *
  * @param addr  is the start address (of the node) in the segment.
@@ -1921,12 +1917,7 @@ static bool segaddr_is_valid(const struct segaddr *seg_addr)
 static struct segaddr segaddr_build(const void *addr, int shift)
 {
 	struct segaddr sa;
-	M0_PRE(bnode_shift_is_valid(shift));
-	M0_PRE(addr_is_aligned(addr));
-	sa.as_core = ((uint64_t)addr) | (shift - NODE_SHIFT_MIN);
-	M0_POST(segaddr_is_valid(&sa));
-	M0_POST(segaddr_addr(&sa) == addr);
-	M0_POST(segaddr_shift(&sa) == shift);
+	sa.as_core = (uint64_t)addr;
 	return sa;
 }
 
@@ -1939,21 +1930,7 @@ static struct segaddr segaddr_build(const void *addr, int shift)
  */
 static void* segaddr_addr(const struct segaddr *seg_addr)
 {
-	M0_PRE(segaddr_is_valid(seg_addr));
-	return (void *)(seg_addr->as_core & ~((1ULL << NODE_SHIFT_MIN) - 1));
-}
-
-/**
- * Returns the size (pow-of-2) of the node extracted out of the segment address.
- *
- * @param seg_addr points to the formatted segment address.
- *
- * @return Size of the node as pow-of-2 value.
- */
-static int segaddr_shift(const struct segaddr *addr)
-{
-	M0_PRE(segaddr_is_valid(addr));
-	return (addr->as_core & 0xf) + NODE_SHIFT_MIN;
+	return (void *)(seg_addr->as_core);
 }
 
 /**
@@ -2292,7 +2269,7 @@ static int64_t bnode_get(struct node_op *op, struct td *tree,
 		node->n_seq           = m0_time_now();
 		node->n_ref           = 1;
 		node->n_txref         = 0;
-		node->n_size          = 1ULL << nt->nt_shift(node);
+		node->n_size          = nt->nt_nsize(node);
 		node->n_be_node_valid = true;
 		node->n_seg           = tree == NULL ? NULL : tree->t_seg;
 		m0_rwlock_init(&node->n_lock);
@@ -2358,8 +2335,7 @@ static struct nd *bnode_try(struct td *tree, struct segaddr *addr){
 static int64_t bnode_free(struct node_op *op, struct nd *node,
 			  struct m0_be_tx *tx, int nxt)
 {
-	int           shift = node->n_type->nt_shift(node);
-	int           size  = 1ULL << shift;
+	int           size  = node->n_type->nt_nsize(node);
 	struct m0_buf buf;
 
 	m0_rwlock_write_lock(&list_lock);
@@ -2368,7 +2344,8 @@ static int64_t bnode_free(struct node_op *op, struct nd *node,
 	node->n_be_node_valid = false;
 	op->no_addr = node->n_addr;
 	buf = M0_BUF_INIT(size, segaddr_addr(&op->no_addr));
-	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, shift, node->n_tree->t_seg, tx);
+	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, m0_pageshift_get(), node->n_tree->t_seg,
+				  tx);
 	/** Capture in transaction */
 
 	if (node->n_ref == 0 && node->n_txref == 0) {
@@ -2391,7 +2368,7 @@ static int64_t bnode_free(struct node_op *op, struct nd *node,
  *
  * @param op indicates node allocate operation.
  * @param tree points to the tree this node will be a part-of.
- * @param shift is a power-of-2 size of this node.
+ * @param nsize size of the node.
  * @param nt points to the node type
  * @param ksize is the size of key (if constant) if not this contains '0'.
  * @param vsize is the size of value (if constant) if not this contains '0'.
@@ -2400,28 +2377,30 @@ static int64_t bnode_free(struct node_op *op, struct nd *node,
  *
  * @return int64_t
  */
-static int64_t bnode_alloc(struct node_op *op, struct td *tree, int shift,
+static int64_t bnode_alloc(struct node_op *op, struct td *tree, int nsize,
 			   const struct node_type *nt, int ksize, int vsize,
 			   struct m0_be_tx *tx, int nxt)
 {
 	int            nxt_state = nxt;
 	void          *area;
-	int            size = 1ULL << shift;
 	struct m0_buf  buf;
+	int            chunk_header_size = m0_be_chunk_header_size();
+	int            page_shift = m0_pageshift_get();
+
 
 	M0_PRE(op->no_opc == NOP_ALLOC);
-	M0_PRE(bnode_shift_is_valid(shift));
 
-	buf = M0_BUF_INIT(size, NULL);
-	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, shift, tree->t_seg, tx);
+	nsize -= chunk_header_size;
+	buf = M0_BUF_INIT(nsize, NULL);
+	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, page_shift, tree->t_seg, tx);
 	area = buf.b_addr;
 
 	M0_ASSERT(area != NULL);
 
-	op->no_addr = segaddr_build(area, shift);
+	op->no_addr = segaddr_build(area, page_shift);
 	op->no_tree = tree;
 
-	nxt_state = bnode_init(&op->no_addr, ksize, vsize, nt,
+	nxt_state = bnode_init(&op->no_addr, ksize, vsize, nsize, nt,
 			       tree->t_seg->bs_gen, tree->t_fid, nxt);
 	/**
 	 * TODO: Consider adding a state here to return in case we might need to
@@ -2457,10 +2436,10 @@ struct ff_head {
 	 */
 
 	uint16_t                 ff_used;   /*< Count of records */
-	uint8_t                  ff_shift;  /*< Node size as pow-of-2 */
 	uint8_t                  ff_level;  /*< Level in Btree */
 	uint16_t                 ff_ksize;  /*< Size of key in bytes */
 	uint16_t                 ff_vsize;  /*< Size of value in bytes */
+	uint32_t                 ff_nsize;  /*< Node size */
 	struct m0_format_footer  ff_foot;   /*< Node Footer */
 	void                    *ff_opaque; /*< opaque data */
 	/**
@@ -2469,13 +2448,14 @@ struct ff_head {
 	 */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
-static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
+static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
 		    uint32_t ntype, uint64_t gen, struct m0_fid fid);
 static void ff_fini(const struct nd *node);
 static int  ff_count_rec(const struct nd *node);
 static int  ff_space(const struct nd *node);
 static int  ff_level(const struct nd *node);
 static int  ff_shift(const struct nd *node);
+static int  ff_nsize(const struct nd *node);
 static int  ff_valsize(const struct nd *node);
 static int  ff_keysize(const struct nd *node);
 static bool ff_isunderflow(const struct nd *node, bool predict);
@@ -2531,6 +2511,7 @@ static const struct node_type fixed_format = {
 	.nt_space                     = ff_space,
 	.nt_level                     = ff_level,
 	.nt_shift                     = ff_shift,
+	.nt_nsize                     = ff_nsize,
 	.nt_keysize                   = ff_keysize,
 	.nt_valsize                   = ff_valsize,
 	.nt_isunderflow               = ff_isunderflow,
@@ -2595,7 +2576,7 @@ static void *ff_val(const struct nd *node, int idx)
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
 		   (0 <= idx && idx <= h->ff_used)));
 
-	node_end_addr = node_start_addr + (1ULL << h->ff_shift);
+	node_end_addr = node_start_addr + h->ff_nsize;
 	value_offset  = h->ff_vsize * (idx + 1);
 
 	return node_end_addr - value_offset;
@@ -2668,8 +2649,7 @@ static bool ff_invariant(const struct nd *node)
 	/* TBD: add check for h_tree_type after initializing it in node_init. */
 	return  _0C(h->ff_fmt.hd_magic == M0_FORMAT_HEADER_MAGIC) &&
 		_0C(h->ff_seg.h_node_type == BNT_FIXED_FORMAT) &&
-		_0C(h->ff_ksize != 0) && _0C(h->ff_vsize != 0) &&
-		_0C(h->ff_shift == segaddr_shift(&node->n_addr));
+		_0C(h->ff_ksize != 0) && _0C(h->ff_vsize != 0);
 }
 
 static bool ff_verify(const struct nd *node)
@@ -2694,7 +2674,7 @@ static bool segaddr_header_isvalid(const struct segaddr *addr)
 	return true;
 }
 
-static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
+static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
 		    uint32_t ntype, uint64_t gen, struct m0_fid fid)
 {
 	struct ff_head *h   = segaddr_addr(addr);
@@ -2703,9 +2683,9 @@ static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
 	M0_PRE(vsize != 0);
 	M0_SET0(h);
 
-	h->ff_shift           = shift;
 	h->ff_ksize           = ksize;
 	h->ff_vsize           = vsize;
+	h->ff_nsize           = nsize;
 	h->ff_seg.h_node_type = ntype;
 	h->ff_seg.h_gen       = gen;
 	h->ff_seg.h_fid       = fid;
@@ -2745,7 +2725,7 @@ static int ff_count_rec(const struct nd *node)
 static int ff_space(const struct nd *node)
 {
 	struct ff_head *h = ff_data(node);
-	return (1ULL << h->ff_shift) - sizeof *h -
+	return h->ff_nsize - sizeof *h -
 		(h->ff_ksize + h->ff_vsize) * h->ff_used;
 }
 
@@ -2756,7 +2736,15 @@ static int ff_level(const struct nd *node)
 
 static int ff_shift(const struct nd *node)
 {
+#if 0
 	return ff_data(node)->ff_shift;
+#endif
+	return 0;
+}
+
+static int ff_nsize(const struct nd *node)
+{
+	return ff_data(node)->ff_nsize;
 }
 
 static int ff_keysize(const struct nd *node)
@@ -3340,9 +3328,9 @@ struct fkvv_head {
 	 */
 
 	uint16_t                 fkvv_used;   /*< Count of records */
-	uint8_t                  fkvv_shift;  /*< Node size as pow-of-2 */
 	uint8_t                  fkvv_level;  /*< Level in Btree */
 	uint16_t                 fkvv_ksize;  /*< Size of key in bytes */
+	uint32_t                 fkvv_nsize;  /*< Node size */
 	struct m0_format_footer  fkvv_foot;   /*< Node Footer */
 	void                    *fkvv_opaque; /*< opaque data */
 	/**
@@ -3353,14 +3341,15 @@ struct fkvv_head {
 
 #define OFFSET_SIZE sizeof(uint32_t)
 
-static void fkvv_init(const struct segaddr *addr, int shift, int ksize,
-		      int vsize, uint32_t ntype, uint64_t gen,
+static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
+		      int nsize, uint32_t ntype, uint64_t gen,
 		      struct m0_fid fid);
 static void fkvv_fini(const struct nd *node);
 static int  fkvv_count_rec(const struct nd *node);
 static int  fkvv_space(const struct nd *node);
 static int  fkvv_level(const struct nd *node);
 static int  fkvv_shift(const struct nd *node);
+static int  fkvv_nsize(const struct nd *node);
 static int  fkvv_keysize(const struct nd *node);
 static int  fkvv_valsize(const struct nd *node);
 static bool fkvv_isunderflow(const struct nd *node, bool predict);
@@ -3409,6 +3398,7 @@ static const struct node_type fixed_ksize_variable_vsize_format = {
 	.nt_space                     = fkvv_space,
 	.nt_level                     = fkvv_level,
 	.nt_shift                     = fkvv_shift,
+	.nt_nsize                     = fkvv_nsize,
 	.nt_keysize                   = fkvv_keysize,
 	.nt_valsize                   = fkvv_valsize,
 	.nt_isunderflow               = fkvv_isunderflow,
@@ -3447,8 +3437,8 @@ static struct fkvv_head *fkvv_data(const struct nd *node)
 	return segaddr_addr(&node->n_addr);
 }
 
-static void fkvv_init(const struct segaddr *addr, int shift, int ksize,
-		      int vsize, uint32_t ntype, uint64_t gen,
+static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
+		      int nsize, uint32_t ntype, uint64_t gen,
 		      struct m0_fid fid)
 {
 	struct fkvv_head *h       = segaddr_addr(addr);
@@ -3456,8 +3446,8 @@ static void fkvv_init(const struct segaddr *addr, int shift, int ksize,
 	M0_PRE(ksize != 0);
 	M0_SET0(h);
 
-	h->fkvv_shift             = shift;
 	h->fkvv_ksize             = ksize;
+	h->fkvv_nsize             = nsize;
 	h->fkvv_seg.h_node_type   = ntype;
 	h->fkvv_seg.h_gen         = gen;
 	h->fkvv_seg.h_fid         = fid;
@@ -3531,7 +3521,7 @@ static int fkvv_space(const struct nd *node)
 			val_rsize = *fkvv_val_offset_get(node, count - 1);
 		}
 	}
-	return (1ULL << h->fkvv_shift) - sizeof *h - key_rsize - val_rsize;
+	return h->fkvv_nsize - sizeof *h - key_rsize - val_rsize;
 }
 
 static int fkvv_level(const struct nd *node)
@@ -3541,7 +3531,15 @@ static int fkvv_level(const struct nd *node)
 
 static int fkvv_shift(const struct nd *node)
 {
+#if 0
 	return fkvv_data(node)->fkvv_shift;
+#endif
+	return 0;
+}
+
+static int fkvv_nsize(const struct nd *node)
+{
+	return fkvv_data(node)->fkvv_nsize;
 }
 
 static int fkvv_keysize(const struct nd *node)
@@ -3615,7 +3613,7 @@ static void *fkvv_val(const struct nd *node, int idx)
 	M0_PRE(ergo(!(h->fkvv_used == 0 && idx == 0),
 		   (0 <= idx && idx <= h->fkvv_used)));
 
-	node_end_addr = node_start_addr + (1ULL << h->fkvv_shift);
+	node_end_addr = node_start_addr + h->fkvv_nsize;
 	value_offset  = (IS_INTERNAL_NODE(node)) ?
 			INTERNAL_NODE_VALUE_SIZE * (idx + 1) :
 			*(fkvv_val_offset_get(node, idx));
@@ -3957,8 +3955,7 @@ static bool fkvv_invariant(const struct nd *node)
 	return
 	_0C(h->fkvv_fmt.hd_magic == M0_FORMAT_HEADER_MAGIC) &&
 	_0C(h->fkvv_seg.h_node_type == BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE) &&
-	_0C(h->fkvv_ksize != 0) &&
-	_0C(h->fkvv_shift == segaddr_shift(&node->n_addr));
+	_0C(h->fkvv_ksize != 0);
 }
 
 static bool fkvv_iskey_smaller(const struct nd *node, int cur_key_idx)
@@ -4242,14 +4239,15 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  */
 #define INT_OFFSET sizeof(uint32_t)
 
-static void vkvv_init(const struct segaddr *addr, int shift, int ksize,
-		      int vsize, uint32_t ntype, uint64_t gen,
+static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
+		      int nsize, uint32_t ntype, uint64_t gen,
 		      struct m0_fid fid);
 static void vkvv_fini(const struct nd *node);
 static int  vkvv_count_rec(const struct nd *node);
 static int  vkvv_space(const struct nd *node);
 static int  vkvv_level(const struct nd *node);
 static int  vkvv_shift(const struct nd *node);
+static int  vkvv_nsize(const struct nd *node);
 static int  vkvv_keysize(const struct nd *node);
 static int  vkvv_valsize(const struct nd *node);
 static bool vkvv_isunderflow(const struct nd *node, bool predict);
@@ -4298,6 +4296,7 @@ static const struct node_type variable_kv_format = {
 	.nt_space                     = vkvv_space,
 	.nt_level                     = vkvv_level,
 	.nt_shift                     = vkvv_shift,
+	.nt_nsize                     = vkvv_nsize,
 	.nt_keysize                   = vkvv_keysize,
 	.nt_valsize                   = vkvv_valsize,
 	.nt_isunderflow               = vkvv_isunderflow,
@@ -4347,9 +4346,9 @@ struct vkvv_head {
 	 */
 
 	uint16_t                 vkvv_used;       /*< Count of records */
-	uint8_t                  vkvv_shift;      /*< Node size as pow-of-2 */
 	uint8_t                  vkvv_level;      /*< Level in Btree */
 	uint32_t                 vkvv_dir_offset; /*< Offset pointing to dir */
+	uint32_t                 vkvv_nsize;      /*< Node size */
 
 	struct m0_format_footer  vkvv_foot;       /*< Node Footer */
 	void                    *vkvv_opaque;     /*< opaque data */
@@ -4378,15 +4377,15 @@ static uint32_t vkvv_get_vspace(void)
  *         will call a function to return the offset for the directory
  *         present in the middle of the node memory for leaf nodes.
  */
-static void vkvv_init(const struct segaddr *addr, int shift, int ksize,
-		      int vsize, uint32_t ntype, uint64_t gen,
+static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
+		      int nsize, uint32_t ntype, uint64_t gen,
 		      struct m0_fid fid)
 {
 	struct vkvv_head *h     = segaddr_addr(addr);
 	M0_SET0(h);
 
-	h->vkvv_dir_offset      = ((1ULL << shift) - sizeof(*h))/2;
-	h->vkvv_shift           = shift;
+	h->vkvv_dir_offset      = (nsize - sizeof(*h))/2;
+	h->vkvv_nsize           = nsize;
 	h->vkvv_seg.h_node_type = ntype;
 	h->vkvv_seg.h_gen       = gen;
 	h->vkvv_seg.h_fid       = fid;
@@ -4424,7 +4423,7 @@ static uint32_t *vkvv_get_key_offset(const struct nd *node, int idx)
 {
 	struct vkvv_head *h          = vkvv_data(node);
 	uint32_t          vspace     = vkvv_get_vspace();
-	uint32_t          size       = 1ULL << h->vkvv_shift;
+	uint32_t          size       = h->vkvv_nsize;
 	void             *start_addr = (void*)h + size - vspace;
 	uint32_t         *offset;
 
@@ -4460,7 +4459,7 @@ static int  vkvv_count_rec(const struct nd *node)
 static int  vkvv_space(const struct nd *node)
 {
 	struct vkvv_head      *h          = vkvv_data(node);
-	uint32_t               total_size = 1ULL << h->vkvv_shift;
+	uint32_t               total_size = h->vkvv_nsize;
 
 	uint32_t               size_of_all_keys;
 	uint32_t               size_of_all_values;
@@ -4502,7 +4501,18 @@ static int  vkvv_space(const struct nd *node)
  */
 static int  vkvv_shift(const struct nd *node)
 {
+#if 0
 	return vkvv_data(node)->vkvv_shift;
+#endif
+	return 0;
+}
+
+/**
+ * @brief This function will return the vkvv_nsize from node_header.
+ */
+static int vkvv_nsize(const struct nd *node)
+{
+	return vkvv_data(node)->vkvv_nsize;
 }
 
 /**
@@ -4672,7 +4682,7 @@ static void *vkvv_key(const struct nd *node, int idx)
 static void *vkvv_lnode_val(const struct nd *node, int idx)
 {
 	struct vkvv_head *h         = vkvv_data(node);
-	int               size      = 1ULL << h->vkvv_shift;
+	int               size      = h->vkvv_nsize;
 	struct dir_rec   *dir_entry = vkvv_get_dir_addr(node);
 
 	return ((void*)h + size - dir_entry[idx].val_offset);
@@ -4681,7 +4691,7 @@ static void *vkvv_lnode_val(const struct nd *node, int idx)
 static void *vkvv_inode_val(const struct nd *node, int idx)
 {
 	struct vkvv_head *h      = vkvv_data(node);
-	uint32_t          size   = 1ULL << h->vkvv_shift;
+	uint32_t          size   = h->vkvv_nsize;
 	uint32_t          vspace = vkvv_get_vspace();
 
 	return ((void*)h + size - vspace * idx + INT_OFFSET);
@@ -4767,8 +4777,7 @@ static bool vkvv_invariant(const struct nd *node)
 
 	return  _0C(h->vkvv_fmt.hd_magic == M0_FORMAT_HEADER_MAGIC) &&
 		_0C(h->vkvv_seg.h_node_type ==
-		    BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE) &&
-		_0C(h->vkvv_shift == segaddr_shift(&node->n_addr));
+		    BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE);
 }
 
 /**
@@ -4806,7 +4815,7 @@ static int vkvv_create_delete_credit_size(void)
 static void vkvv_child(struct slot *slot, struct segaddr *addr)
 {
 	struct vkvv_head *h              = vkvv_data(slot->s_node);
-	int               total_size     = 1ULL << h->vkvv_shift;
+	int               total_size     =  h->vkvv_nsize;
 	void             *start_val_addr = (void*)h + total_size;
 	int               index          = slot->s_idx;
 	uint32_t          vspace         = vkvv_get_vspace();
@@ -6446,11 +6455,11 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				 */
 				int ksize = bnode_keysize(lev->l_node);
 				int vsize = bnode_valsize(lev->l_node);
-				int shift = bnode_shift(lev->l_node);
+				int nsize = bnode_nsize(tree->t_root);
 				oi->i_nop.no_opc = NOP_ALLOC;
 				bnode_unlock(lev->l_node);
 				return bnode_alloc(&oi->i_nop, tree,
-						  shift, lev->l_node->n_type,
+						  nsize, lev->l_node->n_type,
 						  ksize, vsize, bop->bo_tx,
 						  P_ALLOC_STORE);
 
@@ -6479,7 +6488,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			if (lev->l_alloc == NULL) {
 				int ksize;
 				int vsize;
-				int shift;
+				int nsize;
 				lev->l_alloc = oi->i_nop.no_node;
 				oi->i_nop.no_node = NULL;
 				bnode_lock(lev->l_node);
@@ -6490,11 +6499,11 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				}
 				ksize = bnode_keysize(lev->l_node);
 				vsize = bnode_valsize(lev->l_node);
-				shift = bnode_shift(lev->l_node);
+				nsize = bnode_nsize(tree->t_root);
 				oi->i_nop.no_opc = NOP_ALLOC;
 				bnode_unlock(lev->l_node);
 				return bnode_alloc(&oi->i_nop, tree,
-						  shift, lev->l_node->n_type,
+						  nsize, lev->l_node->n_type,
 						  ksize, vsize, bop->bo_tx,
 						  P_ALLOC_STORE);
 
@@ -6931,8 +6940,8 @@ static int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 		oi->i_nop.no_addr = segaddr_build(data->addr, calc_shift(data->
 						  num_bytes));
 		return bnode_init(&oi->i_nop.no_addr, k_size, v_size,
-				  data->nt, bop->bo_seg->bs_gen, data->fid,
-				  P_TREE_GET);
+				  data->num_bytes, data->nt,
+				  bop->bo_seg->bs_gen, data->fid, P_TREE_GET);
 
 	case P_TREE_GET:
 		return tree_get(&oi->i_nop, &oi->i_nop.no_addr, P_ACT);
@@ -8896,7 +8905,7 @@ static void ut_basic_tree_oper_icp(void)
 	M0_ASSERT(rc == 0);
 	/** Create temp node space*/
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	temp_node = buf.b_addr;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node,
 				      rnode_sz, &btree_type, &b_op, &btree, seg,
@@ -8952,7 +8961,7 @@ static void ut_basic_tree_oper_icp(void)
 	M0_ASSERT(rc == 0);
 
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	temp_node = buf.b_addr;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
 				      &btree_type, &b_op, &btree, seg, &fid,
@@ -9394,7 +9403,7 @@ static void ut_multi_stream_kv_oper(void)
 
 	/** Create temp node space and use it as root node for btree */
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	rnode = buf.b_addr;
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
@@ -10761,7 +10770,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 
 		/** Create temp node space and use it as root node for btree */
 		buf = M0_BUF_INIT(rnode_sz, NULL);
-		M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+		M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 		rnode = buf.b_addr;
 
 		M0_BTREE_OP_SYNC_WITH_RC(&b_op,
@@ -10961,7 +10970,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 	/** Create temp node space and use it as root node for btree */
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	rnode = buf.b_addr;
 
 	m0_be_tx_close_sync(tx);
@@ -11367,7 +11376,7 @@ static void ut_btree_persistence(void)
 
 	/** Create temp node space and use it as root node for btree */
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	rnode = buf.b_addr;
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
@@ -11786,7 +11795,7 @@ static void ut_btree_truncate(void)
 
 	/** Create temp node space and use it as root node for btree */
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	rnode = buf.b_addr;
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
@@ -11944,7 +11953,7 @@ static void ut_lru_test(void)
 
 	/** Create temp node space and use it as root node for btree */
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	rnode = buf.b_addr;
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
