@@ -34,7 +34,7 @@
 #include "stob/stob_xc.h"
 
 /**
-   @defgroup stobad Storage objects with extent maps.
+   @defgroup stobpart Storage objects with extent maps.
 
    <b>Storage object type based on Allocation Data (AD) stored in a
    data-base.</b>
@@ -51,60 +51,7 @@
    @{
  */
 
-struct m0_part_balloc;
-struct m0_part_balloc_ops;
 struct m0_be_seg;
-
-/**
-   Simple block allocator interface used by ad code to manage "free space" in
-   the underlying storage object.
-
-   @see mock_balloc
- */
-struct m0_part_balloc {
-	const struct m0_part_balloc_ops *pb_ops;
-} M0_XCA_RECORD M0_XCA_DOMAIN(be);
-
-struct m0_part_balloc_ops {
-	/** Initialises this balloc instance, creating its persistent state, if
-	    necessary. This also destroys allocated struct m0_balloc instance
-	    on failure.
-
-	    @param block size shift in bytes, similarly to m0_stob_block_shift()
-	    @param container_size Total size of the container in bytes
-	    @param  blocks_per_group # of blocks per group
-	 */
-	int  (*bo_init)(struct m0_part_balloc *ballroom, struct m0_be_seg *db,
-			uint32_t bshift, m0_bcount_t container_size,
-			m0_bcount_t blocks_per_group,
-			m0_bcount_t spare_blocks_per_group);
-	/** Finalises and destroys struct m0_balloc instance. */
-	void (*bo_fini)(struct m0_part_balloc *ballroom);
-	/** Allocates count of blocks. On success, allocated extent, also
-	    measured in blocks, is returned in out parameter. */
-	int  (*bo_alloc)(struct m0_part_balloc *ballroom, struct m0_dtx *dtx,
-			 m0_bcount_t count, struct m0_ext *out,
-			 uint64_t alloc_zone);
-	/** Free space (possibly a sub-extent of an extent allocated
-	    earlier). */
-	int  (*bo_free)(struct m0_part_balloc *ballroom, struct m0_dtx *dtx,
-			struct m0_ext *ext);
-	void (*bo_alloc_credit)(const struct m0_part_balloc *ballroom, int nr,
-				      struct m0_be_tx_credit *accum);
-	void (*bo_free_credit)(const struct m0_part_balloc *ballroom, int nr,
-				     struct m0_be_tx_credit *accum);
-	/**
-	 * Marks given extent as used in the allocator.
-	 *
-	 * @retval 0 on success.
-	 * @retval -ENOSPC on not enough space in superblock/group/fragment.
-	 * @retval -EEXIST on overlap extent.
-	 * @retval -errno on other errors.
-	 */
-	int  (*bo_reserve_extent)(struct m0_part_balloc *ballroom,
-				  struct m0_be_tx *tx, struct m0_ext *ext,
-				  uint64_t alloc_zone);
-};
 
 enum { PART_PATHLEN = 4096 };
 
@@ -112,21 +59,13 @@ struct m0_stob_part_domain {
 	struct m0_format_header spd_header;
 	uint64_t                spd_dom_key;
 	struct m0_stob_id       spd_bstore_id;
-	struct m0_part_balloc  *spd_ballroom;
 	m0_bcount_t             spd_container_size;
 	uint32_t                spd_bshift;
 	int32_t                 spd_babshift;
-	m0_bcount_t             spd_blocks_per_group;
-	m0_bcount_t             spd_spare_blocks_per_group;
-	char                    spd_path[AD_PATHLEN];
+	char                    spd_path[PART_PATHLEN];
 	bool                    spd_overwrite;
 	char                    spd_pad[7];
 	struct m0_format_footer spd_footer;
-	/*
-	 * m0_be_emap has it's own volatile-only fields, so it can't be placed
-	 * before the m0_format_footer, where only persistent fields allowed
-	 */
-	struct m0_be_emap       spd_pdata;
 	/*
 	 * volatile-only fields
 	 */
@@ -157,41 +96,14 @@ enum m0_stob_part_domain_format_version {
 
 enum {
 	STOB_TYPE_PARTITION = 0x03,
-	/*
-	 * As balloc space is exhausted or fragmented -
-	 * we may not succeed the allocation in one request.
-	 * From another side, we need to establish maximum
-	 * possible number of fragments we may have from balloc
-	 * to calculate BE credits at stob_part_write_credit().
-	 * That's why we have this constant. Too big value
-	 * will result in excess credits, too low value will
-	 * result in early ENOSPC errors when there is still
-	 * some space available in balloc. So here might be
-	 * the tradeoff.
-	 */
-	BALLOC_FRAGS_MAX = 2,
-};
-
-/**
-   Types of allocation extents.
-
-   Values of this enum are stored as "physical extent start" in allocation
-   extents.
- */
-enum stob_part_allocation_extent_type {
-	/**
-	    Minimal "special" extent type. All values less than this are valid
-	    start values of normal allocated extents.
-	 */
-	AET_MIN = M0_BINDEX_MAX - (1ULL << 32),
-	/**
-	   This value is used to tag a hole in the storage object.
-	 */
-	AET_HOLE
 };
 
 struct m0_stob_part {
-	struct m0_stob          part_stob;
+	struct m0_stob  part_stob;
+	m0_bcount_t     part_id;
+	m0_bcount_t    *part_table;
+	m0_bcount_t     part_size_in_chunks;
+	m0_bcount_t     part_chunk_size_in_bits;
 };
 
 struct m0_stob_part_io {
@@ -209,43 +121,8 @@ struct m0_stob_part_io {
 
 extern const struct m0_stob_type m0_stob_part_type;
 
-M0_INTERNAL struct m0_balloc *
-m0_stob_part_domain2balloc(const struct m0_stob_domain *dom);
 
-M0_INTERNAL bool m0_stob_part_domain__invariant(struct m0_stob_part_domain *pdom);
-
-M0_INTERNAL void m0_stob_part_init_cfg_make(char **str, struct m0_be_domain *dom);
-M0_INTERNAL void m0_stob_part_cfg_make(char **str,
-				       const struct m0_be_seg *seg,
-				       const struct m0_stob_id *bstore_id,
-				       const m0_bcount_t size);
-M0_INTERNAL int stob_part_cursor(struct m0_stob_part_domain *pdom,
-				 struct m0_stob *obj,
-				 uint64_t offset,
-				 struct m0_be_emap_cursor *it);
-
-/**
- * Sets the flags associated with the balloc zones (spare/non-spare).
- */
-M0_INTERNAL void m0_stob_part_balloc_set(struct m0_stob_io *io, uint64_t flags);
-
-/**
- * Clears allocation context from previous IO.
- */
-M0_INTERNAL void m0_stob_part_balloc_clear(struct m0_stob_io *io);
-
-/**
- * Calculates the count of spare blocks to be reserved for a given group.
- */
-M0_INTERNAL m0_bcount_t m0_stob_part_spares_calc(m0_bcount_t grp);
-
-/**
- * Calculates checksum address for a cob segment and unit size
- */
-M0_INTERNAL void * m0_stob_part_get_checksum_addr(struct m0_stob_io *io,
-						m0_bindex_t off);
-
-/** @} end group stobad */
+/** @} end group stobpart */
 
 /* __MOTR_STOB_PARTITION_INTERNAL_H__ */
 #endif
