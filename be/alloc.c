@@ -419,6 +419,9 @@ static bool be_alloc_chunk_invariant(struct m0_be_allocator *a,
 
 	return _0C(c != NULL) &&
 	       _0C(be_alloc_chunk_is_in(a, ztype, c)) &&
+	       _0C((c->bac_chunk_align == true) ?
+		   m0_addr_is_aligned((void *)c, c->bac_align_shift) :
+		   m0_addr_is_aligned(&c->bac_mem, c->bac_align_shift)) &&
 	       _0C(m0_addr_is_aligned(&c->bac_mem, M0_BE_ALLOC_SHIFT_MIN)) &&
 	       _0C(ergo(cnext != NULL,
 			be_alloc_chunk_is_in(a, ztype, cnext))) &&
@@ -434,13 +437,17 @@ static void be_alloc_chunk_init(struct m0_be_allocator *a,
 				enum m0_be_alloc_zone_type ztype,
 				struct m0_be_tx *tx,
 				struct be_alloc_chunk *c,
-				m0_bcount_t size, bool free)
+				m0_bcount_t size, bool free,
+				bool chunk_align,
+				unsigned shift)
 {
 	*c = (struct be_alloc_chunk) {
-		.bac_magic0 = M0_BE_ALLOC_MAGIC0,
-		.bac_size   = size,
-		.bac_free   = free,
-		.bac_zone   = ztype,
+		.bac_magic0        = M0_BE_ALLOC_MAGIC0,
+		.bac_size          = size,
+		.bac_free          = free,
+		.bac_zone          = ztype,
+		.bac_chunk_align   = chunk_align,
+		.bac_align_shift   = shift,
 		.bac_magic1 = M0_BE_ALLOC_MAGIC1,
 	};
 	chunks_all_be_tlink_create(c, tx);
@@ -543,7 +550,9 @@ be_alloc_chunk_add_after(struct m0_be_allocator *a,
 			 struct be_alloc_chunk *c,
 			 uintptr_t offset,
 			 m0_bcount_t size_total,
-			 bool free)
+			 bool free,
+			 bool chunk_align,
+			 unsigned shift)
 {
 	struct m0_be_allocator_header *h = a->ba_h[ztype];
 	struct be_alloc_chunk         *new;
@@ -556,7 +565,8 @@ be_alloc_chunk_add_after(struct m0_be_allocator *a,
 			  ((uintptr_t) h->bah_addr + offset) :
 			  (struct be_alloc_chunk *)
 			  be_alloc_chunk_after(a, ztype, c);
-	be_alloc_chunk_init(a, ztype, tx, new, size_total - sizeof *new, free);
+	be_alloc_chunk_init(a, ztype, tx, new, size_total - sizeof *new, free,
+			    chunk_align, shift);
 
 	if (c != NULL)
 		chunks_all_be_list_add_after(&h->bah_chunks, tx, c, new);
@@ -605,7 +615,8 @@ be_alloc_chunk_tryadd_free_after(struct m0_be_allocator *a,
 			; /* space before the first chunk is temporary lost */
 	} else {
 		c = be_alloc_chunk_add_after(a, ztype, tx, c,
-					     offset, size_total, true);
+					     offset, size_total, true, false,
+					     M0_BE_ALLOC_SHIFT_MIN);
 	}
 	return c;
 }
@@ -616,7 +627,9 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
 		     struct m0_be_tx *tx,
 		     struct be_alloc_chunk *c,
 		     uintptr_t start_new,
-		     m0_bcount_t size)
+		     m0_bcount_t size,
+		     bool chunk_align,
+		     unsigned shift)
 {
 	struct be_alloc_chunk *prev;
 	struct be_alloc_chunk *new;
@@ -650,7 +663,8 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
 						chunk0_size);
 	new = be_alloc_chunk_add_after(a, ztype, tx, prev,
 				       prev == NULL ? chunk0_size : 0,
-				       sizeof *new + size_min_aligned, false);
+				       sizeof *new + size_min_aligned, false,
+				       chunk_align, shift);
 	M0_ASSERT(new != NULL);
 	be_alloc_chunk_tryadd_free_after(a, ztype, tx, new, 0, chunk1_size);
 
@@ -665,7 +679,8 @@ be_alloc_chunk_trysplit(struct m0_be_allocator *a,
 			enum m0_be_alloc_zone_type ztype,
 			struct m0_be_tx *tx,
 			struct be_alloc_chunk *c,
-			m0_bcount_t size, unsigned shift)
+			m0_bcount_t size, unsigned shift,
+			bool chunk_align)
 {
 	struct be_alloc_chunk *result = NULL;
 	uintptr_t	       alignment = 1UL << shift;
@@ -678,13 +693,21 @@ be_alloc_chunk_trysplit(struct m0_be_allocator *a,
 	if (c->bac_free) {
 		addr_start = (uintptr_t) c;
 		addr_end   = (uintptr_t) &c->bac_mem[c->bac_size];
-		/* find aligned address for memory block */
-		addr_mem   = addr_start + sizeof *c + alignment - 1;
-		addr_mem  &= ~(alignment - 1);
+		if (chunk_align) {
+			/** Align chunk header as per alignment. */
+			addr_mem   = addr_start  + alignment - 1;
+			addr_mem  &= ~(alignment - 1);
+			addr_mem   = addr_mem + sizeof *c;
+		} else {
+			/* find aligned address for memory block */
+			addr_mem   = addr_start + sizeof *c + alignment - 1;
+			addr_mem  &= ~(alignment - 1);
+		}
 		/* if block fits inside free chunk */
 		result = addr_mem + size <= addr_end ?
 			 be_alloc_chunk_split(a, ztype, tx, c,
-					     addr_mem - sizeof *c, size) : NULL;
+					     addr_mem - sizeof *c, size,
+					     chunk_align, shift) : NULL;
 	}
 	M0_POST(ergo(result != NULL, be_alloc_chunk_invariant(a, result)));
 	return result;
@@ -769,7 +792,9 @@ static int be_allocator_header_create(struct m0_be_allocator     *a,
 				      enum m0_be_alloc_zone_type  ztype,
 				      struct m0_be_tx            *tx,
 				      uintptr_t                   offset,
-				      m0_bcount_t                 size)
+				      m0_bcount_t                 size,
+				      bool                        chunk_align,
+				      unsigned                    shift)
 {
 	struct m0_be_allocator_header *h = a->ba_h[ztype];
 	struct be_alloc_chunk         *c;
@@ -791,7 +816,8 @@ static int be_allocator_header_create(struct m0_be_allocator     *a,
 
 	/* init main chunk */
 	if (size != 0) {
-		c = be_alloc_chunk_add_after(a, ztype, tx, NULL, 0, size, true);
+		c = be_alloc_chunk_add_after(a, ztype, tx, NULL, 0, size, true,
+					     chunk_align, shift);
 		M0_ASSERT(c != NULL);
 	}
 	return 0;
@@ -850,7 +876,8 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
 		} else
 			size = remain;
 		M0_ASSERT(size <= remain);
-		rc = be_allocator_header_create(a, i, tx, offset, size);
+		rc = be_allocator_header_create(a, i, tx, offset, size, false,
+						M0_BE_ALLOC_SHIFT_MIN);
 		if (rc != 0) {
 			for (z = 0; z < i; ++z)
 				be_allocator_header_destroy(a, z, tx);
@@ -864,7 +891,7 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
 
 	/* Create the rest of zones as empty/unused. */
 	for (i = zones_nr; i < M0_BAP_NR; ++i) {
-		rc = be_allocator_header_create(a, i, tx, 0, 0);
+		rc = be_allocator_header_create(a, i, tx, 0, 0, false, 0);
 		M0_ASSERT(rc == 0);
 	}
 
@@ -1030,6 +1057,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	struct be_alloc_chunk       *c = NULL;
 	m0_bcount_t                  size_to_pick;
 	int                          z;
+	void                        *mem_ptr;
 
 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
 	M0_ASSERT_INFO(size <= (M0_BCOUNT_MAX - (1UL << shift)) / 2,
@@ -1052,7 +1080,8 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	/* XXX If allocation fails then stats are updated for normal zone. */
 	ztype = c != NULL ? z : M0_BAP_NORMAL;
 	if (c != NULL) {
-		c = be_alloc_chunk_trysplit(a, ztype, tx, c, size, shift);
+		c = be_alloc_chunk_trysplit(a, ztype, tx, c, size, shift,
+					    chunk_align);
 		M0_ASSERT(c != NULL);
 		M0_ASSERT(c->bac_zone == ztype);
 		memset(&c->bac_mem, 0, size);
@@ -1065,17 +1094,19 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	/* and ends here */
 
 	M0_LOG(M0_DEBUG, "allocator=%p size=%"PRIu64" shift=%u "
-	       "c=%p c->bac_size=%"PRIu64" ptr=%p", a, size, shift, c,
-	       c == NULL ? 0 : c->bac_size, *ptr);
+	       "c=%p c->bac_size=%"PRIu64" ptr=%p chunk_align=%s", a, size,
+	       shift, c, c == NULL ? 0 : c->bac_size, *ptr,
+	       chunk_align ? "true" : "false");
 	if (*ptr == NULL) {
 		be_allocator_stats_print(&a->ba_h[ztype]->bah_stats);
 		M0_ASSERT(m0_be_allocator__invariant(a));
 	}
 
 	if (c != NULL) {
+		mem_ptr = chunk_align ? (void *)c : (void *)&c->bac_mem;
 		M0_POST(!c->bac_free);
 		M0_POST(c->bac_size >= size);
-		M0_POST(m0_addr_is_aligned(&c->bac_mem, shift));
+		M0_POST(m0_addr_is_aligned(mem_ptr, shift));
 		M0_POST(be_alloc_chunk_is_in(a, ztype, c));
 	}
 	/*
