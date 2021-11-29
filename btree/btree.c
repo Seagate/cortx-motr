@@ -2781,7 +2781,8 @@ static bool segaddr_header_isvalid(const struct segaddr *addr)
 }
 
 static void ff_init(const struct segaddr *addr, int shift, int ksize, int vsize,
-		    uint32_t ntype, uint64_t crc_type, uint64_t gen, struct m0_fid fid)
+		    uint32_t ntype, uint64_t crc_type, uint64_t gen,
+		    struct m0_fid fid)
 {
 	struct ff_head *h   = segaddr_addr(addr);
 

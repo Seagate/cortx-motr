@@ -140,7 +140,7 @@ static inline int btree_insert_sync(struct m0_btree     *tree,
 				       .c_datum = &rec,
 				      };
 	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					m0_btree_put(tree, &rec,&put_cb,
+					m0_btree_put(tree, &rec, &put_cb,
 						     &kv_op, tx));
 }
 
