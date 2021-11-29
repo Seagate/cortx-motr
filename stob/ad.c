@@ -1720,7 +1720,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 			/* handle extent deletion. */
 			if (adom->sad_overwrite) {
 				M0_LOG(M0_DEBUG, "del: val=0x%llx",
-				       (unsigned long long)seg->ee_val);
+					(unsigned long long)seg->ee_val);
 				M0_ASSERT_INFO(seg->ee_val != ext->e_start,
 					       "Delete of the same just allocated block");
 				rc = rc ?:
