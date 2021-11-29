@@ -419,10 +419,9 @@ static bool be_alloc_chunk_invariant(struct m0_be_allocator *a,
 
 	return _0C(c != NULL) &&
 	       _0C(be_alloc_chunk_is_in(a, ztype, c)) &&
-	       _0C(ergo(c->bac_chunk_align,
-			m0_addr_is_aligned((void *)c, c->bac_align_shift))) &&
-	       _0C(ergo(!c->bac_chunk_align,
-			m0_addr_is_aligned(&c->bac_mem, c->bac_align_shift))) &&
+	       _0C((c->bac_chunk_align == true) ?
+		   m0_addr_is_aligned((void *)c, c->bac_align_shift) :
+		   m0_addr_is_aligned(&c->bac_mem, c->bac_align_shift)) &&
 	       _0C(m0_addr_is_aligned(&c->bac_mem, M0_BE_ALLOC_SHIFT_MIN)) &&
 	       _0C(ergo(cnext != NULL,
 			be_alloc_chunk_is_in(a, ztype, cnext))) &&

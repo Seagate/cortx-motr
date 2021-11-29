@@ -913,9 +913,6 @@ enum {
 
 static struct segaddr  segaddr_build(const void *addr, int shift);
 static void           *segaddr_addr (const struct segaddr *addr);
-#if 0
-static int             segaddr_shift(const struct segaddr *addr);
-#endif
 static uint32_t        segaddr_ntype_get(const struct segaddr *addr);
 static bool            segaddr_header_isvalid(const struct segaddr *addr);
 
@@ -1307,9 +1304,6 @@ static int  bnode_count(const struct nd *node);
 static int  bnode_count_rec(const struct nd *node);
 static int  bnode_space(const struct nd *node);
 static int  bnode_level(const struct nd *node);
-#if 0
-static int  bnode_shift(const struct nd *node);
-#endif
 static int  bnode_nsize(const struct nd *node);
 static int  bnode_keysize(const struct nd *node);
 static int  bnode_valsize(const struct nd *node);
@@ -1592,14 +1586,6 @@ static int bnode_level(const struct nd *node)
 	M0_PRE(bnode_invariant(node));
 	return (node->n_type->nt_level(node));
 }
-
-#if 0
-static int bnode_shift(const struct nd *node)
-{
-	M0_PRE(bnode_invariant(node));
-	return (node->n_type->nt_shift(node));
-}
-#endif
 
 static int bnode_nsize(const struct nd *node)
 {
@@ -1906,12 +1892,6 @@ M0_INTERNAL void m0_btree_mod_fini(void)
 	m0_free(mod_get());
 }
 
-#if 0
-static bool bnode_shift_is_valid(int shift)
-{
-	return shift >= NODE_SHIFT_MIN && shift < NODE_SHIFT_MIN + 0x10;
-}
-#endif
 /**
  * Tells if the segment address is aligned to 512 bytes.
  * This function should be called right after the allocation to make sure that
@@ -1926,20 +1906,6 @@ static bool addr_is_aligned(const void *addr)
 	return ((size_t)addr & ((1ULL << NODE_SHIFT_MIN) - 1)) == 0;
 }
 
-#if 0
-/**
- * Validates the segment address (of node).
- *
- * @param seg_addr points to the start address (of the node) in the segment.
- *
- * @return True if seg_addr is VALID according to the segment
- *                address semantics.
- */
-static bool segaddr_is_valid(const struct segaddr *seg_addr)
-{
-	return (0xff000000000001f0ull & seg_addr->as_core) == 0;
-}
-#endif
 /**
  * Returns a segaddr formatted segment address.
  *
@@ -1951,19 +1917,6 @@ static bool segaddr_is_valid(const struct segaddr *seg_addr)
 static struct segaddr segaddr_build(const void *addr, int shift)
 {
 	struct segaddr sa;
-#if 0
-	/**
-	 * This design is made obsolete from EOS-25149. As per new design, only
-	 * start address of the node will get stored in segment address. Keeping
-	 * the code disabled in case we plan to re-visit it.
-	 */
-	M0_PRE(bnode_shift_is_valid(shift));
-	M0_PRE(addr_is_aligned(addr));
-	sa.as_core = ((uint64_t)addr) | (shift - NODE_SHIFT_MIN);
-	M0_POST(segaddr_is_valid(&sa));
-	M0_POST(segaddr_addr(&sa) == addr);
-	M0_POST(segaddr_shift(&sa) == shift);
-#endif
 	sa.as_core = (uint64_t)addr;
 	return sa;
 }
@@ -1977,32 +1930,9 @@ static struct segaddr segaddr_build(const void *addr, int shift)
  */
 static void* segaddr_addr(const struct segaddr *seg_addr)
 {
-#if 0
-	/**
-	 * This design is made obsolete from EOS-25149. As per new design, only
-	 * start address of the node will get stored in segment address. Keeping
-	 * the code disabled in case we plan to re-visit it.
-	 */
-	M0_PRE(segaddr_is_valid(seg_addr));
-	return (void *)(seg_addr->as_core & ~((1ULL << NODE_SHIFT_MIN) - 1));
-#endif
 	return (void *)(seg_addr->as_core);
 }
 
-#if 0
-/**
- * Returns the size (pow-of-2) of the node extracted out of the segment address.
- *
- * @param seg_addr points to the formatted segment address.
- *
- * @return Size of the node as pow-of-2 value.
- */
-static int segaddr_shift(const struct segaddr *addr)
-{
-	M0_PRE(segaddr_is_valid(addr));
-	return (addr->as_core & 0xf) + NODE_SHIFT_MIN;
-}
-#endif
 /**
  * Returns the node type stored at segment address.
  *
@@ -2339,7 +2269,6 @@ static int64_t bnode_get(struct node_op *op, struct td *tree,
 		node->n_seq           = m0_time_now();
 		node->n_ref           = 1;
 		node->n_txref         = 0;
-		/* node->n_size          = 1ULL << nt->nt_shift(node); */
 		node->n_size          = nt->nt_nsize(node);
 		node->n_be_node_valid = true;
 		node->n_seg           = tree == NULL ? NULL : tree->t_seg;
