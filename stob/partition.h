@@ -110,13 +110,6 @@ struct m0_stob_part_io {
 	struct m0_stob_io *pi_fore;
 	struct m0_stob_io  pi_back;
 	struct m0_clink    pi_clink;
-	/**
-	 * Balloc zone to which allocation be made. Note
-	 * that these flags should be explicitly set before
-	 * launching IO in order to succeed allocation, as
-	 * they are not set by default. See @enum m0_balloc_allocation_flag.
-	 */
-	uint64_t           pi_balloc_flags;
 };
 
 extern const struct m0_stob_type m0_stob_part_type;

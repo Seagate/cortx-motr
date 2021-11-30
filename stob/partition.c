@@ -58,7 +58,10 @@
  *
  * @{
  */
-static struct m0_stob_domain_ops stob_part_domain_ops;
+/** TODO stob_part_domain_ops is defined as gloabl for now
+ * to remove compile warning, update to static once
+ * partition stob domain functionalty(EOS-24532) is ready */
+struct m0_stob_domain_ops stob_part_domain_ops;
 static struct m0_stob_type_ops stob_part_type_ops;
 static struct m0_stob_ops        stob_part_ops;
 struct part_stob_cfg {
@@ -138,11 +141,13 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 	char *devname;
 	struct m0_be_ptable_part_config *cfg;
 
-	devname = (char *) m0_alloc(strlen(str_cfg_create));
+	// devname = (char *) m0_alloc(strlen(str_cfg_create));  //getting codacy warning
+	size = strlen(str_cfg_create) + 1;
+	devname = (char *) m0_alloc(size);
 	// example str_cfg_create would be //strcpy( str, "/dev/sdc 20GB" );
 	rc = sscanf( str_cfg_create, "%s %d", devname, &size );
 	//rc = rc == 2 ? 0 : return M0_RC(-EINVAL);
-        if ( rc == 2 )
+    if ( rc == 2 )
 		rc = 0;
 	else
 		return M0_RC(-EINVAL);
@@ -180,7 +185,7 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 	proposed_chunk_size = size/1000;   // Assumption size is in bytes/block & we want 1000 chunks
 	cfg->pc_chunk_size_in_bits = align_chunk_size(proposed_chunk_size);
 
-	return 0;
+	return rc;
 }
 
 static int stob_part_domain_init(struct m0_stob_type *type,
@@ -326,7 +331,7 @@ static int stob_part_create(struct m0_stob *stob,
 	struct m0_be_ptable_part_tbl_info pt;
 	m0_bcount_t                       primary_part_index;
 	m0_bcount_t                       part_index;
-	struct part_stob_cfg              *pcfg;
+	struct part_stob_cfg             *pcfg;
 
 	M0_ENTRY();
 	pcfg = (struct part_stob_cfg *)cfg;
@@ -401,7 +406,10 @@ static struct m0_stob_type_ops stob_part_type_ops = {
 	.sto_domain_destroy	     = &stob_part_domain_destroy,
 };
 
-static struct m0_stob_domain_ops stob_part_domain_ops = {
+/** TODO stob_part_domain_ops is defined as gloabl for now
+ * to remove compile warning, update to static once
+ * partition stob domain functionalty(EOS-24532) is ready */
+struct m0_stob_domain_ops stob_part_domain_ops = {
 	.sdo_fini		= &stob_part_domain_fini,
 	.sdo_stob_alloc	    	= &stob_part_alloc,
 	.sdo_stob_free	    	= &stob_part_free,
@@ -650,7 +658,7 @@ static int stob_part_write_prepare(struct m0_stob_io *io)
 	int                         rc;
 
 	M0_PRE(io->si_opcode == SIO_WRITE);
-	//M0_ADDB2_ADD(M0_AVI_STOB_IO_REQ, io->si_id, M0_AVI_PART_WR_PREPARE);
+	M0_ADDB2_ADD(M0_AVI_STOB_IO_REQ, io->si_id, M0_AVI_PART_WR_PREPARE);
 	M0_ENTRY("op=%d frags=%lu",
 		 io->si_opcode,
 		 (unsigned long)io->si_stob.iv_vec.v_nr);
@@ -680,7 +688,7 @@ static int stob_part_io_launch_prepare(struct m0_stob_io *io)
 	M0_ENTRY("op=%d, stob %p, stob_id="STOB_ID_F,
 		 io->si_opcode, io->si_obj, STOB_ID_P(&io->si_obj->so_id));
 
-	//M0_ADDB2_ADD(M0_AVI_STOB_IO_REQ, io->si_id, M0_AVI_PART_PREPARE);
+	M0_ADDB2_ADD(M0_AVI_STOB_IO_REQ, io->si_id, M0_AVI_PART_PREPARE);
 
 	back->si_opcode   = io->si_opcode;
 	back->si_flags    = io->si_flags;
