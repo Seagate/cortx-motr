@@ -62,6 +62,54 @@ class MotrError(Exception):
     def __str__(self):
         return f"error[{self._rc}]: {self._desc}"
 
+#TODO: logger config(config_log) takes only self as argument so not configurable,
+#      need to make logger configurable to change formater, etc and remove below
+#      duplicate code,
+def execute_command_console(self, command):
+    logger = logging.getLogger("console")
+    if not os.path.exists(LOGDIR):
+        try:
+            os.makedirs(LOGDIR, exist_ok=True)
+            with open(f'{self.logfile}', 'w'): pass
+        except:
+            raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
+    else:
+        if not os.path.exists(self.logfile):
+            try:
+                with open(f'{self.logfile}', 'w'): pass
+            except:
+                raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
+    logger.setLevel(logging.DEBUG)
+    # create file handler which logs debug message in log file
+    fh = logging.FileHandler(self.logfile)
+    fh.setLevel(logging.DEBUG)
+    # create console handler to log messages ERROR and above
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(message)s')
+    fh.setFormatter(formatter)
+    ch.setFormatter(formatter)
+    logger.addHandler(fh)
+    logger.addHandler(ch)
+    logger.info(f"executing command {command}")
+    try:
+        process = subprocess.Popen(command, stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   shell=True)
+    except Exception as e:
+        logger.error("ERROR {} when running {} with exception {}".format(sys.exc_info()[1],
+                      command, e.message))
+        return None
+    while True:
+        stdout = process.stdout.readline()
+        if process.poll() is not None:
+            break
+        if stdout:
+            logger.info(stdout.strip().decode())
+    rc = process.poll()
+    return rc
+
+
 def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
                     retries = 1, stdin = None, logging=True):
     # logging flag is set False when we execute any command
@@ -1392,5 +1440,5 @@ def start_service(self, service, idx):
 
     #Start motr services
     cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
-    execute_command_verbose(self, cmd, set_timeout=False)
+    execute_command_console(self, cmd)
     return
