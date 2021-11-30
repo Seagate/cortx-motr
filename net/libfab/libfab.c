@@ -972,6 +972,10 @@ static void libfab_poller(struct m0_fab__tm *tm)
 	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
 		ret = fi_trywait(tm->ftm_fab->fab_fab, tm->ftm_fids.ftf_head,
 				 tm->ftm_fids.ftf_cnt);
+		/*
+		 * TBD : Add handling of other return values of fi_trywait() if
+		 * it returns something other than -EAGAIN and 0.
+		 */
 		M0_ASSERT(M0_IN(ret, (0, -EAGAIN)));
 		if (ret == 0) {
 			err = -EINTR;
@@ -1029,6 +1033,7 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		 * robin fashion.
 		 */
 		net = m0_nep_tlist_pop(&tm->ftm_ntm->ntm_end_points);
+		M0_ASSERT(net != NULL);
 		m0_nep_tlist_add_tail(&tm->ftm_ntm->ntm_end_points, net);
 		xep = libfab_ep(net);
 		aep = libfab_aep_get(xep);
@@ -2618,8 +2623,7 @@ static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm, void *ctx)
 		ptr->evctx_pos = tmfid->ftf_cnt;
 		tmfid->ftf_cnt++;
 		M0_ASSERT(tmfid->ftf_cnt < tmfid->ftf_arr_size);
-	} else
-		M0_ASSERT(0);
+	}
 
 	return M0_RC(rc);
 }
