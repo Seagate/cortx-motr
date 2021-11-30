@@ -68,7 +68,7 @@ do_some_kv_operations()
 		}
 		if $interactive ; then echo "Press Enter to go ..." && read; fi
 
-		echo "Let put {key1: ***}"
+		echo "Let's put {key1: ***}"
 		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
 					index put    "$DIX_FID" "key1" "something1 anotherstring2 YETanotherstring3"      \
 					      get    "$DIX_FID" "key1"                     \
@@ -78,7 +78,7 @@ do_some_kv_operations()
 		}
 		if $interactive ; then echo "Press Enter to go ..." && read; fi
 
-		echo "Let put {key2: ***}"
+		echo "Let's put {key2: ***}"
 		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
 					index put    "$DIX_FID" "key2" "something1_anotherstring2*YETanotherstring3"      \
 					      get    "$DIX_FID" "key2"                     \
@@ -88,7 +88,21 @@ do_some_kv_operations()
 		}
 		if $interactive ; then echo "Press Enter to go ..." && read; fi
 
-		echo "Let put {key3: ***}"
+		echo "Now, kill the two fdmi plug app and start them again..."
+		echo "This is to simulate the plugin failure and start"
+
+		rc=1
+		stop_fdmi_plugin      && sleep 5                         &&
+		start_fdmi_plugin "$FDMI_FILTER_FID"  "$FDMI_PLUGIN_EP"  &&
+		start_fdmi_plugin "$FDMI_FILTER_FID2" "$FDMI_PLUGIN_EP2" && rc=0
+		if [[ $rc -eq 1 ]] ; then
+			echo "Can not stop and start plug again".
+			return $rc
+		fi
+		sleep 5
+		rc=0
+
+		echo "Let's put {key3: ***}"
 		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
 					index put    "$DIX_FID" "key3" "{Bucket-Name:SomeBucket, Object-Name:Someobject, x-amz-meta-replication:Pending}"      \
 					      get    "$DIX_FID" "key3"                     \
@@ -96,6 +110,16 @@ do_some_kv_operations()
 			rc=$?
 			echo "m0kv failed"
 		}
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+		echo "Now do more index put ..."
+		echo "Because the plug was restarted, these operations "
+		echo "will trigger failure handling"
+		for ((j=0; j<20; j++)); do
+			echo "j=$j"
+			"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+					index put    "$DIX_FID" "iter-äää-$j" "something1_anotherstring2*YETanotherstring3-$j"
+		done
 		if $interactive ; then echo "Press Enter to go ..." && read; fi
 
 		echo "Now, let's delete 'key2' from this index. The plugin must show the del op coming"
@@ -127,6 +151,9 @@ do_some_kv_operations()
 		}
 		if $interactive ; then echo "Press Enter to go ..." && read; fi
 
+		echo "Sleep 100 seconds, if any failure, this would be enough to recover."
+		sleep 100
+
 	done
 	return $rc
 }
@@ -139,18 +166,19 @@ start_fdmi_plugin()
 	local rc=0
 
 	# Using `fdmi_sample_plugin`, which has duplicated records.
-	# MOTR_PARAM="-l ${lnet_nid}:$fdmi_plugin_ep        \
+	# PLUG_PARAM="-l ${lnet_nid}:$fdmi_plugin_ep        \
 	#	    -h ${lnet_nid}:$HA_EP -p $PROF_OPT    \
-	#	    -f $M0T1FS_PROC_ID                    "
-	# PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin $MOTR_PARAM -g $fdmi_filter_fid -s"
+	#	    -f $M0T1FS_PROC_ID -g $fdmi_filter_fid -s "
+	# if $interactive ; then PLUG_PARAM="$PLUG_PARAM -r"; fi
+	# PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin $PLUG_PARAM"
 
 	# Using `fdmi_app`, which can de-dup the duplicated records
-	MOTR_PARAM="-le ${lnet_nid}:$fdmi_plugin_ep        \
+	 APP_PARAM="-le ${lnet_nid}:$fdmi_plugin_ep        \
 		    -he ${lnet_nid}:$HA_EP -pf $PROF_OPT    \
 		    -sf $M0T1FS_PROC_ID                     \
 		    -fi $fdmi_filter_fid                    \
 		    --plugin-path $M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin"
-	PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_app $MOTR_PARAM"
+	PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_app $APP_PARAM"
 
 	if $interactive ; then
 		echo "Please use another terminal and run this command:"
@@ -159,7 +187,7 @@ start_fdmi_plugin()
 		read
 	else
 		echo "Please check fdmi plugin output from this file: $(pwd)/${fdmi_output_file}"
-		(${PLUGIN_CMD} 2>&1 |& tee "${fdmi_output_file}" ) &
+		(${PLUGIN_CMD} 2>&1 |& tee -a "${fdmi_output_file}" ) &
 		sleep 5
 	fi
 

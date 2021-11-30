@@ -30,6 +30,7 @@
 
 struct m0_be_dtm0_log;
 struct dtm0_req_fop;
+struct m0_be_queue;
 
 enum m0_dtm0_service_origin {
 	DTM0_UNKNOWN = 0,
@@ -47,6 +48,13 @@ struct m0_dtm0_service {
 	uint64_t                     dos_magix;
 	struct m0_dtm0_clk_src       dos_clk_src;
 	struct m0_be_dtm0_log       *dos_log;
+	/*
+	 * A queue for DTM_TEST message for drlink UTs.
+	 * The UTs are fully responsible for the queue init/fini/get.
+	 * DTM_TEST fom puts dtm0_req_fop::dtr_txr::dtd_id::dti_fid to the
+	 * queue.
+	 */
+	struct m0_be_queue          *dos_ut_queue;
 };
 
 extern struct m0_reqh_service_type dtm0_service_type;

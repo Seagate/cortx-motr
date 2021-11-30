@@ -192,7 +192,7 @@ motr_includedir             = $(includedir)/motr
 
 # these variables are populated in the Makefile.sub files of each motr module,
 # which are then included into this top-level makefile
-nobase_motr_include_HEADERS  = config.h
+nobase_motr_include_HEADERS  = config.h motr/config.h
 if ENABLE_LUSTRE
 nobase_motr_include_HEADERS += lustre_config.h
 endif
@@ -1053,6 +1053,7 @@ dist_pkglibexec_SCRIPTS  = scripts/install/usr/libexec/cortx-motr/motr-service.f
                            scripts/install/usr/libexec/cortx-motr/motr-server \
                            scripts/install/usr/libexec/cortx-motr/motr-dixinit \
                            scripts/install/usr/libexec/cortx-motr/motr-trace \
+                           scripts/install/usr/libexec/cortx-motr/motr-start \
                            scripts/install/usr/libexec/cortx-motr/motr-free-space-monitor
 
 ################################################################################
