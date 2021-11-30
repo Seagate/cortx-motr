@@ -73,13 +73,13 @@ static char *addr_get(const char *nid, int tmid)
 	char *result;
 	int   rc;
 
-	if (USE_LIBFAB) {
+	if (M0_UT_ADDR_FMT == INET_ADDR_FMT) {
 		/** Add offset in tmid and use it as port number */
 		tmid += 3000;
 		rc = snprintf(addr, NTCS_NODE_ADDR_MAX, "%s%d", nid, tmid);
 	} else {
 		rc = snprintf(addr, NTCS_NODE_ADDR_MAX,
-				"%s:%d:%d:%d", nid, NTCS_PID, NTCS_PORTAL, tmid);
+			      "%s%d:%d", nid, NTCS_PORTAL, tmid);
 	}
 	M0_UT_ASSERT(rc < NTCS_NODE_ADDR_MAX);
 

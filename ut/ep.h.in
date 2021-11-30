@@ -31,6 +31,8 @@
 #define M0_UT_SERVER_EP_ADDR   "@M0_UT_EP_IP@@M0_UT_EP_SRV_PORT@"
 #define M0_UT_CLIENT_EP_ADDR   "@M0_UT_EP_IP@@M0_UT_EP_CLNT_PORT@"
 #define M0_UT_DUMMY_EP_ADDR    "@M0_UT_EP_IP@@M0_UT_DUMMY_EP_PORT@"
+#define LNET_ADDR_FMT          0
+#define INET_ADDR_FMT          1
 
 #endif /* __MOTR_UT_EP_H__ */
 

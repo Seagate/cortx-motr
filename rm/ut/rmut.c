@@ -42,7 +42,7 @@
  * rm-ut:rmsvc requires SERVER_ENDPOINT_ADDR should be one of the values from
  * serv_addr below.
  */
-#ifdef ENABLE_LIBFAB
+#if M0_UT_ADDR_FMT == INET_ADDR_FMT
 #define SRV_EP_1 M0_UT_EP_IP_ADDR"3000"
 #define SRV_EP_2 M0_UT_EP_IP_ADDR"3001"
 #define SRV_EP_3 M0_UT_EP_IP_ADDR"3002"
