@@ -43,7 +43,7 @@ stride=4
 
 motr_change_controller_state()
 {
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid=$(m0_local_nid_get)
 	local s_endpoint="$lnet_nid:12345:34:101"
 	local c_endpoint="$lnet_nid:$M0HAM_CLI_EP"
 	local dev_fid=$1
