@@ -173,7 +173,9 @@ static int confdb_table_init(struct m0_be_seg     *seg,
 				     .vsize = -1,
 				   };
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
-							     &bt, &b_op, btree,
+							     &bt,
+							     CRC_TYPE_NO_CRC,
+							     &b_op, btree,
 							     seg, btree_fid,
 							     tx, &keycmp));
 	if (rc != 0)
@@ -411,6 +413,7 @@ M0_INTERNAL int m0_confdb_create(struct m0_be_seg      *seg,
 
 		rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val          = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+		rec.r_crc_type     = CRC_TYPE_NO_CRC;
 
 		put_cb.c_act       = confd_btree_kv_put_cb;
 		put_cb.c_datum     = &rec;
