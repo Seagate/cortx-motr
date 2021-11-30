@@ -907,6 +907,10 @@ AS_IF([! test -z "$with_libfab"],
         LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
         LIBFAB_LIBS="-L$LIBFABRIC/lib -lfabric"
         M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS $LIB_FAB_INCLUDES"
+        M0_UT_EP_IP="0@lo:12345:"
+        M0_UT_EP_SRV_PORT="34:1"
+        M0_UT_EP_CLNT_PORT="34:2"
+        M0_UT_DUMMY_EP_PORT="34:10"
       ],
 )
 AS_IF([test x$enable_libfab = xyes || test "x$with_default_network" = "xLF" ],
@@ -932,6 +936,10 @@ AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
 		      [
 			M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
 			enable_libfab=yes
+			M0_UT_EP_IP="inet:tcp:127.0.0.1@"
+			M0_UT_EP_SRV_PORT="3000"
+			M0_UT_EP_CLNT_PORT="3001"
+			M0_UT_DUMMY_EP_PORT="3010"
 			AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["LF"])
 		      ]
 		)
@@ -940,6 +948,10 @@ AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
       ]
 )
 AC_SUBST([LIBFAB_LIBS])
+AC_SUBST([M0_UT_EP_IP])
+AC_SUBST([M0_UT_EP_SRV_PORT])
+AC_SUBST([M0_UT_EP_CLNT_PORT])
+AC_SUBST([M0_UT_DUMMY_EP_PORT])
 AM_CONDITIONAL([ENABLE_LIBFAB],
                [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
 
@@ -1138,6 +1150,40 @@ AC_CONFIG_FILES([
 AC_CONFIG_FILES([motr/version_macros.h])
 AC_CONFIG_FILES([doc/man/asciidoc.conf])
 AC_CONFIG_FILES([mdservice/ut/mdstore.h])
+AC_CONFIG_FILES([ut/ep.h])
+AC_CONFIG_FILES([cas/ut/conf.cg])
+AC_CONFIG_FILES([conf/ut/duplicated-ids.cg])
+AC_CONFIG_FILES([conf/ut/multiword-core-mask.cg])
+AC_CONFIG_FILES([conf/ut/t_bad-ep-process.cg])
+AC_CONFIG_FILES([conf/ut/t_bad-ep-service.cg])
+AC_CONFIG_FILES([conf/ut/t_childless-objv.cg])
+AC_CONFIG_FILES([conf/ut/t_dev-idx-bad.cg])
+AC_CONFIG_FILES([conf/ut/t_dev-idx-duplicate.cg])
+AC_CONFIG_FILES([conf/ut/t_filename-duplicate.cg])
+AC_CONFIG_FILES([conf/ut/t_filename-valid-duplicates.cg])
+AC_CONFIG_FILES([conf/ut/t_no-confd.cg])
+AC_CONFIG_FILES([conf/ut/t_no-iodevs.cg])
+AC_CONFIG_FILES([conf/ut/t_non-oostore.cg])
+AC_CONFIG_FILES([conf/ut/t_pool-width-error.cg])
+AC_CONFIG_FILES([conf/ut/t_pver-tolerance-error.cg])
+AC_CONFIG_FILES([conf/ut/t_pver-wrong-level.cg])
+AC_CONFIG_FILES([conf/ut/t_pver-zeroed-tolerance.cg])
+AC_CONFIG_FILES([conf/ut/t_pverf-allowance-error.cg])
+AC_CONFIG_FILES([conf/ut/t_pverf-base-attr-error.cg])
+AC_CONFIG_FILES([conf/ut/t_pverf-base-kind-error.cg])
+AC_CONFIG_FILES([conf/ut/t_pverf-base-missing.cg])
+AC_CONFIG_FILES([conf/ut/t_pverf-in-mdpool.cg])
+AC_CONFIG_FILES([conf/ut/t_redundancy-too-big.cg])
+AC_CONFIG_FILES([dtm0/conf.cg])
+AC_CONFIG_FILES([dix/ut/conf.cg])
+AC_CONFIG_FILES([fis/ut/fis.cg])
+AC_CONFIG_FILES([fdmi/ut/conf.cg])
+AC_CONFIG_FILES([fd/ut/failure-domains.cg])
+AC_CONFIG_FILES([motr/ut/dix_conf.cg])
+AC_CONFIG_FILES([reqh/ut/service_ctx.cg])
+AC_CONFIG_FILES([spiel/ut/conf.cg])
+AC_CONFIG_FILES([ut/conf.cg])
+AC_CONFIG_FILES([ut/diter.cg])
 AC_CONFIG_FILES([cortx-motr.spec])
 AC_CONFIG_FILES([motr.pc])
 AC_CONFIG_FILES([scripts/install/usr/lib/pkgconfig/motr.pc])

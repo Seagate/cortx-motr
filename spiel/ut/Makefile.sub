@@ -5,3 +5,5 @@ ut_libmotr_ut_la_SOURCES += spiel/ut/spiel_ut.c \
 			    spiel/ut/spiel_conf_ut.c
 
 CONFXC_FILES += spiel/ut/conf.xc
+
+EXTRA_DIST += spiel/ut/conf.cg.in

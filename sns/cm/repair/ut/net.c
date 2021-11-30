@@ -43,7 +43,7 @@
 
 #define DUMMY_DBNAME      "dummy-db"
 #define DUMMY_COB_ID      20
-#define DUMMY_SERVER_ADDR "0@lo:12345:34:10"
+#define DUMMY_SERVER_ADDR M0_UT_DUMMY_EP_ADDR
 
 /* Receiver side. */
 static struct m0_reqh            *s0_reqh;
@@ -83,8 +83,8 @@ static struct m0_semaphore   cp_sem;
 static struct m0_semaphore   read_cp_sem;
 static struct m0_semaphore   write_cp_sem;
 
-static const char client_addr[] = "0@lo:12345:34:2";
-static const char server_addr[] = "0@lo:12345:34:1";
+static const char client_addr[] = M0_UT_CLIENT_EP_ADDR;
+static const char server_addr[] = M0_UT_SERVER_EP_ADDR;
 
 static struct m0_rpc_client_ctx cctx = {
 	.rcx_net_dom            = &client_net_dom,

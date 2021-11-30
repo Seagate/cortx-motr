@@ -30,8 +30,8 @@
 
 
 extern struct m0_config default_config;
-#define M0_DEFAULT_EP          "0@lo:12345:45:101"
-#define M0_DEFAULT_HA_ADDR     "0@lo:12345:66:1"
+#define M0_DEFAULT_EP          M0_UT_SERVER_EP_ADDR
+#define M0_DEFAULT_HA_ADDR     M0_UT_CLIENT_EP_ADDR
 #define M0_DEFAULT_PROFILE     "<0x7000000000000001:0>"
 #define M0_DEFAULT_PROC_FID    "<0x7200000000000000:0>"
 #define SET_DEFAULT_CONFIG() \

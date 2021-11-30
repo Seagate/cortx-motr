@@ -3,3 +3,5 @@ ut_libmotr_ut_la_SOURCES += \
                             cas/ut/client_ut.c
 
 CONFXC_FILES += cas/ut/conf.xc
+
+EXTRA_DIST += cas/ut/conf.cg.in

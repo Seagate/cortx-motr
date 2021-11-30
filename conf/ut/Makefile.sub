@@ -41,3 +41,27 @@ CONFXC_FILES += \
     conf/ut/t_pverf-base-missing.xc \
     conf/ut/t_pverf-in-mdpool.xc \
     conf/ut/t_redundancy-too-big.xc
+
+EXTRA_DIST += \
+    conf/ut/duplicated-ids.cg.in \
+    conf/ut/multiword-core-mask.cg.in \
+    conf/ut/t_bad-ep-process.cg.in \
+    conf/ut/t_bad-ep-service.cg.in \
+    conf/ut/t_childless-objv.cg.in \
+    conf/ut/t_dev-idx-bad.cg.in \
+    conf/ut/t_dev-idx-duplicate.cg.in \
+    conf/ut/t_filename-duplicate.cg.in \
+    conf/ut/t_filename-valid-duplicates.cg.in \
+    conf/ut/t_no-confd.cg.in \
+    conf/ut/t_no-iodevs.cg.in \
+    conf/ut/t_non-oostore.cg.in \
+    conf/ut/t_pool-width-error.cg.in \
+    conf/ut/t_pver-tolerance-error.cg.in \
+    conf/ut/t_pver-wrong-level.cg.in \
+    conf/ut/t_pver-zeroed-tolerance.cg.in \
+    conf/ut/t_pverf-allowance-error.cg.in \
+    conf/ut/t_pverf-base-attr-error.cg.in \
+    conf/ut/t_pverf-base-kind-error.cg.in \
+    conf/ut/t_pverf-base-missing.cg.in \
+    conf/ut/t_pverf-in-mdpool.cg.in \
+    conf/ut/t_redundancy-too-big.cg.in
