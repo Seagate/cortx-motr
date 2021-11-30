@@ -2745,6 +2745,7 @@ static void ctg_act(struct action *act, struct m0_be_tx *tx)
 	struct m0_btree_rec   rec      = {
 		.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 		.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+		.r_crc_type   = CRC_TYPE_NO_CRC,
 		};
 	struct m0_btree_cb    put_cb   = {
 		.c_act   = ctg_put_callback,

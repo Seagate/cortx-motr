@@ -64,6 +64,10 @@ enum m0_btree_types {
 	M0_BT_NR
 };
 
+enum m0_btree_crc_type {
+	CRC_TYPE_NO_CRC = 0,
+	CRC_TYPE_USER_ENC_CRC,
+};
 
 struct m0_btree_type {
 	enum m0_btree_types tt_id;
@@ -86,6 +90,7 @@ struct m0_btree_rec {
 	struct m0_btree_key r_key;
 	struct m0_bufvec    r_val;
 	uint32_t            r_flags;
+	uint64_t            r_crc_type;
 };
 
 struct m0_btree_cb {
@@ -104,14 +109,15 @@ struct m0_btree_rec_key_op {
  * This structure is used to hold the data that is passed to m0_tree_create.
  */
 struct m0_btree_idata {
-	void                       *addr;
-	struct m0_btree            *tree;
-	int                         num_bytes;
-	const struct m0_btree_type *bt;
-	const struct node_type     *nt;
-	int                         ks;
-	int                         vs;
-	struct m0_fid               fid;
+	void                        *addr;
+	struct m0_btree             *tree;
+	int                          num_bytes;
+	const struct m0_btree_type  *bt;
+	const struct node_type      *nt;
+	enum m0_btree_crc_type       crc_type;
+	int                          ks;
+	int                          vs;
+	struct m0_fid                fid;
 };
 
 enum m0_btree_rec_type {
@@ -268,6 +274,7 @@ M0_INTERNAL void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop)
  */
 M0_INTERNAL void m0_btree_create(void *addr, int nob,
 				 const struct m0_btree_type *bt,
+				 enum m0_btree_crc_type crc_type,
 				 struct m0_btree_op *bop, struct m0_btree *tree,
 				 struct m0_be_seg *seg,
 				 const struct m0_fid *fid, struct m0_be_tx *tx,
