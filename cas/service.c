@@ -55,7 +55,7 @@
 #include "cas/cas_xc.h"
 #include "cas/index_gc.h"
 #include "motr/setup.h"              /* m0_reqh_context */
-
+#include "dix/meta.h"
 /**
  * @page cas-dld The catalogue service (CAS)
  *
@@ -423,7 +423,7 @@ M0_BASSERT(M0_CAS_REP_FOP_OPCODE == CO_REP + M0_CAS_GET_FOP_OPCODE);
 
 #define LAYOUT_IMASK_PTR(l) (&(l)->u.dl_desc.ld_imask)
 #define CID_IMASK_PTR(cid)  LAYOUT_IMASK_PTR(&(cid)->ci_layout)
-
+static bool cas_is_layout_ctg(struct m0_cas_op   *op);
 static int    cas_service_start        (struct m0_reqh_service *service);
 static void   cas_service_stop         (struct m0_reqh_service *service);
 static void   cas_service_fini         (struct m0_reqh_service *service);
@@ -1295,6 +1295,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		} else if (rc == -ENOENT && opc == CO_PUT &&
 			   (op->cg_flags & COF_CROW)) {
 			m0_long_unlock(m0_ctg_lock(meta), &fom->cf_meta);
+			M0_LOG(M0_ALWAYS,"26166: crow: opc = %d, fid = "FID_F,opc, FID_P(&op->cg_id.ci_fid));
 			rc = cas_ctg_crow_handle(fom, &op->cg_id);
 			if (rc == 0) {
 				m0_fom_phase_set(fom0, CAS_CTG_CROW_DONE);
@@ -1496,6 +1497,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		result = cas_ctidx_mem_place(fom, icid, CAS_CTIDX_INSERT);
 		break;
 	case CAS_CTIDX_INSERT:
+		M0_LOG(M0_ALWAYS,"26166: opc = %d, ct = %d,"FID_F,opc, ct, FID_P(&icid->ci_fid));
 		result = cas_ctidx_insert(fom, icid, is_index_drop ?
 					  CAS_IDROP_LOOP :
 					  CAS_PREPARE_SEND);
@@ -2148,6 +2150,25 @@ static int cas_kv_load_done(struct cas_fom *fom, enum m0_cas_opcode  opc,
 	return M0_RC(M0_FSO_AGAIN);
 }
 
+static bool cas_is_layout_ctg(struct m0_cas_op   *op)
+{
+	if(op)
+	{
+			if(m0_dix_fid_validate_cctg(&op->cg_id.ci_fid))
+			{
+				struct m0_fid temp_dix_fid;
+				m0_dix_fid_convert_cctg2dix(&op->cg_id.ci_fid, &temp_dix_fid);
+				if((temp_dix_fid.f_container == m0_dix_layout_fid.f_container) &&
+				   ((temp_dix_fid.f_key == m0_dix_layout_fid.f_key)))
+				{
+					M0_LOG(M0_ALWAYS,"26166: layout fid look up done");
+					return true;
+				}
+			}
+	}
+	return false;
+}
+
 static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		    enum m0_cas_type ct, struct m0_cas_ctg *ctg,
 		    uint64_t rec_pos, int next)
@@ -2161,8 +2182,10 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 	struct m0_cas_id          *cid;
 	struct m0_cas_rec         *rec;
 	enum m0_fom_phase_outcome  ret = M0_FSO_AGAIN;
-
 	cas_incoming_kv(fom, rec_pos, &kbuf, &vbuf);
+#if 1
+	struct m0_cas_op   *op      = cas_op(&fom->cf_fom);
+#endif
 	if (ct == CT_META)
 		cid = &fom->cf_in_cids[rec_pos];
 	else
@@ -2172,7 +2195,9 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		 * that it may be uninitialised.
 		 */
 		cid = NULL;
-
+	M0_LOG(M0_ALWAYS,"26166: ct = %d, opc = %d, cid = %p ", (int)ct, (int)opc, cid);
+	if(cid)	
+	 M0_LOG(M0_ALWAYS,"26166: "FID_F, FID_P(&cid->ci_fid));
 	if (opc != CO_CUR)
 		m0_ctg_op_init(&fom->cf_ctg_op, fom0, flags);
 
@@ -2215,6 +2240,15 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		break;
 	case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
 	case CTG_OP_COMBINE(CO_CUR, CT_META):
+#if 1
+		if(cas_is_layout_ctg(op))
+		{
+			//struct m0_fid *temp_fid = kbuf.b_addr;
+			ctg = m0_ctg_ctidx();
+			
+		//	m0_ctg_cursor_init(ctg_op,ctg);
+		}	
+#endif
 		if (fom->cf_curpos == 0) {
 			if (!m0_ctg_cursor_is_initialised(ctg_op)) {
 				if (ct == CT_META)

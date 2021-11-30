@@ -837,10 +837,9 @@ static bool ctg_op_cb(struct m0_clink *clink)
 	struct m0_buf    *dst;
 	struct m0_buf    *src;
 	int               rc;
-
+	struct m0_fid *temp_fid = (ctg_op->co_key.b_addr + M0_CAS_CTG_KV_HDR_SIZE); 
 	if (op->bo_sm.sm_state != M0_BOS_DONE)
 		return true;
-
 	rc = ctg_berc(ctg_op);
 	if (rc == 0) {
 		switch (CTG_OP_COMBINE(opc, ct)) {
@@ -917,6 +916,8 @@ static bool ctg_op_cb(struct m0_clink *clink)
 					 M0_CAS_CTG_KV_HDR_SIZE);
 			if (rc == 0)
 				m0_chan_broadcast_lock(ctg_chan);
+			if(temp_fid)
+			M0_LOG(M0_ALWAYS,"26166: ctg = %p,ct = %d, opc = %d"FID_F,*(struct m0_cas_ctg **)(arena + M0_CAS_CTG_KV_HDR_SIZE),ct,opc,FID_P(temp_fid));
 			break;
 		case CTG_OP_COMBINE(CO_MEM_PLACE, CT_MEM):
 			/*
@@ -1109,6 +1110,9 @@ static int ctg_meta_exec(struct m0_ctg_op    *ctg_op,
 					    &M0_BUF_INIT_CONST(
 						    sizeof(struct m0_fid),
 						    fid), true);
+	M0_LOG(M0_ALWAYS,"26166:meta = %p,opcode = %d, "FID_F,m0_ctg_meta(),ctg_op->co_opcode, FID_P(fid));
+	if(ctg_op->co_fom)
+	M0_LOG(M0_ALWAYS,"26166: tx = %p ",&ctg_op->co_fom->fo_tx.tx_betx);
 	if (ctg_op->co_rc != 0) {
 		ret = M0_FSO_AGAIN;
 		m0_fom_phase_set(ctg_op->co_fom, next_phase);
@@ -1220,6 +1224,10 @@ static int ctg_exec(struct m0_ctg_op    *ctg_op,
 	ctg_op->co_ctg = ctg;
 	ctg_op->co_ct = CT_BTREE;
 
+	M0_LOG(M0_ALWAYS,"26166 ctg = %p, meta_ctg = %p, cctg_ctg = %p, opcode = %d,", ctg, m0_ctg_meta(), m0_ctg_ctidx(),ctg_op->co_opcode);
+	if(ctg_op->co_fom)
+	M0_LOG(M0_ALWAYS,"26166: tx = %p", &ctg_op->co_fom->fo_tx.tx_betx);
+
 	if (!M0_IN(ctg_op->co_opcode, (CO_MIN, CO_TRUNC, CO_DROP)) &&
 	    (ctg_op->co_opcode != CO_CUR ||
 	     ctg_op->co_cur_phase != CPH_NEXT))
@@ -1251,7 +1259,6 @@ M0_INTERNAL int m0_ctg_insert(struct m0_ctg_op    *ctg_op,
 	M0_PRE(key != NULL);
 	M0_PRE(val != NULL);
 	M0_PRE(ctg_op->co_beop.bo_sm.sm_state == M0_BOS_INIT);
-
 	ctg_op->co_opcode = CO_PUT;
 	ctg_op->co_val = *val;
 	return ctg_exec(ctg_op, ctg, key, next_phase);

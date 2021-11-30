@@ -89,8 +89,12 @@ int index_create(struct m0_realm *parent, struct m0_fid_arr *fids)
 		m0_fid_tassume(&fids->af_elems[i], &m0_dix_fid_type);
 		m0_idx_init(&idx, parent,
 				   (struct m0_uint128 *)&fids->af_elems[i]);
+		idx.in_entity.en_flags = idx.in_entity.en_flags | M0_ENF_META;
 		rc = m0_entity_create(NULL, &idx.in_entity, &op);
 		rc = index_op_tail(&idx.in_entity, op, rc, NULL);
+		if (rc == 0)
+			m0_console_printf("DIX pool version: "FID_F"\n",
+						FID_P(&idx.in_attr.idx_pver));
 	}
 	return M0_RC(rc);
 }
@@ -99,11 +103,16 @@ int index_drop(struct m0_realm *parent, struct m0_fid_arr *fids)
 {
 	int i;
 	int rc = 0;
+	struct m0_idx   idx;
 
 	M0_PRE(fids != NULL && fids->af_count != 0);
+	
+	m0_console_printf("26166: Enter in index_drop pool version condition(mokv)\n");
+	idx.in_attr.idx_layout_type = DIX_LTYPE_DESCR;
+	idx.in_attr.idx_pver.f_container = 0x7600000000000001;
+	idx.in_attr.idx_pver.f_key = 0x2d;
 
 	for(i = 0; rc == 0 && i < fids->af_count; ++i) {
-		struct m0_idx   idx;
 		struct m0_op   *op = NULL;
 
 		m0_fid_tassume(&fids->af_elems[i], &m0_dix_fid_type);
@@ -113,6 +122,8 @@ int index_drop(struct m0_realm *parent, struct m0_fid_arr *fids)
 		     m0_entity_delete(&idx.in_entity, &op) ?:
 		     index_op_tail(&idx.in_entity, op, rc, NULL);
 	}
+	m0_console_printf("DIX pool version: "FID_F"\n",
+				FID_P(&idx.in_attr.idx_pver));
 	return M0_RC(rc);
 }
 
@@ -136,6 +147,10 @@ int index_list(struct m0_realm  *parent,
 	}
 	m0_fid_tassume(fid, &m0_dix_fid_type);
 	m0_idx_init(&idx, parent, (struct m0_uint128 *)fid);
+	m0_console_printf("26166: Enter in index_list pool version condition(mokv)\n");
+	idx.in_attr.idx_layout_type = DIX_LTYPE_DESCR;
+	idx.in_attr.idx_pver.f_container = 0x7600000000000001;
+	idx.in_attr.idx_pver.f_key = 0x2d;
 	rc = m0_idx_op(&idx, M0_IC_LIST, keys, NULL,
 		       rcs, 0, &op);
 	rc = index_op_tail(&idx.in_entity, op, rc, NULL);
@@ -149,6 +164,7 @@ int index_lookup(struct m0_realm   *parent,
 {
 	int  i;
 	int  rc = 0;
+	struct m0_idx  idx;
 
 	M0_PRE(fids != NULL);
 	M0_PRE(fids->af_count != 0);
@@ -156,9 +172,12 @@ int index_lookup(struct m0_realm   *parent,
 	M0_PRE(rets->ov_vec.v_nr == 0);
 
 	rc = m0_bufvec_alloc(rets, fids->af_count, sizeof(rc));
+	m0_console_printf("26166: Enter in index_lookup pool version condition(mokv)\n");
+	idx.in_attr.idx_layout_type = DIX_LTYPE_DESCR;
+	idx.in_attr.idx_pver.f_container = 0x7600000000000001;
+	idx.in_attr.idx_pver.f_key = 0x2d;
 	/* Check that indices exist. */
 	for(i = 0; rc == 0 && i < fids->af_count; ++i) {
-		struct m0_idx  idx;
 		struct m0_op  *op = NULL;
 
 		m0_fid_tassume(&fids->af_elems[i], &m0_dix_fid_type);
@@ -191,6 +210,14 @@ static int index_op(struct m0_realm    *parent,
 
 	m0_fid_tassume(fid, &m0_dix_fid_type);
 	m0_idx_init(&idx, parent, (struct m0_uint128 *)fid);
+	
+	if ((opcode == M0_IC_PUT) || (opcode == M0_IC_GET) || (opcode == M0_IC_DEL) || (opcode == M0_IC_NEXT)) {
+		m0_console_printf("26166: Enter in pool version condition(mokv)");
+		idx.in_attr.idx_layout_type = DIX_LTYPE_DESCR;
+		idx.in_attr.idx_pver.f_container = 0x7600000000000001;
+		idx.in_attr.idx_pver.f_key = 0x2d;
+	}
+
 	rc = m0_idx_op(&idx, opcode, keys, vals, rcs,
 	               opcode == M0_IC_PUT ? M0_OIF_OVERWRITE : 0,
 		       &op);

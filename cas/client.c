@@ -1376,7 +1376,13 @@ M0_INTERNAL int m0_cas_index_delete(struct m0_cas_req      *req,
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_forall(i, cids_nr, m0_cas_id_invariant(&cids[i])));
-	M0_PRE((flags & ~(COF_CROW | COF_DEL_LOCK)) == 0);
+
+	if (flags & COF_CROW)
+		M0_LOG(M0_ALWAYS, "CROW FLAG is enabled for delete(FOP-2)");
+	if (flags & COF_DEL_LOCK)
+		M0_LOG(M0_ALWAYS, "DEL LOCK FLAG is enabled for delete(FOP-2)");
+
+	 M0_PRE((flags & ~(COF_CROW | COF_DEL_LOCK)) == 0);
 	(void)dtx;
 	rc = cas_index_req_prepare(req, cids, cids_nr, cids_nr, false, flags,
 				   &op);
@@ -1827,6 +1833,12 @@ M0_INTERNAL int m0_cas_del(struct m0_cas_req *req,
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_cas_id_invariant(index));
 	M0_PRE(M0_IN(flags, (0, COF_DEL_LOCK, COF_SYNC_WAIT)));
+
+	if (flags & COF_CROW) {
+		M0_LOG(M0_ALWAYS, "26166: CROW Flag is enabled");
+	} else {
+		M0_LOG(M0_ALWAYS, "26166: CROW Flag is disabled");
+	}
 
 	rc = cas_req_prep(req, index, keys, NULL, keys->ov_vec.v_nr, flags,
 			  &op);
