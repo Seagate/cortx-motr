@@ -32,7 +32,7 @@
 
 /* NTC_ == NET_TEST_COMMANDS_ */
 enum {
-	#if USE_LIBFAB
+	#if M0_UT_ADDR_FMT == INET_ADDR_FMT
 	NTC_TMID_START	      = 3000, /* Use as port in case of libfab addr */
 	#else
 	NTC_TMID_START	      = 300,
@@ -46,7 +46,7 @@ enum {
 	NTC_CMD_RECV_WAIT_NS  = 25000000,
 };
 
-#if USE_LIBFAB
+#if M0_UT_ADDR_FMT == INET_ADDR_FMT
 static const char   NTC_ADDR[]	   = M0_UT_EP_IP_ADDR"%d";
 #else
 static const char   NTC_ADDR[]	   = M0_UT_EP_IP_ADDR"42:%d";

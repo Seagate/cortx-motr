@@ -211,6 +211,7 @@ AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
 AH_TEMPLATE([CONFIG_X86_64],          [Support for X86_64 platform])
 AH_TEMPLATE([CONFIG_AARCH64],         [Support for AARCH64 platform])
+AH_TEMPLATE([M0_UT_ADDR_FMT],         [Endpoint address format to be used in UTs/STs.])
 AH_BOTTOM([
 #endif /* __MOTR_CONFIG_H__ */
 ])
@@ -907,10 +908,6 @@ AS_IF([! test -z "$with_libfab"],
         LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
         LIBFAB_LIBS="-L$LIBFABRIC/lib -lfabric"
         M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS $LIB_FAB_INCLUDES"
-        M0_UT_EP_IP="0@lo:12345:"
-        M0_UT_EP_SRV_PORT="34:1"
-        M0_UT_EP_CLNT_PORT="34:2"
-        M0_UT_DUMMY_EP_PORT="34:10"
       ],
 )
 AS_IF([test x$enable_libfab = xyes || test "x$with_default_network" = "xLF" ],
@@ -943,7 +940,13 @@ AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
 			AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["LF"])
 		      ]
 		)
-	      ], []
+	      ],
+            [
+                  M0_UT_EP_IP="0@lo:12345:"
+                  M0_UT_EP_SRV_PORT="34:1"
+                  M0_UT_EP_CLNT_PORT="34:2"
+                  M0_UT_DUMMY_EP_PORT="34:10"
+            ]
 	)
       ]
 )
@@ -954,6 +957,9 @@ AC_SUBST([M0_UT_EP_CLNT_PORT])
 AC_SUBST([M0_UT_DUMMY_EP_PORT])
 AM_CONDITIONAL([ENABLE_LIBFAB],
                [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
+AM_COND_IF([ENABLE_LIBFAB],
+               [AC_DEFINE([M0_UT_ADDR_FMT], [1])],
+               [AC_DEFINE([M0_UT_ADDR_FMT], [0])])
 
 AC_MSG_CHECKING([for motr/config.h])
 MOTR_CONFIG="motr/config.h"
