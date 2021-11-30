@@ -32,7 +32,7 @@
 
 static struct m0_rpc_machine     machine;
 static uint32_t                  max_rpc_msg_size = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
-static const char               *ep_addr = "0@lo:12345:34:2";
+static const char               *ep_addr = M0_UT_CLIENT_EP_ADDR;
 static struct m0_net_buffer_pool buf_pool;
 static struct m0_reqh            reqh;
 static uint32_t tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;

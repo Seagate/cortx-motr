@@ -109,7 +109,7 @@ M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
 {
 	enum {
 		LOG_NAME_MAX_LEN     = 128,
-		EP_MAX_LEN           = 24,
+		EP_MAX_LEN           = M0_NET_IP_STRLEN_MAX,
 		RPC_SIZE_MAX_LEN     = 32,
 	};
 

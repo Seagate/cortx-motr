@@ -33,7 +33,10 @@ XC_FILES += ut/cs_fop_xc.h
 CONFXC_FILES += ut/conf.xc \
                 ut/diter.xc
 
-EXTRA_DIST += ut/linux_kernel/ut.c \
+EXTRA_DIST += ut/conf.cg.in \
+              ut/diter.cg.in \
+              ut/ep.h.in \
+              ut/linux_kernel/ut.c \
               ut/linux_kernel/m0ut_main.c \
               ut/m0ut-isolated \
               ut/m0kut

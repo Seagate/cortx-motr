@@ -33,8 +33,8 @@ static char *ios_ut_bp_singledom_cmd[] = {
 	"m0d", "-T", "AD",
 	"-D", "cs_sdb", "-S", "cs_stob",
 	"-A", "linuxstob:cs_addb_stob",
-	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
-	"-H", "0@lo:12345:34:1",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":"M0_UT_SERVER_EP_ADDR,
+	"-H", M0_UT_SERVER_EP_ADDR,
 	"-w", "10",
 	"-f", M0_UT_CONF_PROCESS,
 	"-c", M0_UT_PATH("conf.xc")
@@ -45,9 +45,9 @@ static char *ios_ut_bp_multidom_cmd[] = {
 	"-D", "cs_sdb", "-S", "cs_stob",
 	"-A", "linuxstob:cs_addb_stob",
 	"-w", "10",
-	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":"M0_UT_SERVER_EP_ADDR,
 	"-e", "bulk-mem:127.0.0.1:35678",
-	"-H", "0@lo:12345:34:1",
+	"-H", M0_UT_SERVER_EP_ADDR,
 	"-f", M0_UT_CONF_PROCESS,
 	"-c", M0_UT_PATH("conf.xc")
 };
@@ -57,10 +57,10 @@ static char *ios_ut_bp_repeatdom_cmd[] = {
 	"-D", "cs_sdb", "-S", "cs_stob",
 	"-A", "linuxstob:cs_addb_stob",
 	"-w", "10",
-	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":"M0_UT_SERVER_EP_ADDR,
 	"-e", "bulk-mem:127.0.0.1:35678",
 	"-e", "bulk-mem:127.0.0.1:35679",
-	"-H", "0@lo:12345:34:1",
+	"-H", M0_UT_SERVER_EP_ADDR,
 	"-f", M0_UT_CONF_PROCESS,
 	"-c", M0_UT_PATH("conf.xc")
 };
@@ -70,10 +70,10 @@ static char *ios_ut_bp_onerepeatdom_cmd[] = {
 	"-D", "cs_sdb", "-S", "cs_stob",
 	"-A", "linuxstob:cs_addb_stob",
 	"-w", "10",
-	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":"M0_UT_SERVER_EP_ADDR,
 	"-e", "bulk-mem:127.0.0.1:35678",
 	"-e", "bulk-mem:127.0.0.1:35679",
-	"-H", "0@lo:12345:34:1",
+	"-H", M0_UT_SERVER_EP_ADDR,
 	"-f", M0_UT_CONF_PROCESS,
 	"-c", M0_UT_PATH("conf.xc")
 };

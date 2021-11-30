@@ -40,6 +40,7 @@
 #include "console/console_it.h"
 #include "console/console_yaml.h"
 #include "console/console_fop.h"
+#include "ut/ep.h"
 
 #define PROC_FT M0_CONF_PROCESS_TYPE.cot_ftype.ft_id
 /**
@@ -224,8 +225,8 @@ int main(int argc, char **argv)
 
 	struct m0_rpc_client_ctx cctx = {
 		.rcx_net_dom               = &client_net_dom,
-		.rcx_local_addr            = "0@lo:12345:34:*",
-		.rcx_remote_addr           = "0@lo:12345:34:1",
+		.rcx_local_addr            = M0_UT_CLIENT_EP_ADDR,
+		.rcx_remote_addr           = M0_UT_SERVER_EP_ADDR,
 		.rcx_max_rpcs_in_flight    = 1,
 		.rcx_fid                   = &M0_FID_TINIT(PROC_FT, 0, 1),
 	};

@@ -80,8 +80,8 @@ enum {
 
 static char COB_FOP_NR_STR[] = { '0' + COB_FOP_NR, '\0'};
 
-#define SERVER_EP_ADDR              "0@lo:12345:34:1"
-#define CLIENT_EP_ADDR              "0@lo:12345:34:*"
+#define SERVER_EP_ADDR              M0_UT_SERVER_EP_ADDR
+#define CLIENT_EP_ADDR              M0_UT_CLIENT_EP_ADDR
 #define SERVER_ENDP                 M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_EP_ADDR
 
 static const char *SERVER_LOGFILE = "cobfoms_ut.log";

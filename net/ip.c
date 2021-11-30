@@ -25,7 +25,9 @@
 #include "net/net_internal.h"
 #include <arpa/inet.h>          /* inet_pton, htons */
 #include <netdb.h>              /* hostent */
-#include <stdlib.h>             /* atoi */
+#ifndef __KERNEL__
+#  include "lib/string.h"       /* atoi, isdigit */
+#endif
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
 #include "lib/trace.h"
@@ -87,6 +89,10 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 	char         port[M0_NET_IP_PORTLEN_MAX] = {};
 	char        *at;
 	const char  *ep_name = name;
+	const char  *tail = name + strlen(name) - 1;
+
+	if (!isdigit(tail[0]))
+		return M0_ERR(-EINVAL);
 
 	for (f = 0; f < ARRAY_SIZE(ip_family); ++f) {
 		if (ip_family[f] != NULL) {
@@ -159,6 +165,12 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 	uint32_t     nia_n;
 	int          shift;
 	int          s;
+	const char  *tail = name + strlen(name) - 1;
+	int32_t      n[4];
+	int          rc;
+
+	if (!isdigit(tail[0]) && tail[0] != '*')
+		return M0_ERR(-EINVAL);
 
 	at = strchr(ep_name, '@');
 	if (strncmp(ep_name, "0@lo", 4) == 0) {
@@ -170,6 +182,11 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 
 		M0_PRE(sizeof node >= (at-ep_name)+1);
 		memcpy(node, ep_name, at - ep_name);
+		//verify ip address
+		rc = sscanf(node, "%d.%d.%d.%d", &n[0], &n[1], &n[2], &n[3]);
+		if (rc != 4 ||
+		    m0_exists(i, ARRAY_SIZE(n), n[i] < 0 || n[i] > 255))
+			return M0_RC(-EINVAL); /* invalid IPv4 address */
 	}
 	at++;
 

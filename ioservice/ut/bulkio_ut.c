@@ -1759,8 +1759,8 @@ static void bulkio_server_read_write_multiple_nb(void)
 static void bulkio_init(void)
 {
 	int         rc;
-	const char *caddr = "0@lo:12345:34:*";
-	const char *saddr = "0@lo:12345:34:1";
+	const char *caddr = M0_UT_CLIENT_EP_ADDR;
+	const char *saddr = M0_UT_SERVER_EP_ADDR;
 
 	nb_nr = 0;
 	M0_SET0(&nb_list);
