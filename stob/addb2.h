@@ -62,6 +62,8 @@ enum m0_addb2_stio_req_labels {
 	M0_AVI_AD_ENDIO,
 	M0_AVI_LIO_LAUNCH,
 	M0_AVI_LIO_ENDIO,
+	M0_AVI_PART_PREPARE,
+	M0_AVI_PART_WR_PREPARE,
 } M0_XCA_ENUM;
 
 /** @} end of stob group */

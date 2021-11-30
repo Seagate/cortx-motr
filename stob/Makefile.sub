@@ -10,6 +10,7 @@ nobase_motr_include_HEADERS += stob/ad.h \
                                   stob/linux.h \
                                   stob/module.h \
                                   stob/null.h \
+                                  stob/partition.h \
                                   stob/perf.h \
                                   stob/stob.h \
                                   stob/stob_internal.h \
@@ -23,6 +24,7 @@ motr_libmotr_la_SOURCES  += stob/ad.c \
                                   stob/linux.c \
                                   stob/module.c \
                                   stob/null.c \
+                                  stob/partition.c \
                                   stob/perf.c \
                                   stob/stob.c \
                                   stob/type.c
@@ -32,10 +34,12 @@ nodist_motr_libmotr_la_SOURCES  += \
 				  stob/addb2_xc.c \
                                   stob/ad_private_xc.c \
                                   stob/ioq_error_xc.c \
+                                  stob/partition_xc.c \
                                   stob/stob_xc.c
 
 XC_FILES   += stob/ad_xc.h \
 	      stob/ad_private_xc.h \
 	      stob/ioq_error_xc.h \
+	      stob/partition_xc.h \
 	      stob/stob_xc.h \
 	      stob/addb2_xc.h

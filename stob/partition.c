@@ -35,7 +35,7 @@
 #include "lib/memory.h"
 #include "lib/string.h"
 #include "lib/cksum_utils.h"
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_PARTSTOB
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
 #include "lib/trace.h"		/* M0_LOG */
 
 #include "addb2/addb2.h"
@@ -50,23 +50,44 @@
 #include "stob/stob_internal.h"	/* m0_stob__fid_set */
 #include "stob/type.h"		/* m0_stob_type */
 #include "be/domain.h"
+#include "be/partition_table.h"
 
 /**
  * @addtogroup stobpart
  *
  * @{
  */
-
-static struct m0_stob_ops stob_part_ops;
+static struct m0_stob_domain_ops stob_part_domain_ops;
+static struct m0_stob_ops        stob_part_ops;
+struct part_stob_cfg {
+	m0_bcount_t  psg_id;
+	m0_bcount_t  psg_size_in_chunks;
+};
 
 static int stob_part_io_init(struct m0_stob *stob, struct m0_stob_io *io);
-static void stob_part_write_credit(const struct m0_stob_domain *dom,
-				   const struct m0_stob_io     *iv,
-				   struct m0_be_tx_credit      *accum);
 static int stob_part_punch(struct m0_stob *stob,
 			   struct m0_indexvec *range,
 			   struct m0_dtx *tx);
 
+static void stob_part_write_credit(const struct m0_stob_domain *dom,
+				   const struct m0_stob_io     *iv,
+				   struct m0_be_tx_credit      *accum)
+{
+
+}
+
+static int stob_part_domain_init(struct m0_stob_type *type,
+				 const char *location_data,
+				 void *cfg_init,
+				 struct m0_stob_domain **out)
+{
+	/** TODO */
+	struct m0_stob_domain  *dom;
+
+	dom->sd_ops = &stob_part_domain_ops;
+
+	return 0;
+}
 static void stob_part_domain_fini(struct m0_stob_domain *dom)
 {
 
@@ -78,9 +99,9 @@ stob_part_domain2part(const struct m0_stob_domain *dom)
 	struct m0_stob_part_domain *pdom;
 
 	pdom = (struct m0_stob_part_domain *)dom->sd_private;
-	m0_stob_ad_domain_bob_check(pdom);
+	/* *m0_stob_part_domain_bob_check(pdom); */
 	M0_ASSERT(m0_stob_domain__dom_key(m0_stob_domain_id_get(dom)) ==
-		  pdom->sad_dom_key);
+		  pdom->spd_dom_key);
 	return pdom;
 }
 
@@ -109,21 +130,37 @@ static void stob_part_free(struct m0_stob_domain *dom,
 
 static int stob_part_cfg_parse(const char *str_cfg_create, void **cfg_create)
 {
-	struct m0_stob_part *partstob = stob_part_stob2part(stob);
+	struct part_stob_cfg *cfg;
+	int                   rc;
 
-	partstob->part_id = ; /** TODO */
-	partstob->part_size_in_chunks = ; /** TODO */
-	return 0;
+	if (str_cfg_create == NULL)
+		return M0_ERR(-EINVAL);
+
+	M0_ALLOC_PTR(cfg);
+	if (cfg != NULL) {
+		/* format = partition-id:partition-size */
+		rc = sscanf(str_cfg_create, ":%"SCNd64":%"SCNd64"",
+		    &cfg->psg_id,
+		    &cfg->psg_size_in_chunks);
+		rc = rc == 4 ? 0 : -EINVAL;
+	} else
+		rc = -ENOMEM;
+	if (rc == 0)
+		*cfg_create = cfg;
+
+	return rc;
 }
 
 static void stob_part_cfg_free(void *cfg_create)
 {
+	m0_free(cfg_create);
 }
 
 static int stob_part_init(struct m0_stob *stob,
 			  struct m0_stob_domain *dom,
 			  const struct m0_fid *stob_fid)
 {
+	stob->so_ops = &stob_part_ops;
 	return 0;
 }
 
@@ -142,17 +179,22 @@ static int stob_part_create(struct m0_stob *stob,
 			    const struct m0_fid *stob_fid,
 			    void *cfg)
 {
-	struct m0_stob_part *partstob = stob_part_stob2part(stob);
-	struct m0_be_ptable_part_tbl_info pt={0};
+	struct m0_stob_part              *partstob = stob_part_stob2part(stob);
+	struct m0_be_ptable_part_tbl_info pt;
+	m0_bcount_t                       primary_part_index;
+	m0_bcount_t                       part_index;
+	struct part_stob_cfg              *pcfg;
 
-	m0_bcount_t primary_part_index;
-	m0_bcount_t part_index;
 	M0_ENTRY();
+	pcfg = (struct part_stob_cfg *)cfg;
+	partstob = stob_part_stob2part(stob);
+	partstob->part_id = pcfg->psg_id;
+	partstob->part_size_in_chunks = pcfg->psg_size_in_chunks;
 
 	M0_ALLOC_ARR(partstob->part_table,
 		     partstob->part_size_in_chunks);
 	if (partstob->part_table == NULL)
-		rc = M0_ERR(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	if ( m0_be_ptable_get_part_info(&pt))
 		M0_ASSERT(0);
@@ -226,6 +268,7 @@ static struct m0_stob_ops stob_part_ops = {
 	.sop_block_shift     = &stob_part_block_shift,
 };
 
+#if 0
 const struct m0_stob_type m0_stob_part_type = {
 	.st_ops  = &stob_part_type_ops,
 	.st_fidt = {
@@ -233,10 +276,7 @@ const struct m0_stob_type m0_stob_part_type = {
 		.ft_name = "partitionstob",
 	},
 };
-
-/*
- * Adieu
- */
+#endif
 
 static const struct m0_stob_io_op stob_part_io_op;
 
@@ -347,11 +387,11 @@ static m0_bcount_t stob_part_dev_offset_get(struct m0_stob_part *partstob,
 	M0_LOG(M0_DEBUG, "\nDEBUG relative offset in given chunk: %" PRIu64,
 		offset_within_chunk);
 	table_index =
-		(user_offset_in_bytes >> pt.pti_chunk_size_in_bits);
+		(user_byte_offset >> partstob->part_size_in_chunks);
 	M0_LOG(M0_DEBUG, "\n\nDEBUG: table_index :%" PRIu64,
 		table_index);
 
-	device_chunk_offset = partstob->part_table[table_index,];
+	device_chunk_offset = partstob->part_table[table_index];
 
 	M0_LOG(M0_DEBUG, "\nDEBUG: device_chunk_offset: %" PRIu64,
 		device_chunk_offset);
@@ -362,6 +402,38 @@ static m0_bcount_t stob_part_dev_offset_get(struct m0_stob_part *partstob,
 		device_byte_offset);
 
 	return(device_byte_offset);
+}
+
+/**
+   Fills back IO request with device offset.
+ */
+static void stob_part_back_fill(struct m0_stob_io *io,
+				struct m0_stob_io *back)
+{
+	uint32_t             idx;
+	struct m0_stob      *stob = io->si_obj;
+	struct m0_stob_part *partstob = stob_part_stob2part(stob);
+
+	idx = 0;
+	do {
+		back->si_user.ov_vec.v_count[idx] =
+			io->si_user.ov_vec.v_count[idx];
+		back->si_user.ov_buf[idx] =
+			io->si_user.ov_buf[idx];
+
+		back->si_stob.iv_index[idx] =
+			stob_part_dev_offset_get(partstob,
+						 io->si_stob.iv_index[idx]);
+		/**
+		 * no need to update count again as it is aliases to
+		 si_user.ov_vec.v_count, hence below statement is not required.
+		 back->si_stob.iv_vec.v_count[idx] =
+			io->si_stob.iv_vec.v_count[idx]; */
+
+		idx++;
+	} while (idx < io->si_stob.iv_vec.v_nr);
+	back->si_user.ov_vec.v_nr = idx;
+	back->si_stob.iv_vec.v_nr = idx;
 }
 
 /**
@@ -399,42 +471,11 @@ static int stob_part_read_prepare(struct m0_stob_io *io)
 	if (rc != 0)
 		return M0_RC(rc);
 
-	stob_part_back_fil(io, back);
+	stob_part_back_fill(io, back);
 
 	return M0_RC(rc);
 }
 
-/**
-   Fills back IO request with device offset.
- */
-static void stob_part_back_fill(struct m0_stob_io *io,
-				struct m0_stob_io *back)
-{
-	uint32_t             idx;
-	struct m0_stob      *stob = io->si_obj;
-	struct m0_stob_part *partstob = stob_part_stob2part(stob);
-
-	idx = 0;
-	do {
-		back->si_user.ov_vec.v_count[idx] =
-			io->si_user.ov_vec.v_count[idx];
-		back->si_user.ov_buf[idx] =
-			io->si_user.ov_buf[idx];
-
-		back->si_stob.iv_index[idx] =
-			stob_part_dev_offset_get(partstob,
-						 io->si_stob.iv_index[idx]);
-		/**
-		 * no need to update count again as it is aliases to
-		 si_user.ov_vec.v_count, hence below statement is not required.
-		 back->si_stob.iv_vec.v_count[idx] =
-			io->si_stob.iv_vec.v_count[idx]; */
-
-		idx++;
-	} while (idx < io->si_stob.iv_vec.v_nr);
-	back->si_user.ov_vec.v_nr = idx;
-	back->si_stob.iv_vec.v_nr = idx;
-}
 
 /**
  * Constructs back IO for write.
@@ -451,6 +492,7 @@ static int stob_part_write_prepare(struct m0_stob_io *io)
 {
 	struct m0_stob_io          *back;
 	struct m0_stob_part_io     *pio = io->si_stob_private;
+	int                         rc;
 
 	M0_PRE(io->si_opcode == SIO_WRITE);
 	M0_ADDB2_ADD(M0_AVI_STOB_IO_REQ, io->si_id, M0_AVI_PART_WR_PREPARE);
