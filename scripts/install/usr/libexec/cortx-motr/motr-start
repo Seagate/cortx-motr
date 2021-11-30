@@ -25,6 +25,7 @@ fids=
 SCRIPT_PATH="/usr/libexec/cortx-motr"
 HARE_CONFIG="/etc/cortx/hare/config"
 HARE_CMD="hctl fetch-fids --conf-dir $HARE_CONFIG/$(cat /etc/machine-id)"
+
 if [[ $# < 1 ]]; then
         echo "usage - sh $0 <service-fid>"
         exit 1

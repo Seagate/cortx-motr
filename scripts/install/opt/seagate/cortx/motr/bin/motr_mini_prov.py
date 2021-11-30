@@ -721,6 +721,9 @@ def get_cvg_cnt_and_cvg_k8(self):
     check_type(cvg, list, "cvg")
     return cvg_cnt, cvg
 
+def align_val(val, size):
+    return (int(val/size) * size)
+
 def update_bseg_size(self):
     dev_count = 0
     lvm_min_size = None
@@ -732,6 +735,7 @@ def update_bseg_size(self):
         for i in range(md_len):
             lvm_min_size = calc_lvm_min_size(self, md_disks[i], lvm_min_size)
         if lvm_min_size:
+            align_val(lvm_min_size, 4096)
             self.logger.info(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
             cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
             execute_command(self, cmd)
