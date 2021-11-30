@@ -28,7 +28,7 @@ import time
 import yaml
 from cortx.utils.conf_store import Conf
 
-MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-server"
+MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-start"
 MOTR_MKFS_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-mkfs"
 MOTR_FSM_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-free-space-monitor"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
