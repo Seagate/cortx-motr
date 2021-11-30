@@ -882,7 +882,7 @@ optparse() {
     ## command (e.g., invalid option) will result in program failure.
     ##
     local TEMP # do not assign value here
-    TEMP=$(getopt -o hpbsedmokV --long help,addb,skip-addb-files,binaries,nr-boots:,path,version \
+    TEMP=$(getopt -o hpbV --long help,addb,skip-addb-files,binaries,nr-boots:,path,version \
                   -n "${0##*/}" -- "$@")
     eval set -- "$TEMP"
     while true; do
@@ -905,7 +905,7 @@ optparse() {
         shift
     done
 
-    INPUT_DIRS=($DEFAULT_INPUT_DIRS_GLOB)
+    INPUT_DIRS=(${@:-$DEFAULT_INPUT_DIRS_GLOB})
 }
 
 [ $VERSION = "$(grep -A2 '^### Date' $PROG | tail -1 | cut -d' ' -f3)" ] ||
