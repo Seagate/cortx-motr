@@ -143,8 +143,8 @@ static void bulkclient_test(void)
 	struct m0_rpc_bulk_buf	*rbuf;
 	struct m0_rpc_bulk_buf	*rbuf1;
 	struct m0_rpc_bulk_buf	*rbuf2;
-	const char              *caddr = "0@lo:12345:34:*";
-	const char		*saddr = "0@lo:12345:34:8";
+	const char              *caddr = M0_UT_CLIENT_EP_ADDR;
+	const char		*saddr = M0_UT_SERVER_EP_ADDR;
 	enum m0_net_queue_type	 q;
 	struct bulkio_msg_tm    *ctm;
 	struct bulkio_msg_tm    *stm;

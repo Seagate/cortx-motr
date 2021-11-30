@@ -36,11 +36,11 @@
 #define SERVER_STOB_NAME      "sss_ut_server.stob"
 #define SERVER_ADDB_STOB_NAME "linuxstob:sss_ut_server.addb_stob"
 #define SERVER_LOG_NAME       "sss_ut_server.log"
-#define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
+#define SERVER_ENDPOINT_ADDR  M0_UT_SERVER_EP_ADDR
 #define SERVER_ENDPOINT       M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 
 #define CLIENT_DB_NAME        "sss_ut_client.db"
-#define CLIENT_ENDPOINT_ADDR  "0@lo:12345:34:*"
+#define CLIENT_ENDPOINT_ADDR  M0_UT_CLIENT_EP_ADDR
 
 enum {
 	MAX_RPCS_IN_FLIGHT = 1,

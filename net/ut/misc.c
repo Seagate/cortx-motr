@@ -30,6 +30,8 @@ static void test_endpoint_is_valid(void)
 		"255.0.0.0@tcp:12345:1:1",
 		"172.18.50.40@o2ib:12345:34:1",
 		"172.18.50.40@o2ib1:12345:34:1",
+		"inet:tcp:127.0.0.1@3000",
+		"inet:tcp:127.0.0.1@3001",
 	};
 	const char *bad[] = {
 		"",
@@ -39,6 +41,8 @@ static void test_endpoint_is_valid(void)
 		"172.16.64.1:12345:45:41",
 		"256.0.0.0@tcp:12345:1:1",
 		"172.18.50.40@o2ib:54321:34:1",
+		"inet:abc:127.0.0.1@3000",
+		"lnet:tcp:127.0.0.1@3000",
 	};
 
 	M0_UT_ASSERT(m0_forall(i, ARRAY_SIZE(good),

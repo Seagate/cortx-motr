@@ -49,7 +49,7 @@ static void rlut_init(struct m0_net_domain      *net_dom,
 		      struct m0_reqh            *reqh,
 		      struct m0_rpc_machine     *rmachine)
 {
-	const char               *client_ep = "0@lo:12345:34:1";
+	const char               *client_ep = M0_UT_CLIENT_EP_ADDR;
 	/* unreacheable remote EP */
 	int                       rc;
 
@@ -107,7 +107,7 @@ static void rlut_remote_unreachable(void)
 	struct m0_rpc_machine     rmachine;
 	struct m0_rpc_link       *rlink;
 	/* unreacheable remote EP */
-	const char               *remote_ep = "0@lo:12345:35:1";
+	const char               *remote_ep = M0_UT_DUMMY_EP_ADDR;
 	int                       rc;
 
 	rlut_init(&net_dom, &buf_pool, &reqh, &rmachine);

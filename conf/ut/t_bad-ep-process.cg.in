@@ -1,0 +1,20 @@
+#= <7200000000000001:1>: Invalid endpoint: bad@M0_UT_EP_IP@@M0_UT_DUMMY_EP_PORT@
+(root-0 verno=1 rootfid=profile-0 mdpool=pool-0 imeta_pver=(0, 0)
+    mdredundancy=1 params=["82 8 2 2"] nodes=[node-0] sites=[site-2]
+    pools=[pool-0] profiles=[profile-0] fdmi_flt_grps=[])
+(profile-0 pools=[pool-0])
+(node-0 memsize=64230 nr_cpu=20 last_state=0 flags=0
+    processes=[process-0, process-1])
+(site-2 racks=[] pvers=[])
+(process-0 cores=[1048575] mem_limit_as=536870912 mem_limit_rss=65772544
+    mem_limit_stack=65772544 mem_limit_memlock=65772544
+    endpoint="@M0_UT_EP_IP@@M0_UT_EP_SRV_PORT@" services=[service-0])
+(process-1 cores=[1048575] mem_limit_as=536870912 mem_limit_rss=65772544
+    mem_limit_stack=65772544 mem_limit_memlock=65772544
+    endpoint="bad@M0_UT_EP_IP@@M0_UT_DUMMY_EP_PORT@" # bad IPv4 address
+    services=[service-1])
+(service-0 type=@M0_CST_RMS endpoints=["@M0_UT_EP_IP@@M0_UT_EP_CLNT_PORT@"] params=[]
+    sdevs=[])
+(service-1 type=@M0_CST_IOS endpoints=["@M0_UT_EP_IP@@M0_UT_EP_CLNT_PORT@"] params=[]
+    sdevs=[])
+(pool-0 pver_policy=0 pvers=[])
