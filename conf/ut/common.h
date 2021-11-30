@@ -30,6 +30,7 @@
 #define SERVER_ENDPOINT_ADDR M0_UT_SERVER_EP_ADDR
 #define SERVER_ENDPOINT      M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 #define CLIENT_ENDPOINT_ADDR M0_UT_CLIENT_EP_ADDR
+#define DUMMY_ENDPOINT_ADDR  M0_UT_DUMMY_EP_ADDR
 
 extern struct m0_conf_cache m0_conf_ut_cache;
 extern struct m0_sm_group   m0_conf_ut_grp;
