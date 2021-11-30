@@ -178,13 +178,13 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 			return;
 	}
 	off = ti_cob_index % unit_size;
-	if (off) {
+	if (off != 0) {
 		if (!m0_ivec_cursor_move(&ti_cob_cursor, unit_size - off)) {
 			ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
 		}
 	}
 	off = ti_goff_index % unit_size;
-	if (off) {
+	if (off != 0) {
 		if (!m0_ivec_cursor_move(&ti_goff_cursor, unit_size - off)) {
 			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
 		}
@@ -223,6 +223,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 						      ti_goff_index,
 						      &ioo->ioo_ext,
 						      unit_size, cs_sz);
+                M0_ASSERT(dst != NULL);
 		memcpy(dst, src, cs_sz);
 		src = (char *)src + cs_sz;
 
