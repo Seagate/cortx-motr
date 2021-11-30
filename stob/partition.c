@@ -57,7 +57,10 @@
  *
  * @{
  */
-static struct m0_stob_domain_ops stob_part_domain_ops;
+/** TODO stob_part_domain_ops is defined as gloabl for now
+ * to remove compile warning, update to static once
+ * partition stob domain functionalty(EOS-24532) is ready */
+struct m0_stob_domain_ops stob_part_domain_ops;
 static struct m0_stob_ops        stob_part_ops;
 struct part_stob_cfg {
 	m0_bcount_t  psg_id;
@@ -76,18 +79,6 @@ static void stob_part_write_credit(const struct m0_stob_domain *dom,
 
 }
 
-static int stob_part_domain_init(struct m0_stob_type *type,
-				 const char *location_data,
-				 void *cfg_init,
-				 struct m0_stob_domain **out)
-{
-	/** TODO */
-	struct m0_stob_domain  *dom;
-
-	dom->sd_ops = &stob_part_domain_ops;
-
-	return 0;
-}
 static void stob_part_domain_fini(struct m0_stob_domain *dom)
 {
 
@@ -183,7 +174,7 @@ static int stob_part_create(struct m0_stob *stob,
 	struct m0_be_ptable_part_tbl_info pt;
 	m0_bcount_t                       primary_part_index;
 	m0_bcount_t                       part_index;
-	struct part_stob_cfg              *pcfg;
+	struct part_stob_cfg             *pcfg;
 
 	M0_ENTRY();
 	pcfg = (struct part_stob_cfg *)cfg;
@@ -246,7 +237,10 @@ static uint32_t stob_part_block_shift(struct m0_stob *stob)
 	return 0;
 }
 
-static struct m0_stob_domain_ops stob_part_domain_ops = {
+/** TODO stob_part_domain_ops is defined as gloabl for now
+ * to remove compile warning, update to static once
+ * partition stob domain functionalty(EOS-24532) is ready */
+struct m0_stob_domain_ops stob_part_domain_ops = {
 	.sdo_fini		= &stob_part_domain_fini,
 	.sdo_stob_alloc	    	= &stob_part_alloc,
 	.sdo_stob_free	    	= &stob_part_free,
