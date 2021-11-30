@@ -847,7 +847,8 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_oi_node,
 						      sizeof dom->cd_oi_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      dom->cd_object_index, seg,
 						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
@@ -862,7 +863,8 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_ns_node,
 						      sizeof dom->cd_ns_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      dom->cd_namespace, seg,
 						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
@@ -877,7 +879,8 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_fa_basic_node,
 						      sizeof dom->cd_fa_basic_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      dom->cd_fileattr_basic,
 						      seg, &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
@@ -892,7 +895,8 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_fa_omg_node,
 						      sizeof dom->cd_fa_omg_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      dom->cd_fileattr_omg, seg,
 						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
@@ -907,7 +911,8 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_fa_ea_node,
 						      sizeof dom->cd_fa_ea_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      dom->cd_fileattr_ea, seg,
 						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
@@ -922,7 +927,8 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_bc_node,
 						      sizeof dom->cd_bc_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      dom->cd_bytecount, seg,
 						      &fid, tx, &keycmp));
 
@@ -1199,6 +1205,7 @@ static int cob_table_insert(struct m0_btree *tree, struct m0_be_tx *tx,
 	struct m0_btree_rec  rec = {
 			   .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			   .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+			   .r_crc_type   = CRC_TYPE_NO_CRC,
 			};
 	struct m0_btree_cb   insert_cb = {.c_act = cob_table_insert_callback,
 					  .c_datum = &rec,

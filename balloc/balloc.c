@@ -134,11 +134,11 @@ static inline int btree_insert_sync(struct m0_btree     *tree,
 	struct m0_btree_rec  rec = {
 			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+			    .r_crc_type   = CRC_TYPE_NO_CRC,
 			};
 	struct m0_btree_cb   put_cb = {.c_act = btree_insert_callback,
 				       .c_datum = &rec,
 				      };
-
 	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					m0_btree_put(tree, &rec, &put_cb,
 						     &kv_op, tx));
@@ -3099,7 +3099,8 @@ static int balloc_trees_create(struct m0_balloc    *bal,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(bal->cb_ge_node,
 						      sizeof bal->cb_ge_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      bal->cb_db_group_extents,
 						      seg, &fid, tx,
 						      &ge_keycmp));
@@ -3118,7 +3119,8 @@ static int balloc_trees_create(struct m0_balloc    *bal,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(bal->cb_gd_node,
 						      sizeof bal->cb_gd_node,
-						      &bt, &b_op,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op,
 						      bal->cb_db_group_desc,
 						      seg, &fid, tx, NULL));
 
