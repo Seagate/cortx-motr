@@ -661,6 +661,9 @@ M0_INTERNAL uint64_t m0_xcode_atom(const struct m0_xcode_obj *obj)
 	case M0_XAT_U8:
 		val = *(uint8_t *)ptr;
 		break;
+	case M0_XAT_U16:
+		val = *(uint16_t *)ptr;
+		break;
 	case M0_XAT_U32:
 		val = *(uint32_t *)ptr;
 		break;
@@ -692,6 +695,7 @@ M0_INTERNAL uint64_t m0_xcode_tag(const struct m0_xcode_obj *obj)
 			tag = f->xf_tag;
 			break;
 		case M0_XAT_U8:
+		case M0_XAT_U16:
 		case M0_XAT_U32:
 		case M0_XAT_U64: {
 			struct m0_xcode_obj subobj;
@@ -929,6 +933,14 @@ const struct m0_xcode_type M0_XT_U8 = {
 	.xct_nr     = 0
 };
 
+const struct m0_xcode_type M0_XT_U16 = {
+	.xct_aggr   = M0_XA_ATOM,
+	.xct_name   = "u16",
+	.xct_atype  = M0_XAT_U16,
+	.xct_sizeof = sizeof(uint16_t),
+	.xct_nr     = 0
+};
+
 const struct m0_xcode_type M0_XT_U32 = {
 	.xct_aggr   = M0_XA_ATOM,
 	.xct_name   = "u32",
@@ -965,6 +977,7 @@ const char *m0_xcode_aggr_name[M0_XA_NR] = {
 const char *m0_xcode_atom_type_name[M0_XAT_NR] = {
 	[M0_XAT_VOID] = "void",
 	[M0_XAT_U8]   = "u8",
+	[M0_XAT_U16]  = "u16",
 	[M0_XAT_U32]  = "u32",
 	[M0_XAT_U64]  = "u64",
 };
