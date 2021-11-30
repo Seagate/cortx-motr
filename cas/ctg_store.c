@@ -487,7 +487,8 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&ctg->cc_node,
 						      sizeof ctg->cc_node,
-						      &bt, &b_op, ctg->cc_tree,
+						      &bt, CRC_TYPE_NO_CRC,
+						      &b_op, ctg->cc_tree,
 						      seg, fid, tx, &key_cmp));
 	if (rc != 0) {
 		ctg_fini(ctg);
@@ -644,6 +645,7 @@ M0_INTERNAL int m0_ctg__meta_insert(struct m0_btree     *meta,
 
 	rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 	rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+	rec.r_crc_type   = CRC_TYPE_NO_CRC;
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_put(meta, &rec, &put_cb,
 							   &kv_op, tx));
@@ -1380,6 +1382,7 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 		vsize = sizeof(struct generic_value) + ctg_op->co_val.b_nob;
 		rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+		rec.r_crc_type   = CRC_TYPE_NO_CRC;
 
 		if (!!(ctg_op->co_flags & COF_OVERWRITE)) {
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -1414,11 +1417,12 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 		vsize = sizeof(struct meta_value);
 		rec.r_key.k_data  = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val         = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+		rec.r_crc_type    = CRC_TYPE_NO_CRC;
 		cb_data.d_cas_ctg = cas_ctg;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_put(btree, &rec, &cb,
-							   &kv_op, tx));
+					      		   &kv_op, tx));
 		if (rc)
 			ctg_destroy(cas_ctg, tx);
 		m0_be_op_done(beop);
@@ -1435,6 +1439,7 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 		vsize = sizeof(struct generic_value);
 		rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+		rec.r_crc_type   = CRC_TYPE_NO_CRC;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_put(btree, &rec, &cb,
@@ -2369,6 +2374,7 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 
 	rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 	rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
+	rec.r_crc_type   = CRC_TYPE_NO_CRC;
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 				      m0_btree_put(ctidx->cc_tree, &rec,
