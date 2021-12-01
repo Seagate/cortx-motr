@@ -7,10 +7,10 @@
 %bcond_with debuginfo_sources
 %bcond_with cassandra
 %bcond_with ivt
+%bcond_with usermode
 
 # configure options
 %define with_linux  %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
-%define with_lustre %( test -n "$lustre_src" && echo "--with-lustre=$lustre_src" )
 
 # kernel version.
 %define raw_kernel_ver %(
@@ -21,9 +21,16 @@
                           fi
                         )
 
-%define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
-%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' )
 
+%if %{with usermode}
+%define with_lustre %( echo "--with-lustre=no" )
+%define kernel_ver %( echo "any" )
+%else
+%define with_lustre %( test -n "$lustre_src" && echo "--with-lustre=$lustre_src" )
+%define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
+%endif
+
+%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' )
 # build number
 %define build_num  %( test -n "$build_number" && echo "$build_number" || echo 1 )
 
@@ -45,10 +52,14 @@
 %define  configure_cassandra_opts   --with-cassandra
 %endif
 
+%if %{with usermode}
+%define configure_user_opts --with-user-mode=yes --with-lustre=no --with-default-transport=LF
+%endif
+
 %if %{with ivt} || %{with ut}
-%define  configure_opts  %{configure_ut_opts} %{?configure_cassandra_opts}
+%define  configure_opts  %{configure_ut_opts} %{?configure_user_opts} %{?configure_cassandra_opts}
 %else
-%define  configure_opts  %{configure_release_opts} %{?configure_cassandra_opts}
+%define  configure_opts  %{configure_release_opts} %{?configure_user_opts} %{?configure_cassandra_opts}
 %endif
 
 Name:           @PACKAGE@
@@ -97,8 +108,10 @@ BuildRequires:  perl-File-Find-Rule
 BuildRequires:  perl-IO-All
 BuildRequires:  perl-File-Slurp
 BuildRequires:  perl-YAML-LibYAML
+%if !%{with usermode}
 BuildRequires:  kernel-devel = %{kernel_ver_requires}
 BuildRequires:  %{lustre_devel}
+%endif
 BuildRequires:  libuuid-devel
 BuildRequires:  openssl
 BuildRequires:  openssl-devel
@@ -123,8 +136,10 @@ BuildRequires:  libcassandra
 BuildRequires:  libuv
 %endif
 
+%if !%{with usermode}
 Requires:       kernel = %{kernel_ver_requires}
 Requires:       %{lustre}
+%endif
 Requires:       libaio
 Requires:       libyaml
 #Supported openssl versions -- CentOS 7 its 1.0.2k, RHEL8 its 1.1.1
@@ -175,9 +190,10 @@ Requires: libuuid-devel
 Requires: pkgconfig
 Requires: systemd-devel
 Requires: glibc-headers
+%if !%{with usermode}
 Requires: kernel-devel = %{kernel_ver_requires}
 Requires: %{lustre_devel}
-
+%endif
 
 %description devel
 Header files that are required to link with CORTX Motr libraries.
@@ -297,7 +313,9 @@ fi
 %{_sysconfdir}/systemd/system/*
 %{_sysconfdir}/security/limits.d/90-motr.conf
 /opt/seagate/cortx/motr/*
+%if !%{with usermode}
 /lib/modules/*/kernel/fs/motr/*
+%endif
 %exclude %{_bindir}/m0gentestds
 %exclude %{_bindir}/m0gccxml2xcode
 %exclude %{_bindir}/m0kut*
@@ -311,10 +329,12 @@ fi
 %exclude %{_libdir}/libmotr-xcode-ff2c*
 %exclude %{_libdir}/pkgconfig/
 %exclude %{_mandir}/**/m0gccxml2xcode*
+%if !%{with usermode}
 %exclude /lib/modules/*/kernel/fs/motr/m0lnet*
 %exclude /lib/modules/*/kernel/fs/motr/m0net*
 %exclude /lib/modules/*/kernel/fs/motr/m0rpc*
 %exclude /lib/modules/*/kernel/fs/motr/m0ut*
+%endif
 %exclude /usr/bin/workload*
 %endif
 
