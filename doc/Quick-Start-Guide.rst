@@ -41,6 +41,8 @@ Build
     sudo lctl list_nids
 
    Make sure that libfabric package is not installed.
+   Please refer the following document for un-installation of libfabric package.
+   https://seagate-systems.atlassian.net/wiki/spaces/PUB/pages/711230113/Libfabric+setup+and+using+libfabric+with+motr#Uninstalling-libfabric-package ::
 
     fi_info --version
     bash: fi_info: command not found
@@ -51,7 +53,7 @@ Build
 
    Use ``ip a`` command to get a list of network interfaces.
    Then modify ``libfab.conf`` to use one of the listed network interfaces.
-   Verify the libfab.conf file contents.
+   Verify the libfab.conf file contents::
 
     cat /etc/libfab.conf
     networks=tcp(eth1)
@@ -59,7 +61,7 @@ Build
    Please refer the below document for installation.
    https://seagate-systems.atlassian.net/wiki/spaces/PUB/pages/711230113/Libfabric+setup+and+using+libfabric+with+motr
 
-   Verify that libfabric package is installed.
+   Verify that libfabric package is installed::
 
     fi_info --version
     fi_info: 1.11.2
@@ -139,7 +141,7 @@ Unit Benchmark
     sudo scripts/m0 run-ub -t ad-ub
 
 Troubleshooting
-================
+===============
 - If pip fails to install a package while installing build dependencies,
   try installing packages using pip installer.
   run the following commands if package is ipaddress::

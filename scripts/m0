@@ -83,7 +83,6 @@ LIBFAB_TESTS_SKIPLIST=(04initscripts
                 40motr-dgmode
                 43motr-sync-replication
                 45motr-rmw
-                49motr-rpc-cancel
                 51kem)
 
 # libisal does not need kernel based ST
