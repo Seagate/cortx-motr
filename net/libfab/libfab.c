@@ -1765,6 +1765,7 @@ static int libfab_tm_param_free(struct m0_fab__tm *tm)
 
 	close(tm->ftm_epfd);
 	m0_free(tm->ftm_fids.ftf_head);
+	m0_free(tm->ftm_fids.ftf_ctx);
 
 	m0_htable_for(fab_bufhash, fbp, &tm->ftm_bufhash.bht_hash) {
 		fab_bufhash_htable_del(&tm->ftm_bufhash.bht_hash, fbp);
@@ -2574,30 +2575,41 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
  * Returns   0 if successful.
  *	   < 0 in case of failure.
  */
-static int libfab_fid_array_grow(struct fid ***arr, uint32_t old_size,
-				 uint32_t incr)
+static int libfab_fid_array_grow(struct m0_fab__tm_fids *tmfid, uint32_t incr)
 {
-	struct fid **old = *arr;
-	struct fid **new = NULL;
-	uint32_t     new_size = old_size + incr;
-	int          i;
+	struct m0_fab__ev_ctx **old_ctx  = tmfid->ftf_ctx;
+	struct m0_fab__ev_ctx **new_ctx  = NULL;
+	struct fid            **old_fid  = tmfid->ftf_head;
+	struct fid            **new_fid  = NULL;
+	uint32_t                old_size = tmfid->ftf_arr_size;
+	uint32_t                new_size = old_size + incr;
+	int                     i;
 
-	M0_PRE(old != NULL && old_size < new_size);
+	M0_PRE(old_ctx != NULL && old_fid != NULL && old_size < new_size);
 
-	M0_ALLOC_ARR(new, new_size);
-	if (new == NULL)
+	M0_ALLOC_ARR(new_ctx, new_size);
+	M0_ALLOC_ARR(new_fid, new_size);
+	if (new_ctx == NULL || new_fid == NULL) {
+		m0_free(new_ctx);
+		m0_free(new_fid);
 		return M0_ERR(-ENOMEM);
+	}
 
 	/* Copy fids from old array to new array. */
-	for (i = 0; i < old_size; i++)
-		new[i] = old[i];
-	*arr = new;
+	for (i = 0; i < old_size; i++) {
+		new_ctx[i] = old_ctx[i];
+		new_fid[i] = old_fid[i];
+	}
+	tmfid->ftf_ctx      = new_ctx;
+	tmfid->ftf_head     = new_fid;
+	tmfid->ftf_arr_size = new_size;
 
-	M0_LOG(M0_DEBUG,"old=%p new=%p old_size=%d new_size=%d",
-	       old, new, old_size, new_size);
+	M0_LOG(M0_DEBUG,"old={fid=%p ctx=%p size=%d} new={fid=%p ctx=%p size=%d}",
+	       old_fid, old_ctx, old_size, new_fid, new_ctx, new_size);
 
 	/* Free old array */
-	m0_free(old);
+	m0_free(old_ctx);
+	m0_free(old_fid);
 
 	return M0_RC(0);
 }
@@ -2625,14 +2637,13 @@ static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm, void *ctx)
 
 	if (rc == 0) {
 		if (tmfid->ftf_cnt >= (tmfid->ftf_arr_size - 1)) {
-			rc = libfab_fid_array_grow(&tmfid->ftf_head,
-						   tmfid->ftf_arr_size,
+			rc = libfab_fid_array_grow(tmfid,
 						   FAB_TM_FID_MALLOC_STEP);
 			if (rc != 0)
 				return M0_ERR(rc);
-			tmfid->ftf_arr_size += FAB_TM_FID_MALLOC_STEP;
 		}
 		tmfid->ftf_head[tmfid->ftf_cnt] = fid;
+		tmfid->ftf_ctx[tmfid->ftf_cnt]  = ptr;
 		ptr->evctx_pos = tmfid->ftf_cnt;
 		tmfid->ftf_cnt++;
 		M0_ASSERT(tmfid->ftf_cnt < tmfid->ftf_arr_size);
@@ -2663,10 +2674,14 @@ static int libfab_waitfd_unbind(struct fid* fid, struct m0_fab__tm *tm,
 	if (rc == 0) {
 		M0_LOG(M0_DEBUG, "DEL_FROM_EPOLL %s fid=%p fd=%d tm=%p pos=%d",
 		       ptr->evctx_dbg, fid, fd, tm, ptr->evctx_pos);
-		for (i = ptr->evctx_pos; i < tmfid->ftf_cnt; i++)
+		for (i = ptr->evctx_pos; i < tmfid->ftf_cnt - 1; i++) {
 			tmfid->ftf_head[i] = tmfid->ftf_head[i + 1];
+			tmfid->ftf_ctx[i]  = tmfid->ftf_ctx[i + 1];
+			tmfid->ftf_ctx[i]->evctx_pos--;
+		}
 		--tmfid->ftf_cnt;
 		tmfid->ftf_head[tmfid->ftf_cnt] = 0;
+		tmfid->ftf_ctx[tmfid->ftf_cnt]  = 0;
 		ptr->evctx_pos = 0;
 	}
 
@@ -3075,8 +3090,13 @@ static int libfab_ma_init(struct m0_net_transfer_mc *ntm)
 		ftm->ftm_ntm = ntm;
 		ftm->ftm_fids.ftf_cnt = 0;
 		M0_ALLOC_ARR(ftm->ftm_fids.ftf_head, FAB_TM_FID_MALLOC_STEP);
-		if (ftm->ftm_fids.ftf_head == NULL)
+		M0_ALLOC_ARR(ftm->ftm_fids.ftf_ctx, FAB_TM_FID_MALLOC_STEP);
+		if (ftm->ftm_fids.ftf_head == NULL ||
+		    ftm->ftm_fids.ftf_ctx == NULL) {
+			m0_free(ftm->ftm_fids.ftf_head);
+			m0_free(ftm->ftm_fids.ftf_ctx);
 			return M0_ERR(-ENOMEM);
+		}
 		ftm->ftm_fids.ftf_arr_size = FAB_TM_FID_MALLOC_STEP;
 		fab_buf_tlist_init(&ftm->ftm_done);
 		fab_bulk_tlist_init(&ftm->ftm_bulk);

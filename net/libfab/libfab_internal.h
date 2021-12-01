@@ -403,13 +403,16 @@ struct m0_fab__ep {
  */
 struct m0_fab__tm_fids {
 	/* Pointer to the head of the list (array in this case) */
-	struct fid        **ftf_head;
+	struct fid            **ftf_head;
+
+	/* Pointer to the ctx which is stored in this array */
+	struct m0_fab__ev_ctx **ftf_ctx;
 
 	/* Size of array used for storing fids */
-	uint32_t            ftf_arr_size;
+	uint32_t                ftf_arr_size;
 
 	/* Count of fids in the array */
-	volatile uint32_t   ftf_cnt;
+	volatile uint32_t       ftf_cnt;
 };
 
 /**
