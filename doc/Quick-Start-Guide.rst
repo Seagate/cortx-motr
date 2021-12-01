@@ -195,6 +195,9 @@ The files will be generated at doc/html/ folder.
 
 
 Tested by:
+
+- December 01, 2021: Naga Kishore Kommuri (nagakishore.kommuri@seagate.com) CentOS Linux release 7.9.2009 verified with git (#43a75c54d15b23532d883b6065a201b5d6a7f385)
+
 - September 20, 2021: Yixuan Li (yixuan.li@seagate.com) in Red Hat Enterprise Linux Server release 7.7 (Maipo) (#5aac28633a149d2c7e6f8d4c502d80dabf7ebb7e)
 
 - Sep 20, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested in CentOS 7.8.2003 x86_64 using CORTX-2.0.0-77 tag on main branch  
