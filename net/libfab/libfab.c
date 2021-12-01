@@ -975,15 +975,28 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		/*
 		 * TBD : Add handling of other return values of fi_trywait() if
 		 * it returns something other than -EAGAIN and 0.
+		 * Also, observed that fi_trywait() returns -22(EINVAL) which is
+		 * not mentioned in libfabric documentation, hence added it to
+		 * the list of possible return values of fi_trywait().
 		 */
-		M0_ASSERT(M0_IN(ret, (0, -EAGAIN)));
+		M0_ASSERT(M0_IN(ret, (0, -EAGAIN, -EINVAL)));
 		if (ret == 0) {
 			err = -EINTR;
 			while (err == -EINTR) {
 				ret = epoll_wait(tm->ftm_epfd, &ev, 1,
 						 FAB_WAIT_FD_TMOUT);
-				M0_ASSERT(M0_IN(ret, (-1, 0, 1)));
-				err = ret < 0 ? errno : 0;
+				/*
+				 * M0_ERR is omitted because we expect only one
+				 * particular error, and this error gets
+				 * handled by the loop.
+				 */
+				err = ret < 0 ? -errno : 0;
+				M0_ASSERT_INFO(M0_IN(ret, (-1, 0, 1)),
+					       "Unexpected rc epoll_wait: %d",
+					       ret);
+				M0_ASSERT_INFO(ergo(ret < 0, err == -EINTR),
+					       "Unexpected epoll_wait err: %d",
+					       err);
 			}
 			ev_cnt = ret > 0 ? ret : 0;
 		} else
