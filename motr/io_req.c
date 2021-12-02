@@ -1508,9 +1508,9 @@ static int device_check(struct m0_op_io *ioo)
 		if (ti->ti_rc == -ECANCELED) {
 			/* Ignore service failures in a failed node */
 			if (M0_IN(node_state, (M0_PNDS_FAILED,
-					       M0_PNDS_OFFLINE)) &&
-			    !is_node_marked(ioo, node_id)) {
-				M0_CNT_INC(fnode_nr);
+					       M0_PNDS_OFFLINE))) {
+				if (!is_node_marked(ioo, node_id))
+					M0_CNT_INC(fnode_nr);
 				is_session_marked(ioo, ti->ti_session);
 			} else if (!is_session_marked(ioo, ti->ti_session)) {
 				M0_CNT_INC(fsvc_nr);

@@ -1915,7 +1915,7 @@ static bool node_poolmach_state_update_cb(struct m0_clink *cl)
 	pme.pe_type = M0_POOL_NODE;
 	pme.pe_index = pnode->pn_index;
 	pme.pe_state = m0_ha2pm_state_map(obj->co_ha_state);
-	M0_LOG(M0_ALWAYS, "pe_type=%6s pe_index=%x, pe_state=%10d",
+	M0_LOG(M0_DEBUG, "pe_type=%6s pe_index=%x, pe_state=%10d",
 			 pme.pe_type == M0_POOL_DEVICE ? "device":"node",
 			 pme.pe_index, pme.pe_state);
 
