@@ -823,7 +823,6 @@ static void libfab_txep_event_check(struct m0_fab__ep *txep,
 	struct m0_fab__buf *fbp;
 	uint32_t            event;
 	int                 rc;
-	int                 ret;
 
 	if (aep->aep_rx_state == FAB_CONNECTING) {
 		do {
