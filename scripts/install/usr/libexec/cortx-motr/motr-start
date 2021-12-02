@@ -36,6 +36,7 @@ _handle_sigterm() {
    if [[ -z $PID ]]; then
       echo "No m0d process to kill"
    else
+      PID=$$
       kill -KILL $PID 2> /dev/null
    fi
 }
