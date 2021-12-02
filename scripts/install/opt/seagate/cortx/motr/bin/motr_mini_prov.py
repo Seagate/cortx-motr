@@ -62,6 +62,54 @@ class MotrError(Exception):
     def __str__(self):
         return f"error[{self._rc}]: {self._desc}"
 
+#TODO: logger config(config_log) takes only self as argument so not configurable,
+#      need to make logger configurable to change formater, etc and remove below
+#      duplicate code,
+def execute_command_console(self, command):
+    logger = logging.getLogger("console")
+    if not os.path.exists(LOGDIR):
+        try:
+            os.makedirs(LOGDIR, exist_ok=True)
+            with open(f'{self.logfile}', 'w'): pass
+        except:
+            raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
+    else:
+        if not os.path.exists(self.logfile):
+            try:
+                with open(f'{self.logfile}', 'w'): pass
+            except:
+                raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
+    logger.setLevel(logging.DEBUG)
+    # create file handler which logs debug message in log file
+    fh = logging.FileHandler(self.logfile)
+    fh.setLevel(logging.DEBUG)
+    # create console handler to log messages ERROR and above
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(message)s')
+    fh.setFormatter(formatter)
+    ch.setFormatter(formatter)
+    logger.addHandler(fh)
+    logger.addHandler(ch)
+    logger.info(f"executing command {command}")
+    try:
+        process = subprocess.Popen(command, stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   shell=True)
+    except Exception as e:
+        logger.error("ERROR {} when running {} with exception {}".format(sys.exc_info()[1],
+                      command, e.message))
+        return None
+    while True:
+        stdout = process.stdout.readline()
+        if process.poll() is not None:
+            break
+        if stdout:
+            logger.info(stdout.strip().decode())
+    rc = process.poll()
+    return rc
+
+
 def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
                     retries = 1, stdin = None, logging=True):
     # logging flag is set False when we execute any command
@@ -1098,7 +1146,7 @@ def lnet_self_ping(self):
             return False
     return True
 
-def update_motr_hare_keys_for_all_nodes(self, k8=False):
+def update_motr_hare_keys_for_all_nodes(self):
     hostname = self.server_node["hostname"]
     nodes_info = Conf.get(self._index, 'server_node')
     retry_count = 60
@@ -1110,14 +1158,22 @@ def update_motr_hare_keys_for_all_nodes(self, k8=False):
         self.logger.info(f"update_motr_hare_keys for {host}\n")
         for i in range(int(cvg_count)):
             lv_path = None
-            if not k8:
-                lv_md_name = f"lv_raw_md{i + 1}"
-            else:
-                lv_md_name = f"raw_md{i + 1}"
+            lv_md_name = f"lv_raw_md{i + 1}"
 
             if (hostname == value["hostname"]):
-                if not k8:
-                    cmd = ("lvs -o lv_path")
+                cmd = ("lvs -o lv_path")
+                res = execute_command_verbose(self, cmd)
+                r = re.compile(f".*{lv_md_name}")
+                try:
+                    lvm_find = list(filter(r.match,res[0].split()))
+                    lv_path = lvm_find[0].strip()
+                except Exception as e:
+                    self.logger.info(f"exception pass {e}\n")
+            else:
+                cmd = (f"ssh  {host}"
+                       f" \"lvs -o lv_path\"")
+                for retry in range(1, retry_count):
+                    self.logger.info(f"Getting LVM data for {host}, attempt: {retry}\n")
                     res = execute_command_verbose(self, cmd)
                     r = re.compile(f".*{lv_md_name}")
                     try:
@@ -1125,43 +1181,11 @@ def update_motr_hare_keys_for_all_nodes(self, k8=False):
                         lv_path = lvm_find[0].strip()
                     except Exception as e:
                         self.logger.info(f"exception pass {e}\n")
-                else:
-                    cmd = f"lsblk -lo name,label|grep {lv_md_name}|""awk '{print $1}'"
-                    res = execute_command_verbose(self, cmd)
-                    if res[1] == 0:
-                        # e.g. res[0] is sdb1. Absoulte path of sdb is /dev/sdb1
-                        lv_path = "/dev/"+f"{res[0]}"
-            else:
-                if not k8:
-                    cmd = (f"ssh  {host}"
-                           f" \"lvs -o lv_path\"")
-                    for retry in range(1, retry_count):
-                        self.logger.info(f"Getting LVM data for {host}, attempt: {retry}\n")
-                        res = execute_command_verbose(self, cmd)
-                        r = re.compile(f".*{lv_md_name}")
-                        try:
-                            lvm_find = list(filter(r.match,res[0].split()))
-                            lv_path = lvm_find[0].strip()
-                        except Exception as e:
-                            self.logger.info(f"exception pass {e}\n")
-                        if lv_path:
-                            self.logger.info(f"found lvm {lv_path} after {retry} count")
-                            break
-                        else:
-                            time.sleep(retry_delay)
-                else:
-                    cmd = (f"ssh  {host}"
-                           f"\" lsblk -lo name,label|grep {lv_md_name}|"
-                            "awk \'{print $1}\'\"")
-                    for retry in range(1, retry_count):
-                        self.logger.info(f"Getting LVM data for {host}, attempt: {retry}\n")
-                        res = execute_command_verbose(self, cmd)
-                        if res[0] == 0 and (len(res[1]) > 0):
-                            lv_path = "/dev/"+f"{res[0]}"
-                            self.logger.info(f"found {lv_path} after {retry} count")
-                            break
-                        else:
-                            time.sleep(retry_delay)
+                    if lv_path:
+                        self.logger.info(f"found lvm {lv_path} after {retry} count")
+                        break
+                    else:
+                        time.sleep(retry_delay)
             if not lv_path:
                 raise MotrError(res[1], f"[ERR] {lv_md_name} not found on {host}\n")
             self.logger.info(f"setting key server>{name}>cvg[{i}]>m0d[0]>md_seg1"
@@ -1398,5 +1422,5 @@ def start_service(self, service, idx):
 
     #Start motr services
     cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
-    execute_command_verbose(self, cmd, set_timeout=False)
+    execute_command_console(self, cmd)
     return
