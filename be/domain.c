@@ -120,7 +120,7 @@ M0_INTERNAL int m0_be_segobj_opt_begin(struct m0_be_seg         *dict,
 // 				   out, create);
 // }
 
-M0_INTERNAL int m0_be_domain_stob_open(uint64_t sd_id,
+M0_INTERNAL int m0_be_domain_stob_open(void *sd_id,
                    uint64_t              stob_key,
                    const char           *stob_create_cfg,
                    struct m0_stob      **out,
@@ -802,7 +802,7 @@ static int be_domain_level_enter(struct m0_module *module)
 			if (rc )
 				return M0_RC(rc);
 			// fixme : did a type case of dom to uint64_t on the below line
-			rc = m0_be_ptable_create_init((uint64_t)dom,
+			rc = m0_be_ptable_create_init(&dom->bd_stob_domain->sd_id,
 						      cfg->bc_mkfs_mode,
 						      &partition_config);
 			return M0_RC(rc);
