@@ -56,25 +56,26 @@ fi
 ./autogen.sh |& tee $ARTIFACTS/configure.log
 
 if [[ $TRANSPORT == "lnet" ]]; then
-	TRANSPORT='lustre-client'
+	PACKAGE='lustre-client'
 else
-	echo "No need to change TRANSPORT value"
+	PACKAGE='libfabric'
 fi
 
 # Checking if package is available or not
-if [[ ! -z $(rpm -qa $TRANSPORT) ]]; then
-        echo "$TRANSPORT package is present"
+if [[ ! -z $(rpm -qa $PACKAGE) ]]; then
+        echo "$PACKAGE package is present"
 else
-        echo "need to install $TRANSPORT module"
-	yum install ${TRANSPORT}* -y
+        echo "need to install $PACKAGE module"
+	yum install ${PACKAGE}* -y
 fi
 
-if [[ "$TRANSPORT" == "libfabric" ]]; then
-        echo "You are using default $TRANSPORT module"
+if [[ "$PACKAGE" == "libfabric" ]]; then
+        echo "You are using default $PACKAGE module"
 else
 	if  [[ ! -z $(rpm -qa | grep libfabric) ]]; then
         	rpm -e $(rpm -qa | grep libfabric)
 	fi
+	echo "$PACKAGE is not present in the VM"
 fi
 
 
@@ -91,5 +92,4 @@ make -j rpms |& tee $ARTIFACTS/rpm.log
 cp -av $HOME/rpmbuild/RPMS/x86_64/*.rpm $ARTIFACTS/
 cp -av $HOME/rpmbuild/SRPMS/*.rpm $ARTIFACTS/
 (cd $ARTIFACTS/ ; ln -vs cortx-motr-[[:digit:]]*.x86_64.rpm motr-latest.rpm)
-
 fi
