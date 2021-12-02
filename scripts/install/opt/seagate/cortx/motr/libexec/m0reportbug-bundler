@@ -77,18 +77,31 @@ services=All
 stacktrace=false
 coredumps=false
 binlogs=true
-TEMP=$(getopt -o c: --long duration:,size_limit:,services:,binlogs:,coredumps:,stacktrace: \
-                  -n "${0##*/}" -- "$@")
+TEMP=$( getopt -o c: -l duration:,size_limit:,services:,binlogs:,coredumps:,stacktrace: \
+                  -n "$PROG" -- "$@")
 eval set -- "$TEMP"
 while true; do
      case "$1" in
-         -c) ;;
-         --duration) ;;
-         --size_limit) ;;
-         --services) ;;
-         --binlogs) ;;
-         --coredumps);;
-         --stacktrace) ;;
+         -c)config_url=$(echo $2 | sed -e 's/,/\n/g'); 
+            shift 2 ;;
+         --duration)
+            duration=$(echo $2 | sed -e 's/,/\n/g') ;
+            shift 2 ;;
+         --size_limit)
+            size_limit=$(echo $2 | sed -e 's/,/\n/g') ;
+            shift 2 ;;
+         --services)
+            services=$(echo $2 | sed -e 's/,/\n/g') ;
+            shift 2 ;;
+         --binlogs)
+            binblogs=$(echo $2 | sed -e 's/,/\n/g') ;
+            shift 2 ;;
+         --coredumps)
+            coredumps=$(echo $2 | sed -e 's/,/\n/g') ;
+            shift 2 ;;
+         --stacktrace)
+            stacktrace=$(echo $2 | sed -e 's/,/\n/g') ;
+            shift 2 ;;
          --) shift; break;;
          *) break;;
      esac
