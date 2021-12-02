@@ -1144,6 +1144,9 @@ static void st_dtm0_r(void)
 	uint64_t  key = 111;
 	uint64_t  val = 222;
 
+	if (!ENABLE_DTM0)
+		return;
+
 	idx_setup();
 	exec_one_by_one(1, M0_IC_PUT);
 	dtm0_ut_send_redo(&duc.duc_ifid, &key, &val);
