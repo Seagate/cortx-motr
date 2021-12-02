@@ -214,7 +214,7 @@ static void stob_part_domain_cfg_create_free(void *cfg_create)
 	cfg = ( struct m0_be_ptable_part_config *) cfg_create;
 	if( cfg != NULL ) {
                 // fixme: commented the below line
-		//m0_free(cfg->pc_dev_path_name);
+		m0_free((char *)cfg->pc_dev_path_name);
 		m0_free(cfg);
 	}
 }
@@ -235,7 +235,7 @@ static int stob_part_domain_create(struct m0_stob_type *type,
 	int rc;
 	struct m0_be_ptable_part_config *partition_config;
 	partition_config = (struct m0_be_ptable_part_config *) cfg_create;
-	rc = m0_be_ptable_create_init(sd_id,
+	rc = m0_be_ptable_create_init(&sd_id,
 						true,
 						partition_config);
 	return M0_RC(rc);

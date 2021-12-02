@@ -53,7 +53,8 @@ static int be_ptable_verify_table(struct m0_be_ptable_part_table *part_table)
  *   FAILED   - Negative value
  */
 //M0_INTERNAL int m0_be_ptable_create_init(struct m0_be_domain *domain,
-M0_INTERNAL int m0_be_ptable_create_init(uint64_t sd_domain_fid,
+//M0_INTERNAL int m0_be_ptable_create_init(uint64_t sd_domain_fid,
+M0_INTERNAL int m0_be_ptable_create_init(void *sd_domain_fid,
 					 bool is_mkfs,
 					 struct m0_be_ptable_part_config
 					 *part_config)

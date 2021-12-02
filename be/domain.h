@@ -186,7 +186,7 @@ M0_INTERNAL int m0_be_segobj_opt_begin(struct m0_be_seg         *dict,
 			               const struct m0_be_0type *objtype,
 			               struct m0_buf            *opt,
 			               char                    **suffix);
-M0_INTERNAL int m0_be_domain_stob_open(uint64_t sd_id,
+M0_INTERNAL int m0_be_domain_stob_open(void *sd_id,
                    uint64_t              stob_key,
                    const char           *stob_create_cfg,
                    struct m0_stob      **out,
