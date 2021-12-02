@@ -33,6 +33,8 @@ TOPDIR=$(dirname "$0")/../../
 
 
 export MOTR_CLIENT_ONLY=1
+export ENABLE_FDMI_FILTERS=YES
+interactive=false
 
 wait_and_exit()
 {
@@ -55,18 +57,70 @@ do_some_kv_operations()
 			    -h ${lnet_nid}:$HA_EP -p $PROF_OPT \
 			    -f $M0T1FS_PROC_ID -s "
 
+		echo "Let's create an index and put {somekey:somevalue}"
 		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
 					index create "$DIX_FID"                            \
 					      put    "$DIX_FID" "somekey" "somevalue"      \
 					      get    "$DIX_FID" "somekey"                  \
-					      put    "$DIX_FID" "key1" "something1 anotherstring2 YETanotherstring3"      \
+				 || {
+			rc=$?
+			echo "m0kv failed"
+		}
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+		echo "Let's put {key1: ***}"
+		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+					index put    "$DIX_FID" "key1" "something1 anotherstring2 YETanotherstring3"      \
 					      get    "$DIX_FID" "key1"                     \
-					      put    "$DIX_FID" "key2" "something1_anotherstring2*YETanotherstring3"      \
+				 || {
+			rc=$?
+			echo "m0kv failed"
+		}
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+		echo "Let's put {key2: ***}"
+		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+					index put    "$DIX_FID" "key2" "something1_anotherstring2*YETanotherstring3"      \
 					      get    "$DIX_FID" "key2"                     \
 				 || {
 			rc=$?
 			echo "m0kv failed"
 		}
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+		echo "Now, kill the two fdmi plug app and start them again..."
+		echo "This is to simulate the plugin failure and start"
+
+		rc=1
+		sleep 5 && stop_fdmi_plugin      && sleep 5              &&
+		start_fdmi_plugin "$FDMI_FILTER_FID"  "$FDMI_PLUGIN_EP"  &&
+		start_fdmi_plugin "$FDMI_FILTER_FID2" "$FDMI_PLUGIN_EP2" && rc=0
+		if [[ $rc -eq 1 ]] ; then
+			echo "Can not stop and start plug again".
+			return $rc
+		fi
+		sleep 5
+		rc=0
+
+		echo "Let's put {key3: ***}"
+		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+					index put    "$DIX_FID" "key3" "{Bucket-Name:SomeBucket, Object-Name:Someobject, x-amz-meta-replication:Pending}"      \
+					      get    "$DIX_FID" "key3"                     \
+				 || {
+			rc=$?
+			echo "m0kv failed"
+		}
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+		echo "Now do more index put ..."
+		echo "Because the plug was restarted, these operations "
+		echo "will trigger failure handling"
+		for ((j=0; j<20; j++)); do
+			echo "j=$j"
+			"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+					index put    "$DIX_FID" "iter-äää-$j" "something1_anotherstring2*YETanotherstring3-$j"
+		done
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
 
 		echo "Now, let's delete 'key2' from this index. The plugin must show the del op coming"
 		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
@@ -75,14 +129,17 @@ do_some_kv_operations()
 			rc=$?
 			echo "m0kv index del failed"
 		}
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
 
 		echo "Now, let's get 'key2' from this index again. It should fail."
 		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
-				index get    "$DIX_FID" "key2"                     \
+					index get    "$DIX_FID" "key2"                     \
 				 && {
 			rc=22 # EINVAL to indicate the test is failed
 			echo "m0kv index get expected to fail, but did not."
 		}
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
 		sleep 1
 		echo "Now, let's delete 'key2' from this index again."
 		echo "It should fail, and the plugin must NOT show the del op coming."
@@ -92,6 +149,10 @@ do_some_kv_operations()
                     rc=22 # EINVAL to indicate the test is failed
                     echo "m0kv index del should fail, but did not"
 		}
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+		echo "Sleep 100 seconds, if any failure, this would be enough to recover."
+		sleep 100
 
 	done
 	return $rc
@@ -99,15 +160,38 @@ do_some_kv_operations()
 
 start_fdmi_plugin()
 {
+	local fdmi_filter_fid=$1
+	local fdmi_plugin_ep=$2
+	local fdmi_output_file="${fdmi_filter_fid}.txt"
 	local rc=0
 
-	# We are using FDMI_PLUGIN_EP
-	MOTR_PARAM="-l ${lnet_nid}:$FDMI_PLUGIN_EP        \
-		    -h ${lnet_nid}:$HA_EP -p $PROF_OPT    \
-		    -f $M0T1FS_PROC_ID                    "
+	# Using `fdmi_sample_plugin`, which has duplicated records.
+	# PLUG_PARAM="-l ${lnet_nid}:$fdmi_plugin_ep        \
+	#	    -h ${lnet_nid}:$HA_EP -p $PROF_OPT    \
+	#	    -f $M0T1FS_PROC_ID -g $fdmi_filter_fid -s "
+	# if $interactive ; then PLUG_PARAM="$PLUG_PARAM -r"; fi
+	# PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin $PLUG_PARAM"
 
-	"$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin" $MOTR_PARAM -g $FDMI_FILTER_FID &
-	sleep 5
+	# Using `fdmi_app`, which can de-dup the duplicated records
+	 APP_PARAM="-le ${lnet_nid}:$fdmi_plugin_ep        \
+		    -he ${lnet_nid}:$HA_EP -pf $PROF_OPT    \
+		    -sf $M0T1FS_PROC_ID                     \
+		    -fi $fdmi_filter_fid                    \
+		    --plugin-path $M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin "
+	# To test with kafka server, uncomment following with valid kafka server
+	# APP_PARAM="$APP_PARAM -ks 127.0.0.1:9092"
+	PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_app $APP_PARAM"
+
+	if $interactive ; then
+		echo "Please use another terminal and run this command:"
+		echo sudo ${PLUGIN_CMD}
+		echo "Then switch back to this terminal and press ENTER"
+		read
+	else
+		echo "Please check fdmi plugin output from this file: $(pwd)/${fdmi_output_file}"
+		(${PLUGIN_CMD} 2>&1 |& tee -a "${fdmi_output_file}" ) &
+		sleep 5
+	fi
 
 	# Checking for the pid of the started plugin process
 	local pid=$(pgrep -f "lt-fdmi_sample_plugin")
@@ -121,12 +205,28 @@ start_fdmi_plugin()
 
 stop_fdmi_plugin()
 {
-	local pid=$(pgrep -f "lt-fdmi_sample_plugin")
-	if test "x$pid" != x; then
-		echo "Terminating ${pid}"
-		kill -TERM "${pid}"
-		wait "${pid}"
+	if $interactive ; then
+		echo "Please switch to the plugin terminals and press Ctrl+C "
+		echo "When both plugin applications are terminated, come back"
+		echo "Please press Enter to continue ..." && read
+	else
+		local pids=$(pgrep -f "lt-fdmi_sample_plugin")
+		if test "x$pids" != x; then
+			for pid in $pids; do
+				echo "Terminating ${pid}"
+				kill -KILL "${pid}"
+			done
+		fi
+		echo "The output of $FDMI_FILTER_FID  filter are:"
+		echo "==================>>>======================"
+		cat "${FDMI_FILTER_FID}.txt"
+		echo "==================<<<======================"
+		echo "The output of $FDMI_FILTER_FID2 filter are:"
+		echo "==================>>>======================"
+		cat "${FDMI_FILTER_FID2}.txt"
+		echo "==================<<<======================"
 	fi
+
 	return 0
 }
 
@@ -148,10 +248,13 @@ motr_fdmi_plugin_test()
 	echo "Process fid    : $M0T1FS_PROC_ID              "
 	echo "FDMI plugin ep : ${lnet_nid}:$FDMI_PLUGIN_EP  "
 	echo "FDMI filter fid: $FDMI_FILTER_FID             "
+	echo "FDMI plugin ep : ${lnet_nid}:$FDMI_PLUGIN_EP2 "
+	echo "FDMI filter fid: $FDMI_FILTER_FID2            "
 	echo
 	echo
 
-	start_fdmi_plugin && {
+	start_fdmi_plugin "$FDMI_FILTER_FID"  "$FDMI_PLUGIN_EP"  &&
+	start_fdmi_plugin "$FDMI_FILTER_FID2" "$FDMI_PLUGIN_EP2" && {
 	    do_some_kv_operations || {
 		# Make the rc available for the caller and fail the test
 		# if kv operations fail.
@@ -166,6 +269,19 @@ motr_fdmi_plugin_test()
 	stop_fdmi_plugin
 	return $rc
 }
+
+parse_cli_options()
+{
+    while true ; do
+        case "$1" in
+            -i|--interactive)  interactive=true; shift ;;
+
+            *)             break ;;
+        esac
+    done
+}
+
+parse_cli_options "$@"
 
 main()
 {

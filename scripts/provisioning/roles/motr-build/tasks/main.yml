@@ -300,6 +300,64 @@
     - lustre-devel
     - lustre
 
+- name: install libfabric
+  block:
+    - name: download and install libfabric
+      unarchive:
+        src: https://github.com/ofiwg/libfabric/releases/download/v1.11.2/libfabric-1.11.2.tar.bz2
+        dest: /usr/src/
+        owner: root
+        group: root
+        remote_src: yes
+
+    - name: check Libfabric src dir
+      shell: ls -1rd /usr/src/libfabric-* | head -n 1
+      register: libfabric_src_dir
+      changed_when: false
+
+    - name: build libfabric sources
+      command: '{{ item }}'
+      args:
+        chdir: '{{ libfabric_src_dir.stdout }}'
+        creates: Module.symvers
+      with_items:
+        - sed -i 's/(4)/(8)/g' ./prov/tcp/src/tcpx.h
+        - ./configure
+        - make rpm
+
+    - name: install local libfabric rpms
+      yum:
+        name:
+          - /root/rpmbuild/RPMS/x86_64/libfabric-1.11.2-1.el7.x86_64.rpm
+          - /root/rpmbuild/RPMS/x86_64/libfabric-devel-1.11.2-1.el7.x86_64.rpm
+        state: present
+      when: ansible_distribution_version is version('7.6.1810', '>')
+      tags: libfabric-custom-build
+
+    - name: write libfab config file on vmware_desktop provider
+      lineinfile:
+        path:   /etc/libfab.conf
+        create: yes
+        regexp: '^networks='
+        # In VMware eth0 (NAT) is always the interface for Motr:
+        line:   'networks=tcp(eth0)'
+      when: ansible_virtualization_type == "VMware"
+      tags: libfab
+
+    - name: write libfab config file on other providers
+      lineinfile:
+        path:   /etc/libfab.conf
+        create: yes
+        regexp: '^networks='
+        # eth1 (host-only) interface is used for LNet in this case.
+        # (Note: VirtualBox won't inter-connect the nodes on NAT interfaces.)
+        line:   'networks=tcp(eth1)'
+      when: ansible_virtualization_type != "VMware"
+      tags: libfab
+  when: ansible_os_family == 'RedHat'
+  tags:
+    - libfab
+
 - name: build mscgen from src rpm
   block:
     - name: download mscgen src rpm

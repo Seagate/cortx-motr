@@ -114,6 +114,8 @@ struct bulkio_params {
 
 	/** Transaction ID included in the last reply received */
 	struct m0_be_tx_remid      bp_remid;
+
+	uint32_t                   bp_seg_nr;
 };
 
 /* A structure used to pass as argument to io threads. */

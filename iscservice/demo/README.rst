@@ -98,3 +98,97 @@ The min/max in-storage computation can then be done on such object::
   idx=132151 val=32767.627900
   $ m0iscdemo <motr-opts> min 123:12371 4096
   idx=180959 val=0.134330
+
+Benchmark example
+=================
+
+This benchmark was conducted on the SAGE Prototype Cluster (located in
+Jülich Computing Centre). SSD pool was used with 8+2 EC configuration,
+shared among the 3 server nodes (with max 5 SSDs per node).
+
+1GB object::
+
+  $ \time m0iscdemo <motr-opts> min 0x3456023:0x87002803 $((1024*1024))
+  idx=2845139 val=0.100200
+  2.37user 0.75system 0:15.66elapsed 19%CPU (0avgtext+0avgdata 234728maxresident)k
+  0inputs+231016outputs (0major+99487minor)pagefaults 0swaps
+  $
+  $ # Compare with the client computation performance on the same object:
+  $
+  $ mcp <motr-opts> -v -osz $((1024*1024)) 0x3456023:0x87002803 - | \time ~/minmax min
+  2021/10/18 15:49:50 mio.go:614: R: off=0 len=33554432 bs=33554432 gs=33554432 speed=500 (Mbytes/sec)
+  ...
+  2021/10/18 15:50:15 mio.go:614: R: off=1040187392 len=33554432 bs=33554432 gs=33554432 speed=711 (Mbytes/sec)
+  idx=2845139 val=0.100200
+  23.36user 0.59system 0:31.45elapsed 76%CPU (0avgtext+0avgdata 588maxresident)k
+  0inputs+0outputs (0major+224minor)pagefaults 0swaps
+
+2GB object::
+
+  $ \time m0iscdemo <motr-opts> min 0x3456023:0x87002805 $((2*1024*1024))
+  idx=2845139 val=0.100200
+  4.37user 1.01system 0:24.27elapsed 22%CPU (0avgtext+0avgdata 236728maxresident)k
+  0inputs+262288outputs (0major+164358minor)pagefaults 0swaps
+  $
+  $ # Client computation:
+  $
+  $ mcp <motr-opts> -v -osz $((2*1024*1024)) 0x3456023:0x87002805 - | \time ~/minmax min
+  2021/10/18 16:08:04 mio.go:614: R: off=0 len=33554432 bs=33554432 gs=33554432 speed=492 (Mbytes/sec)
+  ...
+  2021/10/18 16:08:54 mio.go:614: R: off=2113929216 len=33554432 bs=33554432 gs=33554432 speed=653 (Mbytes/sec)
+  idx=2845139 val=0.100200
+  46.35user 1.30system 0:56.97elapsed 83%CPU (0avgtext+0avgdata 588maxresident)k
+  0inputs+0outputs (0major+225minor)pagefaults 0swaps
+
+4GB object::
+
+  $ \time m0iscdemo <motr-opts> min 0x3456023:0x87002806 $((4*1024*1024))
+  idx=2845139 val=0.100200
+  7.50user 1.05system 0:40.85elapsed 20%CPU (0avgtext+0avgdata 246840maxresident)k
+  0inputs+362736outputs (0major+173574minor)pagefaults 0swaps
+  $
+  $ # Client computation:
+  $
+  $ mcp <motr-opts> -v -osz $((4*1024*1024)) 0x3456023:0x87002806 - | \time ~/minmax min
+  2021/10/18 16:17:45 mio.go:614: R: off=0 len=33554432 bs=33554432 gs=33554432 speed=516 (Mbytes/sec)
+  ...
+  2021/10/18 16:19:27 mio.go:614: R: off=4261412864 len=33554432 bs=33554432 gs=33554432 speed=592 (Mbytes/sec)
+  idx=2845139 val=0.100200
+  93.48user 2.48system 1:48.59elapsed 88%CPU (0avgtext+0avgdata 584maxresident)k
+  0inputs+0outputs (0major+231minor)pagefaults 0swaps
+
+8GB object::
+
+  $ \time m0iscdemo <motr-opts> min 0x3456023:0x87002807 $((8*1024*1024))
+  idx=2845139 val=0.100200
+  14.48user 1.57system 1:15.78elapsed 21%CPU (0avgtext+0avgdata 272176maxresident)k
+  0inputs+1424720outputs (0major+360575minor)pagefaults 0swaps
+  $
+  $ # Client computation:
+  $
+  $ mcp <motr-opts> -v -osz $((8*1024*1024)) 0x3456023:0x87002807 - | \time ~/minmax min
+  2021/10/18 17:33:54 mio.go:614: R: off=0 len=33554432 bs=33554432 gs=33554432 speed=500 (Mbytes/sec)
+  ...
+  2021/10/18 17:37:17 mio.go:614: R: off=8556380160 len=33554432 bs=33554432 gs=33554432 speed=615 (Mbytes/sec)
+  idx=2845139 val=0.100200
+  185.60user 4.82system 3:29.11elapsed 91%CPU (0avgtext+0avgdata 588maxresident)k
+  0inputs+0outputs (0major+265minor)pagefaults 0swaps
+
+We can clearly see that the computation with ISC performs more than 2 times faster
+(on this cluster and pool configuration), than on the client node with the client
+utility (which runs exactly the same logic to find min/max as the ISC library).
+And the bigger the object size, the faster it performs, see the table below.
+
+ISC Performance Comparison table:
+
++------------------+----------------------+-------------------------+--------------+
+| Object size (GB) | ISC computation time | Client computation time | Times faster |
++==================+======================+=========================+==============+
+|               1  |                15.66 |                   31.45 |         2.0  |
++------------------+----------------------+-------------------------+--------------+
+|               2  |                24.27 |                   56.97 |         2.34 |
++------------------+----------------------+-------------------------+--------------+
+|               4  |                40.85 |                 1:48.59 |         2.65 |
++------------------+----------------------+-------------------------+--------------+
+|               8  |              1:15.78 |                 3:29.11 |         2.75 |
++------------------+----------------------+-------------------------+--------------+

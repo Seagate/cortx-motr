@@ -42,6 +42,16 @@ struct m0_fsp_params {
 	char          *spp_process_fid;
 	char          *spp_fdmi_plugin_fid_s;
 	struct m0_fid  spp_fdmi_plugin_fid;
+	bool           spp_output_strings;
+
+	/**
+	 * To add an extra reference on this record. When the record is
+	 * consumed or it is stored in other persistent storage, pass
+	 * the FDMI record ID back to this plugin (in stdin). At that time,
+	 * plugin will release this FDMI record by calling the plugin dock API
+	 * `.fpo_release_fdmi_rec()` .
+	 */
+	bool           spp_extra_ref;
 };
 
 /**
@@ -66,7 +76,7 @@ struct m0_fsp_params fsp_params;
  * program if the type of the plugin match is found.
  */
 static struct m0_semaphore fsp_sem;
-
+volatile static int terminated = 0;
 /**
  * This program is basically adding the new client to the cluster. To do so
  * we need to specify the client endpoint and the address of the cluster
@@ -97,38 +107,11 @@ const struct m0_fdmi_pd_ops *fsp_pdo;
  */
 static struct m0_reqh_service *fsp_fdmi_service = NULL;
 
-/**
- * Aux buffer, used for data parsing.
- */
-#define MAX_LEN 8192
-static char buffer[MAX_LEN];
-
-static char *to_str(void *addr, int len)
-{
-	if (len > MAX_LEN - 1)
-		len = MAX_LEN - 1;
-	memcpy(buffer, addr, len);
-	buffer[len] = '\0';
-	return buffer;
-}
-
-M0_UNUSED static char *to_hex(void *addr, int len)
-{
-	int i, j;
-	if ((2 * len) > MAX_LEN) {
-		fprintf(stderr, "to_hex() failed with (2 * len) > MAX_LEN\n");
-		return NULL;
-	}
-	for(i = 0, j = 0; i < (2 * len) && j < len; ++j)
-		i += sprintf(buffer + i, "%02x", ((char *)addr)[j]);
-	buffer[2 * len] = '\0';
-	return buffer;
-}
-
-static void dump_fol_rec_to_json(struct m0_fol_rec *rec)
+static void dump_fol_rec_to_json(struct m0_uint128 *rec_id,
+				 struct m0_fol_rec *rec)
 {
 	struct m0_fol_frag *frag;
-	int i;
+	int i, j;
 
 	m0_tl_for(m0_rec_frag, &rec->fr_frags, frag) {
 		struct m0_fop_fol_frag *fp_frag = frag->rp_data;
@@ -137,27 +120,44 @@ static void dump_fol_rec_to_json(struct m0_fol_rec *rec)
 		struct m0_cas_rec *cr_rec = cg_rec.cr_rec;
 
 		for (i = 0; i < cg_rec.cr_nr; i++) {
-			int len = 0;
+			const unsigned char *addr;
+			int len;
 
-			m0_console_printf("{ \"opcode\": \"%d\", ", fp_frag->ffrp_fop_code);
+			printf("{ \"opcode\": \"%d\", ",
+				fp_frag->ffrp_fop_code);
 
-			len = sizeof(struct m0_fid);
-			m0_console_printf("\"fid\": \""FID_F"\", ",
-					  FID_P(&cas_op->cg_id.ci_fid));
+			printf("\"rec_id\": \""U128X_F"\", ",
+				U128_P(rec_id));
 
-			len = cr_rec[i].cr_key.u.ab_buf.b_nob;
-			m0_console_printf("\"cr_key\": \"%s\", ",
-					  to_str(cr_rec[i].cr_key.u.ab_buf.b_addr, len));
+			printf("\"fid\": \""FID_F"\", ",
+				FID_P(&cas_op->cg_id.ci_fid));
 
-			len = cr_rec[i].cr_val.u.ab_buf.b_nob;
-			if (len > 0) {
-				m0_console_printf("\"cr_val\": \"%s\"",
-						  to_str(cr_rec[i].cr_val.u.ab_buf.b_addr, len));
+			len  = cr_rec[i].cr_key.u.ab_buf.b_nob;
+			addr = cr_rec[i].cr_key.u.ab_buf.b_addr;
+			if (fsp_params.spp_output_strings) {
+				printf("\"cr_key\": \"%.*s\", ", len, addr);
 			} else {
-				m0_console_printf("\"cr_val\": \"0\"");
+				printf("\"cr_key\": \"");
+				for (j = 0; j < len; j++)
+					printf("%02x", addr[j]);
+				printf("\", ");
 			}
-			m0_console_printf(" }\n");
-
+			len  = cr_rec[i].cr_val.u.ab_buf.b_nob;
+			addr = cr_rec[i].cr_val.u.ab_buf.b_addr;
+			if (len > 0) {
+				if (fsp_params.spp_output_strings) {
+					printf("\"cr_val\": \"%.*s\"",
+						len, addr);
+				} else {
+					printf("\"cr_val\": \"");
+					for (j = 0; j < len; j++)
+						printf("%02x", addr[j]);
+					printf("\"");
+				}
+			} else {
+				printf("\"cr_val\": \"0\"");
+			}
+			printf(" }\n");
 		}
 	} m0_tl_endfor;
 }
@@ -167,13 +167,16 @@ static void fsp_usage(void)
 	fprintf(stderr,
 		"Usage: fdmi_sample_plugin "
 		"-l local_addr -h ha_addr -p profile_fid -f process_fid "
-		"-g fdmi_plugin_fid\n"
+		"-g fdmi_plugin_fid [-s] [-r]\n"
 		"Use -? or -i for more verbose help on common arguments.\n"
 		"Usage example for common arguments: \n"
 		"fdmi_sample_plugin -l 192.168.52.53@tcp:12345:4:1 "
 		"-h 192.168.52.53@tcp:12345:1:1 "
 		"-p 0x7000000000000001:0x37 -f 0x7200000000000001:0x19 "
 		"-g 0x6c00000000000001:0x51"
+		"-s output the key/val as a string. Otherwise as hex."
+		"-r plugin adds an extra reference on the record and then "
+		"   release it when it is consumed"
 		"\n");
 }
 
@@ -190,6 +193,8 @@ static int fsp_args_parse(struct m0_fsp_params *params, int argc, char ** argv)
 	params->spp_profile_fid = NULL;
 	params->spp_process_fid = NULL;
 	params->spp_fdmi_plugin_fid_s = NULL;
+	params->spp_output_strings = false;
+	params->spp_extra_ref = false;
 
 	rc = M0_GETOPTS("fdmi_sample_plugin", argc, argv,
 			M0_HELPARG('?'),
@@ -218,12 +223,20 @@ static int fsp_args_parse(struct m0_fsp_params *params, int argc, char ** argv)
 				     LAMBDA(void, (const char *str) {
 						     params->spp_fdmi_plugin_fid_s =
 							     (char*)str;
-					     })));
+					     })),
+			M0_VOIDARG('s', "output key/val as string",
+				   LAMBDA(void, (void) {
+						     params->spp_output_strings = true;
+					   })),
+			M0_VOIDARG('r', "adding an extra ref count",
+				   LAMBDA(void, (void) {
+						     params->spp_extra_ref = true;
+					   })));
 	if (rc != 0)
 		return M0_ERR(rc);
 
-        /* All mandatory params must be defined. */
-        if (params->spp_local_addr == NULL  || params->spp_hare_addr == NULL   ||
+	/* All mandatory params must be defined. */
+	if (params->spp_local_addr == NULL  || params->spp_hare_addr == NULL   ||
 	    params->spp_profile_fid == NULL || params->spp_process_fid == NULL ||
 	    params->spp_fdmi_plugin_fid_s == NULL) {
 		fsp_usage();
@@ -247,6 +260,7 @@ static int process_fdmi_record(struct m0_uint128 *rec_id,
 			       struct m0_buf fdmi_rec,
 			       struct m0_fid filter_id)
 {
+	struct m0_fdmi_record_reg *rreg;
 	struct m0_fol_rec fol_rec;
 	int               rc;
 
@@ -254,7 +268,18 @@ static int process_fdmi_record(struct m0_uint128 *rec_id,
 	rc = m0_fol_rec_decode(&fol_rec, &fdmi_rec);
 	if (rc != 0)
 		goto out;
-	dump_fol_rec_to_json(&fol_rec);
+
+	if (fsp_params.spp_extra_ref) {
+		/*
+		 * Adding an extra ref on this record.
+		 * It will be released when plugin gets ack from consumer.
+		 */
+		rreg = m0_fdmi__pdock_record_reg_find(rec_id);
+		if (rreg != NULL)
+			m0_ref_get(&rreg->frr_ref);
+	}
+
+	dump_fol_rec_to_json(rec_id, &fol_rec);
 out:
 	m0_fol_rec_fini(&fol_rec);
 	return rc;
@@ -325,6 +350,28 @@ static void fini_fdmi_plugin(struct m0_fsp_params *params)
 	fsp_pdo->fpo_deregister_plugin(&params->spp_fdmi_plugin_fid, 1);
 }
 
+/**
+ * Reading from stdin to get FDMI record ID and then
+ * release this record.
+ */
+static void fdmi_plugin_record_ack()
+{
+	struct m0_uint128 rec_id = { 0 };
+	int len;
+
+	setvbuf(stdin,  NULL, _IONBF, 0);
+	while (1) {
+		len = scanf(" %"SCNx64" : %"SCNx64, &rec_id.u_hi, &rec_id.u_lo);
+		if (len == 2) {
+			if (fsp_params.spp_extra_ref)
+				fsp_pdo->fpo_release_fdmi_rec(&rec_id, NULL);
+		} else {
+			if (terminated != 0)
+				break;
+		}
+	}
+}
+
 static int fsp_init(struct m0_fsp_params *params)
 {
 	int rc;
@@ -380,8 +427,9 @@ static void fsp_sighandler(int signum)
 {
 	fprintf(stderr, "fdmi_sample_plugin interrupted by signal %d\n", signum);
 	m0_semaphore_up(&fsp_sem);
+	terminated = 1;
 
-        /* Restore default handlers. */
+	/* Restore default handlers. */
 	signal(SIGINT, SIG_DFL);
 	signal(SIGTERM, SIG_DFL);
 }
@@ -409,10 +457,12 @@ static void fsp_print_params(struct m0_fsp_params *params)
 		"  hare_ep : %s\n"
 		"  profile_fid : %s\n"
 		"  process_fid : %s\n"
-		"  plugin_fid  : %s\n",
+		"  plugin_fid  : %s\n"
+		"  output as string: %s\n",
 		params->spp_local_addr, params->spp_hare_addr,
 		params->spp_profile_fid, params->spp_process_fid,
-		params->spp_fdmi_plugin_fid_s);
+		params->spp_fdmi_plugin_fid_s,
+		params->spp_output_strings? "true":"false");
 }
 
 int main(int argc, char **argv)
@@ -444,9 +494,10 @@ int main(int argc, char **argv)
 	if (rc != 0)
 		goto fini_fsp;
 
-        /* Main thread loop */
+	/* Main thread loop */
 	fsp_print_params(&fsp_params);
 	fprintf(stderr, "fdmi_sample_plugin waiting for signal...\n");
+	fdmi_plugin_record_ack();
 	m0_semaphore_down(&fsp_sem);
 
 fini_fsp:
