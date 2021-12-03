@@ -346,9 +346,8 @@ func (mio *Mio) Create(id string, sz uint64, anyPool ...string) error {
     return mio.open(sz)
 }
 
-func roundupPower2(x int) (power int) {
-    for power = 1; power < x; power *= 2 {}
-    return power
+func roundup(x int, by int) int {
+    return ((x - 1) / by + 1) * by
 }
 
 const maxM0BufSz = 512 * 1024 * 1024
@@ -389,14 +388,14 @@ func (mio *Mio) getOptimalBlockSz(bufSz int) (bsz, gsz int) {
     // P * N / (N + K + S) - number of data units to span the pool-width
     maxBs := int(k * C.uint(usz) * pa.pa_P * pa.pa_N /
                                   (pa.pa_N + pa.pa_K + pa.pa_S))
-    maxBs = ((maxBs - 1) / gsz + 1) * gsz // multiple of group size
+    maxBs = roundup(maxBs, gsz) // multiple of group size
 
     if bufSz >= maxBs {
         return maxBs, gsz
     } else if bufSz <= gsz {
         return gsz, gsz
     } else {
-        return roundupPower2(bufSz), gsz
+        return roundup(bufSz, gsz), gsz
     }
 }
 

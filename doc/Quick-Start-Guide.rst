@@ -1,7 +1,7 @@
 =================
 Quick Start Guide
 =================
-This guide provides information on how to get Motr ready.
+This guide provides information on how to get Motr ready and test it. After following this guide, if you would like to actually run a motr cluster, please follow the `cortx-hare quick start guide <https://github.com/Seagate/cortx-hare/blob/main/README.md>`_.
 
 *************
 Prerequisites
@@ -41,6 +41,8 @@ Build
     sudo lctl list_nids
 
    Make sure that libfabric package is not installed.
+   Please refer the following document for un-installation of libfabric package.
+   https://seagate-systems.atlassian.net/wiki/spaces/PUB/pages/711230113/Libfabric+setup+and+using+libfabric+with+motr#Uninstalling-libfabric-package ::
 
     fi_info --version
     bash: fi_info: command not found
@@ -51,7 +53,7 @@ Build
 
    Use ``ip a`` command to get a list of network interfaces.
    Then modify ``libfab.conf`` to use one of the listed network interfaces.
-   Verify the libfab.conf file contents.
+   Verify the libfab.conf file contents::
 
     cat /etc/libfab.conf
     networks=tcp(eth1)
@@ -59,7 +61,7 @@ Build
    Please refer the below document for installation.
    https://seagate-systems.atlassian.net/wiki/spaces/PUB/pages/711230113/Libfabric+setup+and+using+libfabric+with+motr
 
-   Verify that libfabric package is installed.
+   Verify that libfabric package is installed::
 
     fi_info --version
     fi_info: 1.11.2
@@ -139,7 +141,7 @@ Unit Benchmark
     sudo scripts/m0 run-ub -t ad-ub
 
 Troubleshooting
-================
+===============
 - If pip fails to install a package while installing build dependencies,
   try installing packages using pip installer.
   run the following commands if package is ipaddress::
@@ -175,6 +177,8 @@ Troubleshooting
 
 - For other errors, please check our `FAQs <https://github.com/Seagate/cortx/blob/master/doc/Build-Installation-FAQ.md>`_.
 
+- After following this guide, if you would like to actually run a motr cluster, please follow the `cortx-hare quick start guide <https://github.com/Seagate/cortx-hare/blob/main/README.md>`_.
+
 Build the documentation
 =======================
 
@@ -193,11 +197,16 @@ The files will be generated at doc/html/ folder.
 
 
 Tested by:
+
+- December 01, 2021: Naga Kishore Kommuri (nagakishore.kommuri@seagate.com) CentOS Linux release 7.9.2009 verified with git (#43a75c54d15b23532d883b6065a201b5d6a7f385)
+
 - September 20, 2021: Yixuan Li (yixuan.li@seagate.com) in Red Hat Enterprise Linux Server release 7.7 (Maipo) (#5aac28633a149d2c7e6f8d4c502d80dabf7ebb7e)
 
 - Sep 20, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested in CentOS 7.8.2003 x86_64 using CORTX-2.0.0-77 tag on main branch  
 
 - September 15, 2021: Jugal Patil (jugal.patil@seagate.com) tested using CentOS Linux release 7.9.2009 and 7.8.2003 verified with git tag CORTX-2.0.0-77 (#7d4d09cc9fd32ec7690c94298136b372069f3ce3) on main branch
+
+- Sep 6, 2021: Rose Wambui (rose.wambui@seagate.com) in CentOS 7.8.2003 on a Mac running VirtualBox 6.1.
 
 - June 21, 2021: Daniar Kurniawan (daniar@uchicago.edu) in CentOS 7.9.2003 on a Chameleon node (type=compute_skylake).
 

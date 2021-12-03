@@ -161,6 +161,15 @@ AC_ARG_VAR([KCFLAGS], [kernel-space CFLAGS])
 AC_ARG_VAR([CXXXML],  [gccxml/castxml command])
 
 # define macros --------------------------------------- {{{2
+#
+# Add include guards to config.h
+#
+AH_TOP([
+#pragma once
+
+#ifndef __MOTR_CONFIG_H__
+#define __MOTR_CONFIG_H__
+])
 AH_TEMPLATE([MOTR_IDX_STORE_CASS],    [Use Cassandra as KVS backend.])
 AH_TEMPLATE([IDX_CASS_DRV_V22],       [Cassandra driver version >= 2.2.])
 AH_TEMPLATE([ENABLE_LUSTRE],          [Enable LNet network stack from Lustre.])
@@ -203,7 +212,9 @@ AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
 AH_TEMPLATE([HAVE_ISAL],              [Have Intel ISA-L available])
 AH_TEMPLATE([CONFIG_X86_64],          [Support for X86_64 platform])
 AH_TEMPLATE([CONFIG_AARCH64],         [Support for AARCH64 platform])
-
+AH_BOTTOM([
+#endif /* __MOTR_CONFIG_H__ */
+])
 
 # enable/disable options ------------------------------ {{{2
 
@@ -957,6 +968,15 @@ AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
 AC_SUBST([LIBFAB_LIBS])
 AM_CONDITIONAL([ENABLE_LIBFAB],
                [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
+
+AC_MSG_CHECKING([for motr/config.h])
+MOTR_CONFIG="motr/config.h"
+AS_IF([! test -e "ABS_BUILDDIR/$MOTR_CONFIG"],
+    [
+      AC_MSG_NOTICE([$MOTR_CONFIG not found! Creating the symlink.])
+        (cd "$ABS_BUILDDIR/motr" && $LN_S "../config.h" "config.h")
+    ]
+)
 
 #
 # Checking Lustre --------------------------------------------------------- {{{1
