@@ -946,6 +946,15 @@ AC_SUBST([BUILD_DEPEND_LIBFAB])
 AM_CONDITIONAL([ENABLE_LIBFAB],
                [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
 
+AC_MSG_CHECKING([for motr/config.h])
+MOTR_CONFIG="motr/config.h"
+AS_IF([! test -e "ABS_BUILDDIR/$MOTR_CONFIG"],
+    [
+      AC_MSG_NOTICE([$MOTR_CONFIG not found! Creating the symlink.])
+        (cd "$ABS_BUILDDIR/motr" && $LN_S "../config.h" "config.h")
+    ]
+)
+
 #
 # Checking Lustre --------------------------------------------------------- {{{1
 #
