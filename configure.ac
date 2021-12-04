@@ -934,7 +934,7 @@ AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
 			M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
 			enable_libfab=yes
 			AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["LF"])
-			BUILD_DEPEND_LIBFAB="BuildRequires: libfab-devel"
+			BUILD_DEPEND_LIBFAB="BuildRequires: libfabric-devel"
 		      ]
 		)
 	      ], []
