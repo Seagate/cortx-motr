@@ -44,9 +44,11 @@ trap _handle_sigterm SIGTERM SIGKILL
 
 get_fids() {
 
-	service=$1
-	val=$HARE_CMD | grep -A1 $service | grep -v "name" | tr -s " " | cut -d " " -f3 | grep -v "-"
-	echo $val
+        service=$1
+        val=$($HARE_CMD | grep -A1 $service | grep -v "name" | tr -s " " | cut -d " " -f3 | grep -v "-")
+        tmp1="${val%\"}"
+        tmp="${tmp1#\"}"
+        echo $tmp
 }
 
 start_all_services() {
