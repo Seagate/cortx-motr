@@ -42,7 +42,7 @@ enum m0_net_ip_family {
 	M0_NET_IP_AF_INET,
 	M0_NET_IP_AF_INET6,
 	M0_NET_IP_AF_UNIX,
-	M0_NET_IP_AF_MAX
+	M0_NET_IP_AF_NR
 };
 
 /** Represent protocol of network address */
@@ -53,7 +53,7 @@ enum m0_net_ip_proto {
 	M0_NET_IP_PROTO_DGRAM,
 	M0_NET_IP_PROTO_O2IB,
 	M0_NET_IP_PROTO_LO,
-	M0_NET_IP_PROTO_MAX
+	M0_NET_IP_PROTO_NR
 };
 
 /** Structure to represent inet address format */
@@ -75,11 +75,11 @@ struct m0_net_ip_params {
 	union {
 		struct m0_net_ip_inet_addr ia;
 		struct m0_net_ip_lnet_addr la;
-	} fmt_pvt;
+	} nip_fmt_pvt;
 	union {
 		uint64_t ln[2];
 		uint32_t sn[4];
-	} ip_n;
+	} nip_ip_n;
 	enum m0_net_ip_format      nip_format;
 	uint16_t                   nip_port;
 };
@@ -116,7 +116,7 @@ M0_INTERNAL int m0_net_ip_print(const struct m0_net_ip_addr *nia);
  *                > 0 when gethostbyname fails (dns resolution failed).
  *                < 0 error.
  */
-M0_INTERNAL int m0_net_hostname_to_ip(char *hostname, char *ip,
+M0_INTERNAL int m0_net_hostname_to_ip(const char *hostname, char *ip,
 				      enum m0_net_ip_format *fmt);
 
 /**
@@ -125,8 +125,12 @@ M0_INTERNAL int m0_net_hostname_to_ip(char *hostname, char *ip,
  * is compared.
  * Returns true if addr1 and addr2 are equal else false.
  */
-M0_INTERNAL bool m0_net_ip_addr_cmp(struct m0_net_ip_addr *addr1,
-				    struct m0_net_ip_addr *addr2, bool is_ncmp);
+M0_INTERNAL bool m0_net_ip_addr_eq(const struct m0_net_ip_addr *addr1,
+				   const struct m0_net_ip_addr *addr2, bool is_ncmp);
+
+M0_INTERNAL int m0_net_ip_init(void);
+
+M0_INTERNAL void m0_net_ip_fini(void);
 
 #endif /* __MOTR_NET_IP_H__ */
 

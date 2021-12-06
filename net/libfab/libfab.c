@@ -356,11 +356,14 @@ static void libfab_straddr_gen(struct m0_net_ip_params *addr,
 			       char *ip)
 {
 	if (addr->nip_format == M0_NET_IP_LNET_FORMAT)
-		inet_ntop(AF_INET, &addr->ip_n.sn[0], ip, LIBFAB_ADDR_LEN_MAX);
-	else if (addr->fmt_pvt.ia.nia_family == M0_NET_IP_AF_INET)
-		inet_ntop(AF_INET, &addr->ip_n.sn[0], ip, LIBFAB_ADDR_LEN_MAX);
-	else if (addr->fmt_pvt.ia.nia_family == M0_NET_IP_AF_INET6)
-		inet_ntop(AF_INET6, &addr->ip_n.ln[0], ip, LIBFAB_ADDR_LEN_MAX);
+		inet_ntop(AF_INET, &addr->nip_ip_n.sn[0], ip,
+			  LIBFAB_ADDR_LEN_MAX);
+	else if (addr->nip_fmt_pvt.ia.nia_family == M0_NET_IP_AF_INET)
+		inet_ntop(AF_INET, &addr->nip_ip_n.sn[0], ip,
+			  LIBFAB_ADDR_LEN_MAX);
+	else if (addr->nip_fmt_pvt.ia.nia_family == M0_NET_IP_AF_INET6)
+		inet_ntop(AF_INET6, &addr->nip_ip_n.ln[0], ip,
+			  LIBFAB_ADDR_LEN_MAX);
 	else
 		M0_LOG(M0_ERROR, "Family is not supported.");
 }
@@ -805,7 +808,7 @@ static bool libfab_ep_cmp(struct m0_fab__ep *ep, const char *name,
 	struct m0_net_ip_addr *fep = &ep->fep_name;
 	return (name != NULL &&
 		strcmp(ep->fep_name.nia_p, name) == 0) ||
-	        (name == NULL && m0_net_ip_addr_cmp(fep, addr, true));
+	        (name == NULL && m0_net_ip_addr_eq(fep, addr, true));
 }
 
 /**
@@ -856,12 +859,12 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 			if (wc != NULL &&
 			    ep->fep_name.nia_n.nip_port !=
 			    net_ip.nia_n.nip_port) {
-				ep->fep_name.nia_n.ip_n.sn[0] =
-					net_ip.nia_n.ip_n.sn[0];
+				ep->fep_name.nia_n.nip_ip_n.sn[0] =
+					net_ip.nia_n.nip_ip_n.sn[0];
 				ep->fep_name.nia_n.nip_port =
 					net_ip.nia_n.nip_port;
-				ep->fep_name.nia_n.fmt_pvt.la.nla_tmid =
-					net_ip.nia_n.fmt_pvt.la.nla_tmid;
+				ep->fep_name.nia_n.nip_fmt_pvt.la.nla_tmid =
+					net_ip.nia_n.nip_fmt_pvt.la.nla_tmid;
 				libfab_ep_pton(&ep->fep_name,
 					       &ep->fep_name_n);
 				aep = libfab_aep_get(ep);
@@ -917,10 +920,10 @@ static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
 	 * tmid and port are correctly reconstructed.
 	 */
 	if (addr != NULL && addr->nip_format == M0_NET_IP_LNET_FORMAT &&
-	    addr->fmt_pvt.la.nla_autotm) {
+	    addr->nip_fmt_pvt.la.nla_autotm) {
 		ep->fep_name.nia_n.nip_port = addr->nip_port;
-		ep->fep_name.nia_n.fmt_pvt.la.nla_tmid =
-		addr->fmt_pvt.la.nla_tmid;
+		ep->fep_name.nia_n.nip_fmt_pvt.la.nla_tmid =
+		addr->nip_fmt_pvt.la.nla_tmid;
 	}
 
 	rc = libfab_active_ep_create(ep, ma);
@@ -1164,10 +1167,10 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 	char                       addr[LIBFAB_ADDR_LEN_MAX] = {};
 	char                       port[LIBFAB_PORT_LEN_MAX] = {};
 
-	M0_ENTRY("ep=%s ip_n=[0x%"PRIx64",0x%"PRIx64"] port=%d",
+	M0_ENTRY("ep=%s nip_ip_n=[0x%"PRIx64",0x%"PRIx64"] port=%d",
 		 (char*)ep->fep_name.nia_p,
-		 ep->fep_name.nia_n.ip_n.ln[0],
-		 ep->fep_name.nia_n.ip_n.ln[1],
+		 ep->fep_name.nia_n.nip_ip_n.ln[0],
+		 ep->fep_name.nia_n.nip_ip_n.ln[1],
 		 (int)ep->fep_name.nia_n.nip_port);
 
 	M0_ALLOC_PTR(ep->fep_listen);
@@ -2083,9 +2086,9 @@ static int libfab_dns_resolve_retry(struct m0_fab__ep *ep)
 
 		rc = m0_net_hostname_to_ip(fqdn, ip, &not_used);
 		if (rc == 0) {
-			inet_pton(en->nia_n.fmt_pvt.ia.nia_family ==
+			inet_pton(en->nia_n.nip_fmt_pvt.ia.nia_family ==
 				  M0_NET_IP_AF_INET ? AF_INET : AF_INET6,
-				  ip, &en->nia_n.ip_n.sn[0]);
+				  ip, &en->nia_n.nip_ip_n.sn[0]);
 			M0_LOG(M0_DEBUG, "ip=%s port=%d fqdn=%s", (char *)ip,
 			       (int)en->nia_n.nip_port, (char *)fqdn);
 		} else
@@ -2174,7 +2177,7 @@ static int libfab_fab_ep_find(struct m0_fab__tm *tm, const char *name,
  */
 static void libfab_ep_pton(struct m0_net_ip_addr *name, uint64_t *out)
 {
-	uint32_t addr = name->nia_n.ip_n.sn[0];
+	uint32_t addr = name->nia_n.nip_ip_n.sn[0];
 	uint32_t port = name->nia_n.nip_port;
 
 	M0_ASSERT(port < 65536);

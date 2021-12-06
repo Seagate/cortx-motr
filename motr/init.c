@@ -192,6 +192,7 @@ struct init_fini_call subsystem[] = {
 #ifndef __KERNEL__
 	{ &m0_net_libfab_init,   &m0_net_libfab_fini,   "net/libfab" },
 	{ &m0_net_sock_mod_init, &m0_net_sock_mod_fini, "net/sock" },
+	{ &m0_net_ip_init,       &m0_net_ip_fini,       "net-ip" },
 #endif
 	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
 	{ &m0_cob_mod_init,     &m0_cob_mod_fini,     "cob" },

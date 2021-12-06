@@ -522,11 +522,11 @@ void m0_net_test_network_ut_addr_decode(void)
 		cfg.ntncfg_timeouts	 = m0_net_test_network_timeouts_never();
 
 		rc = m0_net_test_network_ctx_init(&send, &cfg,
-						  "0@lo:12345:42:3000");
+						  "0@lo:12345:42:30");
 		M0_UT_ASSERT(rc == 0);
 
 		/* decode: lnet addressing format*/
-		rc = m0_net_test_network_ep_add(&send, "0@lo:12345:42:3001");
+		rc = m0_net_test_network_ep_add(&send, "0@lo:12345:42:31");
 		M0_UT_ASSERT(rc == 0);
 
 		/* decode: inet addresses of type tcp*/
