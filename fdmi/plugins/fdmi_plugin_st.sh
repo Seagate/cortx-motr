@@ -92,7 +92,7 @@ do_some_kv_operations()
 		echo "This is to simulate the plugin failure and start"
 
 		rc=1
-		stop_fdmi_plugin      && sleep 5                         &&
+		sleep 5 && stop_fdmi_plugin      && sleep 5              &&
 		start_fdmi_plugin "$FDMI_FILTER_FID"  "$FDMI_PLUGIN_EP"  &&
 		start_fdmi_plugin "$FDMI_FILTER_FID2" "$FDMI_PLUGIN_EP2" && rc=0
 		if [[ $rc -eq 1 ]] ; then
@@ -118,7 +118,7 @@ do_some_kv_operations()
 		for ((j=0; j<20; j++)); do
 			echo "j=$j"
 			"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
-					index put    "$DIX_FID" "key2-$j" "something1_anotherstring2*YETanotherstring3-$j"
+					index put    "$DIX_FID" "iter-äää-$j" "something1_anotherstring2*YETanotherstring3-$j"
 		done
 		if $interactive ; then echo "Press Enter to go ..." && read; fi
 
@@ -168,15 +168,18 @@ start_fdmi_plugin()
 	# Using `fdmi_sample_plugin`, which has duplicated records.
 	# PLUG_PARAM="-l ${lnet_nid}:$fdmi_plugin_ep        \
 	#	    -h ${lnet_nid}:$HA_EP -p $PROF_OPT    \
-	#	    -f $M0T1FS_PROC_ID                    "
-	# PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin $PLUG_PARAM -g $fdmi_filter_fid -s"
+	#	    -f $M0T1FS_PROC_ID -g $fdmi_filter_fid -s "
+	# if $interactive ; then PLUG_PARAM="$PLUG_PARAM -r"; fi
+	# PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin $PLUG_PARAM"
 
 	# Using `fdmi_app`, which can de-dup the duplicated records
 	 APP_PARAM="-le ${lnet_nid}:$fdmi_plugin_ep        \
 		    -he ${lnet_nid}:$HA_EP -pf $PROF_OPT    \
 		    -sf $M0T1FS_PROC_ID                     \
 		    -fi $fdmi_filter_fid                    \
-		    --plugin-path $M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin"
+		    --plugin-path $M0_SRC_DIR/fdmi/plugins/fdmi_sample_plugin "
+	# To test with kafka server, uncomment following with valid kafka server
+	# APP_PARAM="$APP_PARAM -ks 127.0.0.1:9092"
 	PLUGIN_CMD="$M0_SRC_DIR/fdmi/plugins/fdmi_app $APP_PARAM"
 
 	if $interactive ; then
