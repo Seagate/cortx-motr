@@ -567,7 +567,7 @@ static void dix_build(const struct m0_op_idx *oi,
 					  HASH_FNC_CITY,
 					  &idx->in_attr.idx_pver);
 		}
-	} else if (M0_IN(opcode, (M0_EO_CREATE))) {
+	} else if (M0_IN(opcode, (M0_EO_CREATE)) || SKIP_CROW_IDX_OPS) {
 		/*
 		 * Use default layout for all indices:
 		 * - city hash function;
@@ -966,11 +966,16 @@ static bool dixreq_clink_cb(struct m0_clink *cl)
 			dix_next_reply_copy(dreq, oi->oi_rcs, oi->oi_keys,
 					    oi->oi_vals);
 			break;
+		case M0_IC_LOOKUP:
+			if (SKIP_CROW_IDX_OPS) {
+				M0_ASSERT(m0_dix_req_nr(dreq) == 1);
+				rc = m0_dix_item_rc(dreq, 0);
+			}
+			break;
 		default:
 			M0_IMPOSSIBLE("Invalid op code");
 		}
 	}
-
 	dixreq_completed_post(dix_req, rc);
 	return false;
 }
@@ -1006,7 +1011,7 @@ static void dix_index_create_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ENTRY();
 	dix_build(oi, &dix);
 	m0_clink_add(&dreq->dr_sm.sm_chan, &dix_req->idr_clink);
-	rc = m0_dix_create(dreq, &dix, 1, NULL, COF_CROW);
+	rc = m0_dix_create(dreq, &dix, 1, NULL, SKIP_CROW_IDX_OPS ? 0 : COF_CROW);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	m0_dix_fini(&dix);
@@ -1032,7 +1037,7 @@ static void dix_index_delete_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ENTRY();
 	dix_build(oi, &dix);
 	m0_clink_add(&dreq->dr_sm.sm_chan, &dix_req->idr_clink);
-	rc = m0_dix_delete(dreq, &dix, 1, NULL, COF_CROW);
+	rc = m0_dix_delete(dreq, &dix, 1, NULL, SKIP_CROW_IDX_OPS ? 0 : COF_CROW);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();
@@ -1043,11 +1048,19 @@ static void dix_index_lookup_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct dix_req          *dix_req = ast->sa_datum;
 	struct m0_op_idx        *oi = dix_req->idr_oi;
 	struct m0_dix_meta_req  *mreq = &dix_req->idr_mreq;
+	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
+	struct m0_dix            dix = {};
 	int                      rc;
 
 	M0_ENTRY();
-	m0_clink_add_lock(&mreq->dmr_chan, &dix_req->idr_clink);
-	rc = m0_dix_layout_get(mreq, OI_IFID(oi), 1);
+	if (SKIP_CROW_IDX_OPS) {
+		dix_build(oi, &dix);
+		m0_clink_add(&dreq->dr_sm.sm_chan, &dix_req->idr_clink);
+		rc = m0_dix_cctgs_lookup(dreq, &dix, 1);
+	} else {
+		m0_clink_add_lock(&mreq->dmr_chan, &dix_req->idr_clink);
+		rc = m0_dix_layout_get(mreq, OI_IFID(oi), 1);
+	}
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();
@@ -1090,6 +1103,8 @@ static void dix_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	int                      rc;
 
 	M0_ENTRY();
+	if (SKIP_CROW_IDX_OPS)
+		flags = 0;
 	dix_dreq_prepare(dix_req, &dix, oi);
 	if (oi->oi_flags & M0_OIF_OVERWRITE)
 		flags |= COF_OVERWRITE;
@@ -1267,7 +1282,10 @@ static int dix_index_lookup(struct m0_op_idx *oi)
 	int             rc;
 
 	M0_ASSERT(dix_iname_args_are_valid(oi));
-	rc = dix_mreq_create(oi, &req);
+	if (SKIP_CROW_IDX_OPS) 
+		rc = dix_req_create(oi, &req);
+	else
+		rc = dix_mreq_create(oi, &req);
 	if (rc != 0)
 		return M0_ERR(rc);
 	dix_req_exec(req, idx_is_distributed(oi) ?

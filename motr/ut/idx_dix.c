@@ -437,7 +437,9 @@ static void ut_dix_record_ops(bool dist)
 	general_ifid_fill(&ifid, dist);
 	m0_container_init(&realm, NULL, &M0_UBER_REALM, ut_m0c);
 	m0_idx_init(&idx, &realm.co_realm, (struct m0_uint128 *)&ifid);
-
+	if (SKIP_CROW_IDX_OPS)
+		idx.in_entity.en_flags |= M0_ENF_META; 
+	
 	/* Create index. */
 	rc = m0_entity_create(NULL, &idx.in_entity, &op);
 	M0_UT_ASSERT(rc == 0);
@@ -832,6 +834,8 @@ static void idx_setup(void)
 	m0_idx_init(idx, &realm->co_realm, (struct m0_uint128 *) ifid);
 
 	/* Create the index */
+	if (SKIP_CROW_IDX_OPS)
+		idx->in_entity.en_flags |= M0_ENF_META;	
 	rc = m0_entity_create(NULL, &idx->in_entity, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_op_launch(&op, 1);
