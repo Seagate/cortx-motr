@@ -77,7 +77,7 @@ main() {
     [ `id -u` -eq 0 ] || die 'Must be run by superuser'
 
     ## Clean old m0reportbug output before generating new.
-    rm -rf {$OUT_DATA_DIR,$OUT_CORES_DIR,$OUT_TRACES_DIR}{,.tar.xz}
+    rm -rf {$OUT_DATA_DIR,$OUT_CORES_DIR,$OUT_TRACES_DIR}{,.tar.gz}
 
     mkdir $OUT_DATA_DIR
     pushd $OUT_DATA_DIR >/dev/null
@@ -222,12 +222,12 @@ main() {
         cp -pv /var/log/motr-rpm-conf-update.log $OUT_DATA_DIR/
     fi
 
-    tar --remove-files -cJf $OUT_DATA_DIR{.tar.xz,}
-    local files=$OUT_DATA_DIR.tar.xz
+    tar --remove-files -czf $OUT_DATA_DIR{.tar.gz,}
+    local files=$OUT_DATA_DIR.tar.gz
     for t in $OUT_CORES_DIR $OUT_TRACES_DIR; do
         if [ -d $t ]; then
-            tar --remove-files -cJf $t{.tar.xz,}
-            files+=":$t.tar.xz"
+            tar --remove-files -czf $t{.tar.gz,}
+            files+=":$t.tar.gz"
         fi
     done
     if echo $files | grep -q :; then
@@ -918,6 +918,7 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2021-12-06 0.55    Create .tar.gz archive as best compression techniques.
 ### 2021-08-10 0.54    Added binaries m0cp, m0cat, m0client and m0touch
 ###                    in support bundle.
 ###
