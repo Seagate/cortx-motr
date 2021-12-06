@@ -8925,7 +8925,7 @@ static void ut_basic_tree_oper_icp(void)
 	void                   *temp_node;
 	int                     rc;
 	struct m0_fid           fid        = M0_FID_TINIT('b', 0, 1);
-	uint32_t                rnode_sz   = 4096;
+	uint32_t                rnode_sz   = m0_pagesize_get();
 	uint32_t                rnode_sz_shift;
 	struct m0_buf           buf;
 
@@ -9440,7 +9440,7 @@ static void ut_multi_stream_kv_oper(void)
 	struct m0_buf           buf;
 	uint64_t                maxkey          = 0;
 	uint64_t                minkey          = UINT64_MAX;
-	uint32_t                rnode_sz        = 4096;
+	uint32_t                rnode_sz        = m0_pagesize_get();
 	uint32_t                rnode_sz_shift;
 	struct m0_fid           fid             = M0_FID_TINIT('b', 0, 1);
 
@@ -10771,7 +10771,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 	uint16_t                      cpu_count;
 	size_t                        cpu_max;
 	time_t                        curr_time;
-	uint32_t                      rnode_sz        = 4096;
+	uint32_t                      rnode_sz        = m0_pagesize_get();
 	uint32_t                      rnode_sz_shift;
 
 	M0_ENTRY();
@@ -11030,7 +11030,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 	struct m0_be_tx_credit  cred           = {};
 	struct m0_fid           fid            = M0_FID_TINIT('b', 0, 1);
 	int                     rc;
-	uint32_t                rnode_sz       = 4096;
+	uint32_t                rnode_sz       = m0_pagesize_get();
 	uint32_t                rnode_sz_shift;
 	struct m0_buf           buf;
 
@@ -11407,7 +11407,7 @@ static void ut_btree_persistence(void)
 	void                       *v_ptr           = &value;
 	int                         rc;
 	struct m0_buf               buf;
-	uint32_t                    rnode_sz        = 4096;
+	uint32_t                    rnode_sz        = m0_pagesize_get();
 	struct m0_fid               fid             = M0_FID_TINIT('b', 0, 1);
 	uint32_t                    rnode_sz_shift;
 	struct m0_btree_rec         rec             = {
@@ -11856,7 +11856,7 @@ static void ut_btree_truncate(void)
 	void                       *v_ptr           = &value;
 	int                         rc;
 	struct m0_buf               buf;
-	uint32_t                    rnode_sz        = 4096;
+	uint32_t                    rnode_sz        = m0_pagesize_get();
 	struct m0_fid               fid             = M0_FID_TINIT('b', 0, 1);
 	uint32_t                    rnode_sz_shift;
 	struct m0_btree_rec         rec             = {
@@ -12006,7 +12006,7 @@ static void ut_lru_test(void)
 	void                       *v_ptr           = &value;
 	int                         rc;
 	struct m0_buf               buf;
-	uint32_t                    rnode_sz        = 4096;
+	uint32_t                    rnode_sz        = m0_pagesize_get();
 	struct m0_fid               fid             = M0_FID_TINIT('b', 0, 1);
 	uint32_t                    rnode_sz_shift;
 	struct m0_btree_rec         rec             = {
