@@ -2552,7 +2552,12 @@ static void rconfc_herd_cctxs_fini(struct m0_rconfc *rconfc)
 	struct rconfc_link *lnk;
 
 	m0_tl_for (rcnf_herd, &rconfc->rc_herd, lnk) {
-		if (lnk->rl_state == CONFC_DEAD)
+		/*
+		 * When lnk->fl_fom_queued is true then it means 
+		 * that the fom fini is in progress.
+		 */
+		if (lnk->rl_state == CONFC_DEAD || 
+		    (lnk->rl_fom_queued  && lnk->rl_state == CONFC_IDLE ))
 			/*
 			 * Even with version elected some links may remain dead
 			 * in the herd and require no finalisation. Dead link is
