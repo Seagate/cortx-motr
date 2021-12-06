@@ -972,10 +972,12 @@ static void dix_idxop(struct m0_dix_req *req)
 	 * Put/delete ordinary indices layouts in 'layout' meta-index.
 	 */
 	if (!req->dr_is_meta &&
-	    M0_IN(req->dr_type, (DIX_CREATE, DIX_DELETE))) {
+	    M0_IN(req->dr_type, (DIX_CREATE, DIX_DELETE)) &&
+	    !SKIP_CROW_IDX_OPS) {
 		rc = dix_idxop_meta_update(req);
 		next_state = DIXREQ_META_UPDATE;
 	} else {
+		M0_LOG(M0_DEBUG, "Skipped meta update for index ops");
 		rc = dix_idxop_reqs_send(req);
 		next_state = DIXREQ_INPROGRESS;
 	}
@@ -1739,6 +1741,7 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 	struct m0_reqh_service_ctx *cas_svc;
 	struct m0_dix_layout       *layout = &req->dr_indices[0].dd_layout;
 	int                         rc;
+	struct m0_fid               dix_fid;
 	M0_ENTRY("req=%p", req);
 
 	M0_PRE(rop->dg_cas_reqs_nr == 0);
@@ -1780,6 +1783,16 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 					req->dr_dtx, cas_rop->crp_flags);
 			break;
 		case DIX_NEXT:
+			if (m0_fid_eq(&req->dr_indices->dd_fid,
+			    &m0_dix_layout_fid) && SKIP_CROW_IDX_OPS) {
+				memcpy((void *)&dix_fid,
+				       cas_rop->crp_keys.ov_buf[0], 
+				       sizeof(dix_fid));
+				m0_dix_fid_convert_dix2cctg(&dix_fid,
+					cas_rop->crp_keys.ov_buf[0],
+					sdev_idx);
+
+			}
 			rc = m0_cas_next(creq, &cctg_id, &cas_rop->crp_keys,
 					 req->dr_recs_nr,
 					 cas_rop->crp_flags | COF_SLANT);
@@ -2440,6 +2453,7 @@ M0_INTERNAL void m0_dix_next_rep(const struct m0_dix_req  *req,
 	const struct m0_dix_next_resultset  *rs = &req->dr_rs;
 	struct m0_dix_next_results          *res;
 	struct m0_cas_next_reply           **reps;
+	struct m0_fid 			     ctg_fid;
 
 	M0_ASSERT(rs != NULL);
 	M0_ASSERT(key_idx < rs->nrs_res_nr);
@@ -2449,6 +2463,11 @@ M0_INTERNAL void m0_dix_next_rep(const struct m0_dix_req  *req,
 	M0_ASSERT(reps[val_idx]->cnp_rc == 0);
 	rep->dnr_key = reps[val_idx]->cnp_key;
 	rep->dnr_val = reps[val_idx]->cnp_val;
+	if (m0_fid_eq(&req->dr_indices->dd_fid, &m0_dix_layout_fid) &&
+	    SKIP_CROW_IDX_OPS) {
+		memcpy((void *)&ctg_fid, rep->dnr_key.b_addr, sizeof(ctg_fid));
+		m0_dix_fid_convert_cctg2dix(&ctg_fid, rep->dnr_key.b_addr);	
+	}		     
 }
 
 M0_INTERNAL uint32_t m0_dix_next_rep_nr(const struct m0_dix_req *req,
