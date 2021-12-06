@@ -912,7 +912,7 @@ enum {
 	NODE_SHIFT_MIN = 9,
 };
 
-static struct segaddr  segaddr_build(const void *addr, int shift);
+static struct segaddr  segaddr_build(const void *addr);
 static void           *segaddr_addr (const struct segaddr *addr);
 static uint32_t        segaddr_ntype_get(const struct segaddr *addr);
 static bool            segaddr_header_isvalid(const struct segaddr *addr);
@@ -1960,11 +1960,10 @@ static bool addr_is_aligned(const void *addr)
  * Returns a segaddr formatted segment address.
  *
  * @param addr  is the start address (of the node) in the segment.
- *        shift is the size of the node as pow-of-2 value.
  *
  * @return Formatted Segment address.
  */
-static struct segaddr segaddr_build(const void *addr, int shift)
+static struct segaddr segaddr_build(const void *addr)
 {
 	struct segaddr sa;
 	sa.as_core = (uint64_t)addr;
@@ -2431,8 +2430,8 @@ static int64_t bnode_free(struct node_op *op, struct nd *node,
 	node->n_be_node_valid = false;
 	op->no_addr = node->n_addr;
 	buf = M0_BUF_INIT(size, segaddr_addr(&op->no_addr));
-	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, m0_pageshift_get(), node->n_tree->t_seg,
-				  tx);
+	/** Passing 0 as second parameter to avoid compilation warning. */
+	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, 0, node->n_tree->t_seg, tx);
 	/** Capture in transaction */
 
 	if (node->n_ref == 0 && node->n_txref == 0) {
@@ -2473,7 +2472,7 @@ static int64_t bnode_alloc(struct node_op *op, struct td *tree, int nsize,
 	void          *area;
 	struct m0_buf  buf;
 	int            chunk_header_size = m0_be_chunk_header_size();
-	int            page_shift = m0_pageshift_get();
+	int            page_shift = __builtin_ffsl(m0_pagesize_get()) - 1;
 
 
 	M0_PRE(op->no_opc == NOP_ALLOC);
@@ -2485,7 +2484,7 @@ static int64_t bnode_alloc(struct node_op *op, struct td *tree, int nsize,
 
 	M0_ASSERT(area != NULL);
 
-	op->no_addr = segaddr_build(area, page_shift);
+	op->no_addr = segaddr_build(area);
 	op->no_tree = tree;
 
 	nxt_state = bnode_init(&op->no_addr, ksize, vsize, nsize, nt,
@@ -6987,30 +6986,6 @@ static struct m0_sm_conf btree_conf = {
 	.scf_trans     = btree_trans
 };
 
-
-/**
- * calc_shift is used to calculate the shift for the given number of bytes.
- * Shift is the exponent of nearest power-of-2 value greater than or equal to
- * number of bytes.
- *
- * @param value represents the number of bytes
- * @return int  returns the shift value.
- */
-
-static int calc_shift(int value)
-{
-	unsigned int sample = (unsigned int) value;
-	unsigned int pow    = 0;
-
-	while (sample > 0)
-	{
-		sample >>=1;
-		pow += 1;
-	}
-
-	return pow - 1;
-}
-
 /**
  * btree_create_tree_tick function is the main function used to create btree.
  * It traverses through multiple states to perform its operation.
@@ -7045,8 +7020,7 @@ static int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 			return M0_ERR(-ENOMEM);
 		bop->bo_i = oi;
 
-		oi->i_nop.no_addr = segaddr_build(data->addr, calc_shift(data->
-						  num_bytes));
+		oi->i_nop.no_addr = segaddr_build(data->addr);
 		return bnode_init(&oi->i_nop.no_addr, k_size, v_size,
 				  data->num_bytes, data->nt, data->crc_type,
 				  bop->bo_seg->bs_gen, data->fid, P_TREE_GET);
@@ -7147,9 +7121,7 @@ static int64_t btree_open_tree_tick(struct m0_sm_op *smop)
 		if (oi == NULL)
 			return M0_ERR(-ENOMEM);
 		bop->bo_i = oi;
-		oi->i_nop.no_addr = segaddr_build(bop->bo_data.addr,
-						  calc_shift(bop->bo_data.
-							     num_bytes));
+		oi->i_nop.no_addr = segaddr_build(bop->bo_data.addr);
 
 		return tree_get(&oi->i_nop, &oi->i_nop.no_addr, P_ACT);
 
@@ -8953,7 +8925,7 @@ static void ut_basic_tree_oper_icp(void)
 	void                   *temp_node;
 	int                     rc;
 	struct m0_fid           fid        = M0_FID_TINIT('b', 0, 1);
-	uint32_t                rnode_sz   = 1024;
+	uint32_t                rnode_sz   = m0_pagesize_get();
 	uint32_t                rnode_sz_shift;
 	struct m0_buf           buf;
 
@@ -9073,7 +9045,7 @@ static void ut_basic_tree_oper_icp(void)
 	buf = M0_BUF_INIT(rnode_sz, NULL);
 	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	temp_node = buf.b_addr;
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, 1024,
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, rnode_sz,
 				      &btree_type, CRC_TYPE_NO_CRC, &b_op,
 				      &btree, seg, &fid, tx, NULL));
 	M0_ASSERT(rc == 0);
@@ -9468,7 +9440,7 @@ static void ut_multi_stream_kv_oper(void)
 	struct m0_buf           buf;
 	uint64_t                maxkey          = 0;
 	uint64_t                minkey          = UINT64_MAX;
-	uint32_t                rnode_sz        = 1024;
+	uint32_t                rnode_sz        = m0_pagesize_get();
 	uint32_t                rnode_sz_shift;
 	struct m0_fid           fid             = M0_FID_TINIT('b', 0, 1);
 
@@ -10799,7 +10771,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 	uint16_t                      cpu_count;
 	size_t                        cpu_max;
 	time_t                        curr_time;
-	uint32_t                      rnode_sz        = 1024;
+	uint32_t                      rnode_sz        = m0_pagesize_get();
 	uint32_t                      rnode_sz_shift;
 
 	M0_ENTRY();
@@ -11058,7 +11030,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 	struct m0_be_tx_credit  cred           = {};
 	struct m0_fid           fid            = M0_FID_TINIT('b', 0, 1);
 	int                     rc;
-	uint32_t                rnode_sz       = 1024;
+	uint32_t                rnode_sz       = m0_pagesize_get();
 	uint32_t                rnode_sz_shift;
 	struct m0_buf           buf;
 
@@ -11182,8 +11154,9 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		M0_SET0(&btree);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_open(rnode, 1024, tree,
-							    seg, &b_op, NULL));
+					      m0_btree_open(rnode, rnode_sz,
+							    tree, seg, &b_op,
+							    NULL));
 		M0_ASSERT(rc == 0);
 
 		ut_cb.c_act = btree_kv_del_cb;
@@ -11227,8 +11200,9 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		/** Error Case */
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-					      m0_btree_open(rnode, 1024, tree,
-							    seg, &b_op, NULL));
+					      m0_btree_open(rnode, rnode_sz,
+							    tree, seg, &b_op,
+							    NULL));
 		M0_ASSERT(rc == -EINVAL);
 	}
 
@@ -11433,7 +11407,7 @@ static void ut_btree_persistence(void)
 	void                       *v_ptr           = &value;
 	int                         rc;
 	struct m0_buf               buf;
-	uint32_t                    rnode_sz        = 1024;
+	uint32_t                    rnode_sz        = m0_pagesize_get();
 	struct m0_fid               fid             = M0_FID_TINIT('b', 0, 1);
 	uint32_t                    rnode_sz_shift;
 	struct m0_btree_rec         rec             = {
@@ -11882,7 +11856,7 @@ static void ut_btree_truncate(void)
 	void                       *v_ptr           = &value;
 	int                         rc;
 	struct m0_buf               buf;
-	uint32_t                    rnode_sz        = 1024;
+	uint32_t                    rnode_sz        = m0_pagesize_get();
 	struct m0_fid               fid             = M0_FID_TINIT('b', 0, 1);
 	uint32_t                    rnode_sz_shift;
 	struct m0_btree_rec         rec             = {
@@ -12032,7 +12006,7 @@ static void ut_lru_test(void)
 	void                       *v_ptr           = &value;
 	int                         rc;
 	struct m0_buf               buf;
-	uint32_t                    rnode_sz        = 4096;
+	uint32_t                    rnode_sz        = m0_pagesize_get();
 	struct m0_fid               fid             = M0_FID_TINIT('b', 0, 1);
 	uint32_t                    rnode_sz_shift;
 	struct m0_btree_rec         rec             = {
