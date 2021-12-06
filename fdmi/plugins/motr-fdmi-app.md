@@ -26,7 +26,7 @@ All FDMI related service code and examples are in the `cortx-motr/fdmi` director
 
 One of the FDMI Application example is within the `plugins` directory named as [fdmi_sample_plugin]( https://github.com/Seagate/cortx-motr/blob/main/fdmi/plugins/fdmi_sample_plugin.c). 
 
-This application is a simple FDMI sample plugin written in C using `motr/client.h` interface which connects to the cluster (FDMI source instance) and registers a listener to listen for Key-Value events matching the specific FDMI filter substrings. This application then merely prints to standard output the matched records.
+This application is a FDMI sample plugin written in C using `motr/client.h` interface which connects to the cluster (FDMI source instance) and registers a listener to listen for Key-Value events matching the specific FDMI filter substrings. This application then merely prints to standard output the matched records.
 
 The executable binary file will be compiled as part of the initial Motr compilation using the corresponding `Makefile.am` dependency and the [Makefile.sub]( https://github.com/Seagate/cortx-motr/blob/main/fdmi/plugins/Makefile.sub) file defined in the same folder.
 
@@ -106,7 +106,7 @@ Example of running this application polling the `~/test` directory every 3 secon
 
 ## Tested by
 
-* Sep 28, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linus release 7.8.2003 x86_64
+- Sep 28, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linus release 7.8.2003 x86_64
 
 ## References
  
