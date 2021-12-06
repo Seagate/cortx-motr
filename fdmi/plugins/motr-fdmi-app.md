@@ -44,17 +44,19 @@ Before testing with the `fdmi_app`, we need to have a CORTX-Motr cluster already
 
 -  Second, add FDMI capabilities by defining and customizing the fdmi_filters subsection in the `CDF.yaml` config file used for deploying with `hctl` command. 
 Example of a config file with the needed subsection created can be found in the following link: 
-[FDMI CDF file](https://github.com/Seagate/cortx-hare/blob/main/cfgen/examples/singlenode.yaml).
+[FDMI CDF file](https://github.com/Seagate/cortx-hare/blob/25274c3787b1adab1eac3a4ee5b9fef80035ebc1/cfgen/examples/singlenode.yaml#L51).
 
-After following previous steps, you can check if your cluster is running with FDMI filter capability by looking at the `/etc/motr/confd.xc` file in which case will have the filter-id specified. 
+```
+# This FDMI filter will trigger the FDMI application whenever 
+# there is a key-value pair added to Motr with matches values to substrings
+fdmi_filters:
+  - name: test
+    node: localhost
+    client_index: 0
+    substrings: ["Bucket-Name", "Object-Name"]
+ ```
 
-For instance, a common `confd.xc` file with FDMI defined will have an entry that follows the following format:
-`{0x6c| (($FDMI_FILTER_ID), 2, $FDMI_FILTER_ID, \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, $DIX_PVERID, [3: $FDMI_FILTER_STRINGS], [1: \"$lnet_nid:$FDMI_PLUGIN_EP\"])}`, where the fields are specified as follow:
-- `FDMI_FILTER_ID`: `Filter id`
-- `NODE`: `Node in the cluster`
-- `DIX_PVERID`: `Version ID`
-- `FDMI_FILTER_STRINGS`: `Filter substrings`
-- `FDMI_PLUGIN_EP`: `Local endpoint`
+After following previous steps, you can check if your cluster is running with FDMI filter capability by looking at the `/etc/motr/confd.xc` file which should be automatically created by the running motr instance. If FDMI is working correctly, there will be an entry that starts with '{0x6c' and which includes the string 'filter'.
 
 Next, we are ready to test this setup. 
 In order to do that, we need to run the `fdmi_app` script typing in the console the following command:
