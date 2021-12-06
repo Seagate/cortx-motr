@@ -58,11 +58,13 @@
  *
  * @{
  */
-/** TODO stob_part_domain_ops is defined as gloabl for now
- * to remove compile warning, update to static once
- * partition stob domain functionalty(EOS-24532) is ready */
-struct m0_stob_domain_ops stob_part_domain_ops;
-static struct m0_stob_type_ops stob_part_type_ops;
+
+enum {
+	PART_STOB_MAX_CHUNK_SIZE_IN_BITS = 64,
+	PART_STOB_REF_CHUNK_COUNT        = 1024,
+};
+static struct m0_stob_domain_ops stob_part_domain_ops;
+static struct m0_stob_type_ops   stob_part_type_ops;
 static struct m0_stob_ops        stob_part_ops;
 struct part_stob_cfg {
 	m0_bcount_t  psg_id;
@@ -91,7 +93,7 @@ static void stob_part_type_deregister(struct m0_stob_type *type)
 }
 
 static int stob_part_domain_cfg_init_parse(const char *str_cfg_init,
-					 void **cfg_init)
+					   void **cfg_init)
 {
 	return 0;
 }
@@ -102,71 +104,70 @@ static void stob_part_domain_cfg_init_free(void *cfg_init)
 }
 
 static int stob_part_domain_destroy(struct m0_stob_type *type,
-				  const char *location_data)
+				    const char *location_data)
 {
 	return 0;
 }
 
 
 /*
- * This function takes propose_chunk_size as input 
+ * This function takes propose_chunk_size as input
  * and finds out the nearest power of 2 to this number
  * and returns that.
  */
-static int align_chunk_size(int proposed_chunk_size)
+static int align_chunk_size(m0_bcount_t proposed_chunk_size)
 {
-	//int x = proposed_chunk_size/log10(2);
-	int chunksize = 0x1000;
 	int chunksize_in_bits;
 	int i;
 
-	for (i = 0; i < 32; ) {
-		chunksize = 1 << i;
-		if ( chunksize <= proposed_chunk_size) {
+	for (i = 0; i < PART_STOB_MAX_CHUNK_SIZE_IN_BITS; ) {
+		if (proposed_chunk_size > 0) {
+			proposed_chunk_size >>= 1;
 			i++;
-		} else {
-				i--;
-				chunksize = 1 << i;
-				break;
-		}
+		} else
+			break;
 	}
-	chunksize_in_bits = log10(chunksize)/log10(2);
-	return(chunksize_in_bits);	
+	M0_ASSERT(i < PART_STOB_MAX_CHUNK_SIZE_IN_BITS);
+	chunksize_in_bits = i;
+	return(chunksize_in_bits);
 }
 
 static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
-					   void **cfg_create)
+					     void **cfg_create)
 {
-	int size, proposed_chunk_size,rc;
-	char *devname;
+	int                              size;
+	int                              rc;
+	char                            *devname;
 	struct m0_be_ptable_part_config *cfg;
+	m0_bcount_t                      proposed_chunk_size;
 
-	// devname = (char *) m0_alloc(strlen(str_cfg_create));  //getting codacy warning
 	size = strlen(str_cfg_create) + 1;
 	devname = (char *) m0_alloc(size);
-	// example str_cfg_create would be //strcpy( str, "/dev/sdc 20GB" );
-	rc = sscanf( str_cfg_create, "%s %d", devname, &size );
-	//rc = rc == 2 ? 0 : return M0_RC(-EINVAL);
-    if ( rc == 2 )
-		rc = 0;
-	else
+	/* format = "/dev/sdc 20GB" */
+	rc = sscanf(str_cfg_create, "%s %d", devname, &size);
+	if ( rc != 2 )
 		return M0_RC(-EINVAL);
 
-    // if we have reached here then devname and size would be correctly populated. 
+	/* if we have reached here then devname and size
+	 * are valid */
 
-    cfg = (struct m0_be_ptable_part_config *) m0_alloc(sizeof( struct m0_be_ptable_part_config));
-	/* Seg0, seg1, log, data */
-	cfg->pc_num_of_alloc_entries = 4;
-	/* 1 GB */
-	cfg->pc_chunk_size_in_bits = 30;
-	/* device size / chunk size*, 32GB VM test*/
-	cfg->pc_total_chunk_count = 32;
-	M0_ALLOC_ARR(cfg->pc_part_alloc_info,
-		     cfg->pc_num_of_alloc_entries);
-	if (cfg->pc_part_alloc_info == NULL) {
+	cfg = (struct m0_be_ptable_part_config *)
+		m0_alloc(sizeof( struct m0_be_ptable_part_config));
+	if (cfg == NULL) {
 		M0_LOG(M0_ERROR, "Failed allocate memory for part cfg");
 		return -ENOMEM;
 	}
+	/* Seg0, seg1, log, data */
+	cfg->pc_num_of_alloc_entries = 4;
+	proposed_chunk_size = size / PART_STOB_REF_CHUNK_COUNT;
+	cfg->pc_chunk_size_in_bits = align_chunk_size(proposed_chunk_size);
+	cfg->pc_total_chunk_count = size >> cfg->pc_chunk_size_in_bits;
+
+	M0_ALLOC_ARR(cfg->pc_part_alloc_info,
+		     cfg->pc_num_of_alloc_entries);
+	if (cfg->pc_part_alloc_info == NULL)
+		return -ENOMEM;
+
 	cfg->pc_part_alloc_info[0].ai_part_id = M0_BE_PTABLE_ENTRY_SEG0;
 	cfg->pc_part_alloc_info[0].ai_def_size_in_chunks = 1;
 	cfg->pc_part_alloc_info[1].ai_part_id = M0_BE_PTABLE_ENTRY_LOG;
@@ -177,15 +178,13 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 	cfg->pc_part_alloc_info[3].ai_part_id = M0_BE_PTABLE_ENTRY_BALLOC;
 	cfg->pc_part_alloc_info[3].ai_def_size_in_chunks =
 		(cfg->pc_total_chunk_count * 40) / 100;
-	//cfg->pc_dev_path_name = dom->bd_cfg.bc_seg0_cfg.bsc_stob_create_cfg;
+	/* cfg->pc_dev_path_name = dom->bd_cfg.bc_seg0_cfg.bsc_stob_create_cfg;
+	 * */
 	cfg->pc_dev_path_name = devname;
 	*cfg_create = cfg;
 
-	// Following is still wip:
-	proposed_chunk_size = size/1000;   // Assumption size is in bytes/block & we want 1000 chunks
-	cfg->pc_chunk_size_in_bits = align_chunk_size(proposed_chunk_size);
 
-	return rc;
+	return 0;
 }
 
 static int stob_part_domain_init(struct m0_stob_type *type,
@@ -195,6 +194,10 @@ static int stob_part_domain_init(struct m0_stob_type *type,
 {
 	/** TODO */
 	struct m0_stob_domain  *dom;
+
+	M0_ALLOC_PTR(dom);
+	if (dom == NULL)
+		return M0_ERR(-ENOMEM);
 
 	dom->sd_ops = &stob_part_domain_ops;
 	//fixme : below line was put to avoid compilation error
@@ -219,25 +222,20 @@ static void stob_part_domain_cfg_create_free(void *cfg_create)
 	}
 }
 
-// static int stob_ad_domain_create(struct m0_stob_type *type,
-// 				 const char *location_data,
-// 				 uint64_t dom_key,
-// 				 void *cfg_create)
-
 /* TODO Make cleanup on fail. */
 static int stob_part_domain_create(struct m0_stob_type *type,
-				 const char *part_stob_domain_location,
-				 uint64_t sd_id,
-				 void *cfg_create)
+				   const char *part_stob_domain_location,
+				   uint64_t sd_id,
+				   void *cfg_create)
 {
 
-	// Create partition table 
-	int rc;
+	// Create partition table
 	struct m0_be_ptable_part_config *partition_config;
-	partition_config = (struct m0_be_ptable_part_config *) cfg_create;
+	int                              rc;
+	partition_config = (struct m0_be_ptable_part_config *)cfg_create;
 	rc = m0_be_ptable_create_init(&sd_id,
-						true,
-						partition_config);
+				      true,
+				      partition_config);
 	return M0_RC(rc);
 }
 
@@ -406,10 +404,7 @@ static struct m0_stob_type_ops stob_part_type_ops = {
 	.sto_domain_destroy	     = &stob_part_domain_destroy,
 };
 
-/** TODO stob_part_domain_ops is defined as gloabl for now
- * to remove compile warning, update to static once
- * partition stob domain functionalty(EOS-24532) is ready */
-struct m0_stob_domain_ops stob_part_domain_ops = {
+static struct m0_stob_domain_ops stob_part_domain_ops = {
 	.sdo_fini		= &stob_part_domain_fini,
 	.sdo_stob_alloc	    	= &stob_part_alloc,
 	.sdo_stob_free	    	= &stob_part_free,
@@ -431,7 +426,6 @@ static struct m0_stob_ops stob_part_ops = {
 	.sop_block_shift     = &stob_part_block_shift,
 };
 
-#if 0
 const struct m0_stob_type m0_stob_part_type = {
 	.st_ops  = &stob_part_type_ops,
 	.st_fidt = {
@@ -439,7 +433,6 @@ const struct m0_stob_type m0_stob_part_type = {
 		.ft_name = "partitionstob",
 	},
 };
-#endif
 
 static const struct m0_stob_io_op stob_part_io_op;
 
