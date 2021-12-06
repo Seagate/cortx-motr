@@ -37,23 +37,7 @@ The `fdmi_sample_plugin` application can be tested in two forms:
 
 For the first case, `fdmi_sample_plugin` communicates with the [fdmi_app]( https://github.com/Seagate/cortx-motr/blob/main/fdmi/plugins/fdmi_app) python script by printing to standard output all the FDMI records. 
 
-To test this setup, we need to run the `fdmi_app` script typing in the console the following command:
-
-`$sudo ./fdmi_app`
-
-The basic arguments needed are the cluster info which will be picked by default from the `etc/motr/confd.xc` config file if not specified at the time of running. This way the FDMI plugin knows where to connect.
-
-Examples of the flags you can provide to the python script are:
-- `-pp`: `plugin path`
-- `-le`: `Local endpoint`
-- `-fi`: `Filter id`
-- `-ha`: `HA endpoint`
-- `-pf`: `Profile fid`
-- `-sf`: `Process fid`
-
-All the flags can be known by running the help:`-h` option.
-
-Before testing, we need to have a CORTX-Motr cluster already up and running with FDMI capabilities by following these steps:
+Before testing with the `fdmi_app`, we need to have a CORTX-Motr cluster already up and running with FDMI capabilities by following these steps:
 
 -  First, deploy a CORTX-Motr using specific configuration file and the instructions provided in the cortx-hare repo following this link: 
 [CORTX deployment]( https://github.com/Seagate/cortx-hare/blob/main/README.md)
@@ -71,6 +55,23 @@ For instance, a common `confd.xc` file with FDMI defined will have an entry that
 - `DIX_PVERID`: `Version ID`
 - `FDMI_FILTER_STRINGS`: `Filter substrings`
 - `FDMI_PLUGIN_EP`: `Local endpoint`
+
+Next, we are ready to test this setup. 
+In order to do that, we need to run the `fdmi_app` script typing in the console the following command:
+
+`$sudo ./fdmi_app`
+
+The basic arguments needed are the cluster info which will be picked by default from the `etc/motr/confd.xc` config file if not specified at the time of running. This way the FDMI plugin knows where to connect.
+
+Examples of the flags you can provide to the python script are:
+- `-pp`: `plugin path`
+- `-le`: `Local endpoint`
+- `-fi`: `Filter id`
+- `-ha`: `HA endpoint`
+- `-pf`: `Profile fid`
+- `-sf`: `Process fid`
+
+All the flags can be known by running the help:`-h` option.
 
 For the second example of testing the `fdmi_sample_plugin` application, we can can run this command:
 
