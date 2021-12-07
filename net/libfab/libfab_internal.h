@@ -98,7 +98,7 @@ enum m0_fab__libfab_params {
 	/** Max number of completion events to read from a completion queue */
 	FAB_MAX_COMP_READ              = 256,
 	/** Max timeout for waiting on fd in epoll_wait */
-	FAB_WAIT_FD_TMOUT              = 10,
+	FAB_WAIT_FD_TMOUT              = 1000,
 	/** Max event entries for active endpoint event queue */
 	FAB_MAX_AEP_EQ_EV              = 8,
 	/** Max event entries for passive endpoint event queue */
@@ -112,7 +112,9 @@ enum m0_fab__libfab_params {
 	/** Max number of buckets per Qtype */
 	FAB_NUM_BUCKETS_PER_QTYPE      = 128,
 	/** Min time interval between buffer timeout check (sec) */
-	FAB_BUF_TMOUT_CHK_INTERVAL     = 1
+	FAB_BUF_TMOUT_CHK_INTERVAL     = 1,
+	/** The step for increasing array size of fids in a tm */
+	FAB_TM_FID_MALLOC_STEP         = 1024
 };
 
 /**
@@ -170,9 +172,9 @@ enum m0_fab__event_type {
  */
 enum m0_fab__connlink_status {
 	FAB_CONNLINK_DOWN              = 0x00,
-	FAB_CONNLINK_TXEP_READY        = 0x01,
-	FAB_CONNLINK_RXEP_READY        = 0x02,
-	FAB_CONNLINK_READY_TO_SEND     = 0x03,
+	FAB_CONNLINK_TXEP_RDY          = 0x01,
+	FAB_CONNLINK_RXEP_RDY          = 0x02,
+	FAB_CONNLINK_RDY_TO_SEND       = 0x03,
 	FAB_CONNLINK_PENDING_SEND_DONE = 0x07
 };
 
@@ -202,8 +204,17 @@ union m0_fab__token
  * Libfab structure for event context to be returned in the epoll_wait events
  */
 struct m0_fab__ev_ctx {
+	/* Type of event (common queue/ private queue). */
 	enum m0_fab__event_type  evctx_type;
+
+	/* Endpoint context associated for event. */
 	void                    *evctx_ep;
+
+	/* Debug data. */
+	char                    *evctx_dbg;
+
+	/* Position in array of fids. */
+	uint32_t                 evctx_pos;
 };
 
 /**
@@ -292,12 +303,15 @@ struct m0_fab__tx_res{
 struct m0_fab__rx_res{
 	/** Event queue for receive endpoint */
 	struct fid_eq         *frr_eq;
-	
+
 	/** Completion Queue for receive operations */
 	struct fid_cq         *frr_cq;
 
-	/** Context to be returned in the epoll_wait event */
-	struct m0_fab__ev_ctx  frr_ctx;
+	/** Context to be returned in the epoll_wait event for CQ */
+	struct m0_fab__ev_ctx  frr_cq_ctx;
+
+	/** Context to be returned in the epoll_wait event for EQ */
+	struct m0_fab__ev_ctx  frr_eq_ctx;
 };
 
 /**
@@ -370,6 +384,24 @@ struct m0_fab__ep {
 };
 
 /**
+ * Libfab structure for management of all fids of a transfer machine which are
+ * to be monitored in epoll_wait().
+ */
+struct m0_fab__tm_fids {
+	/* Pointer to the head of the list (array in this case) */
+	struct fid            **ftf_head;
+
+	/* Pointer to the ctx which is stored in this array */
+	struct m0_fab__ev_ctx **ftf_ctx;
+
+	/* Size of array used for storing fids */
+	uint32_t                ftf_arr_size;
+
+	/* Count of fids in the array */
+	volatile uint32_t       ftf_cnt;
+};
+
+/**
  * Libfab structure of transfer machine
  */
 struct m0_fab__tm {
@@ -392,7 +424,10 @@ struct m0_fab__tm {
 	
 	/** Epoll file descriptor */
 	int                             ftm_epfd;
-	
+
+	/** Structure for fid management for fi_trywait() */
+	struct m0_fab__tm_fids          ftm_fids;
+
 	/** Fabric parameters of a transfer machine */
 	struct m0_fab__fab             *ftm_fab;
 

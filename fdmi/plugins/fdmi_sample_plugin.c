@@ -120,7 +120,7 @@ static void dump_fol_rec_to_json(struct m0_uint128 *rec_id,
 		struct m0_cas_rec *cr_rec = cg_rec.cr_rec;
 
 		for (i = 0; i < cg_rec.cr_nr; i++) {
-			const char *addr;
+			const unsigned char *addr;
 			int len;
 
 			printf("{ \"opcode\": \"%d\", ",
