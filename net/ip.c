@@ -115,7 +115,7 @@ static int parse_prefix(const char *ep_name, const char **prefixes,
  */
 static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 {
-	uint32_t     portnum;
+	long int     portnum;
 	int          shift = 0;
 	int          family = 0;
 	int          type = 0;
@@ -124,6 +124,7 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 	char         port[M0_NET_IP_PORTLEN_MAX] = {};
 	char        *at;
 	const char  *ep_name = name;
+	char        *end;
 
 	rc = parse_prefix(ep_name, ip_family, ARRAY_SIZE(ip_family), &family,
 			  &shift);
@@ -145,7 +146,7 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 		if (at == NULL || !isdigit(at[0]))
 			return M0_ERR(-EINVAL);
 		strcpy(port, at);
-		portnum = atoi(port);
+		portnum = strtol(port, &end, 10);
 		if (portnum > M0_NET_IP_PORT_MAX)
 			return M0_ERR(-EINVAL);
 		addr->nia_n.nip_port = (uint16_t)portnum;
