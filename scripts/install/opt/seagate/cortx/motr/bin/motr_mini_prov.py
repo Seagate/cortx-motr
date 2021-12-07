@@ -51,6 +51,8 @@ BE_SEG0_SZ = 128 * 1024 *1024 #128M
 MACHINE_ID_FILE = "/etc/machine-id"
 TEMP_FID_FILE= "/opt/seagate/cortx/motr/conf/service_fid.yaml"
 CMD_RETRY_COUNT = 5
+SMALL_ADDB_SZ = 128 * 1024 * 1024 #128M
+LARGE_ADDB_SZ = 1 * 1024 * 1024 * 1024 #1G
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -345,12 +347,21 @@ def update_copy_motr_config_file(self):
     dirs = [MOTR_M0D_DATA_DIR, MOTR_M0D_ADDB_STOB_DIR, MOTR_M0D_TRACE_DIR, MOTR_M0D_CONF_DIR]
     create_dirs(self, dirs)
 
+    # Set ADDB size according to setup_size:
+    # VM=small=128M, HW=large=1G
+    if self.setup_size == "small":
+        MOTR_MOD_ADDB_RECORD_SIZE = SMALL_ADDB_SZ
+    else:
+        MOTR_MOD_ADDB_RECORD_SIZE = LARGE_ADDB_SZ
+
     # Update new config keys to config file /etc/sysconfig/motr
     config_kvs = [("MOTR_M0D_CONF_DIR", f"{MOTR_M0D_CONF_DIR}"),
                    ("MOTR_M0D_DATA_DIR", f"{MOTR_M0D_DATA_DIR}"),
                    ("MOTR_M0D_CONF_XC", f"{MOTR_M0D_CONF_XC}"),
                    ("MOTR_M0D_ADDB_STOB_DIR", f"{MOTR_M0D_ADDB_STOB_DIR}"),
-                   ("MOTR_M0D_TRACE_DIR", f"{MOTR_M0D_TRACE_DIR}")]
+                   ("MOTR_M0D_TRACE_DIR", f"{MOTR_M0D_TRACE_DIR}"),
+                   ("MOTR_MOD_ADDB_RECORD_SIZE", f"{MOTR_MOD_ADDB_RECORD_SIZE}")
+                 ]
     update_config_file(self, f"{MOTR_SYS_CFG}", config_kvs)
 
     # Copy config file to new path

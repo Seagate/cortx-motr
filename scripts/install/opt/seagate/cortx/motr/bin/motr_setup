@@ -48,7 +48,6 @@ class Cmd:
         configure_machine_id(self, None)
 
         if self._index:
-            self.k8 = Conf.get(self._index, 'cortx>common>environment_type')
             self.k8 = Conf.get(self._index, 'cortx>common>setup_type')
         if self.k8 != "K8":
             self.logfile = LOGFILE
@@ -65,6 +64,9 @@ class Cmd:
             self._motr_hare_conf = f"{self.local_path_motr}/motr_hare_keys.json"
             self._url_motr_hare = f"json://{self._motr_hare_conf}"
             self.log_path_motr = f"{self.log_path}/motr/{self.machine_id}"
+
+            # Get setup size: VM=small, HW=large
+            self.setup_size = get_value(self, 'cortx>common>setup_size', str)
 
             # Check if local and log path exists, return if not exists
             validate_files([self.local_path, self.log_path])
