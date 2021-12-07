@@ -24,19 +24,19 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
 
 1.  Follow the [motr QSG guide](https://github.com/Seagate/cortx-motr/blob/main/doc/Quick-Start-Guide.rst) in cortx-motr repo to build Motr.
 2.  Follow the [hare QSG guide](https://github.com/Seagate/cortx-hare/blob/main/README.md) in the cortx-hare repo to get a Motr cluster up and running.
-    2.1.  Need to edit the config file (CDF) to add a filter. Examples of CDF file can be found [here](https://github.com/Seagate/cortx-hare/blob/25274c3787b1adab1eac3a4ee5b9fef80035ebc1/cfgen/examples/singlenode.yaml#L51). 
-    In our "Hello" example, we need to modify the fdmi_filters section to be as follow:
-    ```
-    # This FDMI filter will trigger the FDMI application whenever 
-    # there is a key-value pair added to Motr that matches values to substrings
-    fdmi_filters:
-      - name: test             # name for the filter
-        node: localhost        # node where it runs
-        client_index: 0        # index of the client
-        substrings: ["hello"]  # substrings to match
-    ```
-    NOTE: The current FDMI design only works for key-vale pairs or metadata fields and not for objects.
-    2.2.  Run `hctl status` to verify your cluster is up.
+    2.1. Need to edit the config file (CDF) to add a filter. Examples of CDF file can be found [here](https://github.com/Seagate/cortx-hare/blob/25274c3787b1adab1eac3a4ee5b9fef80035ebc1/cfgen/examples/singlenode.yaml#L51).In our "Hello" example, we need to modify the fdmi_filters section to be as follow:
+         ```
+         # This FDMI filter will trigger the FDMI application whenever 
+         # there is a key-value pair added to Motr that matches values to substrings
+         fdmi_filters:
+             - name: test             # name for the filter
+               node: localhost        # node where it runs
+               client_index: 0        # index of the client
+               substrings: ["hello"]  # substrings to match
+         ```
+         
+    2.2. Run `hctl status` to verify your cluster is up.
+         NOTE: The current FDMI design only works for key-vale pairs or metadata fields and not for objects.
 3.  Open a new terminal window and launch the `fdmi_app_hello` script that starts the `fdmi_sample_plugin` and listen for that filter.
     3.1.  Go inside the cortx-motr/fdmi/plugins directory and you will see the fdmi_app_hello python script and fdmi_sample_plugin binary file that was compiled as part of motr compilation.
         More details about these programs can be found in the next section of this tutorial. To launch, run the following command:
