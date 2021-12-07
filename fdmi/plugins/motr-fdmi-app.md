@@ -158,6 +158,7 @@ This application prints to standard output the most popular words for new object
     1.1. Follow [cortx-s3server QSG](https://github.com/Seagate/cortx-s3server/blob/main/docs/CORTX-S3%20Server%20Quick%20Start%20Guide.md).
      
     1.2.  To run the cluster with `hctl` command, we need to modify the fdmi_filters section of the CDF file to be as follow:
+    
           ```
           # This FDMI filter will trigger the FDMI application whenever 
           # there is a key-value pair added to Motr that matches values to substrings
