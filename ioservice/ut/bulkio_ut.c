@@ -1775,6 +1775,7 @@ static void bulkio_init(void)
 	 */
 	m0_fi_enable("io_fop_di_prepare", "skip_di_for_ut");
 	m0_fi_enable("m0_file_init", "skip_di_for_ut");
+	m0_fi_enable("stob_ad_domain_create", "write_undo");
 
 	M0_ALLOC_PTR(bp);
 	M0_ASSERT(bp != NULL);
@@ -1806,6 +1807,7 @@ static void bulkio_fini(void)
 
 	m0_fi_disable("io_fop_di_prepare", "skip_di_for_ut");
 	m0_fi_disable("m0_file_init", "skip_di_for_ut");
+	m0_fi_disable("stob_ad_domain_create", "write_undo");
 }
 
 /*
