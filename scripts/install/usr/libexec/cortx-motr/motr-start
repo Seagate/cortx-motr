@@ -18,13 +18,17 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-#set -x 
+#set -x
 
 PID=
 fids=
+MUL_FACT=7
 SCRIPT_PATH="/usr/libexec/cortx-motr"
 HARE_CONFIG="/etc/cortx/hare/config"
 HARE_CMD="hctl fetch-fids --conf-dir $HARE_CONFIG/$(cat /etc/machine-id)"
+
+IOS_IDX_ARRAY=()
+
 if [[ $# < 1 ]]; then
         echo "usage - sh $0 <service-fid>"
         exit 1
@@ -42,33 +46,127 @@ _handle_sigterm() {
 
 trap _handle_sigterm SIGTERM SIGKILL
 
+create_ios_index_table() {
+        IDX=1
+        array=$($HARE_CMD | grep -A1 ioservice | grep -v "name" | tr -s " " | cut -d " " -f3 | grep -v "-")
+        for i in $array
+        do
+                tmp1="${i%\"}"
+                tmp="${tmp1#\"}"
+                IOS_IDX_ARRAY+=("$IDX-$tmp")
+                ((IDX++))
+        done
+        declare -p IOS_IDX_ARRAY
+}
+
+get_idx_start_val() {
+        _idx="$1"
+        mul_fact=${2:-MUL_FACT}
+        val=$(( _idx * mul_fact ))
+        val2=$(( val - mul_fact ))
+        s_idx=$(( val2 + 1 ))
+        echo $s_idx
+}
+
 get_fids() {
 
         service=$1
-        val=$($HARE_CMD | grep -A1 $service | grep -v "name" | tr -s " " | cut -d " " -f3 | grep -v "-")
-        tmp1="${val%\"}"
-        tmp="${tmp1#\"}"
-        echo $tmp
+        array=$($HARE_CMD | grep -A1 $service | grep -v "name" | tr -s " " | cut -d " " -f3 | grep -v "-")
+        for i in $array
+        do
+                tmp1="${i%\"}"
+                tmp="${tmp1#\"}"
+                echo $tmp
+        done
+}
+
+start_confd_service() {
+        #starting confd service
+        fids=$(get_fids confd)
+        echo " starting m0d-$fids service"
+        #sh $SCRIPT_PATH/motr-monitor $fid &
+}
+
+start_ios_services() {
+        #starting ioservices
+
+        echo "Creating IOS INDEX TABLE"
+        create_ios_index_table
+
+        echo "Checking IOS INDEX RANGE"
+        range_start_idx=$(get_idx_start_val $1 $2)
+        range_end_idx=$((range_start_idx + $2 - 1))
+        echo "Index Range $range_start_idx ~ $range_end_idx"
+
+        for index in ${IOS_IDX_ARRAY[@]}; do
+                idx=$( echo $index | cut -d "-" -f1 )
+                fid=$( echo $index | cut -d "-" -f2 )
+                if [[ $idx -lt $range_start_idx || -z $fid ]]; then
+                        continue
+                fi
+                if [[ $idx -gt $range_end_idx ]]; then
+                        break
+                fi
+                echo " starting m0d-$fid service"
+                #sh $SCRIPT_PATH/motr-monitor $fid &
+        done
 }
 
 start_all_services() {
+        #starting confd service
+        start_confd_service
 
-	#starting confd service
-	fids=$(get_fids confd)
-	sh $SCRIPT_PATH/motr-monitor $fid &
-
-	#starting ioservices
-	fids=$(get_fids ioservice)
-	for fid in $fids; do
-		echo " starting m0d-$fid service"
-		sh $SCRIPT_PATH/motr-monitor $fid &
-	done
+        #starting ioservices
+        start_ios_services $1 $2
 }
 
+usage() {
+        prog_name=$(basename $0)
+        echo "Usage :"
+        echo "$prog_name all|io|confd"
+        echo "$prog_name all index range"
+        echo "$prog_name io  index range"
+        echo "$prog_name confd"
+        echo "$prog_name - script used to start motr services"
+        echo "Positional Arugments"
+        echo "all       - starts confd & ios services"
+        echo "            need to pass idx and range as inputs"
+        echo "io        - starts ios services"
+        echo "            need to pass idx and range as inputs"
+        echo "confd     - starts confd service"
+        echo "--help|-h - help command"
+
+}
+if [[ "$1" == "--help" || "$1" == "-h" || "$1" == "?" ]]; then
+        usage
+        exit 0
+fi
+
+if [[ "$1" == "all" || "$1" == "io" ]]; then
+        if [[ "$#" -ge 3 ]]; then
+                start_idx=$2
+                MF=$3
+                continue
+        else
+                echo "ERR: Invalid List of arugments"
+                usage
+                exit 1
+        fi
+fi
+
 if [[ "$1" == "all" ]]; then
-	start_all_services
+        start_all_services $start_idx $MF
+elif [[ "$1" == "confd" ]]; then
+        start_confd_service
+elif [[ "$1" == "io" ]]; then
+        start_ios_services $start_idx $MF
 else
-	sh $SCRIPT_PATH/motr-monitor $fid &
+        if [[ "$1" == "fsm" ]]; then
+                sh $SCRIPT_PATH/motr-monitor $fid &
+        else
+                echo "ERR MSG : no proper input service name"
+        fi
 fi
 
 wait
+
