@@ -1409,9 +1409,9 @@ def start_service(self, service, idx):
     cmd = f"cp -v {self.local_path}/motr/sysconfig/{self.machine_id}/motr /etc/sysconfig/"
     execute_command(self, cmd)
 
-    fid = fetch_fid(self, service, idx)
-    if fid == -1:
-        return -1
+    #fid = fetch_fid(self, service, idx)
+    #if fid == -1:
+    #    return -1
     #Run log rotate in background to avoid delay in startup
     cmd = "/opt/seagate/cortx/motr/libexec/m0trace_logrotate.sh &"
     execute_command(self, cmd)
@@ -1419,6 +1419,6 @@ def start_service(self, service, idx):
     execute_command(self, cmd)
 
     #Start motr services
-    cmd = f"{MOTR_SERVER_SCRIPT_PATH} all"
+    cmd = f"{MOTR_SERVER_SCRIPT_PATH service idx}"
     execute_command_verbose(self, cmd, set_timeout=False)
     return
