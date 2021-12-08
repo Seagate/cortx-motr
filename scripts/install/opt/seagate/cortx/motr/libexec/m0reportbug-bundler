@@ -40,6 +40,7 @@ Positional arguments:
   dest-dir    Target directory; defaults to '$DEFAULT_DEST_DIR'.
   bundle-id   Support bundle ID; defaults to the local host name
               (`hostname`).
+Optional arguments:
   -c <config_url>  cluster config URL
   --services -> Service names for the services for which 
                 logs needs to be collected. Default is 'All'
