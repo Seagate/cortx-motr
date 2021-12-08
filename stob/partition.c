@@ -63,6 +63,9 @@ enum {
 	PART_STOB_MAX_CHUNK_SIZE_IN_BITS = 64,
 	PART_STOB_REF_CHUNK_COUNT        = 1024,
 };
+struct part_domain_cfg {
+	struct m0_be_ptable_part_config part_config;
+};
 static struct m0_stob_domain_ops stob_part_domain_ops;
 static struct m0_stob_type_ops   stob_part_type_ops;
 static struct m0_stob_ops        stob_part_ops;
@@ -70,6 +73,11 @@ struct part_stob_cfg {
 	m0_bcount_t  psg_id;
 	m0_bcount_t  psg_size_in_chunks;
 };
+
+M0_TL_DESCR_DEFINE(part_domains, "part stob domains", M0_INTERNAL,
+		   struct part_domain_map, pdm_linkage, pdm_magic,
+		   M0_PART_DOMAINS_MAGIC, M0_PART_DOMAINS_HEAD_MAGIC);
+M0_TL_DEFINE(part_domains, M0_INTERNAL, struct part_domain_map);
 
 static int stob_part_io_init(struct m0_stob *stob, struct m0_stob_io *io);
 static int stob_part_punch(struct m0_stob *stob,
@@ -187,6 +195,19 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 	return 0;
 }
 
+static struct m0_stob_part_domain *
+stob_part_domain_locate(const char *location_data)
+{
+	struct m0_stob_part_module *module = &m0_get()->i_stob_part_module;
+	struct part_domain_map     *pd;
+
+	m0_mutex_lock(&module->spm_lock);
+	pd = m0_tl_find(part_domains, pd, &module->spm_domains,
+			m0_streq(location_data, pd->pdm_path));
+	m0_mutex_unlock(&module->spm_lock);
+	return pd == NULL ? NULL : pd->pdm_dom;
+}
+
 static int stob_part_domain_init(struct m0_stob_type *type,
 				 const char *location_data,
 				 void *cfg_init,
@@ -224,18 +245,31 @@ static void stob_part_domain_cfg_create_free(void *cfg_create)
 
 /* TODO Make cleanup on fail. */
 static int stob_part_domain_create(struct m0_stob_type *type,
-				   const char *part_stob_domain_location,
+				   const char *location_data,
 				   uint64_t sd_id,
 				   void *cfg_create)
 {
 
-	// Create partition table
-	struct m0_be_ptable_part_config *partition_config;
-	int                              rc;
-	partition_config = (struct m0_be_ptable_part_config *)cfg_create;
+	struct part_domain_cfg     *cfg = (struct part_domain_cfg *)cfg_create;
+	struct m0_stob_part_domain *pdom;
+	/* struct stob_ad_0type_rec  seg0_ad_rec; */
+	int                         rc;
+
+
+	M0_PRE(strlen(location_data) < ARRAY_SIZE(pdom->spd_path));
+
+	pdom = stob_part_domain_locate(location_data);
+	if (pdom != NULL)
+		return M0_ERR(-EEXIST);
+
+	M0_ALLOC_PTR(pdom);
+	if (pdom == NULL)
+		return M0_ERR(-ENOMEM);
+
 	rc = m0_be_ptable_create_init(&sd_id,
 				      true,
-				      partition_config);
+				      &cfg->part_config);
+	/* TODO add pdom to volatile / non-volatile list */
 	return M0_RC(rc);
 }
 

@@ -36,6 +36,7 @@
 #include "stob/linux.h"		/* m0_stob_linux_type */
 #include "stob/ad.h"		/* m0_stob_ad_type */
 #include "stob/perf.h"		/* m0_stob_perf_type */
+#include "stob/partition.h"	/* m0_stob_part_type */
 #endif
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
@@ -53,6 +54,7 @@ static const struct m0_stob_type *stob_types_reg[] = {
 	&m0_stob_linux_type,
 	&m0_stob_ad_type,
 	&m0_stob_perf_type,
+	&m0_stob_part_type,
 #endif
 };
 

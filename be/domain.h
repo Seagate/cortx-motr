@@ -74,6 +74,18 @@ struct m0_be_0type_seg_cfg {
 	const char  *bsc_stob_create_cfg;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
+struct m0_be_part_stob_cfg {
+	char        *bpc_location;
+	char        *bpc_seg_path;
+	char        *bpc_data_path;
+	m0_bcount_t  bpc_seg_size;
+	m0_bcount_t  bpc_data_size;
+	bool	     bpc_part_mode_seg;
+	bool	     bpc_part_mode_log;
+	bool	     bpc_part_mode_data;
+	bool	     bpc_part_mode;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
+
 struct m0_be_domain_cfg {
 	/** BE engine configuration. */
 	struct m0_be_engine_cfg      bc_engine;
@@ -129,6 +141,7 @@ struct m0_be_domain_cfg {
 	struct m0_be_pd_cfg          bc_pd_cfg;
 	struct m0_be_log_discard_cfg bc_log_discard_cfg;
 	bool			     bc_ad_mode;
+	struct m0_be_part_stob_cfg   bc_part_cfg;
 };
 
 struct m0_be_domain {
@@ -159,6 +172,9 @@ enum {
 	M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY,
 	M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_CREATE,
 	M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT,
+	M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_DESTROY,
+	M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_CREATE,
+	M0_BE_DOMAIN_LEVEL_NORMAL_PART_STOB_DOMAIN_INIT,
 	M0_BE_DOMAIN_LEVEL_PARTITION_TABLE_CREATE,
 	M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE,
 	M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE,
@@ -190,7 +206,7 @@ M0_INTERNAL int m0_be_domain_stob_open(void *sd_id,
                    uint64_t              stob_key,
                    const char           *stob_create_cfg,
                    struct m0_stob      **out,
-                   bool                  create);						   
+                   bool                  create);
 // M0_INTERNAL int m0_be_domain_stob_open(struct m0_be_domain  *dom,
 // 				       uint64_t              stob_key,
 // 				       const char           *stob_create_cfg,

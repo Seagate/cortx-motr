@@ -118,6 +118,7 @@ struct m0 {
 	struct m0_fdmi_module      i_fdmi_module;
 	struct m0_stob_module      i_stob_module;
 	struct m0_stob_ad_module   i_stob_ad_module;
+	struct m0_stob_part_module i_stob_part_module;
 	struct m0_ut_stob_module   i_ut_stob_module;
 	struct m0_poolmach_state  *i_pool_module;
 	struct m0_storage_devs     i_storage_devs;

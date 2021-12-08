@@ -976,7 +976,13 @@ enum m0_magic_satchel {
 	/* stob/ad.c:ad_domains_tl::td_head_magic (ad sold head) */
 	M0_AD_DOMAINS_HEAD_MAGIC    = 0x33ad501d4ead77,
 
+	/* part_domain_map:pdm_magic (part sold class) */
+	M0_PART_DOMAINS_MAGIC         = 0x33ad501dc1a5577,
+
+	/* TODOstob/ad.c:ad_domains_tl::td_head_magic (ad sold head) */
+	M0_PART_DOMAINS_HEAD_MAGIC    = 0x33ad501d4ead77,
 	/* stob_null::sn_magic (discoid solo) */
+
 	M0_STOB_NULL_MAGIC          = 0x33d15c01d501077,
 
 	/* stob/null.c:null_stobs_tl::td_head_magic (discoid boss) */
