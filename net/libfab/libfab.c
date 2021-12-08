@@ -976,8 +976,9 @@ static void libfab_poller(struct m0_fab__tm *tm)
 
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
 	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
-		err = -EINTR;
-		while (err == -EINTR) {
+		// err = -EINTR;
+		// while (err == -EINTR) {
+		do {
 			ret = fi_trywait(tm->ftm_fab->fab_fab,
 					 tm->ftm_fids.ftf_head,
 					 tm->ftm_fids.ftf_cnt);
@@ -1015,7 +1016,7 @@ static void libfab_poller(struct m0_fab__tm *tm)
 				ev_cnt = 0;
 				err = 0;
 			}
-		}
+		} while (err == -EINTR);
 
 		while (1) {
 			m0_mutex_lock(&tm->ftm_endlock);
