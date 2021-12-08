@@ -199,6 +199,7 @@ AH_TEMPLATE([ENABLE_RESTRICTED_TRACE_MODE],[Enable restricted trace mode, when o
 AH_TEMPLATE([M0_TRACE_HIGHEST_ALLOWED_LEVEL],[Highest trace level that is allowed to be logged.])
 AH_TEMPLATE([M0_DEFAULT_NETWORK],     [Default network transport type.])
 AH_TEMPLATE([M0_LUSTRE_VERSION],      [Autodetected Lustre version represented as integer])
+AH_TEMPLATE([ENABLE_USER_MODE_ONLY],  [Enabling user mode shall avoid kernel deps])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT],     [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV],        [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ],     [Have fops->aio_read function])
@@ -531,6 +532,20 @@ AS_VERSION_COMPARE(${CASS_DRV_VERSION}, "2.2", [CASS_DRV_V22=0], [CASS_DRV_V22=1
 AS_IF([test "$CASS_DRV_V22" = 1],
       AC_DEFINE([IDX_CASS_DRV_V22]))
 
+# user-mode {{{3
+AC_ARG_WITH([user-mode],
+        [AS_HELP_STRING([--with-user-mode-only],
+                        [Build motr with user space only])],
+        [with-user-mode-only=yes;
+         with_lustre=no;
+         with-default-transport=LF],
+        [with-user-mode-only=no]
+)
+AS_IF([test "x$with-user-mode-only" = xyes],
+      [AC_DEFINE([ENABLE_USER_MODE_ONLY])])
+
+
+
 # linux {{{3
 AC_ARG_WITH([linux],
         [AS_HELP_STRING([--with-linux=path],
@@ -538,7 +553,7 @@ AC_ARG_WITH([linux],
         [LINUX=$with_linux; LINUX_OBJ=$LINUX],
         [LINUX=/lib/modules/`uname -r`; LINUX_OBJ=$LINUX/build]
 )
-AS_IF([test x$with_lustre = xno],[
+AS_IF([test x$with_lustre = xno || test x$with-user-mode-only = xyes],[
        LINUX_OBJ=
        BUILD_KERNEL=not-relevant
       ],[
@@ -567,7 +582,7 @@ package or provide the path to a directory with built Lustre sources, \
 using --with-lustre option.])]
 )
 
-AS_IF([test x$with_lustre = xno],[
+AS_IF([test x$with_lustre = xno || test x$with-user-mode-only = xyes],[
         LUSTRE=none
         LUSTRE_INCLUDES=
         LUSTRE_VERSION_STR=none
@@ -854,6 +869,16 @@ AS_IF([test x$CASS_IDX = xyes],
          AM_CONDITIONAL([MOTR_IDX_STORE_CASS], [false])
       ]
 )
+
+#
+# Checking user-mode availability ------------------------------------------- {{{1
+#
+AS_IF([test x$with-user-mode-only = xyes],
+      [AM_CONDITIONAL([ENABLE_USER_MODE_ONLY], [true])],
+      [AM_CONDITIONAL([ENABLE_USER_MODE_ONLY], [false])]
+)
+
+
 
 #
 # Checking required linux kernel API -------------------------------------- {{{1
