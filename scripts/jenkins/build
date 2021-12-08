@@ -72,6 +72,10 @@ fi
 if [[ "$PACKAGE" == "libfabric" ]]; then
         echo "You are using default $PACKAGE module"
 else
+	/* @todo No need to remove rpms once selction of transport
+	    for UT's and ST's based on configuration option of default
+	    transport.
+	 */
 	if  [[ ! -z $(rpm -qa | grep libfabric) ]]; then
         	rpm -e $(rpm -qa | grep libfabric)
 	fi
