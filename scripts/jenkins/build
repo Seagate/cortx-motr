@@ -30,6 +30,9 @@ set -a
 set -e
 set -o pipefail
 
+TRANSPORT="$2"
+# Printing package name
+echo "Package name is: $TRANSPORT"
 
 WORKSPASE=$(pwd)
 ARTIFACTS=$WORKSPASE/artifacts
@@ -51,6 +54,34 @@ else
 fi
 
 ./autogen.sh |& tee $ARTIFACTS/configure.log
+
+if [[ $TRANSPORT == "lnet" ]]; then
+	PACKAGE='lustre-client'
+else
+	PACKAGE='libfabric'
+fi
+
+# Checking if package is available or not
+if [[ ! -z $(rpm -qa $PACKAGE) ]]; then
+        echo "$PACKAGE package is present"
+else
+        echo "need to install $PACKAGE module"
+	yum install ${PACKAGE}* -y
+fi
+
+if [[ "$PACKAGE" == "libfabric" ]]; then
+        echo "You are using default $PACKAGE module"
+else
+# @todo No need to remove rpms once selection of transport
+# for UT's and ST's based on configuration option of default
+# transport is added.
+	if  [[ ! -z $(rpm -qa | grep libfabric) ]]; then
+        	rpm -e $(rpm -qa | grep libfabric)
+	fi
+	echo "$PACKAGE is not present in the VM"
+fi
+
+
 
 if [[ $1 = docs ]] ; then
 ./configure --disable-systemd |& tee -a $ARTIFACTS/configure.log
