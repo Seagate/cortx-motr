@@ -976,19 +976,23 @@ static void libfab_poller(struct m0_fab__tm *tm)
 
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
 	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
-		ret = fi_trywait(tm->ftm_fab->fab_fab, tm->ftm_fids.ftf_head,
-				 tm->ftm_fids.ftf_cnt);
-		/*
-		 * TBD : Add handling of other return values of fi_trywait() if
-		 * it returns something other than -EAGAIN and 0.
-		 * Also, observed that fi_trywait() returns -22(EINVAL) which is
-		 * not mentioned in libfabric documentation, hence added it to
-		 * the list of possible return values of fi_trywait().
-		 */
-		M0_ASSERT(M0_IN(ret, (0, -EAGAIN, -EINVAL)));
-		if (ret == 0) {
-			err = -EINTR;
-			while (err == -EINTR) {
+		do {
+			ret = fi_trywait(tm->ftm_fab->fab_fab,
+					 tm->ftm_fids.ftf_head,
+					 tm->ftm_fids.ftf_cnt);
+			/*
+			 * TBD : Add handling of other return values of
+			 * fi_trywait() if it returns something other than
+			 * -EAGAIN and 0. Also, observed that fi_trywait()
+			 * returns -22(EINVAL) which is not mentioned in
+			 * libfabric documentation, hence added it to the list
+			 * of possible return values of fi_trywait().
+			 */
+			if (!M0_IN(ret, (0, -EAGAIN, -EINVAL)))
+				M0_LOG(M0_ERROR, "Unexpected fi_trywait rc=%d",
+				       ret);
+
+			if (ret == 0) {
 				ret = epoll_wait(tm->ftm_epfd, &ev, 1,
 						 FAB_WAIT_FD_TMOUT);
 				/*
@@ -997,16 +1001,20 @@ static void libfab_poller(struct m0_fab__tm *tm)
 				 * handled by the loop.
 				 */
 				err = ret < 0 ? -errno : 0;
-				M0_ASSERT_INFO(M0_IN(ret, (-1, 0, 1)),
-					       "Unexpected rc epoll_wait: %d",
+				if (!M0_IN(ret, (-1, 0, 1)))
+					M0_LOG(M0_ERROR,
+					       "Unexpected epoll_wait rc=%d",
 					       ret);
-				M0_ASSERT_INFO(ergo(ret < 0, err == -EINTR),
-					       "Unexpected epoll_wait err: %d",
+				if (ret == -1 && err != -EINTR)
+					M0_LOG(M0_ERROR,
+					       "Unexpected epoll_wait err=%d",
 					       err);
+				ev_cnt = ret > 0 ? ret : 0;
+			} else {
+				ev_cnt = 0;
+				err = 0;
 			}
-			ev_cnt = ret > 0 ? ret : 0;
-		} else
-			ev_cnt = 0;
+		} while (err == -EINTR);
 
 		while (1) {
 			m0_mutex_lock(&tm->ftm_endlock);
