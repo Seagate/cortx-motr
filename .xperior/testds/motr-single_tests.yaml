@@ -368,6 +368,24 @@ Tests:
     polltime : 30
     timeout  : 1800
 
+  - id       : 23spiel-dix-repair
+    script   : 'm0 run-st 23spiel-dix-repair'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-23spiel-dix-repair
+    groupname: 05motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 23spiel-dix-repair-quiesce
+    script   : 'm0 run-st 23spiel-dix-repair-quiesce'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-23spiel-dix-repair-quiesce
+    groupname: 05motr-single-node
+    polltime : 30
+    timeout  : 1800
+
   - id       : 24motr-dix-repair-lookup-insert
     script   : 'm0 run-st 24motr-dix-repair-lookup-insert'
     dir      : src/scripts
@@ -587,7 +605,7 @@ Tests:
     sandbox  : /var/motr/root/sandbox.st-60sns-repair-motr-1f
     groupname: 03motr-single-node
     polltime : 30
-    timeout  : 600
+    timeout  : 1800
 
   - id       : 61sns-repair-motr-1n-1f
     script   : 'm0 run-st 61sns-repair-motr-1n-1f'
@@ -614,7 +632,7 @@ Tests:
     sandbox  : /var/motr/root/sandbox.st-63sns-repair-motr-1k-1f
     groupname: 03motr-single-node
     polltime : 30
-    timeout  : 600
+    timeout  : 1800
 
   - id       : 64sns-repair-motr-ios-fail
     script   : 'm0 run-st 64sns-repair-motr-ios-fail'
