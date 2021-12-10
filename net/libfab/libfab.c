@@ -260,10 +260,9 @@ static int libfab_ep_rxres_init(struct m0_fab__active_ep *aep,
 static int libfab_pep_res_init(struct m0_fab__passive_ep *pep,
 			       struct m0_fab__tm *tm, void *ctx);
 static struct m0_fab__ep *libfab_ep(struct m0_net_end_point *net);
-static bool libfab_ep_cmp(struct m0_fab__ep *ep, const char *name,
-			  struct m0_net_ip_addr *addr);
 static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 			  struct m0_net_ip_params *addr,
+			  struct m0_net_end_point *nep,
 			  struct m0_net_end_point **epp);
 static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
 			    struct m0_net_ip_params *addr,
@@ -315,6 +314,7 @@ static int libfab_conn_accept(struct m0_fab__ep *ep, struct m0_fab__tm *tm,
 			      struct fi_info *info);
 static int libfab_fab_ep_find(struct m0_fab__tm *tm, const char *name,
 			      struct m0_net_ip_params *addr,
+			      struct m0_net_end_point *nep,
 			      struct m0_fab__ep **ep);
 static void libfab_ep_pton(struct m0_net_ip_addr *name, uint64_t *out);
 static void libfab_txep_event_check(struct m0_fab__ep *txep,
@@ -369,6 +369,7 @@ static void libfab_straddr_gen(struct m0_net_ip_params *addr,
 	else
 		M0_LOG(M0_ERROR, "Family is not supported.");
 }
+
 /**
  * Parses network address.
  *
@@ -387,8 +388,7 @@ static void libfab_straddr_gen(struct m0_net_ip_params *addr,
  *                     "inet6:dgram:FE80::0202:B3FF:FE1E:8329@6663"
  *
  */
-static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name,
-				 struct m0_fab__ndom *fnd)
+static int libfab_ep_addr_decode(struct m0_fab__ep *ep, const char *name)
 {
 	M0_ENTRY("name=%s", name);
 	M0_PRE(name != NULL);
@@ -554,7 +554,7 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 				      (cm_entry->data));
 			m0_net_ip_print(&addr);
 			rc = libfab_fab_ep_find(tm, addr.nia_p, &addr.nia_n,
-						&ep);
+						NULL, &ep);
 			if (rc == 0) {
 				rc = libfab_conn_accept(ep, tm, cm_entry->info);
 				if (rc != 0)
@@ -565,16 +565,15 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 			fi_freeinfo(cm_entry->info);
 		} else if (rc == -FI_EAVAIL) {
 			rc = fi_eq_readerr(eq, &eq_err, 0);
-			if (rc != sizeof(eq_err)) {
+			if (rc != sizeof(eq_err))
 				M0_LOG(M0_ERROR, "fi_eq_readerr error =%s",
 				       fi_strerror((int) -rc));
-			} else {
+			else
 				M0_LOG(M0_ERROR, "fi_eq_readerr prov err %d:%s",
 				       eq_err.prov_errno,
 				       fi_eq_strerror(eq, eq_err.prov_errno,
 						      eq_err.err_data, NULL,
 						      0));
-			}
 		} else if (rc != -EAGAIN)
 			/*
 			* For all other events, there is no error info available.
@@ -852,18 +851,58 @@ static inline struct m0_fab__ep *libfab_ep(struct m0_net_end_point *net)
 }
 
 /**
- * Compares the endpoint name with the passed name string and
- * returns true if equal, or else returns false
- * If name is null then the ipaddress and port fields are compared to check for
- * a matching endpoint.
+ * Find endpoint in list of endpoints using pointer.
+ * If found update output param ep and return true, or else returns false.
  */
-static bool libfab_ep_cmp(struct m0_fab__ep *ep, const char *name,
-			  struct m0_net_ip_addr *addr)
+static bool libfab_ep_find_by_ptr(struct m0_net_end_point *nep,
+				  struct m0_net_transfer_mc *ntm,
+				  struct m0_fab__ep **ep)
 {
-	struct m0_net_ip_addr *fep = &ep->fep_name;
-	return (name != NULL &&
-		strcmp(ep->fep_name.nia_p, name) == 0) ||
-	        (name == NULL && m0_net_ip_addr_eq(fep, addr, true));
+	struct m0_net_end_point *net;
+
+	net = m0_tl_find(m0_nep, net, &ntm->ntm_end_points, net == nep);
+
+	*ep = net != NULL ? libfab_ep(net) : NULL;
+
+	return net != NULL;
+}
+
+/**
+ * Find endpoint in list of endpoints using numeric params.
+ * If found update output param ep and return true, or else returns false.
+ */
+static bool libfab_ep_find_by_num(struct m0_net_ip_addr *addr,
+				  struct m0_net_transfer_mc *ntm,
+				  struct m0_fab__ep **ep)
+{
+	struct m0_net_end_point *net;
+
+	net = m0_tl_find(m0_nep, net, &ntm->ntm_end_points,
+			 m0_net_ip_addr_eq(&(libfab_ep(net))->fep_name,
+					   addr, true));
+
+	*ep = net != NULL ? libfab_ep(net) : NULL;
+
+	return net != NULL;
+}
+
+/**
+ * Find endpoint in list of endpoints using name string.
+ * If found update output param ep and return true, or else returns false.
+ */
+
+static bool libfab_ep_find_by_str(const char *name,
+				  struct m0_net_transfer_mc *ntm,
+				  struct m0_fab__ep **ep)
+{
+	struct m0_net_end_point *net;
+
+	net = m0_tl_find(m0_nep, net, &ntm->ntm_end_points,
+			 strcmp((libfab_ep(net))->fep_name.nia_p, name) == 0);
+
+	*ep = net != NULL ? libfab_ep(net) : NULL;
+
+	return net != NULL;
 }
 
 /**
@@ -877,33 +916,37 @@ static bool libfab_ep_cmp(struct m0_fab__ep *ep, const char *name,
  */
 static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 			  struct m0_net_ip_params *addr,
+			  struct m0_net_end_point *nep,
 			  struct m0_net_end_point **epp)
 {
-	struct m0_net_end_point  *net;
 	struct m0_fab__ep        *ep;
 	struct m0_fab__active_ep *aep;
 	struct m0_fab__tm        *ma;
 	char                     *wc = NULL;
 	int                       rc = 0;
 	struct m0_net_ip_addr     net_ip;
+	bool                      found = false;
 
 	if (addr != NULL)
 		net_ip.nia_n = *addr;
-
 	M0_ASSERT(libfab_tm_is_locked(tm->ntm_xprt_private));
-	net = m0_tl_find(m0_nep, net, &tm->ntm_end_points,
-			 libfab_ep_cmp(libfab_ep(net), name, &net_ip));
 
-	if (net == NULL) {
+	if (nep != NULL)
+		found = libfab_ep_find_by_ptr(nep, tm, &ep);
+	else if (name != NULL)
+		found = libfab_ep_find_by_str(name, tm, &ep);
+	else
+		found = libfab_ep_find_by_num(&net_ip, tm, &ep);
+
+	if (!found) {
+		M0_ASSERT(name != NULL || addr != NULL);
 		if (name != NULL)
 			rc = libfab_ep_create(tm, name, addr, epp);
 		else {
-			M0_ASSERT(addr != NULL);
 			m0_net_ip_print(&net_ip);
 			rc = libfab_ep_create(tm, net_ip.nia_p, addr, epp);
 		}
 	} else {
-		ep = libfab_ep(net);
 		*epp = &ep->fep_nep;
 		if (name != NULL && addr != NULL) {
 			wc = strchr(name,'*');
@@ -943,7 +986,6 @@ static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
 			    struct m0_net_ip_params *addr,
 			    struct m0_net_end_point **epp)
 {
-	struct m0_fab__ndom *fnd = tm->ntm_dom->nd_xprt_private;
 	struct m0_fab__tm   *ma = tm->ntm_xprt_private;
 	struct m0_fab__ep   *ep = NULL;
 	int                  rc;
@@ -963,7 +1005,7 @@ static int libfab_ep_create(struct m0_net_transfer_mc *tm, const char *name,
 
 	ep->fep_listen = NULL;
 
-	rc = libfab_ep_addr_decode(ep, name, fnd);
+	rc = libfab_ep_addr_decode(ep, name);
 	if (rc != 0) {
 		libfab_aep_param_free(ep->fep_aep, ma);
 		m0_free(ep);
@@ -2245,15 +2287,16 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
  */
 static int libfab_fab_ep_find(struct m0_fab__tm *tm, const char *name,
 			      struct m0_net_ip_params *addr,
+			      struct m0_net_end_point *nep,
 			      struct m0_fab__ep **ep)
 {
 	struct m0_net_transfer_mc *ntm = tm->ftm_ntm;
-	struct m0_net_end_point   *nep;
+	struct m0_net_end_point   *net;
 	int                        ret;
 
-	ret = libfab_ep_find(ntm, name, addr, &nep);
+	ret = libfab_ep_find(ntm, name, addr, nep, &net);
 	if (ret == 0)
-		*ep = libfab_ep(nep);
+		*ep = libfab_ep(net);
 
 	return M0_RC(ret);
 }
@@ -2897,7 +2940,7 @@ static int libfab_ma_start(struct m0_net_transfer_mc *ntm, const char *name)
 	M0_ALLOC_PTR(ftm->ftm_pep);
 	if (ftm->ftm_pep != NULL) {
 		fnd = ntm->ntm_dom->nd_xprt_private;
-		rc = libfab_ep_addr_decode(ftm->ftm_pep, name, fnd);
+		rc = libfab_ep_addr_decode(ftm->ftm_pep, name);
 		if (rc != 0)
 			return M0_ERR(rc);
 
@@ -2971,7 +3014,7 @@ static int libfab_end_point_create(struct m0_net_end_point **epp,
 				   const char *name)
 {
 	M0_ENTRY("name=%s", name);
-	return (libfab_ep_find(tm, name, NULL, epp));
+	return (libfab_ep_find(tm, name, NULL, NULL, epp));
 }
 
 /**
@@ -3050,7 +3093,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	struct m0_fab__ep        *ep = NULL;
 	struct m0_fab__active_ep *aep;
 	struct iovec              iv;
-	struct m0_net_ip_params   addr = {};
+	struct m0_net_ip_addr     addr = {};
 	int                       ret = 0;
 
 	M0_ENTRY("fb=%p nb=%p q=%d l=%"PRIu64, fbp, nb, nb->nb_qtype,
@@ -3079,7 +3122,13 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	case M0_NET_QT_MSG_SEND: {
 		M0_ASSERT(nb->nb_length <= m0_vec_count(&nb->nb_buffer.ov_vec));
 		M0_ASSERT(nb->nb_buffer.ov_vec.v_nr == 1);
-		ret = libfab_fab_ep_find(ma, nb->nb_ep->nep_addr, NULL, &ep);
+		/*
+		 * Passing name along with ptr to libfab_fab_ep_find so that
+		 * if libfab_ep_find_by_ptr() fails, we can create new endpoint
+		 * using name string.
+		 */
+		ret = libfab_fab_ep_find(ma, nb->nb_ep->nep_addr, NULL,
+					 nb->nb_ep, &ep);
 		if (ret != 0)
 			break;
 		aep = libfab_aep_get(ep);
@@ -3123,8 +3172,8 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 		/* Intentional fall through */
 
 	case M0_NET_QT_ACTIVE_BULK_SEND: {
-		libfab_bdesc_decode(fbp, &addr);
-		ret = libfab_fab_ep_find(ma, NULL, &addr, &ep);
+		libfab_bdesc_decode(fbp, &addr.nia_n);
+		ret = libfab_fab_ep_find(ma, NULL, &addr.nia_n, NULL, &ep);
 		if (ret != 0)
 			break;
 		fbp->fb_txctx = ep;
