@@ -541,38 +541,47 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 	uint32_t                  event;
 	int                       rc;
 	struct m0_net_ip_addr     addr;
+	int			  ret;
 
 	eq = tm->ftm_pep->fep_listen->pep_res.fpr_eq;
-	rc = fi_eq_read(eq, &event, &entry, sizeof(entry), 0);
-	if (rc >= (int)sizeof(struct fi_eq_cm_entry) && event == FI_CONNREQ) {
-		cm_entry = (struct fi_eq_cm_entry *)entry;
-		addr.nia_n = *((struct m0_net_ip_params *)(cm_entry->data));
-		m0_net_ip_print(&addr);
-		rc = libfab_fab_ep_find(tm, addr.nia_p, &addr.nia_n, &ep);
-		if (rc == 0) {
-			rc = libfab_conn_accept(ep, tm, cm_entry->info);
-			if (rc != 0)
-				M0_LOG(M0_ERROR, "Conn accept failed %d", rc);
-		} else
-			M0_LOG(M0_ERROR, "libfab_fab_ep_find failed rc=%d", rc);
-		fi_freeinfo(cm_entry->info);
-	} else if (rc == -FI_EAVAIL) {
-		rc = fi_eq_readerr(eq, &eq_err, 0);
-		if (rc != sizeof(eq_err)) {
-			M0_LOG(M0_ERROR, "fi_eq_readerr returns error =%s",
-			       fi_strerror((int) -rc));
-		} else {
-			M0_LOG(M0_ERROR, "fi_eq_readerr provider err no %d:%s",
-				eq_err.prov_errno,
-				fi_eq_strerror(eq, eq_err.prov_errno,
-					       eq_err.err_data, NULL, 0));
-		}
-	} else if (rc != -EAGAIN)
-		/*
-		 * For all other events, there is no error info available.
-		 * Hence, all such events can be ignored.
-		 */
-		M0_LOG(M0_ERROR, "Unexpected event tm=%p rc=%d", tm, rc);
+	do {
+		rc = fi_eq_read(eq, &event, &entry, sizeof(entry), 0);
+		ret = rc;
+		if (rc >= (int)sizeof(struct fi_eq_cm_entry) &&
+		    event == FI_CONNREQ) {
+			cm_entry = (struct fi_eq_cm_entry *)entry;
+			addr.nia_n = *((struct m0_net_ip_params *)
+				      (cm_entry->data));
+			m0_net_ip_print(&addr);
+			rc = libfab_fab_ep_find(tm, addr.nia_p, &addr.nia_n,
+						&ep);
+			if (rc == 0) {
+				rc = libfab_conn_accept(ep, tm, cm_entry->info);
+				if (rc != 0)
+					M0_LOG(M0_ERROR, "Conn accept fail %d",
+					       rc);
+			} else
+				M0_LOG(M0_ERROR, "fab_ep_find fail rc=%d", rc);
+			fi_freeinfo(cm_entry->info);
+		} else if (rc == -FI_EAVAIL) {
+			rc = fi_eq_readerr(eq, &eq_err, 0);
+			if (rc != sizeof(eq_err)) {
+				M0_LOG(M0_ERROR, "fi_eq_readerr error =%s",
+				       fi_strerror((int) -rc));
+			} else {
+				M0_LOG(M0_ERROR, "fi_eq_readerr prov err %d:%s",
+				       eq_err.prov_errno,
+				       fi_eq_strerror(eq, eq_err.prov_errno,
+						      eq_err.err_data, NULL,
+						      0));
+			}
+		} else if (rc != -EAGAIN)
+			/*
+			* For all other events, there is no error info available.
+			* Hence, all such events can be ignored.
+			*/
+			M0_LOG(M0_ERROR, "Unexpected event tm=%p rc=%d", tm, rc);
+	} while (ret != -EAGAIN);
 	return 0;
 }
 

@@ -494,10 +494,10 @@ struct m0_fab__bdesc {
 	struct m0_net_ip_params fbd_netaddr;
 
 	/** Remote buffer iov count */
-	uint32_t fbd_iov_cnt;
+	uint32_t                fbd_iov_cnt;
 
 	/** Remote buffer token */
-	uint32_t fbd_buftoken;
+	uint32_t                fbd_buftoken;
 };
 
 /**
