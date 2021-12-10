@@ -28,7 +28,7 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
 
     2.1. Need to edit the config file (CDF) to add a filter. Examples of CDF file can be found [here](https://github.com/Seagate/cortx-hare/blob/25274c3787b1adab1eac3a4ee5b9fef80035ebc1/cfgen/examples/singlenode.yaml#L51). In our "Hello" example, we need to modify the fdmi_filters section to be as follow:
     
-         ```
+         ```sh
          # This FDMI filter will trigger the FDMI application whenever 
          # there is a key-value pair added to Motr that matches values to substrings
          fdmi_filters:
@@ -46,7 +46,7 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
          
     3.2. Example of this output, after running the `fdmi_app_hello`, will be as follow:
     
-         ```
+         ```sh
          Using the following settings:
          plugin-path = ./fdmi_sample_plugin
          hctl-path = hctl
@@ -59,11 +59,12 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
          ./fdmi_sample_plugin -l 10.230.242.37@tcp:12345:4:1 -h 10.230.242.37@tcp:12345:1:1 -p 0x7000000000000001:0x43 -f 0x7200000000000001:0x22 -g 0x6c00000000000001:0x45
          ```
          
+         
 4.  Then in previous windows terminal used for starting cluster, run some key-value operations with the [m0kv](https://github.com/Seagate/cortx-motr/tree/main/motr/m0kv) util by using the following commands:
 
     4.1.  Values can have the "hello" word as substring and still the filter will be triggered.
    
-          ```
+          ```sh
           # The -l, -h, -f, and -p are the cluster parameters
           # -l and -p arguments are set to be the second m0 client in the cluster
           # More details of how to use the m0kv util can be seen with -h option
@@ -158,7 +159,7 @@ This application prints to standard output the most popular words for new object
      
     1.2.  To run the cluster with `hctl` command, we need to modify the fdmi_filters section of the CDF file to be as follow:
     
-          ```
+          ```sh
           # This FDMI filter will trigger the FDMI application whenever 
           # there is a key-value pair added to Motr that matches values to substrings
           fdmi_filters:
