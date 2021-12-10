@@ -78,12 +78,14 @@ struct m0_be_part_stob_cfg {
 	char        *bpc_location;
 	char        *bpc_seg_path;
 	char        *bpc_data_path;
+	char        *bpc_init_cfg;
+	char        *bpc_create_cfg;
 	m0_bcount_t  bpc_seg_size;
 	m0_bcount_t  bpc_data_size;
 	bool	     bpc_part_mode_seg;
 	bool	     bpc_part_mode_log;
 	bool	     bpc_part_mode_data;
-	bool	     bpc_part_mode;
+	bool	     bpc_part_mode_set;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_domain_cfg {
@@ -159,6 +161,7 @@ struct m0_be_domain {
 	struct m0_be_seg                bd_seg0;
 	struct m0_stob                 *bd_seg0_stob;
 	struct m0_stob_domain          *bd_stob_domain;
+	struct m0_stob_domain          *bd_part_stob_domain;
 	struct m0_be_0type              bd_0type_seg;
 	struct m0_be_pd                 bd_pd;
 	struct m0_be_log_discard        bd_log_discard;
@@ -175,7 +178,6 @@ enum {
 	M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_DESTROY,
 	M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_CREATE,
 	M0_BE_DOMAIN_LEVEL_NORMAL_PART_STOB_DOMAIN_INIT,
-	M0_BE_DOMAIN_LEVEL_PARTITION_TABLE_CREATE,
 	M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE,
 	M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE,
 	M0_BE_DOMAIN_LEVEL_NORMAL_LOG_OPEN,

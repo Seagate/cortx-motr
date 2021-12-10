@@ -143,16 +143,16 @@ static int align_chunk_size(m0_bcount_t proposed_chunk_size)
 static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 					     void **cfg_create)
 {
-	int                              size;
 	int                              rc;
 	char                            *devname;
 	struct m0_be_ptable_part_config *cfg;
 	m0_bcount_t                      proposed_chunk_size;
+	m0_bcount_t                      size;
 
 	size = strlen(str_cfg_create) + 1;
 	devname = (char *) m0_alloc(size);
 	/* format = "/dev/sdc 20GB" */
-	rc = sscanf(str_cfg_create, "%s %d", devname, &size);
+	rc = sscanf(str_cfg_create, "%s %"SCNu64, devname, &size);
 	if ( rc != 2 )
 		return M0_RC(-EINVAL);
 

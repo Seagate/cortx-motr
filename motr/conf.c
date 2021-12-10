@@ -249,6 +249,82 @@ static bool is_device(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_SDEV_TYPE;
 }
 
+M0_INTERNAL int cs_conf_get_parition_dev (struct cs_stobs *stob, struct m0_conf_sdev **sdev_ptr)
+{
+	int                     rc;
+	struct m0_motr         *cctx;
+	struct m0_reqh_context *rctx;
+	struct m0_confc        *confc;
+	struct m0_fid           tmp_fid;
+	struct m0_fid          *svc_fid  = NULL;
+	struct m0_conf_obj     *proc;
+	struct m0_conf_obj    *svc_obj;
+	struct m0_conf_diter    it;
+	struct m0_conf_service *svc;
+	uint32_t                dev_nr;
+	struct m0_fid        *proc_fid;
+        struct m0_conf_sdev *sdev;
+
+
+	M0_ENTRY();
+
+	rctx = container_of(stob, struct m0_reqh_context, rc_stob);
+	cctx = container_of(rctx, struct m0_motr, cc_reqh_ctx);
+	confc = m0_motr2confc(cctx);
+	proc_fid = &rctx->rc_fid;
+
+	rc = m0_confc_open_by_fid_sync(confc, proc_fid, &proc);
+		if (rc != 0)
+			return M0_ERR(rc);
+
+	rc = m0_conf_diter_init(&it, confc, proc,
+				M0_CONF_PROCESS_SERVICES_FID);
+	if (rc != 0)
+		return M0_ERR(rc);
+	while ((rc = m0_conf_diter_next_sync(&it, is_ios)) ==
+		       M0_CONF_DIRNEXT) {
+			struct m0_conf_obj *obj = m0_conf_diter_result(&it);
+			tmp_fid = obj->co_id;
+			svc_fid = &tmp_fid;
+			M0_LOG(M0_ALWAYS, "obj->co_id: "FID_F, FID_P(svc_fid));
+	}
+	m0_conf_diter_fini(&it);
+	m0_confc_close(proc);
+	if (svc_fid == NULL)
+		return -1;
+
+	rc = m0_confc_open_by_fid_sync(confc, svc_fid, &svc_obj);
+	if (rc == 0) {
+		svc = M0_CONF_CAST(svc_obj, 	   m0_conf_service);
+		dev_nr = m0_conf_dir_len(svc->cs_sdevs);
+			rc = m0_conf_diter_init(&it, confc, svc_obj,
+					M0_CONF_SERVICE_SDEVS_FID);
+		if (rc != 0) {
+			m0_confc_close(svc_obj);
+			return M0_ERR(rc);
+		}
+		M0_LOG(M0_ALWAYS,"vcp: dev_nr = %d", dev_nr);
+		while ((rc = m0_conf_diter_next_sync(&it, is_device)) ==
+			M0_CONF_DIRNEXT) {
+			sdev = M0_CONF_CAST(m0_conf_diter_result(&it),
+					    m0_conf_sdev);
+			M0_LOG(M0_ALWAYS,
+			       "sdev " FID_F " device index: %d "
+			       "sdev.sd_filename: %s, "
+			       "sdev.sd_size: %" PRIu64,
+			       FID_P(&sdev->sd_obj.co_id), sdev->sd_dev_idx,
+			       sdev->sd_filename, sdev->sd_size);
+				*sdev_ptr = sdev;
+			rc = 0;
+			break;
+		}
+		m0_conf_diter_fini(&it);
+		m0_confc_close(svc_obj);
+	}
+	M0_LOG(M0_ALWAYS,"vcp:rc = %d",rc);
+	return rc;
+}
+
 static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 					 struct m0_storage_devs *devs,
 					 struct m0_fid          *svc_fid,

@@ -59,7 +59,7 @@
 #include "module/instance.h"	/* m0_get */
 #include "conf/obj.h"           /* M0_CONF_PROCESS_TYPE */
 #include "conf/helpers.h"       /* m0_confc_args */
-#include "conf/obj_ops.h"  	/* M0_CONF_DIRNEXT */
+#include "conf/obj_ops.h"	/* M0_CONF_DIRNEXT */
 #include "be/ut/helper.h"
 #include "ioservice/fid_convert.h" /* M0_AD_STOB_LINUX_DOM_KEY */
 #include "ioservice/storage_dev.h"
@@ -68,6 +68,8 @@
 #include "conf/ha.h"            /* m0_conf_ha_process_event_post */
 #include "dtm0/helper.h"        /* m0_dtm0_log_create */
 #include "be/partition_table.h"
+#include "stob/partition.h"     /* m0_stob_part_type */
+
 /**
    @addtogroup m0d
    @{
@@ -1100,6 +1102,15 @@ static int cs_storage_init(const char *stob_type,
 /**
    Finalises storage for a request handler in a motr context.
  */
+static void cs_part_domain_fini(struct m0_reqh_context *rctx)
+{
+
+	rctx->rc_be.but_dom_cfg.bc_ad_mode = m0_strcaseeq(rctx->rc_stype,
+						  m0_cs_stypes[M0_AD_STOB]);
+	if (rctx->rc_be.but_dom_cfg.bc_ad_mode)
+		m0_free(rctx->rc_be.but_dom_cfg.bc_part_cfg.bpc_create_cfg);
+}
+
 static void cs_storage_fini(struct cs_stobs *stob)
 {
 	cs_storage_devs_fini();
@@ -1488,8 +1499,8 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 		rctx->rc_be_log_path;
 	be->but_dom_cfg.bc_ad_mode = m0_strcaseeq(rctx->rc_stype,
 						  m0_cs_stypes[M0_AD_STOB]);
-	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_ad_mode =
-		be->but_dom_cfg.bc_ad_mode;
+	/** be->but_dom_cfg.bc_log.lc_store_cfg.lsc_ad_mode =
+		be->but_dom_cfg.bc_ad_mode; */
 	be->but_dom_cfg.bc_seg0_cfg.bsc_stob_create_cfg = rctx->rc_be_seg0_path;
 	if(be->but_dom_cfg.bc_ad_mode)
 		be->but_dom_cfg.bc_seg0_cfg.bsc_stob_key =
@@ -1588,6 +1599,33 @@ static int cs_reqh_start(struct m0_reqh_context *rctx)
 	return M0_RC(rc);
 }
 
+static void cs_part_domain_setup(struct m0_reqh_context *rctx)
+{
+
+	rctx->rc_be.but_dom_cfg.bc_ad_mode = m0_strcaseeq(rctx->rc_stype,
+						  m0_cs_stypes[M0_AD_STOB]);
+	if (rctx->rc_be.but_dom_cfg.bc_ad_mode) {
+		struct m0_be_part_stob_cfg *part_cfg;
+		struct m0_conf_sdev        *sdev = NULL;
+
+		part_cfg = &rctx->rc_be.but_dom_cfg.bc_part_cfg;
+		memset(part_cfg, 0, sizeof(*part_cfg));
+
+		M0_ASSERT(cs_conf_get_parition_dev(&rctx->rc_stob, &sdev) == 0);
+		M0_LOG(M0_ALWAYS,"filename:%s,size:%"PRIu64" ",
+		       sdev->sd_filename, sdev->sd_size);
+		M0_ALLOC_ARR(part_cfg->bpc_create_cfg,
+			     strlen(sdev->sd_filename) + 32);
+		M0_ASSERT(part_cfg->bpc_create_cfg != NULL);
+		sprintf(part_cfg->bpc_create_cfg, "%s %"PRIu64,
+			sdev->sd_filename,
+			sdev->sd_size);
+		part_cfg->bpc_location =
+			(char*)m0_stob_part_type.st_fidt.ft_name;
+	}
+
+}
+
 static int cs_storage_setup(struct m0_motr *cctx)
 {
 	/**
@@ -1607,10 +1645,12 @@ static int cs_storage_setup(struct m0_motr *cctx)
 		return M0_RC(0);
 
 	rctx->rc_be.but_dom_cfg.bc_engine.bec_reqh = &rctx->rc_reqh;
+	cs_part_domain_setup(rctx);
 	rc = cs_be_init(rctx, &rctx->rc_be, rctx->rc_bepath,
 			rctx->rc_be_seg_preallocate,
 			(mkfs && force), &rctx->rc_beseg);
 	if (rc != 0)
+
 		return M0_ERR_INFO(rc, "cs_be_init");
 
 	rc = m0_reqh_be_init(&rctx->rc_reqh, rctx->rc_beseg);
@@ -2187,8 +2227,6 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				LAMBDA(void, (const char *s)
 				{
 					rctx->rc_be_seg_path = s;
-					rctx->rc_be_seg0_path = s;
-					rctx->rc_be_log_path = s;
 				})),
 			M0_NUMBERARG('z', "BE primary segment size",
 				LAMBDA(void, (int64_t size)
@@ -2848,6 +2886,7 @@ static void cs_level_leave(struct m0_module *module)
 		break;
 	case CS_LEVEL_STORAGE_SETUP:
 		if (rctx->rc_state == RC_INITIALISED) {
+			cs_part_domain_fini(rctx);
 			cs_storage_fini(&rctx->rc_stob);
 			rctx->rc_reqh.rh_pools = NULL;
 		}

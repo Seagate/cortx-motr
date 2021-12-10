@@ -128,7 +128,7 @@ M0_INTERNAL int m0_be_domain_stob_open(void *sd_id,
 {
     int               rc;
     struct m0_stob_id stob_id;
-        
+
     m0_stob_id_make(0, stob_key, (struct m0_fid *) sd_id, &stob_id);
     rc = m0_stob_find(&stob_id, out);
     if (rc == 0) {
@@ -703,35 +703,6 @@ M0_INTERNAL void m0_be_domain__0type_unregister(struct m0_be_domain *dom,
 }
 
 static const struct m0_modlev levels_be_domain[];
-/* TODO This function needs update,used temporary for testing purpose only*/
-static int be_domain_get_partition_config(struct m0_be_domain *dom,
-					  struct m0_be_ptable_part_config *cfg)
-{
-	/* Seg0, seg1, log, data */
-	cfg->pc_num_of_alloc_entries = 4;
-	/* 1 GB */
-	cfg->pc_chunk_size_in_bits = 30;
-	/* device size / chunk size*, 32GB VM test*/
-	cfg->pc_total_chunk_count = 32;
-	M0_ALLOC_ARR(cfg->pc_part_alloc_info,
-		     cfg->pc_num_of_alloc_entries);
-	if (cfg->pc_part_alloc_info == NULL) {
-		M0_LOG(M0_ERROR, "Failed allocate memory for part cfg");
-		return -ENOMEM;
-	}
-	cfg->pc_part_alloc_info[0].ai_part_id = M0_BE_PTABLE_ENTRY_SEG0;
-	cfg->pc_part_alloc_info[0].ai_def_size_in_chunks = 1;
-	cfg->pc_part_alloc_info[1].ai_part_id = M0_BE_PTABLE_ENTRY_LOG;
-	cfg->pc_part_alloc_info[1].ai_def_size_in_chunks = 1;
-	cfg->pc_part_alloc_info[2].ai_part_id = M0_BE_PTABLE_ENTRY_SEG1;
-	cfg->pc_part_alloc_info[2].ai_def_size_in_chunks =
-		(cfg->pc_total_chunk_count * 10) / 100;
-	cfg->pc_part_alloc_info[3].ai_part_id = M0_BE_PTABLE_ENTRY_BALLOC;
-	cfg->pc_part_alloc_info[3].ai_def_size_in_chunks =
-		(cfg->pc_total_chunk_count * 40) / 100;
-	cfg->pc_dev_path_name = dom->bd_cfg.bc_seg0_cfg.bsc_stob_create_cfg;
-	return 0;
-}
 
 static int be_domain_level_enter(struct m0_module *module)
 {
@@ -741,7 +712,6 @@ static int be_domain_level_enter(struct m0_module *module)
 	const char              *level_name;
 	int                      rc;
 	unsigned                 i;
-	struct m0_be_ptable_part_config partition_config;
 
 	level_name = levels_be_domain[level].ml_name;
 	M0_ENTRY("dom=%p level=%d level_name=%s", dom, level, level_name);
@@ -794,21 +764,34 @@ static int be_domain_level_enter(struct m0_module *module)
 		return M0_RC(m0_stob_domain_init(cfg->bc_stob_domain_location,
 						 cfg->bc_stob_domain_cfg_init,
 						 &dom->bd_stob_domain));
-	case M0_BE_DOMAIN_LEVEL_PARTITION_TABLE_CREATE:
-		dom->bd_stob_domain->sd_ad_mode = cfg->bc_ad_mode;
-		if(cfg->bc_ad_mode){
-			rc = be_domain_get_partition_config(dom,
-							    &partition_config);
-			if (rc )
-				return M0_RC(rc);
-			// fixme : did a type case of dom to uint64_t on the below line
-			rc = m0_be_ptable_create_init(&dom->bd_stob_domain->sd_id,
-						      cfg->bc_mkfs_mode,
-						      &partition_config);
-			return M0_RC(rc);
-		}
-		else
+	case M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_DESTROY:
+		if (!cfg->bc_mkfs_mode)
 			return M0_RC(0);
+		rc = m0_stob_domain_destroy_location(
+		                                cfg->bc_part_cfg.bpc_location);
+		/*
+		 * Silence -ENOENT error - it's a perfectly valid case for the
+		 * first run if the part stob domain hasn't been created yet.
+		 */
+		return M0_IN(rc, (-ENOENT, 0)) ? M0_RC(0) : M0_ERR(rc);
+	case M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_CREATE:
+		if (!cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		/*
+		 * The part stob domain is never destroyed in case of failure, even
+		 * in mkfs mode: it helps with the debugging.
+		 */
+		return M0_RC(m0_stob_domain_create(cfg->bc_part_cfg.bpc_location,
+						   cfg->bc_part_cfg.bpc_init_cfg,
+						   (uint64_t)&dom->bd_stob_domain->sd_id,
+						   cfg->bc_part_cfg.bpc_create_cfg,
+						   &dom->bd_part_stob_domain));
+	case M0_BE_DOMAIN_LEVEL_NORMAL_PART_STOB_DOMAIN_INIT:
+		if (cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		return M0_RC(m0_stob_domain_init(cfg->bc_part_cfg.bpc_location,
+						 cfg->bc_part_cfg.bpc_init_cfg,
+						 &dom->bd_part_stob_domain));
 	case M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE:
 		cfg->bc_log.lc_got_space_cb = m0_be_engine_got_log_space_cb;
 		cfg->bc_log.lc_full_cb      = m0_be_engine_full_log_cb;
@@ -952,7 +935,12 @@ static void be_domain_level_leave(struct m0_module *module)
 	case M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT:
 		m0_stob_domain_fini(dom->bd_stob_domain);
 		break;
-	case M0_BE_DOMAIN_LEVEL_PARTITION_TABLE_CREATE:
+	case M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_DESTROY:
+		break;
+	case M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_CREATE:
+		break;
+	case M0_BE_DOMAIN_LEVEL_NORMAL_PART_STOB_DOMAIN_INIT:
+		m0_stob_domain_fini(dom->bd_part_stob_domain);
 		break;
 	case M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE:
 		m0_free(dom->bd_cfg.bc_log.lc_store_cfg.
@@ -1020,7 +1008,9 @@ static const struct m0_modlev levels_be_domain[] = {
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_CREATE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT),
-	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_PARTITION_TABLE_CREATE),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_DESTROY),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_CREATE),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_PART_STOB_DOMAIN_INIT),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_LOG_OPEN),

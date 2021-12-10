@@ -334,7 +334,7 @@ static m0_bcount_t be_seg_get_dev_offset(struct m0_be_domain  *bs_domain,
 	M0_ENTRY();
 	part_table = bs_domain->bd_partition_table;
 	part_id = bs_stob->so_id.si_fid.f_key;
-	if(!bs_stob->so_domain->sd_ad_mode)
+	if(!bs_domain->bd_cfg.bc_part_cfg.bpc_part_mode_set)
 		return dev_offset;
 	M0_ASSERT(part_table);
 	pri_part_info = part_table->pt_pri_part_info;
