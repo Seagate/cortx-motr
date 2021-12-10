@@ -27,7 +27,8 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
 2.  Follow the [hare QSG guide](https://github.com/Seagate/cortx-hare/blob/main/README.md) in the cortx-hare repo to get a Motr cluster up and running.
 
     2.1. Need to edit the config file (CDF) to add a filter. Examples of CDF file can be found [here](https://github.com/Seagate/cortx-hare/blob/25274c3787b1adab1eac3a4ee5b9fef80035ebc1/cfgen/examples/singlenode.yaml#L51). In our "Hello" example, we need to modify the fdmi_filters section to be as follow:
-         ```sh
+    
+         ```
          # This FDMI filter will trigger the FDMI application whenever 
          # there is a key-value pair added to Motr that matches values to substrings
          fdmi_filters:
@@ -44,7 +45,8 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
     3.1. Go inside the `cortx-motr/fdmi/plugins` directory and you will see the `fdmi_app_hello` python script and `fdmi_sample_plugin` binary file that was compiled as part of motr compilation. More details about these programs can be found in the next section of this tutorial. To launch, run this command: `./fdmi_app_hello`
          
     3.2. Example of this output, after running the `fdmi_app_hello`, will be as follow:
-         ```sh
+    
+         ```
          Using the following settings:
          plugin-path = ./fdmi_sample_plugin
          hctl-path = hctl
@@ -155,7 +157,8 @@ This application prints to standard output the most popular words for new object
     1.1. Follow [cortx-s3server QSG](https://github.com/Seagate/cortx-s3server/blob/main/docs/CORTX-S3%20Server%20Quick%20Start%20Guide.md).
      
     1.2.  To run the cluster with `hctl` command, we need to modify the fdmi_filters section of the CDF file to be as follow:
-          ```sh
+    
+          ```
           # This FDMI filter will trigger the FDMI application whenever 
           # there is a key-value pair added to Motr that matches values to substrings
           fdmi_filters:
