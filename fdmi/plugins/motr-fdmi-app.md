@@ -158,17 +158,19 @@ This application prints to standard output the most popular words for new object
 
     1.1. Follow [cortx-s3server QSG](https://github.com/Seagate/cortx-s3server/blob/main/docs/CORTX-S3%20Server%20Quick%20Start%20Guide.md).
      
-    1.2.  To run the cluster with `hctl` command, we need to modify the fdmi_filters section of the CDF file to be as follow:
+    1.2. To run the cluster with `hctl` command, we need to modify the fdmi_filters section of the CDF file to be as follow:
     
-          ```
-          # This FDMI filter will trigger the FDMI application whenever 
-          # there is a key-value pair added to Motr that matches values to substrings
-          fdmi_filters:
-            - name: test             # name for the filter
-              node: localhost        # node where it runs
-              client_index: 0        # index of the client
-              substrings: ["Bucket-Name", "Object-name"]  # substrings to match, this will get the filter triggered with new PUT requests with "Bucket-Name" and "Object-Name" metadata fields
-          ```
+         ```
+         # This FDMI filter will trigger the FDMI application whenever 
+         # there is a key-value pair added to Motr that matches values to substrings
+         fdmi_filters:
+           - name: test             # name for the filter
+             node: localhost        # node where it runs
+             client_index: 0        # index of the client
+             substrings: ["Bucket-Name", "Object-name"]  # substrings to match
+         ```
+         
+    1.3. This configuration will the filter to be triggered with new PUT requests that have "Bucket-Name" and "Object-Name" metadata fields.
           
 2.  Setup your own AWS Client in another windows terminal by following step 5 in the [cortx-s3server QSG](https://github.com/Seagate/cortx-s3server/blob/main/docs/CORTX-S3%20Server%20Quick%20Start%20Guide.md).
  
