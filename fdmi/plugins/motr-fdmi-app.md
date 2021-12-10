@@ -42,7 +42,7 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
          
 3.  Open a new terminal window and launch the `fdmi_app_hello` script that starts the `fdmi_sample_plugin` and listen for that filter.
 
-    3.1. Go inside the `cortx-motr/fdmi/plugins` directory and you will see the `fdmi_app_hello` python script and `fdmi_sample_plugin` binary file that was compiled as part of motr compilation. More details about these programs can be found in the next section of this tutorial. To launch, run this command: `./fdmi_app_hello`
+    3.1. Go inside the `cortx-motr/fdmi/plugins` directory and you will see the `fdmi_app_hello` python script and `fdmi_sample_plugin` binary file that was compiled as part of motr compilation. More details about these programs can be found in the next section of this tutorial. To launch, run this command: `./fdmi_app_hello`.
          
     3.2. Example of this output, after running the `fdmi_app_hello`, will be as follow:
     
