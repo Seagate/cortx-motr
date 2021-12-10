@@ -60,10 +60,12 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
          ```
          
          
+         
 4.  Then in previous windows terminal used for starting cluster, run some key-value operations with the [m0kv](https://github.com/Seagate/cortx-motr/tree/main/motr/m0kv) util by using the following commands:
 
     4.1.  Values can have the "hello" word as substring and still the filter will be triggered.
-          ```sh
+    
+          ```
           # The -l, -h, -f, and -p are the cluster parameters
           # -l and -p arguments are set to be the second m0 client in the cluster
           # More details of how to use the m0kv util can be seen with -h option
