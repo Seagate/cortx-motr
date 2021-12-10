@@ -23,6 +23,7 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
 ## Create and Test a "Hello" FDMI sample Application 
 
 1.  Follow the [motr QSG guide](https://github.com/Seagate/cortx-motr/blob/main/doc/Quick-Start-Guide.rst) in cortx-motr repo to build Motr.
+
 2.  Follow the [hare QSG guide](https://github.com/Seagate/cortx-hare/blob/main/README.md) in the cortx-hare repo to get a Motr cluster up and running.
 
     2.1. Need to edit the config file (CDF) to add a filter. Examples of CDF file can be found [here](https://github.com/Seagate/cortx-hare/blob/25274c3787b1adab1eac3a4ee5b9fef80035ebc1/cfgen/examples/singlenode.yaml#L51). In our "Hello" example, we need to modify the fdmi_filters section to be as follow:
@@ -37,15 +38,11 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
                substrings: ["hello"]  # substrings to match
          ```
          
-    2.2. Run `hctl status` to verify your cluster is up.
-    
-         The current FDMI design only works for key-vale pairs or metadata fields and not for objects.
+    2.2. Run `hctl status` to verify your cluster is up. The current FDMI design only works for key-vale pairs or metadata fields and not for objects.
          
 3.  Open a new terminal window and launch the `fdmi_app_hello` script that starts the `fdmi_sample_plugin` and listen for that filter.
 
-    3.1. Go inside the `cortx-motr/fdmi/plugins` directory and you will see the `fdmi_app_hello` python script and `fdmi_sample_plugin` binary file that was compiled as part of motr compilation. More details about these programs can be found in the next section of this tutorial. 
-         
-         To launch, run this command `./fdmi_app_hello`
+    3.1. Go inside the `cortx-motr/fdmi/plugins` directory and you will see the `fdmi_app_hello` python script and `fdmi_sample_plugin` binary file that was compiled as part of motr compilation. More details about these programs can be found in the next section of this tutorial. To launch, run this command: `./fdmi_app_hello`
          
     3.2. Example of this output, after running the `fdmi_app_hello`, will be as follow:
     
@@ -73,16 +70,19 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
     
           # Create first an index 1:5 (this value can be changed)
           m0kv -l 10.230.242.37@tcp:12345:4:2 -h 10.230.242.37@tcp:12345:1:1 -f '<0x7200000000000001:0x25>' -p '<0x7000000000000001:0x43>' -s index create 1:5
+          
           # Put a new key and value that do not match the filter 
           m0kv -l 10.230.242.37@tcp:12345:4:2 -h 10.230.242.37@tcp:12345:1:1 -f '<0x7200000000000001:0x25>' -p '<0x7000000000000001:0x43>' -s index put 1:5 key1 value1
+          
           # Put a new key with value that matches the filter and observe ouput of the fdmi_app_hello plugin in the other windows terminal
           m0kv -l 10.230.242.37@tcp:12345:4:2 -h 10.230.242.37@tcp:12345:1:1 -f '<0x7200000000000001:0x25>' -p '<0x7000000000000001:0x43>' -s index put 1:5 key2 hello
+          
           # Put a new key with value that has more than one ocurrence of the word hello and observe ouput of the fdmi_app_hello plugin in the other windows terminal
           m0kv -l 10.230.242.37@tcp:12345:4:2 -h 10.230.242.37@tcp:12345:1:1 -f '<0x7200000000000001:0x25>' -p '<0x7000000000000001:0x43>' -s index put 1:5 key3 hello_new_hello_world
          ```
         
 5.  Example of the `fdmi_app_hello` output for the case that matches the value will be as follows:
-    ```
+    ```sh
     Match on key-value pair: key='key2', value='hello'
     Number of time hello appears: 1
     Match on key-value pair: key='key3', value='hello_new_hello_world'
