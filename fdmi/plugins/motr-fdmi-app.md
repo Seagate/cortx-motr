@@ -61,26 +61,28 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
         
 4.  Then in previous windows terminal used for starting cluster, run some key-value operations with the [m0kv](https://github.com/Seagate/cortx-motr/tree/main/motr/m0kv) util by using the following commands:
 
-    4.1.  Values can have the "hello" word as substring and still the filter will be triggered.
+    4.1. Create an index and put new key and value:
     
-          ```
-          # The -l, -h, -f, and -p are the cluster parameters
-          # -l and -p arguments are set to be the second m0 client in the cluster
-          # More details of how to use the m0kv util can be seen with -h option
-    
-          # Create first an index 1:5 (this value can be changed)
-          m0kv -l 10.230.242.37@tcp:12345:4:2 -h 10.230.242.37@tcp:12345:1:1 -f '<0x7200000000000001:0x25>' -p '<0x7000000000000001:0x43>' -s index create 1:5
-          
-          # Put a new key and value that do not match the filter 
-          m0kv -l 10.230.242.37@tcp:12345:4:2 -h 10.230.242.37@tcp:12345:1:1 -f '<0x7200000000000001:0x25>' -p '<0x7000000000000001:0x43>' -s index put 1:5 key1 value1
-          
-          # Put a new key with value that matches the filter and observe ouput of the fdmi_app_hello plugin in the other windows terminal
-          m0kv -l 10.230.242.37@tcp:12345:4:2 -h 10.230.242.37@tcp:12345:1:1 -f '<0x7200000000000001:0x25>' -p '<0x7000000000000001:0x43>' -s index put 1:5 key2 hello
-          
-          # Put a new key with value that has more than one ocurrence of the word hello and observe ouput of the fdmi_app_hello plugin in the other windows terminal
-          m0kv -l 10.230.242.37@tcp:12345:4:2 -h 10.230.242.37@tcp:12345:1:1 -f '<0x7200000000000001:0x25>' -p '<0x7000000000000001:0x43>' -s index put 1:5 key3 hello_new_hello_world
          ```
-        
+         # The -l, -h, -f, and -p are the cluster parameters
+         # -l and -p arguments are set to be the second m0 client in the cluster
+         # More details of how to use the m0kv util can be seen with -h option
+    
+         # Create first an index 1:5 (this value can be changed)
+         m0kv -l 10.230.242.37@tcp:12345:4:2 -h 10.230.242.37@tcp:12345:1:1 -f '<0x7200000000000001:0x25>' -p '<0x7000000000000001:0x43>' -s index create 1:5
+          
+         # Put a new key and value that do not match the filter 
+         m0kv -l 10.230.242.37@tcp:12345:4:2 -h 10.230.242.37@tcp:12345:1:1 -f '<0x7200000000000001:0x25>' -p '<0x7000000000000001:0x43>' -s index put 1:5 key1 value1
+          
+         # Put a new key with value that matches the filter and observe ouput of the fdmi_app_hello plugin in the other windows terminal
+         m0kv -l 10.230.242.37@tcp:12345:4:2 -h 10.230.242.37@tcp:12345:1:1 -f '<0x7200000000000001:0x25>' -p '<0x7000000000000001:0x43>' -s index put 1:5 key2 hello
+          
+         # Put a new key with value that has more than one ocurrence of the word hello and observe ouput of the fdmi_app_hello plugin in the other windows terminal
+         m0kv -l 10.230.242.37@tcp:12345:4:2 -h 10.230.242.37@tcp:12345:1:1 -f '<0x7200000000000001:0x25>' -p '<0x7000000000000001:0x43>' -s index put 1:5 key3 hello_new_hello_world
+         ```
+     
+    4.2. Values can have the "hello" word as substring and still the filter will be triggered.
+            
 5.  Example of the `fdmi_app_hello` output for the case that matches the value will be as follows:
     ```sh
     Match on key-value pair: key='key2', value='hello'
