@@ -667,92 +667,88 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 	}
 
 	/* Step 4: Alloc or free a spare slot if necessary.*/
-	spare_array = state->pst_spare_usage_array;
-	pd = &state->pst_devices_array[event->pe_index];
-	switch (event->pe_state) {
-	case M0_PNDS_ONLINE:
-		/* clear spare slot usage if it is from rebalancing */
-		for (i = 0; i < state->pst_nr_spares; i++) {
-			if (spare_array[i].psu_device_index ==
-			    event->pe_index) {
-				M0_ASSERT(M0_IN(spare_array[i].psu_device_state,
-						(M0_PNDS_OFFLINE,
-						 M0_PNDS_SNS_REBALANCING)));
-				spare_array[i].psu_device_index =
-					POOL_PM_SPARE_SLOT_UNUSED;
+	if (event->pe_type == M0_POOL_DEVICE) {
+		spare_array = state->pst_spare_usage_array;
+		pd = &state->pst_devices_array[event->pe_index];
+		switch (event->pe_state) {
+		case M0_PNDS_ONLINE:
+			/* clear spare slot usage if it is from rebalancing */
+			for (i = 0; i < state->pst_nr_spares; i++) {
+				if (spare_array[i].psu_device_index ==
+				    event->pe_index) {
+					M0_ASSERT(M0_IN(spare_array[i].psu_device_state,
+							(M0_PNDS_OFFLINE,
+							 M0_PNDS_SNS_REBALANCING)));
+					spare_array[i].psu_device_index =
+						POOL_PM_SPARE_SLOT_UNUSED;
+					break;
+				}
+			}
+			if (old_state == M0_PNDS_UNKNOWN) {
+				M0_ASSERT(!pool_failed_devs_tlink_is_in(pd));
 				break;
 			}
-		}
-		if (old_state == M0_PNDS_UNKNOWN) {
+			M0_ASSERT(M0_IN(old_state, (M0_PNDS_OFFLINE,
+						    M0_PNDS_SNS_REBALANCING)));
+			M0_CNT_DEC(state->pst_nr_failures);
+			if (pool_failed_devs_tlink_is_in(pd))
+				pool_failed_devs_tlist_del(pd);
+			pool_failed_devs_tlink_fini(pd);
+			break;
+		case M0_PNDS_OFFLINE:
+			M0_CNT_INC(state->pst_nr_failures);
 			M0_ASSERT(!pool_failed_devs_tlink_is_in(pd));
 			break;
-		}
-		M0_ASSERT(M0_IN(old_state, (M0_PNDS_OFFLINE,
-					    M0_PNDS_SNS_REBALANCING)));
-		M0_CNT_DEC(state->pst_nr_failures);
-		if (pool_failed_devs_tlink_is_in(pd))
-			pool_failed_devs_tlist_del(pd);
-		pool_failed_devs_tlink_fini(pd);
-		break;
-	case M0_PNDS_OFFLINE:
-		M0_CNT_INC(state->pst_nr_failures);
-
-		//This assert was causing crashes upon failing of 2nd node.
-		//This was blocking the test of the main patch.
-		//This asserst has been temprarily disabled till the main patch
-		//is tested. No negetive behaviour is observed so far after
-		//disbaling this assert.
-		//This crash would be investigated and fixed before landing the patch
-		//and this comment would be removed and the asset would be re-enabled.
-//		M0_ASSERT(!pool_failed_devs_tlink_is_in(pd));
-		break;
-	case M0_PNDS_FAILED:
-		 /*
-		  * Alloc a sns repair spare slot only once for
-		  * M0_PNDS_ONLINE->M0_PNDS_FAILED or
-		  * M0_PNDS_OFFLINE->M0_PNDS_FAILED transition.
-		  */
-		if (M0_IN(old_state, (M0_PNDS_UNKNOWN, M0_PNDS_ONLINE,
-				      M0_PNDS_OFFLINE)))
-			spare_usage_arr_update(pm, event);
-		if (!M0_IN(old_state, (M0_PNDS_OFFLINE, M0_PNDS_SNS_REPAIRING)))
-			M0_CNT_INC(state->pst_nr_failures);
-		if (!pool_failed_devs_tlink_is_in(pd) &&
-		    !disk_is_in(&pool->po_failed_devices, pd))
-			pool_failed_devs_tlist_add_tail(
-				&pool->po_failed_devices, pd);
-		break;
-	case M0_PNDS_SNS_REPAIRING:
-	case M0_PNDS_SNS_REPAIRED:
-	case M0_PNDS_SNS_REBALANCING:
-		/* change the repair spare slot usage */
-		for (i = 0; i < state->pst_nr_spares; i++) {
-			if (spare_array[i].psu_device_index ==
-			    event->pe_index) {
-				spare_array[i].psu_device_state =
-					event->pe_state;
-				break;
+		case M0_PNDS_FAILED:
+			 /*
+			  * Alloc a sns repair spare slot only once for
+			  * M0_PNDS_ONLINE->M0_PNDS_FAILED or
+			  * M0_PNDS_OFFLINE->M0_PNDS_FAILED transition.
+			  */
+			if (M0_IN(old_state, (M0_PNDS_UNKNOWN, M0_PNDS_ONLINE,
+					      M0_PNDS_OFFLINE)))
+				spare_usage_arr_update(pm, event);
+			if (!M0_IN(old_state, (M0_PNDS_OFFLINE,
+					       M0_PNDS_SNS_REPAIRING)))
+				M0_CNT_INC(state->pst_nr_failures);
+			if (!pool_failed_devs_tlink_is_in(pd) &&
+			    !disk_is_in(&pool->po_failed_devices, pd))
+				pool_failed_devs_tlist_add_tail(
+					&pool->po_failed_devices, pd);
+			break;
+		case M0_PNDS_SNS_REPAIRING:
+		case M0_PNDS_SNS_REPAIRED:
+		case M0_PNDS_SNS_REBALANCING:
+			/* change the repair spare slot usage */
+			for (i = 0; i < state->pst_nr_spares; i++) {
+				if (spare_array[i].psu_device_index ==
+				    event->pe_index) {
+					spare_array[i].psu_device_state =
+						event->pe_state;
+					break;
+				}
 			}
-		}
 
-		if (state->pst_nr_spares == 0 || (i == state->pst_nr_spares &&
-		    i > 0 /* i == 0 in case of mdpool */))
-			M0_LOG(M0_ERROR, FID_F": This pool is in DUD state;"
-			       " event_index=%d event_state=%d",
-			       FID_P(&pm->pm_pver->pv_id),
-			       event->pe_index, event->pe_state);
-
-		/* must be found */
-		if (!pool_failed_devs_tlink_is_in(pd) &&
-		    !disk_is_in(&pool->po_failed_devices, pd)) {
-			M0_CNT_INC(state->pst_nr_failures);
-			pool_failed_devs_tlist_add_tail(
-				&pool->po_failed_devices, pd);
+			/* i == 0 in case of mdpool */
+			if (state->pst_nr_spares == 0 ||
+			   (i == state->pst_nr_spares && i > 0 ))
+				M0_LOG(M0_ERROR, FID_F": This pool is in "
+				"DUD state; event_index=%d event_state=%d",
+				       FID_P(&pm->pm_pver->pv_id),
+				       event->pe_index, event->pe_state);
+	
+			/* must be found */
+			if (!pool_failed_devs_tlink_is_in(pd) &&
+			    !disk_is_in(&pool->po_failed_devices, pd)) {
+				M0_CNT_INC(state->pst_nr_failures);
+				pool_failed_devs_tlist_add_tail(
+					&pool->po_failed_devices, pd);
+			}
+			break;
+		default:
+			/* Do nothing */
+			;
 		}
-		break;
-	default:
-		/* Do nothing */
-		;
 	}
 
 	M0_ALLOC_PTR(new_link);
