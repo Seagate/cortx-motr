@@ -1,5 +1,6 @@
 m0tr_objects += stob/stob.o \
                   stob/ad_xc.o \
+                  stob/partition_xc.o \
                   stob/ad_private_xc.o \
                   stob/stob_xc.o \
                   stob/cache.o \
