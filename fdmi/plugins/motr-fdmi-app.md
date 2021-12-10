@@ -41,10 +41,8 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
     2.2. Run `hctl status` to verify your cluster is up. The current FDMI design only works for key-vale pairs or metadata fields and not for objects.
          
 3.  Open a new terminal window and launch the `fdmi_app_hello` script that starts the `fdmi_sample_plugin` and listen for that filter.
-
-    3.1. Go inside the `cortx-motr/fdmi/plugins` directory and you will see the `fdmi_app_hello` python script and `fdmi_sample_plugin` binary file that was compiled as part of motr compilation. More details about these programs can be found in the next section of this tutorial. To launch, run this command: `./fdmi_app_hello`.
          
-    3.2. Example of this output, after running the `fdmi_app_hello`, will be as follow:
+    3.1. Example of this output, after running the `fdmi_app_hello`, will be as follow:
     
          ```
          Using the following settings:
@@ -58,7 +56,9 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
          Listening for FDMI events on:
          ./fdmi_sample_plugin -l 10.230.242.37@tcp:12345:4:1 -h 10.230.242.37@tcp:12345:1:1 -p 0x7000000000000001:0x43 -f 0x7200000000000001:0x22 -g 0x6c00000000000001:0x45
          ```
-             
+         
+    3.2. Go inside the `cortx-motr/fdmi/plugins` directory and you will see the `fdmi_app_hello` python script and `fdmi_sample_plugin` binary file that was compiled as part of motr compilation. More details about these programs can be found in the next section of this tutorial. To launch, run this command: `./fdmi_app_hello`.
+        
 4.  Then in previous windows terminal used for starting cluster, run some key-value operations with the [m0kv](https://github.com/Seagate/cortx-motr/tree/main/motr/m0kv) util by using the following commands:
 
     4.1.  Values can have the "hello" word as substring and still the filter will be triggered.
