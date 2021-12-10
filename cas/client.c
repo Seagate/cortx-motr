@@ -1765,7 +1765,9 @@ M0_INTERNAL int m0_cas_next(struct m0_cas_req *req,
 	M0_ENTRY();
 	M0_PRE(start_keys != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
-	M0_PRE(m0_cas_id_invariant(index));
+
+	if (!SKIP_CROW_IDX_OPS)
+		M0_PRE(m0_cas_id_invariant(index));
 	/* Only slant and exclude start key flags are allowed. */
 	M0_PRE((flags & ~(COF_SLANT | COF_EXCLUDE_START_KEY)) == 0);
 

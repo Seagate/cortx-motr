@@ -55,7 +55,6 @@
 #include "cas/cas_xc.h"
 #include "cas/index_gc.h"
 #include "motr/setup.h"              /* m0_reqh_context */
-#include "dix/meta.h"
 
 /**
  * @page cas-dld The catalogue service (CAS)
@@ -505,7 +504,6 @@ static int cas_ctidx_lookup(struct cas_fom *fom, const struct m0_cas_id *in_cid,
 			    int next);
 static int cas_ctidx_delete(struct cas_fom *fom, const struct m0_cas_id *in_cid,
 			    int next);
-static bool cas_is_layout_ctg(struct m0_cas_op *op);
 
 static const struct m0_reqh_service_ops      cas_service_ops;
 static const struct m0_reqh_service_type_ops cas_service_type_ops;
@@ -2150,21 +2148,6 @@ static int cas_kv_load_done(struct cas_fom *fom, enum m0_cas_opcode  opc,
 	return M0_RC(M0_FSO_AGAIN);
 }
 
-static bool cas_is_layout_ctg(struct m0_cas_op *op)
-{
-	struct m0_fid dix_fid;
-
-	if(op && m0_dix_fid_validate_cctg(&op->cg_id.ci_fid))
-	{
-		m0_dix_fid_convert_cctg2dix(&op->cg_id.ci_fid, &dix_fid);
-		if(m0_fid_eq(&dix_fid, &m0_dix_layout_fid))
-			return true;
-		else
-			M0_LOG(M0_DEBUG,"DIX fid is not equal to Layout fid");
-	}
-	return false;
-}
-
 static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		    enum m0_cas_type ct, struct m0_cas_ctg *ctg,
 		    uint64_t rec_pos, int next)
@@ -2178,7 +2161,6 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 	struct m0_cas_id          *cid;
 	struct m0_cas_rec         *rec;
 	enum m0_fom_phase_outcome  ret = M0_FSO_AGAIN;
-	struct m0_cas_op          *op = cas_op(&fom->cf_fom);
 
 	cas_incoming_kv(fom, rec_pos, &kbuf, &vbuf);
 	if (ct == CT_META)
@@ -2233,14 +2215,6 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		break;
 	case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
 	case CTG_OP_COMBINE(CO_CUR, CT_META):
-		/* When we are reading from layout table to get the index list,
-		 * instead use the catalogue table which will also retrieve the 
-		 * same key in the form of CTG FID. Motr client response handling 
-		 * will convert CTG FID to INDEX FID.
- 		 */
-		if (SKIP_CROW_IDX_OPS && cas_is_layout_ctg(op))
-			ctg = m0_ctg_ctidx();			
-
 		if (fom->cf_curpos == 0) {
 			if (!m0_ctg_cursor_is_initialised(ctg_op)) {
 				if (ct == CT_META)

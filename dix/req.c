@@ -1760,6 +1760,11 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 					    &cctg_id.ci_fid, sdev_idx);
 		M0_ASSERT(layout->dl_type == DIX_LTYPE_DESCR);
 		cctg_id.ci_layout.dl_type = layout->dl_type;
+		
+		if (SKIP_CROW_IDX_OPS && (m0_fid_eq(&req->dr_indices[0].dd_fid,
+		    &m0_dix_layout_fid)) && (req->dr_type == DIX_NEXT))
+			cctg_id.ci_fid = m0_cas_ctidx_fid;
+
 		/** @todo CAS request should copy cctg_id internally. */
 		rc = m0_dix_ldesc_copy(&cctg_id.ci_layout.u.dl_desc,
 				       &layout->u.dl_desc);
@@ -2478,8 +2483,8 @@ M0_INTERNAL void m0_dix_next_rep(const struct m0_dix_req  *req,
 	if (SKIP_CROW_IDX_OPS && m0_fid_eq(&req->dr_indices->dd_fid,
 	    &m0_dix_layout_fid)) {
 		memcpy((void *)&ctg_fid, rep->dnr_key.b_addr, sizeof(ctg_fid));
-		m0_dix_fid_convert_cctg2dix(&ctg_fid, rep->dnr_key.b_addr);	
-	}		     
+		m0_dix_fid_convert_cctg2dix(&ctg_fid, rep->dnr_key.b_addr);
+	}
 }
 
 M0_INTERNAL uint32_t m0_dix_next_rep_nr(const struct m0_dix_req *req,
