@@ -145,7 +145,23 @@ m0_local_nid_get()
         local iface=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "(" -f2 | cut -d ")" -f1`
         local proto=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "=" -f2 | cut -d "(" -f1`
         local ip_addr=`ip addr show $iface |grep inet| head -1 | awk '{print $2}'|cut -d '/' -f1`
-        local_nid=$ip_addr@$proto
+        # Currently using ipv4 address (inet)
+        local_nid=inet:$proto:$ip_addr
+    fi
+    echo $local_nid
+}
+
+## To get loopback nid address
+m0_loopback_nid_get()
+{
+    local local_nid
+    XPRT=$(m0_default_xprt)
+    if [ "$XPRT" = "lnet" ]
+    then
+        local_nid="0@lo"
+    else
+        # Currently using ipv4 address (inet) and tcp proto
+        local_nid=inet:tcp:127.0.0.1
     fi
     echo $local_nid
 }

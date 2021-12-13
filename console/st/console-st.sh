@@ -36,15 +36,21 @@ SERVER=$M0_SRC_DIR/console/st/server
 OUTPUT_FILE=$SANDBOX_DIR/client.log
 YAML_FILE9=$SANDBOX_DIR/req-9.yaml
 YAML_FILE41=$SANDBOX_DIR/req-41.yaml
-SERVER_EP_ADDR='0@lo:12345:34:1'
-CLIENT_EP_ADDR='0@lo:12345:34:*'
+XPRT=$(m0_default_xprt)
+NID=$(m0_loopback_nid_get)
+if [ "$XPRT" = "lnet" ]; then
+	SERVER_EP_ADDR=$NID:12345:34:1
+	CLIENT_EP_ADDR=$NID:12345:34:*
+else
+	SERVER_EP_ADDR=$NID@3000
+	CLIENT_EP_ADDR=$NID@3001
+fi
 CONF_FILE_PATH=$M0_SRC_DIR/ut/diter.xc
 CONF_PROFILE='<0x7000000000000001:0>'
 
 NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91  # required by `common.sh'
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh  # modload
 
-XPRT=$(m0_default_xprt)
 
 start_server()
 {
