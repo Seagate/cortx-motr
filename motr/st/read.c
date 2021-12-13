@@ -34,6 +34,7 @@
 #include "motr/st/st_assert.h"
 
 #include "lib/memory.h"
+#include "lib/cksum.h"
 
 struct m0_container st_read_container;
 extern struct m0_addb_ctx m0_addb_ctx;
@@ -149,7 +150,7 @@ static int write_objs(void)
 	}
 
 	/* Prepare indexvec for write */
-	rc = m0_bufvec_alloc(&attr, blk_cnt, 1);
+	rc = m0_bufvec_alloc(&attr, blk_cnt, sizeof(struct m0_md5_inc_context_pi));
 	if(rc != 0) return rc;
 
 	rc = m0_indexvec_alloc(&ext, blk_cnt);

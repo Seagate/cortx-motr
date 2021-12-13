@@ -2079,7 +2079,7 @@ static int stob_io_create(struct m0_fom *fom)
 						           rwfop->crw_cksum_size);
 		}
 
-		// Its expected to receive atleast on unit start in a fop
+		/* Its expected to receive atleast on unit start in a fop */
 		if (rw_replyfop->rwr_di_data_cksum.b_nob > 0) {
 
 			if (m0_buf_alloc( &rw_replyfop->rwr_di_data_cksum,
@@ -2087,13 +2087,11 @@ static int stob_io_create(struct m0_fom *fom)
 				m0_free(fom_obj->fcrw_stio);
 				return M0_ERR(-ENOMEM);
 			}
-		}
-		else {
+		} else {
 			rw_replyfop->rwr_di_data_cksum.b_nob  = 0;
 			rw_replyfop->rwr_di_data_cksum.b_addr = NULL;
 		}
-	}
-	else {
+	} else {
 		rw_replyfop->rwr_di_data_cksum.b_nob  = 0;
 		rw_replyfop->rwr_di_data_cksum.b_addr = NULL;
 	}
@@ -2144,8 +2142,7 @@ static int stob_io_create(struct m0_fom *fom)
 			if (m0_is_read_fop(fom->fo_fop))  {
 				stio->si_cksum.b_addr = rw_replyfop->rwr_di_data_cksum.b_addr +
 										curr_cksum_nob;
-			}
-			else {
+			} else {
 				stio->si_cksum.b_addr = rwfop->crw_di_data_cksum.b_addr +
 										curr_cksum_nob;
 			}

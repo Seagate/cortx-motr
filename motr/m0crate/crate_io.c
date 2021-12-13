@@ -340,7 +340,7 @@ enomem:
 	if (index_vec != NULL)
 		m0_indexvec_free(index_vec);
 	m0_bufvec_free(buf_vec);
-	if (attr)
+	if (attr != NULL)
 		m0_free(attr);
 	m0_free(index_vec);
 	m0_free(buf_vec);
@@ -408,7 +408,6 @@ int cr_io_write(struct m0_workload_io *cwi,
 		int                    op_index)
 {
 	int rc;
- 
 	op_ctx->coc_op_code = CR_WRITE;
 	/** Create object index and buffer vectors. */
 	rc = cr_io_vector_prep(cwi, cti, op_ctx, obj_idx, op_index);

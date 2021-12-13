@@ -567,8 +567,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		bvec  = &ti->ti_bufvec;
 		auxbvec = &ti->ti_auxbufvec;
 		dst_attr = ti->ti_attrbuf.b_addr;
-		if (ti->ti_goff_ivec.iv_index)
-			goff_ivec = &ti->ti_goff_ivec;
+		goff_ivec = &ti->ti_goff_ivec;
 		pattr = ti->ti_pageattrs;
 		cnt = page_nr(ioo->ioo_iomap_nr * layout_unit_size(play) *
 			      layout_n(play), ioo->ioo_obj);
@@ -681,7 +680,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 */
 				ti->ti_cksum_copied += b_nob;
 				/* Make sure we are not exceeding the allocated buffer size */
-				M0_ASSERT(ti->ti_cksum_copied <= ti->ti_attrbuf.b_nob);				
+				M0_ASSERT(ti->ti_cksum_copied <= ti->ti_attrbuf.b_nob);
 			}
 
 			ti->ti_cksum_seg_b_nob[seg] = b_nob;
@@ -1255,9 +1254,8 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 		ti->ti_goff_ivec.iv_vec.v_nr = 0;
 		if (rc != 0)
 			goto fail;
-	} else {
+	} else
 		ti->ti_goff_ivec.iv_index = NULL;
-	}
 
 	if (op->op_code == M0_OC_FREE) {
 		rc = m0_indexvec_alloc(&ti->ti_trunc_ivec, nr);

@@ -34,6 +34,7 @@
 #include "motr/st/st_assert.h"
 
 #include "lib/memory.h"
+#include "lib/cksum.h"
 
 struct m0_container st_osync_container;
 static uint64_t layout_id;
@@ -114,7 +115,8 @@ static int write_obj(struct m0_obj *obj,
 	for (i = 0; i < nr_ops; i++) {
 		if (m0_indexvec_alloc(&ext_w[i], 1) ||
 		    m0_bufvec_alloc(&data_w[i], 1, 4096 * stride) ||
-		    m0_bufvec_alloc(&attr_w[i], 1, 1))
+		    m0_bufvec_alloc(&attr_w[i], 1,
+			sizeof(struct m0_md5_inc_context_pi)))
 		{
 			rc = -ENOMEM;
 			goto CLEANUP;
@@ -347,7 +349,8 @@ static void osync_on_op(void)
 	for (i = 0; i < nr_objs; i++) {
 		if (m0_indexvec_alloc(&ext_w[i], 1) ||
 		    m0_bufvec_alloc(&data_w[i], 1, bytes_to_write) ||
-		    m0_bufvec_alloc(&attr_w[i], 1, 1))
+		    m0_bufvec_alloc(&attr_w[i], 1,
+			sizeof(struct m0_md5_inc_context_pi)))
 		{
 			rc = -ENOMEM;
 			goto cleanup;

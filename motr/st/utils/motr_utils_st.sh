@@ -78,17 +78,14 @@ test_with_N_K()
 	block_size=4096
 	block_count=100
 	obj_count=5
-	#trunc_len=256
-        trunc_len=50
-        #trunc_len=1048576
+	trunc_len=50
 	trunc_count=17
-        #trunc_count=256
 	read_verify="false"
 	blks_per_io=256
 	MOTR_PARAMS="-l $MOTR_LOCAL_EP -H $MOTR_HA_EP -p $MOTR_PROF_OPT \
-                       -P $MOTR_PROC_FID"
+					-P $MOTR_PROC_FID"
 	MOTR_PARAMS_V="-l $MOTR_LOCAL_EP -H $MOTR_HA_EP -p $MOTR_PROF_OPT \
-                         -P $MOTR_PROC_FID"
+					-P $MOTR_PROC_FID"
 	if [[ $read_verify == "true" ]]; then
 		MOTR_PARAMS_V+=" -r"
 	fi
