@@ -86,7 +86,6 @@ _libfab_st_list() {
                     40motr-dgmode
                     43motr-sync-replication
                     45motr-rmw
-                    49motr-rpc-cancel
                     51kem)
     i=0
     while [ $i -lt ${#st_libfab_skip[@]} ]
@@ -95,46 +94,6 @@ _libfab_st_list() {
             found_st=true
             break
         fi
-=======
-# libfab does not need kernel based ST
-LIBFAB_TESTS_SKIPLIST=(04initscripts
-                06conf
-                07mount
-                07mount-fail
-                07mount-multiple
-                08spiel
-                08spiel-sns-repair
-                08spiel-sns-repair-quiesce
-                10pver-assign
-                11m0t1fs
-                11m0t1fs-rconfc-fail
-                12fsync
-                12fwait
-                13dgmode-io
-                14poolmach
-                15sns-repair-shutdown
-                15sns-repair-single
-                16sns-repair-multi
-                17sns-repair-concurrent-io
-                18sns-repair-quiesce
-                18sns-repair-quiesce-failure
-                19sns-repair-abort
-                20rpc-session-cancel
-                21fsync-single-node
-                22sns-repair-ios-fail
-                23sns-abort-quiesce
-                26motr-user-kernel-tests
-                28sys-kvs
-                28sys-kvs-kernel
-                34sns-repair-1n-1f
-                35m0singlenode
-                36spare-reservation
-                37protocol
-                40motr-dgmode
-                43motr-sync-replication
-                45motr-rmw
-                51kem)
-
         i=`expr $i + 1`
     done
 
