@@ -558,6 +558,7 @@
 #include "lib/assert.h"
 #include "lib/tlist.h"     /** m0_tl */
 #include "lib/time.h"      /** m0_time_t */
+#include "lib/hash_fnc.h"  /** m0_hash_fnc_fnv1 */
 
 #include "be/ut/helper.h"  /** m0_be_ut_backend_init() */
 #include "be/engine.h"     /** m0_be_engine_tx_size_max() */
@@ -9088,7 +9089,7 @@ static void ut_basic_tree_oper_icp(void)
 	btree_ut_fini();
 }
 
-struct cb_data {
+struct ut_cb_data {
 	/** Key that needs to be stored or retrieved. */
 	struct m0_btree_key *key;
 
@@ -9097,6 +9098,9 @@ struct cb_data {
 
 	/** If value is retrieved (GET) then check if has expected contents. */
 	bool                 check_value;
+
+	/** Indicates if CRC is present in the last word of the value. */
+	bool                 has_crc;
 
 	/**
 	 *  This field is filled by the callback routine with the flags which
@@ -9121,7 +9125,7 @@ static int btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	struct m0_bufvec_cursor  dcur;
 	m0_bcount_t              ksize;
 	m0_bcount_t              vsize;
-	struct cb_data          *datum = cb->c_datum;
+	struct ut_cb_data       *datum = cb->c_datum;
 
 	/** The caller can look at these flags if he needs to. */
 	datum->flags = rec->r_flags;
@@ -9155,7 +9159,7 @@ static int btree_kv_get_oper_cb(struct m0_btree_cb *cb,
 	struct m0_bufvec_cursor  dcur;
 	m0_bcount_t              ksize;
 	m0_bcount_t              vsize;
-	struct cb_data          *datum = cb->c_datum;
+	struct ut_cb_data       *datum = cb->c_datum;
 	int                      i = 0;
 
 	/** The caller can look at these flags if he needs to. */
@@ -9164,14 +9168,16 @@ static int btree_kv_get_oper_cb(struct m0_btree_cb *cb,
 	M0_ASSERT(rec->r_flags == M0_BSC_SUCCESS);
 
 	m0_bufvec_cursor_init(&scur, &rec->r_key.k_data);
-	m0_bufvec_cursor_move(&scur, sizeof(ksize));
+	m0_bufvec_cursor_move(&scur, sizeof(uint64_t));
 	m0_bufvec_cursor_copyfrom(&scur, &ksize, sizeof(ksize));
+	ksize = m0_byteorder_cpu_to_be64(ksize);
 	M0_PRE(ksize <= MAX_KEY_SIZE + sizeof(uint64_t) &&
 	       m0_vec_count(&rec->r_key.k_data.ov_vec) == ksize);
 
 	m0_bufvec_cursor_init(&scur, &rec->r_val);
-	m0_bufvec_cursor_move(&scur, sizeof(vsize));
+	m0_bufvec_cursor_move(&scur, sizeof(uint64_t));
 	m0_bufvec_cursor_copyfrom(&scur, &vsize, sizeof(vsize));
+	vsize = m0_byteorder_cpu_to_be64(vsize);
 	M0_PRE(vsize <= MAX_VAL_SIZE + sizeof(uint64_t) &&
 	       m0_vec_count(&rec->r_val.ov_vec) == vsize);
 
@@ -9190,28 +9196,31 @@ static int btree_kv_get_oper_cb(struct m0_btree_cb *cb,
 	if (datum->check_value) {
 		struct m0_bufvec_cursor kcur;
 		struct m0_bufvec_cursor vcur;
-		m0_bcount_t             v_off = 0;
+		m0_bcount_t             v_off;
 		bool                    check_failed = false;
 		uint64_t                key;
 		uint64_t                value;
+
+		v_off = 0;
 
 		m0_bufvec_cursor_init(&kcur, &rec->r_key.k_data);
 		m0_bufvec_cursor_copyfrom(&kcur, &key, sizeof(key));
 		m0_bufvec_cursor_init(&vcur, &rec->r_val);
 
+		if (datum->has_crc)
+			vsize -= sizeof(uint64_t);
+
 		while (v_off < vsize) {
 
 			m0_bufvec_cursor_copyfrom(&vcur, &value, sizeof(value));
-			if (i == 1) {
-				v_off += sizeof(value);
-				i++;
+			v_off += sizeof(value);
+
+			if (i++ == 1)
+				/** Skip the element containing value size.*/
 				continue;
-			}
-			i++;
 
 			if (key != value)
 				check_failed = true;
-			v_off += sizeof(value);
 		}
 
 		/**
@@ -9222,22 +9231,37 @@ static int btree_kv_get_oper_cb(struct m0_btree_cb *cb,
 			v_off = 0;
 			m0_bufvec_cursor_init(&vcur, &rec->r_val);
 			key = ~key;
-			i=0;
+			i = 0;
 
 			while (v_off < vsize) {
 				m0_bufvec_cursor_copyfrom(&vcur, &value,
 							  sizeof(value));
-				if (i == 1) {
-					v_off += sizeof(value);
-					i++;
+				v_off += sizeof(value);
+
+				if (i++ == 1)
 					continue;
-				}
-				i++;
 
 				if (key != value)
 					M0_ASSERT(0);
-				v_off += sizeof(value);
 			}
+		}
+
+		/** Verify the CRC. */
+		if (datum->has_crc) {
+			uint64_t value_ary[vsize/sizeof(uint64_t)];
+			uint64_t csum_in_value;
+			uint64_t calculated_csum;
+
+			m0_bufvec_cursor_copyfrom(&vcur, &csum_in_value,
+						  sizeof(csum_in_value));
+
+			m0_bufvec_cursor_init(&vcur, &rec->r_val);
+			m0_bufvec_cursor_copyfrom(&vcur, value_ary,
+						  sizeof(value_ary));
+
+			calculated_csum = m0_hash_fnc_fnv1(value_ary,
+							   sizeof(value_ary));
+			M0_ASSERT(csum_in_value == calculated_csum);
 		}
 	}
 
@@ -9250,7 +9274,7 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	struct m0_bufvec_cursor  dcur;
 	m0_bcount_t              ksize;
 	m0_bcount_t              vsize;
-	struct cb_data          *datum = cb->c_datum;
+	struct ut_cb_data       *datum = cb->c_datum;
 
 	/** The caller can look at these flags if he needs to. */
 	datum->flags = rec->r_flags;
@@ -9318,7 +9342,7 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
 	m0_bcount_t              ksize;
-	struct cb_data          *datum = cb->c_datum;
+	struct ut_cb_data       *datum = cb->c_datum;
 
 	/** The caller can look at the record if he needs to. */
 	ksize = m0_vec_count(&datum->key->k_data.ov_vec);
@@ -9338,7 +9362,7 @@ static int btree_kv_update_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	struct m0_bufvec_cursor  scur;
 	struct m0_bufvec_cursor  dcur;
 	m0_bcount_t              vsize;
-	struct cb_data          *datum = cb->c_datum;
+	struct ut_cb_data       *datum = cb->c_datum;
 
 	/** The caller can look at these flags if he needs to. */
 	datum->flags = rec->r_flags;
@@ -9373,9 +9397,9 @@ enum {
 	RANDOM_TREE_COUNT      = -1,
 	RANDOM_THREAD_COUNT    = -1,
 
-	/** Key/value array size used in UTs.  */
-	KEY_ARR_SIZE            = MAX_KEY_SIZE / sizeof(uint64_t),
-	VAL_ARR_SIZE            = MAX_VAL_SIZE / sizeof(uint64_t),
+	/** Key/Value array size used in UTs. Increment for CRC in Value. */
+	KEY_ARR_SIZE           = MAX_KEY_SIZE / sizeof(uint64_t),
+	VAL_ARR_SIZE           = (MAX_VAL_SIZE / sizeof(uint64_t)) + 1,
 	RANDOM_KEY_SIZE        = -1,
 	RANDOM_VALUE_SIZE      = -1,
 
@@ -9398,9 +9422,9 @@ enum {
 	RANDOM_TREE_COUNT      = -1,
 	RANDOM_THREAD_COUNT    = -1,
 
-	/** Key/value array size used in UTs.  */
-	KEY_ARR_SIZE            = MAX_KEY_SIZE / sizeof(uint64_t),
-	VAL_ARR_SIZE            = MAX_VAL_SIZE / sizeof(uint64_t),
+	/** Key/Value array size used in UTs. Increment for CRC in Value. */
+	KEY_ARR_SIZE           = MAX_KEY_SIZE / sizeof(uint64_t),
+	VAL_ARR_SIZE           = (MAX_VAL_SIZE / sizeof(uint64_t)) + 1,
 	RANDOM_KEY_SIZE        = -1,
 	RANDOM_VALUE_SIZE      = -1,
 
@@ -9510,7 +9534,7 @@ static void ut_multi_stream_kv_oper(void)
 	}
 
 	for (i = 1; i <= recs_per_stream; i++) {
-		struct cb_data       put_data;
+		struct ut_cb_data    put_data;
 		struct m0_btree_rec  rec;
 		uint32_t             stream_num;
 
@@ -9553,22 +9577,9 @@ static void ut_multi_stream_kv_oper(void)
 		}
 	}
 
-#if 0
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
-	M0_ASSERT(rc == 0);
-
-	m0_btree_mod_fini();
-	m0_be_ut_seg_reload(ut_seg);
-	m0_btree_mod_init();
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-				      m0_btree_open(rnode, rnode_sz,&tree,
-						    &b_op));
-	M0_ASSERT(rc == 0);
-#endif
-
 	{
 		/** Min/Max key verification test. */
-		struct cb_data       get_data;
+		struct ut_cb_data    get_data;
 		struct m0_btree_key  get_key;
 		struct m0_bufvec     get_value;
 
@@ -9578,6 +9589,7 @@ static void ut_multi_stream_kv_oper(void)
 		get_data.key         = &get_key;
 		get_data.value       = &get_value;
 		get_data.check_value = true;
+		get_data.has_crc     = false;
 
 		ut_cb.c_act          = btree_kv_get_cb;
 		ut_cb.c_datum        = &get_data;
@@ -9596,7 +9608,7 @@ static void ut_multi_stream_kv_oper(void)
 	}
 
 	for (i = 1; i <= (recs_per_stream*stream_count); i++) {
-		struct cb_data       get_data;
+		struct ut_cb_data    get_data;
 		struct m0_btree_key  get_key;
 		struct m0_bufvec     get_value;
 		uint64_t             find_key;
@@ -9614,6 +9626,7 @@ static void ut_multi_stream_kv_oper(void)
 		get_data.key         = &get_key;
 		get_data.value       = &get_value;
 		get_data.check_value = true;
+		get_data.has_crc     = false;
 
 		ut_cb.c_act   = btree_kv_get_cb;
 		ut_cb.c_datum = &get_data;
@@ -9712,12 +9725,13 @@ static void ut_multi_stream_kv_oper(void)
 		struct m0_btree_key del_key_in_tree;
 		void                *p_del_key      = &del_key;
 		m0_bcount_t         del_key_size    = sizeof del_key;
-		struct cb_data      del_data;
+		struct ut_cb_data   del_data;
 		uint32_t            stream_num;
 
-		del_data = (struct cb_data){.key = &del_key_in_tree,
-			.value = NULL,
+		del_data = (struct ut_cb_data){.key = &del_key_in_tree,
+			.value       = NULL,
 			.check_value = false,
+			.has_crc     = false,
 		};
 
 		del_key_in_tree.k_data = M0_BUFVEC_INIT_BUF(&p_del_key,
@@ -9773,17 +9787,18 @@ static void ut_multi_stream_kv_oper(void)
 }
 
 struct btree_ut_thread_info {
-	struct m0_thread   ti_q;             /** Used for thread operations. */
-	struct m0_bitmap   ti_cpu_map;       /** CPU map to run this thread. */
-	uint64_t           ti_key_first;     /** First Key value to use. */
-	uint64_t           ti_key_count;     /** Keys to use. */
-	uint64_t           ti_key_incr;      /** Key value to increment by. */
-	uint16_t           ti_thread_id;     /** Thread ID <= 65535. */
-	struct m0_btree   *ti_tree;          /** Tree for KV operations */
-	int                ti_key_size;      /** Key size in bytes. */
-	int                ti_value_size;    /** Value size in bytes. */
-	bool               ti_random_bursts; /** Burstiness in IO pattern. */
-	uint64_t           ti_rng_seed_base; /** Base used for RNG seed. */
+	struct m0_thread      ti_q;           /** Used for thread operations. */
+	struct m0_bitmap      ti_cpu_map;     /** CPU map to run this thread. */
+	uint64_t              ti_key_first;     /** First Key value to use. */
+	uint64_t              ti_key_count;     /** Keys to use. */
+	uint64_t              ti_key_incr;     /** Key value to increment by. */
+	uint16_t              ti_thread_id;     /** Thread ID <= 65535. */
+	struct m0_btree      *ti_tree;          /** Tree for KV operations */
+	int                   ti_key_size;      /** Key size in bytes. */
+	int                   ti_value_size;    /** Value size in bytes. */
+	bool                  ti_random_bursts; /** Burstiness in IO pattern. */
+	uint64_t              ti_rng_seed_base; /** Base used for RNG seed. */
+	uint64_t              ti_crc_type;      /** CRC type of records. */
 
 	/**
 	 *  The fields below are used by the thread functions (init and func)
@@ -9871,31 +9886,75 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 	return rc;
 }
 
+#define FILL_KEY(key, ksize, data)                                             \
+	do {                                                                   \
+		uint32_t i;                                                    \
+		key[0] = data;                                                 \
+		key[1] = m0_byteorder_cpu_to_be64(ksize);                      \
+		for (i = 2; i < (ksize / sizeof(key[0])); i++)                 \
+			key[i] = data;                                         \
+	} while (0);
+
+#define FILL_VALUE(value, vsize, data, has_crc)                                \
+	do {                                                                   \
+		uint32_t i = 0;                                                \
+		typeof(vsize) __vsize = (has_crc) ? vsize - 1 : vsize;         \
+		value[0] = data;                                               \
+		value[1] = m0_byteorder_cpu_to_be64(vsize);                    \
+		for (i = 2; i < (__vsize / sizeof(value[0])); i++)             \
+			value[i] = data;                                       \
+		if (has_crc)                                                   \
+			value[i] = m0_hash_fnc_fnv1(value,                     \
+						    vsize - sizeof(value[0])); \
+	} while (0);
+
+#define GET_RANDOM_KEYSIZE(karray, kfirst, kiter_start, kincr)                 \
+	({                                                                     \
+		uint64_t random_size;                                          \
+		random_size = (((kfirst - kiter_start) / kincr) %              \
+			       (KEY_ARR_SIZE - 1)) + 2;                        \
+		random_size *= sizeof(karray[0]);                              \
+		random_size;                                                   \
+	})
+
+#define GET_RANDOM_VALSIZE(varray, kfirst, kiter_start, kincr, has_crc)        \
+	({                                                                     \
+		uint64_t random_size;                                          \
+		if (has_crc)                                                   \
+			random_size = (((kfirst - kiter_start) / kincr) %      \
+					(VAL_ARR_SIZE - 2)) + 3;               \
+		else                                                           \
+			random_size = (((kfirst - kiter_start) / kincr) %      \
+					(VAL_ARR_SIZE - 1)) + 2;               \
+		random_size *= sizeof(varray[0]);                              \
+		random_size;                                                   \
+	})
+
 /**
  * This routine is a thread handler which launches PUT, GET, ITER, SLANT and DEL
  * operations on the btree passed as parameter.
  */
 static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 {
-	uint64_t                key[KEY_ARR_SIZE + 1]; /** Extra index for storing size. */
-	uint64_t                value[VAL_ARR_SIZE + 1];
+	uint64_t                key[KEY_ARR_SIZE];
+	uint64_t                value[VAL_ARR_SIZE];
 	void                   *k_ptr         = &key;
 	void                   *v_ptr         = &value;
-	m0_bcount_t             ksize;
-	m0_bcount_t             vsize;
+	m0_bcount_t             ksize         = ti->ti_key_size;
+	m0_bcount_t             vsize         = ti->ti_value_size;
 	struct m0_btree_rec     rec;
 	struct m0_btree_cb      ut_cb;
-	struct cb_data          data;
+	struct ut_cb_data       data;
 
-	uint64_t                get_key[KEY_ARR_SIZE + 1];
-	uint64_t                get_value[VAL_ARR_SIZE + 1];
+	uint64_t                get_key[ARRAY_SIZE(key)];
+	uint64_t                get_value[ARRAY_SIZE(value)];
 	m0_bcount_t             get_ksize;
 	m0_bcount_t             get_vsize;
 	void                   *get_k_ptr     = &get_key;
 	void                   *get_v_ptr     = &get_value;
 	struct m0_btree_rec     get_rec;
 	struct m0_btree_cb      ut_get_cb;
-	struct cb_data          get_data;
+	struct ut_cb_data       get_data;
 
 	uint64_t                key_iter_start;
 	uint64_t                key_end;
@@ -9910,15 +9969,24 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 	struct m0_be_tx_credit  put_cred     = {};
 	struct m0_be_tx_credit  update_cred  = {};
 	struct m0_be_tx_credit  del_cred     = {};
+	bool                    has_crc      =
+					ti->ti_crc_type != CRC_TYPE_NO_CRC;
 
 	/**
 	 *  Currently our thread routine only supports Keys and Values which are
 	 *  a multiple of 8 bytes.
 	 */
 	M0_ASSERT(ti->ti_key_size == RANDOM_KEY_SIZE ||
-		  ti->ti_key_size % sizeof(uint64_t) == 0);
+		  (ti->ti_key_size % sizeof(uint64_t) == 0 &&
+		   ti->ti_key_size > sizeof(key[0]) &&
+		   ti->ti_key_size <= sizeof(key)));
 	M0_ASSERT(ti->ti_value_size == RANDOM_VALUE_SIZE ||
-		  ti->ti_value_size % sizeof(uint64_t) == 0);
+		  (ti->ti_value_size % sizeof(uint64_t) == 0 &&
+		   ((has_crc && ti->ti_value_size > sizeof(value[0]) * 2) ||
+		    (!has_crc && ti->ti_value_size > sizeof(value[0]))) &&
+		   ti->ti_value_size <= sizeof(value)));
+
+	M0_CASSERT(KEY_ARR_SIZE > 1 && VAL_ARR_SIZE > 1);
 
 	key_iter_start = ti->ti_key_first;
 	key_end        = ti->ti_key_first +
@@ -9939,6 +10007,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 	get_data.key           = &get_rec.r_key;
 	get_data.value         = &get_rec.r_val;
 	get_data.check_value   = true;
+	get_data.has_crc       = has_crc;
 
 	ut_get_cb.c_act        = btree_kv_get_oper_cb;
 	ut_get_cb.c_datum      = &get_data;
@@ -9968,7 +10037,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		uint64_t  iter_dir;
 		uint64_t  del_key;
 		int       rc;
-		uint64_t  arr_count;
+		uint64_t  kdata;
 
 		key_first = key_iter_start;
 		if (ti->ti_random_bursts) {
@@ -9994,34 +10063,31 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			 * for variable key/value size, the size will increment
 			 * in multiple of 8 after each iteration. The size will
 			 * wrap around on reaching MAX_KEY_SIZE. To make sure
-			 * there is atleast one key and size, arr_count is
-			 * incremented by 2.
+			 * there is atleast one key and size, arr_size is
+			 * incremented by 1.
 			 */
-			arr_count = (key_first % KEY_ARR_SIZE) + 2;
-			ksize = ksize_random ?  arr_count * sizeof(key[0]):
-						ti->ti_key_size;
-			arr_count = (key_first % VAL_ARR_SIZE) + 2;
-			vsize = vsize_random ?  arr_count * sizeof(value[0]) :
-						ti->ti_value_size;
-			M0_ASSERT(ksize <= MAX_KEY_SIZE + sizeof(key[0]) &&
-				  vsize <= MAX_VAL_SIZE + sizeof(value[0]));
-			key[1]   = ksize;
-			value[1] = vsize;
+			ksize = ksize_random ?
+				GET_RANDOM_KEYSIZE(key, key_first,
+						   key_iter_start,
+						   ti->ti_key_incr):
+				ti->ti_key_size;
+			vsize = vsize_random ?
+				GET_RANDOM_VALSIZE(value, key_first,
+						   key_iter_start,
+						   ti->ti_key_incr, has_crc) :
+				ti->ti_value_size;
 			/**
 			 *  Embed the thread-id in LSB so that different threads
 			 *  will target the same node thus causing race
 			 *  conditions useful to mimic and test btree operations
 			 *  in a loaded system.
 			 */
-			key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
-				 ti->ti_thread_id;
-			key[0] = m0_byteorder_cpu_to_be64(key[0]);
-			for (i = 2; i < ksize / sizeof(key[0]); i++)
-				key[i] = key[0];
+			kdata = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+				ti->ti_thread_id;
+			kdata = m0_byteorder_cpu_to_be64(kdata);
 
-			value[0] = key[0];
-			for (i = 2; i < vsize / sizeof(value[0]); i++)
-				value[i] = value[0];
+			FILL_KEY(key, ksize, kdata);
+			FILL_VALUE(value, vsize, kdata, has_crc);
 
 			m0_be_ut_tx_init(tx, ut_be);
 			m0_be_tx_prep(tx, &put_cred);
@@ -10041,6 +10107,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 			UT_THREAD_QUIESCE_IF_REQUESTED();
 		}
+
 		/** Verify btree_update with BOF_INSERT_IF_NOT_FOUND flag.
 		 * 1. call update operation for non-existing record, which
 		 *    should return -ENOENT.
@@ -10050,26 +10117,21 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 */
 		ut_cb.c_datum = &data;
 
-		arr_count = (key_first % KEY_ARR_SIZE) + 2;
-		ksize = ksize_random ?  arr_count * sizeof(key[0]):
-					ti->ti_key_size;
-		arr_count = (key_first % VAL_ARR_SIZE) + 2;
-		vsize = vsize_random ?  arr_count * sizeof(value[0]) :
-					ti->ti_value_size;
-		M0_ASSERT(ksize <= MAX_KEY_SIZE + sizeof(key[0]) &&
-				vsize <= MAX_VAL_SIZE + sizeof(value[0]));
-		key[1]   = ksize;
-		value[1] = vsize;
+		ksize = ksize_random ?
+			GET_RANDOM_KEYSIZE(key, key_first, key_iter_start,
+					   ti->ti_key_incr):
+			ti->ti_key_size;
+		vsize = vsize_random ?
+			GET_RANDOM_VALSIZE(value, key_first, key_iter_start,
+					   ti->ti_key_incr, has_crc) :
+			ti->ti_value_size;
 
-		key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
-				ti->ti_thread_id;
-		key[0] = m0_byteorder_cpu_to_be64(key[0]);
-		for (i = 2; i < ksize / sizeof(key[0]); i++)
-			key[i] = key[0];
+		kdata = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+			ti->ti_thread_id;
+		kdata = m0_byteorder_cpu_to_be64(kdata);
 
-		value[0] = key[0];
-		for (i = 2; i < vsize / sizeof(value[0]); i++)
-			value[i] = value[0];
+		FILL_KEY(key, ksize, kdata);
+		FILL_VALUE(value, vsize, kdata, has_crc);
 
 		m0_be_ut_tx_init(tx, ut_be);
 		m0_be_tx_prep(tx, &put_cred);
@@ -10097,40 +10159,37 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		keys_put_count++;
 		key_first += ti->ti_key_incr;
 
-		/** Verify btree_update for value size increase/descrease. */
+		/** Verify btree_update for value size increase/decrease. */
 
 		key_first     = key_iter_start;
 		ut_cb.c_act   = btree_kv_update_cb;
 		ut_cb.c_datum = &data;
 		while (vsize_random && key_first <= key_last) {
-			arr_count = (key_first % VAL_ARR_SIZE) + 2;
+			vsize = GET_RANDOM_VALSIZE(value, key_first,
+						   key_iter_start,
+						   ti->ti_key_incr, has_crc);
 			/**
 			 * Skip updating value size for max val size as
 			 * it can create array outbound for val[]
 			 */
-			if (arr_count >= VAL_ARR_SIZE + 1) {
+			if (vsize >= (VAL_ARR_SIZE * sizeof(value[0]))) {
 				key_first += (ti->ti_key_incr * 5);
 				continue;
 			}
 			/** Test value size increase case. */
-			vsize = (arr_count + 1) * sizeof(value[0]);
-			arr_count = (key_first % KEY_ARR_SIZE) + 2;
+			vsize += sizeof(value[0]);
 			ksize = ksize_random ?
-				arr_count * sizeof(key[0]):
+				GET_RANDOM_KEYSIZE(key, key_first,
+						    key_iter_start,
+						    ti->ti_key_incr):
 				ti->ti_key_size;
 
-			key[1]   = ksize;
-			value[1] = vsize;
-
-			key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+			kdata = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
-			key[0] = m0_byteorder_cpu_to_be64(key[0]);
-			for (i = 2; i < ksize / sizeof(key[0]); i++)
-				key[i] = key[0];
+			kdata = m0_byteorder_cpu_to_be64(kdata);
 
-			value[0] = key[0];
-			for (i = 2; i < vsize / sizeof(value[0]); i++)
-				value[i] = value[0];
+			FILL_KEY(key, ksize, kdata);
+			FILL_VALUE(value, vsize, kdata, has_crc);
 
 			m0_be_ut_tx_init(tx, ut_be);
 			m0_be_tx_prep(tx, &update_cred);
@@ -10149,11 +10208,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			m0_be_tx_fini(tx);
 
 			/** Test value size decrease case. */
-			vsize = vsize - sizeof(value[0]);
-			value[1] = vsize;
-			value[0] = key[0];
-			for (i = 2; i < vsize / sizeof(value[0]); i++)
-				value[i] = value[0];
+			vsize -= sizeof(value[0]);
+			FILL_VALUE(value, vsize, kdata, has_crc);
 
 			m0_be_ut_tx_init(tx, ut_be);
 			m0_be_tx_prep(tx, &update_cred);
@@ -10182,16 +10238,17 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		if ((key_last - key_first) > (ti->ti_key_incr * 2))
 			key_first += ti->ti_key_incr;
 
-		arr_count = (key_first % KEY_ARR_SIZE) + 2;
-		ksize = ksize_random ?  arr_count * sizeof(key[0]):
+		ksize = ksize_random ?
+			GET_RANDOM_KEYSIZE(key, key_first, key_iter_start,
+					   ti->ti_key_incr):
 			ti->ti_key_size;
 
-		key[1] = ksize;
-		key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
-			 ti->ti_thread_id;
-		key[0] = m0_byteorder_cpu_to_be64(key[0]);
-		for (i = 2; i < ksize / sizeof(key[0]); i++)
-			key[i] = key[0];
+		kdata = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+			ti->ti_thread_id;
+		kdata = m0_byteorder_cpu_to_be64(kdata);
+
+		FILL_KEY(key, ksize, kdata);
+
 		/** Skip initializing the value as this is an error case */
 
 		m0_be_ut_tx_init(tx, ut_be);
@@ -10206,7 +10263,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
 
-		/** Modify at least 20% of the values which have been inserted. */
+		/** Modify 20% of the values which have been inserted. */
 
 		key_first     = key_iter_start;
 		ut_cb.c_act   = btree_kv_update_cb;
@@ -10219,25 +10276,24 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			 *  conditions useful to mimic and test btree operations
 			 *  in a loaded system.
 			 */
-			arr_count = (key_first % KEY_ARR_SIZE) + 2;
-			ksize = ksize_random ?  arr_count * sizeof(key[0]):
-						ti->ti_key_size;
-			arr_count = (key_first % VAL_ARR_SIZE) + 2;
-			vsize = vsize_random ?  arr_count * sizeof(value[0]) :
-						ti->ti_value_size;
+			ksize = ksize_random ?
+				GET_RANDOM_KEYSIZE(key, key_first,
+						   key_iter_start,
+						   ti->ti_key_incr):
+				ti->ti_key_size;
+			vsize = vsize_random ?
+				GET_RANDOM_VALSIZE(value, key_first,
+						   key_iter_start,
+						   ti->ti_key_incr, has_crc) :
+				ti->ti_value_size;
 
-			key[1]   = ksize;
-			value[1] = vsize;
-
-			key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+			kdata = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
-			key[0] = m0_byteorder_cpu_to_be64(key[0]);
-			for (i = 2; i < ksize / sizeof(key[0]); i++)
-				key[i] = key[0];
+			kdata = m0_byteorder_cpu_to_be64(kdata);
 
-			value[0] = ~key[0];
-			for (i = 2; i < vsize / sizeof(value[0]); i++)
-				value[i] = value[0];
+			FILL_KEY(key, ksize, kdata);
+			kdata = ~kdata;
+			FILL_VALUE(value, vsize, kdata, has_crc);
 
 			m0_be_ut_tx_init(tx, ut_be);
 			m0_be_tx_prep(tx, &update_cred);
@@ -10262,16 +10318,16 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 * exist in the btree.
 		 */
 		key_first = key_iter_start;
-		arr_count = (key_first % KEY_ARR_SIZE) + 2;
-		ksize = ksize_random ?  arr_count * sizeof(key[0]):
+		ksize = ksize_random ?
+			GET_RANDOM_KEYSIZE(key, key_first, key_iter_start,
+					   ti->ti_key_incr) :
 			ti->ti_key_size;
 
-		key[1]   = ksize;
-		key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+		kdata = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
 			 (typeof(ti->ti_thread_id))-1;
-		key[0] = m0_byteorder_cpu_to_be64(key[0]);
-		for (i = 2; i < ksize / sizeof(key[0]); i++)
-			key[i] = key[0];
+		kdata = m0_byteorder_cpu_to_be64(kdata);
+		FILL_KEY(key, ksize, kdata);
+
 		/** Skip initializing the value as this is an error case */
 
 		m0_be_ut_tx_init(tx, ut_be);
@@ -10296,39 +10352,39 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		if (r % 2) {
 			/** Iterate forward. */
 			iter_dir = BOF_NEXT;
-			arr_count = (key_first % KEY_ARR_SIZE) + 2;
-			ksize = ksize_random ?  arr_count * sizeof(key[0]):
-						ti->ti_key_size;
+			ksize = ksize_random ?
+				GET_RANDOM_KEYSIZE(key, key_first,
+						   key_iter_start,
+						   ti->ti_key_incr) :
+				ti->ti_key_size;
 
-			key[1]   = ksize;
-			key[0] = (key_first <<
+			kdata = (key_first <<
 				  (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
-			key[0] = m0_byteorder_cpu_to_be64(key[0]);
-			for (i = 2; i < ksize / sizeof(key[0]); i++)
-				key[i] = key[0];
+			kdata = m0_byteorder_cpu_to_be64(kdata);
+			FILL_KEY(key, ksize, kdata);
 		} else {
 			/** Iterate backward. */
 			iter_dir = BOF_PREV;
-			arr_count = (key_last % KEY_ARR_SIZE) + 2;
-			ksize = ksize_random ?  arr_count * sizeof(key[0]):
-						ti->ti_key_size;
+			ksize = ksize_random ?
+				GET_RANDOM_KEYSIZE(key, key_last,
+						   key_iter_start,
+						   ti->ti_key_incr) :
+				ti->ti_key_size;
 
-			key[1]   = ksize;
-			key[0] = (key_last <<
+			kdata = (key_last <<
 				  (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
-			key[0] = m0_byteorder_cpu_to_be64(key[0]);
-			for (i = 2; i < ksize / sizeof(key[0]) ; i++)
-				key[i] = key[0];
+			kdata = m0_byteorder_cpu_to_be64(kdata);
+			FILL_KEY(key, ksize, kdata);
 		}
 		get_ksize = ksize;
 		get_vsize = ti->ti_value_size;
 		get_data.check_value = true; /** Compare value with key */
+		get_data.has_crc     = has_crc;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-					      m0_btree_get(tree,
-							   &rec.r_key,
+					      m0_btree_get(tree, &rec.r_key,
 							   &ut_get_cb,
 							   BOF_EQUAL, &kv_op));
 		M0_ASSERT(rc == 0);
@@ -10345,7 +10401,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			if (rc == -ENOENT)
 				break;
 
-				keys_found_count++;
+			keys_found_count++;
 
 			/** Copy over the gotten key for the next search. */
 			ksize = get_ksize;
@@ -10378,11 +10434,15 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 */
 		UT_REQUEST_PEER_THREADS_TO_QUIESCE();
 
-		/**
-		 * Fill a value in the buffer which we know cannot be the
-		 * MIN key
-		 */
-		get_key[0] = key_last + 1;
+		/** Fill a value in the buffer which cannot be the MIN key */
+		ksize = ksize_random ?
+			GET_RANDOM_KEYSIZE(key, key_first, key_iter_start,
+					   ti->ti_key_incr) :
+			ti->ti_key_size;
+		kdata = ((key_last + 1) << (sizeof(ti->ti_thread_id) * 8)) +
+			ti->ti_thread_id;
+		kdata = m0_byteorder_cpu_to_be64(kdata);
+		FILL_KEY(get_key, ksize, kdata);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_minkey(tree, &ut_get_cb,
@@ -10407,7 +10467,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 * key in this iteration.
 		 */
 
-		for (i = 0; i < ksize / sizeof(key[0]); i++)
+		for (i = 0; i < ksize / sizeof(key[1]); i++)
 			get_key[i] = key[i];
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -10416,7 +10476,10 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 							    BOF_PREV, &kv_op));
 		M0_ASSERT(rc == -ENOENT);
 
-		get_key[0] = key_iter_start - 1;
+		kdata = ((key_iter_start - 1) <<
+			 (sizeof(ti->ti_thread_id) * 8)) + ti->ti_thread_id;
+		kdata = m0_byteorder_cpu_to_be64(kdata);
+		FILL_KEY(get_key, ksize, kdata);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_maxkey(tree, &ut_get_cb,
@@ -10461,6 +10524,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 			slant_key = key_first;
 			get_data.check_value = false;
+			get_data.has_crc = has_crc;
 
 			/**
 			 *  The following short named variables are used just
@@ -10471,25 +10535,24 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			cb = ut_get_cb;
 
 			do {
-				arr_count = (slant_key % KEY_ARR_SIZE) + 2;
 				ksize = ksize_random ?
-					arr_count * sizeof(key[0]):
+					GET_RANDOM_KEYSIZE(key, slant_key,
+							   key_iter_start,
+							   ti->ti_key_incr) :
 					ti->ti_key_size;
 
-				key[1]   = ksize;
 				/**
 				 *  Alternate between using the exact number as
 				 *  Key for slant and a previous number as Key
 				 *  for slant to test for both scenarios.
 				 */
-				key[0] = (slant_key % 2) ? slant_key - 1 :
+				kdata = (slant_key % 2) ? slant_key - 1 :
 							   slant_key;
-				key[0] = (key[0] <<
+				kdata = (kdata <<
 					  (sizeof(ti->ti_thread_id) * 8)) +
 					 ti->ti_thread_id;
-				key[0] = m0_byteorder_cpu_to_be64(key[0]);
-				for (i = 2; i < ksize / sizeof(key[0]); i++)
-					key[i] = key[0];
+				kdata = m0_byteorder_cpu_to_be64(kdata);
+				FILL_KEY(key, ksize, kdata);
 
 				M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 							 m0_btree_get(tree,
@@ -10528,16 +10591,15 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		ut_cb.c_act   = btree_kv_del_cb;
 		ut_cb.c_datum = &data;
 		while (keys_put_count) {
-			arr_count = (del_key % KEY_ARR_SIZE) + 2;
-			ksize = ksize_random ?  arr_count * sizeof(key[0]):
-						ti->ti_key_size;
+			ksize = ksize_random ?
+				GET_RANDOM_KEYSIZE(key, del_key, key_iter_start,
+						   ti->ti_key_incr) :
+				ti->ti_key_size;
 
-			key[1]   = ksize;
-			key[0] = (del_key << (sizeof(ti->ti_thread_id) * 8)) +
+			kdata = (del_key << (sizeof(ti->ti_thread_id) * 8)) +
 				 ti->ti_thread_id;
-			key[0] = m0_byteorder_cpu_to_be64(key[0]);
-			for (i = 2; i < ksize / sizeof(key[0]); i++)
-				key[i] = key[0];
+			kdata = m0_byteorder_cpu_to_be64(kdata);
+			FILL_KEY(key, ksize, kdata);
 
 			m0_be_ut_tx_init(tx, ut_be);
 			m0_be_tx_prep(tx, &del_cred);
@@ -10552,9 +10614,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 			m0_be_tx_close_sync(tx);
 			m0_be_tx_fini(tx);
 
-			del_key = (r % 2 == 0) ?
-				  del_key + ti->ti_key_incr :
-				  del_key - ti->ti_key_incr;
+			del_key = (r % 2 == 0) ? del_key + ti->ti_key_incr :
+						 del_key - ti->ti_key_incr;
 			keys_put_count--;
 
 			UT_THREAD_QUIESCE_IF_REQUESTED();
@@ -10568,16 +10629,15 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 */
 		key_first = key_iter_start;
 
-		arr_count = (key_first % KEY_ARR_SIZE) + 2;
-		ksize = ksize_random ?  arr_count * sizeof(key[0]):
-					ti->ti_key_size;
+		ksize = ksize_random ?
+			GET_RANDOM_KEYSIZE(key, key_first, key_iter_start,
+					   ti->ti_key_incr) :
+			ti->ti_key_size;
 
-		key[1]   = ksize;
-		key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
-			 ti->ti_thread_id;
-		key[0] = m0_byteorder_cpu_to_be64(key[0]);
-		for (i = 2; i < ksize / sizeof(key[0]); i++)
-			key[i] = key[0];
+		kdata = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+			ti->ti_thread_id;
+		kdata = m0_byteorder_cpu_to_be64(kdata);
+		FILL_KEY(key, ksize, kdata);
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_get(tree,
@@ -10587,16 +10647,16 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		M0_ASSERT(rc == -ENOENT);
 
 		if (key_first != key_last) {
-			arr_count = (key_last % KEY_ARR_SIZE) + 2;
-			ksize = ksize_random ?  arr_count * sizeof(key[0]):
-						ti->ti_key_size;
+			ksize = ksize_random ?
+				GET_RANDOM_KEYSIZE(key, key_last,
+						   key_iter_start,
+						   ti->ti_key_incr) :
+				ti->ti_key_size;
 
-			key[1] = ksize;
-			key[0] = (key_last << (sizeof(ti->ti_thread_id) * 8)) +
-				 ti->ti_thread_id;
-			key[0] = m0_byteorder_cpu_to_be64(key[0]);
-			for (i = 2; i < ksize / sizeof(key[0]); i++)
-				key[i] = key[0];
+			kdata = (key_last << (sizeof(ti->ti_thread_id) * 8)) +
+				ti->ti_thread_id;
+			kdata = m0_byteorder_cpu_to_be64(kdata);
+			FILL_KEY(key, ksize, kdata);
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						      m0_btree_get(tree,
@@ -10614,16 +10674,15 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		 */
 		key_first = key_iter_start;
 
-		arr_count = (key_first % KEY_ARR_SIZE) + 2;
-		ksize = ksize_random ?  arr_count * sizeof(key[0]):
-					ti->ti_key_size;
+		ksize = ksize_random ?
+			GET_RANDOM_KEYSIZE(key, key_first, key_iter_start,
+					   ti->ti_key_incr) :
+			ti->ti_key_size;
 
-		key[1]   = ksize;
-		key[0] = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
+		kdata = (key_first << (sizeof(ti->ti_thread_id) * 8)) +
 			 ti->ti_thread_id;
-		key[0] = m0_byteorder_cpu_to_be64(key[0]);
-		for (i = 2; i < ksize / sizeof(key[0]); i++)
-			key[i] = key[0];
+		kdata = m0_byteorder_cpu_to_be64(kdata);
+		FILL_KEY(key, ksize, kdata);
 
 		m0_be_ut_tx_init(tx, ut_be);
 		m0_be_tx_prep(tx, &del_cred);
@@ -10639,16 +10698,16 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		m0_be_tx_fini(tx);
 
 		if (key_first != key_last) {
-			arr_count = (key_last % KEY_ARR_SIZE) + 2;
-			ksize = ksize_random ?  arr_count * sizeof(key[0]):
-						ti->ti_key_size;
+			ksize = ksize_random ?
+				GET_RANDOM_KEYSIZE(key, key_last,
+						   key_iter_start,
+						   ti->ti_key_incr) :
+				ti->ti_key_size;
 
-			key[1] = ksize;
-			key[0] = (key_last << (sizeof(ti->ti_thread_id) * 8)) +
-				 ti->ti_thread_id;
-			key[0] = m0_byteorder_cpu_to_be64(key[0]);
-			for (i = 2; i < ksize / sizeof(key[0]); i++)
-				key[i] = key[0];
+			kdata = (key_last << (sizeof(ti->ti_thread_id) * 8)) +
+				ti->ti_thread_id;
+			kdata = m0_byteorder_cpu_to_be64(kdata);
+			FILL_KEY(key, ksize, kdata);
 
 			m0_be_ut_tx_init(tx, ut_be);
 			m0_be_tx_prep(tx, &del_cred);
@@ -10721,7 +10780,9 @@ static void online_cpu_id_get(uint16_t **cpuid_ptr, uint16_t *cpu_count)
 static void btree_ut_kv_size_get(enum btree_node_type bnt, int *ksize,
 				 int *vsize)
 {
-	const uint32_t ksize_to_use = 2 * sizeof(uint64_t);
+	uint32_t ksize_to_use = 2 * sizeof(uint64_t);
+
+	ksize_to_use += sizeof(uint64_t); /** To accomodate size within the Key. */
 
 	switch (bnt) {
 	case BNT_FIXED_FORMAT:
@@ -10988,10 +11049,9 @@ static void ut_rt_rt_kv_oper(void)
 }
 
 /**
- * This routine is a thread handler which primarily involves in creating,
- * opening, closing and destroying btree. To run out-of-sync with other threads
- * it also launches PUT, GET, ITER and DEL operations on the btree for a random
- * count.
+ * This routine is a thread handler primarily involved in creating, opening,
+ * closing and destroying btree. To run out-of-sync with other threads it also
+ * launches PUT, GET, ITER and DEL operations on the btree for a random count.
  */
 static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 {
@@ -11008,10 +11068,11 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 									&vsize),
 				     .r_flags      = 0,
 				     };
-	struct cb_data         data  = {
+	struct ut_cb_data      data  = {
 					.key         = &rec.r_key,
 					.value       = &rec.r_val,
 					.check_value = false,
+					.has_crc     = false,
 					.flags       = 0,
 				       };
 	struct m0_btree_cb     ut_cb   = {
@@ -11415,8 +11476,8 @@ static void ut_btree_persistence(void)
 			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 			    .r_crc_type   = CRC_TYPE_NO_CRC,
 			};
-	struct cb_data              put_data;
-	struct cb_data              get_data;
+	struct ut_cb_data           put_data;
+	struct ut_cb_data           get_data;
 
 	M0_ENTRY();
 
@@ -11531,6 +11592,7 @@ static void ut_btree_persistence(void)
 	get_data.key         = &rec.r_key;
 	get_data.value       = &rec.r_val;
 	get_data.check_value = true;
+	get_data.has_crc     = false;
 
 	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 	m0_btree_del_credit(tree, 1, ksize, vsize, &cred);
@@ -11597,6 +11659,7 @@ static void ut_btree_persistence(void)
 	get_data.key         = &rec.r_key;
 	get_data.value       = &rec.r_val;
 	get_data.check_value = true;
+	get_data.has_crc     = false;
 
 	for (i = 1; i <= rec_count; i++) {
 		int                  k;
@@ -11864,7 +11927,7 @@ static void ut_btree_truncate(void)
 			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 			    .r_crc_type   = CRC_TYPE_NO_CRC,
 			};
-	struct cb_data              put_data;
+	struct ut_cb_data           put_data;
 	m0_bcount_t                 limit;
 
 	M0_ENTRY();
@@ -12013,7 +12076,7 @@ static void ut_lru_test(void)
 			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 			};
-	struct cb_data              put_data;
+	struct ut_cb_data           put_data;
 	/**
 	 * In this UT, we are testing the functionality of LRU list purge and
 	 * be-allocator with chunk align parameter.
@@ -12028,7 +12091,7 @@ static void ut_lru_test(void)
 
 	btree_ut_init();
 	mem_init = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
-	printf("Mem Init (%"PRId64").\n",mem_init);
+	M0_LOG(M0_INFO,"Mem Init (%"PRId64").\n",mem_init);
 
 	M0_ASSERT(rnode_sz != 0 && m0_is_po2(rnode_sz));
 	rnode_sz_shift = __builtin_ffsl(rnode_sz) - 1;
@@ -12091,17 +12154,228 @@ static void ut_lru_test(void)
 
 	mem_after_alloc = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	mem_increased   = mem_init - mem_after_alloc;
-	printf("Mem After Alloc (%"PRId64") || Mem Increase (%"PRId64").\n",
+	M0_LOG(M0_INFO, "Mem After Alloc (%"PRId64") || Mem Increase (%"PRId64").\n",
 	       mem_after_alloc, mem_increased);
 
 	M0_ASSERT(ndlist_tlist_length(&btree_lru_nds) > 0);
 
 	mem_freed      = m0_btree_lrulist_purge(mem_increased/2);
 	mem_after_free = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
-	printf("Mem After Free (%"PRId64") || Mem freed (%"PRId64").\n",
+	M0_LOG(M0_INFO, "Mem After Free (%"PRId64") || Mem freed (%"PRId64").\n",
 	       mem_after_free, mem_freed);
 
 	btree_ut_fini();
+}
+
+/**
+ * This test launches multiple threads each of of which create different btree's
+ * which host records with different CRC type embedded within them.
+ */
+static void btree_ut_crc_test(void)
+{
+	int                         rc;
+	struct btree_ut_thread_info *ti;
+	int                         i;
+	uint16_t                    cpu;
+	void                        *rnode;
+	struct m0_btree_op          b_op           = {};
+	struct btree_crc_data {
+				struct m0_btree_type    bcr_btree_type;
+				enum m0_btree_crc_type  bcr_crc_type;
+			      } btrees_with_crc[] = {
+			{
+				{
+					BNT_FIXED_FORMAT, 2 * sizeof(uint64_t),
+					2 * sizeof(uint64_t)
+				},
+				CRC_TYPE_NO_CRC,
+			},
+			{
+				{
+					BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+					2 * sizeof(uint64_t), RANDOM_VALUE_SIZE
+				},
+				CRC_TYPE_NO_CRC,
+			},
+			{
+				{
+					BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+					RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
+				},
+				CRC_TYPE_NO_CRC,
+			},
+			{
+				{
+					BNT_FIXED_FORMAT, 2 * sizeof(uint64_t),
+					3 * sizeof(uint64_t)
+				},
+				CRC_TYPE_USER_ENC_CRC,
+			},
+			{
+				{
+					BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+					2 * sizeof(uint64_t), RANDOM_VALUE_SIZE
+				},
+				CRC_TYPE_USER_ENC_CRC,
+			},
+			{
+				{
+					BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+					RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
+				},
+				CRC_TYPE_USER_ENC_CRC,
+			},
+		};
+	uint16_t                    thread_count = ARRAY_SIZE(btrees_with_crc);
+	struct m0_be_tx_credit      cred;
+	struct m0_be_tx             tx_data        = {};
+	struct m0_be_tx             *tx            = &tx_data;
+	struct m0_fid               fid            = M0_FID_TINIT('b', 0, 1);
+	struct m0_buf               buf;
+	uint16_t                    *cpuid_ptr;
+	uint16_t                    cpu_count;
+	size_t                      cpu_max;
+	time_t                      curr_time;
+	uint32_t                    rnode_sz       = sysconf(_SC_PAGESIZE);
+	uint32_t                    rnode_sz_shift;
+	struct m0_btree             btree[thread_count];
+
+	M0_ENTRY();
+
+	M0_ASSERT(rnode_sz != 0 && m0_is_po2(rnode_sz));
+	rnode_sz_shift = __builtin_ffsl(rnode_sz) - 1;
+
+	M0_ALLOC_ARR(ti, thread_count);
+	M0_ASSERT(ti != NULL);
+
+	time(&curr_time);
+	M0_LOG(M0_INFO, "Using seed %lu", curr_time);
+	srandom(curr_time);
+
+	/**
+	 *  1) Assign CPU cores to the threads.
+	 *  2) Create btree(s) to be used by all the threads.
+	 *  3) Init and Start the threads which do KV operations.
+	 *  4) Wait till all the threads are done.
+	 *  5) Close the btree
+	 *  6) Destroy the btree
+	 */
+
+	btree_ut_init();
+
+	online_cpu_id_get(&cpuid_ptr, &cpu_count);
+
+	UT_STOP_THREADS();
+	m0_atomic64_set(&threads_running, 0);
+	m0_atomic64_set(&threads_quiesced, 0);
+
+	M0_ALLOC_ARR(ti, thread_count);
+	M0_ASSERT(ti != NULL);
+
+	cpu_max = m0_processor_nr_max();
+
+	cpu = 1; /** We skip Core-0 for Linux kernel and other processes. */
+	for (i = 0; i < thread_count; i++) {
+		enum m0_btree_crc_type  crc_type;
+		struct m0_btree_type    btree_type;
+
+		crc_type = btrees_with_crc[i].bcr_crc_type;
+		btree_type = btrees_with_crc[i].bcr_btree_type;
+
+		rc = m0_bitmap_init(&ti[i].ti_cpu_map, cpu_max);
+		m0_bitmap_set(&ti[i].ti_cpu_map, cpuid_ptr[cpu], true);
+		cpu++;
+		if (cpu >= cpu_count)
+			/**
+			 *  Circle around if thread count is higher than the
+			 *  CPU cores in the system.
+			 */
+			cpu = 1;
+
+		ti[i].ti_key_first  = 1;
+		ti[i].ti_key_count  = MAX_RECS_PER_THREAD;
+		ti[i].ti_key_incr   = 5;
+		ti[i].ti_thread_id  = i;
+		ti[i].ti_key_size   = btree_type.ksize;
+		ti[i].ti_value_size = btree_type.vsize;
+		ti[i].ti_crc_type   = crc_type;
+		ti[i].ti_random_bursts = (thread_count > 1);
+		do {
+			ti[i].ti_rng_seed_base = random();
+		} while (ti[i].ti_rng_seed_base == 0);
+
+		M0_SET0(&b_op);
+
+		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+		m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED, rnode_sz,
+				       rnode_sz_shift, &cred);
+		m0_btree_create_credit(&btree_type, &cred, 1);
+
+		m0_be_ut_tx_init(tx, ut_be);
+		m0_be_tx_prep(tx, &cred);
+		rc = m0_be_tx_open_sync(tx);
+		M0_ASSERT(rc == 0);
+
+		/** Create temp node space and use it as root node for btree */
+		buf = M0_BUF_INIT(rnode_sz, NULL);
+		M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+		rnode = buf.b_addr;
+
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+					      m0_btree_create(rnode, rnode_sz,
+							      &btree_type,
+							      crc_type, &b_op,
+							      &btree[i], seg,
+							      &fid, tx, NULL));
+		M0_ASSERT(rc == M0_BSC_SUCCESS);
+
+		m0_be_tx_close_sync(tx);
+		m0_be_tx_fini(tx);
+
+		ti[i].ti_tree = &btree[i];
+
+		rc = M0_THREAD_INIT(&ti[i].ti_q, struct btree_ut_thread_info *,
+				    btree_ut_thread_init,
+				    &btree_ut_kv_oper_thread_handler, &ti[i],
+				    "Thread-%d", i);
+		M0_ASSERT(rc == 0);
+	}
+
+	/** Initialized all the threads. Now start the test ... */
+	UT_START_THREADS();
+
+	for (i = 0; i < thread_count; i++) {
+		m0_thread_join(&ti[i].ti_q);
+		m0_thread_fini(&ti[i].ti_q);
+	}
+
+	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
+	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
+			       rnode_sz_shift, &cred);
+	m0_btree_destroy_credit(&btree[0], NULL, &cred, 1);
+	for (i = 0; i < thread_count; i++) {
+		m0_be_ut_tx_init(tx, ut_be);
+		m0_be_tx_prep(tx, &cred);
+		rc = m0_be_tx_open_sync(tx);
+		M0_ASSERT(rc == 0);
+
+		rnode = segaddr_addr(&btree[i].t_desc->t_root->n_addr);
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+					      m0_btree_destroy(&btree[i],
+							       &b_op, tx));
+		M0_ASSERT(rc == 0);
+		M0_SET0(&btree[i]);
+		buf = M0_BUF_INIT(rnode_sz, rnode);
+		M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+		m0_be_tx_close_sync(tx);
+		m0_be_tx_fini(tx);
+	}
+
+	m0_free0(&cpuid_ptr);
+	m0_free(ti);
+	btree_ut_fini();
+
+	M0_LEAVE();
 }
 
 /**
@@ -12424,6 +12698,7 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
 		{"btree_persistence",               ut_btree_persistence},
 		{"btree_truncate",                  ut_btree_truncate},
+		{"btree_crc_test",                  btree_ut_crc_test},
 		{NULL, NULL}
 	}
 };
