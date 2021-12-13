@@ -43,7 +43,7 @@
 #define M0_BE_PTABLE_DEV_NAME_MAX_SIZE     (128)
 #define M0_BE_PTABLE_HDR_VERSION           (1)
 
-#define M0_BE_MAX_PARTITION_USERS          (6)     
+#define M0_BE_MAX_PARTITION_USERS          (6)
 enum m0_be_ptable_id {
 	/* Partition table type   */
 	M0_BE_PTABLE_PARTITION_TABLE = (BE_UT_LOG_ID - 1),
@@ -109,12 +109,14 @@ struct m0_be_ptable_part_table
 {
 	struct m0_format_header             pt_par_tbl_header;
 	m0_bcount_t                         pt_version_info;
-	struct m0_be_ptable_alloc_info      pt_part_alloc_info[M0_BE_MAX_PARTITION_USERS];
+	struct m0_be_ptable_alloc_info
+		pt_part_alloc_info[M0_BE_MAX_PARTITION_USERS];
 	/* Total chunks of all partitions */
 	m0_bcount_t                         pt_dev_size_in_chunks;
 	m0_bcount_t                         pt_chunk_size_in_bits;
 	m0_bcount_t                         pt_key;
-	char                                pt_device_path_name[M0_BE_PTABLE_DEV_NAME_MAX_SIZE];
+	char
+		pt_device_path_name[M0_BE_PTABLE_DEV_NAME_MAX_SIZE];
 	/* Partition info with ID and user offset */
 	struct m0_format_footer             pt_par_tbl_footer;
 	struct m0_be_ptable_pri_part_info  *pt_pri_part_info;
@@ -125,10 +127,10 @@ struct m0_be_ptable_part_tbl_info
 	/* Total chunks of all partitions */
 	m0_bcount_t                              pti_dev_size_in_chunks;
 	m0_bcount_t                              pti_chunk_size_in_bits;
-	m0_bcount_t                              pti_key;   
+	m0_bcount_t                              pti_key;
 	struct m0_be_ptable_alloc_info          *pti_part_alloc_info;
 	const struct m0_be_ptable_pri_part_info *pti_pri_part_info;
-	
+
 };
 //M0_INTERNAL int m0_be_ptable_create_init(struct m0_be_domain *domain,
 //M0_INTERNAL int m0_be_ptable_create_init(uint64_t sd_domain_fid,

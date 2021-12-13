@@ -57,12 +57,14 @@ enum { PART_PATHLEN = 4096 };
 enum m0_stob_part_domain_format_version {
 	M0_STOB_PART_DOMAIN_FORMAT_VERSION_1 = 1,
 
-	/* future versions, uncomment and update M0_STOB_PART_DOMAIN_FORMAT_VERSION */
+	/* future versions, uncomment and
+	 * update M0_STOB_PART_DOMAIN_FORMAT_VERSION */
 	/*M0_STOB_PART_DOMAIN_FORMAT_VERSION_2,*/
 	/*M0_STOB_PART_DOMAIN_FORMAT_VERSION_3,*/
 
 	/** Current version, should point to the latest version present */
-	M0_STOB_PART_DOMAIN_FORMAT_VERSION = M0_STOB_PART_DOMAIN_FORMAT_VERSION_1
+	M0_STOB_PART_DOMAIN_FORMAT_VERSION =
+		M0_STOB_PART_DOMAIN_FORMAT_VERSION_1
 };
 
 enum {

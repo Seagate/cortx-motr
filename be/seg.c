@@ -323,7 +323,7 @@ static void be_seg_madvise(struct m0_be_seg *seg, m0_bcount_t dump_limit,
 }
 static m0_bcount_t be_seg_get_dev_offset(struct m0_be_seg *seg)
 {
-	struct m0_be_ptable_part_tbl_info pri_part_info;
+	struct m0_be_ptable_part_tbl_info  pri_part_info;
 	m0_bcount_t                        part_id;
 	int                                i;
 	m0_bcount_t                        device_chunk_index = 1;
@@ -333,18 +333,19 @@ static m0_bcount_t be_seg_get_dev_offset(struct m0_be_seg *seg)
 	M0_PRE(seg != NULL ||  seg->bs_stob != NULL);
 	part_id = seg->bs_stob->so_id.si_fid.f_key;
 
-	if((m0_be_domain_seg0_get(seg->bs_domain) == seg) &&
-	    (seg->bs_domain->bd_cfg.bc_part_cfg.bpc_part_mode_seg0 == true))
+	if ((m0_be_domain_seg0_get(seg->bs_domain) == seg) &&
+	    seg->bs_domain->bd_cfg.bc_part_cfg.bpc_part_mode_seg0)
 		M0_ASSERT(m0_be_ptable_get_part_info(&pri_part_info) == 0);
 	else
 		return dev_offset;
-	for( i = 1; i < pri_part_info.pti_dev_size_in_chunks; i++ ) {
-		if(pri_part_info.pti_pri_part_info[i].ppi_part_id == part_id){
+
+	for (i = 1; i < pri_part_info.pti_dev_size_in_chunks; i++) {
+		if (pri_part_info.pti_pri_part_info[i].ppi_part_id == part_id) {
 			device_chunk_index = i;
 			break;
 		}
 	}
-	M0_ASSERT(i !=  pri_part_info.pti_dev_size_in_chunks);
+	M0_ASSERT(i < pri_part_info.pti_dev_size_in_chunks);
 	dev_offset = device_chunk_index << pri_part_info.pti_chunk_size_in_bits;
 	M0_LEAVE("chunk idx = %"PRIi64", dev_offset = %"PRIi64,
 		 device_chunk_index, dev_offset);

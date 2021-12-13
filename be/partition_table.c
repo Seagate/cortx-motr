@@ -55,7 +55,7 @@ static int be_ptable_verify_table(struct m0_be_ptable_part_table *part_table)
 //M0_INTERNAL int m0_be_ptable_create_init(struct m0_be_domain *domain,
 //M0_INTERNAL int m0_be_ptable_create_init(uint64_t sd_domain_fid,
 M0_INTERNAL int m0_be_ptable_create_init(void *be_domain,
-					 bool is_mkfs,
+					 bool  is_mkfs,
 					 struct m0_be_ptable_part_config
 					 *part_config)
 {
@@ -100,8 +100,6 @@ M0_INTERNAL int m0_be_ptable_create_init(void *be_domain,
 				   pt_par_tbl_footer);
 
 	if (is_mkfs == true) {
-
-
 		partition_table->pt_version_info = M0_BE_PTABLE_VERSION;
 		partition_table->pt_chunk_size_in_bits =
 			part_config->pc_chunk_size_in_bits;
@@ -118,7 +116,7 @@ M0_INTERNAL int m0_be_ptable_create_init(void *be_domain,
 		strncpy(partition_table->pt_device_path_name,
 			part_config->pc_dev_path_name,
 			M0_BE_PTABLE_DEV_NAME_MAX_SIZE);
-		partition_table->pt_key = part_config->pc_key;	
+		partition_table->pt_key = part_config->pc_key;
 		partition_table->pt_pri_part_info =
 			(struct m0_be_ptable_pri_part_info *)
 			((char *)partition_table + pri_part_offset);
@@ -131,12 +129,16 @@ M0_INTERNAL int m0_be_ptable_create_init(void *be_domain,
 		     p_index < part_config->pc_num_of_alloc_entries;
 		     p_index++) {
 			struct m0_be_ptable_alloc_info *part_info;
+			struct m0_be_ptable_alloc_info *part_cfg;
 
-			part_info = &part_config->pc_part_alloc_info[p_index];
 			M0_ASSERT(p_index < M0_BE_MAX_PARTITION_USERS );
-			partition_table->pt_part_alloc_info[p_index].ai_part_id = part_info->ai_part_id;
-			partition_table->pt_part_alloc_info[p_index].ai_def_size_in_chunks =
-								 part_info->ai_def_size_in_chunks;
+			part_cfg = &part_config->pc_part_alloc_info[p_index];
+			part_info =
+				&partition_table->pt_part_alloc_info[p_index];
+
+			part_info->ai_part_id = part_cfg->ai_part_id;
+			part_info->ai_def_size_in_chunks =
+				part_cfg->ai_def_size_in_chunks;
 			offset_count = 0;
 			user_allocation_chunks =
 				part_info->ai_def_size_in_chunks;
@@ -234,8 +236,9 @@ M0_INTERNAL int m0_be_ptable_get_part_info(struct m0_be_ptable_part_tbl_info
 		primary_part_info->pti_pri_part_info =
 			rd_partition_table.pt_pri_part_info;
 		primary_part_info->pti_key = rd_partition_table.pt_key;
-		 primary_part_info->pti_part_alloc_info = &rd_partition_table.pt_part_alloc_info[0];
-		M0_LOG(M0_ALWAYS,"chunk info : %d, %d, ",
+		primary_part_info->pti_part_alloc_info =
+			&rd_partition_table.pt_part_alloc_info[0];
+		M0_LOG(M0_ALWAYS, "dev size(in chunks)=%d, chunk size(in bits)=%d",
 		       (int) primary_part_info->pti_dev_size_in_chunks,
 		       (int)primary_part_info->pti_chunk_size_in_bits);
 		return 0;

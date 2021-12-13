@@ -209,12 +209,12 @@ M0_INTERNAL int m0_be_segobj_opt_begin(struct m0_be_seg         *dict,
 			               const struct m0_be_0type *objtype,
 			               struct m0_buf            *opt,
 			               char                    **suffix);
-M0_INTERNAL int m0_be_domain_stob_open(void *be_dom,
-                   uint64_t              stob_key,
-                   const char           *stob_create_cfg,
-                   struct m0_stob      **out,
-                   bool                  create);
-M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain *dom,
+M0_INTERNAL int m0_be_domain_stob_open(void             *be_dom,
+				       uint64_t          stob_key,
+				       const char       *stob_create_cfg,
+				       struct m0_stob  **out,
+				       bool              create);
+M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain           *dom,
 					   const struct m0_be_domain_cfg *cfg);
 M0_INTERNAL void
 be_domain_log_cleanup(const char *stob_domain_location,
