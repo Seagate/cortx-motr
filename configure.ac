@@ -534,15 +534,15 @@ AS_IF([test "$CASS_DRV_V22" = 1],
       AC_DEFINE([IDX_CASS_DRV_V22]))
 
 # user-mode {{{3
-AC_ARG_WITH([user-mode],
+AC_ARG_WITH([user-mode-only],
         [AS_HELP_STRING([--with-user-mode-only],
                         [Build motr with user space only])],
-        [with-user-mode-only=yes;
+        [with_user_mode_only=yes;
          with_lustre=no;
-         with-default-transport=LF],
-        [with-user-mode-only=no]
+         with_default_transport=LF],
+        [with_user_mode_only=no]
 )
-AS_IF([test "x$with-user-mode-only" = xyes],
+AS_IF([test "x$with_user_mode_only" = xyes],
       [AC_DEFINE([ENABLE_USER_MODE_ONLY])])
 
 
@@ -554,7 +554,7 @@ AC_ARG_WITH([linux],
         [LINUX=$with_linux; LINUX_OBJ=$LINUX],
         [LINUX=/lib/modules/`uname -r`; LINUX_OBJ=$LINUX/build]
 )
-AS_IF([test x$with_lustre = xno || test x$with-user-mode-only = xyes],[
+AS_IF([test x$with_lustre = xno || test x$with_user_mode_only = xyes],[
        LINUX_OBJ=
        BUILD_KERNEL=not-relevant
       ],[
@@ -583,7 +583,7 @@ package or provide the path to a directory with built Lustre sources, \
 using --with-lustre option.])]
 )
 
-AS_IF([test x$with_lustre = xno || test x$with-user-mode-only = xyes],[
+AS_IF([test x$with_lustre = xno || test x$with_user_mode_only = xyes],[
         LUSTRE=none
         LUSTRE_INCLUDES=
         LUSTRE_VERSION_STR=none
@@ -874,7 +874,7 @@ AS_IF([test x$CASS_IDX = xyes],
 #
 # Checking user-mode availability ------------------------------------------- {{{1
 #
-AS_IF([test x$with-user-mode-only = xyes],
+AS_IF([test x$with_user_mode_only = xyes],
       [AM_CONDITIONAL([ENABLE_USER_MODE_ONLY], [true])],
       [AM_CONDITIONAL([ENABLE_USER_MODE_ONLY], [false])]
 )

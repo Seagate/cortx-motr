@@ -1,4 +1,4 @@
-# Cortx Motr Developer Guide
+# CORTX Motr Developer Guide
 
 This document describes how to develop a simple application with Motr APIs.  
 This document also list links to more useful Motr applications with richer  
@@ -85,6 +85,3 @@ as the last argument to the object program. In the object example, we will only 
 *   In-Store Computation (aka Function Shipping) demo:
     *   [iscservice/demo/](/iscservice/demo)
 
-# Tested by:
-
-*   Sep 28, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linux release 7.8.2003 x86_64  
