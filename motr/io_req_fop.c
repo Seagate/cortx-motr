@@ -150,7 +150,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	void                   *dst;
 	void                   *src;
 
-	M0_PRE((ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI));
+	M0_PRE(ioo->ioo_attr.ov_vec.v_nr);
 	src = buf->b_addr;
 
 	if (!buf->b_nob) {
@@ -187,13 +187,13 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 		}
 	}
 	off = ti_cob_index % unit_size;
-	if (off) {
+	if (off != 0) {
 		if (!m0_ivec_cursor_move(&ti_cob_cursor, unit_size - off)) {
 			ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
 		}
 	}
 	off = ti_goff_index % unit_size;
-	if (off) {
+	if (off != 0) {
 		if (!m0_ivec_cursor_move(&ti_goff_cursor, unit_size - off)) {
 			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
 		}
@@ -314,10 +314,9 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	rw_reply = io_rw_rep_get(reply_fop);
 
 	/* Copy attributes to client if reply received from read operation */
-	if (m0_is_read_rep(reply_fop) && op->op_code ==
-		                         M0_OC_READ && (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) &&
-								 ioo->ioo_dgmode_io_sent == false &&
-								 !instance->m0c_config->mc_is_read_verify) {
+	if (m0_is_read_rep(reply_fop) && op->op_code == M0_OC_READ &&
+		ioo->ioo_attr.ov_vec.v_nr != 0 && !ioo->ioo_dgmode_io_sent &&
+		!instance->m0c_config->mc_is_read_verify) {
 		m0_indexvec_wire2mem(&rwfop->crw_ivec,
 					rwfop->crw_ivec.ci_nr, 0,
 					&rep_attr_ivec);

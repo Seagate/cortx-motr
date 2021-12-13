@@ -34,6 +34,7 @@
 #include "motr/st/st_assert.h"
 
 #include "lib/memory.h"
+#include "lib/cksum.h"
 
 struct m0_container st_cancel_container;
 extern struct m0_addb_ctx m0_addb_ctx;
@@ -141,7 +142,7 @@ static void m0_write_cancel(void)
 		memset(data.ov_buf[i], 'A', blk_size);
 
 	/* Prepare indexvec for write */
-	rc = m0_bufvec_alloc(&attr, blk_cnt, 1);
+	rc = m0_bufvec_alloc(&attr, blk_cnt, sizeof(struct m0_md5_inc_context_pi));
 	ST_ASSERT_FATAL(rc == 0);
 	rc = m0_indexvec_alloc(&ext, blk_cnt);
 	ST_ASSERT_FATAL(rc == 0);
