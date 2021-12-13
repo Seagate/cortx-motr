@@ -80,9 +80,14 @@ struct m0_be_part_stob_cfg {
 	char        *bpc_data_path;
 	char        *bpc_init_cfg;
 	char        *bpc_create_cfg;
+	char        *bpc_seg0_cfg;
+	char        *bpc_seg1_cfg;
+	char        *bpc_log_cfg;
 	m0_bcount_t  bpc_seg_size;
 	m0_bcount_t  bpc_data_size;
-	bool	     bpc_part_mode_seg;
+	m0_bcount_t  bpc_dom_key;
+	bool	     bpc_part_mode_seg0;
+	bool	     bpc_part_mode_seg1;
 	bool	     bpc_part_mode_log;
 	bool	     bpc_part_mode_data;
 	bool	     bpc_part_mode_set;
@@ -204,16 +209,11 @@ M0_INTERNAL int m0_be_segobj_opt_begin(struct m0_be_seg         *dict,
 			               const struct m0_be_0type *objtype,
 			               struct m0_buf            *opt,
 			               char                    **suffix);
-M0_INTERNAL int m0_be_domain_stob_open(void *sd_id,
+M0_INTERNAL int m0_be_domain_stob_open(void *be_dom,
                    uint64_t              stob_key,
                    const char           *stob_create_cfg,
                    struct m0_stob      **out,
                    bool                  create);
-// M0_INTERNAL int m0_be_domain_stob_open(struct m0_be_domain  *dom,
-// 				       uint64_t              stob_key,
-// 				       const char           *stob_create_cfg,
-// 				       struct m0_stob      **out,
-// 				       bool                  create);
 M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain *dom,
 					   const struct m0_be_domain_cfg *cfg);
 M0_INTERNAL void

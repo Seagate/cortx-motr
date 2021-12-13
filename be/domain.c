@@ -120,28 +120,14 @@ M0_INTERNAL int m0_be_segobj_opt_begin(struct m0_be_seg         *dict,
 // 				   out, create);
 // }
 
-M0_INTERNAL int m0_be_domain_stob_open(void *sd_id,
+M0_INTERNAL int m0_be_domain_stob_open(void *be_domain,
                    uint64_t              stob_key,
                    const char           *stob_create_cfg,
                    struct m0_stob      **out,
                    bool                  create)
 {
-    int               rc;
-    struct m0_stob_id stob_id;
-
-    m0_stob_id_make(0, stob_key, (struct m0_fid *) sd_id, &stob_id);
-    rc = m0_stob_find(&stob_id, out);
-    if (rc == 0) {
-        rc = m0_stob_state_get(*out) == CSS_UNKNOWN ?
-             m0_stob_locate(*out) : 0;
-        rc = rc ?: create && m0_stob_state_get(*out) == CSS_NOENT ?
-             m0_stob_create(*out, NULL, stob_create_cfg) : 0;
-        rc = rc ?: m0_stob_state_get(*out) == CSS_EXISTS ? 0 : -ENOENT;
-        if (rc != 0)
-            m0_stob_put(*out);
-    }
-    M0_POST(ergo(rc == 0, m0_stob_state_get(*out) == CSS_EXISTS));
-    return M0_RC(rc);
+	return be_domain_stob_open(be_domain, stob_key, stob_create_cfg,
+				   out, create);
 }
 
 static const char *id_cut(const char *prefix, const char *key)
@@ -192,14 +178,25 @@ static int be_domain_stob_open(struct m0_be_domain  *dom,
 {
 	int               rc;
 	struct m0_stob_id stob_id;
+	struct m0_fid *dom_id;
+	char *create_cfg = (char *)stob_create_cfg;
+	if((dom->bd_cfg.bc_ad_mode == true) && 
+	   ((stob_key == M0_BE_PTABLE_ENTRY_SEG0) && dom->bd_cfg.bc_part_cfg.bpc_part_mode_seg0)){
+		dom_id = &dom->bd_part_stob_domain->sd_id;
+		create_cfg =  dom->bd_cfg.bc_part_cfg.bpc_seg0_cfg;
+	}
+	else
+		dom_id = &dom->bd_stob_domain->sd_id;
 
-	m0_stob_id_make(0, stob_key, &dom->bd_stob_domain->sd_id, &stob_id);
+	m0_stob_id_make(0, stob_key, dom_id, &stob_id);
 	rc = m0_stob_find(&stob_id, out);
 	if (rc == 0) {
+		M0_LOG(M0_ALWAYS,"vcp: stob state = %d", m0_stob_state_get(*out));
 		rc = m0_stob_state_get(*out) == CSS_UNKNOWN ?
 		     m0_stob_locate(*out) : 0;
+		M0_LOG(M0_ALWAYS,"vcp: stob state2 = %d", m0_stob_state_get(*out));
 		rc = rc ?: create && m0_stob_state_get(*out) == CSS_NOENT ?
-		     m0_stob_create(*out, NULL, stob_create_cfg) : 0;
+		     m0_stob_create(*out, NULL,(const char *) create_cfg) : 0;
 		rc = rc ?: m0_stob_state_get(*out) == CSS_EXISTS ? 0 : -ENOENT;
 		if (rc != 0)
 			m0_stob_put(*out);
@@ -303,6 +300,7 @@ static int be_domain_seg_destroy(struct m0_be_domain *dom,
 	return be_domain_seg_open(dom, &seg, seg_id) ?:
 	       be_domain_seg_close(dom, &seg, true);
 }
+
 
 static int be_domain_seg_create(struct m0_be_domain              *dom,
 				struct m0_be_tx                  *tx,
@@ -765,6 +763,7 @@ static int be_domain_level_enter(struct m0_module *module)
 						 cfg->bc_stob_domain_cfg_init,
 						 &dom->bd_stob_domain));
 	case M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_DESTROY:
+#if 0
 		if (!cfg->bc_mkfs_mode)
 			return M0_RC(0);
 		rc = m0_stob_domain_destroy_location(
@@ -774,8 +773,10 @@ static int be_domain_level_enter(struct m0_module *module)
 		 * first run if the part stob domain hasn't been created yet.
 		 */
 		return M0_IN(rc, (-ENOENT, 0)) ? M0_RC(0) : M0_ERR(rc);
+#endif
+	return M0_RC(0);	
 	case M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_CREATE:
-		if (!cfg->bc_mkfs_mode)
+		if (!cfg->bc_mkfs_mode || (cfg->bc_ad_mode == 0))
 			return M0_RC(0);
 		/*
 		 * The part stob domain is never destroyed in case of failure, even
@@ -783,15 +784,16 @@ static int be_domain_level_enter(struct m0_module *module)
 		 */
 		return M0_RC(m0_stob_domain_create(cfg->bc_part_cfg.bpc_location,
 						   cfg->bc_part_cfg.bpc_init_cfg,
-						   (uint64_t)&dom->bd_stob_domain->sd_id,
+						   cfg->bc_part_cfg.bpc_dom_key,
 						   cfg->bc_part_cfg.bpc_create_cfg,
 						   &dom->bd_part_stob_domain));
 	case M0_BE_DOMAIN_LEVEL_NORMAL_PART_STOB_DOMAIN_INIT:
-		if (cfg->bc_mkfs_mode)
+		if (cfg->bc_mkfs_mode || (cfg->bc_ad_mode == 0))
 			return M0_RC(0);
 		return M0_RC(m0_stob_domain_init(cfg->bc_part_cfg.bpc_location,
 						 cfg->bc_part_cfg.bpc_init_cfg,
 						 &dom->bd_part_stob_domain));
+	return M0_RC(0);
 	case M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE:
 		cfg->bc_log.lc_got_space_cb = m0_be_engine_got_log_space_cb;
 		cfg->bc_log.lc_full_cb      = m0_be_engine_full_log_cb;
@@ -940,6 +942,8 @@ static void be_domain_level_leave(struct m0_module *module)
 	case M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_CREATE:
 		break;
 	case M0_BE_DOMAIN_LEVEL_NORMAL_PART_STOB_DOMAIN_INIT:
+		if(dom->bd_cfg.bc_ad_mode == 0)
+			return;
 		m0_stob_domain_fini(dom->bd_part_stob_domain);
 		break;
 	case M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE:

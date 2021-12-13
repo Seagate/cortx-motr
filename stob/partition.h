@@ -54,35 +54,6 @@
 struct m0_be_seg;
 
 enum { PART_PATHLEN = 4096 };
-
-struct m0_stob_part_domain {
-	struct m0_format_header spd_header;
-	uint64_t                spd_dom_key;
-	struct m0_stob_id       spd_bstore_id;
-	m0_bcount_t             spd_container_size;
-	uint32_t                spd_bshift;
-	int32_t                 spd_babshift;
-	char                    spd_path[PART_PATHLEN];
-	bool                    spd_overwrite;
-	char                    spd_pad[7];
-	struct m0_format_footer spd_footer;
-	/*
-	 * volatile-only fields
-	 */
-	struct m0_stob         *spd_bstore;
-	struct m0_be_seg       *spd_be_seg;
-	uint64_t                spd_magix;
-} M0_XCA_RECORD M0_XCA_DOMAIN(be);
-M0_BASSERT(sizeof(M0_FIELD_VALUE(struct m0_stob_part_domain, spd_path)) % 8 == 0);
-M0_BASSERT(sizeof(bool) == 1);
-
-struct part_domain_map {
-       char                        pdm_path[MAXPATHLEN];
-       struct m0_stob_part_domain *pdm_dom;
-       struct m0_tlink             pdm_linkage;
-       uint64_t                    pdm_magic;
-};
-
 enum m0_stob_part_domain_format_version {
 	M0_STOB_PART_DOMAIN_FORMAT_VERSION_1 = 1,
 

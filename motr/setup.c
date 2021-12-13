@@ -1477,6 +1477,51 @@ static int cs_be_dom_cfg_zone_pcnt_fill(struct m0_reqh          *reqh,
 	return rc;
 }
 
+/** Generates partitionstob domain location which must be freed with m0_free(). */
+static char *cs_storage_partdom_location_gen(const char *stob_path)
+{
+	char              *location;
+	const char  *prefix = m0_stob_part_type.st_fidt.ft_name;
+
+	M0_ALLOC_ARR(location, strlen(stob_path) + ARRAY_SIZE(prefix) + 1);
+	if (location != NULL)
+		sprintf(location, "%s:%s", prefix, stob_path);
+	M0_LOG(M0_ALWAYS,"vcp:location = %s",location);
+	return location;
+}
+
+static void cs_part_domain_setup(struct m0_reqh_context *rctx)
+{
+
+	rctx->rc_be.but_dom_cfg.bc_ad_mode = m0_strcaseeq(rctx->rc_stype,
+						  m0_cs_stypes[M0_AD_STOB]);
+	if (rctx->rc_be.but_dom_cfg.bc_ad_mode) {
+		struct m0_be_part_stob_cfg *part_cfg;
+		struct m0_conf_sdev        *sdev = NULL;
+
+		part_cfg = &rctx->rc_be.but_dom_cfg.bc_part_cfg;
+		memset(part_cfg, 0, sizeof(*part_cfg));
+
+		M0_ASSERT(cs_conf_get_parition_dev(&rctx->rc_stob, &sdev) == 0);
+		M0_LOG(M0_ALWAYS,"filename:%s,size:%"PRIu64" ",
+		       sdev->sd_filename, sdev->sd_size);
+		M0_ALLOC_ARR(part_cfg->bpc_create_cfg,
+			     strlen(sdev->sd_filename) + 128);
+		M0_ASSERT(part_cfg->bpc_create_cfg != NULL);
+		sprintf(part_cfg->bpc_create_cfg, "%p %s %"PRIu64,
+			&rctx->rc_be.but_dom,
+			sdev->sd_filename,
+			sdev->sd_size);
+		part_cfg->bpc_init_cfg = part_cfg->bpc_create_cfg;
+		part_cfg->bpc_location =
+			(char*)cs_storage_partdom_location_gen(sdev->sd_filename);
+		part_cfg->bpc_dom_key = sdev->sd_dev_idx;
+		if(rctx->rc_be_seg0_path == NULL){
+			part_cfg->bpc_part_mode_seg0 = true;
+		}
+	}
+
+}
 static int cs_be_init(struct m0_reqh_context *rctx,
 		      struct m0_be_ut_backend *be,
 		      const char              *name,
@@ -1499,6 +1544,7 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 		rctx->rc_be_log_path;
 	be->but_dom_cfg.bc_ad_mode = m0_strcaseeq(rctx->rc_stype,
 						  m0_cs_stypes[M0_AD_STOB]);
+	cs_part_domain_setup(rctx);	
 	/** be->but_dom_cfg.bc_log.lc_store_cfg.lsc_ad_mode =
 		be->but_dom_cfg.bc_ad_mode; */
 	be->but_dom_cfg.bc_seg0_cfg.bsc_stob_create_cfg = rctx->rc_be_seg0_path;
@@ -1599,33 +1645,6 @@ static int cs_reqh_start(struct m0_reqh_context *rctx)
 	return M0_RC(rc);
 }
 
-static void cs_part_domain_setup(struct m0_reqh_context *rctx)
-{
-
-	rctx->rc_be.but_dom_cfg.bc_ad_mode = m0_strcaseeq(rctx->rc_stype,
-						  m0_cs_stypes[M0_AD_STOB]);
-	if (rctx->rc_be.but_dom_cfg.bc_ad_mode) {
-		struct m0_be_part_stob_cfg *part_cfg;
-		struct m0_conf_sdev        *sdev = NULL;
-
-		part_cfg = &rctx->rc_be.but_dom_cfg.bc_part_cfg;
-		memset(part_cfg, 0, sizeof(*part_cfg));
-
-		M0_ASSERT(cs_conf_get_parition_dev(&rctx->rc_stob, &sdev) == 0);
-		M0_LOG(M0_ALWAYS,"filename:%s,size:%"PRIu64" ",
-		       sdev->sd_filename, sdev->sd_size);
-		M0_ALLOC_ARR(part_cfg->bpc_create_cfg,
-			     strlen(sdev->sd_filename) + 32);
-		M0_ASSERT(part_cfg->bpc_create_cfg != NULL);
-		sprintf(part_cfg->bpc_create_cfg, "%s %"PRIu64,
-			sdev->sd_filename,
-			sdev->sd_size);
-		part_cfg->bpc_location =
-			(char*)m0_stob_part_type.st_fidt.ft_name;
-	}
-
-}
-
 static int cs_storage_setup(struct m0_motr *cctx)
 {
 	/**
@@ -1645,7 +1664,7 @@ static int cs_storage_setup(struct m0_motr *cctx)
 		return M0_RC(0);
 
 	rctx->rc_be.but_dom_cfg.bc_engine.bec_reqh = &rctx->rc_reqh;
-	cs_part_domain_setup(rctx);
+	//cs_part_domain_setup(rctx);
 	rc = cs_be_init(rctx, &rctx->rc_be, rctx->rc_bepath,
 			rctx->rc_be_seg_preallocate,
 			(mkfs && force), &rctx->rc_beseg);
