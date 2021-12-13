@@ -9246,6 +9246,7 @@ static int btree_kv_get_oper_cb(struct m0_btree_cb *cb,
 			}
 		}
 
+		/** Verify the CRC. */
 		if (datum->has_crc) {
 			uint64_t value_ary[vsize/sizeof(uint64_t)];
 			uint64_t csum_in_value;
@@ -12090,7 +12091,7 @@ static void ut_lru_test(void)
 
 	btree_ut_init();
 	mem_init = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
-	printf("Mem Init (%"PRId64").\n",mem_init);
+	M0_LOG(M0_INFO,"Mem Init (%"PRId64").\n",mem_init);
 
 	M0_ASSERT(rnode_sz != 0 && m0_is_po2(rnode_sz));
 	rnode_sz_shift = __builtin_ffsl(rnode_sz) - 1;
@@ -12153,14 +12154,14 @@ static void ut_lru_test(void)
 
 	mem_after_alloc = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	mem_increased   = mem_init - mem_after_alloc;
-	printf("Mem After Alloc (%"PRId64") || Mem Increase (%"PRId64").\n",
+	M0_LOG(M0_INFO, "Mem After Alloc (%"PRId64") || Mem Increase (%"PRId64").\n",
 	       mem_after_alloc, mem_increased);
 
 	M0_ASSERT(ndlist_tlist_length(&btree_lru_nds) > 0);
 
 	mem_freed      = m0_btree_lrulist_purge(mem_increased/2);
 	mem_after_free = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
-	printf("Mem After Free (%"PRId64") || Mem freed (%"PRId64").\n",
+	M0_LOG(M0_INFO, "Mem After Free (%"PRId64") || Mem freed (%"PRId64").\n",
 	       mem_after_free, mem_freed);
 
 	btree_ut_fini();
