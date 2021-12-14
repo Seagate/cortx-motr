@@ -877,29 +877,16 @@ optparse() {
     ## command (e.g., invalid option) will result in program failure.
     ##
     local TEMP # do not assign value here
-    TEMP=$(getopt -o hpb:V --long help,addb,skip-addb-files,binaries:,nr-boots:,path,version \
+    TEMP=$(getopt -o hpbV --long help,addb,skip-addb-files,binaries,nr-boots:,path,version \
                   -n "${0##*/}" -- "$@")
     eval set -- "$TEMP"
     while true; do
         case "$1" in
             -h|--help) usage; exit 0;;
-            --addb) COLLECT_ADDB_P=1; shift 1;;
-            --skip-addb-files) SKIP_ADDB_FILE_P=1; shift 1;;
-            -b|--binaries)
-                    if [ -n "$2" ];
-                    then
-                        binlogs=$(echo $2 | sed -e 's/,/\n/g')
-                    else
-                        echo "$2 reqire argument" && usage
-                    fi
-                    if [ $binlogs == "true" ];
-                    then
-                        COLLECT_BINARIES_P=1
-                    else
-                        COLLECT_BINARIES_P=0
-                    fi
-                    shift 2 ;;
-            --nr-boots) NR_BOOTS_MAX=$2; shift 2;;
+            --addb) COLLECT_ADDB_P=1;;
+            --skip-addb-files) SKIP_ADDB_FILE_P=1;;
+            -b|--binaries) COLLECT_BINARIES_P=1;;
+            --nr-boots) NR_BOOTS_MAX=$2; shift;;
             -p|--path)
                 for f in m0mkfs m0d m0tracedump m0addb2dump m0beck m0betool \
                          m0tr.ko libmotr{,-xcode-ff2c,-ut}.so; do
@@ -910,6 +897,7 @@ optparse() {
             --) shift; break;;
             *) break;;
         esac
+        shift
     done
 
     INPUT_DIRS=(${@:-$DEFAULT_INPUT_DIRS_GLOB})
