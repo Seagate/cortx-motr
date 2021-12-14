@@ -117,7 +117,7 @@ static int alloc_vecs(struct m0_indexvec *ext, struct m0_bufvec *data,
 		m0_indexvec_free(ext);
 		return rc;
 	}
-	rc = m0_bufvec_alloc(attr, block_count, sizeof(struct m0_md5_inc_context_pi));
+	rc = m0_bufvec_alloc(attr, block_count, max_cksum_size());
 	if (rc != 0) {
 		m0_indexvec_free(ext);
 		m0_bufvec_free(data);
@@ -232,7 +232,7 @@ static void prepare_ext_vecs(struct m0_indexvec *ext,
 		*last_index += block_size;
 
 		/* we don't want any attributes */
-		attr->ov_vec.v_count[i] = sizeof(struct m0_md5_inc_context_pi);
+		attr->ov_vec.v_count[i] = max_cksum_size();
 	}
 }
 

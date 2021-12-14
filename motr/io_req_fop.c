@@ -36,6 +36,7 @@
 #include "rpc/addb2.h"
 #include "rpc/item.h"
 #include "rpc/rpc_internal.h"
+#include "lib/cksum.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include "lib/trace.h"           /* M0_LOG */

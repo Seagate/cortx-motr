@@ -150,7 +150,7 @@ static int write_objs(void)
 	}
 
 	/* Prepare indexvec for write */
-	rc = m0_bufvec_alloc(&attr, blk_cnt, sizeof(struct m0_md5_inc_context_pi));
+	rc = m0_bufvec_alloc(&attr, blk_cnt, max_cksum_size());
 	if(rc != 0) return rc;
 
 	rc = m0_indexvec_alloc(&ext, blk_cnt);
