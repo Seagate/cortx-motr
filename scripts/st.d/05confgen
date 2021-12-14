@@ -20,4 +20,4 @@
 
 set -eu
 
-exec $M0_SRC_DIR/st/m0confgen >/dev/null
+exec $M0_SRC_DIR/st/m0confgen

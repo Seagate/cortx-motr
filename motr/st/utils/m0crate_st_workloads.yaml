@@ -19,8 +19,8 @@
 
 CrateConfig_Sections: [MOTR_CONFIG, WORKLOAD_SPEC]
 MOTR_CONFIG:
-   MOTR_LOCAL_ADDR: 192.168.49.36@tcp:12345:34:101
-   MOTR_HA_ADDR:    192.168.49.36@tcp:12345:34:1
+   MOTR_LOCAL_ADDR: 192.168.48.162@tcp:12345:34:101
+   MOTR_HA_ADDR:    192.168.48.162@tcp:12345:34:1
    PROF: 0x7000000000000001:0
    LAYOUT_ID: 4                            # Layout id defines the unit size.
    IS_OOSTORE: 1                           # Is oostore-mode?
@@ -35,7 +35,7 @@ WORKLOAD_SPEC:                   # Workload specification section
    WORKLOAD:                     # First Workload
       WORKLOAD_TYPE: 1           # Workload type, 0->Index, 1->IO
       WORKLOAD_SEED: tstamp      # SEED to the random number generator.
-      OPCODE: 2                  # CREATE/OPEN/WRITE/READ/DELETE/POPULATE/CLEANUP=(0,1,2,3,4,5,6).
+      OPCODE: 2                  # CREATE/OPEN/WRITE/READ/DELETE/POPULATE/CLEANUP/READ_ONLY=(0,1,2,3,4,5,6,7).
       IOSIZE: 1M          # Total Size of IO to perform per object.
       BLOCK_SIZE: 8192           # Set to parity group size for max perf.
       BLOCKS_PER_OP: 2           # Number of blocks per motr operation.
@@ -53,8 +53,27 @@ WORKLOAD_SPEC:                   # Workload specification section
    WORKLOAD:                     # Second Workload(Populate Cluster)
       WORKLOAD_TYPE: 1           # Workload type, 0->Index, 1->IO
       WORKLOAD_SEED: tstamp      # SEED to the random number generator.
-      OPCODE: 5                  # CREATE/OPEN/WRITE/READ/DELETE/POPULATE/CLEANUP=(0,1,2,3,4,5,6).
-      STARTING_OBJ_ID: 20:20     # Starting Obj ID which will be used to POPULATE/CLEANUP
+      OPCODE: 5                  # CREATE/OPEN/WRITE/READ/DELETE/POPULATE/CLEANUP/READ_ONLY=(0,1,2,3,4,5,6,7).
+      STARTING_OBJ_ID: 20:20     # Starting Obj ID which will be used to POPULATE/CLEANUP/READ_ONLY
+      IOSIZE: 10m         # Total Size of IO to perform per object.
+      BLOCK_SIZE: 1m             # Set to parity group size for max perf.
+      BLOCKS_PER_OP: 2           # Number of blocks per Motr operation.
+      RAND_IO: 0                 # Random (1) or sequential (0) IO?
+      MAX_NR_OPS: 1              # Max concurrent operations per thread.
+      NR_OBJS: 5                 # Number of objects to create by each thread.
+      NR_THREADS: 5              # Number of threads to run in this workload.
+      MODE: 1                    # Synchronous=0, Asynchronous=1
+      THREAD_OPS: 0              # All threads write to the same object?
+      NR_ROUNDS: 2               # Number of times this workload is run.
+      EXEC_TIME: unlimited       # Execution time (secs or "unlimited").
+      SOURCE_FILE: /var/motr/root/sandbox.st-43m0crate/m0crate_16MB
+      LOG_LEVEL: 2               # err(0), warn(1), info(2), trace(3), debug(4)
+
+   WORKLOAD:                     # Second Workload(Populate Cluster)
+      WORKLOAD_TYPE: 1           # Workload type, 0->Index, 1->IO
+      WORKLOAD_SEED: tstamp      # SEED to the random number generator.
+      OPCODE: 7                  # CREATE/OPEN/WRITE/READ/DELETE/POPULATE/CLEANUP/READ_ONLY=(0,1,2,3,4,5,6,7).
+      STARTING_OBJ_ID: 20:20     # Starting Obj ID which will be used to POPULATE/CLEANUP/READ_ONLY
       IOSIZE: 10m         # Total Size of IO to perform per object.
       BLOCK_SIZE: 1m             # Set to parity group size for max perf.
       BLOCKS_PER_OP: 2           # Number of blocks per Motr operation.
@@ -72,7 +91,7 @@ WORKLOAD_SPEC:                   # Workload specification section
    WORKLOAD:                     # Third Workload(Cleanup Cluster)
       WORKLOAD_TYPE: 1           # Workload type, 0->Index, 1->IO
       WORKLOAD_SEED: tstamp      # SEED to the random number generator.
-      OPCODE: 6                  # CREATE/OPEN/WRITE/READ/DELETE/POPULATE/CLEANUP=(0,1,2,3,4,5,6).
+      OPCODE: 6                  # CREATE/OPEN/WRITE/READ/DELETE/POPULATE/CLEANUP/READ_ONLY=(0,1,2,3,4,5,6,7).
       STARTING_OBJ_ID: 20:20     # Starting Obj ID which will be used to POPULATE/CLEANUP
       MAX_NR_OPS: 1              # Max concurrent operations per thread.
       NR_OBJS: 5                 # Number of objects to create by each thread.

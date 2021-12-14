@@ -330,20 +330,20 @@ struct m0_rpc_item_ops release_ri_ops = {
 static void release_fdmi_rec(struct m0_uint128 *rec_id,
 			     struct m0_fid     *filter_id M0_UNUSED)
 {
-	struct m0_fdmi_record_reg *reg;
+	struct m0_fdmi_record_reg *rreg;
 
 	M0_ENTRY();
 
-	reg = m0_fdmi__pdock_record_reg_find(rec_id);
-	if (reg == NULL) {
+	rreg = m0_fdmi__pdock_record_reg_find(rec_id);
+	if (rreg == NULL) {
 		M0_LOG(M0_NOTICE, "FDMI record not listed: id = "
 		       U128X_F, U128_P(rec_id));
 		goto leave;
 	}
 
-	m0_ref_put(&reg->frr_ref);  /* pdock_record_ref_release() is gonna be
-				     * called when refc gets to zero
-				     */
+	m0_ref_put(&rreg->frr_ref);  /* pdock_record_release() is gonna be
+				      * called when refc gets to zero
+				      */
 leave:
 	M0_LEAVE();
 }
@@ -374,7 +374,13 @@ m0_fdmi_record_reg *m0_fdmi__pdock_fdmi_record_register(struct m0_fop *fop)
 
 	rreg->frr_rec = frec;  /* attaching fop payload to reg entry */
 	rreg->frr_fop = fop;
-	m0_fop_get(rreg->frr_fop);
+	m0_fop_get(rreg->frr_fop); /* This ref will be released when
+				    * "FDMI release request" is sent
+				    * and replied. Please see functions
+				    * release_replied() and
+				    * pdock_record_reg_cleanup() for
+				    * more details.
+				    */
 
 	if (m0_fop_to_rpc_item(fop)->ri_rmachine != NULL) {  /* the test is for
 							      * the sake of ut,
@@ -399,8 +405,9 @@ m0_fdmi_record_reg *m0_fdmi__pdock_fdmi_record_register(struct m0_fop *fop)
 
 	test_print_fdmi_rec_list();
 
-	M0_LOG(M0_DEBUG, "add to list rreg %p, rid " U128X_F,
-	       rreg, U128_P(&rreg->frr_rec->fr_rec_id));
+	M0_LOG(M0_DEBUG, "add to list rreg %p, rid " U128X_F " refcnt=%d",
+			 rreg, U128_P(&rreg->frr_rec->fr_rec_id),
+			 (int)m0_ref_read(&rreg->frr_ref));
 
 leave:
 	M0_LEAVE();
@@ -469,8 +476,8 @@ static void pdock_record_release(struct m0_ref *ref)
 	}
 
 	/* FIXME: TEMP */
-	M0_LOG(M0_WARN, "Processed FDMI rec "
-	       U128X_F, U128_P(&rreg->frr_rec->fr_rec_id));
+	M0_LOG(M0_DEBUG, "Processed FDMI rec "U128X_F". Releasing it now.",
+			 U128_P(&rreg->frr_rec->fr_rec_id));
 
 	rc = pdock_client_post(req, rreg->frr_sess, &release_ri_ops);
 	if (rc != 0) {

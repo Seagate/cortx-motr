@@ -301,25 +301,19 @@ static int pdock_fom_tick__feed_plugin_with_rec(struct m0_fom *fom)
 				 fids[pd_fom->pf_pos]);
 	if (rc == 0) {
 		/*
-		 * Plugin accepted the record,
-		 * so increment fdmi record refc
+		 * Plugin accepted the record. We already have a ref on
+		 * this record. No need to take extra ref.
 		 */
-		struct m0_fdmi_record_reg *rreg;
-
-		rreg = m0_fdmi__pdock_record_reg_find(&frec->fr_rec_id);
-
-		if (rreg == NULL) {
-			/* critical error,
-			   have to finish with no registration */
-			m0_fom_phase_set(fom,
-					 FDMI_PLG_DOCK_FOM_FINISH_WITH_REC);
-			M0_LOG(M0_ERROR,
-			       "record not registered in plugin dock");
-			M0_LEAVE();
-			return M0_FSO_AGAIN;
-		}
-
-		m0_ref_get(&rreg->frr_ref);
+		/*
+		 * If the plugin wants to do more work after returning
+		 * from the pcb->po_fdmi_rec(), it should increase fdmi
+		 * record refc, and then release it when done.
+		 * pseudo code:
+		 * struct m0_fdmi_record_reg *rreg;
+		 * rreg = m0_fdmi__pdock_record_reg_find(&frec->fr_rec_id);
+		 * if (rreg != NULL)
+		 *	m0_ref_get(&rreg->frr_ref);
+		 */
 	} else {
 		M0_LOG(M0_NOTICE,
 		       "plugin has rejected the record processing: "
@@ -365,6 +359,9 @@ static int pdock_fom_tick__finish_with_rec(struct m0_fom *fom)
 		 * release request, therefore possible blocking
 		 * on rpc connect when posting.
 		 */
+		M0_LOG(M0_DEBUG, "Dec ref for "U128X_F " to ref_cnt=%d",
+				 U128_P(&frec->fr_rec_id),
+				 (int)m0_ref_read(&rreg->frr_ref) - 1);
 		m0_fom_block_enter(fom);
 		m0_ref_put(&rreg->frr_ref);
 		m0_fom_block_leave(fom);

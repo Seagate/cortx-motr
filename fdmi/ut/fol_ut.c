@@ -23,6 +23,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FDMI
 #include "lib/trace.h"
 
+#include "lib/misc.h"                  /* m0_rnd64 */
 #include "ut/ut.h"
 #include "fop/fom_generic.h"
 #include "fdmi/fdmi.h"
@@ -102,27 +103,20 @@ static struct m0_sm_trans_descr ffs_ut_fom_trans[] = {
 /* Test details machine. */
 
 static bool                    dummy_post_called = false;
-static bool                    dummy_make_post_fail = false;
 static struct m0_fdmi_src_rec *dummy_rec_pointer;
 
-static int dummy_fdmi_post_record(struct m0_fdmi_src_rec *src_rec)
+static void dummy_fdmi_post_record(struct m0_fdmi_src_rec *src_rec)
 {
-	int rc = 0;
-
 	M0_ENTRY();
 
-	if (dummy_make_post_fail) {
-		rc = -ENOMEM;
-	} else {
-		/* Make sure this func is only called ONCE. */
-		M0_UT_ASSERT(!dummy_post_called);
-		dummy_post_called = true;
+	/* Make sure this func is only called ONCE. */
+	M0_UT_ASSERT(!dummy_post_called);
+	dummy_post_called = true;
 
-		M0_UT_ASSERT(src_rec->fsr_data == NULL);
-		dummy_rec_pointer = src_rec;
-	}
+	M0_UT_ASSERT(src_rec->fsr_data == NULL);
+	dummy_rec_pointer = src_rec;
 
-	return M0_RC(rc);
+	M0_LEAVE();
 }
 
 static void dummy_fol_rec_assert_eq(const struct m0_fol_rec *rec1,
@@ -174,7 +168,7 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 	struct m0_fdmi_flt_operand  flt_operand = {};
 	struct m0_fdmi_src_rec      *src_rec    =
 	    &fom.fo_tx.tx_fol_rec.fr_fdmi_rec;
-	int (*saved_fs_record_post)(struct m0_fdmi_src_rec *src_rec);
+	void (*saved_fs_record_post)(struct m0_fdmi_src_rec *src_rec);
 
 	int rc;
 
@@ -192,6 +186,7 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 	/* get ops */
 	dock = m0_fdmi_src_dock_get();
 	M0_UT_ASSERT(dock != NULL);
+	dock->fsdc_started = true;
 	src_ctx = m0_fdmi__src_ctx_get(M0_FDMI_REC_TYPE_FOL);
 	M0_UT_ASSERT(src_ctx != NULL);
 	src_reg = &src_ctx->fsc_src;
@@ -205,6 +200,21 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 	M0_UT_ASSERT(betx->t_ref == 1);
 	m0_sm_conf_init(&ffs_ut_sm_conf);
 	m0_sm_init(&betx->t_sm, &ffs_ut_sm_conf, FFS_UT_FOM_INIT, grp);
+	/*
+	 * XXX
+	 * This UT has many flaws and it makes a lot of assumption about what is
+	 * initialised in BE tx and what is not. It must be rewritten in a way
+	 * that properly initialises foms and BE transactions and moves them
+	 * from state to state using interfaces and not just "m0_sm_init() to
+	 * make invariant pass, so this 'test' could 'test' something".
+	 *
+	 * The following assignment is added just because another invariant was
+	 * added and this UT failed, because the UT doesn't use interfaces from
+	 * be/tx.h for BE transaction in the way it should.
+	 *
+	 * This code could be used as an example of how to not to write tests.
+	 */
+	betx->t_sm.sm_state = M0_BTS_LOGGED;
 	m0_fol_rec_init(fol_rec, NULL);
 
 	/* FOM ini */
@@ -231,20 +241,11 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 	switch (test_op) {
 
 	case FFS_UT_OPS_TEST_BASIC_OPS:
-		/* post record failure #1 */
-		dummy_make_post_fail = true;
-		rc = m0_fol_fdmi_post_record(&fom);
-		dummy_make_post_fail = false;
-		M0_UT_ASSERT(rc == -ENOMEM);
-		M0_UT_ASSERT(!dummy_post_called);
-		m0_sm_asts_run(grp);
-		M0_UT_ASSERT(betx->t_ref == 1);
 		/* post record */
-		rc = m0_fol_fdmi_post_record(&fom);
-		M0_UT_ASSERT(rc == 0);
+		m0_fol_fdmi_post_record(&fom);
 		M0_UT_ASSERT(dummy_post_called);
 		m0_sm_asts_run(grp);
-		M0_UT_ASSERT(betx->t_ref == 2);
+		M0_UT_ASSERT(betx->t_ref == 1);
 		/* processing start */
 		src_reg->fs_begin(dummy_rec_pointer);
 		/* get value */
@@ -293,26 +294,23 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 		src_reg->fs_put(dummy_rec_pointer);
 		/* finalize processing */
 		m0_sm_asts_run(grp);
-		M0_UT_ASSERT(betx->t_ref == 2);
+		M0_UT_ASSERT(betx->t_ref == 1);
 		src_reg->fs_end(dummy_rec_pointer);
-		src_reg->fs_put(dummy_rec_pointer);
 
 		/* Run asts directly, so posted AST is invoked to
 		 * decrement betx->t_ref. Maybe better way to run
 		 * ASTs exist */
 		m0_sm_asts_run(grp);
-		M0_UT_ASSERT(betx->t_ref == 1);
 
 		/* reset record_post back to orig value */
 		src_reg->fs_record_post = saved_fs_record_post;
 
 		break;
 	case FFS_UT_OPS_TEST_SUDDEN_FINI:
-		rc = m0_fol_fdmi_post_record(&fom);
-		M0_UT_ASSERT(rc == 0);
+		m0_fol_fdmi_post_record(&fom);
 		M0_UT_ASSERT(dummy_post_called);
 		m0_sm_asts_run(grp);
-		M0_UT_ASSERT(betx->t_ref == 2);
+		M0_UT_ASSERT(betx->t_ref == 1);
 
 		m0_fol_fdmi_src_fini();
 
@@ -355,6 +353,8 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 	/* system fini */
 	m0_be_ut_backend_fini(&ut_be);
 
+	dock->fsdc_started = false;
+
 	M0_LEAVE();
 }
 
@@ -372,6 +372,80 @@ static void fdmi_fol_test_sudden_fini(void)
 	M0_LEAVE();
 }
 
+enum {
+	FDMI_FOL_TEST_KV_SUBSTRING_FILTER_BUF_SIZE = 0x1000000,
+	FDMI_FOL_TEST_KV_SUBSTRING_FILTER_STR_NR = 0x10,
+	FDMI_FOL_TEST_KV_SUBSTRING_FILTER_STR_SIZE = 0x100,
+};
+
+static void fdmi_fol_test_filter_kv_substring_match(struct m0_buf  *value,
+						    const char    **substrings,
+						    bool            expected)
+{
+	bool result = m0_fol_fdmi__filter_kv_substring_match(value, substrings);
+	M0_UT_ASSERT(result == expected);
+}
+
+static void fdmi_fol_test_filter_kv_substring(void)
+{
+	size_t i;
+	struct {
+		char       *value_s;
+		bool        expected;
+		const char *substrings[0x10];
+	} tests[] = {
+		{"value", true,  {NULL}},
+		{"value", true,  {"value", NULL}},
+		{"value", true,  {"valu", NULL}},
+		{"value", false, {"value1", NULL}},
+		{"value", false, {"valu1", NULL}},
+		{"value", true,  {"v", "a", "l", "u", "e", NULL}},
+		{"value", false, {"value", "value1", NULL}},
+		{"value", true,  {"value", "value", NULL}},
+		{"value", true,  {"lue", NULL}},
+		{"value", true,  {"lu", NULL}},
+		{"987 value 123", true,  {"value", NULL}},
+		{"987 value 123", true,  {"value ", NULL}},
+		{"987 value 123", true,  {"987 ", " 123", NULL}},
+		{"987 value 123", false, {"987 123", "value", NULL}},
+		{"987 value 123", false, {"value", "987 123", NULL}},
+		{"", true, {NULL}},
+		{"", true, {"", NULL}},
+		{"", false, {"a", NULL}},
+	};
+	for (i = 0; i < ARRAY_SIZE(tests); ++i) {
+		fdmi_fol_test_filter_kv_substring_match(
+		        &M0_BUF_INITS(tests[i].value_s), tests[i].substrings,
+		        tests[i].expected);
+	}
+}
+
+static void fdmi_fol_test_filter_kv_substring_random(void)
+{
+	struct m0_buf   value = {};
+	m0_bcount_t     j;
+	uint64_t        seed = 1;
+	char          **substrings;
+	int             rc;
+	int             i;
+
+	rc = m0_buf_alloc(&value, FDMI_FOL_TEST_KV_SUBSTRING_FILTER_BUF_SIZE);
+	M0_UT_ASSERT(rc == 0);
+	for (j = 0; j < value.b_nob; ++j)
+		((char *)value.b_addr)[j] = m0_rnd64(&seed) % CHAR_MAX;
+	M0_ALLOC_ARR(substrings, FDMI_FOL_TEST_KV_SUBSTRING_FILTER_STR_NR);
+	M0_UT_ASSERT(substrings != NULL);
+	for (i = 0; i < FDMI_FOL_TEST_KV_SUBSTRING_FILTER_STR_NR; ++i) {
+		substrings[i] =
+			m0_alloc(FDMI_FOL_TEST_KV_SUBSTRING_FILTER_STR_SIZE);
+		M0_UT_ASSERT(substrings[i] != NULL);
+		for (j = 0; j < FDMI_FOL_TEST_KV_SUBSTRING_FILTER_STR_SIZE; ++j)
+			substrings[i][j] = m0_rnd64(&seed) % (CHAR_MAX - 1) + 1;
+	}
+	fdmi_fol_test_filter_kv_substring_match(
+	        &value, (const char **)substrings, false);
+}
+
 /* ------------------------------------------------------------------
  * Test Suite definition
  * ------------------------------------------------------------------ */
@@ -381,6 +455,10 @@ struct m0_ut_suite fdmi_fol_ut = {
 	.ts_tests = {
 		{ "fdmi-fol-register",  fdmi_fol_check_registered},
 		{ "fdmi-fol-ops",       fdmi_fol_test_basic_ops},
+		{ "fdmi-filter-kv-substring",
+			fdmi_fol_test_filter_kv_substring},
+		{ "fdmi-filter-kv-substring-random",
+			fdmi_fol_test_filter_kv_substring_random},
 		{ NULL, NULL },
 	},
 };

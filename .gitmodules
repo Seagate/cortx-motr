@@ -1,4 +1,0 @@
-[submodule "extra-libs/galois"]
-	path = extra-libs/galois
-	url = ../cortx-motr-galois
-	ignore = untracked

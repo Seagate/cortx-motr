@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,20 +25,15 @@
 #ifndef __MOTR_SNS_PARITY_OPS_H__
 #define __MOTR_SNS_PARITY_OPS_H__
 
-#if !defined(__KERNEL__) && defined(HAVE_ISAL)
+#ifndef __KERNEL__
 #include <isa-l.h>
-#else
-#include "galois/galois.h"
-#endif /* !__KERNEL__ && HAVE_ISAL */
+#endif /* __KERNEL__ */
 #include "lib/assert.h"
 
-#define M0_PARITY_ZERO (0)
-#define M0_PARITY_GALOIS_W (8)
+#define M0_PARITY_ZERO		(0)
+#define M0_PARITY_GALOIS_W	(8)
 
 typedef int m0_parity_elem_t;
-
-M0_INTERNAL int m0_parity_init(void);
-M0_INTERNAL void m0_parity_fini(void);
 
 M0_INTERNAL m0_parity_elem_t m0_parity_pow(m0_parity_elem_t x,
 					   m0_parity_elem_t p);
@@ -55,22 +50,20 @@ static inline m0_parity_elem_t m0_parity_sub(m0_parity_elem_t x, m0_parity_elem_
 
 static inline m0_parity_elem_t m0_parity_mul(m0_parity_elem_t x, m0_parity_elem_t y)
 {
-#if !defined(__KERNEL__) && defined(HAVE_ISAL)
+#ifndef __KERNEL__
 	return gf_mul(x, y);
 #else
-	/* return galois_single_multiply(x, y, M0_PARITY_GALOIS_W); */
-	return galois_multtable_multiply(x, y, M0_PARITY_GALOIS_W);
-#endif /* !__KERNEL__ && HAVE_ISAL */
+	return 0;
+#endif /* __KERNEL__ */
 }
 
 static inline m0_parity_elem_t m0_parity_div(m0_parity_elem_t x, m0_parity_elem_t y)
 {
-#if !defined(__KERNEL__) && defined(HAVE_ISAL)
+#ifndef __KERNEL__
 	return gf_mul(x, gf_inv(y));
 #else
-	/* return galois_single_divide(x, y, M0_PARITY_GALOIS_W); */
-	return galois_multtable_divide(x, y, M0_PARITY_GALOIS_W);
-#endif /* !__KERNEL__ && HAVE_ISAL */
+	return 0;
+#endif /* __KERNEL__ */
 }
 
 static inline m0_parity_elem_t m0_parity_lt(m0_parity_elem_t x, m0_parity_elem_t y)

@@ -54,7 +54,8 @@ static int rpc_start(struct m0_rpc_server_ctx *rpc_srv)
 	char                full_ep[EP_MAX_LEN];
 	char                max_rpc_size[RPC_SIZE_MAX_LEN];
 
-	snprintf(full_ep, EP_MAX_LEN, "lnet:%s", confd_ep);
+	snprintf(full_ep, EP_MAX_LEN, "%s:%s", M0_NET_XPRT_PREFIX_DEFAULT,
+		 confd_ep);
 	snprintf(max_rpc_size, RPC_SIZE_MAX_LEN,
 		 "%d", M0_RPC_DEF_MAX_RPC_MSG_SIZE);
 

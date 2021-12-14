@@ -97,6 +97,12 @@ POOL_MACHINE_CLI_EP="12345:33:1001"
 SNS_QUIESCE_CLI_EP="12345:33:1002"
 M0HAM_CLI_EP="12345:33:1003"
 
+export FDMI_PLUGIN_EP="12345:33:601"
+export FDMI_PLUGIN_EP2="12345:33:602"
+
+export FDMI_FILTER_FID="6c00000000000001:0"
+export FDMI_FILTER_FID2="6c00000000000002:0"
+
 SNS_CLI_EP="12345:33:400"
 
 POOL_WIDTH=$(expr ${#IOSEP[*]} \* 5)
@@ -117,10 +123,10 @@ DIX_PVERID='^v|1:20'
 MAX_NR_FILES=20 # XXX temporary workaround for performance issues
 TM_MIN_RECV_QUEUE_LEN=16
 MAX_RPC_MSG_SIZE=65536
-XPT=lnet
 PVERID='^v|1:10'
 MDPVERID='^v|2:10'
-M0T1FS_PROC_ID='<0x7200000000000001:64>'
+export M0T1FS_PROC_ID='0x7200000000000001:64'
+XPRT=$(m0_default_xprt)
 
 # Single node configuration.
 SINGLE_NODE=0
@@ -138,9 +144,12 @@ unload_kernel_module()
 
 load_kernel_module()
 {
-	modprobe lnet &>> /dev/null
-	lctl network up &>> /dev/null
-	lnet_nid=`sudo lctl list_nids | head -1`
+	if [ "$XPRT" = "lnet" ]; then
+		modprobe lnet &>> /dev/null
+		lctl network up &>> /dev/null
+	fi
+
+	lnet_nid=$(m0_local_nid_get)
 	server_nid=${server_nid:-$lnet_nid}
 
 	# see if CONFD_EP was not prefixed with lnet_nid to the moment
@@ -163,20 +172,23 @@ load_kernel_module()
 		unload_kernel_module || return $?
 	fi
 
-        insmod $motr_module_path/$motr_module.ko \
-               trace_immediate_mask=$MOTR_MODULE_TRACE_MASK \
-	       trace_print_context=$MOTR_TRACE_PRINT_CONTEXT \
-	       trace_level=$MOTR_TRACE_LEVEL \
-	       node_uuid=${NODE_UUID:-00000000-0000-0000-0000-000000000000} \
-               local_addr=$LADDR \
-	       tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
-	       max_rpc_msg_size=$MAX_RPC_MSG_SIZE
-        if [ $? -ne "0" ]
-        then
-                echo "Failed to insert module \
-                      $motr_module_path/$motr_module.ko"
-                return 1
-        fi
+	if [ "$XPRT" = "lnet" ]
+	then
+        	insmod $motr_module_path/$motr_module.ko \
+        	       trace_immediate_mask=$MOTR_MODULE_TRACE_MASK \
+		       trace_print_context=$MOTR_TRACE_PRINT_CONTEXT \
+		       trace_level=$MOTR_TRACE_LEVEL \
+		       node_uuid=${NODE_UUID:-00000000-0000-0000-0000-000000000000} \
+        	       local_addr=$LADDR \
+		       tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
+		       max_rpc_msg_size=$MAX_RPC_MSG_SIZE
+        	if [ $? -ne "0" ]
+        	then
+        	        echo "Failed to insert module \
+        	              $motr_module_path/$motr_module.ko"
+        	        return 1
+        	fi
+	fi
 }
 
 load_motr_ctl_module()
@@ -213,7 +225,6 @@ unload_motr_ctl_module()
 
 prepare()
 {
-	modload_galois >& /dev/null
 	echo 8 > /proc/sys/kernel/printk
 	load_kernel_module || return $?
 	sysctl -w vm.max_map_count=30000000 || return $?
@@ -233,12 +244,11 @@ unprepare()
 	if lsmod | grep m0tr; then
 		unload_kernel_module || rc=$?
 	fi
-	modunload_galois || rc=$?
 	## The absence of `sandbox_fini' is intentional.
 	return $rc
 }
 
-PROF_OPT='<0x7000000000000001:0>'
+export PROF_OPT='0x7000000000000001:0'
 
 . `dirname ${BASH_SOURCE[0]}`/common_service_fids_inc.sh
 
@@ -282,7 +292,15 @@ function dix_pver_build()
 	# Number of parity units (replication factor) for distributed indices.
 	# Calculated automatically as maximum possible parity for the given
 	# number of disks.
-	local DIX_PARITY=$(((DIX_DEVS_NR - 1) / 2))
+	if [ "x$ENABLE_FDMI_FILTERS" == "xYES" ] ; then
+		# If we have SPARE=0, then we can have any number between [1, DIX_DEVS_NR - 1]
+		local DIX_PARITY=$((DIX_DEVS_NR - 1))
+		local DIX_SPARE=0
+	else
+		# If we have SPARE=PARITY, then we will use:
+		local DIX_PARITY=$(((DIX_DEVS_NR - 1) / 2))
+		local DIX_SPARE=$DIX_PARITY
+	fi
 
 	# conf objects for disks
 	for ((i=0; i < $DIX_DEVS_NR; i++)); do
@@ -301,7 +319,7 @@ function dix_pver_build()
 	done
 	# conf objects for DIX pool version
 	local DIX_POOL="{0x6f| (($DIX_POOLID), 0, [1: $DIX_PVERID])}"
-	local DIX_PVER="{0x76| (($DIX_PVERID), {0| (1, $DIX_PARITY, $DIX_PARITY,
+	local DIX_PVER="{0x76| (($DIX_PVERID), {0| (1, $DIX_PARITY, $DIX_SPARE,
                                                     $DIX_DEVS_NR,
                                                     [5: 0, 0, 0, 0, $DIX_PARITY],
                                                     [1: $DIX_SITEVID])})}"
@@ -414,6 +432,29 @@ function build_conf()
 	local M0T1FS_PROC="{0x72| (($M0T1FS_PROCID), [1:3], 0, 0, 0, 0, \"${m0t1fs_ep}\", [1: $M0T1FS_RMID])}"
 	PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $M0T1FS_PROC"
 	PROC_NAMES="$PROC_NAMES${PROC_NAMES:+, }$M0T1FS_PROCID"
+
+	local FDMI_GROUP_ID="^g|1:0"
+	local FDMI_FILTER_ID="^l|1:0"   #Please refer to $FDMI_FILTER_FID
+	local FDMI_FILTER_ID2="^l|2:0"  #Please refer to $FDMI_FILTER_FID2
+
+	local FDMI_FILTER_STRINGS="\"something1\", \"anotherstring2\", \"YETanotherstring3\""
+	local FDMI_FILTER_STRINGS2="\"Bucket-Name\", \"Object-Name\", \"x-amz-meta-replication\""
+
+	if [ "x$ENABLE_FDMI_FILTERS" == "xYES" ] ; then
+		local FDMI_GROUP_DESC="1: $FDMI_GROUP_ID"
+		local FDMI_ITEMS_NR=3
+		# Please NOTE the ending comma at the end of each string here
+		local FDMI_GROUP="{0x67| (($FDMI_GROUP_ID), 0x1000, [2: $FDMI_FILTER_ID, $FDMI_FILTER_ID2])},"
+		#local FDMI_FILTER="{0x6c| (($FDMI_FILTER_ID), 1, (11, 11), \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, (0, 0), [0], [1: \"$lnet_nid:$FDMI_PLUGIN_EP\"])},"
+		local FDMI_FILTER="{0x6c| (($FDMI_FILTER_ID), 2, $FDMI_FILTER_ID, \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, $DIX_PVERID, [3: $FDMI_FILTER_STRINGS], [1: \"$lnet_nid:$FDMI_PLUGIN_EP\"])},"
+		local FDMI_FILTER2="{0x6c| (($FDMI_FILTER_ID2), 2, $FDMI_FILTER_ID2, \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, $DIX_PVERID, [3: $FDMI_FILTER_STRINGS2], [1: \"$lnet_nid:$FDMI_PLUGIN_EP2\"])},"
+	else
+		local FDMI_GROUP_DESC="0"
+		local FDMI_ITEMS_NR=0
+		local FDMI_GROUP=""
+		local FDMI_FILTER=""
+		local FDMI_FILTER2=""
+	fi
 
 	local i
 	for ((i=0; i < ${#ioservices[*]}; i++, M0D++)); do
@@ -622,13 +663,13 @@ function build_conf()
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
 [$(($IOS_OBJS_NR + $((${#mdservices[*]} * 5)) + $NR_IOS_DEVS + 19
-    + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 5 + $DIX_PVER_OBJ_COUNT)):
+    + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 5 + $DIX_PVER_OBJ_COUNT + $FDMI_ITEMS_NR)):
   {0x74| (($ROOT), 1, (11, 22), $MDPOOLID, $IMETA_PVER, $MD_REDUNDANCY,
 	  [1: \"$pool_width $nr_data_units $nr_parity_units $nr_spare_units\"],
 	  [$node_count: $NODES],
 	  [$site_count: $SITES],
 	  [$pool_count: $POOLS],
-	  [1: $PROF], [0])},
+	  [1: $PROF], [$FDMI_GROUP_DESC])},
   {0x70| (($PROF), [$pool_count: $POOLS])},
   {0x6e| (($NODE), 16000, 2, 3, 2, [$(($M0D + 1)): ${PROC_NAMES[@]}])},
   $PROC_OBJS,
@@ -636,6 +677,9 @@ function build_conf()
   {0x73| (($HA_SVC_ID), @M0_CST_HA, [1: $HA_ENDPOINT], [0], [0])},
   {0x73| (($FIS_SVC_ID), @M0_CST_FIS, [1: $HA_ENDPOINT], [0], [0])},
   $M0T1FS_RM,
+  $FDMI_GROUP
+  $FDMI_FILTER
+  $FDMI_FILTER2
   $MDS_OBJS,
   $IOS_OBJS,
   $RM_OBJS,
@@ -655,9 +699,15 @@ function build_conf()
 }
 
 service_eps_get()
-{
-	local lnet_nid=`sudo lctl list_nids | head -1`
+{ 
+	local lnet_nid
 	local service_eps
+	if [ "$XPRT" = "lnet" ]
+	then
+		lnet_nid=`sudo lctl list_nids | head -1`
+	else
+		lnet_nid=$(m0_local_nid_get)
+	fi
 
 	if [ $SINGLE_NODE -eq 1 ] ; then
 		service_eps=(
@@ -683,7 +733,7 @@ MOTR_CLIENT_ONLY=0
 
 service_eps_with_m0t1fs_get()
 {
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid=$(m0_local_nid_get)
 	local service_eps=$(service_eps_get)
 
 	# If client only, we don't have m0t1fs nid.
@@ -697,7 +747,7 @@ service_eps_with_m0t1fs_get()
 
 service_cas_eps_with_m0tifs_get()
 {
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid=$(m0_local_nid_get)
 	local service_eps=(
 		"$lnet_nid:${IOSEP[0]}"
 		"$lnet_nid:${IOSEP[1]}"
@@ -790,7 +840,7 @@ send_ha_events_default()
 	local state=$2
 
 	# Use default endpoints
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid=$(m0_local_nid_get)
 	local ha_ep="$lnet_nid:$HA_EP"
 	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
 
@@ -817,6 +867,7 @@ fids:'
 		yaml="$yaml
   - $fid"
 	done
+	echo "XPRT is $XPRT"
 
 	send_ha_msg_nvec "$yaml" "${remote_eps[*]}" "$local_ep"
 }

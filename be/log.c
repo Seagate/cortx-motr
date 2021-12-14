@@ -457,9 +457,10 @@ M0_INTERNAL void m0_be_log_record_reset(struct m0_be_log_record *record)
 		m0_be_log_io_reset(record->lgr_io[i]);
 		m0_be_op_reset(record->lgr_op[i]);
 	}
-	record->lgr_state        = LGR_NEW;
-	record->lgr_need_discard = false;
-	record->lgr_write_header = false;
+	record->lgr_state                = LGR_NEW;
+	record->lgr_need_discard         = false;
+	record->lgr_write_header         = false;
+	record->lgr_log_header_discarded = M0_BINDEX_MAX;
 }
 
 M0_INTERNAL void
@@ -474,13 +475,14 @@ m0_be_log_record_assign(struct m0_be_log_record      *record,
 	M0_ENTRY("iter->header="BFLRH_F, BFLRH_P(header));
 	M0_PRE(header->lrh_io_size.lrhs_nr == record->lgr_io_nr);
 
-	record->lgr_last_discarded = header->lrh_discarded;
-	record->lgr_position       = header->lrh_pos;
-	record->lgr_prev_pos       = header->lrh_prev_pos;
-	record->lgr_prev_size      = header->lrh_prev_size;
-	record->lgr_size           = header->lrh_size;
-	record->lgr_state          = LGR_USED;
-	record->lgr_need_discard   = need_discard;
+	record->lgr_log_header_discarded = iter->lri_log_header_discarded;
+	record->lgr_last_discarded       = header->lrh_discarded;
+	record->lgr_position             = header->lrh_pos;
+	record->lgr_prev_pos             = header->lrh_prev_pos;
+	record->lgr_prev_size            = header->lrh_prev_size;
+	record->lgr_size                 = header->lrh_size;
+	record->lgr_state                = LGR_USED;
+	record->lgr_need_discard         = need_discard;
 
 	for (i = 0; i < header->lrh_io_size.lrhs_nr; ++i) {
 		m0_be_log_record_io_size_set(record, i,
@@ -688,12 +690,13 @@ m0_be_log_record_io_prepare(struct m0_be_log_record *record,
 	M0_PRE(record->lgr_io_nr > 0);
 
 	if (opcode == SIO_WRITE) {
-		record->lgr_state          = LGR_USED;
-		record->lgr_need_discard   = true;
-		record->lgr_position       = log->lg_current;
-		record->lgr_prev_pos       = log->lg_prev_record;
-		record->lgr_prev_size      = log->lg_prev_record_size;
-		record->lgr_last_discarded = log->lg_discarded;
+		record->lgr_state                = LGR_USED;
+		record->lgr_need_discard         = true;
+		record->lgr_position             = log->lg_current;
+		record->lgr_prev_pos             = log->lg_prev_record;
+		record->lgr_prev_size            = log->lg_prev_record_size;
+		record->lgr_last_discarded       = log->lg_discarded;
+		record->lgr_log_header_discarded = log->lg_header.flh_discarded;
 		record_tlink_init_at_tail(record, &log->lg_records);
 	}
 
@@ -829,6 +832,19 @@ m0_be_log_record_io_bufvec(struct m0_be_log_record *record,
 {
 	M0_PRE(index < record->lgr_io_nr);
 	return m0_be_log_io_bufvec(record->lgr_io[index]);
+}
+
+M0_INTERNAL m0_bindex_t
+m0_be_log_record_position(const struct m0_be_log_record *record)
+{
+	return record->lgr_position;
+}
+
+M0_INTERNAL m0_bindex_t
+m0_be_log_record_discarded(const struct m0_be_log_record *record)
+{
+	M0_PRE(record->lgr_log_header_discarded < M0_BINDEX_MAX);
+	return record->lgr_log_header_discarded;
 }
 
 M0_INTERNAL int m0_be_log_reserve(struct m0_be_log *log, m0_bcount_t size)
@@ -1159,6 +1175,16 @@ M0_INTERNAL int m0_be_log_record_initial(struct m0_be_log             *log,
 	rc = rc ?: be_log_record_iter_read(log, curr, pos);
 	if (rc == 0 && curr->lri_header.lrh_size != size)
 		rc = -EBADF;
+	/*
+	 * Assumption (also true for pos/size assignments): log is not being
+	 * written to during the time this function is executed.
+	 * Why this is needed: lg_header may be updated before this function
+	 * returns otherwise.
+	 */
+	if (rc == 0) {
+	            curr->lri_log_header_discarded =
+			    log->lg_header.flh_discarded;
+	}
 	return rc;
 }
 

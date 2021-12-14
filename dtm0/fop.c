@@ -22,12 +22,15 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM0
 #include "lib/trace.h"         /* M0_LOG */
+#include "cas/cas.h"
+#include "cas/cas_xc.h"
 #include "dtm0/fop.h"
 #include "dtm0/fop_xc.h"
 #include "dtm0/addb2.h"
 #include "dtm0/drlink.h"       /* m0_dtm0_req_post */
 #include "dtm0/service.h"      /* m0_dtm0_service */
 #include "be/dtm0_log.h"       /* m0_be_dtm0_log_* */
+#include "be/queue.h"          /* M0_BE_QUEUE_PUT */
 #include "fop/fom_generic.h"   /* M0_FOPH_* */
 #include "lib/assert.h"
 #include "lib/errno.h"
@@ -38,18 +41,31 @@
 
 struct m0_fop_type dtm0_req_fop_fopt;
 struct m0_fop_type dtm0_rep_fop_fopt;
+struct m0_fop_type dtm0_redo_fop_fopt;
 
 /** Structure that describes DTM0 FOM that handles an incoming DTM0 message. */
 struct dtm0_fom {
-	struct m0_fom dtf_fom;
+	struct m0_fom           dtf_fom;
+	struct m0_fom_thralldom dtf_thrall;
+	int                     dtf_thrall_rc;
 };
 
 static int dtm0_emsg_fom_tick(struct m0_fom *fom);
 static int dtm0_pmsg_fom_tick(struct m0_fom *fom);
+static int dtm0_rmsg_fom_tick(struct m0_fom *fom);
+static int dtm0_tmsg_fom_tick(struct m0_fom *fom);
 static int dtm0_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			       struct m0_reqh *reqh);
 static void dtm0_fom_fini(struct m0_fom *fom);
 static size_t dtm0_fom_locality(const struct m0_fom *fom);
+static int dtm0_cas_fop_prepare(struct dtm0_req_fop *req,
+				struct m0_fop_type  *cas_fopt,
+				struct m0_fop      **cas_fop_out);
+static int dtm0_cas_fom_spawn(
+	struct dtm0_fom *dfom,
+	struct m0_fop   *cas_fop,
+	void           (*on_cas_fom_complete)(struct m0_fom_thralldom *,
+					      struct m0_fom           *));
 
 static const struct m0_fom_ops dtm0_pmsg_fom_ops = {
 	.fo_fini = dtm0_fom_fini,
@@ -57,9 +73,21 @@ static const struct m0_fom_ops dtm0_pmsg_fom_ops = {
 	.fo_home_locality = dtm0_fom_locality
 };
 
+static const struct m0_fom_ops dtm0_rmsg_fom_ops = {
+	.fo_fini = dtm0_fom_fini,
+	.fo_tick = dtm0_rmsg_fom_tick,
+	.fo_home_locality = dtm0_fom_locality
+};
+
 static const struct m0_fom_ops dtm0_emsg_fom_ops = {
 	.fo_fini = dtm0_fom_fini,
 	.fo_tick = dtm0_emsg_fom_tick,
+	.fo_home_locality = dtm0_fom_locality
+};
+
+static const struct m0_fom_ops dtm0_tmsg_fom_ops = {
+	.fo_fini = dtm0_fom_fini,
+	.fo_tick = dtm0_tmsg_fom_tick,
 	.fo_home_locality = dtm0_fom_locality
 };
 
@@ -73,16 +101,37 @@ M0_INTERNAL void m0_dtm0_fop_fini(void)
 {
 	m0_fop_type_fini(&dtm0_req_fop_fopt);
 	m0_fop_type_fini(&dtm0_rep_fop_fopt);
+	m0_fop_type_fini(&dtm0_redo_fop_fopt);
 	m0_xc_dtm0_fop_fini();
 }
 
 enum {
-	M0_FOPH_DTM0_LOGGING = M0_FOPH_TYPE_SPECIFIC,
+	M0_FOPH_DTM0_ENTRY = M0_FOPH_TYPE_SPECIFIC,
+	M0_FOPH_DTM0_LOGGING,
+	M0_FOPH_DTM0_TO_CAS,
+	M0_FOPH_DTM0_CAS_DONE
 };
 
 struct m0_sm_state_descr dtm0_phases[] = {
+	[M0_FOPH_DTM0_ENTRY] = {
+		.sd_name      = "dtm0-entry",
+		.sd_allowed   = M0_BITS(M0_FOPH_DTM0_LOGGING,
+					M0_FOPH_DTM0_TO_CAS,
+					M0_FOPH_SUCCESS,
+					M0_FOPH_FAILURE)
+	},
 	[M0_FOPH_DTM0_LOGGING] = {
 		.sd_name      = "logging",
+		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS,
+					M0_FOPH_FAILURE)
+	},
+	[M0_FOPH_DTM0_TO_CAS] = {
+		.sd_name      = "dtm0-to-cas",
+		.sd_allowed   = M0_BITS(M0_FOPH_DTM0_CAS_DONE,
+					M0_FOPH_FAILURE)
+	},
+	[M0_FOPH_DTM0_CAS_DONE] = {
+		.sd_name      = "cas-done",
 		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS,
 					M0_FOPH_FAILURE)
 	},
@@ -90,8 +139,20 @@ struct m0_sm_state_descr dtm0_phases[] = {
 
 struct m0_sm_trans_descr dtm0_phases_trans[] = {
 	[ARRAY_SIZE(m0_generic_phases_trans)] =
-	{"dtm0_1-fail", M0_FOPH_TYPE_SPECIFIC, M0_FOPH_FAILURE},
-	{"dtm0_1-success", M0_FOPH_TYPE_SPECIFIC, M0_FOPH_SUCCESS},
+	{"dtm0-entry-fail", M0_FOPH_DTM0_ENTRY, M0_FOPH_FAILURE},
+	{"dtm0-entry-success", M0_FOPH_DTM0_ENTRY, M0_FOPH_SUCCESS},
+
+	{"dtm0-logging", M0_FOPH_DTM0_ENTRY, M0_FOPH_DTM0_LOGGING},
+	{"dtm0-logging-fail", M0_FOPH_DTM0_LOGGING, M0_FOPH_FAILURE},
+	{"dtm0-logging-success", M0_FOPH_DTM0_LOGGING, M0_FOPH_SUCCESS},
+
+	{"dtm0-to-cas", M0_FOPH_DTM0_ENTRY, M0_FOPH_DTM0_TO_CAS},
+
+	{"dtm0-to-cas-fail", M0_FOPH_DTM0_TO_CAS, M0_FOPH_FAILURE},
+	{"dtm0-cas-done", M0_FOPH_DTM0_TO_CAS, M0_FOPH_DTM0_CAS_DONE},
+
+	{"dtm0-cas-success", M0_FOPH_DTM0_CAS_DONE, M0_FOPH_SUCCESS},
+	{"dtm0-cas-fail", M0_FOPH_DTM0_CAS_DONE, M0_FOPH_FAILURE},
 };
 
 static struct m0_sm_conf dtm0_conf = {
@@ -124,13 +185,23 @@ M0_INTERNAL int m0_dtm0_fop_init(void)
 			 .fom_ops   = &dtm0_req_fom_type_ops,
 			 .sm        = &dtm0_conf,
 			 .svc_type  = &dtm0_service_type);
+	M0_FOP_TYPE_INIT(&dtm0_redo_fop_fopt,
+			 .name      = "DTM0 redo",
+			 .opcode    = M0_DTM0_REDO_OPCODE,
+			 .xt        = dtm0_req_fop_xc,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .fom_ops   = &dtm0_req_fom_type_ops,
+			 .sm        = &dtm0_conf,
+			 .svc_type  = &dtm0_service_type);
 	M0_FOP_TYPE_INIT(&dtm0_rep_fop_fopt,
 			 .name      = "DTM0 reply",
 			 .opcode    = M0_DTM0_REP_OPCODE,
 			 .xt        = dtm0_rep_fop_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
 			 .fom_ops   = &dtm0_req_fom_type_ops);
-	return m0_fop_type_addb2_instrument(&dtm0_req_fop_fopt);
+
+	return m0_fop_type_addb2_instrument(&dtm0_req_fop_fopt) ?:
+		m0_fop_type_addb2_instrument(&dtm0_redo_fop_fopt);
 }
 
 
@@ -172,6 +243,7 @@ static int dtm0_fom_create(struct m0_fop *fop,
 	reply->dr_txr = (struct m0_dtm0_tx_desc) {};
 	reply->dr_rc = 0;
 
+	/* TODO avoid copy-paste */
 	if (req->dtr_msg == DTM_EXECUTE) {
 		M0_ASSERT_INFO(m0_dtm0_in_ut(), "Emsg FOM is only for UTs.");
 		rc = m0_dtm0_tx_desc_copy(&req->dtr_txr, &reply->dr_txr);
@@ -181,6 +253,12 @@ static int dtm0_fom_create(struct m0_fop *fop,
 	} else if (req->dtr_msg == DTM_PERSISTENT) {
 		m0_fom_init(&fom->dtf_fom, &fop->f_type->ft_fom_type,
 			    &dtm0_pmsg_fom_ops, fop, repfop, reqh);
+	} else if (req->dtr_msg == DTM_REDO) {
+		m0_fom_init(&fom->dtf_fom, &fop->f_type->ft_fom_type,
+			    &dtm0_rmsg_fom_ops, fop, repfop, reqh);
+	} else if (req->dtr_msg == DTM_TEST) {
+		m0_fom_init(&fom->dtf_fom, &fop->f_type->ft_fom_type,
+			    &dtm0_tmsg_fom_ops, fop, repfop, reqh);
 	} else
 		M0_IMPOSSIBLE();
 
@@ -278,7 +356,7 @@ M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom            *fom,
 		if (m0_fid_eq(target, source))
 			target = &txd->dtd_id.dti_fid;
 
-		rc = m0_dtm0_req_post(dtms, &req, target, fom, false);
+		rc = m0_dtm0_req_post(dtms, NULL, &req, target, fom, false);
 		if (rc != 0) {
 			M0_LOG(M0_WARN, "Failed to send PERSISTENT msg "
 				    FID_F " -> " FID_F " (%d).",
@@ -306,7 +384,7 @@ out:
  */
 static int dtm0_pmsg_fom_tick(struct m0_fom *fom)
 {
-	int                       result;
+	int                       result = M0_FSO_AGAIN;
 	struct   m0_dtm0_service *svc;
 	struct   m0_buf           buf = {};
 	struct   dtm0_rep_fop    *rep;
@@ -317,7 +395,8 @@ static int dtm0_pmsg_fom_tick(struct m0_fom *fom)
 	M0_PRE(req->dtr_msg == DTM_PERSISTENT);
 	M0_ENTRY("fom %p phase %d", fom, phase);
 
-	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+	switch (phase) {
+	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
 		result = m0_fom_tick_generic(fom);
 		if (m0_dtm0_is_a_persistent_dtm(fom->fo_service) &&
 		    m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
@@ -328,8 +407,13 @@ static int dtm0_pmsg_fom_tick(struct m0_fom *fom)
 					      NULL, &cred);
 			m0_be_tx_credit_add(&fom->fo_tx.tx_betx_cred, &cred);
 		}
-	} else {
-		M0_ASSERT(m0_fom_phase(fom) == M0_FOPH_DTM0_LOGGING);
+		break;
+
+	case M0_FOPH_DTM0_ENTRY:
+		m0_fom_phase_set(fom, M0_FOPH_DTM0_LOGGING);
+		break;
+
+	case M0_FOPH_DTM0_LOGGING:
 		rep = m0_fop_data(fom->fo_rep_fop);
 		svc = m0_dtm0_fom2service(fom);
 		M0_ASSERT(svc != NULL);
@@ -357,7 +441,10 @@ static int dtm0_pmsg_fom_tick(struct m0_fom *fom)
 
 		/* We do not handle any failures of Pmsg processing. */
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
-		result = M0_FSO_AGAIN;
+
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid phase");
 	}
 
 	return M0_RC(result);
@@ -374,7 +461,7 @@ static int dtm0_pmsg_fom_tick(struct m0_fom *fom)
  */
 static int dtm0_emsg_fom_tick(struct m0_fom *fom)
 {
-	int                       result;
+	int                       result = M0_FSO_AGAIN;
 	struct   dtm0_rep_fop    *rep = m0_fop_data(fom->fo_rep_fop);
 	struct   dtm0_req_fop    *req = m0_fop_data(fom->fo_fop);
 	int                       phase = m0_fom_phase(fom);
@@ -390,18 +477,177 @@ static int dtm0_emsg_fom_tick(struct m0_fom *fom)
 
 	M0_ENTRY("fom %p phase %d", fom, phase);
 
+	switch (phase) {
+	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
+		result = m0_fom_tick_generic(fom);
+		break;
+	case M0_FOPH_DTM0_ENTRY:
+		if (m0_dtm0_is_a_persistent_dtm(fom->fo_service))
+			rep->dr_rc = m0_dtm0_req_post(svc, NULL, &executed,
+						      tgt, fom, false);
+		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid phase");
+	}
+
+	return M0_RC(result);
+}
+
+static void dtm0_cas_done_cb(struct m0_fom_thralldom *thrall,
+			     struct m0_fom           *serf)
+{
+	struct dtm0_fom   *leader = M0_AMB(leader, thrall, dtf_thrall);
+	struct m0_cas_rep *rep;
+	int                rc;
+
+	rc = m0_fom_rc(serf);
+	if (rc == 0) {
+		M0_ASSERT(serf->fo_rep_fop != NULL);
+		rep = (struct m0_cas_rep *)m0_fop_data(serf->fo_rep_fop);
+		M0_ASSERT(rep != NULL);
+		rc = rep->cgr_rc;
+		if (rc == 0) {
+			M0_ASSERT(rep->cgr_rep.cr_nr == 1);
+			rc = rep->cgr_rep.cr_rec[0].cr_rc;
+		}
+	}
+	leader->dtf_thrall_rc = rc;
+}
+
+static int dtm0_cas_fom_spawn(
+	struct dtm0_fom *dfom,
+	struct m0_fop   *cas_fop,
+	void           (*on_cas_fom_complete)(struct m0_fom_thralldom *,
+					      struct m0_fom           *))
+{
+#ifndef __KERNEL__
+	return m0_cas_fom_spawn(&dfom->dtf_fom, &dfom->dtf_thrall,
+				cas_fop, on_cas_fom_complete);
+#else
+	/* CAS service is not compiled for kernel. */
+	return 0;
+#endif
+}
+
+static int dtm0_cas_fop_prepare(struct dtm0_req_fop *req,
+				struct m0_fop_type  *cas_fopt,
+				struct m0_fop      **cas_fop_out)
+{
+	int               rc;
+	struct m0_cas_op *cas_op;
+	struct m0_fop    *cas_fop;
+
+	*cas_fop_out = NULL;
+
+	M0_ALLOC_PTR(cas_op);
+	M0_ALLOC_PTR(cas_fop);
+
+	if (cas_op == NULL || cas_fop == NULL) {
+		rc = -ENOMEM;
+	} else {
+		rc = m0_xcode_obj_dec_from_buf(
+			&M0_XCODE_OBJ(m0_cas_op_xc, cas_op),
+			req->dtr_payload.b_addr,
+			req->dtr_payload.b_nob);
+		if (rc == 0)
+			m0_fop_init(cas_fop, cas_fopt, cas_op, &m0_fop_release);
+		else
+			M0_LOG(M0_ERROR, "Could not decode the REDO payload");
+	}
+
+	if (rc == 0) {
+		*cas_fop_out = cas_fop;
+	} else {
+		m0_free(cas_op);
+		m0_free(cas_fop);
+	}
+
+	return rc;
+}
+
+static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
+{
+	int                  rc;
+	int                  result = M0_FSO_AGAIN;
+	int                  phase = m0_fom_phase(fom);
+	struct dtm0_fom     *dfom = M0_AMB(dfom, fom, dtf_fom);
+	struct dtm0_req_fop *req  = m0_fop_data(fom->fo_fop);
+	struct m0_fop       *cas_fop = NULL;
+
+	M0_ENTRY("fom %p phase %d", fom, phase);
+
+	switch (phase) {
+	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
+		result = m0_fom_tick_generic(fom);
+		break;
+	case M0_FOPH_DTM0_ENTRY:
+		m0_fom_phase_set(fom, M0_FOPH_DTM0_TO_CAS);
+		break;
+	case M0_FOPH_DTM0_TO_CAS:
+		/* REDO_END()s from all recovering processes received, send
+		 * RECOVERED() message to the counterpart.
+
+		cs_ha_process_event(m0_cs_ctx_get(m0_fom_reqh(fom)),
+				    M0_CONF_HA_PROCESS_DTM_RECOVERED);
+		*/
+		rc = dtm0_cas_fop_prepare(req, &cas_put_fopt, &cas_fop);
+		if (rc == 0) {
+			rc = dtm0_cas_fom_spawn(dfom, cas_fop,
+						&dtm0_cas_done_cb);
+			if (rc != 0) {
+				M0_LOG(M0_ERROR, "Could not spawn CAS fom");
+				m0_fop_fini(cas_fop);
+				m0_free(cas_fop);
+			} else {
+				result = M0_FSO_WAIT;
+			}
+		} else {
+			M0_LOG(M0_ERROR, "Could not prepare CAS fop");
+		}
+
+		if (rc != 0)
+			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+		else
+			m0_fom_phase_set(fom, M0_FOPH_DTM0_CAS_DONE);
+		break;
+	case M0_FOPH_DTM0_CAS_DONE:
+		if (dfom->dtf_thrall_rc != 0) {
+			M0_LOG(M0_ERROR, "Spawned CAS fom failed, rc = %d",
+			       dfom->dtf_thrall_rc);
+			m0_fom_phase_move(fom, dfom->dtf_thrall_rc,
+					  M0_FOPH_FAILURE);
+		} else {
+			m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+		}
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid phase");
+	}
+	return M0_RC(result);
+}
+
+/** This fom is only being used in UTs. */
+static int dtm0_tmsg_fom_tick(struct m0_fom *fom)
+{
+	struct m0_dtm0_service *svc = m0_dtm0_fom2service(fom);
+	struct dtm0_req_fop    *req = m0_fop_data(fom->fo_fop);
+	int                     phase = m0_fom_phase(fom);
+	int                     result;
+
+	M0_ENTRY("fom %p phase %d", fom, phase);
+
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		result = m0_fom_tick_generic(fom);
 	} else {
-		M0_ASSERT(m0_fom_phase(fom) == M0_FOPH_DTM0_LOGGING);
-
-		if (m0_dtm0_is_a_persistent_dtm(fom->fo_service))
-			rep->dr_rc = m0_dtm0_req_post(svc, &executed, tgt, fom,
-						      false);
+		m0_be_queue_lock(svc->dos_ut_queue);
+		M0_BE_OP_SYNC(op,
+			      M0_BE_QUEUE_PUT(svc->dos_ut_queue, &op,
+			                      &req->dtr_txr.dtd_id.dti_fid));
+		m0_be_queue_unlock(svc->dos_ut_queue);
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
-		result = M0_FSO_AGAIN;
+		result = M0_RC(M0_FSO_AGAIN);
 	}
-
 	return M0_RC(result);
 }
 
