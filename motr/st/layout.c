@@ -123,7 +123,7 @@ static int write_obj(struct m0_uint128 id)
 	}
 
 	/* Prepare indexvec for write */
-	rc = m0_bufvec_alloc(&attr, blk_cnt, sizeof(struct m0_md5_inc_context_pi));
+	rc = m0_bufvec_alloc(&attr, blk_cnt, max_cksum_size());
 	if(rc != 0) return rc;
 
 	rc = m0_indexvec_alloc(&ext, blk_cnt);
@@ -611,8 +611,7 @@ static int write_io_segs(struct m0_uint128 id, int nr_io_segs,
 	}
 
 	/* Prepare indexvec and attr for write */
-	rc = m0_bufvec_alloc(&attr, nr_io_segs,
-						sizeof(struct m0_md5_inc_context_pi));
+	rc = m0_bufvec_alloc(&attr, nr_io_segs, max_cksum_size());
 	if(rc != 0)
 		goto free;
 	rc = m0_indexvec_alloc(&ext, nr_io_segs);

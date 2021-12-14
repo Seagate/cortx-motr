@@ -36,6 +36,7 @@
 #include "rpc/addb2.h"
 #include "rpc/item.h"
 #include "rpc/rpc_internal.h"
+#include "lib/cksum.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include "lib/trace.h"           /* M0_LOG */
@@ -307,7 +308,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	/* Copy attributes to client if reply received from read operation */
 	if (m0_is_read_rep(reply_fop) && op->op_code == M0_OC_READ &&
-		ioo->ioo_attr.ov_vec.v_nr != 0 && !ioo->ioo_dgmode_io_sent &&
+		m0_is_checksum_validation_allowed(ioo) &&
 		!instance->m0c_config->mc_is_read_verify) {
 		m0_indexvec_wire2mem(&rwfop->crw_ivec,
 					rwfop->crw_ivec.ci_nr, 0,
