@@ -1519,8 +1519,17 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		part_cfg->bpc_location =
 			(char*)cs_storage_partdom_location_gen(sdev->sd_filename);
 		part_cfg->bpc_dom_key = sdev->sd_dev_idx;
-		if(rctx->rc_be_seg0_path == NULL){
+		if (rctx->rc_be_seg0_path == NULL){
 			part_cfg->bpc_part_mode_seg0 = true;
+		}
+		if (rctx->rc_be_seg_path == NULL){
+			m0_bcount_t meta_size = (sdev->sd_size) / 10;
+			part_cfg->bpc_part_mode_seg1 = true;
+			if (rctx->rc_be_seg_size > meta_size)
+				part_cfg->bpc_seg_size = meta_size;
+			else
+				part_cfg->bpc_seg_size = rctx->rc_be_seg_size;
+			rctx->rc_be_seg_size = part_cfg->bpc_seg_size;
 		}
 	}
 

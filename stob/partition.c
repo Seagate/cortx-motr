@@ -188,6 +188,7 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 	struct m0_be_ptable_part_config *cfg;
 	m0_bcount_t                      proposed_chunk_size;
 	m0_bcount_t                      size;
+	m0_bcount_t                      seg1size;
 	m0_bcount_t                      used_chunk;
 
 	size = strlen(str_cfg_create) + 1;
@@ -234,9 +235,10 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 	cfg->pc_part_alloc_info[1].ai_def_size_in_chunks = 1;
 	used_chunk += cfg->pc_part_alloc_info[1].ai_def_size_in_chunks;
 
+	seg1size = part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_seg_size;
 	cfg->pc_part_alloc_info[2].ai_part_id = M0_BE_PTABLE_ENTRY_SEG1;
 	cfg->pc_part_alloc_info[2].ai_def_size_in_chunks =
-		(cfg->pc_total_chunk_count * 10) / 100;
+		seg1size >> cfg->pc_chunk_size_in_bits;
 	used_chunk += cfg->pc_part_alloc_info[2].ai_def_size_in_chunks;
 	cfg->pc_part_alloc_info[3].ai_part_id = M0_BE_PTABLE_ENTRY_BALLOC;
 	cfg->pc_part_alloc_info[3].ai_def_size_in_chunks =

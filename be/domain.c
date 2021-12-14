@@ -182,10 +182,12 @@ static int be_domain_stob_open(struct m0_be_domain  *dom,
 	struct m0_fid *dom_id;
 	char *create_cfg = (char *)stob_create_cfg;
 	if ((dom->bd_cfg.bc_ad_mode == true) &&
-	   ((stob_key == M0_BE_PTABLE_ENTRY_SEG0) &&
-	    dom->bd_cfg.bc_part_cfg.bpc_part_mode_seg0)) {
+	    (((stob_key == M0_BE_PTABLE_ENTRY_SEG0) &&
+	      dom->bd_cfg.bc_part_cfg.bpc_part_mode_seg0) ||
+	     ((stob_key == M0_BE_PTABLE_ENTRY_SEG1) &&
+	      dom->bd_cfg.bc_part_cfg.bpc_part_mode_seg1))) {
 		dom_id = &dom->bd_part_stob_domain->sd_id;
-		create_cfg =  dom->bd_cfg.bc_part_cfg.bpc_seg0_cfg;
+		create_cfg = NULL;
 	}
 	else
 		dom_id = &dom->bd_stob_domain->sd_id;
