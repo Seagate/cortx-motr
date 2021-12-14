@@ -1713,8 +1713,6 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 
 	if (it.ec_unit_size < io->si_unit_sz)
 		it.ec_unit_size = io->si_unit_sz;
-	// else
-	// 	M0_LOG(M0_ALWAYS,"");
 
 	M0_SET0(&it.ec_op);
 	m0_be_op_init(&it.ec_op);
