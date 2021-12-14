@@ -462,3 +462,5 @@ m0_iem
 m0_console_printf
 m0_console_flush
 m0_error_printf
+m0_is_di_enabled
+m0_is_checksum_validation_allowed

@@ -567,7 +567,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		bvec  = &ti->ti_bufvec;
 		auxbvec = &ti->ti_auxbufvec;
 		dst_attr = ti->ti_attrbuf.b_addr;
-		goff_ivec = &ti->ti_goff_ivec;
+		if (ti->ti_goff_ivec.iv_index)
+			goff_ivec = &ti->ti_goff_ivec;
 		pattr = ti->ti_pageattrs;
 		cnt = page_nr(ioo->ioo_iomap_nr * layout_unit_size(play) *
 			      layout_n(play), ioo->ioo_obj);
