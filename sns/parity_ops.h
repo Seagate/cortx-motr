@@ -25,9 +25,12 @@
 #ifndef __MOTR_SNS_PARITY_OPS_H__
 #define __MOTR_SNS_PARITY_OPS_H__
 
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) && defined(HAVE_ISA_L_H)
 #include <isa-l.h>
-#endif /* __KERNEL__ */
+#else
+#define gf_mul(x, y) (0)
+#endif
+
 #include "lib/assert.h"
 
 #define M0_PARITY_ZERO		(0)
@@ -50,20 +53,12 @@ static inline m0_parity_elem_t m0_parity_sub(m0_parity_elem_t x, m0_parity_elem_
 
 static inline m0_parity_elem_t m0_parity_mul(m0_parity_elem_t x, m0_parity_elem_t y)
 {
-#ifndef __KERNEL__
 	return gf_mul(x, y);
-#else
-	return 0;
-#endif /* __KERNEL__ */
 }
 
 static inline m0_parity_elem_t m0_parity_div(m0_parity_elem_t x, m0_parity_elem_t y)
 {
-#ifndef __KERNEL__
 	return gf_mul(x, gf_inv(y));
-#else
-	return 0;
-#endif /* __KERNEL__ */
 }
 
 static inline m0_parity_elem_t m0_parity_lt(m0_parity_elem_t x, m0_parity_elem_t y)
@@ -75,6 +70,7 @@ static inline m0_parity_elem_t m0_parity_gt(m0_parity_elem_t x, m0_parity_elem_t
 {
 	return x > y;
 }
+
 
 /* __MOTR_SNS_PARITY_OPS_H__ */
 #endif
