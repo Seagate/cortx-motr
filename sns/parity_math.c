@@ -204,7 +204,7 @@ static bool is_usable(const struct m0_sns_ir *ir,
 static inline bool is_valid_block_idx(const  struct m0_sns_ir *ir,
 				      uint32_t block_idx);
 
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) && defined(HAVE_ISA_L_H)
 /**
  * This is wrapper function for Intel ISA API ec_encode_data_update().
  * @param[out] dest_bufs - Array of coded output buffers i.e. struct m0_buf
@@ -278,7 +278,7 @@ static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
  */
 static void dependency_bitmap_prepare(struct m0_sns_ir_block *f_block,
 				      struct m0_sns_ir *ir);
-#endif /* __KERNEL__ */
+#endif /* !defined(__KERNEL__) && defined(HAVE_ISA_L_H) */
 
 static void (*calculate[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
 						const struct m0_buf *data,
@@ -836,7 +836,7 @@ static inline bool is_valid_block_idx(const struct m0_sns_ir *ir,
 	return block_idx < ir_blocks_count(ir);
 }
 
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) && defined(HAVE_ISA_L_H)
 static void reed_solomon_fini(struct m0_parity_math *math)
 {
 	M0_ENTRY();
@@ -1459,7 +1459,7 @@ static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 {
 	return ir->si_rs.rs_alive_idx[ir->si_data_nr - 1];
 }
-#else
+#else /* !defined(__KERNEL__) && defined(HAVE_ISA_L_H) */
 static void reed_solomon_fini(struct m0_parity_math *math)
 {
 }
@@ -1516,7 +1516,7 @@ static uint32_t last_usable_block_id(const struct m0_sns_ir *ir,
 {
 	return 0;
 }
-#endif /* __KERNEL__ */
+#endif /* !defined(__KERNEL__) && defined(HAVE_ISA_L_H) */
 
 #undef M0_TRACE_SUBSYSTEM
 
