@@ -488,7 +488,7 @@ M0_INTERNAL int m0_fdmi__handle_release(struct m0_uint128 *fdmi_rec_id)
 		 */
 		M0_LOG(M0_WARN,
 		       "Attempt to release non-existent FDMI record with ID "
-		       U128X_F_SAFE" (magic %ld)", U128_P_SAFE(fdmi_rec_id),
+		       U128X_F_SAFE" (magic %"PRId64")", U128_P_SAFE(fdmi_rec_id),
 		       (src_rec ? src_rec->fsr_magic : 0));
 
 		/*
