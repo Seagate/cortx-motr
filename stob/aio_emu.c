@@ -20,6 +20,8 @@
 
 #if M0_DARWIN
 
+#include <sys/types.h>
+#include <sys/uio.h>
 #include <unistd.h>            /* lseek */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_STOB
