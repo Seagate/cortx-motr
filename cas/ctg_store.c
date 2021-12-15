@@ -511,7 +511,7 @@ static void ctg_meta_insert_credit(struct m0_btree_type   *bt,
 				   struct m0_be_tx_credit *accum)
 {
 	struct m0_cas_ctg *ctg;
-	m0_btree_put_credit2(bt, M0_CTG_ROOT_NODE_SHIFT, nr,
+	m0_btree_put_credit2(bt, M0_CTG_ROOT_NODE_SIZE, nr,
 			     M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid),
 			     M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg), accum);
 	/*
@@ -527,7 +527,7 @@ static void ctg_meta_delete_credit(struct m0_btree_type   *bt,
 {
 	struct m0_cas_ctg *ctg;
 
-	m0_btree_del_credit2(bt, M0_CTG_ROOT_NODE_SHIFT, nr,
+	m0_btree_del_credit2(bt, M0_CTG_ROOT_NODE_SIZE, nr,
 			     M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid),
 			     M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg), accum);
 	M0_BE_FREE_CREDIT_PTR(ctg, seg, accum);
