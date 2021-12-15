@@ -1103,27 +1103,6 @@ LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
 AC_SUBST([YAML_LIBS])
-<<<<<<< HEAD
-=======
-
-# Checking galois --------------------------------------------------------- {{{1
-
-GALOIS_REL_PATH="extra-libs/galois"
-GALOIS_SRC="$SRCDIR/$GALOIS_REL_PATH"
-GALOIS_ABS_SRC="$ABS_SRCDIR/$GALOIS_REL_PATH"
-GALOIS_INCLUDES="-I$GALOIS_ABS_SRC/include"
-KGALOIS_INCLUDES="-I$GALOIS_ABS_SRC/include"
-GALOIS_LIBS="$GALOIS_ABS_SRC/src/libgalois.la"
-
-AC_SUBST([GALOIS_SYMVERS], [$GALOIS_ABS_SRC/src/linux_kernel/Module.symvers])
-
-AS_IF([! test -x $GALOIS_SRC/configure],
-      [ test -x $GALOIS_SRC/autogen.sh && ( cd $GALOIS_SRC; ./autogen.sh ) ]
-)
-
-AC_SUBST([GALOIS_ABS_SRC])
-AC_SUBST([GALOIS_LIBS])
->>>>>>> Initial commit of Darwin (aka XNU aka macos) port.
 
 #
 # Handle configuration options -------------------------------------------- {{{1
@@ -1192,11 +1171,7 @@ M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
 AS_IF([test x$use_darwin != xyes],
 # contains only -D and -I/usr* entries from M0_CPPFLAGS, this is intended for
 # pkg-config database provided within Motr rpm distribution
-<<<<<<< HEAD
 M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+|-inc\S+' | xargs echo)
-=======
-M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+' | xargs echo))
->>>>>>> Initial commit of Darwin (aka XNU aka macos) port.
 
 # -Wno-attributes suppresses warnings about unrecognized attributes, such as
 #  __attribute__((gccxml(...))).
