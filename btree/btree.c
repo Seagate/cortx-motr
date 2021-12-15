@@ -5415,7 +5415,7 @@ static void vkvv_calc_size_for_capture(struct slot *slot, int count,
 			    dir_entry[idx].key_offset;
 		*p_vsize  = dir_entry[count].val_offset -
 			    dir_entry[idx].val_offset;
-		*p_dsize = (sizeof(struct dir_rec)) * (count - idx + 1);
+		*p_dsize = (sizeof(struct dir_rec)) * (count + 1);
 	} else {
 		*p_dsize = 0;
 		*p_vsize = vkvv_get_vspace() * (count - idx);
@@ -5439,7 +5439,6 @@ static void vkvv_capture(struct slot *slot, struct m0_be_tx *tx)
 {
 	struct vkvv_head *h         = vkvv_data(slot->s_node);
 	struct m0_be_seg *seg       = slot->s_node->n_tree->t_seg;
-	struct dir_rec   *dir_entry = vkvv_get_dir_addr(slot->s_node);
 	m0_bcount_t       hsize     = sizeof(*h) - sizeof(h->vkvv_opaque);
 
 	void *key_addr;
@@ -5455,10 +5454,11 @@ static void vkvv_capture(struct slot *slot, struct m0_be_tx *tx)
 	if (slot->s_idx < h->vkvv_used) {
 		key_addr = vkvv_key(slot->s_node, slot->s_idx);
 		val_addr = vkvv_val(slot->s_node, h->vkvv_used);
+		dir_addr = vkvv_get_dir_addr(slot->s_node);
+
 		if (bnode_level(slot->s_node) != 0)
 			val_addr -= INT_OFFSET;
 
-		dir_addr = dir_entry + slot->s_idx;
 		vkvv_calc_size_for_capture(slot, h->vkvv_used, p_ksize, p_vsize,
 					   p_dsize);
 		M0_BTREE_TX_CAPTURE(tx, seg, key_addr, ksize);
@@ -6106,6 +6106,11 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	/* Increase height by one */
 	tree->t_height++;
 	bop->bo_arbor->t_height = tree->t_height;
+	if (tree->t_height > MAX_TREE_HEIGHT) {
+		M0_LOG(M0_ERROR,
+		       "Tree height increased beyond MAX_TREE_HEIGHT");
+		M0_ASSERT(0);
+	}
 	/* Capture this change in transaction */
 
 	/* TBD : This check needs to be removed when debugging is done. */
