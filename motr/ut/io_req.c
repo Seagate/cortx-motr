@@ -32,9 +32,9 @@
 #include "ut/ut.h"            /* M0_UT_ASSERT */
 #include "motr/ut/client.h"
 
-#ifndef __KERNEL__
+#if !defined(__KERNEL__) && defined(HAVE_OPENSSL_MD5_H)
 #include <openssl/md5.h>
-#endif /* __KERNEL__ */
+#endif
 
 
 /*
