@@ -2765,7 +2765,7 @@ static void rconfc_version_elect(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	enum {
-		MAX_RETRY_COUNT     = 10,
+		MAX_RETRY_COUNT     = 100,
 	};
 	struct m0_rconfc *rconfc;
 	struct rlock_ctx *rlx;
