@@ -8,7 +8,7 @@ m4_define([M0_VERSION],[M0_VERSION_MAJOR.M0_VERSION_MINOR.M0_VERSION_PATCH])
 # Autoconf/Automake/Libtool configuration --------------------------------- {{{1
 #
 
-AC_PREREQ([2.71])
+AC_PREREQ(2.63)
 AC_INIT([cortx-motr],[M0_VERSION],[info@seagate.com])
 
 # The AC_PROG_CC macro sets CFLAGS to '-g -O2' by default if CFLAGS is not
