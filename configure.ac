@@ -8,7 +8,7 @@ m4_define([M0_VERSION],[M0_VERSION_MAJOR.M0_VERSION_MINOR.M0_VERSION_PATCH])
 # Autoconf/Automake/Libtool configuration --------------------------------- {{{1
 #
 
-AC_PREREQ(2.63)
+AC_PREREQ([2.71])
 AC_INIT([cortx-motr],[M0_VERSION],[info@seagate.com])
 
 # The AC_PROG_CC macro sets CFLAGS to '-g -O2' by default if CFLAGS is not
@@ -211,7 +211,6 @@ AH_TEMPLATE([HAVE_MALLINFO],          [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
-AH_TEMPLATE([HAVE_ISAL],              [Have Intel ISA-L available])
 AH_TEMPLATE([M0_DARWIN],              [Build for macos])
 AH_TEMPLATE([M0_LINUX],               [Build for linux])
 AH_TEMPLATE([M0_PLATFORM],            [Build platform])
@@ -219,6 +218,32 @@ AH_TEMPLATE([CONFIG_X86_64],          [Support for X86_64 platform])
 AH_TEMPLATE([CONFIG_AARCH64],         [Support for AARCH64 platform])
 AH_BOTTOM([
 #endif /* __MOTR_CONFIG_H__ */
+])
+
+# linux
+AS_IF([test x$use_linux = xyes],
+      [AC_DEFINE([M0_LINUX])
+       AC_DEFINE([M0_PLATFORM], ["linux"])
+       AM_CONDITIONAL([ON_LINUX], [true])
+       AM_CONDITIONAL([ON_DARWIN], [false])
+       AM_CONDITIONAL([HAVE_SYSTEMD], [false])
+       AM_CONDITIONAL([MOTR_IDX_STORE_CASS], [false])
+])
+
+# macos
+AS_IF([test x$use_darwin = xyes],
+      [with_lustre=no;
+       enable_castxml=yes;
+       export PATH="/usr/local/opt/grep/libexec/gnubin:$PATH"
+       export PATH="/usr/local/opt/gnu-sed/libexec/gnubin:$PATH"
+       AC_DEFINE([M0_DARWIN])
+       AC_DEFINE([M0_PLATFORM], ["darwin"])
+       AM_CONDITIONAL([ON_LINUX], [false])
+       AM_CONDITIONAL([ON_DARWIN], [true])
+       AM_CONDITIONAL([ENABLE_USER_MODE_ONLY], [true])
+       AM_CONDITIONAL([ENABLE_LIBFAB], [false])
+       AM_CONDITIONAL([HAVE_SYSTEMD], [false])
+       AM_CONDITIONAL([MOTR_IDX_STORE_CASS], [false])
 ])
 
 # enable/disable options ------------------------------ {{{2
@@ -247,30 +272,6 @@ AC_ARG_ENABLE([release],
 
 AS_IF([test x$enable_dev_mode = xyes],
       AC_DEFINE([ENABLE_DEV_MODE]))
-
-# linux
-AS_IF([test x$use_linux = xyes],
-      [AC_DEFINE([M0_LINUX])
-       AC_DEFINE([M0_PLATFORM], ["linux"])
-       AM_CONDITIONAL([ON_LINUX], [true])
-       AM_CONDITIONAL([ON_DARWIN], [false])
-       AM_CONDITIONAL([HAVE_SYSTEMD], [false])
-       AM_CONDITIONAL([MOTR_IDX_STORE_CASS], [false])
-])
-
-# macos
-AS_IF([test x$use_darwin = xyes],
-      [with_lustre=no;
-       enable_castxml=yes;
-       export PATH="/usr/local/opt/grep/libexec/gnubin:$PATH"
-       export PATH="/usr/local/opt/gnu-sed/libexec/gnubin:$PATH"
-       AC_DEFINE([M0_DARWIN])
-       AC_DEFINE([M0_PLATFORM], ["darwin"])
-       AM_CONDITIONAL([ON_LINUX], [false])
-       AM_CONDITIONAL([ON_DARWIN], [true])
-       AM_CONDITIONAL([HAVE_SYSTEMD], [false])
-       AM_CONDITIONAL([MOTR_IDX_STORE_CASS], [false])
-])
 
 # debug {{{3
 AC_ARG_ENABLE([debug],
@@ -349,7 +350,7 @@ AS_IF([test x$enable_balloc_dump = xyes],
 
 # immediate-trace {{{3
 AC_ARG_ENABLE([immediate-trace],
-        AC_HELP_STRING([--disable-immediate-trace], [disable immediate tracing]),
+        AS_HELP_STRING([--disable-immediate-trace],[disable immediate tracing]),
         [],
         [enable_immediate_trace=$enable_dev_mode]
 )
@@ -358,8 +359,7 @@ AS_IF([test x$enable_immediate_trace = xyes],
 
 # detailed-backtrace {{{3
 AC_ARG_ENABLE([detailed-backtrace],
-        AC_HELP_STRING([--enable-detailed-backtrace],
-		       [enable detailed backtrace on crash using gdb]),
+        AS_HELP_STRING([--enable-detailed-backtrace],[enable detailed backtrace on crash using gdb]),
         [],
         [enable_detailed_backtrace=no]
 )
@@ -368,8 +368,7 @@ AS_IF([test x$enable_detailed_backtrace = xyes],
 
 # sock-mock-lnet {{{3
 AC_ARG_ENABLE([sock-mock-lnet],
-        AC_HELP_STRING([--enable-sock-mock-lnet],
-		       [enable lnet emulation in sock/net]),
+        AS_HELP_STRING([--enable-sock-mock-lnet],[enable lnet emulation in sock/net]),
         [],
         [enable_sock_mock_lnet=no]
 )
@@ -714,9 +713,10 @@ AC_CHECK_PROG(DOXYGEN, doxygen, doxygen, doxygen)
 
 AS_IF([test x$use_linux = xyes],
       [AC_CHECK_PROG(A2X, a2x, a2x)
-       AS_IF([test -z $A2X],
-             AC_MSG_ERROR([a2x is not found please install asciidoc])
-       )])
+      AS_IF([test -z "$A2X"],
+            AC_MSG_ERROR([a2x is not found please install asciidoc])
+      )]
+)
 
 # BASH variable is already set by configure to /bin/sh, so we need to unset it
 # first to prevent AC_CHECK_PROG from using cached value
@@ -748,58 +748,37 @@ AC_SUBST([PTHREAD_LIBS])
 
 # check for libedit library
 MOTR_SEARCH_LIBS([readline], [c edit], [LIBEDIT_LIBS],
-    [libedit cannot be found! Try to install libedit-devel.])
+        [libedit cannot be found! Try to install libedit-devel.]
+)
 AC_SUBST([LIBEDIT_LIBS])
 
 AS_IF([test x$use_linux = xyes], [
 
-    MOTR_SEARCH_LIBS([MD5_Init], [c crypto ssl], [OPENSSL_LIBS],
-        [MD5_Init cannot be found! Try to install openssl.])
-    AC_SUBST([OPENSSL_LIBS])
+MOTR_SEARCH_LIBS([MD5_Init], [c crypto], [OPENSSL_LIBS],
+        [MD5_Init cannot be found! Try to install openssl.]
+)
+AC_SUBST([OPENSSL_LIBS])
 
-    # check for aio library (io_submit(3) & co.)
-    MOTR_SEARCH_LIBS([io_getevents], [aio c], [AIO_LIBS],
-        [io_getevents cannot be found! Try to install libaio-devel.])
-    AC_SUBST([AIO_LIBS])
+# check for aio library (io_submit(3) & co.)
+MOTR_SEARCH_LIBS([io_getevents], [aio c], [AIO_LIBS],
+        [io_getevents cannot be found! Try to install libaio-devel.]
+)
+AC_SUBST([AIO_LIBS])
 
-    MOTR_SEARCH_LIBS([dlopen], [c dl], [DL_LIBS],
-        [dlopen cannot be found! Try to install libdl.])
-    AC_SUBST([DL_LIBS])
+# rt library is required for: aio_read(3), aio_write(3), timer_create(2)
+MOTR_SEARCH_LIBS([aio_read], [rt aio c], [RT_LIBS],
+        [aio_read cannot be found! Try to install librt-devel or libaio-devel.]
+)
+AC_SUBST([RT_LIBS])
 
-    # check for aio library (io_submit(3) & co.)
-      MOTR_SEARCH_LIBS([io_getevents], [aio c], [AIO_LIBS],
-        [io_getevents cannot be found! Try to install libaio-devel.])
-    AC_SUBST([AIO_LIBS])
+MOTR_SEARCH_LIBS([dlopen], [c dl], [DL_LIBS],
+        [dlopen cannot be found! Try to install libdl.]
+)
+AC_SUBST([DL_LIBS])
 
-    # rt library is required for: aio_read(3), aio_write(3), timer_create(2)
-    MOTR_SEARCH_LIBS([aio_read], [rt aio c], [RT_LIBS],
-        [aio_read cannot be found! Try to install librt-devel or libaio-devel.])
-    AC_SUBST([RT_LIBS])
-
-    MOTR_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
+MOTR_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
 	[uuid_generate cannot be found! Try to install libuuid and libuuid-devel.])
-    AC_SUBST([UUID_LIBS])
-    AC_CHECK_HEADERS([openssl/md5.h], [], [AC_MSG_ERROR([md5.h cannot be found!])])
-    AC_CHECK_HEADERS([isa-l.h],   [
-				# check for isa library
-				MOTR_SEARCH_LIBS([ec_encode_data], [c isal], [ISAL_LIBS],
-						[ec_encode_data cannot be found! \
-						 Try to install Intel ISA library package.]
-				)
-				AC_SUBST([ISAL_LIBS])
-
-				# define MACROs
-				AC_DEFINE([HAVE_ISAL])
-				AM_CONDITIONAL([HAVE_ISAL], [true])
-				AC_MSG_NOTICE([INTEL ISA-L Headers Available])
-			      ],
-			      [
-				AM_CONDITIONAL([HAVE_ISAL], [false])
-				AC_MSG_NOTICE([No INTEL ISA-L Headers])])
-], # else of AS_IF([test x$use_linux = xyes]
-[
-    AM_CONDITIONAL([HAVE_ISAL], [false])
-]) # end of AS_IF([test x$use_linux = xyes]
+AC_SUBST([UUID_LIBS])
 
 #
 # Checking for required header files
@@ -811,6 +790,8 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h malloc.h memory.h netdb.h \
 
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 AC_CHECK_HEADERS([openssl/md5.h], [], [AC_MSG_ERROR([md5.h cannot be found!])])
+
+])
 
 AC_HEADER_STDBOOL
 
@@ -870,13 +851,13 @@ AC_CHECK_DECL([mallinfo], [AC_DEFINE([HAVE_MALLINFO])], [], [[#include <malloc.h
 AC_CHECK_DECL([malloc_size], [AC_DEFINE([HAVE_MALLOC_SIZE])], [], [[#include <malloc/malloc.h>]])
 AC_CHECK_DECL([backtrace], [AC_DEFINE([HAVE_BACKTRACE])], [], [[#include <execinfo.h>]])
 
-AS_IF([test x$use_linux = xyes],
-
 #
 # Checking systemd availability ------------------------------------------- {{{1
 #
 
-    AS_IF([test x$enable_systemd = xyes],
+AS_IF([test x$use_linux = xyes], [
+
+AS_IF([test x$enable_systemd = xyes],
       [
          AC_CHECK_HEADERS([systemd/sd-daemon.h], [],
                           [AC_MSG_ERROR([systemd/sd-daemon.h cannot be found! please, install systemd-devel package])])
@@ -1071,7 +1052,7 @@ AS_IF([test x$with_lustre = xno],
         AC_SUBST([LUSTRE_SYMVERS])
       ]) # --without-lustre, with_lustre=no
 
-) # end of AS_IF([test x$use_linux = xyes])
+])
 
 #
 # Configure and build dependencies in external motr repositories ---------- {{{1
@@ -1165,10 +1146,6 @@ M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
              -iquote'$ABS_BUILDDIR' -iquote'$SRCDIR' -include'config.h' \
              -DM0_SRC_DIR='$ABS_SRCDIR' $M0_CPPFLAGS"
 
-#
-# No grep -P on macos
-#
-AS_IF([test x$use_darwin != xyes],
 # contains only -D and -I/usr* entries from M0_CPPFLAGS, this is intended for
 # pkg-config database provided within Motr rpm distribution
 M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+|-inc\S+' | xargs echo)
@@ -1220,6 +1197,7 @@ AM_CONDITIONAL([HAVE_SYSTEMD], [true])
 #
 # Setup output files ------------------------------------------------------ {{{1
 #
+
 
 AC_CONFIG_FILES([
                  Makefile
