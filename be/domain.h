@@ -85,7 +85,12 @@ struct m0_be_part_stob_cfg {
 	char        *bpc_log_cfg;
 	m0_bcount_t  bpc_seg_size;
 	m0_bcount_t  bpc_data_size;
+	m0_bcount_t  bpc_seg_size_in_chunks;
+	m0_bcount_t  bpc_log_size_in_chunks;
 	m0_bcount_t  bpc_dom_key;
+	m0_bcount_t  bpc_chunk_size_in_bits;
+	m0_bcount_t  bpc_total_chunk_count;
+
 	bool	     bpc_part_mode_seg0;
 	bool	     bpc_part_mode_seg1;
 	bool	     bpc_part_mode_log;
@@ -147,7 +152,6 @@ struct m0_be_domain_cfg {
 	unsigned                     bc_seg_nr;
 	struct m0_be_pd_cfg          bc_pd_cfg;
 	struct m0_be_log_discard_cfg bc_log_discard_cfg;
-	bool			     bc_ad_mode;
 	struct m0_be_part_stob_cfg   bc_part_cfg;
 };
 
@@ -170,7 +174,6 @@ struct m0_be_domain {
 	struct m0_be_0type              bd_0type_seg;
 	struct m0_be_pd                 bd_pd;
 	struct m0_be_log_discard        bd_log_discard;
-	struct m0_be_ptable_part_table *bd_partition_table;
 };
 
 /** Levels of m0_be_domain module. */

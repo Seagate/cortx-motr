@@ -32,7 +32,7 @@
 #include "stob/io.h"		/* m0_stob_io */
 #include "stob/stob.h"		/* m0_stob */
 #include "stob/stob_xc.h"
-
+//#include "be/partition_table.h"
 /**
    @defgroup stobpart Storage objects with extent maps.
 
@@ -71,6 +71,16 @@ enum {
 	STOB_TYPE_PARTITION = 0x03,
 };
 
+struct m0_b_stob_part_info {
+	struct m0_stob	*b_part_stob;
+	m0_bcount_t      b_part_id;
+};
+
+struct m0_stob_part_dom_priv {
+	struct m0_b_stob_part_info  b_stobs[6];//b_stobs[M0_BE_MAX_PARTITION_USERS];
+	m0_bcount_t		    b_current_stobs;
+};
+
 struct m0_stob_part {
 	struct m0_stob  part_stob;
 	m0_bcount_t     part_id;
@@ -86,8 +96,7 @@ struct m0_stob_part_io {
 };
 
 extern const struct m0_stob_type m0_stob_part_type;
-
-
+M0_INTERNAL void stob_part_add_bstore(struct m0_stob *part_stob, struct m0_stob *part_bstob);
 /** @} end group stobpart */
 
 /* __MOTR_STOB_PARTITION_INTERNAL_H__ */

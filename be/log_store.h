@@ -109,6 +109,9 @@ enum {
 	M0_BE_LOG_STORE_LEVEL_STOB_FIND,
 	M0_BE_LOG_STORE_LEVEL_STOB_LOCATE,
 	M0_BE_LOG_STORE_LEVEL_STOB_CREATE,
+	M0_BE_LOG_STORE_LEVEL_PART_STOB_FIND,
+	M0_BE_LOG_STORE_LEVEL_PART_STOB_LOCATE,
+	M0_BE_LOG_STORE_LEVEL_PART_STOB_CREATE,
 	M0_BE_LOG_STORE_LEVEL_ZERO,
 	M0_BE_LOG_STORE_LEVEL_LS_HEADER_INIT,
 	M0_BE_LOG_STORE_LEVEL_LS_HEADER_BUF_ALLOC,
@@ -180,8 +183,9 @@ struct m0_be_log_store_cfg {
 	unsigned          lsc_rbuf_nr;
 	/** Size of redundant buffer. */
 	m0_bcount_t       lsc_rbuf_size;
-	/** confd mode information*/
-	bool		  lsc_ad_mode;
+	/** partition mode information*/
+	bool		       lsc_part_mode_log;
+	struct m0_stob_domain *lsc_part_domain;
 };
 
 struct m0_be_log_store {
@@ -192,6 +196,7 @@ struct m0_be_log_store {
 	struct m0_module                  ls_module;
 
 	struct m0_stob                   *ls_stob;
+	struct m0_stob                   *ls_b_stob;
 	/*
 	 * Temporary solution.
 	 * @see m0_be_log_store_cfg::lsc_stob_domain_location

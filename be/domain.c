@@ -181,7 +181,7 @@ static int be_domain_stob_open(struct m0_be_domain  *dom,
 	struct m0_stob_id stob_id;
 	struct m0_fid *dom_id;
 	char *create_cfg = (char *)stob_create_cfg;
-	if ((dom->bd_cfg.bc_ad_mode == true) &&
+	if (dom->bd_cfg.bc_part_cfg.bpc_part_mode_set &&
 	    (((stob_key == M0_BE_PTABLE_ENTRY_SEG0) &&
 	      dom->bd_cfg.bc_part_cfg.bpc_part_mode_seg0) ||
 	     ((stob_key == M0_BE_PTABLE_ENTRY_SEG1) &&
@@ -778,7 +778,7 @@ static int be_domain_level_enter(struct m0_module *module)
 #endif
 	return M0_RC(0);
 	case M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_CREATE:
-		if (!cfg->bc_mkfs_mode || !cfg->bc_ad_mode )
+		if (!cfg->bc_mkfs_mode || !cfg->bc_part_cfg.bpc_part_mode_set )
 			return M0_RC(0);
 		/*
 		 * The part stob domain is never destroyed in case of failure, even
@@ -790,7 +790,7 @@ static int be_domain_level_enter(struct m0_module *module)
 						   cfg->bc_part_cfg.bpc_create_cfg,
 						   &dom->bd_part_stob_domain));
 	case M0_BE_DOMAIN_LEVEL_NORMAL_PART_STOB_DOMAIN_INIT:
-		if (cfg->bc_mkfs_mode || !cfg->bc_ad_mode)
+		if (cfg->bc_mkfs_mode || !cfg->bc_part_cfg.bpc_part_mode_set)
 			return M0_RC(0);
 		return M0_RC(m0_stob_domain_init(cfg->bc_part_cfg.bpc_location,
 						 cfg->bc_part_cfg.bpc_init_cfg,
@@ -799,6 +799,10 @@ static int be_domain_level_enter(struct m0_module *module)
 		cfg->bc_log.lc_got_space_cb = m0_be_engine_got_log_space_cb;
 		cfg->bc_log.lc_full_cb      = m0_be_engine_full_log_cb;
 		cfg->bc_log.lc_lock         = &dom->bd_engine_lock;
+		if(cfg->bc_log.lc_store_cfg.lsc_part_mode_log)
+			cfg->bc_log.lc_store_cfg.lsc_part_domain =
+				dom->bd_part_stob_domain;
+
 		/*
 		 * The next temporary solution is needed as long as BE log uses
 		 * direct I/O and BE segments can't work with direct I/O.
@@ -943,7 +947,7 @@ static void be_domain_level_leave(struct m0_module *module)
 	case M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_CREATE:
 		break;
 	case M0_BE_DOMAIN_LEVEL_NORMAL_PART_STOB_DOMAIN_INIT:
-		if(dom->bd_cfg.bc_ad_mode)
+		if(dom->bd_cfg.bc_part_cfg.bpc_part_mode_set)
 			m0_stob_domain_fini(dom->bd_part_stob_domain);
 		break;
 	case M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE:

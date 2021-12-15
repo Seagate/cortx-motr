@@ -59,10 +59,6 @@
  * @{
  */
 
-enum {
-	PART_STOB_MAX_CHUNK_SIZE_IN_BITS = 64,
-	PART_STOB_REF_CHUNK_COUNT        = 1024,
-};
 struct part_domain_cfg {
 	struct m0_be_ptable_part_config  part_config;
 	struct m0_be_domain		*part_be_domain;
@@ -80,7 +76,7 @@ static int stob_part_punch(struct m0_stob *stob,
 			   struct m0_indexvec *range,
 			   struct m0_dtx *tx);
 
-static struct m0_stob* stob_part_get_bstore(struct m0_stob_domain *dom);
+static struct m0_stob* stob_part_get_bstore(struct m0_stob *part_stob);
 static void stob_part_write_credit(const struct m0_stob_domain *dom,
 				   const struct m0_stob_io     *iv,
 				   struct m0_be_tx_credit      *accum)
@@ -97,28 +93,6 @@ static void stob_part_type_deregister(struct m0_stob_type *type)
 
 }
 
-/*
- * This function takes propose_chunk_size as input
- * and finds out the nearest power of 2 to this number
- * and returns that.
- */
-static int align_chunk_size(m0_bcount_t proposed_chunk_size)
-{
-	int chunksize_in_bits;
-	int i;
-
-	for (i = 0; i < PART_STOB_MAX_CHUNK_SIZE_IN_BITS; ) {
-		if (proposed_chunk_size > 0) {
-			proposed_chunk_size >>= 1;
-			i++;
-		} else
-			break;
-	}
-	M0_ASSERT(i < PART_STOB_MAX_CHUNK_SIZE_IN_BITS);
-	chunksize_in_bits = i;
-	return (chunksize_in_bits);
-}
-
 static int stob_part_domain_cfg_init_parse(const char *str_cfg_init,
 					   void      **cfg_init)
 {
@@ -127,7 +101,6 @@ static int stob_part_domain_cfg_init_parse(const char *str_cfg_init,
 	struct part_domain_cfg          *part_cfg;
 	struct m0_be_ptable_part_config *cfg;
 	m0_bcount_t                      size;
-	m0_bcount_t                      proposed_chunk_size;
 	size = strlen(str_cfg_init) + 1;
 	devname = (char *) m0_alloc(size);
 	if (devname == NULL) {
@@ -153,9 +126,10 @@ static int stob_part_domain_cfg_init_parse(const char *str_cfg_init,
 	cfg = &part_cfg->part_config;
 	cfg->pc_dev_path_name = devname;
 	cfg->pc_dev_size_in_bytes = size;
-	proposed_chunk_size = size / PART_STOB_REF_CHUNK_COUNT;
-	cfg->pc_chunk_size_in_bits = align_chunk_size(proposed_chunk_size);
-	cfg->pc_total_chunk_count = size >> cfg->pc_chunk_size_in_bits;
+	cfg->pc_chunk_size_in_bits =
+		part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_chunk_size_in_bits;
+	cfg->pc_total_chunk_count =
+		part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_total_chunk_count;
 	*cfg_init = part_cfg;
 
 	return 0;
@@ -186,9 +160,7 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 	char                            *devname;
 	struct part_domain_cfg          *part_cfg;
 	struct m0_be_ptable_part_config *cfg;
-	m0_bcount_t                      proposed_chunk_size;
 	m0_bcount_t                      size;
-	m0_bcount_t                      seg1size;
 	m0_bcount_t                      used_chunk;
 
 	size = strlen(str_cfg_create) + 1;
@@ -216,10 +188,11 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 	cfg = &part_cfg->part_config;
 	/* Seg0, seg1, log, data */
 	cfg->pc_num_of_alloc_entries = 4;
-	proposed_chunk_size = size / PART_STOB_REF_CHUNK_COUNT;
-	cfg->pc_chunk_size_in_bits = align_chunk_size(proposed_chunk_size);
-	cfg->pc_total_chunk_count = size >> cfg->pc_chunk_size_in_bits;
 
+	cfg->pc_chunk_size_in_bits =
+		part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_chunk_size_in_bits;
+	cfg->pc_total_chunk_count =
+		part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_total_chunk_count;
 	M0_ALLOC_ARR(cfg->pc_part_alloc_info,
 		     cfg->pc_num_of_alloc_entries);
 	if (cfg->pc_part_alloc_info == NULL)
@@ -232,13 +205,13 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 	used_chunk += cfg->pc_part_alloc_info[0].ai_def_size_in_chunks;
 
 	cfg->pc_part_alloc_info[1].ai_part_id = M0_BE_PTABLE_ENTRY_LOG;
-	cfg->pc_part_alloc_info[1].ai_def_size_in_chunks = 1;
+	cfg->pc_part_alloc_info[1].ai_def_size_in_chunks =
+		part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_log_size_in_chunks;
 	used_chunk += cfg->pc_part_alloc_info[1].ai_def_size_in_chunks;
 
-	seg1size = part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_seg_size;
 	cfg->pc_part_alloc_info[2].ai_part_id = M0_BE_PTABLE_ENTRY_SEG1;
 	cfg->pc_part_alloc_info[2].ai_def_size_in_chunks =
-		seg1size >> cfg->pc_chunk_size_in_bits;
+		part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_seg_size_in_chunks;
 	used_chunk += cfg->pc_part_alloc_info[2].ai_def_size_in_chunks;
 	cfg->pc_part_alloc_info[3].ai_part_id = M0_BE_PTABLE_ENTRY_BALLOC;
 	cfg->pc_part_alloc_info[3].ai_def_size_in_chunks =
@@ -304,7 +277,25 @@ static int stob_part_domain_init(struct m0_stob_type    *type,
 					    &b_stob,
 					    false);
 		if (rc == 0) {
+			struct m0_stob_part_dom_priv *dom_priv;
+
 			dom->sd_private = b_stob;
+
+			M0_ALLOC_PTR(dom_priv);
+			if (dom_priv == NULL)
+				return M0_ERR(-ENOMEM);
+			dom_priv->b_current_stobs = 0;
+			dom_priv->b_stobs[dom_priv->b_current_stobs].b_part_stob =
+				b_stob;
+			dom_priv->b_stobs[dom_priv->b_current_stobs].b_part_id =
+				M0_BE_PTABLE_ENTRY_SEG0;
+			dom_priv->b_current_stobs++;
+			dom_priv->b_stobs[dom_priv->b_current_stobs].b_part_stob =
+				b_stob;
+			dom_priv->b_stobs[dom_priv->b_current_stobs].b_part_id =
+				M0_BE_PTABLE_ENTRY_SEG1;
+			dom_priv->b_current_stobs++;
+			dom->sd_private = dom_priv;
 			*out = dom;
 		}
 	}
@@ -314,8 +305,10 @@ static int stob_part_domain_init(struct m0_stob_type    *type,
 static void stob_part_domain_fini(struct m0_stob_domain *dom)
 {
 	if (dom != NULL) {
-		if(dom->sd_private)
-			m0_stob_put(dom->sd_private);
+		struct m0_stob_part_dom_priv *dom_priv = dom->sd_private;
+
+		if(dom_priv)
+			m0_stob_put(dom_priv->b_stobs[0].b_part_stob);
 		m0_free(dom);
 	}
 }
@@ -504,15 +497,26 @@ static int stob_part_punch(struct m0_stob     *stob,
 
 static uint32_t stob_part_block_shift(struct m0_stob *stob)
 {
+	struct m0_stob_part *partstob = stob_part_stob2part(stob);
+	struct m0_stob        *b_stob;
+
+	b_stob = stob_part_get_bstore(stob);
+
+	switch(partstob->part_id) {
+		case M0_BE_PTABLE_ENTRY_SEG0:
+		case M0_BE_PTABLE_ENTRY_SEG1:
+		        break;
+		case  M0_BE_PTABLE_ENTRY_LOG:
+		        return b_stob->so_ops->sop_block_shift(b_stob);
+	}
 	return 0;
 }
 
 static int stob_part_fd(struct m0_stob *stob)
 {
-	struct m0_stob_domain *partdom = m0_stob_dom_get(stob);
 	struct m0_stob        *b_stob;
 
-	b_stob = stob_part_get_bstore(partdom);
+	b_stob = stob_part_get_bstore(stob);
 	M0_ASSERT(b_stob != NULL &&
 		  b_stob->so_ops != NULL &&
 		  b_stob->so_ops->sop_fd != NULL);
@@ -665,15 +669,17 @@ static m0_bcount_t stob_part_dev_offset_get(struct m0_stob_part *partstob,
 	m0_bcount_t   offset_within_chunk;
 	m0_bcount_t   device_chunk_index;
 	m0_bcount_t   device_byte_offset;
+	m0_bcount_t   chunk_size_in_bits = partstob->part_chunk_size_in_bits -
+		                                 stob_part_block_shift(&partstob->part_stob);
 
 	M0_ENTRY();
 	M0_PRE(partstob != NULL);
-	chunk_off_mask = (1 << partstob->part_chunk_size_in_bits) - 1;
+	chunk_off_mask = (1 << chunk_size_in_bits) - 1;
 	offset_within_chunk = user_offset & chunk_off_mask;
 	M0_LOG(M0_DEBUG, "relative offset in given chunk: %" PRIu64,
 	       offset_within_chunk);
 	user_chunk_index =
-		(user_offset >> partstob->part_chunk_size_in_bits);
+		(user_offset >> chunk_size_in_bits);
 	M0_LOG(M0_DEBUG, "table_index :%" PRIu64,
 	       user_chunk_index);
 
@@ -682,7 +688,7 @@ static m0_bcount_t stob_part_dev_offset_get(struct m0_stob_part *partstob,
 	M0_LOG(M0_DEBUG, "device_chunk_index: %" PRIu64,
 	       device_chunk_index);
 	device_byte_offset =
-		( device_chunk_index << partstob->part_chunk_size_in_bits ) +
+		( device_chunk_index << chunk_size_in_bits ) +
 		offset_within_chunk;
 	M0_LOG(M0_DEBUG, "device offset in bytes: %" PRIu64,
 	       device_byte_offset);
@@ -832,9 +838,43 @@ static int stob_part_io_launch_prepare(struct m0_stob_io *io)
 	return rc;
 }
 
-static struct m0_stob* stob_part_get_bstore(struct m0_stob_domain *dom)
+void stob_part_add_bstore(struct m0_stob *part_stob, struct m0_stob *part_bstob)
 {
-	return dom->sd_private;
+	struct m0_stob_domain        *part_dom;
+	struct m0_stob_part_dom_priv *dom_priv;
+	struct m0_stob_part          *partstob;
+
+	M0_PRE(part_stob != NULL);
+	partstob = stob_part_stob2part(part_stob);
+	part_dom = part_stob->so_domain;
+	M0_ASSERT( part_dom != NULL );
+	dom_priv = part_dom->sd_private;
+	M0_ASSERT(dom_priv->b_current_stobs);
+	dom_priv->b_stobs[dom_priv->b_current_stobs].b_part_stob = part_bstob;
+	dom_priv->b_stobs[dom_priv->b_current_stobs].b_part_id =
+		partstob->part_id;
+	dom_priv->b_current_stobs++;
+}
+
+static struct m0_stob* stob_part_get_bstore(struct m0_stob *part_stob)
+{
+	struct m0_stob_domain        *part_dom;
+	struct m0_stob_part_dom_priv *dom_priv;
+	struct m0_stob_part          *partstob;
+	int                           i;
+
+	M0_PRE(part_stob != NULL);
+	partstob = stob_part_stob2part(part_stob);
+	part_dom = part_stob->so_domain;
+	M0_ASSERT(part_dom != NULL);
+	dom_priv = part_dom->sd_private;
+	for (i = 0; i < M0_BE_MAX_PARTITION_USERS; i++) {
+		if ((i < dom_priv->b_current_stobs) &&
+		    (dom_priv->b_stobs[i].b_part_id == partstob->part_id))
+			return dom_priv->b_stobs[i].b_part_stob;
+
+	}
+	return NULL;
 }
 /**
  * Launch asynchronous IO.
@@ -848,7 +888,6 @@ static int stob_part_io_launch(struct m0_stob_io *io)
 	struct m0_stob_io          *back    = &pio->pi_back;
 	int                         rc      = 0;
 	bool                        wentout = false;
-	struct m0_stob_domain      *dom = m0_stob_dom_get(io->si_obj);
 
 	M0_PRE(io->si_stob.iv_vec.v_nr > 0);
 	M0_PRE(!m0_vec_is_empty(&io->si_user.ov_vec));
@@ -876,7 +915,7 @@ static int stob_part_io_launch(struct m0_stob_io *io)
 		M0_ADDB2_ADD(M0_AVI_STOB_IO_REQ, io->si_id,
 			     M0_AVI_AD_SORT_END);
 		rc = m0_stob_io_prepare_and_launch(back,
-						   stob_part_get_bstore(dom),
+						   stob_part_get_bstore(io->si_obj),
 						   io->si_tx, io->si_scope);
 		wentout = rc == 0;
 	} else {
