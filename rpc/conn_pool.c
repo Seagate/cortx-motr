@@ -431,7 +431,7 @@ static void pool_item_disconn_ast(struct m0_sm_group *grp,
 	    item->cpi_rpc_link.rlk_connected){
 		m0_rpc_session_cancel(session);
 		m0_clink_init(&item->cpi_clink, pool_item_disconn_cb);
-		item->cpi_clink.cl_is_oneshot = true;
+		item->cpi_clink.cl_flags = M0_CF_ONESHOT;
 		m0_rpc_link_disconnect_async(&item->cpi_rpc_link,
 					     m0_time_from_now(10, 0),
 					     &item->cpi_clink);
