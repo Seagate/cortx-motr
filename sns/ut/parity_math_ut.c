@@ -922,9 +922,10 @@ static void reconstruct(const struct m0_sns_ir *ir, const struct m0_matvec *b,
 	for (i = 0; i < r->mv_size; i++)
 		dest[i] = (uint8_t *)&r->mv_vector[i];
 
+#if defined(HAVE_OPENSSL_MD5_H)
 	ec_encode_data(1, b->mv_size, r->mv_size,
 		       ir->si_rs.rs_decode_tbls, src, dest);
-
+#endif
 	m0_free(src);
 	m0_free(dest);
 }
