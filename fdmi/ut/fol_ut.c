@@ -245,7 +245,7 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 		m0_fol_fdmi_post_record(&fom);
 		M0_UT_ASSERT(dummy_post_called);
 		m0_sm_asts_run(grp);
-		M0_UT_ASSERT(betx->t_ref == 2);
+		M0_UT_ASSERT(betx->t_ref == 1);
 		/* processing start */
 		src_reg->fs_begin(dummy_rec_pointer);
 		/* get value */
@@ -294,15 +294,13 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 		src_reg->fs_put(dummy_rec_pointer);
 		/* finalize processing */
 		m0_sm_asts_run(grp);
-		M0_UT_ASSERT(betx->t_ref == 2);
+		M0_UT_ASSERT(betx->t_ref == 1);
 		src_reg->fs_end(dummy_rec_pointer);
-		src_reg->fs_put(dummy_rec_pointer);
 
 		/* Run asts directly, so posted AST is invoked to
 		 * decrement betx->t_ref. Maybe better way to run
 		 * ASTs exist */
 		m0_sm_asts_run(grp);
-		M0_UT_ASSERT(betx->t_ref == 1);
 
 		/* reset record_post back to orig value */
 		src_reg->fs_record_post = saved_fs_record_post;
@@ -312,7 +310,7 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 		m0_fol_fdmi_post_record(&fom);
 		M0_UT_ASSERT(dummy_post_called);
 		m0_sm_asts_run(grp);
-		M0_UT_ASSERT(betx->t_ref == 2);
+		M0_UT_ASSERT(betx->t_ref == 1);
 
 		m0_fol_fdmi_src_fini();
 

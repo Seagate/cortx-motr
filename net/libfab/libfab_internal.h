@@ -48,7 +48,8 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
 
 #define LIBFAB_ADDR_LEN_MAX	INET6_ADDRSTRLEN
 #define LIBFAB_PORT_LEN_MAX	6
-#define LIBFAB_ADDR_STRLEN_MAX  (LIBFAB_ADDR_LEN_MAX + LIBFAB_PORT_LEN_MAX + 1)
+#define LIBFAB_ADDR_LEN_MISC    100
+#define LIBFAB_ADDR_STRLEN_MAX  (LIBFAB_ADDR_LEN_MAX + LIBFAB_PORT_LEN_MAX + LIBFAB_ADDR_LEN_MISC)
 
 /**
  * Parameters required for libfabric configuration
@@ -98,7 +99,7 @@ enum m0_fab__libfab_params {
 	/** Max number of completion events to read from a completion queue */
 	FAB_MAX_COMP_READ              = 256,
 	/** Max timeout for waiting on fd in epoll_wait */
-	FAB_WAIT_FD_TMOUT              = 10,
+	FAB_WAIT_FD_TMOUT              = 1000,
 	/** Max event entries for active endpoint event queue */
 	FAB_MAX_AEP_EQ_EV              = 8,
 	/** Max event entries for passive endpoint event queue */
@@ -112,7 +113,9 @@ enum m0_fab__libfab_params {
 	/** Max number of buckets per Qtype */
 	FAB_NUM_BUCKETS_PER_QTYPE      = 128,
 	/** Min time interval between buffer timeout check (sec) */
-	FAB_BUF_TMOUT_CHK_INTERVAL     = 1
+	FAB_BUF_TMOUT_CHK_INTERVAL     = 1,
+	/** The step for increasing array size of fids in a tm */
+	FAB_TM_FID_MALLOC_STEP         = 1024
 };
 
 /**
@@ -170,9 +173,9 @@ enum m0_fab__event_type {
  */
 enum m0_fab__connlink_status {
 	FAB_CONNLINK_DOWN              = 0x00,
-	FAB_CONNLINK_TXEP_READY        = 0x01,
-	FAB_CONNLINK_RXEP_READY        = 0x02,
-	FAB_CONNLINK_READY_TO_SEND     = 0x03,
+	FAB_CONNLINK_TXEP_RDY          = 0x01,
+	FAB_CONNLINK_RXEP_RDY          = 0x02,
+	FAB_CONNLINK_RDY_TO_SEND       = 0x03,
 	FAB_CONNLINK_PENDING_SEND_DONE = 0x07
 };
 
@@ -183,6 +186,14 @@ enum m0_fab__ep_iface {
 	FAB_LO,
 	FAB_TCP,
 	FAB_O2IB
+};
+
+enum m0_fab__addr_fmt {
+	FAB_LNET_FORMAT,
+	FAB_SOCK_FORMAT,
+	FAB_NATIVE_IP_FORMAT,
+	FAB_NATIVE_HOSTNAME_FORMAT,
+	FAB_INVALID_FORMAT
 };
 
 union m0_fab__token
@@ -202,8 +213,17 @@ union m0_fab__token
  * Libfab structure for event context to be returned in the epoll_wait events
  */
 struct m0_fab__ev_ctx {
+	/* Type of event (common queue/ private queue). */
 	enum m0_fab__event_type  evctx_type;
+
+	/* Endpoint context associated for event. */
 	void                    *evctx_ep;
+
+	/* Debug data. */
+	char                    *evctx_dbg;
+
+	/* Position in array of fids. */
+	uint32_t                 evctx_pos;
 };
 
 /**
@@ -276,6 +296,8 @@ struct m0_fab__ep_name {
 
 	/** address in string format as passed by the net layer */
 	char fen_str_addr[LIBFAB_ADDR_STRLEN_MAX];
+
+	uint8_t fen_addr_frmt;
 };
 
 /**
@@ -306,12 +328,15 @@ struct m0_fab__tx_res{
 struct m0_fab__rx_res{
 	/** Event queue for receive endpoint */
 	struct fid_eq         *frr_eq;
-	
+
 	/** Completion Queue for receive operations */
 	struct fid_cq         *frr_cq;
 
-	/** Context to be returned in the epoll_wait event */
-	struct m0_fab__ev_ctx  frr_ctx;
+	/** Context to be returned in the epoll_wait event for CQ */
+	struct m0_fab__ev_ctx  frr_cq_ctx;
+
+	/** Context to be returned in the epoll_wait event for EQ */
+	struct m0_fab__ev_ctx  frr_eq_ctx;
 };
 
 /**
@@ -384,6 +409,24 @@ struct m0_fab__ep {
 };
 
 /**
+ * Libfab structure for management of all fids of a transfer machine which are
+ * to be monitored in epoll_wait().
+ */
+struct m0_fab__tm_fids {
+	/* Pointer to the head of the list (array in this case) */
+	struct fid            **ftf_head;
+
+	/* Pointer to the ctx which is stored in this array */
+	struct m0_fab__ev_ctx **ftf_ctx;
+
+	/* Size of array used for storing fids */
+	uint32_t                ftf_arr_size;
+
+	/* Count of fids in the array */
+	volatile uint32_t       ftf_cnt;
+};
+
+/**
  * Libfab structure of transfer machine
  */
 struct m0_fab__tm {
@@ -406,7 +449,10 @@ struct m0_fab__tm {
 	
 	/** Epoll file descriptor */
 	int                             ftm_epfd;
-	
+
+	/** Structure for fid management for fi_trywait() */
+	struct m0_fab__tm_fids          ftm_fids;
+
 	/** Fabric parameters of a transfer machine */
 	struct m0_fab__fab             *ftm_fab;
 
@@ -583,6 +629,10 @@ struct m0_fab__conn_data {
 	
 	/** interface type */
 	uint8_t  fcd_iface;
+
+	uint8_t  fcd_addr_frmt;
+
+	char fcd_hostname[LIBFAB_ADDR_STRLEN_MAX];
 };
 
 /**

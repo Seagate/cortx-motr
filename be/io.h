@@ -79,7 +79,8 @@ struct m0_be_io_credit {
 	.bic_part_nr = (part_nr),                                            \
 }
 
-#define BE_IOCRED_F "(reg_nr=%"PRIu64" reg_size=%"PRIu64" part_nr=%"PRIu64")"
+#define BE_IOCRED_F "(reg_nr=%" PRIu64 " reg_size=%" PRIu64 \
+		    " part_nr=%" PRIu64 ")"
 #define BE_IOCRED_P(iocred) \
 	     (iocred)->bic_reg_nr, (iocred)->bic_reg_size, (iocred)->bic_part_nr
 

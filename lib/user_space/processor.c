@@ -1047,6 +1047,14 @@ static void processor_getcpu_fini(void)
 {
 }
 
+static void processor_cpuid_reg_get(unsigned opc, unsigned *r)
+{
+	__asm__ __volatile__ ("cpuid\n\t"
+			      : "=a" (r[0]), "=b" (r[1]),
+				"=c" (r[2]), "=d" (r[3])
+			      : "0" (opc), "1" (0), "2" (0));
+}
+
 /* ---- Processor Interface Implementation ---- */
 
 M0_INTERNAL int m0_processors_init()
@@ -1148,6 +1156,22 @@ M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 		       rc, errno);
 	return cpu;
 }
+
+#ifdef CONFIG_X86_64
+M0_INTERNAL bool m0_processor_is_vm(void)
+{
+	unsigned reg[4] = {};
+
+	processor_cpuid_reg_get(0x1, reg);
+	return (reg[2] & (1U << 31)) != 0;
+}
+#else
+M0_INTERNAL bool m0_processor_is_vm(void)
+{
+	return false;
+}
+#endif
+
 
 #undef M0_TRACE_SUBSYSTEM
 

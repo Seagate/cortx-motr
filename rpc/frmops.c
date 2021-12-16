@@ -475,6 +475,12 @@ static void item_done(struct m0_rpc_packet *p, struct m0_rpc_item *item, int rc)
 	}
 	if (item->ri_error != 0 &&
 	    item->ri_sm.sm_state != M0_RPC_ITEM_FAILED) {
+		M0_LOG(M0_ERROR, " item: %p dest_ep=%s ri_session=%p ri_nr_sent_max=%"PRIu64
+		       "ri_deadline=%"PRIu64" ri_nr_sent=%u", item,
+		       item->ri_session == NULL ? "NOT AVAILABLE" :
+		       m0_rpc_item_remote_ep_addr(item), item->ri_session,
+		       item->ri_nr_sent_max, item->ri_deadline, item->ri_nr_sent);
+
 		M0_LOG(M0_ERROR, "packet %p, item %p[%"PRIu32"] failed with"
 		       " ri_error=%"PRIi32, p, item, item->ri_type->rit_opcode,
 		       item->ri_error);
@@ -502,6 +508,7 @@ static void item_sent(struct m0_rpc_item *item)
 		 */
 		M0_ASSERT(m0_rpc_item_is_request(item));
 		M0_ASSERT(item->ri_error == -ECANCELED);
+		m0_rpc_item_sent_invoke(item);
 		return;
 	}
 
@@ -516,8 +523,7 @@ static void item_sent(struct m0_rpc_item *item)
 
 	if (item->ri_nr_sent == 1) { /* not resent */
 		stats->rs_nr_sent_items_uniq++;
-		if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
-			item->ri_ops->rio_sent(item);
+		m0_rpc_item_sent_invoke(item);
 	} else if (item->ri_nr_sent == 2) {
 		/* item with ri_nr_sent >= 2 are counted as 1 in
 		   rs_nr_resent_items i.e. rs_nr_resent_items counts number
