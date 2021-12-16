@@ -55,7 +55,6 @@ M0_INTERNAL bool m0_dtm0_tx_desc__invariant(const struct m0_dtm0_tx_desc *td)
 	 * if all PAs are moved past INIT state then
 	 * the descriptor should have a valid ID.
 	 */
-
 	return _0C(td->dtd_ps.dtp_pa != NULL) &&
 		_0C(m0_forall(i, td->dtd_ps.dtp_nr,
 			      td->dtd_ps.dtp_pa[i].p_state >= 0 &&
@@ -156,6 +155,14 @@ M0_INTERNAL bool m0_dtm0_tx_desc_state_eq(const struct m0_dtm0_tx_desc *txd,
 					  enum m0_dtm0_tx_pa_state      state)
 {
 	return m0_forall(i, txd->dtd_ps.dtp_nr,
+			 txd->dtd_ps.dtp_pa[i].p_state == state);
+}
+
+M0_INTERNAL
+bool m0_dtm0_tx_desc_state_exists(const struct m0_dtm0_tx_desc *txd,
+				  enum m0_dtm0_tx_pa_state      state)
+{
+	return m0_exists(i, txd->dtd_ps.dtp_nr,
 			 txd->dtd_ps.dtp_pa[i].p_state == state);
 }
 
