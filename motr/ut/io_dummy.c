@@ -609,7 +609,7 @@ M0_INTERNAL int ut_dummy_poolmach_create(struct m0_pool_version *pv)
 	for (i = 0; i < state->pst_nr_devices; i++) {
 		state->pst_devices_array[i].pd_state = M0_PNDS_ONLINE;
 		M0_SET0(&state->pst_nodes_array[i].pn_id);
-		state->pst_devices_array[i].pd_node  = NULL;
+		state->pst_devices_array[i].pd_node  = &state->pst_nodes_array[i];
 	}
 
 	for (i = 0; i < state->pst_nr_spares; i++) {
