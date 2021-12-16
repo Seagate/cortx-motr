@@ -75,6 +75,9 @@ struct m0_storage_dev {
 	enum m0_storage_dev_type   isd_type;
 	/** Linux stob which is backing store for the AD stob domain. */
 	struct m0_stob            *isd_stob;
+	/** partition  stob which is immidiate backing store
+	 * for the AD stob domain. */
+	struct m0_stob            *isd_part_stob;
 	/** Stob domain for stobs of device. */
 	struct m0_stob_domain     *isd_domain;
 	/** Storage device ID. */

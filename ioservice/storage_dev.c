@@ -43,7 +43,7 @@
 #  include "pool/pool.h"            /* m0_pools_common */
 #endif
 #include "be/partition_table.h"
-
+#include "stob/partition.h"
 /**
    @addtogroup sdev
 
@@ -63,6 +63,56 @@ M0_TL_DEFINE(storage_dev, M0_INTERNAL, struct m0_storage_dev);
 static bool storage_dev_state_update_cb(struct m0_clink *link);
 static bool storage_devs_conf_expired_cb(struct m0_clink *link);
 static bool storage_devs_conf_ready_async_cb(struct m0_clink *link);
+
+static struct m0_stob *
+storage_dev_get_part_stob(struct m0_be_domain *domain,
+			  const char          *dev_pathname,
+			  m0_bcount_t         *dev_data_size)
+{
+	struct m0_stob                    *part_stob = NULL;
+	struct m0_be_ptable_part_tbl_info  primary_part_info;
+	struct m0_be_ptable_alloc_info    *alloc_info;
+	int                                i;
+	struct m0_stob_id                  stob_id;
+	int rc;
+
+	if (m0_be_ptable_get_part_info(&primary_part_info) != 0)
+		return NULL;
+
+	if (strcmp(dev_pathname, primary_part_info.pti_dev_pathname))
+		return part_stob;
+	for (i = 0; i < M0_BE_MAX_PARTITION_USERS; i++) {
+		alloc_info = &primary_part_info.pti_part_alloc_info[i];
+		if(alloc_info->ai_part_id == M0_BE_PTABLE_ENTRY_BALLOC) {
+			*dev_data_size = alloc_info->ai_def_size_in_chunks;
+			break;
+		}
+	}
+	if (i == M0_BE_MAX_PARTITION_USERS)
+		return NULL;
+
+	m0_stob_id_make(0, M0_BE_PTABLE_ENTRY_BALLOC,
+			&domain->bd_part_stob_domain->sd_id,
+			&stob_id);
+	rc = m0_stob_find(&stob_id, &part_stob);
+	if (rc != 0)
+		return NULL;
+
+	if (m0_stob_state_get(part_stob) == CSS_UNKNOWN) {
+		rc = m0_stob_locate(part_stob);
+		if (rc != 0)
+			goto part_stob_put;
+	}
+	if (m0_stob_state_get(part_stob) == CSS_NOENT) {
+		rc = m0_stob_create(part_stob, NULL, dev_pathname);
+		if (rc != 0)
+			goto part_stob_put;
+	}
+
+part_stob_put:
+	m0_stob_put(part_stob);
+	return rc == 0 ? part_stob: NULL;
+}
 
 static bool storage_devs_is_locked(const struct m0_storage_devs *devs)
 {
@@ -418,7 +468,10 @@ static int stob_domain_create_or_init(struct m0_storage_dev  *dev,
 		rc = snprintf(location, len + 1, "adstob:%llu", cid);
 		M0_ASSERT_INFO(rc == len, "rc=%d", rc);
 		m0_stob_ad_cfg_make(&cfg, devs->sds_be_seg,
-				    m0_stob_id_get(dev->isd_stob), size);
+				    m0_stob_id_get(dev->isd_part_stob == NULL ?
+						   dev->isd_stob :
+						   dev->isd_part_stob),
+				    size);
 		m0_stob_ad_init_cfg_make(&cfg_init,
 					 devs->sds_be_seg->bs_domain);
 		if (cfg == NULL || cfg_init == NULL) {
@@ -491,6 +544,7 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 	struct m0_stob           *stob;
 	const char               *path = fi_no_dev ? NULL : path_orig;
 	int                       rc;
+	m0_bcount_t		  part_size;
 
 	M0_ENTRY("cid=%"PRIu64, cid);
 	M0_PRE(M0_IN(type, (M0_STORAGE_DEV_TYPE_LINUX, M0_STORAGE_DEV_TYPE_AD)));
@@ -513,7 +567,6 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 	device->isd_stob = NULL;
 
 	if (type == M0_STORAGE_DEV_TYPE_AD) {
-		cid = M0_BE_PTABLE_ENTRY_BALLOC;
 		m0_stob_id_make(0, cid, &devs->sds_back_domain->sd_id, &stob_id);
 		rc = m0_stob_find(&stob_id, &stob);
 		if (rc != 0)
@@ -530,6 +583,14 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 				goto stob_put;
 		}
 		device->isd_stob = stob;
+		device->isd_part_stob =
+			storage_dev_get_part_stob(devs->sds_be_seg->bs_domain,
+						  path,
+						  &part_size);
+		if(device->isd_part_stob != NULL){
+			m0_stob_part_add_bstore(device->isd_part_stob, stob);
+			size = part_size;
+		}
 	}
 
 	rc = stob_domain_create_or_init(device, devs, size, force);

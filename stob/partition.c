@@ -63,6 +63,16 @@ struct part_domain_cfg {
 	struct m0_be_ptable_part_config  part_config;
 	struct m0_be_domain		*part_be_domain;
 };
+
+struct stob_part_info {
+	struct m0_stob	*b_part_stob;
+	m0_bcount_t      b_part_id;
+};
+
+struct stob_part_dom_priv {
+	struct stob_part_info  b_stobs[M0_BE_MAX_PARTITION_USERS];
+	m0_bcount_t	       b_current_stobs;
+};
 static struct m0_stob_domain_ops stob_part_domain_ops;
 static struct m0_stob_type_ops   stob_part_type_ops;
 static struct m0_stob_ops        stob_part_ops;
@@ -277,7 +287,7 @@ static int stob_part_domain_init(struct m0_stob_type    *type,
 					    &b_stob,
 					    false);
 		if (rc == 0) {
-			struct m0_stob_part_dom_priv *dom_priv;
+			struct stob_part_dom_priv *dom_priv;
 
 			dom->sd_private = b_stob;
 
@@ -305,7 +315,7 @@ static int stob_part_domain_init(struct m0_stob_type    *type,
 static void stob_part_domain_fini(struct m0_stob_domain *dom)
 {
 	if (dom != NULL) {
-		struct m0_stob_part_dom_priv *dom_priv = dom->sd_private;
+		struct stob_part_dom_priv *dom_priv = dom->sd_private;
 
 		if(dom_priv)
 			m0_stob_put(dom_priv->b_stobs[0].b_part_stob);
@@ -507,6 +517,7 @@ static uint32_t stob_part_block_shift(struct m0_stob *stob)
 		case M0_BE_PTABLE_ENTRY_SEG1:
 		        break;
 		case  M0_BE_PTABLE_ENTRY_LOG:
+		case  M0_BE_PTABLE_ENTRY_BALLOC:
 		        return b_stob->so_ops->sop_block_shift(b_stob);
 	}
 	return 0;
@@ -838,11 +849,12 @@ static int stob_part_io_launch_prepare(struct m0_stob_io *io)
 	return rc;
 }
 
-void stob_part_add_bstore(struct m0_stob *part_stob, struct m0_stob *part_bstob)
+void m0_stob_part_add_bstore(struct m0_stob *part_stob,
+			     struct m0_stob *part_bstob)
 {
-	struct m0_stob_domain        *part_dom;
-	struct m0_stob_part_dom_priv *dom_priv;
-	struct m0_stob_part          *partstob;
+	struct m0_stob_domain     *part_dom;
+	struct stob_part_dom_priv *dom_priv;
+	struct m0_stob_part       *partstob;
 
 	M0_PRE(part_stob != NULL);
 	partstob = stob_part_stob2part(part_stob);
@@ -858,10 +870,10 @@ void stob_part_add_bstore(struct m0_stob *part_stob, struct m0_stob *part_bstob)
 
 static struct m0_stob* stob_part_get_bstore(struct m0_stob *part_stob)
 {
-	struct m0_stob_domain        *part_dom;
-	struct m0_stob_part_dom_priv *dom_priv;
-	struct m0_stob_part          *partstob;
-	int                           i;
+	struct m0_stob_domain     *part_dom;
+	struct stob_part_dom_priv *dom_priv;
+	struct m0_stob_part       *partstob;
+	int                        i;
 
 	M0_PRE(part_stob != NULL);
 	partstob = stob_part_stob2part(part_stob);
