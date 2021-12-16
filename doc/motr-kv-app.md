@@ -1,4 +1,4 @@
-# Cortx Motr application (Index/Key-value)
+# CORTX Motr application (Index/Key-value)
 
 Here we will create a simple Cortx Motr application to create an index, put  
 some key/value pairs to this index, read them back, and then delete it.  
@@ -71,3 +71,7 @@ The steps to delete an existing index: function index\_delete().
 *   Wait for the operation to be executed: stable or failed with m0\_op\_wait().
 *   Retrieve the result.
 *   Finalize and free the operation with m0\_op\_fini() and m0\_op\_free().
+
+# Tested by
+
+*   Sep 28, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linux release 7.8.2003 x86_64

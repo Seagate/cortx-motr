@@ -872,6 +872,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	m0_bindex_t                  offset;
 	uint32_t                     segnext;
 	uint32_t                     ndom_max_segs;
+	struct m0_client             *instance;
 
 	M0_ENTRY("prepare io fops for target ioreq %p filter 0x%x, tfid "FID_F,
 		 ti, filter, FID_P(&ti->ti_fid));
@@ -1075,9 +1076,12 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_pver = ioo->ioo_pver;
 		rw_fop->crw_index = ti->ti_obj;
 		/* In case of partially spanned units in a parity group,
-		 * degraded read expects zero-filled units from server side.
+		 * degraded read and read-verify mode expects zero-filled
+		 * units from server side.
 		 */
+		instance = m0__op_instance(&ioo->ioo_oo.oo_oc.oc_op);
 		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
+		    !instance->m0c_config->mc_is_read_verify &&
 		    ioo->ioo_flags & M0_OOF_NOHOLE)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 
