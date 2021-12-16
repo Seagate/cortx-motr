@@ -648,11 +648,6 @@ backtraces_cores() {
             cp $core $outdir/$IN_DIR/
         fi
     done
-
-    if [ -d $outdir ] && ! rmdir $outdir 2>/dev/null; then
-        ## Core dumps were collected. We need to collect binaries.
-        COLLECT_BINARIES_P=1
-    fi
 }
 
 binaries() {
