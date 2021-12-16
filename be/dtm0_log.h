@@ -506,6 +506,22 @@ M0_INTERNAL void m0_be_dtm0_volatile_log_update(struct m0_be_dtm0_log  *log,
 						struct m0_dtm0_log_rec *rec);
 
 /**
+ * Deletes the log record from the log and optionally finalizes
+ * that log record.
+ *
+ * @pre log is a volatile log
+ * @post None
+ *
+ * @param log Pointer to the volatile log where we want to delete the record.
+ * @param rec The record to be deleted from the volatile log.
+ * @param fini Specifies whether deleted record needs to be finalised.
+ * @return None.
+ */
+M0_INTERNAL void m0_be_dtm0_volatile_log_del(struct m0_be_dtm0_log   *log,
+					     struct m0_dtm0_log_rec **rec,
+					     bool                     fini);
+
+/**
  * Deliver a persistent message to the log.
  *
  * @pre log is a volatile log

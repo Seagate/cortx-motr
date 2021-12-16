@@ -142,11 +142,20 @@ M0_INTERNAL bool m0_dtm0_tx_desc_is_none(const struct m0_dtm0_tx_desc *td);
 M0_INTERNAL bool m0_dtm0_tid__invariant(const struct m0_dtm0_tid *tid);
 M0_INTERNAL bool m0_dtm0_tx_desc__invariant(const struct m0_dtm0_tx_desc *td);
 
-/** Returns "true" iif the state of each participant equals to the given
+/**
+ * Returns "true" iif the state of each participant equals to the given
  * "state" value.
  */
 M0_INTERNAL bool m0_dtm0_tx_desc_state_eq(const struct m0_dtm0_tx_desc *txd,
 					  enum m0_dtm0_tx_pa_state      state);
+
+/**
+ * Returns "true" if the state of at least one participant equals to the given
+ * "state" value.
+ */
+M0_INTERNAL
+bool m0_dtm0_tx_desc_state_exists(const struct m0_dtm0_tx_desc *txd,
+				  enum m0_dtm0_tx_pa_state      state);
 
 /** Applies an update onto the given target value.
  * The state of the participants of the target modifed as per the following
