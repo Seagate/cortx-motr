@@ -139,8 +139,10 @@ M0_INTERNAL void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	do {
 		ast->sa_next = grp->s_forkq;
+		/*
 		M0_LOG(M0_DEBUG, "grp=%p forkq_push: %p -> %p",
 		       grp, ast, ast->sa_next);
+		*/
 	} while (!M0_ATOMIC64_CAS(&grp->s_forkq, ast->sa_next, ast));
 	m0_clink_signal(&grp->s_clink);
 }
@@ -154,8 +156,10 @@ M0_INTERNAL void m0_sm_asts_run(struct m0_sm_group *grp)
 	while (1) {
 		do {
 			ast = grp->s_forkq;
+			/*
 			M0_LOG(M0_DEBUG, "grp=%p forkq_pop: %p <- %p",
 			       grp, ast, ast->sa_next);
+			*/
 		} while (ast != &eoq &&
 		       !M0_ATOMIC64_CAS(&grp->s_forkq, ast, ast->sa_next));
 
