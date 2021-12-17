@@ -1,22 +1,38 @@
 nobase_motr_include_HEADERS += \
                             dtm0/addb2.h \
+                            dtm0/cfg_default.h \
                             dtm0/clk_src.h \
+                            dtm0/domain.h \
+                            dtm0/drlink.h \
                             dtm0/dtx.h \
+                            dtm0/dtx0.h \
                             dtm0/fop.h \
                             dtm0/helper.h \
+                            dtm0/log.h \
+                            dtm0/net.h \
+                            dtm0/pmach.h \
+                            dtm0/pruner.h \
+                            dtm0/remach.h \
                             dtm0/service.h \
                             dtm0/svc_internal.h \
-                            dtm0/drlink.h \
                             dtm0/tx_desc.h
 
 
 motr_libmotr_la_SOURCES += \
+                        dtm0/cfg_default.c \
                         dtm0/clk_src.c \
+                        dtm0/domain.c \
+                        dtm0/drlink.c \
                         dtm0/dtx.c \
+                        dtm0/dtx0.c \
                         dtm0/fop.c \
                         dtm0/helper.c \
+                        dtm0/log.c \
+                        dtm0/net.c \
+                        dtm0/pmach.c \
+                        dtm0/pruner.c \
+                        dtm0/remach.c \
                         dtm0/service.c \
-                        dtm0/drlink.c \
                         dtm0/tx_desc.c
 
 
