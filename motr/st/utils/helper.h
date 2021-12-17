@@ -39,6 +39,9 @@
 /** Max number of blocks in concurrent IO per thread.
   * Currently Client can write at max 100 blocks in
   * a single request. This will change in future.
+  * Max unit size used is currently 1MB and 4K is normaly the block size, so max
+  * number of blocks will be 256. With DI we should only send the blocks in
+  * multiple of unit size.
   */
 enum { M0_MAX_BLOCK_COUNT = 256 };
 

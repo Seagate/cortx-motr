@@ -734,10 +734,6 @@ int m0_obj_op(struct m0_obj       *obj,
 		  opcode == M0_OC_FREE ? "free" : "");
 	M0_PRE(obj != NULL);
 	M0_PRE(op != NULL);
-	M0_PRE(ergo(opcode != M0_OC_FREE, attr != NULL));
-	M0_ASSERT(ergo(opcode != M0_OC_FREE,
-				attr->ov_vec.v_count[attr->ov_vec.v_nr - 1] != 0));
-	M0_ASSERT(ergo(opcode != M0_OC_FREE, attr->ov_vec.v_count[0] != 0));
 	M0_PRE(ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOHOLE))));
 	M0_PRE(ergo(opcode != M0_OC_READ, M0_IN(flags, (0, M0_OOF_SYNC))));
 	if (M0_FI_ENABLED("fail_op"))

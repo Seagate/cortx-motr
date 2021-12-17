@@ -1286,7 +1286,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		count    = 0;
 		grpstart = data_size(play) * ioo->ioo_iomaps[i]->pi_grpid;
 		grpend   = grpstart + data_size(play);
-		
+
 		while (!m0_ivec_cursor_move(&extcur, count) &&
 			m0_ivec_cursor_index(&extcur) < grpend) {
 
@@ -1319,7 +1319,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		 * skip checksum verification during degraded I/O
 		 */
 		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
-			total_count % usz == 0 &&
+			(total_count / usz) > 0 &&
 		    m0__obj_is_cksum_validation_allowed(ioo) &&
 		    !verify_checksum(ioo)) {
 			return M0_RC(-EIO);

@@ -200,7 +200,7 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 	case M0_PI_TYPE_MD5_INC_CONTEXT:
 	{
 		struct m0_md5_inc_context_pi md5_ctx_pi;
-		unsigned char *curr_context = m0_alloc(sizeof(MD5_CTX));
+		unsigned char curr_context [sizeof(MD5_CTX)];
 		memset(&md5_ctx_pi, 0, sizeof(struct m0_md5_inc_context_pi));
 		if (curr_context == NULL) {
 			return false;
@@ -212,7 +212,6 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 		m0_client_calculate_pi((struct m0_generic_pi *)&md5_ctx_pi,
 					seed, bvec, M0_PI_NO_FLAG,
 					curr_context, NULL);
-		m0_free(curr_context);
 		if (memcmp(((struct m0_md5_inc_context_pi *)pi)->pimd5c_value,
 			   md5_ctx_pi.pimd5c_value,
 			   MD5_DIGEST_LENGTH) == 0) {
