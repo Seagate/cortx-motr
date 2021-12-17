@@ -408,6 +408,7 @@ int cr_io_write(struct m0_workload_io *cwi,
 		int                    op_index)
 {
 	int rc;
+
 	op_ctx->coc_op_code = CR_WRITE;
 	/** Create object index and buffer vectors. */
 	rc = cr_io_vector_prep(cwi, cti, op_ctx, obj_idx, op_index);
