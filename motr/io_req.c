@@ -1281,7 +1281,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		count    = 0;
 		grpstart = data_size(play) * ioo->ioo_iomaps[i]->pi_grpid;
 		grpend   = grpstart + data_size(play);
-		
+
 		while (!m0_ivec_cursor_move(&extcur, count) &&
 			m0_ivec_cursor_index(&extcur) < grpend) {
 
@@ -1313,7 +1313,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		/* verify the checksum during data read.
 		 * skip checksum verification during degraded I/O
 		 */
-		if (m0_is_checksum_validation_allowed(ioo) && total_count % usz == 0 &&
+		if (m0_is_checksum_validation_allowed(ioo) && (total_count / usz) > 0 &&
 			!is_parity_verify_mode(m0__op_instance(&ioo->ioo_oo.oo_oc.oc_op)) &&
 			!verify_checksum(ioo)) {
 			return M0_RC(-EIO);

@@ -650,7 +650,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		                      + ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr - 1];
 		/* If ioo_attr struct is not allocated then skip checksum computation */
 		is_goff_in_range = m0_ext_is_in(&goff_span_ext, goff) &&
-		                                ioo->ioo_attr.ov_vec.v_nr; 
+		                                ioo->ioo_attr.ov_vec.v_nr;
 		if (dst_attr != NULL && unit_type == M0_PUT_DATA &&
 		    opcode == M0_OC_WRITE && is_goff_in_range) {
 			void         *src_attr = NULL;
