@@ -31,6 +31,7 @@ TOPDIR=$(dirname "$0")/../../
 . "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh"
 . "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_sns_common_inc.sh"
 
+#THIS IS PURELY FOR BASE BRANCH TEST
 
 export MOTR_CLIENT_ONLY=1
 export ENABLE_FDMI_FILTERS=YES
