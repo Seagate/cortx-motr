@@ -63,6 +63,7 @@
 #include "motr/pg.h"          /* nwxfer and friends */
 #include "motr/sync.h"        /* sync_request */
 #include "fop/fop.h"
+#include "dtm0/domain.h"        /* m0_dtm0_domain */
 
 struct m0_idx_service_ctx;
 struct m0_dtm0_service;
@@ -619,6 +620,8 @@ struct m0_client {
 	struct m0_htable                        m0c_rm_ctxs;
 
 	struct m0_dtm0_service                 *m0c_dtms;
+
+	struct m0_dtm0_domain                   m0c_dtm0_domain;
 };
 
 /** CPUs semaphore - to control CPUs usage by parity calcs. */
