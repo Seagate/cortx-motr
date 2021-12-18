@@ -417,10 +417,8 @@ static void ioq_queue_submit(struct m0_stob_ioq *ioq)
 
 		if (got > 0) {
 			put = io_submit(ioq->ioq_ctx, got, evin);
-			if (put < 0){
+			if (put < 0)
 				M0_LOG(M0_ERROR, "got=%d put=%d", got, put);
-				M0_ASSERT(0);
-			}
 			if (put < 0)
 				put = 0;
 			ioq_queue_lock(ioq);

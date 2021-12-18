@@ -334,7 +334,7 @@ static int be_log_store_level_enter(struct m0_module *module)
 		       0 : M0_ERR(-ENOENT);
 	case M0_BE_LOG_STORE_LEVEL_ZERO:
 		if(ls->ls_cfg.lsc_part_mode_log)
-			stob_part_add_bstore(ls->ls_stob, ls->ls_b_stob);
+			m0_stob_part_add_bstore(ls->ls_stob, ls->ls_b_stob);
 		if (ls->ls_create_mode) {
 			M0_ASSERT(ergo(ls->ls_cfg.lsc_stob_create_cfg != NULL,
 				       !ls->ls_cfg.lsc_stob_dont_zero));

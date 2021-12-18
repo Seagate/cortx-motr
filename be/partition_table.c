@@ -236,11 +236,14 @@ M0_INTERNAL int m0_be_ptable_get_part_info(struct m0_be_ptable_part_tbl_info
 		primary_part_info->pti_pri_part_info =
 			rd_partition_table.pt_pri_part_info;
 		primary_part_info->pti_key = rd_partition_table.pt_key;
+		primary_part_info->pti_dev_pathname =
+			&rd_partition_table.pt_device_path_name[0];
 		primary_part_info->pti_part_alloc_info =
 			&rd_partition_table.pt_part_alloc_info[0];
-		M0_LOG(M0_ALWAYS, "dev size(in chunks)=%d, chunk size(in bits)=%d",
-		       (int) primary_part_info->pti_dev_size_in_chunks,
-		       (int)primary_part_info->pti_chunk_size_in_bits);
+		M0_LOG(M0_ALWAYS, "dev size(in chunks)=%"PRIu64
+		       "chunk size(in bits)=%"PRIu64,
+		       primary_part_info->pti_dev_size_in_chunks,
+		       primary_part_info->pti_chunk_size_in_bits);
 		return 0;
 	}
 	else

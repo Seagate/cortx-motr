@@ -1539,6 +1539,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		/** seg0 configuration */
 		if (rctx->rc_be_seg0_path == NULL){
 			part_cfg->bpc_part_mode_seg0 = true;
+			rctx->rc_be_seg0_path = sdev->sd_filename; 
 		}
 		proposed_chunk_size = sdev->sd_size / def_dev_chunk_count;
 		part_cfg->bpc_chunk_size_in_bits =
@@ -1550,6 +1551,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 			/** seg1 configuration */
 			m0_bcount_t meta_size = (sdev->sd_size) / 10;
 			part_cfg->bpc_part_mode_seg1 = true;
+			rctx->rc_be_seg_path = sdev->sd_filename;
 			if(rctx->rc_be_seg_size > meta_size){
 				part_cfg->bpc_seg_size_in_chunks =
 					meta_size >> part_cfg->bpc_chunk_size_in_bits;
@@ -1560,6 +1562,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 					rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
 			/** Log configuration*/
 			part_cfg->bpc_part_mode_log = true;
+			rctx->rc_be_log_path = sdev->sd_filename;
 			if(proposed_chunk_size < def_log_size)
 				part_cfg->bpc_log_size_in_chunks =
 					def_log_size >> part_cfg->bpc_chunk_size_in_bits;
@@ -1586,10 +1589,10 @@ static int cs_be_init(struct m0_reqh_context  *rctx,
 	snprintf(*loc, len, "linuxstob:%s%s", name[0] == '/' ? "" : "./", name);
 
 	m0_be_ut_backend_cfg_default(&be->but_dom_cfg);
+	cs_part_domain_setup(rctx);
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_dont_zero = false;
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_create_cfg =
 		rctx->rc_be_log_path;
-	cs_part_domain_setup(rctx);
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_part_mode_log =
 		be->but_dom_cfg.bc_part_cfg.bpc_part_mode_log;
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_part_domain =

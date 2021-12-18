@@ -56,8 +56,7 @@ enum m0_be_ptable_id {
 	/* Balloc type */
 	M0_BE_PTABLE_ENTRY_BALLOC,
 	/* Free blocks type */
-	M0_BE_PTABLE_ENTRY_FREE,
-	M0_BE_PTABLE_ENTRY_MAX
+	M0_BE_PTABLE_ENTRY_FREE
 };
 
 /**
@@ -128,6 +127,7 @@ struct m0_be_ptable_part_tbl_info
 	m0_bcount_t                              pti_dev_size_in_chunks;
 	m0_bcount_t                              pti_chunk_size_in_bits;
 	m0_bcount_t                              pti_key;
+	char					*pti_dev_pathname;
 	struct m0_be_ptable_alloc_info          *pti_part_alloc_info;
 	const struct m0_be_ptable_pri_part_info *pti_pri_part_info;
 
@@ -141,6 +141,7 @@ M0_INTERNAL int m0_be_ptable_create_init(void *be_domain,
 
 M0_INTERNAL int m0_be_ptable_get_part_info(struct m0_be_ptable_part_tbl_info
 					   *primary_part_info);
+
 #endif /* __MOTR_STOB_PARTITION_TABLE_H__ */
 
 /*
