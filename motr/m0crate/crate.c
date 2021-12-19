@@ -1461,6 +1461,7 @@ int main(int argc, char **argv)
                 cr_log(CLL_INFO, "done workload %i\n", i);
                 cr_log(CLL_INFO, "---------------------------------------\n");
         }
+	sleep(7200);
 	m0_free(load);
         return 0;
 }
