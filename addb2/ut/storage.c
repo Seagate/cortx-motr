@@ -460,7 +460,7 @@ static void io_thread(int x)
 			M0_ALLOC_PTR(obj);
 			obj->o_tr.tr_nr   = 8000;
 			obj->o_tr.tr_body = body;
-			obj->o_done       = (void *)&m0_free;
+			obj->o_done       = (void *)&m0_do_free;
 			m0_addb2_storage_submit(stor, obj);
 		}
 		m0_semaphore_up(&pump_done);

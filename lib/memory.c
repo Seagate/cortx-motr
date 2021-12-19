@@ -123,11 +123,10 @@ M0_INTERNAL void *m0_alloc_nz(size_t size)
 	return area;
 }
 
-void *m0_alloc(size_t size)
+void *m0_do_alloc(size_t size, const char *fname, int lno)
 {
 	void *area;
 
-	M0_ENTRY("size=%zi", size);
 	if (M0_FI_ENABLED("fail_allocation"))
 		return NULL;
 	area = m0_arch_alloc(size);
@@ -138,17 +137,18 @@ void *m0_alloc(size_t size)
 		M0_LOG(M0_ERROR, "Failed to allocate %zi bytes.", size);
 		m0_backtrace();
 	}
-	M0_LEAVE("ptr=%p size=%zi", area, size);
+	M0_LEAVE("ptr=%p size=%zi func_name=%s line_no:%d", area, size, fname, lno);
 	return area;
 }
-M0_EXPORTED(m0_alloc);
+M0_EXPORTED(m0_do_alloc);
 
-void m0_free(void *data)
+void m0_do_free(void *data, const char *fname, int lno)
 {
 	if (data != NULL) {
 		size_t size = m0_arch_alloc_size(data);
 
-		M0_LOG(M0_DEBUG, "%p", data);
+//		M0_LOG(M0_DEBUG, "%p", data);
+		M0_LOG(M0_ERROR, "ptr=%p size=%zi func_name=%s line_no:%d", data, size, fname, lno);
 
 		if (DEV_MODE) {
 			m0_atomic64_sub(&allocated, size);
@@ -158,7 +158,7 @@ void m0_free(void *data)
 		m0_arch_free(data);
 	}
 }
-M0_EXPORTED(m0_free);
+M0_EXPORTED(m0_do_free);
 
 M0_INTERNAL void m0_memory_pagein(void *addr, size_t size)
 {

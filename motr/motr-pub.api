@@ -75,7 +75,7 @@ m0_addb2_sys_stor_start
 m0_addb2_sys_stor_stop
 m0_addb2_sys_submit
 m0_addb2_trace_done
-m0_alloc
+m0_do_alloc
 m0_backtrace
 m0_bcount_with_suffix
 m0_build_info_get
@@ -183,7 +183,7 @@ m0_fop_type_addb2_instrument
 m0_fop_type_addb2_deinstrument
 m0_fop_type_fini
 m0_fop_type_init
-m0_free
+m0_do_free
 m0_getopts
 m0_gvertice_invariant
 m0_graph_invariant
