@@ -262,12 +262,18 @@ int cr_io_vector_prep(struct m0_workload_io *cwi,
 	struct m0_indexvec *index_vec = NULL;
 	struct m0_bitmap    segment_indices;
 	int                 num_unit_per_op;
+	int                 usz;
 
 	index_vec = m0_alloc(sizeof *index_vec);
 	if (index_vec == NULL)
 		goto enomem;
-
-	num_unit_per_op = (cwi->cwi_bcount_per_op * cwi->cwi_bs);
+	usz = m0_obj_layout_id_to_unit_size(op_ctx->coc_cwi->cwi_layout_id);
+	num_unit_per_op = (cwi->cwi_bcount_per_op * cwi->cwi_bs)/usz;
+	/* This is to take care of the case where test is sending lesser date than
+	 * the unit size and overallocation is okay.
+	 */
+	if (num_unit_per_op == 0)
+		num_unit_per_op = cwi->cwi_bcount_per_op;
 	if (num_unit_per_op) {
 		attr = m0_alloc(sizeof *attr);
 		rc = m0_bufvec_alloc(attr, num_unit_per_op,
