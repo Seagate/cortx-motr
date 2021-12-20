@@ -285,22 +285,6 @@ struct m0_fab__fab {
 };
 
 /**
- * Libfab structure of endpoint name
- */
-struct m0_fab__ep_name {
-	/** IP address */
-	char fen_addr[LIBFAB_ADDR_LEN_MAX];
-
-	/** Port range 0-65535 */
-	char fen_port[LIBFAB_PORT_LEN_MAX];
-
-	/** address in string format as passed by the net layer */
-	char fen_str_addr[LIBFAB_ADDR_STRLEN_MAX];
-
-	uint8_t fen_addr_frmt;
-};
-
-/**
  * Libfab structure of resources associated to a passive endpoint
  */
 struct m0_fab__pep_res{
@@ -389,8 +373,8 @@ struct m0_fab__ep {
 	/** Network endpoint structure linked into a per-tm list */
 	struct m0_net_end_point    fep_nep;
 	
-	/** ipaddr, port and strname in printable format*/
-	struct m0_fab__ep_name     fep_name_p;
+	/** ipaddr, port and strname in printable format */
+	struct m0_net_ip_addr      fep_name;
 
 	/** Name in numeric format <IP_Addr, 32bit>:<Port, 32 bit> */
 	uint64_t                   fep_name_n;
@@ -516,13 +500,13 @@ struct m0_fab__buf_mr {
  */
 struct m0_fab__bdesc {
 	/** Remote node address */
-	uint64_t fbd_netaddr;
+	struct m0_net_ip_params fbd_netaddr;
 
 	/** Remote buffer iov count */
-	uint32_t fbd_iov_cnt;
+	uint32_t                fbd_iov_cnt;
 
 	/** Remote buffer token */
-	uint32_t fbd_buftoken;
+	uint32_t                fbd_buftoken;
 };
 
 /**
@@ -618,21 +602,8 @@ struct m0_fab__buf {
  * Libfab structure of connection data
  */
 struct m0_fab__conn_data {
-	/** address in network byte format */
-	uint64_t fcd_netaddr;
-	
-	/** portal number */
-	uint16_t fcd_portal;
-	
-	/** transfer machine id */
-	uint16_t fcd_tmid;
-	
-	/** interface type */
-	uint8_t  fcd_iface;
-
-	uint8_t  fcd_addr_frmt;
-
-	char fcd_hostname[LIBFAB_ADDR_STRLEN_MAX];
+	/** network address */
+	struct m0_net_ip_params fcd_addr;
 };
 
 /**
