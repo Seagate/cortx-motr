@@ -48,8 +48,6 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
 
 #define LIBFAB_ADDR_LEN_MAX	INET6_ADDRSTRLEN
 #define LIBFAB_PORT_LEN_MAX	6
-#define LIBFAB_ADDR_LEN_MISC    100
-#define LIBFAB_ADDR_STRLEN_MAX  (LIBFAB_ADDR_LEN_MAX + LIBFAB_PORT_LEN_MAX + LIBFAB_ADDR_LEN_MISC)
 
 /**
  * Parameters required for libfabric configuration
@@ -186,14 +184,6 @@ enum m0_fab__ep_iface {
 	FAB_LO,
 	FAB_TCP,
 	FAB_O2IB
-};
-
-enum m0_fab__addr_fmt {
-	FAB_LNET_FORMAT,
-	FAB_SOCK_FORMAT,
-	FAB_NATIVE_IP_FORMAT,
-	FAB_NATIVE_HOSTNAME_FORMAT,
-	FAB_INVALID_FORMAT
 };
 
 union m0_fab__token
