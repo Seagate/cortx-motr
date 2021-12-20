@@ -1710,8 +1710,12 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 		it.ec_app_cksum_buf.b_addr = NULL;
 		it.ec_app_cksum_buf.b_nob = 0;
 	}
-
-	it.ec_unit_size = io->si_unit_sz;
+	/*
+	 * In case DI is getting disabled (user specified unit size is zero) then
+	 * don't update existing unit size (read).
+	 */
+	if(io->si_unit_sz != 0)
+		it.ec_unit_size = io->si_unit_sz;
 
 	M0_SET0(&it.ec_op);
 	m0_be_op_init(&it.ec_op);
