@@ -201,9 +201,10 @@
 /* Assert the equivalence of return code for libfabric and motr */
 M0_BASSERT(FI_SUCCESS == 0);
 
-static const char *providers[FAB_FABRIC_PROV_MAX] = { "verbs",
-						      "tcp",
-						      "sockets" };
+static const char *providers[FAB_FABRIC_PROV_MAX] = {
+					  [FAB_FABRIC_PROV_VERBS] = "verbs",
+					  [FAB_FABRIC_PROV_TCP]   = "tcp",
+					  [FAB_FABRIC_PROV_SOCK]  = "sockets" };
 
 M0_TL_DESCR_DEFINE(fab_buf, "libfab_buf",
 		   static, struct m0_fab__buf, fb_linkage, fb_magic,
@@ -357,10 +358,8 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 static void libfab_straddr_gen(struct m0_net_ip_params *addr,
 			       char *ip)
 {
-	if (addr->nip_format == M0_NET_IP_LNET_FORMAT)
-		inet_ntop(AF_INET, &addr->nip_ip_n.sn[0], ip,
-			  LIBFAB_ADDR_LEN_MAX);
-	else if (addr->nip_fmt_pvt.ia.nia_family == M0_NET_IP_AF_INET)
+	if ((addr->nip_fmt_pvt.ia.nia_family == M0_NET_IP_AF_INET) ||
+	    (addr->nip_format == M0_NET_IP_LNET_FORMAT))
 		inet_ntop(AF_INET, &addr->nip_ip_n.sn[0], ip,
 			  LIBFAB_ADDR_LEN_MAX);
 	else if (addr->nip_fmt_pvt.ia.nia_family == M0_NET_IP_AF_INET6)
@@ -552,9 +551,8 @@ static uint32_t libfab_handle_connect_request_events(struct m0_fab__tm *tm)
 			cm_entry = (struct fi_eq_cm_entry *)entry;
 			addr.nia_n = *((struct m0_net_ip_params *)
 							      (cm_entry->data));
-			m0_net_ip_print(&addr);
-			rc = libfab_fab_ep_find(tm, addr.nia_p, &addr.nia_n,
-						NULL, &ep);
+			rc = libfab_fab_ep_find(tm, NULL, &addr.nia_n, NULL,
+						&ep);
 			if (rc == 0) {
 				rc = libfab_conn_accept(ep, tm, cm_entry->info);
 				if (rc != 0)
@@ -898,7 +896,6 @@ static bool libfab_ep_find_by_num(struct m0_net_ip_addr *addr,
  * Find endpoint in list of endpoints using name string.
  * If found update output param ep and return true, or else returns false.
  */
-
 static bool libfab_ep_find_by_str(const char *name,
 				  struct m0_net_transfer_mc *ntm,
 				  struct m0_fab__ep **ep)
@@ -941,10 +938,10 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 
 	if (nep != NULL)
 		found = libfab_ep_find_by_ptr(nep, tm, &ep);
-	else if (name != NULL)
-		found = libfab_ep_find_by_str(name, tm, &ep);
-	else
+	else if (addr != NULL)
 		found = libfab_ep_find_by_num(&net_ip, tm, &ep);
+	else
+		found = libfab_ep_find_by_str(name, tm, &ep);
 
 	if (!found) {
 		M0_ASSERT(name != NULL || addr != NULL);
@@ -1364,7 +1361,7 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 	}
 
 	rc = libfab_tm_res_init(tm);
-	if(rc != 0){
+	if (rc != 0) {
 		M0_LOG(M0_ERROR," \n libfab_tm_res_init = %d \n ", rc);
 		libfab_pep_param_free(pep, tm);
 		return M0_ERR(rc);
@@ -1666,7 +1663,7 @@ static void libfab_buf_fini(struct m0_fab__buf *buf)
 		buf->fb_bulk_op = NULL;
 	}
 
-	if(buf->fb_txctx != NULL) {
+	if (buf->fb_txctx != NULL) {
 		fbp = m0_tl_find(fab_sndbuf, fbp, &buf->fb_txctx->fep_sndbuf,
 				 fbp == buf);
 		if (fbp != NULL) {
@@ -2667,7 +2664,7 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 				xp.bxp_loc_sidx++;
 				xp.bxp_loc_soff = 0;
 				xp.bxp_rem_soff += loc_iv[idx].iov_len;
-				if(xp.bxp_rem_soff >= 
+				if (xp.bxp_rem_soff >=
 						   r_iov[xp.bxp_rem_sidx].len) {
 					xp.bxp_rem_sidx++;
 					xp.bxp_rem_soff = 0;

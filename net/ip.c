@@ -32,16 +32,16 @@
 #include <netdb.h>              /* hostent */
 #include <stdlib.h>             /* atoi */
 
-static const char *ip_family[M0_NET_IP_AF_NR]      = { "inet",
-						       "inet6",
-						       "unix" };
+static const char *ip_family[M0_NET_IP_AF_NR] = {
+						[M0_NET_IP_AF_INET]  = "inet",
+						[M0_NET_IP_AF_INET6] = "inet6",
+						[M0_NET_IP_AF_UNIX]  = "unix" };
 
-static const char *ip_protocol[M0_NET_IP_PROTO_NR] = { "tcp",
-						       "verbs",
-						       "stream",
-						       "dgram",
-						       "o2ib",
-						       "lo" };
+static const char *ip_protocol[M0_NET_IP_PROTO_NR] = {
+					    [M0_NET_IP_PROTO_TCP]    = "tcp",
+					    [M0_NET_IP_PROTO_UDP]    = "udp",
+					    [M0_NET_IP_PROTO_VERBS]  = "verbs",
+					    [M0_NET_IP_PROTO_O2IB]   = "o2ib" };
 
 /**
  * Bitmap of used transfer machine identifiers. 1 is for used and 0 is for free.
@@ -51,7 +51,7 @@ static uint8_t ip_autotm[1024] = {};
 /**
  * Lock used while parsing lnet address.
  */
-static struct m0_mutex m0_net_ip_mutex = {};
+static struct m0_mutex autotm_lock = {};
 
 /**
  * This function convert the ip to hostname/FQDN format.
@@ -108,8 +108,8 @@ static int parse_prefix(const char *ep_name, const char **prefixes,
  *  The inet address format is of type
  *    <family>:<type>:<ipaddr/hostname_FQDN>@<port>
  *    for example: "inet:tcp:127.0.0.1@3000",
- *                 "inet:stream:lanl.gov@23",
- *                 "inet6:dgram:FE80::0202:B3FF:FE1E:8329@6663"
+ *                 "inet:verbs:lanl.gov@23",
+ *                 "inet6:o2ib:FE80::0202:B3FF:FE1E:8329@6663"
  * Return value: 0 in case of success.
  *               < 0 in case of error.
  */
@@ -192,25 +192,28 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 	int              shift;
 	int              type = 0;
 	int              rc;
+	bool             is_localhost = false;
 
 
 	at = strchr(ep_name, '@');
 	if (strncmp(ep_name, "0@lo", 4) == 0) {
 		nia_n = htonl(INADDR_LOOPBACK);
 		inet_ntop(AF_INET, &nia_n, node, ARRAY_SIZE(node));
+		is_localhost = true;
 	} else {
 		if (at == NULL || at - ep_name >= sizeof node)
 			return M0_ERR(-EPROTO);
 
 		M0_PRE(sizeof node >= (at-ep_name)+1);
 		memcpy(node, ep_name, at - ep_name);
+		at++;
+		rc = parse_prefix(at, ip_protocol, ARRAY_SIZE(ip_protocol),
+				  &type, &shift);
+		if (rc != 0)
+			return M0_ERR(rc);
 	}
-	at++;
 
-	rc = parse_prefix(at, ip_protocol, ARRAY_SIZE(ip_protocol), &type,
-			  &shift);
-
-	if (rc != 0 || ((at = strchr(at, ':')) == NULL))
+	if ((at = strchr(at, ':')) == NULL)
 		return M0_ERR(-EPROTO);
 
 	nr = sscanf(at + 1, "%d:%d:%d", &pid, &portal, &tmid);
@@ -218,14 +221,17 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 		nr = sscanf(at + 1, "%d:%d:*", &pid, &portal);
 		if (nr != 2)
 			return M0_ERR(-EPROTO);
+		m0_mutex_lock(&autotm_lock);
 		for (i = 0; i < ARRAY_SIZE(ip_autotm); ++i) {
 			if (ip_autotm[i] == 0) {
 				tmid = i;
 				/* To handle '*' wildchar as tmid*/
 				addr->nia_n.nip_fmt_pvt.la.nla_autotm = true;
+				ip_autotm[tmid] = 1;
 				break;
 			}
 		}
+		m0_mutex_unlock(&autotm_lock);
 		if (i == ARRAY_SIZE(ip_autotm))
 			return M0_ERR(-EADDRNOTAVAIL);
 	} else
@@ -255,14 +261,11 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 	if (portnum > M0_NET_IP_PORT_MAX)
 		return M0_ERR(-EINVAL);
 	snprintf(port, ARRAY_SIZE(port), "%d", portnum);
-
-	ip_autotm[tmid] = 1;
-
 	addr->nia_n.nip_format = M0_NET_IP_LNET_FORMAT;
 	inet_pton(AF_INET, node, &addr->nia_n.nip_ip_n.sn[0]);
 	addr->nia_n.nip_fmt_pvt.la.nla_tmid = (uint16_t)tmid;
 	addr->nia_n.nip_port = (uint16_t)portnum;
-	addr->nia_n.nip_fmt_pvt.la.nla_type = type;
+	addr->nia_n.nip_fmt_pvt.la.nla_type = is_localhost ? 0xFF : type;
 	M0_ASSERT(strlen(name) < ARRAY_SIZE(addr->nia_p));
 	strcpy(addr->nia_p, name);
 
@@ -363,11 +366,8 @@ M0_INTERNAL int m0_net_ip_print(const struct m0_net_ip_addr *nia)
 		inet_ntop(AF_INET, &na->nip_ip_n.sn[0], ip_p, ARRAY_SIZE(ip_p));
 		rc = snprintf(buf, M0_NET_IP_STRLEN_MAX,
 			      "%s@%s:12345:%d:%s",
-			      na->nip_fmt_pvt.la.nla_type ==
-			      M0_NET_IP_PROTO_LO ?
-			      "0" : ip_p,
-			      na->nip_fmt_pvt.la.nla_type ==
-			      M0_NET_IP_PROTO_LO ? "lo" :
+			      na->nip_fmt_pvt.la.nla_type == 0xFF ? "0" : ip_p,
+			      na->nip_fmt_pvt.la.nla_type == 0xFF ? "lo" :
 			      ((na->nip_fmt_pvt.la.nla_type ==
 			      M0_NET_IP_PROTO_TCP) ? "tcp": "o2ib"),
 			      na->nip_fmt_pvt.la.nla_portal, tmid);
@@ -434,7 +434,7 @@ M0_INTERNAL int m0_net_hostname_to_ip(const char *hostname, char *ip,
 			return M0_ERR(h_errno);
 		}
 		addr = (struct in_addr **)hname->h_addr_list;
-		for(i = 0; addr[i] != NULL; i++) {
+		for (i = 0; addr[i] != NULL; i++) {
 			/* Return the first one. */
 			strcpy(ip, inet_ntoa(*addr[i]));
 			M0_LOG(M0_DEBUG, "fqdn=%s ip=%s", (char*)name, ip);
@@ -449,7 +449,8 @@ M0_INTERNAL int m0_net_hostname_to_ip(const char *hostname, char *ip,
 }
 
 M0_INTERNAL bool m0_net_ip_addr_eq(const struct m0_net_ip_addr *addr1,
-				   const struct m0_net_ip_addr *addr2, bool is_ncmp)
+				   const struct m0_net_ip_addr *addr2,
+				   bool is_ncmp)
 {
 	M0_PRE(addr1 != NULL && addr2 != NULL);
 	if (!is_ncmp)
@@ -467,13 +468,14 @@ M0_INTERNAL bool m0_net_ip_addr_eq(const struct m0_net_ip_addr *addr1,
 
 M0_INTERNAL int m0_net_ip_init(void)
 {
-	m0_mutex_init(&m0_net_ip_mutex);
+	m0_mutex_init(&autotm_lock);
+	M0_SET_ARR0(ip_autotm);
 	return 0;
 }
 
 M0_INTERNAL void m0_net_ip_fini(void)
 {
-	m0_mutex_fini(&m0_net_ip_mutex);
+	m0_mutex_fini(&autotm_lock);
 }
 
 #endif /* __KERNEL__ */

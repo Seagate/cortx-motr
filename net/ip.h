@@ -48,23 +48,21 @@ enum m0_net_ip_family {
 /** Represent protocol of network address */
 enum m0_net_ip_proto {
 	M0_NET_IP_PROTO_TCP,
+	M0_NET_IP_PROTO_UDP,
 	M0_NET_IP_PROTO_VERBS,
-	M0_NET_IP_PROTO_STREAM,
-	M0_NET_IP_PROTO_DGRAM,
 	M0_NET_IP_PROTO_O2IB,
-	M0_NET_IP_PROTO_LO,
 	M0_NET_IP_PROTO_NR
 };
 
 /** Structure to represent inet address format */
 struct m0_net_ip_inet_addr {
 	uint16_t nia_family;   /* AF_INET, AF_INET6, AF_UNIX */
-	uint16_t nia_type;     /* tcp, verbs, stream, dgram, o2ib, lo */
+	uint16_t nia_type;     /* tcp, udp, verbs, o2ib */
 };
 
 /** Structure to represent lnet address format */
 struct m0_net_ip_lnet_addr {
-	uint16_t nla_type;     /* tcp, o2ib, lo */
+	uint16_t nla_type;     /* tcp, o2ib */
 	uint16_t nla_portal;
 	uint16_t nla_tmid;
 	bool     nla_autotm;
@@ -72,16 +70,16 @@ struct m0_net_ip_lnet_addr {
 
 /** Structure for network address parameters */
 struct m0_net_ip_params {
-	union {
-		struct m0_net_ip_inet_addr ia;
-		struct m0_net_ip_lnet_addr la;
-	} nip_fmt_pvt;
+	enum m0_net_ip_format      nip_format;
 	union {
 		uint64_t ln[2];
 		uint32_t sn[4];
 	} nip_ip_n;
-	enum m0_net_ip_format      nip_format;
 	uint16_t                   nip_port;
+	union {
+		struct m0_net_ip_inet_addr ia;
+		struct m0_net_ip_lnet_addr la;
+	} nip_fmt_pvt;
 };
 
 /** Generic structure to store values related to network address */
