@@ -213,7 +213,7 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 			return M0_ERR(rc);
 	}
 
-	if ((at = strchr(at, ':')) == NULL)
+	if (at == NULL || (at = strchr(at, ':')) == NULL)
 		return M0_ERR(-EPROTO);
 
 	nr = sscanf(at + 1, "%d:%d:%d", &pid, &portal, &tmid);
