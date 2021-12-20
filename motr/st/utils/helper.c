@@ -127,7 +127,8 @@ static int alloc_vecs(struct m0_indexvec *ext, struct m0_bufvec *data,
 }
 
 /* This function calculates checksum for data read */
-static int calculate_checksum(struct m0_obj *obj, struct m0_indexvec *ext, struct m0_bufvec *data,struct m0_bufvec *attr)
+static int calculate_checksum(struct m0_obj *obj, struct m0_indexvec *ext,
+					struct m0_bufvec *data,struct m0_bufvec *attr)
 {
 	struct m0_pi_seed                  seed;
 	int                                usz;
@@ -144,7 +145,10 @@ static int calculate_checksum(struct m0_obj *obj, struct m0_indexvec *ext, struc
 	uint32_t                           nr_seg;
 	m0_bcount_t                        bytes;
 	enum m0_pi_calc_flag               flag = M0_PI_CALC_UNIT_ZERO;
+
 	M0_ENTRY();
+	if(attr == NULL)
+		return 0;
 	usz = m0_obj_layout_id_to_unit_size(
 			m0__obj_lid(obj));
 	m0_bufvec_cursor_init(&datacur, data);
@@ -152,7 +156,6 @@ static int calculate_checksum(struct m0_obj *obj, struct m0_indexvec *ext, struc
 	m0_ivec_cursor_init(&extcur, ext);
 	curr_context = m0_alloc(sizeof(MD5_CTX));
 	memset(&pi, 0, sizeof(struct m0_md5_inc_context_pi));
-
 	while (!m0_bufvec_cursor_move(&datacur, 0) &&
 		!m0_ivec_cursor_move(&extcur, 0) &&
 		attr_idx < attr->ov_vec.v_nr){	
@@ -207,9 +210,8 @@ static int calculate_checksum(struct m0_obj *obj, struct m0_indexvec *ext, struc
 		seed.pis_obj_id.f_key       = obj->ob_entity.en_id.u_lo;
 		pi.pimd5c_hdr.pih_type = M0_PI_TYPE_MD5_INC_CONTEXT;
 		rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-									&seed, &user_data, flag,
-									curr_context, NULL);
-
+							&seed, &user_data, flag,
+							curr_context, NULL);
 		memcpy(attr->ov_buf[attr_idx], &pi,
 				sizeof(struct m0_md5_inc_context_pi));
 		attr_idx++;
