@@ -405,7 +405,7 @@ def update_to_file(self, index, url, machine_id, md_disks):
 def update_motr_hare_keys(self, nodes):
     # key = machine_id value = node_info
     for machine_id, node_info in nodes.items():
-        if node_info['type'] == 'storage_node':
+        if (node_info['type'] == 'storage_node' or node_info['type'] == 'data_node'):
             md_disks_lists = get_md_disks_lists(self, node_info)
             update_to_file(self, self._index_motr_hare, self._url_motr_hare, machine_id, md_disks_lists)
 
@@ -413,14 +413,14 @@ def motr_config_k8(self):
     if not verify_libfabric(self):
         raise MotrError(errno.EINVAL, "libfabric is not up.")
 
-    # Update motr-hare keys only for storage node
-    if self.node['type'] == 'storage_node':
+    # Update motr-hare keys for storage node and data node
+    if (self.node['type'] == 'storage_node' or self.node['type'] == 'data_node'):
         update_motr_hare_keys(self, self.nodes)
 
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
 
-    # Update be_seg size only for storage node
-    if self.node['type'] == 'storage_node':
+    # Update be_seg size for storage node and data node
+    if (self.node['type'] == 'storage_node' or self.node['type'] == 'data_node'):
         update_bseg_size(self)
 
     # Modify motr config file
