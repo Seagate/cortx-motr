@@ -501,6 +501,8 @@ struct m0_net_end_point {
 	   end point address.
 	 */
 	const char                *nep_addr;
+	/** Pointer to transport specific endpoint struct */
+	void                      *nep_xprt_pvt;
 };
 
 /**
