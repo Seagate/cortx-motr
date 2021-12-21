@@ -192,7 +192,6 @@ AH_TEMPLATE([ENABLE_DETAILED_BACKTRACE],[Enable detailed backtraces on crash usi
 AH_TEMPLATE([ENABLE_SOCK_MOCK_LNET],  [Enable LNet simulation in net/sock. Forces sock to pretend to be lnet. With this option end-points prefixed with "lnet:" are interpreted by sock.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
 AH_TEMPLATE([ENABLE_DTM0],            [Enable DTM0 mode.])
-AH_TEMPLATE([SKIP_CROW_IDX_OPS],      [Skip CROW flag for INDEX operations.])
 AH_TEMPLATE([M0_BE_SEGMENT_SIZE],     [BE segment size in MiB.])
 AH_TEMPLATE([M0_TRACE_KBUF_SIZE],     [Kernel space trace buffer size in MiB.])
 AH_TEMPLATE([M0_TRACE_UBUF_SIZE],     [User space trace buffer size in MiB.])
@@ -380,15 +379,6 @@ AC_ARG_ENABLE([dtm0],
 AS_IF([test x$enable_dtm0 = xyes],
       AC_DEFINE([ENABLE_DTM0], [1]),
       AC_DEFINE([ENABLE_DTM0], [0]))
-
-# single-transaction {{{3
-AC_ARG_ENABLE([single_transaction],
-        AS_HELP_STRING([--enable-single-transaction],[skip CROW flag for Index operations]),
-        [], [enable_single_transaction=no]
-)
-AS_IF([test x$enable_single_transaction = xyes],
-      AC_DEFINE([SKIP_CROW_IDX_OPS], [1]),
-      AC_DEFINE([SKIP_CROW_IDX_OPS], [0]))
 
 # expensive-checks {{{3
 AC_ARG_ENABLE([expensive_checks],

@@ -567,7 +567,8 @@ static void dix_build(const struct m0_op_idx *oi,
 					  HASH_FNC_CITY,
 					  &idx->in_attr.idx_pver);
 		}
-	} else if (M0_IN(opcode, (M0_EO_CREATE)) || SKIP_CROW_IDX_OPS) {
+	} else if (M0_IN(opcode, (M0_EO_CREATE)) ||
+		   (oi->oi_flags & M0_OIF_SKIP_LAYOUT)) {
 		/*
 		 * Use default layout for all indices:
 		 * - city hash function;
@@ -640,6 +641,13 @@ static int dix_req_create(struct m0_op_idx  *oi,
 	struct dix_req *req;
 	int             rc = 0;
 	M0_ENTRY();
+
+	if (ENABLE_DTM0 && M0_IN(oi->oi_oc.oc_op.op_code, (M0_EO_CREATE, M0_EO_DELETE, 
+	    M0_IC_PUT)) && ((oi->oi_flags & M0_OIF_CROW) || !(oi->oi_flags &
+	    M0_OIF_SKIP_LAYOUT))) {
+		rc = M0_ERR(-EINVAL);
+		return M0_RC(rc);
+	}		
 
 	M0_ALLOC_PTR(req);
 	if (req != NULL) {
@@ -967,7 +975,7 @@ static bool dixreq_clink_cb(struct m0_clink *cl)
 					    oi->oi_vals);
 			break;
 		case M0_IC_LOOKUP:
-			if (SKIP_CROW_IDX_OPS) {
+			if (oi->oi_flags & M0_OIF_SKIP_LAYOUT) {
 				M0_ASSERT(m0_dix_req_nr(dreq) == 1);
 				rc = m0_dix_item_rc(dreq, 0);
 			}
@@ -976,6 +984,7 @@ static bool dixreq_clink_cb(struct m0_clink *cl)
 			M0_IMPOSSIBLE("Invalid op code");
 		}
 	}
+
 	dixreq_completed_post(dix_req, rc);
 	return false;
 }
@@ -1007,11 +1016,18 @@ static void dix_index_create_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
 	struct m0_dix            dix;
 	int                      rc;
+	uint32_t		 flags = 0;
 
 	M0_ENTRY();
 	dix_build(oi, &dix);
+
+	if (oi->oi_flags & M0_OIF_CROW)
+		flags |= COF_CROW;
+	if (oi->oi_flags & M0_OIF_SKIP_LAYOUT)
+		flags |= COF_SKIP_LAYOUT;
+
 	m0_clink_add(&dreq->dr_sm.sm_chan, &dix_req->idr_clink);
-	rc = m0_dix_create(dreq, &dix, 1, NULL, SKIP_CROW_IDX_OPS ? 0 : COF_CROW);
+	rc = m0_dix_create(dreq, &dix, 1, NULL, flags);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	m0_dix_fini(&dix);
@@ -1033,11 +1049,18 @@ static void dix_index_delete_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
 	struct m0_dix            dix;
 	int                      rc;
+	uint32_t		 flags = 0;
 
 	M0_ENTRY();
 	dix_build(oi, &dix);
+
+	if (oi->oi_flags & M0_OIF_CROW)
+		flags |= COF_CROW;
+	if (oi->oi_flags & M0_OIF_SKIP_LAYOUT)
+		flags |= COF_SKIP_LAYOUT;
+
 	m0_clink_add(&dreq->dr_sm.sm_chan, &dix_req->idr_clink);
-	rc = m0_dix_delete(dreq, &dix, 1, NULL, SKIP_CROW_IDX_OPS ? 0 : COF_CROW);
+	rc = m0_dix_delete(dreq, &dix, 1, NULL, flags);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();
@@ -1053,7 +1076,7 @@ static void dix_index_lookup_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	int                      rc;
 
 	M0_ENTRY();
-	if (SKIP_CROW_IDX_OPS) {
+	if (oi->oi_flags & M0_OIF_SKIP_LAYOUT) {
 		dix_build(oi, &dix);
 		m0_clink_add(&dreq->dr_sm.sm_chan, &dix_req->idr_clink);
 		rc = m0_dix_cctgs_lookup(dreq, &dix, 1);
@@ -1099,17 +1122,20 @@ static void dix_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_op_idx        *oi = dix_req->idr_oi;
 	struct m0_dix            dix;
 	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
-	uint32_t                 flags = COF_CROW;
+	uint32_t                 flags = 0;
 	int                      rc;
 
 	M0_ENTRY();
-	if (SKIP_CROW_IDX_OPS)
-		flags = 0;
 	dix_dreq_prepare(dix_req, &dix, oi);
 	if (oi->oi_flags & M0_OIF_OVERWRITE)
 		flags |= COF_OVERWRITE;
 	if (oi->oi_flags & M0_OIF_SYNC_WAIT)
 		flags |= COF_SYNC_WAIT;
+	if (oi->oi_flags & M0_OIF_CROW)
+		flags |= COF_CROW;
+	if (oi->oi_flags & M0_OIF_SKIP_LAYOUT)
+		flags |= COF_SKIP_LAYOUT;
+	
 	rc = m0_dix_put(dreq, &dix, oi->oi_keys, oi->oi_vals, oi->oi_dtx,
 			flags);
 	if (rc != 0)
@@ -1254,6 +1280,10 @@ static int dix_index_create(struct m0_op_idx *oi)
 
 	M0_ASSERT(dix_iname_args_are_valid(oi));
 
+	if (ENABLE_DTM0)
+		oi->oi_flags |= M0_OIF_SKIP_LAYOUT;
+	else
+		oi->oi_flags |= M0_OIF_CROW;
 	rc = dix_req_create(oi, &req);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -1268,6 +1298,10 @@ static int dix_index_delete(struct m0_op_idx *oi)
 	int             rc;
 
 	M0_ASSERT(dix_iname_args_are_valid(oi));
+	if (ENABLE_DTM0)
+		oi->oi_flags |= M0_OIF_SKIP_LAYOUT;
+	else
+		oi->oi_flags |= M0_OIF_CROW;
 	rc = dix_req_create(oi, &req);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -1282,7 +1316,9 @@ static int dix_index_lookup(struct m0_op_idx *oi)
 	int             rc;
 
 	M0_ASSERT(dix_iname_args_are_valid(oi));
-	if (SKIP_CROW_IDX_OPS) 
+	if (ENABLE_DTM0)
+		oi->oi_flags |= M0_OIF_SKIP_LAYOUT;
+	if (oi->oi_flags && M0_OIF_SKIP_LAYOUT) 
 		rc = dix_req_create(oi, &req);
 	else
 		rc = dix_mreq_create(oi, &req);
@@ -1311,6 +1347,11 @@ static int dix_put(struct m0_op_idx *oi)
 {
 	struct dix_req *req;
 	int             rc;
+
+	if (ENABLE_DTM0)
+		oi->oi_flags |= M0_OIF_SKIP_LAYOUT;
+	else
+		oi->oi_flags |= M0_OIF_CROW;
 
 	rc = dix_req_create(oi, &req);
 	if (rc != 0)

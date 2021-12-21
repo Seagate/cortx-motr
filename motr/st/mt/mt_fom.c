@@ -206,16 +206,15 @@ static void st_ifid_fill(struct m0_fid *ifid, int i)
 static int st_common_tick(struct m0_fom *fom, void *data, int *phase,
 				 int rqtype)
 {
-	struct st_fom_ctx     *fctx = data;
-	static struct m0_idx  *idxs;
-	struct m0_fid         *ifid = fctx->sfc_ctx->csc_ifid;
-	struct m0_bufvec      *keys = &fctx->sfc_keys;
-	struct m0_bufvec      *vals = &fctx->sfc_vals;
-	int                   *rcs  = fctx->sfc_rcs;
-	int64_t                ci;
-	int                    rc;
+	struct st_fom_ctx *fctx = data;
+	struct m0_idx     *idxs = fctx->sfc_ctx->csc_index;
+	struct m0_fid     *ifid = fctx->sfc_ctx->csc_ifid;
+	struct m0_bufvec  *keys = &fctx->sfc_keys;
+	struct m0_bufvec  *vals = &fctx->sfc_vals;
+	int               *rcs  = fctx->sfc_rcs;
+	int64_t            ci;
+	int                rc;
 
-	idxs = fctx->sfc_ctx->csc_index;
 	M0_LOG(M0_DEBUG, "i=%d fired=%d rqtype=%d",
 	       fctx->sfc_i, !!fctx->sfc_fired, rqtype);
 	if (!fctx->sfc_fired) {
@@ -238,8 +237,6 @@ static int st_common_tick(struct m0_fom *fom, void *data, int *phase,
 			m0_idx_init(&idxs[ci],
 				    &fctx->sfc_ctx->csc_realm.co_realm,
 				    (struct m0_uint128 *)&ifid[ci]);
-			if (SKIP_CROW_IDX_OPS)
-				idxs[ci].in_entity.en_flags |= M0_ENF_META;
 			rc = m0_entity_create(NULL, &idxs[ci].in_entity,
 					      &fctx->sfc_op);
 			break;

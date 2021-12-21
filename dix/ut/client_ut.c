@@ -1459,9 +1459,6 @@ static void dix_create_crow(void)
 	int           i;
 	int           rc;
 
-	if (SKIP_CROW_IDX_OPS)
-		return;
-
 	ut_service_init();
 	for (i = 0; i < indices_nr; i++)
 		dix_index_init(&indices[i], i);
@@ -1479,9 +1476,6 @@ static void dix_create_dgmode(void)
 	uint32_t      indices_nr = ARRAY_SIZE(indices);
 	int           i;
 	int           rc;
-
-	if (SKIP_CROW_IDX_OPS)
-		return;
 
 	if (ENABLE_DTM0)
 		return;
@@ -1583,9 +1577,6 @@ static void dix_delete_dgmode(void)
 	int           i;
 	int           rc;
 
-	if (SKIP_CROW_IDX_OPS)
-		return;
-
 	if (ENABLE_DTM0)
 		return;
 
@@ -1660,9 +1651,6 @@ static void dix_list(void)
 	uint32_t      res_nr = 0;
 	int           i;
 	int           rc;
-	
-	if (SKIP_CROW_IDX_OPS)
-		return;
 
 	ut_service_init();
 	for (i = 0; i < indices_nr; i++)
@@ -1698,10 +1686,7 @@ static void dix_cctgs_lookup(void)
 	rc = dix_common_idx_op(indices, indices_nr, REQ_CREATE);
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < indices_nr; i++) {
-		if (SKIP_CROW_IDX_OPS)
-			dix_index_init(&lookup_indices[i], i);
-		else 
-			lookup_indices[i] = (struct m0_dix) { .dd_fid = DFID(1, i) };
+		lookup_indices[i] = (struct m0_dix) { .dd_fid = DFID(1, i) };
 		unknown_indices[i] =
 			(struct m0_dix) { .dd_fid = DFID(1, 100 + i) };
 	}
@@ -1809,9 +1794,6 @@ static void dix_put_crow(void)
 	struct m0_bufvec   vals;
 	struct dix_rep_arr rep;
 	int                rc;
-
-	if (SKIP_CROW_IDX_OPS)
-		return;
 
 	ut_service_init();
 	dix_index_init(&index, 1);
@@ -2208,9 +2190,6 @@ static void dix_next_crow(void)
 	struct dix_rep_arr rep;
 	uint32_t           recs_nr[1];
 	int                rc;
-
-	if (SKIP_CROW_IDX_OPS)
-		return;
 
 	ut_service_init();
 	dix_index_init(&index, 1);
@@ -3175,10 +3154,7 @@ static void server_is_down(void)
 	dix_index_init(&index, 1);
 	m0_fi_enable_once("cas_sdev_state", "sdev_fail");
 	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
-	if (SKIP_CROW_IDX_OPS)
-		M0_UT_ASSERT(rc == -EPROTO);
-	else
-		M0_UT_ASSERT(rc == -EBADFD);
+	M0_UT_ASSERT(rc == -EBADFD);
 	dix_index_fini(&index);
 	ut_service_fini();
 }
