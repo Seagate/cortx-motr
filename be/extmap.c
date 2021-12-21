@@ -285,7 +285,7 @@ static int be_emap_insert_wrapper(struct m0_btree *btree, struct m0_be_tx *tx,
 		.c_act = be_emap_insert_callback,
 		.c_datum = &rec,
 		};
-	rec.r_crc_type     = CRC_TYPE_NO_CRC;
+	rec.r_crc_type     = M0_BCT_NO_CRC;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(
 			op,
 			m0_btree_put(btree, &rec, &put_cb, op, tx));
@@ -407,7 +407,7 @@ M0_INTERNAL void m0_be_emap_create(struct m0_be_emap   *map,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&map->em_mp_node,
 						      sizeof map->em_mp_node,
-						      &bt, CRC_TYPE_NO_CRC,
+						      &bt, M0_BCT_NO_CRC,
 						      &b_op, map->em_mapping,
 						      map->em_seg, &fid, tx,
 						      &keycmp));
@@ -912,7 +912,7 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap       *map,
 	rec    = (struct m0_btree_rec) {
 		 .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 		 .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
-		 .r_crc_type   = CRC_TYPE_NO_CRC,
+		 .r_crc_type   = M0_BCT_NO_CRC,
 		 };
 	put_cb = (struct m0_btree_cb) {
 		 .c_act   = be_emap_insert_callback,
