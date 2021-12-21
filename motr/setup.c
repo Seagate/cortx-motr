@@ -1537,38 +1537,34 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 			(char*)cs_storage_partdom_location_gen(sdev->sd_filename);
 		part_cfg->bpc_dom_key = sdev->sd_dev_idx;
 		/** seg0 configuration */
-		if (rctx->rc_be_seg0_path == NULL){
-			part_cfg->bpc_part_mode_seg0 = true;
-			rctx->rc_be_seg0_path = sdev->sd_filename; 
-		}
+		part_cfg->bpc_part_mode_seg0 = true;
+		rctx->rc_be_seg0_path = sdev->sd_filename; 
 		proposed_chunk_size = sdev->sd_size / def_dev_chunk_count;
 		part_cfg->bpc_chunk_size_in_bits =
 			align_chunk_size(proposed_chunk_size);
 		part_cfg->bpc_total_chunk_count =
 			sdev->sd_size >> part_cfg->bpc_chunk_size_in_bits;
 
-		if(rctx->rc_be_seg_path == NULL){
-			/** seg1 configuration */
-			m0_bcount_t meta_size = (sdev->sd_size) / 10;
-			part_cfg->bpc_part_mode_seg1 = true;
-			rctx->rc_be_seg_path = sdev->sd_filename;
-			if(rctx->rc_be_seg_size > meta_size){
-				part_cfg->bpc_seg_size_in_chunks =
-					meta_size >> part_cfg->bpc_chunk_size_in_bits;
-				rctx->rc_be_seg_size = meta_size;
-			}
-			else
-				part_cfg->bpc_seg_size_in_chunks =
-					rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
-			/** Log configuration*/
-			part_cfg->bpc_part_mode_log = true;
-			rctx->rc_be_log_path = sdev->sd_filename;
-			if(proposed_chunk_size < def_log_size)
-				part_cfg->bpc_log_size_in_chunks =
-					def_log_size >> part_cfg->bpc_chunk_size_in_bits;
-			else
-				part_cfg->bpc_log_size_in_chunks = 1;
+		/** seg1 configuration */
+		m0_bcount_t meta_size = (sdev->sd_size) / 10;
+		part_cfg->bpc_part_mode_seg1 = true;
+		rctx->rc_be_seg_path = sdev->sd_filename;
+		if(rctx->rc_be_seg_size > meta_size){
+			part_cfg->bpc_seg_size_in_chunks =
+				meta_size >> part_cfg->bpc_chunk_size_in_bits;
+			rctx->rc_be_seg_size = meta_size;
 		}
+		else
+			part_cfg->bpc_seg_size_in_chunks =
+				rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
+		/** Log configuration*/
+		part_cfg->bpc_part_mode_log = true;
+		rctx->rc_be_log_path = sdev->sd_filename;
+		if(proposed_chunk_size < def_log_size)
+			part_cfg->bpc_log_size_in_chunks =
+				def_log_size >> part_cfg->bpc_chunk_size_in_bits;
+		else
+			part_cfg->bpc_log_size_in_chunks = 1;
 	}
 
 }
