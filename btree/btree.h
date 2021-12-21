@@ -65,8 +65,33 @@ enum m0_btree_types {
 };
 
 enum m0_btree_crc_type {
-	CRC_TYPE_NO_CRC = 0,
-	CRC_TYPE_USER_ENC_CRC,
+	/**
+	 *  No CRC is embedded in Key and/or Value fields of the Record. So no
+	 *  verification is needed when the nodes is loaded off the disk.
+	 */
+	M0_BCT_NO_CRC = 0,
+
+	/**
+	 *  CRC is present only in the Value field of the Record. The last word
+	 *  of the Value field contains the CRC calculated using function
+	 *  m0_has_fnc_fnv1()
+	 */
+	M0_BCT_USER_ENC_RAW_HASH,
+
+	/**
+	 *  CRC is present only in the Value field of the Record. This CRC is
+	 *  embedded as a part of structure m0_format_footer which in turn is
+	 *  appended to the Value. This footer is generated using the function
+	 *  m0_format_footer_generate().
+	 */
+	M0_BCT_USER_ENC_FORMAT_FOOTER,
+
+	/**
+	 * CRC is present in the Value field of the Record. The CRC function is
+	 * provided by the Caller. Currently this functionality is not
+	 * implemented in the code.
+	 */
+	M0_BCT_USER_CRC_FUNCTION, /** TBD */
 };
 
 struct m0_btree_type {
