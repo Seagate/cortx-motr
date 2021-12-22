@@ -582,10 +582,10 @@ static void frm_fill_packet_from_item_sources(struct m0_rpc_frm    *frm,
 	header_footer_size = m0_rpc_item_onwire_header_size +
 			     m0_rpc_item_onwire_footer_size;
 	m0_tl_for(rpc_conn, &machine->rm_outgoing_conns, conn) {
-		M0_LOG(M0_DEBUG, "conn: %p", conn);
 		if (&conn->c_rpcchan->rc_frm != frm ||
 		    conn_state(conn) != M0_RPC_CONN_ACTIVE)
 			continue;
+		M0_LOG(M0_DEBUG, "conn: %p", conn);
 		m0_tl_for(item_source, &conn->c_item_sources, source) {
 			M0_LOG(M0_DEBUG, "source: %p", source);
 			while (source->ris_ops->riso_has_item(source)) {

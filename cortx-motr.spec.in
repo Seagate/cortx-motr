@@ -46,7 +46,7 @@
 %define _use_internal_dependency_generator 0
 
 # configure options
-%define  configure_release_opts     --enable-release --disable-avx --enable-force-ssse3 --with-trace-kbuf-size=256 --with-trace-ubuf-size=64
+%define  configure_release_opts     --enable-release --disable-avx --enable-force-ssse3 --with-trace-kbuf-size=256 --with-trace-ubuf-size=16
 %define  configure_ut_opts          --enable-dev-mode --disable-altogether-mode
 
 %if %{with cassandra}
@@ -365,8 +365,6 @@ getent passwd motr >/dev/null || useradd --system --shell /sbin/nologin \
 %post -e
 /sbin/depmod -a
 systemctl daemon-reload
-echo $(date) &> /var/log/motr-rpm-conf-update.log
-/usr/sbin/m0provision config &>> /var/log/motr-rpm-conf-update.log
 
 if [ x%%{?no_trace_logs} != x ] ; then
     /bin/sed -i -r -e "s/(MOTR_TRACED_KMOD=)yes/\1no/" /etc/sysconfig/motr
