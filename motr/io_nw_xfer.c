@@ -413,8 +413,7 @@ void target_ioreq_fini(struct target_ioreq *ti)
 	if ( opcode == M0_OC_WRITE ) {
 		m0_buf_free( &ti->ti_attrbuf );
 		m0_free( (void *)ti->ti_cksum_seg_b_nob );
-	}
-	else if ( opcode == M0_OC_READ )
+	} else if ( opcode == M0_OC_READ )
 		m0_indexvec_free(&ti->ti_goff_ivec);
 
 	m0_free(ti);
