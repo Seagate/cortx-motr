@@ -629,6 +629,7 @@ enum {
 	MAX_TREE_HEIGHT          = 5,
 	BTREE_CB_CREDIT_CNT      = MAX_TREE_HEIGHT * 2 + 1,
 	INTERNAL_NODE_VALUE_SIZE = sizeof(void *),
+	CRC_VALUE_SIZE           = sizeof(uint64_t),
 };
 
 #define IS_INTERNAL_NODE(node) bnode_level(node) > 0 ? true : false
@@ -2686,11 +2687,7 @@ static void *ff_val(const struct nd *node, int idx)
 		   (0 <= idx && idx <= h->ff_used)));
 
 	node_end_addr = node_start_addr + h->ff_nsize;
-	if (h->ff_level == 0 &&
-	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
-		value_offset  = (h->ff_vsize + sizeof(uint64_t)) * (idx + 1);
-	else
-		value_offset  = h->ff_vsize * (idx + 1);
+	value_offset  = ff_valsize(node) * (idx + 1);
 
 	return node_end_addr - value_offset;
 }
@@ -2806,6 +2803,9 @@ static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
 	h->ff_seg.h_fid       = fid;
 	h->ff_opaque          = NULL;
 
+	if (crc_type == M0_BCT_BTREE_ENC_RAW_HASH)
+		h->ff_vsize += CRC_VALUE_SIZE;
+
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
 		.ot_version       = M0_BTREE_NODE_FORMAT_VERSION,
 		.ot_type          = M0_FORMAT_TYPE_BE_BNODE,
@@ -2846,14 +2846,9 @@ static int ff_count_rec(const struct nd *node)
 static int ff_space(const struct nd *node)
 {
 	struct ff_head *h = ff_data(node);
-	int             crc_size = 0;
-
-	if (h->ff_level == 0 &&
-	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
-		crc_size = sizeof(uint64_t);
 
 	return h->ff_nsize - sizeof *h -
-		(h->ff_ksize + h->ff_vsize + crc_size) * h->ff_used;
+		(h->ff_ksize + ff_valsize(node)) * h->ff_used;
 }
 
 static int ff_level(const struct nd *node)
@@ -2881,7 +2876,12 @@ static int ff_keysize(const struct nd *node)
 
 static int ff_valsize(const struct nd *node)
 {
-	return ff_data(node)->ff_vsize;
+	struct ff_head *h     = ff_data(node);
+
+	if (h->ff_level == 0)
+		return h->ff_vsize;
+	else
+		return INTERNAL_NODE_VALUE_SIZE;
 }
 
 static bool ff_isunderflow(const struct nd *node, bool predict)
@@ -2894,15 +2894,10 @@ static bool ff_isunderflow(const struct nd *node, bool predict)
 
 static bool ff_isoverflow(const struct nd *node, const struct m0_btree_rec *rec)
 {
-	struct ff_head *h = ff_data(node);
-	int             crc_size = 0;
+	struct ff_head *h     = ff_data(node);
+	int             vsize = ff_valsize(node);
 
-	if (h->ff_level == 0 &&
-	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
-		crc_size = sizeof(uint64_t);
-
-	return (ff_space(node) < h->ff_ksize + h->ff_vsize + crc_size) ?
-	       true : false;
+	return (ff_space(node) < h->ff_ksize + vsize) ? true : false;
 }
 
 static void ff_fid(const struct nd *node, struct m0_fid *fid)
@@ -2921,7 +2916,7 @@ static void ff_rec(struct slot *slot)
 		    slot->s_idx <= h->ff_used));
 
 	slot->s_rec.r_val.ov_vec.v_nr = 1;
-	slot->s_rec.r_val.ov_vec.v_count[0] = h->ff_vsize;
+	slot->s_rec.r_val.ov_vec.v_count[0] = ff_valsize(slot->s_node);
 	slot->s_rec.r_val.ov_buf[0] = ff_val(slot->s_node, slot->s_idx);
 	ff_node_key(slot);
 	M0_POST(ff_rec_is_valid(slot));
@@ -2951,14 +2946,10 @@ static void ff_child(struct slot *slot, struct segaddr *addr)
 
 static bool ff_isfit(struct slot *slot)
 {
-	struct ff_head *h = ff_data(slot->s_node);
-	int             crc_size = 0;
+	struct ff_head *h    = ff_data(slot->s_node);
 
-	if (h->ff_level == 0 &&
-	   ff_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
-		crc_size = sizeof(uint64_t);
 	M0_PRE(ff_rec_is_valid(slot));
-	return h->ff_ksize + h->ff_vsize + crc_size <= ff_space(slot->s_node);
+	return h->ff_ksize + ff_valsize(slot->s_node) <= ff_space(slot->s_node);
 }
 
 static void ff_done(struct slot *slot, bool modified)
@@ -2976,8 +2967,9 @@ static void ff_done(struct slot *slot, bool modified)
 	if (modified && h->ff_level == 0 &&
 	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH) {
 		val_addr = ff_val(slot->s_node, slot->s_idx);
-		calculated_csum = m0_hash_fnc_fnv1(val_addr, h->ff_vsize);
-		*(uint64_t*)(val_addr + h->ff_vsize) = calculated_csum;
+		calculated_csum = m0_hash_fnc_fnv1(val_addr,
+						   h->ff_vsize - CRC_VALUE_SIZE);
+		*(uint64_t*)(val_addr + h->ff_vsize - CRC_VALUE_SIZE) = calculated_csum;
 	}
 }
 
@@ -2986,28 +2978,24 @@ static void ff_make(struct slot *slot)
 	struct ff_head *h  = ff_data(slot->s_node);
 	void           *key_addr;
 	void           *val_addr;
-	int             crc_size = 0;
 	int             total_key_size;
 	int             total_val_size;
+	int             vsize;
 
 	if (h->ff_used == 0 || slot->s_idx == h->ff_used) {
 		h->ff_used++;
 		return;
 	}
 
-	if (h->ff_level == 0 &&
-	    ff_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
-		crc_size = sizeof(uint64_t);
-
 	key_addr       = ff_key(slot->s_node, slot->s_idx);
 	val_addr       = ff_val(slot->s_node, h->ff_used - 1);
 
+	vsize          = ff_valsize(slot->s_node);
 	total_key_size = h->ff_ksize * (h->ff_used - slot->s_idx);
-	total_val_size = (h->ff_vsize + crc_size) * (h->ff_used - slot->s_idx);
+	total_val_size = vsize * (h->ff_used - slot->s_idx);
 
 	m0_memmove(key_addr + h->ff_ksize, key_addr, total_key_size);
-	m0_memmove(val_addr - (h->ff_vsize + crc_size), val_addr,
-		   total_val_size);
+	m0_memmove(val_addr - vsize, val_addr, total_val_size);
 
 	h->ff_used++;
 }
@@ -3039,7 +3027,7 @@ static void ff_del(const struct nd *node, int idx)
 	struct ff_head *h     = ff_data(node);
 	void           *key_addr;
 	void           *val_addr;
-	int             crc_size = 0;
+	int             vsize;
 	int             total_key_size;
 	int             total_val_size;
 
@@ -3050,18 +3038,15 @@ static void ff_del(const struct nd *node, int idx)
 		return;
 	}
 
-	if (h->ff_level == 0 && ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
-		crc_size = sizeof(uint64_t);
-
 	key_addr       = ff_key(node, idx);
 	val_addr       = ff_val(node, h->ff_used - 1);
 
+	vsize          = ff_valsize(node);
 	total_key_size = h->ff_ksize * (h->ff_used - idx - 1);
-	total_val_size = (h->ff_vsize + crc_size) * (h->ff_used - idx - 1);
+	total_val_size = vsize * (h->ff_used - idx - 1);
 
 	m0_memmove(key_addr, key_addr + h->ff_ksize, total_key_size);
-	m0_memmove(val_addr + (h->ff_vsize + crc_size), val_addr,
-		   total_val_size);
+	m0_memmove(val_addr + vsize, val_addr, total_val_size);
 
 	h->ff_used--;
 }
@@ -3193,16 +3178,11 @@ static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 		void *start_key        = ff_key(slot->s_node, slot->s_idx);
 		void *last_val         = ff_val(slot->s_node, h->ff_used - 1);
 		int   rec_modify_count = h->ff_used - slot->s_idx;
-		int   crc_size         = 0;
 		int   krsize;
 		int   vrsize;
 
-		if (h->ff_level == 0 &&
-		    ff_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
-			crc_size = sizeof(uint64_t);
-
 		krsize     = h->ff_ksize * rec_modify_count;
-		vrsize     = (h->ff_vsize + crc_size) * rec_modify_count;
+		vrsize     = ff_valsize(slot->s_node) * rec_modify_count;
 
 		M0_BTREE_TX_CAPTURE(tx, seg, start_key, krsize);
 		M0_BTREE_TX_CAPTURE(tx, seg, last_val, vrsize);
@@ -9987,7 +9967,7 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 
 #define GET_RANDOM_VALSIZE(varray, kfirst, kiter_start, kincr, crc)            \
 	({                                                                     \
-		uint64_t random_size;                                          \
+		uint64_t random_size = 0;                                          \
 		if (crc == M0_BCT_NO_CRC)                                      \
 			random_size = (((kfirst - kiter_start) / kincr) %      \
 					(VAL_ARR_ELE_COUNT - 1)) + 2;          \
@@ -9997,6 +9977,9 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 		else if (crc == M0_BCT_USER_ENC_FORMAT_FOOTER)                 \
 			random_size = (((kfirst - kiter_start) / kincr) %      \
 					(VAL_ARR_ELE_COUNT - 4)) + 5;          \
+		else if (crc == M0_BCT_BTREE_ENC_RAW_HASH)                     \
+			random_size = (((kfirst - kiter_start) / kincr) %      \
+					(VAL_ARR_ELE_COUNT - 1)) + 2;          \
 		random_size *= sizeof(varray[0]);                              \
 		random_size;                                                   \
 	})
