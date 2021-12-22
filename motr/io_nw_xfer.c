@@ -415,6 +415,9 @@ void target_ioreq_fini(struct target_ioreq *ti)
 		m0_free( (void *)ti->ti_cksum_seg_b_nob );
 	}
 
+	if ( opcode == M0_OC_READ )
+		m0_indexvec_free(&ti->ti_goff_ivec);
+
 	m0_free(ti);
 	M0_LEAVE();
 }
