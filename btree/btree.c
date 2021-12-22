@@ -9921,7 +9921,7 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 
 #define GET_RANDOM_VALSIZE(varray, kfirst, kiter_start, kincr, crc)            \
 	({                                                                     \
-		uint64_t random_size;                                          \
+		uint64_t random_size = 0;                                      \
 		if (crc == M0_BCT_NO_CRC)                                      \
 			random_size = (((kfirst - kiter_start) / kincr) %      \
 					(VAL_ARR_ELE_COUNT - 1)) + 2;          \
