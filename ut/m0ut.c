@@ -459,7 +459,7 @@ int main(int argc, char *argv[])
 
 	/*
 	 * don't require m0tr.ko module to be loaded if we just want to parse
-	 * trace logs
+	 * trace logs.
 	 */
 	if (parse_trace)
 		m0_node_uuid_string_set(NULL);
