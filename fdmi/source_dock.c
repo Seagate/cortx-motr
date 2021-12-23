@@ -73,7 +73,6 @@ M0_TL_DESCR_DEFINE(fdmi_record_inflight, "fdmi rec inflight", M0_INTERNAL,
 
 M0_TL_DEFINE(fdmi_record_inflight, M0_INTERNAL, struct m0_fdmi_src_rec);
 
-
 /* Matched filters list declaration */
 M0_TL_DESCR_DEFINE(fdmi_matched_filter_list, "fdmi matched filter list",
 		   M0_INTERNAL, struct m0_conf_fdmi_filter,

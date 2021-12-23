@@ -78,7 +78,6 @@ struct fdmi_sd_fom {
 	struct m0_mutex         fsf_pending_fops_lock;
 	struct m0_semaphore     fsf_shutdown;
 	char                   *fsf_client_ep;
-
 	bool                    fsf_has_records;
 	m0_time_t               fsf_last_checkpoint;
 };
@@ -94,7 +93,6 @@ struct fdmi_sd_timer_fom {
 	struct m0_fom           fstf_fom;
 	struct m0_fom_timeout   fstf_timeout;
 };
-
 
 /** FDMI source dock main context */
 struct m0_fdmi_src_dock {
@@ -115,9 +113,7 @@ struct m0_fdmi_src_dock {
 	 */
 	struct m0_tl          fsdc_posted_rec_list;
 
-	/**
-	 * FDMI records inflight.
-	 */
+	/** FDMI records inflight. */
 	struct m0_tl          fsdc_rec_inflight;
 
 	/** Mutex to protect ->fsdc_posted_rec_list list operations. */
