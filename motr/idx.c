@@ -78,19 +78,28 @@ M0_INTERNAL bool m0__idx_op_invariant(struct m0_op_idx *oi)
 	if (oi != NULL)
 		op = &oi->oi_oc.oc_op;
 
-	return _0C(oi != NULL) &&
-	       _0C(M0_IN(op->op_code, (M0_EO_CREATE,
-				       M0_EO_DELETE,
-				       M0_IC_GET,
-				       M0_IC_PUT,
-				       M0_IC_DEL,
-				       M0_IC_NEXT,
-				       M0_IC_LOOKUP,
-				       M0_IC_LIST))) &&
-	      _0C(m0_op_idx_bob_check(oi)) &&
-	      _0C(oi->oi_oc.oc_op.op_size >= sizeof *oi &&
-		  m0_ast_rc_bob_check(&oi->oi_ar) &&
-		  m0_op_common_bob_check(&oi->oi_oc));
+	if (ENABLE_DTM0) {
+		return _0C(oi != NULL) &&
+	               _0C(M0_IN(op->op_code, (M0_EO_CREATE,
+					       M0_EO_DELETE,
+					       M0_IC_PUT))) &&
+			_0C((oi->oi_flags & M0_OIF_CROW) || 
+			     !(oi->oi_flags & M0_OIF_SKIP_LAYOUT));
+	} else {
+		return _0C(oi != NULL) &&
+	               _0C(M0_IN(op->op_code, (M0_EO_CREATE,
+				               M0_EO_DELETE,
+				               M0_IC_GET,
+				               M0_IC_PUT,
+				               M0_IC_DEL,
+				               M0_IC_NEXT,
+				               M0_IC_LOOKUP,
+				               M0_IC_LIST))) &&
+			_0C(m0_op_idx_bob_check(oi)) &&
+			_0C(oi->oi_oc.oc_op.op_size >= sizeof *oi &&
+			    m0_ast_rc_bob_check(&oi->oi_ar) &&
+			    m0_op_common_bob_check(&oi->oi_oc));
+	}
 }
 
 M0_INTERNAL struct m0_idx*

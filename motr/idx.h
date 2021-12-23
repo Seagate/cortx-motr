@@ -95,6 +95,10 @@ enum m0_op_idx_flags {
 	 * update of meta indices during index operations.
 	 */
         M0_OIF_SKIP_LAYOUT = 1 << 3,
+	/**
+	 * For M0_EO_CREATE/M0_EO_DELETE operations, instructs to create
+	 * btree on write during PUT operation.
+	 */
         M0_OIF_CROW = 1 << 4
 };
 

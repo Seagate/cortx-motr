@@ -642,13 +642,7 @@ static int dix_req_create(struct m0_op_idx  *oi,
 	int             rc = 0;
 	M0_ENTRY();
 
-	if (ENABLE_DTM0 && M0_IN(oi->oi_oc.oc_op.op_code, (M0_EO_CREATE, M0_EO_DELETE, 
-	    M0_IC_PUT)) && ((oi->oi_flags & M0_OIF_CROW) || !(oi->oi_flags &
-	    M0_OIF_SKIP_LAYOUT))) {
-		rc = M0_ERR(-EINVAL);
-		return M0_RC(rc);
-	}		
-
+	M0_ASSERT(m0__idx_op_invariant(oi));
 	M0_ALLOC_PTR(req);
 	if (req != NULL) {
 		if (idx_is_distributed(oi)) {
@@ -1009,6 +1003,20 @@ static void dix_req_exec(struct dix_req  *req,
 	M0_LEAVE();
 }
 
+static uint32_t dix_set_cas_flags(struct m0_op_idx *oi)
+{
+	uint32_t flags = 0;
+	if (oi->oi_flags & M0_OIF_OVERWRITE)
+		flags |= COF_OVERWRITE;
+	if (oi->oi_flags & M0_OIF_SYNC_WAIT)
+		flags |= COF_SYNC_WAIT;
+	if (oi->oi_flags & M0_OIF_CROW)
+		flags |= COF_CROW;
+	if (oi->oi_flags & M0_OIF_SKIP_LAYOUT)
+		flags |= COF_SKIP_LAYOUT;
+	return flags;
+} 
+
 static void dix_index_create_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct dix_req          *dix_req = ast->sa_datum;
@@ -1020,11 +1028,7 @@ static void dix_index_create_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_ENTRY();
 	dix_build(oi, &dix);
-
-	if (oi->oi_flags & M0_OIF_CROW)
-		flags |= COF_CROW;
-	if (oi->oi_flags & M0_OIF_SKIP_LAYOUT)
-		flags |= COF_SKIP_LAYOUT;
+	flags = dix_set_cas_flags(oi);
 
 	m0_clink_add(&dreq->dr_sm.sm_chan, &dix_req->idr_clink);
 	rc = m0_dix_create(dreq, &dix, 1, NULL, flags);
@@ -1053,11 +1057,7 @@ static void dix_index_delete_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_ENTRY();
 	dix_build(oi, &dix);
-
-	if (oi->oi_flags & M0_OIF_CROW)
-		flags |= COF_CROW;
-	if (oi->oi_flags & M0_OIF_SKIP_LAYOUT)
-		flags |= COF_SKIP_LAYOUT;
+	flags = dix_set_cas_flags(oi);
 
 	m0_clink_add(&dreq->dr_sm.sm_chan, &dix_req->idr_clink);
 	rc = m0_dix_delete(dreq, &dix, 1, NULL, flags);
@@ -1127,14 +1127,7 @@ static void dix_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_ENTRY();
 	dix_dreq_prepare(dix_req, &dix, oi);
-	if (oi->oi_flags & M0_OIF_OVERWRITE)
-		flags |= COF_OVERWRITE;
-	if (oi->oi_flags & M0_OIF_SYNC_WAIT)
-		flags |= COF_SYNC_WAIT;
-	if (oi->oi_flags & M0_OIF_CROW)
-		flags |= COF_CROW;
-	if (oi->oi_flags & M0_OIF_SKIP_LAYOUT)
-		flags |= COF_SKIP_LAYOUT;
+	flags = dix_set_cas_flags(oi);
 	
 	rc = m0_dix_put(dreq, &dix, oi->oi_keys, oi->oi_vals, oi->oi_dtx,
 			flags);
@@ -1269,6 +1262,14 @@ M0_INTERNAL int m0__idx_cancel(struct m0_op_idx *oi)
 	return M0_RC(0);
 }
 
+static void dix_set_idx_flags(struct m0_op_idx *oi)
+{
+	if (ENABLE_DTM0)
+		oi->oi_flags |= M0_OIF_SKIP_LAYOUT;
+	else
+		oi->oi_flags |= M0_OIF_CROW;
+}
+
 /*--------------------------------------------------------------------------*
  *                          Index query operations                          *
  *--------------------------------------------------------------------------*/
@@ -1279,11 +1280,12 @@ static int dix_index_create(struct m0_op_idx *oi)
 	int             rc;
 
 	M0_ASSERT(dix_iname_args_are_valid(oi));
-
-	if (ENABLE_DTM0)
-		oi->oi_flags |= M0_OIF_SKIP_LAYOUT;
-	else
-		oi->oi_flags |= M0_OIF_CROW;
+	/* 
+	 * @todo: User application (S3) need to set M0_OIF_CROW and
+ 	 * M0_OIF_SKIP_LAYOUT index flags as a configurable parameter.
+ 	 * Remove this logic once configuration option is available in S3. 
+  	 */
+	dix_set_idx_flags(oi);
 	rc = dix_req_create(oi, &req);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -1298,10 +1300,12 @@ static int dix_index_delete(struct m0_op_idx *oi)
 	int             rc;
 
 	M0_ASSERT(dix_iname_args_are_valid(oi));
-	if (ENABLE_DTM0)
-		oi->oi_flags |= M0_OIF_SKIP_LAYOUT;
-	else
-		oi->oi_flags |= M0_OIF_CROW;
+	/* 
+	 * @todo: User application (S3) need to set M0_OIF_CROW and
+ 	 * M0_OIF_SKIP_LAYOUT index flags as a configurable parameter.
+ 	 * Remove this logic once configuration option is available in S3. 
+  	 */	
+	dix_set_idx_flags(oi);
 	rc = dix_req_create(oi, &req);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -1316,9 +1320,13 @@ static int dix_index_lookup(struct m0_op_idx *oi)
 	int             rc;
 
 	M0_ASSERT(dix_iname_args_are_valid(oi));
-	if (ENABLE_DTM0)
-		oi->oi_flags |= M0_OIF_SKIP_LAYOUT;
-	if (oi->oi_flags && M0_OIF_SKIP_LAYOUT) 
+	/* 
+	 * @todo: User application (S3) need to set M0_OIF_CROW and
+ 	 * M0_OIF_SKIP_LAYOUT index flags as a configurable parameter.
+ 	 * Remove this logic once configuration option is available in S3. 
+  	 */	
+	dix_set_idx_flags(oi);
+	if (oi->oi_flags & M0_OIF_SKIP_LAYOUT) 
 		rc = dix_req_create(oi, &req);
 	else
 		rc = dix_mreq_create(oi, &req);
@@ -1348,10 +1356,12 @@ static int dix_put(struct m0_op_idx *oi)
 	struct dix_req *req;
 	int             rc;
 
-	if (ENABLE_DTM0)
-		oi->oi_flags |= M0_OIF_SKIP_LAYOUT;
-	else
-		oi->oi_flags |= M0_OIF_CROW;
+	/* 
+	 * @todo: User application (S3) need to set M0_OIF_CROW and
+ 	 * M0_OIF_SKIP_LAYOUT index flags as a configurable parameter.
+ 	 * Remove this logic once configuration option is available in S3. 
+  	 */	
+	dix_set_idx_flags(oi);
 
 	rc = dix_req_create(oi, &req);
 	if (rc != 0)
