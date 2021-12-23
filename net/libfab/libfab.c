@@ -1648,6 +1648,7 @@ static void libfab_buf_fini(struct m0_fab__buf *buf)
 			fab_sndbuf_tlist_del(fbp);
 			M0_LOG(M0_DEBUG, "buf=%p tmout/del before queued", fbp);
 		}
+		buf->fb_txctx = NULL;
 	}
 	buf->fb_status = 0;
 	buf->fb_length = 0;
