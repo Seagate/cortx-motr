@@ -124,9 +124,9 @@ cd "$dest_dir/$COMPONENT/$HOSTNAME"
 exec 2> >(tee _$PROG.stderr >&2)
 if [ $binlogs == "true" ];
 then
-    sudo m0reportbug --addb --binaries
+    sudo m0reportbug --addb --binaries --coredumps $coredumps
 else
-    sudo m0reportbug --addb
+    sudo m0reportbug --addb --coredumps $coredumps
 fi
 
 cd ..
