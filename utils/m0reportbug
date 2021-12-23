@@ -645,6 +645,12 @@ backtraces_cores() {
             cp $core $outdir/$IN_DIR/
         fi
     done
+    if [ -d $outdir ] && ! rmdir $outdir 2>/dev/null; then
+        find "$outdir" -type f \( -name core\*.xz -o -name core\*.gz \) | while read dir; do
+            ## Core dumps were collected. We need to collect binaries.
+            COLLECT_BINARIES_P=1
+        done
+    fi
 }
 
 binaries() {
