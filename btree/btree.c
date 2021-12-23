@@ -2565,7 +2565,7 @@ static int  ff_space(const struct nd *node);
 static int  ff_level(const struct nd *node);
 static int  ff_shift(const struct nd *node);
 static int  ff_nsize(const struct nd *node);
-static int  ff_valsize(const struct nd *node);
+static inline int  ff_valsize(const struct nd *node);
 static int  ff_keysize(const struct nd *node);
 static bool ff_isunderflow(const struct nd *node, bool predict);
 static bool ff_isoverflow(const struct nd *node,
@@ -2694,11 +2694,12 @@ static void *ff_val(const struct nd *node, int idx)
 
 static bool ff_rec_is_valid(const struct slot *slot)
 {
-	struct ff_head *h = ff_data(slot->s_node);
+	struct ff_head *h     = ff_data(slot->s_node);
+	int             vsize = m0_vec_count(&slot->s_rec.r_val.ov_vec);
 	bool            val_is_valid;
-	val_is_valid = h->ff_level > 0 ?
-		       m0_vec_count(&slot->s_rec.r_val.ov_vec) <= h->ff_vsize :
-		       m0_vec_count(&slot->s_rec.r_val.ov_vec) == h->ff_vsize;
+
+	val_is_valid = h->ff_level > 0 ? vsize == INTERNAL_NODE_VALUE_SIZE :
+		       vsize == h->ff_vsize;
 
 	return
 	   _0C(m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec) == h->ff_ksize) &&
@@ -2874,9 +2875,9 @@ static int ff_keysize(const struct nd *node)
 	return ff_data(node)->ff_ksize;
 }
 
-static int ff_valsize(const struct nd *node)
+static inline int ff_valsize(const struct nd *node)
 {
-	struct ff_head *h     = ff_data(node);
+	struct ff_head *h = ff_data(node);
 
 	if (h->ff_level == 0)
 		return h->ff_vsize;
@@ -2894,10 +2895,8 @@ static bool ff_isunderflow(const struct nd *node, bool predict)
 
 static bool ff_isoverflow(const struct nd *node, const struct m0_btree_rec *rec)
 {
-	struct ff_head *h     = ff_data(node);
-	int             vsize = ff_valsize(node);
-
-	return (ff_space(node) < h->ff_ksize + vsize) ? true : false;
+	struct ff_head *h = ff_data(node);
+	return (ff_space(node) < h->ff_ksize + ff_valsize(node)) ? true : false;
 }
 
 static void ff_fid(const struct nd *node, struct m0_fid *fid)
@@ -2978,6 +2977,7 @@ static void ff_make(struct slot *slot)
 	struct ff_head *h  = ff_data(slot->s_node);
 	void           *key_addr;
 	void           *val_addr;
+	int             vsize;
 	int             total_key_size;
 	int             total_val_size;
 	int             vsize;
@@ -3181,8 +3181,8 @@ static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 		int   krsize;
 		int   vrsize;
 
-		krsize     = h->ff_ksize * rec_modify_count;
-		vrsize     = ff_valsize(slot->s_node) * rec_modify_count;
+		krsize   = h->ff_ksize * rec_modify_count;
+		vrsize   = ff_valsize(slot->s_node) * rec_modify_count;
 
 		M0_BTREE_TX_CAPTURE(tx, seg, start_key, krsize);
 		M0_BTREE_TX_CAPTURE(tx, seg, last_val, vrsize);
@@ -9967,7 +9967,7 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 
 #define GET_RANDOM_VALSIZE(varray, kfirst, kiter_start, kincr, crc)            \
 	({                                                                     \
-		uint64_t random_size = 0;                                          \
+		uint64_t random_size = 0;                                      \
 		if (crc == M0_BCT_NO_CRC)                                      \
 			random_size = (((kfirst - kiter_start) / kincr) %      \
 					(VAL_ARR_ELE_COUNT - 1)) + 2;          \
