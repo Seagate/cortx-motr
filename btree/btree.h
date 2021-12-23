@@ -189,6 +189,38 @@ enum m0_btree_status_codes {
 enum m0_btree_opflag {
 	M0_BOF_UNIQUE = 1 << 0
 };
+
+/**
+ * Watermarks for BE space occupied by nodes in lru list.
+ */
+enum m0_btree_used_space_watermark{
+	/**
+	 * LRU purging should should not happen below low used space
+	 * watermark
+	 */
+	M0_USW_LOW    = 2 * 1024 * 1024 * 1024ULL,
+
+	/**
+	 * An ongoing LRU purging can be stopped after reaching target used
+	 * space watermark.
+	 */
+	M0_USW_TARGET = 3 * 1024 * 1024 * 1024ULL,
+
+	/**
+	 * LRU purging should be triggered if used space is above high
+	 * used space watermark.
+	 */
+	M0_USW_HIGH   = 4 * 1024 * 1024 * 1024ULL,
+};
+
+/**
+ * Users for triggering LRU list purge.
+ */
+enum m0_btree_purge_user{
+	M0_PU_BTREE,
+	M0_PU_EXTERNAL,
+};
+
 /**
  * Btree functions related to credit management for tree operations
  */
@@ -681,6 +713,8 @@ M0_INTERNAL void m0_btree_del_credit2(const struct m0_btree_type *type,
 M0_INTERNAL int     m0_btree_mod_init(void);
 M0_INTERNAL void    m0_btree_mod_fini(void);
 M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size);
+M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
+						 int64_t size);
 
 
 #define M0_BTREE_OP_SYNC_WITH_RC(bop, action)                           \
