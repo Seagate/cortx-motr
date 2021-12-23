@@ -2804,6 +2804,11 @@ static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
 	h->ff_seg.h_fid       = fid;
 	h->ff_opaque          = NULL;
 
+	/**
+	 * If crc needs to be encoded by btree, increasing the ff_vsize by 8
+	 * bytes to reduced the changes in ff_* functions. Note that, the actual
+	 * value size provided by user will be h->ff_vsize - 8 bytes.
+	 */
 	if (crc_type == M0_BCT_BTREE_ENC_RAW_HASH)
 		h->ff_vsize += CRC_VALUE_SIZE;
 
@@ -2965,10 +2970,11 @@ static void ff_done(struct slot *slot, bool modified)
 
 	if (modified && h->ff_level == 0 &&
 	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH) {
+		int crc_offset = h->ff_vsize - CRC_VALUE_SIZE;
 		val_addr = ff_val(slot->s_node, slot->s_idx);
-		calculated_csum = m0_hash_fnc_fnv1(val_addr,
-						   h->ff_vsize - CRC_VALUE_SIZE);
-		*(uint64_t*)(val_addr + h->ff_vsize - CRC_VALUE_SIZE) = calculated_csum;
+
+		calculated_csum = m0_hash_fnc_fnv1(val_addr, crc_offset);
+		*(uint64_t*)(val_addr + crc_offset) = calculated_csum;
 	}
 }
 
@@ -2980,7 +2986,6 @@ static void ff_make(struct slot *slot)
 	int             vsize;
 	int             total_key_size;
 	int             total_val_size;
-	int             vsize;
 
 	if (h->ff_used == 0 || slot->s_idx == h->ff_used) {
 		h->ff_used++;
