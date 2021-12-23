@@ -52,7 +52,6 @@ MACHINE_ID_FILE = "/etc/machine-id"
 TEMP_FID_FILE= "/opt/seagate/cortx/motr/conf/service_fid.yaml"
 CMD_RETRY_COUNT = 5
 SMALL_ADDB_SZ = 128 * 1024 * 1024 #128M
-LARGE_ADDB_SZ = 1 * 1024 * 1024 * 1024 #1G
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -348,11 +347,10 @@ def update_copy_motr_config_file(self):
     create_dirs(self, dirs)
 
     # Set ADDB size according to setup_size:
-    # VM=small=128M, HW=large=1G
+    # VM=small=128M (Update it using update_config_file())
+    # HW=large=1G (Already updated using /opt/seagate/cortx/motr/libexec/motr_cfg.sh)
     if self.setup_size == "small":
         MOTR_MOD_ADDB_RECORD_SIZE = SMALL_ADDB_SZ
-    else:
-        MOTR_MOD_ADDB_RECORD_SIZE = LARGE_ADDB_SZ
 
     # Update new config keys to config file /etc/sysconfig/motr
     config_kvs = [("MOTR_M0D_CONF_DIR", f"{MOTR_M0D_CONF_DIR}"),
@@ -428,9 +426,12 @@ def motr_config_k8(self):
     if self.node['type'] == 'storage_node':
         update_motr_hare_keys(self, self.nodes)
 
-    # If setup_size is large i.e.HW then run config script motr_cfg.sh
+    # If setup_size is large i.e.HW, read the (key,val)
+    # from /opt/seagate/cortx/motr/conf/motr.conf and
+    # update to /etc/sysconfig/motr
     if self.setup_size == "large":
-        execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
+        cmd = "{} {}".format(MOTR_CONFIG_SCRIPT, " -c")
+        execute_command(self, cmd, verbose = True)
 
     # Update be_seg size only for storage node
     if self.node['type'] == 'storage_node':

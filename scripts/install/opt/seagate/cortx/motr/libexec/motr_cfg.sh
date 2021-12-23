@@ -284,6 +284,36 @@ do_m0provision_action()
     die $ERR_SUCCESS
 }
 
+motr_cfg_update()
+{
+    while IFS= read -r CFG_LINE
+    do
+        if [[ "$CFG_LINE" == "#"* ]]; then
+            dbg "Commented line [$CFG_LINE]"
+        else
+            dbg "Not a commented line [$CFG_LINE]"
+            IFS='='; CFG_LINE_ARRAY=($CFG_LINE); unset IFS;
+            local KEY=${CFG_LINE_ARRAY[0]}
+            local VALUE=${CFG_LINE_ARRAY[1]}
+            KEY=$(echo $KEY | xargs)
+            VALUE=$(echo $VALUE | xargs)
+            if [ "$KEY" != "" ]; then
+                msg "Updating KEY [$KEY]; VALUE [$VALUE]"
+                # update /etc/sysconfig/motr file
+                # only when the key values are different
+                # from motr.conf file
+                res=$(chk_key_value $KEY "$VALUE")
+                if [[ $res -ne 0 ]];then
+                    set_key_value $KEY "$VALUE" $ETC_SYSCONFIG_MOTR
+                fi
+            else
+                dbg "Not processing [$CFG_LINE]"
+            fi
+        fi
+    done < $MOTR_CONF_FILE
+    die $ERR_SUCCESS
+}
+
 get_option() # ARG1 [KEY] ARG2 [FILE]
 {
     if [ $# != 2 ]; then
@@ -446,6 +476,8 @@ elif [ "$1" == "-g" ]; then
     get_option "$2" "$3"
 elif [ "$1" == "-s" ]; then
     set_option "$2" "$3" "$4"
+elif [ "$1" == "-c" ]; then
+    motr_cfg_update
 else
     if [ $# == 0 ]; then
         PCMD=$(ps -o args= $PPID)
