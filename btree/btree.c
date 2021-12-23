@@ -2557,7 +2557,7 @@ static int  ff_space(const struct nd *node);
 static int  ff_level(const struct nd *node);
 static int  ff_shift(const struct nd *node);
 static int  ff_nsize(const struct nd *node);
-static int  ff_valsize(const struct nd *node);
+static inline int  ff_valsize(const struct nd *node);
 static int  ff_keysize(const struct nd *node);
 static bool ff_isunderflow(const struct nd *node, bool predict);
 static bool ff_isoverflow(const struct nd *node,
@@ -2863,7 +2863,7 @@ static int ff_keysize(const struct nd *node)
 	return ff_data(node)->ff_ksize;
 }
 
-static int ff_valsize(const struct nd *node)
+static inline int ff_valsize(const struct nd *node)
 {
 	struct ff_head *h = ff_data(node);
 
