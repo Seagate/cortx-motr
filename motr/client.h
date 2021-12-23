@@ -596,28 +596,34 @@ enum m0_entity_type {
  */
  enum m0_entity_flags {
 	/**
-	 * During create if this flag is set in entity->en_flags, that means
-	 * application has capability to store meta-data and hence pver and
-	 * lid can be stored in  application's meta-data.
-	 * Before calling to m0_entity_create/open(), application is
-	 * expected to set obj>ob_entity->en_flags |= M0_ENF_META, so when
-	 * m0_entity_create() returns to application, pool version and layout id
-	 * will be available to application into obj->ob_attr.oa_pver and
-	 * obj->ob_attr.oa_lid respectively and can be stored into application's
-	 * meta-data.
+	 * If motr client application has the capability to store object
+	 * metadata by itself (such as pool version and layout, which can
+	 * be stored by the application at motr distributed index, for example),
+	 * it can use this flag to avoid sending additional metadata fops on
+	 * such object operations as CREATE, OPEN, DELETE, GETATTR and, thus,
+	 * improve its performance.
 	 *
-	 * For example:
-	 * Create workflow would be like:
+	 * Before calling m0_entity_create() or m0_entity_open(), application
+	 * is expected to set obj->ob_entity->en_flags |= M0_ENF_META. When
+	 * m0_entity_create() returns, the pool version and layout id will be
+	 * available for the application at obj->ob_attr.oa_pver and
+	 * obj->ob_attr.oa_lid respectively.
+	 *
+	 * For example, create workflow can look like this:
+	 *
 	 *   obj->ob_entity.en_flags |= M0_ENF_META;
-	 *   m0_entity_create((NULL, &obj.ob_entity, &ops[0]);
-	 *   //  Save the returned pool version and lid into app_meta_data
+	 *   m0_entity_create(NULL, &obj->ob_entity, &ops[0]);
+	 *   // Save the returned pool version and lid into app_meta_data
 	 *   app_meta_data.pver = obj->ob_attr.oa_pver;
-	 *   app_meta_data.lid = obj->ob_attr.oa_lid;
+	 *   app_meta_data.lid  = obj->ob_attr.oa_lid;
 	 *
-	 * Read workflow:
+	 * And read workflow:
+	 *
+	 *   obj->ob_entity.en_flags |= M0_ENF_META;
+	 *   // Set the pool version and lid from app_meta_data
 	 *   obj->ob_attr.oa_pver = app_meta_data.pver;
-	 *   obj->ob_attr.oa_lid =  app_meta_data.lid;
-	 *   m0_entity_open(NULL, &obj.ob_entity, &ops[0]);
+	 *   obj->ob_attr.oa_lid  = app_meta_data.lid;
+	 *   m0_entity_open(NULL, &obj->ob_entity, &ops[0]);
 	 */
 	M0_ENF_META = 1 << 0,
 	/**
