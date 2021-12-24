@@ -9211,7 +9211,7 @@ struct ut_cb_data {
  * else put routine will set the ERROR code to indicate failure and it is
  * expected to return ERROR code by callback routine.
  */
-static int btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
+static int ut_btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
 	struct m0_bufvec_cursor  scur;
 	struct m0_bufvec_cursor  dcur;
@@ -9244,7 +9244,7 @@ static int btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	return 0;
 }
 
-static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
+static int ut_btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
 	struct m0_bufvec_cursor  scur;
 	struct m0_bufvec_cursor  dcur;
@@ -9386,7 +9386,7 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
  * Callback will be called before deleting value. If needed, caller can copy the
  * content of record.
  */
-static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
+static int ut_btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
 	m0_bcount_t              ksize;
 	struct ut_cb_data       *datum = cb->c_datum;
@@ -9404,7 +9404,8 @@ static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	return 0;
 }
 
-static int btree_kv_update_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
+static int ut_btree_kv_update_cb(struct m0_btree_cb *cb,
+				 struct m0_btree_rec *rec)
 {
 	struct m0_bufvec_cursor  scur;
 	struct m0_bufvec_cursor  dcur;
@@ -9606,7 +9607,7 @@ static void ut_multi_stream_kv_oper(void)
 			put_data.key       = &rec.r_key;
 			put_data.value     = &rec.r_val;
 
-			ut_cb.c_act        = btree_kv_put_cb;
+			ut_cb.c_act        = ut_btree_kv_put_cb;
 			ut_cb.c_datum      = &put_data;
 
 			m0_be_ut_tx_init(tx, ut_be);
@@ -9640,7 +9641,7 @@ static void ut_multi_stream_kv_oper(void)
 		get_data.embedded_ksize = false;
 		get_data.embedded_vsize = false;
 
-		ut_cb.c_act             = btree_kv_get_cb;
+		ut_cb.c_act             = ut_btree_kv_get_cb;
 		ut_cb.c_datum           = &get_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -9679,7 +9680,7 @@ static void ut_multi_stream_kv_oper(void)
 		get_data.embedded_ksize = false;
 		get_data.embedded_vsize = false;
 
-		ut_cb.c_act    = btree_kv_get_cb;
+		ut_cb.c_act    = ut_btree_kv_get_cb;
 		ut_cb.c_datum  = &get_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -9788,7 +9789,7 @@ static void ut_multi_stream_kv_oper(void)
 		del_key_in_tree.k_data = M0_BUFVEC_INIT_BUF(&p_del_key,
 							    &del_key_size);
 
-		ut_cb.c_act   = btree_kv_del_cb;
+		ut_cb.c_act   = ut_btree_kv_del_cb;
 		ut_cb.c_datum = &del_data;
 
 		for (stream_num = 0; stream_num < stream_count; stream_num++) {
@@ -10087,7 +10088,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 	data.key           = &rec.r_key;
 	data.value         = &rec.r_val;
 
-	ut_cb.c_act        = btree_kv_put_cb;
+	ut_cb.c_act        = ut_btree_kv_put_cb;
 	ut_cb.c_datum      = &data;
 
 	get_rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&get_k_ptr, &get_ksize);
@@ -10100,7 +10101,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 	get_data.embedded_ksize = true;
 	get_data.embedded_vsize = true;
 
-	ut_get_cb.c_act        = btree_kv_get_cb;
+	ut_get_cb.c_act        = ut_btree_kv_get_cb;
 	ut_get_cb.c_datum      = &get_data;
 
 	tree                   = ti->ti_tree;
@@ -10146,7 +10147,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		/** PUT keys and their corresponding values in the tree. */
 
-		ut_cb.c_act   = btree_kv_put_cb;
+		ut_cb.c_act   = ut_btree_kv_put_cb;
 		ut_cb.c_datum = &data;
 
 		while (key_first <= key_last - ti->ti_key_incr) {
@@ -10229,14 +10230,14 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rc = m0_be_tx_open_sync(tx);
 		M0_ASSERT(rc == 0);
 
-		ut_cb.c_act = btree_kv_update_cb;
+		ut_cb.c_act = ut_btree_kv_update_cb;
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_update(tree, &rec,
 							      &ut_cb, 0,
 							      &kv_op, tx));
 		M0_ASSERT(rc == M0_ERR(-ENOENT));
 
-		ut_cb.c_act = btree_kv_put_cb;
+		ut_cb.c_act = ut_btree_kv_put_cb;
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					m0_btree_update(tree, &rec,
 							&ut_cb,
@@ -10253,7 +10254,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		/** Verify btree_update for value size increase/decrease. */
 
 		key_first     = key_iter_start;
-		ut_cb.c_act   = btree_kv_update_cb;
+		ut_cb.c_act   = ut_btree_kv_update_cb;
 		ut_cb.c_datum = &data;
 		while (vsize_random && key_first <= key_last) {
 			vsize = GET_RANDOM_VALSIZE(value, key_first,
@@ -10357,7 +10358,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		/** Modify 20% of the values which have been inserted. */
 
 		key_first     = key_iter_start;
-		ut_cb.c_act   = btree_kv_update_cb;
+		ut_cb.c_act   = ut_btree_kv_update_cb;
 		ut_cb.c_datum = &data;
 
 		while (key_first <= key_last) {
@@ -10679,7 +10680,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		key_first = key_iter_start;
 		del_key = (r % 2 == 0) ? key_first : key_last;
 
-		ut_cb.c_act   = btree_kv_del_cb;
+		ut_cb.c_act   = ut_btree_kv_del_cb;
 		ut_cb.c_datum = &data;
 		while (keys_put_count) {
 			ksize = ksize_random ?
@@ -11169,7 +11170,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 					.embedded_vsize = false,
 				       };
 	struct m0_btree_cb     ut_cb   = {
-					  .c_act       = btree_kv_put_cb,
+					  .c_act       = ut_btree_kv_put_cb,
 					  .c_datum     = &data,
 					 };
 	int32_t                loop_count;
@@ -11257,7 +11258,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rec_count %= MAX_RECS_FOR_TREE_TEST;
 		rec_count = rec_count ? : (MAX_RECS_FOR_TREE_TEST / 2);
 
-		ut_cb.c_act = btree_kv_put_cb;
+		ut_cb.c_act = ut_btree_kv_put_cb;
 
 		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 		m0_btree_put_credit(tree, 1, ksize, vsize, &cred);
@@ -11289,7 +11290,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 							    NULL));
 		M0_ASSERT(rc == 0);
 
-		ut_cb.c_act = btree_kv_get_cb;
+		ut_cb.c_act = ut_btree_kv_get_cb;
 		for (i = 1; i <= rec_count; i++) {
 			value = key = i;
 
@@ -11313,7 +11314,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 							    NULL));
 		M0_ASSERT(rc == 0);
 
-		ut_cb.c_act = btree_kv_del_cb;
+		ut_cb.c_act = ut_btree_kv_del_cb;
 
 		cred = M0_BE_TX_CREDIT(0, 0);
 		m0_btree_del_credit(tree, 1, ksize, -1, &cred);
@@ -11639,7 +11640,7 @@ static void ut_btree_persistence(void)
 	put_data.key       = &rec.r_key;
 	put_data.value     = &rec.r_val;
 
-	ut_cb.c_act        = btree_kv_put_cb;
+	ut_cb.c_act        = ut_btree_kv_put_cb;
 	ut_cb.c_datum      = &put_data;
 
 	for (i = 1; i <= rec_count; i++) {
@@ -11701,7 +11702,7 @@ static void ut_btree_persistence(void)
 		f_key = m0_byteorder_cpu_to_be64(i);
 		key_in_tree.k_data =
 				    M0_BUFVEC_INIT_BUF(&f_key_ptr, &f_key_size);
-		ut_cb.c_act             = btree_kv_get_cb;
+		ut_cb.c_act             = ut_btree_kv_get_cb;
 		ut_cb.c_datum           = &get_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11718,7 +11719,7 @@ static void ut_btree_persistence(void)
 			rc = m0_be_tx_open_sync(tx);
 			M0_ASSERT(rc == 0);
 
-			ut_cb.c_act             = btree_kv_del_cb;
+			ut_cb.c_act             = ut_btree_kv_del_cb;
 			ut_cb.c_datum           = &get_data;
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11768,7 +11769,7 @@ static void ut_btree_persistence(void)
 		f_key = m0_byteorder_cpu_to_be64(i);
 		key_in_tree.k_data =
 				    M0_BUFVEC_INIT_BUF(&f_key_ptr, &f_key_size);
-		ut_cb.c_act             = btree_kv_get_cb;
+		ut_cb.c_act             = ut_btree_kv_get_cb;
 		ut_cb.c_datum           = &get_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11788,7 +11789,7 @@ static void ut_btree_persistence(void)
 			rc = m0_be_tx_open_sync(tx);
 			M0_ASSERT(rc == 0);
 
-			ut_cb.c_act             = btree_kv_del_cb;
+			ut_cb.c_act             = ut_btree_kv_del_cb;
 			ut_cb.c_datum           = &get_data;
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11812,7 +11813,7 @@ static void ut_btree_persistence(void)
 			for (k = 0; k < ARRAY_SIZE(value); k++)
 				value[k] = key;
 
-			ut_cb.c_act        = btree_kv_put_cb;
+			ut_cb.c_act        = ut_btree_kv_put_cb;
 			ut_cb.c_datum      = &put_data;
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11862,7 +11863,7 @@ static void ut_btree_persistence(void)
 		f_key = m0_byteorder_cpu_to_be64(i);
 		key_in_tree.k_data =
 				    M0_BUFVEC_INIT_BUF(&f_key_ptr, &f_key_size);
-		ut_cb.c_act        = btree_kv_get_cb;
+		ut_cb.c_act        = ut_btree_kv_get_cb;
 		ut_cb.c_datum      = &get_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11879,7 +11880,7 @@ static void ut_btree_persistence(void)
 			rc = m0_be_tx_open_sync(tx);
 			M0_ASSERT(rc == 0);
 
-			ut_cb.c_act             = btree_kv_del_cb;
+			ut_cb.c_act             = ut_btree_kv_del_cb;
 			ut_cb.c_datum           = &get_data;
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11927,7 +11928,7 @@ static void ut_btree_persistence(void)
 		f_key = m0_byteorder_cpu_to_be64(i);
 		key_in_tree.k_data =
 				     M0_BUFVEC_INIT_BUF(&f_key_ptr, &f_key_size);
-		ut_cb.c_act        = btree_kv_get_cb;
+		ut_cb.c_act        = ut_btree_kv_get_cb;
 		ut_cb.c_datum      = &get_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -12070,7 +12071,7 @@ static void ut_btree_truncate(void)
 	put_data.key       = &rec.r_key;
 	put_data.value     = &rec.r_val;
 
-	ut_cb.c_act        = btree_kv_put_cb;
+	ut_cb.c_act        = ut_btree_kv_put_cb;
 	ut_cb.c_datum      = &put_data;
 
 	for (i = 1; i <= rec_count; i++) {
@@ -12229,7 +12230,7 @@ static void ut_lru_test(void)
 	put_data.key       = &rec.r_key;
 	put_data.value     = &rec.r_val;
 
-	ut_cb.c_act        = btree_kv_put_cb;
+	ut_cb.c_act        = ut_btree_kv_put_cb;
 	ut_cb.c_datum      = &put_data;
 
 	for (i = 1; i <= rec_count; i++) {
@@ -12596,7 +12597,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	put_data.key       = &rec.r_key;
 	put_data.value     = &rec.r_val;
 
-	ut_cb.c_act        = btree_kv_put_cb;
+	ut_cb.c_act        = ut_btree_kv_put_cb;
 	ut_cb.c_datum      = &put_data;
 
 	for (i = 1; i <= rec_count; i++) {
@@ -12653,7 +12654,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 		f_key              = m0_byteorder_cpu_to_be64(i);
 		key_in_tree.k_data = M0_BUFVEC_INIT_BUF(&f_kptr, &f_ksize);
 		vsize              = sizeof(value);
-		ut_cb.c_act        = btree_kv_get_cb;
+		ut_cb.c_act        = ut_btree_kv_get_cb;
 		ut_cb.c_datum      = &get_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -12679,7 +12680,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 		rc = m0_be_tx_open_sync(tx);
 		M0_ASSERT(rc == 0);
 
-		ut_cb.c_act        = btree_kv_update_cb;
+		ut_cb.c_act        = ut_btree_kv_update_cb;
 		ut_cb.c_datum      = &put_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -12721,7 +12722,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 
 		f_key              = m0_byteorder_cpu_to_be64(i);
 		key_in_tree.k_data = M0_BUFVEC_INIT_BUF(&f_kptr, &f_ksize);
-		ut_cb.c_act        = btree_kv_get_cb;
+		ut_cb.c_act        = ut_btree_kv_get_cb;
 		ut_cb.c_datum      = &get_data;
 		vsize              = sizeof(value);
 
