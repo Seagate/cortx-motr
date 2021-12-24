@@ -92,6 +92,13 @@ enum m0_btree_crc_type {
 	 * implemented in the code.
 	 */
 	M0_BCT_USER_CRC_FUNCTION, /** TBD */
+
+	/**
+	 * CRC is internally embedded by btree in Key and/or Value fields of the
+	 * Record. No CRC will be provide by the Calller. m0_has_fnc_fnv1() can
+	 * be used to calculate CRC.
+	 */
+	M0_BCT_BTREE_ENC_RAW_HASH,
 };
 
 struct m0_btree_type {
