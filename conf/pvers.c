@@ -804,6 +804,43 @@ err:
 	return rc;
 }
 
+int m0_conf_pver_status(struct m0_fid *fid,
+			struct m0_confc *confc,
+			struct m0_conf_pver_info *out_info)
+{
+	struct m0_conf_root      *root;
+	struct m0_conf_pver      *pver;
+	struct m0_conf_pver_info *pver_info;
+	int                       rc;
+	int                       i = 0;
+	uint32_t                  failures = 0;
+	uint32_t                  K;
+
+	M0_ENTRY();
+	M0_PRE(fid != NULL);
+	M0_PRE(confc != NULL);
+
+	root = M0_CONF_CAST(confc->cc_root, m0_conf_root);
+	rc = m0_conf_pver_find_by_fid(fid, root, &pver);
+	M0_ALLOC_PTR(pver_info);
+	pver_info->cpi_fid = *fid;
+	pver_info->cpi_attr = pver->pv_u.subtree.pvs_attr;
+	K = pver->pv_u.subtree.pvs_attr.pa_K;
+	while (i < M0_CONF_PVER_HEIGHT)
+		failures += pver->pv_u.subtree.pvs_recd[i++];
+
+	if (failures == 0)
+		pver_info->cpi_state = M0_CPS_HEALTHY;
+	else if (failures < K)
+		pver_info->cpi_state = M0_CPS_DEGRADED;
+	else if (failures == K)
+		pver_info->cpi_state = M0_CPS_CRITICAL;
+	else
+		pver_info->cpi_state = M0_CPS_DAMAGED;
+
+	return M0_RC(rc);
+}M0_EXPORTED(m0_conf_pver_status);
+
 static int conf_obj_mark_deleted(struct m0_conf_obj *obj, void *args M0_UNUSED)
 {
 	M0_PRE(!obj->co_deleted);
