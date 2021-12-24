@@ -305,7 +305,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	/* Copy attributes to client if reply received from read operation */
 	if (m0_is_read_rep(reply_fop) && op->op_code ==
-								 M0_OC_READ && m0__obj_is_di_enabled(ioo)) {
+	    M0_OC_READ && m0__obj_is_di_enabled(ioo)) {
 		m0_indexvec_wire2mem(&rwfop->crw_ivec,
 					rwfop->crw_ivec.ci_nr, 0,
 					&rep_attr_ivec);
