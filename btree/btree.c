@@ -2367,7 +2367,7 @@ static void bnode_crc_validate(struct nd *node)
 			crc = *((uint64_t *)(p_val + vsize - sizeof(crc)));
 			rc = (crc == m0_hash_fnc_fnv1(p_val,
 						      vsize - sizeof(crc)));
-		} else if(crc_type == M0_BCT_BTREE_ENC_RAW_HASH) {
+		} else if (crc_type == M0_BCT_BTREE_ENC_RAW_HASH) {
 			uint64_t crc;
 
 			crc = *((uint64_t *)(p_val + vsize));
