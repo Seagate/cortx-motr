@@ -238,7 +238,7 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 M0_EXPORTED(m0_calc_verify_cksum_one_unit);
 
 bool m0_is_di_enabled(struct m0_op_io *ioo) {
-	return ioo->ioo_attr.ov_vec.v_nr != 0;
+	return (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI);
 }
 
 M0_EXPORTED(m0_is_di_enabled);

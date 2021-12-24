@@ -151,7 +151,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	void                   *dst;
 	void                   *src;
 
-	M0_PRE(ioo->ioo_attr.ov_vec.v_nr);
+	M0_PRE((ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI));
 	src = buf->b_addr;
 
 	if (!buf->b_nob) {
