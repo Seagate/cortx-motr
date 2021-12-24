@@ -629,6 +629,7 @@ enum {
 	MAX_TREE_HEIGHT          = 5,
 	BTREE_CB_CREDIT_CNT      = MAX_TREE_HEIGHT * 2 + 1,
 	INTERNAL_NODE_VALUE_SIZE = sizeof(void *),
+	CRC_VALUE_SIZE           = sizeof(uint64_t),
 };
 
 #define IS_INTERNAL_NODE(node) bnode_level(node) > 0 ? true : false
@@ -1053,6 +1054,8 @@ struct node_type {
 	/**
 	 *  Node changes related to last record have completed; any post
 	 *  processing related to the record needs to be done in this function.
+	 *  If record is inserted or updated, modified flag will be true,
+	 *  whereas in case of record deletion, the flag will be false.
 	 */
 	void (*nt_done)(struct slot *slot, bool modified);
 
@@ -1560,8 +1563,8 @@ static int bnode_init(struct segaddr *addr, int ksize, int vsize, int nsize,
 		      struct m0_fid fid, int nxt)
 {
 	/**
-	 * bnode_access() will ensure that we have node data loaded in our memory
-	 * before initialisation.
+	 * bnode_access() will ensure that we have node data loaded in our
+	 * memory before initialisation.
 	 */
 	nxt = bnode_access(addr, nxt);
 
@@ -1657,10 +1660,9 @@ static int bnode_valsize(const struct nd *node)
 }
 
 /**
- * If predict is set as true,
- *        If predict is 'true' the function returns a possibility of underflow if
- *         another record is deleted from this node without addition of any more
- *         records.
+ * If predict is 'true' the function returns a possibility of underflow if
+ * another record is deleted from this node without addition of any more
+ * records.
  * If predict is 'false' the function returns the node's current underflow
  * state.
  */
@@ -2365,6 +2367,12 @@ static void bnode_crc_validate(struct nd *node)
 			crc = *((uint64_t *)(p_val + vsize - sizeof(crc)));
 			rc = (crc == m0_hash_fnc_fnv1(p_val,
 						      vsize - sizeof(crc)));
+		} else if (crc_type == M0_BCT_BTREE_ENC_RAW_HASH) {
+			uint64_t crc;
+
+			crc = *((uint64_t *)(p_val + vsize));
+			rc = (crc == m0_hash_fnc_fnv1(p_val, vsize));
+
 		} else if (crc_type == M0_BCT_USER_ENC_FORMAT_FOOTER)
 			rc = m0_format_footer_verify(p_val, false) == M0_RC(0);
 
@@ -2679,7 +2687,11 @@ static void *ff_val(const struct nd *node, int idx)
 		   (0 <= idx && idx <= h->ff_used)));
 
 	node_end_addr = node_start_addr + h->ff_nsize;
-	value_offset  = ff_valsize(node) * (idx + 1);
+	if (h->ff_level == 0 &&
+	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		value_offset  = (ff_valsize(node) + CRC_VALUE_SIZE) * (idx + 1);
+	else
+		value_offset  = ff_valsize(node) * (idx + 1);
 
 	return node_end_addr - value_offset;
 }
@@ -2836,8 +2848,14 @@ static int ff_count_rec(const struct nd *node)
 static int ff_space(const struct nd *node)
 {
 	struct ff_head *h = ff_data(node);
+	int             crc_size = 0;
+
+	if (h->ff_level == 0 &&
+	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		crc_size = CRC_VALUE_SIZE;
+
 	return h->ff_nsize - sizeof *h -
-		(h->ff_ksize + ff_valsize(node)) * h->ff_used;
+		(h->ff_ksize + ff_valsize(node) + crc_size) * h->ff_used;
 }
 
 static int ff_level(const struct nd *node)
@@ -2884,7 +2902,14 @@ static bool ff_isunderflow(const struct nd *node, bool predict)
 static bool ff_isoverflow(const struct nd *node, const struct m0_btree_rec *rec)
 {
 	struct ff_head *h = ff_data(node);
-	return (ff_space(node) < h->ff_ksize + ff_valsize(node)) ? true : false;
+	int             crc_size = 0;
+
+	if (h->ff_level == 0 &&
+	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		crc_size = sizeof(uint64_t);
+
+	return (ff_space(node) < h->ff_ksize + ff_valsize(node) + crc_size) ?
+	       true : false;
 }
 
 static void ff_fid(const struct nd *node, struct m0_fid *fid)
@@ -2934,17 +2959,35 @@ static void ff_child(struct slot *slot, struct segaddr *addr)
 static bool ff_isfit(struct slot *slot)
 {
 	struct ff_head *h = ff_data(slot->s_node);
+	int             crc_size = 0;
 
 	M0_PRE(ff_rec_is_valid(slot));
-	return h->ff_ksize + ff_valsize(slot->s_node) <= ff_space(slot->s_node);
+
+	if (h->ff_level == 0 &&
+	   ff_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		crc_size = CRC_VALUE_SIZE;
+	return h->ff_ksize + ff_valsize(slot->s_node) + crc_size <=
+	       ff_space(slot->s_node);
 }
 
 static void ff_done(struct slot *slot, bool modified)
 {
 	/**
-	 * not needed yet. In future if we want to calculate checksum per
-	 * record, we might want to recode this function.
+	 * After record modification, this function will be used to perfor any
+	 * post operations, such as CRC calculations.
+	 *
 	*/
+	const struct nd *node = slot->s_node;
+	struct ff_head  *h    = ff_data(node);
+	void            *val_addr;
+	uint64_t         calculated_csum;
+
+	if (modified && h->ff_level == 0 &&
+	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH) {
+		val_addr = ff_val(slot->s_node, slot->s_idx);
+		calculated_csum = m0_hash_fnc_fnv1(val_addr, h->ff_vsize);
+		*(uint64_t*)(val_addr + h->ff_vsize) = calculated_csum;
+	}
 }
 
 static void ff_make(struct slot *slot)
@@ -2952,25 +2995,30 @@ static void ff_make(struct slot *slot)
 	struct ff_head *h  = ff_data(slot->s_node);
 	void           *key_addr;
 	void           *val_addr;
+	int             crc_size = 0;
 	int             vsize;
 	int             total_key_size;
 	int             total_val_size;
-
 
 	if (h->ff_used == 0 || slot->s_idx == h->ff_used) {
 		h->ff_used++;
 		return;
 	}
 
+	if (h->ff_level == 0 &&
+	    ff_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		crc_size = CRC_VALUE_SIZE;
+
 	key_addr       = ff_key(slot->s_node, slot->s_idx);
 	val_addr       = ff_val(slot->s_node, h->ff_used - 1);
 
 	vsize          = ff_valsize(slot->s_node);
 	total_key_size = h->ff_ksize * (h->ff_used - slot->s_idx);
-	total_val_size = vsize * (h->ff_used - slot->s_idx);
+	total_val_size = (vsize + crc_size) * (h->ff_used - slot->s_idx);
 
 	m0_memmove(key_addr + h->ff_ksize, key_addr, total_key_size);
-	m0_memmove(val_addr - vsize, val_addr, total_val_size);
+	m0_memmove(val_addr - (vsize + crc_size), val_addr,
+		   total_val_size);
 
 	h->ff_used++;
 }
@@ -3002,6 +3050,7 @@ static void ff_del(const struct nd *node, int idx)
 	struct ff_head *h     = ff_data(node);
 	void           *key_addr;
 	void           *val_addr;
+	int             crc_size = 0;
 	int             vsize;
 	int             total_key_size;
 	int             total_val_size;
@@ -3013,15 +3062,20 @@ static void ff_del(const struct nd *node, int idx)
 		return;
 	}
 
+	if (h->ff_level == 0 &&
+	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		crc_size = CRC_VALUE_SIZE;
+
 	key_addr       = ff_key(node, idx);
 	val_addr       = ff_val(node, h->ff_used - 1);
 
 	vsize          = ff_valsize(node);
 	total_key_size = h->ff_ksize * (h->ff_used - idx - 1);
-	total_val_size = vsize * (h->ff_used - idx - 1);
+	total_val_size = (vsize + crc_size) * (h->ff_used - idx - 1);
 
 	m0_memmove(key_addr, key_addr + h->ff_ksize, total_key_size);
-	m0_memmove(val_addr + vsize, val_addr, total_val_size);
+	m0_memmove(val_addr + (vsize + crc_size), val_addr,
+		   total_val_size);
 
 	h->ff_used--;
 }
@@ -3153,11 +3207,17 @@ static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 		void *start_key        = ff_key(slot->s_node, slot->s_idx);
 		void *last_val         = ff_val(slot->s_node, h->ff_used - 1);
 		int   rec_modify_count = h->ff_used - slot->s_idx;
+		int   vsize            = ff_valsize(slot->s_node);
+		int   crc_size         = 0;
 		int   krsize;
 		int   vrsize;
 
-		krsize   = h->ff_ksize * rec_modify_count;
-		vrsize   = ff_valsize(slot->s_node) * rec_modify_count;
+		if (h->ff_level == 0 &&
+		    ff_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
+			crc_size = CRC_VALUE_SIZE;
+
+		krsize     = h->ff_ksize * rec_modify_count;
+		vrsize     = (vsize + crc_size) * rec_modify_count;
 
 		M0_BTREE_TX_CAPTURE(tx, seg, start_key, krsize);
 		M0_BTREE_TX_CAPTURE(tx, seg, last_val, vrsize);
@@ -7853,7 +7913,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		bnode_del(lev->l_node, lev->l_idx);
 		node_slot.s_node = lev->l_node;
 		node_slot.s_idx  = lev->l_idx;
-		bnode_done(&node_slot, true);
+		bnode_done(&node_slot, false);
 
 		/**
 		 * once underflow is resolved at child by deleteing child node
@@ -7918,7 +7978,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	root_slot.s_node = lev->l_node;
 	root_slot.s_idx  = 0;
 	bnode_del(lev->l_node, 0);
-	bnode_done(&root_slot, true);
+	bnode_done(&root_slot, false);
 
 	/* l_sib is node below root which is root's only child */
 	root_child = oi->i_level[1].l_sibling;
@@ -8290,7 +8350,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		bnode_lock(lev->l_node);
 
 		bnode_del(node_slot.s_node, node_slot.s_idx);
-		bnode_done(&node_slot, true);
+		bnode_done(&node_slot, false);
 		bnode_seq_cnt_update(lev->l_node);
 		bnode_fix(node_slot.s_node);
 		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx);
@@ -9151,7 +9211,7 @@ struct ut_cb_data {
  * else put routine will set the ERROR code to indicate failure and it is
  * expected to return ERROR code by callback routine.
  */
-static int btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
+static int ut_btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
 	struct m0_bufvec_cursor  scur;
 	struct m0_bufvec_cursor  dcur;
@@ -9184,7 +9244,7 @@ static int btree_kv_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	return 0;
 }
 
-static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
+static int ut_btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
 	struct m0_bufvec_cursor  scur;
 	struct m0_bufvec_cursor  dcur;
@@ -9311,6 +9371,10 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 
 			calculated_csum = m0_hash_fnc_fnv1(value_ary, vsize);
 			M0_ASSERT(csum_in_value == calculated_csum);
+		} else if (datum->crc == M0_BCT_BTREE_ENC_RAW_HASH) {
+			void *p_crc = rec->r_val.ov_buf[0] + vsize;
+			calculated_csum = m0_hash_fnc_fnv1(value_ary, vsize);
+			M0_ASSERT(*(uint64_t*)(p_crc) == calculated_csum);
 		} else if (datum->crc == M0_BCT_USER_ENC_FORMAT_FOOTER)
 			M0_ASSERT(m0_format_footer_verify(value_ary, false) == 0);
 	}
@@ -9322,7 +9386,7 @@ static int btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
  * Callback will be called before deleting value. If needed, caller can copy the
  * content of record.
  */
-static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
+static int ut_btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
 	m0_bcount_t              ksize;
 	struct ut_cb_data       *datum = cb->c_datum;
@@ -9340,7 +9404,8 @@ static int btree_kv_del_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	return 0;
 }
 
-static int btree_kv_update_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
+static int ut_btree_kv_update_cb(struct m0_btree_cb *cb,
+				 struct m0_btree_rec *rec)
 {
 	struct m0_bufvec_cursor  scur;
 	struct m0_bufvec_cursor  dcur;
@@ -9542,7 +9607,7 @@ static void ut_multi_stream_kv_oper(void)
 			put_data.key       = &rec.r_key;
 			put_data.value     = &rec.r_val;
 
-			ut_cb.c_act        = btree_kv_put_cb;
+			ut_cb.c_act        = ut_btree_kv_put_cb;
 			ut_cb.c_datum      = &put_data;
 
 			m0_be_ut_tx_init(tx, ut_be);
@@ -9576,7 +9641,7 @@ static void ut_multi_stream_kv_oper(void)
 		get_data.embedded_ksize = false;
 		get_data.embedded_vsize = false;
 
-		ut_cb.c_act             = btree_kv_get_cb;
+		ut_cb.c_act             = ut_btree_kv_get_cb;
 		ut_cb.c_datum           = &get_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -9615,7 +9680,7 @@ static void ut_multi_stream_kv_oper(void)
 		get_data.embedded_ksize = false;
 		get_data.embedded_vsize = false;
 
-		ut_cb.c_act    = btree_kv_get_cb;
+		ut_cb.c_act    = ut_btree_kv_get_cb;
 		ut_cb.c_datum  = &get_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -9724,7 +9789,7 @@ static void ut_multi_stream_kv_oper(void)
 		del_key_in_tree.k_data = M0_BUFVEC_INIT_BUF(&p_del_key,
 							    &del_key_size);
 
-		ut_cb.c_act   = btree_kv_del_cb;
+		ut_cb.c_act   = ut_btree_kv_del_cb;
 		ut_cb.c_datum = &del_data;
 
 		for (stream_num = 0; stream_num < stream_count; stream_num++) {
@@ -9919,6 +9984,11 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 				value[i] = data;                               \
 			}                                                      \
 			m0_format_footer_update(value);                        \
+		} else if (crc == M0_BCT_BTREE_ENC_RAW_HASH) {                 \
+			value[0] = data;                                       \
+			value[1] = m0_byteorder_cpu_to_be64(vsize);            \
+			for (i = 2; i < (vsize / sizeof(value[0])); i++)       \
+				value[i] = data;                               \
 		}                                                              \
 	} while (0);
 
@@ -10001,6 +10071,8 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		   ((crc == M0_BCT_USER_ENC_RAW_HASH &&
 		     ti->ti_value_size > sizeof(value[0]) * 2) ||
 		    (crc == M0_BCT_NO_CRC &&
+		     ti->ti_value_size > sizeof(value[0])) ||
+		    (crc == M0_BCT_BTREE_ENC_RAW_HASH &&
 		     ti->ti_value_size > sizeof(value[0]))) &&
 		   ti->ti_value_size <= sizeof(value)));
 
@@ -10016,7 +10088,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 	data.key           = &rec.r_key;
 	data.value         = &rec.r_val;
 
-	ut_cb.c_act        = btree_kv_put_cb;
+	ut_cb.c_act        = ut_btree_kv_put_cb;
 	ut_cb.c_datum      = &data;
 
 	get_rec.r_key.k_data   = M0_BUFVEC_INIT_BUF(&get_k_ptr, &get_ksize);
@@ -10029,7 +10101,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 	get_data.embedded_ksize = true;
 	get_data.embedded_vsize = true;
 
-	ut_get_cb.c_act        = btree_kv_get_cb;
+	ut_get_cb.c_act        = ut_btree_kv_get_cb;
 	ut_get_cb.c_datum      = &get_data;
 
 	tree                   = ti->ti_tree;
@@ -10075,7 +10147,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 		/** PUT keys and their corresponding values in the tree. */
 
-		ut_cb.c_act   = btree_kv_put_cb;
+		ut_cb.c_act   = ut_btree_kv_put_cb;
 		ut_cb.c_datum = &data;
 
 		while (key_first <= key_last - ti->ti_key_incr) {
@@ -10158,14 +10230,14 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rc = m0_be_tx_open_sync(tx);
 		M0_ASSERT(rc == 0);
 
-		ut_cb.c_act = btree_kv_update_cb;
+		ut_cb.c_act = ut_btree_kv_update_cb;
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_update(tree, &rec,
 							      &ut_cb, 0,
 							      &kv_op, tx));
 		M0_ASSERT(rc == M0_ERR(-ENOENT));
 
-		ut_cb.c_act = btree_kv_put_cb;
+		ut_cb.c_act = ut_btree_kv_put_cb;
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					m0_btree_update(tree, &rec,
 							&ut_cb,
@@ -10182,7 +10254,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		/** Verify btree_update for value size increase/decrease. */
 
 		key_first     = key_iter_start;
-		ut_cb.c_act   = btree_kv_update_cb;
+		ut_cb.c_act   = ut_btree_kv_update_cb;
 		ut_cb.c_datum = &data;
 		while (vsize_random && key_first <= key_last) {
 			vsize = GET_RANDOM_VALSIZE(value, key_first,
@@ -10286,7 +10358,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		/** Modify 20% of the values which have been inserted. */
 
 		key_first     = key_iter_start;
-		ut_cb.c_act   = btree_kv_update_cb;
+		ut_cb.c_act   = ut_btree_kv_update_cb;
 		ut_cb.c_datum = &data;
 
 		while (key_first <= key_last) {
@@ -10608,7 +10680,7 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		key_first = key_iter_start;
 		del_key = (r % 2 == 0) ? key_first : key_last;
 
-		ut_cb.c_act   = btree_kv_del_cb;
+		ut_cb.c_act   = ut_btree_kv_del_cb;
 		ut_cb.c_datum = &data;
 		while (keys_put_count) {
 			ksize = ksize_random ?
@@ -11098,7 +11170,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 					.embedded_vsize = false,
 				       };
 	struct m0_btree_cb     ut_cb   = {
-					  .c_act       = btree_kv_put_cb,
+					  .c_act       = ut_btree_kv_put_cb,
 					  .c_datum     = &data,
 					 };
 	int32_t                loop_count;
@@ -11186,7 +11258,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rec_count %= MAX_RECS_FOR_TREE_TEST;
 		rec_count = rec_count ? : (MAX_RECS_FOR_TREE_TEST / 2);
 
-		ut_cb.c_act = btree_kv_put_cb;
+		ut_cb.c_act = ut_btree_kv_put_cb;
 
 		cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 		m0_btree_put_credit(tree, 1, ksize, vsize, &cred);
@@ -11218,7 +11290,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 							    NULL));
 		M0_ASSERT(rc == 0);
 
-		ut_cb.c_act = btree_kv_get_cb;
+		ut_cb.c_act = ut_btree_kv_get_cb;
 		for (i = 1; i <= rec_count; i++) {
 			value = key = i;
 
@@ -11242,7 +11314,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 							    NULL));
 		M0_ASSERT(rc == 0);
 
-		ut_cb.c_act = btree_kv_del_cb;
+		ut_cb.c_act = ut_btree_kv_del_cb;
 
 		cred = M0_BE_TX_CREDIT(0, 0);
 		m0_btree_del_credit(tree, 1, ksize, -1, &cred);
@@ -11568,7 +11640,7 @@ static void ut_btree_persistence(void)
 	put_data.key       = &rec.r_key;
 	put_data.value     = &rec.r_val;
 
-	ut_cb.c_act        = btree_kv_put_cb;
+	ut_cb.c_act        = ut_btree_kv_put_cb;
 	ut_cb.c_datum      = &put_data;
 
 	for (i = 1; i <= rec_count; i++) {
@@ -11630,7 +11702,7 @@ static void ut_btree_persistence(void)
 		f_key = m0_byteorder_cpu_to_be64(i);
 		key_in_tree.k_data =
 				    M0_BUFVEC_INIT_BUF(&f_key_ptr, &f_key_size);
-		ut_cb.c_act             = btree_kv_get_cb;
+		ut_cb.c_act             = ut_btree_kv_get_cb;
 		ut_cb.c_datum           = &get_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11647,7 +11719,7 @@ static void ut_btree_persistence(void)
 			rc = m0_be_tx_open_sync(tx);
 			M0_ASSERT(rc == 0);
 
-			ut_cb.c_act             = btree_kv_del_cb;
+			ut_cb.c_act             = ut_btree_kv_del_cb;
 			ut_cb.c_datum           = &get_data;
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11697,7 +11769,7 @@ static void ut_btree_persistence(void)
 		f_key = m0_byteorder_cpu_to_be64(i);
 		key_in_tree.k_data =
 				    M0_BUFVEC_INIT_BUF(&f_key_ptr, &f_key_size);
-		ut_cb.c_act             = btree_kv_get_cb;
+		ut_cb.c_act             = ut_btree_kv_get_cb;
 		ut_cb.c_datum           = &get_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11717,7 +11789,7 @@ static void ut_btree_persistence(void)
 			rc = m0_be_tx_open_sync(tx);
 			M0_ASSERT(rc == 0);
 
-			ut_cb.c_act             = btree_kv_del_cb;
+			ut_cb.c_act             = ut_btree_kv_del_cb;
 			ut_cb.c_datum           = &get_data;
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11741,7 +11813,7 @@ static void ut_btree_persistence(void)
 			for (k = 0; k < ARRAY_SIZE(value); k++)
 				value[k] = key;
 
-			ut_cb.c_act        = btree_kv_put_cb;
+			ut_cb.c_act        = ut_btree_kv_put_cb;
 			ut_cb.c_datum      = &put_data;
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11791,7 +11863,7 @@ static void ut_btree_persistence(void)
 		f_key = m0_byteorder_cpu_to_be64(i);
 		key_in_tree.k_data =
 				    M0_BUFVEC_INIT_BUF(&f_key_ptr, &f_key_size);
-		ut_cb.c_act        = btree_kv_get_cb;
+		ut_cb.c_act        = ut_btree_kv_get_cb;
 		ut_cb.c_datum      = &get_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11808,7 +11880,7 @@ static void ut_btree_persistence(void)
 			rc = m0_be_tx_open_sync(tx);
 			M0_ASSERT(rc == 0);
 
-			ut_cb.c_act             = btree_kv_del_cb;
+			ut_cb.c_act             = ut_btree_kv_del_cb;
 			ut_cb.c_datum           = &get_data;
 
 			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11856,7 +11928,7 @@ static void ut_btree_persistence(void)
 		f_key = m0_byteorder_cpu_to_be64(i);
 		key_in_tree.k_data =
 				     M0_BUFVEC_INIT_BUF(&f_key_ptr, &f_key_size);
-		ut_cb.c_act        = btree_kv_get_cb;
+		ut_cb.c_act        = ut_btree_kv_get_cb;
 		ut_cb.c_datum      = &get_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -11999,7 +12071,7 @@ static void ut_btree_truncate(void)
 	put_data.key       = &rec.r_key;
 	put_data.value     = &rec.r_val;
 
-	ut_cb.c_act        = btree_kv_put_cb;
+	ut_cb.c_act        = ut_btree_kv_put_cb;
 	ut_cb.c_datum      = &put_data;
 
 	for (i = 1; i <= rec_count; i++) {
@@ -12158,7 +12230,7 @@ static void ut_lru_test(void)
 	put_data.key       = &rec.r_key;
 	put_data.value     = &rec.r_val;
 
-	ut_cb.c_act        = btree_kv_put_cb;
+	ut_cb.c_act        = ut_btree_kv_put_cb;
 	ut_cb.c_datum      = &put_data;
 
 	for (i = 1; i <= rec_count; i++) {
@@ -12254,6 +12326,13 @@ static void ut_btree_crc_test(void)
 					RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
 				},
 				M0_BCT_USER_ENC_RAW_HASH,
+			},
+			{
+				{
+					BNT_FIXED_FORMAT, 2 * sizeof(uint64_t),
+					2 * sizeof(uint64_t)
+				},
+				M0_BCT_BTREE_ENC_RAW_HASH,
 			},
 		};
 	uint16_t                    thread_count = ARRAY_SIZE(btrees_with_crc);
@@ -12459,7 +12538,9 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 		    (crc_type == M0_BCT_USER_ENC_FORMAT_FOOTER &&
 		     bt->vsize > (sizeof(value[0]) +
 				  sizeof(struct m0_format_header) +
-				  sizeof(struct m0_format_footer)))) &&
+				  sizeof(struct m0_format_footer))) ||
+		    (crc_type == M0_BCT_BTREE_ENC_RAW_HASH &&
+		     bt->vsize > sizeof(value[0]))) &&
 		    bt->vsize <= sizeof(value))));
 
 	M0_CASSERT(VAL_ARR_ELE_COUNT > 1);
@@ -12516,7 +12597,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	put_data.key       = &rec.r_key;
 	put_data.value     = &rec.r_val;
 
-	ut_cb.c_act        = btree_kv_put_cb;
+	ut_cb.c_act        = ut_btree_kv_put_cb;
 	ut_cb.c_datum      = &put_data;
 
 	for (i = 1; i <= rec_count; i++) {
@@ -12573,7 +12654,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 		f_key              = m0_byteorder_cpu_to_be64(i);
 		key_in_tree.k_data = M0_BUFVEC_INIT_BUF(&f_kptr, &f_ksize);
 		vsize              = sizeof(value);
-		ut_cb.c_act        = btree_kv_get_cb;
+		ut_cb.c_act        = ut_btree_kv_get_cb;
 		ut_cb.c_datum      = &get_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -12599,7 +12680,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 		rc = m0_be_tx_open_sync(tx);
 		M0_ASSERT(rc == 0);
 
-		ut_cb.c_act        = btree_kv_update_cb;
+		ut_cb.c_act        = ut_btree_kv_update_cb;
 		ut_cb.c_datum      = &put_data;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
@@ -12641,7 +12722,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 
 		f_key              = m0_byteorder_cpu_to_be64(i);
 		key_in_tree.k_data = M0_BUFVEC_INIT_BUF(&f_kptr, &f_ksize);
-		ut_cb.c_act        = btree_kv_get_cb;
+		ut_cb.c_act        = ut_btree_kv_get_cb;
 		ut_cb.c_datum      = &get_data;
 		vsize              = sizeof(value);
 
@@ -12771,6 +12852,13 @@ static void ut_btree_crc_persist_test(void)
 				sizeof(uint64_t), RANDOM_VALUE_SIZE
 			},
 			M0_BCT_USER_ENC_FORMAT_FOOTER,
+		},
+		{
+			{
+				BNT_FIXED_FORMAT, sizeof(uint64_t),
+				2 * sizeof(uint64_t)
+			},
+			M0_BCT_BTREE_ENC_RAW_HASH,
 		},
 	};
 	uint32_t test_count = ARRAY_SIZE(btrees_with_crc);
