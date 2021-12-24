@@ -191,29 +191,6 @@ enum m0_btree_opflag {
 };
 
 /**
- * Watermarks for BE space occupied by nodes in lru list.
- */
-enum m0_btree_used_space_watermark{
-	/**
-	 * LRU purging should should not happen below low used space
-	 * watermark
-	 */
-	M0_USW_LOW    = 2 * 1024 * 1024 * 1024ULL,
-
-	/**
-	 * An ongoing LRU purging can be stopped after reaching target used
-	 * space watermark.
-	 */
-	M0_USW_TARGET = 3 * 1024 * 1024 * 1024ULL,
-
-	/**
-	 * LRU purging should be triggered if used space is above high
-	 * used space watermark.
-	 */
-	M0_USW_HIGH   = 4 * 1024 * 1024 * 1024ULL,
-};
-
-/**
  * Users for triggering LRU list purge.
  */
 enum m0_btree_purge_user{
