@@ -150,7 +150,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	void                   *dst;
 	void                   *src;
 
-	if(!m0__obj_is_di_enabled(ioo)) {
+	if (!m0__obj_is_di_enabled(ioo)) {
 		return;
 	}
 	src = buf->b_addr;

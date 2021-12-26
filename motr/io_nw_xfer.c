@@ -1272,7 +1272,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 		goto fail;
 
 	/* Memory allocation for checksum computation */
-	if ( op->op_code == M0_OC_WRITE && m0__obj_is_di_enabled(ioo)) {
+	if (op->op_code == M0_OC_WRITE && m0__obj_is_di_enabled(ioo)) {
 		uint32_t b_nob;
 
 		ti->ti_attrbuf.b_addr = NULL;
