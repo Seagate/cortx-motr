@@ -413,7 +413,8 @@ void target_ioreq_fini(struct target_ioreq *ti)
 	if ( opcode == M0_OC_WRITE ) {
 		m0_buf_free( &ti->ti_attrbuf );
 		m0_free( (void *)ti->ti_cksum_seg_b_nob );
-	}
+	} else if ( opcode == M0_OC_READ )
+		m0_indexvec_free(&ti->ti_goff_ivec);
 
 	m0_free(ti);
 	M0_LEAVE();
@@ -647,7 +648,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		                      + ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr - 1];
 		/* If ioo_attr struct is not allocated then skip checksum computation */
 		is_goff_in_range = m0_ext_is_in(&goff_span_ext, goff) &&
-		                                ioo->ioo_attr.ov_vec.v_nr;
+		                        m0__obj_is_di_enabled(ioo);
 		if (dst_attr != NULL && unit_type == M0_PUT_DATA &&
 		    opcode == M0_OC_WRITE && is_goff_in_range) {
 			void         *src_attr;
@@ -981,8 +982,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				if (buf == NULL) {
 					buf = bvec->ov_buf[seg];
 					/* Add the size for checksum generated for every segment, skip parity */
-					if ((filter == PA_DATA) &&
-					    ioo->ioo_attr.ov_vec.v_nr &&
+					if ((filter == PA_DATA) && m0__obj_is_di_enabled(ioo) &&
 					    (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE)) {
 						delta += ti->ti_cksum_seg_b_nob[seg];
 						fop_cksm_nob += ti->ti_cksum_seg_b_nob[seg];
@@ -1031,8 +1031,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 					delta -= io_seg_size() - io_di_size(ioo);
 
-					if ((filter == PA_DATA) &&
-					    ioo->ioo_attr.ov_vec.v_nr &&
+					if ((filter == PA_DATA) && m0__obj_is_di_enabled(ioo) &&
 					    (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE)) {
 						delta -= ti->ti_cksum_seg_b_nob[seg];
 						fop_cksm_nob -= ti->ti_cksum_seg_b_nob[seg];
@@ -1086,7 +1085,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 
 		/* Assign the checksum buffer for traget */
-		if (filter == PA_DATA && ioo->ioo_attr.ov_vec.v_nr) {
+		if (filter == PA_DATA && m0__obj_is_di_enabled(ioo)) {
 			if (m0_is_write_fop(&iofop->if_fop))	{
 				M0_ASSERT(fop_cksm_nob != 0);
 				/* RPC layer to free crw_di_data_cksum */
@@ -1105,7 +1104,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			}
 
 			rw_fop->crw_cksum_size = (read_in_write ||
-			                          !(ioo->ioo_attr.ov_vec.v_nr)) ?
+						 !m0__obj_is_di_enabled(ioo)) ?
 						 0 : ioo->ioo_attr.ov_vec.v_count[0];
 		}
 		else {
@@ -1273,7 +1272,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 		goto fail;
 
 	/* Memory allocation for checksum computation */
-	if ( op->op_code == M0_OC_WRITE && ioo->ioo_attr.ov_vec.v_nr) {
+	if (op->op_code == M0_OC_WRITE && m0__obj_is_di_enabled(ioo)) {
 		uint32_t b_nob;
 
 		ti->ti_attrbuf.b_addr = NULL;
