@@ -1768,10 +1768,8 @@ static int libfab_dummy_msg_rcv_chk(struct m0_fab__buf *fbp)
 			pas_buf = fab_bufhash_htable_lookup(
 				&ma->ftm_bufhash.bht_hash,
 				&token);
-			if (pas_buf != NULL) {
-				pas_buf->fb_status = 0;
+			if (pas_buf != NULL)
 				libfab_buf_complete(pas_buf);
-			}
 
 			/*
 			 * Repost this buffer to the receive
@@ -1874,6 +1872,7 @@ static int libfab_check_for_event(struct fid_eq *eq, uint32_t *ev)
 
 	rc = fi_eq_read(eq, &event, &entry, sizeof(entry), 0);
 	if (rc == -FI_EAVAIL) {
+		memset(&err_entry, 0, sizeof(err_entry));
 		fi_eq_readerr(eq, &err_entry, 0);
 		rc = -err_entry.err;
 		M0_LOG(M0_DEBUG, "Error = %d %s %s\n", rc,
@@ -1912,6 +1911,7 @@ static int libfab_check_for_comp(struct fid_cq *cq, uint32_t *ctx,
 					  entry[i].data : 0;
 		}
 	} else if (ret != -FI_EAGAIN) {
+		memset(&err_entry, 0, sizeof(err_entry));
 		fi_cq_readerr(cq, &err_entry, 0);
 		M0_LOG(M0_DEBUG, "Error = %d %s %s\n", ret,
 		       fi_strerror(err_entry.err),
@@ -2747,12 +2747,12 @@ static int libfab_domain_params_get(struct m0_fab__ndom *fab_ndom)
 
 static int libfab_buf_dom_dereg(struct m0_fab__buf *fbp)
 {
-	struct m0_fab__ndom *nd = fbp->fb_nb->nb_dom->nd_xprt_private;
-	m0_time_t            tmout;
-	int                  i;
-	int                  ret = 0;
+	m0_time_t tmout;
+	int       i;
+	int       ret    = 0;
+	uint32_t  seg_nr = fbp->fb_nb->nb_buffer.ov_vec.v_nr;
 
-	for (i = 0; i < nd->fnd_seg_nr; i++) {
+	for (i = 0; i < seg_nr; i++) {
 		if (fbp->fb_mr.bm_mr[i] != NULL) {
 			/*
 			 * If fi_close returns -EBUSY, that means that the
@@ -3094,6 +3094,7 @@ static int libfab_buf_add(struct m0_net_buffer *nb)
 	M0_PRE(nb->nb_offset == 0); /* Do not support an offset during add. */
 	M0_PRE((nb->nb_flags & M0_NET_BUF_RETAIN) == 0);
 
+	fab_buf_tlink_init(fbp);
 	fbp->fb_token = libfab_buf_token_get(ma, fbp);
 	libfab_buf_dom_reg(nb, ma);
 	fbp->fb_status = 0;
