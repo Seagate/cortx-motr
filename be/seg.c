@@ -333,10 +333,10 @@ static m0_bcount_t be_seg_get_dev_offset(struct m0_be_seg *seg)
 	M0_PRE(seg != NULL ||  seg->bs_stob != NULL);
 	part_id = seg->bs_stob->so_id.si_fid.f_key;
 
-	if (((part_id == M0_BE_PTABLE_ENTRY_SEG0) &&
+	if ((seg->bs_domain != NULL) && (((part_id == M0_BE_PTABLE_ENTRY_SEG0) &&
 	     seg->bs_domain->bd_cfg.bc_part_cfg.bpc_part_mode_seg0) ||
 	    ((part_id == M0_BE_PTABLE_ENTRY_SEG1) &&
-	     seg->bs_domain->bd_cfg.bc_part_cfg.bpc_part_mode_seg1))
+	     seg->bs_domain->bd_cfg.bc_part_cfg.bpc_part_mode_seg1)))
 		M0_ASSERT(m0_be_ptable_get_part_info(&pri_part_info) == 0);
 	else
 		return dev_offset;

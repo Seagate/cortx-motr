@@ -1484,7 +1484,7 @@ static char *cs_storage_partdom_location_gen(const char *stob_path)
 	const char *prefix = m0_stob_part_type.st_fidt.ft_name;
 
 	M0_ALLOC_ARR(location,
-		     strlen(stob_path) + ARRAY_SIZE(prefix) + 1);
+		     strlen(stob_path) + ARRAY_SIZE(prefix) + 2);
 	if (location != NULL)
 		sprintf(location, "%s:%s", prefix, stob_path);
 	return location;
@@ -1514,19 +1514,27 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 	m0_bcount_t                 def_log_size = 128*1024*1024;
 	struct m0_be_part_stob_cfg *part_cfg;
 	m0_bcount_t                 def_dev_chunk_count = 1024;
+	struct m0_conf_sdev        *sdev = NULL;
+	bool                        ad_mode;
 	part_cfg = &rctx->rc_be.but_dom_cfg.bc_part_cfg;
+
 	memset(part_cfg, 0, sizeof(*part_cfg));
-	part_cfg->bpc_part_mode_set = m0_strcaseeq(rctx->rc_stype,
-						   m0_cs_stypes[M0_AD_STOB]);
+	ad_mode = m0_strcaseeq(rctx->rc_stype,
+			       m0_cs_stypes[M0_AD_STOB]);
+	if (!ad_mode ||
+	    (!M0_FI_ENABLED("init_via_conf")) ||
+            (cs_conf_get_parition_dev(&rctx->rc_stob, &sdev) != 0))
+			return;
+	part_cfg->bpc_part_mode_set = ad_mode;
 	if (part_cfg->bpc_part_mode_set) {
-		struct m0_conf_sdev        *sdev = NULL;
 		enum { len = 128 };
 
 		M0_ASSERT(cs_conf_get_parition_dev(&rctx->rc_stob, &sdev) == 0);
-		M0_LOG(M0_ALWAYS,"filename:%s,size:%"PRIu64" ",
-		       sdev->sd_filename, sdev->sd_size);
-		M0_ALLOC_ARR(part_cfg->bpc_create_cfg,
-			     strlen(sdev->sd_filename) + len);
+		M0_LOG(M0_ALWAYS,"filename:%s,size:%"PRIu64"alloc_len = %d ",
+		       sdev->sd_filename, sdev->sd_size,
+		       (int)(strlen(sdev->sd_filename) + len));
+		part_cfg->bpc_create_cfg = m0_alloc(strlen(sdev->sd_filename) +
+						    len);
 		M0_ASSERT(part_cfg->bpc_create_cfg != NULL);
 		sprintf(part_cfg->bpc_create_cfg, "%p %s %"PRIu64,
 			&rctx->rc_be.but_dom,
@@ -1538,7 +1546,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		part_cfg->bpc_dom_key = sdev->sd_dev_idx;
 		/** seg0 configuration */
 		part_cfg->bpc_part_mode_seg0 = true;
-		rctx->rc_be_seg0_path = sdev->sd_filename; 
+		rctx->rc_be_seg0_path = sdev->sd_filename;
 		proposed_chunk_size = sdev->sd_size / def_dev_chunk_count;
 		part_cfg->bpc_chunk_size_in_bits =
 			align_chunk_size(proposed_chunk_size);
