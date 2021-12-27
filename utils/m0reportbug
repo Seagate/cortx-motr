@@ -863,6 +863,7 @@ Options:
     --addb             Collect ADDB data.
     --skip-addb-files  skip collection of ADDB files
     -b, --binaries     Collect Motr binaries even if there are no core dumps.
+    --coredumps        Bool value to include/exclude core dumps. Default is false.
     --nr-boots         How many boots to query systemd journal for\
  (default is $NR_BOOTS_MAX).
     -p, --path         Show locations of Motr binaries: m0d, m0tr.ko, etc.
@@ -895,7 +896,7 @@ optparse() {
             --skip-addb-files) SKIP_ADDB_FILE_P=1;;
             -b|--binaries) COLLECT_BINARIES_P=1;;
             --coredumps) 
-                if [ -n "$2" ];
+                if [[ -n "$2" && ($2 == "true" || $2 == "false")]];
                 then
                     coredump=$(echo $2 | sed -e 's/,/\n/g')
                 else
