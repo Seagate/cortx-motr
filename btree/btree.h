@@ -190,6 +190,13 @@ enum m0_btree_opflag {
 	M0_BOF_UNIQUE = 1 << 0
 };
 
+/** Lru used space watermark default values. */
+enum m0_btree_used_space_watermark{
+	M0_USW_LOW    = 2 * 1024 * 1024 * 1024ULL,
+	M0_USW_TARGET = 3 * 1024 * 1024 * 1024ULL,
+	M0_USW_HIGH   = 4 * 1024 * 1024 * 1024ULL,
+};
+
 /**
  * Users for triggering LRU list purge.
  */

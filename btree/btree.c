@@ -1548,19 +1548,19 @@ static int64_t lru_space_used = 0;
  * Watermarks for BE space occupied by nodes in lru list.
  */
 /** LRU purging should not happen below low used space watermark. */
-int64_t lru_space_wm_low    = 2 * 1024 * 1024 * 1024ULL;
+int64_t lru_space_wm_low    = M0_USW_LOW;
 
 /**
  * An ongoing LRU purging can be stopped after reaching target used space
  * watermark.
  */
-int64_t lru_space_wm_target = 3 * 1024 * 1024 * 1024ULL;
+int64_t lru_space_wm_target = M0_USW_TARGET;
 
 /**
  * LRU purging should be triggered if used space is above high used space
  * watermark.
  */
-int64_t lru_space_wm_high   = 4 * 1024 * 1024 * 1024ULL;
+int64_t lru_space_wm_high   = M0_USW_HIGH;
 
 M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
 		   n_linkage, n_magic, M0_BTREE_ND_LIST_MAGIC,
