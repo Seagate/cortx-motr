@@ -1522,7 +1522,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 	ad_mode = m0_strcaseeq(rctx->rc_stype,
 			       m0_cs_stypes[M0_AD_STOB]);
 	if (!ad_mode ||
-	    (!M0_FI_ENABLED("init_via_conf")) ||
+	    (!rctx->rc_stob.s_ad_disks_init) ||
             (cs_conf_get_parition_dev(&rctx->rc_stob, &sdev) != 0))
 			return;
 	part_cfg->bpc_part_mode_set = ad_mode;
