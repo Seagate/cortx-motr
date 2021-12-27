@@ -1542,6 +1542,36 @@ struct m0_tl btree_active_nds;
  */
 static struct m0_rwlock list_lock;
 
+/**
+ * Total space used by nodes in lru list.
+ */
+static int64_t lru_space_used = 0;
+
+/** Lru used space watermark default values. */
+enum lru_used_space_watermark{
+	LUSW_LOW    = 2 * 1024 * 1024 * 1024ULL,
+	LUSW_TARGET = 3 * 1024 * 1024 * 1024ULL,
+	LUSW_HIGH   = 4 * 1024 * 1024 * 1024ULL,
+};
+
+/**
+ * Watermarks for BE space occupied by nodes in lru list.
+ */
+/** LRU purging should not happen below low used space watermark. */
+int64_t lru_space_wm_low    = LUSW_LOW;
+
+/**
+ * An ongoing LRU purging can be stopped after reaching target used space
+ * watermark.
+ */
+int64_t lru_space_wm_target = LUSW_TARGET;
+
+/**
+ * LRU purging should be triggered if used space is above high used space
+ * watermark.
+ */
+int64_t lru_space_wm_high   = LUSW_HIGH;
+
 M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
 		   n_linkage, n_magic, M0_BTREE_ND_LIST_MAGIC,
 		   M0_BTREE_ND_LIST_HEAD_MAGIC);
@@ -2188,14 +2218,10 @@ static void tree_put(struct td *tree)
 	m0_rwlock_write_lock(&list_lock);
 	m0_rwlock_write_lock(&tree->t_lock);
 	M0_ASSERT(tree->t_ref > 0);
-	M0_ASSERT(tree->t_root != NULL);
 
 	tree->t_ref--;
 
 	if (tree->t_ref == 0) {
-		bnode_lock(tree->t_root);
-		tree->t_root->n_tree = NULL;
-		bnode_unlock(tree->t_root);
 		m0_rwlock_write_unlock(&tree->t_lock);
 		m0_rwlock_fini(&tree->t_lock);
 		m0_rwlock_write_unlock(&list_lock);
@@ -2282,6 +2308,8 @@ static int64_t bnode_get(struct node_op *op, struct td *tree,
 			 */
 			ndlist_tlist_del(op->no_node);
 			ndlist_tlist_add(&btree_active_nds, op->no_node);
+			lru_space_used -= (m0_be_chunk_header_size() +
+					   op->no_node->n_size);
 			/**
 			 * Update nd::n_tree  to point to tree descriptor as we
 			 * as we had set it to NULL in bnode_put(). For more
@@ -2398,6 +2426,8 @@ static void bnode_crc_validate(struct nd *node)
  */
 static void bnode_put(struct node_op *op, struct nd *node)
 {
+	bool purge_check   = false;
+	bool is_root_node  = false;
 
 	M0_PRE(node != NULL);
 
@@ -2411,6 +2441,10 @@ static void bnode_put(struct node_op *op, struct nd *node)
 		 */
 		ndlist_tlist_del(node);
 		ndlist_tlist_add(&btree_lru_nds, node);
+		lru_space_used += (m0_be_chunk_header_size() + node->n_size);
+		purge_check = true;
+
+		is_root_node = node->n_tree->t_root == node;
 		/**
 		 * In case tree desriptor gets deallocated while node sits in
 		 * the LRU list, we do not want node descriptor to point to an
@@ -2418,8 +2452,8 @@ static void bnode_put(struct node_op *op, struct nd *node)
 		 * will again be populated in bnode_get().
 		 */
 		node->n_tree = NULL;
-
-		if (!node->n_be_node_valid && node->n_txref == 0) {
+		if ((!node->n_be_node_valid || is_root_node) &&
+		    node->n_txref == 0) {
 			ndlist_tlink_del_fini(node);
 			bnode_unlock(node);
 			m0_rwlock_fini(&node->n_lock);
@@ -2430,6 +2464,10 @@ static void bnode_put(struct node_op *op, struct nd *node)
 	}
 	bnode_unlock(node);
 	m0_rwlock_write_unlock(&list_lock);
+#ifndef __KERNEL__
+	if (purge_check)
+		m0_btree_lrulist_purge_check(M0_PU_BTREE, 0);
+#endif
 }
 
 # if 0
@@ -8562,13 +8600,15 @@ static int unmap_node(void* addr, int64_t size)
 static int remap_node(void* addr, int64_t size, struct m0_be_seg *seg)
 {
 	void *p;
+	m0_bcount_t file_offset = (m0_bcount_t)(addr - seg->bs_addr);
 	p = mmap(addr, size, PROT_READ | PROT_WRITE,
 		 MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE,
-		 m0_stob_fd(seg->bs_stob), seg->bs_offset);
+		 m0_stob_fd(seg->bs_stob), file_offset);
 	if (p == MAP_FAILED)
 		return M0_ERR(-EFAULT);
 	return 0;
 }
+
 /**
  * This function will try to unmap and remap the nodes in LRU list to free up
  * virtual page memory. The amount of memory to be freed will be given, and
@@ -8595,10 +8635,11 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
 		curr_size = 0;
 		prev      = ndlist_tlist_prev(&btree_lru_nds, node);
 		if (node->n_txref == 0 && node->n_ref == 0) {
-			curr_size = node->n_size;
+			curr_size = node->n_size + m0_be_chunk_header_size();
 			seg       = node->n_seg;
 			a         = m0_be_seg_allocator(seg);
 			rnode     = segaddr_addr(&node->n_addr);
+			rnode    -= m0_be_chunk_header_size();
 
 			m0_mutex_lock(&a->ba_lock);
 			rc = unmap_node(rnode, curr_size);
@@ -8608,6 +8649,7 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
 					size       -= curr_size;
 					total_size += curr_size;
 					ndlist_tlink_del_fini(node);
+					lru_space_used -= curr_size;
 					m0_rwlock_fini(&node->n_lock);
 					m0_free(node);
 				} else
@@ -8621,6 +8663,62 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
 	}
 	m0_rwlock_write_unlock(&list_lock);
 	return total_size;
+}
+
+/**
+ * Checks whether lru list purging is required based on used space
+ * watermark(enum m0_btree_used_space_watermark).
+ *
+ * @param user purge user
+ * @param size requested memory to be freed.
+ *
+ * @return int total freed memory.
+ */
+M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
+						 int64_t size)
+{
+	int64_t size_to_purge;
+	int64_t purged_size = 0;
+
+	if (lru_space_used < lru_space_wm_low) {
+		/** Do nothing. */
+		if (user == M0_PU_EXTERNAL)
+			M0_LOG(M0_INFO, "Skipping memory release since used "
+			       "space is below threshold requested size=%"PRId64
+			       " used space=%"PRId64, size, lru_space_used);
+		return 0;
+	}
+	if (lru_space_used < lru_space_wm_high) {
+		/**
+		 * If user is btree then do nothing. For external user,
+		 * purge lrulist till low watermark or size whichever is
+		 * higher.
+		 */
+		if (user == M0_PU_EXTERNAL) {
+			size_to_purge = min64(lru_space_used - lru_space_wm_low,
+					      size);
+			purged_size = m0_btree_lrulist_purge(size_to_purge);
+			M0_LOG(M0_INFO, " Below critical External user Purge,"
+			       " requested size=%"PRId64" used space=%"PRId64
+			       " purged size=%"PRId64, size, lru_space_used,
+			       purged_size);
+		}
+		return purged_size;
+	}
+	/**
+	 * If user is btree then purge lru list till lru_space_used reaches
+	 * target watermark. For external user, purge lrulist till low watermark
+	 * or size whichever is higher.
+	 */
+	size_to_purge = user == M0_PU_BTREE ?
+				(lru_space_used - lru_space_wm_target) :
+				min64(lru_space_used - lru_space_wm_low, size);
+	purged_size = m0_btree_lrulist_purge(size_to_purge);
+	M0_LOG(M0_INFO, " Above critical purge, User=%s requested size="
+	       "%"PRId64" used space=%"PRIu64" purged size="
+	       "%"PRIu64, user == M0_PU_BTREE ? "btree" : "external", size,
+	       lru_space_used, purged_size);
+	return purged_size;
 }
 #endif
 
