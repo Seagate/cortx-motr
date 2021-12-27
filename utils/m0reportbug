@@ -896,17 +896,13 @@ optparse() {
             --skip-addb-files) SKIP_ADDB_FILE_P=1;;
             -b|--binaries) COLLECT_BINARIES_P=1;;
             --coredumps) 
-                if [[ -n "$2" && ($2 == "true" || $2 == "false")]];
-                then
+                if [[ -n "$2" && ($2 == "true" || $2 == "false")]]; then
                     coredump=$(echo $2 | sed -e 's/,/\n/g')
                 else
                     echo "$2 reqire argument" && usage
                 fi
-                if [ $coredump == "true" ];
-                then
+                if [ $coredump == "true" ]; then
                     COLLECT_COREDUMPS_P=1
-                else
-                    COLLECT_COREDUMPS_P=0
                 fi
                 shift;;
             --nr-boots) NR_BOOTS_MAX=$2; shift;;
