@@ -43,6 +43,9 @@ static const char *ip_protocol[M0_NET_IP_PROTO_NR] = {
 					    [M0_NET_IP_PROTO_VERBS]  = "verbs",
 					    [M0_NET_IP_PROTO_O2IB]   = "o2ib" };
 
+/* This is the max strlen of members of ip_family and ip_protocol */
+#define MAX_PREFIX_STRLEN    10
+
 /**
  * Bitmap of used transfer machine identifiers. 1 is for used and 0 is for free.
  */
@@ -88,7 +91,7 @@ static int parse_prefix(const char *ep_name, const char **prefixes,
 
 	for (i = 0; i < nr_prefixes; ++i) {
 		if (prefixes[i] != NULL) {
-			*shift = strlen(prefixes[i]);
+			*shift = strnlen(prefixes[i], MAX_PREFIX_STRLEN);
 			if (strncmp(ep_name, prefixes[i], *shift) == 0) {
 				*index = i;
 				break;

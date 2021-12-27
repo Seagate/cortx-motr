@@ -356,8 +356,8 @@ M0_INTERNAL void m0_net_libfab_fini(void)
 static void libfab_straddr_gen(struct m0_net_ip_params *addr,
 			       char *ip)
 {
-	if ((addr->nip_fmt_pvt.ia.nia_family == M0_NET_IP_AF_INET) ||
-	    (addr->nip_format == M0_NET_IP_LNET_FORMAT))
+	if (likely((addr->nip_fmt_pvt.ia.nia_family == M0_NET_IP_AF_INET) ||
+		   (addr->nip_format == M0_NET_IP_LNET_FORMAT)))
 		inet_ntop(AF_INET, &addr->nip_ip_n.sn[0], ip,
 			  LIBFAB_ADDR_LEN_MAX);
 	else if (addr->nip_fmt_pvt.ia.nia_family == M0_NET_IP_AF_INET6)
@@ -915,7 +915,7 @@ static int libfab_ep_find(struct m0_net_transfer_mc *tm, const char *name,
 		net_ip.nia_n = *addr;
 	M0_ASSERT(libfab_tm_is_locked(tm->ntm_xprt_private));
 
-	if (addr != NULL)
+	if (likely(addr != NULL))
 		found = libfab_ep_find_by_num(&net_ip, tm, &ep);
 	else
 		found = libfab_ep_find_by_str(name, tm, &ep);
