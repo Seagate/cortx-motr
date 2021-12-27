@@ -396,7 +396,7 @@ struct m0_poolnode {
 	uint32_t                pn_index;
 	/**
 	 * Link to receive HA state change notification. This will wait on
-	 * disk obj's wait channel i.e. m0_conf_obj::co_ha_chan.
+	 * node obj's wait channel i.e. m0_conf_obj::co_ha_chan.
 	 */
 	struct m0_be_clink      pn_clink;
 	struct m0_format_footer pn_footer;
