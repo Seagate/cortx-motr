@@ -2121,14 +2121,15 @@ static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
  */
 static int libfab_target_notify(struct m0_fab__buf *buf)
 {
-	struct m0_fab__active_ep *aep;
+	struct m0_fab__active_ep *aep = libfab_aep_get(buf->fb_txctx);
 	struct m0_fab__buf       *fbp;
 	struct m0_fab__tm        *tm;
 	struct iovec              iv;
 	struct fi_msg             op_msg;
 	int                       ret = 0;
 
-	if (buf->fb_nb->nb_qtype == M0_NET_QT_ACTIVE_BULK_RECV) {
+	if (buf->fb_nb->nb_qtype == M0_NET_QT_ACTIVE_BULK_RECV &&
+	    aep->aep_tx_state == FAB_CONNECTED) {
 		M0_ALLOC_PTR(fbp);
 		if (fbp == NULL)
 			return M0_ERR(-ENOMEM);
@@ -2137,7 +2138,6 @@ static int libfab_target_notify(struct m0_fab__buf *buf)
 		fbp->fb_dummy[0] = FAB_DUMMY_DATA;
 		fbp->fb_dummy[1] = buf->fb_rbd->fbd_buftoken;
 		fbp->fb_txctx = buf->fb_txctx;
-		aep = libfab_aep_get(fbp->fb_txctx);
 		tm = libfab_buf_tm(buf);
 		fbp->fb_token = libfab_buf_token_get(tm, fbp);
 		aep->aep_bulk_cnt++;
