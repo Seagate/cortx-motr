@@ -38,6 +38,7 @@
 #include "lib/time.h"
 #include "lib/thread.h"
 #include "lib/vec.h"
+#include "net/ip.h"
 #include "net/net_otw_types.h"
 #include "net/net_otw_types_xc.h"
 #include "sm/sm.h"
@@ -500,6 +501,8 @@ struct m0_net_end_point {
 	   end point address.
 	 */
 	const char                *nep_addr;
+	/** Pointer to transport specific endpoint struct */
+	void                      *nep_xprt_pvt;
 };
 
 /**
