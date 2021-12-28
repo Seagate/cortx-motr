@@ -22,14 +22,27 @@
 #include "net/net.h"  /* m0_net_endpoint_is_valid */
 #include "ut/ut.h"
 
+#ifndef __KERNEL__
+#include <unistd.h>
+#endif
+
 static void test_endpoint_is_valid(void)
 {
+	char hostname[M0_NET_IP_STRLEN_MAX] = {};
+	char ep_str[M0_NET_IP_STRLEN_MAX]   = {};
+	int  rc;
+
 	const char *good[] = {
 		"0@lo:12345:34:1",
 		"172.18.1.1@tcp:12345:40:401",
 		"255.0.0.0@tcp:12345:1:1",
 		"172.18.50.40@o2ib:12345:34:1",
 		"172.18.50.40@o2ib1:12345:34:1",
+		"inet:tcp:127.0.0.1@3000",
+		"inet:tcp:127.0.0.1@3001",
+		"inet:tcp:localhost@3002",
+		"inet:verbs:localhost@3003",
+		ep_str,
 	};
 	const char *bad[] = {
 		"",
@@ -39,7 +52,14 @@ static void test_endpoint_is_valid(void)
 		"172.16.64.1:12345:45:41",
 		"256.0.0.0@tcp:12345:1:1",
 		"172.18.50.40@o2ib:54321:34:1",
+		"inet:abc:127.0.0.1@3000",
+		"lnet:tcp:127.0.0.1@3001",
+		"inet:tcp:127.0.0.1@67000",
 	};
+
+	rc = gethostname(hostname, sizeof(hostname)-1);
+	M0_UT_ASSERT(rc == 0);
+	sprintf(ep_str, "inet:tcp:%s@3004", hostname);
 
 	M0_UT_ASSERT(m0_forall(i, ARRAY_SIZE(good),
 			       m0_net_endpoint_is_valid(good[i])));

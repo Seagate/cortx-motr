@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
+
+. $M0_SRC_DIR/utils/functions # m0_loopback_nid_get
+
 # Assign a node uuid.
 # See lib/linux_kernel/kuuid.c:m0_param_node_uuid_get()
 NODE_UUID="abcdef01-2345-6789-0123-456789ABCDEF"
@@ -25,8 +30,4 @@ VERBOSE=
 PARSABLE=
 # PARSABLE="-p"
 
-LNET_IF="0@lo"
-LNET_PID=12345
-LNET_PORTAL=42
-
-LNET_PREFIX="$LNET_IF:$LNET_PID:$LNET_PORTAL"
+NID=$(m0_loopback_nid_get)

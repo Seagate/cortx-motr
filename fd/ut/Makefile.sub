@@ -4,3 +4,5 @@ ut_libmotr_ut_la_SOURCES += fd/ut/fd.c      \
 			    fd/ut/common.c
 
 CONFXC_FILES += fd/ut/failure-domains.xc
+
+EXTRA_DIST += fd/ut/failure-domains.cg.in

@@ -31,7 +31,7 @@
 
 #include "net/bulk_mem.h"     /* m0_net_bulk_mem_xprt */
 
-#define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
+#define SERVER_ENDPOINT_ADDR M0_UT_SERVER_EP_ADDR
 #define SERVER_ENDPOINT      M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 
 extern const struct m0_tl_descr ndoms_descr;
@@ -189,7 +189,7 @@ static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-T", "AD",
 				"-c", M0_UT_PATH("conf.xc")};
 
 static const char *cdbnames[]     = { "cdb1",               "cdb2" };
-static const char *cl_ep_addrs[]  = { "0@lo:12345:34:2",    "127.0.0.1:34569" };
+static const char *cl_ep_addrs[]  = { M0_UT_CLIENT_EP_ADDR, "127.0.0.1:34569" };
 static const char *srv_ep_addrs[] = { SERVER_ENDPOINT_ADDR, "127.0.0.1:35678" };
 
 enum { MAX_RPCS_IN_FLIGHT = 10 };
