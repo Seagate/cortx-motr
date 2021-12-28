@@ -380,6 +380,7 @@ static void obj_io_ast_fini(struct m0_sm_group *grp,
 	nw_xfer_request_fini(&ioo->ioo_nwxfer);
 	m0_layout_instance_fini(ioo->ioo_oo.oo_layout_instance);
 	m0_free(ioo->ioo_failed_session);
+	m0_free(ioo->ioo_failed_nodes);
 	m0_chan_signal_lock(&ioo->ioo_completion);
 
 	M0_LEAVE();
@@ -468,7 +469,8 @@ static int obj_io_init(struct m0_obj      *obj,
 {
 	int                  rc;
 	int                  i;
-	uint64_t             max_failures;
+	uint64_t             max_svc_failures;
+	uint64_t             max_node_failures;
 	struct m0_op_io     *ioo;
 	struct m0_op_obj    *oo;
 	struct m0_op_common *oc;
@@ -495,15 +497,25 @@ static int obj_io_init(struct m0_obj      *obj,
 		goto err;
 	}
 
-	/* Allocate and initialise failed sessions. */
-	max_failures = tolerance_of_level(ioo, M0_CONF_PVER_LVL_CTRLS);
-	M0_ALLOC_ARR(ioo->ioo_failed_session, max_failures + 1);
+	/* Allocate and initialise failed sessions and  nodes. */
+	max_svc_failures = tolerance_of_level(ioo, M0_CONF_PVER_LVL_CTRLS);
+	M0_ALLOC_ARR(ioo->ioo_failed_session, max_svc_failures + 1);
 	if (ioo->ioo_failed_session == NULL) {
 		rc = M0_ERR(-ENOMEM);
 		goto err;
 	}
-	for (i = 0; i < max_failures; ++i)
+	for (i = 0; i < max_svc_failures; ++i)
 		ioo->ioo_failed_session[i] = ~(uint64_t)0;
+
+	max_node_failures = tolerance_of_level(ioo, M0_CONF_PVER_LVL_ENCLS);
+	M0_ALLOC_ARR(ioo->ioo_failed_nodes, max_node_failures + 1);
+
+	if (ioo->ioo_failed_nodes == NULL) {
+		rc = M0_ERR(-ENOMEM);
+		goto err;
+	}
+	for (i = 0; i < max_node_failures; ++i)
+		ioo->ioo_failed_nodes[i] = ~(uint64_t)0;
 
 	/* Initialise the state machine */
 	locality = m0__locality_pick(cinst);
@@ -638,6 +650,11 @@ static void obj_io_args_check(struct m0_obj      *obj,
 		       data == NULL && attr == NULL && mask == 0));
 	/* Block metadata is not yet supported */
 	M0_ASSERT(mask == 0);
+}
+
+M0_INTERNAL bool m0__obj_is_di_enabled(struct m0_op_io *ioo)
+{
+	return ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI;
 }
 
 M0_INTERNAL int m0__obj_io_build(struct m0_io_args *args,

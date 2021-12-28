@@ -113,15 +113,10 @@ M0_INTERNAL void m0_co_context_locals_alloc(struct m0_co_context *context,
 {
 	context->mc_locals[context->mc_frame] =
 		locals_alloc(&context->mc_alloc, context->mc_frame, size);
-
-	M0_LOG(M0_CALL, "alloc=%p size=%"PRIu64,
-	       context->mc_locals[context->mc_frame], size);
 }
 
 M0_INTERNAL void m0_co_context_locals_free(struct m0_co_context *context)
 {
-	M0_LOG(M0_CALL, "free=%p", context->mc_locals[context->mc_frame]);
-
 	locals_free(&context->mc_alloc, context->mc_frame);
 	context->mc_locals[context->mc_frame] = NULL;
 }

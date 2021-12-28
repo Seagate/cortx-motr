@@ -213,6 +213,15 @@ static void copy_string_data(char *dst_str, const char *body,
 		}
 }
 
+static unsigned allowed_level = UINT_MAX;
+
+M0_INTERNAL void m0_trace_level_allow(unsigned level)
+{
+	M0_PRE(level <= M0_CALL);
+	allowed_level = level;
+}
+M0_EXPORTED(m0_trace_level_allow);
+
 M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 				const void *body)
 {
@@ -241,6 +250,9 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 	if (td->td_level > M0_TRACE_HIGHEST_ALLOWED_LEVEL)
 		return;
 #endif
+
+	if (td->td_level > allowed_level)
+		return;
 
 	record_num = m0_atomic64_add_return(&tbh->tbh_rec_cnt, 1);
 
