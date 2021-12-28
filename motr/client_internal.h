@@ -341,6 +341,12 @@ struct m0_op_io {
 	uint64_t                        *ioo_failed_session;
 
 	/**
+	 * An array holding ids of failed nodes. The vacant entries are
+	 * marked as ~(uint64_t)0.
+	 */
+	uint64_t                        *ioo_failed_nodes;
+
+	/**
 	* Total number of parity-maps associated with this request that are in
 	* degraded mode.
 	*/
@@ -964,6 +970,9 @@ M0_INTERNAL void m0__obj_attr_set(struct m0_obj *obj,
 				  uint64_t       lid);
 M0_INTERNAL bool
 m0__obj_pool_version_is_valid(const struct m0_obj *obj);
+M0_INTERNAL bool m0__obj_is_parity_verify_mode(struct m0_client *instance);
+M0_INTERNAL bool m0__obj_is_di_enabled(struct m0_op_io *ioo);
+M0_INTERNAL bool m0__obj_is_cksum_validation_allowed(struct m0_op_io *ioo);
 M0_INTERNAL int m0__obj_io_build(struct m0_io_args *args,
 				 struct m0_op     **op);
 M0_INTERNAL void m0__obj_op_done(struct m0_op *op);
