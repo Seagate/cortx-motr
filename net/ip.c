@@ -274,7 +274,12 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 	addr->nia_n.nip_fmt_pvt.la.nla_tmid = (uint16_t)tmid;
 	addr->nia_n.nip_port = (uint16_t)portnum;
 	addr->nia_n.nip_fmt_pvt.la.nla_type = is_localhost ? 0xFF : type;
-	M0_ASSERT(strlen(name) < ARRAY_SIZE(addr->nia_p));
+	/*
+	 * To fix codacy warning for strlen, check only if the strnlen exceeds
+	 * the array size of addr->nia_p.
+	 */
+	M0_ASSERT(strnlen(name, ARRAY_SIZE(addr->nia_p) + 1 ) <
+		  ARRAY_SIZE(addr->nia_p));
 	strcpy(addr->nia_p, name);
 
 	return M0_RC(0);
