@@ -268,7 +268,7 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 	portnum  = tmid | (1 << 10) | ((portal - 30) << 11);
 	if (portnum > M0_NET_IP_PORT_MAX)
 		return M0_ERR(-EINVAL);
-	snprintf(port, ARRAY_SIZE(port), "%d", portnum);
+	snprintf(port, ARRAY_SIZE(port), "%d", (uint32_t)portnum);
 	addr->nia_n.nip_format = M0_NET_IP_LNET_FORMAT;
 	inet_pton(AF_INET, node, &addr->nia_n.nip_ip_n.sn[0]);
 	addr->nia_n.nip_fmt_pvt.la.nla_tmid = (uint16_t)tmid;
