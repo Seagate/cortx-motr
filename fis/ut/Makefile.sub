@@ -1,3 +1,5 @@
 ut_libmotr_ut_la_SOURCES += fis/ut/fis_ut.c
 
 CONFXC_FILES += fis/ut/fis.xc
+
+EXTRA_DIST += fis/ut/fis.cg.in

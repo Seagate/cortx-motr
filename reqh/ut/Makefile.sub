@@ -13,6 +13,7 @@ nodist_motr_libmotr_la_SOURCES  += \
 XC_FILES   += reqh/ut/io_fop_xc.h \
               reqh/ut/service_xc.h
 
-EXTRA_DIST += reqh/ut/reqhut_fom.c
+EXTRA_DIST += reqh/ut/reqhut_fom.c \
+              reqh/ut/service_ctx.cg.in
 
 CONFXC_FILES += reqh/ut/service_ctx.xc

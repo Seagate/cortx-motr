@@ -26,7 +26,7 @@
 #include "ut/misc.h"       /* M0_UT_PATH */
 #include "ut/ut.h"
 
-#define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
+#define SERVER_ENDPOINT_ADDR M0_UT_SERVER_EP_ADDR
 #define SERVER_ENDPOINT      M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 #define SERVER_DB            "server_db"
 #define SERVER_STOB          "server_stob"

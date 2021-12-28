@@ -30,7 +30,6 @@
 #include "lib/string.h"
 #include <arpa/inet.h>          /* inet_pton, htons */
 #include <netdb.h>              /* hostent */
-#include <stdlib.h>             /* atoi */
 
 static const char *ip_family[M0_NET_IP_AF_NR] = {
 						[M0_NET_IP_AF_INET]  = "inet",
@@ -128,6 +127,10 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 	char        *at;
 	const char  *ep_name = name;
 	char        *end;
+	const char  *tail = name + strlen(name) - 1;
+
+	if (!isdigit(tail[0]))
+		return M0_ERR(-EINVAL);
 
 	rc = parse_prefix(ep_name, ip_family, ARRAY_SIZE(ip_family), &family,
 			  &shift);
@@ -186,22 +189,26 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
  */
 static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 {
-	char            *at = NULL;
-	int              nr;
-	int              i;
-	int              pid;
-	int              portal;
-	int              portnum;
-	int              tmid;
-	char             node[M0_NET_IP_STRLEN_MAX] = {};
-	char             port[M0_NET_IP_PORTLEN_MAX] = {};
-	const char      *ep_name = name;
-	uint32_t         nia_n;
-	int              shift;
-	int              type = 0;
-	int              rc;
-	bool             is_localhost = false;
+	char        *at = NULL;
+	int          nr;
+	int          i;
+	unsigned     pid;
+	unsigned     portal;
+	unsigned     portnum;
+	unsigned     tmid;
+	char         node[M0_NET_IP_STRLEN_MAX] = {};
+	char         port[M0_NET_IP_PORTLEN_MAX] = {};
+	const char  *ep_name = name;
+	uint32_t     nia_n;
+	int          shift;
+	int          type = 0;
+	const char  *tail = name + strlen(name) - 1;
+	int32_t      n[4];
+	bool         is_localhost = false;
+	int          rc;
 
+	if (!isdigit(tail[0]) && tail[0] != '*')
+		return M0_ERR(-EINVAL);
 
 	at = strchr(ep_name, '@');
 	if (strncmp(ep_name, "0@lo", 4) == 0) {
@@ -219,6 +226,11 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 				  &type, &shift);
 		if (rc != 0)
 			return M0_ERR(rc);
+		/* Verify ipv4 address format. */
+		rc = sscanf(node, "%d.%d.%d.%d", &n[0], &n[1], &n[2], &n[3]);
+		if (rc != 4 ||
+		    m0_exists(i, ARRAY_SIZE(n), n[i] < 0 || n[i] > 255))
+			return M0_RC(-EINVAL); /* invalid IPv4 address */
 	}
 
 	if (at == NULL || (at = strchr(at, ':')) == NULL)

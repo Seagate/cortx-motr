@@ -30,15 +30,15 @@
 static struct m0_rpc_server_ctx  ut_sctx;
 static struct m0_net_domain      ut_client_net_dom;
 static struct m0_rpc_machine     ut_rmach;
-static const char               *ut_ep_addr_remote = "0@lo:12345:34:999";
+static const char               *ut_ep_addr_remote = M0_UT_CLIENT_EP_ADDR;
 static struct m0_net_buffer_pool ut_buf_pool;
 static struct m0_reqh            ut_reqh;
 
 static char *sargs[] = {"m0d", "-T", "linux",
 			"-D", "cs_sdb", "-S", "cs_stob",
 			"-A", "linuxstob:cs_addb_stob",
-			"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
-			"-H", "0@lo:12345:34:1",
+			"-e", M0_NET_XPRT_PREFIX_DEFAULT":"M0_UT_SERVER_EP_ADDR,
+			"-H", M0_UT_SERVER_EP_ADDR,
 			"-w", "10",
 			"-c", M0_SRC_PATH("reqh/ut/service_ctx.xc")
 };
@@ -126,7 +126,7 @@ static void ut_dead_end__connecting(void)
 	struct m0_clink             clink;
 	/*
 	 * Need to do nothing here but just wait. Connecting is to fail
-	 * natural way due to "0@lo:12345:34:999" endpoint unavailable.
+	 * natural way due to M0_UT_CLIENT_EP_ADDR endpoint unavailable.
 	 */
 	m0_semaphore_init(&g_sem, 0);
 	m0_clink_init(&clink, ut_dead_end__cb);
@@ -141,8 +141,8 @@ static void ut_dead_end__connecting(void)
  * The test imitates situations when service context shuts down concurrently
  * with context connection.
  *
- * We are to start without "0@lo:12345:34:999" remote end and then see if we can
- * shutdown reqh smooth.
+ * We are to start without M0_UT_CLIENT_EP_ADDR remote end and then see if we
+ * can shutdown reqh smooth.
  */
 static void test_dead_end_connect(void)
 {
@@ -215,7 +215,7 @@ static void ut_dead_end__disconnected(void)
  * The test imitates situations when service context shuts down concurrently
  * with disconnection.
  *
- * This time a separate rpc machine is launched to let "0@lo:12345:34:999"
+ * This time a separate rpc machine is launched to let M0_UT_CLIENT_EP_ADDR
  * remote end be connectable. The remote end will be stopped in the course of
  * the test, and then we see if we can shutdown reqh smooth.
  */
