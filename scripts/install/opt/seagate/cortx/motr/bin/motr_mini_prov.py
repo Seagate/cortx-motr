@@ -428,12 +428,23 @@ def motr_config_k8(self):
     if not verify_libfabric(self):
         raise MotrError(errno.EINVAL, "libfabric is not up.")
 
+    if self.machine_id not in self.storage_nodes:
+        # Modify motr config file
+        update_copy_motr_config_file(self)
+        return
+
+    # If setup_size is large i.e.HW, read the (key,val)
+    # from /opt/seagate/cortx/motr/conf/motr.conf and
+    # update to /etc/sysconfig/motr
+    if self.setup_size == "large":
+        cmd = "{} {}".format(MOTR_CONFIG_SCRIPT, " -c")
+        execute_command(self, cmd, verbose = True)
+
     update_motr_hare_keys(self, self.nodes)
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
 
     # Update be_seg size only for storage node
-    if (self.machine_id in self.storage_nodes):
-        update_bseg_size(self)
+    update_bseg_size(self)
 
     # Modify motr config file
     update_copy_motr_config_file(self)
