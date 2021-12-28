@@ -161,7 +161,12 @@ static int m0_net_ip_inet_parse(const char *name, struct m0_net_ip_addr *addr)
 		inet_pton(family == M0_NET_IP_AF_INET ? AF_INET : AF_INET6,
 			  ip, &addr->nia_n.nip_ip_n.sn[0]);
 
-	M0_ASSERT(strlen(name) < ARRAY_SIZE(addr->nia_p));
+	/*
+	 * To fix codacy warning for strlen, check only if the strnlen exceeds
+	 * the array size of addr->nia_p.
+	 */
+	M0_ASSERT(strnlen(name, ARRAY_SIZE(addr->nia_p) + 1 ) <
+		  ARRAY_SIZE(addr->nia_p));
 	strcpy(addr->nia_p, name);
 	addr->nia_n.nip_fmt_pvt.ia.nia_family = family;
 	addr->nia_n.nip_fmt_pvt.ia.nia_type = type;
