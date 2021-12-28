@@ -297,7 +297,9 @@ static void data_buf_dealloc_fini(struct data_buf *buf)
 		m0_free_aligned(buf->db_buf.b_addr,
 				buf->db_buf.b_nob,
 				M0_NETBUF_SHIFT);
+	}
 
+	if (buf->db_auxbuf.b_addr != NULL) {
 		m0_free_aligned(buf->db_auxbuf.b_addr,
 				buf->db_auxbuf.b_nob,
 				M0_NETBUF_SHIFT);

@@ -150,7 +150,9 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	void                   *dst;
 	void                   *src;
 
-	M0_PRE(ioo->ioo_attr.ov_vec.v_nr);
+	if (!m0__obj_is_di_enabled(ioo)) {
+		return;
+	}
 	src = buf->b_addr;
 
 	if (!buf->b_nob) {
@@ -305,7 +307,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	/* Copy attributes to client if reply received from read operation */
 	if (m0_is_read_rep(reply_fop) && op->op_code ==
-		                         M0_OC_READ && ioo->ioo_attr.ov_vec.v_nr) {
+	    M0_OC_READ && m0__obj_is_di_enabled(ioo)) {
 		m0_indexvec_wire2mem(&rwfop->crw_ivec,
 					rwfop->crw_ivec.ci_nr, 0,
 					&rep_attr_ivec);

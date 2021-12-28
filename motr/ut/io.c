@@ -721,12 +721,14 @@ static void ut_test_m0_obj_op(void)
 	obj.ob_attr.oa_pver   = instance->m0c_pools_common.pc_cur_pver->pv_id;
 
 	m0_fi_enable_once("m0__obj_layout_id_get", "fake_obj_layout_id");
-	m0_fi_enable_once("tolerance_of_level", "fake_tolerance_of_level");
+	m0_fi_enable("tolerance_of_level", "fake_tolerance_of_level");
 
 	/* Base case: no assert for READ */
 	rc = m0_obj_op(&obj, M0_OC_READ, &ext, &data, &attr, 0, 0, &op);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(op->op_size >= sizeof *ioop);
+
+	m0_fi_disable("tolerance_of_level", "fake_tolerance_of_level");
 
 	/* XXX container_of || bob_of */
 	ioop = (struct m0_op_io *)op;

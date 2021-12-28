@@ -1901,6 +1901,27 @@ M0_INTERNAL uint32_t m0_ha2pm_state_map(enum m0_ha_obj_state hastate)
 	return ha2pm_statemap[hastate];
 }
 
+static bool node_poolmach_state_update_cb(struct m0_clink *cl)
+{
+	struct m0_poolmach_event  pme;
+	struct m0_conf_obj       *obj =
+		container_of(cl->cl_chan, struct m0_conf_obj, co_ha_chan);
+	struct m0_poolnode       *pnode =
+		container_of(cl, struct m0_poolnode, pn_clink.bc_u.clink);
+
+	M0_ENTRY();
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_NODE_TYPE);
+
+	pme.pe_type = M0_POOL_NODE;
+	pme.pe_index = pnode->pn_index;
+	pme.pe_state = m0_ha2pm_state_map(obj->co_ha_state);
+	M0_LOG(M0_DEBUG, "pe_type=%6s pe_index=%x, pe_state=%10d",
+			 pme.pe_type == M0_POOL_DEVICE ? "device":"node",
+			 pme.pe_index, pme.pe_state);
+
+	return M0_RC(m0_poolmach_state_transit(pnode->pn_pm, &pme));
+}
+
 static bool disks_poolmach_state_update_cb(struct m0_clink *cl)
 {
 	struct m0_poolmach_event  pme;
@@ -1920,6 +1941,28 @@ static bool disks_poolmach_state_update_cb(struct m0_clink *cl)
 			 pme.pe_index, pme.pe_state);
 
 	return M0_RC(m0_poolmach_state_transit(pdev->pd_pm, &pme));
+}
+
+M0_INTERNAL void m0_poolnode_clink_del(struct m0_clink *cl)
+{
+	if (M0_FI_ENABLED("do_nothing_for_poolmach-ut")) {
+		/*
+		 * The poolmach-ut does not add/register clink in poolnode.
+		 * So need to skip deleting the links if this is called
+		 * during poolmach-ut.
+		 * TODO: This is workaround & can be addressed differently.
+		 */
+		return;
+	}
+	m0_clink_del_lock(cl);
+	m0_clink_fini(cl);
+}
+
+M0_INTERNAL void m0_poolnode_clink_add(struct m0_clink *link,
+				       struct m0_chan  *chan)
+{
+	m0_clink_init(link, node_poolmach_state_update_cb);
+	m0_clink_add_lock(chan, link);
 }
 
 M0_INTERNAL void m0_pooldev_clink_del(struct m0_clink *cl)

@@ -154,6 +154,7 @@ func Init() {
 
     if !*traceOn {
         C.m0_trace_set_mmapped_buffer(false)
+        C.m0_trace_level_allow(C.M0_WARN)
     }
 
     C.conf.mc_is_oostore     = true
