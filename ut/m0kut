@@ -33,7 +33,7 @@ readonly top_srcdir=$(echo $(dirname $self) |
                       sed -r -e 's#/?(utils|ut)/?$##' -e 's#^/usr/s?bin##')
 
 # KUT expects particular predefined UUID
-readonly node_uuid="12345678-90ab-cdef-fedc-ba0987654321"
+readonly node_uuid="1234567890abcdeffedcba0987654321"
 
 # variables
 verbose=false
