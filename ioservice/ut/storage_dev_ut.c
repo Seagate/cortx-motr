@@ -33,7 +33,7 @@
 #include "ut/misc.h"               /* M0_UT_PATH */
 #include "ut/ut.h"
 
-#define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
+#define SERVER_ENDPOINT_ADDR M0_UT_SERVER_EP_ADDR
 
 enum {
 	CID1 = 10,
@@ -45,7 +45,7 @@ static int rpc_start(struct m0_rpc_server_ctx *rpc_srv)
 {
 	enum {
 		LOG_NAME_MAX_LEN     = 128,
-		EP_MAX_LEN           = 24,
+		EP_MAX_LEN           = M0_NET_IP_STRLEN_MAX,
 		RPC_SIZE_MAX_LEN     = 32,
 	};
 	 const char               *confd_ep = SERVER_ENDPOINT_ADDR;

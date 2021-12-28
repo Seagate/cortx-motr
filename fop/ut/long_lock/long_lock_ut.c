@@ -36,8 +36,8 @@ enum {
 #include "fop/ut/long_lock/rdwr_fom.c"
 #include "fop/ut/long_lock/rdwr_test_bench.c"
 
-static const char *ll_serv_addr[] = { "0@lo:12345:34:1",
-				      "0@lo:12345:34:2"
+static const char *ll_serv_addr[] = { M0_UT_SERVER_EP_ADDR,
+				      M0_UT_CLIENT_EP_ADDR
 };
 
 static const int ll_cob_ids[] = { 20, 30 };

@@ -48,4 +48,5 @@ XC_FILES += \
             dtm0/tx_desc_xc.h
 
 CONFXC_FILES += dtm0/conf.xc
-EXTRA_DIST += dtm0/linux_kernel/stubs.c
+EXTRA_DIST += dtm0/linux_kernel/stubs.c \
+              dtm0/conf.cg.in

@@ -50,8 +50,8 @@ static struct m0_ut_redirect out_redir;
 static struct m0_ut_redirect err_redir;
 static struct m0_rpc_machine cons_mach;
 
-#define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:2"
-#define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
+#define CLIENT_ENDPOINT_ADDR M0_UT_CLIENT_EP_ADDR
+#define SERVER_ENDPOINT_ADDR M0_UT_SERVER_EP_ADDR
 #define SERVER_ENDPOINT      M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 
 #define SERVER_DB_FILE_NAME	   "cons_server_db"

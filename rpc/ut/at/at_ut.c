@@ -50,8 +50,8 @@ struct atut_clctx {
 	struct m0_rpc_client_ctx acl_rpc_ctx;
 };
 
-#define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
-#define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:2"
+#define SERVER_ENDPOINT_ADDR M0_UT_SERVER_EP_ADDR
+#define CLIENT_ENDPOINT_ADDR M0_UT_CLIENT_EP_ADDR
 
 static struct atut_reqh        atreqh;
 static struct atut_clctx       at_cctx;

@@ -14,3 +14,5 @@ ut_libmotr_ut_la_SOURCES += fdmi/ut/filter_eval.c \
 CONFXC_FILES += fdmi/ut/conf.xc
 
 ut_libmotr_ut_la_CPPFLAGS += -DM0_FDMI_UT_DIR=$(abs_top_builddir)/fdmi/ut/
+
+EXTRA_DIST += fdmi/ut/conf.cg.in

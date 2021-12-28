@@ -37,9 +37,9 @@ char      *sns_cm_ut_svc_ad[] = {
 	"-A", "linuxstob:sr_addb_stob",
 	"-f", M0_UT_CONF_PROCESS,
 	"-w", "10",
-	"-G", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
-	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
-	"-H", "0@lo:12345:34:1",
+	"-G", M0_NET_XPRT_PREFIX_DEFAULT":"M0_UT_SERVER_EP_ADDR,
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":"M0_UT_SERVER_EP_ADDR,
+	"-H", M0_UT_SERVER_EP_ADDR,
 	"-c", M0_UT_PATH("conf.xc")
 };
 
@@ -49,9 +49,9 @@ char      *sns_cm_ut_svc_linux[] = {
 	"-A", "linuxstob:sr_addb_stob",
 	"-f", M0_UT_CONF_PROCESS,
 	"-w", "10",
-	"-G", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
-	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
-	"-H", "0@lo:12345:34:1",
+	"-G", M0_NET_XPRT_PREFIX_DEFAULT":"M0_UT_SERVER_EP_ADDR,
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":"M0_UT_SERVER_EP_ADDR,
+	"-H", M0_UT_SERVER_EP_ADDR,
 	"-c", M0_UT_PATH("conf.xc")
 };
 

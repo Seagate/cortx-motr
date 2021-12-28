@@ -35,7 +35,6 @@
 #include "rpc/item_internal.h"    /* m0_rpc_item_failed */
 #include "rpc/session_internal.h"
 #include "rpc/conn_internal.h"
-
 #include "fdmi/ut/sd_common.h"
 
 struct fdmi_sd_ut_ctx              g_sd_ut;
@@ -190,8 +189,8 @@ void prepare_rpc_env(struct test_rpc_env         *env,
 		TEST_TM_NR);
 	M0_ASSERT(rc == 0);
 
-	env->ep_addr_local  = "0@lo:12345:32:123";
-	env->ep_addr_remote = "0@lo:12345:32:123";
+	env->ep_addr_local  = M0_UT_SERVER_EP_ADDR;
+	env->ep_addr_remote = M0_UT_SERVER_EP_ADDR;
 	rc = m0_rpc_machine_init(&env->tre_rpc_machine,
 			         &env->tre_net_dom,
 				 env->ep_addr_local,

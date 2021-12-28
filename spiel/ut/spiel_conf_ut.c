@@ -1762,7 +1762,7 @@ static void spiel_conf_add_svc(void)
  */
 static void spiel_conf_big_db(void)
 {
-#define SVC_EP "0@lo:12345:41:201"
+#define SVC_EP M0_UT_DUMMY_EP_ADDR
 	struct m0_spiel_tx tx;
 	int                rc;
 	int                i;
@@ -1942,7 +1942,7 @@ static void spiel_conf_expired(void)
 					   &ut_reqh.sur_confd_srv.rsx_motr_ctx);
 	struct m0_spiel_tx       tx;
 	struct m0_rm_ha_tracker  tracker;
-	char                    *rm_ep = "0@lo:12345:34:1";
+	char                    *rm_ep = M0_UT_SERVER_EP_ADDR;
 	int                      rc;
 
 	m0_fi_enable("rm_ha_sbscr_diter_next", "subscribe");

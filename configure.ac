@@ -211,6 +211,7 @@ AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
 AH_TEMPLATE([CONFIG_X86_64],          [Support for X86_64 platform])
+AH_TEMPLATE([M0_UT_ADDR_FMT],         [Endpoint address format to be used in UTs/STs.])
 AH_TEMPLATE([CONFIG_AARCH64],         [Support for AARCH64 platform])
 AH_BOTTOM([
 #endif /* __MOTR_CONFIG_H__ */
@@ -958,18 +959,35 @@ AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
 		      [
 			M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
 			enable_libfab=yes
-			AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["LF"])
+			M0_UT_EP_IP="inet:tcp:127.0.0.1@"
+			M0_UT_EP_SRV_PORT="3000"
+			M0_UT_EP_CLNT_PORT="3001"
+			M0_UT_DUMMY_EP_PORT="3010"
+                  AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["LF"])
 			BUILD_DEPEND_LIBFAB="BuildRequires: libfabric-devel"
 		      ]
 		)
-	      ], []
+	      ],
+            [
+                  M0_UT_EP_IP="0@lo:12345:"
+                  M0_UT_EP_SRV_PORT="34:1"
+                  M0_UT_EP_CLNT_PORT="34:2"
+                  M0_UT_DUMMY_EP_PORT="34:10"
+            ]
 	)
       ]
 )
 AC_SUBST([LIBFAB_LIBS])
+AC_SUBST([M0_UT_EP_IP])
+AC_SUBST([M0_UT_EP_SRV_PORT])
+AC_SUBST([M0_UT_EP_CLNT_PORT])
+AC_SUBST([M0_UT_DUMMY_EP_PORT])
 AC_SUBST([BUILD_DEPEND_LIBFAB])
 AM_CONDITIONAL([ENABLE_LIBFAB],
                [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
+AM_COND_IF([ENABLE_LIBFAB],
+               [AC_DEFINE([M0_UT_ADDR_FMT], [1])],
+               [AC_DEFINE([M0_UT_ADDR_FMT], [0])])
 
 AC_MSG_CHECKING([for motr/config.h])
 MOTR_CONFIG="motr/config.h"
@@ -1168,6 +1186,40 @@ AC_CONFIG_FILES([
 AC_CONFIG_FILES([motr/version_macros.h])
 AC_CONFIG_FILES([doc/man/asciidoc.conf])
 AC_CONFIG_FILES([mdservice/ut/mdstore.h])
+AC_CONFIG_FILES([ut/ep.h])
+AC_CONFIG_FILES([cas/ut/conf.cg])
+AC_CONFIG_FILES([conf/ut/duplicated-ids.cg])
+AC_CONFIG_FILES([conf/ut/multiword-core-mask.cg])
+AC_CONFIG_FILES([conf/ut/t_bad-ep-process.cg])
+AC_CONFIG_FILES([conf/ut/t_bad-ep-service.cg])
+AC_CONFIG_FILES([conf/ut/t_childless-objv.cg])
+AC_CONFIG_FILES([conf/ut/t_dev-idx-bad.cg])
+AC_CONFIG_FILES([conf/ut/t_dev-idx-duplicate.cg])
+AC_CONFIG_FILES([conf/ut/t_filename-duplicate.cg])
+AC_CONFIG_FILES([conf/ut/t_filename-valid-duplicates.cg])
+AC_CONFIG_FILES([conf/ut/t_no-confd.cg])
+AC_CONFIG_FILES([conf/ut/t_no-iodevs.cg])
+AC_CONFIG_FILES([conf/ut/t_non-oostore.cg])
+AC_CONFIG_FILES([conf/ut/t_pool-width-error.cg])
+AC_CONFIG_FILES([conf/ut/t_pver-tolerance-error.cg])
+AC_CONFIG_FILES([conf/ut/t_pver-wrong-level.cg])
+AC_CONFIG_FILES([conf/ut/t_pver-zeroed-tolerance.cg])
+AC_CONFIG_FILES([conf/ut/t_pverf-allowance-error.cg])
+AC_CONFIG_FILES([conf/ut/t_pverf-base-attr-error.cg])
+AC_CONFIG_FILES([conf/ut/t_pverf-base-kind-error.cg])
+AC_CONFIG_FILES([conf/ut/t_pverf-base-missing.cg])
+AC_CONFIG_FILES([conf/ut/t_pverf-in-mdpool.cg])
+AC_CONFIG_FILES([conf/ut/t_redundancy-too-big.cg])
+AC_CONFIG_FILES([dtm0/conf.cg])
+AC_CONFIG_FILES([dix/ut/conf.cg])
+AC_CONFIG_FILES([fis/ut/fis.cg])
+AC_CONFIG_FILES([fdmi/ut/conf.cg])
+AC_CONFIG_FILES([fd/ut/failure-domains.cg])
+AC_CONFIG_FILES([motr/ut/dix_conf.cg])
+AC_CONFIG_FILES([reqh/ut/service_ctx.cg])
+AC_CONFIG_FILES([spiel/ut/conf.cg])
+AC_CONFIG_FILES([ut/conf.cg])
+AC_CONFIG_FILES([ut/diter.cg])
 AC_CONFIG_FILES([cortx-motr.spec])
 AC_CONFIG_FILES([motr.pc])
 AC_CONFIG_FILES([scripts/install/usr/lib/pkgconfig/motr.pc])

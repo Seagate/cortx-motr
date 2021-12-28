@@ -59,7 +59,7 @@ fi
 
 sandbox_init
 export TEST_RUN_TIME=5
-echo "transfer machines endpoint prefix is $LNET_PREFIX"
+echo "transfer machines endpoint prefix is $NID"
 
 
 if [ "$XPRT" = "lnet" ]; then

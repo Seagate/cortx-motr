@@ -45,7 +45,7 @@ enum {
 	NTCS_TIMEOUT_GDB	  = 1200, /**< 20min for debugging in gdb */
 	NTCS_TMID_CONSOLE4CLIENTS = 298,
 	NTCS_TMID_CONSOLE4SERVERS = 299,
-	NTCS_TMID_NODES	  = 300,
+	NTCS_TMID_NODES	          = 300,
 	NTCS_TMID_CMD_CLIENTS	  = NTCS_TMID_NODES,
 	NTCS_TMID_DATA_CLIENTS    = NTCS_TMID_NODES + NTCS_NODES_MAX * 1,
 	NTCS_TMID_CMD_SERVERS	  = NTCS_TMID_NODES + NTCS_NODES_MAX * 2,
@@ -73,8 +73,13 @@ static char *addr_get(const char *nid, int tmid)
 	char *result;
 	int   rc;
 
-	rc = snprintf(addr, NTCS_NODE_ADDR_MAX,
-		     "%s:%d:%d:%d", nid, NTCS_PID, NTCS_PORTAL, tmid);
+	if (M0_UT_ADDR_FMT == INET_ADDR_FMT) {
+		/** Add offset in tmid and use it as port number */
+		tmid += 3000;
+		rc = snprintf(addr, NTCS_NODE_ADDR_MAX, "%s%d", nid, tmid);
+	} else
+		rc = snprintf(addr, NTCS_NODE_ADDR_MAX,
+			      "%s%d:%d", nid, NTCS_PORTAL, tmid);
 	M0_UT_ASSERT(rc < NTCS_NODE_ADDR_MAX);
 
 	result = m0_alloc(NTCS_NODE_ADDR_MAX);
@@ -361,7 +366,7 @@ done:
 void m0_net_test_client_server_stub_ut(void)
 {
 	/* test console-node interaction with dummy node */
-	net_test_client_server("0@lo", M0_NET_TEST_TYPE_STUB,
+	net_test_client_server(M0_UT_EP_IP_ADDR, M0_NET_TEST_TYPE_STUB,
 			       1, 1, 1, 1, 1, 1,
 			       0, 0, 0, 0);
 }
@@ -375,7 +380,7 @@ void m0_net_test_client_server_ping_ut(void)
 	 * - 128 concurrent buffers on each test server
 	 * - 4k test messages x 4KiB per message
 	 */
-	net_test_client_server("0@lo", M0_NET_TEST_TYPE_PING,
+	net_test_client_server(M0_UT_EP_IP_ADDR, M0_NET_TEST_TYPE_PING,
 			       8, 8, 8, 128, 0x1000, 0x1000,
 			       /* 1, 1, 8, 128, 0x1000, 0x1000, */
 			       0, 0, 0, 0);
@@ -397,7 +402,7 @@ void m0_net_test_client_server_bulk_ut(void)
 	 *   on the test client(server) with 16KiB per buffer and
 	 *   64k maximum buffer descriptors in buffer
 	 */
-	net_test_client_server("0@lo", M0_NET_TEST_TYPE_BULK,
+	net_test_client_server(M0_UT_EP_IP_ADDR, M0_NET_TEST_TYPE_BULK,
 			       2, 2, 2, 8,
 			       64, 0x100000,
 			       8, 16, 0x4000, 0x10000);

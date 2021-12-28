@@ -35,6 +35,7 @@
 #include "rpc/rpclib.h"     /* m0_rpc_server_ctx, m0_rpc_client_ctx */
 #include "rpc/session.h"    /* m0_rpc_session_timedwait */
 #include "rpc/ub/fops.h"
+#include "ut/ep.h"
 
 /* ----------------------------------------------------------------
  * CLI arguments
@@ -147,14 +148,16 @@ enum {
 #  define CLIENT_ENDPOINT_FMT  "0@lo:12345:34:%d"
 #  define SERVER_ENDPOINT_ADDR "0@lo:12345:32:1"
 #  define SERVER_ENDPOINT      M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
+#  define PORT_OFFSET          0
 #ifdef ENABLE_LIBFAB
 static struct m0_net_xprt *g_xprt = &m0_net_libfab_xprt;
 #else
 static struct m0_net_xprt *g_xprt = &m0_net_lnet_xprt;
 #endif
 #else
-#  define CLIENT_ENDPOINT_FMT  "127.0.0.1:%d"
-#  define SERVER_ENDPOINT_ADDR "127.0.0.1:1"
+#  define CLIENT_ENDPOINT_FMT  M0_UT_EP_IP_ADDR"%d"
+#  define SERVER_ENDPOINT_ADDR M0_UT_SERVER_EP_ADDR
+#  define PORT_OFFSET          3001
 #  define SERVER_ENDPOINT      "bulk-mem:" SERVER_ENDPOINT_ADDR
 static struct m0_net_xprt *g_xprt = (struct m0_net_xprt *)&m0_net_bulk_mem_xprt;
 #endif
@@ -249,8 +252,9 @@ static int _start(const char *opts)
 	}
 
 	for (i = 0; i < g_args.a_nr_conns; ++i) {
+		/* 1 is server EP, so we start from 2 */
 		snprintf(ep, sizeof ep, CLIENT_ENDPOINT_FMT,
-			 2 + i); /* 1 is server EP, so we start from 2 */
+			 PORT_OFFSET + 2 + i);
 		_client_start(&g_clients[i], CLIENT_COB_DOM_ID + i, ep);
 	}
 

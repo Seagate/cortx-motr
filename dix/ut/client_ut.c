@@ -114,15 +114,15 @@ static char *dix_startup_cmd[] = {
 	"m0d", "-T", "linux",
 	"-D", "cs_sdb", "-S", "cs_stob",
 	"-A", "linuxstob:cs_addb_stob",
-	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
-	"-H", "0@lo:12345:34:1",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":"M0_UT_SERVER_EP_ADDR,
+	"-H", M0_UT_SERVER_EP_ADDR,
 	"-w", "10", "-F",
 	"-f", M0_UT_CONF_PROCESS,
 	"-c", M0_SRC_PATH("dix/ut/conf.xc")
 };
 static const char *cdbnames[]         = { "dix1" };
-static const char *cl_ep_addrs[]      = { "0@lo:12345:34:2" };
-static const char *srv_ep_addrs[]     = { "0@lo:12345:34:1" };
+static const char *cl_ep_addrs[]      = { M0_UT_CLIENT_EP_ADDR };
+static const char *srv_ep_addrs[]     = { M0_UT_SERVER_EP_ADDR };
 
 static struct cl_ctx            dix_ut_cctx;
 static struct m0_rpc_server_ctx dix_ut_sctx = {

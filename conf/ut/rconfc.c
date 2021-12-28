@@ -68,7 +68,7 @@ struct root_object {
 
 static struct m0_rpc_client_ctx cctx = {
         .rcx_net_dom            = &client_net_dom,
-        .rcx_local_addr         = CLIENT_ENDPOINT_ADDR,
+        .rcx_local_addr         = DUMMY_ENDPOINT_ADDR,
         .rcx_remote_addr        = SERVER_ENDPOINT_ADDR,
         .rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT,
         .rcx_fid                = &g_process_fid,

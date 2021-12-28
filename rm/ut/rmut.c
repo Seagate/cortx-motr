@@ -38,12 +38,28 @@
 #include "rm/ut/rings.h"
 #include "rm/ut/rmut.h"
 
+/*
+ * rm-ut:rmsvc requires SERVER_ENDPOINT_ADDR should be one of the values from
+ * serv_addr below.
+ */
+#if M0_UT_ADDR_FMT == INET_ADDR_FMT
+#define SRV_EP_1 M0_UT_EP_IP_ADDR"3000"
+#define SRV_EP_2 M0_UT_EP_IP_ADDR"3001"
+#define SRV_EP_3 M0_UT_EP_IP_ADDR"3002"
+#define SRV_EP_4 M0_UT_EP_IP_ADDR"3003"
+#else
+#define SRV_EP_1 M0_UT_EP_IP_ADDR"34:1"
+#define SRV_EP_2 M0_UT_EP_IP_ADDR"34:2"
+#define SRV_EP_3 M0_UT_EP_IP_ADDR"34:3"
+#define SRV_EP_4 M0_UT_EP_IP_ADDR"34:4"
+#endif
+
 extern const struct m0_tl_descr m0_remotes_tl;
 
-const char *serv_addr[] = { "0@lo:12345:34:1",
-			    "0@lo:12345:34:2",
-			    "0@lo:12345:34:3",
-			    "0@lo:12345:34:4"
+const char *serv_addr[] = { SRV_EP_1,
+			    SRV_EP_2,
+			    SRV_EP_3,
+			    SRV_EP_4
 };
 
 const int cob_ids[] = { 20, 30, 40, 50 };

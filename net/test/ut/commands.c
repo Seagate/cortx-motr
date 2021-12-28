@@ -32,7 +32,11 @@
 
 /* NTC_ == NET_TEST_COMMANDS_ */
 enum {
+	#if M0_UT_ADDR_FMT == INET_ADDR_FMT
+	NTC_TMID_START	      = 3000, /* Use as port in case of libfab addr */
+	#else
 	NTC_TMID_START	      = 300,
+	#endif
 	NTC_TMID_CONSOLE      = NTC_TMID_START,
 	NTC_TMID_NODE	      = NTC_TMID_CONSOLE + 1,
 	NTC_MULTIPLE_NODES    = 64,
@@ -42,7 +46,11 @@ enum {
 	NTC_CMD_RECV_WAIT_NS  = 25000000,
 };
 
-static const char   NTC_ADDR[]	   = "0@lo:12345:42:%d";
+#if M0_UT_ADDR_FMT == INET_ADDR_FMT
+static const char   NTC_ADDR[]	   = M0_UT_EP_IP_ADDR"%d";
+#else
+static const char   NTC_ADDR[]	   = M0_UT_EP_IP_ADDR"42:%d";
+#endif
 static const size_t NTC_ADDR_LEN   = ARRAY_SIZE(NTC_ADDR);
 static const char   NTC_DELIM      = ',';
 
