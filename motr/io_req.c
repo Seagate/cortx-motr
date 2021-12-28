@@ -1316,7 +1316,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		 */
 		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
 		    m0__obj_is_di_enabled(ioo) && !ioo->ioo_dgmode_io_sent &&
-		    !is_parity_verify_mode(m0__op_instance(&ioo->ioo_oo.oo_oc.oc_op)) &&
+		    !is_parity_verify_mode(m0__op_instance(m0__ioo_to_op(ioo))) &&
 		    !verify_checksum(ioo)) {
 			return M0_RC(-EIO);
 		}

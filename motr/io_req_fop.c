@@ -305,9 +305,13 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
 	rw_reply = io_rw_rep_get(reply_fop);
 
-	/* Copy attributes to client if reply received from read operation */
-	if (m0_is_read_rep(reply_fop) && op->op_code ==
-	    M0_OC_READ && m0__obj_is_di_enabled(ioo)) {
+	/*
+	 * Copy attributes to client if reply received from read operation
+	 * Skipping attribute_copy() for degraded read and for read verify mode.
+	 */
+	if (m0_is_read_rep(reply_fop) && op->op_code == M0_OC_READ &&
+	    m0__obj_is_di_enabled(ioo) && !ioo->ioo_dgmode_io_sent &&
+	    !instance->m0c_config->mc_is_read_verify) {
 		m0_indexvec_wire2mem(&rwfop->crw_ivec,
 					rwfop->crw_ivec.ci_nr, 0,
 					&rep_attr_ivec);
