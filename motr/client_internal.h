@@ -341,6 +341,12 @@ struct m0_op_io {
 	uint64_t                        *ioo_failed_session;
 
 	/**
+	 * An array holding ids of failed nodes. The vacant entries are
+	 * marked as ~(uint64_t)0.
+	 */
+	uint64_t                        *ioo_failed_nodes;
+
+	/**
 	* Total number of parity-maps associated with this request that are in
 	* degraded mode.
 	*/

@@ -166,15 +166,25 @@ const struct m0_bob_type ioo_bobtype = {
   * Once MOTR-899 lands into dev, this function will go away.
   */
 static bool is_pver_dud(uint32_t fdev_nr, uint32_t dev_k, uint32_t fsvc_nr,
-			uint32_t svc_k)
+			uint32_t svc_k, uint32_t fnode_nr, uint32_t node_k)
 {
 	if (fdev_nr > 0 && dev_k == 0)
 		return M0_RC(true);
 	if (fsvc_nr > 0 && svc_k == 0)
 		return M0_RC(true);
-	return M0_RC((svc_k + fsvc_nr > 0) ?
-		(fdev_nr * svc_k + fsvc_nr * dev_k) > dev_k * svc_k :
-		fdev_nr > dev_k);
+	if (fnode_nr > 0 && node_k == 0)
+		return M0_RC(true);
+
+	/* Summation of F(l) / K(l) across node, service and device */
+	if (node_k + fnode_nr > 0)
+		return M0_RC((fnode_nr * dev_k * svc_k +
+			     node_k * (fdev_nr * svc_k + fsvc_nr * dev_k)) >
+			     node_k * dev_k * svc_k);
+	else if (svc_k + fsvc_nr > 0)
+		return M0_RC((fdev_nr * svc_k + fsvc_nr * dev_k) >
+			      dev_k * svc_k);
+	else
+		return M0_RC(fdev_nr > dev_k);
 }
 
 /**
@@ -1417,6 +1427,29 @@ static bool is_session_marked(struct m0_op_io *ioo,
 }
 
 /**
+ * Returns true if a given node is already marked as failed. In case
+ * a node is not already marked as failed, the functions marks it
+ * and returns false.
+ */
+static bool is_node_marked(struct m0_op_io *ioo,
+			      uint64_t node_id)
+{
+	uint64_t i;
+	uint64_t max_failures;
+
+	max_failures = tolerance_of_level(ioo, M0_CONF_PVER_LVL_ENCLS);
+	for (i = 0; i < max_failures; ++i) {
+		if (ioo->ioo_failed_nodes[i] == node_id)
+			return M0_RC(true);
+		else if (ioo->ioo_failed_nodes[i] == ~(uint64_t)0) {
+			ioo->ioo_failed_nodes[i] = node_id;
+			return M0_RC(false);
+		}
+	}
+	return M0_RC(false);
+}
+
+/**
  * Returns number of failed devices or -EIO if number of failed devices exceeds
  * the value of K (number of spare devices in parity group). Once MOTR-899 lands
  * into dev the code for this function will change. In that case it will only
@@ -1429,8 +1462,13 @@ static int device_check(struct m0_op_io *ioo)
 	int                       rc = 0;
 	uint32_t                  fdev_nr = 0;
 	uint32_t                  fsvc_nr = 0;
-	uint64_t                  max_failures;
+	uint32_t                  fnode_nr = 0;
+	uint64_t                  max_svc_failures;
+	uint64_t                  max_node_failures;
+	uint64_t                  node_id;
 	enum m0_pool_nd_state     state;
+	enum m0_pool_nd_state     node_state;
+	struct m0_poolnode       *node_obj;
 	struct target_ioreq      *ti;
 	struct m0_pdclust_layout *play;
 	struct m0_client         *instance;
@@ -1444,7 +1482,8 @@ static int device_check(struct m0_op_io *ioo)
 
 	instance = m0__op_instance(&ioo->ioo_oo.oo_oc.oc_op);
 	play = pdlayout_get(ioo);
-	max_failures = tolerance_of_level(ioo, M0_CONF_PVER_LVL_CTRLS);
+	max_svc_failures = tolerance_of_level(ioo, M0_CONF_PVER_LVL_CTRLS);
+	max_node_failures = tolerance_of_level(ioo, M0_CONF_PVER_LVL_ENCLS);
 
 	pv = m0_pool_version_find(&instance->m0c_pools_common, &ioo->ioo_pver);
 	M0_ASSERT(pv != NULL);
@@ -1455,10 +1494,25 @@ static int device_check(struct m0_op_io *ioo)
 		if (rc != 0)
 			return M0_ERR(rc);
 
+		rc = m0_poolmach_device_node_return(pm, ti->ti_obj, &node_obj);
+		if (rc != 0)
+			return M0_ERR(rc);
+
+		m0_rwlock_read_lock(&pm->pm_lock);
+		node_state = node_obj->pn_state;
+		m0_rwlock_read_unlock(&pm->pm_lock);
+
+		node_id = node_obj->pn_id.f_key;
+
 		ti->ti_state = state;
 		if (ti->ti_rc == -ECANCELED) {
-			/* The case when a particular service is down. */
-			if (!is_session_marked(ioo, ti->ti_session)) {
+			/* Ignore service failures in a failed node */
+			if (M0_IN(node_state, (M0_PNDS_FAILED,
+					       M0_PNDS_OFFLINE))) {
+				if (!is_node_marked(ioo, node_id))
+					M0_CNT_INC(fnode_nr);
+				is_session_marked(ioo, ti->ti_session);
+			} else if (!is_session_marked(ioo, ti->ti_session)) {
 				M0_CNT_INC(fsvc_nr);
 			}
 		} else if (M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
@@ -1475,18 +1529,29 @@ static int device_check(struct m0_op_io *ioo)
 
 	M0_LOG(M0_DEBUG, "failed devices = %d\ttolerance=%d", (int)fdev_nr,
 		         (int)layout_k(play));
-	if (is_pver_dud(fdev_nr, layout_k(play), fsvc_nr, max_failures))
+	M0_LOG(M0_DEBUG, "failed services = %d\ttolerance=%d", (int)fsvc_nr,
+			 (int)max_svc_failures);
+	M0_LOG(M0_DEBUG, "failed nodes = %d\ttolerance=%d", (int)fnode_nr,
+			 (int)max_node_failures);
+
+	if (is_pver_dud(fdev_nr, layout_k(play), fsvc_nr, max_svc_failures,
+			fnode_nr, max_node_failures))
 		return M0_ERR_INFO(-EIO, "[%p] Failed to recover data "
 				"since number of failed data units "
 				"(%lu) exceeds number of parity "
 				"units in parity group (%lu) OR "
 				"number of failed services (%lu) "
 				"exceeds number of max failures "
+				"supported (%lu) OR "
+				"number of failed nodes (%lu) "
+				"exceeds number of max node failures "
 				"supported (%lu)",
 				ioo, (unsigned long)fdev_nr,
 				(unsigned long)layout_k(play),
 				(unsigned long)fsvc_nr,
-				(unsigned long)max_failures);
+				(unsigned long)max_svc_failures,
+				(unsigned long)fnode_nr,
+				(unsigned long)max_node_failures);
 	return M0_RC(fdev_nr);
 }
 
