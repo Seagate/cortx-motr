@@ -197,6 +197,8 @@ void fdmi_sd_release_fom(void)
 	m0_fdmi_source_deregister(src);
 	m0_fdmi_source_free(src);
 	m0_semaphore_fini(&g_sem);
+	/* At this moment, the rr fom may be still running. Wait a bit. */
+	m0_nanosleep(m0_time(2, 0), NULL);
 	unprepare_rpc_env(&g_rpc_env);
 	fdmi_serv_stop_ut();
 	M0_LEAVE();
