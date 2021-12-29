@@ -837,11 +837,6 @@ static int ioreq_iomaps_parity_groups_cal(struct m0_op_io *ioo)
 	return M0_RC(0);
 }
 
-static bool is_parity_verify_mode(struct m0_client *instance)
-{
-	return instance->m0c_config->mc_is_read_verify;
-}
-
 static void set_paritybuf_type(struct m0_op_io *ioo)
 {
 
@@ -849,7 +844,7 @@ static void set_paritybuf_type(struct m0_op_io *ioo)
 	struct m0_op             *op = &ioo->ioo_oo.oo_oc.oc_op;
 	struct m0_client         *cinst = m0__op_instance(op);
 
-	if ((m0__is_read_op(op) && is_parity_verify_mode(cinst)) ||
+	if ((m0__is_read_op(op) && m0__obj_is_parity_verify_mode(cinst)) ||
 	    (m0__is_update_op(op) && !m0_pdclust_is_replicated(play)))
 		ioo->ioo_pbuf_type = M0_PBUF_DIR;
 	else if (m0__is_update_op(op) && m0_pdclust_is_replicated(play))
@@ -1325,7 +1320,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		 * skip checksum verification during degraded I/O
 		 */
 		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
-		    m0__obj_is_di_enabled(ioo) &&
+		    m0__obj_is_cksum_validation_allowed(ioo) &&
 		    !verify_checksum(ioo)) {
 			return M0_RC(-EIO);
 		}
