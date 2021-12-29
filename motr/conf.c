@@ -249,7 +249,8 @@ static bool is_device(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_SDEV_TYPE;
 }
 
-M0_INTERNAL int cs_conf_get_parition_dev (struct cs_stobs *stob, struct m0_conf_sdev **sdev_ptr)
+M0_INTERNAL int cs_conf_get_parition_dev(struct cs_stobs *stob,
+					 struct m0_conf_sdev **sdev_ptr)
 {
 	int                     rc;
 	struct m0_motr         *cctx;
@@ -262,8 +263,8 @@ M0_INTERNAL int cs_conf_get_parition_dev (struct cs_stobs *stob, struct m0_conf_
 	struct m0_conf_diter    it;
 	struct m0_conf_service *svc;
 	uint32_t                dev_nr;
-	struct m0_fid        *proc_fid;
-        struct m0_conf_sdev *sdev;
+	struct m0_fid          *proc_fid;
+        struct m0_conf_sdev    *sdev;
 
 
 	M0_ENTRY();
@@ -277,18 +278,26 @@ M0_INTERNAL int cs_conf_get_parition_dev (struct cs_stobs *stob, struct m0_conf_
 		if (rc != 0)
 			return M0_ERR(rc);
 
-	rc = m0_conf_diter_init(&it, confc, proc,
-				M0_CONF_PROCESS_SERVICES_FID);
-	if (rc != 0)
-		return M0_ERR(rc);
-	while ((rc = m0_conf_diter_next_sync(&it, is_ios)) ==
-		       M0_CONF_DIRNEXT) {
-			struct m0_conf_obj *obj = m0_conf_diter_result(&it);
-			tmp_fid = obj->co_id;
-			svc_fid = &tmp_fid;
-			M0_LOG(M0_ALWAYS, "obj->co_id: "FID_F, FID_P(svc_fid));
+	if (rctx->rc_services[M0_CST_DS1] != NULL) { /* setup for tests */
+		svc_fid = &rctx->rc_service_fids[M0_CST_DS1];
 	}
-	m0_conf_diter_fini(&it);
+	else {
+		rc = m0_conf_diter_init(&it, confc, proc,
+					M0_CONF_PROCESS_SERVICES_FID);
+		if (rc != 0)
+			return M0_ERR(rc);
+		while ((rc = m0_conf_diter_next_sync(&it, is_ios)) ==
+		       M0_CONF_DIRNEXT) {
+				struct m0_conf_obj *obj;
+
+				obj = m0_conf_diter_result(&it);
+				tmp_fid = obj->co_id;
+				svc_fid = &tmp_fid;
+				M0_LOG(M0_ALWAYS, "obj->co_id: "FID_F,
+				       FID_P(svc_fid));
+		}
+		m0_conf_diter_fini(&it);
+	}
 	m0_confc_close(proc);
 	if (svc_fid == NULL)
 		return -1;

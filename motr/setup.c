@@ -1484,7 +1484,7 @@ static char *cs_storage_partdom_location_gen(const char *stob_path)
 	const char *prefix = m0_stob_part_type.st_fidt.ft_name;
 
 	M0_ALLOC_ARR(location,
-		     strlen(stob_path) + ARRAY_SIZE(prefix) + 2);
+		     strlen(stob_path) + ARRAY_SIZE(prefix) + 128);
 	if (location != NULL)
 		sprintf(location, "%s:%s", prefix, stob_path);
 	return location;
@@ -1523,7 +1523,8 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 			       m0_cs_stypes[M0_AD_STOB]);
 	if (!ad_mode ||
 	    (!rctx->rc_stob.s_ad_disks_init) ||
-            (cs_conf_get_parition_dev(&rctx->rc_stob, &sdev) != 0))
+            (cs_conf_get_parition_dev(&rctx->rc_stob, &sdev) != 0) ||
+	    (sdev->sd_size == 0))
 			return;
 	part_cfg->bpc_part_mode_set = ad_mode;
 	if (part_cfg->bpc_part_mode_set) {
