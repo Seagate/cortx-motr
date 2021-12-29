@@ -668,7 +668,7 @@ Tests:
     sandbox  : /var/motr/root/sandbox.st-67fdmi-plugin-multi-filters
     groupname: 02motr-single-node
     polltime : 30
-    timeout  : 600
+    timeout  : 1800
 
 
 

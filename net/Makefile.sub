@@ -2,6 +2,7 @@ nobase_motr_include_HEADERS += net/buffer_pool.h \
                                net/bulk_mem.h \
                                net/module.h \
                                net/addb2.h \
+                               net/ip.h \
                                net/net.h \
                                net/net_internal.h \
                                net/net_otw_types.h
@@ -10,6 +11,7 @@ motr_libmotr_la_SOURCES  += net/buf.c \
                             net/buffer_pool.c \
                             net/domain.c \
                             net/ep.c \
+                            net/ip.c \
                             net/module.c \
                             net/net.c \
                             net/tm.c \

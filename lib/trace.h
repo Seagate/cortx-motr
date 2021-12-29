@@ -518,6 +518,12 @@ struct m0_trace_descr {
 	bool                 td_hasstr;
 };
 
+/**
+ * Allows trace records up to the specified level.
+ * By default, all levels are allowed.
+ */
+M0_INTERNAL void m0_trace_level_allow(unsigned level);
+
 M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 				const void *data);
 M0_INTERNAL void m0_trace_record_print(const struct m0_trace_rec_header *trh,
