@@ -919,6 +919,7 @@ static void rep_coordinator(void)
 	uint32_t               sdev_id;
 	int                    rc;
 
+	m0_fi_enable("m0_dix_target", "pdcluster-map");
 /*
  * Parity group info for key 10 (pool dev_id/global dev_id):
  * =============================================
@@ -3378,6 +3379,7 @@ static void user_concur_reb(void)
 	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
+	m0_fi_disable("m0_dix_target", "pdcluster-map");
 }
 
 struct m0_ut_suite dix_cm_iter_ut = {
