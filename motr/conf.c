@@ -250,7 +250,8 @@ static bool is_device(const struct m0_conf_obj *obj)
 }
 
 M0_INTERNAL int cs_conf_get_parition_dev(struct cs_stobs *stob,
-					 struct m0_conf_sdev **sdev_ptr)
+					 struct m0_conf_sdev **sdev_ptr,
+					 uint32_t *dev_count)
 {
 	int                     rc;
 	struct m0_motr         *cctx;
@@ -265,6 +266,8 @@ M0_INTERNAL int cs_conf_get_parition_dev(struct cs_stobs *stob,
 	uint32_t                dev_nr;
 	struct m0_fid          *proc_fid;
         struct m0_conf_sdev    *sdev;
+
+	*dev_count = 0;
 
 
 	M0_ENTRY();
@@ -317,15 +320,17 @@ M0_INTERNAL int cs_conf_get_parition_dev(struct cs_stobs *stob,
 			M0_CONF_DIRNEXT) {
 			sdev = M0_CONF_CAST(m0_conf_diter_result(&it),
 					    m0_conf_sdev);
+			*dev_count +=1;
+
 			M0_LOG(M0_ALWAYS,
 			       "sdev " FID_F " device index: %d "
 			       "sdev.sd_filename: %s, "
-			       "sdev.sd_size: %" PRIu64,
+			       "sdev.sd_size: %" PRIu64
+			       "dev count: %d ",
 			       FID_P(&sdev->sd_obj.co_id), sdev->sd_dev_idx,
-			       sdev->sd_filename, sdev->sd_size);
+			       sdev->sd_filename, sdev->sd_size,*(dev_count));
 				*sdev_ptr = sdev;
 			rc = 0;
-			break;
 		}
 		m0_conf_diter_fini(&it);
 		m0_confc_close(svc_obj);

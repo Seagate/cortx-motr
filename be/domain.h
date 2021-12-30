@@ -83,10 +83,10 @@ struct m0_be_part_stob_cfg {
 	char        *bpc_seg0_cfg;
 	char        *bpc_seg1_cfg;
 	char        *bpc_log_cfg;
-	m0_bcount_t  bpc_seg_size;
-	m0_bcount_t  bpc_data_size;
+	m0_bcount_t  bpc_seg0_size_in_chunks;
 	m0_bcount_t  bpc_seg_size_in_chunks;
 	m0_bcount_t  bpc_log_size_in_chunks;
+	m0_bcount_t  bpc_data_size_in_chunks;
 	m0_bcount_t  bpc_dom_key;
 	m0_bcount_t  bpc_chunk_size_in_bits;
 	m0_bcount_t  bpc_total_chunk_count;
