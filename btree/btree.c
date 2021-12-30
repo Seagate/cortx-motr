@@ -4475,7 +4475,7 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * 2. CRC ENCODED BY BTREE:
  * CRC will be calculated and updated in the record after every update
  * operation. It can be placed as a part of Key or Value, as both key and value
- * sizes are variable. Crrently, 8 bytes of CRC will be placed at the end of
+ * sizes are variable. Currently, 8 bytes of CRC will be placed at the end of
  * Value.
  * Note that, CRC can not be embedded in the directory structure as whole
  * directory will be captured for every update operation even if there is no
