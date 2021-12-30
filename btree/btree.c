@@ -4470,13 +4470,14 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * The CRC will be embedded in the Value field as the last word of Value. The
  * CRC type provided by the user will be used to identify functions for CRC
  * calculation and the same will be used for CRC verification. Verification
- * of CRC will be done whenever the node descriptor will be loaded.
+ * of CRC will be done whenever the node descriptor is loaded from the storage.
  *
  * 2. CRC ENCODED BY BTREE:
- * CRC will be calculated and updated in the record after every update
- * operation. It can be placed as a part of Key or Value, as both key and value
- * sizes are variable. Currently, 8 bytes of CRC will be placed at the end of
- * Value.
+ * CRC will be calculated and updated in the record by BTree module when a
+ * record is inserted or updated.This CRC will be placed at the end of Value.
+ * Verification of CRC will be done whenever the node descriptor is loaded from
+ * the storage.
+ *
  * Note that, CRC can not be embedded in the directory structure as whole
  * directory will be captured for every update operation even if there is no
  * change for most of the records.
