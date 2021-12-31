@@ -43,6 +43,9 @@ extern void m0_stob_ut_stobio_perf(void);
 extern void m0_stob_ut_stob_domain_ad(void);
 extern void m0_stob_ut_stob_ad(void);
 extern void m0_stob_ut_adieu_ad(void);
+extern void m0_stob_ut_stob_domain_part(void);
+extern void m0_stob_ut_stob_part(void);
+extern void m0_stob_ut_adieu_part(void);
 
 struct m0_ut_suite stob_ut = {
 	.ts_name = "stob-ut",
@@ -67,6 +70,9 @@ struct m0_ut_suite stob_ut = {
 		{ "ad-stob-domain",	m0_stob_ut_stob_domain_ad	},
 		{ "ad-stob",		m0_stob_ut_stob_ad		},
 		{ "ad-adieu",		m0_stob_ut_adieu_ad		},
+		{ "part-stob-domain",	m0_stob_ut_stob_domain_part	},
+		{ "part-stob",		m0_stob_ut_stob_part		},
+		{ "part-adieu",		m0_stob_ut_adieu_part		},
 #endif  /* __KERNEL__ */
 		{ NULL, NULL }
 	}

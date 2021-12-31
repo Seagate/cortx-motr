@@ -311,6 +311,12 @@ void m0_stob_ut_adieu_perf(void)
 	test_adieu_fini();
 }
 
+void m0_stob_ut_adieu_part(void)
+{
+	/** TODO part adieu ut */
+	printf("TODO adieu_part ut");
+}
+
 /*
    Adieu unit-benchmark
  */

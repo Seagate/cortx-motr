@@ -125,6 +125,13 @@ void m0_stob_ut_stob_domain_ad(void)
 	m0_ut_stob_put(stob, true);
 	m0_stob_ut_ad_fini(&ut_be, &ut_seg);
 }
+
+void m0_stob_ut_stob_domain_part(void)
+{
+	/** TODO part domain ut */
+	printf("TODO domain_part ut");
+}
+
 #endif
 
 /*

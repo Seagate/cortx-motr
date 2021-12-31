@@ -302,6 +302,18 @@ void m0_stob_ut_stob_ad(void)
 	m0_ut_stob_put(stob, true);
 	m0_stob_ut_ad_fini(&ut_be, &ut_seg);
 }
+
+void m0_stob_ut_stob_part(void)
+{
+	/** TODO part stob ut
+	stob_ut_stob_single(NULL, "partstob:./__s", NULL, NULL, NULL);
+	stob_ut_stob_multi(NULL, "partstob:./__s", NULL, NULL, NULL,
+			   M0_STOB_UT_THREAD_NR, M0_STOB_UT_STOB_NR);
+			   */
+	printf("TODO stob_part ut");
+
+}
+
 #endif
 
 /*
