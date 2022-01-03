@@ -1024,7 +1024,7 @@ static void dix_index_create_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
 	struct m0_dix            dix;
 	int                      rc;
-	uint32_t		 flags = 0;
+	uint32_t		 flags;
 
 	M0_ENTRY();
 	dix_build(oi, &dix);
@@ -1053,7 +1053,7 @@ static void dix_index_delete_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
 	struct m0_dix            dix;
 	int                      rc;
-	uint32_t		 flags = 0;
+	uint32_t		 flags;
 
 	M0_ENTRY();
 	dix_build(oi, &dix);
@@ -1122,7 +1122,7 @@ static void dix_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_op_idx        *oi = dix_req->idr_oi;
 	struct m0_dix            dix;
 	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
-	uint32_t                 flags = 0;
+	uint32_t                 flags;
 	int                      rc;
 
 	M0_ENTRY();
