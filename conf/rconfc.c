@@ -2552,7 +2552,12 @@ static void rconfc_herd_cctxs_fini(struct m0_rconfc *rconfc)
 	struct rconfc_link *lnk;
 
 	m0_tl_for (rcnf_herd, &rconfc->rc_herd, lnk) {
-		if (lnk->rl_state == CONFC_DEAD)
+		/*
+		 * When lnk->fl_fom_queued is true then it means 
+		 * that the fom fini is in progress.
+		 */
+		if (lnk->rl_state == CONFC_DEAD || 
+		    (lnk->rl_fom_queued  && lnk->rl_state == CONFC_IDLE ))
 			/*
 			 * Even with version elected some links may remain dead
 			 * in the herd and require no finalisation. Dead link is
@@ -2760,7 +2765,7 @@ static void rconfc_version_elect(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 {
 	enum {
-		MAX_RETRY_COUNT     = 10,
+		MAX_RETRY_COUNT     = 100,
 	};
 	struct m0_rconfc *rconfc;
 	struct rlock_ctx *rlx;

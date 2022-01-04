@@ -19,6 +19,9 @@
  *
  */
 
+#ifndef __KERNEL__
+#include <unistd.h>
+#endif
 
 #include "ut/ut.h"		/* M0_UT_ASSERT */
 #include "lib/misc.h"		/* M0_SET0 */
@@ -496,12 +499,84 @@ void m0_net_test_network_ut_buf_desc(void)
 	m0_net_test_network_ctx_fini(&ctx);
 }
 
+/* This UT verifies and exercies libfabric address decode path. */
+void m0_net_test_network_ut_addr_decode(void)
+{
+#ifndef __KERNEL__
+	static struct m0_net_test_network_cfg cfg;
+	static struct m0_net_test_network_ctx send;
+	int				      rc;
+	m0_bcount_t			      buf_size;
+	char				      hostname[100];
+	char				      ep_str[150];
+
+	if (USE_LIBFAB) {
+
+		buf_size 		 = NET_TEST_PING_BUF_SIZE;
+		M0_SET0(&cfg);
+		cfg.ntncfg_tm_cb	 = ping_tm_cb;
+		cfg.ntncfg_buf_cb	 = ping_buf_cb;
+		cfg.ntncfg_buf_size_ping = buf_size;
+		cfg.ntncfg_buf_ping_nr	 = 1;
+		cfg.ntncfg_ep_max	 = 10;
+		cfg.ntncfg_timeouts	 = m0_net_test_network_timeouts_never();
+
+		rc = m0_net_test_network_ctx_init(&send, &cfg, "0@lo:12345:42:3000");
+		M0_UT_ASSERT(rc == 0);
+
+		/* decode: lnet addressing format*/
+		rc = m0_net_test_network_ep_add(&send, "0@lo:12345:42:3001");
+		M0_UT_ASSERT(rc == 0);
+
+		/* decode: inet addresses of type tcp*/
+		rc = m0_net_test_network_ep_add(&send, "inet:tcp:127.0.0.1@3002");
+		M0_UT_ASSERT(rc == 1);
+		rc = m0_net_test_network_ep_add(&send, "inet:tcp:localhost@3003");
+		M0_UT_ASSERT(rc == 2);
+		/* decode: FQDN of type tcp */
+		memset(&hostname, 0, sizeof(hostname));
+		memset(&ep_str, 0, sizeof(ep_str));
+		rc = gethostname(hostname, sizeof(hostname)-1);
+		M0_UT_ASSERT(rc == 0);
+		sprintf(ep_str, "inet:tcp:%s@3004", hostname);
+		rc = m0_net_test_network_ep_add(&send, ep_str);
+		M0_UT_ASSERT(rc == 3);
+
+		/** TODO: decode: corrupted FQDN of type tcp/verbs
+		Currently it is assumed that if FQDN resoultion fails, then by
+		default ip format is used.
+
+		memset(&ep_str, 0, sizeof(ep_str));
+		sprintf(ep_str, "inet:tcp:%s@3005", &hostname[4]);
+		rc = m0_net_test_network_ep_add(&send, ep_str);
+		M0_UT_ASSERT(rc == -EPROTO);
+
+		memset(&ep_str, 0, sizeof(ep_str));
+		sprintf(ep_str, "inet:verbs:%s@3006", &hostname[4]);
+		rc = m0_net_test_network_ep_add(&send, ep_str);
+		M0_UT_ASSERT(rc == -EPROTO);
+		*/
+
+		/* decode: inet addresses of type verbs */
+		rc = m0_net_test_network_ep_add(&send, "inet:verbs:127.0.0.1@3007");
+		M0_UT_ASSERT(rc == 4);
+		/* decode: FQDN of type verbs */
+		memset(&ep_str, 0, sizeof(ep_str));
+		sprintf(ep_str, "inet:verbs:%s@3008", hostname);
+		rc = m0_net_test_network_ep_add(&send, ep_str);
+		M0_UT_ASSERT(rc == 5);
+
+		m0_net_test_network_ctx_fini(&send);
+	}
+#endif
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
  *  c-basic-offset: 8
  *  tab-width: 8
- *  fill-column: 79
+ *  fill-column: 80
  *  scroll-step: 1
  *  End:
  */
