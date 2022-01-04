@@ -72,14 +72,22 @@ Build
 
     scripts/m0 make
 
+   This will build the development version of the binaries. To evaluate the performance, use ``--enable-release`` configure option or build rpms (see below).
+   
    Note: use ``scripts/m0 rebuild`` command to re-build Motr.
  
 RPMs Generation
-===============
+---------------
 
 To build RPMs, run::
 
     make rpms
+
+if Makefile was generated already (in case you run ``scripts/m0 make`` from the previous steps), or run::
+
+    ./autogen.sh && ./configure && make rpms
+
+to build from scratch.
 
 The generated RPMs will be placed at ``$HOME/rpmbuild/RPMS/$(arch)/`` directory.
 
