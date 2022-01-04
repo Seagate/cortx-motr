@@ -412,7 +412,7 @@ def get_data_nodes(self):
     services = Conf.search(self._index, 'node', 'services', Const.SERVICE_MOTR_IO.value)
     for machine_id in machines.keys():
        result = [svc for svc in services if machine_id in svc]
-       # skipped controller , HA and server pod
+       # skipped control , HA and server pod
        if result:
            storage_nodes.append(machine_id)
     return storage_nodes
