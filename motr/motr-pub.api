@@ -335,6 +335,7 @@ m0_spiel_dix_repair_status
 m0_spiel_element_del
 m0_spiel_enclosure_add
 m0_spiel_enclosure_v_add
+m0_spiel_proc_counters_fetch
 m0_spiel_filesystem_stats_fetch
 m0_spiel_fini
 m0_spiel_init

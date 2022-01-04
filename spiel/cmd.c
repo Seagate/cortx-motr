@@ -1655,6 +1655,46 @@ int m0_spiel_pool_rebalance_abort(struct m0_spiel     *spl,
 	return m0_spiel_sns_rebalance_abort(spl, pool_fid);
 }
 
+/***********************************************/
+/*                 Byte count                  */
+/***********************************************/
+
+struct m0_spiel_bckey {
+	struct m0_fid sbk_fid;
+	uint64_t      sbk_user_id;
+};
+
+struct m0_spiel_bcrec {
+	uint64_t  sbr_byte_count;
+	uint64_t  sbr_object_count;
+};
+
+struct m0_proc_data {
+	struct m0_spiel_bckey pd_bckey;
+	struct m0_spiel_bcrec pd_bcrec;
+	struct m0_tlink       pd_link;
+	uint64_t              pd_magic; 
+};
+
+struct m0_proc_counter {
+	int                     pc_rc;
+	struct m0_spiel_bckey **pc_bckey;
+	struct m0_spiel_bcrec **pc_bcrec;
+};
+
+/**
+ * A context for fetching counters from ioservices.
+ */
+struct spiel_proc_counter_item {
+	/** Process fid */
+	struct m0_fid         spc_fid;
+	/** Rpc link for connect to a process */
+	struct m0_rpc_link    spc_rlink;
+	/** Process counter fetch request. */
+	struct m0_fop         spc_fop;
+	uint64_t              spc_magic;
+};
+
 /****************************************************/
 /*                    Filesystem                    */
 /****************************************************/
@@ -1999,6 +2039,55 @@ obj_close:
 	m0_confc_close(proc_obj);
 	return M0_RC(rc);
 }
+
+int m0_spiel_proc_counters_fetch(struct m0_spiel_core   *spc,
+				 struct m0_fid          *proc_fid,
+				 struct m0_proc_counter *count_stats)
+{
+//	struct spiel_proc_counter_item *proc;
+//	struct m0_tl                   *counters;
+	struct m0_conf_obj             *proc_obj;
+	int                             rc;
+
+	M0_ENTRY();
+	M0_PRE(spc != NULL);
+	M0_PRE(spc->spc_confc != NULL);
+	M0_PRE(count_stats != NULL);
+
+	if (!m0_confc_is_inited(spc->spc_confc))
+		return M0_ERR_INFO(-EAGAIN, "confc is finalised");
+
+	rc = m0_confc_open_by_fid_sync(spc->spc_confc, proc_fid, &proc_obj);
+	if (rc != 0)
+		return M0_ERR(rc);
+	if (proc_obj->co_ha_state != M0_NC_ONLINE) {
+		rc = M0_ERR(-EINVAL);
+		goto obj_close;
+	}
+
+	/* Stub to send fops to fetch data. Will call spiel_cmd_send() */
+//	spiel_process__counters_sync(proc, counters);
+//	M0_TL_DESCR_DEFINE(m0_proc_counter, "proc-counter", M0_INTERNAL,
+//			   struct m0_proc_data, nb_lru, pd_magic,
+//			   M0_NET_BUFFER_LINK_MAGIC, M0_NET_BUFFER_HEAD_MAGIC);
+//	M0_TL_DEFINE(m0_net_pool, M0_INTERNAL, struct m0_net_buffer);
+
+	M0_ALLOC_PTR(count_stats);
+	M0_ALLOC_ARR(count_stats->pc_bckey, 1);
+	M0_ALLOC_ARR(count_stats->pc_bcrec, 1);
+
+	count_stats->pc_bckey[0]->sbk_fid = M0_FID0;
+	count_stats->pc_bckey[0]->sbk_user_id = 1;
+
+	count_stats->pc_bcrec[0]->sbr_byte_count = 4096;
+	count_stats->pc_bcrec[0]->sbr_object_count = 1;
+	count_stats->pc_rc = 0;
+
+obj_close:
+	m0_confc_close(proc_obj);
+	return M0_RC(rc);
+}
+M0_EXPORTED(m0_spiel_proc_counters_fetch);
 
 M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
 					 struct m0_fs_stats   *stats)
