@@ -813,6 +813,7 @@ int m0_conf_pver_status(struct m0_fid *fid,
 	struct m0_conf_pver_info *pver_info;
 	int                       rc;
 	int                       i = 0;
+	uint32_t                  srecd[M0_CONF_PVER_HEIGHT];
 	uint32_t                  failures = 0;
 	uint32_t                  K;
 
@@ -826,8 +827,12 @@ int m0_conf_pver_status(struct m0_fid *fid,
 	pver_info->cpi_fid = *fid;
 	pver_info->cpi_attr = pver->pv_u.subtree.pvs_attr;
 	K = pver->pv_u.subtree.pvs_attr.pa_K;
+
+	M0_SET_ARR0(srecd);
+	rc = m0_conf_walk(conf_pver_recd_build, &pver->pv_obj, srecd);
+
 	while (i < M0_CONF_PVER_HEIGHT)
-		failures += pver->pv_u.subtree.pvs_recd[i++];
+		failures += srecd[i++];
 
 	if (failures == 0)
 		pver_info->cpi_state = M0_CPS_HEALTHY;
