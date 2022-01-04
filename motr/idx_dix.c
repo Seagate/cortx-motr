@@ -642,7 +642,6 @@ static int dix_req_create(struct m0_op_idx  *oi,
 	int             rc = 0;
 	M0_ENTRY();
 
-	M0_ASSERT(m0__idx_op_invariant(oi));
 	M0_ALLOC_PTR(req);
 	if (req != NULL) {
 		if (idx_is_distributed(oi)) {
