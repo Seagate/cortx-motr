@@ -37,13 +37,14 @@ that contains m0reportbug archives
 that contain Motr forensic data
 that can be used for reporting and researching Motr bugs.
 
-Optional arguments:
+Required arguments:
   -t <dest-dir>    Target directory; defaults to '$DEFAULT_DEST_DIR'.
   -b <bundle-id>   Support bundle ID; defaults to the local host name
                    (`hostname`).
   -c <config_url>  cluster config URL
   -s|--services -> Service names for the services for which 
                 logs needs to be collected. Default is 'All'
+Optional arguments:
   --duration -> ISO 8061 format, "P" separates, the start datetime and duration 
                 to be considered after that. "T" separated date and time. Default is P5d.
   --binlogs -> Bool value to include binary logs. Default is false.
