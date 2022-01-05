@@ -1558,14 +1558,10 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		m0_bcount_t meta_size = (sdev->sd_size) / 10;
 		part_cfg->bpc_part_mode_seg1 = true;
 		rctx->rc_be_seg_path = sdev->sd_filename;
-		if(rctx->rc_be_seg_size > meta_size){
-			part_cfg->bpc_seg_size_in_chunks =
+		
+		part_cfg->bpc_seg_size_in_chunks =
 				meta_size >> part_cfg->bpc_chunk_size_in_bits;
-			rctx->rc_be_seg_size = meta_size;
-		}
-		else
-			part_cfg->bpc_seg_size_in_chunks =
-				rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
+		rctx->rc_be_seg_size = meta_size;
 		/** Log configuration*/
 		part_cfg->bpc_part_mode_log = true;
 		rctx->rc_be_log_path = sdev->sd_filename;
