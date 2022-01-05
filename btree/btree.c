@@ -2455,6 +2455,7 @@ static void bnode_put(struct node_op *op, struct nd *node)
 		if ((!node->n_be_node_valid || is_root_node) &&
 		    node->n_txref == 0) {
 			ndlist_tlink_del_fini(node);
+			node->n_type->nt_opaque_set(&node->n_addr, NULL);
 			bnode_unlock(node);
 			m0_rwlock_fini(&node->n_lock);
 			m0_free(node);
@@ -11599,6 +11600,9 @@ static bool validate_nodes_on_be_segment(struct segaddr *rnode_segaddr)
 
 	nt = btree_node_format[segaddr_ntype_get(rnode_segaddr)];
 	n.n_addr = *rnode_segaddr;
+	#if (AVOID_BE_SEGMENT == 0)
+		M0_ASSERT(nt->nt_opaque_get(&n.n_addr) == NULL);
+	#endif
 
 	while (true) {
 		/**
@@ -11613,6 +11617,9 @@ static bool validate_nodes_on_be_segment(struct segaddr *rnode_segaddr)
 			s.s_idx = rec_idx;
 			nt->nt_child(&s, &n.n_addr);
 			n.n_addr.as_core = (uint64_t)segaddr_addr(&n.n_addr);
+			#if (AVOID_BE_SEGMENT == 0)
+				M0_ASSERT(nt->nt_opaque_get(&n.n_addr) == NULL);
+			#endif
 			rec_idx = 0;
 			continue;
 		}
