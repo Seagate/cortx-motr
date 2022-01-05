@@ -4829,7 +4829,7 @@ static bool vkvv_isoverflow(const struct nd *node,
 		ksize     = m0_vec_count(&rec->r_key.k_data.ov_vec);
 		vsize     = m0_vec_count(&rec->r_val.ov_vec);
 		dir_entry = sizeof(struct dir_rec);
-		if(vkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		if (vkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
 			vsize += CRC_VALUE_SIZE;
 	} else {
 		ksize     = MAX_KEY_SIZE + sizeof(uint64_t);
@@ -5113,11 +5113,11 @@ static void vkvv_done(struct slot *slot, bool modified)
 	 * post operations, such as CRC calculations.
 	 *
 	*/
-	const struct nd *node = slot->s_node;
-	struct vkvv_head  *h  = vkvv_data(node);
-	void            *val_addr;
-	int              vsize;
-	uint64_t         calculated_csum;
+	const struct nd  *node = slot->s_node;
+	struct vkvv_head *h  = vkvv_data(node);
+	void             *val_addr;
+	int               vsize;
+	uint64_t          calculated_csum;
 
 	if (modified && h->vkvv_level == 0 &&
 	    vkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH) {
@@ -5213,7 +5213,7 @@ static void vkvv_lnode_make(struct slot *slot)
 	uint32_t          total_ksize;
 	uint32_t          total_vsize;
 
-	if(count != 0 && vkvv_is_dir_overlap(slot)){
+	if (count != 0 && vkvv_is_dir_overlap(slot)) {
 		vkvv_move_dir(slot);
 		dir_entry = vkvv_get_dir_addr(slot->s_node);;
 	}
