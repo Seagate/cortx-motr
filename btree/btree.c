@@ -3013,8 +3013,7 @@ static void ff_done(struct slot *slot, bool modified)
 	/**
 	 * After record modification, this function will be used to perform any
 	 * post operations, such as CRC calculations.
-	 *
-	*/
+	 */
 	const struct nd *node = slot->s_node;
 	struct ff_head  *h    = ff_data(node);
 	void            *val_addr;
@@ -5111,10 +5110,9 @@ static void vkvv_done(struct slot *slot, bool modified)
 	/**
 	 * After record modification, this function will be used to perform any
 	 * post operations, such as CRC calculations.
-	 *
-	*/
+	 */
 	const struct nd  *node = slot->s_node;
-	struct vkvv_head *h  = vkvv_data(node);
+	struct vkvv_head *h    = vkvv_data(node);
 	void             *val_addr;
 	int               vsize;
 	uint64_t          calculated_csum;
