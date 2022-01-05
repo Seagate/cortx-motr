@@ -977,7 +977,6 @@ static void dix_idxop(struct m0_dix_req *req)
 		rc = dix_idxop_meta_update(req);
 		next_state = DIXREQ_META_UPDATE;
 	} else {
-		M0_LOG(M0_DEBUG, "Skip layout table update for index ops");
 		rc = dix_idxop_reqs_send(req);
 		next_state = DIXREQ_INPROGRESS;
 	}
