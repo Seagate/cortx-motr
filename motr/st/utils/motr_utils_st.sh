@@ -112,193 +112,193 @@ test_with_N_K()
 	motr_service_start $N $K $S $P $stride
 	dix_init
 
-	# Test m0client utility
-	/usr/bin/expect <<EOF
-	set timeout 20
-	spawn $motr_st_util_dir/m0client $MOTR_PARAMS_V > $SANDBOX_DIR/m0client.log
-	expect "m0client >>"
-	send -- "touch $object_id3\r"
-	expect "m0client >>"
-	send -- "write $object_id2 $src_file $block_size $block_count $blks_per_io\r"
-	expect "m0client >>"
-	send -- "read $object_id2 $dest_file $block_size $block_count $blks_per_io\r"
-	expect "m0client >>"
-	send -- "delete $object_id3\r"
-	expect "m0client >>"
-	send -- "delete $object_id2\r"
-	expect "m0client >>"
-	send -- "quit\r"
-EOF
-	echo "m0client test is Successful"
+#	# Test m0client utility
+#	/usr/bin/expect <<EOF
+#	set timeout 20
+#	spawn $motr_st_util_dir/m0client $MOTR_PARAMS_V > $SANDBOX_DIR/m0client.log
+#	expect "m0client >>"
+#	send -- "touch $object_id3\r"
+#	expect "m0client >>"
+#	send -- "write $object_id2 $src_file $block_size $block_count $blks_per_io\r"
+#	expect "m0client >>"
+#	send -- "read $object_id2 $dest_file $block_size $block_count $blks_per_io\r"
+#	expect "m0client >>"
+#	send -- "delete $object_id3\r"
+#	expect "m0client >>"
+#	send -- "delete $object_id2\r"
+#	expect "m0client >>"
+#	send -- "quit\r"
+#EOF
+#	echo "m0client test is Successful"
 	rm -f $dest_file
 
-	echo "m0touch and m0unlink"
-	$motr_st_util_dir/m0touch $MOTR_PARAMS -o $object_id1 -L 9|| {
-		error_handling $? "Failed to create a object"
-	}
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
-		error_handling $? "Failed to delete object"
-	}
-	echo "m0touch and m0unlink successful"
-
-	$motr_st_util_dir/m0touch $MOTR_PARAMS -o $object_id1 -L 9 || {
-		error_handling $? "Failed to create a object"
-	}
-
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
-		error_handling $? "Failed to delete object"
-	}
-	echo "m0touch and m0unlink successful"
-
+#	echo "m0touch and m0unlink"
+#	$motr_st_util_dir/m0touch $MOTR_PARAMS -o $object_id1 -L 9|| {
+#		error_handling $? "Failed to create a object"
+#	}
+#	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+#		error_handling $? "Failed to delete object"
+#	}
+#	echo "m0touch and m0unlink successful"
+#
+#	$motr_st_util_dir/m0touch $MOTR_PARAMS -o $object_id1 -L 9 || {
+#		error_handling $? "Failed to create a object"
+#	}
+#
+#	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+#		error_handling $? "Failed to delete object"
+#	}
+#	echo "m0touch and m0unlink successful"
+#
 	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
                                  -s $block_size -c $block_count -L 9 \
                                  -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
 	}
-	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
-				  -s $block_size -c $block_count -L 9 -b $blks_per_io \
-				  $dest_file || {
-		error_handling $? "Failed to read object"
-	}
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
-		error_handling $? "Failed to delete object"
-	}
-	diff $src_file $dest_file || {
-		rc=$?
-		error_handling $rc "Files are different"
-	}
-	echo "motr r/w test with m0cp and m0cat is successful"
-	rm -f $dest_file
-
-	# Test m0cp_mt
-	echo "m0cp_mt test"
-	$motr_st_util_dir/m0cp_mt $MOTR_PARAMS_V -o $object_id4 \
-				    -n $obj_count $src_file -s $block_size \
-				    -c $block_count -L 9 -b $blks_per_io || {
-		error_handling $? "Failed to copy object"
-	}
-	for i in $(seq 0 $(($obj_count - 1)))
-	do
-		object_id=$(($object_id4 + $i));
-		$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id \
-					  -s $block_size -c $block_count -L 9 \
-                                          -b $blks_per_io $dest_file || {
-			error_handling $? "Failed to read object"
-		}
-		diff $src_file $dest_file || {
-			rc=$?
-			error_handling $rc "Files are different"
-		}
-		rm -f $dest_file
-	done
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id4 \
-				     -n $obj_count || {
-		error_handling $? "Failed to delete object"
-	}
-	echo "m0cp_mt is successful"
-
-	# Test truncate/punch utility
-	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
-                                 -s $block_size -c $block_count -L 9 \
-                                 -b $blks_per_io || {
-		error_handling $? "Failed to copy object"
-	}
-	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 \
-				    -c $trunc_count -t $trunc_len \
-				    -s $block_size -L 9 -b $blks_per_io || {
-		error_handling $? "Failed to truncate object"
-	}
-	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
-				  -s $block_size -c $block_count -L 9 \
-                                  -b $blks_per_io \
-				  $dest_file-full || {
-		error_handling $? "Failed to read object"
-	}
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
-		error_handling $? "Failed to delete object"
-	}
-	cp $src_file $src_file-punch
-	fallocate -p -o $(($trunc_count * $block_size)) \
-		  -l $(($trunc_len * $block_size)) -n $src_file-punch
-	diff -q $src_file-punch $dest_file-full || {
-		rc=$?
-		error_handling $rc "Punched Files are different"
-	}
-	echo "m0trunc: Punching hole is successful"
-	rm -f $src_file-punch $dest_file-full
-
-	# Truncate file to zero
-	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
-                                 -s $block_size -c $block_count -L 9 \
-                                 -b $blks_per_io || {
-		error_handling $? "Failed to copy object"
-	}
-	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 -c 0 \
-                                   -t $block_count -s $block_size -L 9 \
-                                   -b $blks_per_io || {
-		error_handling $? "Failed to truncate object"
-	}
-	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
-				  -s $block_size -c $block_count -L 9 \
-                                  -b $blks_per_io \
-				  $dest_file || {
-		error_handling $? "Failed to read from truncated object"
-	}
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
-		error_handling $? "Failed to delete object"
-	}
-	cp $src_file $src_file-trunc
-	fallocate -p -o 0 -l $(($block_count * $block_size)) -n $src_file-trunc
-	diff -q $src_file-trunc $dest_file || {
-		rc=$?
-		error_handling $rc "Truncated Files are different"
-	}
-	echo "m0trunc: Truncate file to zero is successful"
-	rm -f $src_file-trunc $dest_file
-
-	# Truncate range beyond EOF
-	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
-                                 -s $block_size -c $block_count -L 9 \
-                                 -b $blks_per_io || {
-		error_handling $? "Failed to copy object"
-	}
-	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 \
-				    -c $trunc_count -t $block_count \
-				    -s $block_size -L 9 -b $blks_per_io || {
-		error_handling $? "Failed to truncate object"
-	}
-	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
-				  -s $block_size \
-				  -c $(($block_count + $trunc_count)) -L 9 \
-                                  -b $blks_per_io \
-				  $dest_file || {
-		error_handling $? "Failed to read from truncated object"
-	}
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
-		error_handling $? "Failed to delete object"
-	}
-	fallocate -p -o $(($trunc_count * $block_size)) \
-		  -l $(($block_count  * $block_size)) -n $src_file_extra
-	diff -q $src_file_extra $dest_file || {
-		rc=$?
-		error_handling $rc "Truncat Files beyond EOF are different"
-	}
-	echo "m0trunc: Truncate range beyond EOF is successful"
-	rm -f $src_file_extra $dest_file
-
-	# Truncate a zero size object
-	$motr_st_util_dir/m0touch $MOTR_PARAMS -o $object_id1 -L 9|| {
-		error_handling $? "Failed to create a object"
-	}
-	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 -c 0 \
-				    -t $block_count -s $block_size -L 9 \
-                                    -b $blks_per_io || {
-		error_handling $? "Failed to truncate object"
-	}
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
-		error_handling $? "Failed to delete object"
-	}
-	echo "m0trunc: Truncate zero size object successful"
+#	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
+#				  -s $block_size -c $block_count -L 9 -b $blks_per_io \
+#				  $dest_file || {
+#		error_handling $? "Failed to read object"
+#	}
+#	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+#		error_handling $? "Failed to delete object"
+#	}
+#	diff $src_file $dest_file || {
+#		rc=$?
+#		error_handling $rc "Files are different"
+#	}
+#	echo "motr r/w test with m0cp and m0cat is successful"
+#	rm -f $dest_file
+#
+#	# Test m0cp_mt
+#	echo "m0cp_mt test"
+#	$motr_st_util_dir/m0cp_mt $MOTR_PARAMS_V -o $object_id4 \
+#				    -n $obj_count $src_file -s $block_size \
+#				    -c $block_count -L 9 -b $blks_per_io || {
+#		error_handling $? "Failed to copy object"
+#	}
+#	for i in $(seq 0 $(($obj_count - 1)))
+#	do
+#		object_id=$(($object_id4 + $i));
+#		$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id \
+#					  -s $block_size -c $block_count -L 9 \
+#                                          -b $blks_per_io $dest_file || {
+#			error_handling $? "Failed to read object"
+#		}
+#		diff $src_file $dest_file || {
+#			rc=$?
+#			error_handling $rc "Files are different"
+#		}
+#		rm -f $dest_file
+#	done
+#	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id4 \
+#				     -n $obj_count || {
+#		error_handling $? "Failed to delete object"
+#	}
+#	echo "m0cp_mt is successful"
+#
+#	# Test truncate/punch utility
+#	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
+#                                 -s $block_size -c $block_count -L 9 \
+#                                 -b $blks_per_io || {
+#		error_handling $? "Failed to copy object"
+#	}
+#	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 \
+#				    -c $trunc_count -t $trunc_len \
+#				    -s $block_size -L 9 -b $blks_per_io || {
+#		error_handling $? "Failed to truncate object"
+#	}
+#	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
+#				  -s $block_size -c $block_count -L 9 \
+#                                  -b $blks_per_io \
+#				  $dest_file-full || {
+#		error_handling $? "Failed to read object"
+#	}
+#	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+#		error_handling $? "Failed to delete object"
+#	}
+#	cp $src_file $src_file-punch
+#	fallocate -p -o $(($trunc_count * $block_size)) \
+#		  -l $(($trunc_len * $block_size)) -n $src_file-punch
+#	diff -q $src_file-punch $dest_file-full || {
+#		rc=$?
+#		error_handling $rc "Punched Files are different"
+#	}
+#	echo "m0trunc: Punching hole is successful"
+#	rm -f $src_file-punch $dest_file-full
+#
+#	# Truncate file to zero
+#	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
+#                                 -s $block_size -c $block_count -L 9 \
+#                                 -b $blks_per_io || {
+#		error_handling $? "Failed to copy object"
+#	}
+#	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 -c 0 \
+#                                   -t $block_count -s $block_size -L 9 \
+#                                   -b $blks_per_io || {
+#		error_handling $? "Failed to truncate object"
+#	}
+#	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
+#				  -s $block_size -c $block_count -L 9 \
+#                                  -b $blks_per_io \
+#				  $dest_file || {
+#		error_handling $? "Failed to read from truncated object"
+#	}
+#	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+#		error_handling $? "Failed to delete object"
+#	}
+#	cp $src_file $src_file-trunc
+#	fallocate -p -o 0 -l $(($block_count * $block_size)) -n $src_file-trunc
+#	diff -q $src_file-trunc $dest_file || {
+#		rc=$?
+#		error_handling $rc "Truncated Files are different"
+#	}
+#	echo "m0trunc: Truncate file to zero is successful"
+#	rm -f $src_file-trunc $dest_file
+#
+#	# Truncate range beyond EOF
+#	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
+#                                 -s $block_size -c $block_count -L 9 \
+#                                 -b $blks_per_io || {
+#		error_handling $? "Failed to copy object"
+#	}
+#	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 \
+#				    -c $trunc_count -t $block_count \
+#				    -s $block_size -L 9 -b $blks_per_io || {
+#		error_handling $? "Failed to truncate object"
+#	}
+#	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
+#				  -s $block_size \
+#				  -c $(($block_count + $trunc_count)) -L 9 \
+#                                  -b $blks_per_io \
+#				  $dest_file || {
+#		error_handling $? "Failed to read from truncated object"
+#	}
+#	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+#		error_handling $? "Failed to delete object"
+#	}
+#	fallocate -p -o $(($trunc_count * $block_size)) \
+#		  -l $(($block_count  * $block_size)) -n $src_file_extra
+#	diff -q $src_file_extra $dest_file || {
+#		rc=$?
+#		error_handling $rc "Truncat Files beyond EOF are different"
+#	}
+#	echo "m0trunc: Truncate range beyond EOF is successful"
+#	rm -f $src_file_extra $dest_file
+#
+#	# Truncate a zero size object
+#	$motr_st_util_dir/m0touch $MOTR_PARAMS -o $object_id1 -L 9|| {
+#		error_handling $? "Failed to create a object"
+#	}
+#	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 -c 0 \
+#				    -t $block_count -s $block_size -L 9 \
+#                                    -b $blks_per_io || {
+#		error_handling $? "Failed to truncate object"
+#	}
+#	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+#		error_handling $? "Failed to delete object"
+#	}
+#	echo "m0trunc: Truncate zero size object successful"
 
 	rm -f $src_file
 	clean &>>$MOTR_TEST_LOGFILE
@@ -326,30 +326,30 @@ main()
 	}
 	mkdir $MOTR_TRACE_DIR
 
-	N=1
-	K=0
-	S=0
-	P=8
-	test_with_N_K $N $K $S $P
-	if [ $rc -ne "0" ]
-	then
-		echo "Motr util test with N=$N K=$K failed"
-		return $rc
-	fi
-	echo "Motr util test with N=$N K=$K is successful"
-
-	N=1
-	K=2
-	S=2
-	P=8
-	test_with_N_K $N $K $S $P
-	rc=$?
-	if [ $rc -ne "0" ]
-	then
-		echo "Motr util test with N=$N K=$K failed"
-		return $rc
-	fi
-	echo "Motr util test with N=$N K=$K is successful"
+#	N=1
+#	K=0
+#	S=0
+#	P=8
+#	test_with_N_K $N $K $S $P
+#	if [ $rc -ne "0" ]
+#	then
+#		echo "Motr util test with N=$N K=$K failed"
+#		return $rc
+#	fi
+#	echo "Motr util test with N=$N K=$K is successful"
+#
+#	N=1
+#	K=2
+#	S=2
+#	P=8
+#	test_with_N_K $N $K $S $P
+#	rc=$?
+#	if [ $rc -ne "0" ]
+#	then
+#		echo "Motr util test with N=$N K=$K failed"
+#		return $rc
+#	fi
+#	echo "Motr util test with N=$N K=$K is successful"
 
 	N=4
 	K=2
