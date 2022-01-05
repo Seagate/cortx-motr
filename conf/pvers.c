@@ -810,7 +810,6 @@ int m0_conf_pver_status(struct m0_fid *fid,
 {
 	struct m0_conf_root      *root;
 	struct m0_conf_pver      *pver;
-	struct m0_conf_pver_info *pver_info;
 	int                       rc;
 	int                       i = 0;
 	uint32_t                  srecd[M0_CONF_PVER_HEIGHT];
@@ -823,25 +822,26 @@ int m0_conf_pver_status(struct m0_fid *fid,
 
 	root = M0_CONF_CAST(confc->cc_root, m0_conf_root);
 	rc = m0_conf_pver_find_by_fid(fid, root, &pver);
-	M0_ALLOC_PTR(pver_info);
-	pver_info->cpi_fid = *fid;
-	pver_info->cpi_attr = pver->pv_u.subtree.pvs_attr;
+	out_info->cpi_fid = *fid;
+	out_info->cpi_attr = pver->pv_u.subtree.pvs_attr;
 	K = pver->pv_u.subtree.pvs_attr.pa_K;
 
 	M0_SET_ARR0(srecd);
+	m0_conf_cache_lock(&confc->cc_cache);
 	rc = m0_conf_walk(conf_pver_recd_build, &pver->pv_obj, srecd);
+	m0_conf_cache_unlock(&confc->cc_cache);
 
 	while (i < M0_CONF_PVER_HEIGHT)
 		failures += srecd[i++];
 
 	if (failures == 0)
-		pver_info->cpi_state = M0_CPS_HEALTHY;
+		out_info->cpi_state = M0_CPS_HEALTHY;
 	else if (failures < K)
-		pver_info->cpi_state = M0_CPS_DEGRADED;
+		out_info->cpi_state = M0_CPS_DEGRADED;
 	else if (failures == K)
-		pver_info->cpi_state = M0_CPS_CRITICAL;
+		out_info->cpi_state = M0_CPS_CRITICAL;
 	else
-		pver_info->cpi_state = M0_CPS_DAMAGED;
+		out_info->cpi_state = M0_CPS_DAMAGED;
 
 	return M0_RC(rc);
 }M0_EXPORTED(m0_conf_pver_status);
