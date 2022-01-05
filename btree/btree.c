@@ -12477,6 +12477,13 @@ static void ut_btree_crc_test(void)
 			},
 			{
 				{
+					BNT_FIXED_FORMAT, 2 * sizeof(uint64_t),
+					2 * sizeof(uint64_t)
+				},
+				M0_BCT_BTREE_ENC_RAW_HASH,
+			},
+			{
+				{
 					BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
 					RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
 				},
