@@ -350,9 +350,10 @@
     - name: install local libfabric rpms
       yum:
         name:
-          - /root/rpmbuild/RPMS/x86_64/libfabric-1.11.2-1.el7.x86_64.rpm
-          - /root/rpmbuild/RPMS/x86_64/libfabric-devel-1.11.2-1.el7.x86_64.rpm
+          - /root/rpmbuild/RPMS/x86_64/libfabric-1.11.2-1.el{{ redhat_release_major }}.x86_64.rpm
+          - /root/rpmbuild/RPMS/x86_64/libfabric-devel-1.11.2-1.el{{ redhat_release_major }}.x86_64.rpm
         state: present
+        disable_gpg_check: yes
       when: ansible_distribution_version is version('7.6.1810', '>')
       tags: libfabric-custom-build
 
