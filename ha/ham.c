@@ -57,9 +57,10 @@
 #include <libgen.h>           /* basename */
 #include <getopt.h>           /* getopt_long */
 #include <unistd.h>           /* isatty */
+#include "ut/ep.h"
 
-#define HAM_SERVER_EP_DEFAULT   "0@lo:12345:43:100"
-#define HAM_CLIENT_EP_DEFAULT   "0@lo:12345:43:101"
+#define HAM_SERVER_EP_DEFAULT   M0_UT_SERVER_EP_ADDR
+#define HAM_CLIENT_EP_DEFAULT   M0_UT_CLIENT_EP_ADDR
 #define HAM_SERVER_WAIT_DEFAULT 0
 
 enum ham_mode { HM_CONNECT, HM_LISTEN, HM_SELF_CHECK };

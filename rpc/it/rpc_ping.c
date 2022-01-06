@@ -38,6 +38,7 @@
 #include "rpc/it/ping_fop_xc.h"
 #include "rpc/it/ping_fom.h"
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
+#include "ut/ep.h"
 
 #ifdef __KERNEL__
 #  include <linux/kernel.h>
@@ -56,7 +57,7 @@
 #  include "module/instance.h"  /* m0 */
 #endif
 
-#define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
+#define SERVER_ENDPOINT_ADDR M0_UT_SERVER_EP_ADDR
 #define SERVER_ENDPOINT      M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 
 #define SERVER_DB_FILE_NAME        "m0rpcping_server.db"
@@ -79,36 +80,20 @@ static bool      server_mode = false;
 #endif
 
 static bool  verbose           = false;
-static char *server_nid        = "0@lo";
-static char *client_nid        = "0@lo";
-static int   server_tmid       = 1;
-static int   client_tmid       = 2;
 static int   nr_client_threads = 1;
 static int   nr_ping_bytes     = 8;
 static int   nr_ping_item      = 1;
 static int   tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 static int   max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 
-static char client_endpoint[M0_NET_LNET_XEP_ADDR_LEN];
-static char server_endpoint[M0_NET_LNET_XEP_ADDR_LEN];
+static char client_endpoint[M0_NET_IP_STRLEN_MAX];
+static char server_endpoint[M0_NET_IP_STRLEN_MAX];
 
 
 #ifdef __KERNEL__
 /* Module parameters */
 module_param(verbose, bool, S_IRUGO);
 MODULE_PARM_DESC(verbose, "enable verbose output to kernel log");
-
-module_param(client_nid, charp, S_IRUGO);
-MODULE_PARM_DESC(client_nid, "client network identifier");
-
-module_param(server_nid, charp, S_IRUGO);
-MODULE_PARM_DESC(server_nid, "server network identifier");
-
-module_param(server_tmid, int, S_IRUGO);
-MODULE_PARM_DESC(server_tmid, "remote transfer machine identifier");
-
-module_param(client_tmid, int, S_IRUGO);
-MODULE_PARM_DESC(client_tmid, "local transfer machine identifier");
 
 module_param(nr_client_threads, int, S_IRUGO);
 MODULE_PARM_DESC(nr_client_threads, "number of client threads");
@@ -125,37 +110,6 @@ MODULE_PARM_DESC(tm_recv_queue_len, "minimum TM receive queue length");
 module_param(max_rpc_msg_size, int, S_IRUGO);
 MODULE_PARM_DESC(max_rpc_msg_size, "maximum RPC message size");
 #endif
-
-static int build_endpoint_addr(enum ep_type type,
-			       char *out_buf,
-			       size_t buf_size)
-{
-	char *ep_name;
-	char *nid;
-	int   tmid;
-
-	M0_PRE(M0_IN(type, (EP_SERVER, EP_CLIENT)));
-
-	if (type == EP_SERVER) {
-		nid = server_nid;
-		ep_name = "server";
-		tmid = server_tmid;
-	} else {
-		nid = client_nid;
-		ep_name = "client";
-		tmid = client_tmid;
-	}
-
-	if (buf_size > M0_NET_LNET_XEP_ADDR_LEN)
-		return -1;
-
-	snprintf(out_buf, buf_size, "%s:%d:%d:%d", nid, M0_NET_LNET_PID,
-		 M0_LNET_PORTAL, tmid);
-	if (verbose)
-		printf("%s endpoint: %s\n", ep_name, out_buf);
-
-	return 0;
-}
 
 /* Get stats from rpc_machine and print them */
 static void __print_stats(struct m0_rpc_machine *rpc_mach)
@@ -295,22 +249,18 @@ static int run_client(void)
 	m0_time_t delta;
 
 	cctx.rcx_net_dom               = &client_net_dom;
-	cctx.rcx_local_addr            = client_endpoint;
-	cctx.rcx_remote_addr           = server_endpoint;
 	cctx.rcx_max_rpcs_in_flight    = MAX_RPCS_IN_FLIGHT;
 	cctx.rcx_recv_queue_min_length = tm_recv_queue_len;
 	cctx.rcx_max_rpc_msg_size      = max_rpc_msg_size;
 	cctx.rcx_fid                   = &process_fid;
 
-	rc = build_endpoint_addr(EP_SERVER, server_endpoint,
-				 sizeof server_endpoint);
-	if (rc != 0)
-		return rc;
+	snprintf(server_endpoint, ARRAY_SIZE(server_endpoint), "%s",
+		 M0_UT_SERVER_EP_ADDR);
+	snprintf(client_endpoint, ARRAY_SIZE(client_endpoint), "%s",
+		 M0_UT_CLIENT_EP_ADDR);
 
-	rc = build_endpoint_addr(EP_CLIENT, client_endpoint,
-				 sizeof client_endpoint);
-	if (rc != 0)
-		return rc;
+	cctx.rcx_local_addr            = client_endpoint;
+	cctx.rcx_remote_addr           = server_endpoint;
 
 	m0_ping_fop_init();
 
@@ -411,13 +361,8 @@ static int run_server(void)
 	 * Prepend transport name to the beginning of endpoint,
 	 * as required by motr-setup.
 	 */
-	strcpy(server_endpoint, M0_NET_XPRT_PREFIX_DEFAULT":");
-
-	rc = build_endpoint_addr(
-		EP_SERVER, server_endpoint + strlen(server_endpoint),
-		sizeof(server_endpoint) - strlen(server_endpoint));
-	if (rc != 0)
-		goto fop_fini;
+	snprintf(server_endpoint, ARRAY_SIZE(server_endpoint), "%s",
+		 SERVER_ENDPOINT);
 
 	sctx.rsx_motr_ctx.cc_no_conf = true;
 	sctx.rsx_motr_ctx.cc_no_storage = true;
@@ -457,14 +402,6 @@ int main(int argc, char *argv[])
 		return -rc;
 	rc = M0_GETOPTS("m0rpcping", argc, argv,
 		M0_FLAGARG('s', "run server", &server_mode),
-		M0_STRINGARG('C', "client nid",
-			LAMBDA(void, (const char *str) { client_nid =
-								(char*)str; })),
-		M0_FORMATARG('p', "client tmid", "%i", &client_tmid),
-		M0_STRINGARG('S', "server nid",
-			LAMBDA(void, (const char *str) { server_nid =
-								(char*)str; })),
-		M0_FORMATARG('P', "server tmid", "%i", &server_tmid),
 		M0_FORMATARG('b', "size in bytes", "%i", &nr_ping_bytes),
 		M0_FORMATARG('t', "number of client threads", "%i",
 						&nr_client_threads),
