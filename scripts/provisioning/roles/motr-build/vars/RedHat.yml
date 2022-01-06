@@ -50,13 +50,13 @@ motr_build_deps_pkgs:
   - openssl
   - openssl-devel
 
-motr_build_deps_centos7_pkgs:
+motr_build_deps_el7_pkgs:
   - gccxml
 
-motr_build_deps_centos8_pkgs:
+motr_build_deps_el8_pkgs:
   - castxml
 
-motr_build_deps_python3_centos7_pkgs:
+motr_build_deps_python3_el7_pkgs:
   - python36
   - python36-devel
   - python36-numpy   # performance tools addb2 analisys
@@ -65,7 +65,7 @@ motr_build_deps_python3_centos7_pkgs:
   - python36-PyYAML  # required only for tests (m0hagen)
   - python36-tqdm    # performance tools addb2 analisys
 
-motr_build_deps_python3_centos8_pkgs:
+motr_build_deps_python3_el8_pkgs:
   - python3
   - python3-devel
   - python3-numpy   # performance tools addb2 analisys
