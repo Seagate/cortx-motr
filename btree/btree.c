@@ -11586,7 +11586,9 @@ static void ut_mt_tree_oper(void)
 {
 	btree_ut_num_threads_tree_oper(0);
 }
-
+/**
+ * Note that tree is ASSUMED to be closed before calling this function.
+ */
 static bool validate_nodes_on_be_segment(struct segaddr *rnode_segaddr)
 {
 	const struct node_type     *nt;
