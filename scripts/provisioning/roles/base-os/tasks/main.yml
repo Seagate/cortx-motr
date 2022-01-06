@@ -35,7 +35,7 @@
             path: /etc/redhat-release
           register: redhat_release_file
         - set_fact:
-            redhat_full_release: '{{ redhat_release_file.content | b64decode | regex_search("\d+\.\d+\.\d+") }}'
+            redhat_full_release: '{{ redhat_release_file.content | b64decode | regex_search("\d+\.\d+(\.\d+)*") }}'
     - name: get closest release repo
       # find first vault release that is less or equal to the current redhat release version
       shell: |

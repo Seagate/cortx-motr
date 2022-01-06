@@ -107,10 +107,7 @@ parse_cli_options $@
 (( UID == 0 )) ||
     die 'Error: Please, run this script with "root" privileges'
 
-case $(distro_type) in
-    redhat) yum -y install python-ipaddress ;;
-    debian) apt install python-ipaddress ;;
-esac
+pip3 install ipaddress
 
 if ! which ansible &>/dev/null ; then
     case $(distro_type) in

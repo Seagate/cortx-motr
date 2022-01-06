@@ -31,6 +31,18 @@
     state: present
     name:  '{{ motr_build_deps_pkgs }}'
 
+- name: install Motr build-time CentOS 7 specific dependencies
+  when: redhat_release_major == 7
+  package:
+    state: present
+    name:  '{{ motr_build_deps_centos7_pkgs }}'
+
+- name: install Motr build-time CentOS 8 specific dependencies
+  when: redhat_release_major == 8
+  package:
+    state: present
+    name:  '{{ motr_build_deps_centos8_pkgs }}'
+
 - name: Build and install Intel isa-l rpm
   block:
   - name: check if isa-l is already installed
@@ -105,9 +117,17 @@
     - isa-l
 
 - name: install Motr build-time python3 dependencies
+  when: redhat_release_major == 7
   package:
     state: present
-    name:  '{{ motr_build_deps_python3_pkgs }}'
+    name:  '{{ motr_build_deps_python3_centos7_pkgs }}'
+  tags: motr-build-python3
+
+- name: install Motr build-time python3 dependencies
+  when: redhat_release_major == 8
+  package:
+    state: present
+    name:  '{{ motr_build_deps_python3_centos8_pkgs }}'
   tags: motr-build-python3
 
 - name: install Motr doc build-time dependencies

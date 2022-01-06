@@ -37,7 +37,6 @@ basic_tools_pkgs:
   - wget
   # machine autodicovery by hostname
   - avahi
-  - avahi-tools
   - bind-utils
   - nss-mdns
   # remote syslog
