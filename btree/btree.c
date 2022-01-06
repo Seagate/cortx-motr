@@ -11791,6 +11791,16 @@ static void ut_btree_persistence(void)
 	M0_ASSERT(rc == 0);
 	M0_SET0(&btree);
 
+	/**
+	 * Confirm root node on BE segment is valid and the opaque pointer in
+	 * the node is NULL.
+	 */
+	rnode_segaddr.as_core = (uint64_t)rnode;
+	nt = btree_node_format[segaddr_ntype_get(&rnode_segaddr)];
+	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr) &&
+		  nt->nt_opaque_get(&rnode_segaddr) == NULL);
+
+
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
 	rc = madvise(rnode, rnode_sz, MADV_NORMAL);
@@ -11859,6 +11869,15 @@ static void ut_btree_persistence(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
 	M0_ASSERT(rc == 0);
 	M0_SET0(&btree);
+
+	/**
+	 * Confirm root node on BE segment is valid and the opaque pointer in
+	 * the node is NULL.
+	 */
+	rnode_segaddr.as_core = (uint64_t)rnode;
+	nt = btree_node_format[segaddr_ntype_get(&rnode_segaddr)];
+	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr) &&
+		  nt->nt_opaque_get(&rnode_segaddr) == NULL);
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -11953,6 +11972,15 @@ static void ut_btree_persistence(void)
 	M0_ASSERT(rc == 0);
 	M0_SET0(&btree);
 
+	/**
+	 * Confirm root node on BE segment is valid and the opaque pointer in
+	 * the node is NULL.
+	 */
+	rnode_segaddr.as_core = (uint64_t)rnode;
+	nt = btree_node_format[segaddr_ntype_get(&rnode_segaddr)];
+	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr) &&
+		  nt->nt_opaque_get(&rnode_segaddr) == NULL);
+
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
 	rc = madvise(rnode, rnode_sz, MADV_NORMAL);
@@ -12020,6 +12048,14 @@ static void ut_btree_persistence(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
 	M0_ASSERT(rc == 0);
 	M0_SET0(&btree);
+	/**
+	 * Confirm root node on BE segment is valid and the opaque pointer in
+	 * the node is NULL.
+	 */
+	rnode_segaddr.as_core = (uint64_t)rnode;
+	nt = btree_node_format[segaddr_ntype_get(&rnode_segaddr)];
+	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr) &&
+		  nt->nt_opaque_get(&rnode_segaddr) == NULL);
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -12637,6 +12673,8 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	void                       *v_ptr          = &value;
 	int                         rc;
 	struct m0_buf               buf;
+	const struct node_type     *nt;
+	struct segaddr              rnode_segaddr;
 	uint32_t                    rnode_sz       = m0_pagesize_get();
 	struct m0_fid               fid            = M0_FID_TINIT('b', 0, 1);
 	uint32_t                    rnode_sz_shift;
@@ -12750,6 +12788,15 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	M0_ASSERT(rc == 0);
 	M0_SET0(&btree);
 
+	/**
+	 * Confirm root node on BE segment is valid and the opaque pointer in
+	 * the node is NULL.
+	 */
+	rnode_segaddr.as_core = (uint64_t)rnode;
+	nt = btree_node_format[segaddr_ntype_get(&rnode_segaddr)];
+	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr) &&
+		  nt->nt_opaque_get(&rnode_segaddr) == NULL);
+
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
 	rc = madvise(rnode, rnode_sz, MADV_NORMAL);
@@ -12818,6 +12865,15 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_close(tree, &b_op));
 	M0_ASSERT(rc == 0);
 	M0_SET0(&btree);
+
+	/**
+	 * Confirm root node on BE segment is valid and the opaque pointer in
+	 * the node is NULL.
+	 */
+	rnode_segaddr.as_core = (uint64_t)rnode;
+	nt = btree_node_format[segaddr_ntype_get(&rnode_segaddr)];
+	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr) &&
+		  nt->nt_opaque_get(&rnode_segaddr) == NULL);
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
