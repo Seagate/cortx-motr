@@ -79,6 +79,7 @@
       name:
         - /root/rpmbuild/RPMS/x86_64/isa-l-{{ isal_version.stdout }}.rpm
       state: present
+      disable_gpg_check: yes
     tags: isal-custom-build
 
   - name: clean yum metadata
