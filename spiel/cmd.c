@@ -1659,27 +1659,14 @@ int m0_spiel_pool_rebalance_abort(struct m0_spiel     *spl,
 /*                 Byte count                  */
 /***********************************************/
 
-struct m0_spiel_bckey {
-	struct m0_fid sbk_fid;
-	uint64_t      sbk_user_id;
-};
-
-struct m0_spiel_bcrec {
-	uint64_t  sbr_byte_count;
-	uint64_t  sbr_object_count;
-};
-
+/**
+ * List element of an individual key value pair on the byte count btree.
+ */
 struct m0_proc_data {
 	struct m0_spiel_bckey pd_bckey;
 	struct m0_spiel_bcrec pd_bcrec;
 	struct m0_tlink       pd_link;
 	uint64_t              pd_magic; 
-};
-
-struct m0_proc_counter {
-	int                     pc_rc;
-	struct m0_spiel_bckey **pc_bckey;
-	struct m0_spiel_bcrec **pc_bcrec;
 };
 
 /**
@@ -2040,12 +2027,13 @@ obj_close:
 	return M0_RC(rc);
 }
 
-int m0_spiel_proc_counters_fetch(struct m0_spiel_core   *spc,
+int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 				 struct m0_fid          *proc_fid,
 				 struct m0_proc_counter *count_stats)
 {
 //	struct spiel_proc_counter_item *proc;
 //	struct m0_tl                   *counters;
+	struct m0_spiel_core           *spc = &spl->spl_core;
 	struct m0_conf_obj             *proc_obj;
 	int                             rc;
 
@@ -2076,6 +2064,7 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel_core   *spc,
 	M0_ALLOC_ARR(count_stats->pc_bckey, 1);
 	M0_ALLOC_ARR(count_stats->pc_bcrec, 1);
 
+	count_stats->pc_proc_fid = *proc_fid;
 	count_stats->pc_bckey[0]->sbk_fid = M0_FID0;
 	count_stats->pc_bckey[0]->sbk_user_id = 1;
 
