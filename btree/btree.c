@@ -3011,10 +3011,9 @@ static bool ff_isfit(struct slot *slot)
 static void ff_done(struct slot *slot, bool modified)
 {
 	/**
-	 * After record modification, this function will be used to perfor any
+	 * After record modification, this function will be used to perform any
 	 * post operations, such as CRC calculations.
-	 *
-	*/
+	 */
 	const struct nd *node = slot->s_node;
 	struct ff_head  *h    = ff_data(node);
 	void            *val_addr;
@@ -4829,6 +4828,8 @@ static bool vkvv_isoverflow(const struct nd *node,
 		ksize     = m0_vec_count(&rec->r_key.k_data.ov_vec);
 		vsize     = m0_vec_count(&rec->r_val.ov_vec);
 		dir_entry = sizeof(struct dir_rec);
+		if (vkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
+			vsize += CRC_VALUE_SIZE;
 	} else {
 		ksize     = MAX_KEY_SIZE + sizeof(uint64_t);
 		vsize     = vkvv_get_vspace();
@@ -4896,9 +4897,11 @@ static uint32_t vkvv_lnode_rec_val_size(const struct nd *node, int idx)
 static uint32_t vkvv_rec_val_size(const struct nd *node, int idx)
 {
 	struct vkvv_head *h = vkvv_data(node);
-	if (h->vkvv_level == 0)
-		return vkvv_lnode_rec_val_size(node, idx);
-	else
+	if (h->vkvv_level == 0) {
+		int vsize = vkvv_lnode_rec_val_size(node, idx);
+		return vkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH ?
+		       vsize - CRC_VALUE_SIZE : vsize;
+	} else
 		return vkvv_valsize(node);
 }
 
@@ -5093,6 +5096,8 @@ static bool vkvv_isfit(struct slot *slot)
 	if (vkvv_level(slot->s_node) == 0) {
 		dir_entry = sizeof(struct dir_rec);
 		vsize     = m0_vec_count(&slot->s_rec.r_val.ov_vec);
+		if (vkvv_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
+			vsize += CRC_VALUE_SIZE;
 	} else {
 		dir_entry = 0;
 		vsize     = vkvv_get_vspace();
@@ -5102,7 +5107,24 @@ static bool vkvv_isfit(struct slot *slot)
 
 static void vkvv_done(struct slot *slot, bool modified)
 {
+	/**
+	 * After record modification, this function will be used to perform any
+	 * post operations, such as CRC calculations.
+	 */
+	const struct nd  *node = slot->s_node;
+	struct vkvv_head *h    = vkvv_data(node);
+	void             *val_addr;
+	int               vsize;
+	uint64_t          calculated_csum;
 
+	if (modified && h->vkvv_level == 0 &&
+	    vkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH) {
+		val_addr        = vkvv_val(slot->s_node, slot->s_idx + 1);
+		vsize           = vkvv_rec_val_size(slot->s_node, slot->s_idx);
+		calculated_csum = m0_hash_fnc_fnv1(val_addr, vsize);
+
+		*(uint64_t*)(val_addr + vsize) = calculated_csum;
+	}
 }
 
 /**
@@ -5123,6 +5145,9 @@ static bool vkvv_is_dir_overlap(struct slot *slot)
 	void             *val_addr       = vkvv_val(slot->s_node, count);
 	void             *end_dir_addr   = start_dir_addr +
 					   sizeof(struct dir_rec) * (count + 2);
+
+	if (vkvv_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		vsize += CRC_VALUE_SIZE;
 
 	if (key_addr + ksize > start_dir_addr ||
 	    val_addr - vsize < end_dir_addr)
@@ -5149,6 +5174,9 @@ static void vkvv_move_dir(struct slot *slot)
 	void             *key_addr       = vkvv_key(slot->s_node, count);
 	void             *val_addr       = vkvv_val(slot->s_node, count);
 	uint32_t          diff;
+
+	if (vkvv_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		vsize += CRC_VALUE_SIZE;
 
 	/* Key space overlaps with directory */
 	if (key_addr + ksize > start_dir_addr) {
@@ -5183,15 +5211,18 @@ static void vkvv_lnode_make(struct slot *slot)
 	uint32_t          total_ksize;
 	uint32_t          total_vsize;
 
-	if(count != 0 && vkvv_is_dir_overlap(slot)){
+	if (count != 0 && vkvv_is_dir_overlap(slot)) {
 		vkvv_move_dir(slot);
 		dir_entry = vkvv_get_dir_addr(slot->s_node);;
 	}
 
+	if (vkvv_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		vsize += CRC_VALUE_SIZE;
+
 	if (index == count) {
 		/**
-		 * No need to do m0_memmove() as data will be added to the end of
-		 * current series of keys and values. Just update the
+		 * No need to do m0_memmove() as data will be added to the end
+		 * of current series of keys and values. Just update the
 		 * directory to keep a record of the next possible offset.
 		 */
 		if (index == 0) {
@@ -10119,7 +10150,7 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 #define GET_RANDOM_VALSIZE(varray, kfirst, kiter_start, kincr, crc)            \
 	({                                                                     \
 		uint64_t random_size = 0;                                      \
-		if (crc == M0_BCT_NO_CRC)                                      \
+		if (crc == M0_BCT_NO_CRC || crc == M0_BCT_BTREE_ENC_RAW_HASH ) \
 			random_size = (((kfirst - kiter_start) / kincr) %      \
 					(VAL_ARR_ELE_COUNT - 1)) + 2;          \
 		else if (crc == M0_BCT_USER_ENC_RAW_HASH)                      \
@@ -12449,6 +12480,13 @@ static void ut_btree_crc_test(void)
 				},
 				M0_BCT_BTREE_ENC_RAW_HASH,
 			},
+			{
+				{
+					BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+					RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
+				},
+				M0_BCT_BTREE_ENC_RAW_HASH,
+			},
 		};
 	uint16_t                    thread_count = ARRAY_SIZE(btrees_with_crc);
 	struct m0_be_tx_credit      cred;
@@ -12643,7 +12681,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	struct ut_cb_data           get_data;
 	m0_bcount_t                 limit;
 
-	M0_ASSERT(bt->ksize == sizeof(key));
+	M0_ASSERT(bt->ksize == RANDOM_VALUE_SIZE || bt->ksize == sizeof(key));
 	M0_ASSERT(bt->vsize == RANDOM_VALUE_SIZE ||
 		  (bt->vsize % sizeof(uint64_t) == 0 &&
 		   (((crc_type == M0_BCT_NO_CRC &&
@@ -12972,6 +13010,13 @@ static void ut_btree_crc_persist_test(void)
 			{
 				BNT_FIXED_FORMAT, sizeof(uint64_t),
 				2 * sizeof(uint64_t)
+			},
+			M0_BCT_BTREE_ENC_RAW_HASH,
+		},
+		{
+			{
+				BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+				RANDOM_VALUE_SIZE, RANDOM_VALUE_SIZE
 			},
 			M0_BCT_BTREE_ENC_RAW_HASH,
 		},
