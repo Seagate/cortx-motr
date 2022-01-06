@@ -25,7 +25,12 @@
 ### ------------------------------------------------------------------
 
 set ctrl_c \x03
-set endpoint 0@lo:12345:43:100
+
+set cwd [file dirname $argv0]
+set awkCmd {{print $3}}
+set endpoint [exec cat "$cwd/../ut/ep.h" | grep M0_UT_SERVER_EP_ADDR | awk $awkCmd]
+#Trim start and ending '"' from string
+set endpoint [exec echo $endpoint | tail -c +2 | head -c -2]
 
 proc die {msg {rc 1}} {
     send_error "**ERROR** $msg\n"
