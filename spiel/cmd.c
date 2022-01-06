@@ -2033,25 +2033,25 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 {
 //	struct spiel_proc_counter_item *proc;
 //	struct m0_tl                   *counters;
-	struct m0_spiel_core           *spc = &spl->spl_core;
-	struct m0_conf_obj             *proc_obj;
-	int                             rc;
+//	struct m0_spiel_core           *spc = &spl->spl_core;
+//	struct m0_conf_obj             *proc_obj;
+	int                             rc = 0;
 
 	M0_ENTRY();
-	M0_PRE(spc != NULL);
-	M0_PRE(spc->spc_confc != NULL);
+	M0_PRE(spl != NULL);
+//	M0_PRE(spc->spc_confc != NULL);
 	M0_PRE(count_stats != NULL);
 
-	if (!m0_confc_is_inited(spc->spc_confc))
-		return M0_ERR_INFO(-EAGAIN, "confc is finalised");
-
-	rc = m0_confc_open_by_fid_sync(spc->spc_confc, proc_fid, &proc_obj);
-	if (rc != 0)
-		return M0_ERR(rc);
-	if (proc_obj->co_ha_state != M0_NC_ONLINE) {
-		rc = M0_ERR(-EINVAL);
-		goto obj_close;
-	}
+//	if (!m0_confc_is_inited(spc->spc_confc))
+//		return M0_ERR_INFO(-EAGAIN, "confc is finalised");
+//
+//	rc = m0_confc_open_by_fid_sync(spc->spc_confc, proc_fid, &proc_obj);
+//	if (rc != 0)
+//		return M0_ERR(rc);
+//	if (proc_obj->co_ha_state != M0_NC_ONLINE) {
+//		rc = M0_ERR(-EINVAL);
+//		goto obj_close;
+//	}
 
 	/* Stub to send fops to fetch data. Will call spiel_cmd_send() */
 //	spiel_process__counters_sync(proc, counters);
@@ -2060,20 +2060,21 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 //			   M0_NET_BUFFER_LINK_MAGIC, M0_NET_BUFFER_HEAD_MAGIC);
 //	M0_TL_DEFINE(m0_net_pool, M0_INTERNAL, struct m0_net_buffer);
 
-	M0_ALLOC_PTR(count_stats);
 	M0_ALLOC_ARR(count_stats->pc_bckey, 1);
 	M0_ALLOC_ARR(count_stats->pc_bcrec, 1);
+	M0_ALLOC_PTR(count_stats->pc_bckey[0]);
+	M0_ALLOC_PTR(count_stats->pc_bcrec[0]);
 
 	count_stats->pc_proc_fid = *proc_fid;
-	count_stats->pc_bckey[0]->sbk_fid = M0_FID0;
+	count_stats->pc_bckey[0]->sbk_fid = M0_FID_TINIT('v', 1, 8);
 	count_stats->pc_bckey[0]->sbk_user_id = 1;
 
 	count_stats->pc_bcrec[0]->sbr_byte_count = 4096;
 	count_stats->pc_bcrec[0]->sbr_object_count = 1;
 	count_stats->pc_rc = 0;
 
-obj_close:
-	m0_confc_close(proc_obj);
+//obj_close:
+//	m0_confc_close(proc_obj);
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_spiel_proc_counters_fetch);
