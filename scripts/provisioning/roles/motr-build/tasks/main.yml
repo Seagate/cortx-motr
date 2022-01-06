@@ -274,6 +274,7 @@
           - /root/rpmbuild/RPMS/x86_64/kmod-lustre-client-{{ lustre_version.stdout }}.rpm
           - /root/rpmbuild/RPMS/x86_64/lustre-client-{{ lustre_version.stdout }}.rpm
         state: present
+        disable_gpg_check: yes
       when: ansible_distribution_version is version('7.6.1810', '>')
       tags: lustre-custom-build
 
