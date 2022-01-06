@@ -67,9 +67,8 @@ motr_build_deps_python3_el7_pkgs:
 
 motr_build_deps_python3_el8_pkgs:
   - python3
-  - python3-devel
+  - python36-devel
   - python3-numpy   # performance tools addb2 analisys
-  - python3-plumbum # performance tools addb2 analisys
   - python3-ply
   - python3-PyYAML  # required only for tests (m0hagen)
   - python3-tqdm    # performance tools addb2 analisys

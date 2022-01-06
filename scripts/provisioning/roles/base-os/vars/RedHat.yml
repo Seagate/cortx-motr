@@ -20,6 +20,7 @@
 ---
 basic_tools_pkgs:
   - ansible  # for local mode, helpful on Windouz hosts
+  - yum-utils
   - dstat
   - emacs
   - htop
