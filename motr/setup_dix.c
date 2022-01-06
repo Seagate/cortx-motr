@@ -344,7 +344,10 @@ M0_INTERNAL int m0_cs_dix_setup(struct m0_motr *cctx)
 	M0_ASSERT(pver != NULL);
 	pm = &pver->pv_mach;
 	m0_rwlock_read_lock(&pm->pm_lock);
-	M0_ASSERT(!pver->pv_is_dirty);
+	/*
+ 	 * Enable this logic once multiple DIX pvers available. 
+         */ 
+	// M0_ASSERT(!pver->pv_is_dirty);
 	M0_ASSERT(pool_failed_devs_tlist_is_empty(
 					&pver->pv_pool->po_failed_devices));
 

@@ -675,22 +675,29 @@ m0_pool_version_get(struct m0_pools_common  *pc,
 static int dix_pool_version_get_locked(struct m0_pools_common  *pc,
                                        struct m0_pool_version **pv)
 {
-	struct m0_pool         *pool;
-
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(&pc->pc_mutex));
 
 	if (pv == NULL)
 		return M0_ERR(-EINVAL);
 
-	m0_tl_for(pools, &pc->pc_pools, pool) {
-		if (is_dix_pool(pc, pool)) {
-			*pv = m0_pool_clean_pver_find(pool);
-			if (*pv != NULL)
-				return M0_RC(0);
-		}
-	} m0_tl_endfor;
-	return M0_ERR(-ENOENT);
+	*pv = m0_pool_version_dix_get(pc);
+	if (*pv != NULL)
+		return M0_RC(0);
+	else
+		return M0_ERR(-ENOENT);
+
+	/* 
+ 	 * Enable this logic once multiple DIX pvers available.
+ 	 *
+	 * m0_tl_for(pools, &pc->pc_pools, pool) {
+	 *	if (is_dix_pool(pc, pool)) {
+	 *		*pv = m0_pool_clean_pver_find(pool);
+	 *		if (*pv != NULL)
+	 *			return M0_RC(0);
+	 *	}
+	 *} m0_tl_endfor;
+	 */
 }
 
 M0_INTERNAL int
@@ -820,6 +827,14 @@ M0_INTERNAL void m0_pool_versions_stale_mark(struct m0_pools_common *pc,
 		} m0_tl_endfor;
 	} m0_tl_endfor;
 	m0_mutex_unlock(&pc->pc_mutex);
+}
+
+M0_INTERNAL struct m0_pool_version *
+m0_pool_version_dix_get(const struct m0_pools_common *pc)
+{
+	M0_PRE(pc != NULL);
+
+	return pool_version_tlist_head(&pc->pc_dix_pool->po_vers);
 }
 
 M0_INTERNAL struct m0_pool_version *
