@@ -2455,7 +2455,9 @@ static void bnode_put(struct node_op *op, struct nd *node)
 		if ((!node->n_be_node_valid || is_root_node) &&
 		    node->n_txref == 0) {
 			ndlist_tlink_del_fini(node);
-			node->n_type->nt_opaque_set(&node->n_addr, NULL);
+			if (is_root_node)
+				node->n_type->nt_opaque_set(&node->n_addr,
+							    NULL);
 			bnode_unlock(node);
 			m0_rwlock_fini(&node->n_lock);
 			m0_free(node);
@@ -2495,7 +2497,6 @@ static int64_t bnode_free(struct node_op *op, struct nd *node,
 
 	if (node->n_ref == 0 && node->n_txref == 0) {
 		ndlist_tlink_del_fini(node);
-		node->n_type->nt_opaque_set(&node->n_addr, NULL);
 		bnode_unlock(node);
 		m0_rwlock_fini(&node->n_lock);
 		m0_free(node);
