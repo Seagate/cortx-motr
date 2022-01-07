@@ -1625,8 +1625,9 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_dix_rop_ctx *rop_del_phase2 = NULL;
 	bool                   del_phase2 = false;
 	struct m0_dix_cas_rop *cas_rop;
-	uint32_t                req_cnt = 0;
-	bool			cas_success = false;
+	uint32_t	       req_cnt = 0;
+	int		       rc = 0;
+	bool		       cas_success = false;
 
 	(void)grp;
 	if (req->dr_type == DIX_NEXT)
@@ -1634,23 +1635,22 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	else
 		/*
 		 * Check return status of N cas request, if any one CAS
-		 * Request is success, we return success to client. For failed
+		 * request is success, we return success to client. For failed
 		 * request skipping to send rc_update() but if it is last request
 		 * and we do not found any success request reply so far then
 		 * do update rc_update() for last failed CAS request also.
 		 */
 		m0_tl_for (cas_rop, &rop->dg_cas_reqs, cas_rop) {
 			req_cnt++;
-			if (cas_rop->crp_creq.ccr_sm.sm_rc == 0)
+			rc = cas_rop->crp_creq.ccr_sm.sm_rc;
+			if (!cas_success && rc == 0)
 				cas_success = true;
-			if (cas_success) {
-				if (cas_rop->crp_creq.ccr_sm.sm_rc == 0)
-					dix_cas_rop_rc_update(cas_rop, 0);
-			} else {
-				if (req_cnt == rop->dg_cas_reqs_nr &&
-				    !cas_success)
-					dix_cas_rop_rc_update(cas_rop, 0);
-			}
+
+			if (cas_success && rc == 0)
+				dix_cas_rop_rc_update(cas_rop, 0);
+			else if (!cas_success && req_cnt == rop->dg_cas_reqs_nr)
+				dix_cas_rop_rc_update(cas_rop, 0);
+
 			m0_cas_req_fini(&cas_rop->crp_creq);
 		} m0_tl_endfor;
 
