@@ -344,14 +344,20 @@ kv_test()
 
 m0spiel_test()
 {
+	local spiel_client_ep
 	local rc
+	if [ "$XPRT" = "lnet" ]; then
+		spiel_client_ep="${IP}:12345:45:1000"
+	else
+		spiel_client_ep="${IP}@20010"
+	fi
 	echo "m0_filesystem_stats"
 	libmotr_sys_path="/usr/lib64/libmotr.so"
 	[[ -n "$MOTR_DEVEL_WORKDIR_PATH" ]] && \
         	libmotr_path=$MOTR_DEVEL_WORKDIR_PATH/motr/.libs/libmotr.so
 	[[ ! -s $libmotr_path ]] && libmotr_path=$libmotr_sys_path
 	format_profile_fid=$(echo $profile_fid | sed 's/.*<\(.*\)>/\1/' | sed 's/:/,/')
-	/usr/bin/m0_filesystem_stats -s "$ha_endpoint" -p "$format_profile_fid" -c "${ha_endpoint}0" -l "$libmotr_path"
+	/usr/bin/m0_filesystem_stats -s "$ha_endpoint" -p "$format_profile_fid" -c "$spiel_client_ep" -l "$libmotr_path"
 	rc=$?
 	if [ $rc -ne 0 ] ; then
 		error_handling "Failed to run m0_filesystem_stats " $rc
