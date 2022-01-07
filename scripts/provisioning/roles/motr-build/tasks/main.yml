@@ -31,6 +31,18 @@
     state: present
     name:  '{{ motr_build_deps_pkgs }}'
 
+- name: install Motr build-time CentOS 7 specific dependencies
+  when: redhat_release_major == 7
+  package:
+    state: present
+    name:  '{{ motr_build_deps_el7_pkgs }}'
+
+- name: install Motr build-time CentOS 8 specific dependencies
+  when: redhat_release_major == 8
+  package:
+    state: present
+    name:  '{{ motr_build_deps_el8_pkgs }}'
+
 - name: Build and install Intel isa-l rpm
   block:
   - name: check if isa-l is already installed
@@ -67,6 +79,7 @@
       name:
         - /root/rpmbuild/RPMS/x86_64/isa-l-{{ isal_version.stdout }}.rpm
       state: present
+      disable_gpg_check: yes
     tags: isal-custom-build
 
   - name: clean yum metadata
@@ -105,9 +118,17 @@
     - isa-l
 
 - name: install Motr build-time python3 dependencies
+  when: redhat_release_major == 7
   package:
     state: present
-    name:  '{{ motr_build_deps_python3_pkgs }}'
+    name:  '{{ motr_build_deps_python3_el7_pkgs }}'
+  tags: motr-build-python3
+
+- name: install Motr build-time python3 dependencies
+  when: redhat_release_major == 8
+  package:
+    state: present
+    name:  '{{ motr_build_deps_python3_el8_pkgs }}'
   tags: motr-build-python3
 
 - name: install Motr doc build-time dependencies
@@ -253,6 +274,7 @@
           - /root/rpmbuild/RPMS/x86_64/kmod-lustre-client-{{ lustre_version.stdout }}.rpm
           - /root/rpmbuild/RPMS/x86_64/lustre-client-{{ lustre_version.stdout }}.rpm
         state: present
+        disable_gpg_check: yes
       when: ansible_distribution_version is version('7.6.1810', '>')
       tags: lustre-custom-build
 
@@ -328,9 +350,10 @@
     - name: install local libfabric rpms
       yum:
         name:
-          - /root/rpmbuild/RPMS/x86_64/libfabric-1.11.2-1.el7.x86_64.rpm
-          - /root/rpmbuild/RPMS/x86_64/libfabric-devel-1.11.2-1.el7.x86_64.rpm
+          - /root/rpmbuild/RPMS/x86_64/libfabric-1.11.2-1.el{{ redhat_release_major }}.x86_64.rpm
+          - /root/rpmbuild/RPMS/x86_64/libfabric-devel-1.11.2-1.el{{ redhat_release_major }}.x86_64.rpm
         state: present
+        disable_gpg_check: yes
       when: ansible_distribution_version is version('7.6.1810', '>')
       tags: libfabric-custom-build
 

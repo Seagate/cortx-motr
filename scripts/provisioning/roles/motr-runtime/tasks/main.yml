@@ -30,6 +30,12 @@
     state: present
     name:  '{{ motr_runtime_deps_pkgs }}'
 
+- name: install Motr el7 specific run-time dependencies
+  package:
+    state: present
+    name:  '{{ motr_runtime_deps_el7_pkgs }}'
+  when: redhat_release_major == 7
+
 - name: get current kernel version
   command:  uname -r
   register: kernel_version
