@@ -107,11 +107,18 @@ parse_cli_options $@
 (( UID == 0 )) ||
     die 'Error: Please, run this script with "root" privileges'
 
+case $(distro_type) in
+    redhat) yum -y install python3-pip ;;
+    debian) apt install python3-pip ;;
+esac
 pip3 install ipaddress
 
 if ! which ansible &>/dev/null ; then
     case $(distro_type) in
-        redhat) yum -y install ansible ;;
+        redhat) yum -y install epel-release
+                yum -y install epel-release # Update it
+                yum -y install ansible
+                ;;
         debian) apt install ansible ;;
     esac
 fi

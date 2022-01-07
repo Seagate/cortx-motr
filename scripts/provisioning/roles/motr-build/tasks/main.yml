@@ -31,14 +31,14 @@
     state: present
     name:  '{{ motr_build_deps_pkgs }}'
 
-- name: install Motr build-time CentOS 7 specific dependencies
-  when: redhat_release_major == 7
+- name: install Motr build-time el7 specific dependencies
+  when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int == 7
   package:
     state: present
     name:  '{{ motr_build_deps_el7_pkgs }}'
 
-- name: install Motr build-time CentOS 8 specific dependencies
-  when: redhat_release_major == 8
+- name: install Motr build-time el8 specific dependencies
+  when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int >= 8
   package:
     state: present
     name:  '{{ motr_build_deps_el8_pkgs }}'
@@ -117,15 +117,15 @@
   tags:
     - isa-l
 
-- name: install Motr build-time python3 dependencies
-  when: redhat_release_major == 7
+- name: install Motr build-time python3 el7 dependencies
+  when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int == 7
   package:
     state: present
     name:  '{{ motr_build_deps_python3_el7_pkgs }}'
   tags: motr-build-python3
 
-- name: install Motr build-time python3 dependencies
-  when: redhat_release_major == 8
+- name: install Motr build-time python3 el8 dependencies
+  when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int >= 8
   package:
     state: present
     name:  '{{ motr_build_deps_python3_el8_pkgs }}'
@@ -246,6 +246,11 @@
         line: 'Release: 99%{?dist}'
 
     - name: install Lustre rpm build dependencies
+      command: yum-builddep -y ~/rpmbuild/SPECS/lustre.spec
+      register: builddep_result
+      changed_when: '"No uninstalled build requires" not in builddep_result.stdout'
+
+    - name: install Lustre rpm build dependencies again just in case
       command: yum-builddep -y ~/rpmbuild/SPECS/lustre.spec
       register: builddep_result
       changed_when: '"No uninstalled build requires" not in builddep_result.stdout'
