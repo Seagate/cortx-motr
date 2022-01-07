@@ -37,7 +37,12 @@ user_config=/etc/sysconfig/motr
 currdir=$(pwd)
 timestamp=$(date +%d_%b_%Y_%H_%M)
 SANITY_SANDBOX_DIR="/var/motr/sanity_$timestamp"
-base_port=301
+XPRT=$(m0_default_xprt)
+if [ "$XPRT" = "lnet" ]; then
+	base_port=301
+else
+	base_port=3301
+fi
 IP=""
 port=""
 local_endpoint=""
@@ -146,7 +151,11 @@ node_sanity_check()
 		echo "Error: $conf is missing, it should already be created by m0setup"
 		return 1
 	fi
-	string=`grep $IP $conf | cut -d'"' -f 2 | cut -d ':' -f 1`
+	if [ "$XPRT" = "lnet" ]; then
+		string=$(grep "$IP" "$conf" | cut -d '"' -f 2 | cut -d ':' -f 1)
+	else
+		string=$(grep "$IP" "$conf" | cut -d '"' -f 2 | cut -d '@' -f 1)
+	fi
 	set -- $string
 	ip=`echo $1`
 	if [ "$ip" != "$IP" ]
@@ -181,10 +190,15 @@ generate_endpoints()
 	fi
 
 	unused_port_get "$base_port"
-	local_endpoint="${IP}:12345:44:$port"
-	echo "Local endpoint: $local_endpoint"
+	if [ "$XPRT" = "lnet" ]; then
+		local_endpoint="${IP}:12345:44:$port"
+		ha_endpoint="${IP}:12345:45:1"
+	else
+		local_endpoint="${IP}@$port"
+		ha_endpoint="${IP}@2001"
+	fi
 
-	ha_endpoint="${IP}:12345:45:1"
+	echo "Local endpoint: $local_endpoint"
 	echo "HA endpoint: $ha_endpoint"
 
 	profile_fid='<0x7000000000000001:0>'
@@ -330,14 +344,20 @@ kv_test()
 
 m0spiel_test()
 {
+	local spiel_client_ep
 	local rc
+	if [ "$XPRT" = "lnet" ]; then
+		spiel_client_ep="${IP}:12345:45:1000"
+	else
+		spiel_client_ep="${IP}@20010"
+	fi
 	echo "m0_filesystem_stats"
 	libmotr_sys_path="/usr/lib64/libmotr.so"
 	[[ -n "$MOTR_DEVEL_WORKDIR_PATH" ]] && \
         	libmotr_path=$MOTR_DEVEL_WORKDIR_PATH/motr/.libs/libmotr.so
 	[[ ! -s $libmotr_path ]] && libmotr_path=$libmotr_sys_path
 	format_profile_fid=$(echo $profile_fid | sed 's/.*<\(.*\)>/\1/' | sed 's/:/,/')
-	/usr/bin/m0_filesystem_stats -s $ha_endpoint -p $format_profile_fid -c ${ha_endpoint}000 -l $libmotr_path
+	/usr/bin/m0_filesystem_stats -s "$ha_endpoint" -p "$format_profile_fid" -c "$spiel_client_ep" -l "$libmotr_path"
 	rc=$?
 	if [ $rc -ne 0 ] ; then
 		error_handling "Failed to run m0_filesystem_stats " $rc
