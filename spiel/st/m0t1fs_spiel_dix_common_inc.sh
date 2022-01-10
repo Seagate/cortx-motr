@@ -37,9 +37,15 @@ stride=32
 src_bs=10M
 src_count=2
 
-LNET_NID=$(m0_local_nid_get)
-LA_ENDPOINT="$LNET_NID:12345:33:1"
-HA_ENDPOINT="$LNET_NID:12345:34:1"
+XPRT=$(m0_default_xprt)
+NID=$(m0_local_nid_get)
+if [ "$XPRT" = "lnet" ]; then
+    LA_ENDPOINT="$NID:12345:33:1"
+    HA_ENDPOINT="$NID:12345:34:1"
+else
+    LA_ENDPOINT="$NID@3001"
+    HA_ENDPOINT="$NID@2001"
+fi
 
 SPIEL_FIDS_LIST="
 fids = {'profile'       : Fid(0x7000000000000001, 0),
@@ -93,9 +99,14 @@ verify()
 
 spiel_prepare()
 {
-	local LNET_NID=$(m0_local_nid_get)
-	local SPIEL_CLIENT_ENDPOINT="$LNET_NID:12345:34:1001"
-	local SPIEL_HA_ENDPOINT="$LNET_NID:12345:34:1"
+	local NID=$(m0_local_nid_get)
+    if [ "$XPRT" = "lnet" ]; then
+        local SPIEL_CLIENT_ENDPOINT="$NID:12345:34:1001"
+        local SPIEL_HA_ENDPOINT="$NID:12345:34:1"
+    else
+        local SPIEL_CLIENT_ENDPOINT="$NID@11001"
+        local SPIEL_HA_ENDPOINT="$NID@2001"
+    fi
 	SPIEL_OPTS=" -l $M0_SRC_DIR/motr/.libs/libmotr.so --client $SPIEL_CLIENT_ENDPOINT --ha $SPIEL_HA_ENDPOINT"
 
 	export SPIEL_OPTS=$SPIEL_OPTS
