@@ -5,4 +5,5 @@ ut_libmotr_ut_la_SOURCES += stob/ut/adieu.c \
                                stob/ut/cache.c \
                                stob/ut/perf.c \
                                stob/ut/stob.c \
-                               stob/ut/stobio.c
+                               stob/ut/stobio.c \
+                               stob/ut/partition.c

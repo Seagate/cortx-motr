@@ -1478,15 +1478,16 @@ static int cs_be_dom_cfg_zone_pcnt_fill(struct m0_reqh          *reqh,
  * Generates partitionstob domain location which
  * must be freed with m0_free(). */
 
-static char *cs_storage_partdom_location_gen(const char *stob_path)
+static char *cs_storage_partdom_location_gen(const char          *stob_path,
+					     struct m0_be_domain *dom)
 {
 	char       *location;
 	const char *prefix = m0_stob_part_type.st_fidt.ft_name;
 
 	M0_ALLOC_ARR(location,
-		     strlen(stob_path) + ARRAY_SIZE(prefix) + 128);
+		     strlen(stob_path) +  ARRAY_SIZE(prefix) + 128);
 	if (location != NULL)
-		sprintf(location, "%s:%s", prefix, stob_path);
+		sprintf(location, "%s:%s:%p", prefix, stob_path, dom);
 	return location;
 }
 
@@ -1529,7 +1530,6 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 	part_cfg->bpc_part_mode_set = ad_mode;
 	if (part_cfg->bpc_part_mode_set) {
 		enum { len = 128 };
-
 		M0_ASSERT(cs_conf_get_parition_dev(&rctx->rc_stob, &sdev) == 0);
 		M0_LOG(M0_ALWAYS,"filename:%s,size:%"PRIu64"alloc_len = %d ",
 		       sdev->sd_filename, sdev->sd_size,
@@ -1543,7 +1543,8 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 			sdev->sd_size);
 		part_cfg->bpc_init_cfg = part_cfg->bpc_create_cfg;
 		part_cfg->bpc_location =
-			(char*)cs_storage_partdom_location_gen(sdev->sd_filename);
+			(char*)cs_storage_partdom_location_gen(sdev->sd_filename,
+					 &rctx->rc_be.but_dom);
 		part_cfg->bpc_dom_key = sdev->sd_dev_idx;
 		/** seg0 configuration */
 		part_cfg->bpc_part_mode_seg0 = true;

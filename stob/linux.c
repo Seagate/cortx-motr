@@ -144,7 +144,7 @@ static char *stob_linux_file_domain_id(const char *path)
 	return stob_linux_vsnprintf("%s/id", path);
 }
 
-static char *stob_linux_file_stob(const char *path, const struct m0_fid *stob_fid)
+M0_INTERNAL char *m0_stob_linux_file_stob(const char *path, const struct m0_fid *stob_fid)
 {
 	return stob_linux_vsnprintf("%s/o/%"PRIx64":%"PRIx64"", path,
 			stob_fid->f_container, stob_fid->f_key);
@@ -388,7 +388,7 @@ static int stob_linux_open(struct m0_stob *stob,
 	stob->so_ops = &stob_linux_ops;
 	lstob->sl_dom = ldom;
 
-	file_stob = stob_linux_file_stob(ldom->sld_path, stob_fid);
+	file_stob = m0_stob_linux_file_stob(ldom->sld_path, stob_fid);
 	if (file_stob == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -464,7 +464,7 @@ static int stob_linux_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 	int                   rc;
 
 	stob_linux_close(lstob);
-	file_stob = stob_linux_file_stob(lstob->sl_dom->sld_path,
+	file_stob = m0_stob_linux_file_stob(lstob->sl_dom->sld_path,
 					 m0_stob_fid_get(stob));
 	rc = file_stob == NULL ? -ENOMEM : unlink(file_stob);
 	m0_free(file_stob);

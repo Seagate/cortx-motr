@@ -49,10 +49,12 @@
 #include "stob/stob.h"
 #include "stob/stob_internal.h"	/* m0_stob__fid_set */
 #include "stob/type.h"		/* m0_stob_type */
+#include "stob/linux.h"
 #include "be/domain.h"
 #include "be/partition_table.h"
 #include <math.h>
-
+#include <unistd.h>             /* unlink */
+#include <fcntl.h>              /* open */
 /**
  * @addtogroup stobpart
  *
@@ -72,6 +74,7 @@ struct stob_part_info {
 struct stob_part_dom_priv {
 	struct stob_part_info  b_stobs[M0_BE_MAX_PARTITION_USERS];
 	m0_bcount_t	       b_current_stobs;
+	char		      *b_part_stob_location;
 };
 static struct m0_stob_domain_ops stob_part_domain_ops;
 static struct m0_stob_type_ops   stob_part_type_ops;
@@ -159,9 +162,41 @@ static void stob_part_domain_cfg_init_free(void *cfg_init)
 static int stob_part_domain_destroy(struct m0_stob_type *type,
 				    const char *location_data)
 {
-	return 0;
-}
+	int                           rc = 0;
+        char                         *colon;
+	struct m0_stob_id             stob_id;
+	struct m0_stob               *stob;
+	char                         *file_stob;
+	struct m0_stob_linux_domain  *ldom;
+	uint64_t                      dom_val = 0;
+	struct m0_be_domain          *dom = NULL;
 
+	if(location_data == NULL)
+		return -ENOENT;
+
+	colon = strchr(location_data,':');
+	colon++;
+
+	sscanf(colon,"%lx",&dom_val);
+	dom = (struct m0_be_domain *)dom_val;
+
+	ldom = m0_stob_linux_domain_container(dom->bd_stob_domain);
+        m0_stob_id_make(0,
+			M0_BE_PTABLE_PARTITION_TABLE,
+			&dom->bd_stob_domain->sd_id,
+			&stob_id);
+	file_stob = m0_stob_linux_file_stob(ldom->sld_path, &stob_id.si_fid);
+
+	if (file_stob == NULL)
+		return M0_ERR(-ENOMEM);
+
+	rc = rc ?: open(file_stob, O_RDWR, 0700 );
+	rc = rc == -1 ? -errno :  m0_stob_find(&stob_id, &stob);
+	rc = rc ?: m0_stob_destroy(stob, NULL);
+
+	m0_free(file_stob);
+	return rc;
+}
 
 static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 					     void      **cfg_create)

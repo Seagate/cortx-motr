@@ -74,9 +74,19 @@ M0_INTERNAL int m0_be_ptable_create_init(void *be_domain,
 	void                              *temp_partition_table = NULL;
 
 	M0_ENTRY("mkfs = %d", is_mkfs);
+	if (is_mkfs &&
+	    (m0_be_domain_stob_open(be_domain,
+				    M0_BE_PTABLE_PARTITION_TABLE,
+				    part_config->pc_dev_path_name,
+				    &stob,
+				    false) == 0 )){
+		m0_stob_put(stob);
+		return -EEXIST;
+	}
+
 	rc = m0_be_domain_stob_open(be_domain, M0_BE_PTABLE_PARTITION_TABLE,
 				    part_config->pc_dev_path_name, &stob,
-				    true);
+				    is_mkfs);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Failed domain stob open");
 		goto out;
