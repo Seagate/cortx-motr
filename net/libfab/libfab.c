@@ -2121,12 +2121,16 @@ static void libfab_pending_bufs_send(struct m0_fab__ep *ep)
  */
 static int libfab_target_notify(struct m0_fab__buf *buf)
 {
-	struct m0_fab__active_ep *aep = libfab_aep_get(buf->fb_txctx);
+	struct m0_fab__active_ep *aep;
 	struct m0_fab__buf       *fbp;
 	struct m0_fab__tm        *tm;
 	struct iovec              iv;
 	struct fi_msg             op_msg;
 	int                       ret = 0;
+
+	M0_PRE(buf != NULL && buf->fb_txctx != NULL);
+	aep = libfab_aep_get(buf->fb_txctx);
+	M0_ASSERT(aep != NULL);
 
 	if (buf->fb_nb->nb_qtype == M0_NET_QT_ACTIVE_BULK_RECV &&
 	    aep->aep_tx_state == FAB_CONNECTED) {
@@ -2749,8 +2753,11 @@ static int libfab_buf_dom_dereg(struct m0_fab__buf *fbp)
 {
 	m0_time_t tmout;
 	int       i;
-	int       ret    = 0;
-	uint32_t  seg_nr = fbp->fb_nb->nb_buffer.ov_vec.v_nr;
+	int       ret = 0;
+	uint32_t  seg_nr;
+
+	M0_PRE(fbp != NULL && fbp->fb_nb != NULL);
+	seg_nr = fbp->fb_nb->nb_buffer.ov_vec.v_nr;
 
 	for (i = 0; i < seg_nr; i++) {
 		if (fbp->fb_mr.bm_mr[i] != NULL) {
