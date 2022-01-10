@@ -1029,6 +1029,17 @@ motr_common_SCRIPTS = \
     scripts/install$(motr_commondir)/m0_sns_utils_common.sh
 EXTRA_DIST += $(motr_common_SCRIPTS)
 
+deb_pkg_files = \
+    debian/changelog \
+    debian/control \
+    debian/compat \
+    debian/copyright \
+    debian/cortx-motr.install \
+    debian/cortx-motr-dev.install \
+    debian/rules \
+    debian/source/format
+EXTRA_DIST += $(deb_pkg_files)
+
 # After genders => Halon transition, Motr doesn't have any configuration files
 # under /etc/motr/ directory. But there might be some in future.
 #etc_motrdir    = $(sysconfdir)/motr
@@ -1435,7 +1446,7 @@ all-local: $(KERNEL_MODULES_BUILD) $(LTLIBRARIES) $(PROGRAMS)
 	@$(top_srcdir)/scripts/build/check-public-api
 	@$(top_srcdir)/scripts/build/check-protocol
 	@$(top_srcdir)/scripts/build/print-elf-sizes
-	@cd utils/spiel; $(SETUP_PY) install --root=${DESTDIR} --record=INSTALLED_FILES
+	@cd utils/spiel; $(SETUP_PY) install --root=${DESTDIR} --prefix=$(prefix) --record=INSTALLED_FILES
 	@$(LN_S) -f $(PROGRAMS:%=../%) $(filter /trace/, $(bin_SCRIPTS:%=../%)) utils/
 
 # checks ---------------------------------------------- {{{3
@@ -1458,7 +1469,7 @@ print-elf-sizes:
 
 .PHONY: install-m0spiel-cext
 install-m0spiel-cext:
-	@cd utils/spiel; $(SETUP_PY) install --root=${DESTDIR} --record=INSTALLED_FILES
+	@cd utils/spiel; $(SETUP_PY) install --root=${DESTDIR} --prefix=$(prefix) --record=INSTALLED_FILES
 
 # kernel ---------------------------------------------- {{{3
 
@@ -1577,6 +1588,7 @@ clean-local: $(KERNEL_MODULES_CLEAN) clean-doc
 	@if test x@ENABLE_COVERAGE@ = xyes; then \
 		find . -name "*.gcno" | xargs rm -vf; \
 	fi
+	@rm -vrf $(distdir)
 
 # kernel ---------------------------------------------- {{{3
 
@@ -1742,6 +1754,17 @@ srpm:
 	$(MAKE) __rpm_pre
 	$(MAKE) __rpm_srpm
 	$(MAKE) __rpm_post
+
+#
+# DEB targets ----------------------------------------- {{{2
+#
+
+.PHONY: deb
+deb:
+	$(MAKE) dist
+	tar -xzf $(DIST_FILE)
+	mv $(DIST_FILE) $(patsubst cortx-motr-%tar.gz,cortx-motr_%orig.tar.gz,$(DIST_FILE))
+	cd $(distdir) && debuild -us -uc
 
 #
 # Docker ---------------------------------------------- {{{2
