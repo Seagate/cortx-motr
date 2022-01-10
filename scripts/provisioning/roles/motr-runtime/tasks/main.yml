@@ -34,7 +34,7 @@
   package:
     state: present
     name:  '{{ motr_runtime_deps_el7_pkgs }}'
-  when: redhat_release_major == 7
+  when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int == 7
 
 - name: get current kernel version
   command:  uname -r
