@@ -40,11 +40,11 @@ src_count=2
 XPRT=$(m0_default_xprt)
 NID=$(m0_local_nid_get)
 if [ "$XPRT" = "lnet" ]; then
-LA_ENDPOINT="$NID:12345:33:1"
-HA_ENDPOINT="$NID:12345:34:1"
+    LA_ENDPOINT="$NID:12345:33:1"
+    HA_ENDPOINT="$NID:12345:34:1"
 else
-LA_ENDPOINT="$NID@3001"
-HA_ENDPOINT="$NID@2001"
+    LA_ENDPOINT="$NID@3001"
+    HA_ENDPOINT="$NID@2001"
 fi
 
 SPIEL_FIDS_LIST="
