@@ -46,6 +46,7 @@ export M0_TRACE_PRINT_CONTEXT=short
 # Hence, do not rename it.
 MOTR_STOB_DOMAIN="ad -d disks.conf"
 
+XPRT=$(m0_default_xprt)
 IOS_DEVS=""
 IOS_MD_DEVS=""
 NR_IOS_DEVS=0
@@ -65,45 +66,79 @@ DDEV_ID=1          #data devices
 ADEV_ID=100        #addb devices
 MDEV_ID=200        #meta-data devices
 
-HA_EP=12345:34:1
-CONFD_EP=12345:33:100
-MKFS_PORTAL=35
+if [ "$XPRT" = "lnet" ]; then
+	HA_EP=:12345:34:1
+	CONFD_EP=:12345:33:100
+	MKFS_PORTAL=35
+else
+	HA_EP=@2001
+	CONFD_EP=@3300
+	MKFS_PORTAL=@3500
+fi
 
 # list of io server end points: e.g., tmid in [900, 999).
-IOSEP=(
-    12345:33:900   # IOS1 EP
-    12345:33:901   # IOS2 EP
-    12345:33:902   # IOS3 EP
-    12345:33:903   # IOS4 EP
-)
+if [ "$XPRT" = "lnet" ]; then
+	IOSEP=(
+	:12345:33:900   # IOS1 EP
+	:12345:33:901   # IOS2 EP
+	:12345:33:902   # IOS3 EP
+	:12345:33:903   # IOS4 EP
+	)
+	IOS_PVER2_EP="12345:33:904"
+else
+	IOSEP=(
+	@3900   # IOS1 EP
+	@3901   # IOS2 EP
+	@3902   # IOS3 EP
+	@3903   # IOS4 EP
+	)
+	IOS_PVER2_EP="@3904"
+fi
 
-IOS_PVER2_EP="12345:33:904"
 IOS5_CMD=""       #IOS5 process commandline to spawn it again on Controller event.
 
 IOS4_CMD=""
 
 # list of md server end points tmid in [800, 899)
-MDSEP=(
-    12345:33:800   # MDS1 EP
-#    12345:33:801   # MDS2 EP
-#    12345:33:802   # MDS3 EP
-)
+if [ "$XPRT" = "lnet" ]; then
+	MDSEP=(
+	:12345:33:800   # MDS1 EP
+	#    12345:33:801   # MDS2 EP
+	#    12345:33:802   # MDS3 EP
+	)
+else
+	MDSEP=(
+	@3800   # MDS1 EP
+	#    @3801   # MDS2 EP
+	#    @3802   # MDS3 EP
+	)
+fi
 
 # Use separate client endpoints for m0repair and m0poolmach utilities
 # to avoid network endpoint conflicts (-EADDRINUSE) in-case both the
 # utilities are run at the same time, e.g. concurrent i/o with sns repair.
-SNS_MOTR_CLI_EP="12345:33:1000"
-POOL_MACHINE_CLI_EP="12345:33:1001"
-SNS_QUIESCE_CLI_EP="12345:33:1002"
-M0HAM_CLI_EP="12345:33:1003"
+if [ "$XPRT" = "lnet" ]; then
+	SNS_MOTR_CLI_EP=":12345:33:1000"
+	POOL_MACHINE_CLI_EP=":12345:33:1001"
+	SNS_QUIESCE_CLI_EP=":12345:33:1002"
+	M0HAM_CLI_EP=":12345:33:1003"
+	SNS_CLI_EP=":12345:33:400"
 
-export FDMI_PLUGIN_EP="12345:33:601"
-export FDMI_PLUGIN_EP2="12345:33:602"
+	export FDMI_PLUGIN_EP=":12345:33:601"
+	export FDMI_PLUGIN_EP2=":12345:33:602"
+else
+	SNS_MOTR_CLI_EP="@10000"
+	POOL_MACHINE_CLI_EP="@10001"
+	SNS_QUIESCE_CLI_EP="@10002"
+	M0HAM_CLI_EP="@10003"
+	SNS_CLI_EP="@3400"
+
+	export FDMI_PLUGIN_EP="@3601"
+	export FDMI_PLUGIN_EP2="@3602"
+fi
 
 export FDMI_FILTER_FID="6c00000000000001:0"
 export FDMI_FILTER_FID2="6c00000000000002:0"
-
-SNS_CLI_EP="12345:33:400"
 
 POOL_WIDTH=$(expr ${#IOSEP[*]} \* 5)
 NR_PARITY=2
@@ -126,7 +161,6 @@ MAX_RPC_MSG_SIZE=65536
 PVERID='^v|1:10'
 MDPVERID='^v|2:10'
 export M0T1FS_PROC_ID='0x7200000000000001:64'
-XPRT=$(m0_default_xprt)
 
 # Single node configuration.
 SINGLE_NODE=0
@@ -154,14 +188,17 @@ load_kernel_module()
 
 	# see if CONFD_EP was not prefixed with lnet_nid to the moment
 	# and pad it in case it was not
-	if [ "${CONFD_EP#$lnet_nid:}" = "$CONFD_EP" ]; then
-		CONFD_EP=$lnet_nid:$CONFD_EP
+	if [ "${CONFD_EP#$lnet_nid}" = "$CONFD_EP" ]; then
+		CONFD_EP=$lnet_nid$CONFD_EP
 	fi
 
 	# Client end point (m0tr module local_addr)
 	# last component in this addr will be generated and filled in m0tr.
-	LADDR="$lnet_nid:12345:33:"
-
+	if [ "$XPRT" = "lnet" ]; then
+		LADDR="$lnet_nid:12345:33:"
+	else
+		LADDR="$lnet_nid@"
+	fi
 	motr_module_path=$M0_SRC_DIR
 	motr_module=$MOTR_MODULE
 	lsmod | grep $motr_module &> /dev/null
@@ -357,7 +394,11 @@ function build_conf()
 	local site_count=1
 	local PROC_FID_CONT='^r|1'
 	local MD_REDUNDANCY=1
+	if [ "$XPRT" = "lnet" ]; then
 	local m0t1fs_ep="$lnet_nid:12345:33:1"
+	else
+	local m0t1fs_ep="$lnet_nid@3001"
+	fi
 	local nr_ios=${#IOSEP[*]}
 
 	if [ $SINGLE_NODE -eq 1 ] ; then
@@ -372,7 +413,7 @@ function build_conf()
 		fi
 		#for ((i = 0; i < ${#ioservices[*]}; i++)); do
 		for ((i = 0; i < $nr_ios; i++)); do
-			ioservices[$i]=${server_nid}:${ioservices[$i]}
+			ioservices[$i]=${server_nid}${ioservices[$i]}
 		done
 	fi
 
@@ -383,7 +424,7 @@ function build_conf()
 			mdservices=("${MDSEP[@]}")
 		fi
 		for ((i = 0; i < ${#mdservices[*]}; i++)); do
-			mdservices[$i]=${server_nid}:${mdservices[$i]}
+			mdservices[$i]=${server_nid}${mdservices[$i]}
 		done
 	fi
 
@@ -391,8 +432,13 @@ function build_conf()
 		MD_REDUNDANCY=2
 	fi;
 	# prepare configuration data
-	local CONFD_ENDPOINT="\"${mdservices[0]%:*:*}:33:100\""
-	local HA_ENDPOINT="\"${mdservices[0]%:*:*}:34:1\""
+	if [ "$XPRT" = "lnet" ]; then
+		local CONFD_ENDPOINT="\"${mdservices[0]%:*:*}:33:100\""
+		local HA_ENDPOINT="\"${mdservices[0]%:*:*}:34:1\""
+	else
+		local CONFD_ENDPOINT="\"${mdservices[0]%@*}@3300\""
+		local HA_ENDPOINT="\"${mdservices[0]%@*}@2001\""
+	fi
 	local  ROOT='^t|1:0'
 	local  PROF='^p|1:0'
 	local  NODE='^n|1:2'
@@ -445,9 +491,9 @@ function build_conf()
 		local FDMI_ITEMS_NR=3
 		# Please NOTE the ending comma at the end of each string here
 		local FDMI_GROUP="{0x67| (($FDMI_GROUP_ID), 0x1000, [2: $FDMI_FILTER_ID, $FDMI_FILTER_ID2])},"
-		#local FDMI_FILTER="{0x6c| (($FDMI_FILTER_ID), 1, (11, 11), \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, (0, 0), [0], [1: \"$lnet_nid:$FDMI_PLUGIN_EP\"])},"
-		local FDMI_FILTER="{0x6c| (($FDMI_FILTER_ID), 2, $FDMI_FILTER_ID, \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, $DIX_PVERID, [3: $FDMI_FILTER_STRINGS], [1: \"$lnet_nid:$FDMI_PLUGIN_EP\"])},"
-		local FDMI_FILTER2="{0x6c| (($FDMI_FILTER_ID2), 2, $FDMI_FILTER_ID2, \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, $DIX_PVERID, [3: $FDMI_FILTER_STRINGS2], [1: \"$lnet_nid:$FDMI_PLUGIN_EP2\"])},"
+		#local FDMI_FILTER="{0x6c| (($FDMI_FILTER_ID), 1, (11, 11), \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, (0, 0), [0], [1: \"$lnet_nid$FDMI_PLUGIN_EP\"])},"
+		local FDMI_FILTER="{0x6c| (($FDMI_FILTER_ID), 2, $FDMI_FILTER_ID, \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, $DIX_PVERID, [3: $FDMI_FILTER_STRINGS], [1: \"$lnet_nid$FDMI_PLUGIN_EP\"])},"
+		local FDMI_FILTER2="{0x6c| (($FDMI_FILTER_ID2), 2, $FDMI_FILTER_ID2, \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, $DIX_PVERID, [3: $FDMI_FILTER_STRINGS2], [1: \"$lnet_nid$FDMI_PLUGIN_EP2\"])},"
 	else
 		local FDMI_GROUP_DESC="0"
 		local FDMI_ITEMS_NR=0
@@ -700,27 +746,21 @@ function build_conf()
 
 service_eps_get()
 { 
-	local lnet_nid
+	local nid=$(m0_local_nid_get)
 	local service_eps
-	if [ "$XPRT" = "lnet" ]
-	then
-		lnet_nid=`sudo lctl list_nids | head -1`
-	else
-		lnet_nid=$(m0_local_nid_get)
-	fi
 
 	if [ $SINGLE_NODE -eq 1 ] ; then
 		service_eps=(
-			"$lnet_nid:${IOSEP[0]}"
-			"$lnet_nid:${HA_EP}"
+			"$nid${IOSEP[0]}"
+			"$nid${HA_EP}"
 		)
 	else
 		service_eps=(
-			"$lnet_nid:${IOSEP[0]}"
-			"$lnet_nid:${IOSEP[1]}"
-			"$lnet_nid:${IOSEP[2]}"
-			"$lnet_nid:${IOSEP[3]}"
-			"$lnet_nid:${HA_EP}"
+			"$nid${IOSEP[0]}"
+			"$nid${IOSEP[1]}"
+			"$nid${IOSEP[2]}"
+			"$nid${IOSEP[3]}"
+			"$nid${HA_EP}"
 		)
 	fi
 
@@ -733,12 +773,16 @@ MOTR_CLIENT_ONLY=0
 
 service_eps_with_m0t1fs_get()
 {
-	local lnet_nid=$(m0_local_nid_get)
+	local nid=$(m0_local_nid_get)
 	local service_eps=$(service_eps_get)
 
 	# If client only, we don't have m0t1fs nid.
 	if [ $MOTR_CLIENT_ONLY -ne 1 ] ; then
-		service_eps+=("$lnet_nid:12345:33:1")
+		if [ "$XPRT" = "lnet" ]; then
+			service_eps+=("$nid:12345:33:1")
+		else
+			service_eps+=("$nid@3001")
+		fi
 	fi
 
 	# Return list of endpoints
@@ -747,13 +791,13 @@ service_eps_with_m0t1fs_get()
 
 service_cas_eps_with_m0tifs_get()
 {
-	local lnet_nid=$(m0_local_nid_get)
+	local nid=$(m0_local_nid_get)
 	local service_eps=(
-		"$lnet_nid:${IOSEP[0]}"
-		"$lnet_nid:${IOSEP[1]}"
-		"$lnet_nid:${IOSEP[2]}"
-		"$lnet_nid:${IOSEP[3]}"
-		"$lnet_nid:${HA_EP}"
+		"$nid${IOSEP[0]}"
+		"$nid${IOSEP[1]}"
+		"$nid${IOSEP[2]}"
+		"$nid${IOSEP[3]}"
+		"$nid${HA_EP}"
 	)
 	# Return list of endpoints
 	echo "${service_eps[*]}"
@@ -840,9 +884,9 @@ send_ha_events_default()
 	local state=$2
 
 	# Use default endpoints
-	local lnet_nid=$(m0_local_nid_get)
-	local ha_ep="$lnet_nid:$HA_EP"
-	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+	local nid=$(m0_local_nid_get)
+	local ha_ep="$nid$HA_EP"
+	local local_ep="$nid$M0HAM_CLI_EP"
 
 	send_ha_events "${fids[*]}" "$state" "$ha_ep" "$local_ep"
 }
