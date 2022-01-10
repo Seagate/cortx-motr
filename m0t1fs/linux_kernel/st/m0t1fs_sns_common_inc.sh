@@ -96,7 +96,7 @@ ha_events_post()
 		nr=$((nr + 1))
 	done
 
-	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+	local local_ep="$lnet_nid$M0HAM_CLI_EP"
 
 	echo "ha_events_post: ${service_eps[*]}"
 	echo "setting devices { ${fids[*]} } to $state"
@@ -134,7 +134,7 @@ disk_state_set()
 	# Dummy HA doesn't broadcast messages. Therefore, send ha_msg to the
 	# services directly.
 	local service_eps=$(service_eps_with_m0t1fs_get)
-	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+	local local_ep="$lnet_nid$M0HAM_CLI_EP"
 
 	echo "setting devices { ${fids[*]} } to $state"
 	send_ha_events "${fids[*]}" "$state" "$service_eps" "$local_ep"
@@ -148,7 +148,7 @@ disk_state_set()
 
 cas_disk_state_set()
 {
-	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+	local local_ep="$lnet_nid$M0HAM_CLI_EP"
 	local state=$1
 	local state_num=${ha_states[$state]}
 	if [ -z "$state_num" ]; then
@@ -187,7 +187,7 @@ disk_state_get()
 	done
 
 	local service_eps=$(service_eps_with_m0t1fs_get)
-	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+	local local_ep="$lnet_nid$M0HAM_CLI_EP"
 
 	echo "getting device { ${fids[*]} }'s HA state"
 	request_ha_state "${fids[*]}" "$service_eps" "$local_ep"
@@ -202,7 +202,7 @@ disk_state_get()
 cas_disk_state_get()
 {
 	local service_eps=$(service_cas_eps_with_m0tifs_get)
-	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+	local local_ep="$lnet_nid$M0HAM_CLI_EP"
 	local nr=0
 
 	echo "getting device { $@ }'s HA state"

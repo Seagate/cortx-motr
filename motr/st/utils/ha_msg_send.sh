@@ -18,7 +18,7 @@ M0_SRC_DIR="$motr_st_util_dir/../../../"
 proc_state_change()
 {
     local lnet_nid=$(m0_local_nid_get)
-    local c_endpoint="$lnet_nid:$M0HAM_CLI_EP"
+    local c_endpoint="$lnet_nid$M0HAM_CLI_EP"
     local s_endpoint="$lnet_nid:$1"
     local fid=$2
     local state=$3
