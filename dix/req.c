@@ -1626,7 +1626,7 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	bool                   del_phase2 = false;
 	struct m0_dix_cas_rop *cas_rop;
 	uint32_t	       req_cnt = 0;
-	int		       rc = 0;
+	int		       rc;
 	bool		       cas_success = false;
 
 	(void)grp;
