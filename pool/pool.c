@@ -688,7 +688,7 @@ static int dix_pool_version_get_locked(struct m0_pools_common  *pc,
 		return M0_ERR(-ENOENT);
 
 	/* 
- 	 * Enable this logic once multiple DIX pvers available.
+ 	 * @todo: Enable this logic once multiple DIX pvers available.
  	 *
 	 * m0_tl_for(pools, &pc->pc_pools, pool) {
 	 *	if (is_dix_pool(pc, pool)) {
