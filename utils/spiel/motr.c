@@ -45,7 +45,7 @@
 #define X(name)                                                 \
 static PyObject *name ## __size(PyObject *self, PyObject *args) \
 {                                                               \
-	return PyInt_FromSize_t(sizeof(struct name));           \
+	return PyLong_FromSize_t(sizeof(struct name));           \
 }
 STRUCTS
 #undef X
@@ -57,7 +57,16 @@ STRUCTS
 	{NULL, NULL, 0, NULL}
 };
 
-PyMODINIT_FUNC initmotr(void)
+static struct PyModuleDef motrmodule = {
+	PyModuleDef_HEAD_INIT,
+	"motr",   /* name of module */
+	NULL, /* module documentation, may be NULL */
+	-1,       /* size of per-interpreter state of the module,
+	or -1 if the module keeps state in global variables. */
+	methods
+};
+
+PyMODINIT_FUNC PyInit_motr(void)
 {
-	(void)Py_InitModule("motr", methods);
+	return PyModule_Create(&motrmodule);
 }

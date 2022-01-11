@@ -209,6 +209,7 @@
           - python3-devel
           - python3-pip
           - python3-setuptools
+          - python3-wheel
         state: latest
   tags: c75-workarounds
 
