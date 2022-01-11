@@ -1311,6 +1311,7 @@ check-make-prebuild:
 .PHONY: check-sources-prebuild
 check-sources-prebuild:
 	@echo -n 'Checking source files... '
+	@rm -rf $(distdir)
 	@$(top_srcdir)/scripts/build/check-sources --noisy $(top_srcdir)
 	@echo 'OK'
 
@@ -1761,6 +1762,7 @@ srpm:
 
 .PHONY: deb
 deb:
+	rm -rf $(distdir)
 	$(MAKE) dist
 	tar -xzf $(DIST_FILE)
 	mv $(DIST_FILE) $(patsubst cortx-motr-%tar.gz,cortx-motr_%orig.tar.gz,$(DIST_FILE))
@@ -1886,6 +1888,8 @@ help:
 	@echo '  rpms            - build Motr rpm packages'
 	@echo '  rpms-tests      - build Motr rpm with test packages'
 	@echo '  rpms-mock       - build Motr rpm packages using "mock" environment (ensures clean rpm deps)'
+	@echo '  deb             - build Motr .deb packages; install the needed dependencies with'
+	@echo '                    sudo mk-build-deps --install debian/control'
 	@echo ''
 	@echo 'Infrastructure targets:'
 	@echo '  docker          - build docker images'
