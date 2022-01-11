@@ -30,6 +30,12 @@
     state: present
     name:  '{{ motr_runtime_deps_pkgs }}'
 
+- name: install Motr el7 specific run-time dependencies
+  package:
+    state: present
+    name:  '{{ motr_runtime_deps_el7_pkgs }}'
+  when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int == 7
+
 - name: get current kernel version
   command:  uname -r
   register: kernel_version

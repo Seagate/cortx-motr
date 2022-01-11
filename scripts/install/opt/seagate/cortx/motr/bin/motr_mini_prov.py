@@ -26,7 +26,9 @@ import logging
 import glob
 import time
 import yaml
+from typing import List, Dict, Any
 from cortx.utils.conf_store import Conf
+from cortx.utils.cortx import Const
 
 MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-start"
 MOTR_MKFS_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-mkfs"
@@ -403,20 +405,33 @@ def update_to_file(self, index, url, machine_id, md_disks):
             Conf.set(index, f"server>{machine_id}>cvg[{i}]>m0d[{j}]>md_seg1",f"{md_disk}")
             Conf.save(index)
 
+# populate self.storage_nodes with machine_id for all storage_nodes
+def get_data_nodes(self):
+    machines: Dict[str,Any] = self.nodes
+    storage_nodes: List[str] = []
+    services = Conf.search(self._index, 'node', 'services', Const.SERVICE_MOTR_IO.value)
+    for machine_id in machines.keys():
+       result = [svc for svc in services if machine_id in svc]
+       # skipped control , HA and server pod
+       if result:
+           storage_nodes.append(machine_id)
+    return storage_nodes
+
 def update_motr_hare_keys(self, nodes):
     # key = machine_id value = node_info
-    for machine_id, node_info in nodes.items():
-        if (node_info['type'] == 'storage_node' or node_info['type'] == 'data_node'):
-            md_disks_lists = get_md_disks_lists(self, node_info)
-            update_to_file(self, self._index_motr_hare, self._url_motr_hare, machine_id, md_disks_lists)
+    for machine_id in self.storage_nodes:
+        node_info = nodes.get(machine_id)
+        md_disks_lists = get_md_disks_lists(self, node_info)
+        update_to_file(self, self._index_motr_hare, self._url_motr_hare, machine_id, md_disks_lists)
 
 def motr_config_k8(self):
     if not verify_libfabric(self):
         raise MotrError(errno.EINVAL, "libfabric is not up.")
 
-    # Update motr-hare keys for storage node and data node
-    if (self.node['type'] == 'storage_node' or self.node['type'] == 'data_node'):
-        update_motr_hare_keys(self, self.nodes)
+    if self.machine_id not in self.storage_nodes:
+        # Modify motr config file
+        update_copy_motr_config_file(self)
+        return
 
     # If setup_size is large i.e.HW, read the (key,val)
     # from /opt/seagate/cortx/motr/conf/motr.conf and
@@ -425,9 +440,11 @@ def motr_config_k8(self):
         cmd = "{} {}".format(MOTR_CONFIG_SCRIPT, " -c")
         execute_command(self, cmd, verbose = True)
 
-    # Update be_seg size for storage node and data node
-    if (self.node['type'] == 'storage_node' or self.node['type'] == 'data_node'):
-        update_bseg_size(self)
+    update_motr_hare_keys(self, self.nodes)
+    execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
+
+    # Update be_seg size only for storage node
+    update_bseg_size(self)
 
     # Modify motr config file
     update_copy_motr_config_file(self)

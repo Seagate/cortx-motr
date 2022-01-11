@@ -47,6 +47,7 @@ RECOVERY_LOG_DIR=/var/log/seagate/motr/datarecovery    # dir containing recovery
 LIVE_CORE_DIR=/var/log/seagate/motr
 M0TR_M0D_TRACE_DIR=/var/log/seagate/motr/trace
 MOTR_MINI_PROV_LOG_DIR=/var/log/seagate/motr/mini_provisioner
+COLLECT_STACKTRACE_P=0
 COLLECT_COREDUMPS_P=0
 
 readonly START_DIR=$PWD
@@ -99,6 +100,7 @@ main() {
             addb) [ ${COLLECT_ADDB_P:-0} -eq 1 ] || continue;;
             addb-files) [ ${SKIP_ADDB_FILE_P:-0} -eq 1 ] && continue;;
             binaries) [ ${COLLECT_BINARIES_P:-0} -eq 1 ] || continue;;
+            backtraces_live) [ ${COLLECT_STACKTRACE_P:-0} -eq 1 ] || continue;;
         esac
 
         for IN_DIR in ${INPUT_DIRS[@]}; do
@@ -865,6 +867,7 @@ Options:
     --addb             Collect ADDB data.
     --skip-addb-files  skip collection of ADDB files
     -b, --binaries     Collect Motr binaries even if there are no core dumps.
+    -s, --stacktrace   Include/exclude stackTraces. Default is false
     --coredumps        Bool value to include/exclude core dumps. Default is false.
     --nr-boots         How many boots to query systemd journal for\
  (default is $NR_BOOTS_MAX).
@@ -888,7 +891,7 @@ optparse() {
     ## command (e.g., invalid option) will result in program failure.
     ##
     local TEMP # do not assign value here
-    TEMP=$(getopt -o hpbV --long help,addb,skip-addb-files,binaries,coredumps,nr-boots:,path,version \
+    TEMP=$(getopt -o hpbsV --long help,addb,skip-addb-files,binaries,coredumps,stacktrace,nr-boots:,path,version \
                   -n "${0##*/}" -- "$@")
     eval set -- "$TEMP"
     while true; do
@@ -897,6 +900,7 @@ optparse() {
             --addb) COLLECT_ADDB_P=1;;
             --skip-addb-files) SKIP_ADDB_FILE_P=1;;
             -b|--binaries) COLLECT_BINARIES_P=1;;
+            -s|--stacktrace) COLLECT_STACKTRACE_P=1;;
             --coredumps) COLLECT_COREDUMPS_P=1;;
             --nr-boots) NR_BOOTS_MAX=$2; shift;;
             -p|--path)
