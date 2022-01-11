@@ -365,6 +365,7 @@ void pdclust_map(void)
 	struct m0_dix_ldesc        dld;
 	struct m0_ext              range[] = {{.e_start = 0, .e_end = 100}};
 
+	m0_fi_enable("m0_dix_target", "pdcluster-map");
 	fid = DFID(0,1);
 	rc = m0_pool_init(&pool, &M0_FID_TINIT('o', 0, 1), 0);
 	M0_UT_ASSERT(rc == 0);
@@ -392,6 +393,7 @@ void pdclust_map(void)
 	rc = m0_dix_layout_init(&dli, &domain, &fid, id, &pool_ver, &dld);
 	M0_UT_ASSERT(rc == 0);
 	layout_check(&dli);
+	m0_fi_disable("m0_dix_target", "pdcluster-map");
 	m0_dix_layout_fini(&dli);
 	m0_dix_ldesc_fini(&dld);
 	m0_layout_domain_cleanup(&domain);
