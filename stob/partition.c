@@ -347,7 +347,12 @@ static void stob_part_domain_fini(struct m0_stob_domain *dom)
 
 		m0_stob_put(dom_priv->b_ptable_stob);
 		for( i = 0; i < dom_priv->b_current_stobs; i++)
-			m0_stob_put(dom_priv->b_stobs[i].b_part_stob);
+			/*TODO: remove below check to exclude the log and data
+			 * part stob creation once single domain implemented */
+			if(!M0_IN(dom_priv->b_stobs[i].b_part_id,
+			    (M0_BE_PTABLE_ENTRY_BALLOC,
+	                     M0_BE_PTABLE_ENTRY_LOG)))
+				m0_stob_put(dom_priv->b_stobs[i].b_part_stob);
 		m0_free(dom);
 	}
 }
@@ -428,18 +433,21 @@ static int stob_part_bstob_create(struct m0_stob        *part_stob,
 	struct stob_part_dom_priv *dom_priv;
 	struct m0_stob            *b_stob;
 	int                        rc;
+	struct m0_fid             *b_dom_id;
 
 	M0_PRE(part_stob != NULL);
 	M0_PRE( part_stob->so_domain == dom);
-	dom_priv = dom->sd_private;
 
-	rc = m0_be_domain_stob_open(dom_priv->b_be_domain,
+	dom_priv = dom->sd_private;
+	M0_ASSERT(dom_priv->b_be_domain);
+	b_dom_id = &dom_priv->b_be_domain->bd_stob_domain->sd_id;
+	rc = m0_be_dom_id_stob_open(b_dom_id,
 				    stob_fid->f_key,
 				    str_cfg, &b_stob, create);
-	 if (rc == 0)
+	if (rc == 0)
 		m0_stob_part_add_bstore(part_stob, b_stob);
 
-	 return rc;
+	return rc;
 }
 static int stob_part_prepare_table(struct m0_stob        *stob,
 				   struct m0_stob_domain *dom,
@@ -464,6 +472,14 @@ static int stob_part_prepare_table(struct m0_stob        *stob,
 
 	if ( m0_be_ptable_get_part_info(&pt))
 		return M0_ERR(-EAGAIN);
+
+	/*
+	 * TODO: remove below check to exclude the log and data
+	 *  part stob creation once single domain implemented */
+
+	if(M0_IN(partstob->part_id,(M0_BE_PTABLE_ENTRY_BALLOC,
+				     M0_BE_PTABLE_ENTRY_LOG)))
+		goto alloc_arr;
 	b_stob = stob_part_get_bstore(stob);
 	if (create) {
 		if (b_stob != NULL)
@@ -480,7 +496,7 @@ static int stob_part_prepare_table(struct m0_stob        *stob,
 	}
 	if (rc != 0)
 		return rc;
-
+alloc_arr:
 	M0_ALLOC_ARR(partstob->part_table,
 		     partstob->part_size_in_chunks);
 	if (partstob->part_table == NULL)

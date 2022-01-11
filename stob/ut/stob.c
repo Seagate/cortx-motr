@@ -41,6 +41,17 @@ enum {
 				      M0_STOB_UT_THREADS_PER_STOB,
 };
 
+	/*
+	 * TODO: current support is for seg0 and seg1 only.
+	 * add log and data part stob creation once single linux domain
+	 * per part domain is implemented */
+enum {
+	M0_PART_STOB_UT_STOB_NR          = 0x02,
+	M0_PART_STOB_UT_THREADS_PER_STOB = 0x04,
+	M0_PART_STOB_UT_THREAD_NR        = M0_PART_STOB_UT_STOB_NR *
+				           M0_PART_STOB_UT_THREADS_PER_STOB,
+};
+
 struct stob_ut_ctx {
 	struct m0_mutex         *su_lock;
 	struct m0_semaphore     *su_destroy_sem;
@@ -125,6 +136,7 @@ static void stob_ut_stob_multi(struct m0_be_ut_backend *ut_be,
 	struct m0_semaphore   *destroy_sems;
 	struct m0_stob_domain *dom;
 	uint64_t               dom_key = 0xec0de;
+	uint64_t               stob_key_start = 1;
 	int                    rc;
 	int                    i;
 
@@ -147,12 +159,18 @@ static void stob_ut_stob_multi(struct m0_be_ut_backend *ut_be,
 		m0_mutex_init(&stob_mtxs[i]);
 		m0_semaphore_init(&destroy_sems[i], 0);
 	}
+	if (m0_stob_domain__type_id(m0_stob_domain_id_get(dom)) ==
+		m0_stob_type_id_by_name("partitionstob")) {
+		M0_UT_ASSERT(ut_be != NULL);
+		stob_key_start = BE_UT_SEG_START_ID - 1;
+		ut_be->but_dom.bd_part_stob_domain = dom;
+	}
 	for (i = 0; i < thread_nr; ++i) {
 		ctxs[i] = (struct stob_ut_ctx) {
 			.su_lock        = &stob_mtxs[i % stob_nr],
 			.su_destroy_sem = &destroy_sems[i % stob_nr],
 			.su_users_nr    = thread_nr / stob_nr,
-			.su_stob_key    = i % stob_nr + 1,
+			.su_stob_key    = stob_key_start + (i % stob_nr),
 			.su_domain      = dom,
 			.su_cfg         = stob_cfg,
 			.su_ut_be       = ut_be,
@@ -190,8 +208,11 @@ static void stob_ut_stob_single(struct m0_be_ut_backend *ut_be,
 	M0_UT_ASSERT(rc == 0);
 
 	if (m0_stob_domain__type_id(m0_stob_domain_id_get(dom)) ==
-		m0_stob_type_id_by_name("partitionstob"))
-		stob_key = BE_UT_LOG_ID;
+		m0_stob_type_id_by_name("partitionstob")) {
+		M0_UT_ASSERT(ut_be != NULL);
+		stob_key = BE_UT_SEG_START_ID;
+		ut_be->but_dom.bd_part_stob_domain = dom;
+	}
 
 	m0_stob_id_make(0, stob_key, &dom->sd_id, &stob_id);
 	rc = m0_stob_find(&stob_id, &stob);
@@ -331,8 +352,13 @@ void m0_stob_ut_stob_part(void)
 			     part_cfg);
 	stob_ut_stob_single(&ut_be, location,
 			    part_cfg, part_cfg, NULL);
-	/* stob_ut_stob_multi(&ut_be, location, part_cfg, part_cfg,
-			   NULL, M0_STOB_UT_THREAD_NR, M0_STOB_UT_STOB_NR); */
+	/*
+	 * TODO: current support is for seg0 and seg1 only.
+	 * add log and data part stob creation once single linux domain
+	 * per part domain is implemented */
+	stob_ut_stob_multi(&ut_be, location, part_cfg, part_cfg,
+			   NULL, M0_PART_STOB_UT_THREAD_NR,
+			   M0_PART_STOB_UT_STOB_NR);
 
 	m0_free(part_cfg);
 	m0_stob_ut_part_fini(&ut_be);

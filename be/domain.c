@@ -178,7 +178,6 @@ static int be_domain_stob_open(struct m0_be_domain  *dom,
 			       bool                  create)
 {
 	int               rc;
-	struct m0_stob_id stob_id;
 	struct m0_fid *dom_id;
 
 	if (dom->bd_cfg.bc_part_cfg.bpc_part_mode_set &&
@@ -190,19 +189,9 @@ static int be_domain_stob_open(struct m0_be_domain  *dom,
 	}
 	else
 		dom_id = &dom->bd_stob_domain->sd_id;
-
-	m0_stob_id_make(0, stob_key, dom_id, &stob_id);
-	rc = m0_stob_find(&stob_id, out);
-	if (rc == 0) {
-		rc = m0_stob_state_get(*out) == CSS_UNKNOWN ?
-		     m0_stob_locate(*out) : 0;
-		rc = rc ?: create && m0_stob_state_get(*out) == CSS_NOENT ?
-		     m0_stob_create(*out, NULL,(const char *) stob_create_cfg) : 0;
-		rc = rc ?: m0_stob_state_get(*out) == CSS_EXISTS ? 0 : -ENOENT;
-		if (rc != 0)
-			m0_stob_put(*out);
-	}
-	M0_POST(ergo(rc == 0, m0_stob_state_get(*out) == CSS_EXISTS));
+	rc = m0_be_dom_id_stob_open(dom_id, stob_key,
+				    stob_create_cfg,
+				    out, create);
 	return M0_RC(rc);
 }
 
@@ -399,6 +388,31 @@ static const struct m0_be_0type m0_be_0type_seg = {
 	.b0_init = be_0type_seg_init,
 	.b0_fini = be_0type_seg_fini,
 };
+
+M0_INTERNAL int m0_be_dom_id_stob_open(struct m0_fid     *dom_id,
+				       uint64_t           stob_key,
+				       const char        *stob_create_cfg,
+				       struct m0_stob   **out,
+				       bool               create)
+{
+	int rc;
+	struct m0_stob_id stob_id;
+
+	m0_stob_id_make(0, stob_key, dom_id, &stob_id);
+	rc = m0_stob_find(&stob_id, out);
+	if (rc == 0) {
+		rc = m0_stob_state_get(*out) == CSS_UNKNOWN ?
+		     m0_stob_locate(*out) : 0;
+		rc = rc ?: create && m0_stob_state_get(*out) == CSS_NOENT ?
+		     m0_stob_create(*out, NULL,(const char *) stob_create_cfg) :
+		     0;
+		rc = rc ?: m0_stob_state_get(*out) == CSS_EXISTS ? 0 : -ENOENT;
+		if (rc != 0)
+			m0_stob_put(*out);
+	}
+	M0_POST(ergo(rc == 0, m0_stob_state_get(*out) == CSS_EXISTS));
+	return M0_RC(rc);
+}
 
 M0_INTERNAL void
 be_domain_log_cleanup(const char *stob_domain_location,

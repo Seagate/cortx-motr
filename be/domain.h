@@ -217,6 +217,12 @@ M0_INTERNAL int m0_be_domain_stob_open(void             *be_dom,
 				       const char       *stob_create_cfg,
 				       struct m0_stob  **out,
 				       bool              create);
+M0_INTERNAL int m0_be_dom_id_stob_open(struct m0_fid     *dom_id,
+				       uint64_t           stob_key,
+				       const char        *stob_create_cfg,
+				       struct m0_stob   **out,
+				       bool               create);
+
 M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain           *dom,
 					   const struct m0_be_domain_cfg *cfg);
 M0_INTERNAL void
