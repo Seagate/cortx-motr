@@ -78,13 +78,36 @@ To build RPMs, run::
 
     make rpms
 
-if Makefile was generated already (in case you run ``scripts/m0 make`` from the previous steps), or run::
+if Makefile was generated already
+(in case you run ``scripts/m0 make`` from the previous steps), or run::
 
     ./autogen.sh && ./configure && make rpms
 
 to build from scratch.
 
 The generated RPMs will be placed at ``$HOME/rpmbuild/RPMS/$(arch)/`` directory.
+
+DEBs Packages Generation (Experimental)
+---------------------------------------
+
+To build .deb packages for Ubuntu or Debian,
+make sure the dependencies are installed 1st::
+
+    sudo apt install equivs # enable mk-build-deps
+    sudo mk-build-deps --install debian/control
+
+Then just run::
+
+    make deb
+
+if Makefile was generated already
+(in case you run ``scripts/m0 make`` from the previous steps), or run::
+
+    ./autogen.sh && ./configure && make deb
+
+to build from scratch.
+
+Locate the generated packages with ``ls *.deb`` command.
 
 Running Tests
 =============
