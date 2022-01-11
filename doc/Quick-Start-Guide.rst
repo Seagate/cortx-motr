@@ -6,9 +6,11 @@ This guide provides information on how to get Motr ready and test it. After foll
 *************
 Prerequisites
 *************
-The prerequisite that is necessary to install the Motr component is mentioned below.
 
-- CentOS 7.9/8.3+ or Rocky Linux 8.4+ on x86_64 or ARM64 (AArch64) platform.
+- CentOS 7.9/8.3+ or Rocky Linux 8.4+ (supported) or
+  Ubuntu 18.04+ / Debian 10+ (experimental) OS
+  on x86_64 (supported) or arm64 (Experimental) platform.
+- At least 4 CPU Cores with 6GB RAM.
 
 Get the Sources
 ===============
