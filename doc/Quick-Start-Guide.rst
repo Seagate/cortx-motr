@@ -24,7 +24,8 @@ Build
     cd cortx-motr
     sudo scripts/install-build-deps
 
-2. If using lnet as the transport, check the Lustre network interface configuration::
+2. If using lnet as the transport (default configuration),
+   check the Lustre network interface configuration::
 
     sudo vi /etc/modprobe.d/lnet.conf
 
@@ -42,7 +43,8 @@ Build
     fi_info --version
     bash: fi_info: command not found
 
-3. If using libfabric as the transport, check the Libfabric network interface configuration::
+3. If using libfabric as the transport (``--with-user-mode-only`` configure option),
+   check the Libfabric network interface configuration::
 
     sudo vi /etc/libfab.conf
 
