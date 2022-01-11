@@ -196,6 +196,7 @@ static bool ut_stob_use_dtx(struct m0_stob_domain *dom)
 	uint8_t type_id = m0_stob_domain__type_id(m0_stob_domain_id_get(dom));
 
 	return !M0_IN(type_id, (m0_stob_type_id_by_name("nullstob"),
+			        m0_stob_type_id_by_name("partitionstob"),
 				m0_stob_type_id_by_name("linuxstob")));
 }
 

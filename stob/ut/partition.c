@@ -57,17 +57,15 @@ void m0_stob_ut_part_init(struct m0_be_ut_backend *ut_be,
 
 	M0_SET0(ut_be);
 
+	rmdir("./__s");
 	rc = mkdir("./__s", 0777);
-	if (rc == 0 || rc == -17)
+	if (rc == 0)
 	{
 		rc = open("./__s/sdb", O_RDWR|O_CREAT, 0700);
-		printf("rc=%d\n", rc);
 		if (rc >= 0)
 			rc = close(rc);
 
-		printf("rc=%d\n", rc);
 	}
-	printf("rc=%d\n", rc);
 
 	m0_be_ut_backend_cfg_default(&cfg);
 	rc = m0_be_ut_backend_init_cfg(ut_be, &cfg, true);

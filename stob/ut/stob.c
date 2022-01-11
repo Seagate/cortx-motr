@@ -32,6 +32,7 @@
 #include "stob/ad.h"		/* m0_stob_ad_cfg_make */
 #include "stob/domain.h"
 #include "stob/stob.h"
+#include "be/ut/helper.h"       /* m0_be_ptable_id */
 
 enum {
 	M0_STOB_UT_STOB_NR          = 0x04,
@@ -188,6 +189,10 @@ static void stob_ut_stob_single(struct m0_be_ut_backend *ut_be,
 				   dom_key, dom_cfg, &dom);
 	M0_UT_ASSERT(rc == 0);
 
+	if (m0_stob_domain__type_id(m0_stob_domain_id_get(dom)) ==
+		m0_stob_type_id_by_name("partitionstob"))
+		stob_key = BE_UT_LOG_ID;
+
 	m0_stob_id_make(0, stob_key, &dom->sd_id, &stob_id);
 	rc = m0_stob_find(&stob_id, &stob);
 	M0_UT_ASSERT(rc == 0);
@@ -303,15 +308,34 @@ void m0_stob_ut_stob_ad(void)
 	m0_stob_ut_ad_fini(&ut_be, &ut_seg);
 }
 
+extern void m0_stob_ut_part_init(struct m0_be_ut_backend *ut_be,
+	                         char                    *location,
+				 char                    *part_cfg);
+extern void m0_stob_ut_part_fini(struct m0_be_ut_backend *ut_be);
+extern void m0_stob_ut_part_cfg_make(char               **str,
+				     struct m0_be_domain *dom);
 void m0_stob_ut_stob_part(void)
 {
-	/** TODO part stob ut
-	stob_ut_stob_single(NULL, "partstob:./__s", NULL, NULL, NULL);
-	stob_ut_stob_multi(NULL, "partstob:./__s", NULL, NULL, NULL,
-			   M0_STOB_UT_THREAD_NR, M0_STOB_UT_STOB_NR);
-			   */
-	printf("TODO stob_part ut");
+	struct m0_be_ut_backend  ut_be;
+	char                    *part_cfg;
+	char                    *prefix = "partitionstob";
+	char                    *dev_name = "/var/motr/m0ut/ut-sandbox/__s/sdb";
+	char                     location[1024] = {0};
 
+	sprintf(location, "%s:%s:%lx", prefix, dev_name,
+		(uint64_t)&ut_be.but_dom);
+	m0_stob_ut_part_cfg_make(&part_cfg, &ut_be.but_dom);
+	M0_ASSERT(part_cfg != NULL);
+	m0_stob_ut_part_init(&ut_be,
+			     location,
+			     part_cfg);
+	stob_ut_stob_single(&ut_be, location,
+			    part_cfg, part_cfg, NULL);
+	/* stob_ut_stob_multi(&ut_be, location, part_cfg, part_cfg,
+			   NULL, M0_STOB_UT_THREAD_NR, M0_STOB_UT_STOB_NR); */
+
+	m0_free(part_cfg);
+	m0_stob_ut_part_fini(&ut_be);
 }
 
 #endif

@@ -180,14 +180,13 @@ static int be_domain_stob_open(struct m0_be_domain  *dom,
 	int               rc;
 	struct m0_stob_id stob_id;
 	struct m0_fid *dom_id;
-	char *create_cfg = (char *)stob_create_cfg;
+
 	if (dom->bd_cfg.bc_part_cfg.bpc_part_mode_set &&
 	    (((stob_key == M0_BE_PTABLE_ENTRY_SEG0) &&
 	      dom->bd_cfg.bc_part_cfg.bpc_part_mode_seg0) ||
 	     ((stob_key == M0_BE_PTABLE_ENTRY_SEG1) &&
 	      dom->bd_cfg.bc_part_cfg.bpc_part_mode_seg1))) {
 		dom_id = &dom->bd_part_stob_domain->sd_id;
-		create_cfg = NULL;
 	}
 	else
 		dom_id = &dom->bd_stob_domain->sd_id;
@@ -198,7 +197,7 @@ static int be_domain_stob_open(struct m0_be_domain  *dom,
 		rc = m0_stob_state_get(*out) == CSS_UNKNOWN ?
 		     m0_stob_locate(*out) : 0;
 		rc = rc ?: create && m0_stob_state_get(*out) == CSS_NOENT ?
-		     m0_stob_create(*out, NULL,(const char *) create_cfg) : 0;
+		     m0_stob_create(*out, NULL,(const char *) stob_create_cfg) : 0;
 		rc = rc ?: m0_stob_state_get(*out) == CSS_EXISTS ? 0 : -ENOENT;
 		if (rc != 0)
 			m0_stob_put(*out);
