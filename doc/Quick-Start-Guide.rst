@@ -8,12 +8,7 @@ Prerequisites
 *************
 The prerequisite that is necessary to install the Motr component is mentioned below.
 
-- CentOS 7 on x86_64 or ARM64 (AArch64) platform.
-
-- **Ansible** is needed::
-
-    sudo yum install epel-release # Install EPEL yum repo
-    sudo yum install ansible
+- CentOS 7.9/8.3+ or Rocky Linux 8.4+ on x86_64 or ARM64 (AArch64) platform.
 
 Get the Sources
 ===============
