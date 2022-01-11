@@ -1631,8 +1631,8 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		m0_dix_next_result_prepare(req);
 	else {
 		/*
-		 * Return success if there is atleast one successful CAS
-		 * request
+		 * Consider DIX request to be successful if there is at least
+		 * one successful CAS request.
 		 */
 		if (m0_tl_forall(cas_rop, cas_rop,
 				 &rop->dg_cas_reqs,
