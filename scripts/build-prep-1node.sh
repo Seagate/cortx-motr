@@ -20,15 +20,18 @@
 #
 # Clone, build and prepare to start a single-node cluster.
 #
-# Usage: ./build-prep-1node.sh [-dev]
+# Usage: ./build-prep-1node.sh [-dev] [-pkg]
 #
 #   -dev  development mode, don't build and install rpms
+#   -pkg  install packages without using ansible
 #
 set -e -o pipefail
-
+#set -x
 dev_mode=
+pkg=
 
 [[ $1 == "-dev" ]] && dev_mode='yes'
+[[ $1 == "-pkg" || $2 == "-pkg" ]] && pkg='yes'
 
 which git || sudo yum install -y git
 
@@ -37,14 +40,21 @@ which git || sudo yum install -y git
         ln -s cortx-motr motr
 }
 
+cd motr
+
 echo 'Install Motr deps...'
-sudo yum install -y epel-release # Install EPEL yum repo
-sudo yum install -y epel-release # Update to the latest version
-sudo yum install -y ansible
+if [[ $pkg == "yes" ]]; then
+    sudo scripts/install-build-deps --no-ansible
+else
+    sudo yum install -y epel-release # Install EPEL yum repo
+    sudo yum install -y epel-release # Update to the latest version
+    sudo yum install -y ansible
+    sudo scripts/install-build-deps
+
+    cd -
+fi
 
 cd motr
-sudo scripts/install-build-deps
-
 echo 'Configure Motr...'
 [[ -f configure ]] && sudo git clean -dfx
 ./autogen.sh && ./configure --disable-expensive-checks --with-user-mode-only

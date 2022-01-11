@@ -2,32 +2,43 @@
 
 # Clone, build and prepare to start a single-node cluster with mgw.
 #
-# Usage: ./build-prep-1node-cortx-mgw.sh [-dev]
+# Usage: ./build-prep-1node-cortx-mgw.sh [-dev] [-pkg] [-mgs]
 #
 #   -dev  development mode, don't build and install rpms
-#   -mgs  keep ceph mgs which procvides dashboard
+#   -mgs  keep ceph mgs which provides dashboard
+#   -pkg  install known packages without adding repo
+#         (If this option is not specified motr/scripts/install-build-deps
+#          is called which adds required repo and also build and installs
+#          lustre, libfabric and isa packages and installs kernel packages too.)
 #
 set -e -o pipefail
+#set -x
 
 dev_mode=
+pkg=
 mgs="--without-dashboard"
 
 [[ $1 == "-dev" ]] && dev_mode='yes'
 
-[[ $1 == "-mgs"  || $2 == "-mgs" ]] && mgs=""
+[[ $1 == "-pkg"  || $2 == "-pkg" ]] && pkg='yes'
+
+[[ $1 == "-mgs"  || $2 == "-mgs" || $3 == "-mgs" ]] && mgs=""
 
 # CPUS 8, 16G RAM, 2 disks of minimum 50 G each
 
-available_device=`lsblk --output NAME,FSTYPE -dsn | awk '$2 == "" {print $1}' | grep sd | head -n 1` 
-mkfs.ext4 /dev/$available_device
-mkdir -p ~/cortx
-mount /dev/$available_device ~/cortx
+[[ -d cortx ]] || {
+  available_device=`lsblk --output NAME,FSTYPE -dsn | awk '$2 == "" {print $1}' | grep sd | head -n 1` 
+  mkfs.ext4 /dev/$available_device
+  mkdir -p ~/cortx
+  mount /dev/$available_device ~/cortx
+}
 
 cd ~/cortx
 
 yum install wget -y
-wget https://raw.githubusercontent.com/Seagate/cortx-motr/main/scripts/build-prep-1node.sh
-sh +x ./build-prep-1node.sh $1
+#wget https://raw.githubusercontent.com/Seagate/cortx-motr/main/scripts/build-prep-1node.sh
+wget https://raw.githubusercontent.com/Seagate/cortx-motr/mgw-build/scripts/build-prep-1node.sh
+sh +x ~/build-prep-1node.sh $1 $2
 
 
 
@@ -48,7 +59,7 @@ echo "=========================================\n"
 }
 cd -
 
-cd ~/rgw-cortx/cortx-rgw
+cd ~/cortx/cortx-rgw
 cmake3 -GNinja -DWITH_PYTHON3=3.6 -DWITH_RADOSGW_MOTR=YES -B build
 cd build && time ninja vstart-base && time ninja radosgw-admin && time ninja radosgw
  

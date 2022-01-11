@@ -47,6 +47,8 @@ Usage: $PROG_NAME [-h|--help] [-n|--dry-run]
 
        --no-epel        Skip EPEL repository installation.
 
+       --no-ansible     Install packages without ansible
+
     -h|--help           Print this help screen.
 USAGE_END
 }
@@ -61,7 +63,7 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt -o hn --long help,dry-run,no-epel -n "$PROG_NAME" -- "$@" )
+    TEMP=$( getopt -o hn --long help,dry-run,no-epel,no-ansible -n "$PROG_NAME" -- "$@" )
 
     [[ $? != 0 ]] && help
 
@@ -73,6 +75,7 @@ parse_cli_options()
             -h|--help)          help stdout ;;
             -n|--dry-run)       dry_run=--dry-run ; shift ;;
                --no-epel)       install_epel=false ; shift ;;
+               --no-ansible)    use_ansible=false ; shift ;;
             --)                 shift; break ;;
             *)                  echo 'getopt: internal error...'; exit 1 ;;
         esac
@@ -115,10 +118,7 @@ pip3 install ipaddress
 
 if ! which ansible &>/dev/null ; then
     case $(distro_type) in
-        redhat) yum -y install epel-release
-                yum -y install epel-release # Update it
-                yum -y install ansible
-                ;;
+        redhat) yum -y install ansible ;;
         debian) apt install ansible ;;
     esac
 fi
@@ -136,13 +136,82 @@ zfs
 END_TAGS
 )
 
-# python3 packages available starting from CentOS/RedHat 7.7
-if (( $(grep -Po '(?<=release 7\.).' /etc/redhat-release) < 7 )) ; then
-    skip_tags+=,motr-build-python3
-fi
-
 if ! $install_epel ; then
     skip_tags+=,epel
+fi
+
+packages_redhat=(
+git
+libtool
+autoconf
+make
+rpm-build
+gcc
+gcc-c++
+clang
+clang-libs
+castxml
+perl
+perl-XML-LibXML
+perl-List-MoreUtils
+perl-YAML-LibYAML
+perl-File-Find-Rule
+perl-IO-All
+perl-File-Slurp
+perl-autodie
+perl-DateTime
+perl-MCE
+perl-Sereal
+python3
+python3-ply
+python3-pip
+python3-devel
+python3-pyyaml
+python3-setuptools
+python3-dbus
+python2-devel   # Avoid-it
+libyaml-devel
+asciidoc
+openssl-devel
+libaio-devel
+libedit-devel
+libuuid-devel
+systemd-devel
+binutils-devel
+openssl-devel
+libffi-devel
+attr
+ruby
+facter
+gdb
+genders
+rubygem-net-ssh
+https://github.com/Seagate/cortx/releases/download/build-dependencies/isa-l-2.30.0-1.el7.x86_64.rpm
+https://github.com/Seagate/cortx/releases/download/build-dependencies/libfabric-1.11.2-1.el7.x86_64.rpm
+https://github.com/Seagate/cortx/releases/download/build-dependencies/libfabric-devel-1.11.2-1.el7.x86_64.rpm
+)
+
+packages_debian=(
+)
+
+if ! $use_ansible ; then
+  case $(distro_type) in
+      redhat)
+        for i in ${packages_redhat[@]}
+        do
+          if [[ `rpm -qa | grep $i` == "" ]]; then
+            sudo yum install $i -y
+          fi
+	done
+	;;
+      debian)
+        for i in ${packages_debian[@]}
+        do
+	   sudo apt install $i
+        done
+	;;
+   esac
+   exit 0
 fi
 
 $TOP_SRCDIR/scripts/setup-node localhost \
