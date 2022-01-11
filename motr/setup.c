@@ -1517,20 +1517,34 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 	m0_bcount_t                 def_dev_chunk_count = 1024;
 	struct m0_conf_sdev        *sdev = NULL;
 	bool                        ad_mode;
+	m0_bcount_t                 used_chunks;
+	uint32_t		    dev_count;
+
 	part_cfg = &rctx->rc_be.but_dom_cfg.bc_part_cfg;
 
 	memset(part_cfg, 0, sizeof(*part_cfg));
 	ad_mode = m0_strcaseeq(rctx->rc_stype,
 			       m0_cs_stypes[M0_AD_STOB]);
+        if (cs_conf_get_parition_dev(&rctx->rc_stob, &sdev, &dev_count) != 0)
+		return ;
+
 	if (!ad_mode ||
 	    (!rctx->rc_stob.s_ad_disks_init) ||
-            (cs_conf_get_parition_dev(&rctx->rc_stob, &sdev) != 0) ||
+            (dev_count < 1) ||
 	    (sdev->sd_size == 0))
 			return;
-	part_cfg->bpc_part_mode_set = ad_mode;
-	if (part_cfg->bpc_part_mode_set) {
-		enum { len = 128 };
-		M0_ASSERT(cs_conf_get_parition_dev(&rctx->rc_stob, &sdev) == 0);
+	enum { len = 128 };
+
+
+	if ((rctx->rc_be_seg_path == NULL || (strcmp(rctx->rc_be_seg_path,sdev->sd_filename) == 0)) &&
+	    rctx->rc_be_seg0_path == NULL &&
+	    rctx->rc_be_log_path == NULL  &&
+	    dev_count == 1) {
+
+		/** 
+		 * Case 1: Single Data and No Meta specified
+		 */
+
 		M0_LOG(M0_ALWAYS,"filename:%s,size:%"PRIu64"alloc_len = %d ",
 		       sdev->sd_filename, sdev->sd_size,
 		       (int)(strlen(sdev->sd_filename) + len));
@@ -1546,23 +1560,34 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 			(char*)cs_storage_partdom_location_gen(sdev->sd_filename,
 					 &rctx->rc_be.but_dom);
 		part_cfg->bpc_dom_key = sdev->sd_dev_idx;
-		/** seg0 configuration */
-		part_cfg->bpc_part_mode_seg0 = true;
-		rctx->rc_be_seg0_path = sdev->sd_filename;
+
+		/* 1 chunk for partition table itself */	
+		used_chunks = 1;
+
+		/** parition stob generic configuration */	
+		part_cfg->bpc_part_mode_set = true;
 		proposed_chunk_size = sdev->sd_size / def_dev_chunk_count;
 		part_cfg->bpc_chunk_size_in_bits =
 			align_chunk_size(proposed_chunk_size);
 		part_cfg->bpc_total_chunk_count =
 			sdev->sd_size >> part_cfg->bpc_chunk_size_in_bits;
 
+		// seg0 configuration 
+		part_cfg->bpc_seg0_size_in_chunks = 1;
+		part_cfg->bpc_part_mode_seg0 = true;
+		rctx->rc_be_seg0_path = sdev->sd_filename; 
+		used_chunks += part_cfg->bpc_seg0_size_in_chunks;
+
 		/** seg1 configuration */
 		m0_bcount_t meta_size = m0_align(((sdev->sd_size) / 10), M0_BE_SEG_PAGE_SIZE);
 		part_cfg->bpc_part_mode_seg1 = true;
 		rctx->rc_be_seg_path = sdev->sd_filename;
 		
+			rctx->rc_be_seg_size = meta_size;
 		part_cfg->bpc_seg_size_in_chunks =
-				meta_size >> part_cfg->bpc_chunk_size_in_bits;
-		rctx->rc_be_seg_size = meta_size;
+			rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
+		used_chunks += part_cfg->bpc_seg_size_in_chunks;
+
 		/** Log configuration*/
 		part_cfg->bpc_part_mode_log = true;
 		rctx->rc_be_log_path = sdev->sd_filename;
@@ -1571,6 +1596,147 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 				def_log_size >> part_cfg->bpc_chunk_size_in_bits;
 		else
 			part_cfg->bpc_log_size_in_chunks = 1;
+		used_chunks += part_cfg->bpc_log_size_in_chunks;
+
+
+		/** data configuration */	
+		part_cfg->bpc_part_mode_data = true;
+		part_cfg->bpc_data_size_in_chunks = part_cfg->bpc_total_chunk_count - used_chunks;
+		used_chunks += part_cfg->bpc_data_size_in_chunks;
+
+	} else if (rctx->rc_be_seg_path != NULL &&
+		   rctx->rc_be_seg0_path == NULL &&
+		   rctx->rc_be_log_path == NULL ) {
+
+		/** 
+		* Case 2: Single Data and Meta specified
+		* Case 4: Multiple Data and Meta spcified
+		*/
+
+		M0_LOG(M0_ALWAYS,"filename:%s,size:%"PRIu64"alloc_len = %d ",
+		       rctx->rc_be_seg_path, rctx->rc_be_seg_size,
+		       (int)(strlen(rctx->rc_be_seg_path) + len));
+
+		part_cfg->bpc_create_cfg = m0_alloc(strlen(rctx->rc_be_seg_path) +
+						    len);
+		M0_ASSERT(part_cfg->bpc_create_cfg != NULL);
+		sprintf(part_cfg->bpc_create_cfg, "%p %s %"PRIu64,
+			&rctx->rc_be.but_dom,
+			rctx->rc_be_seg_path,
+			rctx->rc_be_seg_size);
+		part_cfg->bpc_init_cfg = part_cfg->bpc_create_cfg;
+		part_cfg->bpc_location =
+			(char*)cs_storage_partdom_location_gen(rctx->rc_be_seg_path);
+		part_cfg->bpc_dom_key = sdev->sd_dev_idx;
+
+
+		/* 1 chunk for partition table itself */	
+		used_chunks = 1;
+
+		/** parition stob generic configuration */	
+		part_cfg->bpc_part_mode_set = true;
+		proposed_chunk_size = rctx->rc_be_seg_size / def_dev_chunk_count;
+		part_cfg->bpc_chunk_size_in_bits =
+			align_chunk_size(proposed_chunk_size);
+		part_cfg->bpc_total_chunk_count =
+			rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
+
+		// seg0 configuration 
+		part_cfg->bpc_seg0_size_in_chunks = 1;
+		part_cfg->bpc_part_mode_seg0 = true;
+		rctx->rc_be_seg0_path = rctx->rc_be_seg_path;
+		used_chunks += part_cfg->bpc_seg0_size_in_chunks;
+
+		/** Log configuration*/
+		part_cfg->bpc_part_mode_log = true;
+		rctx->rc_be_log_path = rctx->rc_be_seg_path;
+		if(proposed_chunk_size < def_log_size)
+			part_cfg->bpc_log_size_in_chunks =
+				def_log_size >> part_cfg->bpc_chunk_size_in_bits;
+		else
+			part_cfg->bpc_log_size_in_chunks = 1;
+		used_chunks += part_cfg->bpc_log_size_in_chunks;
+
+	
+		/** seg1 configuration */
+		part_cfg->bpc_part_mode_seg1 = true;
+		part_cfg->bpc_seg_size_in_chunks = 
+			part_cfg->bpc_total_chunk_count - used_chunks;
+		rctx->rc_be_seg_size = m0_align(part_cfg->bpc_seg_size_in_chunks << 
+			part_cfg->bpc_chunk_size_in_bits, M0_BE_SEG_PAGE_SIZE); 
+		// used_chunks += part_cfg->bpc_seg_size_in_chunks;
+
+	} else if (rctx->rc_be_seg0_path == NULL &&
+		   rctx->rc_be_seg_path != NULL &&
+		   rctx->rc_be_log_path != NULL) {
+
+		/** 
+		* Case 6: Seg0 and Seg1 on same partition
+		*         i.e. Meta and log specified 
+		*/
+
+		M0_LOG(M0_ALWAYS,"filename:%s,size:%"PRIu64"alloc_len = %d ",
+		       rctx->rc_be_seg_path, sdev->sd_size,
+		       (int)(strlen(rctx->rc_be_seg_path) + len));
+
+		part_cfg->bpc_create_cfg = m0_alloc(strlen(rctx->rc_be_seg_path) +
+						    len);
+		M0_ASSERT(part_cfg->bpc_create_cfg != NULL);
+		sprintf(part_cfg->bpc_create_cfg, "%p %s %"PRIu64,
+			&rctx->rc_be.but_dom,
+			rctx->rc_be_seg_path,
+			sdev->sd_size);
+		part_cfg->bpc_init_cfg = part_cfg->bpc_create_cfg;
+		part_cfg->bpc_location =
+			(char*)cs_storage_partdom_location_gen(rctx->rc_be_seg_path);
+		part_cfg->bpc_dom_key = sdev->sd_dev_idx;
+
+
+		/* 1 chunk for partition table itself */	
+		used_chunks = 1;
+
+		/** parition stob generic configuration */	
+		part_cfg->bpc_part_mode_set = true;
+		proposed_chunk_size = rctx->rc_be_seg_size / def_dev_chunk_count;
+		part_cfg->bpc_chunk_size_in_bits =
+			align_chunk_size(proposed_chunk_size);
+		part_cfg->bpc_total_chunk_count =
+			rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
+
+		// seg0 configuration 
+		part_cfg->bpc_seg0_size_in_chunks = 1;
+		part_cfg->bpc_part_mode_seg0 = true;
+		rctx->rc_be_seg0_path = rctx->rc_be_seg_path;
+		used_chunks += part_cfg->bpc_seg0_size_in_chunks;
+
+	
+		/** seg1 configuration */
+		part_cfg->bpc_part_mode_seg1 = true;
+		part_cfg->bpc_seg_size_in_chunks = 
+			part_cfg->bpc_total_chunk_count - used_chunks;
+		rctx->rc_be_seg_size = m0_align(part_cfg->bpc_seg_size_in_chunks << 
+			part_cfg->bpc_chunk_size_in_bits, M0_BE_SEG_PAGE_SIZE); 
+		// used_chunks += part_cfg->bpc_seg_size_in_chunks;
+
+	} else if (rctx->rc_be_seg0_path != NULL &&
+		   rctx->rc_be_seg_path != NULL &&
+		   rctx->rc_be_log_path != NULL) {
+
+		/** 
+		 * Case 3: Single Data and Meta and log 
+		 *         specified
+		 * 
+		 *  partition stob is not needed 
+		 */
+			
+		return;
+	} else if (rctx->rc_be_seg_path == NULL && 
+		   dev_count > 1 ) {
+
+		/** 
+		 * Case 5: Multiple Data and no Meta specified
+		 */ 
+		return;
 	}
 
 }

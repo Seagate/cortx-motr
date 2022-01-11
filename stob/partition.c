@@ -207,8 +207,9 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 	char                            *devname;
 	struct part_domain_cfg          *part_cfg;
 	struct m0_be_ptable_part_config *cfg;
+	struct m0_be_part_stob_cfg      *part_init_cfg;
+	m0_bcount_t                      part_users=0;
 	m0_bcount_t                      size;
-	m0_bcount_t                      used_chunk;
 
 	size = strlen(str_cfg_create) + 1;
 	devname = (char *) m0_alloc(size);
@@ -232,6 +233,7 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 	if ( rc != 3 )
 		return M0_RC(-EINVAL);
 
+        part_init_cfg = &part_cfg->part_be_domain->bd_cfg.bc_part_cfg;
 	cfg = &part_cfg->part_config;
 	/* Seg0, seg1, log, data */
 	cfg->pc_num_of_alloc_entries = 4;
@@ -246,23 +248,33 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 		return -ENOMEM;
 
 	/* 1 chunk for partition table itself */
-	used_chunk = 1;
-	cfg->pc_part_alloc_info[0].ai_part_id = M0_BE_PTABLE_ENTRY_SEG0;
-	cfg->pc_part_alloc_info[0].ai_def_size_in_chunks = 1;
-	used_chunk += cfg->pc_part_alloc_info[0].ai_def_size_in_chunks;
+	if (part_init_cfg->bpc_part_mode_seg0) {
+		cfg->pc_part_alloc_info[part_users].ai_part_id = M0_BE_PTABLE_ENTRY_SEG0;
+		cfg->pc_part_alloc_info[part_users].ai_def_size_in_chunks = 
+			part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_seg0_size_in_chunks;
+		part_users++;
+	}	
 
-	cfg->pc_part_alloc_info[1].ai_part_id = M0_BE_PTABLE_ENTRY_LOG;
-	cfg->pc_part_alloc_info[1].ai_def_size_in_chunks =
-		part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_log_size_in_chunks;
-	used_chunk += cfg->pc_part_alloc_info[1].ai_def_size_in_chunks;
+	if (part_init_cfg->bpc_part_mode_log) {
+		cfg->pc_part_alloc_info[part_users].ai_part_id = M0_BE_PTABLE_ENTRY_LOG;
+		cfg->pc_part_alloc_info[part_users].ai_def_size_in_chunks =
+			part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_log_size_in_chunks;
+		part_users++;
+	}
 
-	cfg->pc_part_alloc_info[2].ai_part_id = M0_BE_PTABLE_ENTRY_SEG1;
-	cfg->pc_part_alloc_info[2].ai_def_size_in_chunks =
-		part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_seg_size_in_chunks;
-	used_chunk += cfg->pc_part_alloc_info[2].ai_def_size_in_chunks;
-	cfg->pc_part_alloc_info[3].ai_part_id = M0_BE_PTABLE_ENTRY_BALLOC;
-	cfg->pc_part_alloc_info[3].ai_def_size_in_chunks =
-		cfg->pc_total_chunk_count - used_chunk;
+	if (part_init_cfg->bpc_part_mode_seg1) {
+		cfg->pc_part_alloc_info[part_users].ai_part_id = M0_BE_PTABLE_ENTRY_SEG1;
+		cfg->pc_part_alloc_info[part_users].ai_def_size_in_chunks =
+			part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_seg_size_in_chunks;
+		part_users++;
+	}
+
+	if (part_init_cfg->bpc_part_mode_data) {
+		cfg->pc_part_alloc_info[part_users].ai_part_id = M0_BE_PTABLE_ENTRY_BALLOC;
+		cfg->pc_part_alloc_info[part_users].ai_def_size_in_chunks =
+		part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_data_size_in_chunks;
+		part_users++;
+	}
 
 	cfg->pc_dev_path_name = devname;
 	cfg->pc_dev_size_in_bytes = size;
