@@ -34,7 +34,7 @@ Build-Depends: automake,
                python3-ply
  
 Package: cortx-motr
-Architecture: amd64
+Architecture: linux-any
 Depends: ${shlibs:Depends}, ${misc:Depends},
          ${python:Depends}
 Description: distributed object and key-value storage system
@@ -43,7 +43,7 @@ Description: distributed object and key-value storage system
  It's the core component of CORTX storage system.
 
 Package: cortx-motr-dev
-Architecture: amd64
+Architecture: linux-any
 Section: libdevel
 Depends: cortx-motr (= ${binary:Version}), ${misc:Depends}
 Description: distributed object and key-value storage system (development files)
