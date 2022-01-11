@@ -9,7 +9,7 @@ Prerequisites
 
 - CentOS 7.9/8.3+ or Rocky Linux 8.4+ (supported) or
   Ubuntu 18.04+ / Debian 10+ (experimental) OS
-  on x86_64 (supported) or arm64 (Experimental) platform.
+  on x86_64 (supported) or arm64 (experimental) platform.
 - At least 4 CPU Cores with 6GB RAM.
 
 Get the Sources
@@ -29,6 +29,10 @@ Build
 2. If using lnet as the transport, check the Lustre network interface configuration::
 
     sudo vi /etc/modprobe.d/lnet.conf
+
+   Note: this option generates Motr kernel modules and implies kernel version
+   dependency. I.e. it won't work in a conteinerised deployments. Consider
+   using libfabric for transport (see the next item).
 
    Use ``ip a`` command to get a list of network interfaces.
    Then modify ``lnet.conf`` to use one of the listed network interfaces.
