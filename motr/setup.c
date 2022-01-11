@@ -1625,8 +1625,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 			rctx->rc_be_seg_path,
 			rctx->rc_be_seg_size);
 		part_cfg->bpc_init_cfg = part_cfg->bpc_create_cfg;
-		part_cfg->bpc_location =
-			(char*)cs_storage_partdom_location_gen(rctx->rc_be_seg_path);
+		part_cfg->bpc_location =                                                                                                                                                                                                   (char*)cs_storage_partdom_location_gen(sdev->sd_filename,                                                                                                                                                                           &rctx->rc_be.but_dom);      
 		part_cfg->bpc_dom_key = sdev->sd_dev_idx;
 
 
@@ -1688,7 +1687,8 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 			sdev->sd_size);
 		part_cfg->bpc_init_cfg = part_cfg->bpc_create_cfg;
 		part_cfg->bpc_location =
-			(char*)cs_storage_partdom_location_gen(rctx->rc_be_seg_path);
+			(char*)cs_storage_partdom_location_gen(rctx->rc_be_seg_path,
+								&rctx->rc_be.but_dom);
 		part_cfg->bpc_dom_key = sdev->sd_dev_idx;
 
 
