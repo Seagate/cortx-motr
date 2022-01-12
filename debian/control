@@ -14,6 +14,8 @@ Build-Depends: automake,
                g++ (>=7),
                castxml,
                asciidoc,
+               xsltproc,
+               docbook-xsl,
                libc6-dev (>= 2.27),
                libyaml-dev,
                libaio-dev,
@@ -31,8 +33,7 @@ Build-Depends: automake,
                libfile-slurp-perl,
                libyaml-libyaml-perl,
                python2-dev,
-               python3-ply,
-               xsltproc
+               python3-ply
  
 Package: cortx-motr
 Architecture: linux-any
