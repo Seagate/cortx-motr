@@ -98,9 +98,10 @@ static inline uint32_t entity_sm_state(struct m0_obj *obj)
 
 static int alloc_vecs(struct m0_indexvec *ext, struct m0_bufvec *data,
 		      struct m0_bufvec *attr, uint32_t block_count,
-		      uint32_t block_size)
+		      uint32_t block_size, uint32_t usz)
 {
 	int      rc;
+	int      num_unit_per_op;
 
 	rc = m0_indexvec_alloc(ext, block_count);
 	if (rc != 0)
@@ -117,11 +118,18 @@ static int alloc_vecs(struct m0_indexvec *ext, struct m0_bufvec *data,
 		m0_indexvec_free(ext);
 		return rc;
 	}
-	rc = m0_bufvec_alloc(attr, block_count, max_cksum_size());
-	if (rc != 0) {
-		m0_indexvec_free(ext);
-		m0_bufvec_free(data);
-		return rc;
+	num_unit_per_op = (block_count * block_size)/usz;
+	M0_LOG(M0_DEBUG,"NU : %d, BC : %d, BS : %d, US : %d", (int)num_unit_per_op,
+			(int)block_count,(int)block_size,(int)usz);
+	if (num_unit_per_op && attr) {
+		rc = m0_bufvec_alloc(attr, num_unit_per_op, max_cksum_size());
+		if (rc != 0) {
+			m0_indexvec_free(ext);
+			m0_bufvec_free(data);
+			return rc;
+		}
+	} else if (attr) {
+		memset(attr, 0, sizeof(*attr));
 	}
 	return rc;
 }
@@ -204,7 +212,7 @@ static int calculate_checksum(struct m0_obj *obj, struct m0_indexvec *ext,
 		if (attr_idx != 0) {
 			flag = M0_PI_NO_FLAG;
 			memcpy(pi.pimd5c_prev_context, curr_context, sizeof(MD5_CTX));
-			}
+		}
 		seed.pis_data_unit_offset   = m0_ivec_cursor_index(&extcur);
 		seed.pis_obj_id.f_container = obj->ob_entity.en_id.u_hi;
 		seed.pis_obj_id.f_key       = obj->ob_entity.en_id.u_lo;
@@ -232,8 +240,9 @@ static void prepare_ext_vecs(struct m0_indexvec *ext,
 		ext->iv_index[i] = *last_index;
 		ext->iv_vec.v_count[i] = block_size;
 		*last_index += block_size;
+	}
 
-		/* we don't want any attributes */
+	for ( i = 0; i < attr->ov_vec.v_nr; i++) {
 		attr->ov_vec.v_count[i] = max_cksum_size();
 	}
 }
@@ -242,11 +251,11 @@ static int alloc_prepare_vecs(struct m0_indexvec *ext,
 			      struct m0_bufvec *data,
 			      struct m0_bufvec *attr,
 			      uint32_t block_count, uint32_t block_size,
-			      uint64_t *last_index)
+			      uint64_t *last_index, uint32_t usz)
 {
 	int      rc;
 
-	rc = alloc_vecs(ext, data, attr, block_count, block_size);
+	rc = alloc_vecs(ext, data, attr, block_count, block_size, usz);
 	if (rc == 0) {
 		prepare_ext_vecs(ext, attr, block_count,
 				 block_size, last_index);
@@ -387,7 +396,8 @@ static int write_data_to_object(struct m0_obj *obj,
 	 *  CKSUM_TODO: calculate cksum and pass in
         *  attr instead of NULL
         */
-	rc = m0_obj_op(obj, M0_OC_WRITE, ext, data, attr, 0, 0, &ops[0]);
+	rc = m0_obj_op(obj, M0_OC_WRITE, ext, data,
+				attr->ov_vec.v_nr ? attr : NULL, 0, 0, &ops[0]);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -461,6 +471,7 @@ int m0_write(struct m0_container *container, char *src,
 	struct m0_client             *instance;
 	struct m0_rm_lock_req         req;
 	const struct m0_obj_lock_ops *lock_ops;
+	uint32_t                      usz;
 
 	/* Open source file */
 	fp = fopen(src, "r");
@@ -492,7 +503,8 @@ int m0_write(struct m0_container *container, char *src,
 	if (blks_per_io == 0)
 		blks_per_io = M0_MAX_BLOCK_COUNT;
 
-	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size);
+	usz = m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id);
+	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size, usz);
 	if (rc != 0)
 		goto cleanup;
 
@@ -502,7 +514,7 @@ int m0_write(struct m0_container *container, char *src,
 		if (bcount < blks_per_io) {
 			cleanup_vecs(&data, &attr, &ext);
 			rc = alloc_vecs(&ext, &data, &attr, bcount,
-					block_size);
+					block_size, usz);
 			if (rc != 0)
 				goto cleanup;
 		}
@@ -543,7 +555,8 @@ static int read_data_from_object(struct m0_obj *obj,
 	struct m0_op        *ops[1] = {NULL};
 
 	/* Create read operation */
-	rc = m0_obj_op(obj, M0_OC_READ, ext, data, attr, 0, flags, &ops[0]);
+	rc = m0_obj_op(obj, M0_OC_READ, ext, data, attr->ov_vec.v_nr ? attr : NULL,
+				0, flags, &ops[0]);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -579,6 +592,7 @@ int m0_read(struct m0_container *container,
 	uint32_t                      bcount;
 	const struct m0_obj_lock_ops *lock_ops;
 	uint64_t                      bytes_read;
+	uint32_t                      usz;
 
 	lock_ops = take_locks ? &lock_enabled_ops : &lock_disabled_ops;
 
@@ -619,7 +633,8 @@ int m0_read(struct m0_container *container,
 
 	if (blks_per_io == 0)
 		blks_per_io = M0_MAX_BLOCK_COUNT;
-	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size);
+	usz = m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id);
+	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size, usz);
 	if (rc != 0)
 		goto cleanup;
 	while (block_count > 0) {
@@ -629,7 +644,7 @@ int m0_read(struct m0_container *container,
 		if (bcount < blks_per_io) {
 			cleanup_vecs(&data, &attr, &ext);
 			rc = alloc_vecs(&ext, &data, &attr, bcount,
-					block_size);
+					block_size, usz);
 			if (rc != 0)
 				goto cleanup;
 		}
@@ -848,6 +863,7 @@ int m0_write_cc(struct m0_container *container,
 	struct m0_obj          obj;
 	struct m0_client      *instance;
 	struct m0_rm_lock_req  req;
+	uint32_t               usz;
 
 	M0_SET0(&obj);
 	instance = container->co_realm.re_instance;
@@ -873,11 +889,12 @@ int m0_write_cc(struct m0_container *container,
 		goto cleanup;
 
 	last_index = 0;
+	usz = m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id);
 	while (block_count > 0) {
 		bcount = (block_count > M0_MAX_BLOCK_COUNT) ?
 			  M0_MAX_BLOCK_COUNT : block_count;
 		rc = alloc_prepare_vecs(&ext, &data, &attr, bcount,
-					       block_size, &last_index);
+					       block_size, &last_index, usz);
 		if (rc != 0)
 			goto cleanup;
 
@@ -925,9 +942,11 @@ int m0_read_cc(struct m0_container *container,
 	FILE                         *fp = NULL;
 	struct m0_client             *instance;
 	struct m0_rm_lock_req  req;
+	uint32_t                      usz;
 
+	usz = m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id);
 	rc = alloc_prepare_vecs(&ext, &data, &attr, block_count,
-				       block_size, &last_index);
+				       block_size, &last_index, usz);
 	if (rc != 0)
 		return rc;
 	instance = container->co_realm.re_instance;
@@ -952,7 +971,8 @@ int m0_read_cc(struct m0_container *container,
 	}
 
 	/* Create read operation */
-	rc = m0_obj_op(&obj, M0_OC_READ, &ext, &data, &attr, 0, 0, &ops[0]);
+	rc = m0_obj_op(&obj, M0_OC_READ, &ext, &data,
+				attr.ov_vec.v_nr ? &attr : NULL, 0, 0, &ops[0]);
 	if (rc != 0) {
 		m0_obj_lock_put(&req);
 		goto get_error;
