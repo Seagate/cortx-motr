@@ -28,7 +28,7 @@ Build
 
    On Ubuntu / Debian OSes::
 
-    sudo apt install equivs # enable mk-build-deps
+    sudo apt install devscripts equivs # enable mk-build-deps
     cd cortx-motr && sudo mk-build-deps --install debian/control
 
 2. Choose the networking transport.

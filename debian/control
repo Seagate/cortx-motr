@@ -31,7 +31,8 @@ Build-Depends: automake,
                libfile-slurp-perl,
                libyaml-libyaml-perl,
                python2-dev,
-               python3-ply
+               python3-ply,
+               xsltproc
  
 Package: cortx-motr
 Architecture: linux-any
