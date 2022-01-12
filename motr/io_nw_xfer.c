@@ -661,7 +661,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			/* This we can do as page_size <= unit_sz */
 			b_nob = m0_extent_get_checksum_nob(goff,
 			                                   COUNT(ivec, seg),
-							   unit_sz, cs_sz );
+											   unit_sz, cs_sz );
 			if (b_nob) 
 				src_attr = m0_extent_vec_get_checksum_addr( &ioo->ioo_attr, goff,
 						&ioo->ioo_ext, unit_sz, cs_sz);
