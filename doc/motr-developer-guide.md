@@ -81,8 +81,9 @@ as the last argument to the object program. In the object example, we will only 
 *   CORTX S3Server using Motr client APIs to access CORTX Motr services:
     *   https://github.com/Seagate/cortx-s3server
         This is one of the components of CORTX project.
-*   Motr SAL implementation at ([Ceph RGW](https://docs.ceph.com/en/pacific/radosgw/):
+*   Motr SAL implementation for [Ceph RGW](https://docs.ceph.com/en/pacific/radosgw/):
     *   https://github.com/ceph/ceph/pull/44379 (TODO: update the link after PR is merged.)
+        This is another CORTX S3 frontend which is actively developed atm.
 *   A library which uses Motr client APIs to access CORTX Motr services, to provide file system accessibility:
     *   https://github.com/Seagate/cortx-posix
         This is one of the components of CORTX project.
