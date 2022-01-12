@@ -1674,8 +1674,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	struct m0_fop          *fop;
 	struct m0_rpc_item     *item;
 
-	M0_ENTRY("nw_xfer_request %p, rmw %s", xfer,
-		 rmw ? (char *)"true" : (char *)"false");
+	M0_ENTRY("nw_xfer_request %p, rmw %s", xfer, m0_bool_to_str(rmw));
 
 	M0_PRE(xfer != NULL);
 	xfer->nxr_state = NXS_COMPLETE;

@@ -6273,8 +6273,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	struct m0t1fs_inode *inode;
 	struct m0t1fs_sb    *csb;
 
-	M0_ENTRY("nw_xfer_request %p, rmw %s", xfer,
-		 rmw ? (char *)"true" : (char *)"false");
+	M0_ENTRY("nw_xfer_request %p, rmw %s", xfer, m0_bool_to_str(rmw));
 	M0_PRE(xfer != NULL);
 
 	xfer->nxr_state = NXS_COMPLETE;
@@ -6286,7 +6285,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	       "rmw %s", req,
 	       (unsigned long long)m0_atomic64_get(&xfer->nxr_iofop_nr),
 	       (unsigned long long)m0_atomic64_get(&xfer->nxr_rdbulk_nr),
-	       rmw ? (char *)"true" : (char *)"false");
+	       m0_bool_to_str(rmw));
 
 	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
 		/* Maintains only the first error encountered. */

@@ -319,25 +319,21 @@ M0_INTERNAL void m0_dix_layout_iter_fini(struct m0_dix_layout_iter *iter)
 M0_INTERNAL bool m0_dix_layout_eq(const struct m0_dix_layout *layout1,
 				  const struct m0_dix_layout *layout2)
 {
-	const struct m0_dix_ldesc *ldesc1;
-	const struct m0_dix_ldesc *ldesc2;
+	const struct m0_dix_ldesc *ldesc1 = &layout1->u.dl_desc;
+	const struct m0_dix_ldesc *ldesc2 = &layout2->u.dl_desc
 
 	M0_PRE(layout1 != NULL);
 	M0_PRE(layout2 != NULL);
-
-	if (layout1->dl_type != layout2->dl_type)
-		return false;
-
-	if (layout1->dl_type == DIX_LTYPE_ID)
-		return layout1->u.dl_id == layout2->u.dl_id;
-
-	/* Compare layout descriptors. */
-	ldesc1 = &layout1->u.dl_desc;
-	ldesc2 = &layout2->u.dl_desc;
-
-	return ldesc1->ld_hash_fnc == ldesc2->ld_hash_fnc &&
-		m0_fid_eq(&ldesc1->ld_pver, &ldesc2->ld_pver) &&
-		m0_dix_imask_eq(&ldesc1->ld_imask, &ldesc2->ld_imask);
+	M0_PRE(M0_IN(layout1->dl_type, (DIX_LTYPE_ID,
+					DIX_LTYPE_DESCR)));
+	return layout1->dl_type == layout2->dl_type &&
+		ergo(layout1->dl_type == DIX_LTYPE_ID,
+		     layout1->u.dl_id == layout2->u.dl_id) &&
+		ergo(layout1->dl_type == DIX_LTYPE_DESCR,
+		     /* Compare layout descriptors. */
+		     ldesc1->ld_hash_fnc == ldesc2->ld_hash_fnc &&
+		     m0_fid_eq(&ldesc1->ld_pver, &ldesc2->ld_pver) &&
+		     m0_dix_imask_eq(&ldesc1->ld_imask, &ldesc2->ld_imask));
 }
 
 #undef M0_TRACE_SUBSYSTEM

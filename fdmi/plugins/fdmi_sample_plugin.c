@@ -462,7 +462,7 @@ static void fsp_print_params(struct m0_fsp_params *params)
 		params->spp_local_addr, params->spp_hare_addr,
 		params->spp_profile_fid, params->spp_process_fid,
 		params->spp_fdmi_plugin_fid_s,
-		params->spp_output_strings? "true":"false");
+		m0_bool_to_str(params->spp_output_strings));
 }
 
 int main(int argc, char **argv)

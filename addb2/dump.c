@@ -442,7 +442,7 @@ static void ptr(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 
 static void bol(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 {
-	sprintf(buf, "%s", v[0] ? "true" : "false");
+	sprintf(buf, "%s", m0_bool_to_str(v[0]));
 }
 
 static void fid(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)

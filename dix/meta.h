@@ -174,6 +174,8 @@ M0_INTERNAL int m0_dix_meta_create(struct m0_dix_cli   *cli,
  * pool version assigned in client (including all meta-indices component
  * catalogues).
  *
+ * This is used (only) by utils/m0dixinit.
+ *
  * @note The function is synchronous.
  * @pre cli->dx_sm.sm_state == DIXCLI_READY
  * @see m0_dix_cctgs_lookup()

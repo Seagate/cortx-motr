@@ -1682,12 +1682,12 @@ static int rconfc_herd_update(struct m0_rconfc   *rconfc,
 			link_quorum++;
 		lnk->rl_preserve = true;
 	}
-   	
+
 	M0_LOG(M0_DEBUG, "rconfc: link_quorum = %d rc_quorum = %d",
                           link_quorum, rconfc->rc_quorum);
 	ver_accm_init(rconfc->rc_qctx, count);
 	m0_tl_for (rcnf_herd, &rconfc->rc_herd, lnk) {
-		if (!lnk->rl_preserve || 
+		if (!lnk->rl_preserve ||
 		     link_quorum < rconfc->rc_quorum) {
 			rconfc_herd_link_fini(lnk);
 			rcnf_herd_tlist_del(lnk);
@@ -2235,7 +2235,7 @@ static bool rconfc_gate_check(struct m0_confc *confc)
 		m0_mutex_lock(&confc->cc_lock);
 	}
 	result = m0_rconfc_reading_is_allowed(rconfc);
-	M0_LEAVE("result=%s", result ? "true" : "false");
+	M0_LEAVE("result=%s", m0_bool_to_str(result));
 	return result;
 }
 

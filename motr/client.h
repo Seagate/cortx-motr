@@ -46,11 +46,9 @@
  *
  *     - Lustre HSM backend (part of Castor-A200);
  *
- *     - SWIFT or S3 backend (part of WOMO);
+ *     - SWIFT or S3 backend (part of CORTX);
  *
  *     - Motr-based block device (part of BOMO);
- *
- *     - exascale E10 stack (see eiow.org).
  *
  * Client interface is divided into the following sub-interfaces:
  *
@@ -364,7 +362,7 @@
  * Index
  * -----
  *
- * A client index is a key-value store.
+ * A (distributed) index is a key-value store.
  *
  * An index stores records, each record consisting of a key and a value. Keys
  * and values within the same index can be of variable size. Keys are ordered by
@@ -477,7 +475,7 @@
  * Ownership
  * ---------
  *
- * client entity structures (realms, objects and indices) are allocated by the
+ * Client entity structures (realms, objects and indices) are allocated by the
  * application. The application may free a structure after completing the
  * corresponding finalisation call. The application must ensure that all
  * outstanding operations on the entity are complete before finalisation.
@@ -500,11 +498,11 @@
  * Concurrency
  * -----------
  *
- * The client implementation guarantees that concurrent calls to the same index
- * are linearizable.
+ * The implementation guarantees that concurrent calls to the same index are
+ * linearizable.
  *
  * All other concurrency control, including ordering of reads and writes to a
- * client object, and distributed transaction serializability, is up to the
+ * client object and distributed transaction serializability, is up to the
  * application.
  *
  * For documentation links, please refer to this file :
@@ -598,7 +596,8 @@ enum m0_entity_type {
 	/**
 	 * During create if this flag is set in entity->en_flags, that means
 	 * application has capability to store meta-data and hence pver and
-	 * lid can be stored in  application's meta-data.
+	 * lid can be stored in application's meta-data.
+	 *
 	 * Before calling to m0_entity_create/open(), application is
 	 * expected to set obj>ob_entity->en_flags |= M0_ENF_META, so when
 	 * m0_entity_create() returns to application, pool version and layout id
@@ -772,17 +771,18 @@ enum m0_client_layout_type {
 	M0_LT_NR
 };
 
+struct m0_client_layout;
+
 /**
  * Object is an array of blocks. Each block has 64-bit index and a block
  * attributes.
  */
-struct m0_client_layout;
 struct m0_obj {
 	struct m0_entity          ob_entity;
 	struct m0_obj_attr        ob_attr;
 	struct m0_client_layout  *ob_layout;
 	/** Cookie associated with a RM context */
-	struct m0_cookie   ob_cookie;
+	struct m0_cookie          ob_cookie;
 };
 
 struct m0_client_layout {
@@ -795,7 +795,7 @@ struct m0_client_layout {
 
 /**
  * Index attributes.
- * 
+ *
  * This is supplied by an application and return by the implementation
  * when an index is created.
  *
@@ -829,7 +829,8 @@ struct m0_idx {
 	struct m0_idx_attr in_attr;
 };
 
-#define	M0_COMPOSITE_EXTENT_INF (0xffffffffffffffff)
+enum { M0_COMPOSITE_EXTENT_INF = 0xffffffffffffffffULL };
+
 struct m0_composite_layer_idx_key {
 	struct m0_uint128 cek_layer_id;
 	m0_bindex_t       cek_off;
@@ -948,9 +949,7 @@ struct m0_config {
 	int         mc_idx_service_id;
 	void       *mc_idx_service_conf;
 
-	/**
- 	 * ADDB size
- 	 */
+	/** ADDB stob size. */
 	m0_bcount_t mc_addb_size;
 };
 
@@ -994,7 +993,7 @@ extern const struct m0_uint128 M0_ID_APP;
  * with other subsequest read locks.
  *
  * To maintain fairness and prevent writer starvation, any read lock requests
- * made after the arrival of a write lock request, will wait and wont bypass
+ * made after the arrival of a write lock request, will wait and won't bypass
  * FCFS ordering to acquire lock.
  *
  * @verbatim
@@ -1034,17 +1033,17 @@ extern const struct m0_uint128 M0_ID_APP;
  *        ----------             ---------------          ----------
  *            |                         |                     |
  *            |                         |                     |
- * m0_obj_lock_init(ob) --> ref_cnt = 1                |
+ * m0_obj_lock_init(ob)        --> ref_cnt = 1                |
  *            |                         |                     |
  *            |                         |                     |
  *            |                    ref_cnt = 2 <-- m0_obj_lock_init(ob)
- * m0_obj_lock_get(ob)           |                     |
+ * m0_obj_lock_get(ob)                  |                     |
  *            |                         |          m0_obj_lock_get(ob)
  *            |                         |                  (wait)
  *            |                         |                  (wait)
- * m0_obj_lock_put(ob)           |                     |
+ * m0_obj_lock_put(ob)                  |                     |
  *            |                         |                     |
- * m0_obj_lock_fini(ob) --> ref_cnt = 1                |
+ * m0_obj_lock_fini(ob)        --> ref_cnt = 1                |
  *            |                         |          m0_obj_lock_put(ob)
  *            X                         |                     |
  *                                 ref_cnt = 0 <-- m0_obj_lock_fini(ob)
@@ -1055,7 +1054,7 @@ extern const struct m0_uint128 M0_ID_APP;
  * Locks are shared among requests for objects in same group.
  * Default groups:
  * #m0_rm_group - part of client group.
- * #m0_rm_no_group - part of no group.(stand-alone objects)
+ * #m0_rm_no_group - part of no group (stand-alone objects).
  * #NULL - it is also treated as not part of any group.
  *
  * The application should implement mechanisms to properly handle sharing of
@@ -1066,12 +1065,12 @@ extern const struct m0_uint128 M0_ID_APP;
  * {
  *	m0_obj         ob1;
  *	m0_rm_lock_req req;
- *	m0_uint128            rm_group1 = M0_UINT128(0, 1);
+ *	m0_uint128     rm_group1 = M0_UINT128(0, 1);
  *
  *	m0_obj_lock_init(&ob1, &rm_group1);
  *	m0_obj_lock_get(&ob1, &req, &rm_group1);
  *      ...
- *	//Mechanism to handle lock sharing & do IO.
+ *	// Mechanism to handle lock sharing & do IO.
  *	...
  *	m0_obj_lock_put(&req);
  *	m0_obj_lock_fini(&ob1);

@@ -162,7 +162,7 @@ static bool conf_oostore_mode(const struct m0_conf_root *r)
 	bool result = r->rt_mdredundancy > 0;
 	M0_LOG(M0_INFO, FID_F": mdredundancy=%"PRIu32" ==> oostore_mode=%s",
 	       FID_P(&r->rt_obj.co_id), r->rt_mdredundancy,
-	       result ? "true" : "false");
+	       m0_bool_to_str(result));
 	return result;
 }
 

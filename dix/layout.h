@@ -59,20 +59,62 @@ struct m0_pdclust_instance;
 struct m0_pool_version;
 struct m0_layout_domain;
 
+/**
+ * Layout types, @see m0_dix_layout.
+ */
 enum dix_layout_type {
 	DIX_LTYPE_UNKNOWN,
+	/**
+	 * Indirect layout. Layout descriptor is stored in "layout descriptor
+	 * index.
+	 *
+	 * @see m0_dix_layout::u::dl_id.
+	 */
 	DIX_LTYPE_ID,
+	/**
+	 * Parity de-clustered replicated hashed index.
+	 *
+	 * @see m0_dix_ldesc, m0_dix_layout::u::dl_desc.
+	 */
 	DIX_LTYPE_DESCR,
+	/**
+	 * Composite layout.
+	 *
+	 * Glues an index from sub-indices.
+	 *
+	 * @see m0_dix_composite_ldesc, m0_dix_layout::u::dl_comp_desc.
+	 */
 	DIX_LTYPE_COMPOSITE_DESCR,
+	/**
+	 * Capture layout.
+	 *
+	 * Uses a layout that would be normally associated with some different
+	 * fid.
+	 *
+	 * @see m0_dix_capture_ldesc, m0_dix_layout::u::dl_cap_desc.
+	 */
 	DIX_LTYPE_CAPTURE_DESCR,
 };
 
+/** Hash functions for m0_dix_ldesc. */
 enum m0_dix_hash_fnc_type {
 	HASH_FNC_NONE,
 	HASH_FNC_FNV1,
 	HASH_FNC_CITY
 };
 
+/**
+ * Parity de-clustered replicated hashed index.
+ *
+ * A distributed index with the layout of this type is stored in the meta-data
+ * pool version (m0_pool_version) identified by m0_dix_ldesc::ld_pver. Each
+ * key-value record in the index is replicated (in a failure-free case) (1 +
+ * m0_pool_version::pv_attr::pa_K) times. Devices where replicas are stored are
+ * selected for each key based on the hash calculated according to
+ * m0_dix_ldesc::ld_imask and m0_dix_ldesc::ld_hash_fnc.
+ *
+ * @see DIX_LTYPE_DESCR, m0_dix_layout::u::dl_desc.
+ */
 struct m0_dix_ldesc {
 	uint32_t            ld_hash_fnc;
 	struct m0_fid       ld_pver;
@@ -96,9 +138,37 @@ struct m0_dix_composite_ldesc {
 	struct m0_dix_composite_layer *cld_layers;
 } M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
+/**
+ * Dix layout.
+ *
+ * Describes how a distributed index is laid out in the cluster.
+ *
+ * A layout is associated with each distributed index and is needed before index
+ * operations can be executed. Index layout either is stored in the global
+ * "layout index" (TODO: add reference) or is saved somewhere by the index
+ * user. In the former case, index can be accessed by fid, but an additional
+ * lookup of the distributed layout index is needed before operations on the
+ * target index can be done.
+ *
+ * There are multiple supported types of layouts corresponding to the union
+ * below.
+ */
 struct m0_dix_layout {
+	/** Taken from dix_layout_type. */
 	uint32_t dl_type;
 	union {
+		/**
+		 * Identifier of layout descriptor.
+		 *
+		 * When this layout type (DIX_LTYPE_ID) is used, layout
+		 * descriptor is found in a global "layout descriptor"
+		 * index. Layout descriptor identifier is used as the key and
+		 * the layout descritor is the corresponding value. This design
+		 * reduces amount of meta-data by storing layout descriptor
+		 * (which typically has a large number of users) only once.
+		 *
+		 * @note not currently supported.
+		 */
 		uint64_t                      dl_id
 					M0_XCA_TAG("DIX_LTYPE_ID");
 		struct m0_dix_ldesc           dl_desc

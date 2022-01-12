@@ -348,6 +348,8 @@ M0_INTERNAL int m0_dix_create(struct m0_dix_req   *req,
  * resides has failed) or doesn't exist. It doesn't make sense to call this
  * function for distributed indices with CROW policy, since some component
  * catalogues may be not created yet.
+ *
+ * @see m0_dix_meta_check().
  */
 M0_INTERNAL int m0_dix_cctgs_lookup(struct m0_dix_req   *req,
 				    const struct m0_dix *indices,

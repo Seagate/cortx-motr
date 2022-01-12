@@ -555,7 +555,7 @@ int main(int argc, char **argv)
 				rc = m0_dix_meta_check(&cli, sm_grp, &exists);
 				if (rc == 0)
 					fprintf(stdout, "Metadata exists: %s\n",
-						exists ? "true" : "false");
+						m0_bool_to_str(exists));
 				break;
 			}
 			case ACTION_DESTROY:
