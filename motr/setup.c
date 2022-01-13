@@ -1485,7 +1485,8 @@ static char *cs_storage_partdom_location_gen(const char          *stob_path,
 
 	M0_ALLOC_ARR(location,
 		     strlen(stob_path) + ARRAY_SIZE(prefix) + 128);
-	if (location != NULL)
+	M0_ASSERT(location != NULL);
+	/*if (location != NULL)*/
 		sprintf(location, "%s:%s:%p", prefix, stob_path, dom);
 	return location;
 }
@@ -1532,7 +1533,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
             (dev_count < 1) ||
 	    (sdev->sd_size == 0))
 			return;
-	enum { len = 128 };
+	enum { len = 256 };
 
 
 	if ((rctx->rc_be_seg_path == NULL ||

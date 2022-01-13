@@ -321,6 +321,7 @@ static int be_log_store_level_enter(struct m0_module *module)
 					    stob_cfg);
 			if(stob_cfg!= NULL)
 				m0_free(stob_cfg);
+			M0_LOG(M0_ALWAYS, "rinkudebug: m0_stob_create rc = %d", rc);
 			return rc;
 		}
 		return m0_stob_state_get(ls->ls_stob) == CSS_EXISTS ?

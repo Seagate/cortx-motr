@@ -716,7 +716,7 @@ static int be_domain_level_enter(struct m0_module *module)
 	unsigned                 i;
 
 	level_name = levels_be_domain[level].ml_name;
-	M0_ENTRY("dom=%p level=%d level_name=%s", dom, level, level_name);
+	M0_LOG(M0_ALWAYS, "dom=%p level=%d level_name=%s", dom, level, level_name);
 	switch (level) {
 	case M0_BE_DOMAIN_LEVEL_INIT:
 		zt_tlist_init(&dom->bd_0types);
@@ -783,17 +783,21 @@ static int be_domain_level_enter(struct m0_module *module)
 		 * The part stob domain is never destroyed in case of failure, even
 		 * in mkfs mode: it helps with the debugging.
 		 */
-		return M0_RC(m0_stob_domain_create(cfg->bc_part_cfg.bpc_location,
+		rc = m0_stob_domain_create(cfg->bc_part_cfg.bpc_location,
 						   cfg->bc_part_cfg.bpc_init_cfg,
 						   cfg->bc_part_cfg.bpc_dom_key,
 						   cfg->bc_part_cfg.bpc_create_cfg,
-						   &dom->bd_part_stob_domain));
+						   &dom->bd_part_stob_domain);
+		M0_LOG(M0_ALWAYS, "rinkudebug: m0_stob_domain_create rc = %d", rc);
+		return M0_RC(rc);
 	case M0_BE_DOMAIN_LEVEL_NORMAL_PART_STOB_DOMAIN_INIT:
 		if (cfg->bc_mkfs_mode || !cfg->bc_part_cfg.bpc_part_mode_set)
 			return M0_RC(0);
-		return M0_RC(m0_stob_domain_init(cfg->bc_part_cfg.bpc_location,
+		rc = m0_stob_domain_init(cfg->bc_part_cfg.bpc_location,
 						 cfg->bc_part_cfg.bpc_init_cfg,
-						 &dom->bd_part_stob_domain));
+						 &dom->bd_part_stob_domain);
+		M0_LOG(M0_ALWAYS, "rinkudebug: m0_stob_domain_init rc = %d", rc);
+		return M0_RC(rc);
 	case M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE:
 		cfg->bc_log.lc_got_space_cb = m0_be_engine_got_log_space_cb;
 		cfg->bc_log.lc_full_cb      = m0_be_engine_full_log_cb;

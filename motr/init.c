@@ -241,6 +241,7 @@ struct init_fini_call subsystem[] = {
 #ifndef __KERNEL__
 	{ &m0_fdmi_init,         &m0_fdmi_fini,         "fdmi" },
 	{ &m0_fol_fdmi_src_init, &m0_fol_fdmi_src_fini, "fol_fdmi_source" },
+	/* The below line was commented to disable DTM */
 	{ &m0_dtm0_stype_init,   &m0_dtm0_stype_fini,   "dtm0"},
 #endif
 };

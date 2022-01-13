@@ -140,6 +140,7 @@ static int stob_part_domain_cfg_init_parse(const char *str_cfg_init,
 	if (rc != 3)
 		return M0_RC(-EINVAL);
 
+	M0_LOG(M0_ALWAYS, "rinkudebug %s part_be_domain=%p devname=%s size=%"PRIu64, str_cfg_init, part_cfg->part_be_domain, devname, size);
 	cfg = &part_cfg->part_config;
 	cfg->pc_dev_path_name = devname;
 	cfg->pc_dev_size_in_bytes = size;
@@ -182,6 +183,8 @@ static int stob_part_domain_destroy(struct m0_stob_type *type,
 	colon++;
 
 	sscanf(colon,"%lx",&dom_val);
+	M0_LOG(M0_ALWAYS, "rinkudebug colon=%s dom_val=%lx",colon,dom_val);
+ 
 	dom = (struct m0_be_domain *)dom_val;
 
 	ldom = m0_stob_linux_domain_container(dom->bd_stob_domain);
@@ -234,6 +237,7 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 		    devname, &size);
 	if ( rc != 3 )
 		return M0_RC(-EINVAL);
+
 
         part_init_cfg = &part_cfg->part_be_domain->bd_cfg.bc_part_cfg;
 	cfg = &part_cfg->part_config;
@@ -787,21 +791,21 @@ static m0_bcount_t stob_part_dev_offset_get(struct m0_stob_part *partstob,
 		             stob_part_block_shift(&partstob->part_stob);
 	chunk_off_mask = (1 << chunk_size_in_bits) - 1;
 	offset_within_chunk = user_offset & chunk_off_mask;
-	M0_LOG(M0_DEBUG, "relative offset in given chunk: %" PRIu64,
-	       offset_within_chunk);
+	M0_LOG(M0_ALWAYS, "rinkudebug : stob_part_dev_offset_get partstob->part_id %d relative offset in given chunk: %" PRIu64, 
+		(int) partstob->part_id, offset_within_chunk);
 	user_chunk_index =
 		(user_offset >> chunk_size_in_bits);
-	M0_LOG(M0_DEBUG, "table_index :%" PRIu64,
+	M0_LOG(M0_ALWAYS, "table_index :%" PRIu64,
 	       user_chunk_index);
 
 	device_chunk_index = partstob->part_table[user_chunk_index];
 
-	M0_LOG(M0_DEBUG, "device_chunk_index: %" PRIu64,
+	M0_LOG(M0_ALWAYS, "device_chunk_index: %" PRIu64,
 	       device_chunk_index);
 	device_byte_offset =
 		( device_chunk_index << chunk_size_in_bits ) +
 		offset_within_chunk;
-	M0_LOG(M0_DEBUG, "device offset in bytes: %" PRIu64,
+	M0_LOG(M0_ALWAYS, "device offset in bytes: %" PRIu64,
 	       device_byte_offset);
 
 	return(device_byte_offset);

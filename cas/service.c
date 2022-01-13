@@ -1178,6 +1178,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	struct m0_cas_ctg  *meta    = m0_ctg_meta();
 	struct m0_cas_ctg  *ctidx   = m0_ctg_ctidx();
 	struct m0_cas_rec  *rec     = NULL;
+	/** To disable DTM we had given false to the below variable */
 	bool                is_dtm0_used =
 		!m0_dtm0_tx_desc_is_none(&op->cg_txd);
 	bool                is_index_drop;
