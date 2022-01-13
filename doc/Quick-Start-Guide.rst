@@ -63,8 +63,8 @@ Build
    - https://github.com/Seagate/cortx/releases/download/build-dependencies/libfabric-devel-1.11.2-1.el7.x86_64.rpm
 
    Currently, there is a performance issue with default libfabric versions
-   provided by Linux distributions. That's why we build customised version of
-   the library. Hopefully, the issue will be resolved soon.
+   provided by Linux distributions on tcp. That's why we build customised
+   version of the library. Hopefully, the issue will be resolved soon.
    For more information about our changes to libfabric refer to
    https://seagate-systems.atlassian.net/wiki/spaces/PUB/pages/711230113/Libfabric+setup+and+using+libfabric+with+motr
 
