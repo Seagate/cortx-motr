@@ -171,6 +171,8 @@ Troubleshooting
        $ cat /etc/modprobe.d/lnet.conf
        options lnet networks=tcp(eth1) config_on_load=1
 
+     Note that if the network interface eth1 doesn't work, try eth0 (and vice-versa).
+
      Check the network interfaces in your system with ``ip a`` command.
 
   2. Restart the ``lnet`` service, and check LNet NIDs::
