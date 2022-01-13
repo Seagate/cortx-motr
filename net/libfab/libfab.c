@@ -327,7 +327,8 @@ static int libfab_waitfd_unbind(struct fid* fid, struct m0_fab__tm *tm,
 				void *ctx);
 static inline struct m0_fab__active_ep *libfab_aep_get(struct m0_fab__ep *ep);
 static int libfab_ping_op(struct m0_fab__active_ep *ep, struct m0_fab__buf *fb);
-static int libfab_bulk_op(struct m0_fab__active_ep *ep, struct m0_fab__buf *fb);
+static int libfab_bulk_op(struct m0_fab__active_ep *ep, struct m0_fab__buf *fb,
+			  uint32_t max_iov);
 static inline bool libfab_is_verbs(struct m0_fab__tm *tm);
 static int libfab_txbuf_list_add(struct m0_fab__tm *tm, struct m0_fab__buf *fb,
 				 struct m0_fab__active_ep *aep);
@@ -1310,6 +1311,8 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 	hints->fabric_attr->prov_name = NULL;
 	tm->ftm_fab->fab_fi = fi;
 	tm->ftm_fab->fab_prov = idx;
+	tm->ftm_fab->fab_max_iov = min32u(fi->tx_attr->iov_limit,
+					  fi->tx_attr->rma_iov_limit);
 	fi_freeinfo(hints);
 
 	rc = fi_fabric(tm->ftm_fab->fab_fi->fabric_attr, &tm->ftm_fab->fab_fab,
@@ -2549,7 +2552,8 @@ static void libfab_bufq_process(struct m0_fab__tm *tm)
 			if (op->fbl_buf->fb_nb->nb_qtype == M0_NET_QT_MSG_SEND)
 				ret = libfab_ping_op(op->fbl_aep, op->fbl_buf);
 			else
-				ret = libfab_bulk_op(op->fbl_aep, op->fbl_buf);
+				ret = libfab_bulk_op(op->fbl_aep, op->fbl_buf,
+						     tm->ftm_fab->fab_max_iov);
 	
 			if (ret == 0) {
 				fab_bulk_tlist_del(op);
@@ -2593,39 +2597,46 @@ static int libfab_ping_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
  * This function will call the bulk transfer operation (read/write) on the
  * net-buffer.
  */
-static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
+static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb,
+			  uint32_t max_iov)
 {
 	struct m0_fab__buf_xfer_params xp;
 	struct fi_msg_rma              op_msg;
 	struct fi_rma_iov             *r_iov;
-	struct fi_rma_iov              remote[FAB_MAX_IOV_PER_TX];
-	struct iovec                   loc_iv[FAB_MAX_IOV_PER_TX];
+	struct fi_rma_iov             *remote = NULL;
+	struct iovec                  *loc_iv = NULL;
 	m0_bcount_t                   *v_cnt;
 	uint64_t                       op_flag;
 	uint32_t                       loc_slen;
 	uint32_t                       rem_slen;
 	uint32_t                       wr_cnt = 0;
 	uint32_t                       idx;
-	uint32_t                       max_iov_per_tx;
 	int                            ret = 0;
 	bool                           isread;
 	bool                           last_seg = false;
 
-	M0_ENTRY("loc_buf=%p q=%d loc_seg=%d rem_buf=%d rem_seg=%d",
-		 fb, fb->fb_nb->nb_qtype, fb->fb_nb->nb_buffer.ov_vec.v_nr, 
-		 (int)fb->fb_rbd->fbd_buftoken, (int)fb->fb_rbd->fbd_iov_cnt);
+	M0_ENTRY("loc_buf=%p q=%d loc_seg=%d rem_buf=%d rem_seg=%d iov_max=%d",
+		 fb, fb->fb_nb->nb_qtype, fb->fb_nb->nb_buffer.ov_vec.v_nr,
+		 (int)fb->fb_rbd->fbd_buftoken, (int)fb->fb_rbd->fbd_iov_cnt,
+		 (int)max_iov);
 	M0_PRE(fb->fb_rbd != NULL);
 
+	M0_ALLOC_ARR(remote, max_iov);
+	M0_ALLOC_ARR(loc_iv, max_iov);
+	if (remote == NULL || loc_iv == NULL) {
+		m0_free(remote);
+		m0_free(loc_iv);
+		return M0_ERR(-ENOMEM);
+	}
+
 	v_cnt = fb->fb_nb->nb_buffer.ov_vec.v_count;
-	max_iov_per_tx = libfab_is_verbs(libfab_buf_tm(fb)) ?
-			 FAB_VERBS_MAX_IOV_PER_TX : FAB_TCP_SOCK_MAX_IOV_PER_TX;
 	/* Pick last succesfully transfered bulk buf params */
 	xp = fb->fb_xfer_params;
 	r_iov = fb->fb_riov;
 	isread = (fb->fb_nb->nb_qtype == M0_NET_QT_ACTIVE_BULK_RECV);
 
 	while (xp.bxp_xfer_len < fb->fb_nb->nb_length) {
-		for (idx = 0; idx < max_iov_per_tx && !last_seg; idx++) {
+		for (idx = 0; idx < max_iov && !last_seg; idx++) {
 			M0_ASSERT(xp.bxp_rem_sidx <= fb->fb_rbd->fbd_iov_cnt);
 			loc_slen = v_cnt[xp.bxp_loc_sidx] - xp.bxp_loc_soff;
 			rem_slen = r_iov[xp.bxp_rem_sidx].len - xp.bxp_rem_soff;
@@ -2687,6 +2698,8 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 		}
 	}
 	fb->fb_wr_cnt += wr_cnt;
+	m0_free(remote);
+	m0_free(loc_iv);
 	return M0_RC(ret);
 }
 
