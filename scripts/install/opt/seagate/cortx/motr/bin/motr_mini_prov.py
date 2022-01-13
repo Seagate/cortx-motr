@@ -433,13 +433,18 @@ def motr_config_k8(self):
         update_copy_motr_config_file(self)
         return
 
-    # If setup_size is large i.e.HW, read the (key,val)
-    # from /opt/seagate/cortx/motr/conf/motr.conf and
-    # update to /etc/sysconfig/motr
-    if self.setup_size == "large":
-        cmd = "{} {}".format(MOTR_CONFIG_SCRIPT, " -c")
+    # Use motr.conf file according to setup_size
+    # Ex:
+    # If setup_size is large then motr.conf file is /opt/seagate/cortx/motr/conf/motr_large.conf
+    # If setup_size is medium then motr.conf file is /opt/seagate/cortx/motr/conf/motr_medium.conf
+    # If setup_size is small then motr.conf file is /opt/seagate/cortx/motr/conf/motr_small.conf
+    # Use this motr.conf file to update /etc/sysconfig/motr
+    if self.setup_size:
+        cmd = "{} {} {}".format(MOTR_CONFIG_SCRIPT, " -c ", self.setup_size)
         execute_command(self, cmd, verbose = True)
-
+    else:
+        self.logger.error(f"setup_size is not availabale")
+        return
     update_motr_hare_keys(self, self.nodes)
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
 
