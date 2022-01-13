@@ -47,44 +47,33 @@ class Cmd:
         self._debug = args.debug
         configure_machine_id(self, None)
 
-        if self._index:
-            self.k8 = Conf.get(self._index, 'cortx>common>environment_type')
-            self.k8 = Conf.get(self._index, 'cortx>common>setup_type')
-        if self.k8 != "K8":
-            self.logfile = LOGFILE
-            self.logger = config_logger(self)
-            self._motr_hare_conf = MOTR_HARE_CONF_PATH
-            self._url_motr_hare = f"json://{self._motr_hare_conf}"
-            Conf.load(self._index_motr_hare, self._url_motr_hare)
-            self.server_node = get_server_node(self, False)
-        else:
-            # Configure log files and logger
-            self.local_path = get_value(self, 'cortx>common>storage>local', str)
-            self.log_path = get_value(self, 'cortx>common>storage>log', str)
-            self.local_path_motr = f"{self.local_path}/motr/{self.machine_id}"
-            self._motr_hare_conf = f"{self.local_path_motr}/motr_hare_keys.json"
-            self._url_motr_hare = f"json://{self._motr_hare_conf}"
-            self.log_path_motr = f"{self.log_path}/motr/{self.machine_id}"
+	# Configure log files and logger
+	self.local_path = get_value(self, 'cortx>common>storage>local', str)
+	self.log_path = get_value(self, 'cortx>common>storage>log', str)
+	self.local_path_motr = f"{self.local_path}/motr/{self.machine_id}"
+	self._motr_hare_conf = f"{self.local_path_motr}/motr_hare_keys.json"
+	self._url_motr_hare = f"json://{self._motr_hare_conf}"
+	self.log_path_motr = f"{self.log_path}/motr/{self.machine_id}"
 
-            # Get setup size: VM=small, HW=large
-            self.setup_size = get_value(self, 'cortx>common>setup_size', str)
+	# Get setup size: VM=small, HW=large
+	self.setup_size = get_value(self, 'cortx>common>setup_size', str)
 
-            # Check if local and log path exists, return if not exists
-            validate_files([self.local_path, self.log_path])
+	# Check if local and log path exists, return if not exists
+	validate_files([self.local_path, self.log_path])
 
-            create_dirs(self, [self.local_path_motr, self.log_path_motr])
-            self.logfile =  f"{self.log_path_motr}/mini_provisioner"
-            self.logger = config_logger(self)
+	create_dirs(self, [self.local_path_motr, self.log_path_motr])
+	self.logfile =  f"{self.log_path_motr}/mini_provisioner"
+	self.logger = config_logger(self)
 
-            # Fetch important data from Confstore
-            self.cortx = get_value(self, 'cortx', dict)
-            self.cluster = get_value(self, 'cluster', dict)
-            self.nodes = get_value(self, 'node', dict)
-            self.node = get_server_node(self, True)
-            self.storage_nodes = get_data_nodes(self)
-            if self.machine_id in self.storage_nodes:
-                self.storage = get_storage(self)
-            Conf.load(self._index_motr_hare, self._url_motr_hare)
+	# Fetch important data from Confstore
+	self.cortx = get_value(self, 'cortx', dict)
+	self.cluster = get_value(self, 'cluster', dict)
+	self.nodes = get_value(self, 'node', dict)
+	self.node = get_server_node(self, True)
+	self.storage_nodes = get_data_nodes(self)
+	if self.machine_id in self.storage_nodes:
+		self.storage = get_storage(self)
+	Conf.load(self._index_motr_hare, self._url_motr_hare)
     @property
     def args(self) -> str:
         return self._args
@@ -140,11 +129,8 @@ class PrepareCmd(Cmd):
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
 
-        # If hare is installed and cluster is up then exit otherwise go ahead
-        if pkg_installed(self, "cortx-hare"):
-            if cluster_up(self):
-                self.logger.warning("Cluster is already up...Exiting.\n")
-                return
+        # No need to check if cluster is up in any deployment phases in K8s env
+        # Configure network transport
         configure_net(self)
         self.logger.info("SUCCESS\n")
 
@@ -159,23 +145,9 @@ class PostInstallCmd(Cmd):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
         validate_motr_rpm(self)
 
-        # Check if lvms are already created.
-        # If not, create it. Otherwise, skip.
-        # If cluster is not up, go ahead. Otherwise, exit.
-        if pkg_installed(self, "cortx-hare"):
-            if cluster_up(self):
-                self.logger.info("Cluster is already up...Exiting.\n")
-                return
-        if self.k8 == 'K8':
-            # Nothing required for post_install stage in k8
-            self.logger.info("SUCCESS\n")
-            return 0
-        else:
-            if lvm_exist(self):
-                config_lvm(self)
-            else:
-                self.logger.error("There are LVM configurations present on the system. "
-                                  "Skipping LVM creation.\n")
+ 	    # Nothing required for post_install stage in k8
+	    self.logger.info("SUCCESS\n")
+	    return 0
 
 class ConfigCmd(Cmd):
     """Config Setup Cmd"""
@@ -186,14 +158,9 @@ class ConfigCmd(Cmd):
 
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
-        if self.k8 == 'K8':
-            motr_config_k8(self)
-            return
-
-        # Update keys from other nodes
-        if self.server_node["name"] == "srvnode-1":
-            update_motr_hare_keys_for_all_nodes(self)
+        motr_config_k8(self)
         self.logger.info("SUCCESS\n")
+        return
 
 class InitCmd(Cmd):
     """Init Setup Cmd"""
@@ -266,10 +233,7 @@ class CleanupCmd(Cmd):
         patterns = ["addb", "*trace", "m0d"]
         remove_logs(self, patterns)
         if (len(self._args) == 1) and (self._args[0] == "pre-factory"):
-            if not self.k8:
-                lvm_clean(self)
-            else:
-                part_clean(self)
+            self.logger.info("Currently NOOP in pre-factory cleanup\n")
         pass
 
 class UpgradeCmd(Cmd):
