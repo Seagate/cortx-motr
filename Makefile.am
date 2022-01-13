@@ -1765,7 +1765,8 @@ deb:
 	rm -rf $(distdir)
 	$(MAKE) dist
 	tar -xzf $(DIST_FILE)
-	mv $(DIST_FILE) $(patsubst cortx-motr-%tar.gz,cortx-motr_%orig.tar.gz,$(DIST_FILE))
+	mv $(DIST_FILE) cortx-motr_$(VERSION)~$(GIT_REV_ID_RPM).orig.tar.gz
+	sed "1s/2.0.0-1/$(VERSION)~$(GIT_REV_ID_RPM)/" -i $(distdir)/debian/changelog
 	cd $(distdir) && debuild -us -uc
 
 #
