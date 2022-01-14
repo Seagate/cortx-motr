@@ -44,7 +44,9 @@ read operation we exit from the function with ``-EAGAIN`` rc value.
 When the data is ready, the computation function is called again. The
 read data will be available at ``comp_data`` argument.
 
-Let's see how it is done at ``demo/libdemo.c`` for min/max::
+Let's see how it is done at ``demo/libdemo.c`` for min/max:
+
+.. code-block:: c
 
   int do_minmax(enum op op, struct m0_buf *in, struct m0_buf *out,
                 struct m0_isc_comp_private *data, int *rc)
