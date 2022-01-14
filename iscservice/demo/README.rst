@@ -25,7 +25,9 @@ Preparing computation library
 Computations from an external library cannot be linked directly with
 a Motr instance. The library is supposed to have an entry function named
 ``void motr_lib_init(void)``. All the computations in the library must
-have the following signature::
+have the following signature:
+
+.. code-block:: c
 
   int comp(struct m0_buf *args, struct m0_buf *out,
            struct m0_isc_comp_private *comp_data, int *rc)
