@@ -12,7 +12,7 @@ parts and run in parallel). It gives several advantages, like:
 - Maximizing the total storage bandwidth and the usage of server nodes
   computational power.
 
-It may become a breakthrough for some workloads in a large systems, when
+It may become a breakthrough for some workloads in large systems, when
 the horizontal scaling is crippled by the networking.
 
 In this quick demo we will show how to prepare a computation library,
