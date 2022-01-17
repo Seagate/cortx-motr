@@ -1,0 +1,12 @@
+#!/usr/bin/make -f
+
+export DESTDIR=$(CURDIR)/debian/tmp
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	dh_auto_configure -- --with-user-mode-only --enable-release --with-trace-ubuf-size=16
+
+override_dh_auto_install:
+	$(MAKE) DESTDIR=$(DESTDIR) prefix=/usr install

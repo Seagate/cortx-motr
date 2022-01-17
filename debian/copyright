@@ -1,0 +1,8 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: cortx-motr
+Upstream-Contact: Andriy Tkachuk <andriy.tkachuk@seagate.com>
+Source: https://github.com/Seagate/cortx-motr
+
+Files: *
+Copyright: 2011-2020 Seagate Technology LLC and/or its Affiliates
+License: Apache-2.0
