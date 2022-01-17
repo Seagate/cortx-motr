@@ -50,7 +50,7 @@
  *
  *     - Motr-based block device (part of BOMO);
  *
- *     - exascale E10 stack (see eiow.org).
+ *     - exascale E10 stack (see https://opensfs.org).
  *
  * Client interface is divided into the following sub-interfaces:
  *
