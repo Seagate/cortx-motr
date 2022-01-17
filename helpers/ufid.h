@@ -35,19 +35,19 @@
  * the lowest 29 bits of process FID are unique for each client instance.
  *
  * FID Format:
- * ---------------------------
+ * -----------
  *
  * 127            91|90   80|79           49|48           20|19           0
  *  +---------------+-------+---------------+---------------+-------------+
  *  |   Motr        | Salt  | Generation ID | Process ID    | Sequence ID |
  *  +---------------+-------+---------------+---------------+-------------+
- *     37 Bits      |11 Bits|   31 Bits     |    29 Bits    |     20 Bit  |
- *
+ *  |  37 Bits      |11 Bits|   31 Bits     |    29 Bits    |     20 Bit  |
+ *  +---------------+-------+---------------+---------------+-------------+
  *
  * Notes:
  * (1) Salt: 11 bits of random number which is set when UFID is initialised.
  * (2) Generation ID: it is taken from timestep (epoch) represented with 31
- *     bits. A new generation ID is set when UFID is initialised or sequence
+ *     bits. A new generation ID is set when UFID is initialised or Sequence
  *     ID rolls over 20 bits.
  * (3) Process ID: client instance process ID. Each client instance is assigned
  *     a cluster-wide unique FID by Halon and the lowest 29 bits of FID is used
@@ -93,7 +93,7 @@
  *     int rc;
  *     struct m0_uint128 id128 = M0_UINT128(0, 0);
  *
- *     rc = m0_ufid_next(m0c, 1, &id128);
+ *     rc = m0_ufid_next(&ufid_gr, 1, &id128);
  *     if (rc < 0)
  *          printf("m0_ufid_next() returned error: %d", rc);
  * }
@@ -103,7 +103,7 @@
  *     int rc;
  *     struct m0_uint128 id128 = M0_UINT128(0, 0);
  *
- *     rc = m0_ufid_new(m0c, 100, 100, &id128);
+ *     rc = m0_ufid_new(&ufid_gr, 100, 100, &id128);
  *     if (rc < 0)
  *          printf("m0_ufid_new() returned error: %d", rc);
  * }
