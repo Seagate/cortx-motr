@@ -1316,9 +1316,9 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 
 	M0_ALLOC_ARR(tm->ftm_rem_iov, tm->ftm_fab->fab_max_iov);
 	M0_ALLOC_ARR(tm->ftm_loc_iov, tm->ftm_fab->fab_max_iov);
-	if (tm->ftm_rem_iov == NULL || tm->ftm_rem_iov == NULL) {
+	if (tm->ftm_rem_iov == NULL || tm->ftm_loc_iov == NULL) {
 		m0_free(tm->ftm_rem_iov);
-		m0_free(tm->ftm_rem_iov);
+		m0_free(tm->ftm_loc_iov);
 		return M0_ERR(-ENOMEM);
 	}
 
