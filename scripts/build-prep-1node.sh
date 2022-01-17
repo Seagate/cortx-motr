@@ -32,7 +32,7 @@ dev_mode=
 
 which git || sudo yum install -y git
 
-[[ -f scripts/$(basename $0) ]] || [[ -d cortx-motr ]] || {
+[[ -f scripts/$(basename "$0") ]] || [[ -d cortx-motr ]] || {
     git clone --recurse https://github.com/Seagate/cortx-motr.git &&
         ln -s cortx-motr motr
 }
@@ -42,7 +42,7 @@ sudo yum install -y epel-release # Install EPEL yum repo
 sudo yum install -y epel-release # Update to the latest version
 sudo yum install -y ansible
 
-[[ -f scripts/$(basename $0) ]] || cd motr
+[[ -f scripts/$(basename "$0") ]] || cd motr
 sudo ./scripts/install-build-deps
 
 echo 'Configure Motr...'
