@@ -453,6 +453,12 @@ struct m0_fab__tm {
 	/** List of pending bulk operations */
 	struct m0_tl                    ftm_bulk;
 
+	/** Array of remote side iovecs used in bulk ops */
+	struct fi_rma_iov              *ftm_rem_iov;
+
+	/** Array of local side iovecs used in bulk ops */
+	struct iovec                   *ftm_loc_iov;
+
 	/** Time when the buffer timeouts should be checked again */
 	m0_time_t                       ftm_tmout_check;
 

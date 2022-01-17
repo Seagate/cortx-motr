@@ -327,8 +327,7 @@ static int libfab_waitfd_unbind(struct fid* fid, struct m0_fab__tm *tm,
 				void *ctx);
 static inline struct m0_fab__active_ep *libfab_aep_get(struct m0_fab__ep *ep);
 static int libfab_ping_op(struct m0_fab__active_ep *ep, struct m0_fab__buf *fb);
-static int libfab_bulk_op(struct m0_fab__active_ep *ep, struct m0_fab__buf *fb,
-			  uint32_t max_iov);
+static int libfab_bulk_op(struct m0_fab__active_ep *ep, struct m0_fab__buf *fb);
 static inline bool libfab_is_verbs(struct m0_fab__tm *tm);
 static int libfab_txbuf_list_add(struct m0_fab__tm *tm, struct m0_fab__buf *fb,
 				 struct m0_fab__active_ep *aep);
@@ -1315,6 +1314,14 @@ static int libfab_passive_ep_create(struct m0_fab__ep *ep,
 					  fi->tx_attr->rma_iov_limit);
 	fi_freeinfo(hints);
 
+	M0_ALLOC_ARR(tm->ftm_rem_iov, tm->ftm_fab->fab_max_iov);
+	M0_ALLOC_ARR(tm->ftm_loc_iov, tm->ftm_fab->fab_max_iov);
+	if (tm->ftm_rem_iov == NULL || tm->ftm_rem_iov == NULL) {
+		m0_free(tm->ftm_rem_iov);
+		m0_free(tm->ftm_rem_iov);
+		return M0_ERR(-ENOMEM);
+	}
+
 	rc = fi_fabric(tm->ftm_fab->fab_fi->fabric_attr, &tm->ftm_fab->fab_fab,
 		       NULL) ? :
 	     libfab_waitfd_init(tm) ? :
@@ -1579,6 +1586,8 @@ static int libfab_tm_param_free(struct m0_fab__tm *tm)
 	close(tm->ftm_epfd);
 	m0_free(tm->ftm_fids.ftf_head);
 	m0_free(tm->ftm_fids.ftf_ctx);
+	m0_free(tm->ftm_rem_iov);
+	m0_free(tm->ftm_loc_iov);
 
 	m0_htable_for(fab_bufhash, fbp, &tm->ftm_bufhash.bht_hash) {
 		fab_bufhash_htable_del(&tm->ftm_bufhash.bht_hash, fbp);
@@ -2552,8 +2561,7 @@ static void libfab_bufq_process(struct m0_fab__tm *tm)
 			if (op->fbl_buf->fb_nb->nb_qtype == M0_NET_QT_MSG_SEND)
 				ret = libfab_ping_op(op->fbl_aep, op->fbl_buf);
 			else
-				ret = libfab_bulk_op(op->fbl_aep, op->fbl_buf,
-						     tm->ftm_fab->fab_max_iov);
+				ret = libfab_bulk_op(op->fbl_aep, op->fbl_buf);
 	
 			if (ret == 0) {
 				fab_bulk_tlist_del(op);
@@ -2597,19 +2605,20 @@ static int libfab_ping_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
  * This function will call the bulk transfer operation (read/write) on the
  * net-buffer.
  */
-static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb,
-			  uint32_t max_iov)
+static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb)
 {
 	struct m0_fab__buf_xfer_params xp;
+	struct m0_fab__tm             *tm = libfab_buf_tm(fb);
 	struct fi_msg_rma              op_msg;
 	struct fi_rma_iov             *r_iov;
-	struct fi_rma_iov             *remote = NULL;
-	struct iovec                  *loc_iv = NULL;
+	struct fi_rma_iov             *remote = tm->ftm_rem_iov;
+	struct iovec                  *loc_iv = tm->ftm_loc_iov;
 	m0_bcount_t                   *v_cnt;
 	uint64_t                       op_flag;
 	uint32_t                       loc_slen;
 	uint32_t                       rem_slen;
 	uint32_t                       wr_cnt = 0;
+	uint32_t                       max_iov = tm->ftm_fab->fab_max_iov;
 	uint32_t                       idx;
 	int                            ret = 0;
 	bool                           isread;
@@ -2620,14 +2629,7 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb,
 		 (int)fb->fb_rbd->fbd_buftoken, (int)fb->fb_rbd->fbd_iov_cnt,
 		 (int)max_iov);
 	M0_PRE(fb->fb_rbd != NULL);
-
-	M0_ALLOC_ARR(remote, max_iov);
-	M0_ALLOC_ARR(loc_iv, max_iov);
-	if (remote == NULL || loc_iv == NULL) {
-		m0_free(remote);
-		m0_free(loc_iv);
-		return M0_ERR(-ENOMEM);
-	}
+	M0_PRE(remote != NULL && loc_iv != NULL);
 
 	v_cnt = fb->fb_nb->nb_buffer.ov_vec.v_count;
 	/* Pick last succesfully transfered bulk buf params */
@@ -2698,8 +2700,6 @@ static int libfab_bulk_op(struct m0_fab__active_ep *aep, struct m0_fab__buf *fb,
 		}
 	}
 	fb->fb_wr_cnt += wr_cnt;
-	m0_free(remote);
-	m0_free(loc_iv);
 	return M0_RC(ret);
 }
 
