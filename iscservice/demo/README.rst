@@ -15,10 +15,6 @@ parts and run in parallel). It gives several advantages, like:
 It may become a breakthrough for some workloads in large systems, when
 the horizontal scaling is crippled by the networking.
 
-In this quick demo we will show how to prepare a computation library,
-how to load it on the server nodes, and how to run the client
-application which utilises the in-storage compute functionality.
-
 Preparing computation library
 =============================
 
@@ -175,7 +171,7 @@ these numbers in the object with in-storage compute like this::
 At the server side the min/max computation is performed on each unit of
 the object in parallel. The results are sent to the client, which does
 the final computation among all the min/max values from all the units
-received from servers. Then the final result is printed.
+received from servers.
 
 Benchmark example
 =================
