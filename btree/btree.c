@@ -753,112 +753,6 @@ enum {
 
 #endif
 
-#if 0
-static int fail(struct m0_btree_op *bop, int rc)
-{
-	bop->bo_op.o_sm.sm_rc = rc;
-	return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
-}
-
-static int get_tick(struct m0_btree_op *bop)
-{
-	struct td             *tree  = (void *)bop->bo_arbor;
-	uint64_t               flags = bop->bo_flags;
-	struct m0_btree_oimpl *oi    = bop->bo_i;
-	struct level          *level = &oi->i_level[oi->i_used];
-
-	switch (bop->bo_op.o_sm.sm_state) {
-	case P_INIT:
-		if ((flags & BOF_COOKIE) && cookie_is_set(&bop->bo_key.k_cookie))
-			return P_COOKIE;
-		else
-			return P_SETUP;
-	case P_COOKIE:
-		if (cookie_is_valid(tree, &bop->bo_key.k_cookie))
-			return P_LOCK;
-		else
-			return P_SETUP;
-	case P_SETUP:
-		alloc(bop->bo_i, tree->t_height);
-		if (bop->bo_i == NULL)
-			return fail(bop, M0_ERR(-ENOMEM));
-		return P_LOCKALL;
-	case P_LOCKALL:
-		if (bop->bo_flags & BOF_LOCKALL)
-			return m0_sm_op_sub(&bop->bo_op, P_LOCK, P_DOWN);
-	case P_DOWN:
-		oi->i_used = 0;
-		/* Load root node. */
-		return bnode_get(&oi->i_nop, tree, &tree->t_root, P_NEXTDOWN);
-	case P_NEXTDOWN:
-		if (oi->i_nop.no_op.o_sm.sm_rc == 0) {
-			struct slot    slot = {};
-			struct segaddr down;
-
-			level->l_node = slot.s_node = oi->i_nop.no_node;
-			bnode_op_fini(&oi->i_nop);
-			bnode_find(&slot, bop->bo_rec.r_key);
-			if (bnode_level(slot.s_node) > 0) {
-				level->l_idx = slot.s_idx;
-				bnode_child(&slot, &down);
-				oi->i_used++;
-				return bnode_get(&oi->i_nop, tree,
-						&down, P_NEXTDOWN);
-			} else
-				return P_LOCK;
-		} else {
-			bnode_op_fini(&oi->i_nop);
-			return fail(bop, oi->i_nop.no_op.o_sm.sm_rc);
-		}
-	case P_LOCK:
-		if (!locked)
-			return lock_op_init(&bop->bo_op, &bop->bo_i->i_lop,
-					    P_CHECK);
-		else
-			return P_CHECK;
-	case P_CHECK:
-		if (used_cookie || check_path())
-			return P_ACT;
-		if (too_many_restarts) {
-			if (bop->bo_flags & BOF_LOCKALL)
-				return fail(bop, -ETOOMANYREFS);
-			else
-				bop->bo_flags |= BOF_LOCKALL;
-		}
-		if (height_increased) {
-			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_INIT);
-		} else {
-			oi->i_used = 0;
-			return P_DOWN;
-		}
-	case P_ACT: {
-		struct slot slot = {
-			.s_node = level->l_node;
-			.s_idx  = level->l_idx;
-		};
-		bnode_rec(&slot);
-		bop->bo_cb->c_act(&bop->bo_cb, &slot.s_rec);
-		lock_op_unlock(&bop->bo_i->i_lop);
-		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_DONE);
-	}
-	case P_CLEANUP: {
-		int i;
-
-		for (i = 0; i < oi->i_used; ++i) {
-			if (oi->i_level[i].l_node != NULL) {
-				bnode_put(oi->i_level[i].l_node);
-				oi->i_level[i].l_node = NULL;
-			}
-		}
-		free(bop->bo_i);
-		return m0_sm_op_ret(&bop->bo_op);
-	}
-	default:
-		M0_IMPOSSIBLE("Wrong state: %i", bop->bo_op.o_sm.sm_state);
-	};
-}
-#endif
-
 /**
  *  --------------------------------------------
  *  Section END - BTree Structure and Operations
@@ -1300,12 +1194,6 @@ struct slot {
 	})
 
 static int64_t tree_get   (struct node_op *op, struct segaddr *addr, int nxt);
-#if 0
-static int64_t tree_create(struct node_op *op, struct m0_btree_type *tt,
-			   int rootshift, struct m0_be_tx *tx, int nxt);
-static int64_t tree_delete(struct node_op *op, struct td *tree,
-			   struct m0_be_tx *tx, int nxt);
-#endif
 static void    tree_put   (struct td *tree);
 
 static int64_t    bnode_get  (struct node_op *op, struct td *tree,
@@ -1313,10 +1201,6 @@ static int64_t    bnode_get  (struct node_op *op, struct td *tree,
 static void       bnode_put  (struct node_op *op, struct nd *node);
 
 static void bnode_crc_validate(struct nd *node);
-
-#if 0
-static struct nd *bnode_try  (struct td *tree, struct segaddr *addr);
-#endif
 
 static int64_t    bnode_free(struct node_op *op, struct nd *node,
 			     struct m0_be_tx *tx, int nxt);
@@ -1332,9 +1216,6 @@ static int  bnode_init(struct segaddr *addr, int ksize, int vsize, int nsize,
 		       const enum m0_btree_crc_type crc_type,uint64_t gen,
 		       struct m0_fid fid, int nxt);
 static uint32_t bnode_crctype_get(const struct nd *node);
-#if 0
-static bool bnode_verify(const struct nd *node);
-#endif
 /* Returns the number of valid key in the node. */
 static int  bnode_count(const struct nd *node);
 
@@ -1348,9 +1229,6 @@ static int  bnode_valsize(const struct nd *node);
 static bool  bnode_isunderflow(const struct nd *node, bool predict);
 static bool  bnode_isoverflow(const struct nd *node,
 			      const struct m0_btree_rec *rec);
-#if 0
-static void bnode_fid  (const struct nd *node, struct m0_fid *fid);
-#endif
 
 static void bnode_rec  (struct slot *slot);
 static void bnode_key  (struct slot *slot);
@@ -1363,9 +1241,6 @@ static void bnode_val_resize(struct slot *slot, int vsize_diff);
 static bool bnode_find (struct slot *slot, struct m0_btree_key *key);
 static void bnode_seq_cnt_update (struct nd *node);
 static void bnode_fix  (const struct nd *node);
-#if 0
-static void bnode_cut  (const struct nd *node, int idx, int size);
-#endif
 static void bnode_del  (const struct nd *node, int idx);
 static void bnode_set_level  (const struct nd *node, uint8_t new_level);
 static void bnode_set_rec_count(const struct nd *node, uint16_t count);
@@ -1626,13 +1501,6 @@ static bool bnode_expensive_invariant(const struct nd *node)
 	return node->n_type->nt_expensive_invariant(node);
 }
 
-#if 0
-static bool bnode_verify(const struct nd *node)
-{
-	return node->n_type->nt_verify(&node->n_addr);
-}
-#endif
-
 /**
  * This function should be called after acquiring node lock.
  */
@@ -1829,14 +1697,6 @@ static void bnode_fix(const struct nd *node)
 	node->n_type->nt_fix(node);
 }
 
-#if 0
-static void bnode_cut(const struct nd *node, int idx, int size)
-{
-	M0_PRE(bnode_invariant(node));
-	node->n_type->nt_cut(node, idx, size);
-}
-#endif
-
 static void bnode_del(const struct nd *node, int idx)
 {
 	M0_PRE(bnode_invariant(node));
@@ -1902,15 +1762,6 @@ static void bnode_rec_put_credit(const struct nd *node, m0_bcount_t ksize,
 {
 	node->n_type->nt_rec_put_credit(node, ksize, vsize, accum);
 }
-
-#if 0
-static void bnode_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
-				    m0_bcount_t vsize,
-				   struct m0_be_tx_credit *accum)
-{
-	node->n_type->nt_rec_update_credit(node, ksize, vsize, accum);
-}
-#endif
 
 static void bnode_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 				 m0_bcount_t vsize,
@@ -2033,44 +1884,6 @@ uint32_t segaddr_ntype_get(const struct segaddr *addr)
 	return h->h_node_type;
 }
 
-#if 0
-static void bnode_type_register(const struct node_type *nt)
-{
-	struct mod *m = mod_get();
-
-	M0_PRE(IS_IN_ARRAY(nt->nt_id, m->m_ntype));
-	M0_PRE(m->m_ntype[nt->nt_id] == NULL);
-	m->m_ntype[nt->nt_id] = nt;
-}
-
-static void bnode_type_unregister(const struct node_type *nt)
-{
-	struct mod *m = mod_get();
-
-	M0_PRE(IS_IN_ARRAY(nt->nt_id, m->m_ntype));
-	M0_PRE(m->m_ntype[nt->nt_id] == nt);
-	m->m_ntype[nt->nt_id] = NULL;
-}
-
-static void tree_type_register(const struct m0_btree_type *tt)
-{
-	struct mod *m = mod_get();
-
-	M0_PRE(IS_IN_ARRAY(tt->tt_id, m->m_ttype));
-	M0_PRE(m->m_ttype[tt->tt_id] == NULL);
-	m->m_ttype[tt->tt_id] = tt;
-}
-
-static void tree_type_unregister(const struct m0_btree_type *tt)
-{
-	struct mod *m = mod_get();
-
-	M0_PRE(IS_IN_ARRAY(tt->tt_id, m->m_ttype));
-	M0_PRE(m->m_ttype[tt->tt_id] == tt);
-	m->m_ttype[tt->tt_id] = NULL;
-}
-#endif
-
 static const struct node_type fixed_format;
 static const struct node_type fixed_ksize_variable_vsize_format;
 static const struct node_type variable_kv_format;
@@ -2139,71 +1952,6 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	return nxt;
 }
 
-
-#if 0
-/**
- * Creates a tree with an empty root node.
- *
- * @param op is used to exchange operation parameters and return values.
- * @param tt is the btree type to be assiged to the newly created btree.
- * @param rootshift is the size of the root node.
- * @param tx captures the operation in a transaction.
- * @param nxt is the next state to be returned to the caller.
- *
- * @return Next state to proceed in.
- */
-static int64_t tree_create(struct node_op *op, struct m0_btree_type *tt,
-			   int rootshift, struct m0_be_tx *tx, int nxt)
-{
-	struct td *tree;
-
-	/**
-	 * Creates root node and then assigns a tree descriptor for this root
-	 * node.
-	 */
-
-	tree_get(op, NULL, nxt);
-
-	tree = op->no_tree;
-	bnode_alloc(op, tree, rootshift, &fixed_format, 8, 8, tx, nxt);
-
-	m0_rwlock_write_lock(&tree->t_lock);
-	tree->t_root = op->no_node;
-	tree->t_type = tt;
-	m0_rwlock_write_unlock(&tree->t_lock);
-
-	return nxt;
-}
-#endif
-
-#if 0
-/**
- * Deletes an existing tree.
- *
- * @param op is used to exchange operation parameters and return values..
- * @param tree points to the tree to be deleted.
- * @param tx captures the operation in a transaction.
- * @param nxt is the next state to be returned to the caller.
- *
- * @return Next state to proceed in.
- */
-static int64_t tree_delete(struct node_op *op, struct td *tree,
-			   struct m0_be_tx *tx, int nxt)
-{
-	struct nd *root;
-	M0_PRE(tree != NULL);
-	root = tree->t_root;
-
-	op->no_tree = tree;
-	op->no_node = root;
-
-	bnode_fini(op->no_node);
-	bnode_free(op, op->no_node, tx, nxt);
-	tree_put(tree);
-
-	return nxt;
-}
-#endif
 
 /**
  * Returns the tree to the free tree pool if the reference count for this tree
@@ -2472,12 +2220,6 @@ static void bnode_put(struct node_op *op, struct nd *node)
 		m0_btree_lrulist_purge_check(M0_PU_BTREE, 0);
 #endif
 }
-
-# if 0
-static struct nd *bnode_try(struct td *tree, struct segaddr *addr){
-	return NULL;
-}
-#endif
 
 static int64_t bnode_free(struct node_op *op, struct nd *node,
 			  struct m0_be_tx *tx, int nxt)
@@ -2906,9 +2648,6 @@ static int ff_level(const struct nd *node)
 
 static int ff_shift(const struct nd *node)
 {
-#if 0
-	return ff_data(node)->ff_shift;
-#endif
 	return 0;
 }
 
@@ -3762,9 +3501,6 @@ static int fkvv_level(const struct nd *node)
 
 static int fkvv_shift(const struct nd *node)
 {
-#if 0
-	return fkvv_data(node)->fkvv_shift;
-#endif
 	return 0;
 }
 
@@ -4758,9 +4494,6 @@ static int  vkvv_space(const struct nd *node)
  */
 static int  vkvv_shift(const struct nd *node)
 {
-#if 0
-	return vkvv_data(node)->vkvv_shift;
-#endif
 	return 0;
 }
 
