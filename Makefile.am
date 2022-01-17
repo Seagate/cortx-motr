@@ -1029,6 +1029,17 @@ motr_common_SCRIPTS = \
     scripts/install$(motr_commondir)/m0_sns_utils_common.sh
 EXTRA_DIST += $(motr_common_SCRIPTS)
 
+deb_pkg_files = \
+    debian/changelog \
+    debian/control \
+    debian/compat \
+    debian/copyright \
+    debian/cortx-motr.install \
+    debian/cortx-motr-dev.install \
+    debian/rules \
+    debian/source/format
+EXTRA_DIST += $(deb_pkg_files)
+
 # After genders => Halon transition, Motr doesn't have any configuration files
 # under /etc/motr/ directory. But there might be some in future.
 #etc_motrdir    = $(sysconfdir)/motr
@@ -1300,6 +1311,7 @@ check-make-prebuild:
 .PHONY: check-sources-prebuild
 check-sources-prebuild:
 	@echo -n 'Checking source files... '
+	@rm -rf $(distdir)
 	@$(top_srcdir)/scripts/build/check-sources --noisy $(top_srcdir)
 	@echo 'OK'
 
@@ -1435,7 +1447,7 @@ all-local: $(KERNEL_MODULES_BUILD) $(LTLIBRARIES) $(PROGRAMS)
 	@$(top_srcdir)/scripts/build/check-public-api
 	@$(top_srcdir)/scripts/build/check-protocol
 	@$(top_srcdir)/scripts/build/print-elf-sizes
-	@cd utils/spiel; $(SETUP_PY) install --root=${DESTDIR} --record=INSTALLED_FILES
+	@cd utils/spiel; $(SETUP_PY) install --root=${DESTDIR} --prefix=$(prefix) --record=INSTALLED_FILES
 	@$(LN_S) -f $(PROGRAMS:%=../%) $(filter /trace/, $(bin_SCRIPTS:%=../%)) utils/
 
 # checks ---------------------------------------------- {{{3
@@ -1458,7 +1470,7 @@ print-elf-sizes:
 
 .PHONY: install-m0spiel-cext
 install-m0spiel-cext:
-	@cd utils/spiel; $(SETUP_PY) install --root=${DESTDIR} --record=INSTALLED_FILES
+	@cd utils/spiel; $(SETUP_PY) install --root=${DESTDIR} --prefix=$(prefix) --record=INSTALLED_FILES
 
 # kernel ---------------------------------------------- {{{3
 
@@ -1577,6 +1589,7 @@ clean-local: $(KERNEL_MODULES_CLEAN) clean-doc
 	@if test x@ENABLE_COVERAGE@ = xyes; then \
 		find . -name "*.gcno" | xargs rm -vf; \
 	fi
+	@rm -vrf $(distdir)
 
 # kernel ---------------------------------------------- {{{3
 
@@ -1744,6 +1757,19 @@ srpm:
 	$(MAKE) __rpm_post
 
 #
+# DEB targets ----------------------------------------- {{{2
+#
+
+.PHONY: deb
+deb:
+	rm -rf $(distdir)
+	$(MAKE) dist
+	tar -xzf $(DIST_FILE)
+	mv $(DIST_FILE) cortx-motr_$(VERSION)~$(GIT_REV_ID_RPM).orig.tar.gz
+	sed "1s/2.0.0-1/$(VERSION)~$(GIT_REV_ID_RPM)/" -i $(distdir)/debian/changelog
+	cd $(distdir) && debuild -us -uc
+
+#
 # Docker ---------------------------------------------- {{{2
 #
 
@@ -1863,6 +1889,8 @@ help:
 	@echo '  rpms            - build Motr rpm packages'
 	@echo '  rpms-tests      - build Motr rpm with test packages'
 	@echo '  rpms-mock       - build Motr rpm packages using "mock" environment (ensures clean rpm deps)'
+	@echo '  deb             - build Motr .deb packages; install the needed dependencies with'
+	@echo '                    sudo mk-build-deps --install debian/control'
 	@echo ''
 	@echo 'Infrastructure targets:'
 	@echo '  docker          - build docker images'
