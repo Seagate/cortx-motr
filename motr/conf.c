@@ -41,7 +41,7 @@
 #include "stob/linux.h"           /* m0_stob_linux_reopen */
 #include "ioservice/storage_dev.h" /* m0_storage_dev_attach */
 #include "ioservice/fid_convert.h" /* m0_fid_conf_sdev_device_id */
-
+#include "stob/partition.h"        /* m0_stob_part_type*/
 /* ----------------------------------------------------------------
  * Motr options
  * ---------------------------------------------------------------- */
@@ -418,9 +418,16 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 			m0_storage_dev_attach(dev, devs);
 			stob = m0_storage_devs_find_by_cid(devs,
 					    sdev->sd_dev_idx)->isd_stob;
-			if (stob != NULL)
-				m0_stob_linux_conf_sdev_associate(stob,
+			if (stob != NULL ) {
+				if(m0_stob_domain_is_of_type(stob->so_domain,
+							     &m0_stob_part_type))
+					m0_stob_linux_conf_sdev_associate(
+						 m0_stob_part_bstob_get(stob),
+						 &sdev->sd_obj.co_id);
+				else
+					m0_stob_linux_conf_sdev_associate(stob,
 							   &sdev->sd_obj.co_id);
+			}
 
 		}
 		m0_conf_diter_fini(&it);

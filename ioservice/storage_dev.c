@@ -64,23 +64,27 @@ static bool storage_dev_state_update_cb(struct m0_clink *link);
 static bool storage_devs_conf_expired_cb(struct m0_clink *link);
 static bool storage_devs_conf_ready_async_cb(struct m0_clink *link);
 
-static struct m0_stob *
+static int
 storage_dev_get_part_stob(struct m0_be_domain *domain,
 			  const char          *dev_pathname,
+			  struct m0_stob      **part_stob,
 			  m0_bcount_t         *dev_data_size)
 {
-	struct m0_stob                    *part_stob = NULL;
 	struct m0_be_ptable_part_tbl_info  primary_part_info;
 	struct m0_be_ptable_alloc_info    *alloc_info;
 	int                                i;
-	struct m0_stob_id                  stob_id;
-	int rc;
+	int				   rc = 0;
+	char				  *stob_cfg;
+	char                              *direct_io_cfg = "directio=true";
+	*part_stob = NULL;
+	if(!domain->bd_cfg.bc_part_cfg.bpc_part_mode_data)
+		return rc;
 
-	if (m0_be_ptable_get_part_info(&primary_part_info) != 0)
-		return NULL;
+	rc = rc ? : m0_be_ptable_get_part_info(&primary_part_info);
+	rc = rc ? : strcmp(dev_pathname, primary_part_info.pti_dev_pathname);
+	if(rc != 0 )
+		return rc;
 
-	if (strcmp(dev_pathname, primary_part_info.pti_dev_pathname))
-		return part_stob;
 	for (i = 0; i < M0_BE_MAX_PARTITION_USERS; i++) {
 		alloc_info = &primary_part_info.pti_part_alloc_info[i];
 		if(alloc_info->ai_part_id == M0_BE_PTABLE_ENTRY_BALLOC) {
@@ -89,29 +93,21 @@ storage_dev_get_part_stob(struct m0_be_domain *domain,
 		}
 	}
 	if (i == M0_BE_MAX_PARTITION_USERS)
-		return NULL;
+		return -ENOENT;
+	stob_cfg = m0_alloc(strlen(dev_pathname) +
+			    ARRAY_SIZE(direct_io_cfg) + 4);
+	if (stob_cfg!= NULL)
+		sprintf(stob_cfg, "%s:%s", dev_pathname, direct_io_cfg);
+	else
+		return -ENOMEM;
 
-	m0_stob_id_make(0, M0_BE_PTABLE_ENTRY_BALLOC,
-			&domain->bd_part_stob_domain->sd_id,
-			&stob_id);
-	rc = m0_stob_find(&stob_id, &part_stob);
-	if (rc != 0)
-		return NULL;
-
-	if (m0_stob_state_get(part_stob) == CSS_UNKNOWN) {
-		rc = m0_stob_locate(part_stob);
-		if (rc != 0)
-			goto part_stob_put;
-	}
-	if (m0_stob_state_get(part_stob) == CSS_NOENT) {
-		rc = m0_stob_create(part_stob, NULL, dev_pathname);
-		if (rc != 0)
-			goto part_stob_put;
-	}
-
-part_stob_put:
-	m0_stob_put(part_stob);
-	return rc == 0 ? part_stob: NULL;
+	rc = m0_be_dom_id_stob_open(&domain->bd_part_stob_domain->sd_id,
+				  M0_BE_PTABLE_ENTRY_BALLOC,
+				  stob_cfg,
+				  part_stob,
+				  true);
+	m0_free(stob_cfg);
+	return rc;
 }
 
 static bool storage_devs_is_locked(const struct m0_storage_devs *devs)
@@ -468,9 +464,7 @@ static int stob_domain_create_or_init(struct m0_storage_dev  *dev,
 		rc = snprintf(location, len + 1, "adstob:%llu", cid);
 		M0_ASSERT_INFO(rc == len, "rc=%d", rc);
 		m0_stob_ad_cfg_make(&cfg, devs->sds_be_seg,
-				    m0_stob_id_get(dev->isd_part_stob == NULL ?
-						   dev->isd_stob :
-						   dev->isd_part_stob),
+				    m0_stob_id_get( dev->isd_stob ),
 				    size);
 		m0_stob_ad_init_cfg_make(&cfg_init,
 					 devs->sds_be_seg->bs_domain);
@@ -540,11 +534,11 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 	struct m0_storage_dev    *device;
 	struct m0_conf_service   *conf_service;
 	struct m0_conf_obj       *srv_obj;
-	struct m0_stob_id         stob_id;
 	struct m0_stob           *stob;
 	const char               *path = fi_no_dev ? NULL : path_orig;
-	int                       rc;
+	int                       rc = 0;
 	m0_bcount_t		  part_size;
+	bool                      part_stob = false;
 
 	M0_ENTRY("cid=%"PRIu64, cid);
 	M0_PRE(M0_IN(type, (M0_STORAGE_DEV_TYPE_LINUX, M0_STORAGE_DEV_TYPE_AD)));
@@ -567,33 +561,29 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 	device->isd_stob = NULL;
 
 	if (type == M0_STORAGE_DEV_TYPE_AD) {
-		m0_stob_id_make(0, cid, &devs->sds_back_domain->sd_id, &stob_id);
-		rc = m0_stob_find(&stob_id, &stob);
+		rc = storage_dev_get_part_stob(devs->sds_be_seg->bs_domain,
+						  path,
+						  &stob,
+						  &part_size);
 		if (rc != 0)
 			goto end;
-
-		if (m0_stob_state_get(stob) == CSS_UNKNOWN) {
-			rc = m0_stob_locate(stob);
-			if (rc != 0)
-				goto stob_put;
-		}
-		if (m0_stob_state_get(stob) == CSS_NOENT) {
-			rc = m0_stob_create(stob, NULL, path);
-			if (rc != 0)
-				goto stob_put;
-		}
-		device->isd_stob = stob;
-		device->isd_part_stob =
-			storage_dev_get_part_stob(devs->sds_be_seg->bs_domain,
-						  path,
-						  &part_size);
-		if(device->isd_part_stob != NULL){
-			m0_stob_part_add_bstore(device->isd_part_stob, stob);
+		if(stob != NULL) {
 			size = part_size;
+			part_stob = true;
 		}
+		else
+			rc = m0_be_dom_id_stob_open(&devs->sds_back_domain->sd_id,
+						    cid,
+						    path,
+						    &stob,
+						    true);
+
+		if (rc != 0)
+			goto end;
+		device->isd_stob = stob;
 	}
 
-	rc = stob_domain_create_or_init(device, devs, size, force);
+	rc = rc ? : stob_domain_create_or_init(device, devs, size, force);
 	M0_ASSERT(ergo(rc == 0, device->isd_domain != NULL));
 	if (rc == 0) {
 		if (M0_FI_ENABLED("ad_domain_locate_fail")) {
@@ -603,9 +593,12 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 			rc = M0_ERR(-EINVAL);
 		} else if (conf_sdev != NULL) {
 			if (type == M0_STORAGE_DEV_TYPE_AD &&
-			    m0_fid_validate_linuxstob(&stob_id))
-				m0_stob_linux_conf_sdev_associate(stob,
-						&conf_sdev->sd_obj.co_id);
+			    m0_fid_validate_linuxstob(m0_stob_id_get(part_stob ?
+								     m0_stob_part_bstob_get(stob): stob)))
+				m0_stob_linux_conf_sdev_associate(part_stob ?
+								  m0_stob_part_bstob_get(stob):
+								  stob,
+						                  &conf_sdev->sd_obj.co_id);
 			m0_conf_obj_get_lock(&conf_sdev->sd_obj);
 			srv_obj = m0_conf_obj_grandparent(&conf_sdev->sd_obj);
 			conf_service = M0_CONF_CAST(srv_obj, m0_conf_service);
@@ -614,7 +607,6 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 			device->isd_srv_type = conf_service->cs_type;
 		}
 	}
-stob_put:
 	if (type == M0_STORAGE_DEV_TYPE_AD) {
 		/* Release reference, taken by m0_stob_find(). */
 		m0_stob_put(stob);

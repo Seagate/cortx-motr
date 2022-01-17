@@ -384,6 +384,8 @@ static int stob_linux_open(struct m0_stob *stob,
 	char                        *file_stob;
 	int                          flags = ldom->sld_cfg.sldc_file_flags;
 	int                          rc;
+	char                        *colon;
+	char                        *sym_str;
 
 	stob->so_ops = &stob_linux_ops;
 	lstob->sl_dom = ldom;
@@ -392,10 +394,25 @@ static int stob_linux_open(struct m0_stob *stob,
 	if (file_stob == NULL)
 		return M0_ERR(-ENOMEM);
 
-	rc = create && cfg != NULL ? symlink((char *)cfg, file_stob) : 0;
+	colon = cfg == NULL ? NULL : strchr(cfg,':');
+	lstob->sl_direct_io = colon == NULL  ? false :
+		(strcmp(colon + 1, "directio=true") == 0 ? true: false) ;
+	sym_str = colon == NULL ? NULL: m0_strdup(cfg);
+	if( colon != NULL && sym_str == NULL ) {
+		m0_free(file_stob);
+		return -ENOMEM;
+	}
+	if (sym_str != NULL) {
+		sym_str[colon - (char *)cfg] = '\0';
+		rc = create ? symlink((char *)sym_str, file_stob) : 0;
+		m0_free(sym_str);
+	}
+	else
+		rc = create && cfg != NULL ? symlink((char *)cfg, file_stob) : 0;
 	flags |= O_RDWR;
 	flags |= create && cfg == NULL                ? O_CREAT  : 0;
-	flags |= m0_stob_ioq_directio(&ldom->sld_ioq) ? O_DIRECT : 0;
+	flags |= m0_stob_ioq_directio(&ldom->sld_ioq) | lstob->sl_direct_io ?
+		O_DIRECT : 0;
 	lstob->sl_fd = rc ?: open(file_stob, flags,
 				  ldom->sld_cfg.sldc_file_mode);
 	rc = lstob->sl_fd == -1 ? -errno : stob_linux_stat(lstob);
@@ -535,7 +552,8 @@ static uint32_t stob_linux_block_shift(struct m0_stob *stob)
 {
 	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
 
-	return m0_stob_ioq_bshift(&lstob->sl_dom->sld_ioq);
+	return m0_stob_ioq_bshift(lstob->sl_dom->sld_ioq.ioq_use_directio |
+				  lstob->sl_direct_io);
 }
 
 static int stob_linux_fd(struct m0_stob *stob)

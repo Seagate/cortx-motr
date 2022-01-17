@@ -97,9 +97,9 @@ M0_INTERNAL void m0_stob_ioq_directio_setup(struct m0_stob_ioq *ioq,
 					    bool use_directio);
 
 M0_INTERNAL bool m0_stob_ioq_directio(struct m0_stob_ioq *ioq);
-M0_INTERNAL uint32_t m0_stob_ioq_bshift(struct m0_stob_ioq *ioq);
-M0_INTERNAL m0_bcount_t m0_stob_ioq_bsize(struct m0_stob_ioq *ioq);
-M0_INTERNAL m0_bcount_t m0_stob_ioq_bmask(struct m0_stob_ioq *ioq);
+M0_INTERNAL uint32_t m0_stob_ioq_bshift(bool ioq_use_directio);
+M0_INTERNAL m0_bcount_t m0_stob_ioq_bsize(bool ioq_use_directio);
+M0_INTERNAL m0_bcount_t m0_stob_ioq_bmask(bool ioq_use_directio);
 
 M0_INTERNAL int m0_stob_linux_io_init(struct m0_stob *stob,
 				      struct m0_stob_io *io);

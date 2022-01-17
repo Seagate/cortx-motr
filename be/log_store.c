@@ -240,7 +240,6 @@ static int be_log_store_level_enter(struct m0_module *module)
 	struct m0_be_log_store *ls    = be_log_store_module2store(module);
 	int                     level = module->m_cur + 1;
 	struct m0_stob_id      *stob_id = &ls->ls_cfg.lsc_stob_id;
-	struct m0_stob_id       part_stob_id;
 	m0_bcount_t             size;
 	m0_bcount_t             header_size;
 	uint32_t                shift;
@@ -256,6 +255,8 @@ static int be_log_store_level_enter(struct m0_module *module)
 		ls->ls_offset_discarded = 0;
 		return 0;
 	case M0_BE_LOG_STORE_LEVEL_STOB_DOMAIN:
+		if(ls->ls_cfg.lsc_part_mode_log)
+			return 0;
 		if (ls->ls_create_mode) {
 			/* Destroy stob domain if exists. */
 			rc = m0_stob_domain_init(
@@ -277,6 +278,10 @@ static int be_log_store_level_enter(struct m0_module *module)
 					   ls->ls_cfg.lsc_stob_domain_init_cfg,
 					   &ls->ls_stob_domain);
 	case M0_BE_LOG_STORE_LEVEL_STOB_FIND:
+		if(ls->ls_cfg.lsc_part_mode_log)
+			stob_id->si_domain_fid =
+				*m0_stob_domain_id_get(ls->ls_cfg.lsc_part_domain);
+		else
 		/*
 		 * As BE log is no longer in 0types, it's configuration
 		 * contains only stob domain location and the stob fid.
@@ -290,51 +295,41 @@ static int be_log_store_level_enter(struct m0_module *module)
 		 * XXX TODO remote this after paged is implemented.
 		 */
 		/* temporary solution BEGIN */
-		stob_id->si_domain_fid =
-			*m0_stob_domain_id_get(ls->ls_stob_domain);
-		//if(ls->ls_cfg.lsc_ad_mode)
-		//	stob_id->si_fid.f_key = M0_BE_PTABLE_ENTRY_LOG;
+			stob_id->si_domain_fid =
+				*m0_stob_domain_id_get(ls->ls_stob_domain);
 		/* temporary solution END */
-		return m0_stob_find(stob_id, &ls->ls_b_stob);
+		return m0_stob_find(stob_id, &ls->ls_stob);
 	case M0_BE_LOG_STORE_LEVEL_STOB_LOCATE:
-		if (m0_stob_state_get(ls->ls_b_stob) == CSS_UNKNOWN)
-		       return m0_stob_locate(ls->ls_b_stob);
-		return 0;
-	case M0_BE_LOG_STORE_LEVEL_STOB_CREATE:
-		if (ls->ls_create_mode) {
-			return m0_stob_create(ls->ls_b_stob, NULL,
-					      ls->ls_cfg.lsc_stob_create_cfg);
-		}
-		return m0_stob_state_get(ls->ls_b_stob) == CSS_EXISTS ?
-		       0 : M0_ERR(-ENOENT);
-	case M0_BE_LOG_STORE_LEVEL_PART_STOB_FIND:
-		if(!ls->ls_cfg.lsc_part_mode_log){
-			ls->ls_stob = ls->ls_b_stob;
-			return 0;
-		}
-		M0_ASSERT(ls->ls_cfg.lsc_part_domain != NULL);
-		m0_stob_id_make(0, M0_BE_PTABLE_ENTRY_LOG, &ls->ls_cfg.lsc_part_domain->sd_id, &part_stob_id);
-		return M0_RC(m0_stob_find(&part_stob_id, &ls->ls_stob));
-	case M0_BE_LOG_STORE_LEVEL_PART_STOB_LOCATE:
-		if(!ls->ls_cfg.lsc_part_mode_log)
-			return 0;
 		if (m0_stob_state_get(ls->ls_stob) == CSS_UNKNOWN)
 		       return m0_stob_locate(ls->ls_stob);
 		return 0;
-	case M0_BE_LOG_STORE_LEVEL_PART_STOB_CREATE:
-		if(!ls->ls_cfg.lsc_part_mode_log)
-			return 0;
+	case M0_BE_LOG_STORE_LEVEL_STOB_CREATE:
 		if (ls->ls_create_mode) {
-			if(m0_stob_state_get(ls->ls_stob) != CSS_EXISTS)
-				return m0_stob_create(ls->ls_stob, NULL,
-						      ls->ls_cfg.lsc_stob_create_cfg);
-		}
+			char	*stob_cfg = NULL;
 
+			if(ls->ls_cfg.lsc_part_mode_log) {
+				char    *direct_io_cfg="directio:true";
+				stob_cfg =
+					m0_alloc(strlen(ls->ls_cfg.lsc_stob_create_cfg) +
+						    ARRAY_SIZE(direct_io_cfg) + 2 );
+				if (stob_cfg!= NULL)
+					sprintf(stob_cfg, "%s:%s",
+						ls->ls_cfg.lsc_stob_create_cfg,
+						direct_io_cfg);
+				else
+					return -ENOMEM;
+			}
+			rc = m0_stob_create(ls->ls_stob, NULL,
+					    stob_cfg == NULL ?
+					    ls->ls_cfg.lsc_stob_create_cfg:
+					    stob_cfg);
+			if(stob_cfg!= NULL)
+				m0_free(stob_cfg);
+			return rc;
+		}
 		return m0_stob_state_get(ls->ls_stob) == CSS_EXISTS ?
 		       0 : M0_ERR(-ENOENT);
-	case M0_BE_LOG_STORE_LEVEL_ZERO:
-		if(ls->ls_cfg.lsc_part_mode_log)
-			m0_stob_part_add_bstore(ls->ls_stob, ls->ls_b_stob);
+		case M0_BE_LOG_STORE_LEVEL_ZERO:
 		if (ls->ls_create_mode) {
 			M0_ASSERT(ergo(ls->ls_cfg.lsc_stob_create_cfg != NULL,
 				       !ls->ls_cfg.lsc_stob_dont_zero));
@@ -441,6 +436,8 @@ static void be_log_store_level_leave(struct m0_module *module)
 	case M0_BE_LOG_STORE_LEVEL_ASSIGNS:
 		break;
 	case M0_BE_LOG_STORE_LEVEL_STOB_DOMAIN:
+		if(ls->ls_cfg.lsc_part_mode_log)
+			return ;
 		if (ls->ls_destroy_mode) {
 			rc = m0_stob_domain_destroy(ls->ls_stob_domain);
 			M0_ASSERT_INFO(rc == 0, "rc = %d", rc); /* XXX */
@@ -450,24 +447,16 @@ static void be_log_store_level_leave(struct m0_module *module)
 		break;
 	case M0_BE_LOG_STORE_LEVEL_STOB_FIND:
 		if (!ls->ls_stob_destroyed)
-			m0_stob_put(ls->ls_b_stob);
+			m0_stob_put(ls->ls_stob);
 		break;
 	case M0_BE_LOG_STORE_LEVEL_STOB_LOCATE:
 		break;
 	case M0_BE_LOG_STORE_LEVEL_STOB_CREATE:
 		if (ls->ls_destroy_mode) {
-			rc = m0_stob_destroy(ls->ls_b_stob, NULL);
+			rc = m0_stob_destroy(ls->ls_stob, NULL);
 			M0_ASSERT_INFO(rc == 0, "rc = %d", rc); /* XXX */
 			ls->ls_stob_destroyed = true;
 		}
-		break;
-	case M0_BE_LOG_STORE_LEVEL_PART_STOB_FIND:
-		if(ls->ls_cfg.lsc_part_mode_log)
-		m0_stob_put(ls->ls_stob);
-		break;
-	case M0_BE_LOG_STORE_LEVEL_PART_STOB_LOCATE:
-		break;
-	case M0_BE_LOG_STORE_LEVEL_PART_STOB_CREATE:
 		break;
 	case M0_BE_LOG_STORE_LEVEL_ZERO:
 		break;
@@ -518,21 +507,6 @@ static const struct m0_modlev be_log_store_levels[] = {
 	},
 	[M0_BE_LOG_STORE_LEVEL_STOB_CREATE] = {
 		.ml_name  = "M0_BE_LOG_STORE_LEVEL_STOB_CREATE",
-		.ml_enter = be_log_store_level_enter,
-		.ml_leave = be_log_store_level_leave,
-	},
-	[M0_BE_LOG_STORE_LEVEL_PART_STOB_FIND] = {
-		.ml_name  = "M0_BE_LOG_STORE_LEVEL_PART_STOB_FIND",
-		.ml_enter = be_log_store_level_enter,
-		.ml_leave = be_log_store_level_leave,
-	},
-	[M0_BE_LOG_STORE_LEVEL_PART_STOB_LOCATE] = {
-		.ml_name  = "M0_BE_LOG_STORE_LEVEL_PART_STOB_LOCATE",
-		.ml_enter = be_log_store_level_enter,
-		.ml_leave = be_log_store_level_leave,
-	},
-	[M0_BE_LOG_STORE_LEVEL_PART_STOB_CREATE] = {
-		.ml_name  = "M0_BE_LOG_STORE_LEVEL_PART_STOB_CREATE",
 		.ml_enter = be_log_store_level_enter,
 		.ml_leave = be_log_store_level_leave,
 	},

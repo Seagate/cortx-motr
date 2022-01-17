@@ -109,9 +109,6 @@ enum {
 	M0_BE_LOG_STORE_LEVEL_STOB_FIND,
 	M0_BE_LOG_STORE_LEVEL_STOB_LOCATE,
 	M0_BE_LOG_STORE_LEVEL_STOB_CREATE,
-	M0_BE_LOG_STORE_LEVEL_PART_STOB_FIND,
-	M0_BE_LOG_STORE_LEVEL_PART_STOB_LOCATE,
-	M0_BE_LOG_STORE_LEVEL_PART_STOB_CREATE,
 	M0_BE_LOG_STORE_LEVEL_ZERO,
 	M0_BE_LOG_STORE_LEVEL_LS_HEADER_INIT,
 	M0_BE_LOG_STORE_LEVEL_LS_HEADER_BUF_ALLOC,
@@ -196,7 +193,6 @@ struct m0_be_log_store {
 	struct m0_module                  ls_module;
 
 	struct m0_stob                   *ls_stob;
-	struct m0_stob                   *ls_b_stob;
 	/*
 	 * Temporary solution.
 	 * @see m0_be_log_store_cfg::lsc_stob_domain_location

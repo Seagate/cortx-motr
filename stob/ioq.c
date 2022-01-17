@@ -277,7 +277,9 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 		iocb->u.v.vec = iov;
 		iocb->aio_fildes = lstob->sl_fd;
 		iocb->u.v.nr = min32u(frags, IOV_MAX);
-		iocb->u.v.offset = off << m0_stob_ioq_bshift(ioq);
+		iocb->u.v.offset = off <<
+			m0_stob_ioq_bshift(ioq->ioq_use_directio |
+					   lstob->sl_direct_io);
 		iocb->aio_lio_opcode = opcode;
 
 		for (i = 0; i < iocb->u.v.nr; ++i) {
@@ -299,8 +301,11 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 			}
 
 			iov->iov_base = m0_stob_addr_open(buf,
-						m0_stob_ioq_bshift(ioq));
-			iov->iov_len  = frag_size << m0_stob_ioq_bshift(ioq);
+						m0_stob_ioq_bshift(ioq->ioq_use_directio |
+								   lstob->sl_direct_io));
+			iov->iov_len  = frag_size <<
+				m0_stob_ioq_bshift(ioq->ioq_use_directio |
+						   lstob->sl_direct_io);
 			chunk_size += frag_size;
 
 			m0_vec_cursor_move(&src, frag_size);
@@ -313,9 +318,13 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 		       (int)(qev - lio->si_qev), i, io->si_opcode,
 		       (unsigned long)off, (unsigned long)chunk_size, result);
 		if (result == 0) {
-			qev->iq_offset = off << m0_stob_ioq_bshift(ioq);
+			qev->iq_offset = off <<
+				m0_stob_ioq_bshift(ioq->ioq_use_directio |
+						   lstob->sl_direct_io);
 			iocb->u.v.nr = i;
-			qev->iq_nbytes = chunk_size << m0_stob_ioq_bshift(ioq);
+			qev->iq_nbytes = chunk_size <<
+				m0_stob_ioq_bshift(ioq->ioq_use_directio |
+						   lstob->sl_direct_io);
 
 			ioq_queue_put(ioq, qev);
 
@@ -475,7 +484,8 @@ static void ioq_io_error(struct m0_stob_ioq *ioq, struct ioq_qev *qev)
 				/* IO info */
 				.sie_opcode    = io->si_opcode,
 				.sie_rc        = io->si_rc,
-				.sie_bshift    = m0_stob_ioq_bshift(ioq),
+				.sie_bshift    = m0_stob_ioq_bshift(ioq->ioq_use_directio |
+								    lstob->sl_direct_io),
 				.sie_size      = qev->iq_nbytes,
 				.sie_offset    = qev->iq_offset,
 			},
@@ -503,6 +513,7 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 	struct stob_linux_io *lio  = io->si_stob_private;
 	struct iocb          *iocb = &qev->iq_iocb;
 	const struct m0_fid  *fid  = m0_stob_fid_get(io->si_obj);
+	struct m0_stob_linux *lstob = m0_stob_linux_container(io->si_obj);
 
 	static bool emulate_disk_error_found = false;
 
@@ -532,7 +543,8 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 	}
 
 	if (res > 0) {
-		if ((res & m0_stob_ioq_bmask(ioq)) != 0)
+		if ((res & m0_stob_ioq_bmask(ioq->ioq_use_directio |
+					     lstob->sl_direct_io)) != 0)
 			res = M0_ERR(-EIO);
 		else
 			m0_atomic64_add(&lio->si_bdone, res);
@@ -581,7 +593,8 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 
 		M0_LOG(M0_DEBUG, FID_F" nr=%d sz=%lx si_rc=%d", FID_P(fid),
 		       lio->si_nr, (unsigned long)bdone, (int)io->si_rc);
-		io->si_count = bdone >> m0_stob_ioq_bshift(ioq);
+		io->si_count = bdone >> m0_stob_ioq_bshift(ioq->ioq_use_directio |
+							   lstob->sl_direct_io);
 		M0_ADDB2_ADD(M0_AVI_STOB_IO_END, FID_P(fid),
 			     m0_time_sub(m0_time_now(), io->si_start),
 			     io->si_rc, io->si_count, lio->si_nr);
@@ -733,19 +746,20 @@ M0_INTERNAL void m0_stob_ioq_fini(struct m0_stob_ioq *ioq)
 	m0_mutex_fini(&ioq->ioq_lock);
 }
 
-M0_INTERNAL uint32_t m0_stob_ioq_bshift(struct m0_stob_ioq *ioq)
+M0_INTERNAL uint32_t m0_stob_ioq_bshift(bool ioq_use_directio)
 {
-	return ioq->ioq_use_directio ? STOB_IOQ_BSHIFT : 0;
+
+	return ioq_use_directio ? STOB_IOQ_BSHIFT : 0;
 }
 
-M0_INTERNAL m0_bcount_t m0_stob_ioq_bsize(struct m0_stob_ioq *ioq)
+M0_INTERNAL m0_bcount_t m0_stob_ioq_bsize(bool ioq_use_directio)
 {
-	return ioq->ioq_use_directio ? STOB_IOQ_BSIZE : 0;
+	return ioq_use_directio ? STOB_IOQ_BSIZE : 0;
 }
 
-M0_INTERNAL m0_bcount_t m0_stob_ioq_bmask(struct m0_stob_ioq *ioq)
+M0_INTERNAL m0_bcount_t m0_stob_ioq_bmask(bool ioq_use_directio)
 {
-	return ioq->ioq_use_directio ? STOB_IOQ_BMASK : 0;
+	return ioq_use_directio ? STOB_IOQ_BMASK : 0;
 }
 
 M0_INTERNAL bool m0_stob_ioq_directio(struct m0_stob_ioq *ioq)

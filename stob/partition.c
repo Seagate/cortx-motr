@@ -86,12 +86,14 @@ struct part_stob_cfg {
 	m0_bcount_t  psg_size_in_chunks;
 };
 
+static void stob_part_bstob_add(struct m0_stob *part_stob,
+			     struct m0_stob *part_bstob);
+
 static int stob_part_io_init(struct m0_stob *stob, struct m0_stob_io *io);
 static int stob_part_punch(struct m0_stob *stob,
 			   struct m0_indexvec *range,
 			   struct m0_dtx *tx);
 
-static struct m0_stob* stob_part_get_bstore(struct m0_stob *part_stob);
 static void stob_part_write_credit(const struct m0_stob_domain *dom,
 				   const struct m0_stob_io     *iv,
 				   struct m0_be_tx_credit      *accum)
@@ -250,10 +252,10 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 	/* 1 chunk for partition table itself */
 	if (part_init_cfg->bpc_part_mode_seg0) {
 		cfg->pc_part_alloc_info[part_users].ai_part_id = M0_BE_PTABLE_ENTRY_SEG0;
-		cfg->pc_part_alloc_info[part_users].ai_def_size_in_chunks = 
+		cfg->pc_part_alloc_info[part_users].ai_def_size_in_chunks =
 			part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_seg0_size_in_chunks;
 		part_users++;
-	}	
+	}
 
 	if (part_init_cfg->bpc_part_mode_log) {
 		cfg->pc_part_alloc_info[part_users].ai_part_id = M0_BE_PTABLE_ENTRY_LOG;
@@ -359,12 +361,7 @@ static void stob_part_domain_fini(struct m0_stob_domain *dom)
 
 		m0_stob_put(dom_priv->b_ptable_stob);
 		for( i = 0; i < dom_priv->b_current_stobs; i++)
-			/*TODO: remove below check to exclude the log and data
-			 * part stob creation once single domain implemented */
-			if(!M0_IN(dom_priv->b_stobs[i].b_part_id,
-			    (M0_BE_PTABLE_ENTRY_BALLOC,
-	                     M0_BE_PTABLE_ENTRY_LOG)))
-				m0_stob_put(dom_priv->b_stobs[i].b_part_stob);
+			m0_stob_put(dom_priv->b_stobs[i].b_part_stob);
 		m0_free(dom);
 	}
 }
@@ -457,7 +454,7 @@ static int stob_part_bstob_create(struct m0_stob        *part_stob,
 				    stob_fid->f_key,
 				    str_cfg, &b_stob, create);
 	if (rc == 0)
-		m0_stob_part_add_bstore(part_stob, b_stob);
+		stob_part_bstob_add(part_stob, b_stob);
 
 	return rc;
 }
@@ -485,14 +482,7 @@ static int stob_part_prepare_table(struct m0_stob        *stob,
 	if ( m0_be_ptable_get_part_info(&pt))
 		return M0_ERR(-EAGAIN);
 
-	/*
-	 * TODO: remove below check to exclude the log and data
-	 *  part stob creation once single domain implemented */
-
-	if(M0_IN(partstob->part_id,(M0_BE_PTABLE_ENTRY_BALLOC,
-				     M0_BE_PTABLE_ENTRY_LOG)))
-		goto alloc_arr;
-	b_stob = stob_part_get_bstore(stob);
+	b_stob = m0_stob_part_bstob_get(stob);
 	if (create) {
 		if (b_stob != NULL)
 			return -EEXIST;
@@ -508,7 +498,7 @@ static int stob_part_prepare_table(struct m0_stob        *stob,
 	}
 	if (rc != 0)
 		return rc;
-alloc_arr:
+
 	M0_ALLOC_ARR(partstob->part_table,
 		     partstob->part_size_in_chunks);
 	if (partstob->part_table == NULL)
@@ -601,7 +591,7 @@ static int stob_part_destroy(struct m0_stob *stob, struct m0_dtx *tx)
 
 	M0_ENTRY();
 	M0_ASSERT(tx == NULL);
-	b_stob = stob_part_get_bstore(stob);
+	b_stob = m0_stob_part_bstob_get(stob);
 	M0_ASSERT(b_stob != NULL);
 	return b_stob->so_ops->sop_destroy(b_stob, NULL);
 }
@@ -618,7 +608,7 @@ static uint32_t stob_part_block_shift(struct m0_stob *stob)
 	struct m0_stob_part *partstob = stob_part_stob2part(stob);
 	struct m0_stob        *b_stob;
 
-	b_stob = stob_part_get_bstore(stob);
+	b_stob = m0_stob_part_bstob_get(stob);
 
 	switch(partstob->part_id) {
 		case M0_BE_PTABLE_ENTRY_SEG0:
@@ -635,7 +625,7 @@ static int stob_part_fd(struct m0_stob *stob)
 {
 	struct m0_stob        *b_stob;
 
-	b_stob = stob_part_get_bstore(stob);
+	b_stob = m0_stob_part_bstob_get(stob);
 	M0_ASSERT(b_stob != NULL &&
 		  b_stob->so_ops != NULL &&
 		  b_stob->so_ops->sop_fd != NULL);
@@ -957,7 +947,7 @@ static int stob_part_io_launch_prepare(struct m0_stob_io *io)
 	return rc;
 }
 
-void m0_stob_part_add_bstore(struct m0_stob *part_stob,
+static void stob_part_bstob_add(struct m0_stob *part_stob,
 			     struct m0_stob *part_bstob)
 {
 	struct m0_stob_domain     *part_dom;
@@ -975,7 +965,7 @@ void m0_stob_part_add_bstore(struct m0_stob *part_stob,
 	dom_priv->b_current_stobs++;
 }
 
-static struct m0_stob* stob_part_get_bstore(struct m0_stob *part_stob)
+M0_INTERNAL struct m0_stob* m0_stob_part_bstob_get(struct m0_stob *part_stob)
 {
 	struct m0_stob_domain     *part_dom;
 	struct stob_part_dom_priv *dom_priv;
@@ -1034,7 +1024,7 @@ static int stob_part_io_launch(struct m0_stob_io *io)
 		M0_ADDB2_ADD(M0_AVI_STOB_IO_REQ, io->si_id,
 			     M0_AVI_AD_SORT_END);
 		rc = m0_stob_io_prepare_and_launch(back,
-						   stob_part_get_bstore(io->si_obj),
+						   m0_stob_part_bstob_get(io->si_obj),
 						   io->si_tx, io->si_scope);
 		wentout = rc == 0;
 	} else {

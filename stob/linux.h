@@ -62,6 +62,8 @@ struct m0_stob_linux {
 	mode_t			     sl_mode;
 	/** fid of the corresponding m0_conf_sdev object */
 	struct m0_fid                sl_conf_sdev;
+	/** direct io attribute*/
+	bool                         sl_direct_io;
 };
 
 M0_INTERNAL struct m0_stob_linux *m0_stob_linux_container(struct m0_stob *stob);

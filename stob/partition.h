@@ -87,8 +87,8 @@ struct m0_stob_part_io {
 };
 
 extern const struct m0_stob_type m0_stob_part_type;
-M0_INTERNAL void m0_stob_part_add_bstore(struct m0_stob *part_stob,
-					 struct m0_stob *part_bstob);
+M0_INTERNAL struct m0_stob* m0_stob_part_bstob_get(struct m0_stob *part_stob);
+
 /** @} end group stobpart */
 
 /* __MOTR_STOB_PARTITION_INTERNAL_H__ */
