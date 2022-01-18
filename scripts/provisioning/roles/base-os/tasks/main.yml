@@ -35,7 +35,7 @@
             path: /etc/redhat-release
           register: redhat_release_file
         - set_fact:
-            redhat_full_release: '{{ redhat_release_file.content | b64decode | regex_search("\d+\.\d+\.\d+") }}'
+            redhat_full_release: '{{ redhat_release_file.content | b64decode | regex_search("\d+(\.\d+(\.\d+)?)?") }}'
     - name: get closest release repo
       # find first vault release that is less or equal to the current redhat release version
       shell: |
@@ -95,6 +95,11 @@
     gpgcheck: no
   when: ansible_os_family == 'RedHat'
   tags: debuginfo
+
+- name: enable PowerTools repo
+  command: yum config-manager --set-enabled powertools
+  when: ansible_os_family == "RedHat" and ansible_distribution_major_version|int >= 8
+  ignore_errors: yes # maybe it's called differently in yum.repo.d
 
 - name: configure 'ZFS' repository
   package:

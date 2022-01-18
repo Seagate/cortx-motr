@@ -28,5 +28,3 @@
     - lustre-client
     - motr-build
     - motr-runtime
-    - halon-build
-    - halon-runtime

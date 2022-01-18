@@ -20,6 +20,7 @@
 ---
 basic_tools_pkgs:
   - ansible  # for local mode, helpful on Windouz hosts
+  - yum-utils
   - dstat
   - emacs
   - htop
@@ -37,7 +38,6 @@ basic_tools_pkgs:
   - wget
   # machine autodicovery by hostname
   - avahi
-  - avahi-tools
   - bind-utils
   - nss-mdns
   # remote syslog
