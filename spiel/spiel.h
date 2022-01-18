@@ -1270,11 +1270,12 @@ struct m0_spiel_bcrec {
  * Holds counters stats fetched from a target ioservice.
  * Stats of an ioservice's btree are dumped into an array of key-value pairs.
  * The keys and values are index mapped, ie. pc_bcrec[i] will hold values
- * for pc_bckey[i].
+ * for pc_bckey[i]. m0_spiel_proc_counters_fetch() will allocate and fill the
+ * key and value arrays.
  */
 struct m0_proc_counter {
 	int                     pc_rc;
-	uint32_t                pc_cnt;
+	uint32_t                pc_cnt; /** Length of Key and Value arrays */
 	struct m0_fid           pc_proc_fid;
 	struct m0_spiel_bckey **pc_bckey;
 	struct m0_spiel_bcrec **pc_bcrec;
