@@ -619,6 +619,7 @@ int parse_yaml_file(struct workload *load, int max_workload, int *index,
 	fh = fopen(config_file, "r");
 	if (fh == NULL) {
 		cr_log(CLL_ERROR, "Failed to open file!\n");
+		yaml_parser_delete(&parser);
 		return -1;
 	}
 
@@ -651,8 +652,10 @@ int parse_yaml_file(struct workload *load, int max_workload, int *index,
 		}
 
 		if (rc != 0) {
-			fclose(fh);
 			cr_log(CLL_ERROR, "Failed to parse %s\n", key);
+			yaml_token_delete(&token);
+			yaml_parser_delete(&parser);
+			fclose(fh);
 			return rc;
 		}
 
@@ -662,9 +665,8 @@ int parse_yaml_file(struct workload *load, int max_workload, int *index,
 	} while (token.type != YAML_STREAM_END_TOKEN);
 
 	yaml_token_delete(&token);
-
 	yaml_parser_delete(&parser);
-	/*fclose(fh);*/
+	fclose(fh);
 	return 0;
 }
 

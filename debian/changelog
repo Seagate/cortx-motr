@@ -1,0 +1,5 @@
+cortx-motr (2.0.0-1) UNRELEASED; urgency=medium
+
+  * Initial release.
+
+ -- Andriy Tkachuk <andriy.tkachuk@seagate.com>  Mon, 10 Jan 2022 21:45:51 +0000
