@@ -2071,6 +2071,7 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 
 	count_stats->pc_bcrec[0]->sbr_byte_count = 4096;
 	count_stats->pc_bcrec[0]->sbr_object_count = 1;
+	count_stats->pc_cnt = 1;
 	count_stats->pc_rc = 0;
 
 //obj_close:

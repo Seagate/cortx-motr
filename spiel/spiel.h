@@ -1274,6 +1274,7 @@ struct m0_spiel_bcrec {
  */
 struct m0_proc_counter {
 	int                     pc_rc;
+	uint32_t                pc_cnt;
 	struct m0_fid           pc_proc_fid;
 	struct m0_spiel_bckey **pc_bckey;
 	struct m0_spiel_bcrec **pc_bcrec;
