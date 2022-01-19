@@ -35,20 +35,20 @@ pkg=
 
 which git || sudo yum install -y git
 
-[[ -d cortx-motr ]] || {
+[[ -f scripts/$(basename "$0") ]] || [[ -d cortx-motr ]] || {
     git clone --recurse https://github.com/Seagate/cortx-motr.git &&
         ln -s cortx-motr motr
 }
 
-cd motr
-
 echo 'Install Motr deps...'
 if [[ $pkg == "yes" ]]; then
+    [[ -f scripts/$(basename "$0") ]] || cd motr
     sudo scripts/install-build-deps --no-ansible
 else
     sudo yum install -y epel-release # Install EPEL yum repo
     sudo yum install -y epel-release # Update to the latest version
     sudo yum install -y ansible
+    [[ -f scripts/$(basename "$0") ]] || cd motr
     sudo scripts/install-build-deps
 fi
 
@@ -67,7 +67,7 @@ else
     ls -t ~/rpmbuild/RPMS/$(arch)/cortx-motr{,-devel,-debuginfo}-2* | head -3 |
         xargs sudo rpm -U --force --nodeps
 fi
-cd -
+cd ..
 
 echo 'Install Hare deps...'
 
