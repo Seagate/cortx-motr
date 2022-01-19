@@ -101,6 +101,7 @@
 #include "motr/m0crate/crate_client_utils.h"
 #include "motr/st/utils/helper.c"
 
+extern struct crate_conf *conf;
 
 void integrity(struct m0_uint128 object_id, unsigned char **md5toverify,
 		int block_count, int idx_op);
@@ -364,6 +365,8 @@ int cr_namei_create(struct m0_workload_io *cwi,
 		    int                    obj_idx,
 		    int                    op_index)
 {
+	if (conf->is_di)
+		obj->ob_entity.en_flags |= M0_ENF_DI;
 	return m0_entity_create(check_fid(&cwi->cwi_pool_id),
 				&obj->ob_entity, &cti->cti_ops[free_slot]);
 }
@@ -384,6 +387,8 @@ int cr_namei_open(struct m0_workload_io *cwi,
 	M0_PRE(obj != NULL);
 	M0_SET0(obj);
 	m0_obj_init(obj, crate_uber_realm(), id, cwi->cwi_layout_id);
+	if (conf->is_di)
+		obj->ob_entity.en_flags |= M0_ENF_DI;
 	return m0_entity_open(&obj->ob_entity, &cti->cti_ops[free_slot]);
 }
 

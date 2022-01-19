@@ -41,6 +41,7 @@ struct crate_conf {
         bool is_addb_init;
         bool is_oostrore;
         bool is_read_verify;
+        bool is_di;
         char *local_addr;
         char *ha_addr;
         char *prof;

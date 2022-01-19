@@ -77,6 +77,7 @@ static void copy_usage(FILE *file, char *prog_name)
                                  "rpc msg size\n"
 "  -q, --min_queue      INT       Minimum length of the receive queue i.e 16\n"
 "  -u, --update_mode              Object update mode\n"
+"  -d, --data-integrity INT       Data Integrity flag\n"
 "  -h, --help                     Shows this help text and exit.\n"
 , prog_name, WIDTH, ' ', WIDTH, ' ', WIDTH, ' ', WIDTH, ' ', WIDTH, ' ');
 }
@@ -113,7 +114,7 @@ int main(int argc, char **argv)
 		      cp_param.cup_id, cp_param.cup_block_size,
 		      cp_param.cup_block_count, cp_param.cup_offset,
 		      cp_param.cup_blks_per_io, cp_param.cup_take_locks,
-		      cp_param.cup_update_mode);
+		      cp_param.cup_update_mode, cp_param.di_flag);
 	if (rc < 0) {
 		if (rc == -EEXIST) {
 			fprintf(stderr, "Object "U128X_F" already exists: "

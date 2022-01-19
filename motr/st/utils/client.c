@@ -103,6 +103,7 @@ static void c0client_usage(FILE *file, char *prog_name)
                                    "%*c Note: this should match with m0d's current "
                                    "rpc msg size\n"
 "  -q, --min_queue      INT         Minimum length of the receive queue i.e 16\n"
+"  -d, --data-integrity INT         Data Integrity flag\n"
 "  -h, --help                       Shows this help text and exit\n"
 , prog_name, WIDTH, ' ');
 }
@@ -167,7 +168,7 @@ int main(int argc, char **argv)
 				     block_size, block_count, offset,
 				     blocks_per_io,
 				     params.cup_take_locks,
-				     0, NULL);
+				     0, NULL, params.di_flag);
 		} else if (strcmp(arg, "write") == 0) {
 			GET_COMMON_ARG(arg, fname, saveptr, id,
 				       block_size, block_count,
@@ -196,7 +197,7 @@ int main(int argc, char **argv)
 			rc = m0_write(&container, fname, id,
 				      block_size, block_count, offset,
 				      blocks_per_io, params.cup_take_locks,
-				      update_flag);
+				      update_flag, params.di_flag);
 		} else if (strcmp(arg, "touch") == 0) {
 			GET_ARG(arg, NULL, &saveptr);
 			m0_obj_id_sscanf(arg, &id);

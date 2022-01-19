@@ -55,6 +55,7 @@ enum config_key_val {
 	ADDB_INIT,
 	ADDB_SIZE,
 	LOG_LEVEL,
+	DI,
 	/*
 	 * All parameters below are workload-specific,
 	 * anything else should be added above this point.
@@ -157,6 +158,7 @@ struct key_lookup_table lookuptable[] = {
 	{"MODE", MODE},
 	{"MAX_NR_OPS", MAX_NR_OPS},
 	{"NR_ROUNDS", NR_ROUNDS},
+	{"DI", DI},
 };
 
 #define NKEYS (sizeof(lookuptable)/sizeof(struct key_lookup_table))
@@ -333,6 +335,9 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			break;
 		case ADDB_INIT:
 			conf->is_addb_init = atoi(value);
+			break;
+		case DI:
+			conf->is_di = atoi(value);
 			break;
 		case ADDB_SIZE:
 			conf->addb_size = getnum(value, "addb size");

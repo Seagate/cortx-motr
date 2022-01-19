@@ -221,10 +221,10 @@ object_io_test()
 	endpoint_opts="-l $local_endpoint -H $ha_endpoint -p $profile_fid \
 		       -P $process_fid"
 	rm -f $dest_file
-	m0cp $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count $src_file || {
+	m0cp -d $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count $src_file || {
 		error_handling "Failed to write object" $?
 	}
-	m0cat $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count $dest_file || {
+	m0cat -d $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count $dest_file || {
 		error_handling "Failed to read object" $?
 	}
 	diff $src_file $dest_file || {
@@ -238,10 +238,10 @@ object_io_test()
 	m0touch $endpoint_opts -o $obj_id2 || {
 		error_handling "Failed to create object" $?
 	}
-	m0cp $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count $src_file -u || {
+	m0cp -d $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count $src_file -u || {
 		error_handling "Failed to write object" $?
 	}
-	m0cat $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count $dest_file || {
+	m0cat -d $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count $dest_file || {
 		error_handling "Failed to read object" $?
 	}
 	diff $src_file $dest_file || {
@@ -263,10 +263,10 @@ object_io_test()
 	}
 	endpoint_opts="-l $local_endpoint -H $ha_endpoint -p $profile_fid \
 		       -P $process_fid"
-	m0cp $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count $src_file -L 9 || {
+	m0cp -d $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count $src_file -L 9 || {
 		error_handling "Failed to write object" $?
 	}
-	m0cat $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count -L 9 $dest_file || {
+	m0cat -d $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count -L 9 $dest_file || {
 		error_handling "Failed to read object" $?
 	}
 	diff $src_file $dest_file || {
