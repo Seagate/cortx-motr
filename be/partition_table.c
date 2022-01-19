@@ -52,8 +52,6 @@ static int be_ptable_verify_table(struct m0_be_ptable_part_table *part_table)
  *   SUCCESS  - Zero
  *   FAILED   - Negative value
  */
-//M0_INTERNAL int m0_be_ptable_create_init(struct m0_be_domain *domain,
-//M0_INTERNAL int m0_be_ptable_create_init(uint64_t sd_domain_fid,
 M0_INTERNAL int m0_be_ptable_create_init(void *be_domain,
 					 bool  is_mkfs,
 					 struct m0_be_ptable_part_config
@@ -208,23 +206,23 @@ M0_INTERNAL int m0_be_ptable_create_init(void *be_domain,
 	}
 	temp_partition_table = partition_table;
 	M0_ASSERT(partition_table->pt_chunk_size_in_bits >= 20);
-	// copy static info
+	/** copy static info */
 	memcpy ((void *)&rd_partition_table, temp_partition_table,
 		offsetof(struct m0_be_ptable_part_table, pt_par_tbl_footer));
-	//copy partition info
-	temp_partition_table += offsetof(struct m0_be_ptable_part_table,
+	/** copy partition info */
+	temp_partition_table = (char*)temp_partition_table +
+				offsetof(struct m0_be_ptable_part_table,
 					 pt_par_tbl_footer);
 
 	rd_partition_table.pt_pri_part_info = temp_partition_table;
-	// copy footer
-	temp_partition_table +=  primary_partition_size;
+	/** copy footer */
+	temp_partition_table = (char*)temp_partition_table +
+				primary_partition_size;
         memcpy((void *)&rd_partition_table.pt_par_tbl_footer,
 	       temp_partition_table,
 	       sizeof(struct m0_format_footer));
 	is_part_table_initilized = true;
 	m0_stob_put(stob);
-	//fixme: commented the below line
-	//domain->bd_partition_table = &rd_partition_table;
 	M0_LEAVE();
 	return M0_RC(rc);
 out:

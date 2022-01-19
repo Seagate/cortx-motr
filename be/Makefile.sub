@@ -62,7 +62,6 @@ motr_libmotr_la_SOURCES += be/alloc.c           \
 			   be/log_store.c       \
 			   be/op.c              \
                            be/partition_table.c \
-                           be/test_partition_table.c \
                            be/pool.c            \
                            be/pd.c              \
 			   be/queue.c           \

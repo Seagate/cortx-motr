@@ -73,14 +73,14 @@ storage_dev_get_part_stob(struct m0_be_domain *domain,
 	struct m0_be_ptable_part_tbl_info  primary_part_info;
 	struct m0_be_ptable_alloc_info    *alloc_info;
 	int                                i;
-	int				   rc = 0;
+	int				   rc;
 	char				  *stob_cfg;
 	char                              *direct_io_cfg = "directio=true";
 	*part_stob = NULL;
 	if(!domain->bd_cfg.bc_part_cfg.bpc_part_mode_data)
-		return rc;
+		return 0;
 
-	rc = rc ? : m0_be_ptable_get_part_info(&primary_part_info);
+	rc = m0_be_ptable_get_part_info(&primary_part_info);
 	rc = rc ? : strcmp(dev_pathname, primary_part_info.pti_dev_pathname);
 	if(rc != 0 )
 		return rc;
@@ -562,9 +562,9 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 
 	if (type == M0_STORAGE_DEV_TYPE_AD) {
 		rc = storage_dev_get_part_stob(devs->sds_be_seg->bs_domain,
-						  path,
-						  &stob,
-						  &part_size);
+					       path,
+					       &stob,
+					       &part_size);
 		if (rc != 0)
 			goto end;
 		if(stob != NULL) {

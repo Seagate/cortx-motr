@@ -260,18 +260,15 @@ M0_INTERNAL int cs_conf_get_parition_dev(struct cs_stobs *stob,
 	struct m0_fid           tmp_fid;
 	struct m0_fid          *svc_fid  = NULL;
 	struct m0_conf_obj     *proc;
-	struct m0_conf_obj    *svc_obj;
+	struct m0_conf_obj     *svc_obj;
 	struct m0_conf_diter    it;
 	struct m0_conf_service *svc;
 	uint32_t                dev_nr;
 	struct m0_fid          *proc_fid;
         struct m0_conf_sdev    *sdev;
 
-	*dev_count = 0;
-
-
 	M0_ENTRY();
-
+	*dev_count = 0;
 	rctx = container_of(stob, struct m0_reqh_context, rc_stob);
 	cctx = container_of(rctx, struct m0_motr, cc_reqh_ctx);
 	confc = m0_motr2confc(cctx);
@@ -307,7 +304,7 @@ M0_INTERNAL int cs_conf_get_parition_dev(struct cs_stobs *stob,
 
 	rc = m0_confc_open_by_fid_sync(confc, svc_fid, &svc_obj);
 	if (rc == 0) {
-		svc = M0_CONF_CAST(svc_obj, 	   m0_conf_service);
+		svc = M0_CONF_CAST(svc_obj, m0_conf_service);
 		dev_nr = m0_conf_dir_len(svc->cs_sdevs);
 			rc = m0_conf_diter_init(&it, confc, svc_obj,
 					M0_CONF_SERVICE_SDEVS_FID);
@@ -335,7 +332,7 @@ M0_INTERNAL int cs_conf_get_parition_dev(struct cs_stobs *stob,
 		m0_conf_diter_fini(&it);
 		m0_confc_close(svc_obj);
 	}
-	M0_LOG(M0_ALWAYS,"vcp:rc = %d",rc);
+	M0_LEAVE("rc = %d",rc);
 	return rc;
 }
 

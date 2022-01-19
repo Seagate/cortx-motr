@@ -132,7 +132,7 @@ struct m0_be_log_store_cfg {
 	 * Backing store stob id.
 	 * It's used in m0_be_log_store_create() and m0_be_log_store_open().
 	 */
-	struct m0_stob_id lsc_stob_id;
+	struct m0_stob_id      lsc_stob_id;
 	/**
 	 * Backing store stob domain location.
 	 * Temporary solution until paged implemented.
@@ -141,11 +141,11 @@ struct m0_be_log_store_cfg {
 	 * configuration. m0_be_log_store can (and should) use stobs with
 	 * direct I/O enabled, but m0_be_seg can't use such stobs.
 	 */
-	char             *lsc_stob_domain_location;
+	char                  *lsc_stob_domain_location;
 	/**
 	 * 2nd parameter for m0_stob_domain_init() and m0_stob_domain_create().
 	 */
-	const char       *lsc_stob_domain_init_cfg;
+	const char            *lsc_stob_domain_init_cfg;
 
 	/*
 	 * The following fields are used in m0_be_log_store_create() only.
@@ -158,28 +158,28 @@ struct m0_be_log_store_cfg {
 	 *
 	 * Temporary solution.
 	 */
-	uint64_t          lsc_stob_domain_key;
+	uint64_t               lsc_stob_domain_key;
 	/**
 	 * 4rd parameter for m0_stob_domain_create() for stob domain with
 	 * lsc_stob_domain_location location.
 	 *
 	 * Temporary solution.
 	 */
-	const char       *lsc_stob_domain_create_cfg;
+	const char            *lsc_stob_domain_create_cfg;
 
 	/** Total size of backing stob. */
-	m0_bcount_t       lsc_size;
+	m0_bcount_t            lsc_size;
 	/** m0_stob_create() 3rd parameter for the backing store stob. */
-	const char       *lsc_stob_create_cfg;
+	const char            *lsc_stob_create_cfg;
 	/**
 	 * Don't zero stob after creation. It avoids unnecessary I/O when
 	 * the stob is already zeroed.
 	 */
-	bool              lsc_stob_dont_zero;
+	bool                   lsc_stob_dont_zero;
 	/** Number of redundant buffers. */
-	unsigned          lsc_rbuf_nr;
+	unsigned               lsc_rbuf_nr;
 	/** Size of redundant buffer. */
-	m0_bcount_t       lsc_rbuf_size;
+	m0_bcount_t            lsc_rbuf_size;
 	/** partition mode information*/
 	bool		       lsc_part_mode_log;
 	struct m0_stob_domain *lsc_part_domain;

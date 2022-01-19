@@ -103,7 +103,6 @@ struct m0_stob_domain {
 	struct m0_stob_cache		 sd_cache;
 	/** Private data of stob domain implementation */
 	void                            *sd_private;
-	bool                             sd_ad_mode;
 };
 
 /** Stob domain operations vector. */

@@ -44,7 +44,6 @@
  *
  * @{
  */
-static const struct m0_modlev be_log_store_levels[];
 enum {
 	M0_BE_LOG_STORE_WRITE_SIZE_MAX = 4 * 1024 * 1024,
 };
@@ -245,10 +244,7 @@ static int be_log_store_level_enter(struct m0_module *module)
 	uint32_t                shift;
 	uint64_t                alignment;
 	int                     rc;
-	const char              *level_name;
 
-	level_name = be_log_store_levels[level].ml_name;
-	M0_ENTRY("level=%d level_name=%s", level, level_name);
 	switch (level) {
 	case M0_BE_LOG_STORE_LEVEL_ASSIGNS:
 		ls->ls_stob_destroyed   = false;
@@ -427,10 +423,6 @@ static void be_log_store_level_leave(struct m0_module *module)
 	struct m0_be_log_store *ls = be_log_store_module2store(module);
 	int                     level = module->m_cur;
 	int                     rc;
-	const char              *level_name;
-
-	level_name = be_log_store_levels[level].ml_name;
-	M0_ENTRY("level=%d level_name=%s", level, level_name);
 
 	switch (level) {
 	case M0_BE_LOG_STORE_LEVEL_ASSIGNS:

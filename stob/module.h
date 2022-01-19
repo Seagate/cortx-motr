@@ -51,11 +51,6 @@ struct m0_stob_ad_module {
 	struct m0_mutex sam_lock;
 };
 
-struct m0_stob_part_module {
-	struct m0_tl    spm_domains;
-	struct m0_mutex spm_lock;
-};
-
 /** @} end of stob group */
 #endif /* __MOTR_STOB_MODULE_H__ */
 

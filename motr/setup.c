@@ -1088,7 +1088,6 @@ static int cs_storage_init(const char *stob_type,
 						     &stob->s_sdom);
 		if (rc != 0)
 			stob->s_sdom = NULL;
-		stob->s_sdom->sd_ad_mode = 1;
 		rc = rc ?: cs_storage_devs_init(stob, M0_STORAGE_DEV_TYPE_AD,
 						seg, stob_path, false,
 						disable_direct_io);
@@ -1485,7 +1484,7 @@ static char *cs_storage_partdom_location_gen(const char          *stob_path,
 	const char *prefix = m0_stob_part_type.st_fidt.ft_name;
 
 	M0_ALLOC_ARR(location,
-		     strlen(stob_path) +  ARRAY_SIZE(prefix) + 128);
+		     strlen(stob_path) + ARRAY_SIZE(prefix) + 128);
 	if (location != NULL)
 		sprintf(location, "%s:%s:%p", prefix, stob_path, dom);
 	return location;
@@ -1536,12 +1535,13 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 	enum { len = 128 };
 
 
-	if ((rctx->rc_be_seg_path == NULL || (strcmp(rctx->rc_be_seg_path,sdev->sd_filename) == 0)) &&
+	if ((rctx->rc_be_seg_path == NULL ||
+	     (strcmp(rctx->rc_be_seg_path,sdev->sd_filename) == 0)) &&
 	    rctx->rc_be_seg0_path == NULL &&
 	    rctx->rc_be_log_path == NULL  &&
 	    dev_count == 1) {
 
-		/** 
+		/**
 		 * Case 1: Single Data and No Meta specified
 		 */
 
@@ -1561,10 +1561,10 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 					 &rctx->rc_be.but_dom);
 		part_cfg->bpc_dom_key = sdev->sd_dev_idx;
 
-		/* 1 chunk for partition table itself */	
+		/* 1 chunk for partition table itself */
 		used_chunks = 1;
 
-		/** parition stob generic configuration */	
+		/** parition stob generic configuration */
 		part_cfg->bpc_part_mode_set = true;
 		proposed_chunk_size = sdev->sd_size / def_dev_chunk_count;
 		part_cfg->bpc_chunk_size_in_bits =
@@ -1572,17 +1572,17 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		part_cfg->bpc_total_chunk_count =
 			sdev->sd_size >> part_cfg->bpc_chunk_size_in_bits;
 
-		// seg0 configuration 
+		// seg0 configuration
 		part_cfg->bpc_seg0_size_in_chunks = 1;
 		part_cfg->bpc_part_mode_seg0 = true;
-		rctx->rc_be_seg0_path = sdev->sd_filename; 
+		rctx->rc_be_seg0_path = sdev->sd_filename;
 		used_chunks += part_cfg->bpc_seg0_size_in_chunks;
 
 		/** seg1 configuration */
 		m0_bcount_t meta_size = m0_align(((sdev->sd_size) / 10), M0_BE_SEG_PAGE_SIZE);
 		part_cfg->bpc_part_mode_seg1 = true;
 		rctx->rc_be_seg_path = sdev->sd_filename;
-		
+
 			rctx->rc_be_seg_size = meta_size;
 		part_cfg->bpc_seg_size_in_chunks =
 			rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
@@ -1599,7 +1599,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		used_chunks += part_cfg->bpc_log_size_in_chunks;
 
 
-		/** data configuration */	
+		/** data configuration */
 		part_cfg->bpc_part_mode_data = true;
 		part_cfg->bpc_data_size_in_chunks = part_cfg->bpc_total_chunk_count - used_chunks;
 		used_chunks += part_cfg->bpc_data_size_in_chunks;
@@ -1608,7 +1608,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		   rctx->rc_be_seg0_path == NULL &&
 		   rctx->rc_be_log_path == NULL ) {
 
-		/** 
+		/**
 		* Case 2: Single Data and Meta specified
 		* Case 4: Multiple Data and Meta spcified
 		*/
@@ -1625,14 +1625,14 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 			rctx->rc_be_seg_path,
 			rctx->rc_be_seg_size);
 		part_cfg->bpc_init_cfg = part_cfg->bpc_create_cfg;
-		part_cfg->bpc_location =                                                                                                                                                                                                   (char*)cs_storage_partdom_location_gen(sdev->sd_filename,                                                                                                                                                                           &rctx->rc_be.but_dom);      
+		part_cfg->bpc_location =                                                                                                                                                                                                   (char*)cs_storage_partdom_location_gen(sdev->sd_filename,                                                                                                                                                                           &rctx->rc_be.but_dom);
 		part_cfg->bpc_dom_key = sdev->sd_dev_idx;
 
 
-		/* 1 chunk for partition table itself */	
+		/* 1 chunk for partition table itself */
 		used_chunks = 1;
 
-		/** parition stob generic configuration */	
+		/** parition stob generic configuration */
 		part_cfg->bpc_part_mode_set = true;
 		proposed_chunk_size = rctx->rc_be_seg_size / def_dev_chunk_count;
 		part_cfg->bpc_chunk_size_in_bits =
@@ -1640,7 +1640,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		part_cfg->bpc_total_chunk_count =
 			rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
 
-		// seg0 configuration 
+		// seg0 configuration
 		part_cfg->bpc_seg0_size_in_chunks = 1;
 		part_cfg->bpc_part_mode_seg0 = true;
 		rctx->rc_be_seg0_path = rctx->rc_be_seg_path;
@@ -1656,22 +1656,22 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 			part_cfg->bpc_log_size_in_chunks = 1;
 		used_chunks += part_cfg->bpc_log_size_in_chunks;
 
-	
+
 		/** seg1 configuration */
 		part_cfg->bpc_part_mode_seg1 = true;
-		part_cfg->bpc_seg_size_in_chunks = 
+		part_cfg->bpc_seg_size_in_chunks =
 			part_cfg->bpc_total_chunk_count - used_chunks;
-		rctx->rc_be_seg_size = m0_align(part_cfg->bpc_seg_size_in_chunks << 
-			part_cfg->bpc_chunk_size_in_bits, M0_BE_SEG_PAGE_SIZE); 
+		rctx->rc_be_seg_size = m0_align(part_cfg->bpc_seg_size_in_chunks <<
+			part_cfg->bpc_chunk_size_in_bits, M0_BE_SEG_PAGE_SIZE);
 		// used_chunks += part_cfg->bpc_seg_size_in_chunks;
 
 	} else if (rctx->rc_be_seg0_path == NULL &&
 		   rctx->rc_be_seg_path != NULL &&
 		   rctx->rc_be_log_path != NULL) {
 
-		/** 
+		/**
 		* Case 6: Seg0 and Seg1 on same partition
-		*         i.e. Meta and log specified 
+		*         i.e. Meta and log specified
 		*/
 
 		M0_LOG(M0_ALWAYS,"filename:%s,size:%"PRIu64"alloc_len = %d ",
@@ -1692,10 +1692,10 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		part_cfg->bpc_dom_key = sdev->sd_dev_idx;
 
 
-		/* 1 chunk for partition table itself */	
+		/* 1 chunk for partition table itself */
 		used_chunks = 1;
 
-		/** parition stob generic configuration */	
+		/** parition stob generic configuration */
 		part_cfg->bpc_part_mode_set = true;
 		proposed_chunk_size = rctx->rc_be_seg_size / def_dev_chunk_count;
 		part_cfg->bpc_chunk_size_in_bits =
@@ -1703,39 +1703,39 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		part_cfg->bpc_total_chunk_count =
 			rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
 
-		// seg0 configuration 
+		// seg0 configuration
 		part_cfg->bpc_seg0_size_in_chunks = 1;
 		part_cfg->bpc_part_mode_seg0 = true;
 		rctx->rc_be_seg0_path = rctx->rc_be_seg_path;
 		used_chunks += part_cfg->bpc_seg0_size_in_chunks;
 
-	
+
 		/** seg1 configuration */
 		part_cfg->bpc_part_mode_seg1 = true;
-		part_cfg->bpc_seg_size_in_chunks = 
+		part_cfg->bpc_seg_size_in_chunks =
 			part_cfg->bpc_total_chunk_count - used_chunks;
-		rctx->rc_be_seg_size = m0_align(part_cfg->bpc_seg_size_in_chunks << 
-			part_cfg->bpc_chunk_size_in_bits, M0_BE_SEG_PAGE_SIZE); 
+		rctx->rc_be_seg_size = m0_align(part_cfg->bpc_seg_size_in_chunks <<
+			part_cfg->bpc_chunk_size_in_bits, M0_BE_SEG_PAGE_SIZE);
 		// used_chunks += part_cfg->bpc_seg_size_in_chunks;
 
 	} else if (rctx->rc_be_seg0_path != NULL &&
 		   rctx->rc_be_seg_path != NULL &&
 		   rctx->rc_be_log_path != NULL) {
 
-		/** 
-		 * Case 3: Single Data and Meta and log 
+		/**
+		 * Case 3: Single Data and Meta and log
 		 *         specified
-		 * 
-		 *  partition stob is not needed 
+		 *
+		 *  partition stob is not needed
 		 */
-			
+
 		return;
-	} else if (rctx->rc_be_seg_path == NULL && 
+	} else if (rctx->rc_be_seg_path == NULL &&
 		   dev_count > 1 ) {
 
-		/** 
+		/**
 		 * Case 5: Multiple Data and no Meta specified
-		 */ 
+		 */
 		return;
 	}
 
@@ -1767,10 +1767,6 @@ static int cs_be_init(struct m0_reqh_context  *rctx,
 		be->but_dom.bd_part_stob_domain;
 	be->but_dom_cfg.bc_seg0_cfg.bsc_stob_create_cfg = rctx->rc_be_seg0_path;
 	be->but_dom_cfg.bc_seg0_cfg.bsc_stob_create_cfg = rctx->rc_be_seg0_path;
-	/* if(be->but_dom_cfg.bc_ad_mode)
-		be->but_dom_cfg.bc_seg0_cfg.bsc_stob_key =
-			M0_BE_PTABLE_ENTRY_SEG0;
-	*/
 	if (!m0_is_po2(rctx->rc_be_log_size))
 		return M0_ERR(-EINVAL);
 	if (rctx->rc_be_log_size > 0) {
@@ -1887,7 +1883,6 @@ static int cs_storage_setup(struct m0_motr *cctx)
 			rctx->rc_be_seg_preallocate,
 			(mkfs && force), &rctx->rc_beseg);
 	if (rc != 0)
-
 		return M0_ERR_INFO(rc, "cs_be_init");
 
 	rc = m0_reqh_be_init(&rctx->rc_reqh, rctx->rc_beseg);

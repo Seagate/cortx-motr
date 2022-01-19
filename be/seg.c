@@ -330,7 +330,8 @@ static m0_bcount_t be_seg_get_dev_offset(struct m0_be_seg *seg)
 	m0_bcount_t                        dev_offset = 0;
 
 	M0_ENTRY();
-	M0_PRE(seg != NULL ||  seg->bs_stob != NULL);
+	M0_PRE(seg != NULL);
+	M0_PRE(seg->bs_stob != NULL);
 	part_id = seg->bs_stob->so_id.si_fid.f_key;
 
 	if ((seg->bs_domain != NULL) && (((part_id == M0_BE_PTABLE_ENTRY_SEG0) &&
@@ -385,7 +386,6 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 				 " expected '%s', stored on disk '%s'",
 				 runtime_be_version, (char*)hdr->bh_be_version);
 		m0_free(hdr);
-		M0_ASSERT(0);
 		return rc;
 	}
 

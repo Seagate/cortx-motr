@@ -278,6 +278,7 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 		part_users++;
 	}
 
+	M0_ASSERT(part_users <= M0_BE_MAX_PARTITION_USERS);
 	cfg->pc_dev_path_name = devname;
 	cfg->pc_dev_size_in_bytes = size;
 	*cfg_create = part_cfg;
@@ -778,11 +779,12 @@ static m0_bcount_t stob_part_dev_offset_get(struct m0_stob_part *partstob,
 	m0_bcount_t   offset_within_chunk;
 	m0_bcount_t   device_chunk_index;
 	m0_bcount_t   device_byte_offset;
-	m0_bcount_t   chunk_size_in_bits = partstob->part_chunk_size_in_bits -
-		                                 stob_part_block_shift(&partstob->part_stob);
+	m0_bcount_t   chunk_size_in_bits;
 
 	M0_ENTRY();
 	M0_PRE(partstob != NULL);
+	chunk_size_in_bits = partstob->part_chunk_size_in_bits -
+		             stob_part_block_shift(&partstob->part_stob);
 	chunk_off_mask = (1 << chunk_size_in_bits) - 1;
 	offset_within_chunk = user_offset & chunk_off_mask;
 	M0_LOG(M0_DEBUG, "relative offset in given chunk: %" PRIu64,

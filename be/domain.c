@@ -109,17 +109,6 @@ M0_INTERNAL int m0_be_segobj_opt_begin(struct m0_be_seg         *dict,
 	return m0_be_segobj_opt_iterate(dict, objtype, opt, suffix, true);
 }
 
-
-// M0_INTERNAL int m0_be_domain_stob_open(struct m0_be_domain  *dom,
-// 			       uint64_t              stob_key,
-// 			       const char           *stob_create_cfg,
-// 			       struct m0_stob      **out,
-// 			       bool                  create)
-// {
-// 	return be_domain_stob_open(dom, stob_key, stob_create_cfg,
-// 				   out, create);
-// }
-
 M0_INTERNAL int m0_be_domain_stob_open(void            *be_domain,
 				       uint64_t         stob_key,
 				       const char      *stob_create_cfg,
@@ -778,8 +767,7 @@ static int be_domain_level_enter(struct m0_module *module)
 						 cfg->bc_stob_domain_cfg_init,
 						 &dom->bd_stob_domain));
 	case M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_DESTROY:
-#if 0
-		if (!cfg->bc_mkfs_mode)
+		if (!cfg->bc_mkfs_mode || !cfg->bc_part_cfg.bpc_part_mode_set)
 			return M0_RC(0);
 		rc = m0_stob_domain_destroy_location(
 		                                cfg->bc_part_cfg.bpc_location);
@@ -788,10 +776,8 @@ static int be_domain_level_enter(struct m0_module *module)
 		 * first run if the part stob domain hasn't been created yet.
 		 */
 		return M0_IN(rc, (-ENOENT, 0)) ? M0_RC(0) : M0_ERR(rc);
-#endif
-	return M0_RC(0);
 	case M0_BE_DOMAIN_LEVEL_MKFS_PART_STOB_DOMAIN_CREATE:
-		if (!cfg->bc_mkfs_mode || !cfg->bc_part_cfg.bpc_part_mode_set )
+		if (!cfg->bc_mkfs_mode || !cfg->bc_part_cfg.bpc_part_mode_set)
 			return M0_RC(0);
 		/*
 		 * The part stob domain is never destroyed in case of failure, even

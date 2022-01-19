@@ -100,7 +100,8 @@ M0_INTERNAL int m0_stob_linux_domain_fd_put(struct m0_stob_domain *dom, int fd);
 M0_INTERNAL bool m0_stob_linux_domain_directio(struct m0_stob_domain *dom);
 
 extern const struct m0_stob_type m0_stob_linux_type;
-M0_INTERNAL char *m0_stob_linux_file_stob(const char *path, const struct m0_fid *stob_fid);
+M0_INTERNAL char *m0_stob_linux_file_stob(const char          *path,
+					  const struct m0_fid *stob_fid);
 /** @} end group stoblinux */
 #endif /* __MOTR_STOB_LINUX_H__ */
 

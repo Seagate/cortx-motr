@@ -411,8 +411,8 @@ static int stob_linux_open(struct m0_stob *stob,
 		rc = create && cfg != NULL ? symlink((char *)cfg, file_stob) : 0;
 	flags |= O_RDWR;
 	flags |= create && cfg == NULL                ? O_CREAT  : 0;
-	flags |= m0_stob_ioq_directio(&ldom->sld_ioq) | lstob->sl_direct_io ?
-		O_DIRECT : 0;
+	flags |= (m0_stob_ioq_directio(&ldom->sld_ioq) | lstob->sl_direct_io) ?
+		  O_DIRECT : 0;
 	lstob->sl_fd = rc ?: open(file_stob, flags,
 				  ldom->sld_cfg.sldc_file_mode);
 	rc = lstob->sl_fd == -1 ? -errno : stob_linux_stat(lstob);
