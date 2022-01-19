@@ -50,11 +50,8 @@ else
     sudo yum install -y epel-release # Update to the latest version
     sudo yum install -y ansible
     sudo scripts/install-build-deps
-
-    cd -
 fi
 
-cd motr
 echo 'Configure Motr...'
 [[ -f configure ]] && sudo git clean -dfx
 ./autogen.sh && ./configure --disable-expensive-checks --with-user-mode-only
