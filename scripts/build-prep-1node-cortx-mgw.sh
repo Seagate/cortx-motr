@@ -48,8 +48,8 @@ echo "========================================="
 
 [[ -d ceph ]] || {
    git clone --recurse https://github.com/Seagate/cortx-rgw.git
-   cd cortx-rgw && git checkout mgw-stable
-   ./install-deps.sh
+   cd cortx-rgw
+   sudo ./install-deps.sh
 }
 cd -
 
@@ -79,3 +79,4 @@ echo "https://seagate-systems.atlassian.net/wiki/spaces/PRIVATECOR/pages/8085835
 echo 'run: hctl bootstrap --mkfs singlenode.yaml'
 echo "Update ceph.conf as mentioned in above link"
 echo "run:  MDS=0 RGW=1 ../src/vstart.sh -d $mgs"
+echo "After reboot a VM run mount "/dev/$available_device" ~/cortx"
