@@ -1583,7 +1583,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		part_cfg->bpc_part_mode_seg1 = true;
 		rctx->rc_be_seg_path = sdev->sd_filename;
 
-			rctx->rc_be_seg_size = meta_size;
+		rctx->rc_be_seg_size = meta_size;
 		part_cfg->bpc_seg_size_in_chunks =
 			rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
 		used_chunks += part_cfg->bpc_seg_size_in_chunks;
@@ -1591,6 +1591,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		/** Log configuration*/
 		part_cfg->bpc_part_mode_log = true;
 		rctx->rc_be_log_path = sdev->sd_filename;
+		rctx->rc_be_log_size = def_log_size;
 		if(proposed_chunk_size < def_log_size)
 			part_cfg->bpc_log_size_in_chunks =
 				def_log_size >> part_cfg->bpc_chunk_size_in_bits;
@@ -1620,12 +1621,14 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		part_cfg->bpc_create_cfg = m0_alloc(strlen(rctx->rc_be_seg_path) +
 						    len);
 		M0_ASSERT(part_cfg->bpc_create_cfg != NULL);
+		M0_ASSERT(rctx->rc_be_seg_size != 0);
 		sprintf(part_cfg->bpc_create_cfg, "%p %s %"PRIu64,
 			&rctx->rc_be.but_dom,
 			rctx->rc_be_seg_path,
 			rctx->rc_be_seg_size);
 		part_cfg->bpc_init_cfg = part_cfg->bpc_create_cfg;
-		part_cfg->bpc_location =                                                                                                                                                                                                   (char*)cs_storage_partdom_location_gen(sdev->sd_filename,                                                                                                                                                                           &rctx->rc_be.but_dom);
+		part_cfg->bpc_location = (char*)cs_storage_partdom_location_gen(rctx->rc_be_seg_path,
+						&rctx->rc_be.but_dom);
 		part_cfg->bpc_dom_key = sdev->sd_dev_idx;
 
 
@@ -1649,6 +1652,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		/** Log configuration*/
 		part_cfg->bpc_part_mode_log = true;
 		rctx->rc_be_log_path = rctx->rc_be_seg_path;
+		rctx->rc_be_log_size = def_log_size;
 		if(proposed_chunk_size < def_log_size)
 			part_cfg->bpc_log_size_in_chunks =
 				def_log_size >> part_cfg->bpc_chunk_size_in_bits;
