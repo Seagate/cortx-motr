@@ -1524,7 +1524,9 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 	memset(part_cfg, 0, sizeof(*part_cfg));
 	ad_mode = m0_strcaseeq(rctx->rc_stype,
 			       m0_cs_stypes[M0_AD_STOB]);
-        if (cs_conf_get_parition_dev(&rctx->rc_stob, &sdev, &dev_count) != 0)
+
+	/** The below condition is true for all the cases to disable partition stob */
+        if ((cs_conf_get_parition_dev(&rctx->rc_stob, &sdev, &dev_count) != 0 ) || 1)
 		return ;
 
 	if (!ad_mode ||
