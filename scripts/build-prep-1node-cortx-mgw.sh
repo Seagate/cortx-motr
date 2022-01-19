@@ -36,10 +36,9 @@ mgs="--without-dashboard"
 cd ~/cortx
 
 yum install wget -y
-#wget https://raw.githubusercontent.com/Seagate/cortx-motr/main/scripts/build-prep-1node.sh
-wget https://raw.githubusercontent.com/Seagate/cortx-motr/mgw-build/scripts/build-prep-1node.sh
+wget https://raw.githubusercontent.com/Seagate/cortx-motr/main/scripts/build-prep-1node.sh
 sh +x ~/build-prep-1node.sh $1 $2
-
+rm build-prep-1node.sh
 
 
 echo "=========================================\n"
