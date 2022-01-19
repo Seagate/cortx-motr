@@ -75,6 +75,7 @@ static void cat_usage(FILE *file, char *prog_name)
 				 "offset.\n%*c Default=0 if not provided. "
 				 "Offset should be multiple of 4k.\n"
 "  -N, --no-hole                  Report read error on hole in object\n"
+"  -d, --data-integrity INT       Data Integrity flag\n"
 "  -h, --help                     Shows this help text and exit.\n"
 , prog_name, WIDTH, ' ', WIDTH, ' ', WIDTH, ' ', WIDTH, ' ', WIDTH, ' ',
 WIDTH, ' ');
@@ -104,7 +105,7 @@ int main(int argc, char **argv)
 		          cat_param.cup_block_size, cat_param.cup_block_count,
 			  cat_param.cup_offset,
 			  cat_param.cup_blks_per_io, cat_param.cup_take_locks,
-			  cat_param.flags, &cat_param.cup_pver);
+			  cat_param.flags, &cat_param.cup_pver, cat_param.di_flag);
 	if (rc < 0) {
 		fprintf(stderr, "m0_read failed! rc = %d\n", rc);
 	}

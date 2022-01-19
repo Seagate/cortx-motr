@@ -155,8 +155,9 @@ static int calculate_checksum(struct m0_obj *obj, struct m0_indexvec *ext,
 	enum m0_pi_calc_flag               flag = M0_PI_CALC_UNIT_ZERO;
 
 	M0_ENTRY();
-	if(attr == NULL)
+	if(attr == NULL || !(obj->ob_entity.en_flags & M0_ENF_DI)) {
 		return 0;
+	}
 	usz = m0_obj_layout_id_to_unit_size(
 			m0__obj_lid(obj));
 	m0_bufvec_cursor_init(&datacur, data);
@@ -458,7 +459,7 @@ init_error:
 int m0_write(struct m0_container *container, char *src,
 	     struct m0_uint128 id, uint32_t block_size,
 	     uint32_t block_count, uint64_t update_offset,
-	     int blks_per_io, bool take_locks, bool update_mode)
+	     int blks_per_io, bool take_locks, bool update_mode, bool di_flag)
 {
 	int                           rc;
 	struct m0_indexvec            ext;
@@ -482,6 +483,8 @@ int m0_write(struct m0_container *container, char *src,
 	instance = container->co_realm.re_instance;
 	m0_obj_init(&obj, &container->co_realm, &id,
 		    m0_client_layout_id(instance));
+	if (di_flag)
+		obj.ob_entity.en_flags |= M0_ENF_DI;
 	rc = lock_ops->olo_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -576,7 +579,7 @@ int m0_read(struct m0_container *container,
 	    struct m0_uint128 id, char *dest,
 	    uint32_t block_size, uint32_t block_count,
 	    uint64_t offset, int blks_per_io, bool take_locks,
-	    uint32_t flags, struct m0_fid *read_pver)
+	    uint32_t flags, struct m0_fid *read_pver, bool di_flag)
 {
 	int                           i;
 	int                           j;
@@ -608,6 +611,8 @@ int m0_read(struct m0_container *container,
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &container->co_realm, &id,
 		    m0_client_layout_id(instance));
+	if (di_flag)
+		obj.ob_entity.en_flags |= M0_ENF_DI;
 	rc = lock_ops->olo_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -851,7 +856,7 @@ init_error:
  */
 int m0_write_cc(struct m0_container *container,
 		char **src, struct m0_uint128 id, int *index,
-		uint32_t block_size, uint32_t block_count)
+		uint32_t block_size, uint32_t block_count, bool di_flag)
 {
 	int                    rc;
 	struct m0_indexvec     ext;
@@ -869,7 +874,8 @@ int m0_write_cc(struct m0_container *container,
 	instance = container->co_realm.re_instance;
 	m0_obj_init(&obj, &container->co_realm, &id,
 		    m0_client_layout_id(instance));
-
+	if (di_flag)
+		obj.ob_entity.en_flags |= M0_ENF_DI;
 	rc = m0_obj_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -928,7 +934,7 @@ init_error:
 
 int m0_read_cc(struct m0_container *container,
 	       struct m0_uint128 id, char **dest, int *index,
-	       uint32_t block_size, uint32_t block_count)
+	       uint32_t block_size, uint32_t block_count, bool di_flag)
 {
 	int                           i;
 	int                           j;
@@ -944,18 +950,19 @@ int m0_read_cc(struct m0_container *container,
 	struct m0_rm_lock_req  req;
 	uint32_t                      usz;
 
-	usz = m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id);
-	rc = alloc_prepare_vecs(&ext, &data, &attr, block_count,
-				       block_size, &last_index, usz);
-	if (rc != 0)
-		return rc;
 	instance = container->co_realm.re_instance;
 
 	/* Read the requisite number of blocks from the entity */
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &container->co_realm, &id,
 			   m0_client_layout_id(instance));
-
+	usz = m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id);
+	rc = alloc_prepare_vecs(&ext, &data, &attr, block_count,
+				       block_size, &last_index, usz);
+	if (rc != 0)
+		return rc;
+	if (di_flag)
+		obj.ob_entity.en_flags |= M0_ENF_DI;
 	rc = m0_obj_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -1047,6 +1054,7 @@ int m0_utility_args_init(int argc, char **argv,
 	params->cup_update_mode = false;
 	params->cup_offset = 0;
 	params->flags = 0;
+	params->di_flag = false;
 	conf->mc_is_read_verify = false;
 	conf->mc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	conf->mc_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
@@ -1081,9 +1089,10 @@ int m0_utility_args_init(int argc, char **argv,
 				{"read-verify",   no_argument,       NULL, 'r'},
 				{"help",          no_argument,       NULL, 'h'},
 				{"no-hole",       no_argument,       NULL, 'N'},
+				{"data-integrity",no_argument,       NULL, 'd'},
 				{0,               0,                 0,     0 }};
 
-        while ((c = getopt_long(argc, argv, ":l:H:p:P:o:s:c:t:L:v:n:S:q:b:O:uerhN",
+        while ((c = getopt_long(argc, argv, ":l:H:p:P:o:s:c:t:L:v:n:S:q:b:O:uerhNd",
 				l_opts, &option_index)) != -1)
 	{
 		switch (c) {
@@ -1219,6 +1228,8 @@ int m0_utility_args_init(int argc, char **argv,
 			case 'h': utility_usage(stderr, basename(argv[0]));
 				  exit(EXIT_FAILURE);
 			case 'N': params->flags |= M0_OOF_NOHOLE;
+				  continue;
+			case 'd': params->di_flag = true;
 				  continue;
 			case '?': fprintf(stderr, "Unsupported option '%c'\n",
 					  optopt);

@@ -889,7 +889,6 @@ int m0_entity_open(struct m0_entity *entity,
 
 	M0_PRE(entity != NULL);
 	M0_PRE(op != NULL);
-
 	if (entity->en_type == M0_ET_IDX) {
 		/* Since pool version for index entity is got by index query,
 		 * move the entity state into OPEN and return success. */
