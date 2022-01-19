@@ -28,6 +28,8 @@
 #include "motr/m0crate/crate_client.h"
 #include "motr/m0crate/crate_client_utils.h"
 
+extern struct crate_conf *conf;
+
 /** @defgroup crate Crate
  * Utility for executing simple performance tests.
  */
@@ -1367,6 +1369,8 @@ static int create_index(struct m0_uint128 id)
 
 	/* Set an index creation operation. */
 	m0_idx_init(&idx, crate_uber_realm(), &id);
+	if (conf->is_di)
+		idx.in_entity.en_flags |= M0_ENF_DI;
 
 	rc = m0_entity_create(NULL, &idx.in_entity, &ops[0]);
 	if (rc == 0) {

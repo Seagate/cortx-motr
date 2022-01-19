@@ -305,6 +305,142 @@ EOF
 	return 0
 }
 
+test_with_DI()
+{
+	src_file="$MOTR_TEST_DIR/src_file"
+	src_file_extra="$MOTR_TEST_DIR/src_file_extra"
+	dest_file="$MOTR_TEST_DIR/dest_file"
+	object_id1=0x7300000000000001:0x32
+	object_id2=0x7300000000000001:0x33
+	object_id3=0x7300000000000001:0x34
+	object_id4=1048577
+	block_size=16384
+	block_count=256
+	obj_count=5
+	trunc_len=50
+	trunc_count=17
+	read_verify="false"
+	blks_per_io=256
+	MOTR_PARAMS="-l $MOTR_LOCAL_EP -H $MOTR_HA_EP -p $MOTR_PROF_OPT \
+					-P $MOTR_PROC_FID"
+	MOTR_PARAMS_V="-l $MOTR_LOCAL_EP -H $MOTR_HA_EP -p $MOTR_PROF_OPT \
+					-P $MOTR_PROC_FID"
+	if [[ $read_verify == "true" ]]; then
+		MOTR_PARAMS_V+=" -r"
+	fi
+	rm -f $src_file
+	local source_abcd=$MOTR_TEST_DIR/"abcd"
+	dd if=$source_abcd bs=$block_size count=$block_count of=$src_file \
+           2> $MOTR_TEST_LOGFILE || {
+		error_handling $? "Failed to create a source file"
+	}
+	dd if=$source_abcd bs=$block_size \
+	   count=$(($block_count + $trunc_count)) of=$src_file_extra \
+	   2> $MOTR_TEST_LOGFILE || {
+		error_handling $? "Failed to create a source file"
+	}
+	echo "count: $count"
+
+	N=$1
+	K=$2
+	S=$3
+	P=$4
+	stride=32
+
+	motr_service_start $N $K $S $P $stride
+	dix_init
+
+	# Test m0client utility
+	/usr/bin/expect <<EOF
+	set timeout 20
+	spawn $motr_st_util_dir/m0client $MOTR_PARAMS_V > $SANDBOX_DIR/m0client.log
+	expect "m0client >>"
+	send -- "touch $object_id3\r"
+	expect "m0client >>"
+	send -- "write $object_id2 $src_file $block_size $block_count $blks_per_io\r"
+	expect "m0client >>"
+	send -- "read $object_id2 $dest_file $block_size $block_count $blks_per_io\r"
+	expect "m0client >>"
+	send -- "delete $object_id3\r"
+	expect "m0client >>"
+	send -- "delete $object_id2\r"
+	expect "m0client >>"
+	send -- "quit\r"
+EOF
+	echo "m0client test is Successful"
+	rm -f $dest_file
+
+	echo "m0touch and m0unlink"
+	$motr_st_util_dir/m0touch $MOTR_PARAMS -o $object_id1 -L 9|| {
+		error_handling $? "Failed to create a object"
+	}
+	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+		error_handling $? "Failed to delete object"
+	}
+	echo "m0touch and m0unlink successful"
+
+	$motr_st_util_dir/m0touch $MOTR_PARAMS -o $object_id1 -L 9 || {
+		error_handling $? "Failed to create a object"
+	}
+
+	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+		error_handling $? "Failed to delete object"
+	}
+	echo "m0touch and m0unlink successful"
+
+	$motr_st_util_dir/m0cp -d $MOTR_PARAMS_V -o $object_id1 $src_file \
+                                 -s $block_size -c $block_count -L 9 \
+                                 -b $blks_per_io || {
+		error_handling $? "Failed to copy object"
+	}
+	$motr_st_util_dir/m0cat -d $MOTR_PARAMS_V -o $object_id1 \
+				  -s $block_size -c $block_count -L 9 -b $blks_per_io \
+				  $dest_file || {
+		error_handling $? "Failed to read object"
+	}
+	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+		error_handling $? "Failed to delete object"
+	}
+	diff $src_file $dest_file || {
+		rc=$?
+		error_handling $rc "Files are different"
+	}
+	echo "motr r/w test with m0cp and m0cat is successful"
+	rm -f $dest_file
+
+	# Test m0cp_mt
+	echo "m0cp_mt test"
+	$motr_st_util_dir/m0cp_mt -d $MOTR_PARAMS_V -o $object_id4 \
+				    -n $obj_count $src_file -s $block_size \
+				    -c $block_count -L 9 -b $blks_per_io || {
+		error_handling $? "Failed to copy object"
+	}
+	for i in $(seq 0 $(($obj_count - 1)))
+	do
+		object_id=$(($object_id4 + $i));
+		$motr_st_util_dir/m0cat -d $MOTR_PARAMS_V -o $object_id \
+					  -s $block_size -c $block_count -L 9 \
+                                          -b $blks_per_io $dest_file || {
+			error_handling $? "Failed to read object"
+		}
+		diff $src_file $dest_file || {
+			rc=$?
+			error_handling $rc "Files are different"
+		}
+		rm -f $dest_file
+	done
+	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id4 \
+				     -n $obj_count || {
+		error_handling $? "Failed to delete object"
+	}
+	echo "m0cp_mt is successful"
+
+	rm -f $src_file
+	clean &>>$MOTR_TEST_LOGFILE
+	motr_service_stop
+	return 0
+}
+
 main()
 {
 	sandbox_init
@@ -364,6 +500,45 @@ main()
 	fi
 	echo "Motr util test with N=$N K=$K is successful"
 
+	# With Data Integrity
+	N=1
+	K=0
+	S=0
+	P=8
+	test_with_DI $N $K $S $P
+	if [ $rc -ne "0" ]
+	then
+		echo "Motr util test with N=$N K=$K failed"
+		return $rc
+	fi
+	echo "Motr util test with N=$N K=$K is successful"
+
+	N=1
+	K=2
+	S=2
+	P=8
+	test_with_DI $N $K $S $P
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "Motr util test with N=$N K=$K failed"
+		return $rc
+	fi
+	echo "Motr util test with N=$N K=$K is successful"
+
+	N=4
+	K=2
+	S=2
+	P=8
+	test_with_DI $N $K $S $P
+	rc=$?
+	echo $rc
+	if [ $rc -ne "0" ]
+	then
+		echo "Motr util test with N=$N K=$K failed"
+		return $rc
+	fi
+	echo "Motr util test with N=$N K=$K is successful"
 	rm -f $source_abcd
 	sandbox_fini
 	return $rc
