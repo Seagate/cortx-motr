@@ -1615,7 +1615,7 @@ static void bnode_done(struct slot *slot, bool modified)
 
 static void bnode_make(struct slot *slot)
 {
-	M0_PRE(bnode_invariant(slot->s_node));
+	M0_PRE(bnode_isfit(slot));
 	slot->s_node->n_type->nt_make(slot);
 }
 
@@ -3543,6 +3543,8 @@ static bool fkvv_isoverflow(const struct nd *node,
 		rsize = h->fkvv_ksize + INTERNAL_NODE_VALUE_SIZE;
 	else {
 		vsize = m0_vec_count(&rec->r_val.ov_vec);
+		if (fkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
+			vsize += CRC_VALUE_SIZE;
 		rsize = h->fkvv_ksize + OFFSET_SIZE + vsize;
 	}
 
@@ -3602,6 +3604,30 @@ static bool fkvv_rec_is_valid(const struct slot *slot)
 			vsize == INTERNAL_NODE_VALUE_SIZE));
 }
 
+static int fkvv_rec_val_size(const struct nd *node, int idx)
+{
+	int vsize;
+
+	if (IS_INTERNAL_NODE(node))
+		vsize = INTERNAL_NODE_VALUE_SIZE;
+	else {
+		uint32_t *curr_val_offset;
+		uint32_t *prev_val_offset;
+
+		curr_val_offset = fkvv_val_offset_get(node, idx);
+		if (idx == 0)
+			vsize = *curr_val_offset;
+		else {
+			prev_val_offset = fkvv_val_offset_get(node, idx - 1);
+			vsize = *curr_val_offset - *prev_val_offset;
+		}
+		if (fkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
+			vsize -= CRC_VALUE_SIZE;
+	}
+	M0_ASSERT(vsize > 0);
+	return vsize;
+}
+
 static void fkvv_rec(struct slot *slot)
 {
 	struct fkvv_head *h = fkvv_data(slot->s_node);
@@ -3609,23 +3635,8 @@ static void fkvv_rec(struct slot *slot)
 	M0_PRE(h->fkvv_used > 0 && slot->s_idx < h->fkvv_used);
 
 	slot->s_rec.r_val.ov_vec.v_nr = 1;
-	if (IS_INTERNAL_NODE(slot->s_node))
-		slot->s_rec.r_val.ov_vec.v_count[0] = INTERNAL_NODE_VALUE_SIZE;
-	else {
-		uint32_t *curr_val_offset;
-		uint32_t *prev_val_offset;
-
-		curr_val_offset = fkvv_val_offset_get(slot->s_node,
-						      slot->s_idx);
-		if (slot->s_idx == 0)
-			slot->s_rec.r_val.ov_vec.v_count[0] = *curr_val_offset;
-		else {
-			prev_val_offset = fkvv_val_offset_get(slot->s_node,
-							      slot->s_idx - 1);
-			slot->s_rec.r_val.ov_vec.v_count[0] = *curr_val_offset -
-							      *prev_val_offset;
-		}
-	}
+	slot->s_rec.r_val.ov_vec.v_count[0] =
+		fkvv_rec_val_size(slot->s_node, slot->s_idx);
 	slot->s_rec.r_val.ov_buf[0] = fkvv_val(slot->s_node, slot->s_idx);
 	fkvv_node_key(slot);
 	M0_POST(fkvv_rec_is_valid(slot));
@@ -3674,6 +3685,8 @@ static bool fkvv_isfit(struct slot *slot)
 		M0_ASSERT(vsize == INTERNAL_NODE_VALUE_SIZE);
 		rsize = h->fkvv_ksize + vsize;
 	} else {
+		if (fkvv_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
+			vsize += CRC_VALUE_SIZE;
 		rsize = h->fkvv_ksize + OFFSET_SIZE + vsize;
 	}
 	return rsize <= fkvv_space(slot->s_node);
@@ -3682,10 +3695,23 @@ static bool fkvv_isfit(struct slot *slot)
 static void fkvv_done(struct slot *slot, bool modified)
 {
 	/**
-	 * Function implementation is not needed yet. In future if we want to
-	 * calculate checksum per record, we might want to implement this
-	 * function.
-	*/
+	 * After record modification, this function will be used to perform any
+	 * post operations, such as CRC calculations.
+	 */
+	const struct nd  *node = slot->s_node;
+	struct fkvv_head *h    = fkvv_data(node);
+	void             *val_addr;
+	int               vsize;
+	uint64_t          calculated_csum;
+
+	if (modified && h->fkvv_level == 0 &&
+	    fkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH) {
+		val_addr        = fkvv_val(slot->s_node, slot->s_idx);
+		vsize           = fkvv_rec_val_size(slot->s_node, slot->s_idx);
+		calculated_csum = m0_hash_fnc_fnv1(val_addr, vsize);
+
+		*(uint64_t*)(val_addr + vsize) = calculated_csum;
+	}
 }
 
 static void fkvv_make_internal(struct slot *slot)
@@ -3733,6 +3759,8 @@ static void fkvv_make_leaf(struct slot *slot)
 	int               i;
 
 	new_val_size =  m0_vec_count(&slot->s_rec.r_val.ov_vec);
+	if (fkvv_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		new_val_size += CRC_VALUE_SIZE;
 
 	if (slot->s_idx == 0)
 		new_val_offset  = new_val_size;
@@ -5952,7 +5980,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	 *      i.for first record, key = rec.r_key, value = rec.r_val
 	 *      ii.for second record, key = null, value = segaddr(i_extra_node)
 	 */
-
+	M0_PRE(oi->i_extra_node != NULL);
 	bnode_lock(lev->l_node);
 	bnode_lock(oi->i_extra_node);
 
@@ -6156,6 +6184,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	 * move records from current node to new node and find slot for given
 	 * record
 	 */
+	M0_PRE(lev->l_alloc != NULL);
 	bnode_lock(lev->l_alloc);
 	bnode_lock(lev->l_node);
 
@@ -6267,6 +6296,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 			return P_CAPTURE;
 		}
 
+		M0_PRE(lev->l_alloc != NULL);
 		bnode_lock(lev->l_alloc);
 		bnode_lock(lev->l_node);
 
@@ -9196,7 +9226,8 @@ static int ut_btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 		m0_bufvec_cursor_copyfrom(&kcur, &key, sizeof(key));
 		m0_bufvec_cursor_init(&vcur, &rec->r_val);
 
-		if (datum->crc != M0_BCT_NO_CRC)
+		if (datum->crc != M0_BCT_NO_CRC &&
+		    datum->crc != M0_BCT_BTREE_ENC_RAW_HASH)
 			valuelen -= sizeof(uint64_t);
 
 		while (v_off < valuelen) {
@@ -9230,7 +9261,7 @@ static int ut_btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 					continue;
 
 					if (key != value)
-					M0_ASSERT(0);
+						M0_ASSERT(0);
 			}
 		}
 	}
@@ -12262,6 +12293,13 @@ static void ut_btree_crc_test(void)
 			},
 			{
 				{
+					BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+					2 * sizeof(uint64_t), RANDOM_VALUE_SIZE
+				},
+				M0_BCT_BTREE_ENC_RAW_HASH,
+			},
+			{
+				{
 					BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
 					RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
 				},
@@ -12810,6 +12848,13 @@ static void ut_btree_crc_persist_test(void)
 			{
 				BNT_FIXED_FORMAT, sizeof(uint64_t),
 				2 * sizeof(uint64_t)
+			},
+			M0_BCT_BTREE_ENC_RAW_HASH,
+		},
+		{
+			{
+				BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+				sizeof(uint64_t), RANDOM_VALUE_SIZE
 			},
 			M0_BCT_BTREE_ENC_RAW_HASH,
 		},
