@@ -1747,7 +1747,7 @@ static void bnode_done(struct slot *slot, bool modified)
 
 static void bnode_make(struct slot *slot)
 {
-	M0_PRE(bnode_invariant(slot->s_node));
+	M0_PRE(bnode_isfit(slot));
 	slot->s_node->n_type->nt_make(slot);
 }
 
@@ -6247,7 +6247,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	 *      i.for first record, key = rec.r_key, value = rec.r_val
 	 *      ii.for second record, key = null, value = segaddr(i_extra_node)
 	 */
-
+	M0_PRE(oi->i_extra_node != NULL);
 	bnode_lock(lev->l_node);
 	bnode_lock(oi->i_extra_node);
 
@@ -6451,6 +6451,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	 * move records from current node to new node and find slot for given
 	 * record
 	 */
+	M0_PRE(lev->l_alloc != NULL);
 	bnode_lock(lev->l_alloc);
 	bnode_lock(lev->l_node);
 
@@ -6562,6 +6563,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 			return P_CAPTURE;
 		}
 
+		M0_PRE(lev->l_alloc != NULL);
 		bnode_lock(lev->l_alloc);
 		bnode_lock(lev->l_node);
 
@@ -9491,7 +9493,7 @@ static int ut_btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 		m0_bufvec_cursor_copyfrom(&kcur, &key, sizeof(key));
 		m0_bufvec_cursor_init(&vcur, &rec->r_val);
 
-		if (datum->crc != M0_BCT_NO_CRC ||
+		if (datum->crc != M0_BCT_NO_CRC &&
 		    datum->crc != M0_BCT_BTREE_ENC_RAW_HASH)
 			valuelen -= sizeof(uint64_t);
 
@@ -9526,7 +9528,7 @@ static int ut_btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 					continue;
 
 					if (key != value)
-					M0_ASSERT(0);
+						M0_ASSERT(0);
 			}
 		}
 	}
@@ -12507,55 +12509,55 @@ static void ut_btree_crc_test(void)
 				struct m0_btree_type    bcr_btree_type;
 				enum m0_btree_crc_type  bcr_crc_type;
 			      } btrees_with_crc[] = {
-			// {
-			// 	{
-			// 		BNT_FIXED_FORMAT, 2 * sizeof(uint64_t),
-			// 		2 * sizeof(uint64_t)
-			// 	},
-			// 	M0_BCT_NO_CRC,
-			// },
-			// {
-			// 	{
-			// 		BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
-			// 		2 * sizeof(uint64_t), RANDOM_VALUE_SIZE
-			// 	},
-			// 	M0_BCT_NO_CRC,
-			// },
-			// {
-			// 	{
-			// 		BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
-			// 		RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
-			// 	},
-			// 	M0_BCT_NO_CRC,
-			// },
-			// {
-			// 	{
-			// 		BNT_FIXED_FORMAT, 2 * sizeof(uint64_t),
-			// 		3 * sizeof(uint64_t)
-			// 	},
-			// 	M0_BCT_USER_ENC_RAW_HASH,
-			// },
-			// {
-			// 	{
-			// 		BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
-			// 		2 * sizeof(uint64_t), RANDOM_VALUE_SIZE
-			// 	},
-			// 	M0_BCT_USER_ENC_RAW_HASH,
-			// },
-			// {
-			// 	{
-			// 		BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
-			// 		RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
-			// 	},
-			// 	M0_BCT_USER_ENC_RAW_HASH,
-			// },
-			// {
-			// 	{
-			// 		BNT_FIXED_FORMAT, 2 * sizeof(uint64_t),
-			// 		2 * sizeof(uint64_t)
-			// 	},
-			// 	M0_BCT_BTREE_ENC_RAW_HASH,
-			// },
+			{
+				{
+					BNT_FIXED_FORMAT, 2 * sizeof(uint64_t),
+					2 * sizeof(uint64_t)
+				},
+				M0_BCT_NO_CRC,
+			},
+			{
+				{
+					BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+					2 * sizeof(uint64_t), RANDOM_VALUE_SIZE
+				},
+				M0_BCT_NO_CRC,
+			},
+			{
+				{
+					BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+					RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
+				},
+				M0_BCT_NO_CRC,
+			},
+			{
+				{
+					BNT_FIXED_FORMAT, 2 * sizeof(uint64_t),
+					3 * sizeof(uint64_t)
+				},
+				M0_BCT_USER_ENC_RAW_HASH,
+			},
+			{
+				{
+					BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+					2 * sizeof(uint64_t), RANDOM_VALUE_SIZE
+				},
+				M0_BCT_USER_ENC_RAW_HASH,
+			},
+			{
+				{
+					BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+					RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
+				},
+				M0_BCT_USER_ENC_RAW_HASH,
+			},
+			{
+				{
+					BNT_FIXED_FORMAT, 2 * sizeof(uint64_t),
+					2 * sizeof(uint64_t)
+				},
+				M0_BCT_BTREE_ENC_RAW_HASH,
+			},
 			{
 				{
 					BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
@@ -12887,7 +12889,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 
 	get_data.key            = &rec.r_key;
 	get_data.value          = &rec.r_val;
-	get_data.check_value    = true;
+	get_data.check_value    = false;
 	get_data.crc            = crc_type;
 	get_data.embedded_ksize = false;
 	get_data.embedded_vsize = false;
@@ -13046,69 +13048,69 @@ static void ut_btree_crc_persist_test(void)
 		struct m0_btree_type    bcr_btree_type;
 		enum m0_btree_crc_type  bcr_crc_type;
 	} btrees_with_crc[] = {
-		// {
-		// 	{
-		// 		BNT_FIXED_FORMAT, sizeof(uint64_t),
-		// 		2 * sizeof(uint64_t)
-		// 	},
-		// 	M0_BCT_NO_CRC,
-		// },
-		// {
-		// 	{
-		// 		BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
-		// 		sizeof(uint64_t), RANDOM_VALUE_SIZE
-		// 	},
-		// 	M0_BCT_NO_CRC,
-		// },
-		// {
-		// 	{
-		// 		BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
-		// 		sizeof(uint64_t), RANDOM_VALUE_SIZE
-		// 	},
-		// 	M0_BCT_NO_CRC,
-		// },
-		// {
-		// 	{
-		// 		BNT_FIXED_FORMAT, sizeof(uint64_t),
-		// 		3 * sizeof(uint64_t)
-		// 	},
-		// 	M0_BCT_USER_ENC_RAW_HASH,
-		// },
-		// {
-		// 	{
-		// 		BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
-		// 		sizeof(uint64_t), RANDOM_VALUE_SIZE
-		// 	},
-		// 	M0_BCT_USER_ENC_RAW_HASH,
-		// },
-		// {
-		// 	{
-		// 		BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
-		// 		sizeof(uint64_t), RANDOM_VALUE_SIZE
-		// 	},
-		// 	M0_BCT_USER_ENC_RAW_HASH,
-		// },
-		// {
-		// 	{
-		// 		BNT_FIXED_FORMAT, sizeof(uint64_t),
-		// 		6 * sizeof(uint64_t)
-		// 	},
-		// 	M0_BCT_USER_ENC_FORMAT_FOOTER,
-		// },
-		// {
-		// 	{
-		// 		BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
-		// 		sizeof(uint64_t), RANDOM_VALUE_SIZE
-		// 	},
-		// 	M0_BCT_USER_ENC_FORMAT_FOOTER,
-		// },
-		// {
-		// 	{
-		// 		BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
-		// 		sizeof(uint64_t), RANDOM_VALUE_SIZE
-		// 	},
-		// 	M0_BCT_USER_ENC_FORMAT_FOOTER,
-		// },
+		{
+			{
+				BNT_FIXED_FORMAT, sizeof(uint64_t),
+				2 * sizeof(uint64_t)
+			},
+			M0_BCT_NO_CRC,
+		},
+		{
+			{
+				BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+				sizeof(uint64_t), RANDOM_VALUE_SIZE
+			},
+			M0_BCT_NO_CRC,
+		},
+		{
+			{
+				BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+				sizeof(uint64_t), RANDOM_VALUE_SIZE
+			},
+			M0_BCT_NO_CRC,
+		},
+		{
+			{
+				BNT_FIXED_FORMAT, sizeof(uint64_t),
+				3 * sizeof(uint64_t)
+			},
+			M0_BCT_USER_ENC_RAW_HASH,
+		},
+		{
+			{
+				BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+				sizeof(uint64_t), RANDOM_VALUE_SIZE
+			},
+			M0_BCT_USER_ENC_RAW_HASH,
+		},
+		{
+			{
+				BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+				sizeof(uint64_t), RANDOM_VALUE_SIZE
+			},
+			M0_BCT_USER_ENC_RAW_HASH,
+		},
+		{
+			{
+				BNT_FIXED_FORMAT, sizeof(uint64_t),
+				6 * sizeof(uint64_t)
+			},
+			M0_BCT_USER_ENC_FORMAT_FOOTER,
+		},
+		{
+			{
+				BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+				sizeof(uint64_t), RANDOM_VALUE_SIZE
+			},
+			M0_BCT_USER_ENC_FORMAT_FOOTER,
+		},
+		{
+			{
+				BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+				sizeof(uint64_t), RANDOM_VALUE_SIZE
+			},
+			M0_BCT_USER_ENC_FORMAT_FOOTER,
+		},
 		{
 			{
 				BNT_FIXED_FORMAT, sizeof(uint64_t),
