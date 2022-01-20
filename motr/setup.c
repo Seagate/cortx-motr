@@ -1512,7 +1512,7 @@ static int align_chunk_size(m0_bcount_t proposed_chunk_size)
 static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 {
 	m0_bcount_t                 proposed_chunk_size;
-	m0_bcount_t                 def_log_size = 128*1024*1024;
+	//m0_bcount_t                 def_log_size = 128*1024*1024;
 	struct m0_be_part_stob_cfg *part_cfg;
 	m0_bcount_t                 def_dev_chunk_count = 1024;
 	struct m0_conf_sdev        *sdev = NULL;
@@ -1588,7 +1588,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		part_cfg->bpc_seg_size_in_chunks =
 			rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
 		used_chunks += part_cfg->bpc_seg_size_in_chunks;
-
+#if 0
 		/** Log configuration*/
 		part_cfg->bpc_part_mode_log = true;
 		rctx->rc_be_log_path = sdev->sd_filename;
@@ -1605,6 +1605,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		part_cfg->bpc_part_mode_data = true;
 		part_cfg->bpc_data_size_in_chunks = part_cfg->bpc_total_chunk_count - used_chunks;
 		used_chunks += part_cfg->bpc_data_size_in_chunks;
+#endif
 
 	} else if (rctx->rc_be_seg_path != NULL &&
 		   rctx->rc_be_seg0_path == NULL &&
@@ -1649,7 +1650,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		part_cfg->bpc_part_mode_seg0 = true;
 		rctx->rc_be_seg0_path = rctx->rc_be_seg_path;
 		used_chunks += part_cfg->bpc_seg0_size_in_chunks;
-
+#if 0
 		/** Log configuration*/
 		part_cfg->bpc_part_mode_log = true;
 		rctx->rc_be_log_path = rctx->rc_be_seg_path;
@@ -1660,7 +1661,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		else
 			part_cfg->bpc_log_size_in_chunks = 1;
 		used_chunks += part_cfg->bpc_log_size_in_chunks;
-
+#endif
 
 		/** seg1 configuration */
 		part_cfg->bpc_part_mode_seg1 = true;
