@@ -136,11 +136,6 @@ zfs
 END_TAGS
 )
 
-# python3 packages available starting from CentOS/RedHat 7.7
-if (( $(grep -Po '(?<=release 7\.).' /etc/redhat-release) < 7 )) ; then
-    skip_tags+=,motr-build-python3
-fi
-
 if ! $install_epel ; then
     skip_tags+=,epel
 fi
