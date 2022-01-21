@@ -116,13 +116,6 @@ case $(distro_type) in
 esac
 pip3 install ipaddress
 
-if ! which ansible &>/dev/null ; then
-    case $(distro_type) in
-        redhat) yum -y install ansible ;;
-        debian) apt install ansible ;;
-    esac
-fi
-
 skip_tags=$(paste --serial --delimiters=, <<END_TAGS
 c75-workarounds
 c76-workarounds
@@ -176,6 +169,13 @@ if ! $use_ansible ; then
 	;;
    esac
    exit 0
+elif ! which ansible &>/dev/null ; then
+    case $(distro_type) in
+        redhat) yum -y install epel-release
+                yum -y install epel-release # Update it
+                yum -y install ansible ;;
+        debian) apt install ansible ;;
+    esac
 fi
 
 $TOP_SRCDIR/scripts/setup-node localhost \
