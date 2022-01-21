@@ -17,7 +17,7 @@
 set -e -o pipefail
 #set -x
 
-CORTX_WDIR=./cortx
+CORTX_WDIR=$PWD/cortx
 
 mgs="--without-dashboard"
 
