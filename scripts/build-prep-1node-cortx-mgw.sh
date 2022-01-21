@@ -1,7 +1,9 @@
 #!/bin/sh
 
 # Clone, build and prepare to start a single-node cluster with mgw.
-# It uses first avaialble disk of type /dev/sd*
+# It uses first avaialble disk of type /dev/sd*. Alternatively if
+# required space is available in a dirctory, go to that directory
+# and create a directory named "cortx" and run this script.
 #
 # Usage: ./build-prep-1node-cortx-mgw.sh [-dev] [-pkg] [-mgs]
 #
@@ -15,6 +17,8 @@
 set -e -o pipefail
 #set -x
 
+CORTX_WDIR=./cortx
+
 mgs="--without-dashboard"
 
 [[ $1 == "-mgs"  || $2 == "-mgs" || $3 == "-mgs" ]] && mgs=""
@@ -24,15 +28,15 @@ mgs="--without-dashboard"
 [[ -d cortx ]] || {
   available_device=$(lsblk --output NAME,FSTYPE -dsn | awk '$2 == "" {print $1}' | grep sd | head -n 1)
   mkfs.ext4 "/dev/$available_device"
-  mkdir -p ~/cortx
-  mount "/dev/$available_device" ~/cortx
+  mkdir -p $CORTX_WDIR
+  mount "/dev/$available_device" $CORTX_WDIR
 }
 
-cd ~/cortx
+cd $CORTX_WDIR
 
 yum install wget -y
 wget https://raw.githubusercontent.com/Seagate/cortx-motr/main/scripts/build-prep-1node.sh
-sh +x ~/build-prep-1node.sh "$1" "$2"
+echo 'sh +x ~/build-prep-1node.sh "$1" "$2"'
 rm build-prep-1node.sh
 
 
@@ -51,9 +55,8 @@ echo "========================================="
    cd cortx-rgw
    sudo ./install-deps.sh
 }
-cd -
 
-cd ~/cortx/cortx-rgw
+cd $CORTX_WDIR/cortx-rgw
 cmake3 -GNinja -DWITH_PYTHON3=3.6 -DWITH_RADOSGW_MOTR=YES -B build
 cd build && time ninja vstart-base && time ninja radosgw-admin && time ninja radosgw
 
@@ -72,11 +75,23 @@ echo 'Do not use "/dev/$available_device" in cluster yaml'
 echo 'Also do not use the devices with filesystem on them'
 echo 'Now you are ready to start the singlenode Motr cluster!'
 echo 'To start, run: hctl bootstrap --mkfs singlenode.yaml'
-echo 'To check:     hctl status'
-echo 'To shutdown:  hctl shutdown'
-echo "Follow the link for further steps"
-echo "https://seagate-systems.atlassian.net/wiki/spaces/PRIVATECOR/pages/808583540/Motr+RGW+MGW+on+single-node+HOWTO"
-echo 'run: hctl bootstrap --mkfs singlenode.yaml'
-echo "Update ceph.conf as mentioned in above link"
-echo "run:  MDS=0 RGW=1 ../src/vstart.sh -d $mgs"
-echo "After reboot a VM run mount "/dev/$available_device" ~/cortx"
+echo 'check:     hctl status'
+echo 'To connect to Motr cluster, add the following configuration'
+echo 'parameters from `hctl status` to build/ceph.conf:'
+echo '[client]'
+echo '      ...'
+echo '      rgw backend store = motr'
+echo '      motr profile fid  = 0x7000000000000001:0x4f'
+echo '      motr ha endpoint  = inet:tcp:10.0.0.1@2001'
+echo '      ...'
+echo '[client.rgw.8000]'
+echo '      ...'
+echo '      motr my endpoint  = inet:tcp:10.0.0.1@5001'
+echo '      motr my fid       = 0x7200000000000001:0x29'
+echo 'Then run:  MDS=0 RGW=1 ../src/vstart.sh -d $mgs'
+echo 'check:     hctl status'
+echo 'm0client should be in a started state'
+echo 'To stop the cluster run: ../src/stop.sh'
+echo 'Then:  hctl shutdown'
+echo 'If local directory is used then after reboot of the node,'
+echo 'run: mount "/dev/$available_device" $CORTX_WDIR'
