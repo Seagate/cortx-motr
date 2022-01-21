@@ -360,6 +360,9 @@ static int dtm0_process_rlink_send(struct dtm0_process *proc,
 	struct m0_rpc_session  *session = &proc->dop_rlink.rlk_sess;
 	struct m0_rpc_item     *item = &fop->f_item;
 
+	M0_ENTRY("remote: proc=" FID_F ", ep=%s",
+		 FID_P(&proc->dop_rproc_fid), proc->dop_rep);
+
 	item->ri_ops      = &dtm0_req_fop_rlink_rpc_item_ops;
 	item->ri_session  = session;
 	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
@@ -368,7 +371,7 @@ static int dtm0_process_rlink_send(struct dtm0_process *proc,
 	if (drf->df_wait_for_ack)
 		m0_co_op_active(&drf->df_co_op);
 
-	return m0_rpc_post(item);
+	return M0_RC(m0_rpc_post(item));
 }
 
 /** An aggregated status of a dtm0_process:dop_rlink */
@@ -398,9 +401,9 @@ static enum dpr_state ha_state_infer(const struct m0_confc        *confc,
 			 (M0_NC_ONLINE, M0_NC_DTM_RECOVERING))) ?
 		DPR_ONLINE : DPR_FAILED;
 
-	return M0_RC_INFO(outcome, "fid=" FID_F, FID_P(fid));
+	return M0_RC_INFO(outcome, "fid=" FID_F ", ha_state=%s",
+			  FID_P(fid), m0_ha_state2str(obj->co_ha_state));
 }
-
 
 
 static enum dpr_state dpr_state_infer(struct m0_dtm0_service *svc,
@@ -513,6 +516,8 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 	int                 rc   = 0;
 	struct drlink_fom  *drf  = M0_AMB(drf, context, df_co);
 	struct m0_fom      *fom  = &drf->df_gen;
+	const char         *reason = "Unknown";
+	const bool          always_reconnect = true;
 
 	M0_CO_REENTER(context,
 		      struct m0_long_lock_link   llink;
@@ -532,8 +537,10 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 	 */
 	m0_mutex_unlock(&drf->df_svc->dos_generic.rs_mutex);
 
-	if (rc != 0)
+	if (rc != 0) {
+		reason = "Cannot find-or-add remote process";
 		goto out;
+	}
 
 	m0_long_lock_link_init(&F(llink), fom, &F(llock_addb2));
 
@@ -550,8 +557,10 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 		}
 
 		rc = dtm0_process_rlink_reinit(F(proc), drf);
-		if (rc != 0)
+		if (rc != 0) {
+			reason = "Cannot reinit RPC link.";
 			goto unlock;
+		}
 		/*
 		 * TODO handle network failure after link is connected, but
 		 * before the message is successfully sent
@@ -566,14 +575,17 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 		 * connect to the remote side by any means.
 		 */
 		rc = M0_ERR(-EAGAIN);
+		reason = "Cannot send message to a dead participant.";
 		goto unlock;
 	}
 
 	M0_ASSERT(dpr_state_infer(drf->df_svc, F(proc)) == DPR_ONLINE);
 	m0_fom_phase_set(fom, DRF_SENDING);
 	rc = dtm0_process_rlink_send(F(proc), drf);
-	if (rc != 0)
+	if (rc != 0) {
+		reason = "Failed to post a message to RPC layer.";
 		goto unlock;
+	}
 
 	/* Safety: FOP (and item) can be released only in ::drlink_fom_fini. */
 	drlink_addb_drf2item_relate(drf);
@@ -591,8 +603,11 @@ unlock:
 	m0_long_lock_link_fini(&F(llink));
 out:
 	/* TODO handle the error */
-	if (rc != 0)
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "Failed to send a message to" FID_F ", rc=%d, "
+		       "reason=%s", FID_P(&drf->df_tgt), rc, reason);
 		m0_fom_phase_move(fom, rc, DRF_FAILED);
+	}
 	if (drf->df_op != NULL)
 		m0_be_op_done(drf->df_op);
 
