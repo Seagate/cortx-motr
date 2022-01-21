@@ -41,14 +41,10 @@ which git || sudo yum install -y git
 }
 
 echo 'Install Motr deps...'
+[[ -f scripts/$(basename "$0") ]] || cd motr
 if [[ $pkg == "yes" ]]; then
-    [[ -f scripts/$(basename "$0") ]] || cd motr
     sudo scripts/install-build-deps --no-ansible
 else
-    sudo yum install -y epel-release # Install EPEL yum repo
-    sudo yum install -y epel-release # Update to the latest version
-    sudo yum install -y ansible
-    [[ -f scripts/$(basename "$0") ]] || cd motr
     sudo scripts/install-build-deps
 fi
 
