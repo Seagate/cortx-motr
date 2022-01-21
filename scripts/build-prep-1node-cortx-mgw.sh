@@ -36,7 +36,7 @@ cd $CORTX_WDIR
 
 yum install wget -y
 wget https://raw.githubusercontent.com/Seagate/cortx-motr/main/scripts/build-prep-1node.sh
-echo 'sh +x ~/build-prep-1node.sh "$1" "$2"'
+sh +x ./build-prep-1node.sh "$1" "$2"
 rm build-prep-1node.sh
 
 
