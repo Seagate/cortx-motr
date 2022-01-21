@@ -199,7 +199,7 @@ main() {
     # Collects traces of m0d process(confd, ios) only
     MACHINE_ID=$(cat /etc/machine-id)
     if [ -d  /etc/cortx/motr/sysconfig/$MACHINE_ID ]; then
-        M0TR_M0D_TRACE_DIR=$(cat /etc/cortx/motr/sysconfig/$MACHINE_ID/motr | grep "^MOTR_M0D_TRACE_DIR" | cut -d '=' -f2)
+        M0TR_M0D_TRACE_DIR=$(source /etc/cortx/motr/sysconfig/$MACHINE_ID/motr ; echo $MOTR_M0D_TRACE_DIR)
     else
         M0TR_M0D_TRACE_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_TRACE_DIR" | cut -d '=' -f2)
     fi
@@ -220,7 +220,7 @@ main() {
 
     # Collects addb record files for process(confd, ios and s3server)
     if [ -d  /etc/cortx/motr/sysconfig/$MACHINE_ID ]; then
-        ADDB_RECORD_DIR=$(cat /etc/cortx/motr/sysconfig/$MACHINE_ID/motr | grep "^MOTR_M0D_ADDB_STOB_DIR" | cut -d '=' -f2)
+        ADDB_RECORD_DIR=$(source /etc/cortx/motr/sysconfig/$MACHINE_ID/motr ; echo $MOTR_M0D_ADDB_STOB_DIR)
     else
         ADDB_RECORD_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_ADDB_STOB_DIR" | cut -d '=' -f2)
     fi
