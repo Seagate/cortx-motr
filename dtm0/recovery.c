@@ -807,6 +807,7 @@ Deviverables:
 #include "motr/setup.h"       /* m0_cs_reqh_context */
 #include "addb2/identifier.h" /* M0_AVI_FOM_TO_TX */
 #include "dtm0/addb2.h"       /* M0_AVI_DORM_SM_STATE */
+#include "motr/client_internal.h"      /* struct m0client::m0c_reqh */
 
 enum {
 	/*
@@ -1308,6 +1309,10 @@ static int recovery_fom_init(struct recovery_fom             *rf,
 		}
 		M0_ASSERT(!rf->rf_eolq.bq_the_end);
 		m->rm_local_rfom = rf;
+
+		/* XXX */
+		rf->rf_last_known_eol = true;
+		rf->rf_last_known_ha_state = M0_NC_DTM_RECOVERING;
 	}
 
 	rf->rf_m = m;
@@ -1320,6 +1325,9 @@ static int recovery_fom_init(struct recovery_fom             *rf,
 
 	m0_clink_init(&rf->rf_ha_clink, recovery_fom_ha_clink_cb);
 	m0_clink_add_lock(&proc_conf->pc_obj.co_ha_chan, &rf->rf_ha_clink);
+
+	M0_LOG(M0_DEBUG, "Subscribed to " FID_F " with initial state: %s",
+	       FID_P(target), m0_ha_state2str(proc_conf->pc_obj.co_ha_state));
 
 	m0_fom_init(&rf->rf_base, &recovery_fom_type,
 		    &recovery_fom_ops, NULL, NULL,
@@ -1658,8 +1666,10 @@ static void remote_recovery_fom_coro(struct m0_fom *fom)
 	F(state) = M0_NC_UNKNOWN;
 
 	while (!F(eoq)) {
-		M0_LOG(M0_DEBUG, "remote recovery fom=%p handles %d state.",
-		       fom, F(state));
+		M0_LOG(M0_DEBUG, "remote recovery fom=%p, svc_fid=" FID_F ", "
+		       " proc_fid=" FID_F "handles %s state.", fom,
+		       FID_P(&rf->rf_tgt_svc), FID_P(&rf->rf_tgt_proc),
+		       m0_ha_state2str(F(state)));
 
 		switch (F(state)) {
 		case M0_NC_DTM_RECOVERING:
@@ -1688,7 +1698,7 @@ static bool was_log_replayed(struct recovery_fom *rf)
 	 */
 	bool is_na = rf->rf_is_volatile &&
 		M0_IN(rf->rf_last_known_ha_state,
-		      (M0_NC_UNKNOWN, M0_NC_FAILED));
+		      (M0_NC_UNKNOWN, M0_NC_FAILED, M0_NC_TRANSIENT));
 
 	bool outcome = ergo(!rf->rf_is_local && !is_na,
 			    M0_IN(rf->rf_last_known_ha_state,
@@ -1764,19 +1774,21 @@ static void local_recovery_fom_coro(struct m0_fom *fom)
 	 */
 	F(recovered) = rf->rf_is_volatile;
 
-	/* Wait until the moment where we should start recovery. */
-	do {
-		M0_CO_FUN(CO(fom), heq_await(fom, &F(state), &F(eoq)));
-		if (F(eoq))
-			goto out;
+	if (!F(recovered)) {
+		/* Wait until the moment where we should start recovery. */
+		do {
+			M0_CO_FUN(CO(fom), heq_await(fom, &F(state), &F(eoq)));
+			if (F(eoq))
+				goto out;
 
-		if (F(state) == M0_NC_ONLINE && !ALL2ALL)
-			break;
-	} while (F(state) != M0_NC_DTM_RECOVERING);
+			if (F(state) == M0_NC_ONLINE && !ALL2ALL)
+				break;
+		} while (F(state) != M0_NC_DTM_RECOVERING);
 
-	if (F(state) == M0_NC_ONLINE) {
-		M0_LOG(M0_WARN, "HA told DTM0 service to skip recovery.");
-		F(recovered) = true;
+		if (F(state) == M0_NC_ONLINE) {
+			M0_LOG(M0_WARN, "HA told DTM0 service to skip recovery.");
+			F(recovered) = true;
+		}
 	}
 
 	while (!F(recovered)) {
@@ -1984,11 +1996,11 @@ static int default_log_iter_next(struct m0_dtm0_recovery_machine *m,
 }
 
 /*
- * TODO: It was copy-pasted from setup.c!
+ * TODO: It was copy-pasted from setup.c (see cs_ha_process_event)!
  * Export cs_ha_process_event instead of using this thing.
  */
-static void cs_ha_process_event(struct m0_motr                *cctx,
-                                enum m0_conf_ha_process_event  event)
+static void server_process_event(struct m0_motr                *cctx,
+				 enum m0_conf_ha_process_event  event)
 {
 	enum m0_conf_ha_process_type type;
 
@@ -2003,12 +2015,28 @@ static void cs_ha_process_event(struct m0_motr                *cctx,
 	}
 }
 
+/* TODO: copy-pasted from client_init.c (see ha_process_event)!
+ * Actually, clients should not send RECOVERED but at this moment,
+ * the SM on the Hare side cannot properly handle this.
+ */
+static void client_process_event(struct m0_client *m0c,
+				 enum m0_conf_ha_process_event  event)
+{
+	const enum m0_conf_ha_process_type type = M0_CONF_HA_PROCESS_OTHER;
+	M0_ASSERT(m0c->m0c_motr_ha.mh_link != NULL);
+	m0_conf_ha_process_event_post(&m0c->m0c_motr_ha.mh_ha,
+	                              m0c->m0c_motr_ha.mh_link,
+	                              &m0c->m0c_process_fid,
+				      m0_process(), event, type);
+}
+
 static void default_ha_event_post(struct m0_dtm0_recovery_machine *m,
 				  const struct m0_fid             *tgt_proc,
 				  const struct m0_fid             *tgt_svc,
 				  enum m0_conf_ha_process_event    event)
 {
 	struct m0_reqh *reqh;
+	struct m0_client *m0c;
 	(void) tgt_proc;
 	(void) tgt_svc;
 
@@ -2020,9 +2048,18 @@ static void default_ha_event_post(struct m0_dtm0_recovery_machine *m,
 		       "It is impossible to emit an HA event without local "
 		       "recovery FOM up and running.");
 	reqh = m0_fom_reqh(&m->rm_local_rfom->rf_base);
-	M0_ASSERT_INFO(m0_cs_reqh_context(reqh) != NULL,
-		       "A fully-functional motr process must have a reqh ctx.");
-	cs_ha_process_event(m0_cs_ctx_get(reqh), event);
+
+	if (!m->rm_local_rfom->rf_is_volatile) {
+		M0_ASSERT_INFO(m0_cs_reqh_context(reqh) != NULL,
+			       "A fully-functional motr process must "
+			       "have a reqh ctx.");
+		server_process_event(m0_cs_ctx_get(reqh), event);
+	} else {
+		/* XXX */
+		m0c = M0_AMB(m0c, reqh, m0c_reqh);
+		client_process_event(m0c, event);
+	}
+
 }
 
 static void default_redo_post(struct m0_dtm0_recovery_machine *m,
