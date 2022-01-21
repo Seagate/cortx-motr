@@ -1634,6 +1634,12 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		 * Consider DIX request to be successful if there is at least
 		 * one successful CAS request.
 		 */
+	/* XXX:
+	 * The feature is disabled until it gets covered by tests,
+	 * and/or the error handling gets re-evaluated in accordance
+	 * with DTM0 needs for the recovery use-cases.
+	 */
+#if 0
 		if (m0_tl_forall(cas_rop, cas_rop,
 				 &rop->dg_cas_reqs,
 				 cas_rop->crp_creq.ccr_sm.sm_rc != 0))
@@ -1645,6 +1651,12 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 				dix_cas_rop_rc_update(cas_rop, 0);
 			m0_cas_req_fini(&cas_rop->crp_creq);
 		} m0_tl_endfor;
+#else
+		m0_tl_for (cas_rop, &rop->dg_cas_reqs, cas_rop) {
+			dix_cas_rop_rc_update(cas_rop, 0);
+			m0_cas_req_fini(&cas_rop->crp_creq);
+		} m0_tl_endfor;
+#endif
 	}
 
 	if (req->dr_type == DIX_DEL &&
