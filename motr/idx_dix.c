@@ -1262,8 +1262,13 @@ M0_INTERNAL int m0__idx_cancel(struct m0_op_idx *oi)
 }
 
 static void dix_set_idx_flags(struct m0_op_idx *oi)
-{ 
-	if (ENABLE_DTM0)
+{
+	/* XXX:
+	 * For some reason, "if(ENABLE_DTM0)" was added here, but
+	 * it wasn't properly tested. Disabling it until the code
+	 * is covered with tests.
+	 */
+	if (0)
 		oi->oi_flags |= M0_OIF_SKIP_LAYOUT;
 
 	if (!(oi->oi_flags & M0_OIF_SKIP_LAYOUT))
