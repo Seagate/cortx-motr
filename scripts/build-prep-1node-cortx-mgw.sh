@@ -1,8 +1,8 @@
 #!/bin/sh
 
 # Clone, build and prepare to start a single-node cluster with mgw.
-# It uses first avaialble disk of type /dev/sd*. Alternatively if
-# required space is available in a dirctory, go to that directory
+# It uses first available disk of type /dev/sd*. Alternatively if
+# required space is available in a directory, go to that directory
 # and create a directory named "cortx" and run this script.
 #
 # Usage: ./build-prep-1node-cortx-mgw.sh [-dev] [-pkg] [-mgs]
@@ -41,7 +41,7 @@ rm build-prep-1node.sh
 
 
 echo "========================================="
-echo "CORTX build and intallation is completed."
+echo "CORTX build and installation is completed."
 echo "========================================="
 
 
