@@ -622,7 +622,7 @@ enum {
 enum {
 	MAX_NODE_SIZE            = 10, /*node size is a power-of-2 this value.*/
 	MIN_KEY_SIZE             = 8,
-	MAX_KEY_SIZE             = 32,
+	MAX_KEY_SIZE             = 128,
 	MIN_VAL_SIZE             = 8,
 	MAX_VAL_SIZE             = 48,
 	MAX_TRIALS               = 3,
