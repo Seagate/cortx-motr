@@ -9,7 +9,7 @@
 #
 #   -dev  development mode, don't build and install rpms
 #   -mgs  keep ceph mgs which provides dashboard
-#   -pkg  install known packages without adding repo
+#   -pkg  quickly install required packages without building them
 #         (If this option is not specified motr/scripts/install-build-deps
 #          is called which adds required repo and also build and installs
 #          lustre, libfabric and isa packages and installs kernel packages too.)
