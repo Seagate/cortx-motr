@@ -154,14 +154,12 @@ if ! $use_ansible ; then
         sed -i "/BuildRequires:  %{lustre_devel}/d" cortx-motr.spec
         sed -i 's/@BUILD_DEPEND_LIBFAB@//g' cortx-motr.spec
         sed -i 's/@.*@/111/g' cortx-motr.spec
-        yum-builddep cortx-motr.spec
+        yum-builddep cortx-motr.spec -y
         rm cortx-motr.spec
 
         for i in ${packages_redhat[@]}
         do
-          if [[ `rpm -qa | grep $i` == "" ]]; then
             sudo yum install $i -y
-          fi
 	done
 	;;
       debian)
