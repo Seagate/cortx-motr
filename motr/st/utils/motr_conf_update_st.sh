@@ -122,11 +122,17 @@ EOF
 
 revoke_read_lock()
 {
-	local lnet_nid=$(m0_local_nid_get)
+	local xprt=$(m0_default_xprt)
+	local nid=$(m0_local_nid_get)
 	local confd_ep=$CONFD_EP
-	local c_ep="$lnet_nid:12345:34:*"
+	local c_ep
 	local delay=${1:-5}
 	echo "getting write lock..."
+	if [ "$xprt" = "lnet" ]; then
+		c_ep="$nid:12345:34:*"
+	else
+		c_ep="$nid@3401"
+	fi
 	$M0_SRC_DIR/utils/m0rwlock -s $confd_ep -c $c_ep -d $delay
 }
 

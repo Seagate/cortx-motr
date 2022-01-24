@@ -21,7 +21,9 @@
 
 motr_st_util_dir=$(dirname $(readlink -f $0))
 m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
+m0_src_dir="$motr_st_util_dir/../../../"
 
+. $m0_src_dir/utils/functions # m0_default_xprt
 . $m0t1fs_dir/common.sh
 . $m0t1fs_dir/m0t1fs_common_inc.sh
 . $m0t1fs_dir/m0t1fs_client_inc.sh
@@ -30,6 +32,7 @@ m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 . $motr_st_util_dir/motr_st_inc.sh
 
 
+XPRT=$(m0_default_xprt)
 MOTR_TEST_DIR=$SANDBOX_DIR
 MOTR_TEST_LOGFILE=$SANDBOX_DIR/motr_`date +"%Y-%m-%d_%T"`.log
 MOTR_TRACE_DIR=$SANDBOX_DIR/motr
@@ -43,9 +46,14 @@ stride=4
 
 motr_change_controller_state()
 {
-	local lnet_nid=$(m0_local_nid_get)
-	local s_endpoint="$lnet_nid:12345:34:101"
-	local c_endpoint="$lnet_nid:$M0HAM_CLI_EP"
+	local nid=$(m0_local_nid_get)
+	if [ "$XPRT" = "lnet" ]; then
+		local s_endpoint="$nid12345:34:101"
+		local c_endpoint="$nid$M0HAM_CLI_EP"
+	else
+		local s_endpoint="$nid@3101"
+		local c_endpoint="$nid$M0HAM_CLI_EP"
+	fi
 	local dev_fid=$1
 	local dev_state=$2
 
