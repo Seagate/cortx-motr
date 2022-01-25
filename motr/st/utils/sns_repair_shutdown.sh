@@ -60,7 +60,7 @@ sns_repair_motr_test()
         sns_repair_abort_skip_4
 
 	sleep 2
-	$(kill -2 $m0d_4_pid)
+	"$(kill -2 $m0d_4_pid)"
 
 	return $?
 }
