@@ -141,5 +141,8 @@ for motr_logdir in $motr_logdirs ; do
         else
             echo "## No files to remove ##"
         fi
+    echo "Atul on 144 log_dir=$log_dir"
+    /usr/bin/gzip -c --fast $log_dir
+    echo "Atul on 146"
     done
 done

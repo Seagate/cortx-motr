@@ -129,5 +129,8 @@ for addb_rec_dir in $addb_rec_dirs ; do
         else
             echo "## No dirs to remove ##"
         fi
+    echo "Atul on 132 addb log_dir=$log_dir"
+    /usr/bin/gzip -c --fast $log_dir
+    echo "Atul on 134 addb"
     done
 done
