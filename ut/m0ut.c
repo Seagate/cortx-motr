@@ -59,6 +59,7 @@ extern struct m0_ut_suite be_ut;
 extern struct m0_ut_suite buffer_pool_ut;
 extern struct m0_ut_suite bulkio_client_ut;
 extern struct m0_ut_suite bulkio_server_ut;
+extern struct m0_ut_suite bytecount_ut;
 extern struct m0_ut_suite capa_ut;
 extern struct m0_ut_suite cas_client_ut;
 extern struct m0_ut_suite cas_service_ut;
@@ -196,6 +197,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &buffer_pool_ut, true);
 	m0_ut_add(m, &bulkio_client_ut, true);
 	m0_ut_add(m, &bulkio_server_ut, true);
+	m0_ut_add(m, &bytecount_ut, true);
 
 	/*
 	 * ALARM/WARN/XXX: `dtm0_ut' added before mt_idx_dix, due to

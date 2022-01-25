@@ -272,6 +272,7 @@ struct m0_cob_domain {
 	struct m0_be_btree      cd_fileattr_basic;
 	struct m0_be_btree      cd_fileattr_omg;
 	struct m0_be_btree      cd_fileattr_ea;
+	struct m0_be_btree      cd_bytecount;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_cob_domain_format_version {
@@ -508,6 +509,18 @@ struct m0_cob_earec {
 	char              cer_body[0]; /**< EA body */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
+/** Byte count table key. */
+struct m0_cob_bckey {
+	struct m0_fid     cbk_pfid;    /**< Pool ver fid */
+	uint64_t          cbk_user_id; /**< User id str? */
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
+
+/** Byte count table record. */
+struct m0_cob_bcrec {
+	uint64_t          cbr_bytecount;  /**< Byte count */
+	uint64_t          cbr_cob_objects;  /**< Cob object count */
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
+
 /**
  * In-memory representation of a component object.
  *
@@ -575,6 +588,8 @@ struct m0_cob {
 	struct m0_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
 	struct m0_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl...) */
 	struct m0_cob_omgrec   co_omgrec;   /**< permission data */
+	struct m0_cob_bckey   *co_bckey;    /**< Bytecount key */
+	struct m0_cob_bcrec   *co_bcrec;    /**< Cob object count */
 };
 
 /**
@@ -624,6 +639,7 @@ enum m0_cob_flags {
 	M0_CA_FABREC     = (1 << 3),  /**< fabrec in cob is up-to-date */
 	M0_CA_OMGREC     = (1 << 4),  /**< omgrec in cob is up-to-date */
 	M0_CA_LAYOUT     = (1 << 5),  /**< layout in cob is up-to-date */
+	M0_CA_BCREC      = (1 << 6),  /**< bytecount in cob is up-to-date */
 };
 
 /**
@@ -825,6 +841,32 @@ M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it);
 M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it);
 
 /**
+ * Search for a record in the bytecount table
+ * If the lookup fails, we return error and co_flags accurately reflects
+ * the missing fields.
+ */
+M0_INTERNAL int m0_cob_bc_lookup(struct m0_cob *cob,
+				 struct m0_cob_bckey *bc_key);
+
+/**
+ * Inserts a record in the bytecount table
+ * If the insert fails, we return error
+ */
+M0_INTERNAL int m0_cob_bc_insert(struct m0_cob *cob,
+				 struct m0_cob_bckey *bc_key,
+				 struct m0_cob_bcrec *bc_val,
+				 struct m0_be_tx *tx);
+
+/**
+ * Updates a record in the bytecount table
+ * If the update fails, it returns error
+ */
+M0_INTERNAL int m0_cob_bc_update(struct m0_cob *cob,
+				 struct m0_cob_bckey *bc_key,
+				 struct m0_cob_bcrec *bc_val,
+				 struct m0_be_tx *tx);
+
+/**
  * Init cob iterator on passed @cob and @name as a start position.
  */
 M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
@@ -933,6 +975,9 @@ enum m0_cob_op {
 	M0_COB_OP_NAME_ADD,
 	M0_COB_OP_NAME_DEL,
 	M0_COB_OP_NAME_UPDATE,
+	M0_COB_OP_BYTECOUNT_SET,
+	M0_COB_OP_BYTECOUNT_DEL,
+	M0_COB_OP_BYTECOUNT_UPDATE,
 } M0_XCA_ENUM;
 
 M0_INTERNAL void m0_cob_tx_credit(struct m0_cob_domain *dom,
