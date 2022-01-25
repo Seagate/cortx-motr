@@ -307,7 +307,7 @@ static int be_log_store_level_enter(struct m0_module *module)
 				char    *direct_io_cfg="directio:true";
 				stob_cfg =
 					m0_alloc(strlen(ls->ls_cfg.lsc_stob_create_cfg) +
-						    ARRAY_SIZE(direct_io_cfg) + 2 );
+						    strlen(direct_io_cfg) + 2 );
 				if (stob_cfg!= NULL)
 					sprintf(stob_cfg, "%s:%s",
 						ls->ls_cfg.lsc_stob_create_cfg,

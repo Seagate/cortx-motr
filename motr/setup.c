@@ -1484,13 +1484,13 @@ static char *cs_storage_partdom_location_gen(const char          *stob_path,
 	const char *prefix = m0_stob_part_type.st_fidt.ft_name;
 
 	M0_ALLOC_ARR(location,
-		     strlen(stob_path) + ARRAY_SIZE(prefix) + 128);
+		     strlen(stob_path) + strlen(prefix) + 128);
 	if (location != NULL)
 		sprintf(location, "%s:%s:%p", prefix, stob_path, dom);
 	return location;
 }
 
-#define PART_STOB_MAX_CHUNK_SIZE_IN_BITS  64
+#define PART_STOB_MAX_CHUNK_SIZE_IN_BITS  30
 static int align_chunk_size(m0_bcount_t proposed_chunk_size)
 {
 	int chunksize_in_bits;
@@ -1503,7 +1503,7 @@ static int align_chunk_size(m0_bcount_t proposed_chunk_size)
 		else
 			break;
 	}
-	M0_ASSERT(i < PART_STOB_MAX_CHUNK_SIZE_IN_BITS);chunksize_in_bits = i;
+	chunksize_in_bits = i;
 	return (chunksize_in_bits);
 }
 
@@ -1583,10 +1583,12 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		part_cfg->bpc_part_mode_seg1 = true;
 		rctx->rc_be_seg_path = sdev->sd_filename;
 
-		rctx->rc_be_seg_size = meta_size;
 		part_cfg->bpc_seg_size_in_chunks =
-			rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
+			meta_size  >> part_cfg->bpc_chunk_size_in_bits;
+		rctx->rc_be_seg_size = part_cfg->bpc_seg_size_in_chunks << part_cfg->bpc_chunk_size_in_bits;
 		used_chunks += part_cfg->bpc_seg_size_in_chunks;
+
+		M0_LOG(M0_ALWAYS, "rc_be_seg_size : %"PRIu64,rctx->rc_be_seg_size);
 
 		/** Log configuration*/
 		part_cfg->bpc_part_mode_log = true;

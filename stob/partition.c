@@ -783,10 +783,12 @@ static m0_bcount_t stob_part_dev_offset_get(struct m0_stob_part *partstob,
 
 	M0_ENTRY();
 	M0_PRE(partstob != NULL);
+	M0_LOG(M0_ALWAYS, "partstob id : %d  user_offset :%"PRIu64,(int)partstob->part_id, user_offset); 
 	chunk_size_in_bits = partstob->part_chunk_size_in_bits -
 		             stob_part_block_shift(&partstob->part_stob);
 	chunk_off_mask = (1 << chunk_size_in_bits) - 1;
 	offset_within_chunk = user_offset & chunk_off_mask;
+	M0_LOG(M0_ALWAYS, "chunk_off_mask : %"PRIu64,chunk_off_mask); 
 	M0_LOG(M0_DEBUG, "relative offset in given chunk: %" PRIu64,
 	       offset_within_chunk);
 	user_chunk_index =

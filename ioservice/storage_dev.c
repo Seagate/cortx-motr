@@ -95,7 +95,7 @@ storage_dev_get_part_stob(struct m0_be_domain *domain,
 	if (i == M0_BE_MAX_PARTITION_USERS)
 		return -ENOENT;
 	stob_cfg = m0_alloc(strlen(dev_pathname) +
-			    ARRAY_SIZE(direct_io_cfg) + 4);
+			    strlen(direct_io_cfg) + 4);
 	if (stob_cfg!= NULL)
 		sprintf(stob_cfg, "%s:%s", dev_pathname, direct_io_cfg);
 	else
