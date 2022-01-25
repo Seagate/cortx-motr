@@ -19,7 +19,7 @@
 #
 
 
-TOPDIR=$(dirname $0)/../../../
+TOPDIR="$(dirname $0)/../../../"
 
 . "${TOPDIR}/m0t1fs/linux_kernel/st/common.sh"
 . "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh"

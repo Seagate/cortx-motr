@@ -18,7 +18,7 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-TOPDIR=$(dirname $0)/../../../
+TOPDIR="$(dirname $0)/../../../"
 
 . "${TOPDIR}/m0t1fs/linux_kernel/st/common.sh"
 . "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh"
@@ -60,7 +60,7 @@ sns_repair_motr_test()
         sns_repair_abort_skip_4
 
 	sleep 2
-	kill -2 $m0d_4_pid
+	$(kill -2 $m0d_4_pid)
 
 	return $?
 }
