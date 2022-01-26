@@ -185,12 +185,12 @@ def process_fdmi_record(kv_record, p):
     # Check de-dup records
     kv_i = kv_records.get(keystr)
     if kv_i is not None:
-        #print('dup: {}'.format(kv), file=sys.stdout, flush = True)
+        print('dup: {}'.format(kv), file=sys.stdout, flush = True)
         #send ACK to plugin immediately beause it is a duplicated one
         send_ack_to_plugin("++++++++++", p, rec_id)
         pass
     else:
-        #print('new: {}'.format(kv), file=sys.stdout, flush = True)
+        print('new: {}'.format(kv), file=sys.stdout, flush = True)
         kv_records[keystr] = kv
         keystr_LRU.append(keystr)
         #send FDMI event to kafka asynchronously.

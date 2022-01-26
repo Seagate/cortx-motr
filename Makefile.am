@@ -760,6 +760,14 @@ utils_mkfs_m0mkfs_LDADD        = $(top_builddir)/motr/libmotr.la
 
 utils/mkfs/m0mkfs.o: xcode/protocol_checksum.h
 
+# cas/ctgdump ------------------------------------------ {{{2
+#
+
+sbin_PROGRAMS                 += cas/m0ctgdump
+cas_m0ctgdump_LDADD        = $(top_builddir)/motr/libmotr.la
+
+cas/m0ctgdump.o: xcode/protocol_checksum.h
+
 #
 # utils/layout ---------------------------------------- {{{2
 #

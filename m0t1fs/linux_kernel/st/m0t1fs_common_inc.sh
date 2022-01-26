@@ -295,6 +295,7 @@ function dix_pver_build()
 	if [ "x$ENABLE_FDMI_FILTERS" == "xYES" ] ; then
 		# If we have SPARE=0, then we can have any number between [1, DIX_DEVS_NR - 1]
 		local DIX_PARITY=$((DIX_DEVS_NR - 1))
+		DIX_PARITY=0
 		local DIX_SPARE=0
 	else
 		# If we have SPARE=PARITY, then we will use:
