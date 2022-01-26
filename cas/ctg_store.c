@@ -35,6 +35,7 @@
 
 #include "cas/ctg_store.h"
 #include "cas/index_gc.h"
+#include "motr/setup.h"
 
 
 struct m0_ctg_store {
@@ -1962,6 +1963,72 @@ static const struct m0_be_btree_kv_ops cas_btree_ops = {
 	.ko_vsize   = &ctg_vsize,
 	.ko_compare = &ctg_cmp
 };
+
+int ctg_index_btree_dump(struct m0_motr *motr_ctx, struct m0_cas_ctg *ctg)
+{
+	struct m0_buf key;
+	struct m0_buf val;
+	struct m0_be_btree_cursor cursor;
+	int rc;
+
+	ctg_init(ctg, cas_seg(&motr_ctx->cc_reqh_ctx.rc_be.but_dom));
+
+	m0_be_btree_cursor_init(&cursor, &ctg->cc_tree);
+	for (rc = m0_be_btree_cursor_first_sync(&cursor); rc == 0;
+			     rc = m0_be_btree_cursor_next_sync(&cursor)) {
+		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
+		M0_LOG(M0_ALWAYS, "[%.*s:%.*s]",
+				  (int)key.b_nob, (const char*)(key.b_addr+8),
+				  (int)val.b_nob, (const char*)(val.b_addr+8));
+	}
+	m0_be_btree_cursor_fini(&cursor);
+	ctg_fini(ctg);
+
+	return 0;
+}
+
+int ctgdump(struct m0_motr *motr_ctx, char *fidstr)
+{
+	int rc;
+	struct m0_fid dfid;
+
+	struct m0_cas_ctg *ctg = NULL;
+
+
+	rc = m0_fid_sscanf(fidstr, &dfid);
+	if (rc ==0) {
+		struct m0_fid out_fid = { 0, 0};
+		struct m0_fid gfid = { 0, 0};
+		struct m0_buf key;
+		struct m0_buf val;
+		struct m0_be_btree_cursor  cursor;
+
+		rc = m0_ctg_store_init(&motr_ctx->cc_reqh_ctx.rc_be.but_dom);
+		M0_ASSERT(rc == 0);
+
+		m0_be_btree_cursor_init(&cursor, &ctg_store.cs_state->cs_meta->cc_tree);
+		for (rc = m0_be_btree_cursor_first_sync(&cursor); rc == 0;
+			     rc = m0_be_btree_cursor_next_sync(&cursor)) {
+			m0_be_btree_cursor_kv_get(&cursor, &key, &val);
+			memcpy(&out_fid, (key.b_addr + M0_CAS_CTG_KV_HDR_SIZE), sizeof(out_fid));
+			ctg = *(struct m0_cas_ctg **)(val.b_addr + 8);
+			gfid.f_container = out_fid.f_container & 0x00000000ffffffff;
+			gfid.f_key       = out_fid.f_key;
+			M0_LOG(M0_ALWAYS, "out = "FID_F"normal:"FID_F"ctg=%p",
+					  FID_P(&out_fid), FID_P(&gfid), ctg);
+			if (m0_fid_eq(&gfid, &dfid)) {
+				M0_LOG(M0_ALWAYS, "gfid = "FID_F"dfid"FID_F"ctg=%p",
+					  FID_P(&gfid), FID_P(&dfid), ctg);
+				ctg_index_btree_dump(motr_ctx, ctg);
+				break;
+			}
+		}
+		m0_be_btree_cursor_fini(&cursor);
+	}
+	return rc;
+}
+
+
 
 #undef M0_TRACE_SUBSYSTEM
 

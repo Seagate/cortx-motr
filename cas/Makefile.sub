@@ -19,3 +19,7 @@ nodist_motr_libmotr_la_SOURCES  += \
 XC_FILES += \
                             cas/cas_xc.h \
                             cas/cas_addb2_xc.h
+
+
+cas_m0ctgdump_SOURCES = cas/m0ctgdump.c
+
