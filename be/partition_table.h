@@ -35,15 +35,15 @@
 #include "lib/types.h"   /* PRIu64 */
 #include "motr/magic.h"
 
-#include "format/format.h"
-#include "be/domain.h"
-#include "ut/helper.h"
+#include "format/format.h"  /* m0_format_header*/
+#include "ut/helper.h"     /* BE_UT_LOG_ID */
+#include "be/domain.h"    /*M0_BE_MAX_PARTITION_USERS */
 
 #define M0_BE_PTABLE_VERSION               (1)
 #define M0_BE_PTABLE_DEV_NAME_MAX_SIZE     (128)
 #define M0_BE_PTABLE_HDR_VERSION           (1)
 
-#define M0_BE_MAX_PARTITION_USERS          (6)
+
 enum m0_be_ptable_id {
 	/* Partition table type   */
 	M0_BE_PTABLE_PARTITION_TABLE = (BE_UT_LOG_ID - 1),

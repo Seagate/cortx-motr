@@ -312,7 +312,6 @@ M0_INTERNAL int cs_conf_get_parition_dev(struct cs_stobs *stob,
 			m0_confc_close(svc_obj);
 			return M0_ERR(rc);
 		}
-		M0_LOG(M0_ALWAYS,"vcp: dev_nr = %d", dev_nr);
 		while ((rc = m0_conf_diter_next_sync(&it, is_device)) ==
 			M0_CONF_DIRNEXT) {
 			sdev = M0_CONF_CAST(m0_conf_diter_result(&it),

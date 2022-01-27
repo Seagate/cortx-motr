@@ -76,9 +76,11 @@ void m0_stob_ut_part_init(struct m0_be_ut_backend *ut_be,
 	pcfg->bc_part_cfg.bpc_init_cfg = part_cfg;
 	pcfg->bc_part_cfg.bpc_create_cfg = part_cfg;
 	pcfg->bc_part_cfg.bpc_part_mode_set = true;
-	pcfg->bc_part_cfg.bpc_part_mode_seg0 = true;
-	pcfg->bc_part_cfg.bpc_part_mode_seg1 = true;
-	pcfg->bc_part_cfg.bpc_part_mode_log = true;
+	pcfg->bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_enble = true;
+	pcfg->bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_enble = true;
+	pcfg->bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_enble = true;
+	pcfg->bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_enble = true;
+
 	pcfg->bc_part_cfg.bpc_chunk_size_in_bits = 21;
 	pcfg->bc_part_cfg.bpc_total_chunk_count = PART_DEV_SIZE >> 21;
 
@@ -87,10 +89,10 @@ void m0_stob_ut_part_init(struct m0_be_ut_backend *ut_be,
 void m0_stob_ut_part_fini(struct m0_be_ut_backend *ut_be)
 {
 
-	rmdir("./__s");
 	memset(&ut_be->but_dom.bd_cfg.bc_part_cfg, 0,
-	       sizeof(struct m0_be_part_stob_cfg));
+	       sizeof(struct m0_be_part_cfg));
 	m0_be_ut_backend_fini(ut_be);
+	rmdir("./__s");
 }
 
 void m0_stob_ut_part_cfg_make(char                **str,
