@@ -588,6 +588,7 @@ struct m0_cob {
 	struct m0_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
 	struct m0_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl...) */
 	struct m0_cob_omgrec   co_omgrec;   /**< permission data */
+	/* XXX Do we need below structures? XXX */
 	struct m0_cob_bckey   *co_bckey;    /**< Bytecount key */
 	struct m0_cob_bcrec   *co_bcrec;    /**< Cob object count */
 };
@@ -627,6 +628,16 @@ struct m0_cob_ea_iterator {
 	struct m0_be_btree_cursor ci_cursor;   /**< cob iterator cursor */
 	struct m0_cob_eakey      *ci_key;      /**< current iterator pos */
 	struct m0_cob_earec      *ci_rec;      /**< current iterator rec */
+};
+
+/**
+ * Cob BC iterator. Holds current position inside Bytecount table.
+ */
+struct m0_cob_bc_iterator {
+	struct m0_cob            *ci_cob;      /**< the cob we iterate */
+	struct m0_be_btree_cursor ci_cursor;   /**< cob iterator cursor */
+	struct m0_cob_bckey      *ci_key;      /**< current iterator pos */
+	struct m0_cob_bcrec      *ci_rec;      /**< current iterator rec */
 };
 
 /**
@@ -865,6 +876,37 @@ M0_INTERNAL int m0_cob_bc_update(struct m0_cob *cob,
 				 struct m0_cob_bckey *bc_key,
 				 struct m0_cob_bcrec *bc_val,
 				 struct m0_be_tx *tx);
+
+/**
+ * Init bc iterator on passed @cob and @pver_fid, @user_id as a start position.
+ */
+M0_INTERNAL int m0_cob_bc_iterator_init(struct m0_cob             *cob,
+					struct m0_cob_bc_iterator *it,
+					const struct m0_fid       *pver_fid,
+					uint64_t                   user_id);
+
+/**
+ * Position to next key in a bc table.
+ *
+ * @retval 0        Success.
+ * @retval -ENOENT  Next key is not found in bc table.
+ * @retval -errno   Other error.
+ */
+M0_INTERNAL int m0_cob_bc_iterator_next(struct m0_cob_bc_iterator *it);
+
+/**
+ * Position in table according with @it properties.
+ *
+ * @retval 0        Success.
+ * @retval -ENOENT  Specified position not found in table.
+ * @retval -errno   Other error.
+ */
+M0_INTERNAL int m0_cob_bc_iterator_get(struct m0_cob_bc_iterator *it);
+
+/**
+ * Finish cob bc iterator.
+ */
+M0_INTERNAL void m0_cob_bc_iterator_fini(struct m0_cob_bc_iterator *it);
 
 /**
  * Init cob iterator on passed @cob and @name as a start position.

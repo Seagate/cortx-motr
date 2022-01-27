@@ -427,6 +427,108 @@ static m0_bcount_t bc_vsize(const void *val)
 	return m0_cob_bcrec_size(val);
 }
 
+M0_INTERNAL int m0_cob_bc_iterator_init(struct m0_cob             *cob,
+					struct m0_cob_bc_iterator *it,
+					const struct m0_fid       *pver_fid,
+					uint64_t                   user_id)
+{
+	int rc;
+
+	/* Prepare entry key using passed started position. */
+	rc = m0_cob_max_bckey_make(&it->ci_key, pver_fid, user_id);
+	if (rc != 0)
+		return M0_RC(rc);
+
+	it->ci_rec = m0_alloc(m0_cob_max_bcrec_size());
+	if (it->ci_rec == NULL) {
+		m0_free(it->ci_key);
+		return M0_RC(rc);
+	}
+
+	m0_be_btree_cursor_init(&it->ci_cursor, &cob->co_dom->cd_bytecount);
+	it->ci_cob = cob;
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_cob_bc_iterator_get(struct m0_cob_bc_iterator *it)
+{
+	struct m0_cob_bckey *bckey;
+	struct m0_cob_bcrec *bcrec;
+	struct m0_buf        key;
+	struct m0_buf        val;
+	int                  rc;
+
+	m0_buf_init(&key, it->ci_key, m0_cob_bckey_size(it->ci_key));
+	m0_buf_init(&val, it->ci_rec, m0_cob_bcrec_size(it->ci_rec));
+	rc = m0_be_btree_cursor_get_sync(&it->ci_cursor, &key, true);
+	if (rc == 0) {
+		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, &val);
+		bckey = (struct m0_cob_bckey *)key.b_addr;
+		bcrec = (struct m0_cob_bcrec *)val.b_addr;
+
+		/**
+		 * Check if we are still inside the object bounds. Assert and
+		 * key copy can be done only in this case.
+		 */
+		/** TODO: Review below condition */
+		/*
+			if (!m0_fid_eq(&bckey->cbk_pfid,
+			       &it->ci_key->cbk_pfid))
+			rc = -ENOENT;
+		*/
+		if (rc == 0) {
+			M0_ASSERT(m0_cob_bckey_size(bckey) <=
+				  m0_cob_max_bckey_size());
+			memcpy(it->ci_key, bckey, m0_cob_bckey_size(bckey));
+			memcpy(it->ci_rec, bcrec, m0_cob_bcrec_size(bcrec));
+		}
+	}
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_cob_bc_iterator_next(struct m0_cob_bc_iterator *it)
+{
+	/*
+	struct m0_cob_bckey *bckey;
+	struct m0_buf        key;
+	*/
+	int                  rc;
+
+	rc = m0_be_btree_cursor_next_sync(&it->ci_cursor);
+	if (rc == 0) {
+		/*
+		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
+		bckey = (struct m0_cob_bckey *)key.b_addr;
+		*/
+		/**
+		 * Check if we are stil' inside the object bounds. Assert and
+		 * key copy can be done only in this case.
+		 */
+		/** TODO: Review below condition */
+		/*
+		if (!m0_fid_eq(&bckey->cbk_pfid,
+			       &it->ci_key->cbk_pfid))
+			rc = -ENOENT;
+
+		if (rc == 0) {
+			M0_ASSERT(m0_cob_bckey_size(bckey) <=
+				  m0_cob_max_bckey_size());
+			memcpy(it->ci_key, bckey, m0_cob_bckey_size(bckey));
+		}
+		*/
+
+	}
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_cob_bc_iterator_fini(struct m0_cob_bc_iterator *it)
+{
+	m0_be_btree_cursor_fini(&it->ci_cursor);
+	m0_free(it->ci_key);
+	m0_free(it->ci_rec);
+}
+
 static const struct m0_be_btree_kv_ops cob_bc_ops = {
 	.ko_type    = M0_BBT_COB_BYTECOUNT,
 	.ko_ksize   = bc_ksize,

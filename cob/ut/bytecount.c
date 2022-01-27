@@ -142,6 +142,22 @@ void test_insert(void)
 	m0_be_tx_fini(tx);
 }
 
+void test_iterator(void)
+{
+	struct m0_cob_bc_iterator it;
+	int                       rc;
+	/* Make sure fid is valid. */
+	struct m0_fid             fid = M0_FID_TINIT('k', 1, 0);
+
+	rc = m0_cob_bc_iterator_init(cob, &it, &fid, 0);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_cob_bc_iterator_get(&it);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_cob_bc_iterator_next(&it);
+	M0_UT_ASSERT(rc == 0);
+	m0_cob_bc_iterator_fini(&it);
+}
+
 void test_lookup(void)
 {
 	struct m0_be_tx         tx_;
@@ -214,12 +230,13 @@ struct m0_ut_suite bytecount_ut = {
 	.ts_init = ut_init,
 	.ts_fini = ut_fini,
 	.ts_tests = {
-		{ "cob-dom-create", test_cob_dom_create },
-		{ "cob-dom-init",   test_init },
-		{ "bc-tree-insert", test_insert },
-		{ "bc-tree-lookup", test_lookup },
-		{ "bc-tree-update", test_update },
-		{ "cob-dom-fini",   test_fini },
+		{ "cob-dom-create",   test_cob_dom_create },
+		{ "cob-dom-init",     test_init },
+		{ "bc-tree-insert",   test_insert },
+		{ "bc-tree-iterator", test_iterator },
+		{ "bc-tree-lookup",   test_lookup },
+		{ "bc-tree-update",   test_update },
+		{ "cob-dom-fini",     test_fini },
 		{ NULL, NULL }
 	}
 };
