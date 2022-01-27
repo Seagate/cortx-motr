@@ -2193,7 +2193,7 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 	struct m0_dix_cas_rop      *cas_rop;
 	struct m0_dix_pg_unit      *unit;
 	bool                        del_lock;
-	uint32_t                  **skipped_sdevs;
+	uint32_t                  **skipped_sdevs = NULL;
 	uint32_t                    skipped_sdevs_num = 0;
 	uint32_t                    skipped_sdevs_max =
 		rop->dg_pver->pv_attr.pa_P;
