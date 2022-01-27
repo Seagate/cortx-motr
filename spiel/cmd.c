@@ -1666,7 +1666,7 @@ struct m0_proc_data {
 	struct m0_spiel_bckey pd_bckey;
 	struct m0_spiel_bcrec pd_bcrec;
 	struct m0_tlink       pd_link;
-	uint64_t              pd_magic; 
+//	uint64_t              pd_magic; 
 };
 
 /**
@@ -1679,7 +1679,7 @@ struct spiel_proc_counter_item {
 	struct m0_rpc_link    spc_rlink;
 	/** Process counter fetch request. */
 	struct m0_fop         spc_fop;
-	uint64_t              spc_magic;
+//	uint64_t              spc_magic;
 };
 
 /****************************************************/
@@ -2166,12 +2166,13 @@ int m0_spiel_conf_pver_status(struct m0_spiel          *spl,
 			      struct m0_fid            *fid,
 			      struct m0_conf_pver_info *out_info)
 {
-	struct m0_confc *confc = spl->spl_core.spc_confc;
+	struct m0_confc *confc;
 	int              rc;
 
 	M0_ENTRY();
 	M0_PRE(spl != NULL);
 
+	confc = spl->spl_core.spc_confc;
 	if (!m0_confc_is_inited(confc))
 		return M0_ERR_INFO(-EAGAIN, "confc is finalised");
 
