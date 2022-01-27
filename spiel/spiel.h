@@ -29,6 +29,7 @@
 #include "conf/schema.h"       /* m0_conf_service_type */
 #include "conf/confc.h"        /* m0_confc */
 #include "conf/rconfc.h"       /* m0_rconfc */
+#include "conf/pvers.h"        /* m0_conf_pver_info */
 #include "reqh/reqh_service.h" /* enum m0_service_health */
 #include "sns/cm/cm.h"         /* m0_cm_status */
 
@@ -1361,6 +1362,25 @@ M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
  *       allocated memory with free(*out) (not m0_free()).
  */
 int m0_spiel_confstr(struct m0_spiel *spl, char **out);
+
+/**
+ * Returns the status of the pool version according to number of failed srecd
+ * objects in the pool version.
+ *
+ * This is a wrapper over conf/pvers.h m0_conf_pver_status().
+ *
+ * @param  spl      spiel instance, must have confc cache initialized
+ *                  and populated.  
+ * @param  fid      fid of the pool version whose status is queried.
+ * @param  out_info out parameter which will contain status along with 
+ *                  some pdclust attributes of pool version.
+ * @pre    fid != NULL
+ * @pre    m0_confc_is_inited(confc) == true
+ * @return rc of the function.
+ */
+int m0_spiel_conf_pver_status(struct m0_spiel          *spl,
+			      struct m0_fid            *fid,
+			      struct m0_conf_pver_info *out_info);
 
 /** @} end of spiel group */
 #endif /* __MOTR_SPIEL_SPIEL_H__ */

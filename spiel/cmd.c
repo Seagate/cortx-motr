@@ -2162,6 +2162,24 @@ int m0_spiel_confstr(struct m0_spiel *spl, char **out)
 }
 M0_EXPORTED(m0_spiel_confstr);
 
+int m0_spiel_conf_pver_status(struct m0_spiel          *spl,
+			      struct m0_fid            *fid,
+			      struct m0_conf_pver_info *out_info)
+{
+	struct m0_confc *confc = spl->spl_core.spc_confc;
+	int              rc;
+
+	M0_ENTRY();
+	M0_PRE(spl != NULL);
+
+	if (!m0_confc_is_inited(confc))
+		return M0_ERR_INFO(-EAGAIN, "confc is finalised");
+
+	rc = m0_conf_pver_status(fid, confc, out_info);
+
+	return rc ? M0_ERR(rc) : M0_RC(rc); 
+}
+M0_EXPORTED(m0_spiel_conf_pver_status);
 /** @} */
 #undef M0_TRACE_SUBSYSTEM
 

@@ -822,6 +822,8 @@ int m0_conf_pver_status(struct m0_fid *fid,
 
 	root = M0_CONF_CAST(confc->cc_root, m0_conf_root);
 	rc = m0_conf_pver_find_by_fid(fid, root, &pver);
+	if (rc != 0)
+		return M0_ERR(rc);
 	out_info->cpi_fid = *fid;
 	out_info->cpi_attr = pver->pv_u.subtree.pvs_attr;
 	K = pver->pv_u.subtree.pvs_attr.pa_K;
@@ -830,6 +832,8 @@ int m0_conf_pver_status(struct m0_fid *fid,
 	m0_conf_cache_lock(&confc->cc_cache);
 	rc = m0_conf_walk(conf_pver_recd_build, &pver->pv_obj, srecd);
 	m0_conf_cache_unlock(&confc->cc_cache);
+	if (rc != 0)
+		return M0_ERR(rc);
 
 	while (i < M0_CONF_PVER_HEIGHT)
 		failures += srecd[i++];

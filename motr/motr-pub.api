@@ -313,6 +313,7 @@ m0_sm_group_call
 m0_sm_state_set
 m0_spiel_cmd_profile_set
 m0_spiel_confstr
+m0_spiel_conf_pver_status
 m0_spiel_controller_add
 m0_spiel_controller_v_add
 m0_spiel_device_add
