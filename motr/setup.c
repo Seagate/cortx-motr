@@ -1484,13 +1484,29 @@ static char *cs_storage_partdom_location_gen(const char          *stob_path,
 	const char *prefix = m0_stob_part_type.st_fidt.ft_name;
 
 	M0_ALLOC_ARR(location,
-		     strlen(stob_path) + ARRAY_SIZE(prefix) + 128);
+		     strlen(stob_path) + strlen(prefix) + 128);
 	if (location != NULL)
 		sprintf(location, "%s:%s:%p", prefix, stob_path, dom);
 	return location;
 }
 
-#define PART_STOB_MAX_CHUNK_SIZE_IN_BITS  64
+/**
+ * Generates partition stob location which
+ * must be freed with m0_free(). */
+
+static char *cs_storage_partstob_location_gen(const char       *stob_path,
+					      const char       *stob_attrib)
+{
+	char       *location;
+
+	M0_ALLOC_ARR(location,
+		     strlen(stob_path) + strlen(stob_attrib) + 2);
+	if (location != NULL)
+		sprintf(location, "%s:%s", stob_path, stob_attrib);
+	return location;
+}
+
+#define PART_STOB_MAX_CHUNK_SIZE_IN_BITS  30
 static int align_chunk_size(m0_bcount_t proposed_chunk_size)
 {
 	int chunksize_in_bits;
@@ -1503,7 +1519,7 @@ static int align_chunk_size(m0_bcount_t proposed_chunk_size)
 		else
 			break;
 	}
-	M0_ASSERT(i < PART_STOB_MAX_CHUNK_SIZE_IN_BITS);chunksize_in_bits = i;
+	chunksize_in_bits = i;
 	return (chunksize_in_bits);
 }
 
@@ -1512,7 +1528,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 {
 	m0_bcount_t                 proposed_chunk_size;
 	m0_bcount_t                 def_log_size = 128*1024*1024;
-	struct m0_be_part_stob_cfg *part_cfg;
+	struct m0_be_part_cfg      *part_cfg;
 	m0_bcount_t                 def_dev_chunk_count = 1024;
 	struct m0_conf_sdev        *sdev = NULL;
 	bool                        ad_mode;
@@ -1545,9 +1561,9 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 		 * Case 1: Single Data and No Meta specified
 		 */
 
-		M0_LOG(M0_ALWAYS,"filename:%s,size:%"PRIu64"alloc_len = %d ",
+		M0_LOG(M0_ALWAYS,"filename:%s,size:%"PRIu64"alloc_len = %d dom = %p",
 		       sdev->sd_filename, sdev->sd_size,
-		       (int)(strlen(sdev->sd_filename) + len));
+		       (int)(strlen(sdev->sd_filename) + len), &rctx->rc_be.but_dom);
 		part_cfg->bpc_create_cfg = m0_alloc(strlen(sdev->sd_filename) +
 						    len);
 		M0_ASSERT(part_cfg->bpc_create_cfg != NULL);
@@ -1573,37 +1589,60 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 			sdev->sd_size >> part_cfg->bpc_chunk_size_in_bits;
 
 		// seg0 configuration
-		part_cfg->bpc_seg0_size_in_chunks = 1;
-		part_cfg->bpc_part_mode_seg0 = true;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_size_in_chunks = 1;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_enble = true;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_id = M0_BE_PTABLE_ENTRY_SEG0;
 		rctx->rc_be_seg0_path = sdev->sd_filename;
-		used_chunks += part_cfg->bpc_seg0_size_in_chunks;
+		used_chunks += part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_size_in_chunks;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_create_cfg = 
+				cs_storage_partstob_location_gen(sdev->sd_filename, "directio:false");
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_init_cfg = 
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_create_cfg;
 
 		/** seg1 configuration */
 		m0_bcount_t meta_size = m0_align(((sdev->sd_size) / 10), M0_BE_SEG_PAGE_SIZE);
-		part_cfg->bpc_part_mode_seg1 = true;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_enble = true;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_id = M0_BE_PTABLE_ENTRY_SEG1;
 		rctx->rc_be_seg_path = sdev->sd_filename;
 
-		rctx->rc_be_seg_size = meta_size;
-		part_cfg->bpc_seg_size_in_chunks =
-			rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
-		used_chunks += part_cfg->bpc_seg_size_in_chunks;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_size_in_chunks =
+			meta_size >> part_cfg->bpc_chunk_size_in_bits;
+		rctx->rc_be_seg_size = part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_size_in_chunks <<
+					part_cfg->bpc_chunk_size_in_bits;
+		used_chunks += part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_size_in_chunks;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_create_cfg = 
+				cs_storage_partstob_location_gen(sdev->sd_filename, "directio:false");
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_init_cfg = 
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_create_cfg;
 
 		/** Log configuration*/
-		part_cfg->bpc_part_mode_log = true;
-		rctx->rc_be_log_path = sdev->sd_filename;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_enble = true;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_id = M0_BE_PTABLE_ENTRY_LOG;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_create_cfg = 
+				cs_storage_partstob_location_gen(sdev->sd_filename, "directio:true");
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_init_cfg = 
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_create_cfg;
+		rctx->rc_be_log_path = 
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_create_cfg;
 		rctx->rc_be_log_size = def_log_size;
 		if(proposed_chunk_size < def_log_size)
-			part_cfg->bpc_log_size_in_chunks =
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_size_in_chunks =
 				def_log_size >> part_cfg->bpc_chunk_size_in_bits;
 		else
-			part_cfg->bpc_log_size_in_chunks = 1;
-		used_chunks += part_cfg->bpc_log_size_in_chunks;
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_size_in_chunks = 1;
+		used_chunks += part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_size_in_chunks;
 
 
 		/** data configuration */
-		part_cfg->bpc_part_mode_data = true;
-		part_cfg->bpc_data_size_in_chunks = part_cfg->bpc_total_chunk_count - used_chunks;
-		used_chunks += part_cfg->bpc_data_size_in_chunks;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_enble = true;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_id = M0_BE_PTABLE_ENTRY_BALLOC;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_create_cfg
+			= cs_storage_partstob_location_gen(sdev->sd_filename, "directio:true");
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_init_cfg =
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_create_cfg;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_size_in_chunks = 
+			part_cfg->bpc_total_chunk_count - used_chunks;
+		used_chunks += part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_size_in_chunks;
 
 	} else if (rctx->rc_be_seg_path != NULL &&
 		   rctx->rc_be_seg0_path == NULL &&
@@ -1644,29 +1683,46 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 			rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
 
 		// seg0 configuration
-		part_cfg->bpc_seg0_size_in_chunks = 1;
-		part_cfg->bpc_part_mode_seg0 = true;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_size_in_chunks = 1;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_enble = true;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_id = M0_BE_PTABLE_ENTRY_SEG0;
 		rctx->rc_be_seg0_path = rctx->rc_be_seg_path;
-		used_chunks += part_cfg->bpc_seg0_size_in_chunks;
+		used_chunks += part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_size_in_chunks;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_create_cfg = 
+				cs_storage_partstob_location_gen(rctx->rc_be_seg0_path, "directio:false");
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_init_cfg = 
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_create_cfg;
 
 		/** Log configuration*/
-		part_cfg->bpc_part_mode_log = true;
-		rctx->rc_be_log_path = rctx->rc_be_seg_path;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_enble = true;
+	   part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_id = M0_BE_PTABLE_ENTRY_LOG;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_create_cfg = 
+			cs_storage_partstob_location_gen(rctx->rc_be_seg_path, "directio:true");
+		rctx->rc_be_log_path = 
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_create_cfg;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_init_cfg =
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_create_cfg;
+		
 		rctx->rc_be_log_size = def_log_size;
 		if(proposed_chunk_size < def_log_size)
-			part_cfg->bpc_log_size_in_chunks =
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_size_in_chunks =
 				def_log_size >> part_cfg->bpc_chunk_size_in_bits;
 		else
-			part_cfg->bpc_log_size_in_chunks = 1;
-		used_chunks += part_cfg->bpc_log_size_in_chunks;
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_size_in_chunks = 1;
+		used_chunks += part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_size_in_chunks;
 
 
 		/** seg1 configuration */
-		part_cfg->bpc_part_mode_seg1 = true;
-		part_cfg->bpc_seg_size_in_chunks =
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_enble = true;
+      part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_id = M0_BE_PTABLE_ENTRY_SEG1;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_size_in_chunks =
 			part_cfg->bpc_total_chunk_count - used_chunks;
-		rctx->rc_be_seg_size = m0_align(part_cfg->bpc_seg_size_in_chunks <<
+		rctx->rc_be_seg_size = m0_align(part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_size_in_chunks <<
 			part_cfg->bpc_chunk_size_in_bits, M0_BE_SEG_PAGE_SIZE);
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_create_cfg = 
+				cs_storage_partstob_location_gen(rctx->rc_be_seg_path, "directio:false");
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_init_cfg = 
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_create_cfg;
 		// used_chunks += part_cfg->bpc_seg_size_in_chunks;
 
 	} else if (rctx->rc_be_seg0_path == NULL &&
@@ -1708,18 +1764,28 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 			rctx->rc_be_seg_size >> part_cfg->bpc_chunk_size_in_bits;
 
 		// seg0 configuration
-		part_cfg->bpc_seg0_size_in_chunks = 1;
-		part_cfg->bpc_part_mode_seg0 = true;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_size_in_chunks = 1;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_id = M0_BE_PTABLE_ENTRY_SEG0;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_enble = true;
 		rctx->rc_be_seg0_path = rctx->rc_be_seg_path;
-		used_chunks += part_cfg->bpc_seg0_size_in_chunks;
+		used_chunks += part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_size_in_chunks;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_create_cfg = 
+				cs_storage_partstob_location_gen(rctx->rc_be_seg0_path, "directio:false");
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_init_cfg = 
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_create_cfg;
 
 
 		/** seg1 configuration */
-		part_cfg->bpc_part_mode_seg1 = true;
-		part_cfg->bpc_seg_size_in_chunks =
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_enble = true;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_id = M0_BE_PTABLE_ENTRY_SEG1;
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_size_in_chunks =
 			part_cfg->bpc_total_chunk_count - used_chunks;
-		rctx->rc_be_seg_size = m0_align(part_cfg->bpc_seg_size_in_chunks <<
+		rctx->rc_be_seg_size = m0_align(part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_size_in_chunks <<
 			part_cfg->bpc_chunk_size_in_bits, M0_BE_SEG_PAGE_SIZE);
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_create_cfg = 
+				cs_storage_partstob_location_gen(rctx->rc_be_seg_path, "directio:false");
+		part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_init_cfg = 
+			part_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_create_cfg;
 		// used_chunks += part_cfg->bpc_seg_size_in_chunks;
 
 	} else if (rctx->rc_be_seg0_path != NULL &&
@@ -1766,7 +1832,7 @@ static int cs_be_init(struct m0_reqh_context  *rctx,
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_create_cfg =
 		rctx->rc_be_log_path;
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_part_mode_log =
-		be->but_dom_cfg.bc_part_cfg.bpc_part_mode_log;
+		be->but_dom_cfg.bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_enble;
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_part_domain =
 		be->but_dom.bd_part_stob_domain;
 	be->but_dom_cfg.bc_seg0_cfg.bsc_stob_create_cfg = rctx->rc_be_seg0_path;

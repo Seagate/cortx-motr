@@ -396,7 +396,7 @@ static int stob_linux_open(struct m0_stob *stob,
 
 	colon = cfg == NULL ? NULL : strchr(cfg,':');
 	lstob->sl_direct_io = colon == NULL  ? false :
-		(strcmp(colon + 1, "directio=true") == 0 ? true: false) ;
+		(strncmp(colon + 1, "directio:true", strlen("directio:true")) == 0 ? true: false) ;
 	sym_str = colon == NULL ? NULL: m0_strdup(cfg);
 	if( colon != NULL && sym_str == NULL ) {
 		m0_free(file_stob);
@@ -426,7 +426,7 @@ static int stob_linux_init(struct m0_stob *stob,
 			   struct m0_stob_domain *dom,
 			   const struct m0_fid *stob_fid)
 {
-	return stob_linux_open(stob, dom, stob_fid, NULL, false);
+	return stob_linux_open(stob, dom, stob_fid, stob->so_private, false);
 }
 
 static void stob_linux_close(struct m0_stob_linux *lstob)

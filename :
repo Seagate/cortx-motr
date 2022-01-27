@@ -1,0 +1,23 @@
+EOS-27394: Fix partition stob crash
+
+Co-authored-by: Vidyadhar Pinglikar <vidyadhar.pinglikar@seagate.com>
+Signed-off-by: Rinku Kothiya <rinku.kothiya@seagate.com>
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# On branch EOS-27394
+# Your branch is up to date with 'origin/partition-stob-support-feature-branch'.
+#
+# Changes to be committed:
+#	modified:   be/domain.c
+#	modified:   be/domain.h
+#	modified:   be/log_store.c
+#	modified:   be/partition_table.h
+#	modified:   be/seg.c
+#	modified:   ioservice/storage_dev.c
+#	modified:   motr/setup.c
+#	modified:   stob/linux.c
+#	modified:   stob/partition.c
+#	modified:   stob/ut/partition.c
+#

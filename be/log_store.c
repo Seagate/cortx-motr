@@ -301,26 +301,8 @@ static int be_log_store_level_enter(struct m0_module *module)
 		return 0;
 	case M0_BE_LOG_STORE_LEVEL_STOB_CREATE:
 		if (ls->ls_create_mode) {
-			char	*stob_cfg = NULL;
-
-			if(ls->ls_cfg.lsc_part_mode_log) {
-				char    *direct_io_cfg="directio:true";
-				stob_cfg =
-					m0_alloc(strlen(ls->ls_cfg.lsc_stob_create_cfg) +
-						    ARRAY_SIZE(direct_io_cfg) + 2 );
-				if (stob_cfg!= NULL)
-					sprintf(stob_cfg, "%s:%s",
-						ls->ls_cfg.lsc_stob_create_cfg,
-						direct_io_cfg);
-				else
-					return -ENOMEM;
-			}
 			rc = m0_stob_create(ls->ls_stob, NULL,
-					    stob_cfg == NULL ?
-					    ls->ls_cfg.lsc_stob_create_cfg:
-					    stob_cfg);
-			if(stob_cfg!= NULL)
-				m0_free(stob_cfg);
+					    ls->ls_cfg.lsc_stob_create_cfg);
 			return rc;
 		}
 		return m0_stob_state_get(ls->ls_stob) == CSS_EXISTS ?

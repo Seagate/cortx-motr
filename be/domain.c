@@ -171,9 +171,9 @@ static int be_domain_stob_open(struct m0_be_domain  *dom,
 
 	if (dom->bd_cfg.bc_part_cfg.bpc_part_mode_set &&
 	    (((stob_key == M0_BE_PTABLE_ENTRY_SEG0) &&
-	      dom->bd_cfg.bc_part_cfg.bpc_part_mode_seg0) ||
+	      dom->bd_cfg.bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_enble) ||
 	     ((stob_key == M0_BE_PTABLE_ENTRY_SEG1) &&
-	      dom->bd_cfg.bc_part_cfg.bpc_part_mode_seg1))) {
+	      dom->bd_cfg.bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_enble))) {
 		dom_id = &dom->bd_part_stob_domain->sd_id;
 	}
 	else

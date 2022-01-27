@@ -74,10 +74,8 @@ storage_dev_get_part_stob(struct m0_be_domain *domain,
 	struct m0_be_ptable_alloc_info    *alloc_info;
 	int                                i;
 	int				   rc;
-	char				  *stob_cfg;
-	char                              *direct_io_cfg = "directio=true";
 	*part_stob = NULL;
-	if(!domain->bd_cfg.bc_part_cfg.bpc_part_mode_data)
+	if(!domain->bd_cfg.bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_enble)
 		return 0;
 
 	rc = m0_be_ptable_get_part_info(&primary_part_info);
@@ -94,19 +92,12 @@ storage_dev_get_part_stob(struct m0_be_domain *domain,
 	}
 	if (i == M0_BE_MAX_PARTITION_USERS)
 		return -ENOENT;
-	stob_cfg = m0_alloc(strlen(dev_pathname) +
-			    ARRAY_SIZE(direct_io_cfg) + 4);
-	if (stob_cfg!= NULL)
-		sprintf(stob_cfg, "%s:%s", dev_pathname, direct_io_cfg);
-	else
-		return -ENOMEM;
-
+	
 	rc = m0_be_dom_id_stob_open(&domain->bd_part_stob_domain->sd_id,
 				  M0_BE_PTABLE_ENTRY_BALLOC,
-				  stob_cfg,
+				  domain->bd_cfg.bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_create_cfg,
 				  part_stob,
 				  true);
-	m0_free(stob_cfg);
 	return rc;
 }
 

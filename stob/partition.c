@@ -209,7 +209,7 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 	char                            *devname;
 	struct part_domain_cfg          *part_cfg;
 	struct m0_be_ptable_part_config *cfg;
-	struct m0_be_part_stob_cfg      *part_init_cfg;
+	struct m0_be_part_cfg      *part_init_cfg;
 	m0_bcount_t                      part_users=0;
 	m0_bcount_t                      size;
 
@@ -250,31 +250,31 @@ static int stob_part_domain_cfg_create_parse(const char *str_cfg_create,
 		return -ENOMEM;
 
 	/* 1 chunk for partition table itself */
-	if (part_init_cfg->bpc_part_mode_seg0) {
+	if (part_init_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_enble) {
 		cfg->pc_part_alloc_info[part_users].ai_part_id = M0_BE_PTABLE_ENTRY_SEG0;
 		cfg->pc_part_alloc_info[part_users].ai_def_size_in_chunks =
-			part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_seg0_size_in_chunks;
+			part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_size_in_chunks;
 		part_users++;
 	}
 
-	if (part_init_cfg->bpc_part_mode_log) {
+	if (part_init_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_enble) {
 		cfg->pc_part_alloc_info[part_users].ai_part_id = M0_BE_PTABLE_ENTRY_LOG;
 		cfg->pc_part_alloc_info[part_users].ai_def_size_in_chunks =
-			part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_log_size_in_chunks;
+		part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_size_in_chunks;
 		part_users++;
 	}
 
-	if (part_init_cfg->bpc_part_mode_seg1) {
+	if (part_init_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_enble) {
 		cfg->pc_part_alloc_info[part_users].ai_part_id = M0_BE_PTABLE_ENTRY_SEG1;
 		cfg->pc_part_alloc_info[part_users].ai_def_size_in_chunks =
-			part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_seg_size_in_chunks;
+		part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_size_in_chunks;
 		part_users++;
 	}
 
-	if (part_init_cfg->bpc_part_mode_data) {
+	if (part_init_cfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_enble) {
 		cfg->pc_part_alloc_info[part_users].ai_part_id = M0_BE_PTABLE_ENTRY_BALLOC;
 		cfg->pc_part_alloc_info[part_users].ai_def_size_in_chunks =
-		part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_data_size_in_chunks;
+		part_cfg->part_be_domain->bd_cfg.bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_size_in_chunks;
 		part_users++;
 	}
 
@@ -444,13 +444,24 @@ static int stob_part_bstob_create(struct m0_stob        *part_stob,
 	struct m0_stob            *b_stob;
 	int                        rc;
 	struct m0_fid             *b_dom_id;
+	struct m0_stob_id          stob_id;
 
 	M0_PRE(part_stob != NULL);
 	M0_PRE( part_stob->so_domain == dom);
-
+	
 	dom_priv = dom->sd_private;
 	M0_ASSERT(dom_priv->b_be_domain);
 	b_dom_id = &dom_priv->b_be_domain->bd_stob_domain->sd_id;
+	/** store the str cfg for backend stob init */
+	if(create == false) {
+		m0_stob_id_make(0, stob_fid->f_key, b_dom_id, &stob_id);
+		rc = m0_stob_find(&stob_id, &b_stob);
+		if(rc == 0) {
+			b_stob->so_private = (char *)str_cfg;
+			m0_stob_put(b_stob);
+		}
+	}
+
 	rc = m0_be_dom_id_stob_open(b_dom_id,
 				    stob_fid->f_key,
 				    str_cfg, &b_stob, create);
@@ -470,10 +481,14 @@ static int stob_part_prepare_table(struct m0_stob        *stob,
 	m0_bcount_t                       primary_part_index;
 	m0_bcount_t                       part_index;
 	struct m0_stob                   *b_stob;
+	struct stob_part_dom_priv        *dom_priv;
+	char                             *cfg = NULL;
 	int                               rc = 0;
+	int				  idx;
 
 	M0_PRE(partstob != NULL);
 	partstob->part_id = stob_fid->f_key;
+        dom_priv = dom->sd_private;
 
 	if(stob_part_get_size(dom,
 			      partstob->part_id,
@@ -483,18 +498,28 @@ static int stob_part_prepare_table(struct m0_stob        *stob,
 	if ( m0_be_ptable_get_part_info(&pt))
 		return M0_ERR(-EAGAIN);
 
+	for(idx = 0; idx < M0_BE_MAX_PARTITION_USERS; idx++) {
+		if(partstob->part_id ==
+		   dom_priv->b_be_domain->bd_cfg.bc_part_cfg.bpc_stobs_cfg[idx].bps_id) {
+			if(create)
+				cfg = dom_priv->b_be_domain->bd_cfg.bc_part_cfg.bpc_stobs_cfg[idx].bps_create_cfg;
+			else
+				cfg = dom_priv->b_be_domain->bd_cfg.bc_part_cfg.bpc_stobs_cfg[idx].bps_init_cfg;
+			
+		}
+	}
 	b_stob = m0_stob_part_bstob_get(stob);
 	if (create) {
 		if (b_stob != NULL)
 			return -EEXIST;
 		rc = stob_part_bstob_create(stob, dom, stob_fid,
-					    pt.pti_dev_pathname,
+					    cfg,
 					    create);
 	}
 	else {
 		if (b_stob == NULL)
 			rc = stob_part_bstob_create(stob, dom, stob_fid,
-						    pt.pti_dev_pathname,
+						    cfg,
 						    create);
 	}
 	if (rc != 0)

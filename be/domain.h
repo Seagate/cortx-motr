@@ -74,28 +74,41 @@ struct m0_be_0type_seg_cfg {
 	const char  *bsc_stob_create_cfg;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
-struct m0_be_part_stob_cfg {
-	char        *bpc_location;
-	char        *bpc_seg_path;
-	char        *bpc_data_path;
-	char        *bpc_init_cfg;
-	char        *bpc_create_cfg;
-	char        *bpc_seg0_cfg;
-	char        *bpc_seg1_cfg;
-	char        *bpc_log_cfg;
-	m0_bcount_t  bpc_seg0_size_in_chunks;
-	m0_bcount_t  bpc_seg_size_in_chunks;
-	m0_bcount_t  bpc_log_size_in_chunks;
-	m0_bcount_t  bpc_data_size_in_chunks;
-	m0_bcount_t  bpc_dom_key;
-	m0_bcount_t  bpc_chunk_size_in_bits;
-	m0_bcount_t  bpc_total_chunk_count;
+enum m0_be_domain_part_stob_idx {
+   /* Segment0 metadata type */
+	M0_BE_DOM_PART_IDX_SEG0 = 0,
+	/* Log type */
+	M0_BE_DOM_PART_IDX_LOG,
+	/* Segment1 metadata type */
+	M0_BE_DOM_PART_IDX_SEG1,
+	/* Balloc type */
+	M0_BE_DOM_PART_IDX_DATA,
+	/* Free blocks type */
+	M0_BE_DOM_PART_IDX_FREE,
+	/* Any new entry need to be added before this*/
+	M0_BE_MAX_PARTITION_USERS
+};
 
-	bool	     bpc_part_mode_seg0;
-	bool	     bpc_part_mode_seg1;
-	bool	     bpc_part_mode_log;
-	bool	     bpc_part_mode_data;
-	bool	     bpc_part_mode_set;
+
+struct m0_be_part_stob_cfg {
+m0_bcount_t     bps_id;
+m0_bcount_t     bps_size_in_chunks;
+bool            bps_enble;
+char           *bps_create_cfg;
+char           *bps_init_cfg;
+
+}M0_XCA_RECORD M0_XCA_DOMAIN(be);
+
+struct m0_be_part_cfg {
+	bool	                      bpc_part_mode_set;
+	char                       *bpc_location;
+	char                       *bpc_init_cfg;
+	char                       *bpc_create_cfg;
+	struct m0_be_part_stob_cfg  bpc_stobs_cfg[M0_BE_MAX_PARTITION_USERS];	
+	m0_bcount_t                 bpc_dom_key;
+	m0_bcount_t                 bpc_chunk_size_in_bits;
+	m0_bcount_t                 bpc_total_chunk_count;
+	
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_domain_cfg {
@@ -152,7 +165,7 @@ struct m0_be_domain_cfg {
 	unsigned                     bc_seg_nr;
 	struct m0_be_pd_cfg          bc_pd_cfg;
 	struct m0_be_log_discard_cfg bc_log_discard_cfg;
-	struct m0_be_part_stob_cfg   bc_part_cfg;
+	struct m0_be_part_cfg        bc_part_cfg;
 };
 
 struct m0_be_domain {
