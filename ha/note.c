@@ -51,6 +51,7 @@
 #include "ha/link.h"            /* m0_ha_link_send */
 #include "ha/ha.h"              /* m0_ha_send */
 #include "motr/ha.h"            /* m0_motr_ha */
+#include "conf/obj_ops.h"       /* m0_conf_obj_find */
 
 /**
  * @see: confc_fop_release()
@@ -154,6 +155,7 @@ static void ha_state_accept(struct m0_confc         *confc,
 	struct m0_conf_cache *cache;
 	enum m0_ha_obj_state  prev_ha_state;
 	int                   i;
+	int		      rc = 0;
 
 	M0_ENTRY("confc=%p note->nv_nr=%"PRIi32, confc, note->nv_nr);
 	M0_PRE(note_invariant(note, true));
@@ -180,6 +182,24 @@ static void ha_state_accept(struct m0_confc         *confc,
 			if (!ignore_same_state ||
 			    prev_ha_state != obj->co_ha_state)
 				m0_chan_broadcast(&obj->co_ha_chan);
+		} else if ((obj == NULL) &&
+		           (m0_fid_tget(&note->nv_note[i].no_id) == 'r')) {
+				M0_LOG(M0_DEBUG, FID_F" is process FID and not found in conc",
+					FID_P(&note->nv_note[i].no_id));
+				M0_LOG(M0_DEBUG,"Add the entry to conf cache");
+				rc = m0_conf_obj_find(cache, &note->nv_note[i].no_id, 
+						&obj);
+				if (rc == 0) {
+					obj->co_status = M0_CS_READY;
+					prev_ha_state = obj->co_ha_state;
+					obj->co_ha_state = note->nv_note[i].no_state;
+					if (!ignore_same_state ||
+					    prev_ha_state != obj->co_ha_state)
+						m0_chan_broadcast(&obj->co_ha_chan);
+					M0_LOG(M0_DEBUG, "confs obj added successfully rc= %d", rc);
+				} else {
+					M0_LOG(M0_DEBUG, "confs obj add failed rc= %d", rc);
+				}
 		}
 	}
 	m0_conf_cache_unlock(cache);
