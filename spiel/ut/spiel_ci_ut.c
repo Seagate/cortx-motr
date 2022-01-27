@@ -529,9 +529,6 @@ void test_spiel_bc_stats(void)
 	M0_SET0(&count_stats);
 	rc = m0_spiel_proc_counters_fetch(&spiel, &proc_fid, &count_stats);
 
-	M0_LOG(M0_ALWAYS, "proc_fid"FID_F" count: %"PRIu32, FID_P(&count_stats.pc_proc_fid), count_stats.pc_cnt);
-	M0_LOG(M0_ALWAYS, "KEY, pver_fid:"FID_F" user_id:%"PRIu64, FID_P(&count_stats.pc_bckey[0]->sbk_fid), count_stats.pc_bckey[0]->sbk_user_id);
-	M0_LOG(M0_ALWAYS, "VALUE, bytecount: %"PRIu64" objectcount: %"PRIu64, count_stats.pc_bcrec[0]->sbr_byte_count, count_stats.pc_bcrec[0]->sbr_object_count);
 	M0_UT_ASSERT(rc == 0);
 
 	spiel_ci_ut_fini();

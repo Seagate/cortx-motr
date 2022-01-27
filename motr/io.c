@@ -26,7 +26,6 @@
 #include "motr/addb.h"
 #include "motr/pg.h"
 #include "motr/io.h"
-#include "conf/pvers.h"
 
 #include "lib/errno.h"             /* ENOMEM */
 #include "fid/fid.h"               /* m0_fid */
@@ -237,9 +236,6 @@ static void obj_io_cb_launch(struct m0_op_common *oc)
 	int                       rc;
 	struct m0_op_obj         *oo;
 	struct m0_op_io          *ioo;
-	struct m0_conf_pver_info *pver_info;
-	struct m0_client         *m0c;
-	struct m0_confc          *confc;
 
 	M0_ENTRY();
 
@@ -255,17 +251,6 @@ static void obj_io_cb_launch(struct m0_op_common *oc)
 	oo = bob_of(oc, struct m0_op_obj, oo_oc, &oo_bobtype);
 	ioo = bob_of(oo, struct m0_op_io, ioo_oo, &ioo_bobtype);
 	M0_PRE_EX(m0_op_io_invariant(ioo));
-
-	M0_ALLOC_PTR(pver_info);
-	m0c = m0__op_instance(&oc->oc_op);
-	confc = &m0c->m0c_reqh.rh_rconfc.rc_confc;
-	m0_conf_pver_status(&ioo->ioo_pver, confc, pver_info);
-	M0_LOG(M0_DEBUG, "FID:"FID_F", EC Values N:%"PRIu32" K:%"PRIu32
-		" P:%"PRIu32" Unit size:%"PRIu64", Status:%d",
-		FID_P(&pver_info->cpi_fid), pver_info->cpi_attr.pa_N,
-		pver_info->cpi_attr.pa_K, pver_info->cpi_attr.pa_P,
-		pver_info->cpi_attr.pa_unit_size, pver_info->cpi_state);
-	m0_free(pver_info);
 
 	rc = ioo->ioo_ops->iro_iomaps_prepare(ioo);
 	if (rc != 0)

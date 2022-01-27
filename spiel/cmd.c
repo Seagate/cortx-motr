@@ -1666,7 +1666,6 @@ struct m0_proc_data {
 	struct m0_spiel_bckey pd_bckey;
 	struct m0_spiel_bcrec pd_bcrec;
 	struct m0_tlink       pd_link;
-//	uint64_t              pd_magic; 
 };
 
 /**
@@ -1679,7 +1678,6 @@ struct spiel_proc_counter_item {
 	struct m0_rpc_link    spc_rlink;
 	/** Process counter fetch request. */
 	struct m0_fop         spc_fop;
-//	uint64_t              spc_magic;
 };
 
 /****************************************************/
@@ -2031,34 +2029,11 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 				 struct m0_fid          *proc_fid,
 				 struct m0_proc_counter *count_stats)
 {
-//	struct spiel_proc_counter_item *proc;
-//	struct m0_tl                   *counters;
-//	struct m0_spiel_core           *spc = &spl->spl_core;
-//	struct m0_conf_obj             *proc_obj;
 	int                             rc = 0;
 
 	M0_ENTRY();
 	M0_PRE(spl != NULL);
-//	M0_PRE(spc->spc_confc != NULL);
 	M0_PRE(count_stats != NULL);
-
-//	if (!m0_confc_is_inited(spc->spc_confc))
-//		return M0_ERR_INFO(-EAGAIN, "confc is finalised");
-//
-//	rc = m0_confc_open_by_fid_sync(spc->spc_confc, proc_fid, &proc_obj);
-//	if (rc != 0)
-//		return M0_ERR(rc);
-//	if (proc_obj->co_ha_state != M0_NC_ONLINE) {
-//		rc = M0_ERR(-EINVAL);
-//		goto obj_close;
-//	}
-
-	/* Stub to send fops to fetch data. Will call spiel_cmd_send() */
-//	spiel_process__counters_sync(proc, counters);
-//	M0_TL_DESCR_DEFINE(m0_proc_counter, "proc-counter", M0_INTERNAL,
-//			   struct m0_proc_data, nb_lru, pd_magic,
-//			   M0_NET_BUFFER_LINK_MAGIC, M0_NET_BUFFER_HEAD_MAGIC);
-//	M0_TL_DEFINE(m0_net_pool, M0_INTERNAL, struct m0_net_buffer);
 
 	M0_ALLOC_ARR(count_stats->pc_bckey, 1);
 	M0_ALLOC_ARR(count_stats->pc_bcrec, 1);
@@ -2074,8 +2049,6 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 	count_stats->pc_cnt = 1;
 	count_stats->pc_rc = 0;
 
-//obj_close:
-//	m0_confc_close(proc_obj);
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_spiel_proc_counters_fetch);
