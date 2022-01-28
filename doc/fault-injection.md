@@ -66,8 +66,11 @@ beginning and end of the test block, which uses fault injection. For example:
     }
 
 
-m0ctl.ko driver
+m0ctl.ko driver [Unsupported]
 ---------------
+
+m0ctl.ko module support is removed, as it uses debugfs,
+which is available only for GPL-licensed modules.
 
 m0ctl driver provides a debugfs interface to control m0tr in runtime. All
 control files are placed under "motr/" directory in the root of debugfs file
