@@ -77,7 +77,7 @@ echo 'Now you are ready to start the singlenode Motr cluster!'
 echo "To start, run: hctl bootstrap --mkfs  $CORTX_WDIR/singlenode.yaml"
 echo 'check:     hctl status'
 echo 'To connect to Motr cluster, add the following configuration'
-echo "parameters from `hctl status` to $CORTX_WDIR/cortx-rgw/build/ceph.conf:'
+echo "parameters from 'hctl status' to $CORTX_WDIR/cortx-rgw/build/ceph.conf:"
 echo '[client]'
 echo '      ...'
 echo '      rgw backend store = motr'
@@ -94,5 +94,5 @@ echo 'check:     hctl status'
 echo 'm0client should be in a started state'
 echo 'To stop the cluster run: ../src/stop.sh'
 echo 'Then:  hctl shutdown'
-echo 'If local directory is used then after reboot of the node,'
+echo 'If local directory is not used then after reboot of the node,'
 echo "run: mount "/dev/$available_device" $CORTX_WDIR"
