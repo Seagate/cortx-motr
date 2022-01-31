@@ -217,16 +217,4 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
                                    struct m0_pi_seed *seed,
                                    struct m0_bufvec *bvec);
 
-/**
- * Checks di is enabled or not
- * @param ioo io operation on a client object
- */
-bool m0_is_di_enabled(struct m0_op_io *ioo);
-
-/**
- * Checks if checksum validation allowed or not
- * @param ioo io operation on a client object
- */
-bool m0_is_checksum_validation_allowed(struct m0_op_io *ioo);
-
 #endif /* __MOTR_CKSUM_H__ */
