@@ -71,7 +71,7 @@ echo "========================================="
 
 echo
 echo 'update singlenode.yaml with devices in "path: /dev/loop0" format'
-echo "Do not use "/dev/$available_device" in cluster yaml"
+echo "Do not use /dev/$available_device in cluster yaml"
 echo 'Also do not use the devices with filesystem on them'
 echo 'Now you are ready to start the singlenode Motr cluster!'
 echo "To start, run: hctl bootstrap --mkfs  $CORTX_WDIR/singlenode.yaml"
@@ -95,4 +95,4 @@ echo 'm0client should be in a started state'
 echo 'To stop the cluster run: ../src/stop.sh'
 echo 'Then:  hctl shutdown'
 echo 'If local directory is not used then after reboot of the node,'
-echo "run: mount "/dev/$available_device" $CORTX_WDIR"
+echo "run: mount /dev/$available_device $CORTX_WDIR"
