@@ -237,22 +237,6 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 
 M0_EXPORTED(m0_calc_verify_cksum_one_unit);
 
-bool m0_is_di_enabled(struct m0_op_io *ioo) {
-	return ioo->ioo_attr.ov_vec.v_nr != 0;
-}
-
-M0_EXPORTED(m0_is_di_enabled);
-
-bool m0_is_checksum_validation_allowed(struct m0_op_io *ioo)
-{
-	if (m0_is_di_enabled(ioo) && !ioo->ioo_dgmode_io_sent)
-		return true;
-	else
-		return false;
-}
-
-M0_EXPORTED(m0_is_checksum_validation_allowed);
-
 #undef M0_TRACE_SUBSYSTEM
 
 /*

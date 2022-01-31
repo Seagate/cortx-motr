@@ -43,7 +43,7 @@
   * number of blocks will be 256. With DI we should only send the blocks in
   * multiple of unit size.
   */
-enum { M0_MAX_BLOCK_COUNT = 256 };
+enum { M0_MAX_BLOCK_COUNT = 128 };
 
 enum {
 	/** Min block size */
