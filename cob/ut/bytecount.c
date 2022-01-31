@@ -166,13 +166,20 @@ void test_lookup(void)
 	struct m0_be_tx_credit  accum = {};
 	int                     i;
 	struct m0_cob_bckey     dummy_key = {};
+	struct m0_cob_bcrec     out_rec = {};
 
 	ut_tx_open(tx, &accum);
 
-	/* Lookup for keys created in test_insert() in bytecount btree */
+	/**
+	 * Lookup for the keys created in test_insert() in bytecount btree and
+	 * verify the record values.
+	 */
 	for (i = 0; i < KEY_VAL_NR; i++) {
-		rc = m0_cob_bc_lookup(cob, &bckey[i]);
+		rc = m0_cob_bc_lookup(cob, &bckey[i], &out_rec);
 		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(bcrec[i].cbr_bytecount == out_rec.cbr_bytecount);
+		M0_UT_ASSERT(bcrec[i].cbr_cob_objects ==
+			     out_rec.cbr_cob_objects);
 	}
 
 	/**
@@ -181,7 +188,7 @@ void test_lookup(void)
 	 */
 	dummy_key.cbk_pfid = M0_FID_TINIT('k', 0, 1);
 	dummy_key.cbk_user_id = 0;
-	rc = m0_cob_bc_lookup(cob, &dummy_key);
+	rc = m0_cob_bc_lookup(cob, &dummy_key, &out_rec);
 	M0_UT_ASSERT(rc != 0);
 
 	m0_be_tx_close_sync(tx);
@@ -195,6 +202,7 @@ void test_update(void)
 	int                     rc;
 	struct m0_be_tx_credit  accum = {};
 	int                     i;
+	struct m0_cob_bcrec     out_rec = {};
 	
 	/* Add credits for update operation */
 	for (i = 0; i < KEY_VAL_NR; i++) {
@@ -215,10 +223,16 @@ void test_update(void)
 		M0_UT_ASSERT(rc == 0);
 	}
 
-	/* Lookup for keys in bytecount btree after updating the records */
+	/**
+	 * Lookup for the keys in bytecount btree after updating the records.
+	 * Verify the record values after update operation.
+	 */
 	for (i = 0; i < KEY_VAL_NR; i++) {
-		rc = m0_cob_bc_lookup(cob, &bckey[i]);
+		rc = m0_cob_bc_lookup(cob, &bckey[i], &out_rec);
 		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(bcrec[i].cbr_bytecount == out_rec.cbr_bytecount);
+		M0_UT_ASSERT(bcrec[i].cbr_cob_objects ==
+			     out_rec.cbr_cob_objects);
 	}
 
 	m0_be_tx_close_sync(tx);

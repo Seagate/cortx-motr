@@ -353,15 +353,41 @@ static const struct m0_be_btree_kv_ops cob_ns_ops = {
 };
 
 /**
- * Make bytecount key for iterator. Allocate space for maximal possible name.
+ * Returns struct m0_cob_bckey size.
  */
-M0_UNUSED static int m0_cob_max_bckey_make(struct m0_cob_bckey **keyh,
-					   const struct m0_fid  *pver_fid,
-					   uint64_t              user_id)
+static size_t m0_cob_bckey_size(void)
+{
+	return sizeof(struct m0_cob_bckey);
+}
+
+/**
+ * Returns struct m0_cob_bcrec size.
+ */
+static size_t m0_cob_bcrec_size(void)
+{
+	return sizeof(struct m0_cob_bcrec);
+}
+
+static m0_bcount_t bc_ksize(const void *key)
+{
+	return sizeof(struct m0_cob_bckey);
+}
+
+static m0_bcount_t bc_vsize(const void *val)
+{
+	return sizeof(struct m0_cob_bcrec);
+}
+
+/**
+ * Make bytecount key for iterator. Allocate space for key.
+ */
+static int m0_cob_bckey_make(struct m0_cob_bckey **keyh,
+				       const struct m0_fid  *pver_fid,
+				       uint64_t              user_id)
 {
 	struct m0_cob_bckey *key;
 
-	key = m0_alloc(sizeof *key + M0_COB_NAME_MAX);
+	key = m0_alloc(m0_cob_bckey_size());
 	if (key == NULL)
 		return M0_ERR(-ENOMEM);
 	key->cbk_pfid = *pver_fid;
@@ -379,33 +405,7 @@ M0_INTERNAL int m0_cob_bckey_cmp(const struct m0_cob_bckey *k0,
 	M0_PRE(m0_fid_is_set(&k1->cbk_pfid));
 
 	rc = m0_fid_cmp(&k0->cbk_pfid, &k1->cbk_pfid);
-	return rc ?: k0->cbk_user_id == k1->cbk_user_id ? 0 : -1;
-}
-
-/**
- * Maximal possible bckey size.
- */
-static size_t m0_cob_max_bckey_size(void)
-{
-	return sizeof(struct m0_cob_bckey) + M0_COB_NAME_MAX;
-}
-
-/**
- * Maximal possible bcrec size.
- */
-static size_t m0_cob_max_bcrec_size(void)
-{
-	return sizeof(struct m0_cob_bcrec) + M0_COB_NAME_MAX;
-}
-
-static size_t m0_cob_bckey_size(const struct m0_cob_bckey *key)
-{
-	return sizeof *key;
-}
-
-static size_t m0_cob_bcrec_size(const struct m0_cob_bcrec *rec)
-{
-	return sizeof *rec;
+	return rc ?: k0->cbk_user_id == k1->cbk_user_id ? 0 : -EINVAL;
 }
 
 /**
@@ -417,16 +417,6 @@ static int bc_cmp(const void *key0, const void *key1)
 				(const struct m0_cob_bckey *)key1);
 }
 
-static m0_bcount_t bc_ksize(const void *key)
-{
-	return m0_cob_bckey_size(key);
-}
-
-static m0_bcount_t bc_vsize(const void *val)
-{
-	return m0_cob_bcrec_size(val);
-}
-
 M0_INTERNAL int m0_cob_bc_iterator_init(struct m0_cob             *cob,
 					struct m0_cob_bc_iterator *it,
 					const struct m0_fid       *pver_fid,
@@ -435,11 +425,11 @@ M0_INTERNAL int m0_cob_bc_iterator_init(struct m0_cob             *cob,
 	int rc;
 
 	/* Prepare entry key using passed started position. */
-	rc = m0_cob_max_bckey_make(&it->ci_key, pver_fid, user_id);
+	rc = m0_cob_bckey_make(&it->ci_key, pver_fid, user_id);
 	if (rc != 0)
 		return M0_RC(rc);
 
-	it->ci_rec = m0_alloc(m0_cob_max_bcrec_size());
+	it->ci_rec = m0_alloc(m0_cob_bcrec_size());
 	if (it->ci_rec == NULL) {
 		m0_free(it->ci_key);
 		return M0_RC(rc);
@@ -458,67 +448,41 @@ M0_INTERNAL int m0_cob_bc_iterator_get(struct m0_cob_bc_iterator *it)
 	struct m0_buf        val;
 	int                  rc;
 
-	m0_buf_init(&key, it->ci_key, m0_cob_bckey_size(it->ci_key));
-	m0_buf_init(&val, it->ci_rec, m0_cob_bcrec_size(it->ci_rec));
+	m0_buf_init(&key, it->ci_key, m0_cob_bckey_size());
+	m0_buf_init(&val, it->ci_rec, m0_cob_bcrec_size());
 	rc = m0_be_btree_cursor_get_sync(&it->ci_cursor, &key, true);
 	if (rc == 0) {
 		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, &val);
 		bckey = (struct m0_cob_bckey *)key.b_addr;
 		bcrec = (struct m0_cob_bcrec *)val.b_addr;
 
-		/**
-		 * Check if we are still inside the object bounds. Assert and
-		 * key copy can be done only in this case.
-		 */
-		/** TODO: Review below condition */
-		/*
-			if (!m0_fid_eq(&bckey->cbk_pfid,
-			       &it->ci_key->cbk_pfid))
-			rc = -ENOENT;
-		*/
-		if (rc == 0) {
-			M0_ASSERT(m0_cob_bckey_size(bckey) <=
-				  m0_cob_max_bckey_size());
-			memcpy(it->ci_key, bckey, m0_cob_bckey_size(bckey));
-			memcpy(it->ci_rec, bcrec, m0_cob_bcrec_size(bcrec));
-		}
+		M0_ASSERT(sizeof(bckey) <= m0_cob_bckey_size());
+		M0_ASSERT(sizeof(bcrec) <= m0_cob_bcrec_size());
+		memcpy(it->ci_key, bckey, m0_cob_bckey_size());
+		memcpy(it->ci_rec, bcrec, m0_cob_bcrec_size());
 	}
 	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_bc_iterator_next(struct m0_cob_bc_iterator *it)
 {
-	/*
 	struct m0_cob_bckey *bckey;
+	struct m0_cob_bcrec *bcrec;
 	struct m0_buf        key;
-	*/
+	struct m0_buf        val;
 	int                  rc;
 
 	rc = m0_be_btree_cursor_next_sync(&it->ci_cursor);
 	if (rc == 0) {
-		/*
-		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
+		m0_be_btree_cursor_kv_get(&it->ci_cursor, &key, &val);
 		bckey = (struct m0_cob_bckey *)key.b_addr;
-		*/
-		/**
-		 * Check if we are stil' inside the object bounds. Assert and
-		 * key copy can be done only in this case.
-		 */
-		/** TODO: Review below condition */
-		/*
-		if (!m0_fid_eq(&bckey->cbk_pfid,
-			       &it->ci_key->cbk_pfid))
-			rc = -ENOENT;
+		bcrec = (struct m0_cob_bcrec *)val.b_addr;
 
-		if (rc == 0) {
-			M0_ASSERT(m0_cob_bckey_size(bckey) <=
-				  m0_cob_max_bckey_size());
-			memcpy(it->ci_key, bckey, m0_cob_bckey_size(bckey));
-		}
-		*/
-
+		M0_ASSERT(sizeof(bckey) <= m0_cob_bckey_size());
+		M0_ASSERT(sizeof(bcrec) <= m0_cob_bcrec_size());
+		memcpy(it->ci_key, bckey, m0_cob_bckey_size());
+		memcpy(it->ci_rec, bcrec, m0_cob_bcrec_size());
 	}
-
 	return M0_RC(rc);
 }
 
@@ -1071,7 +1035,8 @@ static int cob_oi_lookup(struct m0_cob *cob);
 static int cob_fab_lookup(struct m0_cob *cob);
 
 M0_INTERNAL int m0_cob_bc_lookup(struct m0_cob *cob,
-				 struct m0_cob_bckey *bc_key)
+				 struct m0_cob_bckey *bc_key,
+				 struct m0_cob_bcrec *bc_rec)
 {
 	struct m0_buf key;
 	struct m0_buf val;
@@ -1080,8 +1045,8 @@ M0_INTERNAL int m0_cob_bc_lookup(struct m0_cob *cob,
 	M0_PRE(bc_key != NULL &&
 	       m0_fid_is_set(&bc_key->cbk_pfid));
 
-	m0_buf_init(&key, bc_key, m0_cob_bckey_size(bc_key));
-	m0_buf_init(&val, &cob->co_bcrec, sizeof cob->co_bcrec);
+	m0_buf_init(&key, bc_key, m0_cob_bckey_size());
+	m0_buf_init(&val, bc_rec, m0_cob_bcrec_size());
 
 	rc = cob_table_lookup(&cob->co_dom->cd_bytecount, &key, &val);
 	if (rc == 0) {
@@ -1102,8 +1067,8 @@ M0_INTERNAL int m0_cob_bc_insert(struct m0_cob *cob,
 	M0_PRE(bc_key != NULL && bc_val != NULL &&
 	       m0_fid_is_set(&bc_key->cbk_pfid));
 
-	m0_buf_init(&key, bc_key, m0_cob_bckey_size(bc_key));
-	m0_buf_init(&val, bc_val, m0_cob_bcrec_size(bc_val));
+	m0_buf_init(&key, bc_key, m0_cob_bckey_size());
+	m0_buf_init(&val, bc_val, m0_cob_bcrec_size());
 
 	rc = cob_table_insert(&cob->co_dom->cd_bytecount, tx, &key, &val);
 	if (rc == 0)
@@ -1124,8 +1089,8 @@ M0_INTERNAL int m0_cob_bc_update(struct m0_cob *cob,
 	       m0_fid_is_set(&bc_key->cbk_pfid));
 
 
-	m0_buf_init(&key, bc_key, m0_cob_bckey_size(bc_key));
-	m0_buf_init(&val, bc_val, m0_cob_bcrec_size(bc_val));
+	m0_buf_init(&key, bc_key, m0_cob_bckey_size());
+	m0_buf_init(&val, bc_val, m0_cob_bcrec_size());
 
 	rc = cob_table_update(&cob->co_dom->cd_bytecount, tx, &key, &val);
 	if (rc == 0)
@@ -2203,8 +2168,8 @@ static void cob_table_tx_credit(struct m0_be_btree *tree,
 				     /* XXX ^^^^^ is it right? */
 		},
 		[COB_KVTYPE_BC] = {
-			.s_key = m0_cob_max_bckey_size(),
-			.s_rec = m0_cob_max_bcrec_size(),
+			.s_key = m0_cob_bckey_size(),
+			.s_rec = m0_cob_bcrec_size(),
 		},
 	};
 	m0_bcount_t ksize;

@@ -512,7 +512,7 @@ struct m0_cob_earec {
 /** Byte count table key. */
 struct m0_cob_bckey {
 	struct m0_fid     cbk_pfid;    /**< Pool ver fid */
-	uint64_t          cbk_user_id; /**< User id str? */
+	uint64_t          cbk_user_id; /**< User id */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /** Byte count table record. */
@@ -588,9 +588,6 @@ struct m0_cob {
 	struct m0_cob_nsrec    co_nsrec;    /**< object fid, basic stat data */
 	struct m0_cob_fabrec  *co_fabrec;   /**< fileattr_basic data (acl...) */
 	struct m0_cob_omgrec   co_omgrec;   /**< permission data */
-	/* XXX Do we need below structures? XXX */
-	struct m0_cob_bckey   *co_bckey;    /**< Bytecount key */
-	struct m0_cob_bcrec   *co_bcrec;    /**< Cob object count */
 };
 
 /**
@@ -852,12 +849,14 @@ M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it);
 M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it);
 
 /**
- * Search for a record in the bytecount table
+ * Search for a record in the bytecount table and fills struct m0_cob_bcrec
+ * if key is found.
  * If the lookup fails, we return error and co_flags accurately reflects
  * the missing fields.
  */
 M0_INTERNAL int m0_cob_bc_lookup(struct m0_cob *cob,
-				 struct m0_cob_bckey *bc_key);
+				 struct m0_cob_bckey *bc_key,
+				 struct m0_cob_bcrec *bc_rec);
 
 /**
  * Inserts a record in the bytecount table
