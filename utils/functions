@@ -71,14 +71,9 @@ m0_modules_insert() {
     || {
         die 'Inserting m0tr.ko failed'
     }
-    insmod $M0_SRC_DIR/m0ctl.ko || {
-        rmmod m0tr
-        die 'inserting m0ctl failed'
-    }
 }
 
 m0_modules_remove() {
-    rmmod m0ctl || true
     rmmod m0tr || true
 }
 
