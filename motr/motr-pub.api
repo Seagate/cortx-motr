@@ -462,3 +462,4 @@ m0_iem
 m0_console_printf
 m0_console_flush
 m0_error_printf
+max_cksum_size
