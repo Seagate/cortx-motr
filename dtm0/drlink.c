@@ -550,7 +550,17 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 					      DRF_LOCKING));
 	M0_ASSERT(m0_long_is_write_locked(&F(proc)->dop_llock, fom));
 
-	if (dpr_state_infer(drf->df_svc, F(proc)) == DPR_TRANSIENT) {
+	/* XXX:
+	 * At this moment we cannot detect client falures.
+	 * Because of that, we cannot detect the case where
+	 * the client drops RPC items because it cannot
+	 * find the corresponding connection.
+	 * As a workaround, we force drlink to re-connect
+	 * whenever it tries to send a message.
+	 */
+
+	if (always_reconnect ||
+	    dpr_state_infer(drf->df_svc, F(proc)) == DPR_TRANSIENT) {
 		if (m0_rpc_link_is_connected(&F(proc)->dop_rlink)) {
 			M0_CO_FUN(context, co_rlink_do(context, F(proc),
 						       DRF_DISCONNECTING));
@@ -580,6 +590,7 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 	}
 
 	M0_ASSERT(dpr_state_infer(drf->df_svc, F(proc)) == DPR_ONLINE);
+
 	m0_fom_phase_set(fom, DRF_SENDING);
 	rc = dtm0_process_rlink_send(F(proc), drf);
 	if (rc != 0) {
