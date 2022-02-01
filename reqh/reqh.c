@@ -213,7 +213,10 @@ m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
 		pd_sdev_idx;
 	ctx = md_pv->pv_pc->pc_dev2svc[idx].pds_ctx;
 	M0_ASSERT(ctx != NULL);
-	M0_ASSERT(ctx->sc_type == M0_CST_IOS);
+        /* XXX Should the service type associated to a metadata device in
+         * a given m0d be more generic, e.g. M0_CST_BE?
+         */
+	M0_ASSERT(ctx->sc_type == M0_CST_CAS);
 	session = &ctx->sc_rlink.rlk_sess;
 
 	M0_LOG(M0_DEBUG, "device index %d id %d -> ctx=%p session=%p", idx,
