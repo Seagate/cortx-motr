@@ -165,7 +165,7 @@ M0_INTERNAL uint64_t m0_calculate_cksum_size(struct m0_generic_pi *pi);
 /**
  * Return max cksum size possible
  */
-M0_INTERNAL uint64_t max_cksum_size(void);
+uint64_t max_cksum_size(void);
 
 /**
  * Calculate checksum/protection info for data/KV

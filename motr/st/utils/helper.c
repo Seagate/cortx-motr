@@ -130,6 +130,7 @@ static int alloc_vecs(struct m0_indexvec *ext, struct m0_bufvec *data,
 		}
 	} else if (attr) {
 		memset(attr, 0, sizeof(*attr));
+		return M0_RC(-EINVAL);
 	}
 	return rc;
 }
@@ -508,6 +509,10 @@ int m0_write(struct m0_container *container, char *src,
 
 	usz = m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id);
 	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size, usz);
+	if (rc == -EINVAL) {
+		obj.ob_entity.en_flags &= ~M0_ENF_DI;
+		rc = 0;
+	}
 	if (rc != 0)
 		goto cleanup;
 
@@ -518,6 +523,10 @@ int m0_write(struct m0_container *container, char *src,
 			cleanup_vecs(&data, &attr, &ext);
 			rc = alloc_vecs(&ext, &data, &attr, bcount,
 					block_size, usz);
+			if (rc == -EINVAL) {
+				obj.ob_entity.en_flags &= ~M0_ENF_DI;
+				rc = 0;
+			}
 			if (rc != 0)
 				goto cleanup;
 		}
@@ -640,6 +649,10 @@ int m0_read(struct m0_container *container,
 		blks_per_io = M0_MAX_BLOCK_COUNT;
 	usz = m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id);
 	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size, usz);
+	if (rc == -EINVAL) {
+		obj.ob_entity.en_flags &= ~M0_ENF_DI;
+		rc = 0;
+	}
 	if (rc != 0)
 		goto cleanup;
 	while (block_count > 0) {
@@ -650,6 +663,10 @@ int m0_read(struct m0_container *container,
 			cleanup_vecs(&data, &attr, &ext);
 			rc = alloc_vecs(&ext, &data, &attr, bcount,
 					block_size, usz);
+			if (rc == -EINVAL) {
+				obj.ob_entity.en_flags &= ~M0_ENF_DI;
+				rc = 0;
+			}
 			if (rc != 0)
 				goto cleanup;
 		}
@@ -901,6 +918,10 @@ int m0_write_cc(struct m0_container *container,
 			  M0_MAX_BLOCK_COUNT : block_count;
 		rc = alloc_prepare_vecs(&ext, &data, &attr, bcount,
 					       block_size, &last_index, usz);
+		if (rc == -EINVAL) {
+			obj.ob_entity.en_flags &= ~M0_ENF_DI;
+			rc = 0;
+		}
 		if (rc != 0)
 			goto cleanup;
 
@@ -959,6 +980,10 @@ int m0_read_cc(struct m0_container *container,
 	usz = m0_obj_layout_id_to_unit_size(obj.ob_attr.oa_layout_id);
 	rc = alloc_prepare_vecs(&ext, &data, &attr, block_count,
 				       block_size, &last_index, usz);
+	if (rc == -EINVAL) {
+		obj.ob_entity.en_flags &= ~M0_ENF_DI;
+		rc = 0;
+	}
 	if (rc != 0)
 		return rc;
 	if (di_flag)

@@ -276,6 +276,9 @@ int cr_io_vector_prep(struct m0_workload_io *cwi,
 						sizeof(struct m0_md5_inc_context_pi));
 		if (rc != 0)
 			goto enomem;
+		op_ctx->coc_attr = attr;
+	} else {
+		op_ctx->coc_attr = NULL;
 	}
     
 	rc = m0_indexvec_alloc(index_vec, cwi->cwi_bcount_per_op); 
@@ -334,8 +337,6 @@ int cr_io_vector_prep(struct m0_workload_io *cwi,
 	m0_bitmap_fini(&segment_indices);
 	op_ctx->coc_buf_vec = buf_vec;
 	op_ctx->coc_index_vec = index_vec;
-	/**TODO: set attr to NULL to disable cksum, enable after addding cksum in ST */
-	op_ctx->coc_attr = attr;
 
 	return 0;
 enomem:
@@ -420,6 +421,8 @@ int cr_io_write(struct m0_workload_io *cwi,
 	rc = cr_io_vector_prep(cwi, cti, op_ctx, obj_idx, op_index);
 	if (rc != 0)
 		return rc;
+	if (op_ctx->coc_attr == NULL)
+		obj->ob_entity.en_flags &= ~M0_ENF_DI;
 	calculate_checksum(obj, op_ctx->coc_index_vec, op_ctx->coc_buf_vec, op_ctx->coc_attr);
 	rc = m0_obj_op(obj, M0_OC_WRITE,
 		       op_ctx->coc_index_vec, op_ctx->coc_buf_vec,
@@ -444,6 +447,8 @@ int cr_io_read(struct m0_workload_io *cwi,
 	rc = cr_io_vector_prep(cwi, cti, op_ctx, obj_idx, op_index);
 	if (rc != 0)
 		return rc;
+	else if (op_ctx->coc_attr == NULL)
+		obj->ob_entity.en_flags &= ~M0_ENF_DI;
 	rc = m0_obj_op(obj, M0_OC_READ,
 		       op_ctx->coc_index_vec, op_ctx->coc_buf_vec,
 		       op_ctx->coc_attr, 0, 0, &cti->cti_ops[free_slot]);
