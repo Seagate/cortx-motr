@@ -207,16 +207,12 @@ m0_load_modules()
     else
         set -x
         modprobe m0tr $m0tr_params
-        set +x
-        modprobe m0ctl
     fi
 }
 
 # Unload Motr modules.
 m0_unload_modules()
 {
-    lsmod | grep -q m0ctl && ( rmmod m0ctl || m0_exit "Failed to unload m0ctl module" )
-
     if [ -n "$MOTR_DEVEL_WORKDIR_PATH" ] ; then
         rmmod m0tr || m0_exit "Failed to unload m0tr module"
         rmmod galois || m0_exit "Failed to unload galois module"

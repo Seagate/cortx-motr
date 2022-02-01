@@ -63,11 +63,11 @@
   - name: build isa-l rpms
     command: rpmbuild --define '_isa_l_version 2.30.0' -bb roles/motr-build/tasks/isa-l.spec
     args:
-      creates: ~/rpmbuild/RPMS/x86_64/isa-l-*.rpm
+      creates: ~/rpmbuild/RPMS/{{ ansible_architecture }}/isa-l-*.rpm
 
   - name: read isa-l package version
     shell: |
-      ls --reverse ~/rpmbuild/RPMS/x86_64/isa-l-*.rpm \
+      ls --reverse ~/rpmbuild/RPMS/{{ ansible_architecture }}/isa-l-*.rpm \
       | grep -oP '(?<=isa-l-).*(?=\.rpm)' \
       | head -n1
     register: isal_version
@@ -77,7 +77,7 @@
   - name: install local isa-l rpms
     yum:
       name:
-        - /root/rpmbuild/RPMS/x86_64/isa-l-{{ isal_version.stdout }}.rpm
+        - /root/rpmbuild/RPMS/{{ ansible_architecture }}/isa-l-{{ isal_version.stdout }}.rpm
       state: present
       disable_gpg_check: yes
     tags: isal-custom-build
@@ -96,7 +96,7 @@
 
   - name: copy isa-l rpm to local repo
     copy:
-      src: '~/rpmbuild/RPMS/x86_64/isa-l-{{ isal_version.stdout }}.rpm'
+      src: '~/rpmbuild/RPMS/{{ ansible_architecture }}/isa-l-{{ isal_version.stdout }}.rpm'
       dest: /var/lib/yum/localrepos/isal-local
       remote_src: yes
 
@@ -262,11 +262,11 @@
                  {{ '--define kver\ ' + ansible_env.lustre_kver if ansible_env.lustre_kver is defined else '' }} \
                  ~/rpmbuild/SPECS/lustre.spec
       args:
-        creates: ~/rpmbuild/RPMS/x86_64/lustre-client-devel-*.rpm
+        creates: ~/rpmbuild/RPMS/{{ ansible_architecture }}/lustre-client-devel-*.rpm
 
     - name: read Lustre package version
       shell: |
-        ls --reverse ~/rpmbuild/RPMS/x86_64/lustre-client-devel-*.rpm \
+        ls --reverse ~/rpmbuild/RPMS/{{ ansible_architecture }}/lustre-client-devel-*.rpm \
         | grep -oP '(?<=lustre-client-devel-).*(?=\.rpm)' \
         | head -n1
       register: lustre_version
@@ -276,8 +276,8 @@
     - name: install local Lustre rpms
       yum:
         name:
-          - /root/rpmbuild/RPMS/x86_64/kmod-lustre-client-{{ lustre_version.stdout }}.rpm
-          - /root/rpmbuild/RPMS/x86_64/lustre-client-{{ lustre_version.stdout }}.rpm
+          - /root/rpmbuild/RPMS/{{ ansible_architecture }}/kmod-lustre-client-{{ lustre_version.stdout }}.rpm
+          - /root/rpmbuild/RPMS/{{ ansible_architecture }}/lustre-client-{{ lustre_version.stdout }}.rpm
         state: present
         disable_gpg_check: yes
       when: ansible_distribution_version is version('7.6.1810', '>')
@@ -297,7 +297,7 @@
 
     - name: copy Lustre devel rpm to local repo
       copy:
-        src: '~/rpmbuild/RPMS/x86_64/lustre-client-devel-{{ lustre_version.stdout }}.rpm'
+        src: '~/rpmbuild/RPMS/{{ ansible_architecture }}/lustre-client-devel-{{ lustre_version.stdout }}.rpm'
         dest: /var/lib/yum/localrepos/lustre-local
         remote_src: yes
 
@@ -355,8 +355,8 @@
     - name: install local libfabric rpms
       yum:
         name:
-          - /root/rpmbuild/RPMS/x86_64/libfabric-1.11.2-1.el{{ redhat_release_major }}.x86_64.rpm
-          - /root/rpmbuild/RPMS/x86_64/libfabric-devel-1.11.2-1.el{{ redhat_release_major }}.x86_64.rpm
+          - /root/rpmbuild/RPMS/{{ ansible_architecture }}/libfabric-1.11.2-1.el{{ redhat_release_major }}.{{ ansible_architecture }}.rpm
+          - /root/rpmbuild/RPMS/{{ ansible_architecture }}/libfabric-devel-1.11.2-1.el{{ redhat_release_major }}.{{ ansible_architecture }}.rpm
         state: present
         disable_gpg_check: yes
       when: ansible_distribution_version is version('7.6.1810', '>')
@@ -406,10 +406,10 @@
     - name: build mscgen rpm
       command: rpmbuild -bb ~/rpmbuild/SPECS/mscgen.spec
       args:
-        creates: ~/rpmbuild/RPMS/x86_64/mscgen-*.rpm
+        creates: ~/rpmbuild/RPMS/{{ ansible_architecture }}/mscgen-*.rpm
 
     - name: read mscgen devel package filename
-      shell: ls ~/rpmbuild/RPMS/x86_64/mscgen-[0-9]*.rpm
+      shell: ls ~/rpmbuild/RPMS/{{ ansible_architecture }}/mscgen-[0-9]*.rpm
       register: mscgen_devel_rpm
       changed_when: false
       check_mode: no
