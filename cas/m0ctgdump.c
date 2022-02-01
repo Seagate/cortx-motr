@@ -42,9 +42,6 @@
 #include "motr/setup_dix.h"
 #include "cas/ctg_store.h"
 
-
-int ctgdump(struct m0_motr *motr_ctx, char *fidstr);
-
 M0_INTERNAL int main(int argc, char **argv)
 {
 	struct m0_motr   motr_ctx;
@@ -62,7 +59,7 @@ M0_INTERNAL int main(int argc, char **argv)
 
 	rc = setrlimit(RLIMIT_NOFILE, &rlim);
 	if (rc != 0) {
-		fprintf(stderr, "\n Failed to setrlimit\n");
+		m0_console_printf("\n Failed to setrlimit\n");
 		goto out;
 	}
 
@@ -77,27 +74,33 @@ M0_INTERNAL int main(int argc, char **argv)
 	M0_SET0(&motr_ctx);
 	rc = m0_init(&instance);
 	if (rc != 0) {
-		fprintf(stderr, "\n Failed to initialise Motr \n");
+		m0_console_printf("\n Failed to initialise Motr \n");
 		goto out;
 	}
 
 	rc = m0_cs_init(&motr_ctx, m0_net_all_xprt_get(), m0_net_xprt_nr(),
 			stderr, false /*not mkfs */);
 	if (rc != 0) {
-		fprintf(stderr, "\n Failed to initialise Motr \n");
+		m0_console_printf("\n Failed to initialise Motr \n");
 		goto cleanup;
 	}
 
         rc = m0_cs_setup_env(&motr_ctx, argc, argv);
-	printf("%s is started. Press Enter to quit\n", argv[0]);
-
-	rc = ctgdump(&motr_ctx, argv[argc-1]);
-
-	while (1) {
-		printf(".");
-		fflush(stdout);
-		sleep(1);
+        if (rc != 0) {
+		m0_console_printf("\n Failed to setup cs env \n");
+		goto cs_fini;
 	}
+
+	/*
+	 * Usage of m0ctgdump:
+	 * m0ctgdump "cs setup options" + hex (if printing kv pairs in hex)
+	 *                              + index's global fid
+	 */
+	M0_ASSERT(argc >= 2);
+	rc = ctgdump(&motr_ctx, argv[argc - 1], argv[argc - 2]);
+	fflush(stdout);
+
+cs_fini:
 	m0_cs_fini(&motr_ctx);
 cleanup:
 	m0_fini();
