@@ -30,7 +30,6 @@ MOTR_TEST_LOGFILE=$SANDBOX_DIR/motr_`date +"%Y-%m-%d_%T"`.log
 MOTR_M0T1FS_MOUNT_DIR=/tmp/test_m0t1fs_`date +"%d-%m-%Y_%T"`
 
 MOTR_MODULE=m0tr
-MOTR_CTL_MODULE=m0ctl #debugfs interface to control m0tr at runtime
 
 # kernel space tracing parameters
 MOTR_MODULE_TRACE_MASK='!all'
@@ -188,38 +187,6 @@ load_kernel_module()
         	              $motr_module_path/$motr_module.ko"
         	        return 1
         	fi
-	fi
-}
-
-load_motr_ctl_module()
-{
-	echo "Mount debugfs and insert $MOTR_CTL_MODULE.ko so as to use fault injection"
-	mount -t debugfs none /sys/kernel/debug
-	mount | grep debugfs
-	if [ $? -ne 0 ]
-	then
-		echo "Failed to mount debugfs"
-		return 1
-	fi
-
-	echo "insmod $motr_module_path/$MOTR_CTL_MODULE.ko"
-	insmod $motr_module_path/$MOTR_CTL_MODULE.ko
-	lsmod | grep $MOTR_CTL_MODULE
-	if [ $? -ne 0 ]
-	then
-		echo "Failed to insert module" \
-		     " $motr_module_path/$MOTR_CTL_MODULE.ko"
-		return 1
-	fi
-}
-
-unload_motr_ctl_module()
-{
-	echo "rmmod $motr_module_path/$MOTR_CTL_MODULE.ko"
-	rmmod $motr_module_path/$MOTR_CTL_MODULE.ko
-	if [ $? -ne 0 ]; then
-		echo "Failed: $MOTR_CTL_MODULE.ko could not be unloaded"
-		return 1
 	fi
 }
 
