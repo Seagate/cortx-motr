@@ -38,18 +38,9 @@ m0t1fs_test()
 		return 1
 	fi
 
-	# Load m0ctl module in order to collect kernel logs with m0reportbug
-	load_motr_ctl_module
-	if [ $? -ne 0 ]
-	then
-		motr_service stop
-		return 1
-	fi
-
 	m0t1fs_system_tests
 	rc=$?
 
-	unload_motr_ctl_module
 	# motr_service stop --collect-addb
 	motr_service stop
 	if [ $? -ne 0 ]

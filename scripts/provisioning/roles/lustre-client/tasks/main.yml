@@ -32,7 +32,8 @@
         path: /etc/redhat-release
       register: redhat_release_file
     - set_fact:
-       redhat_release: '{{ redhat_release_file.content | b64decode | regex_search("\d+\.\d+") }}'
+       redhat_release: '{{ redhat_release_file.content | b64decode | regex_search("\d+(\.\d+)?") }}'
+       redhat_release_major: '{{ redhat_release_file.content | b64decode | regex_search("\d+") }}'
   tags: lustre
 
 - name: configure 'Lustre' repository
@@ -40,7 +41,7 @@
     name:        lustre-whamcloud-{{ item.version }}
     file:        lustre-whamcloud
     description: Whamcloud - Lustre {{ item.version }}
-    baseurl:     https://downloads.whamcloud.com/public/lustre/lustre-{{ item.version }}/el7/client/
+    baseurl:     https://downloads.whamcloud.com/public/lustre/lustre-{{ item.version }}/el{{ redhat_release_major }}/client/
     enabled:     '{{ item.enabled }}'
     # disable signature verification
     gpgcheck: no
@@ -54,7 +55,11 @@
     - { version: 2.10.8, enabled: '{{ (redhat_release is version("7.6", "=")) | ternary("yes", "no") }}' }
     - { version: 2.12.4, enabled: '{{ (redhat_release is version("7.7", "=")) | ternary("yes", "no") }}' }
     - { version: 2.12.5, enabled: '{{ (redhat_release is version("7.8", "=")) | ternary("yes", "no") }}' }
-    - { version: 2.12.6, enabled: '{{ (redhat_release is version("7.9", ">=")) | ternary("yes", "no") }}' }
+    - { version: 2.12.6, enabled: '{{ (redhat_release is version("7.9", "="))
+                                   or (redhat_release is version("8.3", "=")) | ternary("yes", "no") }}' }
+    - { version: 2.12.7, enabled: '{{ (redhat_release is version("8.4", "=")) | ternary("yes", "no") }}' }
+    - { version: 2.12.8, enabled: '{{ (redhat_release is version("8.5", ">="))
+                                   or (redhat_release is version("8", "=")) | ternary("yes", "no") }}' } # Stream
   when: ansible_os_family == 'RedHat'
   tags:
     - lustre
@@ -62,6 +67,7 @@
 
 - name: install Lustre
   package: name={{ lustre_client_pkgs }} state=present skip_broken=yes
+  when: ansible_architecture == 'x86_64'
   tags:
     - lustre
 

@@ -1,0 +1,58 @@
+Source: cortx-motr
+Section: admin
+Priority: optional
+Homepage: https://github.com/Seagate/cortx-motr
+Maintainer: Andriy Tkachuk <andriy.tkachuk@seagate.com>
+Standards-Version: 4.4.0
+Build-Depends: automake,
+               autoconf,
+               binutils-dev,
+               libtool,
+               make (>= 4.1),
+               debhelper (>= 10),
+               gcc (>=7),
+               g++ (>=7),
+               castxml,
+               asciidoc,
+               xsltproc,
+               docbook-xsl,
+               docbook-xml,
+               libc6-dev (>= 2.27),
+               libyaml-dev,
+               libaio-dev,
+               libssl-dev,
+               libedit-dev,
+               libisal-dev,
+               libfabric-dev,
+               libsystemd-dev,
+               uuid-dev,
+               perl,
+               libxml-libxml-perl,
+               liblist-moreutils-perl,
+               libfile-find-rule-perl,
+               libio-all-perl,
+               libfile-slurp-perl,
+               libyaml-libyaml-perl,
+               python2-dev,
+               python3-ply
+ 
+Package: cortx-motr
+Architecture: linux-any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+         ${python:Depends}
+Description: distributed object and key-value storage system
+ CORTX Motr is a distributed object and key-value storage
+ system targeting mass capacity storage configurations.
+ It's the core component of CORTX storage system.
+
+Package: cortx-motr-dev
+Architecture: linux-any
+Section: libdevel
+Depends: cortx-motr (= ${binary:Version}), ${misc:Depends}
+Description: distributed object and key-value storage system (development files)
+ CORTX Motr is a distributed object and key-value storage
+ system targeting mass capacity storage configurations.
+ It's the core component of CORTX storage system.
+ .
+ This package contains development files needed for building applications
+ that link with libmotr.
