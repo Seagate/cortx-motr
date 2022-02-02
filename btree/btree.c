@@ -9781,27 +9781,27 @@ struct btree_ut_thread_info {
  *  for the same btree nodes to work on thus exercising possible race
  *  conditions.
  */
-static int64_t thread_run;
+static volatile int64_t thread_run;
 
 
 static struct m0_atomic64 threads_quiesced;
 static struct m0_atomic64 threads_running;
 
 #define  UT_START_THREADS()                                                   \
-	thread_run = true
+	thread_run = 1
 
 #define  UT_STOP_THREADS()                                                    \
-	thread_run = false
+	thread_run = 0
 
 #define UT_THREAD_WAIT()                                                      \
 	do {                                                                  \
-		while (!thread_run)                                            \
+		while (thread_run == 0)                                       \
 			;                                                     \
 	} while (0)
 
 #define UT_THREAD_QUIESCE_IF_REQUESTED()                                      \
 	do {                                                                  \
-		if (!thread_run) {                                            \
+		if (thread_run == 0) {                                        \
 			m0_atomic64_inc(&threads_quiesced);                   \
 			UT_THREAD_WAIT();                                     \
 			m0_atomic64_dec(&threads_quiesced);                   \
@@ -9813,8 +9813,8 @@ static struct m0_atomic64 threads_running;
 		bool try_again;                                               \
 		do {                                                          \
 			try_again = false;                                    \
-			if (m0_atomic64_cas(&thread_run, true, false)) {      \
-				while (m0_atomic64_get(&threads_quiesced) <    \
+			if (m0_atomic64_cas((int64_t *)&thread_run, 1, 0)) {  \
+				while (m0_atomic64_get(&threads_quiesced) <   \
 				      m0_atomic64_get(&threads_running) - 1)  \
 					;                                     \
 			} else {                                              \
