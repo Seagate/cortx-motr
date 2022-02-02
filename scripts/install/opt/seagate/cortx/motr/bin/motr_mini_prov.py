@@ -298,10 +298,15 @@ def validate_motr_rpm(self):
 
 def update_config_file(self, fname, kv_list):
     lines = []
+    count = 0
     # Get all lines of file in buffer
-    with open(f"{MOTR_SYS_CFG}", "r") as fp:
+    with open(f"{MOTR_SYS_CFG}", "r", encoding='utf-8') as fp:
+        self.logger.info("Open success\n")
         for line in fp:
+            count = count + 1
+            self.logger.info(f"line = {line}")
             lines.append(line)
+    self.logger.info(f"Number of lines read={count}\n")
     num_lines = len(lines)
     self.logger.info(f"Before update, in file {fname}, num_lines={num_lines}\n")
 
