@@ -670,6 +670,33 @@ Tests:
     polltime : 30
     timeout  : 1800
 
+  - id       : 68sns-repair-shutdown
+    script   : 'm0 run-st 68sns-repair-shutdown'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-68sns-repair-shutdown
+    groupname: 03motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 69sns-repair-quiesce
+    script   : 'm0 run-st 69sns-repair-quiesce'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-69sns-repair-quiesce
+    groupname: 03motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 70sns-failure-after-repair-quiesce
+    script   : 'm0 run-st 70sns-failure-after-repair-quiesce'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-70sns-failure-after-repair-quiesce
+    groupname: 03motr-single-node
+    polltime : 30
+    timeout  : 1800
+
 
 
 # 25 min

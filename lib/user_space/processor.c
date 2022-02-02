@@ -1047,6 +1047,7 @@ static void processor_getcpu_fini(void)
 {
 }
 
+#ifdef CONFIG_X86_64
 static void processor_cpuid_reg_get(unsigned opc, unsigned *r)
 {
 	__asm__ __volatile__ ("cpuid\n\t"
@@ -1054,6 +1055,7 @@ static void processor_cpuid_reg_get(unsigned opc, unsigned *r)
 				"=c" (r[2]), "=d" (r[3])
 			      : "0" (opc), "1" (0), "2" (0));
 }
+#endif
 
 /* ---- Processor Interface Implementation ---- */
 
