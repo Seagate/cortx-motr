@@ -1437,6 +1437,10 @@ def start_service(self, service, idx):
     cmd = "/opt/seagate/cortx/motr/libexec/m0addb_logrotate.sh &"
     execute_command(self, cmd)
 
+    #Run script to compress core files
+    cmd = "/opt/seagate/cortx/motr/libexec/motr_core_compress.sh &"
+    execute_command(self, cmd)
+
     #Start motr services
     cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
     execute_command_console(self, cmd)
