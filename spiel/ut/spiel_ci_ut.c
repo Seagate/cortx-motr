@@ -528,6 +528,7 @@ void test_spiel_bc_stats(void)
 	spiel_ci_ut_init();
 
 	M0_SET0(&count_stats);
+	m0_fi_enable_once("ss_bytecount_stats_ingest", "dummy_bytecount_data");
 	rc = m0_spiel_proc_counters_fetch(&spiel, &proc_fid, &count_stats);
 
 	M0_UT_ASSERT(m0_fid_eq(&count_stats.pc_proc_fid, &proc_fid));

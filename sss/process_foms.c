@@ -43,6 +43,7 @@
 #include "sss/process_fops.h"
 #include "sss/process_foms.h"
 #include "sss/ss_svc.h"
+#include "ioservice/io_service.h" /* m0_ios_cdom_get */
 #ifndef __KERNEL__
  #include "module/instance.h"
  #include <unistd.h>
@@ -380,32 +381,46 @@ static int ss_process_stats(struct m0_reqh           *reqh,
 	return M0_RC(rc);
 }
 
-static int ss_bytecount_stats_ingest(struct m0_ss_process_rep *rep)
+static int ss_bytecount_stats_ingest(struct m0_cob_domain *cdom,
+				     struct m0_ss_process_rep *rep)
 {
-	struct m0_cob_bckey  key;
-	struct m0_cob_bcrec  rec;
+	int                  rc;
+	struct m0_buf       *key_buf = NULL;
+	struct m0_buf       *rec_buf = NULL;
 
 	/* DUMMY values */
-	key.cbk_pfid = M0_FID_TINIT('v', 1, 8);
-	key.cbk_user_id = 8881212;
+	if (M0_FI_ENABLED("dummy_bytecount_data")) {
+		struct m0_cob_bckey  key;
+		struct m0_cob_bcrec  rec;
 
-	rec.cbr_bytecount = 10240000;
-	rec.cbr_cob_objects = 10000;
+		key.cbk_pfid = M0_FID_TINIT('v', 1, 8);
+		key.cbk_user_id = 8881212;
+		rec.cbr_bytecount = 10240000;
+		rec.cbr_cob_objects = 10000;
+		m0_buf_new_aligned(&rep->sspr_bckey, &key, sizeof(key), 0);
+		m0_buf_new_aligned(&rep->sspr_bcrec, &rec, sizeof(rec), 0);
 
-	m0_buf_new_aligned(&rep->sspr_bckey, &key, sizeof(key), 0);
-	m0_buf_new_aligned(&rep->sspr_bcrec, &rec, sizeof(rec), 0);
+		return 0;
+	}
 
-	return 0;
+	rc = m0_cob_bc_entries_dump(cdom, key_buf, rec_buf, &rep->sspr_kv_count); 
+
+	m0_buf_init(&rep->sspr_bckey, key_buf->b_addr, key_buf->b_nob);
+	m0_buf_init(&rep->sspr_bcrec, rec_buf->b_addr, rec_buf->b_nob);
+
+	return rc;
 }
 static int ss_process_counter(struct m0_reqh           *reqh,
 			      struct m0_ss_process_rep *rep)
 {
-	int rc;
+	struct m0_cob_domain *cdom;
+	int                   rc;
 
 	M0_ENTRY();
-	if (ss_ioservice_find(reqh) != NULL)
-		rc = ss_bytecount_stats_ingest(rep);
-	else
+	if (ss_ioservice_find(reqh) != NULL) {
+		m0_ios_cdom_get(reqh, &cdom);
+		rc = ss_bytecount_stats_ingest(cdom, rep);
+	} else
 		rc = -ESRCH;
 	return M0_RC(rc);
 }

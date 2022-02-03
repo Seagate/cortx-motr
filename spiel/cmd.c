@@ -1663,8 +1663,9 @@ int m0_spiel_pool_rebalance_abort(struct m0_spiel     *spl,
  * List element of an individual key value pair on the byte count btree.
  */
 struct m0_proc_data {
-	struct m0_spiel_bckey pd_bckey;
-	struct m0_spiel_bcrec pd_bcrec;
+	struct m0_buf         pd_key;
+	struct m0_buf         pd_rec;
+	uint32_t              pd_kv_count;
 	struct m0_tlink       pd_link;
 	uint64_t              pd_magic;
 };
@@ -2059,8 +2060,14 @@ static void spiel_process_counter_replied_ast(struct m0_sm_group *grp,
 		goto leave;
 	rep = spiel_process_reply_data(&proc->sci_fop);
 
-	proc->sci_data.pd_bckey = *((struct m0_spiel_bckey *)rep->sspr_bckey.b_addr);
-	proc->sci_data.pd_bcrec = *((struct m0_spiel_bcrec *)rep->sspr_bcrec.b_addr);
+	m0_buf_alloc(&proc->sci_data.pd_key, rep->sspr_bckey.b_nob);
+	m0_buf_alloc(&proc->sci_data.pd_rec, rep->sspr_bcrec.b_nob);
+
+	memcpy(proc->sci_data.pd_key.b_addr, rep->sspr_bckey.b_addr,
+		rep->sspr_bckey.b_nob);
+	memcpy(proc->sci_data.pd_key.b_addr, rep->sspr_bckey.b_addr,
+		rep->sspr_bckey.b_nob);
+	proc->sci_data.pd_kv_count = rep->sspr_kv_count;
 
 leave:
 	m0_rpc_machine_lock(proc->sci_spc->spc_rmachine);
@@ -2181,7 +2188,10 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 	struct spiel_proc_counter_item *proc = NULL;
 	struct m0_spiel_core           *spc = &spl->spl_core;
 	struct m0_conf_obj             *proc_obj;
+	void                           *key_cur;
+	void                           *rec_cur;
 	int                             rc = 0;
+	int                             i;
 
 	M0_ENTRY();
 	M0_PRE(spl != NULL);
@@ -2221,19 +2231,31 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 		goto sem_fini;
 	m0_semaphore_down(&proc->sci_barrier);
 
-	M0_ALLOC_ARR(count_stats->pc_bckey, 1);
-	M0_ALLOC_ARR(count_stats->pc_bcrec, 1);
-	M0_ALLOC_PTR(count_stats->pc_bckey[0]);
-	M0_ALLOC_PTR(count_stats->pc_bcrec[0]);
-
 	count_stats->pc_proc_fid = *proc_fid;
-	count_stats->pc_bckey[0]->sbk_fid = proc->sci_data.pd_bckey.sbk_fid;
-	count_stats->pc_bckey[0]->sbk_user_id = proc->sci_data.pd_bckey.sbk_user_id;
-
-	count_stats->pc_bcrec[0]->sbr_byte_count = proc->sci_data.pd_bcrec.sbr_byte_count;
-	count_stats->pc_bcrec[0]->sbr_object_count = proc->sci_data.pd_bcrec.sbr_object_count;
-	count_stats->pc_cnt = 1;
+	count_stats->pc_cnt = proc->sci_data.pd_kv_count;
 	count_stats->pc_rc = 0;
+
+	M0_ALLOC_ARR(count_stats->pc_bckey, proc->sci_data.pd_kv_count);
+	M0_ALLOC_ARR(count_stats->pc_bcrec, proc->sci_data.pd_kv_count);
+
+	key_cur = proc->sci_data.pd_key.b_addr;
+	rec_cur = proc->sci_data.pd_rec.b_addr;
+
+	for (i = 0; i < proc->sci_data.pd_kv_count; i++) {
+		M0_ALLOC_PTR(count_stats->pc_bckey[i]);
+		M0_ALLOC_PTR(count_stats->pc_bcrec[i]);
+
+		memcpy(count_stats->pc_bckey[i], key_cur,
+			sizeof(struct m0_spiel_bckey));
+		memcpy(count_stats->pc_bcrec[i], rec_cur,
+			sizeof(struct m0_spiel_bcrec));
+
+		key_cur += sizeof(struct m0_spiel_bckey);
+		rec_cur += sizeof(struct m0_spiel_bcrec);
+	}
+
+	m0_buf_free(&proc->sci_data.pd_key);
+	m0_buf_free(&proc->sci_data.pd_rec);
 
 sem_fini:
 	m0_semaphore_fini(&proc->sci_barrier);
