@@ -216,11 +216,11 @@ enum {
 #define __AAL(x) __attribute__((aligned(x)))
 
 /** Root node alignment for balloc extend and group descriptor trees. */
-#define BALLOC_ROOT_NODE_ALIGN  1024
+#define BALLOC_ROOT_NODE_ALIGN  4096
 
 enum {
 	/** Root node size for balloc extend and group descriptor trees. */
-	BALLOC_ROOT_NODE_SIZE = 1024,
+	BALLOC_ROOT_NODE_SIZE = 4096,
 };
 
 /**
