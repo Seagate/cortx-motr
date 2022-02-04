@@ -931,9 +931,9 @@ struct node_type {
 	/**
 	 * Returns true if there is possibility of overflow.
 	 * The parameter max_ksize will be used only in the case of internal
-	 * nodes of variable sized keys and values node format. In worst case
-	 * scenario, size of the key which is required to get added in internal
-	 * node will be maximum of max_ksize and key size provided by the user.
+	 * nodes of variable sized keys and values node format. Size of the key
+	 * which is required to be added in internal node will be maximum of
+	 * max_ksize and key size provided by the user.
 	 */
 	bool  (*nt_isoverflow)(const struct nd *node, int max_ksize,
 			       const struct m0_btree_rec *rec);
