@@ -70,8 +70,8 @@ if (($? != 0 && $? != 2)); then
     die "Wrong number of arguments. Type '$PROG --help' for usage."
 fi
 
-bundle_id=${1:-$HOSTNAME}
-dest_dir=${2:-$DEFAULT_DEST_DIR}
+bundle_id=$HOSTNAME
+dest_dir=$DEFAULT_DEST_DIR
 
 duration=P5d
 size_limit=0
@@ -101,18 +101,27 @@ while true; do
             shift 2 ;;
          --binlogs)
             rc=$(echo $2 | sed -e 's/,/\n/g') ;
+            if [[ "$rc" != "true" &&  "$rc" != "false" ]]; then
+                usage; exit;
+            fi
             if [ "$rc" == "true" ]; then
                 CMD+=" --binaries"
             fi
             shift 2 ;;
          --coredumps)
             rc=$(echo $2 | sed -e 's/,/\n/g') ;
+            if [[ "$rc" != "true" &&  "$rc" != "false" ]]; then
+                usage; exit;
+            fi
             if [ "$rc" == "true" ]; then
                 CMD+=" --coredumps"
             fi
             shift 2 ;;
          --stacktrace)
             rc=$(echo $2 | sed -e 's/,/\n/g') ;
+            if [[ "$rc" != "true" &&  "$rc" != "false" ]]; then
+                usage; exit;
+            fi
             if [ "$rc" == "true" ]; then
                 CMD+=" --stacktrace"
             fi
