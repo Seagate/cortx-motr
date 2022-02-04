@@ -928,7 +928,13 @@ struct node_type {
 	 */
 	bool  (*nt_isunderflow)(const struct nd *node, bool predict);
 
-	/** Returns true if there is possibility of overflow. */
+	/**
+	 * Returns true if there is possibility of overflow.
+	 * The parameter max_ksize will be used only in the case of internal
+	 * nodes of variable sized keys and values node format. In worst case
+	 * scenario, size of the key which is required to get added in internal
+	 * node will be maximum of max_ksize and key size provided by the user.
+	 */
 	bool  (*nt_isoverflow)(const struct nd *node, int max_ksize,
 			       const struct m0_btree_rec *rec);
 
@@ -1314,7 +1320,7 @@ struct level {
 	 * Maximum key size present in the node. It is required to determine
 	 * overflow at parent level.
 	 */
-	int        l_max_ksize;
+	int32_t    l_max_ksize;
 };
 
 /**
@@ -1574,7 +1580,6 @@ static int bnode_max_ksize(const struct nd *node)
 	return (node->n_type->nt_max_ksize(node));
 }
 
-
 /**
  * If predict is 'true' the function returns a possibility of underflow if
  * another record is deleted from this node without addition of any more
@@ -1588,6 +1593,11 @@ static bool  bnode_isunderflow(const struct nd *node, bool predict)
 	return node->n_type->nt_isunderflow(node, predict);
 }
 
+/**
+ * This function will determine if there is a possibility of overflow. If there
+ * is not enough space to accommodate the required record, this function will
+ * return true.
+ */
 static bool  bnode_isoverflow(const struct nd *node, int max_ksize,
 			      const struct m0_btree_rec *rec)
 {
@@ -5066,6 +5076,7 @@ static void vkvv_lnode_make(struct slot *slot)
 		m0_memmove(start_val_addr - total_vsize - vsize,
 			   start_val_addr - total_vsize, total_vsize);
 	}
+
 	if (ksize > h->vkvv_max_ksize)
 		h->vkvv_max_ksize = ksize;
 }
