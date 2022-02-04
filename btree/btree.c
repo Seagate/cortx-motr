@@ -2714,7 +2714,8 @@ static bool ff_isunderflow(const struct nd *node, bool predict)
 	return  rec_count == 0;
 }
 
-static bool ff_isoverflow(const struct nd *node, int max_ksize, const struct m0_btree_rec *rec)
+static bool ff_isoverflow(const struct nd *node, int max_ksize,
+			  const struct m0_btree_rec *rec)
 {
 	struct ff_head *h = ff_data(node);
 	int             crc_size = 0;
