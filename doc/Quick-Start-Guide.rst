@@ -55,7 +55,8 @@ Build
      consider using libfabric, and use ``--with-user-mode-only`` configure
      option during the build (see below).
    - Make sure libfabric package is not installed for LNet-transport builds.
-     If it is installed, uninstall it manually.
+     If it is installed, uninstall it manually using ``sudo yum remove libfabric`` 
+     or ``sudo apt purge libfabric``, depending on your Linux distribution.
 
    In libfabric case, download and install the packages from:
 
