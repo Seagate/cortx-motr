@@ -34,6 +34,7 @@ MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-start"
 MOTR_MKFS_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-mkfs"
 MOTR_FSM_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-free-space-monitor"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
+MOTR_INIT_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_init.sh"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 LIBFAB_CONF_FILE = "/etc/libfab.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
@@ -1436,6 +1437,11 @@ def start_service(self, service, idx):
     execute_command(self, cmd)
     cmd = "/opt/seagate/cortx/motr/libexec/m0addb_logrotate.sh &"
     execute_command(self, cmd)
+
+    m0d_dir = f"{self.log_path}/motr/m0d-{fid}"
+    cmd = f"{MOTR_INIT_SCRIPT} {m0d_dir}"
+    self.logger.info(f"cmd={cmd}\n")
+    execute_command_verbose(self, cmd)
 
     #Start motr services
     cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
