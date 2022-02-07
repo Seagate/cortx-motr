@@ -320,10 +320,12 @@ static void wakeup_iff_waiting(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 M0_INTERNAL void m0_fdmi__src_dock_fom_wakeup(struct fdmi_sd_fom *sd_fom)
 {
+	struct m0_fdmi_src_dock *src_dock = m0_fdmi_src_dock_get();
 	struct m0_fom *fom;
 
 	M0_ENTRY("sd_fom %p", sd_fom);
 	M0_PRE(sd_fom != NULL);
+	M0_PRE(m0_mutex_is_locked(&src_dock->fsdc_list_mutex));
 
 	fom = &sd_fom->fsf_fom;
 
@@ -377,7 +379,9 @@ m0_fdmi__src_dock_fom_stop(struct m0_fdmi_src_dock *src_dock)
 	/* Wake up the timer FOM, so it can stop itself */
 	fdmi__src_dock_timer_fom_wakeup(&src_dock->fsdc_sd_timer_fom);
 	/* Wake up FOM, so it can stop itself */
+	m0_mutex_lock(&src_dock->fsdc_list_mutex);
 	m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
+	m0_mutex_unlock(&src_dock->fsdc_list_mutex);
 
 	/* Wait for timer fom finished */
 	m0_semaphore_down(&src_dock->fsdc_sd_timer_fom.fstf_shutdown);
@@ -1182,7 +1186,9 @@ static int fdmi_sd_timer_fom_tick(struct m0_fom *fom)
 				       fom,
 				       m0_time_from_now(30, 0));
 		m0_fom_phase_set(fom, FDMI_SRC_DOCK_TIMER_FOM_PHASE_WAIT);
+		m0_mutex_lock(&src_dock->fsdc_list_mutex);
 		m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
+		m0_mutex_unlock(&src_dock->fsdc_list_mutex);
 		return M0_RC(M0_FSO_WAIT);
 	}
 	return M0_RC(M0_FSO_WAIT);
