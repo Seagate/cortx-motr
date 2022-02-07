@@ -57,23 +57,134 @@ do_some_kv_operations()
 			    -h ${lnet_nid}:$HA_EP -p $PROF_OPT \
 			    -f $M0T1FS_PROC_ID -s "
 
-		echo "Let's create an index $DIX_FID"
-		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM} index create "$DIX_FID"
-
-		for ((j=0;j<10;j++)) ; do
-			echo "Let's put an index $DIX_FID somekey/somevalue"
-			"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM} index put    "$DIX_FID" "key1$j" "something1 anotherstring2 YETanotherstring3$j"
-		done
-
-#		echo "Let's get an index $DIX_FID somekey/somevalue"
-#		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM} index get    "$DIX_FID" "key1"
-#		read
-
-#		echo "Let's del an index $DIX_FID somekey/somevalue"
-#		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM} index del    "$DIX_FID" "somekey"
-#		read
-
+		echo "Let's create an index and put {somekey:somevalue}"
+		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+					index create "$DIX_FID"                            \
+					      put    "$DIX_FID" "somekey" "somevalue"      \
+					      get    "$DIX_FID" "somekey"                  \
+				 || {
+			rc=$?
+			echo "m0kv failed"
+		}
 		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+		echo "Let's put {key1: ***}"
+		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+					index put    "$DIX_FID" "key1" "something1 anotherstring2 YETanotherstring3"      \
+					      get    "$DIX_FID" "key1"                     \
+				 || {
+			rc=$?
+			echo "m0kv failed"
+		}
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+		echo "Let's put {key2: ***}"
+		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+					index put    "$DIX_FID" "key2" "something1_anotherstring2*YETanotherstring3"      \
+					      get    "$DIX_FID" "key2"                     \
+				 || {
+			rc=$?
+			echo "m0kv failed"
+		}
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+		echo "Now, kill the two fdmi plug app and start them again..."
+		echo "This is to simulate the plugin failure and start"
+
+		rc=1
+		sleep 5 && stop_fdmi_plugin      && sleep 5              &&
+		start_fdmi_plugin "$FDMI_FILTER_FID"  "$FDMI_PLUGIN_EP"  &&
+		start_fdmi_plugin "$FDMI_FILTER_FID2" "$FDMI_PLUGIN_EP2" && rc=0
+		if [[ $rc -eq 1 ]] ; then
+			echo "Can not stop and start plug again".
+			return $rc
+		fi
+		sleep 5
+		rc=0
+
+		echo "Let's put {key3: ***}"
+		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+					index put    "$DIX_FID" "key3" "{Bucket-Name:SomeBucket, Object-Name:Someobject, x-amz-meta-replication:Pending}"      \
+					      get    "$DIX_FID" "key3"                     \
+				 || {
+			rc=$?
+			echo "m0kv failed"
+		}
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+		echo "Now do more index put ..."
+		echo "Because the plug was restarted, these operations "
+		echo "will trigger failure handling"
+		for ((j=0; j<10; j++)); do
+			echo "j=$j"
+			"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+					index put    "$DIX_FID" "iter-äää-$j" "something1_anotherstring2*YETanotherstring3-$j"
+		done
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+		echo "Now, let's delete 'key2' from this index. The plugin must show the del op coming"
+		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+					index del    "$DIX_FID" "key2"                     \
+				 || {
+			rc=$?
+			echo "m0kv index del failed"
+		}
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+		echo "Now, let's get 'key2' from this index again. It should fail."
+		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+					index get    "$DIX_FID" "key2"                     \
+				 && {
+			rc=22 # EINVAL to indicate the test is failed
+			echo "m0kv index get expected to fail, but did not."
+		}
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+		sleep 1
+		echo "Now, let's delete 'key2' from this index again."
+		echo "It should fail, and the plugin must NOT show the del op coming."
+		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+                                       index del    "$DIX_FID" "key2"                     \
+                    && {
+                    rc=22 # EINVAL to indicate the test is failed
+                    echo "m0kv index del should fail, but did not"
+		}
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+
+		echo "A second time, kill the two fdmi plug app"
+		echo "This is to simulate the plugin failure"
+		stop_fdmi_plugin
+		sleep 5
+		echo "Because the plugins failed, these operations "
+		echo "will trigger failure handling"
+		for ((j=0; j<4; j++)); do
+			echo "a second time j=$j"
+			"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+					index put    "$DIX_FID" "iter-äää-2-$j" "something1_anotherstring2*YETanotherstring3-$j"
+		done
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
+		echo "Start plugins again ..."
+		rc=1
+		start_fdmi_plugin "$FDMI_FILTER_FID"  "$FDMI_PLUGIN_EP"  &&
+		start_fdmi_plugin "$FDMI_FILTER_FID2" "$FDMI_PLUGIN_EP2" && rc=0
+		if [[ $rc -eq 1 ]] ; then
+			echo "Can not stop and start plug again".
+			return $rc
+		fi
+		sleep 5
+		rc=0
+
+		echo "Because the plugin started, these operations "
+		echo "will work as normal"
+		for ((j=0; j<4; j++)); do
+			echo "back j=$j"
+			"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+					index put    "$DIX_FID" "iter-äää-3-$j" "something1_anotherstring2*YETanotherstring3-$j"
+		done
+		if $interactive ; then echo "Press Enter to go ..." && read; fi
+
 	done
 	return $rc
 }
@@ -183,7 +294,7 @@ motr_fdmi_plugin_test()
 	    }
 	}
 
-	wait_and_exit
+	# wait_and_exit
 
 	sleep 3
 	stop_fdmi_plugin
@@ -227,7 +338,7 @@ main()
 	}
 
 	if [ $rc -eq 0 ]; then
-		echo sandbox_fini
+		sandbox_fini
 	fi
 	return $rc
 }

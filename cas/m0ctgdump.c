@@ -109,8 +109,6 @@ out:
 	return errno;
 }
 
-/** @} endgroup m0mkfs */
-
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
