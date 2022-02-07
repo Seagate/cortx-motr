@@ -2,7 +2,7 @@ nodes:
   - hostname: localhost
     data_iface: eth0
     data_iface_type: tcp
-    transport_type: lnet
+    transport_type: libfab
     m0_servers:
       - runs_confd: true
         io_disks:
