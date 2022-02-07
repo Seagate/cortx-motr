@@ -27,17 +27,25 @@ if [[ $# < 1 ]]; then
         exit 1
 fi
 
-_handle_sigterm() {
-   echo "Caught SIGTERM"
+_handle_signal() {
    if [[ -z $PID ]]; then
       echo "No m0d process to kill"
    else
-      kill -SIGTERM $PID 2> /dev/null
-      kill -KILL $PID 2> /dev/null
+      kill -$1 $PID 2> /dev/null
    fi
 }
 
-trap _handle_sigterm SIGTERM SIGKILL
+_handle_sigterm() {
+   _handle_signal 15 #sigterm
+}
+
+_handle_sigkill() {
+   _handle_signal 9 #sigkill
+}
+
+
+trap _handle_sigterm SIGTERM
+trap _handle_sigkill SIGKILL 
 
 /usr/libexec/cortx-motr/motr-server "$1" &
 PID=$!
