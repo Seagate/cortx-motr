@@ -2,22 +2,23 @@ nodes:
   - hostname: localhost
     data_iface: eth0
     data_iface_type: tcp
+    transport_type: lnet
     m0_servers:
       - runs_confd: true
         io_disks:
           data: []
       - io_disks:
           data:
-            - /dev/loop0
-            - /dev/loop1
+            - path: /dev/loop0
+            - path: /dev/loop1
       - io_disks:
           data:
-            - /dev/loop2
-            - /dev/loop3
+            - path: /dev/loop2
+            - path: /dev/loop3
       - io_disks:
           data:
-            - /dev/loop4
-            - /dev/loop5
+            - path: /dev/loop4
+            - path: /dev/loop5
     m0_clients:
         s3: 0
         other: 1
