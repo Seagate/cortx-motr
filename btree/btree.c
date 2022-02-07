@@ -917,14 +917,25 @@ struct node_type {
 	int  (*nt_valsize)(const struct nd *node);
 
 	/**
+	 * Returns maximum key size present in the node.
+	 */
+	int  (*nt_max_ksize)(const struct nd *node);
+
+	/**
 	 * If predict is set as true, function determines if there is
 	 * possibility of underflow else it determines if there is an underflow
 	 * at node.
 	 */
 	bool  (*nt_isunderflow)(const struct nd *node, bool predict);
 
-	/** Returns true if there is possibility of overflow. */
-	bool  (*nt_isoverflow)(const struct nd *node,
+	/**
+	 * Returns true if there is possibility of overflow.
+	 * The parameter max_ksize will be used only in the case of internal
+	 * nodes of variable sized keys and values node format. Size of the key
+	 * which is required to be added in internal node will be maximum of
+	 * max_ksize and key size provided by the user.
+	 */
+	bool  (*nt_isoverflow)(const struct nd *node, int max_ksize,
 			       const struct m0_btree_rec *rec);
 
 	/** Returns FID stored in the node. */
@@ -1227,7 +1238,7 @@ static int  bnode_nsize(const struct nd *node);
 static int  bnode_keysize(const struct nd *node);
 static int  bnode_valsize(const struct nd *node);
 static bool  bnode_isunderflow(const struct nd *node, bool predict);
-static bool  bnode_isoverflow(const struct nd *node,
+static bool  bnode_isoverflow(const struct nd *node, int max_ksize,
 			      const struct m0_btree_rec *rec);
 
 static void bnode_rec  (struct slot *slot);
@@ -1293,8 +1304,8 @@ struct level {
 
 	/**
 	 * Flag for indicating if l_alloc has been used or not. This flag is
-	 * used by level_cleanup. If flag is set, bnode_put() will be called else
-	 * bnode_free() will get called for l_alloc.
+	 * used by level_cleanup. If flag is set, bnode_put() will be called
+	 * else bnode_free() will get called for l_alloc.
 	 */
 	bool      i_alloc_in_use;
 
@@ -1304,6 +1315,12 @@ struct level {
 	 * to determine if the node should be freed.
 	 */
 	bool       l_freenode;
+
+	/**
+	 * Maximum key size present in the node. It is required to determine
+	 * overflow at parent level.
+	 */
+	int32_t    l_max_ksize;
 };
 
 /**
@@ -1557,6 +1574,12 @@ static int bnode_valsize(const struct nd *node)
 	return (node->n_type->nt_valsize(node));
 }
 
+static int bnode_max_ksize(const struct nd *node)
+{
+	M0_PRE(bnode_invariant(node));
+	return (node->n_type->nt_max_ksize(node));
+}
+
 /**
  * If predict is 'true' the function returns a possibility of underflow if
  * another record is deleted from this node without addition of any more
@@ -1570,11 +1593,16 @@ static bool  bnode_isunderflow(const struct nd *node, bool predict)
 	return node->n_type->nt_isunderflow(node, predict);
 }
 
-static bool  bnode_isoverflow(const struct nd *node,
+/**
+ * This function will determine if there is a possibility of overflow. If there
+ * is not enough space to accommodate the required record, this function will
+ * return true.
+ */
+static bool  bnode_isoverflow(const struct nd *node, int max_ksize,
 			      const struct m0_btree_rec *rec)
 {
 	M0_PRE(bnode_invariant(node));
-	return node->n_type->nt_isoverflow(node, rec);
+	return node->n_type->nt_isoverflow(node, max_ksize, rec);
 }
 
 static void bnode_fid(const struct nd *node, struct m0_fid *fid)
@@ -2350,8 +2378,9 @@ static int  ff_shift(const struct nd *node);
 static int  ff_nsize(const struct nd *node);
 static inline int  ff_valsize(const struct nd *node);
 static int  ff_keysize(const struct nd *node);
+static int  ff_max_ksize(const struct nd *node);
 static bool ff_isunderflow(const struct nd *node, bool predict);
-static bool ff_isoverflow(const struct nd *node,
+static bool ff_isoverflow(const struct nd *node, int max_ksize,
 			  const struct m0_btree_rec *rec);
 static void ff_fid(const struct nd *node, struct m0_fid *fid);
 static void ff_rec(struct slot *slot);
@@ -2407,6 +2436,7 @@ static const struct node_type fixed_format = {
 	.nt_nsize                     = ff_nsize,
 	.nt_keysize                   = ff_keysize,
 	.nt_valsize                   = ff_valsize,
+	.nt_max_ksize                 = ff_max_ksize,
 	.nt_isunderflow               = ff_isunderflow,
 	.nt_isoverflow                = ff_isoverflow,
 	.nt_fid                       = ff_fid,
@@ -2671,6 +2701,11 @@ static inline int ff_valsize(const struct nd *node)
 		return INTERNAL_NODE_VALUE_SIZE;
 }
 
+static int ff_max_ksize(const struct nd *node)
+{
+	return ff_data(node)->ff_ksize;
+}
+
 static bool ff_isunderflow(const struct nd *node, bool predict)
 {
 	int16_t rec_count = ff_data(node)->ff_used;
@@ -2679,7 +2714,8 @@ static bool ff_isunderflow(const struct nd *node, bool predict)
 	return  rec_count == 0;
 }
 
-static bool ff_isoverflow(const struct nd *node, const struct m0_btree_rec *rec)
+static bool ff_isoverflow(const struct nd *node, int max_ksize,
+			  const struct m0_btree_rec *rec)
 {
 	struct ff_head *h = ff_data(node);
 	int             crc_size = 0;
@@ -3314,8 +3350,9 @@ static int  fkvv_shift(const struct nd *node);
 static int  fkvv_nsize(const struct nd *node);
 static int  fkvv_keysize(const struct nd *node);
 static int  fkvv_valsize(const struct nd *node);
+static int  fkvv_max_ksize(const struct nd *node);
 static bool fkvv_isunderflow(const struct nd *node, bool predict);
-static bool fkvv_isoverflow(const struct nd *node,
+static bool fkvv_isoverflow(const struct nd *node, int max_ksize,
 			    const struct m0_btree_rec *rec);
 static void fkvv_fid(const struct nd *node, struct m0_fid *fid);
 static void fkvv_rec(struct slot *slot);
@@ -3364,6 +3401,7 @@ static const struct node_type fixed_ksize_variable_vsize_format = {
 	.nt_nsize                     = fkvv_nsize,
 	.nt_keysize                   = fkvv_keysize,
 	.nt_valsize                   = fkvv_valsize,
+	.nt_max_ksize                 = fkvv_max_ksize,
 	.nt_isunderflow               = fkvv_isunderflow,
 	.nt_isoverflow                = fkvv_isoverflow,
 	.nt_fid                       = fkvv_fid,
@@ -3524,6 +3562,11 @@ static int fkvv_valsize(const struct nd *node)
 	return -1;
 }
 
+static int fkvv_max_ksize(const struct nd *node)
+{
+	return fkvv_data(node)->fkvv_ksize;
+}
+
 static bool fkvv_isunderflow(const struct nd *node, bool predict)
 {
 	int16_t rec_count = fkvv_data(node)->fkvv_used;
@@ -3532,7 +3575,7 @@ static bool fkvv_isunderflow(const struct nd *node, bool predict)
 	return rec_count == 0;
 }
 
-static bool fkvv_isoverflow(const struct nd *node,
+static bool fkvv_isoverflow(const struct nd *node, int max_ksize,
 			    const struct m0_btree_rec *rec)
 {
 	struct fkvv_head *h     = fkvv_data(node);
@@ -4263,8 +4306,9 @@ static int  vkvv_shift(const struct nd *node);
 static int  vkvv_nsize(const struct nd *node);
 static int  vkvv_keysize(const struct nd *node);
 static int  vkvv_valsize(const struct nd *node);
+static int  vkvv_max_ksize(const struct nd *node);
 static bool vkvv_isunderflow(const struct nd *node, bool predict);
-static bool vkvv_isoverflow(const struct nd *node,
+static bool vkvv_isoverflow(const struct nd *node, int max_ksize,
 			    const struct m0_btree_rec *rec);
 static void vkvv_fid(const struct nd *node, struct m0_fid *fid);
 static void vkvv_rec(struct slot *slot);
@@ -4313,6 +4357,7 @@ static const struct node_type variable_kv_format = {
 	.nt_nsize                     = vkvv_nsize,
 	.nt_keysize                   = vkvv_keysize,
 	.nt_valsize                   = vkvv_valsize,
+	.nt_max_ksize                 = vkvv_max_ksize,
 	.nt_isunderflow               = vkvv_isunderflow,
 	.nt_isoverflow                = vkvv_isoverflow,
 	.nt_fid                       = vkvv_fid,
@@ -4363,6 +4408,7 @@ struct vkvv_head {
 	uint8_t                  vkvv_level;      /*< Level in Btree */
 	uint32_t                 vkvv_dir_offset; /*< Offset pointing to dir */
 	uint32_t                 vkvv_nsize;      /*< Node size */
+	uint32_t                 vkvv_max_ksize;  /*< Max key size */
 
 	struct m0_format_footer  vkvv_foot;       /*< Node Footer */
 	void                    *vkvv_opaque;     /*< opaque data */
@@ -4405,6 +4451,7 @@ static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
 	h->vkvv_seg.h_gen       = gen;
 	h->vkvv_seg.h_fid       = fid;
 	h->vkvv_opaque          = NULL;
+	h->vkvv_max_ksize       = 0;
 
 	m0_format_header_pack(&h->vkvv_fmt, &(struct m0_format_tag){
 		.ot_version       = M0_BTREE_NODE_FORMAT_VERSION,
@@ -4550,6 +4597,11 @@ static int  vkvv_keysize(const struct nd *node)
 	return -1;
 }
 
+static int  vkvv_max_ksize(const struct nd *node)
+{
+	return vkvv_data(node)->vkvv_max_ksize;;
+}
+
 /**
  * @brief This function will return the -1 as the value size for leaf
  *        nodes because the values are of variable size. Whereas for
@@ -4581,7 +4633,7 @@ static bool vkvv_isunderflow(const struct nd *node, bool predict)
  * @brief This function will identify the possibility of overflow
  *        while adding a new record.
  */
-static bool vkvv_isoverflow(const struct nd *node,
+static bool vkvv_isoverflow(const struct nd *node, int max_ksize,
 			    const struct m0_btree_rec *rec)
 {
 	m0_bcount_t vsize;
@@ -4595,7 +4647,9 @@ static bool vkvv_isoverflow(const struct nd *node,
 		if (vkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
 			vsize += CRC_VALUE_SIZE;
 	} else {
-		ksize     = MAX_KEY_SIZE + sizeof(uint64_t);
+		m0_bcount_t rec_ksize = m0_vec_count(&rec->r_key.k_data.ov_vec);
+		ksize     = sizeof(uint64_t);
+		ksize    += rec_ksize > max_ksize ? rec_ksize : max_ksize;
 		vsize     = vkvv_get_vspace();
 		dir_entry = 0;
 	}
@@ -5023,6 +5077,9 @@ static void vkvv_lnode_make(struct slot *slot)
 		m0_memmove(start_val_addr - total_vsize - vsize,
 			   start_val_addr - total_vsize, total_vsize);
 	}
+
+	if (ksize > h->vkvv_max_ksize)
+		h->vkvv_max_ksize = ksize;
 }
 
 
@@ -5103,6 +5160,9 @@ static void vkvv_inode_make(struct slot *slot)
 			*t_offset  = *t_offset_2 + ksize;
 		}
 	}
+
+	if (ksize > h->vkvv_max_ksize)
+		h->vkvv_max_ksize = ksize;
 }
 
 /**
@@ -6376,7 +6436,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			return P_SETUP;
 	case P_COOKIE:
 		if (cookie_is_valid(tree, &bop->bo_rec.r_key.k_cookie) &&
-		    !bnode_isoverflow(oi->i_cookie_node, &bop->bo_rec))
+		    !bnode_isoverflow(oi->i_cookie_node, 0, &bop->bo_rec))
 			return P_LOCK;
 		else
 			return P_SETUP;
@@ -6427,6 +6487,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 						    P_SETUP);
 			}
 
+			lev->l_max_ksize = bnode_max_ksize(lev->l_node);
 			oi->i_key_found = bnode_find(&node_slot,
 						     &bop->bo_rec.r_key);
 			lev->l_idx = node_slot.s_idx;
@@ -6474,6 +6535,9 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		}
 	case P_ALLOC_REQUIRE:{
 		do {
+			int max_ksize = 0;
+			struct level *child_lev;
+
 			lev = &oi->i_level[oi->i_alloc_lev];
 			bnode_lock(lev->l_node);
 			if (!bnode_isvalid(lev->l_node)) {
@@ -6482,7 +6546,13 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 						    P_SETUP);
 			}
 
-			if (!bnode_isoverflow(lev->l_node, &bop->bo_rec)) {
+			if (oi->i_alloc_lev < oi->i_used) {
+				child_lev = &oi->i_level[oi->i_alloc_lev + 1];
+				max_ksize = child_lev->l_max_ksize;
+			}
+
+			if (!bnode_isoverflow(lev->l_node, max_ksize,
+					      &bop->bo_rec)) {
 				bnode_unlock(lev->l_node);
 				break;
 			}
