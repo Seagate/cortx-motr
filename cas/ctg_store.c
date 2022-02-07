@@ -2011,14 +2011,6 @@ M0_INTERNAL int ctg_index_btree_dump(struct m0_motr *motr_ctx,
 			     rc = m0_be_btree_cursor_next_sync(&cursor)) {
 		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
 		ctg_index_btree_dump_one_rec(&key, &val, dump_in_hex);
-
-#if 0
-		m0_console_printf("{key: %.*s}, {val: %.*s}\n",
-				  (int)key.b_nob,
-				  (const char*)(key.b_addr + 8),
-				  (int)val.b_nob,
-				  (const char*)(val.b_addr + 8));
-#endif
 	}
 	m0_be_btree_cursor_fini(&cursor);
 	ctg_fini(ctg);
@@ -2045,6 +2037,7 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 	rc = m0_fid_sscanf(fidstr, &dfid);
 	if (rc < 0)
 		return rc;
+	m0_fid_tassume(&dfid, &m0_dix_fid_type);
 
 	rc = m0_ctg_store_init(&motr_ctx->cc_reqh_ctx.rc_be.but_dom);
 	M0_ASSERT(rc == 0);
@@ -2058,12 +2051,12 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 		if (!m0_dix_fid_validate_cctg(&out_fid))
 			continue;
 		m0_dix_fid_convert_cctg2dix(&out_fid, &gfid);
-		M0_LOG(M0_ALWAYS, "out = "FID_F"normal:"FID_F"",
-				  FID_P(&out_fid), FID_P(&gfid));
+		M0_LOG(M0_DEBUG, "Found cfid="FID_F" gfid=:"FID_F" dfid="FID_F,
+				  FID_P(&out_fid), FID_P(&gfid), FID_P(&dfid));
 		if (m0_fid_eq(&gfid, &dfid)) {
 			ctg = *(struct m0_cas_ctg **)(val.b_addr + 8);
-			M0_LOG(M0_ALWAYS, "gfid = "FID_F"dfid"FID_F"ctg=%p",
-					  FID_P(&gfid), FID_P(&dfid), ctg);
+			M0_LOG(M0_DEBUG, "Dumping dix fid="FID_F" ctg=%p",
+					  FID_P(&dfid), ctg);
 			ctg_index_btree_dump(motr_ctx, ctg, dump_in_hex);
 			dumped = true;
 			break;
