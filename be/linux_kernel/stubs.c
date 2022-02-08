@@ -186,6 +186,11 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 	tx->t_sm.sm_state = M0_BTS_ACTIVE;
 }
 
+M0_INTERNAL int m0_be_tx_exclusive_open_sync(struct m0_be_tx *tx)
+{
+	return -ENOSYS;
+}
+
 M0_INTERNAL void
 m0_be_tx_capture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
 {
@@ -292,6 +297,12 @@ M0_INTERNAL struct m0_be_seg *m0_be_domain_seg0_get(struct m0_be_domain *dom)
 	return NULL;
 }
 
+M0_INTERNAL struct m0_be_seg *
+m0_be_domain_seg_first(const struct m0_be_domain *dom)
+{
+	return NULL;
+}
+
 int m0_be_tx_fol_add(struct m0_be_tx *tx, struct m0_fol_rec *rec)
 {
 	return M0_ERR(-EINVAL);
@@ -324,6 +335,23 @@ M0_INTERNAL void m0_be_queue_lock(struct m0_be_queue *bq)
 
 M0_INTERNAL void m0_be_queue_unlock(struct m0_be_queue *bq)
 {
+}
+
+void m0_be_0type_add_credit(struct m0_be_domain *dom,
+			    const struct m0_be_0type  *zt,
+			    const char                *suffix,
+			    const struct m0_buf       *data,
+			    struct m0_be_tx_credit    *credit)
+{
+}
+
+int m0_be_0type_add(struct m0_be_0type  *zt,
+		    struct m0_be_domain *dom,
+		    struct m0_be_tx     *tx,
+		    const char          *suffix,
+		    const struct m0_buf *data)
+{
+	return -ENOSYS;
 }
 
 

@@ -91,6 +91,50 @@
  * @{
  */
 
+#include "fid/fid.h"            /* m0_fid */
+#include "lib/types.h"          /* uint64_t */
+#include "xcode/xcode.h"        /* M0_XCA_RECORD */
+
+
+struct m0_dtx0_id {
+	uint64_t      dti_timestamp;    /* XXX fix the type */
+	struct m0_fid dti_originator_sdev_fid;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
+
+
+struct m0_dtx0_participants {
+	uint64_t       dtpa_participants_nr;
+	struct m0_fid *dtpa_participants;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc|be);
+
+struct m0_dtx0_descriptor {
+	struct m0_dtx0_id           dtd_id;
+	struct m0_dtx0_participants dtd_participants;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
+
+enum m0_dtx0_payload_type {
+	M0_DTX0_PAYLOAD_CAS,    /** it's supposed to be handled by CAS */
+	M0_DTX0_PAYLOAD_BLOB,   /**
+				 *  configurable handler.
+				 *  @see m0_dtm0_remach_cfg::dtrc_blob_handler()
+				 */
+} M0_XCA_ENUM M0_XCA_DOMAIN(rpc|be);
+
+struct m0_dtx0_payload {
+	uint32_t         dtp_type M0_XCA_FENUM(m0_dtx0_payload_type);
+	struct m0_bufvec dtp_data;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
+
+struct m0_dtm0_redo {
+	struct m0_dtx0_descriptor dtr_descriptor;
+	struct m0_dtx0_payload    dtr_payload;
+};
+
+struct m0_dtm0_p {
+	struct m0_dtx0_id dtmp_id;
+	struct m0_fid     dtmp_sdev_fid;
+};
+
 #endif /* __MOTR_DTM0_DTM0_H__ */
 
 /*

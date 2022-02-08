@@ -54,10 +54,12 @@ struct m0_dtm0_domain_cfg {
 	struct m0_dtm0_remach_cfg dodc_remach;
 	struct m0_dtm0_pmach_cfg  dodc_pmach;
 	struct m0_dtm0_net_cfg    dodc_net;
+	bool                      dod_create;
+	bool                      dod_destroy;
 };
 
 struct m0_dtm0_domain_create_cfg {
-	struct m0_dtm0_log_create_cfg dcc_log;
+	int unused;
 };
 
 struct m0_dtm0_domain {

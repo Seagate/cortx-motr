@@ -30,6 +30,115 @@
 
 #include "dtm0/log.h"
 
+#include "ut/ut.h"              /* M0_UT_ASSERT */
+#include "lib/memory.h"         /* M0_ALLOC_PTR */
+#include "lib/misc.h"           /* m0_rnd64 */
+#include "be/ut/helper.h"       /* m0_be_ut_backend_init */
+#include "be/domain.h"          /* m0_be_domain_seg_first */
+#include "conf/objs/common.h"   /* M0_CONF__SDEV_FT_ID */
+#include "fid/fid.h"            /* M0_FID_TINIT */
+
+#include "dtm0/domain.h"        /* m0_dtm0_domain_cfg */
+#include "dtm0/cfg_default.h"   /* m0_dtm0_domain_cfg_default_dup */
+#include "dtm0/dtm0.h"          /* m0_dtm0_redo */
+
+
+enum {
+	M0_DTM0_UT_LOG_SIMPLE_SEG_SIZE  = 0x200000,
+	M0_DTM0_UT_LOG_SIMPLE_REDO_SIZE = 0x10000,
+};
+
+
+void m0_dtm0_ut_log_simple(void)
+{
+	struct m0_dtm0_domain_cfg *dod_cfg;
+	struct m0_be_ut_backend   *ut_be;
+	struct m0_be_ut_seg       *ut_seg;
+	struct m0_dtm0_redo       *redo;
+	struct m0_dtm0_log        *dol;
+	struct m0_buf              redo_buf = {};
+	struct m0_fid              p_sdev_fid;
+	uint64_t                   seed = 42;
+	int                        rc;
+	int                        i;
+
+	M0_ALLOC_PTR(dod_cfg);
+	M0_UT_ASSERT(dod_cfg != NULL);
+	M0_ALLOC_PTR(ut_be);
+	M0_UT_ASSERT(ut_be != NULL);
+	M0_ALLOC_PTR(ut_seg);
+	M0_UT_ASSERT(ut_seg != NULL);
+	M0_ALLOC_PTR(redo);
+	M0_UT_ASSERT(redo != NULL);
+	M0_ALLOC_PTR(dol);
+	M0_UT_ASSERT(dol != NULL);
+	rc = m0_buf_alloc(&redo_buf, M0_DTM0_UT_LOG_SIMPLE_REDO_SIZE);
+	M0_UT_ASSERT(rc == 0);
+
+	for (i = 0; i < redo_buf.b_nob; ++i)
+		((char *)redo_buf.b_addr)[i] = m0_rnd64(&seed) & 0xff;
+	p_sdev_fid = M0_FID_TINIT(M0_CONF__SDEV_FT_ID, 1, 2);
+	*redo = (struct m0_dtm0_redo){
+		.dtr_descriptor = {
+			.dtd_id = {
+				.dti_timestamp           = 0x100,
+				.dti_originator_sdev_fid = p_sdev_fid,
+			},
+			.dtd_participants = {
+				.dtpa_participants_nr = 1,
+				.dtpa_participants    = &p_sdev_fid,
+			},
+		},
+		.dtr_payload = {
+			.dtp_type = M0_DTX0_PAYLOAD_BLOB,
+			.dtp_data = {
+				.ov_vec = {
+					.v_nr    = 1,
+					.v_count = &redo_buf.b_nob,
+				},
+				.ov_buf  = &redo_buf.b_addr,
+			},
+		},
+	};
+
+	m0_be_ut_backend_init(ut_be);
+	m0_be_ut_seg_init(ut_seg, ut_be, M0_DTM0_UT_LOG_SIMPLE_SEG_SIZE);
+	rc = m0_dtm0_domain_cfg_default_dup(dod_cfg, true);
+	M0_UT_ASSERT(rc == 0);
+	dod_cfg->dodc_log.dlc_be_domain = &ut_be->but_dom;
+	dod_cfg->dodc_log.dlc_seg =
+		m0_be_domain_seg_first(dod_cfg->dodc_log.dlc_be_domain);
+
+	rc = m0_dtm0_log_create(dol, &dod_cfg->dodc_log);
+	M0_UT_ASSERT(rc == 0);
+	for (i = 0; i < 0x10; ++i) {
+		rc = m0_dtm0_log_open(dol, &dod_cfg->dodc_log);
+		M0_UT_ASSERT(rc == 0);
+		M0_BE_UT_TRANSACT(ut_be, tx, cred,
+		                  m0_dtm0_log_redo_add_credit(dol, redo, &cred),
+		                  rc = m0_dtm0_log_redo_add(dol, tx, redo,
+		                                            &p_sdev_fid));
+		M0_UT_ASSERT(rc == 0);
+		M0_BE_UT_TRANSACT(ut_be, tx, cred,
+		                  m0_dtm0_log_prune_credit(dol, &cred),
+		                  m0_dtm0_log_prune(dol, tx,
+						&redo->dtr_descriptor.dtd_id));
+		m0_dtm0_log_close(dol);
+	}
+	m0_dtm0_log_destroy(dol);
+
+	m0_dtm0_domain_cfg_free(dod_cfg);
+	m0_be_ut_seg_fini(ut_seg);
+	m0_be_ut_backend_fini(ut_be);
+
+	m0_buf_free(&redo_buf);
+	m0_free(dol);
+	m0_free(redo);
+	m0_free(ut_seg);
+	m0_free(ut_be);
+	m0_free(dod_cfg);
+}
+
 
 #undef M0_TRACE_SUBSYSTEM
 

@@ -808,6 +808,7 @@ static void remach_real_log_replay(void)
 
 extern void m0_dtm0_ut_drlink_simple(void);
 extern void m0_dtm0_ut_domain_init_fini(void);
+extern void m0_dtm0_ut_log_simple(void);
 
 struct m0_ut_suite dtm0_ut = {
 	.ts_name = "dtm0-ut",
@@ -816,6 +817,7 @@ struct m0_ut_suite dtm0_ut = {
 		{ "drlink-simple",         &m0_dtm0_ut_drlink_simple },
 		{ "domain_init-fini",      &m0_dtm0_ut_domain_init_fini },
 		{ "remach-init-fini",       remach_init_fini      },
+		{ "log-simple",            &m0_dtm0_ut_log_simple             },
 		{ "remach-start-stop",      remach_start_stop     },
 		{ "remach-boot-cluster-ss", remach_boot_cluster_ss },
 		{ "remach-boot-cluster-cs", remach_boot_cluster_cs },

@@ -24,8 +24,10 @@
 #ifndef __MOTR___DTM0_LOG_H__
 #define __MOTR___DTM0_LOG_H__
 
-#include "dtm0/tx_desc.h" /* m0_dtm0_tx_desc */
-#include "lib/buf.h"       /* m0_buf */
+#include "dtm0/tx_desc.h"       /* m0_dtm0_tx_desc */
+
+
+#include "fid/fid.h"            /* m0_fid */
 
 
 /**
@@ -55,46 +57,101 @@
  *   DTM0 log has no FOMs. It reacts to the incoming events re-using
  * their sm groups. The log has one single lock that protects container
  * from modification. Individual log records has no lock protection.
+ *
+ * @section m0_dtm0_remach interface
+ *
+ * - m0_dtm0_log_iter_init() - initializes log record iterator for a
+ *   sdev participant. It iterates over all records that were in the log during
+ *   last local process restart or during last remote process restart for the
+ *   process that handles that sdev.
+ * - m0_dtm0_log_iter_next() - gives next log record for the sdev participant.
+ * - m0_dtm0_log_iter_fini() - finalises the iterator. It MUST be done for every
+ *   call of m0_dtm0_log_iter_init().
+ * - m0_dtm0_log_participant_restarted() - notifies the log that the participant
+ *   has restarted. All iterators for the participant MUST be finalized at the
+ *   time of the call. Any record that doesn't have P from the participant at
+ *   the time of the call will be returned during the next iteration for the
+ *   participant.
+ *
+ * @section pmach interface
+ *
+ * - m0_dtm0_log_p_get_local() - returns the next P message that becomes local.
+ *   Returns M0_FID0 during m0_dtm0_log_stop() call. After M0_FID0 is returned
+ *   new calls to the log MUST NOT be made.
+ * - m0_dtm0_log_p_put() - records that P message was received for the sdev
+ *   participant.
+ *
+ * @section pruner interface
+ *
+ * - m0_dtm0_log_p_get_none_left() - returns dtx0 id for the dtx which has all
+ *   participants (except originator) reported P for the dtx0. Also returns all
+ *   dtx0 which were cancelled.
+ * - m0_dtm0_log_prune() - remove the REDO message about dtx0 from the log
+ *
+ * dtx0 interface, client & server
+ *
+ * - m0_dtm0_log_redo_add() - adds a REDO message and, optionally, P message, to
+ *   the log.
+ *
+ * @section dtx0 interface, client only
+ *
+ * - m0_dtm0_log_redo_p_wait() - returns the number of P messages for the dtx
+ *   and waits until either the number increases or m0_dtm0_log_redo_cancel() is
+ *   called.
+ * - m0_dtm0_log_redo_cancel() - notification that the client doesn't need the
+ *   dtx anymore. Before the function returns the op
+ * - m0_dtm0_log_redo_end() - notifies dtx0 that the operation dtx0 is a part of
+ *   is complete. This function MUST be called for every m0_dtm0_log_redo_add().
  */
 
 struct m0_be_op;
 struct m0_be_tx;
 struct m0_be_tx_credit;
+struct m0_be_domain;
 
+struct m0_dtm0_redo;
+struct m0_dtx0_id;
+struct dtm0_log_data;
+
+
+/* TODO s/dlc_/dtlc_/g */
 struct m0_dtm0_log_cfg {
-};
-
-struct m0_dtm0_log_create_cfg {
+	char                 dlc_seg0_suffix[0x100];
+	struct m0_be_domain *dlc_be_domain;
+	struct m0_be_seg    *dlc_seg;
+	struct m0_fid        dlc_btree_fid;
 };
 
 struct m0_dtm0_log {
+	struct m0_dtm0_log_cfg  dtl_cfg;
+	struct dtm0_log_data   *dtl_data;
 };
 
-struct m0_dtm0_log_record {
-	struct m0_dtm0_tx_desc lr_desc;
-	struct m0_buf          lr_data;
-};
-
-
-M0_INTERNAL int m0_dtm0_log_init(struct m0_dtm0_log     *dol,
+M0_INTERNAL int m0_dtm0_log_open(struct m0_dtm0_log     *dol,
 				 struct m0_dtm0_log_cfg *dol_cfg);
 
-M0_INTERNAL void m0_dtm0_log_fini(struct m0_dtm0_log *dol);
+M0_INTERNAL void m0_dtm0_log_close(struct m0_dtm0_log *dol);
 
-M0_INTERNAL int m0_dtm0_log__create(struct m0_dtm0_log            *dol,
-				    struct m0_dtm0_log_create_cfg *dlc_cfg);
+M0_INTERNAL int m0_dtm0_log_create(struct m0_dtm0_log     *dol,
+                                   struct m0_dtm0_log_cfg *dol_cfg);
 
 M0_INTERNAL void m0_dtm0_log_destroy(struct m0_dtm0_log *dol);
 
-M0_INTERNAL void m0_dtm0_log_update_credit(struct m0_dtm0_log        *dol,
-					   struct m0_dtm0_log_record *rec,
-					   struct m0_be_tx_credit    *accum);
 
-M0_INTERNAL int m0_dtm0_log_update(struct m0_dtm0_log              *dol,
-				   struct m0_be_tx                 *tx,
-				   struct m0_be_op                 *op,
-				   const struct m0_dtm0_log_record *rec,
-				   bool                             is_redo);
+M0_INTERNAL int m0_dtm0_log_redo_add(struct m0_dtm0_log        *dol,
+                                     struct m0_be_tx           *tx,
+                                     const struct m0_dtm0_redo *redo,
+                                     const struct m0_fid       *p_sdev_fid);
+M0_INTERNAL void m0_dtm0_log_redo_add_credit(struct m0_dtm0_log        *dol,
+                                             const struct m0_dtm0_redo *redo,
+                                             struct m0_be_tx_credit    *accum);
+
+
+M0_INTERNAL void m0_dtm0_log_prune(struct m0_dtm0_log *dol,
+                                   struct m0_be_tx    *tx,
+                                   struct m0_dtx0_id  *dtx0_id);
+M0_INTERNAL void m0_dtm0_log_prune_credit(struct m0_dtm0_log     *dol,
+                                          struct m0_be_tx_credit *accum);
 
 
 /** @} end of dtm0 group */

@@ -45,7 +45,7 @@ void m0_dtm0_ut_domain_init_fini(void)
 	M0_ALLOC_PTR(dod_cfg);
 	M0_UT_ASSERT(dod_cfg != NULL);
 
-	rc = m0_dtm0_domain_cfg_default_dup(dod_cfg);
+	rc = m0_dtm0_domain_cfg_default_dup(dod_cfg, true);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_dtm0_domain_init(dod, dod_cfg);

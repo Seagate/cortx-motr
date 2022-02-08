@@ -66,7 +66,7 @@
 #include "ioservice/io_service.h"  /* m0_ios_net_buffer_pool_size_set */
 #include "stob/linux.h"
 #include "conf/ha.h"            /* m0_conf_ha_process_event_post */
-#include "dtm0/helper.h"        /* m0_dtm0_log_create */
+#include "dtm0/helper.h"        /* m0_dtm0_old_log_create */
 
 /**
    @addtogroup m0d
@@ -1332,7 +1332,7 @@ static int cs_storage_prepare(struct m0_reqh_context *rctx, bool erase)
 
 	rc = rc ?: m0_mdstore_create(&rctx->rc_mdstore, grp, &rctx->rc_cdom_id,
 				     bedom, rctx->rc_beseg)
-		?: m0_dtm0_log_create(grp, bedom, rctx->rc_beseg);
+		?: m0_dtm0_old_log_create(grp, bedom, rctx->rc_beseg);
 	if (rc != 0)
 		goto end;
 	dom = rctx->rc_mdstore.md_dom;

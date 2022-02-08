@@ -60,8 +60,8 @@ static void dtm0_domain_level_leave(struct m0_module *module);
 enum dtm0_domain_level {
 	M0_DTM0_DOMAIN_LEVEL_INIT,
 
-	M0_DTM0_DOMAIN_LEVEL_LOG_MKFS,
-	M0_DTM0_DOMAIN_LEVEL_LOG_INIT,
+	M0_DTM0_DOMAIN_LEVEL_LOG_CREATE,
+	M0_DTM0_DOMAIN_LEVEL_LOG_OPEN,
 
 	M0_DTM0_DOMAIN_LEVEL_REMACH_INIT,
 	M0_DTM0_DOMAIN_LEVEL_PMACH_INIT,
@@ -78,8 +78,8 @@ enum dtm0_domain_level {
 static const struct m0_modlev levels_dtm0_domain[] = {
 	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_INIT),
 
-	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_LOG_MKFS),
-	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_LOG_INIT),
+	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_LOG_CREATE),
+	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_LOG_OPEN),
 
 	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_REMACH_INIT),
 	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_PMACH_INIT),
@@ -105,10 +105,13 @@ static int dtm0_domain_level_enter(struct m0_module *module)
 	switch (level) {
 	case M0_DTM0_DOMAIN_LEVEL_INIT:
 		return M0_RC(0);
-	case M0_DTM0_DOMAIN_LEVEL_LOG_MKFS:
+	case M0_DTM0_DOMAIN_LEVEL_LOG_CREATE:
+		if (cfg->dod_create)
+			return M0_RC(m0_dtm0_log_create(&dod->dod_log,
+							NULL /* XXX */));
 		return M0_RC(0);
-	case M0_DTM0_DOMAIN_LEVEL_LOG_INIT:
-		return M0_RC(m0_dtm0_log_init(&dod->dod_log,
+	case M0_DTM0_DOMAIN_LEVEL_LOG_OPEN:
+		return M0_RC(m0_dtm0_log_open(&dod->dod_log,
 					      &cfg->dodc_log));
 
 	case M0_DTM0_DOMAIN_LEVEL_REMACH_INIT:
@@ -139,18 +142,21 @@ static int dtm0_domain_level_enter(struct m0_module *module)
 
 static void dtm0_domain_level_leave(struct m0_module *module)
 {
-	enum dtm0_domain_level  level = module->m_cur;
-	struct m0_dtm0_domain  *dod = dtm0_module2domain(module);
+	enum dtm0_domain_level     level = module->m_cur;
+	struct m0_dtm0_domain     *dod = dtm0_module2domain(module);
+	struct m0_dtm0_domain_cfg *cfg = &dod->dod_cfg;
 
 	M0_ENTRY("dod=%p level=%d level_name=%s",
 	         dod, level, levels_dtm0_domain[level].ml_name);
 	switch (level) {
 	case M0_DTM0_DOMAIN_LEVEL_INIT:
 		break;
-	case M0_DTM0_DOMAIN_LEVEL_LOG_MKFS:
+	case M0_DTM0_DOMAIN_LEVEL_LOG_CREATE:
+		if (cfg->dod_destroy)
+			m0_dtm0_log_destroy(&dod->dod_log);
 		break;
-	case M0_DTM0_DOMAIN_LEVEL_LOG_INIT:
-		m0_dtm0_log_fini(&dod->dod_log);
+	case M0_DTM0_DOMAIN_LEVEL_LOG_OPEN:
+		m0_dtm0_log_close(&dod->dod_log);
 		break;
 	case M0_DTM0_DOMAIN_LEVEL_REMACH_INIT:
 		m0_dtm0_remach_fini(&dod->dod_remach);
