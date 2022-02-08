@@ -202,7 +202,7 @@ lvm_size_percentage_diff()
 
 motr_cfg_update()
 {
-    MOTR_CONF_FILE="/opt/seagate/cortx/motr/conf/motr.conf"
+    MOTR_CONF_FILE = $2
 
     # $1 is setup size
     if [[ -n $1 ]];
@@ -469,11 +469,8 @@ elif [ "$1" == "-g" ]; then
 elif [ "$1" == "-s" ]; then
     set_option "$2" "$3" "$4"
 elif [ "$1" == "-c" ]; then
-    echo "Atul on motr_cfg.sh:471...total_args=$#"
     if [$# -eq 2 ]; then  
         motr_cfg_update "$2"
-    else
-        motr_cfg_update
     fi
 else
     if [ $# == 0 ]; then

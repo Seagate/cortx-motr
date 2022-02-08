@@ -34,6 +34,7 @@ MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-start"
 MOTR_MKFS_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-mkfs"
 MOTR_FSM_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-free-space-monitor"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
+MOTR_CONF_DIR = "/opt/seagate/cortx/motr/conf"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 LIBFAB_CONF_FILE = "/etc/libfab.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
@@ -438,17 +439,27 @@ def motr_config_k8(self):
     # If setup_size is large then motr.conf file is /opt/seagate/cortx/motr/conf/motr_large.conf
     # If setup_size is medium then motr.conf file is /opt/seagate/cortx/motr/conf/motr_medium.conf
     # If setup_size is small then motr.conf file is /opt/seagate/cortx/motr/conf/motr_small.conf
+    # If setup_size is anything else or not given then motr.conf file is
+    #    /opt/seagate/cortx/motr/conf/motr.conf
     # Use this motr.conf file to update /etc/sysconfig/motr
     if self.setup_size:
-        #self.logger.warn(f"Atul on motr_mini_prov:443 setup_size={self.setup_size}")
-        cmd = "{} {} {}".format(MOTR_CONFIG_SCRIPT, " -c ", self.setup_size)
-        #self.logger.info(f"Atul on motr_mini_prov:445 cmd={cmd}")
-        execute_command(self, cmd, verbose = True)
+        self.logger.warn(f"Atul on motr_mini_prov:446..setup_size={self.setup_size}")
+        if self.setup_size in ["large", "medium", "small"]:
+            conf_file = f"{MOTR_CONF_DIR}/motr_{self.setup_size}.conf"
+            self.logger.warn(f"Atul on motr_mini_prov:449..conf_file={conf_file}")
+        else:
+            conf_file = f"{MOTR_CONF_DIR}/motr.conf"
+            self.logger.warn(f"Atul on motr_mini_prov:452..conf_file={conf_file}")
     else:
-        cmd = "{} {}".format(MOTR_CONFIG_SCRIPT, " -c")
-        #self.logger.warn(f"Atul on motr_mini_prov:449 setup_size is not availabale. So not passing setup_size.")
-        #self.logger.warn(f"Atul on motr_mini_prov:450 Resultant command: {cmd}")
-        execute_command(self, cmd, verbose = True) 
+        conf_file = f"{MOTR_CONF_DIR}/motr.conf"
+        self.logger.warn(f"Atul on motr_mini_prov:454..conf_file={conf_file}")
+
+    if not os.path.exists(f"{conf_file}"):  
+        raise MotrError(errno.ENOENT, f"{conf_file} does not exist")
+
+    cmd = "{} {} {}".format(MOTR_CONFIG_SCRIPT, " -c ", conf_file)
+    self.logger.info(f"Atul on motr_mini_prov:461 cmd={cmd}")
+    execute_command(self, cmd, verbose = True)
 
     update_motr_hare_keys(self, self.nodes)
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
