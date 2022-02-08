@@ -239,6 +239,12 @@ static bool is_ios(const struct m0_conf_obj *obj)
 		M0_CONF_CAST(obj, m0_conf_service)->cs_type == M0_CST_IOS;
 }
 
+static bool is_be(const struct m0_conf_obj *obj)
+{
+	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE &&
+		M0_CONF_CAST(obj, m0_conf_service)->cs_type == M0_CST_BE;
+}
+
 static bool is_local_ios(const struct m0_conf_obj *obj)
 {
 	return is_ios(obj) && is_local_service(obj);
@@ -251,7 +257,8 @@ static bool is_device(const struct m0_conf_obj *obj)
 
 M0_INTERNAL int cs_conf_get_parition_dev(struct cs_stobs *stob,
 					 struct m0_conf_sdev **sdev_ptr,
-					 uint32_t *dev_count)
+					 uint32_t *dev_count,
+					 bool ioservice)
 {
 	int                     rc;
 	struct m0_motr         *cctx;
@@ -286,7 +293,7 @@ M0_INTERNAL int cs_conf_get_parition_dev(struct cs_stobs *stob,
 					M0_CONF_PROCESS_SERVICES_FID);
 		if (rc != 0)
 			return M0_ERR(rc);
-		while ((rc = m0_conf_diter_next_sync(&it, is_ios)) ==
+		while ((rc = m0_conf_diter_next_sync(&it, ioservice ? is_ios: is_be)) ==
 		       M0_CONF_DIRNEXT) {
 				struct m0_conf_obj *obj;
 

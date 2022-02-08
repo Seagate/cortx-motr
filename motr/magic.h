@@ -112,7 +112,8 @@ enum m0_magic_satchel {
 
 	/* be/seg_dict.c::seg_dict_be_list_d (be head lillie) */
 	M0_BE_SEG_DICT_HEAD_MAGIC = 0x33be4ead11111e77,
-
+	
+	M0_BE_SVC_MAGIC = 0x33be4ead11111f77,
 	/* m0_be_op::bo_children (befooled fifo) */
 	M0_BE_OP_SET_MAGIC = 0x33bef001edf1f077,
 

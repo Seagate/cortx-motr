@@ -69,7 +69,7 @@
 #include "dtm0/helper.h"        /* m0_dtm0_log_create */
 #include "be/partition_table.h"
 #include "stob/partition.h"     /* m0_stob_part_type */
-
+#include "be/be.h"
 /**
    @addtogroup m0d
    @{
@@ -1533,19 +1533,22 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 	struct m0_conf_sdev        *sdev = NULL;
 	bool                        ad_mode;
 	m0_bcount_t                 used_chunks;
-	uint32_t		    dev_count;
+	uint32_t		    io_dev_count;
+	uint32_t		    be_dev_count;
 
 	part_cfg = &rctx->rc_be.but_dom_cfg.bc_part_cfg;
 
 	memset(part_cfg, 0, sizeof(*part_cfg));
 	ad_mode = m0_strcaseeq(rctx->rc_stype,
 			       m0_cs_stypes[M0_AD_STOB]);
-        if (cs_conf_get_parition_dev(&rctx->rc_stob, &sdev, &dev_count) != 0)
+        if (cs_conf_get_parition_dev(&rctx->rc_stob, &sdev, &io_dev_count, true) != 0)
 		return ;
 
+        if (cs_conf_get_parition_dev(&rctx->rc_stob, &sdev, &be_dev_count, false) != 0)
+		return ;
 	if (!ad_mode ||
 	    (!rctx->rc_stob.s_ad_disks_init) ||
-            (dev_count < 1) ||
+            ((io_dev_count < 1)|| (be_dev_count < 1)) ||
 	    (sdev->sd_size == 0))
 			return;
 	enum { len = 128 };
@@ -1555,7 +1558,7 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 	     (strcmp(rctx->rc_be_seg_path,sdev->sd_filename) == 0)) &&
 	    rctx->rc_be_seg0_path == NULL &&
 	    rctx->rc_be_log_path == NULL  &&
-	    dev_count == 1) {
+	    io_dev_count == 1) {
 
 		/**
 		 * Case 1: Single Data and No Meta specified
@@ -1825,7 +1828,7 @@ static int cs_be_init(struct m0_reqh_context  *rctx,
 	if (*loc == NULL)
 		return M0_ERR(-ENOMEM);
 	snprintf(*loc, len, "linuxstob:%s%s", name[0] == '/' ? "" : "./", name);
-
+	m0_be_svc_init();
 	m0_be_ut_backend_cfg_default(&be->but_dom_cfg);
 	cs_part_domain_setup(rctx);
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_dont_zero = false;
@@ -1901,6 +1904,7 @@ err:
 
 M0_INTERNAL void cs_be_fini(struct m0_be_ut_backend *be)
 {
+	m0_be_svc_fini();
 	m0_be_ut_backend_fini(be);
 	m0_free(be->but_stob_domain_location);
 }

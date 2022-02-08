@@ -22,12 +22,13 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
-
+#include "lib/errno.h"
 #include "be/be.h"
 
 #include "be/tx_group_fom.h"    /* m0_be_tx_group_fom_mod_init */
 #include "be/tx_internal.h"     /* m0_be_tx_mod_init */
 #include "be/btree.h"           /* m0_be_fid_type */
+#include "lib/memory.h"
 
 /**
  * @addtogroup be
@@ -147,6 +148,15 @@
  * @{
  */
 
+static const struct m0_bob_type be_svc_bob = {
+	.bt_name         = "be svc",
+	.bt_magix_offset = M0_MAGIX_OFFSET(struct be_svc, bes_magic),
+	.bt_magix        = M0_BE_SVC_MAGIC,
+	.bt_check        = NULL
+};
+
+M0_BOB_DEFINE(static, &be_svc_bob, be_svc);
+
 M0_INTERNAL int m0_backend_init(void)
 {
 	m0_fid_type_register(&m0_btree_fid_type);
@@ -158,6 +168,100 @@ M0_INTERNAL void m0_backend_fini(void)
 	m0_be_tx_group_fom_mod_fini();
 	m0_be_tx_mod_fini();
 	m0_fid_type_unregister(&m0_btree_fid_type);
+}
+
+/*
+ * be Service
+ */
+static bool be_svc_invariant(const struct be_svc *svc)
+{
+	return be_svc_bob_check(svc);
+}
+
+/**
+ * The rso_start methods to start be service.
+ */
+static int be_svc_rso_start(struct m0_reqh_service *service)
+{
+	M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STARTING);
+	return 0;
+}
+
+/**
+ * The rso_stop method to stop be service.
+ */
+static void be_svc_rso_stop(struct m0_reqh_service *service)
+{
+        M0_PRE(m0_reqh_service_state_get(service) == M0_RST_STOPPED);
+}
+
+/**
+ * The rso_fini method to finalise the be service.
+ */
+static void be_svc_rso_fini(struct m0_reqh_service *service)
+{
+	struct be_svc *svc;
+
+	M0_PRE(M0_IN(m0_reqh_service_state_get(service), (M0_RST_STOPPED,
+							  M0_RST_FAILED)));
+	svc = bob_of(service, struct be_svc, bes_reqhs, &be_svc_bob);
+	be_svc_bob_fini(svc);
+	m0_free(svc);
+}
+
+static const struct m0_reqh_service_ops be_svc_ops = {
+	.rso_start       = be_svc_rso_start,
+	.rso_start_async = m0_reqh_service_async_start_simple,
+	.rso_stop        = be_svc_rso_stop,
+	.rso_fini        = be_svc_rso_fini
+};
+
+static int
+be_svc_rsto_service_allocate(struct m0_reqh_service **srv,
+				const struct m0_reqh_service_type *stype)
+{
+	struct be_svc *svc;
+
+	M0_PRE(srv != NULL && stype != NULL);
+
+	M0_ALLOC_PTR(svc);
+	if (svc == NULL)
+		return M0_ERR_INFO(-ENOMEM, "Failed to allocate memory.");
+
+	*srv = &svc->bes_reqhs;
+	(*srv)->rs_type = stype;
+	(*srv)->rs_ops = &be_svc_ops;
+
+	be_svc_bob_init(svc);
+	
+	M0_POST(be_svc_invariant(svc));
+
+	return 0;
+}
+
+static const struct m0_reqh_service_type_ops be_service_type_ops = {
+	.rsto_service_allocate = be_svc_rsto_service_allocate,
+};
+
+struct m0_reqh_service_type m0_be_svc_type = {
+	.rst_name     = "M0_CST_BE",
+	.rst_ops      = &be_service_type_ops,
+	.rst_level    = M0_RS_LEVEL_NORMAL,
+	.rst_typecode = M0_CST_BE,
+};
+
+/*
+ * Public interfaces
+ */
+M0_INTERNAL int m0_be_svc_init(void)
+{
+	return m0_reqh_service_type_register(&m0_be_svc_type);
+
+}
+
+M0_INTERNAL void m0_be_svc_fini(void)
+{
+	m0_reqh_service_type_unregister(&m0_be_svc_type);
 }
 
 /** @} end of be group */

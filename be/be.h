@@ -56,10 +56,23 @@
  *
  * @{
  */
-
+#include "reqh/reqh_service.h"
 /* These two are called from motr/init.c. */
 M0_INTERNAL int  m0_backend_init(void);
 M0_INTERNAL void m0_backend_fini(void);
+
+/**
+ * be service.
+ */
+struct be_svc {
+	uint64_t	       bes_magic;
+	/** Embedded request handler service object. */
+	struct m0_reqh_service bes_reqhs;
+};
+
+M0_INTERNAL int m0_be_svc_init(void);
+M0_INTERNAL void m0_be_svc_fini(void);
+
 
 /** @} end of be group */
 #endif /* __MOTR_BE_BE_H__ */

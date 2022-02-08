@@ -62,7 +62,8 @@ M0_INTERNAL int cs_conf_services_init(struct m0_motr *cctx);
 
 M0_INTERNAL int cs_conf_get_parition_dev (struct cs_stobs      *stob,
 					  struct m0_conf_sdev **sdev,
-					  uint32_t             *dev_count);
+					  uint32_t             *dev_count,
+					  bool ioservice);
 /** @} endgroup m0d */
 #endif /* __MOTR_SETUP_INTERNAL_H__ */
 
