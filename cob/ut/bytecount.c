@@ -160,15 +160,10 @@ void test_iterator(void)
 
 void test_lookup(void)
 {
-	struct m0_be_tx         tx_;
-	struct m0_be_tx        *tx = &tx_;
 	int                     rc;
-	struct m0_be_tx_credit  accum = {};
 	int                     i;
 	struct m0_cob_bckey     dummy_key = {};
 	struct m0_cob_bcrec     out_rec = {};
-
-	ut_tx_open(tx, &accum);
 
 	/**
 	 * Lookup for the keys created in test_insert() in bytecount btree and
@@ -190,9 +185,6 @@ void test_lookup(void)
 	dummy_key.cbk_user_id = 0;
 	rc = m0_cob_bc_lookup(cob, &dummy_key, &out_rec);
 	M0_UT_ASSERT(rc != 0);
-
-	m0_be_tx_close_sync(tx);
-	m0_be_tx_fini(tx);
 }
 
 void test_update(void)

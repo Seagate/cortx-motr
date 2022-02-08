@@ -382,8 +382,8 @@ static m0_bcount_t bc_vsize(const void *val)
  * Make bytecount key for iterator. Allocate space for key.
  */
 static int m0_cob_bckey_make(struct m0_cob_bckey **keyh,
-				       const struct m0_fid  *pver_fid,
-				       uint64_t              user_id)
+			     const struct m0_fid  *pver_fid,
+			     uint64_t              user_id)
 {
 	struct m0_cob_bckey *key;
 
@@ -1049,10 +1049,9 @@ M0_INTERNAL int m0_cob_bc_lookup(struct m0_cob *cob,
 	m0_buf_init(&val, bc_rec, m0_cob_bcrec_size());
 
 	rc = cob_table_lookup(&cob->co_dom->cd_bytecount, &key, &val);
-	if (rc == 0) {
+	if (rc == 0)
 		cob->co_flags |= M0_CA_BCREC;
-	}
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_bc_insert(struct m0_cob *cob,
