@@ -822,10 +822,25 @@ static int reqh_service_ctx_state_wait(struct m0_reqh_service_ctx *ctx,
 M0_INTERNAL void m0_reqh_service_connect_wait(struct m0_reqh_service_ctx *ctx)
 {
 
-	if (ctx->sc_service->co_ha_state == M0_NC_ONLINE) {
-		int rc = reqh_service_ctx_state_wait(ctx, M0_RSC_ONLINE);
-		M0_ASSERT(rc == 0);
+	int       rc;
+	bool      connected = false;
+	m0_time_t timeout;
+
+       /* Try connecting until remote side is dead. */
+	while (!connected && !M0_IN(ctx->sc_service->co_ha_state,
+			(M0_NC_FAILED, M0_NC_TRANSIENT))) {
+		reqh_service_ctx_sm_lock(ctx);
+		timeout = m0_time_from_now(2 * REQH_SVC_CONNECT_TIMEOUT, 0);
+		rc = m0_sm_timedwait(&ctx->sc_sm, M0_BITS(M0_RSC_ONLINE,
+							  M0_RSC_OFFLINE),
+				     timeout);
+		if (rc == 0)
+			connected = ctx->sc_sm.sm_state == M0_RSC_ONLINE;
+		reqh_service_ctx_sm_unlock(ctx);
 	}
+
+       /* XXX: Probably, we could use equi() here. */
+       M0_ASSERT(ergo(connected, m0_rpc_link_is_connected(&ctx->sc_rlink)));
 }
 
 M0_INTERNAL int m0_reqh_service_disconnect_wait(struct m0_reqh_service_ctx *ctx)
