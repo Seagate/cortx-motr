@@ -272,6 +272,7 @@ struct m0_cob_domain {
 	struct m0_be_btree      cd_fileattr_basic;
 	struct m0_be_btree      cd_fileattr_omg;
 	struct m0_be_btree      cd_fileattr_ea;
+	struct m0_be_btree      cd_bytecount;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_cob_domain_format_version {
@@ -508,6 +509,18 @@ struct m0_cob_earec {
 	char              cer_body[0]; /**< EA body */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
+/** Byte count table key. */
+struct m0_cob_bckey {
+	struct m0_fid     cbk_pfid;    /**< Pool ver fid */
+	uint64_t          cbk_user_id; /**< User id */
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
+
+/** Byte count table record. */
+struct m0_cob_bcrec {
+	uint64_t          cbr_bytecount;  /**< Byte count */
+	uint64_t          cbr_cob_objects;  /**< Cob object count */
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
+
 /**
  * In-memory representation of a component object.
  *
@@ -615,6 +628,16 @@ struct m0_cob_ea_iterator {
 };
 
 /**
+ * Cob BC iterator. Holds current position inside Bytecount table.
+ */
+struct m0_cob_bc_iterator {
+	struct m0_cob            *ci_cob;      /**< the cob we iterate */
+	struct m0_be_btree_cursor ci_cursor;   /**< cob iterator cursor */
+	struct m0_cob_bckey      *ci_key;      /**< current iterator pos */
+	struct m0_cob_bcrec      *ci_rec;      /**< current iterator rec */
+};
+
+/**
  * Cob flags and valid attributes.
  */
 enum m0_cob_flags {
@@ -624,6 +647,7 @@ enum m0_cob_flags {
 	M0_CA_FABREC     = (1 << 3),  /**< fabrec in cob is up-to-date */
 	M0_CA_OMGREC     = (1 << 4),  /**< omgrec in cob is up-to-date */
 	M0_CA_LAYOUT     = (1 << 5),  /**< layout in cob is up-to-date */
+	M0_CA_BCREC      = (1 << 6),  /**< bytecount in cob is up-to-date */
 };
 
 /**
@@ -825,6 +849,65 @@ M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it);
 M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it);
 
 /**
+ * Search for a record in the bytecount table and fills struct m0_cob_bcrec
+ * if key is found.
+ * If the lookup fails, we return error and co_flags accurately reflects
+ * the missing fields.
+ */
+M0_INTERNAL int m0_cob_bc_lookup(struct m0_cob *cob,
+				 struct m0_cob_bckey *bc_key,
+				 struct m0_cob_bcrec *bc_rec);
+
+/**
+ * Inserts a record in the bytecount table
+ * If the insert fails, we return error
+ */
+M0_INTERNAL int m0_cob_bc_insert(struct m0_cob *cob,
+				 struct m0_cob_bckey *bc_key,
+				 struct m0_cob_bcrec *bc_val,
+				 struct m0_be_tx *tx);
+
+/**
+ * Updates a record in the bytecount table
+ * If the update fails, it returns error
+ */
+M0_INTERNAL int m0_cob_bc_update(struct m0_cob *cob,
+				 struct m0_cob_bckey *bc_key,
+				 struct m0_cob_bcrec *bc_val,
+				 struct m0_be_tx *tx);
+
+/**
+ * Init bc iterator on passed @cob and @pver_fid, @user_id as a start position.
+ */
+M0_INTERNAL int m0_cob_bc_iterator_init(struct m0_cob             *cob,
+					struct m0_cob_bc_iterator *it,
+					const struct m0_fid       *pver_fid,
+					uint64_t                   user_id);
+
+/**
+ * Position to next key in a bc table.
+ *
+ * @retval 0        Success.
+ * @retval -ENOENT  Next key is not found in bc table.
+ * @retval -errno   Other error.
+ */
+M0_INTERNAL int m0_cob_bc_iterator_next(struct m0_cob_bc_iterator *it);
+
+/**
+ * Position in table according with @it properties.
+ *
+ * @retval 0        Success.
+ * @retval -ENOENT  Specified position not found in table.
+ * @retval -errno   Other error.
+ */
+M0_INTERNAL int m0_cob_bc_iterator_get(struct m0_cob_bc_iterator *it);
+
+/**
+ * Finish cob bc iterator.
+ */
+M0_INTERNAL void m0_cob_bc_iterator_fini(struct m0_cob_bc_iterator *it);
+
+/**
  * Init cob iterator on passed @cob and @name as a start position.
  */
 M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
@@ -933,6 +1016,9 @@ enum m0_cob_op {
 	M0_COB_OP_NAME_ADD,
 	M0_COB_OP_NAME_DEL,
 	M0_COB_OP_NAME_UPDATE,
+	M0_COB_OP_BYTECOUNT_SET,
+	M0_COB_OP_BYTECOUNT_DEL,
+	M0_COB_OP_BYTECOUNT_UPDATE,
 } M0_XCA_ENUM;
 
 M0_INTERNAL void m0_cob_tx_credit(struct m0_cob_domain *dom,
