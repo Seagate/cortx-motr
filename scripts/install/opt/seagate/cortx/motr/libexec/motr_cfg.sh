@@ -204,17 +204,18 @@ motr_cfg_update()
 {
     MOTR_CONF_FILE="/opt/seagate/cortx/motr/conf/motr.conf"
 
+    # $1 is setup size
     if [[ -n $1 ]];
     then
         MOTR_CONF_FILE="${MOTR_CONF_DIR}""/motr_""$1"".conf"
-        echo "setup_size is $1 and motr conf file is $MOTR_CONF_FILE"
+        echo "Atul on motr_cfg.sh:210...setup_size is $1 and motr conf file is $MOTR_CONF_FILE"
     else
-        echo "No setup size is passed so use default motr.conf file $MOTR_CONF_FILE"
+        echo "Atul on motr_cfg.sh:212.....No setup size is passed so use default motr.conf file $MOTR_CONF_FILE"
     fi
 
     if [ ! -f "$MOTR_CONF_FILE" ];
     then
-        echo "$MOTR_CONF_FILE does not exist"
+        echo "Atul on motr_cfg.sh:217....$MOTR_CONF_FILE does not exist"
         die $ERR_SUCCESS
     fi
 
@@ -468,7 +469,12 @@ elif [ "$1" == "-g" ]; then
 elif [ "$1" == "-s" ]; then
     set_option "$2" "$3" "$4"
 elif [ "$1" == "-c" ]; then
-    motr_cfg_update "$2"
+    echo "Atul on motr_cfg.sh:471...total_args=$#"
+    if [$# -eq 2 ]; then  
+        motr_cfg_update "$2"
+    else
+        motr_cfg_update
+    fi
 else
     if [ $# == 0 ]; then
         PCMD=$(ps -o args= $PPID)
