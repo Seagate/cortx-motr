@@ -440,14 +440,14 @@ def motr_config_k8(self):
     # If setup_size is small then motr.conf file is /opt/seagate/cortx/motr/conf/motr_small.conf
     # Use this motr.conf file to update /etc/sysconfig/motr
     if self.setup_size:
-        self.logger.warn(f"Atul on motr_mini_prov:443 setup_size={self.setup_size}")
+        #self.logger.warn(f"Atul on motr_mini_prov:443 setup_size={self.setup_size}")
         cmd = "{} {} {}".format(MOTR_CONFIG_SCRIPT, " -c ", self.setup_size)
-        self.logger.info(f"Atul on motr_mini_prov:445 cmd={cmd}")
+        #self.logger.info(f"Atul on motr_mini_prov:445 cmd={cmd}")
         execute_command(self, cmd, verbose = True)
     else:
         cmd = "{} {}".format(MOTR_CONFIG_SCRIPT, " -c")
-        self.logger.warn(f"Atul on motr_mini_prov:449 setup_size is not availabale. So not passing setup_size.")
-        self.logger.warn(f"Atul on motr_mini_prov:450 Resultant command: {cmd}")
+        #self.logger.warn(f"Atul on motr_mini_prov:449 setup_size is not availabale. So not passing setup_size.")
+        #self.logger.warn(f"Atul on motr_mini_prov:450 Resultant command: {cmd}")
         execute_command(self, cmd, verbose = True) 
 
     update_motr_hare_keys(self, self.nodes)
