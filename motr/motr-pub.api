@@ -144,6 +144,7 @@ m0_conf_obj_type_unregister
 m0_conf_objx_fid
 m0_conf_objx_type
 m0_conf_validation_error
+m0_conf_pver_status
 m0_cs_fini
 m0_cs_init
 m0_cs_memory_limits_setup
@@ -312,6 +313,7 @@ m0_sm_group_call
 m0_sm_state_set
 m0_spiel_cmd_profile_set
 m0_spiel_confstr
+m0_spiel_conf_pver_status
 m0_spiel_controller_add
 m0_spiel_controller_v_add
 m0_spiel_device_add
@@ -334,6 +336,7 @@ m0_spiel_dix_repair_status
 m0_spiel_element_del
 m0_spiel_enclosure_add
 m0_spiel_enclosure_v_add
+m0_spiel_proc_counters_fetch
 m0_spiel_filesystem_stats_fetch
 m0_spiel_fini
 m0_spiel_init
