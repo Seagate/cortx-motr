@@ -49,6 +49,7 @@ enum m0_ss_process_req_cmd {
 	M0_PROCESS_STOP,
 	M0_PROCESS_RECONFIG,
 	M0_PROCESS_HEALTH,
+	M0_PROCESS_COUNTER,
 	M0_PROCESS_QUIESCE,
 	M0_PROCESS_RUNNING_LIST,
 	M0_PROCESS_LIB_LOAD,
@@ -118,6 +119,14 @@ struct m0_ss_process_rep {
 	 * total disk space by df command.
 	 */
 	m0_bcount_t sspr_total_disk;
+	/**
+	 * Buffer which holds keys from bytecount btree
+	 */
+	struct m0_buf sspr_bckey;
+	/**
+	 * Buffer which holds records from bytecount btree
+	 */
+	struct m0_buf sspr_bcrec;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_ss_process_svc_item {
