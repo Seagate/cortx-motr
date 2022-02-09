@@ -1687,7 +1687,7 @@ struct spiel_proc_counter_item {
 	/**
 	 * List of data received from an ioservice from each reply
 	 * fop. Linked from m0_proc_data::pd_link. List will be
-	 * implmented during retry mechanism task.
+	 * implemented during retry mechanism task.
 	 */
 	struct m0_tl         *sci_counters;
 	/** temp field, till the counters list is implemented */
@@ -2108,6 +2108,7 @@ static bool spiel_proc_counter_item_rlink_cb(struct m0_clink *clink)
 	m0_clink_fini(clink);
 	if (proc->sci_rlink.rlk_rc != 0) {
 		M0_LOG(M0_ERROR, "connect failed");
+		m0_semaphore_up(&proc->sci_barrier);
 		M0_LEAVE();
 		return true;
 	}
@@ -2128,8 +2129,7 @@ static bool spiel_proc_counter_item_rlink_cb(struct m0_clink *clink)
 	item->ri_prio           = M0_RPC_ITEM_PRIO_MID;
 	item->ri_nr_sent_max    = 5;
 	m0_fop_get(fop);
-	rc = m0_rpc_post(item);
-	
+	rc = m0_rpc_post(item);	
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "rpc post failed");
 		goto fop_put;
@@ -2143,6 +2143,8 @@ fop_fini:
 	m0_fop_fini(fop);
 	conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
 	m0_rpc_link_disconnect_sync(&proc->sci_rlink, conn_timeout);
+	m0_rpc_link_fini(&proc->sci_rlink);
+	m0_semaphore_up(&proc->sci_barrier);
 	M0_LEAVE();
 	return true;
 }
@@ -2193,7 +2195,7 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 	if (rc != 0)
 		return M0_ERR(rc);
 	if (proc_obj->co_ha_state != M0_NC_ONLINE) {
-		rc = M0_ERR(-EINVAL);
+		rc = M0_ERR(-EPERM);
 		goto obj_close;
 	}
 
@@ -2214,7 +2216,9 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 			   M0_NET_BUFFER_LINK_MAGIC, M0_NET_BUFFER_HEAD_MAGIC);
 	M0_TL_DEFINE(proc_counter, M0_INTERNAL, struct m0_proc_data);
 	*/
-	spiel_process__counters_async(proc);
+	rc = spiel_process__counters_async(proc);
+	if (rc != 0)
+		goto sem_fini;
 	m0_semaphore_down(&proc->sci_barrier);
 
 	M0_ALLOC_ARR(count_stats->pc_bckey, 1);
@@ -2231,8 +2235,9 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 	count_stats->pc_cnt = 1;
 	count_stats->pc_rc = 0;
 
-obj_close:
+sem_fini:
 	m0_semaphore_fini(&proc->sci_barrier);
+obj_close:
 	m0_confc_close(proc_obj);
 	return M0_RC(rc);
 }

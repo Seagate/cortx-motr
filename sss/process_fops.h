@@ -119,8 +119,13 @@ struct m0_ss_process_rep {
 	 * total disk space by df command.
 	 */
 	m0_bcount_t sspr_total_disk;
-
+	/**
+	 * Buffer which holds keys from bytecount btree
+	 */
 	struct m0_buf sspr_bckey;
+	/**
+	 * Buffer which holds records from bytecount btree
+	 */
 	struct m0_buf sspr_bcrec;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
