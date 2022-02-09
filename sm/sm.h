@@ -708,9 +708,6 @@ M0_INTERNAL bool m0_sm_timeout_is_armed(const struct m0_sm_timeout *to);
 
 /**
  * Posts an AST to a group.
- *
- * An AST must not be re-posted until its previous (already posted) execution
- * completes.
  */
 M0_INTERNAL void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast);
 

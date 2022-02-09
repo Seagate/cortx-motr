@@ -533,10 +533,7 @@ static void thr_addb2_leave(struct m0_loc_thread *thr,
 M0_INTERNAL void m0_fom_wakeup(struct m0_fom *fom)
 {
 	fom->fo_cb.fc_ast.sa_cb = readyit;
-	m0_mutex_lock(&fom->fo_wakeup_lock); /* allow concurrent calls */
-	if (fom->fo_cb.fc_ast.sa_next == NULL)
-		m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
-	m0_mutex_unlock(&fom->fo_wakeup_lock);
+	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 }
 
 M0_INTERNAL void m0_fom_block_enter(struct m0_fom *fom)
