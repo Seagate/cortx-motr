@@ -35,6 +35,7 @@ MOTR_MKFS_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-mkfs"
 MOTR_FSM_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-free-space-monitor"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
 MOTR_CONF_DIR = "/opt/seagate/cortx/motr/conf"
+DEFAULT_MOTR_CONF_FILE = "/opt/seagate/cortx/motr/conf/motr.conf"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 LIBFAB_CONF_FILE = "/etc/libfab.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
@@ -448,13 +449,17 @@ def motr_config_k8(self):
             conf_file = f"{MOTR_CONF_DIR}/motr_{self.setup_size}.conf"
             self.logger.warn(f"Atul on motr_mini_prov:449..conf_file={conf_file}")
         else:
-            conf_file = f"{MOTR_CONF_DIR}/motr.conf"
+            conf_file = DEFAULT_MOTR_CONF_FILE
             self.logger.warn(f"Atul on motr_mini_prov:452..conf_file={conf_file}")
     else:
         conf_file = f"{MOTR_CONF_DIR}/motr.conf"
         self.logger.warn(f"Atul on motr_mini_prov:454..conf_file={conf_file}")
 
-    if not os.path.exists(f"{conf_file}"):  
+    if conf_file != DEFAULT_MOTR_CONF_FILE:
+        if not os.path.exists(f"{conf_file}"):  
+            self.logger.warn(f"Atul on motr_mini_prov:460..conf_file={conf_file} does no exist so setting it to default file {DEFAULT_MOTR_CONF_FILE}")
+            conf_file = DEFAULT_MOTR_CONF_FILE
+    if not os.path.exists(f"{conf_file}"): 
         raise MotrError(errno.ENOENT, f"{conf_file} does not exist")
 
     cmd = "{} {} {}".format(MOTR_CONFIG_SCRIPT, " -c ", conf_file)
