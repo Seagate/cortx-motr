@@ -68,7 +68,6 @@ M0_TL_DECLARE(fdmi_matched_filter_list, M0_EXTERN, struct m0_conf_fdmi_filter);
 struct fdmi_sd_fom {
 	uint64_t                fsf_magic;
 	struct m0_fom           fsf_fom;
-	struct m0_sm_ast        fsf_wakeup_ast;
 	struct m0_filterc_ctx   fsf_filter_ctx;
 	struct m0_filterc_iter  fsf_filter_iter;
 	struct m0_fdmi_eval_ctx fsf_flt_eval;

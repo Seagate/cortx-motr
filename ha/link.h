@@ -212,7 +212,6 @@ struct m0_ha_link {
 	struct m0_semaphore         hln_stop_cond;
 	struct m0_chan              hln_stop_chan;
 	struct m0_mutex             hln_stop_chan_lock;
-	bool                        hln_waking_up;
 	struct m0_sm_ast            hln_waking_ast;
 	struct m0_ha_msg           *hln_msg_to_send;
 	/** It's protected by outgoing fom sm group lock */

@@ -291,43 +291,6 @@ static void be_tx_group_fom_handle(struct m0_sm_group *gr,
 	m0_fom_ready(&m->tgf_gen);
 }
 
-/*
- * Wakes up tx_group_fom iff it is waiting.
- * It is possible that multiple fom wakeup asts are posted through different
- * code paths. Thus we avoid waking up of already running FOM.
- */
-static void be_tx_group_fom_iff_waiting_wakeup(struct m0_fom *fom)
-{
-	M0_ENTRY();
-	if (m0_fom_is_waiting(fom)) {
-		M0_LOG(M0_DEBUG, "waking up");
-		m0_fom_ready(fom);
-	}
-	M0_LEAVE();
-}
-
-static void be_tx_group_fom_stable(struct m0_sm_group *_, struct m0_sm_ast *ast)
-{
-	struct m0_be_tx_group_fom *m = M0_AMB(m, ast, tgf_ast_stable);
-
-	M0_ENTRY();
-
-	m->tgf_stable = true;
-	be_tx_group_fom_iff_waiting_wakeup(&m->tgf_gen);
-	M0_LEAVE();
-}
-
-static void be_tx_group_fom_stop(struct m0_sm_group *gr, struct m0_sm_ast *ast)
-{
-	struct m0_be_tx_group_fom *m = M0_AMB(m, ast, tgf_ast_stop);
-
-	M0_ENTRY();
-
-	m->tgf_stopping = true;
-	be_tx_group_fom_iff_waiting_wakeup(&m->tgf_gen);
-	M0_LEAVE();
-}
-
 M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m,
 					 struct m0_be_tx_group     *gr,
 					 struct m0_reqh            *reqh)
@@ -344,8 +307,6 @@ M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m,
 
 #define _AST(handler) (struct m0_sm_ast){ .sa_cb = (handler) }
 	m->tgf_ast_handle  = _AST(be_tx_group_fom_handle);
-	m->tgf_ast_stable  = _AST(be_tx_group_fom_stable);
-	m->tgf_ast_stop    = _AST(be_tx_group_fom_stop);
 #undef _AST
 
 	m0_semaphore_init(&m->tgf_start_sem, 0);
@@ -399,7 +360,8 @@ M0_INTERNAL int m0_be_tx_group_fom_start(struct m0_be_tx_group_fom *gf)
 M0_INTERNAL void m0_be_tx_group_fom_stop(struct m0_be_tx_group_fom *gf)
 {
 	M0_ENTRY();
-	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_stop);
+	gf->tgf_stopping = true;
+	m0_fom_wakeup(&gf->tgf_gen);
 	m0_semaphore_down(&gf->tgf_finish_sem);
 	M0_LEAVE();
 }
@@ -411,7 +373,8 @@ M0_INTERNAL void m0_be_tx_group_fom_handle(struct m0_be_tx_group_fom *m)
 
 M0_INTERNAL void m0_be_tx_group_fom_stable(struct m0_be_tx_group_fom *gf)
 {
-	be_tx_group_fom_ast_post(gf, &gf->tgf_ast_stable);
+	gf->tgf_stable = true;
+	m0_fom_wakeup(&gf->tgf_gen);
 }
 
 M0_INTERNAL struct m0_sm_group *

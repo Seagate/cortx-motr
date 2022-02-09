@@ -528,6 +528,7 @@ struct m0_fom {
 	 * Stack of pending call-backs.
 	 */
 	struct m0_fom_callback   *fo_pending;
+	struct m0_mutex           fo_wakeup_lock;
 #if FOM_PHASE_DEBUG
 	int                       fo_log[32];
 #endif
