@@ -1655,6 +1655,31 @@ int m0_spiel_pool_rebalance_abort(struct m0_spiel     *spl,
 	return m0_spiel_sns_rebalance_abort(spl, pool_fid);
 }
 
+/***********************************************/
+/*                 Byte count                  */
+/***********************************************/
+
+/**
+ * List element of an individual key value pair on the byte count btree.
+ */
+struct m0_proc_data {
+	struct m0_spiel_bckey pd_bckey;
+	struct m0_spiel_bcrec pd_bcrec;
+	struct m0_tlink       pd_link;
+};
+
+/**
+ * A context for fetching counters from ioservice process.
+ */
+struct spiel_proc_counter_item {
+	/** Process fid */
+	struct m0_fid         spc_fid;
+	/** Rpc link for connect to a process */
+	struct m0_rpc_link    spc_rlink;
+	/** Process counter fetch request. */
+	struct m0_fop         spc_fop;
+};
+
 /****************************************************/
 /*                    Filesystem                    */
 /****************************************************/
@@ -2000,6 +2025,34 @@ obj_close:
 	return M0_RC(rc);
 }
 
+int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
+				 struct m0_fid          *proc_fid,
+				 struct m0_proc_counter *count_stats)
+{
+	int                             rc = 0;
+
+	M0_ENTRY();
+	M0_PRE(spl != NULL);
+	M0_PRE(count_stats != NULL);
+
+	M0_ALLOC_ARR(count_stats->pc_bckey, 1);
+	M0_ALLOC_ARR(count_stats->pc_bcrec, 1);
+	M0_ALLOC_PTR(count_stats->pc_bckey[0]);
+	M0_ALLOC_PTR(count_stats->pc_bcrec[0]);
+
+	count_stats->pc_proc_fid = *proc_fid;
+	count_stats->pc_bckey[0]->sbk_fid = M0_FID_TINIT('v', 1, 8);
+	count_stats->pc_bckey[0]->sbk_user_id = 1;
+
+	count_stats->pc_bcrec[0]->sbr_byte_count = 4096;
+	count_stats->pc_bcrec[0]->sbr_object_count = 1;
+	count_stats->pc_cnt = 1;
+	count_stats->pc_rc = 0;
+
+	return M0_RC(rc);
+}
+M0_EXPORTED(m0_spiel_proc_counters_fetch);
+
 M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
 					 struct m0_fs_stats   *stats)
 {
@@ -2082,6 +2135,22 @@ int m0_spiel_confstr(struct m0_spiel *spl, char **out)
 }
 M0_EXPORTED(m0_spiel_confstr);
 
+int m0_spiel_conf_pver_status(struct m0_spiel          *spl,
+			      struct m0_fid            *fid,
+			      struct m0_conf_pver_info *out_info)
+{
+	struct m0_confc *confc;
+
+	M0_ENTRY();
+	M0_PRE(spl != NULL);
+
+	confc = spl->spl_core.spc_confc;
+	if (!m0_confc_is_inited(confc))
+		return M0_ERR_INFO(-EAGAIN, "confc is finalised");
+
+	return M0_RC(m0_conf_pver_status(fid, confc, out_info));
+}
+M0_EXPORTED(m0_spiel_conf_pver_status);
 /** @} */
 #undef M0_TRACE_SUBSYSTEM
 
