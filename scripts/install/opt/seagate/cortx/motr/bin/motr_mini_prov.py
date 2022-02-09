@@ -444,28 +444,30 @@ def motr_config_k8(self):
     #    /opt/seagate/cortx/motr/conf/motr.conf
     # Use this motr.conf file to update /etc/sysconfig/motr
     if self.setup_size:
-        self.logger.warn(f"Atul on motr_mini_prov:446..setup_size={self.setup_size}")
+        self.logger.info(f"setup_size={self.setup_size}")
         if self.setup_size in ["large", "medium", "small"]:
             conf_file = f"{MOTR_CONF_DIR}/motr_{self.setup_size}.conf"
-            self.logger.warn(f"Atul on motr_mini_prov:449..conf_file={conf_file}")
         else:
             conf_file = DEFAULT_MOTR_CONF_FILE
-            self.logger.warn(f"Atul on motr_mini_prov:452..conf_file={conf_file}")
     else:
         conf_file = f"{MOTR_CONF_DIR}/motr.conf"
-        self.logger.warn(f"Atul on motr_mini_prov:454..conf_file={conf_file}")
+    self.logger.warn(f"conf_file={conf_file}")
 
     if conf_file != DEFAULT_MOTR_CONF_FILE:
-        if not os.path.exists(f"{conf_file}"):  
-            self.logger.warn(f"Atul on motr_mini_prov:460..conf_file={conf_file} does no exist so setting it to default file {DEFAULT_MOTR_CONF_FILE}")
+        if not os.path.exists(f"{conf_file}"):
+            self.logger.warn(f"{conf_file} does not exist so setting it to default file {DEFAULT_MOTR_CONF_FILE}")
             conf_file = DEFAULT_MOTR_CONF_FILE
-    if not os.path.exists(f"{conf_file}"): 
+    self.logger.warn(f"conf_file={conf_file}")
+    if not os.path.exists(f"{conf_file}"):
         raise MotrError(errno.ENOENT, f"{conf_file} does not exist")
 
-    # For time being, we are only executing MOTR_CONFIG_SCRIPT for large setups
+    # For time being, until we create different conf files for different setup sizes,
+    # we are only executing MOTR_CONFIG_SCRIPT for large setups
+    # Executing /opt/seagate/cortx/motr/libexec/motr_cfg.sh -c /opt/seagate/cortx/motr/conf/motr.conf
+    # for VM will assign HW motr config parameters to VM which will not start motr services properly in VM.
     if self.setup_size == "large":
         cmd = "{} {} {}".format(MOTR_CONFIG_SCRIPT, " -c ", conf_file)
-        self.logger.info(f"Atul on motr_mini_prov:461 cmd={cmd}")
+        self.logger.info(f"For the time being, only for {self.setup_size} setup size, execute command: {cmd}")
         execute_command(self, cmd, verbose = True)
 
     update_motr_hare_keys(self, self.nodes)
