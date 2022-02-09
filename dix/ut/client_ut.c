@@ -2531,15 +2531,16 @@ static void local_failures(void)
 	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
 	M0_UT_ASSERT(rc == 0);
 	/*
-	 * Only two CAS requests can be sent successfully, but N + K = 3, so
-	 * no record will be successfully put to all component catalogues.
+ 	 * Consider DIX request to be successful if there is at least
+ 	 * one successful CAS request. Here two cas requests can be 
+ 	 * sent successfully. 
 	 */
 	m0_fi_enable_off_n_on_m("cas_req_replied_cb", "send-failure", 2, 3);
 	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
 	m0_fi_disable("cas_req_replied_cb", "send-failure");
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
-	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc != 0));
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
 	dix_rep_free(&rep);
 	dix_kv_destroy(&keys, &vals);
 	dix_index_fini(&index);
