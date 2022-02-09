@@ -1293,6 +1293,8 @@ struct m0_proc_counter {
  *                          resultant values. Check m0_proc_counter::pc_rc
  *                          for successful execution, ignore rest of the values
  *                          otherwise.
+ * @return rc -EPERM if process is offline.
+ *            -EAGAIN if confc is not initialized.
  */
 int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 				 struct m0_fid          *proc_fid,
