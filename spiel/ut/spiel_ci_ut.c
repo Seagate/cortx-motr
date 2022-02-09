@@ -518,6 +518,22 @@ void test_spiel_fs_stats(void)
 	spiel_ci_ut_fini();
 }
 
+void test_spiel_bc_stats(void)
+{
+	int                     rc;
+	struct m0_proc_counter  count_stats;
+	struct m0_fid           proc_fid = M0_FID_TINIT('r', 1, 6);
+
+	spiel_ci_ut_init();
+
+	M0_SET0(&count_stats);
+	rc = m0_spiel_proc_counters_fetch(&spiel, &proc_fid, &count_stats);
+
+	M0_UT_ASSERT(rc == 0);
+
+	spiel_ci_ut_fini();
+}
+
 static void spiel_repair_start(const struct m0_fid *pool_fid,
 			       const struct m0_fid *svc_fid,
 			       enum m0_repreb_type  type)
@@ -820,6 +836,7 @@ struct m0_ut_suite spiel_ci_ut = {
 		{ "process-services-list", test_spiel_process_services_list },
 		{ "device-cmds", test_spiel_device_cmds },
 		{ "stats", test_spiel_fs_stats },
+		{ "bytecount-stats", test_spiel_bc_stats },
 		{ "pool-sns-repair", test_spiel_sns_repair },
 		{ "pool-sns-rebalance", test_spiel_sns_rebalance },
 		{ "pool-dix-repair", test_spiel_dix_repair },

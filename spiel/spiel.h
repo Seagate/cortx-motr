@@ -29,6 +29,7 @@
 #include "conf/schema.h"       /* m0_conf_service_type */
 #include "conf/confc.h"        /* m0_confc */
 #include "conf/rconfc.h"       /* m0_rconfc */
+#include "conf/pvers.h"        /* m0_conf_pver_info */
 #include "reqh/reqh_service.h" /* enum m0_service_health */
 #include "sns/cm/cm.h"         /* m0_cm_status */
 
@@ -1250,6 +1251,54 @@ int m0_spiel_pool_rebalance_abort(struct m0_spiel     *spl,
 			          const struct m0_fid *pool_fid);
 
 /**
+ * Motr Byte count stats. These stats contain byte count and motr object count data
+ * written per pool version per end user. The stats are collected from a target
+ * ioservice's btree and returned as an array of key-value pairs where keys are
+ * a combination of pool version fid and 64 bit user-id and value is the count
+ * of bytes and objects written by a user in a pool version.
+ */
+struct m0_spiel_bckey {
+	struct m0_fid sbk_fid;      /** FID of the pool version */
+	uint64_t      sbk_user_id;  /** 64 bit user-id */
+};
+
+struct m0_spiel_bcrec {
+	uint64_t  sbr_byte_count;   /** Bytes written in a pool version */
+	uint64_t  sbr_object_count; /** Objects written in a pool version */ 
+};
+
+/**
+ * Holds counters stats fetched from a target ioservice.
+ * Stats of an ioservice's btree are dumped into an array of key-value pairs.
+ * The keys and values are index mapped, ie. pc_bcrec[i] will hold values
+ * for pc_bckey[i]. m0_spiel_proc_counters_fetch() will allocate and fill the
+ * key and value arrays.
+ */
+struct m0_proc_counter {
+	int                     pc_rc;
+	uint32_t                pc_cnt; /** Length of Key and Value arrays */
+	struct m0_fid           pc_proc_fid;
+	struct m0_spiel_bckey **pc_bckey;
+	struct m0_spiel_bcrec **pc_bcrec;
+};
+
+/**
+ * Fetches byte counts and object counts per pool version written by all
+ * end users from a target ioservice. All entries in the byte count btree
+ * present in the ioservice is fetched by a call of this API.
+ *
+ * @param[in]  spl          spiel instance used for executing spiel command.
+ * @param[in]  proc_fid     fid of the target ioservice.
+ * @param[out] count_stats  instance of m0_proc_counter to be filled with
+ *                          resultant values. Check m0_proc_counter::pc_rc
+ *                          for successful execution, ignore rest of the values
+ *                          otherwise.
+ */
+int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
+				 struct m0_fid          *proc_fid,
+				 struct m0_proc_counter *count_stats);
+
+/**
  * Motr filesystem stats. The stats are collected from all processes of the
  * nodes the filesystem builds on. Space counters include respective counts from
  * all BE segments mdservice operates on, including seg0, as well as spaces from
@@ -1313,6 +1362,25 @@ M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
  *       allocated memory with free(*out) (not m0_free()).
  */
 int m0_spiel_confstr(struct m0_spiel *spl, char **out);
+
+/**
+ * Returns the status of the pool version according to number of failed srecd
+ * objects in the pool version.
+ *
+ * This is a wrapper over conf/pvers.h m0_conf_pver_status().
+ *
+ * @param  spl      spiel instance, must have confc cache initialized
+ *                  and populated.  
+ * @param  fid      fid of the pool version whose status is queried.
+ * @param  out_info out parameter which will contain status along with 
+ *                  some pdclust attributes of pool version.
+ * @pre    fid != NULL
+ * @pre    m0_confc_is_inited(confc) == true
+ * @return rc of the function.
+ */
+int m0_spiel_conf_pver_status(struct m0_spiel          *spl,
+			      struct m0_fid            *fid,
+			      struct m0_conf_pver_info *out_info);
 
 /** @} end of spiel group */
 #endif /* __MOTR_SPIEL_SPIEL_H__ */
