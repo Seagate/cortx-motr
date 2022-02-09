@@ -33,6 +33,7 @@
 #include "be/domain.h"            /* m0_be_domain */
 #include "be/alloc.h"             /* m0_be_alloc_stats */
 #include "module/instance.h"      /* m0_get */
+#include "cob/cob.h"              /* m0_cob_bckey, m0_cob_bcrec */
 #include "conf/helpers.h"
 #include "fop/fop.h"
 #include "fop/fom_generic.h"
@@ -70,6 +71,7 @@ enum ss_process_fom_phases {
 	SS_PROCESS_FOM_RECONFIG_DATA_WAIT,
 	SS_PROCESS_FOM_RECONFIG,
 	SS_PROCESS_FOM_HEALTH,
+	SS_PROCESS_FOM_COUNTER,
 	SS_PROCESS_FOM_QUIESCE,
 	SS_PROCESS_FOM_RUNNING_LIST,
 	SS_PROCESS_FOM_LIB_LOAD
@@ -92,6 +94,7 @@ struct m0_sm_state_descr ss_process_fom_phases[] = {
 		.sd_allowed = M0_BITS(SS_PROCESS_FOM_STOP,
 				      SS_PROCESS_FOM_RECONFIG_GET_DATA,
 				      SS_PROCESS_FOM_HEALTH,
+				      SS_PROCESS_FOM_COUNTER,
 				      SS_PROCESS_FOM_QUIESCE,
 				      SS_PROCESS_FOM_RUNNING_LIST,
 				      SS_PROCESS_FOM_LIB_LOAD,
@@ -116,6 +119,10 @@ struct m0_sm_state_descr ss_process_fom_phases[] = {
 	},
 	[SS_PROCESS_FOM_HEALTH]= {
 		.sd_name    = "SS_PROCESS_FOM_HEALTH",
+		.sd_allowed = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE),
+	},
+	[SS_PROCESS_FOM_COUNTER]= {
+		.sd_name    = "SS_PROCESS_FOM_COUNTER",
 		.sd_allowed = M0_BITS(M0_FOPH_SUCCESS, M0_FOPH_FAILURE),
 	},
 	[SS_PROCESS_FOM_QUIESCE]= {
@@ -223,6 +230,7 @@ static int ss_process_fom_tick__init(struct m0_fom        *fom,
 		[M0_PROCESS_STOP]         = SS_PROCESS_FOM_STOP,
 		[M0_PROCESS_RECONFIG]     = SS_PROCESS_FOM_RECONFIG_GET_DATA,
 		[M0_PROCESS_HEALTH]       = SS_PROCESS_FOM_HEALTH,
+		[M0_PROCESS_COUNTER]      = SS_PROCESS_FOM_COUNTER,
 		[M0_PROCESS_QUIESCE]      = SS_PROCESS_FOM_QUIESCE,
 		[M0_PROCESS_RUNNING_LIST] = SS_PROCESS_FOM_RUNNING_LIST,
 		[M0_PROCESS_LIB_LOAD]     = SS_PROCESS_FOM_LIB_LOAD,
@@ -252,6 +260,12 @@ static int ss_process_health(struct m0_reqh *reqh, int32_t *h)
 #ifdef __KERNEL__
 static int ss_process_stats(struct m0_reqh *reqh M0_UNUSED,
 			     struct m0_ss_process_rep *rep M0_UNUSED)
+{
+	return M0_ERR(-ENOSYS);
+}
+
+static int ss_process_counter(struct m0_reqh *reqh M0_UNUSED,
+			      struct m0_ss_process_rep *rep M0_UNUSED)
 {
 	return M0_ERR(-ENOSYS);
 }
@@ -363,6 +377,36 @@ static int ss_process_stats(struct m0_reqh           *reqh,
 	/* see if ioservice is up and running */
 	if (rc == 0 && ss_ioservice_find(reqh) != NULL)
 		rc = ss_ios_stats_ingest(rep);
+	return M0_RC(rc);
+}
+
+static int ss_bytecount_stats_ingest(struct m0_ss_process_rep *rep)
+{
+	struct m0_cob_bckey  key;
+	struct m0_cob_bcrec  rec;
+
+	/* DUMMY values */
+	key.cbk_pfid = M0_FID_TINIT('v', 1, 8);
+	key.cbk_user_id = 8881212;
+
+	rec.cbr_bytecount = 10240000;
+	rec.cbr_cob_objects = 10000;
+
+	m0_buf_new_aligned(&rep->sspr_bckey, &key, sizeof(key), 0);
+	m0_buf_new_aligned(&rep->sspr_bcrec, &rec, sizeof(rec), 0);
+
+	return 0;
+}
+static int ss_process_counter(struct m0_reqh           *reqh,
+			      struct m0_ss_process_rep *rep)
+{
+	int rc;
+
+	M0_ENTRY();
+	if (ss_ioservice_find(reqh) != NULL)
+		rc = ss_bytecount_stats_ingest(rep);
+	else
+		rc = -ESRCH;
 	return M0_RC(rc);
 }
 #endif
@@ -644,6 +688,10 @@ static int ss_process_fom_tick(struct m0_fom *fom)
 				   ss_process_health(reqh, &rep->sspr_health) ?:
 				   ss_process_stats(reqh, rep));
 
+	case SS_PROCESS_FOM_COUNTER:
+		return ss_process_fom_tail(fom,
+				   ss_process_health(reqh, &rep->sspr_health) ?:
+				   ss_process_counter(reqh, rep));
 	case SS_PROCESS_FOM_QUIESCE:
 		return ss_process_fom_tail(fom, ss_process_quiesce(reqh));
 	case SS_PROCESS_FOM_RECONFIG_GET_DATA:

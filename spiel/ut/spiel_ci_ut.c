@@ -523,12 +523,19 @@ void test_spiel_bc_stats(void)
 	int                     rc;
 	struct m0_proc_counter  count_stats;
 	struct m0_fid           proc_fid = M0_FID_TINIT('r', 1, 6);
+	struct m0_fid           temp_fid = M0_FID_TINIT('v', 1, 8);
 
 	spiel_ci_ut_init();
 
 	M0_SET0(&count_stats);
 	rc = m0_spiel_proc_counters_fetch(&spiel, &proc_fid, &count_stats);
 
+	M0_UT_ASSERT(m0_fid_eq(&count_stats.pc_proc_fid, &proc_fid));
+	M0_UT_ASSERT(count_stats.pc_cnt = 1);
+	M0_UT_ASSERT(m0_fid_eq(&count_stats.pc_bckey[0]->sbk_fid, &temp_fid));
+	M0_UT_ASSERT(count_stats.pc_bckey[0]->sbk_user_id == 8881212);
+	M0_UT_ASSERT(count_stats.pc_bcrec[0]->sbr_byte_count == 10240000);
+	M0_UT_ASSERT(count_stats.pc_bcrec[0]->sbr_object_count == 10000);
 	M0_UT_ASSERT(rc == 0);
 
 	spiel_ci_ut_fini();
