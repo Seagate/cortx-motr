@@ -308,16 +308,6 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 	return M0_RC(0);
 }
 
-static void wakeup_iff_waiting(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-	struct m0_fom *fom = ast->sa_datum;
-
-	M0_ENTRY();
-	if (m0_fom_is_waiting(fom))
-		m0_fom_ready(fom);
-	M0_LEAVE();
-}
-
 M0_INTERNAL void m0_fdmi__src_dock_fom_wakeup(struct fdmi_sd_fom *sd_fom)
 {
 	struct m0_fom *fom;
@@ -336,33 +326,16 @@ M0_INTERNAL void m0_fdmi__src_dock_fom_wakeup(struct fdmi_sd_fom *sd_fom)
 		M0_LEAVE("FDMI FOM is not initialized yet");
 		return;
 	}
-	if (sd_fom->fsf_wakeup_ast.sa_next == NULL) {
-		sd_fom->fsf_wakeup_ast = (struct m0_sm_ast) {
-			.sa_cb    = wakeup_iff_waiting,
-			.sa_datum = fom
-		};
-		m0_sm_ast_post(&fom->fo_loc->fl_group, &sd_fom->fsf_wakeup_ast);
-	}
+	m0_fom_wakeup(fom);
 	M0_LEAVE();
 }
 
 static void fdmi__src_dock_timer_fom_wakeup(struct fdmi_sd_timer_fom *timer_fom)
 {
-	struct m0_fom *fom;
-
 	M0_ENTRY("sd_timer_fom %p", timer_fom);
 	M0_PRE(timer_fom != NULL);
 
-	fom = &timer_fom->fstf_fom;
-
-	if (timer_fom->fstf_wakeup_ast.sa_next == NULL) {
-		timer_fom->fstf_wakeup_ast = (struct m0_sm_ast) {
-			.sa_cb    = wakeup_iff_waiting,
-			.sa_datum = fom
-		};
-		m0_sm_ast_post(&fom->fo_loc->fl_group,
-			       &timer_fom->fstf_wakeup_ast);
-	}
+	m0_fom_wakeup(&timer_fom->fstf_fom);
 	M0_LEAVE();
 }
 

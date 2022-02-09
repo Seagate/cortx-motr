@@ -256,7 +256,6 @@ M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 	hl->hln_reconnect = false;
 	hl->hln_reconnect_wait = false;
 	hl->hln_reconnect_cfg_is_set = false;
-	hl->hln_waking_up = false;
 	hl->hln_fom_is_stopping = false;
 	hl->hln_fom_enable_wakeup = true;
 	hl->hln_no_new_delivered = false;
@@ -1627,36 +1626,12 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
         return M0_RC(M0_FSO_WAIT);
 }
 
-static void ha_link_outgoing_fom_wakeup_ast(struct m0_sm_group *gr,
-                                            struct m0_sm_ast   *ast)
-{
-	struct m0_ha_link *hl = ast->sa_datum;
-
-	M0_ENTRY("hl=%p", hl);
-	m0_mutex_lock(&hl->hln_lock);
-	hl->hln_waking_up = false;
-	m0_mutex_unlock(&hl->hln_lock);
-	if (m0_fom_is_waiting(&hl->hln_fom)) {
-		M0_LOG(M0_DEBUG, "waking up");
-		m0_fom_ready(&hl->hln_fom);
-	}
-	M0_LEAVE();
-}
-
 static void ha_link_outgoing_fom_wakeup(struct m0_ha_link *hl)
 {
 	M0_ENTRY("hl=%p", hl);
 	m0_mutex_lock(&hl->hln_lock);
-	if (!hl->hln_waking_up && hl->hln_fom_enable_wakeup) {
-		M0_LOG(M0_DEBUG, "posting ast");
-		hl->hln_waking_up = true;
-		hl->hln_waking_ast = (struct m0_sm_ast){
-			.sa_cb    = &ha_link_outgoing_fom_wakeup_ast,
-			.sa_datum = hl,
-		};
-		m0_sm_ast_post(hl->hln_fom_locality->lo_grp,
-			       &hl->hln_waking_ast);
-	}
+	if (hl->hln_fom_enable_wakeup)
+		m0_fom_wakeup(&hl->hln_fom);
 	m0_mutex_unlock(&hl->hln_lock);
 	M0_LEAVE();
 }

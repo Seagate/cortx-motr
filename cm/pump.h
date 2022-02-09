@@ -60,7 +60,6 @@ struct m0_cm_cp_pump {
 	struct m0_cm_cp       *p_cp;
 	uint64_t               p_magix;
 	struct m0_clink        p_complete;
-	struct m0_sm_ast       p_wakeup;
 };
 
 M0_INTERNAL void m0_cm_cp_pump_init(struct m0_cm_type *cmtype);
@@ -72,11 +71,6 @@ M0_INTERNAL void m0_cm_cp_pump_prepare(struct m0_cm *cm);
  */
 M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_cp_pump_destroy(struct m0_cm *cm);
-/**
- * Wakes up pump FOM to create more copy packets.
- */
-M0_INTERNAL void m0_cm_cp_pump_wakeup(struct m0_cm *cm);
-
 M0_INTERNAL bool m0_cm_cp_pump_is_complete(const struct m0_cm_cp_pump *cp_pump);
 /** @} endgroup CM */
 

@@ -448,30 +448,14 @@ M0_INTERNAL void m0_cm_cp_pump_destroy(struct m0_cm *cm)
 	cm_cp_pump_fom_fini(&cm->cm_cp_pump.p_fom);
 }
 
-static void complete_wakeup(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-        struct m0_cm_cp_pump *pump = M0_AMB(pump, ast, p_wakeup);
-
-	M0_ENTRY();
-
-        if (m0_fom_phase(&pump->p_fom) == CPP_COMPLETE &&
-	    m0_fom_is_waiting(&pump->p_fom))
-                m0_fom_ready(&pump->p_fom);
-
-	M0_LEAVE();
-}
-
 static bool pump_cb(struct m0_clink *link)
 {
 	struct m0_cm_cp_pump *pump = container_of(link, struct m0_cm_cp_pump,
 						  p_complete);
-	struct m0_sm_group   *grp;
 	M0_ENTRY();
 
-        grp = &pump->p_fom.fo_loc->fl_group;
-        pump->p_wakeup.sa_cb = complete_wakeup;
-	if (pump->p_wakeup.sa_next == NULL)
-		m0_sm_ast_post(grp, &pump->p_wakeup);
+	if (m0_fom_phase(&pump->p_fom) == CPP_COMPLETE)
+		m0_fom_wakeup(&pump->p_fom);
 
 	return M0_RC(true);
 }
