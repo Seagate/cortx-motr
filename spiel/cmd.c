@@ -2070,6 +2070,7 @@ leave:
 
 	conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
 	m0_rpc_link_disconnect_sync(&proc->sci_rlink, conn_timeout);
+	m0_rpc_link_fini(&proc->sci_rlink);
 	m0_semaphore_up(&proc->sci_barrier);
 	M0_LEAVE();
 }
