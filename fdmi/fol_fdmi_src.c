@@ -668,6 +668,11 @@ M0_INTERNAL void m0_fol_fdmi_post_record(struct m0_fom *fom)
 		M0_LOG(M0_ERROR, "src dock fom is not running");
 		return;
 	}
+	if (!src_dock->fsdc_filters_defined) {
+		/* No filters defined. Let's not post the records. */
+		return;
+	}
+
 
 	/**
 	 * There is no "unpost record" method, so we have to prepare
