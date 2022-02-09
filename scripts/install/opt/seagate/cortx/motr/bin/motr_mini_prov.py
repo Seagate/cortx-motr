@@ -462,9 +462,11 @@ def motr_config_k8(self):
     if not os.path.exists(f"{conf_file}"): 
         raise MotrError(errno.ENOENT, f"{conf_file} does not exist")
 
-    cmd = "{} {} {}".format(MOTR_CONFIG_SCRIPT, " -c ", conf_file)
-    self.logger.info(f"Atul on motr_mini_prov:461 cmd={cmd}")
-    execute_command(self, cmd, verbose = True)
+    # For time being, we are only executing MOTR_CONFIG_SCRIPT for large setups
+    if self.setup_size == "large":
+        cmd = "{} {} {}".format(MOTR_CONFIG_SCRIPT, " -c ", conf_file)
+        self.logger.info(f"Atul on motr_mini_prov:461 cmd={cmd}")
+        execute_command(self, cmd, verbose = True)
 
     update_motr_hare_keys(self, self.nodes)
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)

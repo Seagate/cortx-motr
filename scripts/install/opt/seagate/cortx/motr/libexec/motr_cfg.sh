@@ -204,7 +204,6 @@ motr_cfg_update()
 {
     MOTR_CONF_FILE = $1
 
-    echo "Atul on 207....$MOTR_CONF_FILE"
     while IFS= read -r CFG_LINE
     do
         if [[ "$CFG_LINE" == "#"* ]]; then
