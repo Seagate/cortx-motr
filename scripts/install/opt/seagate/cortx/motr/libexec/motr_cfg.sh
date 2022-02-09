@@ -202,22 +202,7 @@ lvm_size_percentage_diff()
 
 motr_cfg_update()
 {
-    MOTR_CONF_FILE = $2
-
-    # $1 is setup size
-    if [[ -n $1 ]];
-    then
-        MOTR_CONF_FILE="${MOTR_CONF_DIR}""/motr_""$1"".conf"
-        echo "Atul on motr_cfg.sh:210...setup_size is $1 and motr conf file is $MOTR_CONF_FILE"
-    else
-        echo "Atul on motr_cfg.sh:212.....No setup size is passed so use default motr.conf file $MOTR_CONF_FILE"
-    fi
-
-    if [ ! -f "$MOTR_CONF_FILE" ];
-    then
-        echo "Atul on motr_cfg.sh:217....$MOTR_CONF_FILE does not exist"
-        die $ERR_SUCCESS
-    fi
+    MOTR_CONF_FILE = $1
 
     while IFS= read -r CFG_LINE
     do
