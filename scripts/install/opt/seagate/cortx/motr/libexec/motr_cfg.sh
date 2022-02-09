@@ -454,9 +454,7 @@ elif [ "$1" == "-g" ]; then
 elif [ "$1" == "-s" ]; then
     set_option "$2" "$3" "$4"
 elif [ "$1" == "-c" ]; then
-    echo "Atul on 457...$1 and $2 and num_params=$#"
     if [ $# -eq 2 ]; then
-        echo "Atul on 459....."
         motr_cfg_update "$2"
     fi
 else

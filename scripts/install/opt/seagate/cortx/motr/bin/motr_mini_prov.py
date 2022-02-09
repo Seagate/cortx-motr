@@ -469,6 +469,9 @@ def motr_config_k8(self):
         cmd = "{} {} {}".format(MOTR_CONFIG_SCRIPT, " -c ", conf_file)
         self.logger.info(f"For the time being, only for {self.setup_size} setup size, execute command: {cmd}")
         execute_command(self, cmd, verbose = True)
+    else:
+        cmd = "{} {} {}".format(MOTR_CONFIG_SCRIPT, " -c ", conf_file) 
+        self.logger.info(f"Skipping execution of cmd for setup_sizes other than large until we have {conf_file} for {self.setup_size}: {cmd}")
 
     update_motr_hare_keys(self, self.nodes)
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
