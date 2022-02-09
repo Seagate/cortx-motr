@@ -135,7 +135,9 @@ M0_INTERNAL void m0_sm_group_unlock_rec(struct m0_sm_group *grp, bool runast)
 M0_INTERNAL void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	M0_PRE(ast->sa_cb != NULL);
-	M0_PRE(ast->sa_next == NULL);
+
+	if (!M0_ATOMIC64_CAS(&ast->sa_next, (struct m0_sm_ast*)NULL, ast))
+		return; /* already posted */
 
 	do {
 		ast->sa_next = grp->s_forkq;
