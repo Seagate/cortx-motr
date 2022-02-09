@@ -1251,7 +1251,7 @@ int m0_spiel_pool_rebalance_abort(struct m0_spiel     *spl,
 			          const struct m0_fid *pool_fid);
 
 /**
- * Motr Byte count stats. These stats contain byte count and object count data
+ * Motr Byte count stats. These stats contain byte count and motr object count data
  * written per pool version per end user. The stats are collected from a target
  * ioservice's btree and returned as an array of key-value pairs where keys are
  * a combination of pool version fid and 64 bit user-id and value is the count
@@ -1284,7 +1284,7 @@ struct m0_proc_counter {
 
 /**
  * Fetches byte counts and object counts per pool version written by all
- * end users from a target ioservice. All entires in the byte count btree
+ * end users from a target ioservice. All entries in the byte count btree
  * present in the ioservice is fetched by a call of this API.
  *
  * @param[in]  spl          spiel instance used for executing spiel command.

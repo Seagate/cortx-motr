@@ -1669,7 +1669,7 @@ struct m0_proc_data {
 };
 
 /**
- * A context for fetching counters from ioservices.
+ * A context for fetching counters from ioservice process.
  */
 struct spiel_proc_counter_item {
 	/** Process fid */
@@ -2140,7 +2140,6 @@ int m0_spiel_conf_pver_status(struct m0_spiel          *spl,
 			      struct m0_conf_pver_info *out_info)
 {
 	struct m0_confc *confc;
-	int              rc;
 
 	M0_ENTRY();
 	M0_PRE(spl != NULL);
@@ -2149,9 +2148,7 @@ int m0_spiel_conf_pver_status(struct m0_spiel          *spl,
 	if (!m0_confc_is_inited(confc))
 		return M0_ERR_INFO(-EAGAIN, "confc is finalised");
 
-	rc = m0_conf_pver_status(fid, confc, out_info);
-
-	return rc ? M0_ERR(rc) : M0_RC(rc); 
+	return M0_RC(m0_conf_pver_status(fid, confc, out_info));
 }
 M0_EXPORTED(m0_spiel_conf_pver_status);
 /** @} */

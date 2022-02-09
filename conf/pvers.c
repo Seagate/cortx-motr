@@ -848,7 +848,7 @@ int m0_conf_pver_status(struct m0_fid *fid,
 		out_info->cpi_state = M0_CPS_DAMAGED;
 
 	return M0_RC(rc);
-}M0_EXPORTED(m0_conf_pver_status);
+} M0_EXPORTED(m0_conf_pver_status);
 
 static int conf_obj_mark_deleted(struct m0_conf_obj *obj, void *args M0_UNUSED)
 {

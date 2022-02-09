@@ -107,11 +107,14 @@
  * @{
  */
 
+/**
+ * State is determined by counting the number of failures in the cluster.
+ */
 enum m0_conf_pver_state {
-	M0_CPS_HEALTHY,
-	M0_CPS_DEGRADED,
-	M0_CPS_CRITICAL,
-	M0_CPS_DAMAGED,
+	M0_CPS_HEALTHY,      /* Failures == 0 */
+	M0_CPS_DEGRADED,     /* Failures < K */
+	M0_CPS_CRITICAL,     /* Failures == K */
+	M0_CPS_DAMAGED,      /* Failures > K */
 	M0_CPS_NR
 };
 
