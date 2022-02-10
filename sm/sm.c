@@ -136,6 +136,7 @@ M0_INTERNAL void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	M0_PRE(ast->sa_cb != NULL);
 
+	/* allow concurrent calls */
 	if (!M0_ATOMIC64_CAS(&ast->sa_next, (struct m0_sm_ast*)NULL, ast))
 		return; /* already posted */
 

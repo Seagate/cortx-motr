@@ -708,6 +708,19 @@ M0_INTERNAL bool m0_sm_timeout_is_armed(const struct m0_sm_timeout *to);
 
 /**
  * Posts an AST to a group.
+ *
+ * ASTs can be posted many times and concurrently by several threads, the
+ * callbacks will be executed sequentially and in order under the group
+ * locality lock (provided that ->sa_datum and ->sa_cb fields are not
+ * changing during the re-posts, see the note below).
+ *
+ * If an AST is allocated dynamicaly for posting, it is possible to cleanup
+ * and free it at the callback, in which case the user must make sure that
+ * the same AST is not posted several times, to avoid use-after-free bugs.
+ *
+ * @note IMPORTANT: if either ->sa_datum or ->sa_cb field are changed for
+ *       the same ast on re-posting, the user must make sure that the
+ *       previous callback is finished execution before changing the fields.
  */
 M0_INTERNAL void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast);
 
