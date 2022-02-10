@@ -445,7 +445,7 @@ def motr_config_k8(self):
     # Use this motr.conf file to update /etc/sysconfig/motr
     if ((self.setup_size) and
        (self.setup_size in ["large", "medium", "small"]) and
-       (os.path.exists(f"{MOTR_CONF_DIR}/motr_setup_{self.setup_size}.conf"))):
+       (os.path.exists("{}/motr_setup_{}.conf".format(MOTR_CONF_DIR, self.setup_size)))):
         conf_file = f"{MOTR_CONF_DIR}/motr_setup_{self.setup_size}.conf"
         self.logger.info(f"conf_file = {conf_file}")
     elif os.path.exists(f"{DEFAULT_MOTR_CONF_FILE}"):
