@@ -437,44 +437,28 @@ def motr_config_k8(self):
 
     # Use motr.conf file according to setup_size
     # Ex:
-    # If setup_size is large then motr.conf file is /opt/seagate/cortx/motr/conf/motr_large.conf
-    # If setup_size is medium then motr.conf file is /opt/seagate/cortx/motr/conf/motr_medium.conf
-    # If setup_size is small then motr.conf file is /opt/seagate/cortx/motr/conf/motr_small.conf
+    # If setup_size is large then motr.conf file is /opt/seagate/cortx/motr/conf/motr_setup_large.conf
+    # If setup_size is medium then motr.conf file is /opt/seagate/cortx/motr/conf/motr_setup_medium.conf
+    # If setup_size is small then motr.conf file is /opt/seagate/cortx/motr/conf/motr_setup_small.conf
     # If setup_size is anything else or not given then motr.conf file is
     #    /opt/seagate/cortx/motr/conf/motr.conf
     # Use this motr.conf file to update /etc/sysconfig/motr
-    if self.setup_size:
-        self.logger.info(f"setup_size={self.setup_size}")
-        if self.setup_size in ["large", "medium", "small"]:
-            conf_file = f"{MOTR_CONF_DIR}/motr_{self.setup_size}.conf"
-        else:
-            conf_file = DEFAULT_MOTR_CONF_FILE
+    if ((self.setup_size) and
+       (self.setup_size in ["large", "medium", "small"]) and
+       (os.path.exists(f"{MOTR_CONF_DIR}/motr_setup_{self.setup_size}.conf"))):
+        conf_file = f"{MOTR_CONF_DIR}/motr_setup_{self.setup_size}.conf"
+        self.logger.info(f"conf_file = {conf_file}")
+    elif os.path.exists(f"{DEFAULT_MOTR_CONF_FILE}"):
+        self.logger.warn(f"setup_size is invalid or not provided so setting conf_file to {DEFAULT_MOTR_CONF_FILE}")
+        conf_file = DEFAULT_MOTR_CONF_FILE
     else:
-        conf_file = f"{MOTR_CONF_DIR}/motr.conf"
-    self.logger.warn(f"conf_file={conf_file}")
+        raise MotrError(errno.ENOENT, f"setup size is invalid or not provided and {DEFAULT_MOTR_CONF_FILE} not exist")
 
-    if conf_file != DEFAULT_MOTR_CONF_FILE:
-        if not os.path.exists(f"{conf_file}"):
-            self.logger.warn(f"{conf_file} does not exist so setting it to default file {DEFAULT_MOTR_CONF_FILE}")
-            conf_file = DEFAULT_MOTR_CONF_FILE
-    self.logger.warn(f"conf_file={conf_file}")
-    if not os.path.exists(f"{conf_file}"):
-        raise MotrError(errno.ENOENT, f"{conf_file} does not exist")
-
-    # For time being, until we create different conf files for different setup sizes,
-    # we are only executing MOTR_CONFIG_SCRIPT for large setups
     # Executing /opt/seagate/cortx/motr/libexec/motr_cfg.sh -c /opt/seagate/cortx/motr/conf/motr.conf
-    # for VM will assign HW motr config parameters to VM which will not start motr services properly in VM.
-    if self.setup_size == "large":
-        cmd = "{} {} {}".format(MOTR_CONFIG_SCRIPT, " -c ", conf_file)
-        self.logger.info(f"For the time being, only for {self.setup_size} setup size, execute command: {cmd}")
-        execute_command(self, cmd, verbose = True)
-    else:
-        cmd = "{} {} {}".format(MOTR_CONFIG_SCRIPT, " -c ", conf_file) 
-        self.logger.info(f"Skipping execution of cmd for setup_sizes other than large until we have {conf_file} for {self.setup_size}: {cmd}")
+    cmd = f"{} {} {}".format(MOTR_CONFIG_SCRIPT, " -c ", conf_file)
+    execute_command(self, cmd, verbose = True)
 
     update_motr_hare_keys(self, self.nodes)
-    execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
 
     # Update be_seg size only for storage node
     update_bseg_size(self)

@@ -20,7 +20,6 @@
 #set -x
 
 MOTR_CONF_FILE="/opt/seagate/cortx/motr/conf/motr.conf"
-MOTR_CONF_DIR="/opt/seagate/cortx/motr/conf"
 ETC_SYSCONFIG_MOTR="/etc/sysconfig/motr"
 
 source "/opt/seagate/cortx/motr/common/cortx_error_codes.sh"
@@ -202,7 +201,9 @@ lvm_size_percentage_diff()
 
 motr_cfg_update()
 {
-    MOTR_CONF_FILE = $1
+    if [ -n "$1" ]; then
+        MOTR_CONF_FILE="$1"
+    fi
 
     while IFS= read -r CFG_LINE
     do
