@@ -129,9 +129,14 @@ main() {
     done >>$REPORT
 
     # Collects compressed core generated in /var/crash and /var/log/crash
-    if [ $COLLECT_COREDUMPS_P -eq 1 ]
-    then
-        M0TR_M0D_CORE_DIR=$(source /etc/sysconfig/motr ; echo $MOTR_M0D_DATA_DIR)
+    MACHINE_ID=$(cat /etc/machine-id)
+    if [ -d /etc/cortx/motr/sysconfig/$MACHINE_ID ]; then
+        MOTR_SYSCONFIG="/etc/cortx/motr/sysconfig/$MACHINE_ID/motr"
+    else
+        MOTR_SYSCONFIG="/etc/sysconfig/motr"
+    fi
+    if [ $COLLECT_COREDUMPS_P -eq 1 ]; then
+        M0TR_M0D_CORE_DIR=$(source $MOTR_SYSCONFIG ; echo $MOTR_M0D_DATA_DIR)
         CORE_DIRS+=("$M0TR_M0D_CORE_DIR")
     fi 
     for IN_DIR in  ${CORE_DIRS[@]}; do
@@ -191,7 +196,7 @@ main() {
     fi
 
     # Collects traces of m0d process(confd, ios) only
-    M0TR_M0D_TRACE_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_TRACE_DIR" | cut -d '=' -f2)
+    M0TR_M0D_TRACE_DIR=$(source $MOTR_SYSCONFIG; echo $MOTR_M0D_TRACE_DIR)
     M0D_TRACE_DIR="${M0TR_M0D_TRACE_DIR%\'}"
     M0D_TRACE_DIR="${M0D_TRACE_DIR#\'}"
 
@@ -208,7 +213,7 @@ main() {
     fi
 
     # Collects addb record files for process(confd, ios and s3server)
-    ADDB_RECORD_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_ADDB_STOB_DIR" | cut -d '=' -f2)
+    ADDB_RECORD_DIR=$(source $MOTR_SYSCONFIG; echo $MOTR_M0D_ADDB_STOB_DIR)
     ADDB_DIR="${ADDB_RECORD_DIR%\'}"
     ADDB_DIR="${ADDB_DIR#\'}"
 

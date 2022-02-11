@@ -20,30 +20,33 @@
 #
 # Clone, build and prepare to start a single-node cluster.
 #
-# Usage: ./build-prep-1node.sh [-dev]
+# Usage: ./build-prep-1node.sh [-dev] [-pkg]
 #
 #   -dev  development mode, don't build and install rpms
+#   -pkg  install packages without using ansible
 #
 set -e -o pipefail
-
+#set -x
 dev_mode=
+pkg=
 
 [[ $1 == "-dev" ]] && dev_mode='yes'
+[[ $1 == "-pkg" || $2 == "-pkg" ]] && pkg='yes'
 
 which git || sudo yum install -y git
 
-[[ -d cortx-motr ]] || {
+[[ -f scripts/$(basename "$0") ]] || [[ -d cortx-motr ]] || {
     git clone --recurse https://github.com/Seagate/cortx-motr.git &&
         ln -s cortx-motr motr
 }
 
 echo 'Install Motr deps...'
-sudo yum install -y epel-release # Install EPEL yum repo
-sudo yum install -y epel-release # Update to the latest version
-sudo yum install -y ansible
-
-cd motr
-sudo scripts/install-build-deps
+[[ -f scripts/$(basename "$0") ]] || cd motr
+if [[ $pkg == "yes" ]]; then
+    sudo scripts/install-build-deps --no-ansible
+else
+    sudo scripts/install-build-deps
+fi
 
 echo 'Configure Motr...'
 [[ -f configure ]] && sudo git clean -dfx
@@ -60,7 +63,7 @@ else
     ls -t ~/rpmbuild/RPMS/$(arch)/cortx-motr{,-devel,-debuginfo}-2* | head -3 |
         xargs sudo rpm -U --force --nodeps
 fi
-cd -
+cd ..
 
 echo 'Install Hare deps...'
 

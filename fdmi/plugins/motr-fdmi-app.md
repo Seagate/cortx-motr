@@ -196,10 +196,6 @@ Example of running this application polling the `~/test` directory every 3 secon
 
 `./fdmi_app_word_count -ld ~/test -ss 3 -np 30`
 
-## Tested by
-
-- Dec 7, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linus release 7.8.2003 x86_64
-
 ## References
  
 More details about the FDMI design and settings can be found in this link: 
@@ -209,3 +205,7 @@ More details about the FDMI design and settings can be found in this link:
 [FDMI code comments](https://github.com/Seagate/cortx-motr/blob/main/fdmi/fdmi.c)
 
 [FDMI Github Page for Hackathon event](https://cortx.link/UCD)
+
+## Tested by
+
+- Dec 7, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linus release 7.8.2003 x86_64

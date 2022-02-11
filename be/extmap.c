@@ -482,19 +482,19 @@ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
  * extent. It is assumed that cursor is correctly placed so ext is part of
  * cursor-segment (it->ec_seg).
  *
- * 1. Finds the overlap of current-segment with extent (ext)
+ * 1. Finds the overlap of current-segment with the new extent (ext)
  * 2. Based on the overlap, atmost 3 sub-segment can get created
  *    (term left/right w.r.t area of current segment left after removing clip area)
  *    a. Left   sub-seg : Overlap of start of cur-seg  with ext
- *        		      |  cur-seg  |
+ *                        |  cur-seg  |
  *                             | clip - ext |
  *                        |Left| => [curr-seg:Start - clip:Start]
  *    b. Middle sub-seg : If ext part (to be pasted) fully overlaps with curr-seg (clip)
- *        			      |         cur-seg              |
+ *                        |         cur-seg              |
  *                               | clip - ext |
  *                        | Left |   Middle   |  Right   |
  *    c. Right  sub-seg : Overalp of end of cur-seg with ext
- *        			      |  cur-seg  |
+ *                        |  cur-seg  |
  *                | clip - ext |
  *                             |Right | => [clip:End - curr-seg:End]
  * 3. EMAP operation for these three segments are performed (not all may be needed)
