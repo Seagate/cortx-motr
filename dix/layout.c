@@ -164,7 +164,7 @@ M0_INTERNAL void m0_dix_target(struct m0_dix_linst *inst,
 		m0_fd_fwd_map(inst->li_pi, &src, &tgt);
 	*out_id = tgt.ta_obj;
 	M0_LOG(M0_DEBUG,
-	       "Key %p, group/unit [%"PRIx64",%"PRIx64"] -> target %"PRIx64,
+	       "Key %p, group/unit [%" PRIx64 ",%" PRIx64 "] -> target %"PRIx64,
 			key, src.sa_group, unit, *out_id);
 }
 

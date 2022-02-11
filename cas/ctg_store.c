@@ -205,7 +205,7 @@ static int ctg_buf(const struct m0_buf *val, struct m0_buf *buf)
 		}
 	}
 	if (result != 0)
-		return M0_ERR_INFO(result, "Unexpected: %"PRIx64"/%"PRIx64,
+		return M0_ERR_INFO(result, "Unexpected: %" PRIx64 "/%"PRIx64,
 				   val->b_nob, buf->b_nob);
 	else
 		return M0_RC(result);

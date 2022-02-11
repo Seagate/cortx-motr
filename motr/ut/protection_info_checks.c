@@ -161,7 +161,7 @@ void verify_case_one_two(void)
 	{
 		memcpy((void *)&tmp_ctx,(void *)curr_context[j],sizeof(MD5_CTX));
 		seed.pis_data_unit_offset = j*SEGS_NR*BUFFER_SIZE;
-		snprintf(seed_str,sizeof(seed_str),"%"PRIx64"%"PRIx64"%"PRIx64,
+		snprintf(seed_str,sizeof(seed_str),"%" PRIx64 "%" PRIx64 "%"PRIx64,
 				seed.pis_obj_id.f_container, seed.pis_obj_id.f_key,
 				seed.pis_data_unit_offset);
 
@@ -328,5 +328,3 @@ struct m0_ut_suite ut_suite_pi = {
 };
 
 #undef M0_TRACE_SUBSYSTEM
-
-
