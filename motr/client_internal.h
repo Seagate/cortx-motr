@@ -505,7 +505,7 @@ enum {
 	 * These constants are used to create buffers acceptable to the
 	 * network code.
 	 */
-	
+
 #ifdef CONFIG_X86_64
 	M0_NETBUF_MASK              = 4096 - 1,
 	M0_NETBUF_SHIFT             = 12,
@@ -1026,6 +1026,7 @@ enum initlift_states {
 	IL_IDX_SERVICE,
 	IL_ROOT_FID, /* TODO: remove this m0t1fs ism */
 	IL_ADDB2,
+	IL_DTM,
 	IL_INITIALISED,
 	IL_FAILED,
 };

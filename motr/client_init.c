@@ -86,33 +86,6 @@ struct m0_conf_root *conf_root;
  * Why not use a state machine?
  */
 
-/**
- * Client initialises these components, in this order. If something fails
- * it automatically reverses and moves back to IL_UNINITIALISED.
- *
- * Rule of thumb: if you need a goto, you are probably tracking some kind of
- *                state that should be added here instead.
- */
-enum initlift_states {
-	IL_UNINITIALISED = 0,
-	IL_NET, /* TODO: break this out */
-	IL_RPC, /* TODO: break this out */
-	IL_AST_THREAD,
-	IL_HA,
-	IL_CONFC,    /* Creates confc and stashes in m0c */
-	IL_POOLS,
-	IL_POOL_VERSION,
-	IL_RESOURCE_MANAGER,
-	IL_LAYOUT_DB,
-	IL_IDX_SERVICE,
-	IL_ROOT_FID, /* TODO: remove this m0t1fs ism */
-	IL_FIS,
-	IL_ADDB2,
-	IL_DTM0,
-	IL_INITIALISED,
-	IL_FAILED,
-};
-
 /** Forward declarations for state callbacks */
 static int initlift_uninitialised(struct m0_sm *mach);
 static int initlift_net(struct m0_sm *mach);
@@ -127,8 +100,6 @@ static int initlift_layouts(struct m0_sm *mach);
 static int initlift_idx_service(struct m0_sm *mach);
 static int initlift_rootfid(struct m0_sm *mach);
 static int initlift_addb2(struct m0_sm *mach);
-static int initlift_dtm0(struct m0_sm *mach);
-static int initlift_fis(struct m0_sm *mach);
 
 /**
  * State machine phases for client operations.
@@ -216,183 +187,9 @@ struct m0_sm_state_descr initlift_phases[] = {
 				      IL_FIS),
 		.sd_in = initlift_addb2,
 	},
-	[IL_DTM0] = {
-		.sd_name = "init/fini-dtm0",
-		.sd_allowed = M0_BITS(IL_INITIALISED,
-				      IL_ADDB2),
-		.sd_in = initlift_dtm0,
-	},
-	[IL_INITIALISED] = {
-
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
-#include "lib/trace.h"                /* M0_LOG */
-
-/* BOB type for m0_ */
-static const struct m0_bob_type m0c_bobtype;
-M0_BOB_DEFINE(static, &m0c_bobtype,  m0_client);
-
-static const struct m0_bob_type m0c_bobtype = {
-	.bt_name         = "m0c_bobtype",
-	.bt_magix_offset = offsetof(struct m0_client, m0c_magic),
-	.bt_magix        = M0_M0C_MAGIC,
-	.bt_check        = NULL,
-};
-
-/**
- * Pointer to the root configuration object that a Client client
- * attaches to. It is closed after Client initilisation is done as it
- * may become invalid at some point of time.
- */
-struct m0_conf_root *conf_root;
-
-/**
- * The Initialisation code in client is fiddly, lots of different parts of motr
- * need to be initialised in the correct order, if something fails, all the
- * parts that have been initialised need to be finalised and an error returned.
- *
- * This typically means that all the initialisation code needs to know how to
- * finalise client too, while not being the finalisation code. A rats nest of
- * implicit states need to be tracked by *_init functions, pinned down
- * by a rack of gotos, so that init can 'fini' what it has done so far.
- *
- * This gives us difficult to read duplicated code, which in turns gives us
- * really-difficult-to-test code paths when one component fails to initialise.
- *
- * Why not use a state machine?
- */
-<<<<<<< HEAD
-/**
- * Client initialises these components, in this order. If something fails
- * it automatically reverses and moves back to IL_UNINITIALISED.
- *
- * Rule of thumb: if you need a goto, you are probably tracking some kind of
- *                state that should be added here instead.
- */
-enum initlift_states {
-	IL_UNINITIALISED = 0,
-	IL_NET, /* TODO: break this out */
-	IL_RPC, /* TODO: break this out */
-	IL_AST_THREAD,
-	IL_HA,
-	IL_CONFC,    /* Creates confc and stashes in m0c */
-	IL_POOLS,
-	IL_POOL_VERSION,
-	IL_RESOURCE_MANAGER,
-	IL_LAYOUT_DB,
-	IL_IDX_SERVICE,
-	IL_ROOT_FID, /* TODO: remove this m0t1fs ism */
-	IL_ADDB2,
-	IL_DTM0,
-	IL_INITIALISED,
-	IL_FAILED,
-};
-
-=======
->>>>>>> 14fcaca5 (motr/ut/client.c: do not include .c files.)
-/** Forward declarations for state callbacks */
-static int initlift_uninitialised(struct m0_sm *mach);
-static int initlift_net(struct m0_sm *mach);
-static int initlift_rpc(struct m0_sm *mach);
-static int initlift_ast_thread(struct m0_sm *mach);
-static int initlift_ha(struct m0_sm *mach);
-static int initlift_confc(struct m0_sm *mach);
-static int initlift_pools(struct m0_sm *mach);
-static int initlift_pool_version(struct m0_sm *mach);
-static int initlift_resource_manager(struct m0_sm *mach);
-static int initlift_layouts(struct m0_sm *mach);
-static int initlift_idx_service(struct m0_sm *mach);
-static int initlift_rootfid(struct m0_sm *mach);
-static int initlift_addb2(struct m0_sm *mach);
-static int initlift_dtm0(struct m0_sm *mach);
-
-/**
- * State machine phases for client operations.
- */
-struct m0_sm_state_descr initlift_phases[] = {
-	[IL_UNINITIALISED] = {
-		.sd_flags = M0_SDF_INITIAL | M0_SDF_FINAL,
-		.sd_name = "uninitialised",
-		.sd_allowed = M0_BITS(IL_NET, IL_FAILED),
-		.sd_in = initlift_uninitialised,
-	},
-	[IL_NET] = {
-		.sd_name = "init/fini-net",
-		.sd_allowed = M0_BITS(IL_RPC, IL_UNINITIALISED),
-		.sd_in = initlift_net,
-	},
-	[IL_RPC] = {
-		.sd_name = "init/fini-rpc",
-		.sd_allowed = M0_BITS(IL_AST_THREAD, IL_NET),
-		.sd_in = initlift_rpc,
-	},
-	[IL_AST_THREAD] = {
-		.sd_name = "init/fini-ast-thread",
-		.sd_allowed = M0_BITS(IL_HA, IL_RPC),
-		.sd_in = initlift_ast_thread,
-	},
-	[IL_HA] = {
-		.sd_name = "init/fini-ha",
-		.sd_allowed = M0_BITS(IL_CONFC,
-				      IL_AST_THREAD),
-		.sd_in = initlift_ha,
-	},
-	[IL_CONFC] = {
-		.sd_name = "init/fini-confc",
-		.sd_allowed = M0_BITS(IL_POOLS,
-				      IL_HA),
-		.sd_in = initlift_confc,
-	},
-	[IL_POOLS] = {
-		.sd_name = "init/fini-pools",
-		.sd_allowed = M0_BITS(IL_POOL_VERSION,
-				      IL_CONFC),
-		.sd_in = initlift_pools,
-	},
-	[IL_POOL_VERSION] = {
-		.sd_name = "init/fini-pool-version",
-		.sd_allowed = M0_BITS(IL_RESOURCE_MANAGER,
-				      IL_POOLS),
-		.sd_in = initlift_pool_version,
-	},
-	[IL_RESOURCE_MANAGER] = {
-		.sd_name = "init/fini-resource-manager",
-		.sd_allowed = M0_BITS(IL_LAYOUT_DB,
-				      IL_POOL_VERSION),
-		.sd_in = initlift_resource_manager,
-	},
-	[IL_LAYOUT_DB] = {
-		.sd_name = "init/fini-layout-database",
-		.sd_allowed = M0_BITS(IL_IDX_SERVICE,
-				      IL_RESOURCE_MANAGER),
-		.sd_in = initlift_layouts,
-	},
-	[IL_IDX_SERVICE] = {
-		.sd_name = "init/fini-resource-manager",
-		.sd_allowed = M0_BITS(IL_ROOT_FID,
-				      IL_LAYOUT_DB),
-		.sd_in = initlift_idx_service,
-	},
-	[IL_ROOT_FID] = {
-		.sd_name = "retrieve-root-fid",
-		.sd_allowed = M0_BITS(IL_ADDB2,
-				      IL_IDX_SERVICE),
-		.sd_in = initlift_rootfid,
-	},
-	[IL_ADDB2] = {
-		.sd_name = "init/fini-addb2",
-		.sd_allowed = M0_BITS(IL_DTM0,
-				      IL_ROOT_FID),
-		.sd_in = initlift_addb2,
-	},
-	[IL_DTM0] = {
-		.sd_name = "init/fini-dtm0",
-		.sd_allowed = M0_BITS(IL_INITIALISED,
-				      IL_ADDB2),
-		.sd_in = initlift_dtm0,
-	},
 	[IL_INITIALISED] = {
 		.sd_name = "initialised",
-		.sd_allowed = M0_BITS(IL_DTM0),
+		.sd_allowed = M0_BITS(IL_ADDB2),
 	},
 	[IL_FAILED] = {
 		.sd_name = "failed",
@@ -435,13 +232,10 @@ struct m0_sm_trans_descr initlift_trans[] = {
 				       IL_FIS},
 	{"initialising-addb2",         IL_FIS,
 				       IL_ADDB2},
-	{"initialising-dtm0",          IL_ADDB2, IL_DTM0},
-	{"initialised",                IL_DTM0, IL_INITIALISED},
+	{"initialised",                IL_ADDB2, IL_INITIALISED},
 
 	/* FINI section*/
 	{"shutting-down",              IL_INITIALISED,
-				       IL_DTM0},
-	{"finalising-dtm0",            IL_DTM0,
 				       IL_ADDB2},
 
 	{"finalising-addb2",           IL_ADDB2,
@@ -1651,85 +1445,6 @@ static int initlift_addb2(struct m0_sm *mach)
 		m0_addb2_sys_net_stop(m0_addb2_global_get());
 		m0_addb2_sys_sm_stop(m0_addb2_global_get());
 #endif
-	}
-
-	return M0_RC(initlift_get_next_floor(m0c));
-}
-
-static int initlift_fis(struct m0_sm *mach)
-{
-	int                     rc = 0;
-        struct m0_client       *m0c;
-        struct m0_reqh_service *service;
-        struct m0_reqh         *reqh;
-        struct m0_fid           sfid;
-
-        M0_ENTRY();
-        M0_PRE(mach != NULL);
-
-        m0c = bob_of(mach, struct m0_client, m0c_initlift_sm, &m0c_bobtype);
-        M0_ASSERT(m0c_invariant(m0c));
-        reqh = &m0c->m0c_reqh;
-
-	if (!m0_confc_is_inited(&reqh->rh_rconfc.rc_confc)) {
-		/* confd quorum is not possible. */
-		rc = M0_ERR(-EINVAL);
-		initlift_fail(rc, m0c);
-		goto exit;
-	}
-
-	/* Confc needs the lock to proceed. */
-	m0_sm_group_unlock(&m0c->m0c_sm_group);
-	rc = m0_conf_process2service_get(&reqh->rh_rconfc.rc_confc,
-				&reqh->rh_fid, M0_CST_FIS,
-				&sfid);
-	m0_sm_group_lock(&m0c->m0c_sm_group);
-	if (rc == -ENOENT)
-		return M0_RC(initlift_get_next_floor(m0c));
-	else if (rc != 0) {
-		initlift_fail(rc, m0c);
-		goto exit;
-	}
-	if (m0c->m0c_initlift_direction == STARTUP) {
-		rc = service_start(reqh, &sfid, &m0_fis_type, &service);
-		if (rc != 0)
-			initlift_fail(rc, m0c);
-	} else {
-		/* reqh_services_terminate is handled by rpc_fini.
-		 * Reqh services are terminated not in reverse order because
-		 * m0_reqh_services_terminate() terminates all services
-		 * including rpc_service. Rpc_service starts in
-		 * rpc_init() implicitly.
-		 */
-	}
-exit:
-	return M0_RC(initlift_get_next_floor(m0c));
-}
-
-static int initlift_dtm0(struct m0_sm *mach)
-{
-	int                       rc = 0;
-	struct m0_client         *m0c;
-	struct m0_dtm0_domain_cfg cfg;
-
-	M0_ENTRY();
-	M0_PRE(mach != NULL);
-
-	m0c = bob_of(mach, struct m0_client, m0c_initlift_sm, &m0c_bobtype);
-	M0_ASSERT(m0c_invariant(m0c));
-
-	if (m0c->m0c_initlift_direction == STARTUP) {
-		rc = m0_dtm0_domain_cfg_default_dup(&cfg, false);
-		if (rc != 0)
-			return M0_RC(rc);
-		cfg.dod_reqh = &m0c->m0c_reqh;
-		rc = m0_dtm0_domain_init(&m0c->m0c_dtm0_domain, &cfg);
-		if (rc != 0) {
-			initlift_fail(rc, m0c);
-			return M0_RC(initlift_get_next_floor(m0c));
-		}
-	} else {
-		m0_dtm0_domain_fini(&m0c->m0c_dtm0_domain);
 	}
 
 	return M0_RC(initlift_get_next_floor(m0c));
