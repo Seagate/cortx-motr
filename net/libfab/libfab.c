@@ -2218,6 +2218,7 @@ static int libfab_dns_resolve_retry(struct m0_fab__ep *ep)
 			inet_pton(en->nia_n.nip_fmt_pvt.ia.nia_family ==
 				  M0_NET_IP_AF_INET ? AF_INET : AF_INET6,
 				  ip, &en->nia_n.nip_ip_n.sn[0]);
+			libfab_ep_pton(en, &ep->fep_name_n);
 			M0_LOG(M0_DEBUG, "ip=%s port=%d fqdn=%s", (char *)ip,
 			       (int)en->nia_n.nip_port, (char *)fqdn);
 		} else
