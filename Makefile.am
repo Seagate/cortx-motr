@@ -1274,6 +1274,9 @@ cxxxml_tag = "CASTXML"
 cxxxml2xc_tag = "CASTXML2XC"
 # generate gccxml-like output with castxml
 CXXXML_FLAGS := --castxml-gccxml
+if ON_DARWIN
+CXXXML_FLAGS += -isystem$(shell xcrun --show-sdk-path)/usr/include
+endif
 CXXXML_OUTPUT := -o # keep trailing blank-space after -o
 CXXXML2XC_FLAGS := --castxml
 endif
