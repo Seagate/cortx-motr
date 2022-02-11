@@ -50,8 +50,6 @@
  *
  *     - Motr-based block device (part of BOMO);
  *
- *     - exascale E10 stack (see https://opensfs.org).
- *
  * Client interface is divided into the following sub-interfaces:
  *
  *     - access sub-interface, which provides basic abstraction to build storage
