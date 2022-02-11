@@ -137,16 +137,20 @@ M0_INTERNAL void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_PRE(ast->sa_cb != NULL);
 
 	/* allow concurrent calls */
-	if (!M0_ATOMIC64_CAS(&ast->sa_next, (struct m0_sm_ast*)NULL, ast))
+	if (!M0_ATOMIC64_CAS(&ast->sa_next,
+			     (struct m0_sm_ast*)NULL, grp->s_forkq))
 		return; /* already posted */
 
-	do {
-		ast->sa_next = grp->s_forkq;
+	while (1) {
 		/*
 		M0_LOG(M0_DEBUG, "grp=%p forkq_push: %p -> %p",
 		       grp, ast, ast->sa_next);
 		*/
-	} while (!M0_ATOMIC64_CAS(&grp->s_forkq, ast->sa_next, ast));
+		if (M0_ATOMIC64_CAS(&grp->s_forkq, ast->sa_next, ast))
+			break;
+		ast->sa_next = grp->s_forkq;
+	}
+
 	m0_clink_signal(&grp->s_clink);
 }
 
