@@ -445,6 +445,12 @@ static void fdmi_fol_test_filter_kv_substring_random(void)
 	}
 	fdmi_fol_test_filter_kv_substring_match(
 	        &value, (const char **)substrings, false);
+
+	for (i = 0; i < FDMI_FOL_TEST_KV_SUBSTRING_FILTER_STR_NR; ++i) {
+		m0_free(substrings[i]);
+	}
+	m0_free(substrings);
+	m0_buf_free(&value);
 }
 
 /* ------------------------------------------------------------------
