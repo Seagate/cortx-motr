@@ -237,7 +237,7 @@ AC_ARG_ENABLE([release],
         [AS_HELP_STRING([--enable-release],
                         [enable release mode (it has the same effect as --disable-dev-mode)])],
         [AS_IF([test x$enable_release = xyes],
-               [enable_dev_mode=no enable_debug=yes],[enable_dev_mode=yes])]
+               [enable_dev_mode=no],[enable_dev_mode=yes])]
 )
 
 AS_IF([test x$enable_dev_mode = xyes],
@@ -247,7 +247,8 @@ AS_IF([test x$enable_dev_mode = xyes],
 AC_ARG_ENABLE([debug],
         [AS_HELP_STRING([--enable-debug],
                         [enable debug information and disable optimizations])],
-        [], [enable_debug=no]
+        [AS_IF([test x$enable_debug = xyes],
+               [enable_debug=yes],[enable_debug=no])]
 )
 AM_CONDITIONAL([ENABLE_DEBUG],
                [test "x$enable_debug" = xyes])
