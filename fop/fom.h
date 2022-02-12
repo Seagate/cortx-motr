@@ -486,6 +486,10 @@ struct m0_fom {
 	const struct m0_fom_ops  *fo_ops;
 	/** AST call-back to wake up the FOM */
 	struct m0_fom_callback    fo_cb;
+        /** Special private AST for m0_fom_wakeup() */
+	struct m0_sm_ast          fo_readyit_ast;
+        /** Special private AST for m0_fom_queue() */
+	struct m0_sm_ast          fo_queueit_ast;
 	/** Request fop object, this fom belongs to */
 	struct m0_fop            *fo_fop;
 	/** Reply fop object */

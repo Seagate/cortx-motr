@@ -440,7 +440,7 @@ M0_INTERNAL void m0_fom_ready(struct m0_fom *fom)
 
 static void readyit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_fom *fom = container_of(ast, struct m0_fom, fo_cb.fc_ast);
+	struct m0_fom *fom = container_of(ast, struct m0_fom, fo_readyit_ast);
 
 	if (m0_fom_is_waiting(fom))
 		m0_fom_ready(fom);
@@ -502,7 +502,7 @@ static void addb2_introduce(struct m0_fom *fom)
 
 static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_fom *fom = container_of(ast, struct m0_fom, fo_cb.fc_ast);
+	struct m0_fom *fom = container_of(ast, struct m0_fom, fo_queueit_ast);
 
 	M0_PRE(m0_fom_invariant(fom));
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_INIT);
@@ -532,8 +532,8 @@ static void thr_addb2_leave(struct m0_loc_thread *thr,
 
 M0_INTERNAL void m0_fom_wakeup(struct m0_fom *fom)
 {
-	fom->fo_cb.fc_ast.sa_cb = readyit;
-	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
+	fom->fo_readyit_ast.sa_cb = readyit;
+	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_readyit_ast);
 }
 
 M0_INTERNAL void m0_fom_block_enter(struct m0_fom *fom)
@@ -635,8 +635,8 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom)
 	fom->fo_loc = dom->fd_localities[loc_idx];
 	fom->fo_loc_idx = loc_idx;
 	m0_fom_sm_init(fom);
-	fom->fo_cb.fc_ast.sa_cb = &queueit;
-	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
+	fom->fo_queueit_ast.sa_cb = queueit;
+	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_queueit_ast);
 }
 
 /**
