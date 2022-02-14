@@ -442,8 +442,10 @@ static void readyit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_fom *fom = container_of(ast, struct m0_fom, fo_readyit_ast);
 
-	if (m0_fom_is_waiting(fom))
+	if (m0_fom_is_waiting(fom)) {
+		M0_LOG(M0_DEBUG, "fom=%p", fom);
 		m0_fom_ready(fom);
+	}
 }
 
 static void fom_addb2_push(struct m0_fom *fom)
@@ -533,6 +535,7 @@ static void thr_addb2_leave(struct m0_loc_thread *thr,
 M0_INTERNAL void m0_fom_wakeup(struct m0_fom *fom)
 {
 	fom->fo_readyit_ast.sa_cb = readyit;
+	M0_LOG(M0_DEBUG, "fom=%p", fom);
 	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_readyit_ast);
 }
 
