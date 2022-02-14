@@ -267,6 +267,7 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 
 	M0_ENTRY();
 	M0_PRE(!src_dock->fsdc_started);
+	M0_PRE(!src_dock->fsdc_filters_defined);
 
 	m0_semaphore_init(&sd_fom->fsf_shutdown, 0);
 
@@ -291,6 +292,22 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 		m0_filterc_ctx_fini(&sd_fom->fsf_filter_ctx);
 		return M0_ERR(rc);
 	}
+	rc = filterc_ops->fco_open(&sd_fom->fsf_filter_ctx,
+				   M0_FDMI_REC_TYPE_FOL,
+				   &sd_fom->fsf_filter_iter);
+	if (rc == 0) {
+		src_dock->fsdc_filters_defined = true;
+		filterc_ops->fco_close(&sd_fom->fsf_filter_iter);
+	}
+	rc = filterc_ops->fco_open(&sd_fom->fsf_filter_ctx,
+				   M0_FDMI_REC_TYPE_TEST,
+				   &sd_fom->fsf_filter_iter);
+	if (rc == 0) {
+		src_dock->fsdc_filters_defined = true;
+		filterc_ops->fco_close(&sd_fom->fsf_filter_iter);
+	}
+	M0_LOG(M0_DEBUG, "Filters?=%d", !!src_dock->fsdc_filters_defined);
+
 	m0_fdmi_eval_init(&sd_fom->fsf_flt_eval);
 	m0_mutex_init(&sd_fom->fsf_pending_fops_lock);
 	pending_fops_tlist_init(&sd_fom->fsf_pending_fops);
@@ -373,6 +390,7 @@ m0_fdmi__src_dock_fom_stop(struct m0_fdmi_src_dock *src_dock)
 	M0_ENTRY();
 	M0_PRE(src_dock->fsdc_started);
 	src_dock->fsdc_started = false;
+	src_dock->fsdc_filters_defined = false;
 
 	/* Wake up the timer FOM, so it can stop itself */
 	fdmi__src_dock_timer_fom_wakeup(&src_dock->fsdc_sd_timer_fom);
