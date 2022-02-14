@@ -1198,38 +1198,12 @@ static int emap_it_open(struct m0_be_emap_cursor *it, int prev_rc)
 {
 	struct m0_be_emap_key *key;
 	struct m0_be_emap_rec *rec;
-	struct m0_buf          keybuf;
-	struct m0_buf          recbuf;
 	struct m0_be_emap_seg *ext = &it->ec_seg;
 	int                    rc;
 
 	rc = prev_rc;
 	if (rc == 0) {
-		m0_btree_cursor_kv_get(&it->ec_cursor, &keybuf, &recbuf);
-
-		/* Key operation */
-		key = keybuf.b_addr;
-		it->ec_key = *key;
-
-		/* Record operation */
-		if (it->ec_recbuf.b_addr != NULL) {
-			m0_buf_free(&it->ec_recbuf);
-		}
-
-		/* Layout/format of emap-record (if checksum is present) which gets
-		 * written:
-		 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
-		 * It gets stored as contigious buffer, so allocating buffer
-		 */
-		rc = m0_buf_alloc(&it->ec_recbuf, recbuf.b_nob);
-		if ( rc != 0)
-			return rc;
-
-		/* Copying record buffer and loading into it->ec_rec, note record
-		 * will have incorrect footer in case of b_nob, but it->ec_recbuf
-		 * will have all correct values.
-		 */
-		memcpy(it->ec_recbuf.b_addr, recbuf.b_addr, recbuf.b_nob );
+		key = &it->ec_key;
 		rec = it->ec_recbuf.b_addr;
 		it->ec_rec = *rec;
 
@@ -1275,17 +1249,65 @@ static void be_emap_close(struct m0_be_emap_cursor *it)
 	m0_btree_cursor_fini(&it->ec_cursor);
 }
 
+static int emap_it_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
+{
+	int                       rc;
+	struct m0_be_emap_cursor *it = cb->c_datum;
+	struct m0_be_emap_key    *key;
+	struct m0_buf             keybuf = {
+		.b_nob =  m0_vec_count(&rec->r_key.k_data.ov_vec),
+		.b_addr = rec->r_key.k_data.ov_buf[0],
+	};
+	struct m0_buf             recbuf = {
+		.b_nob =  m0_vec_count(&rec->r_val.ov_vec),
+		.b_addr = rec->r_val.ov_buf[0],
+	};
+
+	key = keybuf.b_addr;
+	it->ec_key = *key;
+
+	/* Record operation */
+	if (it->ec_recbuf.b_addr != NULL)
+		m0_buf_free(&it->ec_recbuf);
+
+	/**
+	 * Layout/format of emap-record (if checksum is present) which gets
+	 * written:
+	 * - [Hdr| Balloc-Ext-Start| B-Ext-Value| CS-nob| CS-Array[...]| Ftr]
+	 * It gets stored as contigious buffer, so allocating buffer
+	 */
+	rc = m0_buf_alloc(&it->ec_recbuf, recbuf.b_nob);
+	if ( rc != 0)
+		return rc;
+
+	/**
+	 * Copying record buffer and loading into it->ec_rec, note record
+	 * will have incorrect footer in case of b_nob, but it->ec_recbuf
+	 * will have all correct values.
+	 */
+	memcpy(it->ec_recbuf.b_addr, recbuf.b_addr, recbuf.b_nob);
+
+	return 0;
+}
+
 static int emap_it_get(struct m0_be_emap_cursor *it)
 {
-	int                 rc = 0;
+	int                 rc;
+	struct m0_btree_op  kv_op = {};
+	struct m0_btree    *btree = it->ec_cursor.bc_arbor;
 	void               *k_ptr = it->ec_keybuf.b_addr;
 	m0_bcount_t         ksize = it->ec_keybuf.b_nob;
 	struct m0_btree_key r_key = {
 		.k_data =  M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-		};
+	};
+	struct m0_btree_cb  cb    = {
+		.c_act   = emap_it_cb,
+		.c_datum = it,
+	};
 
-	rc = m0_btree_cursor_get(&it->ec_cursor, &r_key,
-						    true);
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_get(btree, &r_key, &cb,
+						   BOF_SLANT, &kv_op));
 	rc = emap_it_open(it, rc);
 	return rc;
 }
@@ -1309,9 +1331,22 @@ static int be_emap_lookup(struct m0_be_emap        *map,
 
 static int be_emap_next(struct m0_be_emap_cursor *it)
 {
-	int rc;
+	int                 rc;
+	struct m0_btree_op  kv_op = {};
+	struct m0_btree    *btree = it->ec_cursor.bc_arbor;
+	void               *k_ptr = &it->ec_key;
+	m0_bcount_t         ksize = sizeof it->ec_key;
+	struct m0_btree_key r_key = {
+		.k_data =  M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+	};
+	struct m0_btree_cb  cb    = {
+		.c_act   = emap_it_cb,
+		.c_datum = it,
+	};
 
-	rc = m0_btree_cursor_next(&it->ec_cursor);
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_iter(btree, &r_key, &cb,
+						    BOF_NEXT, &kv_op));
 	rc = emap_it_open(it, rc);
 	return rc;
 }
@@ -1319,9 +1354,23 @@ static int be_emap_next(struct m0_be_emap_cursor *it)
 static int
 be_emap_prev(struct m0_be_emap_cursor *it)
 {
-	int rc;
+	int                 rc;
+	struct m0_btree_op  kv_op = {};
+	struct m0_btree    *btree = it->ec_cursor.bc_arbor;
+	void               *k_ptr = &it->ec_key;
+	m0_bcount_t         ksize = sizeof it->ec_key;
+	struct m0_btree_key r_key = {
+		.k_data =  M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+	};
+	struct m0_btree_cb  cb    = {
+		.c_act   = emap_it_cb,
+		.c_datum = it,
+	};
 
-	rc = m0_btree_cursor_prev(&it->ec_cursor);
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_iter(btree, &r_key, &cb,
+						    BOF_PREV, &kv_op));
+
 	rc = emap_it_open(it, rc);
 	return rc;
 }
