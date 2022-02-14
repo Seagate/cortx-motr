@@ -1249,7 +1249,7 @@ static void be_emap_close(struct m0_be_emap_cursor *it)
 	m0_btree_cursor_fini(&it->ec_cursor);
 }
 
-static int emap_it_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
+static int emap_it_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
 	int                       rc;
 	struct m0_be_emap_cursor *it = cb->c_datum;
@@ -1301,7 +1301,7 @@ static int emap_it_get(struct m0_be_emap_cursor *it)
 		.k_data =  M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 	};
 	struct m0_btree_cb  cb    = {
-		.c_act   = emap_it_cb,
+		.c_act   = emap_it_get_cb,
 		.c_datum = it,
 	};
 
@@ -1340,7 +1340,7 @@ static int be_emap_next(struct m0_be_emap_cursor *it)
 		.k_data =  M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 	};
 	struct m0_btree_cb  cb    = {
-		.c_act   = emap_it_cb,
+		.c_act   = emap_it_get_cb,
 		.c_datum = it,
 	};
 
@@ -1363,7 +1363,7 @@ be_emap_prev(struct m0_be_emap_cursor *it)
 		.k_data =  M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 	};
 	struct m0_btree_cb  cb    = {
-		.c_act   = emap_it_cb,
+		.c_act   = emap_it_get_cb,
 		.c_datum = it,
 	};
 

@@ -1433,8 +1433,8 @@ M0_INTERNAL void m0_cob_iterator_fini(struct m0_cob_iterator *it)
 	m0_free(it->ci_key);
 }
 
-static int cob_iterator_callback(struct m0_btree_cb *cb,
-				 struct m0_btree_rec *rec)
+static int cob_iterator_get_callback(struct m0_btree_cb *cb,
+				     struct m0_btree_rec *rec)
 {
 	struct m0_cob_iterator *it = cb->c_datum;
 	struct m0_cob_nskey    *nskey;
@@ -1459,7 +1459,7 @@ M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
 		.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 	};
 	struct m0_btree_cb   iterator_cb = {
-		.c_act   = cob_iterator_callback,
+		.c_act   = cob_iterator_get_callback,
 		.c_datum = it,
 	};
 
@@ -1485,7 +1485,7 @@ M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
 		.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 	};
 	struct m0_btree_cb   iterator_cb = {
-		.c_act   = cob_iterator_callback,
+		.c_act   = cob_iterator_get_callback,
 		.c_datum = it,
 	};
 
@@ -1526,8 +1526,8 @@ M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
 	return M0_RC(rc);
 }
 
-static int cob_ea_iterator_callback(struct m0_btree_cb *cb,
-				    struct m0_btree_rec *rec)
+static int cob_ea_iterator_get_callback(struct m0_btree_cb *cb,
+				        struct m0_btree_rec *rec)
 {
 	struct m0_cob_ea_iterator *it = cb->c_datum;
 	struct m0_cob_eakey       *eakey;
@@ -1552,7 +1552,7 @@ M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it)
 		.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 	};
 	struct m0_btree_cb   ea_iterator_cb = {
-		.c_act   = cob_ea_iterator_callback,
+		.c_act   = cob_ea_iterator_get_callback,
 		.c_datum = it,
 	};
 
@@ -1574,7 +1574,7 @@ M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it)
 		.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 	};
 	struct m0_btree_cb   ea_iterator_cb = {
-		.c_act   = cob_ea_iterator_callback,
+		.c_act   = cob_ea_iterator_get_callback,
 		.c_datum = it,
 	};
 
