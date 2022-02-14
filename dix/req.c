@@ -612,7 +612,6 @@ static int dix_idxop_pver_analyse(struct m0_dix_idxop_req *idxop_req,
 	M0_ENTRY();
 
 	M0_PRE(M0_IN(type, (DIX_CREATE, DIX_DELETE, DIX_CCTGS_LOOKUP)));
-	M0_PRE(ergo(type == DIX_CREATE, (dreq->dr_flags & COF_CROW) == 0));
 
 	*creqs_nr = 0;
 	for (i = 0; i < pm->pm_state->pst_nr_devices; i++) {

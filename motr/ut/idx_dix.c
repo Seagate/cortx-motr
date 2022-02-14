@@ -419,9 +419,15 @@ static void ut_dix_namei_ops_dist(void)
 	ut_dix_namei_ops(true, 0);
 }
 
-static void ut_dix_namei_ops_dist_oi_flags(void)
+static void ut_dix_namei_ops_dist_oi_flags_skip_layout(void)
 {
 	uint32_t flags = M0_OIF_SKIP_LAYOUT;
+	ut_dix_namei_ops(true, flags);
+}
+
+static void ut_dix_namei_ops_dist_oi_flags_skip_layout_enable_crow(void)
+{
+	uint32_t flags = M0_OIF_SKIP_LAYOUT | M0_OIF_CROW;
 	ut_dix_namei_ops(true, flags);
 }
 
@@ -769,9 +775,15 @@ static void ut_dix_record_ops(bool dist, uint32_t flags)
 	idx_dix_ut_fini();
 }
 
-static void ut_dix_record_ops_dist_oi_flags(void)
+static void ut_dix_record_ops_dist_oi_flags_skip_layout(void)
 {
 	uint32_t flags = M0_OIF_SKIP_LAYOUT;
+	ut_dix_record_ops(true, flags);
+}
+
+static void ut_dix_record_ops_dist_oi_flags_skip_layout_enable_crow(void)
+{
+	uint32_t flags = M0_OIF_SKIP_LAYOUT | M0_OIF_CROW;
 	ut_dix_record_ops(true, flags);
 }
 
@@ -800,9 +812,17 @@ struct m0_ut_suite ut_suite_idx_dix = {
 		  "Vikram" },
 		{ "namei-ops-cancel-non-dist", ut_dix_namei_ops_cancel_non_dist,
 		  "Vikram" },
-		{ "namei-ops-dist-oi-flags", ut_dix_namei_ops_dist_oi_flags,
+		{ "namei-ops-dist-oi-flags-skip-layout",
+		  ut_dix_namei_ops_dist_oi_flags_skip_layout,
 		  "Venky" },
-		{ "record-ops-dist-oi-flags", ut_dix_record_ops_dist_oi_flags,
+		{ "record-ops-dist-oi-flags-skip-layout",
+		  ut_dix_record_ops_dist_oi_flags_skip_layout,
+		  "Venky" },
+		{ "namei-ops-dist-oi-flags-skip-layout-enable-crow",
+		  ut_dix_namei_ops_dist_oi_flags_skip_layout_enable_crow,
+		  "Venky" },
+		{ "record-ops-dist-oi-flags-skip-layout-enable-crow",
+		  ut_dix_record_ops_dist_oi_flags_skip_layout_enable_crow,
 		  "Venky" },
 		{ NULL, NULL }
 	}
