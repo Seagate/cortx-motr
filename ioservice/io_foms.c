@@ -564,6 +564,7 @@
  */
 
 #define M0_OBJ_LAYOUT_ID(lid)  (lid & 0x0000ffffffffffff)
+#define M0_BYTECOUNT_USER_ID 8881212
 /**
  * @addtogroup io_foms
  * @{
@@ -612,6 +613,8 @@ static int zero_copy_initiate(struct m0_fom *);
 static int zero_copy_finish(struct m0_fom *);
 static int net_buffer_release(struct m0_fom *);
 static int nbuf_release_done(struct m0_fom *fom, int still_required);
+static int cob_bytecount_increment(struct m0_cob *cob, struct m0_cob_bckey *key,
+				   uint64_t bytecount, struct m0_be_tx *tx);
 
 static void io_fom_addb2_descr(struct m0_fom *fom);
 
@@ -2232,6 +2235,9 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 {
 	int                                       rc;
 	int                                       phase = m0_fom_phase(fom);
+	m0_bcount_t                               byte_count;
+	struct m0_fid                             pver;
+	struct m0_cob                            *cob;
 	struct m0_io_fom_cob_rw                  *fom_obj;
 	struct m0_io_fom_cob_rw_state_transition  st;
 	struct m0_fop_cob_rw                     *rwfop;
@@ -2244,6 +2250,8 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
 	rwfop = io_rw_get(fom->fo_fop);
+	byte_count = m0_io_count(&rwfop->crw_ivec);
+	pver = rwfop->crw_pver;
 
 	M0_ENTRY("fom %p, fop %p, item %p[%u] %s" FID_F, fom, fom->fo_fop,
 		 m0_fop_to_rpc_item(fom->fo_fop), m0_fop_opcode(fom->fo_fop),
@@ -2275,6 +2283,10 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 						 M0_COB_OP_CREATE, accum);
 				m0_cob_tx_credit(fom_cdom(fom),
 						 M0_COB_OP_DELETE, accum);
+				m0_cob_tx_credit(fom_cdom(fom),
+						 M0_COB_OP_BYTECOUNT_SET, accum);
+				m0_cob_tx_credit(fom_cdom(fom),
+						 M0_COB_OP_BYTECOUNT_UPDATE, accum);
 			}
 		} else if (phase == M0_FOPH_AUTHORISATION) {
 			rc = m0_fom_tick_generic(fom);
@@ -2321,6 +2333,21 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	M0_ASSERT(rc == M0_FSO_AGAIN || rc == M0_FSO_WAIT);
 
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+
+	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS &&
+	    m0_is_write_fop(fom->fo_fop)) {
+		struct m0_cob_bckey key;
+
+		key.cbk_pfid = pver;
+		key.cbk_user_id = M0_BYTECOUNT_USER_ID;
+		rc = fom_cob_locate(fom);
+		if (rc == 0) {
+			cob = fom_obj->fcrw_cob;
+			cob_bytecount_increment(cob, &key, byte_count,
+						m0_fom_tx(fom));
+		}
+	}
+
 	/* Set operation status in reply fop if FOM ends.*/
 	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
 	    m0_fom_phase(fom) == M0_FOPH_FAILURE) {
@@ -2473,6 +2500,26 @@ static void io_fom_addb2_descr(struct m0_fom *fom)
 		     iv->ci_iosegs != NULL ? iv->ci_iosegs[0].ci_index : 0,
 		     rwfop->crw_desc.id_nr,
 		     m0_net_tm_colour_get(m0_fop_tm_get(fop)));
+}
+
+static int cob_bytecount_increment(struct m0_cob *cob, struct m0_cob_bckey *key,
+				   uint64_t bytecount, struct m0_be_tx *tx)
+{
+	int                 rc;
+	struct m0_cob_bcrec rec = {};
+
+	rc = m0_cob_bc_lookup(cob, key, &rec);
+	if (rc == -ENOENT) {
+		rec.cbr_bytecount = bytecount;
+		rec.cbr_cob_objects = 1;
+		m0_cob_bc_insert(cob, key, &rec, tx);
+	} else if (rc == 0) {
+		rec.cbr_bytecount += bytecount;
+		m0_cob_bc_update(cob, key, &rec, tx);
+	} else
+		M0_ERR(rc);
+
+	return rc;		
 }
 
 #undef M0_TRACE_SUBSYSTEM
