@@ -336,7 +336,7 @@ static int loc_nr(void)
 
 static int chore_add_all(struct m0_locality_chore *chore)
 {
-	int result;
+	int result = 0;
 
 	M0_PRE(chore->lc_active == 0);
 

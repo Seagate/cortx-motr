@@ -1254,7 +1254,7 @@ static bool ha_link_backoff_check(struct m0_ha_link *hl,
 
 static int ha_link_outgoing_fop_replied(struct m0_ha_link *hl)
 {
-	struct m0_ha_link_msg_rep_fop *rep_fop;
+	struct m0_ha_link_msg_rep_fop *rep_fop = NULL;
 	struct m0_ha_link_tags         tags;
 	struct m0_rpc_item            *req_item;
 	uint64_t                       old_nr;

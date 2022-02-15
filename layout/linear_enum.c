@@ -140,7 +140,7 @@ M0_INTERNAL int m0_linear_enum_build(struct m0_layout_domain *dom,
 				     struct m0_layout_linear_enum **out)
 {
 	struct m0_layout_enum        *e;
-	struct m0_layout_linear_enum *lin_enum;
+	struct m0_layout_linear_enum *lin_enum = NULL;
 	int                           rc;
 
 	M0_PRE(out != NULL);

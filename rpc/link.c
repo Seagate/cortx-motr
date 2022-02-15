@@ -384,7 +384,7 @@ static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 	uint32_t                 state;
 	struct m0_rpc_link      *rlink;
 	struct m0_rpc_machine   *rpcmach;
-	enum m0_rpc_link_states  fail_phase;
+	enum m0_rpc_link_states  fail_phase = 0;
 
 	M0_ENTRY("fom=%p phase=%s", fom, m0_fom_phase_name(fom, phase));
 
