@@ -1441,10 +1441,16 @@ static int cob_iterator_get_callback(struct m0_btree_cb *cb,
 
 	nskey = (struct m0_cob_nskey *)rec->r_key.k_data.ov_buf[0];
 
-	M0_ASSERT(m0_fid_eq(&nskey->cnk_pfid, m0_cob_fid(it->ci_cob)));
-	M0_ASSERT(m0_cob_nskey_size(nskey) <= m0_cob_max_nskey_size());
+	/**
+	 * Check if we are stil inside the object bounds. Assert and key copy
+	 * can be done only in this case.
+	 */
+	if (!m0_fid_eq(&nskey->cnk_pfid, m0_cob_fid(it->ci_cob)))
+		return -ENOENT;
 
+	M0_ASSERT(m0_cob_nskey_size(nskey) <= m0_cob_max_nskey_size());
 	memcpy(it->ci_key, nskey, m0_cob_nskey_size(nskey));
+
 	return 0;
 }
 
@@ -1534,9 +1540,10 @@ static int cob_ea_iterator_get_callback(struct m0_btree_cb *cb,
 
 	eakey = (struct m0_cob_eakey *)rec->r_key.k_data.ov_buf[0];
 
-	M0_ASSERT(m0_fid_eq(&eakey->cek_fid, m0_cob_fid(it->ci_cob)));
-	M0_ASSERT(m0_cob_eakey_size(eakey) <= m0_cob_max_eakey_size());
+	if (!m0_fid_eq(&eakey->cek_fid, m0_cob_fid(it->ci_cob)))
+		return -ENOENT;
 
+	M0_ASSERT(m0_cob_eakey_size(eakey) <= m0_cob_max_eakey_size());
 	memcpy(it->ci_key, eakey, m0_cob_eakey_size(eakey));
 	return 0;
 }
