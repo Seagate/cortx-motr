@@ -152,7 +152,7 @@ M0_INTERNAL int m0_linear_enum_build(struct m0_layout_domain *dom,
 			          lle_base, &linear_bob);
 		rc = linear_populate(lin_enum, attr);
 		if (rc == 0) {
-			linear_invariant(lin_enum);
+			M0_POST(linear_invariant(lin_enum));
 			*out = lin_enum;
 		} else {
 			linear_delete(e);
