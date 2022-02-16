@@ -86,7 +86,8 @@ storage_dev_get_part_stob(struct m0_be_domain *domain,
 	for (i = 0; i < M0_BE_MAX_PARTITION_USERS; i++) {
 		alloc_info = &primary_part_info.pti_part_alloc_info[i];
 		if(alloc_info->ai_part_id == M0_BE_PTABLE_ENTRY_BALLOC) {
-			*dev_data_size = alloc_info->ai_def_size_in_chunks;
+			*dev_data_size = alloc_info->ai_def_size_in_chunks <<
+					  primary_part_info.pti_chunk_size_in_bits;
 			break;
 		}
 	}
