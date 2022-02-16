@@ -17,10 +17,10 @@
 # For any questions about this software or licensing,
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
-TOPDIR=`dirname $0`/../../../
+TOPDIR="$(dirname "$0")/../../../"
 
-. ${TOPDIR}/spiel/st/m0t1fs_spiel_sns_common_inc.sh
-. ${TOPDIR}/motr/st/utils/sns_repair_common_inc.sh
+. "${TOPDIR}/spiel/st/m0t1fs_spiel_sns_common_inc.sh"
+. "${TOPDIR}/motr/st/utils/sns_repair_common_inc.sh"
 S=3
 N=3
 K=3
@@ -116,7 +116,7 @@ main()
 
 	sandbox_init
 
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 	local multiple_pools=0
 	motr_service start $multiple_pools $stride $N $K $S $P || {
 		echo "Failed to start Motr Service."

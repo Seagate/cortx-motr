@@ -18,15 +18,15 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-TOPDIR=`dirname $0`/../../../
+TOPDIR="$(dirname "$0")/../../../"
 
-. ${TOPDIR}/utils/functions # die, sandbox_init, report_and_exit
-. ${TOPDIR}/m0t1fs/linux_kernel/st/common.sh
-. ${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
-. ${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
-. ${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
-. ${TOPDIR}/m0t1fs/linux_kernel/st/common_service_fids_inc.sh
-. ${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_sns_common_inc.sh
+. "${TOPDIR}/utils/functions" # die, sandbox_init, report_and_exit
+." ${TOPDIR}/m0t1fs/linux_kernel/st/common.sh"
+. "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh"
+. "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh"
+. "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh"
+. "${TOPDIR}/m0t1fs/linux_kernel/st/common_service_fids_inc.sh"
+. "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_sns_common_inc.sh"
 
 ###################################################
 # SNS repair is only supported in COPYTOOL mode,
