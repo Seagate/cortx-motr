@@ -1806,9 +1806,9 @@ static int io_launch(struct m0_fom *fom)
 		m0_fom_callback_arm(fom, &stio->si_wait, &stio_desc->siod_fcb);
 		m0_mutex_unlock(&stio->si_mutex);
 
-		M0_LOG(M0_DEBUG, "launch fom: %p, start_time %"PRIi64", "
-		       "req_count: %"PRIx64", count: %"PRIx64", "
-		       "submitted: %"PRIx64", expect: %"PRIx64,
+		M0_LOG(M0_DEBUG, "launch fom: %p, start_time %" PRIi64 ", "
+		       "req_count: %" PRIx64 ", count: %" PRIx64 ", "
+		       "submitted: %" PRIx64 ", expect: %"PRIx64,
 		       fom, fom_obj->fcrw_fom_start_time,
 		       fom_obj->fcrw_req_count, fom_obj->fcrw_count,
 		       m0_vec_count(&stio->si_user.ov_vec), ivec_count);
@@ -1860,7 +1860,7 @@ static int io_launch(struct m0_fom *fom)
 
 	m0_cob_put(container_of(file, struct m0_cob, co_file));
 
-	M0_LOG(M0_DEBUG, "total  fom: %"PRIi64", expect: %"PRIi64,
+	M0_LOG(M0_DEBUG, "total  fom: %" PRIi64 ", expect: %"PRIi64,
 	       fom_obj->fcrw_fom_start_time,
 	       fom_obj->fcrw_req_count - fom_obj->fcrw_count);
 
@@ -1936,7 +1936,7 @@ static int io_finish(struct m0_fom *fom)
 							  fom_obj->fcrw_bshift));
 			}
 			nob += stio->si_count;
-			M0_LOG(M0_DEBUG, "rw_count %"PRIi64", si_count %"PRIi64,
+			M0_LOG(M0_DEBUG, "rw_count %" PRIi64 ", si_count %"PRIi64,
 			       fom_obj->fcrw_count, stio->si_count);
 		}
 		stobio_tlist_add(&fom_obj->fcrw_done_list, stio_desc);
@@ -1955,8 +1955,8 @@ static int io_finish(struct m0_fom *fom)
 		}
 	}
 
-	M0_LOG(M0_DEBUG, "got    fom: %"PRIi64", req_count: %"PRIi64", "
-	       "count: %"PRIx64", nob: %"PRIx64"", fom_obj->fcrw_fom_start_time,
+	M0_LOG(M0_DEBUG, "got    fom: %" PRIi64 ", req_count: %" PRIi64 ", "
+	       "count: %" PRIx64 ", nob: %" PRIx64 "", fom_obj->fcrw_fom_start_time,
 	       fom_obj->fcrw_req_count, fom_obj->fcrw_count, nob);
 	fom_obj->fcrw_count += nob;
 	M0_ASSERT(ergo(rc == 0,

@@ -168,8 +168,8 @@ static void results_print(uint32_t round)
 			}
 
 			printf("\t%12.12s: [%7i] %6.2f %6.2f %6.2f %5.2f%%"
-			       " %8.3e/%8.3e %9.2"PRIu32" %11.2f %13.4"PRIu64" "
-			       "%8.2"PRIu64" %8.2"PRIu64" %8.2"PRIu64"\n",
+			       " %8.3e/%8.3e %9.2"PRIu32" %11.2f %13.4" PRIu64 " "
+			       "%8.2" PRIu64 " %8.2" PRIu64 " %8.2" PRIu64 "\n",
 			       bench->ub_name, bench->ub_iter,
 			       bench->ub_min, bench->ub_max, avg,
 			       std * 100.0 / avg, avg / bench->ub_iter,

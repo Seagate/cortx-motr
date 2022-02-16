@@ -123,7 +123,7 @@ static char *stob_backingfile_get(const struct stobio_test *test)
 	struct m0_fid fid;
 
 	m0_fid_set(&fid, 0, test->st_stob_key);
-	rc = sprintf(backingfile, "%s/%"PRIx64":%"PRIx64"",
+	rc = sprintf(backingfile, "%s/%" PRIx64 ":%" PRIx64 "",
 				   test->st_dom->sd_location_data,
 				   fid.f_container, fid.f_key);
 	M0_UT_ASSERT(rc < sizeof(backingfile));
