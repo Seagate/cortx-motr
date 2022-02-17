@@ -7461,7 +7461,8 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			}
 		}
 
-		rc = bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
+		if (bop->bo_cb.c_act != NULL)
+			rc = bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
 
 		lock_op_unlock(tree);
 		if (rc != 0)
@@ -8681,7 +8682,10 @@ M0_INTERNAL void m0_btree_get(struct m0_btree *arbor,
 	bop->bo_arbor     = arbor;
 	bop->bo_rec.r_key = *key;
 	bop->bo_flags     = flags;
-	bop->bo_cb        = *cb;
+	if (cb == NULL)
+		M0_SET0(&bop->bo_cb);
+	else
+		bop->bo_cb = *cb;
 	bop->bo_tx        = NULL;
 	bop->bo_seg       = NULL;
 	bop->bo_i         = NULL;

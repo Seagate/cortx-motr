@@ -477,21 +477,11 @@ M0_INTERNAL void m0_confdb_destroy_credit(struct m0_be_seg *seg,
 	M0_LEAVE();
 }
 
-static int __confdb_free(struct m0_btree *btree, struct m0_be_seg *seg,
-			 struct m0_be_tx *tx)
+static int confdb_free_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
-	int                        rc;
-	struct confx_allocator    *alloc = NULL;
-	struct confx_obj_ctx      *obj_ctx;
-	struct m0_buf              key;
-	struct m0_buf              val;
-	struct m0_btree_cursor     bcur;
+	struct confx_allocator  *alloc = cb->c_datum;
+	struct confx_obj_ctx    *obj_ctx;
 
-	m0_btree_cursor_init(&bcur, btree);
-	rc = m0_btree_cursor_first(&bcur);
-	if (rc != 0)
-		goto err;
-	m0_btree_cursor_kv_get(&bcur, &key, &val);
 	/**
 	 * @todo check validity of key and record addresses and
 	 * sizes. Specifically, check that val.b_addr points to an
@@ -501,15 +491,33 @@ static int __confdb_free(struct m0_btree *btree, struct m0_be_seg *seg,
 	 *
 	 * @todo also check that key (fid) matches m0_conf_objx_fid().
 	 */
-	obj_ctx = val.b_addr;
-	/*
+	obj_ctx = rec->r_val.ov_buf[0];
+	/**
 	 * Fetch the confx allocator information from the first configuration
-	 * object. Release pre-allocated BE segment memory from the allocator.
+	 * object.
 	 */
-	alloc = &obj_ctx->oc_alloc;
-	M0_BE_FREE_PTR_SYNC(alloc->a_chunk, seg, tx);
-err:
-	m0_btree_cursor_fini(&bcur);
+	*alloc = obj_ctx->oc_alloc;
+	return 0;
+}
+
+static int __confdb_free(struct m0_btree *btree, struct m0_be_seg *seg,
+			 struct m0_be_tx *tx)
+{
+	int                     rc;
+	struct confx_allocator  alloc;
+	struct m0_btree_op      kv_op   = {};
+	struct m0_btree_cb      cb      = {
+		.c_act    = confdb_free_cb,
+		.c_datum  = &alloc,
+	};
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_minkey(btree, &cb, 0, &kv_op));
+	if (rc == 0)
+		/**
+		 * Release pre-allocated BE segment memory from the allocator.
+		 */
+		M0_BE_FREE_PTR_SYNC(alloc.a_chunk, seg, tx);
 
 	return M0_RC(rc);
 }
@@ -550,19 +558,46 @@ M0_INTERNAL void m0_confdb_fini(struct m0_be_seg *seg)
 	confdb_table_fini(seg);
 }
 
+static int confdb_objs_count_cb(struct m0_btree_cb *cb,
+				struct m0_btree_rec *rec)
+{
+	struct m0_btree_rec *datum_rec = cb->c_datum;
+
+	M0_ASSERT(m0_vec_count(&datum_rec->r_key.k_data.ov_vec) ==
+		  m0_vec_count(&rec->r_key.k_data.ov_vec));
+
+	m0_bufvec_copy(&datum_rec->r_key.k_data, &rec->r_key.k_data,
+		       m0_vec_count(&rec->r_key.k_data.ov_vec));
+	return 0;
+}
+
 static int confdb_objs_count(struct m0_btree *btree, size_t *result)
 {
-	struct m0_btree_cursor    bcur;
-	int                       rc;
+	int                 rc;
+	struct m0_fid       k_fid;
+	void               *k_ptr = &k_fid;
+	m0_bcount_t         ksize = sizeof k_fid;
+	struct m0_btree_op  kv_op = {};
+	struct m0_btree_key key   = {
+		.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+	};
+	struct m0_btree_cb  cb    = {
+		.c_act   = confdb_objs_count_cb,
+		.c_datum = &key,
+	};
 
 	M0_ENTRY();
 	*result = 0;
-	m0_btree_cursor_init(&bcur, btree);
-	for (rc = m0_btree_cursor_first(&bcur); rc == 0;
-	     rc = m0_btree_cursor_next(&bcur)) {
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_minkey(btree, &cb, 0, &kv_op));
+	while (rc == 0) {
 		++*result;
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_iter(btree, &key, &cb,
+							    BOF_NEXT, &kv_op));
 	}
-	m0_btree_cursor_fini(&bcur);
+
 	/* Check for normal iteration completion. */
 	if (rc == -ENOENT)
 		rc = 0;
@@ -590,37 +625,72 @@ static struct m0_confx *confx_alloc(size_t nr_objs)
 	return ret;
 }
 
+struct confx_cb_data {
+	struct m0_fid   *cb_k_fid;
+	struct m0_confx *cb_dest;
+	size_t          *cb_idx;
+};
+
+static int confx_fill_cb(struct m0_btree_cb  *cb, struct m0_btree_rec *rec)
+{
+	struct confx_cb_data *datum    = cb->c_datum;
+	struct m0_confx      *dest     = datum->cb_dest;
+	struct m0_fid        *k_fid    = datum->cb_k_fid;
+	size_t                idx      = *datum->cb_idx;
+	struct confx_obj_ctx *obj_ctx  = rec->r_val.ov_buf[0];
+
+	M0_ASSERT(m0_vec_count(&rec->r_key.k_data.ov_vec) == sizeof *k_fid);
+	M0_ASSERT(idx < dest->cx_nr);
+
+	/**
+	 * @todo check validity of key and record addresses and
+	 * sizes. Specifically, check that val.b_addr points to an
+	 * allocated region in a segment with appropriate size and
+	 * alignment. Such checks should be done generally by (not
+	 * existing) beobj interface.
+	 *
+	 * @todo also check that key (fid) matches m0_conf_objx_fid().
+	 */
+
+	memcpy(k_fid, rec->r_key.k_data.ov_buf[0], sizeof *k_fid);
+	memcpy(M0_CONFX_AT(dest, idx), obj_ctx->oc_obj, m0_confx_sizeof());
+
+	return 0;
+}
+
 static void confx_fill(struct m0_confx *dest, struct m0_btree *btree)
 {
-	struct m0_btree_cursor    bcur;
-	size_t                    i; /* index in dest->cx__objs[] */
-	int                       rc;
+	int                  rc;
+	struct m0_fid        k_fid;
+	void                *k_ptr    = &k_fid;
+	m0_bcount_t          ksize    = sizeof k_fid;
+	size_t               i        = 0; /* index in dest->cx__objs[] */
+	struct m0_btree_op   kv_op    = {};
+	struct m0_btree_key  key      = {
+		.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+	};
+	struct confx_cb_data cb_datum = {
+		.cb_k_fid = &k_fid,
+		.cb_dest  = dest,
+		.cb_idx   = &i,
+	};
+	struct m0_btree_cb   cb       = {
+		.c_act   = confx_fill_cb,
+		.c_datum = &cb_datum,
+	};
 
 	M0_ENTRY();
 	M0_PRE(dest->cx_nr > 0);
 
-	m0_btree_cursor_init(&bcur, btree);
-	for (i = 0, rc = m0_btree_cursor_first(&bcur); rc == 0;
-	     rc = m0_btree_cursor_next(&bcur), ++i) {
-		struct confx_obj_ctx *obj_ctx;
-		struct m0_buf         key;
-		struct m0_buf         val;
-
-		m0_btree_cursor_kv_get(&bcur, &key, &val);
-		M0_ASSERT(i < dest->cx_nr);
-		/**
-		 * @todo check validity of key and record addresses and
-		 * sizes. Specifically, check that val.b_addr points to an
-		 * allocated region in a segment with appropriate size and
-		 * alignment. Such checks should be done generally by (not
-		 * existing) beobj interface.
-		 *
-		 * @todo also check that key (fid) matches m0_conf_objx_fid().
-		 */
-		obj_ctx = val.b_addr;
-		memcpy(M0_CONFX_AT(dest, i), obj_ctx->oc_obj, m0_confx_sizeof());
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_minkey(btree, &cb, 0, &kv_op));
+	while (rc == 0) {
+		i++;
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+					      m0_btree_iter(btree, &key, &cb,
+							    BOF_NEXT, &kv_op));
 	}
-	m0_btree_cursor_fini(&bcur);
+
 	/** @todo handle iteration errors. */
 	M0_ASSERT(rc == -ENOENT); /* end of the table */
 }
