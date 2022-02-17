@@ -464,8 +464,7 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 						 &m0_cas_service_type,
 #endif
 		                                 &m0_ha_link_service_type,
-		                                 &m0_ha_entrypoint_service_type)) &&
-						 m0_reqh_service_state_get(svc) == M0_RST_STARTED)
+		                                 &m0_ha_entrypoint_service_type)))
 			return M0_RC(0);
 		return M0_ERR(-EAGAIN);
 	}
@@ -598,7 +597,7 @@ M0_INTERNAL void m0_reqh_idle_wait_for(struct m0_reqh *reqh,
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&reqh->rh_sm_grp.s_chan, &clink);
-	while (!m0_fom_domain_is_idle_for(service) && m0_atomic64_get(&service->rs_fom_queued) != 0)
+	while (!m0_fom_domain_is_idle_for(service))
 		m0_chan_wait(&clink);
 	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);

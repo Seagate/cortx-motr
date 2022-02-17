@@ -236,8 +236,6 @@ struct m0_reqh_service {
 	unsigned                           rs_level;
 	/** Key for per-locality-per-svc fom count. */
 	int                                rs_fom_key;
-
-	struct m0_atomic64                 rs_fom_queued;
 	/**
 	   Service state machine.
 

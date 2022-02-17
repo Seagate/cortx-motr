@@ -505,17 +505,13 @@ static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_PRE(m0_fom_invariant(fom));
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_INIT);
-	
-	if (m0_reqh_service_state_get(fom->fo_service) != M0_RST_STOPPED)
-		m0_fom_locality_inc(fom);
 
-        if (m0_reqh_service_state_get(fom->fo_service) == M0_RST_STOPPED ||
-            m0_reqh_state_get(m0_fom_reqh(fom)) == M0_REQH_ST_STOPPED) {
+	if (m0_reqh_service_state_get(fom->fo_service) == M0_RST_STOPPED ||
+	    m0_reqh_state_get(m0_fom_reqh(fom)) == M0_REQH_ST_STOPPED) {
 		m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
 		m0_fom_fini(fom);
 		return;
-        }
-	addb2_introduce(fom);
+	}
 	fom_ready(fom);
 }
 
@@ -642,8 +638,17 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom)
 	fom->fo_loc = dom->fd_localities[loc_idx];
 	fom->fo_loc_idx = loc_idx;
 	m0_fom_sm_init(fom);
+	addb2_introduce(fom);
+	m0_fom_locality_inc(fom);
 	fom->fo_cb.fc_ast.sa_cb = &queueit;
+	if (m0_reqh_service_state_get(fom->fo_service) == M0_RST_STOPPED ||
+		m0_reqh_state_get(m0_fom_reqh(fom)) == M0_REQH_ST_STOPPED) {
+		m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
+		m0_fom_fini(fom);
+		return;
+	}
 	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
+
 }
 
 /**
@@ -1345,7 +1350,6 @@ void m0_fom_fini(struct m0_fom *fom)
 	m0_sm_fini(&fom->fo_sm_state);
 	runq_tlink_fini(fom);
 	m0_fom_callback_fini(&fom->fo_cb);
-	m0_atomic64_dec(&fom->fo_service->rs_fom_queued);
 
 	if (fom->fo_fop != NULL) {
 		M0_LOG(M0_DEBUG, "fom: %p fop %p item %p[%u] rep fop %p",
@@ -1415,7 +1419,6 @@ void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 	fom->fo_service = m0_reqh_service_find(fom_type->ft_rstype, reqh);
 
 	M0_ASSERT(fom->fo_service != NULL);
-	m0_atomic64_inc(&fom->fo_service->rs_fom_queued);
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_fom_init);
