@@ -2229,18 +2229,18 @@ M0_INTERNAL int ctg_index_btree_dump(struct m0_motr *motr_ctx,
 {
 	struct m0_buf key;
 	struct m0_buf val;
-	struct m0_be_btree_cursor cursor;
+	struct m0_btree_cursor cursor;
 	int rc;
 
 	ctg_init(ctg, cas_seg(&motr_ctx->cc_reqh_ctx.rc_be.but_dom));
 
-	m0_be_btree_cursor_init(&cursor, &ctg->cc_tree);
-	for (rc = m0_be_btree_cursor_first_sync(&cursor); rc == 0;
-			     rc = m0_be_btree_cursor_next_sync(&cursor)) {
-		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
+	m0_btree_cursor_init(&cursor, ctg->cc_tree);
+	for (rc = m0_btree_cursor_first(&cursor); rc == 0;
+			     rc = m0_btree_cursor_next(&cursor)) {
+		m0_btree_cursor_kv_get(&cursor, &key, &val);
 		ctg_index_btree_dump_one_rec(&key, &val, dump_in_hex);
 	}
-	m0_be_btree_cursor_fini(&cursor);
+	m0_btree_cursor_fini(&cursor);
 	ctg_fini(ctg);
 
 	return 0;
@@ -2254,7 +2254,7 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 	struct m0_fid gfid = { 0, 0};
 	struct m0_buf key;
 	struct m0_buf val;
-	struct m0_be_btree_cursor  cursor;
+	struct m0_btree_cursor  cursor;
 	struct m0_cas_ctg *ctg = NULL;
 	bool dumped = false;
 	bool dump_in_hex = false;
@@ -2270,10 +2270,10 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 	rc = m0_ctg_store_init(&motr_ctx->cc_reqh_ctx.rc_be.but_dom);
 	M0_ASSERT(rc == 0);
 
-	m0_be_btree_cursor_init(&cursor, &ctg_store.cs_state->cs_meta->cc_tree);
-	for (rc = m0_be_btree_cursor_first_sync(&cursor); rc == 0;
-	     rc = m0_be_btree_cursor_next_sync(&cursor)) {
-		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
+	m0_btree_cursor_init(&cursor, ctg_store.cs_state->cs_meta->cc_tree);
+	for (rc = m0_btree_cursor_first(&cursor); rc == 0;
+	     rc = m0_btree_cursor_next(&cursor)) {
+		m0_btree_cursor_kv_get(&cursor, &key, &val);
 		memcpy(&out_fid, key.b_addr + M0_CAS_CTG_KV_HDR_SIZE,
 		      sizeof(out_fid));
 		if (!m0_dix_fid_validate_cctg(&out_fid))
@@ -2290,7 +2290,7 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 			break;
 		}
 	}
-	m0_be_btree_cursor_fini(&cursor);
+	m0_btree_cursor_fini(&cursor);
 
 	return rc? : dumped? 0 : -ENOENT;
 }
