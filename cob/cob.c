@@ -1446,12 +1446,14 @@ static int cob_iterator_get_callback(struct m0_btree_cb *cb,
 	 * can be done only in this case.
 	 */
 	if (!m0_fid_eq(&nskey->cnk_pfid, m0_cob_fid(it->ci_cob))) {
-		#ifdef DEBUG
 		M0_LOG(M0_ERROR, "fid values are different. \
 		      fid found="FID_F" fid required="FID_F,
 		      FID_P(&nskey->cnk_pfid), FID_P(m0_cob_fid(it->ci_cob)));
+
+		#ifdef DEBUG
 		M0_ASSERT(0);
 		#endif
+
 		return -ENOENT;
 	}
 
@@ -1548,12 +1550,14 @@ static int cob_ea_iterator_get_callback(struct m0_btree_cb *cb,
 	eakey = (struct m0_cob_eakey *)rec->r_key.k_data.ov_buf[0];
 
 	if (!m0_fid_eq(&eakey->cek_fid, m0_cob_fid(it->ci_cob))) {
-		#ifdef DEBUG
 		M0_LOG(M0_ERROR, "fid values are different. \
 		      fid found="FID_F" fid required="FID_F,
 		      FID_P(&eakey->cek_fid), FID_P(m0_cob_fid(it->ci_cob)));
+
+		#ifdef DEBUG
 		M0_ASSERT(0);
 		#endif
+
 		return -ENOENT;
 	}
 
