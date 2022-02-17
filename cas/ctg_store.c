@@ -707,16 +707,10 @@ static void ctg_meta_delete_credit(struct m0_btree_type   *bt,
 {
 	struct m0_cas_ctg *ctg;
 
-<<<<<<< HEAD
-	m0_btree_del_credit2(bt, M0_CTG_ROOT_NODE_SHIFT, nr,
+	m0_btree_del_credit2(bt, M0_CTG_ROOT_NODE_SIZE, nr,
 			     sizeof(struct fid_key),
 			     sizeof(struct meta_value),
 			     accum);
-=======
-	m0_btree_del_credit2(bt, M0_CTG_ROOT_NODE_SIZE, nr,
-			     M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid),
-			     M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg), accum);
->>>>>>> EOS-25620 : bug fixes for reading objects after cluster reboot (#1316)
 	M0_BE_FREE_CREDIT_PTR(ctg, seg, accum);
 }
 
@@ -2577,7 +2571,11 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 	struct m0_fid gfid = { 0, 0};
 	struct m0_buf key;
 	struct m0_buf val;
+<<<<<<< HEAD
 	struct m0_btree_cursor cursor;
+=======
+	struct m0_btree_cursor  cursor;
+>>>>>>> Changes to fix compile errors after rebase.
 	struct m0_cas_ctg *ctg = NULL;
 	bool dumped = false;
 	bool dump_in_hex = false;
@@ -2598,8 +2596,13 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 	for (rc = m0_btree_cursor_first(&cursor); rc == 0;
 	     rc = m0_btree_cursor_next(&cursor)) {
 		m0_btree_cursor_kv_get(&cursor, &key, &val);
+<<<<<<< HEAD
 		fkey = key.b_addr;
 		out_fid = fkey->fk_fid;
+=======
+		memcpy(&out_fid, key.b_addr + M0_CAS_CTG_KV_HDR_SIZE,
+		      sizeof(out_fid));
+>>>>>>> Changes to fix compile errors after rebase.
 		if (!m0_dix_fid_validate_cctg(&out_fid))
 			continue;
 		m0_dix_fid_convert_cctg2dix(&out_fid, &gfid);
