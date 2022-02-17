@@ -288,7 +288,8 @@ static void be_tx_group_fom_handle(struct m0_sm_group *gr,
 	       m0_be_tx_group_tx_nr(m->tgf_group));
 
 	m0_fom_phase_set(&m->tgf_gen, TGS_PREPARE);
-	m0_fom_ready(&m->tgf_gen);
+	if (m0_fom_is_waiting(fom))
+		m0_fom_ready(&m->tgf_gen);
 }
 
 M0_INTERNAL void m0_be_tx_group_fom_init(struct m0_be_tx_group_fom *m,
