@@ -623,7 +623,7 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 	M0_ASSERT(dom->cd_object_index);
 	keycmp.rko_keycmp = oi_cmp;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-				      m0_btree_open(dom->cd_oi_node,
+				      m0_btree_open(&dom->cd_oi_node,
 						    sizeof dom->cd_oi_node,
 						    dom->cd_object_index, seg,
 						    &b_op, &keycmp));
@@ -1216,8 +1216,8 @@ static int cob_table_insert(struct m0_btree *tree, struct m0_be_tx *tx,
 						     &kv_op, tx));
 }
 
-static int cob_table_lookup_callback(struct m0_btree_cb  *cb,
-				 struct m0_btree_rec *rec)
+static int cob_table_lookup_callback(struct m0_btree_cb *cb,
+				     struct m0_btree_rec *rec)
 {
 	struct m0_btree_rec     *datum = cb->c_datum;
 
@@ -1488,6 +1488,35 @@ static int cob_ns_lookup(struct m0_cob *cob)
 	return rc;
 }
 
+static int cob_oi_lookup_callback(struct m0_btree_cb  *cb,
+				  struct m0_btree_rec *rec)
+{
+	int                  rc;
+	struct m0_cob       *cob    = cb->c_datum;
+	struct m0_cob_oikey  oldkey = cob->co_oikey;
+	struct m0_cob_oikey *oikey;
+	struct m0_cob_nskey *nskey;
+
+	oikey = (struct m0_cob_oikey *)rec->r_key.k_data.ov_buf[0];
+	nskey = (struct m0_cob_nskey *)rec->r_val.ov_buf[0];
+
+	/*
+	 * Found position should have same fid.
+	 */
+	if (!m0_fid_eq(&oldkey.cok_fid, &oikey->cok_fid)) {
+		M0_LOG(M0_DEBUG, "old fid="FID_F" fid="FID_F,
+		       FID_P(&oldkey.cok_fid), FID_P(&oikey->cok_fid));
+		rc = -ENOENT;
+		return rc;
+	}
+
+	rc = m0_cob_nskey_make(&cob->co_nskey, &nskey->cnk_pfid,
+			       m0_bitstring_buf_get(&nskey->cnk_name),
+			       m0_bitstring_len_get(&nskey->cnk_name));
+	cob->co_flags |= (M0_CA_NSKEY | M0_CA_NSKEY_FREE);
+	return rc;
+}
+
 /**
    Search for a record in the object index table.
    Most likely we want stat data for a given fid, so let's do that as well.
@@ -1496,18 +1525,18 @@ static int cob_ns_lookup(struct m0_cob *cob)
  */
 static int cob_oi_lookup(struct m0_cob *cob)
 {
-	struct m0_btree_cursor  cursor;
-	m0_bcount_t             ksize  = sizeof cob->co_oikey;
-	void                   *k_ptr  = &cob->co_oikey;
-	struct m0_btree_key     start = {
-				  .k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-				};
-	struct m0_buf           key;
-	struct m0_buf           val;
-	struct m0_cob_oikey     oldkey;
-	struct m0_cob_oikey    *oikey;
-	struct m0_cob_nskey    *nskey;
-	int                     rc;
+	int                  rc;
+	struct m0_btree     *tree         = cob->co_dom->cd_object_index;
+	void                *k_ptr        = &cob->co_oikey;
+	m0_bcount_t          ksize        = sizeof cob->co_oikey;
+	struct m0_btree_op   kv_op        = {};
+	struct m0_btree_key  key          = {
+		.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+	};
+	struct m0_btree_cb   oi_lookup_cb = {
+		.c_act   = cob_oi_lookup_callback,
+		.c_datum = cob,
+	};
 
 	if (cob->co_flags & M0_CA_NSKEY)
 		return 0;
@@ -1517,50 +1546,10 @@ static int cob_oi_lookup(struct m0_cob *cob)
 		cob->co_flags &= ~M0_CA_NSKEY_FREE;
 	}
 
-	oldkey = cob->co_oikey;
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_get(tree, &key, &oi_lookup_cb,
+						   BOF_SLANT, &kv_op));
 
-	/*
-	 * Find the name from the object index table. Note the key buffer
-	 * is out of scope outside of this function, but the record is good
-	 * until m0_db_pair_fini.
-	 */
-
-	/*
-	 * We use cursor here because in some situations we need
-	 * to find most suitable position instead of exact location.
-	 */
-	m0_btree_cursor_init(&cursor, cob->co_dom->cd_object_index);
-	rc = m0_btree_cursor_get(&cursor, &start, true);
-	if (rc != 0) {
-		M0_LOG(M0_DEBUG, "btree_cursor_get_sync() failed with %d", rc);
-		goto out;
-	}
-
-	m0_btree_cursor_kv_get(&cursor, &key, &val);
-	nskey = (struct m0_cob_nskey *)val.b_addr;
-	oikey = (struct m0_cob_oikey *)key.b_addr;
-
-	M0_LOG(M0_DEBUG, "found: fid="FID_F" lno=%d pfid="FID_F" name='%s'",
-	       FID_P(&oikey->cok_fid), (int)oikey->cok_linkno,
-	       FID_P(&nskey->cnk_pfid), (char*)nskey->cnk_name.b_data);
-
-	/*
-	 * Found position should have same fid.
-	 */
-	if (!m0_fid_eq(&oldkey.cok_fid, &oikey->cok_fid)) {
-		M0_LOG(M0_DEBUG, "old fid="FID_F" fid="FID_F,
-				FID_P(&oldkey.cok_fid),
-				FID_P(&oikey->cok_fid));
-		rc = -ENOENT;
-		goto out;
-	}
-
-	rc = m0_cob_nskey_make(&cob->co_nskey, &nskey->cnk_pfid,
-			       m0_bitstring_buf_get(&nskey->cnk_name),
-			       m0_bitstring_len_get(&nskey->cnk_name));
-	cob->co_flags |= (M0_CA_NSKEY | M0_CA_NSKEY_FREE);
-out:
-	m0_btree_cursor_fini(&cursor);
 	return M0_RC(rc);
 }
 
@@ -1761,62 +1750,84 @@ M0_INTERNAL void m0_cob_iterator_fini(struct m0_cob_iterator *it)
 	m0_free(it->ci_key);
 }
 
+static int cob_iterator_get_callback(struct m0_btree_cb *cb,
+				     struct m0_btree_rec *rec)
+{
+	struct m0_cob_iterator *it = cb->c_datum;
+	struct m0_cob_nskey    *nskey;
+
+	nskey = (struct m0_cob_nskey *)rec->r_key.k_data.ov_buf[0];
+
+	/**
+	 * Check if we are stil inside the object bounds. Assert and key copy
+	 * can be done only in this case.
+	 */
+	if (!m0_fid_eq(&nskey->cnk_pfid, m0_cob_fid(it->ci_cob))) {
+		M0_LOG(M0_ERROR, "fid values are different. \
+		      fid found="FID_F" fid required="FID_F,
+		      FID_P(&nskey->cnk_pfid), FID_P(m0_cob_fid(it->ci_cob)));
+
+		#ifdef DEBUG
+		M0_ASSERT(0);
+		#endif
+
+		return -ENOENT;
+	}
+
+	M0_ASSERT(m0_cob_nskey_size(nskey) <= m0_cob_max_nskey_size());
+	memcpy(it->ci_key, nskey, m0_cob_nskey_size(nskey));
+
+	return 0;
+}
+
 M0_INTERNAL int m0_cob_iterator_get(struct m0_cob_iterator *it)
 {
-        struct m0_cob_nskey *nskey;
-	m0_bcount_t          ksize  = m0_cob_nskey_size(it->ci_key);
-	void                *k_ptr  = it->ci_key;
-	struct m0_btree_key  find_key = {
-				  .k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-				};
-	struct m0_buf        key;
 	int                  rc;
+	struct m0_btree_op   kv_op       = {};
+	struct m0_btree     *tree        = it->ci_cursor.bc_arbor;
+	void                *k_ptr       = it->ci_key;
+	m0_bcount_t          ksize       = m0_cob_nskey_size(it->ci_key);
+	struct m0_btree_key  find_key    = {
+		.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+	};
+	struct m0_btree_cb   iterator_cb = {
+		.c_act   = cob_iterator_get_callback,
+		.c_datum = it,
+	};
 
 	M0_COB_NSKEY_LOG(ENTRY, "[%lx:%lx]/%.*s", it->ci_key);
-	rc = m0_btree_cursor_get(&it->ci_cursor, &find_key, true);
-	if (rc == 0) {
-		m0_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
-		nskey = (struct m0_cob_nskey *)key.b_addr;
 
-                /**
-                   Check if we are stil inside the object bounds. Assert and
-                   key copy can be done only in this case.
-                 */
-		if (!m0_fid_eq(&nskey->cnk_pfid, m0_cob_fid(it->ci_cob)))
-			rc = -ENOENT;
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_get(tree, &find_key,
+						   &iterator_cb, BOF_SLANT,
+						   &kv_op));
 
-                if (rc == 0) {
-                        M0_ASSERT(m0_cob_nskey_size(nskey) <= m0_cob_max_nskey_size());
-		        memcpy(it->ci_key, nskey, m0_cob_nskey_size(nskey));
-                }
-	}
 	M0_COB_NSKEY_LOG(LEAVE, "[%lx:%lx]/%.*s rc: %d", it->ci_key, rc);
 	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_iterator_next(struct m0_cob_iterator *it)
 {
-        struct m0_cob_nskey *nskey;
-	struct m0_buf key;
-	int rc;
+	int                  rc;
+	struct m0_btree_op   kv_op       = {};
+	struct m0_btree     *tree        = it->ci_cursor.bc_arbor;
+	void                *k_ptr       = it->ci_key;
+	m0_bcount_t          ksize       = m0_cob_nskey_size(it->ci_key);
+	struct m0_btree_key  find_key    = {
+		.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+	};
+	struct m0_btree_cb   iterator_cb = {
+		.c_act   = cob_iterator_get_callback,
+		.c_datum = it,
+	};
 
 	M0_COB_NSKEY_LOG(ENTRY, "[%lx:%lx]/%.*s", it->ci_key);
-	rc = m0_btree_cursor_next(&it->ci_cursor);
-	if (rc == 0) {
-		m0_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
-		nskey = (struct m0_cob_nskey *)key.b_addr;
 
-                /**
-                   Check if we are stil inside the object bounds. Assert and
-                   key copy can be done only in this case.
-                 */
-		if (!m0_fid_eq(&nskey->cnk_pfid, m0_cob_fid(it->ci_cob)))
-			rc = -ENOENT;
-                if (rc == 0) {
-                        M0_ASSERT(m0_cob_nskey_size(nskey) <= m0_cob_max_nskey_size());
-		        memcpy(it->ci_key, nskey, m0_cob_nskey_size(nskey));
-                }
-	}
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_iter(tree, &find_key,
+						    &iterator_cb, BOF_NEXT,
+						    &kv_op));
+
 	M0_COB_NSKEY_LOG(LEAVE, "[%lx:%lx]/%.*s rc: %d", it->ci_key, rc);
 	return M0_RC(rc);
 }
@@ -1847,62 +1858,73 @@ M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
 	return M0_RC(rc);
 }
 
+static int cob_ea_iterator_get_callback(struct m0_btree_cb *cb,
+				        struct m0_btree_rec *rec)
+{
+	struct m0_cob_ea_iterator *it = cb->c_datum;
+	struct m0_cob_eakey       *eakey;
+
+	eakey = (struct m0_cob_eakey *)rec->r_key.k_data.ov_buf[0];
+
+	if (!m0_fid_eq(&eakey->cek_fid, m0_cob_fid(it->ci_cob))) {
+		M0_LOG(M0_ERROR, "fid values are different. \
+		      fid found="FID_F" fid required="FID_F,
+		      FID_P(&eakey->cek_fid), FID_P(m0_cob_fid(it->ci_cob)));
+
+		#ifdef DEBUG
+		M0_ASSERT(0);
+		#endif
+
+		return -ENOENT;
+	}
+
+	M0_ASSERT(m0_cob_eakey_size(eakey) <= m0_cob_max_eakey_size());
+	memcpy(it->ci_key, eakey, m0_cob_eakey_size(eakey));
+
+	return 0;
+}
+
 M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it)
 {
 	int                  rc;
-	m0_bcount_t          ksize  = m0_cob_eakey_size(it->ci_key);
-	void                *k_ptr  = it->ci_key;
-	struct m0_btree_key  find_key = {
-				  .k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-				};
-	struct m0_buf        key;
-        struct m0_cob_eakey *eakey;
+	struct m0_btree_op   kv_op          = {};
+	struct m0_btree     *tree           = it->ci_cursor.bc_arbor;
+	m0_bcount_t          ksize          = m0_cob_eakey_size(it->ci_key);
+	void                *k_ptr          = it->ci_key;
+	struct m0_btree_key  find_key       = {
+		.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+	};
+	struct m0_btree_cb   ea_iterator_cb = {
+		.c_act   = cob_ea_iterator_get_callback,
+		.c_datum = it,
+	};
 
-	rc = m0_btree_cursor_get(&it->ci_cursor, &find_key, true);
-	if (rc == 0) {
-		m0_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
-                eakey = (struct m0_cob_eakey *)key.b_addr;
-
-                /**
-                   Check if we are stil inside the object bounds. Assert and
-                   key copy can be done only in this case.
-                 */
-                if (!m0_fid_eq(&eakey->cek_fid, m0_cob_fid(it->ci_cob)))
-                         rc = -ENOENT;
-
-                if (rc == 0) {
-                        M0_ASSERT(m0_cob_eakey_size(eakey) <=
-				  m0_cob_max_eakey_size());
-		        memcpy(it->ci_key, eakey, m0_cob_eakey_size(eakey));
-                }
-	}
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_get(tree, &find_key,
+						   &ea_iterator_cb, BOF_SLANT,
+						   &kv_op));
 	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cob_ea_iterator_next(struct m0_cob_ea_iterator *it)
 {
-	int rc;
-	struct m0_buf key;
-        struct m0_cob_eakey *eakey;
+	int                  rc;
+	struct m0_btree_op   kv_op          = {};
+	struct m0_btree     *tree           = it->ci_cursor.bc_arbor;
+	m0_bcount_t          ksize          = m0_cob_eakey_size(it->ci_key);
+	void                *k_ptr          = it->ci_key;
+	struct m0_btree_key  find_key       = {
+		.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+	};
+	struct m0_btree_cb   ea_iterator_cb = {
+		.c_act   = cob_ea_iterator_get_callback,
+		.c_datum = it,
+	};
 
-	rc = m0_btree_cursor_next(&it->ci_cursor);
-	if (rc == 0) {
-		m0_btree_cursor_kv_get(&it->ci_cursor, &key, NULL);
-                eakey = (struct m0_cob_eakey *)key.b_addr;
-
-                /**
-                   Check if we are stil inside the object bounds. Assert and
-                   key copy can be done only in this case.
-                 */
-                if (!m0_fid_eq(&eakey->cek_fid, m0_cob_fid(it->ci_cob)))
-                         rc = -ENOENT;
-
-                if (rc == 0) {
-                        M0_ASSERT(m0_cob_eakey_size(eakey) <= m0_cob_max_eakey_size());
-		        memcpy(it->ci_key, eakey, m0_cob_eakey_size(eakey));
-                }
-	}
-
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_iter(tree, &find_key,
+						    &ea_iterator_cb, BOF_NEXT,
+						    &kv_op));
 	return M0_RC(rc);
 }
 
@@ -1920,21 +1942,31 @@ static bool m0_cob_is_valid(struct m0_cob *cob)
 	return m0_fid_is_set(m0_cob_fid(cob));
 }
 
+static int cob_alloc_omgid_callback(struct m0_btree_cb *cb,
+				    struct m0_btree_rec *rec)
+{
+	struct m0_cob_omgkey *omgkey = cb->c_datum;
+
+	*omgkey = *(struct m0_cob_omgkey*)rec->r_key.k_data.ov_buf[0];
+
+	return 0;
+}
+
 M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom, uint64_t *omgid)
 {
-	struct m0_btree_cursor cursor;
-	struct m0_cob_omgkey   omgkey = {};
-	m0_bcount_t            ksize  = sizeof omgkey;
-	void                  *k_ptr  = &omgkey;
-	struct m0_btree_key    find_key = {
-				  .k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-				};
-	struct m0_buf          kbuf;
-	int                    rc;
+	int                   rc;
+	struct m0_btree      *tree        = dom->cd_fileattr_omg;
+	struct m0_cob_omgkey  omgkey      = {};
+	struct m0_cob_omgkey  prev_omgkey = {};
+	m0_bcount_t           ksize       = sizeof omgkey;
+	void                 *k_ptr       = &omgkey;
+	struct m0_btree_op    kv_op       = {};
+	struct m0_btree_cb    omgid_cb    = {};
+	struct m0_btree_key   find_key    = {
+		.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+	};
 
 	M0_ENTRY();
-
-	m0_btree_cursor_init(&cursor, dom->cd_fileattr_omg);
 
 	/*
 	 * Look for ~0ULL terminator record and do a step back to find last
@@ -1942,31 +1974,39 @@ M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom, uint64_t *omgid)
 	 * init time (mkfs or else).
 	 */
 	omgkey.cok_omgid = ~0ULL;
-	rc = m0_btree_cursor_get(&cursor, &find_key, true);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				      m0_btree_get(tree, &find_key, NULL,
+						   BOF_SLANT, &kv_op));
 
 	/*
 	 * In case of error, most probably due to no terminator record found,
 	 * one needs to run mkfs.
 	 */
 	if (rc == 0) {
-                rc = m0_btree_cursor_prev(&cursor);
 		if (omgid != NULL) {
+			omgid_cb.c_act   = cob_alloc_omgid_callback;
+			omgid_cb.c_datum = &prev_omgkey;
+
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_iter(tree,
+								    &find_key,
+								    &omgid_cb,
+								    BOF_PREV,
+								    &kv_op));
 			if (rc == 0) {
 				/* We found last allocated omgid.
 				 * Bump it by one. */
-				m0_btree_cursor_kv_get(&cursor, &kbuf, NULL);
-				omgkey = *(struct m0_cob_omgkey*)kbuf.b_addr;
-				*omgid = ++omgkey.cok_omgid;
+				*omgid = ++prev_omgkey.cok_omgid;
 			} else {
 				/* No last allocated found, this alloc call is
 				 * the first one. */
 				*omgid = 0;
+				rc = 0;
 			}
 		}
-		rc = 0;
 	}
 
-	m0_btree_cursor_fini(&cursor);
 	return M0_RC(rc);
 }
 
