@@ -7408,7 +7408,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 		void        *pkey;
 		void        *pval;
 		struct slot  s = {};
-		int          rc;
+		int          rc = 0;
 		int          count;
 
 		lev = &oi->i_level[oi->i_used];
