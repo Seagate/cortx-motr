@@ -33,7 +33,6 @@ motr_src=$(echo $(dirname $st_util_dir) \
          | sed -r -e 's#/?motr/st/utils/?$##' -e 's#^/usr/s?bin##')
 
 . $motr_src/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
-. $motr_src/m0t1fs/linux_kernel/st/m0t1fs_sns_common_inc.sh
 
 # kernel mode
 function motr_st_start_k ()

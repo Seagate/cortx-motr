@@ -95,6 +95,7 @@ SNS_MOTR_CLI_EP="12345:33:1000"
 POOL_MACHINE_CLI_EP="12345:33:1001"
 SNS_QUIESCE_CLI_EP="12345:33:1002"
 M0HAM_CLI_EP="12345:33:1003"
+DIX_QUIESCE_CLI_EP="12345:33:1004"
 
 export FDMI_PLUGIN_EP="12345:33:601"
 export FDMI_PLUGIN_EP2="12345:33:602"
@@ -103,6 +104,7 @@ export FDMI_FILTER_FID="6c00000000000001:0"
 export FDMI_FILTER_FID2="6c00000000000002:0"
 
 SNS_CLI_EP="12345:33:400"
+DIX_CLI_EP="12345:33:401"
 
 POOL_WIDTH=$(expr ${#IOSEP[*]} \* 5)
 NR_PARITY=2
@@ -129,6 +131,24 @@ XPRT=$(m0_default_xprt)
 
 # Single node configuration.
 SINGLE_NODE=0
+
+M0_NC_UNKNOWN=1
+M0_NC_ONLINE=1
+M0_NC_FAILED=2
+M0_NC_TRANSIENT=3
+M0_NC_REPAIR=4
+M0_NC_REPAIRED=5
+M0_NC_REBALANCE=6
+
+declare -A ha_states=(
+	[unknown]=$M0_NC_UNKNOWN
+	[online]=$M0_NC_ONLINE
+	[failed]=$M0_NC_FAILED
+	[transient]=$M0_NC_TRANSIENT
+	[repair]=$M0_NC_REPAIR
+	[repaired]=$M0_NC_REPAIRED
+	[rebalance]=$M0_NC_REBALANCE
+)
 
 unload_kernel_module()
 {
@@ -666,7 +686,7 @@ function build_conf()
 }
 
 service_eps_get()
-{ 
+{
 	local lnet_nid
 	local service_eps
 	if [ "$XPRT" = "lnet" ]
@@ -843,4 +863,149 @@ function run()
 {
 	echo "# $*"
 	eval $*
+}
+
+ha_events_post()
+{
+	local service_eps=($1)
+		local state=$2
+		local state_num=${ha_states[$state]}
+	if [ -z "$state_num" ]; then
+		echo "Unknown state: $state"
+		return 1
+	fi
+
+	shift 2
+
+	local fids=()
+	local nr=0
+	for d in "$@"; do
+		fids[$nr]="^k|1:$d"
+		nr=$((nr + 1))
+	done
+
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+
+	echo "ha_events_post: ${service_eps[*]}"
+	echo "setting devices { ${fids[*]} } to $state"
+	send_ha_events "${fids[*]}" "$state" "${service_eps[*]}" "$local_ep"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "HA note set failed: $rc"
+		unmount_and_clean &>> $MOTR_TEST_LOGFILE
+		return $rc
+	fi
+}
+
+# input parameters:
+# (i) state name
+# (ii) disk1
+# (iii) ...
+disk_state_set()
+{
+	local state=$1
+	local state_num=${ha_states[$state]}
+	if [ -z "$state_num" ]; then
+		echo "Unknown state: $state"
+		return 1
+	fi
+
+	shift
+
+	local fids=()
+	local nr=0
+	for d in "$@"; do
+		fids[$nr]="^k|1:$d"
+		nr=$((nr + 1))
+	done
+
+	# Dummy HA doesn't broadcast messages. Therefore, send ha_msg to the
+	# services directly.
+	local service_eps=$(service_eps_with_m0t1fs_get)
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+
+	echo "setting devices { ${fids[*]} } to $state"
+	send_ha_events "${fids[*]}" "$state" "$service_eps" "$local_ep"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "HA note set failed: $rc"
+		unmount_and_clean &>> $MOTR_TEST_LOGFILE
+		return $rc
+	fi
+}
+
+cas_disk_state_set()
+{
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+	local state=$1
+	local state_num=${ha_states[$state]}
+	if [ -z "$state_num" ]; then
+		echo "Unknown state: $state"
+		return 1
+	fi
+	shift
+	local service_eps=$(service_cas_eps_with_m0tifs_get)
+	local fids=()
+	local nr=0
+
+	echo "Setting CAS device { $@ } to $state (HA state=$state_num)"
+
+	for d in "$@";  do
+		fids[$nr]="^k|20:$d"
+		nr=$((nr + 1))
+	done
+	echo "setting devices { ${fids[*]} } to $state"
+	send_ha_events "${fids[*]}" "$state" "$service_eps" "$local_ep"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "HA note set failed: $rc"
+		unmount_and_clean &>> $MOTR_TEST_LOGFILE
+		return $rc
+	fi
+	return 0
+}
+
+disk_state_get()
+{
+	local fids=()
+	local nr=0
+	for d in "$@"; do
+		fids[$nr]="^k|1:$d"
+		nr=$((nr + 1))
+	done
+
+	local service_eps=$(service_eps_with_m0t1fs_get)
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+
+	echo "getting device { ${fids[*]} }'s HA state"
+	request_ha_state "${fids[*]}" "$service_eps" "$local_ep"
+	rc=$?
+	if [ $rc != 0 ]; then
+		echo "HA state get failed: $rc"
+		unmount_and_clean &>> $MOTR_TEST_LOGFILE
+		return $rc
+	fi
+}
+
+cas_disk_state_get()
+{
+	local service_eps=$(service_cas_eps_with_m0tifs_get)
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+	local nr=0
+
+	echo "getting device { $@ }'s HA state"
+
+	for d in "$@";	do
+		fids[$nr]="^k|20:$d"
+		nr=$((nr + 1))
+	done
+	echo "getting device { ${fids[*]} }'s HA state"
+	request_ha_state "${fids[*]}" "$service_eps" "$local_ep"
+	rc=$?
+	if [ $rc != 0 ]; then
+		echo "HA tate get failed: $rc"
+		unmount_and_clean &>> $MOTR_TEST_LOGFILE
+		return $rc
+	fi
+	return 0
 }

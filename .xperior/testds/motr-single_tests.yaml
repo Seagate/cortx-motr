@@ -386,11 +386,38 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 24motr-dix-repair-lookup-insert
-    script   : 'm0 run-st 24motr-dix-repair-lookup-insert'
+  - id       : 23dix-repair-m0repair
+    script   : 'm0 run-st 23dix-repair-m0repair'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
-    sandbox  : /var/motr/root/sandbox.st-24motr-dix-repair-lookup-insert
+    sandbox  : /var/motr/root/sandbox.st-23dix-repair-m0repair
+    groupname: 05motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 23dix-repair-quiesce-m0repair
+    script   : 'm0 run-st 23dix-repair-quiesce-m0repair'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-23dix-repair-quiesce-m0repair
+    groupname: 05motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 24motr-dix-repair-lookup-insert-spiel
+    script   : 'm0 run-st 24motr-dix-repair-lookup-insert-spiel'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-24motr-dix-repair-lookup-insert-spiel
+    groupname: 03motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 24motr-dix-repair-lookup-insert-m0repair
+    script   : 'm0 run-st 24motr-dix-repair-lookup-insert-m0repair'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-24motr-dix-repair-lookup-insert-m0repair
     groupname: 03motr-single-node
     polltime : 30
     timeout  : 1800
