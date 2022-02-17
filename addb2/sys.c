@@ -330,7 +330,7 @@ int m0_addb2_sys_net_start_with(struct m0_addb2_sys *sys, struct m0_tl *head)
 {
 	struct m0_reqh_service_ctx *service;
 	struct m0_rpc_conn         *conn;
-	int                         result;
+	int                         result = 0;
 
 	if (sys->sy_net == NULL) {
 		result = m0_addb2_sys_net_start(sys);
@@ -350,6 +350,7 @@ int m0_addb2_sys_net_start_with(struct m0_addb2_sys *sys, struct m0_tl *head)
 			}
 		}
 	} m0_tl_endfor;
+
 	return result;
 }
 

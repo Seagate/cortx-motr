@@ -610,7 +610,7 @@ M0_INTERNAL int m0_conf_confc_ha_update_async(struct m0_confc *confc,
 	struct m0_conf_cache *cache = &confc->cc_cache;
 	struct m0_conf_obj   *obj;
 	int32_t               total;
-	int                   rc;
+	int                   rc = 0;
 	int                   i = 0;
 
 	total = m0_tl_reduce(m0_conf_cache, obj, &cache->ca_registry, 0,

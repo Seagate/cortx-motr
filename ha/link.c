@@ -1264,20 +1264,20 @@ static int ha_link_outgoing_fop_replied(struct m0_ha_link *hl)
 
 	M0_PRE(m0_mutex_is_locked(&hl->hln_lock));
 
-	if (hl->hln_rpc_rc == 0) {
+	rc = hl->hln_rpc_rc;
+	if (rc == 0) {
 		req_item = m0_fop_to_rpc_item(&hl->hln_outgoing_fop);
 		rep_fop  = m0_fop_data(m0_rpc_item_to_fop(req_item->ri_reply));
 		rc = rep_fop->lmr_rc;
 		M0_LOG(M0_DEBUG, "lmr_rc=%"PRIi32, rep_fop->lmr_rc);
-	} else {
-		rc = hl->hln_rpc_rc;
+		if (rc == 0)
+			ha_link_tags_update(hl, rep_fop->lmr_out_next,
+					    rep_fop->lmr_in_delivered);
 	}
-	if (rc == 0) {
-		ha_link_tags_update(hl, rep_fop->lmr_out_next,
-		                    rep_fop->lmr_in_delivered);
-	} else {
+
+	if (rc != 0)
 		m0_ha_lq_try_unnext(&hl->hln_q_out);
-	}
+
 	if (ha_link_backoff_check(hl, rc, &nr, &old_rc, &old_nr)) {
 		m0_ha_lq_tags_get(&hl->hln_q_out, &tags);
 		M0_LOG(M0_WARN, "rc=%d nr=%" PRIu64 " hl=%p ep=%s "
@@ -1289,6 +1289,7 @@ static int ha_link_outgoing_fop_replied(struct m0_ha_link *hl)
 			       hl->hln_conn_cfg.hlcc_rpc_endpoint);
 		}
 	}
+
 	return M0_RC(rc);
 }
 
