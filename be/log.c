@@ -890,7 +890,7 @@ M0_INTERNAL void m0_be_log_header__set(struct m0_be_fmt_log_header *hdr,
 				       m0_bindex_t                  lsn,
 				       m0_bcount_t                  size)
 {
-	M0_ENTRY("discarded=%"PRId64" lsn=%"PRId64" size=%"PRId64,
+	M0_ENTRY("discarded=%" PRId64 " lsn=%" PRId64 " size=%"PRId64,
 		 discarded, lsn, size);
 
 	m0_be_fmt_log_header_reset(hdr);

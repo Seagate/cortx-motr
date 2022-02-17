@@ -165,7 +165,7 @@ struct m0_be_queue {
 	uint64_t                 bq_dequeued;
 };
 
-#define BEQ_F "(queue=%p bq_enqueued=%"PRIu64" bq_dequeued=%"PRIu64" " \
+#define BEQ_F "(queue=%p bq_enqueued=%" PRIu64 " bq_dequeued=%" PRIu64 " " \
 	"bq_the_end=%d)"
 #define BEQ_P(bq) (bq), (bq)->bq_enqueued, (bq)->bq_dequeued, \
 	!!((bq)->bq_the_end)
