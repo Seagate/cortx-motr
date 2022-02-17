@@ -1123,7 +1123,8 @@ static int cd_cob_delete(struct m0_fom            *fom,
 			 const struct m0_cob_attr *attr)
 {
 	int                   rc;
-	uint64_t              cob_size = attr->ca_size;
+	uint64_t              cob_size;
+	struct m0_fid         pver;
 	struct m0_cob        *cob;
 	struct m0_cob_bckey   key;
 
@@ -1138,6 +1139,10 @@ static int cd_cob_delete(struct m0_fom            *fom,
 		return M0_RC(rc);
 
 	M0_ASSERT(cob != NULL);
+
+	pver = cob->co_nsrec.cnr_pver;
+	cob_size = cob->co_nsrec.cnr_size;
+
 	M0_CNT_DEC(cob->co_nsrec.cnr_nlink);
 	M0_ASSERT(attr->ca_nlink == 0);
 	M0_ASSERT(cob->co_nsrec.cnr_nlink == 0);
@@ -1146,7 +1151,7 @@ static int cd_cob_delete(struct m0_fom            *fom,
 	if (rc == 0)
 		M0_LOG(M0_DEBUG, "Cob deleted successfully.");
 
-	key.cbk_pfid = cd->fco_pver->pv_id; 
+	key.cbk_pfid = pver; 
 	key.cbk_user_id = M0_BYTECOUNT_USER_ID;
 	rc = cob_bytecount_decrement(cob, &key, cob_size, m0_fom_tx(fom));
 
@@ -1239,13 +1244,22 @@ static int ce_stob_edit(struct m0_fom *fom, struct m0_fom_cob_op *cd,
 static int cob_bytecount_decrement(struct m0_cob *cob, struct m0_cob_bckey *key,
 				   uint64_t bytecount, struct m0_be_tx *tx)
 {
-	int rc;
+	int                 rc;
+	uint64_t            old_bc;
 	struct m0_cob_bcrec rec = {};
 
+	M0_ENTRY("KEY: "FID_F"/%"PRIu64, FID_P(&key->cbk_pfid), key->cbk_user_id);
+
 	rc = m0_cob_bc_lookup(cob, key, &rec);
+	old_bc = rec.cbr_bytecount;
 	if (rc == 0) {
 		rec.cbr_bytecount -= bytecount;
-		m0_cob_bc_update(cob, key, &rec, tx);
+		rc = m0_cob_bc_update(cob, key, &rec, tx);
+		if (rc != 0)
+			return M0_ERR(rc);
+		M0_LOG(M0_DEBUG, "Bytecount reduced by %"PRIu64" [%"PRIu64" ->"
+				 " %"PRIu64"]", bytecount, old_bc,
+				 rec.cbr_bytecount);
 	} else
 		M0_ERR(rc);
 

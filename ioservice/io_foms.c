@@ -2336,12 +2336,13 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 
 	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS &&
 	    m0_is_write_fop(fom->fo_fop)) {
+		int                 bc_rc;
 		struct m0_cob_bckey key;
 
 		key.cbk_pfid = pver;
 		key.cbk_user_id = M0_BYTECOUNT_USER_ID;
-		rc = fom_cob_locate(fom);
-		if (rc == 0) {
+		bc_rc = fom_cob_locate(fom);
+		if (bc_rc == 0) {
 			cob = fom_obj->fcrw_cob;
 			cob_bytecount_increment(cob, &key, byte_count,
 						m0_fom_tx(fom));
@@ -2506,16 +2507,28 @@ static int cob_bytecount_increment(struct m0_cob *cob, struct m0_cob_bckey *key,
 				   uint64_t bytecount, struct m0_be_tx *tx)
 {
 	int                 rc;
+	uint64_t            old_bc;
 	struct m0_cob_bcrec rec = {};
+
+	M0_ENTRY("KEY: "FID_F"/%"PRIu64, FID_P(&key->cbk_pfid), key->cbk_user_id);
 
 	rc = m0_cob_bc_lookup(cob, key, &rec);
 	if (rc == -ENOENT) {
 		rec.cbr_bytecount = bytecount;
 		rec.cbr_cob_objects = 1;
-		m0_cob_bc_insert(cob, key, &rec, tx);
+		rc = m0_cob_bc_insert(cob, key, &rec, tx);
+		if (rc != 0)
+			return M0_ERR(rc);
+		M0_LOG(M0_DEBUG, "Bytecount inserted %"PRIu64, bytecount);
 	} else if (rc == 0) {
+		old_bc = rec.cbr_bytecount;
 		rec.cbr_bytecount += bytecount;
-		m0_cob_bc_update(cob, key, &rec, tx);
+		rc = m0_cob_bc_update(cob, key, &rec, tx);
+		if (rc != 0)
+			return M0_ERR(rc);
+		M0_LOG(M0_DEBUG, "Bytecount increased by %"PRIu64" [%"PRIu64" ->"
+				 " %"PRIu64"]", bytecount, old_bc,
+				 rec.cbr_bytecount);
 	} else
 		M0_ERR(rc);
 
