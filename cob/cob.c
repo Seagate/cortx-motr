@@ -1445,8 +1445,21 @@ static int cob_iterator_get_callback(struct m0_btree_cb *cb,
 	 * Check if we are stil inside the object bounds. Assert and key copy
 	 * can be done only in this case.
 	 */
-	if (!m0_fid_eq(&nskey->cnk_pfid, m0_cob_fid(it->ci_cob)))
-		return -ENOENT;
+	if (!m0_fid_eq(&nskey->cnk_pfid, m0_cob_fid(it->ci_cob))) {
+		#ifdef DEBUG
+			M0_LOG(M0_DEBUG, "fid values are different.\
+			       required fid="FID_F" found fid="FID_F,
+			       FID_P(&nskey->cnk_pfid),
+			       FID_P(m0_cob_fid(it->ci_cob)));
+			M0_ASSERT(0);
+		#else
+			M0_LOG(M0_DEBUG, "fid values are different.\
+			       required fid="FID_F" found fid="FID_F,
+			       FID_P(&nskey->cnk_pfid),
+			       FID_P(m0_cob_fid(it->ci_cob)));
+			return -ENOENT;
+		#endif
+	}
 
 	M0_ASSERT(m0_cob_nskey_size(nskey) <= m0_cob_max_nskey_size());
 	memcpy(it->ci_key, nskey, m0_cob_nskey_size(nskey));
@@ -1540,11 +1553,25 @@ static int cob_ea_iterator_get_callback(struct m0_btree_cb *cb,
 
 	eakey = (struct m0_cob_eakey *)rec->r_key.k_data.ov_buf[0];
 
-	if (!m0_fid_eq(&eakey->cek_fid, m0_cob_fid(it->ci_cob)))
-		return -ENOENT;
+	if (!m0_fid_eq(&eakey->cek_fid, m0_cob_fid(it->ci_cob))) {
+		#ifdef DEBUG
+			M0_LOG(M0_DEBUG, "fid values are different.\
+			       required fid="FID_F" found fid="FID_F,
+			       FID_P(&eakey->cek_fid),
+			       FID_P(m0_cob_fid(it->ci_cob)));
+			M0_ASSERT(0);
+		#else
+			M0_LOG(M0_DEBUG, "fid values are different.\
+			       required fid="FID_F" found fid="FID_F,
+			       FID_P(&eakey->cek_fid),
+			       FID_P(m0_cob_fid(it->ci_cob)));
+			return -ENOENT;
+		#endif
+	}
 
 	M0_ASSERT(m0_cob_eakey_size(eakey) <= m0_cob_max_eakey_size());
 	memcpy(it->ci_key, eakey, m0_cob_eakey_size(eakey));
+
 	return 0;
 }
 
