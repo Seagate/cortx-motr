@@ -19,13 +19,13 @@
 #
 
 SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.dix-repair-st}
-M0_SRC_DIR=`readlink -f $0`
-M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
+M0_SRC_DIR="$(readlink -f ${BASH_SOURCE[0]})"
+M0_SRC_DIR="${M0_SRC_DIR%/*/*/*/*}"
 [ `id -u` -eq 0 ] || die 'Must be run by superuser'
 
-. $M0_SRC_DIR/spiel/st/m0t1fs_spiel_dix_common_inc.sh #dix spiel
-. $M0_SRC_DIR/motr/st/utils/motr_local_conf.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_dix_common_inc.sh
+. "$M0_SRC_DIR"/spiel/st/m0t1fs_spiel_dix_common_inc.sh #dix spiel
+. "$M0_SRC_DIR"/motr/st/utils/motr_local_conf.sh
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_dix_common_inc.sh
 
 do_motr_start=1
 do_dixinit=1
@@ -86,14 +86,14 @@ function load_item()
 
 device_fail() {
 	local rc
-	cas_disk_state_set "failed" $fail_device
+	cas_disk_state_set "failed" "$fail_device"
 	rc=$?
 	return $rc
 }
 
 device_query() {
 	local rc
-	cas_disk_state_get $fail_device
+	cas_disk_state_get "$fail_device"
 	rc=$?
 	return $rc
 }
@@ -101,7 +101,7 @@ device_query() {
 
 dix_repair_start() {
 	local rc
-	cas_disk_state_set "repair" $fail_device || return $?
+	cas_disk_state_set "repair" "$fail_device" || return $?
 	if [ ${do_spiel} == 1 ]; then
 		spiel_dix_repair_start
 	else
@@ -113,7 +113,7 @@ dix_repair_start() {
 
 dix_rebalance_start() {
 	local rc
-	cas_disk_state_set "rebalance" $fail_device || return $?
+	cas_disk_state_set "rebalance" "$fail_device" || return $?
 	if [ ${do_spiel} == 1 ]; then
 		spiel_dix_rebalance_start
 	else
@@ -130,7 +130,7 @@ dix_rep_wait() {
 	else
 		wait_for_dix_repair_or_rebalance "repair" || return $?
 	fi
-	cas_disk_state_set "repaired" $fail_device
+	cas_disk_state_set "repaired" "$fail_device"
 	rc=$?
 	return $rc
 }
@@ -142,7 +142,7 @@ dix_reb_wait() {
 	else
 		wait_for_dix_repair_or_rebalance "rebalance" || return $?
 	fi
-	cas_disk_state_set "online" $fail_device
+	cas_disk_state_set "online" "$fail_device"
 	rc=$?
 	return $rc
 }
@@ -494,7 +494,7 @@ st_init() {
 	[ $? != 0 ] && return 1
 
 	# We use this file because it contains human-readable values.
-	cp $M0_SRC_DIR/dix/cm/st/src_vals.txt ${vals_file}
+	cp "$M0_SRC_DIR"/dix/cm/st/src_vals.txt "${vals_file}"
 
 	cp ${vals_file} ${keys_file}
 	ls -l ${fids_file} ${vals_file}

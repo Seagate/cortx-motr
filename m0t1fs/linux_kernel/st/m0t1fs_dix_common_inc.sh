@@ -17,8 +17,8 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-M0_SRC_DIR=$(readlink -f ${BASH_SOURCE[0]})
-M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
+M0_SRC_DIR="$(readlink -f ${BASH_SOURCE[0]})"
+M0_SRC_DIR="${M0_SRC_DIR%/*/*/*/*}"
 
 CM_OP_REPAIR=1
 CM_OP_REBALANCE=2
@@ -36,8 +36,8 @@ dix_repair()
 	local rc=0
 
 	repair_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR -t 1 -C ${lnet_nid}:${DIX_CLI_EP} $ios_eps"
-	echo $repair_trigger
-	eval $repair_trigger
+	echo "$repair_trigger"
+	eval "$repair_trigger"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "DIX Repair failed. rc=$rc"
@@ -51,8 +51,8 @@ dix_rebalance()
 	local rc=0
 
         rebalance_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE -t 1 -C ${lnet_nid}:${DIX_CLI_EP} $ios_eps"
-        echo $rebalance_trigger
-	eval $rebalance_trigger
+        echo "$rebalance_trigger"
+	eval "$rebalance_trigger"
 	rc=$?
         if [ $rc != 0 ] ; then
                 echo "DIX Re-balance failed. rc=$rc"
@@ -66,8 +66,8 @@ dix_repair_quiesce()
 	local rc=0
 
 	repair_quiesce_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR_QUIESCE -t 1 -C ${lnet_nid}:${DIX_QUIESCE_CLI_EP} $ios_eps"
-	echo $repair_quiesce_trigger
-	eval $repair_quiesce_trigger
+	echo "$repair_quiesce_trigger"
+	eval "$repair_quiesce_trigger"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "DIX Repair quiesce failed. rc=$rc"
@@ -81,8 +81,8 @@ dix_rebalance_quiesce()
 	local rc=0
 
 	rebalance_quiesce_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_QUIESCE -t 1 -C ${lnet_nid}:${DIX_QUIESCE_CLI_EP} $ios_eps"
-	echo $rebalance_quiesce_trigger
-	eval $rebalance_quiesce_trigger
+	echo "$rebalance_quiesce_trigger"
+	eval "$rebalance_quiesce_trigger"
 	rc=$?
 	if [ $rc != 0 ] ; then
 		echo "DIX Re-balance quiesce failed. rc=$rc"
@@ -96,8 +96,8 @@ dix_repair_resume()
 	local rc=0
 
 	repair_resume_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR_RESUME -t 1 -C ${lnet_nid}:${DIX_CLI_EP} $ios_eps"
-	echo $repair_resume_trigger
-	eval $repair_resume_trigger
+	echo "$repair_resume_trigger"
+	eval "$repair_resume_trigger"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "DIX Repair resume failed. rc=$rc"
@@ -110,9 +110,9 @@ dix_rebalance_resume()
 {
 	local rc=0
 
-	repair_resume_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_RESUME -t 1 -C ${lnet_nid}:${DIX_CLI_EP} $ios_eps"
-	echo $repair_resume_trigger
-	eval $repair_resume_trigger
+	rebalance_resume_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_RESUME -t 1 -C ${lnet_nid}:${DIX_CLI_EP} $ios_eps"
+	echo "$rebalance_resume_trigger"
+	eval "$rebalance_resume_trigger"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "DIX Rebalance resume failed. rc=$rc"
@@ -126,8 +126,8 @@ dix_rebalance_abort()
 	local rc=0
 
 	rebalance_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_ABORT -t 1 -C ${lnet_nid}:${DIX_QUIESCE_CLI_EP} $ios_eps"
-	echo $rebalance_abort_trigger
-	eval $rebalance_abort_trigger
+	echo "$rebalance_abort_trigger"
+	eval "$rebalance_abort_trigger"
 	rc=$?
 	if [ $rc != 0 ] ; then
 		echo "DIX Re-balance abort failed. rc=$rc"
@@ -141,8 +141,8 @@ dix_repair_abort()
 	local rc=0
 
 	repair_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR_ABORT -t 1 -C ${lnet_nid}:${DIX_QUIESCE_CLI_EP} $ios_eps"
-	echo $repair_abort_trigger
-	eval $repair_abort_trigger
+	echo "$repair_abort_trigger"
+	eval "$repair_abort_trigger"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "DIX Repair abort failed. rc=$rc"
@@ -164,8 +164,8 @@ dix_repair_or_rebalance_status_not_4()
 	done
 
 	repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -t 1 -C ${lnet_nid}:${DIX_QUIESCE_CLI_EP} $ios_eps_not_4"
-	echo $repair_status
-	eval $repair_status
+	echo "$repair_status"
+	eval "$repair_status"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "DIX $1 status query failed. rc=$rc"
@@ -183,8 +183,8 @@ dix_repair_or_rebalance_status()
 	[ "$1" == "rebalance" ] && op=$CM_OP_REBALANCE_STATUS
 
 	repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -t 1 -C ${lnet_nid}:${DIX_QUIESCE_CLI_EP} $ios_eps"
-	echo $repair_status
-	eval $repair_status
+	echo "$repair_status"
+	eval "$repair_status"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "DIX $1 status query failed. rc=$rc"
@@ -207,15 +207,15 @@ wait_for_dix_repair_or_rebalance_not_4()
 		sleep 5
 		repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -t 1 -C ${lnet_nid}:${DIX_QUIESCE_CLI_EP} $ios_eps_not_4"
 
-		echo $repair_status
-		status=`eval $repair_status`
+		echo "$repair_status"
+		status=$(eval "$repair_status")
 		rc=$?
 		if [ $rc != 0 ]; then
 			echo "DIX $1 status query failed. rc=$rc"
 			return $rc
 		fi
 
-		echo $status | grep status=2 && continue #DIX repair is active, continue waiting
+		echo "$status" | grep status=2 && continue #DIX repair is active, continue waiting
 		break;
 	done
 	return 0
@@ -230,19 +230,19 @@ wait_for_dix_repair_or_rebalance()
 	while true ; do
 		sleep 5
 		repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -t 1 -C ${lnet_nid}:${DIX_QUIESCE_CLI_EP} $ios_eps"
-		echo $repair_status
-		status=`eval $repair_status`
+		echo "$repair_status"
+		status=$(eval "$repair_status")
 		rc=$?
 		if [ $rc != 0 ]; then
 			echo "DIX $1 status query failed. rc=$rc"
 			return $rc
 		fi
 
-		echo $status | grep status=2 && continue #DIX repair is active, continue waiting
+		echo "$status" | grep status=2 && continue #DIX repair is active, continue waiting
 		break;
 	done
 
-	op=`echo $status | grep status=3`
+	op=$(echo "$status" | grep status=3)
 	[[ !  -z  "$op"  ]] && return 1
 
 	return 0
