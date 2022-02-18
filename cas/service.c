@@ -2468,7 +2468,7 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 	    (opc == CO_DEL && rc == -ENOENT && (op->cg_flags & COF_CROW)))
 		rc = 0;
 
-	M0_LOG(M0_DEBUG, "pos: %"PRId64" rc: %d", fom->cf_opos, rc);
+	M0_LOG(M0_DEBUG, "pos: %" PRId64 " rc: %d", fom->cf_opos, rc);
 	rec_out->cr_rc = rc;
 
 	/*

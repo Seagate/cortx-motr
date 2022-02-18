@@ -336,7 +336,7 @@ static int loc_nr(void)
 
 static int chore_add_all(struct m0_locality_chore *chore)
 {
-	int result;
+	int result = 0;
 
 	M0_PRE(chore->lc_active == 0);
 
@@ -351,6 +351,7 @@ static int chore_add_all(struct m0_locality_chore *chore)
 			break;
 		}
 	} LOC_ENDFOR;
+
 	M0_POST((result == 0) == (chore->lc_active == loc_nr()));
 	M0_POST(M0_IN(chore->lc_active, (0, loc_nr())));
 	return result;

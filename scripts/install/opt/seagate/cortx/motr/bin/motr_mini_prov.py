@@ -1412,7 +1412,7 @@ def fetch_fid(self, service, idx):
 def start_service(self, service, idx):
     self.logger.info(f"service={service}\nidx={idx}\n")
 
-    if service == "fsm":
+    if service in ["fsm", "client", "motr_client"]:
         cmd = f"{MOTR_FSM_SCRIPT_PATH}"
         execute_command_verbose(self, cmd, set_timeout=False)
         return

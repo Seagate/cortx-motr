@@ -2418,8 +2418,8 @@ static int pargrp_iomap_populate_pi_ivec(struct pargrp_iomap        *map,
 
 		++V_SEG_NR(&map->pi_ivv);
 
-		M0_LOG(M0_DEBUG, "[%p] pre grp_id=%"PRIu64" seg=%"PRIu32
-		       " =[%"PRIu64",+%"PRIu64")", map->pi_ioreq,
+		M0_LOG(M0_DEBUG, "[%p] pre grp_id=%" PRIu64 " seg=%"PRIu32
+		       " =[%" PRIu64 ",+%" PRIu64 ")", map->pi_ioreq,
 		       map->pi_grpid,seg, V_INDEX(&map->pi_ivv, seg),
 				          V_COUNT(&map->pi_ivv, seg));
 
@@ -2429,13 +2429,13 @@ static int pargrp_iomap_populate_pi_ivec(struct pargrp_iomap        *map,
 
 		seg_align(map, seg, seg_end, PAGE_SIZE);
 
-		M0_LOG(M0_DEBUG, "[%p] post grp_id=%"PRIu64" seg=%"PRIu32
-		       " =[%"PRIu64",+%"PRIu64")", map->pi_ioreq,
+		M0_LOG(M0_DEBUG, "[%p] post grp_id=%" PRIu64 " seg=%"PRIu32
+		       " =[%" PRIu64 ",+%" PRIu64 ")", map->pi_ioreq,
 		       map->pi_grpid, seg, V_INDEX(&map->pi_ivv, seg),
 		                           V_COUNT(&map->pi_ivv, seg));
 
 		count = seg_end - m0_ivec_varr_cursor_index(cursor);
-		M0_LOG(M0_DEBUG, "[%p] cursor advance +%"PRIu64" from %"PRIu64,
+		M0_LOG(M0_DEBUG, "[%p] cursor advance +%" PRIu64 " from %"PRIu64,
 		       map->pi_ioreq, count, m0_ivec_varr_cursor_index(cursor));
 		++seg;
 	}
