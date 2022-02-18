@@ -903,6 +903,33 @@ M0_INTERNAL int m0_cob_bc_iterator_next(struct m0_cob_bc_iterator *it);
 M0_INTERNAL int m0_cob_bc_iterator_get(struct m0_cob_bc_iterator *it);
 
 /**
+ * Returns all the entries in the bytecount btree in the form of
+ * Key and record buffers. Tis function uses bytecount iterator internally
+ * to traverse the btree.
+ *
+ * Key buffer contains all the keys in a contigious sequence of memory
+ * pointed by out_keys::b_addr. An individual key can be accessed by
+ * traversing the memory in chunks of sizeof(struct m0_cob_bckey).
+ *
+ * Similar logic applies to record buffer.
+ *
+ * @pre   out_keys == NULL
+ * @pre   iut_recs == NULL
+ *
+ * @param cdom      cob domain where the bytecount btree resides.
+ * @param out_keys  out parameter buffer which gets populated by keys.
+ * @param out_recs  out parameter buffer which gets populated by records.
+ * @param out_count out parameter with number of entries in the btree.
+ *
+ * @retval 0        Success.
+ * @retval -errno   Other error.
+ */ 
+M0_INTERNAL int m0_cob_bc_entries_dump(struct m0_cob_domain *cdom,
+				       struct m0_buf        *out_keys,
+				       struct m0_buf        *out_recs,
+				       uint32_t             *out_count);
+
+/**
  * Finish cob bc iterator.
  */
 M0_INTERNAL void m0_cob_bc_iterator_fini(struct m0_cob_bc_iterator *it);

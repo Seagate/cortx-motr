@@ -69,6 +69,12 @@ enum {
 	M0_COB_EA_MAX   = 4096
 };
 
+struct bc_entry {
+	struct m0_buf       be_key;
+	struct m0_buf       be_rec;
+	struct m0_list_link be_link;
+};
+
 static int cob0_init(struct m0_be_domain *dom, const char *suffix,
 		     const struct m0_buf *data)
 {
@@ -491,6 +497,74 @@ M0_INTERNAL void m0_cob_bc_iterator_fini(struct m0_cob_bc_iterator *it)
 	m0_be_btree_cursor_fini(&it->ci_cursor);
 	m0_free(it->ci_key);
 	m0_free(it->ci_rec);
+}
+
+M0_INTERNAL int m0_cob_bc_entries_dump(struct m0_cob_domain *cdom,
+				       struct m0_buf        *out_keys,
+				       struct m0_buf        *out_recs,
+				       uint32_t             *out_count)
+{
+	struct m0_cob_bc_iterator it;
+	struct m0_list            entry_list;
+	struct m0_list_link      *list_pos;
+	int                       rc;
+	void                     *key_cursor;
+	void                     *rec_cursor;
+
+	M0_PRE(out_keys == NULL);
+	M0_PRE(out_recs == NULL);
+
+	if (cdom->cd_bytecount.bb_root != NULL)
+		return M0_ERR(-ENOENT);
+
+	*out_count = 0;
+	m0_be_btree_cursor_init(&it.ci_cursor, &cdom->cd_bytecount);
+	rc = m0_be_btree_cursor_first_sync(&it.ci_cursor);
+
+	while (rc != -ENOENT) {
+		struct bc_entry *entry;
+
+		M0_ALLOC_PTR(entry);
+		m0_list_init(&entry_list);
+		m0_list_link_init(&entry->be_link);
+		m0_be_btree_cursor_kv_get(&it.ci_cursor, &entry->be_key,
+					  &entry->be_rec);
+		m0_list_add_tail(&entry_list, &entry->be_link);
+		rc = m0_be_btree_cursor_next_sync(&it.ci_cursor);		
+		++(*out_count);
+	}
+
+	M0_ASSERT(m0_list_length(&entry_list) == *out_count);
+
+	m0_buf_alloc(out_keys, sizeof(struct m0_cob_bckey) * (*out_count));
+	m0_buf_alloc(out_recs, sizeof(struct m0_cob_bcrec) * (*out_count));
+	key_cursor = out_keys->b_addr;
+	rec_cursor = out_recs->b_addr;
+
+	m0_list_for_each(&entry_list, list_pos) {
+		struct bc_entry *entry;
+
+		entry = m0_list_entry(list_pos, struct bc_entry, be_link);
+
+		M0_ASSERT(entry->be_key.b_nob == sizeof(struct m0_cob_bckey));
+		M0_ASSERT(entry->be_rec.b_nob == sizeof(struct m0_cob_bcrec));
+
+		memcpy(key_cursor, entry->be_key.b_addr, entry->be_key.b_nob);
+		memcpy(rec_cursor, entry->be_rec.b_addr, entry->be_rec.b_nob);
+
+		key_cursor += sizeof(struct m0_cob_bckey);
+		rec_cursor += sizeof(struct m0_cob_bcrec);
+
+		m0_buf_free(&entry->be_key);
+		m0_buf_free(&entry->be_rec);
+
+		m0_list_del(&entry->be_link);
+		m0_free(entry);
+	}
+
+	m0_be_btree_cursor_fini(&it.ci_cursor);
+
+	return M0_RC(0);
 }
 
 static const struct m0_be_btree_kv_ops cob_bc_ops = {
