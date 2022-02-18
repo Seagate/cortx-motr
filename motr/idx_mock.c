@@ -144,7 +144,7 @@ static struct m0_htable idx_htable;
 static int make_idx_fname(char *fname, struct m0_uint128 idx_fid)
 {
 	return sprintf(fname,
-		       "%s/%"PRIx64"_%"PRIx64,
+		       "%s/%" PRIx64 "_%"PRIx64,
 		       idx_store_path, idx_fid.u_hi, idx_fid.u_lo);
 }
 

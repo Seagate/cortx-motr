@@ -101,6 +101,9 @@ struct m0_fdmi_src_dock {
 	/** FDMI source dock started flag */
 	bool                  fsdc_started;
 
+	/** FDMI source dock has any filter defined? */
+	bool                  fsdc_filters_defined;
+
 	/**
 	   List of registered FDMI source instances.
 	   Links using m0_fdmi_src_ctx.fsc_linkage

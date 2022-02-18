@@ -339,7 +339,7 @@ static void ha_link_tags_apply(struct m0_ha_link              *hl,
 	}
 	M0_ASSERT_INFO(m0_ha_lq_tag_next(&hl->hln_q_out) ==
 		       m0_ha_lq_tag_delivered(&hl->hln_q_out),
-		       "m0_ha_lq_tag_next(&hl->hln_q_out)=%"PRIu64" "
+		       "m0_ha_lq_tag_next(&hl->hln_q_out)=%" PRIu64 " "
 		       "m0_ha_lq_tag_delivered(&hl->hln_q_out)=%"PRIu64,
 		       m0_ha_lq_tag_next(&hl->hln_q_out),
 		       m0_ha_lq_tag_delivered(&hl->hln_q_out));
@@ -347,25 +347,25 @@ static void ha_link_tags_apply(struct m0_ha_link              *hl,
 	m0_ha_lq_tags_get(&hl->hln_q_out, &tags_out);
 	M0_ASSERT_INFO(m0_ha_lq_tag_delivered(&hl->hln_q_out) >=
 		       tags_out_new->hlt_confirmed,
-		       "m0_ha_lq_tag_delivered(&hl->hln_q_out)=%"PRIu64" "
+		       "m0_ha_lq_tag_delivered(&hl->hln_q_out)=%" PRIu64 " "
 		       "tags_out_new->hlt_confirmed=%"PRIu64,
 		       m0_ha_lq_tag_delivered(&hl->hln_q_out),
 		       tags_out_new->hlt_confirmed);
 	M0_ASSERT_INFO(m0_ha_lq_tag_delivered(&hl->hln_q_out) ==
 		       tags_out_new->hlt_delivered,
-		       "m0_ha_lq_tag_delivered(&hl->hln_q_out)=%"PRIu64" "
+		       "m0_ha_lq_tag_delivered(&hl->hln_q_out)=%" PRIu64 " "
 		       "tags_out_new->hlt_delivered=%"PRIu64,
 		       m0_ha_lq_tag_delivered(&hl->hln_q_out),
 		       tags_out_new->hlt_delivered);
 	M0_ASSERT_INFO(m0_ha_lq_tag_next(&hl->hln_q_out) ==
 		       tags_out_new->hlt_next,
-		       "m0_ha_lq_tag_next(&hl->hln_q_out)=%"PRIu64" "
+		       "m0_ha_lq_tag_next(&hl->hln_q_out)=%" PRIu64 " "
 		       "tags_out_new->hlt_next=%"PRIu64,
 		       m0_ha_lq_tag_next(&hl->hln_q_out),
 		       tags_out_new->hlt_next);
 	M0_ASSERT_INFO(m0_ha_lq_tag_assign(&hl->hln_q_out) >=
 		       tags_out_new->hlt_assign,
-		       "m0_ha_lq_tag_assign(&hl->hln_q_out)=%"PRIu64" "
+		       "m0_ha_lq_tag_assign(&hl->hln_q_out)=%" PRIu64 " "
 		       "tags_out_new->hlt_assign=%"PRIu64,
 		       m0_ha_lq_tag_assign(&hl->hln_q_out),
 		       tags_out_new->hlt_assign);
@@ -448,10 +448,10 @@ m0_ha_link_reconnect_end(struct m0_ha_link                *hl,
 	M0_ENTRY("hl=%p hlcc_rpc_service_fid="FID_F" hlcc_rpc_endpoint=%s",
 		 hl, FID_P(&hl_conn_cfg->hlcc_rpc_service_fid),
 		 hl_conn_cfg->hlcc_rpc_endpoint);
-	M0_ENTRY("hl=%p hlcc_max_rpcs_in_flight=%"PRIu64" "
-	         "hlcc_connect_timeout=%"PRIu64" "
-	         "hlcc_disconnect_timeout=%"PRIu64" "
-	         "hlcc_resend_interval=%"PRIu64" "
+	M0_ENTRY("hl=%p hlcc_max_rpcs_in_flight=%" PRIu64 " "
+	         "hlcc_connect_timeout=%" PRIu64 " "
+	         "hlcc_disconnect_timeout=%" PRIu64 " "
+	         "hlcc_resend_interval=%" PRIu64 " "
 	         "hlcc_nr_sent_max=%"PRIu64,
 	         hl, hl_conn_cfg->hlcc_max_rpcs_in_flight,
 	         hl_conn_cfg->hlcc_connect_timeout,
@@ -780,7 +780,7 @@ M0_INTERNAL void m0_ha_link_flush(struct m0_ha_link *hl)
 		m0_ha_link_wait_delivery(hl, tag_out_assign - 2);
 	if (!M0_IN(tag_in_assign, (1, 2)))
 		m0_ha_link_wait_confirmation(hl, tag_in_assign - 2);
-	M0_LEAVE("hl=%p tag_out_assign=%"PRIu64" tag_in_assign=%"PRIu64,
+	M0_LEAVE("hl=%p tag_out_assign=%" PRIu64 " tag_in_assign=%"PRIu64,
 		 hl, tag_out_assign, tag_in_assign);
 }
 
@@ -814,7 +814,7 @@ static void ha_link_tags_update(struct m0_ha_link *hl,
 	struct m0_ha_link_tags tags_in;
 	uint64_t               delivered;
 
-	M0_ENTRY("hl=%p out_next=%"PRIu64" in_delivered=%"PRIu64,
+	M0_ENTRY("hl=%p out_next=%" PRIu64 " in_delivered=%"PRIu64,
 	         hl, out_next, in_delivered);
 	M0_PRE(m0_mutex_is_locked(&hl->hln_lock));
 	m0_ha_lq_tags_get(&hl->hln_q_out, &tags_out);
@@ -845,20 +845,20 @@ static void ha_link_tags_in_out(struct m0_ha_link *hl,
 
 	*out_next     = m0_ha_lq_tag_next(&hl->hln_q_out);
 	*in_delivered = m0_ha_lq_tag_delivered(&hl->hln_q_in);
-	M0_LOG(M0_DEBUG, "out_next=%"PRIu64" in_delivered=%"PRIu64,
+	M0_LOG(M0_DEBUG, "out_next=%" PRIu64 " in_delivered=%"PRIu64,
 	       *out_next, *in_delivered);
 }
 
 static void ha_link_msg_received(struct m0_ha_link      *hl,
                                  const struct m0_ha_msg *msg)
 {
-	M0_ENTRY("hl=%p tag=%"PRIu64" type=%d",
+	M0_ENTRY("hl=%p tag=%" PRIu64 " type=%d",
 		 hl, m0_ha_msg_tag(msg), m0_ha_msg_type_get(msg));
 	M0_PRE(m0_mutex_is_locked(&hl->hln_lock));
 	if (!M0_IN(m0_ha_msg_tag(msg), (M0_HA_MSG_TAG_UNKNOWN,
 	                                m0_ha_lq_tag_assign(&hl->hln_q_in)))) {
 		M0_LOG(M0_WARN, "dropping out-of-order message: hl=%p "
-		       "tag=%"PRIu64" hed_type=%d",
+		       "tag=%" PRIu64 " hed_type=%d",
 		       hl, m0_ha_msg_tag(msg), m0_ha_msg_type_get(msg));
 	} else {
 		m0_ha_lq_enqueue(&hl->hln_q_in, msg);
@@ -883,9 +883,9 @@ static void ha_link_msg_recv_or_delivery_broadcast(struct m0_ha_link *hl)
 	m0_mutex_unlock(&hl->hln_lock);
 
 	m0_sm_group_lock(&hl->hln_sm_group);
-	M0_LOG(M0_DEBUG, "hln_tag_broadcast_recv=%"PRIu64" tag_recv=%"PRIu64,
+	M0_LOG(M0_DEBUG, "hln_tag_broadcast_recv=%" PRIu64 " tag_recv=%"PRIu64,
 	       hl->hln_tag_broadcast_recv, tag_recv);
-	M0_LOG(M0_DEBUG, "hln_tag_broadcast_delivery=%"PRIu64" "
+	M0_LOG(M0_DEBUG, "hln_tag_broadcast_delivery=%" PRIu64 " "
 	       "tag_delivery=%"PRIu64,
 	       hl->hln_tag_broadcast_delivery, tag_delivery);
 	if (hl->hln_tag_broadcast_recv <= tag_recv) {
@@ -930,7 +930,7 @@ static int ha_link_incoming_fom_tick(struct m0_fom *fom)
 	                 m0_fop_to_rpc_item(fom->fo_fop)->ri_session->s_conn);
 	M0_ENTRY("fom=%p req_fop=%p rep_fop=%p ep=%s",
 		 fom, req_fop, rep_fop, ep);
-	M0_LOG(M0_DEBUG, "ep=%p lmf_msg_nr=%"PRIu64" lmf_id_remote="U128X_F" "
+	M0_LOG(M0_DEBUG, "ep=%p lmf_msg_nr=%" PRIu64 " lmf_id_remote="U128X_F" "
 	       "lmf_id_local="U128X_F" lmf_id_connection="U128X_F,
 	       ep, req_fop->lmf_msg_nr, U128_P(&req_fop->lmf_id_remote),
 	       U128_P(&req_fop->lmf_id_local),
@@ -1212,7 +1212,7 @@ static int ha_link_outgoing_fop_send(struct m0_ha_link *hl)
 	ha_link_tags_in_out(hl, &req_fop->lmf_out_next,
 	                    &req_fop->lmf_in_delivered);
 	M0_LOG(M0_DEBUG, "lmf_id_remote="U128X_F" lmf_id_local="U128X_F" "
-	       "lmf_id_connection="U128X_F" lmf_msg_nr=%"PRIu64" tag=%"PRIu64" "
+	       "lmf_id_connection="U128X_F" lmf_msg_nr=%" PRIu64 " tag=%" PRIu64 " "
 	       "lmf_seq=%"PRIu64,
 	       U128_P(&req_fop->lmf_id_remote),
 	       U128_P(&req_fop->lmf_id_local),
@@ -1264,31 +1264,32 @@ static int ha_link_outgoing_fop_replied(struct m0_ha_link *hl)
 
 	M0_PRE(m0_mutex_is_locked(&hl->hln_lock));
 
-	if (hl->hln_rpc_rc == 0) {
+	rc = hl->hln_rpc_rc;
+	if (rc == 0) {
 		req_item = m0_fop_to_rpc_item(&hl->hln_outgoing_fop);
 		rep_fop  = m0_fop_data(m0_rpc_item_to_fop(req_item->ri_reply));
 		rc = rep_fop->lmr_rc;
 		M0_LOG(M0_DEBUG, "lmr_rc=%"PRIi32, rep_fop->lmr_rc);
-	} else {
-		rc = hl->hln_rpc_rc;
+		if (rc == 0)
+			ha_link_tags_update(hl, rep_fop->lmr_out_next,
+					    rep_fop->lmr_in_delivered);
 	}
-	if (rc == 0) {
-		ha_link_tags_update(hl, rep_fop->lmr_out_next,
-		                    rep_fop->lmr_in_delivered);
-	} else {
+
+	if (rc != 0)
 		m0_ha_lq_try_unnext(&hl->hln_q_out);
-	}
+
 	if (ha_link_backoff_check(hl, rc, &nr, &old_rc, &old_nr)) {
 		m0_ha_lq_tags_get(&hl->hln_q_out, &tags);
-		M0_LOG(M0_WARN, "rc=%d nr=%"PRIu64" hl=%p ep=%s "
+		M0_LOG(M0_WARN, "rc=%d nr=%" PRIu64 " hl=%p ep=%s "
 		       "lq_tags="HLTAGS_F, rc, nr, hl,
 		       hl->hln_conn_cfg.hlcc_rpc_endpoint, HLTAGS_P(&tags));
 		if (rc != old_rc) {
-			M0_LOG(M0_WARN, "old_rc=%d old_nr=%"PRIu64" "
+			M0_LOG(M0_WARN, "old_rc=%d old_nr=%" PRIu64 " "
 			       "hl=%p ep=%s", old_rc, old_nr, hl,
 			       hl->hln_conn_cfg.hlcc_rpc_endpoint);
 		}
 	}
+
 	return M0_RC(rc);
 }
 

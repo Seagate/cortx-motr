@@ -707,7 +707,7 @@ static int dix_idxop_req_send(struct m0_dix_idxop_req *idxop_req,
 			continue;
 		sdev_idx = sdev->pd_sdev_idx;
 		creq = &idxop_req->dcr_creqs[k++];
-		M0_LOG(M0_DEBUG, "creqs_nr=%"PRIu64" this is the %d th creq=%p",
+		M0_LOG(M0_DEBUG, "creqs_nr=%" PRIu64 " this is the %d th creq=%p",
 				 creqs_nr, k-1, creq);
 		creq->ds_parent = dreq;
 		cas_svc = pc->pc_dev2svc[sdev_idx].pds_ctx;
@@ -1165,8 +1165,8 @@ void m0_dix_req_cancel(struct m0_dix_req *dreq)
 		rop = dreq->dr_rop;
 		if (rop == NULL)
 			return;
-		M0_LOG(M0_DEBUG, "dg_completed_nr=%"PRIu64" "
-		      "dg_cas_reqs_nr=%"PRIu64" dr_type=%d",
+		M0_LOG(M0_DEBUG, "dg_completed_nr=%" PRIu64 " "
+		      "dg_cas_reqs_nr=%" PRIu64 " dr_type=%d",
 		       rop->dg_completed_nr, rop->dg_cas_reqs_nr,
 		       dreq->dr_type);
 		if (rop->dg_completed_nr < rop->dg_cas_reqs_nr) {
@@ -2337,7 +2337,7 @@ M0_INTERNAL int m0_dix_put(struct m0_dix_req      *req,
 	M0_PRE(keys_nr != 0);
 	/* Only overwrite, crow, sync_wait and skip_layout flags are allowed. */
 	M0_PRE((flags & ~(COF_OVERWRITE | COF_CROW | COF_SYNC_WAIT |
-	       COF_SKIP_LAYOUT)) == 0);	
+	       COF_SKIP_LAYOUT)) == 0);
 	rc = dix_req_indices_copy(req, index, 1);
 	if (rc != 0)
 		return M0_ERR(rc);

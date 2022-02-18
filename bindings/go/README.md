@@ -14,6 +14,12 @@ provided there is enough buffer size to accomodate several of such blocks in one
 Read()/Write() request. (For example, see the source code of `mcp` utility and its `-bsz`
 option.)
 
+To use `go/mio` in your app 1) install motr-devel pkg and 2):
+
+```Go
+import github.com/Seagate/cortx-motr/bindings/go/mio
+```
+
 ## mcp
 
 `mcp` (Motr cp) utility is a client application example written in pure Go which uses

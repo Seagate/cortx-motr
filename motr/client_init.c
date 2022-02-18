@@ -1686,7 +1686,7 @@ int m0_client_init(struct m0_client **m0c_p,
 			if (conf->mc_addb_size > MAX_ADDB2_RECORD_SIZE)
 				M0_LOG(M0_WARN, "ADDB size is more than recommended");
 			size = conf->mc_addb_size;
-			M0_LOG(M0_DEBUG, "ADDB size = %"PRIu64"", size);
+			M0_LOG(M0_DEBUG, "ADDB size = %" PRIu64 "", size);
 		}
 		sprintf(buf, "linuxstob:./addb_%d", (int)m0_pid());
 		M0_LOG(M0_DEBUG, "addb size=%llu\n", (unsigned long long)size);

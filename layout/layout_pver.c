@@ -136,7 +136,7 @@ M0_INTERNAL int m0_layout_init_by_pver(struct m0_layout_domain *dom,
 
 		rc = layout_enum_build(dom, pa->pa_P, &layout_enum);
 		if (rc != 0) {
-			M0_LOG(M0_ERROR, "layout %"PRIu64" enum build failed: rc=%d",
+			M0_LOG(M0_ERROR, "layout %" PRIu64 " enum build failed: rc=%d",
 			       layout_id, rc);
 			return M0_RC(rc);
 		}
@@ -146,7 +146,7 @@ M0_INTERNAL int m0_layout_init_by_pver(struct m0_layout_domain *dom,
 		 */
 		rc = __layout_build(dom, layout_id, pv, layout_enum, &layout);
 		if (rc != 0) {
-			M0_LOG(M0_ERROR, "layout %"PRIu64" build failed: rc=%d",
+			M0_LOG(M0_ERROR, "layout %" PRIu64 " build failed: rc=%d",
 			       layout_id, rc);
 			m0_layout_enum_fini(layout_enum);
 			return M0_RC(rc);

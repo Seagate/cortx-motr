@@ -72,7 +72,7 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 	       "hm_source_service="FID_F" hm_time=%"PRIu64,
 	       prefix, msg, FID_P(&msg->hm_fid), FID_P(&msg->hm_source_process),
 	       FID_P(&msg->hm_source_service), msg->hm_time);
-	M0_LOG(M0_DEBUG, "%s: msg=%p hm_tag=%"PRIu64" hm_epoch=%"PRIu64,
+	M0_LOG(M0_DEBUG, "%s: msg=%p hm_tag=%" PRIu64 " hm_epoch=%"PRIu64,
 	       prefix, msg, msg->hm_tag, msg->hm_epoch);
 
 	switch ((enum m0_ha_msg_type)data->hed_type) {
@@ -86,8 +86,8 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		       FID_P(&data->u.hed_stob_ioq.sie_conf_sdev),
 		       STOB_ID_P(&data->u.hed_stob_ioq.sie_stob_id),
 		       data->u.hed_stob_ioq.sie_fd);
-		M0_LOG(M0_DEBUG, "STOB_IOQ msg=%p opcode=%"PRId64" rc=%"PRId64
-		       " bshift=%"PRIu32" size=%"PRIu64" offset=%"PRIu64,
+		M0_LOG(M0_DEBUG, "STOB_IOQ msg=%p opcode=%" PRId64 " rc=%"PRId64
+		       " bshift=%"PRIu32" size=%" PRIu64 " offset=%"PRIu64,
 		       msg,
 		       data->u.hed_stob_ioq.sie_opcode,
 		       data->u.hed_stob_ioq.sie_rc,
@@ -97,8 +97,8 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		return;
 	case M0_HA_MSG_NVEC:
 		nvec = &data->u.hed_nvec;
-		M0_LOG(M0_DEBUG, "NVEC hmnv_type=%"PRIu64" hmnv_nr=%"PRIu64" "
-		       "hmnv_id_of_get=%"PRIu64" "
+		M0_LOG(M0_DEBUG, "NVEC hmnv_type=%" PRIu64 " hmnv_nr=%" PRIu64 " "
+		       "hmnv_id_of_get=%" PRIu64 " "
 		       "hmnv_ignore_same_state=%"PRIu64,
 		       nvec->hmnv_type, nvec->hmnv_nr, nvec->hmnv_id_of_get,
 		       nvec->hmnv_ignore_same_state);
@@ -148,7 +148,7 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		return;
 	case M0_HA_MSG_EVENT_PROCESS:
 		M0_LOG(M0_DEBUG, "EVENT_PROCESS hm_fid="FID_F" "
-		       "chp_event=%"PRIu64" chp_type=%"PRIu64" chp_pid=%"PRIu64,
+		       "chp_event=%" PRIu64 " chp_type=%" PRIu64 " chp_pid=%"PRIu64,
 		       FID_P(&msg->hm_fid),
 		       data->u.hed_event_process.chp_event,
 		       data->u.hed_event_process.chp_type,
@@ -156,14 +156,14 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		return;
 	case M0_HA_MSG_EVENT_SERVICE:
 		M0_LOG(M0_DEBUG, "EVENT_SERVICE hm_fid="FID_F" "
-		       "chs_event=%"PRIu64" chs_type=%"PRIu64,
+		       "chs_event=%" PRIu64 " chs_type=%"PRIu64,
 		       FID_P(&msg->hm_fid),
 		       data->u.hed_event_service.chs_event,
 		       data->u.hed_event_service.chs_type);
 		return;
 	case M0_HA_MSG_EVENT_RPC:
 		M0_LOG(M0_DEBUG, "EVENT_RPC hm_fid="FID_F" "
-		       "hmr_state=%"PRIu64" hmr_attempts=%"PRIu64,
+		       "hmr_state=%" PRIu64 " hmr_attempts=%"PRIu64,
 		       FID_P(&msg->hm_fid),
 		       data->u.hed_event_rpc.hmr_state,
 		       data->u.hed_event_rpc.hmr_attempts);

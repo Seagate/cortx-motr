@@ -25,10 +25,10 @@
 
 %if %{with usermode}
 %define with_lustre %( echo "--with-lustre=no" )
-%define kernel_ver %( echo "any" )
+%define kernel_ver %( echo "" )
 %else
 %define with_lustre %( test -n "$lustre_src" && echo "--with-lustre=$lustre_src" )
-%define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
+%define kernel_ver _%( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
 %endif
 
 %define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' )
@@ -65,7 +65,7 @@
 
 Name:           @PACKAGE@
 Version:        @PACKAGE_VERSION@
-Release:        %{build_num}_@GIT_REV_ID_RPM@_%{kernel_ver}%{?dist}
+Release:        %{build_num}_@GIT_REV_ID_RPM@%{kernel_ver}%{?dist}
 Summary:        CORTX Motr
 Group:          System Environment/Base
 License:        Seagate
@@ -127,7 +127,9 @@ BuildRequires:  systemd-devel
 %if %{rhel} < 8
 BuildRequires:  python-devel
 %else
+# @todo Deprecate python2
 BuildRequires:  python2-devel
+BuildRequires:  python3-devel
 %endif
 @BUILD_DEPEND_LIBFAB@
 BuildRequires:  libedit-devel

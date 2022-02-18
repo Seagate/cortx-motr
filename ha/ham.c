@@ -362,13 +362,13 @@ static void ham_msg_received(struct m0_ha *ha, struct m0_ha_link *hl,
 static void
 ham_msg_is_delivered(struct m0_ha *ha, struct m0_ha_link *hl, uint64_t tag)
 {
-	ham_say("Message #%"PRIu64" is delivered", tag);
+	ham_say("Message #%" PRIu64 " is delivered", tag);
 }
 
 static void
 ham_msg_is_not_delivered(struct m0_ha *ha, struct m0_ha_link *hl, uint64_t tag)
 {
-	ham_say("Message #%"PRIu64" is NOT delivered", tag);
+	ham_say("Message #%" PRIu64 " is NOT delivered", tag);
 }
 
 /** Is executed by entrypoint server. */
