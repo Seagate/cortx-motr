@@ -34,8 +34,8 @@ spiel_sns_repair_quiesce_test()
 	local fail_device3=3
 
 	echo "Starting SNS repair testing ..."
-	prepare_datafiles_and_objects || return $?
-	motr_read_verify 0          || return $?
+	prepare_datafiles_and_objects || return "$?"
+	motr_read_verify 0          || return "$?"
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
@@ -46,15 +46,15 @@ spiel_sns_repair_quiesce_test()
 	#######################################################################
 
 	echo "Set Failure device: $fail_device2 $fail_device3"
-	disk_state_set "failed" $fail_device2 $fail_device3 || return $?
+	disk_state_set "failed" "$fail_device2" "$fail_device3" || return "$?"
 
 	echo "Device $fail_device2 and $fail_device3 failed. Do dgmode read"
-	motr_read_verify 0 || return $?
+	motr_read_verify 0 || return "$?"
 
-	disk_state_get $fail_device2 $fail_device3 || return $?
+	disk_state_get "$fail_device2" "$fail_device3" || return "$?"
 
 	echo "Start SNS repair"
-	disk_state_set "repair" $fail_device2 $fail_device3 || return $?
+	disk_state_set "repair" "$fail_device2" "$fail_device3" || return "$?"
 	spiel_sns_repair_start
 	sleep 2
 
@@ -62,24 +62,24 @@ spiel_sns_repair_quiesce_test()
 	spiel_sns_repair_quiesce
 
 	echo "wait for sns repair"
-	spiel_wait_for_sns_repair || return $?
+	spiel_wait_for_sns_repair || return "$?"
 
-	motr_read_verify 0 || return $?
+	motr_read_verify 0 || return "$?"
 
 	echo "Continue start SNS repair"
 	spiel_sns_repair_continue
 	sleep 3
 
 	echo "wait for the continued sns repair"
-	spiel_wait_for_sns_repair || return $?
+	spiel_wait_for_sns_repair || return "$?"
 
-	disk_state_set "repaired" $fail_device2 $fail_device3 || return $?
+	disk_state_set "repaired" "$fail_device2" "$fail_device3" || return "$?"
 	echo "SNS Repair done."
-	motr_read_verify 0 || return $?
+	motr_read_verify 0 || return "$?"
 
-	disk_state_get $fail_device2 $fail_device3 || return $?
+	disk_state_get "$fail_device2" "$fail_device3" || return "$?"
 
-	disk_state_set "rebalance" $fail_device2 $fail_device3 || return $?
+	disk_state_set "rebalance" "$fail_device2" "$fail_device3" || return "$?"
 	echo "Starting SNS Re-balance.."
 	spiel_sns_rebalance_start
 	sleep 2
@@ -88,20 +88,20 @@ spiel_sns_repair_quiesce_test()
 	spiel_sns_rebalance_quiesce
 
 	echo "wait for sns rebalance"
-	spiel_wait_for_sns_rebalance || return $?
+	spiel_wait_for_sns_rebalance || return "$?"
 
 	echo "Continue SNS rebalance"
 	spiel_sns_rebalance_continue
 
 	echo "wait for continued sns rebalance"
-	spiel_wait_for_sns_rebalance || return $?
+	spiel_wait_for_sns_rebalance || return "$?"
 
-	disk_state_set "online" $fail_device2 $fail_device3 || return $?
+	disk_state_set "online" "$fail_device2" "$fail_device3" || return "$?"
 	echo "SNS Rebalance done."
 
-	motr_read_verify 0 || return $?
+	motr_read_verify 0 || return "$?"
 
-	disk_state_get $fail_device2 $fail_device3 || return $?
+	disk_state_get "$fail_device2" "$fail_device3" || return "$?"
 
 	#######################################################################
 	#  End                                                                #
