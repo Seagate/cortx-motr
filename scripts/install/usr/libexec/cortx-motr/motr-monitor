@@ -30,7 +30,7 @@ check_for_fids() {
 	fi
 }
 
-#trap _handle_sigterm SIGTERM SIGKILL
+trap _handle_sigterm SIGTERM SIGKILL
 
 #check_for_fids $1
 /usr/libexec/cortx-motr/motr-server "m0d-$1" &
