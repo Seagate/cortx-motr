@@ -1901,7 +1901,6 @@ static int io_finish(struct m0_fom *fom)
 {
 	struct m0_io_fom_cob_rw *fom_obj;
 	struct m0_stob_io_desc  *stio_desc;
-	struct m0_cob           *cob;
 	int                      rc  = 0;
 	m0_bcount_t              nob = 0;
 
@@ -1943,19 +1942,6 @@ static int io_finish(struct m0_fom *fom)
 			       fom_obj->fcrw_count, stio->si_count);
 		}
 		stobio_tlist_add(&fom_obj->fcrw_done_list, stio_desc);
-	}
-
-	if (rc == 0 && m0_is_write_fop(fom->fo_fop)) {
-		rc = fom_cob_locate(fom);
-		if (rc == 0) {
-			cob = fom_obj->fcrw_cob;
-			fom_obj->fcrw_cob_size =
-				max64u(fom_obj->fcrw_cob_size,
-				       fom_obj->fcrw_cob->co_nsrec.cnr_size);
-			rc = m0_cob_size_update(cob,
-				fom_obj->fcrw_cob_size, m0_fom_tx(fom));
-			m0_cob_put(cob);
-		}
 	}
 
 	M0_LOG(M0_DEBUG, "got    fom: %"PRIi64", req_count: %"PRIi64", "
@@ -2282,6 +2268,8 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 				m0_cob_tx_credit(fom_cdom(fom),
 						 M0_COB_OP_CREATE, accum);
 				m0_cob_tx_credit(fom_cdom(fom),
+						 M0_COB_OP_UPDATE, accum);
+				m0_cob_tx_credit(fom_cdom(fom),
 						 M0_COB_OP_DELETE, accum);
 				m0_cob_tx_credit(fom_cdom(fom),
 						 M0_COB_OP_BYTECOUNT_SET, accum);
@@ -2337,6 +2325,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS &&
 	    m0_is_write_fop(fom->fo_fop)) {
 		int                 bc_rc;
+		uint64_t            old_cob_size;
 		struct m0_cob_bckey key;
 
 		key.cbk_pfid = pver;
@@ -2344,8 +2333,18 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 		bc_rc = fom_cob_locate(fom);
 		if (bc_rc == 0) {
 			cob = fom_obj->fcrw_cob;
+			old_cob_size = cob->co_nsrec.cnr_size;
 			cob_bytecount_increment(cob, &key, byte_count,
 						m0_fom_tx(fom));
+			/**
+			 * XXX: Overlapping cob extentds are not accounted for
+			 * during cob overwrite. IF a cob is overwritten,
+			 * it will make cob size inaccurate.
+			 */
+			bc_rc = m0_cob_size_update(cob, old_cob_size + byte_count,
+						   m0_fom_tx(fom));
+			if (bc_rc != 0)
+				M0_ERR_INFO(bc_rc, "Failed to update cob_size");
 		}
 	}
 
