@@ -959,7 +959,7 @@ cas_disk_state_set()
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		echo "HA note set failed: $rc"
-		unmount_and_clean &>> $MOTR_TEST_LOGFILE
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
 		return $rc
 	fi
 	return 0
@@ -982,7 +982,7 @@ disk_state_get()
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "HA state get failed: $rc"
-		unmount_and_clean &>> $MOTR_TEST_LOGFILE
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
 		return $rc
 	fi
 }
@@ -1004,7 +1004,7 @@ cas_disk_state_get()
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "HA tate get failed: $rc"
-		unmount_and_clean &>> $MOTR_TEST_LOGFILE
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
 		return $rc
 	fi
 	return 0
