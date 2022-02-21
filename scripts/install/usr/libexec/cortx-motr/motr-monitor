@@ -1,0 +1,49 @@
+#!/bin/bash
+set -x 
+
+PID=
+
+if [[ $# < 1 ]]; then
+        echo "usage - sh $0 <service-fid>"
+        echo "to get fid details"
+	echo "execute below command from cortx-hax container shell"
+	echo "/opt/seagate/cortx/hare/bin/hctl status"
+        exit 1
+fi
+
+_handle_sigterm() {
+   echo "Caught SIGTERM"
+   if [[ -z $PID ]]; then
+      echo "No m0d process to kill"
+   else
+      echo "killing the process $PID"
+      kill -KILL $PID 2> /dev/null
+   fi
+}
+
+check_for_fids() {
+	fid=$1
+	var=$(ps -aux | grep "m0d" | grep $fid)
+	if [[ $? -eq 0 ]]; then
+		echo "$fid already running"
+		exit 1
+	fi
+}
+
+#trap _handle_sigterm SIGTERM SIGKILL
+
+#check_for_fids $1
+/usr/libexec/cortx-motr/motr-server "m0d-$1" &
+PID=$!
+
+while true; do
+	wait $PID
+	echo "why i am not here"
+	echo "m0d-$1 service exited with exit code=$?"
+	ps aux | grep $1 | grep "/usr/bin/m0d" | grep -q -v grep
+	if [ $? -ne 0 ]; then
+		echo "restarting $1"
+		/usr/libexec/cortx-motr/motr-server "m0d-$1" &
+		PID=$!
+	fi
+done
