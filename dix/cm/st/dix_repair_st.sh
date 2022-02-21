@@ -126,9 +126,15 @@ dix_rebalance_start() {
 dix_rep_wait() {
 	local rc
 	if [ ${do_spiel} == 1 ]; then
-		spiel_wait_for_dix_repair || return $?
+		spiel_wait_for_dix_repair
 	else
-		wait_for_dix_repair_or_rebalance "repair" || return $?
+		wait_for_dix_repair_or_rebalance "repair"
+	fi
+	rc=$?
+	if [ $rc != 0 ]
+	then
+		echo "Wait for DIX repair failed."
+		return $rc
 	fi
 	cas_disk_state_set "repaired" "$fail_device"
 	rc=$?
@@ -138,9 +144,14 @@ dix_rep_wait() {
 dix_reb_wait() {
 	local rc
 	if [ ${do_spiel} == 1 ]; then
-		spiel_wait_for_dix_rebalance || return $?
+		spiel_wait_for_dix_rebalance
 	else
-		wait_for_dix_repair_or_rebalance "rebalance" || return $?
+		wait_for_dix_repair_or_rebalance "rebalance"
+	fi
+	if [ $rc != 0 ]
+	then
+		echo "Wait for DIX rebalance failed."
+		return $rc
 	fi
 	cas_disk_state_set "online" "$fail_device"
 	rc=$?

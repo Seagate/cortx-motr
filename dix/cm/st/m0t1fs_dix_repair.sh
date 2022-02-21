@@ -125,7 +125,8 @@ main()
 		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
 	done
 
-	if [[ $rc -eq 0 ]] && ! dix_repair_test ; then
+	dix_repair_test
+	if [ $? -ne 0 ]; then
 		echo "Failed: DIX repair failed.."
 		rc=1
 	fi
