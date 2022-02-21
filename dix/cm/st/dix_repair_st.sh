@@ -19,7 +19,7 @@
 #
 
 SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.dix-repair-st}
-M0_SRC_DIR="$(readlink -f ${BASH_SOURCE[0]})"
+M0_SRC_DIR="$(readlink -f "${BASH_SOURCE[0]}")"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*/*/*}"
 [ `id -u` -eq 0 ] || die 'Must be run by superuser'
 

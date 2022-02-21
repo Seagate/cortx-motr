@@ -929,7 +929,7 @@ disk_state_set()
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		echo "HA note set failed: $rc"
-		unmount_and_clean &>> $MOTR_TEST_LOGFILE
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
 		return $rc
 	fi
 }

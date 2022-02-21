@@ -17,7 +17,7 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-M0_SRC_DIR="$(readlink -f ${BASH_SOURCE[0]})"
+M0_SRC_DIR="$(readlink -f "${BASH_SOURCE[0]}")"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*/*/*}"
 
 CM_OP_REPAIR=1
