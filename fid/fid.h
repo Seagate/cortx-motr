@@ -49,6 +49,8 @@ M0_INTERNAL bool m0_fid_is_set(const struct m0_fid *fid);
 M0_INTERNAL bool m0_fid_is_valid(const struct m0_fid *fid);
 M0_INTERNAL bool m0_fid_eq(const struct m0_fid *fid0,
 			   const struct m0_fid *fid1);
+M0_INTERNAL bool m0_proc_fid_eq(const struct m0_fid *fid0,
+		                const struct m0_fid *fid1);
 M0_INTERNAL int m0_fid_cmp(const struct m0_fid *fid0,
 			   const struct m0_fid *fid1);
 M0_INTERNAL void m0_fid_set(struct m0_fid *fid,
@@ -69,6 +71,7 @@ M0_INTERNAL void m0_fid_fini(void);
 enum {
 	/** Clears high 8 bits off. */
 	M0_FID_TYPE_MASK        = 0x00ffffffffffffffULL,
+	M0_FID_DYNAMIC_CNT_MASK = 0x00000000FFFFFFFFULL,
 	M0_FID_STR_LEN          = 64,
 };
 

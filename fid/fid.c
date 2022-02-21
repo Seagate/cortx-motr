@@ -161,6 +161,23 @@ M0_INTERNAL void m0_fid_tgenerate(struct m0_fid *fid,
 	m0_fid_tchange(fid, tid);
 }
 
+M0_INTERNAL bool m0_proc_fid_eq(const struct m0_fid *fid0,
+				const struct m0_fid *fid1)
+{
+	/*
+	 * Assuming this function will be called to compare process fid only.
+	 * In case of process fid, skipping counter bit(32 bit after type)
+	 * for fid's comparison to support dynamic process fid.
+	 */
+	if ((fid0->f_container == fid1->f_container) &&
+	    ((fid0->f_key & M0_FID_DYNAMIC_CNT_MASK) ==
+	     (fid1->f_key & M0_FID_DYNAMIC_CNT_MASK)))
+		return true;
+	else
+		return false;
+}
+M0_EXPORTED(m0_proc_fid_eq);
+
 M0_INTERNAL bool m0_fid_eq(const struct m0_fid *fid0, const struct m0_fid *fid1)
 {
 	return memcmp(fid0, fid1, sizeof *fid0) == 0;

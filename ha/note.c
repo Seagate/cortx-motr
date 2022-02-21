@@ -52,6 +52,7 @@
 #include "ha/ha.h"              /* m0_ha_send */
 #include "motr/ha.h"            /* m0_motr_ha */
 #include "conf/obj_ops.h"       /* m0_conf_obj_find */
+#include "conf/dir.h"
 
 /**
  * @see: confc_fop_release()
@@ -152,10 +153,12 @@ static void ha_state_accept(struct m0_confc         *confc,
 			    uint64_t                 ignore_same_state)
 {
 	struct m0_conf_obj   *obj;
+	struct m0_conf_obj   *new_obj;
 	struct m0_conf_cache *cache;
 	enum m0_ha_obj_state  prev_ha_state;
 	int                   i;
 	int		      rc = 0;
+	struct m0_conf_dir   *dir;
 
 	M0_ENTRY("confc=%p note->nv_nr=%"PRIi32, confc, note->nv_nr);
 	M0_PRE(note_invariant(note, true));
@@ -170,36 +173,43 @@ static void ha_state_accept(struct m0_confc         *confc,
 	cache = &confc->cc_cache;
 	m0_conf_cache_lock(cache);
 	for (i = 0; i < note->nv_nr; ++i) {
-		obj = m0_conf_cache_lookup(cache, &note->nv_note[i].no_id);
+		obj = m0_conf_cache_lookup_dynamic(cache, &note->nv_note[i].no_id);
 		M0_LOG(M0_DEBUG, "nv_note[%d]=(no_id="FID_F" no_state=%"PRIu32
 		       ") obj=%p obj->co_status=%d", i,
 		       FID_P(&note->nv_note[i].no_id),
 		       note->nv_note[i].no_state,
 		       obj, obj == NULL ? -1 : obj->co_status);
-		if (obj != NULL && obj->co_status == M0_CS_READY) {
+		if ((obj != NULL) &&
+		    (m0_fid_tget(&note->nv_note[i].no_id) == 'r') &&
+		     !cache->ca_is_phony &&
+		     (!m0_fid_eq(&obj->co_id, &note->nv_note[i].no_id))) {
+
+			M0_LOG(M0_ALWAYS, "Received fid: "FID_F" lookedup fid :"FID_F,
+				FID_P(&note->nv_note[i].no_id), FID_P(&obj->co_id));
+			rc = m0_conf_obj_find(cache, &note->nv_note[i].no_id,
+					&new_obj);
+			if (rc == 0) {
+				prev_ha_state = obj->co_ha_state;
+				new_obj->co_ha_state = note->nv_note[i].no_state;
+
+				M0_LOG(M0_ALWAYS, " new_obj->co_parent : %p", new_obj->co_parent);
+				if (new_obj->co_parent == NULL) {
+					dir = M0_CONF_CAST(obj->co_parent, m0_conf_dir);
+					m0_conf_dir_add(dir, new_obj);
+				}
+
+				if (!ignore_same_state ||
+				    prev_ha_state != new_obj->co_ha_state)
+					m0_chan_broadcast(&new_obj->co_ha_chan);
+			} else {
+				M0_LOG(M0_ALWAYS, "confs obj add failed rc= %d", rc);
+			}
+		} else if (obj != NULL && obj->co_status == M0_CS_READY) {
 			prev_ha_state = obj->co_ha_state;
 			obj->co_ha_state = note->nv_note[i].no_state;
 			if (!ignore_same_state ||
 			    prev_ha_state != obj->co_ha_state)
 				m0_chan_broadcast(&obj->co_ha_chan);
-		} else if ((obj == NULL) &&
-		           (m0_fid_tget(&note->nv_note[i].no_id) == 'r')) {
-				M0_LOG(M0_DEBUG, FID_F" is process FID and not found in conc",
-					FID_P(&note->nv_note[i].no_id));
-				M0_LOG(M0_DEBUG,"Add the entry to conf cache");
-				rc = m0_conf_obj_find(cache, &note->nv_note[i].no_id, 
-						&obj);
-				if (rc == 0) {
-					obj->co_status = M0_CS_READY;
-					prev_ha_state = obj->co_ha_state;
-					obj->co_ha_state = note->nv_note[i].no_state;
-					if (!ignore_same_state ||
-					    prev_ha_state != obj->co_ha_state)
-						m0_chan_broadcast(&obj->co_ha_chan);
-					M0_LOG(M0_DEBUG, "confs obj added successfully rc= %d", rc);
-				} else {
-					M0_LOG(M0_DEBUG, "confs obj add failed rc= %d", rc);
-				}
 		}
 	}
 	m0_conf_cache_unlock(cache);

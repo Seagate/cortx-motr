@@ -71,6 +71,7 @@ m0_conf_cache_init(struct m0_conf_cache *cache, struct m0_mutex *lock)
 	cache->ca_lock = lock;
 	cache->ca_ver  = 0;
 	cache->ca_fid_counter = 0;
+	cache->ca_is_phony = false;
 
 	M0_LEAVE();
 }
@@ -100,6 +101,34 @@ M0_INTERNAL bool m0_conf_cache_contains(struct m0_conf_cache *cache,
 	ret = m0_conf_cache_lookup(cache, fid) != NULL;
 	m0_conf_cache_unlock(cache);
 	return ret;
+}
+
+M0_INTERNAL struct m0_conf_obj *
+m0_conf_cache_lookup_dynamic(const struct m0_conf_cache *cache,
+		     const struct m0_fid *id)
+{
+	struct m0_conf_obj *obj;
+	uint32_t cnt1;
+	uint32_t cnt2;
+        /*
+         * For process fid different approach is taken to compare FID's
+	 * Specifically for process fid considering base fid only
+	 * (excluding counter bit) for comparison.
+	 */
+	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
+		if (m0_fid_tget(id) == 'r') {
+			if (m0_proc_fid_eq(&obj->co_id, id)) {
+				cnt1 = obj->co_id.f_key >> 32 & 0xFFFFFFFF;
+				cnt2 = id->f_key >> 32 & 0xFFFFFFFF;
+					if (cnt1 != (cnt2 - 1))
+						continue;
+					return obj;
+			}
+		} else if (m0_fid_eq(&obj->co_id, id)) {
+			return obj;
+		}
+	} m0_tl_endfor;
+	return NULL;
 }
 
 M0_INTERNAL struct m0_conf_obj *
