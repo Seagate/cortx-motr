@@ -42,8 +42,6 @@ export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
 M0_SRC_DIR=`readlink -f ${BASH_SOURCE[0]}`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
-echo $M0_SRC_DIR
-. $M0_SRC_DIR/utils/functions  # sandbox_init, report_and_exit
 
 
 SCRIPT_NAME=`echo $0 | awk -F "/" '{print $NF}'`
@@ -116,8 +114,7 @@ else:
         spiel.rconf_status = 1
 
 pc_stats = ByteCountStats()
-spiel.proc_counters_fetch(Fid(0x7200000000000001, 0xc), pc_stats)
-rc = pc_stats.pc_rc
+rc = spiel.proc_counters_fetch(Fid(0x7200000000000001, 0xc), pc_stats)
 if rc != 0:
 	sys.exit('Error: bytecount stats fetch: \
                  (status {0})'.format(rc))
