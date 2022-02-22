@@ -111,7 +111,7 @@ M0_UNUSED static inline void indexvec_dump(struct m0_indexvec *ivec)
 
 	for (seg = 0; seg < SEG_NR(ivec); ++seg)
 		M0_LOG(M0_DEBUG, "seg# %d: [pos, +len) = [%"PRIu64
-				 ", +%"PRIu64")", seg, INDEX(ivec, seg),
+				 ", +%" PRIu64 ")", seg, INDEX(ivec, seg),
 				 COUNT(ivec, seg));
 }
 

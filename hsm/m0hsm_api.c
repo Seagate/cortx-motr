@@ -306,7 +306,7 @@ static int create_obj(struct m0_uint128 id, struct m0_obj *obj,
 	int rc;
 	ENTRY;
 
-	DBG("creating id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
+	DBG("creating id=%" PRIx64 ":%" PRIx64 "\n", id.u_hi, id.u_lo);
 
 	/* first create the main object with a default layout */
 	m0_obj_init(obj, m0_uber_realm, &id, 9 /* XXX: 1MB */);
@@ -314,11 +314,11 @@ static int create_obj(struct m0_uint128 id, struct m0_obj *obj,
 
 	rc = open_entity(&obj->ob_entity);
 	if (rc == 0) {
-		ERROR("Object %"PRIx64":%"PRIx64" already exists\n", id.u_hi,
+		ERROR("Object %" PRIx64 ":%" PRIx64 " already exists\n", id.u_hi,
 		      id.u_lo);
 		RETURN(-EEXIST);
 	} else if (rc != -ENOENT) {
-		ERROR("Failed to create object %"PRIx64":%"PRIx64": rc=%d\n",
+		ERROR("Failed to create object %" PRIx64 ":%" PRIx64 ": rc=%d\n",
 		      id.u_hi, id.u_lo, rc);
 		RETURN(rc);
 	}
@@ -362,7 +362,7 @@ static int delete_obj(struct m0_uint128 id)
 
 	memset(&obj, 0, sizeof(struct m0_obj));
 
-	DBG("deleting id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
+	DBG("deleting id=%" PRIx64 ":%" PRIx64 "\n", id.u_hi, id.u_lo);
 
 	m0_obj_init(&obj, m0_uber_realm, &id, m0_client_layout_id(m0_instance));
 	m0_entity_delete(&obj.ob_entity, &ops[0]);
@@ -392,7 +392,7 @@ static int create_obj_with_layout(struct m0_uint128 id,
 	int rc;
 	ENTRY;
 
-	DBG("creating id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
+	DBG("creating id=%" PRIx64 ":%" PRIx64 "\n", id.u_hi, id.u_lo);
 
 	/* first create the main object with a default layout */
 	m0_obj_init(obj, m0_uber_realm, &id, m0_client_layout_id(m0_instance));
@@ -441,7 +441,7 @@ static int delete_obj_set_parent_layout(struct m0_uint128 id,
 
 	ENTRY;
 
-	DBG("deleting id=%"PRIx64":%"PRIx64"\n", id.u_hi, id.u_lo);
+	DBG("deleting id=%" PRIx64 ":%" PRIx64 "\n", id.u_hi, id.u_lo);
 
 	memset(&obj, 0, sizeof(struct m0_obj));
 	memset(&parent_obj, 0, sizeof(struct m0_obj));
@@ -675,8 +675,8 @@ static int read_extent_keys(struct m0_uint128 subobjid,
 		ext->ce_off = key.cek_off;
 		ext->ce_len = val.cev_len;
 
-		DBG("%s: extent %#"PRIx64":%#"PRIx64
-		      " [%#"PRIx64"-%#"PRIx64"]\n", __func__,
+		DBG("%s: extent %#" PRIx64 ":%#"PRIx64
+		      " [%#" PRIx64 "-%#" PRIx64 "]\n", __func__,
 		      ext->ce_id.u_hi, ext->ce_id.u_lo, key.cek_off,
 		      key.cek_off + ext->ce_len - 1);
 
@@ -794,13 +794,13 @@ static void print_extents(FILE *stream, const struct m0_tl *ext_list,
 
 	m0_tl_for(cext, ext_list, ext) {
 		if (details)
-			fprintf(stream, "%s<%#"PRIx64":%#"PRIx64">:"
-			        "[%#"PRIx64"->%#"PRIx64"]",
+			fprintf(stream, "%s<%#" PRIx64 ":%#" PRIx64 ">:"
+			        "[%#" PRIx64 "->%#" PRIx64 "]",
 			        is_first ? "" : " ",
 			        ext->ce_id.u_hi, ext->ce_id.u_lo,
 			        ext->ce_off, ext->ce_off + ext->ce_len - 1);
 		else
-			fprintf(stream, "%s[%#"PRIx64"->%#"PRIx64"]",
+			fprintf(stream, "%s[%#" PRIx64 "->%#" PRIx64 "]",
 			        is_first ? "" : " ",
 			        ext->ce_off, ext->ce_off + ext->ce_len - 1);
 
@@ -814,9 +814,9 @@ static void print_layer(FILE *stream, struct m0_composite_layer *layer,
 			bool details)
 {
 	if (details) {
-		fprintf(stream, "subobj=<%#"PRIx64":%#"PRIx64">\n",
+		fprintf(stream, "subobj=<%#" PRIx64 ":%#" PRIx64 ">\n",
 		        layer->ccr_subobj.u_hi, layer->ccr_subobj.u_lo);
-		fprintf(stream, "lid=%"PRIu64"\n", layer->ccr_lid);
+		fprintf(stream, "lid=%" PRIu64 "\n", layer->ccr_lid);
 		fprintf(stream, "priority=%#x (gen=%u, tier=%hhu)\n",
 			layer->ccr_priority,
 		        hsm_prio2gen(layer->ccr_priority),
@@ -858,7 +858,7 @@ static void print_layout(FILE *stream, const struct m0_client_layout  *layout,
 	M0_ASSERT(clayout != NULL);
 
 	if (details)
-		fprintf(stream, "%"PRIu64" layers:\n", clayout->ccl_nr_layers);
+		fprintf(stream, "%" PRIu64 " layers:\n", clayout->ccl_nr_layers);
 
 	/* iterate on all layers and display their extents */
 	i = 0;
@@ -944,8 +944,8 @@ static int layer_extent_add(struct m0_uint128 subobjid,
 		goto out_free;
 	}
 
-	DBG("%s %s extent for <%"PRIx64":%"PRIx64">: "
-		"[%#"PRIx64"-%#"PRIx64"]\n",
+	DBG("%s %s extent for <%" PRIx64 ":%" PRIx64 ">: "
+		"[%#" PRIx64 "-%#" PRIx64 "]\n",
 		overwrite ? "Changing" : "Adding",
 		write ? "write" : "read",
 		subobjid.u_hi, subobjid.u_lo, ext->off,
@@ -1007,7 +1007,7 @@ static int layer_extent_del(struct m0_uint128 subobjid, off_t off, bool write)
 		goto out_free;
 	}
 
-	DBG("Dropping %s extent for <%"PRIx64":%"PRIx64"> at offset %#"PRIx64
+	DBG("Dropping %s extent for <%" PRIx64 ":%" PRIx64 "> at offset %#"PRIx64
 		" (if it exists)\n", write ? "write" : "read",
 		subobjid.u_hi, subobjid.u_lo, off);
 
@@ -1113,7 +1113,7 @@ static int layer_check_clean(struct m0_uint128 parent_id,
 
 	/* does the subobject still has extent? */
 	if (!cext_tlist_is_empty(&layer->ccr_rd_exts)) {
-		DBG("Subobj %"PRIx64":%"PRIx64" still has read extents\n",
+		DBG("Subobj %" PRIx64 ":%" PRIx64 " still has read extents\n",
 		      layer->ccr_subobj.u_hi, layer->ccr_subobj.u_lo);
 		RETURN(-ENOTEMPTY);
 	}
@@ -1343,7 +1343,7 @@ static enum ext_match_code ext_match(struct m0_uint128 layer_id,
 				is_merged = true;
 
 				DBG("Merge with previous extent "
-				    "starting at %#"PRIx64"\n", ext->ce_off);
+				    "starting at %#" PRIx64 "\n", ext->ce_off);
 
 				/* Merged extent keeps the same offset
 				 * (don't delete it from index)  */
@@ -1362,7 +1362,7 @@ static enum ext_match_code ext_match(struct m0_uint128 layer_id,
 				}
 
 				DBG("Merge with next extent starting "
-				    "at %#"PRIx64"\n", ext->ce_off);
+				    "at %#" PRIx64 "\n", ext->ce_off);
 
 				/* Merged extent offset is different.
 				 * Delete it from index. */
@@ -1630,7 +1630,7 @@ int m0hsm_create(struct m0_uint128 id, struct m0_obj *obj,
 
 	if (rc == 0)
 		INFO("Composite object successfully created with "
-		     "id=%#"PRIx64":%#"PRIx64"\n", id.u_hi, id.u_lo);
+		     "id=%#" PRIx64 ":%#" PRIx64 "\n", id.u_hi, id.u_lo);
 
 	RETURN(rc);
 }
@@ -1787,7 +1787,7 @@ static int map_io_ctx(struct io_ctx *ctx, int blocks, size_t b_size,
 		ctx->ext.iv_index[i] = offset + i * b_size;
 		ctx->ext.iv_vec.v_count[i] = b_size;
 
-		VERB("IO block: offset=%#"PRIx64", length=%#"PRIx64"\n",
+		VERB("IO block: offset=%#" PRIx64 ", length=%#" PRIx64 "\n",
 		     ctx->ext.iv_index[i], ctx->ext.iv_vec.v_count[i]);
 
 		/* we don't want any attributes */
@@ -1856,7 +1856,7 @@ uint64_t get_optimal_bs(struct m0_obj *obj, uint64_t obj_sz)
 	/* max 2-times pool-width deep, otherwise we may get -E2BIG */
 	max_bs = usz * 2 * pa->pa_P * pa->pa_N / (pa->pa_N + pa->pa_K + pa->pa_S);
 
-	VERB("usz=%lu pool="FID_F" (N,K,S,P)=(%u,%u,%u,%u) max_bs=%"PRId64"\n", usz,
+	VERB("usz=%lu pool="FID_F" (N,K,S,P)=(%u,%u,%u,%u) max_bs=%" PRId64 "\n", usz,
 	     FID_P(&pver->pv_pool->po_id), pa->pa_N, pa->pa_K, pa->pa_S, pa->pa_P, max_bs);
 
 	if (obj_sz >= max_bs)
@@ -1958,8 +1958,8 @@ int m0hsm_test_write(struct m0_uint128 id, off_t offset, size_t len, int seed)
 	m0_entity_fini(&obj.ob_entity);
 
 	if (rc == 0)
-		INFO("%zu bytes successfully written at offset %#"PRIx64" "
-		     "(object id=%#"PRIx64":%#"PRIx64")\n", len, offset,
+		INFO("%zu bytes successfully written at offset %#" PRIx64 " "
+		     "(object id=%#" PRIx64 ":%#" PRIx64 ")\n", len, offset,
 		     id.u_hi, id.u_lo);
 
 	RETURN(rc);
@@ -2031,8 +2031,8 @@ int m0hsm_pwrite(struct m0_obj *obj, void *buffer, size_t length, off_t offset)
 		rc = top_layer_add_read_extent(obj, &wext);
 
 		struct m0_uint128 id = obj->ob_entity.en_id;
-		INFO("%zu bytes successfully written at offset %#"PRIx64" "
-		     "(object id=%#"PRIx64":%#"PRIx64")\n", length, offset,
+		INFO("%zu bytes successfully written at offset %#" PRIx64 " "
+		     "(object id=%#" PRIx64 ":%#" PRIx64 ")\n", length, offset,
 		     id.u_hi, id.u_lo);
 	}
 
@@ -2096,8 +2096,8 @@ int m0hsm_test_read(struct m0_uint128 id, off_t offset, size_t len)
 	free_io_ctx(&ctx, true);
 
 	if (rc == 0)
-		INFO("%zu bytes successfully read at offset %#"PRIx64" "
-		     "(object id=%#"PRIx64":%#"PRIx64")\n", len, offset,
+		INFO("%zu bytes successfully read at offset %#" PRIx64 " "
+		     "(object id=%#" PRIx64 ":%#" PRIx64 ")\n", len, offset,
 		     id.u_hi, id.u_lo);
 
 	RETURN(rc);
@@ -2180,8 +2180,8 @@ static int copy_extent_data(struct m0_uint128 src_id,
 
 	if (rc == 0)
 		INFO("%zu bytes successfully copied from subobj "
-		     "<%#"PRIx64":%#"PRIx64"> to <%#"PRIx64":%#"PRIx64">"
-	             " at offset %#"PRIx64"\n", range->len,
+		     "<%#" PRIx64 ":%#" PRIx64 "> to <%#" PRIx64 ":%#" PRIx64 ">"
+	             " at offset %#" PRIx64 "\n", range->len,
 		     src_id.u_hi, src_id.u_lo, tgt_id.u_hi, tgt_id.u_lo,
 		     range->off);
 
@@ -2262,8 +2262,8 @@ static int match_layer_foreach(struct m0_client_layout *layout, uint8_t tier,
 				continue;
 
 			VERB("Found layer %s matching extent "
-				"[%#"PRIx64"-%#"PRIx64"]: gen=%u, tier=%u, "
-				"matching_region [%#"PRIx64"-%#"PRIx64"]\n",
+				"[%#" PRIx64 "-%#" PRIx64 "]: gen=%u, tier=%u, "
+				"matching_region [%#" PRIx64 "-%#" PRIx64 "]\n",
 				m == EM_FULL ? "fully" : "partially",
 				ext->off, ext->off + ext->len - 1,
 				hsm_prio2gen(layer->ccr_priority), ltier,
@@ -2326,7 +2326,7 @@ static int min_gen_check_cb(void *cb_arg,
 	struct extent dummy;
 
 	if (m0_uint128_cmp(&layer->ccr_subobj, &arg->except_subobj) == 0) {
-		DBG("%s: skip self subobj %#"PRIx64":%#"PRIx64"\n", __func__,
+		DBG("%s: skip self subobj %#" PRIx64 ":%#" PRIx64 "\n", __func__,
 			  arg->except_subobj.u_hi, arg->except_subobj.u_lo);
 		/* skip this subobj */
 		return 0;
@@ -2372,7 +2372,7 @@ static int check_min_gen_exists(struct m0_client_layout *layout,
 	if (rc != 0 || !cb_arg.found)
 	{
 		ERROR("Found no extent matching [%#"PRIx64
-			"-%#"PRIx64"] with generation >= %d: "
+			"-%#" PRIx64 "] with generation >= %d: "
 			"can't release it from tier %u\n",
 			ext->off, ext->off + ext->len - 1, gen,
 			hsm_prio2tier(except_layer->ccr_priority));
@@ -2438,14 +2438,14 @@ static int release_cb(void *cb_arg, struct m0_client_layout *layout,
 			  false, &layer_empty);
 	if (rc)
 		RETURN(rc);
-	INFO("Extent [%#"PRIx64"-%#"PRIx64"] (gen %d) successfully released "
+	INFO("Extent [%#" PRIx64 "-%#" PRIx64 "] (gen %d) successfully released "
 	     "from tier %d\n", match->off, match->off + match->len - 1,
 	     gen, hsm_prio2tier(layer->ccr_priority));
 
 	/* Drop the layer if it no longer has readable extents */
 	if (layer_empty) {
 		VERB("No remaining extent in layer: deleting "
-		    "subobject <%"PRIx64":%"PRIx64">\n",
+		    "subobject <%" PRIx64 ":%" PRIx64 ">\n",
 		    layer->ccr_subobj.u_hi, layer->ccr_subobj.u_lo);
 
 		/* The list of extent has not been updated yet => no_check */
@@ -2560,7 +2560,7 @@ static int copy_cb(void *cb_arg, struct m0_client_layout *layout,
 	/* Most prioritary of src and tgt (the lower value, the higher priority) */
 	w_prio = MIN(src_layer->ccr_priority, tgt_prio);
 
-	INFO("%s extent [%#"PRIx64"-%#"PRIx64"] (gen %u) from "
+	INFO("%s extent [%#" PRIx64 "-%#" PRIx64 "] (gen %u) from "
 		"tier %u to tier %u\n",
 		ctx->src_tier > ctx->tgt_tier ? "Staging" : "Archiving",
 		match->off, match->off + match->len - 1,
@@ -2647,7 +2647,7 @@ static int copy_cb(void *cb_arg, struct m0_client_layout *layout,
 		/* Finally, add the subobject to the composite layout (if it was new).
 		 * XXX Is there a need to do this before the copy? perhaps to archive
 		 * multiple extents in parallel. */
-		DBG("Adding subobj <%"PRIx64":%"PRIx64"> as layer with prio %#x\n",
+		DBG("Adding subobj <%" PRIx64 ":%" PRIx64 "> as layer with prio %#x\n",
 			subobj_id.u_hi, subobj_id.u_lo, tgt_prio);
 		m0_composite_layer_add(layout, &subobj, tgt_prio);
 
@@ -2677,7 +2677,7 @@ static int copy_cb(void *cb_arg, struct m0_client_layout *layout,
 		rls_ctx.max_gen = gen;
 		rls_ctx.max_tier = ctx->src_tier;
 
-		VERB("Releasing extent [%#"PRIx64"-%#"PRIx64"] in tier %d\n",
+		VERB("Releasing extent [%#" PRIx64 "-%#" PRIx64 "] in tier %d\n",
 			match->off, match->off + match->len - 1,
 			ctx->src_tier);
 		/* Release needs to operate with an updated target layer,
@@ -2694,7 +2694,7 @@ static int copy_cb(void *cb_arg, struct m0_client_layout *layout,
 	/* Drop previous version on target tier.
 	 * If gen is 0, no previous version is supposed to exist. */
 	if (!(ctx->flags & HSM_KEEP_OLD_VERS) && gen > 0) {
-		VERB("Releasing extents [%#"PRIx64"-%#"PRIx64"] in tier %d, with gen <= %d\n",
+		VERB("Releasing extents [%#" PRIx64 "-%#" PRIx64 "] in tier %d, with gen <= %d\n",
 			match->off, match->off + match->len - 1,
 			ctx->tgt_tier, gen - 1);
 		rc = m0hsm_release_maxgen(ctx->obj_id, ctx->tgt_tier,

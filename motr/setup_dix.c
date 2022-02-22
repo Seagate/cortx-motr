@@ -206,7 +206,7 @@ static int cs_dix_put_one(struct m0_dix           *index,
 					iter.dit_unit) == M0_PUT_SPARE;
 		m0_dix_layout_iter_next(&iter, &tgt);
 		M0_ASSERT(tgt < pver->pv_attr.pa_P);
-		M0_LOG(M0_DEBUG, "tgt=%"PRIu64" is_spare=%d", tgt, !!is_spare);
+		M0_LOG(M0_DEBUG, "tgt=%" PRIu64 " is_spare=%d", tgt, !!is_spare);
 		if (is_spare)
 			continue;
 
@@ -346,8 +346,8 @@ M0_INTERNAL int m0_cs_dix_setup(struct m0_motr *cctx)
 	m0_rwlock_read_lock(&pm->pm_lock);
 	/*
  	 * @todo: Enable this logic once multiple DIX pvers available.
- 	 * M0_ASSERT(!pver->pv_is_dirty); 
-	 */ 
+ 	 * M0_ASSERT(!pver->pv_is_dirty);
+	 */
 	M0_ASSERT(pool_failed_devs_tlist_is_empty(
 					&pver->pv_pool->po_failed_devices));
 

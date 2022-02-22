@@ -544,7 +544,7 @@ M0_INTERNAL void m0_rpc_item_xid_min_update(struct m0_rpc_item *item)
 {
 	M0_PRE(m0_rpc_machine_is_locked(item->ri_rmachine));
 
-	M0_ENTRY("item="ITEM_FMT" osr_xid=%"PRIu64" "
+	M0_ENTRY("item="ITEM_FMT" osr_xid=%" PRIu64 " "
 	         "osr_session_xid_min=%"PRIu64,
 		 ITEM_ARG(item), item->ri_header.osr_xid,
 		 item->ri_header.osr_session_xid_min);
@@ -556,7 +556,7 @@ M0_INTERNAL void m0_rpc_item_xid_min_update(struct m0_rpc_item *item)
 			xidl_tlist_head(&item->ri_session->s_xid_list)->
 			ri_header.osr_xid;
 	}
-	M0_LEAVE("item="ITEM_FMT" osr_xid=%"PRIu64" "
+	M0_LEAVE("item="ITEM_FMT" osr_xid=%" PRIu64 " "
 	         "osr_session_xid_min=%"PRIu64,
 		 ITEM_ARG(item), item->ri_header.osr_xid,
 		 item->ri_header.osr_session_xid_min);
@@ -585,7 +585,7 @@ M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item)
 					    item);
 			item->ri_xid_assigned_here = true;
 		}
-		M0_LOG(M0_DEBUG, ITEM_FMT" set item xid=%"PRIu64" "
+		M0_LOG(M0_DEBUG, ITEM_FMT" set item xid=%" PRIu64 " "
 		       "s_xid=%"PRIu64, ITEM_ARG(item), item->ri_header.osr_xid,
 		       item->ri_session == NULL ? UINT64_MAX :
 				item->ri_session->s_xid);
@@ -595,8 +595,8 @@ M0_INTERNAL void m0_rpc_item_xid_assign(struct m0_rpc_item *item)
 
 static void rpc_item_xid_unassign(struct m0_rpc_item *item)
 {
-	M0_ENTRY("item="ITEM_FMT" osr_xid=%"PRIu64" "
-	         "osr_session_xid_min=%"PRIu64" ri_xid_assigned_here=%d",
+	M0_ENTRY("item="ITEM_FMT" osr_xid=%" PRIu64 " "
+	         "osr_session_xid_min=%" PRIu64 " ri_xid_assigned_here=%d",
 		 ITEM_ARG(item), item->ri_header.osr_xid,
 		 item->ri_header.osr_session_xid_min,
 		 !!item->ri_xid_assigned_here);
@@ -625,8 +625,8 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
 	if (!rpc_item_needs_xid(item))
 		return true;
 
-	M0_LOG(M0_DEBUG, "item: "ITEM_FMT" session=%p osr_xid=%"PRIu64" "
-	       "osr_session_xid_min=%"PRIu64" s_xid=%"PRIu64,
+	M0_LOG(M0_DEBUG, "item: "ITEM_FMT" session=%p osr_xid=%" PRIu64 " "
+	       "osr_session_xid_min=%" PRIu64 " s_xid=%"PRIu64,
 	       ITEM_ARG(item), sess, xid, item->ri_header.osr_session_xid_min,
 	       sess->s_xid);
 	/*
@@ -645,7 +645,7 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
 	if (sess->s_xid < item->ri_header.osr_session_xid_min - 1) {
 		M0_LOG(M0_WARN,
 		       "RPC items had been cancelled on the other side."
-		       " Changing session %p xid from %"PRIu64" to %"PRIu64".",
+		       " Changing session %p xid from %" PRIu64 " to %" PRIu64 ".",
 		       sess, sess->s_xid,
 		       item->ri_header.osr_session_xid_min - 1);
 		sess->s_xid = item->ri_header.osr_session_xid_min - 1;
@@ -683,7 +683,7 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
 	/* Resend cached reply if it is available for the request. */
 	cached = m0_rpc_item_cache_lookup(&sess->s_reply_cache, xid);
 	if (cached != NULL) {
-		M0_LOG(M0_DEBUG, "cached_reply=%p xid=%"PRIu64" state=%d",
+		M0_LOG(M0_DEBUG, "cached_reply=%p xid=%" PRIu64 " state=%d",
 		       cached, xid, cached->ri_sm.sm_state);
 		if (M0_IN(cached->ri_sm.sm_state, (M0_RPC_ITEM_SENT,
 						   M0_RPC_ITEM_FAILED))) {
@@ -695,7 +695,7 @@ M0_INTERNAL bool m0_rpc_item_xid_check(struct m0_rpc_item *item,
 		}
 		return M0_RC(false);
 	} else
-		M0_LOG(M0_DEBUG, "item: "ITEM_FMT" xid=%"PRIu64" s_xid=%"PRIu64
+		M0_LOG(M0_DEBUG, "item: "ITEM_FMT" xid=%" PRIu64 " s_xid=%"PRIu64
 		       " No reply found", ITEM_ARG(item), xid, sess->s_xid);
 
 	return M0_RC(false);
@@ -749,7 +749,7 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 	M0_PRE(item->ri_sm.sm_state != M0_RPC_ITEM_FAILED);
 	M0_PRE(item->ri_sm.sm_state != M0_RPC_ITEM_UNINITIALISED);
 
-	M0_ENTRY("FAILED "ITEM_FMT" xid=%"PRIu64" state=%s session=%p error=%d",
+	M0_ENTRY("FAILED "ITEM_FMT" xid=%" PRIu64 " state=%s session=%p error=%d",
 		 ITEM_ARG(item), item->ri_header.osr_xid,
 		 item_state_name(item), item->ri_session, rc);
 
@@ -765,7 +765,7 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 	if (false) {  /* XXX disabled temporarily */
 		M0_MOTR_IEM_DESC(M0_MOTR_IEM_SEVERITY_E_ERROR,
 			M0_MOTR_IEM_MODULE_IO, M0_MOTR_IEM_EVENT_RPC_FAILED,
-			"RPC_ITEM_FAILED "ITEM_FMT" xid=%"PRIu64" "
+			"RPC_ITEM_FAILED "ITEM_FMT" xid=%" PRIu64 " "
 			"state=\"%s\" rpc_machine_ep=%s "
 			"remote_machine_ep=%s error=%d", ITEM_ARG(item),
 			item->ri_header.osr_xid, item_state_name(item),
@@ -1132,7 +1132,7 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 	int      rc;
 
 	M0_ENTRY(ITEM_FMT" dest_ep=%s ri_session=%p ri_nr_sent_max=%"PRIu64
-		 " ri_deadline=%"PRIu64" ri_nr_sent=%u", ITEM_ARG(item),
+		 " ri_deadline=%" PRIu64 " ri_nr_sent=%u", ITEM_ARG(item),
 		 m0_rpc_item_remote_ep_addr(item),
 		 item->ri_session, item->ri_nr_sent_max, item->ri_deadline,
 		 item->ri_nr_sent);
@@ -1712,7 +1712,7 @@ M0_INTERNAL void m0_rpc_item_pending_cache_add(struct m0_rpc_item *item)
 	if (item->ri_session->s_session_id == SESSION_ID_0)
 		return;
 
-	M0_ENTRY(ITEM_FMT" xid=%"PRIu64" nr_sent=%lu item->ri_reply=%p",
+	M0_ENTRY(ITEM_FMT" xid=%" PRIu64 " nr_sent=%lu item->ri_reply=%p",
 		 ITEM_ARG(item), item->ri_header.osr_xid,
 		 (unsigned long)item->ri_nr_sent, item->ri_reply);
 

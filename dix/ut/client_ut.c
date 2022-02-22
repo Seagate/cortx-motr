@@ -3153,8 +3153,9 @@ static void server_is_down(void)
 
 	ut_service_init();
 	dix_index_init(&index, 1);
-	m0_fi_enable_once("cas_sdev_state", "sdev_fail");
+	m0_fi_enable("cas_sdev_state", "sdev_fail");
 	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
+	m0_fi_disable("cas_sdev_state", "sdev_fail");
 	M0_UT_ASSERT(rc == -EBADFD);
 	dix_index_fini(&index);
 	ut_service_fini();
