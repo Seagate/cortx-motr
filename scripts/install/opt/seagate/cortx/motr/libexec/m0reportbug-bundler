@@ -169,75 +169,98 @@ tar --remove-files -czf "${COMPONENT}_${bundle_id}.tar.gz" $HOSTNAME
 TEMP=( $( ls -ln "${COMPONENT}_${bundle_id}.tar.gz" ) )
 bundle_size=${TEMP[4]}
 
-if [[ $bundle_size -gt $sb_size_limit && $sb_size_limit -gt 0 ]]; then
-DIFF=$(($bundle_size - $sb_size_limit))
-mkdir -p "$dest_dir/temp"
-tar -xzf "${COMPONENT}_${bundle_id}.tar.gz" -C "$dest_dir/temp/"
-rm "${COMPONENT}_${bundle_id}.tar.gz"
-cd "$dest_dir/temp/$HOSTNAME"
-for f in *.tar.gz; do tar -xzf "$f"; rm "$f"; done
+binaries_size_limit() {
+    find $PWD/m0reportbug-cores/binaries/ -type f -exec grep -IL . "{}" \; | while read binfile; do
+        tar -czf "${binfile}.tar.gz" --absolute-names $binfile
+        TEMP=( $( ls -ln "${binfile}.tar.gz" ) )
+        size=${TEMP[4]}
+        rm "${binfile}.tar.gz"
+        if [[ $DIFF -gt $size ]]; then
+            DIFF=$(($DIFF - $size))
+            rm $binfile
+        else
+            DIFF="${DIFF/#-}"
+        fi
+        echo $DIFF > temp.txt
+    done
+    DIFF=$(cat temp.txt)
+    rm temp.txt
+}
 
-find $PWD/m0reportbug-cores/binaries/ -type f -exec grep -IL . "{}" \; | while read binfile; do
-       tar -czf "${binfile}.tar.gz" --absolute-names $binfile
-       TEMP=( $( ls -ln "${binfile}.tar.gz" ) )
-       size=${TEMP[4]}
-       rm "${binfile}.tar.gz"
-       if [[ $DIFF -gt $size ]]; then
-           DIFF=$(($DIFF - $size))
-           rm $binfile
-       else
-           DIFF="${DIFF/#-}"
-       fi
-       echo $DIFF > temp.txt
-done
-DIFF=$(cat temp.txt)
-rm temp.txt
+core_size_limit() {
+    (find $PWD -type f -name core\*  | while read core; do
+        TEMP=( $( ls -ln "$core" ) )
+        size=${TEMP[4]}
+        if [[ $DIFF -gt 0 ]]; then
+            rm $core
+            DIFF=$(($DIFF - $size))
+        else
+            DIFF="${DIFF/#-}"
+        fi
+        echo $DIFF > temp.txt
+    done)
+    DIFF=$(cat temp.txt)
+    rm temp.txt
+}
 
-(find $PWD -type f -name core\*  | while read core; do
-       TEMP=( $( ls -ln "$core" ) )
-       size=${TEMP[4]}
-       if [[ $DIFF -gt 0 ]]; then
-           rm $core
-           DIFF=$(($DIFF - $size))
-       fi
-       echo $DIFF > temp.txt
-done)
-DIFF=$(cat temp.txt)
-rm temp.txt
-
-MACHINE_ID=$(cat /etc/machine-id)
-if [ -d /etc/cortx/motr/sysconfig/$MACHINE_ID ]; then
-    MOTR_SYSCONFIG="/etc/cortx/motr/sysconfig/$MACHINE_ID/motr"
-else
-    MOTR_SYSCONFIG="/etc/sysconfig/motr"
-fi
-M0TR_M0D_TRACE_DIR=$(source $MOTR_SYSCONFIG; echo $MOTR_M0D_TRACE_DIR)
-PWD1=$PWD
-cd "$PWD/m0reportbug-traces$M0TR_M0D_TRACE_DIR"
-find *  -prune -type d | while IFS= read -r d; do
-    file_name=( $( ls -tr "$d" | head -n 1 ) )
-    tar -czf "${file_name}.tar.gz" --absolute-names "$d/$file_name"
-    TEMP=( $( ls -ln "${file_name}.tar.gz" ) )
-    size=${TEMP[4]}
-    rm "${file_name}.tar.gz"
-    if [[ $DIFF -gt $size ]]; then
-       DIFF=$(($DIFF - $size))
-       rm "$d/$file_name"
+PWD1=
+m0traces_size_limit()
+{
+    MACHINE_ID=$(cat /etc/machine-id)
+    if [ -d /etc/cortx/motr/sysconfig/$MACHINE_ID ]; then
+        MOTR_SYSCONFIG="/etc/cortx/motr/sysconfig/$MACHINE_ID/motr"
     else
-       DIFF="${DIFF/#-}"
+        MOTR_SYSCONFIG="/etc/sysconfig/motr"
     fi
-    echo $DIFF > temp.txt
-done
-DIFF=$(cat temp.txt)
-rm temp.txt
-cd $PWD1
-tar --remove-files -czf "m0reportbug-data.tar.gz" "m0reportbug-data"
-tar --remove-files -czf "m0reportbug-cores.tar.gz" "m0reportbug-cores"
-tar --remove-files -czf "m0reportbug-traces.tar.gz" "m0reportbug-traces"
-cd ..
-tar --remove-files -czf "${COMPONENT}_${bundle_id}.tar.gz" $HOSTNAME
-mv "${COMPONENT}_${bundle_id}.tar.gz" "$dest_dir/$COMPONENT/"
-cd ..
-rm -rf "$dest_dir/temp/"
+    M0TR_M0D_TRACE_DIR=$(source $MOTR_SYSCONFIG; echo $MOTR_M0D_TRACE_DIR)
+    PWD1=$PWD
+    cd "$PWD/m0reportbug-traces$M0TR_M0D_TRACE_DIR"
+    find *  -prune -type d | while IFS= read -r d; do
+        file_name=( $( ls -tr "$d" | head -n 1 ) )
+        tar -czf "${file_name}.tar.gz" --absolute-names "$d/$file_name"
+        TEMP=( $( ls -ln "${file_name}.tar.gz" ) )
+        size=${TEMP[4]}
+        rm "${file_name}.tar.gz"
+        if [[ $DIFF -gt $size ]]; then
+           DIFF=$(($DIFF - $size))
+           rm "$d/$file_name"
+        else
+           DIFF="${DIFF/#-}"
+        fi
+        echo $DIFF > temp.txt
+    done
+    DIFF=$(cat temp.txt)
+    rm temp.txt
+}
+
+if [[ $bundle_size -gt $sb_size_limit && $sb_size_limit -gt 0 ]]; then
+    DIFF=$(($bundle_size - $sb_size_limit))
+    mkdir -p "$dest_dir/temp"
+    tar -xzf "${COMPONENT}_${bundle_id}.tar.gz" -C "$dest_dir/temp/"
+    rm "${COMPONENT}_${bundle_id}.tar.gz"
+    cd "$dest_dir/temp/$HOSTNAME"
+    for f in *.tar.gz; do tar -xzf "$f"; rm "$f"; done
+
+    if [[ $DIFF -gt 0 ]]; then
+        binaries_size_limit
+    fi
+
+    if [[ $DIFF -gt 0 ]]; then
+        core_size_limit
+    fi 
+
+    if [[ $DIFF -gt 0 ]]; then
+        m0traces_size_limit
+    fi 
+
+    cd $PWD1
+    tar --remove-files -czf "m0reportbug-data.tar.gz" "m0reportbug-data"
+    tar --remove-files -czf "m0reportbug-cores.tar.gz" "m0reportbug-cores"
+    tar --remove-files -czf "m0reportbug-traces.tar.gz" "m0reportbug-traces"
+    cd ..
+    tar --remove-files -czf "${COMPONENT}_${bundle_id}.tar.gz" $HOSTNAME
+    mv "${COMPONENT}_${bundle_id}.tar.gz" "$dest_dir/$COMPONENT/"
+    cd ..
+    rm -rf "$dest_dir/temp/"
 fi
 
