@@ -168,20 +168,20 @@ tar --remove-files -czf "${COMPONENT}_${bundle_id}.tar.gz" $HOSTNAME
 
 TEMP=( $( ls -ln "${COMPONENT}_${bundle_id}.tar.gz" ) )
 bundle_size=${TEMP[4]}
-
 binaries_size_limit() {
     find $PWD/m0reportbug-cores/binaries/ -type f -exec grep -IL . "{}" \; | while read binfile; do
         tar -czf "${binfile}.tar.gz" --absolute-names $binfile
         TEMP=( $( ls -ln "${binfile}.tar.gz" ) )
         size=${TEMP[4]}
         rm "${binfile}.tar.gz"
-        if [[ $DIFF -gt $size ]]; then
+        if [[ $DIFF -ge $size ]]; then
             DIFF=$(($DIFF - $size))
+            echo $DIFF > temp.txt
             rm $binfile
-        else
-            DIFF="${DIFF/#-}"
+            if [[ $DIFF -eq 0 ]]; then
+                break 
+            fi
         fi
-        echo $DIFF > temp.txt
     done
     DIFF=$(cat temp.txt)
     rm temp.txt
@@ -191,13 +191,14 @@ core_size_limit() {
     (find $PWD -type f -name core\*  | while read core; do
         TEMP=( $( ls -ln "$core" ) )
         size=${TEMP[4]}
-        if [[ $DIFF -gt 0 ]]; then
+        if [[ $DIFF -ge $size ]]; then
             rm $core
             DIFF=$(($DIFF - $size))
-        else
-            DIFF="${DIFF/#-}"
+            echo $DIFF > temp.txt
+            if [[ $DIFF -eq 0 ]]; then
+                break 
+            fi
         fi
-        echo $DIFF > temp.txt
     done)
     DIFF=$(cat temp.txt)
     rm temp.txt
@@ -221,13 +222,14 @@ m0traces_size_limit()
         TEMP=( $( ls -ln "${file_name}.tar.gz" ) )
         size=${TEMP[4]}
         rm "${file_name}.tar.gz"
-        if [[ $DIFF -gt $size ]]; then
+        if [[ $DIFF -ge $size ]]; then
            DIFF=$(($DIFF - $size))
            rm "$d/$file_name"
-        else
-           DIFF="${DIFF/#-}"
+           echo $DIFF > temp.txt
+           if [[ $DIFF -eq 0 ]]; then
+               break 
+           fi
         fi
-        echo $DIFF > temp.txt
     done
     DIFF=$(cat temp.txt)
     rm temp.txt
