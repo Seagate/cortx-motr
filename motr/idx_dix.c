@@ -1266,7 +1266,7 @@ static void dix_set_idx_flags(struct m0_op_idx *oi)
 	if (ENABLE_DTM0)
 		oi->oi_flags |= M0_OIF_SKIP_LAYOUT;
 
-	if(!(oi->oi_flags & M0_OIF_SKIP_LAYOUT))
+	if (!(oi->oi_flags & M0_OIF_SKIP_LAYOUT))
 		oi->oi_flags |= M0_OIF_CROW;
 }
 

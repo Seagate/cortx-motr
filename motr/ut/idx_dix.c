@@ -321,7 +321,7 @@ static void ut_dix_namei_ops(bool dist, uint32_t flags)
 	/* Create the index. */
 	m0_idx_init(&idx, &realm.co_realm, (struct m0_uint128 *)&ifid);
 
-	if(flags & M0_OIF_SKIP_LAYOUT)
+	if (flags & M0_OIF_SKIP_LAYOUT)
 		idx.in_entity.en_flags |= M0_ENF_META;
 	rc = m0_entity_create(NULL, &idx.in_entity, &op);
 	M0_UT_ASSERT(rc == 0);
@@ -336,7 +336,7 @@ static void ut_dix_namei_ops(bool dist, uint32_t flags)
 
 	/* Create an index with the same fid once more => -EEXIST. */
 	m0_idx_init(&idup, &realm.co_realm, (struct m0_uint128 *)&ifid);
-	if(flags & M0_OIF_SKIP_LAYOUT)
+	if (flags & M0_OIF_SKIP_LAYOUT)
 		idx.in_entity.en_flags |= M0_ENF_META;
 	rc = m0_entity_create(NULL, &idup.in_entity, &op);
 	M0_UT_ASSERT(rc == 0);
