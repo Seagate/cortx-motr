@@ -184,7 +184,7 @@ static void ha_state_accept(struct m0_confc         *confc,
 		     !cache->ca_is_phony &&
 		     (!m0_fid_eq(&obj->co_id, &note->nv_note[i].no_id))) {
 
-			M0_LOG(M0_ALWAYS, "Received fid: "FID_F" lookedup fid :"FID_F,
+			M0_LOG(M0_DEBUG, "Received fid: "FID_F" lookedup fid :"FID_F,
 				FID_P(&note->nv_note[i].no_id), FID_P(&obj->co_id));
 			rc = m0_conf_obj_find(cache, &note->nv_note[i].no_id,
 					&new_obj);
@@ -192,7 +192,7 @@ static void ha_state_accept(struct m0_confc         *confc,
 				prev_ha_state = obj->co_ha_state;
 				new_obj->co_ha_state = note->nv_note[i].no_state;
 
-				M0_LOG(M0_ALWAYS, " new_obj->co_parent : %p", new_obj->co_parent);
+				M0_LOG(M0_DEBUG, " new_obj->co_parent : %p", new_obj->co_parent);
 				if (new_obj->co_parent == NULL) {
 					dir = M0_CONF_CAST(obj->co_parent, m0_conf_dir);
 					m0_conf_dir_add(dir, new_obj);
@@ -202,7 +202,7 @@ static void ha_state_accept(struct m0_confc         *confc,
 				    prev_ha_state != new_obj->co_ha_state)
 					m0_chan_broadcast(&new_obj->co_ha_chan);
 			} else {
-				M0_LOG(M0_ALWAYS, "confs obj add failed rc= %d", rc);
+				M0_LOG(M0_DEBUG, "confs obj add failed rc= %d", rc);
 			}
 		} else if (obj != NULL && obj->co_status == M0_CS_READY) {
 			prev_ha_state = obj->co_ha_state;
