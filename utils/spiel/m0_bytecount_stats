@@ -37,7 +37,6 @@
 # Byte Count      <int>
 # Object Count    <int>
 
-#set -eu
 #set -x
 export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
@@ -51,11 +50,9 @@ SCRIPT_NAME=`echo $0 | awk -F "/" '{print $NF}'`
 STATUS_FILE=/tmp/get_size_client$USER
 SAVEIFS=$IFS
 TIMEOUT=10
-lnet_nids=$(m0_local_nid_get)
 server_addr=""
 profile_addr=""
 process_addr=""
-systemd=0
 declare libmotr_path="/usr/lib64/libmotr.so"
 declare m0spiel_path="/usr/bin/m0spiel"
 declare consul_path="/usr/bin/consul"
@@ -138,7 +135,7 @@ for x in range(pc_stats.pc_cnt):
 EOF
 rc=$?
 if [ $rc -ne 0 ] ; then
-	[[ $rc -ge 124 ]] && exit_with_error "m0spiel command timedout" 3
+	[[ $rc -ge 124 ]] && exit_with_error "bytecount command timedout" 3
 	exit_with_error "m0spiel command exit with error:$rc" $rc
 fi
 }
@@ -205,11 +202,10 @@ Usage: $SCRIPT_NAME [options]
 
 Example:
     $SCRIPT_NAME  
-    -s ${lnet_nids}:12345:1:1
-    -c ${lnet_nids}:12345:1:4
+    -s inet:tcp:192.168.53.220@22001:12345:1:1
     -p 0x7000000000000001,0x1e
+    -P 0x7000000000000001,0x1c
     -l $libmotr_path
-     -c, -s, -l and -p are optional arguments
 
 RETURN :
 0 : SUCCESS
@@ -255,9 +251,6 @@ while [[ $# -gt 0 ]]; do
             check_arg_value $1 $2
             libmotr_path=$2
             shift
-            ;;
-        -d| --daemon)
-	    systemd=1
             ;;
         -h| --help)
             usage
