@@ -32,8 +32,6 @@
 #include "motr/setup.h"            /* m0_cs_ctx_get */
 #include "stob/domain.h"           /* m0_stob_domain_find_by_stob_id */
 
-#define M0_BYTECOUNT_USER_ID 8881212
-
 struct m0_poolmach;
 
 /* Forward Declarations. */
@@ -1141,19 +1139,23 @@ static int cd_cob_delete(struct m0_fom            *fom,
 	M0_ASSERT(cob != NULL);
 
 	pver = cob->co_nsrec.cnr_pver;
+	M0_ASSERT(m0_fid_is_valid(&pver));
+
 	cob_size = cob->co_nsrec.cnr_size;
 
 	M0_CNT_DEC(cob->co_nsrec.cnr_nlink);
 	M0_ASSERT(attr->ca_nlink == 0);
 	M0_ASSERT(cob->co_nsrec.cnr_nlink == 0);
 
-	rc = m0_cob_delete(cob, m0_fom_tx(fom));
-	if (rc == 0)
-		M0_LOG(M0_DEBUG, "Cob deleted successfully.");
-
 	key.cbk_pfid = pver; 
 	key.cbk_user_id = M0_BYTECOUNT_USER_ID;
 	rc = cob_bytecount_decrement(cob, &key, cob_size, m0_fom_tx(fom));
+	if (rc != 0)
+		M0_ERR_INFO(rc, "Bytecount decrement unsuccesfull");
+
+	rc = m0_cob_delete(cob, m0_fom_tx(fom));
+	if (rc == 0)
+		M0_LOG(M0_DEBUG, "Cob deleted successfully.");
 
 	return M0_RC(rc);
 }
@@ -1245,21 +1247,21 @@ static int cob_bytecount_decrement(struct m0_cob *cob, struct m0_cob_bckey *key,
 				   uint64_t bytecount, struct m0_be_tx *tx)
 {
 	int                 rc;
-	uint64_t            old_bc;
 	struct m0_cob_bcrec rec = {};
 
-	M0_ENTRY("KEY: "FID_F"/%"PRIu64, FID_P(&key->cbk_pfid), key->cbk_user_id);
+	M0_ENTRY("KEY: "FID_F"/%" PRIu64, FID_P(&key->cbk_pfid), key->cbk_user_id);
 
 	rc = m0_cob_bc_lookup(cob, key, &rec);
-	old_bc = rec.cbr_bytecount;
 	if (rc == 0) {
-		rec.cbr_bytecount -= bytecount;
+		if (rec.cbr_bytecount < bytecount)
+			rec.cbr_bytecount = 0;
+		else
+			rec.cbr_bytecount -= bytecount;
 		rc = m0_cob_bc_update(cob, key, &rec, tx);
 		if (rc != 0)
 			return M0_ERR(rc);
-		M0_LOG(M0_DEBUG, "Bytecount reduced by %"PRIu64" [%"PRIu64" ->"
-				 " %"PRIu64"]", bytecount, old_bc,
-				 rec.cbr_bytecount);
+		M0_LOG(M0_DEBUG, "Bytecount reduced by %" PRIu64
+				 " to %" PRIu64 , bytecount, rec.cbr_bytecount);
 	} else
 		M0_ERR(rc);
 
