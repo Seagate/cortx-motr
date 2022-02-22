@@ -613,7 +613,7 @@ class SpielWrapper:
     @require(fid=Fid,stats=ByteCountStats)
     def proc_counters_fetch(self, fid, stats):
         return self.motr.m0_spiel_proc_counters_fetch(self.spiel,byref(fid),
-                                                       byref(stats))
+                                                      byref(stats))
 
     @require(fid=Fid)
     def sns_rebalance_abort(self, fid):
