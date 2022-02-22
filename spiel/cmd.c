@@ -1698,6 +1698,7 @@ struct spiel_proc_counter_item {
 	/** For waiting till reply fop is recived */
 	struct m0_semaphore   sci_barrier;
 	uint64_t              sci_magic;
+	int                   sci_rc;
 };
 
 /****************************************************/
@@ -2060,8 +2061,14 @@ static void spiel_process_counter_replied_ast(struct m0_sm_group *grp,
 		goto leave;
 	rep = spiel_process_reply_data(&proc->sci_fop);
 
-	m0_buf_alloc(&proc->sci_data.pd_key, rep->sspr_bckey.b_nob);
-	m0_buf_alloc(&proc->sci_data.pd_rec, rep->sspr_bcrec.b_nob);
+	rc = m0_buf_alloc(&proc->sci_data.pd_key, rep->sspr_bckey.b_nob);
+	if (rc != 0)
+		goto leave;
+	rc = m0_buf_alloc(&proc->sci_data.pd_rec, rep->sspr_bcrec.b_nob);
+	if (rc != 0) {
+		m0_buf_free(&proc->sci_data.pd_key);
+		goto leave;
+	}
 
 	memcpy(proc->sci_data.pd_key.b_addr, rep->sspr_bckey.b_addr,
 		rep->sspr_bckey.b_nob);
@@ -2078,6 +2085,7 @@ leave:
 	conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
 	m0_rpc_link_disconnect_sync(&proc->sci_rlink, conn_timeout);
 	m0_rpc_link_fini(&proc->sci_rlink);
+	proc->sci_rc = rc;
 	m0_semaphore_up(&proc->sci_barrier);
 	M0_LEAVE();
 }
@@ -2142,6 +2150,8 @@ static bool spiel_proc_counter_item_rlink_cb(struct m0_clink *clink)
 		goto fop_put;
 	}
 
+	proc->sci_rc = rc;
+	
 	M0_LEAVE();
 	return true;
 fop_put:
@@ -2151,6 +2161,7 @@ fop_fini:
 	conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
 	m0_rpc_link_disconnect_sync(&proc->sci_rlink, conn_timeout);
 	m0_rpc_link_fini(&proc->sci_rlink);
+	proc->sci_rc = rc;
 	m0_semaphore_up(&proc->sci_barrier);
 	M0_LEAVE();
 	return true;
@@ -2179,6 +2190,19 @@ static int spiel_process__counters_async(struct spiel_proc_counter_item *proc)
 	m0_rpc_link_connect_async(&proc->sci_rlink, conn_timeout,
 				  &proc->sci_rlink_wait);
 	return M0_RC(rc);
+}
+
+static void count_stats_failed_free(struct m0_proc_counter *count_stats,
+				    int                     failed_index)
+{
+	int i;
+
+	for (i = 0; i <= failed_index; i++) {
+		if (count_stats->pc_bckey[i] != NULL)
+			m0_free(count_stats->pc_bckey[i]);
+		if (count_stats->pc_bcrec[i] != NULL)
+			m0_free(count_stats->pc_bcrec[i]);
+	}
 }
 
 int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
@@ -2232,11 +2256,25 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 	m0_semaphore_down(&proc->sci_barrier);
 
 	count_stats->pc_proc_fid = *proc_fid;
-	count_stats->pc_cnt = proc->sci_data.pd_kv_count;
-	count_stats->pc_rc = 0;
+	count_stats->pc_rc = proc->sci_rc;
 
+	if (proc->sci_rc != 0) {
+		rc = proc->sci_rc;
+		goto sem_fini;
+	}
+
+	count_stats->pc_cnt = proc->sci_data.pd_kv_count;
 	M0_ALLOC_ARR(count_stats->pc_bckey, proc->sci_data.pd_kv_count);
+	if (count_stats->pc_bckey == NULL) {
+		rc = M0_ERR(-ENOMEM);
+		goto buf_free;
+	}
 	M0_ALLOC_ARR(count_stats->pc_bcrec, proc->sci_data.pd_kv_count);
+	if (count_stats->pc_bcrec == NULL) {
+		m0_free(count_stats->pc_bckey);
+		rc = M0_ERR(-ENOMEM);
+		goto buf_free;
+	}
 
 	key_cur = proc->sci_data.pd_key.b_addr;
 	rec_cur = proc->sci_data.pd_rec.b_addr;
@@ -2244,6 +2282,12 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 	for (i = 0; i < proc->sci_data.pd_kv_count; i++) {
 		M0_ALLOC_PTR(count_stats->pc_bckey[i]);
 		M0_ALLOC_PTR(count_stats->pc_bcrec[i]);
+		if (count_stats->pc_bckey[i] == NULL ||
+		    count_stats->pc_bcrec[i] == NULL) {
+			count_stats_failed_free(count_stats, i);
+			rc = M0_ERR(-ENOMEM);
+			goto buf_free;
+		}
 
 		memcpy(count_stats->pc_bckey[i], key_cur,
 			sizeof(struct m0_spiel_bckey));
@@ -2254,9 +2298,9 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 		rec_cur += sizeof(struct m0_spiel_bcrec);
 	}
 
+buf_free:
 	m0_buf_free(&proc->sci_data.pd_key);
 	m0_buf_free(&proc->sci_data.pd_rec);
-
 sem_fini:
 	m0_semaphore_fini(&proc->sci_barrier);
 obj_close:

@@ -522,13 +522,33 @@ M0_INTERNAL int m0_cob_bc_entries_dump(struct m0_cob_domain *cdom,
 		++(*out_count);
 	}
 
-	M0_LOG(M0_DEBUG, "Found %"PRIu32" entries in btree", *out_count);
+	M0_LOG(M0_DEBUG, "Found %" PRIu32 " entries in btree", *out_count);
 
 	M0_ALLOC_PTR(*out_keys);
+	if (*out_keys == NULL)
+		return M0_ERR(-ENOMEM);
 	M0_ALLOC_PTR(*out_recs);
+	if (*out_recs == NULL) {
+		m0_free(*out_keys);
+		return M0_ERR(-ENOMEM);
+	}
 
-	m0_buf_alloc(*out_keys, sizeof(struct m0_cob_bckey) * (*out_count));
-	m0_buf_alloc(*out_recs, sizeof(struct m0_cob_bcrec) * (*out_count));
+	rc = m0_buf_alloc(*out_keys, sizeof(struct m0_cob_bckey) *
+			 (*out_count));
+	if (rc != 0) {
+		m0_free(*out_keys);
+		m0_free(*out_recs);
+		return M0_ERR(rc);
+	}
+	rc = m0_buf_alloc(*out_recs, sizeof(struct m0_cob_bcrec) *
+			 (*out_count));
+	if (rc != 0) {
+		m0_buf_free(*out_keys);
+		m0_free(*out_keys);
+		m0_free(*out_recs);
+		return M0_ERR(rc);
+	}
+
 	key_cursor = (*out_keys)->b_addr;
 	rec_cursor = (*out_recs)->b_addr;
 
