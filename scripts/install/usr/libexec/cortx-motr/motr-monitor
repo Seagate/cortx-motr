@@ -38,7 +38,6 @@ PID=$!
 
 while true; do
 	wait $PID
-	echo "why i am not here"
 	echo "m0d-$1 service exited with exit code=$?"
 	ps aux | grep $1 | grep "/usr/bin/m0d" | grep -q -v grep
 	if [ $? -ne 0 ]; then

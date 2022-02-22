@@ -30,7 +30,7 @@ from typing import List, Dict, Any
 from cortx.utils.conf_store import Conf
 from cortx.utils.cortx import Const
 
-MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-start"
+MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-monitor"
 MOTR_MKFS_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-mkfs"
 MOTR_FSM_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-free-space-monitor"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
@@ -1438,6 +1438,6 @@ def start_service(self, service, idx):
     execute_command(self, cmd)
 
     #Start motr services
-    cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
+    cmd = f"{MOTR_SERVER_SCRIPT_PATH} {fid}"
     execute_command_console(self, cmd)
     return
