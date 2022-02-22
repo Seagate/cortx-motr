@@ -30,7 +30,7 @@
 #include "lib/locality.h"
 
 enum {
-	KEY_VAL_NR = 100,
+	KEY_VAL_NR = 10,
 };
 
 static struct m0_cob_domain_id  id = { 42 };
@@ -126,7 +126,7 @@ void test_insert(void)
 	for (i = 0; i < KEY_VAL_NR; i++) {
 		bckey[i].cbk_pfid = M0_FID_TINIT('k', 1, i);
 		bckey[i].cbk_user_id = i;
-		bcrec[i].cbr_bytecount = 100 + i;
+		bcrec[i].cbr_bytecount = 100 + (i * 10);
 		bcrec[i].cbr_cob_objects = 10 + i;
 	}
 
@@ -140,6 +140,41 @@ void test_insert(void)
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
+}
+
+void test_entries_dump(void)
+{
+	int                 i;
+	int                 rc;
+	uint32_t            count;
+	struct m0_cob_bckey dump_keys[KEY_VAL_NR];
+	struct m0_cob_bcrec dump_recs[KEY_VAL_NR];
+	struct m0_buf      *keys = NULL;
+	struct m0_buf      *recs = NULL;
+	struct m0_fid       temp_fid;
+	void               *kcurr;
+	void               *rcurr;
+
+	rc = m0_cob_bc_entries_dump(cob->co_dom, keys, recs, &count);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(count == KEY_VAL_NR);
+
+	kcurr = keys->b_addr;
+	rcurr = recs->b_addr;
+
+	for (i =0; i < count; i++) {
+		memcpy(&dump_keys[i], kcurr, sizeof(struct m0_cob_bckey));
+		memcpy(&dump_recs[i], rcurr, sizeof(struct m0_cob_bcrec));
+
+		kcurr += sizeof(struct m0_cob_bckey);
+		rcurr += sizeof(struct m0_cob_bcrec);
+
+		temp_fid = M0_FID_TINIT('k', 1, i);
+		M0_UT_ASSERT(m0_fid_eq(&dump_keys[i].cbk_pfid, &temp_fid));
+		M0_UT_ASSERT(dump_keys[i].cbk_user_id == i);
+		M0_UT_ASSERT(dump_recs[i].cbr_bytecount == 100 + (i * 10));
+		M0_UT_ASSERT(dump_recs[i].cbr_cob_objects == 10 + i);
+	}
 }
 
 void test_iterator(void)
