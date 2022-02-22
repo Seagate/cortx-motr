@@ -904,7 +904,7 @@ M0_INTERNAL int m0_cob_bc_iterator_get(struct m0_cob_bc_iterator *it);
 
 /**
  * Returns all the entries in the bytecount btree in the form of
- * Key and record buffers. Tis function uses bytecount iterator internally
+ * Key and record buffers. This function uses bytecount iterator internally
  * to traverse the btree.
  *
  * Key buffer contains all the keys in a contigious sequence of memory
@@ -914,7 +914,7 @@ M0_INTERNAL int m0_cob_bc_iterator_get(struct m0_cob_bc_iterator *it);
  * Similar logic applies to record buffer.
  *
  * @pre   out_keys == NULL
- * @pre   iut_recs == NULL
+ * @pre   out_recs == NULL
  *
  * @param cdom      cob domain where the bytecount btree resides.
  * @param out_keys  out parameter buffer which gets populated by keys.
