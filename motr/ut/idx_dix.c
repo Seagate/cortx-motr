@@ -371,7 +371,7 @@ static void ut_dix_namei_ops(bool dist, uint32_t flags)
 	m0_op_launch(&op, 1);
 	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
 	M0_UT_ASSERT(rc == 0);
-	if(flags & M0_OIF_SKIP_LAYOUT) {
+	if (flags & M0_OIF_SKIP_LAYOUT) {
 		M0_UT_ASSERT(rcs[0] == -ENOENT);
 		M0_UT_ASSERT(!m0_fid_eq(keys.ov_buf[0], &ifid));
 	} else {
@@ -419,13 +419,13 @@ static void ut_dix_namei_ops_dist(void)
 	ut_dix_namei_ops(true, 0);
 }
 
-static void ut_dix_namei_ops_dist_oi_flags_skip_layout(void)
+static void ut_dix_namei_ops_dist_skip_layout(void)
 {
 	uint32_t flags = M0_OIF_SKIP_LAYOUT;
 	ut_dix_namei_ops(true, flags);
 }
 
-static void ut_dix_namei_ops_dist_oi_flags_skip_layout_enable_crow(void)
+static void ut_dix_namei_ops_dist_skip_layout_enable_crow(void)
 {
 	uint32_t flags = M0_OIF_SKIP_LAYOUT | M0_OIF_CROW;
 	ut_dix_namei_ops(true, flags);
@@ -468,7 +468,7 @@ static void ut_dix_record_ops(bool dist, uint32_t flags)
 	general_ifid_fill(&ifid, dist);
 	m0_container_init(&realm, NULL, &M0_UBER_REALM, ut_m0c);
 	m0_idx_init(&idx, &realm.co_realm, (struct m0_uint128 *)&ifid);
-	if(flags & M0_OIF_SKIP_LAYOUT)
+	if (flags & M0_OIF_SKIP_LAYOUT)
 		idx.in_entity.en_flags |= M0_ENF_META;
 
 	/* Create index. */
@@ -775,13 +775,13 @@ static void ut_dix_record_ops(bool dist, uint32_t flags)
 	idx_dix_ut_fini();
 }
 
-static void ut_dix_record_ops_dist_oi_flags_skip_layout(void)
+static void ut_dix_record_ops_dist_skip_layout(void)
 {
 	uint32_t flags = M0_OIF_SKIP_LAYOUT;
 	ut_dix_record_ops(true, flags);
 }
 
-static void ut_dix_record_ops_dist_oi_flags_skip_layout_enable_crow(void)
+static void ut_dix_record_ops_dist_skip_layout_enable_crow(void)
 {
 	uint32_t flags = M0_OIF_SKIP_LAYOUT | M0_OIF_CROW;
 	ut_dix_record_ops(true, flags);
@@ -812,17 +812,17 @@ struct m0_ut_suite ut_suite_idx_dix = {
 		  "Vikram" },
 		{ "namei-ops-cancel-non-dist", ut_dix_namei_ops_cancel_non_dist,
 		  "Vikram" },
-		{ "namei-ops-dist-oi-flags-skip-layout",
-		  ut_dix_namei_ops_dist_oi_flags_skip_layout,
+		{ "namei-ops-dist-skip-layout",
+		  ut_dix_namei_ops_dist_skip_layout,
 		  "Venky" },
-		{ "record-ops-dist-oi-flags-skip-layout",
-		  ut_dix_record_ops_dist_oi_flags_skip_layout,
+		{ "record-ops-dist-skip-layout",
+		  ut_dix_record_ops_dist_skip_layout,
 		  "Venky" },
-		{ "namei-ops-dist-oi-flags-skip-layout-enable-crow",
-		  ut_dix_namei_ops_dist_oi_flags_skip_layout_enable_crow,
+		{ "namei-ops-dist-skip-layout-enable-crow",
+		  ut_dix_namei_ops_dist_skip_layout_enable_crow,
 		  "Venky" },
-		{ "record-ops-dist-oi-flags-skip-layout-enable-crow",
-		  ut_dix_record_ops_dist_oi_flags_skip_layout_enable_crow,
+		{ "record-ops-dist-skip-layout-enable-crow",
+		  ut_dix_record_ops_dist_skip_layout_enable_crow,
 		  "Venky" },
 		{ NULL, NULL }
 	}
