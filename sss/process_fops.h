@@ -127,6 +127,10 @@ struct m0_ss_process_rep {
 	 * Buffer which holds records from bytecount btree
 	 */
 	struct m0_buf sspr_bcrec;
+	/**
+	 * Number of key values in key and record buffers
+	 */
+	uint32_t      sspr_kv_count;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_ss_process_svc_item {
