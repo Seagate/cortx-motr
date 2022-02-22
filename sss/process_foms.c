@@ -403,10 +403,11 @@ static int ss_bytecount_stats_ingest(struct m0_cob_domain *cdom,
 		return 0;
 	}
 
-	rc = m0_cob_bc_entries_dump(cdom, key_buf, rec_buf, &rep->sspr_kv_count); 
-
-	m0_buf_init(&rep->sspr_bckey, key_buf->b_addr, key_buf->b_nob);
-	m0_buf_init(&rep->sspr_bcrec, rec_buf->b_addr, rec_buf->b_nob);
+	rc = m0_cob_bc_entries_dump(cdom, &key_buf, &rec_buf, &rep->sspr_kv_count);
+	if (rc == 0) {
+		m0_buf_init(&rep->sspr_bckey, key_buf->b_addr, key_buf->b_nob);
+		m0_buf_init(&rep->sspr_bcrec, rec_buf->b_addr, rec_buf->b_nob);
+	}
 
 	return rc;
 }

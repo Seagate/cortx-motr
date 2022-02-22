@@ -155,7 +155,7 @@ void test_entries_dump(void)
 	void               *kcurr;
 	void               *rcurr;
 
-	rc = m0_cob_bc_entries_dump(cob->co_dom, keys, recs, &count);
+	rc = m0_cob_bc_entries_dump(cob->co_dom, &keys, &recs, &count);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(count == KEY_VAL_NR);
 
@@ -274,6 +274,7 @@ struct m0_ut_suite bytecount_ut = {
 		{ "cob-dom-create",   test_cob_dom_create },
 		{ "cob-dom-init",     test_init },
 		{ "bc-tree-insert",   test_insert },
+		{ "bc-entries-dump",  test_entries_dump },
 		{ "bc-tree-iterator", test_iterator },
 		{ "bc-tree-lookup",   test_lookup },
 		{ "bc-tree-update",   test_update },

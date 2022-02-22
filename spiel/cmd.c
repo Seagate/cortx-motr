@@ -2065,8 +2065,8 @@ static void spiel_process_counter_replied_ast(struct m0_sm_group *grp,
 
 	memcpy(proc->sci_data.pd_key.b_addr, rep->sspr_bckey.b_addr,
 		rep->sspr_bckey.b_nob);
-	memcpy(proc->sci_data.pd_key.b_addr, rep->sspr_bckey.b_addr,
-		rep->sspr_bckey.b_nob);
+	memcpy(proc->sci_data.pd_rec.b_addr, rep->sspr_bcrec.b_addr,
+		rep->sspr_bcrec.b_nob);
 	proc->sci_data.pd_kv_count = rep->sspr_kv_count;
 
 leave:

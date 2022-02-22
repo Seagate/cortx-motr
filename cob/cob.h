@@ -925,8 +925,8 @@ M0_INTERNAL int m0_cob_bc_iterator_get(struct m0_cob_bc_iterator *it);
  * @retval -errno   Other error.
  */ 
 M0_INTERNAL int m0_cob_bc_entries_dump(struct m0_cob_domain *cdom,
-				       struct m0_buf        *out_keys,
-				       struct m0_buf        *out_recs,
+				       struct m0_buf       **out_keys,
+				       struct m0_buf       **out_recs,
 				       uint32_t             *out_count);
 
 /**
