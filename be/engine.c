@@ -182,7 +182,7 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 	 */
 	M0_ASSERT_INFO(log_size == log_free,
 		       "There is at least one transaction which didn't become "
-		       "stable yet. log_size = %"PRIu64", log_free = %"PRIu64,
+		       "stable yet. log_size = %" PRIu64 ", log_free = %"PRIu64,
 		       log_size, log_free);
 
 	m0_semaphore_fini(&en->eng_recovery_wait_sem);
@@ -304,7 +304,7 @@ static void be_engine_got_tx_open(struct m0_be_engine *en,
 		    tx->t_payload_prepared > en->eng_cfg->bec_tx_payload_max) {
 			M0_LOG(M0_ERROR,
 			       "tx=%p engine=%p t_prepared="BETXCR_F" "
-			       "t_payload_prepared=%"PRIu64" "
+			       "t_payload_prepared=%" PRIu64 " "
 			       "bec_tx_size_max="BETXCR_F
 			       " bec_tx_payload_max=%"PRIu64,
 			       tx, en, BETXCR_P(&tx->t_prepared),
@@ -439,7 +439,7 @@ static void be_engine_group_timeout_arm(struct m0_be_engine   *en,
 	gr->tg_close_deadline = m0_time_now() + delay;
 	gr->tg_close_timer_arm.sa_cb = &be_engine_group_timer_arm;
 	m0_sm_ast_post(sm_grp, &gr->tg_close_timer_arm);
-	M0_LEAVE("grouping_q_length=%"PRIu64" delay=%"PRIu64,
+	M0_LEAVE("grouping_q_length=%" PRIu64 " delay=%"PRIu64,
 	         grouping_q_length, delay);
 }
 

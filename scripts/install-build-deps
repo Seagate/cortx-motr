@@ -145,7 +145,9 @@ SEAGATE_GITHUB_CORTX_DEPS_REPO=https://github.com/Seagate/cortx/releases/downloa
 if ! $use_ansible ; then
   case $(distro_type) in
       redhat)
-        yum install -y $SEAGATE_GITHUB_CORTX_DEPS_REPO/isa-l-2.30.0-1.el7.x86_64.rpm
+        yum-config-manager --enable powertools
+	# @todo use el8 rpms
+	yum install -y $SEAGATE_GITHUB_CORTX_DEPS_REPO/isa-l-2.30.0-1.el7.x86_64.rpm
         yum install -y $SEAGATE_GITHUB_CORTX_DEPS_REPO/libfabric-1.11.2-1.el7.x86_64.rpm
         yum install -y $SEAGATE_GITHUB_CORTX_DEPS_REPO/libfabric-devel-1.11.2-1.el7.x86_64.rpm
         echo "For user mode only motr lustre client and kernel rpms are not needed"

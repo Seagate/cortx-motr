@@ -39,7 +39,7 @@
 
 static void __nlx_kprint_lnet_handle(const char *pre, uint64_t cookie)
 {
-	M0_LOG(M0_DEBUG, "%s: %"PRIx64" (lnet_handle_any_t)", (char *)pre,
+	M0_LOG(M0_DEBUG, "%s: %" PRIx64 " (lnet_handle_any_t)", (char *)pre,
 	       cookie);
 }
 #define nlx_kprint_lnet_handle(pre, h) \

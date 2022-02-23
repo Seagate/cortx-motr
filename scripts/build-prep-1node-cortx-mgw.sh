@@ -71,13 +71,13 @@ echo "========================================="
 
 echo
 echo 'update singlenode.yaml with devices in "path: /dev/loop0" format'
-echo 'Do not use "/dev/$available_device" in cluster yaml'
+echo "Do not use /dev/$available_device in cluster yaml"
 echo 'Also do not use the devices with filesystem on them'
 echo 'Now you are ready to start the singlenode Motr cluster!'
-echo 'To start, run: hctl bootstrap --mkfs singlenode.yaml'
+echo "To start, run: hctl bootstrap --mkfs  $CORTX_WDIR/singlenode.yaml"
 echo 'check:     hctl status'
 echo 'To connect to Motr cluster, add the following configuration'
-echo 'parameters from `hctl status` to build/ceph.conf:'
+echo "parameters from 'hctl status' to $CORTX_WDIR/cortx-rgw/build/ceph.conf:"
 echo '[client]'
 echo '      ...'
 echo '      rgw backend store = motr'
@@ -88,10 +88,11 @@ echo '[client.rgw.8000]'
 echo '      ...'
 echo '      motr my endpoint  = inet:tcp:10.0.0.1@5001'
 echo '      motr my fid       = 0x7200000000000001:0x29'
-echo 'Then run:  MDS=0 RGW=1 ../src/vstart.sh -d $mgs'
+echo "Current directory: $PWD"
+echo "Then run:  MDS=0 RGW=1 ../src/vstart.sh -d $mgs"
 echo 'check:     hctl status'
 echo 'm0client should be in a started state'
 echo 'To stop the cluster run: ../src/stop.sh'
 echo 'Then:  hctl shutdown'
-echo 'If local directory is used then after reboot of the node,'
-echo 'run: mount "/dev/$available_device" $CORTX_WDIR'
+echo 'If local directory is not used then after reboot of the node,'
+echo "run: mount /dev/$available_device $CORTX_WDIR"

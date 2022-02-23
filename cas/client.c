@@ -807,7 +807,7 @@ static int nreq_asmbl_prep(struct m0_cas_req *req, struct m0_cas_op *op)
 	struct m0_cas_op  *orig = m0_fop_data(req->ccr_fop);
 	struct m0_cas_rec *rec;
 	uint64_t           i;
-	int                rc;
+	int                rc = 0;
 
 	M0_PRE(op->cg_rec.cr_nr == orig->cg_rec.cr_nr);
 	op->cg_id = orig->cg_id;
@@ -831,6 +831,7 @@ err:
 		op->cg_rec.cr_nr = i + 1;
 		creq_recv_fini(&op->cg_rec, fid_is_meta(&op->cg_id.ci_fid));
 	}
+
 	return M0_RC(rc);
 }
 
@@ -1376,7 +1377,7 @@ M0_INTERNAL int m0_cas_index_delete(struct m0_cas_req      *req,
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_forall(i, cids_nr, m0_cas_id_invariant(&cids[i])));
-	M0_PRE((flags & ~(COF_CROW | COF_DEL_LOCK)) == 0);
+	M0_PRE((flags & ~(COF_CROW | COF_DEL_LOCK | COF_SKIP_LAYOUT)) == 0);
 	(void)dtx;
 	rc = cas_index_req_prepare(req, cids, cids_nr, cids_nr, false, flags,
 				   &op);
@@ -1657,9 +1658,13 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 	M0_PRE(m0_cas_req_is_locked(req));
 	/* Create and overwrite flags can't be specified together. */
 	M0_PRE(!(flags & COF_CREATE) || !(flags & COF_OVERWRITE));
-	/* Only create, overwrite, crow and sync_wait flags are allowed. */
+	/* 
+ 	 * Only create, overwrite, crow, sync_wait, and skip_layout flags 
+ 	 * are allowed.
+ 	 */
 	M0_PRE((flags &
-		~(COF_CREATE | COF_OVERWRITE | COF_CROW | COF_SYNC_WAIT)) == 0);
+		~(COF_CREATE | COF_OVERWRITE | COF_CROW | COF_SYNC_WAIT | 
+		COF_SKIP_LAYOUT)) == 0);
 	M0_PRE(m0_cas_id_invariant(index));
 
 	rc = cas_req_prep(req, index, keys, values, keys->ov_vec.v_nr, flags,

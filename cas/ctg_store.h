@@ -33,6 +33,7 @@
 #include "be/tx_credit.h"
 #include "format/format.h"
 #include "cas/cas.h"
+#include "motr/setup.h"
 
 /**
  * @defgroup cas-ctg-store
@@ -783,6 +784,9 @@ M0_INTERNAL const struct m0_be_btree_kv_ops *m0_ctg_btree_ops(void);
 
 /** Update number of records and record size in cas state. */
 M0_INTERNAL void m0_ctg_state_inc_update(struct m0_be_tx *tx, uint64_t size);
+
+M0_INTERNAL int ctgdump(struct m0_motr *motr_ctx, char *fidstr,
+			char *dump_in_hex_str);
 
 /** @} end of cas-ctg-store group */
 #endif /* __MOTR_CAS_CTG_STORE_H__ */

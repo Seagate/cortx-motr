@@ -355,7 +355,7 @@ M0_INTERNAL int m0_net_ip_print(const struct m0_net_ip_addr *nia)
 	const struct m0_net_ip_params *na = &nia->nia_n;
 	int   rc = 0;
 
-	M0_ENTRY("frmt=%d nip_ip_n=[0x%"PRIx64",0x%"PRIx64"] port=%d",
+	M0_ENTRY("frmt=%d nip_ip_n=[0x%" PRIx64 ",0x%" PRIx64 "] port=%d",
 		 (int)na->nip_format, na->nip_ip_n.ln[0], na->nip_ip_n.ln[1],
 		 (int)na->nip_port);
 

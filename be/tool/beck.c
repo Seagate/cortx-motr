@@ -545,12 +545,12 @@ static struct m0_be_tx_bulk_cfg default_tb_cfg = (struct m0_be_tx_bulk_cfg){
 			.tbc_work_items_per_tx_max = 1,
 	};
 #define FLOG(level, rc, s)						\
-	M0_LOG(level, " rc=%d  at offset: %"PRId64" errno: %s (%i), eof: %i", \
+	M0_LOG(level, " rc=%d  at offset: %" PRId64 " errno: %s (%i), eof: %i", \
 	       (rc), (uint64_t)ftell(s->s_file), strerror(errno),	\
 	       errno, feof(s->s_file))
 
 #define RLOG(level, prefix, s, r, tag)					\
-	M0_LOG(level, prefix " %"PRIu64" %s %hu:%hu:%u", s->s_off, recname(r), \
+	M0_LOG(level, prefix " %" PRIu64 " %s %hu:%hu:%u", s->s_off, recname(r), \
 	       (tag)->ot_version, (tag)->ot_type, (tag)->ot_size)
 
 static void sig_handler(int num)
@@ -665,7 +665,7 @@ int main(int argc, char **argv)
 		result = fseek(beck_scanner.s_file, 0, SEEK_SET);
 		if (result != 0)
 		      err(EX_NOINPUT, "Cannot seek snapshot to the beginning.");
-		printf("Snapshot size: %"PRId64".\n", beck_scanner.s_size);
+		printf("Snapshot size: %" PRId64 ".\n", beck_scanner.s_size);
 	}
 
 	if (beck_builder.b_be_config_file && !dry_run && !print_gen_id) {
@@ -747,7 +747,7 @@ int main(int argc, char **argv)
 			errno = 0;
 			ret = mmap(s_seg.bs_addr, s_seg.bs_size,
 					PROT_READ|PROT_WRITE,
-					MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE, 
+					MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE,
 			     		fileno(beck_scanner.s_file),
 					s_seg.bs_offset);
 
@@ -755,9 +755,9 @@ int main(int argc, char **argv)
 				err(EXIT_FAILURE, "Failed to mmap memory. Error");
 
 			printf("BE segment file %s has been mmaped at "
-			       "address %p for %"PRId64" bytes.\n"
+			       "address %p for %" PRId64 " bytes.\n"
 			       "Please attach to process %u to browse BE "
-			       "segment data.\n", spath, s_seg.bs_addr, 
+			       "segment data.\n", spath, s_seg.bs_addr,
 						s_seg.bs_size, getpid());
 
 			while (1); /* Wait in endless loop for gdb connection */
@@ -828,7 +828,7 @@ static void generation_id_print(uint64_t gen)
 	struct tm tm;
 
 	localtime_r(&ts, &tm);
-	printf("%04d-%02d-%02d-%02d:%02d:%02d.%09"PRIu64"  (%"PRIu64")",
+	printf("%04d-%02d-%02d-%02d:%02d:%02d.%09" PRIu64 "  (%" PRIu64 ")",
 	       tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 	       tm.tm_hour, tm.tm_min, tm.tm_sec,
 	       m0_time_nanoseconds(gen), gen);
@@ -989,7 +989,7 @@ static int scan(struct scanner *s)
 		if (time(NULL) - lasttime > DELTA) {
 			printf("\nOffset: %15lli     Speed: %7.2f MB/s     "
 			       "Completion: %3i%%     "
-			       "Action: %"PRIu64" records/s     "
+			       "Action: %" PRIu64 " records/s     "
 			       "Data Speed: %7.2f MB/s",
 			       (long long)s->s_off,
 			       ((double)s->s_off - lastoff) /
@@ -1029,7 +1029,7 @@ static void stats_print(void)
 		struct stats *s = &rt[i].r_stats;
 		if (recname(&rt[i]) == NULL)
 			continue;
-		printf("%25s : %9"PRId64" %9"PRId64" %9"PRId64" %9"PRId64"\n",
+		printf("%25s : %9" PRId64 " %9" PRId64 " %9" PRId64 " %9" PRId64 "\n",
 		       recname(&rt[i]), s->s_found, s->s_chksum, s->s_align[1],
 		       s->s_version);
 	}
@@ -1040,8 +1040,8 @@ static void stats_print(void)
 		struct bstats *s = &bt[i].b_stats;
 		if (bname(&bt[i]) == NULL)
 			continue;
-		printf("%25s : %9"PRId64" %9"PRId64" %9"PRId64" "
-		       "%9"PRId64" %9"PRId64" %9"PRId64" %9"PRId64"\n",
+		printf("%25s : %9" PRId64 " %9" PRId64 " %9" PRId64 " "
+		       "%9" PRId64 " %9" PRId64 " %9" PRId64 " %9" PRId64 "\n",
 		       bname(&bt[i]),
 		       s->c_tree, s->c_node, s->c_leaf, s->c_maxlevel,
 		       s->c_kv, s->c_kv_bad, s->c_fanout);
@@ -1051,7 +1051,7 @@ static void stats_print(void)
 	for (i = 0; i < ARRAY_SIZE(g); ++i) {
 		if (g[i].g_count > 0) {
 			generation_id_print(g[i].g_gen);
-			printf(" : %9"PRId64"\n", g[i].g_count);
+			printf(" : %9" PRId64 "\n", g[i].g_count);
 		}
 	}
 }
@@ -1216,13 +1216,13 @@ static int getat(struct scanner *s, off_t off, void *buf, size_t nob)
 	if (off != s->s_pos)
 		result = fseeko(f, off, SEEK_SET);
 	if (result != 0) {
-		M0_LOG(M0_FATAL, "Cannot seek to %"PRId64".", off);
+		M0_LOG(M0_FATAL, "Cannot seek to %" PRId64 ".", off);
 		result = M0_ERR(-errno);
 	} else if (fread(buf, 1, nob, f) != nob) {
 		if (feof(f))
 			result = -ENOENT;
 		else {
-			M0_LOG(M0_FATAL, "Cannot read %d at %"PRId64".",
+			M0_LOG(M0_FATAL, "Cannot read %d at %" PRId64 ".",
 			       (int)nob, off);
 			result = M0_ERR(-EIO);
 		}
@@ -1434,7 +1434,7 @@ static int emap_proc(struct scanner *s, struct btype *btype,
 					       s->s_seg->bs_addr;
 				emap_to_gob_convert(&ek->ek_prefix, &gob_id);
 				M0_LOG(M0_ERROR, "Found incorrect EMAP entry at"
-				       " segment offset %"PRIx64" for GOB "
+				       " segment offset %" PRIx64 " for GOB "
 				       FID_F, inv_emap_off, FID_P(&gob_id));
 			}
 			btree_bad_kv_count_update(node->bt_backlink.bli_type,
@@ -1758,7 +1758,7 @@ static off_t nv_scan_offset_get(off_t snapshot_size)
 						max_offset =
 							winfo->woi_offset[p];
 				}
-				printf("p=%"PRIu64",w=%"PRIu64",offset=%li\n",
+				printf("p=%" PRIu64 ",w=%" PRIu64 ",offset=%li\n",
 				       p, w, winfo->woi_offset[p]);
 			}
 		}
@@ -2144,7 +2144,7 @@ static void builder_fini(struct builder *b)
 	m0_reqh_fini(&b->b_reqh);
 	m0_free(b->b_backend.but_stob_domain_location);
 
-	printf("builder: actions: %9"PRId64"\n", b->b_act);
+	printf("builder: actions: %9" PRId64 "\n", b->b_act);
 }
 
 /**
@@ -2962,7 +2962,7 @@ static int cob_proc(struct scanner *s, struct btype *b,
 				inv_cob_off = node->bt_kv_arr[i].btree_val -
 					       s->s_seg->bs_addr;
 				M0_LOG(M0_ERROR, "Found incorrect COB entry at "
-				       "segment offset %"PRIx64" for GOB "
+				       "segment offset %" PRIx64 " for GOB "
 				       FID_F, inv_cob_off,
 				       FID_P(&nskey->cnk_pfid));
 			}
