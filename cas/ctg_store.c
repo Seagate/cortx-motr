@@ -136,15 +136,12 @@ static struct m0_be_seg *cas_seg(struct m0_be_domain *dom);
 
 static bool ctg_op_is_versioned(const struct m0_ctg_op *op);
 static int  ctg_berc         (struct m0_ctg_op *ctg_op);
-static int  ctg_buf          (const struct m0_buf *val, struct m0_buf *buf);
-static int  ctg_buf_get      (struct m0_buf *dst, const struct m0_buf *src,
-			      bool enabled_fi);
-static void ctg_fid_key_fill (void *key, const struct m0_fid *fid);
 static int  ctg_vbuf_unpack  (struct m0_buf *buf, struct m0_crv *crv);
 static int  ctg_vbuf_as_ctg  (const struct m0_buf *val,
 			      struct m0_cas_ctg **ctg);
 static int  ctg_kbuf_unpack  (struct m0_buf *buf);
-static int  ctg_kbuf_get     (struct m0_buf *dst, const struct m0_buf *src);
+static int  ctg_kbuf_get     (struct m0_buf *dst, const struct m0_buf *src,
+			      bool enabled_fi);
 static void ctg_init         (struct m0_cas_ctg *ctg, struct m0_be_seg *seg);
 static void ctg_fini         (struct m0_cas_ctg *ctg);
 static void ctg_destroy      (struct m0_cas_ctg *ctg, struct m0_be_tx *tx);
@@ -250,7 +247,8 @@ static void ctg_vbuf_pack(struct m0_buf            *dst,
  * Create a new m0_buf filled with CAS-specific data (length).
  * Note: the function allocates a new buffer.
  */
-static int ctg_kbuf_get(struct m0_buf *dst, const struct m0_buf *src)
+static int ctg_kbuf_get(struct m0_buf *dst, const struct m0_buf *src,
+			bool enabled_fi)
 {
 	struct generic_key *key;
 
@@ -1316,7 +1314,7 @@ static int ctg_meta_exec(struct m0_ctg_op    *ctg_op,
 	    (ctg_op->co_opcode != CO_CUR ||
 	     ctg_op->co_cur_phase != CPH_NEXT))
 		ctg_op->co_rc = ctg_kbuf_get(&ctg_op->co_key,
-					     &M0_BUF_INIT_PTR_CONST(fid));
+					     &M0_BUF_INIT_PTR_CONST(fid), true);
 	if (ctg_op->co_rc != 0) {
 		ret = M0_FSO_AGAIN;
 		m0_fom_phase_set(ctg_op->co_fom, next_phase);
@@ -1421,7 +1419,7 @@ static int ctg_exec(struct m0_ctg_op    *ctg_op,
 	if (!M0_IN(ctg_op->co_opcode, (CO_MIN, CO_TRUNC, CO_DROP)) &&
 	    (ctg_op->co_opcode != CO_CUR ||
 	     ctg_op->co_cur_phase != CPH_NEXT))
-		ctg_op->co_rc = ctg_kbuf_get(&ctg_op->co_key, key);
+		ctg_op->co_rc = ctg_kbuf_get(&ctg_op->co_key, key, true);
 
 	if (ctg_op->co_rc != 0)
 		m0_fom_phase_set(ctg_op->co_fom, next_phase);
@@ -1479,7 +1477,7 @@ M0_INTERNAL int m0_ctg_lookup_delete(struct m0_ctg_op    *ctg_op,
 	ctg_op->co_opcode = CO_GET;
 
 	/* Here pass true to allow failures injection. */
-	ctg_op->co_rc = ctg_buf_get(&ctg_op->co_key, key, true);
+	ctg_op->co_rc = ctg_kbuf_get(&ctg_op->co_key, key, true);
 
 	/* Pass -1 as the next_phase to indicate we don't set it now. */
 	if (ctg_op->co_rc == 0)
@@ -1510,7 +1508,7 @@ M0_INTERNAL int m0_ctg_lookup_delete(struct m0_ctg_op    *ctg_op,
 	 * the falure injection that we need to avoid here to make
 	 * cas UT happy.
 	 */
-	ctg_op->co_rc = ctg_buf_get(&ctg_op->co_key, key, false);
+	ctg_op->co_rc = ctg_kbuf_get(&ctg_op->co_key, key, false);
 
 	if (ctg_op->co_rc != 0) {
 		m0_buf_free(val);
@@ -2169,27 +2167,30 @@ ctg_index_btree_dump_one_rec(struct m0_buf* key,
 			     struct m0_buf* val, bool dump_in_hex)
 {
 	int i;
-	int header_len = M0_CAS_CTG_KV_HDR_SIZE;
+	int key_header_len = M0_CAS_CTG_KEY_HDR_SIZE;
+	int val_header_len = M0_CAS_CTG_VAL_HDR_SIZE;
 	char *kbuf, *vbuf;
 
 	if (!dump_in_hex) {
 		m0_console_printf("{key: %.*s}, {val: %.*s}\n",
-				  (int)key->b_nob - header_len,
-				  (const char*)(key->b_addr + header_len),
-				  (int)val->b_nob - header_len,
-				  (const char*)(val->b_addr + header_len));
+				  (int)key->b_nob - key_header_len,
+				  (const char*)(key->b_addr + key_header_len),
+				  (int)val->b_nob - val_header_len,
+				  (const char*)(val->b_addr + val_header_len));
 		return;
 	}
 
-	M0_ALLOC_ARR(kbuf, (key->b_nob - header_len) * 2 + 1);
-	for (i = 0; i < key->b_nob - header_len; i++)
-		sprintf(kbuf + 2 * i, "%2x", *(uint8_t*)(key->b_addr + header_len + i));
+	M0_ALLOC_ARR(kbuf, (key->b_nob - key_header_len) * 2 + 1);
+	for (i = 0; i < key->b_nob - key_header_len; i++)
+		sprintf(kbuf + 2 * i, "%2x",
+			*(uint8_t*)(key->b_addr + key_header_len + i));
 	m0_console_printf("{key: %s}, ", kbuf);
 	m0_free(kbuf);
 
-	M0_ALLOC_ARR(vbuf, (val->b_nob - header_len) * 2 + 1);
-	for (i = 0; i < val->b_nob - header_len; i++)
-		sprintf(vbuf + 2 * i, "%2x", *(uint8_t*)(val->b_addr + header_len + i));
+	M0_ALLOC_ARR(vbuf, (val->b_nob - val_header_len) * 2 + 1);
+	for (i = 0; i < val->b_nob - val_header_len; i++)
+		sprintf(vbuf + 2 * i, "%2x",
+			*(uint8_t*)(val->b_addr + val_header_len + i));
 	m0_console_printf("{val: %s} \n", vbuf);
 	m0_free(vbuf);
 }
@@ -2245,7 +2246,7 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 	for (rc = m0_be_btree_cursor_first_sync(&cursor); rc == 0;
 	     rc = m0_be_btree_cursor_next_sync(&cursor)) {
 		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
-		memcpy(&out_fid, key.b_addr + M0_CAS_CTG_KV_HDR_SIZE,
+		memcpy(&out_fid, key.b_addr + M0_CAS_CTG_KEY_HDR_SIZE,
 		      sizeof(out_fid));
 		if (!m0_dix_fid_validate_cctg(&out_fid))
 			continue;
@@ -2253,7 +2254,8 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 		M0_LOG(M0_DEBUG, "Found cfid="FID_F" gfid=:"FID_F" dfid="FID_F,
 				  FID_P(&out_fid), FID_P(&gfid), FID_P(&dfid));
 		if (m0_fid_eq(&gfid, &dfid)) {
-			ctg = *(struct m0_cas_ctg **)(val.b_addr + 8);
+			ctg = *(struct m0_cas_ctg **)(val.b_addr +
+						      M0_CAS_CTG_VAL_HDR_SIZE);
 			M0_LOG(M0_DEBUG, "Dumping dix fid="FID_F" ctg=%p",
 					  FID_P(&dfid), ctg);
 			ctg_index_btree_dump(motr_ctx, ctg, dump_in_hex);

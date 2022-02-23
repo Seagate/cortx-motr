@@ -286,7 +286,7 @@ enum m0_cas_op_flags {
 	 * For IDX CREATE, IDX DELETE and IDX LOOKUP operation, instructs it to
 	 * skip layout update operation.
 	 */
-	COF_SKIP_LAYOUT = 1 << 8
+	COF_SKIP_LAYOUT = 1 << 8,
 
 	/**
 	 * Enables version-aware behavior for PUT, DEL, GET, and NEXT requests.
