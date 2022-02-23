@@ -216,7 +216,7 @@ static void val_print(const struct m0_addb2_value *v, int offset)
 	int i;
 
 	indent(offset);
-	printf("[%8.8"PRIx64" |", v->va_id);
+	printf("[%8.8" PRIx64 " |", v->va_id);
 	for (i = 0; i < v->va_nr; ++i)
 		printf(" %8.8"PRIx64, v->va_data[i]);
 	printf("]\n");

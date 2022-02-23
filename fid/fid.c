@@ -238,7 +238,7 @@ M0_INTERNAL int m0_fid_print(char *s, size_t s_len, const struct m0_fid *fid)
 	M0_PRE(s_len >=  M0_FID_STR_LEN);
 	M0_PRE(fid != NULL);
 
-	rc = snprintf(s, s_len, "%"PRIx64":%"PRIx64, FID_P(fid));
+	rc = snprintf(s, s_len, "%" PRIx64 ":%"PRIx64, FID_P(fid));
 	if (rc < 0 || rc >= s_len)
 		return M0_ERR(-EINVAL);
 

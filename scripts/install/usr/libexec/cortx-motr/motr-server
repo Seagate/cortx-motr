@@ -33,7 +33,6 @@ MOTR_CONF_XC_DEFAULT=/etc/motr/conf.xc
 service_funcs=/usr/libexec/cortx-motr/motr-service.functions
 
 # BE log resize
-MD_DIR="/var/motr"
 M0BETOOL="m0betool"
 BE_REPLAY="be_recovery_run"
 BE_RESIZE="be_log_resize"
@@ -85,6 +84,7 @@ m0_server()
     local service=$1
     local cmd=${2:-m0d}
     local cmd_opts="$3"
+    local cmd_conf="$4"
 
     source $service_funcs
 
@@ -99,12 +99,17 @@ m0_server()
     [[ -r $ha_config   ]]   && source $ha_config
     [[ -r $user_config ]]   && source $user_config
 
-    # apply global system tweaks
-    if [[ -n "$KERNEL_HUGEPAGE_DEFRAG" ]] ; then
-        local hpdefrag_file='/sys/kernel/mm/transparent_hugepage/defrag'
-        echo "$KERNEL_HUGEPAGE_DEFRAG" > $hpdefrag_file
-        m0_log "$hpdefrag_file: $(cat $hpdefrag_file)"
+    MD_DIR=$MOTR_M0D_DATA_DIR
+    if [[ "$cmd" == "m0mkfs" && "$cmd_conf" == "--conf" ]]; then
+        conf_opts="-c $MOTR_M0D_CONF_XC"
     fi
+
+    # apply global system tweaks
+    #if [[ -n "$KERNEL_HUGEPAGE_DEFRAG" ]] ; then
+    #    local hpdefrag_file='/sys/kernel/mm/transparent_hugepage/defrag'
+    #    echo "$KERNEL_HUGEPAGE_DEFRAG" > $hpdefrag_file
+    #    m0_log "$hpdefrag_file: $(cat $hpdefrag_file)"
+    #fi
 
     # validate Halon config
     if [[ $service == m0d-* ]] ; then
@@ -240,7 +245,7 @@ m0_server()
     ulimit -n 65536
 
     # Increase vm.max_map_count. MOTR-2171 MOTR-2396
-    sysctl -w vm.max_map_count=30000000
+    #sysctl -w vm.max_map_count=30000000
 
     # use custom trace files location if it's specified
     [[ -z "$MOTR_M0D_TRACE_DIR" ]] || {
@@ -265,7 +270,8 @@ m0_server()
                     -A linuxstob:${addbstob_dir}addb-stobs \
                     -f $proc_fid $stob_type $stob_path $MOTR_M0D_OPTS \
                        $be_seg0_path $be_seg_path $be_seg_size \
-                       $stob_opts $cmd_opts $addb_opts $MOTR_M0D_EXTRA_OPTS
+                       $stob_opts $cmd_opts $addb_opts $conf_opts \
+                       $MOTR_M0D_EXTRA_OPTS
 }
 
 

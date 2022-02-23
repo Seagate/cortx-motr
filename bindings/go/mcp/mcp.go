@@ -28,7 +28,7 @@ import (
     "fmt"
     "flag"
     "log"
-    "motr/mio"
+    "cortx-motr/bindings/go/mio"
 )
 
 func usage() {

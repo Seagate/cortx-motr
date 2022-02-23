@@ -103,12 +103,14 @@ static void cas_xcode_test(void)
 }
 
 extern void m0_dtm0_ut_drlink_simple(void);
+extern void m0_dtm0_ut_domain_init_fini(void);
 
 struct m0_ut_suite dtm0_ut = {
         .ts_name = "dtm0-ut",
         .ts_tests = {
                 { "xcode",         &cas_xcode_test },
                 { "drlink-simple", &m0_dtm0_ut_drlink_simple },
+                { "domain_init-fini", &m0_dtm0_ut_domain_init_fini },
 		{ NULL, NULL },
 	}
 };

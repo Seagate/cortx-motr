@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
@@ -17,18 +18,27 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-#
-# Halon runtime
-#
----
-- name: dynamically load variables depending on the OS type
-  include_vars: '{{ item  }}'
-  with_first_found: '{{ ansible_os_family }}.yml'
-  tags: halon
+#set -x 
 
-- name: install Halon run-time dependencies
-  package:
-    state: present
-    name:  '{{ halon_runtime_deps_pkgs }}'
-  tags:
-    - halon
+PID=
+
+if [[ $# < 1 ]]; then
+        echo "usage - sh $0 <service-fid>"
+        exit 1
+fi
+
+_handle_sigterm() {
+   echo "Caught SIGTERM"
+   if [[ -z $PID ]]; then
+      echo "No m0d process to kill"
+   else
+      kill -KILL $PID 2> /dev/null
+   fi
+}
+
+trap _handle_sigterm SIGTERM SIGKILL
+
+/usr/libexec/cortx-motr/motr-server "$1" &
+PID=$!
+
+wait $PID

@@ -384,7 +384,7 @@ static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 	uint32_t                 state;
 	struct m0_rpc_link      *rlink;
 	struct m0_rpc_machine   *rpcmach;
-	enum m0_rpc_link_states  fail_phase;
+	enum m0_rpc_link_states  fail_phase = M0_RLS_SESS_FAILURE;
 
 	M0_ENTRY("fom=%p phase=%s", fom, m0_fom_phase_name(fom, phase));
 
@@ -392,15 +392,16 @@ static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 	rpcmach = rlink->rlk_conn.c_rpc_machine;
 
 	m0_rpc_machine_lock(rpcmach);
+
 	switch (phase) {
 	case M0_RLS_SESS_WAIT_IDLE:
 		state = SESS_STATE(&rlink->rlk_sess);
 		M0_ASSERT(M0_IN(state, (M0_RPC_SESSION_IDLE,
 				M0_RPC_SESSION_BUSY, M0_RPC_SESSION_FAILED)));
-		if (state == M0_RPC_SESSION_FAILED) {
-			fail_phase = M0_RLS_SESS_FAILURE;
-			rc         = SESS_RC(&rlink->rlk_sess);
-		}
+
+		if (state == M0_RPC_SESSION_FAILED)
+			rc = SESS_RC(&rlink->rlk_sess);
+
 		if (state == M0_RPC_SESSION_BUSY) {
 			rpc_link_sess_fom_wait_on(fom, rlink);
 			armed = true;
@@ -412,10 +413,10 @@ static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 		M0_ASSERT(M0_IN(state, (M0_RPC_SESSION_TERMINATING,
 				M0_RPC_SESSION_TERMINATED,
 				M0_RPC_SESSION_FAILED)));
-		if (state == M0_RPC_SESSION_FAILED) {
-			fail_phase = M0_RLS_SESS_FAILURE;
-			rc         = SESS_RC(&rlink->rlk_sess);
-		}
+
+		if (state == M0_RPC_SESSION_FAILED)
+			rc = SESS_RC(&rlink->rlk_sess);
+
 		if (state == M0_RPC_SESSION_TERMINATING) {
 			rpc_link_sess_fom_wait_on(fom, rlink);
 			armed = true;
@@ -438,6 +439,7 @@ static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 		}
 		break;
 	}
+
 	m0_rpc_machine_unlock(rpcmach);
 
 	if (rc == 0) {
@@ -457,6 +459,7 @@ static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 		m0_fom_phase_set(fom, fail_phase);
 		rc = M0_FSO_AGAIN;
 	}
+
 	return M0_RC(rc);
 }
 

@@ -252,7 +252,12 @@ enum m0_cas_op_flags {
 	 * For PUT/DEL operation, instructs it to delay reply from CAS service
 	 * until BE transaction is persisted.
 	 */
-	COF_SYNC_WAIT = 1 << 7
+	COF_SYNC_WAIT = 1 << 7,
+	/**
+	 * For IDX CREATE, IDX DELETE and IDX LOOKUP operation, instructs it to
+	 * skip layout update operation.
+	 */
+	COF_SKIP_LAYOUT = 1 << 8
 };
 
 enum m0_cas_opcode {

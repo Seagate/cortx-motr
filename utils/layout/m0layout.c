@@ -166,12 +166,12 @@ void layout_demo(struct m0_pdclust_instance *pi,
 #ifndef __KERNEL__
 	printf("map: \n");
 	for (frame = 0; frame < R; ++frame) {
-		printf("%5"PRIu64" : ", frame);
+		printf("%5" PRIu64 " : ", frame);
 		for (obj = 0; obj < P; ++obj) {
 			int d;
 
 			d = classify(pl, map[frame][obj].sa_unit);
-			printf("%c%2"PRIu64", %2"PRIu64"%c ",
+			printf("%c%2" PRIu64 ", %2" PRIu64 "%c ",
 			       brace[d][0],
 			       map[frame][obj].sa_group,
 			       map[frame][obj].sa_unit,

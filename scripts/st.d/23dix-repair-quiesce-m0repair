@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
@@ -17,14 +18,6 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
----
-halon_build_deps_pkgs:
-  - binutils-devel
-  - git
-  - gmp-devel
-  - leveldb-devel
-  - libgenders-devel
-  - libyaml-devel
-  - ncurses-devel
-  - pcre-devel
-  - stack
+set -eu
+
+exec $SUDO "$M0_SRC_DIR/dix/cm/st/m0t1fs_dix_repair_quiesce.sh"

@@ -303,7 +303,7 @@ static void extents_release(struct m0_balloc_group_info *grp,
 		lext_del(le);
 		++frags;
 	}
-	M0_LOG(M0_DEBUG, "zone_type = %d, grp=%p grpno=%"PRIu64" list_frags=%d"
+	M0_LOG(M0_DEBUG, "zone_type = %d, grp=%p grpno=%" PRIu64 " list_frags=%d"
 	       "bzp_frags=%d", (int)zone_type, grp, grp->bgi_groupno,
 	       (int)frags, (int)zp->bzp_fragments);
 	M0_ASSERT(ergo(frags > 0, frags == zp->bzp_fragments));
@@ -769,7 +769,7 @@ static void balloc_group_write_done(struct m0_be_tx_bulk *tb,
                                     uint64_t              worker_index,
                                     uint64_t              partition)
 {
-	M0_LOG(M0_DEBUG, "tb=%p datum=%p user=%p worker_index=%"PRIu64" "
+	M0_LOG(M0_DEBUG, "tb=%p datum=%p user=%p worker_index=%" PRIu64 " "
 	       "partition=%"PRIu64, tb, datum, user, worker_index, partition);
 }
 
@@ -1420,7 +1420,7 @@ static int balloc_find_extent_buddy(struct balloc_allocation_context *bac,
 
 	zp = is_spare(alloc_flag) ? &grp->bgi_spare : &grp->bgi_normal;
 
-	M0_LOG(M0_DEBUG, "start=%"PRIu64" len=%"PRIu64,
+	M0_LOG(M0_DEBUG, "start=%" PRIu64 " len=%"PRIu64,
 	       zp->bzp_range.e_start, len);
 
 	start = zp->bzp_range.e_start;
@@ -1595,7 +1595,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 		}
 	}
 
-	M0_LOG(M0_DEBUG, "bzp_maxchunk=0x%"PRIx64" next_maxchunk=0x%"PRIx64,
+	M0_LOG(M0_DEBUG, "bzp_maxchunk=0x%" PRIx64 " next_maxchunk=0x%"PRIx64,
 	       zp->bzp_maxchunk, maxchunk);
 
 	if (cur->e_end == tgt->e_end) {
@@ -2059,7 +2059,7 @@ static int is_group_good_enough(struct balloc_allocation_context *bac,
 	}
 
 	M0_LOG(M0_DEBUG, "bac=%p criteria=%d: no big enough chunk: "
-	       "goal=0x%08"PRIx64" maxchunk=0x%08"PRIx64,
+	       "goal=0x%08" PRIx64 " maxchunk=0x%08"PRIx64,
 	       bac, bac->bac_criteria, m0_ext_length(&bac->bac_goal), maxchunk);
 
 	return 0;
@@ -2826,7 +2826,7 @@ static int balloc_reserve_extent(struct m0_ad_balloc *ballroom,
 	/* Check if space is available in group. */
 	if (is_free_space_unavailable(grp, alloc_zone)) {
 		rc = M0_ERR(-ENOSPC);
-		M0_LOG(M0_DEBUG, "grp=%"PRIu64" is empty", group);
+		M0_LOG(M0_DEBUG, "grp=%" PRIu64 " is empty", group);
 		goto out_unlock;
 	}
 
@@ -2841,7 +2841,7 @@ static int balloc_reserve_extent(struct m0_ad_balloc *ballroom,
 
 	if (!balloc_is_good_group(&bac, grp)) {
 		rc = M0_ERR(-ENOSPC);
-		M0_LOG(M0_DEBUG, "grp=%"PRIu64" is not good", group);
+		M0_LOG(M0_DEBUG, "grp=%" PRIu64 " is not good", group);
 		goto out_unlock;
 	}
 

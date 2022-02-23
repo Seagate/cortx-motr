@@ -25,10 +25,10 @@
 
 %if %{with usermode}
 %define with_lustre %( echo "--with-lustre=no" )
-%define kernel_ver %( echo "any" )
+%define kernel_ver %( echo "" )
 %else
 %define with_lustre %( test -n "$lustre_src" && echo "--with-lustre=$lustre_src" )
-%define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
+%define kernel_ver _%( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
 %endif
 
 %define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' )
@@ -46,8 +46,8 @@
 %define _use_internal_dependency_generator 0
 
 # configure options
-%define  configure_release_opts     --enable-release --disable-avx --enable-force-ssse3 --with-trace-kbuf-size=256 --with-trace-ubuf-size=64
-%define  configure_ut_opts          --enable-dev-mode --disable-altogether-mode
+%define  configure_release_opts --enable-release --with-trace-kbuf-size=256 --with-trace-ubuf-size=16
+%define  configure_ut_opts      --enable-dev-mode --disable-altogether-mode
 
 %if %{with cassandra}
 %define  configure_cassandra_opts   --with-cassandra
@@ -65,7 +65,7 @@
 
 Name:           @PACKAGE@
 Version:        @PACKAGE_VERSION@
-Release:        %{build_num}_@GIT_REV_ID_RPM@_%{kernel_ver}%{?dist}
+Release:        %{build_num}_@GIT_REV_ID_RPM@%{kernel_ver}%{?dist}
 Summary:        CORTX Motr
 Group:          System Environment/Base
 License:        Seagate
@@ -127,7 +127,9 @@ BuildRequires:  systemd-devel
 %if %{rhel} < 8
 BuildRequires:  python-devel
 %else
+# @todo Deprecate python2
 BuildRequires:  python2-devel
+BuildRequires:  python3-devel
 %endif
 @BUILD_DEPEND_LIBFAB@
 BuildRequires:  libedit-devel
@@ -365,8 +367,6 @@ getent passwd motr >/dev/null || useradd --system --shell /sbin/nologin \
 %post -e
 /sbin/depmod -a
 systemctl daemon-reload
-echo $(date) &> /var/log/motr-rpm-conf-update.log
-/usr/sbin/m0provision config &>> /var/log/motr-rpm-conf-update.log
 
 if [ x%%{?no_trace_logs} != x ] ; then
     /bin/sed -i -r -e "s/(MOTR_TRACED_KMOD=)yes/\1no/" /etc/sysconfig/motr

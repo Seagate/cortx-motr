@@ -48,7 +48,6 @@ extern struct m0_net_xprt m0_net_libfab_xprt;
 
 #define LIBFAB_ADDR_LEN_MAX	INET6_ADDRSTRLEN
 #define LIBFAB_PORT_LEN_MAX	6
-#define LIBFAB_ADDR_STRLEN_MAX  (LIBFAB_ADDR_LEN_MAX + LIBFAB_PORT_LEN_MAX + 32)
 
 /**
  * Parameters required for libfabric configuration
@@ -70,8 +69,6 @@ enum m0_fab__libfab_params {
 	FAB_VERBS_MAX_BULK_SEG_SIZE    = 131072,
 	/** Max number of active work requests for Verbs */
 	FAB_VERBS_MAX_QUEUE_SIZE       = 224,
-	/** Max number of iov that can be sent in fi_sendmsg() for Verbs */
-	FAB_VERBS_MAX_IOV_PER_TX       = 1,
 
 	/** Max number of IOV in read/write command for TCP/Socket provider
 	 * (max number of segments) */
@@ -81,11 +78,6 @@ enum m0_fab__libfab_params {
 	FAB_TCP_SOCK_MAX_BULK_SEG_SIZE = 4096,
 	/** Max number of active work requests for TCP/Socket provider */
 	FAB_TCP_SOCK_MAX_QUEUE_SIZE    = 1024,
-	/** Max number of iov that can be sent in fi_sendmsg() for TCP/Socket */
-	FAB_TCP_SOCK_MAX_IOV_PER_TX    = 8,
-
-	/** Array size of iovec per tx (select max of tcp and verbs) */
-	FAB_MAX_IOV_PER_TX             = 8,
 
 	/** Max segment size for rpc buffer ( 1MB but can be changed ) */
 	FAB_MAX_RPC_SEG_SIZE           = (1 << 20),
@@ -273,20 +265,9 @@ struct m0_fab__fab {
 
 	/** Fabric provider type */
 	enum m0_fab__prov_type fab_prov;
-};
 
-/**
- * Libfab structure of endpoint name
- */
-struct m0_fab__ep_name {
-	/** IP address */
-	char fen_addr[LIBFAB_ADDR_LEN_MAX];
-
-	/** Port range 0-65535 */
-	char fen_port[LIBFAB_PORT_LEN_MAX];
-
-	/** address in string format as passed by the net layer */
-	char fen_str_addr[LIBFAB_ADDR_STRLEN_MAX];
+	/** Max iov limit for the fabric interface */
+	uint32_t               fab_max_iov;
 };
 
 /**
@@ -378,8 +359,8 @@ struct m0_fab__ep {
 	/** Network endpoint structure linked into a per-tm list */
 	struct m0_net_end_point    fep_nep;
 	
-	/** ipaddr, port and strname in printable format*/
-	struct m0_fab__ep_name     fep_name_p;
+	/** ipaddr, port and strname in printable format */
+	struct m0_net_ip_addr      fep_name;
 
 	/** Name in numeric format <IP_Addr, 32bit>:<Port, 32 bit> */
 	uint64_t                   fep_name_n;
@@ -472,6 +453,12 @@ struct m0_fab__tm {
 	/** List of pending bulk operations */
 	struct m0_tl                    ftm_bulk;
 
+	/** Array of remote side iovecs used in bulk ops */
+	struct fi_rma_iov              *ftm_rem_iov;
+
+	/** Array of local side iovecs used in bulk ops */
+	struct iovec                   *ftm_loc_iov;
+
 	/** Time when the buffer timeouts should be checked again */
 	m0_time_t                       ftm_tmout_check;
 
@@ -505,13 +492,13 @@ struct m0_fab__buf_mr {
  */
 struct m0_fab__bdesc {
 	/** Remote node address */
-	uint64_t fbd_netaddr;
+	struct m0_net_ip_params fbd_netaddr;
 
 	/** Remote buffer iov count */
-	uint32_t fbd_iov_cnt;
+	uint32_t                fbd_iov_cnt;
 
 	/** Remote buffer token */
-	uint32_t fbd_buftoken;
+	uint32_t                fbd_buftoken;
 };
 
 /**
@@ -607,17 +594,8 @@ struct m0_fab__buf {
  * Libfab structure of connection data
  */
 struct m0_fab__conn_data {
-	/** address in network byte format */
-	uint64_t fcd_netaddr;
-	
-	/** portal number */
-	uint16_t fcd_portal;
-	
-	/** transfer machine id */
-	uint16_t fcd_tmid;
-	
-	/** interface type */
-	uint8_t  fcd_iface;
+	/** network address */
+	struct m0_net_ip_params fcd_addr;
 };
 
 /**

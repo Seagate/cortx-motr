@@ -760,6 +760,14 @@ utils_mkfs_m0mkfs_LDADD        = $(top_builddir)/motr/libmotr.la
 
 utils/mkfs/m0mkfs.o: xcode/protocol_checksum.h
 
+# cas/ctgdump ------------------------------------------ {{{2
+#
+
+sbin_PROGRAMS                 += cas/m0ctgdump
+cas_m0ctgdump_LDADD        = $(top_builddir)/motr/libmotr.la
+
+cas/m0ctgdump.o: xcode/protocol_checksum.h
+
 #
 # utils/layout ---------------------------------------- {{{2
 #
@@ -1029,6 +1037,17 @@ motr_common_SCRIPTS = \
     scripts/install$(motr_commondir)/m0_sns_utils_common.sh
 EXTRA_DIST += $(motr_common_SCRIPTS)
 
+deb_pkg_files = \
+    debian/changelog \
+    debian/control \
+    debian/compat \
+    debian/copyright \
+    debian/cortx-motr.install \
+    debian/cortx-motr-dev.install \
+    debian/rules \
+    debian/source/format
+EXTRA_DIST += $(deb_pkg_files)
+
 # After genders => Halon transition, Motr doesn't have any configuration files
 # under /etc/motr/ directory. But there might be some in future.
 #etc_motrdir    = $(sysconfdir)/motr
@@ -1057,6 +1076,7 @@ dist_pkglibexec_SCRIPTS  = scripts/install/usr/libexec/cortx-motr/motr-service.f
                            scripts/install/usr/libexec/cortx-motr/motr-server \
                            scripts/install/usr/libexec/cortx-motr/motr-dixinit \
                            scripts/install/usr/libexec/cortx-motr/motr-trace \
+                           scripts/install/usr/libexec/cortx-motr/motr-start \
                            scripts/install/usr/libexec/cortx-motr/motr-free-space-monitor
 
 ################################################################################
@@ -1299,6 +1319,7 @@ check-make-prebuild:
 .PHONY: check-sources-prebuild
 check-sources-prebuild:
 	@echo -n 'Checking source files... '
+	@rm -rf $(distdir)
 	@$(top_srcdir)/scripts/build/check-sources --noisy $(top_srcdir)
 	@echo 'OK'
 
@@ -1434,7 +1455,7 @@ all-local: $(KERNEL_MODULES_BUILD) $(LTLIBRARIES) $(PROGRAMS)
 	@$(top_srcdir)/scripts/build/check-public-api
 	@$(top_srcdir)/scripts/build/check-protocol
 	@$(top_srcdir)/scripts/build/print-elf-sizes
-	@cd utils/spiel; $(SETUP_PY) install --root=${DESTDIR} --record=INSTALLED_FILES
+	@cd utils/spiel; $(SETUP_PY) install --root=${DESTDIR} --prefix=$(prefix) --record=INSTALLED_FILES
 	@$(LN_S) -f $(PROGRAMS:%=../%) $(filter /trace/, $(bin_SCRIPTS:%=../%)) utils/
 
 # checks ---------------------------------------------- {{{3
@@ -1457,7 +1478,7 @@ print-elf-sizes:
 
 .PHONY: install-m0spiel-cext
 install-m0spiel-cext:
-	@cd utils/spiel; $(SETUP_PY) install --root=${DESTDIR} --record=INSTALLED_FILES
+	@cd utils/spiel; $(SETUP_PY) install --root=${DESTDIR} --prefix=$(prefix) --record=INSTALLED_FILES
 
 # kernel ---------------------------------------------- {{{3
 
@@ -1576,6 +1597,7 @@ clean-local: $(KERNEL_MODULES_CLEAN) clean-doc
 	@if test x@ENABLE_COVERAGE@ = xyes; then \
 		find . -name "*.gcno" | xargs rm -vf; \
 	fi
+	@rm -vrf $(distdir)
 
 # kernel ---------------------------------------------- {{{3
 
@@ -1711,22 +1733,17 @@ __rpm_mock:
 .PHONY: rpms
 rpms:
 	$(MAKE) __rpm_pre
-	$(MAKE) __rpm_ivt
-	$(MAKE) __rpm_tests
 	$(MAKE) __rpm
 	$(MAKE) __rpm_srpm
-	$(MAKE) __rpm_post
-
-.PHONY: rpms-notests
-rpms-notests:
-	$(MAKE) __rpm_pre
-	$(MAKE) __rpm
 	$(MAKE) __rpm_post
 
 .PHONY: rpms-tests
 rpms-tests:
 	$(MAKE) __rpm_pre
+	$(MAKE) __rpm_ivt
 	$(MAKE) __rpm_tests
+	$(MAKE) __rpm
+	$(MAKE) __rpm_srpm
 	$(MAKE) __rpm_post
 
 .PHONY: rpms-ivt
@@ -1746,6 +1763,19 @@ srpm:
 	$(MAKE) __rpm_pre
 	$(MAKE) __rpm_srpm
 	$(MAKE) __rpm_post
+
+#
+# DEB targets ----------------------------------------- {{{2
+#
+
+.PHONY: deb
+deb:
+	rm -rf $(distdir)
+	$(MAKE) dist
+	tar -xzf $(DIST_FILE)
+	mv $(DIST_FILE) cortx-motr_$(VERSION)~$(GIT_REV_ID_RPM).orig.tar.gz
+	sed "1s/2.0.0-1/$(VERSION)~$(GIT_REV_ID_RPM)/" -i $(distdir)/debian/changelog
+	cd $(distdir) && debuild -us -uc
 
 #
 # Docker ---------------------------------------------- {{{2
@@ -1865,9 +1895,10 @@ help:
 	@echo '  dist            - recreate package-version.tar.gz from all source files'
 	@echo '  srpm            - build source rpm package'
 	@echo '  rpms            - build Motr rpm packages'
-	@echo '  rpms-notests    - build Motr rpm packages, excluding tests'
-	@echo '  rpms-tests      - build Motr tests rpm package only'
+	@echo '  rpms-tests      - build Motr rpm with test packages'
 	@echo '  rpms-mock       - build Motr rpm packages using "mock" environment (ensures clean rpm deps)'
+	@echo '  deb             - build Motr .deb packages; install the needed dependencies with'
+	@echo '                    sudo mk-build-deps --install debian/control'
 	@echo ''
 	@echo 'Infrastructure targets:'
 	@echo '  docker          - build docker images'

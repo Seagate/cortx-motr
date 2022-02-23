@@ -16,9 +16,12 @@ set -E
 
 sysconfig_dir='/etc/sysconfig'
 [ -d /etc/sysconfig ] || sysconfig_dir='/etc/default'
-user_config=$sysconfig_dir/motr
-kernel_config=$sysconfig_dir/motr-kernel
-ha_config="$sysconfig_dir/m0d-${1#m0d-}"
+
+MOTR_M0D_CONF_DIR=$(source /etc/sysconfig/motr; echo $MOTR_M0D_CONF_DIR)
+
+user_config=${MOTR_M0D_CONF_DIR:-$sysconfig_dir}/motr
+kernel_config=${MOTR_M0D_CONF_DIR:-$sysconfig_dir}/motr-kernel
+ha_config="${MOTR_M0D_CONF_DIR:-$sysconfig_dir}/m0d-${1#m0d-}"
 
 _error_handler()
 {
@@ -101,7 +104,6 @@ _trap_munge()
 # path to binaries inside working directory
 declare -rA _path_inside_workdir=(
     [m0tr.ko]='m0tr.ko'
-    [m0ctl.ko]='m0ctl.ko'
     [m0d]='motr/m0d'
     [m0mkfs]='utils/mkfs/m0mkfs'
     [m0traced]='utils/trace/m0traced'
@@ -188,26 +190,15 @@ m0_load_modules()
             m0_exit "Failed to load m0tr module"
         }
         _trap_munge "rmmod $(m0_path_to m0tr.ko)" ERR
-
-        insmod $(m0_path_to m0ctl.ko) || {
-            # FIXME: looks wrong, should be able to use `rmmod m0tr`
-            rmmod $(m0_path_to m0tr.ko)
-            m0_exit "Failed to load m0ctl module"
-        }
-        _trap_munge "rmmod $(m0_path_to m0ctl.ko)" ERR
     else
         set -x
         modprobe m0tr $m0tr_params
-        set +x
-        modprobe m0ctl
     fi
 }
 
 # Unload Motr modules.
 m0_unload_modules()
 {
-    lsmod | grep -q m0ctl && ( rmmod m0ctl || m0_exit "Failed to unload m0ctl module" )
-
     if [ -n "$MOTR_DEVEL_WORKDIR_PATH" ] ; then
         rmmod m0tr || m0_exit "Failed to unload m0tr module"
     else

@@ -365,6 +365,7 @@ void pdclust_map(void)
 	struct m0_dix_ldesc        dld;
 	struct m0_ext              range[] = {{.e_start = 0, .e_end = 100}};
 
+	m0_fi_enable("m0_dix_target", "pdcluster-map");
 	fid = DFID(0,1);
 	rc = m0_pool_init(&pool, &M0_FID_TINIT('o', 0, 1), 0);
 	M0_UT_ASSERT(rc == 0);
@@ -392,6 +393,7 @@ void pdclust_map(void)
 	rc = m0_dix_layout_init(&dli, &domain, &fid, id, &pool_ver, &dld);
 	M0_UT_ASSERT(rc == 0);
 	layout_check(&dli);
+	m0_fi_disable("m0_dix_target", "pdcluster-map");
 	m0_dix_layout_fini(&dli);
 	m0_dix_ldesc_fini(&dld);
 	m0_layout_domain_cleanup(&domain);
@@ -2529,15 +2531,16 @@ static void local_failures(void)
 	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
 	M0_UT_ASSERT(rc == 0);
 	/*
-	 * Only two CAS requests can be sent successfully, but N + K = 3, so
-	 * no record will be successfully put to all component catalogues.
+ 	 * Consider DIX request to be successful if there is at least
+ 	 * one successful CAS request. Here two cas requests can be 
+ 	 * sent successfully. 
 	 */
 	m0_fi_enable_off_n_on_m("cas_req_replied_cb", "send-failure", 2, 3);
 	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
 	m0_fi_disable("cas_req_replied_cb", "send-failure");
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
-	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc != 0));
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
 	dix_rep_free(&rep);
 	dix_kv_destroy(&keys, &vals);
 	dix_index_fini(&index);
@@ -3150,8 +3153,9 @@ static void server_is_down(void)
 
 	ut_service_init();
 	dix_index_init(&index, 1);
-	m0_fi_enable_once("cas_sdev_state", "sdev_fail");
+	m0_fi_enable("cas_sdev_state", "sdev_fail");
 	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
+	m0_fi_disable("cas_sdev_state", "sdev_fail");
 	M0_UT_ASSERT(rc == -EBADFD);
 	dix_index_fini(&index);
 	ut_service_fini();

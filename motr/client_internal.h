@@ -63,6 +63,7 @@
 #include "motr/pg.h"          /* nwxfer and friends */
 #include "motr/sync.h"        /* sync_request */
 #include "fop/fop.h"
+#include "dtm0/domain.h"        /* m0_dtm0_domain */
 
 struct m0_idx_service_ctx;
 struct m0_dtm0_service;
@@ -338,6 +339,12 @@ struct m0_op_io {
 	 * MOTR-899 lands into dev.
 	 */
 	uint64_t                        *ioo_failed_session;
+
+	/**
+	 * An array holding ids of failed nodes. The vacant entries are
+	 * marked as ~(uint64_t)0.
+	 */
+	uint64_t                        *ioo_failed_nodes;
 
 	/**
 	* Total number of parity-maps associated with this request that are in
@@ -619,6 +626,8 @@ struct m0_client {
 	struct m0_htable                        m0c_rm_ctxs;
 
 	struct m0_dtm0_service                 *m0c_dtms;
+
+	struct m0_dtm0_domain                   m0c_dtm0_domain;
 };
 
 /** CPUs semaphore - to control CPUs usage by parity calcs. */
@@ -961,6 +970,9 @@ M0_INTERNAL void m0__obj_attr_set(struct m0_obj *obj,
 				  uint64_t       lid);
 M0_INTERNAL bool
 m0__obj_pool_version_is_valid(const struct m0_obj *obj);
+M0_INTERNAL bool m0__obj_is_parity_verify_mode(struct m0_client *instance);
+M0_INTERNAL bool m0__obj_is_di_enabled(struct m0_op_io *ioo);
+M0_INTERNAL bool m0__obj_is_cksum_validation_allowed(struct m0_op_io *ioo);
 M0_INTERNAL int m0__obj_io_build(struct m0_io_args *args,
 				 struct m0_op     **op);
 M0_INTERNAL void m0__obj_op_done(struct m0_op *op);
