@@ -529,11 +529,11 @@ static void ctg_meta_delete_credit(struct m0_btree_type   *bt,
 {
 	struct m0_cas_ctg *ctg;
 
-<<<<<<< HEAD
 	m0_btree_del_credit2(bt, M0_CTG_ROOT_NODE_SIZE, nr,
-=======
-	m0_btree_del_credit2(bt, 12, nr,
 			     M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid),
+			     M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg), accum);
+	M0_BE_FREE_CREDIT_PTR(ctg, seg, accum);
+}
 
 static void ctg_store_init_creds_calc(struct m0_be_seg       *seg,
 				      struct m0_cas_state    *state,
@@ -575,7 +575,7 @@ static int ctg_state_create(struct m0_be_seg     *seg,
 {
 	struct m0_cas_state *out;
 	struct m0_btree     *bt;
-	int                  rc;
+ 	int                  rc;
 
 	M0_ENTRY();
 	*state = NULL;
@@ -1150,7 +1150,6 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		vsize = M0_CAS_CTG_KV_HDR_SIZE + ctg_op->co_val.b_nob;
 		rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
-<<<<<<< HEAD
 		rec.r_crc_type   = M0_BCT_NO_CRC;
 
 		if (!!(ctg_op->co_flags & COF_OVERWRITE)) {
@@ -1160,15 +1159,6 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 							&kv_op, tx));
 			M0_ASSERT(rc == 0);
 		}
-=======
-
-		if (!!(ctg_op->co_flags & COF_OVERWRITE))
-			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						      m0_btree_update(btree,
-								      &rec, &cb,
-								      &kv_op,
-								      tx));
->>>>>>> Eos 24391 : Implement code changes in CTG module to use the new Btree (Part 2) (#1080)
 		else
 			rc= M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 						     m0_btree_put(btree, &rec,
@@ -1194,19 +1184,12 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		vsize = M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_cas_ctg *);
 		rec.r_key.k_data  = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val         = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
-<<<<<<< HEAD
 		rec.r_crc_type    = M0_BCT_NO_CRC;
-=======
->>>>>>> Eos 24391 : Implement code changes in CTG module to use the new Btree (Part 2) (#1080)
 		cb_data.d_cas_ctg = cas_ctg;
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_put(btree, &rec, &cb,
-<<<<<<< HEAD
 					      		   &kv_op, tx));
-=======
-							   &kv_op, tx));
->>>>>>> Eos 24391 : Implement code changes in CTG module to use the new Btree (Part 2) (#1080)
 		if (rc)
 			ctg_destroy(cas_ctg, tx);
 		m0_be_op_done(beop);
@@ -1223,10 +1206,7 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		vsize = 8;
 		rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
-<<<<<<< HEAD
 		rec.r_crc_type   = M0_BCT_NO_CRC;
-=======
->>>>>>> Eos 24391 : Implement code changes in CTG module to use the new Btree (Part 2) (#1080)
 
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_put(btree, &rec, &cb,
@@ -2017,7 +1997,7 @@ static int ctg_ctidx_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	m0_bufvec_copy(&rec->r_key.k_data, &datum->d_key->k_data, ksize);
 
 	ctg_memcpy(rec->r_val.ov_buf[0], &cid->ci_layout,
-		   sizeof(cid->ci_layout));
+	 	   sizeof(cid->ci_layout));
 	imask = &cid->ci_layout.u.dl_desc.ld_imask;
 	if (!m0_dix_imask_is_empty(imask)) {
 		/*
@@ -2059,14 +2039,9 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 	int                          rc;
 	struct ctg_ctidx_put_cb_data cb_data = {
 		.d_ctidx = ctidx,
-<<<<<<< HEAD
 		.d_cid   = cid,
 		.d_tx    = tx,
 		.d_key   = &rec.r_key,
-=======
-		.d_cid = cid,
-		.d_tx  = tx,
->>>>>>> Eos 24391 : Implement code changes in CTG module to use the new Btree (Part 2) (#1080)
 		};
 	struct m0_btree_cb   put_cb = {
 		.c_act   = ctg_ctidx_put_cb,
@@ -2082,10 +2057,7 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 
 	rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 	rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
-<<<<<<< HEAD
 	rec.r_crc_type   = M0_BCT_NO_CRC;
-=======
->>>>>>> Eos 24391 : Implement code changes in CTG module to use the new Btree (Part 2) (#1080)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 				      m0_btree_put(ctidx->cc_tree, &rec,
@@ -2221,7 +2193,6 @@ M0_INTERNAL const struct m0_btree_rec_key_op *m0_ctg_btree_ops(void)
 	return &key_cmp;
 }
 
-<<<<<<< HEAD
 M0_INTERNAL void
 ctg_index_btree_dump_one_rec(struct m0_buf* key,
 			     struct m0_buf* val, bool dump_in_hex)
@@ -2324,8 +2295,6 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 	return rc? : dumped? 0 : -ENOENT;
 }
 
-=======
->>>>>>> Eos 24391 : Implement code changes in CTG module to use the new Btree (Part 2) (#1080)
 #undef M0_TRACE_SUBSYSTEM
 
 /*

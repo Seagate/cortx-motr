@@ -1278,6 +1278,7 @@ static int emap_it_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	 */
 	rc = m0_buf_alloc(&it->ec_recbuf, recbuf.b_nob);
 	if ( rc != 0)
+		return rc;
 
 	/**
 	 * Copying record buffer and loading into it->ec_rec, note record
@@ -1294,7 +1295,7 @@ static int emap_it_get(struct m0_be_emap_cursor *it)
 	int                 rc;
 	struct m0_btree_op  kv_op = {};
 	struct m0_btree    *btree = it->ec_cursor.bc_arbor;
-=======
+	void               *k_ptr = it->ec_keybuf.b_addr;
 	m0_bcount_t         ksize = it->ec_keybuf.b_nob;
 	struct m0_btree_key r_key = {
 		.k_data =  M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
@@ -1312,6 +1313,9 @@ static int emap_it_get(struct m0_be_emap_cursor *it)
 }
 
 static int be_emap_lookup(struct m0_be_emap        *map,
+			  const struct m0_uint128  *prefix,
+			  m0_bindex_t               offset,
+			  struct m0_be_emap_cursor *it)
 {
 	int rc;
 
