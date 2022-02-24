@@ -103,7 +103,7 @@ enum m0_btree_crc_type {
 
 enum m0_btree_addr_type {
 	/**
-	 * Default addressing type, where keys and vaues will be embedded
+	 * Default addressing type, where keys and values will be embedded
 	 * inside the node.
 	 */
 	DIRECT_ADDRESSING,
@@ -121,6 +121,7 @@ struct m0_btree_type {
 	int ksize;
 	int vsize;
 };
+
 
 struct m0_bcookie {
 	void     *segaddr;
@@ -334,8 +335,7 @@ M0_INTERNAL void m0_btree_create(void *addr, int nob,
 				 enum m0_btree_addr_type addr_type,
 				 struct m0_btree_op *bop, struct m0_btree *tree,
 				 struct m0_be_seg *seg,
-				 const struct m0_fid *fid,
-				 struct m0_be_tx *tx,
+				 const struct m0_fid *fid, struct m0_be_tx *tx,
 				 struct m0_btree_rec_key_op *keycmp);
 
 /**

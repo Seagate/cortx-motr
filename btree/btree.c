@@ -996,7 +996,7 @@ struct node_type {
 	void (*nt_del)  (const struct nd *node, int idx);
 
 	void (*nt_indirect_move) (struct nd *src, struct nd *tgt,
-			       enum direction dir, int nr);
+				  enum direction dir, int nr);
 	/** Updates the level of node */
 	void (*nt_set_level)  (const struct nd *node, uint8_t new_level);
 
@@ -1286,7 +1286,6 @@ struct node_header {
 	uint32_t      h_tree_type;
 	uint32_t      h_crc_type;
 	uint32_t      h_addr_type;
-	//uint32_t      h_node_flag;
 	uint64_t      h_gen;
 	struct m0_fid h_fid;
 };
@@ -1349,12 +1348,6 @@ struct node_capture_info {
 
 	 /* Starting index from where record may have been added or deleted. */
 	int         nc_idx;
-};
-
-
-struct indirect_data {
-	void *v_addr;
-	uint64_t v_ref;
 };
 
 /**
@@ -1422,8 +1415,6 @@ struct m0_btree_oimpl {
 	 */
 	void                      *i_indirect_key;
 	void                      *i_indirect_val;
-
-
 };
 
 
@@ -1649,7 +1640,6 @@ static void bnode_rec(struct slot *slot)
 {
 	M0_PRE(bnode_invariant(slot->s_node));
 	slot->s_node->n_type->nt_rec(slot);
-	M0_ASSERT(bnode_invariant(slot->s_node));
 }
 
 static void bnode_key(struct slot *slot)
@@ -1680,7 +1670,6 @@ static void bnode_make(struct slot *slot)
 {
 	M0_PRE(bnode_isfit(slot));
 	slot->s_node->n_type->nt_make(slot);
-	M0_ASSERT(bnode_invariant(slot->s_node));
 }
 
 static void bnode_val_resize(struct slot *slot, int vsize_diff,
@@ -1766,7 +1755,6 @@ static void bnode_del(const struct nd *node, int idx)
 {
 	M0_PRE(bnode_invariant(node));
 	node->n_type->nt_del(node, idx);
-	M0_ASSERT(bnode_invariant(node));
 }
 
 static void bnode_indirect_move(struct nd *src, struct nd *tgt,
@@ -1774,9 +1762,8 @@ static void bnode_indirect_move(struct nd *src, struct nd *tgt,
 {
 	M0_PRE(bnode_invariant(src));
 	M0_PRE(bnode_invariant(tgt));
+	M0_IN(dir,(D_LEFT, D_RIGHT));
 	src->n_type->nt_indirect_move(src, tgt, dir, nr);
-	M0_ASSERT(bnode_invariant(src));
-	M0_ASSERT(bnode_invariant(tgt));
 }
 
 static void bnode_set_level(const struct nd *node, uint8_t new_level)
@@ -2445,8 +2432,8 @@ static void ff_val_resize(struct slot *slot, int vsize_diff,
 static void ff_fix(const struct nd *node);
 static void ff_cut(const struct nd *node, int idx, int size);
 static void ff_del(const struct nd *node, int idx);
-static void ff_indirect_move(struct nd *src, struct nd *tgt,
-			       enum direction dir, int nr);
+static void ff_indirect_move(struct nd *src, struct nd *tgt, enum direction dir,
+			     int nr);
 static void ff_set_level(const struct nd *node, uint8_t new_level);
 static void ff_set_rec_count(const struct nd *node, uint16_t count);
 static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
@@ -2670,15 +2657,15 @@ static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
 	M0_PRE(addr_type != INDIRECT_ADDRESSING);
 	M0_SET0(h);
 
-	h->ff_ksize            = ksize;
-	h->ff_vsize            = vsize;
-	h->ff_nsize            = nsize;
-	h->ff_seg.h_node_type  = ntype;
-	h->ff_seg.h_crc_type   = crc_type;
-	h->ff_seg.h_addr_type  = addr_type;
-	h->ff_seg.h_gen        = gen;
-	h->ff_seg.h_fid        = fid;
-	h->ff_opaque           = NULL;
+	h->ff_ksize           = ksize;
+	h->ff_vsize           = vsize;
+	h->ff_nsize           = nsize;
+	h->ff_seg.h_node_type = ntype;
+	h->ff_seg.h_crc_type  = crc_type;
+	h->ff_seg.h_addr_type = addr_type;
+	h->ff_seg.h_gen       = gen;
+	h->ff_seg.h_fid       = fid;
+	h->ff_opaque          = NULL;
 
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
 		.ot_version       = M0_BTREE_NODE_FORMAT_VERSION,
@@ -3069,17 +3056,11 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 
 		rec.s_node = src;
 		rec.s_idx  = srcidx;
-		M0_ASSERT(bnode_invariant(src));
-		M0_ASSERT(bnode_invariant(tgt));
 		m0_bufvec_copy(&tmp.s_rec.r_key.k_data, &rec.s_rec.r_key.k_data,
 			       m0_vec_count(&rec.s_rec.r_key.k_data.ov_vec));
 		m0_bufvec_copy(&tmp.s_rec.r_val, &rec.s_rec.r_val,
 			       m0_vec_count(&rec.s_rec.r_val.ov_vec));
-		M0_ASSERT(bnode_invariant(src));
-		M0_ASSERT(bnode_invariant(tgt));
 		bnode_del(src, srcidx);
-		M0_ASSERT(bnode_invariant(src));
-		M0_ASSERT(bnode_invariant(tgt));
 		if (nr > 0)
 			nr--;
 		bnode_done(&tmp, true);
@@ -4495,6 +4476,7 @@ static void vkvv_rec_update_credit(const struct nd *node, m0_bcount_t ksize,
 static void vkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 			      m0_bcount_t vsize,
 			      struct m0_be_tx_credit *accum);
+
 static const struct node_type variable_kv_format = {
 	.nt_id                        = BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
 	.nt_name                      = "m0_bnode_variable_kv_size_format",
@@ -4828,20 +4810,12 @@ static void vkvv_fid(const struct nd *node, struct m0_fid *fid)
 
 static uint32_t vkvv_indirect_rec_key_size(const struct nd *node, int idx)
 {
-	// struct vkvv_head *h = vkvv_data(node);
-	// uint32_t offset = (INDIRECT_KEY_SIZE) * idx + sizeof(void*);
-	// return *(uint32_t*)((void*)h + sizeof(*h) + offset);
-	// void *p_k_addr = vkvv_key(node, idx);
-	// // void *k_addr = *(void*)p_k_addr;
-	// return *(uint32_t*)p_k_addr;
-
 	struct vkvv_head *h = vkvv_data(node);
-	uint32_t offset = INDIRECT_KEY_SIZE * idx;
-	void **p_k_addr = ((void*)h + sizeof(*h) + offset);
-	void *k_addr = *p_k_addr;
+	uint32_t offset     = INDIRECT_KEY_SIZE * idx;
+	void **p_k_addr     = ((void*)h + sizeof(*h) + offset);
+	void *k_addr        = *p_k_addr;
+
 	return *(uint32_t*)(k_addr + INDIRECT_SIZE_OFFSET);
-
-
 }
 
 static uint32_t vkvv_lnode_rec_key_size(const struct nd *node, int idx)
@@ -4890,15 +4864,9 @@ static uint32_t vkvv_indirect_rec_val_size(const struct nd *node, int idx)
 	int offset;
 
 	if (h->vkvv_level == 0) {
-		// void **p_v_addr = vkvv_val(node, idx + 1);
-		// void *v_addr = *p_v_addr;
-		// return *(uint32_t*)v_addr;
-		// vsize = (INDIRECT_LEAF_NODE_VAL_SIZE);
-		// offset = vsize * idx + sizeof(uint32_t);
-		// return *(uint32_t*)((void*)h + size - offset);
 		void **p_v_addr;
-		void *v_addr;
-		vsize = (INDIRECT_VAL_SIZE);
+		void  *v_addr;
+		vsize  = INDIRECT_VAL_SIZE;
 		offset = vsize * idx + sizeof(void*);
 		p_v_addr = ((void*)h + size - offset);
 		v_addr = *p_v_addr;
@@ -5105,6 +5073,11 @@ static bool vkvv_invariant(const struct nd *node)
 		    BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE);
 }
 
+/**
+ * @brief This function validates the key order within node.
+ * Implementation will be thought of once the basic functionality has
+ * been implemented.
+ */
 static bool vkvv_iskey_smaller(const struct nd *node, int cur_key_idx)
 {
 	struct m0_btree_key      key_prev;
@@ -5870,17 +5843,6 @@ static void vkvv_indirect_move(struct nd *src, struct nd *tgt,
 			    total_vsize;
 		memcpy(tgt_start, src_start, total_vsize);
 
-		// src_start = vkvv_indirect_val(src, vkvv_count_rec(src));
-		// t_src = vkvv_indirect_val(src, 0) - new_count * INDIRECT_VAL_SIZE;
-		// // M0_ASSERT(t_src == src_start + total_vsize + new_count * INDIRECT_VAL_SIZE);
-		// // M0_ASSERT(new_count * INDIRECT_VAL_SIZE == t_src - (src_start + total_vsize));
-
-		// //m0_memmove(src_start + total_vsize, src_start, new_count * INDIRECT_VAL_SIZE);
-
-		// m0_memmove(t_src, src_start, new_count * INDIRECT_VAL_SIZE);
-
-		// src_start = vkvv_indirect_val(src, 0);
-
 		m0_memmove(src_start + total_vsize - new_count * INDIRECT_VAL_SIZE,
 			   src_start - new_count * INDIRECT_VAL_SIZE,
 			   new_count * INDIRECT_VAL_SIZE);
@@ -5892,6 +5854,7 @@ static void vkvv_indirect_move(struct nd *src, struct nd *tgt,
 		h->vkvv_used += count;
 		return;
 	}
+	/* TBD */
 	M0_ASSERT(0);
 }
 /**
@@ -6043,7 +6006,6 @@ static void vkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(4, node_size));
 }
-
 /**
  *  --------------------------------------------
  *  Section END -
@@ -6637,8 +6599,8 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	/* Capture this change in transaction */
 
 	/* TBD : This check needs to be removed when debugging is done. */
-	M0_ASSERT(bnode_expensive_invariant(lev->l_node));
-	M0_ASSERT(bnode_expensive_invariant(oi->i_extra_node));
+	M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
+	M0_ASSERT_EX(bnode_expensive_invariant(oi->i_extra_node));
 	bnode_unlock(lev->l_node);
 	bnode_unlock(oi->i_extra_node);
 
@@ -6680,9 +6642,6 @@ static void btree_put_split_and_find(struct nd *allocated_node,
 	bnode_set_level(allocated_node, bnode_level(current_node));
 
 	bnode_move(current_node, allocated_node, D_LEFT, NR_EVEN);
-
-	M0_ASSERT(bnode_expensive_invariant(current_node));
-	M0_ASSERT(bnode_expensive_invariant(allocated_node));
 
 	/**
 	 * Assert that nodes still contain minimum number of records in the node
@@ -6843,8 +6802,8 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	btree_node_capture_enlist(oi, lev->l_node, 0);
 
 	/* TBD : This check needs to be removed when debugging is done. */
-	M0_ASSERT(bnode_expensive_invariant(lev->l_alloc));
-	M0_ASSERT(bnode_expensive_invariant(lev->l_node));
+	M0_ASSERT_EX(bnode_expensive_invariant(lev->l_alloc));
+	M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
 	bnode_unlock(lev->l_alloc);
 	bnode_unlock(lev->l_node);
 
@@ -6884,7 +6843,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 			 * TBD : This check needs to be removed when debugging
 			 * is done.
 			 */
-			M0_ASSERT(bnode_expensive_invariant(lev->l_node));
+			M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
 			bnode_unlock(lev->l_node);
 			return P_CAPTURE;
 		}
@@ -6915,8 +6874,8 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		 * TBD : This check needs to be removed when debugging is
 		 * done.
 		 */
-		M0_ASSERT(bnode_expensive_invariant(lev->l_alloc));
-		M0_ASSERT(bnode_expensive_invariant(lev->l_node));
+		M0_ASSERT_EX(bnode_expensive_invariant(lev->l_alloc));
+		M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
 		bnode_unlock(lev->l_alloc);
 		bnode_unlock(lev->l_node);
 
@@ -7428,7 +7387,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		 * TBD : This check needs to be removed when debugging is
 		 * done.
 		 */
-		M0_ASSERT(bnode_expensive_invariant(lev->l_node));
+		M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
 		bnode_unlock(lev->l_node);
 		return P_CAPTURE;
 	}
@@ -8524,7 +8483,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		 * TBD : This check needs to be removed when debugging is
 		 * done.
 		 */
-		M0_ASSERT(bnode_expensive_invariant(lev->l_node));
+		M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
 
 		node_underflow = bnode_isunderflow(lev->l_node, false);
 		if (used_count != 0 && node_underflow) {
@@ -8572,7 +8531,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	oi->i_root_child_free = true;
 
 	/* TBD : This check needs to be removed when debugging is done. */
-	M0_ASSERT(bnode_expensive_invariant(lev->l_node));
+	M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
 	bnode_unlock(lev->l_node);
 	bnode_unlock(root_child);
 
@@ -8934,7 +8893,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		 * TBD : This check needs to be removed when debugging
 		 * is done.
 		 */
-		M0_ASSERT(bnode_expensive_invariant(lev->l_node));
+		M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
 		node_underflow = bnode_isunderflow(lev->l_node, false);
 		if (oi->i_used != 0  && node_underflow) {
 			bnode_fini(lev->l_node);
@@ -11956,8 +11915,8 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 							 &btree_type,
 							 M0_BCT_NO_CRC,
 							 INDIRECT_ADDRESSING,
-							 &b_op, &btree[i],
-							 seg, &fid, tx, NULL));
+							 &b_op, &btree[i], seg,
+							 &fid, tx, NULL));
 		M0_ASSERT(rc == M0_BSC_SUCCESS);
 
 		m0_be_tx_close_sync(tx);
@@ -12043,13 +12002,12 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 
 static void ut_st_st_kv_oper(void)
 {
-	btree_ut_kv_oper(1, 1, BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE);
-	// int i;
-	// for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
-	// {
-	// 	if (btree_node_format[i] != NULL)
-	// 		btree_ut_kv_oper(1, 1, i);
-	// }
+	int i;
+	for (i = 4; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
+	{
+		if (btree_node_format[i] != NULL)
+			btree_ut_kv_oper(1, 1, i);
+	}
 }
 
 static void ut_mt_st_kv_oper(void)
@@ -12190,8 +12148,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 							      &btree_type,
 							      M0_BCT_NO_CRC, 0,
 							      &b_op, &btree,
-							      seg, &fid,
-							      tx, NULL));
+							      seg, &fid, tx,
+							      NULL));
 		M0_ASSERT(rc == 0);
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
@@ -13436,8 +13394,8 @@ static void ut_btree_crc_test(void)
 							      &btree_type,
 							      crc_type, 0,
 							      &b_op, &btree[i],
-							      seg, &fid,
-							      tx, NULL));
+							      seg, &fid, tx,
+							      NULL));
 		M0_ASSERT(rc == M0_BSC_SUCCESS);
 
 		m0_be_tx_close_sync(tx);
@@ -13587,9 +13545,9 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(rnode, rnode_sz, bt,
-						      crc_type, 0,
-						      &b_op, &btree, seg, &fid,
-						      tx, NULL));
+						      crc_type, 0, &b_op,
+						      &btree, seg, &fid, tx,
+						      NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
