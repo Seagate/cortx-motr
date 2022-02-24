@@ -232,8 +232,8 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	if (m0_cm_aggr_group_tlists_are_empty(cm))
 		m0_cm_complete_notify(cm);
 
-	M0_LOG(M0_DEBUG, "%"PRId64": ["M0_AG_F"] "
-	       "in=[%"PRId64"] out=[%"PRId64"] rc: %d",
+	M0_LOG(M0_DEBUG, "%" PRId64 ": ["M0_AG_F"] "
+	       "in=[%" PRId64 "] out=[%" PRId64 "] rc: %d",
 	       cm->cm_id, M0_AG_P(&id), cm->cm_aggr_grps_in_nr,
 	       cm->cm_aggr_grps_out_nr, rc);
 
@@ -356,7 +356,7 @@ M0_INTERNAL bool m0_cm_aggr_group_tlists_are_empty(struct m0_cm *cm)
 {
 	struct m0_cm_ag_id grp_end_mark_id = GRP_END_MARK_ID;
 
-	M0_LOG(M0_DEBUG, "cm=%p ag_in_nr=%"PRIu64" ag_out_nr=%"PRIu64
+	M0_LOG(M0_DEBUG, "cm=%p ag_in_nr=%" PRIu64 " ag_out_nr=%"PRIu64
 			 " m0_cm_ag_in_hi(cm)=%p",
 			 cm, cm->cm_aggr_grps_in_nr,
 			 cm->cm_aggr_grps_out_nr, m0_cm_ag_in_hi(cm));

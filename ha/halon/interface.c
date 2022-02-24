@@ -300,7 +300,7 @@ halon_interface_process_failure_check(struct m0_halon_interface_internal *hii,
 						.no_id    = note->no_id,
 						.no_state = M0_NC_UNKNOWN,
 				};
-				M0_LOG(M0_DEBUG, "hii_nvec[%"PRIu64"] = "
+				M0_LOG(M0_DEBUG, "hii_nvec[%" PRIu64 "] = "
 				       "{.no_id = "FID_F", ...}",
 				       hii->hii_nvec_size,
 				       FID_P(&hii->hii_nvec[
@@ -356,11 +356,11 @@ halon_interface_entrypoint_request_cb(struct m0_ha                      *ha,
 	         "process_fid="FID_F,
 	         hii->hii_hi, req, U128_P(req_id), req->heq_rpc_endpoint,
 	         FID_P(&req->heq_process_fid));
-	M0_LOG(M0_DEBUG, "git_rev_id=%s generation=%"PRIu64" pid=%"PRIu64,
+	M0_LOG(M0_DEBUG, "git_rev_id=%s generation=%" PRIu64 " pid=%"PRIu64,
 	       req->heq_git_rev_id, req->heq_generation, req->heq_pid);
 	if (hii->hii_cfg.hic_log_entrypoint) {
 		M0_LOG(M0_WARN, "req_id="U128X_F" remote_rpc_endpoint=%s "
-	         "process_fid="FID_F" git_rev_id=%s generation=%"PRIu64" "
+	         "process_fid="FID_F" git_rev_id=%s generation=%" PRIu64 " "
 	         "pid=%"PRIu64, U128_P(req_id), req->heq_rpc_endpoint,
 	         FID_P(&req->heq_process_fid), req->heq_git_rev_id,
 		 req->heq_generation, req->heq_pid);
@@ -398,13 +398,13 @@ static void halon_interface_msg_received_cb(struct m0_ha      *ha,
 	const char                         *ep = &buf[0];
 
 	m0_ha_rpc_endpoint(&hii->hii_ha, hl, buf, ARRAY_SIZE(buf));
-	M0_ENTRY("hi=%p ha=%p hl=%p ep=%s msg=%p epoch=%"PRIu64" tag=%"PRIu64,
+	M0_ENTRY("hi=%p ha=%p hl=%p ep=%s msg=%p epoch=%" PRIu64 " tag=%"PRIu64,
 		 hii->hii_hi, &hii->hii_ha, hl, ep, msg, msg->hm_epoch, tag);
 	m0_ha_msg_debug_print(msg, __func__);
 	if (hl != hii->hii_outgoing_link) {
 		if (hii->hii_cfg.hic_log_msg) {
-			M0_LOG(M0_WARN, "hl=%p ep=%s epoch=%"PRIu64" "
-			       "tag=%"PRIu64" type=%"PRIu64,
+			M0_LOG(M0_WARN, "hl=%p ep=%s epoch=%" PRIu64 " "
+			       "tag=%" PRIu64 " type=%"PRIu64,
 			       hl, ep, msg->hm_epoch, tag,
 			       msg->hm_data.hed_type);
 		}
@@ -414,7 +414,7 @@ static void halon_interface_msg_received_cb(struct m0_ha      *ha,
 		halon_interface_process_failure_check(hii, msg);
 		m0_ha_delivered(ha, hl, msg);
 	}
-	M0_LEAVE("hi=%p ha=%p hl=%p ep=%s msg=%p epoch=%"PRIu64" tag=%"PRIu64,
+	M0_LEAVE("hi=%p ha=%p hl=%p ep=%s msg=%p epoch=%" PRIu64 " tag=%"PRIu64,
 		 hii->hii_hi, &hii->hii_ha, hl, ep, msg, msg->hm_epoch, tag);
 }
 
@@ -1109,16 +1109,16 @@ void m0_halon_interface_send(struct m0_halon_interface *hi,
 	M0_PRE(m0_get() == &hii->hii_instance);
 
 	m0_ha_rpc_endpoint(&hii->hii_ha, hl, buf, ARRAY_SIZE(buf));
-	M0_ENTRY("hi=%p ha=%p hl=%p ep=%s msg=%p epoch=%"PRIu64" tag=%p",
+	M0_ENTRY("hi=%p ha=%p hl=%p ep=%s msg=%p epoch=%" PRIu64 " tag=%p",
 		 hi, &hii->hii_ha, hl, ep, msg, msg->hm_epoch, tag);
 	m0_ha_msg_debug_print(msg, __func__);
 	m0_ha_send(&hii->hii_ha, hl, msg, tag);
 	if (hii->hii_cfg.hic_log_msg) {
-		M0_LOG(M0_WARN, "hl=%p ep=%s epoch=%"PRIu64" tag=%"PRIu64" "
+		M0_LOG(M0_WARN, "hl=%p ep=%s epoch=%" PRIu64 " tag=%" PRIu64 " "
 		       "type=%"PRIu64,
 		       hl, ep, msg->hm_epoch, *tag, msg->hm_data.hed_type);
 	}
-	M0_LEAVE("hi=%p ha=%p hl=%p ep=%s msg=%p epoch=%"PRIu64" tag=%"PRIu64,
+	M0_LEAVE("hi=%p ha=%p hl=%p ep=%s msg=%p epoch=%" PRIu64 " tag=%"PRIu64,
 		 hi, &hii->hii_ha, hl, ep, msg, msg->hm_epoch, *tag);
 }
 
@@ -1134,11 +1134,11 @@ void m0_halon_interface_delivered(struct m0_halon_interface *hi,
 	M0_PRE(m0_get() == &hii->hii_instance);
 
 	m0_ha_rpc_endpoint(&hii->hii_ha, hl, buf, ARRAY_SIZE(buf));
-	M0_ENTRY("hi=%p ha=%p hl=%p ep=%s msg=%p epoch=%"PRIu64" tag=%"PRIu64,
+	M0_ENTRY("hi=%p ha=%p hl=%p ep=%s msg=%p epoch=%" PRIu64 " tag=%"PRIu64,
 		 hi, &hii->hii_ha, hl, ep,
 		 msg, msg->hm_epoch, m0_ha_msg_tag(msg));
 	if (hii->hii_cfg.hic_log_msg) {
-		M0_LOG(M0_WARN, "hl=%p ep=%s epoch=%"PRIu64" tag=%"PRIu64" "
+		M0_LOG(M0_WARN, "hl=%p ep=%s epoch=%" PRIu64 " tag=%" PRIu64 " "
 		       "type=%"PRIu64, hl, ep, msg->hm_epoch, m0_ha_msg_tag(msg),
 		       msg->hm_data.hed_type);
 	}
@@ -1151,7 +1151,7 @@ void m0_halon_interface_delivered(struct m0_halon_interface *hi,
 	 * harm should be done.
 	 */
 	m0_ha_delivered(&hii->hii_ha, hl, (struct m0_ha_msg *)msg);
-	M0_LEAVE("hi=%p ha=%p hl=%p ep=%s msg=%p epoch=%"PRIu64" tag=%"PRIu64,
+	M0_LEAVE("hi=%p ha=%p hl=%p ep=%s msg=%p epoch=%" PRIu64 " tag=%"PRIu64,
 		 hi, &hii->hii_ha, hl, ep,
 		 msg, msg->hm_epoch, m0_ha_msg_tag(msg));
 }

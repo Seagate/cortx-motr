@@ -191,13 +191,19 @@ struct m0_uint128 frid = M0_UINT128(0xBEC02, 0xF11ED);
 static void ut_pd_fom_fini(struct m0_fom *fom)
 {
 	struct m0_fop_fdmi_record *frec;
+	struct m0_fdmi_record_reg *rreg;
 
 	M0_ENTRY();
 
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_FINISH);
+	m0_fi_disable("m0_fdmi__pdock_record_reg_find", "fail_find");
 
 	frec = m0_fop_data(fom->fo_fop);
 	M0_UT_ASSERT(m0_uint128_eq(frid_watch, &frec->fr_rec_id));
+
+	rreg = m0_fdmi__pdock_record_reg_find(&frec->fr_rec_id);
+	if (rreg != NULL)
+		m0_ref_put(&rreg->frr_ref);
 
 	/* detach fop from fom */
 	m0_free0(&fom->fo_fop);
@@ -207,7 +213,6 @@ static void ut_pd_fom_fini(struct m0_fom *fom)
 
 	m0_semaphore_up(&g_sem);
 
-	m0_fi_disable("m0_fdmi__pdock_record_reg_find", "fail_find");
 
 	M0_LEAVE();
 }
@@ -261,6 +266,10 @@ void __fdmi_pd_fom_norpc(bool register_filter)
 	};
 	const struct m0_fdmi_filter_desc fd;
 	const struct m0_fdmi_pd_ops     *pdo = m0_fdmi_plugin_dock_api_get();
+	struct m0_fid                    all_fids[3] = {
+						[0] = ffid,
+						[1] = ffids[1],
+						[2] = { 0, 0 } };
 
 	M0_ENTRY();
 
@@ -279,6 +288,11 @@ void __fdmi_pd_fom_norpc(bool register_filter)
 		M0_UT_ASSERT(rc == 0);
 		freg = m0_fdmi__pdock_filter_reg_find(&ffid);
 		M0_UT_ASSERT(freg != NULL);
+		/*
+		 * Intentionally free it, otherwise memleak, because we
+		 * are manually set it to NULL.
+		 */
+		m0_free(freg->ffr_pcb);
 		freg->ffr_pcb = NULL;
 	}
 
@@ -322,6 +336,7 @@ void __fdmi_pd_fom_norpc(bool register_filter)
 
 	/* wait for fom finishing */
 	m0_semaphore_down(&g_sem);
+	m0_free(rec);
 
 	/* try with another fdmi record id */
 	frid_watch = &frid_new;
@@ -341,10 +356,15 @@ void __fdmi_pd_fom_norpc(bool register_filter)
 
 	/* wait for fom finishing */
 	m0_semaphore_down(&g_sem);
+	m0_free(rec);
 
 	fdmi_serv_stop_ut();
 
 	m0_semaphore_fini(&g_sem);
+	if (register_filter) {
+		/* deregister filter */
+		(pdo->fpo_deregister_plugin)(all_fids, ARRAY_SIZE(all_fids));
+	}
 	M0_LEAVE();
 }
 

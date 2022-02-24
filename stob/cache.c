@@ -209,12 +209,12 @@ M0_INTERNAL void m0_stob_cache__print(struct m0_stob_cache *cache)
 	int		i;
 
 	M0_LOG(LEVEL, "m0_stob_cache %p: "
-	       "sc_busy_hits = %"PRIu64", sc_idle_hits = %"PRIu64", "
-	       "sc_misses = %"PRIu64", sc_evictions = %"PRIu64, cache,
+	       "sc_busy_hits = %" PRIu64 ", sc_idle_hits = %" PRIu64 ", "
+	       "sc_misses = %" PRIu64 ", sc_evictions = %"PRIu64, cache,
 	       cache->sc_busy_hits, cache->sc_idle_hits,
 	       cache->sc_misses, cache->sc_evictions);
 	M0_LOG(LEVEL, "m0_stob_cache %p: "
-	       "sc_idle_size = %"PRIu64", sc_idle_used = %"PRIu64", ",
+	       "sc_idle_size = %" PRIu64 ", sc_idle_used = %" PRIu64 ", ",
 	       cache, cache->sc_idle_size, cache->sc_idle_used);
 	M0_LOG(LEVEL, "m0_stob_cache %p: "
 	       "sc_busy length = %zu, sc_idle length = %zu", cache,

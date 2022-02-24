@@ -96,8 +96,8 @@ M0_INTERNAL int m0_be_queue_init(struct m0_be_queue     *bq,
 {
 	uint64_t i;
 
-	M0_ENTRY("bq=%p bqc_q_size_max=%"PRIu64" "
-		 "bqc_producers_nr_max=%"PRIu64" bqc_consumers_nr_max=%"PRIu64,
+	M0_ENTRY("bq=%p bqc_q_size_max=%" PRIu64 " "
+		 "bqc_producers_nr_max=%" PRIu64 " bqc_consumers_nr_max=%"PRIu64,
 		 bq, cfg->bqc_q_size_max,
 		 cfg->bqc_producers_nr_max, cfg->bqc_consumers_nr_max);
 	M0_PRE(M0_IS0(bq));

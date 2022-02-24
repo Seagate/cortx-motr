@@ -83,7 +83,7 @@ void m0_iem(const char* file, const char* function, int line,
 	    evt_id == M0_MOTR_IEM_EVENT_MD_ERROR) {
 		if (++iem_re[evt_id].ir_niems < THRESHOLD)
 			m0_console_printf("IEC: %c%c%03x%03x%04x: "
-					  "IO error (%"PRIu64"): "
+					  "IO error (%" PRIu64 "): "
 					  "%s\n",
 					  m0_motr_iem_severity[sev_id],
 					  M0_MOTR_IEM_SOURCE_ID,
@@ -103,7 +103,7 @@ void m0_iem(const char* file, const char* function, int line,
 	if (mod_id == M0_MOTR_IEM_MODULE_IO &&
 	    evt_id == M0_MOTR_IEM_EVENT_MD_ERROR)
 		M0_LOG(M0_INFO, "IEC: %c%c%3x%3x%4x: "
-		       "IO error (%"PRIx64"): %s",
+		       "IO error (%" PRIx64 "): %s",
 		       m0_motr_iem_severity[sev_id],
 		       M0_MOTR_IEM_SOURCE_ID, M0_MOTR_IEM_COMPONENT_ID_MOTR,
 		       mod_id, evt_id, iem_re[evt_id].ir_total,
