@@ -101,12 +101,26 @@ enum m0_btree_crc_type {
 	M0_BCT_BTREE_ENC_RAW_HASH,
 };
 
+enum m0_btree_addr_type {
+	/**
+	 * Default addressing type, where keys and vaues will be embedded
+	 * inside the node.
+	 */
+	DIRECT_ADDRESSING,
+
+	/**
+	 * In case of INDIRECT_ADDRESSING, keys and values will be allocated
+	 * separately outside the node and node will contain addresses where
+	 * keys and values are present.
+	 */
+	INDIRECT_ADDRESSING,
+};
+
 struct m0_btree_type {
 	enum m0_btree_types tt_id;
 	int ksize;
 	int vsize;
 };
-
 
 struct m0_bcookie {
 	void     *segaddr;
@@ -147,6 +161,7 @@ struct m0_btree_idata {
 	const struct m0_btree_type  *bt;
 	const struct node_type      *nt;
 	enum m0_btree_crc_type       crc_type;
+	enum m0_btree_addr_type      addr_type;
 	int                          ks;
 	int                          vs;
 	struct m0_fid                fid;
@@ -316,9 +331,11 @@ M0_INTERNAL void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop)
 M0_INTERNAL void m0_btree_create(void *addr, int nob,
 				 const struct m0_btree_type *bt,
 				 enum m0_btree_crc_type crc_type,
+				 enum m0_btree_addr_type addr_type,
 				 struct m0_btree_op *bop, struct m0_btree *tree,
 				 struct m0_be_seg *seg,
-				 const struct m0_fid *fid, struct m0_be_tx *tx,
+				 const struct m0_fid *fid,
+				 struct m0_be_tx *tx,
 				 struct m0_btree_rec_key_op *keycmp);
 
 /**
