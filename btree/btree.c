@@ -9741,8 +9741,9 @@ static void ut_basic_tree_oper_icp(void)
 	 * In this case m0_btree_create() will return -EFAULT.
 	 */
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(invalid_addr,
-				      rnode_sz, &btree_type, M0_BCT_NO_CRC, 0,
-				      &b_op, &btree, seg, &fid, tx, NULL));
+				      rnode_sz, &btree_type, M0_BCT_NO_CRC,
+				      DIRECT_ADDRESSING, &b_op, &btree, seg,
+				      &fid, tx, NULL));
 	M0_ASSERT(rc == -EFAULT);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -9779,8 +9780,9 @@ static void ut_basic_tree_oper_icp(void)
 	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	temp_node = buf.b_addr;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node,
-				      rnode_sz, &btree_type, M0_BCT_NO_CRC, 0,
-				      &b_op, &btree, seg, &fid, tx, NULL));
+				      rnode_sz, &btree_type, M0_BCT_NO_CRC,
+				      DIRECT_ADDRESSING, &b_op, &btree, seg,
+				      &fid, tx, NULL));
 	M0_ASSERT(rc == 0);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -9834,9 +9836,10 @@ static void ut_basic_tree_oper_icp(void)
 	buf = M0_BUF_INIT(rnode_sz, NULL);
 	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	temp_node = buf.b_addr;
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node, rnode_sz,
-				      &btree_type, M0_BCT_NO_CRC, 0, &b_op,
-				      &btree, seg, &fid, tx, NULL));
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node,
+				      rnode_sz, &btree_type, M0_BCT_NO_CRC,
+				      DIRECT_ADDRESSING, &b_op, &btree, seg,
+				      &fid, tx, NULL));
 	M0_ASSERT(rc == 0);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -10263,7 +10266,8 @@ static void ut_multi_stream_kv_oper(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &btree_type,
-							     M0_BCT_NO_CRC, 0,
+							     M0_BCT_NO_CRC,
+							     DIRECT_ADDRESSING,
 							     &b_op, &btree, seg,
 							     &fid, tx, NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
@@ -12264,7 +12268,8 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_create(rnode, rnode_sz,
 							      &btree_type,
-							      M0_BCT_NO_CRC, 0,
+							      M0_BCT_NO_CRC,
+							      DIRECT_ADDRESSING,
 							      &b_op, &btree,
 							      seg, &fid, tx,
 							      NULL));
@@ -12652,7 +12657,8 @@ static void ut_btree_persistence(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &bt,
-							     M0_BCT_NO_CRC, 0,
+							     M0_BCT_NO_CRC,
+							     DIRECT_ADDRESSING,
 							     &b_op, &btree, seg,
 							     &fid, tx, NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
@@ -13127,7 +13133,8 @@ static void ut_btree_truncate(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &bt,
-							     M0_BCT_NO_CRC, 0,
+							     M0_BCT_NO_CRC,
+							     DIRECT_ADDRESSING,
 							     &b_op, &btree, seg,
 							     &fid, tx, NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
@@ -13286,7 +13293,8 @@ static void ut_lru_test(void)
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &bt,
-							     M0_BCT_NO_CRC, 0,
+							     M0_BCT_NO_CRC,
+							     DIRECT_ADDRESSING,
 							     &b_op, &btree, seg,
 							     &fid, tx, NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
@@ -13518,7 +13526,8 @@ static void ut_btree_crc_test(void)
 		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 					      m0_btree_create(rnode, rnode_sz,
 							      &btree_type,
-							      crc_type, 0,
+							      crc_type,
+							      DIRECT_ADDRESSING,
 							      &b_op, &btree[i],
 							      seg, &fid, tx,
 							      NULL));

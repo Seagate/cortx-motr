@@ -306,9 +306,10 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&ctg->cc_node,
 						      sizeof ctg->cc_node,
-						      &bt, M0_BCT_NO_CRC, 0,
-						      &b_op, ctg->cc_tree,
-						      seg, fid, tx, &key_cmp));
+						      &bt, M0_BCT_NO_CRC,
+						      DIRECT_ADDRESSING, &b_op,
+						      ctg->cc_tree, seg, fid,
+						      tx, &key_cmp));
 	if (rc != 0) {
 		ctg_fini(ctg);
 		M0_BE_FREE_PTR_SYNC(ctg, seg, tx);

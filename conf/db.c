@@ -174,7 +174,8 @@ static int confdb_table_init(struct m0_be_seg     *seg,
 				   };
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &bt,
-							     M0_BCT_NO_CRC, 0,
+							     M0_BCT_NO_CRC,
+							     DIRECT_ADDRESSING,
 							     &b_op, btree,
 							     seg, btree_fid,
 							     tx, &keycmp));
