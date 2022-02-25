@@ -975,7 +975,8 @@ struct node_type {
 	 * decreased by vsize_diff else it will get increased by vsize_diff.
 	 */
 	void (*nt_val_resize) (struct slot *slot, int vsize_diff,
-			       struct m0_btree_rec *new_rec);
+			       struct m0_btree_rec *new_rec,
+			       struct m0_be_tx *tx);
 
 	/** Returns index of the record containing the key in the node */
 	bool (*nt_find) (struct slot *slot, const struct m0_btree_key *key);
@@ -993,7 +994,7 @@ struct node_type {
 	void (*nt_cut)  (const struct nd *node, int idx, int size);
 
 	/** Deletes the record from the node at specific index */
-	void (*nt_del)  (const struct nd *node, int idx);
+	void (*nt_del)  (const struct nd *node, int idx, struct m0_be_tx *tx);
 
 	void (*nt_indirect_move) (struct nd *src, struct nd *tgt,
 				  enum direction dir, int nr);
@@ -1257,12 +1258,12 @@ static bool bnode_isfit(struct slot *slot);
 static void bnode_done(struct slot *slot, bool modified);
 static void bnode_make(struct slot *slot);
 static void bnode_val_resize(struct slot *slot, int vsize_diff,
-			     struct m0_btree_rec *new_rec);
+			     struct m0_btree_rec *new_rec, struct m0_be_tx *tx);
 
 static bool bnode_find (struct slot *slot, struct m0_btree_key *key);
 static void bnode_seq_cnt_update (struct nd *node);
 static void bnode_fix  (const struct nd *node);
-static void bnode_del  (const struct nd *node, int idx);
+static void bnode_del  (const struct nd *node, int idx, struct m0_be_tx *tx);
 static void bnode_set_level  (const struct nd *node, uint8_t new_level);
 static void bnode_set_rec_count(const struct nd *node, uint16_t count);
 static void bnode_move (struct nd *src, struct nd *tgt, enum direction dir,
@@ -1415,6 +1416,8 @@ struct m0_btree_oimpl {
 	 */
 	void                      *i_indirect_key;
 	void                      *i_indirect_val;
+	m0_bcount_t                i_indirect_ksize;
+	m0_bcount_t                i_indirect_vsize;
 };
 
 
@@ -1673,10 +1676,10 @@ static void bnode_make(struct slot *slot)
 }
 
 static void bnode_val_resize(struct slot *slot, int vsize_diff,
-			     struct m0_btree_rec *new_rec)
+			     struct m0_btree_rec *new_rec, struct m0_be_tx *tx)
 {
 	M0_PRE(bnode_invariant(slot->s_node));
-	slot->s_node->n_type->nt_val_resize(slot, vsize_diff, new_rec);
+	slot->s_node->n_type->nt_val_resize(slot, vsize_diff, new_rec, tx);
 }
 
 static bool bnode_find(struct slot *slot, struct m0_btree_key *find_key)
@@ -1751,10 +1754,10 @@ static void bnode_fix(const struct nd *node)
 	node->n_type->nt_fix(node);
 }
 
-static void bnode_del(const struct nd *node, int idx)
+static void bnode_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 {
 	M0_PRE(bnode_invariant(node));
-	node->n_type->nt_del(node, idx);
+	node->n_type->nt_del(node, idx, tx);
 }
 
 static void bnode_indirect_move(struct nd *src, struct nd *tgt,
@@ -2222,7 +2225,7 @@ static void bnode_crc_validate(struct nd *node)
 					 "data corruption for object with \
 					  possible key: %d..., hence removing \
 					  the object", *(int*)p_key);
-			bnode_del(node_slot.s_node, node_slot.s_idx);
+			bnode_del(node_slot.s_node, node_slot.s_idx, NULL);/* TBD */
 		}
 	}
 }
@@ -2428,10 +2431,10 @@ static bool ff_isfit(struct slot *slot);
 static void ff_done(struct slot *slot, bool modified);
 static void ff_make(struct slot *slot);
 static void ff_val_resize(struct slot *slot, int vsize_diff,
-			  struct m0_btree_rec *new_rec);
+			  struct m0_btree_rec *new_rec, struct m0_be_tx *tx);
 static void ff_fix(const struct nd *node);
 static void ff_cut(const struct nd *node, int idx, int size);
-static void ff_del(const struct nd *node, int idx);
+static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx);
 static void ff_indirect_move(struct nd *src, struct nd *tgt, enum direction dir,
 			     int nr);
 static void ff_set_level(const struct nd *node, uint8_t new_level);
@@ -2891,7 +2894,7 @@ static void ff_make(struct slot *slot)
 }
 
 static void ff_val_resize(struct slot *slot, int vsize_diff,
-			  struct m0_btree_rec *new_rec)
+			  struct m0_btree_rec *new_rec, struct m0_be_tx *tx)
 {
 	struct ff_head  *h     = ff_data(slot->s_node);
 
@@ -2913,7 +2916,7 @@ static void ff_cut(const struct nd *node, int idx, int size)
 	M0_PRE(size == ff_data(node)->ff_vsize);
 }
 
-static void ff_del(const struct nd *node, int idx)
+static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 {
 	struct ff_head *h     = ff_data(node);
 	void           *key_addr;
@@ -3060,7 +3063,7 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 			       m0_vec_count(&rec.s_rec.r_key.k_data.ov_vec));
 		m0_bufvec_copy(&tmp.s_rec.r_val, &rec.s_rec.r_val,
 			       m0_vec_count(&rec.s_rec.r_val.ov_vec));
-		bnode_del(src, srcidx);
+		bnode_del(src, srcidx, NULL); /*TBD*/
 		if (nr > 0)
 			nr--;
 		bnode_done(&tmp, true);
@@ -3432,10 +3435,10 @@ static bool fkvv_isfit(struct slot *slot);
 static void fkvv_done(struct slot *slot, bool modified);
 static void fkvv_make(struct slot *slot);
 static void fkvv_val_resize(struct slot *slot, int vsize_diff,
-			    struct m0_btree_rec *new_rec);
+			    struct m0_btree_rec *new_rec, struct m0_be_tx *tx);
 static void fkvv_fix(const struct nd *node);
 static void fkvv_cut(const struct nd *node, int idx, int size);
-static void fkvv_del(const struct nd *node, int idx);
+static void fkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx);
 static void fkvv_indirect_move(struct nd *src, struct nd *tgt,
 			       enum direction dir, int nr);
 static void fkvv_set_level(const struct nd *node, uint8_t new_level);
@@ -3936,7 +3939,7 @@ static void fkvv_make(struct slot *slot)
 }
 
 static void fkvv_val_resize(struct slot *slot, int vsize_diff,
-			    struct m0_btree_rec *new_rec)
+			    struct m0_btree_rec *new_rec, struct m0_be_tx *tx)
 {
 	struct fkvv_head *h = fkvv_data(slot->s_node);
 	void             *val_addr;
@@ -4051,7 +4054,7 @@ static void fkvv_del_leaf(const struct nd *node, int idx)
 	}
 }
 
-static void fkvv_del(const struct nd *node, int idx)
+static void fkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 {
 	(IS_INTERNAL_NODE(node)) ? fkvv_del_internal(node, idx)
 				 : fkvv_del_leaf(node, idx);
@@ -4422,6 +4425,23 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 /* Offset with respect to key/value addresses to get key/value size. */
 #define INDIRECT_SIZE_OFFSET (-sizeof(uint32_t))
 
+#define INDIRECT_ALLOC(size, seg, tx)                                          \
+	({                                                                     \
+		struct m0_buf buf;                                             \
+		int           page_shift;                                      \
+		buf        = M0_BUF_INIT(size, NULL);                          \
+		page_shift = __builtin_ffsl(m0_pagesize_get()) - 1;            \
+		M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, page_shift, (seg), (tx));     \
+		buf.b_addr;                                                    \
+	})
+
+#define INDIRECT_FREE(ptr, seg, tx)                                            \
+	({                                                                     \
+		struct m0_buf buf;                                             \
+		buf =  M0_BUF_INIT(0, (ptr) + INDIRECT_REF_COUNT_OFFSET);      \
+		M0_BE_FREE_ALIGN_BUF_SYNC(&buf, 0, (seg), (tx));              \
+	})
+
 
 static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
 		      int nsize, uint32_t ntype, uint64_t crc_type,
@@ -4448,10 +4468,10 @@ static bool vkvv_isfit(struct slot *slot);
 static void vkvv_done(struct slot *slot, bool modified);
 static void vkvv_make(struct slot *slot);
 static void vkvv_val_resize(struct slot *slot, int vsize_diff,
-			    struct m0_btree_rec *new_rec);
+			    struct m0_btree_rec *new_rec, struct m0_be_tx *tx);
 static void vkvv_fix(const struct nd *node);
 static void vkvv_cut(const struct nd *node, int idx, int size);
-static void vkvv_del(const struct nd *node, int idx);
+static void vkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx);
 static void vkvv_indirect_move(struct nd *src, struct nd *tgt,
 			       enum direction dir, int nr);
 static void vkvv_set_level(const struct nd *node, uint8_t new_level);
@@ -5521,14 +5541,15 @@ static void vkvv_make(struct slot *slot)
 }
 
 static void vkvv_indirect_val_resize(struct slot *slot,
-				     struct m0_btree_rec *new_rec)
+				     struct m0_btree_rec *new_rec,
+				     struct m0_be_tx *tx)
 {
 	void     **p_val_addr = vkvv_val(slot->s_node, slot->s_idx + 1);
 	void      *val_addr   = *p_val_addr;
 	uint32_t  *val_ref    = val_addr + INDIRECT_REF_COUNT_OFFSET;
 
 	M0_ASSERT(*val_ref == 1);
-	m0_free(val_addr + INDIRECT_REF_COUNT_OFFSET);
+	INDIRECT_FREE(val_addr, slot->s_node->n_tree->t_seg, tx);
 
 	val_addr    = new_rec->r_val.ov_buf[0];
 	*p_val_addr = val_addr;
@@ -5537,7 +5558,7 @@ static void vkvv_indirect_val_resize(struct slot *slot,
 }
 
 static void vkvv_val_resize(struct slot *slot, int vsize_diff,
-			    struct m0_btree_rec *new_rec)
+			    struct m0_btree_rec *new_rec, struct m0_be_tx *tx)
 {
 	struct vkvv_head *h              = vkvv_data(slot->s_node);
 	struct dir_rec   *dir_entry      = vkvv_get_dir_addr(slot->s_node);
@@ -5555,7 +5576,7 @@ static void vkvv_val_resize(struct slot *slot, int vsize_diff,
 	M0_PRE(slot->s_idx < h->vkvv_used && h->vkvv_used > 0);
 
 	if (vkvv_addrtype_get(slot->s_node) == INDIRECT_ADDRESSING)
-		return vkvv_indirect_val_resize(slot, new_rec);
+		return vkvv_indirect_val_resize(slot, new_rec, tx);
 
 	if (vsize_diff > 0 &&
 	    (end_val_addr - end_dir_addr) < vsize_diff) {
@@ -5604,31 +5625,32 @@ static void vkvv_cut(const struct nd *node, int idx, int size)
 	 */
 }
 
-static void vkvv_indirect_key_free(const struct nd *node, int idx)
+static void vkvv_indirect_key_free(const struct nd *node, int idx,
+				   struct m0_be_tx *tx)
 {
 	void     **p_key_addr = vkvv_key(node, idx);
 	void      *key_addr   = *p_key_addr;
 	uint32_t  *key_ref    = key_addr + INDIRECT_REF_COUNT_OFFSET;;
 
 	*key_ref  = *key_ref - 1;
-	if(*key_ref == 0) {
-		m0_free(key_addr + INDIRECT_REF_COUNT_OFFSET);
-	}
+	if(*key_ref == 0)
+		INDIRECT_FREE(key_addr, node->n_tree->t_seg, tx);
 }
 
-static void vkvv_indirect_val_free(const struct nd *node, int idx)
+static void vkvv_indirect_val_free(const struct nd *node, int idx,
+				   struct m0_be_tx *tx)
 {
 	void     **p_val_addr = vkvv_val(node, idx + 1);
 	void      *val_addr   = *p_val_addr;
 	uint32_t  *val_ref    = val_addr + INDIRECT_REF_COUNT_OFFSET;
 
 	*val_ref  = *val_ref - 1;
-	if(*val_ref == 0) {
-		m0_free(val_addr + INDIRECT_REF_COUNT_OFFSET);
-	}
+	if(*val_ref == 0)
+		INDIRECT_FREE(val_addr, node->n_tree->t_seg, tx);
 }
 
-static void vkvv_indirect_rec_del(const struct nd *node, int idx)
+static void vkvv_indirect_rec_del(const struct nd *node, int idx,
+				  struct m0_be_tx *tx)
 {
 	struct vkvv_head *h     = vkvv_data(node);
 	int               count = h->vkvv_used;
@@ -5639,9 +5661,9 @@ static void vkvv_indirect_rec_del(const struct nd *node, int idx)
 	uint32_t          total_ksize;
 	uint32_t          total_vsize;
 
-	vkvv_indirect_key_free(node, idx);
+	vkvv_indirect_key_free(node, idx, tx);
 	if (h->vkvv_level == 0)
-		vkvv_indirect_val_free(node, idx);
+		vkvv_indirect_val_free(node, idx, tx);
 
 	if (idx == count - 1)
 		return;
@@ -5765,12 +5787,12 @@ static void vkvv_inode_del(const struct nd *node, int idx)
 	}
 }
 
-static void vkvv_del(const struct nd *node, int idx)
+static void vkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 {
 	struct vkvv_head *h = vkvv_data(node);
 
 	if (vkvv_addrtype_get(node) == INDIRECT_ADDRESSING)
-		vkvv_indirect_rec_del(node, idx);
+		vkvv_indirect_rec_del(node, idx, tx);
 	else if (vkvv_level(node) == 0)
 		vkvv_lnode_del(node, idx);
 	else
@@ -6477,7 +6499,7 @@ static void btree_tx_commit_cb(void *payload)
 }
 
 static void btree_tx_nodes_capture(struct m0_btree_oimpl *oi,
-				  struct m0_be_tx *tx)
+				   struct m0_be_tx *tx)
 {
 	struct node_capture_info *arr = oi->i_capture;
 	struct slot          node_slot;
@@ -6497,6 +6519,14 @@ static void btree_tx_nodes_capture(struct m0_btree_oimpl *oi,
 		M0_BTREE_TX_CB_CAPTURE(tx, arr[i].nc_node, &btree_tx_commit_cb);
 	}
 }
+#if 0
+static void btree_tx_kv_captyure(struct m0_btree_oimpl *oi,
+				 struct m0_be_tx *tx)
+{
+	// M0_BTREE_TX_CB_CAPTURE(tx, arr[i].nc_node, &btree_tx_commit_cb);
+	// m0_be_tx_capture(tx, &M0_BE_REG(btree->bb_seg, size, ptr));
+}
+#endif
 
 /**
  * This function gets called when splitting is done at root node. This function
@@ -6765,7 +6795,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		 * Check if crc type of new record is same as crc type of node.
 		 * If it is not same, perform upgrade operation for node.
 		*/
-		bnode_val_resize(&tgt, vsize_diff, &bop->bo_rec);
+		bnode_val_resize(&tgt, vsize_diff, &bop->bo_rec, bop->bo_tx);
 		bnode_rec(&tgt);
 	}
 
@@ -6777,9 +6807,9 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		 * btree
 		 */
 		if (!oi->i_key_found)
-			bnode_del(tgt.s_node, tgt.s_idx);
+			bnode_del(tgt.s_node, tgt.s_idx, bop->bo_tx);
 		else
-			bnode_val_resize(&tgt, -vsize_diff, NULL); /*TBD*/
+			bnode_val_resize(&tgt, -vsize_diff, NULL, bop->bo_tx); /*TBD*/
 
 		bnode_done(&tgt, true);
 		tgt.s_node == lev->l_node ? bnode_seq_cnt_update(lev->l_node) :
@@ -6894,6 +6924,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	return btree_put_root_split_handle(bop, &new_rec);
 }
 
+#if 0
 static int indirect_kv_alloc(struct m0_btree_op    *bop,
 			     enum m0_btree_crc_type ctc_type)
 {
@@ -6951,17 +6982,72 @@ static int indirect_kv_alloc(struct m0_btree_op    *bop,
 	return 0;
 
 }
+#endif
+static int indirect_kv_alloc(struct m0_btree_op    *bop,
+			     enum m0_btree_crc_type ctc_type)
+{
+	struct m0_be_seg      *seg      = bop->bo_arbor->t_desc->t_seg;
+	struct m0_be_tx       *tx       = bop->bo_tx;
+	struct m0_btree_oimpl *oi       = bop->bo_i;
+	struct m0_btree_rec   *user_rec = &bop->bo_rec;
+	m0_bcount_t            ksize;
+	m0_bcount_t            vsize;
+	m0_bcount_t            crcsize;
+	uint32_t              *p_ref_count;
+	uint32_t              *p_size;
+
+	ksize   = m0_vec_count(&user_rec->r_key.k_data.ov_vec);
+	vsize   = m0_vec_count(&user_rec->r_val.ov_vec);
+	crcsize = ctc_type == M0_BCT_BTREE_ENC_RAW_HASH ? CRC_VALUE_SIZE : 0;
+
+	if (oi->i_indirect_val != NULL)
+		goto alloc_key;
+
+	oi->i_indirect_vsize = 2 * sizeof(uint32_t) + vsize + crcsize;
+	oi->i_indirect_val   = INDIRECT_ALLOC(oi->i_indirect_vsize, seg, tx);
+	oi->i_indirect_val   = oi->i_indirect_val+ 2 * sizeof(uint32_t);
+
+	p_ref_count  = oi->i_indirect_val + INDIRECT_REF_COUNT_OFFSET;
+	p_size       = oi->i_indirect_val + INDIRECT_SIZE_OFFSET;
+	*p_ref_count = 0;
+	*p_size      = vsize;
+
+	user_rec->r_val.ov_buf = &oi->i_indirect_val;
+
+	alloc_key:
+	if (oi->i_key_found)
+		return 0;
+
+
+	oi->i_indirect_ksize = sizeof(uint32_t) + sizeof(uint32_t) + ksize;
+	oi->i_indirect_key   = INDIRECT_ALLOC(oi->i_indirect_ksize, seg, tx);
+	oi->i_indirect_key   = oi->i_indirect_key + 2 * sizeof(uint32_t);
+
+	p_ref_count  = oi->i_indirect_key + INDIRECT_REF_COUNT_OFFSET;
+	p_size       = oi->i_indirect_key + INDIRECT_SIZE_OFFSET;
+	*p_ref_count = 0;
+	*p_size      = ksize;
+
+	memcpy(oi->i_indirect_key, user_rec->r_key.k_data.ov_buf[0], ksize);
+	user_rec->r_key.k_data.ov_buf = &oi->i_indirect_key;
+
+	return 0;
+
+}
+
 
 static void indirect_kv_free(struct m0_btree_op *bop)
 {
-	struct m0_btree_oimpl *oi = bop->bo_i;
+	struct m0_be_seg      *seg = bop->bo_arbor->t_desc->t_seg;
+	struct m0_be_tx       *tx  = bop->bo_tx;
+	struct m0_btree_oimpl *oi  = bop->bo_i;
 
 	if (bop->bo_op.o_sm.sm_rc) {
 		if (oi->i_indirect_key)
-			m0_free(oi->i_indirect_key + INDIRECT_REF_COUNT_OFFSET);
+			INDIRECT_FREE(oi->i_indirect_key, seg, tx);
 
 		if (oi->i_indirect_val)
-			m0_free(oi->i_indirect_val + INDIRECT_REF_COUNT_OFFSET);
+			INDIRECT_FREE(oi->i_indirect_key, seg, tx);
 		return;
 	}
 
@@ -6970,8 +7056,7 @@ static void indirect_kv_free(struct m0_btree_op *bop)
 		 * In case of UPDATE operation, when INSERT_IF_NOT_FOUND flag is
 		 * set, we might have allocated oi->i_indirect_key.
 		 */
-		m0_free(oi->i_indirect_key + INDIRECT_REF_COUNT_OFFSET);
-
+		INDIRECT_FREE(oi->i_indirect_key, seg, tx);
 }
 
 /* get_tick for insert operation */
@@ -7328,7 +7413,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				 */
 				bnode_lock(lev->l_node);
 				bnode_val_resize(&node_slot, vsize_diff,
-						 &bop->bo_rec);
+						 &bop->bo_rec, bop->bo_tx);
 			} else
 				return btree_put_makespace_phase(bop);
 		}
@@ -7367,9 +7452,9 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			 * btree
 			 */
 			if (bop->bo_opc == M0_BO_PUT)
-				bnode_del(node_slot.s_node, node_slot.s_idx);
+				bnode_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
 			else
-				bnode_val_resize(&node_slot, -vsize_diff, NULL); /*TBD*/
+				bnode_val_resize(&node_slot, -vsize_diff, NULL, bop->bo_tx); /*TBD*/
 
 			bnode_done(&node_slot, true);
 			bnode_seq_cnt_update(lev->l_node);
@@ -7393,6 +7478,20 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	}
 	case P_CAPTURE:
 		btree_tx_nodes_capture(oi, bop->bo_tx);
+		if (oi->i_indirect_key) {
+		void *ptr = oi->i_indirect_key - 2 * sizeof (uint32_t);
+		M0_BTREE_TX_CAPTURE(bop->bo_tx, tree->t_seg,
+				    ptr,
+				    oi->i_indirect_ksize);
+		}
+		if (oi->i_indirect_val) {
+		void *ptr =  oi->i_indirect_val - 2 * sizeof (uint32_t);
+
+		M0_BTREE_TX_CAPTURE(bop->bo_tx, tree->t_seg,
+				   ptr,
+				    oi->i_indirect_vsize);
+		}
+
 		lock_op_unlock(tree);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 	case P_CLEANUP:
@@ -8445,7 +8544,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		lev = &oi->i_level[used_count];
 		bnode_lock(lev->l_node);
 
-		bnode_del(lev->l_node, lev->l_idx);
+		bnode_del(lev->l_node, lev->l_idx, bop->bo_tx);
 		node_slot.s_node = lev->l_node;
 		node_slot.s_idx  = lev->l_idx;
 		bnode_done(&node_slot, false);
@@ -8512,7 +8611,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	curr_root_level  = bnode_level(lev->l_node);
 	root_slot.s_node = lev->l_node;
 	root_slot.s_idx  = 0;
-	bnode_del(lev->l_node, 0);
+	bnode_del(lev->l_node, 0, bop->bo_tx);
 	bnode_done(&root_slot, false);
 
 	/* l_sib is node below root which is root's only child */
@@ -8884,7 +8983,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 
 		bnode_lock(lev->l_node);
 
-		bnode_del(node_slot.s_node, node_slot.s_idx);
+		bnode_del(node_slot.s_node, node_slot.s_idx, bop->bo_tx);
 		bnode_done(&node_slot, false);
 		bnode_seq_cnt_update(lev->l_node);
 		bnode_fix(node_slot.s_node);
@@ -11803,7 +11902,8 @@ static void btree_ut_kv_size_get(enum btree_node_type bnt, int *ksize,
  * created.
  */
 static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
-			     enum btree_node_type bnt)
+			     enum btree_node_type bnt,
+			     enum m0_btree_addr_type addr_type)
 {
 	int                           rc;
 	struct btree_ut_thread_info  *ti;
@@ -11914,7 +12014,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 					 m0_btree_create(rnode, rnode_sz,
 							 &btree_type,
 							 M0_BCT_NO_CRC,
-							 INDIRECT_ADDRESSING,
+							 addr_type,
 							 &b_op, &btree[i], seg,
 							 &fid, tx, NULL));
 		M0_ASSERT(rc == M0_BSC_SUCCESS);
@@ -12003,21 +12103,22 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 static void ut_st_st_kv_oper(void)
 {
 	int i;
-	for (i = 4; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
+	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
 	{
 		if (btree_node_format[i] != NULL)
-			btree_ut_kv_oper(1, 1, i);
+			btree_ut_kv_oper(1, 1, i, DIRECT_ADDRESSING);
 	}
 }
 
 static void ut_mt_st_kv_oper(void)
 {
 	int i;
-	for (i = 4; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
+	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
 	{
 		if (btree_node_format[i] != NULL)
-			btree_ut_kv_oper(0, 1, i);
+			btree_ut_kv_oper(0, 1, i, DIRECT_ADDRESSING);
 	}
+
 }
 
 static void ut_mt_mt_kv_oper(void)
@@ -12026,8 +12127,9 @@ static void ut_mt_mt_kv_oper(void)
 	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
 	{
 		if (btree_node_format[i] != NULL)
-			btree_ut_kv_oper(0, 0, i);
+			btree_ut_kv_oper(0, 0, i, DIRECT_ADDRESSING);
 	}
+
 }
 
 static void ut_rt_rt_kv_oper(void)
@@ -12037,8 +12139,24 @@ static void ut_rt_rt_kv_oper(void)
 	{
 		if (btree_node_format[i] != NULL)
 			btree_ut_kv_oper(RANDOM_THREAD_COUNT, RANDOM_TREE_COUNT,
-					 i);
+					 i, DIRECT_ADDRESSING);
 	}
+}
+
+static void ut_ind_kv_oper(void)
+{
+	btree_ut_kv_oper(1, 1, BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+			 INDIRECT_ADDRESSING);
+
+	btree_ut_kv_oper(0, 1, BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+			 INDIRECT_ADDRESSING);
+
+	btree_ut_kv_oper(0, 0, BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+			 INDIRECT_ADDRESSING);
+
+	btree_ut_kv_oper(RANDOM_THREAD_COUNT, RANDOM_TREE_COUNT,
+			 BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+			 INDIRECT_ADDRESSING);
 }
 
 /**
@@ -12583,8 +12701,10 @@ static void ut_btree_persistence(void)
 	 */
 	rnode_segaddr.as_core = (uint64_t)rnode;
 	nt = btree_node_format[segaddr_ntype_get(&rnode_segaddr)];
-	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr) &&
-		  nt->nt_opaque_get(&rnode_segaddr) == NULL);
+	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr));
+#if (AVOID_BE_SEGMENT == 0)
+		M0_ASSERT(nt->nt_opaque_get(&rnode_segaddr) == NULL);
+#endif
 
 
 	/** Re-map the BE segment.*/
@@ -12662,8 +12782,10 @@ static void ut_btree_persistence(void)
 	 */
 	rnode_segaddr.as_core = (uint64_t)rnode;
 	nt = btree_node_format[segaddr_ntype_get(&rnode_segaddr)];
-	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr) &&
-		  nt->nt_opaque_get(&rnode_segaddr) == NULL);
+	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr));
+#if (AVOID_BE_SEGMENT == 0)
+		M0_ASSERT(nt->nt_opaque_get(&rnode_segaddr) == NULL);
+#endif
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -12764,8 +12886,10 @@ static void ut_btree_persistence(void)
 	 */
 	rnode_segaddr.as_core = (uint64_t)rnode;
 	nt = btree_node_format[segaddr_ntype_get(&rnode_segaddr)];
-	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr) &&
-		  nt->nt_opaque_get(&rnode_segaddr) == NULL);
+	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr));
+#if (AVOID_BE_SEGMENT == 0)
+		M0_ASSERT(nt->nt_opaque_get(&rnode_segaddr) == NULL);
+#endif
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -12840,8 +12964,10 @@ static void ut_btree_persistence(void)
 	 */
 	rnode_segaddr.as_core = (uint64_t)rnode;
 	nt = btree_node_format[segaddr_ntype_get(&rnode_segaddr)];
-	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr) &&
-		  nt->nt_opaque_get(&rnode_segaddr) == NULL);
+	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr));
+#if (AVOID_BE_SEGMENT == 0)
+		M0_ASSERT(nt->nt_opaque_get(&rnode_segaddr) == NULL);
+#endif
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -13452,7 +13578,8 @@ static void ut_btree_crc_test(void)
  * of those nodes across cluster reboots.
  */
 static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
-					       enum m0_btree_crc_type  crc_type)
+					       enum m0_btree_crc_type  crc_type,
+					       enum m0_btree_addr_type addr_type)
 {
 	void                       *rnode;
 	int                         i;
@@ -13545,9 +13672,9 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(rnode, rnode_sz, bt,
-						      crc_type, 0, &b_op,
-						      &btree, seg, &fid, tx,
-						      NULL));
+						      crc_type, addr_type,
+						      &b_op, &btree, seg, &fid,
+						      tx, NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -13596,8 +13723,10 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	 */
 	rnode_segaddr.as_core = (uint64_t)rnode;
 	nt = btree_node_format[segaddr_ntype_get(&rnode_segaddr)];
-	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr) &&
-		  nt->nt_opaque_get(&rnode_segaddr) == NULL);
+	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr));
+#if (AVOID_BE_SEGMENT == 0)
+		M0_ASSERT(nt->nt_opaque_get(&rnode_segaddr) == NULL);
+#endif
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -13674,8 +13803,10 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	 */
 	rnode_segaddr.as_core = (uint64_t)rnode;
 	nt = btree_node_format[segaddr_ntype_get(&rnode_segaddr)];
-	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr) &&
-		  nt->nt_opaque_get(&rnode_segaddr) == NULL);
+	M0_ASSERT(nt->nt_isvalid(&rnode_segaddr));
+#if (AVOID_BE_SEGMENT == 0)
+		M0_ASSERT(nt->nt_opaque_get(&rnode_segaddr) == NULL);
+#endif
 
 	/** Re-map the BE segment.*/
 	m0_be_seg_close(ut_seg->bus_seg);
@@ -13788,7 +13919,7 @@ static void ut_btree_crc_persist_test(void)
 		{
 			{
 				BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
-				sizeof(uint64_t), RANDOM_VALUE_SIZE
+				RANDOM_VALUE_SIZE, RANDOM_VALUE_SIZE
 			},
 			M0_BCT_NO_CRC,
 		},
@@ -13863,9 +13994,57 @@ static void ut_btree_crc_persist_test(void)
 	for (i = 0; i < test_count; i++) {
 		struct m0_btree_type   *bt = &btrees_with_crc[i].bcr_btree_type;
 		enum m0_btree_crc_type  crc = btrees_with_crc[i].bcr_crc_type;
-		ut_btree_crc_persist_test_internal(bt, crc);
+		ut_btree_crc_persist_test_internal(bt, crc, DIRECT_ADDRESSING);
 	}
 
+}
+
+static void ut_btree_ind_crc_persist_test(void)
+{
+	struct btree_crc_data {
+		struct m0_btree_type    bcr_btree_type;
+		enum m0_btree_crc_type  bcr_crc_type;
+	} btrees_with_crc[] = {
+		{
+			{
+				BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+				RANDOM_VALUE_SIZE, RANDOM_VALUE_SIZE
+			},
+			M0_BCT_NO_CRC,
+		},
+		{
+			{
+				BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+				RANDOM_VALUE_SIZE, RANDOM_VALUE_SIZE
+			},
+			M0_BCT_USER_ENC_RAW_HASH,
+		},
+		{
+			{
+				BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+				RANDOM_VALUE_SIZE, RANDOM_VALUE_SIZE
+			},
+			M0_BCT_USER_ENC_FORMAT_FOOTER,
+		},
+		{
+			{
+				BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+				RANDOM_VALUE_SIZE, RANDOM_VALUE_SIZE
+			},
+			M0_BCT_BTREE_ENC_RAW_HASH,
+		},
+
+
+	};
+	uint32_t test_count = ARRAY_SIZE(btrees_with_crc);
+	uint32_t i;
+
+	for (i = 0; i < test_count; i++) {
+		struct m0_btree_type   *bt = &btrees_with_crc[i].bcr_btree_type;
+		enum m0_btree_crc_type  crc = btrees_with_crc[i].bcr_crc_type;
+		ut_btree_crc_persist_test_internal(bt, crc,
+						   INDIRECT_ADDRESSING);
+	}
 }
 
 static int ut_btree_suite_init(void)
@@ -13921,11 +14100,13 @@ struct m0_ut_suite btree_ut = {
 		{"multi_thread_single_tree_kv_op",  ut_mt_st_kv_oper},
 		{"multi_thread_multi_tree_kv_op",   ut_mt_mt_kv_oper},
 		{"random_threads_and_trees_kv_op",  ut_rt_rt_kv_oper},
+		{"indirect_addressing_kv_op",       ut_ind_kv_oper},
 		{"multi_thread_tree_op",            ut_mt_tree_oper},
 		{"btree_persistence",               ut_btree_persistence},
 		{"btree_truncate",                  ut_btree_truncate},
 		{"btree_crc_test",                  ut_btree_crc_test},
 		{"btree_crc_persist_test",          ut_btree_crc_persist_test},
+		{"btree_ind_crc_persist_test",      ut_btree_ind_crc_persist_test},
 		{NULL, NULL}
 	}
 };
