@@ -6519,14 +6519,6 @@ static void btree_tx_nodes_capture(struct m0_btree_oimpl *oi,
 		M0_BTREE_TX_CB_CAPTURE(tx, arr[i].nc_node, &btree_tx_commit_cb);
 	}
 }
-#if 0
-static void btree_tx_kv_captyure(struct m0_btree_oimpl *oi,
-				 struct m0_be_tx *tx)
-{
-	// M0_BTREE_TX_CB_CAPTURE(tx, arr[i].nc_node, &btree_tx_commit_cb);
-	// m0_be_tx_capture(tx, &M0_BE_REG(btree->bb_seg, size, ptr));
-}
-#endif
 
 /**
  * This function gets called when splitting is done at root node. This function
@@ -7478,18 +7470,16 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 	}
 	case P_CAPTURE:
 		btree_tx_nodes_capture(oi, bop->bo_tx);
-		if (oi->i_indirect_key) {
-		void *ptr = oi->i_indirect_key - 2 * sizeof (uint32_t);
-		M0_BTREE_TX_CAPTURE(bop->bo_tx, tree->t_seg,
-				    ptr,
-				    oi->i_indirect_ksize);
+
+		if (oi->i_indirect_key && oi->i_key_found == false) {
+			void *ptr = oi->i_indirect_key - 2 * sizeof (uint32_t);
+			M0_BTREE_TX_CAPTURE(bop->bo_tx, tree->t_seg, ptr,
+					    oi->i_indirect_ksize);
 		}
 		if (oi->i_indirect_val) {
-		void *ptr =  oi->i_indirect_val - 2 * sizeof (uint32_t);
-
-		M0_BTREE_TX_CAPTURE(bop->bo_tx, tree->t_seg,
-				   ptr,
-				    oi->i_indirect_vsize);
+			void *ptr = oi->i_indirect_val - 2 * sizeof (uint32_t);
+			M0_BTREE_TX_CAPTURE(bop->bo_tx, tree->t_seg, ptr,
+					    oi->i_indirect_vsize);
 		}
 
 		lock_op_unlock(tree);
