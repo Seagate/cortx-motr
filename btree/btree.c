@@ -2497,7 +2497,7 @@ static void *ff_val(const struct nd *node, int idx)
 	int             value_offset;
 
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
-		   (0 <= idx && idx <= h->ff_used)));
+		   (0 <= idx && ((uint16_t)idx) <= h->ff_used)));
 
 	node_end_addr = node_start_addr + h->ff_nsize;
 	if (h->ff_level == 0 &&
