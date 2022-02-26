@@ -38,7 +38,6 @@
 
 static struct m0_semaphore    g_sem1;
 static struct m0_semaphore    g_sem2;
-static struct m0_semaphore    g_sem3;
 static char                   g_fdmi_data[] = "hello, FDMI";
 static struct m0_fdmi_src_rec g_src_rec;
 static struct test_rpc_env    g_rpc_env;
@@ -47,7 +46,6 @@ static struct m0_rpc_packet  *g_sent_rpc_packet;
 static bool                   inc_ref_passed;
 static int                    dec_ref_count;
 static bool                   first_filter;
-static int                    refcount;
 
 static const struct m0_fid    g_fid = M0_FID_INIT(0xFA11, 0x11AF);
 
@@ -169,7 +167,6 @@ static void test_fs_get(struct m0_fdmi_src_rec *src_rec)
 	M0_UT_ASSERT(src_rec != NULL);
 	M0_UT_ASSERT(src_rec == &g_src_rec);
 	inc_ref_passed = true;
-	++refcount;
 }
 
 static void test_fs_put(struct m0_fdmi_src_rec *src_rec)
@@ -177,9 +174,6 @@ static void test_fs_put(struct m0_fdmi_src_rec *src_rec)
 	M0_UT_ASSERT(src_rec != NULL);
 	M0_UT_ASSERT(src_rec == &g_src_rec);
 	++dec_ref_count;
-	--refcount;
-	if (refcount == 0)
-		m0_semaphore_up(&g_sem3);
 }
 
 static void test_fs_begin(struct m0_fdmi_src_rec *src_rec)
@@ -256,7 +250,6 @@ void fdmi_sd_send_notif(void)
 	g_var_str = strdup("test");
 	M0_SET0(&g_sem1);
 	M0_SET0(&g_sem2);
-	M0_SET0(&g_sem3);
 	M0_SET0(&g_rpc_env);
 	g_sent_rpc_packet = NULL;
 	inc_ref_passed = false;
@@ -277,7 +270,6 @@ void fdmi_sd_send_notif(void)
 			&pool_item->cpi_rpc_link.rlk_sess);
 	m0_semaphore_init(&g_sem1, 0);
 	m0_semaphore_init(&g_sem2, 0);
-	m0_semaphore_init(&g_sem3, 0);
 	rc = m0_fdmi_source_register(src);
 	M0_UT_ASSERT(rc == 0);
 
@@ -293,7 +285,6 @@ void fdmi_sd_send_notif(void)
 				   g_sent_rpc_packet);
 	/* Wait until record is released */
 	m0_semaphore_down(&g_sem2);
-	m0_semaphore_down(&g_sem3);
 	M0_UT_ASSERT(inc_ref_passed);
 	m0_fdmi_source_deregister(src);
 	m0_fdmi_source_free(src);

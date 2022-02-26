@@ -320,7 +320,6 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 		    &fdmi_sd_timer_fom_ops,
 		    NULL, NULL, reqh);
 	m0_fom_timeout_init(&timer_fom->fstf_timeout);
-	m0_semaphore_init(&timer_fom->fstf_shutdown, 0);
 	m0_fom_queue(&timer_fom->fstf_fom);
 	return M0_RC(0);
 }
@@ -363,43 +362,21 @@ M0_INTERNAL void m0_fdmi__src_dock_fom_wakeup(struct fdmi_sd_fom *sd_fom)
 	M0_LEAVE();
 }
 
-static void fdmi__src_dock_timer_fom_wakeup(struct fdmi_sd_timer_fom *timer_fom)
-{
-	struct m0_fom *fom;
-
-	M0_ENTRY("sd_timer_fom %p", timer_fom);
-	M0_PRE(timer_fom != NULL);
-
-	fom = &timer_fom->fstf_fom;
-
-	if (timer_fom->fstf_wakeup_ast.sa_next == NULL) {
-		timer_fom->fstf_wakeup_ast = (struct m0_sm_ast) {
-			.sa_cb    = wakeup_iff_waiting,
-			.sa_datum = fom
-		};
-		m0_sm_ast_post(&fom->fo_loc->fl_group,
-			       &timer_fom->fstf_wakeup_ast);
-	}
-	M0_LEAVE();
-}
-
-
 M0_INTERNAL void
 m0_fdmi__src_dock_fom_stop(struct m0_fdmi_src_dock *src_dock)
 {
+	struct m0_fom *timer_fom = &src_dock->fsdc_sd_timer_fom.fstf_fom;
 	M0_ENTRY();
 	M0_PRE(src_dock->fsdc_started);
 	src_dock->fsdc_started = false;
 	src_dock->fsdc_filters_defined = false;
 
 	/* Wake up the timer FOM, so it can stop itself */
-	fdmi__src_dock_timer_fom_wakeup(&src_dock->fsdc_sd_timer_fom);
+	if (m0_fom_is_waiting(timer_fom))
+		m0_fom_wakeup(timer_fom);
 	/* Wake up FOM, so it can stop itself */
 	m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
 
-	/* Wait for timer fom finished */
-	m0_semaphore_down(&src_dock->fsdc_sd_timer_fom.fstf_shutdown);
-	m0_semaphore_fini(&src_dock->fsdc_sd_timer_fom.fstf_shutdown);
 	/* Wait for fom finished */
 	m0_semaphore_down(&src_dock->fsdc_sd_fom.fsf_shutdown);
 	m0_semaphore_fini(&src_dock->fsdc_sd_fom.fsf_shutdown);
@@ -545,7 +522,6 @@ static bool pending_fop_clink_cb(struct m0_clink *clink)
 	struct m0_fdmi_src_dock *sd_dock = M0_AMB(sd_dock, sd_fom, fsdc_sd_fom);
 	m0_time_t                now;
 	bool                     est;
-	int                      rc;
 	M0_ENTRY();
 
 	est = m0_rpc_conn_pool_session_established(session);
@@ -559,22 +535,13 @@ static bool pending_fop_clink_cb(struct m0_clink *clink)
 	m0_free(pending_fop);
 
 	if (est) {
-		rc = fdmi_post_fop(fop, session);
-		if (rc == 0) {
-			/*
-			 * At this moment, the fop may already fail and
-			 * fail replied.
-			 */
-			m0_mutex_lock(&sd_dock->fsdc_list_mutex);
-			if (!fdmi_record_inflight_tlink_is_in(src_rec)) {
-				fdmi_record_inflight_tlist_add_tail(
-					&sd_dock->fsdc_rec_inflight, src_rec);
-				M0_LOG(M0_DEBUG, "added to inflight "
-						 "list id = " U128X_F,
-					U128_P(&src_rec->fsr_rec_id));
-			}
-			m0_mutex_unlock(&sd_dock->fsdc_list_mutex);
-		}
+		fdmi_post_fop(fop, session);
+		m0_mutex_lock(&sd_dock->fsdc_list_mutex);
+		fdmi_record_inflight_tlist_add_tail(
+				&sd_dock->fsdc_rec_inflight, src_rec);
+		M0_LOG(M0_DEBUG, "added to inflight list id = " U128X_F,
+				U128_P(&src_rec->fsr_rec_id));
+		m0_mutex_unlock(&sd_dock->fsdc_list_mutex);
 	} else {
 		m0_rpc_conn_pool_put(&sd_fom->fsf_conn_pool, session);
 		/*
@@ -648,13 +615,10 @@ static int sd_fom_send_record(struct fdmi_sd_fom *sd_fom, struct m0_fop *fop,
 		rc = fdmi_post_fop(fop, session);
 		if (rc == 0) {
 			m0_mutex_lock(&src_dock->fsdc_list_mutex);
-			if (!fdmi_record_inflight_tlink_is_in(src_rec)) {
-				fdmi_record_inflight_tlist_add_tail(
-					&src_dock->fsdc_rec_inflight, src_rec);
-				M0_LOG(M0_DEBUG, "added to inflight list id = "
-						 U128X_F,
-						 U128_P(&src_rec->fsr_rec_id));
-			}
+			fdmi_record_inflight_tlist_add_tail(
+				&src_dock->fsdc_rec_inflight, src_rec);
+			M0_LOG(M0_DEBUG, "added to inflight list id = " U128X_F,
+				U128_P(&src_rec->fsr_rec_id));
 			m0_mutex_unlock(&src_dock->fsdc_list_mutex);
 		}
 	} else if (rc == -EBUSY)
@@ -1166,7 +1130,6 @@ static void fdmi_sd_timer_fom_fini(struct m0_fom *fom)
 	M0_ENTRY("fom %p", fom);
 
 	m0_fom_timeout_fini(&timer_fom->fstf_timeout);
-	m0_semaphore_up(&timer_fom->fstf_shutdown);
 	m0_fom_fini(fom);
 	M0_LEAVE();
 }

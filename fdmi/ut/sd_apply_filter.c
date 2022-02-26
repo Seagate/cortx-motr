@@ -32,10 +32,8 @@
 #include "fdmi/ut/sd_common.h"
 
 static struct m0_semaphore    g_sem;
-static struct m0_semaphore    g_sem2;
 static char                   g_fdmi_data[] = "hello, FDMI";
 static struct m0_fdmi_src_rec g_src_rec;
-static int                    g_refcount;
 
 /*********** FilterC stub ***********/
 
@@ -140,17 +138,12 @@ static int test_fs_encode(struct m0_fdmi_src_rec *src_rec,
 
 static void test_fs_get(struct m0_fdmi_src_rec *src_rec)
 {
-	++g_refcount;
 }
 
 static void test_fs_put(struct m0_fdmi_src_rec *src_rec)
 {
 	M0_UT_ASSERT(src_rec != NULL);
 	M0_UT_ASSERT(src_rec == &g_src_rec);
-
-	--g_refcount;
-	if (g_refcount == 0)
-		m0_semaphore_up(&g_sem2);
 }
 
 static void test_fs_end(struct m0_fdmi_src_rec *src_rec)
@@ -190,7 +183,6 @@ static void fdmi_sd_apply_filter_internal(const struct m0_filterc_ops *ops)
 
 	fdmi_serv_start_ut(ops);
 	m0_semaphore_init(&g_sem, 0);
-	m0_semaphore_init(&g_sem2, 0);
 	rc = m0_fdmi_source_register(src);
 	M0_UT_ASSERT(rc == 0);
 	g_src_rec = (struct m0_fdmi_src_rec) {
@@ -200,11 +192,9 @@ static void fdmi_sd_apply_filter_internal(const struct m0_filterc_ops *ops)
 	M0_FDMI_SOURCE_POST_RECORD(&g_src_rec);
 	/* Wait until record is processed and released */
 	m0_semaphore_down(&g_sem);
-	m0_semaphore_down(&g_sem2);
 	m0_fdmi_source_deregister(src);
 	m0_fdmi_source_free(src);
 	m0_semaphore_fini(&g_sem);
-	m0_semaphore_fini(&g_sem2);
 	fdmi_serv_stop_ut();
 	M0_LEAVE();
 }
