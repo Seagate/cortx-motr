@@ -695,7 +695,7 @@ Tests:
     sandbox  : /var/motr/root/sandbox.st-67fdmi-plugin-multi-filters
     groupname: 02motr-single-node
     polltime : 30
-    timeout  : 1800
+    timeout  : 600
 
   - id       : 68sns-repair-shutdown
     script   : 'm0 run-st 68sns-repair-shutdown'

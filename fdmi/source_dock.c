@@ -43,8 +43,9 @@ M0_TL_DEFINE(fdmi_src_dock_src_list, M0_INTERNAL, struct m0_fdmi_src_ctx);
 
 /*
  * FDMI source records list declaration.  This list keeps all records that are
- * waiting for filter processing. When records are processed, they are removed
- * from this list and added to the inflight list.
+ * waiting for filter processing and reply confirmation from plugins.  Once
+ * all plugins received the record and confirmed it, record is deleted from
+ * this list.
  *
  * NOTE. 'release' reply is handled in a different way, when release comes in
  * the record is looked up in a different way.  This list is only needed for
@@ -56,22 +57,6 @@ M0_TL_DESCR_DEFINE(fdmi_record_list, "fdmi rec list", M0_INTERNAL,
 		   M0_FDMI_SRC_DOCK_REC_HEAD_MAGIC);
 
 M0_TL_DEFINE(fdmi_record_list, M0_INTERNAL, struct m0_fdmi_src_rec);
-
-/*
- * Inflight FDMI records. When records are processed, they are moved here.
- * When 'release' is received, ths record is removed from this list.
- *
- * We have a timeout timer waking up the fom periodically, checking
- * if any record in this list has not been acknowledged in a specified
- * time. If yes, we have to give up (release refcount on it and let the
- * dtx done). If not, resend it for processing.
- */
-M0_TL_DESCR_DEFINE(fdmi_record_inflight, "fdmi rec inflight", M0_INTERNAL,
-		   struct m0_fdmi_src_rec, fsr_linkage, fsr_magic,
-		   M0_FDMI_SRC_DOCK_REC_MAGIC,
-		   M0_FDMI_SRC_DOCK_REC_HEAD_MAGIC);
-
-M0_TL_DEFINE(fdmi_record_inflight, M0_INTERNAL, struct m0_fdmi_src_rec);
 
 /* Matched filters list declaration */
 M0_TL_DESCR_DEFINE(fdmi_matched_filter_list, "fdmi matched filter list",
@@ -88,7 +73,6 @@ M0_INTERNAL void m0_fdmi_source_dock_init(struct m0_fdmi_src_dock *src_dock)
 	M0_SET0(src_dock);
 	fdmi_src_dock_src_list_tlist_init(&src_dock->fsdc_src_list);
 	fdmi_record_list_tlist_init(&src_dock->fsdc_posted_rec_list);
-	fdmi_record_inflight_tlist_init(&src_dock->fsdc_rec_inflight);
 	m0_mutex_init(&src_dock->fsdc_list_mutex);
 	src_dock->fsdc_instance_id = 0;
 	M0_LEAVE();
@@ -112,7 +96,6 @@ M0_INTERNAL void m0_fdmi_source_dock_fini(struct m0_fdmi_src_dock *src_dock)
 
 	/* Posted record list is handled by FOM and should be empty here */
 	fdmi_record_list_tlist_fini(&src_dock->fsdc_posted_rec_list);
-	fdmi_record_inflight_tlist_fini(&src_dock->fsdc_rec_inflight);
 	m0_mutex_fini(&src_dock->fsdc_list_mutex);
 
 	M0_LEAVE();
@@ -166,8 +149,6 @@ M0_INTERNAL void m0_fdmi__record_init(struct m0_fdmi_src_rec *src_rec)
 		       src_rec->fsr_src->fs_type_id);
 	}
 
-	src_rec->fsr_init_time = m0_time_now();
-
 	M0_LEAVE();
 }
 
@@ -178,7 +159,6 @@ M0_INTERNAL void m0_fdmi__record_deinit(struct m0_fdmi_src_rec *src_rec)
 
 	fdmi_matched_filter_list_tlist_fini(&src_rec->fsr_filter_list);
 	fdmi_record_list_tlink_fini(src_rec);
-	src_rec->fsr_rec_id = M0_UINT128(0, 0);
 
 	M0_LEAVE();
 }
@@ -188,7 +168,6 @@ M0_INTERNAL void m0_fdmi__rec_id_gen(struct m0_fdmi_src_rec *src_rec)
 	M0_ENTRY("src_rec %p", src_rec);
 	M0_PRE(m0_fdmi__record_is_valid(src_rec));
 	M0_PRE(src_rec->fsr_src != NULL);
-	M0_PRE(src_rec->fsr_rec_id.u_hi == 0 && src_rec->fsr_rec_id.u_lo == 0);
 
         /**
 	 * @todo Phase 2: m0_fdmi__rec_id_gen() should return unique ID within
@@ -233,20 +212,6 @@ M0_INTERNAL void m0_fdmi__rec_id_gen(struct m0_fdmi_src_rec *src_rec)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_fdmi__enqueue_locked(struct m0_fdmi_src_rec *src_rec)
-{
-	struct m0_fdmi_src_dock *src_dock = m0_fdmi_src_dock_get();
-
-	M0_ASSERT(m0_mutex_is_locked(&src_dock->fsdc_list_mutex));
-	M0_ASSERT(src_rec != NULL && src_rec->fsr_src != NULL);
-
-	M0_LOG(M0_DEBUG, "Adding into record list id = "U128X_F,
-			 U128_P(&src_rec->fsr_rec_id));
-	fdmi_record_list_tlist_add_tail(
-			&src_dock->fsdc_posted_rec_list, src_rec);
-	m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
-}
-
 M0_INTERNAL void m0_fdmi__enqueue(struct m0_fdmi_src_rec *src_rec)
 {
 	struct m0_fdmi_src_dock *src_dock = m0_fdmi_src_dock_get();
@@ -254,7 +219,9 @@ M0_INTERNAL void m0_fdmi__enqueue(struct m0_fdmi_src_rec *src_rec)
 	M0_ASSERT(src_rec != NULL && src_rec->fsr_src != NULL);
 
 	m0_mutex_lock(&src_dock->fsdc_list_mutex);
-	m0_fdmi__enqueue_locked(src_rec);
+	fdmi_record_list_tlist_add_tail(
+			&src_dock->fsdc_posted_rec_list, src_rec);
+	m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
 	m0_mutex_unlock(&src_dock->fsdc_list_mutex);
 }
 
@@ -444,11 +411,9 @@ m0_fdmi__sd_rec_type_id_get(struct m0_fdmi_src_rec *src_rec)
 
 M0_INTERNAL int m0_fdmi__handle_release(struct m0_uint128 *fdmi_rec_id)
 {
-	struct m0_fdmi_src_rec  *src_rec;
-	uint64_t                 expected;
-	uint64_t                 actual;
-	struct m0_fdmi_src_dock *src_dock = m0_fdmi_src_dock_get();
-	bool                     waiting;
+	struct m0_fdmi_src_rec *src_rec;
+	uint64_t                expected;
+	uint64_t                actual;
 
 	M0_PRE(fdmi_rec_id != NULL);
 
@@ -478,9 +443,7 @@ M0_INTERNAL int m0_fdmi__handle_release(struct m0_uint128 *fdmi_rec_id)
 	 */
 	src_rec = (void *)fdmi_rec_id->u_lo;
 	if (src_rec == NULL ||
-	    src_rec->fsr_magic != M0_FDMI_SRC_DOCK_REC_MAGIC ||
-	    src_rec->fsr_rec_id.u_hi != fdmi_rec_id->u_hi    ||
-	    src_rec->fsr_rec_id.u_lo != fdmi_rec_id->u_lo) {
+	    src_rec->fsr_magic != M0_FDMI_SRC_DOCK_REC_MAGIC) {
 		/*
 		 * @todo Phase 2.  In Phase 1, we release transaction BEFORE
 		 * this 'release' even comes.  So in Phase 1 we always end up
@@ -498,17 +461,12 @@ M0_INTERNAL int m0_fdmi__handle_release(struct m0_uint128 *fdmi_rec_id)
 		return M0_RC(0);
 	}
 
-	m0_mutex_lock(&src_dock->fsdc_list_mutex);
-	if ((waiting = fdmi_record_inflight_tlink_is_in(src_rec)))
-		fdmi_record_inflight_tlist_remove(src_rec);
-	m0_mutex_unlock(&src_dock->fsdc_list_mutex);
-	if (waiting) {
-		M0_LOG(M0_DEBUG, "src_rec =" U128X_F " ref cnt:%d",
-				 U128_P(&src_rec->fsr_rec_id),
-				 (int)m0_ref_read(&src_rec->fsr_ref) - 1);
-		m0_ref_put(&src_rec->fsr_ref);
-		m0_fdmi__fs_put(src_rec);
-	}
+	M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
+			 U128_P(&src_rec->fsr_rec_id),
+			 (int)m0_ref_read(&src_rec->fsr_ref) - 1);
+	m0_ref_put(&src_rec->fsr_ref);
+	m0_fdmi__fs_put(src_rec);
+
 	/* @todo Phase 2: clear map <fdmi record id, endpoint>. */
 	return M0_RC(0);
 }

@@ -115,7 +115,7 @@ do_some_kv_operations()
 		echo "Now do more index put ..."
 		echo "Because the plug was restarted, these operations "
 		echo "will trigger failure handling"
-		for ((j=0; j<10; j++)); do
+		for ((j=0; j<20; j++)); do
 			echo "j=$j"
 			"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
 					index put    "$DIX_FID" "iter-äää-$j" "something1_anotherstring2*YETanotherstring3-$j"
@@ -151,39 +151,8 @@ do_some_kv_operations()
 		}
 		if $interactive ; then echo "Press Enter to go ..." && read; fi
 
-
-		echo "A second time, kill the two fdmi plug app"
-		echo "This is to simulate the plugin failure"
-		stop_fdmi_plugin
-		sleep 5
-		echo "Because the plugins failed, these operations "
-		echo "will trigger failure handling"
-		for ((j=0; j<4; j++)); do
-			echo "a second time j=$j"
-			"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
-					index put    "$DIX_FID" "iter-äää-2-$j" "something1_anotherstring2*YETanotherstring3-$j"
-		done
-		if $interactive ; then echo "Press Enter to go ..." && read; fi
-
-		echo "Start plugins again ..."
-		rc=1
-		start_fdmi_plugin "$FDMI_FILTER_FID"  "$FDMI_PLUGIN_EP"  &&
-		start_fdmi_plugin "$FDMI_FILTER_FID2" "$FDMI_PLUGIN_EP2" && rc=0
-		if [[ $rc -eq 1 ]] ; then
-			echo "Can not stop and start plug again".
-			return $rc
-		fi
-		sleep 5
-		rc=0
-
-		echo "Because the plugin started, these operations "
-		echo "will work as normal"
-		for ((j=0; j<4; j++)); do
-			echo "back j=$j"
-			"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
-					index put    "$DIX_FID" "iter-äää-3-$j" "something1_anotherstring2*YETanotherstring3-$j"
-		done
-		if $interactive ; then echo "Press Enter to go ..." && read; fi
+		echo "Sleep 100 seconds, if any failure, this would be enough to recover."
+		sleep 100
 
 	done
 	return $rc

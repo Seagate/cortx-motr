@@ -104,11 +104,6 @@ struct m0_fdmi_src_rec {
 	 * set to remote ep after matching.
 	 */
 	bool			    fsr_dryrun;
-
-	/**
-	 * The first time this record is initialized for post.
-	 */
-	m0_time_t                   fsr_init_time;
 };
 
 /** Validates that the record is valid.  Should be used in M0_ASSERT in every

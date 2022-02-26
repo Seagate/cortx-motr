@@ -36,9 +36,6 @@ struct m0_rpc_conn;
 
 #include "fdmi/ut/sd_common.h"
 
-M0_TL_DESCR_DECLARE(fdmi_record_inflight, M0_EXTERN);
-M0_TL_DECLARE(fdmi_record_inflight, M0_EXTERN, struct m0_fdmi_src_rec);
-
 static struct test_rpc_env    g_rpc_env;
 static struct m0_rpc_packet  *g_sent_rpc_packet;
 
@@ -157,7 +154,6 @@ void fdmi_sd_release_fom(void)
 	static struct m0_rpc_conn       rpc_conn;
 	static struct m0_rpc_session    rpc_session;
 	bool                            ok;
-	struct m0_fdmi_src_dock        *src_dock = m0_fdmi_src_dock_get();
 
 	M0_ENTRY();
 
@@ -172,8 +168,6 @@ void fdmi_sd_release_fom(void)
 	m0_fdmi__rec_id_gen(&g_src_rec);
 	m0_ref_init(&g_src_rec.fsr_ref, 1, g_src_rec_free);
 	m0_fdmi__fs_get(&g_src_rec);
-	fdmi_record_inflight_tlist_add_tail(
-				&src_dock->fsdc_rec_inflight, &g_src_rec);
 	rec_id_to_release = g_src_rec.fsr_rec_id;
 	rc = imitate_release_fop_recv(&g_rpc_env);
 	M0_UT_ASSERT(rc == 0);

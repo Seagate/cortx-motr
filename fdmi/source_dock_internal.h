@@ -78,20 +78,12 @@ struct fdmi_sd_fom {
 	struct m0_mutex         fsf_pending_fops_lock;
 	struct m0_semaphore     fsf_shutdown;
 	char                   *fsf_client_ep;
-	bool                    fsf_has_records;
-	m0_time_t               fsf_last_checkpoint;
 };
 
 /** FDMI source dock Release Record FOM */
 struct fdmi_rr_fom {
 	uint64_t                frf_magic;
 	struct m0_fom           frf_fom;
-};
-
-/** FDMI source dock timer FOM */
-struct fdmi_sd_timer_fom {
-	struct m0_fom           fstf_fom;
-	struct m0_fom_timeout   fstf_timeout;
 };
 
 /** FDMI source dock main context */
@@ -116,9 +108,6 @@ struct m0_fdmi_src_dock {
 	 */
 	struct m0_tl          fsdc_posted_rec_list;
 
-	/** FDMI records inflight. */
-	struct m0_tl          fsdc_rec_inflight;
-
 	/** Mutex to protect ->fsdc_posted_rec_list list operations. */
 	struct m0_mutex       fsdc_list_mutex;
 
@@ -128,9 +117,6 @@ struct m0_fdmi_src_dock {
 
 	/** FDMI source dock FOM object */
 	struct fdmi_sd_fom    fsdc_sd_fom;
-
-	/** FDMI source dock timer FOM object */
-	struct fdmi_sd_timer_fom    fsdc_sd_timer_fom;
 };
 
 /**
@@ -151,7 +137,6 @@ struct m0_fdmi_sd_filter_type_handler {
 };
 
 M0_INTERNAL void m0_fdmi__enqueue(struct m0_fdmi_src_rec *src_rec);
-M0_INTERNAL void m0_fdmi__enqueue_locked(struct m0_fdmi_src_rec *src_rec);
 
 /** Function posts new fdmi data for analysis by FDMI source dock. */
 M0_INTERNAL void m0_fdmi__record_post(struct m0_fdmi_src_rec *src_rec);
