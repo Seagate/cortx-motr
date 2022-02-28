@@ -2513,7 +2513,10 @@ static int ctg_pver_fid_get(struct m0_fid *fid)
 	return rc;
 }
 
-static int ctg_k_get(struct scanner *s, const void *addr, struct m0_buf *kv)
+/**
+ * Allocate space for key buf and makes it point to valid addr.
+ */
+static int ctg_k_get(struct scanner *s, const void *addr, struct m0_buf *kbuf)
 {
 	uint64_t len;
 	int	 result;
@@ -2524,18 +2527,21 @@ static int ctg_k_get(struct scanner *s, const void *addr, struct m0_buf *kv)
 		return M0_ERR(result);
 	if (len > s->s_max_reg_size)
 		return M0_ERR(-EPERM);
-	result = m0_buf_alloc(kv, len + M0_CAS_CTG_KEY_HDR_SIZE);
+	result = m0_buf_alloc(kbuf, len + M0_CAS_CTG_KEY_HDR_SIZE);
 	if (result != 0)
 		return M0_ERR(result);
-	*(uint64_t *)kv->b_addr = len;
+	*(uint64_t *)kbuf->b_addr = len;
 	result = deref(s, addr + M0_CAS_CTG_KEY_HDR_SIZE,
-		       kv->b_addr + M0_CAS_CTG_KEY_HDR_SIZE, len);
+		       kbuf->b_addr + M0_CAS_CTG_KEY_HDR_SIZE, len);
 	if (result != 0)
-		m0_buf_free(kv);
+		m0_buf_free(kbuf);
 	return result;
 }
 
-static int ctg_v_get(struct scanner *s, const void *addr, struct m0_buf *kv)
+/**
+ * Allocate space for val buf and makes it point to valid addr.
+ */
+static int ctg_v_get(struct scanner *s, const void *addr, struct m0_buf *vbuf)
 {
 	struct hdr {
 		uint64_t len;
@@ -2549,14 +2555,14 @@ static int ctg_v_get(struct scanner *s, const void *addr, struct m0_buf *kv)
 		return M0_ERR(result);
 	if (hdr.len > s->s_max_reg_size)
 		return M0_ERR(-EPERM);
-	result = m0_buf_alloc(kv, hdr.len + M0_CAS_CTG_VAL_HDR_SIZE);
+	result = m0_buf_alloc(vbuf, hdr.len + M0_CAS_CTG_VAL_HDR_SIZE);
 	if (result != 0)
 		return M0_ERR(result);
-	*(struct hdr *)kv->b_addr = hdr;
+	*(struct hdr *)vbuf->b_addr = hdr;
 	result = deref(s, addr + M0_CAS_CTG_VAL_HDR_SIZE,
-		       kv->b_addr + M0_CAS_CTG_VAL_HDR_SIZE, hdr.len);
+		       vbuf->b_addr + M0_CAS_CTG_VAL_HDR_SIZE, hdr.len);
 	if (result != 0)
-		m0_buf_free(kv);
+		m0_buf_free(vbuf);
 	return result;
 }
 
