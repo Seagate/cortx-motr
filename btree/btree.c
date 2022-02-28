@@ -7044,7 +7044,7 @@ static int indirect_kv_alloc(struct m0_btree_op    *bop,
 
 	oi->i_indirect_vsize = sizeof(uint32_t) + vsize + crcsize;
 	oi->i_indirect_val   = INDIRECT_ALLOC(oi->i_indirect_vsize, seg, tx);
-	oi->i_indirect_val   = oi->i_indirect_val+ sizeof(uint32_t);
+	oi->i_indirect_val   = oi->i_indirect_val + sizeof(uint32_t);
 
 	p_size       = oi->i_indirect_val + INDIRECT_SIZE_OFFSET;
 	*p_size      = vsize;
@@ -7519,22 +7519,24 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		bnode_unlock(lev->l_node);
 		return P_CAPTURE;
 	}
-	case P_CAPTURE:
+	case P_CAPTURE: {
+		void *addr;
 		btree_tx_nodes_capture(oi, bop->bo_tx);
 
 		if (oi->i_indirect_key && oi->i_key_found == false) {
-			void *ptr = oi->i_indirect_key - 2 * sizeof (uint32_t);
-			M0_BTREE_TX_CAPTURE(bop->bo_tx, tree->t_seg, ptr,
+			addr = oi->i_indirect_key + INDIRECT_REF_COUNT_OFFSET;
+			M0_BTREE_TX_CAPTURE(bop->bo_tx, tree->t_seg, addr,
 					    oi->i_indirect_ksize);
 		}
 		if (oi->i_indirect_val) {
-			void *ptr = oi->i_indirect_val - 2 * sizeof (uint32_t);
-			M0_BTREE_TX_CAPTURE(bop->bo_tx, tree->t_seg, ptr,
+			addr = oi->i_indirect_val + INDIRECT_SIZE_OFFSET;
+			M0_BTREE_TX_CAPTURE(bop->bo_tx, tree->t_seg, addr,
 					    oi->i_indirect_vsize);
 		}
 
 		lock_op_unlock(tree);
 		return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
+	}
 	case P_CLEANUP:
 		level_cleanup(oi, bop->bo_tx);
 		return m0_sm_op_ret(&bop->bo_op);
