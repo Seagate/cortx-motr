@@ -1057,10 +1057,9 @@ AS_IF([test x$enable_debug = xyes],
        M0_CPPFLAGS="-DDEBUG $M0_CPPFLAGS"
        M0_KCPPFLAGS="-DDEBUG $M0_KCPPFLAGS"
        M0_CFLAGS="-g -O0 $M0_CFLAGS"
-       # For kernel modules compilation, keep the optimization level to -O2 to
-       # fix issue on CentOS 8 and Rocky Linux 8.
-       # Refer https://gcc.gnu.org/bugzilla//show_bug.cgi?id=84187#c3
-       M0_KCFLAGS="-g -O2 $M0_KCFLAGS"
+       # Kernel code cannot be compiled without any optimisation at all,
+       # but -Og can be used, see https://lwn.net/Articles/756616/.
+       M0_KCFLAGS="-g -Og $M0_KCFLAGS"
        AC_DEFINE([ENABLE_DEBUG])
       ],[
        M0_CFLAGS="-g -O2 $M0_CFLAGS"

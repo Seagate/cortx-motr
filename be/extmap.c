@@ -235,7 +235,7 @@ M0_INTERNAL int m0_be_emap_dump(struct m0_be_emap *map)
 	m0_rwlock_read_unlock(emap_rwlock(map));
 
 	if (seg != NULL)
-		M0_LOG(M0_DEBUG, "%p %"PRIx64" %u %lu", map,
+		M0_LOG(M0_DEBUG, "%p %" PRIx64 " %u %lu", map,
 		       seg->ee_pre.u_hi, (unsigned)nr_cobs,
 		       (unsigned long)nr_segs);
 
@@ -615,10 +615,10 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 			bstart[2] = seg->ee_val;
 			if (seg->ee_cksum_buf.b_nob) {
 				cksum[2].b_nob  = m0_extent_get_checksum_nob(clip.e_end, length[2],
-				                                             it->ec_unit_size, 
+				                                             it->ec_unit_size,
 									     cksum_unit_size);
 				cksum[2].b_addr = m0_extent_get_checksum_addr(seg->ee_cksum_buf.b_addr,
-				                                              clip.e_end, 
+				                                              clip.e_end,
 									      chunk->e_start,
 									      it->ec_unit_size,
 									      cksum_unit_size);
@@ -759,7 +759,7 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 	emap_rec_init(&map->em_rec);
 
 	++map->em_version;
-	M0_LOG(M0_DEBUG, "Nob: key = %"PRIu64" val = %"PRIu64" ",
+	M0_LOG(M0_DEBUG, "Nob: key = %" PRIu64 " val = %" PRIu64 " ",
 			 map->em_key_buf.b_nob, map->em_val_buf.b_nob );
 	op->bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
 		local_op,

@@ -463,7 +463,7 @@ M0_INTERNAL int m0_fdmi__handle_release(struct m0_uint128 *fdmi_rec_id)
 	if (actual != expected) {
 		M0_LOG(M0_WARN,
 		       "Failed rc=1. Received release-record aimed at "
-		       "another source dock instance: u_hi = %"PRIx64", "
+		       "another source dock instance: u_hi = %" PRIx64 ", "
 		       "expected %"PRIx64, actual, expected);
 		/*
 		 * @todo FDMI Phase 2 -- post addb event about invalid

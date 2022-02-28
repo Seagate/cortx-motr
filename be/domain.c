@@ -284,7 +284,7 @@ static int be_domain_seg_create(struct m0_be_domain              *dom,
 	rc = be_domain_seg_open(dom, seg, seg_cfg->bsc_stob_key);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "can't open segment after successful "
-		       "creation. seg_cfg->bsc_stob_key = %"PRIu64", rc = %d",
+		       "creation. seg_cfg->bsc_stob_key = %" PRIu64 ", rc = %d",
 		       seg_cfg->bsc_stob_key, rc);
 		goto seg_destroy;
 	}
@@ -297,7 +297,7 @@ seg_destroy:
 	rc1 = be_domain_seg_destroy(dom, seg_cfg->bsc_stob_key);
 	if (rc1 != 0) {
 		M0_LOG(M0_ERROR, "can't destroy segment after successful "
-		       "creation. seg_cfg->bsc_stob_key = %"PRIu64", rc = %d",
+		       "creation. seg_cfg->bsc_stob_key = %" PRIu64 ", rc = %d",
 		       seg_cfg->bsc_stob_key, rc1);
 	}
 out:
@@ -601,7 +601,7 @@ m0_be_domain_seg_create(struct m0_be_domain               *dom,
 			rc1 = be_domain_seg_destroy(dom, seg_cfg->bsc_stob_key);
 			M0_LOG(M0_ERROR, "can't destroy segment "
 			       "just after creation. "
-			       "seg_cfg->bsc_stob_key = %"PRIu64", rc = %d",
+			       "seg_cfg->bsc_stob_key = %" PRIu64 ", rc = %d",
 			       seg_cfg->bsc_stob_key, rc1);
 		}
 	}

@@ -44,7 +44,7 @@ const struct m0_ha_cookie m0_ha_cookie_no_record = {
 	.hc_uuid       = M0_UINT128(UINT64_MAX, UINT64_MAX),
 };
 
-#define HACO_F "(pid=%"PRIu64" time_start="TIME_F" uptime="TIME_F" " \
+#define HACO_F "(pid=%" PRIu64 " time_start="TIME_F" uptime="TIME_F" " \
 	       "uuid="U128X_F")"
 #define HACO_P(_hc)         (_hc)->hc_pid,         \
 		     TIME_P((_hc)->hc_time_start), \

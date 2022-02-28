@@ -1374,7 +1374,7 @@ int main(int argc, char **argv)
 				cr_log(CLL_INFO, "IO size should always be "
 						 "greater than block size  "
 						 "IOSIZE =%"PRIu64
-						 " BLOCK_SIZE =%"PRIu64"\n",
+						 " BLOCK_SIZE =%" PRIu64 "\n",
 						 cwi->cwi_io_size, cwi->cwi_bs);
 				return M0_ERR(-EINVAL);
 			}
