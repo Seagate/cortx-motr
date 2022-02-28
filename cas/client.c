@@ -1692,10 +1692,10 @@ M0_INTERNAL void m0_cas_put_rep(struct m0_cas_req       *req,
 	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_cas__get(struct m0_cas_req      *req,
-			    struct m0_cas_id       *index,
-			    const struct m0_bufvec *keys,
-			    int                     flags)
+static int m0_cas__get(struct m0_cas_req      *req,
+		       struct m0_cas_id       *index,
+		       const struct m0_bufvec *keys,
+		       int                     flags)
 {
 	struct m0_cas_op      *op;
 	int                    rc;

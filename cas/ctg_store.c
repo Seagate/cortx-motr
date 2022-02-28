@@ -92,9 +92,9 @@ M0_BASSERT(sizeof(struct generic_key) == M0_CAS_CTG_KEY_HDR_SIZE);
 /** Generalised value: versioned counted opaque data. */
 struct generic_value {
 	/* Actual length of gv_data array. */
-	uint64_t           gv_length;
-	struct m0_crv      gv_version;
-	uint8_t            gv_data[0];
+	uint64_t      gv_length;
+	struct m0_crv gv_version;
+	uint8_t       gv_data[0];
 };
 M0_BASSERT(sizeof(struct generic_value) == M0_CAS_CTG_VAL_HDR_SIZE);
 M0_BASSERT(sizeof(struct m0_crv) == 8);
@@ -232,12 +232,13 @@ static m0_bcount_t ctg_vbuf_packed_size(const struct m0_buf *value)
  *            information.
  * @param crv Encoded version of the value.
  */
-static void ctg_vbuf_pack(struct m0_buf            *dst,
-			  const struct m0_buf      *src,
+static void ctg_vbuf_pack(struct m0_buf       *dst,
+			  const struct m0_buf *src,
 			  const struct m0_crv *crv)
 {
 	struct generic_value *value = dst->b_addr;
 	M0_PRE(dst->b_nob >= ctg_vbuf_packed_size(src));
+
 	value->gv_length = src->b_nob;
 	value->gv_version = *crv;
 	memcpy(&value->gv_data, src->b_addr, src->b_nob);
@@ -253,6 +254,8 @@ static int ctg_kbuf_get(struct m0_buf *dst, const struct m0_buf *src,
 	struct generic_key *key;
 
 	M0_ENTRY();
+	M0_PRE(dst->b_nob == 0);
+	M0_PRE(dst->b_addr == NULL);
 
 	if (enabled_fi && M0_FI_ENABLED("cas_alloc_fail"))
 		return M0_ERR(-ENOMEM);
@@ -271,7 +274,7 @@ static int ctg_kbuf_get(struct m0_buf *dst, const struct m0_buf *src,
  * Unpack an an on-disk value data into in-memory format.
  * The function makes "buf" to point to the user-specific data associated
  * with the value (see ::generic_value::gv_data).
- * @param[out] Optional storage for the version of the record.
+ * @param[out] crv Optional storage for the version of the record.
  * @return 0 or else -EPROTO if on-disk/on-wire buffer has invalid length.
  * @see ::ctg_vbuf_pack.
  */
@@ -972,10 +975,10 @@ static bool ctg_is_ordinary(const struct m0_cas_ctg *ctg)
 static bool ctg_op_cb(struct m0_clink *clink)
 {
 	struct m0_ctg_op  *ctg_op   = M0_AMB(ctg_op, clink, co_clink);
-	struct m0_be_op   *op      = ctg_beop(ctg_op);
-	int                opc     = ctg_op->co_opcode;
-	int                ct      = ctg_op->co_ct;
-	struct m0_be_tx   *tx      = &ctg_op->co_fom->fo_tx.tx_betx;
+	struct m0_be_op   *op       = ctg_beop(ctg_op);
+	int                opc      = ctg_op->co_opcode;
+	int                ct       = ctg_op->co_ct;
+	struct m0_be_tx   *tx       = &ctg_op->co_fom->fo_tx.tx_betx;
 	struct m0_chan    *ctg_chan = &ctg_op->co_ctg->cc_chan.bch_chan;
 	int                rc;
 	struct m0_cas_ctg *ctg;
@@ -992,14 +995,15 @@ static bool ctg_op_cb(struct m0_clink *clink)
 	rc = ctg_berc(ctg_op);
 	if (rc == 0) {
 		switch (CTG_OP_COMBINE(opc, ct)) {
-		case CTG_OP_COMBINE(CO_GET, CT_META):
 		case CTG_OP_COMBINE(CO_GET, CT_BTREE):
+		case CTG_OP_COMBINE(CO_GET, CT_META):
 			ctg_op->co_out_val = ctg_op->co_anchor.ba_value;
 			rc = ctg_vbuf_unpack(&ctg_op->co_out_val, NULL);
-			if (rc == 0 && ct == CT_META)
+			if (rc == 0 && ct == CT_META) {
 				rc = ctg_vbuf_as_ctg(&ctg_op->co_out_val, &ctg);
-			if (rc == 0 && ct == CT_META)
-				m0_ctg_try_init(ctg);
+				if (rc == 0)
+					m0_ctg_try_init(ctg);
+			}
 			break;
 		case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
 			if (ctg_is_ordinary(ctg_op->co_ctg))
@@ -1022,10 +1026,11 @@ static bool ctg_op_cb(struct m0_clink *clink)
 						  &ctg_op->co_out_val);
 			rc = ctg_kbuf_unpack(&ctg_op->co_out_key) ?:
 				ctg_vbuf_unpack(&ctg_op->co_out_val, NULL);
-			if (rc == 0 && ct == CT_META)
+			if (rc == 0 && ct == CT_META) {
 				rc = ctg_vbuf_as_ctg(&ctg_op->co_out_val, &ctg);
-			if (rc == 0 && ct == CT_META)
-				m0_ctg_try_init(ctg);
+				if (rc == 0)
+					m0_ctg_try_init(ctg);
+			}
 			break;
 		case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 			ctg_vbuf_pack(&ctg_op->co_anchor.ba_value,
@@ -1151,8 +1156,7 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 		anchor->ba_value.b_nob = sizeof(struct generic_value) +
 					 ctg_op->co_val.b_nob;
-		m0_be_btree_save_inplace(btree, tx, beop,
-					 key, anchor,
+		m0_be_btree_save_inplace(btree, tx, beop, key, anchor,
 					 !!(ctg_op->co_flags & COF_OVERWRITE),
 					 zones);
 		break;
@@ -1208,12 +1212,11 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 
 static int ctg_op_exec_versioned(struct m0_ctg_op *ctg_op, int next_phase)
 {
-	int                        rc;
-	int                        opc = ctg_op->co_opcode;
-	int                        ct  = ctg_op->co_ct;
-	struct m0_be_op           *beop = ctg_beop(ctg_op);
-	bool                       alive_only =
-		!(ctg_op->co_flags & COF_SHOW_DEAD);
+	int              rc;
+	int              opc = ctg_op->co_opcode;
+	int              ct  = ctg_op->co_ct;
+	struct m0_be_op *beop = ctg_beop(ctg_op);
+	bool             alive_only = !(ctg_op->co_flags & COF_SHOW_DEAD);
 
 	M0_PRE(ctg_is_ordinary(ctg_op->co_ctg));
 	M0_PRE(ct == CT_BTREE);
@@ -1305,7 +1308,7 @@ static int ctg_meta_exec(struct m0_ctg_op    *ctg_op,
 			 const struct m0_fid *fid,
 			 int                  next_phase)
 {
-	int            ret;
+	int ret;
 
 	ctg_op->co_ctg = ctg_store.cs_state->cs_meta;
 	ctg_op->co_ct = CT_META;
@@ -1411,7 +1414,7 @@ static int ctg_exec(struct m0_ctg_op    *ctg_op,
 		    const struct m0_buf *key,
 		    int                  next_phase)
 {
-	int               ret     = M0_FSO_AGAIN;
+	int ret = M0_FSO_AGAIN;
 
 	ctg_op->co_ctg = ctg;
 	ctg_op->co_ct = CT_BTREE;
@@ -1460,8 +1463,9 @@ M0_INTERNAL int m0_ctg_lookup_delete(struct m0_ctg_op    *ctg_op,
 				     int                  flags,
 				     int                  next_phase)
 {
-	struct m0_fom             *fom0;
-	int                        ret = M0_FSO_AGAIN;
+	struct m0_fom *fom0;
+	int            ret = M0_FSO_AGAIN;
+	int            rc;
 
 	M0_PRE(ctg_op != NULL);
 	M0_PRE(ctg != NULL);
@@ -1491,7 +1495,8 @@ M0_INTERNAL int m0_ctg_lookup_delete(struct m0_ctg_op    *ctg_op,
 	 * Copy value with allocation because it refers the memory
 	 * chunk that will not be avilable after the delete op.
 	 */
-	m0_buf_copy(val, &ctg_op->co_out_val);
+	rc = m0_buf_copy(val, &ctg_op->co_out_val);
+	M0_ASSERT(rc == 0);
 	m0_ctg_op_fini(ctg_op);
 
 	/* Now delete the value by key. */
@@ -1565,8 +1570,8 @@ M0_INTERNAL void m0_ctg_lookup_result(struct m0_ctg_op *ctg_op,
 	*buf = ctg_op->co_out_val;
 }
 
-M0_INTERNAL void m0_ctg_op_get_ver(struct m0_ctg_op     *ctg_op,
-				   struct m0_crv *out)
+M0_INTERNAL void m0_ctg_op_get_ver(struct m0_ctg_op *ctg_op,
+				   struct m0_crv    *out)
 {
 	M0_PRE(ctg_op != NULL);
 	M0_PRE(out != NULL);
@@ -2226,7 +2231,7 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 	struct m0_fid gfid = { 0, 0};
 	struct m0_buf key;
 	struct m0_buf val;
-	struct m0_be_btree_cursor  cursor;
+	struct m0_be_btree_cursor cursor;
 	struct m0_cas_ctg *ctg = NULL;
 	bool dumped = false;
 	bool dump_in_hex = false;

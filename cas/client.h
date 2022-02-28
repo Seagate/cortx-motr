@@ -202,11 +202,11 @@ struct m0_cas_ilist_reply {
  * Single value retrieved by m0_cas_get() request.
  */
 struct m0_cas_get_reply {
-	int                  cge_rc;
+	int           cge_rc;
 	/** Retrieved value. Undefined if cge_rc != 0. */
-	struct m0_buf        cge_val;
+	struct m0_buf cge_val;
 	/** Version of the record. */
-	struct m0_crv        cge_ver;
+	struct m0_crv cge_ver;
 };
 
 /**
@@ -214,15 +214,15 @@ struct m0_cas_get_reply {
  */
 struct m0_cas_next_reply {
 	/** Return code. -ENOENT means that end of index is reached. */
-	int                  cnp_rc;
+	int                cnp_rc;
 	/** Record key. Set if rc == 0. */
-	struct m0_buf        cnp_key;
+	struct m0_buf      cnp_key;
 	/** Record hint. Not used for now. */
-	struct m0_cas_hint   cnp_hint;
+	struct m0_cas_hint cnp_hint;
 	/** Record value. Set if rc == 0. */
-	struct m0_buf        cnp_val;
+	struct m0_buf      cnp_val;
 	/** Version of the record. */
-	struct m0_crv        cnp_ver;
+	struct m0_crv      cnp_ver;
 };
 
 /**
