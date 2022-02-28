@@ -264,11 +264,11 @@ M0_INTERNAL void m0_crv_init(struct m0_crv           *crv,
 	M0_POST(m0_crv_ts(crv).dts_phys == version);
 }
 
-/*
+/**
  * Compare two versions.
  *   Note, tombstones are checked at the end which means that if there are two
  * different operations with the same version (for example, PUT@10 and DEL@10)
- * then the operation that puts the tombstone (DEL@10) is always considered
+ * then the operation that sets the tombstone (DEL@10) is always considered
  * to be "newer" than the other one. It helps to ensure operations have the
  * same order on any server despite the order of execution.
  */

@@ -244,9 +244,9 @@ static void ctg_vbuf_pack(struct m0_buf       *dst,
 	memcpy(&value->gv_data, src->b_addr, src->b_nob);
 }
 
-/*
- * Create a new m0_buf filled with CAS-specific data (length).
- * Note: the function allocates a new buffer.
+/**
+ * Allocates memory for dst buf and fills it with CAS-specific data and
+ * length from src buf.
  */
 static int ctg_kbuf_get(struct m0_buf *dst, const struct m0_buf *src,
 			bool enabled_fi)
@@ -271,7 +271,7 @@ static int ctg_kbuf_get(struct m0_buf *dst, const struct m0_buf *src,
 }
 
 /**
- * Unpack an an on-disk value data into in-memory format.
+ * Unpack an on-disk value data into in-memory format.
  * The function makes "buf" to point to the user-specific data associated
  * with the value (see ::generic_value::gv_data).
  * @param[out] crv Optional storage for the version of the record.
