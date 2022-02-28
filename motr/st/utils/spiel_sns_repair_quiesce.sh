@@ -29,7 +29,6 @@ export MOTR_CLIENT_ONLY=1
 
 spiel_sns_repair_quiesce_test()
 {
-	local fail_device1=1
 	local fail_device2=9
 	local fail_device3=3
 

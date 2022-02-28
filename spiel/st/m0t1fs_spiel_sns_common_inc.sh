@@ -134,7 +134,7 @@ spiel_prepare()
 	echo SPIEL_FIDS_LIST=$SPIEL_FIDS_LIST
 
 	# install "motr" Python module required by m0spiel tool
-	cd $TOPDIR/utils/spiel
+	cd "$TOPDIR"/utils/spiel
 	python2 setup.py install --record $PYTHON_STUFF > /dev/null ||\
 		die 'Cannot install Python "motr" module'
 	cd -
@@ -142,7 +142,7 @@ spiel_prepare()
 
 spiel_cleanup()
 {
-	cd $TOPDIR/utils/spiel
+	cd "$TOPDIR"/utils/spiel
 	cat $PYTHON_STUFF | xargs rm -rf
 	rm -rf build/ $PYTHON_STUFF
 	cd -
@@ -150,8 +150,8 @@ spiel_cleanup()
 
 spiel_sns_repair_start()
 {
-echo $TOPDIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $TOPDIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS"
+    "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS" <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
