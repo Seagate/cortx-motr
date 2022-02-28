@@ -888,8 +888,16 @@ struct node_type {
 	/** Cleanup of the node if any before deallocation */
 	void (*nt_fini)(const struct nd *node);
 
+	/**
+	 * Returns CRC type for given node. Refer enum m0_btree_crc_type for
+	 * different CRC types.
+	 **/
 	uint32_t (*nt_crctype_get)(const struct nd *node);
 
+	/**
+	 * Returns address type for given node. Refer enum m0_btree_addr_type
+	 * for different address types.
+	 */
 	uint32_t (*nt_addrtype_get)(const struct nd *node);
 
 	/** Returns count of records/values in the node*/
@@ -996,6 +1004,7 @@ struct node_type {
 	/** Deletes the record from the node at specific index */
 	void (*nt_del)  (const struct nd *node, int idx, struct m0_be_tx *tx);
 
+	/** Moves record(s) between nodes in case of indirect addressing */
 	void (*nt_indirect_move) (struct nd *src, struct nd *tgt,
 				  enum direction dir, int nr);
 	/** Updates the level of node */
@@ -1267,7 +1276,6 @@ static void bnode_done(struct slot *slot, bool modified);
 static void bnode_make(struct slot *slot);
 static void bnode_val_resize(struct slot *slot, int vsize_diff,
 			     struct m0_btree_rec *new_rec, struct m0_be_tx *tx);
-
 static bool bnode_find (struct slot *slot, struct m0_btree_key *key);
 static void bnode_seq_cnt_update (struct nd *node);
 static void bnode_fix  (const struct nd *node);
@@ -2986,7 +2994,7 @@ static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 }
 
 static void ff_indirect_move(struct nd *src, struct nd *tgt,
-			       enum direction dir, int nr)
+			     enum direction dir, int nr)
 {
 	/* Indirect addressing is not supported for this node type. */
 	M0_ASSERT(0);
@@ -3590,7 +3598,6 @@ static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 	/* Currently, indirect addressing is not supported for this node type */
 	M0_PRE(addr_type != INDIRECT_ADDRESSING);
 	M0_SET0(h);
-
 
 	h->fkvv_ksize             = ksize;
 	h->fkvv_nsize             = nsize;
@@ -4780,15 +4787,14 @@ static int  vkvv_count_rec(const struct nd *node)
  */
 static int  vkvv_space(const struct nd *node)
 {
-	struct vkvv_head      *h          = vkvv_data(node);
-	uint32_t               total_size = h->vkvv_nsize;
-
-	uint32_t               size_of_all_keys;
-	uint32_t               size_of_all_values;
-	uint32_t               available_size;
-	struct dir_rec        *dir_entry;
-	uint32_t               dir_size = 0;
-	uint32_t              *offset;
+	struct vkvv_head *h          = vkvv_data(node);
+	uint32_t          total_size = h->vkvv_nsize;
+	uint32_t          size_of_all_keys;
+	uint32_t          size_of_all_values;
+	uint32_t          available_size;
+	struct dir_rec   *dir_entry;
+	uint32_t          dir_size = 0;
+	uint32_t         *offset;
 
 	if (vkvv_addrtype_get(node) == INDIRECT_ADDRESSING) {
 		size_of_all_keys = INDIRECT_KEY_SIZE * h->vkvv_used;
@@ -4805,7 +4811,7 @@ static int  vkvv_space(const struct nd *node)
 		}
 	} else {
 		if (h->vkvv_used == 0)
-				size_of_all_keys = 0;
+			size_of_all_keys = 0;
 		else {
 			offset = vkvv_get_key_offset(node, h->vkvv_used - 1);
 			size_of_all_keys = *offset;
@@ -4922,10 +4928,10 @@ static void vkvv_fid(const struct nd *node, struct m0_fid *fid)
 
 static uint32_t vkvv_indirect_rec_key_size(const struct nd *node, int idx)
 {
-	struct vkvv_head *h = vkvv_data(node);
-	uint32_t offset     = INDIRECT_KEY_SIZE * idx;
-	void **p_k_addr     = ((void*)h + sizeof(*h) + offset);
-	void *k_addr        = *p_k_addr;
+	struct vkvv_head *h        = vkvv_data(node);
+	uint32_t          offset   = INDIRECT_KEY_SIZE * idx;
+	void            **p_k_addr = (void*)h + sizeof(*h) + offset;
+	void             *k_addr   = *p_k_addr;
 
 	return *(uint32_t*)(k_addr + INDIRECT_SIZE_OFFSET);
 }
@@ -4970,10 +4976,10 @@ static uint32_t vkvv_rec_key_size(const struct nd *node, int idx)
 
 static uint32_t vkvv_indirect_rec_val_size(const struct nd *node, int idx)
 {
-	struct vkvv_head *h = vkvv_data(node);
-	int size            = h->vkvv_nsize;
-	int vsize;
-	int offset;
+	struct vkvv_head *h    = vkvv_data(node);
+	int               size = h->vkvv_nsize;
+	int               vsize;
+	int               offset;
 
 	if (h->vkvv_level == 0) {
 		void **p_v_addr;
@@ -5106,10 +5112,10 @@ static void *vkvv_val(const struct nd *node, int idx)
  */
 static void vkvv_node_key(struct slot *slot)
 {
-	const struct nd  *node = slot->s_node;
-	struct vkvv_head  *h   = vkvv_data(node);
-	void              *key_addr;
-	void             **p_key_addr;
+	const struct nd          *node = slot->s_node;
+	struct       vkvv_head   *h    = vkvv_data(node);
+	void                     *key_addr;
+	void                    **p_key_addr;
 
 	M0_PRE(ergo(!(h->vkvv_used == 0 && slot->s_idx == 0),
 		    slot->s_idx <= h->vkvv_used));
@@ -5173,9 +5179,6 @@ static void vkvv_rec(struct slot *slot)
 	M0_POST(vkvv_rec_is_valid(slot));
 }
 
-/**
- * @brief This function validates the structure of the node.
- */
 static bool vkvv_invariant(const struct nd *node)
 {
 	struct vkvv_head *h = vkvv_data(node);
@@ -7066,9 +7069,7 @@ static int indirect_kv_alloc(struct m0_btree_op    *bop,
 	user_rec->r_key.k_data.ov_buf = &oi->i_indirect_key;
 
 	return 0;
-
 }
-
 
 static void indirect_kv_free(struct m0_btree_op *bop)
 {
