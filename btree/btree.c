@@ -4522,8 +4522,8 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 #define INDIRECT_FREE(ptr, seg, tx)                                            \
 	({                                                                     \
 		struct m0_buf buf;                                             \
-		buf =  M0_BUF_INIT(0, (ptr) + INDIRECT_REF_COUNT_OFFSET);      \
-		M0_BE_FREE_ALIGN_BUF_SYNC(&buf, 0, (seg), (tx));              \
+		buf =  M0_BUF_INIT(0, (ptr));                                  \
+		M0_BE_FREE_ALIGN_BUF_SYNC(&buf, 0, (seg), (tx));               \
 	})
 
 
@@ -5420,11 +5420,8 @@ static void vkvv_indirect_val_fill(struct slot *slot)
 {
 	void     **p_val_addr = vkvv_val(slot->s_node, slot->s_idx + 1);
 	void      *val_addr   = slot->s_rec.r_val.ov_buf[0];
-	uint32_t  *val_ref;
 
 	*p_val_addr = val_addr;
-	val_ref     = val_addr + INDIRECT_REF_COUNT_OFFSET;
-	*val_ref    = *val_ref + 1;
 }
 
 static void vkvv_indirect_rec_make(struct slot *slot)
@@ -5638,17 +5635,15 @@ static void vkvv_indirect_val_resize(struct slot *slot,
 {
 	void     **p_val_addr = vkvv_val(slot->s_node, slot->s_idx + 1);
 	void      *val_addr   = *p_val_addr;
-	uint32_t  *val_ref    = val_addr + INDIRECT_REF_COUNT_OFFSET;
 
 	M0_PRE(new_rec != NULL);
 	M0_PRE(tx != NULL);
-	M0_ASSERT(*val_ref == 1);
-	INDIRECT_FREE(val_addr, slot->s_node->n_tree->t_seg, tx);
+
+	INDIRECT_FREE(val_addr + INDIRECT_SIZE_OFFSET,
+		      slot->s_node->n_tree->t_seg, tx);
 
 	val_addr    = new_rec->r_val.ov_buf[0];
 	*p_val_addr = val_addr;
-	val_ref     = val_addr + INDIRECT_REF_COUNT_OFFSET;
-	*val_ref    = *val_ref + 1;
 }
 
 static void vkvv_val_resize(struct slot *slot, int vsize_diff,
@@ -5724,11 +5719,12 @@ static void vkvv_indirect_key_free(const struct nd *node, int idx,
 {
 	void     **p_key_addr = vkvv_key(node, idx);
 	void      *key_addr   = *p_key_addr;
-	uint32_t  *key_ref    = key_addr + INDIRECT_REF_COUNT_OFFSET;;
+	uint32_t  *key_ref    = key_addr + INDIRECT_REF_COUNT_OFFSET;
 
 	*key_ref  = *key_ref - 1;
 	if(*key_ref == 0)
-		INDIRECT_FREE(key_addr, node->n_tree->t_seg, tx);
+		INDIRECT_FREE(key_addr + INDIRECT_REF_COUNT_OFFSET,
+			      node->n_tree->t_seg, tx);
 }
 
 static void vkvv_indirect_val_free(const struct nd *node, int idx,
@@ -5736,11 +5732,8 @@ static void vkvv_indirect_val_free(const struct nd *node, int idx,
 {
 	void     **p_val_addr = vkvv_val(node, idx + 1);
 	void      *val_addr   = *p_val_addr;
-	uint32_t  *val_ref    = val_addr + INDIRECT_REF_COUNT_OFFSET;
 
-	*val_ref  = *val_ref - 1;
-	if(*val_ref == 0)
-		INDIRECT_FREE(val_addr, node->n_tree->t_seg, tx);
+	INDIRECT_FREE(val_addr + INDIRECT_SIZE_OFFSET, node->n_tree->t_seg, tx);
 }
 
 static void vkvv_indirect_rec_del(const struct nd *node, int idx,
@@ -7026,65 +7019,6 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	return btree_put_root_split_handle(bop, &new_rec);
 }
 
-#if 0
-static int indirect_kv_alloc(struct m0_btree_op    *bop,
-			     enum m0_btree_crc_type ctc_type)
-{
-	struct m0_btree_oimpl *oi       = bop->bo_i;
-	struct m0_btree_rec   *user_rec = &bop->bo_rec;
-	m0_bcount_t  ksize;
-	m0_bcount_t  vsize;
-	m0_bcount_t  crcsize;
-	uint32_t    *p_ref_count;
-	uint32_t    *p_size;
-
-	ksize   = m0_vec_count(&user_rec->r_key.k_data.ov_vec);
-	vsize   = m0_vec_count(&user_rec->r_val.ov_vec);
-	crcsize = ctc_type == M0_BCT_BTREE_ENC_RAW_HASH ? CRC_VALUE_SIZE : 0;
-
-	if (oi->i_indirect_val != NULL)
-		goto alloc_key;
-
-	/* v_ref | size |---val---| CRC |*/
-	oi->i_indirect_val = m0_alloc(sizeof(uint32_t) + sizeof(uint32_t) +
-				      vsize + crcsize);
-	if (oi->i_indirect_val == NULL)
-		return M0_ERR(-ENOMEM);
-
-	oi->i_indirect_val = oi->i_indirect_val+ 2 * sizeof(uint32_t);
-	p_ref_count = oi->i_indirect_val + INDIRECT_REF_COUNT_OFFSET;
-	p_size      = oi->i_indirect_val + INDIRECT_SIZE_OFFSET;
-	*p_ref_count = 0;
-	*p_size      = vsize;
-
-	user_rec->r_val.ov_buf = &oi->i_indirect_val;
-
-	alloc_key:
-	if (oi->i_key_found)
-		return 0;
-
-	/* k_ref | size |---key---|*/
-	oi->i_indirect_key = m0_alloc(sizeof(uint32_t) + sizeof(uint32_t) +
-				      ksize);
-	if (oi->i_indirect_key == NULL) {
-		m0_free(oi->i_indirect_val);
-		return M0_ERR(-ENOMEM);
-	}
-
-	oi->i_indirect_key = oi->i_indirect_key + 2 * sizeof(uint32_t);
-
-	p_ref_count = oi->i_indirect_key + INDIRECT_REF_COUNT_OFFSET;
-	p_size      = oi->i_indirect_key + INDIRECT_SIZE_OFFSET;
-	*p_ref_count = 0;
-	*p_size      = ksize;
-
-	memcpy(oi->i_indirect_key, user_rec->r_key.k_data.ov_buf[0], ksize);
-	user_rec->r_key.k_data.ov_buf = &oi->i_indirect_key;
-
-	return 0;
-
-}
-#endif
 static int indirect_kv_alloc(struct m0_btree_op    *bop,
 			     enum m0_btree_crc_type ctc_type)
 {
@@ -7105,13 +7039,11 @@ static int indirect_kv_alloc(struct m0_btree_op    *bop,
 	if (oi->i_indirect_val != NULL)
 		goto alloc_key;
 
-	oi->i_indirect_vsize = 2 * sizeof(uint32_t) + vsize + crcsize;
+	oi->i_indirect_vsize = sizeof(uint32_t) + vsize + crcsize;
 	oi->i_indirect_val   = INDIRECT_ALLOC(oi->i_indirect_vsize, seg, tx);
-	oi->i_indirect_val   = oi->i_indirect_val+ 2 * sizeof(uint32_t);
+	oi->i_indirect_val   = oi->i_indirect_val+ sizeof(uint32_t);
 
-	p_ref_count  = oi->i_indirect_val + INDIRECT_REF_COUNT_OFFSET;
 	p_size       = oi->i_indirect_val + INDIRECT_SIZE_OFFSET;
-	*p_ref_count = 0;
 	*p_size      = vsize;
 
 	user_rec->r_val.ov_buf = &oi->i_indirect_val;
@@ -7143,22 +7075,28 @@ static void indirect_kv_free(struct m0_btree_op *bop)
 	struct m0_be_seg      *seg = bop->bo_arbor->t_desc->t_seg;
 	struct m0_be_tx       *tx  = bop->bo_tx;
 	struct m0_btree_oimpl *oi  = bop->bo_i;
+	void                  *addr;
 
 	if (bop->bo_op.o_sm.sm_rc) {
-		if (oi->i_indirect_key)
-			INDIRECT_FREE(oi->i_indirect_key, seg, tx);
-
-		if (oi->i_indirect_val)
-			INDIRECT_FREE(oi->i_indirect_key, seg, tx);
+		if (oi->i_indirect_key) {
+			addr = oi->i_indirect_key + INDIRECT_REF_COUNT_OFFSET;
+			INDIRECT_FREE(addr, seg, tx);
+		}
+		if (oi->i_indirect_val) {
+			addr = oi->i_indirect_val + INDIRECT_SIZE_OFFSET;
+			INDIRECT_FREE(addr, seg, tx);
+		}
 		return;
 	}
 
-	if (oi->i_indirect_key != NULL && oi->i_key_found)
+	if (oi->i_indirect_key != NULL && oi->i_key_found) {
 		/**
 		 * In case of UPDATE operation, when INSERT_IF_NOT_FOUND flag is
 		 * set, we might have allocated oi->i_indirect_key.
 		 */
-		INDIRECT_FREE(oi->i_indirect_key, seg, tx);
+		addr = oi->i_indirect_key + INDIRECT_REF_COUNT_OFFSET;
+		INDIRECT_FREE(addr, seg, tx);
+	}
 }
 
 /* get_tick for insert operation */
