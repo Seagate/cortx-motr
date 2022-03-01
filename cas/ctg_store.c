@@ -1151,6 +1151,7 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 	int                        opc    = ctg_op->co_opcode;
 	int                        ct     = ctg_op->co_ct;
 	uint64_t                   zones = ctg_op_zones(ctg_op);
+	M0_ENTRY("opc=%d ct=%d", opc, ct);
 
 	switch (CTG_OP_COMBINE(opc, ct)) {
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
@@ -1207,7 +1208,7 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 		break;
 	}
 
-	return ctg_op_tick_ret(ctg_op, next_phase);
+	return M0_RC(ctg_op_tick_ret(ctg_op, next_phase));
 }
 
 static int ctg_op_exec_versioned(struct m0_ctg_op *ctg_op, int next_phase)
@@ -1217,6 +1218,7 @@ static int ctg_op_exec_versioned(struct m0_ctg_op *ctg_op, int next_phase)
 	int              ct  = ctg_op->co_ct;
 	struct m0_be_op *beop = ctg_beop(ctg_op);
 	bool             alive_only = !(ctg_op->co_flags & COF_SHOW_DEAD);
+	M0_ENTRY();
 
 	M0_PRE(ctg_is_ordinary(ctg_op->co_ctg));
 	M0_PRE(ct == CT_BTREE);
@@ -1270,12 +1272,14 @@ static int ctg_op_exec_versioned(struct m0_ctg_op *ctg_op, int next_phase)
 		m0_be_op_done(beop);
 	}
 
-	m0_fom_phase_set(ctg_op->co_fom, next_phase);
-	return M0_FSO_AGAIN;
+	if (next_phase >= 0)
+		m0_fom_phase_set(ctg_op->co_fom, next_phase);
+	return M0_RC(M0_FSO_AGAIN);
 }
 
 static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 {
+	M0_ENTRY();
 	ctg_op->co_is_versioned = ctg_op_is_versioned(ctg_op);
 
 	return ctg_op->co_is_versioned ?
@@ -1309,6 +1313,7 @@ static int ctg_meta_exec(struct m0_ctg_op    *ctg_op,
 			 int                  next_phase)
 {
 	int ret;
+	M0_ENTRY();
 
 	ctg_op->co_ctg = ctg_store.cs_state->cs_meta;
 	ctg_op->co_ct = CT_META;
@@ -1324,7 +1329,7 @@ static int ctg_meta_exec(struct m0_ctg_op    *ctg_op,
 	} else
 		ret = ctg_op_exec(ctg_op, next_phase);
 
-	return ret;
+	return M0_RC(ret);
 }
 
 
@@ -1361,6 +1366,7 @@ M0_INTERNAL int m0_ctg_meta_lookup(struct m0_ctg_op    *ctg_op,
 	M0_PRE(ctg_op != NULL);
 	M0_PRE(fid != NULL);
 	M0_PRE(ctg_op->co_beop.bo_sm.sm_state == M0_BOS_INIT);
+	M0_ENTRY();
 
 	ctg_op->co_opcode = CO_GET;
 
@@ -1466,6 +1472,7 @@ M0_INTERNAL int m0_ctg_lookup_delete(struct m0_ctg_op    *ctg_op,
 	struct m0_fom *fom0;
 	int            ret = M0_FSO_AGAIN;
 	int            rc;
+	M0_ENTRY();
 
 	M0_PRE(ctg_op != NULL);
 	M0_PRE(ctg != NULL);
@@ -1486,7 +1493,9 @@ M0_INTERNAL int m0_ctg_lookup_delete(struct m0_ctg_op    *ctg_op,
 	/* Pass -1 as the next_phase to indicate we don't set it now. */
 	if (ctg_op->co_rc == 0)
 		ctg_op_exec(ctg_op, -1);
-	if (ctg_op->co_rc != 0) {
+
+	/* It's fine if NOT found (e.g. for DEAD record)*/
+	if (ctg_op->co_rc != 0 && ctg_op->co_rc != -ENOENT) {
 		m0_fom_phase_set(fom0, next_phase);
 		return ret;
 	}
@@ -2447,6 +2456,7 @@ static int versioned_get_sync(struct m0_ctg_op *ctg_op)
 	struct m0_be_btree        *btree  = &ctg_op->co_ctg->cc_tree;
 	struct m0_be_btree_anchor *anchor = &ctg_op->co_anchor;
 	int                        rc;
+	M0_ENTRY();
 
 	M0_PRE(ctg_op->co_is_versioned);
 
@@ -2459,7 +2469,7 @@ static int versioned_get_sync(struct m0_ctg_op *ctg_op)
 
 	if (rc == 0) {
 		if (m0_crv_tbs(&ctg_op->co_out_ver))
-			rc = -ENOENT;
+			rc = M0_ERR(-ENOENT);
 		else
 			ctg_op->co_out_val = anchor->ba_value;
 	}

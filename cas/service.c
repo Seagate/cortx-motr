@@ -1184,7 +1184,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	bool                do_ctidx;
 	int                 next_phase;
 
-	M0_ENTRY("fom %p phase %d", fom, phase);
+	M0_ENTRY("fom %p phase %d op_flag=0x%x", fom, phase, op->cg_flags);
 	M0_PRE(ctidx != NULL);
 	M0_PRE(cas_fom_invariant(fom));
 	M0_PRE(ergo(is_dtm0_used, m0_dtm0_tx_desc__invariant(&op->cg_txd)));
@@ -2163,6 +2163,7 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 	struct m0_cas_id          *cid;
 	struct m0_cas_rec         *rec;
 	enum m0_fom_phase_outcome  ret = M0_FSO_AGAIN;
+	M0_ENTRY("opc=%d ct=%d", opc, ct);
 
 	cas_incoming_kv(fom, rec_pos, &kbuf, &vbuf);
 	if (ct == CT_META)
