@@ -34,9 +34,6 @@
                  35m0singlenode
                  36spare-reservation
                  37protocol
-                 40motr-dgmode
-                 43motr-sync-replication
-                 45motr-rmw
                  51kem)
  
  # libisal does not need kernel based ST
