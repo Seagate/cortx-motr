@@ -96,7 +96,6 @@ main()
 	return $rc
 }
 
-testcase=$1
 trap unprepare EXIT
 main
-report_and_exit $testcase $?
+report_and_exit userspace-sns-repair-shutdown $?

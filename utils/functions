@@ -187,13 +187,14 @@ report_and_exit() {
     [ $# -eq 2 ] || die "${FUNCNAME[0]}: Invalid usage"
     local name=$1
     local rc=$2
+    local re='(^|[[:space:]])([0-9]+)'"$name"'($|[[:space:]])'
 
     TRANSPORT=$(m0_default_xprt)
 
     if [ $rc -eq 0 ]; then
         ## This message is used by Jenkins as a test success criteria;
         ## it must appear on stdout.
-        if [[ "${LIBISAL_TESTS_SKIPLIST[*]}" =~ "$name"  ]] || [[ "${TRANSPORT}" == 'libfab' && "${LIBFAB_TESTS_SKIPLIST[*]}" =~ "$name" ]];
+        if [[ "${LIBISAL_TESTS_SKIPLIST[*]}" =~ $re ]] || [[ "${TRANSPORT}" == 'libfab' && "${LIBFAB_TESTS_SKIPLIST[*]}" =~ $re ]];
         then
 	    echo "$name: test status: SKIPPED"
         else
