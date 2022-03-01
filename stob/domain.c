@@ -148,7 +148,7 @@ static int stob_domain_init_create(const char *location,
 
 	M0_ENTRY();
 
-	M0_LOG(M0_INFO, "location=%s str_cfg_init=%s dom_key=%"PRIu64" "
+	M0_LOG(M0_INFO, "location=%s str_cfg_init=%s dom_key=%" PRIu64 " "
 		 "str_cfg_create=%s init=%d",
 		 location, str_cfg_init, dom_key, str_cfg_create, !!init);
 

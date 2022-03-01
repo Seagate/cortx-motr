@@ -101,7 +101,7 @@ static void be_io_sched_launch_next(struct m0_be_io_sched *sched)
 		M0_ASSERT(ergo(io != NULL,
 			       sched->bis_pos <= io->bio_ext.e_start));
 		if (io != NULL) {
-			M0_LOG(M0_DEBUG, "bis_pos=%"PRIu64" "
+			M0_LOG(M0_DEBUG, "bis_pos=%" PRIu64 " "
 			       "io->bio_ext.e_start=%"PRIu64,
 			       sched->bis_pos, io->bio_ext.e_start);
 		}

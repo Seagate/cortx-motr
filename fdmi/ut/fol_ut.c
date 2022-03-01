@@ -355,6 +355,7 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 	m0_be_ut_backend_fini(&ut_be);
 
 	dock->fsdc_started = false;
+	dock->fsdc_filters_defined = false;
 
 	M0_LEAVE();
 }

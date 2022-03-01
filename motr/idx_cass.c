@@ -415,7 +415,7 @@ static int row_exists(CassSession *session, int table_id,
 	sprintf(query, "SELECT * FROM %s WHERE index_fid = ?", table);
 
 	statement = cass_statement_new(query, 1);
-	sprintf(idx_fid_str, "%"PRIx64"_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
+	sprintf(idx_fid_str, "%" PRIx64 "_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
 	cass_statement_bind_string(statement, 0, idx_fid_str);
 
 	query_result = execute_query_sync(session, statement);
@@ -550,7 +550,7 @@ static int idx_cass_namei_new(struct m0_op_idx *oi)
 	sprintf(query,
 		"INSERT INTO %s (index_fid) VALUES(?)", table);
 	statement = cass_statement_new(query, 1);
-	sprintf(idx_fid_str, "%"PRIx64"_%"PRIx64,
+	sprintf(idx_fid_str, "%" PRIx64 "_%"PRIx64,
 		idx_fid.u_hi, idx_fid.u_lo);
 
 	cass_statement_bind_string(statement, 0, idx_fid_str);
@@ -596,7 +596,7 @@ static int idx_cass_namei_drop(struct m0_op_idx *oi)
 		"DELETE from %s where  index_fid = ?", table);
 
 	statement = cass_statement_new(query, 1);
-	sprintf(idx_fid_str, "%"PRIx64"_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
+	sprintf(idx_fid_str, "%" PRIx64 "_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
 	cass_statement_bind_string(statement, 0, idx_fid_str);
 	cass_batch_add_statement(batch, statement);
 	cass_statement_free(statement);
@@ -608,7 +608,7 @@ static int idx_cass_namei_drop(struct m0_op_idx *oi)
 		"DELETE from %s where  index_fid = ?", table);
 
 	statement = cass_statement_new(query, 1);
-	sprintf(idx_fid_str, "%"PRIx64"_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
+	sprintf(idx_fid_str, "%" PRIx64 "_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
 	cass_statement_bind_string(statement, 0, idx_fid_str);
 	cass_batch_add_statement(batch, statement);
 	execute_query_batch(session, batch, idx_cass_query_cb, oi);
@@ -714,7 +714,7 @@ static int idx_cass_get(struct m0_op_idx *oi)
 	M0_ENTRY();
 
 	idx_fid = oi->oi_idx->in_entity.en_id;
-	sprintf(idx_fid_str, "%"PRIx64"_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
+	sprintf(idx_fid_str, "%" PRIx64 "_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
 
 	/* Form a 'SELECT' query string. */
 	session  = get_cass_inst(oi)->ci_session;
@@ -787,7 +787,7 @@ static int idx_cass_put(struct m0_op_idx *oi)
 		return M0_RC(-EINVAL);
 
 	idx_fid  = oi->oi_idx->in_entity.en_id;
-	sprintf(idx_fid_str, "%"PRIx64"_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
+	sprintf(idx_fid_str, "%" PRIx64 "_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
 
 	/* All K-V pair insert are added into one 'big' BATCH query. */
 	table_id = get_table_id(idx_fid);
@@ -845,7 +845,7 @@ static int idx_cass_del(struct m0_op_idx *oi)
 
 	keys = oi->oi_keys;
 	idx_fid  = oi->oi_idx->in_entity.en_id;
-	sprintf(idx_fid_str, "%"PRIx64"_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
+	sprintf(idx_fid_str, "%" PRIx64 "_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
 
 	/* All K-V pair insert are added into one 'big' BATCH query. */
 	batch    = cass_batch_new(CASS_BATCH_TYPE_LOGGED);
@@ -983,7 +983,7 @@ static int idx_cass_next(struct m0_op_idx *oi)
 
 	keys  = oi->oi_keys;
 	idx_fid = oi->oi_idx->in_entity.en_id;
-	sprintf(idx_fid_str, "%"PRIx64"_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
+	sprintf(idx_fid_str, "%" PRIx64 "_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
 
 	session  = get_cass_inst(oi)->ci_session;
 

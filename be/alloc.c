@@ -295,8 +295,8 @@ be_allocator_call_stats_print(struct m0_be_allocator_call_stats *cs,
                               const char                        *descr)
 {
 #define P_ACS(acs) (acs)->bcs_nr, (acs)->bcs_size
-	M0_LOG(M0_DEBUG, "%s (nr, size): alloc_success=(%lu, %"PRIu64"), "
-	       "free=(%lu, %"PRIu64"), alloc_failure=(%lu, %"PRIu64")", descr,
+	M0_LOG(M0_DEBUG, "%s (nr, size): alloc_success=(%lu, %" PRIu64 "), "
+	       "free=(%lu, %" PRIu64 "), alloc_failure=(%lu, %" PRIu64 ")", descr,
 	       P_ACS(&cs->bacs_alloc_success), P_ACS(&cs->bacs_free),
 	       P_ACS(&cs->bacs_alloc_failure));
 #undef P_ACS
@@ -304,11 +304,11 @@ be_allocator_call_stats_print(struct m0_be_allocator_call_stats *cs,
 
 static void be_allocator_stats_print(struct m0_be_allocator_stats *stats)
 {
-	M0_LOG(M0_DEBUG, "stats=%p chunk_overhead=%"PRIu64" boundary=%"PRIu64" "
+	M0_LOG(M0_DEBUG, "stats=%p chunk_overhead=%" PRIu64 " boundary=%" PRIu64 " "
 	       "print_interval=%lu print_index=%lu",
 	       stats, stats->bas_chunk_overhead, stats->bas_stat0_boundary,
 	       stats->bas_print_interval, stats->bas_print_index);
-	M0_LOG(M0_DEBUG, "chunks=%"PRIu64" free_chunks=%"PRIu64,
+	M0_LOG(M0_DEBUG, "chunks=%" PRIu64 " free_chunks=%"PRIu64,
 	       stats->bas_chunks_nr, stats->bas_free_chunks_nr);
 	be_allocator_call_stats_print(&stats->bas_total, "           total");
 	be_allocator_call_stats_print(&stats->bas_stat0, "size <= boundary");
@@ -1063,8 +1063,8 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	be_allocator_stats_capture(a, ztype, tx);
 	/* and ends here */
 
-	M0_LOG(M0_DEBUG, "allocator=%p size=%"PRIu64" shift=%u "
-	       "c=%p c->bac_size=%"PRIu64" ptr=%p", a, size, shift, c,
+	M0_LOG(M0_DEBUG, "allocator=%p size=%" PRIu64 " shift=%u "
+	       "c=%p c->bac_size=%" PRIu64 " ptr=%p", a, size, shift, c,
 	       c == NULL ? 0 : c->bac_size, *ptr);
 	if (*ptr == NULL) {
 		be_allocator_stats_print(&a->ba_h[ztype]->bah_stats);
@@ -1122,7 +1122,7 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 	M0_PRE(be_alloc_chunk_invariant(a, c));
 	M0_PRE(!c->bac_free);
 	ztype = c->bac_zone;
-	M0_LOG(M0_DEBUG, "allocator=%p c=%p c->bac_size=%"PRIu64" zone=%d "
+	M0_LOG(M0_DEBUG, "allocator=%p c=%p c->bac_size=%" PRIu64 " zone=%d "
 			"data=%p", a, c, c->bac_size, c->bac_zone, &c->bac_mem);
 	/* algorithm starts here */
 	be_alloc_chunk_mark_free(a, ztype, tx, c);
