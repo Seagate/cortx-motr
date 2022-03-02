@@ -254,8 +254,6 @@ static int ctg_kbuf_get(struct m0_buf *dst, const struct m0_buf *src,
 	struct generic_key *key;
 
 	M0_ENTRY();
-	M0_PRE(dst->b_nob == 0);
-	M0_PRE(dst->b_addr == NULL);
 
 	if (enabled_fi && M0_FI_ENABLED("cas_alloc_fail"))
 		return M0_ERR(-ENOMEM);
