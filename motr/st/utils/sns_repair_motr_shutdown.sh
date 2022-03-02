@@ -98,4 +98,4 @@ main()
 
 trap unprepare EXIT
 main
-report_and_exit userspace-sns-repair-shutdown $?
+report_and_exit sns-repair-motr-shutdown $?
