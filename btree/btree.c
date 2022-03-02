@@ -1813,24 +1813,16 @@ struct mod {
 	const struct m0_btree_type *m_ttype[TTYPE_NR];
 };
 
-M0_INTERNAL int m0_btree_mod_init(void)
+M0_INTERNAL void m0_btree_glob_init(void)
 {
-	struct mod *m;
-
 	/** Initialtise lru list, active list and lock. */
 	ndlist_tlist_init(&btree_lru_nds);
 	ndlist_tlist_init(&btree_active_nds);
 	m0_rwlock_init(&list_lock);
-
-	M0_ALLOC_PTR(m);
-	if (m != NULL) {
-		m0_get()->i_moddata[M0_MODULE_BTREE] = m;
-		return 0;
-	} else
-		return M0_ERR(-ENOMEM);
 }
 
-M0_INTERNAL void m0_btree_mod_fini(void)
+
+M0_INTERNAL void m0_btree_glob_fini(void)
 {
 	struct nd* node;
 
@@ -1851,6 +1843,25 @@ M0_INTERNAL void m0_btree_mod_fini(void)
 	ndlist_tlist_fini(&btree_active_nds);
 
 	m0_rwlock_fini(&list_lock);
+}
+
+M0_INTERNAL int m0_btree_mod_init(void)
+{
+	struct mod *m;
+
+	m0_btree_glob_init();
+
+	M0_ALLOC_PTR(m);
+	if (m != NULL) {
+		m0_get()->i_moddata[M0_MODULE_BTREE] = m;
+		return 0;
+	} else
+		return M0_ERR(-ENOMEM);
+}
+
+M0_INTERNAL void m0_btree_mod_fini(void)
+{
+	m0_btree_glob_fini();
 	m0_free(mod_get());
 }
 
@@ -12961,6 +12972,8 @@ static int ut_btree_suite_init(void)
 
 	M0_ALLOC_PTR(ut_seg);
 	M0_ASSERT(ut_seg != NULL);
+
+	m0_btree_glob_init();
 	/* Init BE */
 	m0_be_ut_backend_init(ut_be);
 	m0_be_ut_seg_init(ut_seg, ut_be, BE_UT_SEG_SIZE);
@@ -12982,6 +12995,7 @@ static int ut_btree_suite_fini(void)
 	m0_free(ut_seg);
 	m0_free(ut_be);
 
+	m0_btree_glob_fini();
 	M0_LEAVE();
 	return 0;
 }
