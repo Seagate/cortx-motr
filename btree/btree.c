@@ -1821,7 +1821,6 @@ M0_INTERNAL void m0_btree_glob_init(void)
 	m0_rwlock_init(&list_lock);
 }
 
-
 M0_INTERNAL void m0_btree_glob_fini(void)
 {
 	struct nd* node;
