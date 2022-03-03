@@ -96,6 +96,14 @@ _libfab_st_list() {
         fi
         i=`expr $i + 1`
     done
+# Check which library is used for reed-solomon encode and decode
+_check_rs_library() {
+    is_isal=`whereis libisal | cut -d ':' -f 1 --complement`
+    if [ -z "$is_isal" ]; then
+        is_isal="no_isal"
+    else
+        is_isal="isal"
+    fi
 
     echo "$found_st"
 }

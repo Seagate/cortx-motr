@@ -153,7 +153,20 @@ SEAGATE_GITHUB_CORTX_DEPS_REPO=https://github.com/Seagate/cortx/releases/downloa
 if ! $use_ansible ; then
   case $(distro_type) in
       redhat)
-        yum-config-manager --enable powertools
+        source /etc/os-release
+        if [[ $NAME == "Rocky Linux" ]]; then
+	    if [[ ! `yum repolist | grep Power` ]]; then
+                yum-config-manager --enable powertools
+                yum -y install epel-release
+            fi
+	elif [[ $NAME == "Oracle Linux Server" ]]
+	then
+                yum-config-manager --enable ol8_codeready_builder
+	        echo "Make sure that epel-release repo is present.."
+		echo "yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
+        else
+		yum -y install epel-release
+	fi
 	# @todo use el8 rpms
 	yum install -y $SEAGATE_GITHUB_CORTX_DEPS_REPO/isa-l-2.30.0-1.el7.x86_64.rpm
         yum install -y $SEAGATE_GITHUB_CORTX_DEPS_REPO/libfabric-1.11.2-1.el7.x86_64.rpm
