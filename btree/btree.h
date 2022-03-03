@@ -697,6 +697,8 @@ M0_INTERNAL void m0_btree_del_credit2(const struct m0_btree_type *type,
 
 M0_INTERNAL int     m0_btree_mod_init(void);
 M0_INTERNAL void    m0_btree_mod_fini(void);
+M0_INTERNAL void    m0_btree_glob_init(void);
+M0_INTERNAL void    m0_btree_glob_fini(void);
 M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size);
 M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 						 int64_t size);
