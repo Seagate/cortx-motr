@@ -273,6 +273,7 @@ struct m0_cob_domain {
 	struct m0_be_btree      cd_fileattr_omg;
 	struct m0_be_btree      cd_fileattr_ea;
 	struct m0_be_btree      cd_bytecount;
+	struct m0_be_rwlock     cd_lock;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_cob_domain_format_version {

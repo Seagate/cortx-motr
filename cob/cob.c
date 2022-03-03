@@ -724,6 +724,7 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 	m0_be_btree_init(&dom->cd_fileattr_omg,   seg, &cob_omg_ops);
 	m0_be_btree_init(&dom->cd_fileattr_ea,    seg, &cob_ea_ops);
 	m0_be_btree_init(&dom->cd_bytecount,      seg, &cob_bc_ops);
+	m0_rwlock_init(&dom->cd_lock.bl_u.rwlock);
 
 	return M0_RC(0);
 }
@@ -736,6 +737,7 @@ void m0_cob_domain_fini(struct m0_cob_domain *dom)
 	m0_be_btree_fini(&dom->cd_object_index);
 	m0_be_btree_fini(&dom->cd_namespace);
 	m0_be_btree_fini(&dom->cd_bytecount);
+	m0_rwlock_fini(&dom->cd_lock.bl_u.rwlock);
 }
 
 static void cob_domain_id2str(char **s, const struct m0_cob_domain_id *cdid)

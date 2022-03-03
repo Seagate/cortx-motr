@@ -2504,21 +2504,25 @@ static int cob_bytecount_increment(struct m0_cob *cob, struct m0_cob_bckey *key,
 				   uint64_t bytecount, struct m0_be_tx *tx)
 {
 	int                 rc;
+	struct m0_rwlock   *cdom_lock = &cob->co_dom->cd_lock.bl_u.rwlock;
 	struct m0_cob_bcrec rec = {};
 
 	M0_ENTRY("KEY: "FID_F"/%" PRIu64, FID_P(&key->cbk_pfid), key->cbk_user_id);
 
+	m0_rwlock_write_lock(cdom_lock);
 	rc = m0_cob_bc_lookup(cob, key, &rec);
 	if (rc == -ENOENT) {
 		rec.cbr_bytecount = bytecount;
 		rec.cbr_cob_objects = 1;
 		rc = m0_cob_bc_insert(cob, key, &rec, tx);
+		m0_rwlock_write_unlock(cdom_lock);
 		if (rc != 0)
 			return M0_ERR(rc);
 		M0_LOG(M0_DEBUG, "Bytecount inserted %" PRIu64, bytecount);
 	} else if (rc == 0) {
 		rec.cbr_bytecount += bytecount;
 		rc = m0_cob_bc_update(cob, key, &rec, tx);
+		m0_rwlock_write_unlock(cdom_lock);
 		if (rc != 0)
 			return M0_ERR(rc);
 		M0_LOG(M0_DEBUG, "Bytecount increased by %" PRIu64
