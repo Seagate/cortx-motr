@@ -1041,11 +1041,19 @@ struct node_type {
 	/** Returns the header size for credit calculation of tree operations */
 	int  (*nt_create_delete_credit_size)(void);
 
+	/**
+	 * Calculates credits required to allocate the key and value in case of
+	 * indirect addressing and adds those credits to @accum.
+	 */
 	void (*nt_indirect_kv_alloc_credit)(const struct nd *node,
 					    m0_bcount_t ksize,
 					    m0_bcount_t vsize,
 					    struct m0_be_tx_credit *accum);
 
+	/**
+	 * Calculates credits required to free the key and value in case of
+	 * indirect addressing and adds those credits to @accum.
+	 */
 	void (*nt_indirect_kv_free_credit)(const struct nd *node,
 					   m0_bcount_t ksize, m0_bcount_t vsize,
 					   struct m0_be_tx_credit *accum);
@@ -1841,7 +1849,7 @@ static void bnode_indirect_kv_free_credit(const struct nd *node,
 					  m0_bcount_t ksize, m0_bcount_t vsize,
 					  struct m0_be_tx_credit *accum)
 {
-	node->n_type->nt_indirect_kv_free_credit(node,  ksize, vsize, accum);
+	node->n_type->nt_indirect_kv_free_credit(node, ksize, vsize, accum);
 }
 
 static void bnode_alloc_credit(const struct nd *node, m0_bcount_t ksize,
@@ -2740,14 +2748,12 @@ static void ff_fini(const struct nd *node)
 
 static uint32_t ff_crctype_get(const struct nd *node)
 {
-	struct ff_head *h = ff_data(node);
-	return h->ff_seg.h_crc_type;
+	return ff_data(node)->ff_seg.h_crc_type;
 }
 
 static uint32_t ff_addrtype_get(const struct nd *node)
 {
-	struct ff_head *h = ff_data(node);
-	return h->ff_seg.h_addr_type;
+	return ff_data(node)->ff_seg.h_addr_type;
 }
 
 static int ff_count_rec(const struct nd *node)
@@ -3180,7 +3186,6 @@ static void ff_indirect_kv_free_credit(const struct nd *node,
 	 * this node format.
 	 */
 }
-
 
 static void ff_node_alloc_credit(const struct nd *node,
 				struct m0_be_tx_credit *accum)
@@ -4480,7 +4485,7 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  */
 #define INT_OFFSET sizeof(uint32_t)
 
-/*
+/**
  * KEY-VALUE STRUCTURE WITH INDIRECT ADDRESSSING :
  *
  *                 Key0
@@ -4532,7 +4537,6 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 		buf =  M0_BUF_INIT(0, (ptr));                                  \
 		M0_BE_FREE_ALIGN_BUF_SYNC(&buf, 0, (seg), (tx));               \
 	})
-
 
 static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
 		      int nsize, uint32_t ntype, uint64_t crc_type,
@@ -5421,8 +5425,8 @@ static void vkvv_indirect_key_fill(struct slot *slot)
 
 static void vkvv_indirect_val_fill(struct slot *slot)
 {
-	void     **p_val_addr = vkvv_val(slot->s_node, slot->s_idx + 1);
-	void      *val_addr   = slot->s_rec.r_val.ov_buf[0];
+	void **p_val_addr = vkvv_val(slot->s_node, slot->s_idx + 1);
+	void  *val_addr   = slot->s_rec.r_val.ov_buf[0];
 
 	*p_val_addr = val_addr;
 }
@@ -5636,8 +5640,8 @@ static void vkvv_indirect_val_resize(struct slot *slot,
 				     struct m0_btree_rec *new_rec,
 				     struct m0_be_tx *tx)
 {
-	void     **p_val_addr = vkvv_val(slot->s_node, slot->s_idx + 1);
-	void      *val_addr   = *p_val_addr;
+	void **p_val_addr = vkvv_val(slot->s_node, slot->s_idx + 1);
+	void  *val_addr   = *p_val_addr;
 
 	M0_PRE(new_rec != NULL);
 	M0_PRE(tx != NULL);
@@ -7055,7 +7059,6 @@ static int indirect_kv_alloc(struct m0_btree_op    *bop,
 	if (oi->i_key_found)
 		return 0;
 
-
 	oi->i_indirect_ksize = sizeof(uint32_t) + sizeof(uint32_t) + ksize;
 	oi->i_indirect_key   = INDIRECT_ALLOC(oi->i_indirect_ksize, seg, tx);
 	oi->i_indirect_key   = oi->i_indirect_key + 2 * sizeof(uint32_t);
@@ -7589,7 +7592,7 @@ static struct m0_sm_state_descr btree_states[P_NR] = {
 		.sd_name    = "P_NEXTDOWN",
 		.sd_allowed = M0_BITS(P_NEXTDOWN, P_ALLOC_INDIRECT_KV,
 				      P_ALLOC_REQUIRE, P_STORE_CHILD, P_SIBLING,
-				       P_CLEANUP, P_LOCK, P_ACT),
+				      P_CLEANUP, P_LOCK, P_ACT),
 	},
 	[P_SIBLING] = {
 		.sd_flags   = 0,
