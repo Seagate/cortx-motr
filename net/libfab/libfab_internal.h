@@ -105,6 +105,8 @@ enum m0_fab__libfab_params {
 	FAB_NUM_BUCKETS_PER_QTYPE      = 128,
 	/** Min time interval between buffer timeout check (sec) */
 	FAB_BUF_TMOUT_CHK_INTERVAL     = 1,
+	/** Timeout interval for getting a reply to the CONNREQ (sec) */
+	FAB_CONNECTING_TMOUT           = 1,
 	/** The step for increasing array size of fids in a tm */
 	FAB_TM_FID_MALLOC_STEP         = 1024
 };
@@ -324,18 +326,24 @@ struct m0_fab__active_ep {
 
 	/** Receive endpoint resources */
 	struct m0_fab__rx_res     aep_rx_res;
-	
+
 	/** connection status of Transmit ep */
 	enum m0_fab__conn_status  aep_tx_state;
-	
+
 	/** connection status of Receive ep */
 	enum m0_fab__conn_status  aep_rx_state;
-	
+
 	/** count of active bulk ops for the transmit endpoint */
 	volatile uint32_t         aep_bulk_cnt;
 
 	/** flag to indicate that the tx queue of the endpoint is full */
 	bool                      aep_txq_full;
+
+	/**
+	 * Timeout after which the endpoint connecting state would be reset if
+	 * no reply is received for the connection request.
+	 */
+	m0_time_t                 aep_connecting_tmout;
 };
 
 /**
