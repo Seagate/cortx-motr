@@ -106,7 +106,7 @@ enum m0_fab__libfab_params {
 	/** Min time interval between buffer timeout check (sec) */
 	FAB_BUF_TMOUT_CHK_INTERVAL     = 1,
 	/** Timeout interval for getting a reply to the CONNREQ (sec) */
-	FAB_CONNECTING_TMOUT           = 1,
+	FAB_CONNECTING_TMOUT           = 5,
 	/** The step for increasing array size of fids in a tm */
 	FAB_TM_FID_MALLOC_STEP         = 1024
 };

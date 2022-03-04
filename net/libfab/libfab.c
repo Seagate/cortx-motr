@@ -646,7 +646,7 @@ static void libfab_txep_event_check(struct m0_fab__ep *txep,
 	 * -111 (ECONNREFUSED) if the remote service has not yet started. Thus
 	 * the connection request does not receive any reply and the endpoint
 	 * keeps waiting in the FAB_CONNECTING state. To avoid this, the state
-	 * of the endpoint is reset after a timeout of 1s to FAB_DISCONNECTED.
+	 * of the endpoint is reset after a timeout of 5s to FAB_DISCONNECTED.
 	 * Thus, when the next buffer is posted to the endpoint, it will again
 	 * try to establish connection by sending out a new connection request.
 	 */
