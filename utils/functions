@@ -34,9 +34,6 @@
                  35m0singlenode
                  36spare-reservation
                  37protocol
-                 40motr-dgmode
-                 43motr-sync-replication
-                 45motr-rmw
                  51kem)
  
  # libisal does not need kernel based ST
@@ -187,18 +184,22 @@ report_and_exit() {
     [ $# -eq 2 ] || die "${FUNCNAME[0]}: Invalid usage"
     local name=$1
     local rc=$2
+    local re='(^|[[:space:]])'"$name"'($|[[:space:]])'
 
     TRANSPORT=$(m0_default_xprt)
 
     if [ $rc -eq 0 ]; then
+        local status="SUCCESS"
         ## This message is used by Jenkins as a test success criteria;
         ## it must appear on stdout.
-        if [[ "${LIBISAL_TESTS_SKIPLIST[*]}" =~ "$name"  ]] || [[ "${TRANSPORT}" == 'libfab' && "${LIBFAB_TESTS_SKIPLIST[*]}" =~ "$name" ]];
-        then
-	    echo "$name: test status: SKIPPED"
-        else
-            echo "$name: test status: SUCCESS"
+        if [ "${TRANSPORT}" == 'libfab' ]; then
+            if [[ "${LIBFAB_TESTS_SKIPLIST[*]}" =~ $re ]]; then
+	        status="SKIPPED"
+            fi
+        elif [[ "${LIBISAL_TESTS_SKIPLIST[*]}" =~ $re ]]; then
+	        status="SKIPPED"
         fi
+        echo "$name: test status: $status"
     else
         echo "$name: FAILURE $rc" >&2
     fi
