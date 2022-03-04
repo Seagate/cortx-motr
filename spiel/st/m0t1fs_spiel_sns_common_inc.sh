@@ -150,8 +150,8 @@ spiel_cleanup()
 
 spiel_sns_repair_start()
 {
-echo "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS"
-    "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS" <<EOF
+echo "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -165,8 +165,8 @@ EOF
 
 spiel_sns_repair_abort()
 {
-echo "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS"
-    "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS" <<EOF
+echo "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -180,8 +180,8 @@ EOF
 
 spiel_sns_repair_quiesce()
 {
-echo "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS"
-    "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS" <<EOF
+echo "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -195,8 +195,8 @@ EOF
 
 spiel_sns_repair_continue()
 {
-echo "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS"
-    "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS" <<EOF
+echo "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -210,8 +210,8 @@ EOF
 
 spiel_wait_for_sns_repair()
 {
-echo "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS"
-    "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS" <<EOF
+echo "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 import time
 $SPIEL_FIDS_LIST
 
@@ -239,8 +239,8 @@ EOF
 
 spiel_sns_rebalance_start()
 {
-echo "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS"
-    "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS" <<EOF
+echo "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -254,8 +254,8 @@ EOF
 
 spiel_sns_rebalance_quiesce()
 {
-echo "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS"
-    "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS" <<EOF
+echo "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -269,8 +269,8 @@ EOF
 
 spiel_sns_rebalance_continue()
 {
-echo "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS"
-    "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS" <<EOF
+echo "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -284,8 +284,8 @@ EOF
 
 spiel_wait_for_sns_rebalance()
 {
-echo "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS"
-    "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS" <<EOF
+echo "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 import time
 $SPIEL_FIDS_LIST
 
@@ -313,8 +313,8 @@ EOF
 
 spiel_sns_rebalance_abort()
 {
-echo "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS"
-    "$TOPDIR"/utils/spiel/m0spiel "$SPIEL_OPTS" <<EOF
+echo "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$TOPDIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
