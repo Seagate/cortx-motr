@@ -205,7 +205,6 @@ enum m0_btree_purge_user{
 	M0_PU_EXTERNAL,
 };
 
-
 #define REC_INIT(p_rec, pp_key, p_ksz, pp_val, p_vsz)                          \
 	({                                                                     \
 		M0_CASSERT(M0_HAS_TYPE((p_rec), struct m0_btree_rec *));       \
@@ -234,7 +233,6 @@ enum m0_btree_purge_user{
 			       &__src_rec->r_val,                              \
 			       m0_vec_count(&__src_rec ->r_val.ov_vec));       \
 	})
-
 
 /**
  * Btree functions related to credit management for tree operations
