@@ -332,7 +332,26 @@ static void wakeup_iff_waiting(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ENTRY();
 	if (m0_fom_is_waiting(fom))
 		m0_fom_ready(fom);
+	m0_free(ast);
 	M0_LEAVE();
+}
+
+static void wakeup_the_fom_with_new_ast(struct m0_fom *fom)
+{
+	struct m0_sm_ast *ast;
+
+	/* Allocate a new AST. It will be freed in callback. */
+	ast = m0_alloc(sizeof *ast);
+	if (ast == NULL) {
+		M0_LOG(M0_ERROR, "Cannot allocate ast. No way to wakeup fom %p",
+		       fom);
+		return;
+	}
+	*ast = (struct m0_sm_ast) {
+			.sa_cb    = wakeup_iff_waiting,
+			.sa_datum = fom
+		};
+	m0_sm_ast_post(&fom->fo_loc->fl_group, ast);
 }
 
 M0_INTERNAL void m0_fdmi__src_dock_fom_wakeup(struct fdmi_sd_fom *sd_fom)
@@ -353,13 +372,7 @@ M0_INTERNAL void m0_fdmi__src_dock_fom_wakeup(struct fdmi_sd_fom *sd_fom)
 		M0_LEAVE("FDMI FOM is not initialized yet");
 		return;
 	}
-	if (sd_fom->fsf_wakeup_ast.sa_next == NULL) {
-		sd_fom->fsf_wakeup_ast = (struct m0_sm_ast) {
-			.sa_cb    = wakeup_iff_waiting,
-			.sa_datum = fom
-		};
-		m0_sm_ast_post(&fom->fo_loc->fl_group, &sd_fom->fsf_wakeup_ast);
-	}
+	wakeup_the_fom_with_new_ast(fom);
 	M0_LEAVE();
 }
 
@@ -371,15 +384,8 @@ static void fdmi__src_dock_timer_fom_wakeup(struct fdmi_sd_timer_fom *timer_fom)
 	M0_PRE(timer_fom != NULL);
 
 	fom = &timer_fom->fstf_fom;
+	wakeup_the_fom_with_new_ast(fom);
 
-	if (timer_fom->fstf_wakeup_ast.sa_next == NULL) {
-		timer_fom->fstf_wakeup_ast = (struct m0_sm_ast) {
-			.sa_cb    = wakeup_iff_waiting,
-			.sa_datum = fom
-		};
-		m0_sm_ast_post(&fom->fo_loc->fl_group,
-			       &timer_fom->fstf_wakeup_ast);
-	}
 	M0_LEAVE();
 }
 
