@@ -76,10 +76,7 @@ static int btree_lookup_callback(struct m0_btree_cb  *cb,
 	struct m0_btree_rec     *datum = cb->c_datum;
 
 	/** Copy both keys and values. Keys are copied to cover slant case. */
-	m0_bufvec_copy(&datum->r_key.k_data, &rec->r_key.k_data,
-		       m0_vec_count(&rec->r_key.k_data.ov_vec));
-	m0_bufvec_copy(&datum->r_val, &rec->r_val,
-		       m0_vec_count(&rec->r_val.ov_vec));
+	COPY_RECORD(datum, rec);
 	return 0;
 }
 
@@ -114,10 +111,7 @@ static int btree_insert_callback(struct m0_btree_cb  *cb,
 	struct m0_btree_rec     *datum = cb->c_datum;
 
 	/** Write the Key and Value to the location indicated in rec. */
-	m0_bufvec_copy(&rec->r_key.k_data,  &datum->r_key.k_data,
-		       m0_vec_count(&datum->r_key.k_data.ov_vec));
-	m0_bufvec_copy(&rec->r_val, &datum->r_val,
-		       m0_vec_count(&rec->r_val.ov_vec));
+	COPY_RECORD(rec, datum);
 	return 0;
 }
 
@@ -131,14 +125,13 @@ static inline int btree_insert_sync(struct m0_btree     *tree,
 	void                *v_ptr = val->b_addr;
 	m0_bcount_t          ksize = key->b_nob;
 	m0_bcount_t          vsize = val->b_nob;
-	struct m0_btree_rec  rec = {
-			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
-			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
-			    .r_crc_type   = M0_BCT_NO_CRC,
-			};
+	struct m0_btree_rec  rec;
 	struct m0_btree_cb   put_cb = {.c_act = btree_insert_callback,
 				       .c_datum = &rec,
 				      };
+
+	REC_INIT_WITH_CRC(&rec, &k_ptr, &ksize, &v_ptr, &vsize, M0_BCT_NO_CRC);
+
 	return M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					m0_btree_put(tree, &rec, &put_cb,
 						     &kv_op, tx));
@@ -3091,10 +3084,11 @@ static int balloc_trees_create(struct m0_balloc    *bal,
 		return M0_ERR(-ENOMEM);
 	}
 
-	bt = (struct m0_btree_type){.tt_id = M0_BT_BALLOC_GROUP_EXTENTS,
-		.ksize = M0_MEMBER_SIZE(struct m0_ext, e_start),
-		.vsize = M0_MEMBER_SIZE(struct m0_ext, e_end),
-	};
+	bt = (struct m0_btree_type){
+			.tt_id = M0_BT_BALLOC_GROUP_EXTENTS,
+			.ksize = M0_MEMBER_SIZE(struct m0_ext, e_start),
+			.vsize = M0_MEMBER_SIZE(struct m0_ext, e_end),
+		};
 	fid = M0_FID_TINIT('b', M0_BT_BALLOC_GROUP_EXTENTS, bfid->f_key);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(bal->cb_ge_node,
@@ -3110,11 +3104,12 @@ static int balloc_trees_create(struct m0_balloc    *bal,
 		return M0_ERR(rc);
 	}
 
-	bt = (struct m0_btree_type){.tt_id = M0_BT_BALLOC_GROUP_DESC,
-		.ksize = M0_MEMBER_SIZE(struct m0_balloc_group_desc,
-					bgd_groupno),
-		.vsize = sizeof(struct m0_balloc_group_desc),
-	};
+	bt = (struct m0_btree_type){
+			.tt_id = M0_BT_BALLOC_GROUP_DESC,
+			.ksize = M0_MEMBER_SIZE(struct m0_balloc_group_desc,
+						bgd_groupno),
+			.vsize = sizeof(struct m0_balloc_group_desc),
+		};
 	fid = M0_FID_TINIT('b', M0_BT_BALLOC_GROUP_DESC, bfid->f_key);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(bal->cb_gd_node,
