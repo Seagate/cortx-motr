@@ -1175,7 +1175,9 @@ static int fdmi_sd_timer_fom_tick(struct m0_fom *fom)
 {
 	struct fdmi_sd_timer_fom *timer_fom = M0_AMB(timer_fom, fom, fstf_fom);
 	struct m0_reqh_service   *rsvc = fom->fo_service;
+	/*
 	struct m0_fdmi_src_dock  *src_dock = m0_fdmi_src_dock_get();
+	*/
 
 	if (m0_reqh_service_state_get(rsvc) == M0_RST_STOPPING) {
 		M0_LOG(M0_DEBUG, "timer fom stopping");
@@ -1194,6 +1196,8 @@ static int fdmi_sd_timer_fom_tick(struct m0_fom *fom)
 		return M0_RC(M0_FSO_AGAIN);
 	case FDMI_SRC_DOCK_TIMER_FOM_PHASE_ALARMED:
 		M0_LOG(M0_DEBUG, "Now, WAKEUP the source dock fom");
+		/*
+		 * Disabled until CORTX-28555/CORTX-27717 is fixed.
 		m0_fom_timeout_fini(&timer_fom->fstf_timeout);
 		m0_fom_timeout_init(&timer_fom->fstf_timeout);
 		m0_fom_timeout_wait_on(&timer_fom->fstf_timeout,
@@ -1201,6 +1205,7 @@ static int fdmi_sd_timer_fom_tick(struct m0_fom *fom)
 				       m0_time_from_now(30, 0));
 		m0_fom_phase_set(fom, FDMI_SRC_DOCK_TIMER_FOM_PHASE_WAIT);
 		m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
+		*/
 		return M0_RC(M0_FSO_WAIT);
 	}
 	return M0_RC(M0_FSO_WAIT);
