@@ -134,7 +134,7 @@ enum m0_be_emap_format_version {
 	M0_BE_EMAP_FORMAT_VERSION = M0_BE_EMAP_FORMAT_VERSION_1
 };
 
-// #define __AAL(x) __attribute__((aligned(x)))
+#define __AAL(x) __attribute__((aligned(x)))
 
 /** Root node alignment for balloc extend and group descriptor trees. */
 #define EMAP_ROOT_NODE_ALIGN 4096
@@ -153,22 +153,17 @@ enum {
 struct m0_be_emap {
 	struct m0_format_header em_header;
 	struct m0_format_footer em_footer;
-	/**
-	 * The new BTree does not have a tree structure persistent on BE seg.
-	 * Instead we have the root node occupying the same location where the
-	 * old m0_be_btree used to be placed. To minimize the changes to the
-	 * code we have the pointers to m0_btree (new BTree) placed here and the
-	 * root nodes follow them aligned to a Block boundary.
-	 */
+
+	/**  Pointer to the Btree. */
 	struct m0_btree        *em_mapping;
 
 	/**
-	 *  Root node for the above tree follows here. These root nodes
-	 *  are aligned to Block boundary for performance reasons.
+	 *  Root node for the above tree resides here. This root node is aligned
+	 *  to Block boundary for performance.
 	 */
 	uint8_t                 em_mp_node[EMAP_ROOT_NODE_SIZE]
-				__attribute__((aligned(EMAP_ROOT_NODE_ALIGN)));
-	/*
+				__AAL(EMAP_ROOT_NODE_ALIGN);
+	/**
 	 * volatile-only fields
 	 */
 	uint64_t                em_version;
