@@ -60,10 +60,9 @@ M0_INTERNAL int cs_conf_device_reopen(struct m0_poolmach *pm,
 
 M0_INTERNAL int cs_conf_services_init(struct m0_motr *cctx);
 
-M0_INTERNAL int cs_conf_get_parition_dev (struct cs_stobs      *stob,
-					  struct m0_conf_sdev **sdev,
-					  uint32_t             *dev_count,
-					  bool ioservice);
+M0_INTERNAL int cs_conf_part_config_get(struct m0_reqh_context *rctx,
+					struct m0_be_part_cfg  *part_cfg,
+					bool                    ioservice);
 /** @} endgroup m0d */
 #endif /* __MOTR_SETUP_INTERNAL_H__ */
 

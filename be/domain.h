@@ -100,15 +100,15 @@ char           *bps_init_cfg;
 }M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_part_cfg {
-	bool	                      bpc_part_mode_set;
+	bool	                    bpc_part_mode_set;
 	char                       *bpc_location;
 	char                       *bpc_init_cfg;
 	char                       *bpc_create_cfg;
-	struct m0_be_part_stob_cfg  bpc_stobs_cfg[M0_BE_MAX_PARTITION_USERS];	
+	struct m0_be_part_stob_cfg  bpc_stobs_cfg[M0_BE_MAX_PARTITION_USERS];
 	m0_bcount_t                 bpc_dom_key;
 	m0_bcount_t                 bpc_chunk_size_in_bits;
 	m0_bcount_t                 bpc_total_chunk_count;
-	
+	m0_bcount_t                 bpc_used_chunk_count;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_domain_cfg {

@@ -42,6 +42,8 @@
 #include "ioservice/storage_dev.h" /* m0_storage_dev_attach */
 #include "ioservice/fid_convert.h" /* m0_fid_conf_sdev_device_id */
 #include "stob/partition.h"        /* m0_stob_part_type*/
+#include "be/partition_table.h"    /* m0_be_ptable_id */
+#include "stob/partition.h"        /* m0_stob_part_type */
 /* ----------------------------------------------------------------
  * Motr options
  * ---------------------------------------------------------------- */
@@ -255,14 +257,312 @@ static bool is_device(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_SDEV_TYPE;
 }
 
-M0_INTERNAL int cs_conf_get_parition_dev(struct cs_stobs *stob,
-					 struct m0_conf_sdev **sdev_ptr,
-					 uint32_t *dev_count,
-					 bool ioservice)
+static char *cs_storage_partdom_location_gen(const char          *stob_path,
+					     struct m0_be_domain *dom)
+{
+	char       *location;
+	const char *prefix = m0_stob_part_type.st_fidt.ft_name;
+
+	M0_ALLOC_ARR(location,
+		     strlen(stob_path) + strlen(prefix) + 128);
+	if (location != NULL)
+		sprintf(location, "%s:%s:%p", prefix, stob_path, dom);
+	return location;
+}
+
+/**
+ * Generates partition stob location which
+ * must be freed with m0_free(). */
+
+static char *cs_storage_partstob_location_gen(const char       *stob_path,
+					      const char       *stob_attrib)
+{
+	char       *location;
+
+	M0_ALLOC_ARR(location,
+		     strlen(stob_path) + strlen(stob_attrib) + 2);
+	if (location != NULL)
+		sprintf(location, "%s:%s", stob_path, stob_attrib);
+	return location;
+}
+
+#define PART_STOB_MAX_CHUNK_SIZE_IN_BITS  30
+static int cs_conf_part_chunk_size_bit_align_get(m0_bcount_t chunk_size)
+{
+	int chunksize_in_bits;
+	int i;
+	for (i = 0; i < PART_STOB_MAX_CHUNK_SIZE_IN_BITS; ) {
+		if (chunk_size > 0) {
+			chunk_size >>= 1;
+			i++;
+		}
+		else
+			break;
+	}
+	chunksize_in_bits = i;
+	return (chunksize_in_bits);
+}
+static void cs_conf_part_common_config_update(struct m0_reqh_context *rctx,
+					      struct m0_conf_sdev    *sdev,
+					      char                   *dev_path)
+{
+	enum                        { len = 128 };
+	m0_bcount_t                 def_dev_chunk_count = 1024;
+	struct m0_be_part_cfg      *part_cfg;
+
+	part_cfg = &rctx->rc_be.but_dom_cfg.bc_part_cfg;
+
+	if(part_cfg->bpc_part_mode_set) /* common init msut be done only once */
+		return;
+	M0_LOG(M0_ALWAYS,"dev path:%s,size:%"PRIu64"alloc_len = %d dom = %p",
+	       dev_path, sdev->sd_size, (int)(strlen(dev_path) + len),
+	       &rctx->rc_be.but_dom);
+
+	part_cfg->bpc_create_cfg = m0_alloc(strlen(dev_path) + len);
+	M0_ASSERT(part_cfg->bpc_create_cfg != NULL);
+	sprintf(part_cfg->bpc_create_cfg, "%p %s %"PRIu64,
+	&rctx->rc_be.but_dom, dev_path,	sdev->sd_size);
+	part_cfg->bpc_init_cfg = part_cfg->bpc_create_cfg;
+	part_cfg->bpc_location =
+		(char*)cs_storage_partdom_location_gen(dev_path,
+						       &rctx->rc_be.but_dom);
+	part_cfg->bpc_dom_key = sdev->sd_dev_idx;
+
+	/* 1 chunk for partition table itself */
+	part_cfg->bpc_used_chunk_count = 1;
+
+	/** parition stob generic configuration */
+	part_cfg->bpc_part_mode_set = true;
+	part_cfg->bpc_chunk_size_in_bits =
+	cs_conf_part_chunk_size_bit_align_get(sdev->sd_size /
+					      def_dev_chunk_count);
+	part_cfg->bpc_total_chunk_count =
+		sdev->sd_size >> part_cfg->bpc_chunk_size_in_bits;
+}
+
+static void cs_conf_part_stob_config_update(struct m0_be_part_cfg *part_cfg,
+					    int                    index,
+					    int64_t                size,
+					    char                  *bstob,
+					    char                  *path)
+{
+	struct m0_be_part_stob_cfg *part_stob_cfg;
+	part_stob_cfg = &part_cfg->bpc_stobs_cfg[index];
+
+	part_stob_cfg->bps_enble = true;
+	part_stob_cfg->bps_init_cfg = part_stob_cfg->bps_create_cfg;
+	/* chunk size in 0-100 % */
+	if( size <= 100 )
+		part_stob_cfg->bps_size_in_chunks =
+			( part_cfg->bpc_total_chunk_count * size) /
+			100;
+	else if (size == -1 ) /* use remaining space */
+		part_stob_cfg->bps_size_in_chunks =
+			part_cfg->bpc_total_chunk_count -
+				part_cfg->bpc_used_chunk_count;
+	else
+		part_stob_cfg->bps_size_in_chunks =
+			(( size - 1 ) >> part_cfg->bpc_chunk_size_in_bits) + 1;
+	part_cfg->bpc_used_chunk_count += part_stob_cfg->bps_size_in_chunks;
+	M0_ASSERT(part_cfg->bpc_used_chunk_count <=
+		  part_cfg->bpc_total_chunk_count);
+
+}
+
+static int cs_conf_part_config_update(struct m0_reqh_context *rctx,
+				      struct m0_conf_sdev    *sdev,
+				      int                     index,
+				      int64_t                 size,
+				      char                   *bstob,
+				      char                   *path)
+{
+	struct m0_be_part_cfg      *part_cfg;
+	struct m0_be_part_stob_cfg *part_stob_cfg;
+
+	part_cfg = &rctx->rc_be.but_dom_cfg.bc_part_cfg;
+
+	switch(index) {
+	case M0_BE_DOM_PART_IDX_LOG:
+		if (rctx->rc_be_log_path  == NULL ||
+		    (strcmp(rctx->rc_be_log_path, path ) == 0)) {
+			cs_conf_part_common_config_update(rctx,
+							  sdev,
+							  path);
+			part_stob_cfg = &part_cfg->bpc_stobs_cfg[index];
+
+			part_stob_cfg->bps_id = M0_BE_PTABLE_ENTRY_LOG;
+			part_stob_cfg->bps_create_cfg =
+				(char *)cs_storage_partstob_location_gen(path,
+								 "directio:true");
+			rctx->rc_be_log_path = path;
+			cs_conf_part_stob_config_update(part_cfg, index,
+							size, bstob, path);
+
+		}
+		break;
+	case M0_BE_DOM_PART_IDX_SEG0:
+		if (rctx->rc_be_seg0_path == NULL ||
+		    (strcmp(rctx->rc_be_seg0_path, path ) == 0)) {
+			cs_conf_part_common_config_update(rctx,
+							  sdev,
+							  path);
+			part_stob_cfg = &part_cfg->bpc_stobs_cfg[index];
+
+			part_stob_cfg->bps_id = M0_BE_PTABLE_ENTRY_SEG0;
+			part_stob_cfg->bps_create_cfg =
+				cs_storage_partstob_location_gen(path,
+								 "directio:false");
+			rctx->rc_be_seg0_path = path;
+			cs_conf_part_stob_config_update(part_cfg, index,
+							size, bstob, path);
+
+		}
+		break;
+	case M0_BE_DOM_PART_IDX_SEG1:
+		if (rctx->rc_be_seg_path == NULL ||
+		    (strcmp(rctx->rc_be_seg_path, path ) == 0)) {
+			cs_conf_part_common_config_update(rctx,
+							  sdev,
+							  path);
+			part_stob_cfg = &part_cfg->bpc_stobs_cfg[index];
+
+			part_stob_cfg->bps_id = M0_BE_PTABLE_ENTRY_SEG1;
+			part_stob_cfg->bps_create_cfg =
+				cs_storage_partstob_location_gen(path,
+								 "directio:false");
+			rctx->rc_be_seg_path = path;
+			if (size > 100 ) /* size in bytes, not in % */
+				size = m0_align(size, M0_BE_SEG_PAGE_SIZE);
+			cs_conf_part_stob_config_update(part_cfg, index,
+							size, bstob, path);
+
+		}
+		break;
+	case M0_BE_DOM_PART_IDX_DATA:
+		cs_conf_part_common_config_update(rctx,
+						  sdev,
+						  path);
+		part_stob_cfg = &part_cfg->bpc_stobs_cfg[index];
+
+		part_stob_cfg->bps_id = M0_BE_PTABLE_ENTRY_BALLOC;
+		part_stob_cfg->bps_create_cfg =
+			cs_storage_partstob_location_gen(path,
+							 "directio:true");
+		cs_conf_part_stob_config_update(part_cfg, index,
+							size, bstob, path);
+
+		break;
+	default:
+		M0_LOG(M0_ERROR,
+		       "invalid part user index =%d\n", index);
+
+	}
+
+	return 0;
+}
+static int cs_conf_part_config_parse_update(struct m0_reqh_context *rctx,
+					    struct m0_conf_sdev    *sdev)
+{
+	struct m0_be_part_cfg  *part_cfg;
+	char                   *token;
+	int                     index;
+	int64_t                 size;
+	char                   *bstob = NULL;
+	char                   *path;
+	char                   *ssize;
+
+	part_cfg = &rctx->rc_be.but_dom_cfg.bc_part_cfg;
+	M0_LOG(M0_DEBUG, "received cfgstring=%s\n", sdev->sd_filename);
+	token = strtok((char *)sdev->sd_filename, ":");
+	if (token != NULL) {
+		if (strcmp(token, "part") == 0) {
+			token = strtok(NULL, ":");
+			if (strcmp(token, "log") == 0) {
+				index = M0_BE_DOM_PART_IDX_LOG;
+				part_cfg->bpc_stobs_cfg[index].bps_id =
+					M0_BE_PTABLE_ENTRY_LOG;
+			}
+			else if (strcmp(token, "beseg0") == 0) {
+				index = M0_BE_DOM_PART_IDX_SEG0;
+				part_cfg->bpc_stobs_cfg[index].bps_id =
+					M0_BE_PTABLE_ENTRY_SEG0;
+			}
+			else if (strcmp(token, "beseg1") == 0) {
+				index = M0_BE_DOM_PART_IDX_SEG1;
+				part_cfg->bpc_stobs_cfg[index].bps_id =
+					M0_BE_PTABLE_ENTRY_SEG1;
+			}
+			else if (strcmp(token, "data") == 0) {
+				index = M0_BE_DOM_PART_IDX_DATA;
+				part_cfg->bpc_stobs_cfg[index].bps_id =
+					M0_BE_PTABLE_ENTRY_BALLOC;
+			}
+			else {
+				index = M0_BE_DOM_PART_IDX_FREE;
+				M0_LOG(M0_ERROR,
+				       "invalid part user=%s\n", token);
+				return M0_ERR(-EINVAL);
+			}
+
+			token = strtok(NULL, ":");
+			if (strcmp(token, "remaining%") == 0) {
+				M0_LOG(M0_DEBUG,
+				       "use remaining space for user=%"PRIu64,
+				       part_cfg->bpc_stobs_cfg[index].bps_id );
+				size = -1;
+			}
+			else {
+				ssize = strndup(token, strlen(token)-1);
+				size = atoll(ssize);
+				free(ssize);
+				switch (token[strlen(token)-1]) {
+				case 'K':
+					size *= 1024;
+					break;
+				case 'M':
+					size *= (1024 * 1024);
+					break;
+				case 'G':
+					size *= (1024 * 1024 * 1024);
+					break;
+				case '%':
+					break;
+				default:
+					M0_LOG(M0_ERROR, "invalid size unit=%s\n",
+					       token);
+					return M0_ERR(-EINVAL);
+				}
+
+			}
+			token = strtok(NULL, ":");
+			if (token[0] != '/') {
+				bstob =token;
+				token = strtok(NULL, ":");
+			}
+			path = token;
+			token = strtok(NULL, ":");
+			M0_ASSERT(token == NULL);
+			M0_LOG(M0_DEBUG, "path =%s\n", path);
+			cs_conf_part_config_update(rctx, sdev, index,
+						   size, bstob, path);
+
+		}
+		else {
+			path = token;
+			token = strtok(NULL, ":");
+			M0_ASSERT(token == NULL);
+			M0_LOG(M0_DEBUG, "path =%s\n", path);
+		}
+	}
+	return 0;
+}
+
+M0_INTERNAL int cs_conf_part_config_get(struct m0_reqh_context *rctx,
+					struct m0_be_part_cfg  *part_cfg,
+					bool                    ioservice)
 {
 	int                     rc;
 	struct m0_motr         *cctx;
-	struct m0_reqh_context *rctx;
 	struct m0_confc        *confc;
 	struct m0_fid           tmp_fid;
 	struct m0_fid          *svc_fid  = NULL;
@@ -270,13 +570,13 @@ M0_INTERNAL int cs_conf_get_parition_dev(struct cs_stobs *stob,
 	struct m0_conf_obj     *svc_obj;
 	struct m0_conf_diter    it;
 	struct m0_conf_service *svc;
-	uint32_t                dev_nr;
 	struct m0_fid          *proc_fid;
         struct m0_conf_sdev    *sdev;
+	uint32_t                dev_nr;
+	uint32_t                dev_count;
 
 	M0_ENTRY();
-	*dev_count = 0;
-	rctx = container_of(stob, struct m0_reqh_context, rc_stob);
+	dev_count = 0;
 	cctx = container_of(rctx, struct m0_motr, cc_reqh_ctx);
 	confc = m0_motr2confc(cctx);
 	proc_fid = &rctx->rc_fid;
@@ -324,16 +624,16 @@ M0_INTERNAL int cs_conf_get_parition_dev(struct cs_stobs *stob,
 			M0_CONF_DIRNEXT) {
 			sdev = M0_CONF_CAST(m0_conf_diter_result(&it),
 					    m0_conf_sdev);
-			*dev_count +=1;
+			dev_count +=1;
 
+			cs_conf_part_config_parse_update(rctx, sdev);
 			M0_LOG(M0_ALWAYS,
 			       "sdev " FID_F " device index: %d "
 			       "sdev.sd_filename: %s, "
 			       "sdev.sd_size: %" PRIu64
 			       "dev count: %d ",
 			       FID_P(&sdev->sd_obj.co_id), sdev->sd_dev_idx,
-			       sdev->sd_filename, sdev->sd_size,*(dev_count));
-				*sdev_ptr = sdev;
+			       sdev->sd_filename, sdev->sd_size,dev_count);
 			rc = 0;
 		}
 		m0_conf_diter_fini(&it);

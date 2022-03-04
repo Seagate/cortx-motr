@@ -31,6 +31,7 @@
 #include "stob/domain.h"	/* m0_stob_domain */
 #include "stob/io.h"		/* m0_stob_io */
 #include "stob/stob.h"		/* m0_stob */
+#include "stob/type.h"		/* m0_stob_type */
 #include "stob/stob_xc.h"
 //#include "be/partition_table.h"
 /**
