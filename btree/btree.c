@@ -1178,23 +1178,6 @@ struct slot {
 	struct m0_btree_rec  s_rec;
 };
 
-#define REC_INIT(p_rec, pp_key, p_ksz, pp_val, p_vsz)                          \
-	({                                                                     \
-		(p_rec)->r_key.k_data = M0_BUFVEC_INIT_BUF((pp_key), (p_ksz)); \
-		(p_rec)->r_val        = M0_BUFVEC_INIT_BUF((pp_val), (p_vsz)); \
-	})
-#define COPY_RECORD(tgt, src)                                                  \
-	({                                                                     \
-		struct m0_btree_rec *__tgt_rec = (tgt);                        \
-		struct m0_btree_rec *__src_rec = (src);                        \
-									       \
-		m0_bufvec_copy(&__tgt_rec->r_key.k_data,                       \
-			       &__src_rec ->r_key.k_data,                      \
-			       m0_vec_count(&__src_rec ->r_key.k_data.ov_vec));\
-		m0_bufvec_copy(&__tgt_rec->r_val, &__src_rec->r_val,           \
-			       m0_vec_count(&__src_rec ->r_val.ov_vec));       \
-	})
-
 #define COPY_VALUE(tgt, src)                                                   \
 	({                                                                     \
 		struct m0_btree_rec *__tgt_rec = (tgt);                        \
