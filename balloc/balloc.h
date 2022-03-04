@@ -241,16 +241,23 @@ struct m0_balloc {
 	struct m0_ad_balloc          cb_ballroom;
 	struct m0_format_footer      cb_footer;
 
-	/*
-	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
-	 * before the m0_format_footer, where only persistent fields allowed
+	/**
+	 * m0_btree data is volatile, so it can't be placed before the
+	 * m0_format_footer, where only persistent fields allowed.
 	 */
 	/** db for free extent */
 	struct m0_btree             *cb_db_group_extents;
 	/** db for group desc */
 	struct m0_btree             *cb_db_group_desc;
 
-	/** Root nodes for cb_db_group_extents and cb_db_group_desc btrees. */
+	/**
+	 *  Root nodes for cb_db_group_extents and cb_db_group_desc btrees. The
+	 *  persistency of this data is managed by the Btree code hence it does
+	 *  not need to be placed before cb_footer.
+	 *  These nodes are aligned to BALLOC_ROOT_NODE_ALIGN within the
+	 *  containing structure m0_balloc. This is possible only if m0_balloc
+	 *  based variable is itself aligned to BALLOC_ROOT_NODE_ALIGN.
+	 */
 	uint8_t                      cb_ge_node[BALLOC_ROOT_NODE_SIZE]
 					__AAL(BALLOC_ROOT_NODE_ALIGN);
 	uint8_t                      cb_gd_node[BALLOC_ROOT_NODE_SIZE]
