@@ -206,6 +206,35 @@ enum m0_btree_purge_user{
 	M0_PU_EXTERNAL,
 };
 
+#define REC_INIT(p_rec, pp_key, p_ksz, pp_val, p_vsz)                          \
+	({                                                                     \
+		M0_CASSERT(M0_HAS_TYPE((p_rec), struct m0_btree_rec *));       \
+									       \
+		(p_rec)->r_key.k_data = M0_BUFVEC_INIT_BUF((pp_key), (p_ksz)); \
+		(p_rec)->r_val        = M0_BUFVEC_INIT_BUF((pp_val), (p_vsz)); \
+	})
+
+#define REC_INIT_WITH_CRC(p_rec, pp_key, p_ksz, pp_val, p_vsz, crc_type)       \
+	({                                                                     \
+		REC_INIT(p_rec, pp_key, p_ksz, pp_val, p_vsz);                 \
+		(p_rec)->r_crc_type   = crc_type;                              \
+	})
+
+#define COPY_RECORD(p_tgt, p_src)                                              \
+	({                                                                     \
+		struct m0_btree_rec *__tgt_rec = (p_tgt);                      \
+		struct m0_btree_rec *__src_rec = (p_src);                      \
+									       \
+		M0_CASSERT(M0_HAS_TYPE((p_tgt), struct m0_btree_rec *));       \
+		M0_CASSERT(M0_HAS_TYPE((p_src), struct m0_btree_rec *));       \
+		m0_bufvec_copy(&__tgt_rec->r_key.k_data,                       \
+			       &__src_rec ->r_key.k_data,                      \
+			       m0_vec_count(&__src_rec ->r_key.k_data.ov_vec));\
+		m0_bufvec_copy(&__tgt_rec->r_val,                              \
+			       &__src_rec->r_val,                              \
+			       m0_vec_count(&__src_rec ->r_val.ov_vec));       \
+	})
+
 /**
  * Btree functions related to credit management for tree operations
  */
