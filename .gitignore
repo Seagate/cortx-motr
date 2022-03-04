@@ -24,6 +24,7 @@
 !.gdbinit
 !.gitreview
 !.circleci
+!.xperior
 
 # ctags, cscope and emacs tag files
 /tags
