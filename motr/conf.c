@@ -351,19 +351,23 @@ static void cs_conf_part_stob_config_update(struct m0_be_part_cfg *part_cfg,
 
 	part_stob_cfg->bps_enble = true;
 	part_stob_cfg->bps_init_cfg = part_stob_cfg->bps_create_cfg;
-	/* chunk size in 0-100 % */
-	if( size <= 100 )
-		part_stob_cfg->bps_size_in_chunks =
-			( part_cfg->bpc_total_chunk_count * size) /
-			100;
-	else if (size == -1 ) /* use remaining space */
+	if (size == -1 ) /* use remaining space */
 		part_stob_cfg->bps_size_in_chunks =
 			part_cfg->bpc_total_chunk_count -
 				part_cfg->bpc_used_chunk_count;
+	else if((size > 0) && (size <= 100)) /* chunk size in 0-100 % */
+		part_stob_cfg->bps_size_in_chunks =
+			( part_cfg->bpc_total_chunk_count * size) /
+			100;
 	else
 		part_stob_cfg->bps_size_in_chunks =
 			(( size - 1 ) >> part_cfg->bpc_chunk_size_in_bits) + 1;
 	part_cfg->bpc_used_chunk_count += part_stob_cfg->bps_size_in_chunks;
+	M0_LOG(M0_ALWAYS,"mk:user =%d byte size=%"PRId64"size=%"PRIu64"used=%"PRIu64"total=%"PRIu64,
+	       index, size,
+	       part_stob_cfg->bps_size_in_chunks,
+	       part_cfg->bpc_used_chunk_count,
+	       part_cfg->bpc_total_chunk_count);
 	M0_ASSERT(part_cfg->bpc_used_chunk_count <=
 		  part_cfg->bpc_total_chunk_count);
 
@@ -397,6 +401,8 @@ static int cs_conf_part_config_update(struct m0_reqh_context *rctx,
 			rctx->rc_be_log_path = path;
 			cs_conf_part_stob_config_update(part_cfg, index,
 							size, bstob, path);
+			rctx->rc_be_log_size  = part_stob_cfg->bps_size_in_chunks <<
+				part_cfg->bpc_chunk_size_in_bits;
 
 		}
 		break;
@@ -435,6 +441,8 @@ static int cs_conf_part_config_update(struct m0_reqh_context *rctx,
 				size = m0_align(size, M0_BE_SEG_PAGE_SIZE);
 			cs_conf_part_stob_config_update(part_cfg, index,
 							size, bstob, path);
+			rctx->rc_be_seg_size = part_stob_cfg->bps_size_in_chunks <<
+				part_cfg->bpc_chunk_size_in_bits;
 
 		}
 		break;
@@ -461,7 +469,8 @@ static int cs_conf_part_config_update(struct m0_reqh_context *rctx,
 	return 0;
 }
 static int cs_conf_part_config_parse_update(struct m0_reqh_context *rctx,
-					    struct m0_conf_sdev    *sdev)
+					    struct m0_conf_sdev    *sdev,
+                                            char                   *config)
 {
 	struct m0_be_part_cfg  *part_cfg;
 	char                   *token;
@@ -472,8 +481,8 @@ static int cs_conf_part_config_parse_update(struct m0_reqh_context *rctx,
 	char                   *ssize;
 
 	part_cfg = &rctx->rc_be.but_dom_cfg.bc_part_cfg;
-	M0_LOG(M0_DEBUG, "received cfgstring=%s\n", sdev->sd_filename);
-	token = strtok((char *)sdev->sd_filename, ":");
+	M0_LOG(M0_ALWAYS, "received cfgstring=%s\n", config);
+	token = strtok((char *)config, ":");
 	if (token != NULL) {
 		if (strcmp(token, "part") == 0) {
 			token = strtok(NULL, ":");
@@ -574,6 +583,7 @@ M0_INTERNAL int cs_conf_part_config_get(struct m0_reqh_context *rctx,
         struct m0_conf_sdev    *sdev;
 	uint32_t                dev_nr;
 	uint32_t                dev_count;
+	char                   *config;
 
 	M0_ENTRY();
 	dev_count = 0;
@@ -625,8 +635,28 @@ M0_INTERNAL int cs_conf_part_config_get(struct m0_reqh_context *rctx,
 			sdev = M0_CONF_CAST(m0_conf_diter_result(&it),
 					    m0_conf_sdev);
 			dev_count +=1;
+			/* TODO MBK, Temp work around to testpart config */
 
-			cs_conf_part_config_parse_update(rctx, sdev);
+			config = m0_alloc(256);
+			M0_ASSERT(config != NULL);
+			sprintf(config, "part:log:128M:linux:%s", sdev->sd_filename);
+			cs_conf_part_config_parse_update(rctx, sdev, config);
+
+			config = m0_alloc(256);
+			M0_ASSERT(config != NULL);
+			sprintf(config, "part:beseg0:1M:linux:%s", sdev->sd_filename);
+			cs_conf_part_config_parse_update(rctx, sdev, config);
+
+			config = m0_alloc(256);
+			M0_ASSERT(config != NULL);
+			sprintf(config, "part:beseg1:%s:linux:%s", "10%", sdev->sd_filename);
+			cs_conf_part_config_parse_update(rctx, sdev, config);
+
+			config = m0_alloc(256);
+			M0_ASSERT(config != NULL);
+			sprintf(config, "part:data:%s:linux:%s", "remaining%", sdev->sd_filename);
+			cs_conf_part_config_parse_update(rctx, sdev, config);
+
 			M0_LOG(M0_ALWAYS,
 			       "sdev " FID_F " device index: %d "
 			       "sdev.sd_filename: %s, "

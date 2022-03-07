@@ -79,6 +79,8 @@ storage_dev_get_part_stob(struct m0_be_domain *domain,
 		return 0;
 
 	rc = m0_be_ptable_get_part_info(&primary_part_info);
+        /* TODO MBK update string compare logic to compare dev path name
+           and skip configuration part of string */ 
 	rc = rc ? : strcmp(dev_pathname, primary_part_info.pti_dev_pathname);
 	if(rc != 0 )
 		return rc;

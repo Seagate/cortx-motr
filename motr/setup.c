@@ -1478,17 +1478,20 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 	struct m0_be_part_cfg      *part_cfg;
 	bool                        ad_mode;
 
+	M0_ENTRY();
 	part_cfg = &rctx->rc_be.but_dom_cfg.bc_part_cfg;
 
 	memset(part_cfg, 0, sizeof(*part_cfg));
 	ad_mode = m0_strcaseeq(rctx->rc_stype,
 			       m0_cs_stypes[M0_AD_STOB]);
+	M0_LOG(M0_ALWAYS, "mk: ad mode %d ad disk init %d",
+	       ad_mode, rctx->rc_stob.s_ad_disks_init);
 	if (!ad_mode ||
 	    (!rctx->rc_stob.s_ad_disks_init))
 		return;
 
-        if (cs_conf_part_config_get(rctx, part_cfg, false) != 0)
-		return ;
+        /* if (cs_conf_part_config_get(rctx, part_cfg, false) != 0)
+		return ; */
 
         if (cs_conf_part_config_get(rctx, part_cfg, true) != 0)
 		return ;
@@ -1504,6 +1507,7 @@ static int cs_be_init(struct m0_reqh_context  *rctx,
 	char **loc = &be->but_stob_domain_location;
 	int    rc;
 
+	M0_ENTRY();
 	*loc = m0_alloc(len);
 	if (*loc == NULL)
 		return M0_ERR(-ENOMEM);
