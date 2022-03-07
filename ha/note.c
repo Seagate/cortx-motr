@@ -142,6 +142,56 @@ M0_INTERNAL void m0_ha_state_single_post(struct m0_ha_nvec *nvec)
 	m0_ha_msg_nvec_send(nvec, 0, false, M0_HA_NVEC_SET, NULL);
 }
 
+static void m0_ha_add_dynamic_fid_to_confc(
+			struct m0_conf_cache *cache,
+			struct m0_conf_obj   *base_obj,
+			struct m0_ha_note    *nv_note,
+			uint64_t              ignore_same_state)
+{
+	struct m0_conf_obj     *new_obj;
+	struct m0_conf_dir     *dir;
+        enum m0_ha_obj_state    prev_ha_state;
+	struct m0_conf_process *proc1;
+	struct m0_conf_process *proc2;
+	int                     rc;
+
+	M0_LOG(M0_DEBUG, "Received fid: "FID_F" lookedup fid :"FID_F,
+		FID_P(&nv_note->no_id), FID_P(&base_obj->co_id));
+
+	rc = m0_conf_obj_find(cache, &nv_note->no_id, &new_obj);
+	if (rc == 0) {
+		prev_ha_state = base_obj->co_ha_state;
+		new_obj->co_ha_state = nv_note->no_state;
+
+		if (new_obj->co_parent == NULL) {
+			dir = M0_CONF_CAST(base_obj->co_parent, m0_conf_dir);
+			m0_conf_dir_add(dir, new_obj);
+		}
+		proc1 = M0_CONF_CAST(base_obj, m0_conf_process);
+		proc2 = M0_CONF_CAST(new_obj, m0_conf_process);
+
+		if (proc1 != NULL && proc2 != NULL) {
+			if (proc1->pc_endpoint != NULL) {
+				proc2->pc_endpoint = m0_strdup(proc1->pc_endpoint);
+			}
+		}
+		rc = m0_conf_dir_new(new_obj, &M0_CONF_PROCESS_SERVICES_FID,
+				&M0_CONF_SERVICE_TYPE, NULL, &proc2->pc_services);
+
+		M0_ASSERT(rc == 0);
+		new_obj->co_ha_state = nv_note->no_state;
+		new_obj->co_status = M0_CS_READY;
+		if (!ignore_same_state ||
+		    prev_ha_state != new_obj->co_ha_state)
+			m0_chan_broadcast(&new_obj->co_ha_chan);
+		M0_LOG(M0_DEBUG,"Conf obj for dynamif FID"FID_F" added",
+		        FID_P(&nv_note->no_id));
+	} else {
+		M0_LOG(M0_ERROR, "confs obj add failed for FID:"FID_F"rc= %d",
+				FID_P(&nv_note->no_id), rc);
+	}
+}
+
 /**
  * Callback used in m0_ha_state_accept(). Updates HA states for particular confc
  * instance during iteration through HA clients list.
@@ -153,12 +203,9 @@ static void ha_state_accept(struct m0_confc         *confc,
 			    uint64_t                 ignore_same_state)
 {
 	struct m0_conf_obj   *obj;
-	struct m0_conf_obj   *new_obj;
 	struct m0_conf_cache *cache;
 	enum m0_ha_obj_state  prev_ha_state;
 	int                   i;
-	int		      rc = 0;
-	struct m0_conf_dir   *dir;
 
 	M0_ENTRY("confc=%p note->nv_nr=%"PRIi32, confc, note->nv_nr);
 	M0_PRE(note_invariant(note, true));
@@ -183,27 +230,13 @@ static void ha_state_accept(struct m0_confc         *confc,
 		    (m0_fid_tget(&note->nv_note[i].no_id) == 'r') &&
 		     !cache->ca_is_phony &&
 		     (!m0_fid_eq(&obj->co_id, &note->nv_note[i].no_id))) {
+			/*
+			 * We have received new Dynamic FID. Adding
+			 * this new dynamic FID to conf cache.
+			 */
+			m0_ha_add_dynamic_fid_to_confc(cache, obj,
+					&note->nv_note[i], ignore_same_state);
 
-			M0_LOG(M0_DEBUG, "Received fid: "FID_F" lookedup fid :"FID_F,
-				FID_P(&note->nv_note[i].no_id), FID_P(&obj->co_id));
-			rc = m0_conf_obj_find(cache, &note->nv_note[i].no_id,
-					&new_obj);
-			if (rc == 0) {
-				prev_ha_state = obj->co_ha_state;
-				new_obj->co_ha_state = note->nv_note[i].no_state;
-
-				M0_LOG(M0_DEBUG, " new_obj->co_parent : %p", new_obj->co_parent);
-				if (new_obj->co_parent == NULL) {
-					dir = M0_CONF_CAST(obj->co_parent, m0_conf_dir);
-					m0_conf_dir_add(dir, new_obj);
-				}
-
-				if (!ignore_same_state ||
-				    prev_ha_state != new_obj->co_ha_state)
-					m0_chan_broadcast(&new_obj->co_ha_chan);
-			} else {
-				M0_LOG(M0_DEBUG, "confs obj add failed rc= %d", rc);
-			}
 		} else if (obj != NULL && obj->co_status == M0_CS_READY) {
 			prev_ha_state = obj->co_ha_state;
 			obj->co_ha_state = note->nv_note[i].no_state;

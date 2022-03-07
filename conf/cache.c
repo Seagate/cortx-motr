@@ -105,7 +105,7 @@ M0_INTERNAL bool m0_conf_cache_contains(struct m0_conf_cache *cache,
 
 M0_INTERNAL struct m0_conf_obj *
 m0_conf_cache_lookup_dynamic(const struct m0_conf_cache *cache,
-		     const struct m0_fid *id)
+			     const struct m0_fid *id)
 {
 	struct m0_conf_obj *obj;
 	uint32_t cnt1;
@@ -124,14 +124,14 @@ m0_conf_cache_lookup_dynamic(const struct m0_conf_cache *cache,
 	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
 		if ((m0_fid_tget(id) == 'r') ||
 		    (m0_fid_tget(id) == 's')) {
-			if (m0_proc_fid_eq(&obj->co_id, id)) {
+			if (m0_base_fid_eq(&obj->co_id, id)) {
 				cnt1 = obj->co_id.f_key >> 32 & 0xFFFFFFFF;
 				cnt2 = id->f_key >> 32 & 0xFFFFFFFF;
-					if (cnt1 == cnt2)
-						return obj;
-					else if (cnt1 != (cnt2 - 1))
-						continue;
+				if (cnt1 == cnt2)
 					return obj;
+				else if (cnt1 != (cnt2 - 1))
+					continue;
+				return obj;
 			}
 		} else if (m0_fid_eq(&obj->co_id, id)) {
 			return obj;

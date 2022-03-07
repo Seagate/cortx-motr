@@ -49,7 +49,7 @@ M0_INTERNAL bool m0_fid_is_set(const struct m0_fid *fid);
 M0_INTERNAL bool m0_fid_is_valid(const struct m0_fid *fid);
 M0_INTERNAL bool m0_fid_eq(const struct m0_fid *fid0,
 			   const struct m0_fid *fid1);
-M0_INTERNAL bool m0_proc_fid_eq(const struct m0_fid *fid0,
+M0_INTERNAL bool m0_base_fid_eq(const struct m0_fid *fid0,
 		                const struct m0_fid *fid1);
 M0_INTERNAL int m0_fid_cmp(const struct m0_fid *fid0,
 			   const struct m0_fid *fid1);
