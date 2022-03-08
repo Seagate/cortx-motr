@@ -39,6 +39,7 @@
 #include "lib/errno.h"        /* ENOMEM, EPROTO */
 #include "lib/memory.h"       /* M0_ALLOC_ARR, m0_free */
 #include "lib/finject.h"
+#include "conf/dir.h"          /* m0_conf_dir_add */
 
 /**
  * @page confc-lspec confc Internals
@@ -478,6 +479,52 @@ static int confc_cache_create(struct m0_confc *confc,
 
 	if (not_empty(local_conf))
 		rc = confc_cache_preload(confc, local_conf);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_confc_cache_add_service(struct m0_conf_cache    *cache,
+					   struct m0_conf_obj      *base_obj,
+					   struct m0_conf_obj      **new_obj,
+					   const struct m0_ha_note *nv_note)
+{
+	M0_LOG(M0_ERROR,"This is dummy function to add dynamic service fid"
+		        "Ideally we should not land here until dynamic service"
+		        "FID's are implemented");
+	return M0_RC(0);
+}
+
+M0_INTERNAL int m0_confc_cache_add_process(struct m0_conf_cache    *cache,
+					   struct m0_conf_obj      *base_obj,
+					   struct m0_conf_obj      **new_obj,
+					   const struct m0_ha_note *nv_note)
+{
+	struct m0_conf_dir     *dir;
+	struct m0_conf_process *proc1;
+	struct m0_conf_process *proc2;
+	int                     rc;
+
+	rc = m0_conf_obj_find(cache, &nv_note->no_id, new_obj);
+	if (rc == 0) {
+		(*new_obj)->co_ha_state = nv_note->no_state;
+
+		if ((*new_obj)->co_parent == NULL) {
+			dir = M0_CONF_CAST(base_obj->co_parent, m0_conf_dir);
+			m0_conf_dir_add(dir, *new_obj);
+		}
+		proc1 = M0_CONF_CAST(base_obj, m0_conf_process);
+		proc2 = M0_CONF_CAST(*new_obj, m0_conf_process);
+
+		if (proc1 != NULL && proc2 != NULL) {
+			if (proc1->pc_endpoint != NULL) {
+				proc2->pc_endpoint = m0_strdup(proc1->pc_endpoint);
+			}
+			rc = m0_conf_dir_new(*new_obj, &M0_CONF_PROCESS_SERVICES_FID,
+					     &M0_CONF_SERVICE_TYPE, NULL, &proc2->pc_services);
+		}
+	} else {
+		M0_LOG(M0_ERROR, "confs obj add failed for FID:"FID_F"rc= %d",
+		       FID_P(&nv_note->no_id), rc);
+	}
 	return M0_RC(rc);
 }
 

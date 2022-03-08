@@ -104,8 +104,8 @@ M0_INTERNAL bool m0_conf_cache_contains(struct m0_conf_cache *cache,
 }
 
 M0_INTERNAL struct m0_conf_obj *
-m0_conf_cache_lookup_dynamic(const struct m0_conf_cache *cache,
-			     const struct m0_fid *id)
+m0_conf_cache_lookup_dynamic_fid(const struct m0_conf_cache *cache,
+				 const struct m0_fid *id)
 {
 	struct m0_conf_obj *obj;
 	uint32_t cnt1;
@@ -113,17 +113,23 @@ m0_conf_cache_lookup_dynamic(const struct m0_conf_cache *cache,
         /*
          * For process and service fid different approach is taken to compare
 	 * FID's. Specifically for process/service fid considering base fid only
-	 * (excluding counter bit) for comparison.
+	 * (excluding counter bit) for comparison. Counter bits are higher 32
+	 * bist of the key.
+	 *  e.g. 
+	 *  |-------- Container------------| |----------------Key-------------|
+	 *
+	 *  F F F F F F F F F F F F F F F F : F F F F F F F F  F F F F F F F F
+	 *                                    |-Counter bits-|
 	 */
 	/*
 	 * TODO: Current implementation we are assuming that dynamic FID's will
-	 * always be generated in sequential manner (w.r.t counter bits), so that
-	 * we can fetch latest last dynamic FID, but It may not be in sequential 
-	 * always. This scenario needs to be handle.
+	 * always be generated in sequential manner (w.r.t counter bits), so
+	 * that we can fetch latest last dynamic FID, but It may not be in
+	 * sequential always. This scenario needs to be handle.
 	 */
-	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
-		if ((m0_fid_tget(id) == 'r') ||
-		    (m0_fid_tget(id) == 's')) {
+	if ((m0_fid_tget(id) == 'r') ||
+	    (m0_fid_tget(id) == 's')) {
+		m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
 			if (m0_base_fid_eq(&obj->co_id, id)) {
 				cnt1 = obj->co_id.f_key >> 32 & 0xFFFFFFFF;
 				cnt2 = id->f_key >> 32 & 0xFFFFFFFF;
@@ -133,10 +139,12 @@ m0_conf_cache_lookup_dynamic(const struct m0_conf_cache *cache,
 					continue;
 				return obj;
 			}
-		} else if (m0_fid_eq(&obj->co_id, id)) {
-			return obj;
-		}
-	} m0_tl_endfor;
+		} m0_tl_endfor;
+		return NULL;
+	} else {
+		/* Perform normal lookup for non process/service conf object */
+		return m0_conf_cache_lookup(cache, id);
+	}
 	return NULL;
 }
 
