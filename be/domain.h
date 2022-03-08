@@ -104,6 +104,7 @@ struct m0_be_part_cfg {
 	char                       *bpc_location;
 	char                       *bpc_init_cfg;
 	char                       *bpc_create_cfg;
+	char                       *bpc_bstob;
 	struct m0_be_part_stob_cfg  bpc_stobs_cfg[M0_BE_MAX_PARTITION_USERS];
 	m0_bcount_t                 bpc_dom_key;
 	m0_bcount_t                 bpc_chunk_size_in_bits;
