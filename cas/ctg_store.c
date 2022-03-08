@@ -305,7 +305,8 @@ static int ctg_vbuf_unpack(struct m0_buf *buf, struct m0_crv *crv)
  */
 static int ctg_vbuf_as_ctg(const struct m0_buf *buf, struct m0_cas_ctg **ctg)
 {
-	struct meta_value *mv = buf->b_addr - sizeof(struct generic_value);
+	struct generic_value *gv = M0_AMB(gv, buf->b_addr, gv_data);
+	struct meta_value    *mv = M0_AMB(mv, gv, mv_gval);
 
 	M0_ENTRY();
 
@@ -322,7 +323,8 @@ static int ctg_vbuf_as_ctg(const struct m0_buf *buf, struct m0_cas_ctg **ctg)
 static int ctg_vbuf_as_layout(const struct m0_buf    *buf,
 			      struct m0_dix_layout **layout)
 {
-	struct layout_value *lv = buf->b_addr - sizeof(struct generic_value);
+	struct generic_value *gv = M0_AMB(gv, buf->b_addr, gv_data);
+	struct layout_value  *lv = M0_AMB(lv, gv, lv_gval);
 
 	M0_ENTRY();
 
@@ -2431,7 +2433,7 @@ static int versioned_put_sync(struct m0_ctg_op *ctg_op)
 			       bo_u.u_btree.t_rc);
 
 	if (rc == 0) {
-		ctg_vbuf_pack(&ctg_op->co_anchor.ba_value,
+		ctg_vbuf_pack(&anchor->ba_value,
 			      &ctg_op->co_val,
 			      &new_version);
 
