@@ -1058,7 +1058,7 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 		rpc_conn_sessions_cleanup_fail(conn, true);
 		m0_rpc_machine_unlock(machine);
 		return M0_ERR_INFO(rc, "Connection is known to be dead:"
-				   " sender_id=%"PRIu64" svc_fid="FID_F,
+				   " sender_id=%" PRIu64 " svc_fid="FID_F,
 				   conn->c_sender_id, FID_P(&conn->c_svc_fid));
 	}
 

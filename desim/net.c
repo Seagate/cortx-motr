@@ -67,7 +67,7 @@ static void net_srv_loop(struct sim *s, struct sim_thread *t, void *arg)
 		obj = rpc->nr_stob_id.si_fid.f_key;
 		offset = srv->ns_file_size * obj + rpc->nr_offset;
 
-		sim_log(s, SLL_TRACE, "S#%s %2i/%2i: [%"PRIu64"/%u:%lu] "
+		sim_log(s, SLL_TRACE, "S#%s %2i/%2i: [%" PRIu64 "/%u:%lu] "
 			"%10llu %8lu %10llu\n",
 			srv->ns_name, trid, srv->ns_active,
 			m0_stob_id_dom_id_get(&rpc->nr_stob_id), dev, obj,
