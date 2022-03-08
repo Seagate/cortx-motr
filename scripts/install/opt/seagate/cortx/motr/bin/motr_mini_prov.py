@@ -51,7 +51,8 @@ MOTR_LOG_DIRS = [LOGDIR, MOTR_LOG_DIR]
 BE_LOG_SZ = 4*1024*1024*1024 #4G
 BE_SEG0_SZ = 128 * 1024 *1024 #128M
 MACHINE_ID_FILE = "/etc/machine-id"
-TEMP_FID_FILE= "/opt/seagate/cortx/motr/conf/service_fid.yaml"
+TEMP_FID_FILE = "/opt/seagate/cortx/motr/conf/service_fid.yaml"
+LOGROTATE_CONF_FILE = "/etc/logrotate.conf"
 CMD_RETRY_COUNT = 5
 
 class MotrError(Exception):
@@ -424,9 +425,37 @@ def update_motr_hare_keys(self, nodes):
         md_disks_lists = get_md_disks_lists(self, node_info)
         update_to_file(self, self._index_motr_hare, self._url_motr_hare, machine_id, md_disks_lists)
 
+'''
+Write below content to /etc/logrotate.conf file so that mini_mini_provisioner
+log file will be rotated hourly and retained recent max 2 files. Max size of log file is 100M.
+
+Content:
+/etc/cortx/log/motr/<machine-id>/mini_provisioner {
+    hourly
+    size 100M
+    rotate 2
+    delaycompress
+}
+'''
+def add_entry_to_logrotate_conf_file(self):
+    indent=' '*4
+    lines=["{a} {b}\n".format(a=log_file, b='{'),
+           f"{indent}hourly\n",
+           f"{indent}size 100M\n",
+           f"{indent}rotate 2\n",
+           f"{indent}delaycompress\n",
+           "{a}\n".format(a='}')]
+    with open(f"{LOGROTATE_CONF_FILE}", 'w+') as fp:
+        fp.write("\n")
+        for line in lines:
+            fp.write(line)
+
 def motr_config_k8(self):
     if not verify_libfabric(self):
         raise MotrError(errno.EINVAL, "libfabric is not up.")
+
+    # To rotate mini_provisioner log file
+    add_entry_to_logrotate_conf_file(self)
 
     if self.machine_id not in self.storage_nodes:
         # Modify motr config file
@@ -1416,6 +1445,9 @@ def start_service(self, service, idx):
         cmd = f"{MOTR_FSM_SCRIPT_PATH}"
         execute_command_verbose(self, cmd, set_timeout=False)
         return
+    # Run logrotate command to rotate mini_prov log file
+    cmd = f"logrotate {LOGROTATE_CONF_FILE}"
+    execute_command_verbose(self, cmd, set_timeout=False)
 
     # Copy confd_path to /etc/sysconfig
     # confd_path = MOTR_M0D_CONF_DIR/confd.xc
