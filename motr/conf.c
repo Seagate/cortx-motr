@@ -351,12 +351,14 @@ static void cs_conf_part_stob_config_update(struct m0_be_part_cfg *part_cfg,
 					    bool                   directio)
 {
 	struct m0_be_part_stob_cfg *part_stob_cfg;
+	char                       *stob_attrib;
+
+	stob_attrib = directio ? "directio:true":"directio:false";
 	part_stob_cfg = &part_cfg->bpc_stobs_cfg[index];
 
 	part_stob_cfg->bps_enble = true;
 	part_stob_cfg->bps_create_cfg =
-		(char *)cs_storage_partstob_location_gen(path, directio ?
-							 "directio:true":"directio:false");
+		(char *)cs_storage_partstob_location_gen(path, stob_attrib);
 	part_stob_cfg->bps_init_cfg = part_stob_cfg->bps_create_cfg;
 	if (size == -1 ) /* use remaining space */
 		part_stob_cfg->bps_size_in_chunks =
@@ -371,11 +373,13 @@ static void cs_conf_part_stob_config_update(struct m0_be_part_cfg *part_cfg,
 			(( size - 1 ) >> part_cfg->bpc_chunk_size_in_bits) + 1;
 	part_cfg->bpc_used_chunk_count += part_stob_cfg->bps_size_in_chunks;
 	M0_LOG(M0_ALWAYS,
-	       "mk:user =%d b size=%"PRId64"c size=%"PRIu64"used=%"PRIu64"total=%"PRIu64,
+	       "user =%d size(bytes)=%"PRId64" size(chunks)=%"PRIu64" used chunks=%"PRIu64
+	       "total chunks=%"PRIu64" %s",
 	       index, size,
 	       part_stob_cfg->bps_size_in_chunks,
 	       part_cfg->bpc_used_chunk_count,
-	       part_cfg->bpc_total_chunk_count);
+	       part_cfg->bpc_total_chunk_count,
+	       stob_attrib);
 	M0_ASSERT(part_cfg->bpc_used_chunk_count <=
 		  part_cfg->bpc_total_chunk_count);
 
@@ -515,7 +519,6 @@ static int cs_conf_part_config_parse_update(struct m0_reqh_context *rctx,
 					M0_BE_PTABLE_ENTRY_BALLOC;
 			}
 			else {
-				index = M0_BE_DOM_PART_IDX_FREE;
 				M0_LOG(M0_ERROR,
 				       "invalid part user=%s\n", token);
 				return M0_ERR(-EINVAL);

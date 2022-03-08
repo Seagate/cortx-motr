@@ -1484,8 +1484,6 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 	memset(part_cfg, 0, sizeof(*part_cfg));
 	ad_mode = m0_strcaseeq(rctx->rc_stype,
 			       m0_cs_stypes[M0_AD_STOB]);
-	M0_LOG(M0_ALWAYS, "mk: ad mode %d ad disk init %d",
-	       ad_mode, rctx->rc_stob.s_ad_disks_init);
 	if (!ad_mode ||
 	    (!rctx->rc_stob.s_ad_disks_init))
 		return;
