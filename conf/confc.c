@@ -483,9 +483,9 @@ static int confc_cache_create(struct m0_confc *confc,
 }
 
 M0_INTERNAL int m0_confc_cache_add_service(struct m0_conf_cache    *cache,
+					   const struct m0_fid     *process_fid,
 					   struct m0_conf_obj      *base_obj,
-					   struct m0_conf_obj      **new_obj,
-					   const struct m0_ha_note *nv_note)
+					   struct m0_conf_obj      **new_obj)
 {
 	M0_LOG(M0_ERROR,"This is dummy function to add dynamic service fid"
 		        "Ideally we should not land here until dynamic service"
@@ -494,18 +494,18 @@ M0_INTERNAL int m0_confc_cache_add_service(struct m0_conf_cache    *cache,
 }
 
 M0_INTERNAL int m0_confc_cache_add_process(struct m0_conf_cache    *cache,
+					   const struct m0_fid     *process_fid,
 					   struct m0_conf_obj      *base_obj,
-					   struct m0_conf_obj      **new_obj,
-					   const struct m0_ha_note *nv_note)
+					   struct m0_conf_obj      **new_obj)
 {
 	struct m0_conf_dir     *dir;
 	struct m0_conf_process *proc1;
 	struct m0_conf_process *proc2;
 	int                     rc;
 
-	rc = m0_conf_obj_find(cache, &nv_note->no_id, new_obj);
+	M0_PRE(base_obj != NULL);
+	rc = m0_conf_obj_find(cache, process_fid, new_obj);
 	if (rc == 0) {
-		(*new_obj)->co_ha_state = nv_note->no_state;
 
 		if ((*new_obj)->co_parent == NULL) {
 			dir = M0_CONF_CAST(base_obj->co_parent, m0_conf_dir);
@@ -523,7 +523,7 @@ M0_INTERNAL int m0_confc_cache_add_process(struct m0_conf_cache    *cache,
 		}
 	} else {
 		M0_LOG(M0_ERROR, "confs obj add failed for FID:"FID_F"rc= %d",
-		       FID_P(&nv_note->no_id), rc);
+		       FID_P(process_fid), rc);
 	}
 	return M0_RC(rc);
 }

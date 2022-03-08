@@ -154,9 +154,10 @@ static void m0_ha_add_dynamic_fid_to_confc(
 		FID_P(&nv_note->no_id), FID_P(&base_obj->co_id));
 
 	if (m0_fid_tget(&nv_note->no_id) == 'r') {
-		rc = m0_confc_cache_add_process(cache, base_obj,
-						&new_obj, nv_note);
+		rc = m0_confc_cache_add_process(cache, &nv_note->no_id,
+						base_obj, &new_obj);
 		M0_ASSERT(rc == 0);
+		 new_obj->co_ha_state = nv_note->no_state;
 		prev_ha_state = base_obj->co_ha_state;
 		new_obj->co_status = M0_CS_READY;
 		if (!ignore_same_state ||
@@ -165,8 +166,8 @@ static void m0_ha_add_dynamic_fid_to_confc(
 		M0_LOG(M0_DEBUG,"Conf obj for dynamif FID"FID_F" added",
 		        FID_P(&nv_note->no_id));
 	} else if (m0_fid_tget(&nv_note->no_id) == 's') {
-		 rc = m0_confc_cache_add_service(cache, base_obj,
-						 &new_obj, nv_note);
+		 rc = m0_confc_cache_add_service(cache, &nv_note->no_id,
+						 base_obj, &new_obj);
 	}
 }
 

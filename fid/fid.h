@@ -80,6 +80,8 @@ enum {
 #define FID_P(f)  (f)->f_container,  (f)->f_key
 #define FID_S(f) &(f)->f_container, &(f)->f_key
 
+#define DYNAMIC_FID_CNT(f) (((f)->f_key >> 32) & (0xFFFFFFFF))
+
 #define M0_FID_TCONTAINER(type, container)		\
 	((((uint64_t)(type)) << (64 - 8)) |		\
 	 (((uint64_t)(container)) & M0_FID_TYPE_MASK))

@@ -169,12 +169,9 @@ M0_INTERNAL bool m0_base_fid_eq(const struct m0_fid *fid0,
 	 * During comparison it will skip counter bits (higher 32 bits
 	 * of key) to compare two FID's.
 	 */
-	if ((fid0->f_container == fid1->f_container) &&
+	return fid0->f_container == fid1->f_container ?
 	    ((fid0->f_key & M0_FID_DYNAMIC_CNT_MASK) ==
-	     (fid1->f_key & M0_FID_DYNAMIC_CNT_MASK)))
-		return true;
-	else
-		return false;
+	     (fid1->f_key & M0_FID_DYNAMIC_CNT_MASK)): false;
 }
 M0_EXPORTED(m0_base_fid_eq);
 

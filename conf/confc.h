@@ -826,14 +826,13 @@ M0_INTERNAL struct m0_rpc_session *m0_confc2sess(struct m0_confc *confc);
  * FID's into configuration cache.
  */
 M0_INTERNAL int m0_confc_cache_add_process(struct m0_conf_cache    *cache,
+					   const struct m0_fid     *process_fid,
 					   struct m0_conf_obj      *base_obj,
-					   struct m0_conf_obj      **new_obj,
-					   const struct m0_ha_note *nv_note);
+					   struct m0_conf_obj      **new_obj);
 
 M0_INTERNAL int m0_confc_cache_add_service(struct m0_conf_cache    *cache,
+					   const struct m0_fid     *process_fid,
 					   struct m0_conf_obj      *base_obj,
-					   struct m0_conf_obj      **new_obj,
-					   const struct m0_ha_note *nv_note);
-
+					   struct m0_conf_obj      **new_obj);
 /** @} confc_dfspec */
 #endif /* __MOTR_CONF_CONFC_H__ */

@@ -108,14 +108,15 @@ m0_conf_cache_lookup_dynamic_fid(const struct m0_conf_cache *cache,
 				 const struct m0_fid *id)
 {
 	struct m0_conf_obj *obj;
-	uint32_t cnt1;
-	uint32_t cnt2;
+	struct m0_conf_obj *last_obj = NULL;
+	uint32_t            cnt1;
+	uint32_t            cnt2;
         /*
          * For process and service fid different approach is taken to compare
 	 * FID's. Specifically for process/service fid considering base fid only
 	 * (excluding counter bit) for comparison. Counter bits are higher 32
-	 * bist of the key.
-	 *  e.g. 
+	 * bits of the key.
+	 *  e.g.
 	 *  |-------- Container------------| |----------------Key-------------|
 	 *
 	 *  F F F F F F F F F F F F F F F F : F F F F F F F F  F F F F F F F F
@@ -125,22 +126,23 @@ m0_conf_cache_lookup_dynamic_fid(const struct m0_conf_cache *cache,
 	 * TODO: Current implementation we are assuming that dynamic FID's will
 	 * always be generated in sequential manner (w.r.t counter bits), so
 	 * that we can fetch latest last dynamic FID, but It may not be in
-	 * sequential always. This scenario needs to be handle.
+	 * sequential always. This scenario needs to be handled.
 	 */
-	if ((m0_fid_tget(id) == 'r') ||
-	    (m0_fid_tget(id) == 's')) {
+	if ((DYNAMIC_FID_CNT(id) != 0 ) &&
+	    (M0_IN(m0_fid_tget(id), ('r','s')))) {
+		cnt1 = DYNAMIC_FID_CNT(id);
 		m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
 			if (m0_base_fid_eq(&obj->co_id, id)) {
-				cnt1 = obj->co_id.f_key >> 32 & 0xFFFFFFFF;
-				cnt2 = id->f_key >> 32 & 0xFFFFFFFF;
+				last_obj = obj;
+				cnt2 = DYNAMIC_FID_CNT(&obj->co_id);
 				if (cnt1 == cnt2)
 					return obj;
-				else if (cnt1 != (cnt2 - 1))
+				else if (cnt1 != (cnt2 + 1))
 					continue;
 				return obj;
 			}
 		} m0_tl_endfor;
-		return NULL;
+		return last_obj;
 	} else {
 		/* Perform normal lookup for non process/service conf object */
 		return m0_conf_cache_lookup(cache, id);
