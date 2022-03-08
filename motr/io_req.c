@@ -411,7 +411,7 @@ static void ioreq_iosm_handle_launch(struct m0_sm_group *grp,
 		}
 	}
 out:
-	M0_LOG(M0_INFO, "nxr_bytes = %"PRIu64", copied_nr = %"PRIu64,
+	M0_LOG(M0_INFO, "nxr_bytes = %" PRIu64 ", copied_nr = %"PRIu64,
 	       ioo->ioo_nwxfer.nxr_bytes, ioo->ioo_copied_nr);
 
 	/* lock this as it isn't a locality group lock */
@@ -477,7 +477,7 @@ static void ioreq_iosm_handle_executed(struct m0_sm_group *grp,
 	 * which is partial, read-modify-write state transition is followed
 	 * for all parity groups.
 	 */
-	M0_LOG(M0_DEBUG, "map=%"PRIu64" map_nr=%"PRIu64,
+	M0_LOG(M0_DEBUG, "map=%" PRIu64 " map_nr=%"PRIu64,
 	       ioo->ioo_map_idx, ioo->ioo_iomap_nr);
 	rmw = ioo->ioo_map_idx != ioo->ioo_iomap_nr;
 	if (ioreq_sm_state(ioo) == IRS_TRUNCATE_COMPLETE)
@@ -826,7 +826,7 @@ static int ioreq_iomaps_parity_groups_cal(struct m0_op_io *ioo)
 			}
 			if (i == ioo->ioo_iomap_nr) { /* new grp */
 				M0_ASSERT_INFO(i < grparray_sz,
-					"nr=%"PRIu64" size=%"PRIu64,
+					"nr=%" PRIu64 " size=%"PRIu64,
 					i , grparray_sz);
 				grparray[i] = grp;
 				++ioo->ioo_iomap_nr;
@@ -886,7 +886,7 @@ static int ioreq_iomaps_prepare(struct m0_op_io *ioo)
 	play = pdlayout_get(ioo);
 
 	M0_LOG(M0_DEBUG, "ioo=%p spanned_groups=%"PRIu64
-			 " [N,K,us]=[%d,%d,%"PRIu64"]",
+			 " [N,K,us]=[%d,%d,%" PRIu64 "]",
 			 ioo, ioo->ioo_iomap_nr, layout_n(play),
 			 layout_k(play), layout_unit_size(play));
 
@@ -928,7 +928,7 @@ static int ioreq_iomaps_prepare(struct m0_op_io *ioo)
 						bufvec ? &buf_cursor : NULL);
 		if (rc != 0)
 			goto failed;
-		M0_LOG(M0_INFO, "iomap_id=%"PRIu64" is populated",
+		M0_LOG(M0_INFO, "iomap_id=%" PRIu64 " is populated",
 		       iomap->pi_grpid);
 	}
 
@@ -1032,7 +1032,7 @@ static int application_data_copy(struct pargrp_iomap      *map,
 	m0_bindex_t               mask;
 	m0_bindex_t               grp_size;
 
-	M0_ENTRY("Copy %s application, start = %8"PRIu64", end = %8"PRIu64,
+	M0_ENTRY("Copy %s application, start = %8" PRIu64 ", end = %8"PRIu64,
 		 dir == CD_COPY_FROM_APP ? (char *)"from" : (char *)" to ",
 		 start, end);
 

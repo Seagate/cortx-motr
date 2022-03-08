@@ -82,7 +82,7 @@ static int repreb_sw_fom_tick(struct m0_fom *fom)
 		if (cm == NULL)
 			return M0_ERR(-EINVAL);
 		M0_LOG(M0_DEBUG, "Rcvd from %s hi: "M0_AG_F
-				 " [%"PRIu64"] [%"PRIu64"] [%"PRIu64"]",
+				 " [%" PRIu64 "] [%" PRIu64 "] [%" PRIu64 "]",
 		       swo_fop->swo_cm_ep.ep,
 		       M0_AG_P(&swo_fop->swo_in_interval.sw_hi),
 		       cm->cm_aggr_grps_in_nr,

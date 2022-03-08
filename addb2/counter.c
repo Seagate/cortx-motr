@@ -160,7 +160,7 @@ static void counter_warn(struct m0_addb2_counter *c, uint64_t val)
 	       " min: %"PRIx64
 	       " max: %"PRIx64
 	       " ssq: %"PRIx64
-	       " val: %"PRIx64".", c->co_sensor.s_id,
+	       " val: %" PRIx64 ".", c->co_sensor.s_id,
 	       d->cod_nr, d->cod_sum, d->cod_min, d->cod_max, d->cod_ssq, val);
 }
 

@@ -323,7 +323,7 @@ M0_INTERNAL m0_bcount_t m0_stob_ad_spares_calc(m0_bcount_t grp_blocks)
 /* This function will go through si_stob vector
  * Checksum is stored in contigious buffer: si_cksum, while COB extents may not be
  * contigious e.g.
- * Assuming each extent has two DU, so two checksum. 
+ * Assuming each extent has two DU, so two checksum.
  *     | CS0 | CS1 | CS2 | CS3 | CS4 | CS5 | CS6 |
  *     | iv_index[0] |      | iv_index[1] | iv_index[2] |     | iv_index[3] |
  * Now if we have an offset for CS3 then after first travesal b_addr will poin to
@@ -1423,7 +1423,7 @@ static int stob_ad_read_prepare(struct m0_stob_io        *io,
 		if (seg->ee_val < AET_MIN)
 		{
 			/* For RMW case, ignore cksum read from fragments */
-			if (io->si_cksum_sz && io->si_unit_sz) 
+			if (io->si_cksum_sz && io->si_unit_sz)
 				stob_ad_get_checksum_for_fragment(io, it, off, frag_size);
 			frags_not_empty++;
 		}
@@ -1702,7 +1702,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 
 		/* Compute checksum units info which belong to this extent (COB off & Sz) */
 		it.ec_app_cksum_buf.b_addr = m0_stob_ad_get_checksum_addr(io, off);
-		it.ec_app_cksum_buf.b_nob  = m0_extent_get_checksum_nob(off, m0_ext_length(&todo), 
+		it.ec_app_cksum_buf.b_nob  = m0_extent_get_checksum_nob(off, m0_ext_length(&todo),
 							                io->si_unit_sz,
 									io->si_cksum_sz);
 	}
@@ -1954,7 +1954,7 @@ static int stob_ad_write_prepare(struct m0_stob_io        *io,
 		/* Get balloc extent length */
 		got = m0_ext_length(&wext->we_ext);
 		M0_ASSERT(todo >= got);
-		M0_LOG(M0_DEBUG, "got=%"PRId64": " EXT_F,
+		M0_LOG(M0_DEBUG, "got=%" PRId64 ": " EXT_F,
 		       got, EXT_P(&wext->we_ext));
 		todo -= got;
 		++bfrags;

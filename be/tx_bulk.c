@@ -95,7 +95,7 @@ struct be_tx_bulk_item {
 };
 
 #define BTBI_F "(qdata=%p bbd_user=%p bbd_credit="BETXCR_F" " \
-	"bbd_payload_size=%"PRIu64")"
+	"bbd_payload_size=%" PRIu64 ")"
 
 #define BTBI_P(btbi) (btbi), (btbi)->bbd_user, BETXCR_P(&(btbi)->bbd_credit), \
 	(btbi)->bbd_payload_size
@@ -340,7 +340,7 @@ static void be_tx_bulk_finish_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	uint32_t                  i;
 	bool                      done;
 
-	M0_ENTRY("tb=%p worker=%p tbw_index=%"PRIu64" tbw_partition=%"PRIu64" "
+	M0_ENTRY("tb=%p worker=%p tbw_index=%" PRIu64 " tbw_partition=%" PRIu64 " "
 	         "tbw_locality=%"PRIu64, tb, worker, worker->tbw_index,
 		 worker->tbw_partition, worker->tbw_locality);
 	M0_PRE(ast == &worker->tbw_finish);
@@ -392,7 +392,7 @@ static void be_tx_bulk_queue_get_cb(struct m0_sm_group *grp,
 		                &worker->tbw_queue_get_successful);
 		m0_be_queue_unlock(bq);
 	}
-	M0_LEAVE("worker=%p tbw_index=%"PRIu64" tbw_rc=%d",
+	M0_LEAVE("worker=%p tbw_index=%" PRIu64 " tbw_rc=%d",
 		 worker, worker->tbw_index, worker->tbw_rc);
 }
 
@@ -400,7 +400,7 @@ static void be_tx_bulk_queue_get_done_cb(struct m0_be_op *op, void *param)
 {
 	struct be_tx_bulk_worker *worker = param;
 
-	M0_ENTRY("worker=%p tbw_index=%"PRIu64" tbw_queue_get_successful=%d",
+	M0_ENTRY("worker=%p tbw_index=%" PRIu64 " tbw_queue_get_successful=%d",
 		 worker, worker->tbw_index, !!worker->tbw_queue_get_successful);
 
 	if (worker->tbw_queue_get_successful) {
@@ -527,7 +527,7 @@ static void be_tx_bulk_close_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	tb = worker->tbw_tb;
 	tb_cfg = &tb->btb_cfg;
 	for (i = 0; i < worker->tbw_items_nr; ++i) {
-		M0_LOG(M0_DEBUG, "worker=%p tbw_index=%"PRIu64" bbd_user=%p",
+		M0_LOG(M0_DEBUG, "worker=%p tbw_index=%" PRIu64 " bbd_user=%p",
 		       worker, worker->tbw_index, worker->tbw_item[i].bbd_user);
 		M0_BE_OP_SYNC(op, tb_cfg->tbc_do(tb, &worker->tbw_tx, &op,
 		                                 tb_cfg->tbc_datum,
@@ -550,7 +550,7 @@ static void be_tx_bulk_gc_cb(struct m0_be_tx *tx, void *param)
 
 	tb = worker->tbw_tb;
 	for (i = 0; i < worker->tbw_items_nr; ++i) {
-		M0_LOG(M0_DEBUG, "worker=%p tbw_index=%"PRIu64" bbd_user=%p",
+		M0_LOG(M0_DEBUG, "worker=%p tbw_index=%" PRIu64 " bbd_user=%p",
 		       worker, worker->tbw_index, worker->tbw_item[i].bbd_user);
 		tb->btb_cfg.tbc_done(tb, tb->btb_cfg.tbc_datum,
 		                     worker->tbw_item[i].bbd_user,

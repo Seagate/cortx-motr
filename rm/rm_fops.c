@@ -401,7 +401,7 @@ static void rm_borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct rm_out               *outreq = M0_AMB(outreq, ast, ou_ast);
 	const struct m0_rpc_item    *item = &outreq->ou_fop.f_item;
-	struct m0_rm_fop_borrow_rep *borrow_reply;
+	struct m0_rm_fop_borrow_rep *borrow_reply = NULL;
 	struct m0_rm_owner          *owner;
 	struct m0_rm_loan           *loan = NULL;
 	struct m0_rm_credit         *credit;

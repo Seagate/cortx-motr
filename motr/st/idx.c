@@ -150,7 +150,7 @@ static int idx_pick_keys(int idx_door_no,
 		if (is_kv_pair_deleted(idx_door_no, key_no))
 			continue;
 		sprintf(tmp_str,
-			"%"PRIx64":%"PRIx64":%d",
+			"%" PRIx64 ":%" PRIx64 ":%d",
 			id.u_hi, id.u_lo, key_no);
 
 		klen = strlen(tmp_str);
@@ -217,7 +217,7 @@ static int idx_fill_kv_pairs(struct m0_uint128 id, int start,
 	vlen = strlen(ST_VAL_STRING);
 	for (i = 0; i < nr_kvp; i++) {
 		sprintf(tmp_str,
-			"%"PRIx64":%"PRIx64":%d",
+			"%" PRIx64 ":%" PRIx64 ":%d",
 			id.u_hi, id.u_lo, start + i);
 
 		klen = strlen(tmp_str);

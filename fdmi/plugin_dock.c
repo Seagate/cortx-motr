@@ -439,6 +439,14 @@ static void pdock_record_release(struct m0_ref *ref)
 	if (rreg->frr_ep_addr == NULL) {
 		/* No way to post anything over RPC */
 		rc = -EACCES;
+		m0_mutex_lock(&m->fdm_p.fdmp_fdmi_recs_lock);
+		fdmi_recs_tlist_remove(rreg);
+		m0_mutex_unlock(&m->fdm_p.fdmp_fdmi_recs_lock);
+		if (rreg->frr_sess != NULL)
+			m0_rpc_conn_pool_put(&m->fdm_p.fdmp_conn_pool,
+					     rreg->frr_sess);
+		m0_free(rreg);
+
 		goto leave;
 	}
 
@@ -539,6 +547,7 @@ static void deregister_plugin(struct m0_fid *filter_ids,
 #if 0
 		m0_free(freg->ffr_ep);
 #endif
+		m0_free(freg);
 	}
 
 	M0_LEAVE();
@@ -633,6 +642,7 @@ M0_INTERNAL void m0_fdmi__plugin_dock_fini(void)
 #if 0
 		m0_free(freg->ffr_ep);
 #endif
+		m0_free(freg);
 	}
 	m0_mutex_unlock(&m->fdm_p.fdmp_fdmi_filters_lock);
 

@@ -478,7 +478,7 @@ M0_UNUSED static char *cob_dom_id_make(char *buf, const struct m0_cob_domain_id 
  */
 int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 {
-	M0_ENTRY("dom=%p id=%"PRIx64"", dom, dom != NULL ? dom->cd_id.id : 0);
+	M0_ENTRY("dom=%p id=%" PRIx64 "", dom, dom != NULL ? dom->cd_id.id : 0);
 
 	M0_PRE(dom != NULL);
 	M0_PRE(dom->cd_id.id != 0);
@@ -503,7 +503,7 @@ void m0_cob_domain_fini(struct m0_cob_domain *dom)
 
 static void cob_domain_id2str(char **s, const struct m0_cob_domain_id *cdid)
 {
-	return m0_asprintf(s, "%016"PRIX64"", cdid->id);
+	return m0_asprintf(s, "%016" PRIX64 "", cdid->id);
 }
 
 M0_INTERNAL int m0_cob_domain_credit_add(struct m0_cob_domain          *dom,
@@ -1475,7 +1475,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 			cob_table_insert(&cob->co_dom->cd_fileattr_omg, tx,
 					 &key, &val);
 		else
-			M0_LOG(M0_DEBUG, "the same omgkey: %"PRIx64" is being "
+			M0_LOG(M0_DEBUG, "the same omgkey: %" PRIx64 " is being "
 			       "added multiple times", omgkey.cok_omgid);
 		rc = 0;
 	}
