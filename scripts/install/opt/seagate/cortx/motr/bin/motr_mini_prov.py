@@ -26,6 +26,7 @@ import logging
 import glob
 import time
 import yaml
+import psutil
 from typing import List, Dict, Any
 from cortx.utils.conf_store import Conf
 from cortx.utils.cortx import Const
@@ -64,7 +65,7 @@ class MotrError(Exception):
     def __str__(self):
         return f"error[{self._rc}]: {self._desc}"
 
-def execute_command_without_log(command,  timeout_secs = TIMEOUT_SECS,
+def execute_command_without_log(cmd,  timeout_secs = TIMEOUT_SECS,
     verbose = False, retries = 1, stdin = None, logging=False):
     ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
