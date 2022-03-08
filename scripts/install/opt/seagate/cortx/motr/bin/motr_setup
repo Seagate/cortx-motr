@@ -23,6 +23,9 @@ import errno
 import argparse
 import inspect
 import traceback
+import signal
+import psutil
+
 
 from cortx.utils.conf_store import Conf
 from motr_mini_prov import *
@@ -342,7 +345,6 @@ class StartCmd(Cmd):
                               "--services confd\n")
         return
 
-
 def main(argv: dict):
     try:
         desc = "Motr Setup command"
@@ -356,5 +358,5 @@ def main(argv: dict):
         return errno.EINVAL
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, receiveSigTerm)
     sys.exit(main(sys.argv))
-
