@@ -13,7 +13,7 @@
     services=[service-0, service-1, service-2, service-3, service-4, service-5,
               service-6, service-7])
 (service-0 type=@M0_CST_IOS endpoints=["0@lo:12345:34:1"] params=[]
-    sdevs=[sdev-10, sdev-11, sdev-12, sdev-13])
+    sdevs=[sdev-10, sdev-11, sdev-12, sdev-13, sdev-14])
 (service-1 type=@M0_CST_MDS endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
 (service-2 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
 (service-3 type=@M0_CST_SNS_REP endpoints=["0@lo:12345:34:1"] params=[]
@@ -22,37 +22,39 @@
     sdevs=[])
 (service-5 type=@M0_CST_ADDB2 endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
 (service-6 type=@M0_CST_CONFD endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
-(service-7 type=@M0_CST_BE endpoints=["0@lo:12345:34:1"] params=[] sdevs=[sdev-14])
-(sdev-10 dev_idx=0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
+(service-7 type=@M0_CST_HA endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
+(sdev-10 dev_idx=1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev0")
-(sdev-11 dev_idx=1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
+(sdev-11 dev_idx=2 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev1")
-(sdev-12 dev_idx=2 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+(sdev-12 dev_idx=3 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
     flags=4 filename="/dev/sdev2")
-(sdev-13 dev_idx=3 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+(sdev-13 dev_idx=4 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
     flags=4 filename="/dev/sdev3")
-(sdev-14 dev_idx=5 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
+(sdev-14 dev_idx=0 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
     flags=4 filename="/dev/sdev4")
 (site-2 racks=[rack-15] pvers=[pver-24, pver-25])
 (rack-15 encls=[enclosure-16] pvers=[pver-24])
 (enclosure-16 node=node-2 ctrls=[controller-17] pvers=[pver-24])
-(controller-17 drives=[drive-18, drive-19, drive-20, drive-21]
+(controller-17 drives=[drive-18, drive-19, drive-20, drive-21, drive-22]
     pvers=[pver-24])
 (drive-18 dev=sdev-10 pvers=[pver-24])
 (drive-19 dev=sdev-11 pvers=[pver-24])
 (drive-20 dev=sdev-12 pvers=[pver-24])
 (drive-21 dev=sdev-13 pvers=[pver-24])
+(drive-22 dev=sdev-14 pvers=[pver-24])
 (pool-23 pver_policy=0 pvers=[pver-24])
-(pver-24 N=3 K=1 S=0 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:25])
+(pver-24 N=3 K=1 S=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:25])
 (objv-2:25 real=site-2 children=[objv-25])
 (objv-25 real=rack-15 children=[objv-26])
 (objv-26 real=enclosure-16 children=[objv-27])
 (objv-27 real=controller-17
-    children=[objv-28, objv-29, objv-30, objv-31])
+    children=[objv-28, objv-29, objv-30, objv-31, objv-32])
 (objv-28 real=drive-18 children=[])
 (objv-29 real=drive-19 children=[])
 (objv-30 real=drive-20 children=[])
 (objv-31 real=drive-21 children=[])
+(objv-32 real=drive-22 children=[])
 (pool-24 pver_policy=0 pvers=[pver-25])
 (pver-25 N=1 K=0 S=0 P=1 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:33])
 (objv-2:33 real=site-2 children=[objv-33])
