@@ -60,8 +60,6 @@ revoke_pre()
 	prog_file_pattern="$st_dir/m0t1fs_io_file_pattern"
 	local source_abcd="$revoke_sandbox/revoke_abcd"
 
-	load_motr_ctl_module || return 1
-
 	rm -rf $revoke_sandbox
 	mkdir -p $revoke_sandbox
 	echo "Creating data file $source_abcd"
@@ -92,8 +90,6 @@ revoke_post()
 		# Note: trace may be read as follows
 		#$M0_SRC_DIR/utils/trace/m0trace -w0 -s m0t1fs,rpc -I /var/log/motr/m0tr_ko.img -i /var/log/motr/m0trace.bin -o $MOTR_TEST_LOGFILE.trace
 	fi
-
-	unload_motr_ctl_module || return 1
 }
 
 revoke_read_lock()

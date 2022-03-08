@@ -233,7 +233,7 @@ void m0_addb2_sys_fini(struct m0_addb2_sys *sys)
 	sys_balance(sys);
 	sys_unlock(sys);
 	if (sys->sy_queued > 0)
-		M0_LOG(M0_NOTICE, "Records lost: %"PRIi64"/%zi.",
+		M0_LOG(M0_NOTICE, "Records lost: %" PRIi64 "/%zi.",
 		       sys->sy_queued, tr_tlist_length(&sys->sy_queue));
 	m0_tl_teardown(tr, &sys->sy_queue, to) {
 		/*
@@ -281,10 +281,10 @@ struct m0_addb2_mach *m0_addb2_sys_get(struct m0_addb2_sys *sys)
 			if (m != NULL)
 				M0_CNT_INC(sys->sy_total);
 			else
-				M0_LOG(M0_WARN, "Init: %"PRId64".",
+				M0_LOG(M0_WARN, "Init: %" PRId64 ".",
 				       sys->sy_total);
 		} else
-			M0_LOG(M0_WARN, "Limit: %"PRId64".", sys->sy_total);
+			M0_LOG(M0_WARN, "Limit: %" PRId64 ".", sys->sy_total);
 	}
 	if (m != NULL)
 		mach_tlist_add(&sys->sy_granted, m);
@@ -330,7 +330,7 @@ int m0_addb2_sys_net_start_with(struct m0_addb2_sys *sys, struct m0_tl *head)
 {
 	struct m0_reqh_service_ctx *service;
 	struct m0_rpc_conn         *conn;
-	int                         result;
+	int                         result = 0;
 
 	if (sys->sy_net == NULL) {
 		result = m0_addb2_sys_net_start(sys);
@@ -350,6 +350,7 @@ int m0_addb2_sys_net_start_with(struct m0_addb2_sys *sys, struct m0_tl *head)
 			}
 		}
 	} m0_tl_endfor;
+
 	return result;
 }
 

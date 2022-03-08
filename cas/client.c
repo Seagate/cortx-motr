@@ -807,7 +807,7 @@ static int nreq_asmbl_prep(struct m0_cas_req *req, struct m0_cas_op *op)
 	struct m0_cas_op  *orig = m0_fop_data(req->ccr_fop);
 	struct m0_cas_rec *rec;
 	uint64_t           i;
-	int                rc;
+	int                rc = 0;
 
 	M0_PRE(op->cg_rec.cr_nr == orig->cg_rec.cr_nr);
 	op->cg_id = orig->cg_id;
@@ -831,6 +831,7 @@ err:
 		op->cg_rec.cr_nr = i + 1;
 		creq_recv_fini(&op->cg_rec, fid_is_meta(&op->cg_id.ci_fid));
 	}
+
 	return M0_RC(rc);
 }
 

@@ -88,7 +88,8 @@ storage_dev_get_part_stob(struct m0_be_domain *domain,
 	for (i = 0; i < M0_BE_MAX_PARTITION_USERS; i++) {
 		alloc_info = &primary_part_info.pti_part_alloc_info[i];
 		if(alloc_info->ai_part_id == M0_BE_PTABLE_ENTRY_BALLOC) {
-			*dev_data_size = alloc_info->ai_def_size_in_chunks;
+			*dev_data_size = alloc_info->ai_def_size_in_chunks <<
+					  primary_part_info.pti_chunk_size_in_bits;
 			break;
 		}
 	}
@@ -321,7 +322,7 @@ static int storage_dev_update_by_conf(struct m0_storage_dev  *dev,
 	struct m0_storage_dev *dev_new;
 	int                    rc;
 
-	M0_ENTRY("dev cid:%"PRIx64", fid: "FID_F", old: %s, new: %s",
+	M0_ENTRY("dev cid:%" PRIx64 ", fid: "FID_F", old: %s, new: %s",
 		 dev->isd_cid, FID_P(&sdev->sd_obj.co_id), dev->isd_filename,
 		 M0_MEMBER(sdev, sd_filename));
 	M0_PRE(sdev != NULL);
@@ -403,7 +404,7 @@ static bool storage_devs_conf_ready_async_cb(struct m0_clink *clink)
 		rc = m0_conf_sdev_get(confc, &sdev_fid, &conf_sdev);
 		M0_ASSERT_INFO(rc == 0, "No sdev: "FID_F, FID_P(&sdev_fid));
 		M0_ASSERT(conf_sdev != NULL);
-		M0_LOG(M0_DEBUG, "cid:0x%"PRIx64" -> sdev_fid:"FID_F" idx:0x%x",
+		M0_LOG(M0_DEBUG, "cid:0x%" PRIx64 " -> sdev_fid:"FID_F" idx:0x%x",
 		       dev->isd_cid, FID_P(&sdev_fid), conf_sdev->sd_dev_idx);
 		if (!m0_clink_is_armed(&dev->isd_clink))
 			m0_storage_dev_clink_add(&dev->isd_clink,
@@ -615,7 +616,7 @@ end:
 		m0_free(device);
 	}
 	return rc == 0 ? M0_RC(0) :
-	       M0_ERR_INFO(rc, "path_orig=%s cid=%"PRIu64" conf_sdev="FID_F,
+	       M0_ERR_INFO(rc, "path_orig=%s cid=%" PRIu64 " conf_sdev="FID_F,
 			   path_orig, cid,
 			   FID_P(conf_sdev == NULL ? &M0_FID0 :
 				 &conf_sdev->sd_obj.co_id));

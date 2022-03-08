@@ -83,7 +83,7 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 	 * seeded checksum.
 	 */
 	if (pi_value_without_seed != NULL) {
-		/* 
+		/*
 		 * NOTE: MD5_final() changes the context itself and curr_context
 		 * should not be finalised, thus copy it and use it for MD5_final
 		 */
@@ -115,7 +115,7 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 		 * seed_str needs to be 61 bytes, round off and taking 64 bytes.
 		 */
 		char seed_str[64] = {'\0'};
-		snprintf(seed_str, sizeof(seed_str), "%"PRIx64"%"PRIx64"%"PRIx64,
+		snprintf(seed_str, sizeof(seed_str), "%" PRIx64 "%" PRIx64 "%"PRIx64,
 				seed->pis_obj_id.f_container, seed->pis_obj_id.f_key,
 				seed->pis_data_unit_offset);
 		rc = MD5_Update(&context, (unsigned char *)seed_str,
@@ -123,8 +123,8 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 		if (rc != 1) {
 
 			return M0_ERR_INFO(rc, "MD5_Update fail curr_context=%p"
-					"f_container 0x%"PRIx64" f_key 0x%"PRIx64
-					" data_unit_offset 0x%"PRIx64" seed_str %s",
+					"f_container 0x%" PRIx64 " f_key 0x%"PRIx64
+					" data_unit_offset 0x%" PRIx64 " seed_str %s",
 					curr_context, seed->pis_obj_id.f_container,
 					seed->pis_obj_id.f_key,
 					seed->pis_data_unit_offset,
@@ -220,7 +220,7 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 		}
 		else {
 			M0_LOG(M0_ERROR, "checksum fail "
-					 "f_container 0x%"PRIx64" f_key 0x%"PRIx64
+					 "f_container 0x%" PRIx64 " f_key 0x%"PRIx64
 					 " data_unit_offset 0x%"PRIx64,
 					 seed->pis_obj_id.f_container,
 					 seed->pis_obj_id.f_key,

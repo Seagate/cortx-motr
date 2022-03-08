@@ -210,7 +210,7 @@ static int conf_cache_encode(const struct m0_conf_cache *cache,
 			     struct m0_confx *dest, bool debug)
 {
 	struct m0_conf_obj *obj;
-	int                 rc;
+	int                 rc = 0;
 	size_t              nr;
 	char               *data;
 
@@ -249,6 +249,7 @@ static int conf_cache_encode(const struct m0_conf_cache *cache,
 		m0_free(data);
 		dest->cx__objs = NULL;
 	}
+
 	return M0_RC(rc);
 }
 

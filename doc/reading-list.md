@@ -90,7 +90,7 @@ Function Shipping
 Network
 -------
 
-* [LNET: Lustre Networking](http://wiki.lustre.org/lid/ulfi/ulfi_lnet.html)
+* [LNET: Lustre Networking](https://wiki.lustre.org/Lustre_Networking_(LNET)_Overview)
 
 
 ADDB

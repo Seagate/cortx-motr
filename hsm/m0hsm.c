@@ -159,7 +159,7 @@ static int m0hsm_write_file(struct m0_uint128 id, const char *path)
 	rc = open_entity(&obj.ob_entity);
 	if (rc) {
 		fprintf(stderr,
-			"open object %#"PRIx64":%#"PRIx64" failed: %d\n",
+			"open object %#" PRIx64 ":%#" PRIx64 " failed: %d\n",
 			id.u_hi, id.u_lo, rc);
 		goto err;
 	}
@@ -168,7 +168,7 @@ static int m0hsm_write_file(struct m0_uint128 id, const char *path)
 		rc = m0hsm_pwrite(&obj, io_buff, read_nr, off);
 		if (rc) {
 			fprintf(stderr, "error on writting at %zu to "
-				"%#"PRIx64":%#"PRIx64": %d\n", (size_t)off,
+				"%#" PRIx64 ":%#" PRIx64 ": %d\n", (size_t)off,
 				id.u_hi, id.u_lo, rc);
 			break;
 		}
