@@ -74,8 +74,6 @@ def execute_command_without_log(command,  timeout_secs = TIMEOUT_SECS,
     stdout, stderr = ps.communicate(timeout=timeout_secs);
     stdout = str(stdout, 'utf-8')
 
-    if ps.returncode == 0:
-        break
     time.sleep(1)
     if ps.returncode != 0:
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
@@ -1440,7 +1438,6 @@ def getListOfm0dProcess():
     return listOfProc
 
 def receiveSigTerm(signalNumber, frame):
-    class.logger.info("Received SIGTERM SIGNAL")
     for proc in getListOfm0dProcess():
         cmd=f"KILL -SIGTERM {proc.get('pid')}"
         execute_command_without_log(cmd)
