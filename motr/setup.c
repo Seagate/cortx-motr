@@ -1488,11 +1488,11 @@ static void cs_part_domain_setup(struct m0_reqh_context *rctx)
 	    (!rctx->rc_stob.s_ad_disks_init))
 		return;
 
-        /* if (cs_conf_part_config_get(rctx, part_cfg, false) != 0)
+        /* TODO MBK update during integration with hare
+	 * if (cs_conf_part_config_get(rctx, part_cfg, false) != 0)
 		return ; */
 
-        if (cs_conf_part_config_get(rctx, part_cfg, true) != 0)
-		return ;
+        cs_conf_part_config_get(rctx, part_cfg, true);
 }
 static int cs_be_init(struct m0_reqh_context  *rctx,
 		      struct m0_be_ut_backend *be,
