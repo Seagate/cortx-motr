@@ -6967,7 +6967,6 @@ static int indirect_kv_alloc(struct m0_btree_op    *bop,
 
 	user_rec->r_val.ov_buf = &oi->i_indirect_val;
 
-
 	oi->i_indirect_ksize = sizeof(uint32_t) + sizeof(uint32_t) + ksize;
 	oi->i_indirect_key   = INDIRECT_ALLOC(oi->i_indirect_ksize, seg, tx);
 	oi->i_indirect_key   = oi->i_indirect_key + 2 * sizeof(uint32_t);
