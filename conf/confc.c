@@ -482,6 +482,15 @@ static int confc_cache_create(struct m0_confc *confc,
 	return M0_RC(rc);
 }
 
+/** Create m0_conf_dir objects for m0_conf_process. */
+static int confc_cache_process_dirs_create(struct m0_conf_process *process)
+{
+	return M0_RC(m0_conf_dir_new(&process->pc_obj,
+				     &M0_CONF_PROCESS_SERVICES_FID,
+				     &M0_CONF_SERVICE_TYPE, NULL,
+				     &process->pc_services));
+}
+
 M0_INTERNAL int m0_confc_cache_add_service(struct m0_conf_cache    *cache,
 					   const struct m0_fid     *process_fid,
 					   struct m0_conf_obj      *base_obj,
@@ -499,32 +508,41 @@ M0_INTERNAL int m0_confc_cache_add_process(struct m0_conf_cache    *cache,
 					   struct m0_conf_obj      **new_obj)
 {
 	struct m0_conf_dir     *dir;
-	struct m0_conf_process *proc1;
-	struct m0_conf_process *proc2;
+	struct m0_conf_process *base_obj_process = NULL;
+	struct m0_conf_process *new_obj_process = NULL;
 	int                     rc;
 
+	M0_ENTRY();
 	M0_PRE(base_obj != NULL);
 	rc = m0_conf_obj_find(cache, process_fid, new_obj);
 	if (rc == 0) {
-
 		if ((*new_obj)->co_parent == NULL) {
 			dir = M0_CONF_CAST(base_obj->co_parent, m0_conf_dir);
 			m0_conf_dir_add(dir, *new_obj);
 		}
-		proc1 = M0_CONF_CAST(base_obj, m0_conf_process);
-		proc2 = M0_CONF_CAST(*new_obj, m0_conf_process);
+		base_obj_process = M0_CONF_CAST(base_obj, m0_conf_process);
+		new_obj_process = M0_CONF_CAST(*new_obj, m0_conf_process);
 
-		if (proc1 != NULL && proc2 != NULL) {
-			if (proc1->pc_endpoint != NULL) {
-				proc2->pc_endpoint = m0_strdup(proc1->pc_endpoint);
-			}
-			rc = m0_conf_dir_new(*new_obj, &M0_CONF_PROCESS_SERVICES_FID,
-					     &M0_CONF_SERVICE_TYPE, NULL, &proc2->pc_services);
+		M0_ASSERT(base_obj_process != NULL);
+		M0_ASSERT(new_obj_process != NULL);
+		new_obj_process->pc_endpoint = m0_strdup(base_obj_process->pc_endpoint);
+		if (new_obj_process->pc_endpoint == NULL) {
+			rc = M0_ERR(-ENOMEM);
+			goto fail;
 		}
+		rc = confc_cache_process_dirs_create(new_obj_process);
+		if (rc != 0)
+			goto fail;
 	} else {
 		M0_LOG(M0_ERROR, "confs obj add failed for FID:"FID_F"rc= %d",
 		       FID_P(process_fid), rc);
+		goto fail;
 	}
+
+	return M0_RC(rc);
+fail:
+	if (*new_obj != NULL && rc != -EEXIST)
+		m0_conf_cache_del(cache, *new_obj);
 	return M0_RC(rc);
 }
 

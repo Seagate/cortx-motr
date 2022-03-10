@@ -163,11 +163,12 @@ static void m0_ha_add_dynamic_fid_to_confc(
 		if (!ignore_same_state ||
 		    prev_ha_state != new_obj->co_ha_state)
 			m0_chan_broadcast(&new_obj->co_ha_chan);
-		M0_LOG(M0_DEBUG,"Conf obj for dynamif FID"FID_F" added",
+		M0_LOG(M0_DEBUG,"Conf obj for dynamic FID"FID_F" added",
 		        FID_P(&nv_note->no_id));
 	} else if (m0_fid_tget(&nv_note->no_id) == 's') {
 		 rc = m0_confc_cache_add_service(cache, &nv_note->no_id,
 						 base_obj, &new_obj);
+		 M0_ASSERT(rc == 0);
 	}
 }
 

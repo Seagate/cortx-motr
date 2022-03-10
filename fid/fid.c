@@ -164,11 +164,6 @@ M0_INTERNAL void m0_fid_tgenerate(struct m0_fid *fid,
 M0_INTERNAL bool m0_base_fid_eq(const struct m0_fid *fid0,
 				const struct m0_fid *fid1)
 {
-	/*
-	 * This function is to compare two FID's with base part of the FID's.
-	 * During comparison it will skip counter bits (higher 32 bits
-	 * of key) to compare two FID's.
-	 */
 	return fid0->f_container == fid1->f_container ?
 	    ((fid0->f_key & M0_FID_DYNAMIC_CNT_MASK) ==
 	     (fid1->f_key & M0_FID_DYNAMIC_CNT_MASK)): false;

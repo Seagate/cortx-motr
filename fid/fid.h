@@ -49,6 +49,14 @@ M0_INTERNAL bool m0_fid_is_set(const struct m0_fid *fid);
 M0_INTERNAL bool m0_fid_is_valid(const struct m0_fid *fid);
 M0_INTERNAL bool m0_fid_eq(const struct m0_fid *fid0,
 			   const struct m0_fid *fid1);
+
+/**
+* This function is to compare two FID's with base part of the FID's.
+*
+* @param  fid0 pointer to struct m0_fid
+* @param  fid1 pointer to struct m0_fid
+* @retval return True if base part of fid0 and fid1 are equal else False
+*/
 M0_INTERNAL bool m0_base_fid_eq(const struct m0_fid *fid0,
 		                const struct m0_fid *fid1);
 M0_INTERNAL int m0_fid_cmp(const struct m0_fid *fid0,
