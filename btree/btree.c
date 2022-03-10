@@ -961,6 +961,10 @@ struct node_type {
 	/** Returns Child pointer (in segment) at specific index */
 	void (*nt_child)(struct slot *slot, struct segaddr *addr);
 
+	void* (*nt_key_addr)(const struct nd *node, int idx);
+
+	void* (*nt_val_addr)(const struct nd *node, int idx);
+
 	/**
 	 *  Returns TRUE if node has space to fit a new entry whose key and
 	 *  value length is provided in slot.
@@ -1003,9 +1007,6 @@ struct node_type {
 	/** Deletes the record from the node at specific index */
 	void (*nt_del)  (const struct nd *node, int idx, struct m0_be_tx *tx);
 
-	/** Moves record(s) between nodes in case of indirect addressing */
-	void (*nt_indirect_move) (struct nd *src, struct nd *tgt,
-				  enum direction dir, int nr);
 	/** Updates the level of node */
 	void (*nt_set_level)  (const struct nd *node, uint8_t new_level);
 
@@ -1731,6 +1732,18 @@ static void bnode_child(struct slot *slot, struct segaddr *addr)
 	slot->s_node->n_type->nt_child(slot, addr);
 }
 
+static void *bnode_key_addr(const struct nd *node, int idx)
+{
+	M0_PRE(bnode_invariant(node));
+	return node->n_type->nt_key_addr(node, idx);
+}
+
+static void *bnode_val_addr(const struct nd *node, int idx)
+{
+	M0_PRE(bnode_invariant(node));
+	return node->n_type->nt_val_addr(node, idx);
+}
+
 static bool bnode_isfit(struct slot *slot)
 {
 	M0_PRE(bnode_invariant(slot->s_node));
@@ -1832,15 +1845,6 @@ static void bnode_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 {
 	M0_PRE(bnode_invariant(node));
 	node->n_type->nt_del(node, idx, tx);
-}
-
-static void bnode_indirect_move(struct nd *src, struct nd *tgt,
-				enum direction dir, int nr)
-{
-	M0_PRE(bnode_invariant(src));
-	M0_PRE(bnode_invariant(tgt));
-	M0_IN(dir,(D_LEFT, D_RIGHT));
-	src->n_type->nt_indirect_move(src, tgt, dir, nr);
 }
 
 static void bnode_set_level(const struct nd *node, uint8_t new_level)
@@ -2523,8 +2527,6 @@ static void ff_val_resize(struct slot *slot, int vsize_diff,
 static void ff_fix(const struct nd *node);
 static void ff_cut(const struct nd *node, int idx, int size);
 static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx);
-static void ff_indirect_move(struct nd *src, struct nd *tgt, enum direction dir,
-			     int nr);
 static void ff_set_level(const struct nd *node, uint8_t new_level);
 static void ff_set_rec_count(const struct nd *node, uint16_t count);
 static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
@@ -2588,7 +2590,6 @@ static const struct node_type fixed_format = {
 	.nt_fix                       = ff_fix,
 	.nt_cut                       = ff_cut,
 	.nt_del                       = ff_del,
-	.nt_indirect_move             = ff_indirect_move,
 	.nt_set_level                 = ff_set_level,
 	.nt_set_rec_count             = ff_set_rec_count,
 	.nt_move                      = generic_move,
@@ -2996,13 +2997,6 @@ static void ff_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	h->ff_used--;
 }
 
-static void ff_indirect_move(struct nd *src, struct nd *tgt,
-			     enum direction dir, int nr)
-{
-	/* Indirect addressing is not supported for this node type. */
-	M0_ASSERT(0);
-}
-
 static void ff_set_level(const struct nd *node, uint8_t new_level)
 {
 	struct ff_head *h = ff_data(node);
@@ -3030,6 +3024,9 @@ static void *ff_opaque_get(const struct segaddr *addr)
 	struct ff_head *h = segaddr_addr(addr);
 	return h->ff_opaque;
 }
+
+static void generic_indir_addr_move(struct nd *src, struct nd *tgt,
+				    enum direction dir, int nr);
 
 static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 			 int nr)
@@ -3062,7 +3059,7 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 
 	if (bnode_addrtype_get(src) == INDIRECT_ADDRESSING)
 	{
-		bnode_indirect_move(src, tgt, dir, nr);
+		generic_indir_addr_move(src, tgt, dir, nr);
 		bnode_seq_cnt_update(src);
 		bnode_fix(src);
 		bnode_seq_cnt_update(tgt);
@@ -3505,8 +3502,6 @@ static void fkvv_val_resize(struct slot *slot, int vsize_diff,
 static void fkvv_fix(const struct nd *node);
 static void fkvv_cut(const struct nd *node, int idx, int size);
 static void fkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx);
-static void fkvv_indirect_move(struct nd *src, struct nd *tgt,
-			       enum direction dir, int nr);
 static void fkvv_set_level(const struct nd *node, uint8_t new_level);
 static void fkvv_set_rec_count(const struct nd *node, uint16_t count);
 static bool fkvv_invariant(const struct nd *node);
@@ -3563,7 +3558,6 @@ static const struct node_type fixed_ksize_variable_vsize_format = {
 	.nt_fix                       = fkvv_fix,
 	.nt_cut                       = fkvv_cut,
 	.nt_del                       = fkvv_del,
-	.nt_indirect_move             = fkvv_indirect_move,
 	.nt_set_level                 = fkvv_set_level,
 	.nt_set_rec_count             = fkvv_set_rec_count,
 	.nt_move                      = generic_move,
@@ -4131,13 +4125,6 @@ static void fkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 				 : fkvv_del_leaf(node, idx);
 }
 
-static void fkvv_indirect_move(struct nd *src, struct nd *tgt,
-			       enum direction dir, int nr)
-{
-	/* Indirect addressing is not supported for this node type. */
-	M0_ASSERT(0);
-}
-
 static void fkvv_set_level(const struct nd *node, uint8_t new_level)
 {
 	struct fkvv_head *h = fkvv_data(node);
@@ -4487,12 +4474,6 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 		M0_BE_FREE_ALIGN_BUF_SYNC(&buf, 0, (seg), (tx));               \
 	})
 
-struct indirect_key {
-	uint32_t  k_ref_count;
-	uint32_t  k_size;
-	void     *p_key;
-};
-
 static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
 		      int nsize, uint32_t ntype, uint64_t crc_type,
 		      uint32_t addr_type, uint64_t gen, struct m0_fid fid);
@@ -4514,6 +4495,9 @@ static void vkvv_fid(const struct nd *node, struct m0_fid *fid);
 static void vkvv_rec(struct slot *slot);
 static void vkvv_node_key(struct slot *slot);
 static void vkvv_child(struct slot *slot, struct segaddr *addr);
+static void *vkvv_key(const struct nd *node, int idx);
+static void *vkvv_val(const struct nd *node, int idx);
+
 static bool vkvv_isfit(struct slot *slot);
 static void vkvv_done(struct slot *slot, bool modified);
 static void vkvv_make(struct slot *slot);
@@ -4522,8 +4506,6 @@ static void vkvv_val_resize(struct slot *slot, int vsize_diff,
 static void vkvv_fix(const struct nd *node);
 static void vkvv_cut(const struct nd *node, int idx, int size);
 static void vkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx);
-static void vkvv_indir_addr_move(struct nd *src, struct nd *tgt,
-				 enum direction dir, int nr);
 static void vkvv_set_level(const struct nd *node, uint8_t new_level);
 static void vkvv_set_rec_count(const struct nd *node, uint16_t count);
 static bool vkvv_invariant(const struct nd *node);
@@ -4574,6 +4556,8 @@ static const struct node_type variable_kv_format = {
 	.nt_rec                       = vkvv_rec,
 	.nt_key                       = vkvv_node_key,
 	.nt_child                     = vkvv_child,
+	.nt_key_addr                  = vkvv_key,
+	.nt_val_addr                  = vkvv_val,
 	.nt_isfit                     = vkvv_isfit,
 	.nt_done                      = vkvv_done,
 	.nt_make                      = vkvv_make,
@@ -4581,7 +4565,6 @@ static const struct node_type variable_kv_format = {
 	.nt_fix                       = vkvv_fix,
 	.nt_cut                       = vkvv_cut,
 	.nt_del                       = vkvv_del,
-	.nt_indirect_move             = vkvv_indir_addr_move,
 	.nt_set_level                 = vkvv_set_level,
 	.nt_set_rec_count             = vkvv_set_rec_count,
 	.nt_move                      = generic_move,
@@ -5804,66 +5787,6 @@ static void vkvv_del(const struct nd *node, int idx, struct m0_be_tx *tx)
 	h->vkvv_used--;
 }
 
-static void vkvv_indir_addr_move(struct nd *src, struct nd *tgt,
-				 enum direction dir, int nr)
-{
-	struct vkvv_head *h        = vkvv_data(src);
-	int               count    = vkvv_count_rec(src);
-	int               count_remain;
-	void             *src_start;
-	void             *tgt_start;
-	int               total_ksize;
-	int               total_vsize;
-	int               new_total;
-
-	/**
-	 * This function does not support random @nr, as such requirement found.
-	 */
-	M0_PRE(vkvv_count_rec(tgt) == 0);
-	M0_PRE(nr == NR_EVEN || nr == NR_MAX);
-
-	if (nr == NR_EVEN) {
-		count = count % 2 ? (count / 2 + 1) : (count / 2);
-		count_remain = h->vkvv_used - count;
-	}
-
-	total_ksize = count * INDIRECT_KEY_SIZE;
-	total_vsize = count * INDIRECT_VAL_SIZE;
-
-	M0_ASSERT(vkvv_space(tgt) >= total_ksize + total_vsize);
-
-	src_start = nr == NR_EVEN && dir == D_RIGHT ?
-		    vkvv_indir_addr_key(src, h->vkvv_used - count):
-		    vkvv_indir_addr_key(src, 0);
-
-	tgt_start = vkvv_indir_addr_key(tgt, 0);
-	memcpy(tgt_start, src_start, total_ksize);
-
-	if (nr == NR_EVEN && dir == D_LEFT)
-	{
-		new_total = count_remain * INDIRECT_KEY_SIZE;
-		m0_memmove(src_start, src_start + total_ksize, new_total);
-	}
-
-	src_start = nr == NR_EVEN && dir == D_LEFT ?
-		    vkvv_indir_addr_val(src, 0) - total_vsize :
-		    vkvv_indir_addr_val(src, vkvv_count_rec(src));
-
-	tgt_start = vkvv_indir_addr_val(tgt, 0) - total_vsize;
-	memcpy(tgt_start, src_start, total_vsize);
-
-	if (nr == NR_EVEN && dir == D_LEFT)
-	{
-		new_total = count_remain * INDIRECT_VAL_SIZE;
-		m0_memmove(src_start + total_vsize - new_total,
-			   src_start - new_total, new_total);
-	}
-
-	h->vkvv_used -= count;
-	h = vkvv_data(tgt);
-	h->vkvv_used += count;
-	return;
-}
 /**
  * @brief This function will set the level for the given node.
  */
@@ -6057,6 +5980,67 @@ static void vkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(4, node_size));
 }
+
+static void generic_indir_addr_move(struct nd *src, struct nd *tgt,
+				    enum direction dir, int nr)
+{
+	int               total_count = bnode_count_rec(src);
+	int               count       = total_count;
+	int               count_remain;
+	void             *src_start;
+	void             *tgt_start;
+	int               total_ksize;
+	int               total_vsize;
+	int               new_total;
+
+	/**
+	 * This function does not support random @nr, as such requirement found.
+	 */
+	M0_PRE(bnode_count_rec(tgt) == 0);
+	M0_PRE(nr == NR_EVEN || nr == NR_MAX);
+
+	if (nr == NR_EVEN) {
+		count = total_count % 2 ? (count / 2 + 1) : (count / 2);
+		count_remain = total_count - count;
+	}
+
+	total_ksize = count * INDIRECT_KEY_SIZE;
+	total_vsize = count * INDIRECT_VAL_SIZE;
+
+	M0_ASSERT(bnode_space(tgt) >= total_ksize + total_vsize);
+
+	src_start = nr == NR_EVEN && dir == D_RIGHT ?
+		    bnode_key_addr(src, total_count - count):
+		    bnode_key_addr(src, 0);
+
+	tgt_start = bnode_key_addr(tgt, 0);
+	memcpy(tgt_start, src_start, total_ksize);
+
+	if (nr == NR_EVEN && dir == D_LEFT)
+	{
+		new_total = count_remain * INDIRECT_KEY_SIZE;
+		m0_memmove(src_start, src_start + total_ksize, new_total);
+	}
+
+	src_start = nr == NR_EVEN && dir == D_LEFT ?
+		    bnode_val_addr(src, 0) - total_vsize :
+		    bnode_val_addr(src, total_count);
+
+	tgt_start = bnode_val_addr(tgt, 0) - total_vsize;
+	memcpy(tgt_start, src_start, total_vsize);
+
+	if (nr == NR_EVEN && dir == D_LEFT)
+	{
+		new_total = count_remain * INDIRECT_VAL_SIZE;
+		m0_memmove(src_start + total_vsize - new_total,
+			   src_start - new_total, new_total);
+	}
+
+	bnode_set_rec_count(src, total_count - count);
+	bnode_set_rec_count(tgt, count);
+	return;
+}
+
 /**
  *  --------------------------------------------
  *  Section END -
