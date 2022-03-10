@@ -630,8 +630,8 @@ main() {
 	start
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	execute_tests 2>&1 | tee -a $MOTR_TEST_LOGFILE
-	rc=${PIPESTATUS[0]}
+	execute_tests 2>&1 | tee -a "$MOTR_TEST_LOGFILE"
+	rc="${PIPESTATUS[0]}"
 	[ $rc != 0 ] && "echo test cases failed"
 	stop
 	if [ $rc -eq 0 ]; then

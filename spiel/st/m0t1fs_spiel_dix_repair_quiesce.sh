@@ -116,8 +116,8 @@ main()
 
 	spiel_prepare
 
-	spiel_dix_repair_quiesce_test 2>&1 | tee -a $MOTR_TEST_LOGFILE
-	if [ ${PIPESTATUS[0]} -ne 0 ]; then
+	spiel_dix_repair_quiesce_test 2>&1 | tee -a "$MOTR_TEST_LOGFILE"
+	if [ "${PIPESTATUS[0]}" -ne 0 ]; then
 		echo "Failed: DIX repair failed.."
 		rc=1
 	fi
