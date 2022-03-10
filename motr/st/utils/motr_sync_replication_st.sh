@@ -53,6 +53,7 @@ PVER_2="7680000000000000:4"
 PVER_3="7680000000000001:42"
 motr_pids=""
 export cnt=1
+export MOTR_CLIENT_ONLY=1
 
 # Dgmode IO
 
@@ -102,24 +103,6 @@ post_failure_pver_check()
 {
 	fail_count=$1
 
-	echo "Check pver of the first object"
-	output=`getfattr -n pver $MOTR_M0T1FS_MOUNT_DIR/"$OBJ_HID1"`
-	echo $output
-	if [[ $output != *"$PVER_1"* ]]
-	then
-		echo "getattr failed on $OBJ_HID1."
-		error_handling 1
-	fi
-	echo "Check pver of the second object, created post device failure."
-	output=`getfattr -n pver $MOTR_M0T1FS_MOUNT_DIR/"$OBJ_HID2"`
-	echo $output
-	if [[ $output != *"$PVER_2"* ]]
-	then
-		echo "getattr failed on $OBJ_HID2 when total failures are
-		      $fail_count"
-		error_handling 1
-	fi
-
 	# Read a file from new pool version.
 	rm -f $dest_file
 	io_conduct "READ" $OBJ_ID2 $dest_file false
@@ -154,15 +137,6 @@ post_failure_pver_check()
 			echo "File read from a new pool version differs."
 			error_handling $rc
 		fi
-		echo "Check pver of the third object"
-		output=`getfattr -n pver $MOTR_M0T1FS_MOUNT_DIR/"$OBJ_HID3"`
-		echo $output
-		if [[ $output != *"$PVER_3"* ]]
-		then
-			echo "getattr failed on $OBJ_HID3 when failures are
-			      $fail_count"
-			error_handling 1
-		fi
 	fi
 }
 
@@ -179,7 +153,6 @@ main()
 
 	dd if=/dev/urandom bs=4K count=100 of=$src_file 2> $MOTR_TEST_LOGFILE || {
 		echo "Failed to create a source file"
-		unmount_and_clean &>>$MOTR_TEST_LOGFILE
 		motr_service_stop
 		return 1
 	}
@@ -189,18 +162,6 @@ main()
 
 	#Initialise dix
 	dix_init
-	#mount m0t1fs as well. This helps in two ways:
-	# 1) Currently motr does not have a utility to check attributes of an
-	#    object. Hence checking of attributes is done by fetching them via
-	#    m0t1fs.
-	# 2) A method to send HA notifications assumes presence of m0t1fs. One
-	#    way to circumvent this is by assigning same end-point to motr,
-	#    but creating a motr instance concurrently with HA notifications
-	#    is hard. Another way is to re-write the method to send HA
-	#    notifications by excluding m0t1fs end-point. We have differed these
-	#    changes in current patch.
-	local mountopt="oostore,verify"
-	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mountopt || return 1
 	BLOCKSIZE="4096"
 	BLOCKCOUNT="100"
 
@@ -332,7 +293,6 @@ main()
 		error_handling $rc
 	fi
 
-	unmount_and_clean &>> $MOTR_TEST_LOGFILE
 	motr_service_stop || rc=1
 
 	if [ $rc -eq 0 ]; then
