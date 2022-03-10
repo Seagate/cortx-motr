@@ -640,6 +640,26 @@ static void libfab_txep_event_check(struct m0_fab__ep *txep,
 		libfab_pending_bufs_send(txep);
 		txep->fep_connlink = FAB_CONNLINK_PENDING_SEND_DONE;
 	}
+
+	/*
+	 * For version >= 1.12, the libfabric library does not return the error
+	 * -111 (ECONNREFUSED) if the remote service has not yet started. Thus
+	 * the connection request does not receive any reply and the endpoint
+	 * keeps waiting in the FAB_CONNECTING state. To avoid this, the state
+	 * of the endpoint is reset after a timeout of 5s to FAB_DISCONNECTED.
+	 * Thus, when the next buffer is posted to the endpoint, it will again
+	 * try to establish connection by sending out a new connection request.
+	 */
+	if (aep->aep_tx_state == FAB_CONNECTING &&
+	    m0_time_is_in_past(aep->aep_connecting_tmout)) {
+		M0_LOG(M0_DEBUG,"Reset Conn from %s to %s",
+		       (char*)tm->ftm_pep->fep_name.nia_p,
+		       (char*)txep->fep_name.nia_p);
+		libfab_txep_init(aep, tm, txep);
+		m0_tl_teardown(fab_sndbuf, &txep->fep_sndbuf, fbp) {
+			libfab_buf_done(fbp, -ECONNREFUSED, false);
+		}
+	}
 }
 
 /**
@@ -2260,9 +2280,11 @@ static int libfab_conn_init(struct m0_fab__ep *ep, struct m0_fab__tm *ma,
 		M0_ASSERT(ret == 0 && sizeof(cd) < cm_max_size);
 
 		ret = fi_connect(aep->aep_txep, &dst, &cd, sizeof(cd));
-		if (ret == 0)
+		if (ret == 0) {
 			aep->aep_tx_state = FAB_CONNECTING;
-		else
+			aep->aep_connecting_tmout = m0_time_from_now(
+						       FAB_CONNECTING_TMOUT, 0);
+		} else
 			M0_LOG(M0_DEBUG, "Conn req failed ret=%d dst=%"PRIx64,
 			       ret, dst);
 	}

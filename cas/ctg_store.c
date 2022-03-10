@@ -1975,9 +1975,9 @@ ctg_index_btree_dump_one_rec(struct m0_buf* key,
 
 	if (!dump_in_hex) {
 		m0_console_printf("{key: %.*s}, {val: %.*s}\n",
-				  (int)key->b_nob,
+				  (int)key->b_nob - header_len,
 				  (const char*)(key->b_addr + header_len),
-				  (int)val->b_nob,
+				  (int)val->b_nob - header_len,
 				  (const char*)(val->b_addr + header_len));
 		return;
 	}
