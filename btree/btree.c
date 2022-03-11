@@ -830,16 +830,16 @@ struct td {
 	const struct m0_btree_type *t_type;
 
 	/**
-	 * The lock that protects the fields below. The fields above are
+	 * The lock that protects the fields below t_lock. The fields above are
 	 * read-only after the tree root is loaded into memory.
 	 */
 	struct m0_rwlock            t_lock;
-	struct nd                  *t_root;
-	int                         t_height;
-	int                         t_ref;
-	struct m0_be_seg           *t_seg; /** Segment hosting tree nodes. */
-	struct m0_fid               t_fid; /** Fid of the tree. */
-	struct m0_btree_rec_key_op  t_keycmp;
+	struct nd                  *t_root;   /** Points to root node on seg */
+	int                         t_height; /** Height of the tree */
+	int                         t_ref;    /** Reference count */
+	struct m0_be_seg           *t_seg;    /** Segment hosting tree nodes. */
+	struct m0_fid               t_fid;    /** Fid of the tree. */
+	struct m0_btree_rec_key_op  t_keycmp; /** User Key compare function */
 };
 
 /** Special values that can be passed to bnode_move() as 'nr' parameter. */
@@ -1098,7 +1098,7 @@ struct nd {
 	 * Node refernce count. n_ref count indicates the number of times this
 	 * node is fetched for different operations (KV delete, put, get etc.).
 	 * If the n_ref count is non-zero the node should be in active node
-	 * descriptor list. Once n_ref count reaches, it means the node is not
+	 * descriptor list. Once n_ref count reaches 0, it means the node is not
 	 * in use by any operation and is safe to move to global lru list.
 	 */
 	int                     n_ref;
