@@ -23,7 +23,6 @@ M0_SRC_DIR="$(readlink -f "${BASH_SOURCE[0]}")"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*/*/*}"
 [ `id -u` -eq 0 ] || die 'Must be run by superuser'
 
-. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
 . "$M0_SRC_DIR"/spiel/st/m0t1fs_spiel_dix_common_inc.sh #dix spiel
 . "$M0_SRC_DIR"/motr/st/utils/motr_local_conf.sh
 . "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_dix_common_inc.sh
@@ -195,7 +194,7 @@ lookup() {
 	local lookup="lookup @${fids_file}"
 	local create="create @${fids_file}"
 	echo "Check existing indices after repair and rebalance"
-	run "${MOTRTOOL} ${create}"
+	${MOTRTOOL} ${create}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	device_fail
@@ -204,7 +203,7 @@ lookup() {
 	dix_repair_rebalance_wait
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	run "${MOTRTOOL} ${lookup} >${out_file}"
+	${MOTRTOOL} ${lookup} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep    "found rc"   ${out_file} | tee ${rc_file}
@@ -223,7 +222,7 @@ insert() {
 	local put="put \"${fid}\" @${keys_file} @${vals_file}"
 	local get="get \"${fid}\" @${keys_file}"
 	echo "Check existing records after repair and rebalance"
-	run "${MOTRTOOL} ${create} ${put}"
+	${MOTRTOOL} ${create} ${put}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	device_fail
@@ -232,13 +231,13 @@ insert() {
 	dix_repair_rebalance_wait
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	run "${MOTRTOOL} ${lookup} >${out_file}"
+	${MOTRTOOL} ${lookup} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep    "found rc"   ${out_file} | tee ${rc_file}
 	grep -v "found rc 0" ${rc_file}  | tee ${erc_file}
 	[ -s "${erc_file}" ] && return 1
-	run "${MOTRTOOL} ${get} >${out_file}"
+	${MOTRTOOL} ${get} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -A 1 "KEY" ${out_file} | tee ${res_out_file}
@@ -266,7 +265,7 @@ get_during() {
 	local get="get \"${fid}\" @${keys_file}"
 
 	echo "Execute GET record operations between repair and rebalance"
-	run "${MOTRTOOL} ${create} ${put}"
+	${MOTRTOOL} ${create} ${put}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	device_fail
@@ -277,13 +276,13 @@ get_during() {
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	# Check results.
-	run "${MOTRTOOL} ${lookup} >${out_file}"
+	${MOTRTOOL} ${lookup} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep    "found rc"   ${out_file} | tee ${rc_file}
 	grep -v "found rc 0" ${rc_file}  | tee ${erc_file}
 	[ -s "${erc_file}" ] && return 1
-	run "${MOTRTOOL} ${get} >${out_file}"
+	${MOTRTOOL} ${get} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -A 1 "KEY" ${out_file} | tee ${res_out_file}
@@ -302,13 +301,13 @@ get_during() {
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	# Check results.
-	run "${MOTRTOOL} ${lookup} >${out_file}"
+	${MOTRTOOL} ${lookup} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep    "found rc"   ${out_file} | tee ${rc_file}
 	grep -v "found rc 0" ${rc_file}  | tee ${erc_file}
 	[ -s "${erc_file}" ] && return 1
-	run "${MOTRTOOL} ${get} >${out_file}"
+	${MOTRTOOL} ${get} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -A 1 "KEY" ${out_file} | tee ${res_out_file}
@@ -335,7 +334,7 @@ drop_during() {
 	local drop="drop @${fids_file}"
 
 	echo "Execute drop index operations between repair and rebalance"
-	run "${MOTRTOOL} ${create} ${put}"
+	${MOTRTOOL} ${create} ${put}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	device_fail
@@ -346,7 +345,7 @@ drop_during() {
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	# Drop index
-	run "${MOTRTOOL} ${drop} >${out_file}"
+	${MOTRTOOL} ${drop} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep    "operation rc:"   ${out_file} | tee ${rc_file}
@@ -357,7 +356,7 @@ drop_during() {
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	# Check results.
-	run "${MOTRTOOL} ${lookup} >${out_file}"
+	${MOTRTOOL} ${lookup} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep    "found rc"    ${out_file} | tee ${rc_file}
@@ -377,7 +376,7 @@ put_during() {
 	local get="get \"${fid}\" @${keys_file}"
 
 	echo "Put record into empty index between repair and rebalance"
-	run "${MOTRTOOL} ${create}"
+	${MOTRTOOL} ${create}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	device_fail
@@ -388,7 +387,7 @@ put_during() {
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	# Put several records
-	run "${MOTRTOOL} ${put} >${out_file}"
+	${MOTRTOOL} ${put} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep    "operation rc:"   ${out_file} | tee ${rc_file}
@@ -399,7 +398,7 @@ put_during() {
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	# Try to get all records.
-	run "${MOTRTOOL} ${get} >${out_file}"
+	${MOTRTOOL} ${get} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -A 1 "KEY" ${out_file} | tee ${res_out_file}
@@ -425,7 +424,7 @@ del_repair() {
 	local put="put \"${fid}\" @${keys_file} @${vals_file}"
 	local get="get \"${fid}\" @${keys_file}"
 	echo "Del records from index in case repair is in active state"
-	run "${MOTRTOOL} ${create} ${put}"
+	${MOTRTOOL} ${create} ${put}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	device_fail
@@ -434,7 +433,7 @@ del_repair() {
 	dix_repair_start
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	run "${MOTRTOOL} ${del} >${out_file}"
+	${MOTRTOOL} ${del} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep    "operation rc:"   ${out_file} | tee ${rc_file}
@@ -443,7 +442,7 @@ del_repair() {
 	dix_rep_wait
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	run "${MOTRTOOL} ${get} >${out_file}"
+	${MOTRTOOL} ${get} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep    "operation rc:" ${out_file}  | tee ${rc_file}
@@ -462,7 +461,7 @@ del_rebalance() {
 	local get="get \"${fid}\" @${keys_file}"
 
 	echo "Del records from index in case repair is in active state"
-	run "${MOTRTOOL} ${create} ${put}"
+	${MOTRTOOL} ${create} ${put}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	device_fail
@@ -472,7 +471,7 @@ del_rebalance() {
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	dix_rebalance_start
-	run "${MOTRTOOL} ${del} >${out_file}"
+	${MOTRTOOL} ${del} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep    "operation rc:"   ${out_file} | tee ${rc_file}
@@ -481,7 +480,7 @@ del_rebalance() {
 	dix_reb_wait
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	run "${MOTRTOOL} ${get} >${out_file}"
+	${MOTRTOOL} ${get} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep    "operation rc:"   ${out_file} | tee ${rc_file}
@@ -494,7 +493,7 @@ del_rebalance() {
 
 clear_kvs() {
 	local drop="drop @${fids_file}"
-	run "${MOTRTOOL} ${drop}"
+	${MOTRTOOL} ${drop}
 }
 
 st_init() {
@@ -502,7 +501,7 @@ st_init() {
 	local gen="genf ${num} ${fids_file} genv ${num} ${size} ${vals_file}"
 
 	# generate source files for KEYS, VALS, FIDS
-	run "${MOTRTOOL} ${gen}"
+	${MOTRTOOL} ${gen}
 	[ $? != 0 ] && return 1
 
 	# We use this file because it contains human-readable values.
