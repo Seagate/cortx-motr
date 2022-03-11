@@ -1152,12 +1152,6 @@ struct node_op {
 
 	/** The node to operate on. */
 	struct nd       *no_node;
-
-	/** Optional transaction. */
-	struct m0_be_tx *no_tx;
-
-	/** Next operation acting on the same node. */
-	struct node_op  *no_next;
 };
 
 
