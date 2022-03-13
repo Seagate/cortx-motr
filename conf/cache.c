@@ -104,23 +104,22 @@ M0_INTERNAL bool m0_conf_cache_contains(struct m0_conf_cache *cache,
 }
 
 M0_INTERNAL struct m0_conf_obj *
-m0_conf_cache_lookup_dynamic_fid(const struct m0_conf_cache *cache,
-				 const struct m0_fid *id)
+m0_conf_cache_lookup_dynamic(const struct m0_conf_cache *cache,
+			     const struct m0_fid *id)
 {
 	struct m0_conf_obj *obj;
-	struct m0_conf_obj *last_obj = NULL;
-	uint32_t            cnt1;
-	uint32_t            cnt2;
+	uint32_t            dynamic_val1;
+	uint32_t	    dynamic_val2;
         /*
          * For process and service fid different approach is taken to compare
-	 * FID's. Specifically for process/service fid considering base fid only
-	 * (excluding counter bit) for comparison. Counter bits are higher 32
-	 * bits of the key.
+	 * FID's. Specifically for process/service fid considering base fid
+	 * only (excluding counter bit) for comparison. Dynamic bits are higher
+	 * 32 bits of the key of FID.
 	 *  e.g.
 	 *  |-------- Container------------| |----------------Key-------------|
 	 *
 	 *  F F F F F F F F F F F F F F F F : F F F F F F F F  F F F F F F F F
-	 *                                    |-Counter bits-|
+	 *                                    |-Dynamic bits-|
 	 */
 	/*
 	 * TODO: Current implementation we are assuming that dynamic FID's will
@@ -128,25 +127,17 @@ m0_conf_cache_lookup_dynamic_fid(const struct m0_conf_cache *cache,
 	 * that we can fetch latest last dynamic FID, but It may not be in
 	 * sequential always. This scenario needs to be handled.
 	 */
-	if ((DYNAMIC_FID_CNT(id) != 0 ) &&
-	    (M0_IN(m0_fid_tget(id), ('r','s')))) {
-		cnt1 = DYNAMIC_FID_CNT(id);
-		m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
-			if (m0_base_fid_eq(&obj->co_id, id)) {
-				last_obj = obj;
-				cnt2 = DYNAMIC_FID_CNT(&obj->co_id);
-				if (cnt1 == cnt2)
-					return obj;
-				else if (cnt1 != (cnt2 + 1))
-					continue;
+	dynamic_val1 = DYNAMIC_FID_CNT(id);
+	m0_tl_for (m0_conf_cache, &cache->ca_registry, obj) {
+		if (m0_base_fid_eq(&obj->co_id, id)) {
+			dynamic_val2 = DYNAMIC_FID_CNT(&obj->co_id);
+			if (dynamic_val1 == dynamic_val2)
 				return obj;
-			}
-		} m0_tl_endfor;
-		return last_obj;
-	} else {
-		/* Perform normal lookup for non process/service conf object */
-		return m0_conf_cache_lookup(cache, id);
-	}
+			else if (dynamic_val1 != (dynamic_val2 + 1))
+				continue;
+			return obj;
+		}
+	} m0_tl_endfor;
 	return NULL;
 }
 

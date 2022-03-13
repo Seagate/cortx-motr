@@ -178,8 +178,8 @@ M0_INTERNAL bool m0_conf_cache_contains(struct m0_conf_cache *cache,
  * Returns NULL if there is no such object in the cache.
  */
 M0_INTERNAL struct m0_conf_obj *
-m0_conf_cache_lookup_dynamic_fid(const struct m0_conf_cache *cache,
-				 const struct m0_fid *id);
+m0_conf_cache_lookup_dynamic(const struct m0_conf_cache *cache,
+			     const struct m0_fid *id);
 
 M0_INTERNAL struct m0_conf_obj *
 m0_conf_cache_lookup(const struct m0_conf_cache *cache,
