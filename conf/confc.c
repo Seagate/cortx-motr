@@ -525,6 +525,18 @@ M0_INTERNAL int m0_confc_cache_add_process(struct m0_conf_cache    *cache,
 
 		M0_ASSERT(base_obj_process != NULL);
 		M0_ASSERT(new_obj_process != NULL);
+
+		rc = m0_bitmap_init(&new_obj_process->pc_cores,
+				    base_obj_process->pc_cores.b_nr);
+		if (rc != 0)
+			goto fail;
+		/* XXX FIXME: process->pc_cores.b_words will leak in case of error */
+		m0_bitmap_copy(&new_obj_process->pc_cores, &base_obj_process->pc_cores);
+		new_obj_process->pc_memlimit_as      = base_obj_process->pc_memlimit_as;
+		new_obj_process->pc_memlimit_rss     = base_obj_process->pc_memlimit_rss;
+		new_obj_process->pc_memlimit_stack   = base_obj_process->pc_memlimit_stack;
+		new_obj_process->pc_memlimit_memlock = base_obj_process->pc_memlimit_memlock;
+
 		new_obj_process->pc_endpoint = m0_strdup(base_obj_process->pc_endpoint);
 		if (new_obj_process->pc_endpoint == NULL) {
 			rc = M0_ERR(-ENOMEM);
