@@ -329,27 +329,26 @@ void m0_stob_ut_stob_ad(void)
 	m0_stob_ut_ad_fini(&ut_be, &ut_seg);
 }
 
-extern void m0_stob_ut_part_init(struct m0_be_ut_backend *ut_be,
-	                         char                    *location,
-				 char                    *part_cfg);
+extern int m0_stob_ut_part_init(struct m0_be_ut_backend *ut_be);
+extern void m0_stob_ut_part_init_override(struct m0_be_ut_backend *ut_be, char *location, char *part_cfg);
 extern void m0_stob_ut_part_fini(struct m0_be_ut_backend *ut_be);
-extern void m0_stob_ut_part_cfg_make(char               **str,
+extern void m0_stob_ut_part_cfg_make(char               *str,
 				     struct m0_be_domain *dom);
+static char                    part_cfg[256] = {0};
+static char                     location[256] = {0};
 void m0_stob_ut_stob_part(void)
 {
 	struct m0_be_ut_backend  ut_be;
-	char                    *part_cfg;
 	char                    *prefix = "partitionstob";
 	char                    *dev_name = "/var/motr/m0ut/ut-sandbox/__s/sdb";
-	char                     location[1024] = {0};
-
+	int rc;
 	sprintf(location, "%s:%s:%lx", prefix, dev_name,
 		(uint64_t)&ut_be.but_dom);
-	m0_stob_ut_part_cfg_make(&part_cfg, &ut_be.but_dom);
+	m0_stob_ut_part_cfg_make(part_cfg, &ut_be.but_dom);
 	M0_ASSERT(part_cfg != NULL);
-	m0_stob_ut_part_init(&ut_be,
-			     location,
-			     part_cfg);
+	rc = m0_stob_ut_part_init(&ut_be);
+	M0_ASSERT(rc == 0);
+	m0_stob_ut_part_init_override(&ut_be, location, part_cfg);
 	stob_ut_stob_single(&ut_be, location,
 			    part_cfg, part_cfg, NULL);
 	/*
@@ -359,8 +358,6 @@ void m0_stob_ut_stob_part(void)
 	stob_ut_stob_multi(&ut_be, location, part_cfg, part_cfg,
 			   NULL, M0_PART_STOB_UT_THREAD_NR,
 			   M0_PART_STOB_UT_STOB_NR);
-
-	m0_free(part_cfg);
 	m0_stob_ut_part_fini(&ut_be);
 }
 

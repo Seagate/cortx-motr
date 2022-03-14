@@ -47,16 +47,31 @@ enum {
 };
 
 
-void m0_stob_ut_part_init(struct m0_be_ut_backend *ut_be,
+void m0_stob_ut_part_init_override(struct m0_be_ut_backend *ut_be,
 			  char                    *location,
 			  char                    *part_cfg)
 {
+	struct m0_be_part_cfg *pcfg = &ut_be->but_dom.bd_cfg.bc_part_cfg;
+	M0_SET0(pcfg);
+	/* override default config */
+	pcfg->bpc_location = location;
+	pcfg->bpc_init_cfg = part_cfg;
+	pcfg->bpc_create_cfg = part_cfg;
+	pcfg->bpc_part_mode_set = true;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_enble = true;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_enble = true;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_enble = true;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_enble = true;
+	pcfg->bpc_chunk_size_in_bits = 21;
+	pcfg->bpc_total_chunk_count = PART_DEV_SIZE >> 21;
+}
+
+int m0_stob_ut_part_init(struct m0_be_ut_backend *ut_be)
+{
 	struct m0_be_domain_cfg  cfg;
-	struct m0_be_domain_cfg *pcfg = &ut_be->but_dom.bd_cfg;
 	int			 rc;
 
 	M0_SET0(ut_be);
-
 	rmdir("./__s");
 	rc = mkdir("./__s", 0777);
 	if (rc == 0)
@@ -66,46 +81,25 @@ void m0_stob_ut_part_init(struct m0_be_ut_backend *ut_be,
 			rc = close(rc);
 
 	}
-
 	m0_be_ut_backend_cfg_default(&cfg);
 	rc = m0_be_ut_backend_init_cfg(ut_be, &cfg, true);
-	M0_UT_ASSERT(rc == 0);
-
-	/* override default config */
-	pcfg->bc_part_cfg.bpc_location = location;
-	pcfg->bc_part_cfg.bpc_init_cfg = part_cfg;
-	pcfg->bc_part_cfg.bpc_create_cfg = part_cfg;
-	pcfg->bc_part_cfg.bpc_part_mode_set = true;
-	pcfg->bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_enble = true;
-	pcfg->bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_enble = true;
-	pcfg->bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_enble = true;
-	pcfg->bc_part_cfg.bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_enble = true;
-
-	pcfg->bc_part_cfg.bpc_chunk_size_in_bits = 21;
-	pcfg->bc_part_cfg.bpc_total_chunk_count = PART_DEV_SIZE >> 21;
-
+	return rc;
 }
 
 void m0_stob_ut_part_fini(struct m0_be_ut_backend *ut_be)
 {
-
-	memset(&ut_be->but_dom.bd_cfg.bc_part_cfg, 0,
-	       sizeof(struct m0_be_part_cfg));
+	M0_SET0( &ut_be->but_dom.bd_cfg.bc_part_cfg);
 	m0_be_ut_backend_fini(ut_be);
 	rmdir("./__s");
 }
 
-void m0_stob_ut_part_cfg_make(char                **str,
+void m0_stob_ut_part_cfg_make(char                *str,
 			      struct m0_be_domain  *dom)
 {
-	char          buf[0x400];
-
-	sprintf(buf, "%p %s %"PRIu64,
+	sprintf(str, "%p %s %"PRIu64,
 		dom,
 		PART_DEV_NAME,
 		PART_DEV_SIZE);
-
-	*str = m0_strdup(buf);
 
 }
 
