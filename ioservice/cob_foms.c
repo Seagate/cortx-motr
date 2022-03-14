@@ -1252,7 +1252,7 @@ static int cob_bytecount_decrement(struct m0_cob *cob, struct m0_cob_bckey *key,
 	M0_ENTRY("KEY: "FID_F"/%" PRIu64, FID_P(&key->cbk_pfid), key->cbk_user_id);
 
 	M0_PRE(key != NULL);
-	if(!m0_fid_is_set(&key->cbk_pfid));
+	if(!m0_fid_is_set(&key->cbk_pfid))
 		return M0_ERR_INFO(-EINVAL, "Invalid Key");
 
 	rc = m0_cob_bc_lookup(cob, key, &rec);
