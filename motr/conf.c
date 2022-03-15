@@ -651,8 +651,11 @@ M0_INTERNAL int cs_conf_part_config_get(struct m0_reqh_context *rctx,
 			sdev = M0_CONF_CAST(m0_conf_diter_result(&it),
 					    m0_conf_sdev);
 			dev_count +=1;
+			/* Skip if device size is zero..*/
+			if(sdev->sd_size == 0)
+				continue;
 			/* TODO MBK, Temp work around to testpart config */
-
+			
 			config = m0_alloc(256);
 			M0_ASSERT(config != NULL);
 			sprintf(config, "part:log:128M:linux:DIRECTIO:%s",
