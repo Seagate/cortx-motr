@@ -1121,7 +1121,7 @@ static int cd_cob_delete(struct m0_fom            *fom,
 			 const struct m0_cob_attr *attr)
 {
 	int                   rc;
-	uint64_t              cob_size;
+	uint64_t              byte_count;
 	struct m0_fid         pver;
 	struct m0_cob        *cob;
 	struct m0_cob_bckey   key;
@@ -1141,7 +1141,7 @@ static int cd_cob_delete(struct m0_fom            *fom,
 	pver = cob->co_nsrec.cnr_pver;
 	M0_ASSERT(m0_fid_is_valid(&pver));
 
-	cob_size = cob->co_nsrec.cnr_size;
+	byte_count = cob->co_nsrec.cnr_bytecount;
 
 	M0_CNT_DEC(cob->co_nsrec.cnr_nlink);
 	M0_ASSERT(attr->ca_nlink == 0);
@@ -1149,7 +1149,7 @@ static int cd_cob_delete(struct m0_fom            *fom,
 
 	key.cbk_pfid = pver; 
 	key.cbk_user_id = M0_BYTECOUNT_USER_ID;
-	rc = cob_bytecount_decrement(cob, &key, cob_size, m0_fom_tx(fom));
+	rc = cob_bytecount_decrement(cob, &key, byte_count, m0_fom_tx(fom));
 	if (rc != 0)
 		M0_ERR_INFO(rc, "Bytecount decrement unsuccesfull");
 
@@ -1250,6 +1250,10 @@ static int cob_bytecount_decrement(struct m0_cob *cob, struct m0_cob_bckey *key,
 	struct m0_cob_bcrec rec = {};
 
 	M0_ENTRY("KEY: "FID_F"/%" PRIu64, FID_P(&key->cbk_pfid), key->cbk_user_id);
+
+	M0_PRE(key != NULL);
+	if(!m0_fid_is_set(&key->cbk_pfid))
+		return M0_ERR_INFO(-EINVAL, "Invalid Key");
 
 	rc = m0_cob_bc_lookup(cob, key, &rec);
 	if (rc == 0) {

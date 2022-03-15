@@ -273,6 +273,7 @@ struct m0_cob_domain {
 	struct m0_be_btree      cd_fileattr_omg;
 	struct m0_be_btree      cd_fileattr_ea;
 	struct m0_be_btree      cd_bytecount;
+	struct m0_be_rwlock     cd_lock;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_cob_domain_format_version {
@@ -422,18 +423,19 @@ struct m0_cob_nsrec {
 	 * The following fields are only important for 0-nsrec, that is,
 	 * stat data. For other records, only two fields above are valid.
 	 */
-	uint32_t                cnr_nlink;   /**< number of hard links */
-	uint32_t                cnr_cntr;    /**< linkno allocation counter */
+	uint32_t                cnr_nlink;     /**< number of hard links */
+	uint32_t                cnr_cntr;      /**< linkno allocation counter */
 	char                    cnr_pad[4];
-	uint64_t                cnr_omgid;   /**< uid/gid/mode slot reference */
-	uint64_t                cnr_size;    /**< total size, in bytes */
-	uint64_t                cnr_blksize; /**< blocksize for filesystem I/O */
-	uint64_t                cnr_blocks;  /**< number of blocks allocated */
-	uint64_t                cnr_atime;   /**< time of last access */
-	uint64_t                cnr_mtime;   /**< time of last modification */
-	uint64_t                cnr_ctime;   /**< time of last status change */
-	uint64_t                cnr_lid;     /**< layout id */
-	struct m0_fid           cnr_pver;    /**< cob pool version */
+	uint64_t                cnr_omgid;     /**< uid/gid/mode slot reference */
+	uint64_t                cnr_size;      /**< total size, in bytes */
+	uint64_t                cnr_bytecount; /**< bytecount in this cob */
+	uint64_t                cnr_blksize;   /**< blocksize for filesystem I/O */
+	uint64_t                cnr_blocks;    /**< number of blocks allocated */
+	uint64_t                cnr_atime;     /**< time of last access */
+	uint64_t                cnr_mtime;     /**< time of last modification */
+	uint64_t                cnr_ctime;     /**< time of last status change */
+	uint64_t                cnr_lid;       /**< layout id */
+	struct m0_fid           cnr_pver;      /**< cob pool version */
 	struct m0_format_footer cnr_footer;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 

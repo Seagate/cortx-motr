@@ -397,6 +397,7 @@ static int ss_bytecount_stats_ingest(struct m0_cob_domain *cdom,
 		key.cbk_user_id = 8881212;
 		rec.cbr_bytecount = 10240000;
 		rec.cbr_cob_objects = 10000;
+		rep->sspr_kv_count = 1;
 		m0_buf_new_aligned(&rep->sspr_bckey, &key, sizeof(key), 0);
 		m0_buf_new_aligned(&rep->sspr_bcrec, &rec, sizeof(rec), 0);
 
