@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/libexec/platform-python
 #
 # Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
 #
@@ -242,6 +242,7 @@ def get_setup_size(self):
                 self.logger.info(f"setup_size set to {self.setup_size}\n")
                 return True
 
+
 def get_value(self, key, key_type):
     """Get data."""
     try:
@@ -316,10 +317,9 @@ def validate_motr_rpm(self):
     kernel_ver = op.replace('\n', '')
     check_type(kernel_ver, str, "kernel version")
 
-    if not self.k8:
-        kernel_module = f"/lib/modules/{kernel_ver}/kernel/fs/motr/m0tr.ko"
-        self.logger.info(f"Checking for {kernel_module}\n")
-        validate_file(kernel_module)
+    kernel_module = f"/lib/modules/{kernel_ver}/kernel/fs/motr/m0tr.ko"
+    self.logger.info(f"Checking for {kernel_module}\n")
+    validate_file(kernel_module)
 
     self.logger.info(f"Checking for {MOTR_SYS_CFG}\n")
     validate_file(MOTR_SYS_CFG)
@@ -501,10 +501,10 @@ def motr_config(self):
 
 def configure_net(self):
     """Wrapper function to detect lnet/libfabric transport."""
-    if self.k8 == 'K8':
-        transport_type = "libfabric"
-        configure_libfabric_k8(self)
-        return
+    transport_type = "libfabric"
+    configure_libfabric_k8(self)
+    return
+
     try:
         transport_type = self.server_node['network']['data']['transport_type']
     except:
@@ -751,10 +751,7 @@ def create_lvm(self, index, metadata_dev):
     return True
 
 def calc_lvm_min_size(self, lv_path, lvm_min_size):
-    if self.k8 == 'K8':
-        cmd = f"lsblk --noheadings --bytes {lv_path} | " "awk '{print $4}'"
-    else:
-        cmd = f"lvs {lv_path} -o LV_SIZE --noheadings --units b --nosuffix"
+    cmd = f"lsblk --noheadings --bytes {lv_path} | " "awk '{print $4}'"
     res = execute_command(self, cmd)
     lv_size = res[0].rstrip("\n")
     lv_size = int(lv_size)
@@ -826,45 +823,18 @@ def align_val(val, size):
 def update_bseg_size(self):
     dev_count = 0
     lvm_min_size = None
-    # For k8
-    if self.k8 == 'K8':
-        md_disks_list = get_md_disks_lists(self, self.node)
-        md_disks = get_mdisks_from_list(self, md_disks_list)
-        md_len = len(md_disks)
-        for i in range(md_len):
-            lvm_min_size = calc_lvm_min_size(self, md_disks[i], lvm_min_size)
-        if lvm_min_size:
-            align_val(lvm_min_size, 4096)
-            self.logger.info(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
-            cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
-            execute_command(self, cmd)
-        return
 
-    # For non k8
-    cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
-    for i in range(int(cvg_cnt)):
-        cvg_item = cvg[i]
-        try:
-            metadata_devices = cvg_item["metadata_devices"]
-        except:
-            raise MotrError(errno.EINVAL, "metadata devices not found\n")
-        check_type(metadata_devices, list, "metadata_devices")
-        self.logger.info(f"\nlvm metadata_devices: {metadata_devices}\n\n")
-        for device in metadata_devices:
-            cmd = f"pvs --noheadings {device}"
-            vgname = (execute_command(self, cmd)[0]).split(sep=None)[1]
-            cmd = "lvdisplay | grep \"LV Path\" | grep {} | grep -v swap".format(vgname)
-            lv_list = (execute_command(self, cmd)[0]).replace("LV Path", '').split('\n')[0:-1]
-            len_lv_list = len(lv_list)
-            for i in range(len_lv_list):
-                # lv_list[i] contains initial spaces. So removing these spaces.
-                lv_list[i] = lv_list[i].strip()
-                lv_path = lv_list[i]
-                lvm_min_size = calc_lvm_min_size(self, lv_path, lvm_min_size)
+    md_disks_list = get_md_disks_lists(self, self.node)
+    md_disks = get_mdisks_from_list(self, md_disks_list)
+    md_len = len(md_disks)
+    for i in range(md_len):
+        lvm_min_size = calc_lvm_min_size(self, md_disks[i], lvm_min_size)
     if lvm_min_size:
+        align_val(lvm_min_size, 4096)
         self.logger.info(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
         cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
         execute_command(self, cmd)
+    return
 
 def config_lvm(self):
     dev_count = 0
@@ -1049,8 +1019,6 @@ def lvm_exist(self):
     return True
 
 def cluster_up(self):
-    if self.k8 == "K8":
-        return False
     cmd = '/usr/bin/hctl status'
     self.logger.info(f"Executing cmd : '{cmd}'\n")
     ret = execute_command_without_exception(self, cmd)
