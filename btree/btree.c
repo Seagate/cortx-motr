@@ -9829,7 +9829,7 @@ static void ut_basic_tree_oper_icp(void)
 	 */
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(invalid_addr,
 				      rnode_sz, &btree_type, M0_BCT_NO_CRC,
-				      DIRECT_ADDRESSING, &b_op, &btree, seg,
+				      EMBEDDED_RECORD, &b_op, &btree, seg,
 				      &fid, tx, NULL));
 	M0_ASSERT(rc == -EFAULT);
 	m0_be_tx_close_sync(tx);
@@ -9868,7 +9868,7 @@ static void ut_basic_tree_oper_icp(void)
 	temp_node = buf.b_addr;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node,
 				      rnode_sz, &btree_type, M0_BCT_NO_CRC,
-				      DIRECT_ADDRESSING, &b_op, &btree, seg,
+				      EMBEDDED_RECORD, &b_op, &btree, seg,
 				      &fid, tx, NULL));
 	M0_ASSERT(rc == 0);
 	m0_be_tx_close_sync(tx);
@@ -9925,7 +9925,7 @@ static void ut_basic_tree_oper_icp(void)
 	temp_node = buf.b_addr;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node,
 				      rnode_sz, &btree_type, M0_BCT_NO_CRC,
-				      DIRECT_ADDRESSING, &b_op, &btree, seg,
+				      EMBEDDED_RECORD, &b_op, &btree, seg,
 				      &fid, tx, NULL));
 	M0_ASSERT(rc == 0);
 	m0_be_tx_close_sync(tx);
@@ -10355,7 +10355,7 @@ static void ut_multi_stream_kv_oper(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &btree_type,
 							     M0_BCT_NO_CRC,
-							     DIRECT_ADDRESSING,
+							     EMBEDDED_RECORD,
 							     &b_op, &btree, seg,
 							     &fid, tx, NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
@@ -11903,7 +11903,7 @@ static void ut_st_st_kv_oper(void)
 	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
 	{
 		if (btree_node_format[i] != NULL)
-			btree_ut_kv_oper(1, 1, i, DIRECT_ADDRESSING);
+			btree_ut_kv_oper(1, 1, i, EMBEDDED_RECORD);
 	}
 }
 
@@ -11913,7 +11913,7 @@ static void ut_mt_st_kv_oper(void)
 	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
 	{
 		if (btree_node_format[i] != NULL)
-			btree_ut_kv_oper(0, 1, i, DIRECT_ADDRESSING);
+			btree_ut_kv_oper(0, 1, i, EMBEDDED_RECORD);
 	}
 
 }
@@ -11924,7 +11924,7 @@ static void ut_mt_mt_kv_oper(void)
 	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
 	{
 		if (btree_node_format[i] != NULL)
-			btree_ut_kv_oper(0, 0, i, DIRECT_ADDRESSING);
+			btree_ut_kv_oper(0, 0, i, EMBEDDED_RECORD);
 	}
 
 }
@@ -11936,7 +11936,7 @@ static void ut_rt_rt_kv_oper(void)
 	{
 		if (btree_node_format[i] != NULL)
 			btree_ut_kv_oper(RANDOM_THREAD_COUNT, RANDOM_TREE_COUNT,
-					 i, DIRECT_ADDRESSING);
+					 i, EMBEDDED_RECORD);
 	}
 }
 
@@ -12062,7 +12062,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 					      m0_btree_create(rnode, rnode_sz,
 							      &btree_type,
 							      M0_BCT_NO_CRC,
-							      DIRECT_ADDRESSING,
+							      EMBEDDED_RECORD,
 							      &b_op, &btree,
 							      seg, &fid, tx,
 							      NULL));
@@ -12451,7 +12451,7 @@ static void ut_btree_persistence(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &bt,
 							     M0_BCT_NO_CRC,
-							     DIRECT_ADDRESSING,
+							     EMBEDDED_RECORD,
 							     &b_op, &btree, seg,
 							     &fid, tx, NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
@@ -12927,7 +12927,7 @@ static void ut_btree_truncate(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &bt,
 							     M0_BCT_NO_CRC,
-							     DIRECT_ADDRESSING,
+							     EMBEDDED_RECORD,
 							     &b_op, &btree, seg,
 							     &fid, tx, NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
@@ -13087,7 +13087,7 @@ static void ut_lru_test(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &bt,
 							     M0_BCT_NO_CRC,
-							     DIRECT_ADDRESSING,
+							     EMBEDDED_RECORD,
 							     &b_op, &btree, seg,
 							     &fid, tx, NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
@@ -13320,7 +13320,7 @@ static void ut_btree_crc_test(void)
 					      m0_btree_create(rnode, rnode_sz,
 							      &btree_type,
 							      crc_type,
-							      DIRECT_ADDRESSING,
+							      EMBEDDED_RECORD,
 							      &b_op, &btree[i],
 							      seg, &fid, tx,
 							      NULL));
@@ -13796,7 +13796,7 @@ static void ut_btree_crc_persist_test(void)
 	for (i = 0; i < test_count; i++) {
 		struct m0_btree_type   *bt = &btrees_with_crc[i].bcr_btree_type;
 		enum m0_btree_crc_type  crc = btrees_with_crc[i].bcr_crc_type;
-		ut_btree_crc_persist_test_internal(bt, crc, DIRECT_ADDRESSING);
+		ut_btree_crc_persist_test_internal(bt, crc, EMBEDDED_RECORD);
 	}
 
 }

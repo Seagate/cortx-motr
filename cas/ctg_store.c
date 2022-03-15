@@ -307,7 +307,7 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 				      m0_btree_create(&ctg->cc_node,
 						      sizeof ctg->cc_node,
 						      &bt, M0_BCT_NO_CRC,
-						      DIRECT_ADDRESSING, &b_op,
+						      EMBEDDED_RECORD, &b_op,
 						      ctg->cc_tree, seg, fid,
 						      tx, &key_cmp));
 	if (rc != 0) {

@@ -106,7 +106,7 @@ enum m0_btree_addr_type {
 	 * Default addressing type, where keys and values will be embedded
 	 * inside the node.
 	 */
-	DIRECT_ADDRESSING,
+	EMBEDDED_RECORD,
 
 	/**
 	 * In case of INDIRECT_ADDRESSING, keys and values will be allocated
