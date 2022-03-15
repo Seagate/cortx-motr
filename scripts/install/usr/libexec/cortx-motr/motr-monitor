@@ -35,6 +35,7 @@ trap _handle_sigterm SIGTERM SIGKILL
 #check_for_fids $1
 /usr/libexec/cortx-motr/motr-server "m0d-$1" &
 PID=$!
+/opt/seagate/cortx/motr/libexec/core_logrotate.sh &
 
 while true; do
 	wait $PID
