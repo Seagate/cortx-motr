@@ -579,6 +579,8 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 
 	m0_rwlock_write_lock(emap_rwlock(it->ec_map));
 	rc = emap_it_pack(it, be_emap_delete_wrapper, tx);
+	if (rc != 0)
+		M0_RC(rc);
 
 	if (rc == 0 && delta < m0_ext_length(&it->ec_seg.ee_ext)) {
 		it->ec_seg.ee_ext.e_end -= delta;
@@ -589,6 +591,8 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 	if (rc == 0)
 		rc = emap_it_get(it) /* re-initialise cursor position */ ?:
 			update_next_segment(it, tx, delta, inserted);
+	else
+		M0_RC(rc);
 	m0_rwlock_write_unlock(emap_rwlock(it->ec_map));
 
 	M0_ASSERT_EX(ergo(rc == 0, be_emap_invariant(it)));
@@ -922,6 +926,9 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap       *map,
 	op->bo_u.u_emap.e_rc = M0_BTREE_OP_SYNC_WITH_RC(
 		&kv_op,
 		m0_btree_put(map->em_mapping, &rec, &put_cb, &kv_op, tx));
+	if (op->bo_u.u_emap.e_rc != 0)
+		M0_RC(op->bo_u.u_emap.e_rc);
+
 	m0_rwlock_write_unlock(emap_rwlock(map));
 
 	m0_be_op_done(op);
@@ -966,7 +973,8 @@ M0_INTERNAL void m0_be_emap_obj_delete(struct m0_be_emap *map,
  err:
 #endif
 	op->bo_u.u_emap.e_rc = rc;
-
+	if (op->bo_u.u_emap.e_rc != 0)
+		M0_RC(op->bo_u.u_emap.e_rc);
 	m0_be_op_done(op);
 }
 

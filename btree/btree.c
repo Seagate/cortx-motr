@@ -4186,7 +4186,7 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *  Variable Sized Keys and Values Node Structure
  *  --------------------------------------------
  *
- * Proposed internal node structure
+ * Internal node structure
  *
  * +----------+----+------+----+----------------+----+----+----+----+----+----+
  * |          |    |      |    |                |    |    |    |    |    |    |
@@ -4201,7 +4201,7 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *                             |                  |
  *                             +------------------+
  *
- * For the internal nodes, the above structure will be used.
+ * For the internal nodes, the above structure is used.
  * The internal nodes will have keys of variable size whereas the values will be
  * of fixed size as they are pointers to child nodes.
  * The Keys will be added starting from the end of the node header in an
@@ -4211,7 +4211,7 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * Using this structure, the overhead of maintaining a directory is reduced.
  *
  *
- * Proposed leaf node structure
+ * Leaf node structure
  *
  *                        +--------------------------+
  *                        |                          |
@@ -4235,8 +4235,8 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *
  *
  *
- *  The above structure represents the way variable sized keys and values will
- *  be stored in memory.
+ *  The above structure represents the way variable sized keys and values are
+ *  stored in memory.
  *  Node Hdr or Node Header will store all the relevant info regarding this node
  *  type.
  *  The Keys will be added starting from the end of the node header in an
@@ -6650,12 +6650,12 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		}
 		/** Fall through if path_check is successful. */
 	case P_SANITY_CHECK: {
-		int  rc = 0;
+		int rc = 0;
 		if (oi->i_key_found && bop->bo_opc == M0_BO_PUT)
-			rc = M0_ERR(-EEXIST);
+			rc = -EEXIST;
 		else if (!oi->i_key_found && bop->bo_opc == M0_BO_UPDATE &&
 			 !(bop->bo_flags & BOF_INSERT_IF_NOT_FOUND))
-			rc = M0_ERR(-ENOENT);
+			rc = -ENOENT;
 
 		if (rc) {
 			lock_op_unlock(tree);
@@ -7421,7 +7421,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 				bnode_rec(&s);
 			else if (bop->bo_flags & BOF_EQUAL) {
 				lock_op_unlock(tree);
-				return fail(bop, M0_ERR(-ENOENT));
+				return fail(bop, -ENOENT);
 			} else { /** bop->bo_flags & BOF_SLANT */
 				if (lev->l_idx < count)
 					bnode_rec(&s);
@@ -7444,7 +7444,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			} else {
 				/** Only root node is present and is empty. */
 				lock_op_unlock(tree);
-				return fail(bop, M0_ERR(-ENOENT));
+				return fail(bop, -ENOENT);
 			}
 		}
 
@@ -7759,7 +7759,7 @@ static int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 		} else if (oi->i_pivot == -1) {
 			/* Handle rightmost/leftmost key case. */
 			lock_op_unlock(tree);
-			return fail(bop, M0_ERR(-ENOENT));
+			return fail(bop, -ENOENT);
 		} else {
 			/* Return sibling record based on flag. */
 			s.s_node = lev->l_sibling;
@@ -8232,7 +8232,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 
 		if (!oi->i_key_found) {
 			lock_op_unlock(tree);
-			return fail(bop, M0_ERR(-ENOENT));
+			return fail(bop, -ENOENT);
 		}
 
 		lev = &oi->i_level[oi->i_used];
