@@ -7240,7 +7240,7 @@ static int  btree_sibling_first_key(struct m0_btree_oimpl *oi, struct td *tree,
 			return 0;
 		}
 	}
-	return M0_ERR(-ENOENT);
+	return -ENOENT;
 }
 
 /**
