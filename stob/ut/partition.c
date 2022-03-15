@@ -68,7 +68,7 @@ void m0_stob_ut_part_init_override(struct m0_be_ut_backend *ut_be,
 
 int m0_stob_ut_part_init(struct m0_be_ut_backend *ut_be)
 {
-	struct m0_be_domain_cfg  cfg;
+	struct m0_be_domain_cfg *pbdcfg = &ut_be->but_dom.bd_cfg;
 	int			 rc;
 
 	M0_SET0(ut_be);
@@ -81,8 +81,8 @@ int m0_stob_ut_part_init(struct m0_be_ut_backend *ut_be)
 			rc = close(rc);
 
 	}
-	m0_be_ut_backend_cfg_default(&cfg);
-	rc = m0_be_ut_backend_init_cfg(ut_be, &cfg, true);
+	m0_be_ut_backend_cfg_default(pbdcfg);
+	rc = m0_be_ut_backend_init_cfg(ut_be, pbdcfg, true);
 	return rc;
 }
 
