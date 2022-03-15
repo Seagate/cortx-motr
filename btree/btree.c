@@ -891,7 +891,7 @@ struct node_type {
 	/**
 	 * Returns CRC type for given node. Refer enum m0_btree_crc_type for
 	 * different CRC types.
-	 **/
+	 */
 	uint32_t (*nt_crctype_get)(const struct nd *node);
 
 	/**
@@ -4986,21 +4986,14 @@ static void *vkvv_indir_addr_key(const struct nd *node, int idx);
 static uint32_t vkvv_indir_addr_rec_val_size(const struct nd *node, int idx)
 {
 	struct vkvv_head *h    = vkvv_data(node);
-	//int               size = h->vkvv_nsize;
-	// int               vsize;
-	// int               offset;
 
 	if (h->vkvv_level == 0) {
-
 		void **p_k_addr;
-
 		void  *k_addr;
+
 		p_k_addr = vkvv_indir_addr_key(node, idx);
-		k_addr  = *p_k_addr;
-		// vsize  = INDIRECT_VAL_SIZE;
-		// offset = vsize * idx + sizeof(void*);
-		// p_v_addr = ((void*)h + size - offset);
-		// v_addr = *p_v_addr;
+		k_addr   = *p_k_addr;
+
 		return *(uint32_t*)(k_addr - 2 * sizeof(uint32_t));
 	} else
 		return INDIRECT_VAL_SIZE;
@@ -5291,7 +5284,7 @@ static void vkvv_done(struct slot *slot, bool modified)
 		} else
 			val_addr = vkvv_val(slot->s_node, slot->s_idx + 1);
 
-		vsize   = vkvv_rec_val_size(slot->s_node, slot->s_idx);
+		vsize = vkvv_rec_val_size(slot->s_node, slot->s_idx);
 		calculated_csum = m0_hash_fnc_fnv1(val_addr, vsize);
 		*(uint64_t*)(val_addr + vsize) = calculated_csum;
 	}
@@ -6143,8 +6136,7 @@ static void generic_indir_addr_move(struct nd *src, struct nd *tgt,
 	tgt_start = bnode_key_addr(tgt, 0);
 	memcpy(tgt_start, src_start, total_ksize);
 
-	if (nr == NR_EVEN && dir == D_LEFT)
-	{
+	if (nr == NR_EVEN && dir == D_LEFT) {
 		new_total = count_remain * INDIRECT_KEY_SIZE;
 		m0_memmove(src_start, src_start + total_ksize, new_total);
 	}
@@ -6156,8 +6148,7 @@ static void generic_indir_addr_move(struct nd *src, struct nd *tgt,
 	tgt_start = bnode_val_addr(tgt, 0) - total_vsize;
 	memcpy(tgt_start, src_start, total_vsize);
 
-	if (nr == NR_EVEN && dir == D_LEFT)
-	{
+	if (nr == NR_EVEN && dir == D_LEFT) {
 		new_total = count_remain * INDIRECT_VAL_SIZE;
 		m0_memmove(src_start + total_vsize - new_total,
 			   src_start - new_total, new_total);
@@ -7359,7 +7350,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 						  crctype, addrtype,
 						  ksize, vsize,
 						  bop->bo_tx, P_ALLOC_STORE);
-
 			}
 			bnode_unlock(lev->l_node);
 			oi->i_alloc_lev--;
