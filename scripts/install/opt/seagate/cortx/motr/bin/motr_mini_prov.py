@@ -220,6 +220,7 @@ def calc_size(sz):
         return (num_sz * map_val)
 
 def get_setup_size(self):
+    ret = False
     MAX_4G = 4*1024*1024*1024
     sevices_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
     for arr_elem in sevices_limits:
@@ -228,7 +229,7 @@ def get_setup_size(self):
 
             if min_mem[-2:] not in ["Ki", "Mi", "Gi"]:
                 self.logger.error(f"Invalid mem limit {min_mem}\n")
-                return False
+                ret = False
 
             sz = calc_size(min_mem)
             self.logger.info(f"mem limit in config is {min_mem} i.e. {sz}\n")
@@ -237,8 +238,12 @@ def get_setup_size(self):
             if sz > MAX_4G:
                 self.setup_size = "large"
                 self.logger.info(f"setup_size set to {self.setup_size}\n")
-                return True
-
+                ret = True
+            else:
+                self.setup_size = "small"
+                self.logger.info(f"setup_size set to {self.setup_size}\n")
+                ret = True
+    return ret
 
 def get_value(self, key, key_type):
     """Get data."""

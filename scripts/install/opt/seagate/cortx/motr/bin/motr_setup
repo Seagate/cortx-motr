@@ -147,7 +147,6 @@ class PostInstallCmd(Cmd):
 
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
-        validate_motr_rpm(self)
 
         # Nothing required for post_install stage in k8
         self.logger.info("SUCCESS\n")
