@@ -1317,6 +1317,7 @@ static int recovery_fom_init(struct recovery_fom             *rf,
 
 	rf->rf_m = m;
 	rf->rf_tgt_svc = *target;
+	rf->rf_tgt_proc = proc_conf->pc_obj.co_id;
 	rf->rf_is_local = is_local;
 	rf->rf_is_volatile = is_volatile;
 
@@ -1334,6 +1335,7 @@ static int recovery_fom_init(struct recovery_fom             *rf,
 		    m0_dtm0_recovery_machine_reqh(m));
 
 	rfom_tlist_add_tail(&m->rm_rfoms, rf);
+
 	return M0_RC(rc);
 }
 
@@ -1433,7 +1435,8 @@ recovery_fom_by_svc_find_lock(struct m0_dtm0_recovery_machine *m,
 static struct recovery_fom *
 recovery_fom_local(struct m0_dtm0_recovery_machine *m)
 {
-	return recovery_fom_by_svc_find_lock(m, recovery_machine_local_id(m));
+	M0_PRE(m != NULL);
+	return m->rm_local_rfom;
 }
 
 static void unpopulate_foms(struct m0_dtm0_recovery_machine *m)
@@ -1491,6 +1494,7 @@ static int populate_foms(struct m0_dtm0_recovery_machine *m)
 	struct m0_conf_process *proc_conf;
 	struct m0_fid           svc_fid;
 	int                     rc;
+	struct recovery_fom    *rf;
 
 	M0_ENTRY("recovery machine=%p", m);
 
@@ -1524,6 +1528,39 @@ static int populate_foms(struct m0_dtm0_recovery_machine *m)
 	}
 
 	m0_conf_diter_fini(&it);
+
+	/*
+	 * It is a workaround to propagate the current HA state.
+	 */
+	m0_confc_close(&root->rt_obj);
+	rc = m0_confc_root_open(confc, &root) ?:
+		m0_conf_diter_init(&it, confc,
+				   &root->rt_obj,
+				   M0_CONF_ROOT_NODES_FID,
+				   M0_CONF_NODE_PROCESSES_FID);
+	if (rc != 0)
+		goto out;
+
+	while ((rc = m0_conf_diter_next_sync(&it, conf_obj_is_process)) > 0) {
+		obj = m0_conf_diter_result(&it);
+		proc_conf = M0_CONF_CAST(obj, m0_conf_process);
+		rc = m0_conf_process2service_get(confc,
+						 &proc_conf->pc_obj.co_id,
+						 M0_CST_DTM0, &svc_fid);
+		if (rc != 0)
+			continue;
+
+		rf = recovery_fom_by_svc_find(m, &svc_fid);
+		if (rf == NULL)
+			break;
+
+		if (!rf->rf_is_local)
+			heq_post(rf, proc_conf->pc_obj.co_ha_state);
+	}
+
+	m0_conf_diter_fini(&it);
+	/* end of workaround */
+
 out:
 	if (root != NULL)
 		m0_confc_close(&root->rt_obj);
@@ -1667,7 +1704,7 @@ static void remote_recovery_fom_coro(struct m0_fom *fom)
 
 	while (!F(eoq)) {
 		M0_LOG(M0_DEBUG, "remote recovery fom=%p, svc_fid=" FID_F ", "
-		       " proc_fid=" FID_F "handles %s state.", fom,
+		       " proc_fid=" FID_F " handles %s state.", fom,
 		       FID_P(&rf->rf_tgt_svc), FID_P(&rf->rf_tgt_proc),
 		       m0_ha_state2str(F(state)));
 
@@ -1694,11 +1731,11 @@ static void remote_recovery_fom_coro(struct m0_fom *fom)
 static bool was_log_replayed(struct recovery_fom *rf)
 {
 	/*
-	 * We should ignore UNKNOWN and FAILED clients.
+	 * XXX: Clients are ignored by the recovery stop condition.
+	 * Once HA and Motr are able to properly handle client
+	 * restart, they can be brought back into the condition.
 	 */
-	bool is_na = rf->rf_is_volatile &&
-		M0_IN(rf->rf_last_known_ha_state,
-		      (M0_NC_UNKNOWN, M0_NC_FAILED, M0_NC_TRANSIENT));
+	bool is_na = rf->rf_is_volatile;
 
 	bool outcome = ergo(!rf->rf_is_local && !is_na,
 			    M0_IN(rf->rf_last_known_ha_state,
@@ -1739,20 +1776,30 @@ static bool is_local_recovery_completed(struct m0_dtm0_recovery_machine *m)
 static void remote_state_update(struct recovery_fom    *rf,
 				const struct eolq_item *item)
 {
+	M0_ENTRY("rf=%p, " FID_F " state: %s, eol: %d",
+		 rf, FID_P(&rf->rf_tgt_svc),
+		 m0_ha_state2str(rf->rf_last_known_ha_state),
+		 (int) rf->rf_last_known_eol);
+
 	switch (item->ei_type) {
 	case EIT_HA:
+		M0_LOG(M0_DEBUG, "new_state=%s",
+		       m0_ha_state2str(item->ei_ha_state));
 		rf->rf_last_known_ha_state = item->ei_ha_state;
 		/* Clear the EOL flag if the remote is dead. */
 		if (M0_IN(item->ei_ha_state, (M0_NC_TRANSIENT, M0_NC_FAILED)))
 			rf->rf_last_known_eol = false;
 		break;
 	case EIT_EOL:
+		M0_LOG(M0_DEBUG, "new_eol=1");
 		rf->rf_last_known_eol = true;
 		break;
 	default:
 		M0_IMPOSSIBLE("Wrong eolq item type %d?", item->ei_type);
 		break;
 	}
+
+	M0_LEAVE();
 }
 
 static void local_recovery_fom_coro(struct m0_fom *fom)
@@ -1825,7 +1872,9 @@ static void local_recovery_fom_coro(struct m0_fom *fom)
 		if (!F(eoq)) {
 			M0_CO_FUN(CO(fom), heq_await(fom, &F(state),
 						     &F(eoq)));
-			M0_ASSERT(F(eoq));
+			M0_ASSERT_INFO(F(eoq),
+				       "Expected eoq, instead got state %s",
+				       m0_ha_state2str(F(state)));
 		}
 	}
 

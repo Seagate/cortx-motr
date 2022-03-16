@@ -79,6 +79,7 @@ static int instance_init(struct params *params)
 		.cc_params = params,
 		.cc_conf = {
 			.mc_is_oostore     = true,
+			.mc_is_addb_init   = true,
 			.mc_is_read_verify = false,
 			.mc_local_addr     = params->cp_local_addr,
 			.mc_ha_addr        = params->cp_ha_addr,
@@ -158,6 +159,29 @@ static int genv(char *filename, int cnt, int size)
 		fprintf(f, "0x%02x]\n", 1);
 	}
 	fclose(f);
+	return 0;
+}
+
+static int wait_line(const char *expected_line)
+{
+	enum { BUF_SIZE = 1024 };
+	char buf[BUF_SIZE] = {};
+	char *line;
+
+	m0_console_printf("Awaiting: '%s' \n", expected_line);
+
+	do {
+		line = fgets(buf, BUF_SIZE, stdin);
+		if (line == NULL)
+			continue;
+		if (strlen(line) <= 1)
+			continue;
+		line[strlen(line) - 1] = '\0'; /* cut newline */
+		m0_console_printf("Got: '%s' \n", line);
+		if ((strcmp(expected_line, line) == 0))
+			break;
+	} while (1);
+
 	return 0;
 }
 
@@ -273,6 +297,9 @@ static int cmd_exec(struct index_cmd *cmd)
 		break;
 	case GENV:
 		rc = genv(cmd->ic_filename, cmd->ic_cnt, cmd->ic_len);
+		break;
+	case WLN:
+		rc = wait_line(cmd->ic_filename);
 		break;
 	default:
 		rc = M0_ERR(-EINVAL);

@@ -179,8 +179,12 @@ static int dtm0_process_disconnect(struct dtm0_process *process)
 	if (M0_IS0(&process->dop_rlink))
 		return M0_RC(0);
 
-	rc = m0_rpc_link_is_connected(&process->dop_rlink) ?
-		m0_rpc_link_disconnect_sync(&process->dop_rlink, timeout) : 0;
+	if (m0_rpc_link_is_connected(&process->dop_rlink)) {
+		m0_rpc_conn_sessions_cancel(&process->dop_rlink.rlk_conn);
+		rc = m0_rpc_link_disconnect_sync(&process->dop_rlink, timeout);
+	} else
+		rc = 0;
+
 
 	if (M0_IN(rc, (0, -ETIMEDOUT, -ECANCELED))) {
 		/*
