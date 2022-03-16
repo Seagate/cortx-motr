@@ -494,6 +494,7 @@ static void co_rlink_do(struct m0_co_context *context,
 		action = m0_rpc_link_connect_async;
 		break;
 	case DRF_DISCONNECTING:
+		m0_rpc_conn_sessions_cancel(&proc->dop_rlink.rlk_conn);
 		timeout_sec = DRLINK_DISCONN_TIMEOUT_SEC;
 		action = m0_rpc_link_disconnect_async;
 		break;
@@ -588,8 +589,6 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 		reason = "Cannot send message to a dead participant.";
 		goto unlock;
 	}
-
-	M0_ASSERT(dpr_state_infer(drf->df_svc, F(proc)) == DPR_ONLINE);
 
 	m0_fom_phase_set(fom, DRF_SENDING);
 	rc = dtm0_process_rlink_send(F(proc), drf);

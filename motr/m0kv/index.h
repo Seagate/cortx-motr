@@ -43,7 +43,8 @@ enum {
 	GET,  /* Get record.        */
 	NXT,  /* Next record.       */
 	GENF, /* Generate FID-file. */
-	GENV  /* Generate VAL-file. */
+	GENV, /* Generate VAL-file. */
+	WLN,  /* Wait for a line from stdin */
 };
 
 enum {
