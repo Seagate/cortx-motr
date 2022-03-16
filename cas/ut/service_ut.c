@@ -115,8 +115,8 @@ static void reqh_init(bool mkfs, bool use_small_credits)
 {
 	struct m0_be_domain_cfg cfg = {};
 	int                     result;
-	struct m0_be_ut_seg     ut_seg;
-	m0_bcount_t             seg_size = 1 * 1024 * 1024 * 1024;
+	/** Increase default seg0 size to 16 MB for cas-service ut. */
+	m0_bcount_t             segment_size = 1 << 24;
 
 	M0_SET0(&reqh);
 	M0_SET0(&be);
@@ -132,10 +132,11 @@ static void reqh_init(bool mkfs, bool use_small_credits)
 	if (use_small_credits || m0_ut_small_credits())
 		cfg.bc_engine.bec_tx_size_max =
 			M0_BE_TX_CREDIT(6 << 10, 5 << 18);
+	cfg.bc_seg0_cfg.bsc_size = segment_size;
+	cfg.bc_seg0_cfg.bsc_addr = m0_be_ut_seg_allocate_addr(segment_size);
+
 	result = m0_be_ut_backend_init_cfg(&be, &cfg, mkfs);
 	M0_ASSERT(result == 0);
-	M0_SET0(&ut_seg);
-	m0_be_ut_seg_init(&ut_seg, &be, seg_size);
 }
 
 static void _init(bool mkfs, bool use_small_credits)
