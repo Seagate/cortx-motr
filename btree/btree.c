@@ -2716,7 +2716,9 @@ static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
 
 	M0_PRE(ksize != 0);
 	M0_PRE(vsize != 0);
-	/* Currently, indirect addressing is not supported for this node type */
+	/**
+	 * Currently, indirect addressing is not supported for this node type
+	 */
 	M0_PRE(addr_type != INDIRECT_ADDRESSING);
 	M0_SET0(h);
 
@@ -3176,7 +3178,7 @@ static void ff_capture(struct slot *slot, struct m0_be_tx *tx)
 static void ff_capture_record(struct m0_buf *buf, bool leaf_rec,
 				struct m0_be_seg *seg, struct m0_be_tx *tx)
 {
-	/* Indirect addressing is not supported for this node type. */
+	/** Indirect addressing is not supported for this node type. */
 	M0_ASSERT(0);
 }
 
@@ -3185,15 +3187,15 @@ static void ff_rec_alloc(struct m0_buf *buf, uint32_t size,
 			 enum m0_btree_addr_type addr_type, bool leaf_rec,
 			 struct m0_be_seg *seg, struct m0_be_tx *tx)
 {
-	/* Indirect addressing is not supported for this node type. */
+	/** Indirect addressing is not supported for this node type. */
 	if (addr_type == INDIRECT_ADDRESSING)
 		M0_ASSERT(0);
 }
 
-static void ff_rec_free(struct m0_buf *buf, bool leaf_rec, struct m0_be_seg *seg,
-			struct m0_be_tx *tx)
+static void ff_rec_free(struct m0_buf *buf, bool leaf_rec,
+			 struct m0_be_seg *seg, struct m0_be_tx *tx)
 {
-	/* Indirect addressing is not supported for this node type. */
+	/** Indirect addressing is not supported for this node type. */
 	M0_ASSERT(0);
 }
 
@@ -3608,7 +3610,9 @@ static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 	struct fkvv_head *h       = segaddr_addr(addr);
 
 	M0_PRE(ksize != 0);
-	/* Currently, indirect addressing is not supported for this node type */
+	/**
+	 * Currently, indirect addressing is not supported for this node type
+	 */
 	M0_PRE(addr_type != INDIRECT_ADDRESSING);
 	M0_SET0(h);
 
@@ -4259,7 +4263,7 @@ static void fkvv_capture(struct slot *slot, struct m0_be_tx *tx)
 static void fkvv_capture_record(struct m0_buf *buf, bool leaf_rec,
 				struct m0_be_seg *seg, struct m0_be_tx *tx)
 {
-	/* Indirect addressing is not supported for this node type. */
+	/** Indirect addressing is not supported for this node type. */
 	M0_ASSERT(0);
 }
 
@@ -4268,7 +4272,7 @@ static void fkvv_rec_alloc(struct m0_buf *buf, uint32_t size,
 			   enum m0_btree_addr_type addr_type, bool leaf_rec,
 			   struct m0_be_seg *seg, struct m0_be_tx *tx)
 {
-	/* Indirect addressing is not supported for this node type. */
+	/** Indirect addressing is not supported for this node type. */
 	if (addr_type == INDIRECT_ADDRESSING)
 		M0_ASSERT(0);
 }
@@ -4276,7 +4280,7 @@ static void fkvv_rec_alloc(struct m0_buf *buf, uint32_t size,
 static void fkvv_rec_free(struct m0_buf *buf, bool leaf_rec, struct m0_be_seg *seg,
 			  struct m0_be_tx *tx)
 {
-	/* Indirect addressing is not supported for this node type. */
+	/** Indirect addressing is not supported for this node type. */
 	M0_ASSERT(0);
 }
 
@@ -4448,25 +4452,17 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * KEY-VALUE STRUCTURE WITH INDIRECT ADDRESSSING :
  *
  *                 Key0
- *                 +------+-----+------------------+
- *                 |ref   |key  |      user        |
- *                 |count |size |      key         |
- *                 +------+-----+------------------+
- *                              ^
- *                   +----------+
- *                   |
- *                 +-+---+-------------------+-----+
+ *                 +------+-----+------------------+------------------+
+ *                 |value |key  |      user        |       user       |
+ *                 |size  |size |      key         |       value      |
+ *                 +------+-----+------------------+------------------+
+ *                              ^                  ^
+ *                   +----------+               +--+
+ *                   |                          |
+ *                 +-+---+-------------------+--+--+
  *            node |key0 |                   |val0 |
  *                 |     |                   |     |
- *                 +-----+-------------------+-+---+
- *                                             |
- *                              +--------------+
- *                 Val0         v
- *                 +------+-----+-------------------+------+
- *                 |ref   |value|       user        | CRC  |
- *                 |count |size |       value       |      |
- *                 +------+-----+-------------------+------+
- *
+ *                 +-----+-------------------+-----+
  */
 #define IS_INDIRECT_ADDR(node) (vkvv_addrtype_get(node) == INDIRECT_ADDRESSING)
 
@@ -4474,18 +4470,16 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 #define INDIRECT_KEY_SIZE (sizeof(void*))
 #define INDIRECT_VAL_SIZE (sizeof(void*))
 
-/* Offset with respect to key/value addresses to get reference count. */
-#define INDIRECT_REF_COUNT_OFFSET (-(2 * sizeof(uint32_t)))
-
-/* Offset with respect to key/value addresses to get key/value size. */
-#define INDIRECT_SIZE_OFFSET (-sizeof(uint32_t))
-
+/* Returns loaction where value size is present. */
 #define VAL_SIZE_ADDR(p_key) (p_key - (2 * sizeof(uint32_t)))
 
+/* Returns loaction where key size is present. */
 #define KEY_SIZE_ADDR(p_key) (p_key - sizeof(uint32_t))
 
+/* Returns startig location of leaf record. */
 #define START_ADDR_LEAF_REC(p_key) (p_key - (2 * sizeof(uint32_t)))
 
+/* Returns startig location of internal node key. */
 #define START_ADDR_INTERNAL_KEY(p_key) (p_key - sizeof(uint32_t))
 
 #define INDIRECT_ALLOC(size, seg, tx)                                          \
