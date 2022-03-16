@@ -212,6 +212,7 @@ cmd_run_st() {
                         if [[ "$chk" == "true" ]]; then
                             echo "<< ${f##*/} >> can not be run for libfab" >&1
                             _fini ${f##*/}
+                            continue
                         fi
                     # Check if encode / decode library is Intel ISA
                     elif [ "$rs_lib" == "isal" ]; then
@@ -219,6 +220,7 @@ cmd_run_st() {
                         if [[ "$chk" == "true" ]]; then
                             echo "<< ${f##*/} >> can not be run for libisal" >&1
                             _fini ${f##*/}
+                            continue
                         fi
                     fi
                     export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
