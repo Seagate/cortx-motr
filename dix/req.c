@@ -2211,7 +2211,7 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 	uint32_t                    i;
 	uint32_t                    j;
 	uint32_t                    pa_idx;
-	uint32_t                    pa_nr;
+	uint32_t                    pa_nr = 0;
 	uint32_t                    max_failures;
 	struct m0_dix_cas_rop     **map = rop->dg_target_rop;
 	struct m0_dix_cas_rop      *cas_rop;
