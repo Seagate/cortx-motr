@@ -212,30 +212,44 @@ def get_server_node(self):
     return server_node
 
 def calc_size(sz):
+    ret = -1
+
     sz_map = {"Ki": 1024, "Mi": 1024*1024, "Gi": 1024*1024*1024}
     suffix = sz[-2:]
     num_sz = int(sz[0:-2])
     if suffix in sz_map.keys():
         map_val=sz_map[suffix]
-        return (num_sz * map_val)
+        ret = num_sz * map_val
+    else:
+        self.logger.error(f"Invalid format of mem limit: {min_mem}\n")
+        self.logger.error("Please use valid format Ex: 1024, 1Ki, 1Mi, 1Gi etc..\n")
+    return ret
 
 def get_setup_size(self):
     ret = False
     MAX_4G = 4*1024*1024*1024
     sevices_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
+
     for arr_elem in sevices_limits:
         if arr_elem['name'] == 'ios':
             min_mem = arr_elem['memory']['min']
 
-            if min_mem[-2:] not in ["Ki", "Mi", "Gi"]:
+            if min_mem.isnumeric():
+                sz = int(min_mem)
+            elif min_mem[-2:] not in ["Ki", "Mi", "Gi"]:
                 self.logger.error(f"Invalid mem limit {min_mem}\n")
                 ret = False
+                return ret
+            else:
+                sz = calc_size(min_mem)
 
-            sz = calc_size(min_mem)
             self.logger.info(f"mem limit in config is {min_mem} i.e. {sz}\n")
 
+            # Invalid min mem format
+            if sz < 0:
+                ret = False
             # If mem limit in ios > 4G then it is large setup size
-            if sz > MAX_4G:
+            elif sz > MAX_4G:
                 self.setup_size = "large"
                 self.logger.info(f"setup_size set to {self.setup_size}\n")
                 ret = True
