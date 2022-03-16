@@ -866,7 +866,6 @@ function run()
 {
 	echo "# $*"
 	eval $*
-	return $?
 }
 
 ha_events_post()
