@@ -550,6 +550,8 @@ static void be_io_finished(struct m0_be_io *bio)
 				break;
 			}
 		}
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "m0_be_op fails with rc = %d", rc);
 		m0_be_op_rc_set(op, rc);
 		m0_be_op_done(op);
 	}
@@ -565,6 +567,8 @@ static bool be_io_cb(struct m0_clink *link)
 	int                   fd;
 	int                   rc;
 
+	if (sio->si_rc != 0)
+		M0_LOG(M0_ERROR, "Stob I/O operation failed sio->si_rc = %d",sio->si_rc);
 	rc = sio->si_rc;
 
 	/* XXX temporary workaround:
