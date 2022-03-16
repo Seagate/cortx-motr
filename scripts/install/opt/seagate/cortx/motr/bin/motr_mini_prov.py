@@ -517,12 +517,8 @@ def motr_config(self):
 
 def configure_net(self):
     """Wrapper function to detect lnet/libfabric transport."""
-    transport_type = "libfabric"
-    configure_libfabric_k8(self)
-    return
-
     try:
-        transport_type = self.server_node['network']['data']['transport_type']
+        transport_type = Conf.get(self._index, 'cortx>motr>transport_type')
     except:
         raise MotrError(errno.EINVAL, "transport_type not found")
 
@@ -530,7 +526,7 @@ def configure_net(self):
 
     if transport_type == "lnet":
         configure_lnet(self)
-    elif transport_type == "libfabric":
+    elif transport_type == "libfab":
         configure_libfabric(self)
     else:
         raise MotrError(errno.EINVAL, "Unknown data transport type\n")
@@ -571,32 +567,6 @@ def configure_lnet(self):
        raise MotrError(errno.EINVAL, "lent self ping failed\n")
 
 def configure_libfabric(self):
-    try:
-        iface = self.server_node['network']['data']['private_interfaces'][0]
-    except:
-        raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
-
-    sys.stdout.write(f"Validate private_interfaces[0]: {iface}\n")
-    cmd = f"ip addr show {iface}"
-    execute_command(self, cmd)
-
-    try:
-        iface_type = self.server_node['network']['data']['interface_type']
-    except:
-        raise MotrError(errno.EINVAL, "interface_type not found\n")
-
-    libfab_config = (f"networks={iface_type}({iface}) ")
-    self.logger.info(f"libfab config: {libfab_config}")
-    with open(LIBFAB_CONF_FILE, "w") as fp:
-        fp.write(libfab_config)
-
-    sys.stdout.write(f"iface type: {iface_type}\n")
-    cmd = "fi_info"
-    execute_command(self, cmd)
-    sys.stdout.write(f"fi_info: {cmd}\n")
-    os.system('fi_info')
-
-def configure_libfabric_k8(self):
     cmd = "fi_info"
     execute_command(self, cmd, verbose=True)
 

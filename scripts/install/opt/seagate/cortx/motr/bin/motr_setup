@@ -129,12 +129,6 @@ class PrepareCmd(Cmd):
 
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
-
-        # If hare is installed and cluster is up then exit otherwise go ahead
-        if pkg_installed(self, "cortx-hare"):
-            if cluster_up(self):
-                self.logger.warning("Cluster is already up...Exiting.\n")
-                return
         configure_net(self)
         self.logger.info("SUCCESS\n")
 
