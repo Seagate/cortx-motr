@@ -1040,13 +1040,13 @@ struct node_type {
 				  bool leaf_rec, struct m0_be_seg *seg,
 				  struct m0_be_tx *tx);
 
-	/* Allocates record in case of indirect addressing. */
+	/** Allocates record in case of indirect addressing. */
 	void (*nt_rec_alloc) (struct m0_buf *buf, uint32_t size,
 			      enum m0_btree_crc_type crc_type,
 			      enum m0_btree_addr_type addr_type, bool leaf_rec,
 			      struct m0_be_seg *seg, struct m0_be_tx *tx);
 
-	/* Allocates record in case of indirect addressing. */
+	/** Allocates record in case of indirect addressing. */
 	void (*nt_rec_free)(struct m0_buf *buf, bool leaf_rec,
 			    struct m0_be_seg *seg, struct m0_be_tx *tx);
 
@@ -1355,7 +1355,13 @@ struct level {
 	 */
 	int32_t    l_max_ksize;
 
-	struct m0_buf      l_rec;
+	/**
+	 * In case of indirect addressing, if there is possibility of overflow
+	 * at child level, new record will be added at parent and the allocation
+	 * of this record will be done in btree_rec_alloc() before taking the
+	 * lock. l_rec will refer to the allocated record.
+	 */
+	struct m0_buf l_rec;
 };
 
 /**
@@ -1431,14 +1437,13 @@ struct m0_btree_oimpl {
 	*/
 	bool                       i_root_child_free;
 
-	/**
-	 * In case of indirect addressing, as we need to allocate key and value
-	 * separately, i_indirect_key and i_indirect_val will hold addresses of
-	 * allocated key and value. Refer indirect_kv_alloc() for more
-	 * information.
+	/**In the case of indirect addressing, we need to allocate key and value
+	 * separately. If there is the possibility of overflow at the root node,
+	 * we required to allocate two records which will be added at the root
+	 * node after the split operation. Refer btree_put_root_split_handle().
 	 */
-	struct m0_buf i_rec_extra;
-	struct m0_buf i_rec_extra_2;
+	struct m0_buf              i_root_rec_1;
+	struct m0_buf              i_root_rec_2;
 };
 
 
@@ -4475,6 +4480,14 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 /* Offset with respect to key/value addresses to get key/value size. */
 #define INDIRECT_SIZE_OFFSET (-sizeof(uint32_t))
 
+#define VAL_SIZE_ADDR(p_key) (p_key - (2 * sizeof(uint32_t)))
+
+#define KEY_SIZE_ADDR(p_key) (p_key - sizeof(uint32_t))
+
+#define START_ADDR_LEAF_REC(p_key) (p_key - (2 * sizeof(uint32_t)))
+
+#define START_ADDR_INTERNAL_KEY(p_key) (p_key - sizeof(uint32_t))
+
 #define INDIRECT_ALLOC(size, seg, tx)                                          \
 	({                                                                     \
 		struct m0_buf buf;                                             \
@@ -4513,6 +4526,7 @@ static void vkvv_fid(const struct nd *node, struct m0_fid *fid);
 static void vkvv_rec(struct slot *slot);
 static void vkvv_node_key(struct slot *slot);
 static void vkvv_child(struct slot *slot, struct segaddr *addr);
+static void *vkvv_indir_addr_key(const struct nd *node, int idx);
 static void *vkvv_key(const struct nd *node, int idx);
 static void *vkvv_val(const struct nd *node, int idx);
 
@@ -4717,9 +4731,9 @@ void vkvv_rec_free(struct m0_buf *buf, bool leaf_rec, struct m0_be_seg *seg,
 {
 	void *addr = buf->b_addr;
 	if (leaf_rec)
-		addr = addr - 2 * sizeof(uint32_t);
+		addr = START_ADDR_LEAF_REC(addr);
 	else
-		addr = addr - sizeof(uint32_t);
+		addr = START_ADDR_INTERNAL_KEY(addr);
 	INDIRECT_FREE(addr, seg, tx);
 }
 
@@ -4935,12 +4949,10 @@ static void vkvv_fid(const struct nd *node, struct m0_fid *fid)
 
 static uint32_t vkvv_indir_addr_rec_key_size(const struct nd *node, int idx)
 {
-	struct vkvv_head *h        = vkvv_data(node);
-	uint32_t          offset   = INDIRECT_KEY_SIZE * idx;
-	void            **p_k_addr = (void*)h + sizeof(*h) + offset;
-	void             *k_addr   = *p_k_addr;
+	void **p_k_addr = vkvv_indir_addr_key(node, idx);
+	void  *k_addr   = *p_k_addr;
 
-	return *(uint32_t*)(k_addr - sizeof(uint32_t));
+	return *(uint32_t*)(KEY_SIZE_ADDR(k_addr));
 }
 
 static uint32_t vkvv_lnode_rec_key_size(const struct nd *node, int idx)
@@ -4981,8 +4993,6 @@ static uint32_t vkvv_rec_key_size(const struct nd *node, int idx)
 		return vkvv_inode_rec_key_size(node, idx);
 }
 
-static void *vkvv_indir_addr_key(const struct nd *node, int idx);
-
 static uint32_t vkvv_indir_addr_rec_val_size(const struct nd *node, int idx)
 {
 	struct vkvv_head *h    = vkvv_data(node);
@@ -4994,7 +5004,7 @@ static uint32_t vkvv_indir_addr_rec_val_size(const struct nd *node, int idx)
 		p_k_addr = vkvv_indir_addr_key(node, idx);
 		k_addr   = *p_k_addr;
 
-		return *(uint32_t*)(k_addr - 2 * sizeof(uint32_t));
+		return *(uint32_t*)(VAL_SIZE_ADDR(k_addr));
 	} else
 		return INDIRECT_VAL_SIZE;
 }
@@ -5365,7 +5375,7 @@ static void vkvv_indir_addr_rec_fill(struct slot *slot, struct m0_buf *rec)
 	void     **p_val_addr = vkvv_val(slot->s_node, slot->s_idx + 1);
 	uint32_t   ksize      = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
 	uint32_t   vsize      = m0_vec_count(&slot->s_rec.r_val.ov_vec);
-	void      *last_addr  = rec->b_addr - 2 * sizeof(uint32_t) + rec->b_nob;
+	void      *last_addr  = START_ADDR_LEAF_REC(rec->b_addr) + rec->b_nob;
 	void      *key_addr   = rec->b_addr;
 	void      *val_addr   = rec->b_addr + ksize;
 	uint32_t  *p_ksize;
@@ -5375,8 +5385,8 @@ static void vkvv_indir_addr_rec_fill(struct slot *slot, struct m0_buf *rec)
 	M0_ASSERT(key_addr + ksize <= last_addr);
 	M0_ASSERT(val_addr + vsize <= last_addr);
 
-	p_ksize     = key_addr - sizeof(uint32_t);
-	p_vsize     = key_addr - 2 * sizeof(uint32_t);
+	p_ksize     = KEY_SIZE_ADDR(key_addr);
+	p_vsize     = VAL_SIZE_ADDR(key_addr);
 
 	*p_key_addr = key_addr;
 	*p_val_addr = val_addr;
@@ -5393,14 +5403,14 @@ static void vkvv_indir_addr_key_fill(struct slot *slot, struct m0_buf *rec)
 	struct vkvv_head *h   = vkvv_data(slot->s_node);
 	void     **p_key_addr = vkvv_key(slot->s_node, slot->s_idx);
 	void      *key_addr   = rec->b_addr;
-	void      *last_addr  = rec->b_addr - sizeof(uint32_t) + rec->b_nob;
+	void      *last_addr  = START_ADDR_INTERNAL_KEY(rec->b_addr) + rec->b_nob;
 	uint32_t   ksize      = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
 	uint32_t  *p_ksize;
 
 	M0_ASSERT(rec->b_addr != NULL);
 	M0_ASSERT(key_addr + ksize <= last_addr);
 
-	p_ksize     = key_addr - sizeof(uint32_t);
+	p_ksize     = KEY_SIZE_ADDR(key_addr);
 	*p_key_addr = key_addr;
 	*p_ksize    = ksize;
 
@@ -5618,7 +5628,7 @@ static void vkvv_indir_addr_val_resize(struct slot *slot, int vsize_diff,
 	void             **p_key_addr = vkvv_indir_addr_key(slot->s_node,
 							    slot->s_idx);
 	void              *key_addr   = *p_key_addr;
-	uint32_t          *p_vsize    =  key_addr - 2 * sizeof(uint32_t);
+	uint32_t          *p_vsize    =  VAL_SIZE_ADDR(key_addr);
 	uint32_t           curr_vsize = *p_vsize;
 	uint32_t           new_vsize  = curr_vsize + vsize_diff;
 	uint32_t           size_req;
@@ -5636,7 +5646,7 @@ static void vkvv_indir_addr_val_resize(struct slot *slot, int vsize_diff,
 	}
 
 	p_val_addr = vkvv_indir_addr_val(slot->s_node, slot->s_idx + 1);
-	ksize = *(uint32_t*)(key_addr - sizeof(uint32_t));
+	ksize = *(uint32_t*)(KEY_SIZE_ADDR(key_addr));
 
 	size_req   = 2 * sizeof(uint32_t) + ksize + new_vsize;
 
@@ -5657,7 +5667,7 @@ static void vkvv_indir_addr_val_resize(struct slot *slot, int vsize_diff,
 
 	memcpy(new_key_addr, key_addr, ksize);
 
-	INDIRECT_FREE(key_addr - 2 * sizeof(uint32_t), seg, tx);
+	INDIRECT_FREE(START_ADDR_LEAF_REC(key_addr), seg, tx);
 
 }
 
@@ -5735,9 +5745,9 @@ static void vkvv_indir_addr_rec_free(const struct nd *node, int idx,
 	void     **p_key_addr = vkvv_key(node, idx);
 	void      *key_addr   = *p_key_addr;
 	if (bnode_level(node) == 0)
-		key_addr = key_addr - 2 * sizeof(uint32_t);
+		key_addr = START_ADDR_LEAF_REC(key_addr);
 	else
-		key_addr = key_addr - sizeof(uint32_t);
+		key_addr = START_ADDR_INTERNAL_KEY(key_addr);
 
 	INDIRECT_FREE(key_addr, node->n_tree->t_seg, tx);
 }
@@ -6006,9 +6016,9 @@ static void vkvv_capture_record(struct m0_buf *buf, bool leaf_rec,
 {
 	void *addr = buf->b_addr;
 	if (leaf_rec)
-		addr = addr -2 * sizeof(uint32_t);
+		addr = START_ADDR_LEAF_REC(addr);
 	else
-		addr = addr - sizeof(uint32_t);
+		addr = START_ADDR_INTERNAL_KEY(addr);
 	M0_BTREE_TX_CAPTURE(tx, seg, addr, buf->b_nob);
 }
 
@@ -6677,13 +6687,13 @@ static void btree_tx_records_capture(struct  td *tree,
 	}
 
 	if (i == 0 && oi->i_level[i].i_alloc_in_use) {
-		buf  = &oi->i_rec_extra;
+		buf  = &oi->i_root_rec_1;
 		if (buf->b_addr != NULL) {
 			bnode_capture_record(tree->t_root, buf, false, seg, tx);
 			M0_SET0(buf);
 		}
 
-		buf  = &oi->i_rec_extra_2;
+		buf  = &oi->i_root_rec_2;
 		if (buf->b_addr != NULL) {
 			bnode_capture_record(tree->t_root, buf, false, seg, tx);
 			M0_SET0(buf);
@@ -6746,7 +6756,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	node_slot.s_rec = bop->bo_rec;
 
 	/* M0_ASSERT(bnode_isfit(&node_slot)) */
-	bnode_make(&node_slot, &oi->i_rec_extra);
+	bnode_make(&node_slot, &oi->i_root_rec_1);
 	REC_INIT(&node_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 	bnode_rec(&node_slot);
 	COPY_RECORD(&node_slot.s_rec, &bop->bo_rec);
@@ -6766,7 +6776,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	bop->bo_rec.r_val.ov_buf[0] = &(oi->i_extra_node->n_addr);
 	node_slot.s_idx  = 1;
 	node_slot.s_rec = bop->bo_rec;
-	bnode_make(&node_slot, &oi->i_rec_extra_2);
+	bnode_make(&node_slot, &oi->i_root_rec_2);
 	REC_INIT(&node_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 	bnode_rec(&node_slot);
 	COPY_VALUE(&node_slot.s_rec, &bop->bo_rec);
@@ -6792,8 +6802,8 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	/* Capture this change in transaction */
 
 	/* TBD : This check needs to be removed when debugging is done. */
-	M0_ASSERT(bnode_expensive_invariant(lev->l_node));
-	M0_ASSERT(bnode_expensive_invariant(oi->i_extra_node));
+	M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
+	M0_ASSERT_EX(bnode_expensive_invariant(oi->i_extra_node));
 	bnode_unlock(lev->l_node);
 	bnode_unlock(oi->i_extra_node);
 
@@ -7001,8 +7011,8 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	btree_node_capture_enlist(oi, lev->l_node, 0);
 
 	/* TBD : This check needs to be removed when debugging is done. */
-	M0_ASSERT(bnode_expensive_invariant(lev->l_alloc));
-	M0_ASSERT(bnode_expensive_invariant(lev->l_node));
+	M0_ASSERT_EX(bnode_expensive_invariant(lev->l_alloc));
+	M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
 	bnode_unlock(lev->l_alloc);
 	bnode_unlock(lev->l_node);
 
@@ -7042,7 +7052,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 			 * TBD : This check needs to be removed when debugging
 			 * is done.
 			 */
-			M0_ASSERT(bnode_expensive_invariant(lev->l_node));
+			M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
 			bnode_unlock(lev->l_node);
 			return P_CAPTURE;
 		}
@@ -7073,8 +7083,8 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		 * TBD : This check needs to be removed when debugging is
 		 * done.
 		 */
-		M0_ASSERT(bnode_expensive_invariant(lev->l_alloc));
-		M0_ASSERT(bnode_expensive_invariant(lev->l_node));
+		M0_ASSERT_EX(bnode_expensive_invariant(lev->l_alloc));
+		M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
 		bnode_unlock(lev->l_alloc);
 		bnode_unlock(lev->l_node);
 
@@ -7128,9 +7138,9 @@ static int btree_rec_alloc(struct m0_btree_op *bop,
 			bnode_rec_alloc(tree->t_root, &lev->l_rec, ksize,
 					crc_type, addr_type, leaf_rec, seg, tx);
 		} else {
-			bnode_rec_alloc(tree->t_root, &oi->i_rec_extra, ksize,
+			bnode_rec_alloc(tree->t_root, &oi->i_root_rec_1, ksize,
 					crc_type, addr_type, leaf_rec, seg, tx);
-			bnode_rec_alloc(tree->t_root, &oi->i_rec_extra_2, ksize,
+			bnode_rec_alloc(tree->t_root, &oi->i_root_rec_2, ksize,
 					crc_type, addr_type, leaf_rec, seg, tx);
 		}
 	}
@@ -7158,14 +7168,14 @@ static void btree_rec_free(struct m0_btree_op *bop)
 			M0_SET0(&oi->i_level[i].l_rec);
 		}
 	}
-	if (oi->i_rec_extra.b_addr != NULL)
+	if (oi->i_root_rec_1.b_addr != NULL)
 	{
-		M0_ASSERT(oi->i_rec_extra_2.b_addr != NULL);
-		bnode_rec_free(tree->t_root, &oi->i_rec_extra, false, seg, tx);
-		M0_SET0(&oi->i_rec_extra);
+		M0_ASSERT(oi->i_root_rec_2.b_addr != NULL);
+		bnode_rec_free(tree->t_root, &oi->i_root_rec_1, false, seg, tx);
+		M0_SET0(&oi->i_root_rec_1);
 
-		bnode_rec_free(tree->t_root, &oi->i_rec_extra_2, false, seg, tx);
-		M0_SET0(&oi->i_rec_extra_2);
+		bnode_rec_free(tree->t_root, &oi->i_root_rec_2, false, seg, tx);
+		M0_SET0(&oi->i_root_rec_2);
 	}
 }
 
@@ -7256,7 +7266,6 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			}
 
 			lev->l_max_ksize = bnode_max_ksize(lev->l_node);
-			// M0_ASSERT(lev->l_max_ksize >=0 && lev->l_max_ksize <= 68);
 			oi->i_key_found = bnode_find(&node_slot,
 						     &bop->bo_rec.r_key);
 			lev->l_idx = node_slot.s_idx;
@@ -7570,7 +7579,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 		 * TBD : This check needs to be removed when debugging is
 		 * done.
 		 */
-		M0_ASSERT(bnode_expensive_invariant(lev->l_node));
+		M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
 		bnode_unlock(lev->l_node);
 		return P_CAPTURE;
 	}
@@ -8667,7 +8676,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		 * TBD : This check needs to be removed when debugging is
 		 * done.
 		 */
-		M0_ASSERT(bnode_expensive_invariant(lev->l_node));
+		M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
 
 		node_underflow = bnode_isunderflow(lev->l_node, false);
 		if (used_count != 0 && node_underflow) {
@@ -8715,7 +8724,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	oi->i_root_child_free = true;
 
 	/* TBD : This check needs to be removed when debugging is done. */
-	M0_ASSERT(bnode_expensive_invariant(lev->l_node));
+	M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
 	bnode_unlock(lev->l_node);
 	bnode_unlock(root_child);
 
@@ -9079,7 +9088,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		 * TBD : This check needs to be removed when debugging
 		 * is done.
 		 */
-		M0_ASSERT(bnode_expensive_invariant(lev->l_node));
+		M0_ASSERT_EX(bnode_expensive_invariant(lev->l_node));
 		node_underflow = bnode_isunderflow(lev->l_node, false);
 		if (oi->i_used != 0  && node_underflow) {
 			bnode_fini(lev->l_node);
