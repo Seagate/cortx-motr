@@ -200,14 +200,11 @@ def configure_machine_id(self, phase):
     else:
         raise MotrError(errno.ENOENT, "machine id not available in conf")
 
-def get_server_node(self, k8):
+def get_server_node(self):
     """Get current node name using machine-id."""
     try:
         machine_id = self.machine_id;
-        if k8:
-            server_node = Conf.get(self._index, 'node')[machine_id]
-        else:
-            server_node = Conf.get(self._index, 'server_node')[machine_id]
+        server_node = Conf.get(self._index, 'node')[machine_id]
     except:
         raise MotrError(errno.EINVAL, f"MACHINE_ID {machine_id} does not exist in ConfStore")
 

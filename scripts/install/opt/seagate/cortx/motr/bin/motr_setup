@@ -70,7 +70,7 @@ class Cmd:
         self.cortx = get_value(self, 'cortx', dict)
         self.cluster = get_value(self, 'cluster', dict)
         self.nodes = get_value(self, 'node', dict)
-        self.node = get_server_node(self, True)
+        self.node = get_server_node(self)
         elf.storage_nodes = get_data_nodes(self)
         if self.machine_id in self.storage_nodes:
             self.storage = get_storage(self)
