@@ -550,7 +550,6 @@ static void be_io_finished(struct m0_be_io *bio)
 				break;
 			}
 		}
-		M0_ASSERT_INFO(rc == 0, "m0_be_op can't fail, rc = %d", rc);
 		m0_be_op_rc_set(op, rc);
 		m0_be_op_done(op);
 	}
@@ -566,10 +565,6 @@ static bool be_io_cb(struct m0_clink *link)
 	int                   fd;
 	int                   rc;
 
-	/* XXX Temporary workaround. I/O error should be handled gracefully. */
-	M0_ASSERT_INFO(sio->si_rc == 0, "stob I/O operation failed: "
-		       "bio = %p, sio = %p, sio->si_rc = %d",
-		       bio, sio, sio->si_rc);
 	rc = sio->si_rc;
 
 	/* XXX temporary workaround:

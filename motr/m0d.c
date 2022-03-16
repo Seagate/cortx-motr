@@ -74,8 +74,17 @@ static bool regsignal = false;
  */
 static void cs_term_sig_handler(int signum)
 {
-	gotsignal = signum == SIGUSR1 ? M0_RESULT_STATUS_RESTART :
-					M0_RESULT_STATUS_STOP;
+	if (signum == SIGUSR1) {
+		gotsignal = M0_RESULT_STATUS_RESTART;
+	} else if (signum == SIGINT || signum == SIGQUIT || signum == SIGTERM) {
+		gotsignal = M0_RESULT_STATUS_STOP;
+	} else {
+		m0_console_printf("SIGNAL CAUGHT: %s", strsignal(signum));
+		do {
+			pause();
+		} while (!gotsignal);
+	}
+	
 }
 
 /**
@@ -98,6 +107,7 @@ static int cs_register_signal(void)
 	rc = sigaction(SIGTERM, &term_act, NULL) ?:
 		sigaction(SIGINT,  &term_act, NULL) ?:
 		sigaction(SIGQUIT, &term_act, NULL) ?:
+		sigaction(SIGBUS, &term_act, NULL) ?:
 		sigaction(SIGUSR1, &term_act, NULL);
 	if (rc == 0)
 		regsignal = true;
