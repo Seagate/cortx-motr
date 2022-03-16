@@ -113,7 +113,7 @@ m0_conf_cache_lookup_dynamic(const struct m0_conf_cache *cache,
         /*
          * For process and service fid different approach is taken to compare
 	 * FID's. Specifically for process/service fid considering base fid
-	 * only (excluding counter bit) for comparison. Dynamic bits are higher
+	 * only (excluding dynamic bit) for comparison. Dynamic bits are higher
 	 * 32 bits of the key of FID.
 	 *  e.g.
 	 *  |-------- Container------------| |----------------Key-------------|
@@ -123,14 +123,14 @@ m0_conf_cache_lookup_dynamic(const struct m0_conf_cache *cache,
 	 */
 	/*
 	 * TODO: Current implementation we are assuming that dynamic FID's will
-	 * always be generated in sequential manner (w.r.t counter bits), so
+	 * always be generated in sequential manner (w.r.t dynamic bits), so
 	 * that we can fetch latest last dynamic FID, but It may not be in
 	 * sequential always. This scenario needs to be handled.
 	 */
-	dynamic_val1 = DYNAMIC_FID_CNT(id);
+	dynamic_val1 = GET_FID_DYNAMIC_VAL(id);
 	m0_tl_for (m0_conf_cache, &cache->ca_registry, obj) {
 		if (m0_base_fid_eq(&obj->co_id, id)) {
-			dynamic_val2 = DYNAMIC_FID_CNT(&obj->co_id);
+			dynamic_val2 = GET_FID_DYNAMIC_VAL(&obj->co_id);
 			if (dynamic_val1 == dynamic_val2)
 				return obj;
 			else if (dynamic_val1 != (dynamic_val2 + 1))

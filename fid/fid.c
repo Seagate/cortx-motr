@@ -165,8 +165,8 @@ M0_INTERNAL bool m0_base_fid_eq(const struct m0_fid *fid0,
 				const struct m0_fid *fid1)
 {
 	return fid0->f_container == fid1->f_container ?
-	    ((fid0->f_key & M0_FID_DYNAMIC_CNT_MASK) ==
-	     (fid1->f_key & M0_FID_DYNAMIC_CNT_MASK)): false;
+	    ((fid0->f_key & M0_FID_DYNAMIC_BITS_MASK) ==
+	     (fid1->f_key & M0_FID_DYNAMIC_BITS_MASK)): false;
 }
 M0_EXPORTED(m0_base_fid_eq);
 

@@ -79,7 +79,7 @@ M0_INTERNAL void m0_fid_fini(void);
 enum {
 	/** Clears high 8 bits off. */
 	M0_FID_TYPE_MASK        = 0x00ffffffffffffffULL,
-	M0_FID_DYNAMIC_CNT_MASK = 0x00000000FFFFFFFFULL,
+	M0_FID_DYNAMIC_BITS_MASK = 0x00000000FFFFFFFFULL,
 	M0_FID_STR_LEN          = 64,
 };
 
@@ -88,7 +88,7 @@ enum {
 #define FID_P(f)  (f)->f_container,  (f)->f_key
 #define FID_S(f) &(f)->f_container, &(f)->f_key
 
-#define DYNAMIC_FID_CNT(f) (((f)->f_key >> 32) & (0xFFFFFFFF))
+#define GET_FID_DYNAMIC_VAL(f) (((f)->f_key >> 32) & (0xFFFFFFFF))
 
 #define M0_FID_TCONTAINER(type, container)		\
 	((((uint64_t)(type)) << (64 - 8)) |		\
