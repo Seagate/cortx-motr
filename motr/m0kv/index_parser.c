@@ -61,6 +61,7 @@ static const struct command_descr commands[] = {
 	{ GENF, "genf",   "genf CNT FILE, generate file with several FID" },
 	{ GENV, "genv",   "genv CNT SIZE FILE, generate file with several "
 			  "KEY_PARAM/VAL_PARAM. Note: SIZE > 16" },
+	{ WLN,  "wait",   "wait STR, await a line from stdin" },
 };
 
 static int command_id(const char *name)
@@ -362,6 +363,11 @@ static int command_assign(struct index_cmd *cmd, int *argc, char ***argv)
 		++*params;
 		*argc -= 3;
 		break;
+	case WLN:
+		cmd->ic_filename = **params;
+		++*params;
+		--*argc;
+		break;
 	default:
 		M0_IMPOSSIBLE("Wrong command");
 	}
@@ -408,6 +414,9 @@ static bool command_is_valid(struct index_cmd *cmd)
 		rc = cmd->ic_filename != NULL &&
 		     cmd->ic_cnt != 0 &&
 		     cmd->ic_len != 0;
+		break;
+	case WLN:
+		rc = cmd->ic_filename != NULL;
 		break;
 	default:
 		M0_IMPOSSIBLE("Wrong command.");
