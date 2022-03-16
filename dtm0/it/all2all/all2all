@@ -29,9 +29,9 @@ POOL_WIDTH=4
 IPOOL_WIDTH=2
 
 # m0d that got killed
-VICTIM=0
+VICTIM=1
 # m0ds that are alive
-WITNESSES=(1 2)
+WITNESSES=(0 2)
 
 . ${MOTR_ROOT}/scripts/addb-py/chronometry/common/common_funcs
 
@@ -43,7 +43,8 @@ function stop_cluster()
 
 function bootstrap_cluster()
 {
-    hctl bootstrap --mkfs $CURRENT_CDF
+    # XXX: For some reason Hare does not like localhost.
+    hctl bootstrap --mkfs <(sed "s/localhost/$(hostname -f)/" $CURRENT_CDF)
 }
 
 function get_m0d_pids()
@@ -70,7 +71,7 @@ function create_m0crate_cfg()
     local PROCESS_FID=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client")) | .fid')
     local MOTR_HA_ADDR=$(echo $svcs_json_out | jq -r 'select( .name | contains("hax")) | .ep')
 
-    MOD_CLI_EP=$(echo "$MOTR_LOCAL_ADDR" | sed -E 's/.*@tcp[:](.*)/\1/')
+    MOD_CLI_EP=$(echo "$MOTR_LOCAL_ADDR")
 
     local M0CRATE_CFG_TMP=m0crate_cfg.tmp
     cp $M0CRATE_CFG_IN $M0CRATE_CFG_TMP
@@ -86,7 +87,7 @@ function get_params_for_ha_msgs()
     local svcs_json_out=$(hctl status --json | jq -r '.nodes[] | .svcs[]')
     local svc_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("ioservice"))')
     local cli_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client"))')
-    M0D_ENDPOINTS=($(echo $svc_json_out | jq -r '.ep' | sed -E 's/.*@tcp[:](.*)/\1/'))
+    M0D_ENDPOINTS=($(echo $svc_json_out | jq -r '.ep'))
     M0D_FIDS_HEX=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/'))
     M0D_FIDS_DEC=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e'))
     M0D_CLI_FID_DEC=$(echo $cli_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e')
@@ -207,8 +208,8 @@ function expect_trace_lines_from_m0ds()
 
 function expect_trace_lines_from_cli()
 {
-    local pattern="$2"
-    local exp_cnt="$3"
+    local pattern="$1"
+    local exp_cnt="$2"
     local path="$PWD/m0trace.$CLIENT_PID"
     local cnt
 
@@ -221,8 +222,8 @@ function expect_trace_lines_from_cli()
 
 function expect_trace_lines_from_all()
 {
-    local pattern="$2"
-    local exp_cnt="$3"
+    local pattern="$1"
+    local exp_cnt="$2"
 
     if expect_trace_lines_from_m0ds "$pattern" "$exp_cnt" && \
         expect_trace_lines_from_cli  "$pattern" "$exp_cnt"; then
@@ -322,10 +323,10 @@ function client_run_gdb()
 
 function client_wait()
 {
-    wait ${cli_pid}
+    wait ${CLIENT_PID}
 }
 
-function m0kv()
+function m0kv_async()
 {
     local args
     args=$(python -c "import yaml; \
@@ -334,7 +335,14 @@ function m0kv()
         print('-l %s -h %s -p %s -f %s' % (m['MOTR_LOCAL_ADDR'], m['MOTR_HA_ADDR'], m['PROF'], m['PROCESS_FID']));")
 
     _info "m0kv $args $@"
-    ${MOTR_UTILS_DIR}/m0kv $args $@
+    non_existing_command_to_make_a_pipe | ${MOTR_UTILS_DIR}/m0kv $args $@ &
+    CLIENT_PID=$!
+}
+
+function m0kv()
+{
+    m0kv_async $@
+    client_wait
 }
 
 function m0kv_run_sync()
@@ -381,33 +389,56 @@ function online_phase()
         :;
     done
 
-    _info "Let everyone know that all m0ds are online."
-    for i in "${!M0D_PIDS[@]}" ; do
-        ha_msg_send_m0ds "$i" "online";
+    _info "Wait until every m0d has recovered"
+    while ! expect_trace_lines_from_m0ds "ALL2ALL_DTM_RECOVERED" 1; do
+        :;
     done
 }
 
 # Phase where we perform recovery.
 function recovery_phase()
 {
+    # 2 * (3 + 1) where:
+    #   2 is the number of witnesses;
+    #   3 is the number of records (mykey1, mykey2, mykey3);
+    #   1 is the EOL.
+    local nr_redo=8
+    local redo_pattern="m0_dtm0_recovery_machine_redo_post   > in-redo"
+    local dtx_done_pattern="dtx_done                             >"
+
     _info "Phase recovery:recovery"
     local svc_name="m0d@0x720000000000000${M0D_FIDS_HEX[VICTIM]}.service"
 
-    # Execute some KVs requests, so that
-    # DTM0 logs won't be empty.
+    _info "Create an index"
+    m0kv index create "1:5"
 
-    client_run_sync
-    # m0kv_run_sync
+    _info "Populate the index"
+    m0kv -s index put "1:5" mykey1 myvalue1
 
-    ha_msg_send_m0ds "cli" "failed"
+    _info "PUT one key, hang on"
+    m0kv_async -s index put "1:5" mykey2 myvalue2 \
+        wait w put "1:5" mykey3 myvalue3
 
-    # Kill one of the m0ds.
+    _info "Wait until mykey2 reached the persistent storage on at least one node."
+    while ! expect_trace_lines_from_cli "$dtx_done_pattern" 1; do
+        :;
+    done
+
+    _info "Kill the victim (${M0D_PIDS[VICTIM]})."
     kill -9 "${M0D_PIDS[VICTIM]}"
 
-    # Witnesses should learn that the victim is dead.
-    for witness in ${WITNESSES[@]}; do
-        ha_msg_send $witness "${VICTIM}" "transient"
-    done
+    # XXX We may use the pool machine state change to identify this point.
+    # However, it may not be enough: we need to get to the point
+    # where the even was consumed _fully_ (i.e., Motr sent "ack" back to Hare).
+    _info "Wait a few seconds to ensure everyone learned about it."
+    sleep 10
+
+    # Let the client create a non-fully replicated record.
+    echo "w" > /proc/$CLIENT_PID/fd/0
+
+    client_wait
+
+    # TODO: Run ctgcmp to ensure mykey3 does not exist in the victim's storage.
 
     _info "Resurrect the victim: $svc_name"
     systemctl start "$svc_name"
@@ -421,27 +452,22 @@ function recovery_phase()
         :;
     done
 
-    # Replay transient event to the victim.
-    ha_msg_send ${VICTIM} ${VICTIM} "transient"
-
-    # Tell the victim that client is dead.
-    ha_msg_send ${VICTIM} "cli" "failed"
-
-    # Replay online event to the victim
-    for witness in ${WITNESSES[@]}; do
-        ha_msg_send ${VICTIM} $witness "online"
+    _info "Wait until the victim gets recovered."
+    while ! expect_trace_lines_from_m0d ${VICTIM} "ALL2ALL_DTM_RECOVERED" 1; do
+        :;
     done
-
-    # Initiate recovery procedures
-    ha_msg_send_m0ds ${VICTIM} "dtm-recovering"
 
     _info "Wait until the victim gets recovered."
     while ! expect_trace_lines_from_m0d ${VICTIM} "ALL2ALL_DTM_RECOVERED" 1; do
         :;
     done
 
-    # Tell everyone (except client) that the victim is online.
-    ha_msg_send_m0ds ${VICTIM} "online"
+    _info "Ensure we got enough REDO messages."
+    while ! expect_trace_lines_from_m0d ${VICTIM} "$redo_pattern" $nr_redo; do
+        :;
+    done
+
+    # TODO: Run ctgcmp to ensure mykey3 exists in the victim's storage.
 }
 
 # Phase where we are gathering artifacts
@@ -523,6 +549,23 @@ function print_help()
     \n";
 }
 
+# Prints various variables used by the
+# script. The function is used only
+# for debugging of the script.
+function print_env()
+{
+    get_params_for_ha_msgs
+    get_m0d_pids
+    echo "M0D_ENDPOINTS: ${M0D_ENDPOINTS[@]}"
+    echo "M0D_FIDS_DEC: ${M0D_FIDS_DEC[@]}"
+    echo "M0D_FIDS_HEX: ${M0D_FIDS_HEX[@]}"
+    echo "M0D_PIDS: ${M0D_PIDS[@]}"
+
+    echo "M0D_CLI_FID_DEC: ${M0D_CLI_FID_DEC}"
+    echo "M0D_CLI_FID_HEX: ${M0D_CLI_FID_HEX}"
+    echo "MOD_CLI_EP: ${MOD_CLI_EP}"
+}
+
 # params:
 # (i) cycle_name Name of the test (cycle)
 # (ii) phase_name Name of a phase in the cycle.
@@ -543,6 +586,8 @@ function main()
                 print_help;;
             "--help")
                 print_help;;
+            "--print-env")
+                print_env;;
             *)
                 # Run ordinary all2al by default.
                 simple_boot_cycle;;
