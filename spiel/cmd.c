@@ -1667,7 +1667,8 @@ struct m0_proc_data {
 	struct m0_buf         pd_rec;
 	uint32_t              pd_kv_count;
 	struct m0_tlink       pd_link;
-	uint64_t              pd_magic;
+	/** Not needed now, will be used in CORTX-28389 */
+	/* uint64_t              pd_magic; */
 };
 
 /**
@@ -1688,7 +1689,7 @@ struct spiel_proc_counter_item {
 	/**
 	 * List of data received from an ioservice from each reply
 	 * fop. Linked from m0_proc_data::pd_link. List will be
-	 * implemented during retry mechanism task.
+	 * implemented during retry mechanism task CORTX-28389.
 	 */
 	struct m0_tl         *sci_counters;
 	/** temp field, till the counters list is implemented */
@@ -2212,8 +2213,8 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 	struct spiel_proc_counter_item *proc = NULL;
 	struct m0_spiel_core           *spc = &spl->spl_core;
 	struct m0_conf_obj             *proc_obj;
-	void                           *key_cur;
-	void                           *rec_cur;
+	struct m0_spiel_bckey          *key_cur;
+	struct m0_spiel_bcrec          *rec_cur;
 	int                             rc = 0;
 	int                             i;
 
@@ -2243,7 +2244,7 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 	proc->sci_fid = *proc_fid;
 	proc->sci_spc =  spc;
 
-      /* List will be implemented when adding retry mechanism. */
+      /* List will be implemented when adding retry mechanism CORTX-28389. */
 	/*
 	M0_TL_DESCR_DEFINE(proc_counter, "proc-counter", M0_INTERNAL,
 			   struct m0_proc_data, pd_link, pd_magic,
@@ -2276,8 +2277,8 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 		goto buf_free;
 	}
 
-	key_cur = proc->sci_data.pd_key.b_addr;
-	rec_cur = proc->sci_data.pd_rec.b_addr;
+	key_cur = (struct m0_spiel_bckey *)proc->sci_data.pd_key.b_addr;
+	rec_cur = (struct m0_spiel_bcrec *)proc->sci_data.pd_rec.b_addr;
 
 	for (i = 0; i < proc->sci_data.pd_kv_count; i++) {
 		M0_ALLOC_PTR(count_stats->pc_bckey[i]);
@@ -2294,8 +2295,8 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 		memcpy(count_stats->pc_bcrec[i], rec_cur,
 			sizeof(struct m0_spiel_bcrec));
 
-		key_cur += sizeof(struct m0_spiel_bckey);
-		rec_cur += sizeof(struct m0_spiel_bcrec);
+		key_cur++;
+		rec_cur++;
 	}
 
 buf_free:

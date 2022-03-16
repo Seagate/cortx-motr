@@ -507,8 +507,8 @@ M0_INTERNAL int m0_cob_bc_entries_dump(struct m0_cob_domain *cdom,
 	struct m0_cob_bc_iterator it;
 	struct m0_buf             key_buf;
 	struct m0_buf             rec_buf;
-	void                     *key_cursor;
-	void                     *rec_cursor;
+	struct m0_cob_bckey      *key_cursor;
+	struct m0_cob_bcrec      *rec_cursor;
 	int                       rc;
 
 	M0_ENTRY();
@@ -555,8 +555,8 @@ M0_INTERNAL int m0_cob_bc_entries_dump(struct m0_cob_domain *cdom,
 		return M0_ERR(rc);
 	}
 
-	key_cursor = (*out_keys)->b_addr;
-	rec_cursor = (*out_recs)->b_addr;
+	key_cursor = (struct m0_cob_bckey *)(*out_keys)->b_addr;
+	rec_cursor = (struct m0_cob_bcrec *)(*out_recs)->b_addr;
 
 	rc = m0_be_btree_cursor_first_sync(&it.ci_cursor);
 
@@ -569,8 +569,8 @@ M0_INTERNAL int m0_cob_bc_entries_dump(struct m0_cob_domain *cdom,
 
 		memcpy(key_cursor, key_buf.b_addr, key_buf.b_nob);
 		memcpy(rec_cursor, rec_buf.b_addr, rec_buf.b_nob);
-		key_cursor += sizeof(struct m0_cob_bckey);
-		rec_cursor += sizeof(struct m0_cob_bcrec);
+		key_cursor++;
+		rec_cursor++;
 
 		rc = m0_be_btree_cursor_next_sync(&it.ci_cursor);
 	}

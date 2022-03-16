@@ -144,30 +144,30 @@ void test_insert(void)
 
 void test_entries_dump(void)
 {
-	int                 i;
-	int                 rc;
-	uint32_t            count;
-	struct m0_cob_bckey dump_keys[KEY_VAL_NR];
-	struct m0_cob_bcrec dump_recs[KEY_VAL_NR];
-	struct m0_buf      *keys = NULL;
-	struct m0_buf      *recs = NULL;
-	struct m0_fid       temp_fid;
-	void               *kcurr;
-	void               *rcurr;
+	int                  i;
+	int                  rc;
+	uint32_t             count;
+	struct m0_cob_bckey  dump_keys[KEY_VAL_NR];
+	struct m0_cob_bcrec  dump_recs[KEY_VAL_NR];
+	struct m0_buf       *keys = NULL;
+	struct m0_buf       *recs = NULL;
+	struct m0_fid        temp_fid;
+	struct m0_cob_bckey *kcurr;
+	struct m0_cob_bcrec *rcurr;
 
 	rc = m0_cob_bc_entries_dump(cob->co_dom, &keys, &recs, &count);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(count == KEY_VAL_NR);
 
-	kcurr = keys->b_addr;
-	rcurr = recs->b_addr;
+	kcurr = (struct m0_cob_bckey *)keys->b_addr;
+	rcurr = (struct m0_cob_bcrec *)recs->b_addr;
 
 	for (i =0; i < count; i++) {
 		memcpy(&dump_keys[i], kcurr, sizeof(struct m0_cob_bckey));
 		memcpy(&dump_recs[i], rcurr, sizeof(struct m0_cob_bcrec));
 
-		kcurr += sizeof(struct m0_cob_bckey);
-		rcurr += sizeof(struct m0_cob_bcrec);
+		kcurr++;
+		rcurr++;
 
 		temp_fid = M0_FID_TINIT('k', 1, i);
 		M0_UT_ASSERT(m0_fid_eq(&dump_keys[i].cbk_pfid, &temp_fid));

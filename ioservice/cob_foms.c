@@ -1249,11 +1249,13 @@ static int cob_bytecount_decrement(struct m0_cob *cob, struct m0_cob_bckey *key,
 	int                 rc;
 	struct m0_cob_bcrec rec = {};
 
-	M0_ENTRY("KEY: "FID_F"/%" PRIu64, FID_P(&key->cbk_pfid), key->cbk_user_id);
+	M0_ENTRY();
 
 	M0_PRE(key != NULL);
 	if(!m0_fid_is_set(&key->cbk_pfid))
 		return M0_ERR_INFO(-EINVAL, "Invalid Key");
+
+	M0_LOG(M0_DEBUG, "KEY: "FID_F"/%" PRIu64, FID_P(&key->cbk_pfid), key->cbk_user_id);
 
 	rc = m0_cob_bc_lookup(cob, key, &rec);
 	if (rc == 0) {
@@ -1269,7 +1271,7 @@ static int cob_bytecount_decrement(struct m0_cob *cob, struct m0_cob_bckey *key,
 	} else
 		M0_ERR(rc);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM
