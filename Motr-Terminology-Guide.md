@@ -3,7 +3,7 @@
 <table>
   <tr>
     <th width=220p>Terminology</th>
-    <th width=400px>Description</th>
+    <th width=600px>Description</th>
     </tr>
 
   <tr>
