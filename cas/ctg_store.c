@@ -457,7 +457,7 @@ static void ctg_fini(struct m0_cas_ctg *ctg)
 
 int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 		  struct m0_cas_ctg **out,
-		  const struct m0_fid *cas_fid)
+		  const struct m0_fid *cas_fid, enum cas_tree_type ctype)
 {
 	struct m0_cas_ctg          *ctg;
 	int                         rc;
@@ -468,9 +468,24 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 							cas_fid->f_key);
 	struct m0_btree_type        bt      = {
 		.tt_id = M0_BT_CAS_CTG,
-		.ksize = -1,
-		.vsize = -1,
 	};
+
+	M0_PRE(M0_IN(ctype, (CTT_CTG, CTT_META, CTT_DEADIDX, CTT_CTIDX)));
+
+	if (ctype == CTT_CTG) {
+		bt.ksize = -1;
+		bt.vsize = -1;
+	} else if (ctype == CTT_META) {
+		bt.ksize = M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid);
+		bt.vsize = M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg);
+	} else if (ctype == CTT_DEADIDX) {
+		bt.ksize = M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg);
+		bt.vsize = 8;
+	} else if (ctype == CTT_CTIDX) {
+		bt.ksize = M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid);
+		bt.vsize = M0_CAS_CTG_KV_HDR_SIZE +
+			   sizeof(struct m0_dix_layout);
+	}
 
 	if (M0_FI_ENABLED("ctg_create_failure"))
 		return M0_ERR(-EFAULT);
@@ -767,7 +782,7 @@ static int ctg_state_create(struct m0_be_seg     *seg,
 		.ot_footer_offset = offsetof(struct m0_cas_state, cs_footer)
 	});
 
-	rc = m0_ctg_create(seg, tx, &out->cs_meta, &m0_cas_meta_fid);
+	rc = m0_ctg_create(seg, tx, &out->cs_meta, &m0_cas_meta_fid, CTT_META);
 	if (rc == 0) {
 		bt = out->cs_meta->cc_tree;
                 rc = ctg_meta_selfadd(bt, tx);
@@ -859,7 +874,7 @@ static int ctg_store_create(struct m0_be_seg *seg)
 	m0_mutex_init(&state->cs_ctg_init_mutex.bm_u.mutex);
 
 	/* Create catalog-index catalogue. */
-	rc = m0_ctg_create(seg, &tx, &ctidx, &m0_cas_ctidx_fid);
+	rc = m0_ctg_create(seg, &tx, &ctidx, &m0_cas_ctidx_fid, CTT_CTIDX);
 	if (rc != 0)
 		goto state_destroy;
 	/*
@@ -873,7 +888,8 @@ static int ctg_store_create(struct m0_be_seg *seg)
 	/*
 	 * Create place for records deleted from meta (actually moved there).
 	 */
-	rc = m0_ctg_create(seg, &tx, &dead_index, &m0_cas_dead_index_fid);
+	rc = m0_ctg_create(seg, &tx, &dead_index, &m0_cas_dead_index_fid,
+			   CTT_DEADIDX);
 	if (rc != 0)
 		goto ctidx_destroy;
 	/*
@@ -1411,7 +1427,7 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 				    *Meta key have a fid of index/ctg store.
 				    * It is located after KV header.
 				    */
-				   &fk->fk_fid);
+				   &fk->fk_fid, CTT_CTG);
 		M0_ASSERT(rc == 0);
 
 		vsize = sizeof(struct meta_value);
@@ -2571,11 +2587,7 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 	struct m0_fid gfid = { 0, 0};
 	struct m0_buf key;
 	struct m0_buf val;
-<<<<<<< HEAD
 	struct m0_btree_cursor cursor;
-=======
-	struct m0_btree_cursor  cursor;
->>>>>>> Changes to fix compile errors after rebase.
 	struct m0_cas_ctg *ctg = NULL;
 	bool dumped = false;
 	bool dump_in_hex = false;
