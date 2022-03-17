@@ -927,7 +927,7 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_bc_node,
 						      sizeof dom->cd_bc_node,
-						      &bt, CRC_TYPE_NO_CRC,
+						      &bt, M0_BCT_NO_CRC,
 						      &b_op,
 						      dom->cd_bytecount, seg,
 						      &fid, tx, &keycmp));
