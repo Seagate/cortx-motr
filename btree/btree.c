@@ -1288,6 +1288,8 @@ static void bnode_set_level  (const struct nd *node, uint8_t new_level);
 static void bnode_set_rec_count(const struct nd *node, uint16_t count);
 static void bnode_move (struct nd *src, struct nd *tgt, enum direction dir,
 		        int nr, struct m0_be_tx *tx);
+static void generic_indir_addr_move(struct nd *src, struct nd *tgt,
+				    enum direction dir, int nr);
 
 static void bnode_capture(struct slot *slot, struct m0_be_tx *tx);
 static void bnode_capture_record(struct nd *node, struct m0_buf *buf,
@@ -3039,9 +3041,6 @@ static void *ff_opaque_get(const struct segaddr *addr)
 	return h->ff_opaque;
 }
 
-static void generic_indir_addr_move(struct nd *src, struct nd *tgt,
-				    enum direction dir, int nr);
-
 static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 			 int nr, struct m0_be_tx *tx)
 {
@@ -4451,7 +4450,7 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 /**
  * KEY-VALUE STRUCTURE WITH INDIRECT ADDRESSSING :
  *
- *                 Key0
+ *                 Key0                            val0
  *                 +------+-----+------------------+------------------+
  *                 |value |key  |      user        |       user       |
  *                 |size  |size |      key         |       value      |
@@ -5659,7 +5658,7 @@ static void vkvv_indir_addr_val_resize(struct slot *slot, int vsize_diff,
 	*p_key_addr = new_key_addr;
 	*p_val_addr = val_addr;
 
-	memcpy(new_key_addr, key_addr, ksize);
+	m0_memmove(new_key_addr, key_addr, ksize);
 
 	INDIRECT_FREE(START_ADDR_LEAF_REC(key_addr), seg, tx);
 
@@ -6116,7 +6115,6 @@ static void generic_indir_addr_move(struct nd *src, struct nd *tgt,
 	int               total_vsize;
 	int               new_total;
 
-
 	/**
 	 * This function does not support random @nr, as such requirement found.
 	 */
@@ -6138,7 +6136,7 @@ static void generic_indir_addr_move(struct nd *src, struct nd *tgt,
 		    bnode_key_addr(src, 0);
 
 	tgt_start = bnode_key_addr(tgt, 0);
-	memcpy(tgt_start, src_start, total_ksize);
+	m0_memmove(tgt_start, src_start, total_ksize);
 
 	if (nr == NR_EVEN && dir == D_LEFT) {
 		new_total = count_remain * INDIRECT_KEY_SIZE;
@@ -6150,7 +6148,7 @@ static void generic_indir_addr_move(struct nd *src, struct nd *tgt,
 		    bnode_val_addr(src, total_count);
 
 	tgt_start = bnode_val_addr(tgt, 0) - total_vsize;
-	memcpy(tgt_start, src_start, total_vsize);
+	m0_memmove(tgt_start, src_start, total_vsize);
 
 	if (nr == NR_EVEN && dir == D_LEFT) {
 		new_total = count_remain * INDIRECT_VAL_SIZE;
