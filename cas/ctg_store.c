@@ -2244,6 +2244,7 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 	struct m0_cas_ctg *ctg = NULL;
 	bool dumped = false;
 	bool dump_in_hex = false;
+	struct fid_key *fkey;
 
 	if (m0_streq("hex", dump_in_hex_str))
 		dump_in_hex = true;
@@ -2260,16 +2261,21 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 	for (rc = m0_be_btree_cursor_first_sync(&cursor); rc == 0;
 	     rc = m0_be_btree_cursor_next_sync(&cursor)) {
 		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
-		memcpy(&out_fid, key.b_addr + M0_CAS_CTG_KEY_HDR_SIZE,
-		      sizeof(out_fid));
+		fkey = key.b_addr;
+		out_fid = fkey->fk_fid;
 		if (!m0_dix_fid_validate_cctg(&out_fid))
 			continue;
 		m0_dix_fid_convert_cctg2dix(&out_fid, &gfid);
 		M0_LOG(M0_DEBUG, "Found cfid="FID_F" gfid=:"FID_F" dfid="FID_F,
 				  FID_P(&out_fid), FID_P(&gfid), FID_P(&dfid));
 		if (m0_fid_eq(&gfid, &dfid)) {
-			ctg = *(struct m0_cas_ctg **)(val.b_addr +
-						      M0_CAS_CTG_VAL_HDR_SIZE);
+			rc = ctg_vbuf_unpack(&val, NULL) ?:
+				ctg_vbuf_as_ctg(&val, &ctg);
+			if (rc != 0) {
+				M0_LOG(M0_ERROR, "val unpack error:%d", rc);
+				break;
+			}
+
 			M0_LOG(M0_DEBUG, "Dumping dix fid="FID_F" ctg=%p",
 					  FID_P(&dfid), ctg);
 			ctg_index_btree_dump(motr_ctx, ctg, dump_in_hex);

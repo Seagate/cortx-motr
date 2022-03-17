@@ -2514,7 +2514,7 @@ static int ctg_pver_fid_get(struct m0_fid *fid)
 }
 
 /**
- * Allocate space for key buf and makes it point to valid addr.
+ * Allocates space for key buf and makes it point to valid addr.
  */
 static int ctg_k_get(struct scanner *s, const void *addr, struct m0_buf *kbuf)
 {
@@ -2539,7 +2539,7 @@ static int ctg_k_get(struct scanner *s, const void *addr, struct m0_buf *kbuf)
 }
 
 /**
- * Allocate space for val buf and makes it point to valid addr.
+ * Allocates space for val buf and makes it point to valid addr.
  */
 static int ctg_v_get(struct scanner *s, const void *addr, struct m0_buf *vbuf)
 {
