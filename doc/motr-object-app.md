@@ -196,6 +196,12 @@ Finalize and free the operation with m0\_op\_fini() and m0\_op\_free().
 
 Close/Finalize the object.
 
+## Troubleshoot
+
+If run `example1` and encounter error "obj_id invalid. Please refer to M0_ID_APP in motr/client.c", it means the argument obj_id is too small. Try a bigger number larger than 1048576.  
+
+
 # Tested by
 
+* Mar 17, 2022: Bo Wei (bo.b.wei@seagate.com) tested using CentOS 7.9.
 * Sep 28, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linux release 7.8.2003 x86_64
