@@ -2735,7 +2735,8 @@ static struct m0_cas_ctg *ctg_create_meta(struct ctg_action *ca,
 
 	cfid = ca->cta_fid;
 	m0_fid_tchange(&cfid, 'T');
-	rc = m0_ctg_create(ca->cta_act.a_builder->b_seg, tx, &cas_ctg, &cfid);
+	rc = m0_ctg_create(ca->cta_act.a_builder->b_seg, tx, &cas_ctg, &cfid,
+			   CTT_CTG);
 	if (rc == 0) {
 		rc = m0_ctg__meta_insert(m0_ctg_meta()->cc_tree, &cfid,
 					 cas_ctg, tx)  ?:
