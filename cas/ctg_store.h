@@ -98,6 +98,36 @@ enum {
 
 	/** This should align to Block size on the storage. Change as needed */
 };
+
+/**
+ * CAS catalogue store uses four types of btree.
+ */
+enum cas_tree_type {
+
+	/** Catalogue tree: This tree stores catalogues provided by the user. */
+	CTT_CTG,
+
+	/**
+	 * META catalog tree: This tree stores records containing information
+	 * about existing catalogues.
+	 */
+	CTT_META,
+
+	/**
+	 * Dead index catalogue tree: The records(specifically, keys) present in
+	 * this tree contain catalogue pointers. This tree is referred by the
+	 * garbage collector to delete all the catalogue pointed by records
+	 * present in the tree.
+	 */
+	CTT_DEADIDX,
+
+	/**
+	 * Catalogue-index tree: The record mapping the catalogue to the index
+	 * is inserted in this tree. Such records are used by the index repair
+	 * and re-balance to find locations of other replicas.
+	 */
+	CTT_CTIDX,
+};
 /** CAS catalogue. */
 struct m0_cas_ctg {
 	struct m0_format_header cc_head;
@@ -792,7 +822,8 @@ M0_INTERNAL struct m0_long_lock *m0_ctg_lock(struct m0_cas_ctg *ctg);
  */
 M0_INTERNAL int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 			      struct m0_cas_ctg **out,
-		              const struct m0_fid *cas_fid);
+		              const struct m0_fid *cas_fid,
+			      enum cas_tree_type ctype);
 
 /**
  * Insert record into meta catalogue.
