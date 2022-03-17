@@ -126,7 +126,7 @@ Distributed transaction manager ([dt](#dtm-idea)) allows operations to be
 grouped into distributed transactions, which are guaranteed to be atomic in 
 the face of certain failures.
 
-![](/doc/Images/1-Distributed-transaction-manager.JPG)
+<img src="/doc/Images/1-Distributed-transaction-manager.JPG" width=600 height=500>
 
 Main novel ideas of Motr, that distinguish it from other cluster  file-systems are:
 * fdmi;
@@ -226,7 +226,7 @@ Each node in the cluster runs one or more Motr instances. Each instance has the
 same overall structure:
 
 
-![](/doc/Images/2-Motr-Instance.jpg)
+<img src="/doc/Images/2-Motr-Instance.jpg" width=650 height=700>
 
 
 At the heart of Motr instance is [reqh](#reqh-idea) (request handler). Request 
@@ -373,7 +373,7 @@ occur in the Motr system.
 The figure below shows the flow of fol records from the nodes where they are 
 generated to fdmi subscribers.
 
-![](/doc/Images/3-MapReduce-style-algorithm.JPG)
+<img src="/doc/Images/3-MapReduce-style-algorithm.JPG" width=600 height=650>
 
 As a simplified example, consider an fdmi-based application running on a 
 dedicated server, connected to two Motr object stores (source and target) and 
@@ -458,7 +458,7 @@ Fol is used for multiple purposes:
 * system-wide fol is used for [distributed transaction recovery](#dtm-idea);
 * system-wide fol is used to implement [fdmi](#fdmi-idea) event feeds
 
-![](/doc/Images/4-File-OperationLog.JPG)
+<img src="/doc/Images/4-File-OperationLog.JPG" width=800 height=650>
 
 ### Reality check
 At the moment, clients don't use fol. They will.
@@ -499,7 +499,7 @@ impacting data performance.
 
 The figure below shows subcomponents of the addb subsystem.
 
-![](/doc/Images/5-addb-components-and-control-flow.JPG)
+<img src="/doc/Images/5-addb-components-and-control-flow.JPG" width=600 height=600> 
 
 Motr code is systematically instrumented to produce addb records. Each record 
 contains context information, which identifies system activity to which the 
@@ -542,7 +542,7 @@ and simulate application behavior in proposed configurations.
 
 The figure below shows the possible uses of addb.
 
-![](/doc/Images/6-Interaction-of-addb.JPG)
+<img src="/doc/Images/6-Interaction-of-addb.JPG" width=500 height=500>
 
 ## Monitoring
 The simplest addb use case is cluster monitoring. If an addb record, produced 
@@ -914,7 +914,7 @@ mdservice perhaps)
 
 ## security, architecture
 
-![](/doc/Images/7-Security-Architecture.JPG)
+<img src="/doc/Images/7-Security-Architecture.JPG" width=800 height=800>
 
 ### References:
 ### Related:
@@ -1067,7 +1067,7 @@ Note that each parity group is mapped individually, which means that each next
 group from the same file would go to a different set of targets (and, hence, a 
 different set of storage devices) than previous.
 
-![](/doc/Images/8-Capture.jpg)
+<img src="/doc/Images/8-Capture.jpg" width=650 height=650>
 
 ### References:
 * [CMU PDL publications](http://www.pdl.cmu.edu/RAID/publications.shtml) 
