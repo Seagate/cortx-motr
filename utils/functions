@@ -1,5 +1,55 @@
 # -*- sh -*-
 
+ # libfab does not need kernel based ST
+ LIBFAB_TESTS_SKIPLIST=(04initscripts
+                 06conf
+                 07mount
+                 07mount-fail
+                 07mount-multiple
+                 08spiel
+                 08spiel-sns-repair
+                 08spiel-sns-repair-quiesce
+                 10pver-assign
+                 11m0t1fs
+                 11m0t1fs-rconfc-fail
+                 12fsync
+                 12fwait
+                 13dgmode-io
+                 14poolmach
+                 15sns-repair-shutdown
+                 15sns-repair-single
+                 16sns-repair-multi
+                 17sns-repair-concurrent-io
+                 18sns-repair-quiesce
+                 18sns-repair-quiesce-failure
+                 19sns-repair-abort
+                 20rpc-session-cancel
+                 21fsync-single-node
+                 22sns-repair-ios-fail
+                 23sns-abort-quiesce
+                 26motr-user-kernel-tests
+                 28sys-kvs
+                 28sys-kvs-kernel
+                 34sns-repair-1n-1f
+                 35m0singlenode
+                 36spare-reservation
+                 37protocol
+                 51kem)
+ 
+ # libisal does not need kernel based ST
+ LIBISAL_TESTS_SKIPLIST=(
+             08spiel-sns-repair
+             08spiel-sns-repair-quiesce
+             11m0t1fs
+             13dgmode-io
+             16sns-repair-multi
+             18sns-repair-quiesce
+             18sns-repair-quiesce-failure
+             19sns-repair-abort
+             22sns-repair-ios-fail
+             23sns-abort-quiesce
+ )
+
 SYSCONFIG_DIR='/etc/sysconfig'
 [ -d $SYSCONFIG_DIR ] || SYSCONFIG_DIR='/etc/default'
 
@@ -20,21 +70,6 @@ sandbox_fini() {
     if [ -z "${KEEP_SANDBOX:-}" -a $rc -eq 0 ]; then
         rm -r $SANDBOX_DIR
     fi
-}
-
-report_and_exit() {
-    [ $# -eq 2 ] || die "${FUNCNAME[0]}: Invalid usage"
-    local name=$1
-    local rc=$2
-
-    if [ $rc -eq 0 ]; then
-        ## This message is used by Jenkins as a test success criteria;
-        ## it must appear on stdout.
-        echo "$name: test status: SUCCESS"
-    else
-        echo "$name: FAILURE $rc" >&2
-    fi
-    exit $rc
 }
 
 ### Similar to `source` builtin command with `set +eu` in effect.
@@ -143,4 +178,30 @@ m0_local_nid_get()
         local_nid=$ip_addr@$proto
     fi
     echo $local_nid
+}
+
+report_and_exit() {
+    [ $# -eq 2 ] || die "${FUNCNAME[0]}: Invalid usage"
+    local name=$1
+    local rc=$2
+    local re='(^|[[:space:]])'"$name"'($|[[:space:]])'
+
+    TRANSPORT=$(m0_default_xprt)
+
+    if [ $rc -eq 0 ]; then
+        local status="SUCCESS"
+        ## This message is used by Jenkins as a test success criteria;
+        ## it must appear on stdout.
+        if [ "${TRANSPORT}" == 'libfab' ]; then
+            if [[ "${LIBFAB_TESTS_SKIPLIST[*]}" =~ $re ]]; then
+	        status="SKIPPED"
+            fi
+        elif [[ "${LIBISAL_TESTS_SKIPLIST[*]}" =~ $re ]]; then
+	        status="SKIPPED"
+        fi
+        echo "$name: test status: $status"
+    else
+        echo "$name: FAILURE $rc" >&2
+    fi
+    exit $rc
 }

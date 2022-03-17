@@ -35,6 +35,7 @@ SANDBOX_DIR=/var/motr
 MOTR_TEST_DIR=$SANDBOX_DIR
 MOTR_TEST_LOGFILE=$SANDBOX_DIR/motr_`date +"%Y-%m-%d_%T"`.log
 MOTR_TRACE_DIR=$SANDBOX_DIR/motr
+export MOTR_CLIENT_ONLY=1
 
 N=3
 K=2
@@ -201,10 +202,6 @@ test_rmw()
 	#Initialise dix
 	dix_init
 
-	#mount m0t1fs becuase a method to send HA notifications assumes presence of m0t1fs.
-	local mountopt="oostore,verify"
-	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mountopt || return 1
-
 	for i in 3 5 7 9 11
 	do
 		local LID=$i
@@ -256,7 +253,6 @@ test_rmw()
 		fi
 	done
 
-	unmount_and_clean &>>$MOTR_TEST_LOGFILE
 	motr_service_stop || rc=1
 }
 
@@ -271,29 +267,6 @@ test_updt_lt_unit_rmw()
 	#Initialise dix
 	dix_init
 
-	#mount m0t1fs becuase a method to send HA notifications assumes presence of m0t1fs.
-	local mountopt="oostore,verify"
-	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mountopt || return 1
-
-	for i in 3 5 7 9 11 13
-	do
-		local LID=$i
-		echo "Testing with layout ID $LID in Healthy mode"
-		local update_count=1
-		create_files $update_count
-
-		write_and_update $LID $update_count false
-
-		echo "diff"
-		diff $src_file'2' $dest_file'_'$LID || {
-			rc=$?
-			echo "Files are different"
-			error_handling $rc
-			break
-		}
-	done
-
-	unmount_and_clean &>>$MOTR_TEST_LOGFILE
 	motr_service_stop || rc=1
 }
 
