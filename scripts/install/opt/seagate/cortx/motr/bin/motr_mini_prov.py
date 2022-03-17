@@ -211,7 +211,7 @@ def get_server_node(self):
     check_type(server_node, dict, "server_node")
     return server_node
 
-def calc_size(sz):
+def calc_size(self, sz):
     ret = -1
 
     sz_map = {"Ki": 1024, "Mi": 1024*1024, "Gi": 1024*1024*1024}
@@ -241,7 +241,7 @@ def get_setup_size(self):
                 ret = False
                 return ret
             else:
-                sz = calc_size(min_mem)
+                sz = calc_size(self, min_mem)
 
             self.logger.info(f"mem limit in config is {min_mem} i.e. {sz}\n")
 
