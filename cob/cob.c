@@ -69,12 +69,6 @@ enum {
 	M0_COB_EA_MAX   = 4096
 };
 
-struct bc_entry {
-	struct m0_buf       be_key;
-	struct m0_buf       be_rec;
-	struct m0_list_link be_link;
-};
-
 static int cob0_init(struct m0_be_domain *dom, const char *suffix,
 		     const struct m0_buf *data)
 {

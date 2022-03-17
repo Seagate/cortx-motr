@@ -114,7 +114,7 @@ else:
         spiel.rconf_status = 1
 
 pc_stats = ByteCountStats()
-rc = spiel.proc_counters_fetch(Fid(0x7200000000000001, 0xc), pc_stats)
+rc = spiel.proc_counters_fetch(Fid($M0_PROCESS_ID), pc_stats)
 if rc != 0:
 	sys.exit('Error: bytecount stats fetch: \
                  (status {0})'.format(rc))
@@ -166,7 +166,7 @@ main()
 
 	M0_SPIEL_OPTS="-s $server_addr -l $libmotr_path"
 	M0_PROFILE_ID=$profile_addr
-    M0_PROCESS_ID=$process_addr
+	M0_PROCESS_ID=$process_addr
 
 	touch $STATUS_FILE
 	exec {FD}<>$STATUS_FILE
