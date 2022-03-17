@@ -79,6 +79,23 @@ struct mock_balloc {
 	struct m0_ad_balloc mb_ballroom;
 };
 
+void m0_stob_ut_ad_seg_init(struct m0_be_ut_backend *ut_be,
+			struct m0_be_ut_seg     *ut_seg,
+			bool use_small_credits)
+{
+	M0_SET0(ut_seg);
+
+	if (use_small_credits) {
+		/* Reduce maximum credit size of transaction
+		 * to exercise transaction breaking code in
+		 * stob_ad_punch_credit()
+		 */
+		ut_be->but_dom.bd_cfg.bc_engine.bec_tx_size_max =
+			M0_BE_TX_CREDIT(1 << 18, 1 << 21);
+	}
+	m0_be_ut_seg_init(ut_seg, ut_be, SEG_SIZE);
+}
+
 void m0_stob_ut_ad_init(struct m0_be_ut_backend *ut_be,
 			struct m0_be_ut_seg     *ut_seg,
 			bool use_small_credits)
@@ -101,6 +118,11 @@ void m0_stob_ut_ad_init(struct m0_be_ut_backend *ut_be,
 	rc = m0_be_ut_backend_init_cfg(ut_be, &cfg, true);
 	M0_UT_ASSERT(rc == 0);
 	m0_be_ut_seg_init(ut_seg, ut_be, SEG_SIZE);
+}
+
+void m0_stob_ut_ad_seg_fini(struct m0_be_ut_seg     *ut_seg)
+{
+	m0_be_ut_seg_fini(ut_seg);
 }
 
 void m0_stob_ut_ad_fini(struct m0_be_ut_backend *ut_be,
@@ -192,20 +214,22 @@ static void init_vecs()
 	}
 
 	// Allocate contigious buffer for i/p checksums
-	memset( user_cksm_buf[0], cs_char++, AD_CS_SZ);	
+	memset( user_cksm_buf[0], cs_char++, AD_CS_SZ);
 	for (i = 1; i < ARRAY_SIZE(user_cksm_buf); ++i) {
-		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_CS_SZ; 	
+		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_CS_SZ;
 		memset( user_cksm_buf[i], cs_char++, AD_CS_SZ);
 	}
 
-	memset( read_cksm_buf[0], 0, AD_CS_SZ);	
+	memset( read_cksm_buf[0], 0, AD_CS_SZ);
 	for (i = 1; i < ARRAY_SIZE(read_cksm_buf); ++i) {
-		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_CS_SZ; 	
+		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_CS_SZ;
 		memset( read_cksm_buf[i], 0, AD_CS_SZ);
 	}
 }
 
-static int test_ad_init(bool use_small_credits)
+static int test_ad_init(bool use_small_credits,
+			struct m0_stob *back_stob,
+			struct m0_stob_domain *back_domain )
 {
 	char             *dom_cfg;
 	char             *dom_init_cfg;
@@ -213,19 +237,25 @@ static int test_ad_init(bool use_small_credits)
 	int               rc;
 	struct m0_stob_id stob_id;
 
-	rc = m0_stob_domain_create("linuxstob:./__s", "directio=true",
-				    0xc0de, NULL, &dom_back);
-	M0_ASSERT(rc == 0);
+	if(back_stob == NULL) {
+		rc = m0_stob_domain_create("linuxstob:./__s", "directio=true",
+					    0xc0de, NULL, &dom_back);
+		M0_ASSERT(rc == 0);
 
-	m0_stob_id_make(0, 0xba5e, &dom_back->sd_id, &stob_id);
-	rc = m0_stob_find(&stob_id, &obj_back);
-	M0_ASSERT(rc == 0);
-	rc = m0_stob_locate(obj_back);
-	M0_ASSERT(rc == 0);
-	rc = m0_ut_stob_create(obj_back, NULL, NULL);
-	M0_ASSERT(rc == 0);
-
-	m0_stob_ut_ad_init(&ut_be, &ut_seg, use_small_credits);
+		m0_stob_id_make(0, 0xba5e, &dom_back->sd_id, &stob_id);
+		rc = m0_stob_find(&stob_id, &obj_back);
+		M0_ASSERT(rc == 0);
+		rc = m0_stob_locate(obj_back);
+		M0_ASSERT(rc == 0);
+		rc = m0_ut_stob_create(obj_back, NULL, NULL);
+		M0_ASSERT(rc == 0);
+		m0_stob_ut_ad_init(&ut_be, &ut_seg, use_small_credits);
+	}
+	else {
+		obj_back = back_stob;
+		dom_back = back_domain;
+		m0_stob_ut_ad_seg_init(&ut_be, &ut_seg, use_small_credits);
+	}
 
 	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg,
 			    m0_stob_id_get(obj_back), 0);
@@ -257,16 +287,16 @@ static int test_ad_init(bool use_small_credits)
 		user_buf[i] = m0_alloc_aligned(buf_size, block_shift);
 		M0_ASSERT(user_buf[i] != NULL);
 	}
-	
+
 	user_cksm_buf[0] = m0_alloc(AD_CS_SZ * ARRAY_SIZE(user_cksm_buf));
 	M0_ASSERT(user_cksm_buf[0] != NULL);
-	
+
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i) {
 		read_buf[i] = m0_alloc_aligned(buf_size, block_shift);
 		M0_ASSERT(read_buf[i] != NULL);
 	}
 
-	// Allocate contigious buffer for o/p checksums 
+	// Allocate contigious buffer for o/p checksums
 	read_cksm_buf[0] = m0_alloc(AD_CS_SZ * ARRAY_SIZE(read_cksm_buf));
 	M0_ASSERT(read_cksm_buf[0] != NULL);
 
@@ -280,16 +310,21 @@ static int test_ad_init(bool use_small_credits)
 	return rc;
 }
 
-static int test_ad_fini(void)
+static int test_ad_fini(struct m0_stob *back_stob,
+			struct m0_stob_domain *back_domain)
 {
 	int i;
 
 	m0_stob_put(obj_fore);
 	m0_stob_domain_destroy(dom_fore);
-	m0_stob_put(obj_back);
+	if(back_stob == NULL)
+		m0_stob_put(obj_back);
+	if(back_domain == NULL)
 	m0_stob_domain_destroy(dom_back);
-
-	m0_stob_ut_ad_fini(&ut_be, &ut_seg);
+	if(back_stob == NULL)
+		m0_stob_ut_ad_fini(&ut_be, &ut_seg);
+	else
+		m0_stob_ut_ad_seg_fini(&ut_seg);
 
 	for (i = 0; i < ARRAY_SIZE(user_buf); ++i)
 		m0_free(user_buf[i]);
@@ -497,7 +532,7 @@ static void test_ad_rw_unordered()
 	for (i = NR/2; i < NR; ++i) {
 		stob_vi[i-(NR/2)] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i-(NR/2)], ('a' + i)|1, buf_size);
-		memset(user_cksm_buf[i-(NR/2)], ('A' + i)|1, AD_CS_SZ);		
+		memset(user_cksm_buf[i-(NR/2)], ('A' + i)|1, AD_CS_SZ);
 	}
 	test_write(NR/2, NULL);
 
@@ -608,18 +643,33 @@ void m0_stob_ut_adieu_ad(void)
 {
 	int rc;
 
-	rc = test_ad_init(false);
+	rc = test_ad_init(false, NULL, NULL);
 	M0_ASSERT(rc == 0);
 	test_ad();
 	test_ad_rw_unordered();
 	test_ad_undo();
-	rc = test_ad_fini();
+	rc = test_ad_fini(NULL, NULL);
 	M0_ASSERT(rc == 0);
 
-	rc = test_ad_init(true);
+	rc = test_ad_init(true, NULL, NULL);
 	M0_ASSERT(rc == 0);
 	punch_test();
-	rc = test_ad_fini();
+	rc = test_ad_fini(NULL, NULL);
+	M0_ASSERT(rc == 0);
+}
+
+void m0_stob_ut_ad_part_io(struct m0_stob *back_stob,
+			   struct m0_stob_domain *back_domain)
+{
+	int rc;
+
+	rc = test_ad_init(false, back_stob, back_domain);
+
+	M0_ASSERT(rc == 0);
+	test_ad();
+	test_ad_rw_unordered();
+	test_ad_undo();
+	rc = test_ad_fini(back_stob, back_domain);
 	M0_ASSERT(rc == 0);
 }
 
@@ -635,12 +685,12 @@ static void ub_read(int i)
 
 static int ub_init(const char *opts M0_UNUSED)
 {
-	return test_ad_init(false);
+	return test_ad_init(false, NULL, NULL);
 }
 
 static void ub_fini(void)
 {
-	(void)test_ad_fini();
+	(void)test_ad_fini(NULL, NULL);
 }
 
 enum { UB_ITER = 100 };

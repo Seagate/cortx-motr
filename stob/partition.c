@@ -55,6 +55,7 @@
 #include <math.h>
 #include <unistd.h>             /* unlink */
 #include <fcntl.h>              /* open */
+#include "lib/vec.h"
 /**
  * @addtogroup stobpart
  *
@@ -93,7 +94,8 @@ static int stob_part_io_init(struct m0_stob *stob, struct m0_stob_io *io);
 static int stob_part_punch(struct m0_stob *stob,
 			   struct m0_indexvec *range,
 			   struct m0_dtx *tx);
-
+static m0_bcount_t stob_part_dev_offset_get(struct m0_stob_part *partstob,
+                                            m0_bcount_t          user_offset);
 static void stob_part_write_credit(const struct m0_stob_domain *dom,
 				   const struct m0_stob_io     *iv,
 				   struct m0_be_tx_credit      *accum)
@@ -448,7 +450,7 @@ static int stob_part_bstob_create(struct m0_stob        *part_stob,
 
 	M0_PRE(part_stob != NULL);
 	M0_PRE( part_stob->so_domain == dom);
-	
+
 	dom_priv = dom->sd_private;
 	M0_ASSERT(dom_priv->b_be_domain);
 	b_dom_id = &dom_priv->b_be_domain->bd_stob_domain->sd_id;
@@ -505,7 +507,7 @@ static int stob_part_prepare_table(struct m0_stob        *stob,
 				cfg = dom_priv->b_be_domain->bd_cfg.bc_part_cfg.bpc_stobs_cfg[idx].bps_create_cfg;
 			else
 				cfg = dom_priv->b_be_domain->bd_cfg.bc_part_cfg.bpc_stobs_cfg[idx].bps_init_cfg;
-			
+
 		}
 	}
 	b_stob = m0_stob_part_bstob_get(stob);
@@ -626,7 +628,28 @@ static int stob_part_punch(struct m0_stob     *stob,
 			   struct m0_indexvec *range,
 			   struct m0_dtx      *tx)
 {
-	return M0_RC(0);
+	struct m0_stob        *b_stob;
+	struct m0_stob_part   *partstob = stob_part_stob2part(stob);
+	struct m0_indexvec    b_range;
+	int                    rc;
+	int                    idx;
+
+	idx = 0;
+	rc = m0_indexvec_alloc(&b_range, range->iv_vec.v_nr);
+	if (rc != 0)
+		return M0_RC(rc);
+	do {
+		b_range.iv_index[idx] =
+			stob_part_dev_offset_get(partstob,
+						 range->iv_index[idx]);
+		idx++;
+	} while (idx < range->iv_vec.v_nr);
+	b_range.iv_vec.v_nr =  range->iv_vec.v_nr;
+	b_stob = m0_stob_part_bstob_get(stob);
+	rc = b_stob->so_ops->sop_punch(b_stob, &b_range, tx);
+	m0_indexvec_free(&b_range);
+	M0_ASSERT(0);
+	return rc;
 }
 
 static uint32_t stob_part_block_shift(struct m0_stob *stob)

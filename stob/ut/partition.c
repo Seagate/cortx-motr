@@ -35,7 +35,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-
+#include "be/partition_table.h"
 /**
    @addtogroup stob
    @{
@@ -45,7 +45,9 @@
 enum {
 	SEG_SIZE               = 1 << 24,
 };
-
+extern void m0_stob_ut_ad_part_io(struct m0_stob *back_stob,
+				  struct m0_stob_domain *back_domain);
+extern struct m0_be_ut_backend ut_be;
 
 void m0_stob_ut_part_init_override(struct m0_be_ut_backend *ut_be,
 			  char                    *location,
@@ -62,8 +64,30 @@ void m0_stob_ut_part_init_override(struct m0_be_ut_backend *ut_be,
 	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_enble = true;
 	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_enble = true;
 	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_enble = true;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_id = M0_BE_PTABLE_ENTRY_SEG0;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_id = M0_BE_PTABLE_ENTRY_SEG1;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_id = M0_BE_PTABLE_ENTRY_LOG;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_id = M0_BE_PTABLE_ENTRY_BALLOC;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_create_cfg =
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_init_cfg =
+			PART_DEV_NAME;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_create_cfg =
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_init_cfg =
+			PART_DEV_NAME;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_create_cfg =
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_init_cfg =
+			PART_DEV_NAME;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_create_cfg =
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_init_cfg =
+			PART_DEV_NAME;
 	pcfg->bpc_chunk_size_in_bits = 21;
 	pcfg->bpc_total_chunk_count = PART_DEV_SIZE >> 21;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_size_in_chunks =
+					(pcfg->bpc_total_chunk_count * 80)/100;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_size_in_chunks = 1;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_size_in_chunks = 1;
+	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_size_in_chunks =
+					(pcfg->bpc_total_chunk_count * 10)/100;
 }
 
 int m0_stob_ut_part_init(struct m0_be_ut_backend *ut_be)
@@ -103,6 +127,49 @@ void m0_stob_ut_part_cfg_make(char                *str,
 
 }
 
+
+void m0_stob_ut_stob_part_io(void)
+{
+	char                    *prefix = "partitionstob";
+	char                    *dev_name = "/var/motr/m0ut/ut-sandbox/__s/sdb";
+	int rc;
+	uint64_t                 dom_key = 0xec0de;
+	struct m0_stob_domain   *dom;
+	uint64_t                 stob_key = M0_BE_PTABLE_ENTRY_BALLOC;
+	char                     location[512]= {0};
+	char                     part_cfg[512] = {0};
+	struct m0_stob          *stob;
+	struct m0_stob_id        stob_id;
+
+	sprintf(location, "%s:%s:%lx", prefix, dev_name,
+		(uint64_t)&ut_be.but_dom);
+	m0_stob_ut_part_cfg_make(part_cfg, &ut_be.but_dom);
+	M0_ASSERT(part_cfg != NULL);
+	rc = m0_stob_ut_part_init(&ut_be);
+	M0_ASSERT(rc == 0);
+	m0_stob_ut_part_init_override(&ut_be, location, part_cfg);
+
+	rc = m0_stob_domain_create(location, part_cfg,
+				   dom_key, part_cfg, &dom);
+	ut_be.but_dom.bd_part_stob_domain = dom;
+	M0_UT_ASSERT(rc == 0);
+	m0_stob_id_make(0, stob_key, &dom->sd_id, &stob_id);
+	rc = m0_stob_find(&stob_id, &stob);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(stob != NULL);
+	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_UNKNOWN);
+
+	rc = m0_stob_locate(stob);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_NOENT);
+
+	rc = m0_ut_stob_create(stob, NULL, &ut_be.but_dom);
+	M0_UT_ASSERT(rc == 0);
+        m0_stob_ut_ad_part_io(stob, dom);
+	m0_stob_put(stob);
+	m0_stob_domain_destroy(dom);
+	m0_stob_ut_part_fini(&ut_be);
+}
 /** @} end group stob */
 
 /*

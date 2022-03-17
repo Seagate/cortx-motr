@@ -45,6 +45,7 @@ extern void m0_stob_ut_stob_ad(void);
 extern void m0_stob_ut_adieu_ad(void);
 extern void m0_stob_ut_stob_domain_part(void);
 extern void m0_stob_ut_stob_part(void);
+extern void m0_stob_ut_stob_part_io(void);
 extern void m0_stob_ut_adieu_part(void);
 
 struct m0_ut_suite stob_ut = {
@@ -59,7 +60,8 @@ struct m0_ut_suite stob_ut = {
 		{ "null-stob",		m0_stob_ut_stob_null		},
 		{ "part-stob-domain",	m0_stob_ut_stob_domain_part	},
 		{ "part-stob",		m0_stob_ut_stob_part		},
-		/*{ "part-adieu",		m0_stob_ut_adieu_part		}, */
+		{ "part-stob-io",	m0_stob_ut_stob_part_io		},
+//		{ "part-adieu",		m0_stob_ut_adieu_part		},
 		{ "linux-stob-domain",	m0_stob_ut_stob_domain_linux	},
 		{ "linux-stob",		m0_stob_ut_stob_linux		},
 		{ "linux-adieu",	m0_stob_ut_adieu_linux		},
