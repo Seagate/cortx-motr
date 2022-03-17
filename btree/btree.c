@@ -1414,7 +1414,11 @@ static struct m0_rwlock list_lock;
 /**
  * Total space used by nodes in lru list.
  */
-static int64_t lru_space_used = 0;
+static int64_t lru_space_used;
+#ifndef __KERNEL__
+static bool lru_slow_purge;
+#endif
+
 
 /** Lru used space watermark default values. */
 enum lru_used_space_watermark{
@@ -1427,19 +1431,19 @@ enum lru_used_space_watermark{
  * Watermarks for BE space occupied by nodes in lru list.
  */
 /** LRU purging should not happen below low used space watermark. */
-int64_t lru_space_wm_low    = LUSW_LOW;
+int64_t lru_space_wm_low;
 
 /**
  * An ongoing LRU purging can be stopped after reaching target used space
  * watermark.
  */
-int64_t lru_space_wm_target = LUSW_TARGET;
+int64_t lru_space_wm_target;
 
 /**
  * LRU purging should be triggered if used space is above high used space
  * watermark.
  */
-int64_t lru_space_wm_high   = LUSW_HIGH;
+int64_t lru_space_wm_high;
 
 M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
 		   n_linkage, n_magic, M0_BTREE_ND_LIST_MAGIC,
@@ -1792,7 +1796,16 @@ struct mod {
 
 M0_INTERNAL void m0_btree_glob_init(void)
 {
-	/** Initialtise lru list, active list and lock. */
+	/* Initialize lru watermark levels and purge settings */
+	#ifndef __KERNEL__
+	lru_slow_purge      = false;
+	#endif
+	lru_space_used      = 0;
+	lru_space_wm_low    = LUSW_LOW;
+	lru_space_wm_target = LUSW_TARGET;
+	lru_space_wm_high   = LUSW_HIGH;
+
+	/* Initialtise lru list, active list and lock. */
 	ndlist_tlist_init(&btree_lru_nds);
 	ndlist_tlist_init(&btree_active_nds);
 	m0_rwlock_init(&list_lock);
@@ -2191,6 +2204,9 @@ static void bnode_put(struct node_op *op, struct nd *node)
 {
 	bool purge_check   = false;
 	bool is_root_node  = false;
+#ifndef __KERNEL__
+	uint64_t to_purge  = 0;
+#endif
 
 	M0_PRE(node != NULL);
 
@@ -2204,6 +2220,10 @@ static void bnode_put(struct node_op *op, struct nd *node)
 		 */
 		ndlist_tlist_del(node);
 		ndlist_tlist_add(&btree_lru_nds, node);
+		#ifndef __KERNEL__
+		to_purge  = lru_slow_purge ?
+			   ((m0_be_chunk_header_size() + node->n_size) * 2) : 0;
+		#endif
 		lru_space_used += (m0_be_chunk_header_size() + node->n_size);
 		purge_check = true;
 
@@ -2232,7 +2252,7 @@ static void bnode_put(struct node_op *op, struct nd *node)
 	m0_rwlock_write_unlock(&list_lock);
 #ifndef __KERNEL__
 	if (purge_check)
-		m0_btree_lrulist_purge_check(M0_PU_BTREE, 0);
+		m0_btree_lrulist_purge_check(M0_PU_BTREE, to_purge);
 #endif
 }
 
@@ -8583,7 +8603,10 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 	 * or size whichever is higher.
 	 */
 	size_to_purge = user == M0_PU_BTREE ?
-				(lru_space_used - lru_space_wm_target) :
+				(lru_slow_purge ?
+				min64(lru_space_used - lru_space_wm_target,
+									 size) :
+				(lru_space_used - lru_space_wm_target)) :
 				min64(lru_space_used - lru_space_wm_low, size);
 	purged_size = m0_btree_lrulist_purge(size_to_purge);
 	M0_LOG(M0_INFO, " Above critical purge, User=%s requested size="
