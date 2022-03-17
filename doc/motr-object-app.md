@@ -198,7 +198,7 @@ Close/Finalize the object.
 
 ## Troubleshoot
 
-If run `example1` and encounter error "obj_id invalid. Please refer to M0_ID_APP in motr/client.c", it means the argument obj_id is too small. Try a bigger number larger than 1048576.  
+If run `example1` and encounter error "obj_id invalid. Please refer to M0_ID_APP in motr/client.c", it means the argument obj_id is too small. Try a number larger than 1048576.  
 
 
 # Tested by
