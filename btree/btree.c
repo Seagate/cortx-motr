@@ -4451,17 +4451,17 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * KEY-VALUE STRUCTURE WITH INDIRECT ADDRESSSING :
  *
  *                 Key0                            val0
- *                 +------+-----+------------------+------------------+
- *                 |value |key  |      user        |       user       |
- *                 |size  |size |      key         |       value      |
- *                 +------+-----+------------------+------------------+
- *                              ^                  ^
- *                   +----------+               +--+
+ *                 +-----+-----+------------------+------------------+
+ *                 |key  |value|      user        |       user       |
+ *                 |size |size |      key         |       value      |
+ *                 +-----+-----+------------------+------------------+
+ *                             ^                  ^
+ *                   +---------+               +--+
  *                   |                          |
- *                 +-+---+-------------------+--+--+
- *            node |key0 |                   |val0 |
- *                 |     |                   |     |
- *                 +-----+-------------------+-----+
+ *        +--------+-+---+-------------------+--+--+
+ *        |node    |key0 |                   |val0 |
+ *        |header  |     |                   |     |
+ *        +--------+-----+-------------------+-----+
  */
 #define IS_INDIRECT_ADDR(node) (vkvv_addrtype_get(node) == INDIRECT_ADDRESSING)
 
@@ -4469,19 +4469,19 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 #define INDIRECT_KEY_SIZE (sizeof(void*))
 #define INDIRECT_VAL_SIZE (sizeof(void*))
 
-/* Returns loaction where value size is present. */
-#define VAL_SIZE_ADDR(p_key) (p_key - (2 * sizeof(uint32_t)))
+/* Returns location where key size is present. */
+#define INDIR_ADDR_KEY_SIZE(p_key) (p_key - 2 * sizeof(uint32_t))
 
-/* Returns loaction where key size is present. */
-#define KEY_SIZE_ADDR(p_key) (p_key - sizeof(uint32_t))
+/* Returns location where value size is present. */
+#define INDIR_ADDR_VAL_SIZE(p_key) (p_key - sizeof(uint32_t))
 
-/* Returns startig location of leaf record. */
-#define START_ADDR_LEAF_REC(p_key) (p_key - (2 * sizeof(uint32_t)))
+/* Returns starting location of record. */
+#define INDIR_ADDR_START_REC(p_key) (p_key - (2 * sizeof(uint32_t)))
 
-/* Returns startig location of internal node key. */
-#define START_ADDR_INTERNAL_KEY(p_key) (p_key - sizeof(uint32_t))
+#define INDIR_ADDR_VAL(p_addr)                                                 \
+(key_addr + (*(uint32_t*)INDIR_ADDR_KEY_SIZE(p_addr)))
 
-#define INDIRECT_ALLOC(size, seg, tx)                                          \
+#define INDIR_ADDR_REC_ALLOC(size, seg, tx)                                          \
 	({                                                                     \
 		struct m0_buf buf;                                             \
 		int           page_shift;                                      \
@@ -4491,7 +4491,7 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 		buf.b_addr;                                                    \
 	})
 
-#define INDIRECT_FREE(ptr, seg, tx)                                            \
+#define INDIR_ADDR_REC_FREE(ptr, seg, tx)                                            \
 	({                                                                     \
 		struct m0_buf buf;                                             \
 		buf =  M0_BUF_INIT(0, (ptr));                                  \
@@ -4692,42 +4692,32 @@ void vkvv_rec_alloc(struct m0_buf *buf, uint32_t size,
 	if (addr_type != INDIRECT_ADDRESSING)
 		return;
 
-	if (leaf_rec) {
-		/**
-		 * In case of indirect addressing, if it is leaf node, space
-		 * will be allocated for key and value together along with 8
-		 * bytes of sapce for storing key size and value size.
-		 */
-		size += 2 * sizeof(uint32_t);
-		if (crc_type == M0_BCT_BTREE_ENC_RAW_HASH)
-			size += CRC_VALUE_SIZE;
-		buf->b_addr = INDIRECT_ALLOC(size, seg, tx);
-		buf->b_addr = buf->b_addr + 2 * sizeof(uint32_t);
-		buf->b_nob  = size;
+	/**
+	 * In case of indirect addressing :
+	 * For leaf record, 8 bytes of space to store key and value size is
+	 * allocated along with key and value. Extra 8 bytes will be allocated
+	 * if CRC type is M0_BCT_BTREE_ENC_RAW_HASH.
+	 *
+	 * For internal record, 8 bytes of space to store key and value size is
+	 * allocated along with key. As value will be pointer to child node, no
+	 * need to allocate space to store value. However, 4 bytes to store
+	 * value size will be allocated to keep keys aligned to 8 bytes.
+	 */
 
-	} else {
-		/**
-		 * In case of indirect addressing, if it is internal node, space
-		 * will be allocated only for key along with 4 bytes of sapce
-		 * for storing key size. In internal node, value is pointer to
-		 * the child node which will be stored in the node.
-		 */
-		size += sizeof(uint32_t);
-		buf->b_addr = INDIRECT_ALLOC(size, seg, tx);
-		buf->b_addr = buf->b_addr + sizeof(uint32_t);
-		buf->b_nob  = size;
-	}
+	size += 2 * sizeof(uint32_t);
+	if (leaf_rec && crc_type == M0_BCT_BTREE_ENC_RAW_HASH)
+		size += CRC_VALUE_SIZE;
+	buf->b_addr = INDIR_ADDR_REC_ALLOC(size, seg, tx);
+	buf->b_addr = buf->b_addr + 2 * sizeof(uint32_t);
+	buf->b_nob  = size;
 }
 
 void vkvv_rec_free(struct m0_buf *buf, bool leaf_rec, struct m0_be_seg *seg,
 		   struct m0_be_tx *tx)
 {
 	void *addr = buf->b_addr;
-	if (leaf_rec)
-		addr = START_ADDR_LEAF_REC(addr);
-	else
-		addr = START_ADDR_INTERNAL_KEY(addr);
-	INDIRECT_FREE(addr, seg, tx);
+	addr = INDIR_ADDR_START_REC(addr);
+	INDIR_ADDR_REC_FREE(addr, seg, tx);
 }
 
 /**
@@ -4945,7 +4935,7 @@ static uint32_t vkvv_indir_addr_rec_key_size(const struct nd *node, int idx)
 	void **p_k_addr = vkvv_indir_addr_key(node, idx);
 	void  *k_addr   = *p_k_addr;
 
-	return *(uint32_t*)(KEY_SIZE_ADDR(k_addr));
+	return *(uint32_t*)(INDIR_ADDR_KEY_SIZE(k_addr));
 }
 
 static uint32_t vkvv_lnode_rec_key_size(const struct nd *node, int idx)
@@ -4997,7 +4987,7 @@ static uint32_t vkvv_indir_addr_rec_val_size(const struct nd *node, int idx)
 		p_k_addr = vkvv_indir_addr_key(node, idx);
 		k_addr   = *p_k_addr;
 
-		return *(uint32_t*)(VAL_SIZE_ADDR(k_addr));
+		return *(uint32_t*)(INDIR_ADDR_VAL_SIZE(k_addr));
 	} else
 		return INDIRECT_VAL_SIZE;
 }
@@ -5361,54 +5351,50 @@ static void vkvv_move_dir(struct slot *slot)
 	}
 }
 
-static void vkvv_indir_addr_rec_fill(struct slot *slot, struct m0_buf *rec)
-{
-	struct vkvv_head *h   = vkvv_data(slot->s_node);
-	void     **p_key_addr = vkvv_key(slot->s_node, slot->s_idx);
-	void     **p_val_addr = vkvv_val(slot->s_node, slot->s_idx + 1);
-	uint32_t   ksize      = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
-	uint32_t   vsize      = m0_vec_count(&slot->s_rec.r_val.ov_vec);
-	void      *last_addr  = START_ADDR_LEAF_REC(rec->b_addr) + rec->b_nob;
-	void      *key_addr   = rec->b_addr;
-	void      *val_addr   = rec->b_addr + ksize;
-	uint32_t  *p_ksize;
-	uint32_t  *p_vsize;
-
-	M0_ASSERT(rec->b_addr != NULL);
-	M0_ASSERT(key_addr + ksize <= last_addr);
-	M0_ASSERT(val_addr + vsize <= last_addr);
-
-	p_ksize     = KEY_SIZE_ADDR(key_addr);
-	p_vsize     = VAL_SIZE_ADDR(key_addr);
-
-	*p_key_addr = key_addr;
-	*p_val_addr = val_addr;
-
-	*p_ksize    = ksize;
-	*p_vsize    = vsize;
-
-	if (ksize > h->vkvv_max_ksize)
-		h->vkvv_max_ksize = ksize;
-}
-
 static void vkvv_indir_addr_key_fill(struct slot *slot, struct m0_buf *rec)
 {
-	struct vkvv_head *h   = vkvv_data(slot->s_node);
-	void     **p_key_addr = vkvv_key(slot->s_node, slot->s_idx);
-	void      *key_addr   = rec->b_addr;
-	void      *last_addr  = START_ADDR_INTERNAL_KEY(rec->b_addr) + rec->b_nob;
-	uint32_t   ksize      = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
-	uint32_t  *p_ksize;
+	struct vkvv_head  *h          = vkvv_data(slot->s_node);
+	void             **p_key_addr = vkvv_key(slot->s_node, slot->s_idx);
+	void              *key_addr   = rec->b_addr;
+	void              *last_addr;
+	uint32_t           ksize;
+	uint32_t          *p_ksize;
 
-	M0_ASSERT(rec->b_addr != NULL);
-	M0_ASSERT(key_addr + ksize <= last_addr);
+	M0_PRE(rec->b_addr != NULL);
 
-	p_ksize     = KEY_SIZE_ADDR(key_addr);
+	last_addr   = INDIR_ADDR_START_REC(rec->b_addr) + rec->b_nob;
+	ksize       = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
+
+	p_ksize     = INDIR_ADDR_KEY_SIZE(key_addr);
 	*p_key_addr = key_addr;
 	*p_ksize    = ksize;
 
 	if (ksize > h->vkvv_max_ksize)
 		h->vkvv_max_ksize = ksize;
+
+	M0_ASSERT(key_addr + ksize <= last_addr);
+}
+
+static void vkvv_indir_addr_val_fill(struct slot *slot, struct m0_buf *rec)
+{
+	void    **p_val_addr = vkvv_val(slot->s_node, slot->s_idx + 1);
+	void     *key_addr   = rec->b_addr;
+	void     *val_addr;
+	void     *last_addr;
+	uint32_t  vsize;
+	uint32_t *p_vsize;
+
+	M0_PRE(rec->b_addr != NULL);
+
+	last_addr   = INDIR_ADDR_START_REC(rec->b_addr) + rec->b_nob;
+	vsize       = m0_vec_count(&slot->s_rec.r_val.ov_vec);
+	val_addr    = INDIR_ADDR_VAL(key_addr);
+
+	p_vsize     = INDIR_ADDR_VAL_SIZE(key_addr);
+	*p_val_addr = val_addr;
+	*p_vsize    = vsize;
+
+	M0_ASSERT(val_addr + vsize <= last_addr);
 }
 
 static void vkvv_indir_addr_rec_make(struct slot *slot, struct m0_buf *rec)
@@ -5434,10 +5420,10 @@ static void vkvv_indir_addr_rec_make(struct slot *slot, struct m0_buf *rec)
 		m0_memmove(start_key_addr + ksize, start_key_addr, total_ksize);
 		m0_memmove(start_val_addr - vsize, start_val_addr, total_vsize);
 	}
+
+	vkvv_indir_addr_key_fill(slot, rec);
 	if (h->vkvv_level == 0)
-		vkvv_indir_addr_rec_fill(slot, rec);
-	else
-		vkvv_indir_addr_key_fill(slot, rec);
+		vkvv_indir_addr_val_fill(slot, rec);
 }
 
 static void vkvv_lnode_make(struct slot *slot)
@@ -5621,16 +5607,16 @@ static void vkvv_indir_addr_val_resize(struct slot *slot, int vsize_diff,
 	void             **p_key_addr = vkvv_indir_addr_key(slot->s_node,
 							    slot->s_idx);
 	void              *key_addr   = *p_key_addr;
-	uint32_t          *p_vsize    =  VAL_SIZE_ADDR(key_addr);
+	uint32_t          *p_vsize    =  INDIR_ADDR_VAL_SIZE(key_addr);
 	uint32_t           curr_vsize = *p_vsize;
 	uint32_t           new_vsize  = curr_vsize + vsize_diff;
 	uint32_t           size_req;
-	void       *addr;
-	uint32_t   *p_ksize;
-	void       *val_addr;
-	void       **p_val_addr;
-	uint32_t     ksize;
-	void        *new_key_addr;
+	void              *addr;
+	uint32_t          *p_ksize;
+	void              *new_val_addr;
+	void             **p_val_addr;
+	uint32_t           ksize;
+	void              *new_key_addr;
 
 	M0_PRE(tx != NULL);
 	if (new_vsize <= curr_vsize) {
@@ -5639,7 +5625,7 @@ static void vkvv_indir_addr_val_resize(struct slot *slot, int vsize_diff,
 	}
 
 	p_val_addr = vkvv_indir_addr_val(slot->s_node, slot->s_idx + 1);
-	ksize = *(uint32_t*)(KEY_SIZE_ADDR(key_addr));
+	ksize = *(uint32_t*)(INDIR_ADDR_KEY_SIZE(key_addr));
 
 	size_req   = 2 * sizeof(uint32_t) + ksize + new_vsize;
 
@@ -5647,20 +5633,20 @@ static void vkvv_indir_addr_val_resize(struct slot *slot, int vsize_diff,
 		size_req += CRC_VALUE_SIZE;
 
 
-	addr = INDIRECT_ALLOC(size_req, seg, tx);
-	p_vsize  = addr;
-	p_ksize  = (void*)p_vsize + sizeof(uint32_t);
-	new_key_addr = (void*)p_ksize + sizeof(uint32_t);
-	val_addr = new_key_addr + ksize;
+	addr = INDIR_ADDR_REC_ALLOC(size_req, seg, tx);
+	p_ksize  = addr;
+	p_vsize  = (void*)p_ksize + sizeof(uint32_t);
+	new_key_addr = (void*)p_vsize + sizeof(uint32_t);
+	new_val_addr = new_key_addr + ksize;
 
 	*p_ksize    = ksize;
 	*p_vsize    = new_vsize;
 	*p_key_addr = new_key_addr;
-	*p_val_addr = val_addr;
+	*p_val_addr = new_val_addr;
 
 	m0_memmove(new_key_addr, key_addr, ksize);
 
-	INDIRECT_FREE(START_ADDR_LEAF_REC(key_addr), seg, tx);
+	INDIR_ADDR_REC_FREE(INDIR_ADDR_START_REC(key_addr), seg, tx);
 
 }
 
@@ -5737,12 +5723,9 @@ static void vkvv_indir_addr_rec_free(const struct nd *node, int idx,
 {
 	void     **p_key_addr = vkvv_key(node, idx);
 	void      *key_addr   = *p_key_addr;
-	if (bnode_level(node) == 0)
-		key_addr = START_ADDR_LEAF_REC(key_addr);
-	else
-		key_addr = START_ADDR_INTERNAL_KEY(key_addr);
 
-	INDIRECT_FREE(key_addr, node->n_tree->t_seg, tx);
+	key_addr = INDIR_ADDR_START_REC(key_addr);
+	INDIR_ADDR_REC_FREE(key_addr, node->n_tree->t_seg, tx);
 }
 
 static void vkvv_indir_addr_rec_del(const struct nd *node, int idx,
@@ -5758,13 +5741,6 @@ static void vkvv_indir_addr_rec_del(const struct nd *node, int idx,
 	uint32_t          total_vsize;
 
 	M0_PRE(tx != NULL);
-
-	// vkvv_indir_addr_key_free(node, idx, tx);
-	// if (h->vkvv_level == 0)
-	// 	vkvv_indir_addr_val_free(node, idx, tx);
-
-	// if (h->vkvv_level > 0 && idx == 0)
-	// 	return;
 
 	vkvv_indir_addr_rec_free(node, idx, tx);
 
@@ -6008,10 +5984,7 @@ static void vkvv_capture_record(struct m0_buf *buf, bool leaf_rec,
 				struct m0_be_seg *seg, struct m0_be_tx *tx)
 {
 	void *addr = buf->b_addr;
-	if (leaf_rec)
-		addr = START_ADDR_LEAF_REC(addr);
-	else
-		addr = START_ADDR_INTERNAL_KEY(addr);
+	addr = INDIR_ADDR_START_REC(addr);
 	M0_BTREE_TX_CAPTURE(tx, seg, addr, buf->b_nob);
 }
 
