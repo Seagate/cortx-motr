@@ -45,18 +45,18 @@
 
 
 enum m0_be_ptable_id {
+	/* Free blocks type */
+	M0_BE_PTABLE_ENTRY_FREE = (BE_UT_SEG_START_ID - 5),
 	/* Partition table type   */
-	M0_BE_PTABLE_PARTITION_TABLE = (BE_UT_LOG_ID - 1),
+	M0_BE_PTABLE_PARTITION_TABLE = (BE_UT_SEG_START_ID - 4),
+	/* Balloc type */
+	M0_BE_PTABLE_ENTRY_BALLOC = (BE_UT_SEG_START_ID - 3),
 	/* Log type */
-	M0_BE_PTABLE_ENTRY_LOG       = BE_UT_LOG_ID,
+	M0_BE_PTABLE_ENTRY_LOG       = (BE_UT_SEG_START_ID - 2),
 	/* Segment0 metadata type */
 	M0_BE_PTABLE_ENTRY_SEG0      = (BE_UT_SEG_START_ID - 1),
 	/* Segment1 metadata type */
-	M0_BE_PTABLE_ENTRY_SEG1      = BE_UT_SEG_START_ID,
-	/* Balloc type */
-	M0_BE_PTABLE_ENTRY_BALLOC,
-	/* Free blocks type */
-	M0_BE_PTABLE_ENTRY_FREE
+	M0_BE_PTABLE_ENTRY_SEG1      = BE_UT_SEG_START_ID
 };
 
 /**

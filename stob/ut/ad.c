@@ -276,8 +276,8 @@ static int test_ad_init(bool use_small_credits,
 	M0_ASSERT(rc == 0);
 	rc = m0_ut_stob_create(obj_fore, NULL, &ut_be.but_dom);
 	M0_ASSERT(rc == 0);
-
 	block_shift = m0_stob_block_shift(obj_fore);
+
 	/* buf_size is chosen so it would be at least MIN_BUF_SIZE in bytes
 	 * or it would consist of at least MIN_BUF_SIZE_IN_BLOCKS blocks */
 	buf_size = max_check(MIN_BUF_SIZE,
@@ -663,12 +663,21 @@ void m0_stob_ut_ad_part_io(struct m0_stob *back_stob,
 {
 	int rc;
 
+	int i;
 	rc = test_ad_init(false, back_stob, back_domain);
 
 	M0_ASSERT(rc == 0);
-	test_ad();
-	test_ad_rw_unordered();
-	test_ad_undo();
+	for (i = 1; i <= 2; ++i)
+		test_write(i, NULL);
+
+	for (i = 1; i <= 2; ++i) {
+		int j;
+		test_read(i);
+		for (j = 0; j < i; ++j) {
+			M0_ASSERT(memcmp(user_buf[j], read_buf[j], buf_size) == 0);
+			M0_ASSERT(memcmp(user_cksm_buf[j], read_cksm_buf[j], AD_CS_SZ) == 0);
+		}
+	}
 	rc = test_ad_fini(back_stob, back_domain);
 	M0_ASSERT(rc == 0);
 }

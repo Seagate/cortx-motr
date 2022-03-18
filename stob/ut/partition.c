@@ -42,6 +42,7 @@
    @{
  */
 #define PART_DEV_NAME "/var/motr/m0ut/ut-sandbox/__s/sdb"
+#define PART_DEV_NAME_WITH_ATTRIB "/var/motr/m0ut/ut-sandbox/__s/sdb:directio:true"
 #define PART_DEV_SIZE (1073741824UL)             /* 10 GB*/
 enum {
 	SEG_SIZE               = 1 << 24,
@@ -80,10 +81,10 @@ void m0_stob_ut_part_init_override(struct m0_be_ut_backend *ut_be,
 			PART_DEV_NAME;
 	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_create_cfg =
 	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_init_cfg =
-			PART_DEV_NAME;
+			PART_DEV_NAME_WITH_ATTRIB;
 	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_create_cfg =
 	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_init_cfg =
-			PART_DEV_NAME;
+			PART_DEV_NAME_WITH_ATTRIB;
 	pcfg->bpc_chunk_size_in_bits = 21;
 	pcfg->bpc_total_chunk_count = PART_DEV_SIZE >> 21;
 	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_size_in_chunks =
