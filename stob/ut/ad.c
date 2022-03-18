@@ -662,15 +662,15 @@ void m0_stob_ut_ad_part_io(struct m0_stob *back_stob,
 			   struct m0_stob_domain *back_domain)
 {
 	int rc;
-
+	int io_num = 1;
 	int i;
 	rc = test_ad_init(false, back_stob, back_domain);
 
 	M0_ASSERT(rc == 0);
-	for (i = 1; i <= 2; ++i)
+	for (i = 1; i <= io_num; ++i)
 		test_write(i, NULL);
 
-	for (i = 1; i <= 2; ++i) {
+	for (i = 1; i <= io_num; ++i) {
 		int j;
 		test_read(i);
 		for (j = 0; j < i; ++j) {
