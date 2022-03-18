@@ -330,7 +330,9 @@ void m0_stob_ut_stob_ad(void)
 }
 
 extern int m0_stob_ut_part_init(struct m0_be_ut_backend *ut_be);
-extern void m0_stob_ut_part_init_override(struct m0_be_ut_backend *ut_be, char *location, char *part_cfg);
+extern void m0_stob_ut_part_init_override(struct m0_be_ut_backend *ut_be,
+					  char *location, char *part_cfg,
+					  bool part_io);
 extern void m0_stob_ut_part_fini(struct m0_be_ut_backend *ut_be);
 extern void m0_stob_ut_part_cfg_make(char               *str,
 				     struct m0_be_domain *dom);
@@ -348,7 +350,7 @@ void m0_stob_ut_stob_part(void)
 	M0_ASSERT(part_cfg != NULL);
 	rc = m0_stob_ut_part_init(&ut_be);
 	M0_ASSERT(rc == 0);
-	m0_stob_ut_part_init_override(&ut_be, location, part_cfg);
+	m0_stob_ut_part_init_override(&ut_be, location, part_cfg, false);
 	stob_ut_stob_single(&ut_be, location,
 			    part_cfg, part_cfg, NULL);
 	/*

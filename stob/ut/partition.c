@@ -22,6 +22,7 @@
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "lib/string.h"
+#include "lib/fs.h"
 #include "ut/stob.h"		/* m0_ut_stob_create */
 #include "ut/ut.h"
 
@@ -51,7 +52,8 @@ extern struct m0_be_ut_backend ut_be;
 
 void m0_stob_ut_part_init_override(struct m0_be_ut_backend *ut_be,
 			  char                    *location,
-			  char                    *part_cfg)
+			  char                    *part_cfg,
+			  bool                     part_io)
 {
 	struct m0_be_part_cfg *pcfg = &ut_be->but_dom.bd_cfg.bc_part_cfg;
 	M0_SET0(pcfg);
@@ -60,9 +62,11 @@ void m0_stob_ut_part_init_override(struct m0_be_ut_backend *ut_be,
 	pcfg->bpc_init_cfg = part_cfg;
 	pcfg->bpc_create_cfg = part_cfg;
 	pcfg->bpc_part_mode_set = true;
-	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_enble = true;
-	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_enble = true;
-	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_enble = true;
+	if(part_io == false) {
+		pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_enble = true;
+		pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_enble = true;
+		pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_LOG].bps_enble = true;
+	}
 	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_DATA].bps_enble = true;
 	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG0].bps_id = M0_BE_PTABLE_ENTRY_SEG0;
 	pcfg->bpc_stobs_cfg[M0_BE_DOM_PART_IDX_SEG1].bps_id = M0_BE_PTABLE_ENTRY_SEG1;
@@ -96,8 +100,9 @@ int m0_stob_ut_part_init(struct m0_be_ut_backend *ut_be)
 	int			 rc;
 
 	M0_SET0(ut_be);
-	rmdir("./__s");
+	m0_cleandir("./__s");
 	rc = mkdir("./__s", 0777);
+	M0_ASSERT(rc >= 0);
 	if (rc == 0)
 	{
 		rc = open("./__s/sdb", O_RDWR|O_CREAT, 0700);
@@ -114,7 +119,7 @@ void m0_stob_ut_part_fini(struct m0_be_ut_backend *ut_be)
 {
 	M0_SET0( &ut_be->but_dom.bd_cfg.bc_part_cfg);
 	m0_be_ut_backend_fini(ut_be);
-	rmdir("./__s");
+	m0_cleandir("./__s");
 }
 
 void m0_stob_ut_part_cfg_make(char                *str,
@@ -147,7 +152,7 @@ void m0_stob_ut_stob_part_io(void)
 	M0_ASSERT(part_cfg != NULL);
 	rc = m0_stob_ut_part_init(&ut_be);
 	M0_ASSERT(rc == 0);
-	m0_stob_ut_part_init_override(&ut_be, location, part_cfg);
+	m0_stob_ut_part_init_override(&ut_be, location, part_cfg, true);
 
 	rc = m0_stob_domain_create(location, part_cfg,
 				   dom_key, part_cfg, &dom);
@@ -166,7 +171,7 @@ void m0_stob_ut_stob_part_io(void)
 	rc = m0_ut_stob_create(stob, NULL, &ut_be.but_dom);
 	M0_UT_ASSERT(rc == 0);
         m0_stob_ut_ad_part_io(stob, dom);
-	m0_stob_put(stob);
+	m0_stob_destroy(stob, NULL);
 	m0_stob_domain_destroy(dom);
 	m0_stob_ut_part_fini(&ut_be);
 }
