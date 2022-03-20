@@ -988,7 +988,7 @@ static bool ctg_op_cb(struct m0_clink *clink)
 	if (op->bo_sm.sm_state != M0_BOS_DONE)
 		return true;
 
-	/* Versioned API is synchronous. */
+	/* Versioned API is implemented with synchronous btree operations. */
 	if (ctg_op->co_is_versioned)
 		return true;
 
