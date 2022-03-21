@@ -52,7 +52,8 @@ BE_LOG_SZ = 4*1024*1024*1024 #4G
 BE_SEG0_SZ = 128 * 1024 *1024 #128M
 MACHINE_ID_FILE = "/etc/machine-id"
 TEMP_FID_FILE = "/opt/seagate/cortx/motr/conf/service_fid.yaml"
-LOGROTATE_CONF_FILE = "/etc/logrotate.conf"
+LOGROTATE_CONF_DIR = "/etc/logrotate.d"
+LOGROTATE_MOTR_CONF_FILE = "/etc/logrotate.d/motr"
 CMD_RETRY_COUNT = 5
 
 class MotrError(Exception):
@@ -445,8 +446,8 @@ def add_entry_to_logrotate_conf_file(self):
            f"{indent}rotate 2\n",
            f"{indent}delaycompress\n",
            "{a}\n".format(a='}')]
-    with open(f"{LOGROTATE_CONF_FILE}", 'w+') as fp:
-        fp.write("\n")
+    validate_files(LOGROTATE_CONF_DIR) 
+    with open(f"{LOGROTATE_MOTR_CONF_FILE}", 'w+') as fp:
         for line in lines:
             fp.write(line)
 
@@ -1435,6 +1436,7 @@ def fetch_fid(self, service, idx):
     fid = get_fid(self, fids, service, idx)
     return fid
 
+
 # If service is one of [ios,confd,hax] then we expect fid to start the service
 # and start services using motr-mkfs and motr-server.
 # For other services like 'motr-free-space-mon' we do nothing.
@@ -1445,8 +1447,9 @@ def start_service(self, service, idx):
         cmd = f"{MOTR_FSM_SCRIPT_PATH}"
         execute_command_verbose(self, cmd, set_timeout=False)
         return
-    # Run logrotate command to rotate mini_prov log file
-    cmd = f"logrotate {LOGROTATE_CONF_FILE}"
+
+    # Start crond service
+    cmd = f"/usr/sbin/crond start"
     execute_command_verbose(self, cmd, set_timeout=False)
 
     # Copy confd_path to /etc/sysconfig
