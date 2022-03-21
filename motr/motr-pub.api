@@ -465,7 +465,7 @@ m0_iem
 m0_console_printf
 m0_console_flush
 m0_error_printf
-__gcov_dump
-__gcov_flush
-__gcov_reset
-__gcov_sort_n_vals
+*__gcov_dump
+*__gcov_flush
+*__gcov_reset
+*__gcov_sort_n_vals
