@@ -272,6 +272,8 @@ struct m0_cob_domain {
 	struct m0_be_btree      cd_fileattr_basic;
 	struct m0_be_btree      cd_fileattr_omg;
 	struct m0_be_btree      cd_fileattr_ea;
+	struct m0_be_btree      cd_bytecount;
+	struct m0_be_rwlock     cd_lock;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_cob_domain_format_version {
@@ -421,18 +423,19 @@ struct m0_cob_nsrec {
 	 * The following fields are only important for 0-nsrec, that is,
 	 * stat data. For other records, only two fields above are valid.
 	 */
-	uint32_t                cnr_nlink;   /**< number of hard links */
-	uint32_t                cnr_cntr;    /**< linkno allocation counter */
+	uint32_t                cnr_nlink;     /**< number of hard links */
+	uint32_t                cnr_cntr;      /**< linkno allocation counter */
 	char                    cnr_pad[4];
-	uint64_t                cnr_omgid;   /**< uid/gid/mode slot reference */
-	uint64_t                cnr_size;    /**< total size, in bytes */
-	uint64_t                cnr_blksize; /**< blocksize for filesystem I/O */
-	uint64_t                cnr_blocks;  /**< number of blocks allocated */
-	uint64_t                cnr_atime;   /**< time of last access */
-	uint64_t                cnr_mtime;   /**< time of last modification */
-	uint64_t                cnr_ctime;   /**< time of last status change */
-	uint64_t                cnr_lid;     /**< layout id */
-	struct m0_fid           cnr_pver;    /**< cob pool version */
+	uint64_t                cnr_omgid;     /**< uid/gid/mode slot reference */
+	uint64_t                cnr_size;      /**< total size, in bytes */
+	uint64_t                cnr_bytecount; /**< bytecount in this cob */
+	uint64_t                cnr_blksize;   /**< blocksize for filesystem I/O */
+	uint64_t                cnr_blocks;    /**< number of blocks allocated */
+	uint64_t                cnr_atime;     /**< time of last access */
+	uint64_t                cnr_mtime;     /**< time of last modification */
+	uint64_t                cnr_ctime;     /**< time of last status change */
+	uint64_t                cnr_lid;       /**< layout id */
+	struct m0_fid           cnr_pver;      /**< cob pool version */
 	struct m0_format_footer cnr_footer;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
@@ -506,6 +509,18 @@ struct m0_cob_eakey {
 struct m0_cob_earec {
 	uint32_t          cer_size;    /**< EA len */
 	char              cer_body[0]; /**< EA body */
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
+
+/** Byte count table key. */
+struct m0_cob_bckey {
+	struct m0_fid     cbk_pfid;    /**< Pool ver fid */
+	uint64_t          cbk_user_id; /**< User id */
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
+
+/** Byte count table record. */
+struct m0_cob_bcrec {
+	uint64_t          cbr_bytecount;  /**< Byte count */
+	uint64_t          cbr_cob_objects;  /**< Cob object count */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /**
@@ -615,6 +630,16 @@ struct m0_cob_ea_iterator {
 };
 
 /**
+ * Cob BC iterator. Holds current position inside Bytecount table.
+ */
+struct m0_cob_bc_iterator {
+	struct m0_cob            *ci_cob;      /**< the cob we iterate */
+	struct m0_be_btree_cursor ci_cursor;   /**< cob iterator cursor */
+	struct m0_cob_bckey      *ci_key;      /**< current iterator pos */
+	struct m0_cob_bcrec      *ci_rec;      /**< current iterator rec */
+};
+
+/**
  * Cob flags and valid attributes.
  */
 enum m0_cob_flags {
@@ -624,6 +649,7 @@ enum m0_cob_flags {
 	M0_CA_FABREC     = (1 << 3),  /**< fabrec in cob is up-to-date */
 	M0_CA_OMGREC     = (1 << 4),  /**< omgrec in cob is up-to-date */
 	M0_CA_LAYOUT     = (1 << 5),  /**< layout in cob is up-to-date */
+	M0_CA_BCREC      = (1 << 6),  /**< bytecount in cob is up-to-date */
 };
 
 /**
@@ -825,6 +851,126 @@ M0_INTERNAL int m0_cob_ea_iterator_get(struct m0_cob_ea_iterator *it);
 M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it);
 
 /**
+ * Search for a record in the bytecount table and fills struct m0_cob_bcrec
+ * if key is found.
+ * If the lookup fails, we return error and co_flags accurately reflects
+ * the missing fields.
+ *
+ * @param cob    cob btree to store byte count.
+ * @param bc_key pool version fid and user_id.
+ * @param bc_rec out paramter, byte count for the given pool version.
+ *
+ * @retval 0       success
+ * @retval -ENOENT record not found.
+ * @retval -errno  other error.
+ */
+M0_INTERNAL int m0_cob_bc_lookup(struct m0_cob *cob,
+				 struct m0_cob_bckey *bc_key,
+				 struct m0_cob_bcrec *bc_rec);
+
+/**
+ * Inserts a record in the bytecount table
+ * If the insert fails, we return error.
+ *
+ * @param cob    cob btree to store byte count.
+ * @param bc_key pool version fid and user_id.
+ * @param bc_rec byte count for the given pool version.
+ * @param tx     be transaction handle.
+ *
+ * @retval 0       success
+ * @retval -errno  other error.
+ */
+M0_INTERNAL int m0_cob_bc_insert(struct m0_cob *cob,
+				 struct m0_cob_bckey *bc_key,
+				 struct m0_cob_bcrec *bc_val,
+				 struct m0_be_tx *tx);
+
+/**
+ * Updates a record in the bytecount table
+ * If the update fails, it returns error.
+ *
+ * @param cob    cob btree to store byte count.
+ * @param bc_key pool version fid and user_id.
+ * @param bc_rec byte count for the given pool version.
+ * @param tx     be transaction handle.
+ *
+ * @retval 0       success
+ * @retval -errno  other error.
+ */
+M0_INTERNAL int m0_cob_bc_update(struct m0_cob *cob,
+				 struct m0_cob_bckey *bc_key,
+				 struct m0_cob_bcrec *bc_val,
+				 struct m0_be_tx *tx);
+
+/**
+ * Initialize iterator on the byte count btree with @pver_fid,
+ * @user_id as the start position.
+ *
+ * @param cob      btree to iterate over.
+ * @param it       iterator.
+ * @param pver_fid pool version fid, start position of the iterator.
+ * @param user_id  id of user, start position of the iterator.
+ *
+ * @retval -ENOMEM out of memory.
+ * @retval -errno other error.
+ */
+M0_INTERNAL int m0_cob_bc_iterator_init(struct m0_cob             *cob,
+					struct m0_cob_bc_iterator *it,
+					const struct m0_fid       *pver_fid,
+					uint64_t                   user_id);
+
+/**
+ * Position to next key in a bc table.
+ *
+ * @retval 0        Success.
+ * @retval -ENOENT  No more keys in byte count table.
+ * @retval -errno   Other error.
+ */
+M0_INTERNAL int m0_cob_bc_iterator_next(struct m0_cob_bc_iterator *it);
+
+/**
+ * Retrieve the key values from the current position in table
+ * according with @it properties and stores it in the iterator structure.
+ *
+ * @retval 0        Success.
+ * @retval -ENOENT  Specified position not found in table.
+ * @retval -errno   Other error.
+ */
+M0_INTERNAL int m0_cob_bc_iterator_get(struct m0_cob_bc_iterator *it);
+
+/**
+ * Returns all the entries in the bytecount btree in the form of
+ * Key and record buffers. This function uses bytecount iterator internally
+ * to traverse the btree.
+ *
+ * Key buffer contains all the keys in a contigious sequence of memory
+ * pointed by out_keys::b_addr. An individual key can be accessed by
+ * traversing the memory in chunks of sizeof(struct m0_cob_bckey).
+ *
+ * Similar logic applies to record buffer.
+ *
+ * @pre   out_keys == NULL
+ * @pre   out_recs == NULL
+ *
+ * @param cdom      cob domain where the bytecount btree resides.
+ * @param out_keys  out parameter buffer which gets populated by keys.
+ * @param out_recs  out parameter buffer which gets populated by records.
+ * @param out_count out parameter with number of entries in the btree.
+ *
+ * @retval 0        Success.
+ * @retval -errno   Other error.
+ */ 
+M0_INTERNAL int m0_cob_bc_entries_dump(struct m0_cob_domain *cdom,
+				       struct m0_buf       **out_keys,
+				       struct m0_buf       **out_recs,
+				       uint32_t             *out_count);
+
+/**
+ * Finish cob bc iterator.
+ */
+M0_INTERNAL void m0_cob_bc_iterator_fini(struct m0_cob_bc_iterator *it);
+
+/**
  * Init cob iterator on passed @cob and @name as a start position.
  */
 M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
@@ -933,6 +1079,9 @@ enum m0_cob_op {
 	M0_COB_OP_NAME_ADD,
 	M0_COB_OP_NAME_DEL,
 	M0_COB_OP_NAME_UPDATE,
+	M0_COB_OP_BYTECOUNT_SET,
+	M0_COB_OP_BYTECOUNT_DEL,
+	M0_COB_OP_BYTECOUNT_UPDATE,
 } M0_XCA_ENUM;
 
 M0_INTERNAL void m0_cob_tx_credit(struct m0_cob_domain *dom,
