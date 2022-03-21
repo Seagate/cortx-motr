@@ -574,7 +574,10 @@
 #include "ut/ut.h"          /** struct m0_ut_suite */
 #endif
 
-#define AVOID_BE_SEGMENT    0
+#define AVOID_BE_SEGMENT		0
+#define M0_BTREE_TRICKLE_MULTIPLIER	2
+#define M0_BTREE_PURGE_MODE_ON		true
+#define M0_BTREE_PURGE_MODE_OFF		false
 /**
  *  --------------------------------------------
  *  Section START - BTree Structure and Operations
@@ -1415,10 +1418,6 @@ static struct m0_rwlock list_lock;
  * Total space used by nodes in lru list.
  */
 static int64_t lru_space_used;
-#ifndef __KERNEL__
-static bool lru_slow_purge;
-#endif
-
 
 /** Lru used space watermark default values. */
 enum lru_used_space_watermark{
@@ -1450,6 +1449,15 @@ static int64_t lru_space_wm_high;
  * watermark.
  */
 static bool lrulist_trickle_release;
+
+/**
+ * LRU purging should be triggered if used space is above high used space
+ * watermark.
+ */
+static bool lru_trickle_release;
+#ifndef __KERNEL__
+static bool lru_purge_mode;
+#endif
 
 M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
 		   n_linkage, n_magic, M0_BTREE_ND_LIST_MAGIC,
@@ -1804,8 +1812,9 @@ M0_INTERNAL void m0_btree_glob_init(void)
 {
 	/* Initialize lru watermark levels and purge settings */
 	#ifndef __KERNEL__
-	lru_slow_purge      = false;
+	lru_purge_mode      = M0_BTREE_PURGE_MODE_OFF;
 	#endif
+	lru_trickle_release = false;
 	lru_space_used      = 0;
 	lru_space_wm_low    = LUSW_LOW;
 	lru_space_wm_target = LUSW_TARGET;
@@ -2248,8 +2257,9 @@ static void bnode_put(struct node_op *op, struct nd *node)
 		ndlist_tlist_del(node);
 		ndlist_tlist_add(&btree_lru_nds, node);
 		#ifndef __KERNEL__
-		to_purge  = lru_slow_purge ?
-			   ((m0_be_chunk_header_size() + node->n_size) * 2) : 0;
+		to_purge  = lru_purge_mode ?
+			   ((m0_be_chunk_header_size() + node->n_size) *
+			    M0_BTREE_TRICKLE_MULTIPLIER) : 0;
 		#endif
 		lru_space_used += (m0_be_chunk_header_size() + node->n_size);
 		purge_check = true;
@@ -8596,8 +8606,8 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size)
 M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 						 int64_t size)
 {
-	int64_t size_to_purge;
-	int64_t purged_size = 0;
+	int64_t size_to_purge = 0;
+	int64_t purged_size   = 0;
 
 	if (lru_space_used < lru_space_wm_low) {
 		/** Do nothing. */
@@ -8605,6 +8615,7 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 			M0_LOG(M0_INFO, "Skipping memory release since used "
 			       "space is below threshold requested size=%"PRId64
 			       " used space=%"PRId64, size, lru_space_used);
+		lru_purge_mode = M0_BTREE_PURGE_MODE_OFF;
 		return 0;
 	}
 	if (lru_space_used < lru_space_wm_high) {
@@ -8613,9 +8624,17 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 		 * purge lrulist till low watermark or size whichever is
 		 * higher.
 		 */
-		if (user == M0_PU_EXTERNAL) {
+		if (user == M0_PU_EXTERNAL)
 			size_to_purge = min64(lru_space_used - lru_space_wm_low,
 					      size);
+		else if (lru_space_used > lru_space_wm_target)
+			size_to_purge = lru_purge_mode ?
+					min64(lru_space_used -
+						 lru_space_wm_target, size) : 0;
+		else
+			lru_purge_mode = M0_BTREE_PURGE_MODE_OFF;
+
+		if (size_to_purge != 0) {
 			purged_size = m0_btree_lrulist_purge(size_to_purge);
 			M0_LOG(M0_INFO, " Below critical External user Purge,"
 			       " requested size=%"PRId64" used space=%"PRId64
@@ -8629,8 +8648,10 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 	 * target watermark. For external user, purge lrulist till low watermark
 	 * or size whichever is higher.
 	 */
+	lru_purge_mode = lru_trickle_release ?
+			 M0_BTREE_PURGE_MODE_ON : M0_BTREE_PURGE_MODE_OFF;
 	size_to_purge = user == M0_PU_BTREE ?
-				(lru_slow_purge ?
+				(lru_purge_mode ?
 				min64(lru_space_used - lru_space_wm_target,
 									 size) :
 				(lru_space_used - lru_space_wm_target)) :
