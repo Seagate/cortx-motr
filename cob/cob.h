@@ -855,6 +855,14 @@ M0_INTERNAL void m0_cob_ea_iterator_fini(struct m0_cob_ea_iterator *it);
  * if key is found.
  * If the lookup fails, we return error and co_flags accurately reflects
  * the missing fields.
+ *
+ * @param cob    cob btree to store byte count.
+ * @param bc_key pool version fid and user_id.
+ * @param bc_rec out paramter, byte count for the given pool version.
+ *
+ * @retval 0       success
+ * @retval -ENOENT record not found.
+ * @retval -errno  other error.
  */
 M0_INTERNAL int m0_cob_bc_lookup(struct m0_cob *cob,
 				 struct m0_cob_bckey *bc_key,
@@ -862,7 +870,15 @@ M0_INTERNAL int m0_cob_bc_lookup(struct m0_cob *cob,
 
 /**
  * Inserts a record in the bytecount table
- * If the insert fails, we return error
+ * If the insert fails, we return error.
+ *
+ * @param cob    cob btree to store byte count.
+ * @param bc_key pool version fid and user_id.
+ * @param bc_rec byte count for the given pool version.
+ * @param tx     be transaction handle.
+ *
+ * @retval 0       success
+ * @retval -errno  other error.
  */
 M0_INTERNAL int m0_cob_bc_insert(struct m0_cob *cob,
 				 struct m0_cob_bckey *bc_key,
@@ -871,7 +887,15 @@ M0_INTERNAL int m0_cob_bc_insert(struct m0_cob *cob,
 
 /**
  * Updates a record in the bytecount table
- * If the update fails, it returns error
+ * If the update fails, it returns error.
+ *
+ * @param cob    cob btree to store byte count.
+ * @param bc_key pool version fid and user_id.
+ * @param bc_rec byte count for the given pool version.
+ * @param tx     be transaction handle.
+ *
+ * @retval 0       success
+ * @retval -errno  other error.
  */
 M0_INTERNAL int m0_cob_bc_update(struct m0_cob *cob,
 				 struct m0_cob_bckey *bc_key,
@@ -879,7 +903,16 @@ M0_INTERNAL int m0_cob_bc_update(struct m0_cob *cob,
 				 struct m0_be_tx *tx);
 
 /**
- * Init bc iterator on passed @cob and @pver_fid, @user_id as a start position.
+ * Initialize iterator on the byte count btree with @pver_fid,
+ * @user_id as the start position.
+ *
+ * @param cob      btree to iterate over.
+ * @param it       iterator.
+ * @param pver_fid pool version fid, start position of the iterator.
+ * @param user_id  id of user, start position of the iterator.
+ *
+ * @retval -ENOMEM out of memory.
+ * @retval -errno other error.
  */
 M0_INTERNAL int m0_cob_bc_iterator_init(struct m0_cob             *cob,
 					struct m0_cob_bc_iterator *it,
@@ -890,13 +923,14 @@ M0_INTERNAL int m0_cob_bc_iterator_init(struct m0_cob             *cob,
  * Position to next key in a bc table.
  *
  * @retval 0        Success.
- * @retval -ENOENT  Next key is not found in bc table.
+ * @retval -ENOENT  No more keys in byte count table.
  * @retval -errno   Other error.
  */
 M0_INTERNAL int m0_cob_bc_iterator_next(struct m0_cob_bc_iterator *it);
 
 /**
- * Position in table according with @it properties.
+ * Retrieve the key values from the current position in table
+ * according with @it properties and stores it in the iterator structure.
  *
  * @retval 0        Success.
  * @retval -ENOENT  Specified position not found in table.

@@ -2124,9 +2124,9 @@ static bool spiel_proc_counter_item_rlink_cb(struct m0_clink *clink)
 	m0_clink_fini(clink);
 	if (proc->sci_rlink.rlk_rc != 0) {
 		M0_LOG(M0_ERROR, "connect failed");
+		proc->sci_rc = proc->sci_rlink.rlk_rc;
 		m0_semaphore_up(&proc->sci_barrier);
-		M0_LEAVE();
-		return true;
+		goto ret;
 	}
 	m0_fop_init(fop, &m0_fop_process_fopt, NULL, m0_fop_release);
 	rc = m0_fop_data_alloc(fop);
@@ -2148,15 +2148,13 @@ static bool spiel_proc_counter_item_rlink_cb(struct m0_clink *clink)
 	rc = m0_rpc_post(item);	
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "rpc post failed");
-		goto fop_put;
+		m0_fop_put_lock(fop);
+		goto fop_fini;
 	}
 
 	proc->sci_rc = rc;
+	goto ret;
 	
-	M0_LEAVE();
-	return true;
-fop_put:
-	m0_fop_put_lock(fop);
 fop_fini:
 	m0_fop_fini(fop);
 	conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
@@ -2164,6 +2162,10 @@ fop_fini:
 	m0_rpc_link_fini(&proc->sci_rlink);
 	proc->sci_rc = rc;
 	m0_semaphore_up(&proc->sci_barrier);
+	M0_LEAVE();
+	return true;
+
+ret:
 	M0_LEAVE();
 	return true;
 }
