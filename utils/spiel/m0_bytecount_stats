@@ -1,0 +1,261 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# For any questions about this software or licensing,
+# please email opensource@seagate.com or cortx-questions@seagate.com.
+#
+
+
+#
+#
+# Script to calculate bytecount stats.
+#
+# Usage : ${SCRIPT_NAME}
+#
+# RETURN :
+# 0 : SUCCESS
+# 1 : System Error
+# 2 : Client endpoint busy
+# 3 : m0spiel command timed out
+#
+# On Success returns
+# FID             <Fid>
+# User ID         <int>
+# Byte Count      <int>
+# Object Count    <int>
+
+#set -x
+export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+
+M0_SRC_DIR=`readlink -f ${BASH_SOURCE[0]}`
+M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
+
+
+SCRIPT_NAME=`echo $0 | awk -F "/" '{print $NF}'`
+STATUS_FILE=/tmp/get_size_client$USER
+SAVEIFS=$IFS
+TIMEOUT=10
+server_addr=""
+profile_addr=""
+process_addr=""
+declare libmotr_path="/usr/lib64/libmotr.so"
+declare m0spiel_path="/usr/bin/m0spiel"
+declare consul_path="/usr/bin/consul"
+declare python2_path="/usr/bin/python2"
+consul_query_args="kv get -recurse m0conf"
+consul_query_cmd="$consul_path $consul_query_args"
+motr_conf_file="/etc/sysconfig/motr"
+[ -d /etc/sysconfig ] || motr_conf_file="/etc/default/motr"
+
+exit_with_error()
+{
+	msg=$1
+	exit_code=$2
+	>&2 echo -e $msg
+	[[ -e $STATUS_FILE ]] && rm $STATUS_FILE
+	exit $exit_code
+}
+
+get_bin_path() {
+	bin_name="$1"
+	eval path_var="${bin_name}""_path"
+	eval file_path=\${${bin_name}_path}
+	if [ ! -e ${file_path} ] ; then
+		declare $path_var=$(which $bin_name)
+		eval file_path=\${${bin_name}_path}
+	fi
+        # return file_path string, Don't add any other echo statement
+        # in this method.
+	echo "$file_path"
+}
+
+check_bin_path() {
+	bin_name="$1"
+	eval file_path=\${${bin_name}_path}
+	if [ ! -e ${file_path} ] ; then
+		exit_with_error "ERROR: $bin_name not found" 1
+	fi
+}
+
+bc_stats_fetch() {
+/usr/bin/timeout --foreground $TIMEOUT $python2_path $m0spiel_path $M0_SPIEL_OPTS <<EOF
+spiel.rconf_status = 0
+def handle_sigterm(signalNumber, frame):
+    if spiel.rconf_status:
+        spiel.rconfc_stop()
+    sys.exit(1)
+    return
+
+
+if spiel.cmd_profile_set(str(Fid($M0_PROFILE_ID))):
+	sys.exit('cannot set profile')
+
+spiel.signal_nr = signal.SIGTERM
+spiel.signal_cb = handle_sigterm
+
+spiel.register_signal()
+
+if spiel.rconfc_start():
+	sys.exit('cannot start rconfc')
+else:
+        spiel.rconf_status = 1
+
+pc_stats = ByteCountStats()
+rc = spiel.proc_counters_fetch(Fid($M0_PROCESS_ID), pc_stats)
+if rc != 0:
+	sys.exit('Error: bytecount stats fetch: \
+                 (status {0})'.format(rc))
+
+spiel.rconfc_stop()
+spiel.rconf_status = 0
+for x in range(pc_stats.pc_cnt):
+  print("====================================")
+  print("FID          {0:>20}".format(str(pc_stats.pc_bckey[x][0].sbk_fid)))
+  print("User ID      {0:>20}".format(str(pc_stats.pc_bckey[x][0].sbk_user_id)))
+  print("Byte Count   {0:>20}".format(str(pc_stats.pc_bcrec[x][0].sbk_byte_count)))
+  print("Object Count {0:>20}".format(str(pc_stats.pc_bcrec[x][0].sbk_object_count)))
+  print("====================================")
+
+EOF
+rc=$?
+if [ $rc -ne 0 ] ; then
+	[[ $rc -ge 124 ]] && exit_with_error "bytecount command timedout" 3
+	exit_with_error "m0spiel command exit with error:$rc" $rc
+fi
+}
+
+get_hostname()
+{
+        host=""
+        if [[ -f /etc/salt/minion_id ]] ; then
+            host=$(cat /etc/salt/minion_id)
+        fi
+
+        if [[ -z "$host" ]] ; then
+           host=$(hostname --fqdn)
+        fi
+        echo $host
+}
+
+main()
+{
+	pid=$$
+	python2_path=$(get_bin_path python2)
+	m0spiel_path=$(get_bin_path m0spiel)
+	check_bin_path python2
+	check_bin_path m0spiel
+        if [ ! -s $libmotr_path ] ; then
+	    [[ -r $motr_conf_file ]] && source $motr_conf_file
+	    [[ -n "$MOTR_DEVEL_WORKDIR_PATH" ]] && \
+                libmotr_path=$MOTR_DEVEL_WORKDIR_PATH/motr/.libs/libmotr.so
+	    [[ ! -s $libmotr_path ]] && exit_with_error "libmotr Not Found" 1
+        fi
+
+	M0_SPIEL_OPTS="-s $server_addr -l $libmotr_path"
+	M0_PROFILE_ID=$profile_addr
+	M0_PROCESS_ID=$process_addr
+
+	touch $STATUS_FILE
+	exec {FD}<>$STATUS_FILE
+
+	#Wait for $TIMEOUT to acquire the lock
+	if ! flock -x -w $TIMEOUT $FD; then
+		[[ -e $STATUS_FILE ]] && rm $STATUS_FILE
+		exit 2
+	fi
+	#Lock acquired, below command would be executed exclusively to current process
+	bc_stats_fetch
+	[[ -e $STATUS_FILE ]] && rm $STATUS_FILE
+}
+
+function usage() {
+    cat << EOF
+
+Usage: $SCRIPT_NAME [options]
+    -s, --server           server endpoint address
+
+    -p, --profile          profile endpoint address
+
+    -P, --ios-process      process FID
+
+    -l, --libmotr-path     libmotr path
+
+    -t, --timeout          timeout in seconds
+
+    -h, --help             this help
+
+Example:
+    $SCRIPT_NAME  
+    -s inet:tcp:192.168.53.220@22001:12345:1:1
+    -p 0x7000000000000001,0x1e
+    -P 0x7000000000000001,0x1c
+    -l $libmotr_path
+
+RETURN :
+0 : SUCCESS
+1 : System Error
+2 : endpoint busy
+3 : m0spiel command timed out
+
+Note: $SCRIPT_NAME can be executed only by privileged user
+
+EOF
+}
+
+
+function check_arg_value() {
+    [[ $# -gt 1 ]] || {
+        exit_with_error "Incorrect use of the option $1\nUse --help option" 1
+    }
+}
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -s| --server)
+            check_arg_value $1 $2
+            server_addr="$2"
+            shift
+            ;;
+        -p| --profile)
+            check_arg_value $1 $2
+            profile_addr="$2"
+            shift
+            ;;
+        -P| --process)
+            check_arg_value $1 $2
+            process_addr="$2"
+            shift
+            ;;
+        -t| --timeout)
+            check_arg_value $1 $2
+            TIMEOUT=$2
+            shift
+            ;;
+        -l| --libmotr_path)
+            check_arg_value $1 $2
+            libmotr_path=$2
+            shift
+            ;;
+        -h| --help)
+            usage
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+main
+exit 0
