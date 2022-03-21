@@ -26,7 +26,7 @@
 source "/opt/seagate/cortx/motr/common/cortx_util_funcs.sh"
 
 usage() { 
-        echo "Usage: bash $(basename $0) [--help|-h] [-n CoreFileCount]"
+        echo "Usage: bash "$(basename $0)" [--help|-h] [-n CoreFileCount]"
         "Retain recent modified files of given count and remove older core files."
         "where:"
         "-n   number of latest core files to retain" 
