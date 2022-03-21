@@ -2052,7 +2052,7 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
 	/* here @val consists value to insert */
 	rc = cob_table_insert(cob->co_dom->cd_namespace, tx, &key, &val);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 	/*
 	 * Kill old record. Error will be returned if
 	 * nothing found.
@@ -2215,7 +2215,7 @@ M0_INTERNAL int m0_cob_ea_set(struct m0_cob *cob,
 	m0_buf_init(&val, earec, m0_cob_earec_size(earec));
 	rc = cob_table_insert(cob->co_dom->cd_fileattr_ea, tx, &key, &val);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	return 0;
 }

@@ -580,7 +580,7 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 	m0_rwlock_write_lock(emap_rwlock(it->ec_map));
 	rc = emap_it_pack(it, be_emap_delete_wrapper, tx);
 	if (rc != 0)
-		M0_RC(rc);
+		M0_ERR(rc);
 
 	if (rc == 0 && delta < m0_ext_length(&it->ec_seg.ee_ext)) {
 		it->ec_seg.ee_ext.e_end -= delta;
@@ -592,7 +592,7 @@ M0_INTERNAL void m0_be_emap_merge(struct m0_be_emap_cursor *it,
 		rc = emap_it_get(it) /* re-initialise cursor position */ ?:
 			update_next_segment(it, tx, delta, inserted);
 	else
-		M0_RC(rc);
+		M0_ERR(rc);
 	m0_rwlock_write_unlock(emap_rwlock(it->ec_map));
 
 	M0_ASSERT_EX(ergo(rc == 0, be_emap_invariant(it)));

@@ -1274,7 +1274,7 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		m0_be_op_done(beop);
 		break;
 	}
-	ctg_op->co_rc = M0_RC(rc);
+	ctg_op->co_rc = rc == 0 ? rc : M0_ERR(rc);
 	return ctg_op_tick_ret(ctg_op, next_phase);
 }
 
@@ -2084,7 +2084,8 @@ M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
 	/* Firstly we should free buffer allocated for imask ranges array. */
 	rc = m0_ctg_ctidx_lookup_sync(&cid->ci_fid, &layout);
 	if (rc != 0)
-		return rc;
+		return M0_ERR(rc);
+
 	imask = &layout->u.dl_desc.ld_imask;
 	if (!m0_dix_imask_is_empty(imask)) {
 		/** @todo Make it asynchronous. */
@@ -2107,7 +2108,7 @@ M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
 							   &kv_op, tx));
 
 	m0_chan_broadcast_lock(&ctidx->cc_chan.bch_chan);
-	return M0_RC(rc);
+	return rc == 0 ? rc : M0_ERR(rc);
 }
 
 M0_INTERNAL int m0_ctg_mem_place(struct m0_ctg_op    *ctg_op,
