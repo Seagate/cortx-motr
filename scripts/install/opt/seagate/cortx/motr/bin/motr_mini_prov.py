@@ -221,7 +221,7 @@ def calc_size(self, sz):
         map_val=sz_map[suffix]
         ret = num_sz * map_val
     else:
-        self.logger.error(f"Invalid format of mem limit: {min_mem}\n")
+        self.logger.error(f"Invalid format of mem limit: {sz}\n")
         self.logger.error("Please use valid format Ex: 1024, 1Ki, 1Mi, 1Gi etc..\n")
     return ret
 
@@ -236,10 +236,6 @@ def get_setup_size(self):
 
             if min_mem.isnumeric():
                 sz = int(min_mem)
-            elif min_mem[-2:] not in ["Ki", "Mi", "Gi"]:
-                self.logger.error(f"Invalid mem limit {min_mem}\n")
-                ret = False
-                return ret
             else:
                 sz = calc_size(self, min_mem)
 
