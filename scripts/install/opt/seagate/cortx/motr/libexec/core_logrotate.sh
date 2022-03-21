@@ -94,7 +94,12 @@ echo "Max core file count: $core_files_max_count"
 echo "Core file directory: $motr_coredirs"
 
 # check for core directory entries
-for motr_coredir in $motr_coredirs ; do
+for motr_coredir in ${motr_coredirs[@]}; do
+    [[ -d $motr_coredir ]] || {
+        echo "$motr_coredir: no such directory"
+        continue
+    }
+
     [[ $(check_param $motr_coredir) = "continue" ]] && continue || echo "$motr_coredir"
 
     # get the core directory of each m0d instance
@@ -104,25 +109,26 @@ for motr_coredir in $motr_coredirs ; do
 
     # iterate through all core directories of each m0d instance
     for core_dir in $core_dirs ; do
+        # take backup of core file
+        if [[ $core_dir == *"$1"* ]]; then
+           core_file=`find $core_dir -name \*\$2`
+           cp $core_file $core_file.backup
+        fi 
         # get the no. of core file count
         core_files=`find $core_dir -maxdepth 1 -type f -name "core.*"`
         core_files_count=`echo "$core_files" | grep -v "^$" | wc -l`
-
         echo "## found $core_files_count file(s) in core directory $core_dir ##"
-
         # check core files count is greater than max core file count
         if [[ $core_files_count -gt $core_files_max_count ]]; then
             # get files sort by date - older will come on top
             remove_file_count=`expr $core_files_count - $core_files_max_count`
 
             echo "## ($remove_file_count) file(s) can be removed from \
-                           core directory($core_dir) ##"               
+                           core directory($core_dir) ##"
 
             # get the files sorted by time modified 
             # (most recently modified comes last), that 
             # is older files comes first
-            echo "CORE_DIR is $core_dir"
-            
             if [[ $platform = "physical" ]]; then
                 peserve_files=`expr $core_files_max_count - 2`
                 files_to_remove=`ls -tr "$core_dir" | grep core | \
