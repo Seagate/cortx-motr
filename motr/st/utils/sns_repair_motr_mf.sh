@@ -58,7 +58,7 @@ sns_repair_motr_test()
 	motr_read_verify 0          || return $?
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
-		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
+		ios_eps="$ios_eps -S ${lnet_nid}${IOSEP[$i]}"
 	done
 
 ######  Fail two disks

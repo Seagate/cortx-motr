@@ -41,7 +41,7 @@ sns_repair_motr_test()
 	prepare_datafiles_and_objects || return $?
 	motr_read_verify 0          || return $?
 
-	ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[0]}"
+	ios_eps="$ios_eps -S ${lnet_nid}${IOSEP[0]}"
 
 ####### Set Failure device
 	disk_state_set "failed" $fail_device1 || return $?

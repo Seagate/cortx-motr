@@ -41,7 +41,7 @@ spiel_sns_repair_quiesce_test()
 	verify || return $?
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
-		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
+		ios_eps="$ios_eps -S ${lnet_nid}${IOSEP[$i]}"
 	done
 
 	mount | grep m0t1fs

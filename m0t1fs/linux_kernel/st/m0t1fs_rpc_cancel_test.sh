@@ -146,11 +146,16 @@ rcancel_post()
 
 rcancel_change_controller_state()
 {
-	local lnet_nid=`sudo lctl list_nids | head -1`
-	local s_endpoint="$lnet_nid:12345:33:1"
-	local c_endpoint="$lnet_nid:$M0HAM_CLI_EP"
+	local nid=$(m0_local_nid_get)
+	local c_endpoint="$nid$M0HAM_CLI_EP"
 	local dev_fid=$1
 	local dev_state=$2
+	local XPRT=$(m0_default_xprt)
+	if [ "$XPRT" = "lnet" ]; then
+		local s_endpoint="$nid:12345:33:1"
+	else
+		local s_endpoint="$nid@3001"
+	fi
 
 	# Generate HA event
 	send_ha_events "$dev_fid" "$dev_state" "$s_endpoint" "$c_endpoint"
