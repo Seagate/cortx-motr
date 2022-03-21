@@ -1597,8 +1597,9 @@ static int cs_storage_setup(struct m0_motr *cctx)
 	if (cctx->cc_no_storage)
 		return M0_RC(0);
 
-	m0_btree_lrulist_set_wm(rctx->rc_trickle_release, rctx->rc_lru_wm_low,
-				rctx->rc_lru_wm_mid, rctx->rc_lru_wm_high);
+	m0_btree_lrulist_set_wm(rctx->rc_enable_trickle_release,
+				rctx->rc_lru_wm_low, rctx->rc_lru_wm_mid,
+				rctx->rc_lru_wm_high);
 
 	rctx->rc_be.but_dom_cfg.bc_engine.bec_reqh = &rctx->rc_reqh;
 
@@ -2337,7 +2338,7 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 			M0_NUMBERARG('t', "Btree Memory Trickle Release",
 				LAMBDA(void, (int64_t val)
 				{
-					rctx->rc_trickle_release = val;
+					rctx->rc_enable_trickle_release = val;
 				})),
 			M0_NUMBERARG('X', "Btree LRU list low watermark",
 				LAMBDA(void, (int64_t low)

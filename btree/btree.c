@@ -1451,7 +1451,7 @@ static int64_t lru_space_wm_high;
  * LRU purging should be triggered if used space is above high used space
  * watermark.
  */
-static int64_t set_lrulist_trickle_release;
+static bool set_lrulist_trickle_release;
 
 M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
 		   n_linkage, n_magic, M0_BTREE_ND_LIST_MAGIC,
@@ -1857,96 +1857,16 @@ M0_INTERNAL void m0_btree_lrulist_set_wm(int64_t slow_lru_mem_release,
 					 int64_t wm_low, int64_t wm_target,
 					 int64_t wm_high)
 {
-	if (slow_lru_mem_release != -1)
-		set_lrulist_trickle_release = slow_lru_mem_release;
-	else
-		set_lrulist_trickle_release = 0;
+	set_lrulist_trickle_release = (slow_lru_mem_release != 0) ? true :
+								    false;
 
-	if (wm_low == -1 && wm_target == -1 && wm_high == -1) {
-		lru_space_wm_low    = LUSW_LOW;
-		lru_space_wm_target = LUSW_TARGET;
-		lru_space_wm_high   = LUSW_HIGH;
-	} else if (wm_low == -1 && wm_target == -1) {
-		lru_space_wm_low    = LUSW_LOW;
-		lru_space_wm_target = LUSW_TARGET;
-		if (wm_high > LUSW_TARGET && wm_high > LUSW_LOW) {
-			lru_space_wm_high   = wm_high;
-		} else {
-			lru_space_wm_high   = LUSW_HIGH;
-		}
-	} else if (wm_low == -1 && wm_high == -1) {
-		lru_space_wm_low  = LUSW_LOW;
-		lru_space_wm_high = LUSW_HIGH;
-		if (wm_target < LUSW_HIGH &&
-		    (wm_target > LUSW_LOW || wm_target == LUSW_LOW)) {
-			lru_space_wm_target = wm_target;
-		} else {
-			lru_space_wm_target = LUSW_TARGET;
-		}
-	} else if (wm_target == -1 && wm_high == -1) {
-		lru_space_wm_target = LUSW_TARGET;
-		lru_space_wm_high   = LUSW_HIGH;
-		if (wm_low < LUSW_HIGH &&
-		    (wm_low < LUSW_TARGET || wm_low == LUSW_TARGET)) {
-			lru_space_wm_low    = wm_low;
-		} else {
-			lru_space_wm_low    = LUSW_LOW;
-		}
-	} else if (wm_low == -1) {
-		lru_space_wm_low = LUSW_LOW;
-		if ((wm_target > LUSW_LOW || wm_target == LUSW_LOW) &&
-		    wm_target < wm_high) {
-			lru_space_wm_target = wm_target;
-		} else {
-			lru_space_wm_target = LUSW_TARGET;
-		}
+	lru_space_wm_low = (wm_low == 0) ? LUSW_LOW : wm_low;
+	lru_space_wm_target = (wm_target == 0) ? LUSW_TARGET : wm_target;
+	lru_space_wm_high = (wm_high == 0) ? LUSW_HIGH : wm_high;
 
-		if (wm_high > LUSW_LOW && wm_target < wm_high) {
-			lru_space_wm_high = wm_high;
-		} else {
-			lru_space_wm_high = LUSW_HIGH;
-		}
-	} else if (wm_target == -1) {
-		lru_space_wm_target = LUSW_TARGET;
-		if ((wm_low < LUSW_TARGET || wm_low == LUSW_TARGET) &&
-		    wm_low < wm_high) {
-			lru_space_wm_low = wm_low;
-		} else {
-			lru_space_wm_low = LUSW_LOW;
-		}
+	M0_ASSERT(lru_space_wm_high >= lru_space_wm_target &&
+		  lru_space_wm_high >= lru_space_wm_low);
 
-		if (wm_high > wm_low && LUSW_TARGET < wm_high) {
-			lru_space_wm_high = wm_high;
-		} else {
-			lru_space_wm_high = LUSW_HIGH;
-		}
-	} else if (wm_high == -1) {
-		lru_space_wm_high   = LUSW_HIGH;
-		if((wm_low < wm_target || wm_low == wm_target) &&
-		   wm_low < LUSW_HIGH) {
-			lru_space_wm_low = wm_low;
-		} else {
-			lru_space_wm_low = LUSW_LOW;
-		}
-
-		if ((wm_target > wm_low || wm_target == wm_low) &&
-		    wm_target < LUSW_HIGH) {
-			lru_space_wm_target = wm_target;
-		} else {
-			lru_space_wm_target = LUSW_TARGET;
-		}
-	} else {
-		if((wm_low < wm_target || wm_low == wm_target) &&
-		   wm_target < wm_high ) {
-			lru_space_wm_low    = wm_low;
-			lru_space_wm_target = wm_target;
-			lru_space_wm_high   = wm_high;
-		} else {
-			lru_space_wm_low    = LUSW_LOW;
-			lru_space_wm_target = LUSW_TARGET;
-			lru_space_wm_high   = LUSW_HIGH;
-		}
-	}
 	M0_LOG(M0_INFO, "Btree LRU List Watermarks: Low - %"PRIi64" Mid -"
 	       "%"PRIi64" High - %"PRIi64" \n", lru_space_wm_low,
 	       lru_space_wm_target, lru_space_wm_high);

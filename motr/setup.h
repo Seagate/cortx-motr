@@ -347,7 +347,7 @@ struct m0_reqh_context {
 	m0_bcount_t                  rc_addb_record_file_size;
 
 	/** Enable slow remapping of Btree's LRU List */
-	uint8_t                      rc_trickle_release;
+	int64_t                      rc_enable_trickle_release;
 
 	/** Watermark values for Btree's LRU List */
 	int64_t                      rc_lru_wm_low;

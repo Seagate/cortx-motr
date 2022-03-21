@@ -567,27 +567,19 @@ m0_get_core_params()
     fi
 
     if [[ -n "$MOTR_MOD_BTREE_TRICKLE_RELEASE" ]]; then
-        optional_params+=" -t $MOTR_MOD_BTREE_TRICKLE_RELEASE"
-    else
-        optional_params+=" -t $inv_val"
+        optional_params+=" -t $MOTR_M0D_BTREE_ENABLE_TRICKLE_RELEASE"
     fi
 
     if [[ -n "$MOTR_M0D_BTREE_LRU_WM_LOW" ]]; then
         optional_params+=" -X $MOTR_M0D_BTREE_LRU_WM_LOW"
-    else
-        optional_params+=" -X $inv_val"
     fi
 
-    if [[ -n "$MOTR_M0D_BTREE_LRU_WM_MID" ]]; then
-        optional_params+=" -P $MOTR_M0D_BTREE_LRU_WM_MID"
-    else
-        optional_params+=" -P $inv_val"
+    if [[ -n "$MOTR_M0D_BTREE_LRU_WM_TARGET" ]]; then
+        optional_params+=" -P $MOTR_M0D_BTREE_LRU_WM_TARGET"
     fi
 
     if [[ -n "$MOTR_M0D_BTREE_LRU_WM_HIGH" ]]; then
         optional_params+=" -O $MOTR_M0D_BTREE_LRU_WM_HIGH"
-    else
-        optional_params+=" -O $inv_val"
     fi
 
     if m0_genders_has_variable m0_pool_width ; then
