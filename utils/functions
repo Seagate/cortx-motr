@@ -202,6 +202,6 @@ report_and_exit() {
         echo "$name: test status: $status"
     else
         echo "$name: FAILURE $rc" >&2
+        exit $rc
     fi
-    exit $rc
 }
