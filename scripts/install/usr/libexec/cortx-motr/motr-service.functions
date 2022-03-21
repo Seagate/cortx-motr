@@ -512,7 +512,6 @@ m0_get_ios_stob_path_for()
 m0_get_core_params()
 {
     local optional_params
-    local inv_val=-1
 
     if m0_genders_has_variable m0_be_tx_group_tx_nr_max ; then
         optional_params+=" -n $(m0_genders_value_of m0_be_tx_group_tx_nr_max)"
@@ -566,7 +565,7 @@ m0_get_core_params()
         optional_params+=" -J $MOTR_M0D_SNS_BUFFER_POOL_SIZE"
     fi
 
-    if [[ -n "$MOTR_MOD_BTREE_TRICKLE_RELEASE" ]]; then
+    if [[ -n "$MOTR_M0D_BTREE_ENABLE_TRICKLE_RELEASE" ]]; then
         optional_params+=" -t $MOTR_M0D_BTREE_ENABLE_TRICKLE_RELEASE"
     fi
 
