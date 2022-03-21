@@ -109,11 +109,6 @@ for motr_coredir in ${motr_coredirs[@]}; do
 
     # iterate through all core directories of each m0d instance
     for core_dir in $core_dirs ; do
-        # take backup of core file
-        if [[ $core_dir == *"$1"* ]]; then
-           core_file=`find $core_dir -name \*\$2`
-           cp $core_file $core_file.backup
-        fi 
         # get the no. of core file count
         core_files=`find $core_dir -maxdepth 1 -type f -name "core.*"`
         core_files_count=`echo "$core_files" | grep -v "^$" | wc -l`
