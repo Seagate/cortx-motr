@@ -6233,7 +6233,8 @@ M0_INTERNAL void m0_btree_put_credit(const struct m0_btree  *tree,
 	struct m0_be_tx_credit cred = {};
 
 	/* Credits for split operation */
-	btree_node_split_credit(tree, ksize, vsize, &cred);
+	btree_node_split_credit(tree, m0_align(ksize, sizeof(void *)), vsize,
+				&cred);
 	m0_be_tx_credit_mul(&cred, MAX_TREE_HEIGHT);
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
@@ -6273,7 +6274,8 @@ M0_INTERNAL void m0_btree_del_credit(const struct m0_btree  *tree,
 	/* Credits for freeing the node. */
 	bnode_free_credit(tree->t_desc->t_root, &cred);
 	/* Credits for deleting record from the node. */
-	bnode_rec_del_credit(tree->t_desc->t_root, ksize, vsize, &cred);
+	bnode_rec_del_credit(tree->t_desc->t_root,
+			     m0_align(ksize, sizeof(void *)), vsize, &cred);
 	btree_callback_credit(&cred);
 	m0_be_tx_credit_mul(&cred, MAX_TREE_HEIGHT);
 
