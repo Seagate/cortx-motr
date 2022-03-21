@@ -730,9 +730,10 @@ M0_INTERNAL void    m0_btree_glob_fini(void);
 M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size);
 M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 						 int64_t size);
-M0_INTERNAL void    m0_btree_lrulist_set_wm(int64_t slow_lru_mem_release,
-					    int64_t wm_low, int64_t wm_target,
-					    int64_t wm_high);
+M0_INTERNAL void    m0_btree_lrulist_set_lru_config(int64_t slow_lru_mem_release,
+						    int64_t wm_low,
+						    int64_t wm_target,
+						    int64_t wm_high);
 
 #define M0_BTREE_OP_SYNC_WITH_RC(bop, action)                           \
 	({                                                              \

@@ -1451,7 +1451,7 @@ static int64_t lru_space_wm_high;
  * LRU purging should be triggered if used space is above high used space
  * watermark.
  */
-static bool set_lrulist_trickle_release;
+static bool lrulist_trickle_release;
 
 M0_TL_DESCR_DEFINE(ndlist, "node descr list", static, struct nd,
 		   n_linkage, n_magic, M0_BTREE_ND_LIST_MAGIC,
@@ -1853,25 +1853,25 @@ M0_INTERNAL void m0_btree_mod_fini(void)
 	m0_free(mod_get());
 }
 
-M0_INTERNAL void m0_btree_lrulist_set_wm(int64_t slow_lru_mem_release,
-					 int64_t wm_low, int64_t wm_target,
-					 int64_t wm_high)
+M0_INTERNAL void m0_btree_lrulist_set_lru_config(int64_t slow_lru_mem_release,
+						 int64_t wm_low,
+						 int64_t wm_target,
+						 int64_t wm_high)
 {
-	set_lrulist_trickle_release = (slow_lru_mem_release != 0) ? true :
-								    false;
+	lrulist_trickle_release = (slow_lru_mem_release != 0) ? true : false;
 
 	lru_space_wm_low = (wm_low == 0) ? LUSW_LOW : wm_low;
 	lru_space_wm_target = (wm_target == 0) ? LUSW_TARGET : wm_target;
 	lru_space_wm_high = (wm_high == 0) ? LUSW_HIGH : wm_high;
 
 	M0_ASSERT(lru_space_wm_high >= lru_space_wm_target &&
-		  lru_space_wm_high >= lru_space_wm_low);
+		  lru_space_wm_target >= lru_space_wm_low);
 
-	M0_LOG(M0_INFO, "Btree LRU List Watermarks: Low - %"PRIi64" Mid -"
+	M0_LOG(M0_DEBUG, "Btree LRU List Watermarks: Low - %"PRIi64" Mid - "
 	       "%"PRIi64" High - %"PRIi64" \n", lru_space_wm_low,
 	       lru_space_wm_target, lru_space_wm_high);
-	M0_LOG(M0_INFO, "Btree LRU List trickle release: %"PRIi64" \n",
-	       set_lrulist_trickle_release);
+	M0_LOG(M0_INFO, "Btree LRU List trickle release: %s \n",
+	       lrulist_trickle_release == true ? "true" : "false");
 }
 
 /**
