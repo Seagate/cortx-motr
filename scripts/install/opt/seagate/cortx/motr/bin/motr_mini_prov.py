@@ -243,7 +243,7 @@ def get_setup_size(self, service):
     #But in /etc/cortx/cluster.conf io is represented by ios. So first get the service names right
     if service == "io":
          svc = "ios"
-    else
+    else:
          svc = service
     for arr_elem in sevices_limits:
         # For ios, confd we check for setup size according to mem size
