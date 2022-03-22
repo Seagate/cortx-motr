@@ -86,8 +86,6 @@ done
 if [[ $platform = "virtual" ]]; then
 
     core_files_max_count=2
-else
-    core_files_max_count=$((core_files_max_count + 2))
 fi
 
 echo "Max core file count: $core_files_max_count"
@@ -127,14 +125,8 @@ for motr_coredir in ${motr_coredirs[@]}; do
             # (most recently modified comes last), that 
             # is older files comes first
             
-            if [[ $platform = "physical" ]]; then
-                peserve_files=$((core_files_max_count - 2))
-                files_to_remove=$(ls -tr "$core_dir" | grep core | \
-                                     head -n -"$peserve_files" | awk 'NR>2')
-            else
-                files_to_remove=$(ls -tr "$core_dir" | grep core | \
+            files_to_remove=$(ls -tr "$core_dir" | grep core | \
                                      head -n "$remove_file_count")
-            fi
 
             for file in $files_to_remove ; do
                 # remove only if file not sym file
