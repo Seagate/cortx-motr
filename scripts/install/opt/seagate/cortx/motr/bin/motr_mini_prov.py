@@ -54,6 +54,7 @@ ALLIGN_SIZE = 4096
 MACHINE_ID_FILE = "/etc/machine-id"
 TEMP_FID_FILE= "/opt/seagate/cortx/motr/conf/service_fid.yaml"
 CMD_RETRY_COUNT = 5
+MEM_THRESHOLD = 4*1024*1024*1024
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -214,32 +215,32 @@ def get_server_node(self):
 
 def calc_size(self, sz):
     ret = -1
-    total_suffixes = 3 #Ex: K, M, G
-    suffix = []
+    suffixes = ['K', 'Ki', 'Kib', 'M', 'Mi', 'Mib', 'G', 'Gi', 'Gib']
     sz_map = {
               "K": 1024, "M": 1024*1024, "G": 1024*1024*1024,
               "Ki": 1024, "Mi": 1024*1024, "Gi": 1024*1024*1024,
               "Kib": 1024, "Mib": 1024*1024, "Gib": 1024*1024*1024 }
-    for i in range(1, total_suffixes+1):
-        suffix_num_chars = -abs(i)  # Ex: If sz is 128MiB then suffix_num_chars = -3
-        suffix = sz[suffix_num_chars:]  # Ex: If sz is 128MiB then suffix = MiB
-        if suffix in sz_map.keys():
-            num_sz = int(sz[0:suffix_num_chars]) # Ex: If sz is 128MiB then num_sz=128
-            map_val=sz_map[suffix] # Ex: If sz is 128MiB then map_val = 1024*1024*1024
-            ret = num_sz * map_val
-            return ret
-    self.logger.error(f"Invalid format of mem limit: {sz}\n")
-    self.logger.error("Please use valid format Ex: 1024, 1Ki, 1Mi, 1Gi etc..\n")
 
-def get_setup_size(self):
+    # Check if sz ends with proper suffixes. It matches only one suffix.
+    temp = list(filter(sz.endswith, suffixes))
+    if len(temp) > 0:
+        suffix = temp[0]
+        num_sz = re.sub(r'[^0-9]', '', sz) # Ex: If sz is 128MiB then num_sz=128
+        map_val = sz_map[suffix] # Ex: If sz is 128MiB then map_val = 1024*1024*1024
+        ret = int(num_sz) * int(map_val)
+        return ret
+    else:
+        self.logger.error(f"Invalid format of mem limit: {sz}\n")
+        self.logger.error("Please use valid format Ex: 1024, 1Ki, 1Mi, 1Gi etc..\n")
+        return ret
+
+def get_setup_size(self, service):
     ret = False
-    MEM_THRESHOLD = 4*1024*1024*1024
     sevices_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
 
     for arr_elem in sevices_limits:
-        # For ios, we check for setup size according to mem size
-        # For confd, setup size is small which is default one.
-        if arr_elem['name'] == 'ios':
+        # For ios, confd we check for setup size according to mem size
+        if arr_elem['name'] == service:
             min_mem = arr_elem['memory']['min']
 
             if min_mem.isnumeric():
@@ -252,15 +253,18 @@ def get_setup_size(self):
             # Invalid min mem format
             if sz < 0:
                 ret = False
+                break
             # If mem limit in ios > 4G then it is large setup size
             elif sz > MEM_THRESHOLD:
                 self.setup_size = "large"
                 self.logger.info(f"setup_size set to {self.setup_size}\n")
                 ret = True
+                break
             else:
                 self.setup_size = "small"
                 self.logger.info(f"setup_size set to {self.setup_size}\n")
                 ret = True
+                break
     return ret
 
 def get_value(self, key, key_type):
