@@ -2239,12 +2239,16 @@ static void bnode_put(struct node_op *op, struct nd *node)
 		 */
 		ndlist_tlist_del(node);
 		ndlist_tlist_add(&btree_lru_nds, node);
+		lru_space_used += (m0_be_chunk_header_size() + node->n_size);
 		#ifndef __KERNEL__
+		lru_trickle_release_mode = (lru_trickle_release_en &&
+					    lru_space_used > lru_space_wm_high)
+					   ? M0_BTREE_TRICKLE_RELEASE_MODE_ON :
+					     M0_BTREE_TRICKLE_RELEASE_MODE_OFF;
 		bytes_to_purge = lru_trickle_release_mode ?
 				 ((m0_be_chunk_header_size() + node->n_size) *
 			    	  M0_BTREE_TRICKLE_MULTIPLIER) : 0;
 		#endif
-		lru_space_used += (m0_be_chunk_header_size() + node->n_size);
 		purge_check = true;
 
 		is_root_node = node->n_tree->t_root == node;
@@ -8632,9 +8636,9 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 	 * target watermark. For external user, purge lrulist till low watermark
 	 * or size whichever is higher.
 	 */
-	lru_trickle_release_mode = lru_trickle_release_en ?
-				   M0_BTREE_TRICKLE_RELEASE_MODE_ON :
-				   M0_BTREE_TRICKLE_RELEASE_MODE_OFF;
+	// lru_trickle_release_mode = lru_trickle_release_en ?
+	// 			   M0_BTREE_TRICKLE_RELEASE_MODE_ON :
+	// 			   M0_BTREE_TRICKLE_RELEASE_MODE_OFF;
 	size_to_purge = user == M0_PU_BTREE ?
 			(lru_trickle_release_mode ?
 			 min64(lru_space_used - lru_space_wm_target, size) :
