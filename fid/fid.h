@@ -78,9 +78,9 @@ M0_INTERNAL void m0_fid_fini(void);
 
 enum {
 	/** Clears high 8 bits off. */
-	M0_FID_TYPE_MASK        = 0x00ffffffffffffffULL,
+	M0_FID_TYPE_MASK         = 0x00ffffffffffffffULL,
 	M0_FID_DYNAMIC_BITS_MASK = 0x00000000FFFFFFFFULL,
-	M0_FID_STR_LEN          = 64,
+	M0_FID_STR_LEN           = 64,
 };
 
 #define FID_F "<%" PRIx64 ":%" PRIx64 ">"
