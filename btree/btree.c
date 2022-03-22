@@ -1421,9 +1421,12 @@ static int64_t lru_space_used;
 
 /** Lru used space watermark default values. */
 enum lru_used_space_watermark{
-	LUSW_LOW    = 2 * 1024 * 1024 * 1024ULL,
-	LUSW_TARGET = 3 * 1024 * 1024 * 1024ULL,
-	LUSW_HIGH   = 4 * 1024 * 1024 * 1024ULL,
+	// LUSW_LOW    = 2 * 1024 * 1024 * 1024ULL,
+	// LUSW_TARGET = 3 * 1024 * 1024 * 1024ULL,
+	// LUSW_HIGH   = 4 * 1024 * 1024 * 1024ULL,
+	LUSW_LOW    = 200 * 1024 * 1024ULL,
+	LUSW_TARGET = 300 * 1024 * 1024ULL,
+	LUSW_HIGH   = 400 * 1024 * 1024ULL,
 };
 
 /**
@@ -1815,7 +1818,7 @@ M0_INTERNAL void m0_btree_glob_init(void)
 	#ifndef __KERNEL__
 	lru_trickle_release_mode = M0_BTREE_TRICKLE_RELEASE_MODE_OFF;
 	#endif
-	lru_trickle_release_en   = false;
+	lru_trickle_release_en   = true; //false;
 	lru_space_used           = 0;
 	lru_space_wm_low         = LUSW_LOW;
 	lru_space_wm_target      = LUSW_TARGET;
@@ -8617,7 +8620,7 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 
 		if (size_to_purge != 0) {
 			purged_size = m0_btree_lrulist_purge(size_to_purge);
-			M0_LOG(M0_INFO, " Below critical External user Purge,"
+			M0_LOG(M0_ALWAYS, " Below critical External user Purge,"
 			       " requested size=%"PRId64" used space=%"PRId64
 			       " purged size=%"PRId64, size, lru_space_used,
 			       purged_size);
@@ -8638,7 +8641,7 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 			 (lru_space_used - lru_space_wm_target)) :
 			min64(lru_space_used - lru_space_wm_low, size);
 	purged_size = m0_btree_lrulist_purge(size_to_purge);
-	M0_LOG(M0_INFO, " Above critical purge, User=%s requested size="
+	M0_LOG(M0_ALWAYS, " Above critical purge, User=%s requested size="
 	       "%"PRId64" used space=%"PRIu64" purged size="
 	       "%"PRIu64, user == M0_PU_BTREE ? "btree" : "external", size,
 	       lru_space_used, purged_size);
