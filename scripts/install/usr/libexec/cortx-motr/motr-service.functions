@@ -580,6 +580,22 @@ m0_get_core_params()
         optional_params+=" -J $MOTR_M0D_SNS_BUFFER_POOL_SIZE"
     fi
 
+    if [[ -n "$MOTR_M0D_BTREE_ENABLE_TRICKLE_RELEASE" ]]; then
+        optional_params+=" -t $MOTR_M0D_BTREE_ENABLE_TRICKLE_RELEASE"
+    fi
+
+    if [[ -n "$MOTR_M0D_BTREE_LRU_WM_LOW" ]]; then
+        optional_params+=" -X $MOTR_M0D_BTREE_LRU_WM_LOW"
+    fi
+
+    if [[ -n "$MOTR_M0D_BTREE_LRU_WM_TARGET" ]]; then
+        optional_params+=" -P $MOTR_M0D_BTREE_LRU_WM_TARGET"
+    fi
+
+    if [[ -n "$MOTR_M0D_BTREE_LRU_WM_HIGH" ]]; then
+        optional_params+=" -O $MOTR_M0D_BTREE_LRU_WM_HIGH"
+    fi
+
     if m0_genders_has_variable m0_pool_width ; then
         optional_params+=" -w $(m0_genders_value_of m0_pool_width)"
     fi
