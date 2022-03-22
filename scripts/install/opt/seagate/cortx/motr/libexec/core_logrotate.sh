@@ -132,8 +132,8 @@ for motr_coredir in ${motr_coredirs[@]}; do
                 files_to_remove=$(ls -tr "$core_dir" | grep core | \
                                      head -n -"$peserve_files" | awk 'NR>2')
             else
-                files_to_remove=`ls -tr "$core_dir" | grep core | \
-                                     head -n $remove_file_count`
+                files_to_remove=$(ls -tr "$core_dir" | grep core | \
+                                     head -n "$remove_file_count")
             fi
 
             for file in $files_to_remove ; do
