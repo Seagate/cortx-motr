@@ -238,9 +238,16 @@ def get_setup_size(self, service):
     ret = False
     sevices_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
 
+    #Provisioner passes io as parameter to motr_setup.
+    #Ex: /opt/seagate/cortx/motr/bin/motr_setup config --config yaml:///etc/cortx/cluster.conf --services io
+    #But in /etc/cortx/cluster.conf io is represented by ios. So first get the service names right
+    if service == "io":
+         svc = "ios"
+    else
+         svc = service
     for arr_elem in sevices_limits:
         # For ios, confd we check for setup size according to mem size
-        if arr_elem['name'] == service:
+        if arr_elem['name'] == svc:
             min_mem = arr_elem['memory']['min']
 
             if min_mem.isnumeric():
