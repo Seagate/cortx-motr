@@ -22,7 +22,8 @@
 #ifndef __MOTR_CONF_PVERS_H__
 #define __MOTR_CONF_PVERS_H__
 
-#include "conf/obj.h"  /* m0_conf_pver_kind */
+#include "conf/obj.h"   /* m0_conf_pver_kind */
+#include "conf/confc.h" /* m0_confc */
 
 /**
  * @defgroup conf-pvers
@@ -105,6 +106,47 @@
  *
  * @{
  */
+
+/**
+ * State is determined by counting the number of failures in the cluster.
+ */
+enum m0_conf_pver_state {
+	M0_CPS_HEALTHY,      /* Failures == 0 */
+	M0_CPS_DEGRADED,     /* Failures < K */
+	M0_CPS_CRITICAL,     /* Failures == K */
+	M0_CPS_DAMAGED,      /* Failures > K */
+	M0_CPS_NR
+};
+
+/**
+ * Contains current state of the pool version according to the number of
+ * failures in the pool version and some attributes describing the pool version.
+ */
+struct m0_conf_pver_info {
+	struct m0_fid            cpi_fid;
+
+        /** Layout attributes associated with this pool version. */
+        struct m0_pdclust_attr   cpi_attr;
+
+	/** State of the pool version determined by number of failures */
+	enum m0_conf_pver_state  cpi_state;
+};
+
+/**
+ * Returns the status of the pool version according to number of failed srecd
+ * objects in the pool version.
+ *
+ * @param  fid      fid of the pool version whose status is queried.
+ * @param  out_info out parameter which will contain status along with 
+ *                  some pdclust attributes of pool version.
+ * @param  confc    configuration client for accessing the conf root.
+ * @pre    fid != NULL
+ * @pre    confc != NULL
+ * @return rc of the function.
+ */
+int m0_conf_pver_status(struct m0_fid *fid,
+			struct m0_confc *confc,
+			struct m0_conf_pver_info *out_info);
 
 /**
  * Returns a pool version with online elements only.

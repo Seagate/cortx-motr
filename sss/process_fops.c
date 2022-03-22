@@ -118,6 +118,21 @@ static bool ss_fop_is_process_svc_list_rep(const struct m0_fop *fop)
 	return fop->f_type == &m0_fop_process_svc_list_rep_fopt;
 }
 
+M0_INTERNAL void m0_ss_process_rep_fop_release(struct m0_ref *ref)
+{
+	struct m0_ss_process_rep *rep;
+	struct m0_fop            *fop = container_of(ref, struct m0_fop, f_ref);
+
+	M0_PRE(fop != NULL);
+	M0_PRE(ss_fop_is_process_rep(fop));
+
+	rep = m0_fop_data(fop);
+	m0_buf_free(&rep->sspr_bckey);
+	m0_buf_free(&rep->sspr_bcrec);
+	m0_fop_fini(fop);
+	m0_free(fop);
+}
+
 
 M0_INTERNAL void m0_ss_process_stop_fop_release(struct m0_ref *ref)
 {
