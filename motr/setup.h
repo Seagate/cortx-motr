@@ -345,6 +345,14 @@ struct m0_reqh_context {
 
 	/** ADDB Record Max record size in bytes */
 	m0_bcount_t                  rc_addb_record_file_size;
+
+	/** Enable slow remapping of Btree's LRU List */
+	int64_t                      rc_enable_trickle_release;
+
+	/** Watermark values for Btree's LRU List */
+	int64_t                      rc_lru_wm_low;
+	int64_t                      rc_lru_wm_mid;
+	int64_t                      rc_lru_wm_high;
 };
 
 /**
