@@ -444,7 +444,7 @@ def add_entry_to_logrotate_conf_file(self):
     mini_prov_conf_file = f"{MOTR_M0D_DATA_DIR}/mini_prov_logrotate.conf"
 
     indent=' '*4
-    lines=["{a} {b}\n".format(a=log_file, b='{'),
+    lines=["{a} {b}\n".format(a=self.logfile, b='{'),
            f"{indent}hourly\n",
            f"{indent}size 10M\n",
            f"{indent}rotate 4\n",
@@ -1473,7 +1473,11 @@ def start_service(self, service, idx):
     fid = fetch_fid(self, service, idx)
     if fid == -1:
         return -1
-
+    #Run log rotate in background to avoid delay in startup
+    cmd = "/opt/seagate/cortx/motr/libexec/m0trace_logrotate.sh &"
+    execute_command(self, cmd)
+    cmd = "/opt/seagate/cortx/motr/libexec/m0addb_logrotate.sh &"
+    execute_command(self, cmd) 
     #Start motr services
     cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
     execute_command_console(self, cmd)
