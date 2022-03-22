@@ -876,6 +876,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	uint32_t                     segnext;
 	uint32_t                     ndom_max_segs;
 	struct m0_client             *instance;
+	void                         *parity_addr = NULL;
 
 	M0_ENTRY("prepare io fops for target ioreq %p filter 0x%x, tfid "FID_F,
 		 ti, filter, FID_P(&ti->ti_fid));
@@ -1107,13 +1108,32 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			rw_fop->crw_cksum_size = (read_in_write ||
 						 !m0__obj_is_di_enabled(ioo)) ?
 						 0 : ioo->ioo_attr.ov_vec.v_count[0];
+			rw_fop->crw_type = 1;
 		}
 		else {
-			rw_fop->crw_di_data_cksum.b_addr = NULL;
-			rw_fop->crw_di_data_cksum.b_nob  = 0;
-			rw_fop->crw_cksum_size = 0;
-		}
+			if (m0_is_write_fop(&iofop->if_fop) && m0__obj_is_di_enabled(ioo) && !read_in_write)	{
+				rw_fop->crw_type = 2;
+				parity_addr = m0_alloc(128);
+            	memset(parity_addr, 9, 128);
+				/* RPC layer to free crw_di_data_cksum */
+				if ( m0_buf_alloc(&rw_fop->crw_di_data_cksum, 128) != 0 )
+					goto fini_fop;
 
+				memcpy( rw_fop->crw_di_data_cksum.b_addr,
+						parity_addr,
+						128 );
+				rw_fop->crw_di_data_cksum.b_nob = 128;
+				rw_fop->crw_cksum_size = 128;
+				M0_LOG(M0_ALWAYS,"rajat parity : %02x", ((int *)rw_fop->crw_di_data_cksum.b_addr)[0]);
+			}
+			else {
+				rw_fop->crw_di_data_cksum.b_addr = NULL;
+				rw_fop->crw_di_data_cksum.b_nob = 0;
+				rw_fop->crw_cksum_size = 128;
+			}
+		}
+		rw_fop->crw_dummy_id = m0_dummy_id_generate();
+		M0_LOG(M0_ALWAYS,"rajat [%s] crw id : %"PRIu64, filter == PA_DATA ? "DATA" : "PARITY",rw_fop->crw_dummy_id);
 
 		if (ioo->ioo_flags & M0_OOF_SYNC)
 			rw_fop->crw_flags |= M0_IO_FLAG_SYNC;

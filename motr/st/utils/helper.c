@@ -119,7 +119,7 @@ static int alloc_vecs(struct m0_indexvec *ext, struct m0_bufvec *data,
 		return rc;
 	}
 	num_unit_per_op = (block_count * block_size)/usz;
-	M0_LOG(M0_DEBUG,"NU : %d, BC : %d, BS : %d, US : %d", (int)num_unit_per_op,
+	M0_LOG(M0_ALWAYS,"NU : %d, BC : %d, BS : %d, US : %d", (int)num_unit_per_op,
 			(int)block_count,(int)block_size,(int)usz);
 	if (num_unit_per_op && attr) {
 		rc = m0_bufvec_alloc(attr, num_unit_per_op, max_cksum_size());
@@ -484,6 +484,7 @@ int m0_write(struct m0_container *container, char *src,
 	instance = container->co_realm.re_instance;
 	m0_obj_init(&obj, &container->co_realm, &id,
 		    m0_client_layout_id(instance));
+	M0_LOG(M0_ALWAYS,"rajat di_flag : %d",di_flag);
 	if (di_flag)
 		obj.ob_entity.en_flags |= M0_ENF_DI;
 	rc = lock_ops->olo_lock_init(&obj);
@@ -919,6 +920,9 @@ int m0_write_cc(struct m0_container *container,
 		rc = alloc_prepare_vecs(&ext, &data, &attr, bcount,
 					       block_size, &last_index, usz);
 		if (rc == -EINVAL) {
+			M0_LOG(M0_ERROR, "Invalid block size : [%d:%d] for required \
+							 unit size : %d", (int)bcount, (int)block_size,
+							 (int)usz);
 			obj.ob_entity.en_flags &= ~M0_ENF_DI;
 			rc = 0;
 		}

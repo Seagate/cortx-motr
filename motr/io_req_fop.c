@@ -306,7 +306,16 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	/* Check errors in an IO request's reply. */
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
 	rw_reply = io_rw_rep_get(reply_fop);
-
+	if (m0_is_read_fop(reply_fop))
+		M0_LOG(M0_ALWAYS,"rajat in io_bottom while read");
+	if (irfop->irf_pattr == PA_PARITY){
+		M0_LOG(M0_ALWAYS,"rajat id : [%"PRIu64"] ", rwfop->crw_dummy_id);
+		if (rw_reply->rwr_di_data_cksum.b_addr)
+			M0_LOG(M0_ALWAYS,"rajat [%"PRIu64"] parity data : %02x", rwfop->crw_dummy_id,((int *)rw_reply->rwr_di_data_cksum.b_addr)[0]);
+		else
+			M0_LOG(M0_ALWAYS,"rajat , baddress is null");
+		
+	}
 	/*
 	 * Copy attributes to client if reply received from read operation
 	 * Skipping attribute_copy() if cksum validation is not allowed.
@@ -319,7 +328,8 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 		application_attribute_copy(&rep_attr_ivec, tioreq, ioo,
 					   &rw_reply->rwr_di_data_cksum);
-
+		if (irfop->irf_pattr == PA_PARITY)
+			M0_LOG(M0_ALWAYS,"rajat ,[%"PRIu64"] parity data : %02x", rwfop->crw_dummy_id, ((int *)rw_reply->rwr_di_data_cksum.b_addr)[0]);
 		m0_indexvec_free(&rep_attr_ivec);
 	}
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;
@@ -678,7 +688,6 @@ M0_INTERNAL int ioreq_fop_async_submit(struct m0_io_fop      *iofop,
 	struct m0_fop_cob_rw *rwfop;
 	struct m0_rpc_item   *item;
 
-	M0_ENTRY("m0_io_fop %p m0_rpc_session %p", iofop, session);
 
 	M0_PRE(iofop != NULL);
 	M0_PRE(session != NULL);
@@ -696,6 +705,7 @@ M0_INTERNAL int ioreq_fop_async_submit(struct m0_io_fop      *iofop,
 	item->ri_session = session;
 	item->ri_nr_sent_max = M0_RPC_MAX_RETRIES;
 	item->ri_resend_interval = M0_RPC_RESEND_INTERVAL;
+	M0_ENTRY("m0_io_fop %p m0_rpc_session %p item = %p", iofop, session, item);
 	rc = m0_rpc_post(item);
 	M0_LOG(M0_INFO, "IO fops submitted to rpc, rc = %d", rc);
 

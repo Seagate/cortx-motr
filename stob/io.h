@@ -416,6 +416,7 @@ struct m0_stob_io {
 	m0_bcount_t                 si_cksum_sz;
 	/* Size of checksum actually put into buffer*/
 	m0_bcount_t si_cksum_nob_read;
+	struct m0_fop_cob_rw       *si_rwfop;
 };
 
 struct m0_stob_io_op {

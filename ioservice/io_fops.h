@@ -416,6 +416,8 @@ struct m0_fop_cob_rw {
 	struct m0_buf		  crw_di_data;
 	/** Checksum value used for write operation for read it will be unused */
 	struct m0_buf		  crw_di_data_cksum;
+	int                   crw_type;
+	uint64_t              crw_dummy_id;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**

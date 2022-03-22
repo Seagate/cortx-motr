@@ -1313,7 +1313,6 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		}
 
 	}
-
 	if (dir == CD_COPY_TO_APP) {
 		/* verify the checksum during data read.
 		 * skip checksum verification during degraded I/O

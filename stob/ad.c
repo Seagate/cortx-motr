@@ -52,6 +52,7 @@
 #include "stob/stob_internal.h"	/* m0_stob__fid_set */
 #include "stob/type.h"		/* m0_stob_type */
 #include "be/domain.h"
+#include "ioservice/io_fops.h"
 
 /**
  * @addtogroup stobad
@@ -1320,7 +1321,7 @@ static void  stob_ad_get_checksum_for_fragment(struct m0_stob_io *io,
 
 		// copy from source to client buffer
 		memcpy(dst, src, checksum_nob);
-
+		M0_LOG(M0_ALWAYS,"rajat [%"PRId64"] parity data : %02x", io->si_rwfop->crw_dummy_id,((int *)dst)[0]);
 		// update checksum fill count for stio
 		io->si_cksum_nob_read += checksum_nob;
 		M0_ASSERT(io->si_cksum_nob_read <= io->si_cksum.b_nob);

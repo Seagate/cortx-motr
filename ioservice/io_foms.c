@@ -1756,6 +1756,7 @@ static int io_launch(struct m0_fom *fom)
 		stio        = &stio_desc->siod_stob_io;
 		stob        = fom_obj->fcrw_stob;
 		mem_ivec    = &stio->si_stob;
+		stio->si_rwfop = rwfop;
 		stobio_tlink_init(stio_desc);
 
 		M0_ADDB2_ADD(M0_AVI_FOM_TO_STIO, fom->fo_sm_phase.sm_id,
@@ -2144,7 +2145,6 @@ static int stob_io_create(struct m0_fom *fom)
 				stio->si_cksum.b_addr = rwfop->crw_di_data_cksum.b_addr +
 										curr_cksum_nob;
 			}
-
 			/** Increment the current cksum count */
 			curr_cksum_nob += stio->si_cksum.b_nob;
 		}
@@ -2247,7 +2247,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 
 	rwfop = io_rw_get(fom->fo_fop);
 
-	M0_ENTRY("fom %p, fop %p, item %p[%u] %s" FID_F, fom, fom->fo_fop,
+	M0_ENTRY("dummy_id [%"PRIu64"] ,fom %p, fop %p, item %p[%u] %s" FID_F, rwfop->crw_dummy_id,fom, fom->fo_fop,
 		 m0_fop_to_rpc_item(fom->fo_fop), m0_fop_opcode(fom->fo_fop),
 		 m0_fom_phase_name(fom, phase),
 		 FID_P(&rwfop->crw_fid));
@@ -2332,6 +2332,9 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);
 		rwrep->rwr_count = fom_obj->fcrw_count << fom_obj->fcrw_bshift;
+		if (rwrep->rwr_di_data_cksum.b_addr)
+			M0_LOG(M0_ALWAYS,"POC : read path data : %02x, fom : %p", ((int *)rwrep->rwr_di_data_cksum.b_addr)[0], fom);
+		
 		/* Information about the transaction for this update op. */
 		m0_fom_mod_rep_fill(&rwrep->rwr_mod_rep, fom);
 		return M0_RC(rc);
