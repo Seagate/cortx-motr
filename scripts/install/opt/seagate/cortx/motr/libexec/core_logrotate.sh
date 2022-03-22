@@ -21,7 +21,7 @@
 # script is used to delete the old core files
 # argument1: <number of latest core files to retain>
 # Default number of latest core files is 2
-# ./core_logrotate.sh 5
+# ./core_logrotate.sh -n 5
 
 source "/opt/seagate/cortx/motr/common/cortx_util_funcs.sh"
 
@@ -83,8 +83,7 @@ while getopts ":n:" option; do
     esac
 done
 
-if [[ $platform = "virtual" ]]; then
-
+if [[ $platform = "virtual" && $core_files_max_count -gt 2 ]]; then
     core_files_max_count=2
 fi
 
@@ -119,7 +118,7 @@ for motr_coredir in ${motr_coredirs[@]}; do
             remove_file_count=$((core_files_count - core_files_max_count))
 
             echo "## ($remove_file_count) file(s) can be removed from \
-                           core directory($core_dir) ##"               
+                           core directory($core_dir) ##"
 
             # get the files sorted by time modified 
             # (most recently modified comes last), that 
