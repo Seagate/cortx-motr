@@ -1408,10 +1408,10 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 			M0_ASSERT(rc == 0);
 		}
 		else
-			rc= M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						     m0_btree_put(btree, &rec,
-								  &cb, &kv_op,
-								  tx));
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						      m0_btree_put(btree, &rec,
+								   &cb, &kv_op,
+								   tx));
 		m0_be_op_done(beop);
 		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_META): {
@@ -2417,7 +2417,8 @@ M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
 	/* Firstly we should free buffer allocated for imask ranges array. */
 	rc = m0_ctg_ctidx_lookup_sync(&cid->ci_fid, &layout);
 	if (rc != 0)
-		return rc;
+		return M0_ERR(rc);
+
 	imask = &layout->u.dl_desc.ld_imask;
 	if (!m0_dix_imask_is_empty(imask)) {
 		/** @todo Make it asynchronous. */
@@ -2437,7 +2438,7 @@ M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
 							   &kv_op, tx));
 
 	m0_chan_broadcast_lock(&ctidx->cc_chan.bch_chan);
-	return rc;
+	return rc == 0 ? rc : M0_ERR(rc);
 }
 
 M0_INTERNAL int m0_ctg_mem_place(struct m0_ctg_op    *ctg_op,
@@ -2608,13 +2609,8 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 	for (rc = m0_btree_cursor_first(&cursor); rc == 0;
 	     rc = m0_btree_cursor_next(&cursor)) {
 		m0_btree_cursor_kv_get(&cursor, &key, &val);
-<<<<<<< HEAD
 		fkey = key.b_addr;
 		out_fid = fkey->fk_fid;
-=======
-		memcpy(&out_fid, key.b_addr + M0_CAS_CTG_KV_HDR_SIZE,
-		      sizeof(out_fid));
->>>>>>> Changes to fix compile errors after rebase.
 		if (!m0_dix_fid_validate_cctg(&out_fid))
 			continue;
 		m0_dix_fid_convert_cctg2dix(&out_fid, &gfid);
