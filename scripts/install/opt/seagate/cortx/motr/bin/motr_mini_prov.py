@@ -1,4 +1,4 @@
-#!/usr/libexec/platform-python
+#!/usr/bin/env python3
 #
 # Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
 #
@@ -50,6 +50,7 @@ MACHINE_ID_LEN = 32
 MOTR_LOG_DIRS = [LOGDIR, MOTR_LOG_DIR]
 BE_LOG_SZ = 4*1024*1024*1024 #4G
 BE_SEG0_SZ = 128 * 1024 *1024 #128M
+ALLIGN_SIZE 4096
 MACHINE_ID_FILE = "/etc/machine-id"
 TEMP_FID_FILE= "/opt/seagate/cortx/motr/conf/service_fid.yaml"
 CMD_RETRY_COUNT = 5
@@ -213,24 +214,31 @@ def get_server_node(self):
 
 def calc_size(self, sz):
     ret = -1
-
-    sz_map = {"Ki": 1024, "Mi": 1024*1024, "Gi": 1024*1024*1024}
-    suffix = sz[-2:]
-    num_sz = int(sz[0:-2])
-    if suffix in sz_map.keys():
-        map_val=sz_map[suffix]
-        ret = num_sz * map_val
-    else:
-        self.logger.error(f"Invalid format of mem limit: {sz}\n")
-        self.logger.error("Please use valid format Ex: 1024, 1Ki, 1Mi, 1Gi etc..\n")
-    return ret
+    total_suffixes = 3 #Ex: K, M, G
+    suffix = []
+    sz_map = {
+              "K": 1024, "M": 1024*1024, "G": 1024*1024*1024,
+              "Ki": 1024, "Mi": 1024*1024, "Gi": 1024*1024*1024,
+              "Kib": 1024, "Mib": 1024*1024, "Gib": 1024*1024*1024 }
+    for i in range(1, total_suffixes+1):
+        suffix_num_chars = -abs(i)  # Ex: If sz is 128MiB then suffix_num_chars = -3
+        suffix = sz[suffix_num_chars:]  # Ex: If sz is 128MiB then suffix = MiB
+        if suffix in sz_map.keys():
+            num_sz = int(sz[0:suffix_num_chars]) # Ex: If sz is 128MiB then num_sz=128
+            map_val=sz_map[suffix] # Ex: If sz is 128MiB then map_val = 1024*1024*1024
+            ret = num_sz * map_val
+            return ret
+    self.logger.error(f"Invalid format of mem limit: {sz}\n")
+    self.logger.error("Please use valid format Ex: 1024, 1Ki, 1Mi, 1Gi etc..\n")
 
 def get_setup_size(self):
     ret = False
-    MAX_4G = 4*1024*1024*1024
+    MEM_THRESHOLD = 4*1024*1024*1024
     sevices_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
 
     for arr_elem in sevices_limits:
+        # For ios, we check for setup size according to mem size
+        # For confd, setup size is small which is default one.
         if arr_elem['name'] == 'ios':
             min_mem = arr_elem['memory']['min']
 
@@ -245,7 +253,7 @@ def get_setup_size(self):
             if sz < 0:
                 ret = False
             # If mem limit in ios > 4G then it is large setup size
-            elif sz > MAX_4G:
+            elif sz > MEM_THRESHOLD:
                 self.setup_size = "large"
                 self.logger.info(f"setup_size set to {self.setup_size}\n")
                 ret = True
@@ -812,7 +820,7 @@ def update_bseg_size(self):
     for i in range(md_len):
         lvm_min_size = calc_lvm_min_size(self, md_disks[i], lvm_min_size)
     if lvm_min_size:
-        align_val(lvm_min_size, 4096)
+        align_val(lvm_min_size, ALLIGN_SIZE)
         self.logger.info(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
         cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
         execute_command(self, cmd)

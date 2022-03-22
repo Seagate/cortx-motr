@@ -62,6 +62,8 @@ class Cmd:
         self.logfile =  f"{self.log_path_motr}/mini_provisioner"
         self.logger = config_logger(self)
 
+        # Default setup size is small
+        self.setup_size = "small"
         if get_setup_size(self) == False:
             self.logger.error("setup size not set properly\n")
             return
