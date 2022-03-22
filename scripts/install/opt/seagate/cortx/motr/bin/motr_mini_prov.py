@@ -34,6 +34,8 @@ MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-start"
 MOTR_MKFS_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-mkfs"
 MOTR_FSM_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-free-space-monitor"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
+MOTR_MINI_PROV_LOGROTATE_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_mini_prov_logrotate.sh"
+CROND_DIR = "/etc/cron.hourly"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 LIBFAB_CONF_FILE = "/etc/libfab.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
@@ -447,6 +449,7 @@ def add_entry_to_logrotate_conf_file(self):
            f"{indent}size 10M\n",
            f"{indent}rotate 4\n",
            f"{indent}delaycompress\n",
+           f"{indent}copytruncate\n",
            "{a}\n".format(a='}')]
     with open(f"{mini_prov_conf_file}", 'w+') as fp:
         for line in lines:
@@ -1449,9 +1452,12 @@ def start_service(self, service, idx):
         execute_command_verbose(self, cmd, set_timeout=False)
         return
 
+    # Copy mini prov logrotate script
+    cmd = f"cp {MOTR_MINI_PROV_LOGROTATE_SCRIPT} {CROND_DIR}"
+    execute_command(self, cmd)
     # Start crond service
     cmd = f"/usr/sbin/crond start"
-    execute_command_verbose(self, cmd, set_timeout=False)
+    execute_command(self, cmd, timeout_secs=120)
 
     # Copy confd_path to /etc/sysconfig
     # confd_path = MOTR_M0D_CONF_DIR/confd.xc

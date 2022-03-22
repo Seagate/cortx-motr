@@ -17,11 +17,10 @@
 # For any questions about this software or licensing,
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
-/usr/sbin/logrotate /etc/cortx/motr/mini_prov_logrotate.conf
-EXITVALUE=$?
-
-if [ $EXITVALUE == 0 ]; then
-    echo "Atul on 23 in motr_mini_prov_logrotate.sh....." >> /etc/cortx/atul
+LOGROTATE_CONF_FILE=/etc/cortx/motr/mini_prov_logrotate.conf
+if [[ -f "$LOGROTATE_CONF_FILE" ]]; then
+    /usr/sbin/logrotate $LOGROTATE_CONF_FILE
+    EXITVALUE=$?
 fi
 
 if [ $EXITVALUE != 0 ]; then

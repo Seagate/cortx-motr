@@ -371,7 +371,7 @@ misc_files() {
     fi
 
     if [ -f ${MOTR_MINI_PROV_LOG_DIR} ]; then
-        cp ${MOTR_MINI_PROV_LOG_DIR} $outdir/
+        cp ${MOTR_MINI_PROV_LOG_DIR}* $outdir/
     fi
 
 
