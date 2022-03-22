@@ -109,6 +109,8 @@ struct m0_conf_cache {
 	 * fids of newly created m0_conf_objv objects.
 	 */
 	uint64_t         ca_fid_counter;
+
+	bool             ca_is_phony;
 };
 
 /** Initialises configuration cache. */
@@ -175,6 +177,10 @@ M0_INTERNAL bool m0_conf_cache_contains(struct m0_conf_cache *cache,
  *
  * Returns NULL if there is no such object in the cache.
  */
+M0_INTERNAL struct m0_conf_obj *
+m0_conf_cache_lookup_dynamic(const struct m0_conf_cache *cache,
+			     const struct m0_fid *id);
+
 M0_INTERNAL struct m0_conf_obj *
 m0_conf_cache_lookup(const struct m0_conf_cache *cache,
 		     const struct m0_fid *id);

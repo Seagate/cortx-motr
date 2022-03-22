@@ -39,6 +39,7 @@
 #include "lib/errno.h"        /* ENOMEM, EPROTO */
 #include "lib/memory.h"       /* M0_ALLOC_ARR, m0_free */
 #include "lib/finject.h"
+#include "conf/dir.h"          /* m0_conf_dir_add */
 
 /**
  * @page confc-lspec confc Internals
@@ -478,6 +479,85 @@ static int confc_cache_create(struct m0_confc *confc,
 
 	if (not_empty(local_conf))
 		rc = confc_cache_preload(confc, local_conf);
+	return M0_RC(rc);
+}
+
+/** Create m0_conf_dir objects for m0_conf_process. */
+static int confc_cache_process_dirs_create(struct m0_conf_process *process)
+{
+	return M0_RC(m0_conf_dir_new(&process->pc_obj,
+				     &M0_CONF_PROCESS_SERVICES_FID,
+				     &M0_CONF_SERVICE_TYPE, NULL,
+				     &process->pc_services));
+}
+
+M0_INTERNAL int m0_confc_cache_add_service(struct m0_conf_cache    *cache,
+					   const struct m0_fid     *process_fid,
+					   struct m0_conf_obj      *base_obj,
+					   struct m0_conf_obj      **new_obj)
+{
+	M0_LOG(M0_ERROR,"This is dummy function to add dynamic service fid"
+		        "Ideally we should not land here until dynamic service"
+		        "FID's are implemented");
+	return M0_RC(0);
+}
+
+M0_INTERNAL int m0_confc_cache_add_process(struct m0_conf_cache    *cache,
+					   const struct m0_fid     *process_fid,
+					   struct m0_conf_obj      *base_obj,
+					   struct m0_conf_obj      **new_obj)
+{
+	struct m0_conf_dir     *dir;
+	struct m0_conf_process *base_obj_process = NULL;
+	struct m0_conf_process *new_obj_process = NULL;
+	int                     rc;
+
+	M0_ENTRY();
+	M0_PRE(base_obj != NULL);
+	rc = m0_conf_obj_find(cache, process_fid, new_obj);
+	if (rc == 0) {
+		if ((*new_obj)->co_parent == NULL) {
+			dir = M0_CONF_CAST(base_obj->co_parent, m0_conf_dir);
+			m0_conf_dir_add(dir, *new_obj);
+		}
+		base_obj_process = M0_CONF_CAST(base_obj, m0_conf_process);
+		new_obj_process = M0_CONF_CAST(*new_obj, m0_conf_process);
+
+		if ((base_obj_process != NULL) &&
+		    (new_obj_process != NULL)) {
+			rc = m0_bitmap_init(&new_obj_process->pc_cores,
+					    base_obj_process->pc_cores.b_nr);
+			if (rc != 0)
+				goto fail;
+		} else {
+			rc = -EINVAL;
+			goto fail;
+		}
+
+		m0_bitmap_copy(&new_obj_process->pc_cores, &base_obj_process->pc_cores);
+		new_obj_process->pc_memlimit_as      = base_obj_process->pc_memlimit_as;
+		new_obj_process->pc_memlimit_rss     = base_obj_process->pc_memlimit_rss;
+		new_obj_process->pc_memlimit_stack   = base_obj_process->pc_memlimit_stack;
+		new_obj_process->pc_memlimit_memlock = base_obj_process->pc_memlimit_memlock;
+
+		new_obj_process->pc_endpoint = m0_strdup(base_obj_process->pc_endpoint);
+		if (new_obj_process->pc_endpoint == NULL) {
+			rc = M0_ERR(-ENOMEM);
+			goto fail;
+		}
+		rc = confc_cache_process_dirs_create(new_obj_process);
+		if (rc != 0)
+			goto fail;
+	} else {
+		M0_LOG(M0_ERROR, "confs obj add failed for FID:"FID_F"rc= %d",
+		       FID_P(process_fid), rc);
+		goto fail;
+	}
+
+	return M0_RC(rc);
+fail:
+	if (*new_obj != NULL && rc != -EEXIST)
+		m0_conf_cache_del(cache, *new_obj);
 	return M0_RC(rc);
 }
 

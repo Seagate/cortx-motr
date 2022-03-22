@@ -140,6 +140,42 @@ M0_INTERNAL void m0_ha_state_single_post(struct m0_ha_nvec *nvec)
 	m0_ha_msg_nvec_send(nvec, 0, false, M0_HA_NVEC_SET, NULL);
 }
 
+static void m0_ha_add_dynamic_fid_to_confc(
+			struct m0_conf_cache    *cache,
+			struct m0_conf_obj      *base_obj,
+			const struct m0_ha_note *nv_note,
+			uint64_t                 ignore_same_state)
+{
+	struct m0_conf_obj     *new_obj;
+        enum m0_ha_obj_state    prev_ha_state;
+	int                     rc;
+
+	M0_LOG(M0_DEBUG, "Received fid: "FID_F" look up fid :"FID_F,
+		FID_P(&nv_note->no_id), FID_P(&base_obj->co_id));
+
+	if (m0_fid_tget(&nv_note->no_id) == 'r') {
+		rc = m0_confc_cache_add_process(cache, &nv_note->no_id,
+						base_obj, &new_obj);
+		M0_ASSERT(rc == 0);
+		new_obj->co_ha_state = nv_note->no_state;
+		prev_ha_state = base_obj->co_ha_state;
+		new_obj->co_status = M0_CS_READY;
+		/*
+		 * TODO: Need to decide on should we copy subscribers from
+		 * older to new objetct or broadcast on older object
+		 */
+		if (!ignore_same_state ||
+		    prev_ha_state != new_obj->co_ha_state)
+			m0_chan_broadcast(&new_obj->co_ha_chan);
+		M0_LOG(M0_DEBUG,"Conf obj for dynamic FID"FID_F" added",
+		        FID_P(&nv_note->no_id));
+	} else if (m0_fid_tget(&nv_note->no_id) == 's') {
+		 rc = m0_confc_cache_add_service(cache, &nv_note->no_id,
+						 base_obj, &new_obj);
+		 M0_ASSERT(rc == 0);
+	}
+}
+
 /**
  * Callback used in m0_ha_state_accept(). Updates HA states for particular confc
  * instance during iteration through HA clients list.
@@ -168,13 +204,24 @@ static void ha_state_accept(struct m0_confc         *confc,
 	cache = &confc->cc_cache;
 	m0_conf_cache_lock(cache);
 	for (i = 0; i < note->nv_nr; ++i) {
-		obj = m0_conf_cache_lookup(cache, &note->nv_note[i].no_id);
+		obj = m0_conf_cache_lookup_dynamic(cache,
+						   &note->nv_note[i].no_id);
 		M0_LOG(M0_DEBUG, "nv_note[%d]=(no_id="FID_F" no_state=%"PRIu32
 		       ") obj=%p obj->co_status=%d", i,
 		       FID_P(&note->nv_note[i].no_id),
 		       note->nv_note[i].no_state,
 		       obj, obj == NULL ? -1 : obj->co_status);
-		if (obj != NULL && obj->co_status == M0_CS_READY) {
+		if ((obj != NULL) &&
+		    !cache->ca_is_phony &&
+		    (!m0_fid_eq(&obj->co_id, &note->nv_note[i].no_id))) {
+			/*
+			 * Received new dynamic configuration object, adding
+			 * this to configuration cache.
+			 */
+			m0_ha_add_dynamic_fid_to_confc(cache, obj,
+					&note->nv_note[i], ignore_same_state);
+
+		} else if (obj != NULL && obj->co_status == M0_CS_READY) {
 			prev_ha_state = obj->co_ha_state;
 			obj->co_ha_state = note->nv_note[i].no_state;
 			if (!ignore_same_state ||

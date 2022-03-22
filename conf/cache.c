@@ -71,6 +71,7 @@ m0_conf_cache_init(struct m0_conf_cache *cache, struct m0_mutex *lock)
 	cache->ca_lock = lock;
 	cache->ca_ver  = 0;
 	cache->ca_fid_counter = 0;
+	cache->ca_is_phony = false;
 
 	M0_LEAVE();
 }
@@ -100,6 +101,44 @@ M0_INTERNAL bool m0_conf_cache_contains(struct m0_conf_cache *cache,
 	ret = m0_conf_cache_lookup(cache, fid) != NULL;
 	m0_conf_cache_unlock(cache);
 	return ret;
+}
+
+M0_INTERNAL struct m0_conf_obj *
+m0_conf_cache_lookup_dynamic(const struct m0_conf_cache *cache,
+			     const struct m0_fid *id)
+{
+	struct m0_conf_obj *obj;
+	uint32_t            dynamic_val1;
+	uint32_t	    dynamic_val2;
+        /*
+         * For process and service fid different approach is taken to compare
+	 * FID's. Specifically for process/service fid considering base fid
+	 * only (excluding dynamic bit) for comparison. Dynamic bits are higher
+	 * 32 bits of the key of FID.
+	 *  e.g.
+	 *  |-------- Container------------| |----------------Key-------------|
+	 *
+	 *  F F F F F F F F F F F F F F F F : F F F F F F F F  F F F F F F F F
+	 *                                    |-Dynamic bits-|
+	 */
+	/*
+	 * TODO: Current implementation we are assuming that dynamic FID's will
+	 * always be generated in sequential manner (w.r.t dynamic bits), so
+	 * that we can fetch latest last dynamic FID, but It may not be in
+	 * sequential always. This scenario needs to be handled.
+	 */
+	dynamic_val1 = GET_FID_DYNAMIC_VAL(id);
+	m0_tl_for (m0_conf_cache, &cache->ca_registry, obj) {
+		if (m0_base_fid_eq(&obj->co_id, id)) {
+			dynamic_val2 = GET_FID_DYNAMIC_VAL(&obj->co_id);
+			if (dynamic_val1 == dynamic_val2)
+				return obj;
+			else if (dynamic_val1 != (dynamic_val2 + 1))
+				continue;
+			return obj;
+		}
+	} m0_tl_endfor;
+	return NULL;
 }
 
 M0_INTERNAL struct m0_conf_obj *

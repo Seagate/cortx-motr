@@ -161,6 +161,15 @@ M0_INTERNAL void m0_fid_tgenerate(struct m0_fid *fid,
 	m0_fid_tchange(fid, tid);
 }
 
+M0_INTERNAL bool m0_base_fid_eq(const struct m0_fid *fid0,
+				const struct m0_fid *fid1)
+{
+	return fid0->f_container == fid1->f_container ?
+	    ((fid0->f_key & M0_FID_DYNAMIC_BITS_MASK) ==
+	     (fid1->f_key & M0_FID_DYNAMIC_BITS_MASK)): false;
+}
+M0_EXPORTED(m0_base_fid_eq);
+
 M0_INTERNAL bool m0_fid_eq(const struct m0_fid *fid0, const struct m0_fid *fid1)
 {
 	return memcmp(fid0, fid1, sizeof *fid0) == 0;
