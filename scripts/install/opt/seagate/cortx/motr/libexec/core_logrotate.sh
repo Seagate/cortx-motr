@@ -30,7 +30,7 @@ usage() {
         "Retain recent modified files of given count and remove older core files."
         "where:"
         "-n   number of latest core files to retain" 
-              "Physical : Default count of core files are 5+2 first files"
+              "Physical : Default count of core files is 5"
               "virtual  : Default count of core files is 2"
         "--help|-h     display this help and exit" 1>&2; 
         exit 1; 
