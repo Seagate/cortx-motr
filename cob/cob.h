@@ -386,6 +386,7 @@ struct m0_cob_attr {
  * Namespace table key. For data objects, cnk_pfid = cfid and cnk_name = "".
  */
 struct m0_cob_nskey {
+	uint32_t            cnk_version; /**< NS key version*/
 	struct m0_fid       cnk_pfid;
 	struct m0_bitstring cnk_name;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
@@ -451,6 +452,7 @@ M0_INTERNAL void m0_cob_nsrec_init(struct m0_cob_nsrec *nsrec);
 
 /** Object index table key. The oi table record is a struct m0_cob_nskey. */
 struct m0_cob_oikey {
+	uint32_t          cok_version; /**< OI key version */
 	struct m0_fid     cok_fid;
 	uint32_t          cok_linkno;  /**< hardlink ordinal index */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
@@ -468,7 +470,8 @@ struct m0_cob_oikey {
  * from smaller namespace entries.
  */
 struct m0_cob_fabkey {
-	struct m0_fid     cfb_fid;
+	uint32_t      cfb_version; /**< FAB key version */
+	struct m0_fid cfb_fid;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_cob_fabrec {
@@ -484,6 +487,7 @@ struct m0_cob_fabrec {
  * Omg (owner/mode/group) table key
  */
 struct m0_cob_omgkey {
+	uint32_t          cok_version; /**< omg key version */
 	uint64_t          cok_omgid;   /**< omg id ref */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
@@ -498,8 +502,9 @@ struct m0_cob_omgrec {
 
 /** Extended attributes table key */
 struct m0_cob_eakey {
-	struct m0_fid       cek_fid;   /**< EA owner fid */
-	struct m0_bitstring cek_name;  /**< EA name */
+	uint32_t            cek_version; /**< EA key version */
+	struct m0_fid       cek_fid;     /**< EA owner fid */
+	struct m0_bitstring cek_name;    /**< EA name */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /** Extended attributes table value */
