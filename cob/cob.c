@@ -143,6 +143,7 @@ M0_INTERNAL void m0_cob_oikey_make(struct m0_cob_oikey *oikey,
 {
 	oikey->cok_fid = *fid;
 	oikey->cok_linkno = linkno;
+	oikey->cok_version = M0_COB_DOMAIN_FORMAT_VERSION;
 }
 
 M0_INTERNAL int m0_cob_nskey_make(struct m0_cob_nskey **keyh,
@@ -155,6 +156,7 @@ M0_INTERNAL int m0_cob_nskey_make(struct m0_cob_nskey **keyh,
 	if (key == NULL)
 		return M0_ERR(-ENOMEM);
 	key->cnk_pfid = *pfid;
+	key->cnk_version = M0_COB_DOMAIN_FORMAT_VERSION;
 	m0_bitstring_copy(&key->cnk_name, name, namelen);
 	*keyh = key;
 	return 0;
@@ -188,6 +190,7 @@ M0_INTERNAL int m0_cob_eakey_make(struct m0_cob_eakey **keyh,
 	if (key == NULL)
 		return M0_ERR(-ENOMEM);
 	key->cek_fid = *fid;
+	key->cek_version = M0_COB_DOMAIN_FORMAT_VERSION;
 	m0_bitstring_copy(&key->cek_name, name, namelen);
 	*keyh = key;
 	return 0;
@@ -207,6 +210,7 @@ static int m0_cob_max_eakey_make(struct m0_cob_eakey **keyh,
 	if (key == NULL)
 		return M0_ERR(-ENOMEM);
 	key->cek_fid = *fid;
+	key->cek_version = M0_COB_DOMAIN_FORMAT_VERSION;
 	m0_bitstring_copy(&key->cek_name, name, namelen);
 	*keyh = key;
 	return 0;
@@ -311,6 +315,7 @@ static int m0_cob_max_nskey_make(struct m0_cob_nskey **keyh,
 	if (key == NULL)
 		return M0_ERR(-ENOMEM);
 	key->cnk_pfid = *pfid;
+	key->cnk_version = M0_COB_DOMAIN_FORMAT_VERSION;
 	m0_bitstring_copy(&key->cnk_name, name, namelen);
 	*keyh = key;
 	return 0;
@@ -755,6 +760,7 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 	   Create terminator omgid record with id == ~0ULL.
 	 */
 	omgkey.cok_omgid = ~0ULL;
+	omgkey.cok_version = M0_COB_DOMAIN_FORMAT_VERSION;
 
 	m0_buf_init(&key, &omgkey, sizeof omgkey);
 	m0_buf_init(&rec, &omgrec, sizeof omgrec);
@@ -997,6 +1003,7 @@ static int cob_fab_lookup(struct m0_cob *cob)
 		return 0;
 
 	fabkey.cfb_fid = *m0_cob_fid(cob);
+	fabkey.cfb_version = M0_COB_DOMAIN_FORMAT_VERSION;
 	rc = m0_cob_max_fabrec_make(&cob->co_fabrec);
 	if (rc != 0)
 		return M0_RC(rc);
@@ -1028,6 +1035,7 @@ static int cob_omg_lookup(struct m0_cob *cob)
 		return 0;
 
 	omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
+	omgkey.cok_version = M0_COB_DOMAIN_FORMAT_VERSION;
 
 	m0_buf_init(&key, &omgkey, sizeof omgkey);
 	m0_buf_init(&val, &cob->co_omgrec, sizeof cob->co_omgrec);
@@ -1435,6 +1443,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 		 * Prepare key for attribute tables.
 		 */
 		fabkey.cfb_fid = *m0_cob_fid(cob);
+		fabkey.cfb_version = M0_COB_DOMAIN_FORMAT_VERSION;
 
 		/*
 		 * Now let's update file attributes. Cache the fabrec.
@@ -1457,6 +1466,7 @@ M0_INTERNAL int m0_cob_create(struct m0_cob *cob,
 		 * Prepare omg key.
 		 */
 		omgkey.cok_omgid = nsrec->cnr_omgid;
+		omgkey.cok_version = M0_COB_DOMAIN_FORMAT_VERSION;
 
 		/*
 		 * Now let's update omg attributes. Cache the omgrec.
@@ -1518,6 +1528,7 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx)
 		 * Remove from the fileattr_basic table.
 		 */
 		fabkey.cfb_fid = *m0_cob_fid(cob);
+		fabkey.cfb_version = M0_COB_DOMAIN_FORMAT_VERSION;
 		m0_buf_init(&key, &fabkey, sizeof fabkey);
 
 		/*
@@ -1531,6 +1542,7 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx)
 		 * Delete should take this into account as well as update.
 		 */
 		omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
+		omgkey.cok_version = M0_COB_DOMAIN_FORMAT_VERSION;
 
 		/*
 		 * Remove from the fileattr_omg table.
@@ -1585,6 +1597,7 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
 
 	if (rc == 0 && fabrec != NULL) {
 		fabkey.cfb_fid = *m0_cob_fid(cob);
+		fabkey.cfb_version = M0_COB_DOMAIN_FORMAT_VERSION;
 		if (fabrec != cob->co_fabrec) {
 			if (cob->co_flags & M0_CA_FABREC)
 				m0_free(cob->co_fabrec);
@@ -1605,6 +1618,7 @@ M0_INTERNAL int m0_cob_update(struct m0_cob *cob,
 		 * We need to take this into account.
 		 */
 		omgkey.cok_omgid = cob->co_nsrec.cnr_omgid;
+		omgkey.cok_version = M0_COB_DOMAIN_FORMAT_VERSION;
 
 		cob->co_omgrec = *omgrec;
 		cob->co_flags |= M0_CA_OMGREC;
