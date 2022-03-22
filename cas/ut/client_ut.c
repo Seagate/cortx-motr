@@ -37,6 +37,8 @@
 #include "cas/client.h"
 #include "cas/ctg_store.h"             /* m0_ctg_recs_nr */
 #include "lib/finject.h"
+#include "dtm0/dtx.h"                  /* m0_dtm0_dtx */
+#include "cas/cas.h"                   /* m0_crv      */
 
 #define SERVER_LOG_FILE_NAME       "cas_server.log"
 #define IFID(x, y) M0_FID_TINIT('i', (x), (y))
@@ -112,6 +114,17 @@ static int bufvec_empty_alloc(struct m0_bufvec *bufvec,
 	M0_UT_ASSERT(bufvec->ov_buf != NULL);
 	return 0;
 }
+
+static int bufvec_cmp(const struct m0_bufvec *left,
+		      const struct m0_bufvec *right)
+{
+	struct m0_bufvec_cursor rcur;
+	struct m0_bufvec_cursor lcur;
+	m0_bufvec_cursor_init(&lcur, left);
+	m0_bufvec_cursor_init(&rcur, right);
+	return m0_bufvec_cursor_cmp(&lcur, &rcur);
+}
+
 
 static void value_create(int size, int num, char *buf)
 {
@@ -420,17 +433,54 @@ static int ut_idx_list(struct cl_ctx             *cctx,
 	return rc;
 }
 
-static int ut_rec_put(struct cl_ctx           *cctx,
-		      struct m0_cas_id        *index,
-		      const struct m0_bufvec  *keys,
-		      const struct m0_bufvec  *values,
-		      struct m0_cas_rec_reply *rep,
-		      uint32_t                 flags)
+static void ut_dtx_init(struct m0_dtx **out, uint64_t version)
+{
+	struct m0_dtm0_dtx *dtx0;
+	int                 rc;
+
+	/* No version => no DTX */
+	if (version == 0) {
+		*out = NULL;
+		return;
+	}
+
+	M0_ALLOC_PTR(dtx0);
+	M0_UT_ASSERT(dtx0 != NULL);
+
+	rc = m0_dtm0_tx_desc_init(&dtx0->dd_txd, 1);
+	M0_UT_ASSERT(rc == 0);
+	dtx0->dd_txd.dtd_id = (struct m0_dtm0_tid) {
+		.dti_ts.dts_phys = version,
+		.dti_fid = g_process_fid,
+	};
+
+	dtx0->dd_ancient_dtx.tx_dtx = dtx0;
+
+	*out = &dtx0->dd_ancient_dtx;
+}
+
+static void ut_dtx_fini(struct m0_dtx *dtx)
+{
+	if (dtx != NULL)
+		m0_free(dtx->tx_dtx);
+}
+
+static int ut_rec_common_put(struct cl_ctx           *cctx,
+			     struct m0_cas_id        *index,
+			     const struct m0_bufvec  *keys,
+			     const struct m0_bufvec  *values,
+			     struct m0_dtx           *dtx,
+			     struct m0_cas_rec_reply *rep,
+			     uint32_t                 flags)
 {
 	struct m0_cas_req  req;
 	struct m0_chan    *chan;
 	int                rc;
 	uint64_t           i;
+
+	M0_PRE(ergo(dtx != NULL,
+		    (((flags & COF_VERSIONED) != 0) &&
+		     keys->ov_vec.v_nr == 1)));
 
 	/* start operation */
 	M0_SET0(&req);
@@ -442,7 +492,7 @@ static int ut_rec_put(struct cl_ctx           *cctx,
 	m0_clink_add_lock(chan, &cctx->cl_wait.aw_clink);
 
 	m0_cas_req_lock(&req);
-	rc = m0_cas_put(&req, index, keys, values, NULL, flags);
+	rc = m0_cas_put(&req, index, keys, values, dtx, flags);
 	if (rc == 0) {
 		/* wait results */
 		m0_cas_req_wait(&req, M0_BITS(CASREQ_FINAL), M0_TIME_NEVER);
@@ -458,6 +508,46 @@ static int ut_rec_put(struct cl_ctx           *cctx,
 	return rc;
 }
 
+/* Submits CAS requests separately one-by-one for each kv pair */
+int ut_rec_common_put_seq(struct cl_ctx                 *cctx,
+			  struct m0_cas_id              *index,
+			  const struct m0_bufvec        *keys,
+			  const struct m0_bufvec        *values,
+			  struct m0_dtx                 *dtx,
+			  struct m0_cas_rec_reply       *rep,
+			  uint32_t                       flags)
+{
+	struct m0_bufvec k;
+	struct m0_bufvec v;
+	m0_bcount_t      i;
+	int              rc = 0;
+
+	for (i = 0; i < keys->ov_vec.v_nr; i++) {
+		k = M0_BUFVEC_INIT_BUF(&keys->ov_buf[i],
+				       &keys->ov_vec.v_count[i]);
+		v = M0_BUFVEC_INIT_BUF(&values->ov_buf[i],
+				       &values->ov_vec.v_count[i]);
+		rc |= ut_rec_common_put(cctx, index, &k, &v, dtx, rep + i,
+					flags);
+		if (rc != 0)
+			break;
+	}
+
+	return rc;
+}
+
+static int ut_rec_put(struct cl_ctx           *cctx,
+		      struct m0_cas_id        *index,
+		      const struct m0_bufvec  *keys,
+		      const struct m0_bufvec  *values,
+		      struct m0_cas_rec_reply *rep,
+		      uint32_t                 flags)
+{
+	return ((flags & COF_VERSIONED) != 0 ?
+		ut_rec_common_put_seq : ut_rec_common_put)
+		(cctx, index, keys, values, NULL, rep, flags);
+}
+
 static void ut_get_rep_clear(struct m0_cas_get_reply *rep, uint32_t nr)
 {
 	uint32_t i;
@@ -466,10 +556,11 @@ static void ut_get_rep_clear(struct m0_cas_get_reply *rep, uint32_t nr)
 		m0_free(rep[i].cge_val.b_addr);
 }
 
-static int ut_rec_get(struct cl_ctx           *cctx,
-		      struct m0_cas_id        *index,
-		      const struct m0_bufvec  *keys,
-		      struct m0_cas_get_reply *rep)
+static int ut_rec__get(struct cl_ctx           *cctx,
+		       struct m0_cas_id        *index,
+		       const struct m0_bufvec  *keys,
+		       struct m0_cas_get_reply *rep,
+		       uint64_t                 flags)
 {
 	struct m0_cas_req  req;
 	struct m0_chan    *chan;
@@ -486,7 +577,8 @@ static int ut_rec_get(struct cl_ctx           *cctx,
 	m0_clink_add_lock(chan, &cctx->cl_wait.aw_clink);
 
 	m0_cas_req_lock(&req);
-	rc = m0_cas_get(&req, index, keys);
+	rc = ((flags & COF_VERSIONED) != 0 ?
+	      m0_cas_versioned_get : m0_cas_get)(&req, index, keys);
 	if (rc == 0) {
 		/* wait results */
 		m0_cas_req_wait(&req, M0_BITS(CASREQ_FINAL), M0_TIME_NEVER);
@@ -509,6 +601,14 @@ static int ut_rec_get(struct cl_ctx           *cctx,
 	m0_cas_req_fini_lock(&req);
 	m0_clink_fini(&cctx->cl_wait.aw_clink);
 	return rc;
+}
+
+static int ut_rec_get(struct cl_ctx           *cctx,
+		      struct m0_cas_id        *index,
+		      const struct m0_bufvec  *keys,
+		      struct m0_cas_get_reply *rep)
+{
+	return ut_rec__get(cctx, index, keys, rep, 0);
 }
 
 static void ut_next_rep_clear(struct m0_cas_next_reply *rep, uint64_t nr)
@@ -570,15 +670,21 @@ static int ut_next_rec(struct cl_ctx            *cctx,
 	return rc;
 }
 
-static int ut_rec_del(struct cl_ctx           *cctx,
-		      struct m0_cas_id        *index,
-		      struct m0_bufvec        *keys,
-		      struct m0_cas_rec_reply *rep)
+static int ut_rec_common_del(struct cl_ctx           *cctx,
+			     struct m0_cas_id        *index,
+			     const struct m0_bufvec  *keys,
+			     struct m0_dtx           *dtx,
+			     struct m0_cas_rec_reply *rep,
+			     uint64_t                 flags)
 {
 	struct m0_cas_req  req;
 	struct m0_chan    *chan;
 	int                rc;
 	uint64_t           i;
+
+	M0_PRE(ergo(dtx != NULL,
+		    (((flags & COF_VERSIONED) != 0) &&
+		     keys->ov_vec.v_nr == 1)));
 
 	/* start operation */
 	M0_SET0(&req);
@@ -590,7 +696,7 @@ static int ut_rec_del(struct cl_ctx           *cctx,
 	m0_clink_add_lock(chan, &cctx->cl_wait.aw_clink);
 
 	m0_cas_req_lock(&req);
-	rc = m0_cas_del(&req, index, keys, NULL, 0);
+	rc = m0_cas_del(&req, index, (struct m0_bufvec *) keys, dtx, flags);
 	if (rc == 0) {
 		/* wait results */
 		m0_cas_req_wait(&req, M0_BITS(CASREQ_FINAL), M0_TIME_NEVER);
@@ -606,6 +712,41 @@ static int ut_rec_del(struct cl_ctx           *cctx,
 	m0_cas_req_fini_lock(&req);
 	m0_clink_fini(&cctx->cl_wait.aw_clink);
 	return rc;
+}
+
+/* Submits CAS requests separately one-by-one for each key. */
+static int ut_rec_common_del_seq(struct cl_ctx           *cctx,
+				 struct m0_cas_id        *index,
+				 const struct m0_bufvec  *keys,
+				 struct m0_dtx           *dtx,
+				 struct m0_cas_rec_reply *rep,
+				 uint64_t                 flags)
+{
+	struct m0_bufvec k;
+	m0_bcount_t      i;
+	int              rc = 0;
+
+	for (i = 0; i < keys->ov_vec.v_nr; i++) {
+		k = M0_BUFVEC_INIT_BUF(&keys->ov_buf[i],
+				       &keys->ov_vec.v_count[i]);
+		rc |= ut_rec_common_del(cctx, index, &k, dtx, rep + i, flags);
+		if (rc != 0)
+			break;
+	}
+
+	return rc;
+}
+
+static int ut_rec_del(struct cl_ctx           *cctx,
+		      struct m0_cas_id        *index,
+		      const struct m0_bufvec  *keys,
+		      struct m0_cas_rec_reply *rep,
+		      uint64_t                 flags)
+{
+
+	return ((flags & COF_VERSIONED) != 0 ?
+		ut_rec_common_del_seq : ut_rec_common_del)
+		(cctx, index, keys, NULL, rep, flags);
 }
 
 static void idx_create(void)
@@ -643,7 +784,7 @@ static void idx_create_fail(void)
 	rc = ut_lookup_idx(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == -ENOENT);
-	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_kbuf_get", "cas_alloc_fail");
 	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == -ENOMEM);
@@ -653,7 +794,7 @@ static void idx_create_fail(void)
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
 	rc = ut_lookup_idx(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_kbuf_get", "cas_alloc_fail");
 	rc = ut_lookup_idx(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == -ENOMEM);
@@ -731,7 +872,7 @@ static void idx_delete_fail(void)
 	rc = ut_lookup_idx(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == 0);
-	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_kbuf_get", "cas_alloc_fail");
 	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == -ENOMEM);
@@ -1062,7 +1203,7 @@ static void idx_list_fail(void)
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
 	rc = ut_idx_list(&casc_ut_cctx, &ifid[0], COUNT, &rep_count, rep_list);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_kbuf_get", "cas_alloc_fail");
 	rc = ut_idx_list(&casc_ut_cctx, &ifid[0], COUNT, &rep_count, rep_list);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep_count == COUNT);
@@ -1194,6 +1335,644 @@ static void next_common(struct m0_bufvec *keys,
 
 	m0_bufvec_free(&start_key);
 }
+
+static int get_reply2bufvec(struct m0_cas_get_reply *get_rep, m0_bcount_t nr,
+			    struct m0_bufvec        *out)
+{
+	int         rc;
+	m0_bcount_t i;
+
+	rc = m0_bufvec_empty_alloc(out, nr);
+	if (rc != 0)
+		return rc;
+	for (i = 0; i < nr; ++i) {
+		out->ov_buf[i] = get_rep[i].cge_val.b_addr;
+		out->ov_vec.v_count[i] = get_rep[i].cge_val.b_nob;
+	}
+
+	return rc;
+}
+
+/*
+ * Returns "true" if GET operation successfully returns all expected_values
+ * (if they have been specified) or all the records exist (if expected_values
+ * is NULL).
+ */
+static bool has_values(struct m0_cas_id       *index,
+		       const struct m0_bufvec *keys,
+		       const struct m0_bufvec *expected_values,
+		       uint64_t                flags)
+{
+	int                      rc;
+	struct m0_cas_get_reply *get_rep;
+	bool                     result;
+	struct m0_bufvec         actual_values;
+	struct m0_bufvec         empty_values;
+
+	M0_ALLOC_ARR(get_rep, keys->ov_vec.v_nr);
+	M0_UT_ASSERT(get_rep != NULL);
+
+	rc = ut_rec__get(&casc_ut_cctx, index, keys, get_rep, flags);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_bufvec_empty_alloc(&empty_values, keys->ov_vec.v_nr);
+	M0_UT_ASSERT(rc == 0);
+
+	if (expected_values == NULL)
+		expected_values = &empty_values;
+
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
+			       M0_IN(get_rep[i].cge_rc, (0, -ENOENT))));
+
+	if (m0_exists(i, keys->ov_vec.v_nr, get_rep[i].cge_rc == -ENOENT)) {
+		M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
+				       get_rep[i].cge_rc == -ENOENT));
+
+		rc = get_reply2bufvec(get_rep, keys->ov_vec.v_nr,
+				      &actual_values);
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(bufvec_cmp(&actual_values, expected_values) == 0);
+		m0_bufvec_free2(&actual_values);
+		result = false;
+		goto out;
+	} else {
+		rc = get_reply2bufvec(get_rep, keys->ov_vec.v_nr,
+				      &actual_values);
+		M0_UT_ASSERT(rc == 0);
+		result = bufvec_cmp(&actual_values, expected_values) == 0;
+		m0_bufvec_free2(&actual_values);
+	}
+
+out:
+	ut_get_rep_clear(get_rep, keys->ov_vec.v_nr);
+	m0_free(get_rep);
+	m0_bufvec_free(&empty_values);
+	return result;
+}
+
+/*
+ * Returns "true" all values returned by GET operation are the same as
+ * the specified version.
+ */
+static bool has_versions(struct m0_cas_id *index,
+			 const struct m0_bufvec *keys,
+			 uint64_t version,
+			 uint64_t flags)
+{
+	int                      rc;
+	struct m0_cas_get_reply *get_rep;
+	bool                     result;
+
+	M0_ALLOC_ARR(get_rep, keys->ov_vec.v_nr);
+	M0_UT_ASSERT(get_rep != NULL);
+
+	rc = ut_rec__get(&casc_ut_cctx, index, keys, get_rep, flags);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
+			       M0_IN(get_rep[i].cge_rc, (0, -ENOENT))));
+
+	result = m0_forall(i, keys->ov_vec.v_nr,
+			   m0_crv_ts(&get_rep[i].cge_ver).dts_phys == version);
+
+	ut_get_rep_clear(get_rep, keys->ov_vec.v_nr);
+	m0_free(get_rep);
+	return result;
+}
+
+static bool has_tombstones(struct m0_cas_id       *index,
+			   const struct m0_bufvec *keys)
+{
+	int                      rc;
+	struct m0_cas_get_reply *get_rep;
+	bool                     result;
+
+	M0_ALLOC_ARR(get_rep, keys->ov_vec.v_nr);
+	M0_UT_ASSERT(get_rep != NULL);
+
+	rc = ut_rec__get(&casc_ut_cctx, index, keys, get_rep, COF_VERSIONED);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Ensure the rcs are within the range of allowed rcs. */
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
+			       M0_IN(get_rep[i].cge_rc, (0, -ENOENT))));
+
+	/* Ensure all-or-nothing (either all have tbs or there are no tbs). */
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
+			     m0_crv_tbs(&get_rep[0].cge_ver)==
+			     m0_crv_tbs(&get_rep[i].cge_ver)));
+
+	/* Ensure -ENOENT matches with tombstone flag. */
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
+		       ergo(!m0_crv_is_none(&get_rep[i].cge_ver),
+				    m0_crv_tbs(&get_rep[i].cge_ver) ==
+				     (get_rep[i].cge_rc == -ENOENT))));
+
+	/* Ensure versions are always present on dead records. */
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
+			       ergo(m0_crv_tbs(&get_rep[i].cge_ver),
+				    !m0_crv_is_none(&get_rep[i].cge_ver))));
+
+	result = m0_crv_tbs(&get_rep[0].cge_ver);
+
+	ut_get_rep_clear(get_rep, keys->ov_vec.v_nr);
+	memset(get_rep, 0, sizeof(*get_rep) * keys->ov_vec.v_nr);
+
+	/*
+	 * Additionally, ensure that all the records are visible
+	 * when versioned behavior is disabled.
+	 */
+	rc = ut_rec__get(&casc_ut_cctx, index, keys, get_rep, 0);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr, get_rep[i].cge_rc == 0));
+	ut_get_rep_clear(get_rep, keys->ov_vec.v_nr);
+
+
+	m0_free(get_rep);
+	return result;
+}
+
+/*
+ * Breaks an array of GET replies down into pieces (keys, values, versions).
+ * In other words, it transmutes a vector of tuples into a tuple of vectors.
+ */
+static void next_reply_breakdown(struct m0_cas_next_reply  *next_rep,
+				 m0_bcount_t                nr,
+				 struct m0_bufvec          *out_key,
+				 struct m0_bufvec          *out_val,
+				 struct m0_crv            **out_ver)
+{
+	int            rc;
+	m0_bcount_t    i;
+	struct m0_crv *ver;
+
+	rc = m0_bufvec_empty_alloc(out_key, nr);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_empty_alloc(out_val, nr);
+	M0_UT_ASSERT(rc == 0);
+	M0_ALLOC_ARR(ver, nr);
+	M0_UT_ASSERT(ver != NULL);
+
+	for (i = 0; i < nr; ++i) {
+		out_key->ov_buf[i] = next_rep[i].cnp_key.b_addr;
+		out_key->ov_vec.v_count[i] = next_rep[i].cnp_key.b_nob;
+
+		out_val->ov_buf[i] = next_rep[i].cnp_val.b_addr;
+		out_val->ov_vec.v_count[i] = next_rep[i].cnp_val.b_nob;
+
+		ver[i] = next_rep[i].cnp_ver;
+	}
+
+	*out_ver = ver;
+}
+
+
+/*
+ * Ensures that NEXT yields the expected keys, values and versions.
+ * Values and version are optional (ignored when set to NULL).
+ */
+static void next_records_verified(struct m0_cas_id     *index,
+				  struct m0_bufvec     *start_key,
+				  uint32_t              requested_keys_nr,
+				  struct m0_bufvec     *expected_keys,
+				  struct m0_bufvec     *expected_values,
+				  struct m0_crv        *expected_versions,
+				  int                   flags)
+{
+	struct m0_cas_next_reply *next_rep;
+	uint64_t                  rep_count;
+	int                       rc;
+	struct m0_bufvec          actual_keys;
+	struct m0_bufvec          actual_values;
+	struct m0_crv            *actual_versions;
+
+	M0_ALLOC_ARR(next_rep, requested_keys_nr);
+	M0_UT_ASSERT(next_rep != NULL);
+
+	rc = ut_next_rec(&casc_ut_cctx, index, start_key, &requested_keys_nr,
+			 next_rep, &rep_count, flags);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep_count == requested_keys_nr);
+
+	if (expected_keys == NULL) {
+		M0_UT_ASSERT(expected_values == NULL);
+		M0_UT_ASSERT(expected_versions == NULL);
+		M0_UT_ASSERT(m0_forall(i, rep_count,
+				       next_rep[i].cnp_rc == -ENOENT));
+	} else {
+		M0_UT_ASSERT(m0_forall(i, rep_count, next_rep[i].cnp_rc == 0));
+		M0_UT_ASSERT(rep_count == expected_keys->ov_vec.v_nr);
+		next_reply_breakdown(next_rep, rep_count,
+				     &actual_keys,
+				     &actual_values,
+				     &actual_versions);
+		M0_UT_ASSERT(bufvec_cmp(expected_keys,
+					&actual_keys) == 0);
+
+		if (expected_values != NULL)
+			M0_UT_ASSERT(bufvec_cmp(expected_values,
+						&actual_values) == 0);
+		if (expected_versions != NULL)
+			M0_UT_ASSERT(memcmp(expected_versions,
+					    actual_versions,
+					    rep_count *
+					    sizeof(expected_versions[0])) == 0);
+
+		m0_bufvec_free2(&actual_keys);
+		m0_bufvec_free2(&actual_values);
+		m0_free(actual_versions);
+	}
+
+	ut_next_rep_clear(next_rep, rep_count);
+	m0_free(next_rep);
+}
+
+/*
+ * Ensures that NEXT yields the expected keys.
+ */
+static void next_keys_verified(struct m0_cas_id *index,
+			       struct m0_bufvec *start_key,
+			       uint32_t          requested_keys_nr,
+			       struct m0_bufvec *expected_keys,
+			       int               flags)
+{
+	return next_records_verified(index, start_key, requested_keys_nr,
+				     expected_keys, NULL, NULL, flags);
+}
+
+
+static void ut_rec_common_put_verified(struct m0_cas_id       *index,
+				       const struct m0_bufvec *keys,
+				       const struct m0_bufvec *values,
+				       uint64_t                version,
+				       uint64_t                flags)
+{
+	struct m0_cas_rec_reply *rep;
+	struct m0_dtx           *dtx;
+	int                      rc;
+
+	M0_UT_ASSERT(keys != NULL && values != NULL);
+	M0_ALLOC_ARR(rep, keys->ov_vec.v_nr);
+	M0_UT_ASSERT(rep != NULL);
+
+	ut_dtx_init(&dtx, version);
+	rc = ut_rec_common_put_seq(&casc_ut_cctx, index, keys, values, dtx,
+				   rep, flags);
+	ut_dtx_fini(dtx);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr, rep[i].crr_rc == 0));
+	m0_free(rep);
+}
+
+static void ut_rec_common_del_verified(struct m0_cas_id       *index,
+				       const struct m0_bufvec *keys,
+				       uint64_t                version,
+				       uint64_t                flags)
+{
+	struct m0_cas_rec_reply *rep;
+	struct m0_dtx           *dtx;
+	int                      rc;
+
+	M0_UT_ASSERT(keys != NULL);
+	M0_ALLOC_ARR(rep, keys->ov_vec.v_nr);
+	M0_UT_ASSERT(rep != NULL);
+
+	ut_dtx_init(&dtx, version);
+	rc = ut_rec_common_del_seq(&casc_ut_cctx, index, keys, dtx, rep, flags);
+	ut_dtx_fini(dtx);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr, rep[i].crr_rc == 0));
+	m0_free(rep);
+}
+
+/*
+ * PUTs (keys, values) and then ensures that expected_values are visible
+ * via GET operation.
+ */
+static void put_get_verified(struct m0_cas_id *index,
+			     struct m0_bufvec *keys,
+			     struct m0_bufvec *values,
+			     struct m0_bufvec *expected_values,
+			     uint64_t          version,
+			     int               put_flags,
+			     int               get_flags)
+{
+	ut_rec_common_put_verified(index, keys, values, version, put_flags);
+	if (expected_values != NULL)
+		M0_UT_ASSERT(has_values(index, keys, expected_values,
+					get_flags));
+}
+
+/*
+ * DELetes (keys, values) and then ensures that the values are not visible
+ * via GET operation.
+ */
+static void del_get_verified(struct m0_cas_id *index,
+			     struct m0_bufvec *keys,
+			     uint64_t          version,
+			     uint64_t          del_flags,
+			     uint64_t          get_flags)
+{
+	ut_rec_common_del_verified(index, keys, version, del_flags);
+	M0_UT_ASSERT(!has_values(index, keys, NULL, get_flags));
+
+	/*
+	 * When version is set to zero, the value actually gets removed, so
+	 * that tombstones are not available. Still, we can ensure that
+	 * versions were wiped out.
+	 */
+	if (version == 0)
+		M0_UT_ASSERT(has_versions(index, keys, 0, COF_VERSIONED));
+	else
+		M0_UT_ASSERT(has_tombstones(index, keys));
+}
+
+
+/*
+ * Initialise a single-element bufvec using an element taken from
+ * the target bufvec at position specified by __idx:
+ * @verbatim
+ *   bufvec target = [buf A, buf B, buf C]
+ *   bufvec slice  = target.slice(1)
+ *   assert slice == [buf B]
+ *          slice  = target.slice(2)
+ *   assert slice == [buf C]
+ * @endverbatim
+ */
+#define M0_BUFVEC_SLICE(__bufvec, __idx)		 \
+	M0_BUFVEC_INIT_BUF((__bufvec)->ov_buf + (__idx), \
+			   (__bufvec)->ov_vec.v_count + (__idx))
+
+/*
+ * A test case where we are verifying that NEXT works well with
+ * combinations of PUT and DEL.
+ */
+static void next_ver(void)
+{
+	enum { V_PAST, V_FUTURE, V_NR };
+	struct m0_bufvec        keys;
+	struct m0_bufvec        values;
+	struct m0_bufvec        kodd;
+	struct m0_bufvec        keven;
+	int                     rc;
+	uint64_t                version[V_NR] = { 2, 3 };
+	int                     i;
+	struct m0_cas_id        index = {};
+	struct m0_cas_rec_reply rep;
+	const struct m0_fid     ifid = IFID(2, 3);
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	index.ci_fid = ifid;
+
+	rc = m0_bufvec_alloc(&keys, COUNT, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == COUNT);
+	rc = m0_bufvec_alloc(&values, keys.ov_vec.v_nr, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	rc = m0_bufvec_alloc(&kodd, keys.ov_vec.v_nr / 2, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&keven, keys.ov_vec.v_nr / 2, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+
+	for (i = 0; i < keys.ov_vec.v_nr; i++) {
+		*(uint64_t*)keys.ov_buf[i] = i;
+		*(uint64_t*)values.ov_buf[i] = i;
+		memcpy(((i & 0x01) == 0 ? &keven : &kodd)->ov_buf[i / 2],
+		       keys.ov_buf[i], keys.ov_vec.v_count[i]);
+	}
+
+	/* Insert all the keys. */
+	put_get_verified(&index, &keys, &values, &values, version[V_PAST],
+			 COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_PAST], COF_VERSIONED));
+
+	/* Only even records will be alive in the future. */
+	del_get_verified(&index, &kodd, version[V_FUTURE],
+			 COF_VERSIONED, COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &kodd,
+				  version[V_FUTURE], COF_VERSIONED));
+	M0_UT_ASSERT(has_versions(&index, &keven,
+				  version[V_PAST], COF_VERSIONED));
+
+	/*
+	 * Case:
+	 * NEXT with the first alive key and the number records equal to
+	 * (number_of_alive_keys - 1) should return all the alive keys.
+	 */
+	next_keys_verified(&index, &M0_BUFVEC_SLICE(&keys, 0),
+			   keys.ov_vec.v_nr / 2, &keven, COF_VERSIONED);
+
+	/*
+	 * Case:
+	 * Requesting one record with NEXT with the first dead key
+	 * should return nothing (ENOENT).
+	 */
+	next_keys_verified(&index, &M0_BUFVEC_SLICE(&kodd, 0), 1, NULL,
+			   COF_VERSIONED);
+
+	/*
+	 * Case:
+	 * Requesting one record with NEXT(SLANT) with the first dead key
+	 * should return the second alive key.
+	 */
+	next_keys_verified(&index, &M0_BUFVEC_SLICE(&kodd, 0), 1,
+			   &M0_BUFVEC_SLICE(&keven, 1),
+			   COF_SLANT | COF_VERSIONED);
+
+	/*
+	 * Case:
+	 * Requesting NEXT(SLANT) record with with last dead key should
+	 * return -ENOENT.
+	 */
+	next_keys_verified(&index,
+			   &M0_BUFVEC_SLICE(&kodd, kodd.ov_vec.v_nr - 1), 1,
+			   NULL, COF_SLANT | COF_VERSIONED);
+
+	/*
+	 * Case:
+	 * Requesting one record with NEXT(SLANT|EXECLUDE_START_KEY) with
+	 * start key equal to the first alive record should return one single
+	 * pair with the next alive record.
+	 */
+	next_keys_verified(&index, &M0_BUFVEC_SLICE(&keven, 0), 1,
+			   &M0_BUFVEC_SLICE(&keven, 1),
+			   COF_SLANT | COF_EXCLUDE_START_KEY | COF_VERSIONED);
+
+	/* Now the index should have no keys. */
+	del_get_verified(&index, &keven, version[V_FUTURE],
+			 COF_VERSIONED, COF_VERSIONED);
+
+	/*
+	 * Case:
+	 * Requesting one record with NEXT(SLANT) should yield no keys at all
+	 * (ENOENT) on an index that does not have alive records.
+	 */
+	next_keys_verified(&index, &M0_BUFVEC_SLICE(&keys, 0), 1, NULL,
+			   COF_VERSIONED);
+
+	/*
+	 * Case:
+	 * When version-awre behavior is disabled (no COF_VERSIONED),
+	 * NEXT should yield all the keys that were inserted initially even
+	 * if all of them have tombstones.
+	 */
+	next_keys_verified(&index, &M0_BUFVEC_SLICE(&keys, 0),
+			   keys.ov_vec.v_nr, &keys, 0);
+
+	/* Now insert a non-versioned record at the "end". */
+	del_get_verified(&index, &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 1),
+			 0, 0, 0);
+	put_get_verified(&index, &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 1),
+			 &M0_BUFVEC_SLICE(&values, values.ov_vec.v_nr - 1),
+			 &M0_BUFVEC_SLICE(&values, values.ov_vec.v_nr - 1),
+			 0, 0, 0);
+	/*
+	 * Case:
+	 * A record without version should be treaten as an alive record.
+	 * Requesting one record with NEXT(SLANT) with start key equal to the
+	 * last dead record should yield the non-versioned record.
+	 * However, if SLANT was not set it should still return ENOENT.
+	 */
+	next_keys_verified(&index,
+			   &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 2), 1,
+			   &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 1),
+			   COF_SLANT | COF_VERSIONED);
+	next_keys_verified(&index,
+			   &M0_BUFVEC_SLICE(&keys, keys.ov_vec.v_nr - 2), 1,
+			   NULL , COF_VERSIONED);
+
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+	m0_bufvec_free(&keven);
+	m0_bufvec_free(&kodd);
+
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+}
+
+/*
+ * A test case where we are verifying that version and tombstones exposed
+ * by CAS API (see COF_VERSIONED and COF_SHOW_DEAD) show expected
+ * behavior with combinations of PUT, DEL and NEXT.
+ */
+static void next_ver_exposed(void)
+{
+	enum { V_PAST, V_FUTURE, V_NR };
+	struct m0_bufvec        keys;
+	struct m0_bufvec        values;
+	struct m0_bufvec        expected_values;
+	struct m0_bufvec        kodd;
+	struct m0_bufvec        keven;
+	int                     rc;
+	uint64_t                version[V_NR] = { 2, 3 };
+	int                     i;
+	struct m0_cas_id        index = {};
+	struct m0_cas_rec_reply rep;
+	struct m0_crv          *versions;
+	bool                    is_even;
+	const struct m0_fid     ifid = IFID(2, 3);
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	index.ci_fid = ifid;
+
+
+	rc = m0_bufvec_alloc(&keys, COUNT, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == COUNT);
+	M0_ALLOC_ARR(versions, keys.ov_vec.v_nr);
+	M0_UT_ASSERT(versions != NULL);
+	rc = m0_bufvec_alloc(&values, keys.ov_vec.v_nr, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&expected_values,
+			     keys.ov_vec.v_nr, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	rc = m0_bufvec_alloc(&kodd, keys.ov_vec.v_nr / 2, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&keven, keys.ov_vec.v_nr / 2, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+
+	for (i = 0; i < keys.ov_vec.v_nr; i++) {
+		is_even = (i & 0x01) == 0 ;
+
+		*(uint64_t*)keys.ov_buf[i] = i;
+		*(uint64_t*)values.ov_buf[i] = i;
+		if (is_even)
+			*(uint64_t*)expected_values.ov_buf[i] = i;
+		else
+			expected_values.ov_vec.v_count[i] = 0;
+
+		memcpy((is_even ? &keven : &kodd)->ov_buf[i / 2],
+		       keys.ov_buf[i], keys.ov_vec.v_count[i]);
+
+		m0_crv_init(&versions[i],
+			    &(struct m0_dtm0_ts) {
+				.dts_phys =
+				version[!is_even ? V_FUTURE : V_PAST],
+			    },
+			    !is_even);
+	}
+
+	/* Insert all the keys. */
+	put_get_verified(&index, &keys, &values, &values, version[V_PAST],
+			 COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+
+	/* Only even records will be alive in the future. */
+	del_get_verified(&index, &kodd, version[V_FUTURE],
+			 COF_VERSIONED, COF_VERSIONED);
+
+	/*
+	 * Case:
+	 * If even records are alive and odd records are dead then
+	 * NEXT must return all the requested keys if COF_SHOW_DEAD is set.
+	 * The dead records must me "younger" then the alive records,
+	 * and the dead record must have tombstones set.
+	 */
+	next_records_verified(&index,
+			      &M0_BUFVEC_SLICE(&keys, 0), keys.ov_vec.v_nr,
+			      &keys, &expected_values, versions,
+			      COF_VERSIONED | COF_SHOW_DEAD);
+
+	/*
+	 * Case:
+	 * When COF_SHOW_DEAD is specified, dead record is not skipped.
+	 */
+	next_records_verified(&index,
+			      &M0_BUFVEC_SLICE(&keys, 1), 1,
+			      &M0_BUFVEC_SLICE(&keys, 1),
+			      &expected_values, versions + 1,
+			      COF_VERSIONED | COF_SHOW_DEAD);
+
+	/*
+	 * Case:
+	 * Dead record is not skipped when (SHOW_DEAD | SLANT) is specified.
+	 */
+	next_records_verified(&index,
+			      &M0_BUFVEC_SLICE(&keys, 1), 1,
+			      &M0_BUFVEC_SLICE(&keys, 1),
+			      &expected_values, versions + 1,
+			      COF_VERSIONED | COF_SHOW_DEAD | COF_SLANT);
+
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+	m0_bufvec_free(&keven);
+	m0_bufvec_free(&kodd);
+	m0_free(versions);
+
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+}
+#undef M0_BUFVEC_SLICE
 
 static void next(void)
 {
@@ -1365,7 +2144,7 @@ static void next_fail(void)
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_key, &recs_nr, next_rep,
 			 &rep_count, 0);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_kbuf_get", "cas_alloc_fail");
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_key, &recs_nr,
 			 next_rep, &rep_count, 0);
 	M0_UT_ASSERT(rc == -ENOMEM);
@@ -1502,27 +2281,167 @@ static void next_multi_bulk(void)
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 
-static void put_common(struct m0_bufvec *keys, struct m0_bufvec *values)
+static void put_common_with_ver(struct m0_bufvec *keys,
+				struct m0_bufvec *values,
+				uint64_t          version)
 {
-	struct m0_cas_rec_reply rep[COUNT];
-	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index = {};
-	int                     rc;
+	const struct m0_fid      ifid = IFID(2, 3);
+	struct m0_cas_id         index = {};
+	int                      rc;
+	struct m0_cas_rec_reply  rep;
 
 	M0_UT_ASSERT(keys != NULL && values != NULL);
 
-	M0_SET_ARR0(rep);
+	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	index.ci_fid = ifid;
+
+	ut_rec_common_put_verified(&index, keys, values, version,
+				   version == 0 ? 0 : (COF_VERSIONED |
+						       COF_OVERWRITE));
+
+	/* Remove index. */
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+}
+
+static void put_common(struct m0_bufvec *keys, struct m0_bufvec *values)
+{
+	put_common_with_ver(keys, values, 0);
+}
+
+/*
+ * PUTs keys and ensures that "older" keys are overwritten by "newer" keys,
+ * while "older" keys cannot overwrite "newer" keys.
+ * The test case is supposed to work in both kinds of environment (DTM
+ * and non-DTM).
+ */
+static void put_overwrite_ver(void)
+{
+	enum v { V_NONE, V_PAST, V_NOW, V_FUTURE, V_NR};
+	struct m0_bufvec         keys;
+	struct m0_bufvec         vals[V_NR];
+	uint64_t                 version[V_NR] = {};
+	int                      rc;
+	int                      i;
+	int                      j;
+	struct m0_cas_id         index = {};
+	struct m0_cas_rec_reply  rep[1];
+	const struct m0_fid      ifid = IFID(2, 3);
+
+	/*
+	 * For every i-th key we have V_NR values from i to i << (V_NR - 1).
+	 * Ensure it will not overflow.
+	 */
+	M0_CASSERT((UINT64_MAX / COUNT) > (1L << V_NR));
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+
+	rc = m0_bufvec_alloc(&keys, COUNT, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr != 0);
+	for (j = 0; j < V_NR; j++) {
+		rc = m0_bufvec_alloc(&vals[j], keys.ov_vec.v_nr,
+				     sizeof(uint64_t));
+		M0_UT_ASSERT(rc == 0);
+		version[j] = j;
+	}
+
+	for (i = 0; i < keys.ov_vec.v_nr; i++) {
+		*(uint64_t*)keys.ov_buf[i] = i;
+		for (j = 0; j < V_NR; j++)
+			*(uint64_t*)vals[j].ov_buf[i] = i << j;
+	}
 
 	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
 	M0_UT_ASSERT(rc == 0);
 	index.ci_fid = ifid;
-	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
 
-	/* Remove index. */
+	/* PUT at "now". */
+	put_get_verified(&index, &keys, &vals[V_NOW], &vals[V_NOW],
+			 version[V_NOW], COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_NOW], COF_VERSIONED));
+
+	/* PUT at "future" (overwrites "now"). */
+	put_get_verified(&index, &keys, &vals[V_FUTURE], &vals[V_FUTURE],
+			 version[V_FUTURE], COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_FUTURE], COF_VERSIONED));
+
+	/* PUT at "past" (values should not be changed) */
+	put_get_verified(&index, &keys, &vals[V_PAST], &vals[V_FUTURE],
+			 version[V_PAST], COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_FUTURE], COF_VERSIONED));
+
+	/* However, empty version disables the versioned behavior. */
+	put_get_verified(&index, &keys, &vals[V_PAST], &vals[V_PAST],
+			 version[V_NONE], COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_NONE], COF_VERSIONED));
+
 	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
 	M0_UT_ASSERT(rc == 0);
+
+	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
+	M0_UT_ASSERT(rc == 0);
+	index.ci_fid = ifid;
+
+	/*
+	 * Insertion of a pair without COF_OVERWRITE flag set disables
+	 * the versioned behavior even if the version was specified.
+	 * Let's insert some values first.
+	 */
+	put_get_verified(&index, &keys, &vals[V_FUTURE], &vals[V_FUTURE],
+			 version[V_FUTURE], COF_VERSIONED, COF_VERSIONED);
+	/*
+	 * And now let's check if they are overwritten. We expect that
+	 * the values will be overwritten because the previous operation
+	 * inserted the records but did not set their versions.
+	 */
+	put_get_verified(&index, &keys, &vals[V_PAST], &vals[V_PAST],
+			 version[V_PAST], COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
+	M0_UT_ASSERT(rc == 0);
+
+	for (j = 0; j < V_NR; j++)
+		m0_bufvec_free(&vals[j]);
+	m0_bufvec_free(&keys);
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+}
+
+/*
+ * Put a versioned key-value pair.
+ */
+static void put_ver(void)
+{
+	struct m0_bufvec keys;
+	struct m0_bufvec values;
+	int              rc;
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+
+	rc = m0_bufvec_alloc(&keys, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr != 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
+					*(uint64_t*)values.ov_buf[i] = i * i,
+					true));
+	put_common_with_ver(&keys, &values, 1);
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 
 /*
@@ -1660,7 +2579,7 @@ static void recs_fragm(void)
 	m0_fi_enable_off_n_on_m("m0_rpc_item_max_payload_exceeded",
 				"payload_too_large2",
 				10, 1);
-	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep);
+	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
 	m0_fi_disable("m0_rpc_item_max_payload_exceeded", "payload_too_large2");
@@ -1977,11 +2896,11 @@ static void put_crow_fail(void)
 
 	M0_SET_ARR0(rep);
 
-	m0_fi_enable_off_n_on_m("ctg_buf_get", "cas_alloc_fail", 1, 1);
+	m0_fi_enable_off_n_on_m("ctg_kbuf_get", "cas_alloc_fail", 1, 1);
 	index.ci_fid = ifid;
 	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, COF_CROW);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_disable("ctg_buf_get", "cas_alloc_fail");
+	m0_fi_disable("ctg_kbuf_get", "cas_alloc_fail");
 
 	rc = ut_rec_get(&casc_ut_cctx, &index, &keys, grep);
 	M0_UT_ASSERT(rc == -ENOENT);
@@ -2013,7 +2932,7 @@ static void put_fail_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
 	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_kbuf_get", "cas_alloc_fail");
 	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
@@ -2105,35 +3024,134 @@ static void upd(void)
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 
-static void del_common(struct m0_bufvec *keys, struct m0_bufvec *values)
+static void del_common(struct m0_bufvec *keys,
+		       struct m0_bufvec *values,
+		       uint64_t          version,
+		       uint64_t          put_flags,
+		       uint64_t          del_flags,
+		       uint64_t          get_flags)
 {
-	struct m0_cas_rec_reply rep[COUNT];
-	struct m0_cas_get_reply get_rep[COUNT];
-	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index = {};
-	int                     rc;
+	struct m0_cas_rec_reply  rep;
+	const struct m0_fid      ifid = IFID(2, 3);
+	struct m0_cas_id         index = {};
+	int                      rc;
+	uint64_t                 del_version = version == 0 ? 0 : version + 1;
 
-	M0_SET_ARR0(rep);
-	M0_SET_ARR0(get_rep);
-	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
+	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	index.ci_fid = ifid;
-	/* Insert new records */
-	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
-	M0_UT_ASSERT(rc == 0);
-	/* Delete all records */
-	rc = ut_rec_del(&casc_ut_cctx, &index, keys, rep);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
-	/* check selected values - must be empty*/
-	rc = ut_rec_get(&casc_ut_cctx, &index, keys, get_rep);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(m0_forall(i, COUNT, get_rep[i].cge_rc == -ENOENT));
-	ut_get_rep_clear(get_rep, COUNT);
 
-	/* Remove index. */
-	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
+	ut_rec_common_put_verified(&index, keys, values, version, put_flags);
+	ut_rec_common_del_verified(&index, keys, del_version, del_flags);
+	M0_UT_ASSERT(!has_values(&index, keys, NULL, get_flags));
+
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
+}
+
+static void del_ver(void)
+{
+	struct m0_bufvec keys;
+	struct m0_bufvec values;
+	int              rc;
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+
+	rc = m0_bufvec_alloc(&keys, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr != 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
+					*(uint64_t*)values.ov_buf[i] = i * i,
+					true));
+	del_common(&keys, &values, 1,
+		   COF_OVERWRITE | COF_VERSIONED,
+		   COF_VERSIONED,
+		   COF_VERSIONED);
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+}
+
+/*
+ * Ensures that versions exposed by GET are visible.
+ */
+static void get_ver_exposed(void)
+{
+	struct m0_bufvec        keys;
+	struct m0_bufvec        values;
+	struct m0_cas_rec_reply rep;
+	int                     rc;
+	const struct m0_fid     ifid = IFID(2, 3);
+	struct m0_cas_id        index = {};
+	enum v { V_NONE, V_PAST, V_NOW, V_FUTURE, V_NR};
+	uint64_t                version[V_NR] = { 0, 1, 2, 3,};
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+
+	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	index.ci_fid = ifid;
+
+	rc = m0_bufvec_alloc(&keys, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr != 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
+					*(uint64_t*)values.ov_buf[i] = i * i,
+					true));
+
+	/* Insert @past */
+	put_get_verified(&index, &keys, &values, &values, version[V_PAST],
+			 COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_PAST], COF_VERSIONED));
+
+	/* Delete @future */
+	del_get_verified(&index, &keys, version[V_FUTURE],
+			 COF_VERSIONED, COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_FUTURE], COF_VERSIONED));
+
+	/* Cleanup */
+	del_get_verified(&index, &keys, version[V_NONE], 0, 0);
+
+	/* Delete @now */
+	del_get_verified(&index, &keys, version[V_NOW],
+			 COF_VERSIONED, COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_NOW], COF_VERSIONED));
+	M0_UT_ASSERT(has_tombstones(&index, &keys));
+
+	/* Insert @past */
+	put_get_verified(&index, &keys, &values, NULL, version[V_PAST],
+			 COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_NOW], COF_VERSIONED));
+	M0_UT_ASSERT(has_tombstones(&index, &keys));
+
+	/* Insert @future */
+	put_get_verified(&index, &keys, &values, NULL, version[V_FUTURE],
+			 COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_FUTURE], COF_VERSIONED));
+	M0_UT_ASSERT(!has_tombstones(&index, &keys));
+
+
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 
 static void del(void)
@@ -2152,7 +3170,7 @@ static void del(void)
 	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
 					*(uint64_t*)values.ov_buf[i] = i * i,
 					true));
-	del_common(&keys, &values);
+	del_common(&keys, &values, 0, 0, 0, 0);
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&values);
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
@@ -2167,7 +3185,7 @@ static void del_bulk(void)
 	/* Bulk keys and  values. */
 	vals_create(COUNT, COUNT_VAL_BYTES, &keys);
 	vals_create(COUNT, COUNT_VAL_BYTES, &values);
-	del_common(&keys, &values);
+	del_common(&keys, &values, 0, 0, 0, 0);
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&values);
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
@@ -2204,10 +3222,10 @@ static void del_fail(void)
 	M0_UT_ASSERT(rc == 0);
 	/* Delete all records */
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
-	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep);
+	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep, 0);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
-	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep);
+	m0_fi_enable_once("ctg_kbuf_get", "cas_alloc_fail");
+	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep, 0);
 	M0_UT_ASSERT(rc == -ENOMEM);
 	/* check selected values - must be empty*/
 	m0_forall(i, values.ov_vec.v_nr,
@@ -2253,7 +3271,7 @@ static void del_n(void)
 	M0_UT_ASSERT(rc == 0);
 	/* Delete several records */
 	keys.ov_vec.v_nr /= 3;
-	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep);
+	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 	/* restore old count value */
 	keys.ov_vec.v_nr = COUNT;
@@ -2328,7 +3346,7 @@ static void null_value(void)
 	m0_bufvec_free(&start_key);
 
 	/* Delete records. */
-	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep);
+	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
 
@@ -2483,7 +3501,7 @@ static void get_fail(void)
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
 	rc = ut_rec_get(&casc_ut_cctx, &index, &keys, get_rep);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_kbuf_get", "cas_alloc_fail");
 	rc = ut_rec_get(&casc_ut_cctx, &index, &keys, get_rep);
 	M0_UT_ASSERT(rc == -ENOMEM);
 	m0_bufvec_free(&keys);
@@ -2520,7 +3538,7 @@ static void recs_count(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_ctg_rec_nr() == COUNT);
 	M0_UT_ASSERT(m0_ctg_rec_size() == COUNT * 2 * sizeof(uint64_t));
-	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep);
+	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_ctg_rec_nr() == 0);
 	/* Currently total size of records is not decremented on deletion. */
@@ -2605,6 +3623,272 @@ static void reply_too_large(void)
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 
+enum named_version {
+	PAST   = 2,
+	FUTURE = 3,
+};
+
+enum named_outcome {
+	/* No value at all. */
+	TOMBSTONE,
+	/* New value was not inserted. */
+	PRESERVED,
+	/* Old value was replaced by the new value. */
+	OVERWRITTEN,
+};
+
+enum named_op {
+	NOP,
+	PUT,
+	DEL,
+};
+
+/* PUT or DEL operation with a human-readable version description. */
+struct cas_ver_op {
+	enum named_version       ver;
+	enum named_op            op;
+	const struct m0_bufvec  *keys;
+	const struct m0_bufvec  *values;
+};
+
+struct put_del_ver_case {
+	/* An operation to be executed first. */
+	struct cas_ver_op  before;
+	/* Second operation that happen right after the first one. */
+	struct cas_ver_op  after;
+};
+
+static void cas_ver_op_execute(const struct cas_ver_op *cvop,
+			       struct m0_cas_id        *index)
+{
+	switch (cvop->op) {
+	case PUT:
+		ut_rec_common_put_verified(index, cvop->keys, cvop->values,
+					   cvop->ver,
+					   COF_VERSIONED | COF_OVERWRITE);
+		break;
+	case DEL:
+		ut_rec_common_del_verified(index, cvop->keys, cvop->ver,
+					   COF_VERSIONED);
+		break;
+	case NOP:
+		/* Nothing to do. */
+		break;
+	}
+}
+
+static void put_del_ver_case_execute(const struct put_del_ver_case *c,
+				     struct m0_cas_id              *index)
+{
+	cas_ver_op_execute(&c->before, index);
+	cas_ver_op_execute(&c->after, index);
+}
+
+/*
+ * The function verifies the following properties:
+ *  Put a tombstone:
+ *   DEL@version
+ *   has_tombstone => true
+ *  Put some old version:
+ *   PUT@(version - 1)
+ *   has_tombstone => true
+ *  Put some new version:
+ *   PUT@(version + 1)
+ *   has_tombstone => false.
+ */
+static void verify_version_properties(struct m0_cas_id       *index,
+				      const struct m0_bufvec *keys,
+				      uint64_t                version)
+{
+	int                      rc;
+	struct m0_cas_get_reply *get_rep;
+	struct m0_bufvec         values;
+	bool                     tombstones;
+
+	M0_ALLOC_ARR(get_rep, keys->ov_vec.v_nr);
+	M0_UT_ASSERT(get_rep != NULL);
+
+	/* Save the existing values. */
+	rc = ut_rec__get(&casc_ut_cctx, index, keys, get_rep, 0);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_forall(i, keys->ov_vec.v_nr,
+			       get_rep[i].cge_rc == 0));
+	rc = get_reply2bufvec(get_rep, keys->ov_vec.v_nr, &values);
+	M0_UT_ASSERT(rc == 0);
+	m0_free(get_rep);
+	/* Save the existing tombstones (assuming all-or-nothing). */
+	tombstones = has_tombstones(index, keys);
+
+	ut_rec_common_del_verified(index, keys, version, COF_VERSIONED);
+	M0_UT_ASSERT(has_tombstones(index, keys));
+
+	ut_rec_common_put_verified(index, keys, &values, version - 1,
+				   COF_VERSIONED | COF_OVERWRITE);
+	M0_UT_ASSERT(has_tombstones(index, keys));
+
+	ut_rec_common_put_verified(index, keys, &values, version + 1,
+				   COF_VERSIONED | COF_OVERWRITE);
+	M0_UT_ASSERT(!has_tombstones(index, keys));
+
+	/* Restore the existing values. */
+	ut_rec_common_del_verified(index, keys, 0, 0);
+	ut_rec_common_put_verified(index, keys, &values, version,
+				   COF_VERSIONED | COF_OVERWRITE);
+	M0_UT_ASSERT(!has_tombstones(index, keys));
+	/* Restore the existing tombstones. */
+	if (tombstones) {
+		ut_rec_common_del_verified(index, keys, version,
+					   COF_VERSIONED);
+		M0_UT_ASSERT(has_tombstones(index, keys));
+	}
+}
+
+static enum named_outcome outcome(const struct put_del_ver_case *c)
+{
+	const struct cas_ver_op *before = &c->before;
+	const struct cas_ver_op *after  = &c->after;
+	const struct cas_ver_op *winner;
+
+	/* Get the operation with the "latest" version. */
+	if (before->ver == FUTURE)
+		winner = before;
+	else if (after->ver == FUTURE)
+		winner = after;
+	else
+		M0_IMPOSSIBLE("Did you forget to add an op with FUTURE?");
+
+	if (winner->op == DEL)
+		return TOMBSTONE;
+	else if (winner == before)
+		return PRESERVED;
+	else
+		return OVERWRITTEN;
+}
+
+static void put_del_ver_case_verify(const struct put_del_ver_case *c,
+				    struct m0_cas_id              *index)
+{
+	const struct m0_bufvec *keys = c->before.keys;
+	const struct m0_bufvec *before_values = c->before.values;
+	const struct m0_bufvec *after_values = c->after.values;
+
+	switch (outcome(c)) {
+	case TOMBSTONE:
+		M0_UT_ASSERT(has_tombstones(index, keys));
+		M0_UT_ASSERT(!has_values(index, keys, before_values,
+				       COF_VERSIONED));
+		M0_UT_ASSERT(!has_values(index, keys, after_values,
+				       COF_VERSIONED));
+		break;
+	case OVERWRITTEN:
+		M0_UT_ASSERT(!has_tombstones(index, keys));
+		/*
+		 * The values should be overwritten no matter what behavior we
+		 * have specified.
+		 */
+		M0_UT_ASSERT(has_values(index, keys, after_values, 0));
+		M0_UT_ASSERT(has_values(index, keys, after_values,
+				       COF_VERSIONED));
+		M0_UT_ASSERT(!has_values(index, keys, before_values, 0));
+		M0_UT_ASSERT(!has_values(index, keys, before_values,
+				       COF_VERSIONED));
+		break;
+	case PRESERVED:
+		M0_UT_ASSERT(!has_tombstones(index, keys));
+		/*
+		 * The values should be preserved, and it should be visible
+		 * even if the versioned behavior was not requested by GET
+		 * operation.
+		 */
+		M0_UT_ASSERT(has_values(index, keys, before_values, 0));
+		M0_UT_ASSERT(has_values(index, keys, before_values,
+				       COF_VERSIONED));
+		M0_UT_ASSERT(!has_values(index, keys, after_values, 0));
+		M0_UT_ASSERT(!has_values(index, keys, after_values,
+				       COF_VERSIONED));
+		break;
+	}
+
+	M0_UT_ASSERT(has_versions(index, keys, FUTURE, COF_VERSIONED));
+	verify_version_properties(index, keys, FUTURE);
+}
+
+static void put_del_ver(void)
+{
+	const uint64_t           key = 1;
+	const uint64_t           before_value = 1;
+	const uint64_t           after_value  = 2;
+	const m0_bcount_t        nr_bytes = sizeof(key);
+	const void              *key_data = &key;
+	const void              *before_val_data = &before_value;
+	const void              *after_val_data = &after_value;
+	const struct m0_bufvec   keys =
+		M0_BUFVEC_INIT_BUF((void **) &key_data,
+				   (m0_bcount_t *) &nr_bytes);
+	const struct m0_bufvec   before_values =
+		M0_BUFVEC_INIT_BUF((void **) &before_val_data,
+				   (m0_bcount_t *) &nr_bytes);
+	const struct m0_bufvec   after_values =
+		M0_BUFVEC_INIT_BUF((void **) &after_val_data,
+				   (m0_bcount_t *) &nr_bytes);
+
+#define BEFORE(_what, _when)              \
+	.before = {                       \
+		.ver   = _when,           \
+		.op    = _what,           \
+		.keys   = &keys,          \
+		.values = &before_values, \
+	},
+
+#define AFTER(_what, _when)              \
+	.after = {                       \
+		.ver    = _when,         \
+		.op     = _what,         \
+		.keys   = &keys,         \
+		.values = &after_values, \
+	},
+
+	const struct put_del_ver_case cases[] = {
+		{ BEFORE(PUT, PAST)   AFTER(DEL, FUTURE) },
+		{ BEFORE(PUT, PAST)   AFTER(PUT, FUTURE) },
+
+		{ BEFORE(PUT, FUTURE) AFTER(PUT, PAST)   },
+		{ BEFORE(PUT, FUTURE) AFTER(DEL, PAST)   },
+
+		{ BEFORE(DEL, FUTURE) AFTER(DEL, PAST)   },
+		{ BEFORE(DEL, FUTURE) AFTER(PUT, PAST)   },
+
+		{ BEFORE(DEL, PAST)   AFTER(DEL, FUTURE) },
+		{ BEFORE(DEL, PAST)   AFTER(PUT, FUTURE) },
+
+		{ BEFORE(NOP, PAST)   AFTER(DEL, FUTURE) },
+		{ BEFORE(NOP, PAST)   AFTER(PUT, FUTURE) },
+	};
+#undef BEFORE
+#undef AFTER
+#undef OUTCOME
+
+	int                     rc;
+	int                     i;
+	struct m0_cas_id        index = {};
+	struct m0_cas_rec_reply rep;
+	const struct m0_fid     ifid = IFID(2, 3);
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	index.ci_fid = ifid;
+
+	for (i = 0; i < ARRAY_SIZE(cases); ++i) {
+		put_del_ver_case_execute(&cases[i], &index);
+		put_del_ver_case_verify(&cases[i],  &index);
+		ut_rec_common_del_verified(&index, cases[i].before.keys, 0, 0);
+	}
+
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+}
 
 struct m0_ut_suite cas_client_ut = {
 	.ts_name   = "cas-client",
@@ -2651,6 +3935,13 @@ struct m0_ut_suite cas_client_ut = {
 		{ "reply-too-large",        reply_too_large,        "Sergey" },
 		{ "recs-fragm",             recs_fragm,             "Sergey" },
 		{ "recs_fragm_fail",        recs_fragm_fail,        "Sergey" },
+		{ "put-ver",                put_ver,                "Ivan"   },
+		{ "put-overwrite-ver",      put_overwrite_ver,      "Ivan"   },
+		{ "del-ver",                del_ver,                "Ivan"   },
+		{ "next-ver",               next_ver,               "Ivan"   },
+		{ "put-del-ver",            put_del_ver,            "Ivan"   },
+		{ "next-ver-exposed",       next_ver_exposed,       "Ivan"   },
+		{ "get-ver-exposed",        get_ver_exposed,        "Ivan"   },
 		{ NULL, NULL }
 	}
 };

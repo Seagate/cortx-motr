@@ -205,6 +205,8 @@ struct m0_cas_get_reply {
 	int           cge_rc;
 	/** Retrieved value. Undefined if cge_rc != 0. */
 	struct m0_buf cge_val;
+	/** Version of the record. */
+	struct m0_crv cge_ver;
 };
 
 /**
@@ -219,6 +221,8 @@ struct m0_cas_next_reply {
 	struct m0_cas_hint cnp_hint;
 	/** Record value. Set if rc == 0. */
 	struct m0_buf      cnp_val;
+	/** Version of the record. */
+	struct m0_crv      cnp_ver;
 };
 
 /**
@@ -472,6 +476,19 @@ M0_INTERNAL void m0_cas_rep_mlock(const struct m0_cas_req *req,
 M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
 			   struct m0_cas_id       *index,
 			   const struct m0_bufvec *keys);
+
+/**
+ * A version-aware version of m0_cas_get.
+ * It returns the values associated with the given keys only if this values
+ * do not have tombstones set (i.e., they have not been removed).
+ * See ::COF_VERSIONED.
+ *
+ * TODO: This function may be disolved if ::m0_cas_get gets an extra
+ * argument (flags).
+ */
+M0_INTERNAL int m0_cas_versioned_get(struct m0_cas_req      *req,
+				     struct m0_cas_id       *index,
+				     const struct m0_bufvec *keys);
 
 /**
  * Gets execution result of m0_cas_get() request.
