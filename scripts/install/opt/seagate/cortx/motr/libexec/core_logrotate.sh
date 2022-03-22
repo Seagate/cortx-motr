@@ -87,7 +87,7 @@ if [[ $platform = "virtual" ]]; then
 
     core_files_max_count=2
 else
-    core_files_max_count=$(($core_files_max_count + 2))
+    core_files_max_count=(($core_files_max_count + 2))
 fi
 
 echo "Max core file count: $core_files_max_count"
