@@ -426,18 +426,17 @@ def update_motr_hare_keys(self, nodes):
         md_disks_lists = get_md_disks_lists(self, node_info)
         update_to_file(self, self._index_motr_hare, self._url_motr_hare, machine_id, md_disks_lists)
 
-'''
-Write below content to /etc/logrotate.conf file so that mini_mini_provisioner
-log file will be rotated hourly and retained recent max 2 files. Max size of log file is 100M.
+# Write below content to /etc/cortx/motr/mini_prov_logrotate.conf file so that mini_mini_provisioner
+# log file will be rotated hourly and retained recent max 4 files. Max size of log file is 10M.
 
-Content:
-/etc/cortx/log/motr/<machine-id>/mini_provisioner {
-    hourly
-    size 10M
-    rotate 4
-    delaycompress
-}
-'''
+# Content:
+# /etc/cortx/log/motr/<machine-id>/mini_provisioner {
+#    hourly
+#    size 10M
+#    rotate 4
+#    delaycompress
+#    copytruncate
+# }
 def add_entry_to_logrotate_conf_file(self):
     MOTR_M0D_DATA_DIR = f"{self.local_path}/motr"
     validate_files([MOTR_M0D_DATA_DIR])
@@ -1456,7 +1455,7 @@ def start_service(self, service, idx):
     cmd = f"cp {MOTR_MINI_PROV_LOGROTATE_SCRIPT} {CROND_DIR}"
     execute_command(self, cmd)
     # Start crond service
-    cmd = f"/usr/sbin/crond start"
+    cmd = "/usr/sbin/crond start"
     execute_command(self, cmd, timeout_secs=120)
 
     # Copy confd_path to /etc/sysconfig
@@ -1477,7 +1476,7 @@ def start_service(self, service, idx):
     cmd = "/opt/seagate/cortx/motr/libexec/m0trace_logrotate.sh &"
     execute_command(self, cmd)
     cmd = "/opt/seagate/cortx/motr/libexec/m0addb_logrotate.sh &"
-    execute_command(self, cmd) 
+    execute_command(self, cmd)
     #Start motr services
     cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
     execute_command_console(self, cmd)
