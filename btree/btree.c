@@ -3098,7 +3098,7 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 
 /**
  *
- * Proposed Node Structure for Fix Sized Keys and Variable Sized Value :
+ * Node Structure for Fix Sized Keys and Variable Sized Value :
  *
  * Leaf Node Structure :
  *

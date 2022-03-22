@@ -1024,13 +1024,13 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 	m0_buf_init(&rec, &omgrec, sizeof omgrec);
 	rc = cob_table_insert(dom->cd_fileattr_omg, tx, &key, &rec);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 	/**
 	   Create root cob where all namespace is stored.
 	 */
 	rc = m0_cob_alloc(dom, &cob);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	rc = m0_cob_nskey_make(&nskey, &M0_COB_ROOT_FID, M0_COB_ROOT_NAME,
 			       strlen(M0_COB_ROOT_NAME));
