@@ -87,7 +87,7 @@ if [[ $platform = "virtual" ]]; then
 
     core_files_max_count=2
 else
-    core_files_max_count=(($core_files_max_count + 2))
+    core_files_max_count=$((core_files_max_count + 2))
 fi
 
 echo "Max core file count: $core_files_max_count"
@@ -116,9 +116,9 @@ for motr_coredir in ${motr_coredirs[@]}; do
         echo "## found $core_files_count file(s) in core directory $core_dir ##"
 
         # check core files count is greater than max core file count
-        if [[ "$core_files_coun"t -gt "$core_files_max_count" ]]; then
+        if [[ "$core_files_count" -gt "$core_files_max_count" ]]; then
             # get files sort by date - older will come on top
-            remove_file_count=(($core_files_count - $core_files_max_count))
+            remove_file_count=$((core_files_count - core_files_max_count))
 
             echo "## ($remove_file_count) file(s) can be removed from \
                            core directory($core_dir) ##"               
@@ -128,7 +128,7 @@ for motr_coredir in ${motr_coredirs[@]}; do
             # is older files comes first
             
             if [[ $platform = "physical" ]]; then
-                peserve_files=(($core_files_max_count - 2))
+                peserve_files=$((core_files_max_count - 2))
                 files_to_remove=$(ls -tr "$core_dir" | grep core | \
                                      head -n -"$peserve_files" | awk 'NR>2')
             else
