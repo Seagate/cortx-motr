@@ -523,14 +523,17 @@ M0_INTERNAL int m0_confc_cache_add_process(struct m0_conf_cache    *cache,
 		base_obj_process = M0_CONF_CAST(base_obj, m0_conf_process);
 		new_obj_process = M0_CONF_CAST(*new_obj, m0_conf_process);
 
-		M0_ASSERT(base_obj_process != NULL);
-		M0_ASSERT(new_obj_process != NULL);
-
-		rc = m0_bitmap_init(&new_obj_process->pc_cores,
-				    base_obj_process->pc_cores.b_nr);
-		if (rc != 0)
+		if ((base_obj_process != NULL) &&
+		    (new_obj_process != NULL)) {
+			rc = m0_bitmap_init(&new_obj_process->pc_cores,
+					    base_obj_process->pc_cores.b_nr);
+			if (rc != 0)
+				goto fail;
+		} else {
+			rc = -EINVAL;
 			goto fail;
-		/* XXX FIXME: process->pc_cores.b_words will leak in case of error */
+		}
+
 		m0_bitmap_copy(&new_obj_process->pc_cores, &base_obj_process->pc_cores);
 		new_obj_process->pc_memlimit_as      = base_obj_process->pc_memlimit_as;
 		new_obj_process->pc_memlimit_rss     = base_obj_process->pc_memlimit_rss;
