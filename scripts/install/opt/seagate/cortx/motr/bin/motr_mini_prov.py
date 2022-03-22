@@ -52,8 +52,6 @@ BE_LOG_SZ = 4*1024*1024*1024 #4G
 BE_SEG0_SZ = 128 * 1024 *1024 #128M
 MACHINE_ID_FILE = "/etc/machine-id"
 TEMP_FID_FILE = "/opt/seagate/cortx/motr/conf/service_fid.yaml"
-LOGROTATE_CONF_DIR = "/etc/logrotate.d"
-LOGROTATE_MOTR_CONF_FILE = "/etc/logrotate.d/motr"
 CMD_RETRY_COUNT = 5
 
 class MotrError(Exception):
@@ -433,21 +431,24 @@ log file will be rotated hourly and retained recent max 2 files. Max size of log
 Content:
 /etc/cortx/log/motr/<machine-id>/mini_provisioner {
     hourly
-    size 100M
-    rotate 2
+    size 10M
+    rotate 4
     delaycompress
 }
 '''
 def add_entry_to_logrotate_conf_file(self):
+    MOTR_M0D_DATA_DIR = f"{self.local_path}/motr"
+    validate_files([MOTR_M0D_DATA_DIR])
+    mini_prov_conf_file = f"{MOTR_M0D_DATA_DIR}/mini_prov_logrotate.conf"
+
     indent=' '*4
     lines=["{a} {b}\n".format(a=log_file, b='{'),
            f"{indent}hourly\n",
-           f"{indent}size 100M\n",
-           f"{indent}rotate 2\n",
+           f"{indent}size 10M\n",
+           f"{indent}rotate 4\n",
            f"{indent}delaycompress\n",
            "{a}\n".format(a='}')]
-    validate_files(LOGROTATE_CONF_DIR) 
-    with open(f"{LOGROTATE_MOTR_CONF_FILE}", 'w+') as fp:
+    with open(f"{mini_prov_conf_file}", 'w+') as fp:
         for line in lines:
             fp.write(line)
 
