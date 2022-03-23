@@ -1,10 +1,14 @@
 # Motr Terminology Guide
 
 <table>
-  <tr>
-    <th width=220p>Terminology</th>
-    <th width=600px>Description</th>
-  </tr>
+  <thead>
+    <tr>
+    <th width=220px align="left">Terminology</th>
+    <th width=500px align="left">Description</th>
+    </tr>
+  </thead>
+
+<tbody>
   <tr>
     <td>ADDB</td>
     <td>Analysis and Diaganostics DataBase contains information describing ongoing activity of Motr system</td>
@@ -20,7 +24,7 @@
   </tr>
   <tr>
       <td>Background Scrub</td>
-      <td> It Continuously scans the subsystem to identify and repair corrupted Motr data blocks. The worker created by scrub machine  serves a scrub request. A scrub-group is a group of relevant data blocks typically distributed across storage devices in a cluster, e.g. a parity group. A Scrub machine receives and run the scrub requests from DI and background scrub scanner. A Scrub request is submitted to repair the corrupt Motr daba block.
+      <td> It Continuously scans the subsystem to identify and repair corrupted Motr data blocks. The worker created by scrub machine  serves a scrub request. A scrub-group is a group of relevant data blocks typically distributed across storage devices in a cluster, e.g. a parity group. A Scrub machine receives and run the scrub requests from DI and background scrub scanner. A Scrub request is submitted to repair the corrupt Motr data block.
   </td>
   </tr>
   <tr>
@@ -313,4 +317,6 @@
       <td>UT is a way of testing a smallest piece of code that can be logically isolated in a system.
       </td>
   </tr>
+  
+  </tbody>  
 </table>
