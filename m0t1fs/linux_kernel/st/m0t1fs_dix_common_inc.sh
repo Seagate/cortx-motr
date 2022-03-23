@@ -20,6 +20,8 @@
 M0_SRC_DIR="$(readlink -f "${BASH_SOURCE[0]}")"
 M0_SRC_DIR="${M0_SRC_DIR%/*/*/*/*}"
 
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
+
 CM_OP_REPAIR=1
 CM_OP_REBALANCE=2
 CM_OP_REPAIR_QUIESCE=3
@@ -36,8 +38,7 @@ dix_repair()
 	local rc=0
 
 	repair_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR -t 1 -C ${lnet_nid}:${DIX_CLI_EP} $ios_eps"
-	echo "$repair_trigger"
-	eval "$repair_trigger"
+	run "$repair_trigger"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "DIX Repair failed. rc=$rc"
@@ -51,8 +52,7 @@ dix_rebalance()
 	local rc=0
 
         rebalance_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE -t 1 -C ${lnet_nid}:${DIX_CLI_EP} $ios_eps"
-        echo "$rebalance_trigger"
-	eval "$rebalance_trigger"
+	run "$rebalance_trigger"
 	rc=$?
         if [ $rc != 0 ] ; then
                 echo "DIX Re-balance failed. rc=$rc"
@@ -66,8 +66,7 @@ dix_repair_quiesce()
 	local rc=0
 
 	repair_quiesce_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR_QUIESCE -t 1 -C ${lnet_nid}:${DIX_QUIESCE_CLI_EP} $ios_eps"
-	echo "$repair_quiesce_trigger"
-	eval "$repair_quiesce_trigger"
+	run "$repair_quiesce_trigger"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "DIX Repair quiesce failed. rc=$rc"
@@ -81,8 +80,7 @@ dix_rebalance_quiesce()
 	local rc=0
 
 	rebalance_quiesce_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_QUIESCE -t 1 -C ${lnet_nid}:${DIX_QUIESCE_CLI_EP} $ios_eps"
-	echo "$rebalance_quiesce_trigger"
-	eval "$rebalance_quiesce_trigger"
+	run "$rebalance_quiesce_trigger"
 	rc=$?
 	if [ $rc != 0 ] ; then
 		echo "DIX Re-balance quiesce failed. rc=$rc"
@@ -96,8 +94,7 @@ dix_repair_resume()
 	local rc=0
 
 	repair_resume_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR_RESUME -t 1 -C ${lnet_nid}:${DIX_CLI_EP} $ios_eps"
-	echo "$repair_resume_trigger"
-	eval "$repair_resume_trigger"
+	run "$repair_resume_trigger"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "DIX Repair resume failed. rc=$rc"
@@ -111,8 +108,7 @@ dix_rebalance_resume()
 	local rc=0
 
 	rebalance_resume_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_RESUME -t 1 -C ${lnet_nid}:${DIX_CLI_EP} $ios_eps"
-	echo "$rebalance_resume_trigger"
-	eval "$rebalance_resume_trigger"
+	run "$rebalance_resume_trigger"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "DIX Rebalance resume failed. rc=$rc"
@@ -126,8 +122,7 @@ dix_rebalance_abort()
 	local rc=0
 
 	rebalance_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_ABORT -t 1 -C ${lnet_nid}:${DIX_QUIESCE_CLI_EP} $ios_eps"
-	echo "$rebalance_abort_trigger"
-	eval "$rebalance_abort_trigger"
+	run "$rebalance_abort_trigger"
 	rc=$?
 	if [ $rc != 0 ] ; then
 		echo "DIX Re-balance abort failed. rc=$rc"
@@ -141,8 +136,7 @@ dix_repair_abort()
 	local rc=0
 
 	repair_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR_ABORT -t 1 -C ${lnet_nid}:${DIX_QUIESCE_CLI_EP} $ios_eps"
-	echo "$repair_abort_trigger"
-	eval "$repair_abort_trigger"
+	run "$repair_abort_trigger"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "DIX Repair abort failed. rc=$rc"
@@ -164,8 +158,7 @@ dix_repair_or_rebalance_status_not_4()
 	done
 
 	repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -t 1 -C ${lnet_nid}:${DIX_QUIESCE_CLI_EP} $ios_eps_not_4"
-	echo "$repair_status"
-	eval "$repair_status"
+	run "$repair_status"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "DIX $1 status query failed. rc=$rc"
@@ -183,8 +176,7 @@ dix_repair_or_rebalance_status()
 	[ "$1" == "rebalance" ] && op=$CM_OP_REBALANCE_STATUS
 
 	repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -t 1 -C ${lnet_nid}:${DIX_QUIESCE_CLI_EP} $ios_eps"
-	echo "$repair_status"
-	eval "$repair_status"
+	run "$repair_status"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "DIX $1 status query failed. rc=$rc"
