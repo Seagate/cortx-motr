@@ -333,8 +333,8 @@ function client_wait()
 function m0kv_async()
 {
     local args
-    args=$(python -c "import yaml; \
-        conf = yaml.load(open('$M0CRATE_CFG')); \
+    args=$(python3 -c "import yaml; \
+        conf = yaml.load(open('$M0CRATE_CFG'), Loader=yaml.FullLoader); \
         m = conf['MOTR_CONFIG']; \
         print('-l %s -h %s -p %s -f %s' % (m['MOTR_LOCAL_ADDR'], m['MOTR_HA_ADDR'], m['PROF'], m['PROCESS_FID']));")
 
