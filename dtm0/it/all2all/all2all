@@ -15,6 +15,10 @@ LOOP_IMG_DIR=$TEST_ROOT
 CLIENT_PID=
 M0D_DIR_COMMON=$MOTR_VAR_DIR/m0d-0x720000000000000
 ADDB_DUMP_DIR="/tmp/a2a-addb-out"
+CTGDUMP="$MOTR_ROOT/cas/m0ctgdump"
+DINDEX="1:5"
+CTGDUMP_DIR="/tmp/a2a-ctgdump"
+
 
 M0D_ENDPOINTS=()
 M0D_FIDS_DEC=()
@@ -347,10 +351,10 @@ function m0kv()
 
 function m0kv_run_sync()
 {
-    m0kv index create "1:5"
-    m0kv -s index put "1:5" mykey myvalue
-    m0kv -s index get "1:5" mykey
-    m0kv index drop "1:5"
+    m0kv index create "${DINDEX}"
+    m0kv -s index put "${DINDEX}" mykey myvalue
+    m0kv -s index get "${DINDEX}" mykey
+    m0kv index drop "${DINDEX}"
 }
 
 function client_run_sync()
@@ -358,6 +362,70 @@ function client_run_sync()
     client_run
     client_wait
 }
+
+function ctgdump()
+{
+    local svc_num=$1
+    local proc_fid="0x720000000000000${M0D_FIDS_HEX[$svc_num]}"
+    local index=$DINDEX
+    local svc_ep="${M0D_ENDPOINTS[$svc_num]}"
+    local stobs="/var/motr/m0d-${proc_fid}/stobs"
+    local db="/var/motr/m0d-${proc_fid}/db"
+    local rest="-m 524288 -q 16 -w 8  -U -r 134217728  -c /etc/motr/confd.xc"
+    local out_dir=$CTGDUMP_DIR
+    local fid_hex=$(echo "${M0D_FIDS_HEX[$svc_num]}" | awk -F'x' '{ print $2; }')
+    local out_file="${out_dir}/cas-${fid_hex}.dump"
+    local cmd=$CTGDUMP
+
+    local cmd_args="-e libfab:${svc_ep} -A linuxstob:addb-stobs -f ${proc_fid} -T ad -S ${stobs} -D ${db} ${rest} str ${index}"
+
+    mkdir -p $out_dir
+
+    _info "$cmd $cmd_args"
+    $cmd $cmd_args | sort > "$out_file"
+}
+
+function ctg_eq()
+{
+    local left=$1
+    local right=$2
+    local left_hex=$(echo "${M0D_FIDS_HEX[$left]}" | awk -F'x' '{ print $2; }')
+    local right_hex=$(echo "${M0D_FIDS_HEX[$right]}" | awk -F'x' '{ print $2; }')
+
+    local left_file="${CTGDUMP_DIR}/cas-${right_hex}.dump"
+    local right_file="${CTGDUMP_DIR}/cas-${left_hex}.dump"
+
+    if ! diff -u $left_file $right_file; then
+        _info "Catalogues are different. Run 'diff -u $left_file $right_file' to see the difference."
+        return 1
+    else
+        local nr_records=$(wc -l $left_file | cut -f1 -d' ')
+        _info "Compared ${left_hex} with ${right_hex}. Found ${nr_records} identical records."
+        return 0;
+    fi
+}
+
+function check_ctg_consistency()
+{
+    local ref=$VICTIM
+    local targets=(${WITNESSES[@]})
+
+    rm -fR "$CTGDUMP_DIR"
+
+    for i in $(seq 0 $((${#M0D_FIDS_HEX[@]}-1))); do
+        ctgdump $i
+    done
+
+    for i in ${targets[@]}; do
+        if ! ctg_eq $ref $i; then
+            local ref_pid=${M0D_PIDS[$ref]}
+            local tgt_pid=${M0D_PIDS[$i]}
+            _info "Inconsistency detected between $ref and $tgt processes."
+            exit 1
+        fi
+    done
+}
+
 
 # Phase where we power on the cluster.
 function boot_phase()
@@ -410,14 +478,14 @@ function recovery_phase()
     local svc_name="m0d@0x720000000000000${M0D_FIDS_HEX[VICTIM]}.service"
 
     _info "Create an index"
-    m0kv index create "1:5"
+    m0kv index create "${DINDEX}"
 
     _info "Populate the index"
-    m0kv -s index put "1:5" mykey1 myvalue1
+    m0kv -s index put "${DINDEX}" mykey1 myvalue1
 
     _info "PUT one key, hang on"
-    m0kv_async -s index put "1:5" mykey2 myvalue2 \
-        wait w put "1:5" mykey3 myvalue3
+    m0kv_async -s index put "${DINDEX}" mykey2 myvalue2 \
+        wait w put "${DINDEX}" mykey3 myvalue3
 
     _info "Wait until mykey2 reached the persistent storage on at least one node."
     while ! expect_trace_lines_from_cli "$dtx_done_pattern" 1; do
@@ -480,6 +548,7 @@ function shutdown_phase()
 
     stop_cluster
     addb_dump
+    check_ctg_consistency
 
     _info "Checking processes exit status..."
     processes_status_check || {
