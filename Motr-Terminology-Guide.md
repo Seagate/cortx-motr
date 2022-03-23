@@ -106,7 +106,6 @@
       </td>
   </tr>
 
-
   <tr>
       <td>Configuration cache</td>
       <td>Configuration cache is configuration data stored in node’s memory. Confc library maintains such a cache and provides configuration consumers with access to its data. Confd also uses configuration cache for faster retrieval of information requested by configuration clients.
@@ -221,7 +220,6 @@
       </td>
   </tr>
 
-
   <tr>
       <td>Global object data</td>
       <td>Object linear namespace called global object data.</td>
@@ -233,9 +231,6 @@
       </td>
   </tr>
 
-
-
-
   <tr>
       <td>HA</td>
       <td>CORTX-HA or High-Availability always ensures the availability of CORTX and prevents hardware component or software service failures. If any of your hardware components or software services are affected, CORTX-HA takes over the failover or failback control flow and stabilizes them across the CORTX cluster.
@@ -244,7 +239,7 @@
 
   <tr>
       <td>HA interface</td>
-      <td>HA interface API that allows Halon to control Motr and allows Motr to receive cluster state information from Hare.
+      <td>HA interface API that allows Hare to control Motr and allows Motr to receive cluster state information from Hare.
       </td>
   </tr>
 
@@ -271,8 +266,6 @@
       <td>Total order, defined on keys within a given container. Iterating through the container, returns keys in this order. The order is defined as lexicographical order of keys, interpreted as bit-strings.
       </td>
   </tr>
-
-
 
   <tr>
       <td>Layout</td>
@@ -346,14 +339,11 @@
       </td>
   </tr>
 
-
-
   <tr>
       <td>Segment</td>
       <td>A segment is a stob mapped to an extent in process address space. Each address in the extent uniquely corresponds to the offset in the stob and vice versa. Stob is divided into blocks of fixed size.
       </td>
   </tr>
-
 
   <tr>
       <td>Storage object (stob)</td>
@@ -384,6 +374,4 @@
       <td>UT is a way of testing a smallest piece of code that can be logically isolated in a system.
       </td>
   </tr>
-
-
 </table>
