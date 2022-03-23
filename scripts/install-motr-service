@@ -226,7 +226,8 @@ install_files()
     python2 setup.py install --record $m0spiel_pkg_file
     cd -
     for m0spiel_file in 'utils/spiel/m0_filesystem_stats' \
-                        'utils/spiel/m0spiel' ;
+                        'utils/spiel/m0spiel' \
+                        'utils/spiel/m0_bytecount_stats';
     do
         run "$cmd $M0_SRC_DIR/$m0spiel_file $dir"
     done
