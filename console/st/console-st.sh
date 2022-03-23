@@ -32,6 +32,7 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
 CLIENT=$M0_SRC_DIR/console/m0console
 SERVER=$M0_SRC_DIR/console/st/server
+SERVERPID=
 
 OUTPUT_FILE=$SANDBOX_DIR/client.log
 YAML_FILE9=$SANDBOX_DIR/req-9.yaml
@@ -74,7 +75,8 @@ start_server()
 	    &>$SANDBOX_DIR/mkfs.log || die 'm0mkfs failed'
 	echo 'OK' >&2
 
-	$SERVER -v &>$SANDBOX_DIR/server.log &
+	$SERVER -v &>$SANDBOX_DIR/server.log 2>&1 &
+	SERVERPID=$!
 	sleep 1
 	pgrep $(basename "$SERVER") >/dev/null || die 'Service failed to start'
 	echo 'Service started' >&2
@@ -134,7 +136,7 @@ EOF
 
 stop_server()
 {
-	{ pkill -KILL $(basename "$SERVER") && wait; } || true
+	{ kill -KILL $SERVERPID >/dev/null 2>&1 && wait; } || true
 	if [ "$XPRT" = "lnet" ]; then
 		modunload
 		modunload_galois

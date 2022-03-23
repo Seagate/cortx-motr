@@ -93,6 +93,7 @@
 #include "scripts/systemtap/kem/kem_id.h"
 #include "addb2/addb2_internal.h"
 #include "lib/trace.h"
+#include "lib/thread.h"                 /* m0_pid() */
 
 enum {
 	BUF_SIZE  = 4096,
@@ -161,7 +162,9 @@ static void deflate(void);
 static void misc_init(void);
 static void misc_fini(void);
 
-#define DOM "./_addb2-dump"
+#define DOM "./_addb2-dump_%d"
+
+
 extern int  optind;
 static bool flatten = false;
 static bool deflatten = false;
@@ -198,6 +201,9 @@ int main(int argc, char **argv)
 	int                     rc;
 	uint64_t                start_time = 0;
 	uint64_t                stop_time  = (uint64_t)-1;
+	char                    buf[80];
+
+	sprintf(buf, "linuxstob:"DOM, (int)m0_pid());
 
 	m0_node_uuid_string_set(NULL);
 	result = m0_init(&instance);
@@ -250,12 +256,12 @@ int main(int argc, char **argv)
 	if ((delay != 0 || offset != 0) && optind + 1 < argc)
 		err(EX_USAGE,
 		    "Staring offset and continuous dump imply single file.");
-	result = m0_stob_domain_init("linuxstob:"DOM, "directio=true", &dom);
+	result = m0_stob_domain_init(buf, "directio=true", &dom);
 	if (result == 0)
 		m0_stob_domain_destroy(dom);
 	else if (result != -ENOENT)
 		err(EX_CONFIG, "Cannot destroy domain: %d", result);
-	result = m0_stob_domain_create_or_init("linuxstob:"DOM, "directio=true",
+	result = m0_stob_domain_create_or_init(buf, "directio=true",
 					       /* domain key, not important */
 					       8, NULL, &dom);
 	if (result != 0)

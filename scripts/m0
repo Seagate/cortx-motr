@@ -241,15 +241,19 @@ cmd_run_st() {
                 else
                     echo "<< ${f##*/} >>" >&2
                     if [[ "$trans" == "libfab" ]]; then
-                        chk=$(_libfab_st_list ${f##*/})
+                        chk=$(_check_st_skip_list ${f##*/} ${LIBFAB_TESTS_SKIPLIST[@]})
                         if [[ "$chk" == "true" ]]; then
-                            echo "<< ${f##*/} >> Can not be run for libfab" >&1
-                            . "$M0_SRC_DIR/utils/functions" # sandbox_init, report_and_exit
-                            export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
-                            rc=0
-                            sandbox_init
-                            sandbox_fini $rc
-                            report_and_exit ${f##*/} $rc
+                            echo "<< ${f##*/} >> can not be run for libfab" >&1
+                            _fini ${f##*/}
+                            continue
+                        fi
+                    # Check if encode / decode library is Intel ISA
+                    elif [ "$rs_lib" == "isal" ]; then
+                        chk=$(_check_st_skip_list ${f##*/} ${LIBISAL_TESTS_SKIPLIST[@]})
+                        if [[ "$chk" == "true" ]]; then
+                            echo "<< ${f##*/} >> can not be run for libisal" >&1
+                            _fini ${f##*/}
+                            continue
                         fi
                     fi
                     export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
