@@ -25,18 +25,20 @@
 
 source "/opt/seagate/cortx/motr/common/cortx_util_funcs.sh"
 
-usage() { 
-        echo "Usage: bash $(basename "$0") [--help|-h] [-n CoreFileCount]"
-        "Retain recent modified files of given count and remove older core files."
-        "where:"
-        "-n   number of latest core files to retain" 
-              "Physical : Default count of core files is 5"
-              "virtual  : Default count of core files is 2"
-        "--help|-h     display this help and exit" 1>&2; 
-        exit 1; 
+usage() {
+        cat <<EOF
+        Usage: bash $(basename "$0") [--help|-h] [-n CoreFileCount]
+        Retain recent modified files of given count and remove older core files
+        where:
+        -n   number of latest core files to retain
+              Physical : Default count of core files is 5
+              virtual  : Default count of core files is 2
+        --help|-h     display this help and exit
+EOF
+        exit 1;
 }
 
-check_param() 
+check_param()
 {
     PARAM=$1
     echo "PARAM: $PARAM"

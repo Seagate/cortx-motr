@@ -88,7 +88,6 @@ usr/bin/m0traced
 usr/bin/m0gentestds
 usr/bin/m0iscreg
 opt/seagate/cortx/motr/libexec/m0trace_logrotate.sh
-opt/seagate/cortx/motr/libexec/core_logrotate.sh
 opt/seagate/cortx/motr/libexec/m0_ha_sim
 opt/seagate/cortx/motr/libexec/motr_data_recovery.sh
 opt/seagate/cortx/motr/libexec/motr_cfg.sh
@@ -124,7 +123,6 @@ etc/systemd/system/motr-singlenode.service
 etc/systemd/system/motr-server@.service
 etc/security/limits.d/90-motr.conf
 etc/cron.hourly/m0trace_logrotate.sh
-etc/cron.hourly/core_logrotate.sh
 etc/cron.hourly/m0addb_logrotate.sh
 etc/sysconfig/motr-free-space-monitor
 etc/sysconfig/motr
