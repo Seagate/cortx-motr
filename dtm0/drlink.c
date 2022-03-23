@@ -345,6 +345,7 @@ static int dtm0_process_rlink_reinit(struct dtm0_process *proc,
 	const int max_in_flight = DTM0_MAX_RPCS_IN_FLIGHT;
 
 	if (!M0_IS0(&proc->dop_rlink)) {
+		m0_rpc_conn_sessions_cancel(&proc->dop_rlink.rlk_conn);
 		m0_rpc_link_fini(&proc->dop_rlink);
 		M0_SET0(&proc->dop_rlink);
 	}
