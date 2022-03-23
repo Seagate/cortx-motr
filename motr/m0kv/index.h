@@ -44,7 +44,7 @@ enum {
 	NXT,  /* Next record.       */
 	GENF, /* Generate FID-file. */
 	GENV, /* Generate VAL-file. */
-	WLN,  /* Wait for a line from stdin */
+	WLF,  /* Wait for a file to appear. */
 };
 
 enum {

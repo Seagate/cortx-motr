@@ -30,6 +30,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include <stdio.h>                    /* FILE */
 #include <uuid/uuid.h>                /* uuid_generate */
+#include <unistd.h>                   /* access(), sleep() */
 #include "lib/assert.h"               /* M0_ASSERT */
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -162,25 +163,21 @@ static int genv(char *filename, int cnt, int size)
 	return 0;
 }
 
-static int wait_line(const char *expected_line)
+static int wait_file(const char *expected_file)
 {
-	enum { BUF_SIZE = 1024 };
-	char buf[BUF_SIZE] = {};
-	char *line;
+	int rc;
 
-	m0_console_printf("Awaiting: '%s' \n", expected_line);
+	m0_console_printf("Awaiting: 'touch %s' \n", expected_file);
 
-	do {
-		line = fgets(buf, BUF_SIZE, stdin);
-		if (line == NULL)
-			continue;
-		if (strlen(line) <= 1)
-			continue;
-		line[strlen(line) - 1] = '\0'; /* cut newline */
-		m0_console_printf("Got: '%s' \n", line);
-		if ((strcmp(expected_line, line) == 0))
-			break;
-	} while (1);
+	while (access(expected_file, F_OK ) != 0) {
+		rc = -errno;
+		M0_ASSERT_INFO(rc == -ENOENT, "Wrong file or directory? "
+			       "file=%s, rc=%d", expected_file, rc);
+		sleep(1);
+	}
+
+	m0_console_printf("File detected: '%s'\n", expected_file);
+	(void) remove(expected_file);
 
 	return 0;
 }
@@ -298,8 +295,8 @@ static int cmd_exec(struct index_cmd *cmd)
 	case GENV:
 		rc = genv(cmd->ic_filename, cmd->ic_cnt, cmd->ic_len);
 		break;
-	case WLN:
-		rc = wait_line(cmd->ic_filename);
+	case WLF:
+		rc = wait_file(cmd->ic_filename);
 		break;
 	default:
 		rc = M0_ERR(-EINVAL);
