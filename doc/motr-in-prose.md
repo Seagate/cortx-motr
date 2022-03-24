@@ -134,7 +134,7 @@ Main novel ideas of Motr, that distinguish it from other cluster  file-systems a
 * fops;
 * distributed transaction manager (dt);
 * resource manager (rm);
-* layouts, including parity de-clustering (pdclust);
+* layouts, including [parity de-clustering (pdclust)](https://github.com/Seagate/cortx-motr/blob/documentation/doc/pdclust/index.rst);
 * containers;
 * addb.
 
@@ -958,7 +958,7 @@ Legend:
 
 ## pdclust, idea
 Parity de-clustering (pdclust) is a method to implement network RAID (also 
-known as server network striping, SNS).
+known as server network striping, SNS).  Additional details are available here: [pdclust](https://github.com/Seagate/cortx-motr/edit/main/doc/motr-in-prose.md#pdclust-idea)
 
 pdclust consists of two components:
 * pdclust layout. This is an algorithm and related code that determines how an 
