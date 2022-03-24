@@ -75,6 +75,7 @@
 # Object Layout
 + Object is an array of blocks. Arbitrary scatter-gather IO with overwrite. Object has layout.
 + Default layout is parity de-clustered network raid: N+K+S striping.
+   + More details about [parity declustering](https://github.com/Seagate/cortx-motr/blob/documentation/doc/pdclust/index.rst)
 + Layout takes hardware topology into account: distribute units to support fault-tolerance.  
 
 ![image](./Images/6_Object_Layout.png)     
