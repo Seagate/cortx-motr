@@ -133,7 +133,6 @@ CONFXC_CLEAN_FILE := .confxc.clean
 KDIR = @LINUX_OBJ@
 
 # path for python C extention installs
-# TODO : port m0spiel utility to python3
 PYTHON      := python3
 SETUP_PY    := $(PYTHON) setup.py
 

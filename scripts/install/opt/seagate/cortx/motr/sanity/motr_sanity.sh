@@ -357,8 +357,8 @@ m0spiel_test()
 run_tests()
 {
 	# Run litmus test
-#	object_io_test
-#	kv_test
+	object_io_test
+	kv_test
 	m0spiel_test
 }
 

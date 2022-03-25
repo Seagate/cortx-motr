@@ -44,7 +44,7 @@
 #
 
 #set -eu
-set -x
+#set -x
 export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
 M0_SRC_DIR=`readlink -f ${BASH_SOURCE[0]}`

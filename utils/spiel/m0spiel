@@ -782,7 +782,7 @@ if __name__ == "__main__":
        prompt = '> ' if sys.stdin.isatty() else ''
        while 1:
            try:
-               s = input()
+               s = input(prompt)
                res = interpreter.push(s)
            except (EOFError, KeyboardInterrupt):
                break
