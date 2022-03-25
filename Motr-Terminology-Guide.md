@@ -11,11 +11,11 @@
 <tbody>
   <tr>
     <td>ADDB</td>
-    <td>Analysis and Diaganostics DataBase contains information describing ongoing activity of Motr system</td>
+    <td>Analysis and Diagnostics DataBase contains information describing the ongoing activity of Motr system</td>
   </tr>
   <tr>
     <td>ATOM</td>
-    <td>/archaic/ "ATtribute On Meta-data server" is a design idea inherited from Lustre (q.v.). Some object attributes, such as the amount of space used by the object, can be naturally maintained on each service that keeps parts of the object with the "total" value of the attribute being obtained by querying all such services and aggregating results (e.g., by adding together space used by the object on each service). According to ATOM, such attributes should be also accumulated in some centralised meta-data location, to avoid the overhead of sending and processing queries to large number of services.
+    <td>/archaic/ "ATtribute On Meta-data server" is a design idea inherited from Lustre (q.v.). Some object attributes, such as the amount of space used by the object, can be naturally maintained on each service that keeps parts of the object with the "total" value of the attribute being obtained by querying all such services and aggregating results (e.g., by adding together space used by the object on each service). According to ATOM, such attributes should be also accumulated in some centralised meta-data locations, to avoid the overhead of sending and processing queries to the large number of services.
     </td>    
   </tr>
   <tr>
@@ -29,7 +29,7 @@
   </tr>
   <tr>
       <td>BE Transaction</td>
-      <td>A transaction is a collection of updates. User adds an update to a transaction by capturing the update's region. User explicitly closes a transaction. BE guarantees that a closed transaction is atomic with respect to process crashes that happen after transaction close call returns. That is, after such a crash, either all or none of transaction updates will be present in the segment memory when the segment is opened next time. If a process crashes before a transaction closes, BE guarantees that none of transaction updates will be present in the segment memory.
+      <td>A transaction is a collection of updates. A user adds an update to a transaction by capturing the update's region. A user explicitly closes a transaction. BE guarantees that a closed transaction is atomic with respect to process crashes that happen after the transaction close call returns. That is, after such a crash, either all or none of the transaction updates will be present in the segment memory when the segment is opened next time. If a process crashes before a transaction closes, BE guarantees that none of transaction updates will be present in the segment memory.
       </td>
   </tr>
 <tr>
@@ -248,7 +248,7 @@
   </tr>
   <tr>
       <td>Parity group</td>
-      <td>A parity group is a collection of data units and their parity units. We only consider layouts where data units of a parity group are contiguous in the source. We do consider layouts where units of a parity group are not contiguous in the target (parity declustering). Layouts of N+K pattern allow data in a parity group to be reconstructed when no more than K units of the parity group are missing.
+      <td>A parity group is a collection of data units and their parity units. We only consider layouts where data units of a parity group are contiguous in the source. We do consider layouts where units of a parity group are not contiguous in the target (parity declustering). Layouts of the N+K pattern allow data in a parity group to be reconstructed when no more than K units of the parity group are missing.
       </td>
   </tr>
   <tr>
@@ -294,12 +294,12 @@
 
   <tr>
       <td>Storage object (stob)</td>
-      <td>A storage object (stob) is a container for unstructured data, accessible through m0_stob interface. Back-End (BE) uses stobs to store meta-data on persistent store. BE accesses persistent store only through m0_stob interface and assumes that every completed stob write survives any node failure.
+      <td>A storage object (stob) is a container for unstructured data, accessible through m0_stob interface. Back-End (BE) uses stobs to store meta-data on the persistent store. BE accesses persistent store only through m0_stob interface and assumes that every completed stob write survives any node failure.
       </td>
   </tr>
   <tr>
       <td>Striping pattern</td>
-      <td>A striping layout belongs to a striping pattern (N+K)/P; if it stores the K parity units with the redundancy information for every N data units and the units are stored in P containers. Typically P is equal to the number of storage devices in the pool. Where P is not important or clear from the context, one talks about N+K striping pattern (which coincides with the standard RAID terminology).
+      <td>A striping layout belongs to a striping pattern (N+K)/P; if it stores the K parity unit with the redundancy information for every N data units and the units are stored in P containers. Typically P is equal to the number of storage devices in the pool. Where P is not important or clear from the context, one talks about the N+K striping pattern (which coincides with the standard RAID terminology).
       </td>
   </tr>
   <tr>
