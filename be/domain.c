@@ -138,7 +138,7 @@ static int _0types_visit(struct m0_be_domain *dom, bool init)
 {
 	int                 rc = 0;
 	int                 left;
-	char               *suffix;
+	char               *suffix = NULL;
 	const char         *id;
 	struct m0_buf       opt;
 	struct m0_be_seg   *dict;

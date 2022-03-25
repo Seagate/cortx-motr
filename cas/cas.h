@@ -137,6 +137,28 @@ struct m0_cas_kv_vec {
 } M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
+ * CAS record version and tombstone encoded in on-disk/on-wire format.
+ * Format:
+ *     MSB                             LSB
+ *     +----------------+----------------+
+ *     | 1 bit          | 63 bits        |
+ *     |<- tombstone -> | <- timestamp ->|
+ *     +----------------+----------------+
+ *
+ * A version comprises a physical timestamp and a tombstone flag.
+ * The timestamp is set on the client side whenever the corresponding
+ * record was supposed to be modified by PUT or DEL request.
+ * The tombstone flag is set when the corresponding record has been
+ * "logicaly" removed from the storage (although, it still exists
+ * there as a "dead" record).
+ *
+ * See ::COF_VERSIONED, ::M0_CRV_VER_NONE for details.
+ */
+struct m0_crv {
+	uint64_t crv_encoded;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
+
+/**
  * CAS index record.
  */
 struct m0_cas_rec {
@@ -197,6 +219,13 @@ struct m0_cas_rec {
 	 * records.
 	 */
 	uint64_t             cr_rc;
+
+	/**
+	 * Optional version of this record.
+	 * The version is returned as a reply to GET and NEXT requests
+	 * when COF_VERSIONED is specified in the request.
+	 */
+	struct m0_crv cr_ver;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
@@ -257,7 +286,58 @@ enum m0_cas_op_flags {
 	 * For IDX CREATE, IDX DELETE and IDX LOOKUP operation, instructs it to
 	 * skip layout update operation.
 	 */
-	COF_SKIP_LAYOUT = 1 << 8
+	COF_SKIP_LAYOUT = 1 << 8,
+
+	/**
+	 * Enables version-aware behavior for PUT, DEL, GET, and NEXT requests.
+	 *
+	 * Overview
+	 * --------
+	 *   Versions are taken from m0_cas_op::cg_txd. When this flag is set,
+	 * the following change happens in the logic of the mentioned request
+	 * types:
+	 *     - PUT does not overwrite "newest" (version-wise) records.
+	 *       Requirements:
+	 *         x COF_OVERWRITE is set.
+	 *         x Transaction descriptor has a valid DTX ID.
+	 *     - DEL puts a tombstone instead of an actual removal. In this
+	 *       mode, DEL does not return -ENOENT in the same way as
+	 *       PUT-with-COF_OVERWRITE does not return -EEXIST.
+	 *       Requirements:
+	 *         x Transaction descriptor has a valid DTX ID.
+	 *     - GET returns only "alive" entries (without tombstones).
+	 *     - NEXT also skips entries with tombstones.
+	 *
+	 * How to enable/disable
+	 * ---------------------
+	 *   This operation mode is enabled only if all the requirements are
+	 * satisfied (the list above). For example, if m0_cas_op::cg_txd does
+	 * not have a valid transaction ID then the request is getting executed
+	 * in the usual manner, without version-aware behavior. Additional
+	 * restictions may be imposed later on, but at this moment it is as
+	 * flexible as possible.
+	 *
+	 * Relation with DTM0
+	 * ------------------
+	 *   The flag should always be enabled if DTM0 is enabled because it
+	 * enables CRDT-ness for catalogues. If DTM0 is not enabled then this
+	 * flag may or may not be enabled (for example, the version-related UTs
+	 * use the flag but they do not depend on enabled DTM0).
+	 */
+	COF_VERSIONED = 1 << 9,
+
+	/**
+	 * Makes NEXT return "dead" records (with tombstones) when
+	 * version-aware behavior is specified (see ::COF_VERSIONED).
+	 * By default, COF_VERSIONED does not return dead records for NEXT
+	 * requests but when both flags are specified (VERSIONED | SHOW_DEAD)
+	 * then it yields all records whether they are alive or not.
+	 * It might be used by the client when it wants to analyse the records
+	 * received from several catalogue services, so that it could properly
+	 * merge the results of NEXT operations eliminating inconsistencies.
+	 * In other words, it might be used in degraded mode.
+	 */
+	COF_SHOW_DEAD = 1 << 10,
 };
 
 enum m0_cas_opcode {
@@ -402,6 +482,48 @@ M0_INTERNAL void m0_cas_id_fini(struct m0_cas_id *cid);
 M0_INTERNAL bool m0_cas_id_invariant(const struct m0_cas_id *cid);
 
 M0_INTERNAL bool cas_in_ut(void);
+
+enum {
+	/* Tombstone flag: marks a dead kv pair. We use the MSB here. */
+	M0_CRV_TBS = 1L << (sizeof(uint64_t) * CHAR_BIT - 1),
+	/*
+	 * A special value for the empty version.
+	 * A record with the empty version is always overwritten by any
+	 * PUT or DEL operation that has a valid non-empty version.
+	 * A PUT or DEL operation with the empty version always ignores
+	 * the version-aware behavior: records are actually removed by DEL,
+	 * and overwritten by PUT, no matter what was stored in the catalogue.
+	 */
+	M0_CRV_VER_NONE = 0,
+	/* The maximum possible value of a version. */
+	M0_CRV_VER_MAX = (UINT64_MAX & ~M0_CRV_TBS) - 1,
+	/* The minimum possible value of a version. */
+	M0_CRV_VER_MIN = M0_CRV_VER_NONE + 1,
+};
+
+/*
+ * 100:a == alive record with version 100
+ * 123:d == dead record with version 123
+ */
+#define CRV_F "%" PRIu64 ":%c"
+#define CRV_P(__crv) m0_crv_ts(__crv).dts_phys, m0_crv_tbs(__crv) ? 'd' : 'a'
+
+#define M0_CRV_INIT_NONE ((struct m0_crv) { .crv_encoded = M0_CRV_VER_NONE })
+
+M0_INTERNAL void m0_crv_init(struct m0_crv           *crv,
+			     const struct m0_dtm0_ts *ts,
+			     bool                     tbs);
+
+M0_INTERNAL bool m0_crv_is_none(const struct m0_crv *crv);
+M0_INTERNAL int m0_crv_cmp(const struct m0_crv *left,
+			   const struct m0_crv *right);
+
+M0_INTERNAL bool m0_crv_tbs(const struct m0_crv *crv);
+M0_INTERNAL void m0_crv_tbs_set(struct m0_crv *crv, bool tbs);
+
+M0_INTERNAL struct m0_dtm0_ts m0_crv_ts(const struct m0_crv *crv);
+M0_INTERNAL void m0_crv_ts_set(struct m0_crv           *crv,
+			       const struct m0_dtm0_ts *ts);
 
 /** @} end of cas_dfspec */
 #endif /* __MOTR_CAS_CAS_H__ */
