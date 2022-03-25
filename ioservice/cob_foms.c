@@ -74,6 +74,8 @@ static void cob_stob_create_credit(struct m0_fom *fom);
 static int cob_stob_delete_credit(struct m0_fom *fom);
 static struct m0_cob_domain *cdom_get(const struct m0_fom *fom);
 static int cob_ops_stob_find(struct m0_fom_cob_op *co);
+static int cob_bytecount_decrement(struct m0_cob *cob, struct m0_cob_bckey *key,
+				   uint64_t bytecount, struct m0_be_tx *tx);
 
 enum {
 	CC_COB_VERSION_INIT	= 0,
@@ -530,6 +532,7 @@ static int cob_stob_delete_credit(struct m0_fom *fom)
 	fop_type = cob_op->fco_fop_type;
 	if (cob_is_md(cob_op)) {
 		cob_op_credit(fom, M0_COB_OP_DELETE, tx_cred);
+		cob_op_credit(fom, M0_COB_OP_BYTECOUNT_UPDATE, tx_cred);
 		if (cob_op->fco_recreate)
 			cob_op_credit(fom, M0_COB_OP_CREATE, tx_cred);
 		cob_op->fco_is_done = true;
@@ -718,11 +721,11 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 			 * into multiple trasactions.
 			 * As the the operation is incomplete, skip the sending
 			 * of reply and reinitialise the trasaction.
-			 * i.e move fom phase to M0_FOPH_TXN_COMMIT_WAIT and
+			 * i.e move fom phase to M0_FOPH_TXN_LOGGED_WAIT and
 			 * then to M0_FOPH_TXN_INIT.
 			 */
 			if (!cob_op->fco_is_done && m0_fom_rc(fom) == 0) {
-				m0_fom_phase_set(fom, M0_FOPH_TXN_COMMIT_WAIT);
+				m0_fom_phase_set(fom, M0_FOPH_TXN_LOGGED_WAIT);
 				return M0_FSO_AGAIN;
 			}
 
@@ -733,9 +736,9 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 				return M0_FSO_WAIT;
 			}
 			break;
-		case M0_FOPH_TXN_COMMIT_WAIT:
+		case M0_FOPH_TXN_DONE_WAIT:
 			if (!cob_op->fco_is_done && m0_fom_rc(fom) == 0) {
-				rc = m0_fom_tx_commit_wait(fom);
+				rc = m0_fom_tx_done_wait(fom);
 				if (rc == M0_FSO_AGAIN) {
 					M0_SET0(tx);
 					m0_fom_phase_set(fom, M0_FOPH_TXN_INIT);
@@ -1118,7 +1121,10 @@ static int cd_cob_delete(struct m0_fom            *fom,
 			 const struct m0_cob_attr *attr)
 {
 	int                   rc;
+	uint64_t              byte_count;
+	struct m0_fid         pver;
 	struct m0_cob        *cob;
+	struct m0_cob_bckey   key;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(cd != NULL);
@@ -1131,9 +1137,21 @@ static int cd_cob_delete(struct m0_fom            *fom,
 		return M0_RC(rc);
 
 	M0_ASSERT(cob != NULL);
+
+	pver = cob->co_nsrec.cnr_pver;
+	M0_ASSERT(m0_fid_is_valid(&pver));
+
+	byte_count = cob->co_nsrec.cnr_bytecount;
+
 	M0_CNT_DEC(cob->co_nsrec.cnr_nlink);
 	M0_ASSERT(attr->ca_nlink == 0);
 	M0_ASSERT(cob->co_nsrec.cnr_nlink == 0);
+
+	key.cbk_pfid = pver; 
+	key.cbk_user_id = M0_BYTECOUNT_USER_ID;
+	rc = cob_bytecount_decrement(cob, &key, byte_count, m0_fom_tx(fom));
+	if (rc != 0)
+		M0_ERR_INFO(rc, "Bytecount decrement unsuccesfull");
 
 	rc = m0_cob_delete(cob, m0_fom_tx(fom));
 	if (rc == 0)
@@ -1221,6 +1239,37 @@ static int ce_stob_edit(struct m0_fom *fom, struct m0_fom_cob_op *cd,
 
 	if (cot == M0_COB_OP_DELETE)
 		rc = m0_storage_dev_stob_destroy(devs, stob, &fom->fo_tx);
+
+	return M0_RC(rc);
+}
+
+static int cob_bytecount_decrement(struct m0_cob *cob, struct m0_cob_bckey *key,
+				   uint64_t bytecount, struct m0_be_tx *tx)
+{
+	int                 rc;
+	struct m0_cob_bcrec rec = {};
+
+	M0_ENTRY();
+
+	M0_PRE(key != NULL);
+	if(!m0_fid_is_set(&key->cbk_pfid))
+		return M0_ERR_INFO(-EINVAL, "Invalid Key");
+
+	M0_LOG(M0_DEBUG, "KEY: "FID_F"/%" PRIu64, FID_P(&key->cbk_pfid), key->cbk_user_id);
+
+	rc = m0_cob_bc_lookup(cob, key, &rec);
+	if (rc == 0) {
+		if (rec.cbr_bytecount < bytecount)
+			rec.cbr_bytecount = 0;
+		else
+			rec.cbr_bytecount -= bytecount;
+		rc = m0_cob_bc_update(cob, key, &rec, tx);
+		if (rc != 0)
+			return M0_ERR(rc);
+		M0_LOG(M0_DEBUG, "Bytecount reduced by %" PRIu64
+				 " to %" PRIu64 , bytecount, rec.cbr_bytecount);
+	} else
+		M0_ERR(rc);
 
 	return M0_RC(rc);
 }

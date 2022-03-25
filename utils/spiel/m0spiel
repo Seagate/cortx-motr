@@ -27,18 +27,48 @@ import traceback
 import atexit
 import signal
 import os
+import socket
+import fcntl
+import struct
 from subprocess import Popen, PIPE
 from motr import *
 from ctypes import *
 
 
 
+def get_ip_address(ifname):
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    return socket.inet_ntoa(fcntl.ioctl(
+        s.fileno(),
+        0x8915,  # SIOCGIFADDR
+        struct.pack('256s', ifname[:15].encode('utf-8'))
+    )[20:24])
+
 def address_get():
-    try:
-        p = Popen(['lctl', 'list_nids'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        output, err = p.communicate()
-    except OSError:
-        return ''
+    i = 0
+    for arg in sys.argv:
+        i = i+1
+        if format(str(arg)) == "-l":
+            break
+
+    path = format(str(sys.argv[i]))
+    path = path.rstrip(path.rsplit('/')[-1]) + "../../scripts/st.d/net_xpt"
+    f = open(path, "r")
+    xprt = f.read()
+
+    if "libfab" in xprt :
+        conf = open("/etc/libfab.conf", "r")
+        xprt = conf.read()
+        iface_type = (xprt[xprt.find("=")+1:xprt.find("(")])
+        iface = (xprt[xprt.find("(")+1:xprt.find(")")])
+        ip_addr = get_ip_address(iface)
+        return ip_addr+"@"+iface_type
+    else:
+        try:
+            p = Popen(['lctl', 'list_nids'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+            output, err = p.communicate()
+        except OSError:
+            return ''
     # When the tool is executing without sudo privileges (i. e. with "--help"
     # option) then lctl output will be an empty string)
     return output.split()[0] if output else ''
@@ -176,6 +206,19 @@ class FsStats(Structure):
                 ('fs_svc_total', c_uint32),
                 ('fs_svc_replied', c_uint32)]
 
+class Bckey(Structure):
+    _fields_ = [("sbk_fid", Fid), ("sbk_user_id", c_uint64)]
+
+class Bcrec(Structure):
+    _fields_ = [("sbk_byte_count", c_uint64), ("sbk_object_count", c_uint64)]
+
+# struct m0_proc_counter
+class ByteCountStats(Structure):
+    _fields_ = [('pc_rc', c_int),
+                ('pc_cnt', c_uint32),
+                ('pc_proc_fid', Fid),
+                ('pc_bckey', POINTER(POINTER(Bckey))),
+                ('pc_bcrec', POINTER(POINTER(Bcrec)))]
 
 class RunningServices(Structure):
     _fields_ = [('spls_fid', Fid), ('spls_name', c_char_p)]
@@ -566,6 +609,11 @@ class SpielWrapper:
     def filesystem_stats_fetch(self, stats):
         return self.motr.m0_spiel_filesystem_stats_fetch(self.spiel,
                                                          byref(stats))
+    
+    @require(fid=Fid,stats=ByteCountStats)
+    def proc_counters_fetch(self, fid, stats):
+        return self.motr.m0_spiel_proc_counters_fetch(self.spiel,byref(fid),
+                                                      byref(stats))
 
     @require(fid=Fid)
     def sns_rebalance_abort(self, fid):
@@ -585,7 +633,7 @@ class SpielWrapper:
         self.motr.m0_net_xprt_default_get.restype = c_void_p
         xprt = self.motr.m0_net_xprt_default_get()
         if not xprt:
-            xprt = NetXprt.in_dll(self.motr, 'm0_net_lnet_xprt')
+            xprt = NetXprt.in_dll(self.motr, 'm0_net_libfab_xprt')
 
         self.motr.m0_net_domain_init.argtypes = [c_void_p, c_void_p]
         call(self.motr.m0_net_domain_init, domain, xprt)

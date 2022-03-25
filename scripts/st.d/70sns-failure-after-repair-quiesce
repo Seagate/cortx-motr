@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -eu
+
+exec $SUDO "$M0_SRC_DIR/motr/st/utils/sns_failure_after_repair_quiesce.sh"

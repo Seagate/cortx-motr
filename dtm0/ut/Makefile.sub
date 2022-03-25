@@ -1,3 +1,13 @@
 ut_libmotr_ut_la_SOURCES += \
+                            dtm0/ut/clk_src_ut.c \
+                            dtm0/ut/domain.c \
+                            dtm0/ut/drlink.c \
+                            dtm0/ut/dtx0.c \
+                            dtm0/ut/helper.c \
+                            dtm0/ut/helper.h \
+                            dtm0/ut/log.c \
                             dtm0/ut/main.c \
-                            dtm0/ut/clk_src_ut.c
+                            dtm0/ut/net.c \
+                            dtm0/ut/pmach.c \
+                            dtm0/ut/pruner.c \
+                            dtm0/ut/remach.c

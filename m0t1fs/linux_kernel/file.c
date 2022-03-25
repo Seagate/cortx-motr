@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -176,7 +176,7 @@
    |      |  OFFLINE   | same as FAILED                                        |
    |      |------------|-------------------------------------------------------|
    | read |  FAILED    | read from other data unit(s) and parity unit(s) and   |
-   |      |  REPAIRING | re-construct the datai. If NBA** exists, use new      |
+   |      |  REPAIRING | re-construct the data. If NBA** exists, use new      |
    |      |            | layout to do reading if necessary.                    |
    |      |            | See more detail for this degraded read (1)            |
    |      |------------|-------------------------------------------------------|
@@ -202,7 +202,7 @@
    NBA** Non-Blocking Availability. When a device/node is not available for
    a write request, the system switches the file to use a new layout, and so the
    data is written to devices in new layout. By such means, the writing request
-   will not be blocked waiting the device to be fixed, or SNS repaire to be
+   will not be blocked waiting the device to be fixed, or SNS repair to be
    completed. Device/node becomes un-available when it is OFFLINE or FAILED.
    Concurrent++ This should be designed in other module.
 
@@ -1501,7 +1501,7 @@ last:
 
 static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 {
-	int                       rc;
+	int                       rc = 0;
 	uint32_t                  row;
 	uint32_t                  col;
 	struct m0_buf            *dbufs;
@@ -1549,7 +1549,6 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 			m0_parity_math_calculate(parity_math(map->pi_ioreq),
 						 dbufs, pbufs);
 		}
-		rc = 0;
 		free_page(zpage);
 		M0_LOG(M0_DEBUG, "[%p] Parity recalculated for %s",
 		       map->pi_ioreq,
@@ -1593,13 +1592,15 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 				old[col]   = map->pi_databufs[row][col]->
 					db_auxbuf;
 
-				m0_parity_math_diff(parity_math(map->pi_ioreq),
-						    old, dbufs, pbufs, col);
+				rc = m0_parity_math_diff(parity_math(map->pi_ioreq),
+							 old, dbufs, pbufs, col);
+				if (rc != 0) {
+					m0_free(old);
+					goto last;
+				}
 			}
-
 		}
 		m0_free(old);
-		rc = 0;
 	}
 last:
 	m0_free(dbufs);
@@ -2417,8 +2418,8 @@ static int pargrp_iomap_populate_pi_ivec(struct pargrp_iomap        *map,
 
 		++V_SEG_NR(&map->pi_ivv);
 
-		M0_LOG(M0_DEBUG, "[%p] pre grp_id=%"PRIu64" seg=%"PRIu32
-		       " =[%"PRIu64",+%"PRIu64")", map->pi_ioreq,
+		M0_LOG(M0_DEBUG, "[%p] pre grp_id=%" PRIu64 " seg=%"PRIu32
+		       " =[%" PRIu64 ",+%" PRIu64 ")", map->pi_ioreq,
 		       map->pi_grpid,seg, V_INDEX(&map->pi_ivv, seg),
 				          V_COUNT(&map->pi_ivv, seg));
 
@@ -2428,13 +2429,13 @@ static int pargrp_iomap_populate_pi_ivec(struct pargrp_iomap        *map,
 
 		seg_align(map, seg, seg_end, PAGE_SIZE);
 
-		M0_LOG(M0_DEBUG, "[%p] post grp_id=%"PRIu64" seg=%"PRIu32
-		       " =[%"PRIu64",+%"PRIu64")", map->pi_ioreq,
+		M0_LOG(M0_DEBUG, "[%p] post grp_id=%" PRIu64 " seg=%"PRIu32
+		       " =[%" PRIu64 ",+%" PRIu64 ")", map->pi_ioreq,
 		       map->pi_grpid, seg, V_INDEX(&map->pi_ivv, seg),
 		                           V_COUNT(&map->pi_ivv, seg));
 
 		count = seg_end - m0_ivec_varr_cursor_index(cursor);
-		M0_LOG(M0_DEBUG, "[%p] cursor advance +%"PRIu64" from %"PRIu64,
+		M0_LOG(M0_DEBUG, "[%p] cursor advance +%" PRIu64 " from %"PRIu64,
 		       map->pi_ioreq, count, m0_ivec_varr_cursor_index(cursor));
 		++seg;
 	}
@@ -3090,13 +3091,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 		rc = -EIO;
 		goto end;
 	}
-	if (parity_math(map->pi_ioreq)->pmi_parity_algo ==
-	    M0_PARITY_CAL_ALGO_REED_SOLOMON) {
-		rc = m0_parity_recov_mat_gen(parity_math(map->pi_ioreq),
-				(uint8_t *)failed.b_addr);
-		if (rc != 0)
-			goto end;
-	}
+
 	/* Populates data and failed buffers. */
 	for (row = 0; row < rows_nr(play); ++row) {
 		for (col = 0; col < layout_n(play); ++col) {
@@ -3114,13 +3109,12 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 				db_buf.b_addr;
 			parity[col].b_nob  = PAGE_SIZE;
 		}
-		m0_parity_math_recover(parity_math(map->pi_ioreq), data,
-				       parity, &failed, M0_LA_INVERSE);
+		rc = m0_parity_math_recover(parity_math(map->pi_ioreq), data,
+					    parity, &failed, M0_LA_INVERSE);
+		if (rc != 0)
+			goto end;
 	}
 
-	if (parity_math(map->pi_ioreq)->pmi_parity_algo ==
-	    M0_PARITY_CAL_ALGO_REED_SOLOMON)
-		m0_parity_recov_mat_destroy(parity_math(map->pi_ioreq));
 end:
 	m0_free(data);
 	m0_free(parity);

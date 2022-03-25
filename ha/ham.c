@@ -58,8 +58,8 @@
 #include <getopt.h>           /* getopt_long */
 #include <unistd.h>           /* isatty */
 
-#define HAM_SERVER_EP_DEFAULT   "0@lo:12345:63:100"
-#define HAM_CLIENT_EP_DEFAULT   "0@lo:12345:63:101"
+#define HAM_SERVER_EP_DEFAULT   "0@lo:12345:43:100"
+#define HAM_CLIENT_EP_DEFAULT   "0@lo:12345:43:101"
 #define HAM_SERVER_WAIT_DEFAULT 0
 
 enum ham_mode { HM_CONNECT, HM_LISTEN, HM_SELF_CHECK };
@@ -362,13 +362,13 @@ static void ham_msg_received(struct m0_ha *ha, struct m0_ha_link *hl,
 static void
 ham_msg_is_delivered(struct m0_ha *ha, struct m0_ha_link *hl, uint64_t tag)
 {
-	ham_say("Message #%"PRIu64" is delivered", tag);
+	ham_say("Message #%" PRIu64 " is delivered", tag);
 }
 
 static void
 ham_msg_is_not_delivered(struct m0_ha *ha, struct m0_ha_link *hl, uint64_t tag)
 {
-	ham_say("Message #%"PRIu64" is NOT delivered", tag);
+	ham_say("Message #%" PRIu64 " is NOT delivered", tag);
 }
 
 /** Is executed by entrypoint server. */

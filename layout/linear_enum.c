@@ -145,17 +145,20 @@ M0_INTERNAL int m0_linear_enum_build(struct m0_layout_domain *dom,
 
 	M0_PRE(out != NULL);
 	M0_ENTRY("domain %p", dom);
+
 	rc = linear_allocate(dom, &e);
 	if (rc == 0) {
 		lin_enum = bob_of(e, struct m0_layout_linear_enum,
 			          lle_base, &linear_bob);
 		rc = linear_populate(lin_enum, attr);
-		if (rc == 0)
+		if (rc == 0) {
+			M0_POST(linear_invariant(lin_enum));
 			*out = lin_enum;
-		else
+		} else {
 			linear_delete(e);
+		}
 	}
-	M0_POST(ergo(rc == 0, linear_invariant(lin_enum)));
+
 	M0_LEAVE("domain %p, rc %d", dom, rc);
 	return M0_RC(rc);
 }

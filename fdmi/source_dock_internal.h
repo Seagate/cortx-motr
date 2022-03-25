@@ -78,6 +78,8 @@ struct fdmi_sd_fom {
 	struct m0_mutex         fsf_pending_fops_lock;
 	struct m0_semaphore     fsf_shutdown;
 	char                   *fsf_client_ep;
+	bool                    fsf_has_records;
+	m0_time_t               fsf_last_checkpoint;
 };
 
 /** FDMI source dock Release Record FOM */
@@ -86,10 +88,21 @@ struct fdmi_rr_fom {
 	struct m0_fom           frf_fom;
 };
 
+/** FDMI source dock timer FOM */
+struct fdmi_sd_timer_fom {
+	struct m0_fom           fstf_fom;
+	struct m0_fom_timeout   fstf_timeout;
+	struct m0_sm_ast        fstf_wakeup_ast;
+	struct m0_semaphore     fstf_shutdown;
+};
+
 /** FDMI source dock main context */
 struct m0_fdmi_src_dock {
 	/** FDMI source dock started flag */
 	bool                  fsdc_started;
+
+	/** FDMI source dock has any filter defined? */
+	bool                  fsdc_filters_defined;
 
 	/**
 	   List of registered FDMI source instances.
@@ -105,6 +118,9 @@ struct m0_fdmi_src_dock {
 	 */
 	struct m0_tl          fsdc_posted_rec_list;
 
+	/** FDMI records inflight. */
+	struct m0_tl          fsdc_rec_inflight;
+
 	/** Mutex to protect ->fsdc_posted_rec_list list operations. */
 	struct m0_mutex       fsdc_list_mutex;
 
@@ -114,13 +130,33 @@ struct m0_fdmi_src_dock {
 
 	/** FDMI source dock FOM object */
 	struct fdmi_sd_fom    fsdc_sd_fom;
+
+	/** FDMI source dock timer FOM object */
+	struct fdmi_sd_timer_fom    fsdc_sd_timer_fom;
 };
 
 /**
- * Function posts new fdmi data for analysis by FDMI source dock.
- * @return Returns 0 on success, error code otherwise.
+ * A handler for a specific m0_fdmi_filter_type_id.
+ * It is chosen based on m0_conf_fdmi_filter::ff_filter_id.
  */
-M0_INTERNAL int m0_fdmi__record_post(struct m0_fdmi_src_rec *src_rec);
+struct m0_fdmi_sd_filter_type_handler {
+	enum m0_fdmi_filter_type_id   ffth_id;
+	/**
+	 * @return <0 - error code
+	 * @return =0 - false
+	 * @return >0 - true
+	 */
+	int                         (*ffth_handler)
+		(struct m0_fdmi_eval_ctx      *ctx,
+		 struct m0_conf_fdmi_filter   *filter,
+		 struct m0_fdmi_eval_var_info *var_info);
+};
+
+M0_INTERNAL void m0_fdmi__enqueue(struct m0_fdmi_src_rec *src_rec);
+M0_INTERNAL void m0_fdmi__enqueue_locked(struct m0_fdmi_src_rec *src_rec);
+
+/** Function posts new fdmi data for analysis by FDMI source dock. */
+M0_INTERNAL void m0_fdmi__record_post(struct m0_fdmi_src_rec *src_rec);
 
 /**
  * Function generates new fdmi record ID unque across the cluster.
@@ -169,11 +205,6 @@ M0_INTERNAL void m0_fdmi__record_deinit(struct m0_fdmi_src_rec *src_rec);
 /** Helper function, returns FDMI record type enumeration */
 M0_INTERNAL enum m0_fdmi_rec_type_id
 m0_fdmi__sd_rec_type_id_get(struct m0_fdmi_src_rec *src_rec);
-
-/** Handles received reply for sent FDMI record. */
-M0_INTERNAL int m0_fdmi__handle_reply(struct m0_fdmi_src_dock *sd_ctx,
-				      struct m0_fdmi_src_rec  *src_rec,
-				      int                      send_res);
 
 /** Release FDMI record handle by record id */
 M0_INTERNAL int m0_fdmi__handle_release(struct m0_uint128 *fdmi_rec_id);

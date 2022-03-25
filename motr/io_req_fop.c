@@ -136,7 +136,9 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 				       struct m0_op_io *ioo,
 				       struct m0_buf *buf)
 {
-	uint32_t                unit_size, off, cs_sz;
+	uint32_t                unit_size;
+	uint32_t                off;
+	uint32_t                cs_sz;
 	m0_bindex_t             rep_index;
 	m0_bindex_t             ti_cob_index;
 	m0_bindex_t             ti_goff_index;
@@ -148,7 +150,9 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	void                   *dst;
 	void                   *src;
 
-	M0_PRE(ioo->ioo_attr.ov_vec.v_nr);
+	if (!m0__obj_is_di_enabled(ioo)) {
+		return;
+	}
 	src = buf->b_addr;
 
 	if (!buf->b_nob) {
@@ -163,27 +167,31 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	m0_ivec_cursor_init(&ti_cob_cursor, ti_ivec);
 	m0_ivec_cursor_init(&ti_goff_cursor, ti_goff_ivec);
 
-	rep_index	= m0_ivec_cursor_index(&rep_cursor);
-	ti_cob_index	= m0_ivec_cursor_index(&ti_cob_cursor);
+	rep_index = m0_ivec_cursor_index(&rep_cursor);
+	ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
+	ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
 
 	/* Move rep_cursor on unit boundary */
 	off = rep_index % unit_size;
 	if (off) {
-		if (m0_ivec_cursor_move(&rep_cursor, unit_size - off)) {
+		if (!m0_ivec_cursor_move(&rep_cursor, unit_size - off))
 			rep_index = m0_ivec_cursor_index(&rep_cursor);
+		else
+			return;
+	}
+	off = ti_cob_index % unit_size;
+	if (off != 0) {
+		if (!m0_ivec_cursor_move(&ti_cob_cursor, unit_size - off)) {
+			ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
 		}
-		else {
-			/** invalid cusror position */
-			M0_ASSERT(false);
+	}
+	off = ti_goff_index % unit_size;
+	if (off != 0) {
+		if (!m0_ivec_cursor_move(&ti_goff_cursor, unit_size - off)) {
+			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
 		}
 	}
 	M0_ASSERT(ti_cob_index <= rep_index);
-
-	/* Move ti index to rep index */
-	if (ti_cob_index != rep_index) 	{
-		M0_ASSERT (m0_ivec_cursor_move(&ti_cob_cursor,  rep_index - ti_cob_index) && 
-		           m0_ivec_cursor_move(&ti_goff_cursor, rep_index - ti_cob_index));
-	}
 
 	/**
 	 * Cursor iterating over segments spanned by this IO. At each iteration
@@ -197,31 +205,34 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	 * target offset(represented by rep_index).
 	 *
 	 */
-	 do {
+	do {
 		rep_index = m0_ivec_cursor_index(&rep_cursor);
-		ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
-		ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
+		while (ti_cob_index != rep_index) {
+			if (m0_ivec_cursor_move(&ti_cob_cursor, unit_size) ||
+			    m0_ivec_cursor_move(&ti_goff_cursor, unit_size)) {
+				M0_ASSERT(0);
+			}
+			ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
+			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
+		}
 
-		M0_ASSERT(rep_index == ti_cob_index);
 		/* GOB offset should be in span of application provided GOB extent */
 		M0_ASSERT(ti_goff_index <=
-		          (ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr-1] +
-			   ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]));
+			  (ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr-1] +
+			  ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]));
 
 		dst = m0_extent_vec_get_checksum_addr(&ioo->ioo_attr,
 						      ti_goff_index,
 						      &ioo->ioo_ext,
-						      unit_size, cs_sz );
-
+						      unit_size, cs_sz);
+                M0_ASSERT(dst != NULL);
 		memcpy(dst, src, cs_sz);
 		src = (char *)src + cs_sz;
 
 		/* Source is m0_buf and we have to copy all the checksum one at a time */
 		M0_ASSERT(src <= (buf->b_addr + buf->b_nob));
 
-	} while (!m0_ivec_cursor_move(&rep_cursor, unit_size) &&
-		     !m0_ivec_cursor_move(&ti_cob_cursor, unit_size) &&
-		     !m0_ivec_cursor_move(&ti_goff_cursor, unit_size));
+	} while (!m0_ivec_cursor_move(&rep_cursor, unit_size));
 }
 
 /**
@@ -294,9 +305,12 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
 	rw_reply = io_rw_rep_get(reply_fop);
 
-	/* Copy attributes to client if reply received from read operation */
-	if (m0_is_read_rep(reply_fop) && op->op_code ==
-		                         M0_OC_READ && ioo->ioo_attr.ov_vec.v_nr) {
+	/*
+	 * Copy attributes to client if reply received from read operation
+	 * Skipping attribute_copy() if cksum validation is not allowed.
+	 */
+	if (m0_is_read_rep(reply_fop) && op->op_code == M0_OC_READ &&
+	    m0__obj_is_cksum_validation_allowed(ioo)) {
 		m0_indexvec_wire2mem(&rwfop->crw_ivec,
 					rwfop->crw_ivec.ci_nr, 0,
 					&rep_attr_ivec);

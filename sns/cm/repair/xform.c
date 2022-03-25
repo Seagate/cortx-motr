@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -129,18 +129,20 @@ static void cp_xor_recover(struct m0_cm_cp *dst_cp, struct m0_cm_cp *src_cp)
 	}
 }
 
-static void cp_rs_recover(struct m0_cm_cp *src_cp, uint32_t failed_index)
+static int cp_rs_recover(struct m0_cm_cp *src_cp, uint32_t failed_index)
 {
 	struct m0_sns_cm_cp        *scp;
 	struct m0_net_buffer       *nbuf_head;
 	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(src_cp->c_ag));
 	enum m0_sns_ir_block_type   bt;
+	int                         ret;
 
 	nbuf_head = cp_data_buf_tlist_head(&src_cp->c_buffers);
 	scp = cp2snscp(src_cp);
 	bt = scp->sc_is_local ? M0_SI_BLOCK_LOCAL : M0_SI_BLOCK_REMOTE;
-	m0_sns_ir_recover(&rag->rag_ir, &nbuf_head->nb_buffer,
-			  &src_cp->c_xform_cp_indices, failed_index, bt);
+	ret = m0_sns_ir_recover(&rag->rag_ir, &nbuf_head->nb_buffer,
+				&src_cp->c_xform_cp_indices, failed_index, bt);
+	return M0_RC(ret);
 }
 
 /** Merges the source bitmap to the destination bitmap. */
@@ -247,9 +249,9 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 		       "parity_algo=%d", (int)pm_algo);
 
 	m0_cm_ag_lock(ag);
-	M0_LOG(M0_DEBUG, "xform: id=["M0_AG_F"] local_cp_nr=[%"PRId64"]"
-	       " transformed_cp_nr=[%"PRId64"] global_cp_nr=[%"PRId64"] "
-	       "has_incoming=%d c_ag_cp_idx=[%"PRId64"]",
+	M0_LOG(M0_DEBUG, "xform: id=["M0_AG_F"] local_cp_nr=[%" PRId64 "]"
+	       " transformed_cp_nr=[%" PRId64 "] global_cp_nr=[%" PRId64 "] "
+	       "has_incoming=%d c_ag_cp_idx=[%" PRId64 "]",
 	       M0_AG_P(&id), ag->cag_cp_local_nr,
 	       ag->cag_transformed_cp_nr, ag->cag_cp_global_nr,
 	       ag->cag_has_incoming, cp->c_ag_cp_idx);
@@ -275,7 +277,9 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 		rc = m0_cm_cp_bufvec_merge(cp);
 		if (rc != 0)
 			goto out;
-		cp_rs_recover(cp, scp->sc_failed_idx);
+		rc = cp_rs_recover(cp, scp->sc_failed_idx);
+		if (rc != 0)
+			goto out;
 	}
 	/*
 	 * Local copy packets are merged with all the accumulators while the

@@ -25,12 +25,21 @@
 # same directory
 dir=`dirname $0`
 
+M0_SRC_DIR=$(dirname $(readlink -f $0))
+M0_SRC_DIR="$M0_SRC_DIR/../../../"
+
+. $M0_SRC_DIR/utils/functions # m0_default_xprt
+
+XPRT=$(m0_default_xprt)
+
 #. $dir/motr_config.sh
 
 # Get local address
-modprobe lnet
-lctl network up &>> /dev/null
-LOCAL_NID=`lctl list_nids | head -1`
+if [ "$XPRT" = "lnet" ]; then
+	modprobe lnet
+	lctl network up &>> /dev/null
+fi
+LOCAL_NID=$(m0_local_nid_get)
 LOCAL_EP=$LOCAL_NID:12345:33:100
 HA_EP=$LOCAL_NID:12345:34:1
 PROF_OPT='<0x7000000000000001:0>'

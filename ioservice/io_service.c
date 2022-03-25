@@ -235,8 +235,10 @@ M0_INTERNAL int m0_ios_create_buffer_pool(struct m0_reqh_service *service)
 
 		colours = m0_list_length(&newbp->rios_ndom->nd_tms);
 
-		segment_size = m0_rpc_max_seg_size(newbp->rios_ndom);
-		segments_nr  = m0_rpc_max_segs_nr(newbp->rios_ndom);
+		segment_size = m0_net_domain_get_max_buffer_segment_size(
+							      newbp->rios_ndom);
+		segments_nr  = m0_net_domain_get_max_buffer_segments(
+							      newbp->rios_ndom);
 
 		M0_LOG(M0_DEBUG, "ios segments_nr=%d", segments_nr);
 		rc = m0_net_buffer_pool_init(&newbp->rios_bp,

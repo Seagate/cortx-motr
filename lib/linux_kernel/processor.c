@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,10 +50,7 @@
    @{
  */
 
-#ifndef CONFIG_X86_64
-#error "Only X86_64 platform is supported"
-#endif
-
+#ifdef CONFIG_X86_64
 enum {
 	/** Default L1 value */
 	DEFAULT_L1_SZ                       =   32 * 1024,
@@ -106,7 +103,9 @@ struct processor_node {
 /* Global variables */
 static bool processor_init = false;
 static struct m0_list x86_cpus;
+#endif /* CONFIG_X86_64 */
 
+#if defined (CONFIG_X86_64) || defined (CONFIG_AARCH64)
 /**
    Convert bitmap from one format to another. Copy cpumask bitmap to m0_bitmap.
 
@@ -133,7 +132,9 @@ static void processors_bitmap_copy(struct m0_bitmap *dest,
 		m0_bitmap_set(dest, bit, val);
 	}
 }
+#endif /* (CONFIG_X86_64) || (CONFIG_AARCH64) */
 
+#ifdef CONFIG_X86_64
 /**
    Fetch NUMA node id for a given processor.
 
@@ -490,6 +491,7 @@ static void processor_x86_attrs_get(void *arg)
 
 /**
    Obtain information on the processor with a given id.
+
    @param id -> id of the processor for which information is requested.
    @param pd -> processor descripto structure. Memory for this should be
                 allocated by the calling function. Interface does not allocate
@@ -590,24 +592,31 @@ static int processor_x86cache_create(void)
 
 	return 0;
 }
+#endif /* CONFIG_X86_64 */
 
-/* ---- Processor Interfaces ---- */
-
+#if defined (CONFIG_X86_64) || defined (CONFIG_AARCH64)
 M0_INTERNAL int m0_processors_init()
 {
+#ifdef CONFIG_X86_64
 	int rc;
 
 	M0_PRE(!processor_init);
 	rc = processor_x86cache_create();
 	processor_init = (rc == 0);
 	return M0_RC(rc);
+#elif defined (CONFIG_AARCH64)
+	return 0;
+#endif
 }
 
 M0_INTERNAL void m0_processors_fini()
 {
+#ifdef CONFIG_X86_64
 	M0_PRE(processor_init);
 	processor_x86cache_destroy();
 	processor_init = false;
+#elif defined (CONFIG_AARCH64)
+#endif
 }
 
 M0_INTERNAL m0_processor_nr_t m0_processor_nr_max(void)
@@ -630,6 +639,7 @@ M0_INTERNAL void m0_processors_online(struct m0_bitmap *map)
 	processors_bitmap_copy(map, cpu_online_mask, nr_cpu_ids);
 }
 
+#ifdef CONFIG_X86_64
 M0_INTERNAL int m0_processor_describe(m0_processor_nr_t id,
 				      struct m0_processor_descr *pd)
 {
@@ -639,11 +649,14 @@ M0_INTERNAL int m0_processor_describe(m0_processor_nr_t id,
 
 	return processor_x86_info_get(id, pd);
 }
+#endif /* CONFIG_X86_64 */
 
 M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 {
 	return smp_processor_id();
 }
+
+#endif /* CONFIG_X86_64 || CONFIG_AARCH64 */
 
 #undef M0_TRACE_SUBSYSTEM
 

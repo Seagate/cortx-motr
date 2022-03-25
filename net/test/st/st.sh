@@ -33,6 +33,9 @@ M0_SRC_DIR=${CWD%/*/*/*}
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh
 . $CWD/st-config.sh
 
+# Get the default net transport
+XPRT=$(m0_default_xprt)
+
 role_space()
 {
 	local role=$1
@@ -41,20 +44,31 @@ role_space()
 }
 
 unload_all() {
-	modunload
-	modunload_galois
+	if [ "$XPRT" = "lnet" ]; then
+		modunload
+	fi
 }
 trap unload_all EXIT
 
-modprobe_lnet
-lctl network up > /dev/null
-modload_galois
-modload || exit $?
+if [ "$XPRT" = "lnet" ]; then
+	modprobe_lnet
+	lctl network up > /dev/null
+	modload || exit $?
+fi
+
 
 sandbox_init
 export TEST_RUN_TIME=5
 echo "transfer machines endpoint prefix is $LNET_PREFIX"
-for KERNEL_ROLE in "none" "client" "server"; do
+
+
+if [ "$XPRT" = "lnet" ]; then
+	ROLE=(none client server)
+else
+	ROLE=(none)
+fi
+
+for KERNEL_ROLE in ${#ROLE[@]}; do
 	export KERNEL_ROLE
 	echo -n "------ test client in $(role_space client), "
 	echo "test server in $(role_space server)"

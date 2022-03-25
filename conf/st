@@ -53,6 +53,8 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 M0CONFGEN=$M0_SRC_DIR/utils/m0confgen
 
+XPRT=$(m0_default_xprt)
+	
 start() {
    _init
    services_start
@@ -66,7 +68,9 @@ stop() {
 
 _init() {
     lnet_up
-    m0_modules_insert
+    if [ "$XPRT" = "lnet" ]; then
+        m0_modules_insert
+    fi
     sandbox_init # changes current directory to $SANDBOX_DIR
     mkdir mnt
 }
@@ -74,7 +78,9 @@ _init() {
 _fini() {
     rmdir mnt
     sandbox_fini ${1:-}
-    m0_modules_remove
+    if [ "$XPRT" = "lnet" ]; then
+        m0_modules_remove
+    fi
 }
 
 confdb() {
@@ -148,7 +154,7 @@ services_start() {
     local CONF_FILE=conf.xc
     local OPTS="-f $PROCESS_M0D -H $M0D1_ENDPOINT
 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -F -D db -T AD -S stobs
--A linuxstob:addb-stobs -e lnet:$M0D1_ENDPOINT -c $CONF_FILE -w 3"
+-A linuxstob:addb-stobs -e $XPRT:$M0D1_ENDPOINT -c $CONF_FILE -w 3"
 
     confdb | $M0CONFGEN >$CONF_FILE || error 'm0confgen failed'
 
@@ -216,7 +222,7 @@ Usage: ${0##*/} [COMMAND]
 
 Supported commands:
   run      run system tests (default command)
-  insmod   insert Motr kernel modules: m0tr.ko, galois.ko
+  insmod   insert Motr kernel modules: m0tr.ko
   rmmod    remove Motr kernel modules
   sstart   start Motr user-space services
   sstop    stop Motr user-space services
@@ -232,8 +238,14 @@ EOF
 
 case "${1:-}" in
     run|'') ;;
-    insmod) lnet_up; m0_modules_insert; exit;;
-    rmmod) m0_modules_remove; exit;;
+    insmod) if [ "$XPRT" = "lnet" ]; then
+                lnet_up; m0_modules_insert;
+            fi
+            exit;;
+    rmmod)  if [ "$XPRT" = "lnet" ]; then
+                m0_modules_remove;
+            fi
+            exit;;
     sstart) start; exit;;
     sstop) services_stop; sleep 3; _fini; exit;;
     help) usage; exit;;

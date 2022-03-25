@@ -315,7 +315,7 @@ EOF
 			     -q $TM_MIN_RECV_QUEUE_LEN -N 100663296 -C 262144 -K 100663296 -k 262144"
 
 		# mkfs for confd server
-		opts="$common_opts -T linux -e $XPT:${CONFD_EP%:*:*}:$MKFS_PORTAL:1\
+		opts="$common_opts -T linux -e $XPRT:${CONFD_EP%:*:*}:$MKFS_PORTAL:1\
 		      -c $CONFDB"
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0mkfs.log"
 
@@ -326,7 +326,7 @@ EOF
 		local ha_key=$(( $nr_mds + $nr_ios ))
 		local confd_key=$(( $ha_key + 1 ))
 		local proc_fid="'<"$PROC_FID_CNTR:$confd_key">'"
-		opts="$common_opts -f $proc_fid -T linux -e $XPT:$CONFD_EP \
+		opts="$common_opts -f $proc_fid -T linux -e $XPRT:$CONFD_EP \
 		      -c $CONFDB"
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
 		echo $cmd
@@ -336,7 +336,7 @@ EOF
 		DIR=$MOTR_M0T1FS_TEST_DIR/ha
 		rm -rf $DIR
 		mkdir -p $DIR
-		opts="$common_opts -T ad -e $XPT:${lnet_nid}:${HA_EP%:*:*}:$MKFS_PORTAL:1 \
+		opts="$common_opts -T ad -e $XPRT:${lnet_nid}:${HA_EP%:*:*}:$MKFS_PORTAL:1 \
 		      -c $CONFDB"
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0mkfs.log"
 		echo $cmd
@@ -353,7 +353,7 @@ EOF
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T ad \
-			$common_opts -e $XPT:${lnet_nid}:${MDSEP[$i]%:*:*}:$MKFS_PORTAL:$tmid \
+			$common_opts -e $XPRT:${lnet_nid}:${MDSEP[$i]%:*:*}:$MKFS_PORTAL:$tmid \
 			-c $CONFDB |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
@@ -369,7 +369,7 @@ EOF
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MOTR_STOB_DOMAIN \
-			$common_opts -e $XPT:${lnet_nid}:${IOSEP[$i]%:*:*}:$MKFS_PORTAL:$tmid  $FI_OPTS \
+			$common_opts -e $XPRT:${lnet_nid}:${IOSEP[$i]%:*:*}:$MKFS_PORTAL:$tmid  $FI_OPTS \
 			-f $proc_fid -c $CONFDB |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
@@ -382,7 +382,7 @@ EOF
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MOTR_STOB_DOMAIN \
-			$common_opts -e $XPT:${lnet_nid}:${IOS_PVER2_EP%:*:*}:$MKFS_PORTAL:$tmid  $FI_OPTS \
+			$common_opts -e $XPRT:${lnet_nid}:${IOS_PVER2_EP%:*:*}:$MKFS_PORTAL:$tmid  $FI_OPTS \
 			-f $proc_fid -c $CONFDB |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
@@ -390,7 +390,7 @@ EOF
 
 		# spawn ha agent
 		proc_fid="'<"$PROC_FID_CNTR:$ha_key">'"
-		opts="$common_opts -T ad -e $XPT:${lnet_nid}:$HA_EP \
+		opts="$common_opts -T ad -e $XPRT:${lnet_nid}:$HA_EP \
 		      -c $CONFDB -f $proc_fid ${FI_OPT:-} -H ${lnet_nid}:$HA_EP"
 		DIR=$MOTR_M0T1FS_TEST_DIR/ha
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
@@ -423,7 +423,7 @@ EOF
 
 			cmd="cd $DIR && exec \
 			$prog_start -T ad \
-			$common_opts -e $XPT:${lnet_nid}:${MDSEP[$i]} \
+			$common_opts -e $XPRT:${lnet_nid}:${MDSEP[$i]} \
                         -f $proc_fid -H ${lnet_nid}:$HA_EP \
 			$MDS_CONFDB |& tee -a m0d.log"
 			echo $cmd
@@ -451,7 +451,7 @@ EOF
 
 			cmd="cd $DIR && exec \
 			$prog_start -T $MOTR_STOB_DOMAIN \
-			$common_opts -e $XPT:${lnet_nid}:${IOSEP[$i]} \
+			$common_opts -e $XPRT:${lnet_nid}:${IOSEP[$i]} \
                         -f $proc_fid \
 			-H ${lnet_nid}:$HA_EP |& tee -a m0d.log"
 			echo $cmd
@@ -467,7 +467,7 @@ EOF
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_start -T $MOTR_STOB_DOMAIN \
-			$common_opts -e $XPT:${lnet_nid}:$IOS_PVER2_EP \
+			$common_opts -e $XPRT:${lnet_nid}:$IOS_PVER2_EP \
                         -f $proc_fid \
 			-H ${lnet_nid}:$HA_EP |& tee -a m0d.log"
 			echo $cmd

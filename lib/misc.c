@@ -51,6 +51,11 @@ M0_INTERNAL int m0_uint128_cmp(const struct m0_uint128 *u0,
 M0_INTERNAL int m0_uint128_sscanf(const char *s, struct m0_uint128 *u128)
 {
 	int rc = sscanf(s, U128I_F, U128_S(u128));
+
+	if (rc < 2 || u128->u_hi == LLONG_MAX || u128->u_lo == LLONG_MAX)
+		/* fallback to hex format */
+		rc = sscanf(s, U128X_F, U128_S(u128));
+
 	return rc == 2 ? 0 : -EINVAL;
 }
 
@@ -422,6 +427,16 @@ M0_INTERNAL uint64_t m0_dummy_id_generate(void)
 	static struct m0_atomic64 counter = {};
 	return (uint64_t)m0_atomic64_add_return(&counter, 1);
 }
+
+#if M0_RC_HOOK
+M0_INTERNAL void m0_rc_hook(int rc)
+{
+}
+
+M0_INTERNAL void m0_err_hook(int rc)
+{
+}
+#endif
 
 /*
  *  Local variables:

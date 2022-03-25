@@ -132,6 +132,7 @@ enum m0_operations {
 	CR_DELETE,
 	CR_POPULATE,
 	CR_CLEANUP,
+	CR_READ_ONLY,
 	CR_OPS_NR
 };
 
@@ -165,7 +166,7 @@ struct m0_workload_io {
 	 * can run several IO operations concurrently.)
 	 */
 	uint32_t          cwi_bcount_per_op;
-	uint32_t          cwi_pool_id;
+	struct m0_fid     cwi_pool_id;
 	uint64_t          cwi_io_size;
 	uint64_t          cwi_ops_done[CR_OPS_NR];
 	uint32_t          cwi_max_nr_ops;

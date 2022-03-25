@@ -34,7 +34,6 @@ INCLUDE_DIR="/usr/include"
 MOTR_LIBS="${MOTR_SRC_DIR}/motr/.libs/*.so*"
 MOTR_HELPERS_LIBS="${MOTR_SRC_DIR}/helpers/.libs/*.so*"
 MOTR_EXTRA_LIBS="${MOTR_SRC_DIR}/extra-libs/gf-complete/src/.libs/*.so*"
-GALOIS_INCLUDE_DIR="${MOTR_SRC_DIR}/extra-libs/galois/include/galois"
 
 function create_symlinks() {
     for file_path in $@
@@ -48,9 +47,6 @@ function create_symlinks() {
 function create_include_symlink() {
     echo "creating symlink for ${MOTR_SRC_DIR}"
     ln -s "${MOTR_SRC_DIR}" "${INCLUDE_DIR}/motr"
-
-    echo "creating symlink for ${GALOIS_INCLUDE_DIR}"
-    ln -s "${GALOIS_INCLUDE_DIR}" "${INCLUDE_DIR}/galois"
 }
 
 function delete_symlinks() {
@@ -64,7 +60,7 @@ function delete_symlinks() {
 
 function delete_include_symlink() {
     local link_path=""
-    for p in "${MOTR_SRC_DIR}" "${GALOIS_INCLUDE_DIR}"; do
+    for p in "${MOTR_SRC_DIR}"; do
         link_path=`find ${INCLUDE_DIR} -lname ${p}`
         echo "DEBUG: delete link_path $p"
         if [[ -n "$link_path" ]]; then

@@ -114,8 +114,10 @@ M0_INTERNAL void m0_fdmi_filter_fini(struct m0_fdmi_filter *flt)
 {
 	M0_ENTRY("flt=%p", flt);
 
-	if (flt->ff_root != NULL)
+	if (flt->ff_root != NULL) {
 		free_flt_node(flt->ff_root);
+		flt->ff_root = NULL;
+	}
 
 	M0_LEAVE();
 }

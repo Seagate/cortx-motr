@@ -342,6 +342,9 @@ M0_INTERNAL void ut_dummy_poolmach_delete(struct m0_pool_version *pv);
 
 M0_INTERNAL void ut_set_device_state(struct m0_poolmach *pm, int dev,
 				     enum m0_pool_nd_state state);
+
+M0_INTERNAL void ut_set_node_state(struct m0_poolmach *pm, int node,
+				   enum m0_pool_nd_state state);
 #endif /* __MOTR_UT_H__ */
 
 /*

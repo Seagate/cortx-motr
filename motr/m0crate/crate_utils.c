@@ -119,8 +119,8 @@ unsigned long long genrand64_int64(void)
 
         /* if init_genrand64() has not been called, */
         /* a default initial seed is used     */
-        if (mti == NN+1) 
-            init_genrand64(5489ULL); 
+        if (mti == NN+1)
+            init_genrand64(5489ULL);
 
         for (i=0;i<NN-MM;i++) {
             x = (mt[i]&UM)|(mt[i+1]&LM);

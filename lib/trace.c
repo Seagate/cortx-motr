@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@
 #include <limits.h>    /* CHAR_BIT */
 #include <ctype.h>     /* tolower */
 #include <sys/types.h>
-#include <sys/user.h>  /* PAGE_SIZE */
 #endif
 #include "lib/errno.h"
 #include "lib/atomic.h"
@@ -70,13 +69,16 @@ static const char     trace_magic_symbol_name[] = "trace_magic_symbol";
 
 /* single buffer for now */
 
+/* Must be multiple of page size on all supported platforms. */
+enum { BOOTLOG_BUF_SIZE = (1 << 16) }; /* 64K */
+
 /**
  * This buffer is used for early trace records issued before real buffer is
  * initialized by m0_trace_init().
  */
 static struct {
 	struct m0_trace_area  bl_area;
-	char                  bl_buf[PAGE_SIZE];
+	char                  bl_buf[BOOTLOG_BUF_SIZE];
 } bootlog;
 M0_BASSERT(bootlog.bl_buf == bootlog.bl_area.ta_buf);
 
@@ -148,18 +150,31 @@ M0_INTERNAL void m0_trace_fini(void)
 	m0_arch_trace_fini();
 }
 
-
-/*
- * XXX x86_64 version.
+/**
+ * pccnt access from user-space in AARCH64 platform
+ * is enabled by enable_user_space_access_pccnt() call
+ * from the kernel module, so this function will work only
+ * if the kernel module is present on this platform.
+ * TODO: investigate how to resolve it for the user-space mode
+ * in case there is no kernel module present.
  */
 static inline uint64_t m0_rdtsc(void)
 {
+#ifdef CONFIG_X86_64
 	uint32_t count_hi;
 	uint32_t count_lo;
 
 	__asm__ __volatile__("rdtsc" : "=a"(count_lo), "=d"(count_hi));
 
 	return ((uint64_t)count_lo) | (((uint64_t)count_hi) << 32);
+#elif defined (CONFIG_AARCH64)
+	uint64_t cycle;
+
+	asm volatile("mrs %0, pmccntr_el0" : "=r"(cycle));
+	return cycle;
+#else
+#error  "The Platform is not supported"
+#endif
 }
 
 #define NULL_STRING_STUB  "(null)"
@@ -198,6 +213,15 @@ static void copy_string_data(char *dst_str, const char *body,
 		}
 }
 
+static unsigned allowed_level = UINT_MAX;
+
+M0_INTERNAL void m0_trace_level_allow(unsigned level)
+{
+	M0_PRE(level <= M0_CALL);
+	allowed_level = level;
+}
+M0_EXPORTED(m0_trace_level_allow);
+
 M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 				const void *body)
 {
@@ -226,6 +250,9 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 	if (td->td_level > M0_TRACE_HIGHEST_ALLOWED_LEVEL)
 		return;
 #endif
+
+	if (td->td_level > allowed_level)
+		return;
 
 	record_num = m0_atomic64_add_return(&tbh->tbh_rec_cnt, 1);
 

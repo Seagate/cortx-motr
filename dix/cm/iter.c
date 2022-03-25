@@ -204,7 +204,7 @@ static int dix_cm_iter_buf_copy(struct m0_buf *dst,
 	M0_PRE(dst->b_nob == 0 && dst->b_addr == NULL);
 
 	return src->b_nob >= cutoff ?
-		m0_buf_copy_aligned(dst, src, PAGE_SHIFT) :
+		m0_buf_copy_aligned(dst, src, m0_pageshift_get()) :
 		m0_buf_copy(dst, src);
 }
 
@@ -723,7 +723,7 @@ static void parity_group_print(struct m0_dix_layout_iter *iter,
 		state = pm->pm_state->pst_devices_array[tgt].pd_state;
 		global_dev = m0_dix_tgt2sdev(&iter->dit_linst, tgt);
 		M0_LOG(M0_DEBUG,
-			"%"PRIu64"%s: dev_id: %"PRIu64"/%u, %s, %s%s",
+			"%" PRIu64 "%s: dev_id: %" PRIu64 "/%u, %s, %s%s",
 			unit,
 			units_nr > 10 ? (unit < 10 ? " " : "") : "",
 			tgt,
@@ -768,7 +768,7 @@ static void spare_usage_print(struct m0_dix_layout_iter *iter,
 			state = spare_usage_array[i].psu_device_state;
 			global_dev = m0_dix_tgt2sdev(&iter->dit_linst, tgt);
 			M0_LOG(M0_DEBUG,
-			       "%u: dev_id: %"PRIu64"/%u, %s, served by:",
+			       "%u: dev_id: %" PRIu64 "/%u, %s, served by:",
 			       i,
 			       tgt,
 			       global_dev->pd_sdev_idx,
@@ -782,7 +782,7 @@ static void spare_usage_print(struct m0_dix_layout_iter *iter,
 		state = pm->pm_state->pst_devices_array[tgt].pd_state;
 		global_dev = m0_dix_tgt2sdev(&iter->dit_linst, tgt);
 		M0_LOG(M0_DEBUG,
-		       "%s  dev_id: %"PRIu64"/%u, %s",
+		       "%s  dev_id: %" PRIu64 "/%u, %s",
 		       max_device_failures > 10 ? "  " : " ",
 		       tgt,
 		       global_dev->pd_sdev_idx,
@@ -808,7 +808,7 @@ static void tgts_print(struct m0_dix_layout_iter *iter,
 	for (i = 0; i < tgts_nr; i++) {
 		global_dev = m0_dix_tgt2sdev(&iter->dit_linst, tgts[i]);
 		M0_LOG(M0_DEBUG,
-		       "%"PRIu64"%s: dev_id: %"PRIu64"/%u",
+		       "%" PRIu64 "%s: dev_id: %" PRIu64 "/%u",
 		       i + 1,
 		       tgts_nr > 10 ? (i < 10 ? " " : "") : "",
 		       tgts[i],

@@ -376,7 +376,7 @@ static int mds_map_fill(struct m0_pools_common *pc,
 		ctx = m0_tl_find(pools_common_svc_ctx, ctx, &pc->pc_svc_ctxs,
 				 m0_fid_eq(&svc->cs_obj.co_id, &ctx->sc_fid));
 		pc->pc_mds_map[idx++] = ctx;
-		M0_LOG(M0_DEBUG, "mds index:%"PRIu64", no. of mds:%"PRIu64,
+		M0_LOG(M0_DEBUG, "mds index:%" PRIu64 ", no. of mds:%"PRIu64,
 		       idx, pc->pc_nr_svcs[M0_CST_MDS]);
 		M0_ASSERT(idx <= pc->pc_nr_svcs[M0_CST_MDS]);
 	}
@@ -675,22 +675,29 @@ m0_pool_version_get(struct m0_pools_common  *pc,
 static int dix_pool_version_get_locked(struct m0_pools_common  *pc,
                                        struct m0_pool_version **pv)
 {
-	struct m0_pool         *pool;
-
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(&pc->pc_mutex));
 
 	if (pv == NULL)
 		return M0_ERR(-EINVAL);
 
-	m0_tl_for(pools, &pc->pc_pools, pool) {
-		if (is_dix_pool(pc, pool)) {
-			*pv = m0_pool_clean_pver_find(pool);
-			if (*pv != NULL)
-				return M0_RC(0);
-		}
-	} m0_tl_endfor;
-	return M0_ERR(-ENOENT);
+	*pv = m0_pool_version_dix_get(pc);
+	if (*pv != NULL)
+		return M0_RC(0);
+	else
+		return M0_ERR(-ENOENT);
+
+	/*
+ 	 * @todo: Enable this logic once multiple DIX pvers available.
+ 	 *
+	 * m0_tl_for(pools, &pc->pc_pools, pool) {
+	 *	if (is_dix_pool(pc, pool)) {
+	 *		*pv = m0_pool_clean_pver_find(pool);
+	 *		if (*pv != NULL)
+	 *			return M0_RC(0);
+	 *	}
+	 *} m0_tl_endfor;
+	 */
 }
 
 M0_INTERNAL int
@@ -820,6 +827,14 @@ M0_INTERNAL void m0_pool_versions_stale_mark(struct m0_pools_common *pc,
 		} m0_tl_endfor;
 	} m0_tl_endfor;
 	m0_mutex_unlock(&pc->pc_mutex);
+}
+
+M0_INTERNAL struct m0_pool_version *
+m0_pool_version_dix_get(const struct m0_pools_common *pc)
+{
+	M0_PRE(pc != NULL);
+
+	return pool_version_tlist_head(&pc->pc_dix_pool->po_vers);
 }
 
 M0_INTERNAL struct m0_pool_version *
@@ -1724,7 +1739,7 @@ M0_INTERNAL int m0_pool_version_append(struct m0_pools_common  *pc,
 		if (rc != 0)
 			return M0_ERR(rc);
 	}
-	M0_ASSERT(cp != NULL); 
+	M0_ASSERT(cp != NULL);
 	p = pool_find(pc, &cp->pl_obj.co_id);
 	M0_ASSERT(p != NULL);
 
@@ -1895,9 +1910,31 @@ M0_INTERNAL uint32_t m0_ha2pm_state_map(enum m0_ha_obj_state hastate)
 		[M0_NC_REPAIR]         = M0_PNDS_SNS_REPAIRING,
 		[M0_NC_REPAIRED]       = M0_PNDS_SNS_REPAIRED,
 		[M0_NC_REBALANCE]      = M0_PNDS_SNS_REBALANCING,
+		[M0_NC_DTM_RECOVERING] = M0_PNDS_ONLINE,
 	};
 	M0_ASSERT (hastate < M0_NC_NR);
 	return ha2pm_statemap[hastate];
+}
+
+static bool node_poolmach_state_update_cb(struct m0_clink *cl)
+{
+	struct m0_poolmach_event  pme;
+	struct m0_conf_obj       *obj =
+		container_of(cl->cl_chan, struct m0_conf_obj, co_ha_chan);
+	struct m0_poolnode       *pnode =
+		container_of(cl, struct m0_poolnode, pn_clink.bc_u.clink);
+
+	M0_ENTRY();
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_NODE_TYPE);
+
+	pme.pe_type = M0_POOL_NODE;
+	pme.pe_index = pnode->pn_index;
+	pme.pe_state = m0_ha2pm_state_map(obj->co_ha_state);
+	M0_LOG(M0_DEBUG, "pe_type=%6s pe_index=%x, pe_state=%10d",
+			 pme.pe_type == M0_POOL_DEVICE ? "device":"node",
+			 pme.pe_index, pme.pe_state);
+
+	return M0_RC(m0_poolmach_state_transit(pnode->pn_pm, &pme));
 }
 
 static bool disks_poolmach_state_update_cb(struct m0_clink *cl)
@@ -1919,6 +1956,28 @@ static bool disks_poolmach_state_update_cb(struct m0_clink *cl)
 			 pme.pe_index, pme.pe_state);
 
 	return M0_RC(m0_poolmach_state_transit(pdev->pd_pm, &pme));
+}
+
+M0_INTERNAL void m0_poolnode_clink_del(struct m0_clink *cl)
+{
+	if (M0_FI_ENABLED("do_nothing_for_poolmach-ut")) {
+		/*
+		 * The poolmach-ut does not add/register clink in poolnode.
+		 * So need to skip deleting the links if this is called
+		 * during poolmach-ut.
+		 * TODO: This is workaround & can be addressed differently.
+		 */
+		return;
+	}
+	m0_clink_del_lock(cl);
+	m0_clink_fini(cl);
+}
+
+M0_INTERNAL void m0_poolnode_clink_add(struct m0_clink *link,
+				       struct m0_chan  *chan)
+{
+	m0_clink_init(link, node_poolmach_state_update_cb);
+	m0_clink_add_lock(chan, link);
 }
 
 M0_INTERNAL void m0_pooldev_clink_del(struct m0_clink *cl)

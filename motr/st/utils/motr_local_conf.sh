@@ -18,10 +18,20 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
+M0_SRC_DIR=$(dirname $(readlink -f $0))
+M0_SRC_DIR="$M0_SRC_DIR/../../../"
+
+. $M0_SRC_DIR/utils/functions # m0_default_xprt
+
+XPRT=$(m0_default_xprt)
+
 # Get local address and other parameters to start services
-modprobe lnet &>> /dev/null
-lctl network up &>> /dev/null
-LOCAL_NID=`lctl list_nids | head -1`
+if [ "$XPRT" = "lnet" ]; then
+	modprobe lnet &>> /dev/null
+	lctl network up &>> /dev/null
+fi
+LOCAL_NID=$(m0_local_nid_get)
+
 if [ X$LOCAL_NID == X ]; then
 	echo "lnet is not up"
 	exit

@@ -27,7 +27,6 @@ motr_build_deps_pkgs:
   - createrepo            # for lustre-client-devel rpm
   - gcc
   - gcc-c++
-  - gccxml
   - glibc-headers
   - kernel-devel
   - libaio
@@ -44,9 +43,6 @@ motr_build_deps_pkgs:
   - perl-List-MoreUtils
   - perl-XML-LibXML
   - perl-autodie
-  - python-ply
-  - python-devel
-  - PyYAML                # required only for tests (m0hagen)
   - rpm-build
   - systemd-devel
   - libedit-devel
@@ -54,14 +50,30 @@ motr_build_deps_pkgs:
   - openssl
   - openssl-devel
 
-motr_build_deps_python3_pkgs:
+motr_build_deps_el7_pkgs:
+  - python-devel
+  - gccxml
+
+motr_build_deps_el8_pkgs:
+  - python2-devel
+  - castxml
+
+motr_build_deps_python3_el7_pkgs:
   - python36
   - python36-devel
   - python36-numpy   # performance tools addb2 analisys
   - python36-plumbum # performance tools addb2 analisys
   - python36-ply
-  - python36-PyYAML
+  - python36-PyYAML  # required only for tests (m0hagen)
   - python36-tqdm    # performance tools addb2 analisys
+
+motr_build_deps_python3_el8_pkgs:
+  - python3
+  - python36-devel
+  - python3-numpy   # performance tools addb2 analisys
+  - python3-ply
+  - python3-PyYAML  # required only for tests (m0hagen)
+  - python3-tqdm    # performance tools addb2 analisys
 
 motr_doc_deps_pkgs:
   - python36-pip

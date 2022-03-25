@@ -326,6 +326,7 @@ enum M0_RPC_OPCODES {
 	/** DTM0 service. */
 	M0_DTM0_REQ_OPCODE                    = 450,
 	M0_DTM0_REP_OPCODE                    = 451,
+	M0_DTM0_REDO_OPCODE                   = 452,
 	/*
 	 * Identifiers below are for fop-less foms, not fops.
 	 */
@@ -356,6 +357,7 @@ enum M0_RPC_OPCODES {
 	M0_FDMI_SOURCE_DOCK_OPCODE          = 1071,
 	M0_ISCSERVICE_EXEC_OPCODE           = 1072,
 	M0_DTM0_RLINK_OPCODE                = 1073,
+	M0_FDMI_SOURCE_DOCK_TIMER_OPCODE    = 1074,
 
 	M0_OPCODES_NR                       = 2048
 } M0_XCA_ENUM;

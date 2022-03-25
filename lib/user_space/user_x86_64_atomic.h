@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,9 +31,10 @@
 /**
    @addtogroup atomic
 
-   Implementation of atomic operations for Linux user space uses x86_64 assembly
-   language instructions (with gcc syntax). "Lock" prefix is used
-   everywhere---no optimisation for non-SMP configurations in present.
+   Implementation of atomic operations for Linux user space uses x86_64
+   assembly language instructions (with gcc syntax). "Lock" prefix is used
+   everywhere to ensure atomicity
+   ---no optimisation for non-SMP configurations in present.
  */
 
 struct m0_atomic64 {

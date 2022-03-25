@@ -202,7 +202,7 @@ static void be_ut_alloc_credit_log(struct m0_be_allocator  *a,
 	m0_be_allocator_credit(a, optype, size, shift, &cred);
 	M0_LOG(M0_INFO,
 	       "m0_be_allocator_credit(): "
-	       "optype = %d (%s), size = %"PRIi64", shift = %d, "
+	       "optype = %d (%s), size = %" PRIi64 ", shift = %d, "
 	       "credit = "BETXCR_F,
 	       optype, optype_str, size, shift, BETXCR_P(&cred));
 }
@@ -300,7 +300,7 @@ M0_INTERNAL void m0_be_ut_alloc_oom(void)
 		m0_be_ut_seg_init(&ut_seg, &be_ut_alloc_backend,
 				  m0_round_up(seg_size_start +
 					      seg_step * BE_UT_OOM_SEG_STEP,
-					      PAGE_SIZE));
+					      m0_pagesize_get()));
 		m0_be_ut_seg_allocator_init(&ut_seg, &be_ut_alloc_backend);
 		a = m0_be_seg_allocator(ut_seg.bus_seg);
 

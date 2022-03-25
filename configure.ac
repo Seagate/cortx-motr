@@ -124,6 +124,34 @@ AS_CASE([$host_os],
 )
 
 #
+# Checking for Platform support -------------------------------------------{{{1
+#
+
+ARCH=
+AC_CANONICAL_HOST
+AS_CASE([$host_cpu],
+        [aarch64], [ARCH=aarch64],
+        [x86_64], [ARCH=x86_64],
+        [AC_MSG_ERROR("Only X86_64 and aarch64 platforms are supported")]
+)
+
+# Check for X86_64 platform -------------{{{2
+AS_IF([test x$ARCH = xx86_64],
+      [
+        AC_DEFINE([CONFIG_X86_64])
+      ]
+)
+
+# Check for AARCH64 platform ------------{{{2
+AS_IF([test x$ARCH = xaarch64],
+      [
+        AC_DEFINE([CONFIG_AARCH64])
+      ]
+)
+
+AC_SUBST([ARCH])
+
+#
 # Configuration options --------------------------------------------------- {{{1
 #
 
@@ -133,9 +161,19 @@ AC_ARG_VAR([KCFLAGS], [kernel-space CFLAGS])
 AC_ARG_VAR([CXXXML],  [gccxml/castxml command])
 
 # define macros --------------------------------------- {{{2
+#
+# Add include guards to config.h
+#
+AH_TOP([
+#pragma once
+
+#ifndef __MOTR_CONFIG_H__
+#define __MOTR_CONFIG_H__
+])
 AH_TEMPLATE([MOTR_IDX_STORE_CASS],    [Use Cassandra as KVS backend.])
 AH_TEMPLATE([IDX_CASS_DRV_V22],       [Cassandra driver version >= 2.2.])
 AH_TEMPLATE([ENABLE_LUSTRE],          [Enable LNet network stack from Lustre.])
+AH_TEMPLATE([ENABLE_LIBFAB],          [Enable Libfabric network stack.])
 AH_TEMPLATE([ENABLE_GCCXML],          [Use deprecated GCC-XML instead of CastXML])
 AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
@@ -161,6 +199,7 @@ AH_TEMPLATE([ENABLE_RESTRICTED_TRACE_MODE],[Enable restricted trace mode, when o
 AH_TEMPLATE([M0_TRACE_HIGHEST_ALLOWED_LEVEL],[Highest trace level that is allowed to be logged.])
 AH_TEMPLATE([M0_DEFAULT_NETWORK],     [Default network transport type.])
 AH_TEMPLATE([M0_LUSTRE_VERSION],      [Autodetected Lustre version represented as integer])
+AH_TEMPLATE([ENABLE_USER_MODE_ONLY],  [Enabling user mode shall avoid kernel deps])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT],     [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV],        [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ],     [Have fops->aio_read function])
@@ -171,7 +210,11 @@ AH_TEMPLATE([HAVE_MALLINFO],          [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
-AH_TEMPLATE([HAVE_ISAL],              [Have Intel ISA-L available])
+AH_TEMPLATE([CONFIG_X86_64],          [Support for X86_64 platform])
+AH_TEMPLATE([CONFIG_AARCH64],         [Support for AARCH64 platform])
+AH_BOTTOM([
+#endif /* __MOTR_CONFIG_H__ */
+])
 
 # enable/disable options ------------------------------ {{{2
 
@@ -489,6 +532,20 @@ AS_VERSION_COMPARE(${CASS_DRV_VERSION}, "2.2", [CASS_DRV_V22=0], [CASS_DRV_V22=1
 AS_IF([test "$CASS_DRV_V22" = 1],
       AC_DEFINE([IDX_CASS_DRV_V22]))
 
+# user-mode {{{3
+AC_ARG_WITH([user-mode-only],
+        [AS_HELP_STRING([--with-user-mode-only],
+                        [Build motr with user space only])],
+        [with_user_mode_only=yes;
+         with_lustre=no;
+         with_default_transport=LF],
+        [with_user_mode_only=no]
+)
+AS_IF([test "x$with_user_mode_only" = xyes],
+      [AC_DEFINE([ENABLE_USER_MODE_ONLY])])
+
+
+
 # linux {{{3
 AC_ARG_WITH([linux],
         [AS_HELP_STRING([--with-linux=path],
@@ -496,7 +553,7 @@ AC_ARG_WITH([linux],
         [LINUX=$with_linux; LINUX_OBJ=$LINUX],
         [LINUX=/lib/modules/`uname -r`; LINUX_OBJ=$LINUX/build]
 )
-AS_IF([test x$with_lustre = xno],[
+AS_IF([test x$with_lustre = xno || test x$with_user_mode_only = xyes],[
        LINUX_OBJ=
        BUILD_KERNEL=not-relevant
       ],[
@@ -525,7 +582,7 @@ package or provide the path to a directory with built Lustre sources, \
 using --with-lustre option.])]
 )
 
-AS_IF([test x$with_lustre = xno],[
+AS_IF([test x$with_lustre = xno || test x$with_user_mode_only = xyes],[
         LUSTRE=none
         LUSTRE_INCLUDES=
         LUSTRE_VERSION_STR=none
@@ -701,24 +758,6 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h malloc.h memory.h netdb.h \
 
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
 AC_CHECK_HEADERS([openssl/md5.h], [], [AC_MSG_ERROR([md5.h cannot be found!])])
-AC_CHECK_HEADERS([isa-l.h],   [
-				# check for isa library
-				MOTR_SEARCH_LIBS([ec_encode_data], [c isal], [ISAL_LIBS],
-						[ec_encode_data cannot be found! \
-						 Try to install Intel ISA library package.]
-				)
-				AC_SUBST([ISAL_LIBS])
-
-				# define MACROs
-				AC_DEFINE([HAVE_ISAL])
-				AM_CONDITIONAL([HAVE_ISAL], [true])
-				AC_MSG_NOTICE([INTEL ISA-L Headers Available])
-			      ],
-			      [
-				AM_CONDITIONAL([HAVE_ISAL], [false])
-				AC_MSG_NOTICE([No INTEL ISA-L Headers])
-			      ]
-		)
 
 
 
@@ -832,6 +871,16 @@ AS_IF([test x$CASS_IDX = xyes],
 )
 
 #
+# Checking user-mode availability ------------------------------------------- {{{1
+#
+AS_IF([test x$with_user_mode_only = xyes],
+      [AM_CONDITIONAL([ENABLE_USER_MODE_ONLY], [true])],
+      [AM_CONDITIONAL([ENABLE_USER_MODE_ONLY], [false])]
+)
+
+
+
+#
 # Checking required linux kernel API -------------------------------------- {{{1
 #
 
@@ -848,6 +897,88 @@ AS_IF([test x$with_lustre != xno],[
        MOTR_LINUX_WRITE_BEGIN_END
        MOTR_LINUX_SENDFILE
 ])
+
+#
+# Checking Intel ISA library --------------------------------------------------------- {{{1
+#
+MOTR_SEARCH_LIBS([ec_encode_data], [c isal], [ISAL_LIBS],
+        [ec_encode_data cannot be found! Try to install Intel ISA library package.]
+)
+AC_SUBST([ISAL_LIBS])
+AC_CHECK_HEADERS([isa-l.h],
+                 [AC_MSG_NOTICE([INTEL ISA-L Headers Available])],
+                 [AC_MSG_ERROR([No INTEL ISA-L Headers])]
+)
+
+#
+# Checking libfabric library----------------------------------------------- {{{1
+#
+
+AC_ARG_ENABLE([libfab],
+        [AS_HELP_STRING([--enable-libfab],
+                        [Use libfabric transport])],
+        [],[enable_libfab=no]
+)
+
+AC_ARG_WITH([libfab],
+        [AS_HELP_STRING([--with-libfab=path],
+                        [set path to user installed libfabric headers and library])],
+        [LIBFABRIC=$with_libfab],
+        [LIBFABRIC=""]
+)
+
+AS_IF([! test -z "$with_libfab"],
+      [
+        LIB_FAB_INCLUDES="-I$LIBFABRIC/include"
+        LIBFAB_LIBS="-L$LIBFABRIC/lib -lfabric"
+        M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS $LIB_FAB_INCLUDES"
+	BUILD_DEPEND_LIBFAB=""
+      ],
+)
+AS_IF([test x$enable_libfab = xyes || test "x$with_default_network" = "xLF" ],
+      [
+	MOTR_SEARCH_LIBS([fi_fabric], [fabric], [LIBFAB_LIBS],
+                  [fi_fabric cannot be found! Try to install libfabric package]
+          )
+	AC_CHECK_HEADERS([rdma/fabric.h], [],
+		AC_MSG_ERROR([rdma/fabric.h is not found. Try to install libfabric package])
+          )
+        M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
+      ]
+)
+AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
+      [
+	AC_CHECK_HEADERS([rdma/fabric.h],
+	      [
+		# Check for libfabric library
+		MOTR_SEARCH_LIBS([fi_fabric], [fabric], [LIBFAB_LIBS],
+			  [fi_fabric cannot be found! Try to install libfabric package.]
+		)
+		AS_IF([! test -z LIBFAB_LIBS],
+		      [
+			M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
+			enable_libfab=yes
+			AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["LF"])
+			BUILD_DEPEND_LIBFAB="BuildRequires: libfabric-devel"
+		      ]
+		)
+	      ], []
+	)
+      ]
+)
+AC_SUBST([LIBFAB_LIBS])
+AC_SUBST([BUILD_DEPEND_LIBFAB])
+AM_CONDITIONAL([ENABLE_LIBFAB],
+               [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
+
+AC_MSG_CHECKING([for motr/config.h])
+MOTR_CONFIG="motr/config.h"
+AS_IF([! test -e "ABS_BUILDDIR/$MOTR_CONFIG"],
+    [
+      AC_MSG_NOTICE([$MOTR_CONFIG not found! Creating the symlink.])
+        (cd "$ABS_BUILDDIR/motr" && $LN_S "../config.h" "config.h")
+    ]
+)
 
 #
 # Checking Lustre --------------------------------------------------------- {{{1
@@ -895,21 +1026,6 @@ OLD_CFLAGS=$CFLAGS
 LIBS=""
 CFLAGS=""
 
-# Checking galois --------------------------------------------------------- {{{1
-
-GALOIS_REL_PATH="extra-libs/galois"
-GALOIS_SRC="$SRCDIR/$GALOIS_REL_PATH"
-GALOIS_ABS_SRC="$ABS_SRCDIR/$GALOIS_REL_PATH"
-GALOIS_INCLUDES="-I$GALOIS_ABS_SRC/include"
-KGALOIS_INCLUDES="-I$GALOIS_ABS_SRC/include"
-GALOIS_LIBS="$GALOIS_ABS_SRC/src/libgalois.la"
-
-AC_SUBST([GALOIS_SYMVERS], [$GALOIS_ABS_SRC/src/linux_kernel/Module.symvers])
-
-AS_IF([! test -x $GALOIS_SRC/configure],
-      [ test -x $GALOIS_SRC/autogen.sh && ( cd $GALOIS_SRC; ./autogen.sh ) ]
-)
-
 # Checking libyaml -------------------------------------------------------- {{{1
 
 AS_IF([test x$enable_system_libs = xyes],
@@ -930,8 +1046,6 @@ AS_IF([test x$enable_system_libs = xyes],
 LIBS=$OLD_LIBS
 CFLAGS=$OLD_CFLAGS
 
-AC_SUBST([GALOIS_ABS_SRC])
-AC_SUBST([GALOIS_LIBS])
 AC_SUBST([YAML_LIBS])
 
 #
@@ -943,7 +1057,9 @@ AS_IF([test x$enable_debug = xyes],
        M0_CPPFLAGS="-DDEBUG $M0_CPPFLAGS"
        M0_KCPPFLAGS="-DDEBUG $M0_KCPPFLAGS"
        M0_CFLAGS="-g -O0 $M0_CFLAGS"
-       M0_KCFLAGS="-g -O0 $M0_KCFLAGS"
+       # Kernel code cannot be compiled without any optimisation at all,
+       # but -Og can be used, see https://lwn.net/Articles/756616/.
+       M0_KCFLAGS="-g -Og $M0_KCFLAGS"
        AC_DEFINE([ENABLE_DEBUG])
       ],[
        M0_CFLAGS="-g -O2 $M0_CFLAGS"
@@ -986,7 +1102,7 @@ AS_IF([test x$enable_mcheck = xyes],
 # Set up build variables -------------------------------------------------- {{{1
 #
 
-M0_CPPFLAGS="$GALOIS_INCLUDES $YAML_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
+M0_CPPFLAGS="$YAML_INCLUDES $M0_CPPFLAGS $LUSTRE_INCLUDES"
 
 # _GNU_SOURCE for asprintf(3), open(2) O_DIRECT flag
 M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
@@ -995,7 +1111,7 @@ M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
 
 # contains only -D and -I/usr* entries from M0_CPPFLAGS, this is intended for
 # pkg-config database provided within Motr rpm distribution
-M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+' | xargs echo)
+M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+|-inc\S+' | xargs echo)
 
 # -Wno-attributes is required to suppress warnings about unrecognized
 # __attribute__, such as __attribute__((gccxml(...))). It's important because we
@@ -1014,7 +1130,7 @@ M0_KCPPFLAGS="-DM0_INTERNAL='' -DM0_EXTERN=extern \
               -include'$ABS_BUILDDIR/config.h' \
               -iquote '$ABS_BUILDDIR' \
               -iquote '$ABS_SRCDIR' \
-              $LUSTRE_INCLUDES $KGALOIS_INCLUDES $M0_KCPPFLAGS"
+              $LUSTRE_INCLUDES $M0_KCPPFLAGS"
 
 M0_KCFLAGS="-Wall -Werror -Wno-attributes $M0_KCFLAGS"
 
@@ -1065,8 +1181,6 @@ AC_CONFIG_FILES([net/test/demo/demo-config.sh], [chmod +x net/test/demo/demo-con
 AC_CONFIG_FILES([utils/modload-all.sh], [chmod +x utils/modload-all.sh])
 AC_CONFIG_FILES([scripts/systemtap/kem/Makefile])
 
-AC_CONFIG_SUBDIRS([extra-libs/galois])
-
 AC_OUTPUT
 
 #
@@ -1093,6 +1207,8 @@ echo "Motr version :  $PACKAGE_VERSION"
 echo ""
 echo "CONFIGURE_OPTS:  $BUILD_CONFIGURE_OPTS"
 echo ""
+echo "Net XPT        : $BUILD_NET_XPT"
+echo ""
 echo "M0_CPPFLAGS    :  \"$M0_CPPFLAGS\""
 echo "M0_CFLAGS      :  \"$M0_CFLAGS\""
 echo "M0_KCPPFLAGS   :  \"$M0_KCPPFLAGS\""
@@ -1100,11 +1216,11 @@ echo "M0_KCFLAGS     :  \"$M0_KCFLAGS\""
 echo "M0_LDFLAGS     :  \"$M0_LDFLAGS\""
 echo ""
 echo "MATH_LIBS      :  \"$MATH_LIBS\""
+echo "LIBFAB_LIBS    :  \"$LIBFAB_LIBS\""
 echo "PTHREAD_LIBS   :  \"$PTHREAD_LIBS\""
 echo "AIO_LIBS       :  \"$AIO_LIBS\""
 echo "RT_LIBS        :  \"$RT_LIBS\""
 echo "PROFILER_LIBS  :  \"$PROFILER_LIBS\""
-echo "GALOIS_LIBS    :  \"$GALOIS_LIBS\""
 echo "YAML_LIBS      :  \"$YAML_LIBS\""
 echo "UUID_LIBS      :  \"$UUID_LIBS\""
 echo "ISAL_LIBS      :  \"$ISAL_LIBS\""

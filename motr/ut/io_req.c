@@ -650,12 +650,15 @@ static void ut_test_ioreq_iomaps_destroy(void)
 {
 	struct m0_client *instance;
 	struct m0_op_io  *ioo;
+	struct m0_realm   realm;
 
 	/* initialise client */
 	instance = dummy_instance;
 
 	/* Base case. */
 	ioo = ut_dummy_ioo_create(instance, 1);
+	ut_realm_entity_setup(&realm, ioo->ioo_oo.oo_oc.oc_op.op_entity,
+			      instance);
 
 	ioreq_iomaps_destroy(ioo);
 
@@ -1099,6 +1102,10 @@ static void ut_test_device_check(void)
 	tioreqht_htable_add(&xfer->nxr_tioreqs_hash, ti);
 
 	ut_set_device_state(
+			&instance->m0c_pools_common.pc_cur_pver->pv_mach,
+			0, M0_PNDS_OFFLINE);
+
+	ut_set_node_state(
 			&instance->m0c_pools_common.pc_cur_pver->pv_mach,
 			0, M0_PNDS_FAILED);
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+# Copyright (c) 2020-2021 Seagate Technology LLC and/or its Affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,6 +46,8 @@ src_bs=10M
 src_count=20
 
 unit_size=$((stride * 1024))
+
+testname="sns-repair-abort-repair-quiesce-rebalance-quiesce"
 
 verify()
 {
@@ -200,4 +202,4 @@ main()
 
 trap unprepare EXIT
 main
-report_and_exit sns-repair-abort-repair-quiesce-rebalance-quiesce $?
+report_and_exit $testname $?

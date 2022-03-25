@@ -37,6 +37,8 @@ motr_runtime_deps_pkgs:
   - pkgconfig
   - ruby
   - rubygem-net-ssh
-  - sysvinit-tools
   - libedit
   - openssl
+
+motr_runtime_deps_el7_pkgs:
+  - sysvinit-tools

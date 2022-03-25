@@ -29,6 +29,9 @@
 
 /* Forward declarations */
 struct m0_fom;
+struct m0_conf_fdmi_filter;
+struct m0_fdmi_eval_ctx;
+struct m0_fdmi_eval_var_info;
 
 /**
  * @defgroup fdmi_fol_src FDMI FOL source
@@ -82,11 +85,20 @@ M0_INTERNAL void m0_fol_fdmi_src_fini(void);
  */
 M0_INTERNAL int m0_fol_fdmi_src_deinit(void);
 
-/**
- * Submit new FOL entry to FDMI.
- */
-M0_INTERNAL int m0_fol_fdmi_post_record(struct m0_fom *fom);
+/** Submit new FOL entry to FDMI. */
+M0_INTERNAL void m0_fol_fdmi_post_record(struct m0_fom *fom);
 
+/** Implements M0_FDMI_FILTER_TYPE_KV_SUBSTRING filter. */
+M0_INTERNAL int
+m0_fol_fdmi_filter_kv_substring(struct m0_fdmi_eval_ctx      *ctx,
+                                struct m0_conf_fdmi_filter   *filter,
+                                struct m0_fdmi_eval_var_info *var_info);
+
+
+/** Internal function used to match the strings. Exported for UTs. */
+M0_INTERNAL bool
+m0_fol_fdmi__filter_kv_substring_match(struct m0_buf  *value,
+                                       const char    **substrings);
 /** @} group fdmi_fol_src */
 
 #endif /* __MOTR_FOL_FDMI_SRC_H__ */

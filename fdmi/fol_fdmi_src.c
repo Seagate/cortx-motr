@@ -24,6 +24,7 @@
 #include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/finject.h" /* M0_FI_ENABLED */
+#include "lib/string.h"         /* strlen */
 
 #include "fdmi/fdmi.h"
 #include "fdmi/source_dock.h"
@@ -31,7 +32,10 @@
 #include "fdmi/filter.h"
 #include "fdmi/source_dock_internal.h"
 #include "fdmi/module.h"
-#include "fop/fop.h"     /* m0_fop_fol_frag */
+#include "fop/fop.h"            /* m0_fop_fol_frag */
+#include "rpc/rpc_opcodes.h"    /* M0_CAS_PUT_FOP_OPCODE */
+#include "cas/cas.h"            /* m0_cas_op */
+
 
 /**
  * @addtogroup fdmi_fol_src
@@ -69,6 +73,132 @@
  *   record after m0_fdmi_src::fs_end() call.  (We will
  *   still implement the counter -- to put in a work-around for future
  *   expansion.)
+ *
+ * @section FDMI FOL records pruning on plugin side
+ *
+ * FDMI FOL records may be persisted on FDMI plugin side. In this case FDMI
+ * plugin must handle duplicates (because the process with FDMI source may
+ * restart before receiving "the message had been received" confirmation from
+ * FDMI plugin). In case if the source of FDMI records is CAS there might also
+ * be duplicates (FDMI FOL records about the same KV operation, but from
+ * different CASes due to N-way replication of KV pairs in DIX), and they
+ * must also be deduplicated.
+ *
+ * One of the deduplication approaches is to have some kind of persistence on
+ * FDMI plugin side. Every record is looked up in this persistence and if there
+ * is a match then it's a duplicate.
+ *
+ * The persistence couldn't grow indefinitely, so there should be a way to prune
+ * it. One obvious thing would be to prune records after some timeout, but
+ * delayed DTM recovery may make this timeout very high (days, weeks or more).
+ * Another approach is to prune the records after it's known for sure that they
+ * are not going to be resent again.
+ *
+ * Current implementation uses m0_fol_rec_header::rh_lsn to send lsn for each
+ * FDMI FOL record to FDMI plugin. This lsn (log sequence number) is a
+ * monotonically non-decreasing number that represents position of BE
+ * transaction in BE log. FOL record is stored along with other BE tx data in BE
+ * log and therefore has the same lsn as the corresponding BE tx. Several
+ * transactions may have the same lsn in the current implementation, but there
+ * is a limit on a number of transactions with the same lsn.
+ * m0_fol_rec_header::rh_lsn_discarded is an lsn, for which every other
+ * transaction with lsn less than rh_lsn_discarded is never going to be sent
+ * again from the same BE domain (in the configurations that we are using
+ * currently it's equivalent to the Motr process that uses this BE domain). It
+ * means that every FDMI FOL record which has all rh_lsn less than corresponding
+ * rh_lsn_discarded for its BE domain could be discarded from deduplication
+ * persistence because there is nothing in the cluster that is going to send
+ * FDMI FOL record about this operation.
+ *
+ * @section FDMI FOL records resend
+ *
+ * There are 2 major cases here:
+ *
+ * 1. FDMI plugin restarts, FDMI source is not. In this case FDMI source needs
+ *    to resend everything FDMI plugin hasn't confirmed consumption for. This
+ *    could be done by FDMI source dock fom by indefinitely resending FDMI
+ *    records until either FDMI plugin confirms consumption or FDMI plugin
+ *    process fails permanently.
+ * 2. FDMI source restarts. The following description is about this case.
+ *
+ * FDMI source may restart unexpectedly (crash/restart) or it might restart
+ * gracefully (graceful shutdown/startup). In either case there may be FDMI FOL
+ * records that don't have consumption confirmation from FDMI plugin. Current
+ * implementation takes BE tx reference until there is such confirmation from
+ * FDMI plugin. BE tx reference taken means in this case that BE tx wouldn't be
+ * discarded from BE log until the reference is put. BE recovery recovers all
+ * transactions that were not discarded, which is very useful for FDMI FOL
+ * record resend case: if all FOL records for such recovered transactions are
+ * resent as FDMI FOL records then there will be no FDMI FOL record missing on
+ * FDMI plugin side regardless whether FDMI source restarts or not, how and how
+ * many times it restarts.
+ *
+ * It leads to an obvious solution: just send all FOL records as FDMI FOL
+ * records during BE recovery.
+ *
+ * There are several ways this task could be done.
+ *
+ * @subsection Original FOM for each FOL record
+ *
+ * For each FOL record a fom with the orignal fom type is created. A special
+ * flag is added to indicate that the fom was created during BE recovery . It
+ * allows the fom to not to execute it's usual actions, but to close BE tx
+ * immediatelly. Then, after BE tx goes to M0_BTS_LOGGED phase a generic fom
+ * phase calls m0_fom_fdmi_record_post(), which sends FDMI record to FDMI plugin
+ * as usual.
+ *
+ * @subsection Special FOM for each FOL record
+ *
+ * A special FOM would be created for each recovered BE tx. The purpose of the
+ * fom would be post FDMI record with the FOL record for this BE tx and then
+ * wait until consumption of the FDMI record is acklowledged.
+ *
+ * @subsection Post FDMI records for every BE tx
+ *
+ * FDMI FOL record for every recovered BE tx is posted as usual. FDMI source
+ * dock fom would make a queue of all the records and it would send them and
+ * wait for consumption acknowledgement as usual.
+ *
+ * @subsection A special BE recovery FOM phase
+ *
+ * A special FOM phase is added to every fom that stores something in BE. If the
+ * fom is created during BE recovery, then initial phase of the fom is this
+ * special phase. This allows each fom to handle BE recovery as it sees fit.
+ * Default generic phase sequence should also include this special fom phase and
+ * by default it would post FDMI FOL record in the same way it's done currently
+ * for normal FOM phase sequence.
+ *
+ * @subsection Implementation details
+ *
+ * - Motr process should be able to send FDMI fops during BE recovery. BE
+ *   recovery happens before DTM recovery, so at this stage only HA and Motr
+ *   configuration should be brought up (along with their dependencies). It
+ *   means that ioservice and DIX would be down at that time;
+ * - FOL record shouldn't be discarded until it's consumed by FDMI plugin.
+ *   Currently FOL record is in BE tx payload, so this requriement means that BE
+ *   tx shouldn't be discarded from BE log before FDMI FOL record is consumed by
+ *   FDMI plugin. It has several side effects:
+ *   - current implementation recovers BE tx groups one by one, and the next
+ *     group is recovered only after references to all transactions from the
+ *     previous BE tx group are put. It means that FDMI plugin must consume all
+ *     the records before the next BE tx group is recovered. Which doesn't sound
+ *     complex on it's own, but there is a use case when it becomes critical:
+ *   - if FDMI plugin needs to save FDMI record in a distributed index which is
+ *     located on the same set of Motr processes as FDMI source, then we may
+ *     have a deadlock even during usual cluster startup after non-clean
+ *     shutdown: BE recovery would have some transactions on every participating
+ *     server, so DIX wouldn't be operational. And FDMI plugin would require DIX
+ *     to be at least somehow operational to consume FDMI records. This could be
+ *     solved by allowing to have all BE tx groups to be recovered at the same
+ *     time (which would require some rework in BE grouping and BE tx group
+ *     fom), but even in this case we may get a deadlock if BE log is full. This
+ *     could be solved by always having some part of BE log to be allocted to BE
+ *     recovery activities, but with multiple subsequent failures during BE
+ *     recovery even this part of the log may get full. It could be solved by
+ *     preallocating space in BE segment to copy BE tx payloads from BE log to
+ *     handle this particular case, but hey, we only want to resend FDMI records
+ *     during BE recovery and record them to DIX in FDMI plugin and now we have
+ *     to do several major changes to Motr components archivecture already.
  *
  * @{
  */
@@ -181,28 +311,28 @@ static void ffs_tx_dec_refc(struct m0_be_tx *be_tx, int64_t *counter)
 	M0_LEAVE("counter = %"PRIi64, cnt);
 }
 
-#if 0
-/* Will only be used in Phase2, when we introduce proper handling of
- * transactions. */
-static void ffs_rec_get(struct m0_uint128 *fdmi_rec_id)
-{
-	M0_ENTRY("fdmi_rec_id: " U128X_F, U128_P(fdmi_rec_id));
-
-	...
-
-	ffs_tx_inc_refc(&entry->fsim_tx->tx_betx, NULL);
-
-	M0_LEAVE();
-}
-#endif
-
-static void ffs_rec_put(struct m0_fdmi_src_rec	*src_rec,
-			int64_t           	*counter)
+static int64_t ffs_rec_get(struct m0_fdmi_src_rec *src_rec)
 {
 	struct m0_dtx *dtx;
 	int64_t cnt;
 
-	M0_ENTRY("src_rec %p, counter %p", src_rec, counter);
+	/*
+	 * If this is the first time call on a new rec, some member
+	 * of this struct may not be fully populated. But it's fine
+	 * to get dtx.
+	 */
+	dtx = ffs_get_dtx(src_rec);
+	M0_ASSERT(dtx != NULL);
+
+	ffs_tx_inc_refc(&dtx->tx_betx, &cnt);
+
+	return cnt;
+}
+
+static int64_t ffs_rec_put(struct m0_fdmi_src_rec *src_rec)
+{
+	struct m0_dtx *dtx;
+	int64_t cnt;
 
 	M0_ASSERT(m0_fdmi__record_is_valid(src_rec));
 
@@ -210,10 +340,8 @@ static void ffs_rec_put(struct m0_fdmi_src_rec	*src_rec,
 	M0_ASSERT(dtx != NULL);
 
 	ffs_tx_dec_refc(&dtx->tx_betx, &cnt);
-	if (counter != NULL)
-		*counter = cnt;
 
-	M0_LEAVE("counter = %"PRIi64, cnt);
+	return cnt;
 }
 
 /* ------------------------------------------------------------------
@@ -267,30 +395,25 @@ static int ffs_op_node_eval(struct m0_fdmi_src_rec	*src_rec,
 
 static void ffs_op_get(struct m0_fdmi_src_rec *src_rec)
 {
-	M0_ENTRY("src_rec %p", src_rec);
+	int64_t cnt;
 
 	M0_ASSERT(m0_fdmi__record_is_valid(src_rec));
 
-#if 0
 	/* Proper transactional handling is for phase 2. */
-	ffs_rec_get(fdmi_rec_id);
-#endif
+	cnt = ffs_rec_get(src_rec);
 
-	M0_LEAVE();
+	M0_LOG(M0_DEBUG, "src_rec %p counter=%"PRIi64, src_rec, cnt);
 }
 
 static void ffs_op_put(struct m0_fdmi_src_rec *src_rec)
 {
-	M0_ENTRY("src_rec %p", src_rec);
-
+	int64_t cnt;
 	M0_ASSERT(m0_fdmi__record_is_valid(src_rec));
 
-#if 0
 	/* Proper transactional handling is for phase 2. */
-	ffs_rec_put(fdmi_rec_id, NULL, NULL);
-#endif
+	cnt = ffs_rec_put(src_rec);
 
-	M0_LEAVE();
+	M0_LOG(M0_DEBUG, "src_rec %p counter=%"PRIi64, src_rec, cnt);
 }
 
 static int ffs_op_encode(struct m0_fdmi_src_rec *src_rec,
@@ -402,7 +525,7 @@ static void ffs_op_begin(struct m0_fdmi_src_rec *src_rec)
 
 	/**
 	 * No need to do anything on this event for FOL Source.  Call to
-	 * ffs_tx_inc_refc done in m0_fol_fdmi_post_record below will make sure
+	 * ffs_rec_get() done in m0_fol_fdmi_post_record below will make sure
 	 * the data is already in memory and available for fast access at the
 	 * moment of this call.
 	 */
@@ -414,30 +537,9 @@ static void ffs_op_begin(struct m0_fdmi_src_rec *src_rec)
 
 static void ffs_op_end(struct m0_fdmi_src_rec *src_rec)
 {
-	int64_t counter;
-
 	M0_ENTRY("src_rec %p", src_rec);
 
 	M0_ASSERT(m0_fdmi__record_is_valid(src_rec));
-
-	/* Note: in Phase 2, we'll probably need to handle two different cases
-	 * differently.  Case#1 is get/put backend transaction, to make sure
-	 * it's held in RAM up to the moment FDMI runs all filters.  Case#2 is
-	 * some kind of counter which protects FOL entry from destruction
-	 * before we get all 'decref' callbacks from FDMI source dock.  Right
-	 * now, I ignore incref/decref altogether, since Phase 1 does not
-	 * support transactions and FDMI records re-sending.  And I do this
-	 * decref here to release transaction.  In Phase 2, this may need
-	 * rework. */
-	counter = 1;
-	ffs_rec_put(src_rec, &counter); /* This call is a pair to the
-					 * first call, inc_refc, done in
-					 * post_record. */
-	M0_ASSERT(counter == 0); /* Valid until FDMI phase 2; in phase 2 we
-				  * add transaction handling, and
-				  * incref/decref will start working, and
-				  * counter will be non-zero here if any
-				  * filters matched.  See ffs_op_get. */
 
 	M0_LEAVE();
 }
@@ -541,17 +643,36 @@ M0_INTERNAL int m0_fol_fdmi_src_deinit(void)
  * Entry point for FOM to start FDMI processing
  * ------------------------------------------------------------------ */
 
-M0_INTERNAL int m0_fol_fdmi_post_record(struct m0_fom *fom)
+M0_INTERNAL void m0_fol_fdmi_post_record(struct m0_fom *fom)
 {
-	struct m0_fdmi_module *m = m0_fdmi_module__get();
-	struct m0_dtx         *dtx;
-	struct m0_be_tx       *be_tx;
-	int                    rc;
+	struct m0_fdmi_src_dock *src_dock = m0_fdmi_src_dock_get();
+	struct m0_fdmi_module   *m = m0_fdmi_module__get();
+	struct m0_dtx           *dtx;
+	struct m0_be_tx         *be_tx;
 
 	M0_ENTRY("fom: %p", fom);
 
 	M0_ASSERT(fom != NULL);
 	M0_ASSERT(m->fdm_s.fdms_ffs_ctx.ffsc_src->fs_record_post != NULL);
+
+	if (!src_dock->fsdc_started) {
+		/*
+		 * It should really be M0_ASSERT() here, because posting FDMI
+		 * records when there is nothing running to process them is a
+		 * bug (FDMI ensures guaranteed delivery and it's impossible if
+		 * there is nothing running that could take care of delivery.
+		 *
+		 * But the current codebase is not ready for such change.
+		 * Let's mark is as just another "Phase 2" TODO.
+		 */
+		M0_LOG(M0_ERROR, "src dock fom is not running");
+		return;
+	}
+	if (!src_dock->fsdc_filters_defined) {
+		/* No filters defined. Let's not post the records. */
+		return;
+	}
+
 
 	/**
 	 * There is no "unpost record" method, so we have to prepare
@@ -561,24 +682,18 @@ M0_INTERNAL int m0_fol_fdmi_post_record(struct m0_fom *fom)
 	dtx   = &fom->fo_tx;
 	be_tx = &fom->fo_tx.tx_betx;
 
-	/** @todo Phase 2: Move inc ref call to FDMI source dock */
 
-	ffs_tx_inc_refc(be_tx, NULL);
-
-	/* Post record. */
+	m0_be_tx_lsn_get(be_tx, &dtx->tx_fol_rec.fr_header.rh_lsn,
+	                 &dtx->tx_fol_rec.fr_header.rh_lsn_discarded);
 	dtx->tx_fol_rec.fr_fdmi_rec.fsr_src  = m->fdm_s.fdms_ffs_ctx.ffsc_src;
 	dtx->tx_fol_rec.fr_fdmi_rec.fsr_dryrun = false;
 	dtx->tx_fol_rec.fr_fdmi_rec.fsr_data = NULL;
 
-	rc = M0_FDMI_SOURCE_POST_RECORD(&dtx->tx_fol_rec.fr_fdmi_rec);
-	if (rc < 0) {
-		M0_LOG(M0_ERROR, "Failed to post FDMI record.");
-		goto error_post_record;
-	} else {
-		M0_ENTRY("Posted FDMI rec, src_rec %p, rec id " U128X_F,
-			 &dtx->tx_fol_rec.fr_fdmi_rec,
-			 U128_P(&dtx->tx_fol_rec.fr_fdmi_rec.fsr_rec_id));
-	}
+	/* Post record. */
+	M0_FDMI_SOURCE_POST_RECORD(&dtx->tx_fol_rec.fr_fdmi_rec);
+	M0_LOG(M0_DEBUG, "M0_FDMI_SOURCE_POST_RECORD fr_fdmi_rec=%p "
+	       "fsr_rec_id="U128X_F, &dtx->tx_fol_rec.fr_fdmi_rec,
+	       U128_P(&dtx->tx_fol_rec.fr_fdmi_rec.fsr_rec_id));
 
 	/* Aftermath. */
 
@@ -588,10 +703,69 @@ M0_INTERNAL int m0_fol_fdmi_post_record(struct m0_fom *fom)
 	 * done before the M0_FDMI_SOURCE_POST_RECORD call above.
 	 */
 
-	return M0_RC(rc);
-error_post_record:
-	ffs_tx_dec_refc(be_tx, NULL);
-	return M0_RC(rc);
+	M0_LEAVE();
+}
+
+M0_INTERNAL bool
+m0_fol_fdmi__filter_kv_substring_match(struct m0_buf  *value,
+                                       const char    **substrings)
+{
+	struct m0_buf s;
+	m0_bcount_t   j;
+	bool          match;
+	int           i;
+
+	for (i = 0; substrings[i] != NULL; ++i) {
+		s = M0_BUF_INIT_CONST(strlen(substrings[i]), substrings[i]);
+		if (value->b_nob < s.b_nob)
+			return false;
+		match = false;
+		/* brute-force */
+		for (j = 0; j <= value->b_nob - s.b_nob; ++j) {
+			if (m0_buf_eq(&s, &M0_BUF_INIT(s.b_nob,
+			                               value->b_addr + j))) {
+				match = true;
+				break;
+			}
+		}
+		if (!match)
+			return false;
+	}
+	return true;
+}
+
+M0_INTERNAL int
+m0_fol_fdmi_filter_kv_substring(struct m0_fdmi_eval_ctx      *ctx,
+                                struct m0_conf_fdmi_filter   *filter,
+                                struct m0_fdmi_eval_var_info *var_info)
+{
+	struct m0_fdmi_src_rec *src_rec = var_info->user_data;
+	struct m0_fop_fol_frag *fop_fol_frag;
+	struct m0_fol_frag     *fol_frag;
+	struct m0_fol_rec      *fol_rec;
+	struct m0_cas_rec      *cas_rec;
+	struct m0_cas_op       *cas_op;
+	int                     i;
+
+	fol_rec = container_of(src_rec, struct m0_fol_rec, fr_fdmi_rec);
+	m0_tl_for(m0_rec_frag, &fol_rec->fr_frags, fol_frag) {
+		if (fol_frag->rp_ops->rpo_type != &m0_fop_fol_frag_type)
+			continue;
+		fop_fol_frag = fol_frag->rp_data;
+		if (fop_fol_frag->ffrp_fop_code != M0_CAS_PUT_FOP_OPCODE &&
+		    fop_fol_frag->ffrp_fop_code != M0_CAS_DEL_FOP_OPCODE)
+			continue;
+		cas_op = fop_fol_frag->ffrp_fop;
+		M0_ASSERT(cas_op != NULL);
+		for (i = 0; i < cas_op->cg_rec.cr_nr; ++i) {
+			cas_rec = &cas_op->cg_rec.cr_rec[i];
+			if (m0_fol_fdmi__filter_kv_substring_match(
+				   &cas_rec->cr_val.u.ab_buf,
+				   filter->ff_substrings))
+				return 1;
+		}
+	} m0_tl_endfor;
+	return 0;
 }
 
 /**

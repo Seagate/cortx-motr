@@ -183,7 +183,7 @@ struct m0_co_context {
 #define M0_CO_FUN(context, function)                                      \
 ({                                                                        \
 	__label__ save;                                                   \
-	M0_LOG(M0_CALL, "M0_CO_FUN: context=%p yeild=%d",                 \
+	M0_LOG(M0_DEBUG, "M0_CO_FUN: context=%p yeild=%d",                 \
 	       context, !!context->mc_yield);                             \
 	M0_ASSERT(context->mc_frame < M0_MCC_STACK_NR);                   \
 	context->mc_stack[context->mc_frame++] = &&save;                  \
@@ -223,7 +223,7 @@ save:   (function);                                                       \
 #define M0_CO__REENTER(context, frame_data)                               \
 ({                                                                        \
 	uint64_t size = sizeof(*frame_data);                              \
-	M0_LOG(M0_CALL, "M0_CO_REENTER: context=%p yeild=%d",             \
+	M0_LOG(M0_DEBUG, "M0_CO_REENTER: context=%p yeild=%d",             \
 	       context, !!context->mc_yield);                             \
 	if (!context->mc_yield) {                                         \
 		m0_co_context_locals_alloc(context, (size));              \
@@ -248,7 +248,7 @@ save:   (function);                                                       \
 #define M0_CO_YIELD_RC(context, rc)                                       \
 ({                                                                        \
 	__label__ save;                                                   \
-	M0_LOG(M0_CALL, "M0_CO_YIELD: context=%p yeild=%d",               \
+	M0_LOG(M0_DEBUG, "M0_CO_YIELD: context=%p yeild=%d",               \
 	       context, !!context->mc_yield);                             \
 	context->mc_yield = true;                                         \
 	context->mc_co_end_ret = (rc);                                    \

@@ -30,7 +30,6 @@ MOTR_TEST_LOGFILE=$SANDBOX_DIR/motr_`date +"%Y-%m-%d_%T"`.log
 MOTR_M0T1FS_MOUNT_DIR=/tmp/test_m0t1fs_`date +"%d-%m-%Y_%T"`
 
 MOTR_MODULE=m0tr
-MOTR_CTL_MODULE=m0ctl #debugfs interface to control m0tr at runtime
 
 # kernel space tracing parameters
 MOTR_MODULE_TRACE_MASK='!all'
@@ -96,8 +95,16 @@ SNS_MOTR_CLI_EP="12345:33:1000"
 POOL_MACHINE_CLI_EP="12345:33:1001"
 SNS_QUIESCE_CLI_EP="12345:33:1002"
 M0HAM_CLI_EP="12345:33:1003"
+DIX_QUIESCE_CLI_EP="12345:33:1004"
+
+export FDMI_PLUGIN_EP="12345:33:601"
+export FDMI_PLUGIN_EP2="12345:33:602"
+
+export FDMI_FILTER_FID="6c00000000000001:0"
+export FDMI_FILTER_FID2="6c00000000000002:0"
 
 SNS_CLI_EP="12345:33:400"
+DIX_CLI_EP="12345:33:401"
 
 POOL_WIDTH=$(expr ${#IOSEP[*]} \* 5)
 NR_PARITY=2
@@ -117,13 +124,31 @@ DIX_PVERID='^v|1:20'
 MAX_NR_FILES=20 # XXX temporary workaround for performance issues
 TM_MIN_RECV_QUEUE_LEN=16
 MAX_RPC_MSG_SIZE=65536
-XPT=lnet
 PVERID='^v|1:10'
 MDPVERID='^v|2:10'
-M0T1FS_PROC_ID='<0x7200000000000001:64>'
+export M0T1FS_PROC_ID='0x7200000000000001:64'
+XPRT=$(m0_default_xprt)
 
 # Single node configuration.
 SINGLE_NODE=0
+
+M0_NC_UNKNOWN=1
+M0_NC_ONLINE=1
+M0_NC_FAILED=2
+M0_NC_TRANSIENT=3
+M0_NC_REPAIR=4
+M0_NC_REPAIRED=5
+M0_NC_REBALANCE=6
+
+declare -A ha_states=(
+	[unknown]=$M0_NC_UNKNOWN
+	[online]=$M0_NC_ONLINE
+	[failed]=$M0_NC_FAILED
+	[transient]=$M0_NC_TRANSIENT
+	[repair]=$M0_NC_REPAIR
+	[repaired]=$M0_NC_REPAIRED
+	[rebalance]=$M0_NC_REBALANCE
+)
 
 unload_kernel_module()
 {
@@ -138,9 +163,12 @@ unload_kernel_module()
 
 load_kernel_module()
 {
-	modprobe lnet &>> /dev/null
-	lctl network up &>> /dev/null
-	lnet_nid=`sudo lctl list_nids | head -1`
+	if [ "$XPRT" = "lnet" ]; then
+		modprobe lnet &>> /dev/null
+		lctl network up &>> /dev/null
+	fi
+
+	lnet_nid=$(m0_local_nid_get)
 	server_nid=${server_nid:-$lnet_nid}
 
 	# see if CONFD_EP was not prefixed with lnet_nid to the moment
@@ -163,57 +191,27 @@ load_kernel_module()
 		unload_kernel_module || return $?
 	fi
 
-        insmod $motr_module_path/$motr_module.ko \
-               trace_immediate_mask=$MOTR_MODULE_TRACE_MASK \
-	       trace_print_context=$MOTR_TRACE_PRINT_CONTEXT \
-	       trace_level=$MOTR_TRACE_LEVEL \
-	       node_uuid=${NODE_UUID:-00000000-0000-0000-0000-000000000000} \
-               local_addr=$LADDR \
-	       tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
-	       max_rpc_msg_size=$MAX_RPC_MSG_SIZE
-        if [ $? -ne "0" ]
-        then
-                echo "Failed to insert module \
-                      $motr_module_path/$motr_module.ko"
-                return 1
-        fi
-}
-
-load_motr_ctl_module()
-{
-	echo "Mount debugfs and insert $MOTR_CTL_MODULE.ko so as to use fault injection"
-	mount -t debugfs none /sys/kernel/debug
-	mount | grep debugfs
-	if [ $? -ne 0 ]
+	if [ "$XPRT" = "lnet" ]
 	then
-		echo "Failed to mount debugfs"
-		return 1
-	fi
-
-	echo "insmod $motr_module_path/$MOTR_CTL_MODULE.ko"
-	insmod $motr_module_path/$MOTR_CTL_MODULE.ko
-	lsmod | grep $MOTR_CTL_MODULE
-	if [ $? -ne 0 ]
-	then
-		echo "Failed to insert module" \
-		     " $motr_module_path/$MOTR_CTL_MODULE.ko"
-		return 1
-	fi
-}
-
-unload_motr_ctl_module()
-{
-	echo "rmmod $motr_module_path/$MOTR_CTL_MODULE.ko"
-	rmmod $motr_module_path/$MOTR_CTL_MODULE.ko
-	if [ $? -ne 0 ]; then
-		echo "Failed: $MOTR_CTL_MODULE.ko could not be unloaded"
-		return 1
+        	insmod $motr_module_path/$motr_module.ko \
+        	       trace_immediate_mask=$MOTR_MODULE_TRACE_MASK \
+		       trace_print_context=$MOTR_TRACE_PRINT_CONTEXT \
+		       trace_level=$MOTR_TRACE_LEVEL \
+		       node_uuid=${NODE_UUID:-00000000-0000-0000-0000-000000000000} \
+        	       local_addr=$LADDR \
+		       tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
+		       max_rpc_msg_size=$MAX_RPC_MSG_SIZE
+        	if [ $? -ne "0" ]
+        	then
+        	        echo "Failed to insert module \
+        	              $motr_module_path/$motr_module.ko"
+        	        return 1
+        	fi
 	fi
 }
 
 prepare()
 {
-	modload_galois >& /dev/null
 	echo 8 > /proc/sys/kernel/printk
 	load_kernel_module || return $?
 	sysctl -w vm.max_map_count=30000000 || return $?
@@ -233,12 +231,11 @@ unprepare()
 	if lsmod | grep m0tr; then
 		unload_kernel_module || rc=$?
 	fi
-	modunload_galois || rc=$?
 	## The absence of `sandbox_fini' is intentional.
 	return $rc
 }
 
-PROF_OPT='<0x7000000000000001:0>'
+export PROF_OPT='0x7000000000000001:0'
 
 . `dirname ${BASH_SOURCE[0]}`/common_service_fids_inc.sh
 
@@ -282,7 +279,18 @@ function dix_pver_build()
 	# Number of parity units (replication factor) for distributed indices.
 	# Calculated automatically as maximum possible parity for the given
 	# number of disks.
-	local DIX_PARITY=$(((DIX_DEVS_NR - 1) / 2))
+	if [ "x$ENABLE_FDMI_FILTERS" == "xYES" ] ; then
+		# If we have SPARE=0, then we can have any number between [1, DIX_DEVS_NR - 1]
+		local DIX_PARITY=$((DIX_DEVS_NR - 1))
+		local DIX_SPARE=0
+	elif [ "x$MOTR_DIX_PG_N_EQ_P" == "xYES" ]; then
+		local DIX_PARITY=$((DIX_DEVS_NR - 1))
+		local DIX_SPARE=0
+	else
+		# If we have SPARE=PARITY, then we will use:
+		local DIX_PARITY=$(((DIX_DEVS_NR - 1) / 2))
+		local DIX_SPARE=$DIX_PARITY
+	fi
 
 	# conf objects for disks
 	for ((i=0; i < $DIX_DEVS_NR; i++)); do
@@ -301,7 +309,7 @@ function dix_pver_build()
 	done
 	# conf objects for DIX pool version
 	local DIX_POOL="{0x6f| (($DIX_POOLID), 0, [1: $DIX_PVERID])}"
-	local DIX_PVER="{0x76| (($DIX_PVERID), {0| (1, $DIX_PARITY, $DIX_PARITY,
+	local DIX_PVER="{0x76| (($DIX_PVERID), {0| (1, $DIX_PARITY, $DIX_SPARE,
                                                     $DIX_DEVS_NR,
                                                     [5: 0, 0, 0, 0, $DIX_PARITY],
                                                     [1: $DIX_SITEVID])})}"
@@ -414,6 +422,29 @@ function build_conf()
 	local M0T1FS_PROC="{0x72| (($M0T1FS_PROCID), [1:3], 0, 0, 0, 0, \"${m0t1fs_ep}\", [1: $M0T1FS_RMID])}"
 	PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $M0T1FS_PROC"
 	PROC_NAMES="$PROC_NAMES${PROC_NAMES:+, }$M0T1FS_PROCID"
+
+	local FDMI_GROUP_ID="^g|1:0"
+	local FDMI_FILTER_ID="^l|1:0"   #Please refer to $FDMI_FILTER_FID
+	local FDMI_FILTER_ID2="^l|2:0"  #Please refer to $FDMI_FILTER_FID2
+
+	local FDMI_FILTER_STRINGS="\"something1\", \"anotherstring2\", \"YETanotherstring3\""
+	local FDMI_FILTER_STRINGS2="\"Bucket-Name\", \"Object-Name\", \"x-amz-meta-replication\""
+
+	if [ "x$ENABLE_FDMI_FILTERS" == "xYES" ] ; then
+		local FDMI_GROUP_DESC="1: $FDMI_GROUP_ID"
+		local FDMI_ITEMS_NR=3
+		# Please NOTE the ending comma at the end of each string here
+		local FDMI_GROUP="{0x67| (($FDMI_GROUP_ID), 0x1000, [2: $FDMI_FILTER_ID, $FDMI_FILTER_ID2])},"
+		#local FDMI_FILTER="{0x6c| (($FDMI_FILTER_ID), 1, (11, 11), \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, (0, 0), [0], [1: \"$lnet_nid:$FDMI_PLUGIN_EP\"])},"
+		local FDMI_FILTER="{0x6c| (($FDMI_FILTER_ID), 2, $FDMI_FILTER_ID, \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, $DIX_PVERID, [3: $FDMI_FILTER_STRINGS], [1: \"$lnet_nid:$FDMI_PLUGIN_EP\"])},"
+		local FDMI_FILTER2="{0x6c| (($FDMI_FILTER_ID2), 2, $FDMI_FILTER_ID2, \"{2|(0,[2:({1|(3,{2|0})}),({1|(3,{2|0})})])}\", $NODE, $DIX_PVERID, [3: $FDMI_FILTER_STRINGS2], [1: \"$lnet_nid:$FDMI_PLUGIN_EP2\"])},"
+	else
+		local FDMI_GROUP_DESC="0"
+		local FDMI_ITEMS_NR=0
+		local FDMI_GROUP=""
+		local FDMI_FILTER=""
+		local FDMI_FILTER2=""
+	fi
 
 	local i
 	for ((i=0; i < ${#ioservices[*]}; i++, M0D++)); do
@@ -622,13 +653,13 @@ function build_conf()
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
 [$(($IOS_OBJS_NR + $((${#mdservices[*]} * 5)) + $NR_IOS_DEVS + 19
-    + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 5 + $DIX_PVER_OBJ_COUNT)):
+    + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 5 + $DIX_PVER_OBJ_COUNT + $FDMI_ITEMS_NR)):
   {0x74| (($ROOT), 1, (11, 22), $MDPOOLID, $IMETA_PVER, $MD_REDUNDANCY,
 	  [1: \"$pool_width $nr_data_units $nr_parity_units $nr_spare_units\"],
 	  [$node_count: $NODES],
 	  [$site_count: $SITES],
 	  [$pool_count: $POOLS],
-	  [1: $PROF], [0])},
+	  [1: $PROF], [$FDMI_GROUP_DESC])},
   {0x70| (($PROF), [$pool_count: $POOLS])},
   {0x6e| (($NODE), 16000, 2, 3, 2, [$(($M0D + 1)): ${PROC_NAMES[@]}])},
   $PROC_OBJS,
@@ -636,6 +667,9 @@ function build_conf()
   {0x73| (($HA_SVC_ID), @M0_CST_HA, [1: $HA_ENDPOINT], [0], [0])},
   {0x73| (($FIS_SVC_ID), @M0_CST_FIS, [1: $HA_ENDPOINT], [0], [0])},
   $M0T1FS_RM,
+  $FDMI_GROUP
+  $FDMI_FILTER
+  $FDMI_FILTER2
   $MDS_OBJS,
   $IOS_OBJS,
   $RM_OBJS,
@@ -656,8 +690,14 @@ function build_conf()
 
 service_eps_get()
 {
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid
 	local service_eps
+	if [ "$XPRT" = "lnet" ]
+	then
+		lnet_nid=`sudo lctl list_nids | head -1`
+	else
+		lnet_nid=$(m0_local_nid_get)
+	fi
 
 	if [ $SINGLE_NODE -eq 1 ] ; then
 		service_eps=(
@@ -683,7 +723,7 @@ MOTR_CLIENT_ONLY=0
 
 service_eps_with_m0t1fs_get()
 {
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid=$(m0_local_nid_get)
 	local service_eps=$(service_eps_get)
 
 	# If client only, we don't have m0t1fs nid.
@@ -697,7 +737,7 @@ service_eps_with_m0t1fs_get()
 
 service_cas_eps_with_m0tifs_get()
 {
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid=$(m0_local_nid_get)
 	local service_eps=(
 		"$lnet_nid:${IOSEP[0]}"
 		"$lnet_nid:${IOSEP[1]}"
@@ -790,7 +830,7 @@ send_ha_events_default()
 	local state=$2
 
 	# Use default endpoints
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid=$(m0_local_nid_get)
 	local ha_ep="$lnet_nid:$HA_EP"
 	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
 
@@ -817,6 +857,7 @@ fids:'
 		yaml="$yaml
   - $fid"
 	done
+	echo "XPRT is $XPRT"
 
 	send_ha_msg_nvec "$yaml" "${remote_eps[*]}" "$local_ep"
 }
@@ -825,4 +866,149 @@ function run()
 {
 	echo "# $*"
 	eval $*
+}
+
+ha_events_post()
+{
+	local service_eps=($1)
+		local state=$2
+		local state_num=${ha_states[$state]}
+	if [ -z "$state_num" ]; then
+		echo "Unknown state: $state"
+		return 1
+	fi
+
+	shift 2
+
+	local fids=()
+	local nr=0
+	for d in "$@"; do
+		fids[$nr]="^k|1:$d"
+		nr=$((nr + 1))
+	done
+
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+
+	echo "ha_events_post: ${service_eps[*]}"
+	echo "setting devices { ${fids[*]} } to $state"
+	send_ha_events "${fids[*]}" "$state" "${service_eps[*]}" "$local_ep"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "HA note set failed: $rc"
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
+		return $rc
+	fi
+}
+
+# input parameters:
+# (i) state name
+# (ii) disk1
+# (iii) ...
+disk_state_set()
+{
+	local state=$1
+	local state_num=${ha_states[$state]}
+	if [ -z "$state_num" ]; then
+		echo "Unknown state: $state"
+		return 1
+	fi
+
+	shift
+
+	local fids=()
+	local nr=0
+	for d in "$@"; do
+		fids[$nr]="^k|1:$d"
+		nr=$((nr + 1))
+	done
+
+	# Dummy HA doesn't broadcast messages. Therefore, send ha_msg to the
+	# services directly.
+	local service_eps=$(service_eps_with_m0t1fs_get)
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+
+	echo "setting devices { ${fids[*]} } to $state"
+	send_ha_events "${fids[*]}" "$state" "$service_eps" "$local_ep"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "HA note set failed: $rc"
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
+		return $rc
+	fi
+}
+
+cas_disk_state_set()
+{
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+	local state=$1
+	local state_num=${ha_states[$state]}
+	if [ -z "$state_num" ]; then
+		echo "Unknown state: $state"
+		return 1
+	fi
+	shift
+	local service_eps=$(service_cas_eps_with_m0tifs_get)
+	local fids=()
+	local nr=0
+
+	echo "Setting CAS device { $@ } to $state (HA state=$state_num)"
+
+	for d in "$@";  do
+		fids[$nr]="^k|20:$d"
+		nr=$((nr + 1))
+	done
+	echo "setting devices { ${fids[*]} } to $state"
+	send_ha_events "${fids[*]}" "$state" "$service_eps" "$local_ep"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "HA note set failed: $rc"
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
+		return $rc
+	fi
+	return 0
+}
+
+disk_state_get()
+{
+	local fids=()
+	local nr=0
+	for d in "$@"; do
+		fids[$nr]="^k|1:$d"
+		nr=$((nr + 1))
+	done
+
+	local service_eps=$(service_eps_with_m0t1fs_get)
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+
+	echo "getting device { ${fids[*]} }'s HA state"
+	request_ha_state "${fids[*]}" "$service_eps" "$local_ep"
+	rc=$?
+	if [ $rc != 0 ]; then
+		echo "HA state get failed: $rc"
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
+		return $rc
+	fi
+}
+
+cas_disk_state_get()
+{
+	local service_eps=$(service_cas_eps_with_m0tifs_get)
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+	local nr=0
+
+	echo "getting device { $@ }'s HA state"
+
+	for d in "$@";	do
+		fids[$nr]="^k|20:$d"
+		nr=$((nr + 1))
+	done
+	echo "getting device { ${fids[*]} }'s HA state"
+	request_ha_state "${fids[*]}" "$service_eps" "$local_ep"
+	rc=$?
+	if [ $rc != 0 ]; then
+		echo "HA tate get failed: $rc"
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
+		return $rc
+	fi
+	return 0
 }

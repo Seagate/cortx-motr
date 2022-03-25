@@ -27,6 +27,11 @@
 # This script should only be run before bootstrap (that does mkfs),
 # and it will never be started after Motr mkfs is complete
 
+M0_SRC_DIR=$(dirname $(readlink -f $0))
+M0_SRC_DIR="$M0_SRC_DIR/../../../../../../../"
+
+. $M0_SRC_DIR/utils/functions # m0_local_nid_get
+
 conf="/etc/motr/conf.xc"
 user_config=/etc/sysconfig/motr
 currdir=$(pwd)
@@ -38,6 +43,7 @@ port=""
 local_endpoint=""
 ha_endpoint=""
 profile_fid=""
+ios1_fid=""
 process_fid=""
 services_left=
 systemd_left_err=false
@@ -125,7 +131,8 @@ stop_singlenode()
 
 ip_generate()
 {
-	IP=$(lctl list_nids | cut  -f 1 -d' ' | head -n 1)
+	IP=$(m0_local_nid_get)
+
 	if [[ ! ${IP} ]]; then
 		(>&2 echo 'error! m0singlenode not running.')
 		(>&2 echo 'start m0singlenode')
@@ -183,6 +190,9 @@ generate_endpoints()
 
 	profile_fid='<0x7000000000000001:0>'
 	echo "Profile FID: $profile_fid"
+
+	ios1_fid='<0x7200000000000001:3>'
+	echo "Ioservice 1 FID: $ios1_fid"
 
 	process_fid='<0x7200000000000000:0>'
 	echo "Process FID: $process_fid"
@@ -335,6 +345,12 @@ m0spiel_test()
 	rc=$?
 	if [ $rc -ne 0 ] ; then
 		error_handling "Failed to run m0_filesystem_stats " $rc
+	fi
+	format_process_fid=$(echo $ios1_fid | sed 's/.*<\(.*\)>/\1/' | sed 's/:/,/')
+	/usr/bin/m0_bytecount_stats -s $ha_endpoint -p $format_profile_fid -P $format_process_fid -l $libmotr_path
+	rc=$?
+        if [ $rc -ne 0 ] ; then
+		error_handling "Failed to run m0_bytecount_stats " $rc
 	fi
 }
 

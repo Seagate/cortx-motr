@@ -31,14 +31,15 @@
 #include "fdmi/source_dock_internal.h"
 #include "fdmi/fops.h"
 
+#include "fdmi/fol_fdmi_src.h"  /* m0_fol_fdmi_filter_kv_substring */
+
+
 static void fdmi_sd_fom_fini(struct m0_fom *fom);
 static int fdmi_sd_fom_tick(struct m0_fom *fom);
 static size_t fdmi_sd_fom_locality(const struct m0_fom *fom);
 static int sd_fom_send_record(struct fdmi_sd_fom *sd_fom,
 			      struct m0_fop      *fop,
 			      const char         *ep);
-static int sd_fom_process_matched_filters(struct m0_fdmi_src_dock *sd_ctx,
-					  struct m0_fdmi_src_rec  *src_rec);
 static int fdmi_filter_calc(struct fdmi_sd_fom         *sd_fom,
 			    struct m0_fdmi_src_rec     *src_rec,
 			    struct m0_conf_fdmi_filter *fdmi_filter);
@@ -69,6 +70,9 @@ M0_TL_DESCR_DEFINE(pending_fops, "pending fops list", M0_INTERNAL,
 		   M0_FDMI_SRC_DOCK_PENDING_FOP_HEAD_MAGIC);
 
 M0_TL_DEFINE(pending_fops, static, struct fdmi_pending_fop);
+
+M0_TL_DESCR_DECLARE(fdmi_record_inflight, M0_EXTERN);
+M0_TL_DECLARE(fdmi_record_inflight, M0_EXTERN, struct m0_fdmi_src_rec);
 
 /*
  ******************************************************************************
@@ -129,6 +133,67 @@ static struct m0_fom_type fdmi_sd_fom_type;
 
 /*
  ******************************************************************************
+ * FDMI Source Dock Timer FOM
+ ******************************************************************************
+ */
+static void fdmi_sd_timer_fom_fini(struct m0_fom *fom);
+static int  fdmi_sd_timer_fom_tick(struct m0_fom *fom);
+
+enum fdmi_src_dock_timer_fom_phase {
+	FDMI_SRC_DOCK_TIMER_FOM_PHASE_INIT = M0_FOM_PHASE_INIT,
+	FDMI_SRC_DOCK_TIMER_FOM_PHASE_FINI = M0_FOM_PHASE_FINISH,
+	FDMI_SRC_DOCK_TIMER_FOM_PHASE_WAIT = M0_FOM_PHASE_NR,
+	FDMI_SRC_DOCK_TIMER_FOM_PHASE_ALARMED
+};
+
+static struct m0_sm_state_descr fdmi_src_dock_timer_fom_state_descr[] = {
+	[FDMI_SRC_DOCK_TIMER_FOM_PHASE_INIT] = {
+		.sd_flags       = M0_SDF_INITIAL,
+		.sd_name        = "Init",
+		.sd_allowed     = M0_BITS(FDMI_SRC_DOCK_TIMER_FOM_PHASE_WAIT,
+					  FDMI_SRC_DOCK_TIMER_FOM_PHASE_FINI)
+	},
+	[FDMI_SRC_DOCK_TIMER_FOM_PHASE_WAIT] = {
+		.sd_flags       = 0,
+		.sd_name        = "WaitForTimeout",
+		.sd_allowed     = M0_BITS(FDMI_SRC_DOCK_TIMER_FOM_PHASE_ALARMED,
+					  FDMI_SRC_DOCK_TIMER_FOM_PHASE_FINI)
+	},
+	[FDMI_SRC_DOCK_TIMER_FOM_PHASE_ALARMED] = {
+		.sd_flags       = 0,
+		.sd_name        = "Alarmed",
+		.sd_allowed     = M0_BITS(FDMI_SRC_DOCK_TIMER_FOM_PHASE_WAIT,
+					  FDMI_SRC_DOCK_TIMER_FOM_PHASE_FINI)
+	},
+	[FDMI_SRC_DOCK_TIMER_FOM_PHASE_FINI] = {
+		.sd_flags       = M0_SDF_TERMINAL,
+		.sd_name        = "Fini",
+		.sd_allowed     = 0
+	}
+};
+
+
+static struct m0_sm_conf fdmi_src_dock_timer_fom_sm_conf = {
+	.scf_name = "fdmi-src-dock-timer-fom-sm",
+	.scf_nr_states = ARRAY_SIZE(fdmi_src_dock_timer_fom_state_descr),
+	.scf_state = fdmi_src_dock_timer_fom_state_descr
+};
+
+
+static const struct m0_fom_ops fdmi_sd_timer_fom_ops = {
+	.fo_fini          = fdmi_sd_timer_fom_fini,
+	.fo_tick          = fdmi_sd_timer_fom_tick,
+	.fo_home_locality = fdmi_sd_fom_locality
+};
+
+static const struct m0_fom_type_ops fdmi_sd_timer_fom_type_ops = {
+};
+
+static struct m0_fom_type fdmi_sd_timer_fom_type;
+
+
+/*
+ ******************************************************************************
  * FDMI Source Dock: Release Record FOP Handling FOM
  ******************************************************************************
  */
@@ -181,6 +246,10 @@ M0_INTERNAL void m0_fdmi__src_dock_fom_init(void)
 	m0_fom_type_init(&fdmi_sd_fom_type, M0_FDMI_SOURCE_DOCK_OPCODE,
 			 &fdmi_sd_fom_type_ops, &m0_fdmi_service_type,
 			 &fdmi_src_dock_fom_sm_conf);
+	m0_fom_type_init(&fdmi_sd_timer_fom_type,
+			 M0_FDMI_SOURCE_DOCK_TIMER_OPCODE,
+			 &fdmi_sd_timer_fom_type_ops, &m0_fdmi_service_type,
+			 &fdmi_src_dock_timer_fom_sm_conf);
 	M0_LEAVE();
 }
 
@@ -194,14 +263,18 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 	struct m0_fom         *fom    = &sd_fom->fsf_fom;
 	struct m0_rpc_machine *rpc_mach;
 	int                    rc;
+	struct fdmi_sd_timer_fom    *timer_fom = &src_dock->fsdc_sd_timer_fom;
 
 	M0_ENTRY();
+	M0_PRE(!src_dock->fsdc_started);
+	M0_PRE(!src_dock->fsdc_filters_defined);
 
 	m0_semaphore_init(&sd_fom->fsf_shutdown, 0);
+
 	rpc_mach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
 	M0_SET0(&sd_fom->fsf_conn_pool);
 	rc = m0_rpc_conn_pool_init(&sd_fom->fsf_conn_pool, rpc_mach,
-				   M0_TIME_NEVER, /* connection timeout */
+				   m0_time(30, 0), /* connection timeout */
 				   MAX_RPCS_IN_FLIGHT);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -219,11 +292,36 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 		m0_filterc_ctx_fini(&sd_fom->fsf_filter_ctx);
 		return M0_ERR(rc);
 	}
+	rc = filterc_ops->fco_open(&sd_fom->fsf_filter_ctx,
+				   M0_FDMI_REC_TYPE_FOL,
+				   &sd_fom->fsf_filter_iter);
+	if (rc == 0) {
+		src_dock->fsdc_filters_defined = true;
+		filterc_ops->fco_close(&sd_fom->fsf_filter_iter);
+	}
+	rc = filterc_ops->fco_open(&sd_fom->fsf_filter_ctx,
+				   M0_FDMI_REC_TYPE_TEST,
+				   &sd_fom->fsf_filter_iter);
+	if (rc == 0) {
+		src_dock->fsdc_filters_defined = true;
+		filterc_ops->fco_close(&sd_fom->fsf_filter_iter);
+	}
+	M0_LOG(M0_DEBUG, "Filters?=%d", !!src_dock->fsdc_filters_defined);
+
 	m0_fdmi_eval_init(&sd_fom->fsf_flt_eval);
 	m0_mutex_init(&sd_fom->fsf_pending_fops_lock);
 	pending_fops_tlist_init(&sd_fom->fsf_pending_fops);
+	sd_fom->fsf_has_records = false;
 	m0_fom_init(fom, &fdmi_sd_fom_type, &fdmi_sd_fom_ops, NULL, NULL, reqh);
 	m0_fom_queue(fom);
+	sd_fom->fsf_last_checkpoint = m0_time_now();
+	src_dock->fsdc_started = true;
+	m0_fom_init(&timer_fom->fstf_fom, &fdmi_sd_timer_fom_type,
+		    &fdmi_sd_timer_fom_ops,
+		    NULL, NULL, reqh);
+	m0_fom_timeout_init(&timer_fom->fstf_timeout);
+	m0_semaphore_init(&timer_fom->fstf_shutdown, 0);
+	m0_fom_queue(&timer_fom->fstf_fom);
 	return M0_RC(0);
 }
 
@@ -265,13 +363,43 @@ M0_INTERNAL void m0_fdmi__src_dock_fom_wakeup(struct fdmi_sd_fom *sd_fom)
 	M0_LEAVE();
 }
 
+static void fdmi__src_dock_timer_fom_wakeup(struct fdmi_sd_timer_fom *timer_fom)
+{
+	struct m0_fom *fom;
+
+	M0_ENTRY("sd_timer_fom %p", timer_fom);
+	M0_PRE(timer_fom != NULL);
+
+	fom = &timer_fom->fstf_fom;
+
+	if (timer_fom->fstf_wakeup_ast.sa_next == NULL) {
+		timer_fom->fstf_wakeup_ast = (struct m0_sm_ast) {
+			.sa_cb    = wakeup_iff_waiting,
+			.sa_datum = fom
+		};
+		m0_sm_ast_post(&fom->fo_loc->fl_group,
+			       &timer_fom->fstf_wakeup_ast);
+	}
+	M0_LEAVE();
+}
+
+
 M0_INTERNAL void
 m0_fdmi__src_dock_fom_stop(struct m0_fdmi_src_dock *src_dock)
 {
 	M0_ENTRY();
+	M0_PRE(src_dock->fsdc_started);
+	src_dock->fsdc_started = false;
+	src_dock->fsdc_filters_defined = false;
 
+	/* Wake up the timer FOM, so it can stop itself */
+	fdmi__src_dock_timer_fom_wakeup(&src_dock->fsdc_sd_timer_fom);
 	/* Wake up FOM, so it can stop itself */
 	m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
+
+	/* Wait for timer fom finished */
+	m0_semaphore_down(&src_dock->fsdc_sd_timer_fom.fstf_shutdown);
+	m0_semaphore_fini(&src_dock->fsdc_sd_timer_fom.fstf_shutdown);
 	/* Wait for fom finished */
 	m0_semaphore_down(&src_dock->fsdc_sd_fom.fsf_shutdown);
 	m0_semaphore_fini(&src_dock->fsdc_sd_fom.fsf_shutdown);
@@ -375,11 +503,14 @@ static void fdmi_sd_fom_fini(struct m0_fom *fom)
 	m0_rpc_conn_pool_fini(&sd_fom->fsf_conn_pool);
 	m0_mutex_fini(&sd_fom->fsf_pending_fops_lock);
 	pending_fops_tlist_fini(&sd_fom->fsf_pending_fops);
+	sd_fom->fsf_has_records = false;
 	m0_semaphore_up(&sd_fom->fsf_shutdown);
 	m0_fom_fini(fom);
 
 	M0_LEAVE();
 }
+
+enum { FDMI_RPC_MAX_RETRIES = 60 }; /* @see M0_RPC_MAX_RETRIES */
 
 static int fdmi_post_fop(struct m0_fop *fop, struct m0_rpc_session *session)
 {
@@ -396,28 +527,83 @@ static int fdmi_post_fop(struct m0_fop *fop, struct m0_rpc_session *session)
 	item->ri_deadline        = M0_TIME_IMMEDIATELY;
 
 	item->ri_resend_interval = m0_time(M0_RPC_ITEM_RESEND_INTERVAL, 0);
-	item->ri_nr_sent_max     = ~(uint64_t)0;
+	item->ri_nr_sent_max     = (uint64_t)FDMI_RPC_MAX_RETRIES;
+	/* timeout val = (item->ri_resend_interval * item->ri_nr_sent_max) */
 
 	return M0_RC(m0_rpc_post(item));
 }
 
+enum { FDMI_SRC_DOCK_MAX_CHECKPOINT_TIME = 60 };
 static bool pending_fop_clink_cb(struct m0_clink *clink)
 {
 	struct fdmi_pending_fop *pending_fop = M0_AMB(pending_fop, clink,
 						      fti_clink);
-	struct fdmi_sd_fom      *sd_fom = pending_fop->sd_fom;
+	struct fdmi_sd_fom      *sd_fom  = pending_fop->sd_fom;
+	struct m0_fop           *fop     = pending_fop->fti_fop;
+	struct m0_fdmi_src_rec  *src_rec = fop->f_opaque;
+	struct m0_rpc_session   *session = pending_fop->fti_session;
+	struct m0_fdmi_src_dock *sd_dock = M0_AMB(sd_dock, sd_fom, fsdc_sd_fom);
+	m0_time_t                now;
+	bool                     est;
+	int                      rc;
 	M0_ENTRY();
 
-	if (m0_rpc_conn_pool_session_established(pending_fop->fti_session))
-		fdmi_post_fop(pending_fop->fti_fop, pending_fop->fti_session);
-	else
-		m0_rpc_conn_pool_put(&pending_fop->sd_fom->fsf_conn_pool,
-				     pending_fop->fti_session);
+	est = m0_rpc_conn_pool_session_established(session);
+	M0_LOG(M0_DEBUG, "ASYNC CONN CB: %d sd_fom=%p remote=%s",
+			 !!est, sd_fom,
+			 m0_rpc_conn_addr(session->s_conn));
+
 	m0_mutex_lock(&sd_fom->fsf_pending_fops_lock);
 	pending_fops_tlist_del(pending_fop);
 	m0_mutex_unlock(&sd_fom->fsf_pending_fops_lock);
 	m0_free(pending_fop);
 
+	if (est) {
+		rc = fdmi_post_fop(fop, session);
+		if (rc == 0) {
+			/*
+			 * At this moment, the fop may already fail and
+			 * fail replied.
+			 */
+			m0_mutex_lock(&sd_dock->fsdc_list_mutex);
+			if (!fdmi_record_inflight_tlink_is_in(src_rec)) {
+				fdmi_record_inflight_tlist_add_tail(
+					&sd_dock->fsdc_rec_inflight, src_rec);
+				M0_LOG(M0_DEBUG, "added to inflight "
+						 "list id = " U128X_F,
+					U128_P(&src_rec->fsr_rec_id));
+			}
+			m0_mutex_unlock(&sd_dock->fsdc_list_mutex);
+		}
+	} else {
+		m0_rpc_conn_pool_put(&sd_fom->fsf_conn_pool, session);
+		/*
+		 * Destroy this session.
+		 */
+		m0_rpc_conn_pool_destroy(&sd_fom->fsf_conn_pool, session);
+		M0_LOG(M0_DEBUG, "CANNOT SEND src_rec =" U128X_F " ref cnt:%d",
+				  U128_P(&src_rec->fsr_rec_id),
+				  (int)m0_ref_read(&src_rec->fsr_ref));
+		m0_ref_put(&src_rec->fsr_ref);
+		m0_fdmi__fs_put(src_rec);
+
+		/*
+		 * re-send FDMI it, or release it.
+		 */
+		now = m0_time_now();
+		if (m0_time_sub(now, src_rec->fsr_init_time) >
+		    m0_time(FDMI_SRC_DOCK_MAX_CHECKPOINT_TIME * 3, 0)) {
+			M0_LOG(M0_WARN, "Given up record %p, ID:" U128X_F,
+				 src_rec, U128_P(&src_rec->fsr_rec_id));
+			m0_ref_put(&src_rec->fsr_ref);
+			m0_fdmi__fs_put(src_rec);
+		} else {
+			M0_LOG(M0_DEBUG, "Enqueue record again %p, ID:" U128X_F,
+				 src_rec, U128_P(&src_rec->fsr_rec_id));
+			m0_fdmi__enqueue(src_rec);
+		}
+	}
+	m0_fop_put_lock(fop);
 	M0_LEAVE();
 	return true;
 }
@@ -453,12 +639,25 @@ static int sd_fom_send_record(struct fdmi_sd_fom *sd_fom, struct m0_fop *fop,
 {
 	int                    rc;
 	struct m0_rpc_session *session;
+	struct m0_fdmi_src_dock *src_dock = m0_fdmi_src_dock_get();
+	struct m0_fdmi_src_rec  *src_rec = fop->f_opaque;
 
-	M0_ENTRY("sd_fom %p, fop %p, ep %s", sd_fom, fop, ep);
+	M0_LOG(M0_DEBUG, "sd_fom %p, sending fop %p to ep %s", sd_fom, fop, ep);
 	rc = m0_rpc_conn_pool_get_async(&sd_fom->fsf_conn_pool, ep, &session);
-	if (rc == 0)
+	if (rc == 0) {
 		rc = fdmi_post_fop(fop, session);
-	else if (rc == -EBUSY)
+		if (rc == 0) {
+			m0_mutex_lock(&src_dock->fsdc_list_mutex);
+			if (!fdmi_record_inflight_tlink_is_in(src_rec)) {
+				fdmi_record_inflight_tlist_add_tail(
+					&src_dock->fsdc_rec_inflight, src_rec);
+				M0_LOG(M0_DEBUG, "added to inflight list id = "
+						 U128X_F,
+						 U128_P(&src_rec->fsr_rec_id));
+			}
+			m0_mutex_unlock(&src_dock->fsdc_list_mutex);
+		}
+	} else if (rc == -EBUSY)
 		rc = sd_fom_save_pending_fop(sd_fom, fop, session);
 	return M0_RC(rc);
 }
@@ -552,7 +751,7 @@ static struct m0_fop *fop_create(struct m0_fdmi_src_rec *src_rec,
 		}
 		M0_LOG(M0_DEBUG, "FDMI record id = "U128X_F,
 		       U128_P(&fop_data->fr_rec_id));
-		M0_LOG(M0_DEBUG, "FDMI record type = %d", fop_data->fr_rec_type);
+		M0_LOG(M0_DEBUG, "FDMI record type = %x", fop_data->fr_rec_type);
 		M0_LOG(M0_DEBUG, "*   matched filters count = [%d]",
 		       matched->fmf_count);
 		for (idx = 0; idx < matched->fmf_count; idx++) {
@@ -598,22 +797,42 @@ static int sd_fom_process_matched_filters(struct m0_fdmi_src_dock *sd_ctx,
 		fop = fop_create(src_rec, endpoint);
 		if (fop == NULL)
 			continue;
-		M0_LOG(M0_DEBUG, "will send fdmi rec");
+		M0_LOG(M0_DEBUG, "will send fop=%p fdmi rec:%p", fop, src_rec);
 		fop->f_opaque = src_rec;
 
 		/* @todo check rc and handle errors properly. */
 		rc = payload_encode(src_rec, fop);
+		M0_ASSERT(rc == 0);
 
+		/* Adding a ref. It will be dropped when reply is received. */
+		m0_fdmi__fs_get(src_rec);
 		m0_ref_get(&src_rec->fsr_ref);
-		sd_fom_send_record(&sd_ctx->fsdc_sd_fom, fop, endpoint);
+		M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
+				 U128_P(&src_rec->fsr_rec_id),
+				 (int)m0_ref_read(&src_rec->fsr_ref));
+
+		rc = sd_fom_send_record(&sd_ctx->fsdc_sd_fom, fop, endpoint);
 		if (rc == 0) {
+			/*
+			 * Adding a ref. It will be dropped when
+			 * "FDMI record release" is received.
+			 */
 			m0_fdmi__fs_get(src_rec);
+			m0_ref_get(&src_rec->fsr_ref);
+			M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
+					 U128_P(&src_rec->fsr_rec_id),
+					 (int)m0_ref_read(&src_rec->fsr_ref));
 			/**
 			 * @todo store map <fdmi record id, endpoint>,
 			 * Phase 2
 			 */
 		} else {
+			/* Send failure. Drop ref now. */
+			M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
+					 U128_P(&src_rec->fsr_rec_id),
+					 (int)m0_ref_read(&src_rec->fsr_ref));
 			m0_ref_put(&src_rec->fsr_ref);
+			m0_fdmi__fs_put(src_rec);
 		}
 		m0_fop_put_lock(fop);
 	}
@@ -630,22 +849,108 @@ static int node_eval(void                        *data,
 	return src_rec->fsr_src->fs_node_eval(src_rec, value_desc, value);
 }
 
+static struct m0_fdmi_sd_filter_type_handler fdmi_filter_type_handlers[] = {
+	{
+		.ffth_id      = M0_FDMI_FILTER_TYPE_TREE,
+		.ffth_handler = &m0_fdmi_eval_flt,
+	},
+	{
+		.ffth_id      = M0_FDMI_FILTER_TYPE_KV_SUBSTRING,
+		.ffth_handler = &m0_fol_fdmi_filter_kv_substring,
+	},
+};
+
 static int fdmi_filter_calc(struct fdmi_sd_fom         *sd_fom,
 			    struct m0_fdmi_src_rec     *src_rec,
 			    struct m0_conf_fdmi_filter *fdmi_filter)
 {
-	struct m0_fdmi_eval_var_info get_var_info;
+	struct m0_fdmi_sd_filter_type_handler *handler;
+	struct m0_fdmi_eval_var_info           get_var_info;
+	int                                    rc;
+	int                                    i;
 
-	M0_ENTRY("sd_fom %p, src_rec %p, fdmi_filter %p",
+	M0_ENTRY("sd_fom=%p src_rec=%p fdmi_filter=%p",
 		 sd_fom, src_rec, fdmi_filter);
 	M0_PRE(m0_fdmi__record_is_valid(src_rec));
 
 	get_var_info.user_data    = src_rec;
 	get_var_info.get_value_cb = node_eval;
 
-	return M0_RC(m0_fdmi_eval_flt(&sd_fom->fsf_flt_eval,
-				      &fdmi_filter->ff_filter,
-				      &get_var_info));
+	for (i = 0; i < ARRAY_SIZE(fdmi_filter_type_handlers); ++i) {
+		handler = &fdmi_filter_type_handlers[i];
+		if (handler->ffth_id == fdmi_filter->ff_type) {
+			rc = handler->ffth_handler(&sd_fom->fsf_flt_eval,
+						   fdmi_filter,
+						   &get_var_info);
+			return M0_RC_INFO(rc,
+					  "sd_fom=%p src_rec=%p fdmi_filter=%p",
+					  sd_fom, src_rec, fdmi_filter);
+
+		}
+	}
+	return M0_ERR_INFO(-EINVAL, "ff_filter_id=%d", fdmi_filter->ff_type);
+}
+
+
+/**
+ * Checking the inflight list.
+ * - If not enough time has passed, just return.
+ *   - If a record has expired specified time, we have to give up resending.
+ *   - If not, resend the record to process again.
+ */
+static void fdmi_sd_fom_check(struct fdmi_sd_fom *sd_fom)
+{
+	m0_time_t                now = m0_time_now();
+	struct m0_fdmi_src_dock *sd_dock = M0_AMB(sd_dock, sd_fom, fsdc_sd_fom);
+	struct m0_fdmi_src_rec  *src_rec;
+	uint64_t                 ref_cnt;
+
+	if (m0_time_sub(now, sd_fom->fsf_last_checkpoint) <
+		m0_time(FDMI_SRC_DOCK_MAX_CHECKPOINT_TIME, 0) ||
+	    !sd_fom->fsf_has_records) {
+		/* Not enough time elapsed, or no records at all. */
+		return;
+	}
+
+	M0_LOG(M0_DEBUG, "do checking for %p", sd_fom);
+	sd_fom->fsf_last_checkpoint = now;
+
+	m0_mutex_lock(&sd_dock->fsdc_list_mutex);
+	m0_tlist_for(&fdmi_record_inflight_tl,
+		     &sd_dock->fsdc_rec_inflight,
+	             src_rec) {
+		M0_ASSERT(m0_fdmi__record_is_valid(src_rec));
+		ref_cnt = m0_ref_read(&src_rec->fsr_ref);
+
+		M0_LOG(M0_DEBUG, "No ack fop=%p src_rec=" U128X_F " ref cnt:%d",
+				 src_rec->fsr_data,
+				 U128_P(&src_rec->fsr_rec_id),
+				 (int)(ref_cnt));
+		if (ref_cnt >= 2) {
+			/* replied is not arrived. Let's wait a bit. */
+			continue;
+		}
+
+		/*
+		 * re-send it, or release it.
+		 */
+		now = m0_time_now();
+		if (m0_time_sub(now, src_rec->fsr_init_time) >
+		    m0_time(FDMI_SRC_DOCK_MAX_CHECKPOINT_TIME * 5, 0)) {
+			fdmi_record_inflight_tlist_remove(src_rec);
+			M0_LOG(M0_WARN, "Given up record %p, ID:" U128X_F,
+					 src_rec, U128_P(&src_rec->fsr_rec_id));
+			m0_ref_put(&src_rec->fsr_ref);
+			m0_fdmi__fs_put(src_rec);
+		} else if (m0_time_sub(now, src_rec->fsr_init_time) >
+		           m0_time(FDMI_SRC_DOCK_MAX_CHECKPOINT_TIME * 3, 0)) {
+			fdmi_record_inflight_tlist_remove(src_rec);
+			M0_LOG(M0_DEBUG, "Enqueue record again %p, ID:" U128X_F,
+				 src_rec, U128_P(&src_rec->fsr_rec_id));
+			m0_fdmi__enqueue_locked(src_rec);
+		}
+	} m0_tlist_endfor;
+	m0_mutex_unlock(&sd_dock->fsdc_list_mutex);
 }
 
 static int fdmi_sd_fom_tick(struct m0_fom *fom)
@@ -658,10 +963,11 @@ static int fdmi_sd_fom_tick(struct m0_fom *fom)
 
 	M0_ENTRY("fom %p", fom);
 
-	M0_LOG(M0_DEBUG, "sd_fom_tick sd_ctx %p", sd_ctx);
+	M0_LOG(M0_DEBUG, "sd_fom %p phase=%d", sd_fom, m0_fom_phase(fom));
 
 	switch (m0_fom_phase(fom)) {
 	case FDMI_SRC_DOCK_FOM_PHASE_INIT:
+		M0_LOG(M0_DEBUG, "init phase");
 		m0_fom_phase_set(fom, FDMI_SRC_DOCK_FOM_PHASE_WAIT);
 		return M0_RC(M0_FSO_AGAIN);
 	case FDMI_SRC_DOCK_FOM_PHASE_WAIT:
@@ -671,22 +977,26 @@ static int fdmi_sd_fom_tick(struct m0_fom *fom)
 	case FDMI_SRC_DOCK_FOM_PHASE_GET_REC:
 		M0_LOG(M0_DEBUG, "get rec");
 
+		fdmi_sd_fom_check(sd_fom);
+
 		m0_mutex_lock(&sd_ctx->fsdc_list_mutex);
 		src_rec = fdmi_record_list_tlist_pop(
 			&sd_ctx->fsdc_posted_rec_list);
 		m0_mutex_unlock(&sd_ctx->fsdc_list_mutex);
 
 		if (src_rec == NULL) {
-			if (m0_reqh_service_state_get(rsvc) == M0_RST_STOPPING) {
+			if (m0_reqh_service_state_get(rsvc) == M0_RST_STOPPING)
 				m0_fom_phase_set(fom,
 						 FDMI_SRC_DOCK_FOM_PHASE_FINI);
-			} else {
+			else
 				m0_fom_phase_set(fom,
 						 FDMI_SRC_DOCK_FOM_PHASE_WAIT);
-			}
 			return M0_RC(M0_FSO_WAIT);
 		} else {
+			M0_LOG(M0_DEBUG, "popped from record list id =" U128X_F,
+					U128_P(&src_rec->fsr_rec_id));
 			M0_ASSERT(m0_fdmi__record_is_valid(src_rec));
+			sd_fom->fsf_has_records = true;
 			rc = process_fdmi_rec(sd_fom, src_rec);
 			if (rc == 0) {
 				if (!fdmi_matched_filter_list_tlist_is_empty(
@@ -695,7 +1005,7 @@ static int fdmi_sd_fom_tick(struct m0_fom *fom)
 								       src_rec);
 				}
 			} else if (rc != -ENOENT) {
-				/**
+				/*
 				 * -ENOENT error means that configuration does
 				 * not have filters group matching the record
 				 * type. This is fine, ignoring.
@@ -703,13 +1013,16 @@ static int fdmi_sd_fom_tick(struct m0_fom *fom)
 				M0_LOG(M0_ERROR,
 				       "FDMI record processing error %d", rc);
 			}
-			/**
+			/*
 			 * Source dock is done with this record (however,
-			 * there are stil locks caused by sending this record
+			 * there is still a ref held while sending this record
 			 * to plugin).
 			 */
-			m0_fdmi__fs_put(src_rec);
+			M0_LOG(M0_DEBUG, "src_rec =" U128X_F " ref cnt:%d",
+				 U128_P(&src_rec->fsr_rec_id),
+				 (int)m0_ref_read(&src_rec->fsr_ref) - 1);
 			m0_ref_put(&src_rec->fsr_ref);
+			m0_fdmi__fs_put(src_rec);
 			return M0_RC(M0_FSO_AGAIN);
 		}
 	}
@@ -720,7 +1033,9 @@ static void fdmi_rec_notif_replied(struct m0_rpc_item *item)
 {
 	struct m0_fdmi_src_rec  *src_rec;
 	struct m0_fdmi_src_dock *src_dock;
+	struct m0_rpc_conn_pool *pool;
 	int                      rc;
+	int64_t                  ref_cnt;
 
 	M0_ENTRY("item=%p", item);
 
@@ -730,12 +1045,48 @@ static void fdmi_rec_notif_replied(struct m0_rpc_item *item)
 
 	rc = item->ri_error ?: m0_rpc_item_generic_reply_rc(item->ri_reply);
 	if (rc != 0)
-		M0_LOG(M0_ERROR, "FDMI reply error %d item->ri_error %d",
-		       rc, item->ri_error);
+		M0_LOG(M0_ERROR, "FDMI reply error %d item->ri_error %d to %s",
+		       rc, item->ri_error,
+		       m0_rpc_conn_addr(item->ri_session->s_conn));
 
-	m0_fdmi__handle_reply(src_dock, src_rec, rc);
-	m0_rpc_conn_pool_put(&src_dock->fsdc_sd_fom.fsf_conn_pool,
-			     item->ri_session);
+	pool = &src_dock->fsdc_sd_fom.fsf_conn_pool;
+	m0_rpc_conn_pool_put(pool, item->ri_session);
+	ref_cnt = m0_ref_read(&src_rec->fsr_ref);
+	M0_LOG(M0_DEBUG, "src_rec ="U128X_F" ref cnt:%d",
+			 U128_P(&src_rec->fsr_rec_id),
+			 (int)(ref_cnt - 1));
+	m0_ref_put(&src_rec->fsr_ref);
+	m0_fdmi__fs_put(src_rec);
+
+	/*
+	 * The "FDMI release" request may come before this reply.
+	 * So, the ref cnt may drop to zero at this moment.
+	 * In that case, the record is freed and no need to re-send again.
+	 */
+	if (rc != 0 && (ref_cnt - 1) > 0) {
+		m0_rpc_conn_pool_destroy(pool, item->ri_session);
+		m0_mutex_lock(&src_dock->fsdc_list_mutex);
+		fdmi_record_inflight_tlist_remove(src_rec);
+		M0_LOG(M0_DEBUG, "removed from inflight list id = " U128X_F,
+				U128_P(&src_rec->fsr_rec_id));
+
+		m0_mutex_unlock(&src_dock->fsdc_list_mutex);
+		/*
+		 * The failed fop will be released.
+		 * Now let's enqueue the FDMI record again. It will be
+		 * processed and sent again.
+		 */
+		/*
+		 * There is a rare case that the failed reply comes before
+		 * the processing of this record in fom tick.
+		 * So, the refcount here may be more than 1. But the extra
+		 * refcount will be droppped soon.
+		 */
+		M0_LOG(M0_DEBUG, "Enqueue fdmi record again %p, ID:" U128X_F,
+				 src_rec, U128_P(&src_rec->fsr_rec_id));
+		m0_fdmi__enqueue(src_rec);
+	}
+
 	M0_LEAVE();
 }
 
@@ -807,6 +1158,52 @@ static int fdmi_rr_fom_tick(struct m0_fom *fom)
 
 	M0_LEAVE();
 	return M0_FSO_WAIT;
+}
+
+static void fdmi_sd_timer_fom_fini(struct m0_fom *fom)
+{
+	struct fdmi_sd_timer_fom *timer_fom = M0_AMB(timer_fom, fom, fstf_fom);
+	M0_ENTRY("fom %p", fom);
+
+	m0_fom_timeout_fini(&timer_fom->fstf_timeout);
+	m0_semaphore_up(&timer_fom->fstf_shutdown);
+	m0_fom_fini(fom);
+	M0_LEAVE();
+}
+
+static int fdmi_sd_timer_fom_tick(struct m0_fom *fom)
+{
+	struct fdmi_sd_timer_fom *timer_fom = M0_AMB(timer_fom, fom, fstf_fom);
+	struct m0_reqh_service   *rsvc = fom->fo_service;
+	struct m0_fdmi_src_dock  *src_dock = m0_fdmi_src_dock_get();
+
+	if (m0_reqh_service_state_get(rsvc) == M0_RST_STOPPING) {
+		M0_LOG(M0_DEBUG, "timer fom stopping");
+		m0_fom_timeout_cancel(&timer_fom->fstf_timeout);
+		m0_fom_phase_set(fom, FDMI_SRC_DOCK_TIMER_FOM_PHASE_FINI);
+		return M0_RC(M0_FSO_WAIT);
+	}
+
+	switch (m0_fom_phase(fom)) {
+	case FDMI_SRC_DOCK_TIMER_FOM_PHASE_INIT:
+		m0_fom_phase_set(fom, FDMI_SRC_DOCK_TIMER_FOM_PHASE_WAIT);
+		return M0_RC(M0_FSO_AGAIN);
+	case FDMI_SRC_DOCK_TIMER_FOM_PHASE_WAIT:
+		M0_LOG(M0_DEBUG, "wait phase");
+		m0_fom_phase_set(fom, FDMI_SRC_DOCK_TIMER_FOM_PHASE_ALARMED);
+		return M0_RC(M0_FSO_AGAIN);
+	case FDMI_SRC_DOCK_TIMER_FOM_PHASE_ALARMED:
+		M0_LOG(M0_DEBUG, "Now, WAKEUP the source dock fom");
+		m0_fom_timeout_fini(&timer_fom->fstf_timeout);
+		m0_fom_timeout_init(&timer_fom->fstf_timeout);
+		m0_fom_timeout_wait_on(&timer_fom->fstf_timeout,
+				       fom,
+				       m0_time_from_now(30, 0));
+		m0_fom_phase_set(fom, FDMI_SRC_DOCK_TIMER_FOM_PHASE_WAIT);
+		m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
+		return M0_RC(M0_FSO_WAIT);
+	}
+	return M0_RC(M0_FSO_WAIT);
 }
 
 #undef M0_TRACE_SUBSYSTEM

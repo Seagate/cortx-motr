@@ -38,6 +38,7 @@
 #include "yaml.h"             /* yaml_document_t */
 
 #include "be/ut/helper.h"     /* m0_be_ut_backend_seg_add2 */
+#include "dtm0/domain.h"      /* m0_dtm0_domain */
 #include "pool/pool.h"        /* m0_pools_common */
 #include "ha/ha.h"            /* m0_ha */
 #include "motr/ha.h"          /* m0_motr_ha */
@@ -265,6 +266,8 @@ struct m0_reqh_context {
 	/** BE env and segment used by the request handler */
 	struct m0_be_ut_backend      rc_be;
 	struct m0_be_seg            *rc_beseg;
+
+	struct m0_dtm0_domain        rc_dtm0_domain;
 
 	/**
 	 * Path to BE log, seg0 and primary segment.

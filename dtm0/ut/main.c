@@ -31,214 +31,10 @@
 #include "cas/cas.h"
 #include "cas/cas_xc.h"
 
-#define M0_FID(c_, k_)  { .f_container = c_, .f_key = k_ }
-#define SERVER_ENDPOINT_ADDR    "0@lo:12345:34:1"
-#define SERVER_ENDPOINT         "lnet:" SERVER_ENDPOINT_ADDR
-#define DTM0_UT_CONF_PROCESS    "<0x7200000000000001:5>"
-#define DTM0_UT_LOG             "dtm0_ut_server.log"
 
-enum { MAX_RPCS_IN_FLIGHT = 10,
-       NUM_CAS_RECS = 10,
+enum {
+	NUM_CAS_RECS = 10,
 };
-
-struct m0_reqh  *dtm0_cli_srv_reqh;
-
-static struct m0_fid cli_srv_fid = M0_FID(0x7300000000000001, 0x1a);
-static struct m0_fid srv_dtm0_fid = M0_FID(0x7300000000000001, 0x1c);
-static const char *cl_ep_addr =  "0@lo:12345:34:2";
-static const char *srv_ep_addr =  SERVER_ENDPOINT_ADDR;
-static char *dtm0_ut_argv[] = { "m0d", "-T", "linux",
-			       "-D", "dtm0_sdb", "-S", "dtm0_stob",
-			       "-A", "linuxstob:dtm0_addb_stob",
-			       "-e", SERVER_ENDPOINT,
-			       "-H", SERVER_ENDPOINT_ADDR,
-			       "-w", "10",
-			       "-f", DTM0_UT_CONF_PROCESS,
-			       "-c", M0_SRC_PATH("dtm0/conf.xc")};
-
-struct cl_ctx {
-	struct m0_net_domain     cl_ndom;
-	struct m0_rpc_client_ctx cl_ctx;
-};
-
-static struct dtm0_rep_fop *reply(struct m0_rpc_item *reply)
-{
-	return m0_fop_data(m0_rpc_item_to_fop(reply));
-}
-
-static void dtm0_ut_send_fops(struct m0_rpc_session *cl_rpc_session)
-{
-	int                    rc;
-        struct m0_fop         *fop;
-	struct dtm0_rep_fop   *rep;
-	struct dtm0_req_fop   *req;
-
-	struct m0_dtm0_tx_desc txr = {};
-	struct m0_dtm0_tid     reply_data;
-
-	struct m0_dtm0_clk_src dcs;
-	struct m0_dtm0_ts      now;
-	struct m0_dtm0_service *dtm0 = m0_dtm0_service_find(dtm0_cli_srv_reqh);
-	struct m0_be_dtm0_log  *log = dtm0->dos_log;
-
-
-
-	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
-	m0_dtm0_clk_src_now(&dcs, &now);
-
-	M0_PRE(cl_rpc_session != NULL);
-
-	rc = m0_dtm0_tx_desc_init(&txr, 1);
-	M0_UT_ASSERT(rc == 0);
-
-	txr.dtd_ps.dtp_pa[0].p_fid = srv_dtm0_fid;
-	/* txr.dtd_ps.dtp_pa[0].p_state = M0_DTPS_INIT; */
-	txr.dtd_id = (struct m0_dtm0_tid) {
-		.dti_ts = now,
-		.dti_fid = cli_srv_fid
-	};
-	fop = m0_fop_alloc_at(cl_rpc_session,
-			      &dtm0_req_fop_fopt);
-	req = m0_fop_data(fop);
-	req->dtr_msg = DTM_EXECUTE;
-	req->dtr_txr = txr;
-	/*
-	 * TODO: Use a blocking version of m0_dtm0_req_post instead of
-	 * m0_rpc_post_sync.
-	 */
-	M0_ASSERT(0);
-	rc = m0_rpc_post_sync(fop, cl_rpc_session, NULL,
-			      M0_TIME_IMMEDIATELY);
-	M0_UT_ASSERT(rc == 0);
-	rep = reply(fop->f_item.ri_reply);
-	reply_data = rep->dr_txr.dtd_id;
-
-	M0_ASSERT(m0_dtm0_ts__invariant(&reply_data.dti_ts));
-
-	M0_UT_ASSERT(m0_dtm0_tid_cmp(&dcs, &txr.dtd_id, &reply_data) ==
-		     M0_DTS_EQ);
-	m0_fop_put_lock(fop);
-
-	/* Test PERSISTENT message */
-	rc = m0_dtm0_tx_desc_init(&txr, 1);
-	M0_UT_ASSERT(rc == 0);
-	txr.dtd_ps.dtp_pa[0].p_fid = srv_dtm0_fid;
-	txr.dtd_ps.dtp_pa[0].p_state = M0_DTPS_INPROGRESS;
-	txr.dtd_id = (struct m0_dtm0_tid) {
-		.dti_ts = now,
-		.dti_fid = cli_srv_fid
-	};
-	fop = m0_fop_alloc_at(cl_rpc_session,
-			      &dtm0_req_fop_fopt);
-	req = m0_fop_data(fop);
-	req->dtr_msg = DTM_PERSISTENT;
-	req->dtr_txr = txr;
-
-	m0_mutex_lock(&log->dl_lock);
-	rc = m0_be_dtm0_log_update(log, NULL, &txr, &(struct m0_buf){});
-	m0_mutex_unlock(&log->dl_lock);
-	M0_UT_ASSERT(rc == 0);
-
-	/*
-	 * TODO: Use a blocking version of m0_dtm0_req_post instead of
-	 * m0_rpc_post_sync.
-	 */
-	M0_ASSERT(0);
-	rc = m0_rpc_post_sync(fop, cl_rpc_session, NULL, M0_TIME_IMMEDIATELY);
-	M0_UT_ASSERT(rc == 0);
-	rep = reply(fop->f_item.ri_reply);
-	reply_data = rep->dr_txr.dtd_id;
-
-	M0_ASSERT(m0_dtm0_ts__invariant(&reply_data.dti_ts));
-
-	M0_UT_ASSERT(m0_dtm0_tid_cmp(&dcs, &txr.dtd_id, &reply_data) ==
-		     M0_DTS_EQ);
-	m0_fop_put_lock(fop);
-}
-
-static void dtm0_ut_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
-				const char *srv_ep_addr,
-				struct m0_net_xprt *xprt)
-{
-	int                       rc;
-	struct m0_rpc_client_ctx *cl_ctx;
-
-	M0_PRE(cctx != NULL && cl_ep_addr != NULL &&
-	       srv_ep_addr != NULL && xprt != NULL);
-
-	rc = m0_net_domain_init(&cctx->cl_ndom, xprt);
-	M0_UT_ASSERT(rc == 0);
-
-	cl_ctx = &cctx->cl_ctx;
-
-	cl_ctx->rcx_net_dom            = &cctx->cl_ndom;
-	cl_ctx->rcx_local_addr         = cl_ep_addr;
-	cl_ctx->rcx_remote_addr        = srv_ep_addr;
-	cl_ctx->rcx_max_rpcs_in_flight = MAX_RPCS_IN_FLIGHT;
-	cl_ctx->rcx_fid                = &g_process_fid;
-
-	rc = m0_rpc_client_start(cl_ctx);
-	M0_UT_ASSERT(rc == 0);
-}
-
-static void dtm0_ut_client_fini(struct cl_ctx *cctx)
-{
-	int rc;
-
-	rc = m0_rpc_client_stop(&cctx->cl_ctx);
-	M0_UT_ASSERT(rc == 0);
-
-	m0_net_domain_fini(&cctx->cl_ndom);
-}
-
-
-/* TODO: This test is disabled until full-fledged DTM0 RPC link is ready. */
-void dtm0_ut_service(void)
-{
-	int rc;
-	struct cl_ctx            cctx = {};
-	struct m0_rpc_server_ctx sctx = {
-		.rsx_xprts         = m0_net_all_xprt_get(),
-		.rsx_xprts_nr      = m0_net_xprt_nr(),
-		.rsx_argv          = dtm0_ut_argv,
-		.rsx_argc          = ARRAY_SIZE(dtm0_ut_argv),
-		.rsx_log_file_name = DTM0_UT_LOG,
-	};
-	struct m0_reqh_service  *cli_srv;
-	struct m0_reqh_service  *srv_srv;
-	struct m0_reqh          *srv_reqh;
-
-	srv_reqh = &sctx.rsx_motr_ctx.cc_reqh_ctx.rc_reqh;
-
-	m0_fi_enable("m0_dtm0_in_ut", "ut");
-
-	rc = m0_rpc_server_start(&sctx);
-	M0_UT_ASSERT(rc == 0);
-
-	dtm0_ut_client_init(&cctx, cl_ep_addr, srv_ep_addr,
-			    m0_net_xprt_default_get());
-	rc = m0_dtm_client_service_start(&cctx.cl_ctx.rcx_reqh,
-					 &cli_srv_fid, &cli_srv);
-	M0_UT_ASSERT(rc == 0);
-	srv_srv = m0_reqh_service_lookup(srv_reqh, &srv_dtm0_fid);
-	rc = m0_dtm0_service_process_connect(srv_srv, &cli_srv_fid, cl_ep_addr,
-					     false);
-	M0_UT_ASSERT(rc == 0);
-
-	dtm0_cli_srv_reqh = &cctx.cl_ctx.rcx_reqh;
-
-	dtm0_ut_send_fops(&cctx.cl_ctx.rcx_session);
-
-	rc = m0_dtm0_service_process_disconnect(srv_srv, &cli_srv_fid);
-	M0_UT_ASSERT(rc == 0);
-	(void)srv_srv;
-
-	m0_dtm_client_service_stop(cli_srv);
-	dtm0_ut_client_fini(&cctx);
-	m0_rpc_server_stop(&sctx);
-	m0_fi_disable("m0_dtm0_in_ut", "ut");
-}
-
 
 struct record
 {
@@ -306,10 +102,15 @@ static void cas_xcode_test(void)
     m0_xcode_free_obj(&M0_XCODE_OBJ(m0_cas_op_xc, op_out));
 }
 
+extern void m0_dtm0_ut_drlink_simple(void);
+extern void m0_dtm0_ut_domain_init_fini(void);
+
 struct m0_ut_suite dtm0_ut = {
         .ts_name = "dtm0-ut",
         .ts_tests = {
-                { "xcode",   cas_xcode_test },
+                { "xcode",         &cas_xcode_test },
+                { "drlink-simple", &m0_dtm0_ut_drlink_simple },
+                { "domain_init-fini", &m0_dtm0_ut_domain_init_fini },
 		{ NULL, NULL },
 	}
 };

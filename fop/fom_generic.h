@@ -76,8 +76,10 @@ enum m0_fom_standard_phase {
 	M0_FOPH_TXN_COMMIT,         /*< commit local transaction context. */
 	M0_FOPH_QUEUE_REPLY,        /*< queuing fop reply.  */
 	M0_FOPH_QUEUE_REPLY_WAIT,   /*< waiting for fop cache space. */
-	M0_FOPH_TXN_COMMIT_WAIT,    /*< waiting to commit local transaction
-	                                context. */
+	M0_FOPH_TXN_LOGGED_WAIT,    /*< waiting for local transaction to become
+	                                logged. */
+	M0_FOPH_TXN_DONE_WAIT,      /*< waiting for local transaction to become
+				        done. */
 	M0_FOPH_TIMEOUT,            /*< fom timed out. */
 	M0_FOPH_FAILURE,            /*< fom execution failed. */
 	M0_FOPH_NR,                  /*< number of standard phases. fom type
@@ -133,6 +135,9 @@ enum m0_fom_standard_phase {
 
    Fom execution proceeds as follows:
 
+   TODO update to reflect changes (FOPH_FOL_REC_ADD, FOPH_TXN_LOGGED_WAIT,
+   absence of FOPH_FAILED)
+
    @verbatim
 
 	fop
@@ -169,7 +174,7 @@ enum m0_fom_standard_phase {
 		     |			 |
 		     |			 v
 		     +------------FOPH_TXN_COMMIT-------------->+
-					 |            FOPH_TXN_COMMIT_WAIT
+					 |              FOPH_TXN_DONE_WAIT
 			    send reply	 v<---------------------+
 				FOPH_QUEUE_REPLY------------->+
 					 |            FOPH_QUEUE_REPLY_WAIT
@@ -207,7 +212,7 @@ M0_INTERNAL void m0_fom_generic_fini(void);
 M0_INTERNAL int m0_fom_generic_init(void);
 
 enum {
-	M0_FOM_GENERIC_TRANS_NR = 47,
+	M0_FOM_GENERIC_TRANS_NR = 48,
 };
 
 extern struct m0_sm_trans_descr
@@ -248,7 +253,7 @@ M0_INTERNAL void m0_fom_mod_rep_fill(struct m0_fop_mod_rep *rep,
  */
 int32_t m0_rpc_item_generic_reply_rc(const struct m0_rpc_item *item);
 
-M0_INTERNAL int m0_fom_tx_commit_wait(struct m0_fom *fom);
+M0_INTERNAL int m0_fom_tx_done_wait(struct m0_fom *fom);
 
 /** @} end of fom group */
 

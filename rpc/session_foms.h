@@ -112,7 +112,7 @@ struct m0_rpc_connection_session_specific_fom {
 	   session pointer, during termination phase it has to be stored
 	   between FOM phases
 	 */
-	void    *ssf_term_session;
+	struct m0_rpc_session *ssf_term_session;
 };
 
 #endif

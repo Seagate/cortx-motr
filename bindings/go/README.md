@@ -14,6 +14,14 @@ provided there is enough buffer size to accomodate several of such blocks in one
 Read()/Write() request. (For example, see the source code of `mcp` utility and its `-bsz`
 option.)
 
+To use `go/mio` in your app 1) install motr-devel pkg and 2):
+
+```Go
+import github.com/Seagate/cortx-motr/bindings/go/mio
+```
+
+## mcp
+
 `mcp` (Motr cp) utility is a client application example written in pure Go which uses
 `go/mio` package and has only 97 lines of code (as of 30 Oct 2020). It allows to copy
 Motr objects to/from a file or between themselves:
@@ -64,3 +72,34 @@ The binary will be installed to your `GOBIN` directory
 
 See the usage example at this discussion thread -
 https://github.com/Seagate/cortx-motr/discussions/285.
+
+## mkv
+
+`mkv` is a trivial reference utility which can do two basic operations
+over Motr distributed Key-Value Store (aka Index): PUT and GET.
+
+```Text
+Usage: mkv [options] index_id key [value]
+
+ With value present it will be PUT operation.
+ Without value it will be GET operation.
+
+  -c	create index if not present
+  -d	delete the record by the key
+  -ep endpoint
+    	my endpoint address
+  -hax endpoint
+    	local hax endpoint address
+  -proc fid
+    	my process fid
+  -prof fid
+    	cluster profile fid
+  -threads number
+    	number of threads to use (default 1)
+  -trace
+    	generate m0trace.pid file
+  -u	update value at the existing key
+  -v	be more verbose
+```
+
+The steps to build and install are similar to `mcp` (see above).

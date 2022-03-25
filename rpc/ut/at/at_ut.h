@@ -36,8 +36,6 @@ struct m0_rpc_machine;
 enum {
 	DATA_PATTERN     = 0x0a,
 	INLINE_LEN       = 70,
-	INBULK_THRESHOLD = 4096,
-	INBULK_LEN       = 32 * INBULK_THRESHOLD,
 };
 
 enum {
