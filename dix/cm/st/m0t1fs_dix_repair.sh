@@ -125,8 +125,8 @@ main()
 		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
 	done
 
-	dix_repair_test
-	if [ $? -ne 0 ]; then
+	dix_repair_test 2>&1 | tee -a "$MOTR_TEST_LOGFILE"
+	if [ "${PIPESTATUS[0]}" -ne 0 ]; then
 		echo "Failed: DIX repair failed.."
 		rc=1
 	fi
