@@ -26,6 +26,7 @@ import logging
 import glob
 import time
 import yaml
+import psutil
 from typing import List, Dict, Any
 from cortx.utils.conf_store import Conf
 from cortx.utils.cortx import Const
@@ -65,6 +66,20 @@ class MotrError(Exception):
 
     def __str__(self):
         return f"error[{self._rc}]: {self._desc}"
+
+def execute_command_without_log(cmd,  timeout_secs = TIMEOUT_SECS,
+    verbose = False, retries = 1, stdin = None, logging=False):
+    ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         shell=True)
+    if stdin:
+        ps.stdin.write(stdin.encode())
+    stdout, stderr = ps.communicate(timeout=timeout_secs);
+    stdout = str(stdout, 'utf-8')
+
+    time.sleep(1)
+    if ps.returncode != 0:
+        raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
 
 #TODO: logger config(config_log) takes only self as argument so not configurable,
 #      need to make logger configurable to change formater, etc and remove below
@@ -1402,6 +1417,29 @@ def fetch_fid(self, service, idx):
         return -1
     fid = get_fid(self, fids, service, idx)
     return fid
+
+def getListOfm0dProcess():
+    '''
+    Get list of running m0d process
+    '''
+    listOfProc = []
+    # Iterate over the list
+    for proc in psutil.process_iter():
+       try:
+           # Fetch process details as dict
+           pinfo = proc.as_dict(attrs=['pid', 'name', 'username'])
+           if pinfo.get('name') == "m0d":
+               # Append dict to list
+               listOfProc.append(pinfo);
+       except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+           pass
+    return listOfProc
+
+def receiveSigTerm(signalNumber, frame):
+    for proc in getListOfm0dProcess():
+        cmd=f"KILL -SIGTERM {proc.get('pid')}"
+        execute_command_without_log(cmd)
+    return
 
 # If service is one of [ios,confd,hax] then we expect fid to start the service
 # and start services using motr-mkfs and motr-server.
