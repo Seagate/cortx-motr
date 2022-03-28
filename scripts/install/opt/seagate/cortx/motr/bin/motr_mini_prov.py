@@ -234,9 +234,16 @@ def calc_size(self, sz):
         self.logger.error("Please use valid format Ex: 1024, 1Ki, 1Mi, 1Gi etc..\n")
         return ret
 
-def get_setup_size(self, service):
+def set_setup_size(self, service):
     ret = False
     sevices_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
+
+    # For services other then ioservice and confd, return True
+    # It will set default setup size i.e. small
+    if service not in ["ioservice", "ios", "io", "all", "confd"]:
+        self.setup_size = "small"
+        self.logger.info(f"service is {service}. So seting setup size to {self.setup_size}\n")
+        return True
 
     #Provisioner passes io as parameter to motr_setup.
     #Ex: /opt/seagate/cortx/motr/bin/motr_setup config --config yaml:///etc/cortx/cluster.conf --services io
@@ -272,6 +279,9 @@ def get_setup_size(self, service):
                 self.logger.info(f"setup_size set to {self.setup_size}\n")
                 ret = True
                 break
+    if ret == False:
+        raise MotrError(errno.EINVAL, f"Setup size is not set properly for service {service}."
+                                      f"Please update valid mem limits for {service}")
     return ret
 
 def get_value(self, key, key_type):
