@@ -70,6 +70,8 @@ as the last argument to the object program. In the object example, we will only 
     *   [m0unlink](/motr/st/utils/unlink.c)
     *   [m0client](/motr/st/utils/client.c)
     *   [m0kv](/motr/m0kv/)
+*   CORTX Maestro
+    * [A higher-level API to motr](https://github.com/Seagate/cortx-mio)
 *   CORTX Motr benchmarking utility:
     *   [m0crate](/motr/m0crate/)
 *   CORTX Motr Go bindings:
