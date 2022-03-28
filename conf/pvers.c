@@ -804,6 +804,22 @@ err:
 	return rc;
 }
 
+/**
+ * Check if failures at any level has reached max allowed failures.
+ */
+static bool has_reached_max_failure(struct m0_conf_pver *pv,
+				    const uint32_t      *srecd)
+{
+	int i = 0;
+
+	while(i < M0_CONF_PVER_HEIGHT) {
+		if (srecd[i] == pv->pv_u.subtree.pvs_tolerance[i])
+			return true;
+		i++;
+	}
+	return false;
+}
+
 int m0_conf_pver_status(struct m0_fid *fid,
 			struct m0_confc *confc,
 			struct m0_conf_pver_info *out_info)
@@ -838,14 +854,25 @@ int m0_conf_pver_status(struct m0_fid *fid,
 	while (i < M0_CONF_PVER_HEIGHT)
 		failures += srecd[i++];
 
+	/**
+	 * HEALTHY: if no failures in pver.
+	 * DEGRADED: if less than K failuresin pver and failures at any level
+	 *           has not reached maximum supported failures.
+	 * CRITICAL: if we have K failures or any level has reached maximum
+	 *           supported failures.
+	 * DAMAGED: if we have any more failures after CRITICAL.
+	 */
 	if (failures == 0)
 		out_info->cpi_state = M0_CPS_HEALTHY;
-	else if (failures < K)
+	else if (failures < K && !has_reached_max_failure(pver, srecd))
 		out_info->cpi_state = M0_CPS_DEGRADED;
-	else if (failures == K)
+	else if (failures == K || has_reached_max_failure(pver, srecd))
 		out_info->cpi_state = M0_CPS_CRITICAL;
 	else
 		out_info->cpi_state = M0_CPS_DAMAGED;
+
+	M0_LOG(M0_DEBUG, "state: %d, failures: %d", out_info->cpi_state, failures);
+	CONF_PVER_VECTOR_LOG("failvec", FID_P(&pver->pv_obj.co_id), srecd);
 
 	return M0_RC(rc);
 } M0_EXPORTED(m0_conf_pver_status);
