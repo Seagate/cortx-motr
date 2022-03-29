@@ -30,7 +30,7 @@ import os
 import socket
 import fcntl
 import struct
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, check_output
 from motr import *
 from ctypes import *
 
@@ -44,17 +44,13 @@ def get_ip_address(ifname):
         struct.pack('256s', ifname[:15].encode('utf-8'))
     )[20:24])
 
-def address_get():
-    i = 0
-    for arg in sys.argv:
-        i = i+1
-        if format(str(arg)) == "-l":
-            break
+def get_motr_transport():
+    cmd = "whereis fi_info | cut -d ':' -f2"
+    output = check_output(cmd, shell=True).split()
+    return "libfab" if output else ''
 
-    path = format(str(sys.argv[i]))
-    path = path.rstrip(path.rsplit('/')[-1]) + "../../scripts/st.d/net_xpt"
-    f = open(path, "r")
-    xprt = f.read()
+def address_get():
+    xprt = get_motr_transport()
 
     if "libfab" in xprt :
         conf = open("/etc/libfab.conf", "r")
@@ -609,7 +605,7 @@ class SpielWrapper:
     def filesystem_stats_fetch(self, stats):
         return self.motr.m0_spiel_filesystem_stats_fetch(self.spiel,
                                                          byref(stats))
-    
+
     @require(fid=Fid,stats=ByteCountStats)
     def proc_counters_fetch(self, fid, stats):
         return self.motr.m0_spiel_proc_counters_fetch(self.spiel,byref(fid),
