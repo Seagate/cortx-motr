@@ -98,16 +98,24 @@ while true; do
             shift 2;;
          --size_limit)
             size_limit=$(echo $2 | sed -e 's/,/\n/g') ;
-            unit=${size_limit: -1}
-            if [[ "$unit" != "G" &&  "$unit" != "M" && "$unit" != "K" ]]; then
+            unit=${size_limit: -2}
+            str_len=${#size_limit}
+            if [[ $unit =~ ^[a-zA-Z]+$ ]]; then
+                sb_size_limit="${size_limit:0:$str_len - 2}"
+                sb_size_limit=${sb_size_limit%.*}
+            else
+                unit=${size_limit: -1}
+                sb_size_limit="${size_limit:0:$str_len - 1}"
+                sb_size_limit=${sb_size_limit%.*}
+            fi
+
+            if [[ "$unit" != "G" && "$unit" != "GB" && "$unit" != "M" && "$unit" != "MB" && "$unit" != "K" && "$unit" != "KB" ]]; then
                 usage; exit;
             fi
-            str_len=${#size_limit}
-            sb_size_limit="${size_limit:0:$str_len - 1}"
             case $unit in
-                 "G") sb_size_limit=$(($sb_size_limit * $((1024**3))));;
-                 "M") sb_size_limit=$(($sb_size_limit * $((1024**2))));;
-                 "K") sb_size_limit=$(($sb_size_limit * $((1024**1))));;
+                 "G"|"GB") sb_size_limit=$(($sb_size_limit * $((1024**3))));;
+                 "M"|"MB") sb_size_limit=$(($sb_size_limit * $((1024**2))));;
+                 "K"|"KB") sb_size_limit=$(($sb_size_limit * $((1024**1))));;
             esac
             shift 2;;
          -s|--services)
@@ -116,27 +124,27 @@ while true; do
          --binlogs)
             #should only accept either true or false
             rc=$(echo $2 | sed -e 's/,/\n/g') ;
-            if [[ "$rc" != "true" &&  "$rc" != "false" ]]; then
+            if [[ "$rc" != "true" && "$rc" != "True" && "$rc" != "false" && "$rc" != "False" ]]; then
                 usage; exit;
-            elif [ "$rc" == "true" ]; then
+            elif [[ "$rc" == "true" || "$rc" == "True" ]]; then
                 CMD+=" --binaries"
             fi
             shift 2;;
          --coredumps)
             rc=$(echo $2 | sed -e 's/,/\n/g') ;
             #should only accept either true or false
-            if [[ "$rc" != "true" &&  "$rc" != "false" ]]; then
+            if [[ "$rc" != "true" && "$rc" != "True" && "$rc" != "false" && "$rc" != "False" ]]; then
                 usage; exit;
-            elif [ "$rc" == "true" ]; then
+            elif [[ "$rc" == "true" || "$rc" == "True" ]]; then
                 CMD+=" --coredumps"
             fi
             shift 2;;
          --stacktrace)
             rc=$(echo $2 | sed -e 's/,/\n/g') ;
             #should only accept either true or false
-            if [[ "$rc" != "true" &&  "$rc" != "false" ]]; then
+            if [[ "$rc" != "true" && "$rc" != "True" && "$rc" != "false" && "$rc" != "False" ]]; then
                 usage; exit;
-            elif [ "$rc" == "true" ]; then
+            elif [[ "$rc" == "true" || "$rc" == "True" ]]; then
                 CMD+=" --stacktrace"
             fi
             shift 2;;
