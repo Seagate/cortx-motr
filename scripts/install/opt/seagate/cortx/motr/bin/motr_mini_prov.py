@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/libexec/platform-python
 #
 # Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
 #
@@ -248,7 +248,7 @@ def set_setup_size(self, service):
     #Provisioner passes io as parameter to motr_setup.
     #Ex: /opt/seagate/cortx/motr/bin/motr_setup config --config yaml:///etc/cortx/cluster.conf --services io
     #But in /etc/cortx/cluster.conf io is represented by ios. So first get the service names right
-    if service == "io":
+    if service in ["io", "ioservice"]:
          svc = "ios"
     else:
          svc = service
@@ -282,6 +282,8 @@ def set_setup_size(self, service):
     if ret == False:
         raise MotrError(errno.EINVAL, f"Setup size is not set properly for service {service}."
                                       f"Please update valid mem limits for {service}")
+    else:
+        self.logger.info(f"service={service} and setup_size={self.setup_size}\n")
     return ret
 
 def get_value(self, key, key_type):
