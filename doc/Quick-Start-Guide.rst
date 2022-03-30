@@ -63,7 +63,10 @@ Build
    - https://github.com/Seagate/cortx/releases/download/build-dependencies/libfabric-1.11.2-1.el7.x86_64.rpm
    - https://github.com/Seagate/cortx/releases/download/build-dependencies/libfabric-devel-1.11.2-1.el7.x86_64.rpm
 
-   And run: rpm -Uvh rpm_file_name
+   And run::
+   
+    rpm -Uvh rpm_file_name
+    
    Currently, there is a performance issue with default libfabric versions
    provided by Linux distributions on tcp. That's why we build customised
    version of the library. Hopefully, the issue will be resolved soon.
