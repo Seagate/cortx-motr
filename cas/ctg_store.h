@@ -33,6 +33,7 @@
 #include "be/tx_credit.h"
 #include "format/format.h"
 #include "cas/cas.h"
+#include "motr/setup.h"
 
 /**
  * @defgroup cas-ctg-store
@@ -114,12 +115,16 @@ struct m0_cas_ctg {
 enum m0_cas_ctg_format_version {
 	M0_CAS_CTG_FORMAT_VERSION_1 = 1,
 
-	/* future versions, uncomment and update M0_CAS_CTG_FORMAT_VERSION */
-	/*M0_CAS_CTG_FORMAT_VERSION_2,*/
+	/*
+	 * CAS with versioned key-value pair feature.
+	 * There is no backward compatibility with ver1 at the moment.
+	 */
+	M0_CAS_CTG_FORMAT_VERSION_2,
 	/*M0_CAS_CTG_FORMAT_VERSION_3,*/
+	/*M0_CAS_CTG_FORMAT_VERSION_4,*/
 
 	/** Current version, should point to the latest version present */
-	M0_CAS_CTG_FORMAT_VERSION = M0_CAS_CTG_FORMAT_VERSION_1,
+	M0_CAS_CTG_FORMAT_VERSION = M0_CAS_CTG_FORMAT_VERSION_2,
 };
 
 enum m0_cas_state_format_version {
@@ -135,10 +140,14 @@ enum m0_cas_state_format_version {
 
 enum {
 	/**
-	 * Every key and value is stored with an individual 64-bit header.
-	 * Currently header contains key/value length in bytes.
+	 * Every value has a header that holds its size and the version
+	 * of the key-value record.
 	 */
-	M0_CAS_CTG_KV_HDR_SIZE = sizeof(uint64_t),
+	M0_CAS_CTG_VAL_HDR_SIZE = sizeof(uint64_t) + sizeof(uint64_t),
+	/**
+	 * Every key has a header that holds the size of the key.
+	 */
+	M0_CAS_CTG_KEY_HDR_SIZE = sizeof(uint64_t),
 };
 
 /** Catalogue store state persisted on a disk. */
@@ -205,6 +214,8 @@ struct m0_ctg_op {
 	struct m0_buf             co_out_key;
 	/** Value out buffer. */
 	struct m0_buf             co_out_val;
+	/* Version of the co_out_val+co_out_key record. */
+	struct m0_crv             co_out_ver;
 	struct m0_buf             co_mem_buf;
 	/** Operation code to be executed. */
 	int                       co_opcode;
@@ -219,6 +230,12 @@ struct m0_ctg_op {
 	 * operation, see m0_ctg_truncate().
 	 */
 	m0_bcount_t               co_cnt;
+	/**
+	 * A flag to be set when versioned behavior is enabled for
+	 * execution of this operation.
+	 * See ::COF_VERSIONED for details.
+	 */
+	bool                      co_is_versioned;
 };
 
 #define CTG_OP_COMBINE(opc, ct) (((uint64_t)(opc)) | ((ct) << 16))
@@ -451,6 +468,12 @@ M0_INTERNAL int m0_ctg_lookup(struct m0_ctg_op    *ctg_op,
  */
 M0_INTERNAL void m0_ctg_lookup_result(struct m0_ctg_op *ctg_op,
 				      struct m0_buf    *buf);
+
+/**
+ * Returns the version of the record the operation ctg_op worked on.
+ */
+M0_INTERNAL void m0_ctg_op_get_ver(struct m0_ctg_op     *ctg_op,
+				   struct m0_crv *out);
 
 /**
  * Gets the minimal key in the tree (wrapper over m0_be_btree_minkey()).
@@ -783,6 +806,9 @@ M0_INTERNAL const struct m0_be_btree_kv_ops *m0_ctg_btree_ops(void);
 
 /** Update number of records and record size in cas state. */
 M0_INTERNAL void m0_ctg_state_inc_update(struct m0_be_tx *tx, uint64_t size);
+
+M0_INTERNAL int ctgdump(struct m0_motr *motr_ctx, char *fidstr,
+			char *dump_in_hex_str);
 
 /** @} end of cas-ctg-store group */
 #endif /* __MOTR_CAS_CTG_STORE_H__ */

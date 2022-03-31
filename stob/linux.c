@@ -146,7 +146,7 @@ static char *stob_linux_file_domain_id(const char *path)
 
 static char *stob_linux_file_stob(const char *path, const struct m0_fid *stob_fid)
 {
-	return stob_linux_vsnprintf("%s/o/%"PRIx64":%"PRIx64"", path,
+	return stob_linux_vsnprintf("%s/o/%" PRIx64 ":%" PRIx64 "", path,
 			stob_fid->f_container, stob_fid->f_key);
 }
 
@@ -496,7 +496,7 @@ static int stob_linux_punch(struct m0_stob *stob,
 		count  = m0_ivec_cursor_step(&cur);
 		offset = m0_ivec_cursor_index(&cur) << bshift;
 		length = count << bshift;
-		M0_LOG(M0_DEBUG, "lstob=%p, punching [%"PRIi64", +%"PRIi64")",
+		M0_LOG(M0_DEBUG, "lstob=%p, punching [%" PRIi64 ", +%" PRIi64 ")",
 				 lstob, offset, length);
 		if (offset > off_max)
 			continue; /* Too large, nothing there anyway. */

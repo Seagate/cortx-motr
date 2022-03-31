@@ -215,6 +215,8 @@ The files will be generated at doc/html/ folder.
 
 Tested by:
 
+- February 4, 2022: Bhargav Dekivadiya (bhargav.dekivadiya@seagate.com) Rocky Linux version 8.4 verified with git (#f7d2eb4710c297709662c0de2a011ed22d9c238b)
+ 
 - January 31, 2022: Bhargav Dekivadiya (bhargav.dekivadiya@seagate.com) CentOS Linux release 7.9 verified with git (#e998dff5bd00d20654a250edc6042e5f7b5e52a0)
 
 - December 01, 2021: Naga Kishore Kommuri (nagakishore.kommuri@seagate.com) CentOS Linux release 7.9.2009 verified with git (#43a75c54d15b23532d883b6065a201b5d6a7f385)

@@ -438,7 +438,7 @@ static int layout_composite_add_layers(struct m0_client_layout *layout,
 {
 	int                  i;
 	int                  j;
-	int                  rc;
+	int                  rc = 0;
 	struct m0_uint128    id;
 	struct m0_obj        obj;
 
