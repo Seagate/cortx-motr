@@ -391,7 +391,7 @@ static void file_dump(struct m0_stob_domain *dom, const char *fname,
 			err(EX_DATAERR, "Cannot initialise iterator: %d",
 			    result);
 		while ((result = m0_addb2_sit_next(sit, &rec)) > 0) {
-			if (start_time <= rec->ar_val.va_time &&
+			if (start_time >= rec->ar_val.va_time &&
 			    rec->ar_val.va_time <= stop_time) {
 				rec_dump(&(struct m0_addb2__context){}, rec);
 				if (rec->ar_val.va_id == M0_AVI_SIT)
