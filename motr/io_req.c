@@ -1239,6 +1239,7 @@ static bool verify_checksum(struct m0_op_io *ioo)
 		M0_IMPOSSIBLE("something wrong while arranging data");
 	}
 }
+extern void print_pi(void *pi,int size);
 
 /**
  * Copies the file-data between the iomap buffers and the application-provided
@@ -1305,22 +1306,20 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 			rc = application_data_copy(
 				ioo->ioo_iomaps[i], ioo->ioo_obj,
 				pgstart, pgend, &appdatacur, dir, filter);
-			if (rc != 0)
+			if (rc != 0) {
 				return M0_ERR_INFO(
 					rc, "[%p] Copy failed (pgstart=%" PRIu64
 					" pgend=%" PRIu64 ")",
 					ioo, pgstart, pgend);
+			}
 		}
-
 	}
-
 	if (dir == CD_COPY_TO_APP) {
 		/* verify the checksum during data read.
 		 * skip checksum verification during degraded I/O
 		 */
-		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
-			(total_count / usz) > 0 &&
-		    m0__obj_is_cksum_validation_allowed(ioo) &&
+		if ((total_count / usz) > 0 &&
+		    m0__obj_is_data_cksum_validation_allowed(ioo) &&
 		    !verify_checksum(ioo)) {
 			return M0_RC(-EIO);
 		}

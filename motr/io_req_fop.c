@@ -162,7 +162,7 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	}
 
 	unit_size = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
-	cs_sz = ioo->ioo_attr.ov_vec.v_count[0];
+	cs_sz = m0__obj_di_cksum_size(ioo);
 
 	m0_ivec_cursor_init(&rep_cursor, rep_ivec);
 	m0_ivec_cursor_init(&ti_cob_cursor, ti_ivec);
@@ -237,6 +237,67 @@ static void application_attribute_copy(struct m0_indexvec *rep_ivec,
 	} while (!m0_ivec_cursor_move(&rep_cursor, unit_size));
 }
 
+extern void print_pi(void *pi,int size);
+
+static int application_parity_checksum_process( struct m0_op_io *ioo, 
+												struct target_ioreq *ti,
+			   						            struct m0_buf *rw_rep_cs_data )
+{
+	int 					rc = 0;
+	uint32_t 				idx;
+	uint32_t 				cksum_size;
+	uint32_t 				cs_compared = 0;
+	void 				   *compute_cs_buf;
+	enum m0_pi_algo_type 	pi_type;
+
+	cksum_size = m0__obj_di_cksum_size(ioo);	
+	// Allocate checksum buffer
+	compute_cs_buf = m0_alloc(cksum_size); 
+	if( compute_cs_buf == NULL )
+		return -ENOMEM;
+
+	// FOP reply data should have pi type correctly set
+	pi_type = ((struct m0_pi_hdr *)rw_rep_cs_data->b_addr)->pih_type;
+	
+	// We should get checksum size which is same as requested, this will also
+	// confirm that user has correctly allocated buffer for checksum in ioo attr
+	// structure.
+	M0_ASSERT( rw_rep_cs_data->b_nob == ti->ti_pg_cksum_units * cksum_size);
+
+	// TODO: Remove 
+	M0_LOG(M0_ALWAYS,"rajat : RECEIVED CS");
+	print_pi(rw_rep_cs_data->b_addr, rw_rep_cs_data->b_nob);
+
+	for(idx = 0; idx < ti->ti_pg_cksum_units; idx++ ) {
+		
+		rc = calculate_parity_checksum( ioo, ti->ti_pg_cksum_data[idx].pgc_pg_idx, 
+			  					        ti->ti_pg_cksum_data[idx].pgc_unit_idx, 
+			  					        pi_type, compute_cs_buf );
+		if( rc != 0 )
+			goto fail;
+
+		M0_LOG(M0_ALWAYS,"rajat : COMPUTED CS");
+		print_pi(compute_cs_buf, cksum_size);
+		
+		if ( memcmp( rw_rep_cs_data->b_addr + cs_compared,
+					 compute_cs_buf, cksum_size ) != 0 ) {
+			// Add error code to the target status		 
+			ti->ti_rc = M0_RC(-EIO);
+			// TODO: Remove debug
+			M0_ASSERT(0);		
+		}
+	
+		cs_compared += cksum_size;
+		M0_ASSERT( cs_compared <= rw_rep_cs_data->b_nob );					 
+	}
+	// All checksum expected from target should be received
+	M0_ASSERT( cs_compared == rw_rep_cs_data->b_nob );
+
+fail:
+	m0_free(compute_cs_buf);
+	return rc;
+}
+
 /**
  * AST-Callback for the rpc layer when it receives a reply fop.
  * This is heavily based on m0t1fs/linux_kernel/file.c::io_bottom_half
@@ -284,7 +345,10 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		     (IRS_READING, IRS_WRITING,
 		      IRS_DEGRADED_READING, IRS_DEGRADED_WRITING,
 		      IRS_FAILED)));
-
+	M0_LOG(M0_ALWAYS,"rajat : irf_pattr : %d", irfop->irf_pattr);
+	if(irfop->irf_pattr == PA_PARITY) {
+		M0_LOG(M0_ALWAYS,"rajat : in parity check");
+	}
 	/* Check errors in rpc items of an IO reqest and its reply. */
 	rbulk      = &iofop->if_rbulk;
 	req_item   = &iofop->if_fop.f_item;
@@ -305,21 +369,31 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	/* Check errors in an IO request's reply. */
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
-	rw_reply = io_rw_rep_get(reply_fop);
 
+	rw_reply = io_rw_rep_get(reply_fop);
+	if ( m0_is_read_rep(reply_fop) && (irfop->irf_pattr == PA_PARITY) ) {
+		M0_LOG(M0_ALWAYS,"rajat in io_bottom while read");
+		M0_LOG(M0_ALWAYS,"rajat id : [%"PRIu64"] ", rwfop->crw_dummy_id);
+		if (rw_reply->rwr_di_data_cksum.b_addr)
+			rc = application_parity_checksum_process(ioo, tioreq, 
+						&rw_reply->rwr_di_data_cksum);				
+		else
+			M0_LOG(M0_ALWAYS,"rajat , baddress is null");
+	}
 	/*
 	 * Copy attributes to client if reply received from read operation
 	 * Skipping attribute_copy() if cksum validation is not allowed.
 	 */
 	if (m0_is_read_rep(reply_fop) && op->op_code == M0_OC_READ &&
-	    m0__obj_is_cksum_validation_allowed(ioo)) {
+	    m0__obj_is_data_cksum_validation_allowed(ioo)) {
 		m0_indexvec_wire2mem(&rwfop->crw_ivec,
 					rwfop->crw_ivec.ci_nr, 0,
 					&rep_attr_ivec);
 
 		application_attribute_copy(&rep_attr_ivec, tioreq, ioo,
 					   &rw_reply->rwr_di_data_cksum);
-
+		if (irfop->irf_pattr == PA_PARITY)
+			M0_LOG(M0_ALWAYS,"rajat ,[%"PRIu64"] parity data : %02x", rwfop->crw_dummy_id, ((int *)rw_reply->rwr_di_data_cksum.b_addr)[0]);
 		m0_indexvec_free(&rep_attr_ivec);
 	}
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;
@@ -678,7 +752,6 @@ M0_INTERNAL int ioreq_fop_async_submit(struct m0_io_fop      *iofop,
 	struct m0_fop_cob_rw *rwfop;
 	struct m0_rpc_item   *item;
 
-	M0_ENTRY("m0_io_fop %p m0_rpc_session %p", iofop, session);
 
 	M0_PRE(iofop != NULL);
 	M0_PRE(session != NULL);
@@ -696,6 +769,8 @@ M0_INTERNAL int ioreq_fop_async_submit(struct m0_io_fop      *iofop,
 	item->ri_session = session;
 	item->ri_nr_sent_max = M0_RPC_MAX_RETRIES;
 	item->ri_resend_interval = M0_RPC_RESEND_INTERVAL;
+	// M0_LOG(M0_ALWAYS,"rajat address : %p crw id : [%"PRIu64"] data : %02x , item : %p", rwfop,rwfop->crw_dummy_id, ((int *)rwfop->crw_di_data_cksum.b_addr)[0], item);
+	M0_ENTRY("m0_io_fop %p m0_rpc_session %p item = %p", iofop, session, item);
 	rc = m0_rpc_post(item);
 	M0_LOG(M0_INFO, "IO fops submitted to rpc, rc = %d", rc);
 

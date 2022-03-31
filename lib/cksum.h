@@ -19,13 +19,13 @@
  *
  */
 
-
 #pragma once
 
 #ifndef __MOTR_CKSUM_H__
 #define __MOTR_CKSUM_H__
 
 #include "lib/vec.h"
+#include "lib/cksum.h"
 #include "fid/fid.h"
 #include "xcode/xcode_attr.h"
 #include "motr/client_internal.h"
@@ -44,6 +44,9 @@ do { \
                         seg, vec->v_count[seg], dst[0], dst[1], data[0],data[1]); \
 }while(0)
 
+#define MAX_CHECKSUM_SIZE (sizeof(struct m0_md5_pi) > \
+					sizeof(struct m0_md5_inc_context_pi) ? \
+					sizeof(struct m0_md5_pi) : sizeof(struct m0_md5_inc_context_pi))
 
 /*
  * Macro calculates the size of padding required in a struct
@@ -55,7 +58,7 @@ do { \
 
 
 /* Constants for protection info type, max types supported is 8 */
-enum
+enum m0_pi_algo_type
 {
         M0_PI_TYPE_MD5,
         M0_PI_TYPE_MD5_INC_CONTEXT,
@@ -127,34 +130,6 @@ struct m0_pi_seed {
         /* offset within motr object */
         m0_bindex_t   pis_data_unit_offset;
 };
-
-/**
- * Calculate checksum/protection info for data/KV
- *
- * @param pi  pi struct m0_md5_inc_context_pi
- *            This function will calculate the checksum and set
- *            pi_value field of struct m0_md5_inc_context_pi.
- * @param seed seed value (pis_obj_id+pis_data_unit_offset) required to calculate
- *             the checksum. If this pointer is NULL that means either
- *             this checksum calculation is meant for KV or user does
- *             not want seeding.
- * @param m0_bufvec - Set of buffers for which checksum is computed.
- * @param flag if flag is M0_PI_CALC_UNIT_ZERO, it means this api is called for
- *             first data unit and MD5_Init should be invoked.
- * @param[out] curr_context context of data unit N, will be required to calculate checksum for
- *                         next data unit, N+1. Curre_context is calculated and set in this func.
- * @param[out] pi_value_without_seed - Caller may need checksum value without seed and with seed.
- *                                     With seed checksum is set in pi_value of PI type struct.
- *                                     Without seed checksum is set in this field.
- */
-
-M0_INTERNAL int m0_calculate_md5_inc_context(
-                struct m0_md5_inc_context_pi *pi,
-                struct m0_pi_seed *seed,
-                struct m0_bufvec *bvec,
-                enum m0_pi_calc_flag flag,
-                unsigned char *curr_context,
-                unsigned char *pi_value_without_seed);
 
 /**
  * Calculate checksum size

@@ -739,6 +739,18 @@ enum target_ioreq_type {
 };
 
 /**
+ * Collection of data structure for Parity Unit checksum computation
+ */
+struct target_pargrp_cksum {
+	// Parity buffer data structure
+	// Assumption is one target will get one unit of parity to store
+	// Index for tracking which Parity Group and which Index (0..k-1)
+	// will be assigned to targer
+	uint32_t                       pgc_pg_idx;
+	uint32_t                       pgc_unit_idx;
+};
+
+/**
  * Collection of IO extents and buffers, directed towards particular
  * target objects (data_unit / parity_unit) in a parity group.
  * These structures are created by struct m0_op_io dividing the incoming
@@ -798,7 +810,6 @@ struct target_ioreq {
 	 */
 	struct m0_indexvec             ti_trunc_ivec;
 
-
 	/**
 	 * Buffer vector corresponding to index vector above.
 	 * This buffer is in sync with ::ti_ivec.
@@ -808,7 +819,11 @@ struct target_ioreq {
 
 	// TODO: Combine this into one struct for checksums
 	struct m0_buf                  ti_attrbuf;
-	m0_bcount_t		       ti_cksum_copied;
+	m0_bcount_t                    ti_cksum_copied;
+
+	// Parity Group checksum computation structure
+	struct target_pargrp_cksum    *ti_pg_cksum_data;	
+	uint32_t                       ti_pg_cksum_units;
 
 	/* Array for segment having b_nob value of checksum */
 	uint32_t                      *ti_cksum_seg_b_nob;
