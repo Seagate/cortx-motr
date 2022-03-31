@@ -359,7 +359,7 @@ static const char *bytes_to_human_str(uint64_t bytes)
 		return buf;
 	}
 
-	snprintf(buf, sizeof buf, "%"PRIu64".%02u%s", integer, reminder, units);
+	snprintf(buf, sizeof buf, "%" PRIu64 ".%02u%s", integer, reminder, units);
 	buf[sizeof buf - 1] = '\0';
 
 	return buf;

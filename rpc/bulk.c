@@ -338,7 +338,7 @@ M0_INTERNAL int m0_rpc_bulk_buf_databuf_add(struct m0_rpc_bulk_buf *rbuf,
 	struct m0_buf		 cbuf;
 	struct m0_rpc_bulk	*rbulk;
 
-	M0_ENTRY("rbuf: %p, netdom: %p cnt=0x%"PRIx64" idx=0x%"PRIx64, rbuf,
+	M0_ENTRY("rbuf: %p, netdom: %p cnt=0x%" PRIx64 " idx=0x%"PRIx64, rbuf,
 		 netdom, count, index);
 	M0_PRE(rbuf != NULL);
 	M0_PRE(rpc_bulk_buf_invariant(rbuf));

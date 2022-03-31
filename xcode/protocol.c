@@ -130,7 +130,7 @@ static int cmp(const void *p0, const void *p1)
 
 static void field_print(const struct m0_xcode_field *f, int i)
 {
-	printf("\n    %4i %-20s %-20s %4"PRIi32" [%#"PRIx64"]",
+	printf("\n    %4i %-20s %-20s %4"PRIi32" [%#" PRIx64 "]",
 	       i, f->xf_name, f->xf_type->xct_name, f->xf_offset, f->xf_tag);
 }
 

@@ -980,7 +980,7 @@ struct pfamily {
 #define EP_FL EP_F "->" EP_F
 #define EP_PL(e) EP_P(SAFE(e, ma_src(ep_ma(e)), NULL)), EP_P(e)
 
-#define SOCK_F EP_FL "/%i/%"PRIx64"/%i"
+#define SOCK_F EP_FL "/%i/%" PRIx64 "/%i"
 #define SOCK_P(s) EP_PL(SAFE(s, (s)->s_ep, NULL)),	\
 	SAFE(s, (s)->s_sm.sm_state, 0),			\
 	SAFE(s, (s)->s_flags, 0), SAFE(s, (s)->s_fd, 0)
@@ -2902,7 +2902,7 @@ static void buf_done(struct buf *buf, int rc)
 	struct ma *ma = buf_ma(buf);
 
 	M0_PRE(ma_is_locked(ma) && ma_invariant(ma) && buf_invariant(buf));
-	/*printf("done: %p[%i] %"PRIi64" %i\n", buf,
+	/*printf("done: %p[%i] %" PRIi64 " %i\n", buf,
 	       buf->b_buf != NULL ? buf->b_buf->nb_qtype : -1,
 	       buf->b_buf != NULL ? buf->b_buf->nb_length : -1, rc); */
 	if (buf->b_writer.m_sm.sm_rc == 0) /* Reuse this field for result. */
@@ -2945,7 +2945,7 @@ static void buf_complete(struct buf *buf)
 		ev.nbe_offset = 0; /* Starting offset not supported. */
 	}
 	ma->t_ma->ntm_callback_counter++;
-	/*printf("DONE: %p[%i] %"PRIi64" %i\n", buf,
+	/*printf("DONE: %p[%i] %" PRIi64 " %i\n", buf,
 	  buf->b_buf != NULL ? buf->b_buf->nb_qtype : -1,
 	  buf->b_length, ev.nbe_status); */
 	TLOG(B_F" nb: %p %i", B_P(buf), buf->b_buf, ev.nbe_status);
@@ -3233,7 +3233,7 @@ static int pk_io(struct mover *m, struct sock *s, uint64_t flag,
 			 &m->m_buf->b_buf->nb_buffer : NULL, tgt, &count);
 	s->s_flags &= ~flag;
 	rc = (flag == HAS_READ ? readv : writev)(s->s_fd, iv, nr);
-	M0_LOG(M0_DEBUG, "flag: %"PRIi64", rc: %i, idx: %i, errno: %i.",
+	M0_LOG(M0_DEBUG, "flag: %" PRIi64 ", rc: %i, idx: %i, errno: %i.",
 	       flag, rc, nr, errno);
 	if (rc >= 0) {
 		m->m_nob += rc;
@@ -3249,8 +3249,8 @@ static int pk_io(struct mover *m, struct sock *s, uint64_t flag,
 	} else
 		rc = M0_ERR(-errno);
 	/*
-	 * printf("%s -> %s, %p: flag: %"PRIx64", tgt: %"PRIu64", nob %"PRIu64","
-	 * " nr: %i, count: %i, rc: %i, sflags: %"PRIx64"\n",
+	 * printf("%s -> %s, %p: flag: %" PRIx64 ", tgt: %" PRIu64 ", nob %" PRIu64 ","
+	 * " nr: %i, count: %i, rc: %i, sflags: %" PRIx64 "\n",
 	 * ma_src(ep_ma(s->s_ep))->e_ep.nep_addr, s->s_ep->e_ep.nep_addr,
 	 * m, flag, tgt, m->m_nob, nr, count, rc, s->s_flags);
 	 */
@@ -3326,7 +3326,7 @@ static int pk_header_done(struct mover *m)
 		result = m0_cookie_dereference(&p->p_dst.bd_cookie, &cookie);
 		if (result != 0)
 			return M0_ERR_INFO(result,
-					   "Wrong cookie: %"PRIx64":%"PRIx64"",
+					   "Wrong cookie: %" PRIx64 ":%" PRIx64 "",
 					   p->p_dst.bd_cookie.co_addr,
 					   p->p_dst.bd_cookie.co_generation);
 		buf = container_of(cookie, struct buf, b_cookie);
@@ -3978,7 +3978,7 @@ M0_INTERNAL void addr__print(const struct addr *addr)
 
 M0_INTERNAL void sock__print(const struct sock *sock)
 {
-	printf("\t\tfd: %i, flags: %"PRIx64", state: %i\n",
+	printf("\t\tfd: %i, flags: %" PRIx64 ", state: %i\n",
 	       sock->s_fd, sock->s_flags, sock->s_sm.sm_state);
 }
 
@@ -4002,8 +4002,8 @@ M0_INTERNAL void ep__print(const struct ep *ep)
 
 M0_INTERNAL void buf__print(const struct buf *buf)
 {
-	printf("\t%p: %"PRIx64" bitmap: %"PRIx64
-	       " peer: %"PRIx64":%"PRIx64"\n", buf,
+	printf("\t%p: %" PRIx64 " bitmap: %"PRIx64
+	       " peer: %" PRIx64 ":%" PRIx64 "\n", buf,
 	       buf->b_cookie,
 	       buf->b_done.b_words != NULL ? buf->b_done.b_words[0] : 0,
 	       buf->b_peer.bd_cookie.co_addr,
