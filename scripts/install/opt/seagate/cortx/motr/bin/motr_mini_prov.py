@@ -238,6 +238,9 @@ def set_setup_size(self, service):
     ret = False
     sevices_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
 
+    # Default self.setup_size  is "small"
+    self.setup_size = "small"
+
     # For services other then ioservice and confd, return True
     # It will set default setup size i.e. small
     if service not in ["ioservice", "ios", "io", "all", "confd"]:
