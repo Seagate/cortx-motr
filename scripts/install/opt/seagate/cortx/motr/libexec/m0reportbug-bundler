@@ -80,6 +80,7 @@ services=All
 stacktrace=false
 coredumps=false
 binlogs=false
+supported_units=("G" "GB" "M" "MB" "K" "KB")
 unit=
 sb_size_limit=0
 TEMP=$( getopt -o c:b:t:s: -l duration:,size_limit:,services:,binlogs:,coredumps:,stacktrace: \
@@ -108,8 +109,7 @@ while true; do
                 sb_size_limit="${size_limit:0:$str_len - 1}"
                 sb_size_limit=${sb_size_limit%.*}
             fi
-
-            if [[ "$unit" != "G" && "$unit" != "GB" && "$unit" != "M" && "$unit" != "MB" && "$unit" != "K" && "$unit" != "KB" ]]; then
+            if [[ ! " ${supported_units[*]} " =~ " ${unit} " ]]; then
                 usage; exit;
             fi
             case $unit in
@@ -124,27 +124,27 @@ while true; do
          --binlogs)
             #should only accept either true or false
             rc=$(echo $2 | sed -e 's/,/\n/g') ;
-            if [[ "$rc" != "true" && "$rc" != "True" && "$rc" != "false" && "$rc" != "False" ]]; then
+            if [[ "${rc,,}" != "true" && "${rc,,}" != "false" ]]; then
                 usage; exit;
-            elif [[ "$rc" == "true" || "$rc" == "True" ]]; then
+            elif [[ "${rc,,}" == "true" ]]; then
                 CMD+=" --binaries"
             fi
             shift 2;;
          --coredumps)
             rc=$(echo $2 | sed -e 's/,/\n/g') ;
             #should only accept either true or false
-            if [[ "$rc" != "true" && "$rc" != "True" && "$rc" != "false" && "$rc" != "False" ]]; then
+            if [[ "${rc,,}" != "true" && "${rc,,}" != "false" ]]; then
                 usage; exit;
-            elif [[ "$rc" == "true" || "$rc" == "True" ]]; then
+            elif [[ "${rc,,}" == "true" ]]; then
                 CMD+=" --coredumps"
             fi
             shift 2;;
          --stacktrace)
             rc=$(echo $2 | sed -e 's/,/\n/g') ;
             #should only accept either true or false
-            if [[ "$rc" != "true" && "$rc" != "True" && "$rc" != "false" && "$rc" != "False" ]]; then
+            if [[ "${rc,,}" != "true" && "${rc,,}" != "false" ]]; then
                 usage; exit;
-            elif [[ "$rc" == "true" || "$rc" == "True" ]]; then
+            elif [[ "${rc,,}" == "true" ]]; then
                 CMD+=" --stacktrace"
             fi
             shift 2;;
