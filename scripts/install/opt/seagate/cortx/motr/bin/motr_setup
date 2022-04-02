@@ -66,10 +66,7 @@ class Cmd:
         self.logger = config_logger(self)
 
         # Default setup size is small
-        self.setup_size = "small"
-        if get_setup_size(self, self._services) == False:
-            self.logger.error("setup size not set properly\n")
-            return
+        set_setup_size(self, self._services)
 
         # Fetch important data from Confstore
         self.cortx = get_value(self, 'cortx', dict)
