@@ -694,8 +694,7 @@ M0_INTERNAL bool m0__obj_is_data_cksum_validation_allowed(struct m0_op_io *ioo)
 	 * Checksum validation is not allowed for degraded read and
 	 * for read verify mode in parity.
 	 */
-	return m0__obj_is_di_enabled(ioo) && 
-		  !m0__obj_is_parity_cksum_validation_allowed(ioo);
+	return m0__obj_is_di_enabled(ioo);
 }
 
 M0_INTERNAL int m0__obj_io_build(struct m0_io_args *args,
