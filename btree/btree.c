@@ -4324,6 +4324,125 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * change for most of the records.
  *
  */
+
+/**
+ * @brief Proposed design to use benefits of indirect addressing and embedding
+ *        records in nodes of VKVV type.
+ *
+ * We will leverage the benefits of current design such as floating directory,
+ * seperation of keys and values, and add indirect addressing the current
+ * directory itself. With the new design we aim to reduce the movement of key
+ * and values stored inside the node.
+ *
+ * We will modify the directory structure to include the key size and value
+ * size. For example,
+ * struct dir_rec {
+ *     uint32_t key_offset;
+ *     uint32_t val_offset;
+ *     uint32_t key_size;
+ *     uint32_t value_size;
+ *     };
+ *
+ * It is necessary to include the key size and value size. Earlier the sizes
+ * were calculated from the difference in offsets because keys and values were
+ * stored sequentially. With indirect addressing, we will not store the records
+ * sequentially in node space. Only the directory will have entries stored
+ * sequentially.
+ *
+ * Lets say we add 3 records: (k0,v0) , (k1,v1) , (k2,v2)
+ * We will populate the offset and size for keys and value for each record that
+ * is being added one after another.
+ *
+ * The view of the node will be:
+ *
+ *                +--------------------+
+ *                |                    |
+ *           +----+----------------+   |
+ *           |    |                |   |
+ *        +--+----+------------+   |   |
+ *        |  |    |            |   |   |
+ * +------v--v----v---+------+-+-+-+-+-+-+---+-------+---+----+--+
+ * |      |  |    |   |      |   |   |   |   |       |   |    |  |
+ * |      |  |    |   |      +---+---+---+---+       |   |    |  |
+ * |      |  |    |   |      |sk0|sk1|sk2|   |       |   |    |  |
+ * | Node |K0| K1 | K2|      +---+---+---+---+       |V0 | V1 |V0|
+ * |  Hdr |  |    |   |      |sv0|sv1|sv2|   |       |   |    |  |
+ * |      |  |    |   |      +---+---+---+---+       |   |    |  |
+ * |      |  |    |   |      |   |   |   |   |       |   |    |  |
+ * +------+--+----+---+------+-+-+-+-+-+-+---+-------^---^----^--+
+ *                             |   |   |             |   |    |
+ *  sk* = sizeof(k*)           +---+---+-------------+---+----+
+ *  sv* = sizeof(v*)               |   |             |   |
+ *                                 +---+-------------+---+
+ *                                     |             |
+ *                                     +-------------+
+ *
+ * When we delete a record, we will just erase the offset and sizes present
+ * in the directory, and move the entries present in the directory after the
+ * deleted record. Say we delete (k1,v1)
+ *
+ * The view of the node will be:
+ *
+ *                +----------------+
+ *                |                |
+ *        +-------+------------+   |
+ *        |       |            |   |
+ * +------v--+----v---+------+-+-+-+-+---+---+-------+---+----+--+
+ * |      |  |    |   |      |   |   |   |   |       |   |    |  |
+ * |      |  |    |   |      +---+---+---+---+       |   |    |  |
+ * |      |  |    |   |      |sk0|sk2|   |   |       |   |    |  |
+ * | Node |K0|    | K2|      +---+---+---+---+       |V2 |    |V0|
+ * |  Hdr |  |    |   |      |sv0|sv2|   |   |       |   |    |  |
+ * |      |  |    |   |      +---+---+---+---+       |   |    |  |
+ * |      |  |    |   |      |   |   |   |   |       |   |    |  |
+ * +------+--+----+---+------+-+-+-+-+---+---+-------^---+----^--+
+ *                             |   |                 |        |
+ *  sk* = sizeof(k*)           +---+-----------------+--------+
+ *  sv* = sizeof(v*)               +-----------------+
+ *
+ *
+ * Now if a new record say (k3,v3) is to be added, we have to consider where the
+ * key and value can be added. If the space left empty by previous key or value,
+ * is enough to add the new record, we all add it in this space. If the space is
+ * not enough for new key or value, then we will add it in available space after
+ * the current key and value.
+ * Say k3 < k1, then we will add it in the place previously occupied by k1.
+ * But v3 > v1, then we will add it in free space present after v2.
+ * The view of the node will be:
+ *
+ *           +-------------------------+
+ *           |                         |
+ *           |    +----------------+   |
+ *           |    |                |   |
+ *        +--+----+------------+   |   |
+ *        |  |    |            |   |   |
+ * +------v--v--+-v---+------+-+-+-+-+-+-+---+-+-----+---+----+--+
+ * |      |  |  |-|   |      |   |   |   |   | |     |   |    |  |
+ * |      |  |  |-|   |      +---+---+---+---+ |     |   |    |  |
+ * |      |  |  |-|   |      |sk0|sk2|sk3|   | |     |   |    |  |
+ * | Node |K0|K3|-| K2|      +---+---+---+---+ | V3  |V2 |    |V0|
+ * |  Hdr |  |  |-|   |      |sv0|sv2|sv3|   | |     |   |    |  |
+ * |      |  |  |-|   |      +---+---+---+---+ |     |   |    |  |
+ * |      |  |  |-|   |      |   |   |   |   | |     |   |    |  |
+ * +------+--+--+-+---+------+-+-+-+-+-+-+---+-^-----^---+----^--+
+ *                             |   |   |       |     |        |
+ *  sk* = sizeof(k*)           +---+---+-------+-----+--------+
+ *  sv* = sizeof(v*)               +---+-------+-----+
+ *                                     |       |
+ *                                     +-------+
+ *
+ * The space k4 and k3 represented by "-" is hole left in memory. The space is
+ * small hence we cannot add a new record at this place. With this new approach,
+ * possibility of multiple holes is valid. The above approach used for
+ * addition of records in the space of a deleted record helps in maximizing the
+ * utilisation of the current space. Incase we reach a situation  where the keys
+ * and values of a incoming record will collide with directory but the space
+ * calculation shows that we have enough space left to occupy the incoming
+ * record, we will do a compaction of node space to eliminate the holes and
+ * rearrange the records.
+ *
+ *
+ */
 #define INT_OFFSET sizeof(uint32_t)
 
 static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
