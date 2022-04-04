@@ -1799,6 +1799,7 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 		default:
 			M0_IMPOSSIBLE("Unknown req type %u", req->dr_type);
 		}
+		m0_cas_id_fini(&cctg_id);
 		if (rc != 0) {
 			m0_clink_del(&cas_rop->crp_clink);
 			m0_clink_fini(&cas_rop->crp_clink);
