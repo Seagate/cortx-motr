@@ -137,7 +137,10 @@ enum m0_cas_state_format_version {
 enum {
 	/**
 	 * Every key and value is stored with an individual 64-bit header.
-	 * Currently header contains key/value length in bytes.
+	 * In case of CT_META, CT_BTREE, CT_DEAD_INDEX btree's header contains
+	 * version number in first 32-bits and key/value length in bytes in
+	 * next 32 bits. For other btree's in cas, 64-bits header contains
+	 * key/value length in bytes.
 	 */
 	M0_CAS_CTG_KV_HDR_SIZE = sizeof(uint64_t),
 };
