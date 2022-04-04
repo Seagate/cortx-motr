@@ -80,7 +80,7 @@ services=All
 stacktrace=false
 coredumps=false
 binlogs=false
-supported_units=("G" "GB" "M" "MB" "K" "KB")
+supported_units=("G" "g" "GB" "gb" "M" "m" "MB" "mb" "K" "k" "KB" "kb")
 unit=
 sb_size_limit=0
 TEMP=$( getopt -o c:b:t:s: -l duration:,size_limit:,services:,binlogs:,coredumps:,stacktrace: \
@@ -112,11 +112,13 @@ while true; do
             if [[ ! " ${supported_units[*]} " =~ " ${unit} " ]]; then
                 usage; exit;
             fi
+            shopt -s nocasematch
             case $unit in
                  "G"|"GB") sb_size_limit=$(($sb_size_limit * $((1024**3))));;
                  "M"|"MB") sb_size_limit=$(($sb_size_limit * $((1024**2))));;
                  "K"|"KB") sb_size_limit=$(($sb_size_limit * $((1024**1))));;
             esac
+            shopt -u nocasematch
             shift 2;;
          -s|--services)
             services=$(echo $2 | sed -e 's/,/\n/g') ;
@@ -177,6 +179,9 @@ tar --remove-files -czf "${COMPONENT}_${bundle_id}.tar.gz" $HOSTNAME
 TEMP=( $( ls -ln "${COMPONENT}_${bundle_id}.tar.gz" ) )
 bundle_size=${TEMP[4]}
 binaries_size_limit() {
+    if [[ ! -f $PWD/m0reportbug-cores/binaries ]]; then
+        return
+    fi
     find $PWD/m0reportbug-cores/binaries/ -type f -exec grep -IL . "{}" \; | while read binfile; do
         tar -czf "${binfile}.tar.gz" --absolute-names $binfile
         TEMP=( $( ls -ln "${binfile}.tar.gz" ) )
@@ -191,8 +196,10 @@ binaries_size_limit() {
             fi
         fi
     done
-    DIFF=$(cat temp.txt)
-    rm temp.txt
+    if [ -f temp.txt ]; then
+        DIFF=$(cat temp.txt)
+        rm temp.txt
+    fi
 }
 
 core_size_limit() {
@@ -208,8 +215,10 @@ core_size_limit() {
             fi
         fi
     done)
-    DIFF=$(cat temp.txt)
-    rm temp.txt
+    if [ -f temp.txt ]; then
+        DIFF=$(cat temp.txt)
+        rm temp.txt
+    fi
 }
 
 PWD1=
@@ -239,8 +248,10 @@ m0traces_size_limit()
            fi
         fi
     done
-    DIFF=$(cat temp.txt)
-    rm temp.txt
+    if [ -f temp.txt ]; then
+        DIFF=$(cat temp.txt)
+        rm temp.txt
+    fi
 }
 
 if [[ $bundle_size -gt $sb_size_limit && $sb_size_limit -gt 0 ]]; then
