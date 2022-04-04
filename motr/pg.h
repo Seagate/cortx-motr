@@ -821,7 +821,7 @@ struct target_ioreq {
 	struct m0_buf                  ti_attrbuf;
 	m0_bcount_t                    ti_cksum_copied;
 
-	// Parity Group checksum computation structure
+	/* Parity Group checksum computation structure */
 	struct target_pargrp_cksum    *ti_pg_cksum_data;	
 	uint32_t                       ti_pg_cksum_units;
 

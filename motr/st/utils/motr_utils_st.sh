@@ -388,12 +388,12 @@ EOF
 	}
 	echo "m0touch and m0unlink successful"
 
-	$motr_st_util_dir/m0cp -d $MOTR_PARAMS_V -o $object_id1 $src_file \
+	"$motr_st_util_dir"/m0cp -d "$MOTR_PARAMS_V" -o "$object_id1" "$src_file" \
                                  -s $block_size -c $block_count -L 9 \
                                  -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
 	}
-	$motr_st_util_dir/m0cat -d $MOTR_PARAMS_V -o $object_id1 \
+	"$motr_st_util_dir"/m0cat -d "$MOTR_PARAMS_V" -o "$object_id1" \
 				  -s $block_size -c $block_count -L 9 -b $blks_per_io \
 				  $dest_file || {
 		error_handling $? "Failed to read object"
@@ -410,7 +410,7 @@ EOF
 
 	# Test m0cp_mt
 	echo "m0cp_mt test"
-	$motr_st_util_dir/m0cp_mt -d $MOTR_PARAMS_V -o $object_id4 \
+	"$motr_st_util_dir"/m0cp_mt -d "$MOTR_PARAMS_V" -o "$object_id4" \
 				    -n $obj_count $src_file -s $block_size \
 				    -c $block_count -L 9 -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
@@ -418,7 +418,7 @@ EOF
 	for i in $(seq 0 $(($obj_count - 1)))
 	do
 		object_id=$(($object_id4 + $i));
-		$motr_st_util_dir/m0cat -d $MOTR_PARAMS_V -o $object_id \
+		"$motr_st_util_dir"/m0cat -d "$MOTR_PARAMS_V" -o "$object_id" \
 					  -s $block_size -c $block_count -L 9 \
                                           -b $blks_per_io $dest_file || {
 			error_handling $? "Failed to read object"

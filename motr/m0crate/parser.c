@@ -250,6 +250,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 	struct m0_fid            *obj_fid;
 	struct m0_workload_io    *cw;
 	struct m0_workload_index *ciw;
+	char                     *end = NULL;
 
 	if (m0_streq(value, conf_section_name)) {
 		if (conf != NULL) {
@@ -337,7 +338,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			conf->is_addb_init = atoi(value);
 			break;
 		case DI:
-			conf->is_di = atoi(value);
+			conf->is_di = (bool)strtol(value, &end, 10);
 			break;
 		case ADDB_SIZE:
 			conf->addb_size = getnum(value, "addb size");
