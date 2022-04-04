@@ -192,7 +192,7 @@ static int ctg_buf_get(struct m0_buf *dst, const struct m0_buf *src,
  * @param val destination buffer
  * @param buf source buffer
  * @param is_version_present true if version number is present in header
- * else false
+ *        else false
  * @return 0 if ok else error code
  */
 static int ctg_buf(const struct m0_buf *val, struct m0_buf *buf,
@@ -906,8 +906,9 @@ static bool ctg_op_cb(struct m0_clink *clink)
 			ctg_memcpy(arena, ctg_op->co_val.b_addr,
 				   ctg_op->co_val.b_nob);
 			/* Populate version number in header. */
-			*(uint64_t *)arena = (((uint64_t)M0_CAS_CTG_FORMAT_VERSION
-					       << 32) | ctg_op->co_val.b_nob);
+			*(uint64_t *)arena =
+					   (((uint64_t)M0_CAS_CTG_FORMAT_VERSION
+					     << 32) | ctg_op->co_val.b_nob);
 			if (ctg_is_ordinary(ctg_op->co_ctg))
 				m0_ctg_state_inc_update(tx,
 					ctg_op->co_key.b_nob -
@@ -917,8 +918,10 @@ static bool ctg_op_cb(struct m0_clink *clink)
 			break;
 		case CTG_OP_COMBINE(CO_PUT, CT_META):
 			/* Populate version number in header. */
-			*(uint64_t *)arena = (((uint64_t)M0_CAS_CTG_FORMAT_VERSION
-					  << 32) | sizeof(struct m0_cas_ctg *));
+			*(uint64_t *)arena =
+					   (((uint64_t)M0_CAS_CTG_FORMAT_VERSION
+					     << 32) |
+					     sizeof(struct m0_cas_ctg *));
 			/*
 			 * After successful insert inplace fill value of meta by
 			 * length & pointer to cas_ctg. m0_ctg_create() creates
@@ -1836,7 +1839,7 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 		/* Populate version number in header. */
 		*(uint64_t *)anchor.ba_value.b_addr =
 					   (((uint64_t)M0_CAS_CTG_FORMAT_VERSION
-					    << 32) | sizeof(cid->ci_layout));
+					     << 32) | sizeof(cid->ci_layout));
 		imask = &cid->ci_layout.u.dl_desc.ld_imask;
 		if (!m0_dix_imask_is_empty(imask)) {
 			/*
