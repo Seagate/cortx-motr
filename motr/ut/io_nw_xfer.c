@@ -386,6 +386,9 @@ static void ut_test_target_ioreq_fini(void)
 	M0_ALLOC_PTR(ti->ti_pageattrs);
 	rc = m0_indexvec_alloc(&ti->ti_ivec, 1);
 	M0_UT_ASSERT(rc == 0);
+	rc = m0_indexvec_alloc(&ti->ti_goff_ivec,1);
+	M0_UT_ASSERT(rc == 0);
+
 	target_ioreq_fini(ti);
 	ut_dummy_ioo_delete(ioo, dummy_instance);
 }

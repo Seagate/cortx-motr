@@ -47,6 +47,8 @@ RECOVERY_LOG_DIR=/var/log/seagate/motr/datarecovery    # dir containing recovery
 LIVE_CORE_DIR=/var/log/seagate/motr
 M0TR_M0D_TRACE_DIR=/var/log/seagate/motr/trace
 MOTR_MINI_PROV_LOG_DIR=/var/log/seagate/motr/mini_provisioner
+COLLECT_STACKTRACE_P=0
+COLLECT_COREDUMPS_P=0
 
 readonly START_DIR=$PWD
 
@@ -98,6 +100,7 @@ main() {
             addb) [ ${COLLECT_ADDB_P:-0} -eq 1 ] || continue;;
             addb-files) [ ${SKIP_ADDB_FILE_P:-0} -eq 1 ] && continue;;
             binaries) [ ${COLLECT_BINARIES_P:-0} -eq 1 ] || continue;;
+            backtraces_live) [ ${COLLECT_STACKTRACE_P:-0} -eq 1 ] || continue;;
         esac
 
         for IN_DIR in ${INPUT_DIRS[@]}; do
@@ -126,6 +129,16 @@ main() {
     done >>$REPORT
 
     # Collects compressed core generated in /var/crash and /var/log/crash
+    MACHINE_ID=$(cat /etc/machine-id)
+    if [ -d /etc/cortx/motr/sysconfig/$MACHINE_ID ]; then
+        MOTR_SYSCONFIG="/etc/cortx/motr/sysconfig/$MACHINE_ID/motr"
+    else
+        MOTR_SYSCONFIG="/etc/sysconfig/motr"
+    fi
+    if [ $COLLECT_COREDUMPS_P -eq 1 ]; then
+        M0TR_M0D_CORE_DIR=$(source $MOTR_SYSCONFIG ; echo $MOTR_M0D_DATA_DIR)
+        CORE_DIRS+=("$M0TR_M0D_CORE_DIR")
+    fi 
     for IN_DIR in  ${CORE_DIRS[@]}; do
         [[ -d $IN_DIR ]] || {
                 warn "$IN_DIR: no such directory"
@@ -183,7 +196,7 @@ main() {
     fi
 
     # Collects traces of m0d process(confd, ios) only
-    M0TR_M0D_TRACE_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_TRACE_DIR" | cut -d '=' -f2)
+    M0TR_M0D_TRACE_DIR=$(source $MOTR_SYSCONFIG; echo $MOTR_M0D_TRACE_DIR)
     M0D_TRACE_DIR="${M0TR_M0D_TRACE_DIR%\'}"
     M0D_TRACE_DIR="${M0D_TRACE_DIR#\'}"
 
@@ -200,7 +213,7 @@ main() {
     fi
 
     # Collects addb record files for process(confd, ios and s3server)
-    ADDB_RECORD_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_ADDB_STOB_DIR" | cut -d '=' -f2)
+    ADDB_RECORD_DIR=$(source $MOTR_SYSCONFIG; echo $MOTR_M0D_ADDB_STOB_DIR)
     ADDB_DIR="${ADDB_RECORD_DIR%\'}"
     ADDB_DIR="${ADDB_DIR#\'}"
 
@@ -855,6 +868,8 @@ Options:
     --addb             Collect ADDB data.
     --skip-addb-files  skip collection of ADDB files
     -b, --binaries     Collect Motr binaries even if there are no core dumps.
+    -s, --stacktrace   Include/exclude stackTraces. Default is false
+    --coredumps        Bool value to include/exclude core dumps. Default is false.
     --nr-boots         How many boots to query systemd journal for\
  (default is $NR_BOOTS_MAX).
     -p, --path         Show locations of Motr binaries: m0d, m0tr.ko, etc.
@@ -877,7 +892,7 @@ optparse() {
     ## command (e.g., invalid option) will result in program failure.
     ##
     local TEMP # do not assign value here
-    TEMP=$(getopt -o hpbV --long help,addb,skip-addb-files,binaries,nr-boots:,path,version \
+    TEMP=$(getopt -o hpbsV --long help,addb,skip-addb-files,binaries,coredumps,stacktrace,nr-boots:,path,version \
                   -n "${0##*/}" -- "$@")
     eval set -- "$TEMP"
     while true; do
@@ -886,6 +901,8 @@ optparse() {
             --addb) COLLECT_ADDB_P=1;;
             --skip-addb-files) SKIP_ADDB_FILE_P=1;;
             -b|--binaries) COLLECT_BINARIES_P=1;;
+            -s|--stacktrace) COLLECT_STACKTRACE_P=1;;
+            --coredumps) COLLECT_COREDUMPS_P=1;;
             --nr-boots) NR_BOOTS_MAX=$2; shift;;
             -p|--path)
                 for f in m0mkfs m0d m0tracedump m0addb2dump m0beck m0betool \

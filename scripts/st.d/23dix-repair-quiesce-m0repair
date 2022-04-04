@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
@@ -17,18 +18,6 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-#
-# Halon runtime
-#
----
-- name: dynamically load variables depending on the OS type
-  include_vars: '{{ item  }}'
-  with_first_found: '{{ ansible_os_family }}.yml'
-  tags: halon
+set -eu
 
-- name: install Halon run-time dependencies
-  package:
-    state: present
-    name:  '{{ halon_runtime_deps_pkgs }}'
-  tags:
-    - halon
+exec $SUDO "$M0_SRC_DIR/dix/cm/st/m0t1fs_dix_repair_quiesce.sh"

@@ -93,6 +93,7 @@
 #include "scripts/systemtap/kem/kem_id.h"
 #include "addb2/addb2_internal.h"
 #include "lib/trace.h"
+#include "lib/thread.h"                 /* m0_pid() */
 
 enum {
 	BUF_SIZE  = 4096,
@@ -161,7 +162,9 @@ static void deflate(void);
 static void misc_init(void);
 static void misc_fini(void);
 
-#define DOM "./_addb2-dump"
+#define DOM "./_addb2-dump_%d"
+
+
 extern int  optind;
 static bool flatten = false;
 static bool deflatten = false;
@@ -198,6 +201,9 @@ int main(int argc, char **argv)
 	int                     rc;
 	uint64_t                start_time = 0;
 	uint64_t                stop_time  = (uint64_t)-1;
+	char                    buf[80];
+
+	sprintf(buf, "linuxstob:"DOM, (int)m0_pid());
 
 	m0_node_uuid_string_set(NULL);
 	result = m0_init(&instance);
@@ -250,12 +256,12 @@ int main(int argc, char **argv)
 	if ((delay != 0 || offset != 0) && optind + 1 < argc)
 		err(EX_USAGE,
 		    "Staring offset and continuous dump imply single file.");
-	result = m0_stob_domain_init("linuxstob:"DOM, "directio=true", &dom);
+	result = m0_stob_domain_init(buf, "directio=true", &dom);
 	if (result == 0)
 		m0_stob_domain_destroy(dom);
 	else if (result != -ENOENT)
 		err(EX_CONFIG, "Cannot destroy domain: %d", result);
-	result = m0_stob_domain_create_or_init("linuxstob:"DOM, "directio=true",
+	result = m0_stob_domain_create_or_init(buf, "directio=true",
 					       /* domain key, not important */
 					       8, NULL, &dom);
 	if (result != 0)
@@ -376,7 +382,7 @@ static void file_dump(struct m0_stob_domain *dom, const char *fname,
 	do {
 		result = m0_addb2_sit_init(&sit, stob, offset);
 		if (delay > 0 && result == -EPROTO) {
-			printf("Sleeping for %i seconds (%"PRIx64").\n",
+			printf("Sleeping for %i seconds (%" PRIx64 ").\n",
 			       delay, offset);
 			sleep(delay);
 			continue;
@@ -435,7 +441,7 @@ static void ptr(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 {
 	if (json_output)
 		/* JSON spec supports only decimal format (int and float) */
-		sprintf(buf, "{\"ptr\":%"PRIu64"}", (uint64_t)*(void **)v);
+		sprintf(buf, "{\"ptr\":%" PRIu64 "}", (uint64_t)*(void **)v);
 	else
 		sprintf(buf, "@%p", *(void **)v);
 }
@@ -449,8 +455,8 @@ static void fid(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 {
 	if (json_output)
 		/* JSON spec supports only decimal format (int and float) */
-		sprintf(buf, "{\"container\":%"PRId64","
-			     "\"key\":%"PRId64"}",
+		sprintf(buf, "{\"container\":%" PRId64 ","
+			     "\"key\":%" PRId64 "}",
 			     FID_P((struct m0_fid *)v));
 	else
 		sprintf(buf, FID_F, FID_P((struct m0_fid *)v));
@@ -481,7 +487,7 @@ static void _clock(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 	if (json_output) {
 		gmtime_r(&ts, &tm);
 		/* ISO8601 formating */
-		sprintf(buf, "\"%04d-%02d-%02dT%02d:%02d:%02d.%09"PRIu64"Z\"",
+		sprintf(buf, "\"%04d-%02d-%02dT%02d:%02d:%02d.%09" PRIu64 "Z\"",
 			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 			tm.tm_hour, tm.tm_min, tm.tm_sec,
 			m0_time_nanoseconds(stamp));
@@ -500,10 +506,10 @@ static void duration(struct m0_addb2__context *ctx, const uint64_t *v,
 	m0_time_t elapsed = v[0];
 
 	if (json_output)
-		sprintf(buf, "{\"sec\":%"PRId64",\"ns\":%"PRId64"}",
+		sprintf(buf, "{\"sec\":%" PRId64 ",\"ns\":%" PRId64 "}",
 			m0_time_seconds(elapsed), m0_time_nanoseconds(elapsed));
 	else
-		sprintf(buf, "%"PRId64".%09"PRId64,
+		sprintf(buf, "%" PRId64 ".%09"PRId64,
 			m0_time_seconds(elapsed), m0_time_nanoseconds(elapsed));
 }
 
@@ -519,14 +525,14 @@ static void fom_type(struct m0_addb2__context *ctx, const uint64_t *v,
 		fmt = json_output ?
 			"\"type\":\"%s\",\"transitions\":%"PRId64
 			",\"phase\":\"%s\""
-			: "'%s' transitions: %"PRId64" phase: %s";
+			: "'%s' transitions: %" PRId64 " phase: %s";
 		sprintf(buf, fmt, conf->scf_name, v[1],
 			conf->scf_state[v[2]].sd_name);
 	} else {
 		fmt = json_output ?
-			"\"type\":\"UNKNOWN-%"PRId64"\",\"transitions\":%"PRId64
+			"\"type\":\"UNKNOWN-%" PRId64 "\",\"transitions\":%"PRId64
 			",\"phase\":\"%s\""
-			: "?'UNKNOWN-%"PRId64"' transitions: %"PRId64
+			: "?'UNKNOWN-%" PRId64 "' transitions: %"PRId64
 			  " phase: %"PRId64;
 		sprintf(buf, fmt, ctx->c_fom.fo_tid, v[1], v[2]);
 	}
@@ -547,15 +553,15 @@ static void sm_state(const struct m0_sm_conf *conf,
 	if (conf->scf_trans == NULL) {
 		M0_ASSERT(v[1] == 0);
 		fmt = json_output ?
-			"{\"sm_id\":%"PRId64",\"tgt_state\":\"%s\"}" :
-			"sm_id: %"PRIu64" --> %s";
+			"{\"sm_id\":%" PRId64 ",\"tgt_state\":\"%s\"}" :
+			"sm_id: %" PRIu64 " --> %s";
 		sprintf(buf, fmt, v[0], conf->scf_state[v[2]].sd_name);
 	} else {
 		/* There's no explicit transition into INIT state */
 		if (v[1] == (uint32_t)~0) {
 			fmt = json_output ?
-				"{\"sm_id\":%"PRId64",\"tgt_state\":\"%s\"}" :
-				"sm_id: %"PRIu64" o--> %s";
+				"{\"sm_id\":%" PRId64 ",\"tgt_state\":\"%s\"}" :
+				"sm_id: %" PRIu64 " o--> %s";
 			sprintf(buf, fmt, v[0], conf->scf_state[v[2]].sd_name);
 		} else {
 			struct m0_sm_trans_descr *d = &conf->scf_trans[v[1]];
@@ -566,7 +572,7 @@ static void sm_state(const struct m0_sm_conf *conf,
 				",\"src_state\":\"%s\""
 				",\"cause\":\"%s\""
 				",\"tgt_state\":\"%s\"}"
-			      : "sm_id: %"PRIu64" %s -[%s]-> %s";
+			      : "sm_id: %" PRIu64 " %s -[%s]-> %s";
 			sprintf(buf, fmt, v[0],
 				conf->scf_state[d->td_src].sd_name, d->td_cause,
 				conf->scf_state[d->td_tgt].sd_name);
@@ -599,8 +605,8 @@ static void fom_phase(struct m0_addb2__context *ctx, const uint64_t *v,
 			M0_ASSERT(v[1] == 0);
 			s = &conf->scf_state[v[2]];
 			fmt = json_output ?
-				"{\"sm_id\":%"PRId64",\"tgt_state\":\"%s\"}" :
-				"sm_id: %"PRIu64" --> %s";
+				"{\"sm_id\":%" PRId64 ",\"tgt_state\":\"%s\"}" :
+				"sm_id: %" PRIu64 " --> %s";
 			sprintf(buf, fmt, v[0], s->sd_name);
 		} else if (v[1] < conf->scf_trans_nr) {
 			d = &conf->scf_trans[v[1]];
@@ -610,7 +616,7 @@ static void fom_phase(struct m0_addb2__context *ctx, const uint64_t *v,
 				",\"src_state\":\"%s\""
 				",\"cause\":\"%s\""
 				",\"tgt_state\":\"%s\"}"
-			      : "sm_id: %"PRIu64" %s -[%s]-> %s";
+			      : "sm_id: %" PRIu64 " %s -[%s]-> %s";
 			sprintf(buf, fmt, v[0],
 				conf->scf_state[d->td_src].sd_name,
 				d->td_cause, s->sd_name);
@@ -618,14 +624,14 @@ static void fom_phase(struct m0_addb2__context *ctx, const uint64_t *v,
 			fmt = json_output ?
 				"{\"sm_id\":%"PRId64
 				",\"tgt_state\":\"phase transition %i\"}"
-				: "sm_id: %"PRIu64" phase transition %i";
+				: "sm_id: %" PRIu64 " phase transition %i";
 			sprintf(buf, fmt, v[0], (int)v[1]);
 		}
 	} else {
 		fmt = json_output ?
 			"{\"sm_id\":%"PRId64
 			",\"tgt_state\":\"phase ast transition %i\"}"
-			: "sm_id: %"PRIu64" phase ast transition %i";
+			: "sm_id: %" PRIu64 " phase ast transition %i";
 		sprintf(buf, fmt, v[0], (int)v[1]);
 	}
 }
@@ -642,7 +648,7 @@ static void rpcop(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 	} else if (v[0] == 0) {
 		sprintf(buf, json_output ? "\"none\"" : "none");
 	} else
-		sprintf(buf, json_output ? "\"rpc#%"PRId64"\"" :
+		sprintf(buf, json_output ? "\"rpc#%" PRId64 "\"" :
 			"?rpc: %"PRId64, v[0]);
 }
 
@@ -666,8 +672,8 @@ static void sym(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 			buf += strlen(buf);
 		}
 		if (json_output)
-			sprintf(buf, "\"symbol\":{\"addr\":%"PRIu64","
-				     "\"addr_ptr_wrap\":%"PRIu64"}",
+			sprintf(buf, "\"symbol\":{\"addr\":%" PRIu64 ","
+				     "\"addr_ptr_wrap\":%" PRIu64 "}",
 				(uint64_t)addr, v[0]);
 		else
 			sprintf(buf, " @%p/%"PRIx64, addr, v[0]);
@@ -692,9 +698,9 @@ static void counter(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 		",\"max\":%"PRId64
 		",\"avg\":%g"
 		",\"dev\":%g"
-		",\"datum\":%"PRId64"}"
-	      : " nr: %"PRId64" min: %"PRId64" max: %"PRId64
-		" avg: %f dev: %f datum: %"PRIx64" ";
+		",\"datum\":%" PRId64 "}"
+	      : " nr: %" PRId64 " min: %" PRId64 " max: %"PRId64
+		" avg: %f dev: %f datum: %" PRIx64 " ";
 
 	sprintf(buf + strlen(buf), fmt, d->cod_nr, d->cod_min, d->cod_max,
 		avg, dev, d->cod_datum);
@@ -737,7 +743,7 @@ static void hist(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 	step  = (hd->hd_max - hd->hd_min) / (M0_ADDB2_HIST_BUCKETS - 2);
 	sprintf(buf + strlen(buf), " %"PRId32, hd->hd_bucket[0]);
 	for (i = 1; i < ARRAY_SIZE(hd->hd_bucket); ++i) {
-		sprintf(buf + strlen(buf), " %"PRId64": %"PRId32,
+		sprintf(buf + strlen(buf), " %" PRId64 ": %"PRId32,
 			start, hd->hd_bucket[i]);
 		start += step;
 		m = max32(m, hd->hd_bucket[i]);
@@ -746,7 +752,7 @@ static void hist(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 		cr, hd->hd_bucket[0]);
 	hbar(buf, hd->hd_bucket[0], m);
 	for (i = 1, start = hd->hd_min; i < ARRAY_SIZE(hd->hd_bucket); ++i) {
-		sprintf(buf + strlen(buf), "%c| %9"PRId64" : %9"PRId32" | ",
+		sprintf(buf + strlen(buf), "%c| %9" PRId64 " : %9"PRId32" | ",
 			cr, start, hd->hd_bucket[i]);
 		hbar(buf, hd->hd_bucket[i], m);
 		start += step;
@@ -810,8 +816,8 @@ static void fop_counter(struct m0_addb2__context *ctx, char *buf)
 		if (json_output)
 			sprintf(buf + strlen(buf),
 				"{\"error\":\"unknown-fop-mask\""
-				",\"msg\":\"Unknown FOP mask 0x%"PRIx64"\""
-				",\"fop_mask\":%"PRId64"},",
+				",\"msg\":\"Unknown FOP mask 0x%" PRIx64 "\""
+				",\"fop_mask\":%" PRId64 "},",
 				mask, mask);
 		else
 			sprintf(buf + strlen(buf),
@@ -1383,13 +1389,13 @@ static void val_dump_json(struct m0_addb2__context *ctx,
 			printf("true,");
 	}
 	else {
-		printf("\"m0addb2dump[%s:%u]:%"PRIu64"\"",
+		printf("\"m0addb2dump[%s:%u]:%" PRIu64 "\"",
 			__FILE__, __LINE__, val->va_id);
 	}
 	for (i = 0; i < val->va_nr; ++i) {
 		buf[0] = 0;
 		if (intrp == NULL)
-			sprintf(buf, "\"m0addb2dump[%s:%u]:%"PRIu64"\"",
+			sprintf(buf, "\"m0addb2dump[%s:%u]:%" PRIu64 "\"",
 				__FILE__, __LINE__, val->va_data[i]);
 		else {
 			if (intrp->ii_field[i] != NULL)
@@ -1402,7 +1408,7 @@ static void val_dump_json(struct m0_addb2__context *ctx,
 				       intrp->ii_print[i + 1] == &attr));
 
 			if (intrp->ii_print[i] == NULL)
-				sprintf(BEND, "%"PRId64"%s", val->va_data[i],
+				sprintf(BEND, "%" PRId64 "%s", val->va_data[i],
 					need_comma ? "," : "");
 			else {
 				if (intrp->ii_print[i] == &skip)

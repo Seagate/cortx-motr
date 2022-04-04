@@ -71,7 +71,11 @@ struct m0_ut_suite m0_net_test_ut = {
 		{ "service",		m0_net_test_service_ut		  },
 		{ "network-buf-desc",	m0_net_test_network_ut_buf_desc	  },
 		{ "network-ping",	m0_net_test_network_ut_ping	  },
+#if 0
+		/* This UT will be combined with net-misc-ut in address format
+		 * UT task. */
 		{ "addr-decode",	m0_net_test_network_ut_addr_decode},
+#endif
 		{ "network-bulk",	m0_net_test_network_ut_bulk	  },
 		{ "cmd-single",		m0_net_test_cmd_ut_single	  },
 		{ "cmd-multiple",	m0_net_test_cmd_ut_multiple	  },

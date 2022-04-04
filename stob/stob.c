@@ -302,7 +302,7 @@ M0_INTERNAL void m0_stob_put(struct m0_stob *stob)
 		m0_stob_cache_idle(cache, stob);
 	m0_stob_cache_unlock(cache);
 
-	M0_LOG(M0_DEBUG, "stob %p, fid="FID_F" so_ref %"PRIu64", released ref, "
+	M0_LOG(M0_DEBUG, "stob %p, fid="FID_F" so_ref %" PRIu64 ", released ref, "
 	       "chan_waiters %"PRIu32, stob, FID_P(&stob->so_id.si_fid),
 	       stob->so_ref, stob->so_ref_chan.ch_waiters);
 	if (m0_chan_has_waiters(&stob->so_ref_chan)) {

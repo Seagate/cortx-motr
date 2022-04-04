@@ -413,7 +413,8 @@ void target_ioreq_fini(struct target_ioreq *ti)
 	if ( opcode == M0_OC_WRITE ) {
 		m0_buf_free( &ti->ti_attrbuf );
 		m0_free( (void *)ti->ti_cksum_seg_b_nob );
-	}
+	} else if ( opcode == M0_OC_READ )
+		m0_indexvec_free(&ti->ti_goff_ivec);
 
 	if ( opcode == M0_OC_READ )
 		m0_indexvec_free(&ti->ti_goff_ivec);
@@ -517,8 +518,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	frame = tgt->ta_frame;
 	M0_PRE(src != NULL);
 	unit  = src->sa_unit;
-	M0_ENTRY("tio req %p, gob_offset %"PRIu64", count %"PRIu64
-		 " frame %"PRIu64" unit %"PRIu64,
+	M0_ENTRY("tio req %p, gob_offset %" PRIu64 ", count %"PRIu64
+		 " frame %" PRIu64 " unit %"PRIu64,
 		 ti, gob_offset, count, frame, unit);
 
 	M0_PRE(ti != NULL);
@@ -543,8 +544,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	goff    = unit_type == M0_PUT_DATA ? gob_offset : 0;
 
 	M0_LOG(M0_DEBUG,
-	       "[gpos %"PRIu64", count %"PRIu64"] [%"PRIu64", %"PRIu64"]"
-	       "->[%"PRIu64",%"PRIu64"] %c", gob_offset, count, src->sa_group,
+	       "[gpos %" PRIu64 ", count %" PRIu64 "] [%" PRIu64 ", %" PRIu64 "]"
+	       "->[%" PRIu64 ",%" PRIu64 "] %c", gob_offset, count, src->sa_group,
 	       src->sa_unit, tgt->ta_frame, tgt->ta_obj,
 	       unit_type == M0_PUT_DATA ? 'D' : 'P');
 
@@ -559,7 +560,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		pattr = ti->ti_dgvec->dr_pageattrs;
 		cnt = page_nr(ioo->ioo_iomap_nr * layout_unit_size(play) *
 		      (layout_n(play) + layout_k(play)), ioo->ioo_obj);
-		M0_LOG(M0_DEBUG, "map_nr=%"PRIu64" req state=%u cnt=%"PRIu64,
+		M0_LOG(M0_DEBUG, "map_nr=%" PRIu64 " req state=%u cnt=%"PRIu64,
 				 ioo->ioo_iomap_nr, ioreq_sm_state(ioo), cnt);
 	} else {
 		ivec  = &ti->ti_ivec;
@@ -571,7 +572,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		pattr = ti->ti_pageattrs;
 		cnt = page_nr(ioo->ioo_iomap_nr * layout_unit_size(play) *
 			      layout_n(play), ioo->ioo_obj);
-		M0_LOG(M0_DEBUG, "map_nr=%"PRIu64" req state=%u cnt=%"PRIu64,
+		M0_LOG(M0_DEBUG, "map_nr=%" PRIu64 " req state=%u cnt=%"PRIu64,
 				 ioo->ioo_iomap_nr, ioreq_sm_state(ioo), cnt);
 	}
 
@@ -612,7 +613,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			INDEX(trunc_ivec, tseg) = pgstart;
 			COUNT(trunc_ivec, tseg) = pgend - pgstart;
 			++trunc_ivec->iv_vec.v_nr;
-			M0_LOG(M0_DEBUG, "Seg id %d [%"PRIu64", %"PRIu64"]"
+			M0_LOG(M0_DEBUG, "Seg id %d [%" PRIu64 ", %" PRIu64 "]"
 					 "added to target ioreq with "FID_F,
 					 tseg, INDEX(trunc_ivec, tseg),
 					 COUNT(trunc_ivec, tseg),
@@ -633,13 +634,13 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		}
 		pattr[seg] |= buf->db_flags;
 		M0_LOG(M0_DEBUG, "pageaddr=%p, auxpage=%p,"
-				 " index=%6"PRIu64", size=%4"PRIu64
-				 " grpid=%3"PRIu64" flags=%4x for "FID_F,
+				 " index=%6" PRIu64 ", size=%4"PRIu64
+				 " grpid=%3" PRIu64 " flags=%4x for "FID_F,
 		                 bvec->ov_buf[seg], auxbvec->ov_buf[seg],
 				 INDEX(ivec, seg), COUNT(ivec, seg),
 				 map->pi_grpid, pattr[seg],
 				 FID_P(&ti->ti_fid));
-		M0_LOG(M0_DEBUG, "Seg id %d [%"PRIu64", %"PRIu64
+		M0_LOG(M0_DEBUG, "Seg id %d [%" PRIu64 ", %"PRIu64
 				 "] added to target_ioreq with "FID_F
 				 " with flags 0x%x: ", seg,
 				 INDEX(ivec, seg), COUNT(ivec, seg),
@@ -650,7 +651,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		                      + ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr - 1];
 		/* If ioo_attr struct is not allocated then skip checksum computation */
 		is_goff_in_range = m0_ext_is_in(&goff_span_ext, goff) &&
-		                                ioo->ioo_attr.ov_vec.v_nr;
+		                        m0__obj_is_di_enabled(ioo);
 		if (dst_attr != NULL && unit_type == M0_PUT_DATA &&
 		    opcode == M0_OC_WRITE && is_goff_in_range) {
 			void         *src_attr;
@@ -984,8 +985,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				if (buf == NULL) {
 					buf = bvec->ov_buf[seg];
 					/* Add the size for checksum generated for every segment, skip parity */
-					if ((filter == PA_DATA) &&
-					    ioo->ioo_attr.ov_vec.v_nr &&
+					if ((filter == PA_DATA) && m0__obj_is_di_enabled(ioo) &&
 					    (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE)) {
 						delta += ti->ti_cksum_seg_b_nob[seg];
 						fop_cksm_nob += ti->ti_cksum_seg_b_nob[seg];
@@ -1034,8 +1034,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 					delta -= io_seg_size() - io_di_size(ioo);
 
-					if ((filter == PA_DATA) &&
-					    ioo->ioo_attr.ov_vec.v_nr &&
+					if ((filter == PA_DATA) && m0__obj_is_di_enabled(ioo) &&
 					    (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE)) {
 						delta -= ti->ti_cksum_seg_b_nob[seg];
 						fop_cksm_nob -= ti->ti_cksum_seg_b_nob[seg];
@@ -1089,7 +1088,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 
 		/* Assign the checksum buffer for traget */
-		if (filter == PA_DATA && ioo->ioo_attr.ov_vec.v_nr) {
+		if (filter == PA_DATA && m0__obj_is_di_enabled(ioo)) {
 			if (m0_is_write_fop(&iofop->if_fop))	{
 				M0_ASSERT(fop_cksm_nob != 0);
 				/* RPC layer to free crw_di_data_cksum */
@@ -1108,7 +1107,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			}
 
 			rw_fop->crw_cksum_size = (read_in_write ||
-			                          !(ioo->ioo_attr.ov_vec.v_nr)) ?
+						 !m0__obj_is_di_enabled(ioo)) ?
 						 0 : ioo->ioo_attr.ov_vec.v_count[0];
 		}
 		else {
@@ -1147,7 +1146,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 		M0_LOG(M0_DEBUG,
 		       "fop=%p bulk=%p (%s) @"FID_F" io fops = %"PRIu64
-		       " read bulks = %"PRIu64", list_len=%d",
+		       " read bulks = %" PRIu64 ", list_len=%d",
 		       &iofop->if_fop, &iofop->if_rbulk,
 		       m0_is_read_fop(&iofop->if_fop) ? "r" : "w",
 		       FID_P(&ti->ti_fid),
@@ -1276,7 +1275,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 		goto fail;
 
 	/* Memory allocation for checksum computation */
-	if ( op->op_code == M0_OC_WRITE && ioo->ioo_attr.ov_vec.v_nr) {
+	if (op->op_code == M0_OC_WRITE && m0__obj_is_di_enabled(ioo)) {
 		uint32_t b_nob;
 
 		ti->ti_attrbuf.b_addr = NULL;
@@ -1529,7 +1528,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 		pgstart      = data_size(play) * iomap->pi_grpid;
 		src.sa_group = iomap->pi_grpid;
 
-		M0_LOG(M0_DEBUG, "xfer=%p map=%p [grpid=%"PRIu64" state=%u]",
+		M0_LOG(M0_DEBUG, "xfer=%p map=%p [grpid=%" PRIu64 " state=%u]",
 				 xfer, iomap, iomap->pi_grpid, iomap->pi_state);
 
 		if (do_cobs)
@@ -2064,8 +2063,8 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	spare = *src;
 	m0_fd_fwd_map(play_instance, src, tgt);
 	tfid = target_fid(ioo, tgt);
-	M0_LOG(M0_DEBUG, "src_id[%"PRIu64":%"PRIu64"] -> "
-			 "dest_id[%"PRIu64":%"PRIu64"] @ tfid="FID_F,
+	M0_LOG(M0_DEBUG, "src_id[%" PRIu64 ":%" PRIu64 "] -> "
+			 "dest_id[%" PRIu64 ":%" PRIu64 "] @ tfid="FID_F,
 	       src->sa_group, src->sa_unit, tgt->ta_frame, tgt->ta_obj,
 	       FID_P(&tfid));
 
