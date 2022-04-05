@@ -4330,7 +4330,7 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *        records in nodes of VKVV type.
  *
  * We will leverage the benefits of current design such as floating directory,
- * seperation of keys and values, and add indirect addressing the in current
+ * seperation of keys and values, and add indirect addressing in the current
  * directory itself. With the new design we aim to reduce the movement of key
  * and values stored inside the node.
  *
