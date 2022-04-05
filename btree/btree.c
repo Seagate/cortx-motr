@@ -2362,30 +2362,95 @@ static void bnode_op_fini(struct node_op *op)
  * Fixed format node = {
  * 	header
  * 	dir   = {
- * 			ok1, ok2, ok3,..., okn,
- * 			ov1, ov2, ov3,..., ovn
+ * 			(ok1, ov1), (ok2, ov2), (ok3, ov3),..., (okn, ovn)
  * 		}
  * 	rec   = {
  * 			(k1,v1), (k2,v2), (k3,v3),..., (kn,vn)
  * 		}
  * }
  *
- * nr_records = (node size - header size) /
- * 			 (key size + val size + kptr size + vptr size)
- *
- * dir size   = nr_records * (kptr size + vptr size)
- *
  * +-------------------------------------------------+
- * | Node  |	   Dir	     |	     Records	     |
+ * | Node  |       Dir       |         Records       |
  * | Hdr   |     |     |     |        |        |     |
- * |       | kp1 | kp2 | ... |   k1   |   k2   | ... |
+ * |       | ok1 | ok2 | ... |   k1   |   k2   | ... |
  * |       |     |     |     |        |        |     |
  * |       |=====+=====+=====+========+========+=====+
  * |       |     |     |     |        |        |     |
- * |       | vp1 | vp2 | ... |   v1   |   v2   | ... |
+ * |       | ov1 | ov2 | ... |   v1   |   v2   | ... |
  * |       |     |     |     |        |        |     |
  * |       |     |     |     |        |        |     |
  * +-------------------------------------------------+
+ *
+ * This node format will have keys and values of fixed size and hence we can
+ * determine the number of records that we can store in a single node.
+ * The directory will contain offsets for the actual records (key,value) and
+ * the number of entries in the directory can be calculated as below.
+ * 
+ * All directory entries are sorted according to the keys that they point to.
+ * i.e *ok1 < *ok2 < *ok3    OR
+ *      k1  <  k2  <  k3
+ *
+ * nr_records = (node size - header size) /
+ * 		(key size + val size + key offset size + val offset size)
+ *
+ * dir size   = nr_records * (key offset size + value offset size)
+ *
+ * The actual records will start after the directory.
+ *
+ * When insertion a new record between two existing records, we only need to
+ * move a subset of directory entries instead of rearranging the actual keys and
+ * values in the node. Thus the actual key and value entries in the node need
+ * not be sorted. This will minimize the memcopy/memmove operations and thus
+ * increase the performance.
+ *
+ * For eg - Inserting new record (nk1, nv1) such that k1 < nk1 < k2
+ *
+ * +-----------------------------------------------------------------+
+ * | Node  |              Dir       |	           Records           |
+ * | Hdr   |     |      |     |     |        |        |        |     |
+ * |       | ok1 | onk1 | ok2 | ... |   k1   |   k2   |   nk1  | ... |
+ * |       |     |      |     |     |        |        |        |     |
+ * |       |=====+======+=====+=====+========+========+========+=====+
+ * |       |     |      |     |     |        |        |        |     |
+ * |       | ov1 | onv1 | ov2 | ... |   v1   |   v2   |   nv1  | ... |
+ * |       |     |      |     |     |        |        |        |     |
+ * |       |     |      |     |     |        |        |        |     |
+ * +-----------------------------------------------------------------+
+ *
+ * When deleting a particular record, we only need to delete a directory entry
+ * and move a subset of directory entries instead of moving the actual keys and
+ * values in the node. The key and value can be freed and re-used for a new
+ * record without re-arranging any (key,value) records just by inserting the
+ * directory entry for the new record at the appropriate place.
+ *
+ * For eg - Deleting (k2,v2) and then inserting new record (nk2, nv2) such that
+ *          k1 < nk2 < nk1
+ *
+ * Deleting (k2,v2)
+ * +-----------------------------------------------------------------+
+ * | Node  |          Dir           |              Records           |
+ * | Hdr   |     |      |     |     |        |        |        |     |
+ * |       | ok1 | onk2 |     | ... |   k1   |        |   nk2  | ... |
+ * |       |     |      |     |     |        |        |        |     |
+ * |       |=====+======+=====+=====+========+========+========+=====+
+ * |       |     |      |     |     |        |        |        |     |
+ * |       | ov1 | onv2 |     | ... |   v1   |        |   nv2  | ... |
+ * |       |     |      |     |     |        |        |        |     |
+ * |       |     |      |     |     |        |        |        |     |
+ * +-----------------------------------------------------------------+
+ *
+ * Inserting (nk2,nv2)
+ * +------------------------------------------------------------------+
+ * | Node  |            Dir          |              Records           |
+ * | Hdr   |     |      |      |     |        |        |        |     |
+ * |       | ok1 | onk2 | onk1 | ... |   k1   |   nk2  |   nk1  | ... |
+ * |       |     |      |      |     |        |        |        |     |
+ * |       |=====+======+======+=====+========+========+========+=====+
+ * |       |     |      |      |     |        |        |        |     |
+ * |       | ov1 | onv2 | onv1 | ... |   v1   |   nv2  |   nv1  | ... |
+ * |       |     |      |      |     |        |        |        |     |
+ * |       |     |      |      |     |        |        |        |     |
+ * +------------------------------------------------------------------+
  *
  */
 
