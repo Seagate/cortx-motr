@@ -2356,6 +2356,40 @@ static void bnode_op_fini(struct node_op *op)
  */
 
 /**
+ * @brief Proposed design for using btree node to hold embedded records with
+ * indirect addressing.
+ *
+ * Fixed format node = {
+ * 	header
+ * 	dir   = {
+ * 			ok1, ok2, ok3,..., okn,
+ * 			ov1, ov2, ov3,..., ovn
+ * 		}
+ * 	rec   = {
+ * 			(k1,v1), (k2,v2), (k3,v3),..., (kn,vn)
+ * 		}
+ * }
+ *
+ * nr_records = (node size - header size) /
+ * 			 (key size + val size + kptr size + vptr size)
+ *
+ * dir size   = nr_records * (kptr size + vptr size)
+ *
+ * +-------------------------------------------------+
+ * | Node  |	   Dir	     |	     Records	     |
+ * | Hdr   |     |     |     |        |        |     |
+ * |       | kp1 | kp2 | ... |   k1   |   k2   | ... |
+ * |       |     |     |     |        |        |     |
+ * |       |=====+=====+=====+========+========+=====+
+ * |       |     |     |     |        |        |     |
+ * |       | vp1 | vp2 | ... |   v1   |   v2   | ... |
+ * |       |     |     |     |        |        |     |
+ * |       |     |     |     |        |        |     |
+ * +-------------------------------------------------+
+ *
+ */
+
+/**
  *  Structure of the node in persistent store.
  */
 struct ff_head {
