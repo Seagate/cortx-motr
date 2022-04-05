@@ -89,7 +89,8 @@ enum cursor_phase {
 static struct m0_be_seg *cas_seg(struct m0_be_domain *dom);
 
 static int  ctg_berc         (struct m0_ctg_op *ctg_op);
-static int  ctg_buf          (const struct m0_buf *val, struct m0_buf *buf);
+static int  ctg_buf          (const struct m0_buf *val, struct m0_buf *buf,
+			      bool is_version_present);
 static int  ctg_buf_get      (struct m0_buf *dst, const struct m0_buf *src,
 			      bool enabled_fi);
 static void ctg_fid_key_fill (void *key, const struct m0_fid *fid);
@@ -186,19 +187,26 @@ static int ctg_buf_get(struct m0_buf *dst, const struct m0_buf *src,
 }
 
 /**
- * Allocate memory and unpack value having format length + data.
+ * Allocate memory and unpack value having format version + length + data.
  *
  * @param val destination buffer
  * @param buf source buffer
+ * @param is_version_present true if version number is present in header
+ *        else false
  * @return 0 if ok else error code
  */
-static int ctg_buf(const struct m0_buf *val, struct m0_buf *buf)
+static int ctg_buf(const struct m0_buf *val, struct m0_buf *buf,
+		   bool is_version_present)
 {
 	int result = -EPROTO;
 
 	M0_CASSERT(sizeof buf->b_nob == 8);
 	if (val->b_nob >= 8) {
-		buf->b_nob = *(uint64_t *)val->b_addr;
+		if (is_version_present)
+			buf->b_nob = (*(uint64_t *)val->b_addr &
+				      0x00000000FFFFFFFF);
+		else
+			buf->b_nob = *(uint64_t *)val->b_addr;
 		if (val->b_nob == buf->b_nob + 8) {
 			buf->b_addr = ((char *)val->b_addr) + 8;
 			result = 0;
@@ -224,7 +232,9 @@ static m0_bcount_t ctg_ksize(const void *key)
 
 static m0_bcount_t ctg_vsize(const void *val)
 {
-	return ctg_ksize(val);
+	/* Version and Size is stored in the header. */
+	return M0_CAS_CTG_KV_HDR_SIZE + (*(const uint64_t *)val &
+					 0x00000000FFFFFFFF);
 }
 
 static int ctg_cmp(const void *key0, const void *key1)
@@ -354,7 +364,7 @@ M0_INTERNAL int m0_ctg_meta_find_ctg(struct m0_cas_ctg    *meta,
 	if (rc == 0) {
 		struct m0_buf buf = {};
 
-		rc = ctg_buf(&anchor.ba_value, &buf);
+		rc = ctg_buf(&anchor.ba_value, &buf, true);
 		if (rc == 0) {
 			if (buf.b_nob == sizeof(*ctg))
 				*ctg = *(struct m0_cas_ctg **)buf.b_addr;
@@ -400,10 +410,12 @@ M0_INTERNAL int m0_ctg__meta_insert(struct m0_be_btree  *meta,
 	if (rc == 0) {
 		val_data = anchor.ba_value.b_addr;
 		/*
-		 * Meta entry format: length + ptr to cas_ctg.
+		 * Meta entry format: version + length + ptr to cas_ctg.
 		 * Memory for ctg allocated elsewhere and must be persistent.
 		 */
-		*(uint64_t *)val_data = sizeof(ctg);
+		*(uint64_t *)val_data =
+				      CTG_VERSION_ADD(M0_CAS_CTG_FORMAT_VERSION,
+						      sizeof(ctg));
 		*(struct m0_cas_ctg**)(val_data + M0_CAS_CTG_KV_HDR_SIZE) = ctg;
 	}
 	m0_be_btree_release(tx, &anchor);
@@ -849,7 +861,7 @@ static bool ctg_op_cb(struct m0_clink *clink)
 		case CTG_OP_COMBINE(CO_GET, CT_BTREE):
 		case CTG_OP_COMBINE(CO_GET, CT_META):
 			rc = ctg_buf(&ctg_op->co_anchor.ba_value,
-				     &ctg_op->co_out_val);
+				     &ctg_op->co_out_val, true);
 			/*
 			 * After get from meta we have struct m0_cas_ctg* in
 			 * ctg_op->co_out_val buffer.
@@ -875,7 +887,7 @@ static bool ctg_op_cb(struct m0_clink *clink)
 			m0_chan_broadcast_lock(ctg_chan);
 			break;
 		case CTG_OP_COMBINE(CO_MIN, CT_BTREE):
-			ctg_buf(&ctg_op->co_out_key, &cur_key);
+			ctg_buf(&ctg_op->co_out_key, &cur_key, false);
 			ctg_op->co_out_key = cur_key;
 			break;
 		case CTG_OP_COMBINE(CO_CUR, CT_META):
@@ -883,9 +895,10 @@ static bool ctg_op_cb(struct m0_clink *clink)
 			m0_be_btree_cursor_kv_get(&ctg_op->co_cur,
 						  &cur_key,
 						  &cur_val);
-			rc = ctg_buf(&cur_key, &ctg_op->co_out_key);
+			rc = ctg_buf(&cur_key, &ctg_op->co_out_key, false);
 			if (rc == 0)
-				rc = ctg_buf(&cur_val, &ctg_op->co_out_val);
+				rc = ctg_buf(&cur_val, &ctg_op->co_out_val,
+					     true);
 			if (rc == 0 && ct == CT_META)
 				m0_ctg_try_init(*(struct m0_cas_ctg **)
 					     ctg_op->co_out_val.b_addr);
@@ -893,6 +906,10 @@ static bool ctg_op_cb(struct m0_clink *clink)
 		case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 			ctg_memcpy(arena, ctg_op->co_val.b_addr,
 				   ctg_op->co_val.b_nob);
+			/* Populate version number in header. */
+			*(uint64_t *)arena =
+				      CTG_VERSION_ADD(M0_CAS_CTG_FORMAT_VERSION,
+						      ctg_op->co_val.b_nob);
 			if (ctg_is_ordinary(ctg_op->co_ctg))
 				m0_ctg_state_inc_update(tx,
 					ctg_op->co_key.b_nob -
@@ -901,7 +918,10 @@ static bool ctg_op_cb(struct m0_clink *clink)
 			m0_chan_broadcast_lock(ctg_chan);
 			break;
 		case CTG_OP_COMBINE(CO_PUT, CT_META):
-			*(uint64_t *)arena = sizeof(struct m0_cas_ctg *);
+			/* Populate version number in header. */
+			*(uint64_t *)arena =
+				      CTG_VERSION_ADD(M0_CAS_CTG_FORMAT_VERSION,
+						   sizeof(struct m0_cas_ctg *));
 			/*
 			 * After successful insert inplace fill value of meta by
 			 * length & pointer to cas_ctg. m0_ctg_create() creates
@@ -1775,7 +1795,7 @@ M0_INTERNAL int m0_ctg_ctidx_lookup_sync(const struct m0_fid  *fid,
 	if (rc == 0) {
 		struct m0_buf buf = {};
 
-		rc = ctg_buf(&anchor.ba_value, &buf);
+		rc = ctg_buf(&anchor.ba_value, &buf, true);
 		if (rc == 0) {
 			if (buf.b_nob == sizeof(struct m0_dix_layout))
 				*layout = (struct m0_dix_layout *)buf.b_addr;
@@ -1816,6 +1836,10 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 	if (rc == 0) {
 		ctg_memcpy(anchor.ba_value.b_addr, &cid->ci_layout,
 			   sizeof(cid->ci_layout));
+		/* Populate version number in header. */
+		*(uint64_t *)anchor.ba_value.b_addr =
+				      CTG_VERSION_ADD(M0_CAS_CTG_FORMAT_VERSION,
+						      sizeof(cid->ci_layout));
 		imask = &cid->ci_layout.u.dl_desc.ld_imask;
 		if (!m0_dix_imask_is_empty(imask)) {
 			/*
