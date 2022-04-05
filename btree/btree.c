@@ -2397,7 +2397,7 @@ static void bnode_op_fini(struct node_op *op)
  *
  * The actual records will start after the directory.
  *
- * When insertion a new record between two existing records, we only need to
+ * When inserting a new record between two existing records, we only need to
  * move a subset of directory entries instead of rearranging the actual keys and
  * values in the node. Thus the actual key and value entries in the node need
  * not be sorted. This will minimize the memcopy/memmove operations and thus
