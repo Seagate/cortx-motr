@@ -846,6 +846,7 @@ int m0_conf_pver_status(struct m0_fid *fid,
 	uint32_t                  srecd[M0_CONF_PVER_HEIGHT];
 	uint32_t                  failures = 0;
 	uint32_t                  K;
+	uint32_t                 *tolerance;
 
 	M0_ENTRY();
 	M0_PRE(fid != NULL);
@@ -870,6 +871,7 @@ int m0_conf_pver_status(struct m0_fid *fid,
 		failures += srecd[i++];
 
 	failures_at_lvl = tolerance_failure_cmp(pver, srecd); 
+	tolerance = pver->pv_u.subtree.pvs_tolerance;
 
 	/**
 	 * HEALTHY: if no failures in pver.
@@ -891,7 +893,8 @@ int m0_conf_pver_status(struct m0_fid *fid,
 		out_info->cpi_state = M0_CPS_DAMAGED;
 
 	M0_LOG(M0_DEBUG, "state: %d, failures: %d", out_info->cpi_state, failures);
-	CONF_PVER_VECTOR_LOG("failvec", FID_P(&pver->pv_obj.co_id), srecd);
+	CONF_PVER_VECTOR_LOG("failed objs of", FID_P(&pver->pv_obj.co_id), srecd);
+	CONF_PVER_VECTOR_LOG("tolerance of", FID_P(&pver->pv_obj.co_id), tolerance);
 
 	return M0_RC(rc);
 } M0_EXPORTED(m0_conf_pver_status);
