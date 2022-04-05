@@ -187,7 +187,7 @@ static int ctg_buf_get(struct m0_buf *dst, const struct m0_buf *src,
 }
 
 /**
- * Allocate memory and unpack value having format length + data.
+ * Allocate memory and unpack value having format version + length + data.
  *
  * @param val destination buffer
  * @param buf source buffer
