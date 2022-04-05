@@ -54,7 +54,7 @@ process_addr=""
 declare libmotr_path="/usr/lib64/libmotr.so"
 declare m0spiel_path="/usr/bin/m0spiel"
 declare consul_path="/usr/bin/consul"
-declare python2_path="/usr/bin/python2"
+declare python3_path="/usr/bin/python3"
 consul_query_args="kv get -recurse m0conf"
 consul_query_cmd="$consul_path $consul_query_args"
 motr_conf_file="/etc/sysconfig/motr"
@@ -91,7 +91,7 @@ check_bin_path() {
 }
 
 bc_stats_fetch() {
-/usr/bin/timeout --foreground $TIMEOUT $python2_path $m0spiel_path $M0_SPIEL_OPTS <<EOF
+/usr/bin/timeout --foreground $TIMEOUT $python3_path $m0spiel_path $M0_SPIEL_OPTS <<EOF
 spiel.rconf_status = 0
 def handle_sigterm(signalNumber, frame):
     if spiel.rconf_status:
@@ -153,9 +153,9 @@ get_hostname()
 main()
 {
 	pid=$$
-	python2_path=$(get_bin_path python2)
+	python3_path=$(get_bin_path python3)
 	m0spiel_path=$(get_bin_path m0spiel)
-	check_bin_path python2
+	check_bin_path python3
 	check_bin_path m0spiel
         if [ ! -s $libmotr_path ] ; then
 	    [[ -r $motr_conf_file ]] && source $motr_conf_file

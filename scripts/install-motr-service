@@ -223,7 +223,7 @@ install_files()
     dir='/usr/bin'
     cd $M0_SRC_DIR/utils/spiel
     mkdir -p ${m0spiel_pkg_file%/*}
-    python2 setup.py install --record $m0spiel_pkg_file
+    python3 setup.py install --record $m0spiel_pkg_file
     cd -
     for m0spiel_file in 'utils/spiel/m0_filesystem_stats' \
                         'utils/spiel/m0spiel' \

@@ -26,6 +26,7 @@ import logging
 import glob
 import time
 import yaml
+import psutil
 from typing import List, Dict, Any
 from cortx.utils.conf_store import Conf
 from cortx.utils.cortx import Const
@@ -65,6 +66,20 @@ class MotrError(Exception):
 
     def __str__(self):
         return f"error[{self._rc}]: {self._desc}"
+
+def execute_command_without_log(cmd,  timeout_secs = TIMEOUT_SECS,
+    verbose = False, retries = 1, stdin = None, logging=False):
+    ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         shell=True)
+    if stdin:
+        ps.stdin.write(stdin.encode())
+    stdout, stderr = ps.communicate(timeout=timeout_secs);
+    stdout = str(stdout, 'utf-8')
+
+    time.sleep(1)
+    if ps.returncode != 0:
+        raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
 
 #TODO: logger config(config_log) takes only self as argument so not configurable,
 #      need to make logger configurable to change formater, etc and remove below
@@ -234,14 +249,24 @@ def calc_size(self, sz):
         self.logger.error("Please use valid format Ex: 1024, 1Ki, 1Mi, 1Gi etc..\n")
         return ret
 
-def get_setup_size(self, service):
+def set_setup_size(self, service):
     ret = False
     sevices_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
+
+    # Default self.setup_size  is "small"
+    self.setup_size = "small"
+
+    # For services other then ioservice and confd, return True
+    # It will set default setup size i.e. small
+    if service not in ["ioservice", "ios", "io", "all", "confd"]:
+        self.setup_size = "small"
+        self.logger.info(f"service is {service}. So seting setup size to {self.setup_size}\n")
+        return True
 
     #Provisioner passes io as parameter to motr_setup.
     #Ex: /opt/seagate/cortx/motr/bin/motr_setup config --config yaml:///etc/cortx/cluster.conf --services io
     #But in /etc/cortx/cluster.conf io is represented by ios. So first get the service names right
-    if service == "io":
+    if service in ["io", "ioservice"]:
          svc = "ios"
     else:
          svc = service
@@ -272,6 +297,11 @@ def get_setup_size(self, service):
                 self.logger.info(f"setup_size set to {self.setup_size}\n")
                 ret = True
                 break
+    if ret == False:
+        raise MotrError(errno.EINVAL, f"Setup size is not set properly for service {service}."
+                                      f"Please update valid mem limits for {service}")
+    else:
+        self.logger.info(f"service={service} and setup_size={self.setup_size}\n")
     return ret
 
 def get_value(self, key, key_type):
@@ -1402,6 +1432,29 @@ def fetch_fid(self, service, idx):
         return -1
     fid = get_fid(self, fids, service, idx)
     return fid
+
+def getListOfm0dProcess():
+    '''
+    Get list of running m0d process
+    '''
+    listOfProc = []
+    # Iterate over the list
+    for proc in psutil.process_iter():
+       try:
+           # Fetch process details as dict
+           pinfo = proc.as_dict(attrs=['pid', 'name', 'username'])
+           if pinfo.get('name') == "m0d":
+               # Append dict to list
+               listOfProc.append(pinfo);
+       except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+           pass
+    return listOfProc
+
+def receiveSigTerm(signalNumber, frame):
+    for proc in getListOfm0dProcess():
+        cmd=f"KILL -SIGTERM {proc.get('pid')}"
+        execute_command_without_log(cmd)
+    return
 
 # If service is one of [ios,confd,hax] then we expect fid to start the service
 # and start services using motr-mkfs and motr-server.

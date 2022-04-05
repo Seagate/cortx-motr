@@ -23,6 +23,9 @@ import errno
 import argparse
 import inspect
 import traceback
+import signal
+import psutil
+
 
 from cortx.utils.conf_store import Conf
 from motr_mini_prov import *
@@ -63,10 +66,7 @@ class Cmd:
         self.logger = config_logger(self)
 
         # Default setup size is small
-        self.setup_size = "small"
-        if get_setup_size(self, self._services) == False:
-            self.logger.error("setup size not set properly\n")
-            return
+        set_setup_size(self, self._services)
 
         # Fetch important data from Confstore
         self.cortx = get_value(self, 'cortx', dict)
@@ -302,7 +302,6 @@ class StartCmd(Cmd):
                               "--services confd\n")
         return
 
-
 def main(argv: dict):
     try:
         desc = "Motr Setup command"
@@ -316,5 +315,5 @@ def main(argv: dict):
         return errno.EINVAL
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, receiveSigTerm)
     sys.exit(main(sys.argv))
-

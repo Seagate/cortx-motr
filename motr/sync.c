@@ -786,9 +786,9 @@ static void sync_pending_stx_update(struct m0_reqh_service_ctx *service,
  * obj may be NULL if the update has no associated inode.
  */
 void sync_record_update(struct m0_reqh_service_ctx *service,
-                                struct m0_entity    *ent,
-				struct m0_op        *op,
-                                struct m0_be_tx_remid      *btr)
+			struct m0_entity           *ent,
+			struct m0_op               *op,
+			struct m0_be_tx_remid      *btr)
 {
 	struct m0_reqh_service_txid *stx = NULL;
 
@@ -797,16 +797,14 @@ void sync_record_update(struct m0_reqh_service_ctx *service,
 	M0_PRE(service != NULL);
 
 	/* Updates pending transaction number in the entity. */
-	if ( ent!= NULL)
-		sync_pending_stx_update(
-			service, &ent->en_pending_tx_lock,
-			&ent->en_pending_tx, btr);
+	if (ent != NULL)
+		sync_pending_stx_update(service, &ent->en_pending_tx_lock,
+					&ent->en_pending_tx, btr);
 
 	/* Updates pending transaction number in the op. */
-	if ( op!= NULL)
-		sync_pending_stx_update(
-			service, &op->op_pending_tx_lock,
-			&op->op_pending_tx, btr);
+	if (op != NULL)
+		sync_pending_stx_update(service, &op->op_pending_tx_lock,
+					&op->op_pending_tx, btr);
 
 	/* update pending transaction number in the Client instance */
 	m0_mutex_lock(&service->sc_max_pending_tx_lock);
@@ -821,9 +819,9 @@ void sync_record_update(struct m0_reqh_service_ctx *service,
 	M0_LEAVE("Client sync record updated.");
 }
 
-/**----------------------------------------------------------------------------*
- *                           Client SYNC APIS                                  *
- *-----------------------------------------------------------------------------*/
+/**---------------------------------------------------------------------------*
+ *                           Client SYNC APIS                                 *
+ *----------------------------------------------------------------------------*/
 /**
  * Checks an SYNC operation is not malformed or corrupted.
  */
@@ -1051,7 +1049,7 @@ int m0_sync_op_add(struct m0_op *sop,
 
 	/* Adds service txid (if stx exists in the list, then merge.).*/
 	rc = sync_request_stx_add(sreq, &op->op_pending_tx,
-					 &op->op_pending_tx_lock);
+				        &op->op_pending_tx_lock);
 
 	return M0_RC(rc);
 }
