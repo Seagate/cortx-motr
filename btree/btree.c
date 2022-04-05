@@ -4330,7 +4330,7 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *        records in nodes of VKVV type.
  *
  * We will leverage the benefits of current design such as floating directory,
- * seperation of keys and values, and add indirect addressing the current
+ * seperation of keys and values, and add indirect addressing the in current
  * directory itself. With the new design we aim to reduce the movement of key
  * and values stored inside the node.
  *
@@ -4362,24 +4362,26 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *        +--+----+------------+   |   |
  *        |  |    |            |   |   |
  * +------v--v----v---+------+-+-+-+-+-+-+---+-------+---+----+--+
- * |      |  |    |   |      |   |   |   |   |       |   |    |  |
+ * |      |  |    |   |      |ok0|ok1|ok2|   |       |   |    |  |
  * |      |  |    |   |      +---+---+---+---+       |   |    |  |
  * |      |  |    |   |      |sk0|sk1|sk2|   |       |   |    |  |
  * | Node |K0| K1 | K2|      +---+---+---+---+       |V0 | V1 |V0|
  * |  Hdr |  |    |   |      |sv0|sv1|sv2|   |       |   |    |  |
  * |      |  |    |   |      +---+---+---+---+       |   |    |  |
- * |      |  |    |   |      |   |   |   |   |       |   |    |  |
+ * |      |  |    |   |      |ov0|ov1|ov2|   |       |   |    |  |
  * +------+--+----+---+------+-+-+-+-+-+-+---+-------^---^----^--+
  *                             |   |   |             |   |    |
  *  sk* = sizeof(k*)           +---+---+-------------+---+----+
  *  sv* = sizeof(v*)               |   |             |   |
- *                                 +---+-------------+---+
- *                                     |             |
+ *  ok* = offset of k*             +---+-------------+---+
+ *  ov* = offset of v*                 |             |
  *                                     +-------------+
  *
  * When we delete a record, we will just erase the offset and sizes present
  * in the directory, and move the entries present in the directory after the
- * deleted record. Say we delete (k1,v1)
+ * deleted record. We will move the directory entries of the deleted record at
+ * the end of the current active
+ * Say we delete (k1,v1)
  *
  * The view of the node will be:
  *
@@ -4388,18 +4390,19 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *        +-------+------------+   |
  *        |       |            |   |
  * +------v--+----v---+------+-+-+-+-+---+---+-------+---+----+--+
- * |      |  |    |   |      |   |   |   |   |       |   |    |  |
+ * |      |  |    |   |      |ok0|ok2|ok1|   |       |   |    |  |
  * |      |  |    |   |      +---+---+---+---+       |   |    |  |
- * |      |  |    |   |      |sk0|sk2|   |   |       |   |    |  |
+ * |      |  |    |   |      |sk0|sk2|sk1|   |       |   |    |  |
  * | Node |K0|    | K2|      +---+---+---+---+       |V2 |    |V0|
- * |  Hdr |  |    |   |      |sv0|sv2|   |   |       |   |    |  |
+ * |  Hdr |  |    |   |      |sv0|sv2|sv1|   |       |   |    |  |
  * |      |  |    |   |      +---+---+---+---+       |   |    |  |
- * |      |  |    |   |      |   |   |   |   |       |   |    |  |
+ * |      |  |    |   |      |ov0|ov2|ov1|   |       |   |    |  |
  * +------+--+----+---+------+-+-+-+-+---+---+-------^---+----^--+
  *                             |   |                 |        |
  *  sk* = sizeof(k*)           +---+-----------------+--------+
  *  sv* = sizeof(v*)               +-----------------+
- *
+ *  ok* = offset of k*
+ *  ov* = offset of v*
  *
  * Now if a new record say (k3,v3) is to be added, we have to consider where the
  * key and value can be added. If the space left empty by previous key or value,
@@ -4417,23 +4420,23 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *        +--+----+------------+   |   |
  *        |  |    |            |   |   |
  * +------v--v--+-v---+------+-+-+-+-+-+-+---+-+-----+---+----+--+
- * |      |  |  |-|   |      |   |   |   |   | |     |   |    |  |
+ * |      |  |  |-|   |      |ok0|ok2|ok3|ok1| |     |   |    |  |
  * |      |  |  |-|   |      +---+---+---+---+ |     |   |    |  |
- * |      |  |  |-|   |      |sk0|sk2|sk3|   | |     |   |    |  |
+ * |      |  |  |-|   |      |sk0|sk2|sk3|sk1| |     |   |    |  |
  * | Node |K0|K3|-| K2|      +---+---+---+---+ | V3  |V2 |    |V0|
- * |  Hdr |  |  |-|   |      |sv0|sv2|sv3|   | |     |   |    |  |
+ * |  Hdr |  |  |-|   |      |sv0|sv2|sv3|sv1| |     |   |    |  |
  * |      |  |  |-|   |      +---+---+---+---+ |     |   |    |  |
- * |      |  |  |-|   |      |   |   |   |   | |     |   |    |  |
+ * |      |  |  |-|   |      |ov0|ov2|ov3|ov1| |     |   |    |  |
  * +------+--+--+-+---+------+-+-+-+-+-+-+---+-^-----^---+----^--+
  *                             |   |   |       |     |        |
  *  sk* = sizeof(k*)           +---+---+-------+-----+--------+
  *  sv* = sizeof(v*)               +---+-------+-----+
- *                                     |       |
- *                                     +-------+
+ *  ok* = offset of k*                 |       |
+ *  ov* = offset of v*                 +-------+
  *
- * The space k4 and k3 represented by "-" is hole left in memory. The space is
- * small hence we cannot add a new record at this place. With this new approach,
- * possibility of multiple holes is valid. The above approach used for
+ * The space betweeb k4 and k3 represented by "-" is hole left in memory. The
+ * space is small hence we cannot add a new record at this place. With this new
+ * approach, possibility of multiple holes is valid. The above approach used for
  * addition of records in the space of a deleted record helps in maximizing the
  * utilisation of the current space. Incase we reach a situation  where the keys
  * and values of a incoming record will collide with directory but the space
