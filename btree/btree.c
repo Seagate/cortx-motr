@@ -3348,11 +3348,10 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *	Cons: Any metadata corruption will result in undefined behavior.
  *
  *
+ * @brief Proposed design to use benefits of indirect addressing and embedding
+ *        records in nodes of FKVV type.
  *
- * Design for FKVV node format with indirect addressing and embedded
- * record:
- *
- * In the case of FKVV with the embedded record, we store the key and value on
+ * In the case of FKVV with the embedded records, we store the key and value on
  * the left and right locations in the node. But, while performing a write
  * operation, we need to capture all the records which we moved in the node. To
  * reduce the movement of records and transaction capturing, we design FKVV node
