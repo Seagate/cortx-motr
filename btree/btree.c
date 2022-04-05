@@ -3346,6 +3346,51 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *	Pros: The performance can be slightly better as it will remove CRC
  *	storage and calculation.
  *	Cons: Any metadata corruption will result in undefined behavior.
+ *
+ *
+ *
+ * Design for FKVV node format with indirect addressing and embedded
+ * record:
+ *
+ * In the case of FKVV with the embedded record, we store the key and value on
+ * the left and right locations in the node. But, while performing a write
+ * operation, we need to capture all the records which we moved in the node. To
+ * reduce the movement of records and transaction capturing, we design FKVV node
+ * format which provided embedded keys and values with indirect addressing.
+ *
+ *  +--+------+------+--+------+------+--+-----+-----+-------------------+--------+--------+--------+
+ *  |  |      |      |  |      |      |  |     |     |                   |        |        |        |
+ *  |  |      |      |  |      |      |  |     |     |                   |        |        |        |
+ *  |  |  k0  |P_V0  |  | K1   | P_V1 |  |  K2 | P_V2| ---->             |  V2    |  V1    |   V0   |
+ *  | ^|      |      |  |      |      |  |     |     |             <---- |        |        |        |
+ *  | ||      |      |  |      |      |  |     |     |                   |        |        |        |
+ *  | ||      |      |  |      |      |  |     |     |                   |        |        |        |
+ *  +-++------+--+---+--+------+--+---+--+-----+--+--+-------------------+----^---+-----^--+----^---+
+ *    |          |                |               |                           |         |       |
+ *    |          |                |               +---------------------------+         |       |
+ *    |          |                +---------------+-------------------------------------+       |
+ *    |          +------------------------------------------------------------------------------+
+ * Space to store value size and validate flag
+ *
+ * Validate flag:
+ * if value is 1, record is still valid and exists in the node.
+ * if value is 0, record is already deleted and space is available for record.
+ *
+ * Oerations:
+ * Insert record at index i:
+ * if space is available at index i, insert and capture record
+ * else run compaction algorithm for key and value as per requirement.
+ *
+ * Delete Operation at index i::
+ * Set validate flag as 0 and capture this change.
+ *
+ * Key/Value Compaction:
+ * If size 's' is required to put key at index i, run comapct keys from [0,i)
+ * and/or (i, n].
+ * If size 's' is required to put value at index i, run comapct values from [0,i)
+ * and/or (i, n].
+ * Once we done with above changes, capture these changes in transaction.
+ *
  */
 struct fkvv_head {
 	struct m0_format_header  fkvv_fmt;    /*< Node Header */
