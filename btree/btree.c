@@ -3360,10 +3360,10 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *
  * We will use following directory structure for key :
  * struct dir_key {
- *     uint32_t validate;
- *     uint32_t val_size;
- *     uint64_t key[k_size];
- *     void *   p_val;
+ *     uint32_t  validate;
+ *     uint32_t  val_size;
+ *     ---------- constant space for key ------------
+ *     void     *p_val;
  *     };
  *
  *  +--+------+------+--+------+------+--+-----+-----+-------------------+--------+--------+--------+
