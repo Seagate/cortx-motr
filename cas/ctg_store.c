@@ -413,8 +413,9 @@ M0_INTERNAL int m0_ctg__meta_insert(struct m0_be_btree  *meta,
 		 * Meta entry format: version + length + ptr to cas_ctg.
 		 * Memory for ctg allocated elsewhere and must be persistent.
 		 */
-		*(uint64_t *)val_data = (((uint64_t)M0_CAS_CTG_FORMAT_VERSION
-					  << 32) | sizeof(ctg));
+		*(uint64_t *)val_data =
+				      CTG_VERSION_ADD(M0_CAS_CTG_FORMAT_VERSION,
+						      sizeof(ctg));
 		*(struct m0_cas_ctg**)(val_data + M0_CAS_CTG_KV_HDR_SIZE) = ctg;
 	}
 	m0_be_btree_release(tx, &anchor);
@@ -907,8 +908,8 @@ static bool ctg_op_cb(struct m0_clink *clink)
 				   ctg_op->co_val.b_nob);
 			/* Populate version number in header. */
 			*(uint64_t *)arena =
-					   (((uint64_t)M0_CAS_CTG_FORMAT_VERSION
-					     << 32) | ctg_op->co_val.b_nob);
+				      CTG_VERSION_ADD(M0_CAS_CTG_FORMAT_VERSION,
+						      ctg_op->co_val.b_nob);
 			if (ctg_is_ordinary(ctg_op->co_ctg))
 				m0_ctg_state_inc_update(tx,
 					ctg_op->co_key.b_nob -
@@ -919,9 +920,8 @@ static bool ctg_op_cb(struct m0_clink *clink)
 		case CTG_OP_COMBINE(CO_PUT, CT_META):
 			/* Populate version number in header. */
 			*(uint64_t *)arena =
-					   (((uint64_t)M0_CAS_CTG_FORMAT_VERSION
-					     << 32) |
-					     sizeof(struct m0_cas_ctg *));
+				      CTG_VERSION_ADD(M0_CAS_CTG_FORMAT_VERSION,
+						   sizeof(struct m0_cas_ctg *));
 			/*
 			 * After successful insert inplace fill value of meta by
 			 * length & pointer to cas_ctg. m0_ctg_create() creates
@@ -1838,8 +1838,8 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 			   sizeof(cid->ci_layout));
 		/* Populate version number in header. */
 		*(uint64_t *)anchor.ba_value.b_addr =
-					   (((uint64_t)M0_CAS_CTG_FORMAT_VERSION
-					     << 32) | sizeof(cid->ci_layout));
+				      CTG_VERSION_ADD(M0_CAS_CTG_FORMAT_VERSION,
+						      sizeof(cid->ci_layout));
 		imask = &cid->ci_layout.u.dl_desc.ld_imask;
 		if (!m0_dix_imask_is_empty(imask)) {
 			/*

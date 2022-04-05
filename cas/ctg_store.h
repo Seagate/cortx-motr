@@ -139,9 +139,9 @@ enum {
 	 * Every key and value is stored with an individual 64-bit header.
 	 * For the keys in all cas btrees, key header contains key length
 	 * in bytes.
-	 * For CT_META, CT_BTREE, CT_DEAD_INDEX type of cas btrees, value header
-	 * contains version number in first 32-bits and value length in
-	 * bytes in next 32 bits. For remaining cas btrees, value header
+	 * For CT_META, CT_BTREE type of cas btrees, value header contains
+	 * version number in first 32-bits and value length in bytes
+	 * in next 32 bits. For remaining cas btrees, value header
 	 * contains value length in bytes.
 	 */
 	M0_CAS_CTG_KV_HDR_SIZE = sizeof(uint64_t),
@@ -228,6 +228,7 @@ struct m0_ctg_op {
 };
 
 #define CTG_OP_COMBINE(opc, ct) (((uint64_t)(opc)) | ((ct) << 16))
+#define CTG_VERSION_ADD(version, nob) (((uint64_t)(version) << 32) | (nob))
 
 /**
  * Initialises catalogue store.
