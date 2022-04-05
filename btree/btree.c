@@ -3358,6 +3358,14 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * reduce the movement of records and transaction capturing, we design FKVV node
  * format which provided embedded keys and values with indirect addressing.
  *
+ * We will use following directory structure for key :
+ * struct dir_key {
+ *     uint32_t validate;
+ *     uint32_t val_size;
+ *     uint64_t key[k_size];
+ *     void *   p_val;
+ *     };
+ *
  *  +--+------+------+--+------+------+--+-----+-----+-------------------+--------+--------+--------+
  *  |  |      |      |  |      |      |  |     |     |                   |        |        |        |
  *  |  |      |      |  |      |      |  |     |     |                   |        |        |        |
@@ -3370,7 +3378,7 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *    |          |                |               +---------------------------+         |       |
  *    |          |                +---------------+-------------------------------------+       |
  *    |          +------------------------------------------------------------------------------+
- * Space to store value size and validate flag
+ * Space to store value size and validate flag[validate + val_size]
  *
  * Validate flag:
  * if value is 1, record is still valid and exists in the node.
