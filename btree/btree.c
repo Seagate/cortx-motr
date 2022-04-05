@@ -4365,7 +4365,7 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * |      |  |    |   |      |ok0|ok1|ok2|   |       |   |    |  |
  * |      |  |    |   |      +---+---+---+---+       |   |    |  |
  * |      |  |    |   |      |sk0|sk1|sk2|   |       |   |    |  |
- * | Node |K0| K1 | K2|      +---+---+---+---+       |V0 | V1 |V0|
+ * | Node |K0| K1 | K2|      +---+---+---+---+       |V2 | V1 |V0|
  * |  Hdr |  |    |   |      |sv0|sv1|sv2|   |       |   |    |  |
  * |      |  |    |   |      +---+---+---+---+       |   |    |  |
  * |      |  |    |   |      |ov0|ov1|ov2|   |       |   |    |  |
