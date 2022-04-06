@@ -46,6 +46,12 @@
 	       vector[M0_CONF_PVER_LVL_CTRLS],                         \
 	       vector[M0_CONF_PVER_LVL_DRIVES])
 
+enum {
+	MAX_FAILURES_NOT_REACHED,
+	MAX_FAILURES_REACHED,
+	MAX_FAILURES_EXCEEDED
+};
+
 /** Array of int values. */
 struct arr_int {
 	uint32_t ai_count;
@@ -804,6 +810,30 @@ err:
 	return rc;
 }
 
+/**
+ * Check if failures at any level has reached or exceeded max allowed failures.
+ */
+static int tolerance_failure_cmp(struct m0_conf_pver *pv,
+				 const uint32_t      *srecd)
+{
+	int      i = 0;
+	int      result = MAX_FAILURES_NOT_REACHED;
+	uint32_t tolerance ;
+
+	while(i < M0_CONF_PVER_HEIGHT) {
+		tolerance = pv->pv_u.subtree.pvs_tolerance[i];
+		/* Ignore the case of srecd[i] == tolerance == 0. */
+		if (srecd[i] > 0 && srecd[i] == tolerance)
+			result = MAX_FAILURES_REACHED;
+		else if (srecd[i] > tolerance) {
+			result = MAX_FAILURES_EXCEEDED;
+			break;
+		}
+		i++;
+	}
+	return result;
+}
+
 int m0_conf_pver_status(struct m0_fid *fid,
 			struct m0_confc *confc,
 			struct m0_conf_pver_info *out_info)
@@ -812,9 +842,11 @@ int m0_conf_pver_status(struct m0_fid *fid,
 	struct m0_conf_pver      *pver;
 	int                       rc;
 	int                       i = 0;
+	int                       failures_at_lvl;
 	uint32_t                  srecd[M0_CONF_PVER_HEIGHT];
 	uint32_t                  failures = 0;
 	uint32_t                  K;
+	uint32_t                 *tolerance;
 
 	M0_ENTRY();
 	M0_PRE(fid != NULL);
@@ -838,14 +870,31 @@ int m0_conf_pver_status(struct m0_fid *fid,
 	while (i < M0_CONF_PVER_HEIGHT)
 		failures += srecd[i++];
 
+	failures_at_lvl = tolerance_failure_cmp(pver, srecd); 
+	tolerance = pver->pv_u.subtree.pvs_tolerance;
+
+	/**
+	 * HEALTHY: if no failures in pver.
+	 * DEGRADED: if less than K failures in pver and failures at any level
+	 *           has not reached maximum supported failures.
+	 * CRITICAL: if we have K failures or any level has reached maximum
+	 *           supported failures.
+	 * DAMAGED: if we have more than K failures or any level has exceeded
+	 *          maximum supported failures.
+	 */
 	if (failures == 0)
 		out_info->cpi_state = M0_CPS_HEALTHY;
-	else if (failures < K)
+	if (failures > 0 && failures < K &&
+	    failures_at_lvl == MAX_FAILURES_NOT_REACHED)
 		out_info->cpi_state = M0_CPS_DEGRADED;
-	else if (failures == K)
+	if (failures == K || failures_at_lvl == MAX_FAILURES_REACHED)
 		out_info->cpi_state = M0_CPS_CRITICAL;
-	else
+	if (failures > K || failures_at_lvl == MAX_FAILURES_EXCEEDED)
 		out_info->cpi_state = M0_CPS_DAMAGED;
+
+	M0_LOG(M0_DEBUG, "state: %d, failures: %d", out_info->cpi_state, failures);
+	CONF_PVER_VECTOR_LOG("failed objs of", FID_P(&pver->pv_obj.co_id), srecd);
+	CONF_PVER_VECTOR_LOG("tolerance of", FID_P(&pver->pv_obj.co_id), tolerance);
 
 	return M0_RC(rc);
 } M0_EXPORTED(m0_conf_pver_status);
