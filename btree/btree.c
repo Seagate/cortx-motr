@@ -3355,48 +3355,103 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * the left and right locations in the node. But, while performing a write
  * operation, we need to capture all the records which we moved in the node. To
  * reduce the movement of records and transaction capturing, we design FKVV node
- * format which provided embedded keys and values with indirect addressing.
+ * format which provided embedded records with indirect addressing.
  *
- * We will use following directory structure for key :
- * struct dir_key {
- *     uint32_t  validate;
- *     uint32_t  val_size;
- *     ---------- constant space for key ------------
- *     void     *p_val;
+ * Fixed key variable value node = {
+ * 	node_header,
+ * 	key = { k1, k2, ...},
+ * 	dir = { orec1, orec2 , orec3, ...},
+ * 	val = { v1, v2,, ...}
+ * }
+ *
+ * We will use following offset directory structure :
+ * struct dir_rec {
+ * 	void *kptr,
+ * 	void *vptr,
+ * 	uint32_t  val_size,
  * };
  *
- * +------+--+----+----+--+---+----+--+-----+-----+-------------+----+---+----+
- * |      |  |    |    |  |   |    |  |     |     |             |    |   |    |
- * |      |  |    |    |  |   |    |  |     |     |             |    |   |    |
- * |node  |  |k0  |P_V0|  |K1 |P_V1|  |  K2 | P_V2| ---->       | V2 |V1 | V0 |
- * |header| ^|    |    |  |   |    |  |     |     |       <---- |    |   |    |
- * |      | ||    |    |  |   |    |  |     |     |             |    |   |    |
- * |      | ||    |    |  |   |    |  |     |     |             |    |   |    |
- * +------+-++----+----+--+---+----+--+-----+-----+-------------+--^-+-^-+--^-+
- *          |          |         |             |                   |   |    |
- *          |          |         |             +-------------------+   |    |
- *          |          |         +-------------------------------------+    |
- *          |          +----------------------------------------------------+
- * [validate + val_size]
  *
- * Validate flag:
- * if value is 1, record is still valid and exists in the node.
- * if value is 0, record is already deleted and space is available for record.
+ * +------+----+----+----+------+-----+-----+-----+------+-----+----+----+
+ * |      |    |    |    |      |     |     |     |      |     |    |    |
+ * |node  |    |    |    |      |     |     |     |      |     |    |    |
+ * |header| k0 | k1 | k2 +-->   |orec0|orec1|orec2|  <---+ v2  | v1 | v0 |
+ * |      |    |    |    |      |     |     |     |      |     |    |    |
+ * |      |    |    |    |      |     |     |     |      |     |    |    |
+ * +------+----+----+----+------+-----+-----+-----+------+-----+----+----+
+ *        |--key region--|      |----offset dir---|      |--value region-|
  *
- * Oerations:
- * Insert record at index i:
- * if space is available at index i, insert and capture record
- * else run compaction algorithm for key and value as per requirement.
+ * This node format will have keys on left side which will start populating from
+ * left to right whereas values will be present on right side which will be
+ * populated from left to right.
+ * Node will also have offset directory. Initially, this directory will be
+ * situated at the middle of node but if we encounter the possibilty for
+ * overlapping of keys/values with offset directory, we will move the
+ * entire direcory to left or right.
  *
- * Delete Operation at index i::
- * Set validate flag as 0 and capture this change.
+ * All directory entries are sorted according to the keys that they point to.
+ * i.e *orec1->kptr < *orec1->kptr < *orec1->kptr
  *
- * Key/Value Compaction:
- * If size 's' is required to put key at index i, run comapct keys from [0,i)
- * and/or (i, n].
- * If size 's' is required to put value at index i, run comapct values from [0,i)
- * and/or (i, n].
- * Once we done with above changes, capture these changes in transaction.
+ * When inserting a new record, we will find the space between any two records
+ * such that it is able to accomodate new record. Bitmaping can be used to keep
+ * track of free fragments. Once we find place to insert new record, we embedded
+ * actual key and value on that location and move a subset of directory entries
+ * for inserting new entry in ascending order. This operation requires to
+ * capture only newly inserted record and the directory.
+ *
+ * For eg - Inserting new record (nk1, nv1) such that k1 < nk1 < k2 and free
+ * space is available for record.
+ *
+ *                       +--------------+  +--------------------+
+ *                       |              |  |                    |
+ * +------+---+---+----+-v-+----+-----+-+--+-+-----+-----+----+-v-+---+---+---+
+ * |      |   |   |    |   |    |     |      |     |     |    |   |   |   |   |
+ * |node  |   |   |    |   |    |     |      |     |     |    |   |   |   |   |
+ * |header|k0 |k1 | k2 |nk1+--> |orec0|norec1|orec1|orec2| <--+nv1| v2| v1|v0 |
+ * |      |   |   |    |   |    |     |      |     |     |    |   |   |   |   |
+ * |      |   |   |    |   |    |     |      |     |     |    |   |   |   |   |
+ * +------+---+---+----+---+----+-----+------+-----+-----+----+---+---+---+---+
+ *        |--key region----|    |------offset dir--------|    |--value region-|
+ *
+ *
+ *
+ * When deleting a particular record, we only need to delete a directory entry
+ * and move a subset of directory entries instead of moving the actual keys and
+ * values in the node. The key and value can be freed and re-used for a new
+ * record without re-arranging any (key,value) records just by inserting the
+ * directory entry for the new record at the appropriate place.
+ *
+ * For eg - Deleting (k1,v1) and then inserting new record (nk2, nv2) such that
+ *          k1 < nk2 < k2
+ *
+ * Deleting (k1,v1)
+
+ * +------+---+---+----+---+----+-----+------+-----+----+---+---+---+---+
+ * |      |   |   |    |   |    |     |      |     |    |   |   |   |   |
+ * |node  |   |   |    |   |    |     |      |     |    |   |   |   |   |
+ * |header|k0 |.. | k2 |nk1+--> |orec0|norec1|orec2| <--+nv1| v2| --|v0 |
+ * |      |   |   |    |   |    |     |      |     |    |   |   |   |   |
+ * |      |   |   |    |   |    |     |      |     |    |   |   |   |   |
+ * +------+---+---+----+---+----+-----+------+-----+----+---+---+---+---+
+ *        |---key region---|    |-----offset dir---|    |--value region-|
+ *
+ *
+ * Inserting (nk2,nv2)
+ * If fragement between v0 and v2 is enough to accommodate new value, we will
+ * insert new key after k0 and new value before v0. As key size id fixed, we
+ * just need to consider for value size while searching for fragment.
+ *
+ * +------+---+---+----+---+----+-----+------+------+-----+----+---+---+---+---+
+ * |      |   |   |    |   |    |     |      |      |     |    |   |   |   |   |
+ * |node  |   |   |    |   |    |     |      |      |     |    |   |   |   |   |
+ * |header|k0 |nk2| k2 |nk1+--> |orec0|norec1|norec2|orec2| <--+nv1| v2|nv2|v0 |
+ * |      |   |   |    |   |    |     |      |      |     |    |   |   |   |   |
+ * |      |   |   |    |   |    |     |      |      |     |    |   |   |   |   |
+ * +------+---+---+----+---+----+-----+------+------+-----+----+---+---+---+---+
+ *        |---key region---|    |------offset dir---------|    |--value region-|
+ *
+ * If we do not find any fragment to accommodate new record either we will
+ * perform node compaction or just split the nodes.
  *
  */
 struct fkvv_head {
