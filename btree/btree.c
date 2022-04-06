@@ -3392,10 +3392,10 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * All directory entries are sorted according to the keys that they point to.
  * i.e *orec1->kptr < *orec1->kptr < *orec1->kptr
  *
- * When inserting a new record, we will find the space between any two records
- * such that it is able to accomodate new record. Bitmaping can be used to keep
+ * When inserting a new record, we will find the space in key and value region
+ * to insert new key and value at that locations. Bitmaping can be used to keep
  * track of free fragments. Once we find place to insert new record, we embedded
- * actual key and value on that location and move a subset of directory entries
+ * actual key and value at that location and move a subset of directory entries
  * for inserting new entry in ascending order. This operation requires to
  * capture only newly inserted record and the directory.
  *
@@ -3438,8 +3438,7 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *
  * Inserting (nk2,nv2)
  * If fragement between v0 and v2 is enough to accommodate new value, we will
- * insert new key after k0 and new value before v0. As key size id fixed, we
- * just need to consider for value size while searching for fragment.
+ * new value before v0. Similarly, we insert new key after k0.
  *
  * +------+---+---+----+---+----+-----+------+------+-----+----+---+---+---+---+
  * |      |   |   |    |   |    |     |      |      |     |    |   |   |   |   |
