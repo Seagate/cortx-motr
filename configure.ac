@@ -344,7 +344,7 @@ AC_ARG_ENABLE([sock-mock-lnet],
         [],
         [enable_sock_mock_lnet=no]
 )
-AS_IF([test xyes = xyes],
+AS_IF([test x$enable_sock_mock_lnet = xyes],
       AC_DEFINE([ENABLE_SOCK_MOCK_LNET]))
 
 # sync-atomic {{{3
@@ -499,7 +499,8 @@ AS_IF([test -n "$with_default_network"],
       [
         AS_IF([case "$with_default_network" in (SOCK|LNET|LF|MEMBULK) true ;; (*) false ;; esac],
               [
-                AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["$with_default_network"])
+	        ch=$(case "$with_default_network" in SOCK) echo "'S'" ;; LNET) echo "'L'" ;; LF) echo "'F'" ;; MEMBULK) echo "'M'" ;; esac)
+                AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], [$ch])
               ],[
                 AC_MSG_ERROR([Invalid argument for --with-default-network option ($with_default_network),
 allowed values are: SOCK, LNET, MEMBULK and LF])
@@ -507,7 +508,7 @@ allowed values are: SOCK, LNET, MEMBULK and LF])
         )
       ],
       [
-	AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["LNET"])
+	AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ['L'])
       ]
 )
 
@@ -958,7 +959,7 @@ AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
 		      [
 			M0_CPPFLAGS="-DENABLE_LIBFAB $M0_CPPFLAGS"
 			enable_libfab=yes
-			AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ["LF"])
+			#AC_DEFINE_UNQUOTED([M0_DEFAULT_NETWORK], ['F'])
 			BUILD_DEPEND_LIBFAB="BuildRequires: libfabric-devel"
 		      ]
 		)

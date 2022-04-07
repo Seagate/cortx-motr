@@ -48,7 +48,7 @@ M0_INTERNAL int m0_mem_xprt_init(void)
 {
 	m0_list_init(&mem_domains);
 	m0_net_xprt_register(&m0_net_bulk_mem_xprt);
-	if (m0_streq(M0_DEFAULT_NETWORK, "MEMBULK"))
+	if (M0_DEFAULT_NETWORK == 'M')
 		m0_net_xprt_default_set(&m0_net_bulk_mem_xprt);
 	return 0;
 }

@@ -91,11 +91,14 @@ struct m0_net_buffer_event;
 struct m0_net_buffer_callbacks;
 struct m0_net_qstats;
 
-#ifdef ENABLE_LIBFAB
+#if M0_DEFAULT_NETWORK == 'F'
 #define M0_NET_XPRT_PREFIX_DEFAULT "libfab"
 #define USE_LIBFAB                 1
-#else
+#elif M0_DEFAULT_NETWORK == 'L'
 #define M0_NET_XPRT_PREFIX_DEFAULT "lnet"
+#define USE_LIBFAB                 0
+#elif M0_DEFAULT_NETWORK == 'S'
+#define M0_NET_XPRT_PREFIX_DEFAULT "sock"
 #define USE_LIBFAB                 0
 #endif
 

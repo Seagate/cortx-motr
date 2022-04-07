@@ -340,7 +340,7 @@ static bool libfab_buf_invariant(const struct m0_fab__buf *buf);
 M0_INTERNAL int m0_net_libfab_init(void)
 {
 	m0_net_xprt_register(&m0_net_libfab_xprt);
-	if (m0_streq(M0_DEFAULT_NETWORK, "LF"))
+	if (M0_DEFAULT_NETWORK == 'F')
 		m0_net_xprt_default_set(&m0_net_libfab_xprt);
 	return M0_RC(0);
 }

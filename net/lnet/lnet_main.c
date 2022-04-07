@@ -924,7 +924,7 @@ M0_INTERNAL int m0_net_lnet_init(void)
 {
 #if !defined(ENABLE_SOCK_MOCK_LNET) || defined(__KERNEL__)
 	m0_net_xprt_register(&m0_net_lnet_xprt);
-	if (m0_streq(M0_DEFAULT_NETWORK, "LNET"))
+	if (M0_DEFAULT_NETWORK == 'L')
 		m0_net_xprt_default_set(&m0_net_lnet_xprt);
 #endif
 	return M0_RC(nlx_core_init());
