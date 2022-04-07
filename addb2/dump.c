@@ -767,7 +767,7 @@ static void hist(struct m0_addb2__context *ctx, const uint64_t *v, char *buf)
 		start += step;
 		m = max32(m, hd->hd_bucket[i]);
 	}
-	sprintf(buf + strlen(buf), "%c|           : %9"PRId32" | ",
+	sprintf(buf + strlen(buf), "%c|           : %9"PRId32" > ",
 		cr, hd->hd_bucket[0]);
 	hbar(buf, hd->hd_bucket[0], m);
 	for (i = 1, start = hd->hd_min; i < ARRAY_SIZE(hd->hd_bucket); ++i) {
