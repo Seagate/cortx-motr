@@ -202,6 +202,8 @@ struct m0_sns_cm_rm_ctx {
 	struct m0_pools_common         *rc_pc;
 };
 
+enum { M0_SNS_MAX_BUF_SIZE = 4 * 1024 * 1024 };
+
 struct m0_sns_cm {
 	struct m0_cm                    sc_base;
 

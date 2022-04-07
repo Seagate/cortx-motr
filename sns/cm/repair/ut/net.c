@@ -785,9 +785,12 @@ static void sender_init()
 	seg_size = m0_net_domain_get_max_buffer_segment_size(ndom);
 	seg_nr = (uint32_t)m0_net_domain_get_max_buffer_segments(ndom);
 	colours = m0_reqh_nr_localities(&rmach_ctx.rmc_reqh);
-	rc = m0_net_buffer_pool_init(&nbp, ndom, 0, seg_nr, seg_size,
+	rc = m0_net_buffer_pool_init(&nbp, ndom, 0, M0_SNS_MAX_BUF_SIZE,
+				     seg_nr, seg_size,
 				     colours, M0_0VEC_SHIFT, false);
 	M0_UT_ASSERT(rc == 0);
+	seg_nr = nbp.nbp_seg_nr;
+	seg_size = nbp.nbp_seg_size;
 	nbp.nbp_ops = &bp_ops;
 	m0_net_buffer_pool_lock(&nbp);
         nr_bufs = m0_net_buffer_pool_provision(&nbp, 4);

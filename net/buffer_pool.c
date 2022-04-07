@@ -81,7 +81,8 @@ static bool pool_lru_buffer_check(const struct m0_net_buffer_pool *pool)
 
 M0_INTERNAL int m0_net_buffer_pool_init(struct m0_net_buffer_pool *pool,
 					struct m0_net_domain *ndom,
-					uint32_t threshold, uint32_t seg_nr,
+					uint32_t threshold,
+					m0_bcount_t maxbuf, uint32_t seg_nr,
 					m0_bcount_t seg_size, uint32_t colours,
 					unsigned shift, bool dont_dump)
 {
@@ -91,6 +92,8 @@ M0_INTERNAL int m0_net_buffer_pool_init(struct m0_net_buffer_pool *pool,
 	M0_PRE(ndom != NULL);
 	M0_PRE(seg_nr <= m0_net_domain_get_max_buffer_segments(ndom));
 
+	seg_size = min64(seg_size, maxbuf);
+	seg_nr   = min64(seg_nr, maxbuf / seg_size);
 	pool->nbp_threshold  = threshold;
 	pool->nbp_ndom       = ndom;
 	pool->nbp_free       = 0;

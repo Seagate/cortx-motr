@@ -261,8 +261,9 @@ static void test_net_tm_prov(void)
 	M0_UT_ASSERT(buf_segs == UT_MAX_BUF_SEGMENTS);
 
 	/* allocate buffers for testing */
-	rc = m0_net_buffer_pool_init(pool_prov, dom, POOL_THRESHOLD, buf_segs,
-				buf_seg_size, POOL_COLOURS, shift, false);
+	rc = m0_net_buffer_pool_init(pool_prov, dom, POOL_THRESHOLD,
+				     1024 * 1024, buf_segs,
+				     buf_seg_size, POOL_COLOURS, shift, false);
 	m0_net_buffer_pool_lock(pool_prov);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_net_buffer_pool_provision(pool_prov, POOL_BUF_NR);

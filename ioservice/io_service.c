@@ -186,6 +186,12 @@ M0_INTERNAL bool m0_reqh_io_service_invariant(const struct m0_reqh_io_service
 	return rios->rios_magic == M0_IOS_REQH_SVC_MAGIC;
 }
 
+enum {
+	MAX_BUFFER_SIZE = 4 * 1024 * 1024
+};
+
+enum { IOS_MAX_BUF_SIZE = 4 * 1024 * 1024 };
+
 /**
  * Create & initialise instance of buffer pool per domain.
  * 1. This function scans rpc_machines from request handler
@@ -239,14 +245,17 @@ M0_INTERNAL int m0_ios_create_buffer_pool(struct m0_reqh_service *service)
 							      newbp->rios_ndom);
 		segments_nr  = m0_net_domain_get_max_buffer_segments(
 							      newbp->rios_ndom);
-
+		segment_size = min64(MAX_BUFFER_SIZE, segment_size);
+		segments_nr  = min64((MAX_BUFFER_SIZE + segment_size - 1) /
+				     segment_size, segments_nr);
 		M0_LOG(M0_DEBUG, "ios segments_nr=%d", segments_nr);
 		rc = m0_net_buffer_pool_init(&newbp->rios_bp,
-					      newbp->rios_ndom,
-					      M0_NET_BUFFER_POOL_THRESHOLD,
-					      segments_nr, segment_size,
-					      colours, M0_0VEC_SHIFT,
-					      /* dont_dump */true);
+					     newbp->rios_ndom,
+					     M0_NET_BUFFER_POOL_THRESHOLD,
+					     IOS_MAX_BUF_SIZE,
+					     segments_nr, segment_size,
+					     colours, M0_0VEC_SHIFT,
+					     /* dont_dump */ true);
 		if (rc != 0) {
 			m0_free(newbp);
 			break;

@@ -226,6 +226,8 @@ static const struct m0_net_buffer_pool_ops b_ops = {
 	.nbpo_below_threshold = rpc_buffer_pool_low,
 };
 
+enum { RPC_MAX_BUF_SIZE = 1024 * 1024 };
+
 M0_INTERNAL int m0_rpc_net_buffer_pool_setup(struct m0_net_domain *ndom,
 					     struct m0_net_buffer_pool
 					     *app_pool, uint32_t bufs_nr,
@@ -245,6 +247,7 @@ M0_INTERNAL int m0_rpc_net_buffer_pool_setup(struct m0_net_domain *ndom,
 	app_pool->nbp_ops = &b_ops;
 	rc = m0_net_buffer_pool_init(app_pool, ndom,
 				     M0_NET_BUFFER_POOL_THRESHOLD,
+				     RPC_MAX_BUF_SIZE,
 				     segs_nr, seg_size, tm_nr, M0_SEG_SHIFT,
 				     false);
 	if (rc != 0)

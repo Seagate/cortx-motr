@@ -79,7 +79,7 @@
 	struct m0_net_xprt *xprt;
 	...
 	bp.nbp_ops = &b_ops;
-	rc = m0_net_buffer_pool_init(&bp, bp.nbp_ndom, 10, 64, 4096, 10, ...);
+	rc = m0_net_buffer_pool_init(&bp, bp.nbp_ndom, 10, X, 64, 4096, 10,...);
 	...
     @endcode
 
@@ -163,6 +163,7 @@ M0_INTERNAL bool m0_net_buffer_pool_invariant(const struct m0_net_buffer_pool
    @param pool      Pool to initialize.
    @param ndom      Network domain to associate with the pool.
    @param threshold Number of buffer below which to notify the user.
+   @param maxbuf    Maximal buffer size.
    @param seg_nr    Number of segments in each buffer.
    @param colours   Number of colours in the pool.
    @param seg_size  Size of each segment in a buffer.
@@ -172,7 +173,8 @@ M0_INTERNAL bool m0_net_buffer_pool_invariant(const struct m0_net_buffer_pool
  */
 M0_INTERNAL int m0_net_buffer_pool_init(struct m0_net_buffer_pool *pool,
 					struct m0_net_domain *ndom,
-					uint32_t threshold, uint32_t seg_nr,
+					uint32_t threshold,
+					m0_bcount_t maxbuf, uint32_t seg_nr,
 					m0_bcount_t seg_size, uint32_t colours,
 					unsigned shift, bool dont_dump);
 
