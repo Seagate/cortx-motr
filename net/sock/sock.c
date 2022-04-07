@@ -629,6 +629,7 @@
 #include "lib/bitmap.h"
 #include "lib/refs.h"
 #include "lib/time.h"
+#include "lib/finject.h"
 #include "sm/sm.h"
 #include "motr/magic.h"
 #include "net/net.h"
@@ -999,6 +1000,32 @@ struct pfamily {
 	void      (*f_decode)(struct addr *a, const struct sockaddr *sa);
 };
 
+/**
+ * Vector of external entry points used by the code. UTs use this.
+ */
+struct sock_ops {
+	int     (*so_socket)      (int family, int type, int proto);
+	int     (*so_accept4)     (int fd, struct sockaddr *addr,
+				   socklen_t *addrlen, int flags);
+	int     (*so_listen)      (int fd, int backlog);
+	int     (*so_bind)        (int fd, const struct sockaddr *addr,
+				   socklen_t addrlen);
+	int     (*so_connect)     (int fd, const struct sockaddr *addr,
+				   socklen_t addrlen);
+	ssize_t (*so_readv)       (int fd, const struct iovec *iov, int iovcnt);
+	ssize_t (*so_writev)      (int fd, const struct iovec *iov, int iovcnt);
+	int     (*so_close)       (int fd);
+	int     (*so_shutdown)    (int fd, int how);
+	int     (*so_setsockopt)  (int fd, int level, int optname,
+				   const void *optval, socklen_t optlen);
+
+	int     (*so_epoll_create)(int size);
+	int     (*so_epoll_wait)  (int fd, struct epoll_event *events,
+				   int maxevents, int timeout);
+	int     (*so_epoll_ctl)   (int epfd, int op, int fd,
+				   struct epoll_event *event);
+};
+
 /*
  * Tracing helpers
  */
@@ -1179,6 +1206,7 @@ static void ip6_encode(const struct addr *a, struct sockaddr *sa);
 static void ip6_decode(struct addr *a, const struct sockaddr *sa);
 
 static m0_time_t msec(m0_time_t a, m0_time_t b);
+static bool in_ut(void);
 
 struct m0_sm_conf sock_conf;
 struct m0_sm_conf rw_conf;
@@ -1236,6 +1264,12 @@ static const struct socktype stype[] = {
 #define EP_GET(e, f) ep_get(e)
 #define EP_PUT(e, f) ep_put(e)
 #endif
+
+static const struct sock_ops *sops = NULL;
+
+#define SOP(op, ...)							\
+	({ in_ut() ? sops->so_ ## op(__VA_ARGS__) : op(__VA_ARGS__); })
+
 
 static bool ma_invariant(const struct ma *ma)
 {
@@ -1418,7 +1452,7 @@ static void poller(struct ma *ma)
 		m0_time_t now = m0_time_now();
 		if (ma->t_shutdown)
 			break;
-		nr = epoll_wait(ma->t_epollfd, ev, ARRAY_SIZE(ev), 1000);
+		nr = SOP(epoll_wait, ma->t_epollfd, ev, ARRAY_SIZE(ev), 1000);
 		m0_addb2_hist_mod(&ma->t_epoll_wait, msec(m0_time_now(), now));
 		if (nr == -1) {
 			M0_LOG(M0_DEBUG, "epoll: %i.", -errno);
@@ -1558,7 +1592,7 @@ static void ma__fini(struct ma *ma)
 		 * socket from the poll set.
 		 */
 		if (ma->t_epollfd >= 0) {
-			close(ma->t_epollfd);
+			SOP(close, ma->t_epollfd);
 			ma->t_epollfd = -1;
 		}
 		ma_buf_done(ma);
@@ -1616,7 +1650,7 @@ static int ma_start(struct m0_net_transfer_mc *net, const char *name)
 	 * listening socket to get the source endpoint to post a ma state change
 	 * event (outside of ma lock).
 	 */
-	ma->t_epollfd = epoll_create(1);
+	ma->t_epollfd = SOP(epoll_create, 1);
 	if (ma->t_epollfd >= 0) {
 		struct ep *ep;
 
@@ -2118,8 +2152,8 @@ static void sock_done(struct sock *s, bool balance)
 			if (s->s_fd > 0) {
 				int result = sock_ctl(s, EPOLL_CTL_DEL, 0);
 				M0_ASSERT(ergo(result != 0, errno == ENOENT));
-				shutdown(s->s_fd, SHUT_RDWR);
-				close(s->s_fd);
+				SOP(shutdown, s->s_fd, SHUT_RDWR);
+				SOP(close, s->s_fd);
 				s->s_fd = -1;
 			}
 			m0_sm_state_set(&s->s_sm, S_DELETED);
@@ -2176,7 +2210,7 @@ static int sock_init(int fd, struct ep *src, struct ep *tgt, uint32_t flags)
 		} else if (tgt == NULL) {
 			/* Listening. */
 			if (ep->e_a.a_socktype == SOCK_STREAM)
-				result = listen(s->s_fd, 128);
+				result = SOP(listen, s->s_fd, 128);
 			if (result == 0)
 				/*
 				 * Will be readable on an incoming connection.
@@ -2190,8 +2224,8 @@ static int sock_init(int fd, struct ep *src, struct ep *tgt, uint32_t flags)
 				struct sockaddr_storage sa = {};
 
 				addr_encode(&ep->e_a, (void *)&sa);
-				result = connect(s->s_fd,
-						 (void *)&sa, sizeof sa);
+				result = SOP(connect, s->s_fd,
+					     (void *)&sa, sizeof sa);
 			}
 			if (result == 0) {
 				state = S_OPEN;
@@ -2226,10 +2260,10 @@ static int sock_init_fd(int fd, struct sock *s, struct ep *ep, uint32_t flags)
 	if (fd < 0) {
 		int flag = true;
 
-		fd = socket(ep->e_a.a_family,
-			    /* Linux: set NONBLOCK immediately. */
-			    ep->e_a.a_socktype | SOCK_NONBLOCK,
-			    ep->e_a.a_protocol);
+		fd = SOP(socket, ep->e_a.a_family,
+			 /* Linux: set NONBLOCK immediately. */
+			 ep->e_a.a_socktype | SOCK_NONBLOCK,
+			 ep->e_a.a_protocol);
 		/*
 		 * Perhaps set some other socket options here? SO_LINGER, etc.
 		 */
@@ -2238,13 +2272,12 @@ static int sock_init_fd(int fd, struct sock *s, struct ep *ep, uint32_t flags)
 			if (flags & EPOLLET) {
 				struct sockaddr_storage sa = {};
 
-				result = setsockopt(fd, SOL_SOCKET,
-						    SO_REUSEADDR,
-						    &flag, sizeof flag);
+				result = SOP(setsockopt, fd, SOL_SOCKET,
+					     SO_REUSEADDR, &flag, sizeof flag);
 				if (result == 0) {
 					addr_encode(&ep->e_a, (void *)&sa);
-					result = bind(fd, (void *)&sa,
-						      sizeof sa);
+					result = SOP(bind, fd, (void *)&sa,
+						     sizeof sa);
 				} else
 					result = M0_ERR(-errno);
 			} else
@@ -2289,8 +2322,8 @@ static bool sock_event(struct sock *s, uint32_t ev)
 			struct ep *we = s->s_ep;
 
 			addr = we->e_a; /* Copy family, socktype, proto. */
-			fd = accept4(s->s_fd,
-				     (void *)&sa, &socklen, SOCK_NONBLOCK);
+			fd = SOP(accept4, s->s_fd,
+				 (void *)&sa, &socklen, SOCK_NONBLOCK);
 			if (fd >= 0) {
 				struct ep *ep = NULL;
 
@@ -2310,7 +2343,7 @@ static bool sock_event(struct sock *s, uint32_t ev)
 					 * Maybe already closed in sock_init()
 					 * failure path, do not care.
 					 */
-					close(fd);
+					SOP(close, fd);
 				if (ep != NULL)
 					EP_PUT(ep, find);
 			} else if (M0_IN(errno, (EWOULDBLOCK,  /* BSD */
@@ -2385,10 +2418,10 @@ static int sock_ctl(struct sock *s, int op, uint32_t flags)
 
 	/* Always monitor errors. */
 	flags |= EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP;
-	result = epoll_ctl(ep_ma(s->s_ep)->t_epollfd, op, s->s_fd,
-			   &(struct epoll_event){
-				   .events = flags,
-				   .data   = { .ptr = s }});
+	result = SOP(epoll_ctl, ep_ma(s->s_ep)->t_epollfd, op, s->s_fd,
+		     &(struct epoll_event){
+			     .events = flags,
+			     .data   = { .ptr = s }});
 	if (result == 0) {
 		if ((flags & EPOLLOUT) != 0)
 			s->s_flags |= WRITE_POLL;
@@ -2757,8 +2790,6 @@ static int addr_parse_native(struct addr *addr, const char *name)
 		port = strtol(at + 1, &end, 10);
 		if (*end != 0)
 			return M0_ERR(-EINVAL);
-		if (errno != 0)
-			return M0_ERR(-errno);
 		if (port < 0 || port > USHRT_MAX)
 			return M0_ERR(-ERANGE);
 	}
@@ -3874,6 +3905,21 @@ static m0_time_t msec(m0_time_t a, m0_time_t b)
 	return m0_time_sub(a, b) >> 10;
 }
 
+static bool sock_ut(void)
+{
+	/*
+	 * Define failure injection point here and not in in_iu(), so that
+	 * function name is unique.
+	 */
+	return M0_FI_ENABLED("ut");
+}
+
+/** True, iff UT is going on. */
+static bool in_ut(void)
+{
+	return sock_ut();
+}
+
 static struct m0_sm_state_descr sock_conf_state[] = {
 	[S_INIT] = {
 		.sd_name = "init",
@@ -4211,6 +4257,728 @@ M0_INTERNAL void ma__print(const struct ma *ma)
 	}
 }
 
+/*
+ * @UT
+ */
+
+struct sock_ut_conf {
+	int uc_maxfd;
+	int uc_sockbuf_len;
+	int uc_epoll_len;
+	int uc_delay;
+	int uc_err;
+	int uc_socket_err;
+	int uc_accept4_err;
+	int uc_accept4_miss;
+	int uc_listen_err;
+	int uc_bind_err;
+	int uc_connect_err;
+	int uc_readv_err;
+	int uc_readv_again;
+	int uc_readv_0;
+	int uc_readv_break;
+	int uc_readv_skip;
+	int uc_readv_flip;
+	int uc_writev_err;
+	int uc_writev_again;
+	int uc_writev_0;
+	int uc_writev_break;
+	int uc_setsockopt_err;
+	int uc_close_err;
+	int uc_epoll_create_err;
+	int uc_epoll_wait_err;
+	int uc_epoll_raise_err;
+	int uc_epoll_raise_in;
+	int uc_epoll_raise_out;
+	int uc_epoll_raise_garbage;
+	int uc_epoll_break;
+	int uc_epoll_ctl_err;
+	uint64_t uc_delay_ns;
+};
+
+enum { M_EPHEMERAL_LO = 32768, M_EPHEMERAL_HI = 60999 };
+
+static struct sock_ut_conf *m_conf;
+static struct m0_mutex      m_ut_lock;
+static struct mock_fd      *m_table;
+static int                  m_ephemeral;
+static int                  m_gen;
+static uint64_t             m_seed;
+struct m0_net_domain        m_dom = {};
+static struct m0_mutex      m_mock_lock;
+static struct m0_semaphore  m_tm_state;
+
+enum { MT_FREE, MT_SOCK, MT_EPOLL };
+
+enum {
+	MF_CLOSED_SRC = 1 << 0,
+	MF_CLOSED_TGT = 1 << 1,
+	MF_LISTEN     = 1 << 2,
+	MF_CONNECTED  = 1 << 3
+};
+
+struct mock_epoll_entry {
+	int                ee_fd;
+	struct epoll_event ee_event;
+};
+
+struct mock_fd {
+	int       md_type;
+	int       md_gen;
+	int       md_idx;
+	int       md_src;
+	int       md_tgt;
+	uint64_t  md_flags;
+	union {
+		char                    *u_sock;
+		struct mock_epoll_entry *u_epoll;
+	}         md_buf;
+	int       md_len;
+	int       md_head;
+	int       md_tail;
+};
+
+static void ut_init(const struct sock_ops *sop, struct sock_ut_conf *conf)
+{
+	int result;
+
+	m_conf = conf;
+	m0_mutex_init(&m_mock_lock);
+	m0_mutex_init(&m_ut_lock);
+	m0_semaphore_init(&m_tm_state, 0);
+	M0_ALLOC_ARR(m_table, m_conf->uc_maxfd);
+	M0_ASSERT(m_table != 0);
+	m_ephemeral = M_EPHEMERAL_LO;
+	m_seed = time(NULL) + m0_pid();
+	sops = sop;
+	m0_fi_enable("sock_ut", "ut");
+	result = m0_net_domain_init(&m_dom, MOCK_LNET ?
+				    &m0_net_lnet_xprt: &m0_net_sock_xprt);
+	M0_ASSERT(result == 0);
+}
+
+static void ut_fini(void)
+{
+	m0_net_domain_fini(&m_dom);
+	m0_fi_disable("sock_ut", "ut");
+	sops = NULL;
+	m0_semaphore_fini(&m_tm_state);
+	m0_mutex_fini(&m_mock_lock);
+	m0_mutex_fini(&m_ut_lock);
+	m0_free(m_table);
+	m_conf = NULL;
+}
+
+static bool mock_fd_invariant(const struct mock_fd *fd)
+{
+	int idx = fd - m_table;
+	return  _0C(0 <= idx && idx < m_conf->uc_maxfd) &&
+		_0C(fd->md_idx == idx) &&
+		_0C(M0_IN(fd->md_type, (MT_FREE, MT_SOCK, MT_EPOLL)));
+}
+
+static bool mock_dice(int value)
+{
+	return value > 0 && m0_rnd(10000, &m_seed) > value;
+}
+
+#define MOCK_DICE(field) mock_dice(m_conf->uc_ ## field)
+
+static int mock_prologue(void)
+{
+	if (MOCK_DICE(delay))
+		m0_nanosleep(m_conf->uc_delay_ns, NULL);
+	m0_mutex_lock(&m_mock_lock);
+	return MOCK_DICE(err);
+}
+
+static int mock_ret(int rc)
+{
+	m0_mutex_unlock(&m_mock_lock);
+	if (rc < 0) {
+		errno = -rc;
+		return -1;
+	} else
+		return rc;
+}
+
+static int mock_err(void)
+{
+	return -m0_rnd(100, &m_seed) - 1;
+}
+
+static struct mock_fd *get_fd(int ftype)
+{
+	int             i;
+	struct mock_fd *fd;
+	M0_PRE(M0_IN(ftype, (MT_SOCK, MT_EPOLL)));
+	for (i = 0; i < m_conf->uc_maxfd; ++i) {
+		fd = &m_table[i];
+		if (fd->md_type == MT_FREE) {
+			m0_free(fd->md_buf.u_sock);
+			M0_SET0(fd);
+			fd->md_type  = ftype;
+			fd->md_idx   = i;
+			fd->md_gen   = m_gen++;
+			if (ftype == MT_SOCK) {
+				fd->md_len = m_conf->uc_sockbuf_len;
+				M0_ALLOC_ARR(fd->md_buf.u_sock, fd->md_len);
+			} else {
+				fd->md_len = m_conf->uc_epoll_len;
+				M0_ALLOC_ARR(fd->md_buf.u_epoll, fd->md_len);
+			}
+			M0_ASSERT(fd->md_buf.u_sock != NULL);
+			M0_ASSERT(mock_fd_invariant(fd));
+			return fd;
+		}
+	}
+	M0_IMPOSSIBLE("No free fd.");
+}
+
+static int src_fdnum(const struct mock_fd *fd)
+{
+	M0_PRE(fd->md_idx + 10 < (1U << 15));
+	M0_PRE(fd->md_gen < (1U << 15));
+	return  (fd->md_idx + 10) /* Avoid conflicts with std{in,out,err} */ |
+		(fd->md_gen << 15);
+}
+
+enum { TGT_MASK = 1U << 30 };
+static int tgt_fdnum(const struct mock_fd *fd)
+{
+	M0_PRE(fd->md_type == MT_SOCK);
+	return TGT_MASK | src_fdnum(fd);
+}
+
+static struct mock_fd *userfd(int fdnum)
+{
+	int idx;
+	int gen;
+	struct mock_fd *fd;
+
+	fdnum &= ~TGT_MASK;
+	idx = (fdnum & 0x7fff) - 10;
+	gen = fdnum >> 15;
+	fd  = &m_table[idx];
+	M0_ASSERT(mock_fd_invariant(fd) && fd->md_gen == gen);
+	return fd;
+}
+
+static int mock_ep(const struct sockaddr *addr)
+{
+	struct sockaddr_in *sin = (void *)addr;
+	M0_ASSERT(sin->sin_port != 0);
+	M0_ASSERT(sin->sin_addr.s_addr == htonl(INADDR_LOOPBACK));
+	return sin->sin_port;
+}
+
+static int mock_socket(int family, int type, int proto)
+{
+	if (mock_prologue() || MOCK_DICE(socket_err))
+		return mock_ret(mock_err());
+	return mock_ret(src_fdnum(get_fd(MT_SOCK)));
+}
+
+static int mock_accept4(int fdnum, struct sockaddr *addr,
+			socklen_t *addrlen, int flags)
+{
+	int i;
+	struct mock_fd *fd;
+	struct sockaddr_in *sin = (void *)addr;
+	M0_PRE(*addrlen >= sizeof *sin);
+	if (mock_prologue() || MOCK_DICE(accept4_err))
+		return mock_ret(mock_err());
+	fd = userfd(fdnum);
+	M0_PRE(fd->md_type == MT_SOCK);
+	M0_PRE(fd->md_flags == MF_LISTEN);
+	for (i = 0; i < m_conf->uc_maxfd; ++i) {
+		struct mock_fd *scan = &m_table[i];
+		if (scan->md_type == MT_SOCK && scan->md_tgt == fd->md_src &&
+		    !(scan->md_flags & MF_CONNECTED)) {
+			if (MOCK_DICE(accept4_miss))
+				continue;
+			sin->sin_port = scan->md_src;
+			sin->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+			*addrlen = sizeof *sin;
+			scan->md_flags |= MF_CONNECTED;
+			return mock_ret(tgt_fdnum(scan));
+		}
+	}
+	return mock_ret(-EWOULDBLOCK);
+}
+
+static int mock_listen(int fdnum, int backlog)
+{
+	struct mock_fd *fd;
+	if (mock_prologue() || MOCK_DICE(listen_err))
+		return mock_ret(mock_err());
+	fd = userfd(fdnum);
+	M0_PRE(fd->md_type == MT_SOCK);
+	M0_PRE(fd->md_flags == 0);
+	M0_PRE(fd->md_src != 0);
+	M0_PRE(backlog >= 0);
+	fd->md_flags = MF_LISTEN;
+	return mock_ret(0);
+}
+
+static int mock_bind(int fdnum, const struct sockaddr *addr, socklen_t addrlen)
+{
+	struct mock_fd *fd;
+	if (mock_prologue() || MOCK_DICE(bind_err))
+		return mock_ret(mock_err());
+	fd = userfd(fdnum);
+	M0_PRE(fd->md_type == MT_SOCK);
+	M0_PRE(fd->md_flags == 0);
+	fd->md_src = mock_ep(addr);
+	return mock_ret(0);
+}
+
+static int mock_connect(int fdnum,
+			const struct sockaddr *addr, socklen_t addrlen)
+{
+	struct mock_fd *fd;
+	if (mock_prologue() || MOCK_DICE(connect_err))
+		return mock_ret(mock_err());
+	fd = userfd(fdnum);
+	M0_PRE(fd->md_type == MT_SOCK);
+	M0_PRE(fd->md_flags == 0);
+	fd->md_tgt = mock_ep(addr);
+	fd->md_src = m_ephemeral;
+	if (++m_ephemeral == M_EPHEMERAL_HI)
+		m_ephemeral = M_EPHEMERAL_LO;
+	return mock_ret(0);
+}
+
+static ssize_t mock_readv(int fdnum, const struct iovec *iov, int iovcnt)
+{
+	int     i;
+	int     j;
+	ssize_t nob = 0;
+	char    byte;
+	struct mock_fd *fd;
+	if (mock_prologue() || MOCK_DICE(readv_err))
+		return mock_ret(mock_err());
+	fd = userfd(fdnum);
+	M0_PRE(fd->md_type == MT_SOCK);
+	M0_PRE(fd->md_flags == MF_CONNECTED);
+	if (fd->md_head >= fd->md_tail || MOCK_DICE(readv_again))
+		return mock_ret(-EWOULDBLOCK);
+	if (MOCK_DICE(readv_0))
+		return mock_ret(0);
+	for (i = 0; i < iovcnt; ++i) {
+		for (j = 0; j < iov[i].iov_len; ++j) {
+			if (fd->md_head >= fd->md_tail ||
+			    MOCK_DICE(readv_break))
+				return mock_ret(nob);
+			if (MOCK_DICE(readv_skip))
+				continue;
+			byte = fd->md_buf.u_sock[fd->md_head++ % fd->md_len];
+			if (MOCK_DICE(readv_flip))
+				byte ^= 8;
+			((char *)iov[i].iov_base)[j] = byte;
+			++nob;
+		}
+	}
+	return mock_ret(nob);
+}
+
+static ssize_t mock_writev(int fdnum, const struct iovec *iov, int iovcnt)
+{
+	int     i;
+	int     j;
+	ssize_t nob = 0;
+	struct mock_fd *fd;
+	if (mock_prologue() || MOCK_DICE(writev_err))
+		return mock_ret(mock_err());
+	fd = userfd(fdnum);
+	M0_PRE(fd->md_type == MT_SOCK);
+	M0_PRE(fd->md_flags == MF_CONNECTED);
+	if (fd->md_tail - fd->md_head > fd->md_len || MOCK_DICE(writev_again))
+		return mock_ret(-EWOULDBLOCK);
+	if (MOCK_DICE(writev_0))
+		return mock_ret(0);
+	for (i = 0; i < iovcnt; ++i) {
+		for (j = 0; j < iov[i].iov_len; ++j) {
+			if (fd->md_tail - fd->md_head >= fd->md_len ||
+			    MOCK_DICE(writev_break))
+				return mock_ret(nob);
+			fd->md_buf.u_sock[fd->md_tail++ % fd->md_len] =
+				((char *)iov[i].iov_base)[j];
+			++nob;
+		}
+	}
+	return mock_ret(nob);
+}
+
+static int mock_close(int fdnum)
+{
+	struct mock_fd *fd;
+	if (mock_prologue() || MOCK_DICE(close_err))
+		return mock_ret(mock_err());
+	fd = userfd(fdnum);
+	if (fd->md_type == MT_SOCK) {
+		fd->md_flags |= (fdnum & TGT_MASK) ?
+			MF_CLOSED_TGT : MF_CLOSED_SRC;
+		if ((fd->md_flags & (MF_CLOSED_TGT | MF_CLOSED_SRC)) ==
+		    (MF_CLOSED_TGT | MF_CLOSED_SRC))
+			fd->md_type = MT_FREE;
+	} else {
+	}
+	return mock_ret(0);
+}
+
+static int mock_shutdown(int fdnum, int how)
+{
+	return mock_close(fdnum);
+}
+
+static int mock_setsockopt(int fd, int level, int optname,
+			   const void *optval, socklen_t optlen)
+{
+	if (mock_prologue() || MOCK_DICE(setsockopt_err))
+		return mock_ret(mock_err());
+	else
+		return mock_ret(0);
+}
+
+static int mock_epoll_create(int size)
+{
+	if (mock_prologue() || MOCK_DICE(epoll_create_err))
+		return mock_ret(mock_err());
+	return mock_ret(src_fdnum(get_fd(MT_EPOLL)));
+}
+
+static int mock_epoll_wait(int fdnum, struct epoll_event *events,
+			   int maxevents, int timeout)
+{
+	int i;
+	int used = 0;
+	struct mock_fd *set;
+	struct mock_fd *fd;
+	if (mock_prologue() || MOCK_DICE(epoll_wait_err))
+		return mock_ret(mock_err());
+	set = userfd(fdnum);
+	M0_PRE(set->md_type == MT_EPOLL);
+	for (i = 0; i < set->md_tail; ++i) {
+		struct mock_epoll_entry *ee = &set->md_buf.u_epoll[i];
+		bool in  = ee->ee_event.events & EPOLLIN;
+		bool out = ee->ee_event.events & EPOLLOUT;
+		bool connected;
+		uint64_t closed;
+		uint32_t mask = 0;
+		bool tgt;
+		if (ee->ee_fd == 0)
+			continue;
+		tgt = ee->ee_fd & TGT_MASK;
+		closed = tgt ? MF_CLOSED_TGT : MF_CLOSED_SRC;
+		fd = userfd(ee->ee_fd);
+		M0_ASSERT(fd->md_type == MT_SOCK);
+		connected = (fd->md_flags & MF_CONNECTED) && !(fd->md_flags &
+							       closed);
+		if (MOCK_DICE(epoll_raise_err))
+			mask |= EPOLLERR;
+		if (MOCK_DICE(epoll_raise_in))
+			mask |= EPOLLIN;
+		if (MOCK_DICE(epoll_raise_out))
+			mask |= EPOLLOUT;
+		if (MOCK_DICE(epoll_raise_garbage))
+			mask |= ~EPOLLIN;
+		if (in && (fd->md_flags & MF_LISTEN) &&
+			   m0_exists(j, m_conf->uc_maxfd,
+				     m_table[j].md_type == MT_SOCK &&
+				     m_table[j].md_tgt == fd->md_src &&
+				     !(m_table[j].md_flags & MF_CONNECTED))) {
+			mask |= EPOLLIN;
+		}
+		if (in && tgt && connected && fd->md_head < fd->md_tail)
+			mask |= EPOLLIN;
+		if (out && !tgt && connected &&
+		    fd->md_tail - fd->md_head < fd->md_len)
+			mask |= EPOLLOUT;
+		if (mask != 0) {
+			events[used].data = ee->ee_event.data;
+			events[used].events = mask;
+			if (++used == maxevents || MOCK_DICE(epoll_break))
+				break;
+		}
+	}
+	if (used == 0) {
+		m0_mutex_unlock(&m_mock_lock);
+		m0_nanosleep(timeout * 1000000 / 10, NULL);
+		m0_mutex_lock(&m_mock_lock);
+	}
+	return mock_ret(used);
+}
+
+static int mock_epoll_ctl(int epfdnum, int op, int fdnum,
+			  struct epoll_event *event)
+{
+	int i;
+	struct mock_fd *set;
+	struct mock_fd *fd;
+	if (mock_prologue() || MOCK_DICE(epoll_ctl_err))
+		return mock_ret(mock_err());
+	set = userfd(epfdnum);
+	fd  = userfd(fdnum);
+	M0_PRE(set->md_type == MT_EPOLL);
+	M0_PRE(fd->md_type == MT_SOCK);
+	switch (op) {
+	case EPOLL_CTL_ADD:
+		for (i = 0; i < set->md_tail; ++i) {
+			if (set->md_buf.u_epoll[i].ee_fd == 0)
+				break;
+		}
+		if (i == set->md_tail)
+			set->md_tail++;
+		M0_ASSERT(set->md_tail <= set->md_len);
+		set->md_buf.u_epoll[i].ee_fd = fdnum;
+		set->md_buf.u_epoll[i].ee_event = *event;
+		break;
+	case EPOLL_CTL_DEL:
+	case EPOLL_CTL_MOD:
+		for (i = 0; i < set->md_tail; ++i) {
+			if (set->md_buf.u_epoll[i].ee_fd == fdnum)
+				break;
+		}
+		M0_ASSERT(i < set->md_tail);
+		if (op == EPOLL_CTL_DEL)
+			set->md_buf.u_epoll[i].ee_fd = 0;
+		else
+			set->md_buf.u_epoll[i].ee_event = *event;
+		break;
+	}
+	return mock_ret(0);
+}
+
+static const struct sock_ops mock_ops = {
+	.so_socket       = &mock_socket,
+	.so_accept4      = &mock_accept4,
+	.so_listen       = &mock_listen,
+	.so_bind         = &mock_bind,
+	.so_connect      = &mock_connect,
+	.so_readv        = &mock_readv,
+	.so_writev       = &mock_writev,
+	.so_close        = &mock_close,
+	.so_shutdown     = &mock_shutdown,
+	.so_setsockopt   = &mock_setsockopt,
+	.so_epoll_create = &mock_epoll_create,
+	.so_epoll_wait   = &mock_epoll_wait,
+	.so_epoll_ctl    = &mock_epoll_ctl
+};
+
+static const struct sock_ops std_ops = {
+	.so_socket       = &socket,
+	.so_accept4      = &accept4,
+	.so_listen       = &listen,
+	.so_bind         = &bind,
+	.so_connect      = &connect,
+	.so_readv        = &readv,
+	.so_writev       = &writev,
+	.so_close        = &close,
+	.so_shutdown     = &shutdown,
+	.so_setsockopt   = &setsockopt,
+	.so_epoll_create = &epoll_create,
+	.so_epoll_wait   = &epoll_wait,
+	.so_epoll_ctl    = &epoll_ctl
+};
+
+#include "ut/ut.h"
+
+static struct sock_ut_conf conf_0 = {
+	.uc_maxfd       = 1000,
+	.uc_sockbuf_len = 1000,
+	.uc_epoll_len   = 1000
+};
+
+static void tm_event_cb(const struct m0_net_tm_event *ev)
+{
+	m0_semaphore_up(&m_tm_state);
+}
+
+static struct m0_net_tm_callbacks m_tm_cb = {
+	.ntc_event_cb = &tm_event_cb
+};
+
+static void tm_init(struct m0_net_transfer_mc *tm, const char *addr)
+{
+	int result;
+
+	M0_SET0(tm);
+	tm->ntm_state = M0_NET_TM_UNDEFINED;
+	tm->ntm_callbacks = &m_tm_cb;
+	result = m0_net_tm_init(tm, &m_dom);
+	M0_ASSERT(result == 0);
+	result = m0_net_tm_start(tm, addr);
+	M0_ASSERT(result == 0);
+	while (tm->ntm_state == M0_NET_TM_STARTING)
+		m0_semaphore_down(&m_tm_state);
+	M0_ASSERT(tm->ntm_state == M0_NET_TM_STARTED);
+}
+
+static void tm_fini(struct m0_net_transfer_mc *tm)
+{
+	int result;
+
+	result = m0_net_tm_stop(tm, false);
+	M0_ASSERT(result == 0);
+	while (tm->ntm_state == M0_NET_TM_STOPPING)
+		m0_semaphore_down(&m_tm_state);
+	M0_ASSERT(tm->ntm_state == M0_NET_TM_STOPPED);
+	m0_net_tm_fini(tm);
+}
+
+struct ub_op;
+struct ut_buf {
+	struct m0_net_buffer     ub_buf;
+	struct m0_semaphore      ub_sem;
+	struct ub_op            *ub_op;
+	int                      ub_status;
+	bool                     ub_busy;
+	void                    *ub_msg;
+	m0_bcount_t              ub_len;
+	struct m0_net_end_point *ub_ep;
+};
+
+enum {
+	B_SEND,
+	B_RECV,
+	B_NR
+};
+
+struct ut_op {
+	struct ut_buf  *uo_buf[B_NR];
+};
+
+static void buf_event_cb(const struct m0_net_buffer_event *ev)
+{
+	struct ut_buf *ub = ev->nbe_buffer->nb_app_private;
+
+	m0_mutex_lock(&m_ut_lock);
+	M0_ASSERT(ev->nbe_buffer == &ub->ub_buf);
+	M0_ASSERT(ub->ub_busy);
+	ub->ub_status = ev->nbe_status;
+	m0_semaphore_up(&ub->ub_sem);
+	ub->ub_busy = false;
+	m0_mutex_unlock(&m_ut_lock);
+}
+
+const struct m0_net_buffer_callbacks m_buf_cb = {
+	.nbc_cb = {
+		[M0_NET_QT_MSG_RECV]          = &buf_event_cb,
+		[M0_NET_QT_MSG_SEND]          = &buf_event_cb,
+		[M0_NET_QT_PASSIVE_BULK_RECV] = &buf_event_cb,
+		[M0_NET_QT_PASSIVE_BULK_SEND] = &buf_event_cb,
+		[M0_NET_QT_ACTIVE_BULK_RECV]  = &buf_event_cb,
+		[M0_NET_QT_ACTIVE_BULK_SEND]  = &buf_event_cb
+	}
+};
+
+static void ut_buf_queue(struct ut_buf *buf, struct m0_net_transfer_mc *tm,
+			 int qtype, const char *addr, m0_time_t to, char *msg)
+{
+	int                   result;
+	struct m0_net_buffer *nb = &buf->ub_buf;
+
+	m0_mutex_lock(&m_ut_lock);
+	M0_SET0(buf);
+	m0_semaphore_init(&buf->ub_sem, 0);
+	if (addr != NULL) {
+		result = m0_net_end_point_create(&buf->ub_ep, tm, addr);
+		M0_ASSERT(result == 0);
+	}
+	buf->ub_msg = msg;
+	buf->ub_len = strlen(msg) + 1;
+	nb->nb_buffer    = M0_BUFVEC_INIT_BUF(&buf->ub_msg, &buf->ub_len);
+	nb->nb_length    = m0_vec_count(&nb->nb_buffer.ov_vec);
+	nb->nb_offset    = 0;
+	nb->nb_qtype     = qtype;
+	nb->nb_callbacks = &m_buf_cb;
+	nb->nb_timeout   = to;
+	nb->nb_ep        = buf->ub_ep;
+	nb->nb_min_receive_size = 1;
+	nb->nb_max_receive_msgs = 1;
+	nb->nb_app_private      = buf;
+	result = m0_net_buffer_register(nb, &m_dom);
+	M0_ASSERT(result == 0);
+	result = m0_net_buffer_add(nb, tm);
+	M0_ASSERT(result == 0);
+	buf->ub_busy = true;
+	m0_mutex_unlock(&m_ut_lock);
+}
+
+static void ut_buf_wait(struct ut_buf *ub)
+{
+	m0_semaphore_down(&ub->ub_sem);
+	m0_mutex_lock(&m_ut_lock);
+	M0_ASSERT(!ub->ub_busy);
+	if (ub->ub_ep != NULL)
+		m0_net_end_point_put(ub->ub_ep);
+	m0_net_buffer_deregister(&ub->ub_buf, &m_dom);
+	m0_semaphore_fini(&ub->ub_sem);
+	m0_mutex_unlock(&m_ut_lock);
+}
+
+static void smoke_with(const struct sock_ops *sop, struct sock_ut_conf *conf)
+{
+	struct m0_net_transfer_mc tm0;
+	struct m0_net_transfer_mc tm1;
+	struct ut_buf             ub0;
+	struct ut_buf             ub1;
+	char                      msg[] = "What hath GOD wrought?";
+	char                      rep[] = "−− −−− .−. ... . −.−. −−− −.. .";
+	char                     *addr0 = "inet:stream:127.0.0.1@3001";
+	char                     *addr1 = "inet:stream:127.0.0.1@3002";
+
+	ut_init(sop, conf);
+	tm_init(&tm0, addr0);
+	tm_init(&tm1, addr1);
+	ut_buf_queue(&ub1, &tm1, M0_NET_QT_MSG_RECV, NULL,  M0_TIME_NEVER, rep);
+	ut_buf_queue(&ub0, &tm0, M0_NET_QT_MSG_SEND, addr1, M0_TIME_NEVER, msg);
+	ut_buf_wait(&ub1);
+	ut_buf_wait(&ub0);
+	M0_ASSERT(memcmp(msg, rep, ARRAY_SIZE(msg)) == 0);
+	tm_fini(&tm1);
+	tm_fini(&tm0);
+	ut_fini();
+}
+
+static void std_smoke(void)
+{
+	smoke_with(&std_ops, &conf_0);
+}
+
+static void mock_smoke(void)
+{
+	smoke_with(&mock_ops, &conf_0);
+}
+
+struct m0_ut_suite net_sock_ut = {
+	.ts_name = "sock-ut",
+	.ts_init = NULL,
+	.ts_fini = NULL,
+	.ts_tests = {
+		{ "std-smoke",  &std_smoke,  "Nikita" },
+		{ "mock-smoke", &mock_smoke, "Nikita" },
+		{ NULL, NULL }
+	}
+};
+
+#undef MOCK_DICE
+#undef EP_GET
+#undef EP_PUT
+#undef SAFE
+#undef EP_F
+#undef EP_P
+#undef EP_FL
+#undef EP_PL
+#undef SOCK_F
+#undef SOCK_P
+#undef B_F
+#undef B_P
+#undef TLOG
+#undef EP_DEBUG
+#undef MOCK_LNET
+#undef SOP
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of netsock group */
