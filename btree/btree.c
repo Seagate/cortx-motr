@@ -3366,9 +3366,9 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *
  * We will use following offset directory structure :
  * struct dir_rec {
- * 	void *kptr,
- * 	void *vptr,
- * 	uint32_t  val_size,
+ * 	uint32_t key_offset,
+ * 	uint32_t val_offset,
+ * 	uint32_t val_size,
  * };
  *
  *
@@ -3382,22 +3382,24 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *        |--key region--|      |----offset dir---|      |--value region-|
  *
  * This node format will have keys on left side which will start populating from
- * left to right whereas values will be present on right side which will be
- * populated from left to right.
+ * left to right initially whereas values will be present on right side which
+ * will be populated from left to right initially.
  * Node will also have offset directory. Initially, this directory will be
  * situated at the middle of node but if we encounter the possibilty for
  * overlapping of keys/values with offset directory, we will move the
  * entire direcory to left or right.
  *
  * All directory entries are sorted according to the keys that they point to.
- * i.e *orec1->kptr < *orec1->kptr < *orec1->kptr
+ * i.e key(orec0->key_offset) < key(orec1->key_offset) < key(orec2->key_offset)
  *
  * When inserting a new record, we will find the space in key and value region
- * to insert new key and value at that locations. Bitmaping can be used to keep
- * track of free fragments. Once we find place to insert new record, we embedded
- * actual key and value at that location and move a subset of directory entries
- * for inserting new entry in ascending order. This operation requires to
- * capture only newly inserted record and the directory.
+ * to insert new key and value at that locations. To find the free fragments,
+ * we will track the total valid records and total max records. All the records
+ * between total max records and total valid records contain entries which track
+ * the free slots. Once we find place to insert new record, we embedded actual
+ * key and value at that location and move a subset of directory entries for
+ * inserting new entry in ascending order. This operation requires to capture
+ * only newly inserted record and the directory.
  *
  * For eg - Inserting new record (nk1, nv1) such that k1 < nk1 < k2 and free
  * space is available for record.
