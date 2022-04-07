@@ -526,7 +526,8 @@
  * Limitations and options
  * -----------------------
  *
- * Only TCP sockets have been tested so far.
+ * TCP is the default socket type and gets most of the testing. UDP works, but,
+ * as expected, is unreliable.
  *
  * Only 1 socket to a particular end-point is supported, that is, multiple
  * parallel sockets are not opened. Whether they are needed at all is an
@@ -583,6 +584,10 @@
  * Fixing the transport users to make no assumptions about fragmentation limits
  * (or using different allocation strategies depending on the transport) is a
  * work in progress.
+ *
+ * With ENABLE_SOCK_MOCK_LNET configuration option (enabled with ./configure
+ * --enable-sock-mock-lnet), sock module completely impersonates lnet down to
+ * segment size limitations.
  *
  * A brief history
  * ---------------
@@ -984,6 +989,8 @@ struct socktype {
 	/** Default packet size for this socket type. */
 	m0_bcount_t              (*st_pk_size)(const struct mover *w,
 					       const struct sock *s);
+	void                     (*st_pk_io)  (struct mover *m, struct sock *s,
+					       struct msghdr *msg);
 	/**
 	 * Call-back invoked when an error is raised on the socket of this
 	 * type.
@@ -1027,7 +1034,7 @@ struct sock_ops {
 	int     (*so_connect)     (int fd, const struct sockaddr *addr,
 				   socklen_t addrlen);
 	ssize_t (*so_readv)       (int fd, const struct iovec *iov, int iovcnt);
-	ssize_t (*so_writev)      (int fd, const struct iovec *iov, int iovcnt);
+	ssize_t (*so_sendmsg)     (int fd, const struct msghdr *msg, int flags);
 	int     (*so_close)       (int fd);
 	int     (*so_shutdown)    (int fd, int how);
 	int     (*so_getsockopt)  (int fd, int level, int optname,
@@ -1213,10 +1220,14 @@ static void writer_done   (struct mover *self, struct sock *s);
 static void writer_error  (struct mover *w, struct sock *s, int rc);
 
 static m0_bcount_t stream_pk_size(const struct mover *w, const struct sock *s);
-static void        stream_error(struct mover *m, struct sock *s);
+static void        stream_error  (struct mover *m, struct sock *s);
+static void        stream_pk_io  (struct mover *m, struct sock *s,
+				  struct msghdr *msg);
 
 static m0_bcount_t dgram_pk_size(const struct mover *w, const struct sock *s);
-static void        dgram_error(struct mover *m, struct sock *s);
+static void        dgram_error  (struct mover *m, struct sock *s);
+static void        dgram_pk_io  (struct mover *m, struct sock *s,
+				 struct msghdr *msg);
 
 static void ip4_encode(const struct addr *a, struct sockaddr *sa);
 static void ip4_decode(struct addr *a, const struct sockaddr *sa);
@@ -1262,6 +1273,7 @@ static const struct socktype stype[] = {
 		.st_reader  = &stream_reader_op,
 		.st_pk_size = &stream_pk_size,
 		.st_error   = &stream_error,
+		.st_pk_io   = &stream_pk_io,
 		.st_proto   = IPPROTO_TCP
 	},
 	[SOCK_DGRAM]  = {
@@ -1269,6 +1281,7 @@ static const struct socktype stype[] = {
 		.st_reader  = &dgram_reader_op,
 		.st_pk_size = &dgram_pk_size,
 		.st_error   = &dgram_error,
+		.st_pk_io   = &dgram_pk_io,
 		.st_proto   = IPPROTO_UDP
 	}
 };
@@ -2831,8 +2844,8 @@ static int addr_parse_lnet(struct addr *addr, const char *name)
 				   "portal: %u, tmid: %u", portal, tmid);
 	sin.sin_port     = htons(tmid | (1 << 10) | ((portal - 30) << 11));
 	addr->a_family   = PF_INET;
-	addr->a_socktype = SOCK_STREAM;
-	addr->a_protocol = IPPROTO_TCP;
+	addr->a_socktype = SOCK_DGRAM;
+	addr->a_protocol = IPPROTO_UDP;
 	autotm[tmid] = 1;
 	addr_decode(addr, (void *)&sin);
 	return M0_RC(0);
@@ -3499,10 +3512,16 @@ static int pk_iov_prep(struct mover *m, struct iovec *iv, int nr,
 static int pk_io(struct mover *m, struct sock *s, uint64_t flag,
 		 struct m0_bufvec *bv, m0_bcount_t tgt)
 {
-	struct iovec iv[256] = {};
-	int          count;
-	int          nr;
-	int          rc;
+	struct sockaddr_storage sa = {};
+	struct iovec  iv[256]      = {};
+	struct msghdr msg          = {
+		.msg_name    = &sa,
+		.msg_namelen = sizeof sa,
+		.msg_iov     = iv
+	};
+	int count;
+	int nr;
+	int rc;
 
 	M0_PRE(M0_IN(flag, (HAS_READ, HAS_WRITE)));
 	if (mover_is_reader(m) && m->m_buf != NULL) {
@@ -3514,7 +3533,11 @@ static int pk_io(struct mover *m, struct sock *s, uint64_t flag,
 			 bv ?: m->m_buf != NULL ?
 			 &m->m_buf->b_buf->nb_buffer : NULL, tgt, &count);
 	s->s_flags &= ~flag;
-	rc = (flag == HAS_READ ? readv : writev)(s->s_fd, iv, nr);
+	msg.msg_iovlen = nr;
+	stype[s->s_ep->e_a.a_socktype].st_pk_io(m, s, &msg);
+	rc = flag == HAS_READ ?
+	      SOP(readv, s->s_fd, iv, nr) : SOP(sendmsg, s->s_fd, &msg,
+						MSG_NOSIGNAL);
 	M0_LOG(M0_DEBUG, "flag: %" PRIi64 ", rc: %i, idx: %i, errno: %i.",
 	       flag, rc, nr, errno);
 	if (rc >= 0) {
@@ -3834,6 +3857,11 @@ static m0_bcount_t stream_pk_size(const struct mover *w, const struct sock *s)
 	return M0_BSIGNED_MAX / 2;
 }
 
+static void stream_pk_io(struct mover *m, struct sock *s, struct msghdr *msg)
+{
+	msg->msg_name = NULL;
+}
+
 /** Handles an error for a stream socket. */
 static void stream_error(struct mover *m, struct sock *s)
 {
@@ -3948,6 +3976,15 @@ static m0_bcount_t dgram_pk_size(const struct mover *w, const struct sock *s)
 		/* IPv4 or IPV6 header size */
 		- (s->s_ep->e_a.a_family == AF_INET ? 20 : 40)
 		- sizeof w->m_pkbuf;
+}
+
+static void dgram_pk_io(struct mover *m, struct sock *s, struct msghdr *msg)
+{
+	if (mover_is_writer(m)) {
+		M0_PRE(m->m_ep != NULL);
+		M0_PRE(m->m_ep == s->s_ep);
+		addr_encode(&m->m_ep->e_a, msg->msg_name);
+	}
 }
 
 static void dgram_error(struct mover *m, struct sock *s)
@@ -4303,16 +4340,6 @@ M0_INTERNAL int m0_net_sock_mod_init(void)
 {
 	int result;
 
-	/*
-	 * Ignore SIGPIPE that a write to socket gets when RST is received.
-	 *
-	 * A more elegant approach is to use sendmsg(2) with MSG_NOSIGNAL flag
-	 * instead of writev(2).
-	 */
-	result = sigaction(SIGPIPE,
-			   &(struct sigaction){ .sa_handler = SIG_IGN }, NULL);
-	if (result != 0)
-		return M0_ERR(-errno);
 	if (MOCK_LNET) {
 		m0_net_xprt_register(&m0_net_lnet_xprt);
 		if (m0_streq(M0_DEFAULT_NETWORK, "LNET"))
@@ -4387,11 +4414,18 @@ M0_INTERNAL void ep__print(const struct ep *ep)
 
 M0_INTERNAL void buf__print(const struct buf *buf)
 {
+<<<<<<< HEAD
 	printf("\t%p: %" PRIx64 " bitmap: %"PRIx64
 	       " peer: %" PRIx64 ":%" PRIx64 "\n", buf,
 	       buf->b_cookie,
 	       buf->b_peer.bd_cookie.co_addr,
 	       buf->b_peer.bd_cookie.co_generation);
+=======
+	printf("\t%p: %"PRIx64" peer: %"PRIx64":%"PRIx64" done: " PRIb64"\n",
+	       buf, buf->b_cookie, buf->b_peer.bd_cookie.co_addr,
+	       buf->b_peer.bd_cookie.co_generation,
+	       PRFb64((uint64_t)buf->b_done.b_words));
+>>>>>>> 0d8284c5... sock: use sendmsg(2) instead of writev(2).
 	ep__print(buf->b_other);
 }
 
@@ -4470,10 +4504,10 @@ struct sock_ut_conf {
 	int uc_readv_break;
 	int uc_readv_skip;
 	int uc_readv_flip;
-	int uc_writev_err;
-	int uc_writev_again;
-	int uc_writev_0;
-	int uc_writev_break;
+	int uc_sendmsg_err;
+	int uc_sendmsg_again;
+	int uc_sendmsg_0;
+	int uc_sendmsg_break;
 	int uc_getsockopt_err;
 	int uc_setsockopt_err;
 	int uc_close_err;
@@ -4500,6 +4534,7 @@ static uint64_t             m_seed = 0;
 struct m0_net_domain        m_dom = {};
 static struct m0_mutex      m_mock_lock;
 static struct m0_semaphore  m_tm_state;
+static char                *m_socktype;
 
 enum { MT_FREE, MT_SOCK, MT_EPOLL };
 
@@ -4538,12 +4573,22 @@ struct mock_fd {
 };
 
 static void mock_fini(void);
+static struct sock_ops mstd_d_ops = {};
+static struct sock_ops std_d_ops  = {};
+static const struct sock_ops std_ops;
+static const struct sock_ops mstd_ops;
 
 static void ut_init(const struct sock_ops *sop, struct sock_ut_conf *conf)
 {
 	int result;
 
+	mstd_d_ops = mstd_ops;
+	std_d_ops = std_ops;
 	m_conf = conf;
+	if (M0_IN(sop, (&std_d_ops, &mstd_d_ops)))
+		m_socktype = "dgram";
+	else
+		m_socktype = "stream";
 	m0_mutex_init(&m_mock_lock);
 	m0_mutex_init(&m_ut_lock);
 	m0_semaphore_init(&m_tm_state, 0);
@@ -4815,30 +4860,30 @@ static ssize_t mock_readv(int fdnum, const struct iovec *iov, int iovcnt)
 	return mock_ret(nob);
 }
 
-static ssize_t mock_writev(int fdnum, const struct iovec *iov, int iovcnt)
+static ssize_t mock_sendmsg(int fdnum, const struct msghdr *msg, int flags)
 {
 	int     i;
 	int     j;
 	ssize_t nob = 0;
 	struct mock_fd *fd;
-	if (mock_prologue() || MOCK_DICE(writev_err))
+	if (mock_prologue() || MOCK_DICE(sendmsg_err))
 		return mock_ret(mock_err());
 	fd = userfd(fdnum);
 	M0_PRE(fd->md_type == MT_SOCK);
 	M0_PRE(!(fdnum & TGT_MASK));
 	M0_PRE((fd->md_flags & MF_CONNECTED) && !is_closed(fdnum, fd));
 	if (fd->md_tail - fd->md_head > fd->md_len || (fdnum & TGT_MASK) ||
-	    MOCK_DICE(writev_again))
+	    MOCK_DICE(sendmsg_again))
 		return mock_ret(-EWOULDBLOCK);
-	if (MOCK_DICE(writev_0))
+	if (MOCK_DICE(sendmsg_0))
 		return mock_ret(0);
-	for (i = 0; i < iovcnt; ++i) {
-		for (j = 0; j < iov[i].iov_len; ++j) {
+	for (i = 0; i < msg->msg_iovlen; ++i) {
+		for (j = 0; j < msg->msg_iov[i].iov_len; ++j) {
 			if (fd->md_tail - fd->md_head >= fd->md_len ||
-			    MOCK_DICE(writev_break))
+			    MOCK_DICE(sendmsg_break))
 				return mock_ret(nob);
 			fd->md_buf.u_sock[fd->md_tail++ % fd->md_len] =
-				((char *)iov[i].iov_base)[j];
+				((char *)msg->msg_iov[i].iov_base)[j];
 			++nob;
 		}
 	}
@@ -5032,7 +5077,7 @@ static const struct sock_ops mock_ops = {
 	.so_bind         = &mock_bind,
 	.so_connect      = &mock_connect,
 	.so_readv        = &mock_readv,
-	.so_writev       = &mock_writev,
+	.so_sendmsg      = &mock_sendmsg,
 	.so_close        = &mock_close,
 	.so_shutdown     = &mock_shutdown,
 	.so_getsockopt   = &mock_getsockopt,
@@ -5049,7 +5094,7 @@ static const struct sock_ops std_ops = {
 	.so_bind         = &bind,
 	.so_connect      = &connect,
 	.so_readv        = &readv,
-	.so_writev       = &writev,
+	.so_sendmsg      = &sendmsg,
 	.so_close        = &close,
 	.so_shutdown     = &shutdown,
 	.so_getsockopt   = &getsockopt,
@@ -5144,33 +5189,34 @@ static ssize_t mstd_readv(int fdnum, const struct iovec *iov, int iovcnt)
 	return nob;
 }
 
-static ssize_t mstd_writev(int fdnum, const struct iovec *iov, int iovcnt)
+static ssize_t mstd_sendmsg(int fdnum, const struct msghdr *msg, int flags)
 {
 	size_t *orig = NULL;
 	size_t  origlen;
 	ssize_t nob;
+	struct msghdr *m = (void *)msg; /* Discard const. */
 	int i;
 	int j;
-	if (mstd_prologue() || MOCK_DICE(writev_err))
+	if (mstd_prologue() || MOCK_DICE(sendmsg_err))
 		return mstd_ret(mock_err());
-	if (MOCK_DICE(writev_again))
+	if (MOCK_DICE(sendmsg_again))
 		return mstd_ret(-EWOULDBLOCK);
-	if (MOCK_DICE(writev_0))
+	if (MOCK_DICE(sendmsg_0))
 		return mstd_ret(0);
-	if (m_conf->uc_writev_break > 0) {
-		for (i = 0; i < iovcnt && orig == NULL; ++i) {
-			for (j = 0; j < iov[i].iov_len; ++j) {
-				if (MOCK_DICE(writev_break)) {
-					orig = (void *)&iov[i].iov_len;
-					origlen = iov[i].iov_len;
-					*((size_t *)&iov[i].iov_len) = j;
-					iovcnt = i;
+	if (m_conf->uc_sendmsg_break > 0) {
+		for (i = 0; i < m->msg_iovlen && orig == NULL; ++i) {
+			for (j = 0; j < m->msg_iov[i].iov_len; ++j) {
+				if (MOCK_DICE(sendmsg_break)) {
+					orig = &m->msg_iov[i].iov_len;
+					origlen = m->msg_iov[i].iov_len;
+					m->msg_iov[i].iov_len = j;
+					m->msg_iovlen = i + 1;
 					break;
 				}
 			}
 		}
 	}
-	nob = writev(fdnum, iov, iovcnt);
+	nob = sendmsg(fdnum, m, flags);
 	if (orig != NULL)
 		*orig = origlen;
 	return nob;
@@ -5256,7 +5302,7 @@ static const struct sock_ops mstd_ops = {
 	.so_bind         = &mstd_bind,
 	.so_connect      = &mstd_connect,
 	.so_readv        = &mstd_readv,
-	.so_writev       = &mstd_writev,
+	.so_sendmsg      = &mstd_sendmsg,
 	.so_close        = &mstd_close,
 	.so_shutdown     = &mstd_shutdown,
 	.so_getsockopt   = &mstd_getsockopt,
@@ -5412,7 +5458,6 @@ static void ut_buf_wait(struct ut_buf *ub)
 	m0_mutex_unlock(&m_ut_lock);
 }
 
-#define ST "stream"
 static void smoke_self(const struct sock_ops *sop, struct sock_ut_conf *conf,
 		       bool canfail, int n1, int n2, int n3)
 {
@@ -5421,10 +5466,12 @@ static void smoke_self(const struct sock_ops *sop, struct sock_ut_conf *conf,
 	struct ut_buf             ub1   = {};
 	char                      msg[] = "It is a truth universally...";
 	char                      rep[] = "Stately, plump Buck Mulligan...";
-	char                     *addr  = "inet:" ST ":127.0.0.1@3001";
+	char                     *pat   = "inet:%s:127.0.0.1@3001";
+	char                      addr[100];
 	m0_time_t                 to;
 
 	ut_init(sop, conf);
+	sprintf(addr, pat, m_socktype);
 	to = canfail ? m0_time_from_now(1, 0) : M0_TIME_NEVER;
 	tm_init(&tm, addr);
 	if (tm.ntm_state == M0_NET_TM_STARTED) {
@@ -5448,11 +5495,15 @@ static void smoke_with_1(const struct sock_ops *sop, struct sock_ut_conf *conf,
 	struct ut_buf             ub1   = {};
 	char                      msg[] = "What hath GOD wrought?";
 	char                      rep[] = "-- --- .-. ... . -.-. --- -.. .";
-	char                     *addr0 = "inet:" ST ":127.0.0.1@3001";
-	char                     *addr1 = "inet:" ST ":127.0.0.1@3002";
+	char                     *pat0  = "inet:%s:127.0.0.1@3001";
+	char                     *pat1  = "inet:%s:127.0.0.1@3002";
+	char                      addr0[100];
+	char                      addr1[100];
 	m0_time_t                 to;
 
 	ut_init(sop, conf);
+	sprintf(addr0, pat0, m_socktype);
+	sprintf(addr1, pat1, m_socktype);
 	to = canfail ? m0_time_from_now(1, 0) : M0_TIME_NEVER;
 	tm_init(&tm0, addr0);
 	tm_init(&tm1, addr1);
@@ -5485,17 +5536,17 @@ static struct sock_ut_conf conf_delay = {
 };
 
 static struct sock_ut_conf conf_stutter = {
-	.uc_maxfd        = 1000,
-	.uc_sockbuf_len  = 64000,
-	.uc_epoll_len    = 1000,
-	.uc_accept4_miss = 1000,
-	.uc_readv_again  = 1000,
-	.uc_readv_0      = 1000,
-	.uc_readv_break  =   10,
-	.uc_writev_again = 1000,
-	.uc_writev_0     = 1000,
-	.uc_writev_break =   10,
-	.uc_epoll_break  = 1000
+	.uc_maxfd         =  1000,
+	.uc_sockbuf_len   = 64000,
+	.uc_epoll_len     =  1000,
+	.uc_accept4_miss  =  1000,
+	.uc_readv_again   =  1000,
+	.uc_readv_0       =  1000,
+	.uc_readv_break   =    10,
+	.uc_sendmsg_again =  1000,
+	.uc_sendmsg_0     =  1000,
+	.uc_sendmsg_break =    10,
+	.uc_epoll_break   =  1000
 };
 
 static struct sock_ut_conf conf_spam = {
@@ -5509,7 +5560,7 @@ static struct sock_ut_conf conf_spam = {
 	.uc_bind_err         = 1000,
 	.uc_connect_err      = 1000,
 	.uc_readv_err        = 1000,
-	.uc_writev_err       = 1000,
+	.uc_sendmsg_err      = 1000,
 	.uc_setsockopt_err   = 1000,
 	.uc_close_err        = 1000,
 	.uc_epoll_create_err = 1000,
@@ -5529,7 +5580,7 @@ static struct sock_ut_conf conf_spamik = {
 	.uc_bind_err         =  100,
 	.uc_connect_err      =  100,
 	.uc_readv_err        =  100,
-	.uc_writev_err       =  100,
+	.uc_sendmsg_err      =  100,
 	.uc_setsockopt_err   =  100,
 	.uc_close_err        =  100,
 	.uc_epoll_create_err =  100,
@@ -5820,11 +5871,11 @@ static void g_buf_fini(struct g_buf *buf)
 
 static int g_tm_init(struct g_tm *tm)
 {
-	static const char fmt[] = "inet:" ST ":127.0.0.1@%i";
+	static const char fmt[] = "inet:%s:127.0.0.1@%i";
 	char pad[100];
 	int result;
 
-	sprintf(pad, fmt, (int)(tm - g_tm) + 3000);
+	sprintf(pad, fmt, m_socktype, (int)(tm - g_tm) + 3000);
 	result = tm_init(&tm->gt_tm, pad);
 	if (result == 0) {
 		M0_ALLOC_ARR(tm->gt_other, g_tm_nr);
@@ -6136,8 +6187,8 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 	int scale[] = { 2, 8 };
 	int gauge[] = { 1, 1000 };
 	int conc[] = { 1, 5 };
-	const struct sock_ops *sops[] = { &mock_ops, &mstd_ops };
-	const char *sops_name[] = { "wildcat", "chartreux" };
+	const struct sock_ops *sops[] = { &mock_ops, &mstd_ops, &mstd_d_ops };
+	const char *sops_name[] = { "wildcat", "chartreux", "russian-blue" };
 
 #define NAME(fmt, ...) ({			\
 	char *__name = NULL;			\
@@ -6154,19 +6205,25 @@ M0_INTERNAL struct m0_ut_suite *m0_net_sock_ut_build(void)
 	pos++;								\
 })
 
-	ADD("self-smoke",    &smoke_self, &std_ops,  &conf_0,       false);
-	ADD("std-smoke",     &smoke_with, &std_ops,  &conf_0,       false,  1);
-	ADD("mstd-smoke",    &smoke_with, &mstd_ops, &conf_0,       false,  1);
-	ADD("mock-smoke",    &smoke_with, &mock_ops, &conf_0,       false,  1);
-	ADD("delay-smoke",   &smoke_with, &mock_ops, &conf_delay,   false, 10);
-	ADD("stutter-smoke", &smoke_with, &mock_ops, &conf_stutter, false, 10);
-	ADD("spam-smoke",    &smoke_with, &mock_ops, &conf_spam,     true, 10);
-	ADD("adhd-smoke",    &smoke_with, &mock_ops, &conf_adhd,     true, 10);
+	ADD("self-s-smoke",  &smoke_self, &std_ops,   &conf_0,       false);
+	ADD("self-d-smoke",  &smoke_self, &std_d_ops, &conf_0,       false);
+	ADD("std-s-smoke",   &smoke_with, &std_ops,   &conf_0,       false,  1);
+	ADD("std-d-smoke",   &smoke_with, &std_d_ops, &conf_0,       false,  1);
+	ADD("mstd-s-smoke",  &smoke_with, &mstd_ops,  &conf_0,       false,  1);
+	ADD("mstd-d-smoke",  &smoke_with, &mstd_d_ops,&conf_0,       false,  1);
+	ADD("mock-smoke",    &smoke_with, &mock_ops,  &conf_0,       false,  1);
+	ADD("delay-smoke",   &smoke_with, &mock_ops,  &conf_delay,   false, 10);
+	ADD("stutter-smoke", &smoke_with, &mock_ops,  &conf_stutter, false, 10);
+	ADD("spam-smoke",    &smoke_with, &mock_ops,  &conf_spam,     true, 10);
+	ADD("adhd-smoke",    &smoke_with, &mock_ops,  &conf_adhd,     true, 10);
 	for (j = 0; j < ARRAY_SIZE(scale); j++) {
 		for (t = 0; t < ARRAY_SIZE(conc); ++t) {
 			ADD(NAME("tabby-%i*%i", scale[j], conc[t]),
 			    &glaring_with,
 			    &std_ops, &conf_0, false, scale[j], conc[t]);
+			ADD(NAME("savannah-%i*%i", scale[j], conc[t]),
+			    &glaring_with,
+			    &std_d_ops, &conf_0, false, scale[j], conc[t]);
 		}
 	}
 	for (i = 0; i < (1 << ARRAY_SIZE(ut_confs)); ++i) {
