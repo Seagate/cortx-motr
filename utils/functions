@@ -175,21 +175,22 @@ m0_default_xprt()
 {
     local trans
     local user
-    touch $M0_SRC_DIR/scripts/st.d/net_xpt
-    user=$(cat $M0_SRC_DIR/scripts/st.d/net_xpt)
-    if [[ "$user" == "libfab" ||  "$user" == "" ]]; then
+    cookie=$M0_SRC_DIR/scripts/st.d/net_xpt
+    touch $cookie
+    user=$(cat $cookie)
+    if [[ "$user" == "" ]]; then
         trans=$(whereis fi_info | cut -d ':' -f2)
         if [[ ! -z "$trans" ]]; then
              trans=libfab
         else
-             echo 'libfab is not installed. lnet is selected' >&2
-             trans=lnet
+	     trans=sock
+	     modinfo lnet >/dev/null 2>&1 && trans=lnet
         fi
         if [ "$user" = "" ]; then
-            echo $trans > $M0_SRC_DIR/scripts/st.d/net_xpt
+            echo $trans > $cookie
         fi
     else
-        trans=lnet
+        trans=$user
     fi
     echo $trans
 }
