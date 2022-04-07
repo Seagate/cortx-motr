@@ -145,7 +145,7 @@ struct m0_rpc_machine {
 	 * @see m0_net_transfer_mc:ntm_recv_queue_min_recv_size
 	 * The default value is m0_net_domain_get_max_buffer_size()
 	 */
-	uint32_t                          rm_min_recv_size;
+	uint64_t                          rm_min_recv_size;
 
 	struct m0_mutex_addb2             rm_lock_stats;
 
