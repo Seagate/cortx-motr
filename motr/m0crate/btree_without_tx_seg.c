@@ -490,7 +490,6 @@ be_btree_node_alloc(const struct m0_be_btree *btree, struct m0_be_tx *tx)
 	node = (struct m0_be_bnode *)mem_alloc(btree, tx,
 					       sizeof(struct m0_be_bnode),
 					       M0_BITS(M0_BAP_NORMAL));
-	M0_ASSERT(node != NULL);	/* @todo: analyse return code */
 
 	m0_format_header_pack(&node->bt_header, &(struct m0_format_tag){
 		.ot_version = M0_BE_BNODE_FORMAT_VERSION,
@@ -538,7 +537,6 @@ static void be_btree_split_child(struct m0_be_btree *btree,
 	int i;
 	struct m0_be_bnode *child = parent->bt_child_arr[index];
 	struct m0_be_bnode *new_child = be_btree_node_alloc(btree, tx);
-	M0_ASSERT(new_child != NULL);
 
 	be_btree_set_node_params(new_child, (BTREE_FAN_OUT - 1),
 					    child->bt_level, child->bt_isleaf);
@@ -659,7 +657,6 @@ static void be_btree_insert_newkey(struct m0_be_btree      *btree,
 		be_btree_insert_into_nonfull(btree, tx, old_root, kv);
 	} else {
 		new_root = be_btree_node_alloc(btree, tx);
-		M0_ASSERT(new_root != NULL);
 
 		new_root->bt_level = btree->bb_root->bt_level + 1;
 		btree_root_set(btree, new_root);
@@ -1220,7 +1217,7 @@ be_btree_get_btree_node(struct m0_be_btree_cursor *it, const void *key, bool sla
  */
 static void be_btree_destroy(struct m0_be_btree *btree, struct m0_be_tx *tx)
 {
-	int i = 0;
+	int i;
 	struct m0_be_bnode *head;
 	struct m0_be_bnode *tail;
 	struct m0_be_bnode *node_to_del;
@@ -1670,8 +1667,7 @@ static void be_btree_insert(struct m0_be_btree        *tree,
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
 	M0_PRE((val != NULL) == (anchor == NULL));
-	M0_PRE(ergo(anchor == NULL,
-		    val->b_nob == be_btree_vsize(tree, val->b_addr)));
+	M0_PRE(ergo(val, val->b_nob == be_btree_vsize(tree, val->b_addr)));
 
 	btree_save(tree, tx, op, key, val, anchor, BTREE_SAVE_INSERT, zonemask);
 
