@@ -1850,7 +1850,7 @@ static struct buf *ma_recv_buf(struct ma *ma, const struct packet *p)
 		b = nb->nb_xprt_private;
 		if (memcmp(&b->b_peer, &p->p_src, sizeof p->p_src) == 0)
 			return b; /* Already receiving. */
-		else if (large == NULL && b->b_done.b_words == NULL &&
+		else if (large == NULL && b->b_done.b_nr == 0 &&
 			 m0_vec_count(&nb->nb_buffer.ov_vec) >= p->p_totalsize)
 			large = b; /* Idle and has enough space. */
 	} m0_tl_endfor;
@@ -3042,7 +3042,7 @@ static int buf_accept(struct buf *buf, struct mover *m)
 		return M0_ERR(-EMSGSIZE);
 	if (buf->b_rc != 0)
 		return M0_RC(buf->b_rc);
-	if (buf->b_done.b_words == NULL) {
+	if (buf->b_done.b_nr == 0) {
 		result = m0_bitmap_init(&buf->b_done, p->p_nr);
 		if (result != 0)
 			return result;
@@ -3169,7 +3169,7 @@ static void buf_complete(struct buf *buf)
 	 * unconditionally.
 	 */
 	mover_fini(&buf->b_writer);
-	if (buf->b_done.b_words > 0)
+	if (buf->b_done.b_nr > 0)
 		m0_bitmap_fini(&buf->b_done);
 	b_tlink_fini(buf);
 	if (buf->b_other != NULL) {
@@ -4388,7 +4388,6 @@ M0_INTERNAL void buf__print(const struct buf *buf)
 	printf("\t%p: %" PRIx64 " bitmap: %"PRIx64
 	       " peer: %" PRIx64 ":%" PRIx64 "\n", buf,
 	       buf->b_cookie,
-	       buf->b_done.b_words != NULL ? buf->b_done.b_words[0] : 0,
 	       buf->b_peer.bd_cookie.co_addr,
 	       buf->b_peer.bd_cookie.co_generation);
 	ep__print(buf->b_other);
