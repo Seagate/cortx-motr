@@ -892,11 +892,18 @@ struct buf {
 	struct m0_net_buffer *b_buf;
 	/** Writer moving the data from this buffer. */
 	struct mover          b_writer;
+/** Embedded writer's rc is used to store buffer result. */
+#define b_rc b_writer.m_sm.sm_rc
 	/** Bitmap of received packets. */
 	struct m0_bitmap      b_done;
 	/** Descriptor of the other buffer in the transfer operation. */
 	struct bdesc          b_peer;
-	/** The other end-point for the transfer. */
+	/**
+	 * The other end-point for the transfer.
+	 *
+	 * This is set (by buf_accept()) when the first incoming packet is
+	 * received for this buffer.
+	 */
 	struct ep            *b_other;
 	/** Linkage in the list of completed buffers (ma::t_done). */
 	struct m0_tlink       b_linkage;
@@ -1081,7 +1088,6 @@ static bool sock_invariant(const struct sock *s);
 
 static struct ma *buf_ma(struct buf *buf);
 static bool buf_invariant(const struct buf *buf);
-static void buf_fini     (struct buf *buf);
 static int  buf_accept   (struct buf *buf, struct mover *m);
 static void buf_done     (struct buf *buf, int rc);
 static void buf_terminate(struct buf *buf, int rc);
@@ -1192,18 +1198,6 @@ static const struct socktype stype[] = {
 		.st_proto   = IPPROTO_UDP
 	}
 };
-
-/*
- * static const char *rw_name[] = {
- * 	"IDLE",
- * 	"PK",
- * 	"HEADER",
- * 	"INTERVAL",
- * 	"PK_DONE",
- * 	"FAIL",
- * 	"DONE",
- * 	};
- */
 
 #ifdef EP_DEBUG
 #define EP_GET(e, f) \
@@ -1652,8 +1646,8 @@ static void ma_event_post(struct ma *ma, enum m0_net_tm_state state)
 }
 
 /**
- * Finds queued buffers that timed out and completes them with a
- * prejudice^Werror.
+ * Finds queued buffers that timed out and completes them with prejudice^Wan
+ * error.
  */
 static void ma_buf_timeout(struct ma *ma)
 {
@@ -1668,7 +1662,7 @@ static void ma_buf_timeout(struct ma *ma)
 		m0_tl_for(m0_net_tm, &ma->t_ma->ntm_q[i], nb) {
 			if (nb->nb_timeout < now) {
 				nb->nb_flags |= M0_NET_BUF_TIMED_OUT;
-				buf_done(nb->nb_xprt_private, -ETIMEDOUT);
+				buf_terminate(nb->nb_xprt_private, -ETIMEDOUT);
 			}
 		} m0_tl_endfor;
 	}
@@ -1757,6 +1751,7 @@ static int buf_register(struct m0_net_buffer *nb)
 		nb->nb_xprt_private = b;
 		b->b_buf = nb;
 		b_tlink_init(b);
+		b->b_rc = -ENOENT;
 		return M0_RC(0);
 	} else
 		return M0_ERR(-ENOMEM);
@@ -1774,7 +1769,12 @@ static void buf_deregister(struct m0_net_buffer *nb)
 	struct buf *buf = nb->nb_xprt_private;
 
 	M0_PRE(nb->nb_flags == M0_NET_BUF_REGISTERED && buf_invariant(buf));
-	buf_fini(buf);
+	M0_PRE(&buf->b_writer.m_sm.sm_conf == NULL);
+	M0_PRE(buf->b_other == NULL);
+	M0_PRE(M0_IS0(&buf->b_peer));
+	M0_PRE(buf->b_offset == 0);
+	M0_PRE(buf->b_length == 0);
+	/* buf->b_rc can be still non-zero here. */
 	m0_free(buf);
 	nb->nb_xprt_private = NULL;
 }
@@ -1794,7 +1794,7 @@ static int buf_add(struct m0_net_buffer *nb)
 	struct bdesc *peer = &buf->b_peer;
 	int           qt   = nb->nb_qtype;
 	int           result;
-	//printf("add: %p[%i]\n", buf, qt);
+
 	M0_PRE(ma_is_locked(ma) && ma_invariant(ma) && buf_invariant(buf));
 	/* Next 2 asserts are from nlx_xo_buf_add(). */
 	M0_PRE(nb->nb_offset == 0); /* Do not support an offset during add. */
@@ -1840,6 +1840,8 @@ static int buf_add(struct m0_net_buffer *nb)
 	}
 	if (result != 0)
 		mover_fini(w);
+	else
+		buf->b_rc = 0;
 	M0_POST(ma_is_locked(ma) && ma_invariant(ma) && buf_invariant(buf));
 	TLOG(B_F, B_P(buf));
 	return M0_RC(result);
@@ -2848,8 +2850,8 @@ static int buf_accept(struct buf *buf, struct mover *m)
 		return M0_ERR(-EMSGSIZE);
 	if (p->p_totalsize > length)
 		return M0_ERR(-EMSGSIZE);
-	if (buf->b_writer.m_sm.sm_rc != 0)
-		return M0_ERR(buf->b_writer.m_sm.sm_rc);
+	if (buf->b_rc != 0)
+		return M0_ERR(buf->b_rc);
 	if (buf->b_done.b_words == NULL) {
 		result = m0_bitmap_init(&buf->b_done, p->p_nr);
 		if (result != 0)
@@ -2881,7 +2883,8 @@ static int buf_accept(struct buf *buf, struct mover *m)
 
 /**
  * Terminates the buffer due to some abnormal condition: timeout,
- * cancellation. Socket errors are handled separately in mover_op().
+ * cancellation. Socket errors and normal byffer completion are handled
+ * separately in mover_op() and buf_done().
  *
  * After this function completes, all further incoming packets to this buffer
  * and all attempts to write from this buffer will be rejected, until the buffer
@@ -2889,47 +2892,23 @@ static int buf_accept(struct buf *buf, struct mover *m)
  */
 static void buf_terminate(struct buf *buf, int rc)
 {
-	struct m0_net_end_point *ep;
-	struct sock             *sock;
+	struct sock *sock;
 
 	M0_PRE(rc != 0);
-	/*
-	 * Close the writer. This triggers ->v_error() and ->st_error() and
-	 * calls buf_done().
-	 */
-	mover_fail(&buf->b_writer, buf->b_writer.m_sock, rc);
-	buf->b_writer.m_sm.sm_rc = rc;
-	/*
-	 * Scan _all_ end-points and _all_ sockets, if the socket is in the
-	 * middle of writing a packet into this buffer---abort. This is
-	 * expensive, but hopefully not frequent.
-	 */
-	m0_tl_for(m0_nep, &buf->b_buf->nb_tm->ntm_end_points, ep) {
-		m0_tl_for(s, &ep_net(ep)->e_sock, sock) {
-			if (sock->s_reader.m_buf == buf)
-				mover_fail(&sock->s_reader, sock, rc);
-		} m0_tl_endfor;
-	} m0_tl_endfor;
-}
-
-/**
- * Finalises the buffer after transfer completes (including failures and
- * cancellations). Note that buffer completion event hasn't yet been
- * delivered. The buffer still remains attached to the network domain, until
- * finally freed by buf_deregister().
- */
-static void buf_fini(struct buf *buf)
-{
-	mover_fini(&buf->b_writer);
-	b_tlink_fini(buf);
-	if (buf->b_other != NULL) {
-		EP_PUT(buf->b_other, buf);
-		buf->b_other = NULL;
+	if (buf->b_rc == 0) {
+		/*
+		 * Close the writer. This triggers ->v_error(), ->st_error() and
+		 * buf_done().
+		 */
+		mover_fail(&buf->b_writer, buf->b_writer.m_sock, rc);
+		M0_ASSERT(buf->b_rc == rc);
+		if (buf->b_other != NULL) {
+			m0_tl_for(s, &buf->b_other->e_sock, sock) {
+				if (sock->s_reader.m_buf == buf)
+					mover_fail(&sock->s_reader, sock, rc);
+			} m0_tl_endfor;
+		}
 	}
-	M0_SET0(&buf->b_peer);
-	buf->b_offset = 0;
-	buf->b_length = 0;
-	buf->b_writer.m_sm.sm_rc = 0;
 }
 
 /** Completes the buffer operation. */
@@ -2951,15 +2930,12 @@ static void buf_done(struct buf *buf, int rc)
 		m0_bitmap_fini(&buf->b_done);
 	/*
 	 * Multiple buf_done() calls on the same buffer are possible if the
-	 * buffer is cancelled.
+	 * buffer is cancelled or times out.
 	 */
-	if (!b_tlink_is_in(buf)) {
-		/* Try to finalise. */
-		if (m0_thread_self() == &ma->t_poller)
-			buf_complete(buf);
-		else
-			/* Otherwise, postpone finalisation to ma_buf_done(). */
-			b_tlist_add_tail(&ma->t_done, buf);
+	if (buf->b_rc == 0) {
+		buf->b_rc = rc;
+		M0_ASSERT(!b_tlink_is_in(buf));
+		b_tlist_add_tail(&ma->t_done, buf);
 	}
 }
 
@@ -2971,7 +2947,7 @@ static void buf_complete(struct buf *buf)
 	struct m0_net_buffer *nb = buf->b_buf;
 	struct m0_net_buffer_event ev = {
 		.nbe_buffer = nb,
-		.nbe_status = buf->b_writer.m_sm.sm_rc,
+		.nbe_status = buf->b_rc == -EALREADY ? 0 : buf->b_rc,
 		.nbe_time   = m0_time_now()
 	};
 	if (M0_IN(nb->nb_qtype, (M0_NET_QT_MSG_RECV,
@@ -2996,7 +2972,17 @@ static void buf_complete(struct buf *buf)
 	 * M0_NET_BUF_RETAIN flag and the buffer will be unqueued
 	 * unconditionally.
 	 */
-	buf_fini(buf);
+	mover_fini(&buf->b_writer);
+	if (buf->b_done.b_words > 0)
+		m0_bitmap_fini(&buf->b_done);
+	b_tlink_fini(buf);
+	if (buf->b_other != NULL) {
+		EP_PUT(buf->b_other, buf);
+		buf->b_other = NULL;
+	}
+	M0_SET0(&buf->b_peer);
+	buf->b_offset = 0;
+	buf->b_length = 0;
 	M0_ASSERT(ma_invariant(ma));
 	ma_unlock(ma);
 	m0_net_buffer_event_post(&ev);
@@ -3126,12 +3112,6 @@ static int mover_op(struct mover *m, struct sock *s, int op)
 				break;
 		} else
 			state = m->m_op->v_op[state][op].o_op(m, s);
-		/*
-		 * printf("... %p: %s -> %s (%p)\n",
-		 *        m, rw_name[m->m_sm.sm_state],
-		 *        state >= 0 ? rw_name[state] : strerror(-state),
-		 *        m->m_buf);
-		 */
 		if (state >= 0) {
 			M0_ASSERT(IS_IN_ARRAY(state, m->m_op->v_op));
 			m0_sm_state_set(&m->m_sm, state);
@@ -3387,8 +3367,8 @@ static int pk_header_done(struct mover *m)
 		     (M0_NET_BUF_QUEUED|M0_NET_BUF_REGISTERED)) !=
 		    (M0_NET_BUF_QUEUED|M0_NET_BUF_REGISTERED))
 			return M0_ERR(-EPERM);
-		if (buf->b_writer.m_sm.sm_rc != 0)
-			return M0_ERR(-EPERM);
+		if (buf->b_rc != 0)
+			return M0_ERR(buf->b_rc);
 		if (!M0_IS0(&buf->b_peer) &&
 		    memcmp(&buf->b_peer, &p->p_src, sizeof p->p_src) != 0)
 			return M0_ERR(-EPERM);
@@ -3405,7 +3385,7 @@ static int pk_header_done(struct mover *m)
 		buf->b_writer.m_buf = buf;
 		result = ep_add(m->m_sock->s_ep, &buf->b_writer);
 		if (result != 0)
-			buf_done(buf, result);
+			buf_terminate(buf, result);
 		return R_IDLE;
 	}
 	if (!hasdst) {
@@ -3468,13 +3448,15 @@ static int pk_done(struct mover *m)
 
 	M0_PRE(mover_is_reader(m));
 	if (buf == NULL)
-		return M0_RC(-ECANCELED);
+		return M0_ERR(-ECANCELED);
+	if (buf->b_rc != 0)
+		return M0_ERR(buf->b_rc);
 	if (m0_bitmap_get(&buf->b_done, pk->p_idx))
 		return M0_ERR(-EPROTO);
 	m->m_buf = NULL;
 	m0_bitmap_set(&buf->b_done, pk->p_idx, true);
 	if (m0_bitmap_ffz(&buf->b_done) == -1)
-		buf_done(buf, 0); /* If all packets have been received, done. */
+		buf_done(buf, -EALREADY);
 	return 0;
 }
 
@@ -3549,7 +3531,9 @@ static int stream_interval(struct mover *self, struct sock *s)
 	int result;
 
 	if (self->m_buf == NULL)
-		return M0_RC(-ECANCELED);
+		return M0_ERR(-ECANCELED);
+	if (self->m_buf->b_rc != 0)
+		return M0_ERR(self->m_sm.sm_rc);
 	result = pk_io(self, s, HAS_READ, NULL, pk_tsize(self));
 	return result >= 0 ? pk_state(self) : result;
 }
@@ -3736,13 +3720,13 @@ static int writer_pk_done(struct mover *w, struct sock *s)
 /** Handles R_DONE state in a writer. */
 static void writer_done(struct mover *w, struct sock *s)
 {
-	writer_error(w, s, 0);
+	writer_error(w, s, -EALREADY);
 }
 
 /**
  * Completes a writer.
  *
- * This handles both normal (rc == 0) and error cases.
+ * This handles both normal (rc == -EALREADY) and error cases.
  *
  * Remove the writer from the socket and complete the buffer.
  */
@@ -4096,6 +4080,8 @@ M0_INTERNAL void ma__print(const struct ma *ma)
 		} m0_tl_endfor;
 	}
 }
+
+#undef b_rc
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of netsock group */
