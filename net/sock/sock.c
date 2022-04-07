@@ -892,8 +892,21 @@ struct buf {
 	struct m0_net_buffer *b_buf;
 	/** Writer moving the data from this buffer. */
 	struct mover          b_writer;
-/** Embedded writer's rc is used to store buffer result. */
-#define b_rc b_writer.m_sm.sm_rc
+	/**
+	 * Buffers return code.
+	 *
+	 * This is 0 after the buffer was successfully added to a queue and
+	 * before the buffer is terminated. Normal termination sets this to
+	 * -EALREADY, cancellation to -ECANCELED, timeout to -ETIMEDOUT, any
+	 * other error to the appropriate error code.
+	 *
+	 * When the buffer is registered, but not added, this field is -ENOENT.
+	 *
+	 * ->buf_rc is *not* cleared when the buffer completion call-back is
+	 * delivered, so if a late incoming packet arrives after the call-back,
+	 * it is rejected.
+	 */
+	int                   b_rc;
 	/** Bitmap of received packets. */
 	struct m0_bitmap      b_done;
 	/** Descriptor of the other buffer in the transfer operation. */
@@ -1240,7 +1253,8 @@ static bool ma_invariant(const struct ma *ma)
 		_0C(m0_forall(i, ARRAY_SIZE(net->ntm_q),
 			m0_tl_forall(m0_net_tm, nb, &net->ntm_q[i],
 				     buf_invariant(nb->nb_xprt_private)))) &&
-		_0C(m0_tl_forall(b, buf, &ma->t_done, buf_invariant(buf)));
+		_0C(m0_tl_forall(b, buf, &ma->t_done,
+				 buf_invariant(buf) && buf->b_rc != 0));
 }
 
 static bool sock_invariant(const struct sock *s)
@@ -2932,8 +2946,8 @@ static void buf_done(struct buf *buf, int rc)
 	 * buffer is cancelled or times out.
 	 */
 	if (buf->b_rc == 0) {
-		buf->b_rc = rc;
 		M0_ASSERT(!b_tlink_is_in(buf));
+		buf->b_rc = rc;
 		b_tlist_add_tail(&ma->t_done, buf);
 	}
 }
@@ -4080,7 +4094,6 @@ M0_INTERNAL void ma__print(const struct ma *ma)
 	}
 }
 
-#undef b_rc
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of netsock group */
