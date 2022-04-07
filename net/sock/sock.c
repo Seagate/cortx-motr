@@ -657,7 +657,7 @@
 #define MOCK_LNET (0)
 #endif
 
-#define USE_INVARIANTS (0)
+#define USE_INVARIANTS (1)
 
 struct sock;
 struct mover;
@@ -903,11 +903,11 @@ struct mover {
 	 */
 	void                      *m_scratch;
 	/**
-	 * The buffer generation that data are trasnferred with.
+	 * The buffer generation that data are transferred with.
 	 *
 	 * @see buf::b_cookie.
 	 */
-	uint64_t                   m_gen;
+	struct m0_cookie           m_gen;
 };
 
 /**
@@ -1342,7 +1342,9 @@ static bool sock_invariant(const struct sock *s)
 	return  _0C((s->s_sm.sm_state == S_DELETED) ==
 		    s_tlist_contains(&ma->t_deathrow, s)) &&
 		_0C((s->s_sm.sm_state != S_DELETED) ==
-		    s_tlist_contains(&s->s_ep->e_sock, s));
+		    s_tlist_contains(&s->s_ep->e_sock, s)) &&
+		 _0C(ergo(s->s_reader.m_sm.sm_conf != NULL,
+			  mover_invariant(&s->s_reader)));
 }
 
 static bool buf_invariant(const struct buf *buf)
@@ -1356,6 +1358,10 @@ static bool buf_invariant(const struct buf *buf)
 		(_0C(nb->nb_flags & (M0_NET_BUF_REGISTERED|M0_NET_BUF_QUEUED))&&
 		 _0C(nb->nb_tm != NULL) &&
 		 _0C(buf->b_rc <= 0) &&
+		 _0C(ergo(buf->b_other != NULL,
+			  M0_IN(nb->nb_qtype, (M0_NET_QT_MSG_RECV,
+					       M0_NET_QT_PASSIVE_BULK_RECV,
+					       M0_NET_QT_ACTIVE_BULK_RECV)))) &&
 		 _0C(ergo(buf->b_writer.m_sm.sm_conf != NULL,
 			  mover_invariant(&buf->b_writer))) &&
 		 _0C(m0_net__buffer_invariant(nb)));
@@ -1411,7 +1417,11 @@ static bool mover_invariant(const struct mover *m)
 	return  _0C(m_tlink_is_in(m) == (m->m_ep != NULL)) &&
 		_0C(M0_IN(m->m_op, (&writer_op, &get_op)) ||
 		    m0_exists(i, ARRAY_SIZE(stype),
-			      stype[i].st_reader == m->m_op));
+			      stype[i].st_reader == m->m_op)) &&
+		_0C(ergo(mover_is_writer(m),
+			 m->m_buf != NULL && m == &m->m_buf->b_writer)) &&
+		_0C(ergo(mover_is_reader(m) && m->m_sock != NULL,
+			 m == &m->m_sock->s_reader));
 }
 
 /* USE_INVARIANTS */
@@ -2215,6 +2225,7 @@ static void sock_done(struct sock *s, bool balance)
 	TLOG(SOCK_F, SOCK_P(s));
 	/* This function can be called multiple times, should be idempotent. */
 	if (s->s_reader.m_sm.sm_conf != NULL) {
+		s->s_reader.m_sock = NULL;
 		if (s->s_fd > 0)
 			sock_close(s);
 		if (s->s_sm.sm_state != S_DELETED) { /* sock_close()    */
@@ -2730,7 +2741,7 @@ static int addr_resolve(struct addr *addr, const char *name)
 
 	if (result == 0) {
 		/*
-		 * Currently only numberical ip addresses are supported (see
+		 * Currently only numerical ip addresses are supported (see
 		 * addr_parse()). They do not require any resolving. In the
 		 * future, use getaddrinfo(3).
 		 */
@@ -3082,7 +3093,7 @@ static int buf_accept(struct buf *buf, struct mover *m)
 	}
 	if (result == 0) {
 		m->m_buf = buf;
-		m->m_gen = buf->b_cookie;
+		m0_cookie_init(&m->m_gen, &buf->b_cookie);
 	}
 	return result;
 }
@@ -3107,6 +3118,11 @@ static void buf_terminate(struct buf *buf, int rc)
 		 */
 		mover_fail(&buf->b_writer, buf->b_writer.m_sock, rc);
 		if (buf->b_other != NULL) {
+			/*
+			 * Fail movers trying to write to the buffer. Movers on
+			 * other end-points remain bound to the buffer, this
+			 * will be detected by mover_matches().
+			 */
 			m0_tl_for(s, &buf->b_other->e_sock, sock) {
 				if (sock->s_reader.m_buf == buf)
 					mover_fail(&sock->s_reader, sock, rc);
@@ -3159,6 +3175,7 @@ static void buf_complete(struct buf *buf)
 		.nbe_status = buf->b_rc == -EALREADY ? 0 : buf->b_rc,
 		.nbe_time   = m0_time_now()
 	};
+	M0_PRE(ma_is_locked(ma) && ma_invariant(ma) && buf_invariant(buf));
 	if (M0_IN(qtype, (M0_NET_QT_MSG_RECV, M0_NET_QT_PASSIVE_BULK_RECV,
 			  M0_NET_QT_ACTIVE_BULK_RECV))) {
 		ev.nbe_length = buf->b_length;
@@ -3269,7 +3286,6 @@ static void mover_init(struct mover *m, struct ma *ma,
 	m0_sm_init(&m->m_sm, &rw_conf, R_IDLE, &ma->t_ma->ntm_group);
 	m0_sm_addb2_counter_init(&m->m_sm);
 	m->m_op = vop;
-	M0_POST(mover_invariant(m));
 }
 
 static void mover_fini(struct mover *m)
@@ -3376,6 +3392,7 @@ static bool mover_is_writer(const struct mover *m)
 static int mover_matches(const struct mover *m)
 {
 	struct buf *buf = m->m_buf;
+	uint64_t   *addr;
 
 	M0_PRE(mover_is_reader(m));
 	if (buf == NULL)
@@ -3384,11 +3401,16 @@ static int mover_matches(const struct mover *m)
 		 * cancellation), and then deregistered.
 		 */
 		return M0_RC(-ECANCELED);
-	if (buf->b_rc != 0) /* The buffer has already been terminated. */
-		return M0_RC(buf->b_rc);
-	if (buf->b_cookie != m->m_gen)
+	if (m0_cookie_dereference(&m->m_gen, &addr) != 0 ||
+	    addr != &buf->b_cookie)
 		/* The buffer might have been re-queued after termination. */
 		return M0_RC(-ENOENT);
+	if (m0_is_poisoned(&buf->b_rc)) {
+		M0_LOG(M0_FATAL, "Freed: %p %p.", buf, m);
+		return M0_ERR(-EINVAL);
+	}
+	if (buf->b_rc != 0) /* The buffer has already been terminated. */
+		return M0_RC(buf->b_rc);
 	return 0;
 }
 
@@ -3803,7 +3825,7 @@ static int stream_pk(struct mover *self, struct sock *s)
 {
 	s->s_flags &= ~MORE_BUFS;
 	self->m_nob = 0;
-	self->m_gen = 0;
+	M0_SET0(&self->m_gen);
 	M0_ASSERT(self->m_buf == NULL);
 	return R_HEADER;
 }
@@ -3864,7 +3886,6 @@ static void stream_pk_io(struct mover *m, struct sock *s, struct msghdr *msg)
 static void stream_error(struct mover *m, struct sock *s)
 {
 	if (m->m_sock != NULL || s->s_reader.m_buf != NULL) {
-		m->m_sock = NULL;
 		s->s_reader.m_buf = NULL;
 		sock_done(s, true);
 	}
@@ -3878,7 +3899,7 @@ static void stream_error(struct mover *m, struct sock *s)
 static int dgram_idle(struct mover *self, struct sock *s)
 {
 	self->m_nob = 0;
-	self->m_gen = 0;
+	M0_SET0(&self->m_gen);
 	self->m_buf = NULL;
 	return R_PK;
 }
@@ -4367,8 +4388,8 @@ M0_INTERNAL void addr__print(const struct addr *addr)
 
 M0_INTERNAL void sock__print(const struct sock *sock)
 {
-	printf("\t\tfd: %i, flags: %" PRIx64 ", state: %i\n",
-	       sock->s_fd, sock->s_flags, sock->s_sm.sm_state);
+	printf("\t\t%p: fd: %i, flags: %" PRIx64 ", state: %i\n",
+	       sock, sock->s_fd, sock->s_flags, sock->s_sm.sm_state);
 }
 
 M0_INTERNAL void ep__print(const struct ep *ep)
@@ -4376,7 +4397,7 @@ M0_INTERNAL void ep__print(const struct ep *ep)
 	struct sock  *s;
 	struct mover *w;
 	if (ep == NULL)
-		printf("NULL ep\n");
+		printf("\tNULL ep\n");
 	else {
 		printf("\t%p: ", ep);
 		addr__print(&ep->e_a);
@@ -4391,18 +4412,10 @@ M0_INTERNAL void ep__print(const struct ep *ep)
 
 M0_INTERNAL void buf__print(const struct buf *buf)
 {
-<<<<<<< HEAD
-	printf("\t%p: %" PRIx64 " bitmap: %"PRIx64
-	       " peer: %" PRIx64 ":%" PRIx64 "\n", buf,
-	       buf->b_cookie,
-	       buf->b_peer.bd_cookie.co_addr,
-	       buf->b_peer.bd_cookie.co_generation);
-=======
-	printf("\t%p: %"PRIx64" peer: %"PRIx64":%"PRIx64" done: " PRIb64"\n",
+	printf("\t%p: %" PRIx64 " peer: %" PRIx64 ":%" PRIx64 " done: " PRIb64 "\n",
 	       buf, buf->b_cookie, buf->b_peer.bd_cookie.co_addr,
 	       buf->b_peer.bd_cookie.co_generation,
 	       PRFb64((uint64_t)buf->b_done.b_words));
->>>>>>> 0d8284c5... sock: use sendmsg(2) instead of writev(2).
 	ep__print(buf->b_other);
 }
 
