@@ -143,12 +143,9 @@ static void req_send(struct atut__req  *req,
 M0_INTERNAL void atut__bufdata_alloc(struct m0_buf *buf, size_t size,
 				     struct m0_rpc_machine *rmach)
 {
-	int         rc;
-	m0_bcount_t seg_size = m0_net_domain_get_max_buffer_segment_size(
-							  rmach->rm_tm.ntm_dom);
+	int rc;
 
-	M0_UT_ASSERT(rmach->rm_bulk_cutoff == seg_size);
-	if (size < seg_size) {
+	if (size < rmach->rm_bulk_cutoff) {
 		rc = m0_buf_alloc(buf, size);
 		M0_UT_ASSERT(rc == 0);
 	} else {
@@ -531,9 +528,8 @@ static void reqh_init(void)
 	M0_SET0(&atreqh);
 	rc = m0_net_domain_init(&atreqh.aur_net_dom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
-	at_seg_size = m0_net_domain_get_max_buffer_segment_size(
-							   &atreqh.aur_net_dom);
-	at_buf_size = m0_net_domain_get_max_buffer_size(&atreqh.aur_net_dom);
+	at_seg_size = m0_rpc_max_seg_size(&atreqh.aur_net_dom);
+	at_buf_size = m0_rpc_max_msg_size(&atreqh.aur_net_dom, 0);
 	rc = m0_rpc_net_buffer_pool_setup(&atreqh.aur_net_dom,
 					  &atreqh.aur_buf_pool,
 					  m0_rpc_bufs_nr(

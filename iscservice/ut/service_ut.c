@@ -187,7 +187,9 @@ static void isc_ut_client_start(void)
 	rc = m0_rpc_client_start(&isc_ut_cctx);
 	M0_UT_ASSERT(rc == 0);
 	isc_ut_cctx.rcx_rpc_machine.rm_bulk_cutoff =
-		 m0_net_domain_get_max_buffer_segment_size(&isc_ut_client_ndom);
+		m0_align(m0_rpc_max_msg_size(&isc_ut_client_ndom, 0) / 2,
+			 m0_pagesize_get());
+
 }
 
 static void isc_ut_client_stop()
