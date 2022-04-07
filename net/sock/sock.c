@@ -1084,6 +1084,7 @@ static bool buf_invariant(const struct buf *buf);
 static void buf_fini     (struct buf *buf);
 static int  buf_accept   (struct buf *buf, struct mover *m);
 static void buf_done     (struct buf *buf, int rc);
+static void buf_terminate(struct buf *buf, int rc);
 static void buf_complete (struct buf *buf);
 
 static int bdesc_create(struct addr *addr, struct buf *buf,
@@ -1095,6 +1096,7 @@ static void mover_init(struct mover *m, struct ma *ma,
 		       const struct mover_op_vec *vop);
 static void mover_fini(struct mover *m);
 static int  mover_op  (struct mover *m, struct sock *s, int op);
+static void mover_fail(struct mover *m, struct sock *s, int rc);
 static bool mover_is_reader(const struct mover *m);
 static bool mover_is_writer(const struct mover *m);
 static bool mover_invariant(const struct mover *m);
@@ -1854,18 +1856,11 @@ static void buf_del(struct m0_net_buffer *nb)
 {
 	struct buf  *buf = nb->nb_xprt_private;
 	struct ma   *ma  = buf_ma(buf);
-	struct sock *sock;
 
 	M0_PRE(ma_is_locked(ma) && ma_invariant(ma) && buf_invariant(buf));
 	TLOG(B_F, B_P(buf));
 	nb->nb_flags |= M0_NET_BUF_CANCELLED;
-	if (buf->b_other != NULL) {
-		m0_tl_for(s, &buf->b_other->e_sock, sock) {
-			if (sock->s_reader.m_buf == buf)
-				sock->s_reader.m_buf = NULL;
-		} m0_tl_endfor;
-	}
-	buf_done(buf, -ECANCELED);
+	buf_terminate(buf, -ECANCELED);
 }
 
 static int bev_deliver_sync(struct m0_net_transfer_mc *ma)
@@ -2853,6 +2848,8 @@ static int buf_accept(struct buf *buf, struct mover *m)
 		return M0_ERR(-EMSGSIZE);
 	if (p->p_totalsize > length)
 		return M0_ERR(-EMSGSIZE);
+	if (buf->b_writer.m_sm.sm_rc != 0)
+		return M0_ERR(buf->b_writer.m_sm.sm_rc);
 	if (buf->b_done.b_words == NULL) {
 		result = m0_bitmap_init(&buf->b_done, p->p_nr);
 		if (result != 0)
@@ -2880,6 +2877,39 @@ static int buf_accept(struct buf *buf, struct mover *m)
 		result = M0_ERR(-EPROTO);
 	}
 	return result;
+}
+
+/**
+ * Terminates the buffer due to some abnormal condition: timeout,
+ * cancellation. Socket errors are handled separately in mover_op().
+ *
+ * After this function completes, all further incoming packets to this buffer
+ * and all attempts to write from this buffer will be rejected, until the buffer
+ * is re-queued.
+ */
+static void buf_terminate(struct buf *buf, int rc)
+{
+	struct m0_net_end_point *ep;
+	struct sock             *sock;
+
+	M0_PRE(rc != 0);
+	/*
+	 * Close the writer. This triggers ->v_error() and ->st_error() and
+	 * calls buf_done().
+	 */
+	mover_fail(&buf->b_writer, buf->b_writer.m_sock, rc);
+	buf->b_writer.m_sm.sm_rc = rc;
+	/*
+	 * Scan _all_ end-points and _all_ sockets, if the socket is in the
+	 * middle of writing a packet into this buffer---abort. This is
+	 * expensive, but hopefully not frequent.
+	 */
+	m0_tl_for(m0_nep, &buf->b_buf->nb_tm->ntm_end_points, ep) {
+		m0_tl_for(s, &ep_net(ep)->e_sock, sock) {
+			if (sock->s_reader.m_buf == buf)
+				mover_fail(&sock->s_reader, sock, rc);
+		} m0_tl_endfor;
+	} m0_tl_endfor;
 }
 
 /**
@@ -3108,11 +3138,7 @@ static int mover_op(struct mover *m, struct sock *s, int op)
 		} else {
 			if (state == -ENOBUFS) /* Unwind and re-provision. */
 				break;
-			m0_sm_state_set(&m->m_sm, R_FAIL);
-			if (m->m_op->v_error != NULL)
-				m->m_op->v_error(m, s, state);
-			m0_sm_state_set(&m->m_sm, R_DONE);
-			stype[s->s_ep->e_a.a_socktype].st_error(m, s);
+			mover_fail(m, s, state);
 		}
 		state = m->m_sm.sm_state;
 	}
@@ -3127,6 +3153,16 @@ static bool mover_is_reader(const struct mover *m)
 static bool mover_is_writer(const struct mover *m)
 {
 	return M0_IN(m->m_op, (&writer_op, &get_op));
+}
+
+static void mover_fail(struct mover *m, struct sock *s, int rc)
+{
+	m0_sm_state_set(&m->m_sm, R_FAIL);
+	if (m->m_op->v_error != NULL)
+		m->m_op->v_error(m, s, rc);
+	m0_sm_state_set(&m->m_sm, R_DONE);
+	if (s != NULL)
+		stype[s->s_ep->e_a.a_socktype].st_error(m, s);
 }
 
 /**
@@ -3344,6 +3380,12 @@ static int pk_header_done(struct mover *m)
 		buf = container_of(cookie, struct buf, b_cookie);
 		if (buf_ma(buf) != ma)
 			return M0_ERR(-EPERM);
+		if ((buf->b_buf->nb_flags &
+		     (M0_NET_BUF_QUEUED|M0_NET_BUF_REGISTERED)) !=
+		    (M0_NET_BUF_QUEUED|M0_NET_BUF_REGISTERED))
+			return M0_ERR(-EPERM);
+		if (buf->b_writer.m_sm.sm_rc != 0)
+			return M0_ERR(-EPERM);
 		if (!M0_IS0(&buf->b_peer) &&
 		    memcmp(&buf->b_peer, &p->p_src, sizeof p->p_src) != 0)
 			return M0_ERR(-EPERM);
@@ -3422,7 +3464,7 @@ static int pk_done(struct mover *m)
 	struct packet *pk  = &m->m_pk;
 
 	M0_PRE(mover_is_reader(m));
-	if (m->m_buf == NULL)
+	if (buf == NULL)
 		return M0_RC(-ECANCELED);
 	if (m0_bitmap_get(&buf->b_done, pk->p_idx))
 		return M0_ERR(-EPROTO);
@@ -3529,8 +3571,9 @@ static m0_bcount_t stream_pk_size(const struct mover *w, const struct sock *s)
 /** Handles an error for a stream socket. */
 static void stream_error(struct mover *m, struct sock *s)
 {
-	if (m->m_sock != NULL) {
+	if (m->m_sock != NULL || s->s_reader.m_buf != NULL) {
 		m->m_sock = NULL;
+		s->s_reader.m_buf = NULL;
 		sock_done(s, true);
 	}
 }
