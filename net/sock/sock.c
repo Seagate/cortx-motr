@@ -3041,7 +3041,7 @@ static int buf_accept(struct buf *buf, struct mover *m)
 	if (p->p_totalsize > length)
 		return M0_ERR(-EMSGSIZE);
 	if (buf->b_rc != 0)
-		return M0_ERR(buf->b_rc);
+		return M0_RC(buf->b_rc);
 	if (buf->b_done.b_words == NULL) {
 		result = m0_bitmap_init(&buf->b_done, p->p_nr);
 		if (result != 0)
@@ -3371,12 +3371,12 @@ static int mover_matches(const struct mover *m)
 		 * The buffer might have been terminated (timeout,
 		 * cancellation), and then deregistered.
 		 */
-		return M0_ERR(-ECANCELED);
+		return M0_RC(-ECANCELED);
 	if (buf->b_rc != 0) /* The buffer has already been terminated. */
-		return M0_ERR(buf->b_rc);
+		return M0_RC(buf->b_rc);
 	if (buf->b_gen != m->m_gen)
 		/* The buffer might have been re-queued after termination. */
-		return M0_ERR(-ENOENT);
+		return M0_RC(-ENOENT);
 	return 0;
 }
 
@@ -3617,20 +3617,20 @@ static int pk_header_done(struct mover *m)
 					   p->p_dst.bd_cookie.co_generation);
 		buf = container_of(cookie, struct buf, b_cookie);
 		if (buf_ma(buf) != ma)
-			return M0_ERR(-EPERM);
+			return M0_RC(-EPERM);
 		if ((buf->b_buf->nb_flags & BFLAGS) != BFLAGS)
-			return M0_ERR(-EPERM);
+			return M0_RC(-EPERM);
 		if (buf->b_rc != 0)
-			return M0_ERR(buf->b_rc);
+			return M0_RC(buf->b_rc);
 		if (!M0_IS0(&buf->b_peer) &&
 		    memcmp(&buf->b_peer, &p->p_src, sizeof p->p_src) != 0)
-			return M0_ERR(-EPERM);
+			return M0_RC(-EPERM);
 		qtype = buf->b_buf->nb_qtype;
 		if (isget && qtype != M0_NET_QT_PASSIVE_BULK_SEND)
-			return M0_ERR(-EPERM);
+			return M0_RC(-EPERM);
 		if (!isget && !M0_IN(qtype, (M0_NET_QT_ACTIVE_BULK_RECV,
 					     M0_NET_QT_PASSIVE_BULK_RECV)))
-			return M0_ERR(-EPERM);
+			return M0_RC(-EPERM);
 	}
 	if (isget) {
 		struct mover *w = &buf->b_writer;
@@ -3694,9 +3694,9 @@ static int pk_header_done(struct mover *m)
 			 * queue.
 			 */
 			if (pool == NULL)
-				return M0_ERR(-ENODATA); /* Drop the packet. */
+				return M0_RC(-ENODATA); /* Drop the packet. */
 			if (m->m_sock->s_flags & MORE_BUFS)
-				return M0_ERR(-ENODATA); /* Already tried. */
+				return M0_RC(-ENODATA); /* Already tried. */
 			if (m0_mutex_trylock(&pool->nbp_mutex) == 0) {
 				m0_net__tm_provision_buf(tm);
 				/* Got the lock. Add 2 buffers. */
@@ -3792,7 +3792,7 @@ static int stream_header(struct mover *self, struct sock *s)
 {
 	int result = pk_io(self, s, HAS_READ, NULL, sizeof self->m_pkbuf);
 	if (result < 0)
-		return M0_ERR(result);
+		return M0_RC(result);
 	/* Cannot use pk_state() with unverified header. */
 	else if (self->m_nob < sizeof self->m_pkbuf)
 		return R_HEADER;
