@@ -92,6 +92,9 @@
  */
 
 #include "fid/fid.h"            /* m0_fid */
+#include "fid/fid_xc.h"         /* m0_fid_xc */
+#include "lib/buf.h"            /* m0_bufs */
+#include "lib/buf_xc.h"         /* m0_bufs_xc */
 #include "lib/types.h"          /* uint64_t */
 #include "xcode/xcode.h"        /* M0_XCA_RECORD */
 
@@ -122,7 +125,7 @@ enum m0_dtx0_payload_type {
 
 struct m0_dtx0_payload {
 	uint32_t         dtp_type M0_XCA_FENUM(m0_dtx0_payload_type);
-	struct m0_bufvec dtp_data;
+	struct m0_bufs   dtp_data;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
 
 struct m0_dtm0_redo {
@@ -134,6 +137,13 @@ struct m0_dtm0_p {
 	struct m0_dtx0_id dtmp_id;
 	struct m0_fid     dtmp_sdev_fid;
 };
+
+M0_INTERNAL bool m0_dtx0_id_eq(const struct m0_dtx0_id *left,
+			       const struct m0_dtx0_id *right);
+
+M0_INTERNAL int m0_dtx0_id_cmp(const struct m0_dtx0_id *left,
+			       const struct m0_dtx0_id *right);
+
 
 #endif /* __MOTR_DTM0_DTM0_H__ */
 

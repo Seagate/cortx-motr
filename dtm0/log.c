@@ -47,7 +47,6 @@
 
 #include "dtm0/dtm0.h"          /* m0_dtm0_redo */
 
-
 struct m0_sm_group;
 struct m0_be_domain;
 
@@ -124,11 +123,16 @@ M0_INTERNAL int m0_dtm0_log_open(struct m0_dtm0_log     *dol,
 			 m0_be_domain_seg_first(dom),
 	                 &dtm0_log_transactions_kv_ops);
 	dol->dtl_data = log_data;
+	m0_mutex_init(&dol->dtl_lock);
+	dol->dtl_op = NULL;
+	dol->dtl_head = NULL;
 	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_dtm0_log_close(struct m0_dtm0_log *dol)
 {
+	M0_PRE(dol->dtl_op == NULL);
+	m0_mutex_fini(&dol->dtl_lock);
 	m0_be_btree_fini(&dol->dtl_data->dtld_transactions);
 }
 
@@ -210,14 +214,14 @@ static m0_bcount_t dtm0_log_transactions_ksize(const void *key)
 	return sizeof ((struct dtm0_log_record *)NULL)->lr_descriptor.dtd_id;
 }
 
-static m0_bcount_t dtm0_log_transactions_vsize(const void *key)
+static m0_bcount_t dtm0_log_transactions_vsize(const void *value)
 {
 	return sizeof(struct dtm0_log_record *);
 }
 
 static int dtm0_log_transactions_compare(const void *key0, const void *key1)
 {
-	return 0; /* XXX TODO */
+	return m0_dtx0_id_cmp(key0, key1);
 }
 
 M0_INTERNAL int m0_dtm0_log_redo_add(struct m0_dtm0_log        *dol,
@@ -226,28 +230,33 @@ M0_INTERNAL int m0_dtm0_log_redo_add(struct m0_dtm0_log        *dol,
                                      const struct m0_fid       *p_sdev_fid)
 {
 	struct dtm0_log_record  *rec;
-	struct m0_bufvec_cursor  cur;
 	struct m0_be_seg        *seg = dol->dtl_cfg.dlc_seg;
-	int                      rc;
 
 	/* TODO lookup before insert */
 	/* TODO check memory allocation errors */
 	M0_BE_ALLOC_PTR_SYNC(rec, seg, tx);
+	M0_ASSERT(redo->dtr_payload.dtp_data.ab_count == 1);
 	rec->lr_payload_data.b_nob =
-		m0_vec_count(&redo->dtr_payload.dtp_data.ov_vec);
+		redo->dtr_payload.dtp_data.ab_elems[0].b_nob;
 	M0_BE_ALLOC_BUF_SYNC(&rec->lr_payload_data, seg, tx);
+	m0_buf_memcpy(&rec->lr_payload_data,
+		      &redo->dtr_payload.dtp_data.ab_elems[0]);
 	rec->lr_descriptor = redo->dtr_descriptor;
-	m0_bufvec_cursor_init(&cur, &redo->dtr_payload.dtp_data);
-	rc = m0_bufvec_to_data_copy(&cur,
-	                            rec->lr_payload_data.b_addr,
-	                            rec->lr_payload_data.b_nob);
-	M0_ASSERT(rc == 0); /* XXX */
 	M0_BE_OP_SYNC(op, m0_be_btree_insert(
 	                &dol->dtl_data->dtld_transactions, tx, &op,
 	                &M0_BUF_INIT_PTR(&rec->lr_descriptor.dtd_id),
 	                &M0_BUF_INIT(sizeof rec, &rec)));
 	dtm0_log_all_p_be_tlink_create(rec, tx);
+	m0_mutex_lock(&dol->dtl_lock);
+	if (dtm0_log_all_p_be_list_head(&dol->dtl_data->dtld_all_p) == NULL &&
+	    dol->dtl_op != NULL) {
+		M0_ASSERT(dol->dtl_head != NULL);
+		*dol->dtl_head = rec->lr_descriptor.dtd_id;
+		m0_be_op_done(dol->dtl_op);
+		dol->dtl_op = NULL;
+	}
 	dtm0_log_all_p_be_list_add_tail(&dol->dtl_data->dtld_all_p, tx, rec);
+	m0_mutex_unlock(&dol->dtl_lock);
 	/* TODO capture rec->lr_payload_data */
 	/* TODO capture rec */
 	return 0;
@@ -261,9 +270,11 @@ M0_INTERNAL void m0_dtm0_log_redo_add_credit(struct m0_dtm0_log        *dol,
 	struct m0_be_seg       *seg = dol->dtl_cfg.dlc_seg;
 	struct m0_be_allocator *a   = m0_be_seg_allocator(seg);
 
+	M0_PRE(redo->dtr_payload.dtp_data.ab_count == 1);
+
 	m0_be_allocator_credit(a, M0_BAO_ALLOC, sizeof *rec, 0, accum);
 	m0_be_allocator_credit(a, M0_BAO_ALLOC,
-			       m0_vec_count(&redo->dtr_payload.dtp_data.ov_vec),
+			       redo->dtr_payload.dtp_data.ab_elems[0].b_nob,
 	                       0, accum);
 	m0_be_btree_insert_credit(&dol->dtl_data->dtld_transactions, 1,
 	                          sizeof rec->lr_descriptor.dtd_id,
@@ -282,7 +293,9 @@ M0_INTERNAL void m0_dtm0_log_prune(struct m0_dtm0_log *dol,
 	M0_BE_OP_SYNC(op, m0_be_btree_lookup(
 	                &dol->dtl_data->dtld_transactions, &op,
 	                &M0_BUF_INIT_PTR(dtx0_id), &rec_buf));
+	m0_mutex_lock(&dol->dtl_lock);
 	dtm0_log_all_p_be_list_del(&dol->dtl_data->dtld_all_p, tx, rec);
+	m0_mutex_unlock(&dol->dtl_lock);
 	dtm0_log_all_p_be_tlink_destroy(rec, tx);
 	/* TODO free rec */
 	/* TODO check delete result, i.e. t_rc */
@@ -304,6 +317,27 @@ M0_INTERNAL void m0_dtm0_log_prune_credit(struct m0_dtm0_log     *dol,
 }
 
 
+M0_INTERNAL void m0_dtm0_log_p_get_none_left(struct m0_dtm0_log *dol,
+					     struct m0_be_op    *op,
+					     struct m0_dtx0_id  *dtx0_id)
+{
+	struct dtm0_log_record *rec;
+
+	m0_be_op_active(op);
+	m0_mutex_lock(&dol->dtl_lock);
+	rec = dtm0_log_all_p_be_list_head(&dol->dtl_data->dtld_all_p);
+	if (rec != NULL) {
+		*dtx0_id = rec->lr_descriptor.dtd_id;
+		m0_be_op_done(op);
+		dol->dtl_op = NULL;
+		dol->dtl_head = NULL;
+	} else {
+		M0_ASSERT(dol->dtl_op == NULL);
+		dol->dtl_op = op;
+		dol->dtl_head = dtx0_id;
+	}
+	m0_mutex_unlock(&dol->dtl_lock);
+}
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of dtm0 group */

@@ -44,13 +44,18 @@
 
 
 enum {
-	M0_DTM0_UT_LOG_SIMPLE_SEG_SIZE  = 0x200000,
-	M0_DTM0_UT_LOG_SIMPLE_REDO_SIZE = 0x10000,
+	M0_DTM0_UT_LOG_SIMPLE_SEG_SIZE  = 0x2000000,
+	M0_DTM0_UT_LOG_SIMPLE_REDO_SIZE = 0x1000,
 };
 
 
 void m0_dtm0_ut_log_simple(void)
 {
+	enum {
+		TS_BASE = 0x100,
+		NR_OPER = 0x10,
+		NR_REC_PER_OPER = 0x10,
+	};
 	struct m0_dtm0_domain_cfg *dod_cfg;
 	struct m0_be_ut_backend   *ut_be;
 	struct m0_be_ut_seg       *ut_seg;
@@ -61,6 +66,8 @@ void m0_dtm0_ut_log_simple(void)
 	uint64_t                   seed = 42;
 	int                        rc;
 	int                        i;
+	int                        j;
+	struct m0_dtx0_id          dtx0_id;
 
 	M0_ALLOC_PTR(dod_cfg);
 	M0_UT_ASSERT(dod_cfg != NULL);
@@ -81,7 +88,7 @@ void m0_dtm0_ut_log_simple(void)
 	*redo = (struct m0_dtm0_redo){
 		.dtr_descriptor = {
 			.dtd_id = {
-				.dti_timestamp           = 0x100,
+				.dti_timestamp           = TS_BASE,
 				.dti_originator_sdev_fid = p_sdev_fid,
 			},
 			.dtd_participants = {
@@ -92,11 +99,8 @@ void m0_dtm0_ut_log_simple(void)
 		.dtr_payload = {
 			.dtp_type = M0_DTX0_PAYLOAD_BLOB,
 			.dtp_data = {
-				.ov_vec = {
-					.v_nr    = 1,
-					.v_count = &redo_buf.b_nob,
-				},
-				.ov_buf  = &redo_buf.b_addr,
+				.ab_count = 1,
+				.ab_elems = &redo_buf,
 			},
 		},
 	};
@@ -111,18 +115,33 @@ void m0_dtm0_ut_log_simple(void)
 
 	rc = m0_dtm0_log_create(dol, &dod_cfg->dodc_log);
 	M0_UT_ASSERT(rc == 0);
-	for (i = 0; i < 0x10; ++i) {
+	for (i = 0; i < NR_OPER; ++i) {
 		rc = m0_dtm0_log_open(dol, &dod_cfg->dodc_log);
 		M0_UT_ASSERT(rc == 0);
-		M0_BE_UT_TRANSACT(ut_be, tx, cred,
-		                  m0_dtm0_log_redo_add_credit(dol, redo, &cred),
-		                  rc = m0_dtm0_log_redo_add(dol, tx, redo,
-		                                            &p_sdev_fid));
-		M0_UT_ASSERT(rc == 0);
-		M0_BE_UT_TRANSACT(ut_be, tx, cred,
-		                  m0_dtm0_log_prune_credit(dol, &cred),
-		                  m0_dtm0_log_prune(dol, tx,
-						&redo->dtr_descriptor.dtd_id));
+		for (j = 0; j < NR_REC_PER_OPER; ++j) {
+			redo->dtr_descriptor.dtd_id.dti_timestamp = j + TS_BASE;
+			M0_BE_UT_TRANSACT(ut_be, tx, cred,
+					  m0_dtm0_log_redo_add_credit(dol,
+								      redo,
+								      &cred),
+					  rc = m0_dtm0_log_redo_add(dol, tx,
+								    redo,
+								    &p_sdev_fid));
+			M0_UT_ASSERT(rc == 0);
+		}
+		for (j = 0; j < NR_REC_PER_OPER; ++j) {
+			M0_BE_OP_SYNC(op,
+				      m0_dtm0_log_p_get_none_left(dol, &op,
+								  &dtx0_id));
+			redo->dtr_descriptor.dtd_id.dti_timestamp = j + TS_BASE;
+			M0_UT_ASSERT(m0_dtx0_id_eq(&dtx0_id,
+						   &redo->dtr_descriptor.dtd_id));
+
+			M0_BE_UT_TRANSACT(ut_be, tx, cred,
+					  m0_dtm0_log_prune_credit(dol, &cred),
+					  m0_dtm0_log_prune(dol, tx,
+							&redo->dtr_descriptor.dtd_id));
+		}
 		m0_dtm0_log_close(dol);
 	}
 	m0_dtm0_log_destroy(dol);
