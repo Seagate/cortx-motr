@@ -259,7 +259,7 @@ static void send_ping_fop(struct m0_rpc_session *session)
 	M0_ALLOC_ARR(ping_fop->fp_arr.f_data, nr_arr_member);
 	M0_ASSERT(ping_fop->fp_arr.f_data != NULL);
 
-	fop->f_item.ri_resend_interval = M0_TIME_ONE_MSEC * 50;
+	fop->f_item.ri_resend_interval = M0_TIME_ONE_MSEC * 5000ULL;
 	rc = m0_rpc_post_sync(fop, session, &ping_item_ops,
 			      m0_time_from_now(1, 0));
 	M0_ASSERT(rc == 0);
