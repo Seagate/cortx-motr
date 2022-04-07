@@ -1853,12 +1853,19 @@ static int buf_add(struct m0_net_buffer *nb)
  */
 static void buf_del(struct m0_net_buffer *nb)
 {
-	struct buf *buf = nb->nb_xprt_private;
-	struct ma  *ma  = buf_ma(buf);
+	struct buf  *buf = nb->nb_xprt_private;
+	struct ma   *ma  = buf_ma(buf);
+	struct sock *sock;
 
 	M0_PRE(ma_is_locked(ma) && ma_invariant(ma) && buf_invariant(buf));
 	TLOG(B_F, B_P(buf));
 	nb->nb_flags |= M0_NET_BUF_CANCELLED;
+	if (buf->b_other != NULL) {
+		m0_tl_for(s, &buf->b_other->e_sock, sock) {
+			if (sock->s_reader.m_buf == buf)
+				sock->s_reader.m_buf = NULL;
+		} m0_tl_endfor;
+	}
 	buf_done(buf, -ECANCELED);
 }
 
@@ -2907,6 +2914,10 @@ static void buf_done(struct buf *buf, int rc)
 	struct ma *ma = buf_ma(buf);
 
 	M0_PRE(ma_is_locked(ma) && ma_invariant(ma) && buf_invariant(buf));
+	M0_PRE(ergo(buf->b_other != NULL,
+		    m0_tl_forall(s, sock, &buf->b_other->e_sock,
+				 sock->s_reader.m_buf != buf)));
+
 	/*printf("done: %p[%i] %" PRIi64 " %i\n", buf,
 	       buf->b_buf != NULL ? buf->b_buf->nb_qtype : -1,
 	       buf->b_buf != NULL ? buf->b_buf->nb_length : -1, rc); */
