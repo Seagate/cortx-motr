@@ -337,7 +337,9 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			conf->is_addb_init = atoi(value);
 			break;
 		case DI:
-			conf->is_di = (bool)(size_t)(atoi(value));
+			int temp;
+			temp = atoi(value)
+			conf->is_di = temp;
 			break;
 		case ADDB_SIZE:
 			conf->addb_size = getnum(value, "addb size");
