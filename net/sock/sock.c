@@ -1072,7 +1072,7 @@ struct sock_ops {
 #define B_F "[[%i]@%p:"EP_FL"]"
 #define B_P(b) (b)->b_buf->nb_qtype, (b), EP_PL((b)->b_other)
 
-#define TLOG(...) do { /* M0_LOG(M0_DEBUG, __VA_ARGS__) */; } while (0)
+#define TLOG(...) do { /* M0_LOG(M0_DEBUG, __VA_ARGS__) */ ; } while (0)
 
 M0_TL_DESCR_DEFINE(s, "sockets",
 		   static, struct sock, s_linkage, s_magix,
@@ -2124,12 +2124,14 @@ static m0_bcount_t get_max_buffer_desc_size(const struct m0_net_domain *dom)
 	return sizeof(struct bdesc);
 }
 
+enum { RPC_MSG_MAX = 1 << 20 };
+
 static m0_bcount_t get_rpc_max_seg_size(struct m0_net_domain *ndom)
 {
 	if (MOCK_LNET)
 		return 4096;
 	else
-		return default_xo_rpc_max_seg_size(ndom);
+		return RPC_MSG_MAX;
 }
 
 static uint32_t get_rpc_max_segs_nr(struct m0_net_domain *ndom)
@@ -2137,7 +2139,22 @@ static uint32_t get_rpc_max_segs_nr(struct m0_net_domain *ndom)
 	if (MOCK_LNET)
 		return 512;
 	else
-		return default_xo_rpc_max_segs_nr(ndom);
+		return 1;
+}
+
+static m0_bcount_t get_rpc_max_msg_size(struct m0_net_domain *ndom,
+					m0_bcount_t rpc_size)
+{
+	if (MOCK_LNET)
+		return default_xo_rpc_max_msg_size(ndom, rpc_size);
+	else
+		return RPC_MSG_MAX;
+}
+
+static uint32_t get_rpc_max_recv_msgs(struct m0_net_domain *ndom,
+				      m0_bcount_t rpc_size)
+{
+	return 1;
 }
 
 /** Processes a "readable" event for a socket. */
@@ -4312,12 +4329,10 @@ static const struct m0_net_xprt_ops xprt_ops = {
 	.xo_get_max_buffer_segment_size = &get_max_buffer_segment_size,
 	.xo_get_max_buffer_segments     = &get_max_buffer_segments,
 	.xo_get_max_buffer_desc_size    = &get_max_buffer_desc_size,
-
 	.xo_rpc_max_seg_size            = &get_rpc_max_seg_size,
 	.xo_rpc_max_segs_nr             = &get_rpc_max_segs_nr,
-	.xo_rpc_max_msg_size            = default_xo_rpc_max_msg_size,
-	.xo_rpc_max_recv_msgs           = default_xo_rpc_max_recv_msgs,
-
+	.xo_rpc_max_msg_size            = &get_rpc_max_msg_size,
+	.xo_rpc_max_recv_msgs           = &get_rpc_max_recv_msgs
 };
 
 #if MOCK_LNET
@@ -4342,11 +4357,11 @@ M0_INTERNAL int m0_net_sock_mod_init(void)
 
 	if (MOCK_LNET) {
 		m0_net_xprt_register(&m0_net_lnet_xprt);
-		if (m0_streq(M0_DEFAULT_NETWORK, "LNET"))
+		if (M0_DEFAULT_NETWORK == 'L')
 			m0_net_xprt_default_set(&m0_net_lnet_xprt);
 	} else {
 		m0_net_xprt_register(&m0_net_sock_xprt);
-		if (m0_streq(M0_DEFAULT_NETWORK, "SOCK"))
+		if (M0_DEFAULT_NETWORK == 'S')
 			m0_net_xprt_default_set(&m0_net_sock_xprt);
 	}
 	m0_sm_conf_init(&rw_conf);
