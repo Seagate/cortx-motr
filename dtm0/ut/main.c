@@ -809,6 +809,7 @@ static void remach_real_log_replay(void)
 extern void m0_dtm0_ut_drlink_simple(void);
 extern void m0_dtm0_ut_domain_init_fini(void);
 extern void m0_dtm0_ut_log_simple(void);
+extern void m0_dtm0_ut_log_mpsc(void);
 
 struct m0_ut_suite dtm0_ut = {
 	.ts_name = "dtm0-ut",
@@ -816,14 +817,15 @@ struct m0_ut_suite dtm0_ut = {
 		{ "xcode",                  cas_xcode_test        },
 		{ "drlink-simple",         &m0_dtm0_ut_drlink_simple },
 		{ "domain_init-fini",      &m0_dtm0_ut_domain_init_fini },
-		{ "remach-init-fini",       remach_init_fini      },
-		{ "log-simple",            &m0_dtm0_ut_log_simple             },
-		{ "remach-start-stop",      remach_start_stop     },
+		{ "log-simple",            &m0_dtm0_ut_log_simple  },
+		{ "log-mpsc",              &m0_dtm0_ut_log_mpsc    },
+		{ "remach-init-fini",       remach_init_fini       },
+		{ "remach-start-stop",      remach_start_stop      },
 		{ "remach-boot-cluster-ss", remach_boot_cluster_ss },
 		{ "remach-boot-cluster-cs", remach_boot_cluster_cs },
-		{ "remach-reboot-server",   remach_reboot_server  },
-		{ "remach-reboot-twice",    remach_reboot_twice   },
-		{ "remach-boot-real-log",   remach_boot_real_log  },
+		{ "remach-reboot-server",   remach_reboot_server   },
+		{ "remach-reboot-twice",    remach_reboot_twice    },
+		{ "remach-boot-real-log",   remach_boot_real_log   },
 		{ "remach-real-log-replay", remach_real_log_replay  },
 		{ NULL, NULL },
 	}

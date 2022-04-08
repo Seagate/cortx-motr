@@ -41,13 +41,55 @@
 #include "dtm0/domain.h"        /* m0_dtm0_domain_cfg */
 #include "dtm0/cfg_default.h"   /* m0_dtm0_domain_cfg_default_dup */
 #include "dtm0/dtm0.h"          /* m0_dtm0_redo */
+#include "be/tx_bulk.h"         /* m0_be_tx_bulk */
 
 
 enum {
 	M0_DTM0_UT_LOG_SIMPLE_SEG_SIZE  = 0x2000000,
-	M0_DTM0_UT_LOG_SIMPLE_REDO_SIZE = 0x1000,
+	M0_DTM0_UT_LOG_SIMPLE_REDO_SIZE = 0x100,
 };
 
+struct dtm0_ut_log_ctx {
+	struct m0_be_ut_backend   ut_be;
+	struct m0_be_ut_seg       ut_seg;
+	struct m0_dtm0_domain_cfg dod_cfg;
+	struct m0_dtm0_log        dol;
+};
+
+static struct dtm0_ut_log_ctx *dtm0_ut_log_init(void)
+{
+	struct dtm0_ut_log_ctx *lctx;
+	int                     rc;
+
+	M0_ALLOC_PTR(lctx);
+	M0_UT_ASSERT(lctx != NULL);
+
+	m0_be_ut_backend_init(&lctx->ut_be);
+	m0_be_ut_seg_init(&lctx->ut_seg, &lctx->ut_be,
+			  M0_DTM0_UT_LOG_SIMPLE_SEG_SIZE);
+	rc = m0_dtm0_domain_cfg_default_dup(&lctx->dod_cfg, true);
+	M0_UT_ASSERT(rc == 0);
+	lctx->dod_cfg.dodc_log.dlc_be_domain = &lctx->ut_be.but_dom;
+	lctx->dod_cfg.dodc_log.dlc_seg =
+		m0_be_domain_seg_first(lctx->dod_cfg.dodc_log.dlc_be_domain);
+
+	rc = m0_dtm0_log_create(&lctx->dol, &lctx->dod_cfg.dodc_log);
+	M0_UT_ASSERT(rc == 0);
+
+	return lctx;
+}
+
+static void dtm0_ut_log_fini(struct dtm0_ut_log_ctx *lctx)
+{
+	m0_dtm0_log_destroy(&lctx->dol);
+	m0_dtm0_domain_cfg_free(&lctx->dod_cfg);
+	m0_be_ut_seg_fini(&lctx->ut_seg);
+	m0_be_ut_backend_fini(&lctx->ut_be);
+	m0_free(lctx);
+
+}
+
+/* TODO: add dtm0_ut_log_init-fini */
 
 void m0_dtm0_ut_log_simple(void)
 {
@@ -56,11 +98,7 @@ void m0_dtm0_ut_log_simple(void)
 		NR_OPER = 0x10,
 		NR_REC_PER_OPER = 0x10,
 	};
-	struct m0_dtm0_domain_cfg *dod_cfg;
-	struct m0_be_ut_backend   *ut_be;
-	struct m0_be_ut_seg       *ut_seg;
 	struct m0_dtm0_redo       *redo;
-	struct m0_dtm0_log        *dol;
 	struct m0_buf              redo_buf = {};
 	struct m0_fid              p_sdev_fid;
 	uint64_t                   seed = 42;
@@ -68,17 +106,10 @@ void m0_dtm0_ut_log_simple(void)
 	int                        i;
 	int                        j;
 	struct m0_dtx0_id          dtx0_id;
+	struct dtm0_ut_log_ctx    *lctx;
 
-	M0_ALLOC_PTR(dod_cfg);
-	M0_UT_ASSERT(dod_cfg != NULL);
-	M0_ALLOC_PTR(ut_be);
-	M0_UT_ASSERT(ut_be != NULL);
-	M0_ALLOC_PTR(ut_seg);
-	M0_UT_ASSERT(ut_seg != NULL);
 	M0_ALLOC_PTR(redo);
 	M0_UT_ASSERT(redo != NULL);
-	M0_ALLOC_PTR(dol);
-	M0_UT_ASSERT(dol != NULL);
 	rc = m0_buf_alloc(&redo_buf, M0_DTM0_UT_LOG_SIMPLE_REDO_SIZE);
 	M0_UT_ASSERT(rc == 0);
 
@@ -105,59 +136,236 @@ void m0_dtm0_ut_log_simple(void)
 		},
 	};
 
-	m0_be_ut_backend_init(ut_be);
-	m0_be_ut_seg_init(ut_seg, ut_be, M0_DTM0_UT_LOG_SIMPLE_SEG_SIZE);
-	rc = m0_dtm0_domain_cfg_default_dup(dod_cfg, true);
-	M0_UT_ASSERT(rc == 0);
-	dod_cfg->dodc_log.dlc_be_domain = &ut_be->but_dom;
-	dod_cfg->dodc_log.dlc_seg =
-		m0_be_domain_seg_first(dod_cfg->dodc_log.dlc_be_domain);
+	lctx = dtm0_ut_log_init();
 
-	rc = m0_dtm0_log_create(dol, &dod_cfg->dodc_log);
-	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < NR_OPER; ++i) {
-		rc = m0_dtm0_log_open(dol, &dod_cfg->dodc_log);
+		rc = m0_dtm0_log_open(&lctx->dol, &lctx->dod_cfg.dodc_log);
 		M0_UT_ASSERT(rc == 0);
 		for (j = 0; j < NR_REC_PER_OPER; ++j) {
 			redo->dtr_descriptor.dtd_id.dti_timestamp = j + TS_BASE;
-			M0_BE_UT_TRANSACT(ut_be, tx, cred,
-					  m0_dtm0_log_redo_add_credit(dol,
+			M0_BE_UT_TRANSACT(&lctx->ut_be, tx, cred,
+					  m0_dtm0_log_redo_add_credit(&lctx->dol,
 								      redo,
 								      &cred),
-					  rc = m0_dtm0_log_redo_add(dol, tx,
+					  rc = m0_dtm0_log_redo_add(&lctx->dol,
+								    tx,
 								    redo,
 								    &p_sdev_fid));
 			M0_UT_ASSERT(rc == 0);
 		}
 		for (j = 0; j < NR_REC_PER_OPER; ++j) {
 			M0_BE_OP_SYNC(op,
-				      m0_dtm0_log_p_get_none_left(dol, &op,
+				      m0_dtm0_log_p_get_none_left(&lctx->dol,
+								  &op,
 								  &dtx0_id));
 			redo->dtr_descriptor.dtd_id.dti_timestamp = j + TS_BASE;
 			M0_UT_ASSERT(m0_dtx0_id_eq(&dtx0_id,
 						   &redo->dtr_descriptor.dtd_id));
 
-			M0_BE_UT_TRANSACT(ut_be, tx, cred,
-					  m0_dtm0_log_prune_credit(dol, &cred),
-					  m0_dtm0_log_prune(dol, tx,
+			M0_BE_UT_TRANSACT(&lctx->ut_be, tx, cred,
+					  m0_dtm0_log_prune_credit(&lctx->dol,
+								   &cred),
+					  m0_dtm0_log_prune(&lctx->dol, tx,
 							&redo->dtr_descriptor.dtd_id));
 		}
-		m0_dtm0_log_close(dol);
+		m0_dtm0_log_close(&lctx->dol);
 	}
-	m0_dtm0_log_destroy(dol);
 
-	m0_dtm0_domain_cfg_free(dod_cfg);
-	m0_be_ut_seg_fini(ut_seg);
-	m0_be_ut_backend_fini(ut_be);
+	dtm0_ut_log_fini(lctx);
 
 	m0_buf_free(&redo_buf);
-	m0_free(dol);
 	m0_free(redo);
-	m0_free(ut_seg);
-	m0_free(ut_be);
-	m0_free(dod_cfg);
 }
 
+enum {
+	MPSC_NR_REC_TOTAL = 0x100,
+};
+
+static struct m0_dtm0_redo *redo_get(int timestamp, int index)
+{
+	int                  rc;
+	struct m0_buf       *redo_buf;
+	struct m0_dtm0_redo *redo;
+	static struct m0_fid p_sdev_fid;
+	uint64_t             seed = 42;
+	int                  i;
+
+	M0_ALLOC_PTR(redo);
+	M0_UT_ASSERT(redo != NULL);
+
+	M0_ALLOC_PTR(redo_buf);
+	M0_UT_ASSERT(redo_buf != NULL);
+
+	rc = m0_buf_alloc(redo_buf, M0_DTM0_UT_LOG_SIMPLE_REDO_SIZE);
+	M0_UT_ASSERT(rc == 0);
+	for (i = 0; i < redo_buf->b_nob; ++i)
+		((char *)redo_buf->b_addr)[i] = m0_rnd64(&seed) & 0xff;
+	p_sdev_fid = M0_FID_TINIT(M0_CONF__SDEV_FT_ID, 1, 2);
+
+	*redo = (struct m0_dtm0_redo){
+		.dtr_descriptor = {
+			.dtd_id = {
+				.dti_timestamp           = timestamp + index,
+				.dti_originator_sdev_fid = p_sdev_fid,
+			},
+			.dtd_participants = {
+				.dtpa_participants_nr = 1,
+				.dtpa_participants    = &p_sdev_fid,
+			},
+		},
+		.dtr_payload = {
+			.dtp_type = M0_DTX0_PAYLOAD_BLOB,
+			.dtp_data = {
+				.ab_count = 1,
+				.ab_elems = redo_buf,
+			},
+		},
+	};
+
+	return redo;
+}
+
+static void redo_put(struct m0_dtm0_redo *redo)
+{
+	/*M0_UT_ASSERT(0);*/
+}
+
+enum {
+	MPSC_TS_BASE = 0,
+};
+
+static void dtm0_ut_log_produce_redo_add(struct m0_be_tx_bulk   *tb,
+					 struct dtm0_ut_log_ctx *lctx)
+{
+	int i;
+	struct m0_dtm0_redo   *redo;
+	struct m0_be_tx_credit credit;
+
+	for (i = 0; i < MPSC_NR_REC_TOTAL; ++i) {
+		redo = redo_get(MPSC_TS_BASE, i);
+		credit = M0_BE_TX_CREDIT(0, 0);
+		m0_dtm0_log_redo_add_credit(&lctx->dol, redo, &credit);
+		M0_BE_OP_SYNC(op,
+			      m0_be_tx_bulk_put(tb, &op, &credit, 0, 0, redo));
+	}
+
+	m0_be_tx_bulk_end(tb);
+}
+
+static void dtm0_ut_log_tx_bulk_parallel_do(struct m0_be_tx_bulk *tb,
+					    struct m0_be_tx      *tx,
+					    struct m0_be_op      *op,
+					    void                 *datum,
+					    void                 *user,
+					    uint64_t              worker_index,
+					    uint64_t              partition)
+{
+	struct dtm0_ut_log_ctx *lctx = datum;
+	struct m0_dtm0_redo    *redo = user;
+	struct m0_fid p_sdev_fid;
+
+	(void) worker_index;
+	(void) partition;
+
+	p_sdev_fid = M0_FID_TINIT(M0_CONF__SDEV_FT_ID, 1, 2);
+
+	m0_be_op_active(op);
+	m0_dtm0_log_redo_add(&lctx->dol, tx, redo, &p_sdev_fid);
+	m0_be_op_done(op);
+
+	redo_put(redo);
+}
+
+static void dtm0_ut_log_tx_bulk_parallel_done(struct m0_be_tx_bulk *tb,
+					      void                 *datum,
+					      void                 *user,
+					      uint64_t              worker_index,
+					      uint64_t              partition)
+{
+}
+
+static void dtm0_ut_log_remove(struct dtm0_ut_log_ctx *lctx,
+			       int                     timestamp, int nr)
+{
+	int                  i;
+	struct m0_dtx0_id    dtx0_id;
+	bool                *seen;
+
+	M0_ALLOC_ARR(seen, nr);
+	M0_UT_ASSERT(seen != NULL);
+	M0_UT_ASSERT(m0_forall(i, nr, !seen[i]));
+
+	for (i = 0; i < nr; ++i) {
+		M0_BE_OP_SYNC(op,
+			      m0_dtm0_log_p_get_none_left(&lctx->dol, &op,
+							  &dtx0_id));
+		seen[dtx0_id.dti_timestamp - timestamp] = true;
+		M0_BE_UT_TRANSACT(&lctx->ut_be, tx, cred,
+				  m0_dtm0_log_prune_credit(&lctx->dol, &cred),
+				  m0_dtm0_log_prune(&lctx->dol, tx, &dtx0_id));
+	}
+
+	M0_UT_ASSERT(m0_forall(i, nr, seen[i]));
+}
+
+
+void m0_dtm0_ut_log_mpsc(void)
+{
+	struct dtm0_ut_log_ctx   *lctx;
+	struct m0_be_op          *op;
+	struct m0_be_tx_bulk     *tb;
+	struct m0_be_tx_bulk_cfg *tb_cfg;
+	int                       rc;
+
+	lctx = dtm0_ut_log_init();
+	M0_ALLOC_PTR(tb);
+	M0_UT_ASSERT(tb != NULL);
+
+	M0_ALLOC_PTR(tb_cfg);
+	M0_UT_ASSERT(tb_cfg != NULL);
+
+	*tb_cfg = (struct m0_be_tx_bulk_cfg) {
+		.tbc_q_cfg                 = {
+			.bqc_q_size_max       = MPSC_NR_REC_TOTAL / 2,
+			.bqc_producers_nr_max = 1,
+		},
+		.tbc_workers_nr            = 100,
+		.tbc_partitions_nr         = 1,
+		.tbc_work_items_per_tx_max = 1,
+		.tbc_datum                 = lctx,
+		.tbc_do                    = &dtm0_ut_log_tx_bulk_parallel_do,
+		.tbc_done                  =
+			&dtm0_ut_log_tx_bulk_parallel_done,
+		.tbc_dom                   = &lctx->ut_be.but_dom,
+	};
+
+	rc = m0_dtm0_log_open(&lctx->dol, &lctx->dod_cfg.dodc_log);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_be_tx_bulk_init(tb, tb_cfg);
+	M0_UT_ASSERT(rc == 0);
+	M0_ALLOC_PTR(op);
+	M0_UT_ASSERT(op != NULL);
+	m0_be_op_init(op);
+
+	m0_be_tx_bulk_run(tb, op);
+	dtm0_ut_log_produce_redo_add(tb, lctx);
+	m0_be_op_wait(op);
+
+	m0_be_op_fini(op);
+	m0_free(op);
+
+	rc = m0_be_tx_bulk_status(tb);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_be_tx_bulk_fini(tb);
+
+	dtm0_ut_log_remove(lctx, MPSC_TS_BASE, MPSC_NR_REC_TOTAL);
+
+	m0_dtm0_log_close(&lctx->dol);
+	m0_free(tb);
+	dtm0_ut_log_fini(lctx);
+}
 
 #undef M0_TRACE_SUBSYSTEM
 
