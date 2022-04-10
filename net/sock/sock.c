@@ -1072,7 +1072,7 @@ struct sock_ops {
 #define B_F "[[%i]@%p:"EP_FL"]"
 #define B_P(b) (b)->b_buf->nb_qtype, (b), EP_PL((b)->b_other)
 
-#define TLOG(...) do { /* M0_LOG(M0_DEBUG, __VA_ARGS__) */ ; } while (0)
+#define TLOG(...) do { /* M0_LOG(M0_DEBUG, __VA_ARGS__) */; } while (0)
 
 M0_TL_DESCR_DEFINE(s, "sockets",
 		   static, struct sock, s_linkage, s_magix,
@@ -1871,7 +1871,7 @@ static struct buf *ma_recv_buf(struct ma *ma, const struct packet *p)
 		b = nb->nb_xprt_private;
 		if (memcmp(&b->b_peer, &p->p_src, sizeof p->p_src) == 0)
 			return b; /* Already receiving. */
-		else if (large == NULL && b->b_done.b_nr == 0 &&
+		else if (large == NULL && b->b_done.b_nr == 0 && b->b_rc == 0 &&
 			 m0_vec_count(&nb->nb_buffer.ov_vec) >= p->p_totalsize)
 			large = b; /* Idle and has enough space. */
 	} m0_tl_endfor;
@@ -3133,6 +3133,7 @@ static void buf_terminate(struct buf *buf, int rc)
 	struct sock *sock;
 
 	M0_PRE(rc != 0);
+	TLOG(B_F", rc = %i", B_P(buf), buf->b_rc);
 	if (buf->b_rc == 0) {
 		/*
 		 * Close the writer. This triggers ->v_error() and ->st_error().
@@ -3593,7 +3594,9 @@ static int pk_io(struct mover *m, struct sock *s, uint64_t flag,
 		rc = 0;
 	} else if (errno == EINTR) { /* Nothing was ioed, repeat. */
 		rc = 0;
-	} else if (M0_IN(errno, (EPIPE, ECONNRESET)))
+	} else if (errno == EPIPE) { /* Raced with close, ignore. */
+		rc = 0;
+	} else if (M0_IN(errno, (ECONNRESET)))
 		rc = M0_RC(-errno);
 	else
 		rc = M0_ERR(-errno);
