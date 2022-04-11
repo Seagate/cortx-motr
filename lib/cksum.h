@@ -26,7 +26,6 @@
 #define __MOTR_CKSUM_H__
 
 #include "lib/vec.h"
-#include "lib/cksum.h"
 #include "fid/fid.h"
 #include "xcode/xcode_attr.h"
 #ifndef __KERNEL__

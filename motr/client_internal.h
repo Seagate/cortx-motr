@@ -976,8 +976,6 @@ M0_INTERNAL bool m0__obj_is_di_cksum_gen_enabled(struct m0_op_io *ioo);
 M0_INTERNAL bool m0__obj_is_di_enabled(struct m0_op_io *ioo);
 M0_INTERNAL uint8_t m0__obj_di_cksum_type(struct m0_op_io *ioo);
 M0_INTERNAL uint32_t m0__obj_di_cksum_size(struct m0_op_io *ioo);
-M0_INTERNAL bool m0__obj_is_parity_cksum_validation_allowed(struct m0_op_io *ioo);
-M0_INTERNAL bool m0__obj_is_data_cksum_validation_allowed(struct m0_op_io *ioo);
 M0_INTERNAL int target_calculate_checksum( struct m0_op_io *ioo, 
 											uint8_t pi_type,
 											enum page_attr filter, 
