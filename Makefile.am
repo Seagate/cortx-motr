@@ -133,8 +133,7 @@ CONFXC_CLEAN_FILE := .confxc.clean
 KDIR = @LINUX_OBJ@
 
 # path for python C extention installs
-# TODO : port m0spiel utility to python3
-PYTHON      := python2
+PYTHON      := python3
 SETUP_PY    := $(PYTHON) setup.py
 
 if MOTR_IDX_STORE_CASS
@@ -986,6 +985,7 @@ motr_libexec_SCRIPTS = \
     scripts/install$(motrdir)/libexec/m0_ha_sim \
     scripts/install$(motrdir)/libexec/motr_data_recovery.sh \
     scripts/install$(motrdir)/libexec/m0trace_logrotate.sh \
+    scripts/install$(motrdir)/libexec/core_logrotate.sh \
     scripts/install$(motrdir)/libexec/motr_cfg.sh \
     scripts/install$(motrdir)/libexec/m0addb_logrotate.sh
 EXTRA_DIST += $(motr_libexec_SCRIPTS)

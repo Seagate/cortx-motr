@@ -428,7 +428,7 @@ void m0_obj_init(struct m0_obj *obj,
 
 #ifdef OSYNC
 	m0_mutex_init(&obj->ob_pending_tx_lock);
-	ospti_tlist_init(&obj->ob_pending_tx);
+	spti_tlist_init(&obj->ob_pending_tx);
 #endif
 
 	M0_LEAVE();
@@ -848,6 +848,7 @@ void m0_op_fini(struct m0_op *op)
 {
 	struct m0_op_common        *oc;
 	struct m0_sm_group         *grp;
+	struct m0_reqh_service_txid *iter;
 
 	M0_ENTRY();
 
@@ -861,6 +862,11 @@ void m0_op_fini(struct m0_op *op)
 	if (oc->oc_cb_fini != NULL)
 		oc->oc_cb_fini(oc);
 	m0_mutex_fini(&op->op_priv_lock);
+
+	m0_tl_teardown(spti, &op->op_pending_tx, iter)
+		m0_free0(&iter);
+	spti_tlist_fini(&op->op_pending_tx);
+	m0_mutex_fini(&op->op_pending_tx_lock);
 
 	grp = &op->op_sm_group;
 	m0_sm_group_lock(grp);

@@ -18,8 +18,8 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-set -eu
-# set -x
+set -e
+#set -x
 export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
 ## CAUTION: This path will be removed by superuser.
@@ -78,7 +78,7 @@ EOF
 start() {
     # install "motr" Python module required by m0spiel tool
     cd $M0_SRC_DIR/utils/spiel
-    python2 setup.py install --record $INSTALLED_FILES > /dev/null ||
+    python3 setup.py install --record $INSTALLED_FILES > /dev/null ||
         die 'Cannot install Python "motr" module'
     sandbox_init
     _init

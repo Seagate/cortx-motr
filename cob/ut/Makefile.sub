@@ -1,1 +1,1 @@
-ut_libmotr_ut_la_SOURCES += cob/ut/cob.c
+ut_libmotr_ut_la_SOURCES += cob/ut/cob.c cob/ut/bytecount.c

@@ -27,7 +27,7 @@ Tests:
     sandbox  : /var/motr/m0ut
     groupname: 01motr-single-node
     polltime : 15
-    timeout  : 1800
+    timeout  : 2400
 
   - id       : 01kernel-tests
     script   : 'm0 run-kut'
