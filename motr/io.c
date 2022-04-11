@@ -657,21 +657,61 @@ M0_INTERNAL bool m0__obj_is_parity_verify_mode(struct m0_client *instance)
         return instance->m0c_config->mc_is_read_verify;
 }
 
-M0_INTERNAL bool m0__obj_is_di_enabled(struct m0_op_io *ioo)
+M0_INTERNAL bool m0__obj_is_di_cksum_gen_enabled(struct m0_op_io *ioo)
 {
-	return ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI;
+	ioo->ioo_obj->ob_entity.en_flags |= M0_ENF_GEN_DI;
+	return ioo->ioo_obj->ob_entity.en_flags & M0_ENF_GEN_DI;
 }
 
-M0_INTERNAL bool m0__obj_is_cksum_validation_allowed(struct m0_op_io *ioo)
+M0_INTERNAL bool m0__obj_is_di_enabled(struct m0_op_io *ioo)
+{
+	ioo->ioo_obj->ob_entity.en_flags |= M0_ENF_GEN_DI;
+	return ioo->ioo_obj->ob_entity.en_flags & (M0_ENF_DI | M0_ENF_GEN_DI);
+}
+
+M0_INTERNAL uint8_t m0__obj_di_cksum_type(struct m0_op_io *ioo)
+{
+	struct m0_generic_pi *pi;
+
+	ioo->ioo_obj->ob_entity.en_flags |= M0_ENF_GEN_DI;
+    if( (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) && 
+	   	 ioo->ioo_attr.ov_buf ) {
+		pi = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[0];
+		return pi->pi_hdr.pih_type;
+	}
+	else if(ioo->ioo_obj->ob_entity.en_flags & M0_ENF_GEN_DI)
+		return M0_CKSUM_DEFAULT_PI;
+	else
+		return M0_PI_TYPE_MAX;
+}
+
+M0_INTERNAL uint32_t m0__obj_di_cksum_size(struct m0_op_io *ioo)
+{
+	ioo->ioo_obj->ob_entity.en_flags |= M0_ENF_GEN_DI;
+	if( (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) && 
+		 ioo->ioo_attr.ov_buf )
+		return ioo->ioo_attr.ov_vec.v_count[0];
+	else if(ioo->ioo_obj->ob_entity.en_flags & M0_ENF_GEN_DI)
+		return m0_cksum_get_size(M0_CKSUM_DEFAULT_PI);
+	else
+		return 0;
+}
+
+M0_INTERNAL bool m0__obj_is_parity_cksum_validation_allowed(struct m0_op_io *ioo)
+{
+       return ioo->ioo_dgmode_io_sent ||
+				m0__obj_is_parity_verify_mode(m0__op_instance(m0__ioo_to_op(ioo))) ||
+				(ioreq_sm_state(ioo) == IRS_DEGRADED_READING);
+}
+
+M0_INTERNAL bool m0__obj_is_data_cksum_validation_allowed(struct m0_op_io *ioo)
 {
 	/*
 	 * Checksum validation is not allowed for degraded read and
 	 * for read verify mode in parity.
 	 */
-	return m0__obj_is_di_enabled(ioo) &&
-	       !ioo->ioo_dgmode_io_sent &&
-	       !m0__obj_is_parity_verify_mode(
-			       m0__op_instance(m0__ioo_to_op(ioo)));
+       return m0__obj_is_di_enabled(ioo) &&
+				!m0__obj_is_parity_cksum_validation_allowed(ioo);
 }
 
 M0_INTERNAL int m0__obj_io_build(struct m0_io_args *args,

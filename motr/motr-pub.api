@@ -469,3 +469,4 @@ m0_error_printf
 *__gcov_flush
 *__gcov_reset
 *__gcov_sort_n_vals
+print_pi

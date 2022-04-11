@@ -101,138 +101,92 @@ M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop)
 	return &ioo->ioo_flock;
 }
 
-/**
- * Copies correct part of attribute buffer to client's attribute bufvec.
- * received from reply fop.
- *
- *     | CS0 | CS1 | CS2 | CS3 | CS4 | CS5 | CS6 |
- *
- *  1. rep_ivec* will be COB offset received from target
- *     | rep_index[0] || rep_index[1] || rep_index[2] |
- *
- *  2. ti_ivec will be COB offset while sending
- *     | ti_index[0] || ti_index[1] || ti_index[2] || ti_index[3] |
- *     *Note: rep_ivec will be subset of ti_ivec
- *
- *  3. ti_goff_ivec will be GOB offset while sending
- *     Note: rep_ivec will be subset of ti_ivec
- *
- * Steps:
- *   1. Bring reply ivec to start of unit
- *   2. Then move cursor of ti_vec so that it matches rep_ivec start.
- *      Move the ti_goff_ivec for by the same size
- *      Note: This will make all vec aligned
- *   3. Then iterate over rep_ivec one unit at a time till we process all
- *      extents, get corresponding GOB offset and use GOB Offset and GOB
- *      Extents (ioo_ext) to locate the checksum add and copy one checksum
- *      to the application checksum buffer.
- * @param rep_ivec m0_indexvec representing the extents spanned by IO.
- * @param ti       target_ioreq structure for this reply's taregt.
- * @param ioo      Object's context for client's internal workings.
- * @param buf      buffer contaiing attributes received from server.
- */
-static void application_attribute_copy(struct m0_indexvec *rep_ivec,
-				       struct target_ioreq *ti,
-				       struct m0_op_io *ioo,
-				       struct m0_buf *buf)
+extern void print_pi(void *pi,int size);
+
+static int application_parity_checksum_process( struct m0_op_io *ioo,
+                                                struct target_ioreq *ti,
+                                                struct ioreq_fop *irfop,
+                                                struct m0_buf *rw_rep_cs_data )
 {
-	uint32_t                unit_size;
-	uint32_t                off;
-	uint32_t                cs_sz;
-	m0_bindex_t             rep_index;
-	m0_bindex_t             ti_cob_index;
-	m0_bindex_t             ti_goff_index;
-	struct m0_ivec_cursor   rep_cursor;
-	struct m0_ivec_cursor   ti_cob_cursor;
-	struct m0_ivec_cursor   ti_goff_cursor;
-	struct m0_indexvec     *ti_ivec = &ti->ti_ivec;
-	struct m0_indexvec     *ti_goff_ivec = &ti->ti_goff_ivec;
-	void                   *dst;
-	void                   *src;
+	int                                     rc = 0;
+	uint32_t                                idx;
+	uint32_t                          		num_units;
+	uint32_t                                cksum_size;
+	uint32_t                                cs_compared = 0;
+	void                               		*compute_cs_buf;
+	enum m0_pi_algo_type    				cksum_type;
+	struct target_cksum_data    			*cs_data;
 
-	if (!m0__obj_is_di_enabled(ioo)) {
-		return;
-	}
-	src = buf->b_addr;
+	// Validate if FOP has unit count set
+	num_units = irfop->irf_unit_count;
+	M0_ASSERT( num_units != 0 && irfop->irf_unit_start_idx != -1);
 
-	if (!buf->b_nob) {
-		/* Return as no checksum is present */
-		return;
-	}
+	cksum_size = m0__obj_di_cksum_size(ioo);
+	// Allocate checksum buffer
+	compute_cs_buf = m0_alloc(cksum_size);
+	if( compute_cs_buf == NULL )
+	        return -ENOMEM;
 
-	unit_size = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
-	cs_sz = ioo->ioo_attr.ov_vec.v_count[0];
+	cs_data = (irfop->irf_pattr == PA_PARITY) ? 
+					&ti->ti_cksum_data[M0_PUT_PARITY] :
+					&ti->ti_cksum_data[M0_PUT_DATA];
 
-	m0_ivec_cursor_init(&rep_cursor, rep_ivec);
-	m0_ivec_cursor_init(&ti_cob_cursor, ti_ivec);
-	m0_ivec_cursor_init(&ti_goff_cursor, ti_goff_ivec);
+	// FOP reply data should have pi type correctly set
+	cksum_type = ((struct m0_pi_hdr *)rw_rep_cs_data->b_addr)->pih_type;
+	M0_ASSERT( cksum_type < M0_PI_TYPE_MAX);
 
-	rep_index = m0_ivec_cursor_index(&rep_cursor);
-	ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
-	ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
+	// We should get checksum size which is same as requested, this will also
+	// confirm that user has correctly allocated buffer for checksum in ioo attr
+	// structure.
+	M0_ASSERT( rw_rep_cs_data->b_nob == num_units * cksum_size);
 
-	/* Move rep_cursor on unit boundary */
-	off = rep_index % unit_size;
-	if (off) {
-		if (!m0_ivec_cursor_move(&rep_cursor, unit_size - off))
-			rep_index = m0_ivec_cursor_index(&rep_cursor);
-		else
-			return;
-	}
-	off = ti_cob_index % unit_size;
-	if (off != 0) {
-		if (!m0_ivec_cursor_move(&ti_cob_cursor, unit_size - off)) {
-			ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
-		}
-	}
-	off = ti_goff_index % unit_size;
-	if (off != 0) {
-		if (!m0_ivec_cursor_move(&ti_goff_cursor, unit_size - off)) {
-			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
-		}
-	}
-	M0_ASSERT(ti_cob_index <= rep_index);
+	// TODO: Remove
+	M0_LOG(M0_ALWAYS,"rajat : RECEIVED CS");
+	print_pi(rw_rep_cs_data->b_addr, rw_rep_cs_data->b_nob);
 
-	/**
-	 * Cursor iterating over segments spanned by this IO. At each iteration
-	 * index of reply fop is matched with all the target offsets stored in
-	 * target_ioreq::ti_ivec, once matched, the checksum offset is
-	 * retrieved from target_ioreq::ti_goff_ivec for the corresponding
-	 * target offset.
-	 *
-	 * The checksum offset represents the correct segemnt of
-	 * m0_op_io::ioo_attr which needs to be populated for the current
-	 * target offset(represented by rep_index).
-	 *
-	 */
-	do {
-		rep_index = m0_ivec_cursor_index(&rep_cursor);
-		while (ti_cob_index != rep_index) {
-			if (m0_ivec_cursor_move(&ti_cob_cursor, unit_size) ||
-			    m0_ivec_cursor_move(&ti_goff_cursor, unit_size)) {
-				M0_ASSERT(0);
-			}
-			ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
-			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
+	for(idx = 0; idx < num_units; idx++ ) {
+		struct target_cksum_idx_data *cs_idx = 
+						&cs_data->cd_idx[irfop->irf_unit_start_idx + idx];
+			
+		// Calculate checksum for each unit
+		rc = target_calculate_checksum( ioo, cksum_type, irfop->irf_pattr, cs_idx, 
+										compute_cs_buf );
+		if( rc != 0 )
+			goto fail;
+
+		M0_LOG(M0_ALWAYS,"rajat : COMPUTED CS");
+		print_pi(compute_cs_buf, cksum_size);
+
+		// Compare computed and received checksum
+		if ( memcmp( rw_rep_cs_data->b_addr + cs_compared,
+		             compute_cs_buf, cksum_size ) != 0 ) {
+	        // Add error code to the target status
+	        ti->ti_rc = M0_RC(-EIO);
+	        // TODO: Remove debug
+	        M0_ASSERT(0);
 		}
 
-		/* GOB offset should be in span of application provided GOB extent */
-		M0_ASSERT(ti_goff_index <=
-			  (ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr-1] +
-			  ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]));
+		// Copy checksum to application buffer
+		if( !m0__obj_is_di_cksum_gen_enabled(ioo) && (irfop->irf_pattr != PA_PARITY) ) {
+			uint32_t unit_off;
+			struct m0_pdclust_layout *play = pdlayout_get(ioo); 
+			
+			unit_off = cs_idx->ci_pg_idx * layout_n(play) +
+					   cs_idx->ci_unit_idx;			
+			memcpy(ioo->ioo_attr.ov_buf[unit_off],
+				   rw_rep_cs_data->b_addr + cs_compared,
+				   cksum_size);
+		}
+					 
+		cs_compared += cksum_size;
+		M0_ASSERT( cs_compared <= rw_rep_cs_data->b_nob );		
+	}
+	// All checksum expected from target should be received
+	M0_ASSERT( cs_compared == rw_rep_cs_data->b_nob );
 
-		dst = m0_extent_vec_get_checksum_addr(&ioo->ioo_attr,
-						      ti_goff_index,
-						      &ioo->ioo_ext,
-						      unit_size, cs_sz);
-                M0_ASSERT(dst != NULL);
-		memcpy(dst, src, cs_sz);
-		src = (char *)src + cs_sz;
-
-		/* Source is m0_buf and we have to copy all the checksum one at a time */
-		M0_ASSERT(src <= (buf->b_addr + buf->b_nob));
-
-	} while (!m0_ivec_cursor_move(&rep_cursor, unit_size));
+fail:
+	m0_free(compute_cs_buf);
+	return rc;
 }
 
 /**
@@ -259,9 +213,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_rpc_item          *reply_item;
 	struct m0_rpc_bulk	    *rbulk;
 	struct m0_fop_cob_rw_reply  *rw_reply;
-	struct m0_indexvec           rep_attr_ivec;
 	struct m0_fop_generic_reply *gen_rep;
-	struct m0_fop_cob_rw        *rwfop;
 
 	M0_ENTRY("sm_group %p sm_ast %p", grp, ast);
 
@@ -282,11 +234,13 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		     (IRS_READING, IRS_WRITING,
 		      IRS_DEGRADED_READING, IRS_DEGRADED_WRITING,
 		      IRS_FAILED)));
-
+	M0_LOG(M0_ALWAYS,"rajat : irf_pattr : %d", irfop->irf_pattr);
+	if(irfop->irf_pattr == PA_PARITY) {
+		M0_LOG(M0_ALWAYS,"rajat : in parity check");
+	}
 	/* Check errors in rpc items of an IO reqest and its reply. */
 	rbulk      = &iofop->if_rbulk;
 	req_item   = &iofop->if_fop.f_item;
-	rwfop      = io_rw_get(&iofop->if_fop);
 	reply_item = req_item->ri_reply;
 	rc         = req_item->ri_error;
 	if (reply_item != NULL) {
@@ -304,22 +258,12 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	/* Check errors in an IO request's reply. */
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
 	rw_reply = io_rw_rep_get(reply_fop);
-
-	/*
-	 * Copy attributes to client if reply received from read operation
-	 * Skipping attribute_copy() if cksum validation is not allowed.
-	 */
-	if (m0_is_read_rep(reply_fop) && op->op_code == M0_OC_READ &&
-	    m0__obj_is_cksum_validation_allowed(ioo)) {
-		m0_indexvec_wire2mem(&rwfop->crw_ivec,
-					rwfop->crw_ivec.ci_nr, 0,
-					&rep_attr_ivec);
-
-		application_attribute_copy(&rep_attr_ivec, tioreq, ioo,
-					   &rw_reply->rwr_di_data_cksum);
-
-		m0_indexvec_free(&rep_attr_ivec);
+	
+	if ( m0_is_read_rep(reply_fop) && (rw_reply->rwr_di_data_cksum.b_addr) ) {
+			rc = application_parity_checksum_process(ioo, tioreq, 
+						irfop, &rw_reply->rwr_di_data_cksum);
 	}
+
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
 			 "sns state = %d", ioo, req_item,
@@ -676,8 +620,6 @@ M0_INTERNAL int ioreq_fop_async_submit(struct m0_io_fop      *iofop,
 	struct m0_fop_cob_rw *rwfop;
 	struct m0_rpc_item   *item;
 
-	M0_ENTRY("m0_io_fop %p m0_rpc_session %p", iofop, session);
-
 	M0_PRE(iofop != NULL);
 	M0_PRE(session != NULL);
 
@@ -694,6 +636,7 @@ M0_INTERNAL int ioreq_fop_async_submit(struct m0_io_fop      *iofop,
 	item->ri_session = session;
 	item->ri_nr_sent_max = M0_RPC_MAX_RETRIES;
 	item->ri_resend_interval = M0_RPC_RESEND_INTERVAL;
+	M0_ENTRY("m0_io_fop %p m0_rpc_session %p item = %p", iofop, session, item);
 	rc = m0_rpc_post(item);
 	M0_LOG(M0_INFO, "IO fops submitted to rpc, rc = %d", rc);
 
@@ -1000,6 +943,8 @@ M0_INTERNAL int ioreq_fop_init(struct ioreq_fop    *fop,
 	fop->irf_pattr     = pattr;
 	fop->irf_tioreq    = ti;
 	fop->irf_reply_rc  = 0;
+	fop->irf_unit_start_idx	= -1;
+	fop->irf_unit_count = 0;
 	fop->irf_ast.sa_cb = io_bottom_half;
 	fop->irf_ast.sa_mach = &ioo->ioo_sm;
 

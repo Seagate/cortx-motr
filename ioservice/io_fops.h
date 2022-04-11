@@ -413,9 +413,9 @@ struct m0_fop_cob_rw {
 	uint64_t                  crw_flags;
 	/** Checksum and tag values for the input data blocks. */
 	m0_bcount_t               crw_cksum_size;
-	struct m0_buf		  crw_di_data;
+	struct m0_buf		  	  crw_di_data;
 	/** Checksum value used for write operation for read it will be unused */
-	struct m0_buf		  crw_di_data_cksum;
+	struct m0_buf		  	  crw_di_data_cksum;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**

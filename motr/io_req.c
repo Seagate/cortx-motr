@@ -1245,6 +1245,8 @@ static bool verify_checksum(struct m0_op_io *ioo)
 	}
 }
 
+extern void print_pi(void *pi,int size);
+
 /**
  * Copies the file-data between the iomap buffers and the application-provided
  * buffers, one row at a time.
@@ -1266,6 +1268,8 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 	m0_bindex_t               pgstart;
 	m0_bindex_t               pgend;
 	m0_bcount_t               count;
+	m0_bcount_t               total_count;
+	int                       usz;
 	struct m0_bufvec_cursor   appdatacur;
 	struct m0_ivec_cursor     extcur;
 	struct m0_pdclust_layout  *play;
@@ -1281,6 +1285,8 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
 
 	play = pdlayout_get(ioo);
+	usz = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
+	total_count = 0;
 
 	for (i = 0; i < ioo->ioo_iomap_nr; ++i) {
 		M0_ASSERT_EX(pargrp_iomap_invariant(ioo->ioo_iomaps[i]));
@@ -1297,6 +1303,7 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 						   m0__page_size(ioo)),
 				       pgstart + m0_ivec_cursor_step(&extcur));
 			count = pgend - pgstart;
+			total_count += count;
 
 			/*
 			* This takes care of finding correct page from
@@ -1306,11 +1313,12 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 			rc = application_data_copy(
 				ioo->ioo_iomaps[i], ioo->ioo_obj,
 				pgstart, pgend, &appdatacur, dir, filter);
-			if (rc != 0)
+			if (rc != 0) {
 				return M0_ERR_INFO(
 					rc, "[%p] Copy failed (pgstart=%" PRIu64
 					" pgend=%" PRIu64 ")",
 					ioo, pgstart, pgend);
+			}
 		}
 
 	}
@@ -1319,13 +1327,12 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 		/* verify the checksum during data read.
 		 * skip checksum verification during degraded I/O
 		 */
-		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
-		    m0__obj_is_cksum_validation_allowed(ioo) &&
-		    !verify_checksum(ioo)) {
+		if ((total_count / usz) > 0 &&
+			m0__obj_is_data_cksum_validation_allowed(ioo) &&
+			!verify_checksum(ioo)) {
 			return M0_RC(-EIO);
 		}
 	}
-
 	return M0_RC(0);
 }
 

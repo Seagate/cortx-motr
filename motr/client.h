@@ -630,9 +630,15 @@ enum m0_entity_type {
 	 */
 	M0_ENF_NO_RMW =  1 << 1,
 	/**
-	 * This flag is to enable data integrity.
-	 */
- 	M0_ENF_DI = 1 << 2
+	 * This flag is to indicate that application is passing checkum for the IO.
+ 	 */
+ 	M0_ENF_DI = 1 << 2,
+
+	 /**
+	  * This flag will let Motr generate DI for the IO.
+	  */
+	 M0_ENF_GEN_DI = 1 << 3
+
  } M0_XCA_ENUM;
 
 /**

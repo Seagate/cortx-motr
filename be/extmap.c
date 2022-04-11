@@ -895,7 +895,7 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 			      M0_BEO_MERGE, M0_BEO_SPLIT, M0_BEO_PASTE)));
 
 	/* emap rec static size + size of max checksum possible */
-	emap_rec_size = sizeof map->em_rec + max_cksum_size() * MAX_DUS;
+	emap_rec_size = sizeof map->em_rec + m0_cksum_get_max_size() * MAX_DUS;
 
 	switch (optype) {
 	case M0_BEO_CREATE:

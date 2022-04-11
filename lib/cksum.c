@@ -26,7 +26,25 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
 
-
+/**
+ * Calculate checksum/protection info for data/KV
+ *
+ * @param pi  pi struct m0_md5_inc_context_pi
+ *            This function will calculate the checksum and set
+ *            pi_value field of struct m0_md5_inc_context_pi.
+ * @param seed seed value (pis_obj_id+pis_data_unit_offset) required to calculate
+ *             the checksum. If this pointer is NULL that means either
+ *             this checksum calculation is meant for KV or user does
+ *             not want seeding.
+ * @param m0_bufvec - Set of buffers for which checksum is computed.
+ * @param flag if flag is M0_PI_CALC_UNIT_ZERO, it means this api is called for
+ *             first data unit and MD5_Init should be invoked.
+ * @param[out] curr_context context of data unit N, will be required to calculate checksum for
+ *                         next data unit, N+1. Curre_context is calculated and set in this func.
+ * @param[out] pi_value_without_seed - Caller may need checksum value without seed and with seed.
+ *                                     With seed checksum is set in pi_value of PI type struct.
+ *                                     Without seed checksum is set in this field.
+ */
 M0_INTERNAL int m0_calculate_md5_inc_context(
 		struct m0_md5_inc_context_pi *pi,
 		struct m0_pi_seed *seed,
@@ -143,23 +161,25 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 	return  M0_RC(0);
 }
 
-M0_INTERNAL uint64_t m0_calculate_cksum_size(struct m0_generic_pi *pi)
+M0_INTERNAL uint64_t m0_cksum_get_size(enum m0_pi_algo_type pi_type)
 {
 	M0_ENTRY();
 #ifndef __KERNEL__
-	switch (pi->pi_hdr.pih_type) {
+	switch (pi_type) {
 	case M0_PI_TYPE_MD5_INC_CONTEXT:
 		return sizeof(struct m0_md5_inc_context_pi);
 		break;
 	case M0_PI_TYPE_MD5:
 		return sizeof(struct m0_md5_pi);
 		break;
+	default:
+		break;	
 	}
 #endif
 	return 0;
 }
 
-M0_INTERNAL uint64_t max_cksum_size(void)
+M0_INTERNAL uint64_t m0_cksum_get_max_size(void)
 {
 	return (sizeof(struct m0_md5_pi) > sizeof(struct m0_md5_inc_context_pi) ?
 			sizeof(struct m0_md5_pi) : sizeof(struct m0_md5_inc_context_pi));
