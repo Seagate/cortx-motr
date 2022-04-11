@@ -1,5 +1,9 @@
 
 =====
+
+.. image:: https://api.codacy.com/project/badge/Grade/75e9e658d3874d65a22347feb51f4969
+   :alt: Codacy Badge
+   :target: https://app.codacy.com/gh/Seagate/cortx-motr?utm_source=github.com&utm_medium=referral&utm_content=Seagate/cortx-motr&utm_campaign=Badge_Grade_Settings
 Motr
 =====
 
