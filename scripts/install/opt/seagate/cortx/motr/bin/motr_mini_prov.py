@@ -456,8 +456,16 @@ def update_copy_motr_config_file(self):
 #              ['/dev/sdf'] is list of metadata disks of cvg[1]
 def get_md_disks_lists(self, node_info):
     md_disks_lists = []
-    num_cvg = node_info['storage']['num_cvg']
-    cvg = node_info['storage']['cvg']
+
+    try:
+        cvg = node_info['cvg']
+    except:
+        raise MotrError(errno.EINVAL, "cvg not found\n")
+    check_type(cvg, dict, "cvg")
+
+    num_cvg = int(cvg['num_cvg'])
+    if num_cvg <= 0:
+        raise MotrError(errno.EINVAL, f"Invalid num_cvg{num_cvg}\n")
     for i in range(num_cvg):
         temp_cvg = cvg[i]
         if temp_cvg['devices']['metadata']:
