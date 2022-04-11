@@ -659,13 +659,11 @@ M0_INTERNAL bool m0__obj_is_parity_verify_mode(struct m0_client *instance)
 
 M0_INTERNAL bool m0__obj_is_di_cksum_gen_enabled(struct m0_op_io *ioo)
 {
-	ioo->ioo_obj->ob_entity.en_flags |= M0_ENF_GEN_DI;
 	return ioo->ioo_obj->ob_entity.en_flags & M0_ENF_GEN_DI;
 }
 
 M0_INTERNAL bool  m0__obj_is_di_enabled(struct m0_op_io *ioo)
 {
-	ioo->ioo_obj->ob_entity.en_flags |= M0_ENF_GEN_DI;
 	return ioo->ioo_obj->ob_entity.en_flags & (M0_ENF_DI | M0_ENF_GEN_DI);
 }
 
@@ -673,7 +671,6 @@ M0_INTERNAL uint8_t m0__obj_di_cksum_type(struct m0_op_io *ioo)
 {
 	struct m0_generic_pi *pi;
 
-	ioo->ioo_obj->ob_entity.en_flags |= M0_ENF_GEN_DI;
     if( (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) && 
 	   	 ioo->ioo_attr.ov_buf ) {
 		pi = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[0];
@@ -687,7 +684,6 @@ M0_INTERNAL uint8_t m0__obj_di_cksum_type(struct m0_op_io *ioo)
 
 M0_INTERNAL uint32_t m0__obj_di_cksum_size(struct m0_op_io *ioo)
 {
-	ioo->ioo_obj->ob_entity.en_flags |= M0_ENF_GEN_DI;
 	if( (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) && 
 		 ioo->ioo_attr.ov_buf )
 		return ioo->ioo_attr.ov_vec.v_count[0];

@@ -59,6 +59,7 @@ struct m0_cc_io_args {
 	uint32_t             cia_block_size;
 	char               **cia_files;
 	int                  cia_index;
+	uint32_t             entity_flags;
 };
 
 struct m0_utility_param {
@@ -74,6 +75,7 @@ struct m0_utility_param {
 	bool              cup_update_mode;
 	struct m0_fid     cup_pver;
 	uint32_t          flags;
+	uint32_t          entity_flags;
 };
 
 struct m0_copy_mt_args {
@@ -118,12 +120,13 @@ int touch(struct m0_container *container,
 int m0_write(struct m0_container *container,
 	     char *src, struct m0_uint128 id, uint32_t block_size,
 	     uint32_t block_count, uint64_t update_offset, int blks_per_io,
-	     bool take_locks, bool update_mode);
+	     bool take_locks, bool update_mode, uint32_t entity_flags);
 
 int m0_read(struct m0_container *container,
 	    struct m0_uint128 id, char *dest, uint32_t block_size,
 	    uint32_t block_count, uint64_t offset, int blks_per_io,
-	    bool take_locks, uint32_t flags, struct m0_fid *read_pver);
+	    bool take_locks, uint32_t flags, struct m0_fid *read_pver,
+		uint32_t entity_flags);
 
 int m0_truncate(struct m0_container *container,
 		struct m0_uint128 id, uint32_t block_size,
@@ -134,11 +137,13 @@ int m0_unlink(struct m0_container *container,
 	      struct m0_uint128 id, bool take_locks);
 int m0_write_cc(struct m0_container *container,
 		char **src, struct m0_uint128 id, int *index,
-		uint32_t block_size, uint32_t block_count);
+		uint32_t block_size, uint32_t block_count,
+		uint32_t entity_flags);
 
 int m0_read_cc(struct m0_container *container,
 	       struct m0_uint128 id, char **dest, int *index,
-	       uint32_t block_size, uint32_t block_count);
+	       uint32_t block_size, uint32_t block_count,
+		   uint32_t entity_flags);
 
 
 int m0_obj_id_sscanf(char *idstr, struct m0_uint128 *obj_id);

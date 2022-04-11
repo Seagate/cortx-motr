@@ -352,7 +352,8 @@ init_error:
 int m0_write(struct m0_container *container, char *src,
 	     struct m0_uint128 id, uint32_t block_size,
 	     uint32_t block_count, uint64_t update_offset,
-	     int blks_per_io, bool take_locks, bool update_mode)
+	     int blks_per_io, bool take_locks, bool update_mode,
+		 uint32_t entity_flags)
 {
 	int                           rc;
 	struct m0_indexvec            ext;
@@ -375,6 +376,7 @@ int m0_write(struct m0_container *container, char *src,
 	instance = container->co_realm.re_instance;
 	m0_obj_init(&obj, &container->co_realm, &id,
 		    m0_client_layout_id(instance));
+	obj.ob_entity.en_flags = entity_flags;
 	rc = lock_ops->olo_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -467,7 +469,7 @@ int m0_read(struct m0_container *container,
 	    struct m0_uint128 id, char *dest,
 	    uint32_t block_size, uint32_t block_count,
 	    uint64_t offset, int blks_per_io, bool take_locks,
-	    uint32_t flags, struct m0_fid *read_pver)
+	    uint32_t flags, struct m0_fid *read_pver, uint32_t entity_flags)
 {
 	int                           i;
 	int                           j;
@@ -498,6 +500,7 @@ int m0_read(struct m0_container *container,
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &container->co_realm, &id,
 		    m0_client_layout_id(instance));
+	obj.ob_entity.en_flags = entity_flags;
 	rc = lock_ops->olo_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -740,7 +743,7 @@ init_error:
  */
 int m0_write_cc(struct m0_container *container,
 		char **src, struct m0_uint128 id, int *index,
-		uint32_t block_size, uint32_t block_count)
+		uint32_t block_size, uint32_t block_count, uint32_t entity_flags)
 {
 	int                    rc;
 	struct m0_indexvec     ext;
@@ -758,6 +761,7 @@ int m0_write_cc(struct m0_container *container,
 	m0_obj_init(&obj, &container->co_realm, &id,
 		    m0_client_layout_id(instance));
 
+	obj.ob_entity.en_flags = entity_flags;
 	rc = m0_obj_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -813,7 +817,7 @@ init_error:
 
 int m0_read_cc(struct m0_container *container,
 	       struct m0_uint128 id, char **dest, int *index,
-	       uint32_t block_size, uint32_t block_count)
+	       uint32_t block_size, uint32_t block_count, uint32_t entity_flags)
 {
 	int                           i;
 	int                           j;
@@ -839,6 +843,7 @@ int m0_read_cc(struct m0_container *container,
 	m0_obj_init(&obj, &container->co_realm, &id,
 			   m0_client_layout_id(instance));
 
+	obj.ob_entity.en_flags = entity_flags;
 	rc = m0_obj_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -929,6 +934,7 @@ int m0_utility_args_init(int argc, char **argv,
 	params->cup_update_mode = false;
 	params->cup_offset = 0;
 	params->flags = 0;
+	params->entity_flags = 0;
 	conf->mc_is_read_verify = false;
 	conf->mc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	conf->mc_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
@@ -963,9 +969,11 @@ int m0_utility_args_init(int argc, char **argv,
 				{"read-verify",   no_argument,       NULL, 'r'},
 				{"help",          no_argument,       NULL, 'h'},
 				{"no-hole",       no_argument,       NULL, 'N'},
+				{"DI-generate",   no_argument,       NULL, 'G'},
+				{"DI-user-input", no_argument,       NULL, 'I'},
 				{0,               0,                 0,     0 }};
 
-        while ((c = getopt_long(argc, argv, ":l:H:p:P:o:s:c:t:L:v:n:S:q:b:O:uerhN",
+        while ((c = getopt_long(argc, argv, ":l:H:p:P:o:s:c:t:L:v:n:S:q:b:O:uerhNGI",
 				l_opts, &option_index)) != -1)
 	{
 		switch (c) {
@@ -1101,6 +1109,10 @@ int m0_utility_args_init(int argc, char **argv,
 			case 'h': utility_usage(stderr, basename(argv[0]));
 				  exit(EXIT_FAILURE);
 			case 'N': params->flags |= M0_OOF_NOHOLE;
+				  continue;
+			case 'G': params->entity_flags |= M0_ENF_GEN_DI;
+				  continue;
+			case 'I': params->entity_flags |= M0_ENF_DI;
 				  continue;
 			case '?': fprintf(stderr, "Unsupported option '%c'\n",
 					  optopt);

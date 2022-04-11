@@ -53,7 +53,8 @@ static void copy_thread_launch(struct m0_copy_mt_args *args)
 				       args->cma_utility->cup_offset,
 				       args->cma_utility->cup_blks_per_io,
 				       false,
-				       args->cma_utility->cup_update_mode);
+				       args->cma_utility->cup_update_mode,
+					   args->cma_utility->entity_flags);
 }
 
 static void copy_mt_usage(FILE *file, char *prog_name)
@@ -82,6 +83,8 @@ static void copy_mt_usage(FILE *file, char *prog_name)
 				 "offset. \n%*c Default=0 if not provided. "
 				 "Offset should be multiple of 4k.\n"
 "  -r, --read-verify              Verify parity after reading the data.\n"
+"  -G, --DI-generate                Flag to generate Data Integrity\n"
+"  -I, --DI-user-input              Flag to pass checksum by user\n"
 "  -S, --msg_size       INT       Max RPC msg size 64k i.e 65536\n"
                                  "%*c Note: this should match with m0d's current "
                                  "rpc msg size\n"

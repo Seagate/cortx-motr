@@ -218,12 +218,12 @@ object_io_test()
 		       -P $process_fid"
 	rm -f $dest_file
 	echo "==========================[Write]=================================="
-	m0cp $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count -L 1 $src_file || {
+	m0cp -G $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count -L 1 $src_file || {
 		error_handling "Failed to write object" $?
 	}
 
 	echo "==========================[Read]=================================="
-	m0cat -r $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count $dest_file || {
+	m0cat -r -G $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count $dest_file || {
 		error_handling "Failed to read object" $?
 	}
 	# diff $src_file $dest_file || {
