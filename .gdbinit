@@ -24,6 +24,11 @@ handle SIG34 noprint
 set print thread-events off
 
 #
+# Suppress "Detaching after fork from child process..." messages.
+#
+set print inferior-events off
+
+#
 # Kernel debugging with kgdb
 #
 
