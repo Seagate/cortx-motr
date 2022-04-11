@@ -422,8 +422,9 @@ Meetings
      - sync up
      - andriy, nikita, sining
      - 
-     - 
-     - 
+     - go through the high level requirements. Is degraded read-modify-write
+       necessary? Do we have system tests for degraded mode?
+     - andriy, sining: understand current state of the code.
      - 
 
 Detailed-level design (DLD)
