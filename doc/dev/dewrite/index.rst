@@ -3,10 +3,10 @@ Degraded write
 ==============
 
 :author: Nikita Danilov <nikita.danilov@seagate.com>
-:state: EXEC:DLD
+:state: ANALYSIS
 :copyright: Seagate
 :distribution: unlimited
-:address: https://github.com/Seagate/cortx-motr/blob/main/doc/dev/dewrite/index.rst
+:address: https://github.com/Seagate/cortx-motr/blob/documentation/doc/dev/dewrite/index.rst
 
 :abstract: This document describes development of degraded write support in motr.
 
@@ -143,36 +143,36 @@ degraded mode, degraded operation
 The scope of degraded-write development is defined by the following informal
 requirements (refined in Requirements section):
 
-  * [**r.dewrite.trigger.ha**] degraded mode is triggered by HA. When it is
-    known in advance (from the HA state notifications), that certain units will
-    be unavailable, the client should write in degraded mode;
+* [**r.dewrite.trigger.ha**] degraded mode is triggered by HA. When it is known
+  in advance (from the HA state notifications), that certain units will be
+  unavailable, the client should write in degraded mode;
 
-  * [**r.dewrite.trigger.timeout**] degraded mode is triggered by timeouts. If,
-    while an operation is executing, certain operations (writes or reads) fail
-    to complete within a certain timeout, the operation should be continued in
-    degraded mode with the assumption that timed out units are unavailable. This
-    should happen both in the case when original operation execution was in
-    normal mode [normal -> degraded transition] and in the case when original
-    operation execution was already degraded for whatever reason [degraded ->
-    more degraded transition];
+* [**r.dewrite.trigger.timeout**] degraded mode is triggered by timeouts. If,
+  while an operation is executing, certain operations (writes or reads) fail to
+  complete within a certain timeout, the operation should be continued in
+  degraded mode with the assumption that timed out units are unavailable. This
+  should happen both in the case when original operation execution was in normal
+  mode [normal -> degraded transition] and in the case when original operation
+  execution was already degraded for whatever reason [degraded -> more degraded
+  transition];
 
-  * [**r.dewrite.trigger.error**] similarly to timeouts, errors during unit
-    reads or writes, that can be reasonably attributed to specific units, should
-    transition operation execution to degraded mode. Possible errors are: out of
-    memory condition in the receiving process, spurious io error (bad block),
-    data integrity checksum mismatch, *etc*.;
+* [**r.dewrite.trigger.error**] similarly to timeouts, errors during unit reads
+  or writes, that can be reasonably attributed to specific units, should
+  transition operation execution to degraded mode. Possible errors are: out of
+  memory condition in the receiving process, spurious io error (bad block), data
+  integrity checksum mismatch, *etc*.;
 
-  * [**r.dewrite.report**] a client should report to HA all errors and timeouts
-    used in the decision to transition to degraded mode;
+* [**r.dewrite.report**] a client should report to HA all errors and timeouts
+  used in the decision to transition to degraded mode;
 
-  * [**r.dewrite.stick**] if a client decides to transition to degraded mode
-    because of a failure to do operations with a particular device (or node,
-    *etc*.) the client, if necessary, should stick to this decision for some
-    time and pre-suppose in advance that the units located on the device will be
-    unavailable. *E.g.*, if a server is out of memory, it will remain out of
-    memory for some time. On the other hand, a bad block on a particular device
-    does not indicate that following operations with this device will
-    fail. Perhaps a hint returned from the receiving process is needed;
+* [**r.dewrite.stick**] if a client decides to transition to degraded mode
+  because of a failure to do operations with a particular device (or node,
+  *etc*.) the client, if necessary, should stick to this decision for some time
+  and pre-suppose in advance that the units located on the device will be
+  unavailable. *E.g.*, if a server is out of memory, it will remain out of
+  memory for some time. On the other hand, a bad block on a particular device
+  does not indicate that following operations with this device will
+  fail. Perhaps a hint returned from the receiving process is needed;
 
 Analysis (ANALYSIS)
 ===================
