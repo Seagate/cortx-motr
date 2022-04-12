@@ -629,15 +629,25 @@ enum m0_entity_type {
 	 * do not support update operation. This flag is not in use yet.
 	 */
 	M0_ENF_NO_RMW =  1 << 1,
+
+	/**
+	 * Note below two flags are for Data Integrity:
+	 * M0_ENF_DI - This flag should be set if application is passing checksum
+	 *             into ioo_attr
+	 * M0_ENF_GEN_DI - This flag should be set if application wants Motr to 
+	 *                 generate checksum. Default checksum will be generated using 
+	 *                 this M0_CKSUM_DEFAULT_PI algorithm
+	 * Note: Ideally only one flag should be set for DI, if both is set the Motr
+	 * will give priority to DI generation (M0_ENF_GEN_DI)
+ 	 */
 	/**
 	 * This flag is to indicate that application is passing checkum for the IO.
  	 */
  	M0_ENF_DI = 1 << 2,
-
 	 /**
 	  * This flag will let Motr generate DI for the IO.
 	  */
-	 M0_ENF_GEN_DI = 1 << 3
+	M0_ENF_GEN_DI = 1 << 3
 
  } M0_XCA_ENUM;
 

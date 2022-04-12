@@ -206,8 +206,8 @@ object_io_test()
 	echo "Running Object IO tests"
 	obj_id1="20:20"
 	obj_id2="20:22"
-	blk_size="512k"
-	blk_count="4"
+	blk_size="64k"
+	blk_count="16"
 	src_file="$SANITY_SANDBOX_DIR/src"
 	dest_file="$SANITY_SANDBOX_DIR/dest"
         echo $blk_size $blk_count
@@ -218,7 +218,7 @@ object_io_test()
 		       -P $process_fid"
 	rm -f $dest_file
 	echo "==========================[Write]=================================="
-	m0cp -G $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count -L 1 $src_file || {
+	m0cp -G $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count -L 2 $src_file || {
 		error_handling "Failed to write object" $?
 	}
 

@@ -103,10 +103,10 @@ M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop)
 
 extern void print_pi(void *pi,int size);
 
-static int application_parity_checksum_process( struct m0_op_io *ioo,
-                                                struct target_ioreq *ti,
-                                                struct ioreq_fop *irfop,
-                                                struct m0_buf *rw_rep_cs_data )
+static int application_checksum_process( struct m0_op_io *ioo,
+                                         struct target_ioreq *ti,
+                                         struct ioreq_fop *irfop,
+                                         struct m0_buf *rw_rep_cs_data )
 {
 	int                                     rc = 0;
 	uint32_t                                idx;
@@ -259,11 +259,14 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
 	rw_reply = io_rw_rep_get(reply_fop);
 	
-	if ( m0_is_read_rep(reply_fop) && (rw_reply->rwr_di_data_cksum.b_addr) ) {
-			rc = application_parity_checksum_process(ioo, tioreq, 
-						irfop, &rw_reply->rwr_di_data_cksum);
+	if(m0_is_read_rep(reply_fop)) {
+		if ( rw_reply->rwr_di_data_cksum.b_addr ) 
+				rc = application_checksum_process(ioo, tioreq, 
+							irfop, &rw_reply->rwr_di_data_cksum);
+		else
+			M0_ASSERT(!m0__obj_is_di_enabled(ioo));
 	}
-
+	
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
 			 "sns state = %d", ioo, req_item,
