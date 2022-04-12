@@ -56,7 +56,7 @@ suggestions at the same detail level.
 # overview, idea
 
 Motr is a distributed storage system, targeting 
-[exascale](https://en.wikipedia.org/wiki/Exascale_computing) configurations. 
+[exascale](https://en.wikipedia.org/wiki/Exascale_computing) configurations.  
 Motr architecture started in 2009. Its main roots are [Lustre](#lustre-idea) 
 file system, NFSv4 and database technology. Motr is not, strictly speaking, a 
 file system: an emerging consensus is that traditional file system properties 
