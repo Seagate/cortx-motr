@@ -141,8 +141,8 @@ static int application_parity_checksum_process( struct m0_op_io *ioo,
 	M0_ASSERT( rw_rep_cs_data->b_nob == num_units * cksum_size);
 
 	// TODO: Remove
-	M0_LOG(M0_ALWAYS,"rajat : RECEIVED CS");
-	print_pi(rw_rep_cs_data->b_addr, rw_rep_cs_data->b_nob);
+	M0_LOG(M0_ALWAYS,"rajat : RECEIVED CS b_nob: %d",(int)rw_rep_cs_data->b_nob);
+	print_pi(rw_rep_cs_data->b_addr, cksum_size);
 
 	for(idx = 0; idx < num_units; idx++ ) {
 		struct target_cksum_idx_data *cs_idx = 

@@ -824,6 +824,9 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 	if( rc != 0 )
 		return -ENOMEM;
 
+	M0_LOG(M0_ALWAYS,"CKSUM COMPUTE DataTyp: %d, PGIdx: %d, UnitIdx:%d, RowNum: %d",(int)filter,cs_idx->ci_pg_idx,
+									cs_idx->ci_unit_idx,(int)rows_nr(play, obj));
+
 	// Populate buffer vec for give parity unit and add all buffers present
 	// in rows (page sized buffer/4K)
 	for (row = 0; row < rows_nr(play, obj); ++row) {
@@ -835,8 +838,7 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 		bvec.ov_vec.v_count[row] = data[row][cs_idx->ci_unit_idx]->db_buf.b_nob;
 		bvec.ov_buf[row] = data[row][cs_idx->ci_unit_idx]->db_buf.b_addr;
 
-		// TODO: Remove debug
-		M0_LOG(M0_ALWAYS,"@@@@@@@@[index write data %d row: %d, col: %d]#####",(int)filter,(int)row, cs_idx->ci_unit_idx);
+		M0_LOG(M0_ALWAYS,"BufPrint Type [%s]", filter == PA_DATA ? "DATA" : "PARITY");
 		print_pi(bvec.ov_buf[row],16);
 	}
 
@@ -927,13 +929,16 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 {
 	int                          rc = 0;
 	uint32_t                     seg = 0;
+	uint32_t                     sz_added_to_fop;
+	uint32_t                     runt_sz;
 	/* Number of segments in one m0_rpc_bulk_buf structure. */
 	uint32_t                     bbsegs;
 	uint32_t                     maxsize;
 	uint32_t                     delta;
-	uint32_t                     seg_per_unit = 0;
 	uint32_t                     unit_idx = 0;
-	uint32_t 					 num_units = 0;
+	uint32_t                     unit_sz;
+	uint32_t 					 num_units;
+	uint32_t 					 num_units_iter;
 	enum page_attr               rw;
 	enum page_attr              *pattr;
 	struct m0_bufvec            *bvec;
@@ -1007,15 +1012,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	num_units = (filter == PA_PARITY) ? 
 					ti->ti_cksum_data[M0_PUT_PARITY].cd_num_units :
 					ti->ti_cksum_data[M0_PUT_DATA].cd_num_units;
-
-	// Compute how many segment are per unit
-	if( m0__obj_is_di_enabled(ioo) && num_units &&
-	   (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE ||
-	    ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_READ) )  {
-		// Find how many segment are there in unit						
-		seg_per_unit = SEG_NR(ivec)/num_units;						
-		M0_LOG(M0_ALWAYS, "Seg per unit = %d", seg_per_unit);
-	}
+	unit_sz = layout_unit_size(pdlayout_get(ioo));
+	M0_LOG(M0_ALWAYS, "Num units: %d Unit Sz: %d", num_units, unit_sz);
 
 	while (seg < SEG_NR(ivec)) {
 		delta  = 0;
@@ -1027,6 +1025,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		if (!(pattr[seg] & filter) || !(pattr[seg] & rw) ||
 		     (pattr[seg] & PA_TRUNC)) {
 			++seg;
+			M0_LOG(M0_ALWAYS, "Skip Seg = %d Attr:%d",seg, (int)pattr[seg]);
 			continue;
 		}
 
@@ -1040,8 +1039,14 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			m0_free(irfop);
 			goto err;
 		}
+		
+		// Init number of bytes added to fop and runt size
+		sz_added_to_fop = 0;
+		// Runt is for tracking bytes which are not accounted in unit
+		runt_sz = 0;
+
 		// Init fop with unit index if DI is enabled
-		if( seg_per_unit )
+		if( num_units )
 			irfop->irf_unit_start_idx = unit_idx;
 
 		iofop = &irfop->irf_iofop;
@@ -1054,8 +1059,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			goto err;
 		}
 		delta += io_seg_size();
-		// Before entring loop clear num_units
-		num_units = 0;
 
 		/*
 		* Adds io segments and io descriptor only if it fits within
@@ -1099,21 +1102,24 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 						bufnext = bvec->ov_buf[segnext];
 
 					if (buf + xfer_len == bufnext) {
-						// Update checksum size current seg is start of new unit
-						// this is to be done before seg is incremented.
-						if( seg_per_unit && ((seg % seg_per_unit) == 0) ) {
-							delta += m0__obj_di_cksum_size(ioo);				   
-							irfop->irf_unit_count++;
-							M0_LOG(M0_ALWAYS, "Seg Inc1 = %d", irfop->irf_unit_count);
-							unit_idx++;
-							num_units++;
-						}
+
 						xfer_len += COUNT(ivec, ++seg);
+
+						// Next segment should be as per filter
 						segnext = seg + 1;
+						if( !(pattr[segnext] & filter) || 
+							!(pattr[segnext] & rw) ||
+		     				 (pattr[segnext] & PA_TRUNC) )
+		     				 break;
 					} else
 						break;
 				}
 
+				// Get number of units added 
+				num_units_iter = (xfer_len + runt_sz) / unit_sz;
+				runt_sz = xfer_len % unit_sz;
+				delta += m0__obj_di_cksum_size(ioo) * num_units_iter;
+				
 				rc = m0_rpc_bulk_buf_databuf_add(rbuf, buf,
 								 xfer_len,
 								 offset, ndom);
@@ -1131,8 +1137,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 					delta -= (io_seg_size() + io_di_size(ioo));
 					// In case of DI enabled delta will be adjusted otherwise num_units will be 0
-					M0_ASSERT( delta > (num_units * m0__obj_di_cksum_size(ioo)) );
-					delta -= (num_units * m0__obj_di_cksum_size(ioo));
+					M0_ASSERT( delta > (num_units_iter * m0__obj_di_cksum_size(ioo)) );
+					delta -= (num_units_iter * m0__obj_di_cksum_size(ioo));
 
 					/*
 					 * Buffer must be 4k aligned to be
@@ -1153,21 +1159,14 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					 * be added to new bulk buffer.
 					 */
 					continue;
-				} else if (rc == 0)
+				} 
+				else if (rc == 0) {
 					++bbsegs;
+					sz_added_to_fop += xfer_len;
+				}
 			}
 
-			num_units = 0;
-			// Update checksum size current seg is start of new unit
-			// this is to be done before seg is incremented.
-			if( seg_per_unit && ((seg % seg_per_unit) == 0) ) {
-				delta += m0__obj_di_cksum_size(ioo);				   
-				irfop->irf_unit_count++;
-				M0_LOG(M0_ALWAYS, "Seg Inc1 = %d", irfop->irf_unit_count);
-				unit_idx++;
-				num_units++;
-			}	
-			++seg;
+			++seg;			
 		}
 
 		if (m0_io_fop_byte_count(iofop) == 0) {
@@ -1195,6 +1194,14 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_di_data_cksum.b_addr = NULL;
 		rw_fop->crw_di_data_cksum.b_nob = 0;
 		rw_fop->crw_cksum_size = 0;
+		
+		// Update FOP param based on number of units added
+		if( num_units ) {
+			irfop->irf_unit_count = sz_added_to_fop / unit_sz;
+			M0_ASSERT( (sz_added_to_fop % unit_sz) == 0);
+			unit_idx += irfop->irf_unit_count;
+			M0_LOG(M0_ALWAYS, "FOP StIdx = %d Units:%d,Next UI:%d",irfop->irf_unit_start_idx,irfop->irf_unit_count,unit_idx);
+ 		}
 
 		/* Assign the checksum buffer for traget */
 		if (m0__obj_is_di_enabled(ioo) && m0_is_write_fop(&iofop->if_fop) && !read_in_write ) {
@@ -1264,6 +1271,7 @@ err:
 
 	return M0_ERR(rc);
 }
+
 static int target_cob_fop_prepare(struct target_ioreq *ti);
 static const struct target_ioreq_ops tioreq_ops = {
 	.tio_seg_add         = target_ioreq_seg_add,

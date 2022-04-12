@@ -206,7 +206,7 @@ object_io_test()
 	echo "Running Object IO tests"
 	obj_id1="20:20"
 	obj_id2="20:22"
-	blk_size="4k"
+	blk_size="512k"
 	blk_count="4"
 	src_file="$SANITY_SANDBOX_DIR/src"
 	dest_file="$SANITY_SANDBOX_DIR/dest"
