@@ -21,6 +21,11 @@ TOPDIR="$(dirname "$0")/../../../"
 
 . "${TOPDIR}/spiel/st/m0t1fs_spiel_sns_common_inc.sh"
 . "${TOPDIR}/motr/st/utils/sns_repair_common_inc.sh"
+. "${TOPDIR}/m0t1fs/linux_kernel/st/common.sh"
+. "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh"
+. "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh"
+. "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh"
+. "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_sns_common_inc.sh"
 S=3
 N=3
 K=3
