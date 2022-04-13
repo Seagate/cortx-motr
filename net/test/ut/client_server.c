@@ -416,7 +416,7 @@ void m0_net_test_xprt_dynamic_reg_dereg_ut(void)
 	M0_LOG(M0_DEBUG, "After mem init\n");
 	m0_net_print_xprt();
 
-	M0_ASSERT(!m0_net_xprt_is_registered(&m0_net_lnet_xprt));
+	M0_ASSERT(m0_net_xprt_is_registered(&m0_net_lnet_xprt));
 	m0_net_lnet_fini();
 	M0_ASSERT(!m0_net_xprt_is_registered(&m0_net_lnet_xprt));
 	M0_LOG(M0_DEBUG, "After Lnet fini\n");
