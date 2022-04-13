@@ -838,7 +838,7 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 		bvec.ov_vec.v_count[row] = data[row][cs_idx->ci_unit_idx]->db_buf.b_nob;
 		bvec.ov_buf[row] = data[row][cs_idx->ci_unit_idx]->db_buf.b_addr;
 
-		M0_LOG(M0_ALWAYS,"BufPrint Type [%s]", filter == PA_DATA ? "DATA" : "PARITY");
+		M0_LOG(M0_ALWAYS,"BufPrint Type [%s] Bufsize: %d", filter == PA_DATA ? "DATA" : "PARITY",(int)bvec.ov_vec.v_count[row]);
 		print_pi(bvec.ov_buf[row],16);
 	}
 
@@ -1229,7 +1229,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			}
 		}
 
-		if(m0__obj_is_di_enabled(ioo) && m0_is_read_fop(&iofop->if_fop)) {
+		if(m0__obj_is_di_enabled(ioo) && m0_is_read_fop(&iofop->if_fop) && !read_in_write) {
 			// Server side expects this to be valid if checksum is to be read.
  			rw_fop->crw_cksum_size = m0__obj_di_cksum_size(ioo);
 		}

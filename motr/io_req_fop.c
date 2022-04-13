@@ -263,8 +263,8 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		if ( rw_reply->rwr_di_data_cksum.b_addr ) 
 				rc = application_checksum_process(ioo, tioreq, 
 							irfop, &rw_reply->rwr_di_data_cksum);
-		else
-			M0_ASSERT(!m0__obj_is_di_enabled(ioo));
+		else if( m0__obj_is_di_enabled(ioo) && (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_READ) )
+			M0_ASSERT(0);
 	}
 	
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;
