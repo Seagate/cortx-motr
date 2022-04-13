@@ -69,6 +69,16 @@ enum m0_magic_satchel {
 	/* Leo falabella */
 	M0_ADDB2_SOURCE_HEAD_MAGIC   = 0x331e0fa1abe11a77,
 
+/* [memory] Allocator */
+	/* Allocator profiler magic. */
+	M0_MEMORY_AP_MAGIX           = 0x3332764287643377,
+	/* Allocator profiler magic for an aligned allocation. */
+	M0_MEMORY_AA_MAGIX           = 0x3376767574737277,
+	/* Allocator profiler freed magic. */
+	M0_MEMORY_AP_FREE_MAGIX      = 0x33ff76ff87ff3377,
+	/* Allocator profiler magic for an aligned free block. */
+	M0_MEMORY_AA_FREE_MAGIX      = 0x3376ff75ff73ff77,
+
 /* balloc */
 	/* m0_balloc_super_block::bsb_magic (blessed baloc) */
 	M0_BALLOC_SB_MAGIC = 0x33b1e55edba10c77,

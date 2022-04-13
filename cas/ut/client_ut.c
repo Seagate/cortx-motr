@@ -2063,8 +2063,8 @@ static void next_bulk(void)
 	vals_create(COUNT, COUNT_VAL_BYTES, &keys);
 	vals_create(COUNT, COUNT_VAL_BYTES, &values);
 	next_common(&keys, &values, 0);
-	m0_bufvec_free(&keys);
-	m0_bufvec_free(&values);
+	m0_bufvec_free_aligned(&keys, m0_pageshift_get());
+	m0_bufvec_free_aligned(&values, m0_pageshift_get());
 
 	/* Bulk values. */
 	rc = m0_bufvec_alloc(&keys, COUNT, sizeof(uint64_t));
@@ -2073,7 +2073,7 @@ static void next_bulk(void)
 	vals_create(COUNT, COUNT_VAL_BYTES, &values);
 	next_common(&keys, &values, 0);
 	m0_bufvec_free(&keys);
-	m0_bufvec_free(&values);
+	m0_bufvec_free_aligned(&values, m0_pageshift_get());
 
 	/* Bulk keys. */
 	vals_create(COUNT, COUNT_VAL_BYTES, &keys);
@@ -2082,7 +2082,7 @@ static void next_bulk(void)
 	m0_forall(i, values.ov_vec.v_nr, (*(uint64_t*)values.ov_buf[i] = i,
 					true));
 	next_common(&keys, &values, 0);
-	m0_bufvec_free(&keys);
+	m0_bufvec_free_aligned(&keys, m0_pageshift_get());
 	m0_bufvec_free(&values);
 
 	/* Bulk mix. */
@@ -2246,8 +2246,8 @@ static void next_multi_bulk(void)
 	vals_create(COUNT, COUNT_VAL_BYTES, &keys);
 	vals_create(COUNT, COUNT_VAL_BYTES, &values);
 	next_multi_common(&keys, &values);
-	m0_bufvec_free(&keys);
-	m0_bufvec_free(&values);
+	m0_bufvec_free_aligned(&keys, m0_pageshift_get());
+	m0_bufvec_free_aligned(&values, m0_pageshift_get());
 
 	/* Bulk values. */
 	rc = m0_bufvec_alloc(&keys, COUNT, sizeof(uint64_t));
@@ -2256,7 +2256,7 @@ static void next_multi_bulk(void)
 	vals_create(COUNT, COUNT_VAL_BYTES, &values);
 	next_multi_common(&keys, &values);
 	m0_bufvec_free(&keys);
-	m0_bufvec_free(&values);
+	m0_bufvec_free_aligned(&values, m0_pageshift_get());
 
 	/* Bulk keys. */
 	vals_create(COUNT, COUNT_VAL_BYTES, &keys);
@@ -2265,7 +2265,7 @@ static void next_multi_bulk(void)
 	m0_forall(i, values.ov_vec.v_nr, (*(uint64_t*)values.ov_buf[i] = i,
 					true));
 	next_multi_common(&keys, &values);
-	m0_bufvec_free(&keys);
+	m0_bufvec_free_aligned(&keys, m0_pageshift_get());
 	m0_bufvec_free(&values);
 
 	/* Bulk mix. */
@@ -2689,8 +2689,8 @@ static void put_bulk(void)
 	vals_create(COUNT, COUNT_VAL_BYTES, &keys);
 	vals_create(COUNT, COUNT_VAL_BYTES, &values);
 	put_common(&keys, &values);
-	m0_bufvec_free(&keys);
-	m0_bufvec_free(&values);
+	m0_bufvec_free_aligned(&keys, m0_pageshift_get());
+	m0_bufvec_free_aligned(&values, m0_pageshift_get());
 
 	/* Bulk keys. */
 	rc = m0_bufvec_alloc(&keys, COUNT, sizeof(uint64_t));
@@ -2699,7 +2699,7 @@ static void put_bulk(void)
 	vals_create(COUNT, COUNT_VAL_BYTES, &values);
 	put_common(&keys, &values);
 	m0_bufvec_free(&keys);
-	m0_bufvec_free(&values);
+	m0_bufvec_free_aligned(&values, m0_pageshift_get());
 
 	/* Bulk values. */
 	vals_create(COUNT, COUNT_VAL_BYTES, &keys);
@@ -2709,7 +2709,7 @@ static void put_bulk(void)
 					  true));
 
 	put_common(&keys, &values);
-	m0_bufvec_free(&keys);
+	m0_bufvec_free_aligned(&keys, m0_pageshift_get());
 	m0_bufvec_free(&values);
 
 	/* Bulk mix. */
@@ -2967,8 +2967,8 @@ static void put_bulk_fail(void)
 	vals_create(COUNT, COUNT_VAL_BYTES, &keys);
 	vals_create(COUNT, COUNT_VAL_BYTES, &values);
 	put_fail_common(&keys, &values);
-	m0_bufvec_free(&keys);
-	m0_bufvec_free(&values);
+	m0_bufvec_free_aligned(&keys, m0_pageshift_get());
+	m0_bufvec_free_aligned(&values, m0_pageshift_get());
 }
 
 static void upd(void)
@@ -3186,8 +3186,8 @@ static void del_bulk(void)
 	vals_create(COUNT, COUNT_VAL_BYTES, &keys);
 	vals_create(COUNT, COUNT_VAL_BYTES, &values);
 	del_common(&keys, &values, 0, 0, 0, 0);
-	m0_bufvec_free(&keys);
-	m0_bufvec_free(&values);
+	m0_bufvec_free_aligned(&keys, m0_pageshift_get());
+	m0_bufvec_free_aligned(&values, m0_pageshift_get());
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 
@@ -3422,8 +3422,8 @@ static void get_bulk(void)
 	vals_create(COUNT, COUNT_VAL_BYTES, &keys);
 	vals_create(COUNT, COUNT_VAL_BYTES, &values);
 	get_common(&keys, &values);
-	m0_bufvec_free(&keys);
-	m0_bufvec_free(&values);
+	m0_bufvec_free_aligned(&keys, m0_pageshift_get());
+	m0_bufvec_free_aligned(&values, m0_pageshift_get());
 
 	/* Bulk values. */
 	rc = m0_bufvec_alloc(&keys, COUNT, sizeof(uint64_t));
@@ -3432,7 +3432,7 @@ static void get_bulk(void)
 	vals_create(COUNT, COUNT_VAL_BYTES, &values);
 	get_common(&keys, &values);
 	m0_bufvec_free(&keys);
-	m0_bufvec_free(&values);
+	m0_bufvec_free_aligned(&values, m0_pageshift_get());
 
 	/* Bulk keys. */
 	vals_create(COUNT, COUNT_VAL_BYTES, &keys);
@@ -3441,7 +3441,7 @@ static void get_bulk(void)
 	m0_forall(i, values.ov_vec.v_nr, (*(uint64_t*)values.ov_buf[i] = i,
 					true));
 	get_common(&keys, &values);
-	m0_bufvec_free(&keys);
+	m0_bufvec_free_aligned(&keys, m0_pageshift_get());
 	m0_bufvec_free(&values);
 
 	/* Bulk mix. */
