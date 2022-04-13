@@ -42,8 +42,9 @@ do some action if fault point is enabled:
     }
 
 Fault point is defined in place of M0_FI_ENABLED() usage. In this example a
-fault point with tag "fake_error" is created in function "m0_alloc", which can
-be enabled/disabled from external code with something like the following:
+fault point with tag "fake_error" is created in function "m0_alloc",
+which can be enabled/disabled from external code with something like the
+following:
 
     m0_fi_enable_once("m0_alloc", "fake_error");
 

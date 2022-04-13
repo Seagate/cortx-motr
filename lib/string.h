@@ -40,15 +40,8 @@
 # include <stdlib.h>
 # include <string.h>
 
-#define m0_strdup(s) strdup((s))
-#define m0_asprintf(s, fmt, ...)                          \
-	({                                                \
-		int __nr;                                 \
-		char **__s = (s);                         \
-		__nr = asprintf(__s, (fmt), __VA_ARGS__); \
-		if (__nr <= 0)                            \
-			*__s = NULL;                      \
-	})
+M0_INTERNAL char *m0_strdup(const char *s);
+M0_INTERNAL void  m0_asprintf(char **ret, const char *format, ...);
 
 #else
 # include <linux/ctype.h>

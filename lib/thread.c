@@ -27,6 +27,7 @@
 
 #include "lib/thread.h"
 #include "lib/misc.h"         /* M0_SET0 */
+#include "lib/alloc_prof.h"
 #include "module/instance.h"  /* m0_get */
 #include "addb2/global.h"
 
@@ -109,12 +110,14 @@ M0_INTERNAL void *m0_thread_trampoline(void *arg)
 
 	m0_set(t->t_tls.tls_m0_instance);
 	m0_addb2_global_thread_enter();
+	m0_alloc_prof_thread_init();
 	if (t->t_init != NULL) {
 		t->t_initrc = t->t_init(t->t_arg);
 		m0_semaphore_up(&t->t_wait);
 	}
 	if (t->t_initrc == 0)
 		t->t_func(t->t_arg);
+	m0_alloc_prof_thread_fini();
 	m0_addb2_global_thread_leave();
 	return NULL;
 }

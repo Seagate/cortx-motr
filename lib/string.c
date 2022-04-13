@@ -19,6 +19,7 @@
  *
  */
 
+#include <stdarg.h>
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
@@ -41,6 +42,32 @@ const char *m0_bcount_with_suffix(char *buf, size_t size, m0_bcount_t c)
 	snprintf(buf, size, "%3" PRId64 " %s", c, suffix[i]);
 	return buf;
 }
+
+#ifndef __KERNEL__
+
+M0_INTERNAL char *m0_strdup(const char *s)
+{
+	char *copy = m0_alloc(strlen(s) + 1);
+	if (copy != NULL)
+		strcpy(copy, s);
+	return copy;
+}
+
+M0_INTERNAL void m0_asprintf(char **ret, const char *format, ...)
+{
+	va_list args;
+	char   *s;
+
+	va_start(args, format);
+	if (vasprintf(&s, format, args) > 0) {
+		*ret = m0_strdup(s);
+		free(s);
+	} else
+		*ret = NULL;
+	va_end(args);
+}
+
+#endif /* __KERNEL__ */
 
 M0_INTERNAL void m0_strings_free(const char **arr)
 {

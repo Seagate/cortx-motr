@@ -86,7 +86,7 @@ static void zerovec_init_bvec(void)
 		M0_UT_ASSERT(zvec.z_index[i] == indices[i]);
 	}
 
-	m0_bufvec_free(&bufvec);
+	m0_bufvec_free_aligned(&bufvec, M0_0VEC_SHIFT);
 	m0_0vec_fini(&zvec);
 }
 
@@ -123,7 +123,7 @@ static void zerovec_init_bufs(void)
 	M0_UT_ASSERT(zvec.z_bvec.ov_vec.v_nr == ZEROVEC_UT_SEGS_NR);
 
 	for (i = 0; i < ZEROVEC_UT_SEGS_NR; ++i)
-		m0_free(bufs[i]);
+		m0_free_aligned(bufs[i], ZEROVEC_UT_SEG_SIZE, M0_0VEC_SHIFT);
 	m0_free(bufs);
 	m0_0vec_fini(&zvec);
 }
@@ -163,7 +163,8 @@ static void zerovec_init_cbuf(void)
 	M0_UT_ASSERT(zvec.z_bvec.ov_vec.v_nr == ZEROVEC_UT_SEGS_NR);
 
 	for (i = 0; i < ZEROVEC_UT_SEGS_NR; ++i)
-		m0_free(bufs[i].b_addr);
+		m0_free_aligned(bufs[i].b_addr, ZEROVEC_UT_SEG_SIZE,
+				M0_0VEC_SHIFT);
 	m0_0vec_fini(&zvec);
 }
 #else
