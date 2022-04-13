@@ -93,7 +93,7 @@ class Cmd:
             f"usage: {prog} [-h] <cmd> --config <url> <args>\n"
             f"where:\n"
             f"cmd           post_install, prepare, config, init, test, reset, cleanup,"
-            f" upgarde, backup, restore\n"
+            f" upgrade, backup, restore\n"
             f"url           Config URL\n")
 
     @staticmethod
