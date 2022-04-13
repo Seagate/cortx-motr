@@ -532,10 +532,12 @@ static void net_test_command_ut(size_t nr)
 	commands_ut_recv_all(nr, M0_TIME_NEVER);
 	flags_reset(nr);
 
-	if (!USE_LIBFAB) {
-		/* 
-		   In case of libfab, connection oriented endpoints are used.
-		   Hence, buffer timeouts are not observed.
+	if (m0_net_xprt_default_get() == &m0_net_lnet_xprt) {
+		/*
+		   Only lnet supports this.
+
+		   libfab and sock are connection oriented, hence,
+		   buffer timeouts are not observed.
 		*/
 		commands_ut_recv_all(nr, timeout_get_abs());
 		M0_UT_ASSERT(is_flags_set(nr, false));
