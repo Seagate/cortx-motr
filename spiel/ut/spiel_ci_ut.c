@@ -161,7 +161,7 @@ static void test_spiel_process_cmds(void)
 	rc = m0_spiel_process_reconfig(&spiel, &process_invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
 
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	m0_fi_enable_once("m0_alloc_profiled", "fail_allocation");
 	rc = m0_spiel_process_reconfig(&spiel, &process_fid);
 	M0_UT_ASSERT(rc == -ENOMEM);
 

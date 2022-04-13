@@ -120,12 +120,12 @@ static void test_fault_inj(void)
 	/* Maximum nodes in a tree. */
 	n    = m0_rnd(geometric_sum(TP_BINARY, M0_CONF_PVER_HEIGHT - 1),
 		      &seed);
-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", n, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", n, 1);
 	M0_SET0(&tree);
 	rc = fd_ut_tree_init(&tree, M0_CONF_PVER_HEIGHT - 1) ?:
 	     m0_fd__tree_root_create(&tree, TP_BINARY) ?:
 	     tree_populate(&tree, TP_BINARY);
-	m0_fi_disable("m0_alloc","fail_allocation");
+	m0_fi_disable("m0_alloc_profiled","fail_allocation");
 	M0_UT_ASSERT(rc == -ENOMEM);
 	/*
 	 * NOTE: m0_fd__tree_root_create and tree_populate call

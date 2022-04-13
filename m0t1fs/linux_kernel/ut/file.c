@@ -946,16 +946,16 @@ static void target_ioreq_test(void)
 
 skip:
 	/* Checks allocation failure. */
-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 1, 1);
 	rc = target_ioreq_iofops_prepare(ti, PA_DATA);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	/* Checks allocation failure in m0_rpc_bulk_buf_add(). */
 
-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 2, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 2, 1);
 	rc = target_ioreq_iofops_prepare(ti, PA_DATA);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_disable("m0_alloc", "fail_allocation");
+	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
 
 	/* Finalisation */
 	req.ir_nwxfer.nxr_state = NXS_COMPLETE;
@@ -969,9 +969,9 @@ skip:
 	rc = io_request_init(&req, &lfile, iovec_arr, ivv, IRT_WRITE);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_fi_enable_random("m0_alloc", "fail_allocation", 5);
+	m0_fi_enable_random("m0_alloc_profiled", "fail_allocation", 5);
 	rc = ioreq_iomaps_prepare(&req);
-	m0_fi_disable("m0_alloc", "fail_allocation");
+	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
 	if (rc == -ENOMEM)
 		rc = ioreq_iomaps_prepare(&req);
 	M0_UT_ASSERT(rc == 0);

@@ -125,6 +125,13 @@ M0_INTERNAL void *m0_alloc_nz(size_t size)
 
 void *m0_alloc(size_t size)
 {
+	M0_ALLOC_PROF("alloc", "m0_alloc", size);
+	return m0_alloc_profiled(size);
+}
+M0_EXPORTED(m0_alloc);
+
+void *m0_alloc_profiled(size_t size)
+{
 	void *area;
 
 	M0_ENTRY("size=%zi", size);
@@ -141,7 +148,7 @@ void *m0_alloc(size_t size)
 	M0_LEAVE("ptr=%p size=%zi", area, size);
 	return area;
 }
-M0_EXPORTED(m0_alloc);
+M0_EXPORTED(m0_alloc_profiled);
 
 void m0_free(void *data)
 {

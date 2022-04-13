@@ -215,7 +215,7 @@ static void ut_test_m0_client_init(void)
 	struct m0_client        *instance;
 
 	/* Check -ENOMEM will be returned */
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	m0_fi_enable_once("m0_alloc_profiled", "fail_allocation");
 	instance = NULL;
 	rc = INIT(&instance);
 	M0_UT_ASSERT(rc == -ENOMEM);

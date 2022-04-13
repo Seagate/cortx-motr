@@ -168,13 +168,13 @@ static void test_init(void)
 	/* Test fault injection. */
 	seed = m0_time_now();
 	n = m0_rnd(MAX_BUFFERS, &seed);
-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", n, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", n, 1);
 	M0_SET0(&varr);
 	rc = m0_varr_init(&varr, MAX_OBJ_NR, size_get(DT_POWTWO),
 			  BUFF_SIZE);
 	if (rc == 0)
 		m0_varr_fini(&varr);
-	m0_fi_disable("m0_alloc", "fail_allocation");
+	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
 }
 
 static void test_size(void)

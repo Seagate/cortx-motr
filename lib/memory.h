@@ -25,8 +25,9 @@
 #define __MOTR_LIB_MEMORY_H__
 
 #include "lib/types.h"
-#include "lib/assert.h"  /* M0_CASSERT */
-#include "lib/finject.h" /* M0_FI_ENABLED */
+#include "lib/assert.h"     /* M0_CASSERT */
+#include "lib/finject.h"    /* M0_FI_ENABLED */
+#include "lib/alloc_prof.h" /* M0_ALLOC_PROF */
 
 /**
    @defgroup memory Memory allocation handling functions
@@ -81,8 +82,12 @@ M0_INTERNAL void m0_memory_pagein(void *addr, size_t size);
 		*__pptr = NULL;               \
 	} while (0)
 
-#define M0_ALLOC_ARR(arr, nr)  ((arr) = M0_FI_ENABLED(#arr "-fail") ? NULL : \
-					m0_alloc((nr) * sizeof ((arr)[0])))
+#define M0_ALLOC_ARR(arr, nr)  ({					\
+	size_t nob = (nr) * sizeof ((arr)[0]);				\
+	M0_ALLOC_PROF("alloc", #arr, nob);				\
+	(arr) = M0_FI_ENABLED(#arr "-fail") ? NULL : m0_alloc_profiled(nob); \
+})
+
 #define M0_ALLOC_PTR(ptr)      M0_ALLOC_ARR(ptr, 1)
 
 #define M0_ALLOC_ARR_ALIGNED(arr, nr, shift)		\
@@ -175,6 +180,11 @@ M0_INTERNAL bool m0_is_poisoned(const void *p);
  */
 M0_INTERNAL int m0_dont_dump(void *p, size_t size);
 
+/**
+ * Allocator entry point used within M0_ALLOC_{PTR,ARR}() for already profiled
+ * allocations.
+ */
+void *m0_alloc_profiled(size_t size);
 
 /** @} end of memory group */
 #endif /* __MOTR_LIB_MEMORY_H__ */

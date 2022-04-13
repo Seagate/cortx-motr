@@ -499,7 +499,7 @@ static void frm_test6(void)
 	flags_reset();
 	item = new_item(TIMEDOUT, NORMAL);
 
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	m0_fi_enable_once("m0_alloc_profiled", "fail_allocation");
 
 	m0_rpc_frm_enq_item(frm, item);
 	M0_UT_ASSERT(!packet_ready_called);
