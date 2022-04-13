@@ -93,7 +93,7 @@ static int session_ut_fini(void)
 	m0_sm_group_fini(&machine.rm_sm_grp);
 	m0_fi_disable("m0_rpc__fop_post", "do_nothing");
 	m0_fi_disable("m0_rpc__fop_post", "fake_error");
-	m0_fi_disable("m0_alloc", "fail_allocation");
+	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
 	return 0;
 }
 
@@ -240,7 +240,7 @@ static void session_establish_fail_test(void)
 	/* Allocation failure */
 	session_init();
 
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	m0_fi_enable_once("m0_alloc_profiled", "fail_allocation");
 	rc = m0_rpc_session_establish(&session, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == -ENOMEM);
 	M0_UT_ASSERT(session_state(&session) == M0_RPC_SESSION_FAILED);

@@ -66,7 +66,7 @@ void m0_ut_lib_buf_test(void)
 
 #ifdef ENABLE_FAULT_INJECTION
 	struct m0_buf inj_copy = M0_BUF_INIT0;
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	m0_fi_enable_once("m0_alloc_profiled", "fail_allocation");
 	rc = m0_buf_copy(&inj_copy, &test[0].buf);
 	M0_UT_ASSERT(rc == -ENOMEM);
 #endif

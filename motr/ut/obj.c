@@ -551,7 +551,7 @@ static void ut_test_obj_op_prepare(void)
 		    m0_client_layout_id(instance));
 
 	/* OP Allocation fails */
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	m0_fi_enable_once("m0_alloc_profiled", "fail_allocation");
 	rc = obj_op_prepare(&obj.ob_entity, &op, M0_EO_CREATE);
 	M0_UT_ASSERT(rc != 0);
 	M0_UT_ASSERT(op == NULL);

@@ -383,7 +383,7 @@ void test_locality_chore(void)
 	M0_UT_ASSERT(left == nr_loc);
 
 	M0_SET0(&chore);
-	m0_fi_enable_once("m0_alloc", "keep_quiet");
+	m0_fi_enable_once("m0_alloc_profiled", "keep_quiet");
 	result = m0_locality_chore_init(&chore, &ops, &lock,
 					M0_MKTIME(1, 0), 1ULL << 60);
 	M0_UT_ASSERT(result == -ENOMEM);
@@ -408,7 +408,7 @@ void test_locality_chore(void)
 	M0_UT_ASSERT(entered == nr_loc);
 	M0_UT_ASSERT(left == nr_loc);
 	m0_locality_data_free(keyother);
-	m0_fi_enable_once("m0_alloc", "keep_quiet");
+	m0_fi_enable_once("m0_alloc_profiled", "keep_quiet");
 	result = m0_locality_data_alloc(1ULL << 60, NULL, NULL, NULL);
 	M0_UT_ASSERT(result == -ENOMEM);
 	m0_ut__reqh_fini();
