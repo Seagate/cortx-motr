@@ -938,7 +938,9 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	uint32_t                     unit_idx = 0;
 	uint32_t                     unit_sz;
 	uint32_t 					 num_units;
+	uint32_t                     num_fops = 0;
 	uint32_t 					 num_units_iter;
+	struct target_cksum_data    *cs_data; 
 	enum page_attr               rw;
 	enum page_attr              *pattr;
 	struct m0_bufvec            *bvec;
@@ -1009,9 +1011,11 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 	ndom_max_segs = m0_net_domain_get_max_buffer_segments(ndom);
 
-	num_units = (filter == PA_PARITY) ? 
-					ti->ti_cksum_data[M0_PUT_PARITY].cd_num_units :
-					ti->ti_cksum_data[M0_PUT_DATA].cd_num_units;
+
+	cs_data = (filter == PA_PARITY) ? 
+					&ti->ti_cksum_data[M0_PUT_PARITY] :
+					&ti->ti_cksum_data[M0_PUT_DATA];
+	num_units = cs_data->cd_num_units;
 	unit_sz = layout_unit_size(pdlayout_get(ioo));
 	M0_LOG(M0_ALWAYS, "Num units: %d Unit Sz: %d", num_units, unit_sz);
 
@@ -1034,6 +1038,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			rc = M0_ERR(-ENOMEM);
 			goto err;
 		}
+		num_fops++;
 		rc = ioreq_fop_init(irfop, ti, filter);
 		if (rc != 0) {
 			m0_free(irfop);
@@ -1197,10 +1202,18 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		
 		// Update FOP param based on number of units added
 		if( num_units ) {
-			irfop->irf_unit_count = sz_added_to_fop / unit_sz;
-			M0_ASSERT( (sz_added_to_fop % unit_sz) == 0);
-			unit_idx += irfop->irf_unit_count;
-			M0_LOG(M0_ALWAYS, "FOP StIdx = %d Units:%d,Next UI:%d",irfop->irf_unit_start_idx,irfop->irf_unit_count,unit_idx);
+			// Single FOP
+			if( (num_fops == 1) && (seg == SEG_NR(ivec))) {
+				irfop->irf_unit_start_idx = 0;
+				irfop->irf_unit_count = cs_data->cd_num_units;				
+			}
+			else {
+				irfop->irf_unit_count = sz_added_to_fop / unit_sz;
+				unit_idx += irfop->irf_unit_count;
+				M0_LOG(M0_ALWAYS, "FOP Split StIdx = %d Units:%d,Sz:%d",
+					irfop->irf_unit_start_idx,irfop->irf_unit_count,sz_added_to_fop);
+				M0_ASSERT( sz_added_to_fop % unit_sz); 
+			}
  		}
 
 		/* Assign the checksum buffer for traget */
