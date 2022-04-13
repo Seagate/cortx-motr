@@ -3,7 +3,7 @@
 _« Par ma foi ! il y a plus de quarante ans que je dis de la prose sans que j'en susse rien, et je vous suis le
 plus obligé du monde de m'avoir appris cela. »_
 
-This document attempts to be a master document for the whole of Motr, 
+This document attempts to be a primary document for the whole of Motr, 
 concentrating on giving a consistent overview of the architecture.
 
 The document is structured as a collection of fragments. Each fragment, 
