@@ -24,17 +24,15 @@ SANDBOX_DIR=/var/motr/sns_sandbox/
 IOS_EP=""
 LOCAL_NID=""
 state_recv=""
+XPRT=""
 
 SRC_FILE=/tmp/src_file
 
 M0_REPAIR_UTILS=/usr/sbin/m0repair
 M0_HAM_UTILS=/usr/sbin/m0ham
 M0_HAGEN_UTILS=/usr/sbin/m0hagen
-MOTR_M0CP=/usr/bin/m0cp
 MOTR_COPY=/usr/bin/m0cp
 MOTR_CAT=/usr/bin/m0cat
-
-SERVICE_TYPE=0   # SNS = 0, DIX = 1
 
 M0_NC_UNKNOWN=1
 M0_NC_ONLINE=1
@@ -46,18 +44,15 @@ M0_NC_REBALANCE=6
 
 CM_OP_REPAIR=1
 CM_OP_REBALANCE=2
-CM_OP_REPAIR_QUIESCE=3
-CM_OP_REBALANCE_QUIESCE=4
-CM_OP_REPAIR_RESUME=5
-CM_OP_REBALANCE_RESUME=6
+# CM_OP_REPAIR_QUIESCE=3
+# CM_OP_REBALANCE_QUIESCE=4
+# CM_OP_REPAIR_RESUME=5
+# CM_OP_REBALANCE_RESUME=6
 CM_OP_REPAIR_STATUS=7
 CM_OP_REBALANCE_STATUS=8
-CM_OP_REPAIR_ABORT=9
-CM_OP_REBALANCE_ABORT=10
+# CM_OP_REPAIR_ABORT=9
+# CM_OP_REBALANCE_ABORT=10
 
-SNS_CLI_EP="12345:33:1000"
-M0HAM_CLI_EP="12345:33:1001"
-SNS_QUIESCE_CLI_EP="12345:33:1002"
 stride=32
 src_bs=10M
 src_count=2
@@ -85,9 +80,9 @@ file_size=(
 )
 
 unit_size=(
-        $stride
-        $stride
-        $stride
+        "$stride"
+        "$stride"
+        "$stride"
 )
 
 # Get luster n/w lid of current host.
@@ -95,6 +90,25 @@ get_lnet_nid()
 {
         source $service_funcs
         LOCAL_NID=$(m0_get_lnet_nid)
+}
+
+# Returns respective the client endpoint suffix for SNS, M0HAM, SNS_QUIESCE
+_get_client_endpoints()
+{
+        if [[ $XPRT != "" ]]; then
+                source $service_funcs
+                XPRT=$(m0_get_motr_transport)
+        fi
+
+        if [ "$XPRT" = "lnet" ]; then
+                SNS_CLI_EP=":12345:33:1000"
+                M0HAM_CLI_EP=":12345:33:1001"
+                SNS_QUIESCE_CLI_EP=":12345:33:1002"
+        else
+                SNS_CLI_EP="@3400"
+                M0HAM_CLI_EP="@10003"
+                SNS_QUIESCE_CLI_EP="@10002"
+        fi
 }
 
 sandbox_init()
@@ -120,31 +134,31 @@ report_and_exit() {
         local name=$1
         local rc=$2
 
-        if [ $rc -eq 0 ]; then
+        if [[ "$rc" -eq 0 ]]; then
             echo "$name: test status: SUCCESS"
         else
             echo "$name: FAILURE $rc" >&2
         fi
-        exit $rc
+        exit "$rc"
 }
 
  md5sum_generate()
  {
         local FILE=$1
-        md5sum $FILE | tee -a $SANDBOX_DIR/md5
+        md5sum "$FILE" | tee -a "$SANDBOX_DIR"/md5
  }
 
 _md5sum()
 {
         local FILE=$1
-        md5sum_generate $SANDBOX_DIR/$FILE
+        md5sum_generate "$SANDBOX_DIR/$FILE"
 }
 
 md5sum_check()
 {
         local rc
 
-        md5sum -c < $SANDBOX_DIR/md5
+        md5sum -c < "$SANDBOX_DIR"/md5
         rc=$?
         if [ $rc != 0 ]; then
                 echo "md5 sum does not match: $rc"
@@ -155,17 +169,17 @@ md5sum_check()
 prepare_datafiles_and_objects()
 {
         local rc=0
-        HA_EP=$(hctl status | grep hax | grep $LOCAL_NID | awk '{print $4}' | head -1)
-        LOCAL_EP=$( hctl status | grep m0_client | grep $LOCAL_NID |  grep unknown | awk '{print $4}' | head -1)
+        HA_EP=$(hctl status | grep hax | grep "$LOCAL_NID" | awk '{print $4}' | head -1)
+        LOCAL_EP=$( hctl status | grep m0_client | grep "$LOCAL_NID" |  grep unknown | awk '{print $4}' | head -1)
         PROF_ID=$(hctl status | grep Profile | awk '{print $2}')
-        PROC_ID=$(hctl status | grep $LOCAL_EP | awk '{print $3}')
+        PROC_ID=$(hctl status | grep "$LOCAL_EP" | awk '{print $3}')
 
         echo "HA_EP : $HA_EP"
         echo "LOCAL_EP : $LOCAL_EP"
         echo "PROF_ID : $PROF_ID"
         echo "PROC_ID : $PROC_ID"
 
-        dd if=/dev/urandom bs=$src_bs count=$src_count \
+        dd if=/dev/urandom bs="$src_bs" count="$src_count" \
            of="$SANDBOX_DIR/srcfile" || return $?
 
         for ((i=0; i < ${#file[*]}; i++)); do
@@ -177,28 +191,28 @@ prepare_datafiles_and_objects()
                 echo "MOTR_PARAMS : $MOTR_PARAM"
 
                 echo "creating object ${file[$i]} bs=${us} * c=${file_size[$i]}"
-                dd bs=${us} count=${file_size[$i]}            \
+                dd bs="${us}" count="${file_size[$i]}"            \
                    if="$SANDBOX_DIR/srcfile"         \
                    of="$SANDBOX_DIR/src${file[$i]}"
 
-                $MOTR_COPY ${MOTR_PARAM} -c ${file_size[$i]} \
-                                             -o ${file[$i]}  \
+                $MOTR_COPY "${MOTR_PARAM}" -c "${file_size[$i]}" \
+                                             -o "${file[$i]}"  \
                                 "$SANDBOX_DIR/srcfile" ||  {
                                 rc=$?
                                 echo "writing object ${file[$i]} failed"
                         }
         done
-        return $rc
+        return "$rc"
 }
 
 motr_read_verify()
 {
         local start_file=$1
         local rc=0
-        HA_EP=$(hctl status | grep hax | grep $LOCAL_NID | awk '{print $4}' | head -1)
-        LOCAL_EP=$( hctl status | grep m0_client | grep $LOCAL_NID | grep unknown | awk '{print $4}' | head -1)
+        HA_EP=$(hctl status | grep hax | grep "$LOCAL_NID" | awk '{print $4}' | head -1)
+        LOCAL_EP=$( hctl status | grep m0_client | grep "$LOCAL_NID" | grep unknown | awk '{print $4}' | head -1)
         PROF_ID=$(hctl status | grep Profile | awk '{print $2}')
-        PROC_ID=$(hctl status | grep $LOCAL_EP | awk '{print $3}')
+        PROC_ID=$(hctl status | grep "$LOCAL_EP" | awk '{print $3}')
 
         echo " ======check motr ======"
         echo "HA_EP : $HA_EP"
@@ -216,8 +230,8 @@ motr_read_verify()
 
                 echo "Reading object ${file[$i]} ... and diff ..."
                 rm -f "$SANDBOX_DIR/${file[$i]}"
-                $MOTR_CAT ${MOTR_PARAM} -c ${file_size[$i]} \
-                            -o ${file[$i]} $SANDBOX_DIR/${file[$i]} || {
+                $MOTR_CAT "${MOTR_PARAM}" -c "${file_size[$i]}" \
+                            -o "${file[$i]}" "$SANDBOX_DIR/${file[$i]}" || {
                         rc=$?
                         echo "reading ${file[$i]} failed"
                 }
@@ -245,7 +259,7 @@ motr_read_verify()
 send_ha_msg_nvec()
 {
         local ha_msg_nvec=$1
-        local remote_eps=($2)
+        local remote_eps=("$2")
         local local_ep=$3
         state_recv=""
 
@@ -255,7 +269,7 @@ fid: !fid [0,0]
 process: ^r|0.0
 service: ^s|0.0
 data:'
-        ha_msg_nvec=`echo "$ha_msg_nvec" | sed 's/^/  /g'`
+        ha_msg_nvec=$(echo "$ha_msg_nvec" | sed 's/^/  /g')
         ha_msg_yaml+="$ha_msg_nvec"
 
         # Convert a yaml message to its xcode representation
@@ -271,7 +285,7 @@ data:'
         for ep in "${remote_eps[@]}"; do
                 cmd="$cmd_xcode | $M0_HAM_UTILS -v -s $local_ep $ep"
                 echo "$cmd"
-                local xcode=`eval "$cmd"`
+                local xcode=$(eval "$cmd")
                 if [ $? -ne 0 ]; then
                         echo "m0ham failed to send a message"
                         return 1
@@ -283,7 +297,7 @@ data:'
                         echo "Decoded reply:"
                         echo "$xcode" | $M0_HAGEN_UTILS -d
                         if [ -z "$state_recv" ]; then
-                                state_recv=$(echo $xcode | $M0_HAGEN_UTILS -d | grep ' state:' | awk '{print $2}')
+                                state_recv=$(echo "$xcode" | "$M0_HAGEN_UTILS" -d | grep ' state:' | awk '{print $2}')
                         fi
                 fi
         done
@@ -296,17 +310,17 @@ data:'
 # (iv) local endpoint
 send_ha_events()
 {
-        local fids=($1)
-        local state=$2
-        local remote_eps=($3)
-        local local_ep=$4
+        local fids=("$1")
+        local state="$2"
+        local remote_eps=("$3")
+        local local_ep="$4"
 
         local yaml='!ha_nvec_set
 ignore_same_state: false
 notes:'
         for fid in "${fids[@]}"; do
                 # Convert fid to m0hagen's format
-                fid=`echo "$fid" | tr : .`
+                fid=$(echo "$fid" | tr : .)
                 yaml="$yaml
   - {fid: $fid, state: $state}"
         done
@@ -320,9 +334,9 @@ notes:'
 # (iii) local endpoint
 request_ha_state()
 {
-        local fids=($1)
-        local remote_eps=($2)
-        local local_ep=$3
+        local fids=("$1")
+        local remote_eps=("$2")
+        local local_ep="$3"
 
         local yaml='!ha_nvec_get
 get_id: 100
@@ -330,7 +344,7 @@ ignore_same_state: false
 fids:'
         for fid in "${fids[@]}"; do
                 # Convert fid to m0hagen's format
-                fid=`echo "$fid" | tr : .`
+                fid=$(echo "$fid" | tr : .)
                 yaml="$yaml
   - $fid"
         done
@@ -362,11 +376,13 @@ disk_state_set()
 
         # Dummy HA doesn't broadcast messages. Therefore, send ha_msg to the
         # services directly.
+        _get_client_endpoints
+
         local service_eps=$(service_eps_with_hctl_get)
-        local local_ep="$LOCAL_NID:$M0HAM_CLI_EP"
+        local local_ep="$LOCAL_NID$M0HAM_CLI_EP"
 
         echo "service eps : $service_eps"
-        echo "fids : $fids"
+        echo "fids : ${fids[*]}"
         echo "state : $state "
         echo "local ep : $local_ep"
 
@@ -389,10 +405,12 @@ disk_state_get()
                 nr=$((nr + 1))
         done
 
+        _get_client_endpoints
+
         local service_eps=$(service_eps_with_hctl_get)
-        local local_ep="$LOCAL_NID:$M0HAM_CLI_EP"
+        local local_ep="$LOCAL_NID$M0HAM_CLI_EP"
         echo "service eps : $service_eps"
-        echo "fids : $fids"
+        echo "fids : ${fids[*]}"
         echo "local ep : $local_ep"
 
         echo "getting device { ${fids[*]} }'s HA state"
@@ -419,7 +437,7 @@ check_cluster_status()
 # Get io-service end-points of all the nodes in cluster
 get_ios_endpoints()
 {
-        for i in `hctl status | grep ioservice | awk '{print $4}'`; do
+        for i in $(hctl status | grep ioservice | awk '{print $4}'); do
                 IOS_EP="$IOS_EP -S $i"
         done
 }
@@ -429,10 +447,10 @@ service_eps_with_hctl_get()
 {
         local service_eps=""
 
-        for i in `hctl status | grep ioservice | awk '{print $4}'`; do
+        for i in $(hctl status | grep ioservice | awk '{print $4}'); do
                 service_eps+=("$i")
         done
-        for i in `hctl status | grep hax | awk '{print $4}'`; do
+        for i in $(hctl status | grep hax | awk '{print $4}'); do
                 service_eps+=("$i")
         done
 
@@ -443,13 +461,13 @@ sns_repair_or_rebalance_status()
 {
         local rc=0
         local op=32
- 
+
         [ "$1" == "repair" ] && op=$CM_OP_REPAIR_STATUS
         [ "$1" == "rebalance" ] && op=$CM_OP_REBALANCE_STATUS
 
-        repair_status="$M0_REPAIR_UTILS -O $op -t 0 -C ${LOCAL_NID}:${SNS_QUIESCE_CLI_EP} $IOS_EP"
-        echo $repair_status
-        eval $repair_status
+        repair_status="$M0_REPAIR_UTILS -O $op -t 0 -C ${LOCAL_NID}${SNS_QUIESCE_CLI_EP} $IOS_EP"
+        echo "$repair_status"
+        eval "$repair_status"
         rc=$?
         if [ $rc != 0 ]; then
                 echo "SNS Repair status query failed"
@@ -467,20 +485,20 @@ wait_for_sns_repair_or_rebalance()
         [ "$1" == "rebalance" ] && op=$CM_OP_REBALANCE_STATUS
         while true ; do
                 sleep 5
-                repair_status="$M0_REPAIR_UTILS -O $op -t 0 -C ${LOCAL_NID}:${SNS_QUIESCE_CLI_EP} $IOS_EP"
-                echo $repair_status
-                status=`eval $repair_status`
+                repair_status="$M0_REPAIR_UTILS -O $op -t 0 -C ${LOCAL_NID}${SNS_QUIESCE_CLI_EP} $IOS_EP"
+                echo "$repair_status"
+                status=$(eval "$repair_status")
                 rc=$?
                 if [ $rc != 0 ]; then
                         echo "SNS Repair status query failed"
                         return $rc
                 fi
 
-                echo $status | grep status=2 && continue #sns repair is active, continue waiting
+                echo "$status" | grep status=2 && continue #sns repair is active, continue waiting
                 break;
         done
 
-        op=`echo $status | grep status=3`
+        op=$(echo "$status" | grep status=3)
         [[ !  -z  "$op"  ]] && return 1
 
         return 0
@@ -489,11 +507,10 @@ wait_for_sns_repair_or_rebalance()
 sns_repair()
 {
         local rc=0
-        local pid=0
 
-        repair_trigger="$M0_REPAIR_UTILS -O $CM_OP_REPAIR -t 0 -C ${LOCAL_NID}:${SNS_CLI_EP} $IOS_EP "
-        echo $repair_trigger
-        eval $repair_trigger
+        repair_trigger="$M0_REPAIR_UTILS -O $CM_OP_REPAIR -t 0 -C ${LOCAL_NID}${SNS_CLI_EP} $IOS_EP "
+        echo "$repair_trigger"
+        eval "$repair_trigger"
         rc=$?
         if [ $rc != 0 ]; then
                 echo "SNS Repair failed"
@@ -506,9 +523,9 @@ sns_rebalance()
 {
         local rc=0
 
-        rebalance_trigger="$M0_REPAIR_UTILS -O $CM_OP_REBALANCE -t 0 -C ${LOCAL_NID}:${SNS_CLI_EP} $IOS_EP"
-        echo $rebalance_trigger
-        eval $rebalance_trigger
+        rebalance_trigger="$M0_REPAIR_UTILS -O $CM_OP_REBALANCE -t 0 -C ${LOCAL_NID}${SNS_CLI_EP} $IOS_EP"
+        echo "$rebalance_trigger"
+        eval "$rebalance_trigger"
         rc=$?
         if [ $rc != 0 ]; then
                 echo "SNS Re-balance failed"
