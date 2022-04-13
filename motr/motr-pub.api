@@ -76,6 +76,8 @@ m0_addb2_sys_stor_stop
 m0_addb2_sys_submit
 m0_addb2_trace_done
 m0_alloc
+m0_alloc_profiled
+m0_alloc_callsite_init
 m0_backtrace
 m0_bcount_with_suffix
 m0_build_info_get

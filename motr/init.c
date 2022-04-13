@@ -126,6 +126,9 @@ M0_INTERNAL int  m0_net_sock_mod_init(void);
 M0_INTERNAL void m0_net_sock_mod_fini(void);
 #endif
 
+M0_INTERNAL int  m0_alloc_prof_module_init(void);
+M0_INTERNAL void m0_alloc_prof_module_fini(void);
+
 /**
    @addtogroup init
    @{
@@ -154,6 +157,7 @@ struct init_fini_call once[] = {
  */
 struct init_fini_call subsystem[] = {
 	{ &m0_memory_init,      &m0_memory_fini,      "memory" },
+	{ &m0_alloc_prof_module_init, &m0_alloc_prof_module_fini, "alloc-prof" },
 	{ &m0_addb2_module_init, &m0_addb2_module_fini, "addb2" },
 	{ &m0_addb2_global_init, &m0_addb2_global_fini, "addb2-global" },
 	{ &libm0_init,          &libm0_fini,          "libm0" },

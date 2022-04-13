@@ -25,8 +25,9 @@
 #define __MOTR_LIB_MEMORY_H__
 
 #include "lib/types.h"
-#include "lib/assert.h"  /* M0_CASSERT */
-#include "lib/finject.h" /* M0_FI_ENABLED */
+#include "lib/assert.h"     /* M0_CASSERT */
+#include "lib/finject.h"    /* M0_FI_ENABLED */
+#include "lib/alloc_prof.h" /* M0_ALLOC_PROF */
 
 /**
    @defgroup memory Memory allocation handling functions
@@ -81,8 +82,12 @@ M0_INTERNAL void m0_memory_pagein(void *addr, size_t size);
 		*__pptr = NULL;               \
 	} while (0)
 
-#define M0_ALLOC_ARR(arr, nr)  ((arr) = M0_FI_ENABLED(#arr "-fail") ? NULL : \
-					m0_alloc((nr) * sizeof ((arr)[0])))
+#define M0_ALLOC_ARR(arr, nr)  ({					       \
+	(arr) = M0_FI_ENABLED(#arr "-fail") ? NULL :			       \
+	   m0_alloc_profiled((nr) * sizeof ((arr)[0]), M0_ALLOC_CALLSITE(#arr, \
+									 0));  \
+})
+
 #define M0_ALLOC_PTR(ptr)      M0_ALLOC_ARR(ptr, 1)
 
 #define M0_ALLOC_ARR_ALIGNED(arr, nr, shift)		\
@@ -179,6 +184,22 @@ M0_INTERNAL int m0_dont_dump(void *p, size_t size);
  * Wrapper function over memmove.
  */
 M0_INTERNAL void m0_memmove(void *tgt, void *src, size_t size);
+#if USE_ALLOC_PROF
+/**
+ * Allocator entry point used within M0_ALLOC_{PTR,ARR}() for already profiled
+ * allocations.
+ */
+void *m0_alloc_profiled(size_t size, struct m0_alloc_callsite *cs);
+M0_INTERNAL void *m0_alloc_aligned_profiled(size_t size, unsigned shift,
+					    struct m0_alloc_callsite *cs);
+#else
+void *(m0_alloc_profiled)(size_t size);
+#define m0_alloc_profiled(size, cs) (m0_alloc_profiled)(size)
+M0_INTERNAL void *(m0_alloc_aligned_profiled)(size_t size, unsigned shift);
+#define m0_alloc_aligned_profiled(size, shift, cs) \
+	(m0_alloc_aligned_profiled)(size, shift)
+#endif
+
 /** @} end of memory group */
 #endif /* __MOTR_LIB_MEMORY_H__ */
 

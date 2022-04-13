@@ -188,6 +188,7 @@ AH_TEMPLATE([ENABLE_BALLOC_DUMP],     [Enable balloc dumps in trace log.])
 AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in atomic functions])
 AH_TEMPLATE([ENABLE_DATA_INTEGRITY],  [Enable data integrity.])
 AH_TEMPLATE([ENABLE_FREE_POISON],     [Poison freed memory for debugging.])
+AH_TEMPLATE([ENABLE_ALLOC_PROF],      [Enable memory allocator profiler.])
 AH_TEMPLATE([ENABLE_DETAILED_BACKTRACE],[Enable detailed backtraces on crash using gdb.])
 AH_TEMPLATE([ENABLE_SOCK_MOCK_LNET],  [Enable LNet simulation in net/sock. Forces sock to pretend to be lnet. With this option end-points prefixed with "lnet:" are interpreted by sock.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
@@ -283,6 +284,12 @@ AC_ARG_ENABLE([free_poison],
 )
 AS_IF([test x$enable_free_poison = xyes],
       AC_DEFINE([ENABLE_FREE_POISON]))
+
+# alloc-prof {{{3
+AC_ARG_ENABLE([alloc_prof],
+        [AS_HELP_STRING([--enable-alloc-prof], [enable allocator profiler])],
+        [], [enable_alloc_prof=no])
+AS_IF([test x$enable_alloc_prof = xyes], AC_DEFINE([ENABLE_ALLOC_PROF]))
 
 # frame-pointers {{{3
 AC_ARG_ENABLE([frame_pointers],

@@ -197,8 +197,8 @@ M0_INTERNAL void m0_enter_awkward(void)
 
 	/*
 	 * m0_enter_awkward() can be called at arbitrary moment. It is possible
-	 * that TLS is not yet set (or already released) at this time (this
-	 * happens, for example, when a timer signal) arrives to a thread
+	 * that TLS is not yet set (or already released) at this time. This
+	 * happens, for example, when a timer signal arrives to a thread
 	 * executing glibc code, creating or destroying a thread.
 	 */
 	if (tls != NULL)
@@ -238,11 +238,13 @@ M0_INTERNAL int m0_thread_arch_adopt(struct m0_thread *thread,
 	m0_set(instance);
 	if (full)
 		m0_addb2_global_thread_enter();
+	m0_alloc_prof_thread_init();
 	return 0;
 }
 
 M0_INTERNAL void m0_thread_arch_shun(void)
 {
+	m0_alloc_prof_thread_fini();
 	m0_addb2_global_thread_leave();
 	tls = NULL;
 }
