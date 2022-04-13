@@ -724,6 +724,23 @@ Tests:
     polltime : 30
     timeout  : 1800
 
+  - id       : 71spiel-sns-motr-repair
+    script   : 'm0 run-st 71spiel-sns-motr-repair'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-71spiel-sns-motr-repair
+    groupname: 03motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 72spiel-sns-motr-repair-quiesce
+    script   : 'm0 run-st 72spiel-sns-motr-repair-quiesce'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-72spiel-sns-motr-repair-quiesce
+    groupname: 03motr-single-node
+    polltime : 30
+    timeout  : 1800
 
 
 # 25 min
