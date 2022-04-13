@@ -1029,7 +1029,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		if (!(pattr[seg] & filter) || !(pattr[seg] & rw) ||
 		     (pattr[seg] & PA_TRUNC)) {
 			++seg;
-			M0_LOG(M0_ALWAYS, "Skip Seg = %d Attr:%d",seg, (int)pattr[seg]);
 			continue;
 		}
 
@@ -1039,6 +1038,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			goto err;
 		}
 		num_fops++;
+		M0_LOG(M0_ALWAYS, "Segment = %d, Fop = %d, Attr:%d",seg, num_fops,
+			   (int)pattr[seg]);
 		rc = ioreq_fop_init(irfop, ti, filter);
 		if (rc != 0) {
 			m0_free(irfop);
@@ -1212,7 +1213,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				unit_idx += irfop->irf_unit_count;
 				M0_LOG(M0_ALWAYS, "FOP Split StIdx = %d Units:%d,Sz:%d",
 					irfop->irf_unit_start_idx,irfop->irf_unit_count,sz_added_to_fop);
-				M0_ASSERT( sz_added_to_fop % unit_sz); 
+				M0_ASSERT( (sz_added_to_fop % unit_sz) == 0); 
 			}
  		}
 
