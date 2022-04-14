@@ -80,62 +80,51 @@
 
 #if defined(ENABLE_ALLOC_PROF) && !defined(__KERNEL__)
 #define USE_ALLOC_PROF (1)
+enum { AP_ALLOC, AP_FREE, AP_NR };
 
 /**
  * An instance of this struct exists for each M0_ALLOC_{PTR,ARR}()
  * call-site. Global (that ts, across all threads) counters for the call-site
  * are accumulated here.
  */
-struct m0_alloc_prof {
-	m0_bcount_t           ap_nob;
-	m0_bcount_t           ap_nr;
-	m0_bcount_t           ap_threads;
-	const char           *ap_file;
-	int                   ap_line;
-	const char           *ap_func;
-	const char           *ap_obj;
-	const char           *ap_type;
-	struct m0_alloc_prof *ap_prev;
+struct m0_alloc_callsite {
+	struct {
+		m0_bcount_t s_nob; /* Sine nobilitate. */
+		m0_bcount_t s_nr;
+		m0_bcount_t s_threads;
+	}                         ap_s[AP_NR];
+	int                       ap_idx;
+	const char               *ap_file;
+	int                       ap_line;
+	const char               *ap_func;
+	const char               *ap_obj;
+	uint64_t                  ap_flags;
+	struct m0_alloc_callsite *ap_prev;
 };
 
-/**
- * An instance of this struct exists for each M0_ALLOC_{PTR,ARR}() call-site in
- * each thread. Thread-local counters are accumulated there.
- */
-struct m0_alloc_prof_tls {
-	struct m0_alloc_prof     *pt_parent;
-	struct m0_alloc_prof_tls *pt_prev;
-	m0_bcount_t               pt_nob;
-	m0_bcount_t               pt_nr;
-};
+void m0_alloc_callsite_init(struct m0_alloc_callsite *cs, int dir, size_t nob);
 
-void m0_alloc_prof_update(struct m0_alloc_prof_tls *pt, size_t nob);
-
-/**
- * Defines global and local counter structs. Links them together. Updates local
- * counters.
- */
-#define M0_ALLOC_PROF(type, obj, nob)				\
-({								\
-	static struct m0_alloc_prof __ap = {			\
-		.ap_type = type,				\
-		.ap_file = __FILE__,				\
-		.ap_line = __LINE__,				\
-		.ap_obj  = obj,				\
-		.ap_func = __func__				\
-	};							\
-	static __thread struct m0_alloc_prof_tls __pt = {	\
-		.pt_parent = &__ap				\
-	};							\
-	m0_alloc_prof_update(&__pt, nob);			\
+#define M0_ALLOC_CALLSITE(obj, flags, dir, nob)	\
+({							\
+	static struct m0_alloc_callsite __cs = {	\
+		.ap_idx   = -1,			\
+		.ap_flags = (flags),			\
+		.ap_file  = __FILE__,			\
+		.ap_line  = __LINE__,			\
+		.ap_obj   = (obj),			\
+		.ap_func  = __func__			\
+	};						\
+	m0_alloc_callsite_init(&__cs, (dir), (nob));	\
+	&__cs;						\
 })
 
 #else
 #define USE_ALLOC_PROF (0)
-#define M0_ALLOC_PROF(type, obj, nob) ((void)0)
+#define M0_ALLOC_CALLSITE(obj, type) (NULL)
 #endif
 
 M0_INTERNAL void m0_alloc_prof_thread_init(void);
+M0_INTERNAL void m0_alloc_prof_thread_sync(void);
 M0_INTERNAL void m0_alloc_prof_thread_fini(void);
 M0_INTERNAL int  m0_alloc_prof_module_init(void);
 M0_INTERNAL void m0_alloc_prof_module_fini(void);

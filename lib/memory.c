@@ -27,6 +27,7 @@
  * @{
  */
 
+#include "alloc_prof.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MEMORY
 #include "lib/arith.h"   /* min_type, m0_is_po2 */
 #include "lib/assert.h"
@@ -98,6 +99,9 @@ M0_INTERNAL int    m0_arch_dont_dump(void *p, size_t size);
 M0_INTERNAL int    m0_arch_memory_init (void);
 M0_INTERNAL void   m0_arch_memory_fini (void);
 
+static void *alloc0(size_t size);
+static void free0(void *data);
+
 static struct m0_atomic64 allocated;
 static struct m0_atomic64 cumulative_alloc;
 static struct m0_atomic64 cumulative_free;
@@ -112,6 +116,53 @@ static void alloc_tail(void *area, size_t size)
 	}
 }
 
+#if USE_ALLOC_PROF
+
+M0_INTERNAL void *m0_alloc_nz(size_t size)
+{
+	return m0_alloc_profiled(size, M0_ALLOC_CALLSITE("alloc-nz", 0,
+							 AP_ALLOC, size));
+}
+
+void *m0_alloc(size_t size)
+{
+	return m0_alloc_profiled(size, M0_ALLOC_CALLSITE("alloc", 0,
+							 AP_ALLOC, size));
+}
+
+struct pad {
+	struct m0_alloc_callsite *p_cs;
+	uint64_t                  p_magic;
+};
+
+enum { AP_MAGIX = 0x3332764287643377ULL };
+
+void *m0_alloc_profiled(size_t size, struct m0_alloc_callsite *cs)
+{
+	struct pad *area;
+
+	if (M0_FI_ENABLED("fail_allocation"))
+		return NULL;
+	area = alloc0(size + sizeof(struct pad));
+	if (area != NULL) {
+		area[0] = (struct pad){ .p_cs = cs, .p_magic = AP_MAGIX };
+		area++;
+	}
+	return area;
+}
+
+void m0_free(void *data)
+{
+	if (data != NULL) {
+		struct pad *p = ((struct pad *)data) - 1;
+		M0_ASSERT(p->p_magic == AP_MAGIX);
+		m0_alloc_callsite_init(p->p_cs, AP_FREE, 0);
+		free0(p);
+	}
+}
+
+#else /* USE_ALLOC_PROF */
+
 M0_INTERNAL void *m0_alloc_nz(size_t size)
 {
 	void *area;
@@ -125,12 +176,28 @@ M0_INTERNAL void *m0_alloc_nz(size_t size)
 
 void *m0_alloc(size_t size)
 {
-	M0_ALLOC_PROF("alloc", "m0_alloc", size);
-	return m0_alloc_profiled(size);
+	return alloc0(size);
 }
-M0_EXPORTED(m0_alloc);
 
-void *m0_alloc_profiled(size_t size)
+void *(m0_alloc_profiled)(size_t size)
+{
+	if (M0_FI_ENABLED("fail_allocation"))
+		return NULL;
+	return alloc0(size);
+}
+
+void m0_free(void *data)
+{
+	return free0(data);
+}
+
+#endif
+
+M0_EXPORTED(m0_alloc_profiled);
+M0_EXPORTED(m0_alloc);
+M0_EXPORTED(m0_free);
+
+static void *alloc0(size_t size)
 {
 	void *area;
 
@@ -150,7 +217,7 @@ void *m0_alloc_profiled(size_t size)
 }
 M0_EXPORTED(m0_alloc_profiled);
 
-void m0_free(void *data)
+static void free0(void *data)
 {
 	if (data != NULL) {
 		size_t size = m0_arch_alloc_size(data);
@@ -165,7 +232,6 @@ void m0_free(void *data)
 		m0_arch_free(data);
 	}
 }
-M0_EXPORTED(m0_free);
 
 M0_INTERNAL void m0_memory_pagein(void *addr, size_t size)
 {
