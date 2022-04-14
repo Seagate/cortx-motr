@@ -95,7 +95,7 @@ LNET_PORTAL=42
 # Maximum network speed for IB switch. Used in graphs. Info from 'lspci':
 # 08:00.0 InfiniBand: Mellanox Technologies MT26428
 # [ConnectX VPI PCIe 2.0 5GT/s - IB QDR / 10GigE] (rev b0)
-NET_BANDWIDTH_MAX=$(expr 4 "*" 1024 "*" 1024 "*" 1024)
+NET_BANDWIDTH_MAX=$(( 4 "*" 1024 "*" 1024 "*" 1024))
 
 # User-supplied list of ssh credentials for test nodes and test console
 declare -a CLIENTS
@@ -142,8 +142,8 @@ SCRIPT_LIST_NIDS="$DIR_SCRIPT/demo-list-nids.sh"
 SCRIPT_TEST_RUN="$DIR_SCRIPT/demo-test-run.sh"
 
 CONSOLE_TMID_CLIENTS=$TMID_START
-CONSOLE_TMID_SERVERS=$(expr $TMID_START + 1)
-NODES_TMID_START=$(expr $CONSOLE_TMID_SERVERS + 1)
+CONSOLE_TMID_SERVERS=$(($TMID_START + 1))
+NODES_TMID_START=$(($CONSOLE_TMID_SERVERS + 1))
 
 CONSOLE_NID=
 CONSOLE_EP_CLIENTS=
@@ -288,9 +288,9 @@ configuration_parse()
 		# configure nodes
 		node_set $index "ssh_addr" $ssh_addr
 		node_set $index "tmid_cmd" \
-			$(expr $NODES_TMID_START + $NODES_NR "*" 2)
+			$(($NODES_TMID_START + $NODES_NR "*" 2))
 		node_set $index "tmid_data" \
-			$(expr $NODES_TMID_START + $NODES_NR "*" 2 + 1)
+			$(($NODES_TMID_START + $NODES_NR "*" 2 + 1))
 		((NODES_NR++)) || true
 	done
 	index=0
@@ -312,7 +312,7 @@ for_each_node()
 	local i
 	local func="$1"
 	shift 1
-	for i in $(seq 0 $(expr $NODES_NR - 1)); do
+	for i in $(seq 0 $(($NODES_NR - 1))); do
 		$func $i $@
 	done
 }
@@ -365,7 +365,7 @@ console_configure2()
 	local index
 	local cmd=
 
-	for index in $(seq 0 $(expr $NODES_NR - 1)); do
+	for index in $(seq 0 $(($NODES_NR - 1))); do
 		local role=$(node_get $index "role")
 		local ep_cmd=$(node_get $index "endpoint_cmd")
 		local ep_data=$(node_get $index "endpoint_data")
@@ -406,7 +406,7 @@ ssh_list_type()
 		echo $CONSOLE
 		return
 	fi
-	for index in $(seq 0 $(expr $NODES_NR - 1)); do
+	for index in $(seq 0 $(($NODES_NR - 1))); do
 		local role=$(node_get $index "role")
 		local ssh_addr=$(node_get $index "ssh_addr")
 		if [ "$role" == "$1" ]; then
@@ -506,7 +506,7 @@ console_cmdline_complement()
 	local msg_size=$3
 
 	CONCURRENCY_CLIENT=$concurrency
-	CONCURRENCY_SERVER=$(expr $concurrency "*" 2)
+	CONCURRENCY_SERVER=$(($concurrency "*" 2))
 	$ECHO_N "-t $test_type "
 	$ECHO_N "-n $MSG_NR "
 	$ECHO_N "-T $TEST_RUN_TIME "
@@ -515,8 +515,8 @@ console_cmdline_complement()
 	$ECHO_N "-e $CONCURRENCY_CLIENT "
 	$ECHO_N "-p "
 	if [ "$test_type" == "bulk" ]; then
-		BD_BUF_NR_CLIENT=$(expr $concurrency "*" 4)
-		BD_BUF_NR_SERVER=$(expr $concurrency "*" 4)
+		BD_BUF_NR_CLIENT=$(($concurrency "*" 4))
+		BD_BUF_NR_SERVER=$(($concurrency "*" 4))
 		$ECHO_N "-B $BD_BUF_NR_SERVER "
 		$ECHO_N "-b $BD_BUF_NR_CLIENT "
 		$ECHO_N "-f $BD_BUF_SIZE "
@@ -716,7 +716,7 @@ console_measurement_parse()
 		[ "$measurement" == "Bandwidth" ] && value="$msg_size"
 		local mps_received=$(console_value_get "$file_raw" client \
 				     mps_received_$m_type)
-		value="$(expr $mps_received \* $value \* 2)" ;;
+		value="$(($mps_received * $value * 2))" ;;
 	"RTT")
 		# TODO save and draw server RTT for bulk tests
 		value="$(console_value_get "$file_raw" client rtt_$m_type)" ;;
@@ -1034,10 +1034,10 @@ plot_ticks_bcount_IEC()
 
 	if [ $size -lt 1024 ]; then
 		$ECHO_N "${size}B"
-	elif [ $size -lt $(expr 1024 "*" 1024) ]; then
-		$ECHO_N "$(expr $size / 1024)KiB"
+	elif [ $size -lt $((1024 "*" 1024) )]; then
+		$ECHO_N "$(($size / 1024))KiB"
 	else
-		$ECHO_N "$(expr $size / 1024 / 1024)MiB"
+		$ECHO_N "$(($size / 1024 / 1024))MiB"
 	fi
 }
 
@@ -1052,7 +1052,7 @@ plot_ticks_msg_size()
 
 	for msg_size in ${MSG_SIZE_ARR[@]}; do
 		[ $i -ne 0 ] && ticks="$ticks, "
-		if [ $(expr $i % $skip) -eq 0 ]; then
+		if [ $(($i % $skip)) -eq 0 ]; then
 			ticks="$ticks\"$(plot_ticks_bcount_IEC $msg_size)\" $i"
 		else
 			ticks="$ticks\"\" $i"
@@ -1071,7 +1071,7 @@ plot_ticks_concurrency()
 
 	for concurrency in ${CONCURRENCY_CLIENT_ARR[@]}; do
 		[ $i -ne 0 ] && ticks="$ticks, "
-		if [ $(expr $i % $skip) -eq 0 ]; then
+		if [ $(($i % $skip)) -eq 0 ]; then
 			ticks="$ticks\"$concurrency\" $i"
 		else
 			ticks="$ticks\"\" $i"
