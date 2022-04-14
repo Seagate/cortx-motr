@@ -78,7 +78,7 @@ static int conn_ut_fini(void)
 	m0_fi_disable("m0_rpc__fop_post", "do_nothing");
 
 	m0_fi_disable("rpc_chan_get", "fake_error");
-	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_disable("m0_alloc", "fail_allocation");
 	m0_fi_disable("m0_rpc__fop_post", "fake_error");
 	return 0;
 }
@@ -193,7 +193,7 @@ static void conn_init_fail_test(void)
 {
 	int rc;
 	/* Checks for m0_rpc_conn_init() failure due to allocation failure */
-	m0_fi_enable_once("m0_alloc_profiled", "fail_allocation");
+	m0_fi_enable_once("m0_alloc", "fail_allocation");
 	rc = m0_rpc_conn_init(&conn, NULL, &ep, &machine, 1);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
@@ -219,7 +219,7 @@ static void conn_establish_fail_test(void)
 	/* Allocation failure */
 	conn_init();
 
-	m0_fi_enable_once("m0_alloc_profiled", "fail_allocation");
+	m0_fi_enable_once("m0_alloc", "fail_allocation");
 	rc = m0_rpc_conn_establish(&conn, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == -ENOMEM);
 	M0_UT_ASSERT(conn_state(&conn) == M0_RPC_CONN_FAILED);
@@ -264,7 +264,7 @@ static void conn_terminate_fail_test(void)
 	conn_init_and_establish();
 	conn_establish_reply();
 
-	m0_fi_enable_once("m0_alloc_profiled", "fail_allocation");
+	m0_fi_enable_once("m0_alloc", "fail_allocation");
 	rc = m0_rpc_conn_terminate(&conn, m0_time_from_now(2, 0));
 	M0_UT_ASSERT(rc == -ENOMEM);
 	M0_UT_ASSERT(conn_state(&conn) == M0_RPC_CONN_FAILED);

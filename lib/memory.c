@@ -139,11 +139,7 @@ enum { AP_MAGIX = 0x3332764287643377ULL };
 
 void *m0_alloc_profiled(size_t size, struct m0_alloc_callsite *cs)
 {
-	struct pad *area;
-
-	if (M0_FI_ENABLED("fail_allocation"))
-		return NULL;
-	area = alloc0(size + sizeof(struct pad));
+	struct pad *area = alloc0(size + sizeof(struct pad));
 	if (area != NULL) {
 		area[0] = (struct pad){ .p_cs = cs, .p_magic = AP_MAGIX };
 		area++;
@@ -181,8 +177,6 @@ void *m0_alloc(size_t size)
 
 void *(m0_alloc_profiled)(size_t size)
 {
-	if (M0_FI_ENABLED("fail_allocation"))
-		return NULL;
 	return alloc0(size);
 }
 
@@ -202,13 +196,13 @@ static void *alloc0(size_t size)
 	void *area;
 
 	M0_ENTRY("size=%zi", size);
-	if (M0_FI_ENABLED("fail_allocation"))
+	if (M0_FI_ENABLED_IN("m0_alloc", "fail_allocation"))
 		return NULL;
 	area = m0_arch_alloc(size);
 	alloc_tail(area, size);
 	if (area != NULL) {
 		m0_arch_allocated_zero(area, size);
-	} else if (!M0_FI_ENABLED("keep_quiet")) {
+	} else if (!M0_FI_ENABLED_IN("m0_alloc", "keep_quiet")) {
 		M0_LOG(M0_ERROR, "Failed to allocate %zi bytes.", size);
 		m0_backtrace();
 	}

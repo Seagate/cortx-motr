@@ -66,19 +66,19 @@ void fdmi_pd_register_filter(void)
 	rc = (pdo->fpo_register_filter)(&ffid, &fd, NULL);
 	M0_UT_ASSERT(rc == -EINVAL);
 
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 0, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 0, 1);
 	rc = (pdo->fpo_register_filter)(&ffid, &fd, &pcb);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 1, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
 	rc = (pdo->fpo_register_filter)(&ffid, &fd, &pcb);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 2, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 2, 1);
 	rc = (pdo->fpo_register_filter)(&ffid, &fd, &pcb);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
-	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_disable("m0_alloc", "fail_allocation");
 
 	(pdo->fpo_enable_filters)(true, fids, ARRAY_SIZE(fids));
 
@@ -132,23 +132,23 @@ int detour_create(struct m0_fop *fop, struct m0_fom **out, struct m0_reqh *reqh)
 
 	M0_ENTRY();
 
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 0, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 0, 1);
 	rc = (*native_create)(fop, out, reqh);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 1, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
 	rc = (*native_create)(fop, out, reqh);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 2, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 2, 1);
 	rc = (*native_create)(fop, out, reqh);
 	M0_UT_ASSERT(rc == -ENOENT);
 
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 3, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 3, 1);
 	rc = (*native_create)(fop, out, reqh);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
-	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_disable("m0_alloc", "fail_allocation");
 
 	rc = (*native_create)(fop, out, reqh);
 	M0_UT_ASSERT(m0_fop_data(fop)
@@ -618,7 +618,7 @@ void fdmi_pd_fake_release_nomem()
 	struct m0_rpc_conn_pool     *conn_pool = ut_pdock_conn_pool();
 	struct m0_rpc_conn_pool_item *pool_item;
 
-	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_disable("m0_alloc", "fail_allocation");
 
 	M0_ALLOC_PTR(rec);
 	M0_UT_ASSERT(rec != NULL);
@@ -653,7 +653,7 @@ void fdmi_pd_fake_release_nomem()
 	/* lock reg to not allow release to happen */
 	M0_UT_ASSERT(m0_ref_read(&rreg->frr_ref) == 1);
 
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 1, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
 	(*pdo->fpo_release_fdmi_rec)(&rec->fr_rec_id, &ffid);
 
 	/* record remains registered */
@@ -661,7 +661,7 @@ void fdmi_pd_fake_release_nomem()
 	M0_UT_ASSERT(rreg_test != NULL);
 	M0_UT_ASSERT(m0_ref_read(&rreg_test->frr_ref) == 0);
 
-	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_disable("m0_alloc", "fail_allocation");
 
 
 	m0_fi_enable_off_n_on_m("m0_rpc_conn_pool_get", "fail_conn_get", 0, 1);
@@ -676,7 +676,7 @@ void fdmi_pd_fake_release_nomem()
 	m0_fi_disable("m0_rpc_conn_pool_get", "fail_conn_get");
 
 
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 0, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 0, 1);
 	m0_ref_get(&rreg->frr_ref);
 	(*pdo->fpo_release_fdmi_rec)(&rec->fr_rec_id, &ffid);
 
@@ -685,7 +685,7 @@ void fdmi_pd_fake_release_nomem()
 	M0_UT_ASSERT(rreg_test != NULL);
 	M0_UT_ASSERT(m0_ref_read(&rreg_test->frr_ref) == 0);
 
-	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_disable("m0_alloc", "fail_allocation");
 
 
 	m0_ref_get(&rreg->frr_ref);

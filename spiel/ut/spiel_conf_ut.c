@@ -1063,13 +1063,13 @@ static void spiel_conf_create_fail(void)
 	 * those threads can still get -ENOMEM in the interim but that
 	 * is acceptable for now.
 	 **/
-	m0_fi_enable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_enable("m0_alloc", "fail_allocation");
 	rc = m0_spiel_root_add(&tx,
 			       &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE],
 			       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
 			       &spiel_obj_fid[SPIEL_UT_OBJ_PVER],
 			       10, params);
-	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_disable("m0_alloc", "fail_allocation");
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	/* alloc fail for rt_params */
@@ -1300,13 +1300,13 @@ static void spiel_conf_create_fail(void)
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	/* Check copy endpoints parameter */
-	m0_fi_enable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_enable("m0_alloc", "fail_allocation");
 	rc = m0_spiel_service_add(&tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
 				  &service_info);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_disable("m0_alloc", "fail_allocation");
 
 	/* Check copy cs_u parameter & switch by type */
 	service_info.svi_type = M0_CST_MDS;

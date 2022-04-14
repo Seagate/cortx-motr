@@ -93,13 +93,13 @@ static void conf_load_fom_create_fail(void)
 		    conf_fop_ut_release);
 	fop->f_item.ri_rmachine = &conf_reqh->cur_rmachine;
 
-	m0_fi_enable_once("m0_alloc_profiled", "fail_allocation");
+	m0_fi_enable_once("m0_alloc", "fail_allocation");
 	rc = m0_conf_load_fom_create(fop, &fom, reqh);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 1, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
 	rc = m0_conf_load_fom_create(fop, &fom, reqh);
-	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_disable("m0_alloc", "fail_allocation");
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	m0_free(fop);
@@ -127,13 +127,13 @@ static void conf_flip_fom_create_fail(void)
 		    conf_fop_ut_release);
 	fop->f_item.ri_rmachine = &conf_reqh->cur_rmachine;
 
-	m0_fi_enable_once("m0_alloc_profiled", "fail_allocation");
+	m0_fi_enable_once("m0_alloc", "fail_allocation");
 	rc = m0_conf_flip_fom_create(fop, &fom, reqh);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 1, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
 	rc = m0_conf_flip_fom_create(fop, &fom, reqh);
-	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_disable("m0_alloc", "fail_allocation");
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	m0_free(fop);
@@ -217,9 +217,9 @@ static void conf_save_load_fail(void)
 	rc = m0_confd_stob_read(stob, &str_read);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 0, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 0, 1);
 	rc = m0_confd_stob_read(stob, &str_read);
-	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_disable("m0_alloc", "fail_allocation");
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	rc = m0_confd_stob_read(stob, &str_read);
