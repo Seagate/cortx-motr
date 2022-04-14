@@ -84,8 +84,8 @@ M0_INTERNAL void m0_memory_pagein(void *addr, size_t size);
 
 #define M0_ALLOC_ARR(arr, nr)  ({					\
 	size_t nob = (nr) * sizeof ((arr)[0]);				\
-	M0_ALLOC_PROF("alloc", #arr, nob);				\
-	(arr) = M0_FI_ENABLED(#arr "-fail") ? NULL : m0_alloc_profiled(nob); \
+	(arr) = M0_FI_ENABLED(#arr "-fail") ? NULL :			\
+	   m0_alloc_profiled(nob, M0_ALLOC_CALLSITE(#arr, 0, AP_ALLOC, nob)); \
 })
 
 #define M0_ALLOC_PTR(ptr)      M0_ALLOC_ARR(ptr, 1)
@@ -180,11 +180,16 @@ M0_INTERNAL bool m0_is_poisoned(const void *p);
  */
 M0_INTERNAL int m0_dont_dump(void *p, size_t size);
 
+#if USE_ALLOC_PROF
 /**
  * Allocator entry point used within M0_ALLOC_{PTR,ARR}() for already profiled
  * allocations.
  */
-void *m0_alloc_profiled(size_t size);
+void *m0_alloc_profiled(size_t size, struct m0_alloc_callsite *cs);
+#else
+void *(m0_alloc_profiled)(size_t size);
+#define m0_alloc_profiled(size, cs) (m0_alloc_profiled)(size)
+#endif
 
 /** @} end of memory group */
 #endif /* __MOTR_LIB_MEMORY_H__ */
