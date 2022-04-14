@@ -258,9 +258,9 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 		/* inc ref */
 		src_reg->fs_get(dummy_rec_pointer);
 		/* encode failure #1 */
-		m0_fi_enable("m0_alloc_profiled", "fail_allocation");
+		m0_fi_enable("m0_alloc", "fail_allocation");
 		rc = src_reg->fs_encode(dummy_rec_pointer, &buf);
-		m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+		m0_fi_disable("m0_alloc", "fail_allocation");
 		M0_UT_ASSERT(rc == -ENOMEM);
 		M0_UT_ASSERT(buf.b_addr == NULL && buf.b_nob == 0);
 		/* encode failure #2 */
@@ -274,9 +274,9 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 		M0_UT_ASSERT(rc >= 0);
 		M0_UT_ASSERT(buf.b_nob > 0 && buf.b_addr != NULL);
 		/* decode failure #1 */
-		m0_fi_enable("m0_alloc_profiled", "fail_allocation");
+		m0_fi_enable("m0_alloc", "fail_allocation");
 		rc = src_reg->fs_decode(&buf, (void**)&fol_rec_cpy);
-		m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+		m0_fi_disable("m0_alloc", "fail_allocation");
 		M0_UT_ASSERT(rc == -ENOMEM);
 		M0_UT_ASSERT(fol_rec_cpy == NULL);
 		/* decode failure #2 */

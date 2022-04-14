@@ -288,9 +288,9 @@ static void flt_str_ops(void)
 	m0_fdmi_filter_root_set(&flt, root);
 
 	/* Conversion fail (malloc fail) */
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 0, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 0, 1);
 	res = m0_fdmi_flt_node_print(root, &str);
-	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_disable("m0_alloc", "fail_allocation");
 	M0_UT_ASSERT(res == -ENOMEM);
 
 	/* Conversion success when xcode print rc < FIRST_SIZE_GUESS*/
@@ -301,12 +301,12 @@ static void flt_str_ops(void)
 	M0_UT_ASSERT(res == 0);
 
 	/* Conversion fail (malloc failed) */
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 1, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
 	m0_fi_enable_off_n_on_m("m0_fdmi_flt_node_print",
 					"rc_bigger_than_size_guess", 0, 1);
 	res = m0_fdmi_flt_node_print(root, &str);
 	m0_fi_disable("m0_fdmi_flt_node_print", "rc_bigger_than_size_guess");
-	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_disable("m0_alloc", "fail_allocation");
 	M0_UT_ASSERT(res == -ENOMEM);
 
 	/* Conversion success */

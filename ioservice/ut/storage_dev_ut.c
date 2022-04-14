@@ -164,15 +164,15 @@ static void storage_dev_test(void)
 	m0_storage_dev_attach(dev2, &devs);
 	m0_fi_disable("m0_storage_dev_new_by_conf", "no-conf-dev");
 
-	m0_fi_enable_once("m0_alloc_profiled", "fail_allocation");
+	m0_fi_enable_once("m0_alloc", "fail_allocation");
 	rc = m0_storage_dev_new(&devs, 13, "../../some-file", total_size,
 				NULL, false, &dev3);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
-	m0_fi_enable_off_n_on_m("m0_alloc_profiled", "fail_allocation", 1, 1);
+	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
 	rc = m0_storage_dev_new(&devs, 13, "../../some-file", total_size,
 				NULL, false, &dev3);
-	m0_fi_disable("m0_alloc_profiled", "fail_allocation");
+	m0_fi_disable("m0_alloc", "fail_allocation");
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	/* find*/

@@ -228,7 +228,16 @@ struct m0_fi_fpoint_data {
  * @return    true, if FP is enabled
  * @return    false otherwise
  */
-#define M0_FI_ENABLED(tag)				\
+#define M0_FI_ENABLED(tag)  M0_FI_ENABLED_IN(__func__, tag)
+
+/**
+ * Defines a more generic fault point and checks whether it is enabled.
+ *
+ * This is a version of @M0_FI_ENABLED(), that allows the user to pretend that
+ * the fault point is defined in a different function, for example, to keep
+ * fault point names stable across interface versions and build options.
+ */
+#define M0_FI_ENABLED_IN(func, tag)		\
 ({							\
 	static struct m0_fi_fault_point fp = {		\
 		.fp_state    = NULL,			\
@@ -236,7 +245,7 @@ struct m0_fi_fpoint_data {
 		.fp_module   = "UNKNOWN",		\
 		.fp_file     = __FILE__,		\
 		.fp_line_num = __LINE__,		\
-		.fp_func     = __func__,		\
+		.fp_func     = (func),			\
 		.fp_tag      = (tag),			\
 	};						\
 							\
@@ -495,4 +504,3 @@ M0_INTERNAL int m0_fi_enable_fault_point(const char *str);
 M0_INTERNAL int m0_fi_enable_fault_points_from_file(const char *file_name);
 /** @} end of finject group */
 #endif /* __MOTR_LIB_FINJECT_H__ */
-
