@@ -3378,6 +3378,16 @@ struct fkvv_dir_rec {
 	uint32_t key_size;
 	uint32_t val_size;
 };
+
+struct fkvv_res_dir_rec {
+	uint32_t key_offset;
+	uint32_t val_offset;
+	uint32_t key_size;
+	uint32_t val_size;
+
+	int k_frag_idx;
+	int v_frag_idx;
+};
 struct fkvv_head {
 	struct m0_format_header  fkvv_fmt;    /*< Node Header */
 	struct node_header       fkvv_seg;    /*< Node type information */
@@ -3528,9 +3538,9 @@ static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 
 	dir  = ((void *)h + sizeof(*h) + h->fkvv_dir_offset);
 	dir[0].key_offset = 0;
-	dir[0].key_size   = (h->fkvv_dir_offset - *(uint32_t*)((void *)h + sizeof(*h)));
-	dir[0].val_offset = 0;
-	dir[0].val_size   = h->fkvv_dir_offset - sizeof(*dir);
+	dir[0].key_size   = h->fkvv_dir_offset;//(h->fkvv_dir_offset - *(uint32_t*)((void *)h + sizeof(*h)));
+	dir[0].val_offset = nsize - sizeof(*h) - h->fkvv_dir_offset - sizeof(*dir);
+	dir[0].val_size   = dir[0].val_offset;
 
 
 
@@ -3668,9 +3678,44 @@ static void *fkvv_dir_get(const struct nd *node)
 	return ((void *)h + sizeof(*h) + h->fkvv_dir_offset);
 }
 
+static int fkvv_last_kfrg_remain(const struct nd *node, int k_idx, int last_kfrag, int user_ksize)
+{
+	struct fkvv_head    *h   = fkvv_data(node);
+	struct fkvv_dir_rec *dir = fkvv_dir_get(node);
+	int                  space_remain = 0;
+
+	if (dir[last_kfrag].key_offset + dir[last_kfrag].key_size == h->fkvv_dir_offset) {
+		space_remain = dir[last_kfrag].key_size;
+		if (k_idx == last_kfrag) {
+			space_remain -=user_ksize;
+		}
+	}
+	return space_remain;
+
+}
+
+static int fkvv_last_vfrg_remain(const struct nd *node, int v_idx, int last_vfrag, int user_vsize)
+{
+	struct fkvv_head    *h   = fkvv_data(node);
+	struct fkvv_dir_rec *dir = fkvv_dir_get(node);
+	int                  space_remain = 0;
+
+	void *addr = (void*)h +  h->fkvv_nsize - dir[last_vfrag].val_offset;
+	if (addr == (void *)(dir + h->fkvv_dir_entry)) {
+		space_remain = dir[last_vfrag].val_size;
+		if (v_idx == last_vfrag || v_idx == -1) {
+			space_remain -=(user_vsize + sizeof(*dir));
+		} else {
+			space_remain -= sizeof(*dir);
+		}
+	} else
+		space_remain -= sizeof(*dir);
+	return space_remain;
+}
+
 static bool fkvv_isrecspace(const struct nd *node,
 			    const struct m0_btree_rec *rec,
-			    struct fkvv_dir_rec *res_dir, int *rk_idx, int *rv_idx)
+			    struct fkvv_res_dir_rec *res_dir, int *rk_idx, int *rv_idx, int *shif_key)
 {
 	struct fkvv_head    *h         = fkvv_data(node);
 	struct fkvv_dir_rec *dir       = fkvv_dir_get(node);
@@ -3681,8 +3726,10 @@ static bool fkvv_isrecspace(const struct nd *node,
 	int                  k_idx = -1;
 	int                  v_idx = -1;
 	int                  i;
-	int             last_kfrag;
-	int             last_vfrag;
+	int             last_kfrag = -1;
+	int             last_vfrag = -1;
+	int last_kfrg_remain;
+	int last_vfrg_remain;
 
 
 	M0_PRE(req_ksize == h->fkvv_ksize);
@@ -3719,11 +3766,70 @@ static bool fkvv_isrecspace(const struct nd *node,
 		return false;
 
 
-	if (v_idx == last_vfrag && dir[last_vfrag].val_size < sizeof(*dir) + req_vsize)
+	last_kfrg_remain = fkvv_last_kfrg_remain(node, k_idx, last_kfrag, req_ksize);
+	last_vfrg_remain = fkvv_last_vfrg_remain(node, v_idx, last_vfrag, req_vsize);
+
+	if (last_vfrg_remain < 0)
+		vspace_avail = false;
+
+
+
+	if (kspace_avail == false) {
+		M0_ASSERT(0);
+
+	} else if (vspace_avail == false) {
+		if (last_kfrg_remain >= -last_vfrg_remain) {
+			/* when we don't have space for directory entry */
+			if (shif_key != NULL)
+				*shif_key = -last_vfrg_remain;
+			if (v_idx == -1) {
+				v_idx = last_vfrag;
+			}
+			vspace_avail = true;
+			// M0_ASSERT(0);
+		} else {
+			vspace_avail = false;
+		}
+
+	}
+
+	if (kspace_avail == false || vspace_avail  == false)
 		return false;
 
-	if (dir[last_vfrag].val_size < sizeof(*dir))
-		return false;/* Or shift dir*/
+	#if 0
+
+
+	s1space_remanibet_k_dir0 =;
+	s2space_remainbet_dirn_v =;
+
+	if (!kspace_avail) {
+		s2space_remainbet_dirn_v >= ksize//-s1space_remainbet_dirn_k:
+		{
+			kspace_avail = true;
+			offset_k =
+		}
+
+	} else if (!vspace_avail) {
+		s1space_remanibet_k_dir0 >= vsize+ sizeof(*dir)//-s2space_remainbet_dirn_v{
+			vspace_avail = true;
+			offset_v =
+
+		}
+
+	} else {
+	//kspace_avail == true vspace_avail == true
+	s1space_remanibet_v_dir0< 0:
+	ccheck if shift possible if not vspace_avail = false else update offset
+
+	}
+	#endif
+
+
+	// if (v_idx == last_vfrag && dir[last_vfrag].val_size < sizeof(*dir) + req_vsize)
+	// 	return false;
+
+	// if (dir[last_vfrag].val_size < sizeof(*dir))
+	// 	return false;/* Or shift dir*/
 
 	if (kspace_avail && vspace_avail) {
 		if (res_dir) {
@@ -3732,6 +3838,9 @@ static bool fkvv_isrecspace(const struct nd *node,
 			res_dir->key_size   = dir[k_idx].key_size;
 			res_dir->val_offset = dir[v_idx].val_offset;
 			res_dir->val_size   = dir[v_idx].val_size;
+			res_dir->k_frag_idx = last_kfrag;
+			res_dir->v_frag_idx = last_vfrag;
+
 		}
 
 		if (rk_idx && rv_idx) {
@@ -3754,7 +3863,7 @@ static bool fkvv_isoverflow(const struct nd *node, int max_ksize,
 	int               rsize;
 
 	if (IS_EMBEDDED_INDIRECT(node))
-		return !fkvv_isrecspace(node, rec, NULL, NULL, NULL);
+		return !fkvv_isrecspace(node, rec, NULL, NULL, NULL, NULL);
 
 	if (IS_INTERNAL_NODE(node))
 		rsize = h->fkvv_ksize + INTERNAL_NODE_VALUE_SIZE;
@@ -3873,6 +3982,8 @@ static int fkvv_rec_val_size(const struct nd *node, int idx)
 static void fkvv_rec(struct slot *slot)
 {
 	struct fkvv_head *h = fkvv_data(slot->s_node);
+	int ksize;
+	int vsize;
 
 	M0_PRE(h->fkvv_used > 0 && slot->s_idx < h->fkvv_used);
 
@@ -3881,6 +3992,13 @@ static void fkvv_rec(struct slot *slot)
 		fkvv_rec_val_size(slot->s_node, slot->s_idx);
 	slot->s_rec.r_val.ov_buf[0] = fkvv_val(slot->s_node, slot->s_idx);
 	fkvv_node_key(slot);
+	ksize = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
+	vsize = m0_vec_count(&slot->s_rec.r_val.ov_vec);
+	M0_ASSERT(slot->s_rec.r_val.ov_buf[0]>(void*)h);
+	M0_ASSERT(slot->s_rec.r_val.ov_buf[0] + vsize <= (void*)h+h->fkvv_nsize);
+
+	M0_ASSERT(slot->s_rec.r_key.k_data.ov_buf[0]>(void*)h);
+	M0_ASSERT(slot->s_rec.r_key.k_data.ov_buf[0] + ksize <= (void*)h+h->fkvv_nsize);
 	M0_POST(fkvv_rec_is_valid(slot));
 }
 
@@ -3924,7 +4042,7 @@ static bool fkvv_isfit(struct slot *slot)
 
 	M0_PRE(fkvv_rec_is_valid(slot));
 	if (IS_EMBEDDED_INDIRECT(slot->s_node))
-		return fkvv_isrecspace(slot->s_node, &slot->s_rec, NULL, NULL, NULL);
+		return fkvv_isrecspace(slot->s_node, &slot->s_rec, NULL, NULL, NULL, NULL);
 	if (IS_INTERNAL_NODE(slot->s_node)) {
 		M0_ASSERT(vsize == INTERNAL_NODE_VALUE_SIZE);
 		rsize = h->fkvv_ksize + vsize;
@@ -4045,30 +4163,71 @@ static void fkvv_make_leaf(struct slot *slot)
 	}
 }
 
+void fkvv_dir_shift(const struct nd *node, enum direction shift_dir, struct fkvv_res_dir_rec *res_dir, int size)
+{
+	struct fkvv_head    *h   = fkvv_data(node);
+	struct fkvv_dir_rec *dir = fkvv_dir_get(node);
+	if (shift_dir == D_LEFT) {
+		int total = sizeof(*dir) * h->fkvv_dir_entry;
+		M0_ASSERT(res_dir->k_frag_idx != -1);
+		M0_ASSERT(res_dir->v_frag_idx != -1);
+
+		dir[res_dir->k_frag_idx].key_size -= size;
+		dir[res_dir->v_frag_idx].val_size += size;
+		dir[res_dir->v_frag_idx].val_offset += size;
+
+
+
+
+		m0_memmove((void *)dir - size, dir, total);
+		h->fkvv_dir_offset -= size;
+
+
+	} else
+		M0_ASSERT(0);
+
+}
+
 void fkvv_make_emb_ind(struct slot *slot)
 {
 	struct fkvv_head    *h   = fkvv_data(slot->s_node);
-	struct fkvv_dir_rec *dir = fkvv_dir_get(slot->s_node);
-	struct fkvv_dir_rec rec_dir;
+	struct fkvv_dir_rec *dir;
+	struct fkvv_res_dir_rec rec_dir;
 	bool                res;
 	int k_idx;
 	int v_idx;
 	// int                 t_count = h->fkvv_dir_entry;
 	void *start_addr;
 	int i;
+	int shif_key = 0;
+	struct fkvv_dir_rec dir_entry;
 	//int curr_idx;
 
 
-	res = fkvv_isrecspace(slot->s_node, &slot->s_rec, &rec_dir, &k_idx, &v_idx);
+	res = fkvv_isrecspace(slot->s_node, &slot->s_rec, &rec_dir, &k_idx, &v_idx, &shif_key);
 	M0_ASSERT(res == true);
+	if (shif_key > 0) {
+		fkvv_dir_shift(slot->s_node, D_LEFT, &rec_dir, shif_key);
+	}
 
+
+
+	dir = fkvv_dir_get(slot->s_node);
+
+	dir_entry.key_offset = dir[k_idx].key_offset;
+	dir_entry.key_size   = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
+	dir_entry.val_offset = dir[v_idx].val_offset - dir[v_idx].val_size + m0_vec_count(&slot->s_rec.r_val.ov_vec);;
+	dir_entry.val_size   = m0_vec_count(&slot->s_rec.r_val.ov_vec);
 	/* Make space in directory for new entry*/
 	dir[k_idx].key_size -= m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
-	dir[v_idx].val_size -= m0_vec_count(&slot->s_rec.r_val.ov_vec);
 	dir[k_idx].key_offset += m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
-	dir[v_idx].val_offset += m0_vec_count(&slot->s_rec.r_val.ov_vec);
+	//dir[v_idx].val_offset += m0_vec_count(&slot->s_rec.r_val.ov_vec);
+	dir[v_idx].val_size -= m0_vec_count(&slot->s_rec.r_val.ov_vec);
+	// dir[v_idx].val_size -= sizeof(*dir);
+	// dir[v_idx].val_offset -= sizeof(*dir);
 
-	dir[v_idx].val_size -= sizeof(*dir);
+	dir[rec_dir.v_frag_idx].val_size -= sizeof(*dir);
+	dir[rec_dir.v_frag_idx].val_offset -= sizeof(*dir);
 
 
 	start_addr = (void *)dir + sizeof(*dir) * slot->s_idx;
@@ -4091,19 +4250,25 @@ void fkvv_make_emb_ind(struct slot *slot)
 
 	// }
 
-	M0_ASSERT(m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec) <= rec_dir.key_size);
-	M0_ASSERT(m0_vec_count(&slot->s_rec.r_val.ov_vec) <= rec_dir.val_size);
+	M0_ASSERT(m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec) <= dir_entry.key_size);
+	M0_ASSERT(m0_vec_count(&slot->s_rec.r_val.ov_vec) <= dir_entry.val_size);
 
-	dir[slot->s_idx].key_offset = rec_dir.key_offset;
-	dir[slot->s_idx].key_size   = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
-	dir[slot->s_idx].val_offset = rec_dir.val_offset + m0_vec_count(&slot->s_rec.r_val.ov_vec);
-	dir[slot->s_idx].val_size   = m0_vec_count(&slot->s_rec.r_val.ov_vec);
-
+	// dir[slot->s_idx].key_offset = dir_entry.key_offset;
+	// dir[slot->s_idx].key_size   = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
+	// dir[slot->s_idx].val_offset = dir_entry.val_offset - dir_entry.val_size + m0_vec_count(&slot->s_rec.r_val.ov_vec);
+	// dir[slot->s_idx].val_size   = m0_vec_count(&slot->s_rec.r_val.ov_vec);
+	dir[slot->s_idx] = dir_entry;
 
 	// m0_memmove(key_addr + unit_key_offset_rsize, key_addr, total_key_size);
 	// m0_memmove(val_addr - new_val_size, val_addr, total_val_size);
 
 	for (i =0;i<h->fkvv_dir_entry;i++) {
+		// M0_ASSERT(dir[i].val_offset >= 0);
+		// M0_ASSERT(dir[i].key_offset >= 0);
+		// M0_ASSERT(dir[i].key_size >= 0);
+		// M0_ASSERT(dir[i].val_size >= 0);
+		int vsize = dir[i].val_size;
+		M0_ASSERT(vsize>=0);
 		M0_LOG(M0_ALWAYS, "entry :%d, key_offset : %"PRId32",key_size: %"PRId32",val_offset: %"PRId32", val_size : %"PRId32, i, dir[i].key_offset,dir[i].key_size,dir[i].val_offset,dir[i].val_size);
 	}
 
@@ -8947,7 +9112,7 @@ M0_INTERNAL void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop)
 M0_INTERNAL void m0_btree_create(void *addr, int nob,
 				 const struct m0_btree_type *bt,
 				 enum m0_btree_crc_type crc_type,
-				 enum m0_btree_crc_type addr_type,
+				 enum m0_btree_addr_type addr_type,
 				 struct m0_btree_op *bop, struct m0_btree *tree,
 				 struct m0_be_seg *seg,
 				 const struct m0_fid *fid, struct m0_be_tx *tx,
@@ -9629,6 +9794,8 @@ static int ut_btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 
 			if (key != value)
 				check_failed = true;
+			if (value == key+1)
+				check_failed = false;
 		}
 
 		/**
@@ -11206,7 +11373,7 @@ static void btree_ut_kv_size_get(enum btree_node_type bnt, int *ksize,
  * created.
  */
 static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
-			     enum btree_node_type bnt)
+			     enum btree_node_type bnt, enum m0_btree_addr_type addr_type)
 {
 	int                           rc;
 	struct btree_ut_thread_info  *ti;
@@ -11317,7 +11484,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 					 m0_btree_create(rnode, rnode_sz,
 							 &btree_type,
 							 M0_BCT_NO_CRC,
-							 EMBEDDED_RECORD,
+							 addr_type,
 							 &b_op,
 							 &btree[i], seg, &fid,
 							 tx, NULL));
@@ -11410,7 +11577,7 @@ static void ut_st_st_kv_oper(void)
 	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
 	{
 		if (btree_node_format[i] != NULL)
-			btree_ut_kv_oper(1, 1, i);
+			btree_ut_kv_oper(1, 1, EMBEDDED_RECORD, i);
 	}
 }
 
@@ -11420,7 +11587,7 @@ static void ut_mt_st_kv_oper(void)
 	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
 	{
 		if (btree_node_format[i] != NULL)
-			btree_ut_kv_oper(0, 1, i);
+			btree_ut_kv_oper(0, 1, i, EMBEDDED_RECORD);
 	}
 }
 
@@ -11430,7 +11597,7 @@ static void ut_mt_mt_kv_oper(void)
 	for (i = 1; i <= BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE; i++)
 	{
 		if (btree_node_format[i] != NULL)
-			btree_ut_kv_oper(0, 0, i);
+			btree_ut_kv_oper(0, 0, i, EMBEDDED_RECORD);
 	}
 }
 
@@ -11441,10 +11608,16 @@ static void ut_rt_rt_kv_oper(void)
 	{
 		if (btree_node_format[i] != NULL)
 			btree_ut_kv_oper(RANDOM_THREAD_COUNT, RANDOM_TREE_COUNT,
-					 i);
+					 i, EMBEDDED_RECORD);
 	}
 }
 
+static void ut_st_st_indir_kv_oper(void)
+{
+
+	btree_ut_kv_oper(1, 1, 2, EMBEDDED_INDIRECT);
+
+}
 /**
  * This routine is a thread handler primarily involved in creating, opening,
  * closing and destroying btree. To run out-of-sync with other threads it also
@@ -13395,7 +13568,7 @@ static void ut_multi_stream_kv_oper_temp(void)
 			maxkey = key;
 		printf("%" PRId64 "\t", key);
 		//key = m0_byteorder_cpu_to_be64(key);
-		value = key;
+		value = key+1;
 
 		put_data.key       = &rec.r_key;
 		put_data.value     = &rec.r_val;
@@ -13625,6 +13798,7 @@ struct m0_ut_suite btree_ut = {
 		{"basic_tree_op_icp",               ut_basic_tree_oper_icp},
 		{"lru_test",                        ut_lru_test},
 		{"multi_stream_kv_op",              ut_multi_stream_kv_oper},
+		{"single_thread_single_tree_indir_kv_op",ut_st_st_indir_kv_oper},
 		{"single_thread_single_tree_kv_op", ut_st_st_kv_oper},
 		{"single_thread_tree_op",           ut_st_tree_oper},
 		{"multi_thread_single_tree_kv_op",  ut_mt_st_kv_oper},
