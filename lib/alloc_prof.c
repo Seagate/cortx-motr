@@ -46,7 +46,7 @@ struct prof_rec {
 	}                         pr_s[AP_NR];
 };
 
-enum { SLOTS = 1000 };
+enum { SLOTS = 2000 };
 static __thread struct prof_rec recs[SLOTS];
 static struct m0_mutex guard;
 static int idx;
