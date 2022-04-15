@@ -844,7 +844,7 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 
 	rc = m0_client_calculate_pi( pi, &seed, &bvec, flag, context, NULL);
 	m0_bufvec_free2(&bvec);
-	print_pi(chksm_buf, sizeof(struct m0_md5_inc_context_pi));
+	print_pi(chksm_buf, m0_cksum_get_size(pi_type));
 	return rc;
 }
 
