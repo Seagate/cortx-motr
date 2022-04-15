@@ -141,21 +141,19 @@ static int application_checksum_process( struct m0_op_io *ioo,
 	M0_ASSERT( rw_rep_cs_data->b_nob == num_units * cksum_size);
 
 	// TODO: Remove
-	M0_LOG(M0_ALWAYS,"rajat : RECEIVED CS b_nob: %d",(int)rw_rep_cs_data->b_nob);
+	M0_LOG(M0_ALWAYS,"RECEIVED CS b_nob: %d",(int)rw_rep_cs_data->b_nob);
 	print_pi(rw_rep_cs_data->b_addr, cksum_size);
 
 	for(idx = 0; idx < num_units; idx++ ) {
 		struct target_cksum_idx_data *cs_idx = 
 						&cs_data->cd_idx[irfop->irf_unit_start_idx + idx];
 			
+		M0_LOG(M0_ALWAYS,"rajat : COMPUTED CS");
 		// Calculate checksum for each unit
 		rc = target_calculate_checksum( ioo, cksum_type, irfop->irf_pattr, cs_idx, 
 										compute_cs_buf );
 		if( rc != 0 )
 			goto fail;
-
-		M0_LOG(M0_ALWAYS,"rajat : COMPUTED CS");
-		print_pi(compute_cs_buf, cksum_size);
 
 		// Compare computed and received checksum
 		if ( memcmp( rw_rep_cs_data->b_addr + cs_compared,
@@ -260,6 +258,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	rw_reply = io_rw_rep_get(reply_fop);
 	
 	if(m0_is_read_rep(reply_fop)) {
+		M0_LOG(M0_ALWAYS,"rajat rcvd [%s]", irfop->irf_pattr == PA_DATA ? "DATA" : "PARITY");
 		if ( rw_reply->rwr_di_data_cksum.b_addr ) 
 				rc = application_checksum_process(ioo, tioreq, 
 							irfop, &rw_reply->rwr_di_data_cksum);

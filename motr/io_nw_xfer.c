@@ -772,7 +772,19 @@ void print_pi(void *pi,int size)
                sprintf(&arr[i*3],"%02x ",ptr[i] & 0xff);
        }
        M0_LOG(M0_ALWAYS,"%s ",(char *)arr);
-       M0_LOG(M0_ALWAYS,">>>>>>>>>>>>>>>>>>[PI Values]<<<<<<<<<<<<<<<<<");
+}
+
+static void print_buf(void *pi,int size)
+{
+       int i;
+       char arr[size * 3];
+       char *ptr = pi;
+       M0_LOG(M0_ALWAYS,"##################[Buf Values]#################");
+       for ( i = 0; i < size; i++)
+       {
+               sprintf(&arr[i*3],"%02x ",ptr[i] & 0xff);
+       }
+       M0_LOG(M0_ALWAYS,"%s ",(char *)arr);
 }
 
 /* This function will compute parity checksum in chksm_buf all other
@@ -824,7 +836,7 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 	if( rc != 0 )
 		return -ENOMEM;
 
-	M0_LOG(M0_ALWAYS,"CKSUM COMPUTE DataTyp: %d, PGIdx: %d, UnitIdx:%d, RowNum: %d",(int)filter,cs_idx->ci_pg_idx,
+	M0_LOG(M0_ALWAYS,"CKSUM COMPUTE [PG Index : %d][Unit Index : %d] RowNum: %d",cs_idx->ci_pg_idx,
 									cs_idx->ci_unit_idx,(int)rows_nr(play, obj));
 
 	// Populate buffer vec for give parity unit and add all buffers present
@@ -837,10 +849,10 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 		// Assign size and buffer for given parity unit
 		bvec.ov_vec.v_count[row] = data[row][cs_idx->ci_unit_idx]->db_buf.b_nob;
 		bvec.ov_buf[row] = data[row][cs_idx->ci_unit_idx]->db_buf.b_addr;
-
-		M0_LOG(M0_ALWAYS,"BufPrint Type [%s] Bufsize: %d", filter == PA_DATA ? "DATA" : "PARITY",(int)bvec.ov_vec.v_count[row]);
-		print_pi(bvec.ov_buf[row],16);
 	}
+	
+	M0_LOG(M0_ALWAYS,"Bufsize row0: %d",(int)bvec.ov_vec.v_count[0]);
+	print_buf(bvec.ov_buf[0],64);	
 
 	rc = m0_client_calculate_pi( pi, &seed, &bvec, flag, context, NULL);
 	m0_bufvec_free2(&bvec);
@@ -1017,7 +1029,9 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					&ti->ti_cksum_data[M0_PUT_DATA];
 	num_units = cs_data->cd_num_units;
 	unit_sz = layout_unit_size(pdlayout_get(ioo));
-	M0_LOG(M0_ALWAYS, "Num units: %d Unit Sz: %d", num_units, unit_sz);
+	M0_LOG(M0_ALWAYS, "Target=0x%lx Filter=%d NumUnits=%d UnitSz=%d",
+			(long int)ti->ti_fid.f_key,filter,num_units,unit_sz);
+	M0_LOG(M0_ALWAYS,"rajat sent [%s]", filter == PA_DATA ? "DATA" : "PARITY");
 
 	while (seg < SEG_NR(ivec)) {
 		delta  = 0;
@@ -1038,7 +1052,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			goto err;
 		}
 		num_fops++;
-		M0_LOG(M0_ALWAYS, "Segment = %d, Fop = %d, Attr:%d",seg, num_fops,
+		M0_LOG(M0_ALWAYS, "FopNum = %d Segment = %d, Attr:%d",seg, num_fops,
 			   (int)pattr[seg]);
 		rc = ioreq_fop_init(irfop, ti, filter);
 		if (rc != 0) {
@@ -1211,7 +1225,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			else {
 				irfop->irf_unit_count = sz_added_to_fop / unit_sz;
 				unit_idx += irfop->irf_unit_count;
-				M0_LOG(M0_ALWAYS, "FOP Split StIdx = %d Units:%d,Sz:%d",
+				M0_LOG(M0_ALWAYS, "FOP Split UnitStIdx=%d,NumUnits=%d,FopSz=%d",
 					irfop->irf_unit_start_idx,irfop->irf_unit_count,sz_added_to_fop);
 				M0_ASSERT( (sz_added_to_fop % unit_sz) == 0); 
 			}
@@ -1234,7 +1248,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			// Server side expects this to be valid if checksum is to be read.
  			rw_fop->crw_cksum_size = m0__obj_di_cksum_size(ioo);
 		}
-		M0_LOG(M0_ALWAYS,"rajat [%s]", filter == PA_DATA ? "DATA" : "PARITY");
 
 		if (ioo->ioo_flags & M0_OOF_SYNC)
 			rw_fop->crw_flags |= M0_IO_FLAG_SYNC;
