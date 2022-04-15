@@ -186,9 +186,14 @@ M0_INTERNAL int m0_dont_dump(void *p, size_t size);
  * allocations.
  */
 void *m0_alloc_profiled(size_t size, struct m0_alloc_callsite *cs);
+M0_INTERNAL void *m0_alloc_aligned_profiled(size_t size, unsigned shift,
+					    struct m0_alloc_callsite *cs);
 #else
 void *(m0_alloc_profiled)(size_t size);
 #define m0_alloc_profiled(size, cs) (m0_alloc_profiled)(size)
+M0_INTERNAL void *(m0_alloc_aligned_profiled)(size_t size, unsigned shift);
+#define m0_alloc_aligned_profiled(size, shift, cs) \
+	(m0_alloc_aligned_profiled)(size, shift)
 #endif
 
 /** @} end of memory group */
