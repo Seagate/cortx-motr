@@ -171,7 +171,7 @@ def ReadTypeSize(byte):  # Ex: 0001(ver) 0009(type) 00003dd8(size)
 
 
 def EditMetadata(offset):
-    """ Edit metadata with fix pattern of 0x1111222244443333 """
+    """Edit metadata with fix pattern of 0x1111222244443333"""
     with open(filename, 'r+b') as wbfr:
         logger.info("** Corrupting 8byte of Metadata at offset {}"
                     " with b'1111222244443333' **".format(offset))
@@ -182,7 +182,7 @@ def EditMetadata(offset):
 
 
 def ReadMetadata(offset):
-    """ If you want to verify the written Metadata then run below segment of code """
+    """If you want to verify the written Metadata then run below segment of code"""
     with open(filename, "rb") as mdata:
         mdata.seek(offset)
         data = binascii.hexlify((mdata.read(8))[::-1])
@@ -192,10 +192,10 @@ def ReadMetadata(offset):
 
 
 def ReadCompleteRecord(offset):
-    """
+    '''
     This function returns complete data with list format in 8 bytes chunks,
     starting after header and until footer for record
-    """
+    '''
     curr_record = []
     while 1:
         footerFound, data=ReadMetadata(offset)
@@ -210,7 +210,7 @@ def ReadCompleteRecord(offset):
 
 
 def ReadBeBNode(offset):
-    """ Read BeNode data """
+    """Read BeNode data"""
     llist = BeBnodeTypeKeys[offset]
     with open(filename, "rb") as mdata:
         mdata.seek(llist[0])
@@ -225,7 +225,7 @@ def ReadBeBNode(offset):
 
 
 def InduceCorruption(recordType, noOfErr):
-    """ Induce Corruption in a record with number of error """
+    """Induce Corruption in a record with number of error"""
     count = 0
     read_metadata_file()
     logger.info(recordType)
@@ -255,7 +255,7 @@ def InduceCorruption(recordType, noOfErr):
 
 
 def InduceRandomCorruption(noOfErr):
-    """ Induce corruption in meta data at random offset """
+    """Induce corruption in meta data at random offset"""
     count = 0
     read_metadata_file()
     while 1:
@@ -283,7 +283,7 @@ def InduceRandomCorruption(noOfErr):
 
 
 def InduceErrInRecords(recList):
-    """ Function which induce error in a particular type of record """
+    """Function which induce error in a particular type of record"""
     count = 0
     read_metadata_file()
     logger.info("++++ Induce Random number of errors in All Records ++++")
@@ -309,7 +309,7 @@ def InduceErrInRecords(recList):
 
 
 def InduceHugeError():
-    """ Corrupt Metadata file from random location till end of metadata file """
+    """Corrupt Metadata file from random location till end of metadata file"""
     count = 0
     with open(filename, 'r+b') as wbfr:
         logger.info("** Corrupting 8byte of Metadata with b'1111222244443333' all place")
@@ -330,7 +330,7 @@ def InduceHugeError():
 
 
 def Induce512kbError():
-    """ Corrupt 512k Metadata in Metadata file from random location """
+    """Corrupt 512k Metadata in Metadata file from random location"""
     count = 0
     j = 0
     with open(filename, 'r+b') as wbfr:
@@ -355,10 +355,10 @@ def Induce512kbError():
 
 
 def ConvertAdstob2Cob(stob_f_container, stob_f_key):
-    """
+    '''
     This function take stob_f_container, stob_f_key
     and returns cob_f_cotainer, cob_f_key and device_id
-    """
+    '''
     M0_FID_DEVICE_ID_OFFSET = 32
     M0_FID_DEVICE_ID_MASK = 72057589742960640
     M0_FID_TYPE_MASK = 72057594037927935
@@ -373,7 +373,7 @@ def ConvertAdstob2Cob(stob_f_container, stob_f_key):
 
 
 def ConvertCobAdstob(cob_f_container, cob_f_key):
-    """ This function take cob_f_cotainer, cob_f_key and returns stob_f_container, stob_f_key """
+    """This function take cob_f_cotainer, cob_f_key and returns stob_f_container, stob_f_key"""
     M0_FID_TYPE_MASK = 72057594037927935
 
     # m0_fid_tassume()
@@ -385,7 +385,7 @@ def ConvertCobAdstob(cob_f_container, cob_f_key):
 
 
 def CorruptEmap(recordType, stob_f_container, stob_f_key):
-    """ This function corrupt EMAP record specified by Cob ID """
+    """This function corrupt EMAP record specified by Cob ID"""
     count = 0
     read_metadata_file()
     lookupList = recordDict[recordType]
