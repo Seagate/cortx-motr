@@ -100,7 +100,9 @@ M0_INTERNAL int    m0_arch_memory_init (void);
 M0_INTERNAL void   m0_arch_memory_fini (void);
 
 static void *alloc0(size_t size);
-static void free0(void *data);
+static void  free0(void *data);
+static void *alloc0_aligned(size_t size, unsigned shift);
+static void  free0_aligned(void *data, size_t size, unsigned shift);
 
 static struct m0_atomic64 allocated;
 static struct m0_atomic64 cumulative_alloc;
@@ -130,6 +132,13 @@ void *m0_alloc(size_t size)
 							 AP_ALLOC, size));
 }
 
+M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
+{
+	return m0_alloc_aligned_profiled(size, shift,
+					 M0_ALLOC_CALLSITE("alloc-aligned", 0,
+							   AP_ALLOC, size));
+}
+
 struct pad {
 	struct m0_alloc_callsite *p_cs;
 	uint64_t                  p_magic;
@@ -147,13 +156,62 @@ void *m0_alloc_profiled(size_t size, struct m0_alloc_callsite *cs)
 	return area;
 }
 
+struct aligned_pad {
+	struct m0_alloc_callsite *a_cs;
+	uint32_t                  a_shift;
+	uint32_t                  a_size;
+	uint64_t                  a_magic;
+};
+
+enum { AA_MAGIX = 0x3376767574737277ULL };
+
+M0_INTERNAL void *m0_alloc_aligned_profiled(size_t size, unsigned shift,
+					    struct m0_alloc_callsite *cs)
+{
+	struct aligned_pad *apad;
+	void               *area;
+
+	shift = max32(shift, 5);
+	M0_PRE(sizeof *apad <= (1 << shift));
+	area = alloc0_aligned(size + (1 << shift), shift);
+	if (area != NULL) {
+		apad = area += (1 << shift);
+		apad[-1] = (struct aligned_pad) { .a_cs = cs, .a_shift = shift,
+						  .a_size = size,
+						  .a_magic = AA_MAGIX };
+	}
+	return area;
+}
+
 void m0_free(void *data)
 {
 	if (data != NULL) {
 		struct pad *p = ((struct pad *)data) - 1;
-		M0_ASSERT(p->p_magic == AP_MAGIX);
-		m0_alloc_callsite_init(p->p_cs, AP_FREE, 0);
-		free0(p);
+		if (p->p_magic == AA_MAGIX) {
+			m0_free_aligned(data, 0, 0);
+		} else {
+			M0_ASSERT(p->p_magic == AP_MAGIX);
+			m0_alloc_callsite_init(p->p_cs, AP_FREE, 0);
+			free0(p);
+		}
+	}
+}
+
+M0_INTERNAL void m0_free_aligned(void *data, size_t size, unsigned shift)
+{
+	if (data != NULL) {
+		struct aligned_pad *apad = ((struct aligned_pad *)data) - 1;
+		M0_ASSERT(apad->a_magic == AA_MAGIX);
+		/*
+		 * @todo: IO and SNS code move buffers between network buffer
+		 * pools, so sometimes a buffer is freed with a different size.
+		 */
+		M0_ASSERT(true || ergo(size > 0, size == apad->a_size));
+		M0_ASSERT(ergo(shift > 0, shift <= apad->a_shift));
+		m0_alloc_callsite_init(apad->a_cs, AP_FREE, apad->a_size);
+		data -= 1 << apad->a_shift;
+		free0_aligned(data, apad->a_size + (1 << apad->a_shift),
+			      apad->a_shift);
 	}
 }
 
@@ -185,11 +243,29 @@ void m0_free(void *data)
 	return free0(data);
 }
 
+M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
+{
+	return alloc0_aligned(size, shift);
+}
+
+M0_INTERNAL void *(m0_alloc_aligned_profiled)(size_t size, unsigned shift)
+{
+	return alloc0_aligned(size, shift);
+}
+
+M0_INTERNAL void m0_free_aligned(void *data, size_t size, unsigned shift)
+{
+	return free0_aligned(data, size, shift);
+}
+
 #endif
 
 M0_EXPORTED(m0_alloc_profiled);
 M0_EXPORTED(m0_alloc);
 M0_EXPORTED(m0_free);
+M0_EXPORTED(m0_alloc_aligned_profiled);
+M0_EXPORTED(m0_alloc_aligned);
+M0_EXPORTED(m0_free_aligned);
 
 static void *alloc0(size_t size)
 {
@@ -232,12 +308,12 @@ M0_INTERNAL void m0_memory_pagein(void *addr, size_t size)
 	m0_arch_memory_pagein(addr, size);
 }
 
-M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
+static void *alloc0_aligned(size_t size, unsigned shift)
 {
 	void  *result;
 	size_t alignment;
 
-	if (M0_FI_ENABLED("fail_allocation"))
+	if (M0_FI_ENABLED_IN("m0_alloc_aligned", "fail_allocation"))
 		return NULL;
 
 	/*
@@ -254,9 +330,8 @@ M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
 		m0_arch_allocated_zero(result, size);
 	return result;
 }
-M0_EXPORTED(m0_alloc_aligned);
 
-M0_INTERNAL void m0_free_aligned(void *data, size_t size, unsigned shift)
+static void free0_aligned(void *data, size_t size, unsigned shift)
 {
 	if (data != NULL) {
 		M0_PRE(m0_addr_is_aligned(data, shift));
@@ -264,7 +339,6 @@ M0_INTERNAL void m0_free_aligned(void *data, size_t size, unsigned shift)
 		m0_arch_free_aligned(data, size, shift);
 	}
 }
-M0_EXPORTED(m0_free_aligned);
 
 M0_INTERNAL void *m0_alloc_wired(size_t size, unsigned shift)
 {
