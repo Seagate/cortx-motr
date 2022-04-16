@@ -105,7 +105,7 @@ fdmi_file_creation_test()
 	done > $SOURCE_TXT
 
 	echo "Test: Creating $nr_files files on m0t1fs..."
-	for ((i=0; i<$nr_files; ++i)); do
+	for ((i=0; i<nr_files; ++i)); do
 		touch $target_dir/file$i || break
 		cp -v $SOURCE_TXT $target_dir/file$i || break
 		cp -v $target_dir/file$i /tmp/dest.txt || break
@@ -125,7 +125,7 @@ fdmi_file_creation_test()
 	fi
 
 	echo "Test: removing $nr_files files on m0t1fs..."
-	for ((i=0; i<$nr_files; ++i)); do
+	for ((i=0; i<nr_files; ++i)); do
 		rm -vf $target_dir/file$i || break
 	done
 

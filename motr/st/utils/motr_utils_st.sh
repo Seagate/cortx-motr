@@ -45,12 +45,12 @@ clean()
 		# unmounting the client file system, from next mount,
 		# fids are generated from same baseline which results
 		# in failure of cob_create fops.
-		local ios_index=$((i + 1))
+		local ios_index=`($i + 1)`
 		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
 	done
 
         if [ ! -z "$multiple_pools" ] && [ $multiple_pools == 1 ]; then
-		local ios_index=$((i + 1))
+		local ios_index=`($i + 1)`
 		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
         fi
 }
@@ -97,7 +97,7 @@ test_with_N_K()
 		error_handling $? "Failed to create a source file"
 	}
 	dd if=$source_abcd bs=$block_size \
-	   count=$(($block_count + $trunc_count)) of=$src_file_extra \
+	   count=$((block_count + trunc_count)) of=$src_file_extra \
 	   2> $MOTR_TEST_LOGFILE || {
 		error_handling $? "Failed to create a source file"
 	}
@@ -177,9 +177,9 @@ EOF
 				    -c $block_count -L 9 -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
 	}
-	for i in $(seq 0 $(($obj_count - 1)))
+	for i in $(seq 0 $((obj_count - 1)))
 	do
-		object_id=$(($object_id4 + $i));
+		object_id=$((object_id4 + i));
 		$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id \
 					  -s $block_size -c $block_count -L 9 \
                                           -b $blks_per_io $dest_file || {
@@ -218,8 +218,8 @@ EOF
 		error_handling $? "Failed to delete object"
 	}
 	cp $src_file $src_file-punch
-	fallocate -p -o $(($trunc_count * $block_size)) \
-		  -l $(($trunc_len * $block_size)) -n $src_file-punch
+	fallocate -p -o $((trunc_count * block_size)) \
+		  -l $((trunc_len * block_size)) -n $src_file-punch
 	diff -q $src_file-punch $dest_file-full || {
 		rc=$?
 		error_handling $rc "Punched Files are different"
@@ -248,7 +248,7 @@ EOF
 		error_handling $? "Failed to delete object"
 	}
 	cp $src_file $src_file-trunc
-	fallocate -p -o 0 -l $(($block_count * $block_size)) -n $src_file-trunc
+	fallocate -p -o 0 -l $((block_count * block_size)) -n $src_file-trunc
 	diff -q $src_file-trunc $dest_file || {
 		rc=$?
 		error_handling $rc "Truncated Files are different"
@@ -269,7 +269,7 @@ EOF
 	}
 	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
 				  -s $block_size \
-				  -c $(($block_count + $trunc_count)) -L 9 \
+				  -c $((block_count + trunc_count)) -L 9 \
                                   -b $blks_per_io \
 				  $dest_file || {
 		error_handling $? "Failed to read from truncated object"
@@ -277,8 +277,8 @@ EOF
 	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
 		error_handling $? "Failed to delete object"
 	}
-	fallocate -p -o $(($trunc_count * $block_size)) \
-		  -l $(($block_count  * $block_size)) -n $src_file_extra
+	fallocate -p -o $((trunc_count * block_size)) \
+		  -l $((block_count  * block_size)) -n $src_file_extra
 	diff -q $src_file_extra $dest_file || {
 		rc=$?
 		error_handling $rc "Truncat Files beyond EOF are different"

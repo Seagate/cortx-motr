@@ -114,12 +114,12 @@ unmount_and_clean()
 		# unmounting the client file system, from next mount,
 		# fids are generated from same baseline which results
 		# in failure of cob_create fops.
-		local ios_index=$((i + 1))
+		local ios_index=`($i + 1)`
 		rm -rf $MOTR_M0T1FS_TEST_DIR/d$ios_index/stobs/o/*
 	done
 
         if [ ! -z "$multiple_pools" ] && [ $multiple_pools == 1 ]; then
-		local ios_index=$((i + 1))
+		local ios_index=`($i + 1)`
 		rm -rf $MOTR_M0T1FS_TEST_DIR/d$ios_index/stobs/o/*
         fi
 }
@@ -179,12 +179,12 @@ bulkio_test()
 
 	echo -n "Reading data from m0t1fs file "
 	if [ $io_counts -gt 1 ]; then
-		trigger=$((\( ${trigger:-0} + 1 \) % 2))
+		trigger=`(\( ${trigger:-0} + 1 \) % 2)`
 		# run 50% of such tests with different io_size
 		if [ $trigger -eq 0 ]; then
 			echo -n "with different io_size "
 			io_suffix=${io_size//[^KM]}
-			io_size=$((${io_size%[KM]} '*' $io_counts))$io_suffix
+			io_size=`(${io_size%[KM]} '*' $io_counts)`$io_suffix
 			io_counts=1
 		fi
 	fi
@@ -232,7 +232,7 @@ io_combinations()
 	spare_units=$4
 	mode=$5
 
-	p=$((data_units + parity_units + spare_units))
+	p=`($data_units + $parity_units + $spare_units)`
 	if [ $p -gt $pool_width ]
 	then
 		echo "Error: pool_width should be >= data_units + parity_units + spare_units."
@@ -242,11 +242,11 @@ io_combinations()
 	# unit size in K
 	for unit_size in 4 8 32 128 512 2048 4096
 	do
-	    stripe_size=$(($unit_size '*' $data_units))
+	    stripe_size=`($unit_size '*' $data_units)`
 
 	    for io_size in 1 2 4
 	    do
-		io_size=$(($io_size '*' $stripe_size))
+		io_size=`($io_size '*' $stripe_size)`
 		io_size=${io_size}K
 
 		for io_count in 1 2
@@ -273,7 +273,7 @@ file_creation_test()
 	local SFILE=/tmp/source.txt
 	local DFILE=/tmp/dest.txt
 	local START_FID=15     # Added to skip root and other system fids.
-	local BS=$((4 * $NR_DATA * 2))K
+	local BS=$((4 * NR_DATA * 2))K
 
 	for i in {a..z} {A..Z}; do
 		for c in `seq 1 4095`;
@@ -287,8 +287,8 @@ file_creation_test()
 
 	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mode || return 1
 	echo "Test: Creating $NR_FILES files on m0t1fs ..."
-	for ((i=$START_FID; i<$nr_files; ++i)); do
-		for ((j=$START_FID; j<$nr_files; ++j)); do
+	for ((i=START_FID; i<nr_files; ++i)); do
+		for ((j=START_FID; j<nr_files; ++j)); do
 			touch $MOTR_M0T1FS_MOUNT_DIR/$j:$i || break
 			run "dd if=$SFILE of=$MOTR_M0T1FS_MOUNT_DIR/$j:$i bs=$BS" || break
 			dd if=$MOTR_M0T1FS_MOUNT_DIR/$j:$i of=$DFILE bs=$BS 2>/dev/null || break
@@ -299,7 +299,7 @@ file_creation_test()
 		done
 	done
 	echo -n "Test: file creation: "
-	if (( $i == $nr_files && $j == $nr_files )); then
+	if (( i == nr_files && j == nr_files )); then
 		echo "success."
 	else
 		echo "failed."
@@ -307,13 +307,13 @@ file_creation_test()
 	fi
 
 	echo "Test: removing half of the files on m0t1fs..."
-	for ((i=$START_FID; i<$nr_files; i+=2)); do
-		for ((j=$START_FID; j<$nr_files; j+=2)); do
+	for ((i=START_FID; i<nr_files; i+=2)); do
+		for ((j=START_FID; j<nr_files; j+=2)); do
 			run "rm -vf $MOTR_M0T1FS_MOUNT_DIR/$j:$i" || break
 		done
 	done
 	echo -n "Test: file removal: "
-	if (( $i >= $nr_files && $j >= $nr_files )); then
+	if (( i >= nr_files && j >= nr_files )); then
 		echo "success."
 	else
 		echo "failed."
@@ -321,8 +321,8 @@ file_creation_test()
 	fi
 
 	echo "Test: Creating new $NR_FILES files on m0t1fs..."
-	for ((i=$START_FID; i<$nr_files; ++i)); do
-		for ((j=$START_FID; j<$nr_files; ++j)); do
+	for ((i=START_FID; i<nr_files; ++i)); do
+		for ((j=START_FID; j<nr_files; ++j)); do
 			touch $MOTR_M0T1FS_MOUNT_DIR/1$j:$i || break
 			run "dd if=$SFILE of=$MOTR_M0T1FS_MOUNT_DIR/1$j:$i bs=$BS" || break
 			dd if=$MOTR_M0T1FS_MOUNT_DIR/1$j:$i of=$DFILE bs=$BS 2>/dev/null || break
@@ -333,7 +333,7 @@ file_creation_test()
 		done
 	done
 	echo -n "Test: file creation: "
-	if (( $i == $nr_files && $j == $nr_files )); then
+	if (( i == nr_files && j == nr_files )); then
 		echo "success."
 	else
 		echo "failed."
@@ -341,15 +341,15 @@ file_creation_test()
 	fi
 
 	echo "Test: removing all the files on m0t1fs..."
-	for ((i=$START_FID; i<$nr_files; ++i)); do
-		for ((j=$START_FID; j<$nr_files; ++j)); do
+	for ((i=START_FID; i<nr_files; ++i)); do
+		for ((j=START_FID; j<nr_files; ++j)); do
 			run "rm -vf $MOTR_M0T1FS_MOUNT_DIR/$j:$i" || break
 			run "rm -vf $MOTR_M0T1FS_MOUNT_DIR/1$j:$i" || break
 		done
 	done
 	unmount_and_clean
 	echo -n "Test: file removal: "
-	if (( $i == $nr_files && $j == $nr_files )); then
+	if (( i == nr_files && j == nr_files )); then
 		echo "success."
 	else
 		echo "failed."
@@ -363,10 +363,10 @@ file_creation_test()
 	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR "verify" || {
                 return 1
         }
-	for ((i=0; i<$nr_files; ++i)); do
+	for ((i=0; i<nr_files; ++i)); do
 		#arbitrary file size. "1021" is a prime close to 1024.
 		touch $MOTR_M0T1FS_MOUNT_DIR/file$i || break
-		dd if=$SFILE of=/tmp/src bs=1021 count=$(($i + 1)) >/dev/null 2>&1 || break
+		dd if=$SFILE of=/tmp/src bs=1021 count=`($i + 1)` >/dev/null 2>&1 || break
 		cp -v /tmp/src $MOTR_M0T1FS_MOUNT_DIR/file$i      || break
 		cp -v $MOTR_M0T1FS_MOUNT_DIR/file$i /tmp/dest     || break
 		diff -C 0 /tmp/src /tmp/dest || {
@@ -382,7 +382,7 @@ file_creation_test()
 		return 1
 	fi
 
-	for ((i=0; i<$nr_files; ++i)); do
+	for ((i=0; i<nr_files; ++i)); do
 		rm -vf $MOTR_M0T1FS_MOUNT_DIR/file$i      || break
 	done
 	if [ $i -eq $nr_files ]; then
@@ -822,7 +822,7 @@ m0t1fs_test_MOTR_2099()
 		rc=1
 	fi
 
-	total_blocks=$((200 \* 20 \* 1024)) #in 1K blocks
+	total_blocks=`(200 \* 20 \* 1024)` #in 1K blocks
 	echo "total_blocks = $total_blocks"
 	if [ $used_after -le $total_blocks ] ; then
 		echo "Are you kidding? The used blocks are less than expected."

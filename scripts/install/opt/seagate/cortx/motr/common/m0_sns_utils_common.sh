@@ -206,7 +206,7 @@ motr_read_verify()
         echo "PROF_ID : $PROF_ID"
         echo "PROC_ID : $PROC_ID"
 
-        for ((i=$start_file; i < ${#file[*]}; i++)); do
+        for ((i=start_file; i < ${#file[*]}; i++)); do
                 local lid=9
                 local us=$((${unit_size[$i]} * 1024))
 

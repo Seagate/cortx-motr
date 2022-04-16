@@ -51,23 +51,23 @@ testname="degraded-mode-IO"
 valid_count_get()
 {
 	local j=$((RANDOM%9))
-	local i=$((10-$j))
+	local i=$((10-j))
 	local bs=$1
-	input_file_size=$((i \* bs))
+	input_file_size=`($i \* $bs)`
 	echo $input_file_size
 	echo $ABCD_SOURCE_SIZE
 	while [ $input_file_size -gt $ABCD_SOURCE_SIZE ]
 	do
 		j=$((RANDOM%9))
-		i=$((10-$j))
-		input_file_size=$((i \* bs))
+		i=$((10-j))
+		input_file_size=`($i \* $bs)`
 	done
 	return $i
 }
 
 largest_count_get()
 {
-	cnt=$((ABCD_SOURCE_SIZE \/ $1))
+	cnt=`($ABCD_SOURCE_SIZE \/ $1)`
 	return $cnt
 }
 
@@ -118,7 +118,7 @@ fmio_truncation_module()
 		echo "File truncation failed."
 		return $rc
 	fi
-	seek=$((cnt \+ 1))
+	seek=`($cnt \+ 1)`
 	echo "Ensure that truncating to a size larger than the
 	      current one succeeds"
 	fmio_files_write dd bs=$blk_size count=1 seek=$seek
@@ -177,7 +177,7 @@ fmio_source_files_create()
 # pre: value of bs shall be necessarily specified in terms of bytes
 fmio_files_write()
 {
-	dd_count=$((dd_count + 1))
+	dd_count=`($dd_count + 1)`
 
 	# Verify that 'the size of the file to be written' is not larger than
 	# 'the ABCD source file size'
@@ -190,7 +190,7 @@ fmio_files_write()
 	fi
 
 	count=$(echo $3 | cut -d= -f2)
-	input_file_size=$(($bs * $count))
+	input_file_size=$((bs * count))
 	if [ $input_file_size -gt $ABCD_SOURCE_SIZE ]
 	then
 		echo "input_file_size ($input_file_size) is greater than ABCD_SOURCE_SIZE ($ABCD_SOURCE_SIZE)"
@@ -215,7 +215,7 @@ fmio_files_write()
 		source_sandbox=$source_random
 	elif [ $pattern == $ALTERNATE ]
 	then
-		if [ $((dd_count % 2)) == 0 ]
+		if [ `($dd_count % 2)` == 0 ]
 		then
 			echo "dd_count $dd_count (even), pattern to use $ABCD"
 			source_sandbox=$source_abcd
@@ -277,7 +277,7 @@ fmio_files_write()
 fmio_files_compare()
 {
 	#Read file from m0t1fs with minimum possible count
-	local block_size=$((ABCD_SOURCE_SIZE \+ random_source_size))
+	local block_size=`($ABCD_SOURCE_SIZE \+ $random_source_size)`
 	mount | grep m0t1
 	ls -l $file_to_compare_m0t1fs
 	dd if=$file_to_compare_m0t1fs bs=$block_size count=1 of=$fmio_sandbox/local_m0t1fs_cp
@@ -421,7 +421,7 @@ fmio_stob_read_full()
 	str1=00000
 	str2=00000000:
 	fid="10000"
-	for (( i=1; i <= $P; ++i ))
+	for (( i=1; i <= P; ++i ))
 	do
 		if [ $i -le 4 ]
 		then
@@ -474,7 +474,7 @@ fmio_pre()
 	fail_device3=2
 	fail_devices="$fail_device1 $fail_device2 $fail_device3"
 	block_size=$((stride * 1024))
-	random_source_size=$(($block_size * $random_source_dd_count))
+	random_source_size=$((block_size * random_source_dd_count))
 
 	prog_file_pattern="$st_dir/m0t1fs_io_file_pattern"
 	source_abcd="$fmio_sandbox/source_abcd"
@@ -789,7 +789,7 @@ fmio_m0t1fs_clean()
 	# Delete file created for single file io testing.
 	rm -f "$MOTR_M0T1FS_MOUNT_DIR/0:10000"
 	# Delete files created for separate file io testing.
-	for ((i=separate_file_dd_count_start; i <= $dd_count; i++)) ; do
+	for ((i=separate_file_dd_count_start; i <= dd_count; i++)) ; do
 		rm -f "$MOTR_M0T1FS_MOUNT_DIR/0:1000$i"
 	done
 }
@@ -953,7 +953,7 @@ main()
 		single_file_test=0
 		# Save current dd_count to track number of files created for
 		# separate file IO testing.
-		separate_file_dd_count_start=$((dd_count + 1))
+		separate_file_dd_count_start=`($dd_count + 1)`
 		failure_modes_test || {
 			fmio_m0t1fs_unmount
 			fmio_motr_service_stop

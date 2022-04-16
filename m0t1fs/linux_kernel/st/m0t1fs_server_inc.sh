@@ -28,44 +28,44 @@ conf_ios_device_setup()
 	local ddisk_id="^k|1:$_DDEV_ID"
 	local ddiskv_id="^j|1:$_DDEV_ID"
 
-	if (($_id_count == 0))
+	if ((_id_count == 0))
 	then
 		eval $ids_out="'$ddev_id'"
 	else
 		eval $ids_out="'$_ids, $ddev_id'"
 	fi
 
-	eval $id_count_out=$(( $_id_count + 1 ))
+	eval $id_count_out=$(( _id_count + 1 ))
 
 	#dev conf obj
-	local ddev_obj="{0x64| (($ddev_id), $(($_DDEV_ID - 1)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop$_DDEV_ID\")}"
+	local ddev_obj="{0x64| (($ddev_id), $((_DDEV_ID - 1)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop$_DDEV_ID\")}"
 	#disk conf obj
         local ddisk_obj="{0x6b| (($ddisk_id), $ddev_id, [1: $PVERID])}"
-	if (($NR_DISK_FIDS == 0))
+	if ((NR_DISK_FIDS == 0))
 	then
 		DISK_FIDS="$ddisk_id"
 	else
 		DISK_FIDS="$DISK_FIDS, $ddisk_id"
 	fi
-	NR_DISK_FIDS=$(( $NR_DISK_FIDS + 1 ))
+	NR_DISK_FIDS=$(( NR_DISK_FIDS + 1 ))
 
 	#diskv conf obj
 	local ddiskv_obj="{0x6a| (($ddiskv_id), $ddisk_id, [0])}"
-	if (($NR_DISKV_FIDS == 0))
+	if ((NR_DISKV_FIDS == 0))
 	then
 		DISKV_FIDS="$ddiskv_id"
 	else
 		DISKV_FIDS="$DISKV_FIDS, $ddiskv_id"
 	fi
-	NR_DISKV_FIDS=$(( $NR_DISKV_FIDS + 1 ))
+	NR_DISKV_FIDS=$(( NR_DISKV_FIDS + 1 ))
 
-	if (($NR_IOS_DEVS == 0))
+	if ((NR_IOS_DEVS == 0))
 	then
 		IOS_DEVS="$ddev_obj, \n $ddisk_obj, \n $ddiskv_obj"
 	else
 		IOS_DEVS="$IOS_DEVS, \n $ddev_obj, \n $ddisk_obj, \n $ddiskv_obj"
 	fi
-	NR_IOS_DEVS=$(( $NR_IOS_DEVS + 3 ))
+	NR_IOS_DEVS=$(( NR_IOS_DEVS + 3 ))
 	((NR_SDEVS++))
 }
 
@@ -83,7 +83,7 @@ mkiosloopdevs()
 
 	cd $dir || return 1
 
-	ADEV_ID=$(( $ADEV_ID + 1 ))
+	ADEV_ID=$(( ADEV_ID + 1 ))
 	dd if=/dev/zero of=$ADEV_ID$adisk bs=1M seek=1M count=1 || return 1
 	cat > disks.conf << EOF
 Device:
@@ -91,8 +91,8 @@ Device:
      filename: `pwd`/$ADEV_ID$adisk
 EOF
 
-	dev_end=$(($DDEV_ID + $nr_devs))
-	for (( ; DDEV_ID < $dev_end; DDEV_ID++)) ; do
+	dev_end=$((DDEV_ID + nr_devs))
+	for (( ; DDEV_ID < dev_end; DDEV_ID++)) ; do
 		conf_ios_device_setup $DDEV_ID $id_count id_count "$ids" ids
 
 		dd if=/dev/zero of=$DDEV_ID$ddisk bs=1M seek=1M count=1 ||
@@ -108,7 +108,7 @@ EOF
 EOF
 	done
 
-	IOS_DEV_IDS[$(( $ios - 1 ))]="[$id_count: $ids]"
+	IOS_DEV_IDS[$(( ios - 1 ))]="[$id_count: $ids]"
 
 	cd - >/dev/null
 	return $?
@@ -118,34 +118,34 @@ mkiosmddevs()
 {
 	local nr_ios=$1
 	local P=$2
-	local nr_dev_per_ios=$(($P / $nr_ios))
-	local nr_dev_rem=$(($P % $nr_ios))
+	local nr_dev_per_ios=$((P / nr_ios))
+	local nr_dev_rem=$((P % nr_ios))
 	local MDDEV_ID=1
 	local nr_dev=$nr_dev_per_ios
 
-	for ((i=0; i < $nr_ios; i++)); do
-		local ios=$(( $i + 1 ))
+	for ((i=0; i < nr_ios; i++)); do
+		local ios=$(( i + 1 ))
 		local ddisk_id="^k|1:$MDDEV_ID"
 		local mddiskv_id="^j|2:$MDDEV_ID"
 
 		local mddiskv_obj="{0x6a| (($mddiskv_id), $ddisk_id, [0])}"
-		if (($i == 0))
+		if ((i == 0))
 		then
 			MDISKV_FIDS="$mddiskv_id"
 		else
 			MDISKV_FIDS="$MDISKV_FIDS, $mddiskv_id"
 		fi
 
-		if (($i == 0))
+		if ((i == 0))
 		then
 			IOS_MD_DEVS="$mddiskv_obj"
 		else
 			IOS_MD_DEVS="$IOS_MD_DEVS, \n $mddiskv_obj"
 		fi
 
-		if (($i < $nr_dev_rem))
+		if ((i < nr_dev_rem))
 		then
-			nr_dev=$(($nr_dev_per_ios + 1))
+			nr_dev=$((nr_dev_per_ios + 1))
 		else
 			nr_dev=$nr_dev_per_ios
 		fi
@@ -257,22 +257,22 @@ motr_service()
 			nr_ios=1
 			nr_mds=1
 		fi
-		local nr_dev_per_ios=$(($P / $nr_ios))
-		local remainder=$(($P % $nr_ios))
+		local nr_dev_per_ios=$((P / nr_ios))
+		local remainder=$((P % nr_ios))
 
 		echo "motr_service_start: (N,K,S,P)=($N,$K,$S,$P) nr_ios=$nr_ios multiple_pools=$multiple_pools"
 
 		#create ios devices
-		for ((i=0; i < $nr_ios; i++)) ; do
-			local ios=$(( $i + 1 ))
+		for ((i=0; i < nr_ios; i++)) ; do
+			local ios=$(( i + 1 ))
 			local nr_dev=$nr_dev_per_ios
 			DIR=$MOTR_M0T1FS_TEST_DIR/ios$ios
 			rm -rf $DIR
 			mkdir -p $DIR
 
-			if (($i < $remainder))
+			if ((i < remainder))
 			then
-				nr_dev=$(($nr_dev_per_ios + 1))
+				nr_dev=$((nr_dev_per_ios + 1))
 			fi
 
 			mkiosloopdevs $ios $nr_dev $DIR || return 1
@@ -323,8 +323,8 @@ EOF
 		(eval "$cmd")
 
 		# spawn confd
-		local ha_key=$(( $nr_mds + $nr_ios ))
-		local confd_key=$(( $ha_key + 1 ))
+		local ha_key=$(( nr_mds + nr_ios ))
+		local confd_key=$(( ha_key + 1 ))
 		local proc_fid="'<"$PROC_FID_CNTR:$confd_key">'"
 		opts="$common_opts -f $proc_fid -T linux -e $XPRT:$CONFD_EP \
 		      -c $CONFDB"
@@ -343,8 +343,8 @@ EOF
 		(eval "$cmd")
 
 		#mds mkfs
-		for ((i=0; i < $nr_mds; i++)) ; do
-			local mds=$(( $i + 1 ))
+		for ((i=0; i < nr_mds; i++)) ; do
+			local mds=$(( i + 1 ))
 			DIR=$MOTR_M0T1FS_TEST_DIR/mds$mds
 			rm -rf $DIR
 			mkdir -p $DIR
@@ -360,8 +360,8 @@ EOF
 		done
 
 		#ios mkfs
-		for ((i=0; i < $nr_ios; i++)) ; do
-			local ios=$(( $i + 1 ))
+		for ((i=0; i < nr_ios; i++)) ; do
+			local ios=$(( i + 1 ))
 			proc_fid="'<"$PROC_FID_CNTR:$i">'"
 			DIR=$MOTR_M0T1FS_TEST_DIR/ios$ios
 
@@ -407,9 +407,9 @@ EOF
 		echo "Motr HA agent started."
 
 		# spawn mds
-		for ((i=0; i < $nr_mds; i++)) ; do
-			local mds=$(( $i + 1 ))
-			local mds_key=$(( $i + $nr_ios ))
+		for ((i=0; i < nr_mds; i++)) ; do
+			local mds=$(( i + 1 ))
+			local mds_key=$(( i + nr_ios ))
 			local proc_fid="'<"$PROC_FID_CNTR:$mds_key">'"
 			DIR=$MOTR_M0T1FS_TEST_DIR/mds$mds
 
@@ -441,8 +441,8 @@ EOF
 		done
 
 		# spawn ios
-		for ((i=0; i < $nr_ios; i++)) ; do
-			local ios=$(( $i + 1 ))
+		for ((i=0; i < nr_ios; i++)) ; do
+			local ios=$(( i + 1 ))
 			proc_fid="'<"$PROC_FID_CNTR:$i">'"
 
 			DIR=$MOTR_M0T1FS_TEST_DIR/ios$ios
@@ -488,8 +488,8 @@ EOF
 
 
 		# Wait for mds to start
-		for ((i=0; i < $nr_mds; i++)) ; do
-			local mds=$(( $i + 1 ))
+		for ((i=0; i < nr_mds; i++)) ; do
+			local mds=$(( i + 1 ))
 			DIR=$MOTR_M0T1FS_TEST_DIR/mds$mds
 			local m0d_log=$DIR/m0d.log
 			while ! grep CTRL $m0d_log > /dev/null; do
@@ -499,8 +499,8 @@ EOF
 		echo "Motr mdservices started."
 
 		# Wait for ios to start
-		for ((i=0; i < $nr_ios; i++)) ; do
-			local ios=$(( $i + 1 ))
+		for ((i=0; i < nr_ios; i++)) ; do
+			local ios=$(( i + 1 ))
 			DIR=$MOTR_M0T1FS_TEST_DIR/ios$ios
 			local m0d_log=$DIR/m0d.log
 			while ! grep CTRL $m0d_log > /dev/null; do

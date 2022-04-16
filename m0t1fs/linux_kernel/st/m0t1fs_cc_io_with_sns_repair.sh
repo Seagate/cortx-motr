@@ -143,7 +143,7 @@ verify_all()
 	local start=$2
 	local end=$3
 
-        for ((i=$start; i < $end; i++)) ; do
+        for ((i=start; i < end; i++)) ; do
 		verify "$container${files[$i]}" $((${bs[$i]} * 1024))  ${file_size[$i]} || return $?
         done
 }
@@ -155,7 +155,7 @@ delete_all()
 	local end=$3
 
 	echo "start $start, end $end"
-	for ((i=$start; i < $end; i++)) ; do
+	for ((i=start; i < end; i++)) ; do
 		echo "rm -f $MOTR_M0T1FS_MOUNT_DIR/$container${files[$i]} &"
 		rm -f $MOTR_M0T1FS_MOUNT_DIR/$container${files[$i]} &
 	done
@@ -170,7 +170,7 @@ ls_all()
 	local expected_rc=$4
 
 	echo "start $start, end $end"
-	for ((i=$start; i < $end; i++)) ; do
+	for ((i=start; i < end; i++)) ; do
 		ls -lh $MOTR_M0T1FS_MOUNT_DIR/$container${files[$i]}
 		rc=$?
 		if [ $rc -ne $4 ]; then
@@ -189,7 +189,7 @@ create_files_and_checksum()
 
 	# With unit size of 32K dd fails for the file "1009".
 	# It runs with unit size 64K. A jira MOTR-1086 tracks this issue.
-	for ((i=$start; i < $end; i++)) ; do
+	for ((i=start; i < end; i++)) ; do
 		touch_file $MOTR_M0T1FS_MOUNT_DIR/$container${files[$i]} $stride
 		_dd $container${files[$i]} $((${bs[$i]} * 1024)) ${file_size[$i]}
 		verify $container${files[$i]} $((${bs[$i]} * 1024)) ${file_size[$i]}
