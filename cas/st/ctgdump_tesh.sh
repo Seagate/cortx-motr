@@ -63,7 +63,7 @@ kvs_create_n_insert()
 		echo "m0kv failed"
 	}
 
-	for ((j=0; j<$num_of_kv; j++)); do
+	for ((j=0; j<num_of_kv; j++)); do
 		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
 			index put    "$DIX_FID" "$key_prefix-$j" "$val_prefix-$j"
 	done
@@ -82,14 +82,14 @@ ctgdump_comp()
 	dump_cmd=$M0_SRC_DIR/cas/m0ctgdump
 
 	rm -f "$SANDBOX_DIR/kv.src"
-	for ((j=0; j<$num_of_kv; j++)); do
+	for ((j=0; j<num_of_kv; j++)); do
 		echo "{key: $key_prefix-$j}, {val: $val_prefix-$j}" |tee -a "$SANDBOX_DIR/kv.src"
 	done
 	sort "$SANDBOX_DIR/kv.src" > "$SANDBOX_DIR/kv.src.sorted"
 	rm -f "$SANDBOX_DIR/kv.src"
 
 	# Dump ctg store
-	for ((i=1; i<=$ios_num; i++)) ; do
+	for ((i=1; i<=ios_num; i++)) ; do
 		be_stob_dir=$dir/ios$i
 		dump_cmd_args="-T ad -d ${be_stob_dir}/disks.conf -D ${be_stob_dir}/db -S ${be_stob_dir}/stobs \
 			       -A linuxstob:addb-stobs -w 4 -m 65536 -q 16 -N 100663296 -C 262144 -K 100663296 \
@@ -99,7 +99,7 @@ ctgdump_comp()
 	done
 
 	# Compare each dump file
-	for ((i=1; i<=$ios_num; i++)) ; do
+	for ((i=1; i<=ios_num; i++)) ; do
 		diff -u "$SANDBOX_DIR/ios$i.dump" "$SANDBOX_DIR/kv.src.sorted" || {
 			echo "DIX $DIX_FID on ios$i and src are different!."
 			no_diff=NO

@@ -230,12 +230,12 @@ rcancel_issue_writes_n_cancel()
 	local wc_nr_files=$2
 
 	echo "Test: Creating $wc_nr_files files on m0t1fs"
-	for ((i=0; i<$wc_nr_files; ++i)); do
+	for ((i=0; i<wc_nr_files; ++i)); do
 		touch $wc_file_base$i || break
 	done
 
 	echo "Test: Writing to $wc_nr_files files on m0t1fs, for concurrent cancel"
-	for ((i=0; i<$wc_nr_files; ++i)); do
+	for ((i=0; i<wc_nr_files; ++i)); do
 		echo "dd if=$source_file of=$wc_file_base$i bs=$bs count=$count &"
 		dd if=$source_file of=$wc_file_base$i bs=$bs count=$count &
 	done
@@ -290,7 +290,7 @@ rcancel_cancel_during_write_test()
 	# Intentionally keeping 'ls' prior to verifying write cancelation to help
 	# troubleshooting, in case required.
 	echo "Test: ls for $wt_write_nr_files files before restore (Succeeds if 'Operation canceled' is not received. Shall succeed for all, if rcancel_md_redundancy > 1)"
-	for ((i=0; i<$wt_write_nr_files; ++i)); do
+	for ((i=0; i<wt_write_nr_files; ++i)); do
 		ls -l $wt_write_file_base$i
 		echo "ls_rc: $?"
 	done
@@ -320,7 +320,7 @@ rcancel_cancel_during_write_test()
 	rcancel_session_restore_fop
 
 	echo "Test: ls for $wt_write_nr_files files after restore (written during cancel)"
-	for ((i=0; i<$wt_write_nr_files; ++i)); do
+	for ((i=0; i<wt_write_nr_files; ++i)); do
 		ls -l $wt_write_file_base$i
 		wt_ls_rc=$?
 		echo "ls_rc: $wt_ls_rc"
@@ -333,13 +333,13 @@ rcancel_cancel_during_write_test()
 	done
 
 	echo "Test: read $wt_write_nr_files files after restore (written during cancel) (They receive either 'No such file or directory', 'EOF' or 'Input/output error' since some gobs/cobs may not be created)"
-	for ((i=0; i<$wt_write_nr_files; ++i)); do
+	for ((i=0; i<wt_write_nr_files; ++i)); do
 		cmp $source_file $wt_write_file_base$i
 		echo "cmp $wt_write_file_base$i: rc $?"
 	done
 
 	echo "Test: rm $wt_write_nr_files files after restore (written during cancel) (Expected to fail for the files for which gob is not created)"
-	for ((i=0; i<$wt_write_nr_files; ++i)); do
+	for ((i=0; i<wt_write_nr_files; ++i)); do
 		rm -f $wt_write_file_base$i
 		wt_rm_rc=$?
 		echo "rm -f $wt_write_file_base$i: rc $wt_rm_rc"
@@ -350,7 +350,7 @@ rcancel_cancel_during_write_test()
 	done
 
 	echo "Test: write to new $wt_write_nr_files files after restore"
-	for ((i=0; i<$wt_write_nr_files; ++i)); do
+	for ((i=0; i<wt_write_nr_files; ++i)); do
 		dd if=$source_file of=$wt_write_new_file_base$i bs=$bs count=$count
 		wt_write_rc=$?
 		echo "Write to $wt_write_new_file_base$i: rc $wt_write_rc"
@@ -363,7 +363,7 @@ rcancel_cancel_during_write_test()
 	done
 
 	echo "Test: ls new $wt_write_nr_files files after restore (written after restore)"
-	for ((i=0; i<$wt_write_nr_files; ++i)); do
+	for ((i=0; i<wt_write_nr_files; ++i)); do
 		ls -l $wt_write_new_file_base$i
 		wt_ls_rc=$?
 		echo "ls_rc: $wt_ls_rc"
@@ -376,7 +376,7 @@ rcancel_cancel_during_write_test()
 	done
 
 	echo "Test: Read $wt_write_nr_files files after restore (written after restore)"
-	for ((i=0; i<$wt_write_nr_files; ++i)); do
+	for ((i=0; i<wt_write_nr_files; ++i)); do
 		cmp $source_file $wt_write_new_file_base$i
 		wt_cmp_rc=$?
 		echo "cmp $wt_write_new_file_base$i: rc $wt_cmp_rc"
@@ -389,7 +389,7 @@ rcancel_cancel_during_write_test()
 	done
 
 	echo "Test: rm $wt_write_nr_files files after restore (written after restore)"
-	for ((i=0; i<$wt_write_nr_files; ++i)); do
+	for ((i=0; i<wt_write_nr_files; ++i)); do
 		rm -f $wt_write_new_file_base$i
 		wt_rm_rc=$?
 		echo "rm -f $wt_write_new_file_base$i: rc $wt_rm_rc"
@@ -410,7 +410,7 @@ rcancel_issue_reads_n_cancel()
 	local rc_nr_files=$2
 
 	echo "Test: Reading from $rc_nr_files files on m0t1fs, for concurrent cancel"
-	for ((i=0; i<$rc_nr_files; ++i)); do
+	for ((i=0; i<rc_nr_files; ++i)); do
 		echo "dd if=$rc_file_base$i of=$rcancel_sandbox/$i bs=$bs count=$count &"
 		dd if=$rc_file_base$i of=$rcancel_sandbox/$i bs=$bs count=$count &
 	done
@@ -450,14 +450,14 @@ rcancel_cancel_during_read_test()
 	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mountopt || return 1
 
 	echo "Test: Have $rt_read_nr_files data files created on m0t1fs, to be used for read test"
-	for ((i=0; i<$rt_read_nr_files; ++i)); do
+	for ((i=0; i<rt_read_nr_files; ++i)); do
 		touch $rt_read_file_base$i
 		dd if=$source_file of=$rt_read_file_base$i bs=$bs count=$count &
 	done
 	wait
 
 	echo "Files prepared for read test:"
-	for ((i=0; i<$rt_read_nr_files; ++i)); do
+	for ((i=0; i<rt_read_nr_files; ++i)); do
 		ls -l $rt_read_file_base$i
 	done
 
@@ -484,7 +484,7 @@ rcancel_cancel_during_read_test()
 
 	# Test ls with canceled session
 	echo "Test: ls for $rt_read_nr_files files before restore (Succeeds if "Operation canceled" is not received. Shall succeed for all, if rcancel_md_redundancy > 1)"
-	for ((i=0; i<$rt_read_nr_files; ++i)); do
+	for ((i=0; i<rt_read_nr_files; ++i)); do
 		ls -l $rt_read_file_base$i
 		echo "ls_rc: $?"
 	done
@@ -500,7 +500,7 @@ rcancel_cancel_during_read_test()
 	# Verify contents of files after restore to ensure that there is no
 	# corruption
 	echo "Test: read $rt_read_nr_files files after restore (written before cancel)"
-	for ((i=0; i<$rt_read_nr_files; ++i)); do
+	for ((i=0; i<rt_read_nr_files; ++i)); do
 		file_from_m0t1fs=$rt_read_file_base$i
 		cmp $source_file $file_from_m0t1fs
 		rt_cmp_rc=$?
@@ -514,7 +514,7 @@ rcancel_cancel_during_read_test()
 	done
 
 	echo "Test: rm $rt_read_nr_files files after restore (written before cancel)"
-	for ((i=0; i<$rt_read_nr_files; ++i)); do
+	for ((i=0; i<rt_read_nr_files; ++i)); do
 		rm -f $rt_read_file_base$i
 		rt_rm_rc=$?
 		echo "rm -f $rt_read_file_base$i: rc $rt_rm_rc"
@@ -540,7 +540,7 @@ rcancel_cancel_during_create_test()
 	echo 'enable item_reply_received_fi drop_create_item_reply always' > /sys/kernel/debug/motr/finject/ctl
 
 	echo "Test: Create $create_nr_files files on m0t1fs"
-	for ((i=0; i<$create_nr_files; ++i)); do
+	for ((i=0; i<create_nr_files; ++i)); do
 		echo "touch $create_file_base$i &"
 		touch $create_file_base$i &
 	done
@@ -576,7 +576,7 @@ rcancel_cancel_during_create_test()
 	fi
 
 	echo "Test: ls $create_nr_files files after cancel"
-	for ((i=0; i<$create_nr_files; ++i)); do
+	for ((i=0; i<create_nr_files; ++i)); do
 		echo "ls -l $create_file_base$i"
 		ls -l $ct_create_file_base$i
 	done
@@ -594,7 +594,7 @@ rcancel_cancel_during_create_test()
 	fi
 
 	echo "Test: rm $create_nr_files files after restore"
-	for ((i=0; i<$create_nr_files; ++i)); do
+	for ((i=0; i<create_nr_files; ++i)); do
 		rm -f $create_file_base$i
 		rm_rc=$?
 		echo "rm -f $create_file_base$i: rc $rm_rc"
@@ -619,14 +619,14 @@ rcancel_cancel_during_delete_test()
 	echo "Test: Have $delete_nr_files files created on m0t1fs, to be used for delete op"
 	i=0
 	touch $delete_file_base$i # 0 size file, create half of those as empty
-	for ((i=1; i<$delete_nr_files; ++i)); do
+	for ((i=1; i<delete_nr_files; ++i)); do
 		touch $delete_file_base$i
 		dd if=$source_file of=$delete_file_base$i bs=$bs count=$count &
 	done
 	wait
 
 	# Files prepared for delete test
-	for ((i=0; i<$delete_nr_files; ++i)); do
+	for ((i=0; i<delete_nr_files; ++i)); do
 		ls -l $delete_file_base$i
 	done
 
@@ -634,7 +634,7 @@ rcancel_cancel_during_delete_test()
 	echo 'enable item_reply_received_fi drop_delete_item_reply always' > /sys/kernel/debug/motr/finject/ctl
 
 	echo "Test: Delete $delete_nr_files files from m0t1fs"
-	for ((i=0; i<$delete_nr_files; ++i)); do
+	for ((i=0; i<delete_nr_files; ++i)); do
 		echo "rm -f $delete_file_base$i &"
 		rm -f $delete_file_base$i &
 	done
@@ -670,7 +670,7 @@ rcancel_cancel_during_delete_test()
 	fi
 
 	echo "Test: ls $delete_nr_files files after cancel"
-	for ((i=0; i<$delete_nr_files; ++i)); do
+	for ((i=0; i<delete_nr_files; ++i)); do
 		echo "ls -l $delete_file_base$i"
 		ls -l $delete_file_base$i
 	done
@@ -688,7 +688,7 @@ rcancel_cancel_during_delete_test()
 	fi
 
 	echo "Test: rm $delete_nr_files files after restore"
-	for ((i=0; i<$delete_nr_files; ++i)); do
+	for ((i=0; i<delete_nr_files; ++i)); do
 		rm -f $delete_file_base$i
 		rm_rc=$?
 		echo "rm -f $delete_file_base$i: rc $rm_rc"
@@ -711,7 +711,7 @@ rcancel_cancel_during_setfattr_ops_test()
 	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mountopt || return 1
 
 	echo "Test: Have $setfattr_nr_files files created on m0t1fs, to be used for setfattr op"
-	for ((i=0; i<$setfattr_nr_files; ++i)); do
+	for ((i=0; i<setfattr_nr_files; ++i)); do
 		echo "touch $setfattr_file_base$i"
 		touch $setfattr_file_base$i
 	done
@@ -720,7 +720,7 @@ rcancel_cancel_during_setfattr_ops_test()
 	echo 'enable item_received_fi drop_setattr_item_reply always' > /sys/kernel/debug/motr/finject/ctl
 
 	echo "Test: setfattr for $setfattr_nr_files files on m0t1fs"
-	for ((i=0; i<$setfattr_nr_files; ++i)); do
+	for ((i=0; i<setfattr_nr_files; ++i)); do
 		echo "setfattr -n lid -v 4 $setfattr_file_base$i &"
 		setfattr -n lid -v 4 $setfattr_file_base$i &
 	done
@@ -746,7 +746,7 @@ rcancel_cancel_during_setfattr_ops_test()
 
 	# Ensure that all the file ops have either failed or finished
 	setfattr_count=$(pgrep -fc setfattr)
-	echo "setfattr processes running : $(($setfattr_count))"
+	echo "setfattr processes running : $((setfattr_count))"
 	if [ $setfattr_count -ne 0 ]
 	then
 		echo "Failed to complete $setfattr_nr_files setfattr requests"
@@ -770,7 +770,7 @@ rcancel_cancel_during_setfattr_ops_test()
 	fi
 
 	echo "Test: rm $setfattr_nr_files files after restore"
-	for ((i=0; i<$setfattr_nr_files; ++i)); do
+	for ((i=0; i<setfattr_nr_files; ++i)); do
 		rm -f $setfattr_file_base$i
 		rm_rc=$?
 		echo "rm -f $setfattr_file_base$i: rc $rm_rc"
@@ -793,7 +793,7 @@ rcancel_cancel_during_getfattr_ops_test()
 	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mountopt || return 1
 
 	echo "Test: Have $getfattr_nr_files files created on m0t1fs, to be used for getfattr op"
-	for ((i=0; i<$getfattr_nr_files; ++i)); do
+	for ((i=0; i<getfattr_nr_files; ++i)); do
 		echo "touch $getfattr_file_base$i"
 		touch $getfattr_file_base$i
 	done
@@ -802,13 +802,13 @@ rcancel_cancel_during_getfattr_ops_test()
 	echo 'enable item_received_fi drop_getattr_item_reply always' > /sys/kernel/debug/motr/finject/ctl
 
 	echo "Test: getfattr for $getfattr_nr_files files on m0t1fs"
-	for ((i=0; i<$getfattr_nr_files; ++i)); do
+	for ((i=0; i<getfattr_nr_files; ++i)); do
 		echo "getfattr -n lid $getfattr_file_base$i &"
 		getfattr -n lid $getfattr_file_base$i &
 	done
 
 	getfattr_count=$(jobs | grep "getfattr.*getfattr_file_base" | wc -l)
-	echo "getfattr processes running : $(($getfattr_count))"
+	echo "getfattr processes running : $((getfattr_count))"
 	if [ $getfattr_count -ne $getfattr_nr_files ]
 	then
 		echo 'disable item_received_fi drop_getattr_item_reply' > /sys/kernel/debug/motr/finject/ctl
@@ -827,7 +827,7 @@ rcancel_cancel_during_getfattr_ops_test()
 
 	# Ensure that all the file ops have either failed or finished
 	getfattr_count=$(pgrep -fc getfattr)
-	echo "getfattr processes running : $(($getfattr_count))"
+	echo "getfattr processes running : $((getfattr_count))"
 	if [ $getfattr_count -ne 0 ]
 	then
 		echo "Failed to complete $getfattr_nr_files getfattr ops"
@@ -854,7 +854,7 @@ rcancel_cancel_during_getfattr_ops_test()
 	fi
 
 	echo "Test: rm $getfattr_nr_files files after restore"
-	for ((i=0; i<$getfattr_nr_files; ++i)); do
+	for ((i=0; i<getfattr_nr_files; ++i)); do
 		rm -f $getfattr_file_base$i
 		rm_rc=$?
 		echo "rm -f $getfattr_file_base$i: rc $rm_rc"

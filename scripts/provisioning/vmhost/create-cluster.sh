@@ -100,7 +100,7 @@ create_cluster()
         ./motr/scripts/m0vg up cmu
         cd ..
         CLC_END=$(date +%s)
-        CLC_DIFF=$(( $CLC_END - $CLC_START ))
+        CLC_DIFF=$(( CLC_END - CLC_START ))
         echo -e "\n\nCluster [$CL_DIR_TAG] created in $CLC_DIFF seconds!!!!\n\n"
 }
 
@@ -159,7 +159,7 @@ echo -e "\n COMPILATION OF MOTR STARTED!!! M0C_START [$M0C_START]!!!\n"
 $M0VG run --vm cmu "/data/motr/scripts/provisioning/vmhost/compile-motr.sh"
 M0_COMPILATION_RESULT="$?"
 M0C_END=$(date +%s)
-M0C_DIFF=$(( $M0C_END - $M0C_START ))
+M0C_DIFF=$(( M0C_END - M0C_START ))
 if [ "$M0_COMPILATION_RESULT" == "0" ]; then
         echo -e "\nCOMPILATION OF MOTR FINISHED SUCCESSFULLY IN $M0C_DIFF SECONDS!!! M0C_END [$M0C_START]!!!\n"
 else
@@ -172,7 +172,7 @@ echo -e "\nCOMPILATION OF HALON STARTED!!! H0C_START [$H0C_START]!!!\n"
 $M0VG run --vm cmu "/data/motr/scripts/provisioning/vmhost/compile-halon.sh"
 H0_COMPILATION_RESULT="$?"
 H0C_END=$(date +%s)
-H0C_DIFF=$(( $H0C_END - $H0C_START ))
+H0C_DIFF=$(( H0C_END - H0C_START ))
 if [ "$H0_COMPILATION_RESULT" == "0" ]; then
         echo -e "\nCOMPILATION OF HALON FINISHED SUCCESSFULLY IN $H0C_DIFF SECONDS!!! H0C_END [$H0C_START]!!!\n"
 else
@@ -184,7 +184,7 @@ echo -e "\nInitializing the cluster !!!\n"
 $M0VG run --vm cmu "/data/motr/scripts/provisioning/vmhost/start-cluster.sh"
 STCL_RESULT="$?"
 STCL_END=$(date +%s)
-STCL_DIFF=$(( $STCL_END - $STCL_START ))
+STCL_DIFF=$(( STCL_END - STCL_START ))
 if [ "$STCL_RESULT" == "0" ]; then
         echo -e "\nCOMPILATION OF HALON FINISHED SUCCESSFULLY IN $STCL_DIFF SECONDS!!! STCL_END [$STCL_END]!!!\n"
 else
@@ -195,7 +195,7 @@ fi
 # from there
 ##########################
 SC_END=$(date +%s)
-SC_DIFF=$(( $SC_END - $SC_START ))
+SC_DIFF=$(( SC_END - SC_START ))
 echo -e "\nFull script executed in $SC_DIFF seconds !!!!\n\n"
 
 

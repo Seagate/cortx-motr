@@ -51,7 +51,7 @@ testname="degraded-mode-IO"
 valid_count_get()
 {
 	local j=$((RANDOM%9))
-	local i=$((10-$j))
+	local i=$((10-j))
 	local bs=$1
 	input_file_size=`expr $i \* $bs`
 	echo $input_file_size
@@ -59,7 +59,7 @@ valid_count_get()
 	while [ $input_file_size -gt $ABCD_SOURCE_SIZE ]
 	do
 		j=$((RANDOM%9))
-		i=$((10-$j))
+		i=$((10-j))
 		input_file_size=`expr $i \* $bs`
 	done
 	return $i
@@ -190,7 +190,7 @@ fmio_files_write()
 	fi
 
 	count=$(echo $3 | cut -d= -f2)
-	input_file_size=$(($bs * $count))
+	input_file_size=$((bs * count))
 	if [ $input_file_size -gt $ABCD_SOURCE_SIZE ]
 	then
 		echo "input_file_size ($input_file_size) is greater than ABCD_SOURCE_SIZE ($ABCD_SOURCE_SIZE)"
@@ -421,7 +421,7 @@ fmio_stob_read_full()
 	str1=00000
 	str2=00000000:
 	fid="10000"
-	for (( i=1; i <= $P; ++i ))
+	for (( i=1; i <= P; ++i ))
 	do
 		if [ $i -le 4 ]
 		then
@@ -474,7 +474,7 @@ fmio_pre()
 	fail_device3=2
 	fail_devices="$fail_device1 $fail_device2 $fail_device3"
 	block_size=$((stride * 1024))
-	random_source_size=$(($block_size * $random_source_dd_count))
+	random_source_size=$((block_size * random_source_dd_count))
 
 	prog_file_pattern="$st_dir/m0t1fs_io_file_pattern"
 	source_abcd="$fmio_sandbox/source_abcd"
@@ -789,7 +789,7 @@ fmio_m0t1fs_clean()
 	# Delete file created for single file io testing.
 	rm -f "$MOTR_M0T1FS_MOUNT_DIR/0:10000"
 	# Delete files created for separate file io testing.
-	for ((i=separate_file_dd_count_start; i <= $dd_count; i++)) ; do
+	for ((i=separate_file_dd_count_start; i <= dd_count; i++)) ; do
 		rm -f "$MOTR_M0T1FS_MOUNT_DIR/0:1000$i"
 	done
 }

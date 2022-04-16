@@ -166,7 +166,7 @@ unused_port_get()
 	port_list=`grep $IP $conf | cut -d '"' -f 2 | cut -d ':' -f 4`
 	while [[ $port_list = *"$hint"* ]]
 	do
-		hint=$(($hint+1))
+		hint=$((hint+1))
 	done
 	port=$hint
 }

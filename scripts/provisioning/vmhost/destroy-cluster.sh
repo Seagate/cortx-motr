@@ -60,7 +60,7 @@ destroy_cluster()
 
 	ls -lh $CL_DIR_PATH
 	rm -rf $CL_DIR_PATH
-    FTIME=$(( $(date +%s) - $FSTART ))
+    FTIME=$(( $(date +%s) - FSTART ))
     echo -e "\nCluster $CL_DIR_TAG destroyed in $FTIME seconds."
 }
 

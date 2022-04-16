@@ -107,12 +107,12 @@ rconfc_fatal_test()
 	rconfc_fatal_pre || return 1
 	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR || return 1
 	echo "Test: Creating $nr_files files on m0t1fs"
-	for ((i=0; i<$nr_files; ++i)); do
+	for ((i=0; i<nr_files; ++i)); do
 		touch $file_base$i || return 1
 	done
 
 	echo "Test: Writing to $wc_nr_files files on m0t1fs"
-	for ((i=0; i<$nr_files; ++i)); do
+	for ((i=0; i<nr_files; ++i)); do
 		echo "dd if=/dev/urandom of=$file_base$i bs=$bs count=$count &"
 		dd if=/dev/urandom of=$file_base$i bs=$bs count=$count &
 	done

@@ -79,7 +79,7 @@ script_terminate()
     cd $HOME_DIR
     print_msg "Using [$DESTROY_CLUSTER_SCRIPT $CL_DIR_TAG]"
     $DESTROY_CLUSTER_SCRIPT $CL_DIR_TAG "--force"
-    SCRIPT_TIME=$(( $(date +%s) - $SCRIPT_START ))
+    SCRIPT_TIME=$(( $(date +%s) - SCRIPT_START ))
     if [ $RESULT != 0 ]; then
         print_msg "Returing $RESULT; Status: FAILED; in $SCRIPT_TIME seconds."
     else
@@ -94,7 +94,7 @@ print_status_and_time()
     local FNAME=${FUNCNAME[1]}
     local FSTART=$1
     local RESULT=$2
-    FTIME=$(( $(date +%s) - $FSTART ))
+    FTIME=$(( $(date +%s) - FSTART ))
     if [ $RESULT = 0 ]; then
         print_msg "Completed function $FNAME in $FTIME seconds successfully."
     else
@@ -426,7 +426,7 @@ compile_install_motr()
     print_msg " COMPILATION OF MOTR STARTED!!! M0C_START [$M0C_START]!!!"
     $M0VG run --vm cmu $COMPILE_INSTALL_MOTR_SCRIPT
     RESULT=$?;
-    FTIME=$(( $(date +%s) - $FSTART ))
+    FTIME=$(( $(date +%s) - FSTART ))
     if [ $RESULT = 0 ]; then
         print_msg "Completed $FUNCNAME in $FTIME successfully."
     else
@@ -443,7 +443,7 @@ compile_install_hare()
     print_msg "COMPILATION OF HARE STARTED!!! H0C_START [$H0C_START]!!!"
     $M0VG run --vm cmu $COMPILE_INSTALL_HARE_SCRIPT
     RESULT=$?;
-    FTIME=$(( $(date +%s) - $FSTART ))
+    FTIME=$(( $(date +%s) - FSTART ))
     if [ $RESULT = 0 ]; then
         print_msg "Completed $FUNCNAME in $FTIME successfully."
     else
@@ -460,7 +460,7 @@ start_cluster()
     print_msg "Starting the cluster !!!"
     $M0VG run --vm cmu $START_CLUSTER_SCRIPT
     RESULT=$?;
-    FTIME=$(( $(date +%s) - $FSTART ))
+    FTIME=$(( $(date +%s) - FSTART ))
     if [ $RESULT = 0 ]; then
         print_msg "Completed $FUNCNAME in $FTIME successfully."
     else
@@ -477,7 +477,7 @@ run_tests()
     print_msg "To add your own tests, append these to this file."
     $M0VG run --vm cmu $RUN_TESTS_SCRIPT
     RESULT=$?;
-    FTIME=$(( $(date +%s) - $FSTART ))
+    FTIME=$(( $(date +%s) - FSTART ))
     if [ $RESULT = 0 ]; then
         print_msg "Completed $FUNCNAME in $FTIME successfully."
     else
@@ -508,7 +508,7 @@ reboot_cluster()
 
     verify_mount_vms
 
-    FTIME=$(( $(date +%s) - $FSTART ))
+    FTIME=$(( $(date +%s) - FSTART ))
     print_msg "Completed $FUNCNAME in $FTIME successfully."
     return $RESULT
 }

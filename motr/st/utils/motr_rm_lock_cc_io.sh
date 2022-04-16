@@ -41,9 +41,9 @@ check_file_version()
 	i=1
 	j=1
 
-	while (( j<=$reader_numb ))
+	while (( j<=reader_numb ))
 	do
-		if (( i>$writer_numb ))
+		if (( i>writer_numb ))
 		then
 			return 1
 		fi
@@ -94,7 +94,7 @@ main()
 	}
 	mkdir $MOTR_TRACE_DIR
 
-	for (( i=1; i<=$writer_numb; i++ ))
+	for (( i=1; i<=writer_numb; i++ ))
 	do
 		tmp_src="$src_file$i"
 		rm -f $tmp_src
@@ -106,7 +106,7 @@ main()
 	done
         SRC_FILES="$(echo -e "${SRC_FILES}" | sed -e 's/^[[:space:]]*//')"
 
-	for (( j=1; j<=$reader_numb; j++ ))
+	for (( j=1; j<=reader_numb; j++ ))
 	do
 		tmp_dest="$dest_file$j"
 		rm -f $tmp_dest

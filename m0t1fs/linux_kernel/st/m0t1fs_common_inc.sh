@@ -293,19 +293,19 @@ function dix_pver_build()
 	fi
 
 	# conf objects for disks
-	for ((i=0; i < $DIX_DEVS_NR; i++)); do
+	for ((i=0; i < DIX_DEVS_NR; i++)); do
 		DIX_SDEVID="^d|$CONT:$i"
 		DIX_DISKID="^k|$CONT:$i"
-		DIX_DISKVID="^j|$CONT:$((100 + $i))"
-		DEV_PATH="/dev/loop$((25 + $i))"
+		DIX_DISKVID="^j|$CONT:$((100 + i))"
+		DEV_PATH="/dev/loop$((25 + i))"
 		DIX_DISKVIDS="$DIX_DISKVIDS${DIX_DISKVIDS:+,} $DIX_DISKVID"
-		DIX_SDEV="{0x64| (($DIX_SDEVID), $((DIX_DEV_ID + $i)), 4, 1, 4096, 596000000000, 3, 4, \"$DEV_PATH\")}"
+		DIX_SDEV="{0x64| (($DIX_SDEVID), $((DIX_DEV_ID + i)), 4, 1, 4096, 596000000000, 3, 4, \"$DEV_PATH\")}"
 		DIX_DISK="{0x6b| (($DIX_DISKID), $DIX_SDEVID, [1: $DIX_PVERID])}"
 		DIX_DISKV="{0x6a| (($DIX_DISKVID), $DIX_DISKID, [0])}"
 		DISK_FIDS="$DISK_FIDS${DISK_FIDS:+,} $DIX_DISKID"
 		NR_DISK_FIDS=$((NR_DISK_FIDS + 1))
 		res=$res", \n$DIX_SDEV, \n$DIX_DISK, \n$DIX_DISKV"
-		total=$(($total + 3))
+		total=$((total + 3))
 	done
 	# conf objects for DIX pool version
 	local DIX_POOL="{0x6f| (($DIX_POOLID), 0, [1: $DIX_PVERID])}"
@@ -319,7 +319,7 @@ function dix_pver_build()
 	local DIX_CTRLV="{0x6a| (($DIX_CTRLVID), $CTRLID, [$DIX_DEVS_NR: $DIX_DISKVIDS])}"
 	res=$res", \n$DIX_POOL, \n$DIX_PVER, \n$DIX_SITEV, \n$DIX_RACKV"
 	res=$res", \n$DIX_ENCLV, \n$DIX_CTRLV"
-	total=$(($total + 6))
+	total=$((total + 6))
 	eval $__res_var="'$res'"
 	return $total
 }
@@ -361,7 +361,7 @@ function build_conf()
 			ioservices=("${IOSEP[@]}")
 		fi
 		#for ((i = 0; i < ${#ioservices[*]}; i++)); do
-		for ((i = 0; i < $nr_ios; i++)); do
+		for ((i = 0; i < nr_ios; i++)); do
 			ioservices[$i]=${server_nid}:${ioservices[$i]}
 		done
 	fi
@@ -398,15 +398,15 @@ function build_conf()
 	local  PVERFID1='^v|0x40000000000001:11'
 	local  PVERFID2='^v|0x40000000000001:12'
 	#"pool_width" number of objv created for devv conf objects
-	local  SITEVID="^j|1:$(($pool_width + 1))"
-	local  RACKVID="^j|1:$(($pool_width + 2))"
-	local  ENCLVID="^j|1:$(($pool_width + 3))"
-	local  CTRLVID="^j|1:$(($pool_width + 4))"
+	local  SITEVID="^j|1:$((pool_width + 1))"
+	local  RACKVID="^j|1:$((pool_width + 2))"
+	local  ENCLVID="^j|1:$((pool_width + 3))"
+	local  CTRLVID="^j|1:$((pool_width + 4))"
 	#mdpool objects
-	local  MDSITEVID="^j|2:$(($pool_width + 1))"
-	local  MDRACKVID="^j|2:$(($pool_width + 2))"
-	local  MDENCLVID="^j|2:$(($pool_width + 3))"
-	local  MDCTRLVID="^j|2:$(($pool_width + 4))"
+	local  MDSITEVID="^j|2:$((pool_width + 1))"
+	local  MDRACKVID="^j|2:$((pool_width + 2))"
+	local  MDENCLVID="^j|2:$((pool_width + 3))"
+	local  MDCTRLVID="^j|2:$((pool_width + 4))"
 
 	local M0T1FS_RMID="^s|1:101"
 	local M0T1FS_PROCID="^r|1:100"
@@ -479,7 +479,7 @@ function build_conf()
 	               \n $SNS_REP_OBJ, \n  $SNS_REB_OBJ, \n $RM_OBJ${CAS_OBJS:+, \n} $CAS_OBJS"
 	    PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $PROC_OBJ"
 	    # +1 here for process object
-	    IOS_OBJS_NR=$(($IOS_OBJS_NR + $NAMES_NR + 1))
+	    IOS_OBJS_NR=$((IOS_OBJS_NR + NAMES_NR + 1))
 	    PROC_NAMES="$PROC_NAMES${PROC_NAMES:+, }$PROC_NAME"
 	done
 
@@ -516,9 +516,9 @@ function build_conf()
 			${#ioservices[*]} $DIX_FID_CON DIX_PVER_OBJS
 		DIX_PVER_OBJ_COUNT=$?
 		PVER_IDS="$PVER_IDS, $DIX_PVERID"
-		pvers_count=$(($pvers_count + 1))
+		pvers_count=$((pvers_count + 1))
 		POOLS="$POOLS, $DIX_POOLID"
-		pool_count=$(($pool_count + 1))
+		pool_count=$((pool_count + 1))
 	else
 		IMETA_PVER='(0,0)'
 		DIX_PVER_OBJ_COUNT=0
@@ -538,9 +538,9 @@ function build_conf()
         MD_OBJS="$MD_OBJS, \n$MDCTRLV, \n$IOS_MD_DEVS"
         MD_OBJ_COUNT=$((5 + ${#ioservices[*]}))
 	PVER_IDS="$PVER_IDS, $MDPVERID"
-	pvers_count=$(($pvers_count + 1))
+	pvers_count=$((pvers_count + 1))
 	POOLS="$POOLS, $MDPOOLID"
-	pool_count=$(($pool_count + 1))
+	pool_count=$((pool_count + 1))
 
 	PROC_NAME="$PROC_FID_CONT:$((M0D++))"
 	RM_NAME="$RMS_FID_CON:$M0D"
@@ -652,8 +652,8 @@ function build_conf()
  # Here "15" configuration objects includes services excluding ios & mds,
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
-[$(($IOS_OBJS_NR + $((${#mdservices[*]} * 5)) + $NR_IOS_DEVS + 19
-    + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 5 + $DIX_PVER_OBJ_COUNT + $FDMI_ITEMS_NR)):
+[$((IOS_OBJS_NR + $((${#mdservices[*]} * 5)) + NR_IOS_DEVS + 19
+    + MD_OBJ_COUNT + PVER1_OBJ_COUNT + 5 + DIX_PVER_OBJ_COUNT + FDMI_ITEMS_NR)):
   {0x74| (($ROOT), 1, (11, 22), $MDPOOLID, $IMETA_PVER, $MD_REDUNDANCY,
 	  [1: \"$pool_width $nr_data_units $nr_parity_units $nr_spare_units\"],
 	  [$node_count: $NODES],
@@ -661,7 +661,7 @@ function build_conf()
 	  [$pool_count: $POOLS],
 	  [1: $PROF], [$FDMI_GROUP_DESC])},
   {0x70| (($PROF), [$pool_count: $POOLS])},
-  {0x6e| (($NODE), 16000, 2, 3, 2, [$(($M0D + 1)): ${PROC_NAMES[@]}])},
+  {0x6e| (($NODE), 16000, 2, 3, 2, [$((M0D + 1)): ${PROC_NAMES[@]}])},
   $PROC_OBJS,
   {0x73| (($CONFD), @M0_CST_CONFD, [1: $CONFD_ENDPOINT], [0], [0])},
   {0x73| (($HA_SVC_ID), @M0_CST_HA, [1: $HA_ENDPOINT], [0], [0])},

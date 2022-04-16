@@ -90,7 +90,7 @@ verify()
 {
 	start_file=$1;
 
-	for ((i=$start_file; i < ${#files[*]}; i++)) ; do
+	for ((i=start_file; i < ${#files[*]}; i++)) ; do
 		echo "Verifying ${files[$i]} ..."
 		local_read $((${unit_size[$i]} * 1024)) ${file_size[$i]} || return $?
 		read_and_verify ${files[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]} || return $?
