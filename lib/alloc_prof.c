@@ -47,19 +47,17 @@ struct prof_rec {
 };
 
 enum { SLOTS = 2000 };
-static __thread struct prof_rec recs[SLOTS];
-static struct m0_mutex guard;
-static int idx;
-static bool initialised = false;
-static struct m0_alloc_callsite eol;
-static struct m0_alloc_callsite *head = &eol;
+static __thread struct prof_rec  recs[SLOTS];
+static struct m0_mutex           guard;
+static int                       idx;
+static struct m0_alloc_callsite  eol;
+static struct m0_alloc_callsite *head        = &eol;
+static bool                      initialised = false;
 
 static void init(void);
 
-void m0_alloc_callsite_init(struct m0_alloc_callsite *cs, int dir, size_t nob)
+void m0_alloc_callsite_init(struct m0_alloc_callsite *cs)
 {
-	struct prof_rec *rec;
-
 	if (cs->ap_idx == -1) {
 		init();
 		m0_mutex_lock(&guard);
@@ -71,6 +69,13 @@ void m0_alloc_callsite_init(struct m0_alloc_callsite *cs, int dir, size_t nob)
 		}
 		m0_mutex_unlock(&guard);
 	}
+}
+
+M0_INTERNAL void m0_alloc_callsite_mod(struct m0_alloc_callsite *cs,
+				       int dir, size_t nob)
+{
+	struct prof_rec *rec;
+
 	M0_ASSERT(IS_IN_ARRAY(cs->ap_idx, recs));
 	rec = &recs[cs->ap_idx];
 	M0_ASSERT(M0_IN(rec->pr_parent, (cs, NULL)));
@@ -159,6 +164,10 @@ static void init(void)
 }
 
 #else
+
+M0_INTERNAL void m0_alloc_callsite_mod(struct m0_alloc_callsite *cs,
+				       int dir, size_t nob)
+{;}
 
 M0_INTERNAL void m0_alloc_prof_thread_init(void)
 {;}

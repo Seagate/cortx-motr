@@ -102,27 +102,29 @@ struct m0_alloc_callsite {
 	struct m0_alloc_callsite *ap_prev;
 };
 
-void m0_alloc_callsite_init(struct m0_alloc_callsite *cs, int dir, size_t nob);
+void m0_alloc_callsite_init(struct m0_alloc_callsite *cs);
 
-#define M0_ALLOC_CALLSITE(obj, flags, dir, nob)	\
+#define M0_ALLOC_CALLSITE(obj, flags)			\
 ({							\
 	static struct m0_alloc_callsite __cs = {	\
-		.ap_idx   = -1,			\
+		.ap_idx   = -1,				\
 		.ap_flags = (flags),			\
 		.ap_file  = __FILE__,			\
 		.ap_line  = __LINE__,			\
 		.ap_obj   = (obj),			\
 		.ap_func  = __func__			\
 	};						\
-	m0_alloc_callsite_init(&__cs, (dir), (nob));	\
+	m0_alloc_callsite_init(&__cs);			\
 	&__cs;						\
 })
 
 #else
 #define USE_ALLOC_PROF (0)
-#define M0_ALLOC_CALLSITE(obj, type) (NULL)
+#define M0_ALLOC_CALLSITE(obj, flags) (NULL)
 #endif
 
+M0_INTERNAL void m0_alloc_callsite_mod(struct m0_alloc_callsite *cs,
+				       int dir, size_t nob);
 M0_INTERNAL void m0_alloc_prof_thread_init(void);
 M0_INTERNAL void m0_alloc_prof_thread_sync(void);
 M0_INTERNAL void m0_alloc_prof_thread_fini(void);

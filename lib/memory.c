@@ -27,15 +27,16 @@
  * @{
  */
 
-#include "alloc_prof.h"
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MEMORY
+#include "lib/trace.h"
 #include "lib/arith.h"   /* min_type, m0_is_po2 */
 #include "lib/assert.h"
 #include "lib/atomic.h"
-#include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/finject.h"
 #include "lib/misc.h"   /* m0_round_down */
+#include "lib/alloc_prof.h"
+#include "motr/magic.h" /* M0_MEMORY_AP_MAGIX, M0_MEMORY_AA_MAGIX */
 
 enum { U_POISON_BYTE = 0x5f };
 
@@ -122,21 +123,18 @@ static void alloc_tail(void *area, size_t size)
 
 M0_INTERNAL void *m0_alloc_nz(size_t size)
 {
-	return m0_alloc_profiled(size, M0_ALLOC_CALLSITE("alloc-nz", 0,
-							 AP_ALLOC, size));
+	return m0_alloc_profiled(size, M0_ALLOC_CALLSITE("alloc-nz", 0));
 }
 
 void *m0_alloc(size_t size)
 {
-	return m0_alloc_profiled(size, M0_ALLOC_CALLSITE("alloc", 0,
-							 AP_ALLOC, size));
+	return m0_alloc_profiled(size, M0_ALLOC_CALLSITE("alloc", 0));
 }
 
 M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift)
 {
 	return m0_alloc_aligned_profiled(size, shift,
-					 M0_ALLOC_CALLSITE("alloc-aligned", 0,
-							   AP_ALLOC, size));
+					 M0_ALLOC_CALLSITE("alloc-aligned", 0));
 }
 
 struct pad {
@@ -144,13 +142,13 @@ struct pad {
 	uint64_t                  p_magic;
 };
 
-enum { AP_MAGIX = 0x3332764287643377ULL };
-
 void *m0_alloc_profiled(size_t size, struct m0_alloc_callsite *cs)
 {
 	struct pad *area = alloc0(size + sizeof(struct pad));
 	if (area != NULL) {
-		area[0] = (struct pad){ .p_cs = cs, .p_magic = AP_MAGIX };
+		m0_alloc_callsite_mod(cs, AP_ALLOC, size);
+		area[0] = (struct pad){ .p_cs = cs,
+					.p_magic = M0_MEMORY_AP_MAGIX };
 		area++;
 	}
 	return area;
@@ -163,8 +161,6 @@ struct aligned_pad {
 	uint64_t                  a_magic;
 };
 
-enum { AA_MAGIX = 0x3376767574737277ULL };
-
 M0_INTERNAL void *m0_alloc_aligned_profiled(size_t size, unsigned shift,
 					    struct m0_alloc_callsite *cs)
 {
@@ -175,10 +171,10 @@ M0_INTERNAL void *m0_alloc_aligned_profiled(size_t size, unsigned shift,
 	M0_PRE(sizeof *apad <= (1 << shift));
 	area = alloc0_aligned(size + (1 << shift), shift);
 	if (area != NULL) {
+		m0_alloc_callsite_mod(cs, AP_ALLOC, size);
 		apad = area += (1 << shift);
 		apad[-1] = (struct aligned_pad) { .a_cs = cs, .a_shift = shift,
-						  .a_size = size,
-						  .a_magic = AA_MAGIX };
+			     .a_size = size, .a_magic = M0_MEMORY_AA_MAGIX };
 	}
 	return area;
 }
@@ -187,11 +183,12 @@ void m0_free(void *data)
 {
 	if (data != NULL) {
 		struct pad *p = ((struct pad *)data) - 1;
-		if (p->p_magic == AA_MAGIX) {
+		if (p->p_magic == M0_MEMORY_AA_MAGIX) {
 			m0_free_aligned(data, 0, 0);
 		} else {
-			M0_ASSERT(p->p_magic == AP_MAGIX);
-			m0_alloc_callsite_init(p->p_cs, AP_FREE, 0);
+			M0_ASSERT(p->p_magic == M0_MEMORY_AP_MAGIX);
+			m0_alloc_callsite_mod(p->p_cs, AP_FREE, 0);
+			p->p_magic = M0_MEMORY_AP_FREE_MAGIX;
 			free0(p);
 		}
 	}
@@ -201,15 +198,16 @@ M0_INTERNAL void m0_free_aligned(void *data, size_t size, unsigned shift)
 {
 	if (data != NULL) {
 		struct aligned_pad *apad = ((struct aligned_pad *)data) - 1;
-		M0_ASSERT(apad->a_magic == AA_MAGIX);
+		M0_ASSERT(apad->a_magic == M0_MEMORY_AA_MAGIX);
 		/*
 		 * @todo: IO and SNS code move buffers between network buffer
 		 * pools, so sometimes a buffer is freed with a different size.
 		 */
 		M0_ASSERT(true || ergo(size > 0, size == apad->a_size));
 		M0_ASSERT(ergo(shift > 0, shift <= apad->a_shift));
-		m0_alloc_callsite_init(apad->a_cs, AP_FREE, apad->a_size);
+		m0_alloc_callsite_mod(apad->a_cs, AP_FREE, apad->a_size);
 		data -= 1 << apad->a_shift;
+		apad->a_magic = M0_MEMORY_AA_FREE_MAGIX;
 		free0_aligned(data, apad->a_size + (1 << apad->a_shift),
 			      apad->a_shift);
 	}
