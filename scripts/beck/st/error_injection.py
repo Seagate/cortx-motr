@@ -20,10 +20,10 @@
 import binascii
 import sys
 import os
+import random
 import argparse
 import time
 import logging
-import random
 
 timestr = time.strftime("%Y%m%d-%H%M%S")
 log_filename = "hole_creation_" + timestr + ".log"
@@ -171,7 +171,7 @@ def ReadTypeSize(byte):  # Ex: 0001(ver) 0009(type) 00003dd8(size)
 
 
 def EditMetadata(offset):
-    """Edit metadata with fix pattern of 0x1111222244443333"""
+    """Edit metadata with the fixed pattern of 0x1111222244443333"""
     with open(filename, 'r+b') as wbfr:
         logger.info("** Corrupting 8byte of Metadata at offset {}"
                     " with b'1111222244443333' **".format(offset))
@@ -182,7 +182,7 @@ def EditMetadata(offset):
 
 
 def ReadMetadata(offset):
-    """If you want to verify the written Metadata then run below segment of code"""
+    """Verifies that meta-data contains the valid footer at the given offset."""
     with open(filename, "rb") as mdata:
         mdata.seek(offset)
         data = binascii.hexlify((mdata.read(8))[::-1])
@@ -210,7 +210,7 @@ def ReadCompleteRecord(offset):
 
 
 def ReadBeBNode(offset):
-    """Read BeNode data"""
+    """Reads BeNode data"""
     llist = BeBnodeTypeKeys[offset]
     with open(filename, "rb") as mdata:
         mdata.seek(llist[0])
@@ -225,7 +225,7 @@ def ReadBeBNode(offset):
 
 
 def InduceCorruption(recordType, noOfErr):
-    """Induce Corruption in a record with number of error"""
+    """Induces Corruption in a record with number of error"""
     count = 0
     read_metadata_file()
     logger.info(recordType)
@@ -255,7 +255,7 @@ def InduceCorruption(recordType, noOfErr):
 
 
 def InduceRandomCorruption(noOfErr):
-    """Induce corruption in meta data at random offset"""
+    """Induces corruption in meta data at random offset"""
     count = 0
     read_metadata_file()
     while 1:
@@ -283,7 +283,7 @@ def InduceRandomCorruption(noOfErr):
 
 
 def InduceErrInRecords(recList):
-    """Function which induce error in a particular type of record"""
+    """Function which induces error in a particular type of record"""
     count = 0
     read_metadata_file()
     logger.info("++++ Induce Random number of errors in All Records ++++")
@@ -385,7 +385,7 @@ def ConvertCobAdstob(cob_f_container, cob_f_key):
 
 
 def CorruptEmap(recordType, stob_f_container, stob_f_key):
-    """This function corrupt EMAP record specified by Cob ID"""
+    """This function corrupts EMAP record specified by Cob ID"""
     count = 0
     read_metadata_file()
     lookupList = recordDict[recordType]
