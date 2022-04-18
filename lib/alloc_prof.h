@@ -37,8 +37,10 @@
  * alloc_prof.[ch] implements a simple profiler for the memory allocator. For
  * each allocation done through M0_ALLOC_{PTR,ARR}() macros, the profiler counts
  * the number of allocation requests together and the total number of bytes
- * allocated. All allocations done directly through m0_alloc() are counted
- * together.
+ * allocated. All allocations done directly through m0_alloc() and
+ * m0_alloc_aligned() are counted together. The identity of the callsite is
+ * recorded at the beginning of every allocated memory region and used by
+ * m0_free() to identify and update the callsite counters.
  *
  * The implementation tries to reduce the run-time overhead of profiling by
  * keeping counters in a per-thread structures, which are merged into global
@@ -54,28 +56,56 @@
  * at the very end of motr finalisation:
  *
  * @verbatim
- *     type         nr        nob threads file line func obj
- *    alloc          1       4104     1 addb2/addb2.c 774 m0_addb2_module_init am
- *    alloc          2        880     1 addb2/sys.c 186 m0_addb2_sys_init sys
- *    alloc          5      61320     1 addb2/addb2.c 525 m0_addb2_mach_init mach
- *    alloc          1         80     1 ha/epoch.c 148 m0_ha_global_init hg
- *    ...
- *    alloc         22       1936     2 addb2/addb2.c 1019 buffer_alloc buf
- *    alloc          2     131072     1 lib/memory.c 128 m0_alloc m0_alloc
+[     alloc -       free =     remain] [     total] [ tha  -   thf]
+[         2 -          2 =          0] [       144] [    1 -     1] lib/thread_pool.c 160 pool_threads_init pool->pp_queue
+[         2 -          2 =          0] [       360] [    1 -     1] lib/thread_pool.c 159 pool_threads_init pool->pp_qlinks
+[         2 -          2 =          0] [      3680] [    1 -     1] lib/thread_pool.c 158 pool_threads_init pool->pp_threads
+[         1 -          1 =          0] [        80] [    1 -     1] lib/ut/zerovec.c 103 zerovec_init_bufs bufs
+[         1 -          1 =          0] [        80] [    1 -     1] lib/ut/zerovec.c 65 zerovec_init_bvec bufvec.ov_buf
+[         1 -          1 =          0] [        80] [    1 -     1] lib/ut/zerovec.c 63 zerovec_init_bvec bufvec.ov_vec.v_count
+[         3 -          3 =          0] [       240] [    1 -     1] lib/vec.c 842 m0_0vec_init zvec->z_bvec.ov_buf
+[         3 -          3 =          0] [       240] [    1 -     1] lib/vec.c 836 m0_0vec_init zvec->z_bvec.ov_vec.v_count
+[         3 -          3 =          0] [       240] [    1 -     1] lib/vec.c 832 m0_0vec_init zvec->z_index
+[    525000 -     525000 =          0] [   1134000] [    1 -     1] lib/ut/vec.c 676 split vec->ov_buf[pos]
+[     42000 -      42000 =          0] [   4200000] [    1 -     1] lib/ut/vec.c 671 split vec->ov_buf
+[     42000 -      42000 =          0] [   4200000] [    1 -     1] lib/ut/vec.c 669 split vec->ov_vec.v_count
+[     42000 -          0 =      42000] [   1008000] [    1 -     0] lib/ut/vec.c 667 split vec
+[         1 -          1 =          0] [      1208] [    1 -     1] lib/ut/vec.c 164 test_indexvec_varr_cursor ivv
+...
+[    191870 -     191861 =          9] [  93475945] [  275 -    18] lib/memory.c 131 m0_alloc alloc
  * @endverbatim
  *
- * prof_alloc.[ch] can be used to profile other things, besides the memory
- * allocator. It is useful in a situation where fast counters are needed,
- * synchronisation is expensive and the number of threads is not too large.
+ * Each line represents an allocation call-site, identified by file, line
+ * number, function and allocated object name (in case of M0_ALLOC_*() macros).
+ * Here
  *
- * @todo profile calls to m0_free(); match frees with allocations; detect memory
- * leaks. The easiest way is to put all struct m0_alloc_prof-s in a special
- * section, so that they can be treated as an array. Place the index in this
- * array just before the allocated memory area (increase the size
- * appropriately).
+ *     - "alloc" is the total number of allocations made at this call-site,
+ *
+ *     - "free" total number of corresponding free calls,
+ *
+ *     - "remain" is the number of still allocated objects,
+ *
+ *     - "total" is the total amount of bytes allocated at the site, "total"
+ *       only goes up and is not decreased by freeing calls,
+ *
+ *     - "tha" is the number of threads that allocated memory at this site and
+ *
+ *     - "thf" is the number of threads that freed memory at this site.
+ *
+ * To identify large memory users, sort by the "total".
+ *
+ * To identify memory leaks, see which callsites have non-zero "remain". In the
+ * example above, lib/ut/vec.c:667 clearly leaks, none of allocations made at
+ * this line is freed. Negative "remain" values mean that some threads that
+ * allocated at this callsite haven't terminated.
  *
  * @todo Make m0_alloc() a macro, so that "direct" allocation sites can be
  * profiled individually.
+ *
+ * @todo Use m0_alloc_callsite::ap_flags to track certain callsites. For
+ * example, when a certain flag is set, the current stack trace is logged on
+ * every allocation or free call on the callsite. Provide macros to set the
+ * flags. This would provide a mechanism to trace memory leaks.
  */
 
 #if defined(ENABLE_ALLOC_PROF) && !defined(__KERNEL__)
@@ -89,16 +119,31 @@ enum { AP_ALLOC, AP_FREE, AP_NR };
  */
 struct m0_alloc_callsite {
 	struct {
+		/** Total number of bytes allocated or freed. */
 		m0_bcount_t s_nob; /* Sine nobilitate. */
+		/** Total number of alloc or free calls. */
 		m0_bcount_t s_nr;
+		/**
+		 * Total number of threads that allocated or freed at this site.
+		 */
 		m0_bcount_t s_threads;
 	}                         ap_s[AP_NR];
+	/**
+	 * Global callsite index, assigned lazily by
+	 * m0_alloc_callsite_init().
+	 */
 	int                       ap_idx;
 	const char               *ap_file;
 	int                       ap_line;
 	const char               *ap_func;
+	/** Allocated variable, @see M0_ALLOC_PTR(). */
 	const char               *ap_obj;
+	/** Currently unused, see @todo above. */
 	uint64_t                  ap_flags;
+	/**
+	 * Linkage to the global list of callsites, starting at
+	 * alloc_prof.c:head.
+	 */
 	struct m0_alloc_callsite *ap_prev;
 };
 
