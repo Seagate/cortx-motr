@@ -242,6 +242,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fdmi_init,         &m0_fdmi_fini,         "fdmi" },
 	{ &m0_fol_fdmi_src_init, &m0_fol_fdmi_src_fini, "fol_fdmi_source" },
 	{ &m0_dtm0_stype_init,   &m0_dtm0_stype_fini,   "dtm0"},
+	{ &m0_cfs_register,      &m0_cfs_unregister,    "co_fom"},
 #endif
 };
 

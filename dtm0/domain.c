@@ -63,6 +63,8 @@ enum dtm0_domain_level {
 	M0_DTM0_DOMAIN_LEVEL_LOG_CREATE,
 	M0_DTM0_DOMAIN_LEVEL_LOG_OPEN,
 
+	M0_DTM0_DOMAIN_LEVEL_CFS_INIT,
+
 	M0_DTM0_DOMAIN_LEVEL_REMACH_INIT,
 	M0_DTM0_DOMAIN_LEVEL_PMACH_INIT,
 	M0_DTM0_DOMAIN_LEVEL_SERVICE_INIT,
@@ -80,6 +82,8 @@ static const struct m0_modlev levels_dtm0_domain[] = {
 
 	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_LOG_CREATE),
 	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_LOG_OPEN),
+
+	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_CFS_INIT),
 
 	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_REMACH_INIT),
 	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_PMACH_INIT),
@@ -99,6 +103,7 @@ static int dtm0_domain_level_enter(struct m0_module *module)
 	enum dtm0_domain_level     level = module->m_cur + 1;
 	struct m0_dtm0_domain     *dod = dtm0_module2domain(module);
 	struct m0_dtm0_domain_cfg *cfg = &dod->dod_cfg;
+	struct m0_reqh            *reqh = cfg->dod_reqh;
 
 	M0_ENTRY("dod=%p level=%d level_name=%s",
 	         dod, level, levels_dtm0_domain[level].ml_name);
@@ -113,6 +118,9 @@ static int dtm0_domain_level_enter(struct m0_module *module)
 	case M0_DTM0_DOMAIN_LEVEL_LOG_OPEN:
 		return M0_RC(m0_dtm0_log_open(&dod->dod_log,
 					      &cfg->dodc_log));
+
+	case M0_DTM0_DOMAIN_LEVEL_CFS_INIT:
+		return M0_RC(m0_co_fom_service_init(&dod->dod_cfs, reqh));
 
 	case M0_DTM0_DOMAIN_LEVEL_REMACH_INIT:
 		return M0_RC(m0_dtm0_remach_init(&dod->dod_remach,
@@ -158,6 +166,11 @@ static void dtm0_domain_level_leave(struct m0_module *module)
 	case M0_DTM0_DOMAIN_LEVEL_LOG_OPEN:
 		m0_dtm0_log_close(&dod->dod_log);
 		break;
+
+	case M0_DTM0_DOMAIN_LEVEL_CFS_INIT:
+		m0_co_fom_service_fini(&dod->dod_cfs);
+		break;
+
 	case M0_DTM0_DOMAIN_LEVEL_REMACH_INIT:
 		m0_dtm0_remach_fini(&dod->dod_remach);
 		break;

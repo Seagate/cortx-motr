@@ -29,6 +29,123 @@
 #include "lib/trace.h"
 
 #include "dtm0/pruner.h"
+#include "lib/memory.h" /* M0_ALLOC_PTR */
+#include "dtm0/domain.h" /* m0_dtm0_domain_cfg */
+#include "dtm0/cfg_default.h" /* m0_dtm0_domain_cfg_default_dup */
+#include "ut/ut.h"
+#include "reqh/reqh.h" /* M0_REQH_INIT */
+
+void m0_dtm0_ut_reqh_init(struct m0_reqh **preqh)
+{
+	struct m0_reqh *reqh;
+	int             rc;
+
+	M0_ALLOC_PTR(reqh);
+	M0_UT_ASSERT(reqh != NULL);
+
+	rc = M0_REQH_INIT(reqh,
+			  .rhia_dtm     = (void*)1,
+			  .rhia_mdstore = (void*)1,
+			  .rhia_fid     = &g_process_fid);
+	M0_UT_ASSERT(rc == 0);
+	m0_reqh_start(reqh);
+
+	*preqh = reqh;
+}
+
+void m0_dtm0_ut_reqh_fini(struct m0_reqh **preqh)
+{
+	struct m0_reqh *reqh = *preqh;
+
+	m0_reqh_services_terminate(reqh);
+	m0_reqh_fini(reqh);
+	m0_free(reqh);
+	*preqh = NULL;
+}
+
+void m0_dtm0_ut_cfs_init(struct m0_co_fom_service **pcfs,
+			 struct m0_reqh *reqh)
+{
+	struct m0_co_fom_service *cfs;
+	int                       rc;
+	M0_ALLOC_PTR(cfs);
+	M0_UT_ASSERT(cfs != NULL);
+	rc = m0_co_fom_service_init(cfs, reqh);
+	M0_UT_ASSERT(rc == 0);
+	*pcfs = cfs;
+}
+
+void m0_dtm0_ut_cfs_fini(struct m0_co_fom_service **pcfs)
+{
+	struct m0_co_fom_service *cfs = *pcfs;
+	m0_co_fom_service_fini(cfs);
+	m0_free(cfs);
+	*pcfs = NULL;
+}
+
+struct dtm0_ut_pruner_ctx {
+	struct m0_dtm0_pruner    *pruner;
+	struct m0_reqh           *reqh;
+	struct m0_co_fom_service *cfs;
+};
+
+static void dtm0_ut_pruner_init(struct dtm0_ut_pruner_ctx *ctx)
+{
+	struct m0_dtm0_domain_cfg cfg;
+	int                       rc;
+
+	m0_dtm0_ut_reqh_init(&ctx->reqh);
+	m0_dtm0_ut_cfs_init(&ctx->cfs, ctx->reqh);
+
+	M0_ALLOC_PTR(ctx->pruner);
+	M0_UT_ASSERT(ctx->pruner != NULL);
+
+	rc = m0_dtm0_domain_cfg_default_dup(&cfg, false);
+	M0_UT_ASSERT(rc == 0);
+
+	cfg.dodc_pruner.dpc_cfs = ctx->cfs;
+
+	rc = m0_dtm0_pruner_init(ctx->pruner, &cfg.dodc_pruner);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_dtm0_domain_cfg_free(&cfg);
+}
+
+static void dtm0_ut_pruner_start(struct dtm0_ut_pruner_ctx *ctx)
+{
+	m0_dtm0_pruner_start(ctx->pruner);
+}
+
+static void dtm0_ut_pruner_stop(struct dtm0_ut_pruner_ctx *ctx)
+{
+	m0_dtm0_pruner_stop(ctx->pruner);
+}
+
+static void dtm0_ut_pruner_fini(struct dtm0_ut_pruner_ctx *ctx)
+{
+	m0_dtm0_pruner_fini(ctx->pruner);
+	m0_free(ctx->pruner);
+	ctx->pruner = NULL;
+
+	m0_dtm0_ut_cfs_fini(&ctx->cfs);
+	m0_dtm0_ut_reqh_fini(&ctx->reqh);
+}
+
+void m0_dtm0_ut_pruner_init_fini(void)
+{
+	struct dtm0_ut_pruner_ctx ctx = {};
+	dtm0_ut_pruner_init(&ctx);
+	dtm0_ut_pruner_fini(&ctx);
+}
+
+void m0_dtm0_ut_pruner_start_stop(void)
+{
+	struct dtm0_ut_pruner_ctx ctx = {};
+	dtm0_ut_pruner_init(&ctx);
+	dtm0_ut_pruner_start(&ctx);
+	dtm0_ut_pruner_stop(&ctx);
+	dtm0_ut_pruner_fini(&ctx);
+}
 
 #undef M0_TRACE_SUBSYSTEM
 

@@ -107,6 +107,7 @@ void m0_dtm0_ut_log_simple(void)
 	int                        j;
 	struct m0_dtx0_id          dtx0_id;
 	struct dtm0_ut_log_ctx    *lctx;
+	bool                       successful = false;
 
 	M0_ALLOC_PTR(redo);
 	M0_UT_ASSERT(redo != NULL);
@@ -153,11 +154,18 @@ void m0_dtm0_ut_log_simple(void)
 								    &p_sdev_fid));
 			M0_UT_ASSERT(rc == 0);
 		}
-		for (j = 0; j < NR_REC_PER_OPER; ++j) {
+		for (j = 0; j < NR_REC_PER_OPER + 1; ++j) {
+			if (j == NR_REC_PER_OPER)
+				m0_dtm0_log_end(&lctx->dol);
+			successful = j == NR_REC_PER_OPER;
 			M0_BE_OP_SYNC(op,
 				      m0_dtm0_log_p_get_none_left(&lctx->dol,
 								  &op,
-								  &dtx0_id));
+								  &dtx0_id,
+								  &successful));
+			M0_UT_ASSERT(equi(successful, j < NR_REC_PER_OPER));
+			if (!successful)
+				break;
 			redo->dtr_descriptor.dtd_id.dti_timestamp = j + TS_BASE;
 			M0_UT_ASSERT(m0_dtx0_id_eq(&dtx0_id,
 						   &redo->dtr_descriptor.dtd_id));
@@ -170,6 +178,7 @@ void m0_dtm0_ut_log_simple(void)
 		}
 		m0_dtm0_log_close(&lctx->dol);
 	}
+
 
 	dtm0_ut_log_fini(lctx);
 
@@ -290,6 +299,7 @@ static void dtm0_ut_log_remove(struct dtm0_ut_log_ctx *lctx,
 	int                  i;
 	struct m0_dtx0_id    dtx0_id;
 	bool                *seen;
+	bool                 successful;
 
 	M0_ALLOC_ARR(seen, nr);
 	M0_UT_ASSERT(seen != NULL);
@@ -298,7 +308,8 @@ static void dtm0_ut_log_remove(struct dtm0_ut_log_ctx *lctx,
 	for (i = 0; i < nr; ++i) {
 		M0_BE_OP_SYNC(op,
 			      m0_dtm0_log_p_get_none_left(&lctx->dol, &op,
-							  &dtx0_id));
+							  &dtx0_id, &successful));
+		M0_UT_ASSERT(successful);
 		seen[dtx0_id.dti_timestamp - timestamp] = true;
 		M0_BE_UT_TRANSACT(&lctx->ut_be, tx, cred,
 				  m0_dtm0_log_prune_credit(&lctx->dol, &cred),
@@ -366,6 +377,58 @@ void m0_dtm0_ut_log_mpsc(void)
 	m0_free(tb);
 	dtm0_ut_log_fini(lctx);
 }
+
+/* TODO: (before landing)
+ * Goals:
+ *   1. Land new DTM0 log code in main.
+ *   2. The code must always be enabled.
+ *   3. No visible changes (from Motr client user's perspective).
+ *   4. Apply real load to the log.
+ *
+ * 1. Add a test where log_end() works fine before we are awaiting
+ *    for the latest  and after we are awaiting for the latest.
+ * 2. Empty log + end == !successful.
+ * 3. Simple pruner (remove after added), concurrency == 1 (single FOM, single
+ *    record).
+ * 4. Pruner UTs:
+ *   4.1. Add to the log, run pruner, check if log is empty.
+ *   4.2. One tx_bulk that adds records to the log, run pruner.
+ *   4.3. Run pruner, empty log, nothing happens.
+ *   4.4. Add many log records, run pruner, some record may still be present
+ *        in the log.
+ *   4.5. Run pruner, run tx_bulk, wait until log is empty, wait 0.5 sec,
+ *        repeat (tx_bulk, wait until empty).
+ * 5. Run pruner in DTM0 domain (init/start/stop/fini) by default.
+ * 6. DTX0 for server, and call it from CAS.
+ * 7. Random dtxid if CAS request has empty dtx descriptor.
+ *
+ * [2.1]
+ * log_add()
+ * log_end()
+ * log_wait() -> ok
+ * log_wait() -> fail
+ *
+ * [2.2]
+ * log_add()
+ * log_wait() -> ok
+ * log_end()
+ * log_wait() -> fail
+ *
+ * [3]
+ * log_end()
+ * log_wait() -> fail
+ *
+ * TODO: (after landing)
+ * 1. Wait until be tx becomes PERSISTENT.
+ * 2. Simple pruner, concurrency > 1 (many FOMs).
+ * 3. Simple pruner, batch delete.
+ * 4. DTX0 for client is always enabled at data structure level but
+ *    the state transitions may be disabled by NODTM. If that is not possible,
+ *    then just generate random dtxid.
+ * 5. Pruner: do not add records to FOL.
+ * 6. s/dod/dodc in DTM0 log.
+ * 7. Co-fom service or DTM fom service? single service for coroutines?
+ */
 
 #undef M0_TRACE_SUBSYSTEM
 

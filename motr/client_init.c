@@ -39,6 +39,7 @@
 #include "net/lnet/lnet_core_types.h" /* M0_NET_LNET_NIDSTR_SIZE */
 #include "dtm0/service.h"             /* m0_dtm0_service_find */
 #include "dtm0/helper.h"              /* m0_dtm_client_service_start */
+#include "dtm0/cfg_default.h"         /* m0_dtm0_domain_cfg_default_dup */
 
 #include "motr/io.h"                /* io_sm_conf */
 #include "motr/client.h"
@@ -1435,8 +1436,9 @@ static int initlift_addb2(struct m0_sm *mach)
 
 static int initlift_dtm0(struct m0_sm *mach)
 {
-	int                  rc = 0;
-	struct m0_client    *m0c;
+	int                       rc = 0;
+	struct m0_client         *m0c;
+	struct m0_dtm0_domain_cfg cfg;
 
 	M0_ENTRY();
 	M0_PRE(mach != NULL);
@@ -1445,7 +1447,11 @@ static int initlift_dtm0(struct m0_sm *mach)
 	M0_ASSERT(m0c_invariant(m0c));
 
 	if (m0c->m0c_initlift_direction == STARTUP) {
-		rc = m0_dtm0_domain_init(&m0c->m0c_dtm0_domain, NULL);
+		rc = m0_dtm0_domain_cfg_default_dup(&cfg, false);
+		if (rc != 0)
+			return M0_RC(rc);
+		cfg.dod_reqh = &m0c->m0c_reqh;
+		rc = m0_dtm0_domain_init(&m0c->m0c_dtm0_domain, &cfg);
 		if (rc != 0) {
 			initlift_fail(rc, m0c);
 			return M0_RC(initlift_get_next_floor(m0c));

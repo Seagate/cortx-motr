@@ -67,6 +67,7 @@
 #include "stob/linux.h"
 #include "conf/ha.h"            /* m0_conf_ha_process_event_post */
 #include "dtm0/helper.h"        /* m0_dtm0_old_log_create */
+#include "dtm0/cfg_default.h"   /* m0_dtm0_domain_cfg_default_dup */
 
 /**
    @addtogroup m0d
@@ -1153,7 +1154,7 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx,
 
 	for (i = 0; i < M0_CST_NR && rc == 0; ++i) {
 		if (rctx->rc_services[i] == NULL ||
-		    M0_IN(i, (M0_CST_HA, M0_CST_SSS)))
+		    M0_IN(i, (M0_CST_HA, M0_CST_SSS, M0_CST_DTM0)))
 			continue;
 		if (i == M0_CST_FIS) {
 			if (!rctx->rc_fis_enabled)
@@ -1205,7 +1206,7 @@ static void reqh_context_services_fini(struct m0_reqh_context *rctx,
 
 	for (i = 0; i < M0_CST_NR && rc == 0; ++i) {
 		if (rctx->rc_services[i] == NULL ||
-		    M0_IN(i, (M0_CST_HA, M0_CST_SSS)))
+		    M0_IN(i, (M0_CST_HA, M0_CST_SSS, M0_CST_DTM0)))
 			continue;
 		name = rctx->rc_services[i];
 		M0_LOG(M0_DEBUG, "service: %s" FID_F, name,
@@ -1690,9 +1691,16 @@ be_fini:
 	return M0_ERR(rc);
 }
 
-static int cs_dtm0_init(struct m0_reqh_context *rctx)
+static int cs_dtm0_init(struct m0_reqh_context *rctx, bool mkfs)
 {
-	return m0_dtm0_domain_init(&rctx->rc_dtm0_domain, NULL);
+	struct m0_dtm0_domain_cfg cfg;
+	int                       rc;
+
+	rc = m0_dtm0_domain_cfg_default_dup(&cfg, mkfs);
+	if (rc != 0)
+		return rc;
+	cfg.dod_reqh = &rctx->rc_reqh;
+	return m0_dtm0_domain_init(&rctx->rc_dtm0_domain, &cfg);
 }
 
 static void cs_dtm0_fini(struct m0_reqh_context *rctx)
@@ -2646,7 +2654,7 @@ static int cs_level_enter(struct m0_module *module)
 	case CS_LEVEL_STORAGE_SETUP:
 		return M0_RC(cs_storage_setup(cctx));
 	case CS_LEVEL_DTM0_INIT:
-		return M0_RC(cs_dtm0_init(rctx));
+		return M0_RC(cs_dtm0_init(rctx, cctx->cc_mkfs));
 	case CS_LEVEL_RWLOCK_UNLOCK:
 		m0_rwlock_write_unlock(&cctx->cc_rwlock);
 		return M0_RC(0);

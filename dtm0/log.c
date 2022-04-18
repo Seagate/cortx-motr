@@ -70,6 +70,15 @@ static int dtm0_log0_init(struct m0_be_domain *dom, const char *suffix,
 static void dtm0_log0_fini(struct m0_be_domain *dom, const char *suffix,
                            const struct m0_buf *data);
 
+static bool dtm0_log_invariant(const struct m0_dtm0_log *dol)
+{
+	return _0C(m0_mutex_is_locked(&dol->dtl_lock)) &&
+		_0C(ergo(dol->dtl_the_end, dol->dtl_allp_op == NULL)) &&
+		ergo(dol->dtl_allp_op != NULL,
+		    _0C(dol->dtl_allp != NULL) &&
+		    _0C(dol->dtl_successful != NULL));
+}
+
 struct m0_be_0type m0_dtm0_log0 = {
 	.b0_name = "M0_DTM0:LOG",
 	.b0_init = &dtm0_log0_init,
@@ -124,14 +133,15 @@ M0_INTERNAL int m0_dtm0_log_open(struct m0_dtm0_log     *dol,
 	                 &dtm0_log_transactions_kv_ops);
 	dol->dtl_data = log_data;
 	m0_mutex_init(&dol->dtl_lock);
-	dol->dtl_op = NULL;
-	dol->dtl_head = NULL;
+	dol->dtl_allp_op = NULL;
+	dol->dtl_allp = NULL;
+	dol->dtl_the_end = false;
 	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_dtm0_log_close(struct m0_dtm0_log *dol)
 {
-	M0_PRE(dol->dtl_op == NULL);
+	M0_PRE(dol->dtl_allp_op == NULL);
 	m0_mutex_fini(&dol->dtl_lock);
 	m0_be_btree_fini(&dol->dtl_data->dtld_transactions);
 }
@@ -232,6 +242,11 @@ M0_INTERNAL int m0_dtm0_log_redo_add(struct m0_dtm0_log        *dol,
 	struct dtm0_log_record  *rec;
 	struct m0_be_seg        *seg = dol->dtl_cfg.dlc_seg;
 
+	m0_mutex_lock(&dol->dtl_lock);
+	M0_PRE(!dol->dtl_the_end);
+	M0_PRE(dtm0_log_invariant(dol));
+	m0_mutex_unlock(&dol->dtl_lock);
+
 	/* TODO lookup before insert */
 	/* TODO check memory allocation errors */
 	M0_BE_ALLOC_PTR_SYNC(rec, seg, tx);
@@ -247,13 +262,16 @@ M0_INTERNAL int m0_dtm0_log_redo_add(struct m0_dtm0_log        *dol,
 	                &M0_BUF_INIT_PTR(&rec->lr_descriptor.dtd_id),
 	                &M0_BUF_INIT(sizeof rec, &rec)));
 	dtm0_log_all_p_be_tlink_create(rec, tx);
+
 	m0_mutex_lock(&dol->dtl_lock);
+	M0_ASSERT(!dol->dtl_the_end);
 	if (dtm0_log_all_p_be_list_head(&dol->dtl_data->dtld_all_p) == NULL &&
-	    dol->dtl_op != NULL) {
-		M0_ASSERT(dol->dtl_head != NULL);
-		*dol->dtl_head = rec->lr_descriptor.dtd_id;
-		m0_be_op_done(dol->dtl_op);
-		dol->dtl_op = NULL;
+	    dol->dtl_allp_op != NULL) {
+		M0_ASSERT(dol->dtl_allp != NULL);
+		*dol->dtl_allp = rec->lr_descriptor.dtd_id;
+		*dol->dtl_successful = true;
+		m0_be_op_done(dol->dtl_allp_op);
+		dol->dtl_allp_op = NULL;
 	}
 	dtm0_log_all_p_be_list_add_tail(&dol->dtl_data->dtld_all_p, tx, rec);
 	m0_mutex_unlock(&dol->dtl_lock);
@@ -294,6 +312,7 @@ M0_INTERNAL void m0_dtm0_log_prune(struct m0_dtm0_log *dol,
 	                &dol->dtl_data->dtld_transactions, &op,
 	                &M0_BUF_INIT_PTR(dtx0_id), &rec_buf));
 	m0_mutex_lock(&dol->dtl_lock);
+	M0_ASSERT(dtm0_log_invariant(dol));
 	dtm0_log_all_p_be_list_del(&dol->dtl_data->dtld_all_p, tx, rec);
 	m0_mutex_unlock(&dol->dtl_lock);
 	dtm0_log_all_p_be_tlink_destroy(rec, tx);
@@ -319,25 +338,50 @@ M0_INTERNAL void m0_dtm0_log_prune_credit(struct m0_dtm0_log     *dol,
 
 M0_INTERNAL void m0_dtm0_log_p_get_none_left(struct m0_dtm0_log *dol,
 					     struct m0_be_op    *op,
-					     struct m0_dtx0_id  *dtx0_id)
+					     struct m0_dtx0_id  *dtx0_id,
+					     bool               *successful)
 {
 	struct dtm0_log_record *rec;
 
 	m0_be_op_active(op);
 	m0_mutex_lock(&dol->dtl_lock);
+	M0_PRE(dtm0_log_invariant(dol));
+	M0_PRE(dol->dtl_allp_op == NULL);
+
+	if (dol->dtl_the_end) {
+		*successful = false;
+		m0_be_op_done(op);
+		m0_mutex_unlock(&dol->dtl_lock);
+		return;
+	}
+
 	rec = dtm0_log_all_p_be_list_head(&dol->dtl_data->dtld_all_p);
 	if (rec != NULL) {
 		*dtx0_id = rec->lr_descriptor.dtd_id;
+		*successful = true;
 		m0_be_op_done(op);
-		dol->dtl_op = NULL;
-		dol->dtl_head = NULL;
 	} else {
-		M0_ASSERT(dol->dtl_op == NULL);
-		dol->dtl_op = op;
-		dol->dtl_head = dtx0_id;
+		dol->dtl_allp_op = op;
+		dol->dtl_allp = dtx0_id;
+		dol->dtl_successful = successful;
 	}
 	m0_mutex_unlock(&dol->dtl_lock);
 }
+
+M0_INTERNAL void m0_dtm0_log_end(struct m0_dtm0_log *dol)
+{
+	m0_mutex_lock(&dol->dtl_lock);
+	M0_PRE(dtm0_log_invariant(dol));
+	M0_PRE(!dol->dtl_the_end);
+	dol->dtl_the_end = true;
+	if (dol->dtl_allp_op != NULL) {
+		*dol->dtl_successful = false;
+		m0_be_op_done(dol->dtl_allp_op);
+		dol->dtl_allp_op = NULL;
+	}
+	m0_mutex_unlock(&dol->dtl_lock);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of dtm0 group */
