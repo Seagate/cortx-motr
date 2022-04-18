@@ -1327,7 +1327,7 @@ struct m0_btree_oimpl {
 	struct node_op             i_nop;
 	/* struct lock_op  i_lop; */
 
-	/** Count of entries initialized in l_level array. **/
+	/** Count of entries initialized in i_level array. **/
 	unsigned                   i_used;
 
 	/** Array of levels for storing data about each level. **/
@@ -7214,31 +7214,42 @@ static bool index_is_valid(struct level *lev)
  *  which has valid sibling. Once found, get the leftmost leaf record from the
  *  sibling subtree.
  */
-static int  btree_sibling_first_key(struct m0_btree_oimpl *oi, struct td *tree,
-				    struct slot *s)
+static int  btree_sibling_first_key(struct m0_btree_oimpl *oi, struct td *tree)
 {
 	int             i;
 	struct level   *lev;
+	struct nd      *curr_node;
+	struct slot     s = {};
 	struct segaddr  child;
 
 	for (i = oi->i_used - 1; i >= 0; i--) {
 		lev = &oi->i_level[i];
+		bnode_lock(lev->l_node);
 		if (lev->l_idx < bnode_count(lev->l_node)) {
-			s->s_node = oi->i_nop.no_node = lev->l_node;
-			s->s_idx = lev->l_idx + 1;
+			s.s_node = oi->i_nop.no_node = lev->l_node;
+			s.s_idx = lev->l_idx + 1;
+			bnode_unlock(lev->l_node);
 			while (i != oi->i_used) {
-				bnode_child(s, &child);
-				if (!address_in_segment(child))
+				curr_node = oi->i_nop.no_node;
+				bnode_lock(curr_node);
+				bnode_child(&s, &child);
+				if (!address_in_segment(child)) {
+					bnode_unlock(curr_node);
 					return M0_ERR(-EFAULT);
+				}
 				i++;
+				bnode_unlock(curr_node);
 				bnode_get(&oi->i_nop, tree, &child, P_CLEANUP);
-				s->s_idx = 0;
-				s->s_node = oi->i_nop.no_node;
+				if (oi->i_nop.no_op.o_sm.sm_rc != 0)
+					return oi->i_nop.no_op.o_sm.sm_rc;
+				s.s_idx = 0;
+				s.s_node = oi->i_nop.no_node;
+				/* Store the sibling. */
 				oi->i_level[i].l_sibling = oi->i_nop.no_node;
 			}
-			bnode_rec(s);
 			return 0;
 		}
+		bnode_unlock(lev->l_node);
 	}
 	return M0_ERR(-ENOENT);
 }
@@ -7352,6 +7363,11 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 				return bnode_get(&oi->i_nop, tree, &child,
 						 P_NEXTDOWN);
 			} else {
+				if ((lev->l_idx == bnode_count(lev->l_node)) &&
+					(bop->bo_flags & BOF_SLANT)) {
+						bnode_unlock(lev->l_node);
+						return P_SIBLING;
+					}
 				bnode_unlock(lev->l_node);
 				return P_LOCK;
 			}
@@ -7359,13 +7375,34 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			bnode_op_fini(&oi->i_nop);
 			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 		}
+	case P_SIBLING: {
+		int rc = 0;
+		lev    = &oi->i_level[oi->i_used];
+
+		rc = btree_sibling_first_key(oi, tree);
+		if (rc != 0 && rc != -ENOENT) {
+			bnode_op_fini(&oi->i_nop);
+			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
+		} else if (rc == -ENOENT) {
+			bnode_op_fini(&oi->i_nop);
+			lock_op_unlock(tree);
+			return fail(bop, rc);
+		}
+
+		bnode_lock(lev->l_sibling);
+		lev->l_sib_seq = lev->l_sibling->n_seq;
+		bnode_unlock(lev->l_sibling);
+
+		return P_LOCK;
+	}
 	case P_LOCK:
 		if (!lock_acquired)
 			return lock_op_init(&bop->bo_op, &bop->bo_i->i_nop,
 					    bop->bo_arbor->t_desc, P_CHECK);
 		/** Fall through if LOCK is already acquired. */
 	case P_CHECK:
-		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie)) {
+		if (!path_check(oi, tree, &bop->bo_rec.r_key.k_cookie) ||
+		    !sibling_node_check(oi)) {
 			oi->i_trial++;
 			if (oi->i_trial >= MAX_TRIALS) {
 				M0_ASSERT_INFO((bop->bo_flags & BOF_LOCKALL) ==
@@ -7408,9 +7445,9 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 		count = bnode_count(s.s_node);
 		/**
 		 *  There are two cases based on the flag set by user for GET OP
-		 *  1. Flag BRF_EQUAL: If requested key found return record else
+		 *  1. Flag BOF_EQUAL: If requested key found return record else
 		 *  return key not exist.
-		 *  2. Flag BRF_SLANT: If the key index(found during P_NEXTDOWN)
+		 *  2. Flag BOF_SLANT: If the key index(found during P_NEXTDOWN)
 		 *  is less than total number of keys, return the record at key
 		 *  index. Else loop through the levels to find valid sibling.
 		 *  If valid sibling found, return first key of the sibling
@@ -7426,12 +7463,15 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 				if (lev->l_idx < count)
 					bnode_rec(&s);
 				else {
-					rc = btree_sibling_first_key(oi, tree,
-								     &s);
-					if (rc != 0) {
+					if (lev->l_sibling != NULL) {
+						s.s_idx = 0;
+						s.s_node = lev->l_sibling;
+						bnode_rec(&s);
+					} else {
 						bnode_op_fini(&oi->i_nop);
 						lock_op_unlock(tree);
-						return fail(bop, rc);
+						return fail(bop,
+							    M0_ERR(-ENOENT));
 					}
 				}
 			}
