@@ -837,8 +837,9 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 	if( rc != 0 )
 		return -ENOMEM;
 
-	M0_LOG(M0_ALWAYS,"CKSUM COMPUTE [PG Index : %d][Unit Index : %d] RowNum: %d",cs_idx->ci_pg_idx,
-									cs_idx->ci_unit_idx,(int)rows_nr(play, obj));
+	M0_LOG(M0_ALWAYS,"CKSUM COMPUTE [%s] [PG Index : %d][Unit Index : %d] RowNum: %d",
+							(filter == PA_PARITY) ? "PARITY":"DATA",cs_idx->ci_pg_idx,
+							cs_idx->ci_unit_idx,(int)rows_nr(play, obj));
 
 	// Populate buffer vec for give parity unit and add all buffers present
 	// in rows (page sized buffer/4K)

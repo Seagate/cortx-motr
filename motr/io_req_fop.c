@@ -121,7 +121,20 @@ static int application_checksum_process( struct m0_op_io *ioo,
 	num_units = irfop->irf_unit_count;
 	M0_ASSERT( num_units != 0 && irfop->irf_unit_start_idx != -1);
 
-	cksum_size = m0__obj_di_cksum_size(ioo);
+	// FOP reply data should have pi type correctly set
+	cksum_type = ((struct m0_pi_hdr *)rw_rep_cs_data->b_addr)->pih_type;
+	M0_ASSERT( cksum_type < M0_PI_TYPE_MAX);
+	cksum_size = m0_cksum_get_size(cksum_type);
+	if(cksum_size == 0) {
+		M0_LOG(M0_ALWAYS,"Skipping DI as PI Type: %d Size: %d",cksum_type,cksum_size);
+		return rc;
+	}
+
+	// We should get checksum size which is same as requested, this will also
+	// confirm that user has correctly allocated buffer for checksum in ioo attr
+	// structure.
+	M0_ASSERT( rw_rep_cs_data->b_nob == num_units * cksum_size);
+
 	// Allocate checksum buffer
 	compute_cs_buf = m0_alloc(cksum_size);
 	if( compute_cs_buf == NULL )
@@ -130,15 +143,6 @@ static int application_checksum_process( struct m0_op_io *ioo,
 	cs_data = (irfop->irf_pattr == PA_PARITY) ? 
 					&ti->ti_cksum_data[M0_PUT_PARITY] :
 					&ti->ti_cksum_data[M0_PUT_DATA];
-
-	// FOP reply data should have pi type correctly set
-	cksum_type = ((struct m0_pi_hdr *)rw_rep_cs_data->b_addr)->pih_type;
-	M0_ASSERT( cksum_type < M0_PI_TYPE_MAX);
-
-	// We should get checksum size which is same as requested, this will also
-	// confirm that user has correctly allocated buffer for checksum in ioo attr
-	// structure.
-	M0_ASSERT( rw_rep_cs_data->b_nob == num_units * cksum_size);
 
 	// TODO: Remove
 	M0_LOG(M0_ALWAYS,"RECEIVED CS b_nob: %d",(int)rw_rep_cs_data->b_nob);

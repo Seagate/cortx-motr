@@ -55,9 +55,10 @@
 /* Constants for protection info type, max types supported is 8 */
 enum m0_pi_algo_type
 {
-    M0_PI_TYPE_CRC,
-    M0_PI_TYPE_MD5,
+    M0_PI_TYPE_RESERVED,
+    M0_PI_TYPE_MD5 = 1,         
     M0_PI_TYPE_MD5_INC_CONTEXT,
+    M0_PI_TYPE_CRC,
     M0_PI_TYPE_MAX
 };
 

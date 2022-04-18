@@ -66,17 +66,17 @@ M0_INTERNAL int m0_calculate_md5( struct m0_md5_pi *pi,
 				bvec != NULL && bvec->ov_vec.v_count != NULL &&
 				bvec->ov_buf != NULL));
 
+	pi->pimd5_hdr.pih_size = sizeof(struct m0_md5_pi)/M0_CKSUM_DATA_ROUNDOFF_BYTE;
+	if( M0_CKSUM_PAD_MD5 )
+		memset(pi->pimd5_pad,0,sizeof(pi->pimd5_pad));
+
 	/* This call is for first data unit, need to initialize prev_context */
 	if (flag & M0_PI_CALC_UNIT_ZERO) {
-		pi->pimd5_hdr.pih_size = sizeof(struct m0_md5_pi);
 		rc = MD5_Init(&context);
 		if (rc != 1) {
 			return M0_ERR_INFO(rc, "MD5_Init failed v_nr: %d",bvec->ov_vec.v_nr);
 		}
 	}
-
-	if( M0_CKSUM_PAD_MD5 )
-		memset(pi->pimd5_pad,0,sizeof(pi->pimd5_pad));
 
 	if (bvec != NULL) {
 		for (i = 0; i < bvec->ov_vec.v_nr; i++) {
@@ -170,17 +170,17 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 				bvec != NULL && bvec->ov_vec.v_count != NULL &&
 				bvec->ov_buf != NULL));
 
+	pi->pimd5c_hdr.pih_size = sizeof(struct m0_md5_inc_context_pi)/M0_CKSUM_DATA_ROUNDOFF_BYTE;
+	if( M0_CKSUM_PAD_MD5_INC_CXT )
+		memset(pi->pi_md5c_pad,0,sizeof(pi->pi_md5c_pad));
+
 	/* This call is for first data unit, need to initialize prev_context */
 	if (flag & M0_PI_CALC_UNIT_ZERO) {
-		pi->pimd5c_hdr.pih_size = sizeof(struct m0_md5_inc_context_pi);
 		rc = MD5_Init((MD5_CTX *)&pi->pimd5c_prev_context);
 		if (rc != 1) {
 			return M0_ERR_INFO(rc, "MD5_Init failed v_nr=%d",bvec->ov_vec.v_nr);
 		}
 	}
-
-	if( M0_CKSUM_PAD_MD5_INC_CXT )
-		memset(pi->pi_md5c_pad,0,sizeof(pi->pi_md5c_pad));
 
 	/* memcpy, so that we do not change the prev_context */
 	memcpy(curr_context, &pi->pimd5c_prev_context, sizeof(MD5_CTX));
