@@ -31,12 +31,12 @@ pool_mach_test()
 
 	echo "Testing pool machine.."
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
-		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
+		ios_eps="$ios_eps -S ${lnet_nid}${IOSEP[$i]}"
 	done
 
 ####### Query
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Query -N 1 -I 'k|1:1'
-                         -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
+                         -C ${lnet_nid}${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
 	rc=$?
@@ -48,7 +48,7 @@ pool_mach_test()
 
 ####### Set
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -N 1 -I 'k|1:1' -s 2
-                         -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
+                         -C ${lnet_nid}${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
 	rc=$?
@@ -60,7 +60,7 @@ pool_mach_test()
 
 ####### Query again
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Query -N 1 -I 'k|1:1'
-                         -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
+                         -C ${lnet_nid}${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
 	rc=$?
@@ -72,7 +72,7 @@ pool_mach_test()
 
 ####### Set again. This set request should get error
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -N 1 -I 'k|1:1' -s 1
-                         -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
+                         -C ${lnet_nid}${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
 	rc=$?
@@ -84,7 +84,7 @@ pool_mach_test()
 
 ####### Set again. This set request should get error
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -N 1 -I 'k|1:1' -s 2
-                         -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
+                         -C ${lnet_nid}${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
 	rc=$?
@@ -96,7 +96,7 @@ pool_mach_test()
 
 ####### Set again. This set request should get error
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -N 1 -I 'k|1:1' -s 3
-                         -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
+                         -C ${lnet_nid}${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
 	rc=$?
@@ -108,7 +108,7 @@ pool_mach_test()
 
 ####### Query again
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Query -N 1 -I 'k|1:1'
-                         -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
+                         -C ${lnet_nid}${POOL_MACHINE_CLI_EP} $ios_eps"
 	echo $trigger
 	eval $trigger
 	rc=$?

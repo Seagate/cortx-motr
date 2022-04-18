@@ -77,7 +77,7 @@ sns_repair_rebalance_quiesce_test()
 	done
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
-		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
+		ios_eps="$ios_eps -S ${lnet_nid}${IOSEP[$i]}"
 	done
 
 ####### Set Failure device

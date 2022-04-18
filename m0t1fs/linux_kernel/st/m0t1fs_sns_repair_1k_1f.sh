@@ -51,7 +51,7 @@ sns_repair_test()
 	for i in 0:10{0..2}{1001..1020}; do _md5sum $i || return $? ; done
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
-		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
+		ios_eps="$ios_eps -S ${lnet_nid}${IOSEP[$i]}"
 	done
 
 ####### Set Failure device

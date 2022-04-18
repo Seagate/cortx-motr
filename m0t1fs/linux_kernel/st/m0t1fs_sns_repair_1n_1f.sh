@@ -46,7 +46,7 @@ sns_repair_test()
 		_md5sum ${file[$i]} || return $?
 	done
 
-	ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[0]}"
+	ios_eps="$ios_eps -S ${lnet_nid}${IOSEP[0]}"
 
 ####### Set Failure device
 	disk_state_set "failed" $fail_device1 || return $?
