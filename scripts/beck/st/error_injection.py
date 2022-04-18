@@ -375,7 +375,7 @@ def ConvertAdstob2Cob(stob_f_container, stob_f_key):
 
 
 def ConvertCobAdstob(cob_f_container, cob_f_key):
-    """This function take cob_f_cotainer, cob_f_key and returns stob_f_container, stob_f_key."""
+    """Method take cob_f_cotainer, cob_f_key and returns stob_f_container, stob_f_key."""
     M0_FID_TYPE_MASK = 72057594037927935
 
     # m0_fid_tassume()
@@ -387,7 +387,7 @@ def ConvertCobAdstob(cob_f_container, cob_f_key):
 
 
 def CorruptEmap(recordType, stob_f_container, stob_f_key):
-    """This function corrupts EMAP record specified by Cob ID."""
+    """Method corrupts EMAP record specified by Cob ID."""
     count = 0
     read_metadata_file()
     lookupList = recordDict[recordType]
