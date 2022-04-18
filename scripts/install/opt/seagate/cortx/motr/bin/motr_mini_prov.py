@@ -1521,11 +1521,6 @@ def start_service(self, service, idx):
     fid = fetch_fid(self, service, idx)
     if fid == -1:
         return -1
-    #Run log rotate in background to avoid delay in startup
-    cmd = "/opt/seagate/cortx/motr/libexec/m0trace_logrotate.sh &"
-    execute_command(self, cmd)
-    cmd = "/opt/seagate/cortx/motr/libexec/m0addb_logrotate.sh &"
-    execute_command(self, cmd)
 
     #Start motr services
     cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"

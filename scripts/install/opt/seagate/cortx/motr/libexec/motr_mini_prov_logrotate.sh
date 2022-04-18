@@ -21,9 +21,11 @@ LOGROTATE_CONF_FILE=/etc/cortx/motr/mini_prov_logrotate.conf
 if [[ -f "$LOGROTATE_CONF_FILE" ]]; then
     /usr/sbin/logrotate $LOGROTATE_CONF_FILE
     EXITVALUE=$?
+    if [ $EXITVALUE != 0 ]; then
+        /usr/bin/logger -t logrotate "ALERT exited abnormally with [$EXITVALUE]"
+    fi
+    exit $EXITVALUE    
+else
+    echo "$LOGROTATE_CONF_FILE does not exist"
 fi
 
-if [ $EXITVALUE != 0 ]; then
-    /usr/bin/logger -t logrotate "ALERT exited abnormally with [$EXITVALUE]"
-fi
-exit $EXITVALUE
