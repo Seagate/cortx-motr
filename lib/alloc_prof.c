@@ -46,7 +46,16 @@ struct prof_rec {
 	}                         pr_s[AP_NR];
 };
 
-enum { SLOTS = 2000 };
+enum {
+      /**
+       * The number of local counter allocated per-thread.
+       *
+       * This should be larger tha the total number of callsites
+       * (m0_alloc_callsite) in the executable.
+       */
+      SLOTS = 2000
+};
+/** Per-thread local allocation counters. */
 static __thread struct prof_rec  recs[SLOTS];
 static struct m0_mutex           guard;
 static int                       idx;
@@ -58,10 +67,14 @@ static void init(void);
 
 void m0_alloc_callsite_init(struct m0_alloc_callsite *cs)
 {
-	if (cs->ap_idx == -1) {
+	if (cs->ap_idx == -1) { /* On the first access, assign the index. */
+		 /*
+		  * Allocator can be called before m0_init(), e.g., from
+		  * m0_getopts(). Initialise if necessary.
+		  */
 		init();
 		m0_mutex_lock(&guard);
-		if (cs->ap_idx == -1) {
+		if (cs->ap_idx == -1) { /* Re-check under the lock. */
 			M0_ASSERT(cs->ap_prev == NULL);
 			cs->ap_prev = head;
 			head = cs;
