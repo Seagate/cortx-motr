@@ -2043,6 +2043,7 @@ static int stob_io_create(struct m0_fom *fom)
 	struct m0_fop_cob_rw    *rwfop;
 	struct m0_stob_io_desc  *siod;
 	struct m0_stob_io       *stio;
+	bool                     enable_di;
 	struct m0_fop_cob_rw_reply *rw_replyfop;
 	m0_bindex_t unit_size;
 	m0_bindex_t curr_cksum_nob = 0;
@@ -2154,9 +2155,22 @@ static int stob_io_create(struct m0_fom *fom)
 	/* Verify that total checksum nob in FOP reply is equal to sum of
 	 * checksum-nob for all stobs
 	 */
-	M0_ASSERT( m0_is_read_fop(fom->fo_fop) ?
-			(curr_cksum_nob == rw_replyfop->rwr_di_data_cksum.b_nob) :
-			(curr_cksum_nob == rwfop->crw_di_data_cksum.b_nob));
+	enable_di = m0_is_read_fop(fom->fo_fop) ?
+			    (curr_cksum_nob == rw_replyfop->rwr_di_data_cksum.b_nob) :
+			    true;
+	if(!enable_di && rwfop->crw_cksum_size) {
+		M0_LOG(M0_ALWAYS,"Disabling DI for Ext0: %"PRIi64" Count0: %"PRIi64
+											" Vnr: %"PRIi32" CountEnd: %"PRIi64,
+				   fom_obj->fcrw_io.si_stob.iv_index[0],
+				   fom_obj->fcrw_io.si_stob.iv_vec.v_count[0],
+				   fom_obj->fcrw_io.si_stob.iv_vec.v_nr,
+				   fom_obj->fcrw_io.si_stob.iv_vec.v_count[fom_obj->fcrw_io.si_stob.iv_vec.v_nr-1]);
+		rwfop->crw_cksum_size = 0;
+		if( rw_replyfop->rwr_di_data_cksum.b_addr )
+			m0_buf_free(&rw_replyfop->rwr_di_data_cksum);
+		rw_replyfop->rwr_di_data_cksum.b_nob  = 0;
+		rw_replyfop->rwr_di_data_cksum.b_addr = NULL;
+	}
 
 	if (rc != 0 && i > 0) {
 		while (--i >= 0) {

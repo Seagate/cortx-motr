@@ -544,6 +544,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 		.iv_index = bstart
 	};
 	int rc = 0;
+	bool compute_cksum;
 
 	M0_PRE(m0_ext_is_in(chunk, ext->e_start));
 	M0_INVARIANT_EX(be_emap_invariant(it));
@@ -586,7 +587,8 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 		val_orig  = seg->ee_val;
 		cksum[1] = it->ec_app_cksum_buf;
 
-		if (seg->ee_cksum_buf.b_nob)
+		compute_cksum = seg->ee_cksum_buf.b_nob && it->ec_app_cksum_buf.b_nob;
+		if( compute_cksum ) 
 		{
 			// Compute checksum unit size for given segment
 			chunk_cs_count = m0_extent_get_num_unit_start(chunk->e_start,
@@ -601,7 +603,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 			if (cut_left)
 				cut_left(seg, &clip, val_orig);
 			bstart[0] = seg->ee_val;
-			if (seg->ee_cksum_buf.b_nob) {
+			if (compute_cksum) {
 				cksum[0].b_nob = m0_extent_get_checksum_nob(chunk->e_start,
 				                                            length[0],
 									    it->ec_unit_size,
@@ -613,7 +615,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 			if (cut_right)
 				cut_right(seg, &clip, val_orig);
 			bstart[2] = seg->ee_val;
-			if (seg->ee_cksum_buf.b_nob) {
+			if (compute_cksum) {
 				cksum[2].b_nob  = m0_extent_get_checksum_nob(clip.e_end, length[2],
 				                                             it->ec_unit_size,
 									     cksum_unit_size);

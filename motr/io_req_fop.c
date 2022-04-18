@@ -262,8 +262,14 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		if ( rw_reply->rwr_di_data_cksum.b_addr ) 
 				rc = application_checksum_process(ioo, tioreq, 
 							irfop, &rw_reply->rwr_di_data_cksum);
-		else if( m0__obj_is_di_enabled(ioo) && (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_READ) )
-			M0_ASSERT(0);
+		else if( m0__obj_is_di_enabled(ioo) && (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_READ) ) {
+			M0_LOG(M0_ALWAYS,"No DI data received Ext0: %"PRIi64" Count0: %"PRIi64
+											" Vnr: %"PRIi32" CountEnd: %"PRIi64,
+				   ioo->ioo_ext.iv_index[0],
+				   ioo->ioo_ext.iv_vec.v_count[0],
+				   ioo->ioo_ext.iv_vec.v_nr,
+				   ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]);
+		}
 	}
 	
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;
