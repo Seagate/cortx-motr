@@ -123,6 +123,7 @@ void m0_alloc_callsite_init(struct m0_alloc_callsite *cs);
 #define M0_ALLOC_CALLSITE(obj, flags) (NULL)
 #endif
 
+struct m0_alloc_callsite;
 M0_INTERNAL void m0_alloc_callsite_mod(struct m0_alloc_callsite *cs,
 				       int dir, size_t nob);
 M0_INTERNAL void m0_alloc_prof_thread_init(void);
