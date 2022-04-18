@@ -19,11 +19,11 @@
 #
 
 
-. `dirname $0`/common.sh
-. `dirname $0`/m0t1fs_common_inc.sh
-. `dirname $0`/m0t1fs_client_inc.sh
-. `dirname $0`/m0t1fs_server_inc.sh
-. `dirname $0`/m0t1fs_sns_common_inc.sh
+. `dirname "$0"`/common.sh
+. `dirname "$0"`/m0t1fs_common_inc.sh
+. `dirname "$0"`/m0t1fs_client_inc.sh
+. `dirname "$0"`/m0t1fs_server_inc.sh
+. `dirname "$0"`/m0t1fs_sns_common_inc.sh
 
 ###################################################
 # SNS repair is only supported in COPYTOOL mode,
@@ -90,8 +90,8 @@ verify()
 {
 	echo "verifying ..."
 	for ((i=0; i < ${#files[*]}; i++)) ; do
-		local_read $((${unit_size[$i]} * 1024)) ${file_size[$i]} || return $?
-		read_and_verify ${files[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]} || return $?
+		local_read $((${unit_size[$i]} * 1024)) "${file_size[$i]}" || return $?
+		read_and_verify "${files[$i]}" $((${unit_size[$i]} * 1024)) "${file_size[$i]}" || return $?
 	done
 
 	echo "file verification sucess"
@@ -107,8 +107,8 @@ sns_repair_test()
 
 	echo "Starting SNS repair testing ..."
 	for ((i=0; i < ${#files[*]}; i++)) ; do
-		touch_file $MOTR_M0T1FS_MOUNT_DIR/${files[$i]} ${unit_size[$i]}
-		_dd ${files[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]}
+		touch_file "$MOTR_M0T1FS_MOUNT_DIR"/"${files[$i]}" "${unit_size[$i]}"
+		_dd "${files[$i]}" $((${unit_size[$i]} * 1024)) "${file_size[$i]}"
 	done
 
 	verify || return $?
@@ -177,7 +177,7 @@ main()
 
 	NODE_UUID=`uuidgen`
 	local multiple_pools=0
-	motr_service start $multiple_pools $stride $N $K $S $P || {
+	motr_service start $multiple_pools "$stride" "$N" "$K" "$S" "$P" || {
 		echo "Failed to start Motr Service."
 		return 1
 	}
@@ -190,7 +190,7 @@ main()
 	fi
 
 	echo "unmounting and cleaning.."
-	unmount_and_clean &>> $MOTR_TEST_LOGFILE
+	unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
 
 	motr_service stop || {
 		echo "Failed to stop Motr Service."

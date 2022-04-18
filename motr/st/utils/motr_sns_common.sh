@@ -25,14 +25,14 @@ motr_st_util_dir=$( cd "$(dirname "$0")" ; pwd -P )
 m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
 # Re-use as many m0t1fs system scripts as possible
-. $m0t1fs_dir/common.sh
-. $m0t1fs_dir/m0t1fs_common_inc.sh
-. $m0t1fs_dir/m0t1fs_client_inc.sh
-. $m0t1fs_dir/m0t1fs_server_inc.sh
-. $m0t1fs_dir/m0t1fs_sns_common_inc.sh
+. "$m0t1fs_dir"/common.sh
+. "$m0t1fs_dir"/m0t1fs_common_inc.sh
+. "$m0t1fs_dir"/m0t1fs_client_inc.sh
+. "$m0t1fs_dir"/m0t1fs_server_inc.sh
+. "$m0t1fs_dir"/m0t1fs_sns_common_inc.sh
 
-. $motr_st_util_dir/motr_local_conf.sh
-. $motr_st_util_dir/motr_st_inc.sh
+. "$motr_st_util_dir"/motr_local_conf.sh
+. "$motr_st_util_dir"/motr_st_inc.sh
 
 BLOCKSIZE=""
 BLOCKCOUNT=""
@@ -67,14 +67,14 @@ motr_sns_repreb()
 	dest_file="$MOTR_TEST_DIR/motr_dest"
 	rc=0
 
-	dd if=/dev/urandom bs=4K count=100 of=$src_file 2> $MOTR_TEST_LOGFILE || {
+	dd if=/dev/urandom bs=4K count=100 of="$src_file" 2> "$MOTR_TEST_LOGFILE" || {
 		echo "Failed to create a source file"
 		motr_service_stop
 		return 1
 	}
-	mkdir $MOTR_TRACE_DIR
+	mkdir "$MOTR_TRACE_DIR"
 
-	motr_service_start $N $K $S $P $stride
+	motr_service_start "$N" "$K" "$S" "$P" "$stride"
 	#Initialise dix
 	dix_init
 
@@ -82,7 +82,7 @@ motr_sns_repreb()
 	BLOCKCOUNT="100"
 
 	# write an object
-	io_conduct "WRITE" $src_file $OBJ_ID1 $parity_verify
+	io_conduct "WRITE" "$src_file" $OBJ_ID1 $parity_verify
 	if [ $rc -ne "0" ]
 	then
 		echo "Healthy mode, write failed."
@@ -90,14 +90,14 @@ motr_sns_repreb()
 	fi
 
 	# read the written object
-	io_conduct "READ" $OBJ_ID1 $dest_file $parity_verify
+	io_conduct "READ" $OBJ_ID1 "$dest_file" $parity_verify
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Healthy mode, read failed."
 		error_handling $rc
 	fi
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -116,22 +116,22 @@ motr_sns_repreb()
 	}
 
 	# Test degraded read
-	rm -f $dest_file
-	io_conduct "READ" $OBJ_ID1 $dest_file $parity_verify
+	rm -f "$dest_file"
+	io_conduct "READ" $OBJ_ID1 "$dest_file" $parity_verify
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Degraded read failed."
 		error_handling $rc
 	fi
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Obj read in degraded mode differs."
 		error_handling $rc
 	fi
-	rm -f $dest_file
+	rm -f "$dest_file"
 
 	motr_st_disk_state_set "repair" $fail_device1 $fail_device2 || {
 		echo "Operation to mark device repair failed."
@@ -144,7 +144,7 @@ motr_sns_repreb()
 	}
 
 	echo "Start concurrent io during sns repair"
-	io_conduct "READ" $OBJ_ID1  $dest_file $parity_verify
+	io_conduct "READ" $OBJ_ID1  "$dest_file" $parity_verify
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -174,15 +174,15 @@ motr_sns_repreb()
 
 	echo "Read after sns repair"
 
-	rm -f $dest_file
-	io_conduct "READ" $OBJ_ID1 $dest_file $parity_verify
+	rm -f "$dest_file"
+	io_conduct "READ" $OBJ_ID1 "$dest_file" $parity_verify
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "read failure after sns repair."
 		error_handling $rc
 	fi
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -190,7 +190,7 @@ motr_sns_repreb()
 		error_handling $rc
 	fi
 	echo "Motr: Read after repair successfull."
-	rm -f $dest_file
+	rm -f "$dest_file"
 
 	echo "Starting SNS Re-balance for device $fail_device1 $fail_device2"
 	motr_st_disk_state_set "rebalance" $fail_device1 $fail_device2 || {
@@ -221,27 +221,27 @@ motr_sns_repreb()
 	}
 	echo "SNS Rebalance done."
 
-	rm -f $dest_file
-	io_conduct "READ" $OBJ_ID1 $dest_file $parity_verify
+	rm -f "$dest_file"
+	io_conduct "READ" $OBJ_ID1 "$dest_file" $parity_verify
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "read failure after sns rebalance."
 		error_handling $rc
 	fi
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Obj read after sns rebalance differs."
 		error_handling $rc
 	fi
-	rm -f $dest_file
+	rm -f "$dest_file"
 
 	motr_inst_cnt=`expr $cnt - 1`
-	for i in `seq 1 $motr_inst_cnt`
+	for i in `seq 1 "$motr_inst_cnt"`
 	do
-		echo "motr pids=${motr_pids[$i]}" >> $MOTR_TEST_LOGFILE
+		echo "motr pids=${motr_pids[$i]}" >> "$MOTR_TEST_LOGFILE"
 	done
 
 	motr_service_stop || rc=1

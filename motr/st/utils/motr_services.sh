@@ -22,12 +22,12 @@
 # main entry
 #set -x
 
-MOTR_ST_UTIL_DIR=`dirname $0`
+MOTR_ST_UTIL_DIR=`dirname "$0"`
 
-if [ ${0:0:1} = "/" ]; then
-	MOTR_ST_UTIL_DIR=`dirname $0`
+if [ "${0:0:1}" = "/" ]; then
+	MOTR_ST_UTIL_DIR=`dirname "$0"`
 else
-	MOTR_ST_UTIL_DIR=$PWD/`dirname $0`
+	MOTR_ST_UTIL_DIR=$PWD/`dirname "$0"`
 fi
 MOTR_DIR=${MOTR_ST_UTIL_DIR%/motr*}
 echo " MOTR_DIR =$MOTR_DIR"
@@ -35,10 +35,10 @@ echo " MOTR_DIR =$MOTR_DIR"
 M0T1FS_ST_DIR=$MOTR_DIR/m0t1fs/linux_kernel/st
 echo "$M0T1FS_ST_DIR"
 
-. $M0T1FS_ST_DIR/common.sh
-. $M0T1FS_ST_DIR/m0t1fs_common_inc.sh
-. $M0T1FS_ST_DIR/m0t1fs_client_inc.sh
-. $M0T1FS_ST_DIR/m0t1fs_server_inc.sh
+. "$M0T1FS_ST_DIR"/common.sh
+. "$M0T1FS_ST_DIR"/m0t1fs_common_inc.sh
+. "$M0T1FS_ST_DIR"/m0t1fs_client_inc.sh
+. "$M0T1FS_ST_DIR"/m0t1fs_server_inc.sh
 
 
 # start | stop service

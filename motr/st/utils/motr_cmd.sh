@@ -23,12 +23,12 @@
 
 # Get the location of this script and look for the command in the
 # same directory
-dir=`dirname $0`
+dir=`dirname "$0"`
 
-M0_SRC_DIR=$(dirname $(readlink -f $0))
+M0_SRC_DIR=$(dirname "$(readlink -f "$0")")
 M0_SRC_DIR="$M0_SRC_DIR/../../../"
 
-. $M0_SRC_DIR/utils/functions # m0_default_xprt
+. "$M0_SRC_DIR"/utils/functions # m0_default_xprt
 
 XPRT=$(m0_default_xprt)
 
@@ -86,7 +86,7 @@ cmd="$cmd_exec $cmd_args"
 # Run it
 echo "# $cmd" >/dev/tty
 
-eval $cmd || {
+eval "$cmd" || {
 	echo "Failed to run command $1"
 }
 

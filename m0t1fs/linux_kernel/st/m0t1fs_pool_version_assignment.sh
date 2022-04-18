@@ -19,10 +19,10 @@
 #
 
 
-. `dirname $0`/common.sh
-. `dirname $0`/m0t1fs_common_inc.sh
-. `dirname $0`/m0t1fs_client_inc.sh
-. `dirname $0`/m0t1fs_server_inc.sh
+. `dirname "$0"`/common.sh
+. `dirname "$0"`/m0t1fs_common_inc.sh
+. `dirname "$0"`/m0t1fs_client_inc.sh
+. `dirname "$0"`/m0t1fs_server_inc.sh
 
 multiple_pools=1
 
@@ -35,10 +35,10 @@ start_stop_m0d()
 	then
 		# Stop m0d
 		echo -n "Stopping m0d on controller ep $IOS_PVER2_EP "
-		m0d_pid=`pgrep -fn m0d.+$IOS_PVER2_EP`
-		kill -TERM $m0d_pid >/dev/null 2>&1
+		m0d_pid=`pgrep -fn m0d.+"$IOS_PVER2_EP"`
+		kill -TERM "$m0d_pid" >/dev/null 2>&1
 		# Wait util $m0d_pid is terminated
-		while ps -p $m0d_pid -o s= >/dev/null; do
+		while ps -p "$m0d_pid" -o s= >/dev/null; do
 			echo -n "."
 			sleep 1
 		done
@@ -47,7 +47,7 @@ start_stop_m0d()
 		#restart m0d
 		echo "$IOS5_CMD"
 		(eval "$IOS5_CMD") &
-		while ! grep -q CTRL $MOTR_M0T1FS_TEST_DIR/ios5/m0d.log;
+		while ! grep -q CTRL "$MOTR_M0T1FS_TEST_DIR"/ios5/m0d.log;
 		do
 			sleep 2
 		done
@@ -62,12 +62,12 @@ change_device_state()
 	local dev_fid=$1
 	local dev_state=$2
 	local start_stop_m0d_flag=$3
-        local eplist=($4)
+        local eplist=("$4")
         local console_ep=$5
 
-	if [ $start_stop_m0d_flag -eq 1 ]
+	if [ "$start_stop_m0d_flag" -eq 1 ]
 	then
-		start_stop_m0d $dev_state
+		start_stop_m0d "$dev_state"
 	fi
 
 	# Generate HA event
@@ -108,16 +108,16 @@ pool_version_assignment()
         eplist=("${eplist[@]}" "$lnet_nid:${HA_EP}" "$client_endpoint")
         all_eps=("${eplist[@]}" "$lnet_nid:$IOS_PVER2_EP")
 
-	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR "$1"|| {
+	mount_m0t1fs "$MOTR_M0T1FS_MOUNT_DIR" "$1"|| {
 		return 1
 	}
 
-	touch $MOTR_M0T1FS_MOUNT_DIR/$file1 || {
+	touch "$MOTR_M0T1FS_MOUNT_DIR"/$file1 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 
-	pver_actual_0=$(getfattr -n pver $MOTR_M0T1FS_MOUNT_DIR/$file1 | awk -F '=' 'NF > 1 { print $2 }')
+	pver_actual_0=$(getfattr -n pver "$MOTR_M0T1FS_MOUNT_DIR"/$file1 | awk -F '=' 'NF > 1 { print $2 }')
 	echo "pver_actual_0:  $pver_actual_0"
 	if  [ "$pver_actual_0" != '"<7600000000000001:a>"' ]
         then
@@ -126,8 +126,8 @@ pool_version_assignment()
                 return 1
         fi
 
-	setfattr -n lid -v 8 $MOTR_M0T1FS_MOUNT_DIR/$file1
-	dd if=/dev/zero of=$MOTR_M0T1FS_MOUNT_DIR/$file1 bs=1M count=5 || {
+	setfattr -n lid -v 8 "$MOTR_M0T1FS_MOUNT_DIR"/$file1
+	dd if=/dev/zero of="$MOTR_M0T1FS_MOUNT_DIR"/$file1 bs=1M count=5 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
@@ -138,11 +138,11 @@ pool_version_assignment()
 		return 1
 	}
 
-	touch $MOTR_M0T1FS_MOUNT_DIR/$file2 || {
+	touch "$MOTR_M0T1FS_MOUNT_DIR"/$file2 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
-	pver_virtual_0=$(getfattr -n pver $MOTR_M0T1FS_MOUNT_DIR/$file2 | awk -F '=' 'NF > 1 { print $2 }')
+	pver_virtual_0=$(getfattr -n pver "$MOTR_M0T1FS_MOUNT_DIR"/$file2 | awk -F '=' 'NF > 1 { print $2 }')
 	echo "pver_virtual_0:  $pver_virtual_0"
 	if  [ "$pver_virtual_0" == "$pver_actual_0" ]
         then
@@ -154,15 +154,15 @@ pool_version_assignment()
 	echo "############# Check if iafter re-mount new files will get the sane virtual pool version ######"
 	unmount_and_clean $multiple_pools
 
-	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR "$1"|| {
+	mount_m0t1fs "$MOTR_M0T1FS_MOUNT_DIR" "$1"|| {
 		return 1
 	}
-	touch $MOTR_M0T1FS_MOUNT_DIR/$file6 || {
+	touch "$MOTR_M0T1FS_MOUNT_DIR"/$file6 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 
-	pver_6=$(getfattr -n pver $MOTR_M0T1FS_MOUNT_DIR/$file6 | awk -F '=' 'NF > 1 { print $2 }')
+	pver_6=$(getfattr -n pver "$MOTR_M0T1FS_MOUNT_DIR"/$file6 | awk -F '=' 'NF > 1 { print $2 }')
 	echo "pver_6:  $pver_6"
 	echo "pver_virtual_0:  $pver_virtual_0"
 	if  [ "$pver_virtual_0" != "$pver_6" ]
@@ -171,8 +171,8 @@ pool_version_assignment()
                 unmount_and_clean $multiple_pools
 	fi
 
-	setfattr -n lid -v 8 $MOTR_M0T1FS_MOUNT_DIR/$file2
-	dd if=/dev/zero of=$MOTR_M0T1FS_MOUNT_DIR/$file2 bs=1M count=5 || {
+	setfattr -n lid -v 8 "$MOTR_M0T1FS_MOUNT_DIR"/$file2
+	dd if=/dev/zero of="$MOTR_M0T1FS_MOUNT_DIR"/$file2 bs=1M count=5 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
@@ -183,11 +183,11 @@ pool_version_assignment()
 		return 1
 	}
 
-	touch $MOTR_M0T1FS_MOUNT_DIR/$file3 || {
+	touch "$MOTR_M0T1FS_MOUNT_DIR"/$file3 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
-	pver_virtual_1=$(getfattr -n pver $MOTR_M0T1FS_MOUNT_DIR/$file3 | awk -F '=' 'NF > 1 { print $2 }')
+	pver_virtual_1=$(getfattr -n pver "$MOTR_M0T1FS_MOUNT_DIR"/$file3 | awk -F '=' 'NF > 1 { print $2 }')
 	echo "pver_virtual_1:  $pver_virtual_1"
 	if  [ "$pver_virtual_1" == "$pver_virtual_0" ]
         then
@@ -196,8 +196,8 @@ pool_version_assignment()
                 return 1
         fi
 
-	setfattr -n lid -v 8 $MOTR_M0T1FS_MOUNT_DIR/$file3
-	dd if=/dev/zero of=$MOTR_M0T1FS_MOUNT_DIR/$file3 bs=1M count=5 || {
+	setfattr -n lid -v 8 "$MOTR_M0T1FS_MOUNT_DIR"/$file3
+	dd if=/dev/zero of="$MOTR_M0T1FS_MOUNT_DIR"/$file3 bs=1M count=5 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
@@ -208,11 +208,11 @@ pool_version_assignment()
 		return 1
 	}
 
-	touch $MOTR_M0T1FS_MOUNT_DIR/$file4 || {
+	touch "$MOTR_M0T1FS_MOUNT_DIR"/$file4 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
-	pver_actual_1=$(getfattr -n pver $MOTR_M0T1FS_MOUNT_DIR/$file4| awk -F '=' 'NF > 1 { print $2 }')
+	pver_actual_1=$(getfattr -n pver "$MOTR_M0T1FS_MOUNT_DIR"/$file4| awk -F '=' 'NF > 1 { print $2 }')
 	echo "pver_actual_1:  $pver_actual_1"
 	if  [ "$pver_actual_1" == "$pver_virtual_1" ]
         then
@@ -221,8 +221,8 @@ pool_version_assignment()
                 return 1
 	fi
 
-	setfattr -n lid -v 8 $MOTR_M0T1FS_MOUNT_DIR/$file4
-	dd if=/dev/zero of=$MOTR_M0T1FS_MOUNT_DIR/$file4 bs=1M count=5 || {
+	setfattr -n lid -v 8 "$MOTR_M0T1FS_MOUNT_DIR"/$file4
+	dd if=/dev/zero of="$MOTR_M0T1FS_MOUNT_DIR"/$file4 bs=1M count=5 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
@@ -233,15 +233,15 @@ pool_version_assignment()
 		return 1
 	}
 
-	touch $MOTR_M0T1FS_MOUNT_DIR/$file5 && {
+	touch "$MOTR_M0T1FS_MOUNT_DIR"/$file5 && {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 
 	#### Save files using virtual pool version to local fs to compare after re-mount
-	pver=$(getfattr -n pver $MOTR_M0T1FS_MOUNT_DIR/$file3| awk -F '=' 'NF > 1 { print $2 }')
+	pver=$(getfattr -n pver "$MOTR_M0T1FS_MOUNT_DIR"/$file3| awk -F '=' 'NF > 1 { print $2 }')
 	echo "pver:  $pver"
-        dd if=$MOTR_M0T1FS_MOUNT_DIR/$file3 of=/tmp/$file3 bs=1M count=5 || {
+        dd if="$MOTR_M0T1FS_MOUNT_DIR"/$file3 of=/tmp/$file3 bs=1M count=5 || {
                 unmount_and_clean $multiple_pools
                 return 1
         }
@@ -300,12 +300,12 @@ pool_version_assignment()
 	echo "############# Check if files using virtual pool versions can be readable after re-mount ######"
 	unmount_and_clean $multiple_pools
 
-	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR "$1"|| {
+	mount_m0t1fs "$MOTR_M0T1FS_MOUNT_DIR" "$1"|| {
 		return 1
 	}
 
 	# Check if restored virtual pool versions reads correct files data.
-        diff $MOTR_M0T1FS_MOUNT_DIR/$file3 /tmp/$file3 || {
+        diff "$MOTR_M0T1FS_MOUNT_DIR"/$file3 /tmp/$file3 || {
                 unmount_and_clean
                 return 1
         }
@@ -365,46 +365,46 @@ pool_version_assignment()
 	sleep 5 # XXX finish asynchronous reconnect
 
 
-	rm -vf $MOTR_M0T1FS_MOUNT_DIR/$file4 || {
+	rm -vf "$MOTR_M0T1FS_MOUNT_DIR"/$file4 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 
-	touch $MOTR_M0T1FS_MOUNT_DIR/$file4 || {
+	touch "$MOTR_M0T1FS_MOUNT_DIR"/$file4 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 	# Try to write on file after reconnect.
-	setfattr -n lid -v 8 $MOTR_M0T1FS_MOUNT_DIR/$file4
-	dd if=/dev/zero of=$MOTR_M0T1FS_MOUNT_DIR/$file4 bs=1M count=5 || {
+	setfattr -n lid -v 8 "$MOTR_M0T1FS_MOUNT_DIR"/$file4
+	dd if=/dev/zero of="$MOTR_M0T1FS_MOUNT_DIR"/$file4 bs=1M count=5 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 
-	rm -vf $MOTR_M0T1FS_MOUNT_DIR/$file3 || {
+	rm -vf "$MOTR_M0T1FS_MOUNT_DIR"/$file3 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 
-	rm -vf $MOTR_M0T1FS_MOUNT_DIR/$file2 || {
+	rm -vf "$MOTR_M0T1FS_MOUNT_DIR"/$file2 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 
-	rm -vf $MOTR_M0T1FS_MOUNT_DIR/$file1 || {
+	rm -vf "$MOTR_M0T1FS_MOUNT_DIR"/$file1 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 	echo "############## Finish test service reconnect #####################"
 
-	touch $MOTR_M0T1FS_MOUNT_DIR/$file5 || {
+	touch "$MOTR_M0T1FS_MOUNT_DIR"/$file5 || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 
         echo "Make io on $MOTR_M0T1FS_MOUNT_DIR/$file5"
-        setfattr -n lid -v 8 $MOTR_M0T1FS_MOUNT_DIR/$file5
-        dd if=/dev/zero of=$MOTR_M0T1FS_MOUNT_DIR/$file5 bs=1M count=5 || {
+        setfattr -n lid -v 8 "$MOTR_M0T1FS_MOUNT_DIR"/$file5
+        dd if=/dev/zero of="$MOTR_M0T1FS_MOUNT_DIR"/$file5 bs=1M count=5 || {
                 unmount_and_clean $multiple_pools
                 return 1
         }
@@ -415,7 +415,7 @@ pool_version_assignment()
                 return 1
         }
 
-        dd if=$MOTR_M0T1FS_MOUNT_DIR/$file5 of=$MOTR_M0T1FS_TEST_DIR/file5_copy bs=1M count=5 || {
+        dd if="$MOTR_M0T1FS_MOUNT_DIR"/$file5 of="$MOTR_M0T1FS_TEST_DIR"/file5_copy bs=1M count=5 || {
                 umount_and_clean
                 return 1
         }
@@ -445,18 +445,18 @@ pool_version_assignment()
         }
 
         echo "dgmode read: Read file created on previous pool version"
-        diff $MOTR_M0T1FS_MOUNT_DIR/$file5 $MOTR_M0T1FS_TEST_DIR/file5_copy || {
+        diff "$MOTR_M0T1FS_MOUNT_DIR"/$file5 "$MOTR_M0T1FS_TEST_DIR"/file5_copy || {
                 unmount_and_clean
                 return 1
         }
 
         echo "dgmode write: Remove file created on previous pool version"
-        rm -vf $MOTR_M0T1FS_MOUNT_DIR/$file5 || {
+        rm -vf "$MOTR_M0T1FS_MOUNT_DIR"/$file5 || {
                 unmount_and_clean
                 return 1
         }
 
-        rm -vf $MOTR_M0T1FS_TEST_DIR/file5_copy;
+        rm -vf "$MOTR_M0T1FS_TEST_DIR"/file5_copy;
 
 	unmount_and_clean $multiple_pools
 	return 0
@@ -504,7 +504,7 @@ main()
 	sandbox_init
 
 	set -o pipefail
-	m0t1fs_pool_version_assignment "oostore" 2>&1 | tee -a $MOTR_TEST_LOGFILE
+	m0t1fs_pool_version_assignment "oostore" 2>&1 | tee -a "$MOTR_TEST_LOGFILE"
 	rc=$?
 
 	if [ $rc -eq 0 ]; then

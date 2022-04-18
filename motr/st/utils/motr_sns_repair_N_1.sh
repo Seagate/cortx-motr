@@ -23,7 +23,7 @@
 
 motr_st_util_dir=$( cd "$(dirname "$0")" ; pwd -P )
 
-. $motr_st_util_dir/motr_sns_common.sh
+. "$motr_st_util_dir"/motr_sns_common.sh
 
 N=1
 K=2
@@ -35,7 +35,7 @@ main()
 {
 	motr_sns_repreb $N $K $S $P $stride
 
-	return $rc
+	return "$rc"
 }
 
 echo "SNS Repair/Rebalance N=1 Test ... "

@@ -17,10 +17,10 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-M0_SRC_DIR=$(readlink -f ${BASH_SOURCE[0]})
+M0_SRC_DIR=$(readlink -f "${BASH_SOURCE[0]}")
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
 
-. $M0_SRC_DIR/utils/functions  # m0_local_nid_get
+. "$M0_SRC_DIR"/utils/functions  # m0_local_nid_get
 
 CM_OP_REPAIR=1
 CM_OP_REBALANCE=2
@@ -54,14 +54,14 @@ file_size=(
 )
 
 unit_size=(
-	$stride
-	$stride
-	$stride
+	"$stride"
+	"$stride"
+	"$stride"
 )
 
 sns_repair_mount()
 {
-	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR "oostore,verify" || {
+	mount_m0t1fs "$MOTR_M0T1FS_MOUNT_DIR" "oostore,verify" || {
 		echo "mount failed"
 		return 1
 	}
@@ -72,8 +72,8 @@ sns_repair()
 	local rc=0
 
 	repair_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR -t 0 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
-	echo $repair_trigger
-	eval $repair_trigger
+	echo "$repair_trigger"
+	eval "$repair_trigger"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "SNS Repair failed"
@@ -87,8 +87,8 @@ sns_rebalance()
 	local rc=0
 
         rebalance_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE -t 0 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
-        echo $rebalance_trigger
-	eval $rebalance_trigger
+        echo "$rebalance_trigger"
+	eval "$rebalance_trigger"
 	rc=$?
         if [ $rc != 0 ] ; then
                 echo "SNS Re-balance failed"
@@ -102,8 +102,8 @@ sns_repair_quiesce()
 	local rc=0
 
 	repair_quiesce_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR_QUIESCE -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
-	echo $repair_quiesce_trigger
-	eval $repair_quiesce_trigger
+	echo "$repair_quiesce_trigger"
+	eval "$repair_quiesce_trigger"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "SNS Repair quiesce failed"
@@ -117,8 +117,8 @@ sns_rebalance_quiesce()
 	local rc=0
 
 	rebalance_quiesce_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_QUIESCE -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
-	echo $rebalance_quiesce_trigger
-	eval $rebalance_quiesce_trigger
+	echo "$rebalance_quiesce_trigger"
+	eval "$rebalance_quiesce_trigger"
 	rc=$?
 	if [ $rc != 0 ] ; then
 		echo "SNS Re-balance quiesce failed"
@@ -132,8 +132,8 @@ sns_repair_resume()
 	local rc=0
 
 	repair_resume_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR_RESUME -t 0 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
-	echo $repair_resume_trigger
-	eval $repair_resume_trigger
+	echo "$repair_resume_trigger"
+	eval "$repair_resume_trigger"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "SNS Repair failed"
@@ -147,8 +147,8 @@ sns_rebalance_resume()
 	local rc=0
 
 	repair_resume_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_RESUME -t 0 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
-	echo $repair_resume_trigger
-	eval $repair_resume_trigger
+	echo "$repair_resume_trigger"
+	eval "$repair_resume_trigger"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "SNS Repair failed"
@@ -162,8 +162,8 @@ sns_rebalance_abort()
 	local rc=0
 
 	rebalance_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_ABORT -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
-	echo $rebalance_abort_trigger
-	eval $rebalance_abort_trigger
+	echo "$rebalance_abort_trigger"
+	eval "$rebalance_abort_trigger"
 	rc=$?
 	if [ $rc != 0 ] ; then
 		echo "SNS Re-balance abort failed"
@@ -177,8 +177,8 @@ sns_repair_abort()
 	local rc=0
 
 	repair_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR_ABORT -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
-	echo $repair_abort_trigger
-	eval $repair_abort_trigger
+	echo "$repair_abort_trigger"
+	eval "$repair_abort_trigger"
 	rc=$?
 	echo "SNS abort cmd sent: rc=$rc"
 	if [ $rc != 0 ]; then
@@ -198,8 +198,8 @@ sns_repair_abort_skip_4()
 	done
 
 	repair_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR_ABORT -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps_not_4"
-	echo $repair_abort_trigger
-	eval $repair_abort_trigger
+	echo "$repair_abort_trigger"
+	eval "$repair_abort_trigger"
 	rc=$?
 	echo "SNS abort cmd sent: rc=$rc"
 	if [ $rc != 0 ]; then
@@ -222,8 +222,8 @@ sns_repair_or_rebalance_status_not_4()
 	done
 
 	repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps_not_4"
-	echo $repair_status
-	eval $repair_status
+	echo "$repair_status"
+	eval "$repair_status"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "SNS Repair status query failed"
@@ -241,8 +241,8 @@ sns_repair_or_rebalance_status()
 	[ "$1" == "rebalance" ] && op=$CM_OP_REBALANCE_STATUS
 
 	repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
-	echo $repair_status
-	eval $repair_status
+	echo "$repair_status"
+	eval "$repair_status"
 	rc=$?
 	if [ $rc != 0 ]; then
 		echo "SNS Repair status query failed"
@@ -265,15 +265,15 @@ wait_for_sns_repair_or_rebalance_not_4()
 		sleep 5
 		repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps_not_4"
 
-		echo $repair_status
-		status=`eval $repair_status`
+		echo "$repair_status"
+		status=`eval "$repair_status"`
 		rc=$?
 		if [ $rc != 0 ]; then
 			echo "SNS Repair status query failed"
 			return $rc
 		fi
 
-		echo $status | grep status=2 && continue #sns repair is active, continue waiting
+		echo "$status" | grep status=2 && continue #sns repair is active, continue waiting
 		break;
 	done
 	return 0
@@ -288,19 +288,19 @@ wait_for_sns_repair_or_rebalance()
 	while true ; do
 		sleep 5
 		repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
-		echo $repair_status
-		status=`eval $repair_status`
+		echo "$repair_status"
+		status=`eval "$repair_status"`
 		rc=$?
 		if [ $rc != 0 ]; then
 			echo "SNS Repair status query failed"
 			return $rc
 		fi
 
-		echo $status | grep status=2 && continue #sns repair is active, continue waiting
+		echo "$status" | grep status=2 && continue #sns repair is active, continue waiting
 		break;
 	done
 
-	op=`echo $status | grep status=3`
+	op=`echo "$status" | grep status=3`
 	[[ !  -z  "$op"  ]] && return 1
 
 	return 0
@@ -312,10 +312,10 @@ _dd()
 	local BS=$2
 	local COUNT=$3
 
-	dd if=$MOTR_M0T1FS_TEST_DIR/srcfile bs=$BS count=$COUNT \
-	   of=$MOTR_M0T1FS_MOUNT_DIR/$FILE &>> $MOTR_TEST_LOGFILE || {
+	dd if="$MOTR_M0T1FS_TEST_DIR"/srcfile bs="$BS" count="$COUNT" \
+	   of="$MOTR_M0T1FS_MOUNT_DIR"/"$FILE" &>> "$MOTR_TEST_LOGFILE" || {
 		echo "Failed: dd failed.."
-		unmount_and_clean &>> $MOTR_TEST_LOGFILE
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
 		return 1
 	}
 }
@@ -325,9 +325,9 @@ _rm()
 	local FILE=$1
 
 	echo "rm -f $MOTR_M0T1FS_MOUNT_DIR/$FILE"
-	rm -f $MOTR_M0T1FS_MOUNT_DIR/$FILE &>> $MOTR_TEST_LOGFILE || {
+	rm -f "$MOTR_M0T1FS_MOUNT_DIR"/"$FILE" &>> "$MOTR_TEST_LOGFILE" || {
 		echo "$FILE delete failed"
-		unmount_and_clean &>> $MOTR_TEST_LOGFILE
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
 		return 1
 	}
 }
@@ -337,10 +337,10 @@ local_write()
 	local BS=$1
 	local COUNT=$2
 
-	dd if=/dev/urandom bs=$BS count=$COUNT \
-		of=$MOTR_M0T1FS_TEST_DIR/srcfile &>> $MOTR_TEST_LOGFILE || {
+	dd if=/dev/urandom bs="$BS" count="$COUNT" \
+		of="$MOTR_M0T1FS_TEST_DIR"/srcfile &>> "$MOTR_TEST_LOGFILE" || {
 			echo "local write failed"
-			unmount_and_clean &>> $MOTR_TEST_LOGFILE
+			unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
 			return 1
 	}
 }
@@ -350,10 +350,10 @@ local_read()
 	local BS=$1
 	local COUNT=$2
 
-	dd if=$MOTR_M0T1FS_TEST_DIR/srcfile of=$MOTR_M0T1FS_TEST_DIR/file-$BS-$COUNT \
-		bs=$BS count=$COUNT &>> $MOTR_TEST_LOGFILE || {
+	dd if="$MOTR_M0T1FS_TEST_DIR"/srcfile of="$MOTR_M0T1FS_TEST_DIR"/file-"$BS"-"$COUNT" \
+		bs="$BS" count="$COUNT" &>> "$MOTR_TEST_LOGFILE" || {
                         echo "local read failed"
-                        unmount_and_clean &>> $MOTR_TEST_LOGFILE
+                        unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
                         return 1
         }
 }
@@ -364,19 +364,19 @@ read_and_verify()
 	local BS=$2
 	local COUNT=$3
 
-	dd if=$MOTR_M0T1FS_MOUNT_DIR/$FILE of=$MOTR_M0T1FS_TEST_DIR/$FILE \
-		bs=$BS count=$COUNT &>> $MOTR_TEST_LOGFILE || {
+	dd if="$MOTR_M0T1FS_MOUNT_DIR"/"$FILE" of="$MOTR_M0T1FS_TEST_DIR"/"$FILE" \
+		bs="$BS" count="$COUNT" &>> "$MOTR_TEST_LOGFILE" || {
                         echo "m0t1fs read failed"
-                        unmount_and_clean &>> $MOTR_TEST_LOGFILE
+                        unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
                         return 1
         }
 
-	diff $MOTR_M0T1FS_TEST_DIR/file-$BS-$COUNT $MOTR_M0T1FS_TEST_DIR/$FILE &>> $MOTR_TEST_LOGFILE || {
+	diff "$MOTR_M0T1FS_TEST_DIR"/file-"$BS"-"$COUNT" "$MOTR_M0T1FS_TEST_DIR"/"$FILE" &>> "$MOTR_TEST_LOGFILE" || {
 		echo "files differ"
-		unmount_and_clean &>>$MOTR_TEST_LOGFILE
+		unmount_and_clean &>>"$MOTR_TEST_LOGFILE"
 		return 1
 	}
-	rm -f $FILE
+	rm -f "$FILE"
 }
 
 _md5sum()
@@ -417,11 +417,11 @@ ha_notify_ios4_failure_or_online()
 	local eplist=()
 	local failure_or_online=$1
 
-	[ $MOTR_CLIENT_ONLY -eq 1 ] && client_endpoint=""
+	[ "$MOTR_CLIENT_ONLY" -eq 1 ] && client_endpoint=""
 
 	for (( i=0; i < ${#IOSEP[*]}; i++)) ; do
 		# Don't send message to IOS4 after the process is killed.
-		if [ $failure_or_online != "failed" -o $i -ne 3 ]
+		if [ "$failure_or_online" != "failed" -o "$i" -ne 3 ]
 		then
 			eplist[$i]="$lnet_nid:${IOSEP[$i]}"
 		fi
@@ -440,16 +440,16 @@ ha_notify_ios4_failure_or_online()
 kill_ios4_ioservice()
 {
 	echo "finding ios4 ..."
-	echo pgrep -fn ${prog_exec}.+${IOSEP[3]}
-	ios4_pid=`pgrep -fn ${prog_exec}.+${IOSEP[3]}`
-	echo === pid of ios4: $ios4_pid ===
-	kill -KILL $ios4_pid >/dev/null 2>&1
+	echo pgrep -fn "${prog_exec}".+"${IOSEP[3]}"
+	ios4_pid=`pgrep -fn "${prog_exec}".+"${IOSEP[3]}"`
+	echo === pid of ios4: "$ios4_pid" ===
+	kill -KILL "$ios4_pid" >/dev/null 2>&1
 	echo "finding ios4 again..."
-	ps ax | grep ${prog_exec} | grep ${IOSEP[3]}
+	ps ax | grep "${prog_exec}" | grep "${IOSEP[3]}"
 }
 
 start_ios4_ioservice()
 {
-	echo === cmd of starting ios4: $IOS4_CMD ===
-	(eval $IOS4_CMD) &
+	echo === cmd of starting ios4: "$IOS4_CMD" ===
+	(eval "$IOS4_CMD") &
 }

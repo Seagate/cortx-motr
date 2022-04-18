@@ -2,18 +2,18 @@
 
 #set -ex
 
-motr_st_util_dir=$(dirname $(readlink -f $0))
+motr_st_util_dir=$(dirname $(readlink -f "$0"))
 m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
 M0_SRC_DIR="$motr_st_util_dir/../../../"
-. $M0_SRC_DIR/utils/functions # m0_default_xprt
+. "$M0_SRC_DIR"/utils/functions # m0_default_xprt
 
-. $m0t1fs_dir/common.sh
-. $m0t1fs_dir/m0t1fs_common_inc.sh
-. $m0t1fs_dir/m0t1fs_client_inc.sh
-. $m0t1fs_dir/m0t1fs_server_inc.sh
-. $motr_st_util_dir/motr_local_conf.sh
-. $motr_st_util_dir/motr_st_inc.sh
+. "$m0t1fs_dir"/common.sh
+. "$m0t1fs_dir"/m0t1fs_common_inc.sh
+. "$m0t1fs_dir"/m0t1fs_client_inc.sh
+. "$m0t1fs_dir"/m0t1fs_server_inc.sh
+. "$motr_st_util_dir"/motr_local_conf.sh
+. "$motr_st_util_dir"/motr_st_inc.sh
 
 proc_state_change()
 {
@@ -44,4 +44,4 @@ then
     exit 1
 fi
 
-proc_state_change $1 $2 $3 > /dev/null
+proc_state_change "$1" "$2" "$3" > /dev/null

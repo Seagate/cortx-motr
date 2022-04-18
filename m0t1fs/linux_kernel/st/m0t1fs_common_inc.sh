@@ -17,10 +17,10 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-M0_SRC_DIR=`readlink -f ${BASH_SOURCE[0]}`
+M0_SRC_DIR=`readlink -f "${BASH_SOURCE[0]}"`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
 
-. $M0_SRC_DIR/utils/functions  # sandbox_init, report_and_exit
+. "$M0_SRC_DIR"/utils/functions  # sandbox_init, report_and_exit
 
 [ -n "$SANDBOX_DIR" ] || SANDBOX_DIR=/var/motr/systest-$$
 ## XXX TODO: Replace `MOTR_M0T1FS_TEST_DIR' with `SANDBOX_DIR' everywhere
@@ -193,12 +193,12 @@ load_kernel_module()
 
 	if [ "$XPRT" = "lnet" ]
 	then
-        	insmod $motr_module_path/$motr_module.ko \
+        	insmod "$motr_module_path"/$motr_module.ko \
         	       trace_immediate_mask=$MOTR_MODULE_TRACE_MASK \
 		       trace_print_context=$MOTR_TRACE_PRINT_CONTEXT \
 		       trace_level=$MOTR_TRACE_LEVEL \
-		       node_uuid=${NODE_UUID:-00000000-0000-0000-0000-000000000000} \
-        	       local_addr=$LADDR \
+		       node_uuid="${NODE_UUID:-00000000-0000-0000-0000-000000000000}" \
+        	       local_addr="$LADDR" \
 		       tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
 		       max_rpc_msg_size=$MAX_RPC_MSG_SIZE
         	if [ $? -ne "0" ]
@@ -223,9 +223,9 @@ unprepare()
 
 	sleep 5 # allow pending IO to complete
 	if mount | grep m0t1fs > /dev/null; then
-		umount $MOTR_M0T1FS_MOUNT_DIR || rc=$?
+		umount "$MOTR_M0T1FS_MOUNT_DIR" || rc=$?
 		sleep 2
-		rm -rf $MOTR_M0T1FS_MOUNT_DIR
+		rm -rf "$MOTR_M0T1FS_MOUNT_DIR"
 	fi
 
 	if lsmod | grep m0tr; then
@@ -237,7 +237,7 @@ unprepare()
 
 export PROF_OPT='0x7000000000000001:0'
 
-. `dirname ${BASH_SOURCE[0]}`/common_service_fids_inc.sh
+. `dirname "${BASH_SOURCE[0]}"`/common_service_fids_inc.sh
 
 # On cent OS 7 loop device is created during losetup, so no need to call
 # create_loop_device().
@@ -245,9 +245,9 @@ create_loop_device ()
 {
 	local dev_id=$1
 
-	mknod -m660 /dev/loop$dev_id b 7 $dev_id
-	chown root.disk /dev/loop$dev_id
-	chmod 666 /dev/loop$dev_id
+	mknod -m660 /dev/loop"$dev_id" b 7 "$dev_id"
+	chown root.disk /dev/loop"$dev_id"
+	chmod 666 /dev/loop"$dev_id"
 }
 
 # Creates pool version objects for storing distributed indices.
@@ -320,7 +320,7 @@ function dix_pver_build()
 	res=$res", \n$DIX_POOL, \n$DIX_PVER, \n$DIX_SITEV, \n$DIX_RACKV"
 	res=$res", \n$DIX_ENCLV, \n$DIX_CTRLV"
 	total=$(($total + 6))
-	eval $__res_var="'$res'"
+	eval "$__res_var"="'$res'"
 	return $total
 }
 
@@ -377,7 +377,7 @@ function build_conf()
 		done
 	fi
 
-	if [ $multiple_pools -eq "1" ]; then
+	if [ "$multiple_pools" -eq "1" ]; then
 		MD_REDUNDANCY=2
 	fi;
 	# prepare configuration data
@@ -512,7 +512,7 @@ function build_conf()
 		if ((multiple_pools == 1)); then
 			START_DEV_ID=$((START_DEV_ID + 3))
 		fi
-		dix_pver_build $DIX_POOLID $DIX_PVERID $START_DEV_ID \
+		dix_pver_build $DIX_POOLID "$DIX_PVERID" $START_DEV_ID \
 			${#ioservices[*]} $DIX_FID_CON DIX_PVER_OBJS
 		DIX_PVER_OBJ_COUNT=$?
 		PVER_IDS="$PVER_IDS, $DIX_PVERID"
@@ -791,7 +791,7 @@ data:'
 			echo "$xcode" | head -c 100
 			echo
 			echo "Decoded reply:"
-			echo "$xcode" | $M0_SRC_DIR/utils/m0hagen -d
+			echo "$xcode" | "$M0_SRC_DIR"/utils/m0hagen -d
 		fi
 	done
 }
@@ -803,9 +803,9 @@ data:'
 # (iv) local endpoint
 send_ha_events()
 {
-	local fids=($1)
+	local fids=("$1")
 	local state=$2
-	local remote_eps=($3)
+	local remote_eps=("$3")
 	local local_ep=$4
 
 	local yaml='!ha_nvec_set
@@ -843,8 +843,8 @@ send_ha_events_default()
 # (iii) local endpoint
 request_ha_state()
 {
-	local fids=($1)
-	local remote_eps=($2)
+	local fids=("$1")
+	local remote_eps=("$2")
 	local local_ep=$3
 
 	local yaml='!ha_nvec_get
@@ -865,12 +865,12 @@ fids:'
 function run()
 {
 	echo "# $*"
-	eval $*
+	eval "$*"
 }
 
 ha_events_post()
 {
-	local service_eps=($1)
+	local service_eps=("$1")
 		local state=$2
 		local state_num=${ha_states[$state]}
 	if [ -z "$state_num" ]; then

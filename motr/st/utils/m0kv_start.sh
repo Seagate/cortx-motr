@@ -32,7 +32,7 @@ $ sudo m0kv_start.sh [local|remote] [-v] ["(m0kv index commands)"]
 conf=$1
 shift 1
 verbose=0
-if [ $1 == "-v" ] ; then
+if [ "$1" == "-v" ] ; then
 	verbose=1
 	shift
 fi
@@ -41,8 +41,8 @@ all=$*
 function m0kv_cmd_start()
 {
 	# Assembly command
-	local exec="`dirname $0`/../../m0kv/m0kv"
-	if [ ! -f $exec ];then
+	local exec="`dirname "$0"`/../../m0kv/m0kv"
+	if [ ! -f "$exec" ];then
 		echo "Can't find m0kv"
 		return 1
 	fi
@@ -54,7 +54,7 @@ function m0kv_cmd_start()
 		echo "Running m0kv command line tool..."
 		echo "$cmdline" > /dev/tty
 	fi
-	eval $cmdline || {
+	eval "$cmdline" || {
 		err=$?
 		echo "Motr CmdLine utility returned $err!"
 		return $err
@@ -65,10 +65,10 @@ function m0kv_cmd_start()
 
 case "$conf" in
 	local)
-		. `dirname $0`/motr_local_conf.sh
+		. `dirname "$0"`/motr_local_conf.sh
 		;;
 	remote)
-		. `dirname $0`/motr_remote_conf.sh
+		. `dirname "$0"`/motr_remote_conf.sh
 		;;
 	*)
 		usage
