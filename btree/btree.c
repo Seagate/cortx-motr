@@ -7384,9 +7384,8 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			bnode_op_fini(&oi->i_nop);
 			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_SETUP);
 		} else if (rc == -ENOENT) {
-			bnode_op_fini(&oi->i_nop);
-			lock_op_unlock(tree);
-			return fail(bop, rc);
+			lev->l_sibling = NULL;
+			return P_LOCK;
 		}
 
 		bnode_lock(lev->l_sibling);
