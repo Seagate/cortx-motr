@@ -51,7 +51,7 @@ parser.add_argument('-rn', action='store_true', default=False, dest='random',
 parser.add_argument('-e', action='store', default=0, type=int, dest='noOfErr',
                     help='How Many number of error do you want to induce in Metadata')
 parser.add_argument('-rt', action='store', dest='Record_Type',
-                    help='Record Type For inducing error at perticular record like:'
+                    help='Record Type For inducing error at particular record like:'
                          ' BE_BTREE, BE_EMAP, CAS_CTG etc')
 parser.add_argument('-m', action='store', dest='mfile', help='Metadata Path')
 parser.add_argument('-v', action='store_true', default=False, dest='verify',
