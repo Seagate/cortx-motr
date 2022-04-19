@@ -7229,7 +7229,7 @@ static int  btree_sibling_first_key(struct m0_btree_oimpl *oi, struct td *tree)
 			s.s_node = oi->i_nop.no_node = lev->l_node;
 			s.s_idx = lev->l_idx + 1;
 			bnode_unlock(lev->l_node);
-			while (i != oi->i_used) {
+			while (i < oi->i_used) {
 				curr_node = oi->i_nop.no_node;
 				bnode_lock(curr_node);
 				bnode_child(&s, &child);
@@ -7364,7 +7364,8 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 						 P_NEXTDOWN);
 			} else {
 				if ((lev->l_idx == bnode_count(lev->l_node)) &&
-					(bop->bo_flags & BOF_SLANT)) {
+				    (!oi->i_key_found) &&
+				    (bop->bo_flags & BOF_SLANT)) {
 						bnode_unlock(lev->l_node);
 						return P_SIBLING;
 					}
