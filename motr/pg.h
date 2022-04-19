@@ -753,7 +753,7 @@ struct target_cksum_idx_data {
  */
 struct target_cksum_data {
 	// Checksum data structure
-	struct target_cksum_idx_data  *cd_idx; 
+	struct target_cksum_idx_data  *cd_idx;
 	// Number of units added
 	uint32_t                       cd_num_units;
 };
@@ -876,7 +876,7 @@ struct ioreq_fop {
 
 	/** Checksum realted: Unit start index (cd_idx) & count for tracking */
 	uint32_t                     irf_unit_start_idx;
-	uint32_t                     irf_unit_count; 
+	uint32_t                     irf_unit_count;
 
 	/** In-memory handle for IO fop. */
 	struct m0_io_fop             irf_iofop;

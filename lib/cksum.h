@@ -55,88 +55,87 @@
 /* Constants for protection info type, max types supported is 8 */
 enum m0_pi_algo_type
 {
-    M0_PI_TYPE_RESERVED,
-    M0_PI_TYPE_MD5 = 1,         
-    M0_PI_TYPE_MD5_INC_CONTEXT,
-    M0_PI_TYPE_CRC,
-    M0_PI_TYPE_MAX
+        M0_PI_TYPE_RESERVED,
+        M0_PI_TYPE_MD5 = 1,
+        M0_PI_TYPE_MD5_INC_CONTEXT,
+        M0_PI_TYPE_CRC,
+        M0_PI_TYPE_MAX
 };
 
 enum m0_pi_calc_flag {
-    /* NO PI FLAG */
-    M0_PI_NO_FLAG = 0,
-    /* PI calculation for data unit 0 */
-    M0_PI_CALC_UNIT_ZERO = 1 << 0,
-    /* Skip PI final value calculation */
-    M0_PI_SKIP_CALC_FINAL = 1 << 1
+        /* NO PI FLAG */
+        M0_PI_NO_FLAG = 0,
+        /* PI calculation for data unit 0 */
+        M0_PI_CALC_UNIT_ZERO = 1 << 0,
+        /* Skip PI final value calculation */
+        M0_PI_SKIP_CALC_FINAL = 1 << 1
+
 };
 
 M0_BASSERT(M0_PI_TYPE_MAX <= 255);
 
 struct m0_pi_hdr {
-	/* type of protection algorithm being used */
-	uint8_t pih_type : 8;
-	/*size of PI Structure in multiple of  32 bytes*/
-	uint8_t pih_size : 8;
+        /* type of protection algorithm being used */
+        uint8_t pih_type : 8;
+        /*size of PI Structure in multiple of  32 bytes*/
+        uint8_t pih_size : 8;
 };
-
 
 /*********************** MD5 Cksum Structure ***************************************/
 /** Padding size for MD5 structure */
 #define M0_CKSUM_PAD_MD5 (M0_CALC_PAD((sizeof(struct m0_pi_hdr)+MD5_DIGEST_LENGTH), \
-				                       M0_CKSUM_DATA_ROUNDOFF_BYTE))
+			               M0_CKSUM_DATA_ROUNDOFF_BYTE))
 
 /** MD5 checksum structure, the checksum value is in pimd5_value */
 struct m0_md5_pi {
-	/* header for protection info */
-	struct m0_pi_hdr pimd5_hdr;
+        /* header for protection info */
+        struct m0_pi_hdr pimd5_hdr;
 #ifndef __KERNEL__
-    /* protection value computed for the current data*/
-    unsigned char    pimd5_value[MD5_DIGEST_LENGTH];
-    /* structure should be 32 byte aligned */
-    char             pimd5_pad[M0_CKSUM_PAD_MD5];
+        /* protection value computed for the current data*/
+        unsigned char    pimd5_value[MD5_DIGEST_LENGTH];
+        /* structure should be 32 byte aligned */
+        char             pimd5_pad[M0_CKSUM_PAD_MD5];
 #endif
 };
-
 
 /*********************** MD5 Including Context Checksum Structure ******************/
 /** Padding size for MD5 Including Context structure */
 #define M0_CKSUM_PAD_MD5_INC_CXT (M0_CALC_PAD((sizeof(struct m0_pi_hdr)+ \
 				     sizeof(MD5_CTX)+MD5_DIGEST_LENGTH), M0_CKSUM_DATA_ROUNDOFF_BYTE))
-				                       
-/** MD5 checksum structure: 
- *  - The computed checksum value will be in pimd5c_value. 
+
+/** MD5 checksum structure:
+ *  - The computed checksum value will be in pimd5c_value.
  *  - Input context from previous MD5 computation in pimd5c_prev_context
  */
 struct m0_md5_inc_context_pi {
-    /* header for protection info */
-    struct m0_pi_hdr pimd5c_hdr;
+        /* header for protection info */
+        struct m0_pi_hdr pimd5c_hdr;
 #ifndef __KERNEL__
-    /*context of previous data unit, required for checksum computation */
-    unsigned char    pimd5c_prev_context[sizeof(MD5_CTX)];
-    /* protection value computed for the current data unit.
-     * If seed is not provided then this checksum is
-     * calculated without seed.
-     */
-    unsigned char    pimd5c_value[MD5_DIGEST_LENGTH];
-    /* structure should be 32 byte aligned */
-    char             pi_md5c_pad[M0_CKSUM_PAD_MD5_INC_CXT];
+        /*context of previous data unit, required for checksum computation */
+        unsigned char    pimd5c_prev_context[sizeof(MD5_CTX)];
+        /* protection value computed for the current data unit.
+         * If seed is not provided then this checksum is
+         * calculated without seed.
+         */
+        unsigned char    pimd5c_value[MD5_DIGEST_LENGTH];
+        /* structure should be 32 byte aligned */
+        char             pi_md5c_pad[M0_CKSUM_PAD_MD5_INC_CXT];
 #endif
 };
 
 /*********************** Generic Protection Info Structure *****************/
 struct m0_generic_pi {
-    /* header for protection info */
-    struct m0_pi_hdr pi_hdr;
-    /*pointer to access specific pi structure fields*/
-    void            *pi_t_pi;
+        /* header for protection info */
+        struct m0_pi_hdr pi_hdr;
+        /*pointer to access specific pi structure fields*/
+        void            *pi_t_pi;
 };
 
 /* seed values for calculating checksum */
 struct m0_pi_seed {
-    struct m0_fid pis_obj_id;
-    /* offset within motr object */
-    m0_bindex_t   pis_data_unit_offset;
+        struct m0_fid pis_obj_id;
+        /* offset within motr object */
+        m0_bindex_t   pis_data_unit_offset;
 };
 
 /**
@@ -180,11 +179,11 @@ M0_INTERNAL uint64_t m0_cksum_get_max_size(void);
  */
 
 int m0_client_calculate_pi(struct m0_generic_pi *pi,
-		                   struct m0_pi_seed *seed,
-			               struct m0_bufvec *bvec,
-			               enum m0_pi_calc_flag flag,
-			               unsigned char *curr_context,
-			               unsigned char *pi_value_without_seed);
+                struct m0_pi_seed *seed,
+                struct m0_bufvec *bvec,
+                enum m0_pi_calc_flag flag,
+                unsigned char *curr_context,
+                unsigned char *pi_value_without_seed);
 
 
 /**

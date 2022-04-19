@@ -588,7 +588,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 		cksum[1] = it->ec_app_cksum_buf;
 
 		compute_cksum = seg->ee_cksum_buf.b_nob && it->ec_app_cksum_buf.b_nob;
-		if( compute_cksum ) 
+		if( compute_cksum )
 		{
 			// Compute checksum unit size for given segment
 			chunk_cs_count = m0_extent_get_num_unit_start(chunk->e_start,

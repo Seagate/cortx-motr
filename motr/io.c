@@ -673,8 +673,8 @@ M0_INTERNAL uint8_t m0__obj_di_cksum_type(struct m0_op_io *ioo)
 
     if(ioo->ioo_obj->ob_entity.en_flags & M0_ENF_GEN_DI)
 		return M0_CKSUM_DEFAULT_PI;
-	else if( (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) && 
-	   	      ioo->ioo_attr.ov_buf ) {
+	else if( (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) &&
+			  ioo->ioo_attr.ov_buf ) {
 		pi = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[0];
 		return pi->pi_hdr.pih_type;
 	}
@@ -685,8 +685,8 @@ M0_INTERNAL uint8_t m0__obj_di_cksum_type(struct m0_op_io *ioo)
 M0_INTERNAL uint32_t m0__obj_di_cksum_size(struct m0_op_io *ioo)
 {
 	if(ioo->ioo_obj->ob_entity.en_flags & M0_ENF_GEN_DI)
-		return m0_cksum_get_size(M0_CKSUM_DEFAULT_PI);	
-	else if( (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) && 
+		return m0_cksum_get_size(M0_CKSUM_DEFAULT_PI);
+	else if( (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) &&
 		      ioo->ioo_attr.ov_buf )
 		return ioo->ioo_attr.ov_vec.v_count[0];
 	else

@@ -393,7 +393,6 @@ void target_ioreq_fini(struct target_ioreq *ti)
 	m0_free0(&ti->ti_bufvec.ov_vec.v_count);
 	m0_free0(&ti->ti_auxbufvec.ov_buf);
 	m0_free0(&ti->ti_auxbufvec.ov_vec.v_count);
-
 	m0_free0(&ti->ti_pageattrs);
 
 	if (ti->ti_dgvec != NULL)
@@ -406,10 +405,10 @@ void target_ioreq_fini(struct target_ioreq *ti)
 		m0_fop_put_lock(&ti->ti_cc_fop.crf_fop);
 	}
 
-    if( m0__obj_is_di_enabled(ioo) ) {		
-		m0_free(ti->ti_cksum_data[M0_PUT_DATA].cd_idx);		
+	if( m0__obj_is_di_enabled(ioo) ) {
+		m0_free(ti->ti_cksum_data[M0_PUT_DATA].cd_idx);
 		m0_free(ti->ti_cksum_data[M0_PUT_PARITY].cd_idx);
-    }
+	}
 
 	m0_free(ti);
 	M0_LEAVE();
@@ -471,7 +470,7 @@ static bool should_unit_be_truncated(bool                      partial,
  * @param map Map of data/parity buffers, used to tie ti to the corresponding
  *            buffers.
  */
-static void target_ioreq_seg_add(struct target_ioreq *ti,
+static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 const struct m0_pdclust_src_addr *src,
 				 const struct m0_pdclust_tgt_addr *tgt,
 				 m0_bindex_t                       gob_offset,
@@ -626,7 +625,7 @@ static void target_ioreq_seg_add(struct target_ioreq *ti,
 				 " with flags 0x%x: ", seg,
 				 INDEX(ivec, seg), COUNT(ivec, seg),
 				 FID_P(&ti->ti_fid), pattr[seg]);
-		
+
 		goff += COUNT(ivec, seg);
 		++ivec->iv_vec.v_nr;
 		pgstart = pgend;
@@ -763,37 +762,37 @@ static void *buf_aux_chk_get(struct m0_bufvec *aux, enum page_attr p_attr,
 
 void print_pi(void *pi,int size)
 {
-       int i;
-       char arr[size * 3];
-       char *ptr = pi;
-       M0_LOG(M0_ALWAYS,">>>>>>>>>>>>>>>>>>[PI Values]<<<<<<<<<<<<<<<<<");
-       for ( i = 0; i < size; i++)
-       {
-               sprintf(&arr[i*3],"%02x ",ptr[i] & 0xff);
-       }
-       M0_LOG(M0_ALWAYS,"%s ",(char *)arr);
+	int i;
+	char arr[size * 3];
+	char *ptr = pi;
+	M0_LOG(M0_ALWAYS,">>>>>>>>>>>>>>>>>>[PI Values]<<<<<<<<<<<<<<<<<");
+	for ( i = 0; i < size; i++)
+	{
+		sprintf(&arr[i*3],"%02x ",ptr[i] & 0xff);
+	}
+	M0_LOG(M0_ALWAYS,"%s ",(char *)arr);
 }
 
 static void print_buf(void *pi,int size)
 {
-       int i;
-       char arr[size * 3];
-       char *ptr = pi;
-       M0_LOG(M0_ALWAYS,"##################[Buf Values]#################");
-       for ( i = 0; i < size; i++)
-       {
-               sprintf(&arr[i*3],"%02x ",ptr[i] & 0xff);
-       }
-       M0_LOG(M0_ALWAYS,"%s ",(char *)arr);
+	int i;
+	char arr[size * 3];
+	char *ptr = pi;
+	M0_LOG(M0_ALWAYS,"##################[Buf Values]#################");
+	for ( i = 0; i < size; i++)
+	{
+		sprintf(&arr[i*3],"%02x ",ptr[i] & 0xff);
+	}
+	M0_LOG(M0_ALWAYS,"%s ",(char *)arr);
 }
 
 /* This function will compute parity checksum in chksm_buf all other
  * parameter is input parameter
  */
-int target_calculate_checksum( struct m0_op_io *ioo, 
+int target_calculate_checksum( struct m0_op_io *ioo,
 							   uint8_t pi_type,
-							   enum page_attr filter, 
-							   struct target_cksum_idx_data *cs_idx, 
+							   enum page_attr filter,
+							   struct target_cksum_idx_data *cs_idx,
 							   void *chksm_buf )
 {
 	struct m0_generic_pi       *pi;
@@ -810,7 +809,7 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 	struct data_buf          ***data;
 
 	M0_ASSERT(cs_idx->ci_pg_idx < ioo->ioo_iomap_nr);
-	
+
 	pi = (struct m0_generic_pi *)chksm_buf;
 	map = ioo->ioo_iomaps[cs_idx->ci_pg_idx];
 	play = pdlayout_get(map->pi_ioo);
@@ -824,14 +823,14 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 
 	// Select data pointer
 	if(filter == PA_PARITY) {
-		data = map->pi_paritybufs;		
+		data = map->pi_paritybufs;
 		M0_ASSERT(cs_idx->ci_unit_idx < layout_k(play));
 	}
 	else {
 		data = map->pi_databufs;
 		M0_ASSERT(cs_idx->ci_unit_idx < layout_n(play));
 	}
-		
+
 
 	rc = m0_bufvec_empty_alloc(&bvec, rows_nr(play, obj));
 	if( rc != 0 )
@@ -846,7 +845,7 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 	for (row = 0; row < rows_nr(play, obj); ++row) {
 		// Column index is already validated
 		M0_ASSERT(row < map->pi_max_row);
-		if(data[row][cs_idx->ci_unit_idx]) {	
+		if(data[row][cs_idx->ci_unit_idx]) {
 			// Assign size and buffer for given parity unit
 			bvec.ov_vec.v_count[b_idx] = data[row][cs_idx->ci_unit_idx]->db_buf.b_nob;
 			bvec.ov_buf[b_idx] = data[row][cs_idx->ci_unit_idx]->db_buf.b_addr;
@@ -854,11 +853,11 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 		}
 	}
 	print_buf(bvec.ov_buf[0],8);
-	
+
 	bvec.ov_vec.v_nr = b_idx;
 
 	M0_LOG(M0_ALWAYS,"Bufsize row0: %d cksum_sz: %d",(int)bvec.ov_vec.v_count[0], (int)m0_cksum_get_size(pi_type));
-	
+
 	rc = m0_client_calculate_pi( pi, &seed, &bvec, flag, context, NULL);
 	m0_bufvec_free2(&bvec);
 	print_pi(chksm_buf, m0_cksum_get_size(pi_type));
@@ -868,7 +867,7 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 static int target_ioreq_prepare_checksum( struct m0_op_io *ioo,
 										  struct target_ioreq *ti,
 										  struct ioreq_fop *irfop,
-                                          struct m0_fop_cob_rw *rw_fop )
+										  struct m0_fop_cob_rw *rw_fop )
 {
 	int                               rc = 0;
 	uint8_t                           cksum_type;
@@ -883,16 +882,16 @@ static int target_ioreq_prepare_checksum( struct m0_op_io *ioo,
 	num_units = irfop->irf_unit_count;
 	if( num_units == 0)
 		return 0;
-	
+
 	// Get checksum size and type
 	cksum_size = m0__obj_di_cksum_size(ioo);
 	cksum_type = m0__obj_di_cksum_type(ioo);
 	M0_ASSERT( cksum_type < M0_PI_TYPE_MAX);
 
 	// Based on data or parity select correct structure
-	cs_data = (irfop->irf_pattr == PA_PARITY) ? 
+	cs_data = (irfop->irf_pattr == PA_PARITY) ?
 					&ti->ti_cksum_data[M0_PUT_PARITY] :
-			   		&ti->ti_cksum_data[M0_PUT_DATA];
+					&ti->ti_cksum_data[M0_PUT_DATA];
 
 	// Note: No need to free this as RPC layer will free this
 	// Allocate cksum buffer for number of units added to target_ioreq ti
@@ -907,16 +906,16 @@ static int target_ioreq_prepare_checksum( struct m0_op_io *ioo,
 
 		if(m0__obj_is_di_cksum_gen_enabled(ioo) || (irfop->irf_pattr == PA_PARITY)) {
 			// Compute checksum for Unit
-			rc = target_calculate_checksum( ioo, cksum_type, irfop->irf_pattr, 
+			rc = target_calculate_checksum( ioo, cksum_type, irfop->irf_pattr,
 					cs_idx_data, rw_fop->crw_di_data_cksum.b_addr + computed_cksm_nob);
 			if(rc != 0) {
-		       m0_buf_free(&rw_fop->crw_di_data_cksum);
-		       return rc;
+				m0_buf_free(&rw_fop->crw_di_data_cksum);
+				return rc;
 			}
-		} 
+		}
 		else {
 			uint32_t unit_off;
-			struct m0_pdclust_layout *play = pdlayout_get(ioo);	
+			struct m0_pdclust_layout *play = pdlayout_get(ioo);
 
 			unit_off = cs_idx_data->ci_pg_idx * layout_n(play) +
 					   cs_idx_data->ci_unit_idx;
@@ -925,8 +924,8 @@ static int target_ioreq_prepare_checksum( struct m0_op_io *ioo,
 					ioo->ioo_attr.ov_buf[unit_off], cksum_size);
 		}
 
-	   computed_cksm_nob += cksum_size;
-	   M0_ASSERT(computed_cksm_nob <= rw_fop->crw_di_data_cksum.b_nob);
+		computed_cksm_nob += cksum_size;
+		M0_ASSERT(computed_cksm_nob <= rw_fop->crw_di_data_cksum.b_nob);
 	}
 
 	return rc;
@@ -957,7 +956,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	uint32_t 					 num_units;
 	uint32_t                     num_fops = 0;
 	uint32_t 					 num_units_iter;
-	struct target_cksum_data    *cs_data; 
+	struct target_cksum_data    *cs_data;
 	enum page_attr               rw;
 	enum page_attr              *pattr;
 	struct m0_bufvec            *bvec;
@@ -1028,8 +1027,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 	ndom_max_segs = m0_net_domain_get_max_buffer_segments(ndom);
 
-
-	cs_data = (filter == PA_PARITY) ? 
+	cs_data = (filter == PA_PARITY) ?
 					&ti->ti_cksum_data[M0_PUT_PARITY] :
 					&ti->ti_cksum_data[M0_PUT_DATA];
 	num_units = cs_data->cd_num_units;
@@ -1061,7 +1059,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			m0_free(irfop);
 			goto err;
 		}
-		
 		// Init number of bytes added to fop and runt size
 		sz_added_to_fop = 0;
 		// Runt is for tracking bytes which are not accounted in unit
@@ -1082,6 +1079,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		}
 		delta += io_seg_size();
 
+
 		/*
 		* Adds io segments and io descriptor only if it fits within
 		* permitted size.
@@ -1091,6 +1089,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		while (seg < SEG_NR(ivec) &&
 		       m0_io_fop_size_get(&iofop->if_fop) + delta < maxsize &&
 		       bbsegs < ndom_max_segs) {
+
 			/*
 			* Adds a page to rpc bulk buffer only if it passes
 			* through the filter.
@@ -1102,7 +1101,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				buf = buf_aux_chk_get(auxbvec, filter, seg,
 						      read_in_write);
 
-				if (buf == NULL) 
+				if (buf == NULL)
 					buf = bvec->ov_buf[seg];
 
 				xfer_len = COUNT(ivec, seg);
@@ -1124,24 +1123,22 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 						bufnext = bvec->ov_buf[segnext];
 
 					if (buf + xfer_len == bufnext) {
-
 						xfer_len += COUNT(ivec, ++seg);
-
 						// Next segment should be as per filter
 						segnext = seg + 1;
-						if( !(pattr[segnext] & filter) || 
+						if( !(pattr[segnext] & filter) ||
 							!(pattr[segnext] & rw) ||
-		     				 (pattr[segnext] & PA_TRUNC) )
-		     				 break;
+							 (pattr[segnext] & PA_TRUNC) )
+							break;
 					} else
 						break;
 				}
 
-				// Get number of units added 
+				// Get number of units added
 				num_units_iter = (xfer_len + runt_sz) / unit_sz;
 				runt_sz = xfer_len % unit_sz;
 				delta += m0__obj_di_cksum_size(ioo) * num_units_iter;
-				
+
 				rc = m0_rpc_bulk_buf_databuf_add(rbuf, buf,
 								 xfer_len,
 								 offset, ndom);
@@ -1181,14 +1178,14 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					 * be added to new bulk buffer.
 					 */
 					continue;
-				} 
+				}
 				else if (rc == 0) {
 					++bbsegs;
 					sz_added_to_fop += xfer_len;
 				}
 			}
 
-			++seg;			
+			++seg;
 		}
 
 		if (m0_io_fop_byte_count(iofop) == 0) {
@@ -1212,37 +1209,37 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		    ioo->ioo_flags & M0_OOF_NOHOLE)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 
-		// Clear FOP checksum data
-		rw_fop->crw_di_data_cksum.b_addr = NULL;
-		rw_fop->crw_di_data_cksum.b_nob = 0;
-		rw_fop->crw_cksum_size = 0;
+			// Clear FOP checksum data
+			rw_fop->crw_di_data_cksum.b_addr = NULL;
+			rw_fop->crw_di_data_cksum.b_nob = 0;
+			rw_fop->crw_cksum_size = 0;
 
-		M0_LOG(M0_ALWAYS, "FopNum = %d FopSz: %d Unit:%d Segment = %d", num_fops, sz_added_to_fop, num_units,seg);
+			M0_LOG(M0_ALWAYS, "FopNum = %d FopSz: %d Unit:%d Segment = %d", num_fops, sz_added_to_fop, num_units,seg);
 
 		// Update FOP param based on number of units added
 		if( num_units ) {
 			// Single FOP
 			if( (num_fops == 1) && (seg == SEG_NR(ivec))) {
 				irfop->irf_unit_start_idx = 0;
-				irfop->irf_unit_count = cs_data->cd_num_units;				
-			}
-			else {
+				irfop->irf_unit_count = cs_data->cd_num_units;
+		}
+		else {
 				irfop->irf_unit_count = sz_added_to_fop / unit_sz;
 				unit_idx += irfop->irf_unit_count;
 				M0_LOG(M0_ALWAYS, "FOP Split UnitStIdx=%d,NumUnits=%d,FopSz=%d",
 					irfop->irf_unit_start_idx,irfop->irf_unit_count,sz_added_to_fop);
-				M0_ASSERT( (sz_added_to_fop % unit_sz) == 0); 
+				M0_ASSERT( (sz_added_to_fop % unit_sz) == 0);
 			}
- 		}
+		}
 
 		/* Assign the checksum buffer for traget */
 		if (m0__obj_is_di_enabled(ioo) && m0_is_write_fop(&iofop->if_fop) && !read_in_write ) {
 			rw_fop->crw_cksum_size = m0__obj_di_cksum_size(ioo);
-			
+
 			// Prepare checksum data for parity as not parity buffer are populated
 			if( target_ioreq_prepare_checksum(ioo, ti, irfop, rw_fop) != 0) {
 				rw_fop->crw_di_data_cksum.b_addr = NULL;
-				rw_fop->crw_di_data_cksum.b_nob = 0;
+				rw_fop->crw_di_data_cksum.b_nob  = 0;
 				rw_fop->crw_cksum_size = 0;
 				goto fini_fop;
 			}
@@ -1251,8 +1248,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		if(m0__obj_is_di_enabled(ioo) && m0_is_read_fop(&iofop->if_fop) && !read_in_write &&
 		   sz_added_to_fop >= unit_sz ) {
 			// Server side expects this to be valid if checksum is to be read.
- 			rw_fop->crw_cksum_size = m0__obj_di_cksum_size(ioo);
-			M0_LOG(M0_ALWAYS,"Read FOP"); 
+			rw_fop->crw_cksum_size = m0__obj_di_cksum_size(ioo);
+			M0_LOG(M0_ALWAYS,"Read FOP");
 		}
 
 		if (ioo->ioo_flags & M0_OOF_SYNC)
@@ -1304,7 +1301,6 @@ err:
 
 	return M0_ERR(rc);
 }
-
 static int target_cob_fop_prepare(struct target_ioreq *ti);
 static const struct target_ioreq_ops tioreq_ops = {
 	.tio_seg_add         = target_ioreq_seg_add,
@@ -1333,11 +1329,11 @@ static int target_ioreq_checksum_data_init(struct m0_op_io *ioo,
 
 		// Get pointer to basic data structure
 		cs_data = &ti->ti_cksum_data[type_idx];
-			
+
 		// In case of k = 0 the buffer will not be allocated
-		ti_pu = ioo->ioo_iomap_nr * 
-				(type_idx == M0_PUT_PARITY ? layout_k(pdlayout_get(ioo)) : 
-				                             layout_n(pdlayout_get(ioo))); 
+		ti_pu = ioo->ioo_iomap_nr *
+				(type_idx == M0_PUT_PARITY ? layout_k(pdlayout_get(ioo)) :
+											 layout_n(pdlayout_get(ioo)));
 		if( ti_pu ) {
 			// Allocate memory for storing data
 			M0_ALLOC_ARR( cs_data->cd_idx, ti_pu );
@@ -1438,7 +1434,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	if (ti->ti_bufvec.ov_buf == NULL)
 		goto fail;
 
-	// Initializing checksum realted data	
+	// Initializing checksum realted data
 	ti->ti_cksum_data[M0_PUT_DATA].cd_num_units = 0;
 	ti->ti_cksum_data[M0_PUT_PARITY].cd_num_units = 0;
 	if( m0__obj_is_di_enabled(ioo) ) {
@@ -1446,7 +1442,6 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 		if (rc != 0)
 			goto fail;
 	}
-
 	/*
 	 * For READOLD method, an extra bufvec is needed to remember
 	 * the addresses of auxillary buffers so those auxillary
@@ -1604,7 +1599,7 @@ static void paritybufs_set_dgw_mode(struct pargrp_iomap *iomap,
 	}
 }
 
-static void target_cksum_update_data(struct target_ioreq *ti, 
+static void target_cksum_update_data(struct target_ioreq *ti,
 							  enum m0_pdclust_unit_type type,
 							  uint32_t pg_idx, uint32_t unit_idx)
 {
@@ -1618,7 +1613,7 @@ static void target_cksum_update_data(struct target_ioreq *ti,
 	cs_idx->ci_pg_idx = pg_idx;
 	cs_idx->ci_unit_idx = unit_idx;
 	cs_data->cd_num_units++;
-	
+
 	M0_LOG(M0_ALWAYS,"DU added count %d: [PG Index : %d][Unit Index : %d]",
 		   cs_data->cd_num_units, pg_idx, unit_idx);
 }
@@ -1739,7 +1734,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 			if(m0__obj_is_di_enabled(ioo) && (unit != last_unit_added)) {
 				target_cksum_update_data( ti, M0_PUT_DATA, i, unit);
 				last_unit_added = unit;
-			}			
+			}
 
 			ti->ti_ops->tio_seg_add(ti, &src, &tgt, r_ext.e_start,
 						m0_ext_length(&r_ext), iomap);
@@ -1780,9 +1775,8 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 				ti->ti_ops->tio_seg_add(ti, &src, &tgt, pgstart,
 							layout_unit_size(play),
 							iomap);
-
 				// Only if DI is enabled execute this code
-				if( m0__obj_is_di_enabled(ioo) ) 
+				if( m0__obj_is_di_enabled(ioo) )
 					target_cksum_update_data( ti, M0_PUT_PARITY, i, unit);
 			}
 

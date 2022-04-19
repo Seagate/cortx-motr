@@ -28,12 +28,12 @@
 
 #define m0_cksum_print(buf, seg, dbuf, msg) \
 do { \
-        struct m0_vec *vec = &(buf)->ov_vec; \
-        char *dst = (char *)(buf)->ov_buf[seg]; \
-        char *data = (char *)(dbuf)->ov_buf[seg]; \
-        M0_LOG(M0_DEBUG, msg " count[%d] = %"PRIu64 \
-                        " cksum = %c%c data = %c%c", \
-                        seg, vec->v_count[seg], dst[0], dst[1], data[0],data[1]); \
+		struct m0_vec *vec = &(buf)->ov_vec; \
+		char *dst = (char *)(buf)->ov_buf[seg]; \
+		char *data = (char *)(dbuf)->ov_buf[seg]; \
+		M0_LOG(M0_DEBUG, msg " count[%d] = %"PRIu64 \
+			   " cksum = %c%c data = %c%c", \
+			   seg, vec->v_count[seg], dst[0], dst[1], data[0],data[1]); \
 }while(0)
 
 /**
@@ -51,9 +51,9 @@ do { \
  *             first data unit and MD5_Init should be invoked.
  */
 M0_INTERNAL int m0_calculate_md5( struct m0_md5_pi *pi,
-    							  struct m0_pi_seed *seed,
-    							  struct m0_bufvec *bvec,
-    							  enum m0_pi_calc_flag flag )
+								  struct m0_pi_seed *seed,
+								  struct m0_bufvec *bvec,
+								  enum m0_pi_calc_flag flag )
 {
 #ifndef __KERNEL__
 	MD5_CTX context;
@@ -129,7 +129,6 @@ M0_INTERNAL int m0_calculate_md5( struct m0_md5_pi *pi,
 #endif
 	return  M0_RC(0);
 }
-
 
 /**
  * Calculate checksum/protection info for data/KV
@@ -262,7 +261,7 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 		rc = MD5_Final(pi->pimd5c_value, &context);
 		if (rc != 1) {
 			return M0_ERR_INFO(rc, "MD5_Final fail v_nr=%d",
-					bvec->ov_vec.v_nr);
+							   bvec->ov_vec.v_nr);
 		}
 	}
 #endif
@@ -281,7 +280,7 @@ M0_INTERNAL uint64_t m0_cksum_get_size(enum m0_pi_algo_type pi_type)
 		return sizeof(struct m0_md5_pi);
 		break;
 	default:
-		break;	
+		break;
 	}
 #endif
 	return 0;
@@ -310,7 +309,6 @@ int m0_client_calculate_pi(struct m0_generic_pi *pi,
 		rc = m0_calculate_md5(md5_pi, seed, bvec, flag);
 		}
 		break;
-
 	case M0_PI_TYPE_MD5_INC_CONTEXT: {
 		struct m0_md5_inc_context_pi *md5_context_pi =
 			(struct m0_md5_inc_context_pi *) pi;

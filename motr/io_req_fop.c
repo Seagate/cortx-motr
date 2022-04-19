@@ -104,9 +104,9 @@ M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop)
 extern void print_pi(void *pi,int size);
 
 static int application_checksum_process( struct m0_op_io *ioo,
-                                         struct target_ioreq *ti,
-                                         struct ioreq_fop *irfop,
-                                         struct m0_buf *rw_rep_cs_data )
+				       struct target_ioreq *ti,
+				       struct ioreq_fop *irfop,
+				       struct m0_buf *rw_rep_cs_data )
 {
 	int                                     rc = 0;
 	uint32_t                                idx;
@@ -138,9 +138,9 @@ static int application_checksum_process( struct m0_op_io *ioo,
 	// Allocate checksum buffer
 	compute_cs_buf = m0_alloc(cksum_size);
 	if( compute_cs_buf == NULL )
-	        return -ENOMEM;
+		return -ENOMEM;
 
-	cs_data = (irfop->irf_pattr == PA_PARITY) ? 
+	cs_data = (irfop->irf_pattr == PA_PARITY) ?
 					&ti->ti_cksum_data[M0_PUT_PARITY] :
 					&ti->ti_cksum_data[M0_PUT_DATA];
 
@@ -149,39 +149,38 @@ static int application_checksum_process( struct m0_op_io *ioo,
 	print_pi(rw_rep_cs_data->b_addr, cksum_size);
 
 	for(idx = 0; idx < num_units; idx++ ) {
-		struct target_cksum_idx_data *cs_idx = 
+		struct target_cksum_idx_data *cs_idx =
 						&cs_data->cd_idx[irfop->irf_unit_start_idx + idx];
-			
+
 		M0_LOG(M0_ALWAYS,"rajat : COMPUTED CS");
 		// Calculate checksum for each unit
-		rc = target_calculate_checksum( ioo, cksum_type, irfop->irf_pattr, cs_idx, 
+		rc = target_calculate_checksum( ioo, cksum_type, irfop->irf_pattr, cs_idx,
 										compute_cs_buf );
 		if( rc != 0 )
 			goto fail;
 
 		// Compare computed and received checksum
 		if ( memcmp( rw_rep_cs_data->b_addr + cs_compared,
-		             compute_cs_buf, cksum_size ) != 0 ) {
-	        // Add error code to the target status
-	        ti->ti_rc = M0_RC(-EIO);
-	        // TODO: Remove debug
-	        M0_ASSERT(0);
+					 compute_cs_buf, cksum_size ) != 0 ) {
+			// Add error code to the target status
+			ti->ti_rc = M0_RC(-EIO);
+			// TODO: Remove debug
+				M0_ASSERT(0);
 		}
-
 		// Copy checksum to application buffer
 		if( !m0__obj_is_di_cksum_gen_enabled(ioo) && (irfop->irf_pattr != PA_PARITY) ) {
 			uint32_t unit_off;
-			struct m0_pdclust_layout *play = pdlayout_get(ioo); 
-			
+			struct m0_pdclust_layout *play = pdlayout_get(ioo);
+
 			unit_off = cs_idx->ci_pg_idx * layout_n(play) +
-					   cs_idx->ci_unit_idx;			
+					   cs_idx->ci_unit_idx;
 			memcpy(ioo->ioo_attr.ov_buf[unit_off],
 				   rw_rep_cs_data->b_addr + cs_compared,
 				   cksum_size);
 		}
-					 
+
 		cs_compared += cksum_size;
-		M0_ASSERT( cs_compared <= rw_rep_cs_data->b_nob );		
+		M0_ASSERT( cs_compared <= rw_rep_cs_data->b_nob );
 	}
 	// All checksum expected from target should be received
 	M0_ASSERT( cs_compared == rw_rep_cs_data->b_nob );
@@ -236,6 +235,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		     (IRS_READING, IRS_WRITING,
 		      IRS_DEGRADED_READING, IRS_DEGRADED_WRITING,
 		      IRS_FAILED)));
+
 	M0_LOG(M0_ALWAYS,"rajat : irf_pattr : %d", irfop->irf_pattr);
 	if(irfop->irf_pattr == PA_PARITY) {
 		M0_LOG(M0_ALWAYS,"rajat : in parity check");
@@ -260,11 +260,11 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	/* Check errors in an IO request's reply. */
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
 	rw_reply = io_rw_rep_get(reply_fop);
-	
+
 	if(m0_is_read_rep(reply_fop)) {
 		M0_LOG(M0_ALWAYS,"rajat rcvd [%s]", irfop->irf_pattr == PA_DATA ? "DATA" : "PARITY");
-		if ( rw_reply->rwr_di_data_cksum.b_addr ) 
-				rc = application_checksum_process(ioo, tioreq, 
+		if ( rw_reply->rwr_di_data_cksum.b_addr )
+				rc = application_checksum_process(ioo, tioreq,
 							irfop, &rw_reply->rwr_di_data_cksum);
 		else if( m0__obj_is_di_enabled(ioo) && (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_READ) ) {
 			M0_LOG(M0_ALWAYS,"No DI data received Ext0: %"PRIi64" Count0: %"PRIi64
@@ -275,7 +275,6 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 				   ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]);
 		}
 	}
-	
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
 			 "sns state = %d", ioo, req_item,
