@@ -192,7 +192,7 @@ def ReadMetadata(offset):
 
 
 def ReadCompleteRecord(offset):
-    """function read complete record starting after header and until footer for record."""
+    """Function read complete record starting after header and until footer for record."""
     curr_record = []
     while 1:
         footerFound, data=ReadMetadata(offset)
@@ -352,7 +352,7 @@ def Induce512kbError():
 
 
 def ConvertAdstob2Cob(stob_f_container, stob_f_key):
-    """Method to extract cob related data"""
+    """Method to extract cob related data."""
     M0_FID_DEVICE_ID_OFFSET = 32
     M0_FID_DEVICE_ID_MASK = 72057589742960640
     M0_FID_TYPE_MASK = 72057594037927935
