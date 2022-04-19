@@ -33,10 +33,22 @@
 #include "lib/memory.h" /* M0_ALLOC_PTR */
 #include "lib/errno.h"  /* ENOMEM */
 #include "rpc/rpc_opcodes.h" /* M0_DTM0_PRUNER_OPCODE */
+#include "dtm0/dtm0.h" /* m0_dtx0_id */
+#include "fop/fom_generic.h" /* m0_generic_phases_trans */
+#include "dtm0/log.h" /* m0_dtm0_log_p_get_none_left */
 
 /*
+ * INIT -> GET_NEXT -> WAIT_NEXT
  *
- *           -------------------------------------------+
+ *
+ * INIT -> WAIT -> TXN_INIT -> TXN_OPEN -> ... -> SPECIFIC -> REMOVE
+ *
+ * REMOVE -> SUCCESS -> FOL_REC_ADD -> ... -> TXN_COMMIT -> ...
+ *
+ * ... -> TXN_DONE_WAIT -> WAIT
+ *
+ *
+ *           +------------------------------------------+
  *           |                                          |
  *           v                                          |
  * INIT -> WAIT -> TX_OPEN -> REMOVE -> TX_CLOSE -> ... +
@@ -46,28 +58,42 @@
  */
 
 struct m0_dtm0_pruner_fom {
-	struct m0_fom       dpf_gen;
-	struct m0_semaphore dpf_start_sem;
-	struct m0_semaphore dpf_stop_sem;
+	struct m0_fom          dpf_gen;
+
+	struct m0_dtm0_pruner *dpf_pruner;
+	struct m0_semaphore    dpf_start_sem;
+	struct m0_semaphore    dpf_stop_sem;
+
+	bool                   dpf_successful;
+	struct m0_dtx0_id      dpf_dtx0_id;
+	struct m0_be_op        dpf_op;
 };
 
 enum pruner_fom_state {
 	PFS_INIT   = M0_FOM_PHASE_INIT,
 	PFS_FINISH = M0_FOM_PHASE_FINISH,
+	PFS_GET_NEXT = M0_FOPH_TYPE_SPECIFIC,
+	PFS_WAIT_NEXT,
 	PFS_NR,
 };
 
-static struct m0_sm_state_descr pruner_fom_states[PFS_NR] = {
-#define _S(name, flags, allowed)      \
+static struct m0_sm_state_descr pruner_fom_states[] = {
+#define __S(name, flags, allowed)      \
 	[name] = {                    \
 		.sd_flags   = flags,  \
 		.sd_name    = #name,  \
 		.sd_allowed = allowed \
 	}
+	__S(PFS_GET_NEXT, 0,               M0_BITS(PFS_WAIT_NEXT)),
+	__S(PFS_WAIT_NEXT, 0,              M0_BITS(PFS_FINISH)),
+#undef __S
+};
 
-	_S(PFS_INIT,   M0_SDF_INITIAL, M0_BITS(PFS_FINISH)),
-	_S(PFS_FINISH, M0_SDF_TERMINAL, 0),
-#undef _S
+struct m0_sm_trans_descr pruner_fom_trans[] = {
+	[ARRAY_SIZE(m0_generic_phases_trans)] =
+	{ "todo1", PFS_INIT,      PFS_GET_NEXT  },
+	{ "todo2", PFS_GET_NEXT,  PFS_WAIT_NEXT },
+	{ "todo3", PFS_WAIT_NEXT, PFS_FINISH    },
 };
 
 static struct m0_dtm0_pruner_fom *fom2pruner_fom(const struct m0_fom *fom)
@@ -81,10 +107,12 @@ static struct m0_fom *pruner_fom2fom(struct m0_dtm0_pruner_fom *dpf)
 	return &dpf->dpf_gen;
 }
 
-const static struct m0_sm_conf pruner_fom_sm_conf = {
+static struct m0_sm_conf pruner_fom_sm_conf = {
 	.scf_name      = "m0_dtm0_pruner",
 	.scf_nr_states = ARRAY_SIZE(pruner_fom_states),
 	.scf_state     = pruner_fom_states,
+	.scf_trans_nr  = ARRAY_SIZE(pruner_fom_trans),
+	.scf_trans     = pruner_fom_trans
 };
 
 static struct m0_fom_type pruner_fom_type;
@@ -110,10 +138,59 @@ static size_t pruner_fom_locality(const struct m0_fom *fom)
 static int pruner_fom_tick(struct m0_fom *fom)
 {
 	struct m0_dtm0_pruner_fom *dpf = fom2pruner_fom(fom);
+	struct m0_dtm0_pruner     *dp  = dpf->dpf_pruner;
+	struct m0_dtm0_log        *dol = dp->dp_cfg.dpc_dol;
+	enum m0_fom_phase_outcome  result = M0_FSO_AGAIN;
 
-	m0_semaphore_up(&dpf->dpf_start_sem);
-	m0_fom_phase_set(fom, PFS_FINISH);
-	return M0_FSO_WAIT;
+	M0_ENTRY("pruner_fom=%p pruner=%p phase=%s", dpf, dp,
+		 m0_fom_phase_name(fom, m0_fom_phase(fom)));
+
+	switch (m0_fom_phase(fom)) {
+		/* case TXN_OPEN: calculate credits */
+		/* case TXN_DONE_WAIT: jump to get_next */
+
+		/* return result */
+	default:
+		break;
+	}
+
+	if (m0_fom_phase(fom) > M0_FOPH_INIT &&
+	    m0_fom_phase(fom) < M0_FOPH_NR) {
+		result = m0_fom_tick_generic(fom);
+	}
+
+	switch (m0_fom_phase(fom)) {
+		/* case QUEUE_REPLY: jump to TXN_LOGGED_WAIT */
+	case PFS_INIT:
+		m0_fom_phase_set(fom, PFS_GET_NEXT);
+		m0_semaphore_up(&dpf->dpf_start_sem);
+		result = M0_FSO_AGAIN;
+		break;
+	case PFS_GET_NEXT:
+		m0_be_op_init(&dpf->dpf_op);
+		m0_dtm0_log_p_get_none_left(dol, &dpf->dpf_op,
+					    &dpf->dpf_dtx0_id,
+					    &dpf->dpf_successful);
+		result = m0_be_op_tick_ret(&dpf->dpf_op, fom, PFS_WAIT_NEXT);
+		break;
+	case PFS_WAIT_NEXT:
+		/* TODO: reset? */
+		m0_be_op_fini(&dpf->dpf_op);
+		if (dpf->dpf_successful) {
+			M0_ASSERT(0);
+			m0_fom_phase_set(fom, M0_FOPH_TXN_INIT);
+			result = M0_FSO_AGAIN;
+		} else {
+			m0_fom_phase_set(fom, PFS_FINISH);
+			result = M0_FSO_WAIT;
+		}
+		break;
+	default:
+		break;
+	}
+
+	M0_LEAVE("result=%d", result);
+	return result;
 }
 
 static const struct m0_fom_ops pruner_fom_ops = {
@@ -129,10 +206,6 @@ M0_INTERNAL int m0_dtm0_pruner_init(struct m0_dtm0_pruner     *dp,
 
 	M0_PRE(dp_cfg->dpc_cfs->cfs_reqh_service->rs_type == &m0_cfs_stype);
 
-	m0_fom_type_init(&pruner_fom_type, M0_DTM0_PRUNER_OPCODE,
-			 &pruner_fom_type_ops, &m0_cfs_stype,
-			 &pruner_fom_sm_conf);
-
 	M0_ALLOC_PTR(dpf);
 	if (dpf == NULL)
 		return M0_ERR(-ENOMEM);
@@ -142,6 +215,7 @@ M0_INTERNAL int m0_dtm0_pruner_init(struct m0_dtm0_pruner     *dp,
 
 	dp->dp_cfg = *dp_cfg;
 	dp->dp_pruner_fom = dpf;
+	dpf->dpf_pruner = dp;
 	return 0;
 }
 
@@ -174,6 +248,23 @@ M0_INTERNAL void m0_dtm0_pruner_stop(struct m0_dtm0_pruner *dp)
 	m0_semaphore_down(&dpf->dpf_stop_sem);
 }
 
+M0_INTERNAL void m0_dtm0_pruner_mod_init(void)
+{
+	m0_sm_conf_extend(m0_generic_conf.scf_state, pruner_fom_states,
+			  min_check(m0_generic_conf.scf_nr_states,
+				    pruner_fom_sm_conf.scf_nr_states));
+	m0_sm_conf_trans_extend(&m0_generic_conf, &pruner_fom_sm_conf);
+	pruner_fom_states[PFS_INIT].sd_allowed |= M0_BITS(PFS_GET_NEXT);
+	m0_sm_conf_init(&pruner_fom_sm_conf);
+
+	m0_fom_type_init(&pruner_fom_type, M0_DTM0_PRUNER_OPCODE,
+			 &pruner_fom_type_ops, &m0_cfs_stype,
+			 &pruner_fom_sm_conf);
+}
+
+M0_INTERNAL void m0_dtm0_pruner_mod_fini(void)
+{
+}
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of dtm0 group */

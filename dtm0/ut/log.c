@@ -42,52 +42,12 @@
 #include "dtm0/cfg_default.h"   /* m0_dtm0_domain_cfg_default_dup */
 #include "dtm0/dtm0.h"          /* m0_dtm0_redo */
 #include "be/tx_bulk.h"         /* m0_be_tx_bulk */
-
+#include "dtm0/ut/helper.h"     /* dtm0_ut_log_ctx */
 
 enum {
 	M0_DTM0_UT_LOG_SIMPLE_SEG_SIZE  = 0x2000000,
 	M0_DTM0_UT_LOG_SIMPLE_REDO_SIZE = 0x100,
 };
-
-struct dtm0_ut_log_ctx {
-	struct m0_be_ut_backend   ut_be;
-	struct m0_be_ut_seg       ut_seg;
-	struct m0_dtm0_domain_cfg dod_cfg;
-	struct m0_dtm0_log        dol;
-};
-
-static struct dtm0_ut_log_ctx *dtm0_ut_log_init(void)
-{
-	struct dtm0_ut_log_ctx *lctx;
-	int                     rc;
-
-	M0_ALLOC_PTR(lctx);
-	M0_UT_ASSERT(lctx != NULL);
-
-	m0_be_ut_backend_init(&lctx->ut_be);
-	m0_be_ut_seg_init(&lctx->ut_seg, &lctx->ut_be,
-			  M0_DTM0_UT_LOG_SIMPLE_SEG_SIZE);
-	rc = m0_dtm0_domain_cfg_default_dup(&lctx->dod_cfg, true);
-	M0_UT_ASSERT(rc == 0);
-	lctx->dod_cfg.dodc_log.dlc_be_domain = &lctx->ut_be.but_dom;
-	lctx->dod_cfg.dodc_log.dlc_seg =
-		m0_be_domain_seg_first(lctx->dod_cfg.dodc_log.dlc_be_domain);
-
-	rc = m0_dtm0_log_create(&lctx->dol, &lctx->dod_cfg.dodc_log);
-	M0_UT_ASSERT(rc == 0);
-
-	return lctx;
-}
-
-static void dtm0_ut_log_fini(struct dtm0_ut_log_ctx *lctx)
-{
-	m0_dtm0_log_destroy(&lctx->dol);
-	m0_dtm0_domain_cfg_free(&lctx->dod_cfg);
-	m0_be_ut_seg_fini(&lctx->ut_seg);
-	m0_be_ut_backend_fini(&lctx->ut_be);
-	m0_free(lctx);
-
-}
 
 /* TODO: add dtm0_ut_log_init-fini */
 

@@ -34,6 +34,7 @@
 #include "dtm0/cfg_default.h" /* m0_dtm0_domain_cfg_default_dup */
 #include "ut/ut.h"
 #include "reqh/reqh.h" /* M0_REQH_INIT */
+#include "dtm0/ut/helper.h"     /* dtm0_ut_log_ctx */
 
 void m0_dtm0_ut_reqh_init(struct m0_reqh **preqh)
 {
@@ -87,25 +88,31 @@ struct dtm0_ut_pruner_ctx {
 	struct m0_dtm0_pruner    *pruner;
 	struct m0_reqh           *reqh;
 	struct m0_co_fom_service *cfs;
+	struct dtm0_ut_log_ctx   *lctx;
 };
 
-static void dtm0_ut_pruner_init(struct dtm0_ut_pruner_ctx *ctx)
+static void dtm0_ut_pruner_init(struct dtm0_ut_pruner_ctx *pctx)
 {
 	struct m0_dtm0_domain_cfg cfg;
 	int                       rc;
 
-	m0_dtm0_ut_reqh_init(&ctx->reqh);
-	m0_dtm0_ut_cfs_init(&ctx->cfs, ctx->reqh);
+	pctx->lctx = dtm0_ut_log_init();
+	rc = m0_dtm0_log_open(&pctx->lctx->dol, &pctx->lctx->dod_cfg.dodc_log);
+	M0_UT_ASSERT(rc == 0);
 
-	M0_ALLOC_PTR(ctx->pruner);
-	M0_UT_ASSERT(ctx->pruner != NULL);
+	m0_dtm0_ut_reqh_init(&pctx->reqh);
+	m0_dtm0_ut_cfs_init(&pctx->cfs, pctx->reqh);
+
+	M0_ALLOC_PTR(pctx->pruner);
+	M0_UT_ASSERT(pctx->pruner != NULL);
 
 	rc = m0_dtm0_domain_cfg_default_dup(&cfg, false);
 	M0_UT_ASSERT(rc == 0);
 
-	cfg.dodc_pruner.dpc_cfs = ctx->cfs;
+	cfg.dodc_pruner.dpc_cfs = pctx->cfs;
+	cfg.dodc_pruner.dpc_dol = &pctx->lctx->dol;
 
-	rc = m0_dtm0_pruner_init(ctx->pruner, &cfg.dodc_pruner);
+	rc = m0_dtm0_pruner_init(pctx->pruner, &cfg.dodc_pruner);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_dtm0_domain_cfg_free(&cfg);
@@ -116,19 +123,23 @@ static void dtm0_ut_pruner_start(struct dtm0_ut_pruner_ctx *ctx)
 	m0_dtm0_pruner_start(ctx->pruner);
 }
 
-static void dtm0_ut_pruner_stop(struct dtm0_ut_pruner_ctx *ctx)
+static void dtm0_ut_pruner_stop(struct dtm0_ut_pruner_ctx *pctx)
 {
-	m0_dtm0_pruner_stop(ctx->pruner);
+	m0_dtm0_log_end(&pctx->lctx->dol);
+	m0_dtm0_pruner_stop(pctx->pruner);
 }
 
-static void dtm0_ut_pruner_fini(struct dtm0_ut_pruner_ctx *ctx)
+static void dtm0_ut_pruner_fini(struct dtm0_ut_pruner_ctx *pctx)
 {
-	m0_dtm0_pruner_fini(ctx->pruner);
-	m0_free(ctx->pruner);
-	ctx->pruner = NULL;
+	m0_dtm0_log_close(&pctx->lctx->dol);
+	m0_dtm0_pruner_fini(pctx->pruner);
+	m0_free(pctx->pruner);
+	pctx->pruner = NULL;
 
-	m0_dtm0_ut_cfs_fini(&ctx->cfs);
-	m0_dtm0_ut_reqh_fini(&ctx->reqh);
+	m0_dtm0_ut_cfs_fini(&pctx->cfs);
+	m0_dtm0_ut_reqh_fini(&pctx->reqh);
+
+	dtm0_ut_log_fini(pctx->lctx);
 }
 
 void m0_dtm0_ut_pruner_init_fini(void)

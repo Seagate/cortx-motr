@@ -59,6 +59,15 @@ struct m0_ut_dtm0_helper {
 M0_INTERNAL void m0_ut_dtm0_helper_init(struct m0_ut_dtm0_helper *udh);
 M0_INTERNAL void m0_ut_dtm0_helper_fini(struct m0_ut_dtm0_helper *udh);
 
+struct dtm0_ut_log_ctx {
+	struct m0_be_ut_backend   ut_be;
+	struct m0_be_ut_seg       ut_seg;
+	struct m0_dtm0_domain_cfg dod_cfg;
+	struct m0_dtm0_log        dol;
+};
+
+M0_INTERNAL struct dtm0_ut_log_ctx *dtm0_ut_log_init(void);
+M0_INTERNAL void dtm0_ut_log_fini(struct dtm0_ut_log_ctx *lctx);
 
 /** @} end of dtm0 group */
 #endif /* __MOTR_DTM0_UT_HELPER_H__ */

@@ -35,11 +35,13 @@
 #include "lib/misc.h"           /* M0_IS0 */
 #include "net/net.h"            /* m0_net_all_xprt_get */
 #include "dtm0/service.h"       /* m0_dtm0_service */
+#include "dtm0/cfg_default.h"   /* m0_dtm0_domain_cfg_default_dup */
 
 
 struct m0_reqh_service;
 
 enum {
+	M0_DTM0_UT_LOG_SIMPLE_SEG_SIZE  = 0x2000000,
 	MAX_RPCS_IN_FLIGHT = 10,
 };
 
@@ -121,6 +123,40 @@ M0_INTERNAL void m0_ut_dtm0_helper_fini(struct m0_ut_dtm0_helper *udh)
 	m0_net_domain_fini(&udh->udh_client_net_domain);
 	m0_rpc_server_stop(&udh->udh_sctx);
 }
+
+M0_INTERNAL struct dtm0_ut_log_ctx *dtm0_ut_log_init(void)
+{
+	struct dtm0_ut_log_ctx *lctx;
+	int                     rc;
+
+	M0_ALLOC_PTR(lctx);
+	M0_UT_ASSERT(lctx != NULL);
+
+	m0_be_ut_backend_init(&lctx->ut_be);
+	m0_be_ut_seg_init(&lctx->ut_seg, &lctx->ut_be,
+			  M0_DTM0_UT_LOG_SIMPLE_SEG_SIZE);
+	rc = m0_dtm0_domain_cfg_default_dup(&lctx->dod_cfg, true);
+	M0_UT_ASSERT(rc == 0);
+	lctx->dod_cfg.dodc_log.dlc_be_domain = &lctx->ut_be.but_dom;
+	lctx->dod_cfg.dodc_log.dlc_seg =
+		m0_be_domain_seg_first(lctx->dod_cfg.dodc_log.dlc_be_domain);
+
+	rc = m0_dtm0_log_create(&lctx->dol, &lctx->dod_cfg.dodc_log);
+	M0_UT_ASSERT(rc == 0);
+
+	return lctx;
+}
+
+M0_INTERNAL void dtm0_ut_log_fini(struct dtm0_ut_log_ctx *lctx)
+{
+	m0_dtm0_log_destroy(&lctx->dol);
+	m0_dtm0_domain_cfg_free(&lctx->dod_cfg);
+	m0_be_ut_seg_fini(&lctx->ut_seg);
+	m0_be_ut_backend_fini(&lctx->ut_be);
+	m0_free(lctx);
+
+}
+
 
 #undef M0_TRACE_SUBSYSTEM
 

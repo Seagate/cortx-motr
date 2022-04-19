@@ -29,7 +29,7 @@
 #include "lib/trace.h"
 
 #include "dtm0/dtm0.h"
-
+#include "dtm0/pruner.h"
 
 M0_INTERNAL bool m0_dtx0_id_eq(const struct m0_dtx0_id *left,
 			       const struct m0_dtx0_id *right)
@@ -43,6 +43,18 @@ M0_INTERNAL int m0_dtx0_id_cmp(const struct m0_dtx0_id *left,
 	return M0_3WAY(left->dti_timestamp, right->dti_timestamp) ?:
 		m0_fid_cmp(&left->dti_originator_sdev_fid,
 			   &right->dti_originator_sdev_fid);
+}
+
+M0_INTERNAL int  m0_dtm0_mod_init(void)
+{
+	/* TODO: Register stype here (and other types). */
+	m0_dtm0_pruner_mod_init();
+	return 0;
+}
+
+M0_INTERNAL void m0_dtm0_mod_fini(void)
+{
+	m0_dtm0_pruner_mod_fini();
 }
 
 #undef M0_TRACE_SUBSYSTEM

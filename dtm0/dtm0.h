@@ -144,6 +144,8 @@ M0_INTERNAL bool m0_dtx0_id_eq(const struct m0_dtx0_id *left,
 M0_INTERNAL int m0_dtx0_id_cmp(const struct m0_dtx0_id *left,
 			       const struct m0_dtx0_id *right);
 
+M0_INTERNAL int  m0_dtm0_mod_init(void);
+M0_INTERNAL void m0_dtm0_mod_fini(void);
 
 #endif /* __MOTR_DTM0_DTM0_H__ */
 

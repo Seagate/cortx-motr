@@ -60,6 +60,7 @@ struct m0_dtm0_pruner_fom;
 
 struct m0_dtm0_pruner_cfg {
 	struct m0_co_fom_service *dpc_cfs;
+	struct m0_dtm0_log       *dpc_dol;
 };
 
 struct m0_dtm0_pruner {
@@ -73,6 +74,8 @@ M0_INTERNAL void m0_dtm0_pruner_fini(struct m0_dtm0_pruner *dpn);
 M0_INTERNAL void m0_dtm0_pruner_start(struct m0_dtm0_pruner *dpn);
 M0_INTERNAL void m0_dtm0_pruner_stop(struct m0_dtm0_pruner *dpn);
 
+M0_INTERNAL void m0_dtm0_pruner_mod_init(void);
+M0_INTERNAL void m0_dtm0_pruner_mod_fini(void);
 
 /** @} end of dtm0 group */
 #endif /* __MOTR___DTM0_PRUNER_H__ */
