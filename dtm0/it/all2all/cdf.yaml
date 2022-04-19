@@ -20,8 +20,8 @@ nodes:
             - path: /dev/loop4
             - path: /dev/loop5
     m0_clients:
-        s3: 0
-        other: 1
+        - name: motr_client
+          instances: 1
 
 pools:
   - name: SNS pool
