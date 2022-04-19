@@ -7366,9 +7366,9 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 				if ((lev->l_idx == bnode_count(lev->l_node)) &&
 				    (!oi->i_key_found) &&
 				    (bop->bo_flags & BOF_SLANT)) {
-						bnode_unlock(lev->l_node);
-						return P_SIBLING;
-					}
+					bnode_unlock(lev->l_node);
+					return P_SIBLING;
+				}
 				bnode_unlock(lev->l_node);
 				return P_LOCK;
 			}
