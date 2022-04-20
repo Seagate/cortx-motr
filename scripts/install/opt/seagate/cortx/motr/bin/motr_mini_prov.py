@@ -58,6 +58,7 @@ MACHINE_ID_FILE = "/etc/machine-id"
 TEMP_FID_FILE = "/opt/seagate/cortx/motr/conf/service_fid.yaml"
 CMD_RETRY_COUNT = 5
 MEM_THRESHOLD = 4*1024*1024*1024
+CVG_COUNT_KEY = "num_cvg"
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -458,7 +459,7 @@ def update_copy_motr_config_file(self):
 #              ['/dev/sdf'] is list of metadata disks of cvg[1]
 def get_md_disks_lists(self, node_info):
     md_disks_lists = []
-    cvg_count = node_info['storage']['cvg_count']
+    cvg_count = node_info['storage'][CVG_COUNT_KEY]
     cvg = node_info['storage']['cvg']
     for i in range(cvg_count):
         temp_cvg = cvg[i]
@@ -828,11 +829,11 @@ def calc_lvm_min_size(self, lv_path, lvm_min_size):
 
 def get_cvg_cnt_and_cvg(self):
     try:
-        cvg_cnt = self.server_node['storage']['cvg_count']
+        cvg_cnt = self.server_node['storage'][CVG_COUNT_KEY]
     except:
         raise MotrError(errno.EINVAL, "cvg_cnt not found\n")
 
-    check_type(cvg_cnt, str, "cvg_count")
+    check_type(cvg_cnt, str, CVG_COUNT_KEY)
 
     try:
         cvg = self.server_node['storage']['cvg']
@@ -1230,7 +1231,7 @@ def update_motr_hare_keys_for_all_nodes(self):
     retry_delay = 2
     for value in nodes_info.values():
         host = value["hostname"]
-        cvg_count = value["storage"]["cvg_count"]
+        cvg_count = value["storage"][CVG_COUNT_KEY]
         name = value["name"]
         self.logger.info(f"update_motr_hare_keys for {host}\n")
         for i in range(int(cvg_count)):
