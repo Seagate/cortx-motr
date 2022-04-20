@@ -46,12 +46,12 @@ static const struct m0_panic_ctx signal_panic = {
 static void sigsegv(int sig)
 {
 	struct m0_thread_tls *tls = m0_thread_tls();
-	jmp_buf              *buf = tls == NULL ? NULL : tls->tls_arch.tat_jmp;
+	sigjmp_buf           *buf = tls == NULL ? NULL : tls->tls_arch.tat_jmp;
 
 	if (buf == NULL)
 		m0_panic(&signal_panic, sig);
 	else
-		longjmp(*buf, 1);
+		siglongjmp(*buf, 1);
 }
 
 /**
@@ -61,14 +61,14 @@ static void sigsegv(int sig)
  */
 M0_INTERNAL bool m0_arch_addr_is_sane(const void *addr)
 {
-	jmp_buf           buf;
-	jmp_buf         **tls = &m0_thread_tls()->tls_arch.tat_jmp;
+	sigjmp_buf        buf;
+	sigjmp_buf      **tls = &m0_thread_tls()->tls_arch.tat_jmp;
 	int               ret;
 	volatile uint64_t dummy M0_UNUSED;
 	volatile bool     result = false;
 
 	*tls = &buf;
-	ret = setjmp(buf);
+	ret = sigsetjmp(buf, 1);
 	if (ret == 0) {
 		dummy = *(uint64_t *)addr;
 		result = true;
