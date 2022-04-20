@@ -59,11 +59,6 @@ static void rpc_item_xid_unassign(struct m0_rpc_item *item);
 const struct m0_sm_conf outgoing_item_sm_conf;
 const struct m0_sm_conf incoming_item_sm_conf;
 
-M0_TL_DESCR_DEFINE(rpcitem, "rpc item tlist", M0_INTERNAL, struct m0_rpc_item,
-		   ri_field, ri_magic, M0_RPC_ITEM_MAGIC,
-		   M0_RPC_ITEM_HEAD_MAGIC);
-M0_TL_DEFINE(rpcitem, M0_INTERNAL, struct m0_rpc_item);
-
 M0_TL_DESCR_DEFINE(rit, "rpc_item_type_descr", static, struct m0_rpc_item_type,
 		   rit_linkage, rit_magic, M0_RPC_ITEM_TYPE_MAGIC,
 		   M0_RPC_ITEM_TYPE_HEAD_MAGIC);
@@ -379,8 +374,6 @@ void m0_rpc_item_init(struct m0_rpc_item *item,
 
 	packet_item_tlink_init(item);
 	itemq_tlink_init(item);
-        rpcitem_tlink_init(item);
-	rpcitem_tlist_init(&item->ri_compound_items);
 	ric_tlink_init(item);
 	pending_item_tlink_init(item);
 	xidl_tlink_init(item);
@@ -418,14 +411,10 @@ void m0_rpc_item_fini(struct m0_rpc_item *item)
 	M0_ASSERT(!ric_tlink_is_in(item));
 	M0_ASSERT(!itemq_tlink_is_in(item));
 	M0_ASSERT(!packet_item_tlink_is_in(item));
-	M0_ASSERT(!rpcitem_tlink_is_in(item));
 	M0_ASSERT(!pending_item_tlink_is_in(item));
 	ric_tlink_fini(item);
 	itemq_tlink_fini(item);
 	packet_item_tlink_fini(item);
-	rpcitem_tlink_fini(item);
-	rpcitem_tlist_fini(&item->ri_compound_items);
-	pending_item_tlink_fini(item);
 	xidl_tlink_fini(item);
 	M0_LEAVE();
 }
@@ -921,7 +910,6 @@ void m0_rpc_item_cancel_nolock(struct m0_rpc_item *item)
 
 	M0_POST(!itemq_tlink_is_in(item));
 	M0_POST(!packet_item_tlink_is_in(item));
-	M0_POST(!rpcitem_tlink_is_in(item));
 	M0_POST(!pending_item_tlink_is_in(item));
 	M0_LOG(M0_DEBUG, ITEM_FMT" session=%p item cancelled ref=%llu",
 	       ITEM_ARG(item), session,

@@ -868,9 +868,6 @@ enum m0_magic_satchel {
 	/* m0_rpc_item::ri_magic (boiled coolie) */
 	M0_RPC_ITEM_MAGIC = 0x33b011edc0011e77,
 
-	/* rpcitem_tl::td_head_magic (disabled disc) */
-	M0_RPC_ITEM_HEAD_MAGIC = 0x33d15ab1edd15c77,
-
 	/* ric_tl::td_head_magic (zizzled cache) */
 	M0_RPC_ITEM_CACHE_HEAD_MAGIC = 0x3321221edcac4e77,
 

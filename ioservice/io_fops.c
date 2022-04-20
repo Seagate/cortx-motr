@@ -589,10 +589,10 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    if pages overrun the existing rpc bulk structure.
    - R.bulkclient.netbufdesc The generic io fop should contain a network
    buffer descriptor which points to an in-memory network buffer.
-   - R.bulkclient.iocoalescing The IO coalescing code should conform to
-   new format of io fop. This is actually a side-effect and not a core
-   part of functionality. Since the format of IO fop changes, the IO
-   coalescing code which depends on it, needs to be restructured.
+   - Outdated: R.bulkclient.iocoalescing The IO coalescing code should conform
+   to new format of io fop. This is actually a side-effect and not a core part
+   of functionality. Since the format of IO fop changes, the IO coalescing code
+   which depends on it, needs to be restructured.
 
    <hr>
    @section bulkclient-depends Dependencies
@@ -661,7 +661,7 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    @subsection bulkclient-lspec-sc1 Subcomponent design
 
    Ioservice subsystem primarily comprises of 2 sub-components
-   - IO client (comprises of IO coalescing code)
+   - IO client
    - IO server (server part of io routines)
 
    The IO client subsystem under which IO requests belonging to same fid
@@ -669,10 +669,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    fop is sent instead of member io fops.
 
    @subsubsection bulkclient-lspec-ds1 Subcomponent Data Structures
-
-   The IO coalescing subsystem from ioservice primarily works on IO segments.
-   IO segment is in-memory structure that represents a contiguous chunk of
-   IO data along with extent information.
 
    @subsubsection bulkclient-lspec-sub1 Subcomponent Subroutines
 
@@ -730,8 +726,8 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
    kernel pages are enqueued.
    - I.bulkclient.netbufdesc The on-wire definition of io_fop contains a
    net buffer descriptor. @see m0_net_buf_desc
-   - I.bulkclient.iocoalescing Since all IO coalescing code is built around
-   the definition of IO fop, it will conform to new format of io fop.
+   - Outdated: I.bulkclient.iocoalescing Since all IO coalescing code is built
+   around the definition of IO fop, it will conform to new format of io fop.
 
    <hr>
    @section bulkclient-ut Unit Tests
@@ -773,11 +769,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 
    - m denotes the number of IO fops with same fid and intent (read/write).
    - n denotes the total number of IO segments in m IO fops.
-   - Memory consumption O(n) During IO coalescing, n number of IO segments
-   are allocated and subsequently deallocated, once the resulting IO fop
-   is created.
-   - Processor cycles O(n) During IO coalescing, all n segments are traversed
-   and resultant IO fop is created.
    - Locks Minimal locks since locking is mostly taken care by upper layers.
    - Messages Not applicable.
 

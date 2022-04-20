@@ -200,11 +200,6 @@ struct m0_rpc_item {
 	const struct m0_rpc_item_type	*ri_type;
 	/** Time spent in rpc layer. */
 	m0_time_t			 ri_rpc_time;
-	/** List of compound items. */
-	struct m0_tl			 ri_compound_items;
-	/** Link through which items are anchored on list of
-	    m0_rpc_item:ri_compound_items. */
-	struct m0_tlink			 ri_field;
 	/** Link in one of m0_rpc_frm::f_itemq[] list.
 	    List descriptor: itemq
 	 */
