@@ -107,8 +107,6 @@ static int opts_get(struct params *par, int *argc, char ***argv)
 	char **arg = *(argv);
 	int    common_args = 9;
 	char  *pv = NULL; 
-	char  *pv_token;
-	bool   pv_token_flag = 0;
 
 	par->cp_local_addr = NULL;
 	par->cp_ha_addr    = NULL;
@@ -164,16 +162,7 @@ static int opts_get(struct params *par, int *argc, char ***argv)
 
 	if (pv != NULL) {
 		common_args += 2;
-		pv_token = strtok(pv, ":");
-		while (pv_token != NULL) {
-			if (pv_token_flag == 0) {
-				dix_pool_ver.f_container = strtoul(pv_token, NULL, 16);
-				pv_token_flag = true;
-			} else {
-				dix_pool_ver.f_key = strtoul(pv_token, NULL, 16);
-			}
-			pv_token = strtok(NULL, ":");	
-		}
+		rc = m0_fid_sscanf(pv, &dix_pool_ver);
 	}
 
 	*argc -= common_args;
