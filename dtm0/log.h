@@ -166,6 +166,9 @@ M0_INTERNAL void m0_dtm0_log_p_get_none_left(struct m0_dtm0_log *dol,
 
 M0_INTERNAL void m0_dtm0_log_end(struct m0_dtm0_log *dol);
 
+
+M0_INTERNAL bool m0_dtm0_log_is_empty(struct m0_dtm0_log *dol);
+
 /** @} end of dtm0 group */
 #endif /* __MOTR___DTM0_LOG_H__ */
 

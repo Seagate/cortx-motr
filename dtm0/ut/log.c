@@ -45,7 +45,6 @@
 #include "dtm0/ut/helper.h"     /* dtm0_ut_log_ctx */
 
 enum {
-	M0_DTM0_UT_LOG_SIMPLE_SEG_SIZE  = 0x2000000,
 	M0_DTM0_UT_LOG_SIMPLE_REDO_SIZE = 0x100,
 };
 
@@ -146,113 +145,6 @@ void m0_dtm0_ut_log_simple(void)
 	m0_free(redo);
 }
 
-enum {
-	MPSC_NR_REC_TOTAL = 0x100,
-};
-
-static struct m0_dtm0_redo *redo_get(int timestamp, int index)
-{
-	int                  rc;
-	struct m0_buf       *redo_buf;
-	struct m0_dtm0_redo *redo;
-	static struct m0_fid p_sdev_fid;
-	uint64_t             seed = 42;
-	int                  i;
-
-	M0_ALLOC_PTR(redo);
-	M0_UT_ASSERT(redo != NULL);
-
-	M0_ALLOC_PTR(redo_buf);
-	M0_UT_ASSERT(redo_buf != NULL);
-
-	rc = m0_buf_alloc(redo_buf, M0_DTM0_UT_LOG_SIMPLE_REDO_SIZE);
-	M0_UT_ASSERT(rc == 0);
-	for (i = 0; i < redo_buf->b_nob; ++i)
-		((char *)redo_buf->b_addr)[i] = m0_rnd64(&seed) & 0xff;
-	p_sdev_fid = M0_FID_TINIT(M0_CONF__SDEV_FT_ID, 1, 2);
-
-	*redo = (struct m0_dtm0_redo){
-		.dtr_descriptor = {
-			.dtd_id = {
-				.dti_timestamp           = timestamp + index,
-				.dti_originator_sdev_fid = p_sdev_fid,
-			},
-			.dtd_participants = {
-				.dtpa_participants_nr = 1,
-				.dtpa_participants    = &p_sdev_fid,
-			},
-		},
-		.dtr_payload = {
-			.dtp_type = M0_DTX0_PAYLOAD_BLOB,
-			.dtp_data = {
-				.ab_count = 1,
-				.ab_elems = redo_buf,
-			},
-		},
-	};
-
-	return redo;
-}
-
-static void redo_put(struct m0_dtm0_redo *redo)
-{
-	/*M0_UT_ASSERT(0);*/
-}
-
-enum {
-	MPSC_TS_BASE = 0,
-};
-
-static void dtm0_ut_log_produce_redo_add(struct m0_be_tx_bulk   *tb,
-					 struct dtm0_ut_log_ctx *lctx)
-{
-	int i;
-	struct m0_dtm0_redo   *redo;
-	struct m0_be_tx_credit credit;
-
-	for (i = 0; i < MPSC_NR_REC_TOTAL; ++i) {
-		redo = redo_get(MPSC_TS_BASE, i);
-		credit = M0_BE_TX_CREDIT(0, 0);
-		m0_dtm0_log_redo_add_credit(&lctx->dol, redo, &credit);
-		M0_BE_OP_SYNC(op,
-			      m0_be_tx_bulk_put(tb, &op, &credit, 0, 0, redo));
-	}
-
-	m0_be_tx_bulk_end(tb);
-}
-
-static void dtm0_ut_log_tx_bulk_parallel_do(struct m0_be_tx_bulk *tb,
-					    struct m0_be_tx      *tx,
-					    struct m0_be_op      *op,
-					    void                 *datum,
-					    void                 *user,
-					    uint64_t              worker_index,
-					    uint64_t              partition)
-{
-	struct dtm0_ut_log_ctx *lctx = datum;
-	struct m0_dtm0_redo    *redo = user;
-	struct m0_fid p_sdev_fid;
-
-	(void) worker_index;
-	(void) partition;
-
-	p_sdev_fid = M0_FID_TINIT(M0_CONF__SDEV_FT_ID, 1, 2);
-
-	m0_be_op_active(op);
-	m0_dtm0_log_redo_add(&lctx->dol, tx, redo, &p_sdev_fid);
-	m0_be_op_done(op);
-
-	redo_put(redo);
-}
-
-static void dtm0_ut_log_tx_bulk_parallel_done(struct m0_be_tx_bulk *tb,
-					      void                 *datum,
-					      void                 *user,
-					      uint64_t              worker_index,
-					      uint64_t              partition)
-{
-}
-
 static void dtm0_ut_log_remove(struct dtm0_ut_log_ctx *lctx,
 			       int                     timestamp, int nr)
 {
@@ -282,59 +174,24 @@ static void dtm0_ut_log_remove(struct dtm0_ut_log_ctx *lctx,
 
 void m0_dtm0_ut_log_mpsc(void)
 {
-	struct dtm0_ut_log_ctx   *lctx;
-	struct m0_be_op          *op;
-	struct m0_be_tx_bulk     *tb;
-	struct m0_be_tx_bulk_cfg *tb_cfg;
-	int                       rc;
+	struct dtm0_ut_log_ctx    *lctx;
+	struct dtm0_ut_log_mp_ctx  lmp_ctx;
+	int                        rc;
 
 	lctx = dtm0_ut_log_init();
-	M0_ALLOC_PTR(tb);
-	M0_UT_ASSERT(tb != NULL);
-
-	M0_ALLOC_PTR(tb_cfg);
-	M0_UT_ASSERT(tb_cfg != NULL);
-
-	*tb_cfg = (struct m0_be_tx_bulk_cfg) {
-		.tbc_q_cfg                 = {
-			.bqc_q_size_max       = MPSC_NR_REC_TOTAL / 2,
-			.bqc_producers_nr_max = 1,
-		},
-		.tbc_workers_nr            = 100,
-		.tbc_partitions_nr         = 1,
-		.tbc_work_items_per_tx_max = 1,
-		.tbc_datum                 = lctx,
-		.tbc_do                    = &dtm0_ut_log_tx_bulk_parallel_do,
-		.tbc_done                  =
-			&dtm0_ut_log_tx_bulk_parallel_done,
-		.tbc_dom                   = &lctx->ut_be.but_dom,
-	};
+	M0_UT_ASSERT(lctx != NULL);
 
 	rc = m0_dtm0_log_open(&lctx->dol, &lctx->dod_cfg.dodc_log);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_be_tx_bulk_init(tb, tb_cfg);
-	M0_UT_ASSERT(rc == 0);
-	M0_ALLOC_PTR(op);
-	M0_UT_ASSERT(op != NULL);
-	m0_be_op_init(op);
-
-	m0_be_tx_bulk_run(tb, op);
-	dtm0_ut_log_produce_redo_add(tb, lctx);
-	m0_be_op_wait(op);
-
-	m0_be_op_fini(op);
-	m0_free(op);
-
-	rc = m0_be_tx_bulk_status(tb);
-	M0_UT_ASSERT(rc == 0);
-
-	m0_be_tx_bulk_fini(tb);
+	dtm0_ut_log_mp_init(&lmp_ctx, lctx);
+	dtm0_ut_log_mp_run(&lmp_ctx);
+	m0_be_op_wait(lmp_ctx.op);
+	dtm0_ut_log_mp_fini(&lmp_ctx);
 
 	dtm0_ut_log_remove(lctx, MPSC_TS_BASE, MPSC_NR_REC_TOTAL);
 
 	m0_dtm0_log_close(&lctx->dol);
-	m0_free(tb);
 	dtm0_ut_log_fini(lctx);
 }
 
@@ -351,10 +208,10 @@ void m0_dtm0_ut_log_mpsc(void)
  * 3. Simple pruner (remove after added), concurrency == 1 (single FOM, single
  *    record).
  * 4. Pruner UTs:
- *   4.1. Add to the log, run pruner, check if log is empty.
- *   4.2. One tx_bulk that adds records to the log, run pruner.
- *   4.3. Run pruner, empty log, nothing happens.
- *   4.4. Add many log records, run pruner, some record may still be present
+ *   x4.1. Add to the log, run pruner, check if log is empty.
+ *   x4.2. One tx_bulk that adds records to the log, run pruner.
+ *   x4.3. Run pruner, empty log, nothing happens.
+ *   x4.4. Add many log records, run pruner, some record may still be present
  *        in the log.
  *   4.5. Run pruner, run tx_bulk, wait until log is empty, wait 0.5 sec,
  *        repeat (tx_bulk, wait until empty).

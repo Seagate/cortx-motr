@@ -36,8 +36,9 @@
 #include "net/net.h"            /* m0_net_all_xprt_get */
 #include "dtm0/service.h"       /* m0_dtm0_service */
 #include "dtm0/cfg_default.h"   /* m0_dtm0_domain_cfg_default_dup */
-
-
+#include "dtm0/dtm0.h"          /* m0_dtm0_redo */
+#include "conf/objs/common.h"   /* M0_CONF__SDEV_FT_ID */
+#include "be/tx_bulk.h"         /* m0_be_tx_bulk */
 struct m0_reqh_service;
 
 enum {
@@ -157,6 +158,174 @@ M0_INTERNAL void dtm0_ut_log_fini(struct dtm0_ut_log_ctx *lctx)
 
 }
 
+enum {
+	M0_DTM0_UT_LOG_SIMPLE_REDO_SIZE = 0x100,
+};
+
+M0_INTERNAL struct m0_dtm0_redo *dtm0_ut_redo_get(int timestamp)
+{
+	int                  rc;
+	struct m0_buf       *redo_buf;
+	struct m0_dtm0_redo *redo;
+	static struct m0_fid p_sdev_fid;
+	uint64_t             seed = 42;
+	int                  i;
+
+	M0_ALLOC_PTR(redo);
+	M0_UT_ASSERT(redo != NULL);
+
+	M0_ALLOC_PTR(redo_buf);
+	M0_UT_ASSERT(redo_buf != NULL);
+
+	rc = m0_buf_alloc(redo_buf, M0_DTM0_UT_LOG_SIMPLE_REDO_SIZE);
+	M0_UT_ASSERT(rc == 0);
+	for (i = 0; i < redo_buf->b_nob; ++i)
+		((char *)redo_buf->b_addr)[i] = m0_rnd64(&seed) & 0xff;
+	p_sdev_fid = M0_FID_TINIT(M0_CONF__SDEV_FT_ID, 1, 2);
+
+	*redo = (struct m0_dtm0_redo){
+		.dtr_descriptor = {
+			.dtd_id = {
+				.dti_timestamp           = timestamp,
+				.dti_originator_sdev_fid = p_sdev_fid,
+			},
+			.dtd_participants = {
+				.dtpa_participants_nr = 1,
+				.dtpa_participants    = &p_sdev_fid,
+			},
+		},
+		.dtr_payload = {
+			.dtp_type = M0_DTX0_PAYLOAD_BLOB,
+			.dtp_data = {
+				.ab_count = 1,
+				.ab_elems = redo_buf,
+			},
+		},
+	};
+
+	return redo;
+}
+
+M0_INTERNAL void dtm0_ut_redo_put(struct m0_dtm0_redo *redo)
+{
+	/* TODO */
+}
+
+
+static void dtm0_ut_log_produce_redo_add(struct m0_be_tx_bulk   *tb,
+					 struct dtm0_ut_log_ctx *lctx)
+{
+	int i;
+	struct m0_dtm0_redo   *redo;
+	struct m0_be_tx_credit credit;
+
+	for (i = 0; i < MPSC_NR_REC_TOTAL; ++i) {
+		redo = dtm0_ut_redo_get(i);
+		credit = M0_BE_TX_CREDIT(0, 0);
+		m0_dtm0_log_redo_add_credit(&lctx->dol, redo, &credit);
+		M0_BE_OP_SYNC(op,
+			      m0_be_tx_bulk_put(tb, &op, &credit, 0, 0, redo));
+	}
+
+	m0_be_tx_bulk_end(tb);
+}
+
+
+static void dtm0_ut_log_tx_bulk_parallel_do(struct m0_be_tx_bulk *tb,
+					    struct m0_be_tx      *tx,
+					    struct m0_be_op      *op,
+					    void                 *datum,
+					    void                 *user,
+					    uint64_t              worker_index,
+					    uint64_t              partition)
+{
+	struct dtm0_ut_log_ctx *lctx = datum;
+	struct m0_dtm0_redo    *redo = user;
+	struct m0_fid p_sdev_fid;
+
+	(void) worker_index;
+	(void) partition;
+
+	p_sdev_fid = M0_FID_TINIT(M0_CONF__SDEV_FT_ID, 1, 2);
+
+	m0_be_op_active(op);
+	m0_dtm0_log_redo_add(&lctx->dol, tx, redo, &p_sdev_fid);
+	m0_be_op_done(op);
+
+	dtm0_ut_redo_put(redo);
+}
+
+static void dtm0_ut_log_tx_bulk_parallel_done(struct m0_be_tx_bulk *tb,
+					      void                 *datum,
+					      void                 *user,
+					      uint64_t              worker_index,
+					      uint64_t              partition)
+{
+}
+
+M0_INTERNAL void dtm0_ut_log_mp_init(struct dtm0_ut_log_mp_ctx *lmp_ctx,
+				     struct dtm0_ut_log_ctx    *lctx)
+{
+	struct m0_be_tx_bulk     *tb;
+	struct m0_be_tx_bulk_cfg *tb_cfg;
+	struct m0_be_op          *op;
+	int                       rc;
+
+	M0_ALLOC_PTR(tb);
+	M0_UT_ASSERT(tb != NULL);
+
+	M0_ALLOC_PTR(tb_cfg);
+	M0_UT_ASSERT(tb_cfg != NULL);
+
+	M0_ALLOC_PTR(op);
+	M0_UT_ASSERT(op != NULL);
+
+	m0_be_op_init(op);
+
+	*tb_cfg = (struct m0_be_tx_bulk_cfg) {
+		.tbc_q_cfg                 = {
+			.bqc_q_size_max       = MPSC_NR_REC_TOTAL / 2,
+			.bqc_producers_nr_max = 1,
+		},
+		.tbc_workers_nr            = 100,
+		.tbc_partitions_nr         = 1,
+		.tbc_work_items_per_tx_max = 1,
+		.tbc_datum                 = lctx,
+		.tbc_do                    =
+			&dtm0_ut_log_tx_bulk_parallel_do,
+		.tbc_done                  =
+			&dtm0_ut_log_tx_bulk_parallel_done,
+		.tbc_dom                   = &lctx->ut_be.but_dom,
+	};
+
+	rc = m0_be_tx_bulk_init(tb, tb_cfg);
+	M0_UT_ASSERT(rc == 0);
+
+	lmp_ctx->op = op;
+	lmp_ctx->lctx = lctx;
+	lmp_ctx->tb_cfg = tb_cfg;
+	lmp_ctx->tb = tb;
+}
+
+M0_INTERNAL void dtm0_ut_log_mp_run(struct dtm0_ut_log_mp_ctx *lmp_ctx)
+{
+	m0_be_tx_bulk_run(lmp_ctx->tb, lmp_ctx->op);
+	dtm0_ut_log_produce_redo_add(lmp_ctx->tb, lmp_ctx->lctx);
+}
+
+M0_INTERNAL void dtm0_ut_log_mp_fini(struct dtm0_ut_log_mp_ctx *lmp_ctx)
+{
+	int rc;
+	rc = m0_be_tx_bulk_status(lmp_ctx->tb);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_be_op_fini(lmp_ctx->op);
+	m0_free(lmp_ctx->op);
+
+	m0_be_tx_bulk_fini(lmp_ctx->tb);
+	m0_free(lmp_ctx->tb);
+	m0_free(lmp_ctx->tb_cfg);
+}
 
 #undef M0_TRACE_SUBSYSTEM
 

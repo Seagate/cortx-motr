@@ -69,6 +69,31 @@ struct dtm0_ut_log_ctx {
 M0_INTERNAL struct dtm0_ut_log_ctx *dtm0_ut_log_init(void);
 M0_INTERNAL void dtm0_ut_log_fini(struct dtm0_ut_log_ctx *lctx);
 
+M0_INTERNAL struct m0_dtm0_redo *dtm0_ut_redo_get(int timestamp);
+M0_INTERNAL void dtm0_ut_redo_put(struct m0_dtm0_redo *redo);
+
+enum {
+	MPSC_TS_BASE = 0,
+};
+
+enum {
+	MPSC_NR_REC_TOTAL = 0x100,
+};
+
+struct dtm0_ut_log_mp_ctx {
+	struct m0_be_tx_bulk_cfg *tb_cfg;
+	struct m0_be_tx_bulk     *tb;
+	struct m0_be_op          *op;
+	struct dtm0_ut_log_ctx   *lctx;
+};
+
+M0_INTERNAL void dtm0_ut_log_mp_init(struct dtm0_ut_log_mp_ctx *lmp_ctx,
+				     struct dtm0_ut_log_ctx    *lctx);
+
+M0_INTERNAL void dtm0_ut_log_mp_run(struct dtm0_ut_log_mp_ctx *lmp_ctx);
+
+M0_INTERNAL void dtm0_ut_log_mp_fini(struct dtm0_ut_log_mp_ctx *lmp_ctx);
+
 /** @} end of dtm0 group */
 #endif /* __MOTR_DTM0_UT_HELPER_H__ */
 

@@ -72,8 +72,12 @@ struct m0_dtm0_pruner_fom {
 enum pruner_fom_state {
 	PFS_INIT   = M0_FOM_PHASE_INIT,
 	PFS_FINISH = M0_FOM_PHASE_FINISH,
-	PFS_GET_NEXT = M0_FOPH_TYPE_SPECIFIC,
+	/* XXX: Use aliases for every gen fom state used here? */
+	/*PFS_TXN_DONE = M0_FOPH_TXN_DONE_WAIT,*/
+	PFS_TXN_OPENED = M0_FOPH_TYPE_SPECIFIC,
+	PFS_GET_NEXT,
 	PFS_WAIT_NEXT,
+	PFS_REMOVE,
 	PFS_NR,
 };
 
@@ -84,16 +88,22 @@ static struct m0_sm_state_descr pruner_fom_states[] = {
 		.sd_name    = #name,  \
 		.sd_allowed = allowed \
 	}
-	__S(PFS_GET_NEXT, 0,               M0_BITS(PFS_WAIT_NEXT)),
-	__S(PFS_WAIT_NEXT, 0,              M0_BITS(PFS_FINISH)),
+	__S(PFS_GET_NEXT, 0,              M0_BITS(PFS_WAIT_NEXT)),
+	__S(PFS_WAIT_NEXT,0,              M0_BITS(PFS_FINISH, M0_FOPH_TXN_INIT)),
+	__S(PFS_REMOVE,   0,              M0_BITS(M0_FOPH_SUCCESS)),
 #undef __S
 };
 
 struct m0_sm_trans_descr pruner_fom_trans[] = {
 	[ARRAY_SIZE(m0_generic_phases_trans)] =
-	{ "todo1", PFS_INIT,      PFS_GET_NEXT  },
-	{ "todo2", PFS_GET_NEXT,  PFS_WAIT_NEXT },
-	{ "todo3", PFS_WAIT_NEXT, PFS_FINISH    },
+	{ "todo1", PFS_INIT,              PFS_GET_NEXT       },
+	{ "todo2", PFS_GET_NEXT,          PFS_WAIT_NEXT      },
+	{ "todo3", PFS_WAIT_NEXT,         PFS_FINISH         },
+	{ "todo4", M0_FOPH_TXN_DONE_WAIT, PFS_GET_NEXT       },
+	{ "todo5", PFS_WAIT_NEXT,         M0_FOPH_TXN_INIT   },
+	{ "todo6", PFS_TXN_OPENED,        PFS_REMOVE         },
+	{ "todo7", PFS_REMOVE,            M0_FOPH_SUCCESS    },
+
 };
 
 static struct m0_dtm0_pruner_fom *fom2pruner_fom(const struct m0_fom *fom)
@@ -135,21 +145,36 @@ static size_t pruner_fom_locality(const struct m0_fom *fom)
 	return 0;
 }
 
+/*
+ * TODO: This function does not handle scenario where an attempt to open be_tx
+ * fails. In case of E2BIG, it is a bug (add assert). If ENOMEM happened,
+ * then we should wait a bit (it is fine to skip pruning), but if happens
+ * frequently then we should write a warning into the trace; or even
+ * notify the HA.
+ */
 static int pruner_fom_tick(struct m0_fom *fom)
 {
 	struct m0_dtm0_pruner_fom *dpf = fom2pruner_fom(fom);
 	struct m0_dtm0_pruner     *dp  = dpf->dpf_pruner;
 	struct m0_dtm0_log        *dol = dp->dp_cfg.dpc_dol;
-	enum m0_fom_phase_outcome  result = M0_FSO_AGAIN;
+	enum m0_fom_phase_outcome  result = M0_FSO_NR;
 
 	M0_ENTRY("pruner_fom=%p pruner=%p phase=%s", dpf, dp,
 		 m0_fom_phase_name(fom, m0_fom_phase(fom)));
 
 	switch (m0_fom_phase(fom)) {
-		/* case TXN_OPEN: calculate credits */
-		/* case TXN_DONE_WAIT: jump to get_next */
+	case M0_FOPH_TXN_OPEN:
+		m0_dtm0_log_prune_credit(dol, &fom->fo_tx.tx_betx_cred);
+		break;
 
-		/* return result */
+	case M0_FOPH_TXN_DONE_WAIT:
+		if (m0_be_tx_state(m0_fom_tx(fom)) == M0_BTS_DONE) {
+			m0_dtx_fini(&fom->fo_tx);
+			m0_fom_phase_set(fom, PFS_GET_NEXT);
+			M0_SET0(&fom->fo_tx);
+		}
+		break;
+
 	default:
 		break;
 	}
@@ -160,7 +185,6 @@ static int pruner_fom_tick(struct m0_fom *fom)
 	}
 
 	switch (m0_fom_phase(fom)) {
-		/* case QUEUE_REPLY: jump to TXN_LOGGED_WAIT */
 	case PFS_INIT:
 		m0_fom_phase_set(fom, PFS_GET_NEXT);
 		m0_semaphore_up(&dpf->dpf_start_sem);
@@ -176,14 +200,24 @@ static int pruner_fom_tick(struct m0_fom *fom)
 	case PFS_WAIT_NEXT:
 		/* TODO: reset? */
 		m0_be_op_fini(&dpf->dpf_op);
+		M0_SET0(&dpf->dpf_op);
 		if (dpf->dpf_successful) {
-			M0_ASSERT(0);
 			m0_fom_phase_set(fom, M0_FOPH_TXN_INIT);
 			result = M0_FSO_AGAIN;
 		} else {
 			m0_fom_phase_set(fom, PFS_FINISH);
 			result = M0_FSO_WAIT;
 		}
+		break;
+	case PFS_TXN_OPENED:
+		m0_fom_phase_set(fom, PFS_REMOVE);
+		result = M0_FSO_AGAIN;
+		break;
+	case PFS_REMOVE:
+		m0_dtm0_log_prune(dol, &fom->fo_tx.tx_betx, &dpf->dpf_dtx0_id);
+		/* TODO: Skip M0_FOPH_FOL_REC_ADD */
+		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+		result = M0_FSO_AGAIN;
 		break;
 	default:
 		break;
@@ -234,10 +268,13 @@ M0_INTERNAL void m0_dtm0_pruner_start(struct m0_dtm0_pruner *dp)
 	struct m0_dtm0_pruner_fom *dpf = dp->dp_pruner_fom;
 	struct m0_reqh            *reqh =
 		dp->dp_cfg.dpc_cfs->cfs_reqh_service->rs_reqh;
+	struct m0_fom             *fom = pruner_fom2fom(dpf);
 
-	m0_fom_init(pruner_fom2fom(dpf), &pruner_fom_type,
+	m0_fom_init(fom, &pruner_fom_type,
 		    &pruner_fom_ops, NULL, NULL, reqh);
-	m0_fom_queue(pruner_fom2fom(dpf));
+	fom->fo_local = true;
+	fom->fo_local_update = true;
+	m0_fom_queue(fom);
 	m0_semaphore_down(&dpf->dpf_start_sem);
 }
 
@@ -254,7 +291,24 @@ M0_INTERNAL void m0_dtm0_pruner_mod_init(void)
 			  min_check(m0_generic_conf.scf_nr_states,
 				    pruner_fom_sm_conf.scf_nr_states));
 	m0_sm_conf_trans_extend(&m0_generic_conf, &pruner_fom_sm_conf);
-	pruner_fom_states[PFS_INIT].sd_allowed |= M0_BITS(PFS_GET_NEXT);
+	/*
+	 * TODO: turn it into an array and move the array closer to the
+	 * definition of pruner_fom_states.
+	 */
+	pruner_fom_states[M0_FOPH_INIT].sd_allowed |= M0_BITS(PFS_GET_NEXT);
+	pruner_fom_states[M0_FOPH_TXN_DONE_WAIT].sd_allowed |=
+		M0_BITS(PFS_GET_NEXT);
+
+	/*
+	 * TODO: Generic FOM sm does not have transitions from TYPE_SPECIFIC to
+	 * FINISH, SUCCESS, FAILED. Because of that, we either should explicitly
+	 * add them in our sm or remove them.  Here we are removing them.
+	 * Consider adding the missing transitions right into the generic FOM
+	 * sm.
+	 */
+	pruner_fom_states[M0_FOPH_TYPE_SPECIFIC].sd_allowed =
+		M0_BITS(PFS_REMOVE);
+
 	m0_sm_conf_init(&pruner_fom_sm_conf);
 
 	m0_fom_type_init(&pruner_fom_type, M0_DTM0_PRUNER_OPCODE,

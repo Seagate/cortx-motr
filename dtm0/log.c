@@ -114,6 +114,9 @@ M0_INTERNAL int m0_dtm0_log_open(struct m0_dtm0_log     *dol,
 	char                  name[0x100];
 	int                   rc;
 
+	M0_PRE(dom != NULL);
+	M0_PRE(dol->dtl_data == NULL);
+
 	dol->dtl_cfg = *dol_cfg;
 	size_prefix = strlen(m0_dtm0_log0.b0_name);
 	/* XXX check that there is at least one \0 in the array */
@@ -141,9 +144,11 @@ M0_INTERNAL int m0_dtm0_log_open(struct m0_dtm0_log     *dol,
 
 M0_INTERNAL void m0_dtm0_log_close(struct m0_dtm0_log *dol)
 {
+	M0_PRE(dol->dtl_data != NULL);
 	M0_PRE(dol->dtl_allp_op == NULL);
 	m0_mutex_fini(&dol->dtl_lock);
 	m0_be_btree_fini(&dol->dtl_data->dtld_transactions);
+	dol->dtl_data = NULL;
 }
 
 M0_INTERNAL int m0_dtm0_log_create(struct m0_dtm0_log     *dol,
@@ -380,6 +385,18 @@ M0_INTERNAL void m0_dtm0_log_end(struct m0_dtm0_log *dol)
 		dol->dtl_allp_op = NULL;
 	}
 	m0_mutex_unlock(&dol->dtl_lock);
+}
+
+M0_INTERNAL bool m0_dtm0_log_is_empty(struct m0_dtm0_log *dol)
+{
+	bool result;
+
+	M0_PRE(dol != NULL);
+	/*m0_mutex_lock(&dol->dtl_lock);*/
+	M0_PRE(dol->dtl_data != NULL);
+	result = m0_be_btree_is_empty(&dol->dtl_data->dtld_transactions);
+	/*m0_mutex_unlock(&dol->dtl_lock);*/
+	return M0_RC(result);
 }
 
 #undef M0_TRACE_SUBSYSTEM
