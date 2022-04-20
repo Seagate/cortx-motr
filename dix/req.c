@@ -1769,7 +1769,6 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 					    &cctg_id.ci_fid, sdev_idx);
 		M0_ASSERT(layout->dl_type == DIX_LTYPE_DESCR);
 		cctg_id.ci_layout.dl_type = layout->dl_type;
-		/** @todo CAS request should copy cctg_id internally. */
 		rc = m0_dix_ldesc_copy(&cctg_id.ci_layout.u.dl_desc,
 				       &layout->u.dl_desc);
 		M0_LOG(M0_DEBUG, "Processing dix_req %p[%u] "FID_F
