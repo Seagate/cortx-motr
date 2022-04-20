@@ -99,7 +99,7 @@ static void be_tx_group_reg_area_gather(struct m0_be_tx_group *gr)
 			m0_be_reg_area_captured(ra, &captured);
 			m0_be_reg_area_used(ra, &used);
 			M0_LOG(M0_DEBUG, "tx=%p t_prepared="BETXCR_F" "
-			       "t_payload_prepared=%"PRId64" "
+			       "t_payload_prepared=%" PRId64 " "
 			       "captured="BETXCR_F" "
 			       "used="BETXCR_F" t_payload.b_nob=%"PRIu64,
 			       tx, BETXCR_P(&prepared), tx->t_payload_prepared,
@@ -165,7 +165,7 @@ M0_INTERNAL void m0_be_tx_group_close(struct m0_be_tx_group *gr)
 	log_position = m0_be_group_format_log_position(&gr->tg_od);
 	log_discarded = m0_be_group_format_log_discarded(&gr->tg_od);
 	M0_ASSERT_INFO(log_position >= log_discarded,
-	               "log_position=%"PRIu64" log_discarded=%"PRIu64,
+	               "log_position=%" PRIu64 " log_discarded=%"PRIu64,
 	               log_position, log_discarded);
 	M0_BE_TX_GROUP_TX_FORALL(gr, tx) {
 		m0_be_tx_lsn_set(tx, log_position, log_discarded);
@@ -290,7 +290,7 @@ M0_INTERNAL int m0_be_tx_group_tx_add(struct m0_be_tx_group *gr,
 	int                    rc;
 
 	M0_ENTRY("gr=%p tx=%p t_prepared="BETXCR_F" t_payload_prepared=%"PRId64
-		 " tg_used="BETXCR_F" tg_payload_prepared=%"PRId64" "
+		 " tg_used="BETXCR_F" tg_payload_prepared=%" PRId64 " "
 		 "group_tx_nr=%zu",
 		 gr, tx, BETXCR_P(&tx->t_prepared), tx->t_payload_prepared,
 		 BETXCR_P(&gr->tg_used), gr->tg_payload_prepared,
@@ -341,7 +341,7 @@ M0_INTERNAL void m0_be_tx_group_tx_closed(struct m0_be_tx_group *gr,
 	M0_ASSERT(tx->t_payload_prepared <= gr->tg_payload_prepared);
 	M0_ASSERT(tx->t_payload.b_nob    <= tx->t_payload_prepared);
 	M0_LOG(M0_DEBUG, "gr=%p tx=%p tx_prepared="BETXCR_F" "
-	       "t_payload_prepared=%"PRIu64" tg_used="BETXCR_F" "
+	       "t_payload_prepared=%" PRIu64 " tg_used="BETXCR_F" "
 	       "tg_payload_prepared=%"PRIu64, gr, tx, BETXCR_P(&tx_prepared),
 	       tx->t_payload_prepared, BETXCR_P(&gr->tg_used),
 	       gr->tg_payload_prepared);
@@ -351,7 +351,7 @@ M0_INTERNAL void m0_be_tx_group_tx_closed(struct m0_be_tx_group *gr,
 	gr->tg_payload_prepared -= tx->t_payload_prepared;
 	gr->tg_payload_prepared += tx->t_payload.b_nob;
 	M0_LOG(M0_DEBUG, "gr=%p tx=%p tx_captured="BETXCR_F" "
-	       "t_payload.b_nob=%"PRIu64" tg_used="BETXCR_F" "
+	       "t_payload.b_nob=%" PRIu64 " tg_used="BETXCR_F" "
 	       "tg_payload_prepared=%"PRIu64, gr, tx, BETXCR_P(&tx_captured),
 	       tx->t_payload.b_nob, BETXCR_P(&gr->tg_used),
 	       gr->tg_payload_prepared);

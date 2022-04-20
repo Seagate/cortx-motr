@@ -258,7 +258,7 @@ M0_INTERNAL int m0_memory_init(void)
 
 M0_INTERNAL void m0_memory_fini(void)
 {
-	M0_LOG(M0_DEBUG, "allocated=%"PRIu64" cumulative_alloc=%"PRIu64" "
+	M0_LOG(M0_DEBUG, "allocated=%" PRIu64 " cumulative_alloc=%" PRIu64 " "
 	       "cumulative_free=%"PRIu64, m0_atomic64_get(&allocated),
 	       m0_atomic64_get(&cumulative_alloc),
 	       m0_atomic64_get(&cumulative_free));

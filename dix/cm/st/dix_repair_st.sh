@@ -19,15 +19,17 @@
 #
 
 SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.dix-repair-st}
-M0_SRC_DIR=`readlink -f $0`
-M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
+M0_SRC_DIR="$(readlink -f "${BASH_SOURCE[0]}")"
+M0_SRC_DIR="${M0_SRC_DIR%/*/*/*/*}"
 [ `id -u` -eq 0 ] || die 'Must be run by superuser'
 
-. $M0_SRC_DIR/spiel/st/m0t1fs_spiel_dix_common_inc.sh #dix spiel
-. $M0_SRC_DIR/motr/st/utils/motr_local_conf.sh
+. "$M0_SRC_DIR"/spiel/st/m0t1fs_spiel_dix_common_inc.sh #dix spiel
+. "$M0_SRC_DIR"/motr/st/utils/motr_local_conf.sh
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_dix_common_inc.sh
 
 do_motr_start=1
 do_dixinit=1
+do_spiel=1
 verbose=0
 fids_file="${SANDBOX_DIR}/fids.txt"
 keys_file="${SANDBOX_DIR}/keys.txt"
@@ -44,11 +46,13 @@ error() { echo "$@" >&2; stop 1; }
 
 function usage()
 {
-	echo "dix_repair_st.sh [-n -i -v -h] all|test1 test2 ..."
+	echo "dix_repair_st.sh [-n -i -r -v -h] all|test1 test2 ..."
 	echo "Options:"
 	echo "    '-n|--no-setup'        don't start motr service"
 	echo "    '-i|--no-dixinit'      don't create dix meta-indices"
 	echo "                           note: ignored without --no-setup"
+	echo "    '-r|--no-spiel'        Use m0repair utility for DIX repair"
+	echo "                           instead of m0spiel"
 	echo "    '-v|--verbose'         output additional info into console"
 	echo "    '-h|--help'            show this help"
 	echo "Available tests:"
@@ -82,61 +86,81 @@ function load_item()
 
 device_fail() {
 	local rc
-	cas_disk_state_set "failed" $fail_device
+	cas_disk_state_set "failed" "$fail_device"
 	rc=$?
 	return $rc
 }
 
 device_query() {
 	local rc
-	cas_disk_state_get $fail_device
+	cas_disk_state_get "$fail_device"
 	rc=$?
 	return $rc
 }
 
 
-dix_repair() {
+dix_repair_start() {
 	local rc
-	cas_disk_state_set "repair" $fail_device
-	rc=$?
-	[ $rc != 0 ] && return $rc
-	spiel_dix_repair_start
+	cas_disk_state_set "repair" "$fail_device" || return $?
+	if [ ${do_spiel} == 1 ]; then
+		spiel_dix_repair_start
+	else
+		dix_repair # Using m0repair
+	fi
 	rc=$?
 	return $rc
 }
 
-dix_rebalance() {
+dix_rebalance_start() {
 	local rc
-	cas_disk_state_set "rebalance" $fail_device
-	rc=$?
-	[ $rc != 0 ] && return $rc
-	spiel_dix_rebalance_start
+	cas_disk_state_set "rebalance" "$fail_device" || return $?
+	if [ ${do_spiel} == 1 ]; then
+		spiel_dix_rebalance_start
+	else
+		dix_rebalance
+	fi
 	rc=$?
 	return $rc
 }
 
 dix_rep_wait() {
 	local rc
-	spiel_wait_for_dix_repair
+	if [ ${do_spiel} == 1 ]; then
+		spiel_wait_for_dix_repair
+	else
+		wait_for_dix_repair_or_rebalance "repair"
+	fi
 	rc=$?
-	[ $rc != 0 ] && return $rc
-	cas_disk_state_set "repaired" $fail_device
+	if [ $rc != 0 ]
+	then
+		echo "Wait for DIX repair failed."
+		return $rc
+	fi
+	cas_disk_state_set "repaired" "$fail_device"
 	rc=$?
 	return $rc
 }
 
 dix_reb_wait() {
 	local rc
-	spiel_wait_for_dix_rebalance
-	rc=$?
-	[ $rc != 0 ] && return $rc
-	cas_disk_state_set "online" $fail_device
+	if [ ${do_spiel} == 1 ]; then
+		spiel_wait_for_dix_rebalance
+	else
+		wait_for_dix_repair_or_rebalance "rebalance"
+	fi
+	if [ $rc != 0 ]
+	then
+		echo "Wait for DIX rebalance failed."
+		return $rc
+	fi
+	cas_disk_state_set "online" "$fail_device"
 	rc=$?
 	return $rc
 }
+
 dix_repair_wait() {
 	local rc
-	dix_repair
+	dix_repair_start
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	dix_rep_wait
@@ -147,7 +171,7 @@ dix_repair_wait() {
 
 dix_rebalance_wait() {
 	local rc
-	dix_rebalance
+	dix_rebalance_start
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	dix_reb_wait
@@ -406,7 +430,7 @@ del_repair() {
 	device_fail
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	dix_repair
+	dix_repair_start
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	${MOTRTOOL} ${del} >${out_file}
@@ -446,7 +470,7 @@ del_rebalance() {
 	dix_repair_wait
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	dix_rebalance
+	dix_rebalance_start
 	${MOTRTOOL} ${del} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
@@ -481,7 +505,7 @@ st_init() {
 	[ $? != 0 ] && return 1
 
 	# We use this file because it contains human-readable values.
-	cp $M0_SRC_DIR/dix/cm/st/src_vals.txt ${vals_file}
+	cp "$M0_SRC_DIR"/dix/cm/st/src_vals.txt "${vals_file}"
 
 	cp ${vals_file} ${keys_file}
 	ls -l ${fids_file} ${vals_file}
@@ -577,7 +601,13 @@ start() {
 		motr_start || error "Failed to start Motr service"
 		do_dixinit=1
 	fi
-	spiel_prepare
+	if [ ${do_spiel} == 1 ]; then
+		spiel_prepare
+	else
+		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+			ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
+		done
+	fi
 	if [ ${do_dixinit} == 1 ]; then
 #		dixinit_exec || error "m0dixinit failed ($?)!"
 		echo "*** m0dixinit is omitted. Mkfs creates meta indices now."
@@ -586,7 +616,9 @@ start() {
 }
 
 stop() {
-	spiel_cleanup
+	if [ ${do_spiel} == 1 ]; then
+		spiel_cleanup
+	fi
 	if [ ${do_motr_start} == 1 ]; then
 		motr_stop || error "Failed to stop Motr service"
 	fi
@@ -597,8 +629,8 @@ main() {
 	start
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	execute_tests
-	rc=$?
+	execute_tests 2>&1 | tee -a "$MOTR_TEST_LOGFILE"
+	rc="${PIPESTATUS[0]}"
 	[ $rc != 0 ] && "echo test cases failed"
 	stop
 	if [ $rc -eq 0 ]; then
@@ -609,7 +641,7 @@ main() {
 	report_and_exit dix-repair-st $rc
 }
 
-OPTS=`getopt -o vhni --long verbose,help,no-setup,no-dixinit -n 'parse-options' -- "$@"`
+OPTS=`getopt -o vhnir --long verbose,help,no-setup,no-dixinit,no-spiel -n 'parse-options' -- "$@"`
 if [ $? != 0 ] ; then echo "Failed parsing options." >&2 ; exit 1 ; fi
 eval set -- "$OPTS"
 while true; do
@@ -618,6 +650,7 @@ while true; do
 	-h | --help )       usage ; exit 0; shift ;;
 	-n | --no-setup )   do_motr_start=0; shift ;;
 	-i | --no-dixinit ) do_dixinit=0; shift ;;
+	-r | --no-spiel ) do_spiel=0; shift ;;
 	-- )                shift; break ;;
 	* )                 break ;;
 	esac

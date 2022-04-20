@@ -51,7 +51,7 @@ PVER_2="7680000000000001:42"
 read_verify="true"
 motr_pids=""
 export cnt=1
-
+export MOTR_CLIENT_ONLY=1
 # Dgmode IO
 
 MOTR_TEST_DIR=$SANDBOX_DIR
@@ -75,7 +75,6 @@ main()
 	dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file \
               2> $MOTR_TEST_LOGFILE || {
 		echo "Failed to create a source file"
-		unmount_and_clean &>>$MOTR_TEST_LOGFILE
 		motr_service_stop
 		return 1
 	}
@@ -87,18 +86,8 @@ main()
 	#Initialise dix
 	dix_init
 
-	#mount m0t1fs as well. This helps in two ways:
-	# 1) Currently motr does not have a utility to check attributes of an
-	#    object. Hence checking of attributes is done by fetching them via
-	#    m0t1fs.
-	# 2) A method to send HA notifications assumes presence of m0t1fs. One
-	#    way to circumvent this is by assigning same end-point to motr,
-	#    but creating a motr instance concurrently with HA notifications
-	#    is hard. Another way is to re-write the method to send HA
-	#    notifications by excluding m0t1fs end-point. We have differed these
-	#    changes in current patch.
-	local mountopt="oostore,verify"
-	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mountopt || return 1
+	# Currently motr does not provide any API to check attributes of an
+	# object. It has to be checked with S3 level or in motr trace logs.
 
 	# write an object
 	io_conduct "WRITE" $src_file $OBJ_ID1 "false"
@@ -198,22 +187,6 @@ main()
 		error_handling $rc
 	fi
 	echo "New Obj write succeeds."
-	echo "Check pver of the first object"
-	output=`getfattr -n pver $MOTR_M0T1FS_MOUNT_DIR/"$OBJ_HID1"`
-	echo $output
-	if [[ $output != *"$PVER_1"* ]]
-	then
-		echo "getattr failed on $OBJ_HID1."
-		error_handling 1
-	fi
-	echo "Check pver of the second object, created post device failure."
-	output=`getfattr -n pver $MOTR_M0T1FS_MOUNT_DIR/"$OBJ_HID2"`
-	echo $output
-	if [[ $output != *"$PVER_2"* ]]
-	then
-		echo "getattr failed on $OBJ_HID2"
-		error_handling 1
-	fi
 	rm -f $dest_file
 
 	echo "Fail another disk"
@@ -265,7 +238,6 @@ main()
 		echo "motr pids=${motr_pids[$i]}" >> $MOTR_TEST_LOGFILE
 	done
 
-	unmount_and_clean &>> $MOTR_TEST_LOGFILE
 	motr_service_stop || rc=1
 
 	if [ $rc -eq 0 ]; then

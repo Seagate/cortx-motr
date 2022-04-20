@@ -138,7 +138,7 @@ static void be_ut_io_sched_io_ready_get(struct be_ut_io_sched_test  *test,
 		       "timed out");
 	M0_ASSERT_INFO(m0_atomic64_get(&test->st_io_ready_pos_del) <
 		       m0_atomic64_get(&test->st_io_ready_pos_add),
-	               "pos_del=%"PRId64" pos_add=%"PRId64,
+	               "pos_del=%" PRId64 " pos_add=%"PRId64,
 	               m0_atomic64_get(&test->st_io_ready_pos_del),
 		       m0_atomic64_get(&test->st_io_ready_pos_add));
 	pos =  m0_atomic64_add_return(&test->st_io_ready_pos_del, 1) - 1;

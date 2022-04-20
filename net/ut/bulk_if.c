@@ -1096,8 +1096,8 @@ static void test_net_bulk_if(void)
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < M0_NET_QT_NR; i++) {
 		KPRN("i=%d\n", i);
-#define QS(x)  KPRN("\t" #x "=%"PRId64"\n", qs[i].nqs_##x)
-#define QS2(x) KPRN("\t" #x "=%"PRId64" [%"PRId64"]\n", qs[i].nqs_##x, x[i])
+#define QS(x)  KPRN("\t" #x "=%" PRId64 "\n", qs[i].nqs_##x)
+#define QS2(x) KPRN("\t" #x "=%" PRId64 " [%" PRId64 "]\n", qs[i].nqs_##x, x[i])
 		QS2(num_adds);
 		QS2(num_dels);
 		QS2(total_bytes);

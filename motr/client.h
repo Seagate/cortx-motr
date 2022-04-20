@@ -50,8 +50,6 @@
  *
  *     - Motr-based block device (part of BOMO);
  *
- *     - exascale E10 stack (see eiow.org).
- *
  * Client interface is divided into the following sub-interfaces:
  *
  *     - access sub-interface, which provides basic abstraction to build storage
@@ -554,13 +552,13 @@ enum m0_idx_opcode {
 	M0_IC_GET = M0_OC_NR + 1,  /* 15 */
 	/** Insert or update the value, given a key. */
 	M0_IC_PUT,                 /* 16 */
-	/** Delete the value, if any, for the given key. */
+	/** Delete the record, if any, for the given key. */
 	M0_IC_DEL,                 /* 17 */
-	/** Given a key, return the next key and its value. */
+	/** Given a key, return the next keys and their values. */
 	M0_IC_NEXT,                /* 18 */
-	/** Check an index for an existence. */
+	/** Check the given index for existence. */
 	M0_IC_LOOKUP,              /* 19 */
-	/** Given an index id, get the list of next indices. */
+	/** Given a key, return the list of next keys. */
 	M0_IC_LIST,                /* 20 */
 	M0_IC_NR                   /* 21 */
 } M0_XCA_ENUM;
@@ -596,35 +594,45 @@ enum m0_entity_type {
  */
  enum m0_entity_flags {
 	/**
-	 * During create if this flag is set in entity->en_flags, that means
-	 * application has capability to store meta-data and hence pver and
-	 * lid can be stored in  application's meta-data.
-	 * Before calling to m0_entity_create/open(), application is
-	 * expected to set obj>ob_entity->en_flags |= M0_ENF_META, so when
-	 * m0_entity_create() returns to application, pool version and layout id
-	 * will be available to application into obj->ob_attr.oa_pver and
-	 * obj->ob_attr.oa_lid respectively and can be stored into application's
-	 * meta-data.
+	 * If motr client application has the capability to store object
+	 * metadata by itself (such as pool version and layout, which can
+	 * be stored by the application at motr distributed index, for example),
+	 * it can use this flag to avoid sending additional metadata fops on
+	 * such object operations as CREATE, OPEN, DELETE, GETATTR and, thus,
+	 * improve its performance.
 	 *
-	 * For example:
-	 * Create workflow would be like:
+	 * Before calling m0_entity_create() or m0_entity_open(), application
+	 * is expected to set obj->ob_entity->en_flags |= M0_ENF_META. When
+	 * m0_entity_create() returns, the pool version and layout id will be
+	 * available for the application at obj->ob_attr.oa_pver and
+	 * obj->ob_attr.oa_lid respectively.
+	 *
+	 * For example, create workflow can look like this:
+	 *
 	 *   obj->ob_entity.en_flags |= M0_ENF_META;
-	 *   m0_entity_create((NULL, &obj.ob_entity, &ops[0]);
-	 *   //  Save the returned pool version and lid into app_meta_data
+	 *   m0_entity_create(NULL, &obj->ob_entity, &ops[0]);
+	 *   // Save the returned pool version and lid into app_meta_data
 	 *   app_meta_data.pver = obj->ob_attr.oa_pver;
-	 *   app_meta_data.lid = obj->ob_attr.oa_lid;
+	 *   app_meta_data.lid  = obj->ob_attr.oa_lid;
 	 *
-	 * Read workflow:
+	 * And read workflow:
+	 *
+	 *   obj->ob_entity.en_flags |= M0_ENF_META;
+	 *   // Set the pool version and lid from app_meta_data
 	 *   obj->ob_attr.oa_pver = app_meta_data.pver;
-	 *   obj->ob_attr.oa_lid =  app_meta_data.lid;
-	 *   m0_entity_open(NULL, &obj.ob_entity, &ops[0]);
+	 *   obj->ob_attr.oa_lid  = app_meta_data.lid;
+	 *   m0_entity_open(NULL, &obj->ob_entity, &ops[0]);
 	 */
 	M0_ENF_META = 1 << 0,
 	/**
 	 * If this flags is set during entity_create() that means application
 	 * do not support update operation. This flag is not in use yet.
 	 */
-	M0_ENF_NO_RMW =  1 << 1
+	M0_ENF_NO_RMW =  1 << 1,
+	/**
+	 * This flag is to enable data integrity.
+	 */
+ 	M0_ENF_DI = 1 << 2
  } M0_XCA_ENUM;
 
 /**

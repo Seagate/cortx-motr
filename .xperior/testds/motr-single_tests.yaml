@@ -27,7 +27,7 @@ Tests:
     sandbox  : /var/motr/m0ut
     groupname: 01motr-single-node
     polltime : 15
-    timeout  : 1800
+    timeout  : 2400
 
   - id       : 01kernel-tests
     script   : 'm0 run-kut'
@@ -386,11 +386,38 @@ Tests:
     polltime : 30
     timeout  : 1800
 
-  - id       : 24motr-dix-repair-lookup-insert
-    script   : 'm0 run-st 24motr-dix-repair-lookup-insert'
+  - id       : 23dix-repair-m0repair
+    script   : 'm0 run-st 23dix-repair-m0repair'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
-    sandbox  : /var/motr/root/sandbox.st-24motr-dix-repair-lookup-insert
+    sandbox  : /var/motr/root/sandbox.st-23dix-repair-m0repair
+    groupname: 05motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 23dix-repair-quiesce-m0repair
+    script   : 'm0 run-st 23dix-repair-quiesce-m0repair'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-23dix-repair-quiesce-m0repair
+    groupname: 05motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 24motr-dix-repair-lookup-insert-spiel
+    script   : 'm0 run-st 24motr-dix-repair-lookup-insert-spiel'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-24motr-dix-repair-lookup-insert-spiel
+    groupname: 03motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 24motr-dix-repair-lookup-insert-m0repair
+    script   : 'm0 run-st 24motr-dix-repair-lookup-insert-m0repair'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-24motr-dix-repair-lookup-insert-m0repair
     groupname: 03motr-single-node
     polltime : 30
     timeout  : 1800
@@ -668,8 +695,52 @@ Tests:
     sandbox  : /var/motr/root/sandbox.st-67fdmi-plugin-multi-filters
     groupname: 02motr-single-node
     polltime : 30
-    timeout  : 600
+    timeout  : 1800
 
+  - id       : 68sns-repair-motr-shutdown
+    script   : 'm0 run-st 68sns-repair-motr-shutdown'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-68sns-repair-motr-shutdown
+    groupname: 03motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 69sns-repair-motr-quiesce
+    script   : 'm0 run-st 69sns-repair-motr-quiesce'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-69sns-repair-motr-quiesce
+    groupname: 03motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 70sns-failure-after-repair-quiesce
+    script   : 'm0 run-st 70sns-failure-after-repair-quiesce'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-70sns-failure-after-repair-quiesce
+    groupname: 03motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 71spiel-sns-motr-repair
+    script   : 'm0 run-st 71spiel-sns-motr-repair'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-71spiel-sns-motr-repair
+    groupname: 03motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 72spiel-sns-motr-repair-quiesce
+    script   : 'm0 run-st 72spiel-sns-motr-repair-quiesce'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-72spiel-sns-motr-repair-quiesce
+    groupname: 03motr-single-node
+    polltime : 30
+    timeout  : 1800
 
 
 # 25 min

@@ -44,59 +44,6 @@ M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
 SUDO="${SUDO-sudo -E}"  # the absence of ':' is important
 
-# libfab does not need kernel based ST
-LIBFAB_TESTS_SKIPLIST=(04initscripts
-                06conf
-                07mount
-                07mount-fail
-                07mount-multiple
-                08spiel
-                08spiel-sns-repair
-                08spiel-sns-repair-quiesce
-                10pver-assign
-                11m0t1fs
-                11m0t1fs-rconfc-fail
-                12fsync
-                12fwait
-                13dgmode-io
-                14poolmach
-                15sns-repair-shutdown
-                15sns-repair-single
-                16sns-repair-multi
-                17sns-repair-concurrent-io
-                18sns-repair-quiesce
-                18sns-repair-quiesce-failure
-                19sns-repair-abort
-                20rpc-session-cancel
-                21fsync-single-node
-                22sns-repair-ios-fail
-                23sns-abort-quiesce
-                26motr-user-kernel-tests
-                28sys-kvs
-                28sys-kvs-kernel
-                34sns-repair-1n-1f
-                35m0singlenode
-                36spare-reservation
-                37protocol
-                40motr-dgmode
-                43motr-sync-replication
-                45motr-rmw
-                51kem)
-
-# libisal does not need kernel based ST
-LIBISAL_TESTS_SKIPLIST=(
-            08spiel-sns-repair
-            08spiel-sns-repair-quiesce
-            11m0t1fs
-            13dgmode-io
-            16sns-repair-multi
-            18sns-repair-quiesce
-            18sns-repair-quiesce-failure
-            19sns-repair-abort
-            22sns-repair-ios-fail
-            23sns-abort-quiesce
-)
-
 # Check which library is used for reed-solomon encode and decode
 _check_rs_library() {
     is_isal=`whereis libisal | cut -d ':' -f 1 --complement`
@@ -265,6 +212,7 @@ cmd_run_st() {
                         if [[ "$chk" == "true" ]]; then
                             echo "<< ${f##*/} >> can not be run for libfab" >&1
                             _fini ${f##*/}
+                            continue
                         fi
                     # Check if encode / decode library is Intel ISA
                     elif [ "$rs_lib" == "isal" ]; then
@@ -272,6 +220,7 @@ cmd_run_st() {
                         if [[ "$chk" == "true" ]]; then
                             echo "<< ${f##*/} >> can not be run for libisal" >&1
                             _fini ${f##*/}
+                            continue
                         fi
                     fi
                     export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
