@@ -61,6 +61,7 @@ enum config_key_val {
 	 * The check for index at copy_value() relies on this.
 	 */
 	WORKLOAD_TYPE,
+	POOL_FID,
 	SEED,
 	NR_THREADS,
 	NUM_OPS,
@@ -127,6 +128,7 @@ struct key_lookup_table lookuptable[] = {
 	{"MAX_RSIZE", MAX_VALUE_SIZE},
 	{"GET", GET},
 	{"PUT", PUT},
+	{"POOL_FID", POOL_FID},
 	{"NEXT", NEXT},
 	{"DEL", DEL},
 	{"NXRECORDS", NXRECORDS},
@@ -553,6 +555,13 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			cw = workload_io(w);
 			cw->cwi_random_io = atoi(value);
 			break;
+		case POOL_FID:
+			w = &load[*index];
+			cw = workload_io(w);
+			if (0 != m0_fid_sscanf(value, &cw->cwi_pool_id)) {
+				parser_emit_error("Unable to parse fid: %s", value);
+			}
+			break;
 		case OPCODE:
 			w = &load[*index];
 			cw = workload_io(w);
@@ -610,6 +619,7 @@ int parse_yaml_file(struct workload *load, int max_workload, int *index,
 	fh = fopen(config_file, "r");
 	if (fh == NULL) {
 		cr_log(CLL_ERROR, "Failed to open file!\n");
+		yaml_parser_delete(&parser);
 		return -1;
 	}
 
@@ -642,8 +652,10 @@ int parse_yaml_file(struct workload *load, int max_workload, int *index,
 		}
 
 		if (rc != 0) {
-			fclose(fh);
 			cr_log(CLL_ERROR, "Failed to parse %s\n", key);
+			yaml_token_delete(&token);
+			yaml_parser_delete(&parser);
+			fclose(fh);
 			return rc;
 		}
 
@@ -653,9 +665,8 @@ int parse_yaml_file(struct workload *load, int max_workload, int *index,
 	} while (token.type != YAML_STREAM_END_TOKEN);
 
 	yaml_token_delete(&token);
-
 	yaml_parser_delete(&parser);
-	/*fclose(fh);*/
+	fclose(fh);
 	return 0;
 }
 

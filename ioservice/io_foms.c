@@ -612,6 +612,8 @@ static int zero_copy_initiate(struct m0_fom *);
 static int zero_copy_finish(struct m0_fom *);
 static int net_buffer_release(struct m0_fom *);
 static int nbuf_release_done(struct m0_fom *fom, int still_required);
+static int cob_bytecount_increment(struct m0_cob *cob, struct m0_cob_bckey *key,
+				   uint64_t bytecount, struct m0_be_tx *tx);
 
 static void io_fom_addb2_descr(struct m0_fom *fom);
 
@@ -1549,12 +1551,7 @@ static int zero_copy_initiate(struct m0_fom *fom)
 		used_size = rwfop->crw_desc.id_descs[fom_obj->
 						fcrw_curr_desc_index].bdd_used;
 
-		if (dom->nd_xprt == &m0_net_lnet_xprt) {
-			segs_nr = used_size / max_seg_size;
-		} else {
-			segs_nr = 1;
-			(void)max_seg_size;
-		}
+		segs_nr = (used_size + max_seg_size - 1) / max_seg_size;
 
 		M0_LOG(M0_DEBUG, "segs_nr %d", segs_nr);
 
@@ -1811,9 +1808,9 @@ static int io_launch(struct m0_fom *fom)
 		m0_fom_callback_arm(fom, &stio->si_wait, &stio_desc->siod_fcb);
 		m0_mutex_unlock(&stio->si_mutex);
 
-		M0_LOG(M0_DEBUG, "launch fom: %p, start_time %"PRIi64", "
-		       "req_count: %"PRIx64", count: %"PRIx64", "
-		       "submitted: %"PRIx64", expect: %"PRIx64,
+		M0_LOG(M0_DEBUG, "launch fom: %p, start_time %" PRIi64 ", "
+		       "req_count: %" PRIx64 ", count: %" PRIx64 ", "
+		       "submitted: %" PRIx64 ", expect: %"PRIx64,
 		       fom, fom_obj->fcrw_fom_start_time,
 		       fom_obj->fcrw_req_count, fom_obj->fcrw_count,
 		       m0_vec_count(&stio->si_user.ov_vec), ivec_count);
@@ -1865,7 +1862,7 @@ static int io_launch(struct m0_fom *fom)
 
 	m0_cob_put(container_of(file, struct m0_cob, co_file));
 
-	M0_LOG(M0_DEBUG, "total  fom: %"PRIi64", expect: %"PRIi64,
+	M0_LOG(M0_DEBUG, "total  fom: %" PRIi64 ", expect: %"PRIi64,
 	       fom_obj->fcrw_fom_start_time,
 	       fom_obj->fcrw_req_count - fom_obj->fcrw_count);
 
@@ -1941,7 +1938,7 @@ static int io_finish(struct m0_fom *fom)
 							  fom_obj->fcrw_bshift));
 			}
 			nob += stio->si_count;
-			M0_LOG(M0_DEBUG, "rw_count %"PRIi64", si_count %"PRIi64,
+			M0_LOG(M0_DEBUG, "rw_count %" PRIi64 ", si_count %"PRIi64,
 			       fom_obj->fcrw_count, stio->si_count);
 		}
 		stobio_tlist_add(&fom_obj->fcrw_done_list, stio_desc);
@@ -1954,8 +1951,8 @@ static int io_finish(struct m0_fom *fom)
 			fom_obj->fcrw_cob_size =
 				max64u(fom_obj->fcrw_cob_size,
 				       fom_obj->fcrw_cob->co_nsrec.cnr_size);
-			rc = m0_cob_size_update(cob,
-				fom_obj->fcrw_cob_size, m0_fom_tx(fom));
+			rc = m0_cob_size_update(cob, fom_obj->fcrw_cob_size,
+						m0_fom_tx(fom));
 			m0_cob_put(cob);
 		}
 	}
@@ -2237,6 +2234,9 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 {
 	int                                       rc;
 	int                                       phase = m0_fom_phase(fom);
+	m0_bcount_t                               byte_count;
+	struct m0_fid                             pver;
+	struct m0_cob                            *cob;
 	struct m0_io_fom_cob_rw                  *fom_obj;
 	struct m0_io_fom_cob_rw_state_transition  st;
 	struct m0_fop_cob_rw                     *rwfop;
@@ -2249,6 +2249,8 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
 	rwfop = io_rw_get(fom->fo_fop);
+	byte_count = m0_io_count(&rwfop->crw_ivec);
+	pver = rwfop->crw_pver;
 
 	M0_ENTRY("fom %p, fop %p, item %p[%u] %s" FID_F, fom, fom->fo_fop,
 		 m0_fop_to_rpc_item(fom->fo_fop), m0_fop_opcode(fom->fo_fop),
@@ -2279,7 +2281,13 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 				m0_cob_tx_credit(fom_cdom(fom),
 						 M0_COB_OP_CREATE, accum);
 				m0_cob_tx_credit(fom_cdom(fom),
+						 M0_COB_OP_UPDATE, accum);
+				m0_cob_tx_credit(fom_cdom(fom),
 						 M0_COB_OP_DELETE, accum);
+				m0_cob_tx_credit(fom_cdom(fom),
+						 M0_COB_OP_BYTECOUNT_SET, accum);
+				m0_cob_tx_credit(fom_cdom(fom),
+						 M0_COB_OP_BYTECOUNT_UPDATE, accum);
 			}
 		} else if (phase == M0_FOPH_AUTHORISATION) {
 			rc = m0_fom_tick_generic(fom);
@@ -2326,6 +2334,31 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	M0_ASSERT(rc == M0_FSO_AGAIN || rc == M0_FSO_WAIT);
 
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
+
+	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS &&
+	    m0_is_write_fop(fom->fo_fop)) {
+		int                 bc_rc;
+		struct m0_cob_bckey key;
+
+		key.cbk_pfid = pver;
+		key.cbk_user_id = M0_BYTECOUNT_USER_ID;
+		bc_rc = fom_cob_locate(fom);
+		if (bc_rc == 0) {
+			cob = fom_obj->fcrw_cob;
+			cob_bytecount_increment(cob, &key, byte_count,
+						m0_fom_tx(fom));
+			/**
+			 * XXX: Overlapping cob extentds are not accounted for
+			 * during cob overwrite. IF a cob is overwritten,
+			 * it will make cob size inaccurate.
+			 */
+			cob->co_nsrec.cnr_bytecount += byte_count;
+			bc_rc = m0_cob_update(cob, &cob->co_nsrec, NULL, NULL,
+					      m0_fom_tx(fom));
+			if (bc_rc != 0)
+				M0_ERR_INFO(bc_rc, "Failed to update cob_size");
+		}
+	}
 	/* Set operation status in reply fop if FOM ends.*/
 	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
 	    m0_fom_phase(fom) == M0_FOPH_FAILURE) {
@@ -2478,6 +2511,40 @@ static void io_fom_addb2_descr(struct m0_fom *fom)
 		     iv->ci_iosegs != NULL ? iv->ci_iosegs[0].ci_index : 0,
 		     rwfop->crw_desc.id_nr,
 		     m0_net_tm_colour_get(m0_fop_tm_get(fop)));
+}
+
+static int cob_bytecount_increment(struct m0_cob *cob, struct m0_cob_bckey *key,
+				   uint64_t bytecount, struct m0_be_tx *tx)
+{
+	int                 rc;
+	struct m0_rwlock   *cdom_lock = &cob->co_dom->cd_lock.bl_u.rwlock;
+	struct m0_cob_bcrec rec = {};
+
+	M0_ENTRY("KEY: "FID_F"/%" PRIu64, FID_P(&key->cbk_pfid), key->cbk_user_id);
+
+	m0_rwlock_write_lock(cdom_lock);
+	rc = m0_cob_bc_lookup(cob, key, &rec);
+	if (rc == -ENOENT) {
+		rec.cbr_bytecount = bytecount;
+		rec.cbr_cob_objects = 1;
+		rc = m0_cob_bc_insert(cob, key, &rec, tx);
+		m0_rwlock_write_unlock(cdom_lock);
+		if (rc != 0)
+			return M0_ERR(rc);
+		M0_LOG(M0_DEBUG, "Bytecount inserted %" PRIu64, bytecount);
+	} else if (rc == 0) {
+		rec.cbr_bytecount += bytecount;
+		rc = m0_cob_bc_update(cob, key, &rec, tx);
+		m0_rwlock_write_unlock(cdom_lock);
+		if (rc != 0)
+			return M0_ERR(rc);
+		M0_LOG(M0_DEBUG, "Bytecount increased by %" PRIu64
+				 " to %" PRIu64, bytecount,
+				 rec.cbr_bytecount);
+	} else
+		M0_ERR(rc);
+
+	return M0_RC(rc);		
 }
 
 #undef M0_TRACE_SUBSYSTEM

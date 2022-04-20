@@ -120,7 +120,6 @@ function cleanup_cluster()
     $EX_SRV "pushd $HARE_SRC_DIR && make uninstall && popd"
     $EX_SRV rmmod m0tr
     $EX_SRV rmmod m0gf
-    $EX_SRV rmmod galois
     set -e
 
     $EX_SRV 'rm -rf /var/motr/*'
@@ -621,7 +620,7 @@ function run_tests() {
         app=${APPS[((i))]}
         conf=${CONFS[((i))]}
 
-        echo "app: "$app 
+        echo "app: "$app
         echo "conf: "$conf
 
         # In some cases conf may be empty

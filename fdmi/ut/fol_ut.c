@@ -187,6 +187,7 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 	dock = m0_fdmi_src_dock_get();
 	M0_UT_ASSERT(dock != NULL);
 	dock->fsdc_started = true;
+	dock->fsdc_filters_defined = true;
 	src_ctx = m0_fdmi__src_ctx_get(M0_FDMI_REC_TYPE_FOL);
 	M0_UT_ASSERT(src_ctx != NULL);
 	src_reg = &src_ctx->fsc_src;
@@ -245,7 +246,7 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 		m0_fol_fdmi_post_record(&fom);
 		M0_UT_ASSERT(dummy_post_called);
 		m0_sm_asts_run(grp);
-		M0_UT_ASSERT(betx->t_ref == 2);
+		M0_UT_ASSERT(betx->t_ref == 1);
 		/* processing start */
 		src_reg->fs_begin(dummy_rec_pointer);
 		/* get value */
@@ -294,15 +295,13 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 		src_reg->fs_put(dummy_rec_pointer);
 		/* finalize processing */
 		m0_sm_asts_run(grp);
-		M0_UT_ASSERT(betx->t_ref == 2);
+		M0_UT_ASSERT(betx->t_ref == 1);
 		src_reg->fs_end(dummy_rec_pointer);
-		src_reg->fs_put(dummy_rec_pointer);
 
 		/* Run asts directly, so posted AST is invoked to
 		 * decrement betx->t_ref. Maybe better way to run
 		 * ASTs exist */
 		m0_sm_asts_run(grp);
-		M0_UT_ASSERT(betx->t_ref == 1);
 
 		/* reset record_post back to orig value */
 		src_reg->fs_record_post = saved_fs_record_post;
@@ -312,7 +311,7 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 		m0_fol_fdmi_post_record(&fom);
 		M0_UT_ASSERT(dummy_post_called);
 		m0_sm_asts_run(grp);
-		M0_UT_ASSERT(betx->t_ref == 2);
+		M0_UT_ASSERT(betx->t_ref == 1);
 
 		m0_fol_fdmi_src_fini();
 
@@ -356,6 +355,7 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 	m0_be_ut_backend_fini(&ut_be);
 
 	dock->fsdc_started = false;
+	dock->fsdc_filters_defined = false;
 
 	M0_LEAVE();
 }
@@ -446,6 +446,12 @@ static void fdmi_fol_test_filter_kv_substring_random(void)
 	}
 	fdmi_fol_test_filter_kv_substring_match(
 	        &value, (const char **)substrings, false);
+
+	for (i = 0; i < FDMI_FOL_TEST_KV_SUBSTRING_FILTER_STR_NR; ++i) {
+		m0_free(substrings[i]);
+	}
+	m0_free(substrings);
+	m0_buf_free(&value);
 }
 
 /* ------------------------------------------------------------------

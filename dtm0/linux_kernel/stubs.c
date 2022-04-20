@@ -43,12 +43,14 @@ M0_INTERNAL void m0_dtm0_rpc_link_mod_fini(void)
  *         if the remote service does not exist in the conf cache (-ENOENT).
  */
 M0_INTERNAL int m0_dtm0_req_post(struct m0_dtm0_service    *svc,
+                                 struct m0_be_op           *op,
 				 const struct dtm0_req_fop *req,
 				 const struct m0_fid       *tgt,
 				 const struct m0_fom       *parent_fom,
 				 bool                       wait_for_ack)
 {
 	(void) svc;
+	(void) op;
 	(void) req;
 	(void) tgt;
 	(void) parent_fom;

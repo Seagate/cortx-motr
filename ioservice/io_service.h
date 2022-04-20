@@ -66,6 +66,12 @@ M0_INTERNAL int m0_ios_register(void);
 M0_INTERNAL void m0_ios_unregister(void);
 
 /**
+ * Temporary hard coded user id to be used for
+ * bytecount btree key
+ */
+#define M0_BYTECOUNT_USER_ID 8881212
+
+/**
  * Data structure represents list of buffer pool per network domain.
  */
 struct m0_rios_buffer_pool {

@@ -1,7 +1,7 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
- * 
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -73,7 +73,6 @@ extern struct m0_ut_suite ha_ut;
 extern struct m0_ut_suite layout_ut;
 extern struct m0_ut_suite ms_fom_ut;
 extern struct m0_ut_suite packet_encdec_ut;
-extern struct m0_ut_suite parity_math_ut;
 extern struct m0_ut_suite parity_math_ssse3_ut;
 extern struct m0_ut_suite reqh_service_ut;
 extern struct m0_ut_suite rpc_mc_ut;
@@ -122,7 +121,6 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &layout_ut, true);
 	m0_ut_add(m, &ms_fom_ut, true);
 	m0_ut_add(m, &packet_encdec_ut, true);
-	m0_ut_add(m, &parity_math_ut, true);
 	m0_ut_add(m, &reqh_service_ut, true);
 	m0_ut_add(m, &rm_ut, true);
 	m0_ut_add(m, &rpc_mc_ut, true);

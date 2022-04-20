@@ -229,19 +229,21 @@ M0_INTERNAL void ut_dummy_data_buf_init(struct data_buf *db)
 	db->db_flags = PA_NONE;
 }
 
+M0_INTERNAL void ut_dummy_data_buf_free(struct data_buf *db)
+{
+	/*
+	 * We can't use m0_buf_free, because we allocated an aligned buffer...
+	 */
+	m0_free_aligned(db->db_buf.b_addr, UT_DEFAULT_BLOCK_SIZE,
+			UT_DEFAULT_BLOCK_SHIFT);
+}
+
 M0_INTERNAL void ut_dummy_data_buf_fini(struct data_buf *db)
 {
 	M0_UT_ASSERT(db != NULL);
 
 	data_buf_bob_fini(db);
-
-	/*
-	 * We can't use m0_buf_free, because we allocated
-	 * an aligned buffer...
-	 */
-	m0_free_aligned(db->db_buf.b_addr,
-			UT_DEFAULT_BLOCK_SIZE,
-			UT_DEFAULT_BLOCK_SHIFT);
+	ut_dummy_data_buf_free(db);
 }
 
 /*
@@ -419,6 +421,9 @@ ut_dummy_ioo_create(struct m0_client *instance, int num_io_maps)
 	M0_ALLOC_ARR(ioo->ioo_failed_session, 1);
 	ioo->ioo_failed_session[0] = ~(uint64_t)0;
 
+	M0_ALLOC_ARR(ioo->ioo_failed_nodes, 1);
+	ioo->ioo_failed_nodes[0] = ~(uint64_t)0;
+
 	/* fid */
 	//m0_fid_set(&ioo->ioo_oo.oo_fid, 0, 1);
 	m0_fid_gob_make(&ioo->ioo_oo.oo_fid, 0, 1);
@@ -483,6 +488,7 @@ M0_INTERNAL void ut_dummy_ioo_delete(struct m0_op_io *ioo,
 	m0_sm_fini(&ioo->ioo_sm);
 	m0_sm_group_unlock(&instance->m0c_sm_group);
 
+	m0_free(ioo->ioo_failed_nodes);
 	m0_free(ioo->ioo_failed_session);
 	m0_free(ioo->ioo_data.ov_buf[0]);
 	m0_free(ioo->ioo_data.ov_buf);
@@ -605,7 +611,7 @@ M0_INTERNAL int ut_dummy_poolmach_create(struct m0_pool_version *pv)
 	for (i = 0; i < state->pst_nr_devices; i++) {
 		state->pst_devices_array[i].pd_state = M0_PNDS_ONLINE;
 		M0_SET0(&state->pst_nodes_array[i].pn_id);
-		state->pst_devices_array[i].pd_node  = NULL;
+		state->pst_devices_array[i].pd_node  = &state->pst_nodes_array[i];
 	}
 
 	for (i = 0; i < state->pst_nr_spares; i++) {

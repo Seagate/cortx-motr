@@ -165,10 +165,10 @@ static bool fdmi_filter_match(const struct m0_conf_obj *cached,
 
 	M0_PRE(xobj->xf_endpoints.ab_count != 0);
 
-	return m0_bufs_streq(&xobj->xf_endpoints, obj->ff_endpoints) &&
-		m0_bufs_streq(&xobj->xf_substrings, obj->ff_substrings) &&
-		m0_fid_eq(&obj->ff_node->cn_obj.co_id, &xobj->xf_node) &&
-		m0_fid_eq(&obj->ff_dix_pver->pv_obj.co_id, &xobj->xf_dix_pver);
+	return m0_bufs_streq(&xobj->xf_endpoints,  obj->ff_endpoints)     &&
+	       m0_bufs_streq(&xobj->xf_substrings, obj->ff_substrings)    &&
+	       m0_fid_eq(&xobj->xf_node,     &obj->ff_node->cn_obj.co_id) &&
+	       m0_fid_eq(&xobj->xf_dix_pver, &obj->ff_dix_pver->pv_obj.co_id);
 }
 
 static void fdmi_filter_delete(struct m0_conf_obj *obj)

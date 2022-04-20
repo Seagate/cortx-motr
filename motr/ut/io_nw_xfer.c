@@ -254,7 +254,8 @@ static void ut_test_target_ioreq_seg_add(void)
 	src->sa_unit = 1;
 	tgt->ta_frame = 1;
 	map = ut_dummy_pargrp_iomap_create(instance, 1);
-	m0_free(map->pi_databufs[0][0]->db_buf.b_addr);/* don't use this allocated buf*/
+	/* don't use this allocated buf*/
+	ut_dummy_data_buf_free(map->pi_databufs[0][0]);
 	map->pi_ioo = ioo;
 	map->pi_databufs[0][0]->db_buf.b_addr = NULL;
 	map->pi_databufs[0][0]->db_flags |= 777;
@@ -386,6 +387,9 @@ static void ut_test_target_ioreq_fini(void)
 	M0_ALLOC_PTR(ti->ti_pageattrs);
 	rc = m0_indexvec_alloc(&ti->ti_ivec, 1);
 	M0_UT_ASSERT(rc == 0);
+	rc = m0_indexvec_alloc(&ti->ti_goff_ivec,1);
+	M0_UT_ASSERT(rc == 0);
+
 	target_ioreq_fini(ti);
 	ut_dummy_ioo_delete(ioo, dummy_instance);
 }

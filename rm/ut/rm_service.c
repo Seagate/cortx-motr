@@ -27,7 +27,7 @@
 #include "ut/ut.h"
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
-#define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
+#define SERVER_ENDPOINT      M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 #define SERVER_DB            "server_db"
 #define SERVER_STOB          "server_stob"
 #define SERVER_ADDB_STOB     "linuxstob:server_addb_stob"
@@ -74,7 +74,6 @@ static void rm_svc_server(const int tid)
 
 	sctx.rsx_xprts = m0_net_all_xprt_get();
 	sctx.rsx_xprts_nr = m0_net_xprt_nr();
-
 	rm_service_start(&sctx);
 
 	/* Signal client that server is now up and running */

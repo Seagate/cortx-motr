@@ -141,7 +141,7 @@ WORK_ARENA=${SANDBOX_DIR:-/var/motr}
 CONF_FILE=$WORK_ARENA/conf.xc
 
 # transport related variables
-XPT=lnet
+XPT=$(m0_default_xprt)
 # m0d flags
 XPT_MEMSIZE=163840
 XPT_QUEUELEN=16
@@ -171,14 +171,12 @@ if [ $0 = "/usr/bin/m0mount" ]; then
 	M0LAYOUT=/usr/sbin/m0layout
 	SUMFILE=$M0D
 	MOTR_KO_LOAD_CMD="modprobe m0tr"
-	GALOIS_KO_LOAD_CMD="modprobe galois"
 else
 	M0D=$M0_SRC_DIR/motr/m0d
 	M0MKFS=$M0_SRC_DIR/utils/mkfs/m0mkfs
 	M0LAYOUT=$M0_SRC_DIR/utils/m0layout
 	SUMFILE=$M0_SRC_DIR/motr/.libs/m0d
 	MOTR_KO_LOAD_CMD="insmod $M0_SRC_DIR/m0tr.ko"
-	GALOIS_KO_LOAD_CMD="insmod $M0_SRC_DIR/extra-libs/galois/src/linux_kernel/galois.ko"
 fi
 
 #
@@ -292,17 +290,11 @@ function setup_host ()
 		echo  ERROR: Unable to configure LNet
 		return 1
 	fi
-	$RUN rmmod m0tr galois 2>/dev/null
-	$RUN $GALOIS_KO_LOAD_CMD
-	if [ $? -ne 0 ]; then
-		echo ERROR: Failed to load galois module on $H
-		return 1
-	fi
+	$RUN rmmod m0tr 2>/dev/null
 	$RUN $MOTR_KO_LOAD_CMD local_addr=$KEP $XPT_PARAM $KTRACE_FLAGS \
 		node_uuid=${NODE_UUID[$H]} trace_buf_size=$((128 * 1024 * 1024))
 	if [ $? -ne 0 ]; then
 		echo ERROR: Failed to load m0tr module on $H
-		$RUN rmmod galois
 		return 1
 	fi
 	return 0
@@ -336,7 +328,7 @@ function teardown_host ()
 	else
 		RUN=l_run
 	fi
-	$RUN rmmod m0tr galois
+	$RUN rmmod m0tr
 	return 0
 }
 
@@ -841,16 +833,11 @@ main()
 
 	LSUM=$(sum $SUMFILE)
 
-	rmmod m0tr galois &> /dev/null
+	rmmod m0tr &> /dev/null
 
 	#ldemo now needs kernel module loaded for some reason...
-	l_do $GALOIS_KO_LOAD_CMD || {
-		echo ERROR: Failed to load galois module
-		exit 1
-	}
 	l_do $MOTR_KO_LOAD_CMD || {
 		echo ERROR: Failed to load m0tr module
-		rmmod galois
 		exit 1
 	}
 

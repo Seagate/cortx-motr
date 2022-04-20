@@ -152,6 +152,12 @@ M0_INTERNAL size_t m0_freed_total(void);
 M0_INTERNAL int m0_pagesize_get(void);
 
 /**
+ * Returns page shift.
+ * Used in the code shared between user and kernel.
+ */
+M0_INTERNAL int m0_pageshift_get(void);
+
+/**
  * Returns true iff "p" points to a freed and poisoned (with ENABLE_FREE_POISON)
  * memory area.
  *

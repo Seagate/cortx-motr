@@ -18,8 +18,8 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-set -eu
-# set -x
+set -e
+#set -x
 export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
 ## CAUTION: This path will be removed by superuser.
@@ -78,7 +78,7 @@ EOF
 start() {
     # install "motr" Python module required by m0spiel tool
     cd $M0_SRC_DIR/utils/spiel
-    python2 setup.py install --record $INSTALLED_FILES > /dev/null ||
+    python3 setup.py install --record $INSTALLED_FILES > /dev/null ||
         die 'Cannot install Python "motr" module'
     sandbox_init
     _init
@@ -185,14 +185,28 @@ stub_confdb() {
 EOF
 }
 
+m0_get_transport(){
+    local trans;
+
+    trans = $(fi_info)
+    if [[ $? -eq 0 ]]; then
+        trans="libfab"
+    else
+        trans="lnet"
+    fi
+
+    echo $trans
+}
+
 ### m0_spiel_start requires endpoint of RM service. This function starts the
 ### first m0d instance with rmservice. All Spiel commands from command
 ### interface part will affect to second m0d instance. Spiel commands from
 ### configuration management part may affect to both m0d.
 m0d_with_rms_start() {
     local path=$SANDBOX_DIR/confd
+    local trans=$(m0_default_xprt);
     local OPTS="-F -D $path/db -T AD -S $path/stobs\
-    -A linuxstob:$path/addb-stobs -e lnet:$M0D1_ENDPOINT\
+    -A linuxstob:$path/addb-stobs -e $trans:$M0D1_ENDPOINT\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
     -w 3 -f $PROC_FID -d $CONF_DRIVES"
     local FI_OPTS="m0_ha_msg_accept:invalid_confc:always"
@@ -217,8 +231,9 @@ m0d_with_rms_start() {
 
 test_m0mkfs() {
     local path=$SANDBOX_DIR/systest-$$
+    local trans=$(m0_default_xprt);
     local OPTS="-D $path/db -T AD -S $path/stobs\
-    -A linuxstob:$path/addb-stobs -e lnet:$M0D2_ENDPOINT -c $CONF_FILE\
+    -A linuxstob:$path/addb-stobs -e $trans:$M0D2_ENDPOINT -c $CONF_FILE\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 \
     -f $PROC_FID2 -d $CONF_DRIVES -H $M0D2_ENDPOINT"
 
@@ -231,8 +246,9 @@ test_m0mkfs() {
 
 test_m0d_start() {
     local path=$SANDBOX_DIR/systest-$$
+    local trans=$(m0_default_xprt);
     local OPTS="-D $path/db -T AD -S $path/stobs\
-    -A linuxstob:$path/addb-stobs -e lnet:$M0D2_ENDPOINT -c $CONF_FILE\
+    -A linuxstob:$path/addb-stobs -e $trans:$M0D2_ENDPOINT -c $CONF_FILE\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 \
     -f $PROC_FID2 -d $CONF_DRIVES -H $M0D2_ENDPOINT"
 
@@ -560,7 +576,7 @@ Usage: ${0##*/} [COMMAND]
 
 Supported commands:
   run      run system tests (default command)
-  insmod   insert Motr kernel modules: m0tr.ko, galois.ko
+  insmod   insert Motr kernel modules: m0tr.ko
   rmmod    remove Motr kernel modules
   sstart   start Motr user-space services
   sstop    stop Motr user-space services

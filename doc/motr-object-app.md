@@ -1,4 +1,4 @@
-# Cortx Motr application (object)
+# CORTX Motr application (object)
 
 Here we will create a simple CORTX Motr application to create an object, write  
 some data to this object, read data back from this object, and then delete it.  
@@ -195,3 +195,7 @@ Retrieve the result.
 Finalize and free the operation with m0\_op\_fini() and m0\_op\_free().
 
 Close/Finalize the object.
+
+# Tested by
+
+* Sep 28, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linux release 7.8.2003 x86_64

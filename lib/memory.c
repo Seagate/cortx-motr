@@ -93,6 +93,7 @@ M0_INTERNAL void   m0_arch_free_wired(void *data, size_t size, unsigned shift);
 M0_INTERNAL void  *m0_arch_alloc_aligned(size_t alignment, size_t size);
 M0_INTERNAL void   m0_arch_free_aligned(void *data, size_t size, unsigned shft);
 M0_INTERNAL int    m0_arch_pagesize_get(void);
+M0_INTERNAL int    m0_arch_pageshift_get(void);
 M0_INTERNAL int    m0_arch_dont_dump(void *p, size_t size);
 M0_INTERNAL int    m0_arch_memory_init (void);
 M0_INTERNAL void   m0_arch_memory_fini (void);
@@ -234,6 +235,11 @@ M0_INTERNAL int m0_pagesize_get(void)
 	return m0_arch_pagesize_get();
 }
 
+M0_INTERNAL int m0_pageshift_get(void)
+{
+	return m0_arch_pageshift_get();
+}
+
 M0_INTERNAL int m0_dont_dump(void *p, size_t size)
 {
 	int pagesize = m0_pagesize_get();
@@ -252,7 +258,7 @@ M0_INTERNAL int m0_memory_init(void)
 
 M0_INTERNAL void m0_memory_fini(void)
 {
-	M0_LOG(M0_DEBUG, "allocated=%"PRIu64" cumulative_alloc=%"PRIu64" "
+	M0_LOG(M0_DEBUG, "allocated=%" PRIu64 " cumulative_alloc=%" PRIu64 " "
 	       "cumulative_free=%"PRIu64, m0_atomic64_get(&allocated),
 	       m0_atomic64_get(&cumulative_alloc),
 	       m0_atomic64_get(&cumulative_free));

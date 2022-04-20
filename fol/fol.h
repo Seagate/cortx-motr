@@ -122,7 +122,7 @@ enum {
 	/* FOL_REC_MAXSIZE = 1024 * 1024 */
 
 	/* EN: Previous size is too big to fit into one RPC message */
-	FOL_REC_MAXSIZE = 1024 * 128
+	FOL_REC_MAXSIZE = 1024 * 256
 };
 
 /**

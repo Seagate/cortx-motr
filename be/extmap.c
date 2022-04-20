@@ -235,7 +235,7 @@ M0_INTERNAL int m0_be_emap_dump(struct m0_be_emap *map)
 	m0_rwlock_read_unlock(emap_rwlock(map));
 
 	if (seg != NULL)
-		M0_LOG(M0_DEBUG, "%p %"PRIx64" %u %lu", map,
+		M0_LOG(M0_DEBUG, "%p %" PRIx64 " %u %lu", map,
 		       seg->ee_pre.u_hi, (unsigned)nr_cobs,
 		       (unsigned long)nr_segs);
 
@@ -482,19 +482,19 @@ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
  * extent. It is assumed that cursor is correctly placed so ext is part of
  * cursor-segment (it->ec_seg).
  *
- * 1. Finds the overlap of current-segment with extent (ext)
+ * 1. Finds the overlap of current-segment with the new extent (ext)
  * 2. Based on the overlap, atmost 3 sub-segment can get created
  *    (term left/right w.r.t area of current segment left after removing clip area)
  *    a. Left   sub-seg : Overlap of start of cur-seg  with ext
- *        		      |  cur-seg  |
+ *                        |  cur-seg  |
  *                             | clip - ext |
  *                        |Left| => [curr-seg:Start - clip:Start]
  *    b. Middle sub-seg : If ext part (to be pasted) fully overlaps with curr-seg (clip)
- *        			      |         cur-seg              |
+ *                        |         cur-seg              |
  *                               | clip - ext |
  *                        | Left |   Middle   |  Right   |
  *    c. Right  sub-seg : Overalp of end of cur-seg with ext
- *        			      |  cur-seg  |
+ *                        |  cur-seg  |
  *                | clip - ext |
  *                             |Right | => [clip:End - curr-seg:End]
  * 3. EMAP operation for these three segments are performed (not all may be needed)
@@ -615,10 +615,10 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 			bstart[2] = seg->ee_val;
 			if (seg->ee_cksum_buf.b_nob) {
 				cksum[2].b_nob  = m0_extent_get_checksum_nob(clip.e_end, length[2],
-				                                             it->ec_unit_size, 
+				                                             it->ec_unit_size,
 									     cksum_unit_size);
 				cksum[2].b_addr = m0_extent_get_checksum_addr(seg->ee_cksum_buf.b_addr,
-				                                              clip.e_end, 
+				                                              clip.e_end,
 									      chunk->e_start,
 									      it->ec_unit_size,
 									      cksum_unit_size);
@@ -759,7 +759,7 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 	emap_rec_init(&map->em_rec);
 
 	++map->em_version;
-	M0_LOG(M0_DEBUG, "Nob: key = %"PRIu64" val = %"PRIu64" ",
+	M0_LOG(M0_DEBUG, "Nob: key = %" PRIu64 " val = %" PRIu64 " ",
 			 map->em_key_buf.b_nob, map->em_val_buf.b_nob );
 	op->bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
 		local_op,

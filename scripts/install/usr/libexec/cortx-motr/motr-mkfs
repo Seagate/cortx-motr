@@ -36,6 +36,7 @@ service_funcs=$motr_exec_dir/motr-service.functions
 m0_mkfs()
 {
     local service=$1
+    local conf_opts=$2
 
     [[ -n "$service" ]] || m0_exit "usage: $PROG_NAME <SERVICE>"
 
@@ -59,7 +60,7 @@ m0_mkfs()
         be_opts+=" -V $(m0_genders_value_of m0_be_log_size)"
     fi
 
-    $motr_exec_dir/motr-server $service m0mkfs "-F -u $node_uuid $be_opts"
+    $motr_exec_dir/motr-server $service m0mkfs "-F -u $node_uuid $be_opts" $conf_opts
 }
 
 source $service_funcs
@@ -74,7 +75,8 @@ if [[ -n "$1" ]] ; then
     else
         service=$1
     fi
-    m0_mkfs $service
+    opts=$2
+    m0_mkfs $service $opts
 else
     ha_is_started=false
     confd_is_started=false

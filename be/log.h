@@ -315,7 +315,8 @@ struct m0_be_log {
 };
 
 /* m0_be_log */
-#define BL_F "(lg_current=%"PRIu64" lg_discarded=%"PRIu64" lg_free=%"PRIu64")"
+#define BL_F "(lg_current=%" PRIu64 " lg_discarded=%" PRIu64 \
+	     " lg_free=%" PRIu64 ")"
 #define BL_P(log) (log)->lg_current, (log)->lg_discarded, (log)->lg_free
 
 /** This structure represents minimal unit for log operations. */
@@ -374,9 +375,9 @@ struct m0_be_log_record {
 };
 
 /* m0_be_log_record */
-#define BLR_F "(lgr_last_discarded=%"PRIu64" lgr_position=%"PRIu64" " \
-	       "lgr_size=%"PRIu64" " \
-	       "lgr_prev_pos=%"PRIu64" lgr_prev_size=%"PRIu64")"
+#define BLR_F "(lgr_last_discarded=%" PRIu64 " lgr_position=%" PRIu64 " " \
+	       "lgr_size=%" PRIu64 " " \
+	       "lgr_prev_pos=%" PRIu64 " lgr_prev_size=%" PRIu64 ")"
 #define BLR_P(record) (record)->lgr_last_discarded, (record)->lgr_position, \
 		      (record)->lgr_size, \
 		      (record)->lgr_prev_pos, (record)->lgr_prev_size

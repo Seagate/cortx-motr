@@ -311,28 +311,28 @@ static void ffs_tx_dec_refc(struct m0_be_tx *be_tx, int64_t *counter)
 	M0_LEAVE("counter = %"PRIi64, cnt);
 }
 
-#if 0
-/* Will only be used in Phase2, when we introduce proper handling of
- * transactions. */
-static void ffs_rec_get(struct m0_uint128 *fdmi_rec_id)
-{
-	M0_ENTRY("fdmi_rec_id: " U128X_F, U128_P(fdmi_rec_id));
-
-	...
-
-	ffs_tx_inc_refc(&entry->fsim_tx->tx_betx, NULL);
-
-	M0_LEAVE();
-}
-#endif
-
-static void ffs_rec_put(struct m0_fdmi_src_rec	*src_rec,
-			int64_t           	*counter)
+static int64_t ffs_rec_get(struct m0_fdmi_src_rec *src_rec)
 {
 	struct m0_dtx *dtx;
 	int64_t cnt;
 
-	M0_ENTRY("src_rec %p, counter %p", src_rec, counter);
+	/*
+	 * If this is the first time call on a new rec, some member
+	 * of this struct may not be fully populated. But it's fine
+	 * to get dtx.
+	 */
+	dtx = ffs_get_dtx(src_rec);
+	M0_ASSERT(dtx != NULL);
+
+	ffs_tx_inc_refc(&dtx->tx_betx, &cnt);
+
+	return cnt;
+}
+
+static int64_t ffs_rec_put(struct m0_fdmi_src_rec *src_rec)
+{
+	struct m0_dtx *dtx;
+	int64_t cnt;
 
 	M0_ASSERT(m0_fdmi__record_is_valid(src_rec));
 
@@ -340,10 +340,8 @@ static void ffs_rec_put(struct m0_fdmi_src_rec	*src_rec,
 	M0_ASSERT(dtx != NULL);
 
 	ffs_tx_dec_refc(&dtx->tx_betx, &cnt);
-	if (counter != NULL)
-		*counter = cnt;
 
-	M0_LEAVE("counter = %"PRIi64, cnt);
+	return cnt;
 }
 
 /* ------------------------------------------------------------------
@@ -397,30 +395,25 @@ static int ffs_op_node_eval(struct m0_fdmi_src_rec	*src_rec,
 
 static void ffs_op_get(struct m0_fdmi_src_rec *src_rec)
 {
-	M0_ENTRY("src_rec %p", src_rec);
+	int64_t cnt;
 
 	M0_ASSERT(m0_fdmi__record_is_valid(src_rec));
 
-#if 0
 	/* Proper transactional handling is for phase 2. */
-	ffs_rec_get(fdmi_rec_id);
-#endif
+	cnt = ffs_rec_get(src_rec);
 
-	M0_LEAVE();
+	M0_LOG(M0_DEBUG, "src_rec %p counter=%"PRIi64, src_rec, cnt);
 }
 
 static void ffs_op_put(struct m0_fdmi_src_rec *src_rec)
 {
-	M0_ENTRY("src_rec %p", src_rec);
-
+	int64_t cnt;
 	M0_ASSERT(m0_fdmi__record_is_valid(src_rec));
 
-#if 0
 	/* Proper transactional handling is for phase 2. */
-	ffs_rec_put(fdmi_rec_id, NULL, NULL);
-#endif
+	cnt = ffs_rec_put(src_rec);
 
-	M0_LEAVE();
+	M0_LOG(M0_DEBUG, "src_rec %p counter=%"PRIi64, src_rec, cnt);
 }
 
 static int ffs_op_encode(struct m0_fdmi_src_rec *src_rec,
@@ -532,7 +525,7 @@ static void ffs_op_begin(struct m0_fdmi_src_rec *src_rec)
 
 	/**
 	 * No need to do anything on this event for FOL Source.  Call to
-	 * ffs_tx_inc_refc done in m0_fol_fdmi_post_record below will make sure
+	 * ffs_rec_get() done in m0_fol_fdmi_post_record below will make sure
 	 * the data is already in memory and available for fast access at the
 	 * moment of this call.
 	 */
@@ -544,30 +537,9 @@ static void ffs_op_begin(struct m0_fdmi_src_rec *src_rec)
 
 static void ffs_op_end(struct m0_fdmi_src_rec *src_rec)
 {
-	int64_t counter;
-
 	M0_ENTRY("src_rec %p", src_rec);
 
 	M0_ASSERT(m0_fdmi__record_is_valid(src_rec));
-
-	/* Note: in Phase 2, we'll probably need to handle two different cases
-	 * differently.  Case#1 is get/put backend transaction, to make sure
-	 * it's held in RAM up to the moment FDMI runs all filters.  Case#2 is
-	 * some kind of counter which protects FOL entry from destruction
-	 * before we get all 'decref' callbacks from FDMI source dock.  Right
-	 * now, I ignore incref/decref altogether, since Phase 1 does not
-	 * support transactions and FDMI records re-sending.  And I do this
-	 * decref here to release transaction.  In Phase 2, this may need
-	 * rework. */
-	counter = 1;
-	ffs_rec_put(src_rec, &counter); /* This call is a pair to the
-					 * first call, inc_refc, done in
-					 * post_record. */
-	M0_ASSERT(counter == 0); /* Valid until FDMI phase 2; in phase 2 we
-				  * add transaction handling, and
-				  * incref/decref will start working, and
-				  * counter will be non-zero here if any
-				  * filters matched.  See ffs_op_get. */
 
 	M0_LEAVE();
 }
@@ -696,6 +668,11 @@ M0_INTERNAL void m0_fol_fdmi_post_record(struct m0_fom *fom)
 		M0_LOG(M0_ERROR, "src dock fom is not running");
 		return;
 	}
+	if (!src_dock->fsdc_filters_defined) {
+		/* No filters defined. Let's not post the records. */
+		return;
+	}
+
 
 	/**
 	 * There is no "unpost record" method, so we have to prepare
@@ -705,17 +682,14 @@ M0_INTERNAL void m0_fol_fdmi_post_record(struct m0_fom *fom)
 	dtx   = &fom->fo_tx;
 	be_tx = &fom->fo_tx.tx_betx;
 
-	/** @todo Phase 2: Move inc ref call to FDMI source dock */
 
-	ffs_tx_inc_refc(be_tx, NULL);
-
-	/* Post record. */
 	m0_be_tx_lsn_get(be_tx, &dtx->tx_fol_rec.fr_header.rh_lsn,
 	                 &dtx->tx_fol_rec.fr_header.rh_lsn_discarded);
 	dtx->tx_fol_rec.fr_fdmi_rec.fsr_src  = m->fdm_s.fdms_ffs_ctx.ffsc_src;
 	dtx->tx_fol_rec.fr_fdmi_rec.fsr_dryrun = false;
 	dtx->tx_fol_rec.fr_fdmi_rec.fsr_data = NULL;
 
+	/* Post record. */
 	M0_FDMI_SOURCE_POST_RECORD(&dtx->tx_fol_rec.fr_fdmi_rec);
 	M0_LOG(M0_DEBUG, "M0_FDMI_SOURCE_POST_RECORD fr_fdmi_rec=%p "
 	       "fsr_rec_id="U128X_F, &dtx->tx_fol_rec.fr_fdmi_rec,

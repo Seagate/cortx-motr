@@ -57,10 +57,12 @@ if spiel.cmd_profile_set('$PROF_OPT'):
 if spiel.rconfc_start():
     sys.exit('cannot start rconfc')"
 
+XPRT=$(m0_default_xprt)
+
 start() {
     # install "motr" Python module required by m0spiel tool
     cd $M0_SRC_DIR/utils/spiel
-    python2 setup.py install --record $INSTALLED_FILES > /dev/null ||
+    python3 setup.py install --record $INSTALLED_FILES > /dev/null ||
         die 'Cannot install Python "motr" module'
     sandbox_init
     _init
@@ -83,12 +85,16 @@ stop() {
 
 _init() {
     lnet_up
-    m0_modules_insert
+    if [ "$XPRT" = "lnet" ]; then
+        m0_modules_insert
+    fi
     mkdir -p $SANDBOX_DIR/confd{1..3}
 }
 
 _fini() {
-    m0_modules_remove
+    if [ "$XPRT" = "lnet" ]; then
+        m0_modules_remove
+    fi
     cd $M0_SRC_DIR/utils/spiel
     cat $INSTALLED_FILES | xargs rm -rf
     rm -rf build/ $INSTALLED_FILES
@@ -144,7 +150,7 @@ confd_mkfs_start() {
     local fid=PROC_FID$idx
     local path=$SANDBOX_DIR/confd$idx
     local OPTS="-F -D $path/db -T AD -S $path/stobs\
-    -A linuxstob:$path/addb-stobs -e lnet:${!ep}\
+    -A linuxstob:$path/addb-stobs -e $XPRT:${!ep}\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
     -w 3 -f ${!fid}"
 
@@ -162,7 +168,7 @@ confd_start() {
     local fid=PROC_FID$idx
     local path=$SANDBOX_DIR/confd$idx
     local OPTS="-F -D $path/db -T AD -S $path/stobs\
-    -A linuxstob:$path/addb-stobs -e lnet:${!ep}\
+    -A linuxstob:$path/addb-stobs -e $XPRT:${!ep}\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
     -w 3 -f ${!fid}"
 

@@ -512,8 +512,8 @@ M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm)
 	 */
 	scm->sc_ibp.sb_bp.nbp_ops = &bp_ops;
 	scm->sc_obp.sb_bp.nbp_ops = &bp_ops;
-	segment_size = m0_rpc_max_seg_size(ndom);
-	segments_nr  = m0_rpc_max_segs_nr(ndom);
+	segment_size = m0_net_domain_get_max_buffer_segment_size(ndom);
+	segments_nr  = m0_net_domain_get_max_buffer_segments(ndom);
 	M0_LOG(M0_DEBUG, "sns segments_nr=%d", segments_nr);
 	rc = m0_net_buffer_pool_init(&scm->sc_ibp.sb_bp, ndom,
 				     0, segments_nr, segment_size,
@@ -906,8 +906,8 @@ M0_INTERNAL int m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
 	if (nr_bufs + scm->sc_ibp_reserved_nr > ibp->nbp_free)
 		rc = -ENOSPC;
 	m0_net_buffer_pool_unlock(ibp);
-	M0_LOG(M0_DEBUG, "nr_bufs: [%"PRIu64"] free buffers in: [%u] out: [%u] "
-	       "sc_ibp_reserved_nr: [%"PRIu64"]", nr_bufs, ibp->nbp_free,
+	M0_LOG(M0_DEBUG, "nr_bufs: [%" PRIu64 "] free buffers in: [%u] out: [%u] "
+	       "sc_ibp_reserved_nr: [%" PRIu64 "]", nr_bufs, ibp->nbp_free,
 	       scm->sc_obp.sb_bp.nbp_free, scm->sc_ibp_reserved_nr);
 
 	return M0_RC(rc);

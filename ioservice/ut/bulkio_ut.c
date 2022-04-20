@@ -1272,7 +1272,7 @@ static void io_single_fop_submit(enum M0_RPC_OPCODES op)
 {
 	struct m0_fop *fop;
 
-	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+	io_fops_create(bp, op, 1, 1, bp->bp_seg_nr);
 	if (op == M0_IOSERVICE_WRITEV_OPCODE) {
 		fop = &bp->bp_wfops[0]->if_fop;
 		fop->f_type->ft_fom_type.ft_ops = &bulkio_server_write_fomt_ops;
@@ -1295,14 +1295,14 @@ static void bulkio_server_single_read_write(void)
 	struct m0_bufvec *buf;
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
-	for (j = 0; j < IO_SEGS_NR; ++j) {
+	for (j = 0; j < bp->bp_seg_nr; ++j) {
 		memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
 	}
 	fol_check_enabled = true;
 	io_single_fop_submit(M0_IOSERVICE_WRITEV_OPCODE);
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
-	for (j = 0; j < IO_SEGS_NR; ++j) {
+	for (j = 0; j < bp->bp_seg_nr; ++j) {
 		memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 	}
 	io_single_fop_submit(M0_IOSERVICE_READV_OPCODE);
@@ -1372,7 +1372,7 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
 	/* Write data "b" in the file. */
-	for (j = 0; j < IO_SEGS_NR; ++j) {
+	for (j = 0; j < bp->bp_seg_nr; ++j) {
 		memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
 	}
 	io_single_fop_submit(M0_IOSERVICE_WRITEV_OPCODE);
@@ -1383,7 +1383,7 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	io_fops_destroy(bp);
 
 	/* Write data "a" in the file. */
-	for (j = 0; j < IO_SEGS_NR; ++j) {
+	for (j = 0; j < bp->bp_seg_nr; ++j) {
 		memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 	}
 	io_single_fop_submit(M0_IOSERVICE_WRITEV_OPCODE);
@@ -1452,11 +1452,11 @@ static void bulkio_server_read_write_state_test(void)
 	struct m0_reqh     *reqh;
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
-	for (j = 0; j < IO_SEGS_NR; ++j) {
+	for (j = 0; j < bp->bp_seg_nr; ++j) {
 		memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
 	}
 	op = M0_IOSERVICE_WRITEV_OPCODE;
-	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+	io_fops_create(bp, op, 1, 1, bp->bp_seg_nr);
 	bp->bp_wfops[0]->if_fop.f_type->ft_fom_type.ft_ops =
 		&bulkio_server_write_fomt_ops;
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops =
@@ -1467,11 +1467,11 @@ static void bulkio_server_read_write_state_test(void)
 	m0_reqh_idle_wait(reqh);
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
-	for (j = 0; j < IO_SEGS_NR; ++j) {
+	for (j = 0; j < bp->bp_seg_nr; ++j) {
 		memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 	}
 	op = M0_IOSERVICE_READV_OPCODE;
-	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+	io_fops_create(bp, op, 1, 1, bp->bp_seg_nr);
 	bp->bp_rfops[0]->if_fop.f_type->ft_fom_type.ft_ops =
 		&bulkio_server_read_fomt_ops;
 	bp->bp_rfops[0]->if_fop.f_type->ft_ops =
@@ -1494,11 +1494,11 @@ static void bulkio_server_rw_state_transition_test(void)
 	struct m0_reqh     *reqh;
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
-	for (j = 0; j < IO_SEGS_NR; ++j) {
+	for (j = 0; j < bp->bp_seg_nr; ++j) {
 		memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
 	}
 	op = M0_IOSERVICE_WRITEV_OPCODE;
-	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+	io_fops_create(bp, op, 1, 1, bp->bp_seg_nr);
 	bp->bp_wfops[0]->if_fop.f_type->ft_fom_type.ft_ops =
 		&ut_io_fom_cob_rw_type_ops;
 	bp->bp_wfops[0]->if_fop.f_type->ft_ops =
@@ -1509,11 +1509,11 @@ static void bulkio_server_rw_state_transition_test(void)
 	m0_reqh_idle_wait(reqh);
 
 	buf = &bp->bp_iobuf[0]->nb_buffer;
-	for (j = 0; j < IO_SEGS_NR; ++j) {
+	for (j = 0; j < bp->bp_seg_nr; ++j) {
 		memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 	}
 	op = M0_IOSERVICE_READV_OPCODE;
-	io_fops_create(bp, op, 1, 1, IO_SEGS_NR);
+	io_fops_create(bp, op, 1, 1, bp->bp_seg_nr);
 	bp->bp_rfops[0]->if_fop.f_type->ft_fom_type.ft_ops =
 		&ut_io_fom_cob_rw_type_ops;
 	bp->bp_rfops[0]->if_fop.f_type->ft_ops =
@@ -1542,7 +1542,7 @@ static void bulkio_server_fsync_multiple_read_write(void)
 
 	for (i = 0; i < IO_FOPS_NR; ++i) {
 		buf = &bp->bp_iobuf[i]->nb_buffer;
-		for (j = 0; j < IO_SEGS_NR; ++j) {
+		for (j = 0; j < bp->bp_seg_nr; ++j) {
 			memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
 		}
 	}
@@ -1552,7 +1552,7 @@ static void bulkio_server_fsync_multiple_read_write(void)
 		 * IO fops are deallocated by an rpc item type op on receiving
 		 * the reply fop. See io_item_free().
 		 */
-		io_fops_create(bp, op, IO_FIDS_NR, IO_FOPS_NR, IO_SEGS_NR);
+		io_fops_create(bp, op, IO_FIDS_NR, IO_FOPS_NR, bp->bp_seg_nr);
 		for (i = 0; i < IO_FOPS_NR; ++i) {
 			targ[i].ta_index = i;
 			targ[i].ta_op = op;
@@ -1585,7 +1585,7 @@ static void bulkio_server_multiple_read_write(void)
 
 	for (i = 0; i < IO_FOPS_NR; ++i) {
 		buf = &bp->bp_iobuf[i]->nb_buffer;
-		for (j = 0; j < IO_SEGS_NR; ++j) {
+		for (j = 0; j < bp->bp_seg_nr; ++j) {
 			memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
 		}
 	}
@@ -1595,7 +1595,7 @@ static void bulkio_server_multiple_read_write(void)
 		 * IO fops are deallocated by an rpc item type op on receiving
 		 * the reply fop. See io_item_free().
 		 */
-		io_fops_create(bp, op, IO_FIDS_NR, IO_FOPS_NR, IO_SEGS_NR);
+		io_fops_create(bp, op, IO_FIDS_NR, IO_FOPS_NR, bp->bp_seg_nr);
 		for (i = 0; i < IO_FOPS_NR; ++i) {
 			targ[i].ta_index = i;
 			targ[i].ta_op = op;
@@ -1611,7 +1611,7 @@ static void bulkio_server_multiple_read_write(void)
 		for (i = 0; i < IO_FOPS_NR; ++i) {
 			m0_thread_join(bp->bp_threads[i]);
 			buf = &bp->bp_iobuf[i]->nb_buffer;
-			for (j = 0; j < IO_SEGS_NR; ++j) {
+			for (j = 0; j < bp->bp_seg_nr; ++j) {
 				memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 			}
 		}
@@ -1633,13 +1633,13 @@ static void add_buffer_bulk(struct m0_rpc_bulk *rbulk,
 	 * Adds a m0_rpc_bulk_buf structure to list of such structures
 	 * in m0_rpc_bulk.
 	 */
-	rc = m0_rpc_bulk_buf_add(rbulk, IO_SEGS_NR, 0, &bp->bp_cnetdom,
+	rc = m0_rpc_bulk_buf_add(rbulk, bp->bp_seg_nr, 0, &bp->bp_cnetdom,
 				 NULL, &rbuf);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rbuf != NULL);
 
 	/* Adds io buffers to m0_rpc_bulk_buf structure. */
-	for (i = 0; i < IO_SEGS_NR; ++i) {
+	for (i = 0; i < bp->bp_seg_nr; ++i) {
 		rc = m0_rpc_bulk_buf_databuf_add(rbuf,
 			 bp->bp_iobuf[index]->nb_buffer.ov_buf[i],
 			 bp->bp_iobuf[index]->nb_buffer.ov_vec.v_count[i],
@@ -1727,7 +1727,7 @@ static void bulkio_server_read_write_multiple_nb(void)
 	buf_nr = IO_FOPS_NR / 4;
 	for (i = 0; i < buf_nr; ++i) {
 		buf = &bp->bp_iobuf[i]->nb_buffer;
-		for (j = 0; j < IO_SEGS_NR; ++j) {
+		for (j = 0; j < bp->bp_seg_nr; ++j) {
 			memset(buf->ov_buf[j], 'b', IO_SEG_SIZE);
 		}
 	}
@@ -1741,7 +1741,7 @@ static void bulkio_server_read_write_multiple_nb(void)
 
 	for (i = 0; i < buf_nr; ++i) {
 		buf = &bp->bp_iobuf[i]->nb_buffer;
-		for (j = 0; j < IO_SEGS_NR; ++j) {
+		for (j = 0; j < bp->bp_seg_nr; ++j) {
 			memset(buf->ov_buf[j], 'a', IO_SEG_SIZE);
 		}
 	}
@@ -1772,6 +1772,7 @@ static void bulkio_init(void)
 	 */
 	m0_fi_enable("io_fop_di_prepare", "skip_di_for_ut");
 	m0_fi_enable("m0_file_init", "skip_di_for_ut");
+	m0_fi_enable("stob_ad_domain_create", "write_undo");
 
 	M0_ALLOC_PTR(bp);
 	M0_ASSERT(bp != NULL);
@@ -1803,6 +1804,7 @@ static void bulkio_fini(void)
 
 	m0_fi_disable("io_fop_di_prepare", "skip_di_for_ut");
 	m0_fi_disable("m0_file_init", "skip_di_for_ut");
+	m0_fi_disable("stob_ad_domain_create", "write_undo");
 }
 
 /*

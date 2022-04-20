@@ -430,7 +430,7 @@ be_ut_fmt_group_size_max_check(struct m0_be_fmt_group_cfg *fg_cfg,
 		m0_be_fmt_group_reg_add(fg, &REG(reg_size[i], NULL, NULL));
 	size = m0_be_fmt_group_size(fg);
 	size_max = m0_be_fmt_group_size_max(fg_cfg);
-	M0_ASSERT_INFO(size == size_max, "size=%"PRIu64" size_max=%"PRIu64,
+	M0_ASSERT_INFO(size == size_max, "size=%" PRIu64 " size_max=%"PRIu64,
 	               size, size_max);
 	m0_be_fmt_group_fini(fg);
 	m0_free(reg_size);
@@ -624,7 +624,7 @@ Motr panic reason: signo: 11
 		bool                    reseted = false;
 
 		M0_LOG(M0_DEBUG, "test: %i, cfg:"
-		       "(%"PRId64", %"PRId64", %"PRId64", %"PRId64")", i,
+		       "(%" PRId64 ", %" PRId64 ", %" PRId64 ", %" PRId64 ")", i,
 		       test[i].cfg.fgc_tx_nr_max,
 		       test[i].cfg.fgc_reg_nr_max,
 		       test[i].cfg.fgc_reg_size_max,

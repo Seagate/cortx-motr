@@ -37,7 +37,7 @@ stride=32
 src_bs=10M
 src_count=2
 
-LNET_NID=`lctl list_nids | head -1`
+LNET_NID=$(m0_local_nid_get)
 LA_ENDPOINT="$LNET_NID:12345:33:1"
 HA_ENDPOINT="$LNET_NID:12345:34:1"
 
@@ -93,7 +93,7 @@ verify()
 
 spiel_prepare()
 {
-	local LNET_NID=`lctl list_nids | head -1`
+	local LNET_NID=$(m0_local_nid_get)
 	local SPIEL_CLIENT_ENDPOINT="$LNET_NID:12345:34:1001"
 	local SPIEL_HA_ENDPOINT="$LNET_NID:12345:34:1"
 	SPIEL_OPTS=" -l $M0_SRC_DIR/motr/.libs/libmotr.so --client $SPIEL_CLIENT_ENDPOINT --ha $SPIEL_HA_ENDPOINT"
@@ -106,7 +106,7 @@ spiel_prepare()
 
 	# install "motr" Python module required by m0spiel tool
 	cd $M0_SRC_DIR/utils/spiel
-	python2 setup.py install --record $PYTHON_STUFF > /dev/null ||\
+	python3 setup.py install --record $PYTHON_STUFF > /dev/null ||\
 		die 'Cannot install Python "motr" module'
 	cd -
 }

@@ -1690,6 +1690,16 @@ be_fini:
 	return M0_ERR(rc);
 }
 
+static int cs_dtm0_init(struct m0_reqh_context *rctx)
+{
+	return m0_dtm0_domain_init(&rctx->rc_dtm0_domain, NULL);
+}
+
+static void cs_dtm0_fini(struct m0_reqh_context *rctx)
+{
+	m0_dtm0_domain_fini(&rctx->rc_dtm0_domain);
+}
+
 static void cs_reqh_shutdown(struct m0_reqh_context *rctx)
 {
 	struct m0_reqh *reqh = &rctx->rc_reqh;
@@ -2262,7 +2272,7 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 			M0_STRINGARG('A', "ADDB storage domain location",
 				LAMBDA(void, (const char *s)
 				{
-                                        char tmp_buf[128];
+                                        char tmp_buf[512];
                                         sprintf(tmp_buf, "%s-%d", s, (int)m0_pid());
                                         rctx->rc_addb_stlocation = strdup(tmp_buf);
 				})),
@@ -2318,7 +2328,7 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				{
 					if (size > MAX_ADDB2_RECORD_SIZE)
 						M0_LOG(M0_WARN, "ADDB size is more than recommended");
-					M0_LOG(M0_DEBUG, "ADDB size = %"PRIu64"", size);
+					M0_LOG(M0_DEBUG, "ADDB size = %" PRIu64 "", size);
 					rctx->rc_addb_record_file_size = size;
 				})),
 			);
@@ -2478,6 +2488,7 @@ enum cs_level {
 	CS_LEVEL_REQH_CTX_SERVICES_VALIDATE,
 	CS_LEVEL_CONF_FS_CONFC_CLOSE,
 	CS_LEVEL_STORAGE_SETUP,
+	CS_LEVEL_DTM0_INIT,
 	CS_LEVEL_RWLOCK_UNLOCK,
 	CS_LEVEL_STARTED_EVENT_FOR_MKFS,
 	CS_LEVEL_RCONFC_FATAL_CALLBACK,
@@ -2634,6 +2645,8 @@ static int cs_level_enter(struct m0_module *module)
 		return M0_RC(0);
 	case CS_LEVEL_STORAGE_SETUP:
 		return M0_RC(cs_storage_setup(cctx));
+	case CS_LEVEL_DTM0_INIT:
+		return M0_RC(cs_dtm0_init(rctx));
 	case CS_LEVEL_RWLOCK_UNLOCK:
 		m0_rwlock_write_unlock(&cctx->cc_rwlock);
 		return M0_RC(0);
@@ -2647,8 +2660,17 @@ static int cs_level_enter(struct m0_module *module)
 		 * XXX STARTED expected even in the error case.
 		 * It should be fixed either here or in Halon.
 		 */
-		if (cctx->cc_mkfs)
+		if (cctx->cc_mkfs) {
 			cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
+			/*
+			For mkfs, M0_NC_DTM_RECOVERING state is transient,
+			sending M0_CONF_HA_PROCESS_DTM_RECOVERED just after
+			M0_CONF_HA_PROCESS_STARTED.
+
+			cs_ha_process_event(cctx,
+			                    M0_CONF_HA_PROCESS_DTM_RECOVERED);
+			*/
+		}
 		return M0_RC(0);
 	case CS_LEVEL_RCONFC_FATAL_CALLBACK:
 		if (!cctx->cc_no_conf) { /* otherwise rconfc did not start */
@@ -2712,6 +2734,14 @@ static int cs_level_enter(struct m0_module *module)
 		return M0_RC(0);
 	case CS_LEVEL_STARTED_EVENT_FOR_M0D:
 		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
+		/*
+		For m0d, M0_NC_DTM_RECOVERING state is being sent here just for
+		test purposes. The real notification shall be sent inside
+		dtm0_rmsg_fom_tick().
+
+		cs_ha_process_event(cctx,
+				    M0_CONF_HA_PROCESS_DTM_RECOVERED);
+		*/
 		return M0_RC(0);
 	case CS_LEVEL_START:
 		return M0_RC(0);
@@ -2825,6 +2855,9 @@ static void cs_level_leave(struct m0_module *module)
 			rctx->rc_reqh.rh_pools = NULL;
 		}
 		break;
+	case CS_LEVEL_DTM0_INIT:
+		cs_dtm0_fini(rctx);
+		break;
 	case CS_LEVEL_RWLOCK_UNLOCK:
 		break;
 	case CS_LEVEL_STARTED_EVENT_FOR_MKFS:
@@ -2917,6 +2950,7 @@ static const struct m0_modlev cs_module_levels[] = {
 	CS_MODULE_LEVEL(CS_LEVEL_REQH_CTX_SERVICES_VALIDATE),
 	CS_MODULE_LEVEL(CS_LEVEL_CONF_FS_CONFC_CLOSE),
 	CS_MODULE_LEVEL(CS_LEVEL_STORAGE_SETUP),
+	CS_MODULE_LEVEL(CS_LEVEL_DTM0_INIT),
 	CS_MODULE_LEVEL(CS_LEVEL_RWLOCK_UNLOCK),
 	CS_MODULE_LEVEL(CS_LEVEL_STARTED_EVENT_FOR_MKFS),
 	CS_MODULE_LEVEL(CS_LEVEL_RCONFC_FATAL_CALLBACK),

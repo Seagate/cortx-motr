@@ -75,7 +75,7 @@ static void rpc_bulk_buf_fini(struct m0_rpc_bulk_buf *rbuf)
 {
 	struct m0_net_buffer *nbuf = rbuf->bb_nbuf;
 
-	M0_ENTRY("bulk_buf: %p", rbuf);
+	M0_ENTRY("bulk_buf: %p nb=%p", rbuf, nbuf);
 	M0_PRE(rbuf != NULL);
 	M0_PRE(!(nbuf->nb_flags & M0_NET_BUF_QUEUED));
 
@@ -338,7 +338,8 @@ M0_INTERNAL int m0_rpc_bulk_buf_databuf_add(struct m0_rpc_bulk_buf *rbuf,
 	struct m0_buf		 cbuf;
 	struct m0_rpc_bulk	*rbulk;
 
-	M0_ENTRY("rbuf: %p, netdom: %p", rbuf, netdom);
+	M0_ENTRY("rbuf: %p, netdom: %p cnt=0x%" PRIx64 " idx=0x%"PRIx64, rbuf,
+		 netdom, count, index);
 	M0_PRE(rbuf != NULL);
 	M0_PRE(rpc_bulk_buf_invariant(rbuf));
 	M0_PRE(buf != NULL);

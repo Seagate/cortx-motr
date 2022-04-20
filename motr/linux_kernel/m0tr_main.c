@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@
 
 #include "lib/list.h"
 #include "lib/thread.h"
+#include "lib/linux_kernel/aarch64_cycle_counter.h"
 #include "motr/init.h"
 #include "motr/version.h"
 #include "motr/linux_kernel/module.h"
@@ -38,6 +39,9 @@ M0_INTERNAL int __init motr_init(void)
 	const struct module *m;
 	M0_THREAD_ENTER;
 
+#ifdef CONFIG_AARCH64
+	start_cycle_counter();  /* start  reading the cycle counter */
+#endif
 	m = m0_motr_ko_get_module();
 	pr_info("motr: init\n");
 	m0_build_info_print();
@@ -52,6 +56,9 @@ M0_INTERNAL void __exit motr_exit(void)
 {
 	M0_THREAD_ENTER;
 	pr_info("motr: cleanup\n");
+#ifdef  CONFIG_AARCH64
+	finish_cycle_counter();  /* stop reading the cycle counter */
+#endif
 	m0_fini();
 }
 

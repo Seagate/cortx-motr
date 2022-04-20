@@ -781,12 +781,13 @@ static int fill_kv_put(struct cr_idx_w *w,
 
 	for (i = 0; i < nr; i++) {
 		p->k->ov_vec.v_count[i] = w->wit->key_size;
-		p->k->ov_buf[i] = m0_alloc_aligned(w->wit->key_size, PAGE_SHIFT);
+		p->k->ov_buf[i] = m0_alloc_aligned(w->wit->key_size,
+						   m0_pageshift_get());
 		memcpy(p->k->ov_buf[i], (void*)kpart_one, kpart_one_size);
 		memcpy(p->k->ov_buf[i] + kpart_one_size, &k[i], sizeof(*k));
 		vlen = cr_idx_w_get_value_size(w);
 		p->v->ov_vec.v_count[i] = vlen;
-		p->v->ov_buf[i] = m0_alloc_aligned(vlen, PAGE_SHIFT);
+		p->v->ov_buf[i] = m0_alloc_aligned(vlen, m0_pageshift_get());
 		cr_get_random_string(p->v->ov_buf[i], vlen);
 		crlog(CLL_DEBUG, "Generated k=%s:" FID_F ",v=%s",
 		      kpart_one,

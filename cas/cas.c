@@ -222,6 +222,68 @@ M0_INTERNAL bool cas_in_ut(void)
 	return M0_FI_ENABLED("ut");
 }
 
+M0_INTERNAL bool m0_crv_tbs(const struct m0_crv *crv)
+{
+	return crv->crv_encoded & M0_CRV_TBS;
+}
+
+M0_INTERNAL void m0_crv_tbs_set(struct m0_crv *crv, bool tbs)
+{
+	if (tbs)
+		crv->crv_encoded |= M0_CRV_TBS;
+	else
+		crv->crv_encoded &= ~M0_CRV_TBS;
+}
+
+M0_INTERNAL struct m0_dtm0_ts m0_crv_ts(const struct m0_crv *crv)
+{
+	return (struct m0_dtm0_ts) {
+		.dts_phys = crv->crv_encoded & ~M0_CRV_TBS
+	};
+}
+
+M0_INTERNAL void m0_crv_ts_set(struct m0_crv           *crv,
+			       const struct m0_dtm0_ts *ts)
+{
+	crv->crv_encoded = (crv->crv_encoded & M0_CRV_TBS) | ts->dts_phys;
+}
+
+M0_INTERNAL void m0_crv_init(struct m0_crv           *crv,
+			     const struct m0_dtm0_ts *ts,
+			     bool                     tbs)
+{
+	uint64_t version = ts->dts_phys;
+
+	M0_PRE(version <= M0_CRV_VER_MAX);
+	M0_PRE(version >= M0_CRV_VER_MIN);
+
+	m0_crv_ts_set(crv, ts);
+	m0_crv_tbs_set(crv, tbs);
+
+	M0_POST(equi(m0_crv_tbs(crv), tbs));
+	M0_POST(m0_crv_ts(crv).dts_phys == version);
+}
+
+/**
+ * Compare two versions.
+ *   Note, tombstones are checked at the end which means that if there are two
+ * different operations with the same version (for example, PUT@10 and DEL@10)
+ * then the operation that sets the tombstone (DEL@10) is always considered
+ * to be "newer" than the other one. It helps to ensure operations have the
+ * same order on any server despite the order of execution.
+ */
+M0_INTERNAL int m0_crv_cmp(const struct m0_crv *left,
+			   const struct m0_crv *right)
+{
+	return M0_3WAY(m0_crv_ts(left).dts_phys, m0_crv_ts(right).dts_phys) ?:
+		M0_3WAY(m0_crv_tbs(left), m0_crv_tbs(right));
+}
+
+M0_INTERNAL bool m0_crv_is_none(const struct m0_crv *crv)
+{
+	return memcmp(crv, &M0_CRV_INIT_NONE, sizeof(*crv)) == 0;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of cas group */

@@ -1140,10 +1140,19 @@ static int op_sync_wait(struct m0_fom *fom)
 	struct m0_be_tx     *tx;
 
 	tx = m0_fom_tx(fom);
-	if (m0_be_tx_state(tx) < M0_BTS_LOGGED) {
-		M0_LOG(M0_DEBUG, "fom wait for tx to be logged");
-		m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
-		return M0_FSO_WAIT;
+	if (fom->fo_tx.tx_state != M0_DTX_INVALID) {
+		/*
+		 * The above checking of 'fom tx' state must go first
+		 * before any other access or checking on this fom tx,
+		 * because if the fom tx is not initialized, any access
+		 * of this fom tx is not safe or useful.
+		 */
+
+		if (m0_be_tx_state(tx) < M0_BTS_LOGGED) {
+			M0_LOG(M0_DEBUG, "fom wait for tx to be logged");
+			m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
+			return M0_FSO_WAIT;
+		}
 	}
 	return M0_FSO_AGAIN;
 }
@@ -1169,22 +1178,22 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	struct m0_cas_ctg  *meta    = m0_ctg_meta();
 	struct m0_cas_ctg  *ctidx   = m0_ctg_ctidx();
 	struct m0_cas_rec  *rec     = NULL;
-	bool                is_dtm0_used =
+	bool                is_dtm0_used = ENABLE_DTM0 &&
 		!m0_dtm0_tx_desc_is_none(&op->cg_txd);
 	bool                is_index_drop;
 	bool                do_ctidx;
 	int                 next_phase;
 
-	M0_ENTRY("fom %p phase %d", fom, phase);
-	is_index_drop = op_is_index_drop(opc, ct);
+	M0_ENTRY("fom %p phase %d op_flag=0x%x", fom, phase, op->cg_flags);
 	M0_PRE(ctidx != NULL);
 	M0_PRE(cas_fom_invariant(fom));
-	M0_PRE(ergo(ENABLE_DTM0 && !M0_IS0(&op->cg_txd),
-		    m0_dtm0_tx_desc__invariant(&op->cg_txd)));
-	if (!M0_IS0(&op->cg_txd) && phase == M0_FOPH_INIT) {
+	M0_PRE(ergo(is_dtm0_used, m0_dtm0_tx_desc__invariant(&op->cg_txd)));
+
+	if (!M0_IS0(&op->cg_txd) && phase == M0_FOPH_INIT)
 		M0_LOG(M0_DEBUG, "Got CAS with txid: " DTID0_F,
 		       DTID0_P(&op->cg_txd.dtd_id));
-	}
+
+	is_index_drop = op_is_index_drop(opc, ct);
 
 	switch (phase) {
 	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
@@ -1631,6 +1640,8 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		M0_ASSERT(fom->cf_opos < rep->cgr_rep.cr_nr);
 		rec = cas_out_at(rep, fom->cf_opos);
 		M0_ASSERT(rec != NULL);
+		m0_ctg_op_get_ver(ctg_op,
+				  &cas_out_at(rep, fom->cf_opos)->cr_ver);
 		if (rec->cr_rc == 0) {
 			rec->cr_rc = m0_ctg_op_rc(ctg_op);
 			if (rec->cr_rc == 0) {
@@ -2034,7 +2045,7 @@ static int cas_place(struct m0_buf *dst, struct m0_buf *src, m0_bcount_t cutoff)
 		return M0_ERR(-ENOMEM);
 
 	if (src->b_nob >= cutoff) {
-		dst->b_addr = m0_alloc_aligned(src->b_nob, PAGE_SHIFT);
+		dst->b_addr = m0_alloc_aligned(src->b_nob, m0_pageshift_get());
 		if (dst->b_addr == NULL)
 			return M0_ERR(-ENOMEM);
 		dst->b_nob = src->b_nob;
@@ -2152,6 +2163,7 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 	struct m0_cas_id          *cid;
 	struct m0_cas_rec         *rec;
 	enum m0_fom_phase_outcome  ret = M0_FSO_AGAIN;
+	M0_ENTRY("opc=%d ct=%d", opc, ct);
 
 	cas_incoming_kv(fom, rec_pos, &kbuf, &vbuf);
 	if (ct == CT_META)
@@ -2374,7 +2386,7 @@ static int cas_ctidx_insert(struct cas_fom *fom, const struct m0_cas_id *in_cid,
 
 static m0_bcount_t cas_rpc_cutoff(const struct cas_fom *fom)
 {
-	return cas_in_ut() ? PAGE_SIZE :
+	return cas_in_ut() ? m0_pagesize_get() :
 		m0_fop_rpc_machine(fom->cf_fom.fo_fop)->rm_bulk_cutoff;
 }
 
@@ -2459,7 +2471,7 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 	    (opc == CO_DEL && rc == -ENOENT && (op->cg_flags & COF_CROW)))
 		rc = 0;
 
-	M0_LOG(M0_DEBUG, "pos: %"PRId64" rc: %d", fom->cf_opos, rc);
+	M0_LOG(M0_DEBUG, "pos: %" PRId64 " rc: %d", fom->cf_opos, rc);
 	rec_out->cr_rc = rc;
 
 	/*
@@ -2555,12 +2567,44 @@ static void cas_addb2_fom_to_crow_fom(const struct m0_fom *fom0,
 	M0_ADDB2_ADD(M0_AVI_CAS_FOM_TO_CROW_FOM, fom0_sm_id, crow_fom0_sm_id);
 }
 
-static int cas_ctg_crow_handle(struct cas_fom *fom, const struct m0_cas_id *cid)
+M0_INTERNAL int m0_cas_fom_spawn(
+	struct m0_fom           *lead,
+	struct m0_fom_thralldom *thrall,
+	struct m0_fop           *cas_fop,
+	void                   (*on_fom_complete)(struct m0_fom_thralldom *,
+						  struct m0_fom           *))
 {
-	struct m0_fop         *fop;
 	struct m0_fom         *new_fom0;
 	struct m0_reqh        *reqh;
 	struct m0_rpc_machine *mach;
+	int                    rc;
+
+	reqh = lead->fo_service->rs_reqh;
+	mach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
+	m0_fop_rpc_machine_set(cas_fop, mach);
+	cas_fop->f_item.ri_session = lead->fo_fop->f_item.ri_session;
+	rc = cas_fom_create(cas_fop, &new_fom0, reqh);
+	if (rc == 0) {
+		new_fom0->fo_local = true;
+		m0_fom_enthrall(lead,
+				new_fom0,
+				thrall,
+				on_fom_complete);
+		m0_fom_queue(new_fom0);
+		cas_addb2_fom_to_crow_fom(lead, new_fom0);
+	}
+	/*
+	 * New FOM got reference to FOP, release ref counter as this
+	 * FOP is not needed here.
+	 */
+	m0_fop_put_lock(cas_fop);
+
+	return M0_RC(rc);
+}
+
+static int cas_ctg_crow_handle(struct cas_fom *fom, const struct m0_cas_id *cid)
+{
+	struct m0_fop         *fop;
 	int                    rc;
 
 	/*
@@ -2568,28 +2612,10 @@ static int cas_ctg_crow_handle(struct cas_fom *fom, const struct m0_cas_id *cid)
 	 * will appear as arrived from the network. FOP will be deallocated by a
 	 * new CAS FOM.
 	 */
-	rc = cas_ctg_crow_fop_create(cid, &fop);
-	if (rc == 0) {
-		reqh = fom->cf_fom.fo_service->rs_reqh;
-		mach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
-		m0_fop_rpc_machine_set(fop, mach);
-		fop->f_item.ri_session = fom->cf_fom.fo_fop->f_item.ri_session;
-		rc = cas_fom_create(fop, &new_fom0, reqh);
-		if (rc == 0) {
-			new_fom0->fo_local = true;
-			m0_fom_enthrall(&fom->cf_fom,
-					new_fom0,
-					&fom->cf_thrall,
-					&cas_ctg_crow_done_cb);
-			m0_fom_queue(new_fom0);
-			cas_addb2_fom_to_crow_fom(&fom->cf_fom, new_fom0);
-		}
-		/*
-		 * New FOM got reference to FOP, release ref counter as this
-		 * FOP is not needed here.
-		 */
-		m0_fop_put_lock(fop);
-	}
+	rc = cas_ctg_crow_fop_create(cid, &fop) ?:
+		m0_cas_fom_spawn(&fom->cf_fom,
+				 &fom->cf_thrall,
+				 fop, &cas_ctg_crow_done_cb);
 	return rc;
 }
 
@@ -2634,7 +2660,7 @@ static const struct m0_fom_type_ops cas_fom_type_ops = {
 static struct m0_sm_state_descr cas_fom_phases[] = {
 	[CAS_CHECK_PRE] = {
 		.sd_name      = "cas-op-check-prepare",
-		.sd_allowed   = M0_BITS(CAS_CHECK)
+		.sd_allowed   = M0_BITS(CAS_CHECK, M0_FOPH_FAILURE)
 	},
 	[CAS_CHECK] = {
 		.sd_name      = "cas-op-check",
@@ -2796,6 +2822,7 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	[ARRAY_SIZE(m0_generic_phases_trans)] =
 	{ "cas-op-check-prepare", M0_FOPH_INIT,         CAS_CHECK_PRE },
 	{ "cas-op-check",         CAS_CHECK_PRE,        CAS_CHECK },
+	{ "cas-op-check_pre_failed", CAS_CHECK_PRE,     M0_FOPH_FAILURE },
 	{ "cas-op-checked",       CAS_CHECK,            M0_FOPH_INIT },
 	{ "cas-op-check-failed",  CAS_CHECK,            M0_FOPH_FAILURE },
 	{ "tx-initialised",       M0_FOPH_TXN_OPEN,     CAS_START },

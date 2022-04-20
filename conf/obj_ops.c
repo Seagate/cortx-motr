@@ -185,7 +185,7 @@ M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
 
 M0_INTERNAL void m0_conf_obj_get(struct m0_conf_obj *obj)
 {
-	M0_ENTRY("obj=%p/"FID_F" nrefs: %"PRIu64" -> %"PRIu64, obj,
+	M0_ENTRY("obj=%p/"FID_F" nrefs: %" PRIu64 " -> %"PRIu64, obj,
 		 FID_P(&obj->co_id), obj->co_nrefs, obj->co_nrefs + 1);
 	M0_PRE(m0_conf_obj_invariant(obj));
 	M0_PRE(m0_conf_cache_is_locked(obj->co_cache));
@@ -204,7 +204,7 @@ M0_INTERNAL void m0_conf_obj_get_lock(struct m0_conf_obj *obj)
 
 M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj)
 {
-	M0_ENTRY("obj=%p/"FID_F" nrefs: %"PRIu64" -> %"PRIu64, obj,
+	M0_ENTRY("obj=%p/"FID_F" nrefs: %" PRIu64 " -> %"PRIu64, obj,
 		 FID_P(&obj->co_id), obj->co_nrefs, obj->co_nrefs - 1);
 	M0_PRE(m0_conf_obj_invariant(obj));
 	M0_PRE(m0_conf_cache_is_locked(obj->co_cache));

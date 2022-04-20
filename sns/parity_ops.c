@@ -27,22 +27,6 @@
 #include "lib/assert.h"
 #include "sns/parity_ops.h"
 
-M0_INTERNAL void m0_parity_fini(void)
-{
-#if !ISAL_ENCODE_ENABLED
-	galois_calc_tables_release();
-#endif /* !ISAL_ENCODE_ENABLED */
-}
-
-M0_INTERNAL int m0_parity_init(void)
-{
-#if !ISAL_ENCODE_ENABLED
-	int ret = galois_create_mult_tables(M0_PARITY_GALOIS_W);
-	M0_ASSERT(ret == 0);
-#endif /* !ISAL_ENCODE_ENABLED */
-	return 0;
-}
-
 M0_INTERNAL m0_parity_elem_t m0_parity_pow(m0_parity_elem_t x,
 					   m0_parity_elem_t p)
 {

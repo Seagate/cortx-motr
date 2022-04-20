@@ -32,7 +32,9 @@
 #include "fdmi/ut/sd_common.h"
 
 static struct m0_semaphore     g_sem;
+static struct m0_semaphore     g_sem2;
 static struct m0_fdmi_src_rec  g_src_rec;
+static int                     g_refcount;
 
 static int test_fs_node_eval(
 	        struct m0_fdmi_src_rec *src_rec,
@@ -58,13 +60,16 @@ static int test_fs_decode(struct m0_buf *buf, void **handle)
 
 static void test_fs_get(struct m0_fdmi_src_rec *src_rec)
 {
-	M0_UT_ASSERT(false);
+	++g_refcount;
 }
 
 static void test_fs_put(struct m0_fdmi_src_rec *src_rec)
 {
 	M0_UT_ASSERT(src_rec != NULL);
 	M0_UT_ASSERT(src_rec == &g_src_rec);
+	--g_refcount;
+	if (g_refcount == 0)
+		m0_semaphore_up(&g_sem2);
 }
 
 static void test_fs_end(struct m0_fdmi_src_rec *src_rec)
@@ -103,6 +108,7 @@ void fdmi_sd_post_record(void)
 	M0_ENTRY();
 	fdmi_serv_start_ut(&filterc_stub_ops);
 	m0_semaphore_init(&g_sem, 0);
+	m0_semaphore_init(&g_sem2, 0);
 	rc = m0_fdmi_source_register(src);
 	M0_UT_ASSERT(rc == 0);
 	g_src_rec = (struct m0_fdmi_src_rec) {
@@ -112,10 +118,12 @@ void fdmi_sd_post_record(void)
 	M0_FDMI_SOURCE_POST_RECORD(&g_src_rec);
 	/* Wait until record is processed and released */
 	m0_semaphore_down(&g_sem);
+	m0_semaphore_down(&g_sem2);
 	m0_fdmi_source_deregister(src);
 	M0_UT_ASSERT(src->fs_record_post == NULL);
 	m0_fdmi_source_free(src);
 	m0_semaphore_fini(&g_sem);
+	m0_semaphore_fini(&g_sem2);
 	fdmi_serv_stop_ut();
 	M0_LEAVE();
 }

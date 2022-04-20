@@ -227,7 +227,7 @@ static int conf_net_buffer_allocate(struct m0_fom *fom)
 	buf_vec = &conf_fom->clm_net_buffer.nb_buffer;
 
 	rc = m0_bufvec_alloc_aligned(buf_vec, (size + seg_size - 1) / seg_size,
-				     seg_size, PAGE_SHIFT);
+				     seg_size, m0_pageshift_get());
 	if (rc == 0)
 		conf_fom->clm_net_buffer.nb_qtype = M0_NET_QT_ACTIVE_BULK_RECV;
 
@@ -435,7 +435,8 @@ static int conf_buffer_free(struct m0_fom *fom)
 		m0_free(conf_fop->clf_desc.bdd_desc.nbd_data);
 		conf_fop->clf_desc.bdd_desc.nbd_len = 0;
 	}
-	m0_bufvec_free_aligned(&conf_fom->clm_net_buffer.nb_buffer, PAGE_SHIFT);
+	m0_bufvec_free_aligned(&conf_fom->clm_net_buffer.nb_buffer,
+			       m0_pageshift_get());
 
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 

@@ -50,8 +50,6 @@
 #include <unistd.h>		/* read */
 #include "module/instance.h"  /* m0 */
 
-#define TRANSPORT_NAME  "lnet"
-
 #define SERVER_DB_FILE_NAME        "echo_plugin_server.db"
 #define SERVER_STOB_FILE_NAME      "echo_plugin_server.stob"
 #define SERVER_ADDB_STOB_FILE_NAME "linuxstob:echo_plugin_server_addb.stob"
@@ -275,7 +273,7 @@ static int run_server(void)
 	 * Prepend transport name to the beginning of endpoint,
 	 * as required by motr-setup.
 	 */
-	strcpy(server_endpoint, TRANSPORT_NAME ":");
+	strcpy(server_endpoint, M0_NET_XPRT_PREFIX_DEFAULT":");
 
 	rc = build_endpoint_addr(
 		server_endpoint + strlen(server_endpoint),

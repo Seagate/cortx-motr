@@ -4,7 +4,7 @@
 # global vars ----------------------------------------- {{{1
 #
 
-KBUILD_EXTRA_SYMBOLS := @LUSTRE_SYMVERS@ @GALOIS_SYMVERS@
+KBUILD_EXTRA_SYMBOLS := @LUSTRE_SYMVERS@
 
 ccflags-y := -DHAVE_CONFIG_H -iquote . @M0_KCPPFLAGS@ @M0_KCFLAGS@ @KCFLAGS@
 
@@ -38,7 +38,6 @@ else
 # provided by INSTALL_MOD_DIR Kbuild variable and "motr" is taken from module's
 # build directory
 obj-m := m0tr.o
-obj-m += m0ctl.o
 
 # these modules are built unless '--disable-unit-tests' option of ./configure
 # script is used
@@ -157,15 +156,10 @@ include $(src)/stob/ut/Kbuild.sub
 include $(src)/ut/Kbuild.sub
 include $(src)/xcode/ut/Kbuild.sub
 include $(src)/be/ut/Kbuild.sub
-include $(src)/sns/ut/Kbuild.sub
 include $(src)/ha/ut/Kbuild.sub
 
 #
-# m0ctl.ko -------------------------------------------- {{{1
 #
-
-m0ctl-y   = $(m0ctl_objects)
-m0ctl_objects :=
 
 include $(src)/utils/Kbuild.sub
 
