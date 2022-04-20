@@ -269,7 +269,10 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &m0_fom_stats_ut, true);
 	m0_ut_add(m, &m0_net_bulk_if_ut, true);
 	m0_ut_add(m, &m0_net_bulk_mem_ut, true);
-	m0_ut_add(m, &m0_net_lnet_ut, true);
+	if (USE_LIBFAB)
+		m0_ut_add(m, &m0_net_lnet_ut, false);
+	else
+		m0_ut_add(m, &m0_net_lnet_ut, true);
 	m0_ut_add(m, &m0_net_misc_ut, true);
 	m0_ut_add(m, &m0_net_module_ut, true);
 	m0_ut_add(m, &m0_net_test_ut, true);

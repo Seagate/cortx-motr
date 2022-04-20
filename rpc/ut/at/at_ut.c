@@ -59,6 +59,8 @@ static struct m0_reqh_service *atsvc;
 static struct m0_fop_type      atbuf_req_fopt;
 static struct m0_fop_type      atbuf_rep_fopt;
 static const struct m0_fom_ops atfom_ops;
+static m0_bcount_t             at_seg_size;
+static m0_bcount_t             at_buf_size;
 
 /*************************************************/
 /*                RPC AT UT service              */
@@ -141,14 +143,16 @@ static void req_send(struct atut__req  *req,
 M0_INTERNAL void atut__bufdata_alloc(struct m0_buf *buf, size_t size,
 				     struct m0_rpc_machine *rmach)
 {
-	int rc;
+	int         rc;
+	m0_bcount_t seg_size = m0_net_domain_get_max_buffer_segment_size(
+							  rmach->rm_tm.ntm_dom);
 
-	M0_UT_ASSERT(rmach->rm_bulk_cutoff == INBULK_THRESHOLD);
-	if (size < INBULK_THRESHOLD) {
+	M0_UT_ASSERT(rmach->rm_bulk_cutoff == seg_size);
+	if (size < seg_size) {
 		rc = m0_buf_alloc(buf, size);
 		M0_UT_ASSERT(rc == 0);
 	} else {
-		buf->b_addr = m0_alloc_aligned(size, PAGE_SHIFT);
+		buf->b_addr = m0_alloc_aligned(size, m0_pageshift_get());
 		M0_UT_ASSERT(buf->b_addr != NULL);
 		buf->b_nob = size;
 	}
@@ -240,7 +244,7 @@ static void reqbuf_check(uint32_t test_id, const struct m0_buf *buf, int rc)
 		break;
 	case AT_TEST_INBULK_SEND:
 		M0_UT_ASSERT(rc == 0);
-		M0_UT_ASSERT(atdata_is_correct(buf, INBULK_LEN));
+		M0_UT_ASSERT(atdata_is_correct(buf, at_buf_size));
 		break;
 	case AT_TEST_INLINE_RECV:
 	case AT_TEST_INLINE_RECV_UNK:
@@ -263,7 +267,7 @@ static void load_check(uint32_t test_id, const struct m0_rpc_at_buf *ab,
 		break;
 	case AT_TEST_INBULK_SEND:
 		M0_UT_ASSERT(result == M0_FSO_WAIT);
-		M0_UT_ASSERT(atbuf_check(ab, INBULK_LEN, M0_RPC_AT_BULK_SEND));
+		M0_UT_ASSERT(atbuf_check(ab, at_buf_size, M0_RPC_AT_BULK_SEND));
 		break;
 	case AT_TEST_INLINE_RECV:
 	case AT_TEST_INLINE_RECV_UNK:
@@ -273,7 +277,7 @@ static void load_check(uint32_t test_id, const struct m0_rpc_at_buf *ab,
 		break;
 	case AT_TEST_INBULK_RECV:
 		M0_UT_ASSERT(result == M0_FSO_AGAIN);
-		M0_UT_ASSERT(atbuf_check(ab, INBULK_LEN, M0_RPC_AT_BULK_RECV));
+		M0_UT_ASSERT(atbuf_check(ab, at_buf_size, M0_RPC_AT_BULK_RECV));
 		break;
 	default:
 		M0_IMPOSSIBLE("unknown test id");
@@ -297,7 +301,7 @@ static void repbuf_fill(uint32_t test_id, struct m0_buf *buf)
 		break;
 	case AT_TEST_INBULK_RECV_UNK:
 	case AT_TEST_INBULK_RECV:
-		atut__bufdata_alloc(buf, INBULK_LEN, rmach);
+		atut__bufdata_alloc(buf, at_buf_size, rmach);
 		break;
 	default:
 		M0_IMPOSSIBLE("Unknown test id");
@@ -315,11 +319,11 @@ static void reply_check(uint32_t test_id, const struct m0_rpc_at_buf *ab,
 		break;
 	case AT_TEST_INBULK_RECV_UNK:
 		M0_UT_ASSERT(result == M0_FSO_AGAIN);
-		M0_UT_ASSERT(atbuf_check(ab, INBULK_LEN, M0_RPC_AT_BULK_REP));
+		M0_UT_ASSERT(atbuf_check(ab, at_buf_size, M0_RPC_AT_BULK_REP));
 		break;
 	case AT_TEST_INBULK_RECV:
 		M0_UT_ASSERT(result == M0_FSO_WAIT);
-		M0_UT_ASSERT(atbuf_check(ab, INBULK_LEN, M0_RPC_AT_BULK_REP));
+		M0_UT_ASSERT(atbuf_check(ab, at_buf_size, M0_RPC_AT_BULK_REP));
 		break;
 	default:
 		M0_IMPOSSIBLE("Unknown test id");
@@ -337,11 +341,11 @@ static void reply_rc_check(uint32_t test_id, const struct m0_rpc_at_buf *ab,
 		break;
 	case AT_TEST_INBULK_RECV_UNK:
 		M0_UT_ASSERT(rc == -ENOMSG);
-		M0_UT_ASSERT(atbuf_check(ab, INBULK_LEN, M0_RPC_AT_BULK_REP));
+		M0_UT_ASSERT(atbuf_check(ab, at_buf_size, M0_RPC_AT_BULK_REP));
 		break;
 	case AT_TEST_INBULK_RECV:
 		M0_UT_ASSERT(rc == 0);
-		M0_UT_ASSERT(atbuf_check(ab, INBULK_LEN, M0_RPC_AT_BULK_REP));
+		M0_UT_ASSERT(atbuf_check(ab, at_buf_size, M0_RPC_AT_BULK_REP));
 		break;
 	default:
 		M0_IMPOSSIBLE("Unknown test id");
@@ -484,7 +488,7 @@ static void client_start(void)
 
 	rc = m0_rpc_client_start(cl_rpc_ctx);
 	M0_UT_ASSERT(rc == 0);
-	cl_rpc_ctx->rcx_rpc_machine.rm_bulk_cutoff = INBULK_THRESHOLD;
+	cl_rpc_ctx->rcx_rpc_machine.rm_bulk_cutoff = at_seg_size;
 }
 
 static void client_stop(void)
@@ -527,6 +531,9 @@ static void reqh_init(void)
 	M0_SET0(&atreqh);
 	rc = m0_net_domain_init(&atreqh.aur_net_dom, m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
+	at_seg_size = m0_net_domain_get_max_buffer_segment_size(
+							   &atreqh.aur_net_dom);
+	at_buf_size = m0_net_domain_get_max_buffer_size(&atreqh.aur_net_dom);
 	rc = m0_rpc_net_buffer_pool_setup(&atreqh.aur_net_dom,
 					  &atreqh.aur_buf_pool,
 					  m0_rpc_bufs_nr(
@@ -544,7 +551,7 @@ static void reqh_init(void)
 				 M0_BUFFER_ANY_COLOUR,
 				 M0_RPC_DEF_MAX_RPC_MSG_SIZE,
 				 M0_NET_TM_RECV_QUEUE_DEF_LEN);
-	atreqh.aur_rmachine.rm_bulk_cutoff = INBULK_THRESHOLD;
+	atreqh.aur_rmachine.rm_bulk_cutoff = at_seg_size;
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -627,7 +634,7 @@ static void inbulk_send(void)
 	ab = &req->arq_buf;
 	m0_rpc_at_init(ab);
 	rmach = &at_cctx.acl_rpc_ctx.rcx_rpc_machine;
-	atut__bufdata_alloc(&data, INBULK_LEN, rmach);
+	atut__bufdata_alloc(&data, at_buf_size, rmach);
 	rc = m0_rpc_at_add(ab, &data, client_conn());
 	M0_UT_ASSERT(rc == 0);
 	req_send(req, &rep);
@@ -702,7 +709,7 @@ static void inbulk_recv_unk(void)
 	rc = m0_rpc_at_rep_get(ab, &rep->arp_buf, &data);
 	M0_UT_ASSERT(rc == -ENOMSG);
 	M0_UT_ASSERT(m0_rpc_at_is_set(&rep->arp_buf));
-	M0_UT_ASSERT(atbuf_check(&rep->arp_buf, INBULK_LEN,
+	M0_UT_ASSERT(atbuf_check(&rep->arp_buf, at_buf_size,
 				 M0_RPC_AT_BULK_REP));
 	m0_rpc_at_fini(&req->arq_buf);
 	m0_rpc_at_fini(&rep->arp_buf);
@@ -724,7 +731,7 @@ static void inbulk_recv(void)
 	req->arq_test_id = AT_TEST_INBULK_RECV;
 	ab = &req->arq_buf;
 	m0_rpc_at_init(ab);
-	rc = m0_rpc_at_recv(ab, client_conn(), INBULK_LEN, false);
+	rc = m0_rpc_at_recv(ab, client_conn(), at_buf_size, false);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(ab->ab_type == M0_RPC_AT_BULK_RECV);
 	req_send(req, &rep);
@@ -733,9 +740,9 @@ static void inbulk_recv(void)
 	rc = m0_rpc_at_rep_get(ab, &rep->arp_buf, &data);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_rpc_at_is_set(&rep->arp_buf));
-	M0_UT_ASSERT(atbuf_check(&rep->arp_buf, INBULK_LEN,
+	M0_UT_ASSERT(atbuf_check(&rep->arp_buf, at_buf_size,
 				 M0_RPC_AT_BULK_REP));
-	M0_UT_ASSERT(atdata_is_correct(&data, INBULK_LEN));
+	M0_UT_ASSERT(atdata_is_correct(&data, at_buf_size));
 	m0_rpc_at_fini(&req->arq_buf);
 	m0_rpc_at_fini(&rep->arp_buf);
 	req_fini();

@@ -41,7 +41,7 @@ enum {
 	M0_TIME_ONE_MSEC    = M0_TIME_ONE_SECOND / 1000,
 };
 
-#define TIME_F "[%"PRIu64":%09"PRIu64"]"
+#define TIME_F "[%" PRIu64 ":%09" PRIu64 "]"
 #define TIME_P(t) m0_time_seconds(t), m0_time_nanoseconds(t)
 
 /**

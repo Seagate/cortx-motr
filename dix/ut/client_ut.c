@@ -110,14 +110,16 @@ struct dix_rep {
 #define SERVER_LOG_FILE_NAME "dix_ut.errlog"
 
 /* Configures motr environment with given parameters. */
-static char *dix_startup_cmd[] = { "m0d", "-T", "linux",
-				"-D", "cs_sdb", "-S", "cs_stob",
-				"-A", "linuxstob:cs_addb_stob",
-				"-e", "lnet:0@lo:12345:34:1",
-				"-H", "0@lo:12345:34:1",
-				"-w", "10", "-F",
-				"-f", M0_UT_CONF_PROCESS,
-				"-c", M0_SRC_PATH("dix/ut/conf.xc")};
+static char *dix_startup_cmd[] = {
+	"m0d", "-T", "linux",
+	"-D", "cs_sdb", "-S", "cs_stob",
+	"-A", "linuxstob:cs_addb_stob",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-H", "0@lo:12345:34:1",
+	"-w", "10", "-F",
+	"-f", M0_UT_CONF_PROCESS,
+	"-c", M0_SRC_PATH("dix/ut/conf.xc")
+};
 static const char *cdbnames[]         = { "dix1" };
 static const char *cl_ep_addrs[]      = { "0@lo:12345:34:2" };
 static const char *srv_ep_addrs[]     = { "0@lo:12345:34:1" };
@@ -1134,7 +1136,7 @@ static void dixc_ut_init(struct m0_rpc_server_ctx *sctx,
 	M0_UT_ASSERT(rc == 0);
 	rc = dix_client_init(cctx, cl_ep_addrs[0],
 			     srv_ep_addrs[0], cdbnames[0],
-			     sctx->rsx_xprts[0]);
+			     m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 }
 

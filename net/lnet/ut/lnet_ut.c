@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -265,15 +265,28 @@ do {								\
 } while (0)
 #define zUT(x) zvUT(x, 0)
 
+#ifndef PAGE_SHIFT
+  #ifdef  CONFIG_X86_64
+    #define PAGE_SHIFT    12
+  #elif defined (CONFIG_AARCH64)
+    #define PAGE_SHIFT    16
+    /* Page Size on aarch64 is 64KB, hence Page Shift will be 16 */
+  #else
+    #error  "The platform is not supported"
+  #endif
+  #define PAGE_SIZE	  (1UL << PAGE_SHIFT)
+#endif
+
 enum {
 	UT_BUFS1     = 2,
 	UT_BUFSEGS1  = 4,
 	UT_BUFS2     = 1,
 	UT_BUFSEGS2  = 2,
-	UT_MSG_SIZE  = 2048,
-	UT_BULK_SIZE = 2 * 4096,
-	UT_PAGE_SHIFT = 12
+	UT_MSG_SIZE  = PAGE_SIZE / 2,
+	UT_BULK_SIZE = 2 * PAGE_SIZE,
+	UT_PAGE_SHIFT = PAGE_SHIFT
 };
+
 struct ut_data {
 	int                              _debug_;
 	struct m0_net_tm_callbacks       tmcb;

@@ -33,7 +33,7 @@
 #include <stdio.h>
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
-#define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
+#define SERVER_ENDPOINT      M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
 #define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:2"
 #define F_CONT 0x12345
 #define BARRIER_CNT 2
@@ -186,7 +186,8 @@ static void isc_ut_client_start(void)
 
 	rc = m0_rpc_client_start(&isc_ut_cctx);
 	M0_UT_ASSERT(rc == 0);
-	isc_ut_cctx.rcx_rpc_machine.rm_bulk_cutoff = INBULK_THRESHOLD;
+	isc_ut_cctx.rcx_rpc_machine.rm_bulk_cutoff =
+		 m0_net_domain_get_max_buffer_segment_size(&isc_ut_client_ndom);
 }
 
 static void isc_ut_client_stop()
@@ -604,6 +605,7 @@ static void req_fop_prepare(struct m0_fop *req_fop,
 	struct m0_rpc_machine *rmach;
 	char                  *in_buf;
 	uint32_t               size;
+	m0_bcount_t            buflen;
 	int                    rc;
 
 	fop_isc = m0_fop_data(req_fop);
@@ -611,6 +613,8 @@ static void req_fop_prepare(struct m0_fop *req_fop,
 	rmach = &isc_ut_cctx.rcx_rpc_machine;
 	fop_isc->fi_comp_id = *fid;
 	m0_rpc_at_init(&fop_isc->fi_args);
+	buflen = min64u(m0_net_domain_get_max_buffer_size(rmach->rm_tm.ntm_dom),
+			m0_rpc_max_msg_size(rmach->rm_tm.ntm_dom, 0));
 	switch (f_type) {
 	case FT_NEITHER_IO:
 	case FT_NO_INPUT:
@@ -621,7 +625,7 @@ static void req_fop_prepare(struct m0_fop *req_fop,
 		m0_buf_init(&data, (void *)in_buf, strlen(fixed_str));
 		break;
 	case FT_BOTH_IO:
-		size = buf_type == BT_INLINE ? INLINE_LEN : INBULK_LEN;
+		size = buf_type == BT_INLINE ? INLINE_LEN : buflen;
 		atut__bufdata_alloc(&data, size, rmach);
 		memset(data.b_addr, 'a', data.b_nob);
 		break;
@@ -640,7 +644,7 @@ static void req_fop_prepare(struct m0_fop *req_fop,
 		rc = m0_rpc_at_recv(&fop_isc->fi_ret,
 				    &isc_ut_cctx.rcx_connection,
 				    size, false);
-		M0_UT_ASSERT(ergo(size == INBULK_LEN,
+		M0_UT_ASSERT(ergo(size == buflen,
 			     (fop_isc->fi_ret.ab_type == M0_RPC_AT_BULK_RECV)));
 	}
 	M0_UT_ASSERT(rc == 0);

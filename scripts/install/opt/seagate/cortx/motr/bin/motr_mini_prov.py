@@ -29,6 +29,7 @@ from cortx.utils.conf_store import Conf
 
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
+LIBFAB_CONF_FILE = "/etc/libfab.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
 MOTR_SYS_CFG = "/etc/sysconfig/motr"
 MOTR_WORKLOAD_DIR = "/opt/seagate/cortx/motr/workload"
@@ -170,8 +171,16 @@ def validate_motr_rpm(self):
 
 def motr_config(self):
     # Just to check if lnet is working properly
-    if not verify_lnet(self):
-       raise MotrError(errno.EINVAL, "lent is not up.")
+    try:
+       transport_type = self.server_node['network']['data']['transport_type']
+    except:
+       raise MotrError(errno.EINVAL, "transport_type not found")
+
+    check_type(transport_type, str, "transport_type")
+
+    if transport_type == "lnet":
+        if not verify_lnet(self):
+            raise MotrError(errno.EINVAL, "lent is not up.")
     is_hw = is_hw_node(self)
     if is_hw:
         self.logger.info(f"Executing {MOTR_CONFIG_SCRIPT}")
@@ -230,7 +239,30 @@ def configure_lnet(self):
 
 
 def configure_libfabric(self):
-    raise MotrError(errno.EINVAL, "libfabric not implemented\n")
+    try:
+        iface = self.server_node['network']['data']['private_interfaces'][0]
+    except:
+        raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
+
+    sys.stdout.write(f"Validate private_interfaces[0]: {iface}\n")
+    cmd = f"ip addr show {iface}"
+    execute_command(self, cmd)
+
+    try:
+        iface_type = self.server_node['network']['data']['interface_type']
+    except:
+        raise MotrError(errno.EINVAL, "interface_type not found\n")
+
+    libfab_config = (f"networks={iface_type}({iface}) ")
+    self.logger.info(f"libfab config: {libfab_config}")
+    with open(LIBFAB_CONF_FILE, "w") as fp:
+        fp.write(libfab_config)
+
+    sys.stdout.write(f"iface type: {iface_type}\n")
+    cmd = "fi_info"
+    execute_command(self, cmd)
+    sys.stdout.write(f"fi_info: {cmd}\n")
+    os.system('fi_info')
 
 def swap_on(self):
     cmd = "swapon -a"
@@ -591,6 +623,10 @@ def test_lnet(self):
     execute_command(self, cmd)
 
     lnet_ping(self)
+
+def test_libfabric(self):
+    search_libfabric_pkgs = ["libfabric"]
+    check_pkgs(self, search_libfabric_pkgs)
 
 def get_metadata_disks_count(self):
     dev_count = 0

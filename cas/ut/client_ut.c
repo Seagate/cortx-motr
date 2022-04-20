@@ -78,14 +78,16 @@ struct cl_ctx {
 
 enum { MAX_RPCS_IN_FLIGHT = 10 };
 /* Configures motr environment with given parameters. */
-static char *cas_startup_cmd[] = { "m0d", "-T", "linux",
-                                "-D", "cs_sdb", "-S", "cs_stob",
-                                "-A", "linuxstob:cs_addb_stob",
-                                "-e", "lnet:0@lo:12345:34:1",
-                                "-H", "0@lo:12345:34:1",
-				"-w", "10", "-F",
-				"-f", M0_UT_CONF_PROCESS,
-				"-c", M0_SRC_PATH("cas/ut/conf.xc")};
+static char *cas_startup_cmd[] = {
+	"m0d", "-T", "linux",
+	"-D", "cs_sdb", "-S", "cs_stob",
+	"-A", "linuxstob:cs_addb_stob",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-H", "0@lo:12345:34:1",
+	"-w", "10", "-F",
+	"-f", M0_UT_CONF_PROCESS,
+	"-c", M0_SRC_PATH("cas/ut/conf.xc")
+};
 
 static const char         *cdbnames[] = { "cas1" };
 static const char      *cl_ep_addrs[] = { "0@lo:12345:34:2" };
@@ -131,7 +133,7 @@ static void vals_create(int count, int size, struct m0_bufvec *vals)
 	int rc;
 
 	M0_PRE(vals != NULL);
-	rc = m0_bufvec_alloc_aligned(vals, count, size, PAGE_SHIFT);
+	rc = m0_bufvec_alloc_aligned(vals, count, size, m0_pageshift_get());
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < count; i++)
 		value_create(size, i, vals->ov_buf[i]);
@@ -202,12 +204,11 @@ static void casc_ut_init(struct m0_rpc_server_ctx *sctx,
 	sctx->rsx_xprts = m0_net_all_xprt_get();
 	sctx->rsx_xprts_nr = m0_net_xprt_nr();
 	M0_SET0(&sctx->rsx_motr_ctx);
-	m0_fi_enable_once("m0_rpc_machine_init", "bulk_cutoff_4K");
 	rc = m0_rpc_server_start(sctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = cas_client_init(cctx, cl_ep_addrs[0],
 			     srv_ep_addrs[0], cdbnames[0],
-			     sctx->rsx_xprts[0]);
+			     m0_net_xprt_default_get());
 	M0_UT_ASSERT(rc == 0);
 }
 

@@ -61,6 +61,7 @@ enum config_key_val {
 	 * The check for index at copy_value() relies on this.
 	 */
 	WORKLOAD_TYPE,
+	POOL_FID,
 	SEED,
 	NR_THREADS,
 	NUM_OPS,
@@ -127,6 +128,7 @@ struct key_lookup_table lookuptable[] = {
 	{"MAX_RSIZE", MAX_VALUE_SIZE},
 	{"GET", GET},
 	{"PUT", PUT},
+	{"POOL_FID", POOL_FID},
 	{"NEXT", NEXT},
 	{"DEL", DEL},
 	{"NXRECORDS", NXRECORDS},
@@ -552,6 +554,13 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			w = &load[*index];
 			cw = workload_io(w);
 			cw->cwi_random_io = atoi(value);
+			break;
+		case POOL_FID:
+			w = &load[*index];
+			cw = workload_io(w);
+			if (0 != m0_fid_sscanf(value, &cw->cwi_pool_id)) {
+				parser_emit_error("Unable to parse fid: %s", value);
+			}
 			break;
 		case OPCODE:
 			w = &load[*index];

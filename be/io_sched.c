@@ -109,6 +109,7 @@ static void be_io_sched_launch_next(struct m0_be_io_sched *sched)
 			sched->bis_io_in_progress = true;
 			M0_LOG(M0_DEBUG, "sched=%p io=%p pos=%"PRId64,
 			       sched, io, sched->bis_pos);
+			m0_be_op_active(io->bio_sched_op_user);
 			m0_be_io_launch(io, &io->bio_sched_op);
 		}
 	}
@@ -137,6 +138,7 @@ static void be_io_sched_cb(struct m0_be_op *op, void *param)
 	sched->bis_pos = io->bio_ext.e_end;
 	m0_be_io_sched_unlock(sched);
 
+	m0_be_op_done(io->bio_sched_op_user);
 	be_io_sched_launch_next_locked(sched);
 }
 
@@ -201,7 +203,7 @@ M0_INTERNAL void m0_be_io_sched_add(struct m0_be_io_sched *sched,
 	m0_be_op_init(&io->bio_sched_op);
 	m0_be_op_callback_set(&io->bio_sched_op, &be_io_sched_cb,
 			      io, M0_BOS_GC);
-	m0_be_op_set_add(op, &io->bio_sched_op);
+	io->bio_sched_op_user = op;
 	be_io_sched_launch_next(sched);
 }
 

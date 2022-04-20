@@ -222,11 +222,11 @@ m0_locality_data_free
 m0_locality_data_iterate
 m0_matrix_elem_get
 m0_nanosleep
+m0_net_all_xprt_get
 m0_net_domain_fini
 m0_net_domain_init
 m0_net_end_point_put
 m0_net_xprt_default_get
-m0_net_all_xprt_get
 m0_net_xprt_nr
 m0_node_uuid_init
 m0_node_uuid_string_get

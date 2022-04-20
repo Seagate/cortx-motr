@@ -291,9 +291,16 @@ void fdmi_sd_send_notif(void)
 	M0_UT_ASSERT(rpc_conn_pool_items_tlist_head(&conn_pool->cp_items) ==
 		     rpc_conn_pool_items_tlist_tail(&conn_pool->cp_items));
 	unprepare_rpc_env(&g_rpc_env);
-	rpc_conn_pool_items_tlink_del_fini(pool_item);
-	m0_free(pool_item);
-	pool_item = NULL;
+
+	/*
+	 * At this moment, the pool_item might have been removed from the list
+	 * and been freed in FDMI notification failure handling.
+	 */
+	if (rpc_conn_pool_items_tlink_is_in(pool_item)) {
+		rpc_conn_pool_items_tlink_del_fini(pool_item);
+		m0_free(pool_item);
+		pool_item = NULL;
+	}
 	fdmi_serv_stop_ut();
 	m0_semaphore_fini(&g_sem1);
 	m0_semaphore_fini(&g_sem2);

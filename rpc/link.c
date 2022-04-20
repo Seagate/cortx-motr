@@ -172,7 +172,7 @@ static int rpc_link_sess_terminate(struct m0_rpc_link *rlink)
 	if (rc == -ECANCELED)
 		return M0_FSO_AGAIN; /* continue normal way */
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "Session termination failed (rlink=%p, rc=%d)",
+		M0_LOG(M0_DEBUG, "Session termination failed (rlink=%p, rc=%d)",
 		       rlink, rc);
 	}
 	return rc == 0 ? M0_FSO_AGAIN : rc;

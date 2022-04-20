@@ -67,7 +67,7 @@
    <hr>
    @section LNetDRVDLD-def Definitions
    - HLD of Motr LNet Transport :
-     For documentation links, please refer to this file : 
+     For documentation links, please refer to this file :
      doc/motr-design-doc-list.rst
 
 .

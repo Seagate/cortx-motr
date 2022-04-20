@@ -1,18 +1,17 @@
+# TODO investigate why it's needed on aarch64
+%ifarch aarch64
+%undefine _missing_build_ids_terminate_build
+%endif
 # feature flags
 %bcond_with ut
 %bcond_with debuginfo_sources
 %bcond_with cassandra
 %bcond_with ivt
-
-# Below line will enable the isal by default. This will add Intel ISA as
-# dependency by default. User can override this by using '--without isal'
-# in makefile to disable it. To change the default value i.e. to disable
-# Intel ISA dependency by default, use '%bcond_with isal'.
-%bcond_without isal
+#user mode only
+%bcond_with usermode
 
 # configure options
 %define with_linux  %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
-%define with_lustre %( test -n "$lustre_src" && echo "--with-lustre=$lustre_src" )
 
 # kernel version.
 %define raw_kernel_ver %(
@@ -23,9 +22,16 @@
                           fi
                         )
 
-%define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
-%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.x86_64$//' )
 
+%if %{with usermode}
+%define with_lustre %( echo "--with-lustre=no" )
+%define kernel_ver %( echo "any" )
+%else
+%define with_lustre %( test -n "$lustre_src" && echo "--with-lustre=$lustre_src" )
+%define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{?dist:-el7}$//' -e 's/\.el7$//'  )
+%endif
+
+%define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' )
 # build number
 %define build_num  %( test -n "$build_number" && echo "$build_number" || echo 1 )
 
@@ -42,17 +48,19 @@
 # configure options
 %define  configure_release_opts     --enable-release --disable-avx --enable-force-ssse3 --with-trace-kbuf-size=256 --with-trace-ubuf-size=64
 %define  configure_ut_opts          --enable-dev-mode --disable-altogether-mode
+
 %if %{with cassandra}
 %define  configure_cassandra_opts   --with-cassandra
 %endif
-%if !%{with isal}
-%define  configure_isal_opts   --disable-isal
+
+%if %{with usermode}
+%define configure_user_opts --with-user-mode-only=yes --with-lustre=no --with-default-transport=LF
 %endif
 
 %if %{with ivt} || %{with ut}
-%define  configure_opts  %{configure_ut_opts} %{?configure_cassandra_opts} %{?configure_isal_opts}
+%define  configure_opts  %{configure_ut_opts} %{?configure_user_opts} %{?configure_cassandra_opts}
 %else
-%define  configure_opts  %{configure_release_opts} %{?configure_cassandra_opts} %{?configure_isal_opts}
+%define  configure_opts  %{configure_release_opts} %{?configure_user_opts} %{?configure_cassandra_opts}
 %endif
 
 Name:           @PACKAGE@
@@ -62,7 +70,6 @@ Summary:        CORTX Motr
 Group:          System Environment/Base
 License:        Seagate
 Source:         %{name}-%{version}.tar.gz
-BuildArch:      x86_64
 ExcludeArch:    i686
 Provides:       %{name}-libs = %{version}-%{release}
 Provides:       %{name}-modules = %{version}-%{release}
@@ -70,7 +77,7 @@ Provides:       %{name}-modules = %{version}-%{release}
 Obsoletes:      mero
 Obsoletes:      eos-core
 Provides:       motr = %{version}-%{release}
-Provides:       motr(x86-64) = %{version}-%{release}
+Provides:       motr(%{_arch}") = %{version}-%{release}
 Provides:       motr-libs = %{version}-%{release}
 Provides:       motr-modules = %{version}-%{release}
 
@@ -80,8 +87,14 @@ BuildRequires:  libtool
 BuildRequires:  make
 BuildRequires:  gcc
 BuildRequires:  gcc-c++
-%if %{rhel} <= 7
+%if %{rhel} < 8
+  %if "%{_arch}" == "aarch64"
+    # castxml rpm is not available on rhel 7,
+    # it must be built and installed manually.
+    # BuildRequires:  castxml
+  %else
 BuildRequires:  gccxml
+  %endif
 %else
 BuildRequires:  castxml
 %endif
@@ -96,42 +109,47 @@ BuildRequires:  perl-File-Find-Rule
 BuildRequires:  perl-IO-All
 BuildRequires:  perl-File-Slurp
 BuildRequires:  perl-YAML-LibYAML
+%if !%{with usermode}
 BuildRequires:  kernel-devel = %{kernel_ver_requires}
 BuildRequires:  %{lustre_devel}
+%endif
 BuildRequires:  libuuid-devel
 BuildRequires:  openssl
 BuildRequires:  openssl-devel
 BuildRequires:  binutils-devel
-%if %{rhel} <= 7
+%if %{rhel} < 8
 BuildRequires:  python36-ply
 %else
 BuildRequires:  python3-ply
 %endif
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
-%if %{rhel} <= 7
+%if %{rhel} < 8
 BuildRequires:  python-devel
 %else
 BuildRequires:  python2-devel
 %endif
+@BUILD_DEPEND_LIBFAB@
 BuildRequires:  libedit-devel
-%if %{with isal}
 BuildRequires:  isa-l
-%endif
 %if %{with cassandra}
 BuildRequires:  libcassandra
 BuildRequires:  libuv
 %endif
 
+%if !%{with usermode}
 Requires:       kernel = %{kernel_ver_requires}
 Requires:       %{lustre}
+%endif
 Requires:       libaio
 Requires:       libyaml
 #Supported openssl versions -- CentOS 7 its 1.0.2k, RHEL8 its 1.1.1
 Requires:       openssl
 Requires:       gdb
 Requires:       genders
+%if %{rhel} < 8
 Requires:       sysvinit-tools
+%endif
 Requires:       attr
 Requires:       perl
 Requires:       perl-YAML-LibYAML
@@ -145,11 +163,13 @@ Requires:       perl-MCE
 Requires:       ruby
 Requires:       facter
 Requires:       rubygem-net-ssh
+%if %{rhel} < 8
 Requires:       python36-ply
-Requires:       libedit
-%if %{with isal}
-Requires:       isa-l
+%else
+Requires:       python3-ply
 %endif
+Requires:       libedit
+Requires:       isa-l
 Requires(pre):  shadow-utils
 Requires(post): findutils
 
@@ -171,9 +191,10 @@ Requires: libuuid-devel
 Requires: pkgconfig
 Requires: systemd-devel
 Requires: glibc-headers
+%if !%{with usermode}
 Requires: kernel-devel = %{kernel_ver_requires}
 Requires: %{lustre_devel}
-
+%endif
 
 %description devel
 Header files that are required to link with CORTX Motr libraries.
@@ -201,7 +222,13 @@ CORTX Motr IVT.
 %setup -q
 
 %build
+%ifarch x86_64
 %configure %{with_linux} %{with_lustre} %{configure_opts}
+%endif
+%ifarch aarch64
+%configure %{with_linux} %{with_lustre} %{configure_opts} enable_castxml=yes
+%endif
+
 %if !%{with ivt}
 make %{?_smp_mflags}
 %endif
@@ -228,7 +255,7 @@ find %{buildroot} -type f | sed -e 's#^%{buildroot}##' | sort |
 
 make DESTDIR=%{buildroot} install-tests
 
-find %{buildroot} -name m0tr.ko -o -name m0ut.ko -o -name galois.ko \
+find %{buildroot} -name m0tr.ko -o -name m0ut.ko -o \
 	     | sed -e 's#^%{buildroot}##' > tests-ut.files
 
 find %{buildroot} \
@@ -239,8 +266,7 @@ find %{buildroot} \
         -o -name m0gentestds \
         -o -name 'm0kut*' \
         -o -name 'libtestlib*.so*' \
-        -o -name 'libmotr*.so*' \
-        -o -name 'libgalois*.so*' |
+        -o -name 'libmotr*.so*' |
     sed -e 's#^%{buildroot}##' >> tests-ut.files
 
 sort -o tests-ut.files tests-ut.files
@@ -288,7 +314,9 @@ fi
 %{_sysconfdir}/systemd/system/*
 %{_sysconfdir}/security/limits.d/90-motr.conf
 /opt/seagate/cortx/motr/*
+%if !%{with usermode}
 /lib/modules/*/kernel/fs/motr/*
+%endif
 %exclude %{_bindir}/m0gentestds
 %exclude %{_bindir}/m0gccxml2xcode
 %exclude %{_bindir}/m0kut*
@@ -302,10 +330,12 @@ fi
 %exclude %{_libdir}/libmotr-xcode-ff2c*
 %exclude %{_libdir}/pkgconfig/
 %exclude %{_mandir}/**/m0gccxml2xcode*
+%if !%{with usermode}
 %exclude /lib/modules/*/kernel/fs/motr/m0lnet*
 %exclude /lib/modules/*/kernel/fs/motr/m0net*
 %exclude /lib/modules/*/kernel/fs/motr/m0rpc*
 %exclude /lib/modules/*/kernel/fs/motr/m0ut*
+%endif
 %exclude /usr/bin/workload*
 %endif
 

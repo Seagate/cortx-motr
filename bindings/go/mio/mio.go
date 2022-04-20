@@ -39,16 +39,16 @@
 // For the usage example, refer to mcp utility.
 package mio
 
-// #cgo CFLAGS: -I/usr/include/motr
-// #cgo CFLAGS: -I../../.. -I../../../extra-libs/galois/include
+// #cgo CFLAGS: -I../../.. -I/usr/include/motr
 // #cgo CFLAGS: -DM0_EXTERN=extern -DM0_INTERNAL=
 // #cgo CFLAGS: -Wno-attributes
 // #cgo LDFLAGS: -L../../../motr/.libs -Wl,-rpath=../../../motr/.libs -lmotr
 // #include <stdlib.h>
+// #include "motr/config.h"
 // #include "lib/types.h"
 // #include "lib/trace.h"   /* m0_trace_set_mmapped_buffer */
 // #include "motr/client.h"
-// #include "motr/layout.h" /* m0c_pools_common */
+// #include "motr/layout.h" /* M0_OBJ_LAYOUT_ID */
 //
 // struct m0_client    *instance = NULL;
 // struct m0_container container;
@@ -345,9 +345,8 @@ func (mio *Mio) Create(id string, sz uint64, anyPool ...string) error {
     return mio.open(sz)
 }
 
-func roundupPower2(x int) (power int) {
-    for power = 1; power < x; power *= 2 {}
-    return power
+func roundup(x int, by int) int {
+    return ((x - 1) / by + 1) * by
 }
 
 const maxM0BufSz = 512 * 1024 * 1024
@@ -369,19 +368,33 @@ func (mio *Mio) getOptimalBlockSz(bufSz int) (bsz, gsz int) {
                   pa.pa_P, pa.pa_N, pa.pa_K, pa.pa_S,
                            pa.pa_N + pa.pa_K + pa.pa_S)
     }
+
     usz := int(C.m0_obj_layout_id_to_unit_size(mio.objLid))
     gsz = usz * int(pa.pa_N) // group size in data units only
-    // should be max 2-times pool-width deep, otherwise we may get -E2BIG
-    maxBs := int(C.uint(usz) * 2 * pa.pa_P * pa.pa_N /
-                    (pa.pa_N + pa.pa_K + pa.pa_S))
-    maxBs = ((maxBs - 1) / gsz + 1) * gsz // multiple of group size
+
+    // bs should be max 4-times pool-width deep counting by 1MB units, or
+    // 8-times deep counting by 512K units, 16-times deep by 256K units,
+    // and so on. Several units to one target will be aggregated to make
+    // fewer network RPCs, disk i/o operations and BE transactions.
+    // For unit sizes of 32K or less, the koefficient (k) is 128, which
+    // makes it 32K * 128 == 4MB - the maximum amount per target when
+    // the performance is still good on LNet (which has max 1MB frames).
+    // XXX: it may be different on libfabric, should be re-measured.
+    k := C.uint(128 / ((usz + 0x7fff) / 0x8000))
+    if k == 0 {
+        k = 1
+    }
+    // P * N / (N + K + S) - number of data units to span the pool-width
+    maxBs := int(k * C.uint(usz) * pa.pa_P * pa.pa_N /
+                                  (pa.pa_N + pa.pa_K + pa.pa_S))
+    maxBs = roundup(maxBs, gsz) // multiple of group size
 
     if bufSz >= maxBs {
         return maxBs, gsz
     } else if bufSz <= gsz {
         return gsz, gsz
     } else {
-        return roundupPower2(bufSz), gsz
+        return roundup(bufSz, gsz), gsz
     }
 }
 

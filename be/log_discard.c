@@ -175,6 +175,17 @@ static bool be_log_discard_is_locked(struct m0_be_log_discard *ld)
 	return m0_mutex_is_locked(&ld->lds_lock);
 }
 
+static void be_log_discard_flush_finished(struct m0_be_log_discard *ld)
+{
+	M0_PRE(be_log_discard_is_locked(ld));
+	M0_PRE(ld->lds_flush_op != NULL);
+	M0_PRE(ld_start_tlist_is_empty(&ld->lds_start_q));
+
+	m0_be_op_active(ld->lds_flush_op);
+	m0_be_op_done(ld->lds_flush_op);
+	ld->lds_flush_op = NULL;
+}
+
 static void be_log_discard_check_sync(struct m0_be_log_discard *ld,
                                       bool                      force)
 {
@@ -197,18 +208,10 @@ static void be_log_discard_check_sync(struct m0_be_log_discard *ld,
 				break;
 			ld->lds_sync_item = ldi;
 		} m0_tl_endfor;
-		if (ld->lds_sync_item == NULL && ld->lds_flush_op != NULL) {
-			M0_ASSERT(ld_start_tlist_is_empty(&ld->lds_start_q));
-			m0_be_op_active(ld->lds_flush_op);
-			m0_be_op_done(ld->lds_flush_op);
-		}
+		if (ld->lds_sync_item == NULL && ld->lds_flush_op != NULL)
+			be_log_discard_flush_finished(ld);
 		if (ld->lds_sync_item != NULL) {
 			ld->lds_sync_in_progress = true;
-			if (ld->lds_flush_op != NULL) {
-				m0_be_op_set_add(ld->lds_flush_op,
-						 &ld->lds_sync_op);
-				ld->lds_flush_op = NULL;
-			}
 			M0_LOG(M0_DEBUG, "ld=%p lds_sync_item=%p",
 			       ld, ld->lds_sync_item);
 			/* be_log_discard_sync_done_cb() locks ld */
@@ -274,6 +277,8 @@ static void be_log_discard_ast(struct m0_sm_group *grp,
 	be_log_discard_check_sync(ld, false);
 	ld->lds_discard_ast_posted = false;
 
+	if (ld->lds_flush_op != NULL)
+		be_log_discard_flush_finished(ld);
 	if (ld->lds_discard_waiting)
 		m0_semaphore_up(&ld->lds_discard_wait_sem);
 	be_log_discard_unlock(ld);

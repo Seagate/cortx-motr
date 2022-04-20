@@ -27,6 +27,11 @@
 # This script should only be run before bootstrap (that does mkfs),
 # and it will never be started after Motr mkfs is complete
 
+M0_SRC_DIR=$(dirname $(readlink -f $0))
+M0_SRC_DIR="$M0_SRC_DIR/../../../../../../../"
+
+. $M0_SRC_DIR/utils/functions # m0_local_nid_get
+
 conf="/etc/motr/conf.xc"
 user_config=/etc/sysconfig/motr
 currdir=$(pwd)
@@ -125,7 +130,8 @@ stop_singlenode()
 
 ip_generate()
 {
-	IP=$(lctl list_nids | cut  -f 1 -d' ' | head -n 1)
+	IP=$(m0_local_nid_get)
+
 	if [[ ! ${IP} ]]; then
 		(>&2 echo 'error! m0singlenode not running.')
 		(>&2 echo 'start m0singlenode')

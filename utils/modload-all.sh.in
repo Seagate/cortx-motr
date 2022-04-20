@@ -12,11 +12,9 @@ NODE_UUID="abcdef01-2345-6789-0123-456789ABCDEF"
 
 unload_all() {
     modunload
-    modunload_galois
 }
 trap unload_all EXIT
 
 modprobe_lnet
-modload_galois
 modload || exit $?
 

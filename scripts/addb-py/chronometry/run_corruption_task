@@ -188,7 +188,6 @@ function check_and_stop_cluster()
     $EX_SRV lsmod | grep -q m0ctl && ( rmmod m0ctl || echo "Failed to unload m0ctl module" )
     $EX_SRV lsmod | grep -q m0tr && ( rmmod m0tr || echo "Failed to unload m0tr module" )
     $EX_SRV lsmod | grep -q m0gf && ( rmmod m0gf || echo "Failed to unload m0gf module" )
-    $EX_SRV lsmod | grep -q galois && ( rmmod galois || echo "Failed to unload galois module" )
     set -e
 }
 

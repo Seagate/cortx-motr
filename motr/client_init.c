@@ -1586,6 +1586,14 @@ int m0_client_init(struct m0_client **m0c_p,
 		 * are completed successfully.
 		 */
 		ha_process_event(m0c, M0_CONF_HA_PROCESS_STARTED);
+		/*
+		   For m0crate, s3servers and other client apps,
+		   M0_NC_DTM_RECOVERING state is transient, sending
+		   M0_CONF_HA_PROCESS_DTM_RECOVERED just after
+		   M0_CONF_HA_PROCESS_STARTED.
+
+		   ha_process_event(m0c, M0_CONF_HA_PROCESS_DTM_RECOVERED);
+		*/
 	}
 
 	m0_sm_group_unlock(&m0c->m0c_sm_group);

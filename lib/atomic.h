@@ -25,6 +25,7 @@
 #ifndef __MOTR_LIB_ATOMIC_H__
 #define __MOTR_LIB_ATOMIC_H__
 
+#include "motr/config.h"  /* CONFIG_X86_64 CONFIG_AARCH64 */
 #include "lib/assert.h"
 #include "lib/types.h"
 
@@ -33,10 +34,15 @@
 #else
 #  ifdef ENABLE_SYNC_ATOMIC
 #    include "lib/user_space/__sync_atomic.h"
-#  else
+#  elif defined (CONFIG_X86_64)
 #    include "lib/user_space/user_x86_64_atomic.h"
+#  elif defined (CONFIG_AARCH64)
+#    include "lib/user_space/user_aarch64_atomic.h"
+#  else
+#    error "Platform is not supported"
 #  endif
 #endif
+
 
 /**
    @defgroup atomic

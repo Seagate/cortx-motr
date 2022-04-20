@@ -820,6 +820,17 @@ static void irfop_fini(struct ioreq_fop *irfop)
 }
 
 /**
+ * Helper function which will return the buffer address based on the page attr,
+ * fop phase and aux bufvec.
+ */
+static void *buf_aux_chk_get(struct m0_bufvec *aux, enum page_attr p_attr,
+			     uint32_t seg_idx, bool rd_in_wr)
+{
+	return (p_attr == PA_DATA && rd_in_wr && aux != NULL &&
+		aux->ov_buf[seg_idx] != NULL) ? aux->ov_buf[seg_idx] : NULL;
+}
+
+/**
  * Assembles io fops for the specified target server.
  * This is heavily based on
  * m0t1fs/linux_kernel/file.c::target_ioreq_iofops_prepare
@@ -855,6 +866,13 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	/* Is it in the READ phase of WRITE request. */
 	bool                         read_in_write = false;
 	void                        *buf;
+	void                        *bufnext;
+	m0_bcount_t                  max_seg_size;
+	m0_bcount_t                  xfer_len;
+	m0_bindex_t                  offset;
+	uint32_t                     segnext;
+	uint32_t                     ndom_max_segs;
+	struct m0_client             *instance;
 
 	M0_ENTRY("prepare io fops for target ioreq %p filter 0x%x, tfid "FID_F,
 		 ti, filter, FID_P(&ti->ti_fid));
@@ -897,6 +915,10 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	     ioreq_sm_state(ioo) == IRS_DEGRADED_READING ? PA_DGMODE_READ :
 	     PA_READ;
 	maxsize = m0_rpc_session_get_max_item_payload_size(ti->ti_session);
+
+	max_seg_size = m0_net_domain_get_max_buffer_segment_size(ndom);
+
+	ndom_max_segs = m0_net_domain_get_max_buffer_segments(ndom);
 
 	while (seg < SEG_NR(ivec)) {
 		delta  = 0;
@@ -942,8 +964,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		/* TODO: can this loop become a function call?
 		 * -- too many levels of indentation */
 		while (seg < SEG_NR(ivec) &&
-			m0_io_fop_size_get(&iofop->if_fop) + delta < maxsize &&
-			bbsegs < m0_net_domain_get_max_buffer_segments(ndom)) {
+		       m0_io_fop_size_get(&iofop->if_fop) + delta < maxsize &&
+		       bbsegs < ndom_max_segs) {
 
 			/*
 			* Adds a page to rpc bulk buffer only if it passes
@@ -953,13 +975,10 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			    !(pattr[seg] & PA_TRUNC)) {
 				delta += io_seg_size() + io_di_size(ioo);
 
-				if (filter == PA_DATA &&
-				    read_in_write &&
-				    auxbvec != NULL &&
-				    auxbvec->ov_buf[seg] != NULL) {
-					buf = auxbvec->ov_buf[seg];
-				}
-				else {
+				buf = buf_aux_chk_get(auxbvec, filter, seg,
+						      read_in_write);
+
+				if (buf == NULL) {
 					buf = bvec->ov_buf[seg];
 					/* Add the size for checksum generated for every segment, skip parity */
 					if ((filter == PA_DATA) &&
@@ -970,9 +989,34 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					}
 				}
 
-				rc = m0_rpc_bulk_buf_databuf_add(rbuf,
-					buf, COUNT(ivec, seg),
-					INDEX(ivec, seg), ndom);
+				xfer_len = COUNT(ivec, seg);
+				offset = INDEX(ivec, seg);
+
+				/*
+				 * Accommodate multiple pages in a single
+				 * net buffer segment, if they are consecutive
+				 * pages.
+				 */
+				segnext = seg + 1;
+				while (segnext < SEG_NR(ivec) &&
+				       xfer_len < max_seg_size) {
+					bufnext = buf_aux_chk_get(auxbvec,
+								  filter,
+								  segnext,
+								  read_in_write);
+					if (bufnext == NULL)
+						bufnext = bvec->ov_buf[segnext];
+
+					if (buf + xfer_len == bufnext) {
+						xfer_len += COUNT(ivec, ++seg);
+						segnext = seg + 1;
+					} else
+						break;
+				}
+
+				rc = m0_rpc_bulk_buf_databuf_add(rbuf, buf,
+								 xfer_len,
+								 offset, ndom);
 
 				if (rc == -EMSGSIZE) {
 					/*
@@ -1032,9 +1076,12 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_pver = ioo->ioo_pver;
 		rw_fop->crw_index = ti->ti_obj;
 		/* In case of partially spanned units in a parity group,
-		 * degraded read expects zero-filled units from server side.
+		 * degraded read and read-verify mode expects zero-filled
+		 * units from server side.
 		 */
+		instance = m0__op_instance(&ioo->ioo_oo.oo_oc.oc_op);
 		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
+		    !instance->m0c_config->mc_is_read_verify &&
 		    ioo->ioo_flags & M0_OOF_NOHOLE)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 

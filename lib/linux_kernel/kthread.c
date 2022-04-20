@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -227,16 +227,15 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 
 		  put_task_struct(p);
 		*/
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,18,0)
-		cpumask_copy(&p->cpus_mask, cpuset);
-#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0) || defined (CONFIG_AARCH64)
 		cpumask_copy(&p->cpus_allowed, cpuset);
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-		p->nr_cpus_allowed = nr_allowed;
 #else
+		cpumask_copy(&p->cpus_mask, cpuset);
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 		p->rt.nr_cpus_allowed = nr_allowed;
+#else
+		p->nr_cpus_allowed = nr_allowed;
 #endif
 
 		/* cause current task to migrate immediately by blocking */

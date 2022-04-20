@@ -34,6 +34,8 @@
 struct m0_be_btree;
 struct m0_be_btree_kv_ops;
 struct m0_be_btree_cursor;
+struct m0_be_queue;
+struct m0_buf;
 
 /* fake segment header. */
 static struct m0_be_seg_hdr khdr;
@@ -309,5 +311,20 @@ M0_INTERNAL void m0_be_ut_free(struct m0_be_ut_backend *ut_be,
 {
 	m0_be_free(NULL, NULL, NULL, ptr);
 }
+
+M0_INTERNAL void m0_be_queue_put(struct m0_be_queue  *bq,
+                                 struct m0_be_op     *op,
+                                 const struct m0_buf *data)
+{
+}
+
+M0_INTERNAL void m0_be_queue_lock(struct m0_be_queue *bq)
+{
+}
+
+M0_INTERNAL void m0_be_queue_unlock(struct m0_be_queue *bq)
+{
+}
+
 
 #undef M0_TRACE_SUBSYSTEM

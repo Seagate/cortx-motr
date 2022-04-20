@@ -39,13 +39,13 @@ struct m0_uint128 {
 
 #define M0_UINT128(hi, lo) (struct m0_uint128) { .u_hi = (hi), .u_lo = (lo) }
 
-#define U128X_F "%"PRIx64":%"PRIx64
-#define U128D_F "%"PRId64":%"PRId64
-#define U128I_F "%"PRIi64":%"PRIi64
+#define U128X_F "%" PRIx64 ":%" PRIx64
+#define U128D_F "%" PRId64 ":%" PRId64
+#define U128I_F "%" PRIi64 ":%" PRIi64
 #define U128_P(x) (x)->u_hi, (x)->u_lo
 #define U128_S(u) &(u)->u_hi, &(u)->u_lo
 
-#define U128X_F_SAFE "%s%"PRIx64":%"PRIx64
+#define U128X_F_SAFE "%s%" PRIx64 ":%" PRIx64
 #define U128_P_SAFE(x) \
 	((x) != NULL ? "" : "(null) "), \
 	((x) != NULL ? (x)->u_hi : 0), ((x) != NULL ? (x)->u_lo : 0)

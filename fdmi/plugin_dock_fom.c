@@ -359,6 +359,9 @@ static int pdock_fom_tick__finish_with_rec(struct m0_fom *fom)
 		 * release request, therefore possible blocking
 		 * on rpc connect when posting.
 		 */
+		M0_LOG(M0_DEBUG, "Dec ref for "U128X_F " to ref_cnt=%d",
+				 U128_P(&frec->fr_rec_id),
+				 (int)m0_ref_read(&rreg->frr_ref) - 1);
 		m0_fom_block_enter(fom);
 		m0_ref_put(&rreg->frr_ref);
 		m0_fom_block_leave(fom);

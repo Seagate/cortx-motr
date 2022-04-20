@@ -69,7 +69,7 @@ M0_INTERNAL int m0_confx_to_string(struct m0_confx *confx, char **out)
 	 * Spiel sends conf string over bulk transport. Bulk buffers
 	 * have to be aligned.
 	 */
-	*out = m0_alloc_aligned(size, PAGE_SHIFT);
+	*out = m0_alloc_aligned(size, m0_pageshift_get());
 	if (*out == NULL)
 		return M0_ERR_INFO(-ENOMEM, "failed to allocate internal buffer"
 				   " for encoded Spiel conf data");
@@ -77,7 +77,7 @@ M0_INTERNAL int m0_confx_to_string(struct m0_confx *confx, char **out)
 	rc = m0_xcode_print(&M0_XCODE_OBJ(m0_confx_xc, confx),
 			    *out, size) <= size ? 0 : M0_ERR(-ENOMEM);
 	if (rc != 0) {
-		m0_free_aligned(*out, size, PAGE_SHIFT);
+		m0_free_aligned(*out, size, m0_pageshift_get());
 		*out = NULL;
 	}
 	return M0_RC(rc);
@@ -85,8 +85,8 @@ M0_INTERNAL int m0_confx_to_string(struct m0_confx *confx, char **out)
 
 M0_INTERNAL void m0_confx_string_free(char *str)
 {
-	M0_PRE(m0_addr_is_aligned(str, PAGE_SHIFT));
-	m0_free_aligned(str, strlen(str)+1, PAGE_SHIFT);
+	M0_PRE(m0_addr_is_aligned(str, m0_pageshift_get()));
+	m0_free_aligned(str, strlen(str)+1, m0_pageshift_get());
 }
 
 #undef M0_TRACE_SUBSYSTEM

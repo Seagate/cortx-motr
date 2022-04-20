@@ -123,7 +123,7 @@ PYTHON_STUFF=python_files.txt
 
 spiel_prepare()
 {
-	local LNET_NID=`lctl list_nids | head -1`
+	local LNET_NID=$(m0_local_nid_get)
 	local SPIEL_CLIENT_ENDPOINT="$LNET_NID:12345:34:1001"
 	local SPIEL_HA_ENDPOINT="$LNET_NID:12345:34:1"
 	SPIEL_OPTS=" -l $M0_SRC_DIR/motr/.libs/libmotr.so --client $SPIEL_CLIENT_ENDPOINT --ha $SPIEL_HA_ENDPOINT"

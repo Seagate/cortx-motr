@@ -90,6 +90,14 @@ struct m0_net_buffer_event;
 struct m0_net_buffer_callbacks;
 struct m0_net_qstats;
 
+#ifdef ENABLE_LIBFAB
+#define M0_NET_XPRT_PREFIX_DEFAULT "libfab"
+#define USE_LIBFAB                 1
+#else
+#define M0_NET_XPRT_PREFIX_DEFAULT "lnet"
+#define USE_LIBFAB                 0
+#endif
+
 /**
    Constructor for the network library
  */
@@ -1764,7 +1772,7 @@ M0_TL_DECLARE(m0_net_tm, M0_INTERNAL, struct m0_net_buffer);
  */
 M0_INTERNAL bool m0_net_endpoint_is_valid(const char *endpoint);
 
-#endif
+#endif /* __KERNEL__ */
 /** Set the specified network transport as the default one. */
 M0_INTERNAL void m0_net_xprt_default_set(const struct m0_net_xprt *xprt);
 /** Register network transport. */

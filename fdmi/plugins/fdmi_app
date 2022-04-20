@@ -42,12 +42,93 @@ import codecs
 cluster_info = dict()
 
 # Global key-value cache used for records de-duplication. KV pairs
-# are available by the kv['cr_key']
+# are available by the kv[keystr].
+# keystr = '{}{}{}'.format(op, fid[9:], cr_key)
 kv_records = dict()
+
+
+# Global ordered list of keystr, which is used by 'kv_records'.
+# This is the LRU list. New item is always appended.
+# If MAX is reached, the first element is removed.
+keystr_LRU = []
+#The Maximal elemets in this LRU. For testing purpose,
+# this number can be set to a small number, e.g. 10.
+MAX_KEYSTRS = 10240
+
 
 # Global list of fdmi_sample_plugin processes that this program
 # is communicating.
 processes = []
+
+FDMI_producer = None
+
+
+def send_ack_to_plugin(banner, p, rec_id):
+    print(banner + " ACK " + rec_id, flush = True)
+    ri = bytes('{}\n'.format(rec_id), encoding = "utf-8")
+    p.stdin.write(ri)
+    p.stdin.flush()
+
+
+
+
+# Establish connection to kafka server
+def kafka_producer_connect(args):
+    global FDMI_producer
+
+    if (args.kafka_server is not None):
+        from kafka import KafkaProducer
+        FDMI_producer = KafkaProducer(bootstrap_servers=args.kafka_server,
+                         value_serializer=lambda m: json.dumps(m).encode())
+
+        if (not FDMI_producer.bootstrap_connected()):
+            print('Can not connect to kafka server: {}'.format(args.kafka_server),
+                  file=sys.stderr)
+            sys.exit(einval)
+
+
+# Close connection to kafka server
+def kafka_producer_close():
+    global FDMI_producer
+
+    if (FDMI_producer is not None):
+        FDMI_producer.flush()
+        FDMI_producer.close()
+        FDMI_producer = None
+
+
+def on_send_success(*args, **kwargs):
+    """
+    callback on kafka send success
+    :param args: (kv, RecordMetadata)
+    """
+    kv = args[0]
+    print('success on {}'.format(kv))
+    rec_id = kv["rec_id"]
+    for p in processes:
+        send_ack_to_plugin("----------", p, rec_id)
+    return args
+
+
+def on_send_error(*args, **kwargs):
+    """
+    callback on kafka send failure
+    Not used. TODO in future.
+    """
+    return args
+
+
+
+# Send FDMI record to kafka with "FDMI" topic
+def kafka_producer_send(kv):
+    global FDMI_producer
+
+    if (FDMI_producer is not None):
+        FDMI_producer.send("FDMI", kv).add_callback(on_send_success, kv).add_errback(on_send_error, kv)
+    else:
+        rec_id = kv["rec_id"]
+        for p in processes:
+            send_ack_to_plugin("++++++++++", p, rec_id)
 
 
 def str_decode(encoded):
@@ -55,17 +136,22 @@ def str_decode(encoded):
         return None
     if encoded == '0':
         return encoded
-    return codecs.decode(encoded, 'hex')
+    return codecs.decode(encoded, 'hex').decode("utf-8")
 
 
 # Process the FDMI records in form of JSON and perform some useful actions
 # such as de-dup, logging and/or sending to the replicator program for data
 # move.
-def process_fdmi_record(kv_record):
+def process_fdmi_record(kv_record, p):
+
     kvs = json.loads(kv_record)
-    fid = str_decode(kvs.get('fid'))
+    fid = kvs.get('fid')
     if fid is None:
         print('Invalid fid in kv_record {}'.format(kv_record), file=sys.stderr)
+        return
+    rec_id = kvs.get('rec_id')
+    if fid is None:
+        print('Invalid rec_id in kv_record {}'.format(kv_record), file=sys.stderr)
         return
     cr_key = str_decode(kvs.get('cr_key'))
     if cr_key is None:
@@ -75,28 +161,57 @@ def process_fdmi_record(kv_record):
     if cr_val is None:
         print('Invalid cr_val in kv_record {}'.format(kv_record), file=sys.stderr)
         return
+    op = kvs.get('opcode')
+    if op is None:
+        print('Invalid opcode in kv_record {}'.format(kv_record), file=sys.stderr)
+        return
+
     kv = {
-        'fid': fid,
+        'op':     op,
+        'rec_id': rec_id,
+        'fid':    fid,
         'cr_key': cr_key,
         'cr_val': cr_val
     }
 
+    # This string is used to be the KEY in the `kv_records`
+    # 'fid': '<5400000600012345:123450>' the most significant chars are
+    # fid type and fid location. They are excluded.
+    keystr = '{}{}{}'.format(op, fid[9:], cr_key)
+    while (len(keystr_LRU) > MAX_KEYSTRS):
+        del kv_records[keystr_LRU[0]]
+        del keystr_LRU[0]
+
     # Check de-dup records
-    kv_i = kv_records.get(cr_key)
-    if kv_i is not None and kv['cr_val'] != "0":
-        print('de-dup: {} {}'.format(kv_i, kv), file=sys.stderr)
-    elif kv['cr_val'] != "0":
-        print('new key-value: {}'.format(kv), file=sys.stderr)
-        kv_records['cr_key'] = kv
+    kv_i = kv_records.get(keystr)
+    if kv_i is not None:
+        #print('dup: {}'.format(kv), file=sys.stdout, flush = True)
+        #send ACK to plugin immediately beause it is a duplicated one
+        send_ack_to_plugin("++++++++++", p, rec_id)
+        pass
+    else:
+        #print('new: {}'.format(kv), file=sys.stdout, flush = True)
+        kv_records[keystr] = kv
+        keystr_LRU.append(keystr)
+        #send FDMI event to kafka asynchronously.
+        #We will ack it in on_send_success() callback
+        kafka_producer_send(kv)
+
+    return
+    #end of process_fdmi_record()
+
 
 
 # Handle SIGNT and SIGTERM. Stop the underlying processes and exit.
 def signal_handler(sig, frame):
     print('CTRL + C pressed', file=sys.stderr)
-    print('Stopping all fdmi_sample_plugin processes...')
+    print('Stopping all fdmi_sample_plugin processes...', file=sys.stderr)
     for p in processes:
         p.send_signal(sig)
         p.wait()
+
+    kafka_producer_close()
+
     sys.exit(0)
 
 
@@ -115,11 +230,12 @@ def execute_command_and_get_output(cmd):
 # -p 0x7000000000000001:0x37 -f 0x7200000000000001:0x19 -g 0x6c00000000000001:0x81
 def get_plugin_cmd(args):
     # fdmi_sample_plugin = "/path/to/cortx-motr/fdmi/plugins/fdmi_sample_plugin"
-    opts = " -l " + cluster_info['local_endpoint']
+    opts =  " -l " + cluster_info['local_endpoint']
     opts += " -h " + cluster_info['ha_endpoint']
     opts += " -p " + cluster_info['profile_fid']
     opts += " -f " + cluster_info['process_fid']
     opts += " -g " + cluster_info['fdmi_filter_fid']
+    opts += " -r"
     return args.plugin_path + opts
 
 
@@ -130,10 +246,11 @@ def get_cluster_info(args):
     info = dict()
     cmd = '{} status --json'.format(args.hctl_path)
     output = execute_command_and_get_output(cmd)
-    if output is None:
-        print('Failed to execute {}. Please make sure the path to '
-              '{} is correct'.format(cmd, args.hctl_path), file=sys.stderr)
+    if output is None or len(output) == 0:
+        print('Failed to execute `{}`. Please make sure the path to '
+              '{} is correct and the Motr cluster is running'.format(cmd, args.hctl_path), file=sys.stderr)
         return None
+
     cluster_js = json.loads(output)
     if cluster_js is None:
         print('Failed to fetch cluster info.', file=sys.stderr)
@@ -189,11 +306,16 @@ def get_cluster_info(args):
             info['process_fid'] = process_fid
             break
 
+    # Filter id is used by Motr FDMI subsystem for identifying the
+    # FDMI plugins, because there are possible more than one.
+    # If the --filter-id is omitted then this program is looking
+    # for the correct filter id in /etc/motr/confd.xc config file.
     if args.filter_id is None:
         with open(args.config_path) as f:
             for s in f.readlines():
                 # Example: ' {0x6c| ((^l|1:81), 2, ^l|1:81, "", ^n|1:3, ^v|1:66, [1: "Bucket-Name"],
                 # [1: "192.168.12.2@tcp:12345:4:1"])},'
+                # The fid we need is 0x6c00000000000001:0x81 in this particular example.
                 if s.startswith(' {0x6c| ((^l|'):
                     s = s[15:]
                     s = s[:s.index(')')]
@@ -203,6 +325,9 @@ def get_cluster_info(args):
     else:
         info['fdmi_filter_fid'] = args.filter_id
 
+    if info.get('profile_fid') is None:
+        print('Failed to get Profile FID from the cluster info.', file=sys.stderr)
+        return None
     if info.get('ha_endpoint') is None:
         print('Failed to get Hare endpoint from the cluster info.', file=sys.stderr)
         return None
@@ -216,7 +341,6 @@ def get_cluster_info(args):
         print('Failed to get fdmi filter id from the cluster config.', file=sys.stderr)
         return None
 
-    print('  {}'.format(info), file=sys.stderr)
     return info
 
 
@@ -224,7 +348,7 @@ def get_cluster_info(args):
 def listen_on_command(command):
     global processes
     p = subprocess.Popen(shlex.split(command), stdin=subprocess.PIPE,
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
     if p is None:
         print('Failed to run {}'.format(command), file=sys.stderr)
         return -1
@@ -237,7 +361,7 @@ def listen_on_command(command):
             fid = "fid"
             record = output.decode("utf-8")
             if fid in record:
-                process_fdmi_record(record)
+                process_fdmi_record(record, p)
 
         rc = p.poll()
         if rc is not None:
@@ -257,40 +381,52 @@ def main(args):
     global cluster_info
     einval = 22
 
-    # Filter id is used by Motr FDMI subsystem for identifying the
-    # FDMI plugins, because there are possible more than one.
-    # If the --filter-id is omitted then this program is looking
-    # for the corrct filter id in /etc/motr/confd.xc config file.
+    if (args.local_endpoint is not None and
+           args.ha_endpoint is not None and
+           args.profile_fid is not None and
+           args.process_fid is not None and
+           args.filter_id   is not None    ):
+        # All required info is from arguments
+        cluster_info = dict()
+        cluster_info['local_endpoint']  = args.local_endpoint
+        cluster_info['ha_endpoint']     = args.ha_endpoint
+        cluster_info['profile_fid']     = args.profile_fid
+        cluster_info['process_fid']     = args.process_fid
+        cluster_info['fdmi_filter_fid'] = args.filter_id
 
-    # Example: ' {0x6c| ((^l|1:81), 2, ^l|1:81, "", ^n|1:3, ^v|1:66, [1: "Bucket-Name"],
-    # [1: "192.168.12.2@tcp:12345:4:1"])},'
+    else:
+        # Otherwise, query from `hctl` and conf.xc
+        if args.config_path is None and args.filter_id is None:
+            print('Either --config-path or --filter-id is required.', file=sys.stderr)
+            sys.exit(einval)
 
-    # The fid we need is 0x6c00000000000001:0x81 in this particular example.
-    if args.config_path is None and args.filter_id is None:
-        print('Either --config-path or --filter-id is required.', file=sys.stderr)
+        config_path = args.config_path
+        if config_path is None:
+            config_path = 'using filter-id'
+
+        filter_id = args.filter_id
+        if filter_id is None:
+            filter_id = 'using config-path'
+
+        print('Using the following settings:', file=sys.stderr)
+        print('  plugin-path = {}'.format(args.plugin_path), file=sys.stderr)
+        print('  hctl-path = {}'.format(args.hctl_path), file=sys.stderr)
+        print('  config-path = {}'.format(config_path), file=sys.stderr)
+        print('  filter-id = {}'.format(filter_id), file=sys.stderr)
+
+        # Now query from `hctl` and conf.xc
+        cluster_info = get_cluster_info(args)
+
+    if cluster_info is None:
         sys.exit(einval)
 
-    print('Using the following settings:', file=sys.stderr)
-    print('  plugin-path = {}'.format(args.plugin_path), file=sys.stderr)
-    print('  hctl-path = {}'.format(args.hctl_path), file=sys.stderr)
-
-    config_path = args.config_path
-    if config_path is None:
-        config_path = 'using filter-id'
-    print('  config-path = {}'.format(config_path), file=sys.stderr)
-
-    filter_id = args.filter_id
-    if filter_id is None:
-        filter_id = 'using config-path'
-    print('  filter-id = {}'.format(filter_id), file=sys.stderr)
+    print('Cluster info:', file=sys.stderr)
+    print('  {}'.format(cluster_info), file=sys.stderr)
 
     print('Register SIGINT signal handler', file=sys.stderr)
     signal.signal(signal.SIGINT, signal_handler)
 
-    print('Cluster info:', file=sys.stderr)
-    cluster_info = get_cluster_info(args)
-    if cluster_info is None:
-        sys.exit(einval)
+    kafka_producer_connect(args)
 
     # Execute fdmi_sample_plugin with cluster info in loop and wait for
     # the FDMI events in form of JSON metadata.
@@ -310,4 +446,16 @@ if __name__ == '__main__':
                     type=str, default='/etc/motr/confd.xc')
     ap.add_argument('-fi', '--filter-id', required=False, help='plugin filter id',
                     type=str)
+
+    ap.add_argument('-le', '--local-endpoint', required=False, help='local endpoint',
+                    type=str)
+    ap.add_argument('-he', '--ha-endpoint', required=False, help='HA endpoint',
+                    type=str)
+    ap.add_argument('-pf', '--profile-fid', required=False, help='Profile FID',
+                    type=str)
+    ap.add_argument('-sf', '--process-fid', required=False, help='Process FID',
+                    type=str)
+    ap.add_argument('-ks', '--kafka-server', required=False, help='kafka server and port',
+                    type=str)
+
     main(ap.parse_args())

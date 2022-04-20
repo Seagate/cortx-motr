@@ -25,7 +25,7 @@
 ### ------------------------------------------------------------------
 
 set ctrl_c \x03
-set endpoint 0@lo:12345:63:100
+set endpoint 0@lo:12345:43:100
 
 proc die {msg {rc 1}} {
     send_error "**ERROR** $msg\n"

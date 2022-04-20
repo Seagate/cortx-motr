@@ -3091,13 +3091,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 		rc = -EIO;
 		goto end;
 	}
-	if (parity_math(map->pi_ioreq)->pmi_parity_algo ==
-	    M0_PARITY_CAL_ALGO_REED_SOLOMON) {
-		rc = m0_parity_recov_mat_gen(parity_math(map->pi_ioreq),
-				(uint8_t *)failed.b_addr);
-		if (rc != 0)
-			goto end;
-	}
+
 	/* Populates data and failed buffers. */
 	for (row = 0; row < rows_nr(play); ++row) {
 		for (col = 0; col < layout_n(play); ++col) {
@@ -3121,9 +3115,6 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 			goto end;
 	}
 
-	if (parity_math(map->pi_ioreq)->pmi_parity_algo ==
-	    M0_PARITY_CAL_ALGO_REED_SOLOMON)
-		m0_parity_recov_mat_destroy(parity_math(map->pi_ioreq));
 end:
 	m0_free(data);
 	m0_free(parity);
