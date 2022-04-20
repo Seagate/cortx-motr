@@ -552,13 +552,13 @@ enum m0_idx_opcode {
 	M0_IC_GET = M0_OC_NR + 1,  /* 15 */
 	/** Insert or update the value, given a key. */
 	M0_IC_PUT,                 /* 16 */
-	/** Delete the value, if any, for the given key. */
+	/** Delete the record, if any, for the given key. */
 	M0_IC_DEL,                 /* 17 */
-	/** Given a key, return the next key and its value. */
+	/** Given a key, return the next keys and their values. */
 	M0_IC_NEXT,                /* 18 */
-	/** Check an index for an existence. */
+	/** Check the given index for existence. */
 	M0_IC_LOOKUP,              /* 19 */
-	/** Given an index id, get the list of next indices. */
+	/** Given a key, return the list of next keys. */
 	M0_IC_LIST,                /* 20 */
 	M0_IC_NR                   /* 21 */
 } M0_XCA_ENUM;

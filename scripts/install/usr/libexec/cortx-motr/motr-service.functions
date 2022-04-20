@@ -255,7 +255,7 @@ m0_get_lnet_nid()
                 local iface=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "(" -f2 | cut -d ")" -f1`
                 local proto=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "=" -f2 | cut -d "(" -f1`
                 local ip_addr=`ip addr show $iface |grep inet| head -1 | awk '{print $2}'|cut -d '/' -f1`
-                lnid=$ip_addr@$proto
+                lnid=inet:$proto:$ip_addr
             fi
             [[ -z "$lnid" ]] && \
                 m0_exit 'Failed to auto-detect Lnet NID, please check that' \
@@ -353,6 +353,7 @@ m0_get_ep_of()
 {
     local service=$1
     local node=$2
+    local xprt=$(m0_get_motr_transport)
 
     # services managed by Halong get their endpoints from the per-service config
     # file
@@ -365,33 +366,47 @@ m0_get_ep_of()
 
     local found=false
     local lnid=$(m0_get_lnet_nid $node)
-    local lpid=12345
-    local confd_tid=1
-    local mds_tid=201
-    local rms_tid=301
-    local ha_tid=1
-    local ios_tid=401
-    local cas_tid=501
-    local fdmi_tid=601
-    local portal=$(_portal_id $1)
+
+    if [ "$XPRT" = "lnet" ]; then
+        local lpid=12345
+        local confd_tid=1
+        local mds_tid=201
+        local rms_tid=301
+        local ha_tid=1
+        local ios_tid=401
+        local cas_tid=501
+        local fdmi_tid=601
+        local portal=$(_portal_id $1)
+        local ep_str="$lnid:$lpid:$portal:"
+    else
+        local confd_tid=3001
+        local mds_tid=3201
+        local rms_tid=3301
+        local ha_tid=2001
+        local ios_tid=3401
+        local cas_tid=3501
+        local fdmi_tid=3601
+        local ep_str="$lnid@"
+    fi
+
     local ep
     local s
 
     for s in $(m0_get_services $node); do
         case $s in
-            confd*) ep=${MOTR_CONFD_EP:-$lnid:$lpid:$portal:$((confd_tid++))}
+            confd*) ep=${MOTR_CONFD_EP:-$ep_str$((confd_tid++))}
                 ;;
-            mds*) ep=${MOTR_MDS_EP:-$lnid:$lpid:$portal:$((mds_tid++))}
+            mds*) ep=${MOTR_MDS_EP:-$ep_str$((mds_tid++))}
                 ;;
-            ios*) ep=$lnid:$lpid:$portal:$((ios_tid++))
+            ios*) ep=$ep_str$((ios_tid++))
                 ;;
-            cas*) ep=$lnid:$lpid:$portal:$((cas_tid++))
+            cas*) ep=$ep_str$((cas_tid++))
                 ;;
-            rms*) ep=$lnid:$lpid:$portal:$((rms_tid++))
+            rms*) ep=$ep_str$((rms_tid++))
                 ;;
-            fdmi*) ep=$lnid:$lpid:$portal:$((fdmi_tid++))
+            fdmi*) ep=$ep_str$((fdmi_tid++))
                 ;;
-            ha*)  ep=${MOTR_HA_EP:-$lnid:$lpid:$portal:$((ha_tid++))}
+            ha*)  ep=${MOTR_HA_EP:-$ep_str$((ha_tid++))}
                 ;;
         esac
 
