@@ -2770,6 +2770,7 @@ static int libfab_domain_params_get(struct m0_fab__ndom *fab_ndom)
 			  ARRAY_SIZE(fab_ndom->fnd_loc_ip));
 		fab_ndom->fnd_seg_nr = FAB_VERBS_IOV_MAX;
 		fab_ndom->fnd_seg_size = FAB_VERBS_MAX_BULK_SEG_SIZE;
+		fi_freeinfo(fi); /* This frees the entire list. */
 	} else {
 		/* For TCP/Socket provider */
 		t_src.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
@@ -2778,10 +2779,8 @@ static int libfab_domain_params_get(struct m0_fab__ndom *fab_ndom)
 		fab_ndom->fnd_seg_nr = FAB_TCP_SOCK_IOV_MAX;
 		fab_ndom->fnd_seg_size = FAB_TCP_SOCK_MAX_BULK_SEG_SIZE;
 	}
-
 	hints->fabric_attr->prov_name = NULL;
 	fi_freeinfo(hints);
-	fi_freeinfo(fi);
 	return M0_RC(0);
 }
 
