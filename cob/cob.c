@@ -950,7 +950,8 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&dom->cd_bc_node,
 						      sizeof dom->cd_bc_node,
-						      &bt, &b_op,
+						      &bt, M0_BCT_NO_CRC,
+						      &b_op,
 						      dom->cd_bytecount, seg,
 						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
@@ -1037,10 +1038,6 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 	struct m0_be_tx        *tx;
 	int                     rc;
 	struct m0_btree_op      b_op  = {};
-	struct m0_cob_omgkey    omgkey = {};
-	struct m0_cob_nskey    *nskey = NULL;
-	struct m0_buf           key;
-	struct m0_cob          *cob;
 
 	M0_PRE(dom != NULL);
 
@@ -1053,30 +1050,6 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 		m0_free(tx);
 		return M0_ERR(-ENOMEM);
 	}
-	/**
-	 *  Delete entries which were created by mkfs. No need to check if the
-	 *  delete functions succeed as we anyway need to proceed to delete the
-	 *  trees.
-	 */
-	m0_cob_tx_credit(dom, M0_COB_OP_DOMAIN_MKFS, &cred);
-	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
-	m0_be_tx_prep(tx, &cred);
-	rc = m0_be_tx_exclusive_open_sync(tx);
-	if (rc != 0)
-		goto tx_fini_return;
-
-	omgkey.cok_omgid = ~0ULL;
-	m0_buf_init(&key, &omgkey, sizeof omgkey);
-	cob_table_delete(dom->cd_fileattr_omg, tx, &key);
-
-	m0_cob_nskey_make(&nskey, &M0_COB_ROOT_FID, M0_COB_ROOT_NAME,
-			       strlen(M0_COB_ROOT_NAME));
-	rc = m0_cob_lookup(dom, nskey, M0_CA_NSKEY_FREE, &cob);
-	M0_ASSERT(rc == 0);
-	m0_cob_delete(cob, tx);
-
-	m0_be_tx_close_sync(tx);
-	m0_be_tx_fini(tx);
 
 	seg = m0_be_domain_seg(bedom, dom);
 	rc = cob_domain_truncate(dom->cd_object_index,   grp, bedom, tx);
@@ -1092,6 +1065,9 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 	if (rc != 0)
 		goto tx_fini_return;
 	rc = cob_domain_truncate(dom->cd_fileattr_ea,    grp, bedom, tx);
+	if (rc != 0)
+		goto tx_fini_return;
+	rc = cob_domain_truncate(dom->cd_bytecount,      grp, bedom, tx);
 	if (rc != 0)
 		goto tx_fini_return;
 

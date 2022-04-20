@@ -476,15 +476,14 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 		bt.ksize = -1;
 		bt.vsize = -1;
 	} else if (ctype == CTT_META) {
-		bt.ksize = M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid);
-		bt.vsize = M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg);
+		bt.ksize = sizeof(struct fid_key);
+		bt.vsize = sizeof(struct meta_value);
 	} else if (ctype == CTT_DEADIDX) {
-		bt.ksize = M0_CAS_CTG_KV_HDR_SIZE + sizeof(ctg);
+		bt.ksize = sizeof(struct meta_value);
 		bt.vsize = 8;
 	} else if (ctype == CTT_CTIDX) {
-		bt.ksize = M0_CAS_CTG_KV_HDR_SIZE + sizeof(struct m0_fid);
-		bt.vsize = M0_CAS_CTG_KV_HDR_SIZE +
-			   sizeof(struct m0_dix_layout);
+		bt.ksize = sizeof(struct fid_key);
+		bt.vsize = sizeof(struct layout_value);
 	}
 
 	if (M0_FI_ENABLED("ctg_create_failure"))
@@ -2829,10 +2828,9 @@ static int versioned_put_sync(struct m0_ctg_op *ctg_op)
 	// 						key, anchor, true,
 	// 						ctg_op_zones(ctg_op)),
 	// 		       bo_u.u_btree.t_rc);
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						      m0_btree_update(btree,
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_update(btree,
 								      &rec, &cb,
-								      &kv_op,
+								      0, &kv_op,
 								      tx));
 
 	if (rc == 0) {
