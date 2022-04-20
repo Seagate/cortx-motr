@@ -425,9 +425,11 @@ static int dix_layout_from_read_rep(struct m0_dix_meta_req *req,
 	int                     rc;
 
 	M0_PRE(m0_dix_generic_rc(&req->dmr_req) == 0);
+
 	m0_dix_get_rep(&req->dmr_req, idx, &rep);
 	if (rep.dgr_rc != 0)
 		return M0_ERR(rep.dgr_rc);
+
 	vals = M0_BUFVEC_INIT_BUF(&rep.dgr_val.b_addr, &rep.dgr_val.b_nob);
 	rc = m0_dix__meta_val_dec(&vals, &fid, &ldesc, 1);
 	if (rc == 0) {
@@ -437,6 +439,7 @@ static int dix_layout_from_read_rep(struct m0_dix_meta_req *req,
 			rc = m0_dix_ldesc_copy(out, &ldesc);
 		m0_dix_ldesc_fini(&ldesc);
 	}
+
 	return M0_RC(rc);
 }
 
@@ -454,6 +457,7 @@ M0_INTERNAL int m0_dix_root_read_rep(struct m0_dix_meta_req *req,
 	 */
 	if (m0_dix_req_nr(&req->dmr_req) != 2)
 		return M0_ERR(-EPROTO);
+
 	rc = dix_layout_from_read_rep(req, 0, &m0_dix_layout_fid, layout);
 	if (rc == 0) {
 		rc = dix_layout_from_read_rep(req, 1, &m0_dix_ldescr_fid,
@@ -461,6 +465,7 @@ M0_INTERNAL int m0_dix_root_read_rep(struct m0_dix_meta_req *req,
 		if (rc != 0)
 			m0_dix_ldesc_fini(layout);
 	}
+
 	return M0_RC(rc);
 }
 

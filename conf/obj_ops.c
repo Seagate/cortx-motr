@@ -234,7 +234,6 @@ m0_conf_obj_fill(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 	int                   rc;
 	struct m0_conf_cache *cache = dest->co_cache;
 
-	M0_ENTRY("dest="FID_F, FID_P(&dest->co_id));
 	M0_PRE(m0_conf_obj_invariant(dest));
 	M0_PRE(m0_conf_cache_is_locked(cache));
 	M0_PRE(m0_conf_obj_is_stub(dest) && dest->co_nrefs == 0);
@@ -248,7 +247,8 @@ m0_conf_obj_fill(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 	M0_POST(m0_conf_cache_is_locked(cache));
 	M0_POST(ergo(rc == 0, m0_conf_obj_invariant(dest)));
 
-	return M0_RC(rc);
+	return M0_RC_INFO(rc, "dest="FID_F" ha_state=%d",
+			  FID_P(&dest->co_id), dest->co_ha_state);
 }
 
 M0_INTERNAL bool m0_conf_obj_match(const struct m0_conf_obj *cached,

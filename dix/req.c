@@ -1641,6 +1641,8 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 						  &rop->dg_cas_reqs), 0);
 
 		m0_tl_for (cas_rop, &rop->dg_cas_reqs, cas_rop) {
+			if (cas_rop->crp_creq.ccr_sm.sm_state == CASREQ_INVALID)
+				continue;
 			if (cas_rop->crp_creq.ccr_sm.sm_rc == 0)
 				dix_cas_rop_rc_update(cas_rop, 0);
 			m0_cas_req_fini(&cas_rop->crp_creq);
@@ -1758,6 +1760,8 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 		sdev_idx = cas_rop->crp_sdev_idx;
 		creq = &cas_rop->crp_creq;
 		cas_svc = pc->pc_dev2svc[sdev_idx].pds_ctx;
+		if (cas_svc->sc_service->co_ha_state != M0_NC_ONLINE)
+			continue;
 		M0_ASSERT(cas_svc->sc_type == M0_CST_CAS);
 		m0_cas_req_init(creq, &cas_svc->sc_rlink.rlk_sess,
 				dix_req_smgrp(req));
@@ -2163,10 +2167,9 @@ static void dix_rop_units_set(struct m0_dix_req *req)
 	 * Only one CAS GET request should be sent for every record.
 	 * Choose the best destination for every record.
 	 */
-	if (req->dr_type == DIX_GET) {
+	if (req->dr_type == DIX_GET)
 		for (i = 0; i < rop->dg_rec_ops_nr; i++)
 			dix_online_unit_choose(req, &rop->dg_rec_ops[i]);
-	}
 }
 
 static bool dix_pg_unit_skip(struct m0_dix_req     *req,

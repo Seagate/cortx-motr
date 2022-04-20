@@ -83,6 +83,7 @@ M0_INTERNAL int m0_dix__meta_val_dec(const struct m0_bufvec *vals,
 	M0_PRE(vals != NULL);
 	M0_PRE(out_fid != NULL);
 	M0_PRE(out_dld != NULL);
+
 	for (i = 0; i < nr; i++) {
 		struct dix_meta_val x;
 
@@ -98,13 +99,15 @@ M0_INTERNAL int m0_dix__meta_val_dec(const struct m0_bufvec *vals,
 		if (rc != 0)
 			break;
 	}
+
 	if (rc != 0)
 		/*
 		 * We've got an error at step i. Finalise already created
 		 * descriptors.
 		 */
-		while(i != 0)
+		while (i != 0)
 			m0_dix_ldesc_fini(&out_dld[--i]);
+
 	return M0_RC(rc);
 }
 
