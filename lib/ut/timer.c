@@ -734,7 +734,7 @@ static void timer_ub_init_start_callback_stop_fini(int index)
  * init-start-<callback-stop>-fini
  * <init-start-callback-stop-fini>
  */
-const struct m0_ub_set m0_timer_ub = {
+struct m0_ub_set m0_timer_ub = {
 	.us_name = "timer-ub",
 	.us_init = timers_ub_init,
 	.us_fini = timers_ub_fini,
