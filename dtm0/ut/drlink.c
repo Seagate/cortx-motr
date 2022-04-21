@@ -46,8 +46,6 @@ enum {
 
 void m0_dtm0_ut_drlink_simple(void)
 {
-	/* XXX !!! */
-	return;
 	struct m0_ut_dtm0_helper *udh;
 	struct m0_dtm0_service   *svc;
 	struct m0_fom             fom = {}; // just a fom for m0_dtm0_req_post()

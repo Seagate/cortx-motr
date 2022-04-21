@@ -1154,7 +1154,7 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx,
 
 	for (i = 0; i < M0_CST_NR && rc == 0; ++i) {
 		if (rctx->rc_services[i] == NULL ||
-		    M0_IN(i, (M0_CST_HA, M0_CST_SSS, M0_CST_DTM0)))
+		    M0_IN(i, (M0_CST_HA, M0_CST_SSS)))
 			continue;
 		if (i == M0_CST_FIS) {
 			if (!rctx->rc_fis_enabled)
@@ -1206,7 +1206,7 @@ static void reqh_context_services_fini(struct m0_reqh_context *rctx,
 
 	for (i = 0; i < M0_CST_NR && rc == 0; ++i) {
 		if (rctx->rc_services[i] == NULL ||
-		    M0_IN(i, (M0_CST_HA, M0_CST_SSS, M0_CST_DTM0)))
+		    M0_IN(i, (M0_CST_HA, M0_CST_SSS)))
 			continue;
 		name = rctx->rc_services[i];
 		M0_LOG(M0_DEBUG, "service: %s" FID_F, name,

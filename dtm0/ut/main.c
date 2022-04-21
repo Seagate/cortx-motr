@@ -817,9 +817,9 @@ extern void m0_dtm0_ut_pruner_two(void);
 extern void m0_dtm0_ut_pruner_many_left(void);
 extern void m0_dtm0_ut_pruner_mpsc(void);
 extern void m0_dtm0_ut_pruner_mpsc_many(void);
+extern void m0_dtm0_ut_domain_full_init_fini(void);
 
 struct m0_ut_suite dtm0_ut = {
-<<<<<<< HEAD
 	.ts_name = "dtm0-ut",
 	.ts_tests = {
 		{ "xcode",                  cas_xcode_test        },
@@ -834,6 +834,7 @@ struct m0_ut_suite dtm0_ut = {
 		{ "pruner_many_left",      &m0_dtm0_ut_pruner_many_left       },
 		{ "pruner_mpsc",           &m0_dtm0_ut_pruner_mpsc            },
 		{ "pruner_mpsc_many",      &m0_dtm0_ut_pruner_mpsc_many       },
+		{ "domain_full_init-fini", &m0_dtm0_ut_domain_full_init_fini  },
 		{ "remach-init-fini",       remach_init_fini       },
 		{ "remach-start-stop",      remach_start_stop      },
 		{ "remach-boot-cluster-ss", remach_boot_cluster_ss },

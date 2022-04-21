@@ -103,12 +103,14 @@ M0_INTERNAL void m0_ut_dtm0_helper_init(struct m0_ut_dtm0_helper *udh)
 					 &udh->udh_client_dtm0_fid,
 					 &svc);
 	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(svc != NULL);
 
 	udh->udh_client_dtm0_service = container_of(svc, struct m0_dtm0_service,
 						    dos_generic);
 
 	svc = m0_reqh_service_lookup(udh->udh_server_reqh,
 	                             &udh->udh_server_dtm0_fid);
+	M0_UT_ASSERT(svc != NULL);
 	/* TODO export the function which does bob_of() */
 	udh->udh_server_dtm0_service = container_of(svc, struct m0_dtm0_service,
 	                                            dos_generic);
@@ -155,7 +157,6 @@ M0_INTERNAL void dtm0_ut_log_fini(struct dtm0_ut_log_ctx *lctx)
 	m0_be_ut_seg_fini(&lctx->ut_seg);
 	m0_be_ut_backend_fini(&lctx->ut_be);
 	m0_free(lctx);
-
 }
 
 enum {

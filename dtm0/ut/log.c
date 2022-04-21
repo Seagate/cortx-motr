@@ -145,6 +145,10 @@ void m0_dtm0_ut_log_simple(void)
 	m0_free(redo);
 }
 
+/*
+ * TODO: Add "re-create" test. Create log, try to create it once again.
+ */
+
 static void dtm0_ut_log_remove(struct dtm0_ut_log_ctx *lctx,
 			       int                     timestamp, int nr)
 {
@@ -207,15 +211,15 @@ void m0_dtm0_ut_log_mpsc(void)
  * 2. Empty log + end == !successful.
  * 3. Simple pruner (remove after added), concurrency == 1 (single FOM, single
  *    record).
- * 4. Pruner UTs:
+ * x4. Pruner UTs:
  *   x4.1. Add to the log, run pruner, check if log is empty.
  *   x4.2. One tx_bulk that adds records to the log, run pruner.
  *   x4.3. Run pruner, empty log, nothing happens.
  *   x4.4. Add many log records, run pruner, some record may still be present
  *        in the log.
- *   4.5. Run pruner, run tx_bulk, wait until log is empty, wait 0.5 sec,
+ *   x4.5. Run pruner, run tx_bulk, wait until log is empty, wait 0.5 sec,
  *        repeat (tx_bulk, wait until empty).
- * 5. Run pruner in DTM0 domain (init/start/stop/fini) by default.
+ * x5. Run pruner in DTM0 domain (init/start/stop/fini) by default.
  * 6. DTX0 for server, and call it from CAS.
  * 7. Random dtxid if CAS request has empty dtx descriptor.
  *

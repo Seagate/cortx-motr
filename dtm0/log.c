@@ -164,6 +164,20 @@ M0_INTERNAL int m0_dtm0_log_create(struct m0_dtm0_log     *dol,
 	int                     rc;
 
 	M0_ENTRY();
+
+
+	rc = m0_dtm0_log_open(dol, dol_cfg);
+	if (rc == 0)
+		m0_dtm0_log_close(dol);
+
+	if (!M0_IN(rc, (0, -ENOENT)))
+		return M0_ERR(rc);
+
+	if (rc == 0) {
+		M0_LOG(M0_DEBUG, "DTM0 log already exists.");
+		return M0_RC(0);
+	}
+
 	/* TODO check that there is \0 in dol_cfg->dlc_seg0_suffix */
 	m0_sm_group_lock(grp);
 	m0_be_tx_init(&tx, 0, dom, grp, NULL, NULL, NULL, NULL);
