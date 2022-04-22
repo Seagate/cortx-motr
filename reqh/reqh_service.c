@@ -889,20 +889,6 @@ static bool reqh_service_ctx_is_cancelled(struct m0_reqh_service_ctx *ctx)
 	       CTX_STATE(ctx) == M0_RSC_CANCELLED;
 }
 
-static void wait_connecting(struct m0_reqh_service_ctx *ctx)
-{
-	m0_clink_add_lock(&ctx->sc_rlink.rlk_wait, &ctx->sc_rlink_abort);
-	while (CTX_STATE(ctx) == M0_RSC_CONNECTING) {
-		M0_LOG(M0_WARN, "Service %s[%i]"FID_F" still connecting.",
-		       m0_xcode_enum_print(&m0_xc_m0_conf_service_type_enum,
-					   ctx->sc_type, NULL),
-		       ctx->sc_type, FID_P(&ctx->sc_fid));
-		m0_chan_timedwait(&ctx->sc_rlink_abort,
-				m0_time_from_now(REQH_SVC_CONNECT_TIMEOUT, 0));
-	}
-	m0_clink_del_lock(&ctx->sc_rlink_abort);
-}
-
 M0_INTERNAL void m0_reqh_service_ctxs_shutdown_prepare(struct m0_reqh *reqh)
 {
 	struct m0_reqh_service_ctx *ctx;
@@ -968,7 +954,7 @@ M0_INTERNAL void m0_reqh_service_ctxs_shutdown_prepare(struct m0_reqh *reqh)
 		reqh_service_ctx_sm_unlock(ctx);
 		/* Do waiting outside the sm lock. */
 		if (connecting)
-			wait_connecting(ctx);
+			reqh_service_ctx_state_wait(ctx, M0_RSC_OFFLINE);
 	} m0_tl_endfor;
 	M0_LEAVE();
 }
