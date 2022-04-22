@@ -2173,10 +2173,14 @@ M0_INTERNAL void m0_ctg_ctidx_delete_credits(struct m0_cas_id       *cid,
 
 static int ctg_ctidx_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 {
-	int           rc;
+	int                    rc;
+	struct                 m0_buf btree_val;
 	struct m0_dix_layout **layout = cb->c_datum;
-	rc = ctg_vbuf_unpack(rec->r_val.ov_buf[0], NULL) ?:
-	     ctg_vbuf_as_layout(rec->r_val.ov_buf[0], layout);
+
+	m0_buf_init(&btree_val, rec->r_val.ov_buf[0],
+		    m0_vec_count(&rec->r_val.ov_vec));
+	rc = ctg_vbuf_unpack(&btree_val, NULL) ?:
+	     ctg_vbuf_as_layout(&btree_val, layout);
 	return rc;
 }
 
@@ -2229,7 +2233,6 @@ static int ctg_ctidx_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 	struct fid_key                key_data   = FID_KEY_INIT(&cid->ci_fid);
 	struct layout_value           value_data =
 		LAYOUT_VALUE_INIT(&cid->ci_layout);
-	struct m0_cas_ctg            *ctidx      = m0_ctg_ctidx();
 	struct m0_dix_layout         *layout;
 	struct m0_ext                *im_range;
 	const struct m0_dix_imask    *imask;
@@ -2241,7 +2244,7 @@ static int ctg_ctidx_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 
 	/* Copy value in btree */
 	M0_ASSERT(m0_vec_count(&rec->r_val.ov_vec) == sizeof value_data);
-	m0_memmove(rec->r_val.ov_buf[0], &value_data, sizeof key_data);
+	m0_memmove(rec->r_val.ov_buf[0], &value_data, sizeof value_data);
 
 	layout = &((struct layout_value *)
 			   (rec->r_val.ov_buf[0]))->lv_layout;
@@ -2253,8 +2256,7 @@ static int ctg_ctidx_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 		*/
 		/** @todo Make it asynchronous. */
 		M0_BE_ALLOC_ARR_SYNC(im_range, imask->im_nr,
-					cas_seg(tx->t_engine->eng_domain),
-					tx);
+				     cas_seg(tx->t_engine->eng_domain), tx);
 		size = imask->im_nr * sizeof(struct m0_ext);
 		memcpy(im_range, imask->im_range, size);
 		m0_be_tx_capture(tx, &M0_BE_REG(
@@ -2263,7 +2265,6 @@ static int ctg_ctidx_put_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 		/* Assign newly allocated imask ranges. */
 		layout->u.dl_desc.ld_imask.im_range = im_range;
 	}
-	m0_chan_broadcast_lock(&ctidx->cc_chan.bch_chan);
 
 	return 0;
 }
@@ -2297,6 +2298,7 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 				      m0_btree_put(ctidx->cc_tree, &rec,
 						   &put_cb, &kv_op, tx));
 	M0_ASSERT(rc == 0);
+	m0_chan_broadcast_lock(&ctidx->cc_chan.bch_chan);
 	return M0_RC(rc);
 }
 
@@ -2335,6 +2337,7 @@ M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
 							   &r_key, NULL,
 							   &kv_op, tx));
 
+	M0_ASSERT(rc == 0);
 	m0_chan_broadcast_lock(&ctidx->cc_chan.bch_chan);
 	return rc == 0 ? rc : M0_ERR(rc);
 }
@@ -2623,12 +2626,12 @@ static int versioned_put_get_cb(struct m0_btree_cb *cb,
 			        struct m0_btree_rec *rec)
 {
 	struct m0_crv *old_version = cb->c_datum;
-	struct m0_buf  out_buf;
+	struct m0_buf  btree_val;
 	int            rc;
 
-	m0_buf_init(&out_buf, rec->r_val.ov_buf[0],
+	m0_buf_init(&btree_val, rec->r_val.ov_buf[0],
 		    m0_vec_count(&rec->r_val.ov_vec));
-	rc = ctg_vbuf_unpack(&out_buf, old_version);
+	rc = ctg_vbuf_unpack(&btree_val, old_version);
 	return rc;
 }
 
@@ -2645,16 +2648,15 @@ static int versioned_put_update_cb(struct m0_btree_cb *cb,
 	struct m0_ctg_op        *ctg_op      = datum->d_ctg_op;
 	struct m0_crv           *new_version = datum->d_new_version;
 	struct m0_be_tx         *tx          = &ctg_op->co_fom->fo_tx.tx_betx;
-	struct m0_buf            btree_val   = {
-		.b_nob =  m0_vec_count(&rec->r_val.ov_vec),
-		.b_addr = rec->r_val.ov_buf[0],
-	};
+	struct m0_buf            btree_val;
 	m0_bcount_t              ksize;
 
 	ksize = m0_vec_count(&rec->r_key.k_data.ov_vec);
 	M0_ASSERT(ctg_op->co_key.b_nob == ksize);
 	m0_memmove(rec->r_key.k_data.ov_buf[0], ctg_op->co_key.b_addr, ksize);
 
+	m0_buf_init(&btree_val, rec->r_val.ov_buf[0],
+		    m0_vec_count(&rec->r_val.ov_vec));
 	ctg_vbuf_pack(&btree_val, &ctg_op->co_val, new_version);
 
 	m0_ctg_state_inc_update(tx,
@@ -2743,17 +2745,17 @@ static int versioned_get_cb(struct m0_btree_cb  *cb, struct m0_btree_rec *rec)
 {
 	int rc;
 	struct m0_ctg_op *ctg_op = cb->c_datum;
-	struct m0_buf        val = {
-		.b_nob =  m0_vec_count(&rec->r_val.ov_vec),
-		.b_addr = rec->r_val.ov_buf[0],
-	};
-	rc = ctg_vbuf_unpack(&val, &ctg_op->co_out_ver);
+	struct m0_buf        btree_val;
+
+	m0_buf_init(&btree_val, rec->r_val.ov_buf[0],
+		    m0_vec_count(&rec->r_val.ov_vec));
+	rc = ctg_vbuf_unpack(&btree_val, &ctg_op->co_out_ver);
 
 	if (rc == 0) {
 		if (m0_crv_tbs(&ctg_op->co_out_ver))
 			rc = M0_ERR(-ENOENT);
 		else
-			ctg_op->co_out_val = val;
+			ctg_op->co_out_val = btree_val;
 	}
 	return rc;
 }
@@ -2798,7 +2800,6 @@ static int versioned_cursor_next_sync(struct m0_ctg_op *ctg_op, bool alive_only)
 	do {
 		rc = m0_btree_cursor_next(&ctg_op->co_cur);
 
-		//rc = ctg_berc(ctg_op);
 		if (rc != 0)
 			break;
 
@@ -2840,10 +2841,10 @@ static int versioned_cursor_get_sync(struct m0_ctg_op *ctg_op, bool alive_only)
 {
 	struct m0_be_op           *beop   = ctg_beop(ctg_op);
 	struct m0_buf              value  = M0_BUF_INIT0;
-	struct m0_buf             *key     = &ctg_op->co_key;
-	void                      *k_ptr   = key->b_addr;
-	m0_bcount_t                ksize    = key->b_nob;
-	struct m0_btree_key        r_key     = {
+	struct m0_buf             *key    = &ctg_op->co_key;
+	void                      *k_ptr  = key->b_addr;
+	m0_bcount_t                ksize  = key->b_nob;
+	struct m0_btree_key        r_key  = {
 		.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 	};
 	bool                       slant  = (ctg_op->co_flags & COF_SLANT) != 0;
@@ -2852,9 +2853,6 @@ static int versioned_cursor_get_sync(struct m0_ctg_op *ctg_op, bool alive_only)
 	M0_PRE(ctg_op->co_is_versioned);
 
 	rc = m0_btree_cursor_get(&ctg_op->co_cur, &r_key, slant);
-	// ctg_op->co_rc = rc;
-	// ctg_beop(ctg_op)->bo_u.u_btree.t_rc
-	// rc = ctg_berc(ctg_op);
 
 	if (rc == 0) {
 		m0_btree_cursor_kv_get(&ctg_op->co_cur,
