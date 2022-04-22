@@ -1566,7 +1566,6 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 	struct pargrp_iomap    *iomap;
 	struct ioreq_fop       *irfop;
 	struct target_ioreq    *ti;
-	enum m0_pool_nd_state   state;
 	struct m0_poolmach     *pm;
 
 	M0_ENTRY();
@@ -1615,26 +1614,9 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 
 	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
 		/*
-		 * Data was retrieved successfully, so no need to check the
-		 * state of the device.
+		 * Data was retrieved successfully from this target.
 		 */
 		if (ti->ti_rc == 0)
-			continue;
-
-		/* state is already queried in device_check() and stored
-		 * in ti->ti_state. Why do we do this again?
-		 */
-		rc = m0_poolmach_device_state(
-			pm, ti->ti_obj, &state);
-		if (rc != 0)
-			return M0_ERR(rc);
-		M0_LOG(M0_INFO, "device state for "FID_F" is %d",
-		       FID_P(&ti->ti_fid), state);
-		ti->ti_state = state;
-
-		if (!M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
-			   M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED,
-			   M0_PNDS_SNS_REBALANCING)))
 			continue;
 		/*
 		 * Finds out parity groups for which read IO failed and marks
