@@ -483,3 +483,7 @@ m0_sm_op_subo
 m0_sm_op_tick
 m0_thread_exec_fini
 m0_thread_exec_init
+*__gcov_dump
+*__gcov_flush
+*__gcov_reset
+*__gcov_sort_n_vals
