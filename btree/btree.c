@@ -2165,7 +2165,7 @@ static int64_t bnode_get(struct node_op *op, struct td *tree,
 		nt->nt_opaque_set(addr, node);
 		ndlist_tlink_init_at(op->no_node, &btree_active_nds);
 
-		if ((!IS_INTERNAL_NODE(op->no_node)) &&
+		if (!(IS_INTERNAL_NODE(op->no_node)) &&
 		    bnode_crctype_get(op->no_node) != M0_BCT_NO_CRC) {
 			bnode_crc_validate(op->no_node);
 		}
