@@ -40,3 +40,4 @@ set height 0
 #
 handle SIGPIPE ignore nostop print
 handle SIGUSR2 nostop print pass
+

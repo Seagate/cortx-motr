@@ -147,3 +147,40 @@ document drm-print
 	The function prints some properties of recovery FOMs and the
 	backtraces of their coroutines.
 
+define matrix_print
+  set $m = $arg0
+  set $r = $arg1
+  set $c = $arg2
+
+  set $i = 0
+  set $j = 0
+  printf "      "
+  while $j < $c
+    printf "%6d ", $j
+    set $j = $j + 1
+  end
+  printf "\n"
+  set $j = 0
+  printf "++++++"
+  while $j < $c
+    printf "+++++++"
+    set $j = $j + 1
+  end
+  printf "\n"
+  while $i < $r
+    set $j = 0
+    printf "%3d + ", $i
+    while $j < $c
+      printf "%6d ", ((uint8_t *)$m)[$i * $c + $j]
+      set $j = $j + 1
+    end
+    printf "\n"
+    set $i = $i + 1
+  end
+end
+
+document matrix_print
+Print a matrix of a type used by parity math code.
+Usage: matrix_print matrix rows columns
+Where matrix is assumed to be an array of uint8_t-s.
+end
