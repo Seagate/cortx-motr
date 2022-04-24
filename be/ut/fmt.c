@@ -543,24 +543,26 @@ void m0_be_ut_fmt_group(void)
 				}),
 
 		},
-#if 0 /* XXX: crashes in xcode. */
-fmt-group  motr:  fb00  FATAL : [lib/assert.c:46:m0_panic] panic: fatal signal delivered at unknown() (unknown:0)  [git: jenkins-OSAINT_motr-294-230-g2d11e2b-dirty]
-Motr panic: fatal signal delivered at unknown() unknown:0 (errno: 2) (last failed: none) [git: jenkins-OSAINT_motr-294-230-g2d11e2b-dirty] pid: 76277
-Motr panic reason: signo: 11
-/.libs/libmotr-0.1.0.so(m0_arch_backtrace+0x1f)[0x7f3e679b3431]
-/.libs/libmotr-0.1.0.so(m0_arch_panic+0x124)[0x7f3e679b3578]
-/.libs/libmotr-0.1.0.so(m0_panic+0x1e5)[0x7f3e6799e9a8]
-/.libs/libmotr-0.1.0.so(+0x22b6ee)[0x7f3e679b36ee]
-/lib64/libpthread.so.0[0x3593e0f4a0]
-/lib64/libc.so.6[0x3593a889e8]
-/lib64/libc.so.6(memmove+0x7e)[0x3593a8252e]
-/.libs/libmotr-0.1.0.so(m0_bufvec_cursor_copy+0xa2)[0x7f3e679ad75b]
-/.libs/libmotr-0.1.0.so(+0x2d4ccb)[0x7f3e67a5cccb]
-/.libs/libmotr-0.1.0.so(m0_xcode_encode+0x1d)[0x7f3e67a5cdbc]
-/.libs/libmotr-0.1.0.so(+0x18ee45)[0x7f3e67916e45]
-/.libs/libmotr-0.1.0.so(m0_be_fmt_group_encode+0x41)[0x7f3e67917897]
-/.libs/libmotr-ut.so.0(m0_be_ut_fmt_group+0x3d0)[0x7f3e68699484]
-#endif
+		/*
+		 * Crashes in xcode:
+		 *
+		 * #4  0x00007fffebda813d in sigsegv (sig=11) at lib/user_space/ucookie.c:52
+		 * #5  <signal handler called>
+		 * #6  0x00007fffe9b95687 in __memmove_avx_unaligned_erms () from /lib64/libc.so.6
+		 * #7  0x00007fffebd9eb29 in m0_bufvec_cursor_copy (dcur=0x7fffffffa158, scur=0x7fffffffa040, num_bytes=8) at lib/vec.c:630
+		 * #8  0x00007fffebf11de8 in ctx_walk (ctx=0x7fffffffa150, op=XO_ENC) at xcode/xcode.c:351
+		 * #9  0x00007fffebf11f05 in m0_xcode_encode (ctx=0x7fffffffa150) at xcode/xcode.c:387
+		 * #10 0x00007fffebc37815 in be_fmt_encode (type=0x7fffec4785e0 <_m0_be_fmt_group>, object=0x7fffffffa3b0, cur=0x7fffffffa430) at be/fmt.c:79
+		 * #11 0x00007fffebc386d8 in m0_be_fmt_group_encode (fg=0x7fffffffa3b0, cur=0x7fffffffa430) at be/fmt.c:352
+		 * #12 0x00007fffed4dc286 in m0_be_ut_fmt_group () at be/ut/fmt.c:652
+		 * #13 0x00007fffed6c72d8 in run_test (test=0x6e1ea8 <be_ut+5192>, max_name_len=43) at ut/ut.c:390
+		 *
+		 * gdb addresses in dcur and scur are valid. In gdb one can call
+		 * memcpy() maually and it works, but memmove() fails.
+		 *
+		 * Solution: replace memmove() with memcpy() in
+		 * m0_bufvec_cursor_copy().
+		 */
 #if 0
 		{ /* simulates group data sizes mismatch: payload size exceeds
 		   * reasonable values */
