@@ -627,8 +627,9 @@ M0_INTERNAL m0_bcount_t m0_bufvec_cursor_copy(struct m0_bufvec_cursor *dcur,
 		if (num_bytes == 0)
 			break;
 		frag_size = min_check(frag_size, num_bytes);
-		memmove(bufvec_cursor_addr(dcur), bufvec_cursor_addr(scur),
-			frag_size);
+		/* All our bufvec-s are non-overlapping, memcpy(3) is faster. */
+		memcpy(bufvec_cursor_addr(dcur), bufvec_cursor_addr(scur),
+		       frag_size);
 		num_bytes -= frag_size;
 		bytes_copied += frag_size;
 	} M0_BUFVEC_ENDFOR2
