@@ -228,6 +228,9 @@ M0_INTERNAL void ut_dummy_data_buf_delete(struct data_buf *db);
  */
 M0_INTERNAL void ut_dummy_data_buf_init(struct data_buf *db);
 
+/** Frees the buffers of the data buf. */
+M0_INTERNAL void ut_dummy_data_buf_free(struct data_buf *db);
+
 /**
  * Finalises a UT dummy data_buf.
  */
