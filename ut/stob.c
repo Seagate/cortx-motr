@@ -124,8 +124,10 @@ M0_INTERNAL void m0_ut_stob_fini(void)
 {
 	struct ut_stob_module *usm = m0_get()->i_ut_stob_module.usm_private;
 
-	if (usm->usm_dom_linux != NULL)
+	if (usm->usm_dom_linux != NULL) {
 		m0_stob_domain_fini(usm->usm_dom_linux);
+		usm->usm_dom_linux = NULL;
+	}
 	m0_mutex_fini(&usm->usm_lock);
 	m0_free(usm);
 }
