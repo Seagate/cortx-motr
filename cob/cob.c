@@ -2348,6 +2348,7 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
 				   struct m0_be_tx *tx)
 {
 	struct m0_cob_oikey  oikey = {};
+	struct m0_cob_nsrec  nsrec = {};
 	struct m0_buf        key;
 	struct m0_buf        val;
 	int                  rc;
@@ -2359,6 +2360,7 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
 	 * Insert new record with nsrec found with srckey.
 	 */
 	m0_buf_init(&key, srckey, m0_cob_nskey_size(srckey));
+	m0_buf_init(&val, &nsrec, sizeof nsrec);
 	rc = cob_table_lookup(cob->co_dom->cd_namespace, &key, &val);
 	if (rc != 0)
 		goto out;
