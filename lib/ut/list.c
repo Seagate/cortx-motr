@@ -31,7 +31,7 @@ struct test1 {
 
 void test_list(void)
 {
-	struct test1	t1, t2, t3;
+	struct test1	t1 = {}, t2 = {}, t3 = {};
 	struct m0_list_link	*pos;
 	struct m0_list	test_head;
 	struct test1 *p;

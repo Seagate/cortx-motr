@@ -37,7 +37,7 @@ void test_fold(void)
 {
 	const int a[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 0 };
 	struct m0_tl head;
-	struct foo foos[ARRAY_SIZE(a)];
+	struct foo foos[ARRAY_SIZE(a)] = {};
 	int x = 0;
 
 	/* Test summation. */

@@ -200,6 +200,7 @@ static void fake_setup(void)
 
 	/* Add the object and build stx list in the sync list.*/
 	M0_SET0(&sreq);
+	M0_SET0(&stgt);
 	spf_tlist_init(&sreq.sr_fops);
 	spti_tlist_init(&sreq.sr_stxs);
 	sync_target_tlist_init(&sreq.sr_targets);
@@ -210,6 +211,7 @@ static void fake_setup(void)
 	sync_target_tlink_init_at(&stgt, &sreq.sr_targets);
 
 	for (i = 0; i < NUM_STRECORDS; i++) {
+		M0_SET0(&sreq_stx[i]);
 		m0_tlink_init(&spti_tl, &sreq_stx[i]);
 		sreq_stx[i].stx_tri.tri_txid = 3;
 		sreq_stx[i].stx_tri.tri_locality = 7;

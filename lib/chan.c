@@ -190,6 +190,7 @@ M0_INTERNAL bool m0_chan_has_waiters(struct m0_chan *chan)
 static void clink_init(struct m0_clink *link,
 		       struct m0_clink *group, m0_chan_cb_t cb)
 {
+	M0_SET0(link);
 	link->cl_group      = group;
 	link->cl_chan       = NULL;
 	link->cl_cb         = cb;

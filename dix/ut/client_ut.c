@@ -356,13 +356,13 @@ void pdclust_map(void)
 	struct m0_pool_version     pool_ver;
 	uint32_t                   cache_nr;
 	uint64_t                  *cache_len;
-	struct m0_pool             pool;
-	struct m0_fid              fid;
-	struct m0_layout_domain    domain;
+	struct m0_pool             pool = {};
+	struct m0_fid              fid = {};
+	struct m0_layout_domain    domain = {};
 	uint64_t                   id;
 	int                        rc;
-	struct m0_dix_linst        dli;
-	struct m0_dix_ldesc        dld;
+	struct m0_dix_linst        dli = {};
+	struct m0_dix_ldesc        dld = {};
 	struct m0_ext              range[] = {{.e_start = 0, .e_end = 100}};
 
 	m0_fi_enable("m0_dix_target", "pdcluster-map");
@@ -2532,8 +2532,8 @@ static void local_failures(void)
 	M0_UT_ASSERT(rc == 0);
 	/*
  	 * Consider DIX request to be successful if there is at least
- 	 * one successful CAS request. Here two cas requests can be 
- 	 * sent successfully. 
+ 	 * one successful CAS request. Here two cas requests can be
+ 	 * sent successfully.
 	 */
 	m0_fi_enable_off_n_on_m("cas_req_replied_cb", "send-failure", 2, 3);
 	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);

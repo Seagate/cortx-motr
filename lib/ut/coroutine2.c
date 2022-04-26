@@ -151,6 +151,7 @@ static void crud(struct m0_fom *fom, struct test_tree *tree, int k, int v)
 	 * only once, no concurrency expected. Use the following code as an
 	 * example to implement your own.
 	 */
+	M0_SET0(&F(llink));
 	m0_long_lock_link_init(&F(llink), fom, NULL);
 	M0_CO_YIELD_RC(CO(fom),
 		       LR(m0_long_write_lock(&fom_lock,

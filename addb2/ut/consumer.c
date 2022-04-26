@@ -315,8 +315,8 @@ static void sensor_check_fire(const struct m0_addb2_source   *s,
  */
 static void id_philter(void)
 {
-	struct m0_addb2_philter  idph;
-	struct m0_addb2_callback sensor_check;
+	struct m0_addb2_philter  idph = {};
+	struct m0_addb2_callback sensor_check = {};
 	int sensor_consumed = 0;
 
 	fire = &cmp_fire;

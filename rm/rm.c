@@ -969,7 +969,7 @@ M0_INTERNAL void m0_rm_credit_init(struct m0_rm_credit *credit,
 	M0_PRE(owner->ro_resource->r_ops != NULL);
 	M0_PRE(owner->ro_resource->r_ops->rop_credit_init != NULL);
 
-	credit->cr_datum = 0;
+	M0_SET0(credit);
 	credit->cr_group_id = m0_rm_no_group;
 	m0_rm_ur_tlink_init(credit);
 	pr_tlist_init(&credit->cr_pins);
