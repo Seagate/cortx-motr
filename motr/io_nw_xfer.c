@@ -399,7 +399,7 @@ void target_ioreq_fini(struct target_ioreq *ti)
 		dgmode_rwvec_dealloc_fini(ti->ti_dgvec);
 	if (ti->ti_cc_fop_inited) {
 		struct m0_rpc_item *item = &ti->ti_cc_fop.crf_fop.f_item;
-		M0_LOG(M0_ALWAYS, "item="ITEM_FMT" osr_xid=%"PRIu64,
+		M0_LOG(M0_DEBUG, "item="ITEM_FMT" osr_xid=%"PRIu64,
 				  ITEM_ARG(item), item->ri_header.osr_xid);
 		ti->ti_cc_fop_inited = false;
 		m0_fop_put_lock(&ti->ti_cc_fop.crf_fop);
@@ -526,14 +526,16 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	pgstart = toff;
 	goff    = unit_type == M0_PUT_DATA ? gob_offset : 0;
 	
-	// For checksum of parity unit the global object offset will be
+	// For checksum of Parity Unit the global object offset will be
 	// assumed to be aligned with PG start offset, so removing the
-	// additional value NxUS w.r.t PG start. This gives PG unit idx
-	// as 0,1..,k-1 which helps to index pi_paritybufs 
+	// additional value NxUS w.r.t PG start, which is added by the 
+	// nw_xfer_io_distribute() function. src.sa_unit = layout_n(play) + unit
+	// Removing this offset N will help to compute PG unit idx as 0,1..,k-1 
+	// which is the index of pi_paritybufs 
 	goff_cksum = unit_type == M0_PUT_DATA ? gob_offset : 
 		(gob_offset + (src->sa_unit - layout_n(play))*layout_unit_size(play));
 
-	M0_LOG(M0_ALWAYS,
+	M0_LOG(M0_DEBUG,
 	       "[gpos %" PRIu64 ", count %" PRIu64 "] [%" PRIu64 ", %" PRIu64 "]"
 	       "->[%" PRIu64 ",%" PRIu64 "] %c", gob_offset, count, src->sa_group,
 	       src->sa_unit, tgt->ta_frame, tgt->ta_obj,
@@ -549,7 +551,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		pattr = ti->ti_dgvec->dr_pageattrs;
 		cnt = page_nr(ioo->ioo_iomap_nr * layout_unit_size(play) *
 		      (layout_n(play) + layout_k(play)), ioo->ioo_obj);
-		M0_LOG(M0_ALWAYS, "map_nr=%" PRIu64 " req state=%u cnt=%"PRIu64,
+		M0_LOG(M0_DEBUG, "map_nr=%" PRIu64 " req state=%u cnt=%"PRIu64,
 				 ioo->ioo_iomap_nr, ioreq_sm_state(ioo), cnt);
 	} else {
 		ivec  = &ti->ti_ivec;
@@ -559,7 +561,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		pattr = ti->ti_pageattrs;
 		cnt = page_nr(ioo->ioo_iomap_nr * layout_unit_size(play) *
 			      layout_n(play), ioo->ioo_obj);
-		M0_LOG(M0_ALWAYS, "map_nr=%" PRIu64 " req state=%u cnt=%"PRIu64,
+		M0_LOG(M0_DEBUG, "map_nr=%" PRIu64 " req state=%u cnt=%"PRIu64,
 				 ioo->ioo_iomap_nr, ioreq_sm_state(ioo), cnt);
 	}
 	
@@ -583,12 +585,12 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			buf = map->pi_databufs[row][col];
 
 			pattr[seg] |= PA_DATA;
-			M0_LOG(M0_ALWAYS, "Data seg %u added", seg);
+			M0_LOG(M0_DEBUG, "Data seg %u added", seg);
 		} else {
 			buf = map->pi_paritybufs[page_id(goff, ioo->ioo_obj)]
 			[unit - layout_n(play)];
 			pattr[seg] |= PA_PARITY;
-			M0_LOG(M0_ALWAYS, "Parity seg %u added", seg);
+			M0_LOG(M0_DEBUG, "Parity seg %u added", seg);
 		}
 		buf->db_tioreq = ti;
 		if (buf->db_flags & PA_WRITE)
@@ -601,7 +603,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			INDEX(trunc_ivec, tseg) = pgstart;
 			COUNT(trunc_ivec, tseg) = pgend - pgstart;
 			++trunc_ivec->iv_vec.v_nr;
-			M0_LOG(M0_ALWAYS, "Seg id %d [%" PRIu64 ", %" PRIu64 "]"
+			M0_LOG(M0_DEBUG, "Seg id %d [%" PRIu64 ", %" PRIu64 "]"
 					 "added to target ioreq with "FID_F,
 					 tseg, INDEX(trunc_ivec, tseg),
 					 COUNT(trunc_ivec, tseg),
@@ -621,14 +623,14 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			auxbvec->ov_vec.v_count[seg] = page_size;
 		}
 		pattr[seg] |= buf->db_flags;
-		M0_LOG(M0_ALWAYS, "pageaddr=%p, auxpage=%p,"
+		M0_LOG(M0_DEBUG, "pageaddr=%p, auxpage=%p,"
 				 " index=%6" PRIu64 ", size=%4"PRIu64
 				 " grpid=%3" PRIu64 " flags=%4x for "FID_F,
 		                 bvec->ov_buf[seg], auxbvec->ov_buf[seg],
 				 INDEX(ivec, seg), COUNT(ivec, seg),
 				 map->pi_grpid, pattr[seg],
 				 FID_P(&ti->ti_fid));
-		M0_LOG(M0_ALWAYS, "Seg id %d [%" PRIu64 ", %"PRIu64
+		M0_LOG(M0_DEBUG, "Seg id %d [%" PRIu64 ", %"PRIu64
 				 "] added to target_ioreq with "FID_F
 				 " with flags 0x%x: ", seg,
 				 INDEX(ivec, seg), COUNT(ivec, seg),
@@ -639,8 +641,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		 * goff_ivec according to target offset. This creates a
 		 * mapping between target offset and cheksum offset.
 		 *
-		 * This mapping will be used when we get read reply FOP
-		 * to locae the checksum in application provided buffer
+		 * This mapping will be used to compute PG Index and 
+		 * Unit Index for each target when FOP is being prepared.
 		 */
 		INDEX(goff_ivec, seg) = goff_cksum;
 		COUNT(goff_ivec, seg) = COUNT(ivec, seg);
@@ -857,8 +859,9 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 	if( rc != 0 )
 		return -ENOMEM;
 
-	M0_LOG(M0_ALWAYS,"CKSUM COMPUTE [%s] [PG Index : %d][Unit Index : %d] RowNum: %d",
-							(filter == PA_PARITY) ? "PARITY":"DATA",cs_idx->ci_pg_idx,
+	M0_LOG(M0_ALWAYS,"COMPUTE CKSUM Typ:%d Sz:%d UTyp:[%s] [PG Idx:%d][Unit Idx:%d] RowNum:%d",
+							(int)pi_type, m0_cksum_get_size(pi_type),
+							(filter == PA_PARITY) ? "P":"D",cs_idx->ci_pg_idx,
 							cs_idx->ci_unit_idx,(int)rows_nr(play, obj));
 
 	// Populate buffer vec for give parity unit and add all buffers present
@@ -874,10 +877,7 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 		}
 	}
 	print_buf(bvec.ov_buf[0],8);
-
 	bvec.ov_vec.v_nr = b_idx;
-
-	M0_LOG(M0_ALWAYS,"Bufsize row0: %d cksum_sz: %d",(int)bvec.ov_vec.v_count[0], (int)m0_cksum_get_size(pi_type));
 
 	rc = m0_client_calculate_pi( pi, &seed, &bvec, flag, context, NULL);
 	m0_bufvec_free2(&bvec);
@@ -900,10 +900,6 @@ static int target_ioreq_prepare_checksum( struct m0_op_io *ioo,
 
 	// Validate if FOP has any checksum to be sent
 	cs_data = &irfop->irf_cksum_data;
-	num_units = irfop->irf_cksum_data.cd_num_units;
-	//if( num_units == 0)
-	//	return 0;
-
 	cs_idx_data = cs_data->cd_idx;
 
 	// Get checksum size and type
@@ -911,6 +907,9 @@ static int target_ioreq_prepare_checksum( struct m0_op_io *ioo,
 	cksum_type = m0__obj_di_cksum_type(ioo);
 	M0_ASSERT( cksum_type < M0_PI_TYPE_MAX);
 
+	// Number of units will not be zero as its already checked
+	num_units = irfop->irf_cksum_data.cd_num_units;
+	
 	// Note: No need to free this as RPC layer will free this
 	// Allocate cksum buffer for number of units added to target_ioreq ti
 	if ( m0_buf_alloc(&rw_fop->crw_di_data_cksum, num_units * cksum_size) != 0)
@@ -920,8 +919,9 @@ static int target_ioreq_prepare_checksum( struct m0_op_io *ioo,
 		cs_idx_data = &cs_data->cd_idx[idx];
 
 		// Valid data should be populated
-		M0_ASSERT(cs_idx_data->ci_pg_idx != -1 && cs_idx_data->ci_unit_idx != -1);
+		M0_ASSERT(cs_idx_data->ci_pg_idx != UINT32_MAX && cs_idx_data->ci_unit_idx != UINT32_MAX);
 
+		// For Parity Unit only Motr can generates checksum  
 		if(m0__obj_is_di_cksum_gen_enabled(ioo) || (irfop->irf_pattr == PA_PARITY)) {
 			// Compute checksum for Unit
 			rc = target_calculate_checksum( ioo, cksum_type, irfop->irf_pattr,
@@ -932,6 +932,7 @@ static int target_ioreq_prepare_checksum( struct m0_op_io *ioo,
 			}
 		}
 		else {
+			// Case where application is passing checksum
 			uint32_t unit_off;
 			struct m0_pdclust_layout *play = pdlayout_get(ioo);
 
@@ -950,7 +951,9 @@ static int target_ioreq_prepare_checksum( struct m0_op_io *ioo,
 }
 
 // This function will compute PG Index and Unit Index at given goff (object
-// offset index). If index is new one it will be updated in fop_cs_data.
+// offset index). Relation between them is shown below.  
+// DATA	 Units  : Gob Offset - PGStart : PGStart + NxUS => PG Index - 0 : (N-1) 
+// PARITY Units : Gob Offset - PGStart : PGStart + KxUS => PG Index - 0 : (K-1) 
 static void target_ioreq_calculate_index(struct m0_op_io *ioo,
   								  struct fop_cksum_idx_gbl_data *pgdata,
 								  struct ioreq_fop            *irfop,	
@@ -963,7 +966,7 @@ static void target_ioreq_calculate_index(struct m0_op_io *ioo,
 								  
 	if( !(seg % pgdata->seg_per_unit)) {
 		cs_idx = &fop_cs_data->cd_idx[fop_cs_data->cd_num_units]; 
-		M0_ASSERT(cs_idx->ci_pg_idx == -1 && cs_idx->ci_unit_idx == -1);
+		M0_ASSERT(cs_idx->ci_pg_idx == UINT32_MAX && cs_idx->ci_unit_idx == UINT32_MAX);
 	
 		// Compute PG Index and remaining exta w.r.t PG boundary
 		cs_idx->ci_pg_idx = (goff - pgdata->pgrp0_index) / pgdata->pgrp_size;
@@ -972,7 +975,7 @@ static void target_ioreq_calculate_index(struct m0_op_io *ioo,
 		fop_cs_data->cd_num_units++;
 		M0_ASSERT( fop_cs_data->cd_num_units <= fop_cs_data->cd_max_units); 
 
-		M0_LOG(M0_ALWAYS,"FOP Unit Added Num: %d GOF: %"PRIi64 " [PG Idx:%d] {Unit Idx:%d] Seg:%d",
+		M0_LOG(M0_ALWAYS,"FOP Unit Added Num:%d GOF:%"PRIi64 " [PG Idx:%d][Unit Idx:%d] Seg:%d",
 							fop_cs_data->cd_num_units, goff, cs_idx->ci_pg_idx, 
 							cs_idx->ci_unit_idx, seg);
 	}
@@ -992,6 +995,9 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 {
 	int                          rc = 0;
 	uint32_t                     seg = 0;
+	uint32_t 					 s_idx;
+	uint32_t                     seg_start;	
+	uint32_t                     seg_end;
 	uint32_t                     sz_added_to_fop;
 	uint32_t                     runt_sz;
 	/* Number of segments in one m0_rpc_bulk_buf structure. */
@@ -1084,25 +1090,32 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		m0_ivec_cursor_init(&goff_curr, &ti->ti_goff_ivec);
 		seg_sz				= m0__page_size(ioo);
 
+		// Assign all the data needed for index computation.
 		pgdata.unit_sz     	= layout_unit_size(pdlayout_get(ioo));
-		// Assign the data needed for index computation.
+
+		// There are scenarios where K > N in such case when the 
+		// filter is PA_PARITY, increase the size of PG so that
+		// right PG and Unit index will get computed based on goff
 		if( filter == PA_DATA )
 			pgdata.pgrp_size = layout_n(play);
 		else
 			pgdata.pgrp_size = layout_n(play) > layout_k(play)?
 							   layout_n(play) : layout_k(play);
+		// Unit size multiplication will give PG size in bytes
 		pgdata.pgrp_size *= pgdata.unit_sz;
 
+		// The offset of PG-0
 		pgdata.pgrp0_index  = ioo->ioo_iomaps[0]->pi_grpid * layout_n(play) 
 		                      * pgdata.unit_sz;
+		// Need to update PG & Unit index for every seg_per_unit
 		pgdata.seg_per_unit = layout_unit_size(pdlayout_get(ioo))/seg_sz;
 
 		M0_LOG(M0_ALWAYS, "Target"FID_F"Filter=%s PGStartOff:%"PRIu64,
 						FID_P(&ti->ti_fid),
-						filter == PA_DATA ? "DATA" : "PARITY",
+						filter == PA_DATA ? "D" : "P",
 						pgdata.pgrp0_index);
 		
-		M0_LOG(M0_ALWAYS,"GOFF-IOVEC Off St: %"PRIi64 " End: %"PRIi64 " Vnr: %"PRIi32 
+		M0_LOG(M0_ALWAYS,"GOFF-IOVEC StIdx: %"PRIi64 " EndIdx: %"PRIi64 " Vnr: %"PRIi32 
 											" Count0: %"PRIi64 " CountEnd: %"PRIi64,
 						   ti->ti_goff_ivec.iv_index[0],
 						   ti->ti_goff_ivec.iv_index[ti->ti_goff_ivec.iv_vec.v_nr-1],
@@ -1119,12 +1132,13 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		delta  = 0;
 		bbsegs = 0;
 
-		M0_LOG(M0_ALWAYS, "pageattr = %u, filter = %u, rw = %u",
+		M0_LOG(M0_DEBUG, "pageattr = %u, filter = %u, rw = %u",
 		       pattr[seg], filter, rw);
 
 		if (!(pattr[seg] & filter) || !(pattr[seg] & rw) ||
 		     (pattr[seg] & PA_TRUNC)) {
 			++seg;
+			// goff_curr should be in sync with segment 
 			if(di_enabled)
 				m0_ivec_cursor_move(&goff_curr, seg_sz);
 			continue;
@@ -1184,6 +1198,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				xfer_len = COUNT(ivec, seg);
 				offset = INDEX(ivec, seg);
 
+				seg_start = seg;
 				/*
 				 * Accommodate multiple pages in a single
 				 * net buffer segment, if they are consecutive
@@ -1200,15 +1215,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 						bufnext = bvec->ov_buf[segnext];
 
 					if (buf + xfer_len == bufnext) {
-						if(di_enabled) {			 
-							target_ioreq_calculate_index(ioo, 
-										&pgdata, 
-										irfop, 
-										m0_ivec_cursor_index(&goff_curr),
-										seg);
-							m0_ivec_cursor_move(&goff_curr, seg_sz);
-						}
-						xfer_len += COUNT(ivec, ++seg);						
+ 						xfer_len += COUNT(ivec, ++seg);						
 						// Next segment should be as per filter
 						segnext = seg + 1;
 						if( !(pattr[segnext] & filter) ||
@@ -1218,6 +1225,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					} else
 						break;
 				}
+				
+				seg_end = seg;
 
 				// Get number of units added
 				if(di_enabled) {
@@ -1269,17 +1278,22 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				else if (rc == 0) {
 					++bbsegs;
 					sz_added_to_fop += xfer_len;
-					if(di_enabled)			 
-						target_ioreq_calculate_index(ioo, 
-									&pgdata, 
-									irfop, 
-									m0_ivec_cursor_index(&goff_curr),
-									seg);
+					if(di_enabled) {
+						// Loop through all the segments added and check & add
+						// Units spanning those segments to FOP
+						for(s_idx = seg_start; s_idx <= seg_end; s_idx++ ) {
+							target_ioreq_calculate_index(ioo, 
+										&pgdata, 
+										irfop, 
+										m0_ivec_cursor_index(&goff_curr),
+										s_idx);
+							m0_ivec_cursor_move(&goff_curr, seg_sz);							
+						}
+					}
 				}
-			}
-
-			if(di_enabled)	
+			} else if(di_enabled)	
 				m0_ivec_cursor_move(&goff_curr, seg_sz);			
+
 			++seg;
 		}
 
@@ -1330,7 +1344,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		    !(sz_added_to_fop % pgdata.unit_sz) ) {
 			// Server side expects this to be valid if checksum is to be read.
 			rw_fop->crw_cksum_size = m0__obj_di_cksum_size(ioo);
-			M0_LOG(M0_ALWAYS,"Read FOP");
+			M0_LOG(M0_DEBUG,"Read FOP");
 		}
 
 		if (ioo->ioo_flags & M0_OOF_SYNC)
@@ -1360,7 +1374,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		m0_atomic64_inc(&ti->ti_nwxfer->nxr_iofop_nr);
 		iofops_tlist_add(&ti->ti_iofops, irfop);
 
-		M0_LOG(M0_ALWAYS,
+		M0_LOG(M0_DEBUG,
 		       "fop=%p bulk=%p (%s) @"FID_F" io fops = %"PRIu64
 		       " read bulks = %" PRIu64 ", list_len=%d",
 		       &iofop->if_fop, &iofop->if_rbulk,
@@ -1474,6 +1488,10 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 			goto fail;
 	}
 
+	// Allocating index vector to track object global offset 
+	// which is getting sent to a target. This will help to 
+	// compute the PG Index and Unit Index which are being
+	// sent to target
 	rc = m0_indexvec_alloc(&ti->ti_goff_ivec, nr);
 	ti->ti_goff_ivec.iv_vec.v_nr = 0;
 	if (rc != 0)
@@ -1722,7 +1740,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 		pgstart      = data_size(play) * iomap->pi_grpid;
 		src.sa_group = iomap->pi_grpid;
 
-		M0_LOG(M0_ALWAYS, "xfer=%p map=%p [grpid=%" PRIu64 " state=%u]",
+		M0_LOG(M0_DEBUG, "xfer=%p map=%p [grpid=%" PRIu64 " state=%u]",
 				 xfer, iomap, iomap->pi_grpid, iomap->pi_state);
 
 		if (do_cobs)
@@ -1914,7 +1932,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 		m0_tl_teardown(iofops, &ti->ti_iofops, irfop) {
 			fop = &irfop->irf_iofop.if_fop;
 			item = m0_fop_to_rpc_item(fop);
-			M0_LOG(M0_ALWAYS, "[%p] fop %p, ref %llu, "
+			M0_LOG(M0_DEBUG, "[%p] fop %p, ref %llu, "
 			       "item %p[%u], ri_error %d, ri_state %d",
 			       ioo, fop,
 			       (unsigned long long)m0_ref_read(&fop->f_ref),
@@ -1925,7 +1943,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 			if (xfer->nxr_rc == 0 &&
 			    item->ri_sm.sm_state == M0_RPC_ITEM_FAILED) {
 				xfer->nxr_rc = item->ri_error;
-				M0_LOG(M0_ALWAYS, "[%p] nwxfer rc = %d",
+				M0_LOG(M0_DEBUG, "[%p] nwxfer rc = %d",
 				       ioo, xfer->nxr_rc);
 			}
 
@@ -1938,7 +1956,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 					ti->ti_session->s_conn->c_rpc_machine);
 			}
 
-			M0_LOG(M0_ALWAYS,
+			M0_LOG(M0_DEBUG,
 			       "[%p] item %p, target fid "FID_F"fop %p, "
 			       "ref %llu", ioo, item, FID_P(&ti->ti_fid), fop,
 			       (unsigned long long)m0_ref_read(&fop->f_ref));
@@ -2059,7 +2077,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			 * An error returned by rpc post has been ignored.
 			 * It will be handled in the respective bottom half.
 			 */
-			M0_LOG(M0_ALWAYS, "item="ITEM_FMT" osr_xid=%"PRIu64,
+			M0_LOG(M0_DEBUG, "item="ITEM_FMT" osr_xid=%"PRIu64,
 				ITEM_ARG(item), item->ri_header.osr_xid);
 			rc = m0_rpc_post(item);
 			M0_CNT_INC(nr_dispatched);
@@ -2075,7 +2093,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 				 * ignored. It will be handled in the
 				 * io_bottom_half().
 				 */
-				M0_LOG(M0_ALWAYS, "item="ITEM_FMT
+				M0_LOG(M0_DEBUG, "item="ITEM_FMT
 						 " osr_xid=%"PRIu64,
 						 ITEM_ARG(item),
 						 item->ri_header.osr_xid);
@@ -2089,7 +2107,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			rc = ioreq_fop_async_submit(&irfop->irf_iofop,
 						    ti->ti_session);
 			ri_error = irfop->irf_iofop.if_fop.f_item.ri_error;
-			M0_LOG(M0_ALWAYS, "[%p] Submitted fop for device "
+			M0_LOG(M0_DEBUG, "[%p] Submitted fop for device "
 			       FID_F"@%p, item %p, fop_nr=%llu, rc=%d, "
 			       "ri_error=%d", ioo, FID_P(&ti->ti_fid), irfop,
 			       &irfop->irf_iofop.if_fop.f_item,
@@ -2128,7 +2146,7 @@ out:
 	} else if (rc == 0)
 		xfer->nxr_state = NXS_INFLIGHT;
 
-	M0_LOG(M0_ALWAYS, "[%p] nxr_iofop_nr %llu, nxr_rdbulk_nr %llu, "
+	M0_LOG(M0_DEBUG, "[%p] nxr_iofop_nr %llu, nxr_rdbulk_nr %llu, "
 	       "nr_dispatched %llu", ioo,
 	       (unsigned long long)m0_atomic64_get(&xfer->nxr_iofop_nr),
 	       (unsigned long long)m0_atomic64_get(&xfer->nxr_rdbulk_nr),
@@ -2257,7 +2275,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	spare = *src;
 	m0_fd_fwd_map(play_instance, src, tgt);
 	tfid = target_fid(ioo, tgt);
-	M0_LOG(M0_ALWAYS, "src_id[%" PRIu64 ":%" PRIu64 "] -> "
+	M0_LOG(M0_DEBUG, "src_id[%" PRIu64 ":%" PRIu64 "] -> "
 			 "dest_id[%" PRIu64 ":%" PRIu64 "] @ tfid="FID_F,
 	       src->sa_group, src->sa_unit, tgt->ta_frame, tgt->ta_obj,
 	       FID_P(&tfid));
@@ -2360,7 +2378,7 @@ M0_INTERNAL void nw_xfer_request_fini(struct nw_xfer_request *xfer)
 	M0_PRE(xfer != NULL);
 	M0_PRE(M0_IN(xfer->nxr_state, (NXS_COMPLETE, NXS_INITIALIZED)));
 	M0_PRE(nw_xfer_request_invariant(xfer));
-	M0_LOG(M0_ALWAYS, "nw_xfer_request : %p, nxr_rc = %d",
+	M0_LOG(M0_DEBUG, "nw_xfer_request : %p, nxr_rc = %d",
 	       xfer, xfer->nxr_rc);
 
 	xfer->nxr_ops = NULL;

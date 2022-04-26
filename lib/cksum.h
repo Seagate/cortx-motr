@@ -142,12 +142,12 @@ struct m0_pi_seed {
  * Get checksum size for the type of PI algorithm
  * @param pi_type Type of PI algorithm
  */
-M0_INTERNAL uint64_t m0_cksum_get_size(enum m0_pi_algo_type pi_type);
+M0_INTERNAL uint32_t m0_cksum_get_size(enum m0_pi_algo_type pi_type);
 
 /**
  * Return max cksum size possible
  */
-M0_INTERNAL uint64_t m0_cksum_get_max_size(void);
+M0_INTERNAL uint32_t m0_cksum_get_max_size(void);
 
 /**
  * Calculate checksum/protection info for data/KV

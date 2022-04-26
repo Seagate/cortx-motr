@@ -268,7 +268,7 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 	return  M0_RC(0);
 }
 
-M0_INTERNAL uint64_t m0_cksum_get_size(enum m0_pi_algo_type pi_type)
+M0_INTERNAL uint32_t m0_cksum_get_size(enum m0_pi_algo_type pi_type)
 {
 	M0_ENTRY();
 #ifndef __KERNEL__
@@ -286,7 +286,7 @@ M0_INTERNAL uint64_t m0_cksum_get_size(enum m0_pi_algo_type pi_type)
 	return 0;
 }
 
-M0_INTERNAL uint64_t m0_cksum_get_max_size(void)
+M0_INTERNAL uint32_t m0_cksum_get_max_size(void)
 {
 	return (sizeof(struct m0_md5_pi) > sizeof(struct m0_md5_inc_context_pi) ?
 			sizeof(struct m0_md5_pi) : sizeof(struct m0_md5_inc_context_pi));

@@ -806,8 +806,11 @@ struct target_ioreq {
 	struct m0_bufvec               ti_auxbufvec;
 
 	/**
-	 * Index vector global offset of segment added to this target
-	 * This global offset vector helps to compute PG Idx and Unit Idx
+	 * Index vector of global object offset which is added to this target.
+	 * This global offset vector helps to compute PG Idx and Unit Idx.
+	 * For the PG and Unit Index Computation
+	 * DATA   Units : Gob Offset - PGStart : PGStart + NxUS => PG Index - 0 : (N-1) 
+	 * PARITY Units : Gob Offset - PGStart : PGStart + KxUS => PG Index - 0 : (K-1) 
 	 */
 	struct m0_indexvec             ti_goff_ivec;
 
@@ -863,10 +866,10 @@ struct fop_cksum_idx_data {
 struct fop_cksum_data {
 	// Checksum data structure
 	struct fop_cksum_idx_data  *cd_idx;
-	// Maximum number of units
-	uint32_t                   cd_max_units;
 	// Number of units added
 	uint32_t        	       cd_num_units;
+	// Maximum number of units
+	uint32_t                   cd_max_units;
 };
 
 /**

@@ -127,7 +127,7 @@ static int application_checksum_process( struct m0_op_io *ioo,
 	M0_ASSERT( cksum_type < M0_PI_TYPE_MAX);
 	cksum_size = m0_cksum_get_size(cksum_type);
 	if(cksum_size == 0) {
-		M0_LOG(M0_ALWAYS,"Skipping DI as PI Type: %d Size: %d",cksum_type,cksum_size);
+		M0_LOG(M0_ALWAYS,"Skipping DI for PI Type: %d Size: %d",cksum_type,cksum_size);
 		return rc;
 	}
 
@@ -141,15 +141,16 @@ static int application_checksum_process( struct m0_op_io *ioo,
 	if( compute_cs_buf == NULL )
 		return -ENOMEM;
 
-	// TODO: Remove
-	M0_LOG(M0_ALWAYS,"RECEIVED CS b_nob: %d",(int)rw_rep_cs_data->b_nob);
+	M0_LOG(M0_ALWAYS,"RECEIVED CS b_nob: %d PiTyp:%d",(int)rw_rep_cs_data->b_nob,cksum_type);
 	print_pi(rw_rep_cs_data->b_addr, cksum_size);
 
 	for(idx = 0; idx < num_units; idx++ ) {
 		struct fop_cksum_idx_data *cs_idx =
 						&cs_data->cd_idx[idx];
+		M0_ASSERT(cs_idx->ci_pg_idx != UINT32_MAX && cs_idx->ci_unit_idx != UINT32_MAX);
 
-		M0_LOG(M0_ALWAYS,"rajat : COMPUTED CS");
+		// TODO: Remove
+		M0_LOG(M0_ALWAYS,"$$$$$ COMPUTED CS $$$$$");
 		// Calculate checksum for each unit
 		rc = target_calculate_checksum( ioo, cksum_type, irfop->irf_pattr, cs_idx,
 										compute_cs_buf );
@@ -161,8 +162,8 @@ static int application_checksum_process( struct m0_op_io *ioo,
 					 compute_cs_buf, cksum_size ) != 0 ) {
 			// Add error code to the target status
 			ti->ti_rc = M0_RC(-EIO);
-			// TODO: Remove debug
-				M0_ASSERT(0);
+			// TODO: Remove debug and check if IO is getting error
+			M0_ASSERT(0);
 		}
 		// Copy checksum to application buffer
 		if( !m0__obj_is_di_cksum_gen_enabled(ioo) && (irfop->irf_pattr != PA_PARITY) ) {
@@ -233,10 +234,6 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		      IRS_DEGRADED_READING, IRS_DEGRADED_WRITING,
 		      IRS_FAILED)));
 
-	M0_LOG(M0_ALWAYS,"rajat : irf_pattr : %d", irfop->irf_pattr);
-	if(irfop->irf_pattr == PA_PARITY) {
-		M0_LOG(M0_ALWAYS,"rajat : in parity check");
-	}
 	/* Check errors in rpc items of an IO reqest and its reply. */
 	rbulk      = &iofop->if_rbulk;
 	req_item   = &iofop->if_fop.f_item;
@@ -259,21 +256,24 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	rw_reply = io_rw_rep_get(reply_fop);
 
 	if(m0_is_read_rep(reply_fop)) {
-		M0_LOG(M0_ALWAYS,"rajat rcvd [%s]", irfop->irf_pattr == PA_DATA ? "DATA" : "PARITY");
+		M0_LOG(M0_ALWAYS,"Read Reply Rcvd [%s]",irfop->irf_pattr == PA_DATA ? "D" : "P");
 		if ( rw_reply->rwr_di_data_cksum.b_addr )
 				rc = application_checksum_process(ioo, tioreq,
 							irfop, &rw_reply->rwr_di_data_cksum);
-		else if( m0__obj_is_di_enabled(ioo) && (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_READ) ) {
-			M0_LOG(M0_ALWAYS,"No DI data received Ext0: %"PRIi64" Count0: %"PRIi64
+		// Debug info
+		else if( m0__obj_is_di_enabled(ioo) && irfop->irf_cksum_data.cd_num_units && 
+			     (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_READ) ) {
+			M0_LOG(M0_ERROR,"No DI data received Ext0: %"PRIi64 "ExtN: %"PRIi64 " Count0: %"PRIi64
 											" Vnr: %"PRIi32" CountEnd: %"PRIi64,
-				   ioo->ioo_ext.iv_index[0],
-				   ioo->ioo_ext.iv_vec.v_count[0],
-				   ioo->ioo_ext.iv_vec.v_nr,
-				   ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]);
+				   tioreq->ti_goff_ivec.iv_index[0],
+				   tioreq->ti_goff_ivec.iv_index[ioo->ioo_ext.iv_vec.v_nr-1],
+				   tioreq->ti_goff_ivec.iv_vec.v_count[0],
+				   tioreq->ti_goff_ivec.iv_vec.v_nr,
+				   tioreq->ti_goff_ivec.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]);
 		}
 	}
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;
-	M0_LOG(M0_ALWAYS, "[%p] item %p[%u], reply received = %d, "
+	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
 			 "sns state = %d", ioo, req_item,
 			 req_item->ri_type->rit_opcode, rc, ioo->ioo_sns_state);
 	actual_bytes = rw_reply->rwr_count;
@@ -310,7 +310,7 @@ ref_dec:
 		(rc), (tioreq)->ti_rc, FID_P(&(tioreq)->ti_fid)
 
 		if (rc == -ENOENT) /* normal for CROW */
-			M0_LOG(M0_ALWAYS, LOGMSG(ioo, rc, tireq));
+			M0_LOG(M0_DEBUG, LOGMSG(ioo, rc, tireq));
 		else
 			M0_LOG(M0_ERROR, LOGMSG(ioo, rc, tireq));
 #undef LOGMSG
@@ -352,7 +352,7 @@ ref_dec:
 	}
 	m0_mutex_unlock(&xfer->nxr_lock);
 
-	M0_LOG(M0_ALWAYS, "[%p] irfop=%p bulk=%p "FID_F
+	M0_LOG(M0_DEBUG, "[%p] irfop=%p bulk=%p "FID_F
 	       " Pending fops = %"PRIu64" bulk=%"PRIu64,
 	       ioo, irfop, rbulk, FID_P(&tioreq->ti_fid),
 	       m0_atomic64_get(&xfer->nxr_iofop_nr),
@@ -560,7 +560,7 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 	nb = evt->nbe_buffer;
 	buf = (struct m0_rpc_bulk_buf *)nb->nb_app_private;
 	rbulk = buf->bb_rbulk;
-	M0_LOG(M0_ALWAYS, "PASSIVE recv, e=%p status=%d, len=%"PRIu64" rbulk=%p",
+	M0_LOG(M0_DEBUG, "PASSIVE recv, e=%p status=%d, len=%"PRIu64" rbulk=%p",
 	       evt, evt->nbe_status, evt->nbe_length, rbulk);
 
 	iofop  = M0_AMB(iofop, rbulk, if_rbulk);
@@ -569,7 +569,7 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 			ioo_nwxfer, &ioo_bobtype);
 
 	M0_ASSERT(m0_is_read_fop(&iofop->if_fop));
-	M0_LOG(M0_ALWAYS,
+	M0_LOG(M0_DEBUG,
 	       "irfop=%p "FID_F" Pending fops = %"PRIu64"bulk = %"PRIu64,
 	       reqfop, FID_P(&reqfop->irf_tioreq->ti_fid),
 	       m0_atomic64_get(&ioo->ioo_nwxfer.nxr_iofop_nr),
@@ -774,7 +774,7 @@ M0_INTERNAL int ioreq_cc_fop_init(struct target_ioreq *ti)
 	    ti->ti_trunc_ivec.iv_vec.v_nr == 0)
 		return 0;
 	fop = &ti->ti_cc_fop.crf_fop;
-	M0_LOG(M0_ALWAYS, "fop=%p", fop);
+	M0_LOG(M0_DEBUG, "fop=%p", fop);
 	m0_fop_init(fop, fopt, NULL, ioreq_cc_fop_release);
 	rc = m0_fop_data_alloc(fop);
 	if (rc != 0) {
@@ -816,13 +816,13 @@ M0_INTERNAL int ioreq_cc_fop_init(struct target_ioreq *ti)
 			goto out;
 
 		trunc->ct_size = m0_io_count(&trunc->ct_io_ivec);
-		M0_LOG(M0_ALWAYS, "trunc count%"PRIu64" diff:%d\n",
+		M0_LOG(M0_DEBUG, "trunc count%"PRIu64" diff:%d\n",
 				trunc->ct_size, diff);
 	}
 	m0_atomic64_inc(&ti->ti_nwxfer->nxr_ccfop_nr);
 
 	item = &fop->f_item;
-	M0_LOG(M0_ALWAYS, "item="ITEM_FMT" osr_xid=%"PRIu64,
+	M0_LOG(M0_DEBUG, "item="ITEM_FMT" osr_xid=%"PRIu64,
 			  ITEM_ARG(item), item->ri_header.osr_xid);
 out:
 	return M0_RC(rc);
@@ -875,7 +875,7 @@ static void ioreq_fop_release(struct m0_ref *ref)
 		m0_mutex_unlock(&rbulk->rb_mutex);
 
 		m0_rpc_bulk_store_del(rbulk);
-		M0_LOG(M0_ALWAYS, "fop %p, %p[%u], bulk %p, buf_nr %llu, "
+		M0_LOG(M0_DEBUG, "fop %p, %p[%u], bulk %p, buf_nr %llu, "
 		       "non_queued_buf_nr %llu", &iofop->if_fop, item,
 		       item->ri_type->rit_opcode, rbulk,
 		       (unsigned long long)buf_nr,
