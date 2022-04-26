@@ -739,26 +739,6 @@ enum target_ioreq_type {
 };
 
 /**
- * Data structure for unit index tracking
- */
-struct target_cksum_idx_data {
-	// Index for tracking which Parity Group and which Index (0..k-1) or (0..n-1)
-	// will be assigned to target
-	uint32_t                       ci_pg_idx;
-	uint32_t                       ci_unit_idx;
-};
-
-/**
- * Collection of data structure for checksum computation
- */
-struct target_cksum_data {
-	// Checksum data structure
-	struct target_cksum_idx_data  *cd_idx;
-	// Number of units added
-	uint32_t                       cd_num_units;
-};
-
-/**
  * Collection of IO extents and buffers, directed towards particular
  * target objects (data_unit / parity_unit) in a parity group.
  * These structures are created by struct m0_op_io dividing the incoming
@@ -818,7 +798,6 @@ struct target_ioreq {
 	 */
 	struct m0_indexvec             ti_trunc_ivec;
 
-
 	/**
 	 * Buffer vector corresponding to index vector above.
 	 * This buffer is in sync with ::ti_ivec.
@@ -827,9 +806,10 @@ struct target_ioreq {
 	struct m0_bufvec               ti_auxbufvec;
 
 	/**
-	 * Structure to track which PG Index and Unit Index are part of Target Req
+	 * Index vector global offset of segment added to this target
+	 * This global offset vector helps to compute PG Idx and Unit Idx
 	 */
-	struct target_cksum_data       ti_cksum_data[M0_PUT_SPARE];
+	struct m0_indexvec             ti_goff_ivec;
 
 	/**
 	 * Degraded mode read/write IO vector.
@@ -858,6 +838,38 @@ struct target_ioreq {
 };
 
 /**
+ * Data structure for PG indexing computation
+ */
+struct fop_cksum_idx_gbl_data {
+	m0_bcount_t               	 pgrp_size;
+	m0_bcount_t					 pgrp0_index;
+	uint32_t                     unit_sz; 
+	uint32_t                     seg_per_unit; 
+};
+
+/**
+ * Data structure for unit index tracking
+ */
+struct fop_cksum_idx_data {
+	// Index for tracking which Parity Group and which Index (0..k-1) or (0..n-1)
+	// will be assigned to target
+	uint32_t                       ci_pg_idx;
+	uint32_t                       ci_unit_idx;
+};
+
+/**
+ * Collection of data structure for checksum computation
+ */
+struct fop_cksum_data {
+	// Checksum data structure
+	struct fop_cksum_idx_data  *cd_idx;
+	// Maximum number of units
+	uint32_t                   cd_max_units;
+	// Number of units added
+	uint32_t        	       cd_num_units;
+};
+
+/**
  * Represents a wrapper over generic IO fop and its callback
  * to keep track of such IO fops issued by the same target_ioreq structure.
  *
@@ -875,8 +887,7 @@ struct ioreq_fop {
 	int                          irf_reply_rc;
 
 	/** Checksum realted: Unit start index (cd_idx) & count for tracking */
-	uint32_t                     irf_unit_start_idx;
-	uint32_t                     irf_unit_count;
+	struct fop_cksum_data  		 irf_cksum_data;
 
 	/** In-memory handle for IO fop. */
 	struct m0_io_fop             irf_iofop;
