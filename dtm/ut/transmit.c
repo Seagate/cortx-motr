@@ -329,9 +329,9 @@ static struct m0_semaphore seq;
 static int test_fom_tick(struct m0_fom *fom)
 {
 	int                       result;
-	int                       idx = fom->fo_fop - &redo_fop[0];
-	struct m0_dtm_oper_descr *ode = m0_fop_data(fom->fo_fop);
-	struct m0_tl              uu;
+	int                       idx  = fom->fo_fop - &redo_fop[0];
+	struct m0_dtm_oper_descr *ode  = m0_fop_data(fom->fo_fop);
+	struct m0_tl              uu   = {};
 	struct m0_dtm_oper       *oper = &oper_tgt[idx];
 
 	M0_UT_ASSERT(IS_IN_ARRAY(idx, oper_tgt));
@@ -339,6 +339,8 @@ static int test_fom_tick(struct m0_fom *fom)
 
 	switch (m0_fom_phase(fom)) {
 	case FOM_INIT:
+		/* oper link is never finalised, zero it forcibly. */
+		M0_SET_ARR0(control_tgt[idx]);
 		m0_semaphore_up(&seq);
 		m0_dtm_update_list_init(&uu);
 		m0_dtm_update_link(&uu, control_tgt[idx], TGT_DELTA);

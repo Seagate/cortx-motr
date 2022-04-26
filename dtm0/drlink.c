@@ -510,6 +510,7 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 		goto out;
 	}
 
+	M0_SET0(&F(llink));
 	m0_long_lock_link_init(&F(llink), fom, &F(llock_addb2));
 
 	M0_CO_FUN(context, co_long_write_lock(context,

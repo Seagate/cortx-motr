@@ -181,7 +181,7 @@ static void mach_terminated(struct m0_rpc_machine_watch *watch)
 
 static void rpc_machine_watch_test(void)
 {
-	struct m0_rpc_machine_watch  watch;
+	struct m0_rpc_machine_watch  watch = {};
 	struct m0_rpc_machine       *rmach;
 	int                          rc;
 
