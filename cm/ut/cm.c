@@ -295,8 +295,8 @@ static void cm_ag_ut(void)
 	int                      i;
 	int                      j;
 	int                      rc;
-	struct m0_cm_ag_id       ag_ids[AG_ID_NR];
-	struct m0_cm_aggr_group  ags[AG_ID_NR];
+	struct m0_cm_ag_id       ag_ids[AG_ID_NR] = {};
+	struct m0_cm_aggr_group  ags[AG_ID_NR] = {};
 	struct m0_cm            *cm;
 
 	test_ready_fop = false;

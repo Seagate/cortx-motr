@@ -144,10 +144,16 @@ static void __m0_list_del(struct m0_list_link *old)
 	old->ll_next->ll_prev = old->ll_prev;
 }
 
+static void link_init(struct m0_list_link *link)
+{
+	link->ll_prev = link;
+	link->ll_next = link;
+}
+
 M0_INTERNAL void m0_list_del(struct m0_list_link *old)
 {
 	__m0_list_del(old);
-	m0_list_link_init(old);
+	link_init(old);
 }
 M0_EXPORTED(m0_list_del);
 
@@ -168,8 +174,9 @@ M0_INTERNAL void m0_list_move_tail(struct m0_list *head,
 
 M0_INTERNAL void m0_list_link_init(struct m0_list_link *link)
 {
-	link->ll_prev = link;
-	link->ll_next = link;
+	M0_PRE(M0_IS0(link) ||
+	       (link->ll_prev == link && link->ll_next == link));
+	link_init(link);
 }
 M0_EXPORTED(m0_list_link_init);
 

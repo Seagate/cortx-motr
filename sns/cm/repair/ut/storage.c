@@ -204,6 +204,7 @@ void write_post(struct m0_pdclust_layout *pdlay)
 	struct m0_pool_version    *pv;
 
 	m0_semaphore_init(&sem, 0);
+	M0_SET0(&w_buf);
 	w_buf.nb_pool = &nbp;
 	w_sag.sag_fctx = &fctx;
 	cp_prepare(&w_sns_cp.sc_base, &w_buf, SEG_NR, SEG_SIZE,
@@ -259,6 +260,7 @@ static void read_post(struct m0_pdclust_layout *pdlay)
 	pm.pm_pver = &pv;
 	fctx.sf_pm = &pm;
 	fctx.sf_layout = m0_pdl_to_layout(pdlay);
+	M0_SET0(&r_buf);
 	r_buf.nb_pool = &nbp;
 	/*
 	 * Purposefully fill the read bv with spaces i.e. ' '. This should get
