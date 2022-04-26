@@ -185,7 +185,7 @@ static void fdmi_sd_apply_filter_internal(const struct m0_filterc_ops *ops)
 
 	M0_ENTRY();
 
-	g_var_str = strdup("test");
+	g_var_str = m0_strdup("test");
 	M0_SET0(&g_conf_filter);
 
 	fdmi_serv_start_ut(ops);
