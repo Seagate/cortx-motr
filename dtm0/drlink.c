@@ -375,59 +375,6 @@ static int dtm0_process_rlink_send(struct dtm0_process *proc,
 	return M0_RC(m0_rpc_post(item));
 }
 
-/** An aggregated status of a dtm0_process:dop_rlink */
-enum dpr_state {
-	/** Link is not alive but we can resurrect it. */
-	DPR_TRANSIENT,
-	/** Link is alive and ready to transfer items. */
-	DPR_ONLINE,
-	/** Link is permanently dead. */
-	DPR_FAILED,
-};
-
-static enum dpr_state ha_state_infer(const struct m0_confc        *confc,
-				     const struct m0_fid          *fid)
-{
-	struct m0_conf_obj *obj;
-	enum dpr_state      outcome;
-
-	obj = m0_conf_cache_lookup(&confc->cc_cache, fid);
-	M0_ASSERT(obj != NULL);
-
-	/*
-	 * Drlink should try to connect to those who are able to accept
-	 * incomming connections.
-	 */
-	outcome = (M0_IN(obj->co_ha_state,
-			 (M0_NC_ONLINE, M0_NC_DTM_RECOVERING))) ?
-		DPR_ONLINE : DPR_FAILED;
-
-	return M0_RC_INFO(outcome, "fid=" FID_F ", ha_state=%s",
-			  FID_P(fid), m0_ha_state2str(obj->co_ha_state));
-}
-
-
-static enum dpr_state dpr_state_infer(struct m0_dtm0_service *svc,
-				      struct dtm0_process *proc)
-{
-	enum dpr_state  outcome;
-	bool            is_active;
-	struct m0_reqh  *reqh = svc->dos_generic.rs_reqh;
-	struct m0_confc *confc = reqh != NULL ? m0_reqh2confc(reqh) : NULL;
-
-	outcome = confc != NULL ?
-		ha_state_infer(confc, &proc->dop_rproc_fid) : DPR_TRANSIENT;
-
-	is_active = !proc->dop_rlink.rlk_sess.s_cancelled &&
-		m0_rpc_link_is_connected(&proc->dop_rlink);
-
-	/* Try to reconnect if session is dead but the remote is alive. */
-	if (!is_active && outcome == DPR_ONLINE)
-		outcome = M0_RC(DPR_TRANSIENT);
-
-	return M0_RC_INFO(outcome, "svc=" FID_F, FID_P(&proc->dop_rserv_fid));
-}
-
 /*
  * Establish a relation between a DTM message (carried by an RPC item),
  * and a DTM RPC link FOM that was used to send this message:
@@ -561,8 +508,7 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 	 * whenever it tries to send a message.
 	 */
 
-	if (always_reconnect ||
-	    dpr_state_infer(drf->df_svc, F(proc)) == DPR_TRANSIENT) {
+	if (always_reconnect) {
 		if (m0_rpc_link_is_connected(&F(proc)->dop_rlink)) {
 			M0_CO_FUN(context, co_rlink_do(context, F(proc),
 						       DRF_DISCONNECTING));
@@ -581,15 +527,8 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 					       DRF_CONNECTING));
 	}
 
-	if (dpr_state_infer(drf->df_svc, F(proc)) == DPR_FAILED) {
-		/*
-		 * Do not send the message if we leaned that we cannot
-		 * connect to the remote side by any means.
-		 */
-		rc = M0_ERR(-EAGAIN);
-		reason = "Cannot send message to a dead participant.";
-		goto unlock;
-	}
+	M0_ASSERT(ergo(m0_rpc_link_is_connected(&F(proc)->dop_rlink),
+		       !F(proc)->dop_rlink.rlk_sess.s_cancelled));
 
 	m0_fom_phase_set(fom, DRF_SENDING);
 	rc = dtm0_process_rlink_send(F(proc), drf);
@@ -607,6 +546,10 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 						 DRF_WAITING_FOR_REPLY));
 		m0_co_op_reset(&drf->df_co_op);
 		rc = m0_rpc_item_error(&drf->df_rfop->f_item);
+		if (rc != 0) {
+			reason = "Rpc item error";
+			goto unlock;
+		}
 	}
 
 unlock:
