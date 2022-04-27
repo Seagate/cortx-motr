@@ -237,13 +237,11 @@ usr/include/motr/fol/fol_private.h
 usr/include/motr/fol/fol_xc.h
 usr/include/motr/fop/fom.h
 usr/include/motr/fop/fom_generic.h
-usr/include/motr/fop/fom_generic_xc.h
 usr/include/motr/fop/fom_interpose.h
 usr/include/motr/fop/fom_long_lock.h
 usr/include/motr/fop/fom_simple.h
 usr/include/motr/fop/fop.h
 usr/include/motr/fop/fop_item_type.h
-usr/include/motr/fop/fop_xc.h
 usr/include/motr/fop/ut/iterator_test_xc.h
 usr/include/motr/format/format.h
 usr/include/motr/format/format_xc.h
