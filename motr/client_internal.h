@@ -290,8 +290,11 @@ struct m0_op_io {
 	/** Object's pool version */
 	struct m0_fid                     ioo_pver;
 
-	/** @todo: remove this */
+	/** This is currently storing error status of DI validation for IO */
 	int32_t                           ioo_rc;
+
+	/** Number of units which encountered error */
+	uint32_t                           ioo_di_err_count;
 
 	/**
 	 * Array of struct pargrp_iomap pointers.

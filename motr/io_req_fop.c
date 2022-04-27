@@ -160,10 +160,19 @@ static int application_checksum_process( struct m0_op_io *ioo,
 		// Compare computed and received checksum
 		if ( memcmp( rw_rep_cs_data->b_addr + cs_compared,
 					 compute_cs_buf, cksum_size ) != 0 ) {
-			// Add error code to the target status
-			ti->ti_rc = M0_RC(-EIO);
-			// TODO: Remove debug and check if IO is getting error
-			M0_ASSERT(0);
+			// Add error code to the target status			
+			rc = M0_RC(-EIO);
+			ioo->ioo_rc = M0_RC(-EIO);
+			ioo->ioo_di_err_count++;
+
+			// Log all info to locate unit
+			M0_LOG(M0_ERROR,"IMP ERROR: Checksum validation failed for Obj: 0x%"PRIx64 
+			                " 0x%"PRIx64 " PG0Off: 0x%"PRIx64 " Goff:0x%"PRIx64 " PGidx : %d, Uidx : %d",
+							ioo->ioo_obj->ob_entity.en_id.u_hi,
+							ioo->ioo_obj->ob_entity.en_id.u_lo,							
+							ioo->ioo_iomaps[0]->pi_grpid * data_size(pdlayout_get(ioo)),
+							ti->ti_goff_ivec.iv_index[0],
+							 cs_idx->ci_pg_idx, cs_idx->ci_unit_idx);
 		}
 		// Copy checksum to application buffer
 		if( !m0__obj_is_di_cksum_gen_enabled(ioo) && (irfop->irf_pattr != PA_PARITY) ) {

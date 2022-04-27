@@ -2157,7 +2157,7 @@ static int stob_io_create(struct m0_fom *fom)
 	if( m0_is_read_fop(fom->fo_fop) )
 		M0_ASSERT(curr_cksum_nob == rw_replyfop->rwr_di_data_cksum.b_nob);
 	else if((curr_cksum_nob == rwfop->crw_di_data_cksum.b_nob) && rwfop->crw_cksum_size) {	
-		M0_LOG(M0_ALWAYS,"Write Disabling DI for Ext0: %"PRIi64"ExtNr: %"PRIi64" Count0: %"PRIi64
+		M0_LOG(M0_ALWAYS,"Write Disabling DI for Ext0: %"PRIi64" ExtNr: %"PRIi64" Count0: %"PRIi64
 					     " Vnr: %"PRIi32" CountEnd: %"PRIi64,
 				   fom_obj->fcrw_io.si_stob.iv_index[0],
 				   fom_obj->fcrw_io.si_stob.iv_index[fom_obj->fcrw_io.si_stob.iv_vec.v_nr-1],
