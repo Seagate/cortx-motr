@@ -351,9 +351,7 @@ static void dtm0_service_stop(struct m0_reqh_service *service)
 
 	M0_PRE(service != NULL);
 	dtm0 = to_dtm(service);
-
-	m0_dtm0_fop_fini();
-	/**
+	/*
 	 * It is safe to remove any remaining entries from the log
 	 * when a process with volatile log is going to die.
 	 */
@@ -387,6 +385,7 @@ M0_INTERNAL void m0_dtm0_stype_fini(void)
 	extern struct m0_sm_conf m0_dtx_sm_conf;
 	m0_dtm0_rpc_link_mod_fini();
 	m0_reqh_service_type_unregister(&dtm0_service_type);
+	m0_dtm0_fop_fini();
 	m0_sm_addb2_fini(&m0_dtx_sm_conf);
 }
 
