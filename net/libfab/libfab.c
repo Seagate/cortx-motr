@@ -848,12 +848,19 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		 */
 		net = m0_nep_tlist_pop(&tm->ftm_ntm->ntm_end_points);
 		M0_ASSERT(net != NULL);
+		/*
+		 * TM lock can be released by libfab_txep_event_check(), make
+		 * sure the end-point stays alive.
+		 */
+		m0_net_end_point_get(net);
 		m0_nep_tlist_add_tail(&tm->ftm_ntm->ntm_end_points, net);
 		xep = libfab_ep(net);
 		aep = libfab_aep_get(xep);
 		libfab_txep_event_check(xep, aep, tm);
 		cq = aep->aep_rx_res.frr_cq;
 		libfab_rxep_comp_read(cq, xep, tm);
+		/* Release, with TM lock already held. */
+		m0_ref_put(&net->nep_ref);
 
 		libfab_bufq_process(tm);
 		if (m0_time_is_in_past(tm->ftm_tmout_check))
@@ -1549,9 +1556,6 @@ static int libfab_ep_param_free(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 
 	if (rc != 0)
 		return M0_ERR(rc);
-
-	M0_SET0(&ep->fep_name);
-
 	m0_free(ep);
 	return M0_RC(0);
 }
