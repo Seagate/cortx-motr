@@ -36,7 +36,7 @@
 #include "rpc/at.h"             /* m0_rpc_at_buf */
 #include "rpc/at_xc.h"          /* m0_rpc_at_buf_xc */
 #include "fop/fom_generic.h"    /* m0_fop_mod_rep */
-#include "fop/fom_generic_xc.h" /* m0_fop_mod_rep */
+#include "fop/wire_xc.h"        /* m0_fop_mod_rep */
 #include "fop/fom_interpose.h"  /* m0_fom_thralldom */
 #include "dix/layout.h"
 #include "dix/layout_xc.h"
