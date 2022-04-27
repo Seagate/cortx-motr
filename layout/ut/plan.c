@@ -59,8 +59,11 @@ static struct m0_rpc_server_ctx lap_ut_sctx = {
 	.rsx_log_file_name = SERVER_LOGFILE,
 };
 
+static struct m0_rpc_server_ctx lap_ut_sctx0;
+
 static int lap_ut_server_start(void)
 {
+	lap_ut_sctx0 = lap_ut_sctx;
 	lap_ut_sctx.rsx_xprts    = m0_net_all_xprt_get();
 	lap_ut_sctx.rsx_xprts_nr = m0_net_xprt_nr();
 
@@ -70,6 +73,7 @@ static int lap_ut_server_start(void)
 static void lap_ut_server_stop(void)
 {
 	m0_rpc_server_stop(&lap_ut_sctx);
+	lap_ut_sctx = lap_ut_sctx0;
 }
 
 static struct m0_idx_dix_config dix_conf = {
@@ -119,6 +123,7 @@ static void lap_ut_client_stop(void)
 	m0_fi_enable("ha_process_event", "no-link");
 	m0_client_fini(client_inst, false);
 	m0_fi_disable("ha_process_event", "no-link");
+	client_inst = NULL;
 }
 
 static void test_plan_build_fini(void)
