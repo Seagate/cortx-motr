@@ -195,7 +195,7 @@ EOF
 				     -n $obj_count || {
 		error_handling $? "Failed to delete object"
 	}
-	echo "m0cp -G_mt is successful"
+	echo "m0cp_mt is successful"
 
 	# Test truncate/punch utility
 	$motr_st_util_dir/m0cp -G $MOTR_PARAMS_V -o $object_id1 $src_file \

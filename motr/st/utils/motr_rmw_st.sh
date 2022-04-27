@@ -17,7 +17,7 @@
 # For any questions about this software or licensing,
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
-set -x
+
 
 motr_st_util_dir=$(dirname $(readlink -f $0))
 motr_src="$motr_st_util_dir/../../../"
@@ -137,12 +137,12 @@ write_and_update()
 		}
 	fi
 	echo "m0cp update"
-#	$motr_st_util_dir/m0cp $MOTR_PARAMS -o $object_id $update_file \
-#                                 -s $block_size -c $update_count -L $LID \
-#                                 -u -O $update_offset|| {
-#		error_handling $? "Failed to copy object"
-#		break
-#	}
+	$motr_st_util_dir/m0cp $MOTR_PARAMS -o $object_id $update_file \
+                                 -s $block_size -c $update_count -L $LID \
+                                 -u -O $update_offset|| {
+		error_handling $? "Failed to copy object"
+		break
+	}
 	echo "m0cat"
 	$motr_st_util_dir/m0cat -G $MOTR_PARAMS -o $object_id -s $block_size \
                                   -c $block_count -L $LID \
@@ -225,11 +225,11 @@ test_rmw()
 
 			echo "diff"
 			diff $src_file'2' $dest_file'_'$LID || {
-#				rc=$?
+				rc=$?
 				echo -n "Files are different for $layout_type"
 				echo " in Healthy Mode with LID $LID"
-#				error_handling $rc
-#				break
+				error_handling $rc
+				break
 			}
 		fi
 
@@ -242,11 +242,11 @@ test_rmw()
 
 			echo "diff"
 			diff $src_file'2' $dest_file'_'$LID || {
-#				rc=$?
+				rc=$?
 				echo -n "Files are different for $layout_type"
 				echo " in Degraded Mode with LID $LID"
-#				error_handling $rc
-#				break
+				error_handling $rc
+				break
 			}
 
 			bring_disk_online
