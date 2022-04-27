@@ -1802,6 +1802,23 @@ static void remote_state_update(struct recovery_fom    *rf,
 	M0_LEAVE();
 }
 
+static bool is_mkfs(struct m0_fom *fom)
+{
+	struct m0_reqh *reqh;
+	struct m0_motr *cs_ctx;
+
+	reqh = m0_fom_reqh(fom);
+
+	M0_ASSERT_INFO(m0_cs_reqh_context(reqh) != NULL,
+		       "A fully-functional motr process must "
+		       "have a reqh ctx.");
+
+	cs_ctx = m0_cs_ctx_get(reqh);
+	M0_ASSERT(cs_ctx != NULL);
+
+	return cs_ctx->cc_mkfs;
+}
+
 static void local_recovery_fom_coro(struct m0_fom *fom)
 {
 	struct recovery_fom *rf = M0_AMB(rf, fom, rf_base);
@@ -1818,8 +1835,9 @@ static void local_recovery_fom_coro(struct m0_fom *fom)
 	/*
 	 * A DTM0 service without persistent storage does not need
 	 * REDOs.
+	 * mkfs does not require DTM0 support as well.
 	 */
-	F(recovered) = rf->rf_is_volatile;
+	F(recovered) = rf->rf_is_volatile || is_mkfs(fom);
 
 	if (!F(recovered)) {
 		/* Wait until the moment where we should start recovery. */
