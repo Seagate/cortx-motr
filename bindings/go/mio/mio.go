@@ -485,10 +485,11 @@ func (v *iov) doIO(i int, op *C.struct_m0_op) {
     C.m0_op_fini(op)
     C.m0_op_free(op)
     // put the slot back to the pool
+    err := error(nil)
     if rc != 0 {
-        v.ch <- slot{i, fmt.Errorf("io op (%d) failed: %d", op.op_code, rc)}
+        err = fmt.Errorf("io op (%d) failed: %d", op.op_code, rc)
     }
-    v.ch <- slot{i, nil}
+    v.ch <- slot{i, err}
 }
 
 func getBW(n int, d time.Duration) (int, string) {
