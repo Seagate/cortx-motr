@@ -253,7 +253,7 @@ void fdmi_sd_send_notif(void)
 	int                           rc;
 
 	M0_SET0(&g_conf_filter);
-	g_var_str = strdup("test");
+	g_var_str = m0_strdup("test");
 	M0_SET0(&g_sem1);
 	M0_SET0(&g_sem2);
 	M0_SET0(&g_sem3);
