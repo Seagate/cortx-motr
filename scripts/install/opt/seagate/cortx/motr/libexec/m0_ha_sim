@@ -279,7 +279,7 @@ usage()
         echo "[OPTIONS]"
         echo "-t, --type        : Type of operation (drive/repair/rebalance/repreb)"
         echo "-o, --ops         : Sub operation of type (abort/pause/resume)"
-        echo "-r, --recover-type: Type of recover / rebalance (SNS (Default) / DIX)"
+        echo "-r, --recover-type: Type of recover (SNS (Default) / DIX)"
         echo "-i, --dev-id      : Device id of to failed/replaced device"
         echo "-d, --dev-path    : Dev path of to failed/replaced device"
         echo "-s, --state       : State of the device to set(failed/replaced)"
