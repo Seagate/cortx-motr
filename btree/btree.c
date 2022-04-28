@@ -3055,10 +3055,7 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 
 	srcidx = dir == D_LEFT ? 0 : last_idx_src - 1;
 	tgtidx = dir == D_LEFT ? last_idx_tgt : 0;
-	//M0_LOG(M0_ALWAYS,"NEW MOVE");
 	while (true) {
-		//printdir(src, tgt);
-		//(bnode_space(tgt) <= bnode_space(src))
 		if (nr == 0 || (nr == NR_EVEN && !move_needed(src, tgt)) ||
 			       (nr == NR_MAX && (srcidx == -1 ||
 			       bnode_count_rec(src) == 0)))
@@ -3422,8 +3419,8 @@ struct fkvv_dir_rec {
 	uint32_t key_offset;
 	uint32_t val_offset;
 	uint32_t key_size;
-	uint32_t val_size;/* user val size*/
-	uint32_t alloc_val_size;
+	uint32_t val_size;/* user provided value size */
+	uint32_t alloc_val_size; /* total fragment size*/
 };
 struct fkvv_head {
 	struct m0_format_header  fkvv_fmt;    /*< Node Header */
@@ -3450,8 +3447,8 @@ struct fkvv_head {
 #define OFFSET_SIZE sizeof(uint32_t)
 
 static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
-		      int nsize, uint32_t ntype, uint64_t crc_type,  uint64_t addr_type,
-		      uint64_t gen, struct m0_fid fid);
+		      int nsize, uint32_t ntype, uint64_t crc_type,
+		      uint64_t addr_type, uint64_t gen, struct m0_fid fid);
 static void fkvv_fini(const struct nd *node);
 static uint32_t fkvv_crctype_get(const struct nd *node);
 static uint32_t fkvv_addrtype_get(const struct nd *node);
@@ -3475,7 +3472,8 @@ static void fkvv_done(struct slot *slot, bool modified);
 static void fkvv_make(struct slot *slot);
 static bool fkvv_newval_isfit(struct slot *slot, struct m0_btree_rec *old_rec,
 			      struct m0_btree_rec *new_rec);
-static void fkvv_val_resize(struct slot *slot, int vsize_diff, struct m0_btree_rec *new_rec);
+static void fkvv_val_resize(struct slot *slot, int vsize_diff,
+			    struct m0_btree_rec *new_rec);
 static void fkvv_fix(const struct nd *node);
 static void fkvv_cut(const struct nd *node, int idx, int size);
 static void fkvv_del(const struct nd *node, int idx);
@@ -3569,11 +3567,12 @@ static void fkvv_dir_init(const struct nd *node)
 	h->fkvv_dir_entry   = 1;
 
 	dir = fkvv_dir_get(node);
-	dir[0].key_offset = 0;
-	dir[0].key_size   = h->fkvv_dir_offset;//(h->fkvv_dir_offset - *(uint32_t*)((void *)h + sizeof(*h)));
-	dir[0].val_offset = h->fkvv_nsize - sizeof(*h) - h->fkvv_dir_offset - sizeof(*dir);
-	dir[0].alloc_val_size   = dir[0].val_offset;
-	dir[0].val_size        = 0;
+	dir[0].key_offset     = 0;
+	dir[0].key_size       = h->fkvv_dir_offset;
+	dir[0].val_offset     = h->fkvv_nsize - sizeof(*h) -
+				h->fkvv_dir_offset - sizeof(*dir);
+	dir[0].alloc_val_size = dir[0].val_offset;
+	dir[0].val_size       = 0;
 }
 
 static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
@@ -3600,7 +3599,8 @@ static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 	dir  = ((void *)h + sizeof(*h) + h->fkvv_dir_offset);
 	dir[0].key_offset     = 0;
 	dir[0].key_size       = h->fkvv_dir_offset;
-	dir[0].val_offset     = nsize - sizeof(*h) - h->fkvv_dir_offset - sizeof(*dir);
+	dir[0].val_offset     = nsize - sizeof(*h) -
+				h->fkvv_dir_offset - sizeof(*dir);
 	dir[0].alloc_val_size = dir[0].val_offset;
 	dir[0].val_size       = 0;
 
@@ -3745,7 +3745,10 @@ static bool fkvv_isunderflow(const struct nd *node, bool predict)
 }
 
 
-/* Return directory entry where record can fit */
+/**
+ * Return index of directory entry of free fragment where given record can fit.
+ * If no such free fragment found, return -1.
+ */
 static int fkvv_indir_dir_idx_get(const struct nd *node,
 				  const struct m0_btree_rec *rec,
 				  int *shift)
@@ -3754,15 +3757,14 @@ static int fkvv_indir_dir_idx_get(const struct nd *node,
 	struct fkvv_dir_rec *dir       = fkvv_dir_get(node);
 	uint32_t             req_ksize = m0_vec_count(&rec->r_key.k_data.ov_vec);
 	uint32_t             req_vsize = m0_vec_count(&rec->r_val.ov_vec);
-	bool                 rec_space_avail = false;
-	int                  out_idx = -1;
 	int                  dir_space = sizeof (*dir);
-	int                  i;
 	int                  rec_count = h->fkvv_used;
 	int                  dir_count = h->fkvv_dir_entry;
+	bool                 rec_space_avail = false;
+	int                  out_idx         = -1;
+	int                  i;
 
 
-	M0_PRE(req_ksize == h->fkvv_ksize);
 	if (IS_INTERNAL_NODE(node))
 		req_vsize = INTERNAL_NODE_VALUE_SIZE;
 	else if (fkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
@@ -3783,24 +3785,26 @@ static int fkvv_indir_dir_idx_get(const struct nd *node,
 	if (out_idx != -1)
 		return out_idx;
 
-	/* Check if we can insert record in last fragment
-	 In this case we need to insert new direcory entry. Thus need to consider
-	 dir_space
-	*/
+	/**
+	 * Check if we can insert record in last fragment. In this case we need
+	 * to insert new direcory entry. Thus need to consider dir_space.
+	 */
 
 	if (dir[dir_count - 1].key_size >= req_ksize &&
 	    dir[dir_count - 1].alloc_val_size >= req_vsize + dir_space)
 		out_idx = dir_count - 1;
 	else if (dir[dir_count - 1].key_size >= req_ksize) {
-		/* see if we can shift directory to left */
-		if (dir[dir_count - 1].key_size - req_ksize >= req_vsize + dir_space) {
+		/* Check if we can shift directory to left */
+		if (dir[dir_count - 1].key_size - req_ksize >=
+		    req_vsize + dir_space) {
 			if (shift != NULL)
 				*shift = -(req_vsize + dir_space);
 			out_idx = dir_count - 1;
 		}
 	} else if (dir[dir_count - 1].alloc_val_size >= req_vsize + dir_space) {
-		if (dir[dir_count - 1].alloc_val_size - (req_vsize + dir_space) >=
-		    req_ksize) {
+		/* Check if we can shift directory to right */
+		if (dir[dir_count - 1].alloc_val_size -
+		    (req_vsize + dir_space) >= req_ksize) {
 			if (shift != NULL)
 				*shift = req_ksize;
 			out_idx = dir_count - 1;
@@ -4171,19 +4175,18 @@ void fkvv_dir_shift(const struct nd *node, int shift_size)
 
 void fkvv_make_emb_ind(struct slot *slot)
 {
-	struct fkvv_head    *h   = fkvv_data(slot->s_node);
+	struct fkvv_head    *h = fkvv_data(slot->s_node);
+	int ksize              = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
+	int vsize              = m0_vec_count(&slot->s_rec.r_val.ov_vec);
+	int shift              = 0;
+	struct fkvv_dir_rec  dir_entry;
 	struct fkvv_dir_rec *dir;
-	int out_idx;
+	int                  out_idx;
 
-	int shift = 0;
-	struct fkvv_dir_rec dir_entry;
-
-	int ksize = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
-	int vsize = m0_vec_count(&slot->s_rec.r_val.ov_vec);
-
-	if (IS_INTERNAL_NODE(slot->s_node))
-		M0_PRE(vsize == sizeof(void*));
-	else if (fkvv_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
+	M0_PRE(ergo(IS_INTERNAL_NODE(slot->s_node),
+		    vsize == INTERNAL_NODE_VALUE_SIZE));
+	if (!(IS_INTERNAL_NODE(slot->s_node)) &&
+	    fkvv_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
 		vsize += CRC_VALUE_SIZE;
 
 
