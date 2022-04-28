@@ -987,13 +987,15 @@ motr_libexec_SCRIPTS = \
     scripts/install$(motrdir)/libexec/m0trace_logrotate.sh \
     scripts/install$(motrdir)/libexec/core_logrotate.sh \
     scripts/install$(motrdir)/libexec/motr_cfg.sh \
-    scripts/install$(motrdir)/libexec/m0addb_logrotate.sh
+    scripts/install$(motrdir)/libexec/m0addb_logrotate.sh \
+    scripts/install$(motrdir)/libexec/motr_mini_prov_logrotate.sh
 EXTRA_DIST += $(motr_libexec_SCRIPTS)
 
 motr_crondir = $(sysconfdir)/cron.hourly
 motr_cron_SCRIPTS = \
     scripts/install$(motrdir)/libexec/m0trace_logrotate.sh \
-    scripts/install$(motrdir)/libexec/m0addb_logrotate.sh
+    scripts/install$(motrdir)/libexec/m0addb_logrotate.sh \
+    scripts/install$(motrdir)/libexec/motr_mini_prov_logrotate.sh
 EXTRA_DIST += $(motr_cron_SCRIPTS)
 
 motr_confdir = $(motrdir)/conf
