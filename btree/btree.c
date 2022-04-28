@@ -4131,7 +4131,7 @@ static void fkvv_make_leaf(struct slot *slot)
 	}
 }
 
-void fkvv_dir_entry_make(const struct nd *node, int idx)
+static void fkvv_dir_entry_make(const struct nd *node, int idx)
 {
 	struct fkvv_head    *h   = fkvv_data(node);
 	struct fkvv_dir_rec *dir = fkvv_dir_get(node);
@@ -4142,7 +4142,7 @@ void fkvv_dir_entry_make(const struct nd *node, int idx)
 
 }
 
-void fkvv_dir_entry_delete(const struct nd *node, int idx)
+static void fkvv_dir_entry_delete(const struct nd *node, int idx)
 {
 	struct fkvv_head *h      = fkvv_data(node);
 	struct fkvv_dir_rec *dir = fkvv_dir_get(node);
@@ -4154,7 +4154,7 @@ void fkvv_dir_entry_delete(const struct nd *node, int idx)
 
 }
 
-void fkvv_dir_shift(const struct nd *node, int shift_size)
+static void fkvv_dir_shift(const struct nd *node, int shift_size)
 {
 	struct fkvv_head    *h          = fkvv_data(node);
 	struct fkvv_dir_rec *dir        = fkvv_dir_get(node);
@@ -4173,7 +4173,7 @@ void fkvv_dir_shift(const struct nd *node, int shift_size)
 
 }
 
-void fkvv_make_emb_ind(struct slot *slot)
+static void fkvv_make_emb_ind(struct slot *slot)
 {
 	struct fkvv_head    *h = fkvv_data(slot->s_node);
 	int ksize              = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
