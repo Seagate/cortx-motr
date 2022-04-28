@@ -355,10 +355,9 @@ static int dtm0_service_start(struct m0_reqh_service *service)
 		return M0_ERR(rc);
 
 	if (!is_manual_ss_enabled()) {
-		rc = m0_dtm0_recovery_machine_init(&dtms->dos_remach,
-						   NULL, dtms);
-		if (rc == 0)
-			m0_dtm0_recovery_machine_start(&dtms->dos_remach);
+		m0_dtm0_recovery_machine_init(&dtms->dos_remach,
+					      NULL, dtms);
+		rc = m0_dtm0_recovery_machine_start(&dtms->dos_remach);
 	}
 
 	return M0_RC(rc);
@@ -444,6 +443,11 @@ m0_dtm0_service_find(const struct m0_reqh *reqh)
 	rh_srv = m0_reqh_service_find(&dtm0_service_type, reqh);
 
 	return rh_srv == NULL ? NULL : to_dtm(rh_srv);
+}
+
+M0_INTERNAL bool m0_dtm0_is_expecting_redo_from_client(void)
+{
+	return M0_FI_ENABLED("ut");
 }
 
 M0_INTERNAL bool m0_dtm0_in_ut(void)

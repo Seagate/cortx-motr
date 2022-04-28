@@ -32,6 +32,7 @@
 #include "cas/cas_xc.h"
 #include "dtm0/recovery.h"
 
+#include "dtm0/ut/helper.h"
 
 enum {
 	NUM_CAS_RECS = 10,
@@ -100,10 +101,9 @@ static void cas_xcode_test(void)
 				       buf, len);
 	M0_UT_ASSERT(rc == 0);
 
-    m0_xcode_free_obj(&M0_XCODE_OBJ(m0_cas_op_xc, op_out));
+	m0_xcode_free_obj(&M0_XCODE_OBJ(m0_cas_op_xc, op_out));
 }
 
-#if 0
 
 enum ut_sides {
 	UT_SIDE_SRV,
@@ -111,13 +111,19 @@ enum ut_sides {
 	UT_SIDE_NR
 };
 
+enum ut_client_persistence {
+	UT_CP_UNSPECIFIED,
+	UT_CP_VOLATILE_CLIENT,
+	UT_CP_PERSISTENT_CLIENT,
+};
+
 struct m0_fid g_service_fids[UT_SIDE_NR];
 
 struct ut_remach {
 	bool                             use_real_log;
+	enum ut_client_persistence       cp;
 
-	struct m0_rpc_server_ctx         srv_ctx;
-	struct cl_ctx                    cli_ctx;
+	struct m0_ut_dtm0_helper         udh;
 
 	struct m0_dtm0_service          *svcs[UT_SIDE_NR];
 	struct m0_be_op                  recovered[UT_SIDE_NR];
@@ -178,19 +184,20 @@ static struct ut_remach *ut_remach_from(struct m0_dtm0_recovery_machine *m,
 	struct m0_rpc_client_ctx  *cli_ctx;
 	struct m0_motr            *motr_ctx;
 	struct m0_rpc_server_ctx  *srv_ctx;
-	struct cl_ctx             *client;
+	struct m0_ut_dtm0_helper  *udh;
 	enum ut_sides              side = ut_remach_side_get(svc_fid);
 
 	if (rx == NULL) {
 		M0_UT_ASSERT(side == UT_SIDE_CLI);
 		cli_ctx = M0_AMB(cli_ctx, reqh, rcx_reqh);
-		client = M0_AMB(client, cli_ctx, cl_ctx);
-		um = M0_AMB(um, client, cli_ctx);
+		udh = M0_AMB(udh, cli_ctx, udh_cctx);
+		um = M0_AMB(um, udh, udh);
 	} else {
 		M0_UT_ASSERT(side == UT_SIDE_SRV);
 		motr_ctx = M0_AMB(motr_ctx, rx, cc_reqh_ctx);
 		srv_ctx = M0_AMB(srv_ctx, motr_ctx, rsx_motr_ctx);
-		um = M0_AMB(um, srv_ctx, srv_ctx);
+		udh = M0_AMB(udh, srv_ctx, udh_sctx);
+		um = M0_AMB(um, udh, udh);
 	}
 
 	M0_UT_ASSERT(um != NULL);
@@ -198,17 +205,17 @@ static struct ut_remach *ut_remach_from(struct m0_dtm0_recovery_machine *m,
 	return um;
 }
 
-static void ut_remach_log_add_sync(struct ut_remach *um,
-				   enum ut_sides side,
+static void ut_remach_log_add_sync(struct ut_remach       *um,
+				   enum ut_sides           side,
 				   struct m0_dtm0_tx_desc *txd,
-				   struct m0_buf *payload)
+				   struct m0_buf          *payload)
 {
 	struct m0_dtm0_recovery_machine *m = ut_remach_get(um, side);
-	struct m0_dtm0_service *svc = m->rm_svc;
-	struct m0_be_dtm0_log *log = svc->dos_log;
-	struct m0_be_tx       *tx = NULL;
-	struct m0_be_seg      *seg = log->dl_seg;
-	struct m0_be_tx_credit cred = {};
+	struct m0_dtm0_service  *svc   = m->rm_svc;
+	struct m0_be_dtm0_log   *log   = svc->dos_log;
+	struct m0_be_tx         *tx    = NULL;
+	struct m0_be_seg        *seg   = log->dl_seg;
+	struct m0_be_tx_credit   cred  = {};
 	struct m0_be_ut_backend *ut_be;
 	int rc;
 
@@ -398,36 +405,9 @@ ut_remach_ops_get(struct ut_remach *um)
 
 static void ut_srv_remach_init(struct ut_remach *um)
 {
-	int                       rc;
-	struct m0_rpc_server_ctx *sctx = &um->srv_ctx;
-	struct m0_reqh           *srv_reqh;
-	struct m0_reqh_service   *srv_svc;
-
-	*sctx = (struct m0_rpc_server_ctx) {
-		.rsx_xprts         = m0_net_all_xprt_get(),
-		.rsx_xprts_nr      = m0_net_xprt_nr(),
-		.rsx_argv          = dtm0_ut_argv,
-		.rsx_argc          = ARRAY_SIZE(dtm0_ut_argv),
-		.rsx_log_file_name = DTM0_UT_LOG,
-	};
-
-	m0_fi_enable("m0_dtm0_in_ut", "ut");
-	m0_fi_enable("is_manual_ss_enabled", "ut");
-
-	rc = m0_rpc_server_start(sctx);
-	M0_UT_ASSERT(rc == 0);
-
-	srv_reqh = &sctx->rsx_motr_ctx.cc_reqh_ctx.rc_reqh;
-	srv_svc = m0_reqh_service_lookup(srv_reqh,
-					 ut_remach_fid_get(UT_SIDE_SRV)),
-	M0_UT_ASSERT(srv_svc != NULL);
-	um->svcs[UT_SIDE_SRV] = M0_AMB(um->svcs[UT_SIDE_SRV],
-				       srv_svc, dos_generic);
-
-	rc = m0_dtm0_recovery_machine_init(ut_remach_get(um, UT_SIDE_SRV),
-					   ut_remach_ops_get(um),
-					   ut_remach_svc_get(um, UT_SIDE_SRV));
-	M0_UT_ASSERT(rc == 0);
+	m0_dtm0_recovery_machine_init(ut_remach_get(um, UT_SIDE_SRV),
+				      ut_remach_ops_get(um),
+				      ut_remach_svc_get(um, UT_SIDE_SRV));
 }
 
 static void ut_cli_remach_conf_obj_init(struct ut_remach *um)
@@ -454,63 +434,39 @@ static void ut_cli_remach_conf_obj_fini(struct ut_remach *um)
 
 static void ut_cli_remach_init(struct ut_remach *um)
 {
-	int                     rc;
-	struct cl_ctx          *cctx = &um->cli_ctx;
-	struct m0_reqh_service *cli_svc;
-	bool                    is_volatile[UT_SIDE_NR] = {
-		[UT_SIDE_SRV] = false,
-		[UT_SIDE_CLI] = true,
-	};
-
 	ut_cli_remach_conf_obj_init(um);
 
-	dtm0_ut_client_init(cctx, cl_ep_addr, srv_ep_addr,
-			    m0_net_xprt_default_get());
-
-	rc = m0_dtm_client_service_start(&cctx->cl_ctx.rcx_reqh,
-					 ut_remach_fid_get(UT_SIDE_CLI),
-					 &cli_svc);
-
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(cli_svc != NULL);
-
-	um->svcs[UT_SIDE_CLI] = M0_AMB(um->svcs[UT_SIDE_CLI],
-				       cli_svc, dos_generic);
-
-	rc = m0_dtm0_recovery_machine_init(ut_remach_get(um, UT_SIDE_CLI),
-					   ut_remach_ops_get(um),
-					   um->svcs[UT_SIDE_CLI]);
-	M0_UT_ASSERT(rc == 0);
-	m0_ut_remach_populate(ut_remach_get(um, UT_SIDE_CLI), um->cli_procs,
-			      g_service_fids, is_volatile, UT_SIDE_NR);
+	m0_dtm0_recovery_machine_init(ut_remach_get(um, UT_SIDE_CLI),
+				      ut_remach_ops_get(um),
+				      um->svcs[UT_SIDE_CLI]);
 }
 
 static void ut_srv_remach_fini(struct ut_remach *um)
 {
-	struct m0_rpc_server_ctx *sctx = &um->srv_ctx;
-
 	m0_dtm0_recovery_machine_fini(ut_remach_get(um, UT_SIDE_SRV));
-	m0_rpc_server_stop(sctx);
-	m0_fi_disable("is_manual_ss_enabled", "ut");
-	m0_fi_disable("m0_dtm0_in_ut", "ut");
 }
 
 static void ut_cli_remach_fini(struct ut_remach *um)
 {
-	struct cl_ctx          *cctx = &um->cli_ctx;
-	struct m0_reqh_service *cli_svc = &um->svcs[UT_SIDE_CLI]->dos_generic;
-
 	m0_dtm0_recovery_machine_fini(ut_remach_get(um, UT_SIDE_CLI));
-	m0_dtm_client_service_stop(cli_svc);
-	dtm0_ut_client_fini(cctx);
 	ut_cli_remach_conf_obj_fini(um);
 }
 
 static void ut_remach_start(struct ut_remach *um)
 {
 	enum ut_sides side;
-	for (side = 0; side < UT_SIDE_NR; ++side)
-		m0_dtm0_recovery_machine_start(ut_remach_get(um, side));
+	int           rc;
+	bool          is_volatile[UT_SIDE_NR] = {
+		[UT_SIDE_SRV] = false,
+		[UT_SIDE_CLI] = um->cp == UT_CP_VOLATILE_CLIENT,
+	};
+
+	m0_ut_remach_populate(ut_remach_get(um, UT_SIDE_CLI), um->cli_procs,
+			      g_service_fids, is_volatile, UT_SIDE_NR);
+	for (side = 0; side < UT_SIDE_NR; ++side) {
+		rc = m0_dtm0_recovery_machine_start(ut_remach_get(um, side));
+		M0_ASSERT(rc == 0);
+	}
 }
 
 static void ut_remach_stop(struct ut_remach *um)
@@ -524,13 +480,30 @@ static void ut_remach_init(struct ut_remach *um)
 {
 	int i;
 
-	g_service_fids[UT_SIDE_SRV] = srv_dtm0_fid;
-	g_service_fids[UT_SIDE_CLI] = cli_srv_fid;
+	M0_UT_ASSERT(M0_IN(um->cp, (UT_CP_PERSISTENT_CLIENT,
+				    UT_CP_VOLATILE_CLIENT)));
 
 	for (i = 0; i < ARRAY_SIZE(um->recovered); ++i) {
 		m0_be_op_init(um->recovered + i);
 		m0_be_op_active(um->recovered + i);
 	}
+
+	m0_fi_enable("m0_dtm0_in_ut", "ut");
+	m0_fi_enable("is_manual_ss_enabled", "ut");
+	m0_fi_enable("m0_dtm0_is_expecting_redo_from_client", "ut");
+	if (um->cp == UT_CP_PERSISTENT_CLIENT)
+		m0_fi_enable("is_svc_volatile", "always_false");
+
+	m0_ut_dtm0_helper_init(&um->udh);
+
+	g_service_fids[UT_SIDE_SRV] = um->udh.udh_server_dtm0_fid;
+	g_service_fids[UT_SIDE_CLI] = um->udh.udh_client_dtm0_fid;
+
+	M0_UT_ASSERT(um->udh.udh_server_dtm0_service != NULL);
+	um->svcs[UT_SIDE_SRV] = um->udh.udh_server_dtm0_service;
+	M0_UT_ASSERT(um->udh.udh_client_dtm0_service != NULL);
+	um->svcs[UT_SIDE_CLI] = um->udh.udh_client_dtm0_service;
+
 	ut_srv_remach_init(um);
 	ut_cli_remach_init(um);
 }
@@ -541,6 +514,12 @@ static void ut_remach_fini(struct ut_remach *um)
 
 	ut_cli_remach_fini(um);
 	ut_srv_remach_fini(um);
+	m0_ut_dtm0_helper_fini(&um->udh);
+	if (um->cp == UT_CP_PERSISTENT_CLIENT)
+		m0_fi_disable("is_svc_volatile", "always_false");
+	m0_fi_disable("m0_dtm0_is_expecting_redo_from_client", "ut");
+	m0_fi_disable("is_manual_ss_enabled", "ut");
+	m0_fi_disable("m0_dtm0_in_ut", "ut");
 	for (i = 0; i < ARRAY_SIZE(um->recovered); ++i) {
 		if (!m0_be_op_is_done(um->recovered + i))
 			m0_be_op_done(um->recovered + i);
@@ -557,10 +536,10 @@ static void ut_remach_reset_srv(struct ut_remach *um)
 
 	m0_dtm0_recovery_machine_stop(m);
 	m0_dtm0_recovery_machine_fini(m);
-	rc = m0_dtm0_recovery_machine_init(m, ut_remach_ops_get(um),
-					   ut_remach_svc_get(um, UT_SIDE_SRV));
+	m0_dtm0_recovery_machine_init(m, ut_remach_ops_get(um),
+				      ut_remach_svc_get(um, UT_SIDE_SRV));
+	rc = m0_dtm0_recovery_machine_start(m);
 	M0_UT_ASSERT(rc == 0);
-	m0_dtm0_recovery_machine_start(m);
 }
 
 static void ut_remach_log_gen_sync(struct ut_remach *um,
@@ -615,7 +594,6 @@ static void log_subset_verify(struct ut_remach *um,
 	struct m0_buf             *b_buf;
 	struct m0_dtm0_tid        *tid;
 	int                        rc;
-	bool                       has_next = true;
 	uint64_t                   actual_records_nr = 0;
 
 	m0_mutex_lock(&a_log->dl_lock);
@@ -623,23 +601,22 @@ static void log_subset_verify(struct ut_remach *um,
 
 	m0_be_dtm0_log_iter_init(&a_iter, a_log);
 
-	while (has_next) {
+	while (true) {
 		rc = m0_be_dtm0_log_iter_next(&a_iter, &a_record);
-		M0_UT_ASSERT(rc >= 0);
-		has_next = rc > 0;
-		if (has_next) {
-			tid = &a_record.dlr_txd.dtd_id;
-			b_record = m0_be_dtm0_log_find(b_log, tid);
-			M0_UT_ASSERT(b_record != NULL);
-			a_buf = &a_record.dlr_payload;
-			b_buf = &b_record->dlr_payload;
-			M0_UT_ASSERT(equi(m0_buf_is_set(a_buf),
-					   m0_buf_is_set(b_buf)));
-			M0_UT_ASSERT(ergo(m0_buf_is_set(a_buf),
-					  m0_buf_eq(a_buf, b_buf)));
-			m0_dtm0_log_iter_rec_fini(&a_record);
-			actual_records_nr++;
-		}
+		M0_UT_ASSERT(M0_IN(rc, (0, -ENOENT)));
+		if (rc == -ENOENT)
+			break;
+		M0_UT_ASSERT(rc == 0);
+		tid = &a_record.dlr_txd.dtd_id;
+		b_record = m0_be_dtm0_log_find(b_log, tid);
+		M0_UT_ASSERT(b_record != NULL);
+		a_buf = &a_record.dlr_payload;
+		b_buf = &b_record->dlr_payload;
+		M0_UT_ASSERT(equi(m0_buf_is_set(a_buf), m0_buf_is_set(b_buf)));
+		M0_UT_ASSERT(ergo(m0_buf_is_set(a_buf),
+				  m0_buf_eq(a_buf, b_buf)));
+		m0_dtm0_log_iter_rec_fini(&a_record);
+		actual_records_nr++;
 	}
 
 	M0_UT_ASSERT(ergo(expected_records_nr >= 0,
@@ -652,7 +629,7 @@ static void log_subset_verify(struct ut_remach *um,
 /* Case: Ensure the machine initialised properly. */
 static void remach_init_fini(void)
 {
-	struct ut_remach um = {};
+	struct ut_remach um = { .cp = UT_CP_PERSISTENT_CLIENT };
 	ut_remach_init(&um);
 	ut_remach_fini(&um);
 }
@@ -660,7 +637,7 @@ static void remach_init_fini(void)
 /* Case: Ensure the machine is able to start/stop. */
 static void remach_start_stop(void)
 {
-	struct ut_remach um = {};
+	struct ut_remach um = { .cp = UT_CP_PERSISTENT_CLIENT };
 	ut_remach_init(&um);
 	ut_remach_start(&um);
 	ut_remach_stop(&um);
@@ -686,13 +663,13 @@ static void ut_remach_boot(struct ut_remach *um)
 	ut_remach_start(um);
 
 	for (i = 0; i < ARRAY_SIZE(starting); ++i)
-		  ut_remach_ha_thinks(um, starting + i);
+		ut_remach_ha_thinks(um, starting + i);
 
 	for (i = 0; i < ARRAY_SIZE(um->recovered); ++i)
 		m0_be_op_wait(um->recovered + i);
 
 	for (i = 0; i < ARRAY_SIZE(started); ++i)
-		  ut_remach_ha_thinks(um, started + i);
+		ut_remach_ha_thinks(um, started + i);
 }
 
 static void ut_remach_shutdown(struct ut_remach *um)
@@ -704,18 +681,28 @@ static void ut_remach_shutdown(struct ut_remach *um)
 }
 
 /* Use-case: gracefull boot and shutdown of 2-node cluster. */
-static void remach_boot_cluster(void)
+static void remach_boot_cluster(enum ut_client_persistence cp)
 {
-	struct ut_remach um = {};
+	struct ut_remach um = { .cp = cp };
 
 	ut_remach_boot(&um);
 	ut_remach_shutdown(&um);
 }
 
+static void remach_boot_cluster_ss(void)
+{
+	remach_boot_cluster(UT_CP_PERSISTENT_CLIENT);
+}
+
+static void remach_boot_cluster_cs(void)
+{
+	remach_boot_cluster(UT_CP_VOLATILE_CLIENT);
+}
+
 /* Use-case: re-boot an ONLINE node. */
 static void remach_reboot_server(void)
 {
-	struct ut_remach um = {};
+	struct ut_remach um = { .cp = UT_CP_PERSISTENT_CLIENT };
 
 	ut_remach_boot(&um);
 
@@ -737,7 +724,7 @@ static void remach_reboot_server(void)
 /* Use-case: reboot a node when it started to recover. */
 static void remach_reboot_twice(void)
 {
-	struct ut_remach um = {};
+	struct ut_remach um = { .cp = UT_CP_PERSISTENT_CLIENT };
 
 	ut_remach_boot(&um);
 
@@ -774,7 +761,10 @@ static void remach_reboot_twice(void)
 /* Use-case: replay an empty DTM0 log. */
 static void remach_boot_real_log(void)
 {
-	struct ut_remach um = { .use_real_log = true };
+	struct ut_remach um = {
+		.cp = UT_CP_PERSISTENT_CLIENT,
+		.use_real_log = true
+	};
 	ut_remach_boot(&um);
 	ut_remach_shutdown(&um);
 }
@@ -782,7 +772,10 @@ static void remach_boot_real_log(void)
 /* Use-case: replay a non-empty client log to the server. */
 static void remach_real_log_replay(void)
 {
-	struct ut_remach um = { .use_real_log = true };
+	struct ut_remach um = {
+		.cp = UT_CP_PERSISTENT_CLIENT,
+		.use_real_log = true
+	};
 	/* cafe bell */
 	const uint64_t since = 0xCAFEBELL;
 	const uint64_t records_nr = 10;
@@ -806,7 +799,6 @@ static void remach_real_log_replay(void)
 
 	ut_remach_shutdown(&um);
 }
-#endif
 
 extern void m0_dtm0_ut_drlink_simple(void);
 extern void m0_dtm0_ut_domain_init_fini(void);
@@ -815,17 +807,16 @@ struct m0_ut_suite dtm0_ut = {
 	.ts_name = "dtm0-ut",
 	.ts_tests = {
 		{ "xcode",                  cas_xcode_test        },
-                { "drlink-simple",         &m0_dtm0_ut_drlink_simple },
-                { "domain_init-fini",      &m0_dtm0_ut_domain_init_fini },
-#if 0
+		{ "drlink-simple",         &m0_dtm0_ut_drlink_simple },
+		{ "domain_init-fini",      &m0_dtm0_ut_domain_init_fini },
 		{ "remach-init-fini",       remach_init_fini      },
 		{ "remach-start-stop",      remach_start_stop     },
-		{ "remach-boot-cluster",    remach_boot_cluster   },
+		{ "remach-boot-cluster-ss", remach_boot_cluster_ss },
+		{ "remach-boot-cluster-cs", remach_boot_cluster_cs },
 		{ "remach-reboot-server",   remach_reboot_server  },
 		{ "remach-reboot-twice",    remach_reboot_twice   },
 		{ "remach-boot-real-log",   remach_boot_real_log  },
 		{ "remach-real-log-replay", remach_real_log_replay  },
-#endif
 		{ NULL, NULL },
 	}
 };
@@ -838,4 +829,7 @@ struct m0_ut_suite dtm0_ut = {
  *  fill-column: 80
  *  scroll-step: 1
  *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
  */
