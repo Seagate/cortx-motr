@@ -826,11 +826,14 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 	uint8_t                     context[M0_CKSUM_MAX_SIZE];
 	int                         rc;
 	int                         row;
+	int                         row_seq;
 	int                         b_idx = 0;
 	struct m0_pdclust_layout   *play;
 	struct m0_obj              *obj;
 	struct pargrp_iomap        *map;
 	struct data_buf          ***data;
+	struct m0_buf 			   *buf;
+	struct m0_buf 			   *buf_seq;
 
 	M0_ASSERT(cs_idx->ci_pg_idx < ioo->ioo_iomap_nr);
 
@@ -859,23 +862,33 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 	if( rc != 0 )
 		return -ENOMEM;
 
-	M0_LOG(M0_ALWAYS,"COMPUTE CKSUM Typ:%d Sz:%d UTyp:[%s] [PG Idx:%d][Unit Idx:%d] RowNum:%d",
-							(int)pi_type, m0_cksum_get_size(pi_type),
-							(filter == PA_PARITY) ? "P":"D",cs_idx->ci_pg_idx,
-							cs_idx->ci_unit_idx,(int)rows_nr(play, obj));
-
 	// Populate buffer vec for give parity unit and add all buffers present
 	// in rows (page sized buffer/4K)
-	for (row = 0; row < rows_nr(play, obj); ++row) {
-		// Column index is already validated
-		M0_ASSERT(row < map->pi_max_row);
+	for(row = 0; row < rows_nr(play, obj); ++row) {
 		if(data[row][cs_idx->ci_unit_idx]) {
-			// Assign size and buffer for given parity unit
-			bvec.ov_vec.v_count[b_idx] = data[row][cs_idx->ci_unit_idx]->db_buf.b_nob;
-			bvec.ov_buf[b_idx] = data[row][cs_idx->ci_unit_idx]->db_buf.b_addr;
+			buf = &data[row][cs_idx->ci_unit_idx]->db_buf;
+			//  New cycle so init buffer and count
+			bvec.ov_buf[b_idx] = buf->b_addr;
+			bvec.ov_vec.v_count[b_idx] = buf->b_nob;
+
+			row_seq = row + 1;
+			while( (row_seq < rows_nr(play, obj)) && data[row_seq][cs_idx->ci_unit_idx] ) {
+				buf_seq = &data[row_seq][cs_idx->ci_unit_idx]->db_buf;
+				if( buf->b_addr + buf->b_nob != buf_seq->b_addr )
+					break;
+				bvec.ov_vec.v_count[b_idx] += buf_seq->b_nob;
+				row++;
+				buf = &data[row][cs_idx->ci_unit_idx]->db_buf;
+				row_seq++;
+			}
 			b_idx++;
 		}
 	}
+
+	M0_LOG(M0_ALWAYS,"COMPUTE CKSUM Typ:%d Sz:%d UTyp:[%s] [PG Idx:%d][Unit Idx:%d] TotalRowNum:%d ActualRowNum:%d",
+							(int)pi_type, m0_cksum_get_size(pi_type),
+							(filter == PA_PARITY) ? "P":"D",cs_idx->ci_pg_idx,
+							cs_idx->ci_unit_idx,(int)rows_nr(play, obj),b_idx);
 	print_buf(bvec.ov_buf[0],8);
 	bvec.ov_vec.v_nr = b_idx;
 
