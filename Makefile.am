@@ -987,13 +987,15 @@ motr_libexec_SCRIPTS = \
     scripts/install$(motrdir)/libexec/m0trace_logrotate.sh \
     scripts/install$(motrdir)/libexec/core_logrotate.sh \
     scripts/install$(motrdir)/libexec/motr_cfg.sh \
-    scripts/install$(motrdir)/libexec/m0addb_logrotate.sh
+    scripts/install$(motrdir)/libexec/m0addb_logrotate.sh \
+    scripts/install$(motrdir)/libexec/motr_mini_prov_logrotate.sh
 EXTRA_DIST += $(motr_libexec_SCRIPTS)
 
 motr_crondir = $(sysconfdir)/cron.hourly
 motr_cron_SCRIPTS = \
     scripts/install$(motrdir)/libexec/m0trace_logrotate.sh \
-    scripts/install$(motrdir)/libexec/m0addb_logrotate.sh
+    scripts/install$(motrdir)/libexec/m0addb_logrotate.sh \
+    scripts/install$(motrdir)/libexec/motr_mini_prov_logrotate.sh
 EXTRA_DIST += $(motr_cron_SCRIPTS)
 
 motr_confdir = $(motrdir)/conf
@@ -1034,7 +1036,9 @@ motr_common_SCRIPTS = \
     scripts/install$(motr_commondir)/cortx_error_codes.sh \
     scripts/install$(motr_commondir)/cortx_util_funcs.sh \
     scripts/install$(motr_commondir)/core-traces \
-    scripts/install$(motr_commondir)/m0_sns_utils_common.sh
+    scripts/install$(motr_commondir)/m0_sns_utils_common.sh \
+    scripts/install$(motr_commondir)/m0_dix_utils_common.sh \
+    scripts/install$(motr_commondir)/m0_utils_common.sh
 EXTRA_DIST += $(motr_common_SCRIPTS)
 
 deb_pkg_files = \

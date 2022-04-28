@@ -577,11 +577,6 @@ static void server_process_unused_ping(struct node_bulk_ctx *ctx)
 
 	M0_PRE(ctx != NULL);
 
-	/*
-	 * Below lock is added for sync between server thread and call back
-	 * from node_bulk_cb().
-	 */
-	m0_mutex_lock(&ctx->nbc_bulk_mutex);
 	nr = m0_net_test_ringbuf_nr(&ctx->nbc_rb_ping_unused);
 	for (i = 0; i < nr; ++i) {
 		index = m0_net_test_ringbuf_pop(&ctx->nbc_rb_ping_unused);
@@ -592,7 +587,6 @@ static void server_process_unused_ping(struct node_bulk_ctx *ctx)
 						 index);
 		}
 	}
-	m0_mutex_unlock(&ctx->nbc_bulk_mutex);
 }
 
 static struct m0_net_buffer *net_buf_bulk_get(struct node_bulk_ctx *ctx,
@@ -897,6 +891,8 @@ static void node_bulk_cb(struct m0_net_test_network_ctx *net_ctx,
 	}
 	(role_client ? node_bulk_cb_client : node_bulk_cb_server)
 		(ctx, buf_index, q, ev);
+	/* Synchronise with node_bulk_worker(). */
+	m0_mutex_lock(&ctx->nbc_bulk_mutex);
 	if (M0_IN(q, (M0_NET_QT_MSG_SEND, M0_NET_QT_MSG_RECV))) {
 		/* ping buffer can be reused now */
 		m0_net_test_ringbuf_push(&ctx->nbc_rb_ping_unused, buf_index);
@@ -913,6 +909,7 @@ static void node_bulk_cb(struct m0_net_test_network_ctx *net_ctx,
 		  buf_send ? MD_SEND : MD_RECV);
 	/* state transitions from final states */
 	node_bulk_state_transition_auto_all(ctx);
+	m0_mutex_unlock(&ctx->nbc_bulk_mutex);
 }
 
 static struct m0_net_test_network_buffer_callbacks node_bulk_buf_cb = {
@@ -1255,7 +1252,7 @@ static void net_bulk_worker_cb(struct node_bulk_ctx *ctx, bool pending)
 		M0_ASSERT(ergo(pending, ctx->nbc_callback_executed));
 		/* update copy of statistics */
 		m0_net_test_nh_sd_copy_locked(&ctx->nbc_nh);
-		/* 
+		/*
 		 * In case of libfabric, there are no pending callbacks,
 		 * hence do not wait for callback in m0_chan_wait() after
 		 * calling m0_net_buffer_event_deliver_all().
@@ -1299,6 +1296,8 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
 	/* main loop */
 	running = true;
 	while (running || !node_bulk_bufs_unused_all(ctx)) {
+		/* Synchronise with node_bulk_cb(). */
+		m0_mutex_lock(&ctx->nbc_bulk_mutex);
 		if (running) {
 			if (ctx->nbc_nh.ntnh_role == M0_NET_TEST_ROLE_CLIENT) {
 				client_process_unused_bulk(ctx);
@@ -1319,6 +1318,7 @@ static void node_bulk_worker(struct node_bulk_ctx *ctx)
 			node_bulk_buf_dequeue(ctx);
 			running = false;
 		}
+		m0_mutex_unlock(&ctx->nbc_bulk_mutex);
 	}
 	/* transfer machine should't signal to tm_chan */
 	m0_net_buffer_event_notify(ctx->nbc_net.ntc_tm, NULL);
