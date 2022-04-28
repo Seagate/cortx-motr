@@ -973,7 +973,7 @@ static void ops_apply(struct m0_dtm0_recovery_machine_ops *out,
 #undef OVERWRITE_IF_SET
 }
 
-M0_INTERNAL int
+M0_INTERNAL void
 m0_dtm0_recovery_machine_init(struct m0_dtm0_recovery_machine           *m,
 			      const struct m0_dtm0_recovery_machine_ops *ops,
 			      struct m0_dtm0_service                    *svc)
@@ -982,8 +982,6 @@ m0_dtm0_recovery_machine_init(struct m0_dtm0_recovery_machine           *m,
 	M0_ENTRY("m=%p, svc=%p", m, svc);
 	M0_PRE(m0_sm_conf_is_initialized(&m0_drm_sm_conf));
 
-	/* TODO: Skip initialisation of recovery foms during mkfs. */
-
 	m->rm_svc = svc;
 	ops_apply(&m->rm_ops, &default_ops, ops);
 	rfom_tlist_init(&m->rm_rfoms);
@@ -991,14 +989,12 @@ m0_dtm0_recovery_machine_init(struct m0_dtm0_recovery_machine           *m,
 	m0_sm_init(&m->rm_sm, &m0_drm_sm_conf,
 		   M0_DRMS_INIT, &m->rm_sm_group);
 	m0_sm_addb2_counter_init(&m->rm_sm);
-	return M0_RC(populate_foms(m));
 }
 
 M0_INTERNAL void
 m0_dtm0_recovery_machine_fini(struct m0_dtm0_recovery_machine *m)
 {
 	M0_ENTRY("m=%p", m);
-	unpopulate_foms(m);
 	recovery_machine_lock(m);
 	if (m->rm_sm.sm_state == M0_DRMS_INIT)
 		m0_sm_state_set(&m->rm_sm, M0_DRMS_STOPPED);
@@ -1012,13 +1008,19 @@ m0_dtm0_recovery_machine_fini(struct m0_dtm0_recovery_machine *m)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void
+M0_INTERNAL int
 m0_dtm0_recovery_machine_start(struct m0_dtm0_recovery_machine *m)
 {
 	struct recovery_fom *rf;
+	int                  rc;
 
-	M0_PRE(equi(rfom_tlist_is_empty(&m->rm_rfoms),
-		    m->rm_local_rfom == NULL));
+	/* TODO: Skip initialisation of recovery foms during mkfs. */
+	rc = populate_foms(m);
+	if (rc < 0)
+		return M0_RC(rc);
+
+	M0_ASSERT(equi(rfom_tlist_is_empty(&m->rm_rfoms),
+		       m->rm_local_rfom == NULL));
 
 	m0_tl_for(rfom, &m->rm_rfoms, rf) {
 		m0_fom_queue(&rf->rf_base);
@@ -1033,6 +1035,8 @@ m0_dtm0_recovery_machine_start(struct m0_dtm0_recovery_machine *m)
 
 	if (ALL2ALL)
 		M0_LOG(M0_DEBUG, "ALL2ALL_STARTED");
+
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void
@@ -1055,6 +1059,7 @@ m0_dtm0_recovery_machine_stop(struct m0_dtm0_recovery_machine *m)
 			     M0_TIME_NEVER);
 	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
 	recovery_machine_unlock(m);
+	unpopulate_foms(m);
 }
 
 static struct m0_reqh *

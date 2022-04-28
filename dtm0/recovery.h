@@ -118,12 +118,12 @@ M0_INTERNAL void m0_drm_domain_fini(void);
  *            These ops may be used to alter the effects of recovery machine
  *            decisions on the system (for example, in UTs).
  */
-M0_INTERNAL int
+M0_INTERNAL void
 m0_dtm0_recovery_machine_init(struct m0_dtm0_recovery_machine           *m,
 			      const struct m0_dtm0_recovery_machine_ops *ops,
 			      struct m0_dtm0_service                    *svc);
 
-M0_INTERNAL void
+M0_INTERNAL int
 m0_dtm0_recovery_machine_start(struct m0_dtm0_recovery_machine *m);
 
 M0_INTERNAL void

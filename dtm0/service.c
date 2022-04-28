@@ -355,10 +355,9 @@ static int dtm0_service_start(struct m0_reqh_service *service)
 		return M0_ERR(rc);
 
 	if (!is_manual_ss_enabled()) {
-		rc = m0_dtm0_recovery_machine_init(&dtms->dos_remach,
-						   NULL, dtms);
-		if (rc == 0)
-			m0_dtm0_recovery_machine_start(&dtms->dos_remach);
+		m0_dtm0_recovery_machine_init(&dtms->dos_remach,
+					      NULL, dtms);
+		rc = m0_dtm0_recovery_machine_start(&dtms->dos_remach);
 	}
 
 	return M0_RC(rc);

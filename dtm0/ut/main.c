@@ -401,12 +401,9 @@ ut_remach_ops_get(struct ut_remach *um)
 
 static void ut_srv_remach_init(struct ut_remach *um)
 {
-	int rc;
-
-	rc = m0_dtm0_recovery_machine_init(ut_remach_get(um, UT_SIDE_SRV),
-					   ut_remach_ops_get(um),
-					   ut_remach_svc_get(um, UT_SIDE_SRV));
-	M0_UT_ASSERT(rc == 0);
+	m0_dtm0_recovery_machine_init(ut_remach_get(um, UT_SIDE_SRV),
+				      ut_remach_ops_get(um),
+				      ut_remach_svc_get(um, UT_SIDE_SRV));
 }
 
 static void ut_cli_remach_conf_obj_init(struct ut_remach *um)
@@ -433,27 +430,16 @@ static void ut_cli_remach_conf_obj_fini(struct ut_remach *um)
 
 static void ut_cli_remach_init(struct ut_remach *um)
 {
-	int  rc;
-	bool is_volatile[UT_SIDE_NR] = {
-		[UT_SIDE_SRV] = false,
-		[UT_SIDE_CLI] = true,
-	};
-
 	ut_cli_remach_conf_obj_init(um);
 
-	rc = m0_dtm0_recovery_machine_init(ut_remach_get(um, UT_SIDE_CLI),
-					   ut_remach_ops_get(um),
-					   um->svcs[UT_SIDE_CLI]);
-	M0_UT_ASSERT(rc == 0);
-	m0_ut_remach_populate(ut_remach_get(um, UT_SIDE_CLI), um->cli_procs,
-			      g_service_fids, is_volatile, UT_SIDE_NR);
+	m0_dtm0_recovery_machine_init(ut_remach_get(um, UT_SIDE_CLI),
+				      ut_remach_ops_get(um),
+				      um->svcs[UT_SIDE_CLI]);
 }
 
 static void ut_srv_remach_fini(struct ut_remach *um)
 {
 	m0_dtm0_recovery_machine_fini(ut_remach_get(um, UT_SIDE_SRV));
-	m0_fi_disable("is_manual_ss_enabled", "ut");
-	m0_fi_disable("m0_dtm0_in_ut", "ut");
 }
 
 static void ut_cli_remach_fini(struct ut_remach *um)
@@ -465,8 +451,18 @@ static void ut_cli_remach_fini(struct ut_remach *um)
 static void ut_remach_start(struct ut_remach *um)
 {
 	enum ut_sides side;
-	for (side = 0; side < UT_SIDE_NR; ++side)
-		m0_dtm0_recovery_machine_start(ut_remach_get(um, side));
+	int           rc;
+	bool          is_volatile[UT_SIDE_NR] = {
+		[UT_SIDE_SRV] = false,
+		[UT_SIDE_CLI] = true,
+	};
+
+	m0_ut_remach_populate(ut_remach_get(um, UT_SIDE_CLI), um->cli_procs,
+			      g_service_fids, is_volatile, UT_SIDE_NR);
+	for (side = 0; side < UT_SIDE_NR; ++side) {
+		rc = m0_dtm0_recovery_machine_start(ut_remach_get(um, side));
+		M0_ASSERT(rc == 0);
+	}
 }
 
 static void ut_remach_stop(struct ut_remach *um)
@@ -509,6 +505,8 @@ static void ut_remach_fini(struct ut_remach *um)
 	ut_cli_remach_fini(um);
 	ut_srv_remach_fini(um);
 	m0_ut_dtm0_helper_fini(&um->udh);
+	m0_fi_disable("is_manual_ss_enabled", "ut");
+	m0_fi_disable("m0_dtm0_in_ut", "ut");
 	for (i = 0; i < ARRAY_SIZE(um->recovered); ++i) {
 		if (!m0_be_op_is_done(um->recovered + i))
 			m0_be_op_done(um->recovered + i);
@@ -525,10 +523,10 @@ static void ut_remach_reset_srv(struct ut_remach *um)
 
 	m0_dtm0_recovery_machine_stop(m);
 	m0_dtm0_recovery_machine_fini(m);
-	rc = m0_dtm0_recovery_machine_init(m, ut_remach_ops_get(um),
-					   ut_remach_svc_get(um, UT_SIDE_SRV));
+	m0_dtm0_recovery_machine_init(m, ut_remach_ops_get(um),
+				      ut_remach_svc_get(um, UT_SIDE_SRV));
+	rc = m0_dtm0_recovery_machine_start(m);
 	M0_UT_ASSERT(rc == 0);
-	m0_dtm0_recovery_machine_start(m);
 }
 
 static void ut_remach_log_gen_sync(struct ut_remach *um,
@@ -785,8 +783,8 @@ struct m0_ut_suite dtm0_ut = {
 		{ "xcode",                  cas_xcode_test        },
 		{ "drlink-simple",         &m0_dtm0_ut_drlink_simple },
 		{ "domain_init-fini",      &m0_dtm0_ut_domain_init_fini },
-#ifdef ENABLE_REMACH_UT
 		{ "remach-init-fini",       remach_init_fini      },
+#ifdef ENABLE_REMACH_UT
 		{ "remach-start-stop",      remach_start_stop     },
 		{ "remach-boot-cluster",    remach_boot_cluster   },
 		{ "remach-reboot-server",   remach_reboot_server  },
