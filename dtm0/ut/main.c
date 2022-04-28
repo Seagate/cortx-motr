@@ -784,8 +784,8 @@ struct m0_ut_suite dtm0_ut = {
 		{ "drlink-simple",         &m0_dtm0_ut_drlink_simple },
 		{ "domain_init-fini",      &m0_dtm0_ut_domain_init_fini },
 		{ "remach-init-fini",       remach_init_fini      },
-#ifdef ENABLE_REMACH_UT
 		{ "remach-start-stop",      remach_start_stop     },
+#ifdef ENABLE_REMACH_UT
 		{ "remach-boot-cluster",    remach_boot_cluster   },
 		{ "remach-reboot-server",   remach_reboot_server  },
 		{ "remach-reboot-twice",    remach_reboot_twice   },
