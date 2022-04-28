@@ -112,6 +112,7 @@ int m0_getopts(const char *progname, int argc, char *const *argv,
 		/* -W is reserved by POSIX.2 and used by GNU getopts as a long
 		   option escape. */
 		M0_ASSERT(opts[i].go_opt != 'W');
+		M0_ASSERT(strchr(optstring, opts[i].go_opt) == NULL);
 		optstring[scan++] = opts[i].go_opt;
 		if (!M0_IN(opts[i].go_type, (GOT_VOID, GOT_FLAG, GOT_HELP)))
 			optstring[scan++] = ':';
