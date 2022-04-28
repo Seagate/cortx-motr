@@ -95,6 +95,8 @@ static void usage(void)
 		"\n"
 		"-s  Enable string format and it is optional.\n"
 		"-e  Enable M0_ENF_META flag and it is optional.\n"
+		"-v 7600000000000001:30 it is mandatory with -e for "
+		"PUT, GET, DEL and NEXT operations.\n"
 		"Available subsystems and subsystem-specific commands are "
 		"listed below.\n");
 	for (i = 0; i < ARRAY_SIZE(subsystems); i++)

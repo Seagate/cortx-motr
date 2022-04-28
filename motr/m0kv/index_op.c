@@ -210,8 +210,14 @@ static int index_op(struct m0_realm    *parent,
 	m0_fid_tassume(fid, &m0_dix_fid_type);
 	m0_idx_init(&idx, parent, (struct m0_uint128 *)fid);
 
-	if (is_enf_meta)
-		set_enf_meta_flag(&idx);
+	if (is_enf_meta) {
+		if (m0_fid_is_valid(&dix_pool_ver) && m0_fid_is_set(&dix_pool_ver))
+			set_enf_meta_flag(&idx);
+		else
+			return M0_ERR(-EINVAL);
+	} else if (m0_fid_is_set(&dix_pool_ver)) {
+		return M0_ERR(-EINVAL);
+	}	
 
 	rc = m0_idx_op(&idx, opcode, keys, vals, rcs,
 	               opcode == M0_IC_PUT ? M0_OIF_OVERWRITE : 0,
