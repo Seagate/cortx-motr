@@ -1885,15 +1885,11 @@ static void local_recovery_fom_coro(struct m0_fom *fom)
 		recovery_machine_recovered(rf->rf_m,
 					   &rf->rf_tgt_proc, &rf->rf_tgt_svc);
 
-		M0_CO_FUN(CO(fom), heq_await(fom, &F(state), &F(eoq)));
-		M0_ASSERT(ergo(!F(eoq), F(state) == M0_NC_ONLINE));
-		if (!F(eoq)) {
+		do {
 			M0_CO_FUN(CO(fom), heq_await(fom, &F(state),
 						     &F(eoq)));
-			M0_ASSERT_INFO(F(eoq),
-				       "Expected eoq, instead got state %s",
-				       m0_ha_state2str(F(state)));
-		}
+			M0_ASSERT(ergo(!F(eoq), F(state) == M0_NC_ONLINE));
+		} while (!F(eoq));
 	}
 
 out:
@@ -2090,11 +2086,11 @@ static void client_process_event(struct m0_client *m0c,
 				 enum m0_conf_ha_process_event  event)
 {
 	const enum m0_conf_ha_process_type type = M0_CONF_HA_PROCESS_OTHER;
-	M0_ASSERT(m0c->m0c_motr_ha.mh_link != NULL);
-	m0_conf_ha_process_event_post(&m0c->m0c_motr_ha.mh_ha,
-	                              m0c->m0c_motr_ha.mh_link,
-	                              &m0c->m0c_process_fid,
-				      m0_process(), event, type);
+	if (m0c->m0c_motr_ha.mh_link != NULL)
+		m0_conf_ha_process_event_post(&m0c->m0c_motr_ha.mh_ha,
+					      m0c->m0c_motr_ha.mh_link,
+					      &m0c->m0c_process_fid,
+					      m0_process(), event, type);
 }
 
 static void default_ha_event_post(struct m0_dtm0_recovery_machine *m,
