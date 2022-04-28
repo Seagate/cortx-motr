@@ -137,7 +137,7 @@ main() {
     fi
 
     local  MOTR_M0D_CONF_XC=$(source $MOTR_SYSCONFIG ; echo $MOTR_M0D_CONF_XC)
-    cp $MOTR_M0D_CONF_XC .
+    m0confgen -f xcode -t confgen $MOTR_M0D_CONF_XC > confd.cg
 
     if [ $COLLECT_COREDUMPS_P -eq 1 ]; then
         M0TR_M0D_CORE_DIR=$(source $MOTR_SYSCONFIG ; echo $MOTR_M0D_DATA_DIR)
