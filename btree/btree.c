@@ -3803,7 +3803,8 @@ static int fkvv_indir_dir_idx_get(const struct nd *node,
 	M0_PRE(req_ksize == h->fkvv_ksize);
 	if (IS_INTERNAL_NODE(node))
 		req_vsize = INTERNAL_NODE_VALUE_SIZE;
-
+	else if (fkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		req_vsize += CRC_VALUE_SIZE;
 
 	/* Try to find best fit fragment*/
 	for (i = rec_count; i < dir_count - 1; i++) {
@@ -3954,13 +3955,15 @@ static int fkvv_rec_val_size(const struct nd *node, int idx)
 {
 	int vsize;
 
-	if (IS_EMBEDDED_INDIRECT(node)) {
-		struct fkvv_dir_rec *dir = fkvv_dir_get(node);
-		return dir[idx].val_size;
-
-	} else if (IS_INTERNAL_NODE(node))
+	if (IS_INTERNAL_NODE(node))
 		vsize = INTERNAL_NODE_VALUE_SIZE;
-	else {
+	else if (IS_EMBEDDED_INDIRECT(node)) {
+		struct fkvv_dir_rec *dir = fkvv_dir_get(node);
+		vsize = dir[idx].val_size;
+		if (fkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
+			vsize -= CRC_VALUE_SIZE;
+
+	} else {
 		uint32_t *curr_val_offset;
 		uint32_t *prev_val_offset;
 
@@ -4223,6 +4226,8 @@ void fkvv_make_emb_ind(struct slot *slot)
 
 	if (IS_INTERNAL_NODE(slot->s_node))
 		M0_PRE(vsize == sizeof(void*));
+	else if (fkvv_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		vsize += CRC_VALUE_SIZE;
 
 
 	out_idx = fkvv_indir_dir_idx_get(slot->s_node, &slot->s_rec, &shift);
@@ -4733,6 +4738,8 @@ static void fkvv_capture(struct slot *slot, int nr, struct m0_be_tx *tx)
 			last_val  = fkvv_val(slot->s_node, slot->s_idx);
 			krsize = h->fkvv_ksize;
 			vrsize = fkvv_rec_val_size(slot->s_node, slot->s_idx);
+			if (fkvv_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
+				vrsize += CRC_VALUE_SIZE;
 			M0_BTREE_TX_CAPTURE(tx, seg, start_key, krsize);
 			M0_BTREE_TX_CAPTURE(tx, seg, last_val, vrsize);
 		}
@@ -13276,7 +13283,8 @@ static void ut_btree_crc_test(void)
  * of those nodes across cluster reboots.
  */
 static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
-					       enum m0_btree_crc_type  crc_type)
+					       enum m0_btree_crc_type  crc_type,
+					       enum m0_btree_addr_type addr_type)
 {
 	void                       *rnode;
 	int                         i;
@@ -13369,7 +13377,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(rnode, rnode_sz, bt,
-						      crc_type, EMBEDDED_RECORD,
+						      crc_type, addr_type,
 						      &b_op, &btree,
 						      seg, &fid, tx, NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
@@ -13687,7 +13695,61 @@ static void ut_btree_crc_persist_test(void)
 	for (i = 0; i < test_count; i++) {
 		struct m0_btree_type   *bt = &btrees_with_crc[i].bcr_btree_type;
 		enum m0_btree_crc_type  crc = btrees_with_crc[i].bcr_crc_type;
-		ut_btree_crc_persist_test_internal(bt, crc);
+		ut_btree_crc_persist_test_internal(bt, crc, EMBEDDED_RECORD);
+	}
+
+}
+
+static void ut_btree_indir_crc_persist_test(void)
+{
+	struct btree_crc_data {
+		struct m0_btree_type    bcr_btree_type;
+		enum m0_btree_crc_type  bcr_crc_type;
+	} btrees_with_crc[] = {
+		{
+			{
+				BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+				sizeof(uint64_t), RANDOM_VALUE_SIZE
+			},
+			M0_BCT_NO_CRC,
+		},
+		{
+			{
+				BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+				sizeof(uint64_t), RANDOM_VALUE_SIZE
+			},
+			M0_BCT_USER_ENC_RAW_HASH,
+		},
+		{
+			{
+				BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+				sizeof(uint64_t), RANDOM_VALUE_SIZE
+			},
+			M0_BCT_USER_ENC_FORMAT_FOOTER,
+		},
+		{
+			{
+				BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+				sizeof(uint64_t), RANDOM_VALUE_SIZE
+			},
+			M0_BCT_USER_ENC_FORMAT_FOOTER,
+		},
+		{
+			{
+				BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+				sizeof(uint64_t), RANDOM_VALUE_SIZE
+			},
+			M0_BCT_BTREE_ENC_RAW_HASH,
+		},
+	};
+	uint32_t test_count = ARRAY_SIZE(btrees_with_crc);
+	uint32_t i;
+
+
+	for (i = 0; i < test_count; i++) {
+		struct m0_btree_type   *bt = &btrees_with_crc[i].bcr_btree_type;
+		enum m0_btree_crc_type  crc = btrees_with_crc[i].bcr_crc_type;
+		ut_btree_crc_persist_test_internal(bt, crc, EMBEDDED_INDIRECT);
 	}
 
 }
@@ -14055,6 +14117,7 @@ struct m0_ut_suite btree_ut = {
 		{"btree_truncate",                  ut_btree_truncate},
 		{"btree_crc_test",                  ut_btree_crc_test},
 		{"btree_crc_persist_test",          ut_btree_crc_persist_test},
+		{"btree_indir_crc_persist_test",          ut_btree_indir_crc_persist_test},
 		{"multi_stream_kv_op_temp", ut_multi_stream_kv_oper_temp},
 		{NULL, NULL}
 	}
