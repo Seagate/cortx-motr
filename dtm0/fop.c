@@ -99,6 +99,8 @@ static const struct m0_fom_type_ops dtm0_req_fom_type_ops = {
 
 M0_INTERNAL void m0_dtm0_fop_fini(void)
 {
+	m0_fop_type_addb2_deinstrument(&dtm0_req_fop_fopt);
+	m0_fop_type_addb2_deinstrument(&dtm0_redo_fop_fopt);
 	m0_fop_type_fini(&dtm0_req_fop_fopt);
 	m0_fop_type_fini(&dtm0_rep_fop_fopt);
 	m0_fop_type_fini(&dtm0_redo_fop_fopt);
