@@ -823,7 +823,7 @@ static int conf_pver_nonhealty_recd_build(struct m0_conf_obj *obj, void *args)
 	if (m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE) {
 		objv = M0_CONF_CAST(obj, m0_conf_objv);
 		if (!M0_IN(objv->cv_real->co_ha_state,
-			  (M0_NC_ONLINE, M0_NC_REPAIRED, M0_NC_REBALANCE))) {
+			  (M0_NC_ONLINE, M0_NC_REPAIRED))) {
 			M0_LOG(M0_DEBUG, FID_F" is failed",
 			       FID_P(&objv->cv_real->co_id));
 			lvl = m0_conf_pver_level(obj);
