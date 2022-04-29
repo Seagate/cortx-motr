@@ -11,7 +11,7 @@ Following are the features of CORTX Motr:
 
 -   Scalable: 
     -   Horizontal scalability: grow your system by adding more nodes. The Motr submodule is designed for horizontal scalability with no meta-data hotspots, shared-nothing IO paths and extensions running on additional nodes.
-    -   Vertical scalability: with more memory and CPU on the nodes.
+    -   Vertical scalability: with more memory and CPU on the nodes.  
   
 -   Fault-tolerant: with flexible erasure coding that takes hardware and network topology into account.
 
@@ -31,17 +31,17 @@ Following are the features of CORTX Motr:
 
 ## Get to know
 
-- [Quick Start Guide](/doc/Quick-Start-Guide.rst)
-- [Architectural Summary](/doc/motr-in-prose.md)
-- [Example Cluster Setup](https://github.com/Seagate/cortx-motr/discussions/285)
-- [Source Structure](/doc/source-structure.md)
-- [Coding Style](/doc/coding-style.md)
-- [Developer Guide](/doc/motr-developer-guide.md)
-- [Provisioning Guide for Building and Testing Environment](/scripts/provisioning/README.md)
-- [Motr Performance Tuning](https://github.com/Seagate/cortx-motr/wiki/Motr-Performance-Tuning)
+-   [Quick Start Guide](/doc/Quick-Start-Guide.rst)
+-   [Architectural Summary](/doc/motr-in-prose.md)
+-   [Example Cluster Setup](https://github.com/Seagate/cortx-motr/discussions/285)
+-   [Source Structure](/doc/source-structure.md)
+-   [Coding Style](/doc/coding-style.md)
+-   [Developer Guide](/doc/motr-developer-guide.md)
+-   [Provisioning Guide for Building and Testing Environment](/scripts/provisioning/README.md)
+-   [Motr Performance Tuning](https://github.com/Seagate/cortx-motr/wiki/Motr-Performance-Tuning)
 
 ## Surfing
 
 Refer to [Reading - list](/doc/reading-list.md) for complete information.
-- $ make doc
-- $ x-www-browser doc/html/index.html
+-   $ make doc
+-   $ x-www-browser doc/html/index.html
