@@ -299,7 +299,7 @@ fi
 %files
 
 %if !%{with ivt} && !%{with ut}
-%doc AUTHORS README.rst NEWS ChangeLog COPYING
+%doc AUTHORS NEWS ChangeLog COPYING
 %{_bindir}/*
 %{_sbindir}/*
 %{_libdir}/*
