@@ -52,6 +52,10 @@
    @{
  */
 
+enum {
+	UTRACE_HIGH_32BIT=0xFFFFFFFFULL
+};
+
 pid_t m0_pid_cached;
 
 static int  logfd;
@@ -80,7 +84,8 @@ static int logbuf_map()
 		int available_bytes = sizeof trace_file_path -
 				      strlen(trace_file_path);
 		rc = snprintf(trace_file_path + strlen(trace_file_path),
-			available_bytes, "m0trace.%u", m0_pid_cached);
+			available_bytes, "m0trace.%u.%"PRIu32, m0_pid_cached,
+                                          (uint32_t )m0_time_now() & UTRACE_HIGH_32BIT);
 		if (rc < 0) {
 			warn("failed to construct trace file path");
 			return rc;
