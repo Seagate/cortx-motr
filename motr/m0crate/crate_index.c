@@ -996,14 +996,14 @@ static int cr_execute_query(struct m0_fid *id,
 
 	m0_idx_init(&idx, crate_uber_realm(), (struct m0_uint128 *) id);
 
-	if (conf->is_enf_meta && (m0_fid_is_valid(&dix_pool_ver))) {
+	if (conf->is_enf_meta && m0_fid_is_valid(&dix_pool_ver) && 
+	    m0_fid_is_set(&dix_pool_ver)) {
 		idx.in_entity.en_flags |= M0_ENF_META;
 		idx.in_attr.idx_layout_type = DIX_LTYPE_DESCR;
 		idx.in_attr.idx_pver = dix_pool_ver;
+		crlog(CLL_DEBUG, "DIX pool version: "FID_F"",
+		      FID_P(&idx.in_attr.idx_pver));
 	}	
-
-	crlog(CLL_DEBUG, "DIX pool version: "FID_F"",
-	      FID_P(&idx.in_attr.idx_pver));
 
 	rc = m0_idx_op(&idx, op->m0_op, p->k, p->v, rcs, flags, &ops[0]);
 	if (rc != 0) {
@@ -1400,7 +1400,7 @@ static int create_index(struct m0_uint128 id)
 				rc = ops[0]->op_sm.sm_rc;
 		}
 
-		if (rc == 0) {
+		if (rc == 0 && conf->is_enf_meta) {
 			crlog(CLL_DEBUG, "DIX pool version: "FID_F"",
 			      FID_P(&idx.in_attr.idx_pver));
 			dix_pool_ver = idx.in_attr.idx_pver;
