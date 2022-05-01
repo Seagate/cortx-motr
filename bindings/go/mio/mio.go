@@ -482,13 +482,15 @@ func (v *iov) doIO(i int, op *C.struct_m0_op) {
     if rc == 0 {
         rc = C.m0_rc(op)
     }
+    op_code := op.op_code
     C.m0_op_fini(op)
     C.m0_op_free(op)
     // put the slot back to the pool
+    err := error(nil)
     if rc != 0 {
-        v.ch <- slot{i, fmt.Errorf("io op (%d) failed: %d", op.op_code, rc)}
+        err = fmt.Errorf("io op=%v failed: rc=%v", op_code, rc)
     }
-    v.ch <- slot{i, nil}
+    v.ch <- slot{i, err}
 }
 
 func getBW(n int, d time.Duration) (int, string) {
@@ -550,11 +552,21 @@ func (mio *Mio) write(p []byte, off *int64) (n int, err error) {
     }
     v.wg.Wait()
 
-    if verbose {
+    // get error from the last op
+    if err == nil {
+        slot := <-v.ch
+        err = slot.err
+    }
+
+    if verbose && err == nil {
         elapsed := time.Now().Sub(start)
         bw, units := getBW(n, elapsed)
         log.Printf("W: off=%v len=%v bs=%v gs=%v speed=%v (%v)",
                    offSaved, n, bsSaved, gs, bw, units)
+    }
+
+    if err != nil {
+        err = fmt.Errorf("write %v bytes at %v: %v", n, offSaved, err)
     }
 
     return n, err
@@ -622,11 +634,21 @@ func (mio *Mio) read(p []byte, off *int64) (n int, err error) {
     }
     v.wg.Wait()
 
-    if verbose {
+    // get error from the last op
+    if err == nil {
+        slot := <-v.ch
+        err = slot.err
+    }
+
+    if verbose && err == nil {
         elapsed := time.Now().Sub(start)
         bw, units := getBW(n, elapsed)
         log.Printf("R: off=%v len=%v bs=%v gs=%v speed=%v (%v)",
                    offSaved, n, bsSaved, gs, bw, units)
+    }
+
+    if err != nil {
+        err = fmt.Errorf("read %v bytes at %v: %v", n, offSaved, err)
     }
 
     return n, err
