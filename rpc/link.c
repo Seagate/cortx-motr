@@ -95,9 +95,29 @@ static const struct m0_fom_type_ops rpc_link_disc_fom_type_ops = {
 	.fto_create = NULL,
 };
 
+/**
+ * Locality function for rpc link connect and disconnect foms.
+ */
 static size_t rpc_link_fom_locality(const struct m0_fom *fom)
 {
-	return 1;
+	/*
+	 * This fom must be scheduled on a different locality than the locality
+	 * to which confc_ready_async_ast() ast is posted by
+	 * m0_confc_ready_cb(), because that ast waits the establishment of the
+	 * for rpc connection initiated by connect_to_confd().
+	 *
+	 * @see m0_confc_ready_cb().
+	 *
+	 * Note: this is not a satisfactory solution for many reasons:
+	 *
+	 *     - it won't work if there are too few localities,
+	 *
+	 *     - it is difficult to maintain and test,
+	 *
+	 *     - blocking ast is wrong in the first place.
+	 */
+	M0_ASSERT(m0_locality_get(1)->lo_grp != m0_locality_get(2)->lo_grp);
+	return 2;
 }
 
 /* Routines for connection */

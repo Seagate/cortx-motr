@@ -510,6 +510,8 @@ M0_INTERNAL void m0_confc_ready_cb(struct m0_rconfc *rconfc)
 	 * Clink callbacks are going to use m0_rconfc::rc_confc for reading the
 	 * updated conf. Therefore, the locality where reading conf occurs must
 	 * be other than locality0 used with m0_reqh::rh_rconfc::rc_confc.
+	 *
+	 * Also, see the comment in rpc_link_fom_locality().
 	 */
 	m0_sm_ast_post(m0_locality_get(1)->lo_grp, &reqh->rh_conf_cache_ast);
 	M0_LEAVE();
