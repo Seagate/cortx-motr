@@ -438,11 +438,25 @@ M0_INTERNAL void m0_fom_ready(struct m0_fom *fom)
 	fom_ready(fom);
 }
 
+/**
+ * Moves a fom from the locality wait list to the run queue.
+ *
+ * This function is the ast call-back posted by m0_fom_wakeup().
+ */
 static void readyit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_fom *fom = container_of(ast, struct m0_fom, fo_cb.fc_ast);
-
-	m0_fom_ready(fom);
+	struct m0_fom          *fom  = M0_AMB(fom, ast, fo_cb.fc_ast);
+	struct m0_fom_locality *floc = M0_AMB(floc, grp, fl_group);
+	/*
+	 * Careful, do not touch fom fields before checking it is on the wait
+	 * list: it is possible that the fom is already on the run queue, or has
+	 * terminated.
+	 *
+	 * @todo Scanning the entire (potentially very long) wait list on each
+	 * wakeup is not scalable.
+	 */
+	if (wail_tlist_contains(&floc->fl_wail, fom))
+		m0_fom_ready(fom);
 }
 
 static void fom_addb2_push(struct m0_fom *fom)
@@ -531,7 +545,7 @@ static void thr_addb2_leave(struct m0_loc_thread *thr,
 
 M0_INTERNAL void m0_fom_wakeup(struct m0_fom *fom)
 {
-	fom->fo_cb.fc_ast.sa_cb = readyit;
+	fom->fo_cb.fc_ast.sa_cb = &readyit;
 	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 }
 
