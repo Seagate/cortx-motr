@@ -19,15 +19,15 @@
 #
 
 
-motr_st_util_dir=$(dirname "$(readlink -f "$0")")
+motr_st_util_dir=$(dirname $(readlink -f $0))
 m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
-. "$m0t1fs_dir"/common.sh
-. "$m0t1fs_dir"/m0t1fs_common_inc.sh
-. "$m0t1fs_dir"/m0t1fs_client_inc.sh
-. "$m0t1fs_dir"/m0t1fs_server_inc.sh
-. "$motr_st_util_dir"/motr_local_conf.sh
-. "$motr_st_util_dir"/motr_st_inc.sh
+. $m0t1fs_dir/common.sh
+. $m0t1fs_dir/m0t1fs_common_inc.sh
+. $m0t1fs_dir/m0t1fs_client_inc.sh
+. $m0t1fs_dir/m0t1fs_server_inc.sh
+. $motr_st_util_dir/motr_local_conf.sh
+. $motr_st_util_dir/motr_st_inc.sh
 
 
 MOTR_TEST_DIR=$SANDBOX_DIR
@@ -95,7 +95,7 @@ motr_cancel_during_write()
 
 	echo "Executing command: $cp_cmd"
 	date
-	eval "$cp_cmd"
+	eval $cp_cmd
 	pid=$!
 
 	echo "Wait for few seconds to generate enough fops"
@@ -110,8 +110,8 @@ motr_cancel_during_write()
 
 	# Check for session cancelled messages in m0cp logs
 	echo "Check for session cancelled message"
-	rc=`cat "$MOTR_TRACE_DIR"/m0cp.log | grep 'rc=-125' | grep -v grep | wc -l`
-	if [ "$rc" -ne "0" ]
+	rc=`cat $MOTR_TRACE_DIR/m0cp.log | grep 'rc=-125' | grep -v grep | wc -l`
+	if [ $rc -ne "0" ]
 	then
 		echo "Cancelled $rc fops during write operation"
 	else
@@ -125,9 +125,9 @@ motr_cancel_during_write()
 	# read should not be same as src file.
 	echo "Check for file difference "
 	local cat_cmd="$motr_st_util_dir/m0cat $MOTR_PARAMS $MOTR_CAT_PARAMS $dest_file  "
-	eval "$cat_cmd"
+	eval $cat_cmd
 
-	diff "$src_file" "$dest_file"
+	diff $src_file $dest_file
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -167,7 +167,7 @@ motr_cancel_during_read()
 
 	echo "Executing command: $cp_cmd"
 	date
-	eval "$cp_cmd"
+	eval $cp_cmd
 	pid=$!
 
 	echo "Wait for m0cp: $pid to be finished "
@@ -176,7 +176,7 @@ motr_cancel_during_read()
 
 	echo "Read the object with object id $object_id"
 	local cat_cmd="$motr_st_util_dir/m0cat $MOTR_PARAMS $MOTR_CAT_PARAMS $dest_file 2> $MOTR_TRACE_DIR/m0cat.log &"
-	eval "$cat_cmd"
+	eval $cat_cmd
 	pid=$!
 	date
 	echo "Sleep for few seconds to generate enough fops"
@@ -192,8 +192,8 @@ motr_cancel_during_read()
 
 	# Check for session cancelled messages into m0cat logs
 	echo "Check for session cancelled message"
-	rc=`cat "$MOTR_TRACE_DIR"/m0cat.log | grep 'rc=-125' | grep -v grep | wc -l`
-	if [ "$rc" -ne "0" ]
+	rc=`cat $MOTR_TRACE_DIR/m0cat.log | grep 'rc=-125' | grep -v grep | wc -l`
+	if [ $rc -ne "0" ]
 	then
 		echo "Cancelled $rc fops during read operation"
 	else
@@ -206,7 +206,7 @@ motr_cancel_during_read()
 	# If session cancelled successfully during read, then same object
 	# read should not be same as src file.
 	echo "Check for difference between src file and dest file"
-	diff "$src_file" "$dest_file"
+	diff $src_file $dest_file
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -234,7 +234,7 @@ motr_cancel_during_create()
 	local touch_cmd="$motr_st_util_dir/m0touch $MOTR_PARAMS -o $object_id -n $n_obj &> $MOTR_TRACE_DIR/m0touch.log &"
 	echo "Command : $touch_cmd"
 	date
-	eval "$touch_cmd"
+	eval $touch_cmd
 	pid=$!
 
 	echo "Wait for few seconds to generate enough fops "
@@ -250,8 +250,8 @@ motr_cancel_during_create()
 
 	# Check for session cancelled messages into m0touch logs
 	echo "Check for session cancelled message"
-	rc=`cat "$MOTR_TRACE_DIR"/m0touch.log | grep 'rc=-125' | grep -v grep | wc -l`
-	if [ "$rc" -ne "0" ]
+	rc=`cat $MOTR_TRACE_DIR/m0touch.log | grep 'rc=-125' | grep -v grep | wc -l`
+	if [ $rc -ne "0" ]
 	then
 		echo "Cancelled $rc fops during create operation"
 	else
@@ -281,7 +281,7 @@ motr_cancel_during_unlink()
 	local touch_cmd="$motr_st_util_dir/m0touch $MOTR_PARAMS -o $object_id -n $n_obj &> $MOTR_TRACE_DIR/m0touch.log &"
 	echo "Command : $touch_cmd"
 	date
-	eval "$touch_cmd"
+	eval $touch_cmd
 	pid=$!
 
 	echo "Wait for m0touch: $pid to finished "
@@ -293,7 +293,7 @@ motr_cancel_during_unlink()
 	local unlink_cmd="$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id -n $n_obj &> $MOTR_TRACE_DIR/m0unlink.log &"
 	echo "Command : $unlink_cmd"
 	date
-	eval "$unlink_cmd"
+	eval $unlink_cmd
 	pid=$!
 
 	echo "Wait for few seconds to generate enough fops "
@@ -309,8 +309,8 @@ motr_cancel_during_unlink()
 
 	# Check for session cancelled messages into m0unlink logs
 	echo "Check for session cancelled message"
-	rc=`cat "$MOTR_TRACE_DIR"/m0unlink.log | grep 'rc=-125' | grep -v grep | wc -l`
-	if [ "$rc" -ne "0" ]
+	rc=`cat $MOTR_TRACE_DIR/m0unlink.log | grep 'rc=-125' | grep -v grep | wc -l`
+	if [ $rc -ne "0" ]
 	then
 		echo "Cancelled $rc fops during unlink operation"
 	else
@@ -340,12 +340,12 @@ main()
 	sandbox_init
 
 	echo "Creating src file"
-	dd if=/dev/urandom bs=$block_size count=$block_count of="$src_file" \
-	      2> "$MOTR_TEST_LOGFILE" || {
+	dd if=/dev/urandom bs=$block_size count=$block_count of=$src_file \
+	      2> $MOTR_TEST_LOGFILE || {
 		error_handling $? "Failed to create a source file"
 	}
 	echo "Make motr test directory $MOTR_TRACE_DIR"
-	mkdir "$MOTR_TRACE_DIR"
+	mkdir $MOTR_TRACE_DIR
 
 	echo "Starting motr services"
 	motr_service_start $N $K $S $P $stride
@@ -354,7 +354,7 @@ main()
 	echo "TC1. Motr RPC cancel during motr write."
 	echo "=========================================================="
 	motr_cancel_during_write $object_id1 $block_size $block_count \
-		"$src_file" "$dest_file1"
+		$src_file $dest_file1
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to run the test, Stop motr services and exit"
@@ -370,7 +370,7 @@ main()
 	echo "TC2. Motr RPC cancel during motr read."
 	echo "=========================================================="
 	motr_cancel_during_read $object_id2 $block_size $block_count \
-		"$src_file" "$dest_file2"
+		$src_file $dest_file2
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to run the test, Stop motr services and exit"
