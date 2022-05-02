@@ -19,17 +19,17 @@
 #
 
 
-motr_st_util_dir=$(dirname "$(readlink -f "$0")")
+motr_st_util_dir=$(dirname $(readlink -f $0))
 motr_src="$motr_st_util_dir/../../../"
 m0t1fs_dir="$motr_src/m0t1fs/linux_kernel/st"
 
 # Re-use as many m0t1fs system scripts as possible
-. "$m0t1fs_dir"/common.sh
-. "$m0t1fs_dir"/m0t1fs_common_inc.sh
-. "$m0t1fs_dir"/m0t1fs_client_inc.sh
-. "$m0t1fs_dir"/m0t1fs_server_inc.sh
-. "$motr_st_util_dir"/motr_local_conf.sh
-. "$motr_st_util_dir"/motr_st_inc.sh
+. $m0t1fs_dir/common.sh
+. $m0t1fs_dir/m0t1fs_common_inc.sh
+. $m0t1fs_dir/m0t1fs_client_inc.sh
+. $m0t1fs_dir/m0t1fs_server_inc.sh
+. $motr_st_util_dir/motr_local_conf.sh
+. $motr_st_util_dir/motr_st_inc.sh
 
 SANDBOX_DIR=/var/motr
 MOTR_TEST_DIR=$SANDBOX_DIR
@@ -57,18 +57,18 @@ create_files()
 
 	rm -rf $src_file $src_file'2' $dest_file $update_file
 	dd if=/dev/urandom bs=$block_size count=$block_count of=$src_file \
-           2> "$MOTR_TEST_LOGFILE" || {
+           2> $MOTR_TEST_LOGFILE || {
 		error_handling $? "Failed to create a source file"
 		break
 	}
 	cp $src_file $src_file'2'
-	dd if=/dev/urandom bs=$block_size count="$update_count" of=$update_file\
-           2> "$MOTR_TEST_LOGFILE" || {
+	dd if=/dev/urandom bs=$block_size count=$update_count of=$update_file\
+           2> $MOTR_TEST_LOGFILE || {
 		error_handling $? "Failed to create a source file"
 		break
 	}
 	dd conv=notrunc if=$update_file of=$src_file'2' seek=$update_offset oflag=seek_bytes\
-           2> "$MOTR_TEST_LOGFILE" || {
+           2> $MOTR_TEST_LOGFILE || {
 		error_handling $? "Failed to update a source file"
 		break
 	}
@@ -81,12 +81,12 @@ disk_to_fail()
 	local fail_disk=""
 	no_disk=$K
 	disk_counter=1
-	layout_map=`"$motr_src"/utils/m0layout $N $K $P 5 100 0 $object_id | sed '3q;d' | cut -c 9-`
+	layout_map=`$motr_src/utils/m0layout $N $K $P 5 100 0 $object_id | sed '3q;d' | cut -c 9-`
 	layout_map="$(echo "${layout_map}" | tr -d '[:space:]')"
 	for (( i=1; i<${#layout_map}; i+=5, disk_counter++ ))
 	do
-		if [ "${layout_map:$i:1}" -eq 0 ]; then
-			if [ "${layout_map:$((i+2)):1}" -lt $no_disk ]; then
+		if [ ${layout_map:$i:1} -eq 0 ]; then
+			if [ ${layout_map:$((i+2)):1} -lt $no_disk ]; then
 				fail_disk+="$disk_counter "
 			fi
 		fi
@@ -98,19 +98,19 @@ disk_to_fail()
 bring_disk_online()
 {
 	local failed_disk=$(disk_to_fail)
-	disk_state_set "repair" "$failed_disk" || {
+	disk_state_set "repair" $failed_disk || {
 		echo "Operation to mark device repair failed."
 		error_handling 1
 	}
-	disk_state_set "repaired" "$failed_disk" || {
+	disk_state_set "repaired" $failed_disk || {
 		echo "Operation to mark device repaired failed."
 		error_handling 1
 	}
-	disk_state_set "rebalance" "$failed_disk" || {
+	disk_state_set "rebalance" $failed_disk || {
 		echo "Operation to mark device rebalanced failed."
 		error_handling 1
 	}
-	disk_state_set "online" "$failed_disk" || {
+	disk_state_set "online" $failed_disk || {
 		echo "Operation to mark device online failed."
 		error_handling 1
 	}
@@ -122,8 +122,8 @@ write_and_update()
 	local update_count=$2
 
 	echo "m0cp"
-	"$motr_st_util_dir"/m0cp "$MOTR_PARAMS" -o $object_id $src_file \
-                                -s $block_size -c $block_count -L "$LID" || {
+	$motr_st_util_dir/m0cp $MOTR_PARAMS -o $object_id $src_file \
+                                -s $block_size -c $block_count -L $LID || {
 		error_handling $? "Failed to copy object"
 		break
 	}
@@ -131,27 +131,27 @@ write_and_update()
 	then
 		# fail a disk and read an object
 		local failed_disk=$(disk_to_fail)
-		disk_state_set "failed" "$failed_disk" || {
+		disk_state_set "failed" $failed_disk || {
 			echo "Operation to mark device failure failed."
 			error_handling 1
 		}
 	fi
 	echo "m0cp update"
-	"$motr_st_util_dir"/m0cp "$MOTR_PARAMS" -o $object_id $update_file \
-                                 -s $block_size -c "$update_count" -L "$LID" \
+	$motr_st_util_dir/m0cp $MOTR_PARAMS -o $object_id $update_file \
+                                 -s $block_size -c $update_count -L $LID \
                                  -u -O $update_offset|| {
 		error_handling $? "Failed to copy object"
 		break
 	}
 	echo "m0cat"
-	"$motr_st_util_dir"/m0cat "$MOTR_PARAMS" -o $object_id -s $block_size \
-                                  -c $block_count -L "$LID" \
-                                  $dest_file'_'"$LID" || {
+	$motr_st_util_dir/m0cat $MOTR_PARAMS -o $object_id -s $block_size \
+                                  -c $block_count -L $LID \
+                                  $dest_file'_'$LID || {
 		error_handling $? "Failed to read object"
 		break
 	}
 	echo "m0unlink"
-	"$motr_st_util_dir"/m0unlink "$MOTR_PARAMS" -o $object_id -L "$LID" || {
+	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id -L $LID || {
 		error_handling $? "Failed to delete object"
 		break
 	}
@@ -197,7 +197,7 @@ test_rmw()
 		healthy_mode=false
 	fi
 
-	motr_service_start "$1" $K $S $P $stride
+	motr_service_start $1 $K $S $P $stride
 
 	#Initialise dix
 	dix_init
@@ -205,7 +205,7 @@ test_rmw()
 	for i in 3 5 7 9 11
 	do
 		local LID=$i
-		if [ "$1" -eq 1 ]
+		if [ $1 -eq 1 ]
 		then
 			# Replicated Layout
 			local update_count=$(( 2 ** (LID-1) ))

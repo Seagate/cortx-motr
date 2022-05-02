@@ -21,12 +21,12 @@
 
 #set -x
 
-. `dirname "$0"`/common.sh
-. `dirname "$0"`/m0t1fs_common_inc.sh
-. `dirname "$0"`/m0t1fs_client_inc.sh
-. `dirname "$0"`/m0t1fs_server_inc.sh
-. `dirname "$0"`/m0t1fs_sns_common_inc.sh
-. `dirname "$0"`/m0t1fs_io_config_params.sh
+. `dirname $0`/common.sh
+. `dirname $0`/m0t1fs_common_inc.sh
+. `dirname $0`/m0t1fs_client_inc.sh
+. `dirname $0`/m0t1fs_server_inc.sh
+. `dirname $0`/m0t1fs_sns_common_inc.sh
+. `dirname $0`/m0t1fs_io_config_params.sh
 
 N=8
 K=2
@@ -48,34 +48,34 @@ spare_space_reserve_test()
 	do
 		local j=0:00$i
 		m0t1fs_file=$MOTR_M0T1FS_MOUNT_DIR/${j}
-		touch_file "$m0t1fs_file" 8192
+		touch_file $m0t1fs_file 8192
 		rc=$?
 		if [ $rc -ne 0 ]
 		then
 			echo "rc=$rc"
 			return $rc
 		fi
-		dd if=/dev/urandom of="$m0t1fs_file" bs=$BS count=$COUNT
+		dd if=/dev/urandom of=$m0t1fs_file bs=$BS count=$COUNT
 		rc=$?
 		i=$(expr $i + 1)
 	done
-	df -h "$MOTR_M0T1FS_MOUNT_DIR"
-	disk_state_set "failed" "$fail_devices" || {
+	df -h $MOTR_M0T1FS_MOUNT_DIR
+	disk_state_set "failed" $fail_devices || {
 		echo "Failed: disk_state_set failed for $device ..."
 		return 1
 	}
-	disk_state_get "$fail_devices"
-	disk_state_set "repair" "$fail_devices" || return 1
+	disk_state_get $fail_devices
+	disk_state_set "repair" $fail_devices || return 1
 	sns_repair || {
 		echo "Failed: SNS repair..."
 		return 1
 	}
 	echo "wait for sns repair"
 	wait_for_sns_repair_or_rebalance "repair" || return $?
-	disk_state_set "repaired" "$fail_devices" || return 1
+	disk_state_set "repaired" $fail_devices || return 1
 	sns_repair_or_rebalance_status "repair" || return $?
 	echo "sns repair done"
-	disk_state_get "$fail_devices"
+	disk_state_get $fail_devices
 	return 0
 }
 
@@ -97,7 +97,7 @@ main()
 		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
 	done
 
-	mount_m0t1fs "$MOTR_M0T1FS_MOUNT_DIR" "oostore" || {
+	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR "oostore" || {
 		echo "mount failed"
 		return 1
 	}
@@ -110,7 +110,7 @@ main()
 	fi
 
 	echo "unmounting and cleaning.."
-	unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
+	unmount_and_clean &>> $MOTR_TEST_LOGFILE
 
 	motr_service stop || {
 		echo "Failed to stop Motr Service."

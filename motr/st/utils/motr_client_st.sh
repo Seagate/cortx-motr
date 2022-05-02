@@ -23,20 +23,20 @@
 
 #set -x
 
-motr_st_util_dir=`dirname "$0"`
+motr_st_util_dir=`dirname $0`
 m0t1fs_st_dir=$motr_st_util_dir/../../../m0t1fs/linux_kernel/st
 
 # Re-use as many m0t1fs system scripts as possible
-. "$m0t1fs_st_dir"/common.sh
-. "$m0t1fs_st_dir"/m0t1fs_common_inc.sh
-. "$m0t1fs_st_dir"/m0t1fs_client_inc.sh
-. "$m0t1fs_st_dir"/m0t1fs_server_inc.sh
-. "$m0t1fs_st_dir"/m0t1fs_sns_common_inc.sh
+. $m0t1fs_st_dir/common.sh
+. $m0t1fs_st_dir/m0t1fs_common_inc.sh
+. $m0t1fs_st_dir/m0t1fs_client_inc.sh
+. $m0t1fs_st_dir/m0t1fs_server_inc.sh
+. $m0t1fs_st_dir/m0t1fs_sns_common_inc.sh
 
 # Import wrapper for Motr ST framework which can be run with other
 # motr tests or can be used separately.
-. "$motr_st_util_dir"/motr_local_conf.sh
-. "$motr_st_util_dir"/motr_st_inc.sh
+. $motr_st_util_dir/motr_local_conf.sh
+. $motr_st_util_dir/motr_st_inc.sh
 
 # Set the mode of Motr [user|kernel]
 umod=1
@@ -55,11 +55,11 @@ motr_st_run_tests()
 
 motr_st_set_failed_dev()
 {
-	disk_state_set "failed" "$1" || {
+	disk_state_set "failed" $1 || {
 		echo "Failed: pool_mach_set_failure..."
 		return 1
 	}
-	disk_state_get "$1"
+	disk_state_get $1
 }
 
 motr_st_dgmode()
@@ -74,14 +74,14 @@ motr_st_dgmode()
 	fi
 
 	#local mountopt="oostore,verify"
-	mount_m0t1fs "$MOTR_M0T1FS_MOUNT_DIR" "$mountopt" || return 1
+	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mountopt || return 1
 	# Inject failure to device 1
 	fail_device=1
 	motr_st_set_failed_dev $fail_device || {
 		return 1
 	}
 
-	unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
+	unmount_and_clean &>> $MOTR_TEST_LOGFILE
 	# Run tests
 	motr_st_run_tests
 	rc=$?
@@ -146,23 +146,23 @@ main()
 
 	umod=1
 	echo -n "Start Motr Tests [User Mode] ... "
-	motr_st $umod -2>&1 | tee -a "$MOTR_TEST_LOGFILE"
+	motr_st $umod -2>&1 | tee -a $MOTR_TEST_LOGFILE
 	rc=$?
 	echo "Done"
 
 	echo -n "Start Motr Degraded mode Tests [User Mode] ... "
-	motr_st_dgmode $umod 2>&1 | tee -a "$MOTR_TEST_LOGFILE"
+	motr_st_dgmode $umod 2>&1 | tee -a $MOTR_TEST_LOGFILE
 	rc=$?
 	echo "Done"
 
 	umod=0
 	echo -n "Start Motr Tests [Kernel Mode] ... "
-	motr_st $umod -2>&1 | tee -a "$MOTR_TEST_LOGFILE"
+	motr_st $umod -2>&1 | tee -a $MOTR_TEST_LOGFILE
 	rc=$?
 	echo "Done"
 
 	echo -n "Start Motr Degraded mode Tests [Kernel Mode] ... "
-	motr_st_dgmode $umod 2>&1 | tee -a "$MOTR_TEST_LOGFILE"
+	motr_st_dgmode $umod 2>&1 | tee -a $MOTR_TEST_LOGFILE
 	rc=$?
 	echo "Done"
 

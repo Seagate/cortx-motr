@@ -22,15 +22,15 @@
 # Tests the fwait feature on Motr.
 #
 
-. `dirname "$0"`/common.sh
-. `dirname "$0"`/m0t1fs_common_inc.sh
-. `dirname "$0"`/m0t1fs_client_inc.sh
-. `dirname "$0"`/m0t1fs_server_inc.sh
-. `dirname "$0"`/m0t1fs_sns_common_inc.sh
+. `dirname $0`/common.sh
+. `dirname $0`/m0t1fs_common_inc.sh
+. `dirname $0`/m0t1fs_client_inc.sh
+. `dirname $0`/m0t1fs_server_inc.sh
+. `dirname $0`/m0t1fs_sns_common_inc.sh
 
 fwait_test()
 {
-	`dirname "$0"`/m0t1fs_fwait_test_helper "$MOTR_M0T1FS_MOUNT_DIR"
+	`dirname $0`/m0t1fs_fwait_test_helper $MOTR_M0T1FS_MOUNT_DIR
 	return $?
 }
 
@@ -51,15 +51,15 @@ main()
 	rc=0
 	echo "motr service started"
 
-	mkdir -p "$MOTR_M0T1FS_MOUNT_DIR"
-	mount_m0t1fs "$MOTR_M0T1FS_MOUNT_DIR" "oostore" || return 1
+	mkdir -p $MOTR_M0T1FS_MOUNT_DIR
+	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR "oostore" || return 1
 
 	fwait_test || {
 		echo "Failed: Fwait test failed.."
 		rc=1
 	}
 
-	unmount_m0t1fs "$MOTR_M0T1FS_MOUNT_DIR" &>> "$MOTR_TEST_LOGFILE"
+	unmount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR &>> $MOTR_TEST_LOGFILE
 
 	motr_service stop
 	if [ $? -ne "0" ]
