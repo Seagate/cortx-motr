@@ -408,6 +408,7 @@ M0_INTERNAL void m0_be_emap_create(struct m0_be_emap   *map,
 				      m0_btree_create(&map->em_mp_node,
 						      sizeof map->em_mp_node,
 						      &bt, M0_BCT_NO_CRC,
+						      EMBEDDED_INDIRECT,
 						      &b_op, map->em_mapping,
 						      map->em_seg, &fid, tx,
 						      &keycmp));

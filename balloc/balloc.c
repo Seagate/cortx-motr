@@ -1301,6 +1301,8 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	m0_bcount_t             i;
 	int		        rc = 0;
 
+	M0_ALWAYS("enter into m0_balloc_load_extents");
+
 	M0_ENTRY("grp=%d non-spare-frags=%d spare-frags=%d",
 		 (int)grp->bgi_groupno, (int)group_fragments_get(grp),
 		 (int)group_spare_fragments_get(grp));
@@ -3094,7 +3096,7 @@ static int balloc_trees_create(struct m0_balloc    *bal,
 				      m0_btree_create(bal->cb_ge_node,
 						      sizeof bal->cb_ge_node,
 						      &bt, M0_BCT_NO_CRC,
-						      &b_op,
+						      EMBEDDED_RECORD, &b_op,
 						      bal->cb_db_group_extents,
 						      seg, &fid, tx,
 						      &ge_keycmp));
@@ -3115,7 +3117,7 @@ static int balloc_trees_create(struct m0_balloc    *bal,
 				      m0_btree_create(bal->cb_gd_node,
 						      sizeof bal->cb_gd_node,
 						      &bt, M0_BCT_NO_CRC,
-						      &b_op,
+						      EMBEDDED_RECORD, &b_op,
 						      bal->cb_db_group_desc,
 						      seg, &fid, tx, NULL));
 
