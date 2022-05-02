@@ -19,11 +19,11 @@
 #
 
 
-. `dirname "$0"`/common.sh
-. `dirname "$0"`/m0t1fs_common_inc.sh
-. `dirname "$0"`/m0t1fs_client_inc.sh
-. `dirname "$0"`/m0t1fs_server_inc.sh
-. `dirname "$0"`/m0t1fs_sns_common_inc.sh
+. `dirname $0`/common.sh
+. `dirname $0`/m0t1fs_common_inc.sh
+. `dirname $0`/m0t1fs_client_inc.sh
+. `dirname $0`/m0t1fs_server_inc.sh
+. `dirname $0`/m0t1fs_sns_common_inc.sh
 
 ###################################################
 # SNS repair is only supported in COPYTOOL mode,
@@ -43,11 +43,11 @@ sns_repair_test()
 
 	echo "Starting SNS repair testing ..."
 
-	local_write "$src_bs" "$src_count" || return $?
+	local_write $src_bs $src_count || return $?
 
-	for i in 0:10{0..2}{1001..1020}; do touch "$MOTR_M0T1FS_MOUNT_DIR"/$i ; done
-	for i in 0:10{0..2}{1001..1020}; do setfattr -n lid -v 1 "$MOTR_M0T1FS_MOUNT_DIR"/$i ; done
-	for i in 0:10{0..2}{1001..1020}; do dd if=/dev/zero of="$MOTR_M0T1FS_MOUNT_DIR"/$i bs=1K count=1 ; done
+	for i in 0:10{0..2}{1001..1020}; do touch $MOTR_M0T1FS_MOUNT_DIR/$i ; done
+	for i in 0:10{0..2}{1001..1020}; do setfattr -n lid -v 1 $MOTR_M0T1FS_MOUNT_DIR/$i ; done
+	for i in 0:10{0..2}{1001..1020}; do dd if=/dev/zero of=$MOTR_M0T1FS_MOUNT_DIR/$i bs=1K count=1 ; done
 	for i in 0:10{0..2}{1001..1020}; do _md5sum $i || return $? ; done
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
@@ -111,7 +111,7 @@ main()
 
 	NODE_UUID=`uuidgen`
 	local multiple_pools=0
-	motr_service start $multiple_pools "$stride" $N $K $S $P || {
+	motr_service start $multiple_pools $stride $N $K $S $P || {
 		echo "Failed to start Motr Service."
 		return 1
 	}
@@ -124,7 +124,7 @@ main()
 	fi
 
 	echo "unmounting and cleaning.."
-	unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
+	unmount_and_clean &>> $MOTR_TEST_LOGFILE
 
 	motr_service stop || {
 		echo "Failed to stop Motr Service."

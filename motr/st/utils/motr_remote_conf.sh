@@ -18,10 +18,10 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-M0_SRC_DIR=$(dirname "$(readlink -f "$0")")
+M0_SRC_DIR=$(dirname $(readlink -f $0))
 M0_SRC_DIR="$M0_SRC_DIR/../../../"
 
-. "$M0_SRC_DIR"/utils/functions # m0_default_xprt
+. $M0_SRC_DIR/utils/functions # m0_default_xprt
 
 XPRT=$(m0_default_xprt)
 
@@ -32,7 +32,7 @@ if [ "$XPRT" = "lnet" ]; then
 fi
 LOCAL_NID=$(m0_local_nid_get)
 
-if [ X"$LOCAL_NID" == X ]; then
+if [ X$LOCAL_NID == X ]; then
 	echo "lnet is not up"
 	exit
 fi

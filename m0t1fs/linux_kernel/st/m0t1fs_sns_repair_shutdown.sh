@@ -19,11 +19,11 @@
 #
 
 
-. `dirname "$0"`/common.sh
-. `dirname "$0"`/m0t1fs_common_inc.sh
-. `dirname "$0"`/m0t1fs_client_inc.sh
-. `dirname "$0"`/m0t1fs_server_inc.sh
-. `dirname "$0"`/m0t1fs_sns_common_inc.sh
+. `dirname $0`/common.sh
+. `dirname $0`/m0t1fs_common_inc.sh
+. `dirname $0`/m0t1fs_client_inc.sh
+. `dirname $0`/m0t1fs_server_inc.sh
+. `dirname $0`/m0t1fs_sns_common_inc.sh
 
 ###################################################
 # SNS repair is only supported in COPYTOOL mode,
@@ -63,8 +63,8 @@ sns_repair_test()
 	local_write $src_bs $src_count || return $?
 
 	for ((i=0; i < ${#file[*]}; i++)) ; do
-		_dd "${file[$i]}" $unit_size "${file_size[$i]}" || return $?
-		_md5sum "${file[$i]}" || return $?
+		_dd ${file[$i]} $unit_size ${file_size[$i]} || return $?
+		_md5sum ${file[$i]} || return $?
 	done
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
@@ -86,7 +86,7 @@ sns_repair_test()
         sns_repair_abort_skip_4
 
 	sleep 2
-	kill -2 "$m0d_4_pid"
+	kill -2 $m0d_4_pid
 
 	return $?
 }
@@ -112,7 +112,7 @@ main()
 	fi
 
 	echo "unmounting and cleaning.."
-	unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
+	unmount_and_clean &>> $MOTR_TEST_LOGFILE
 
 	motr_service stop || {
 		echo "Failed to stop Motr Service."
