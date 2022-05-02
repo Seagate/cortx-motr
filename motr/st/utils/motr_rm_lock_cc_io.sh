@@ -19,15 +19,15 @@
 #
 
 
-motr_st_util_dir=$(dirname "$(readlink -f "$0")")
+motr_st_util_dir=$(dirname $(readlink -f $0))
 m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
-. "$m0t1fs_dir"/common.sh
-. "$m0t1fs_dir"/m0t1fs_common_inc.sh
-. "$m0t1fs_dir"/m0t1fs_client_inc.sh
-. "$m0t1fs_dir"/m0t1fs_server_inc.sh
-. "$motr_st_util_dir"/motr_local_conf.sh
-. "$motr_st_util_dir"/motr_st_inc.sh
+. $m0t1fs_dir/common.sh
+. $m0t1fs_dir/m0t1fs_common_inc.sh
+. $m0t1fs_dir/m0t1fs_client_inc.sh
+. $m0t1fs_dir/m0t1fs_server_inc.sh
+. $motr_st_util_dir/motr_local_conf.sh
+. $motr_st_util_dir/motr_st_inc.sh
 
 
 SANDBOX_DIR=/var/motr
@@ -48,7 +48,7 @@ check_file_version()
 			return 1
 		fi
 
-		diff "$dest_file"$j "$src_file"$i > /dev/null || {
+		diff $dest_file$j $src_file$i > /dev/null || {
 			((i++))
 			continue
 		}
@@ -85,11 +85,11 @@ main()
 	rm -f $src_file $dest_file $src_file'1'
 
 	dd if=/dev/urandom bs=$block_size count=$block_count of=$src_file \
-           2> "$MOTR_TEST_LOGFILE" || {
+           2> $MOTR_TEST_LOGFILE || {
 		motr_error_handling $? "Failed to create a source file"
 	}
 	dd if=/dev/urandom bs=$block_size count=$block_count of=$src_file'1' \
-           2> "$MOTR_TEST_LOGFILE" || {
+           2> $MOTR_TEST_LOGFILE || {
 		MOTR_error_handling $? "Failed to create a source file"
 	}
 	mkdir $MOTR_TRACE_DIR
@@ -99,7 +99,7 @@ main()
 		tmp_src="$src_file$i"
 		rm -f $tmp_src
 		dd if=/dev/urandom bs=$block_size count=$block_count of=$tmp_src \
-                   2> "$MOTR_TEST_LOGFILE" || {
+                   2> $MOTR_TEST_LOGFILE || {
 			motr_error_handling $? "Failed to create a source file"
 	        }
 		SRC_FILES+=" $tmp_src"
@@ -120,12 +120,12 @@ main()
 ##############################################################################
 	echo "Read obj while write/update is in process."
 
-	"$motr_st_util_dir"/m0cp "$MOTR_PARAMS_2" -o $object_id $src_file \
+	$motr_st_util_dir/m0cp $MOTR_PARAMS_2 -o $object_id $src_file \
                                  -s $block_size -c $block_count -e &
 	pid=$!
 	sleep 2
 
-	"$motr_st_util_dir"/m0cat "$MOTR_PARAMS" -o $object_id -s $block_size \
+	$motr_st_util_dir/m0cat $MOTR_PARAMS -o $object_id -s $block_size \
                                   -c $block_count -e $dest_file || {
 		motr_error_handling $? "Failed to read object"
 	}
@@ -133,10 +133,10 @@ main()
 	wait $pid
 	diff $src_file $dest_file || {
 		rc = $?
-		motr_error_handling "$rc" "Files are different when concurrent read/write"
+		motr_error_handling $rc "Files are different when concurrent read/write"
 	}
 
-	"$motr_st_util_dir"/m0unlink "$MOTR_PARAMS" -o $object_id || {
+	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id || {
 		motr_error_handling $? "Failed to delete object"
 	}
 
@@ -144,13 +144,13 @@ main()
 ###############################################################################
 	echo "Delete obj while write/update is in process."
 
-	"$motr_st_util_dir"/m0cp "$MOTR_PARAMS_2" -o $object_id $src_file \
+	$motr_st_util_dir/m0cp $MOTR_PARAMS_2 -o $object_id $src_file \
                                  -s $block_size -c $block_count -e &
 
 	pid=$!
 	sleep 2
 
-	"$motr_st_util_dir"/m0unlink "$MOTR_PARAMS" -o $object_id -e || {
+	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id -e || {
 		motr_error_handling $? "Failed to delete object"
 	}
 	wait $pid
@@ -158,50 +158,50 @@ main()
 ###############################################################################
 	echo "Delete obj while read is in process."
 
-	"$motr_st_util_dir"/m0cp "$MOTR_PARAMS" -o $object_id $src_file \
+	$motr_st_util_dir/m0cp $MOTR_PARAMS -o $object_id $src_file \
                                 -s $block_size -c $block_count -e || {
 		motr_error_handling $? "Failed to copy object"
 	}
 
-	"$motr_st_util_dir"/m0cat "$MOTR_PARAMS_2" -o $object_id -s $block_size \
+	$motr_st_util_dir/m0cat $MOTR_PARAMS_2 -o $object_id -s $block_size \
                                  -c $block_count -e $dest_file &
 	pid=$!
 	sleep 2
 
-	"$motr_st_util_dir"/m0unlink "$MOTR_PARAMS" -o $object_id -e || {
+	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id -e || {
 		motr_error_handling $? "Failed to delete object"
 	}
 
 	wait $pid
 	diff $src_file $dest_file || {
 		rc = $?
-		motr_error_handling "$rc" "Files are different when concurrent delete/write"
+		motr_error_handling $rc "Files are different when concurrent delete/write"
 	}
 
 	rm -f $dest_file
 #############################################################################
 	echo "Test exclusivity among Readers and Writers"
-	"$motr_st_util_dir"/m0cp "$MOTR_PARAMS" -o $object_id $src_file \
+	$motr_st_util_dir/m0cp $MOTR_PARAMS -o $object_id $src_file \
                                 -s $block_size -c $block_count -e || {
 		motr_error_handling $? "Failed to copy object"
 	}
 
-	"$motr_st_util_dir"/m0cat "$MOTR_PARAMS_2" -o $object_id -s $block_size \
+	$motr_st_util_dir/m0cat $MOTR_PARAMS_2 -o $object_id -s $block_size \
                                  -c $block_count -e $dest_file'1' &
 	pid1=$!
-	"$motr_st_util_dir"/m0cat "$MOTR_PARAMS_3" -o $object_id -s $block_size \
+	$motr_st_util_dir/m0cat $MOTR_PARAMS_3 -o $object_id -s $block_size \
                                  -c $block_count -e $dest_file'2' &
 	pid2=$!
 	sleep 2
 
-	"$motr_st_util_dir"/m0cp "$MOTR_PARAMS" -o $object_id $src_file'1' \
+	$motr_st_util_dir/m0cp $MOTR_PARAMS -o $object_id $src_file'1' \
                                 -s $block_size -c $block_count -e -u || {
 		motr_error_handling $? "Failed to update the object"
 	}
 
 	wait $pid1 $pid2
 
-	"$motr_st_util_dir"/m0unlink "$MOTR_PARAMS" -o $object_id -e || {
+	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id -e || {
 		motr_error_handling $? "Failed to delete object"
 	}
 
@@ -232,23 +232,23 @@ main()
 	rm -f $dest_file'1' $dest_file'2'
 #############################################################################
 	echo "Test exclusivity among Writers"
-	"$motr_st_util_dir"/m0cp "$MOTR_PARAMS" -o $object_id $src_file \
+	$motr_st_util_dir/m0cp $MOTR_PARAMS -o $object_id $src_file \
                                 -s $block_size -c $block_count -e &
 	pid1=$!
 	sleep 2
 
-	"$motr_st_util_dir"/m0cp "$MOTR_PARAMS_2" -o $object_id $src_file'1' \
+	$motr_st_util_dir/m0cp $MOTR_PARAMS_2 -o $object_id $src_file'1' \
                                 -s $block_size -c $block_count -e -u &
 	pid2=$!
 	sleep 2
 
-	"$motr_st_util_dir"/m0cat "$MOTR_PARAMS_3" -o $object_id -s $block_size \
+	$motr_st_util_dir/m0cat $MOTR_PARAMS_3 -o $object_id -s $block_size \
                                  -c $block_count -e $dest_file || {
 		motr_error_handling $? "Failed to read object"
 	}
 	wait $pid1 $pid2
 
-	"$motr_st_util_dir"/m0unlink "$MOTR_PARAMS" -o $object_id -e || {
+	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id -e || {
 		motr_error_handling $? "Failed to delete object"
 	}
 
@@ -268,14 +268,14 @@ main()
 #############################################################################
 	echo "Launch multiple Writer and Reader threads."
 	echo "To check the data read by reader threads is fresh."
-	"$motr_st_util_dir"/m0cc_cp_cat "$MOTR_PARAMS" -W $writer_numb \
+	$motr_st_util_dir/m0cc_cp_cat $MOTR_PARAMS -W $writer_numb \
 					-R $reader_numb -o $object_id \
 					-s $block_size -c $block_count \
-					"$SRC_FILES" "$DEST_FILES" || {
+					$SRC_FILES $DEST_FILES || {
 		motr_error_handling $? "Failed concurrent read write"
 	}
 
-	"$motr_st_util_dir"/m0unlink "$MOTR_PARAMS" -o $object_id -e || {
+	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id -e || {
 		motr_error_handling $? "Failed to delete object"
 	}
 
@@ -284,7 +284,7 @@ main()
 		motr_error_handling $? "Stale data read"
 	}
 
-	clean &>>"$MOTR_TEST_LOGFILE"
+	clean &>>$MOTR_TEST_LOGFILE
 	motr_service_stop
 }
 
