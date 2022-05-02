@@ -28,7 +28,10 @@
 #include "motr/m0crate/crate_client.h"
 #include "motr/m0crate/crate_client_utils.h"
 
-/** @defgroup crate Crate
+struct m0_fid dix_pool_ver;
+extern struct crate_conf *conf;
+
+/* @nefgroup crate Crate
  * Utility for executing simple performance tests.
  */
 
@@ -993,6 +996,15 @@ static int cr_execute_query(struct m0_fid *id,
 
 	m0_idx_init(&idx, crate_uber_realm(), (struct m0_uint128 *) id);
 
+	if (conf->is_enf_meta && m0_fid_is_valid(&dix_pool_ver) && 
+	    m0_fid_is_set(&dix_pool_ver)) {
+		idx.in_entity.en_flags |= M0_ENF_META;
+		idx.in_attr.idx_layout_type = DIX_LTYPE_DESCR;
+		idx.in_attr.idx_pver = dix_pool_ver;
+		crlog(CLL_DEBUG, "DIX pool version: "FID_F"",
+		      FID_P(&idx.in_attr.idx_pver));
+	}	
+
 	rc = m0_idx_op(&idx, op->m0_op, p->k, p->v, rcs, flags, &ops[0]);
 	if (rc != 0) {
 		crlog(CLL_ERROR, "Unable to init Client idx op: %s",
@@ -1368,6 +1380,9 @@ static int create_index(struct m0_uint128 id)
 	/* Set an index creation operation. */
 	m0_idx_init(&idx, crate_uber_realm(), &id);
 
+	if (conf->is_enf_meta)
+		idx.in_entity.en_flags |= M0_ENF_META;
+
 	rc = m0_entity_create(NULL, &idx.in_entity, &ops[0]);
 	if (rc == 0) {
 		/* Launch and wait for op to complete */
@@ -1383,6 +1398,12 @@ static int create_index(struct m0_uint128 id)
 				crlog(CLL_WARN, "Index alredy exists.");
 			else
 				rc = ops[0]->op_sm.sm_rc;
+		}
+
+		if (rc == 0 && conf->is_enf_meta) {
+			crlog(CLL_DEBUG, "DIX pool version: "FID_F"",
+			      FID_P(&idx.in_attr.idx_pver));
+			dix_pool_ver = idx.in_attr.idx_pver;
 		}
 	} else
 		crlog(CLL_ERROR, "Unable to set index create operation.");
