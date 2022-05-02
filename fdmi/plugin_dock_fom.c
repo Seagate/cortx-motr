@@ -122,19 +122,17 @@ static int pdock_fom_create(struct m0_fop  *fop,
 
 	M0_ALLOC_PTR(pd_fom);
 	if (pd_fom == NULL)
-		return M0_RC(-ENOMEM);
-	M0_SET0(pd_fom);
-
+		return M0_ERR(-ENOMEM);
 	M0_ALLOC_PTR(reply_fop_data);
 	if (reply_fop_data == NULL) {
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 		goto fom_fini;
 	}
 
 	rreg = m0_fdmi__pdock_fdmi_record_register(fop);
 	if (rreg == NULL) {
 		M0_LOG(M0_ERROR, "FDMI record failed to register");
-		rc = -ENOENT;
+		rc = M0_ERR(-ENOENT);
 		goto rep_fini;
 	} else {
 		int                        idx;
@@ -163,7 +161,7 @@ static int pdock_fom_create(struct m0_fop  *fop,
 	reply_fop = m0_fop_alloc(&m0_fop_fdmi_rec_not_rep_fopt, reply_fop_data,
 				 m0_fdmi__pdock_conn_pool_rpc_machine());
 	if (reply_fop == NULL) {
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 		goto rep_fini;
 	}
 

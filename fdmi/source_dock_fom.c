@@ -259,11 +259,11 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 			    struct m0_reqh *reqh)
 {
 	enum { MAX_RPCS_IN_FLIGHT = 32 };
-	struct fdmi_sd_fom    *sd_fom = &src_dock->fsdc_sd_fom;
-	struct m0_fom         *fom    = &sd_fom->fsf_fom;
-	struct m0_rpc_machine *rpc_mach;
-	int                    rc;
-	struct fdmi_sd_timer_fom    *timer_fom = &src_dock->fsdc_sd_timer_fom;
+	struct fdmi_sd_fom       *sd_fom    = &src_dock->fsdc_sd_fom;
+	struct m0_fom            *fom       = &sd_fom->fsf_fom;
+	struct fdmi_sd_timer_fom *timer_fom = &src_dock->fsdc_sd_timer_fom;
+	struct m0_rpc_machine    *rpc_mach;
+	int                       rc;
 
 	M0_ENTRY();
 	M0_PRE(!src_dock->fsdc_started);
@@ -339,7 +339,7 @@ static void fdmi__src_dock_timer_fom_wakeup(struct fdmi_sd_timer_fom *timer_fom)
 {
 	M0_ENTRY("sd_timer_fom %p", timer_fom);
 	M0_PRE(timer_fom != NULL);
-	m0_fom_wakeup(&timer_fom->fstf_fom);
+	/* Do nothing, timer fom wakes up periodically anyway. */
 	M0_LEAVE();
 }
 
@@ -347,24 +347,27 @@ static void fdmi__src_dock_timer_fom_wakeup(struct fdmi_sd_timer_fom *timer_fom)
 M0_INTERNAL void
 m0_fdmi__src_dock_fom_stop(struct m0_fdmi_src_dock *src_dock)
 {
+	struct fdmi_sd_fom       *sd_fom    = &src_dock->fsdc_sd_fom;
+	struct fdmi_sd_timer_fom *timer_fom = &src_dock->fsdc_sd_timer_fom;
+
 	M0_ENTRY();
 	M0_PRE(src_dock->fsdc_started);
 	src_dock->fsdc_started = false;
 	src_dock->fsdc_filters_defined = false;
 
 	/* Wake up the timer FOM, so it can stop itself */
-	fdmi__src_dock_timer_fom_wakeup(&src_dock->fsdc_sd_timer_fom);
+	fdmi__src_dock_timer_fom_wakeup(timer_fom);
 	/* Wake up FOM, so it can stop itself */
-	m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
+	m0_fdmi__src_dock_fom_wakeup(sd_fom);
 
 	/* Wait for timer fom finished */
-	m0_semaphore_down(&src_dock->fsdc_sd_timer_fom.fstf_shutdown);
-	m0_semaphore_fini(&src_dock->fsdc_sd_timer_fom.fstf_shutdown);
+	m0_semaphore_down(&timer_fom->fstf_shutdown);
+	m0_semaphore_fini(&timer_fom->fstf_shutdown);
 	/* Wait for fom finished */
-	m0_semaphore_down(&src_dock->fsdc_sd_fom.fsf_shutdown);
-	m0_semaphore_fini(&src_dock->fsdc_sd_fom.fsf_shutdown);
-	m0_chan_fini_lock(&src_dock->fsdc_sd_fom.fsf_wake);
-	m0_mutex_fini(&src_dock->fsdc_sd_fom.fsf_chan_guard);
+	m0_semaphore_down(&sd_fom->fsf_shutdown);
+	m0_semaphore_fini(&sd_fom->fsf_shutdown);
+	m0_chan_fini_lock(&sd_fom->fsf_wake);
+	m0_mutex_fini(&sd_fom->fsf_chan_guard);
 
 	M0_LEAVE();
 }
@@ -1164,8 +1167,7 @@ static int fdmi_sd_timer_fom_tick(struct m0_fom *fom)
 		m0_fom_timeout_fini(&timer_fom->fstf_timeout);
 		m0_fom_timeout_init(&timer_fom->fstf_timeout);
 		m0_fom_timeout_wait_on(&timer_fom->fstf_timeout,
-				       fom,
-				       m0_time_from_now(30, 0));
+				       fom, m0_time_from_now(1, 0));
 		m0_fom_phase_set(fom, FDMI_SRC_DOCK_TIMER_FOM_PHASE_WAIT);
 		m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
 		return M0_RC(M0_FSO_WAIT);
