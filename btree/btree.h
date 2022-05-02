@@ -101,11 +101,11 @@ enum m0_btree_crc_type {
 	M0_BCT_BTREE_ENC_RAW_HASH,
 };
 
-
 enum m0_btree_addr_type {
 	EMBEDDED_RECORD = 0,
 	EMBEDDED_INDIRECT,
 };
+
 struct m0_btree_type {
 	enum m0_btree_types tt_id;
 	int ksize;
@@ -152,7 +152,7 @@ struct m0_btree_idata {
 	const struct m0_btree_type  *bt;
 	const struct node_type      *nt;
 	enum m0_btree_crc_type       crc_type;
-	enum m0_btree_addr_type       addr_type;
+	enum m0_btree_addr_type      addr_type;
 	int                          ks;
 	int                          vs;
 	struct m0_fid                fid;
@@ -734,7 +734,7 @@ M0_INTERNAL int     m0_btree_mod_init(void);
 M0_INTERNAL void    m0_btree_mod_fini(void);
 M0_INTERNAL void    m0_btree_glob_init(void);
 M0_INTERNAL void    m0_btree_glob_fini(void);
-M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size);
+M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size, int64_t num_nodes);
 M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 						 int64_t size);
 M0_INTERNAL void    m0_btree_lrulist_set_lru_config(int64_t slow_lru_mem_release,
