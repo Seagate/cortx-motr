@@ -25,14 +25,14 @@ motr_st_util_dir=$( cd "$(dirname "$0")" ; pwd -P )
 m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
 # Re-use as many m0t1fs system scripts as possible
-. $m0t1fs_dir/common.sh
-. $m0t1fs_dir/m0t1fs_common_inc.sh
-. $m0t1fs_dir/m0t1fs_client_inc.sh
-. $m0t1fs_dir/m0t1fs_server_inc.sh
-. $m0t1fs_dir/m0t1fs_sns_common_inc.sh
+. "$m0t1fs_dir"/common.sh
+. "$m0t1fs_dir"/m0t1fs_common_inc.sh
+. "$m0t1fs_dir"/m0t1fs_client_inc.sh
+. "$m0t1fs_dir"/m0t1fs_server_inc.sh
+. "$m0t1fs_dir"/m0t1fs_sns_common_inc.sh
 
-. $motr_st_util_dir/motr_local_conf.sh
-. $motr_st_util_dir/motr_st_inc.sh
+. "$motr_st_util_dir"/motr_local_conf.sh
+. "$motr_st_util_dir"/motr_st_inc.sh
 
 N=1
 K=0
@@ -73,23 +73,23 @@ raid0_test()
 	dix_init
 
 	# write an object
-	io_conduct "WRITE" $src_file $OBJ_ID1 "false"
-	if [ $rc -ne "0" ]
+	io_conduct "WRITE" "$src_file" $OBJ_ID1 "false"
+	if [ "$rc" -ne "0" ]
 	then
 		echo "Healthy mode, write failed."
-		error_handling $rc
+		error_handling "$rc"
 	fi
 	echo "Healthy mode write succeeds."
 
 	# read the written object
-	io_conduct "READ" $OBJ_ID1  $dest_file "false"
+	io_conduct "READ" $OBJ_ID1  "$dest_file" "false"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Healthy mode, read failed."
 		error_handling $rc
 	fi
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -100,14 +100,14 @@ raid0_test()
 	# Read verification is meaningless
         # in case of RAID0 type layout, but the code should get
         # executed seamlessly.
-	io_conduct "READ" $OBJ_ID1  $dest_file $read_verify
+	io_conduct "READ" $OBJ_ID1  "$dest_file" $read_verify
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Healthy mode, read verify failed."
 		error_handling $rc
 	fi
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -134,13 +134,13 @@ main()
 	BLOCKSIZE=4096
 	BLOCKCOUNT=25
 	echo "dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file"
-	dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file \
-              2> $MOTR_TEST_LOGFILE || {
+	dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of="$src_file" \
+              2> "$MOTR_TEST_LOGFILE" || {
 		echo "Failed to create a source file"
 		return 1
 	}
 
-	mkdir $MOTR_TRACE_DIR
+	mkdir "$MOTR_TRACE_DIR"
 
 	raid0_test false
 	rc=$?
