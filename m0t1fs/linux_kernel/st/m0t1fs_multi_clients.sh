@@ -19,10 +19,10 @@
 #
 
 
-. `dirname $0`/common.sh
-. `dirname $0`/m0t1fs_common_inc.sh
-. `dirname $0`/m0t1fs_client_inc.sh
-. `dirname $0`/m0t1fs_server_inc.sh
+. `dirname "$0"`/common.sh
+. `dirname "$0"`/m0t1fs_common_inc.sh
+. `dirname "$0"`/m0t1fs_client_inc.sh
+. `dirname "$0"`/m0t1fs_server_inc.sh
 
 multi_clients()
 {
@@ -61,15 +61,15 @@ main()
 	echo "Starting multi clients testing:"
 	echo "Test log will be stored in $MOTR_TEST_LOGFILE."
 
-	multi_clients 2>&1 | tee -a $MOTR_TEST_LOGFILE
+	multi_clients 2>&1 | tee -a "$MOTR_TEST_LOGFILE"
 	rc=${PIPESTATUS[0]}
 
-	if [ $rc -eq 0 ]; then
+	if [ "$rc" -eq 0 ]; then
 		sandbox_fini
 	else
 		echo "Test log available at $MOTR_TEST_LOGFILE."
 	fi
-	return $rc
+	return "$rc"
 }
 
 trap unprepare EXIT
