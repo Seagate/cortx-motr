@@ -585,10 +585,9 @@ M0_INTERNAL int m0_op_get(struct m0_op **op, size_t size)
 
 		/* 0 the pre-allocated operation. */
 		memset(*op, 0, cached_size);
+		/* @todo This forgets the original size. */
 		(*op)->op_size = size;
 	}
-	m0_mutex_init(&(*op)->op_pending_tx_lock);
-	spti_tlist_init(&(*op)->op_pending_tx);
 	return M0_RC(0);
 }
 
@@ -840,6 +839,8 @@ M0_INTERNAL int m0_op_init(struct m0_op *op,
 	M0_POST(m0_sm_invariant(&op->op_sm));
 	m0_sm_group_unlock(grp);
 	m0_mutex_init(&op->op_priv_lock);
+	m0_mutex_init(&op->op_pending_tx_lock);
+	spti_tlist_init(&op->op_pending_tx);
 
 	return M0_RC(0);
 }

@@ -100,6 +100,7 @@
 #include "motr/m0crate/crate_client.h"
 #include "motr/m0crate/crate_client_utils.h"
 
+extern struct crate_conf *conf;
 
 void integrity(struct m0_uint128 object_id, unsigned char **md5toverify,
 		int block_count, int idx_op);

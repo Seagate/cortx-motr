@@ -85,7 +85,8 @@ void m0_stob_ut_stob_domain_null(void)
 #ifndef __KERNEL__
 void m0_stob_ut_stob_domain_linux(void)
 {
-	stob_ut_stob_domain("linuxstob:./__s", NULL, NULL);
+	/* Use unique name to avoid conflicts with other UTs. */
+	stob_ut_stob_domain("linuxstob:./__sdl", NULL, NULL);
 }
 
 void m0_stob_ut_stob_domain_perf(void)
