@@ -160,6 +160,9 @@ struct m0_reqh {
 	 */
 	struct m0_reqh_lockers        rh_lockers;
 
+	/** Guard for rconfc re-initialisation. */
+	struct m0_mutex               rh_rconfc_guard;
+
 	/**
 	 * Rconfc instance.
 	 */

@@ -892,15 +892,19 @@ static bool reqh_service_ctx_is_cancelled(struct m0_reqh_service_ctx *ctx)
 M0_INTERNAL void m0_reqh_service_ctxs_shutdown_prepare(struct m0_reqh *reqh)
 {
 	struct m0_reqh_service_ctx *ctx;
+	struct m0_pools_common     *pc = reqh->rh_pools;
 
 	M0_ENTRY();
+	m0_mutex_lock(&pc->pc_mutex);
+	/* Prevent creation of new services. */
+	pc->pc_shutdown = true;
 	/*
 	 * Step 1: Flag every context for abortion.
 	 *
 	 * The idea is to make any reconnecting service context to encounter the
 	 * flag and go offline before real context destruction occurs.
 	 */
-	m0_tl_for(pools_common_svc_ctx, &reqh->rh_pools->pc_svc_ctxs, ctx) {
+	m0_tl_for(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
 		M0_ASSERT(!reqh_service_ctx_sm_is_locked(ctx));
 		/*
 		 * Need to prevent context from being activated by HA
@@ -930,7 +934,7 @@ M0_INTERNAL void m0_reqh_service_ctxs_shutdown_prepare(struct m0_reqh *reqh)
 	 * context may be offlined in background because of abortion flag
 	 * already installed on previous step.
 	 */
-	m0_tl_for(pools_common_svc_ctx, &reqh->rh_pools->pc_svc_ctxs, ctx) {
+	m0_tl_for(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
 		bool connecting;
 
 		M0_ASSERT(!reqh_service_ctx_sm_is_locked(ctx));
@@ -965,6 +969,7 @@ M0_INTERNAL void m0_reqh_service_ctxs_shutdown_prepare(struct m0_reqh *reqh)
 			m0_clink_del_lock(&ctx->sc_rlink_abort);
 		}
 	} m0_tl_endfor;
+	m0_mutex_unlock(&pc->pc_mutex);
 	M0_LEAVE();
 }
 
