@@ -618,7 +618,7 @@ func (mio *Mio) read(p []byte, off *int64) (n int, err error) {
         rc := C.m0_obj_op(mio.obj, C.M0_OC_READ,
                           &v.ext[slot.idx],
                           &v.buf[slot.idx],
-                          &v.attr[slot.idx], 0, 0, &op)
+                          &v.attr[slot.idx], 0, C.M0_OOF_NOHOLE, &op)
         if rc != 0 {
             err = fmt.Errorf("creating m0_op failed: rc=%v", rc)
             break
