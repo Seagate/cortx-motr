@@ -70,7 +70,7 @@
  * - delimiting key is a key separating ("delimiting") two children of an
  *   internal node. E.g., in the diagram below, key[0] of the root node is the
  *   delimiting key for child[0] and child[1]. btree algorithms guarantee that
- *   any key in the sub-tree rooted an a child is less than the delimiting key
+ *   any key in the sub-tree rooted at a child is less than the delimiting key
  *   between this child and the next one, and not less than the delimiting key
  *   between this child and the previous one;
  *
@@ -1148,7 +1148,7 @@ struct node_op {
 	/** Which tree to operate on. */
 	struct td       *no_tree;
 
-	/** Address of the node withing the segment. */
+	/** Address of the node within the segment. */
 	struct segaddr   no_addr;
 
 	/** The node to operate on. */
@@ -1179,7 +1179,7 @@ struct slot {
 		struct m0_btree_rec *__src_rec = (src);                        \
 									       \
 		m0_bufvec_copy(&__tgt_rec->r_val, &__src_rec->r_val,           \
-			       m0_vec_count(&__src_rec ->r_val.ov_vec));       \
+			       m0_vec_count(&__src_rec->r_val.ov_vec));        \
 	})
 
 static int64_t tree_get   (struct node_op *op, struct segaddr *addr, int nxt);
@@ -1202,10 +1202,10 @@ static void bnode_op_fini(struct node_op *op);
 static int bnode_access(struct segaddr *addr, int nxt);
 static int  bnode_init(struct segaddr *addr, int ksize, int vsize, int nsize,
 		       const struct node_type *nt,
-		       const enum m0_btree_crc_type crc_type,uint64_t gen,
+		       const enum m0_btree_crc_type crc_type, uint64_t gen,
 		       struct m0_fid fid, int nxt);
 static uint32_t bnode_crctype_get(const struct nd *node);
-/* Returns the number of valid key in the node. */
+/* Returns the number of valid keys in the node. */
 static int  bnode_count(const struct nd *node);
 
 /* Returns the number of records in the node. */
@@ -1250,10 +1250,10 @@ static void bnode_fini(const struct nd *node);
  * node and tree types.
  */
 struct node_header {
+	uint64_t      h_gen;
 	uint32_t      h_node_type;
 	uint32_t      h_tree_type;
 	uint32_t      h_crc_type;
-	uint64_t      h_gen;
 	struct m0_fid h_fid;
 	uint64_t      h_opaque;
 };
@@ -1285,7 +1285,7 @@ struct level {
 	 * used by level_cleanup. If flag is set, bnode_put() will be called
 	 * else bnode_free() will get called for l_alloc.
 	 */
-	bool      i_alloc_in_use;
+	bool      l_alloc_in_use;
 
 	/**
 	 * This is the flag for indicating if node needs to be freed. Currently
@@ -1298,7 +1298,7 @@ struct level {
 	 * Maximum key size present in the node. It is required to determine
 	 * overflow at parent level.
 	 */
-	int32_t    l_max_ksize;
+	uint32_t    l_max_ksize;
 };
 
 /**
@@ -2223,6 +2223,7 @@ static void bnode_crc_validate(struct nd *node)
 		}
 	}
 }
+
 /**
  * This function decrements the reference count for this node descriptor and if
  * the reference count reaches '0' then the node descriptor is moved to LRU
@@ -5925,7 +5926,7 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 	/** Free up allocated nodes. */
 	for (i = 0; i < oi->i_height; ++i) {
 		if (oi->i_level[i].l_alloc != NULL) {
-			if (oi->i_level[i].i_alloc_in_use)
+			if (oi->i_level[i].l_alloc_in_use)
 				bnode_put(&oi->i_nop, oi->i_level[i].l_alloc);
 			else {
 				oi->i_nop.no_opc = NOP_FREE;
@@ -5949,7 +5950,7 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
 		 * overflow at root node. Therefore, extra_node must have been
 		 * used if l_alloc at root level is used.
 		 */
-		if (oi->i_level[0].i_alloc_in_use)
+		if (oi->i_level[0].l_alloc_in_use)
 			bnode_put(&oi->i_nop, oi->i_extra_node);
 		else {
 			oi->i_nop.no_opc = NOP_FREE;
@@ -6153,8 +6154,9 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
  * and find the appropriate slot for given record. It will store the node and
  * index (where we need to insert given record) in tgt slot as a result.
  *
- * @param l_alloc It is the newly allocated node, where we want to move record.
- * @param l_node It is the current node, from where we want to move record.
+ * @param allocated_node It is the newly allocated node, where we want to move
+ * record.
+ * @param current_node It is the current node, from where we want to move record
  * @param rec It is the given record for which we want to find slot
  * @param tgt result of record find will get stored in tgt slot
  */
@@ -6280,7 +6282,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	bnode_lock(lev->l_alloc);
 	bnode_lock(lev->l_node);
 
-	lev->i_alloc_in_use = true;
+	lev->l_alloc_in_use = true;
 
 	btree_put_split_and_find(lev->l_alloc, lev->l_node, &bop->bo_rec, &tgt);
 
@@ -6327,7 +6329,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		bnode_fix(lev->l_node);
 
 		bnode_move(lev->l_alloc, lev->l_node, D_RIGHT, NR_MAX);
-		lev->i_alloc_in_use = false;
+		lev->l_alloc_in_use = false;
 
 		bnode_unlock(lev->l_alloc);
 		bnode_unlock(lev->l_node);
@@ -6392,7 +6394,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		bnode_lock(lev->l_alloc);
 		bnode_lock(lev->l_node);
 
-		lev->i_alloc_in_use = true;
+		lev->l_alloc_in_use = true;
 
 		btree_put_split_and_find(lev->l_alloc, lev->l_node, &new_rec,
 					 &tgt);
