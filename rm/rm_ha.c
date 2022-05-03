@@ -250,9 +250,11 @@ static void rm_ha_conf_open(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_rm_ha_subscriber *sbscr = ast->sa_datum;
 	struct m0_confc            *confc = sbscr->rhs_confc;
-	struct m0_confc_ctx        *cctx = &sbscr->rhs_cctx;
+	struct m0_reqh             *reqh  = sbscr->rhs_reqh;
+	struct m0_confc_ctx        *cctx  = &sbscr->rhs_cctx;
 	int                         rc;
 
+	m0_mutex_lock(&reqh->rh_rconfc_guard);
 	rc = m0_confc_ctx_init(cctx, confc);
 	if (rc == 0) {
 		rm_ha_sbscr_state_set(sbscr, RM_HA_SBSCR_FS_OPEN);
@@ -262,7 +264,7 @@ static void rm_ha_conf_open(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	} else {
 		rm_ha_sbscr_fail(sbscr, M0_ERR(rc));
 	}
-
+	m0_mutex_unlock(&reqh->rh_rconfc_guard);
 	M0_RC_INFO(rc, "subscriber=%p", sbscr);
 }
 
@@ -341,13 +343,15 @@ M0_INTERNAL int m0_rm_ha_subscriber_init(struct m0_rm_ha_subscriber *sbscr,
 					 struct m0_sm_group         *grp,
 					 struct m0_confc            *confc,
 					 const char                 *rem_ep,
-					 struct m0_rm_ha_tracker    *tracker)
+					 struct m0_rm_ha_tracker    *tracker,
+					 struct m0_reqh             *reqh)
 {
 	tracker->rht_ep = m0_strdup(rem_ep);
 	if (tracker->rht_ep == NULL)
 		return M0_ERR(-ENOMEM);
 	sbscr->rhs_tracker = tracker;
 	sbscr->rhs_confc = confc;
+	sbscr->rhs_reqh = reqh;
 	m0_sm_init(&sbscr->rhs_sm, &rm_ha_sbscr_sm_conf, RM_HA_SBSCR_INIT, grp);
 	return M0_RC(0);
 }

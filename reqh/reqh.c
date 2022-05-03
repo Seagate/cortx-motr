@@ -252,6 +252,7 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 		   &reqh->rh_sm_grp);
 
 	m0_mutex_init(&reqh->rh_guard);
+	m0_mutex_init(&reqh->rh_rconfc_guard);
 	m0_mutex_init(&reqh->rh_guard_async);
 	m0_chan_init(&reqh->rh_conf_cache_exp, &reqh->rh_guard);
 	m0_chan_init(&reqh->rh_conf_cache_ready, &reqh->rh_guard);
@@ -315,6 +316,7 @@ static void __reqh_fini(struct m0_reqh *reqh)
 	m0_chan_fini_lock(&reqh->rh_conf_cache_ready_async);
 	m0_mutex_fini(&reqh->rh_guard);
 	m0_mutex_fini(&reqh->rh_guard_async);
+	m0_mutex_fini(&reqh->rh_rconfc_guard);
 }
 
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)

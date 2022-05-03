@@ -211,18 +211,21 @@ static int conf_after_flip_apply(struct m0_reqh *reqh, const char *filename)
 	 * do no harm to fom tick, but heavily simplify the reload.
 	 */
 	m0_rconfc_stop_sync(rconfc);
+	m0_mutex_lock(&reqh->rh_rconfc_guard);
 	m0_rconfc_fini(rconfc);
 	rc = m0_rconfc_init(rconfc, &profile, sm_grp, rmach, exp_cb, ready_cb);
-	if (rc != 0) {
+	if (rc == 0) {
+		rconfc->rc_local_conf = local_conf;
+		/*
+		 * Despite the name, m0_rconfc_start_sync() does no waiting at
+		 * all with local conf pre-loading.
+		 */
+		rc = m0_rconfc_start_sync(rconfc);
+	} else {
 		m0_free(local_conf);
-		return M0_ERR(rc);
 	}
-	rconfc->rc_local_conf = local_conf;
-	/*
-	 * Despite the name, m0_rconfc_start_sync() does no waiting at all with
-	 * local conf pre-loading.
-	 */
-	return M0_RC(m0_rconfc_start_sync(rconfc));
+	m0_mutex_unlock(&reqh->rh_rconfc_guard);
+	return M0_RC(rc);
 }
 
 /**

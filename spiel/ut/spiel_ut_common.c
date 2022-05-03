@@ -44,10 +44,18 @@ static int m0_spiel__ut_rms_start(struct m0_reqh *reqh)
 M0_INTERNAL int m0_spiel__ut_reqh_init(struct m0_spiel_ut_reqh *spl_reqh,
 		                       const char              *ep_addr)
 {
+	struct m0_rconfc *rconfc = &spl_reqh->sur_confd_srv.rsx_motr_ctx
+		.cc_reqh_ctx.rc_reqh.rh_rconfc;
+	struct m0_confc  *confc  = &rconfc->rc_confc;
 	enum { NR_TMS = 1 };
 	int rc;
 
 	M0_SET0(spl_reqh);
+	/* Copied from m0_confc_init_wait(). */
+	m0_mutex_init(&confc->cc_lock);
+	m0_confc_bob_init(confc);
+	m0_conf_cache_init(&confc->cc_cache, &confc->cc_lock);
+
 	rc = m0_net_domain_init(&spl_reqh->sur_net_dom,
 				 m0_net_xprt_default_get());
 	if (rc != 0)
@@ -131,8 +139,6 @@ M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
 		"-c", (char *)confdb_path
 	};
 #undef NAME
-
-	M0_SET0(rpc_srv);
 
 	rpc_srv->rsx_xprts    = m0_net_all_xprt_get();
 	rpc_srv->rsx_xprts_nr = m0_net_xprt_nr();

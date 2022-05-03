@@ -898,7 +898,11 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 	int                          rc = 0;
 
 	M0_PRE(m0_conf_service_type_is_valid(cs->cs_type));
+	M0_PRE(m0_mutex_is_locked(&pc->pc_mutex));
 	M0_PRE((pc->pc_rmach != NULL) == services_connect);
+
+	if (pc->pc_shutdown) /* See m0_reqh_service_ctxs_shutdown_prepare(). */
+		return M0_ERR(-ENOENT);
 
 	for (endpoint = cs->cs_endpoints; *endpoint != NULL; ++endpoint) {
 		M0_ASSERT_INFO(endpoint == cs->cs_endpoints,

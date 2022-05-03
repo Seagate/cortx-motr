@@ -246,6 +246,7 @@ M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
 				    false,
 				    M0_HA_NVEC_SET, hl);
 	} else {
+		m0_mutex_lock(&hl->hln_cfg.hlc_reqh->rh_rconfc_guard);
 		confc = m0_reqh2confc(hl->hln_cfg.hlc_reqh);
 		cache = &confc->cc_cache;
 		nvec_req = &msg->hm_data.u.hed_nvec;
@@ -267,6 +268,7 @@ M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
 			}
 		}
 		m0_conf_cache_unlock(cache);
+		m0_mutex_unlock(&hl->hln_cfg.hlc_reqh->rh_rconfc_guard);
 		m0_ha_msg_nvec_send(&nvec,
 		                    msg->hm_data.u.hed_nvec.hmnv_id_of_get,
 				    false,

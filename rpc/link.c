@@ -769,7 +769,7 @@ M0_INTERNAL int m0_rpc_link_disconnect_sync(struct m0_rpc_link *rlink,
 
 M0_INTERNAL bool m0_rpc_link_is_connected(const struct m0_rpc_link *rlink)
 {
-	return rlink->rlk_connected;
+	return rlink->rlk_connected && rlink->rlk_rc == 0;
 }
 
 M0_INTERNAL const char *m0_rpc_link_end_point(const struct m0_rpc_link *rlink)

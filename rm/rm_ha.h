@@ -137,6 +137,7 @@ struct m0_rm_ha_subscriber {
 	struct m0_conf_diter     rhs_diter;    /**< Directory iterator */
 	struct m0_clink          rhs_clink;    /**< Clink tracking rhs_cctx */
 	struct m0_sm_ast         rhs_ast;      /**< AST to schedule sm action */
+	struct m0_reqh          *rhs_reqh;     /**< Ambient request handler. */
 };
 
 /**
@@ -179,7 +180,8 @@ M0_INTERNAL int m0_rm_ha_subscriber_init(struct m0_rm_ha_subscriber *sbscr,
 					 struct m0_sm_group         *grp,
 					 struct m0_confc            *confc,
 					 const char                 *rem_ep,
-					 struct m0_rm_ha_tracker    *tracker);
+					 struct m0_rm_ha_tracker    *tracker,
+					 struct m0_reqh             *reqh);
 
 /**
  * Start asynchronous subscription process.

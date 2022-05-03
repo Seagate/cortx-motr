@@ -235,6 +235,8 @@ struct m0_pools_common {
 	struct m0_clink                   pc_conf_ready_async;
 	/** Pool of cas services used to store dix. */
 	struct m0_pool                   *pc_dix_pool;
+	/** Set by m0_reqh_service_ctxs_shutdown_prepare(). */
+	bool                              pc_shutdown;
 };
 
 M0_TL_DESCR_DECLARE(pools_common_svc_ctx, M0_EXTERN);

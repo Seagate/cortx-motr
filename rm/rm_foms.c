@@ -534,7 +534,8 @@ static int rfom_debtor_subscribe(struct rm_request_fom *rfom,
 	/* get confc instance HA to be notifying on */
 	confc = m0_reqh2confc(item->ri_rmachine->rm_reqh);
 	rc = m0_rm_ha_subscriber_init(&rfom->rf_sbscr, &fom->fo_loc->fl_group,
-				confc, ep, &debtor->rem_tracker);
+				      confc, ep, &debtor->rem_tracker,
+				      item->ri_rmachine->rm_reqh);
 	if (rc == 0) {
 		m0_fom_phase_set(fom, FOPH_RM_REQ_DEBTOR_SUBSCRIBE);
 		m0_fom_wait_on(fom, &rfom->rf_sbscr.rhs_sm.sm_chan,

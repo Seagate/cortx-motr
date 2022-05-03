@@ -200,7 +200,6 @@ static void spiel_conf_ut_init(void)
 	/* Use a copy of conf.xc file as confd path - file may have changed */
 	m0_spiel__ut_init(&spiel, "tmp-conf.xc", false);
 	m0_rconfc_lock(rconfc);
-	m0_confc_bob_init(&rconfc->rc_confc);
 	rconfc->rc_expired_cb = &m0_confc_expired_cb;
 	rconfc->rc_ready_cb   = &m0_confc_ready_cb;
 	m0_rconfc_unlock(rconfc);

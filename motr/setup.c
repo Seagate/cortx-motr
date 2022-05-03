@@ -422,9 +422,7 @@ static int cs_reqh_ctx_init(struct m0_motr *cctx)
 
 	M0_ENTRY();
 
-	*rctx = (struct m0_reqh_context) {
-		.rc_motr = cctx
-	};
+	rctx->rc_motr = cctx;
 	M0_ALLOC_ARR(rctx->rc_services,     M0_CST_NR);
 	M0_ALLOC_ARR(rctx->rc_service_fids, M0_CST_NR);
 	if (rctx->rc_services == NULL || rctx->rc_service_fids == NULL) {
