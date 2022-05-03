@@ -22,8 +22,8 @@ Tests:
   - id       : 00userspace-tests
     script   : 'm0 run-ut'
     dir      : src/scripts
-    executor : Xperior::Executor::MotrTest
-    #executor : Xperior::Executor::Skip
+    #executor : Xperior::Executor::MotrTest
+    executor : Xperior::Executor::Skip
     sandbox  : /var/motr/m0ut
     groupname: 01motr-single-node
     polltime : 15
@@ -610,7 +610,8 @@ Tests:
   - id       : 52motr-singlenode-sanity
     script   : 'm0 run-st 52motr-singlenode-sanity'
     dir      : src/scripts
-    executor : Xperior::Executor::MotrTest
+    #executor : Xperior::Executor::MotrTest
+    executor : Xperior::Executor::Skip
     sandbox  : /var/motr/root/sandbox.st-52motr-singlenode-sanity
     groupname: 01motr-single-node
     polltime : 30
