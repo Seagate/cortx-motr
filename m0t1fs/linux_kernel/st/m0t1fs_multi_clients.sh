@@ -61,7 +61,7 @@ main()
 	echo "Starting multi clients testing:"
 	echo "Test log will be stored in $MOTR_TEST_LOGFILE."
 
-	multi_clients 2>&1 | tee -a $MOTR_TEST_LOGFILE
+	multi_clients 2>&1 | tee -a "$MOTR_TEST_LOGFILE"
 	rc=${PIPESTATUS[0]}
 
 	if [ $rc -eq 0 ]; then
