@@ -170,6 +170,33 @@ EOF
 	echo "motr r/w test with m0cp and m0cat is successful"
 	rm -f $dest_file
 
+	echo "motr r/w test with update of m0cp and m0cat"
+	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
+				-s $block_size -c $block_count -L 1 \
+				-b $blks_per_io || {
+		error_handling $? "Failed to copy object"
+	}
+	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
+				-s $block_size -c $block_count -L 1 \
+				-b $blks_per_io -u || {
+		error_handling $? "Failed to copy object"
+	}
+	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
+				-s $block_size -c $block_count -L 1 \
+				-b $blks_per_io $dest_file || {
+		error_handling $? "Failed to read object"
+	}
+	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+		error_handling $? "Failed to delete object"
+	}
+	diff $src_file $dest_file || {
+		rc=$?
+		error_handling $rc "Files are different"
+	}
+
+       echo "motr r/w test with update of m0cp and m0cat is successful"
+       rm -f $dest_file
+
 	# Test m0cp_mt
 	echo "m0cp_mt test"
 	$motr_st_util_dir/m0cp_mt $MOTR_PARAMS_V -o $object_id4 \
