@@ -85,10 +85,9 @@ static int logbuf_map()
 				      strlen(trace_file_path);
 		rc = snprintf(trace_file_path + strlen(trace_file_path),
 			available_bytes,
-                        "m0trace.%u.%04d-%02d-%02d-%02d:%02d:%02d.%09"PRIu64,
+                        "m0trace.%u.%04d-%02d-%02d-%02d:%02d:%02d",
                         m0_pid_cached, tm.tm_year + 1900,
-                        tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min,
-                        tm.tm_sec, m0_time_nanoseconds(stamp));
+                        tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 		if (rc < 0) {
 			warn("failed to construct trace file path");
 			return rc;
