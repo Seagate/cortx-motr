@@ -811,6 +811,31 @@ err:
 }
 
 /**
+ * Builds a vector consisting of failed/offline objects in the conf tree of a
+ * pool version. Repaired devices are not considered to be failed.
+ */
+static int conf_pver_nonhealty_recd_build(struct m0_conf_obj *obj, void *args)
+{
+	uint32_t            *recd = args;
+	struct m0_conf_objv *objv;
+	unsigned             lvl;
+
+	if (m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE) {
+		objv = M0_CONF_CAST(obj, m0_conf_objv);
+		if (!M0_IN(objv->cv_real->co_ha_state,
+			  (M0_NC_ONLINE, M0_NC_REPAIRED))) {
+			M0_LOG(M0_DEBUG, FID_F" is failed",
+			       FID_P(&objv->cv_real->co_id));
+			lvl = m0_conf_pver_level(obj);
+			M0_ASSERT(lvl != 0 && lvl < M0_CONF_PVER_HEIGHT);
+			M0_CNT_INC(recd[lvl]);
+			return M0_CW_SKIP_SUBTREE;
+		}
+	}
+	return M0_CW_CONTINUE;
+}
+
+/**
  * Check if failures at any level has reached or exceeded max allowed failures.
  */
 static int tolerance_failure_cmp(struct m0_conf_pver *pv,
@@ -862,7 +887,7 @@ int m0_conf_pver_status(struct m0_fid *fid,
 
 	M0_SET_ARR0(srecd);
 	m0_conf_cache_lock(&confc->cc_cache);
-	rc = m0_conf_walk(conf_pver_recd_build, &pver->pv_obj, srecd);
+	rc = m0_conf_walk(conf_pver_nonhealty_recd_build, &pver->pv_obj, srecd);
 	m0_conf_cache_unlock(&confc->cc_cache);
 	if (rc != 0)
 		return M0_ERR(rc);
