@@ -33,7 +33,7 @@
 const char log_file_name[] = "sr_ut.errlog";
 char      *sns_cm_ut_svc_ad[] = {
 	"m0d", "-T", "AD",
-	"-D", "sr_db", "-S", "sr_stob",
+	"-D", "sr_db", "-S", "sr-ad-stob",
 	"-A", "linuxstob:sr_addb_stob",
 	"-f", M0_UT_CONF_PROCESS,
 	"-w", "10",
@@ -45,7 +45,7 @@ char      *sns_cm_ut_svc_ad[] = {
 
 char      *sns_cm_ut_svc_linux[] = {
 	"m0d", "-T", "LINUX",
-	"-D", "sr_db", "-S", "sr_stob",
+	"-D", "sr_db", "-S", "sr-linux-stob",
 	"-A", "linuxstob:sr_addb_stob",
 	"-f", M0_UT_CONF_PROCESS,
 	"-w", "10",
