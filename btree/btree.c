@@ -2414,19 +2414,89 @@ static void bnode_op_fini(struct node_op *op)
  */
 
 /**
+ * @brief Design for using btree node to hold embedded records with
+ * indirect addressing.
+ *
+ * Fixed format node = {
+ * 	header
+ * 	dir   = {
+ * 			rec1_off, rec2_off, ..., recn_off
+ * 		}
+ * 	rec   = {
+ * 			(k1,v1), (k2,v2), (k3,v3),..., (kn,vn)
+ * 		}
+ * }
+ *
+ * +-----------------------------------------------------------+
+ * | Node  |             Dir           |         Records       |
+ * | Hdr   |          |          |     |        |        |     |
+ * |       | rec1_off | rec2_off | ... |   k1,  |   k2,  | ... |
+ * |       |          |          | ... |   v1   |   v2   | ... |
+ * |       |          |          |     |        |        |     |
+ * +-----------------------------------------------------------+
+ *
+ * This node format will have keys and values of fixed size and hence we can
+ * determine the number of records that we can store in a single node.
+ * The directory will contain offsets for the actual records (key,value) and
+ * the number of entries in the directory can be calculated as below.
+ *
+ * nr_records = (node size - header size) /
+ * 		(key size + val size + record offset size)
+ *
+ * dir size   = nr_records * record offset size
+ *
+ * The actual records will start after the directory.
+ *
+ * When inserting a new record between two existing records, we only need to
+ * move a subset of directory entries instead of rearranging the actual keys and
+ * values in the node. Thus the actual key and value entries in the node need
+ * not be sorted. This will minimize the memcopy/memmove operations and thus
+ * increase the performance.
+ *
+ * For eg - Inserting new record (nk1, nv1) such that k1 < nk1 < k2
+ *
+ * +------------------------------------------------------------------+
+ * | Node  |              Dir          |             Records          |
+ * | Hdr   |      |       |      |     |       |       |        |     |
+ * |       | rec1 | recn1 | rec2 | ... |  k1,  |  k2,  |  nk2,  | ... |
+ * |       | off  | off   | off  | ... |  v1   |  v2   |  nv2   | ... |
+ * |       |      |       |      |     |       |       |        |     |
+ * +------------------------------------------------------------------+
+ *
+ * When deleting a particular record, we only need to delete a directory entry
+ * and move a subset of directory entries instead of moving the actual keys and
+ * values in the node. The key and value can be freed and re-used for a new
+ * record without re-arranging any (key,value) records just by inserting the
+ * directory entry for the new record at the appropriate place.
+ *
+ * For eg - Deleting (k2,v2) and then inserting new record (nk2, nv2) such that
+ *          k1 < nk2 < nk1
+ *
+ * Deleting (k2,v2)
+ * +------------------------------------------------------------------+
+ * | Node  |              Dir          |             Records          |
+ * | Hdr   |      |       |      |     |       |       |        |     |
+ * |       | rec1 | recn1 |      | ... |  k1,  |       |  nk2,  | ... |
+ * |       | off  | off   |      | ... |  v1   |       |  nv2   | ... |
+ * |       |      |       |      |     |       |       |        |     |
+ * +------------------------------------------------------------------+
+ *
+ * Inserting (nk2,nv2)
+ * +-------------------------------------------------------------------+
+ * | Node  |              Dir           |             Records          |
+ * | Hdr   |      |       |       |     |       |       |        |     |
+ * |       | rec1 | recn2 | recn1 | ... |  k1,  |       |  nk2,  | ... |
+ * |       | off  | off   | off   | ... |  v1   |       |  nv2   | ... |
+ * |       |      |       |       |     |       |       |        |     |
+ * +-------------------------------------------------------------------+
+ */
+
+/**
  *  Structure of the directory entry.
  */
 struct ff_dir_entry {
-	/**
-	 * uint16_t is sufficient to store the offset based on the assumtion
-	 * that the node size <= 64k.
-	 */
-	uint16_t ff_koff;
-	uint16_t ff_voff;
-};
-
-struct ff_dir {
-	struct ff_dir_entry *ffd_dir;
+	/* Record offset. In fixed format, key and value are stored together. */
+	uint32_t ff_roff;
 };
 
 /**
@@ -2447,7 +2517,6 @@ struct ff_head {
 	uint16_t                 ff_ksize;    /*< Size of key in bytes */
 	uint16_t                 ff_vsize;    /*< Size of value in bytes */
 	uint32_t                 ff_nsize;    /*< Node size */
-	struct ff_dir            ff_kvdir;
 	struct m0_format_footer  ff_foot;   /*< Node Footer */
 	void                    *ff_opaque; /*< opaque data */
 	/**
@@ -2577,36 +2646,37 @@ static struct ff_head *ff_data(const struct nd *node)
 
 static void *ff_key(const struct nd *node, int idx)
 {
-	struct ff_head *h    = ff_data(node);
-	void           *area = h + 1;
+	struct ff_head      *h    = ff_data(node);
+	struct ff_dir_entry *de = (struct ff_dir_entry *)(h + 1);
 
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
 		   (0 <= idx && idx <= h->ff_used)));
 	if (IS_EMBEDDED_INDIRECT(node))
-		return (void *)h + sizeof(struct ff_head) +
-			h->ff_kvdir.ffd_dir[idx].ff_koff;
+		return (void *)h + sizeof(struct ff_head) + de[idx].ff_roff;
 	else
-		return area + h->ff_ksize * idx;
+		return (void*)de + h->ff_ksize * idx;
 }
 
 static void *ff_val(const struct nd *node, int idx)
 {
-	void           *node_start_addr = ff_data(node);
-	struct ff_head *h               = node_start_addr;
-	void           *node_end_addr;
-	int             value_offset;
+	void                *node_start_addr = ff_data(node);
+	struct ff_head      *h               = node_start_addr;
+	struct ff_dir_entry *de              = (struct ff_dir_entry *)(h + 1);
+	void                *node_end_addr;
+	int                  value_offset;
 
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
 		   (0 <= idx && ((uint16_t)idx) <= h->ff_used)));
 
 	if (h->ff_seg.h_addr_type == EMBEDDED_INDIRECT)
-		return (void *)h + sizeof(struct ff_head) +
-			h->ff_kvdir.ffd_dir[idx].ff_voff;
+		return (void *)h + sizeof(struct ff_head) + de[idx].ff_roff +
+		       h->ff_ksize;
 	else {
 		node_end_addr = node_start_addr + h->ff_nsize;
 		if (h->ff_level == 0 &&
 		ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
-			value_offset  = (ff_valsize(node) + CRC_VALUE_SIZE) * (idx + 1);
+			value_offset  = (ff_valsize(node) + CRC_VALUE_SIZE) *
+					(idx + 1);
 		else
 			value_offset  = ff_valsize(node) * (idx + 1);
 
@@ -2723,50 +2793,39 @@ static void ff_dir_init(const struct nd *node)
 	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
 		crc_size = sizeof(uint64_t);
 
-	de = h->ff_kvdir.ffd_dir;
+	de = (struct ff_dir_entry *)(h + 1);
 	rec_size = h->ff_ksize + ff_valsize(node) + crc_size +
 		   sizeof(struct ff_dir_entry);
 	h->ff_max_recs = (uint16_t)((h->ff_nsize - sizeof(struct ff_head)) /
 			 	    rec_size);
-	
+
 	dir_size = (uint16_t)(h->ff_max_recs * sizeof(struct ff_dir_entry));
 	kv_size = h->ff_ksize + ff_valsize(node) + crc_size;
-	
-	for (i = 0; i < h->ff_max_recs; i++) {
-		de[i].ff_koff = dir_size + (i * kv_size);
-		de[i].ff_voff = de[i].ff_koff + h->ff_ksize;
-	}
+
+	for (i = 0; i < h->ff_max_recs; i++)
+		de[i].ff_roff = dir_size + (i * kv_size);
 }
 
 static void ff_dir_update(struct ff_head *h, int idx, bool op_del)
 {
 	struct ff_dir_entry *de;
-	uint16_t             tmp_koff;
-	uint16_t             tmp_voff;
+	uint32_t             tmp_roff;
 	int                  i;
 
 	M0_PRE(h != NULL && h->ff_max_recs != 0);
 
-	de = h->ff_kvdir.ffd_dir;
+	de = (struct ff_dir_entry *)(h + 1);
 
 	if (op_del) {
-		tmp_koff = de[idx].ff_koff;
-		tmp_voff = de[idx].ff_voff;
-		for (i = idx; i < (int)(h->ff_used - 1); i++) {
-			de[i].ff_koff = de[i + 1].ff_koff;
-			de[i].ff_voff = de[i + 1].ff_voff;
-		}
-		de[h->ff_used - 1].ff_koff = tmp_koff;
-		de[h->ff_used - 1].ff_voff = tmp_voff;
+		tmp_roff = de[idx].ff_roff;
+		for (i = idx; i < (int)(h->ff_used - 1); i++)
+			de[i].ff_roff = de[i + 1].ff_roff;
+		de[h->ff_used - 1].ff_roff = tmp_roff;
 	} else {
-		tmp_koff = de[h->ff_used].ff_koff;
-		tmp_voff = de[h->ff_used].ff_voff;
-		for (i = h->ff_used; i > idx; i--) {
-			de[i].ff_koff = de[i - 1].ff_koff;
-			de[i].ff_voff = de[i - 1].ff_voff;
-		}
-		de[idx].ff_koff = tmp_koff;
-		de[idx].ff_voff = tmp_voff;
+		tmp_roff = de[h->ff_used].ff_roff;
+		for (i = h->ff_used; i > idx; i--)
+			de[i].ff_roff = de[i - 1].ff_roff;
+		de[idx].ff_roff = tmp_roff;
 	}
 }
 
@@ -2790,7 +2849,6 @@ static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
 	h->ff_seg.h_fid       = fid;
 	h->ff_opaque          = NULL;
 	h->ff_used            = 0;
-	h->ff_kvdir.ffd_dir   = (struct ff_dir_entry *)(h + 1);
 
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
 		.ot_version       = M0_BTREE_NODE_FORMAT_VERSION,
@@ -2970,24 +3028,12 @@ static void ff_child(struct slot *slot, struct segaddr *addr)
 
 static bool ff_isfit(struct slot *slot)
 {
-	struct ff_head *h = ff_data(slot->s_node);
-	int             crc_size = 0;
+	const struct nd *node = slot->s_node;
+	struct ff_head  *h    = ff_data(node);
 
 	M0_PRE(ff_rec_is_valid(slot));
 
-	if (h->ff_level == 0 &&
-	   ff_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
-		crc_size = CRC_VALUE_SIZE;
-	if (IS_EMBEDDED_INDIRECT(slot->s_node)) {
-		if (h->ff_used == 0 || (h->ff_used < h->ff_max_recs &&
-		    (ff_space(slot->s_node) >= h->ff_ksize + 
-					  ff_valsize(slot->s_node) + crc_size)))
-		    	return true;
-		else
-			return false;
-	} else
-		return h->ff_ksize + ff_valsize(slot->s_node) + crc_size <=
-		       ff_space(slot->s_node);
+	return !ff_isoverflow(node, h->ff_ksize, NULL);
 }
 
 static void ff_done(struct slot *slot, bool modified)
@@ -3238,7 +3284,7 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 static void ff_capture(struct slot *slot, int nr, struct m0_be_tx *tx)
 {
 	struct ff_head      *h        = ff_data(slot->s_node);
-	struct ff_dir_entry *de       = h->ff_kvdir.ffd_dir;
+	struct ff_dir_entry *de       = (struct ff_dir_entry *)(h + 1);
 	struct m0_be_seg    *seg      = slot->s_node->n_tree->t_seg;
 	m0_bcount_t          hsize    = sizeof(*h) - sizeof(h->ff_opaque);
 	int                  crc_size = 0;
@@ -3247,7 +3293,7 @@ static void ff_capture(struct slot *slot, int nr, struct m0_be_tx *tx)
 	if (h->ff_level == 0 &&
 	    ff_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
 		crc_size = CRC_VALUE_SIZE;
-	
+
 	if (IS_EMBEDDED_INDIRECT(slot->s_node)) {
 		int de_nr;
 		int de_size;
