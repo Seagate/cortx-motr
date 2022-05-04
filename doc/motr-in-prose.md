@@ -125,8 +125,9 @@ network messages.
 Distributed transaction manager ([dt](#dtm-idea)) allows operations to be 
 grouped into distributed transactions, which are guaranteed to be atomic in 
 the face of certain failures.
-
-<img src="/doc/Images/1-Distributed-transaction-manager.JPG" width=600 height=500>
+<p align="center">
+<img src="/doc/Images/1-Distributed-transaction-manager.JPG" width=400 height=300>
+</p>
 
 Main novel ideas of Motr, that distinguish it from other cluster  file-systems are:
 * fdmi;
@@ -225,9 +226,9 @@ re-ordering. See NRS in the references below.
 Each node in the cluster runs one or more Motr instances. Each instance has the 
 same overall structure:
 
-
-<img src="/doc/Images/2-Motr-Instance.jpg" width=650 height=700>
-
+<p align="center">
+<img src="/doc/Images/2-Motr-Instance.jpg" width=500 height=550>
+</p>
 
 At the heart of Motr instance is [reqh](#reqh-idea) (request handler). Request 
 handler processes requests in form of [fops](#fop-idea) 
@@ -373,7 +374,9 @@ occur in the Motr system.
 The figure below shows the flow of fol records from the nodes where they are 
 generated to fdmi subscribers.
 
-<img src="/doc/Images/3-MapReduce-style-algorithm.JPG" width=600 height=650>
+<p align="center">
+<img src="/doc/Images/3-MapReduce-style-algorithm.JPG" width=400 height=450>
+</p>
 
 As a simplified example, consider an fdmi-based application running on a 
 dedicated server, connected to two Motr object stores (source and target) and 
@@ -457,8 +460,10 @@ Fol is used for multiple purposes:
   fol is used to redo local transactions as during usual data-base recovery;
 * system-wide fol is used for [distributed transaction recovery](#dtm-idea);
 * system-wide fol is used to implement [fdmi](#fdmi-idea) event feeds
-
-<img src="/doc/Images/4-File-OperationLog.JPG" width=800 height=650>
+* 
+<p align="center">
+<img src="/doc/Images/4-File-OperationLog.JPG" width=600 height=500>
+</p>
 
 ### Reality check
 At the moment, clients don't use fol. They will.
@@ -499,7 +504,10 @@ impacting data performance.
 
 The figure below shows subcomponents of the addb subsystem.
 
-<img src="/doc/Images/5-addb-components-and-control-flow.JPG" width=600 height=600> 
+
+<p align="center">
+<img src="/doc/Images/5-addb-components-and-control-flow.JPG" width=450 height=450> 
+</p>
 
 Motr code is systematically instrumented to produce addb records. Each record 
 contains context information, which identifies system activity to which the 
@@ -542,8 +550,9 @@ and simulate application behavior in proposed configurations.
 
 The figure below shows the possible uses of addb.
 
-<img src="/doc/Images/6-Interaction-of-addb.JPG" width=500 height=500>
-
+<p align="center">
+<img src="/doc/Images/6-Interaction-of-addb.JPG" width=400 height=400>
+</p>
 ## Monitoring
 The simplest addb use case is cluster monitoring. If an addb record, produced 
 by a Motr node, matches a filter, specified by a cluster monitoring 
@@ -914,7 +923,9 @@ mdservice perhaps)
 
 ## security, architecture
 
-<img src="/doc/Images/7-Security-Architecture.JPG" width=800 height=800>
+<p align="center">
+<img src="/doc/Images/7-Security-Architecture.JPG" width=650 height=650>
+<p>
 
 ### References:
 ### Related:
@@ -1066,8 +1077,10 @@ following properties:
 Note that each parity group is mapped individually, which means that each next 
 group from the same file would go to a different set of targets (and, hence, a 
 different set of storage devices) than previous.
-
-<img src="/doc/Images/8-Capture.jpg" width=650 height=650>
+  
+<p align="center">
+<img src="/doc/Images/8-Capture.jpg" width=550 height=550>
+</p>
 
 ### References:
 * [CMU PDL publications](http://www.pdl.cmu.edu/RAID/publications.shtml) 

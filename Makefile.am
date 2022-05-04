@@ -98,7 +98,7 @@ noinst_LTLIBRARIES =
 # documentation
 man_MANS   =
 
-EXTRA_DIST  = autogen.sh cortx-motr.spec.in README.rst LICENCE .gdbinit
+EXTRA_DIST  = autogen.sh cortx-motr.spec.in LICENCE .gdbinit
 CLEANFILES  =
 DISTCLEANFILES = @LUSTRE_CONFIG_LINK@ utils/ub.sh
 MAN_PAGES  =
