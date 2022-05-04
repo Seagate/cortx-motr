@@ -1403,7 +1403,7 @@ static int isal_gen_recov_coeff_tbl(uint32_t data_count, uint32_t parity_count,
 	/* Invert matrix to get recovery matrix. */
 	ret = gf_invert_matrix(temp_mat, invert_mat, data_count);
 	if (ret != 0) {
-		ret = M0_ERR_INFO(ret, "failed to construct an %u x %u "
+		ret = M0_ERR_INFO(-EDOM, "failed to construct an %u x %u "
 				  "inverse of the input matrix",
 				  data_count, data_count);
 		goto exit;
