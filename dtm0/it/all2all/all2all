@@ -49,6 +49,10 @@ function bootstrap_cluster()
 {
     # XXX: For some reason Hare does not like localhost.
     hctl bootstrap --mkfs <(sed "s/localhost/$(hostname -f)/" $CURRENT_CDF)
+    if [[ $? -ne 0 ]]; then
+      _err "Cluster bootstrap failed"
+      exit 1
+    fi
 }
 
 function get_m0d_pids()
