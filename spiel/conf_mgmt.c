@@ -584,7 +584,16 @@ static void spiel_tx_write_lock_put(struct m0_spiel_tx *tx)
 	wlock_ctx_destroy(wlx);
 	wlock_ctx_disconnect(wlx);
 	m0_free0(&wlx->wlc_rm_addr);
-	m0_free0(&tx->spt_spiel->spl_wlock_ctx);
+	/*
+	 * @todo Freeing ->spl_wlock_ctx is not safe here, because incoming
+	 * revoke foms can be processed concurrently. Just leak the context for
+	 * the time being.
+	 */
+	if (0) {
+		m0_free0(&tx->spt_spiel->spl_wlock_ctx);
+	} else {
+		tx->spt_spiel->spl_wlock_ctx = NULL;
+	}
 	M0_LEAVE();
 }
 
