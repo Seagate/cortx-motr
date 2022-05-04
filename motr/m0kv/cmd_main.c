@@ -62,6 +62,8 @@ enum {
 
 static struct m0 instance;
 bool is_str;
+bool is_enf_meta;
+struct m0_fid dix_pool_ver;
 
 static int subsystem_id(char *name)
 {
@@ -92,6 +94,9 @@ static void usage(void)
 		" [subsystem] [subsystem commands]\n"
 		"\n"
 		"-s  Enable string format and it is optional.\n"
+		"-e  Enable M0_ENF_META flag and it is optional.\n"
+		"-v 7600000000000001:30 it is mandatory with -e for "
+		"PUT, GET, DEL and NEXT operations.\n"
 		"Available subsystems and subsystem-specific commands are "
 		"listed below.\n");
 	for (i = 0; i < ARRAY_SIZE(subsystems); i++)
@@ -103,6 +108,7 @@ static int opts_get(struct params *par, int *argc, char ***argv)
 	int    rc = 0;
 	char **arg = *(argv);
 	int    common_args = 9;
+	char  *pv = NULL; 
 
 	par->cp_local_addr = NULL;
 	par->cp_ha_addr    = NULL;
@@ -133,7 +139,13 @@ static int opts_get(struct params *par, int *argc, char ***argv)
 						par->cp_prof = (char*)str;
 					})),
 			M0_FLAGARG('s', "Enable string format",
-					&is_str));
+					&is_str),
+			M0_FLAGARG('e', "Enable M0_ENF_META flag",
+					&is_enf_meta),
+			M0_STRINGARG('v', "DIX pool version information",
+					LAMBDA(void, (const char *str) {
+						pv = (char *)str;
+					})));
 	if (rc != 0)
 		return M0_ERR(rc);
 	/* All mandatory params must be defined. */
@@ -146,6 +158,14 @@ static int opts_get(struct params *par, int *argc, char ***argv)
 
 	if (is_str)
 		common_args++;
+
+	if (is_enf_meta)
+		common_args++;
+
+	if (pv != NULL) {
+		common_args += 2;
+		rc = m0_fid_sscanf(pv, &dix_pool_ver);
+	}
 
 	*argc -= common_args;
 	*(argv) = arg + common_args;

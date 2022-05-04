@@ -30,12 +30,12 @@ conf_ios_device_setup()
 
 	if (($_id_count == 0))
 	then
-		eval $ids_out="'$ddev_id'"
+		eval "$ids_out"="'$ddev_id'"
 	else
-		eval $ids_out="'$_ids, $ddev_id'"
+		eval "$ids_out"="'$_ids, $ddev_id'"
 	fi
 
-	eval $id_count_out=$(( $_id_count + 1 ))
+	eval "$id_count_out"=$(( $_id_count + 1 ))
 
 	#dev conf obj
 	local ddev_obj="{0x64| (($ddev_id), $(($_DDEV_ID - 1)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop$_DDEV_ID\")}"
@@ -179,19 +179,19 @@ servers_stop()
 
 	for pid in $pids; do
 		echo -n "----- $pid stopping--------"
-		if checkpid $pid 2>&1; then
+		if checkpid "$pid" 2>&1; then
 			# TERM first, then KILL if not dead
-			kill -TERM $pid &>/dev/null
-			proc=$(ps -o ppid= $pid)
+			kill -TERM "$pid" &>/dev/null
+			proc=$(ps -o ppid= "$pid")
 			if [[ $proc -eq $$ ]]; then
 				## $pid is spawned by current shell
 				wait $pid || rc=$?
 			else
 				sleep 5
-				if checkpid $pid && sleep 5 &&
-				   checkpid $pid && sleep $delay &&
-				   checkpid $pid ; then
-					kill -KILL $pid &>/dev/null
+				if checkpid "$pid" && sleep 5 &&
+				   checkpid "$pid" && sleep $delay &&
+				   checkpid "$pid" ; then
+					kill -KILL "$pid" &>/dev/null
 					sleep 1
 				fi
 			fi
@@ -247,13 +247,13 @@ motr_service()
 
 		# start confd
 		DIR=$MOTR_M0T1FS_TEST_DIR/confd
-		rm -rf $DIR
-		mkdir -p $DIR
+		rm -rf "$DIR"
+		mkdir -p "$DIR"
 		ulimit -c unlimited
 
 		local nr_mds=${#MDSEP[*]}
 		local nr_ios=${#IOSEP[*]}
-		if [ $SINGLE_NODE -eq 1 ] ; then
+		if [ "$SINGLE_NODE" -eq 1 ] ; then
 			nr_ios=1
 			nr_mds=1
 		fi
@@ -267,7 +267,7 @@ motr_service()
 			local ios=$(( $i + 1 ))
 			local nr_dev=$nr_dev_per_ios
 			DIR=$MOTR_M0T1FS_TEST_DIR/ios$ios
-			rm -rf $DIR
+			rm -rf "$DIR"
 			mkdir -p $DIR
 
 			if (($i < $remainder))
@@ -275,7 +275,7 @@ motr_service()
 				nr_dev=$(($nr_dev_per_ios + 1))
 			fi
 
-			mkiosloopdevs $ios $nr_dev $DIR || return 1
+			mkiosloopdevs $ios $nr_dev "$DIR" || return 1
 		done
 
 		mkiosmddevs $nr_ios $P || return 1
@@ -309,7 +309,7 @@ EOF
 
 		DIR=$MOTR_M0T1FS_TEST_DIR/confd
 		CONFDB="$DIR/conf.xc"
-		build_conf $N $K $S $P $multiple_pools | tee $DIR/conf.xc
+		build_conf "$N" "$K" "$S" "$P" "$multiple_pools" | tee $DIR/conf.xc
 		common_opts="-D db -S stobs -A linuxstob:addb-stobs \
 			     -w $P -m $MAX_RPC_MSG_SIZE \
 			     -q $TM_MIN_RECV_QUEUE_LEN -N 100663296 -C 262144 -K 100663296 -k 262144"
@@ -319,7 +319,7 @@ EOF
 		      -c $CONFDB"
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0mkfs.log"
 
-		echo $cmd
+		echo "$cmd"
 		(eval "$cmd")
 
 		# spawn confd
@@ -346,16 +346,16 @@ EOF
 		for ((i=0; i < $nr_mds; i++)) ; do
 			local mds=$(( $i + 1 ))
 			DIR=$MOTR_M0T1FS_TEST_DIR/mds$mds
-			rm -rf $DIR
-			mkdir -p $DIR
+			rm -rf "$DIR"
+			mkdir -p "$DIR"
 
-			tmid=$(echo ${MDSEP[$i]} | cut -d: -f3)
+			tmid=$(echo "${MDSEP[$i]}" | cut -d: -f3)
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T ad \
 			$common_opts -e $XPRT:${lnet_nid}:${MDSEP[$i]%:*:*}:$MKFS_PORTAL:$tmid \
 			-c $CONFDB |& tee -a m0mkfs.log"
-			echo $cmd
+			echo "$cmd"
 			eval "$cmd"
 		done
 
@@ -365,7 +365,7 @@ EOF
 			proc_fid="'<"$PROC_FID_CNTR:$i">'"
 			DIR=$MOTR_M0T1FS_TEST_DIR/ios$ios
 
-			tmid=$(echo ${IOSEP[$i]} | cut -d: -f3)
+			tmid=$(echo "${IOSEP[$i]}" | cut -d: -f3)
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MOTR_STOB_DOMAIN \
@@ -395,12 +395,12 @@ EOF
 		DIR=$MOTR_M0T1FS_TEST_DIR/ha
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
 		local m0d_log=$DIR/m0d.log
-		touch $m0d_log
-		echo $cmd
+		touch "$m0d_log"
+		echo "$cmd"
 		(eval "$cmd") &
 
 		# Wait for HA agent to start
-		while ! grep CTRL $MOTR_M0T1FS_TEST_DIR/ha/m0d.log > /dev/null;
+		while ! grep CTRL "$MOTR_M0T1FS_TEST_DIR"/ha/m0d.log > /dev/null;
 		do
 			sleep 2
 		done
@@ -429,7 +429,7 @@ EOF
 			echo $cmd
 
 			local m0d_log=$DIR/m0d.log
-			touch $m0d_log
+			touch "$m0d_log"
 			(eval "$cmd") &
 
 			# let instance with RMS be the first initialised one;
@@ -457,7 +457,7 @@ EOF
 			echo $cmd
 
 			local m0d_log=$DIR/m0d.log
-			touch $m0d_log
+			touch "$m0d_log"
 			(eval "$cmd") &
 			IOS4_CMD=$cmd
 		done
@@ -470,18 +470,18 @@ EOF
 			$common_opts -e $XPRT:${lnet_nid}:$IOS_PVER2_EP \
                         -f $proc_fid \
 			-H ${lnet_nid}:$HA_EP |& tee -a m0d.log"
-			echo $cmd
+			echo "$cmd"
 
 			local m0d_log=$DIR/m0d.log
-			touch $m0d_log
+			touch "$m0d_log"
 			#Save IOS5, to start it again after controller HA event.
 			IOS5_CMD=$cmd
 			(eval "$cmd") &
 		fi
 
 		# Wait for confd to start
-		local confd_log=$MOTR_M0T1FS_TEST_DIR/confd/m0d.log
-		while ! grep CTRL $confd_log > /dev/null; do
+		local confd_log="$MOTR_M0T1FS_TEST_DIR/confd/m0d.log"
+		while ! grep CTRL "$confd_log" > /dev/null; do
 			sleep 2
 		done
 		echo "Motr confd started."
@@ -492,7 +492,7 @@ EOF
 			local mds=$(( $i + 1 ))
 			DIR=$MOTR_M0T1FS_TEST_DIR/mds$mds
 			local m0d_log=$DIR/m0d.log
-			while ! grep CTRL $m0d_log > /dev/null; do
+			while ! grep CTRL "$m0d_log" > /dev/null; do
 				sleep 2
 			done
 		done
@@ -503,12 +503,12 @@ EOF
 			local ios=$(( $i + 1 ))
 			DIR=$MOTR_M0T1FS_TEST_DIR/ios$ios
 			local m0d_log=$DIR/m0d.log
-			while ! grep CTRL $m0d_log > /dev/null; do
+			while ! grep CTRL "$m0d_log" > /dev/null; do
 				sleep 2
 			done
 		done
 		if ((multiple_pools == 1)); then
-			while ! grep CTRL $MOTR_M0T1FS_TEST_DIR/ios5/m0d.log > /dev/null;
+			while ! grep CTRL "$MOTR_M0T1FS_TEST_DIR"/ios5/m0d.log > /dev/null;
 			do
 				sleep 2
 			done
@@ -519,7 +519,7 @@ EOF
 	}
 
 	stop() {
-		servers_stop $prog_start || rc=$?
+		servers_stop "$prog_start" || rc=$?
 		unprepare || rc=$?
 		return $rc
 	}
