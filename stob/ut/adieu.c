@@ -60,12 +60,13 @@ enum {
 };
 
 /** @todo move vars to a context */
-static const char linux_location[] = "linuxstob:./__s";
-static const char perf_location[] = "perfstob:./__s";
+#define PATH "./__s-adieu"
+static const char linux_location[] = "linuxstob:" PATH;
+static const char perf_location[] = "perfstob:" PATH;
 static struct m0_stob_domain *dom;
 static struct m0_stob *obj;
-static const char linux_path[] = "./__s/o/100000000000000:2";
-static const char perf_path[] = "./__s/backstore/o/100000000000000:2";
+static const char linux_path[] = PATH "/o/100000000000000:2";
+static const char perf_path[] = PATH "/backstore/o/100000000000000:2";
 static struct m0_stob_io io;
 static m0_bcount_t user_vec[NR];
 static char *user_buf[NR];
@@ -116,23 +117,23 @@ static int test_adieu_init(const char *location,
 	// Allocate contigious buffer for i/p checksums
 	user_cksm_buf[0] = m0_alloc(AD_ADIEU_CS_SZ * ARRAY_SIZE(user_cksm_buf));
 	M0_ASSERT(user_cksm_buf[0] != NULL);
-	memset( user_cksm_buf[0], cs_char++, AD_ADIEU_CS_SZ);	
+	memset( user_cksm_buf[0], cs_char++, AD_ADIEU_CS_SZ);
 	for (i = 1; i < ARRAY_SIZE(user_cksm_buf); ++i) {
-		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_ADIEU_CS_SZ; 	
+		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_ADIEU_CS_SZ;
 		memset( user_cksm_buf[i], cs_char++, AD_ADIEU_CS_SZ);
 	}
-	
+
 	for (i = 0; i < ARRAY_SIZE(read_buf); ++i) {
 		read_buf[i] = m0_alloc_aligned(buf_size, block_shift);
 		M0_ASSERT(read_buf[i] != NULL);
 	}
 
-	// Allocate contigious buffer for o/p checksums 
+	// Allocate contigious buffer for o/p checksums
 	read_cksm_buf[0] = m0_alloc(AD_ADIEU_CS_SZ * ARRAY_SIZE(read_cksm_buf));
 	M0_ASSERT(read_cksm_buf[0] != NULL);
-	memset( read_cksm_buf[0], 0, AD_ADIEU_CS_SZ);	
+	memset( read_cksm_buf[0], 0, AD_ADIEU_CS_SZ);
 	for (i = 1; i < ARRAY_SIZE(read_cksm_buf); ++i) {
-		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_ADIEU_CS_SZ; 	
+		read_cksm_buf[i] = read_cksm_buf[i-1] + AD_ADIEU_CS_SZ;
 		memset( read_cksm_buf[i], 0, AD_ADIEU_CS_SZ);
 	}
 

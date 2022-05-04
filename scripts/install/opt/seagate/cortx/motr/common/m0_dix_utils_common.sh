@@ -20,7 +20,7 @@
 
 . /opt/seagate/cortx/motr/common/m0_utils_common.sh
 
-sns_repair_or_rebalance_status()
+dix_repair_or_rebalance_status()
 {
         local rc=0
         local op=32
@@ -28,17 +28,17 @@ sns_repair_or_rebalance_status()
         [ "$1" == "repair" ] && op=$CM_OP_REPAIR_STATUS
         [ "$1" == "rebalance" ] && op=$CM_OP_REBALANCE_STATUS
 
-        status_cmd=$(get_m0repair_utils_cmd SNS "$op")
-        run "$status_cmd"
+        repair_status=$(get_m0repair_utils_cmd DIX "$op")
+        run "$repair_status"
         rc=$?
         if [ $rc != 0 ]; then
-                echo "SNS $1 status query failed"
+                echo "DIX $1 status query failed"
         fi
 
         return $rc
 }
 
-wait_for_sns_repair_or_rebalance()
+wait_for_dix_repair_or_rebalance()
 {
         local rc=0
         local op=32
@@ -46,18 +46,18 @@ wait_for_sns_repair_or_rebalance()
         [ "$1" == "repair" ] && op=$CM_OP_REPAIR_STATUS
         [ "$1" == "rebalance" ] && op=$CM_OP_REBALANCE_STATUS
 
-        status_cmd=$(get_m0repair_utils_cmd SNS "$op")
+        status_cmd=$(get_m0repair_utils_cmd DIX "$op")
         while true ; do
                 sleep 5
                 echo "$status_cmd"
                 status=$(eval "$status_cmd")
                 rc=$?
                 if [ $rc != 0 ]; then
-                        echo "SNS $1 status query failed"
+                        echo "DIX $1 status query failed"
                         return $rc
                 fi
 
-                echo "$status" | grep status=2 && continue #sns repair is active, continue waiting
+                echo "$status" | grep status=2 && continue #dix repair is active, continue waiting
                 break;
         done
 
@@ -67,28 +67,29 @@ wait_for_sns_repair_or_rebalance()
         return 0
 }
 
-sns_repair()
+dix_repair()
 {
         local rc=0
 
-        repair_trigger=$(get_m0repair_utils_cmd SNS "$CM_OP_REPAIR")
+        repair_trigger=$(get_m0repair_utils_cmd DIX "$CM_OP_REPAIR")
         run "$repair_trigger"
         rc=$?
         if [ $rc != 0 ]; then
-                echo "SNS Repair failed"
+                echo "DIX Repair failed"
         fi
         return $rc
+
 }
 
-sns_rebalance()
+dix_rebalance()
 {
         local rc=0
 
-        rebalance_trigger=$(get_m0repair_utils_cmd SNS "$CM_OP_REBALANCE")
+        rebalance_trigger=$(get_m0repair_utils_cmd DIX "$CM_OP_REBALANCE")
         run "$rebalance_trigger"
         rc=$?
         if [ $rc != 0 ]; then
-                echo "SNS Re-balance failed"
+                echo "DIX Re-balance failed"
         fi
 
         return $rc
