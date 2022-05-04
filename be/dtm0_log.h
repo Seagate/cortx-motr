@@ -192,9 +192,11 @@ struct m0_dtm0_log_rec {
 struct m0_be_dtm0_log {
 	/** Indicates if the structure is a persistent or volatile */
 	bool                       dl_is_persistent;
-	/** dl_lock protects access to the dl_list/dl_tlist. This lock
-	 *  should be held before performing any operations on the log
-	 *  involving a log record search or insert. */
+	/**
+	 * dl_lock protects access to dl_persist/dl_inmem lists.
+	 * It should be held before performing any operations on the log
+	 * involving a log record search or insert.
+	 */
 	struct m0_mutex            dl_lock;
 	struct m0_be_seg          *dl_seg;
 	/** DTM0 clock source */

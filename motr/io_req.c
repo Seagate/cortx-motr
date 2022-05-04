@@ -1705,6 +1705,7 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 	rc = xfer->nxr_ops->nxo_dispatch(xfer);
 	if (rc != 0)
 		return M0_ERR(rc);
+
 	ioo->ioo_dgmode_io_sent = true;
 
 	return M0_RC(rc);
@@ -1733,7 +1734,7 @@ static int ioreq_dgmode_write(struct m0_op_io *ioo, bool rmw)
 	if (ioo->ioo_dgmode_io_sent)
 		return M0_RC(xfer->nxr_rc);
 
-	/* -E2BIG: see commit 52c1072141d*/
+	/* -E2BIG: see commit 52c1072141d */
 	if (M0_IN(xfer->nxr_rc, (0, -E2BIG)))
 		return M0_RC(xfer->nxr_rc);
 

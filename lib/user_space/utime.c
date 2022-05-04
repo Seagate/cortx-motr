@@ -67,7 +67,7 @@ int m0_nanosleep(const m0_time_t req, m0_time_t *rem)
 	rc = nanosleep(&reqts, &remts);
 	if (rem != NULL)
 		*rem = rc != 0 ? m0_time(remts.tv_sec, remts.tv_nsec) : 0;
-	return rc != 0 ? M0_ERR(rc) : rc;
+	return rc != 0 ? M0_ERR(-errno) : 0;
 }
 M0_EXPORTED(m0_nanosleep);
 
