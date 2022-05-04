@@ -149,7 +149,7 @@ static void conf_flip_fom_create_fail(void)
 static void conf_save_load(void)
 {
 	struct m0_stob *stob;
-	char            linux_location[] = "linuxstob:./__s";
+	char            linux_location[] = "linuxstob:./__s-conf";
 	struct m0_fid   confd_fid = M0_CONFD_FID(1, 2, 12345);
 	int             rc;
 	char           *str_write;
@@ -188,7 +188,7 @@ static void conf_save_load(void)
 static void conf_save_load_fail(void)
 {
 	struct m0_stob *stob;
-	char            linux_location[] = "linuxstob:./__s";
+	char            linux_location[] = "linuxstob:./__s-conf";
 	char            fail_location[] = "fail_location";
 	struct m0_fid   confd_fid = M0_CONFD_FID(1, 2, 12345);
 	int             rc;
