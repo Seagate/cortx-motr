@@ -338,7 +338,7 @@ static int rpc_buffer_submit(struct rpc_buffer *rpcbuf)
 	rc = m0_net_buffer_add(netbuf, &machine->rm_tm);
 	if (rc == 0) {
 		M0_CNT_INC(machine->rm_active_nb);
-		M0_LOG(M0_DEBUG,"+%p->rm_active_nb: %"PRIi64" %p\n",
+		M0_LOG(M0_DEBUG,"+%p->rm_active_nb: %" PRIi64 " %p\n",
 		       machine, machine->rm_active_nb, rpcbuf);
 	}
 
@@ -409,7 +409,7 @@ static void buf_send_cb(const struct m0_net_buffer_event *ev)
                 stats->rs_nr_failed_packets++;
 	}
 	M0_CNT_DEC(machine->rm_active_nb);
-	M0_LOG(M0_DEBUG, "-%p->rm_active_nb: %"PRIi64" %p\n",
+	M0_LOG(M0_DEBUG, "-%p->rm_active_nb: %" PRIi64 " %p\n",
 	       machine, machine->rm_active_nb, rpcbuf);
 	if (machine->rm_active_nb == 0)
 		m0_chan_broadcast(&machine->rm_nb_idle);
@@ -476,7 +476,7 @@ static void item_done(struct m0_rpc_packet *p, struct m0_rpc_item *item, int rc)
 	if (item->ri_error != 0 &&
 	    item->ri_sm.sm_state != M0_RPC_ITEM_FAILED) {
 		M0_LOG(M0_ERROR, " item: %p dest_ep=%s ri_session=%p ri_nr_sent_max=%"PRIu64
-		       "ri_deadline=%"PRIu64" ri_nr_sent=%u", item,
+		       "ri_deadline=%" PRIu64 " ri_nr_sent=%u", item,
 		       item->ri_session == NULL ? "NOT AVAILABLE" :
 		       m0_rpc_item_remote_ep_addr(item), item->ri_session,
 		       item->ri_nr_sent_max, item->ri_deadline, item->ri_nr_sent);

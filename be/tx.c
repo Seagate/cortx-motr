@@ -397,7 +397,7 @@ M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx,
 {
 	int rc;
 
-	M0_ENTRY("tx=%p state=%s states=%"PRIu64" deadline=%"PRIu64,
+	M0_ENTRY("tx=%p state=%s states=%" PRIu64 " deadline=%"PRIu64,
 		 tx, m0_be_tx_state_name(m0_be_tx_state(tx)), states, deadline);
 	M0_PRE(be_tx_is_locked(tx));
 	M0_PRE(ergo(tx->t_gc_enabled,
@@ -448,7 +448,7 @@ static int be_tx_memory_allocate(struct m0_be_tx *tx)
 		tx->t_payload.b_addr = m0_alloc_nz(tx->t_payload.b_nob);
 	if (tx->t_payload.b_addr == NULL && tx->t_payload.b_nob != 0) {
 		rc = -ENOMEM;
-		M0_LOG(M0_ERROR, "tx=%p t_payload_prepared=%"PRIu64" rc=%d",
+		M0_LOG(M0_ERROR, "tx=%p t_payload_prepared=%" PRIu64 " rc=%d",
 		       tx, tx->t_payload_prepared, rc);
 	} else {
 		rc = m0_be_reg_area_init(&tx->t_reg_area, &tx->t_prepared,
@@ -754,7 +754,7 @@ M0_INTERNAL void m0_be_tx_lsn_set(struct m0_be_tx *tx,
 
 	tx->t_lsn = lsn;
 	tx->t_lsn_discarded = lsn_discarded;
-	M0_LEAVE("tx=%p t_lsn=%"PRIu64" t_lsn_discarded=%"PRIu64,
+	M0_LEAVE("tx=%p t_lsn=%" PRIu64 " t_lsn_discarded=%"PRIu64,
 	         tx, tx->t_lsn, tx->t_lsn_discarded);
 }
 
@@ -762,7 +762,7 @@ M0_INTERNAL void m0_be_tx_lsn_get(struct m0_be_tx *tx,
                                   m0_bindex_t     *lsn,
                                   m0_bindex_t     *lsn_discarded)
 {
-	M0_ENTRY("tx=%p t_lsn=%"PRIu64" t_lsn_discarded=%"PRIu64,
+	M0_ENTRY("tx=%p t_lsn=%" PRIu64 " t_lsn_discarded=%"PRIu64,
 	         tx, tx->t_lsn, tx->t_lsn_discarded);
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_LOGGED, M0_BTS_PLACED,
 	                                  M0_BTS_DONE)));

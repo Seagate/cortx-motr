@@ -2328,7 +2328,7 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				{
 					if (size > MAX_ADDB2_RECORD_SIZE)
 						M0_LOG(M0_WARN, "ADDB size is more than recommended");
-					M0_LOG(M0_DEBUG, "ADDB size = %"PRIu64"", size);
+					M0_LOG(M0_DEBUG, "ADDB size = %" PRIu64 "", size);
 					rctx->rc_addb_record_file_size = size;
 				})),
 			);

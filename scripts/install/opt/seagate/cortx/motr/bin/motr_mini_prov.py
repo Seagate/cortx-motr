@@ -26,6 +26,7 @@ import logging
 import glob
 import time
 import yaml
+import psutil
 from typing import List, Dict, Any
 from cortx.utils.conf_store import Conf
 from cortx.utils.cortx import Const
@@ -34,6 +35,8 @@ MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-start"
 MOTR_MKFS_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-mkfs"
 MOTR_FSM_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-free-space-monitor"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
+MOTR_MINI_PROV_LOGROTATE_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_mini_prov_logrotate.sh"
+CROND_DIR = "/etc/cron.hourly"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 LIBFAB_CONF_FILE = "/etc/libfab.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
@@ -50,9 +53,12 @@ MACHINE_ID_LEN = 32
 MOTR_LOG_DIRS = [LOGDIR, MOTR_LOG_DIR]
 BE_LOG_SZ = 4*1024*1024*1024 #4G
 BE_SEG0_SZ = 128 * 1024 *1024 #128M
+ALLIGN_SIZE = 4096
 MACHINE_ID_FILE = "/etc/machine-id"
-TEMP_FID_FILE= "/opt/seagate/cortx/motr/conf/service_fid.yaml"
+TEMP_FID_FILE = "/opt/seagate/cortx/motr/conf/service_fid.yaml"
 CMD_RETRY_COUNT = 5
+MEM_THRESHOLD = 4*1024*1024*1024
+CVG_COUNT_KEY = "num_cvg"
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -63,6 +69,20 @@ class MotrError(Exception):
 
     def __str__(self):
         return f"error[{self._rc}]: {self._desc}"
+
+def execute_command_without_log(cmd,  timeout_secs = TIMEOUT_SECS,
+    verbose = False, retries = 1, stdin = None, logging=False):
+    ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         shell=True)
+    if stdin:
+        ps.stdin.write(stdin.encode())
+    stdout, stderr = ps.communicate(timeout=timeout_secs);
+    stdout = str(stdout, 'utf-8')
+
+    time.sleep(1)
+    if ps.returncode != 0:
+        raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
 
 #TODO: logger config(config_log) takes only self as argument so not configurable,
 #      need to make logger configurable to change formater, etc and remove below
@@ -200,19 +220,92 @@ def configure_machine_id(self, phase):
     else:
         raise MotrError(errno.ENOENT, "machine id not available in conf")
 
-def get_server_node(self, k8):
+def get_server_node(self):
     """Get current node name using machine-id."""
     try:
         machine_id = self.machine_id;
-        if k8:
-            server_node = Conf.get(self._index, 'node')[machine_id]
-        else:
-            server_node = Conf.get(self._index, 'server_node')[machine_id]
+        server_node = Conf.get(self._index, 'node')[machine_id]
     except:
         raise MotrError(errno.EINVAL, f"MACHINE_ID {machine_id} does not exist in ConfStore")
 
     check_type(server_node, dict, "server_node")
     return server_node
+
+def calc_size(self, sz):
+    ret = -1
+    suffixes = ['K', 'Ki', 'Kib', 'M', 'Mi', 'Mib', 'G', 'Gi', 'Gib']
+    sz_map = {
+              "K": 1024, "M": 1024*1024, "G": 1024*1024*1024,
+              "Ki": 1024, "Mi": 1024*1024, "Gi": 1024*1024*1024,
+              "Kib": 1024, "Mib": 1024*1024, "Gib": 1024*1024*1024 }
+
+    # Check if sz ends with proper suffixes. It matches only one suffix.
+    temp = list(filter(sz.endswith, suffixes))
+    if len(temp) > 0:
+        suffix = temp[0]
+        num_sz = re.sub(r'[^0-9]', '', sz) # Ex: If sz is 128MiB then num_sz=128
+        map_val = sz_map[suffix] # Ex: If sz is 128MiB then map_val = 1024*1024*1024
+        ret = int(num_sz) * int(map_val)
+        return ret
+    else:
+        self.logger.error(f"Invalid format of mem limit: {sz}\n")
+        self.logger.error("Please use valid format Ex: 1024, 1Ki, 1Mi, 1Gi etc..\n")
+        return ret
+
+def set_setup_size(self, service):
+    ret = False
+    sevices_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
+
+    # Default self.setup_size  is "small"
+    self.setup_size = "small"
+
+    # For services other then ioservice and confd, return True
+    # It will set default setup size i.e. small
+    if service not in ["ioservice", "ios", "io", "all", "confd"]:
+        self.setup_size = "small"
+        self.logger.info(f"service is {service}. So seting setup size to {self.setup_size}\n")
+        return True
+
+    #Provisioner passes io as parameter to motr_setup.
+    #Ex: /opt/seagate/cortx/motr/bin/motr_setup config --config yaml:///etc/cortx/cluster.conf --services io
+    #But in /etc/cortx/cluster.conf io is represented by ios. So first get the service names right
+    if service in ["io", "ioservice"]:
+         svc = "ios"
+    else:
+         svc = service
+    for arr_elem in sevices_limits:
+        # For ios, confd we check for setup size according to mem size
+        if arr_elem['name'] == svc:
+            min_mem = arr_elem['memory']['min']
+
+            if min_mem.isnumeric():
+                sz = int(min_mem)
+            else:
+                sz = calc_size(self, min_mem)
+
+            self.logger.info(f"mem limit in config is {min_mem} i.e. {sz}\n")
+
+            # Invalid min mem format
+            if sz < 0:
+                ret = False
+                break
+            # If mem limit in ios > 4G then it is large setup size
+            elif sz > MEM_THRESHOLD:
+                self.setup_size = "large"
+                self.logger.info(f"setup_size set to {self.setup_size}\n")
+                ret = True
+                break
+            else:
+                self.setup_size = "small"
+                self.logger.info(f"setup_size set to {self.setup_size}\n")
+                ret = True
+                break
+    if ret == False:
+        raise MotrError(errno.EINVAL, f"Setup size is not set properly for service {service}."
+                                      f"Please update valid mem limits for {service}")
+    else:
+        self.logger.info(f"service={service} and setup_size={self.setup_size}\n")
+    return ret
 
 def get_value(self, key, key_type):
     """Get data."""
@@ -288,10 +381,9 @@ def validate_motr_rpm(self):
     kernel_ver = op.replace('\n', '')
     check_type(kernel_ver, str, "kernel version")
 
-    if not self.k8:
-        kernel_module = f"/lib/modules/{kernel_ver}/kernel/fs/motr/m0tr.ko"
-        self.logger.info(f"Checking for {kernel_module}\n")
-        validate_file(kernel_module)
+    kernel_module = f"/lib/modules/{kernel_ver}/kernel/fs/motr/m0tr.ko"
+    self.logger.info(f"Checking for {kernel_module}\n")
+    validate_file(kernel_module)
 
     self.logger.info(f"Checking for {MOTR_SYS_CFG}\n")
     validate_file(MOTR_SYS_CFG)
@@ -367,7 +459,7 @@ def update_copy_motr_config_file(self):
 #              ['/dev/sdf'] is list of metadata disks of cvg[1]
 def get_md_disks_lists(self, node_info):
     md_disks_lists = []
-    cvg_count = node_info['storage']['cvg_count']
+    cvg_count = node_info['storage'][CVG_COUNT_KEY]
     cvg = node_info['storage']['cvg']
     for i in range(cvg_count):
         temp_cvg = cvg[i]
@@ -424,9 +516,40 @@ def update_motr_hare_keys(self, nodes):
         md_disks_lists = get_md_disks_lists(self, node_info)
         update_to_file(self, self._index_motr_hare, self._url_motr_hare, machine_id, md_disks_lists)
 
+# Write below content to /etc/cortx/motr/mini_prov_logrotate.conf file so that mini_mini_provisioner
+# log file will be rotated hourly and retained recent max 4 files. Max size of log file is 10M.
+
+# Content:
+# /etc/cortx/log/motr/<machine-id>/mini_provisioner {
+#    hourly
+#    size 10M
+#    rotate 4
+#    delaycompress
+#    copytruncate
+# }
+def add_entry_to_logrotate_conf_file(self):
+    MOTR_M0D_DATA_DIR = f"{self.local_path}/motr"
+    validate_files([MOTR_M0D_DATA_DIR])
+    mini_prov_conf_file = f"{MOTR_M0D_DATA_DIR}/mini_prov_logrotate.conf"
+
+    indent=' '*4
+    lines=["{a} {b}\n".format(a=self.logfile, b='{'),
+           f"{indent}hourly\n",
+           f"{indent}size 10M\n",
+           f"{indent}rotate 4\n",
+           f"{indent}delaycompress\n",
+           f"{indent}copytruncate\n",
+           "{a}\n".format(a='}')]
+    with open(f"{mini_prov_conf_file}", 'w+') as fp:
+        for line in lines:
+            fp.write(line)
+
 def motr_config_k8(self):
     if not verify_libfabric(self):
         raise MotrError(errno.EINVAL, "libfabric is not up.")
+
+    # To rotate mini_provisioner log file
+    add_entry_to_logrotate_conf_file(self)
 
     if self.machine_id not in self.storage_nodes:
         # Modify motr config file
@@ -473,12 +596,8 @@ def motr_config(self):
 
 def configure_net(self):
     """Wrapper function to detect lnet/libfabric transport."""
-    if self.k8 == 'K8':
-        transport_type = "libfabric"
-        configure_libfabric_k8(self)
-        return
     try:
-        transport_type = self.server_node['network']['data']['transport_type']
+        transport_type = Conf.get(self._index, 'cortx>motr>transport_type')
     except:
         raise MotrError(errno.EINVAL, "transport_type not found")
 
@@ -486,7 +605,7 @@ def configure_net(self):
 
     if transport_type == "lnet":
         configure_lnet(self)
-    elif transport_type == "libfabric":
+    elif transport_type == "libfab":
         configure_libfabric(self)
     else:
         raise MotrError(errno.EINVAL, "Unknown data transport type\n")
@@ -527,32 +646,6 @@ def configure_lnet(self):
        raise MotrError(errno.EINVAL, "lent self ping failed\n")
 
 def configure_libfabric(self):
-    try:
-        iface = self.server_node['network']['data']['private_interfaces'][0]
-    except:
-        raise MotrError(errno.EINVAL, "private_interfaces[0] not found\n")
-
-    sys.stdout.write(f"Validate private_interfaces[0]: {iface}\n")
-    cmd = f"ip addr show {iface}"
-    execute_command(self, cmd)
-
-    try:
-        iface_type = self.server_node['network']['data']['interface_type']
-    except:
-        raise MotrError(errno.EINVAL, "interface_type not found\n")
-
-    libfab_config = (f"networks={iface_type}({iface}) ")
-    self.logger.info(f"libfab config: {libfab_config}")
-    with open(LIBFAB_CONF_FILE, "w") as fp:
-        fp.write(libfab_config)
-
-    sys.stdout.write(f"iface type: {iface_type}\n")
-    cmd = "fi_info"
-    execute_command(self, cmd)
-    sys.stdout.write(f"fi_info: {cmd}\n")
-    os.system('fi_info')
-
-def configure_libfabric_k8(self):
     cmd = "fi_info"
     execute_command(self, cmd, verbose=True)
 
@@ -723,10 +816,7 @@ def create_lvm(self, index, metadata_dev):
     return True
 
 def calc_lvm_min_size(self, lv_path, lvm_min_size):
-    if self.k8 == 'K8':
-        cmd = f"lsblk --noheadings --bytes {lv_path} | " "awk '{print $4}'"
-    else:
-        cmd = f"lvs {lv_path} -o LV_SIZE --noheadings --units b --nosuffix"
+    cmd = f"lsblk --noheadings --bytes {lv_path} | " "awk '{print $4}'"
     res = execute_command(self, cmd)
     lv_size = res[0].rstrip("\n")
     lv_size = int(lv_size)
@@ -739,11 +829,11 @@ def calc_lvm_min_size(self, lv_path, lvm_min_size):
 
 def get_cvg_cnt_and_cvg(self):
     try:
-        cvg_cnt = self.server_node['storage']['cvg_count']
+        cvg_cnt = self.server_node['storage'][CVG_COUNT_KEY]
     except:
         raise MotrError(errno.EINVAL, "cvg_cnt not found\n")
 
-    check_type(cvg_cnt, str, "cvg_count")
+    check_type(cvg_cnt, str, CVG_COUNT_KEY)
 
     try:
         cvg = self.server_node['storage']['cvg']
@@ -798,45 +888,18 @@ def align_val(val, size):
 def update_bseg_size(self):
     dev_count = 0
     lvm_min_size = None
-    # For k8
-    if self.k8 == 'K8':
-        md_disks_list = get_md_disks_lists(self, self.node)
-        md_disks = get_mdisks_from_list(self, md_disks_list)
-        md_len = len(md_disks)
-        for i in range(md_len):
-            lvm_min_size = calc_lvm_min_size(self, md_disks[i], lvm_min_size)
-        if lvm_min_size:
-            align_val(lvm_min_size, 4096)
-            self.logger.info(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
-            cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
-            execute_command(self, cmd)
-        return
 
-    # For non k8
-    cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
-    for i in range(int(cvg_cnt)):
-        cvg_item = cvg[i]
-        try:
-            metadata_devices = cvg_item["metadata_devices"]
-        except:
-            raise MotrError(errno.EINVAL, "metadata devices not found\n")
-        check_type(metadata_devices, list, "metadata_devices")
-        self.logger.info(f"\nlvm metadata_devices: {metadata_devices}\n\n")
-        for device in metadata_devices:
-            cmd = f"pvs --noheadings {device}"
-            vgname = (execute_command(self, cmd)[0]).split(sep=None)[1]
-            cmd = "lvdisplay | grep \"LV Path\" | grep {} | grep -v swap".format(vgname)
-            lv_list = (execute_command(self, cmd)[0]).replace("LV Path", '').split('\n')[0:-1]
-            len_lv_list = len(lv_list)
-            for i in range(len_lv_list):
-                # lv_list[i] contains initial spaces. So removing these spaces.
-                lv_list[i] = lv_list[i].strip()
-                lv_path = lv_list[i]
-                lvm_min_size = calc_lvm_min_size(self, lv_path, lvm_min_size)
+    md_disks_list = get_md_disks_lists(self, self.node)
+    md_disks = get_mdisks_from_list(self, md_disks_list)
+    md_len = len(md_disks)
+    for i in range(md_len):
+        lvm_min_size = calc_lvm_min_size(self, md_disks[i], lvm_min_size)
     if lvm_min_size:
+        align_val(lvm_min_size, ALLIGN_SIZE)
         self.logger.info(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
         cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
         execute_command(self, cmd)
+    return
 
 def config_lvm(self):
     dev_count = 0
@@ -1021,8 +1084,6 @@ def lvm_exist(self):
     return True
 
 def cluster_up(self):
-    if self.k8 == "K8":
-        return False
     cmd = '/usr/bin/hctl status'
     self.logger.info(f"Executing cmd : '{cmd}'\n")
     ret = execute_command_without_exception(self, cmd)
@@ -1170,7 +1231,7 @@ def update_motr_hare_keys_for_all_nodes(self):
     retry_delay = 2
     for value in nodes_info.values():
         host = value["hostname"]
-        cvg_count = value["storage"]["cvg_count"]
+        cvg_count = value["storage"][CVG_COUNT_KEY]
         name = value["name"]
         self.logger.info(f"update_motr_hare_keys for {host}\n")
         for i in range(int(cvg_count)):
@@ -1406,16 +1467,46 @@ def fetch_fid(self, service, idx):
     fid = get_fid(self, fids, service, idx)
     return fid
 
+def getListOfm0dProcess():
+    '''
+    Get list of running m0d process
+    '''
+    listOfProc = []
+    # Iterate over the list
+    for proc in psutil.process_iter():
+       try:
+           # Fetch process details as dict
+           pinfo = proc.as_dict(attrs=['pid', 'name', 'username'])
+           if pinfo.get('name') == "m0d":
+               # Append dict to list
+               listOfProc.append(pinfo);
+       except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+           pass
+    return listOfProc
+
+def receiveSigTerm(signalNumber, frame):
+    for proc in getListOfm0dProcess():
+        cmd=f"KILL -SIGTERM {proc.get('pid')}"
+        execute_command_without_log(cmd)
+    return
+
 # If service is one of [ios,confd,hax] then we expect fid to start the service
 # and start services using motr-mkfs and motr-server.
 # For other services like 'motr-free-space-mon' we do nothing.
 def start_service(self, service, idx):
     self.logger.info(f"service={service}\nidx={idx}\n")
 
-    if service == "fsm":
+    if service in ["fsm", "client", "motr_client"]:
         cmd = f"{MOTR_FSM_SCRIPT_PATH}"
         execute_command_verbose(self, cmd, set_timeout=False)
         return
+
+    # Copy mini prov logrotate script
+    cmd = f"cp {MOTR_MINI_PROV_LOGROTATE_SCRIPT} {CROND_DIR}"
+    execute_command(self, cmd)
+    # Start crond service
+    cmd = "/usr/sbin/crond start"
+    execute_command(self, cmd, timeout_secs=120)
 
     # Copy confd_path to /etc/sysconfig
     # confd_path = MOTR_M0D_CONF_DIR/confd.xc
@@ -1431,11 +1522,6 @@ def start_service(self, service, idx):
     fid = fetch_fid(self, service, idx)
     if fid == -1:
         return -1
-    #Run log rotate in background to avoid delay in startup
-    cmd = "/opt/seagate/cortx/motr/libexec/m0trace_logrotate.sh &"
-    execute_command(self, cmd)
-    cmd = "/opt/seagate/cortx/motr/libexec/m0addb_logrotate.sh &"
-    execute_command(self, cmd)
 
     #Start motr services
     cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"

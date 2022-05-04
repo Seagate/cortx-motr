@@ -376,7 +376,7 @@ static int mds_map_fill(struct m0_pools_common *pc,
 		ctx = m0_tl_find(pools_common_svc_ctx, ctx, &pc->pc_svc_ctxs,
 				 m0_fid_eq(&svc->cs_obj.co_id, &ctx->sc_fid));
 		pc->pc_mds_map[idx++] = ctx;
-		M0_LOG(M0_DEBUG, "mds index:%"PRIu64", no. of mds:%"PRIu64,
+		M0_LOG(M0_DEBUG, "mds index:%" PRIu64 ", no. of mds:%"PRIu64,
 		       idx, pc->pc_nr_svcs[M0_CST_MDS]);
 		M0_ASSERT(idx <= pc->pc_nr_svcs[M0_CST_MDS]);
 	}
@@ -687,7 +687,7 @@ static int dix_pool_version_get_locked(struct m0_pools_common  *pc,
 	else
 		return M0_ERR(-ENOENT);
 
-	/* 
+	/*
  	 * @todo: Enable this logic once multiple DIX pvers available.
  	 *
 	 * m0_tl_for(pools, &pc->pc_pools, pool) {
@@ -1024,11 +1024,12 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 		 * use RM services returned by HA entrypoint.
 		 *
 		 * FI services need no service context either.
+		 *
+		 * DTM0 service has its own transport.
 		 */
 		if (((!rm_is_set && is_local_svc(svc, M0_CST_RMS)) ||
 		    !M0_IN(svc->cs_type, (M0_CST_CONFD, M0_CST_RMS, M0_CST_HA,
-					  M0_CST_FIS))) &&
-		    !is_local_svc(svc, M0_CST_DTM0)) {
+					  M0_CST_FIS, M0_CST_DTM0)))) {
 			rc = __service_ctx_create(pc, svc, service_connect);
 			if (rc != 0)
 				break;

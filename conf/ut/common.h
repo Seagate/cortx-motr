@@ -29,7 +29,7 @@
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
 #define SERVER_ENDPOINT      M0_NET_XPRT_PREFIX_DEFAULT":"SERVER_ENDPOINT_ADDR
-#define CLIENT_ENDPOINT_ADDR "0@lo:12345:34:*"
+#define CLIENT_ENDPOINT_ADDR "0@lo:12345:33:*"
 
 extern struct m0_conf_cache m0_conf_ut_cache;
 extern struct m0_sm_group   m0_conf_ut_grp;

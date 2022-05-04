@@ -123,7 +123,7 @@ static void u64_get(const struct m0_xcode_type *xct,
 		    const char *name, void *data)
 {
 	if (m0_console_verbose)
-		printf("%s(%s) = %"PRId64"\n", name, xct->xct_name,
+		printf("%s(%s) = %" PRId64 "\n", name, xct->xct_name,
 		       *(uint64_t *)data);
 }
 
@@ -137,7 +137,7 @@ static void u64_set(const struct m0_xcode_type *xct,
 		tmp_value = cons_yaml_get_unsafe(name);
 		*(uint64_t *)data = atol((const char *)tmp_value);
 		if (m0_console_verbose)
-			printf("%s(%s) = %"PRId64"\n", name, xct->xct_name,
+			printf("%s(%s) = %" PRId64 "\n", name, xct->xct_name,
 			       *(uint64_t *)data);
 	} else {
 		printf("%s(%s) = ", name, xct->xct_name);

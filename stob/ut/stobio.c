@@ -86,7 +86,7 @@ static const char test_blkdev[] = "/dev/loop0";
 
 static const char *test_location;
 static const char *test_location_dio;
-static const char linux_location[] = "linuxstob:./__s";
+static const char linux_location[] = "linuxstob:./__s_stob";
 static const char linux_location_dio[] = "linuxstob:./__s_dio";
 static const char perf_location[] = "perfstob:./__s";
 static const char perf_location_dio[] = "perfstob:./__s_dio";
@@ -123,7 +123,7 @@ static char *stob_backingfile_get(const struct stobio_test *test)
 	struct m0_fid fid;
 
 	m0_fid_set(&fid, 0, test->st_stob_key);
-	rc = sprintf(backingfile, "%s/%"PRIx64":%"PRIx64"",
+	rc = sprintf(backingfile, "%s/%" PRIx64 ":%" PRIx64 "",
 				   test->st_dom->sd_location_data,
 				   fid.f_container, fid.f_key);
 	M0_UT_ASSERT(rc < sizeof(backingfile));

@@ -70,7 +70,7 @@ static void ha_keepalive_msg_received_cb(struct m0_ha_handler *hh,
 		},
 	};
 	m0_ha_send(ha, hl, rep, &tag_rep);
-	M0_LOG(M0_DEBUG, "kap_id="U128X_F" kap_counter=%"PRIu64" tag=%"PRIu64,
+	M0_LOG(M0_DEBUG, "kap_id="U128X_F" kap_counter=%" PRIu64 " tag=%"PRIu64,
 	       U128_P(&rep->hm_data.u.hed_keepalive_rep.kap_id),
 	       rep->hm_data.u.hed_keepalive_rep.kap_counter, tag_rep);
 	m0_free(rep);

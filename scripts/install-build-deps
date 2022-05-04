@@ -47,6 +47,8 @@ Usage: $PROG_NAME [-h|--help] [-n|--dry-run]
 
        --no-epel        Skip EPEL repository installation.
 
+       --no-ansible     Install packages without ansible
+
     -h|--help           Print this help screen.
 USAGE_END
 }
@@ -61,7 +63,7 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt -o hn --long help,dry-run,no-epel -n "$PROG_NAME" -- "$@" )
+    TEMP=$( getopt -o hn --long help,dry-run,no-epel,no-ansible -n "$PROG_NAME" -- "$@" )
 
     [[ $? != 0 ]] && help
 
@@ -73,6 +75,7 @@ parse_cli_options()
             -h|--help)          help stdout ;;
             -n|--dry-run)       dry_run=--dry-run ; shift ;;
                --no-epel)       install_epel=false ; shift ;;
+               --no-ansible)    use_ansible=false ; shift ;;
             --)                 shift; break ;;
             *)                  echo 'getopt: internal error...'; exit 1 ;;
         esac
@@ -113,16 +116,6 @@ case $(distro_type) in
 esac
 pip3 install ipaddress
 
-if ! which ansible &>/dev/null ; then
-    case $(distro_type) in
-        redhat) yum -y install epel-release
-                yum -y install epel-release # Update it
-                yum -y install ansible
-                ;;
-        debian) apt install ansible ;;
-    esac
-fi
-
 skip_tags=$(paste --serial --delimiters=, <<END_TAGS
 c75-workarounds
 c76-workarounds
@@ -136,13 +129,69 @@ zfs
 END_TAGS
 )
 
-# python3 packages available starting from CentOS/RedHat 7.7
-if (( $(grep -Po '(?<=release 7\.).' /etc/redhat-release) < 7 )) ; then
-    skip_tags+=,motr-build-python3
-fi
-
 if ! $install_epel ; then
     skip_tags+=,epel
+fi
+
+packages_redhat=(
+git
+rpm-build
+)
+
+packages_debian=(
+)
+
+SEAGATE_GITHUB_CORTX_DEPS_REPO=https://github.com/Seagate/cortx/releases/download/build-dependencies/
+if ! $use_ansible ; then
+  case $(distro_type) in
+      redhat)
+        source /etc/os-release
+        if [[ $NAME == "Rocky Linux" ]]; then
+	    if [[ ! `yum repolist | grep Power` ]]; then
+                yum-config-manager --enable powertools
+                yum -y install epel-release
+            fi
+	elif [[ $NAME == "Oracle Linux Server" ]]
+	then
+                yum-config-manager --enable ol8_codeready_builder
+	        echo "Make sure that epel-release repo is present.."
+		echo "yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm"
+        else
+		yum -y install epel-release
+	fi
+	# @todo use el8 rpms
+	yum install -y $SEAGATE_GITHUB_CORTX_DEPS_REPO/isa-l-2.30.0-1.el7.x86_64.rpm
+        yum install -y $SEAGATE_GITHUB_CORTX_DEPS_REPO/libfabric-1.11.2-1.el7.x86_64.rpm
+        yum install -y $SEAGATE_GITHUB_CORTX_DEPS_REPO/libfabric-devel-1.11.2-1.el7.x86_64.rpm
+        echo "For user mode only motr lustre client and kernel rpms are not needed"
+        cp cortx-motr.spec.in cortx-motr.spec
+        sed -i "/BuildRequires:  kernel*/d" cortx-motr.spec
+        sed -i "/BuildRequires:  %{lustre_devel}/d" cortx-motr.spec
+        sed -i 's/@BUILD_DEPEND_LIBFAB@//g' cortx-motr.spec
+        sed -i 's/@.*@/111/g' cortx-motr.spec
+        yum-builddep cortx-motr.spec -y
+        rm cortx-motr.spec
+
+        for i in ${packages_redhat[@]}
+        do
+            sudo yum install $i -y
+	done
+	;;
+      debian)
+        for i in ${packages_debian[@]}
+        do
+	   sudo apt install $i
+        done
+	;;
+   esac
+   exit 0
+elif ! which ansible &>/dev/null ; then
+    case $(distro_type) in
+        redhat) yum -y install epel-release
+                yum -y install epel-release # Update it
+                yum -y install ansible ;;
+        debian) apt install ansible ;;
+    esac
 fi
 
 $TOP_SRCDIR/scripts/setup-node localhost \

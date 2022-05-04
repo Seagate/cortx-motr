@@ -89,6 +89,8 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
 
 All FDMI related service code and examples are in the `cortx-motr/fdmi` directory in the following link: [fdmi dir]( https://github.com/Seagate/cortx-motr/tree/main/fdmi)
 
+All the FDMI demo documents are available in `cortx-motr/doc/fdmi-demo` directory. [Click here]( https://github.com/Seagate/cortx-motr/tree/main/doc/fdmi_demo/demo-fdmi) to check. 
+
 One of the FDMI Application example is within the `plugins` directory named as [fdmi_sample_plugin]( https://github.com/Seagate/cortx-motr/blob/main/fdmi/plugins/fdmi_sample_plugin.c).
 
 This application is a FDMI sample plugin written in C using `motr/client.h` interface which connects to the cluster (FDMI source instance) and registers a listener to listen for Key-Value events matching the specific FDMI filter substrings. This application then merely prints to standard output the matched records.
@@ -188,10 +190,6 @@ Example of running this application polling the `~/test` directory every 3 secon
 
 `./fdmi_app_word_count -ld ~/test -ss 3 -np 30`
 
-## Tested by
-
-- Dec 7, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linus release 7.8.2003 x86_64
-
 ## References
 
 More details about the FDMI design and settings can be found in this link:
@@ -201,3 +199,7 @@ More details about the FDMI design and settings can be found in this link:
 [FDMI code comments](https://github.com/Seagate/cortx-motr/blob/main/fdmi/fdmi.c)
 
 [FDMI Github Page for Hackathon event](https://cortx.link/UCD)
+
+## Tested by
+
+- Dec 7, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linus release 7.8.2003 x86_64

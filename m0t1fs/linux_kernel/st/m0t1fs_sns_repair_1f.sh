@@ -61,8 +61,8 @@ sns_repair_test()
 	local_write $src_bs $src_count || return $?
 
 	for ((i=0; i < ${#file[*]}; i++)) ; do
-		_dd ${file[$i]} $unit_size ${file_size[$i]} || return $?
-		_md5sum ${file[$i]} || return $?
+		_dd "${file[$i]}" $unit_size "${file_size[$i]}" || return $?
+		_md5sum "${file[$i]}" || return $?
 	done
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
@@ -184,7 +184,7 @@ main()
 	fi
 
 	echo "unmounting and cleaning.."
-	unmount_and_clean &>> $MOTR_TEST_LOGFILE
+	unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
 
 	motr_service stop || {
 		echo "Failed to stop Motr Service."

@@ -30,7 +30,6 @@ MOTR_TEST_LOGFILE=$SANDBOX_DIR/motr_`date +"%Y-%m-%d_%T"`.log
 MOTR_M0T1FS_MOUNT_DIR=/tmp/test_m0t1fs_`date +"%d-%m-%Y_%T"`
 
 MOTR_MODULE=m0tr
-MOTR_CTL_MODULE=m0ctl #debugfs interface to control m0tr at runtime
 
 # kernel space tracing parameters
 MOTR_MODULE_TRACE_MASK='!all'
@@ -96,6 +95,7 @@ SNS_MOTR_CLI_EP="12345:33:1000"
 POOL_MACHINE_CLI_EP="12345:33:1001"
 SNS_QUIESCE_CLI_EP="12345:33:1002"
 M0HAM_CLI_EP="12345:33:1003"
+DIX_QUIESCE_CLI_EP="12345:33:1004"
 
 export FDMI_PLUGIN_EP="12345:33:601"
 export FDMI_PLUGIN_EP2="12345:33:602"
@@ -104,6 +104,7 @@ export FDMI_FILTER_FID="6c00000000000001:0"
 export FDMI_FILTER_FID2="6c00000000000002:0"
 
 SNS_CLI_EP="12345:33:400"
+DIX_CLI_EP="12345:33:401"
 
 POOL_WIDTH=$(expr ${#IOSEP[*]} \* 5)
 NR_PARITY=2
@@ -130,6 +131,24 @@ XPRT=$(m0_default_xprt)
 
 # Single node configuration.
 SINGLE_NODE=0
+
+M0_NC_UNKNOWN=1
+M0_NC_ONLINE=1
+M0_NC_FAILED=2
+M0_NC_TRANSIENT=3
+M0_NC_REPAIR=4
+M0_NC_REPAIRED=5
+M0_NC_REBALANCE=6
+
+declare -A ha_states=(
+	[unknown]=$M0_NC_UNKNOWN
+	[online]=$M0_NC_ONLINE
+	[failed]=$M0_NC_FAILED
+	[transient]=$M0_NC_TRANSIENT
+	[repair]=$M0_NC_REPAIR
+	[repaired]=$M0_NC_REPAIRED
+	[rebalance]=$M0_NC_REBALANCE
+)
 
 unload_kernel_module()
 {
@@ -188,38 +207,6 @@ load_kernel_module()
         	              $motr_module_path/$motr_module.ko"
         	        return 1
         	fi
-	fi
-}
-
-load_motr_ctl_module()
-{
-	echo "Mount debugfs and insert $MOTR_CTL_MODULE.ko so as to use fault injection"
-	mount -t debugfs none /sys/kernel/debug
-	mount | grep debugfs
-	if [ $? -ne 0 ]
-	then
-		echo "Failed to mount debugfs"
-		return 1
-	fi
-
-	echo "insmod $motr_module_path/$MOTR_CTL_MODULE.ko"
-	insmod $motr_module_path/$MOTR_CTL_MODULE.ko
-	lsmod | grep $MOTR_CTL_MODULE
-	if [ $? -ne 0 ]
-	then
-		echo "Failed to insert module" \
-		     " $motr_module_path/$MOTR_CTL_MODULE.ko"
-		return 1
-	fi
-}
-
-unload_motr_ctl_module()
-{
-	echo "rmmod $motr_module_path/$MOTR_CTL_MODULE.ko"
-	rmmod $motr_module_path/$MOTR_CTL_MODULE.ko
-	if [ $? -ne 0 ]; then
-		echo "Failed: $MOTR_CTL_MODULE.ko could not be unloaded"
-		return 1
 	fi
 }
 
@@ -294,6 +281,9 @@ function dix_pver_build()
 	# number of disks.
 	if [ "x$ENABLE_FDMI_FILTERS" == "xYES" ] ; then
 		# If we have SPARE=0, then we can have any number between [1, DIX_DEVS_NR - 1]
+		local DIX_PARITY=$((DIX_DEVS_NR - 1))
+		local DIX_SPARE=0
+	elif [ "x$MOTR_DIX_PG_N_EQ_P" == "xYES" ]; then
 		local DIX_PARITY=$((DIX_DEVS_NR - 1))
 		local DIX_SPARE=0
 	else
@@ -699,7 +689,7 @@ function build_conf()
 }
 
 service_eps_get()
-{ 
+{
 	local lnet_nid
 	local service_eps
 	if [ "$XPRT" = "lnet" ]
@@ -876,4 +866,149 @@ function run()
 {
 	echo "# $*"
 	eval $*
+}
+
+ha_events_post()
+{
+	local service_eps=($1)
+		local state=$2
+		local state_num=${ha_states[$state]}
+	if [ -z "$state_num" ]; then
+		echo "Unknown state: $state"
+		return 1
+	fi
+
+	shift 2
+
+	local fids=()
+	local nr=0
+	for d in "$@"; do
+		fids[$nr]="^k|1:$d"
+		nr=$((nr + 1))
+	done
+
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+
+	echo "ha_events_post: ${service_eps[*]}"
+	echo "setting devices { ${fids[*]} } to $state"
+	send_ha_events "${fids[*]}" "$state" "${service_eps[*]}" "$local_ep"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "HA note set failed: $rc"
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
+		return $rc
+	fi
+}
+
+# input parameters:
+# (i) state name
+# (ii) disk1
+# (iii) ...
+disk_state_set()
+{
+	local state=$1
+	local state_num=${ha_states[$state]}
+	if [ -z "$state_num" ]; then
+		echo "Unknown state: $state"
+		return 1
+	fi
+
+	shift
+
+	local fids=()
+	local nr=0
+	for d in "$@"; do
+		fids[$nr]="^k|1:$d"
+		nr=$((nr + 1))
+	done
+
+	# Dummy HA doesn't broadcast messages. Therefore, send ha_msg to the
+	# services directly.
+	local service_eps=$(service_eps_with_m0t1fs_get)
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+
+	echo "setting devices { ${fids[*]} } to $state"
+	send_ha_events "${fids[*]}" "$state" "$service_eps" "$local_ep"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "HA note set failed: $rc"
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
+		return $rc
+	fi
+}
+
+cas_disk_state_set()
+{
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+	local state=$1
+	local state_num=${ha_states[$state]}
+	if [ -z "$state_num" ]; then
+		echo "Unknown state: $state"
+		return 1
+	fi
+	shift
+	local service_eps=$(service_cas_eps_with_m0tifs_get)
+	local fids=()
+	local nr=0
+
+	echo "Setting CAS device { $@ } to $state (HA state=$state_num)"
+
+	for d in "$@";  do
+		fids[$nr]="^k|20:$d"
+		nr=$((nr + 1))
+	done
+	echo "setting devices { ${fids[*]} } to $state"
+	send_ha_events "${fids[*]}" "$state" "$service_eps" "$local_ep"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "HA note set failed: $rc"
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
+		return $rc
+	fi
+	return 0
+}
+
+disk_state_get()
+{
+	local fids=()
+	local nr=0
+	for d in "$@"; do
+		fids[$nr]="^k|1:$d"
+		nr=$((nr + 1))
+	done
+
+	local service_eps=$(service_eps_with_m0t1fs_get)
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+
+	echo "getting device { ${fids[*]} }'s HA state"
+	request_ha_state "${fids[*]}" "$service_eps" "$local_ep"
+	rc=$?
+	if [ $rc != 0 ]; then
+		echo "HA state get failed: $rc"
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
+		return $rc
+	fi
+}
+
+cas_disk_state_get()
+{
+	local service_eps=$(service_cas_eps_with_m0tifs_get)
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+	local nr=0
+
+	echo "getting device { $@ }'s HA state"
+
+	for d in "$@";	do
+		fids[$nr]="^k|20:$d"
+		nr=$((nr + 1))
+	done
+	echo "getting device { ${fids[*]} }'s HA state"
+	request_ha_state "${fids[*]}" "$service_eps" "$local_ep"
+	rc=$?
+	if [ $rc != 0 ]; then
+		echo "HA tate get failed: $rc"
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
+		return $rc
+	fi
+	return 0
 }

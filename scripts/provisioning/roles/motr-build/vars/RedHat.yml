@@ -55,6 +55,7 @@ motr_build_deps_el7_pkgs:
   - gccxml
 
 motr_build_deps_el8_pkgs:
+  - python2-devel
   - castxml
 
 motr_build_deps_python3_el7_pkgs:
