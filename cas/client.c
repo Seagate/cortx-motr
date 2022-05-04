@@ -40,6 +40,8 @@
 #include "lib/finject.h"
 #include "cas/cas_addb2.h"
 #include "dtm0/dtx.h"   /* struct m0_dtm0_dtx */
+#include "dix/layout.h" /* m0_dix_ldesc_copy() */
+
 /**
  * @addtogroup cas-client
  * @{
@@ -187,6 +189,7 @@ static void creq_op_free(struct m0_cas_op *op)
 {
 	if (op != NULL) {
 		m0_dtm0_tx_desc_fini(&op->cg_txd);
+		m0_cas_id_fini(&op->cg_id);
 		m0_free(op->cg_rec.cr_rec);
 		m0_free(op);
 	}
@@ -1584,6 +1587,12 @@ static int cas_records_op_prepare(const struct m0_cas_req  *req,
 	if (rc != 0)
 		return M0_ERR(rc);
 	op->cg_id = *index;
+	if (m0_fid_type_getfid(&op->cg_id.ci_fid) == &m0_cctg_fid_type) {
+		M0_ASSERT(index->ci_layout.dl_type == DIX_LTYPE_DESCR);
+		rc = m0_dix_ldesc_copy(&op->cg_id.ci_layout.u.dl_desc,
+				       &index->ci_layout.u.dl_desc);
+	}
+
 	rec = op->cg_rec.cr_rec;
 	for (i = 0; i < keys_nr; i++) {
 		m0_rpc_at_init(&rec[i].cr_key);
@@ -1664,7 +1673,7 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
  	 */
 	M0_PRE((flags &
 		~(COF_CREATE | COF_OVERWRITE | COF_CROW | COF_SYNC_WAIT | 
-		COF_SKIP_LAYOUT)) == 0);
+		  COF_SKIP_LAYOUT | COF_VERSIONED)) == 0);
 	M0_PRE(m0_cas_id_invariant(index));
 
 	rc = cas_req_prep(req, index, keys, values, keys->ov_vec.v_nr, flags,
@@ -1692,9 +1701,10 @@ M0_INTERNAL void m0_cas_put_rep(struct m0_cas_req       *req,
 	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
-			   struct m0_cas_id       *index,
-			   const struct m0_bufvec *keys)
+static int m0_cas__get(struct m0_cas_req      *req,
+		       struct m0_cas_id       *index,
+		       const struct m0_bufvec *keys,
+		       int                     flags)
 {
 	struct m0_cas_op      *op;
 	int                    rc;
@@ -1707,7 +1717,8 @@ M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_cas_id_invariant(index));
 
-	rc = cas_req_prep(req, index, keys, NULL, keys->ov_vec.v_nr, 0, &op);
+	rc = cas_req_prep(req, index, keys, NULL, keys->ov_vec.v_nr, flags,
+			  &op);
 	if (rc != 0)
 		return M0_ERR(rc);
 	for (i = 0; i < keys->ov_vec.v_nr; i++) {
@@ -1736,6 +1747,20 @@ M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
+			   struct m0_cas_id       *index,
+			   const struct m0_bufvec *keys)
+{
+	return m0_cas__get(req, index, keys, 0);
+}
+
+M0_INTERNAL int m0_cas_versioned_get(struct m0_cas_req      *req,
+				     struct m0_cas_id       *index,
+				     const struct m0_bufvec *keys)
+{
+	return m0_cas__get(req, index, keys, COF_VERSIONED);
+}
+
 M0_INTERNAL void m0_cas_get_rep(const struct m0_cas_req *req,
 				uint64_t                 idx,
 				struct m0_cas_get_reply *rep)
@@ -1750,6 +1775,7 @@ M0_INTERNAL void m0_cas_get_rep(const struct m0_cas_req *req,
 	rcvd = &cas_rep->cgr_rep.cr_rec[idx];
 	sent = &req->ccr_rec_orig.cr_rec[idx];
 	rep->cge_rc = rcvd->cr_rc;
+	rep->cge_ver = rcvd->cr_ver;
 	if (rep->cge_rc == 0)
 	      m0_rpc_at_rep_get(&sent->cr_val, &rcvd->cr_val, &rep->cge_val);
 	M0_LEAVE();
@@ -1771,8 +1797,12 @@ M0_INTERNAL int m0_cas_next(struct m0_cas_req *req,
 	M0_PRE(start_keys != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_cas_id_invariant(index));
-	/* Only slant and exclude start key flags are allowed. */
-	M0_PRE((flags & ~(COF_SLANT | COF_EXCLUDE_START_KEY)) == 0);
+	/* Only slant, exclude start key, and versioned flags are allowed. */
+	M0_PRE((flags & ~(COF_SLANT | COF_EXCLUDE_START_KEY |
+			  COF_VERSIONED | COF_SHOW_DEAD)) == 0);
+	/* COF_SHOW_DEAD cannot be used without COF_VERSIONED */
+	M0_PRE(ergo((flags & COF_SHOW_DEAD) != 0,
+		    (flags & COF_VERSIONED) != 0));
 
 	for (i = 0; i < start_keys->ov_vec.v_nr; i++)
 		max_replies_nr += recs_nr[i];
@@ -1812,6 +1842,7 @@ M0_INTERNAL void m0_cas_next_rep(const struct m0_cas_req  *req,
 	M0_PRE(idx < m0_cas_req_nr(req));
 	M0_PRE(req->ccr_ftype == &cas_cur_fopt);
 	rcvd = &cas_rep->cgr_rep.cr_rec[idx];
+	rep->cnp_ver = rcvd->cr_ver;
 	rep->cnp_rc = cas_next_rc(rcvd->cr_rc) ?:
 		      m0_rpc_at_rep_get(NULL, &rcvd->cr_key, &rep->cnp_key) ?:
 		      m0_rpc_at_rep_get(NULL, &rcvd->cr_val, &rep->cnp_val);
@@ -1831,7 +1862,7 @@ M0_INTERNAL int m0_cas_del(struct m0_cas_req *req,
 	M0_PRE(keys != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_cas_id_invariant(index));
-	M0_PRE(M0_IN(flags, (0, COF_DEL_LOCK, COF_SYNC_WAIT)));
+	M0_PRE((flags & ~(COF_DEL_LOCK | COF_SYNC_WAIT | COF_VERSIONED)) == 0);
 
 	rc = cas_req_prep(req, index, keys, NULL, keys->ov_vec.v_nr, flags,
 			  &op);

@@ -417,7 +417,7 @@ class TestFramework(object):
     def get_max_client_index(self, my_svcs_info):
         count = 0
         for temp in my_svcs_info:
-            if (temp["name"] == "m0_client"):
+            if (temp["name"] == "motr_client"):
                 count = count + 1
         return count - 1 
 
@@ -441,6 +441,7 @@ class TestFramework(object):
                 self.hosts.append(nodename)
                 self.per_host_services_pids_endps[nodename] = node["svcs"]
             my_svcs_info = self.per_host_services_pids_endps[self.host]
+            print(my_svcs_info)
             if (self.client_index < 0):
                 print("User provided client index = {}".format(self.client_index))
                 print("Setting user client index to 0(default)")
@@ -458,7 +459,7 @@ class TestFramework(object):
                 if (temp["name"] == "hax"):
                     self.ha_endpoint = temp["ep"]
                     continue
-                if (temp["name"] == "m0_client"):
+                if (temp["name"] == "motr_client"):
                     if (m0_client_counter == self.client_index):
                         temp_pid = re.findall('0x[0-9A-Fa-f]+', temp["fid"])
                         self.process_fid = "{}:{}".format(temp_pid[0], temp_pid[1])
@@ -521,14 +522,6 @@ class TestFramework(object):
                    self.client_index = 0
                 else:
                    self.client_index = conf['mode']['cluster']['client_index']
-                if (self.consul_status() == False):
-                    print("Starting cluster.")
-                    self.write_to_file(self.startup_logs,
-                                       "Starting cluster.\n")
-                    ret = self.start_cluster()
-                    if (ret == -1):
-                        return ret
-                    os.system("sleep 30")
                 ret = self.get_cluster_info()
                 temp_print = "Profile: {}\nProcess Id: {}\
                              \nLocal Endpoint: {}\nHA Endpoint: {}\n".format(

@@ -82,7 +82,6 @@ then
 		cat << EOF
 		push(@gcov_options, "-a") if ($gcov_caps->{'all-blocks'});
 EOF
-		exit 1
 	fi
 fi
 saved_pwd=`pwd`
