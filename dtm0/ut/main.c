@@ -652,13 +652,13 @@ static void ut_remach_boot(struct ut_remach *um)
 	ut_remach_start(um);
 
 	for (i = 0; i < ARRAY_SIZE(starting); ++i)
-		  ut_remach_ha_thinks(um, starting + i);
+		ut_remach_ha_thinks(um, starting + i);
 
 	for (i = 0; i < ARRAY_SIZE(um->recovered); ++i)
 		m0_be_op_wait(um->recovered + i);
 
 	for (i = 0; i < ARRAY_SIZE(started); ++i)
-		  ut_remach_ha_thinks(um, started + i);
+		ut_remach_ha_thinks(um, started + i);
 }
 
 static void ut_remach_shutdown(struct ut_remach *um)
