@@ -479,8 +479,14 @@ void index_parser_print_command_help(void)
 		"\t\t>m0kv [common args] -s index put \"1:5\" \"Department\" "
 		"\"Testing\" \n"
 		"\t\tNote: If key already exists put over-write the old value.\n"
-		"\t\t>m0kv [common args] -s index get \"1:5\" \"Department\" "
-		"\n");
+		"\t\t>m0kv [common args] -s index get \"1:5\" \"Department\" \n"
+		"\t\tNote: DIX pool version info on console if pass -e \n" 
+		"\t\t flag for index create.\n"
+		"\t\t>m0kv [common args] -e index create \"1:5\" \n"
+		"\t\tNote: Pass pool version info for PUT/GET/DEL/NEXT \n"
+		"\t\t operations if pass -e flag \n"
+		"\t\t>m0kv [common args] -e -v 7600000000000001:30 -s index" 
+		" put \"1:5\" \"Department\" \"Testing\" \n" );
 }
 
 #undef M0_TRACE_SUBSYSTEM
