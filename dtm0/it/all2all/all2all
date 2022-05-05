@@ -332,6 +332,12 @@ function client_run_gdb()
 function client_wait()
 {
     wait ${CLIENT_PID}
+    rc="$?"
+    if [[ "$rc" -gt 127 ]]; then
+      _err "Client terminated, rc = $rc"
+      exit 1
+    fi
+    return "$rc"
 }
 
 function m0kv_async()
