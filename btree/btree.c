@@ -7032,6 +7032,9 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		if (tgt.s_node == lev->l_node)
 			btree_node_capture_enlist(oi, lev->l_node,
 						  tgt.s_idx, 1);
+		else
+			btree_node_capture_enlist(oi, lev->l_node,
+						  tgt.s_idx, CR_NONE);
 	}
 	else
 		btree_node_capture_enlist(oi, lev->l_node, 0, CR_ALL);
@@ -7108,6 +7111,9 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 			if (tgt.s_node == lev->l_node)
 				btree_node_capture_enlist(oi, lev->l_node,
 							  tgt.s_idx, 1);
+			else
+				btree_node_capture_enlist(oi, lev->l_node,
+							  tgt.s_idx, CR_NONE);
 		} else
 			btree_node_capture_enlist(oi, lev->l_node, 0, CR_ALL);
 
