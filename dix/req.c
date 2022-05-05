@@ -2334,9 +2334,11 @@ M0_INTERNAL int m0_dix_put(struct m0_dix_req      *req,
 
 	M0_PRE(keys->ov_vec.v_nr == vals->ov_vec.v_nr);
 	M0_PRE(keys_nr != 0);
-	/* Only overwrite, crow, sync_wait and skip_layout flags are allowed. */
+	/*
+	 * Only the following flags are allowed.
+	 */
 	M0_PRE((flags & ~(COF_OVERWRITE | COF_CROW | COF_SYNC_WAIT |
-	       COF_SKIP_LAYOUT)) == 0);
+	       COF_SKIP_LAYOUT | COF_NO_DTM)) == 0);
 	rc = dix_req_indices_copy(req, index, 1);
 	if (rc != 0)
 		return M0_ERR(rc);

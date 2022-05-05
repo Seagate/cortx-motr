@@ -1673,7 +1673,7 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
  	 */
 	M0_PRE((flags &
 		~(COF_CREATE | COF_OVERWRITE | COF_CROW | COF_SYNC_WAIT | 
-		  COF_SKIP_LAYOUT | COF_VERSIONED)) == 0);
+		  COF_SKIP_LAYOUT | COF_VERSIONED | COF_NO_DTM)) == 0);
 	M0_PRE(m0_cas_id_invariant(index));
 
 	rc = cas_req_prep(req, index, keys, values, keys->ov_vec.v_nr, flags,
