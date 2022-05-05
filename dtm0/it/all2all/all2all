@@ -171,7 +171,7 @@ function expect_trace_lines
     local cmd;
 
     _info "expect trace: path=$trace_path, pattern=$pattern, exp_cnt=$exp_cnt"
-    cnt=$($MOTR_ROOT/utils/trace/m0trace -i "$trace_path" | grep -c "$pattern")
+    cnt=$($MOTR_ROOT/utils/trace/m0trace -i "$trace_path*" | grep -c "$pattern")
     if [[ $cnt -ne $exp_cnt ]]; then
         _info "Unexpected number of trace lines: $cnt != $exp_cnt"
         return 1
