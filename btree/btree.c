@@ -2928,8 +2928,8 @@ static void ff_make(struct slot *slot)
 static bool ff_newval_isfit(struct slot *slot, struct m0_btree_rec *old_rec,
 			    struct m0_btree_rec *new_rec)
 {
-	int new_vsize = m0_vec_count(&new_rec->r_val.ov_vec);
-	int old_vsize = m0_vec_count(&old_rec->r_val.ov_vec);
+	int new_vsize  = m0_vec_count(&new_rec->r_val.ov_vec);
+	int old_vsize  = m0_vec_count(&old_rec->r_val.ov_vec);
 	int vsize_diff = new_vsize - old_vsize;
 
 	if (vsize_diff <= 0 || ff_space(slot->s_node) >= vsize_diff)
@@ -2937,7 +2937,8 @@ static bool ff_newval_isfit(struct slot *slot, struct m0_btree_rec *old_rec,
 	return false;
 }
 
-static void ff_val_resize(struct slot *slot, int vsize_diff, struct m0_btree_rec *new_rec)
+static void ff_val_resize(struct slot *slot, int vsize_diff,
+			  struct m0_btree_rec *new_rec)
 {
 	struct ff_head  *h     = ff_data(slot->s_node);
 
@@ -3061,6 +3062,7 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 
 	srcidx = dir == D_LEFT ? 0 : last_idx_src - 1;
 	tgtidx = dir == D_LEFT ? last_idx_tgt : 0;
+
 	while (true) {
 		if (nr == 0 || (nr == NR_EVEN && !move_needed(src, tgt)) ||
 		    (nr == NR_MAX && (srcidx == -1 ||
@@ -3558,21 +3560,21 @@ struct fkvv_dir_rec {
 };
 
 struct fkvv_head {
-	struct m0_format_header  fkvv_fmt;    /*< Node Header */
-	struct node_header       fkvv_seg;    /*< Node type information */
+	struct m0_format_header  fkvv_fmt;        /*< Node Header */
+	struct node_header       fkvv_seg;        /*< Node type information */
 
 	/**
 	 * The above 2 structures should always be together with node_header
 	 * following the m0_format_header.
 	 */
-	uint16_t                 fkvv_used;   /*< Count of records */
-	uint8_t                  fkvv_level;  /*< Level in Btree */
+	uint16_t                 fkvv_used;       /*< Count of records */
+	uint8_t                  fkvv_level;      /*< Level in Btree */
 	uint32_t                 fkvv_dir_offset; /*< Offset pointing to dir */
-	uint16_t                 fkvv_dir_entries; /*< Count of dir entries*/
-	uint16_t                 fkvv_ksize;  /*< Size of key in bytes */
-	uint32_t                 fkvv_nsize;  /*< Node size */
-	struct m0_format_footer  fkvv_foot;   /*< Node Footer */
-	void                    *fkvv_opaque; /*< opaque data */
+	uint16_t                 fkvv_dir_entries;/*< Count of dir entries*/
+	uint16_t                 fkvv_ksize;      /*< Size of key in bytes */
+	uint32_t                 fkvv_nsize;      /*< Node size */
+	struct m0_format_footer  fkvv_foot;       /*< Node Footer */
+	void                    *fkvv_opaque;     /*< opaque data */
 	/**
 	 *  This space is used to host the Keys and Values upto the size of the
 	 *  node
@@ -3705,8 +3707,7 @@ static void fkvv_dir_init(const struct segaddr *addr)
 	dir[0].key_offset     = sizeof(*h);
 	dir[0].key_size       = h->fkvv_dir_offset - sizeof(*h);
 	dir[0].val_offset     = h->fkvv_dir_offset + sizeof(*dir);
-	dir[0].alloc_val_size = (h->fkvv_nsize - sizeof(*h)) -
-				dir[0].val_offset;
+	dir[0].alloc_val_size = h->fkvv_nsize - dir[0].val_offset;
 	dir[0].val_size       = 0;
 }
 
@@ -3714,7 +3715,7 @@ static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 		      int nsize, uint32_t ntype, uint64_t crc_type,
 		      uint64_t addr_type, uint64_t gen, struct m0_fid fid)
 {
-	struct fkvv_head    *h    = segaddr_addr(addr);
+	struct fkvv_head *h       = segaddr_addr(addr);
 
 	M0_PRE(ksize != 0);
 	M0_SET0(h);
@@ -3800,10 +3801,10 @@ static int fkvv_space(const struct nd *node)
 	int               val_rsize;
 
 	if (IS_EMBEDDED_INDIRECT(node)) {
-		struct fkvv_dir_rec *dir = fkvv_dir_get(node);
-		int ksize_avail          = 0;
-		int vsize_avail          = 0;
-		int i;
+		struct fkvv_dir_rec *dir         = fkvv_dir_get(node);
+		int                  ksize_avail = 0;
+		int                  vsize_avail = 0;
+		int                  i;
 
 		for (i = h->fkvv_used; i < h->fkvv_dir_entries; i++) {
 			ksize_avail += dir[i].key_size;
@@ -3878,13 +3879,14 @@ static int fkvv_indir_dir_idx_get(const struct nd *node,
 				  const struct m0_btree_rec *rec,
 				  int *shift)
 {
-	struct fkvv_head    *h         = fkvv_data(node);
-	struct fkvv_dir_rec *dir       = fkvv_dir_get(node);
-	uint32_t             req_ksize = m0_vec_count(&rec->r_key.k_data.ov_vec);
-	uint32_t             req_vsize = m0_vec_count(&rec->r_val.ov_vec);
-	int                  dir_space = sizeof (*dir);
-	int                  rec_count = h->fkvv_used;
-	int                  dir_count = h->fkvv_dir_entries;
+	struct fkvv_head    *h               = fkvv_data(node);
+	struct fkvv_dir_rec *dir             = fkvv_dir_get(node);
+	uint32_t             req_ksize       =
+				m0_vec_count(&rec->r_key.k_data.ov_vec);
+	uint32_t             req_vsize       = m0_vec_count(&rec->r_val.ov_vec);
+	int                  dir_space       = sizeof (*dir);
+	int                  rec_count       = h->fkvv_used;
+	int                  dir_count       = h->fkvv_dir_entries;
 	bool                 rec_space_avail = false;
 	int                  out_idx         = -1;
 	int                  i;
@@ -4088,7 +4090,6 @@ static void fkvv_rec(struct slot *slot)
 		fkvv_rec_val_size(slot->s_node, slot->s_idx);
 	slot->s_rec.r_val.ov_buf[0] = fkvv_val(slot->s_node, slot->s_idx);
 	fkvv_node_key(slot);
-
 	M0_POST(fkvv_rec_is_valid(slot));
 }
 
@@ -4265,7 +4266,7 @@ static void fkvv_dir_entry_make(const struct nd *node, int idx)
 
 static void fkvv_dir_entry_delete(const struct nd *node, int idx)
 {
-	struct fkvv_head *h      = fkvv_data(node);
+	struct fkvv_head    *h   = fkvv_data(node);
 	struct fkvv_dir_rec *dir = fkvv_dir_get(node);
 	int                  total_size;
 
@@ -4331,14 +4332,12 @@ static void fkvv_make_emb_ind(struct slot *slot)
 		M0_ASSERT(shift == 0);
 
 		dir_entry.alloc_val_size = dir[out_idx].alloc_val_size;
-		fkvv_dir_entry_delete(slot->s_node, out_idx);
-		h->fkvv_dir_entries--;
 
-		/* insert directory at slot->idx*/
-		fkvv_dir_entry_make(slot->s_node, slot->s_idx);
+		/* Move free fragment at slot->s_idx */
+		m0_memmove(&dir[slot->s_idx + 1], &dir[slot->s_idx],
+			   sizeof(*dir) * (out_idx - slot->s_idx));
+
 		dir[slot->s_idx] = dir_entry;
-		h->fkvv_dir_entries++;
-
 	} else {
 		/* Update last free fragment entry and add new dir entry */
 		int last_idx;
@@ -4371,8 +4370,8 @@ static void fkvv_make(struct slot *slot)
 static bool fkvv_newval_isfit(struct slot *slot, struct m0_btree_rec *old_rec,
 			      struct m0_btree_rec *new_rec)
 {
-	int new_vsize = m0_vec_count(&new_rec->r_val.ov_vec);
-	int old_vsize = m0_vec_count(&old_rec->r_val.ov_vec);
+	int new_vsize  = m0_vec_count(&new_rec->r_val.ov_vec);
+	int old_vsize  = m0_vec_count(&old_rec->r_val.ov_vec);
 	int vsize_diff = new_vsize - old_vsize;
 
 	if (vsize_diff <= 0)
@@ -4405,8 +4404,8 @@ static void fkvv_val_resize(struct slot *slot, int vsize_diff,
 			dir[slot->s_idx].val_offset += (-vsize_diff);
 			dir[slot->s_idx].val_size += vsize_diff;
 		} else {
-			void *k_addr;
-			struct slot new_slot;
+			void        *k_addr;
+			struct slot  new_slot;
 			new_slot.s_node = slot->s_node;
 			new_slot.s_idx = slot->s_idx;
 			new_slot.s_rec = *new_rec;
@@ -4524,58 +4523,56 @@ static void fkvv_del_leaf(const struct nd *node, int idx)
 }
 static void fkvv_del_emb_ind(const struct nd *node, int idx)
 {
-	struct fkvv_head    *h         = fkvv_data(node);
-	struct fkvv_dir_rec *dir       = fkvv_dir_get(node);
-	struct fkvv_dir_rec  dir_entry = dir[idx];
-	int free_farg_1                = -1;
-	int free_farg_2                = -1;
-	int i;
-
-	fkvv_dir_entry_delete(node, idx);
-	h->fkvv_used--;
-	h->fkvv_dir_entries--;
+	struct fkvv_head    *h            = fkvv_data(node);
+	struct fkvv_dir_rec *dir          = fkvv_dir_get(node);
+	int                  free_farg_1  = -1;
+	int                  free_farg_2  = -1;
+	int                  i;
 
 	for (i = h->fkvv_used; i < h->fkvv_dir_entries; i++) {
+		if (i == idx)
+			continue;
 		/**
 		 * Find if there exist any contiguous left key and right value
 		 * free fragment which can be merged  dir_entry fragment.
 		 */
-		if (free_farg_1 == -1 && dir_entry.key_offset ==
+		if (free_farg_1 == -1 && dir[idx].key_offset ==
 		    dir[i].key_offset + dir[i].key_size &&
-		    dir_entry.val_offset + dir_entry.val_size ==
+		    dir[idx].val_offset + dir[idx].val_size ==
 		    dir[i].val_offset) {
 			free_farg_1 = i;
 		}
 
 		/**
 		 * Find if there exist any contiguous right key and left value
-		 * free fragment which can be merged  dir_entry fragment.
+		 * free fragment which can be merged  dir[idx] fragment.
 		 */
-		if (free_farg_2 == -1 && dir[i].key_offset ==
-		    dir_entry.key_offset + dir_entry.key_size &&
-		    dir_entry.val_offset ==
-		    dir[i].val_offset + dir[i].alloc_val_size) {
+		if (free_farg_2 == -1 &&
+		    dir[i].key_offset == dir[idx].key_offset +
+		    			 dir[idx].key_size &&
+		    dir[idx].val_offset == dir[i].val_offset +
+		    			   dir[i].alloc_val_size) {
 			free_farg_2 = i;
 		}
-
 	}
+
 	if (free_farg_1 != -1) {
-		dir[free_farg_1].key_size += dir_entry.key_size;
-		dir[free_farg_1].alloc_val_size += dir_entry.alloc_val_size;
-		dir[free_farg_1].val_offset -= dir_entry.alloc_val_size;
-		dir_entry = dir[free_farg_1];
+		dir[free_farg_1].key_size       += dir[idx].key_size;
+		dir[free_farg_1].alloc_val_size += dir[idx].alloc_val_size;
+		dir[free_farg_1].val_offset     -= dir[idx].alloc_val_size;
+		dir[idx] = dir[free_farg_1];
 	}
 
 	if (free_farg_2 != -1) {
-		dir[free_farg_2].key_offset -= dir_entry.key_size;
-		dir[free_farg_2].key_size += dir_entry.key_size;
-		dir[free_farg_2].alloc_val_size += dir_entry.alloc_val_size;
+		dir[free_farg_2].key_offset     -= dir[idx].key_size;
+		dir[free_farg_2].key_size       += dir[idx].key_size;
+		dir[free_farg_2].alloc_val_size += dir[idx].alloc_val_size;
 	}
-
 
 	if (free_farg_2 != -1 && free_farg_1 != -1) {
 		fkvv_dir_entry_delete(node, free_farg_1);
-		h->fkvv_dir_entries--;
+		fkvv_dir_entry_delete(node, idx);
+		h->fkvv_dir_entries -= 2;
 		/* As we deleted two dir entry update last free dir entry */
 		dir[h->fkvv_dir_entries - 1].val_offset -= (2 *sizeof(*dir));
 		dir[h->fkvv_dir_entries - 1].alloc_val_size +=
@@ -4584,6 +4581,9 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 
 	} else if (free_farg_2 != -1 || free_farg_1 != -1) {
 		/* As we deleted one dir entry update last free dir entry */
+		fkvv_dir_entry_delete(node, idx);
+		h->fkvv_dir_entries--;
+
 		dir[h->fkvv_dir_entries - 1].val_offset -= sizeof(*dir);
 		dir[h->fkvv_dir_entries - 1].alloc_val_size += sizeof(*dir);
 
@@ -4596,14 +4596,16 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 		 * free fragment directory and start of value region(in case of
 		 * value).
 		 */
-		fkvv_dir_entry_make(node, h->fkvv_dir_entries - 1);
-		h->fkvv_dir_entries++;
+		struct fkvv_dir_rec dir_entry = dir[idx];
 		dir_entry.val_offset -= (dir_entry.alloc_val_size -
 					 dir_entry.val_size);
 		dir_entry.val_size = 0;
-		dir[h->fkvv_dir_entries - 2] = dir_entry;
+		/* Move free fragment at the end of valid record entries. */
+		m0_memmove(&dir[idx], &dir[idx+1],
+			   (h->fkvv_used - idx - 1) * sizeof(*dir));
+		dir[h->fkvv_used - 1] = dir_entry;
 	}
-
+	 h->fkvv_used--;
 	if (h->fkvv_used == 0)
 		fkvv_dir_init(&node->n_addr);
 }
