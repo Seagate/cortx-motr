@@ -856,9 +856,12 @@ enum {
 	 * Move as many records as possible without overflowing the target node.
 	 */
 	NR_MAX  = -2,
+};
 
-	NR_ALL  = -3,
-	NR_NONE = -4,
+/* Count of records to be captured in bnode_capture() */
+enum {
+	CR_ALL = -1,
+	CR_NONE = 2,
 };
 
 /** Direction of move in bnode_move(). */
@@ -1032,7 +1035,7 @@ struct node_type {
 	void* (*nt_opaque_get)(const struct segaddr *addr);
 
 	/** Captures node data in segment */
-	void (*nt_capture)(struct slot *slot, int nr, struct m0_be_tx *tx);
+	void (*nt_capture)(struct slot *slot, int cr, struct m0_be_tx *tx);
 
 	/** Returns the header size for credit calculation of tree operations */
 	int  (*nt_create_delete_credit_size)(void);
@@ -1250,7 +1253,7 @@ static void bnode_set_rec_count(const struct nd *node, uint16_t count);
 static void bnode_move (struct nd *src, struct nd *tgt, enum direction dir,
 		        int nr);
 
-static void bnode_capture(struct slot *slot, int nr, struct m0_be_tx *tx);
+static void bnode_capture(struct slot *slot, int cr, struct m0_be_tx *tx);
 
 static void bnode_lock(struct nd *node);
 static void bnode_unlock(struct nd *node);
@@ -1336,7 +1339,7 @@ struct node_capture_info {
 	 * Total number of records to be captured. Mainly used for EMBEDDED
 	 * INDIRECT ADDRESSING
 	 */
-	int         nc_nr;
+	int         nc_cr;
 };
 
 /**
@@ -2565,7 +2568,7 @@ static bool ff_expensive_invariant(const struct nd *node);
 static bool ff_verify(const struct nd *node);
 static void ff_opaque_set(const struct segaddr *addr, void *opaque);
 static void *ff_opaque_get(const struct segaddr *addr);
-static void ff_capture(struct slot *slot, int nr, struct m0_be_tx *tx);
+static void ff_capture(struct slot *slot, int cr, struct m0_be_tx *tx);
 static void ff_node_alloc_credit(const struct nd *node,
 				 struct m0_be_tx_credit *accum);
 static void ff_node_free_credit(const struct nd *node,
@@ -3192,7 +3195,7 @@ static void *ff_opaque_get(const struct segaddr *addr)
 	return h->ff_opaque;
 }
 
-static bool move_needed(struct nd *src, struct nd *tgt)
+static inline bool move_needed(struct nd *src, struct nd *tgt)
 {
 	if (IS_EMBEDDED_INDIRECT(src))
 		return bnode_count_rec(tgt) < bnode_count_rec(src);
@@ -3281,7 +3284,7 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 	bnode_fix(tgt);
 }
 
-static void ff_capture(struct slot *slot, int nr, struct m0_be_tx *tx)
+static void ff_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
 {
 	struct ff_head      *h        = ff_data(slot->s_node);
 	struct ff_dir_entry *de       = (struct ff_dir_entry *)(h + 1);
@@ -3653,7 +3656,7 @@ struct fkvv_head {
 	uint16_t                 fkvv_used;   /*< Count of records */
 	uint8_t                  fkvv_level;  /*< Level in Btree */
 	uint32_t                 fkvv_dir_offset; /*< Offset pointing to dir */
-	uint16_t                 fkvv_dir_entry;
+	uint16_t                 fkvv_dir_entries; /*< Count of dir entries*/
 	uint16_t                 fkvv_ksize;  /*< Size of key in bytes */
 	uint32_t                 fkvv_nsize;  /*< Node size */
 	struct m0_format_footer  fkvv_foot;   /*< Node Footer */
@@ -3704,7 +3707,7 @@ static bool fkvv_expensive_invariant(const struct nd *node);
 static bool fkvv_verify(const struct nd *node);
 static void fkvv_opaque_set(const struct segaddr *addr, void *opaque);
 static void *fkvv_opaque_get(const struct segaddr *addr);
-static void fkvv_capture(struct slot *slot, int nr, struct m0_be_tx *tx);
+static void fkvv_capture(struct slot *slot, int cr, struct m0_be_tx *tx);
 static void fkvv_node_alloc_credit(const struct nd *node,
 				   struct m0_be_tx_credit *accum);
 static void fkvv_node_free_credit(const struct nd *node,
@@ -3784,7 +3787,7 @@ static void fkvv_dir_init(const struct nd *node)
 	struct fkvv_dir_rec *dir;
 
 	h->fkvv_dir_offset  = (h->fkvv_nsize - sizeof(*h))/2;
-	h->fkvv_dir_entry   = 1;
+	h->fkvv_dir_entries   = 1;
 
 	dir = fkvv_dir_get(node);
 	dir[0].key_offset     = 0;
@@ -3808,7 +3811,7 @@ static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 	h->fkvv_seg.h_crc_type    = crc_type;
 	h->fkvv_seg.h_addr_type   = addr_type;
 	h->fkvv_dir_offset        = (nsize - sizeof(*h))/2;
-	h->fkvv_dir_entry         = 1;
+	h->fkvv_dir_entries         = 1;
 	h->fkvv_ksize             = ksize;
 	h->fkvv_nsize             = nsize;
 	h->fkvv_seg.h_node_type   = ntype;
@@ -3898,7 +3901,7 @@ static int fkvv_space(const struct nd *node)
 		int vsize_avail          = 0;
 		int i;
 
-		for (i = h->fkvv_used; i < h->fkvv_dir_entry; i++) {
+		for (i = h->fkvv_used; i < h->fkvv_dir_entries; i++) {
 			ksize_avail += dir[i].key_size;
 			vsize_avail += dir[i].alloc_val_size;
 		}
@@ -3977,7 +3980,7 @@ static int fkvv_indir_dir_idx_get(const struct nd *node,
 	uint32_t             req_vsize = m0_vec_count(&rec->r_val.ov_vec);
 	int                  dir_space = sizeof (*dir);
 	int                  rec_count = h->fkvv_used;
-	int                  dir_count = h->fkvv_dir_entry;
+	int                  dir_count = h->fkvv_dir_entries;
 	bool                 rec_space_avail = false;
 	int                  out_idx         = -1;
 	int                  i;
@@ -4165,8 +4168,6 @@ static int fkvv_rec_val_size(const struct nd *node, int idx)
 static void fkvv_rec(struct slot *slot)
 {
 	struct fkvv_head *h = fkvv_data(slot->s_node);
-	int ksize;
-	int vsize;
 
 	M0_PRE(h->fkvv_used > 0 && slot->s_idx < h->fkvv_used);
 
@@ -4175,14 +4176,7 @@ static void fkvv_rec(struct slot *slot)
 		fkvv_rec_val_size(slot->s_node, slot->s_idx);
 	slot->s_rec.r_val.ov_buf[0] = fkvv_val(slot->s_node, slot->s_idx);
 	fkvv_node_key(slot);
-	ksize = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
-	vsize = m0_vec_count(&slot->s_rec.r_val.ov_vec);
-	M0_ASSERT(slot->s_rec.r_val.ov_buf[0]>(void*)h);
-	M0_ASSERT(slot->s_rec.r_val.ov_buf[0] + vsize <= (void*)h+h->fkvv_nsize);
 
-	M0_ASSERT(slot->s_rec.r_key.k_data.ov_buf[0]>(void*)h);
-	M0_ASSERT(slot->s_rec.r_key.k_data.ov_buf[0] + ksize <=
-							(void*)h+h->fkvv_nsize);
 	M0_POST(fkvv_rec_is_valid(slot));
 }
 
@@ -4353,7 +4347,7 @@ static void fkvv_dir_entry_make(const struct nd *node, int idx)
 	struct fkvv_dir_rec *dir = fkvv_dir_get(node);
 	int                  total_size;
 
-	total_size = sizeof(*dir) * (h->fkvv_dir_entry - idx);
+	total_size = sizeof(*dir) * (h->fkvv_dir_entries - idx);
 	m0_memmove(&dir[idx + 1], &dir[idx], total_size);
 }
 
@@ -4363,7 +4357,7 @@ static void fkvv_dir_entry_delete(const struct nd *node, int idx)
 	struct fkvv_dir_rec *dir = fkvv_dir_get(node);
 	int                  total_size;
 
-	total_size = sizeof(*dir) * (h->fkvv_dir_entry - idx - 1);
+	total_size = sizeof(*dir) * (h->fkvv_dir_entries - idx - 1);
 
 	m0_memmove(&dir[idx], &dir[idx + 1], total_size);
 }
@@ -4372,8 +4366,8 @@ static void fkvv_dir_shift(const struct nd *node, int shift_size)
 {
 	struct fkvv_head    *h          = fkvv_data(node);
 	struct fkvv_dir_rec *dir        = fkvv_dir_get(node);
-	int                  total_size = sizeof(*dir) * h->fkvv_dir_entry;
-	int                  last_idx   = h->fkvv_dir_entry - 1;
+	int                  total_size = sizeof(*dir) * h->fkvv_dir_entries;
+	int                  last_idx   = h->fkvv_dir_entries - 1;
 
 	/* Update last directory entry*/
 	dir[last_idx].key_size += shift_size;
@@ -4416,7 +4410,7 @@ static void fkvv_make_emb_ind(struct slot *slot)
 			       dir[out_idx].alloc_val_size + vsize;
 	dir_entry.val_size   = vsize;
 
-	if (out_idx < h->fkvv_dir_entry - 1) {
+	if (out_idx < h->fkvv_dir_entries - 1) {
 		/**
 		 * found free fragment(out_idx) is not last free fragment(i.e.
 		 * free key region between valid key and  directory and free
@@ -4426,12 +4420,12 @@ static void fkvv_make_emb_ind(struct slot *slot)
 
 		dir_entry.alloc_val_size = dir[out_idx].alloc_val_size;
 		fkvv_dir_entry_delete(slot->s_node, out_idx);
-		h->fkvv_dir_entry--;
+		h->fkvv_dir_entries--;
 
 		/* insert directory at slot->idx*/
 		fkvv_dir_entry_make(slot->s_node, slot->s_idx);
 		dir[slot->s_idx] = dir_entry;
-		h->fkvv_dir_entry++;
+		h->fkvv_dir_entries++;
 
 	} else {
 		/* Update last free fragment entry and add new dir entry */
@@ -4439,10 +4433,10 @@ static void fkvv_make_emb_ind(struct slot *slot)
 		fkvv_dir_entry_make(slot->s_node, slot->s_idx);
 		dir_entry.alloc_val_size = vsize;
 		dir[slot->s_idx] = dir_entry;
-		h->fkvv_dir_entry++;
+		h->fkvv_dir_entries++;
 
 		/* Update last entry */
-		last_idx = h->fkvv_dir_entry - 1;
+		last_idx = h->fkvv_dir_entries - 1;
 		dir[last_idx].key_offset     += ksize;
 		dir[last_idx].key_size       -= ksize;
 		dir[last_idx].val_offset     -= sizeof(*dir);
@@ -4626,36 +4620,37 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 
 	fkvv_dir_entry_delete(node, idx);
 	h->fkvv_used--;
-	h->fkvv_dir_entry--;
+	h->fkvv_dir_entries--;
 
-	/**
-	 * Find if there exist any contiguous left key and right value free
-	 * fragment which can be merged  dir_entry fragment.
-	 */
-	for (i = h->fkvv_used; i < h->fkvv_dir_entry; i++) {
-		if (dir_entry.key_offset == dir[i].key_offset + dir[i].key_size &&
-		    dir_entry.val_offset - dir_entry.val_size == dir[i].val_offset) {
+	for (i = h->fkvv_used; i < h->fkvv_dir_entries; i++) {
+		/**
+		 * Find if there exist any contiguous left key and right value
+		 * free fragment which can be merged  dir_entry fragment.
+		 */
+		if (free_farg_1 == -1 && dir_entry.key_offset ==
+		    dir[i].key_offset + dir[i].key_size &&
+		    dir_entry.val_offset - dir_entry.val_size ==
+		    dir[i].val_offset) {
 			free_farg_1 = i;
-			break;
 		}
+
+		/**
+		 * Find if there exist any contiguous right key and left value
+		 * free fragment which can be merged  dir_entry fragment.
+		 */
+		if (free_farg_2 == -1 && dir[i].key_offset ==
+		    dir_entry.key_offset + dir_entry.key_size &&
+		    dir_entry.val_offset ==
+		    dir[i].val_offset - dir[i].alloc_val_size) {
+			free_farg_2 = i;
+		}
+
 	}
 	if (free_farg_1 != -1) {
 		dir[free_farg_1].key_size += dir_entry.key_size;
 		dir[free_farg_1].alloc_val_size += dir_entry.alloc_val_size;
 		dir[free_farg_1].val_offset += dir_entry.alloc_val_size;
 		dir_entry = dir[free_farg_1];
-	}
-
-	/**
-	 * Find if there exist any contiguous right key and left value free
-	 * fragment which can be merged  dir_entry fragment.
-	 */
-	for (i = h->fkvv_used; i < h->fkvv_dir_entry; i++) {
-		if (dir_entry.key_offset + dir_entry.key_size == dir[i].key_offset &&
-		    dir[i].val_offset - dir[i].alloc_val_size == dir_entry.val_offset) {
-			free_farg_2 = i;
-			break;
-		}
 	}
 
 	if (free_farg_2 != -1) {
@@ -4667,16 +4662,17 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 
 	if (free_farg_2 != -1 && free_farg_1 != -1) {
 		fkvv_dir_entry_delete(node, free_farg_1);
-		h->fkvv_dir_entry--;
+		h->fkvv_dir_entries--;
 		/* As we deleted two dir entry update last free dir entry */
-		dir[h->fkvv_dir_entry - 1].val_offset += (2 *sizeof(*dir));
-		dir[h->fkvv_dir_entry - 1].alloc_val_size += (2 * sizeof(*dir));
+		dir[h->fkvv_dir_entries - 1].val_offset += (2 *sizeof(*dir));
+		dir[h->fkvv_dir_entries - 1].alloc_val_size +=
+							(2 * sizeof(*dir));
 
 
 	} else if (free_farg_2 != -1 || free_farg_1 != -1) {
 		/* As we deleted one dir entry update last free dir entry */
-		dir[h->fkvv_dir_entry - 1].val_offset += sizeof(*dir);
-		dir[h->fkvv_dir_entry - 1].alloc_val_size += sizeof(*dir);
+		dir[h->fkvv_dir_entries - 1].val_offset += sizeof(*dir);
+		dir[h->fkvv_dir_entries - 1].alloc_val_size += sizeof(*dir);
 
 	} else if (free_farg_2 == -1 && free_farg_1 == -1) {
 		/**
@@ -4687,11 +4683,12 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 		 * free fragment directory and start of value region(in case of
 		 * value).
 		 */
-		fkvv_dir_entry_make(node, h->fkvv_dir_entry - 1);
-		h->fkvv_dir_entry++;
-		dir_entry.val_offset += (dir_entry.alloc_val_size - dir_entry.val_size);
+		fkvv_dir_entry_make(node, h->fkvv_dir_entries - 1);
+		h->fkvv_dir_entries++;
+		dir_entry.val_offset += (dir_entry.alloc_val_size -
+					 dir_entry.val_size);
 		dir_entry.val_size = 0;
-		dir[h->fkvv_dir_entry - 2] = dir_entry;
+		dir[h->fkvv_dir_entries - 2] = dir_entry;
 	}
 
 	if (h->fkvv_used == 0)
@@ -4835,7 +4832,7 @@ static void fkvv_capture_krsize_vrsize_cal(struct slot *slot, int *p_krsize,
 	}
 }
 
-static void fkvv_capture(struct slot *slot, int nr, struct m0_be_tx *tx)
+static void fkvv_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
 {
 	/**
 	 * This function will capture the data in node segment.
@@ -4849,10 +4846,11 @@ static void fkvv_capture(struct slot *slot, int nr, struct m0_be_tx *tx)
 	if (IS_EMBEDDED_INDIRECT(slot->s_node)) {
 		/* capture dir */
 		struct fkvv_dir_rec *dir = fkvv_dir_get(slot->s_node);
-		M0_BTREE_TX_CAPTURE(tx, seg, dir, sizeof(*dir) * h->fkvv_dir_entry);
+		M0_BTREE_TX_CAPTURE(tx, seg, dir,
+				    sizeof(*dir) * h->fkvv_dir_entries);
 
-		if (nr == NR_ALL) {
-			int  krsize;
+		if (cr == CR_ALL) {
+			int krsize;
 			int vrsize;
 			M0_ASSERT(slot->s_idx == 0);
 
@@ -4864,7 +4862,7 @@ static void fkvv_capture(struct slot *slot, int nr, struct m0_be_tx *tx)
 
 			M0_BTREE_TX_CAPTURE(tx, seg, start_key, krsize);
 			M0_BTREE_TX_CAPTURE(tx, seg, last_val, vrsize);
-		} else if (nr == NR_NONE) {
+		} else if (cr == CR_NONE) {
 			if (h->fkvv_opaque == NULL)
 				hsize += sizeof(h->fkvv_opaque);
 		} else {
@@ -4875,7 +4873,8 @@ static void fkvv_capture(struct slot *slot, int nr, struct m0_be_tx *tx)
 			last_val  = fkvv_val(slot->s_node, slot->s_idx);
 			krsize = h->fkvv_ksize;
 			vrsize = fkvv_rec_val_size(slot->s_node, slot->s_idx);
-			if (fkvv_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
+			if (fkvv_crctype_get(slot->s_node) ==
+			    M0_BCT_BTREE_ENC_RAW_HASH)
 				vrsize += CRC_VALUE_SIZE;
 			M0_BTREE_TX_CAPTURE(tx, seg, start_key, krsize);
 			M0_BTREE_TX_CAPTURE(tx, seg, last_val, vrsize);
@@ -5107,7 +5106,7 @@ static bool vkvv_expensive_invariant(const struct nd *node);
 static bool vkvv_verify(const struct nd *node);
 static void vkvv_opaque_set(const struct segaddr *addr, void *opaque);
 static void *vkvv_opaque_get(const struct segaddr *addr);
-static void vkvv_capture(struct slot *slot, int nr, struct m0_be_tx *tx);
+static void vkvv_capture(struct slot *slot, int cr, struct m0_be_tx *tx);
 static int  vkvv_create_delete_credit_size(void);
 static void vkvv_node_alloc_credit(const struct nd *node,
 				struct m0_be_tx_credit *accum);
@@ -6228,7 +6227,7 @@ static void vkvv_calc_size_for_capture(struct slot *slot, int count,
 /**
  * @brief This function will capture the data in BE segment.
  */
-static void vkvv_capture(struct slot *slot, int nr, struct m0_be_tx *tx)
+static void vkvv_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
 {
 	struct vkvv_head *h         = vkvv_data(slot->s_node);
 	struct m0_be_seg *seg       = slot->s_node->n_tree->t_seg;
@@ -6732,7 +6731,7 @@ static void level_cleanup(struct m0_btree_oimpl *oi, struct m0_be_tx *tx)
  * Adds unique node descriptor address to m0_btree_oimpl::i_capture structure.
  */
 static void btree_node_capture_enlist(struct m0_btree_oimpl *oi,
-				      struct nd *addr, int start_idx, int nr)
+				      struct nd *addr, int start_idx, int cr)
 {
 	struct node_capture_info *arr = oi->i_capture;
 	int                       i;
@@ -6743,11 +6742,11 @@ static void btree_node_capture_enlist(struct m0_btree_oimpl *oi,
 		if (arr[i].nc_node == NULL) {
 			arr[i].nc_node = addr;
 			arr[i].nc_idx  = start_idx;
-			arr[i].nc_nr   = nr;
+			arr[i].nc_cr   = cr;
 			break;
 		} else if (arr[i].nc_node == addr) {
-			M0_ASSERT(nr == NR_ALL);
-			arr[i].nc_nr  = nr;
+			M0_ASSERT(cr == CR_ALL);
+			arr[i].nc_cr  = cr;
 			arr[i].nc_idx = arr[i].nc_idx < start_idx ?
 				        arr[i].nc_idx : start_idx;
 			break;
@@ -6800,7 +6799,7 @@ static void btree_tx_nodes_capture(struct m0_btree_oimpl *oi,
 
 		node_slot.s_node = arr[i].nc_node;
 		node_slot.s_idx  = arr[i].nc_idx;
-		bnode_capture(&node_slot, arr[i].nc_nr, tx);
+		bnode_capture(&node_slot, arr[i].nc_cr, tx);
 
 		bnode_lock(arr[i].nc_node);
 		arr[i].nc_node->n_txref++;
@@ -6897,8 +6896,8 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	 * Note : not capturing l_node as it must have already been captured in
 	 * btree_put_makespace_phase().
 	 */
-	btree_node_capture_enlist(oi, oi->i_extra_node, 0, NR_ALL);
-	btree_node_capture_enlist(oi, lev->l_node, 0, NR_ALL);
+	btree_node_capture_enlist(oi, oi->i_extra_node, 0, CR_ALL);
+	btree_node_capture_enlist(oi, lev->l_node, 0, CR_ALL);
 
 	/* Increase height by one */
 	tree->t_height++;
@@ -7113,14 +7112,14 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 	tgt.s_node == lev->l_node ? bnode_seq_cnt_update(lev->l_node) :
 				    bnode_seq_cnt_update(lev->l_alloc);
 	bnode_fix(tgt.s_node);
-	btree_node_capture_enlist(oi, lev->l_alloc, 0, NR_ALL);
+	btree_node_capture_enlist(oi, lev->l_alloc, 0, CR_ALL);
 	if (IS_EMBEDDED_INDIRECT(lev->l_node)) {
 		if (tgt.s_node == lev->l_node)
 			btree_node_capture_enlist(oi, lev->l_node, tgt.s_idx,
 						  1);
 	}
 	else
-		btree_node_capture_enlist(oi, lev->l_node, 0, NR_ALL);
+		btree_node_capture_enlist(oi, lev->l_node, 0, CR_ALL);
 
 	/* TBD : This check needs to be removed when debugging is done. */
 	M0_ASSERT_EX(bnode_expensive_invariant(lev->l_alloc));
@@ -7189,13 +7188,13 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		tgt.s_node == lev->l_node ? bnode_seq_cnt_update(lev->l_node) :
 					    bnode_seq_cnt_update(lev->l_alloc);
 		bnode_fix(tgt.s_node);
-		btree_node_capture_enlist(oi, lev->l_alloc, 0, NR_ALL);
+		btree_node_capture_enlist(oi, lev->l_alloc, 0, CR_ALL);
 		if (IS_EMBEDDED_INDIRECT(lev->l_node)) {
 			if (tgt.s_node == lev->l_node)
 				btree_node_capture_enlist(oi, lev->l_node,
 							  tgt.s_idx, 1);
 		} else
-			btree_node_capture_enlist(oi, lev->l_node, 0, NR_ALL);
+			btree_node_capture_enlist(oi, lev->l_node, 0, CR_ALL);
 
 		/**
 		 * TBD : This check needs to be removed when debugging is
@@ -7881,7 +7880,7 @@ static int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 		bop->bo_arbor->t_desc->t_keycmp = bop->bo_keycmp;
 		node_slot.s_node                = oi->i_nop.no_node;
 		node_slot.s_idx                 = 0;
-		bnode_capture(&node_slot, NR_NONE, bop->bo_tx);
+		bnode_capture(&node_slot, CR_NONE, bop->bo_tx);
 		m0_rwlock_write_unlock(&bop->bo_arbor->t_desc->t_lock);
 
 		m0_free(oi);
@@ -7923,7 +7922,7 @@ static int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 	bnode_fini(tree->t_root);
 	_slot.s_node                    = tree->t_root;
 	_slot.s_idx                     = 0;
-	bnode_capture(&_slot, NR_NONE, bop->bo_tx);
+	bnode_capture(&_slot, CR_NONE, bop->bo_tx);
 	bnode_put(tree->t_root->n_op, tree->t_root);
 	tree_put(tree);
 
@@ -8692,7 +8691,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		}
 		bnode_seq_cnt_update(lev->l_node);
 		bnode_fix(node_slot.s_node);
-		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx, NR_NONE);
+		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx, CR_NONE);
 		/**
 		 * TBD : This check needs to be removed when debugging is
 		 * done.
@@ -8740,8 +8739,8 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 
 	bnode_move(root_child, lev->l_node, D_RIGHT, NR_MAX);
 	M0_ASSERT(bnode_count_rec(root_child) == 0);
-	btree_node_capture_enlist(oi, lev->l_node, 0, NR_ALL);
-	btree_node_capture_enlist(oi, root_child, 0, NR_NONE);
+	btree_node_capture_enlist(oi, lev->l_node, 0, CR_ALL);
+	btree_node_capture_enlist(oi, root_child, 0, CR_NONE);
 	oi->i_root_child_free = true;
 
 	/* TBD : This check needs to be removed when debugging is done. */
@@ -9102,7 +9101,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 		bnode_done(&node_slot, false);
 		bnode_seq_cnt_update(lev->l_node);
 		bnode_fix(node_slot.s_node);
-		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx, NR_NONE);
+		btree_node_capture_enlist(oi, lev->l_node, lev->l_idx, CR_NONE);
 		/**
 		 * TBD : This check needs to be removed when debugging
 		 * is done.
@@ -9246,7 +9245,7 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 		 */
 		if (oi->i_used == 0) {
 			bnode_set_level(lev->l_node, 0);
-			bnode_capture(&node_slot, NR_NONE, bop->bo_tx);
+			bnode_capture(&node_slot, CR_NONE, bop->bo_tx);
 			lock_op_unlock(tree);
 			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 		}
@@ -9256,7 +9255,7 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 		 * node.
 		 */
 		bnode_fini(lev->l_node);
-		bnode_capture(&node_slot, NR_NONE, bop->bo_tx);
+		bnode_capture(&node_slot, CR_NONE, bop->bo_tx);
 		bnode_free(&oi->i_nop, lev->l_node, bop->bo_tx, 0);
 		lev->l_node = NULL;
 		bop->bo_limit--;
@@ -9276,14 +9275,14 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 			bnode_set_level(parent->l_node, 0);
 			node_slot.s_node = parent->l_node;
 			node_slot.s_idx  = 0;
-			bnode_capture(&node_slot, NR_NONE, bop->bo_tx);
+			bnode_capture(&node_slot, CR_NONE, bop->bo_tx);
 			bop->bo_limit--;
 		}
 		/** Exit state machine if ran out of credits. */
 		if (bop->bo_limit <= 2) {
 			node_slot.s_node = parent->l_node;
 			node_slot.s_idx  = rec_count;
-			bnode_capture(&node_slot, NR_NONE, bop->bo_tx);
+			bnode_capture(&node_slot, CR_NONE, bop->bo_tx);
 			lock_op_unlock(tree);
 			return m0_sm_op_sub(&bop->bo_op, P_CLEANUP, P_FINI);
 		}
