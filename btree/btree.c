@@ -2520,8 +2520,8 @@ struct ff_head {
 	uint16_t                 ff_ksize;    /*< Size of key in bytes */
 	uint16_t                 ff_vsize;    /*< Size of value in bytes */
 	uint32_t                 ff_nsize;    /*< Node size */
-	struct m0_format_footer  ff_foot;   /*< Node Footer */
-	void                    *ff_opaque; /*< opaque data */
+	struct m0_format_footer  ff_foot;     /*< Node Footer */
+	void                    *ff_opaque;   /*< opaque data */
 	/**
 	 *  This space is used to host the Keys and Values upto the size of the
 	 *  node
@@ -2553,7 +2553,7 @@ static bool ff_isfit(struct slot *slot);
 static void ff_done(struct slot *slot, bool modified);
 static void ff_make(struct slot *slot);
 static bool ff_newval_isfit(struct slot *slot, struct m0_btree_rec *old_rec,
-			      struct m0_btree_rec *new_rec);
+			    struct m0_btree_rec *new_rec);
 static void ff_val_resize(struct slot *slot, int vsize_diff,
 			  struct m0_btree_rec *new_rec);
 static void ff_fix(const struct nd *node);
@@ -2649,7 +2649,7 @@ static struct ff_head *ff_data(const struct nd *node)
 
 static void *ff_key(const struct nd *node, int idx)
 {
-	struct ff_head      *h    = ff_data(node);
+	struct ff_head      *h  = ff_data(node);
 	struct ff_dir_entry *de = (struct ff_dir_entry *)(h + 1);
 
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
@@ -3092,7 +3092,7 @@ static void ff_make(struct slot *slot)
 
 		m0_memmove(key_addr + h->ff_ksize, key_addr, total_key_size);
 		m0_memmove(val_addr - (vsize + crc_size), val_addr,
-			total_val_size);
+			   total_val_size);
 	}
 
 	h->ff_used++;
@@ -3162,7 +3162,7 @@ static void ff_del(const struct nd *node, int idx)
 
 		m0_memmove(key_addr, key_addr + h->ff_ksize, total_key_size);
 		m0_memmove(val_addr + (vsize + crc_size), val_addr,
-			total_val_size);
+			   total_val_size);
 	}
 	h->ff_used--;
 }
@@ -3236,8 +3236,8 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 	tgtidx = dir == D_LEFT ? last_idx_tgt : 0;
 	while (true) {
 		if (nr == 0 || (nr == NR_EVEN && !move_needed(src, tgt)) ||
-			       (nr == NR_MAX && (srcidx == -1 ||
-			       bnode_count_rec(src) == 0)))
+		    (nr == NR_MAX && (srcidx == -1 ||
+		    		      bnode_count_rec(src) == 0)))
 			break;
 
 		/** Get the record at src index in rec. */
@@ -3351,8 +3351,8 @@ static void ff_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
 			int   krsize;
 			int   vrsize;
 
-			krsize     = h->ff_ksize * rec_modify_count;
-			vrsize     = (vsize + crc_size) * rec_modify_count;
+			krsize = h->ff_ksize * rec_modify_count;
+			vrsize = (vsize + crc_size) * rec_modify_count;
 
 			M0_BTREE_TX_CAPTURE(tx, seg, start_key, krsize);
 			M0_BTREE_TX_CAPTURE(tx, seg, last_val, vrsize);
@@ -5219,7 +5219,7 @@ static uint32_t vkvv_get_vspace(void)
  */
 static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
 		      int nsize, uint32_t ntype, uint64_t crc_type,
-		       uint64_t addr_type, uint64_t gen, struct m0_fid fid)
+		      uint64_t addr_type, uint64_t gen, struct m0_fid fid)
 {
 	struct vkvv_head *h     = segaddr_addr(addr);
 	M0_SET0(h);
