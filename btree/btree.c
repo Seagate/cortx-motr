@@ -2791,7 +2791,7 @@ static void ff_dir_init(const struct nd *node)
 
 	if (h->ff_level == 0 &&
 	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
-		crc_size = sizeof(uint64_t);
+		crc_size = CRC_VALUE_SIZE;
 
 	de = (struct ff_dir_entry *)(h + 1);
 	rec_size = h->ff_ksize + ff_valsize(node) + crc_size +
