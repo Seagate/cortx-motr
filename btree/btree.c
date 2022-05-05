@@ -3450,14 +3450,18 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * };
  *
  *
- * +------+----+----+----+------+-----+-----+-----+------+-----+----+----+
- * |      |    |    |    |      |     |     |     |      |     |    |    |
- * |node  |    |    |    |      |     |     |     |      |     |    |    |
- * |header| k0 | k1 | k2 +-->   |orec0|orec1|orec2|  <---+ v2  | v1 | v0 |
- * |      |    |    |    |      |     |     |     |      |     |    |    |
- * |      |    |    |    |      |     |     |     |      |     |    |    |
- * +------+----+----+----+------+-----+-----+-----+------+-----+----+----+
- *        |--key region--|      |----offset dir---|      |--value region-|
+ *        +-----------------------+ +-------------------------------------+
+ *        |              +--------+-+---------------+ +--+                |                                       |
+ *        |              |        | |               | |  |                |
+ *        v              v        | |               | |  v                v
+ * +------+----+----+----+------+-+-+-+-----+-----+-+-+--+-----+-----+----+----+
+ * |      |    |    |    |      |     |     |     |      |     |     |    |    |
+ * |node  |    |    |    |      |     |     |     |      |     |     |    |    |
+ * |header| k0 | k1 | k2 +-->   |orec0|orec1|orec2|orecf1| <---+ v2  | v1 | v0 |
+ * |      |    |    |    |      |     |     |     |      |     |     |    |    |
+ * |      |    |    |    |      |     |     |     |      |     |     |    |    |
+ * +------+----+----+----+------+-----+-----+-----+------+-----+-----+----+----+
+ *        |--key region--|      |----offset dir---|            |--value region-|
  *
  * This node format will have keys on left side which will start populating from
  * left to right initially whereas values will be present on right side which
@@ -3474,10 +3478,10 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  * to insert new key and value at that locations. To find the free fragments,
  * we will track the total valid records and total max records. All the records
  * between total max records and total valid records contain entries which track
- * the free slots. Once we find place to insert new record, we embedded actual
- * key and value at that location and move a subset of directory entries for
- * inserting new entry in ascending order. This operation requires to capture
- * only newly inserted record and the directory.
+ * the free slots(eg. orecf1). Once we find place to insert new record, we
+ * embedded actual key and value at that location and move a subset of directory
+ * entries for inserting new entry in ascending order. This operation requires
+ * to capture only newly inserted record and the directory.
  *
  * For eg - Inserting new record (nk1, nv1) such that k1 < nk1 < k2 and free
  * space is available for record.
@@ -3533,11 +3537,9 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *
  */
 struct fkvv_dir_rec {
-	/* byte offset calculated from start of the node */
-	uint32_t key_offset;
+	uint32_t key_offset; /* Byte offset of Key from start of the node */
 
-	/* byte offset calculated from start of the node */
-	uint32_t val_offset;
+	uint32_t val_offset; /* Byte offset of Value from start of the node */
 
 	/**
 	 * In case of free fragment, key_size will be size of free fragment.
@@ -3556,7 +3558,7 @@ struct fkvv_dir_rec {
 	 * alloc_val_size indicated available size of fragment size. If dir rec
 	 * points to valid user value, val_size <= alloc_val_size.
 	 */
-	uint32_t alloc_val_size; /* total value fragment size */
+	uint32_t alloc_val_size;
 };
 
 struct fkvv_head {
