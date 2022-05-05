@@ -3531,11 +3531,30 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *
  */
 struct fkvv_dir_rec {
+	/* byte offset calculated from start of the node */
 	uint32_t key_offset;
+
+	/* byte offset calculated from start of the node */
 	uint32_t val_offset;
+
+	/**
+	 * In case of free fragment, key_size will be size of free fragment.
+	 * If it points to user key, key_size will be fixed key size provided by
+	 * user
+	 */
 	uint32_t key_size;
-	uint32_t val_size;/* user provided value size */
-	uint32_t alloc_val_size; /* total fragment size*/
+
+	/**
+	 * If dir rec points to valid user value, val size will be user provided
+	 * value size else it will be 0.
+	*/
+	uint32_t val_size;
+
+	/**
+	 * alloc_val_size indicated available size of fragment size. If dir rec
+	 * points to valid user value, val_size <= alloc_val_size.
+	 */
+	uint32_t alloc_val_size; /* total value fragment size */
 };
 
 struct fkvv_head {
@@ -3670,21 +3689,21 @@ static struct fkvv_head *fkvv_data(const struct nd *node)
 
 static void *fkvv_dir_get(const struct nd *node)
 {
-	struct fkvv_head *h   = fkvv_data(node);
-	return ((void *)h + sizeof(*h) + h->fkvv_dir_offset);
+	struct fkvv_head *h = fkvv_data(node);
+	return ((void *)h + h->fkvv_dir_offset);
 }
 
-static void fkvv_dir_init(const struct nd *node)
+static void fkvv_dir_init(const struct segaddr *addr)
 {
-	struct fkvv_head    *h = fkvv_data(node);
+	struct fkvv_head    *h = segaddr_addr(addr);
 	struct fkvv_dir_rec *dir;
 
-	h->fkvv_dir_offset  = (h->fkvv_nsize - sizeof(*h))/2;
-	h->fkvv_dir_entries   = 1;
+	h->fkvv_dir_offset  = sizeof(*h) + (h->fkvv_nsize - sizeof(*h))/2;
+	h->fkvv_dir_entries = 1;
 
-	dir = fkvv_dir_get(node);
-	dir[0].key_offset     = 0;
-	dir[0].key_size       = h->fkvv_dir_offset;
+	dir = (void *)h + h->fkvv_dir_offset;
+	dir[0].key_offset     = sizeof(*h);
+	dir[0].key_size       = h->fkvv_dir_offset - sizeof(*h);
 	dir[0].val_offset     = h->fkvv_dir_offset + sizeof(*dir);
 	dir[0].alloc_val_size = (h->fkvv_nsize - sizeof(*h)) -
 				dir[0].val_offset;
@@ -3696,15 +3715,13 @@ static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 		      uint64_t addr_type, uint64_t gen, struct m0_fid fid)
 {
 	struct fkvv_head    *h    = segaddr_addr(addr);
-	struct fkvv_dir_rec *dir;
 
 	M0_PRE(ksize != 0);
 	M0_SET0(h);
 
 	h->fkvv_seg.h_crc_type    = crc_type;
 	h->fkvv_seg.h_addr_type   = addr_type;
-	h->fkvv_dir_offset        = (nsize - sizeof(*h))/2;
-	h->fkvv_dir_entries         = 1;
+	h->fkvv_dir_entries       = 1;
 	h->fkvv_ksize             = ksize;
 	h->fkvv_nsize             = nsize;
 	h->fkvv_seg.h_node_type   = ntype;
@@ -3712,13 +3729,7 @@ static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 	h->fkvv_seg.h_fid         = fid;
 	h->fkvv_opaque            = NULL;
 
-	dir  = ((void *)h + sizeof(*h) + h->fkvv_dir_offset);
-	dir[0].key_offset     = 0;
-	dir[0].key_size       = h->fkvv_dir_offset;
-	dir[0].val_offset     = h->fkvv_dir_offset + sizeof(*dir);
-	dir[0].alloc_val_size = (h->fkvv_nsize - sizeof(*h)) -
-				dir[0].val_offset;
-	dir[0].val_size       = 0;
+	fkvv_dir_init(addr);
 
 	m0_format_header_pack(&h->fkvv_fmt, &(struct m0_format_tag){
 		.ot_version       = M0_BTREE_NODE_FORMAT_VERSION,
@@ -3987,6 +3998,10 @@ static void *fkvv_key(const struct nd *node, int idx)
 
 	key_offset = key_offset_get(node, idx);
 
+	if (IS_EMBEDDED_INDIRECT(node)) {
+		return (void*)h + key_offset;
+	}
+
 	return key_start_addr + key_offset;
 }
 
@@ -4014,7 +4029,7 @@ static void *fkvv_val(const struct nd *node, int idx)
 	node_end_addr = node_start_addr + h->fkvv_nsize;
 	value_offset  = val_offset_get(node, idx);
 	if (IS_EMBEDDED_INDIRECT(node)) {
-		return node_start_addr + sizeof(*h) + value_offset;
+		return node_start_addr + value_offset;
 	}
 	return node_end_addr - value_offset;
 }
@@ -4590,7 +4605,7 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 	}
 
 	if (h->fkvv_used == 0)
-		fkvv_dir_init(node);
+		fkvv_dir_init(&node->n_addr);
 }
 
 static void fkvv_del(const struct nd *node, int idx)
@@ -4614,7 +4629,7 @@ static void fkvv_set_rec_count(const struct nd *node, uint16_t count)
 
 	h->fkvv_used = count;
 	if (count == 0)
-		fkvv_dir_init(node);
+		fkvv_dir_init(&node->n_addr);
 }
 
 static bool fkvv_invariant(const struct nd *node)
