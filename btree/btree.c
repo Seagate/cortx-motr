@@ -891,7 +891,7 @@ struct node_type {
 	uint32_t (*nt_crctype_get)(const struct nd *node);
 
 	/** Returns count of records/values in the node*/
-	int  (*nt_count_rec)(const struct nd *node);
+	int  (*nt_rec_count)(const struct nd *node);
 
 	/** Returns the space (in bytes) available in the node */
 	int  (*nt_space)(const struct nd *node);
@@ -1206,10 +1206,10 @@ static int  bnode_init(struct segaddr *addr, int ksize, int vsize, int nsize,
 		       struct m0_fid fid, int nxt);
 static uint32_t bnode_crctype_get(const struct nd *node);
 /* Returns the number of valid keys in the node. */
-static int  bnode_count(const struct nd *node);
+static int  bnode_key_count(const struct nd *node);
 
 /* Returns the number of records in the node. */
-static int  bnode_count_rec(const struct nd *node);
+static int  bnode_rec_count(const struct nd *node);
 static int  bnode_space(const struct nd *node);
 static int  bnode_level(const struct nd *node);
 static int  bnode_nsize(const struct nd *node);
@@ -1250,10 +1250,10 @@ static void bnode_fini(const struct nd *node);
  * node and tree types.
  */
 struct node_header {
-	uint64_t      h_gen;
 	uint32_t      h_node_type;
 	uint32_t      h_tree_type;
 	uint32_t      h_crc_type;
+	uint64_t      h_gen;
 	struct m0_fid h_fid;
 	uint64_t      h_opaque;
 };
@@ -1523,20 +1523,20 @@ static bool bnode_isvalid(const struct nd *node)
 	return false;
 }
 
-static int bnode_count(const struct nd *node)
+static int bnode_key_count(const struct nd *node)
 {
 	int key_count;
 	M0_PRE(bnode_invariant(node));
-	key_count = node->n_type->nt_count_rec(node);
+	key_count = node->n_type->nt_rec_count(node);
 	if (IS_INTERNAL_NODE(node))
 		key_count--;
 	return key_count;
 }
 
-static int bnode_count_rec(const struct nd *node)
+static int bnode_rec_count(const struct nd *node)
 {
 	M0_PRE(bnode_invariant(node));
-	return node->n_type->nt_count_rec(node);
+	return node->n_type->nt_rec_count(node);
 }
 static int bnode_space(const struct nd *node)
 {
@@ -1650,7 +1650,7 @@ static void bnode_val_resize(struct slot *slot, int vsize_diff)
 static bool bnode_find(struct slot *slot, struct m0_btree_key *find_key)
 {
 	int                         i     = -1;
-	int                         j     = bnode_count(slot->s_node);
+	int                         j     = bnode_key_count(slot->s_node);
 	struct m0_btree_key         key;
 	void                       *p_key;
 	struct slot                 key_slot;
@@ -1977,37 +1977,36 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	struct td              *tree = NULL;
 	struct nd              *node = NULL;
 
-	if (addr != NULL) {
-		nxt  = bnode_get(op, NULL, addr, nxt);
-		if (op->no_op.o_sm.sm_rc < 0)
-			return op->no_op.o_sm.sm_rc;
-		node = op->no_node;
-		m0_rwlock_write_lock(&list_lock);
-		tree = node->n_tree;
+	M0_ASSERT(addr != NULL);
 
-		if (tree == NULL) {
-			tree = m0_alloc(sizeof *tree);
-			m0_rwlock_init(&tree->t_lock);
-			m0_rwlock_write_lock(&tree->t_lock);
+	nxt  = bnode_get(op, NULL, addr, nxt);
+	if (op->no_op.o_sm.sm_rc < 0)
+		return op->no_op.o_sm.sm_rc;
+	node = op->no_node;
+	m0_rwlock_write_lock(&list_lock);
+	tree = node->n_tree;
 
-			tree->t_ref = 1;
-			tree->t_root = node;
-			tree->t_height = bnode_level(node) + 1;
-			bnode_fid(node, &tree->t_fid);
-			bnode_lock(node);
-			node->n_tree = tree;
-			bnode_unlock(node);
-		} else {
-			m0_rwlock_write_lock(&tree->t_lock);
-			tree->t_ref++;
-		}
+	if (tree == NULL) {
+		tree = m0_alloc(sizeof *tree);
+		m0_rwlock_init(&tree->t_lock);
+		m0_rwlock_write_lock(&tree->t_lock);
 
-		op->no_node = tree->t_root;
-		op->no_tree = tree;
-		m0_rwlock_write_unlock(&tree->t_lock);
-		m0_rwlock_write_unlock(&list_lock);
-	} else
-		return M0_ERR(-EINVAL);
+		tree->t_ref = 1;
+		tree->t_root = node;
+		tree->t_height = bnode_level(node) + 1;
+		bnode_fid(node, &tree->t_fid);
+		bnode_lock(node);
+		node->n_tree = tree;
+		bnode_unlock(node);
+	} else {
+		m0_rwlock_write_lock(&tree->t_lock);
+		tree->t_ref++;
+	}
+
+	op->no_node = tree->t_root;
+	op->no_tree = tree;
+	m0_rwlock_write_unlock(&tree->t_lock);
+	m0_rwlock_write_unlock(&list_lock);
 
 	return nxt;
 }
@@ -2186,7 +2185,7 @@ static void bnode_crc_validate(struct nd *node)
 	bool                    rc = true;
 	enum m0_btree_crc_type  crc_type;
 
-	count = bnode_count(node);
+	count = bnode_key_count(node);
 	node_slot.s_node = node;
 	REC_INIT(&node_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 	crc_type = bnode_crctype_get(node);
@@ -2404,7 +2403,7 @@ static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
 		    struct m0_fid fid);
 static void ff_fini(const struct nd *node);
 static uint32_t ff_crctype_get(const struct nd *node);
-static int  ff_count_rec(const struct nd *node);
+static int  ff_rec_count(const struct nd *node);
 static int  ff_space(const struct nd *node);
 static int  ff_level(const struct nd *node);
 static int  ff_shift(const struct nd *node);
@@ -2462,7 +2461,7 @@ static const struct node_type fixed_format = {
 	.nt_init                      = ff_init,
 	.nt_fini                      = ff_fini,
 	.nt_crctype_get               = ff_crctype_get,
-	.nt_count_rec                 = ff_count_rec,
+	.nt_rec_count                 = ff_rec_count,
 	.nt_space                     = ff_space,
 	.nt_level                     = ff_level,
 	.nt_shift                     = ff_shift,
@@ -2598,7 +2597,7 @@ static bool ff_iskey_smaller(const struct nd *node, int cur_key_idx)
 
 static bool ff_expensive_invariant(const struct nd *node)
 {
-	int count = bnode_count(node);
+	int count = bnode_key_count(node);
 	return _0C(ergo(count > 1, m0_forall(i, count - 1,
 					     ff_iskey_smaller(node, i))));
 }
@@ -2686,7 +2685,7 @@ static uint32_t ff_crctype_get(const struct nd *node)
 	return h->ff_seg.h_crc_type;
 }
 
-static int ff_count_rec(const struct nd *node)
+static int ff_rec_count(const struct nd *node)
 {
 	return ff_data(node)->ff_used;
 }
@@ -2982,8 +2981,8 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 
 	M0_PRE(src != tgt);
 
-	last_idx_src = bnode_count_rec(src);
-	last_idx_tgt = bnode_count_rec(tgt);
+	last_idx_src = bnode_rec_count(src);
+	last_idx_tgt = bnode_rec_count(tgt);
 
 	srcidx = dir == D_LEFT ? 0 : last_idx_src - 1;
 	tgtidx = dir == D_LEFT ? last_idx_tgt : 0;
@@ -2992,7 +2991,7 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 		if (nr == 0 || (nr == NR_EVEN &&
 			       (bnode_space(tgt) <= bnode_space(src))) ||
 			       (nr == NR_MAX && (srcidx == -1 ||
-			       bnode_count_rec(src) == 0)))
+			       bnode_rec_count(src) == 0)))
 			break;
 
 		/** Get the record at src index in rec. */
@@ -3376,7 +3375,7 @@ static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 		      uint64_t gen, struct m0_fid fid);
 static void fkvv_fini(const struct nd *node);
 static uint32_t fkvv_crctype_get(const struct nd *node);
-static int  fkvv_count_rec(const struct nd *node);
+static int  fkvv_rec_count(const struct nd *node);
 static int  fkvv_space(const struct nd *node);
 static int  fkvv_level(const struct nd *node);
 static int  fkvv_shift(const struct nd *node);
@@ -3427,7 +3426,7 @@ static const struct node_type fixed_ksize_variable_vsize_format = {
 	.nt_init                      = fkvv_init,
 	.nt_fini                      = fkvv_fini,
 	.nt_crctype_get               = fkvv_crctype_get,
-	.nt_count_rec                 = fkvv_count_rec,
+	.nt_rec_count                 = fkvv_rec_count,
 	.nt_space                     = fkvv_space,
 	.nt_level                     = fkvv_level,
 	.nt_shift                     = fkvv_shift,
@@ -3521,7 +3520,7 @@ static uint32_t fkvv_crctype_get(const struct nd *node)
 	return h->fkvv_seg.h_crc_type;
 }
 
-static int fkvv_count_rec(const struct nd *node)
+static int fkvv_rec_count(const struct nd *node)
 {
 	return fkvv_data(node)->fkvv_used;
 }
@@ -4070,7 +4069,7 @@ static bool fkvv_iskey_smaller(const struct nd *node, int cur_key_idx)
 
 static bool fkvv_expensive_invariant(const struct nd *node)
 {
-	int count = bnode_count(node);
+	int count = bnode_key_count(node);
 	return _0C(ergo(count > 1, m0_forall(i, count - 1,
 					     fkvv_iskey_smaller(node, i))));
 }
@@ -4332,7 +4331,7 @@ static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
 		      uint64_t gen, struct m0_fid fid);
 static void vkvv_fini(const struct nd *node);
 static uint32_t vkvv_crctype_get(const struct nd *node);
-static int  vkvv_count_rec(const struct nd *node);
+static int  vkvv_rec_count(const struct nd *node);
 static int  vkvv_space(const struct nd *node);
 static int  vkvv_level(const struct nd *node);
 static int  vkvv_shift(const struct nd *node);
@@ -4383,7 +4382,7 @@ static const struct node_type variable_kv_format = {
 	.nt_init                      = vkvv_init,
 	.nt_fini                      = vkvv_fini,
 	.nt_crctype_get               = vkvv_crctype_get,
-	.nt_count_rec                 = vkvv_count_rec,
+	.nt_rec_count                 = vkvv_rec_count,
 	.nt_space                     = vkvv_space,
 	.nt_level                     = vkvv_level,
 	.nt_shift                     = vkvv_shift,
@@ -4545,7 +4544,7 @@ static struct dir_rec *vkvv_get_dir_addr(const struct nd *node)
  * @brief This function returns the count of values in the node space.
  *        It is achieved using the vkvv_used variable.
  */
-static int  vkvv_count_rec(const struct nd *node)
+static int  vkvv_rec_count(const struct nd *node)
 {
 	return vkvv_data(node)->vkvv_used;
 }
@@ -6080,7 +6079,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	bnode_set_level(oi->i_extra_node, curr_max_level);
 
 	bnode_move(lev->l_node, oi->i_extra_node, D_RIGHT, NR_MAX);
-	M0_ASSERT(bnode_count_rec(lev->l_node) == 0);
+	M0_ASSERT(bnode_rec_count(lev->l_node) == 0);
 
 	bnode_set_level(lev->l_node, curr_max_level + 1);
 
@@ -6191,8 +6190,8 @@ static void btree_put_split_and_find(struct nd *allocated_node,
 	 * decrease the object size.
 	 */
 	min_rec_count = bnode_level(current_node) ? 2 : 1;
-	M0_ASSERT(bnode_count_rec(current_node) >= min_rec_count);
-	M0_ASSERT(bnode_count_rec(allocated_node) >= min_rec_count);
+	M0_ASSERT(bnode_rec_count(current_node) >= min_rec_count);
+	M0_ASSERT(bnode_rec_count(allocated_node) >= min_rec_count);
 	/*2) Find appropriate slot for given record */
 
 	right_slot.s_idx = 0;
@@ -6218,7 +6217,7 @@ static void btree_put_split_and_find(struct nd *allocated_node,
 	 * not compare key with last indexed key.
 	 */
 	if (bnode_level(tgt->s_node) > 0 && tgt->s_node == left_slot.s_node) {
-		left_slot.s_idx = bnode_count(left_slot.s_node);
+		left_slot.s_idx = bnode_key_count(left_slot.s_node);
 		REC_INIT(&left_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 		bnode_key(&left_slot);
 		if (current_node->n_tree->t_keycmp.rko_keycmp != NULL) {
@@ -6231,7 +6230,7 @@ static void btree_put_split_and_find(struct nd *allocated_node,
 			diff = m0_bufvec_cursor_cmp(&cur_1, &cur_2);
 		}
 		if (diff > 0) {
-			tgt->s_idx = bnode_count(left_slot.s_node) + 1;
+			tgt->s_idx = bnode_key_count(left_slot.s_node) + 1;
 			return;
 		}
 	}
@@ -6422,7 +6421,7 @@ static int64_t btree_put_makespace_phase(struct m0_btree_op *bop)
 		bnode_unlock(lev->l_node);
 
 		node_slot.s_node = lev->l_alloc;
-		node_slot.s_idx = bnode_count(node_slot.s_node);
+		node_slot.s_idx = bnode_key_count(node_slot.s_node);
 		REC_INIT(&node_slot.s_rec, &p_key, &ksize, &p_val, &vsize);
 		bnode_key(&node_slot);
 		new_rec.r_key = node_slot.s_rec.r_key;
@@ -6515,7 +6514,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 			 */
 
 			if (!bnode_isvalid(lev->l_node) || (oi->i_used > 0 &&
-			    bnode_count_rec(lev->l_node) == 0)) {
+			    bnode_rec_count(lev->l_node) == 0)) {
 				bnode_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
@@ -7126,7 +7125,7 @@ static int64_t btree_destroy_tree_tick(struct m0_sm_op *smop)
 	}
 
 	M0_PRE(bnode_invariant(tree->t_root));
-	M0_PRE(bnode_count(tree->t_root) == 0);
+	M0_PRE(bnode_key_count(tree->t_root) == 0);
 	m0_rwlock_write_unlock(&tree->t_lock);
 	bnode_fini(tree->t_root);
 	_slot.s_node                    = tree->t_root;
@@ -7253,7 +7252,7 @@ static int sibling_index_get(int index, uint64_t flags, bool key_exists)
 /* Checks if the index is in the range of valid key range for node. */
 static bool index_is_valid(struct level *lev)
 {
-	return (lev->l_idx >= 0) && (lev->l_idx < bnode_count(lev->l_node));
+	return (lev->l_idx >= 0) && (lev->l_idx < bnode_key_count(lev->l_node));
 }
 
 /**
@@ -7272,7 +7271,7 @@ static int  btree_sibling_first_key(struct m0_btree_oimpl *oi, struct td *tree)
 	for (i = oi->i_used - 1; i >= 0; i--) {
 		lev = &oi->i_level[i];
 		bnode_lock(lev->l_node);
-		if (lev->l_idx < bnode_count(lev->l_node)) {
+		if (lev->l_idx < bnode_key_count(lev->l_node)) {
 			s.s_node = oi->i_nop.no_node = lev->l_node;
 			s.s_idx = lev->l_idx + 1;
 			bnode_unlock(lev->l_node);
@@ -7370,7 +7369,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
 			if (!bnode_isvalid(lev->l_node) || (oi->i_used > 0 &&
-			    bnode_count_rec(lev->l_node) == 0)) {
+			    bnode_rec_count(lev->l_node) == 0)) {
 				bnode_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
@@ -7390,7 +7389,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 					}
 				} else
 					s.s_idx = bop->bo_opc == M0_BO_MINKEY ?
-						  0 : bnode_count(s.s_node);
+						  0 : bnode_key_count(s.s_node);
 
 				bnode_child(&s, &child);
 				if (!address_in_segment(child)) {
@@ -7410,7 +7409,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 				return bnode_get(&oi->i_nop, tree, &child,
 						 P_NEXTDOWN);
 			} else {
-				if ((lev->l_idx == bnode_count(lev->l_node)) &&
+				if ((lev->l_idx == bnode_key_count(lev->l_node)) &&
 				    (!oi->i_key_found) &&
 				    (bop->bo_flags & BOF_SLANT)) {
 					bnode_unlock(lev->l_node);
@@ -7489,7 +7488,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 		s.s_rec.r_flags = M0_BSC_SUCCESS;
 		REC_INIT(&s.s_rec, &pkey, &ksize, &pval, &vsize);
 
-		count = bnode_count(s.s_node);
+		count = bnode_key_count(s.s_node);
 		/**
 		 *  There are two cases based on the flag set by user for GET OP
 		 *  1. Flag BOF_EQUAL: If requested key found return record else
@@ -7619,7 +7618,7 @@ static int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
 			if (!bnode_isvalid(lev->l_node) || (oi->i_used > 0 &&
-			    bnode_count_rec(lev->l_node) == 0)) {
+			    bnode_rec_count(lev->l_node) == 0)) {
 				bnode_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
@@ -7642,7 +7641,7 @@ static int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				 * index.
 				 */
 				if (((bop->bo_flags & BOF_NEXT) &&
-				    (lev->l_idx < bnode_count(lev->l_node))) ||
+				    (lev->l_idx < bnode_key_count(lev->l_node))) ||
 				    ((bop->bo_flags & BOF_PREV) &&
 				    (lev->l_idx > 0)))
 					oi->i_pivot = oi->i_used;
@@ -7699,7 +7698,7 @@ static int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 				bnode_lock(lev->l_node);
 				if (!bnode_isvalid(lev->l_node) ||
 				    (oi->i_pivot > 0 &&
-				     bnode_count_rec(lev->l_node) == 0)) {
+				     bnode_rec_count(lev->l_node) == 0)) {
 					bnode_unlock(lev->l_node);
 					bnode_op_fini(&oi->i_nop);
 					return m0_sm_op_sub(&bop->bo_op,
@@ -7759,7 +7758,7 @@ static int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			 */
 			if (!bnode_isvalid(lev->l_sibling) ||
 			    (oi->i_pivot > 0 &&
-			     bnode_count_rec(lev->l_sibling) == 0)) {
+			     bnode_rec_count(lev->l_sibling) == 0)) {
 				bnode_unlock(lev->l_sibling);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
@@ -7767,7 +7766,7 @@ static int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 
 			if (bnode_level(s.s_node) > 0) {
 				s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
-					  bnode_count(s.s_node);
+					  bnode_key_count(s.s_node);
 				bnode_child(&s, &child);
 				if (!address_in_segment(child)) {
 					bnode_unlock(lev->l_sibling);
@@ -7851,7 +7850,7 @@ static int64_t btree_iter_kv_tick(struct m0_sm_op *smop)
 			/* Return sibling record based on flag. */
 			s.s_node = lev->l_sibling;
 			s.s_idx = (bop->bo_flags & BOF_NEXT) ? 0 :
-				  bnode_count(s.s_node) - 1;
+				  bnode_key_count(s.s_node) - 1;
 			bnode_rec(&s);
 		}
 		rc = bop->bo_cb.c_act(&bop->bo_cb, &s.s_rec);
@@ -7927,9 +7926,9 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 		 *            in loop.
 		 */
 		if (used_count == 0) {
-			if (bnode_count_rec(lev->l_node) > 1)
+			if (bnode_rec_count(lev->l_node) > 1)
 				flag = true;
-			else if (bnode_count_rec(lev->l_node) == 0) {
+			else if (bnode_rec_count(lev->l_node) == 0) {
 				bnode_set_level(lev->l_node, 0);
 				tree->t_height = 1;
 				bop->bo_arbor->t_height = tree->t_height;
@@ -7987,7 +7986,7 @@ static int64_t btree_del_resolve_underflow(struct m0_btree_op *bop)
 	/* Capture this change in transaction */
 
 	bnode_move(root_child, lev->l_node, D_RIGHT, NR_MAX);
-	M0_ASSERT(bnode_count_rec(root_child) == 0);
+	M0_ASSERT(bnode_rec_count(root_child) == 0);
 	btree_node_capture_enlist(oi, lev->l_node, 0);
 	btree_node_capture_enlist(oi, root_child, 0);
 	oi->i_root_child_free = true;
@@ -8054,7 +8053,7 @@ static int8_t root_child_is_req(struct m0_btree_op *bop)
 			return -1;
 		}
 		if (used_count == 0) {
-			if (bnode_count_rec(lev->l_node) == 2)
+			if (bnode_rec_count(lev->l_node) == 2)
 				load = 1;
 			bnode_unlock(lev->l_node);
 			break;
@@ -8188,7 +8187,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			 * node(lev->l_node) which is pointed by current thread.
 			 */
 			if (!bnode_isvalid(lev->l_node) || (oi->i_used > 0 &&
-			    bnode_count_rec(lev->l_node) == 0)) {
+			    bnode_rec_count(lev->l_node) == 0)) {
 				bnode_unlock(lev->l_node);
 				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
@@ -8235,7 +8234,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 					struct nd *root_node;
 					root_node = oi->i_level[0].l_node;
 					bnode_lock(root_node);
-					if (bnode_count_rec(root_node) == 2) {
+					if (bnode_rec_count(root_node) == 2) {
 						bnode_unlock(root_node);
 						return root_case_handle(bop);
 					}
@@ -8260,7 +8259,7 @@ static int64_t btree_del_kv_tick(struct m0_sm_op *smop)
 			oi->i_nop.no_node = NULL;
 
 			if (!bnode_isvalid(root_child) ||
-			    bnode_count_rec(root_child) == 0) {
+			    bnode_rec_count(root_child) == 0) {
 				bnode_unlock(root_child);
  				return m0_sm_op_sub(&bop->bo_op, P_CLEANUP,
 						    P_SETUP);
@@ -8451,7 +8450,7 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 			lev->l_seq = lev->l_node->n_seq;
 
 			if (bnode_level(s.s_node) > 0) {
-				s.s_idx = bnode_count(s.s_node);
+				s.s_idx = bnode_key_count(s.s_node);
 
 				bnode_child(&s, &child);
 				if (!address_in_segment(child)) {
@@ -8513,7 +8512,7 @@ static int64_t btree_truncate_tick(struct m0_sm_op *smop)
 		oi->i_used--;
 		parent = &oi->i_level[oi->i_used];
 		oi->i_nop.no_node = parent->l_node;
-		rec_count = bnode_count_rec(parent->l_node);
+		rec_count = bnode_rec_count(parent->l_node);
 		rec_count--;
 		bnode_set_rec_count(parent->l_node, rec_count);
 
@@ -9044,7 +9043,7 @@ M0_INTERNAL bool m0_btree_is_empty(struct m0_btree *btree)
 {
 	M0_PRE(btree != NULL);
 	M0_PRE(btree->t_desc->t_root != NULL);
-	return (bnode_count_rec(btree->t_desc->t_root) == 0);
+	return (bnode_rec_count(btree->t_desc->t_root) == 0);
 }
 
 #ifndef __KERNEL__
@@ -11578,7 +11577,7 @@ static bool validate_nodes_on_be_segment(struct segaddr *rnode_segaddr)
 		 * to traverse.
 		 */
 		if (nt->nt_level(&n) > 0 &&
-		    rec_idx < nt->nt_count_rec(&n)) {
+		    rec_idx < nt->nt_rec_count(&n)) {
 			stack[stack_level].node_segaddr = n.n_addr,
 			stack[stack_level].rec_idx      = rec_idx,
 			stack_level++;
@@ -11614,7 +11613,7 @@ static bool validate_nodes_on_be_segment(struct segaddr *rnode_segaddr)
 			stack_level--;
 			rec_idx  = stack[stack_level].rec_idx + 1;
 			n.n_addr = stack[stack_level].node_segaddr;
-		} while (rec_idx >= nt->nt_count_rec(&n) &&
+		} while (rec_idx >= nt->nt_rec_count(&n) &&
 			 stack_level > 0);
 	}
 
