@@ -2387,14 +2387,14 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
 	hints->mode |= FI_RX_CQ_DATA;
 	hints->domain_attr->cq_data_size = 4;
 	hints->domain_attr->mr_mode = FI_MR_LOCAL | FI_MR_ALLOCATED |
-					FI_MR_PROV_KEY | FI_MR_VIRT_ADDR;
-	hints->fabric_attr->prov_name =
-					fab->fab_fi->fabric_attr->prov_name;
+				      FI_MR_PROV_KEY | FI_MR_VIRT_ADDR;
+	hints->fabric_attr->prov_name = fab->fab_fi->fabric_attr->prov_name;
 
 	libfab_straddr_gen(&en->nia_n, ip);
 	snprintf(port, ARRAY_SIZE(port), "%d", en->nia_n.nip_port);
 	rc = fi_getinfo(LIBFAB_VERSION, ip, port, 0, hints, &info);
 	if (rc != 0) {
+		hints->fabric_attr->prov_name = NULL;
 		fi_freeinfo(hints);
 		return M0_ERR(rc);
 	}
