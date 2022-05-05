@@ -3301,13 +3301,13 @@ static void ff_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
 		int de_nr;
 		int de_size;
 
-		if (nr == NR_ALL) {
+		if (cr == CR_ALL) {
 			de_nr       = h->ff_max_recs;
 			de_size     = sizeof(struct ff_dir_entry) * de_nr;
 			kv_cap_size = h->ff_nsize - sizeof(struct ff_head);
 
 			M0_BTREE_TX_CAPTURE(tx, seg, &de[0], kv_cap_size);
-		} else if (nr == NR_NONE) {
+		} else if (cr == CR_NONE) {
 			de_nr = h->ff_used - slot->s_idx;
 			de_size = sizeof(struct ff_dir_entry) * de_nr;
 
