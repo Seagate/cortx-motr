@@ -3670,7 +3670,7 @@ static struct fkvv_head *fkvv_data(const struct nd *node)
 
 static void *fkvv_dir_get(const struct nd *node)
 {
-	struct fkvv_head    *h   = fkvv_data(node);
+	struct fkvv_head *h   = fkvv_data(node);
 	return ((void *)h + sizeof(*h) + h->fkvv_dir_offset);
 }
 
@@ -3685,9 +3685,9 @@ static void fkvv_dir_init(const struct nd *node)
 	dir = fkvv_dir_get(node);
 	dir[0].key_offset     = 0;
 	dir[0].key_size       = h->fkvv_dir_offset;
-	dir[0].val_offset     = h->fkvv_nsize - sizeof(*h) -
-				h->fkvv_dir_offset - sizeof(*dir);
-	dir[0].alloc_val_size = dir[0].val_offset;
+	dir[0].val_offset     = h->fkvv_dir_offset + sizeof(*dir);
+	dir[0].alloc_val_size = (h->fkvv_nsize - sizeof(*h)) -
+				dir[0].val_offset;
 	dir[0].val_size       = 0;
 }
 
@@ -3715,9 +3715,9 @@ static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 	dir  = ((void *)h + sizeof(*h) + h->fkvv_dir_offset);
 	dir[0].key_offset     = 0;
 	dir[0].key_size       = h->fkvv_dir_offset;
-	dir[0].val_offset     = nsize - sizeof(*h) -
-				h->fkvv_dir_offset - sizeof(*dir);
-	dir[0].alloc_val_size = dir[0].val_offset;
+	dir[0].val_offset     = h->fkvv_dir_offset + sizeof(*dir);
+	dir[0].alloc_val_size = (h->fkvv_nsize - sizeof(*h)) -
+				dir[0].val_offset;
 	dir[0].val_size       = 0;
 
 	m0_format_header_pack(&h->fkvv_fmt, &(struct m0_format_tag){
@@ -3883,7 +3883,7 @@ static int fkvv_indir_dir_idx_get(const struct nd *node,
 	else if (fkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
 		req_vsize += CRC_VALUE_SIZE;
 
-	/* Try to find best fit fragment*/
+	/* Try to find best fit fragment */
 	for (i = rec_count; i < dir_count - 1; i++) {
 		if (dir[i].key_size >= req_ksize &&
 		    dir[i].alloc_val_size >= req_vsize) {
@@ -3891,7 +3891,8 @@ static int fkvv_indir_dir_idx_get(const struct nd *node,
 				out_idx = i;
 				rec_space_avail = true;
 			} else if (dir[i].key_size < dir[out_idx].key_size &&
-				   dir[i].alloc_val_size < dir[out_idx].alloc_val_size)
+				   dir[i].alloc_val_size <
+				   dir[out_idx].alloc_val_size)
 				out_idx = i;
 		}
 	}
@@ -4012,6 +4013,9 @@ static void *fkvv_val(const struct nd *node, int idx)
 
 	node_end_addr = node_start_addr + h->fkvv_nsize;
 	value_offset  = val_offset_get(node, idx);
+	if (IS_EMBEDDED_INDIRECT(node)) {
+		return node_start_addr + sizeof(*h) + value_offset;
+	}
 	return node_end_addr - value_offset;
 }
 
@@ -4265,7 +4269,7 @@ static void fkvv_dir_shift(const struct nd *node, int shift_size)
 	/* Update last directory entry*/
 	dir[last_idx].key_size += shift_size;
 	dir[last_idx].alloc_val_size -= shift_size;
-	dir[last_idx].val_offset -= shift_size;
+	dir[last_idx].val_offset += shift_size;
 	M0_ASSERT(dir[last_idx].val_size == 0);
 
 	/* shift directory*/
@@ -4299,8 +4303,8 @@ static void fkvv_make_emb_ind(struct slot *slot)
 	dir = fkvv_dir_get(slot->s_node);
 	dir_entry.key_offset = dir[out_idx].key_offset;
 	dir_entry.key_size   = ksize;
-	dir_entry.val_offset = dir[out_idx].val_offset -
-			       dir[out_idx].alloc_val_size + vsize;
+	dir_entry.val_offset = dir[out_idx].val_offset +
+			       dir[out_idx].alloc_val_size - vsize;
 	dir_entry.val_size   = vsize;
 
 	if (out_idx < h->fkvv_dir_entries - 1) {
@@ -4332,7 +4336,8 @@ static void fkvv_make_emb_ind(struct slot *slot)
 		last_idx = h->fkvv_dir_entries - 1;
 		dir[last_idx].key_offset     += ksize;
 		dir[last_idx].key_size       -= ksize;
-		dir[last_idx].val_offset     -= sizeof(*dir);
+		dir[last_idx].val_offset     += sizeof(*dir);
+
 		dir[last_idx].alloc_val_size -= (vsize + sizeof(*dir));
 	}
 
@@ -4382,7 +4387,7 @@ static void fkvv_val_resize(struct slot *slot, int vsize_diff,
 	if (IS_EMBEDDED_INDIRECT(slot->s_node)) {
 		if (vsize_diff <= 0) {
 			struct fkvv_dir_rec *dir = fkvv_dir_get(slot->s_node);
-			dir[slot->s_idx].val_offset += vsize_diff;
+			dir[slot->s_idx].val_offset += (-vsize_diff);
 			dir[slot->s_idx].val_size += vsize_diff;
 		} else {
 			void *k_addr;
@@ -4522,7 +4527,7 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 		 */
 		if (free_farg_1 == -1 && dir_entry.key_offset ==
 		    dir[i].key_offset + dir[i].key_size &&
-		    dir_entry.val_offset - dir_entry.val_size ==
+		    dir_entry.val_offset + dir_entry.val_size ==
 		    dir[i].val_offset) {
 			free_farg_1 = i;
 		}
@@ -4534,7 +4539,7 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 		if (free_farg_2 == -1 && dir[i].key_offset ==
 		    dir_entry.key_offset + dir_entry.key_size &&
 		    dir_entry.val_offset ==
-		    dir[i].val_offset - dir[i].alloc_val_size) {
+		    dir[i].val_offset + dir[i].alloc_val_size) {
 			free_farg_2 = i;
 		}
 
@@ -4542,7 +4547,7 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 	if (free_farg_1 != -1) {
 		dir[free_farg_1].key_size += dir_entry.key_size;
 		dir[free_farg_1].alloc_val_size += dir_entry.alloc_val_size;
-		dir[free_farg_1].val_offset += dir_entry.alloc_val_size;
+		dir[free_farg_1].val_offset -= dir_entry.alloc_val_size;
 		dir_entry = dir[free_farg_1];
 	}
 
@@ -4557,14 +4562,14 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 		fkvv_dir_entry_delete(node, free_farg_1);
 		h->fkvv_dir_entries--;
 		/* As we deleted two dir entry update last free dir entry */
-		dir[h->fkvv_dir_entries - 1].val_offset += (2 *sizeof(*dir));
+		dir[h->fkvv_dir_entries - 1].val_offset -= (2 *sizeof(*dir));
 		dir[h->fkvv_dir_entries - 1].alloc_val_size +=
 							(2 * sizeof(*dir));
 
 
 	} else if (free_farg_2 != -1 || free_farg_1 != -1) {
 		/* As we deleted one dir entry update last free dir entry */
-		dir[h->fkvv_dir_entries - 1].val_offset += sizeof(*dir);
+		dir[h->fkvv_dir_entries - 1].val_offset -= sizeof(*dir);
 		dir[h->fkvv_dir_entries - 1].alloc_val_size += sizeof(*dir);
 
 	} else if (free_farg_2 == -1 && free_farg_1 == -1) {
@@ -4578,7 +4583,7 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 		 */
 		fkvv_dir_entry_make(node, h->fkvv_dir_entries - 1);
 		h->fkvv_dir_entries++;
-		dir_entry.val_offset += (dir_entry.alloc_val_size -
+		dir_entry.val_offset -= (dir_entry.alloc_val_size -
 					 dir_entry.val_size);
 		dir_entry.val_size = 0;
 		dir[h->fkvv_dir_entries - 2] = dir_entry;
