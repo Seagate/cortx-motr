@@ -2362,7 +2362,6 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
 	struct fi_info        *info;
 	struct fi_info        *hints = NULL;
 	int                    rc;
-	bool                   is_verbs = libfab_is_verbs(tm);
 	char                   ip[LIBFAB_ADDR_LEN_MAX] = {};
 	char                   port[LIBFAB_PORT_LEN_MAX] = {};
 
@@ -2379,38 +2378,34 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
 	aep->aep_txq_full = false;
 	ep->fep_connlink = FAB_CONNLINK_DOWN;
 
-	if (is_verbs) {
-		hints = fi_allocinfo();
-		if (hints == NULL)
-			return M0_ERR(-ENOMEM);
-		hints->ep_attr->type = FI_EP_MSG;
-		hints->caps = FI_MSG | FI_RMA;
+	hints = fi_allocinfo();
+	if (hints == NULL)
+		return M0_ERR(-ENOMEM);
+	hints->ep_attr->type = FI_EP_MSG;
+	hints->caps = FI_MSG | FI_RMA;
 
-		hints->mode |= FI_RX_CQ_DATA;
-		hints->domain_attr->cq_data_size = 4;
-		hints->domain_attr->mr_mode = FI_MR_LOCAL | FI_MR_ALLOCATED |
-					      FI_MR_PROV_KEY | FI_MR_VIRT_ADDR;
-		hints->fabric_attr->prov_name =
-					    fab->fab_fi->fabric_attr->prov_name;
+	hints->mode |= FI_RX_CQ_DATA;
+	hints->domain_attr->cq_data_size = 4;
+	hints->domain_attr->mr_mode = FI_MR_LOCAL | FI_MR_ALLOCATED |
+				      FI_MR_PROV_KEY | FI_MR_VIRT_ADDR;
+	hints->fabric_attr->prov_name = fab->fab_fi->fabric_attr->prov_name;
 
-		libfab_straddr_gen(&en->nia_n, ip);
-		snprintf(port, ARRAY_SIZE(port), "%d", en->nia_n.nip_port);
-		rc = fi_getinfo(LIBFAB_VERSION, ip, port, 0,
-				hints, &info);
-		if (rc != 0)
-			return M0_ERR(rc);
-	} else
-		info = tm->ftm_fab->fab_fi;
+	libfab_straddr_gen(&en->nia_n, ip);
+	snprintf(port, ARRAY_SIZE(port), "%d", en->nia_n.nip_port);
+	rc = fi_getinfo(LIBFAB_VERSION, ip, port, 0, hints, &info);
+	if (rc != 0) {
+		hints->fabric_attr->prov_name = NULL;
+		fi_freeinfo(hints);
+		return M0_ERR(rc);
+	}
 
 	rc = fi_endpoint(fab->fab_dom, info, &aep->aep_txep, NULL) ? :
 	     libfab_ep_txres_init(aep, tm, ctx) ? :
 	     fi_enable(aep->aep_txep);
 
-	if (is_verbs) {
-		hints->fabric_attr->prov_name = NULL;
-		fi_freeinfo(hints);
-		fi_freeinfo(info);
-	}
+	hints->fabric_attr->prov_name = NULL;
+	fi_freeinfo(hints);
+	fi_freeinfo(info);
 
 	return M0_RC(rc);
 }
