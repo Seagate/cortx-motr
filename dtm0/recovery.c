@@ -1804,23 +1804,6 @@ static void remote_state_update(struct recovery_fom    *rf,
 	M0_LEAVE();
 }
 
-static bool is_mkfs(struct m0_fom *fom)
-{
-	struct m0_reqh *reqh;
-	struct m0_motr *cs_ctx;
-
-	reqh = m0_fom_reqh(fom);
-
-	M0_ASSERT_INFO(m0_cs_reqh_context(reqh) != NULL,
-		       "A fully-functional motr process must "
-		       "have a reqh ctx.");
-
-	cs_ctx = m0_cs_ctx_get(reqh);
-	M0_ASSERT(cs_ctx != NULL);
-
-	return cs_ctx->cc_mkfs;
-}
-
 static void local_recovery_fom_coro(struct m0_fom *fom)
 {
 	struct recovery_fom *rf = M0_AMB(rf, fom, rf_base);
@@ -1839,24 +1822,14 @@ static void local_recovery_fom_coro(struct m0_fom *fom)
 	 * REDOs.
 	 * mkfs does not require DTM0 support as well.
 	 */
-	F(recovered) = rf->rf_is_volatile || is_mkfs(fom);
+	F(recovered) = rf->rf_is_volatile;
 
-	if (!F(recovered)) {
-		/* Wait until the moment where we should start recovery. */
-		do {
-			M0_CO_FUN(CO(fom), heq_await(fom, &F(state), &F(eoq)));
-			if (F(eoq))
-				goto out;
-
-			if (F(state) == M0_NC_ONLINE && !ALL2ALL)
-				break;
-		} while (F(state) != M0_NC_DTM_RECOVERING);
-
-		if (F(state) == M0_NC_ONLINE) {
-			M0_LOG(M0_WARN, "HA told DTM0 service to skip recovery.");
-			F(recovered) = true;
-		}
-	}
+	/* Wait until the moment where we should start recovery. */
+	do {
+		M0_CO_FUN(CO(fom), heq_await(fom, &F(state), &F(eoq)));
+		if (F(eoq))
+			goto out;
+	} while (F(state) != M0_NC_DTM_RECOVERING);
 
 	while (!F(recovered)) {
 		M0_CO_FUN(CO(fom), eolq_await(fom, &F(item)));

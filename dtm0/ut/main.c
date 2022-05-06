@@ -785,8 +785,8 @@ struct m0_ut_suite dtm0_ut = {
 		{ "domain_init-fini",      &m0_dtm0_ut_domain_init_fini },
 		{ "remach-init-fini",       remach_init_fini      },
 		{ "remach-start-stop",      remach_start_stop     },
-#ifdef ENABLE_REMACH_UT
 		{ "remach-boot-cluster",    remach_boot_cluster   },
+#ifdef ENABLE_REMACH_UT
 		{ "remach-reboot-server",   remach_reboot_server  },
 		{ "remach-reboot-twice",    remach_reboot_twice   },
 		{ "remach-boot-real-log",   remach_boot_real_log  },
