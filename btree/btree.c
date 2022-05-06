@@ -3708,9 +3708,9 @@ static struct fkvv_head *fkvv_data(const struct nd *node)
 	return segaddr_addr(&node->n_addr);
 }
 
-static void *fkvv_dir_get(const struct nd *node)
+static void *fkvv_dir_get(const struct segaddr *addr)
 {
-	struct fkvv_head *h = fkvv_data(node);
+	struct fkvv_head    *h = segaddr_addr(addr);
 	return ((void *)h + h->fkvv_dir_offset);
 }
 
@@ -3722,7 +3722,7 @@ static void fkvv_dir_init(const struct segaddr *addr)
 	h->fkvv_dir_offset  = sizeof(*h) + (h->fkvv_nsize - sizeof(*h))/2;
 	h->fkvv_dir_entries = 1;
 
-	dir = (void *)h + h->fkvv_dir_offset;
+	dir = fkvv_dir_get(addr);
 	dir[0].key_offset     = sizeof(*h);
 	dir[0].key_size       = h->fkvv_dir_offset - sizeof(*h);
 	dir[0].val_offset     = h->fkvv_dir_offset + sizeof(*dir);
@@ -3820,7 +3820,7 @@ static int fkvv_space(const struct nd *node)
 	int               val_rsize;
 
 	if (IS_EMBEDDED_INDIRECT(node)) {
-		struct fkvv_dir_rec *dir         = fkvv_dir_get(node);
+		struct fkvv_dir_rec *dir         = fkvv_dir_get(&node->n_addr);
 		int                  ksize_avail = 0;
 		int                  vsize_avail = 0;
 		int                  i;
@@ -3891,21 +3891,21 @@ static bool fkvv_isunderflow(const struct nd *node, bool predict)
 }
 
 /**
- * Return index of directory entry of free fragment where given record can fit.
- * If no such free fragment found, return -1.
+ * Returns index of directory entry of free fragment where given record can fit.
+ * If no such free fragment found, it returns -1.
  */
-static int fkvv_indir_dir_idx_get(const struct nd *node,
+static int fkvv_dir_free_idx_get(const struct nd *node,
 				  const struct m0_btree_rec *rec,
 				  int *shift)
 {
 	struct fkvv_head    *h               = fkvv_data(node);
-	struct fkvv_dir_rec *dir             = fkvv_dir_get(node);
+	struct fkvv_dir_rec *dir             = fkvv_dir_get(&node->n_addr);
 	uint32_t             req_ksize       =
 				m0_vec_count(&rec->r_key.k_data.ov_vec);
 	uint32_t             req_vsize       = m0_vec_count(&rec->r_val.ov_vec);
 	int                  dir_space       = sizeof (*dir);
-	int                  rec_count       = h->fkvv_used;
-	int                  dir_count       = h->fkvv_dir_entries;
+	int                  valid_rec_count = h->fkvv_used;
+	int                  dir_ent_count   = h->fkvv_dir_entries;
 	bool                 rec_space_avail = false;
 	int                  out_idx         = -1;
 	int                  i;
@@ -3916,7 +3916,7 @@ static int fkvv_indir_dir_idx_get(const struct nd *node,
 		req_vsize += CRC_VALUE_SIZE;
 
 	/* Try to find best fit fragment */
-	for (i = rec_count; i < dir_count - 1; i++) {
+	for (i = valid_rec_count; i < dir_ent_count - 1; i++) {
 		if (dir[i].key_size >= req_ksize &&
 		    dir[i].alloc_val_size >= req_vsize) {
 			if (rec_space_avail == false) {
@@ -3936,24 +3936,24 @@ static int fkvv_indir_dir_idx_get(const struct nd *node,
 	 * to insert new direcory entry. Thus need to consider dir_space.
 	 */
 
-	if (dir[dir_count - 1].key_size >= req_ksize &&
-	    dir[dir_count - 1].alloc_val_size >= req_vsize + dir_space)
-		out_idx = dir_count - 1;
-	else if (dir[dir_count - 1].key_size >= req_ksize) {
+	if (dir[dir_ent_count - 1].key_size >= req_ksize &&
+	    dir[dir_ent_count - 1].alloc_val_size >= req_vsize + dir_space)
+		out_idx = dir_ent_count - 1;
+	else if (dir[dir_ent_count - 1].key_size >= req_ksize) {
 		/* Check if we can shift directory to left */
-		if (dir[dir_count - 1].key_size - req_ksize >=
+		if (dir[dir_ent_count - 1].key_size - req_ksize >=
 		    req_vsize + dir_space) {
 			if (shift != NULL)
 				*shift = -(req_vsize + dir_space);
-			out_idx = dir_count - 1;
+			out_idx = dir_ent_count - 1;
 		}
-	} else if (dir[dir_count - 1].alloc_val_size >= req_vsize + dir_space) {
+	} else if (dir[dir_ent_count - 1].alloc_val_size >= req_vsize + dir_space) {
 		/* Check if we can shift directory to right */
-		if (dir[dir_count - 1].alloc_val_size -
+		if (dir[dir_ent_count - 1].alloc_val_size -
 		    (req_vsize + dir_space) >= req_ksize) {
 			if (shift != NULL)
 				*shift = req_ksize;
-			out_idx = dir_count - 1;
+			out_idx = dir_ent_count - 1;
 		}
 	}
 
@@ -3963,7 +3963,7 @@ static int fkvv_indir_dir_idx_get(const struct nd *node,
 static bool fkvv_indir_isfit(const struct nd *node,
 			     const struct m0_btree_rec *rec)
 {
-	int dir_idx = fkvv_indir_dir_idx_get(node, rec, NULL);
+	int dir_idx = fkvv_dir_free_idx_get(node, rec, NULL);
 	return dir_idx >= 0;
 }
 
@@ -4000,7 +4000,7 @@ static int key_offset_get(const struct nd *node, int idx)
 	struct fkvv_head *h = fkvv_data(node);
 
 	if (IS_EMBEDDED_INDIRECT(node)){
-		struct fkvv_dir_rec *dir = fkvv_dir_get(node);
+		struct fkvv_dir_rec *dir = fkvv_dir_get(&node->n_addr);
 		return dir[idx].key_offset;
 	}
 
@@ -4029,7 +4029,7 @@ static void *fkvv_key(const struct nd *node, int idx)
 static int val_offset_get(const struct nd *node, int idx)
 {
 	if (IS_EMBEDDED_INDIRECT(node)) {
-		struct fkvv_dir_rec *dir = fkvv_dir_get(node);
+		struct fkvv_dir_rec *dir = fkvv_dir_get(&node->n_addr);
 		return dir[idx].val_offset;
 	}
 
@@ -4078,7 +4078,7 @@ static int fkvv_rec_val_size(const struct nd *node, int idx)
 	if (IS_INTERNAL_NODE(node))
 		vsize = INTERNAL_NODE_VALUE_SIZE;
 	else if (IS_EMBEDDED_INDIRECT(node)) {
-		struct fkvv_dir_rec *dir = fkvv_dir_get(node);
+		struct fkvv_dir_rec *dir = fkvv_dir_get(&node->n_addr);
 		vsize = dir[idx].val_size;
 		if (fkvv_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
 			vsize -= CRC_VALUE_SIZE;
@@ -4278,7 +4278,7 @@ static void fkvv_make_leaf(struct slot *slot)
 static void fkvv_dir_entry_make(const struct nd *node, int idx)
 {
 	struct fkvv_head    *h   = fkvv_data(node);
-	struct fkvv_dir_rec *dir = fkvv_dir_get(node);
+	struct fkvv_dir_rec *dir = fkvv_dir_get(&node->n_addr);
 	int                  total_size;
 
 	total_size = sizeof(*dir) * (h->fkvv_dir_entries - idx);
@@ -4288,7 +4288,7 @@ static void fkvv_dir_entry_make(const struct nd *node, int idx)
 static void fkvv_dir_entry_delete(const struct nd *node, int idx)
 {
 	struct fkvv_head    *h   = fkvv_data(node);
-	struct fkvv_dir_rec *dir = fkvv_dir_get(node);
+	struct fkvv_dir_rec *dir = fkvv_dir_get(&node->n_addr);
 	int                  total_size;
 
 	total_size = sizeof(*dir) * (h->fkvv_dir_entries - idx - 1);
@@ -4299,7 +4299,7 @@ static void fkvv_dir_entry_delete(const struct nd *node, int idx)
 static void fkvv_dir_shift(const struct nd *node, int shift_size)
 {
 	struct fkvv_head    *h          = fkvv_data(node);
-	struct fkvv_dir_rec *dir        = fkvv_dir_get(node);
+	struct fkvv_dir_rec *dir        = fkvv_dir_get(&node->n_addr);
 	int                  total_size = sizeof(*dir) * h->fkvv_dir_entries;
 	int                  last_idx   = h->fkvv_dir_entries - 1;
 
@@ -4345,13 +4345,13 @@ static void fkvv_make_emb_ind(struct slot *slot)
 		vsize += CRC_VALUE_SIZE;
 
 
-	out_idx = fkvv_indir_dir_idx_get(slot->s_node, &slot->s_rec, &shift);
+	out_idx = fkvv_dir_free_idx_get(slot->s_node, &slot->s_rec, &shift);
 	M0_ASSERT(out_idx >= 0);
 	if (shift != 0) {
 		fkvv_dir_shift(slot->s_node, shift);
 	}
 
-	dir = fkvv_dir_get(slot->s_node);
+	dir = fkvv_dir_get(&slot->s_node->n_addr);
 	dir_entry.key_offset = dir[out_idx].key_offset;
 	dir_entry.key_size   = ksize;
 	// dir_entry.val_offset = dir[out_idx].val_offset +
@@ -4427,46 +4427,47 @@ static bool fkvv_newval_isfit(struct slot *slot, struct m0_btree_rec *old_rec,
 static void fkvv_val_resize(struct slot *slot, int vsize_diff,
 			    struct m0_btree_rec *new_rec)
 {
-	struct fkvv_head *h = fkvv_data(slot->s_node);
+	const struct nd  *node  = slot->s_node;
+	struct fkvv_head *h     = fkvv_data(node);
 	void             *val_addr;
 	uint32_t         *curr_val_offset;
 	uint32_t         *last_val_offset;
 	int               total_val_size;
 	int               i;
 
-	M0_PRE(!IS_INTERNAL_NODE(slot->s_node));
+	M0_PRE(!IS_INTERNAL_NODE(node));
 	M0_PRE(slot->s_idx < h->fkvv_used && h->fkvv_used > 0);
 
-	if (IS_EMBEDDED_INDIRECT(slot->s_node)) {
+	if (IS_EMBEDDED_INDIRECT(node)) {
 		if (vsize_diff <= 0) {
-			struct fkvv_dir_rec *dir = fkvv_dir_get(slot->s_node);
+			struct fkvv_dir_rec *dir = fkvv_dir_get(&node->n_addr);
 			// dir[slot->s_idx].val_offset += (-vsize_diff);
 			dir[slot->s_idx].val_size += vsize_diff;
 		} else {
 			void        *k_addr;
 			struct slot  new_slot;
-			new_slot.s_node = slot->s_node;
+			new_slot.s_node = node;
 			new_slot.s_idx = slot->s_idx;
 			new_slot.s_rec = *new_rec;
-			fkvv_del(slot->s_node, slot->s_idx);
+			fkvv_del(node, slot->s_idx);
 			fkvv_make(&new_slot);
 			/* COPY Key */
-			k_addr = fkvv_key(slot->s_node, slot->s_idx);
+			k_addr = fkvv_key(node, slot->s_idx);
 			m0_memmove(k_addr, new_rec->r_key.k_data.ov_buf[0],
 				   h->fkvv_ksize);
 		}
 		return;
 	}
 
-	curr_val_offset = fkvv_val_offset_get(slot->s_node, slot->s_idx);
-	last_val_offset = fkvv_val_offset_get(slot->s_node, h->fkvv_used - 1);
+	curr_val_offset = fkvv_val_offset_get(node, slot->s_idx);
+	last_val_offset = fkvv_val_offset_get(node, h->fkvv_used - 1);
 
-	val_addr        = fkvv_val(slot->s_node, h->fkvv_used - 1);
+	val_addr        = fkvv_val(node, h->fkvv_used - 1);
 	total_val_size  = *last_val_offset - *curr_val_offset;
 
 	m0_memmove(val_addr - vsize_diff, val_addr, total_val_size);
 	for (i = slot->s_idx; i < h->fkvv_used; i++) {
-		curr_val_offset  = fkvv_val_offset_get(slot->s_node, i);
+		curr_val_offset  = fkvv_val_offset_get(node, i);
 		*curr_val_offset = *curr_val_offset + vsize_diff;
 	}
 }
@@ -4595,7 +4596,7 @@ static void get_rec_at_index__1(const struct nd *node, int idx, uint64_t *key,  
 static void fkvv_del_emb_ind(const struct nd *node, int idx)
 {
 	struct fkvv_head    *h            = fkvv_data(node);
-	struct fkvv_dir_rec *dir          = fkvv_dir_get(node);
+	struct fkvv_dir_rec *dir          = fkvv_dir_get(&node->n_addr);
 	int                  free_farg_1  = -1;
 	int                  free_farg_2  = -1;
 	int                  i;
@@ -4871,7 +4872,7 @@ static void fkvv_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
 
 	if (IS_EMBEDDED_INDIRECT(slot->s_node)) {
 		/* capture dir */
-		struct fkvv_dir_rec *dir = fkvv_dir_get(slot->s_node);
+		struct fkvv_dir_rec *dir = fkvv_dir_get(&slot->s_node->n_addr);
 		M0_BTREE_TX_CAPTURE(tx, seg, dir,
 				    sizeof(*dir) * h->fkvv_dir_entries);
 
@@ -12042,30 +12043,23 @@ static void ut_rt_rt_kv_oper(void)
 
 static void ut_st_st_indir_kv_oper(void)
 {
-
 	btree_ut_kv_oper(1, 1, 2, EMBEDDED_INDIRECT);
-
 }
 
 static void ut_mt_st_indir_kv_oper(void)
 {
-
 	btree_ut_kv_oper(0, 1, 2, EMBEDDED_INDIRECT);
-
 }
 
 static void ut_mt_mt_indir_kv_oper(void)
 {
-
 	btree_ut_kv_oper(0, 0, 2, EMBEDDED_INDIRECT);
-
 }
 
 static void ut_rt_rt_indir_kv_oper(void)
 {
 	btree_ut_kv_oper(RANDOM_THREAD_COUNT, RANDOM_TREE_COUNT, 2,
 			 EMBEDDED_INDIRECT);
-
 }
 /**
  * This routine is a thread handler primarily involved in creating, opening,
