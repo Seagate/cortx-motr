@@ -95,6 +95,8 @@ For each record, the FDMI Application or Plugin performs actions and sends ackno
 
 All FDMI related service code and examples are in the `cortx-motr/fdmi` directory in the following link: [fdmi dir]( https://github.com/Seagate/cortx-motr/tree/main/fdmi)
 
+All the FDMI demo documents are available in `cortx-motr/doc/fdmi-demo` directory. [Click here]( https://github.com/Seagate/cortx-motr/tree/main/doc/fdmi_demo/demo-fdmi) to check. 
+
 One of the FDMI Application example is within the `plugins` directory named as [fdmi_sample_plugin]( https://github.com/Seagate/cortx-motr/blob/main/fdmi/plugins/fdmi_sample_plugin.c). 
 
 This application is a FDMI sample plugin written in C using `motr/client.h` interface which connects to the cluster (FDMI source instance) and registers a listener to listen for Key-Value events matching the specific FDMI filter substrings. This application then merely prints to standard output the matched records.

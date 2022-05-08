@@ -229,19 +229,21 @@ M0_INTERNAL void ut_dummy_data_buf_init(struct data_buf *db)
 	db->db_flags = PA_NONE;
 }
 
+M0_INTERNAL void ut_dummy_data_buf_free(struct data_buf *db)
+{
+	/*
+	 * We can't use m0_buf_free, because we allocated an aligned buffer...
+	 */
+	m0_free_aligned(db->db_buf.b_addr, UT_DEFAULT_BLOCK_SIZE,
+			UT_DEFAULT_BLOCK_SHIFT);
+}
+
 M0_INTERNAL void ut_dummy_data_buf_fini(struct data_buf *db)
 {
 	M0_UT_ASSERT(db != NULL);
 
 	data_buf_bob_fini(db);
-
-	/*
-	 * We can't use m0_buf_free, because we allocated
-	 * an aligned buffer...
-	 */
-	m0_free_aligned(db->db_buf.b_addr,
-			UT_DEFAULT_BLOCK_SIZE,
-			UT_DEFAULT_BLOCK_SHIFT);
+	ut_dummy_data_buf_free(db);
 }
 
 /*

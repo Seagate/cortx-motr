@@ -135,7 +135,10 @@ func main() {
     buf := make([]byte, bufSize * 1024 * 1024)
     // Force Writer to always use buf.(Otherwise, the performance
     // might suffer. A tip from https://github.com/golang/go/issues/16474)
-    io.CopyBuffer(struct{ io.Writer }{writer}, reader, buf)
+    _, err := io.CopyBuffer(struct{ io.Writer }{writer}, reader, buf)
+    if err != nil {
+        log.Fatal(err)
+    }
 }
 
 // vi: sw=4 ts=4 expandtab ai

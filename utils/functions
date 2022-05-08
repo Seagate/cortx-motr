@@ -76,7 +76,7 @@ sandbox_fini() {
 ###
 ### Vanilla `. /etc/rc.d/init.d/functions` will fail if either "errexit"
 ### (set -e) or "nounset" (set -u) option is turned on.
-source+eu() {
+source_eu() {
     local orig=$-
     set +eu
     . "$@"
