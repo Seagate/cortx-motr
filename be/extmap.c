@@ -619,8 +619,16 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 				cksum[2].b_nob  = m0_extent_get_checksum_nob(clip.e_end, length[2],
 				                                             it->ec_unit_size,
 									     cksum_unit_size);
+				/*
+				 * There are test scenario where during RMW operation sub unit
+				 * size updates arrives and in that case the cut right operation
+				 * should start from next unit, unit size is 4:
+				 * e.g.
+				 * eext=[0, 1) chunk=[0, c) clip=[0, 1)
+				 * len123=0:1:b
+				 */
 				cksum[2].b_addr = m0_extent_get_checksum_addr(seg->ee_cksum_buf.b_addr,
-				                                              clip.e_end,
+									      m0_round_up(clip.e_end,it->ec_unit_size),
 									      chunk->e_start,
 									      it->ec_unit_size,
 									      cksum_unit_size);

@@ -275,10 +275,10 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 			M0_LOG(M0_ERROR,"No DI data received Ext0: %"PRIi64 "ExtN: %"PRIi64 " Count0: %"PRIi64
 											" Vnr: %"PRIi32" CountEnd: %"PRIi64,
 				   tioreq->ti_goff_ivec.iv_index[0],
-				   tioreq->ti_goff_ivec.iv_index[ioo->ioo_ext.iv_vec.v_nr-1],
+				   tioreq->ti_goff_ivec.iv_index[tioreq->ti_goff_ivec.iv_vec.v_nr-1],
 				   tioreq->ti_goff_ivec.iv_vec.v_count[0],
 				   tioreq->ti_goff_ivec.iv_vec.v_nr,
-				   tioreq->ti_goff_ivec.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]);
+				   tioreq->ti_goff_ivec.iv_vec.v_count[tioreq->ti_goff_ivec.iv_vec.v_nr-1]);
 		}
 	}
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;
