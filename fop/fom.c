@@ -781,9 +781,12 @@ static void fom_exec(struct m0_fom *fom)
 {
 	int			rc;
 	struct m0_fom_locality *loc;
+	struct m0_thread_tls   *tls = m0_thread_tls();
 
+	M0_PRE(tls->tls_stack == NULL);
 	loc = fom->fo_loc;
 	fom->fo_thread = loc->fl_handler;
+	tls->tls_stack = (void *)&rc; /* Any local. */
 	fom_state_set(fom, M0_FOS_RUNNING);
 	do {
 		M0_ASSERT(m0_fom_invariant(fom));
@@ -803,6 +806,7 @@ static void fom_exec(struct m0_fom *fom)
 		fom->fo_transitions++;
 	} while (rc == M0_FSO_AGAIN);
 
+	tls->tls_stack = NULL;
 	fom->fo_thread = NULL;
 
 	M0_ASSERT(rc == M0_FSO_WAIT);

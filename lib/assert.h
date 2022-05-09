@@ -143,12 +143,13 @@ printf_check(const char *fmt, ...)
  * construct m0_panic_ctx, so we use positional initializers and their order
  * should match the fields declaration order in m0_panic_ctx structure.
  */
-#define M0_ASSERT__INIT(msg, fmt, ...)                 \
-	static const struct m0_panic_ctx __pctx = {    \
-		msg, __func__, __FILE__, __LINE__, fmt \
-	};                                             \
-	printf_check(fmt, ##__VA_ARGS__);              \
-	m0_assert_intercept()
+#define M0_ASSERT__INIT(msg, fmt, ...)			\
+	static const struct m0_panic_ctx __pctx = {	\
+		msg, __func__, __FILE__, __LINE__, fmt	\
+	};						\
+	printf_check(fmt, ##__VA_ARGS__);		\
+	m0_assert_intercept();				\
+	m0_stack_check()
 
 /**
  * The same as M0_ASSERT macro, but this version allows to specify additional
@@ -183,6 +184,8 @@ printf_check(const char *fmt, ...)
  * non-empty in a production branch.
  */
 static inline void m0_assert_intercept(void) {;}
+
+void m0_stack_check(void);
 
 /**
  * A macro to assert that a condition is true. If condition is true, M0_ASSERT()

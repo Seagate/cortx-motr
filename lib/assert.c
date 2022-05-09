@@ -24,15 +24,37 @@
 #include "lib/trace.h"
 
 #include "lib/assert.h"
+#include "lib/thread.h"
 #include "lib/misc.h"            /* M0_CAT */
 #include "lib/trace_internal.h"  /* m0_trace_file_path_get */
 #include "motr/version.h"        /* m0_build_info */
+
+#include <stdlib.h>
 
 /**
    @addtogroup assert
 
    @{
 */
+
+static unsigned maxstack = 0;
+
+void m0_stack_check(void)
+{
+	struct m0_thread_tls *tls = m0_thread_tls();
+
+	if (tls != NULL && tls->tls_stack != NULL) {
+		void    *stack = tls->tls_stack;
+		unsigned depth = abs(stack - (void *)&tls);
+		if (depth > maxstack) {
+			maxstack = depth;
+			tls->tls_stack = NULL; /* Avoid recursion. */
+			printf("New deepest stack: %u.\n", depth);
+			m0_backtrace();
+			tls->tls_stack = stack;
+		}
+	}
+}
 
 /**
  * Panic function.
