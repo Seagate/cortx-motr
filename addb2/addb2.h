@@ -309,6 +309,7 @@ struct m0_addb2_sensor_ops {
  * out to produce records for CONSUMERS.
  */
 struct m0_addb2_sensor {
+	uint64_t                          s_magix;
 	const struct m0_addb2_sensor_ops *s_ops;
 	/** Linkage in a list of all sensors associated with a given label. */
 	struct m0_tlink                   s_linkage;
@@ -316,7 +317,6 @@ struct m0_addb2_sensor {
 	uint64_t                          s_id;
 	/** Number of 64-bit elements in sensor payload. */
 	unsigned                          s_nr;
-	uint64_t                          s_magix;
 };
 
 /**

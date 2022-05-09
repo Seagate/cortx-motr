@@ -75,6 +75,17 @@ static int index_op_tail(struct m0_entity *ce,
 	return M0_RC(rc);
 }
 
+void set_enf_meta_flag(struct m0_idx *idx)
+{
+	idx->in_entity.en_flags |= M0_ENF_META;
+	if (dix_pool_ver.f_container != 0) {
+		idx->in_attr.idx_layout_type = DIX_LTYPE_DESCR;
+		idx->in_attr.idx_pver = dix_pool_ver;
+		m0_console_printf("DIX pool version: "FID_F" \n", 
+				  FID_P(&idx->in_attr.idx_pver));
+	}
+}
+
 int index_create(struct m0_realm *parent, struct m0_fid_arr *fids)
 {
 	int i;
@@ -89,8 +100,15 @@ int index_create(struct m0_realm *parent, struct m0_fid_arr *fids)
 		m0_fid_tassume(&fids->af_elems[i], &m0_dix_fid_type);
 		m0_idx_init(&idx, parent,
 				   (struct m0_uint128 *)&fids->af_elems[i]);
+
+		if (is_enf_meta)
+			set_enf_meta_flag(&idx);
+
 		rc = m0_entity_create(NULL, &idx.in_entity, &op);
 		rc = index_op_tail(&idx.in_entity, op, rc, NULL);
+		if (rc == 0 && is_enf_meta)
+			m0_console_printf("DIX pool version: "FID_F" \n",
+					  FID_P(&idx.in_attr.idx_pver));
 	}
 	return M0_RC(rc);
 }
@@ -178,7 +196,7 @@ static int index_op(struct m0_realm    *parent,
 		    struct m0_bufvec   *keys,
 		    struct m0_bufvec   *vals)
 {
-	struct m0_idx  idx;
+	struct m0_idx  idx = {};
 	struct m0_op  *op = NULL;
 	int32_t       *rcs;
 	int            rc;
@@ -191,6 +209,16 @@ static int index_op(struct m0_realm    *parent,
 
 	m0_fid_tassume(fid, &m0_dix_fid_type);
 	m0_idx_init(&idx, parent, (struct m0_uint128 *)fid);
+
+	if (is_enf_meta) {
+		if (m0_fid_is_valid(&dix_pool_ver) && m0_fid_is_set(&dix_pool_ver))
+			set_enf_meta_flag(&idx);
+		else
+			return M0_ERR(-EINVAL);
+	} else if (m0_fid_is_set(&dix_pool_ver)) {
+		return M0_ERR(-EINVAL);
+	}	
+
 	rc = m0_idx_op(&idx, opcode, keys, vals, rcs,
 	               opcode == M0_IC_PUT ? M0_OIF_OVERWRITE : 0,
 		       &op);

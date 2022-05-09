@@ -251,8 +251,8 @@ void m0_stob_ut_stob_null(void)
 #ifndef __KERNEL__
 void m0_stob_ut_stob_linux(void)
 {
-	stob_ut_stob_single(NULL, "linuxstob:./__s", NULL, NULL, NULL);
-	stob_ut_stob_multi(NULL, "linuxstob:./__s", NULL, NULL, NULL,
+	stob_ut_stob_single(NULL, "linuxstob:./__ss", NULL, NULL, NULL);
+	stob_ut_stob_multi(NULL, "linuxstob:./__sm", NULL, NULL, NULL,
 			   M0_STOB_UT_THREAD_NR, M0_STOB_UT_STOB_NR);
 }
 
