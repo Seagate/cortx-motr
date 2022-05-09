@@ -265,9 +265,18 @@ static int cancel_fop_fill(struct rm_out     *outreq,
 
 static void outreq_fini(struct rm_out *outreq, int rc)
 {
+	struct m0_rm_remote *rem = outreq->ou_req.rog_want.rl_other;
+	/*
+	 * Make sure remote doesn't go down (and brings rpc sessions with it)
+	 * before the fop is finalised.
+	 */
+	if (rem != NULL)
+		M0_RM_REMOTE_GET(rem);
 	outreq->ou_req.rog_rc = rc;
 	m0_rm_outgoing_complete(&outreq->ou_req);
 	m0_fop_put_lock(&outreq->ou_fop);
+	if (rem != NULL)
+		M0_RM_REMOTE_PUT(rem);
 }
 
 M0_INTERNAL void m0_rm_outgoing_send(struct m0_rm_outgoing *outgoing)
