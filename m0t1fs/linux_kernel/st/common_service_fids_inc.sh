@@ -35,3 +35,4 @@ ADDB_CAS_FID_CON='^s|14'  # addb for CAS service
 DIXR_FID_CON='^s|15'      # DIX repare
 DIXB_FID_CON='^s|16'      # DIX rebalance
 FDMI_FID_CON='^s|17'      # fdmi service
+DTM_FID_CON='^s|18'       # DTM service

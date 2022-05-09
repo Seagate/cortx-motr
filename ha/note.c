@@ -51,7 +51,6 @@
 #include "ha/link.h"            /* m0_ha_link_send */
 #include "ha/ha.h"              /* m0_ha_send */
 #include "motr/ha.h"            /* m0_motr_ha */
-
 /**
  * @see: confc_fop_release()
  */
@@ -193,6 +192,59 @@ M0_INTERNAL void m0_ha_state_accept(const struct m0_ha_nvec *note,
 			      ignore_same_state);
 }
 
+static void ha_dtm_msg_send(const struct m0_ha_msg *msg,
+			    struct m0_ha_link      *hl,
+			    uint64_t state)
+{
+	struct m0_ha_note note = { .no_id = msg->hm_fid, .no_state = state };
+	struct m0_ha_nvec nvec = { .nv_nr = 1, .nv_note = &note };
+
+	M0_ENTRY("state=%s", m0_ha_state2str(state));
+	m0_ha_msg_nvec_send(&nvec, 0, false, M0_HA_NVEC_SET, hl);
+	M0_LEAVE();
+}
+static void ha_dtm_msg_simulator(const struct m0_ha_msg *msg,
+			         struct m0_ha_link      *hl)
+{
+	if (m0_confc_is_ha_proc(hl)) {
+		const struct m0_ha_msg_data *data = &msg->hm_data;
+
+		if ((enum m0_ha_msg_type)data->hed_type ==
+		    M0_HA_MSG_EVENT_PROCESS) {
+
+			uint64_t event = data->u.hed_event_process.chp_event;
+			uint64_t state = M0_NC_NR;
+			struct m0_conf_obj *obj;
+
+			M0_LOG(M0_ALWAYS,
+			       "process fid="FID_F"event=%"PRIu64,
+			       FID_P(&msg->hm_fid), event);
+
+			if(event == M0_CONF_HA_PROCESS_STARTING)
+				state = M0_NC_TRANSIENT;
+			else if(event == M0_CONF_HA_PROCESS_STARTED)
+				state = M0_NC_DTM_RECOVERING;
+			else if(event == M0_CONF_HA_PROCESS_DTM_RECOVERED)
+				state = M0_NC_ONLINE;
+
+			if (state != M0_NC_NR) {
+				struct m0_confc       *confc;
+				struct m0_conf_cache  *cache;
+				confc = m0_reqh2confc(hl->hln_cfg.hlc_reqh);
+				cache = &confc->cc_cache;
+				m0_conf_cache_lock(cache);
+				obj = m0_conf_cache_lookup(cache, &msg->hm_fid);
+				if (obj != NULL) {
+					obj->co_ha_state = state;
+					m0_chan_broadcast(&obj->co_ha_chan);
+				}
+				m0_conf_cache_unlock(cache);
+				ha_dtm_msg_send(msg, hl, state);
+
+			}
+		}
+	}
+}
 M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
                                   struct m0_ha_link      *hl)
 {
@@ -203,6 +255,9 @@ M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
 	struct m0_conf_obj          *obj;
 	struct m0_fid                obj_fid;
 	int                          i;
+
+	if (ENABLE_DTM0)
+		ha_dtm_msg_simulator(msg, hl);
 
 	if (msg->hm_data.hed_type != M0_HA_MSG_NVEC)
 		return;

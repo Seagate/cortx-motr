@@ -42,9 +42,33 @@
 #include "ioservice/storage_dev.h" /* m0_storage_dev_attach */
 #include "ioservice/fid_convert.h" /* m0_fid_conf_sdev_device_id */
 
+#include "ha/link.h"
 /* ----------------------------------------------------------------
  * Motr options
  * ---------------------------------------------------------------- */
+
+M0_INTERNAL bool m0_confc_is_ha_proc(struct m0_ha_link *hl)
+{
+	struct m0_motr *motr;
+	struct cs_endpoint_and_xprt *ep;
+	bool ha_proc = false;
+	motr = hl->hln_cfg.hlc_reqh ? m0_cs_ctx_get(hl->hln_cfg.hlc_reqh): NULL;
+	if(motr && (motr->cc_mkfs == false)) {
+		m0_tl_for(cs_eps, &motr->cc_reqh_ctx.rc_eps, ep) {
+			M0_LOG(M0_ALWAYS,"nw endpoint = %s , ha endpoint = %s",
+	                    ep->ex_endpoint, motr->cc_motr_ha.mh_cfg.mhc_addr);
+			if(ep->ex_endpoint && motr->cc_motr_ha.mh_cfg.mhc_addr)
+				if(strcmp(ep->ex_endpoint, motr->cc_motr_ha.mh_cfg.mhc_addr) == 0)
+				   ha_proc = true;
+		} m0_tl_endfor;
+		if(ha_proc == true)
+			M0_LOG(M0_ALWAYS,"in ha proc");
+		else
+			M0_LOG(M0_ALWAYS,"in m0d proc");
+	}
+	return ha_proc;
+
+}
 
 /* Note: `s' is believed to be heap-allocated. */
 static void option_add(struct cs_args *args, char *s)

@@ -28,6 +28,8 @@
 #include "lib/mutex.h"    /* m0_mutex */
 #include "sm/sm.h"        /* m0_sm, m0_sm_ast */
 #include "rpc/link.h"     /* m0_rpc_link */
+#include "ha/msg.h"
+#include "ha/link.h"
 
 struct m0_conf_obj;
 
@@ -820,5 +822,6 @@ M0_INTERNAL bool m0_confc_is_online(const struct m0_confc *confc);
 M0_INTERNAL struct m0_rpc_conn    *m0_confc2conn(struct m0_confc *confc);
 M0_INTERNAL struct m0_rpc_session *m0_confc2sess(struct m0_confc *confc);
 
+M0_INTERNAL bool m0_confc_is_ha_proc(struct m0_ha_link *hl);
 /** @} confc_dfspec */
 #endif /* __MOTR_CONF_CONFC_H__ */
