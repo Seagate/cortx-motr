@@ -13821,6 +13821,12 @@ static void ut_btree_crc_persist_indir_test(void)
 	}
 
 }
+
+/**
+ * Uncomment below code to test btree_multi_stream_traversal ut. Remove the
+ * below code once testing is done for all node format.
+ */
+#if 0
 void get_key_at_index(struct nd *node, int idx, uint64_t *key)
 {
 	struct slot          slot;
@@ -13842,11 +13848,7 @@ void get_key_at_index(struct nd *node, int idx, uint64_t *key)
 	if (key != NULL)
 		*key = *(uint64_t *)p_key;
 }
-/**
- * Uncomment below code to test btree_multi_stream_traversal ut. Remove the
- * below code once testing is done for all node format.
- */
-#if 0
+
 void get_rec_at_index(struct nd *node, int idx, uint64_t *key,  uint64_t *val)
 {
 	struct slot          slot;
