@@ -1596,6 +1596,7 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 	pm = ioo_to_poolmach(ioo);
 	M0_ASSERT(pm != NULL);
 
+	rc = 0;
 	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
 		/*
 		 * Data was retrieved successfully, so no need to check the
