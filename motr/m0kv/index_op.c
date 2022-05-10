@@ -196,7 +196,7 @@ static int index_op(struct m0_realm    *parent,
 		    struct m0_bufvec   *keys,
 		    struct m0_bufvec   *vals)
 {
-	struct m0_idx  idx;
+	struct m0_idx  idx = {};
 	struct m0_op  *op = NULL;
 	int32_t       *rcs;
 	int            rc;

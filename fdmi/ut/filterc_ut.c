@@ -286,10 +286,9 @@ static void filterc_connect_to_confd(void)
 	m0_mutex_unlock(&cond_mutex);
 	M0_UT_ASSERT(g_src_rec.fsr_matched);
 
+	rpc_client_and_server_stop();
 	m0_fdmi_source_deregister(src);
 	m0_fdmi_source_free(src);
-
-	rpc_client_and_server_stop();
 	m0_cond_fini(&match_cond);
 	m0_mutex_fini(&cond_mutex);
 
