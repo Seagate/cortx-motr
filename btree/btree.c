@@ -7517,8 +7517,7 @@ static int64_t btree_get_kv_tick(struct m0_sm_op *smop)
 					} else {
 						bnode_op_fini(&oi->i_nop);
 						lock_op_unlock(tree);
-						return fail(bop,
-							    M0_ERR(-ENOENT));
+						return fail(bop, -ENOENT);
 					}
 				}
 			}
