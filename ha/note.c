@@ -51,6 +51,7 @@
 #include "ha/link.h"            /* m0_ha_link_send */
 #include "ha/ha.h"              /* m0_ha_send */
 #include "motr/ha.h"            /* m0_motr_ha */
+#include "conf/helpers.h"       /* proc2srv */
 /**
  * @see: confc_fop_release()
  */
@@ -192,6 +193,21 @@ M0_INTERNAL void m0_ha_state_accept(const struct m0_ha_nvec *note,
 			      ignore_same_state);
 }
 
+static const char *m0_ha_processevent2str(enum m0_conf_ha_process_event event)
+{
+#define S_CASE(x) case x: return # x
+	switch (event) {
+	S_CASE(M0_CONF_HA_PROCESS_STARTING);
+	S_CASE(M0_CONF_HA_PROCESS_STARTED);
+	S_CASE(M0_CONF_HA_PROCESS_STOPPING);
+	S_CASE(M0_CONF_HA_PROCESS_STOPPED);
+	S_CASE(M0_CONF_HA_PROCESS_DTM_RECOVERED);
+	default:
+		M0_IMPOSSIBLE("Invalid proces event: %d", event);
+	}
+#undef S_CASE
+}
+
 static void ha_dtm_msg_send(const struct m0_ha_msg *msg,
 			    struct m0_ha_link      *hl,
 			    uint64_t state)
@@ -199,13 +215,20 @@ static void ha_dtm_msg_send(const struct m0_ha_msg *msg,
 	struct m0_ha_note note = { .no_id = msg->hm_fid, .no_state = state };
 	struct m0_ha_nvec nvec = { .nv_nr = 1, .nv_note = &note };
 
-	M0_ENTRY("state=%s", m0_ha_state2str(state));
+	M0_ENTRY( "fid="FID_F" state=%s",
+		  FID_P(&msg->hm_fid),
+		  m0_ha_state2str(state));
 	m0_ha_msg_nvec_send(&nvec, 0, false, M0_HA_NVEC_SET, hl);
 	M0_LEAVE();
 }
 static void ha_dtm_msg_simulator(const struct m0_ha_msg *msg,
 			         struct m0_ha_link      *hl)
 {
+	enum { MAX_HA_LINK = 8 };
+	static struct m0_ha_link *hl_database[MAX_HA_LINK];
+	static int                current_ha_link = 0;
+	int                       i;
+
 	if (m0_confc_is_ha_proc(hl)) {
 		const struct m0_ha_msg_data *data = &msg->hm_data;
 
@@ -214,14 +237,17 @@ static void ha_dtm_msg_simulator(const struct m0_ha_msg *msg,
 
 			uint64_t event = data->u.hed_event_process.chp_event;
 			uint64_t state = M0_NC_NR;
-			struct m0_conf_obj *obj;
 
 			M0_LOG(M0_ALWAYS,
-			       "process fid="FID_F"event=%"PRIu64,
-			       FID_P(&msg->hm_fid), event);
+			       "process fid="FID_F" event=%s",
+			       FID_P(&msg->hm_fid),
+			       m0_ha_processevent2str(event));
 
-			if(event == M0_CONF_HA_PROCESS_STARTING)
+			if (event == M0_CONF_HA_PROCESS_STARTING) {
 				state = M0_NC_TRANSIENT;
+				M0_ASSERT(current_ha_link < MAX_HA_LINK);
+				hl_database[current_ha_link++] = hl;
+			}
 			else if(event == M0_CONF_HA_PROCESS_STARTED)
 				state = M0_NC_DTM_RECOVERING;
 			else if(event == M0_CONF_HA_PROCESS_DTM_RECOVERED)
@@ -230,6 +256,10 @@ static void ha_dtm_msg_simulator(const struct m0_ha_msg *msg,
 			if (state != M0_NC_NR) {
 				struct m0_confc       *confc;
 				struct m0_conf_cache  *cache;
+				struct m0_conf_obj    *obj;
+				struct m0_fid          rdtms_fid;
+				int                    rc;
+
 				confc = m0_reqh2confc(hl->hln_cfg.hlc_reqh);
 				cache = &confc->cc_cache;
 				m0_conf_cache_lock(cache);
@@ -239,12 +269,30 @@ static void ha_dtm_msg_simulator(const struct m0_ha_msg *msg,
 					m0_chan_broadcast(&obj->co_ha_chan);
 				}
 				m0_conf_cache_unlock(cache);
-				ha_dtm_msg_send(msg, hl, state);
+				rc = m0_conf_process2service_get(confc,
+								 &msg->hm_fid,
+								 M0_CST_DTM0,
+								 &rdtms_fid);
+				if (rc == 0) {
+					m0_conf_cache_lock(cache);
+					obj = m0_conf_cache_lookup(cache,
+								   &rdtms_fid);
+					if (obj != NULL) {
+						obj->co_ha_state = state;
+						m0_chan_broadcast(&obj->co_ha_chan);
+					}
+					m0_conf_cache_unlock(cache);
+				}
+				for(i = 0; i < current_ha_link; i++)
+					ha_dtm_msg_send(msg,
+							hl_database[i],
+							state);
 
 			}
 		}
 	}
 }
+
 M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
                                   struct m0_ha_link      *hl)
 {
