@@ -220,8 +220,6 @@ error_handling()
 
 object_io_test()
 {
-	local rc
-
 	echo "***** Running Object IO tests *****"
 
 	obj_id1="20:20"
@@ -243,18 +241,16 @@ object_io_test()
 	rm -f "$dest_file"
 
 	echo "Writing to object $obj_id1....."
-	eval "m0cp $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count $src_file"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to write object $obj_id1" $rc
-	fi
+	eval "m0cp $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
+	      $src_file" || {
+		error_handling "Failed to write object $obj_id1" $?
+	}
 
 	echo "Reading from object $obj_id1 ....."
-	eval "m0cat $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count $dest_file"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to read object $obj_id1" $rc
-	fi
+	eval "m0cat $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
+	      $dest_file" || {
+		error_handling "Failed to read object $obj_id1" $?
+	}
 
 	echo "Comparing files $src_file and $dest_file ....."
 	diff "$src_file" "$dest_file" || {
@@ -262,33 +258,27 @@ object_io_test()
 	}
 
 	echo "Deleting object $obj_id1 ....."
-	eval "m0unlink $endpoint_opts -o $obj_id1"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to delete object $obj_id1" $rc
-	fi
+	eval "m0unlink $endpoint_opts -o $obj_id1" || {
+		error_handling "Failed to delete object $obj_id1" $?
+	}
 	rm -f "$dest_file"
 
 	echo "Creating object $obj_id2 ....."
-	eval "m0touch $endpoint_opts -o $obj_id2"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to create object $obj_id2" $rc
-	fi
+	eval "m0touch $endpoint_opts -o $obj_id2" || {
+		error_handling "Failed to create object $obj_id2" $?
+	}
 
 	echo "Writing to object $obj_id2....."
-	eval "m0cp $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count $src_file -u"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to write object $obj_id2" $rc
-	fi
+	eval "m0cp $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count \
+	      $src_file -u" || {
+		error_handling "Failed to write object $obj_id2" $?
+	}
 
 	echo "Reading from object $obj_id2 ....."
-	eval "m0cat $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count $dest_file"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to read object $obj_id2" $rc
-	fi
+	eval "m0cat $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count \
+	      $dest_file" || {
+		error_handling "Failed to read object $obj_id2" $?
+	}
 
 	echo "Comparing files $src_file and $dest_file ....."
 	diff "$src_file" "$dest_file" || {
@@ -296,11 +286,9 @@ object_io_test()
 	}
 
 	echo "Deleting object $obj_id2 ....."
-	eval "m0unlink $endpoint_opts -o $obj_id2"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to delete object $obj_id2" $rc
-	fi
+	eval "m0unlink $endpoint_opts -o $obj_id2" || {
+		error_handling "Failed to delete object $obj_id2" $?
+	}
 
 	rm -f "$dest_file" "$src_file"
 
@@ -317,18 +305,16 @@ object_io_test()
 	}
 
 	echo "Writing to object $obj_id1....."
-	eval "m0cp $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count $src_file -L 9"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to write object $obj_id1" $rc
-	fi
+	eval "m0cp $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
+	      $src_file -L 9" || {
+		error_handling "Failed to write object $obj_id1" $?
+	}
 
 	echo "Reading from object $obj_id1 ....."
-	eval "m0cat $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count -L 9 $dest_file"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to read object $obj_id1" $rc
-	fi
+	eval "m0cat $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
+	      -L 9 $dest_file" || {
+		error_handling "Failed to read object $obj_id1" $?
+	}
 
 	echo "Comparing files $src_file and $dest_file ....."
 	diff "$src_file" "$dest_file" || {
@@ -336,20 +322,18 @@ object_io_test()
 	}
 
 	echo "Deleting object $obj_id1 ....."
-	eval "m0unlink $endpoint_opts -o $obj_id1"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to delete object $obj_id1" $rc
-	fi
+	eval "m0unlink $endpoint_opts -o $obj_id1" || {
+		error_handling "Failed to delete object $obj_id1" $?
+	}
 
 	rm -f "$dest_file" "$src_file"
 }
 
 kv_test()
 {
-	local rc
 	local keys_file="keys.txt"
 	local vals_file="vals.txt"
+
 	echo "***** Running KV tests *****"
 
 	index_id1="0x780000000000000b:1"
@@ -366,98 +350,74 @@ kv_test()
 	eval "m0kv $endpoint_opts index genv 10 20 ${vals_file}" &> "/dev/null"
 
 	echo "Create index $index_id1 ....."
-	eval "m0kv $endpoint_opts index create $index_id1"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to create index $index_id1" $rc
-	fi
+	eval "m0kv $endpoint_opts index create $index_id1" || {
+		error_handling "Failed to create index $index_id1" $?
+	}
 
 	echo "Create index $index_id2 ....."
-	eval "m0kv $endpoint_opts index create $index_id2"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to create index $index_id2" $rc
-	fi
+	eval "m0kv $endpoint_opts index create $index_id2" || {
+		error_handling "Failed to create index $index_id2" $?
+	}
 
 	echo "Create index $index_id3 ....."
-	eval "m0kv $endpoint_opts index create $index_id3"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to create index $index_id3" $rc
-	fi
+	eval "m0kv $endpoint_opts index create $index_id3" || {
+		error_handling "Failed to create index $index_id3" $?
+	}
 
 	echo "List indices from $index_id1 ....."
-	eval "m0kv $endpoint_opts index list $index_id1" 3
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to list indexes" $rc
-	fi
+	eval "m0kv $endpoint_opts index list $index_id1" 3 || {
+		error_handling "Failed to list indexes" $?
+	}
 
 	echo "Lookup index $index_id2 ....."
-	eval "m0kv $endpoint_opts index lookup $index_id2"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to lookup index $index_id2" $rc
-	fi
+	eval "m0kv $endpoint_opts index lookup $index_id2" || {
+		error_handling "Failed to lookup index $index_id2" $?
+	}
 
 	echo "Drop index $index_id1 ....."
-	eval "m0kv $endpoint_opts index drop $index_id1"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to drop index $index_id1" $rc
-	fi
+	eval "m0kv $endpoint_opts index drop $index_id1" || {
+		error_handling "Failed to drop index $index_id1" $?
+	}
 
 	echo "Drop index $index_id2 ....."
-	eval "m0kv $endpoint_opts index drop $index_id2"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to drop index $index_id2" $rc
-	fi
+	eval "m0kv $endpoint_opts index drop $index_id2" || {
+		error_handling "Failed to drop index $index_id2" $?
+	}
 
 	echo "Put records in index $index_id3 ....."
-	eval "m0kv $endpoint_opts index put $index_id3 @${keys_file} @${vals_file}"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to put KV on index $index_id3" $rc
-	fi
+	eval "m0kv $endpoint_opts index put $index_id3 @${keys_file} \
+	      @${vals_file}" || {
+		error_handling "Failed to put KV on index $index_id3" $?
+	}
 
 	echo "Get records from index $index_id3 ....."
-	eval "m0kv $endpoint_opts index get $index_id3 @${keys_file}"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to get KV on index $index_id3" $rc
-	fi
+	eval "m0kv $endpoint_opts index get $index_id3 @${keys_file}" || {
+		error_handling "Failed to get KV on index $index_id3" $?
+	}
 
 	echo "Get next record from index $index_id3 ....."
-	eval "m0kv $endpoint_opts index next $index_id3 \"$(head -n 1 ${keys_file} | cut -f 2- -d ' ')\" 1"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to get next KV on index $index_id3" $rc
-	fi
+	eval "m0kv $endpoint_opts index next $index_id3 \"$(head -n 1 \
+	      ${keys_file} | cut -f 2- -d ' ')\" 1" || {
+		error_handling "Failed to get next KV on index $index_id3" $?
+	}
 
 	echo "Delete records from index $index_id3 ....."
-	eval "m0kv $endpoint_opts index del $index_id3 @${keys_file}"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to delete KV on $index_id3" $rc
-	fi
+	eval "m0kv $endpoint_opts index del $index_id3 @${keys_file}" || {
+		error_handling "Failed to delete KV on $index_id3" $?
+	}
 
 	echo "Delete index $index_id3 ....."
-	eval "m0kv $endpoint_opts index drop $index_id3"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "Failed to drop index $index_id3" $rc
-	fi
+	eval "m0kv $endpoint_opts index drop $index_id3" || {
+		error_handling "Failed to drop index $index_id3" $?
+	}
 
 	rm -f keys.txt vals.txt
 
 	echo
 	echo "----- m0mt test -----"
-        eval "m0mt $endpoint_opts"
-	rc=$?
-	if [ $rc -ne 0 ]; then
-		error_handling "m0mt failed" $rc
-	fi
+        eval "m0mt $endpoint_opts" || {
+		error_handling "m0mt failed" $?
+	}
 }
 
 m0spiel_test()
