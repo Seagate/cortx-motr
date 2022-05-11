@@ -25,7 +25,7 @@
 #
 # The script runs the executable. If the executable completes normally (that is,
 # by calling exit(2)) the scripts exits the gdb. Otherwise (i.e., when the
-# process terminates anbormally), gdb session remains active.
+# process terminates abnormally), gdb session remains active.
 #
 set $_exitcode = -1
 run
