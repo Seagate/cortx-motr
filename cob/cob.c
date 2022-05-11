@@ -793,6 +793,12 @@ M0_INTERNAL int m0_cob_domain_credit_add(struct m0_cob_domain          *dom,
 				   };
 	m0_btree_create_credit(&bt, cred, 1); /** Tree cd_fileattr_ea */
 
+	bt = (struct m0_btree_type){.tt_id = M0_BT_COB_BYTECOUNT,
+				    .ksize = m0_cob_bckey_size(),
+				    .vsize = m0_cob_bcrec_size(),
+				   };
+	m0_btree_create_credit(&bt, cred, 1); /** Tree cd_bytecount */
+
 	m0_free(cdid_str);
 	return M0_RC(0);
 }
@@ -931,6 +937,7 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 						      &b_op,
 						      dom->cd_bytecount, seg,
 						      &fid, tx, &keycmp));
+	M0_ASSERT(rc == 0);
 
 	data = M0_BUF_INIT_PTR(&dom);
 	rc = m0_be_0type_add(&m0_be_cob0, bedom, tx, cdid_str, &data);
@@ -1014,10 +1021,6 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 	struct m0_be_tx        *tx;
 	int                     rc;
 	struct m0_btree_op      b_op  = {};
-	struct m0_cob_omgkey    omgkey = {};
-	struct m0_cob_nskey    *nskey = NULL;
-	struct m0_buf           key;
-	struct m0_cob          *cob;
 
 	M0_PRE(dom != NULL);
 
@@ -1030,31 +1033,6 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 		m0_free(tx);
 		return M0_ERR(-ENOMEM);
 	}
-
-	/**
-	 *  Delete entries which were created by mkfs. No need to check if the
-	 *  delete functions succeed as we anyway need to proceed to delete the
-	 *  trees.
-	 */
-	m0_cob_tx_credit(dom, M0_COB_OP_DOMAIN_MKFS, &cred);
-	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
-	m0_be_tx_prep(tx, &cred);
-	rc = m0_be_tx_exclusive_open_sync(tx);
-	if (rc != 0)
-		goto tx_fini_return;
-
-	omgkey.cok_omgid = ~0ULL;
-	m0_buf_init(&key, &omgkey, sizeof omgkey);
-	cob_table_delete(dom->cd_fileattr_omg, tx, &key);
-
-	m0_cob_nskey_make(&nskey, &M0_COB_ROOT_FID, M0_COB_ROOT_NAME,
-			       strlen(M0_COB_ROOT_NAME));
-	rc = m0_cob_lookup(dom, nskey, M0_CA_NSKEY_FREE, &cob);
-	M0_ASSERT(rc == 0);
-	m0_cob_delete(cob, tx);
-
-	m0_be_tx_close_sync(tx);
-	m0_be_tx_fini(tx);
 
 	seg = m0_be_domain_seg(bedom, dom);
 	rc = cob_domain_truncate(dom->cd_object_index,   grp, bedom, tx);
@@ -1070,6 +1048,9 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 	if (rc != 0)
 		goto tx_fini_return;
 	rc = cob_domain_truncate(dom->cd_fileattr_ea,    grp, bedom, tx);
+	if (rc != 0)
+		goto tx_fini_return;
+	rc = cob_domain_truncate(dom->cd_bytecount,      grp, bedom, tx);
 	if (rc != 0)
 		goto tx_fini_return;
 
@@ -2350,6 +2331,7 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
 				   struct m0_be_tx *tx)
 {
 	struct m0_cob_oikey  oikey = {};
+	struct m0_cob_nsrec  nsrec = {};
 	struct m0_buf        key;
 	struct m0_buf        val;
 	int                  rc;
@@ -2361,6 +2343,7 @@ M0_INTERNAL int m0_cob_name_update(struct m0_cob *cob,
 	 * Insert new record with nsrec found with srckey.
 	 */
 	m0_buf_init(&key, srckey, m0_cob_nskey_size(srckey));
+	m0_buf_init(&val, &nsrec, sizeof nsrec);
 	rc = cob_table_lookup(cob->co_dom->cd_namespace, &key, &val);
 	if (rc != 0)
 		goto out;
