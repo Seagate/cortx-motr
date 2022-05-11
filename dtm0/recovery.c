@@ -60,7 +60,7 @@ Max: [* style *] usecases section should go to .h file, along with the rest of
 
    The document describes the way how DTM0 service is supposed to restore
    consistency of the data replicated across a certain kind of Motr-based
-   cluster. The term "basic" implies that consistency is resored only
+   cluster. The term "basic" implies that consistency is restored only
    for a limited number of use-cases. In the rest of the document,
    the term "basic" is omitted for simplicity (there are no other kinds of
    DTM0-based recovery at the moment).
@@ -94,7 +94,7 @@ IvanA: [fixed] No, it seems like they are not used. I removed this part.
 
    Terms and definitions used in the document:
    - <b>User service</b> is a Motr service that is capable of replicating
-     of its data ("user data") across the cluster. The document is focused on
+     its data ("user data") across the cluster. The document is focused on
      CAS (see @ref cas-dld) but this term could be applied to any Motr service
      that supports CRDT[2] and has behavior similar to CAS.
      Note, this document does not differentiate actual "clients" and "servers".
@@ -105,7 +105,7 @@ IvanA: [fixed] No, it seems like they are not used. I removed this part.
    - <b>Recoverable process</b> is Motr process that has exactly one user
      service and exactly one DTM0 service in it. Note that in UT environment,
      a single OS process may have several user/DTM0 services, thus it may
-     have multiple recoverable services.
+     have multiple recoverable processes.
 --->>>
 IvanA: [* question *] @Max, "Recoverable process" does not sound good to me.
        What do you think about "DTM0 process"? or "DTM0-backed process"?
@@ -116,7 +116,7 @@ IvanA: [* question *] @Max, "Recoverable process" does not sound good to me.
      reactions to HA notifications about states of DTM0 services. In other
      words, it references to actions performed by DTM0 services that
      help to restore consistency of replicated data.
-   - <b>Recovery machine</b> is a state machine running with a DTM0 service
+   - <b>Recovery machine</b> is a state machine running within a DTM0 service
      that performs recovery procedures. Each recoverable process
      has a single instance of recovery machine.
    - <b>Recovery FOM</b> is a long-lived FOM responsible for reaction to
@@ -149,7 +149,7 @@ IvanA: [* question *] @Max, "Recoverable process" does not sound good to me.
       log, and replayed by DTM0 service in form of REDO messages. In case of
       CAS, W-requests are PUT and DEL operations
    - <b>R-request</b> is a user service FOP that does not modify persistent
-      storage. R-requires are allowed to be sent only to the processes that
+      storage. R-requests are allowed to be sent only to the processes that
       have ONLINE state. In case of CAS, R-requests are GET and NEXT operations.
 --->>>
 Max: [* defect *] The terms are not defined. Please define them.
@@ -267,7 +267,7 @@ IvanA: [fixed] I added a note that this thing is optional for some cases.
    +-----------------------------------------------------+
    |  Recovery FOM inputs                                |
    |                                                     |
-   |                      Pollling                       |
+   |                      Polling                        |
    |   ----------------------------------------------    |
    |   |  HA queue |  | DTM0 log |  | RPC replies   |    |
    |   |           |  | watcher  |  |               |    |
@@ -348,7 +348,7 @@ IvanA: [fixed] I added a note that this thing is optional for some cases.
 
    On the diagram above, the transition DECIDE_WHAT_TO_DO -> RESET
    marks the point where recovery FOM enters a new incarnation,
-   the transtion HEQ -> DECIDE_WHAT_TO_DO marks the end of the live of this
+   the transtion HEQ -> DECIDE_WHAT_TO_DO marks the end of the life of this
    incaration. The set of sub-states is called "role".
    For example, if a recovery FOM is somewhere inside the first frame
    (remote recovery) then we say that it has "remote recovery role" and it
@@ -470,7 +470,7 @@ Max: [* defect *] State machine is there, but what the fom actually does is
    In other words, it re-incarnates as "Remote recovery FOM" as soon as
    the previous incarnation is ready to reach its "terminal" state.
 
-   Remote recovery FOM acts as a reactor on the following kinds of events:
+   Remote recovery FOM reacts on the following kinds of events:
    - Process state transitions (from HA subsystem);
    - DTM0 log getting new records;
    - RPC replies (from DTM0 RPC link component).
@@ -510,10 +510,7 @@ Max: [* defect *] Definition of the "fairness" is "ensured" is missing. Please
    M0_CONF_HA_PROCESS_RECOVERED process event to the HA subsystem.
 
    The point where this event has to be sent is called "recovery stop
-   condition". The local participant (i.e., the one that is beign in
---->>>
-Max: [* typo *] being
-<<<---
+   condition". The local participant (i.e., the one that is being in
    the RECOVERING state) uses the information about new incoming W-requests,
    the information about the most recent (txid-wise) log entries on the other
    participants to make a decision whether recovery shall be stopped or not.
@@ -2037,22 +2034,20 @@ static int default_log_iter_next(struct m0_dtm0_recovery_machine *m,
 	do {
 		M0_SET0(record);
 		rc = m0_be_dtm0_log_iter_next(iter, record);
-		if (rc == +1) {
+		if (rc == 0) {
 			if (participated(record, tgt_svc))
 				break;
 			else
 				m0_dtm0_log_iter_rec_fini(record);
 		}
-	} while (rc == +1);
+	} while (rc == 0);
 
 	m0_mutex_unlock(&log->dl_lock);
 
 	/* XXX: error codes will be adjusted separately. */
 	switch (rc) {
-	case +1:
-		return 0;
 	case 0:
-		return -ENOENT;
+		return 0;
 	default:
 		return M0_ERR(rc);
 	}
