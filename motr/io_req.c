@@ -381,6 +381,8 @@ static void ioreq_iosm_handle_launch(struct m0_sm_group *grp,
 		uint32_t             seg;
 		m0_bcount_t          read_pages = 0;
 
+		ioreq_sm_state_set_locked(ioo, IRS_READING);
+
 		m0_htable_for(tioreqht, ti, &ioo->ioo_nwxfer.nxr_tioreqs_hash) {
 			for (seg = 0; seg < ti->ti_bufvec.ov_vec.v_nr; ++seg)
 				if (ti->ti_pageattrs[seg] & PA_READ)
@@ -389,7 +391,6 @@ static void ioreq_iosm_handle_launch(struct m0_sm_group *grp,
 
 		/* Read IO is issued only if byte count > 0. */
 		if (read_pages > 0) {
-			ioreq_sm_state_set_locked(ioo, IRS_READING);
 			ioo->ioo_rmw_read_pages = read_pages;
 			rc = ioo->ioo_nwxfer.nxr_ops->nxo_dispatch(
 					&ioo->ioo_nwxfer);
@@ -400,7 +401,6 @@ static void ioreq_iosm_handle_launch(struct m0_sm_group *grp,
 			}
 		} else {
 			/* Don't want the sm to complain (state transition)*/
-			ioreq_sm_state_set_locked(ioo, IRS_READING);
 			ioreq_sm_state_set_locked(ioo, IRS_READ_COMPLETE);
 
 			/*
@@ -684,6 +684,7 @@ static void ioreq_iosm_handle_executed(struct m0_sm_group *grp,
 	}
 done:
 	ioo->ioo_nwxfer.nxr_ops->nxo_complete(&ioo->ioo_nwxfer, rmw);
+	ioo->ioo_rc = 0;
 
 #ifdef CLIENT_FOR_M0T1FS
 	/* XXX: TODO: update the inode size on the mds */
@@ -1572,31 +1573,13 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 	M0_PRE_EX(m0_op_io_invariant(ioo));
 
 	/*
-	 * Note: If devices are in the state of M0_PNDS_SNS_REPARED, the op
-	 * 'ioo' switchs back to IRS_READING state (see the code below
-	 * ['else' part of 'ir_dgmap_nr > 0'] and comments in dgmode_process).
-	 * How to tell if an op is doing normal or degraded io so that to avoid
-	 * multiple entries of (or a loop) ioreq_dgmode_read? A flag
-	 * 'ioo_dgmode_io_sent' is used here!
-	 */
-	if (ioo->ioo_dgmode_io_sent == true) {
-		/*
-		 * Recovers lost data using parity recovery algorithms
-		 * only if one or more devices were in FAILED, OFFLINE,
-		 * REPAIRING state.
-		 */
-		if (ioo->ioo_dgmap_nr > 0)
-			rc = ioo->ioo_ops->iro_dgmode_recover(ioo);
-
-		return M0_RC(rc);
-	}
-	/*
 	 * If all devices are ONLINE, all requests return success.
 	 * In case of read before write, due to CROW, COB will not be present,
 	 * resulting into ENOENT error.
 	 */
 	xfer = &ioo->ioo_nwxfer;
-	if (xfer->nxr_rc == 0 || xfer->nxr_rc == -ENOENT)
+	if ((xfer->nxr_rc == 0 || xfer->nxr_rc == -ENOENT) &&
+	    !ioo->ioo_dgmode_io_sent)
 		return M0_RC(xfer->nxr_rc);
 
 	/*
@@ -1635,6 +1618,16 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "[%p] dgmode failed", ioo);
 
+	/*
+	 * Recovers lost data using parity recovery algorithms.
+	 *
+	 * Note: iro_dgmode_recover() should be called after
+	 * ioreq_fop_dgmode_read(), which marks units PA_READ_FAILED
+	 * (including parity ones).
+	 */
+	if (ioo->ioo_dgmode_io_sent)
+		return M0_RC(ioo->ioo_ops->iro_dgmode_recover(ioo));
+
 	M0_LOG(M0_DEBUG, "[%p] dgmap_nr=%u is in dgmode",
 			 ioo, ioo->ioo_dgmap_nr);
 	/*
@@ -1653,6 +1646,7 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 			if (rc != 0)
 				break;
 		}
+		ioo->ioo_dgmode_io_sent = true;
 	} else {
 		M0_ASSERT(ioreq_sm_state(ioo) == IRS_READ_COMPLETE);
 		ioreq_sm_state_set_locked(ioo, IRS_READING);
@@ -1687,8 +1681,6 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 	rc = xfer->nxr_ops->nxo_dispatch(xfer);
 	if (rc != 0)
 		return M0_ERR(rc);
-
-	ioo->ioo_dgmode_io_sent = true;
 
 	return M0_RC(rc);
 }
