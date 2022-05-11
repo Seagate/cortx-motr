@@ -4277,6 +4277,11 @@ static void fkvv_dir_entry_delete(const struct nd *node, int idx)
 
 	m0_memmove(&dir[idx], &dir[idx + 1], total_size);
 	h->fkvv_dir_entries--;
+
+	/**
+	 * Increase the size of last free fragment of value (i.e.fragment
+	 * beetween directory and last valid value).
+	 */
 	dir[h->fkvv_dir_entries - 1].val_offset     -= sizeof(*dir);
 	dir[h->fkvv_dir_entries - 1].alloc_val_size += sizeof(*dir);
 }
@@ -4538,6 +4543,8 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 	int                  freed_ent;
 	int                  i;
 	int                  bytes_to_move;
+	int                  last_frag;
+
 	h->fkvv_used--;
 	if (h->fkvv_used == 0) {
 		fkvv_dir_init(&node->n_addr);
@@ -4550,35 +4557,56 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 		m0_memmove(&dir[idx], &dir[idx + 1], bytes_to_move);
 		dir[freed_ent] = dir_ent;
 	}
-	for (i = h->fkvv_used + 1; i < h->fkvv_dir_entries; i++) {
+
+	for (i = h->fkvv_used + 1; i < h->fkvv_dir_entries - 1; i++) {
 		if (dir[freed_ent].key_offset == dir[i].key_offset +
 						 dir[i].key_size) {
 			M0_ASSERT(dir[i].val_offset ==
 				  dir[freed_ent].val_offset +
 				  dir[freed_ent].alloc_val_size);
 
-			dir[i].key_size       += dir[freed_ent].key_size;
-			dir[i].val_offset     -= dir[freed_ent].alloc_val_size;
-			dir[i].alloc_val_size += dir[freed_ent].alloc_val_size;
-			fkvv_dir_entry_delete(node, freed_ent);
-			M0_ASSERT(i > freed_ent);
-			freed_ent = i - 1;
+			dir[freed_ent].key_offset     -= dir[i].key_size;
+			dir[freed_ent].key_size       += dir[i].key_size;
+			dir[freed_ent].alloc_val_size += dir[i].alloc_val_size;
+			fkvv_dir_entry_delete(node, i);
 			i--;
 		} else if (dir[i].key_offset == dir[freed_ent].key_offset +
 						dir[freed_ent].key_size) {
 			M0_ASSERT(dir[freed_ent].val_offset ==
 				  dir[i].val_offset + dir[i].alloc_val_size);
 
-			dir[i].key_size       += dir[freed_ent].key_size;
-			dir[i].key_offset     -= dir[freed_ent].key_size;
-			dir[i].alloc_val_size += dir[freed_ent].alloc_val_size;
-			fkvv_dir_entry_delete(node, freed_ent);
-			M0_ASSERT(i > freed_ent);
-			freed_ent = i - 1;
+			dir[freed_ent].key_size       += dir[i].key_size;
+			dir[freed_ent].val_offset     -= dir[i].alloc_val_size;
+			dir[freed_ent].alloc_val_size += dir[i].alloc_val_size;
+			fkvv_dir_entry_delete(node, i);
 			i--;
 		}
 	}
 
+	/* Check if we can merge with last fragment  and delete free_ent dir*/
+	last_frag = h->fkvv_dir_entries - 1;
+	if (dir[freed_ent].key_offset == dir[last_frag].key_offset +
+					 dir[last_frag].key_size) {
+		M0_ASSERT(dir[last_frag].val_offset ==
+			  dir[freed_ent].val_offset +
+			  dir[freed_ent].alloc_val_size);
+
+		dir[last_frag].key_size       += dir[freed_ent].key_size;
+		dir[last_frag].val_offset     -= dir[freed_ent].alloc_val_size;
+		dir[last_frag].alloc_val_size += dir[freed_ent].alloc_val_size;
+		fkvv_dir_entry_delete(node, freed_ent);
+		last_frag = h->fkvv_dir_entries - 1;
+	} else if (dir[last_frag].key_offset == dir[freed_ent].key_offset +
+					dir[freed_ent].key_size) {
+		M0_ASSERT(dir[freed_ent].val_offset ==
+			  dir[last_frag].val_offset +
+			  dir[last_frag].alloc_val_size);
+
+		dir[last_frag].key_size       += dir[freed_ent].key_size;
+		dir[last_frag].key_offset     -= dir[freed_ent].key_size;
+		dir[last_frag].alloc_val_size += dir[freed_ent].alloc_val_size;
+		fkvv_dir_entry_delete(node, freed_ent);
+	}
 }
 
 static void fkvv_del(const struct nd *node, int idx)
