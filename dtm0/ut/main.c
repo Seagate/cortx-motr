@@ -34,8 +34,6 @@
 
 #include "dtm0/ut/helper.h"
 
-#define ENABLE_REMACH_UT
-
 enum {
 	NUM_CAS_RECS = 10,
 };
@@ -106,7 +104,6 @@ static void cas_xcode_test(void)
 	m0_xcode_free_obj(&M0_XCODE_OBJ(m0_cas_op_xc, op_out));
 }
 
-#ifdef ENABLE_REMACH_UT
 
 enum ut_sides {
 	UT_SIDE_SRV,
@@ -774,7 +771,6 @@ static void remach_real_log_replay(void)
 
 	ut_remach_shutdown(&um);
 }
-#endif
 
 extern void m0_dtm0_ut_drlink_simple(void);
 extern void m0_dtm0_ut_domain_init_fini(void);
@@ -791,11 +787,9 @@ struct m0_ut_suite dtm0_ut = {
 		{ "remach-reboot-server",   remach_reboot_server  },
 		{ "remach-reboot-twice",    remach_reboot_twice   },
 		{ "remach-boot-real-log",   remach_boot_real_log  },
-#ifdef ENABLE_REMACH_UT
 		{ "remach-real-log-replay", remach_real_log_replay  },
 		/* TODO: test with persistent client */
 		/* TODO: test with two servers */
-#endif
 		{ NULL, NULL },
 	}
 };
