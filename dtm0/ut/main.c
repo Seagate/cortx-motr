@@ -790,8 +790,8 @@ struct m0_ut_suite dtm0_ut = {
 		{ "remach-boot-cluster",    remach_boot_cluster   },
 		{ "remach-reboot-server",   remach_reboot_server  },
 		{ "remach-reboot-twice",    remach_reboot_twice   },
-#ifdef ENABLE_REMACH_UT
 		{ "remach-boot-real-log",   remach_boot_real_log  },
+#ifdef ENABLE_REMACH_UT
 		{ "remach-real-log-replay", remach_real_log_replay  },
 		/* TODO: test with persistent client */
 		/* TODO: test with two servers */
