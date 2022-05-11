@@ -91,6 +91,7 @@ m0_dtm0_service_find(const struct m0_reqh *reqh);
 M0_INTERNAL struct m0_dtm0_service *m0_dtm0_fom2service(struct m0_fom *fom);
 
 M0_INTERNAL bool m0_dtm0_in_ut(void);
+M0_INTERNAL bool m0_dtm0_is_expecting_redo_from_client(void);
 
 #endif /* __MOTR_DTM0_SERVICE_H__ */
 

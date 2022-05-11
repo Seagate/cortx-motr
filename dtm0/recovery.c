@@ -1739,6 +1739,17 @@ static bool was_log_replayed(struct recovery_fom *rf)
 	 */
 	bool is_na = rf->rf_is_volatile;
 
+	/*
+	 * Some of unit tests need to temporarily avoid the "ignore" described
+	 * above.  In particular, we have a test where client is sending EOL to
+	 * server, and we want it to be received and handled (e.g.
+	 * remach-reboot-server).
+	 */
+	if (m0_dtm0_is_expecting_redo_from_client()) {
+		M0_LOG(M0_DEBUG, "Expect EOL from client");
+		is_na = false;
+	}
+
 	bool outcome = ergo(!rf->rf_is_local && !is_na,
 			    M0_IN(rf->rf_last_known_ha_state,
 				  (M0_NC_ONLINE, M0_NC_DTM_RECOVERING)) &&

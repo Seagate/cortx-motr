@@ -483,6 +483,7 @@ static void ut_remach_init(struct ut_remach *um)
 
 	m0_fi_enable("m0_dtm0_in_ut", "ut");
 	m0_fi_enable("is_manual_ss_enabled", "ut");
+	m0_fi_enable("m0_dtm0_is_expecting_redo_from_client", "ut");
 
 	m0_ut_dtm0_helper_init(&um->udh);
 
@@ -505,6 +506,7 @@ static void ut_remach_fini(struct ut_remach *um)
 	ut_cli_remach_fini(um);
 	ut_srv_remach_fini(um);
 	m0_ut_dtm0_helper_fini(&um->udh);
+	m0_fi_disable("m0_dtm0_is_expecting_redo_from_client", "ut");
 	m0_fi_disable("is_manual_ss_enabled", "ut");
 	m0_fi_disable("m0_dtm0_in_ut", "ut");
 	for (i = 0; i < ARRAY_SIZE(um->recovered); ++i) {
@@ -786,11 +788,13 @@ struct m0_ut_suite dtm0_ut = {
 		{ "remach-init-fini",       remach_init_fini      },
 		{ "remach-start-stop",      remach_start_stop     },
 		{ "remach-boot-cluster",    remach_boot_cluster   },
-#ifdef ENABLE_REMACH_UT
 		{ "remach-reboot-server",   remach_reboot_server  },
+#ifdef ENABLE_REMACH_UT
 		{ "remach-reboot-twice",    remach_reboot_twice   },
 		{ "remach-boot-real-log",   remach_boot_real_log  },
 		{ "remach-real-log-replay", remach_real_log_replay  },
+		/* TODO: test with persistent client */
+		/* TODO: test with two servers */
 #endif
 		{ NULL, NULL },
 	}

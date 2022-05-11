@@ -445,6 +445,11 @@ m0_dtm0_service_find(const struct m0_reqh *reqh)
 	return rh_srv == NULL ? NULL : to_dtm(rh_srv);
 }
 
+M0_INTERNAL bool m0_dtm0_is_expecting_redo_from_client(void)
+{
+	return M0_FI_ENABLED("ut");
+}
+
 M0_INTERNAL bool m0_dtm0_in_ut(void)
 {
 	return M0_FI_ENABLED("ut");
