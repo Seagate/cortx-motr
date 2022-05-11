@@ -338,6 +338,10 @@ enum m0_cas_op_flags {
 	 * In other words, it might be used in degraded mode.
 	 */
 	COF_SHOW_DEAD = 1 << 10,
+	/**
+	 * NO DTM is needed for this operation.
+	 */
+	COF_NO_DTM = 1 << 11,
 };
 
 enum m0_cas_opcode {

@@ -35,6 +35,8 @@ MOTR_SERVER_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-start"
 MOTR_MKFS_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-mkfs"
 MOTR_FSM_SCRIPT_PATH = "/usr/libexec/cortx-motr/motr-free-space-monitor"
 MOTR_CONFIG_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_cfg.sh"
+MOTR_MINI_PROV_LOGROTATE_SCRIPT = "/opt/seagate/cortx/motr/libexec/motr_mini_prov_logrotate.sh"
+CROND_DIR = "/etc/cron.hourly"
 LNET_CONF_FILE = "/etc/modprobe.d/lnet.conf"
 LIBFAB_CONF_FILE = "/etc/libfab.conf"
 SYS_CLASS_NET_DIR = "/sys/class/net/"
@@ -53,9 +55,10 @@ BE_LOG_SZ = 4*1024*1024*1024 #4G
 BE_SEG0_SZ = 128 * 1024 *1024 #128M
 ALLIGN_SIZE = 4096
 MACHINE_ID_FILE = "/etc/machine-id"
-TEMP_FID_FILE= "/opt/seagate/cortx/motr/conf/service_fid.yaml"
+TEMP_FID_FILE = "/opt/seagate/cortx/motr/conf/service_fid.yaml"
 CMD_RETRY_COUNT = 5
 MEM_THRESHOLD = 4*1024*1024*1024
+CVG_COUNT_KEY = "num_cvg"
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -456,7 +459,7 @@ def update_copy_motr_config_file(self):
 #              ['/dev/sdf'] is list of metadata disks of cvg[1]
 def get_md_disks_lists(self, node_info):
     md_disks_lists = []
-    cvg_count = node_info['storage']['cvg_count']
+    cvg_count = node_info['storage'][CVG_COUNT_KEY]
     cvg = node_info['storage']['cvg']
     for i in range(cvg_count):
         temp_cvg = cvg[i]
@@ -513,9 +516,40 @@ def update_motr_hare_keys(self, nodes):
         md_disks_lists = get_md_disks_lists(self, node_info)
         update_to_file(self, self._index_motr_hare, self._url_motr_hare, machine_id, md_disks_lists)
 
+# Write below content to /etc/cortx/motr/mini_prov_logrotate.conf file so that mini_mini_provisioner
+# log file will be rotated hourly and retained recent max 4 files. Max size of log file is 10M.
+
+# Content:
+# /etc/cortx/log/motr/<machine-id>/mini_provisioner {
+#    hourly
+#    size 10M
+#    rotate 4
+#    delaycompress
+#    copytruncate
+# }
+def add_entry_to_logrotate_conf_file(self):
+    MOTR_M0D_DATA_DIR = f"{self.local_path}/motr"
+    validate_files([MOTR_M0D_DATA_DIR])
+    mini_prov_conf_file = f"{MOTR_M0D_DATA_DIR}/mini_prov_logrotate.conf"
+
+    indent=' '*4
+    lines=["{a} {b}\n".format(a=self.logfile, b='{'),
+           f"{indent}hourly\n",
+           f"{indent}size 10M\n",
+           f"{indent}rotate 4\n",
+           f"{indent}delaycompress\n",
+           f"{indent}copytruncate\n",
+           "{a}\n".format(a='}')]
+    with open(f"{mini_prov_conf_file}", 'w+') as fp:
+        for line in lines:
+            fp.write(line)
+
 def motr_config_k8(self):
     if not verify_libfabric(self):
         raise MotrError(errno.EINVAL, "libfabric is not up.")
+
+    # To rotate mini_provisioner log file
+    add_entry_to_logrotate_conf_file(self)
 
     if self.machine_id not in self.storage_nodes:
         # Modify motr config file
@@ -795,11 +829,11 @@ def calc_lvm_min_size(self, lv_path, lvm_min_size):
 
 def get_cvg_cnt_and_cvg(self):
     try:
-        cvg_cnt = self.server_node['storage']['cvg_count']
+        cvg_cnt = self.server_node['storage'][CVG_COUNT_KEY]
     except:
         raise MotrError(errno.EINVAL, "cvg_cnt not found\n")
 
-    check_type(cvg_cnt, str, "cvg_count")
+    check_type(cvg_cnt, str, CVG_COUNT_KEY)
 
     try:
         cvg = self.server_node['storage']['cvg']
@@ -1197,7 +1231,7 @@ def update_motr_hare_keys_for_all_nodes(self):
     retry_delay = 2
     for value in nodes_info.values():
         host = value["hostname"]
-        cvg_count = value["storage"]["cvg_count"]
+        cvg_count = value["storage"][CVG_COUNT_KEY]
         name = value["name"]
         self.logger.info(f"update_motr_hare_keys for {host}\n")
         for i in range(int(cvg_count)):
@@ -1467,6 +1501,13 @@ def start_service(self, service, idx):
         execute_command_verbose(self, cmd, set_timeout=False)
         return
 
+    # Copy mini prov logrotate script
+    cmd = f"cp {MOTR_MINI_PROV_LOGROTATE_SCRIPT} {CROND_DIR}"
+    execute_command(self, cmd)
+    # Start crond service
+    cmd = "/usr/sbin/crond start"
+    execute_command(self, cmd, timeout_secs=120)
+
     # Copy confd_path to /etc/sysconfig
     # confd_path = MOTR_M0D_CONF_DIR/confd.xc
     confd_path = f"{self.local_path}/motr/sysconfig/{self.machine_id}/confd.xc"
@@ -1481,11 +1522,6 @@ def start_service(self, service, idx):
     fid = fetch_fid(self, service, idx)
     if fid == -1:
         return -1
-    #Run log rotate in background to avoid delay in startup
-    cmd = "/opt/seagate/cortx/motr/libexec/m0trace_logrotate.sh &"
-    execute_command(self, cmd)
-    cmd = "/opt/seagate/cortx/motr/libexec/m0addb_logrotate.sh &"
-    execute_command(self, cmd)
 
     #Start motr services
     cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"

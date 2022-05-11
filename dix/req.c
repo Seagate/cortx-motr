@@ -1769,7 +1769,6 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 					    &cctg_id.ci_fid, sdev_idx);
 		M0_ASSERT(layout->dl_type == DIX_LTYPE_DESCR);
 		cctg_id.ci_layout.dl_type = layout->dl_type;
-		/** @todo CAS request should copy cctg_id internally. */
 		rc = m0_dix_ldesc_copy(&cctg_id.ci_layout.u.dl_desc,
 				       &layout->u.dl_desc);
 		M0_LOG(M0_DEBUG, "Processing dix_req %p[%u] "FID_F
@@ -2335,9 +2334,11 @@ M0_INTERNAL int m0_dix_put(struct m0_dix_req      *req,
 
 	M0_PRE(keys->ov_vec.v_nr == vals->ov_vec.v_nr);
 	M0_PRE(keys_nr != 0);
-	/* Only overwrite, crow, sync_wait and skip_layout flags are allowed. */
+	/*
+	 * Only the following flags are allowed.
+	 */
 	M0_PRE((flags & ~(COF_OVERWRITE | COF_CROW | COF_SYNC_WAIT |
-	       COF_SKIP_LAYOUT)) == 0);
+	       COF_SKIP_LAYOUT | COF_NO_DTM)) == 0);
 	rc = dix_req_indices_copy(req, index, 1);
 	if (rc != 0)
 		return M0_ERR(rc);
