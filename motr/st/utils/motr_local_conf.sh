@@ -18,10 +18,10 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-M0_SRC_DIR=$(dirname $(readlink -f $0))
+M0_SRC_DIR=$(dirname "$(readlink -f "$0")")
 M0_SRC_DIR="$M0_SRC_DIR/../../../"
 
-. $M0_SRC_DIR/utils/functions # m0_default_xprt
+. "$M0_SRC_DIR"/utils/functions # m0_default_xprt
 
 XPRT=$(m0_default_xprt)
 
@@ -32,26 +32,26 @@ if [ "$XPRT" = "lnet" ]; then
 fi
 LOCAL_NID=$(m0_local_nid_get)
 
-if [ X$LOCAL_NID == X ]; then
+if [ X"$LOCAL_NID" == X ]; then
 	echo "lnet is not up"
 	exit
 fi
 
-if [ X$MOTR_LOCAL_EP == X ]; then
+if [ X"$MOTR_LOCAL_EP" == X ]; then
 	MOTR_LOCAL_EP=$LOCAL_NID:12345:34:101
 	MOTR_LOCAL_EP2=$LOCAL_NID:12345:34:102
 	MOTR_LOCAL_EP3=$LOCAL_NID:12345:34:103
 	MOTR_LOCAL_EP4=$LOCAL_NID:12345:34:104
 fi
 
-if [ X$MOTR_HA_EP == X ]; then
+if [ X"$MOTR_HA_EP" == X ]; then
 	MOTR_HA_EP=$LOCAL_NID:12345:34:1
 fi
 
-if [ X$MOTR_PROF_OPT == X ]; then
+if [ X"$MOTR_PROF_OPT" == X ]; then
 	MOTR_PROF_OPT=0x7000000000000001:0
 fi
 
-if [ X$MOTR_PROC_FID == X ]; then
+if [ X"$MOTR_PROC_FID" == X ]; then
 	MOTR_PROC_FID=0x7200000000000000:0
 fi
