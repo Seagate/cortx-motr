@@ -267,7 +267,7 @@ static int volatile_log_init(struct m0_dtm0_service *dtm0)
 		rc = m0_be_dtm0_log_init(dtm0->dos_log, NULL,
 					 &dtm0->dos_clk_src, false);
 		if (rc != 0)
-			m0_be_dtm0_log_free(&dtm0->dos_log);
+			m0_be_dtm0_log_free0(&dtm0->dos_log);
 	}
 	return rc;
 }
@@ -388,7 +388,7 @@ static void dtm0_service_stop(struct m0_reqh_service *service)
 	if (dtm0->dos_origin == DTM0_ON_VOLATILE && dtm0->dos_log != NULL) {
 		m0_be_dtm0_log_clear(dtm0->dos_log);
 		m0_be_dtm0_log_fini(dtm0->dos_log);
-		m0_be_dtm0_log_free(&dtm0->dos_log);
+		m0_be_dtm0_log_free0(&dtm0->dos_log);
 	}
 
 	if (!is_manual_ss_enabled())

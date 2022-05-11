@@ -406,7 +406,7 @@ M0_INTERNAL void m0_dtm0_dtx_pmsg_post(struct m0_be_dtm0_log *log,
 	dtx_sm_grp = rec != NULL ? rec->dlr_dtx.dd_sm.sm_grp : NULL;
 	m0_mutex_unlock(&log->dl_lock);
 
-	if (rec != NULL) {
+	if (dtx_sm_grp != NULL) {
 		M0_ASSERT(fop->f_opaque != NULL);
 		pma = fop->f_opaque;
 		*pma = (struct m0_dtm0_pmsg_ast) {
