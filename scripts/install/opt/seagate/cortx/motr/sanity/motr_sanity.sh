@@ -231,7 +231,8 @@ object_io_test()
 
 	echo "----- Size: $blk_size, Count: $blk_count -----"
 
-	dd if="/dev/urandom" of="$src_file" bs="$blk_size" count="$blk_count" || {
+	echo "Creating source file $src_file"
+	eval "dd if=/dev/urandom of=$src_file bs=$blk_size count=$blk_count" || {
 		error_handling "dd command failed" $?
 	}
 
@@ -253,7 +254,7 @@ object_io_test()
 	}
 
 	echo "Comparing files $src_file and $dest_file ....."
-	diff "$src_file" "$dest_file" || {
+	eval "diff $src_file $dest_file" || {
 		error_handling "Files differ" $?
 	}
 
@@ -281,7 +282,7 @@ object_io_test()
 	}
 
 	echo "Comparing files $src_file and $dest_file ....."
-	diff "$src_file" "$dest_file" || {
+	eval "diff $src_file $dest_file" || {
 		error_handling "Files differ" $?
 	}
 
@@ -300,7 +301,8 @@ object_io_test()
 
 	echo "----- Size: $blk_size, Count: $blk_count -----"
 
-	dd if="/dev/urandom" of="$src_file" bs="$blk_size_dd" count="$blk_count" || {
+	echo "Created source file $src_file"
+	eval "dd if=/dev/urandom of=$src_file bs=$blk_size_dd count=$blk_count" || {
 		error_handling "dd command failed" $?
 	}
 
@@ -317,7 +319,7 @@ object_io_test()
 	}
 
 	echo "Comparing files $src_file and $dest_file ....."
-	diff "$src_file" "$dest_file" || {
+	eval "diff $src_file $dest_file" || {
 		error_handling "Files differ" $?
 	}
 
