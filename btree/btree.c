@@ -3450,7 +3450,8 @@ static void ff_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
  *
  *
  *        +-----------------------+ +-------------------------------------+
- *        |              +--------+-+---------------+ +--+                |                                       |
+ *        |                       | |                                     |
+ *        |              +--------+-+---------------+ +--+                |
  *        |              |        | |               | |  |                |
  *        v              v        | |               | |  v                v
  * +------+----+----+----+------+-+-+-+-----+-----+-+-+--+-----+-----+----+----+
@@ -4275,6 +4276,9 @@ static void fkvv_dir_entry_delete(const struct nd *node, int idx)
 	total_size = sizeof(*dir) * (h->fkvv_dir_entries - idx - 1);
 
 	m0_memmove(&dir[idx], &dir[idx + 1], total_size);
+	h->fkvv_dir_entries--;
+	dir[h->fkvv_dir_entries - 1].val_offset     -= sizeof(*dir);
+	dir[h->fkvv_dir_entries - 1].alloc_val_size += sizeof(*dir);
 }
 
 static void fkvv_dir_shift(const struct nd *node, int shift_size)
@@ -4530,88 +4534,51 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 {
 	struct fkvv_head    *h            = fkvv_data(node);
 	struct fkvv_dir_rec *dir          = fkvv_dir_get(&node->n_addr);
-	int                  free_farg_1  = -1;
-	int                  free_farg_2  = -1;
+	struct fkvv_dir_rec  dir_ent      = dir[idx];
+	int                  freed_ent;
 	int                  i;
-
-	for (i = h->fkvv_used; i < h->fkvv_dir_entries; i++) {
-		if (i == idx)
-			continue;
-		/**
-		 * Find if there exist any contiguous left key and right value
-		 * free fragment which can be merged  dir_entry fragment.
-		 */
-		if (free_farg_1 == -1 &&
-		    dir[idx].key_offset == dir[i].key_offset +
-		    			   dir[i].key_size  &&
-		    dir[i].val_offset == dir[idx].val_offset +
-		    			 dir[idx].alloc_val_size) {
-			free_farg_1 = i;
-		}
-
-		/**
-		 * Find if there exist any contiguous right key and left value
-		 * free fragment which can be merged  dir[idx] fragment.
-		 */
-		if (free_farg_2 == -1 &&
-		    dir[i].key_offset == dir[idx].key_offset +
-		    			 dir[idx].key_size &&
-		    dir[idx].val_offset == dir[i].val_offset +
-		    			   dir[i].alloc_val_size) {
-			free_farg_2 = i;
-		}
-	}
-
-	if (free_farg_1 != -1) {
-		dir[free_farg_1].key_size       += dir[idx].key_size;
-		dir[free_farg_1].alloc_val_size += dir[idx].alloc_val_size;
-		dir[free_farg_1].val_offset     -= dir[idx].alloc_val_size;
-		dir[idx] = dir[free_farg_1];
-	}
-
-	if (free_farg_2 != -1) {
-		dir[free_farg_2].key_offset     -= dir[idx].key_size;
-		dir[free_farg_2].key_size       += dir[idx].key_size;
-		dir[free_farg_2].alloc_val_size += dir[idx].alloc_val_size;
-	}
-
-	if (free_farg_2 != -1 && free_farg_1 != -1) {
-		fkvv_dir_entry_delete(node, free_farg_1);
-		fkvv_dir_entry_delete(node, idx);
-		h->fkvv_dir_entries -= 2;
-		/* As we deleted two dir entry update last free dir entry */
-		dir[h->fkvv_dir_entries - 1].val_offset -= (2 *sizeof(*dir));
-		dir[h->fkvv_dir_entries - 1].alloc_val_size +=
-							(2 * sizeof(*dir));
-
-
-	} else if (free_farg_2 != -1 || free_farg_1 != -1) {
-		/* As we deleted one dir entry update last free dir entry */
-		fkvv_dir_entry_delete(node, idx);
-		h->fkvv_dir_entries--;
-
-		dir[h->fkvv_dir_entries - 1].val_offset -= sizeof(*dir);
-		dir[h->fkvv_dir_entries - 1].alloc_val_size += sizeof(*dir);
-
-	} else if (free_farg_2 == -1 && free_farg_1 == -1) {
-		/**
-		 * If no adjecent free fragment found, insert free
-		 * fragment(dir_entry) as a last second entry in directory.
-		 * Note that last directory entry will always indicate free
-		 * fragment between key region and directory(in case of key) and
-		 * free fragment directory and start of value region(in case of
-		 * value).
-		 */
-		struct fkvv_dir_rec dir_entry = dir[idx];
-		dir_entry.val_size = 0;
-		/* Move free fragment at the end of valid record entries. */
-		m0_memmove(&dir[idx], &dir[idx+1],
-			   (h->fkvv_used - idx - 1) * sizeof(*dir));
-		dir[h->fkvv_used - 1] = dir_entry;
-	}
-	 h->fkvv_used--;
-	if (h->fkvv_used == 0)
+	int                  bytes_to_move;
+	h->fkvv_used--;
+	if (h->fkvv_used == 0) {
 		fkvv_dir_init(&node->n_addr);
+		return;
+	}
+
+	freed_ent = h->fkvv_used;
+	if (idx != h->fkvv_used) {
+		bytes_to_move = sizeof(dir_ent) * (h->fkvv_used - idx);
+		m0_memmove(&dir[idx], &dir[idx + 1], bytes_to_move);
+		dir[freed_ent] = dir_ent;
+	}
+	for (i = h->fkvv_used + 1; i < h->fkvv_dir_entries; i++) {
+		if (dir[freed_ent].key_offset == dir[i].key_offset +
+						 dir[i].key_size) {
+			M0_ASSERT(dir[i].val_offset ==
+				  dir[freed_ent].val_offset +
+				  dir[freed_ent].alloc_val_size);
+
+			dir[i].key_size       += dir[freed_ent].key_size;
+			dir[i].val_offset     -= dir[freed_ent].alloc_val_size;
+			dir[i].alloc_val_size += dir[freed_ent].alloc_val_size;
+			fkvv_dir_entry_delete(node, freed_ent);
+			M0_ASSERT(i > freed_ent);
+			freed_ent = i - 1;
+			i--;
+		} else if (dir[i].key_offset == dir[freed_ent].key_offset +
+						dir[freed_ent].key_size) {
+			M0_ASSERT(dir[freed_ent].val_offset ==
+				  dir[i].val_offset + dir[i].alloc_val_size);
+
+			dir[i].key_size       += dir[freed_ent].key_size;
+			dir[i].key_offset     -= dir[freed_ent].key_size;
+			dir[i].alloc_val_size += dir[freed_ent].alloc_val_size;
+			fkvv_dir_entry_delete(node, freed_ent);
+			M0_ASSERT(i > freed_ent);
+			freed_ent = i - 1;
+			i--;
+		}
+	}
+
 }
 
 static void fkvv_del(const struct nd *node, int idx)
@@ -13827,7 +13794,7 @@ static void ut_btree_crc_persist_indir_test(void)
  * below code once testing is done for all node format.
  */
 #if 0
-void get_key_at_index(struct nd *node, int idx, uint64_t *key)
+static void get_key_at_index(struct nd *node, int idx, uint64_t *key)
 {
 	struct slot          slot;
 	m0_bcount_t          ksize;
@@ -13849,7 +13816,7 @@ void get_key_at_index(struct nd *node, int idx, uint64_t *key)
 		*key = *(uint64_t *)p_key;
 }
 
-void get_rec_at_index(struct nd *node, int idx, uint64_t *key,  uint64_t *val)
+static void get_rec_at_index(struct nd *node, int idx, uint64_t *key,  uint64_t *val)
 {
 	struct slot          slot;
 	m0_bcount_t          ksize;
