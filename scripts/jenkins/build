@@ -27,10 +27,34 @@
 set -a
 
 # exit with error code on any command failure (including pipes)
-set -e
-set -o pipefail
+set -eo pipefail
 
-TRANSPORT="$2"
+if [ $# = 0 ]; then
+  echo " Usage: $0 [--transport <lnet|libfabric|sock|membulk>] [other build options]";
+  echo " Example : $0 --transport libfab --enable-coverage"
+  exit 0
+fi
+
+CONFIGURE_OPTIONS=""
+MAKE_OPTIONS=""
+TRANSPORT="libfabric"
+PACKAGE=""
+
+until [ -z "$1" ]; do
+  case $1 in
+    "--transport")
+        shift
+        TRANSPORT="$1"
+        shift ;;
+    "docs")
+        shift
+        MAKE_OPTIONS="doc" ;;
+    "nodocs")
+        shift ;;
+    *) CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS $1" ; shift;;
+  esac
+done
+
 # Printing package name
 echo "Package name is: $TRANSPORT"
 
@@ -57,38 +81,49 @@ fi
 
 if [[ $TRANSPORT == "lnet" ]]; then
 	PACKAGE='lustre-client'
-else
+	CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-default-network=LNET " 
+elif [[ $TRANSPORT == "libfabric" ]]; then
 	PACKAGE='libfabric'
+	CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-default-network=LF " 
+elif [[ $TRANSPORT == "sock" ]]; then
+	CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-default-network=SOCK " 
+elif [[ $TRANSPORT == "membulk" ]]; then
+	CONFIGURE_OPTIONS="$CONFIGURE_OPTIONS --with-default-network=MEMBULK " 
+else
+	echo "$TRANSPORT not yet supported"
+	exit 1;
 fi
 
-# Checking if package is available or not
-if [[ ! -z $(rpm -qa $PACKAGE) ]]; then
-        echo "$PACKAGE package is present"
-else
-        echo "need to install $PACKAGE module"
-	yum install ${PACKAGE}* -y
-fi
-
-if [[ "$PACKAGE" == "libfabric" ]]; then
-        echo "You are using default $PACKAGE module"
-else
-# @todo No need to remove rpms once selection of transport
-# for UT's and ST's based on configuration option of default
-# transport is added.
-	if  [[ ! -z $(rpm -qa | grep libfabric) ]]; then
-        	rpm -e $(rpm -qa | grep libfabric)
+if [[ "$PACKAGE" ]]; then 
+	# Checking if package is available or not
+	if [[ ! -z $(rpm -qa $PACKAGE) ]]; then
+		echo "$PACKAGE package is present"
+	else
+		echo "need to install $PACKAGE module"
+		yum install ${PACKAGE}* -y
 	fi
-	echo "$PACKAGE is not present in the VM"
+
+	if [[ "$PACKAGE" == "libfabric" ]]; then
+		echo "You are using default $PACKAGE module"
+	else
+	# @todo No need to remove rpms once selection of transport
+	# for UT's and ST's based on configuration option of default
+	# transport is added.
+		if  [[ ! -z $(rpm -qa | grep libfabric) ]]; then
+			rpm -e $(rpm -qa | grep libfabric)
+		fi
+		echo "$PACKAGE is not present in the VM"
+	fi
 fi
 
 
-
-if [[ $1 = docs ]] ; then
-./configure --disable-systemd |& tee -a $ARTIFACTS/configure.log
-make -j doc |& tee $ARTIFACTS/make.log
+if [[ $MAKE_OPTIONS == "docs" ]]
+then 
+./configure ${CONFIGURE_OPTIONS} --disable-systemd |& tee -a $ARTIFACTS/configure.log
+make -j $MAKE_OPTIONS |& tee $ARTIFACTS/make.log
 else
 [[ -d $HOME/rpmbuild ]] && rm -rf $HOME/rpmbuild/*
-./configure |& tee -a $ARTIFACTS/configure.log
+./configure ${CONFIGURE_OPTIONS} |& tee -a $ARTIFACTS/configure.log
 make -j |& tee $ARTIFACTS/make.log
 cp -v xcode/protocol*.txt $ARTIFACTS/
 make -j rpms |& tee $ARTIFACTS/rpm.log
