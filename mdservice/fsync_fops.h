@@ -30,6 +30,8 @@
 #include "fop/fom.h"
 #include "be/tx.h"
 #include "be/tx_xc.h"
+#include "fop/wire.h"
+#include "fop/wire_xc.h"
 
 /*
  * A fsync fop is sent to a mdservice/ioservice instance to guarantee all the
