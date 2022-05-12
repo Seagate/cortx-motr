@@ -31,7 +31,7 @@
 #include "fol/fol_private.h"
 #include "fol/fol_xc.h"       /* m0_xc_fol_init */
 #include "fop/fop.h"          /* m0_fop_fol_frag_type */
-#include "fop/fop_xc.h"       /* m0_fop_fol_frag_xc */
+#include "fop/wire_xc.h"      /* m0_fop_fol_frag_xc */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOL
 #include "lib/trace.h"
