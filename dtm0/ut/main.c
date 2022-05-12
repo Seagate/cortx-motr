@@ -451,7 +451,7 @@ static void ut_remach_start(struct ut_remach *um)
 	int           rc;
 	bool          is_volatile[UT_SIDE_NR] = {
 		[UT_SIDE_SRV] = false,
-		[UT_SIDE_CLI] = true,
+		[UT_SIDE_CLI] = false,
 	};
 
 	m0_ut_remach_populate(ut_remach_get(um, UT_SIDE_CLI), um->cli_procs,
@@ -481,6 +481,7 @@ static void ut_remach_init(struct ut_remach *um)
 	m0_fi_enable("m0_dtm0_in_ut", "ut");
 	m0_fi_enable("is_manual_ss_enabled", "ut");
 	m0_fi_enable("m0_dtm0_is_expecting_redo_from_client", "ut");
+	m0_fi_enable("is_svc_volatile", "always_false");
 
 	m0_ut_dtm0_helper_init(&um->udh);
 
@@ -503,6 +504,7 @@ static void ut_remach_fini(struct ut_remach *um)
 	ut_cli_remach_fini(um);
 	ut_srv_remach_fini(um);
 	m0_ut_dtm0_helper_fini(&um->udh);
+	m0_fi_disable("is_svc_volatile", "always_false");
 	m0_fi_disable("m0_dtm0_is_expecting_redo_from_client", "ut");
 	m0_fi_disable("is_manual_ss_enabled", "ut");
 	m0_fi_disable("m0_dtm0_in_ut", "ut");
@@ -788,8 +790,7 @@ struct m0_ut_suite dtm0_ut = {
 		{ "remach-reboot-twice",    remach_reboot_twice   },
 		{ "remach-boot-real-log",   remach_boot_real_log  },
 		{ "remach-real-log-replay", remach_real_log_replay  },
-		/* TODO: test with persistent client */
-		/* TODO: test with two servers */
+		/* TODO: boot-cluster-ss & boot-cluster-cs */
 		{ NULL, NULL },
 	}
 };

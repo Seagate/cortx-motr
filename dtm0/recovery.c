@@ -1469,6 +1469,9 @@ static bool is_svc_volatile(const struct m0_confc        *confc,
 	struct m0_conf_obj     *obj;
 	const char            **param;
 
+	if (M0_FI_ENABLED("always_false"))
+		return false;
+
 	obj = m0_conf_cache_lookup(&confc->cc_cache, svc_fid);
 	M0_ASSERT(obj != NULL);
 
