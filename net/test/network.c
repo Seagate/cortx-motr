@@ -308,7 +308,8 @@ static int net_test_network_ctx_initfini(struct m0_net_test_network_ctx *ctx,
 	m0_clink_init(&tmwait, NULL);
 	m0_clink_add_lock(&ctx->ntc_tm->ntm_chan, &tmwait);
 	rc = m0_net_tm_start(ctx->ntc_tm, tm_addr);
-	m0_chan_wait(&tmwait);
+	if (rc == 0)
+		m0_chan_wait(&tmwait);
 	m0_clink_del_lock(&tmwait);
 	m0_clink_fini(&tmwait);
 	if (rc != 0)
