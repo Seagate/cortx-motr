@@ -364,13 +364,6 @@ ref_dec:
 #undef LOGMSG
 	}
 
-	/*
-	 * Sining: don't set the ioo_rc utill replies come back from  dgmode
-	 * IO.
-	 */
-	if (ioo->ioo_rc == 0 && ioo->ioo_dgmode_io_sent == true)
-		ioo->ioo_rc = rc;
-
 	if (irfop->irf_pattr == PA_DATA)
 		tioreq->ti_databytes += rbulk->rb_bytes;
 	else
@@ -759,9 +752,9 @@ M0_INTERNAL int ioreq_fop_dgmode_read(struct ioreq_fop *irfop)
 	M0_PRE(irfop != NULL);
 	M0_ENTRY("target fid = "FID_F, FID_P(&irfop->irf_tioreq->ti_fid));
 
-	ioo    = bob_of(irfop->irf_tioreq->ti_nwxfer, struct m0_op_io,
-			ioo_nwxfer, &ioo_bobtype);
-	rbulk     = &irfop->irf_iofop.if_rbulk;
+	ioo   = bob_of(irfop->irf_tioreq->ti_nwxfer, struct m0_op_io,
+	               ioo_nwxfer, &ioo_bobtype);
+	rbulk = &irfop->irf_iofop.if_rbulk;
 
 	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
 
