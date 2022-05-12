@@ -4583,21 +4583,10 @@ static void fkvv_del_emb_ind(const struct nd *node, int idx)
 		}
 	}
 
-	/* Check if we can merge with last fragment  and delete free_ent dir*/
+	/* Check if we can merge free_ent dir with last fragment */
 	last_frag = h->fkvv_dir_entries - 1;
-	if (dir[freed_ent].key_offset == dir[last_frag].key_offset +
-					 dir[last_frag].key_size) {
-		M0_ASSERT(dir[last_frag].val_offset ==
-			  dir[freed_ent].val_offset +
-			  dir[freed_ent].alloc_val_size);
-
-		dir[last_frag].key_size       += dir[freed_ent].key_size;
-		dir[last_frag].val_offset     -= dir[freed_ent].alloc_val_size;
-		dir[last_frag].alloc_val_size += dir[freed_ent].alloc_val_size;
-		fkvv_dir_entry_delete(node, freed_ent);
-		last_frag = h->fkvv_dir_entries - 1;
-	} else if (dir[last_frag].key_offset == dir[freed_ent].key_offset +
-					dir[freed_ent].key_size) {
+	if (dir[last_frag].key_offset == dir[freed_ent].key_offset +
+					 dir[freed_ent].key_size) {
 		M0_ASSERT(dir[freed_ent].val_offset ==
 			  dir[last_frag].val_offset +
 			  dir[last_frag].alloc_val_size);
