@@ -161,30 +161,26 @@ static void cm_proxy_cp_del(struct m0_cm_proxy *pxy,
 M0_INTERNAL struct m0_cm_proxy *m0_cm_proxy_locate(struct m0_cm *cm,
 						   const char *addr)
 {
-	struct m0_net_transfer_mc *tm;
-	struct m0_net_end_point   *ep;
-	struct m0_cm_proxy        *pxy;
+	struct m0_cm_proxy	*pxy = NULL;
+	struct m0_net_ip_addr	addr_ipaddr, pxy_ipaddr;
+
 	/*
 	 * Proxy address string (pxy->px_endpoint) cannot be directly compared
 	 * with supplied address string, because the same end-point might have
 	 * different address strings.
 	 *
-	 * Instantiate the endpoints and compare them directly.
+	 * Convert both address strings into m0_net_ip_addr objects, and
+	 * compare them  using m0_net_ip_addr_eq() API
 	 */
-	tm = &m0_reqh_rpc_mach_tlist_head
-		(&cm->cm_service.rs_reqh->rh_rpc_machines)->rm_tm;
-	if (tm == NULL || m0_net_end_point_create(&ep, tm, addr) != 0)
-		return NULL;
 
+	if (m0_net_ip_parse(addr, &addr_ipaddr) != 0)
+		return NULL;
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
-		struct m0_net_end_point *scan;
-		if (m0_net_end_point_create(&scan, tm, pxy->px_endpoint) != 0)
-			continue;
-		m0_net_end_point_put(scan); /* OK to put before comparison. */
-		if (scan == ep)
+		if (m0_net_ip_parse(pxy->px_endpoint, &pxy_ipaddr) != 0)
+			return NULL;
+		if (m0_net_ip_addr_eq(&addr_ipaddr, &pxy_ipaddr, true))
 			break;
 	} m0_tl_endfor;
-	m0_net_end_point_put(ep);
 	return pxy;
 }
 
