@@ -30,11 +30,10 @@
 #include "rpc/rpc_machine.h"     /* m0_rpc_machine, m0_rpc_machine_lock */
 #include "rpc/addb2.h"
 #include "fop/fop.h"
-#include "fop/fop_xc.h"
 #include "fop/fom.h"
 #include "fop/fom_generic.h"
-#include "fop/fom_generic_xc.h"
 #include "fop/fom_long_lock.h"   /* m0_fom_ll_global_init */
+#include "fop/wire_xc.h"
 #include "addb2/identifier.h"
 #include "reqh/reqh.h"
 

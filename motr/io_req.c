@@ -1446,10 +1446,13 @@ static bool is_node_marked(struct m0_op_io *ioo,
 }
 
 /**
- * Returns number of failed devices or -EIO if number of failed devices exceeds
- * the value of K (number of spare devices in parity group). Once MOTR-899 lands
- * into dev the code for this function will change. In that case it will only
- * check if a given pool is dud.
+ * If everything is fine, returns 0. Otherwise, returns -EIO if
+ * number of failed devices exceeds the value of K (number of parity
+ * units in the parity group). Or a positive number if there are some
+ * failures (devices, processes, nodes) but they are tolerable.
+ *
+ * Once MOTR-899 lands into dev the code for this function will change.
+ * In that case it will only check if a given pool is dud.
  *
  * This is heavily based on m0t1fs/linux_kernel/file.c::device_check
  */
@@ -1511,8 +1514,9 @@ static int device_check(struct m0_op_io *ioo)
 			} else if (!is_session_marked(ioo, ti->ti_session)) {
 				M0_CNT_INC(fsvc_nr);
 			}
-		} else if (M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
-			   M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED)) &&
+		} else if ((M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
+				  M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED))
+			     || ti->ti_rc != 0 /* any error */) &&
 			   !is_session_marked(ioo, ti->ti_session)) {
 			/*
 			 * The case when multiple devices under the same service
@@ -1532,23 +1536,17 @@ static int device_check(struct m0_op_io *ioo)
 
 	if (is_pver_dud(fdev_nr, layout_k(play), fsvc_nr, max_svc_failures,
 			fnode_nr, max_node_failures))
-		return M0_ERR_INFO(-EIO, "[%p] Failed to recover data "
-				"since number of failed data units "
-				"(%lu) exceeds number of parity "
-				"units in parity group (%lu) OR "
-				"number of failed services (%lu) "
-				"exceeds number of max failures "
-				"supported (%lu) OR "
-				"number of failed nodes (%lu) "
-				"exceeds number of max node failures "
-				"supported (%lu)",
-				ioo, (unsigned long)fdev_nr,
-				(unsigned long)layout_k(play),
-				(unsigned long)fsvc_nr,
-				(unsigned long)max_svc_failures,
+		return M0_ERR_INFO(-EIO, "[%p] too many failures: "
+				"nodes=%lu + svcs=%lu + devs=%lu, allowed: "
+				"nodes=%lu or svcs=%lu or devs=%lu", ioo,
 				(unsigned long)fnode_nr,
-				(unsigned long)max_node_failures);
-	return M0_RC(fdev_nr);
+				(unsigned long)fsvc_nr,
+				(unsigned long)fdev_nr,
+				(unsigned long)max_node_failures,
+				(unsigned long)max_svc_failures,
+				(unsigned long)layout_k(play));
+
+	return M0_RC(fdev_nr | fsvc_nr | fnode_nr);
 }
 
 /**
@@ -1567,7 +1565,6 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 	struct pargrp_iomap    *iomap;
 	struct ioreq_fop       *irfop;
 	struct target_ioreq    *ti;
-	enum m0_pool_nd_state   state;
 	struct m0_poolmach     *pm;
 
 	M0_ENTRY();
@@ -1596,28 +1593,12 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 	pm = ioo_to_poolmach(ioo);
 	M0_ASSERT(pm != NULL);
 
+	rc = 0;
 	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
 		/*
-		 * Data was retrieved successfully, so no need to check the
-		 * state of the device.
+		 * Data was retrieved successfully from this target.
 		 */
 		if (ti->ti_rc == 0)
-			continue;
-
-		/* state is already queried in device_check() and stored
-		 * in ti->ti_state. Why do we do this again?
-		 */
-		rc = m0_poolmach_device_state(
-			pm, ti->ti_obj, &state);
-		if (rc != 0)
-			return M0_ERR(rc);
-		M0_LOG(M0_INFO, "device state for "FID_F" is %d",
-		       FID_P(&ti->ti_fid), state);
-		ti->ti_state = state;
-
-		if (!M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
-			   M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED,
-			   M0_PNDS_SNS_REBALANCING)))
 			continue;
 		/*
 		 * Finds out parity groups for which read IO failed and marks
@@ -1716,6 +1697,7 @@ static int ioreq_dgmode_write(struct m0_op_io *ioo, bool rmw)
 	int                      rc;
 	struct target_ioreq     *ti;
 	struct nw_xfer_request  *xfer;
+	struct m0_pdclust_layout *play;
 
 	M0_ENTRY();
 	M0_PRE_EX(m0_op_io_invariant(ioo));
@@ -1733,6 +1715,31 @@ static int ioreq_dgmode_write(struct m0_op_io *ioo, bool rmw)
 	rc = device_check(ioo);
 	if (rc < 0)
 		return M0_RC(rc);
+
+	play = pdlayout_get(ioo);
+	if (rc > 0 && play->pl_attr.pa_S == 0) {
+		/*
+		 * Some units write failed, but no more than K (otherwise,
+		 * rc would be < 0), and there are no spare units configured
+		 * in the parity groups. In this case, there is no point in
+		 * degraded write, and it's OK to return success for now (XXX).
+		 * The redundancy of the user data will be restored during
+		 * SNS repair later.
+		 */
+		m0_htable_for (tioreqht, ti, &xfer->nxr_tioreqs_hash) {
+			ti->ti_rc = 0;
+		} m0_htable_endfor;
+
+		xfer->nxr_rc = 0;
+		ioo->ioo_rc = 0;
+
+		M0_LOG(M0_NOTICE, "user data written with degraded redundancy: "
+		       "off=%" PRIu64 " len=%" PRIu64 " failed_devs=%d",
+		       INDEX(&ioo->ioo_ext, 0),
+		       m0_vec_count(&ioo->ioo_ext.iv_vec), rc);
+
+		return M0_RC(0);
+	}
 
 	/*
 	 * This IO request has already acquired distributed lock on the

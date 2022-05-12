@@ -4,7 +4,8 @@ nobase_motr_include_HEADERS += fop/fop.h \
                                fop/fom_generic.h \
                                fop/fom_long_lock.h \
                                fop/fom_simple.h \
-                               fop/fom_interpose.h
+                               fop/fom_interpose.h \
+                               fop/wire.h
 
 motr_libmotr_la_SOURCES  += fop/fop.c \
                             fop/fom.c \
@@ -15,7 +16,6 @@ motr_libmotr_la_SOURCES  += fop/fop.c \
                             fop/fom_interpose.c
 
 nodist_motr_libmotr_la_SOURCES  += \
-                            fop/fop_xc.c \
-                            fop/fom_generic_xc.c
+                            fop/wire_xc.c
 
-XC_FILES   += fop/fom_generic_xc.h fop/fop_xc.h
+XC_FILES   += fop/wire_xc.h
