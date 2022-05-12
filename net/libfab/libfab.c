@@ -848,12 +848,19 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		 */
 		net = m0_nep_tlist_pop(&tm->ftm_ntm->ntm_end_points);
 		M0_ASSERT(net != NULL);
+		/*
+		 * TM lock can be released by libfab_txep_event_check(), make
+		 * sure the end-point stays alive.
+		 */
+		m0_net_end_point_get(net);
 		m0_nep_tlist_add_tail(&tm->ftm_ntm->ntm_end_points, net);
 		xep = libfab_ep(net);
 		aep = libfab_aep_get(xep);
 		libfab_txep_event_check(xep, aep, tm);
 		cq = aep->aep_rx_res.frr_cq;
 		libfab_rxep_comp_read(cq, xep, tm);
+		/* Release, with TM lock already held. */
+		m0_ref_put(&net->nep_ref);
 
 		libfab_bufq_process(tm);
 		if (m0_time_is_in_past(tm->ftm_tmout_check))
@@ -1549,9 +1556,6 @@ static int libfab_ep_param_free(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 
 	if (rc != 0)
 		return M0_ERR(rc);
-
-	M0_SET0(&ep->fep_name);
-
 	m0_free(ep);
 	return M0_RC(0);
 }
@@ -2358,7 +2362,6 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
 	struct fi_info        *info;
 	struct fi_info        *hints = NULL;
 	int                    rc;
-	bool                   is_verbs = libfab_is_verbs(tm);
 	char                   ip[LIBFAB_ADDR_LEN_MAX] = {};
 	char                   port[LIBFAB_PORT_LEN_MAX] = {};
 
@@ -2375,38 +2378,34 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
 	aep->aep_txq_full = false;
 	ep->fep_connlink = FAB_CONNLINK_DOWN;
 
-	if (is_verbs) {
-		hints = fi_allocinfo();
-		if (hints == NULL)
-			return M0_ERR(-ENOMEM);
-		hints->ep_attr->type = FI_EP_MSG;
-		hints->caps = FI_MSG | FI_RMA;
+	hints = fi_allocinfo();
+	if (hints == NULL)
+		return M0_ERR(-ENOMEM);
+	hints->ep_attr->type = FI_EP_MSG;
+	hints->caps = FI_MSG | FI_RMA;
 
-		hints->mode |= FI_RX_CQ_DATA;
-		hints->domain_attr->cq_data_size = 4;
-		hints->domain_attr->mr_mode = FI_MR_LOCAL | FI_MR_ALLOCATED |
-					      FI_MR_PROV_KEY | FI_MR_VIRT_ADDR;
-		hints->fabric_attr->prov_name =
-					    fab->fab_fi->fabric_attr->prov_name;
+	hints->mode |= FI_RX_CQ_DATA;
+	hints->domain_attr->cq_data_size = 4;
+	hints->domain_attr->mr_mode = FI_MR_LOCAL | FI_MR_ALLOCATED |
+				      FI_MR_PROV_KEY | FI_MR_VIRT_ADDR;
+	hints->fabric_attr->prov_name = fab->fab_fi->fabric_attr->prov_name;
 
-		libfab_straddr_gen(&en->nia_n, ip);
-		snprintf(port, ARRAY_SIZE(port), "%d", en->nia_n.nip_port);
-		rc = fi_getinfo(LIBFAB_VERSION, ip, port, 0,
-				hints, &info);
-		if (rc != 0)
-			return M0_ERR(rc);
-	} else
-		info = tm->ftm_fab->fab_fi;
+	libfab_straddr_gen(&en->nia_n, ip);
+	snprintf(port, ARRAY_SIZE(port), "%d", en->nia_n.nip_port);
+	rc = fi_getinfo(LIBFAB_VERSION, ip, port, 0, hints, &info);
+	if (rc != 0) {
+		hints->fabric_attr->prov_name = NULL;
+		fi_freeinfo(hints);
+		return M0_ERR(rc);
+	}
 
 	rc = fi_endpoint(fab->fab_dom, info, &aep->aep_txep, NULL) ? :
 	     libfab_ep_txres_init(aep, tm, ctx) ? :
 	     fi_enable(aep->aep_txep);
 
-	if (is_verbs) {
-		hints->fabric_attr->prov_name = NULL;
-		fi_freeinfo(hints);
-		fi_freeinfo(info);
-	}
+	hints->fabric_attr->prov_name = NULL;
+	fi_freeinfo(hints);
+	fi_freeinfo(info);
 
 	return M0_RC(rc);
 }
@@ -2770,6 +2769,7 @@ static int libfab_domain_params_get(struct m0_fab__ndom *fab_ndom)
 			  ARRAY_SIZE(fab_ndom->fnd_loc_ip));
 		fab_ndom->fnd_seg_nr = FAB_VERBS_IOV_MAX;
 		fab_ndom->fnd_seg_size = FAB_VERBS_MAX_BULK_SEG_SIZE;
+		fi_freeinfo(fi); /* This frees the entire list. */
 	} else {
 		/* For TCP/Socket provider */
 		t_src.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
@@ -2778,10 +2778,8 @@ static int libfab_domain_params_get(struct m0_fab__ndom *fab_ndom)
 		fab_ndom->fnd_seg_nr = FAB_TCP_SOCK_IOV_MAX;
 		fab_ndom->fnd_seg_size = FAB_TCP_SOCK_MAX_BULK_SEG_SIZE;
 	}
-
 	hints->fabric_attr->prov_name = NULL;
 	fi_freeinfo(hints);
-	fi_freeinfo(fi);
 	return M0_RC(0);
 }
 

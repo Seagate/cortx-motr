@@ -424,14 +424,6 @@ struct m0_be_tx {
 	struct m0_sm_ast       t_fdmi_put_ast;
 };
 
-/**
- * Transaction identifier for remote nodes.
- */
-struct m0_be_tx_remid {
-	uint64_t tri_txid;
-	uint64_t tri_locality;
-} M0_XCA_RECORD M0_XCA_DOMAIN(be|rpc);
-
 #if M0_DEBUG_BE_CREDITS == 1
 
 /**

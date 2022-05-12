@@ -450,6 +450,7 @@ static void meta_fop_submit(struct m0_fop_type *fopt,
 
 	for (i = 0; i < meta_recs_num; i++)
 		m0_rpc_at_fini(&recs[i].cr_key);
+	m0_free(recs);
 }
 
 static bool rec_check(const struct m0_cas_rec *rec, int rc, int key, int val)
