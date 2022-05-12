@@ -27,6 +27,7 @@
 #include "lib/string.h"                         /* sscanf */
 
 #include "xcode/xcode.h"
+#include "fop/wire.h"                           /* m0_fop_str */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_XCODE
 #include "lib/trace.h"
