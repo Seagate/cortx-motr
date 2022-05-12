@@ -35,7 +35,7 @@
                  36spare-reservation
                  37protocol
                  51kem)
- 
+
  # libisal does not need kernel based ST
  LIBISAL_TESTS_SKIPLIST=(
              08spiel-sns-repair
@@ -161,7 +161,7 @@ m0_local_nid_get()
     local local_nid
     XPRT=$(m0_default_xprt)
     if [ "$XPRT" = "lnet" ]
-    then 
+    then
         local_nid=`sudo lctl list_nids | head -1`
     else
         touch /etc/libfab.conf
@@ -175,7 +175,13 @@ m0_local_nid_get()
         local iface=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "(" -f2 | cut -d ")" -f1`
         local proto=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "=" -f2 | cut -d "(" -f1`
         local ip_addr=`ip addr show $iface |grep inet| head -1 | awk '{print $2}'|cut -d '/' -f1`
-        local_nid=$ip_addr@$proto
+
+        local format=${1:-old}
+        if [[ "$format" == "new" ]]; then
+            local_nid=inet:$proto:$ip_addr
+        else
+            local_nid=$ip_addr@$proto
+        fi
     fi
     echo $local_nid
 }
