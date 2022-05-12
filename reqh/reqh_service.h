@@ -37,6 +37,7 @@
 #include "fid/fid.h"
 #include "rpc/link.h"    /* m0_rpc_link */
 #include "sm/sm.h"
+#include "fop/wire.h"
 
 struct m0_fop;
 struct m0_fom;

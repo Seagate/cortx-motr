@@ -54,9 +54,9 @@ kvs_create_n_insert()
 	MOTR_PARAM="-l $cli_ep  -h $ha_ep -p $PROF_OPT \
 		    -f $M0T1FS_PROC_ID -s "
 
-	echo "$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM} index create "$DIX_FID"
+	echo "$M0_SRC_DIR/utils/m0kv" "${MOTR_PARAM}" index create "$DIX_FID"
 
-	"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                     \
+	"$M0_SRC_DIR/utils/m0kv" "${MOTR_PARAM}"                                     \
 				index create "$DIX_FID"                            \
 			 || {
 		rc=$?
@@ -64,7 +64,7 @@ kvs_create_n_insert()
 	}
 
 	for ((j=0; j<$num_of_kv; j++)); do
-		"$M0_SRC_DIR/utils/m0kv" ${MOTR_PARAM}                                       \
+		"$M0_SRC_DIR/utils/m0kv" "${MOTR_PARAM}"                                       \
 			index put    "$DIX_FID" "$key_prefix-$j" "$val_prefix-$j"
 	done
 	return $rc
@@ -95,7 +95,7 @@ ctgdump_comp()
 			       -A linuxstob:addb-stobs -w 4 -m 65536 -q 16 -N 100663296 -C 262144 -K 100663296 \
 			       -k 262144 -c ${dir}/confd/conf.xc -e ${cas_ep} -f ${proc_fid} str ${dix_fid} "
 		echo "running: $dump_cmd $dump_cmd_args"
-		$dump_cmd $dump_cmd_args | sort > "$SANDBOX_DIR/ios$i.dump"
+		$dump_cmd "$dump_cmd_args" | sort > "$SANDBOX_DIR/ios$i.dump"
 	done
 
 	# Compare each dump file
@@ -140,7 +140,7 @@ ctgdump_test()
 	}
 
 	if [ $rc == 0 ]; then
-		ctgdump_comp $SANDBOX_DIR ${XPRT}:${lnet_nid}:${IOSEP[0]} ${proc_fid} $DIX_FID
+		ctgdump_comp "$SANDBOX_DIR" "${XPRT}":"${lnet_nid}":"${IOSEP[0]}" "${proc_fid}" $DIX_FID
 		rc=$?
 	fi
 
@@ -157,7 +157,7 @@ case "$cmd" in
 		rc=$?
 		;;
 	comp)
-		ctgdump_comp $2 $3 $4 $5
+		ctgdump_comp "$2" "$3" "$4" "$5"
 		rc=$?
 		;;
 	   *)

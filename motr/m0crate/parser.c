@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <stdarg.h>
 
+#include "lib/string.h"
 #include "motr/m0crate/parser.h"
 #include "motr/m0crate/crate_client.h"
 
