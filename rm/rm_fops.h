@@ -31,7 +31,6 @@
 #include "lib/cookie_xc.h"
 
 #include "fop/fom_generic.h"
-#include "fop/fom_generic_xc.h"
 #include "fop/fop.h"
 #include "xcode/xcode_attr.h"
 

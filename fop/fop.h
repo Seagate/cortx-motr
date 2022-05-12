@@ -31,6 +31,7 @@
 #include "lib/errno.h"
 #include "fol/fol.h"
 #include "fop/fom.h"
+#include "fop/wire.h"
 #include "rpc/item.h"
 #include "net/net_otw_types.h"
 
@@ -345,18 +346,6 @@ M0_INTERNAL int m0_fop_xc_type(const struct m0_xcode_obj   *par,
 
 M0_INTERNAL int m0_fop_rep_xc_type(const struct m0_xcode_obj   *par,
 				   const struct m0_xcode_type **out);
-
-/**
- * fol record fragment for a fop.
- */
-struct m0_fop_fol_frag {
-	/** m0_fop_type::ft_rpc_item_type::rit_opcode of fop. */
-	uint32_t  ffrp_fop_code;
-	/** m0_fop_type::ft_rpc_item_type::rit_opcode of fop. */
-	uint32_t  ffrp_rep_code;
-	void	 *ffrp_fop M0_XCA_OPAQUE("m0_fop_xc_type");
-	void	 *ffrp_rep M0_XCA_OPAQUE("m0_fop_rep_xc_type");
-} M0_XCA_RECORD;
 
 /**
  * Adds fol record fragment for this fop (m0_fop_fol_frag)
