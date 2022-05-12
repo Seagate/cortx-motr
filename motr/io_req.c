@@ -1734,9 +1734,9 @@ static int ioreq_dgmode_write(struct m0_op_io *ioo, bool rmw)
 		ioo->ioo_rc = 0;
 
 		M0_LOG(M0_NOTICE, "user data written with degraded redundancy: "
-				  "off=%lu len=%lu failed_devs=%d",
-				  INDEX(&ioo->ioo_ext, 0),
-				  m0_vec_count(&ioo->ioo_ext.iv_vec), rc);
+		       "off=%" PRIu64 " len=%" PRIu64 " failed_devs=%d",
+		       INDEX(&ioo->ioo_ext, 0),
+		       m0_vec_count(&ioo->ioo_ext.iv_vec), rc);
 
 		return M0_RC(0);
 	}
