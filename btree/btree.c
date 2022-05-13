@@ -2164,7 +2164,7 @@ static int64_t bnode_get(struct node_op *op, struct td *tree,
 		nt->nt_opaque_set(addr, node);
 		ndlist_tlink_init_at(op->no_node, &btree_active_nds);
 
-		if ((!IS_INTERNAL_NODE(op->no_node)) &&
+		if (!(IS_INTERNAL_NODE(op->no_node)) &&
 		    bnode_crctype_get(op->no_node) != M0_BCT_NO_CRC) {
 			bnode_crc_validate(op->no_node);
 		}
@@ -2875,7 +2875,7 @@ static void ff_val_resize(struct slot *slot, int vsize_diff)
 	struct ff_head  *h     = ff_data(slot->s_node);
 
 	M0_PRE(vsize_diff == 0);
-	M0_PRE(!IS_INTERNAL_NODE(slot->s_node));
+	M0_PRE(!(IS_INTERNAL_NODE(slot->s_node)));
 	M0_PRE(slot->s_idx < h->ff_used && h->ff_used > 0);
 }
 
@@ -3891,7 +3891,7 @@ static void fkvv_val_resize(struct slot *slot, int vsize_diff)
 	int               total_val_size;
 	int               i;
 
-	M0_PRE(!IS_INTERNAL_NODE(slot->s_node));
+	M0_PRE(!(IS_INTERNAL_NODE(slot->s_node)));
 	M0_PRE(slot->s_idx < h->fkvv_used && h->fkvv_used > 0);
 
 	curr_val_offset = fkvv_val_offset_get(slot->s_node, slot->s_idx);
@@ -9428,8 +9428,8 @@ static int ut_btree_kv_get_cb(struct m0_btree_cb *cb, struct m0_btree_rec *rec)
 				if (i++ == 1)
 					continue;
 
-					if (key != value)
-						M0_ASSERT(0);
+				if (key != value)
+					M0_ASSERT(0);
 			}
 		}
 	}
