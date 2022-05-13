@@ -2308,6 +2308,7 @@ sem_fini:
 	m0_semaphore_fini(&proc->sci_barrier);
 obj_close:
 	m0_confc_close(proc_obj);
+	m0_free(proc);
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_spiel_proc_counters_fetch);
