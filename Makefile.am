@@ -784,7 +784,6 @@ bin_SCRIPTS   += utils/m0confgen \
                  utils/m0hagen
 
 sbin_SCRIPTS  += utils/m0gendisks \
-                 utils/m0genfacts \
                  utils/m0reportbug \
                  utils/m0run \
                  utils/m0setup \
