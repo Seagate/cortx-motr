@@ -43,7 +43,6 @@
 #include "mdservice/md_fid.h"
 #include "rm/rm_service.h"                 /* m0_rms_type */
 #include "sns/cm/repair/ag.h"
-#include "sns/cm/rebalance/ag.c"
 #include "sns/cm/cm.h"
 #include "sns/cm/file.h"
 #include "sns/cm/repair/ut/cp_common.h"
@@ -69,7 +68,7 @@ static struct m0_fom_simple     iter_fom;
 static struct m0_fom_timeout    iter_fom_timeout;
 static struct m0_semaphore      iter_sem;
 static const struct m0_fid      M0_SNS_CM_REPAIR_UT_PVER = M0_FID_TINIT('v', 1, 8);
-static enum m0_cm_op op;
+static enum m0_cm_op            op;
 
 static struct m0_sm_state_descr iter_ut_fom_phases[] = {
 	[M0_FOM_PHASE_INIT] = {
@@ -299,9 +298,9 @@ static void rebalance_ag_destroy(const struct m0_tl_descr *descr, struct m0_tl *
 
 	m0_tlist_for(descr, head, ag) {
 		M0_CNT_INC(ag->cag_freed_cp_nr);
-		can_fini_ag = rebalance_ag_can_fini(ag);
+		can_fini_ag = ag->cag_ops->cago_ag_can_fini(ag);
 		M0_UT_ASSERT(can_fini_ag);
-		rebalance_ag_fini(ag);
+		ag->cag_ops->cago_fini(ag);
 	} m0_tlist_endfor;
 }
 
