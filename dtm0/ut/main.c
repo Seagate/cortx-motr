@@ -582,7 +582,6 @@ static void log_subset_verify(struct ut_remach *um,
 	struct m0_buf             *b_buf;
 	struct m0_dtm0_tid        *tid;
 	int                        rc;
-	bool                       has_next = true;
 	uint64_t                   actual_records_nr = 0;
 
 	m0_mutex_lock(&a_log->dl_lock);
@@ -590,23 +589,22 @@ static void log_subset_verify(struct ut_remach *um,
 
 	m0_be_dtm0_log_iter_init(&a_iter, a_log);
 
-	while (has_next) {
+	while (true) {
 		rc = m0_be_dtm0_log_iter_next(&a_iter, &a_record);
-		M0_UT_ASSERT(rc >= 0);
-		has_next = rc > 0;
-		if (has_next) {
-			tid = &a_record.dlr_txd.dtd_id;
-			b_record = m0_be_dtm0_log_find(b_log, tid);
-			M0_UT_ASSERT(b_record != NULL);
-			a_buf = &a_record.dlr_payload;
-			b_buf = &b_record->dlr_payload;
-			M0_UT_ASSERT(equi(m0_buf_is_set(a_buf),
-					   m0_buf_is_set(b_buf)));
-			M0_UT_ASSERT(ergo(m0_buf_is_set(a_buf),
-					  m0_buf_eq(a_buf, b_buf)));
-			m0_dtm0_log_iter_rec_fini(&a_record);
-			actual_records_nr++;
-		}
+		M0_UT_ASSERT(M0_IN(rc, (0, -ENOENT)));
+		if (rc == -ENOENT)
+			break;
+		M0_UT_ASSERT(rc == 0);
+		tid = &a_record.dlr_txd.dtd_id;
+		b_record = m0_be_dtm0_log_find(b_log, tid);
+		M0_UT_ASSERT(b_record != NULL);
+		a_buf = &a_record.dlr_payload;
+		b_buf = &b_record->dlr_payload;
+		M0_UT_ASSERT(equi(m0_buf_is_set(a_buf), m0_buf_is_set(b_buf)));
+		M0_UT_ASSERT(ergo(m0_buf_is_set(a_buf),
+				  m0_buf_eq(a_buf, b_buf)));
+		m0_dtm0_log_iter_rec_fini(&a_record);
+		actual_records_nr++;
 	}
 
 	M0_UT_ASSERT(ergo(expected_records_nr >= 0,
