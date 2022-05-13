@@ -2258,6 +2258,8 @@ static void bnode_crc_validate(struct nd *node)
 					 "data corruption for object with \
 					  possible key: %d..., hence removing \
 					  the object", *(int*)p_key);
+		
+			// M0_LOG(M0_ALWAYS,"DO NOT DEL !!!!!!!!!!!");
 			bnode_del(node_slot.s_node, node_slot.s_idx);
 		}
 	}
@@ -2496,6 +2498,7 @@ static void bnode_op_fini(struct node_op *op)
 /**
  *  Structure of the directory entry.
  */
+
 struct ff_dir_entry {
 	/* Record offset. In fixed format, key and value are stored together. */
 	uint32_t ff_roff;
@@ -2659,6 +2662,11 @@ static void *ff_key(const struct nd *node, int idx)
 		return (void*)de + h->ff_ksize * idx;
 }
 
+M0_UNUSED static uint64_t ff_dbg_key(const struct nd *node, int idx)
+{
+	return m0_byteorder_cpu_to_be64(*((uint64_t*)(ff_key(node, idx))));
+}
+
 static void *ff_val(const struct nd *node, int idx)
 {
 	void                *node_start_addr = ff_data(node);
@@ -2808,8 +2816,9 @@ static void ff_dir_init(const struct nd *node)
 		de[i].ff_roff = dir_size + (i * kv_size);
 }
 
-static void ff_dir_update(struct ff_head *h, int idx, bool op_del)
+static void ff_dir_update(const struct nd *node, int idx, bool op_del)
 {
+	struct ff_head      *h = ff_data(node);
 	struct ff_dir_entry *de;
 	uint32_t             tmp_roff;
 	int                  i;
@@ -3075,7 +3084,7 @@ static void ff_make(struct slot *slot)
 	}
 
 	if (IS_EMBEDDED_INDIRECT(slot->s_node))
-		ff_dir_update(h, slot->s_idx, false);
+		ff_dir_update(slot->s_node, slot->s_idx, false);
 	else {
 		if (h->ff_level == 0 &&
 		ff_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
@@ -3100,7 +3109,7 @@ static void ff_make(struct slot *slot)
 static bool ff_newval_isfit(struct slot *slot, struct m0_btree_rec *old_rec,
 			    struct m0_btree_rec *new_rec)
 {
-	M0_ASSERT(m0_vec_count(&new_rec->r_val.ov_vec) == 
+	M0_ASSERT(m0_vec_count(&new_rec->r_val.ov_vec) ==
 		  			  m0_vec_count(&old_rec->r_val.ov_vec));
 	return true;
 }
@@ -3146,7 +3155,7 @@ static void ff_del(const struct nd *node, int idx)
 	}
 
 	if (IS_EMBEDDED_INDIRECT(node))
-		ff_dir_update(h, idx, true);
+		ff_dir_update(node, idx, true);
 	else {
 		if (h->ff_level == 0 &&
 		ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
@@ -3298,38 +3307,28 @@ static void ff_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
 		crc_size = CRC_VALUE_SIZE;
 
 	if (IS_EMBEDDED_INDIRECT(slot->s_node)) {
-		int de_nr;
-		int de_size;
+		int de_nr   = h->ff_max_recs;
+		int de_size = sizeof(struct ff_dir_entry) * de_nr;
 
 		if (cr == CR_ALL) {
-			de_nr       = h->ff_max_recs;
-			de_size     = sizeof(struct ff_dir_entry) * de_nr;
-			kv_cap_size = h->ff_nsize - sizeof(struct ff_head);
+			kv_cap_size = h->ff_used *
+				      (h->ff_ksize + ff_valsize(slot->s_node) +
+				       crc_size);
 
-			M0_BTREE_TX_CAPTURE(tx, seg, &de[0], kv_cap_size);
+			M0_BTREE_TX_CAPTURE(tx, seg, &de[0], de_size);
+			M0_BTREE_TX_CAPTURE(tx, seg, ff_key(slot->s_node, 0),
+					    kv_cap_size);
 		} else if (cr == CR_NONE) {
-			de_nr = h->ff_used - slot->s_idx;
-			de_size = sizeof(struct ff_dir_entry) * de_nr;
-
-			if (de_size != 0)
-				M0_BTREE_TX_CAPTURE(tx, seg, &de[slot->s_idx],
-						    de_size);
+			if (h->ff_max_recs != 0)
+				M0_BTREE_TX_CAPTURE(tx, seg, &de[0], de_size);
 
 			if (h->ff_opaque == NULL)
 				hsize += sizeof(h->ff_opaque);
 		} else {
-			de_nr = h->ff_used == 1 ? h->ff_max_recs :
-				(h->ff_used - slot->s_idx);
-			de_size = sizeof(struct ff_dir_entry) * de_nr;
 			kv_cap_size = h->ff_ksize + ff_valsize(slot->s_node) +
 				      crc_size;
 
-			if (h->ff_used == 1)
-				M0_BTREE_TX_CAPTURE(tx, seg, &de[0], de_size);
-			else
-				M0_BTREE_TX_CAPTURE(tx, seg, &de[slot->s_idx],
-						    de_size);
-
+			M0_BTREE_TX_CAPTURE(tx, seg, &de[0], de_size);
 			M0_BTREE_TX_CAPTURE(tx, seg,
 					    ff_key(slot->s_node, slot->s_idx),
 					    kv_cap_size);
@@ -6961,6 +6960,10 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	void                   *p_key;
 	m0_bcount_t             vsize;
 	void                   *p_val;
+	m0_bcount_t             outksize;
+	void                   *p_outkey;
+	m0_bcount_t             outvsize;
+	void                   *p_outval;
 	int                     curr_max_level = bnode_level(lev->l_node);
 	struct slot             node_slot;
 
@@ -6985,6 +6988,22 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	bnode_move(lev->l_node, oi->i_extra_node, D_RIGHT, NR_MAX);
 	M0_ASSERT(bnode_count_rec(lev->l_node) == 0);
 
+	REC_INIT(&bop->bo_rec, &p_outkey, &outksize, &p_outval, &outvsize);
+	p_outval = &(lev->l_alloc->n_addr);
+	outvsize  = INTERNAL_NODE_VALUE_SIZE;
+
+	if (curr_max_level == 0) {
+		node_slot.s_node = oi->i_extra_node;
+		node_slot.s_idx  = 0;
+		node_slot.s_rec  = bop->bo_rec;
+		bnode_key(&node_slot);
+
+	} else {
+		node_slot.s_node = lev->l_alloc;
+		node_slot.s_idx = bnode_count(node_slot.s_node);
+		node_slot.s_rec  = bop->bo_rec;
+		bnode_key(&node_slot);
+	}
 	bnode_set_level(lev->l_node, curr_max_level + 1);
 
 	/* 2) add new 2 records at root node. */
@@ -10536,7 +10555,7 @@ static void ut_multi_stream_kv_oper(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
 							     &btree_type,
 							     M0_BCT_NO_CRC,
-							     EMBEDDED_RECORD,
+							     EMBEDDED_INDIRECT,
 							     &b_op, &btree, seg,
 							     &fid, tx, NULL));
 	M0_ASSERT(rc == M0_BSC_SUCCESS);
@@ -14052,6 +14071,12 @@ static void ut_btree_crc_persist_indir_test(void)
 	}
 
 }
+
+/**
+ * Uncomment below code to test btree_multi_stream_traversal ut. Remove the
+ * below code once testing is done for all node format.
+ */
+#if 0
 void get_key_at_index(struct nd *node, int idx, uint64_t *key)
 {
 	struct slot          slot;
@@ -14073,11 +14098,6 @@ void get_key_at_index(struct nd *node, int idx, uint64_t *key)
 	if (key != NULL)
 		*key = *(uint64_t *)p_key;
 }
-/**
- * Uncomment below code to test btree_multi_stream_traversal ut. Remove the
- * below code once testing is done for all node format.
- */
-#if 0
 void get_rec_at_index(struct nd *node, int idx, uint64_t *key,  uint64_t *val)
 {
 	struct slot          slot;
