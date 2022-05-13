@@ -1241,6 +1241,8 @@ static void bnode_child(struct slot *slot, struct segaddr *addr);
 static bool bnode_isfit(struct slot *slot);
 static void bnode_done(struct slot *slot, bool modified);
 static void bnode_make(struct slot *slot);
+static bool bnode_newval_isfit(struct slot *slot, struct m0_btree_rec *old_rec,
+			       struct m0_btree_rec *new_rec);
 static void bnode_val_resize(struct slot *slot, int vsize_diff,
 			     struct m0_btree_rec *new_rec);
 
@@ -3693,7 +3695,7 @@ static struct fkvv_head *fkvv_data(const struct nd *node)
 
 static void *fkvv_dir_get(const struct segaddr *addr)
 {
-	struct fkvv_head    *h = segaddr_addr(addr);
+	struct fkvv_head *h = segaddr_addr(addr);
 	return ((void *)h + h->fkvv_dir_offset);
 }
 
@@ -4003,9 +4005,8 @@ static void *fkvv_key(const struct nd *node, int idx)
 
 	key_offset = key_offset_get(node, idx);
 
-	if (IS_EMBEDDED_INDIRECT(node)) {
+	if (IS_EMBEDDED_INDIRECT(node))
 		return (void*)h + key_offset;
-	}
 
 	return key_start_addr + key_offset;
 }
@@ -4306,10 +4307,11 @@ static void fkvv_dir_shift(const struct nd *node, int shift_size)
 
 static void fkvv_make_emb_ind(struct slot *slot)
 {
-	struct fkvv_head    *h = fkvv_data(slot->s_node);
-	int ksize              = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
-	int vsize              = m0_vec_count(&slot->s_rec.r_val.ov_vec);
-	int shift              = 0;
+	struct fkvv_head    *h     = fkvv_data(slot->s_node);
+	int                  ksize = m0_vec_count(&slot->s_rec.r_key.k_data.ov_vec);
+	int                  vsize =
+				m0_vec_count(&slot->s_rec.r_val.ov_vec);
+	int                  shift = 0;
 	struct fkvv_dir_rec  dir_entry;
 	struct fkvv_dir_rec *dir;
 	int                  out_idx;
@@ -4323,9 +4325,8 @@ static void fkvv_make_emb_ind(struct slot *slot)
 
 	out_idx = fkvv_dir_free_idx_get(slot->s_node, &slot->s_rec, &shift);
 	M0_ASSERT(out_idx >= 0);
-	if (shift != 0) {
+	if (shift != 0)
 		fkvv_dir_shift(slot->s_node, shift);
-	}
 
 	dir = fkvv_dir_get(&slot->s_node->n_addr);
 	dir_entry.key_offset = dir[out_idx].key_offset;
@@ -4401,8 +4402,8 @@ static bool fkvv_newval_isfit(struct slot *slot, struct m0_btree_rec *old_rec,
 static void fkvv_val_resize(struct slot *slot, int vsize_diff,
 			    struct m0_btree_rec *new_rec)
 {
-	const struct nd  *node  = slot->s_node;
-	struct fkvv_head *h     = fkvv_data(node);
+	const struct nd  *node = slot->s_node;
+	struct fkvv_head *h    = fkvv_data(node);
 	void             *val_addr;
 	uint32_t         *curr_val_offset;
 	uint32_t         *last_val_offset;
@@ -4537,9 +4538,9 @@ static void fkvv_del_leaf(const struct nd *node, int idx)
 
 static void fkvv_del_emb_ind(const struct nd *node, int idx)
 {
-	struct fkvv_head    *h            = fkvv_data(node);
-	struct fkvv_dir_rec *dir          = fkvv_dir_get(&node->n_addr);
-	struct fkvv_dir_rec  dir_ent      = dir[idx];
+	struct fkvv_head    *h       = fkvv_data(node);
+	struct fkvv_dir_rec *dir     = fkvv_dir_get(&node->n_addr);
+	struct fkvv_dir_rec  dir_ent = dir[idx];
 	int                  freed_ent;
 	int                  i;
 	int                  bytes_to_move;
