@@ -111,10 +111,17 @@ enum ut_sides {
 	UT_SIDE_NR
 };
 
+enum ut_client_persistence {
+	UT_CP_UNSPECIFIED,
+	UT_CP_VOLATILE_CLIENT,
+	UT_CP_PERSISTENT_CLIENT,
+};
+
 struct m0_fid g_service_fids[UT_SIDE_NR];
 
 struct ut_remach {
 	bool                             use_real_log;
+	enum ut_client_persistence       cp;
 
 	struct m0_ut_dtm0_helper         udh;
 
@@ -451,7 +458,7 @@ static void ut_remach_start(struct ut_remach *um)
 	int           rc;
 	bool          is_volatile[UT_SIDE_NR] = {
 		[UT_SIDE_SRV] = false,
-		[UT_SIDE_CLI] = false,
+		[UT_SIDE_CLI] = um->cp == UT_CP_VOLATILE_CLIENT,
 	};
 
 	m0_ut_remach_populate(ut_remach_get(um, UT_SIDE_CLI), um->cli_procs,
@@ -473,6 +480,9 @@ static void ut_remach_init(struct ut_remach *um)
 {
 	int i;
 
+	M0_UT_ASSERT(M0_IN(um->cp, (UT_CP_PERSISTENT_CLIENT,
+				    UT_CP_VOLATILE_CLIENT)));
+
 	for (i = 0; i < ARRAY_SIZE(um->recovered); ++i) {
 		m0_be_op_init(um->recovered + i);
 		m0_be_op_active(um->recovered + i);
@@ -481,7 +491,8 @@ static void ut_remach_init(struct ut_remach *um)
 	m0_fi_enable("m0_dtm0_in_ut", "ut");
 	m0_fi_enable("is_manual_ss_enabled", "ut");
 	m0_fi_enable("m0_dtm0_is_expecting_redo_from_client", "ut");
-	m0_fi_enable("is_svc_volatile", "always_false");
+	if (um->cp == UT_CP_PERSISTENT_CLIENT)
+		m0_fi_enable("is_svc_volatile", "always_false");
 
 	m0_ut_dtm0_helper_init(&um->udh);
 
@@ -504,7 +515,8 @@ static void ut_remach_fini(struct ut_remach *um)
 	ut_cli_remach_fini(um);
 	ut_srv_remach_fini(um);
 	m0_ut_dtm0_helper_fini(&um->udh);
-	m0_fi_disable("is_svc_volatile", "always_false");
+	if (um->cp == UT_CP_PERSISTENT_CLIENT)
+		m0_fi_disable("is_svc_volatile", "always_false");
 	m0_fi_disable("m0_dtm0_is_expecting_redo_from_client", "ut");
 	m0_fi_disable("is_manual_ss_enabled", "ut");
 	m0_fi_disable("m0_dtm0_in_ut", "ut");
@@ -617,7 +629,7 @@ static void log_subset_verify(struct ut_remach *um,
 /* Case: Ensure the machine initialised properly. */
 static void remach_init_fini(void)
 {
-	struct ut_remach um = {};
+	struct ut_remach um = { .cp = UT_CP_PERSISTENT_CLIENT };
 	ut_remach_init(&um);
 	ut_remach_fini(&um);
 }
@@ -625,7 +637,7 @@ static void remach_init_fini(void)
 /* Case: Ensure the machine is able to start/stop. */
 static void remach_start_stop(void)
 {
-	struct ut_remach um = {};
+	struct ut_remach um = { .cp = UT_CP_PERSISTENT_CLIENT };
 	ut_remach_init(&um);
 	ut_remach_start(&um);
 	ut_remach_stop(&um);
@@ -669,18 +681,28 @@ static void ut_remach_shutdown(struct ut_remach *um)
 }
 
 /* Use-case: gracefull boot and shutdown of 2-node cluster. */
-static void remach_boot_cluster(void)
+static void remach_boot_cluster(enum ut_client_persistence cp)
 {
-	struct ut_remach um = {};
+	struct ut_remach um = { .cp = cp };
 
 	ut_remach_boot(&um);
 	ut_remach_shutdown(&um);
 }
 
+static void remach_boot_cluster_ss(void)
+{
+	remach_boot_cluster(UT_CP_PERSISTENT_CLIENT);
+}
+
+static void remach_boot_cluster_cs(void)
+{
+	remach_boot_cluster(UT_CP_VOLATILE_CLIENT);
+}
+
 /* Use-case: re-boot an ONLINE node. */
 static void remach_reboot_server(void)
 {
-	struct ut_remach um = {};
+	struct ut_remach um = { .cp = UT_CP_PERSISTENT_CLIENT };
 
 	ut_remach_boot(&um);
 
@@ -702,7 +724,7 @@ static void remach_reboot_server(void)
 /* Use-case: reboot a node when it started to recover. */
 static void remach_reboot_twice(void)
 {
-	struct ut_remach um = {};
+	struct ut_remach um = { .cp = UT_CP_PERSISTENT_CLIENT };
 
 	ut_remach_boot(&um);
 
@@ -739,7 +761,10 @@ static void remach_reboot_twice(void)
 /* Use-case: replay an empty DTM0 log. */
 static void remach_boot_real_log(void)
 {
-	struct ut_remach um = { .use_real_log = true };
+	struct ut_remach um = {
+		.cp = UT_CP_PERSISTENT_CLIENT,
+		.use_real_log = true
+	};
 	ut_remach_boot(&um);
 	ut_remach_shutdown(&um);
 }
@@ -747,7 +772,10 @@ static void remach_boot_real_log(void)
 /* Use-case: replay a non-empty client log to the server. */
 static void remach_real_log_replay(void)
 {
-	struct ut_remach um = { .use_real_log = true };
+	struct ut_remach um = {
+		.cp = UT_CP_PERSISTENT_CLIENT,
+		.use_real_log = true
+	};
 	/* cafe bell */
 	const uint64_t since = 0xCAFEBELL;
 	const uint64_t records_nr = 10;
@@ -783,12 +811,12 @@ struct m0_ut_suite dtm0_ut = {
 		{ "domain_init-fini",      &m0_dtm0_ut_domain_init_fini },
 		{ "remach-init-fini",       remach_init_fini      },
 		{ "remach-start-stop",      remach_start_stop     },
-		{ "remach-boot-cluster",    remach_boot_cluster   },
+		{ "remach-boot-cluster-ss", remach_boot_cluster_ss },
+		{ "remach-boot-cluster-cs", remach_boot_cluster_cs },
 		{ "remach-reboot-server",   remach_reboot_server  },
 		{ "remach-reboot-twice",    remach_reboot_twice   },
 		{ "remach-boot-real-log",   remach_boot_real_log  },
 		{ "remach-real-log-replay", remach_real_log_replay  },
-		/* TODO: boot-cluster-ss & boot-cluster-cs */
 		{ NULL, NULL },
 	}
 };
