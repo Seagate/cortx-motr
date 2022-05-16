@@ -274,16 +274,16 @@ get_dev_id_from_dev_name()
                 exit
         fi
 
-        dev_idx=$(grep "$DEV_PATH" "$conf_cg" | head -1 | awk '{print $1}' | cut -d '-' -f2)
+        dev_idx=$(grep "$DEV_PATH" "$conf_cg" | head -1 | awk '{print $1}' | cut -d '(' -f2)
         if [ ! -z "$dev_idx" ]; then
-                DEVICE_ID=$(cat "$CONF_FILE" | grep "\^d|1:${dev_idx}," | cut -d : -f 2 | cut -d ')' -f1)
+                DEVICE_ID=$(grep "${dev_idx}" "$conf_cg" | grep drive | awk '{print $1}' | cut -d '-' -f2)
         fi
         if [ -z "$DEVICE_ID" ]; then
                 echo "Couldn't retrieve device id for $DEV_PATH"
                 exit
         fi
         if [[ $DEVICE_ID == "0x"* ]]; then
-                DEVICE_ID=$(echo $DEVICE_ID | cut -d 'x' -f 2)
+                DEVICE_ID=$(echo $DEVICE_ID | cut -d 'x' -f2)
                 DEVICE_ID=$((16#$DEVICE_ID))
         fi
         echo "Device id for $DEV_PATH is : $DEVICE_ID"

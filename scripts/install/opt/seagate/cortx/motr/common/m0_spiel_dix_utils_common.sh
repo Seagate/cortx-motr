@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+# Copyright (c) 2022 Seagate Technology LLC and/or its Affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,9 +49,9 @@ ppstatus = pointer(one_status)
 active = 0
 while (1):
     active = 0
-    rc = spiel.dix_repair_status(fids['pool'], ppstatus)
-    print ("dix repair status responded servers: " + str(rc))
-    for i in range(0, rc):
+    nr = spiel.dix_repair_status(fids['pool'], ppstatus)
+    print ("dix repair status responded servers: " + str(nr))
+    for i in range(0, nr):
         print ("status of ", ppstatus[i].sss_fid, " is: ", ppstatus[i].sss_state)
         if (ppstatus[i].sss_state == 2) :
             print ("dix is still active on ", ppstatus[i].sss_fid)
@@ -75,9 +75,9 @@ $SPIEL_RCONF_START
 
 one_status = SpielSnsStatus()
 ppstatus = pointer(one_status)
-rc = spiel.dix_repair_status(fids['pool'], ppstatus)
-print ("dix repair status responded servers: " + str(rc))
-for i in range(0, rc):
+nr = spiel.dix_repair_status(fids['pool'], ppstatus)
+print ("dix repair status responded servers: " + str(nr))
+for i in range(0, nr):
         print("status of ", ppstatus[i].sss_fid, " is: ", ppstatus[i].sss_state)
         if (ppstatus[i].sss_state == 2) :
                 print("dix repair is still active on ", ppstatus[i].sss_fid)
@@ -115,9 +115,9 @@ ppstatus = pointer(one_status)
 active = 0
 while (1):
     active = 0
-    rc = spiel.dix_rebalance_status(fids['pool'], ppstatus)
-    print ("dix rebalance status responded servers: " + str(rc))
-    for i in range(0, rc):
+    nr = spiel.dix_rebalance_status(fids['pool'], ppstatus)
+    print ("dix rebalance status responded servers: " + str(nr))
+    for i in range(0, nr):
         print ("status of ", ppstatus[i].sss_fid, " is: ", ppstatus[i].sss_state)
         if (ppstatus[i].sss_state == 2) :
             print ("dix is still active on ", ppstatus[i].sss_fid)
@@ -141,9 +141,9 @@ $SPIEL_RCONF_START
 
 one_status = SpielSnsStatus()
 ppstatus = pointer(one_status)
-rc = spiel.dix_rebalance_status(fids['pool'], ppstatus)
-print ("dix rebalance status responded servers: " + str(rc))
-for i in range(0, rc):
+nr = spiel.dix_rebalance_status(fids['pool'], ppstatus)
+print ("dix rebalance status responded servers: " + str(nr))
+for i in range(0, nr):
         print("status of ", ppstatus[i].sss_fid, " is: ", ppstatus[i].sss_state)
         if (ppstatus[i].sss_state == 2) :
                 print("dix rebalance is still active on ", ppstatus[i].sss_fid)

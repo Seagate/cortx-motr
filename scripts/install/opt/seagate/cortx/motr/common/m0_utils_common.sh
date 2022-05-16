@@ -105,13 +105,13 @@ _get_client_endpoints()
                 DIX_QUIESCE_CLI_EP=":12345:33:1005"
                 DIX_SPIEL_CLI_EP=":12345:33:1006"
         else
-                M0HAM_CLI_EP="@10003"
-                SNS_CLI_EP="@3400"
+                M0HAM_CLI_EP="@10000"
+                SNS_CLI_EP="@10001"
                 SNS_QUIESCE_CLI_EP="@10002"
-                SNS_SPIEL_CLI_EP="@3401"
-                DIX_CLI_EP="@3402"
-                DIX_QUIESCE_CLI_EP="@10004"
-                DIX_SPIEL_CLI_EP="@3403"
+                SNS_SPIEL_CLI_EP="@10003"
+                DIX_CLI_EP="@10004"
+                DIX_QUIESCE_CLI_EP="@10005"
+                DIX_SPIEL_CLI_EP="@10006"
         fi
 }
 
@@ -471,30 +471,55 @@ run()
         eval "$*"
 }
 
+# Set the service type depending on the service being used now.
+# Currently supported services are SNS and DIX.
+# input parameters:
+# (i) name of the service DIX / SNS
 set_service_type()
 {
         [[ "$1" == "DIX" ]] && SERVICE_TYPE=1 || SERVICE_TYPE=0
 }
 
+# Finds confd.xc in cluster
+# input parameters: - None
+_get_confd_xc()
+{
+        declare -a confd_xc_paths=("/etc/cortx/motr" "/var/lib/hare")
+        local conf_file=""
+
+        for i in "${confd_xc_paths[@]}"
+        do
+                if [ -d "$i" ]; then
+                        conf_file=$(find "$i" -name confd.xc | head -n 1)
+                        break
+                fi
+        done
+        echo "$conf_file"
+}
+
+# Generates the conf.cg from confd.xc using m0confgen
 # input parameters:
 # (i) File name with path for conf.cg
 generate_conf_cg()
 {
         local conf_cg_file=$1
+        local confd_xc=""
 
-        CONF_FILE=$(find / -name confd.xc | head -n 1)
-        if [ ! -f "$CONF_FILE" ]; then
-                echo "confd.xc doesn't seem to be present, can't get device id"
+        confd_xc=$(_get_confd_xc)
+        if [ -z "$confd_xc" ]; then
+                echo "Unable to find confd.xc, can't generate $conf_cg_file"
                 exit
         fi
+
         # Generate conf.cg from confd.xc
-        m0confgen -f xcode -t confgen "$CONF_FILE" > "$conf_cg_file"
+        m0confgen -f xcode -t confgen "$confd_xc" > "$conf_cg_file"
         if [ $? -ne 0 ]; then
-                echo "Failed to generate $conf_cg_file from conf.xc"
+                echo "Failed to generate $conf_cg_file from confd.xc"
                 exit
         fi
 }
 
+# Create the command for m0repair depending on the operation to be performed.
 # input parameters:
 # (i) Operation to perform
 get_m0repair_utils_cmd()
@@ -522,6 +547,8 @@ get_m0repair_utils_cmd()
         echo "$cmd_trigger"
 }
 
+# Get DIX pool fid from confd.xc as it is currently not available in
+# 'hctl status' output.
 get_dix_pool_fid()
 {
         local conf_cg="/tmp/conf.cg"
@@ -541,6 +568,7 @@ get_dix_pool_fid()
         echo "$pool"
 }
 
+# Get fids for data / metadata pool, profile and HA endpoint address.
 get_fids_list()
 {
         local HCTL_STATUS_FILE="/tmp/hctl_status.log"
@@ -558,6 +586,10 @@ get_fids_list()
         rm -f "$HCTL_STATUS_FILE"
 }
 
+# This function converts fid to the list format
+# e.g. "0x7200000000000001:0x32" is converted to "Fid(0x7200000000000001, 0x32)"
+# input parameters:
+# (i) fid to put it in list e.g. 0x7200000000000001:0x32
 _create_fid_list()
 {
         IFS=':'
@@ -565,6 +597,7 @@ _create_fid_list()
         echo "Fid(${arrFID[0]}, ${arrFID[1]})"
 }
 
+# This function prepares FIDs and options required for spiel commands.
 spiel_prepare() {
         local cli_ep=""
         local prof_fid_str=""
