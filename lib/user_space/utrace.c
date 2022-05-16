@@ -193,12 +193,16 @@ int m0_trace_set_buffer_size(size_t size)
 static int set_trace_dir(const char *path)
 {
 	int rc;
+        m0_time_t stamp = m0_time_now();
+        time_t    ts    = m0_time_seconds(stamp);
+        struct tm tm;
 
 	if (path == NULL)
 		return 0;
-
-	rc = snprintf(trace_file_path, sizeof trace_file_path, "%s/m0trace.%u",
-		      path, m0_pid_cached);
+        localtime_r(&ts, &tm);
+	rc = snprintf(trace_file_path, sizeof trace_file_path, "%s/m0trace.%u.%04d-%02d-%02d-%02d:%02d:%02d",
+		      path, m0_pid_cached, tm.tm_year + 1900,
+                      tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	if (rc < 0) {
 		warn("ignoring environment variable M0_TRACE_DIR - failed"
 		     " to construct trace file path");
