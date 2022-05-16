@@ -151,6 +151,7 @@ static void cm_init_failure_ut(void)
 	/* Set the global cm_ut_service pointer to NULL */
 	cm_ut_service = NULL;
 	ut_cm_id = 0;
+	M0_ASSERT(cm_ut[ut_cm_id].ut_cm.cm_sw_update.swu_fom.fo_cb.fc_ast.sa_cb == NULL);
 	M0_SET0(&cm_ut[ut_cm_id].ut_cm);
 	M0_UT_ASSERT(rc != 0);
 }
@@ -302,6 +303,7 @@ static void cm_ag_ut(void)
 	test_ready_fop = false;
 	M0_UT_ASSERT(ut_cm_id == 0);
 	cm = &cm_ut[ut_cm_id].ut_cm;
+	M0_SET0(cm);
 	cm_ut_service_alloc_init(m0_cs_reqh_get(&cm_ut_sctx.rsx_motr_ctx));
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
@@ -309,6 +311,8 @@ static void cm_ag_ut(void)
 	m0_cm_lock(cm);
 	/* Populate ag & ag ids with test values. */
 	for(i = AG_ID_NR - 1, j = 0; i >= 0 ; --i, ++j) {
+		M0_SET0(&ag_ids[j]);
+		M0_SET0(&ags[j]);
 		ag_id_assign(&ag_ids[j], i, i, i, i);
 		m0_cm_aggr_group_init(&ags[j], cm, &ag_ids[j],
 				      false, &cm_ag_ut_ops);
