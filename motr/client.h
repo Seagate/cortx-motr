@@ -573,15 +573,16 @@ enum m0_idx_opcode {
  */
 enum m0_op_obj_flags {
 	/**
-	 * Read operation should not see any holes. If a hole is met during
-	 * read, return error instead.
+	 * If a hole is met during read, return zeros instead of error.
+	 * WARNING: this might result in a corrupted data, when the hole was
+	 * caused by some error during write. So it's better to verify it.
 	 */
-	M0_OOF_NOHOLE = 1 << 0,
+	M0_OOF_HOLE = 1 << 0,
 	/**
 	 * Write, alloc and free operations wait for the transaction to become
 	 * persistent before returning.
 	 */
-	M0_OOF_SYNC   = 1 << 1
+	M0_OOF_SYNC = 1 << 1
 } M0_XCA_ENUM;
 
 /**
@@ -1451,7 +1452,7 @@ void m0_obj_idx_init(struct m0_idx       *idx,
  *                       (m0_vec_count(&ext->iv_vec) >> obj->ob_attr.oa_bshift)
  * @pre ergo(M0_IN(opcode, (M0_OC_ALLOC, M0_OC_FREE)),
  *           data == NULL && attr == NULL && mask == 0)
- * @pre ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOHOLE)))
+ * @pre ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_HOLE)))
  * @pre ergo(opcode != M0_OC_READ, M0_IN(flags, (0, M0_OOF_SYNC)))
  *
  * @post ergo(*op != NULL, *op->op_code == opcode &&

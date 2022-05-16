@@ -640,6 +640,8 @@ static void test_multi_cp_multi_failures(void)
 	m0_fi_disable("m0_sns_cm_tgt_ep", "local-ep");
 }
 
+static struct m0_motr sctxx;
+
 /*
  * Initialises the request handler since copy packet fom has to be tested using
  * request handler infrastructure.
@@ -650,6 +652,7 @@ static int xform_init(void)
 
 	M0_SET0(&gob_fid);
 	M0_SET0(&cob_fid);
+	M0_SET0(&sctxx);
 
 	reqh = NULL;
 	pdlay = NULL;
@@ -692,13 +695,13 @@ static int xform_init(void)
 	M0_SET_ARR0(n_buf);
 	M0_SET_ARR0(n_acc_buf);
 
-	rc = cs_init(&sctx);
+	rc = cs_init(&sctxx);
 	M0_ASSERT(rc == 0);
 
 	m0_fid_gob_make(&gob_fid, 0, 4);
 	m0_fid_convert_gob2cob(&gob_fid, &cob_fid, 1);
 
-	reqh = m0_cs_reqh_get(&sctx);
+	reqh = m0_cs_reqh_get(&sctxx);
 	layout_gen(&pdlay, reqh);
 	tgt_fid_cob_create(reqh);
 
@@ -736,7 +739,7 @@ static int xform_fini(void)
 	m0_ios_cdom_get(reqh, &cdom);
 	cob_delete(cdom, reqh->rh_beseg->bs_domain, 0, &gob_fid);
 	layout_destroy(pdlay);
-        cs_fini(&sctx);
+        cs_fini(&sctxx);
         return 0;
 }
 
