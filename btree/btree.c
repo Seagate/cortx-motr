@@ -7009,6 +7009,7 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	/* 2) add new 2 records at root node. */
 
 	/* Add first rec at root */
+	bop->bo_rec.r_val.ov_buf[0] = &(lev->l_alloc->n_addr);
 	node_slot = (struct slot) {
 		.s_node = lev->l_node,
 		.s_idx  = 0
