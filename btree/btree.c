@@ -6731,10 +6731,12 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	void                   *p_key;
 	m0_bcount_t             vsize;
 	void                   *p_val;
+	m0_bcount_t             outksize;
+	void                   *p_outkey;
+	m0_bcount_t             outvsize;
+	void                   *p_outval;
 	int                     curr_max_level = bnode_level(lev->l_node);
 	struct slot             node_slot;
-
-	bop->bo_rec   = *new_rec;
 
 	/**
 	 * When splitting is done at root node, tree height needs to get
@@ -6756,6 +6758,23 @@ static int64_t btree_put_root_split_handle(struct m0_btree_op *bop,
 	M0_ASSERT(bnode_count_rec(lev->l_node) == 0);
 
 	bnode_set_level(lev->l_node, curr_max_level + 1);
+
+	REC_INIT(&bop->bo_rec, &p_outkey, &outksize, &p_outval, &outvsize);
+	p_outval = &(lev->l_alloc->n_addr);
+	outvsize  = INTERNAL_NODE_VALUE_SIZE;
+
+	if (curr_max_level == 0) {
+		node_slot.s_node = oi->i_extra_node;
+		node_slot.s_idx  = 0;
+		node_slot.s_rec  = bop->bo_rec;
+		bnode_key(&node_slot);
+
+	} else {
+		node_slot.s_node = lev->l_alloc;
+		node_slot.s_idx = bnode_count(node_slot.s_node);
+		node_slot.s_rec  = bop->bo_rec;
+		bnode_key(&node_slot);
+	}
 
 	/* 2) add new 2 records at root node. */
 
