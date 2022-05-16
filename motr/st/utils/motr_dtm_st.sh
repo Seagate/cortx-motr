@@ -56,11 +56,18 @@ start_motr()
 {
 	local rc=0
 	local multiple_pools=0
+	local stride=1024
+	local N=$NR_DATA
+	local K=$NR_PARITY
+	local S=$NR_SPARE
+	local P=$POOL_WIDTH
+	local FI_OPTS="m0_ha_msg_accept:in-dtm-st:always"
+
 	echo "Motr service starting..."
 	if [ $verbose == 1 ]; then
-		motr_service start $multiple_pools
+		motr_service start $multiple_pools $stride $N $K $S $P $FI_OPTS
 	else
-		motr_service start $multiple_pools >/dev/null 2>&1
+		motr_service start $multiple_pools $stride $N $K $S $P $FI_OPTS >/dev/null 2>&1
 	fi
 	rc=$?
 	if [ $rc -ne "0" ]

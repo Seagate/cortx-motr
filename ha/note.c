@@ -304,7 +304,7 @@ M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
 	struct m0_fid                obj_fid;
 	int                          i;
 
-	if (ENABLE_DTM0)
+	if (ENABLE_DTM0 && M0_FI_ENABLED("in-dtm-st"))
 		ha_dtm_msg_simulator(msg, hl);
 
 	if (msg->hm_data.hed_type != M0_HA_MSG_NVEC)

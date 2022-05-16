@@ -391,7 +391,7 @@ EOF
 		# spawn ha agent
 		proc_fid="'<"$PROC_FID_CNTR:$ha_key">'"
 		opts="$common_opts -T ad -e $XPRT:${lnet_nid}:$HA_EP \
-		      -c $CONFDB -f $proc_fid ${FI_OPT:-} -H ${lnet_nid}:$HA_EP"
+		      -c $CONFDB -f $proc_fid ${FI_OPT:-} $FI_OPTS -H ${lnet_nid}:$HA_EP"
 		DIR=$MOTR_M0T1FS_TEST_DIR/ha
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
 		local m0d_log=$DIR/m0d.log
@@ -452,7 +452,7 @@ EOF
 			cmd="cd $DIR && exec \
 			$prog_start -T $MOTR_STOB_DOMAIN \
 			$common_opts -e $XPRT:${lnet_nid}:${IOSEP[$i]} \
-                        -f $proc_fid \
+                        -f $proc_fid $FI_OPTS \
 			-H ${lnet_nid}:$HA_EP |& tee -a m0d.log"
 			echo $cmd
 
@@ -468,7 +468,7 @@ EOF
 			cmd="cd $DIR && exec \
 			$prog_start -T $MOTR_STOB_DOMAIN \
 			$common_opts -e $XPRT:${lnet_nid}:$IOS_PVER2_EP \
-                        -f $proc_fid \
+                        -f $proc_fid $FI_OPTS\
 			-H ${lnet_nid}:$HA_EP |& tee -a m0d.log"
 			echo "$cmd"
 
