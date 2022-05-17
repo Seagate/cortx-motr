@@ -12304,6 +12304,8 @@ static void ut_lru_test(void)
 			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 			};
 	struct ut_cb_data           put_data;
+	int                         retry_cnt       = 0;
+	int                         max_retries     = 20;
 	/**
 	 * In this UT, we are testing the functionality of LRU list purge and
 	 * be-allocator with chunk align parameter.
@@ -12317,6 +12319,8 @@ static void ut_lru_test(void)
 	M0_ENTRY();
 
 	btree_ut_init();
+
+start_lru_test:
 	mem_init = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	M0_LOG(M0_INFO,"Mem Init (%"PRId64").\n",mem_init);
 
@@ -12381,6 +12385,59 @@ static void ut_lru_test(void)
 
 	mem_after_alloc = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	mem_increased   = mem_init - mem_after_alloc;
+	if (mem_increased < 0) {
+		retry_cnt++;
+		M0_LOG(M0_INFO, "Memory increased is negative because "
+				"Mem After Alloc (%"PRId64") is greater than "
+				"Mem Init (%"PRId64"), This can "
+				"happen due to other processes in system "
+				"might have released memory, hence cleaning up "
+				"the records and restarting the test.",
+				mem_after_alloc, mem_init);
+
+		/** Cleanup records and tree then restart the test. */
+		for (i = 1; i <= rec_count; i++) {
+			int      k;
+
+			key = m0_byteorder_cpu_to_be64(i);
+			for (k = 0; k < ARRAY_SIZE(value); k++)
+				value[k] = key;
+
+			m0_be_ut_tx_init(tx, ut_be);
+			m0_be_tx_prep(tx, &cred);
+			rc = m0_be_tx_open_sync(tx);
+			M0_ASSERT(rc == 0);
+
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+						m0_btree_del(tree, &rec.r_key,
+								&ut_cb,
+								&kv_op, tx));
+			M0_ASSERT(rc == 0 && put_data.flags == M0_BSC_SUCCESS);
+			m0_be_tx_close_sync(tx);
+			m0_be_tx_fini(tx);
+		}
+
+		m0_be_ut_tx_init(tx, ut_be);
+		m0_be_tx_prep(tx, &cred);
+		rc = m0_be_tx_open_sync(tx);
+		M0_ASSERT(rc == 0);
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree,
+							     &b_op,
+							     tx));
+		M0_ASSERT(rc == M0_BSC_SUCCESS);
+		m0_be_tx_close_sync(tx);
+		m0_be_tx_fini(tx);
+
+		m0_nanosleep(m0_time(2, 0), NULL);
+
+		if (retry_cnt < max_retries)
+			goto start_lru_test;
+		else
+			M0_ASSERT_INFO(mem_increased > 0,
+				       "Memory is still getting freed, hence "
+				       "exiting test with failure.");
+	}
+
 	M0_LOG(M0_INFO, "Mem After Alloc (%"PRId64") || Mem Increase (%"PRId64").\n",
 	       mem_after_alloc, mem_increased);
 
