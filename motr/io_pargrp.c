@@ -1868,6 +1868,8 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 				 * limitation of file size.
 				 */
 				if (map->pi_state == PI_DEGRADED) {
+					if (map->pi_databufs[row][col] != NULL)
+						data_buf_dealloc_fini(map->pi_databufs[row][col]);
 					map->pi_databufs[row][col] =
 					    data_buf_alloc_init(obj, PA_NONE);
 					if (map->pi_databufs[row][col] ==
@@ -2485,7 +2487,6 @@ M0_INTERNAL void pargrp_iomap_fini(struct pargrp_iomap *map,
 	play          = pdlayout_get(map->pi_ioo);
 	map->pi_ops   = NULL;
 	map->pi_rtype = PIR_NONE;
-	map->pi_state = PI_NONE;
 
 	op = &map->pi_ioo->ioo_oo.oo_oc.oc_op;
 	instance = m0__op_instance(op);
@@ -2503,8 +2504,8 @@ M0_INTERNAL void pargrp_iomap_fini(struct pargrp_iomap *map,
 	m0_indexvec_free(&map->pi_ivec);
 
 	for (row = 0; row < rows_nr(play, obj); ++row) {
-		if (map->pi_ioo->ioo_pbuf_type == M0_PBUF_IND &&
-		    map->pi_databufs[row][0] == NULL) {
+		if (map->pi_state == PI_DEGRADED &&
+		    map->pi_databufs[row][0] != NULL) {
 			for (col_r = 0; col_r < layout_k(play); ++col_r) {
 				data_buf_dealloc_fini(map->
 					pi_paritybufs[row][col_r]);
