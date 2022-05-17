@@ -1885,7 +1885,9 @@ static void local_recovery_fom_coro(struct m0_fom *fom)
 		do {
 			M0_CO_FUN(CO(fom), heq_await(fom, &F(state),
 						     &F(eoq)));
-			M0_ASSERT(ergo(!F(eoq), F(state) == M0_NC_ONLINE));
+			M0_ASSERT(ergo(!F(eoq), M0_IN(F(state),
+						      (M0_NC_TRANSIENT,
+						       M0_NC_ONLINE))));
 		} while (!F(eoq));
 	}
 
