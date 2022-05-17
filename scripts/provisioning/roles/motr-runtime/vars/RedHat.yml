@@ -35,8 +35,6 @@ motr_runtime_deps_pkgs:
   - perl-YAML-LibYAML
   - perl-autodie
   - pkgconfig
-  - ruby
-  - rubygem-net-ssh
   - libedit
   - openssl
 
