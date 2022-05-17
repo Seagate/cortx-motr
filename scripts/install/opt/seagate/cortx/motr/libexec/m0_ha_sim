@@ -480,7 +480,6 @@ usage()
         echo "./m0_ha_sim [OPTIONS]"
         echo "[OPTIONS]"
         echo "-t, --type        : Type of operation (drive/repair/rebalance/repreb)"
-	echo "-u, --utility     : Utility to be used for repair/rebalance (m0spiel / m0repair (Default))"
         echo "-o, --ops         : Sub operation of type (abort/pause/resume)"
         echo "-r, --recover-type: Type of recover (SNS (Default) / DIX)"
         echo "-i, --dev-id      : Device id of to failed/replaced device"
@@ -503,7 +502,6 @@ eval set -- "$OPTS"
 while true; do
         case "$1" in
         -t | --type )   TYPE=$2; shift; shift;;
-        -u | --utility )   UTILITY=$2; shift; shift;;
         -o | --ops )   OPERATION=$2; shift; shift;;
         -r | --recover-type)  REC_TYPE=$2; shift; shift;;
         -i | --dev-id ) DEVICE_ID=$2; shift; shift;;
