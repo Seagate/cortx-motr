@@ -50,7 +50,7 @@ active = 0
 while (1):
     active = 0
     nr = spiel.sns_repair_status(fids['pool'], ppstatus)
-    print ("sns repair status responded servers: " + str(rc))
+    print ("sns repair status responded servers: " + str(nr))
     for i in range(0, nr):
         print ("status of ", ppstatus[{}].sss_fid, " is: {}".format(i, ppstatus[i].sss_state))
         if (ppstatus[i].sss_state == 2) :
@@ -73,7 +73,7 @@ $SPIEL_RCONF_START
 one_status = SpielSnsStatus()
 ppstatus = pointer(one_status)
 nr = spiel.sns_repair_status(fids['pool'], ppstatus)
-print ("sns repair status responded servers: " + str(rc))
+print ("sns repair status responded servers: " + str(nr))
 for i in range(0, nr):
         print("status of ", ppstatus[i].sss_fid, " is: ", ppstatus[i].sss_state)
         if (ppstatus[i].sss_state == 2) :
@@ -112,7 +112,7 @@ active = 0
 while (1):
     active = 0
     nr = spiel.sns_rebalance_status(fids['pool'], ppstatus)
-    print ("sns rebalance status responded servers: " + str(rc))
+    print ("sns rebalance status responded servers: " + str(nr))
     for i in range(0, nr):
         print ("status of ", ppstatus[i].sss_fid, " is: ", ppstatus[i].sss_state)
         if (ppstatus[i].sss_state == 2) :
@@ -138,7 +138,7 @@ $SPIEL_RCONF_START
 one_status = SpielSnsStatus()
 ppstatus = pointer(one_status)
 nr = spiel.sns_rebalance_status(fids['pool'], ppstatus)
-print ("sns rebalance status responded servers: " + str(rc))
+print ("sns rebalance status responded servers: " + str(nr))
 for i in range(0, nr):
         print("status of ", ppstatus[i].sss_fid, " is: ", ppstatus[i].sss_state)
         if (ppstatus[i].sss_state == 2) :
