@@ -61,7 +61,7 @@ function get_m0d_pids()
     local pid
 
     for fid in ${M0D_FIDS_HEX[@]} ; do
-        pid=$(ps ax | grep lt-m0d | grep $fid | awk '{ print $1; }')
+        pid=$(pgrep -a lt-m0d | grep $fid | awk '{ print $1; }')
         M0D_PIDS+=($pid)
         pids+="$pid "
     done
