@@ -31,6 +31,7 @@
 #include "rpc/rpc.h"                 /* m0_rpc_item_post */
 #include "rpc/rpc_machine.h"         /* m0_rpc_machine */
 #include "rpc/rpc_opcodes.h"         /* M0_DTM0_{RLINK,REQ}_OPCODE */
+#include "lib/string.h"              /* m0_streq */
 
 enum {
 	DRLINK_CONNECT_TIMEOUT_SEC = 1,
@@ -460,12 +461,32 @@ static void co_rlink_do(struct m0_co_context *context,
 	m0_clink_fini(&F(dc).dc_clink);
 }
 
+static bool has_volatile_param(struct m0_conf_obj     *obj)
+{
+	struct m0_conf_service *svc;
+	const char            **param;
+
+	svc = M0_CONF_CAST(obj, m0_conf_service);
+	M0_ASSERT(svc->cs_params != NULL);
+
+	for (param = svc->cs_params; *param != NULL; ++param) {
+		if (m0_streq(*param, "origin:in-volatile"))
+			return true;
+		else if (m0_streq(*param, "origin:in-persistent"))
+			return false;
+	}
+
+	M0_IMPOSSIBLE("Service origin is not defined in the config?");
+}
+
 static void drlink_coro_fom_tick(struct m0_co_context *context)
 {
-	int                 rc   = 0;
-	struct drlink_fom  *drf  = M0_AMB(drf, context, df_co);
-	struct m0_fom      *fom  = &drf->df_gen;
+	int                 rc     = 0;
+	struct drlink_fom  *drf    = M0_AMB(drf, context, df_co);
+	struct m0_fom      *fom    = &drf->df_gen;
 	const char         *reason = "Unknown";
+	struct m0_conf_obj *obj    = NULL;
+	struct m0_confc    *confc  = m0_reqh2confc(m0_fom2reqh(fom));
 	const bool          always_reconnect = true;
 
 	M0_CO_REENTER(context,
@@ -498,6 +519,19 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 					      &F(llink),
 					      DRF_LOCKING));
 	M0_ASSERT(m0_long_is_write_locked(&F(proc)->dop_llock, fom));
+
+	m0_conf_cache_lock(&confc->cc_cache);
+	obj = m0_conf_cache_lookup(&confc->cc_cache, &F(proc)->dop_rserv_fid);
+	M0_ASSERT(obj != NULL);
+	if (has_volatile_param(obj) && obj->co_ha_state != M0_NC_ONLINE) {
+		M0_LOG(M0_DEBUG, "Force state transition %s -> %s for " FID_F,
+		       m0_ha_state2str(obj->co_ha_state),
+		       m0_ha_state2str(obj->co_ha_state),
+		       FID_P(&F(proc)->dop_rserv_fid));
+		obj->co_ha_state = M0_NC_ONLINE;
+		m0_chan_broadcast(&obj->co_ha_chan);
+	}
+	m0_conf_cache_unlock(&confc->cc_cache);
 
 	/* XXX:
 	 * At this moment we cannot detect client falures.
