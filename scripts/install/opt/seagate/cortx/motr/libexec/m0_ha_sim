@@ -1,6 +1,7 @@
 #!/bin/bash
 . /opt/seagate/cortx/motr/common/m0_sns_utils_common.sh
 . /opt/seagate/cortx/motr/common/m0_dix_utils_common.sh
+. /opt/seagate/cortx/motr/common/m0_spiel_sns_utils_common.sh
 . /opt/seagate/cortx/motr/common/m0_spiel_dix_utils_common.sh
 
 # Device id to failed. This parameter will override by
@@ -15,7 +16,104 @@ UTILITY="m0repair"
 
 READ_VERIFY=0
 
-_dix_repair_start() {
+_sns_repair_start()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_sns_repair_start
+        else
+                sns_repair # Using m0repair
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "SNS repair start failed with rc = $rc."
+        fi
+        return $rc
+}
+
+_sns_repair_wait()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_wait_for_sns_repair
+        else
+                wait_for_sns_repair_or_rebalance "repair"
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "Wait for SNS repair failed with rc = $rc."
+        fi
+        return $rc
+}
+
+_sns_repair_status()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_sns_repair_status
+        else
+                sns_repair_or_rebalance_status "repair"
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "SNS repair status failed with rc = $rc."
+        fi
+        return $rc
+}
+
+_sns_rebalance_start()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_sns_rebalance_start
+        else
+                sns_rebalance # Using m0repair
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "SNS rebalance start failed with rc = $rc."
+        fi
+        return $rc
+}
+
+_sns_rebalance_wait()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_wait_for_sns_rebalance
+        else
+                wait_for_sns_repair_or_rebalance "rebalance"
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "Wait for SNS rebalance failed with rc = $rc."
+        fi
+        return $rc
+}
+
+_sns_rebalance_status()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_sns_rebalance_status
+        else
+                sns_repair_or_rebalance_status "rebalance"
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "SNS rebalance status failed with rc = $rc."
+        fi
+        return $rc
+}
+
+_dix_repair_start()
+{
 	local rc
 	if [ "$UTILITY" == "m0spiel" ]; then
 		spiel_dix_repair_start
@@ -30,7 +128,8 @@ _dix_repair_start() {
 	return $rc
 }
 
-_dix_repair_wait() {
+_dix_repair_wait()
+{
 	local rc
 	if [ "$UTILITY" == "m0spiel" ]; then
 		spiel_wait_for_dix_repair
@@ -61,7 +160,8 @@ _dix_repair_status()
 	return $rc
 }
 
-_dix_rebalance_start() {
+_dix_rebalance_start()
+{
 	local rc
 	if [ "$UTILITY" == "m0spiel" ]; then
 		spiel_dix_rebalance_start
@@ -76,7 +176,8 @@ _dix_rebalance_start() {
 	return $rc
 }
 
-_dix_rebalance_wait() {
+_dix_rebalance_wait()
+{
 	local rc
 	if [ "$UTILITY" == "m0spiel" ]; then
 		spiel_wait_for_dix_rebalance
@@ -121,15 +222,15 @@ _motr_trigger_sns_rebalance()
 
         disk_state_set "rebalance" "$fail_device" || return $?
         echo "Starting SNS Re-balance.."
-        sns_rebalance || return $?
+        _sns_rebalance_start || return $?
 
         # Make sure rebalance is complete.
-        wait_for_sns_repair_or_rebalance "rebalance" || return $?
+        _sns_rebalance_wait || return $?
 
         disk_state_set "online" "$fail_device" || return $?
 
         echo "query sns rebalance status"
-        sns_repair_or_rebalance_status "rebalance" || return $?
+        _sns_rebalance_status || return $?
 
         disk_state_get "$fail_device"
 
@@ -154,13 +255,13 @@ _motr_trigger_sns_repair()
 
         disk_state_set "repair" "$fail_device" || return $?
         echo "trigger sns repair"
-        sns_repair || return $?
+        _sns_repair_start || return $?
 
         echo "wait for sns repair"
-        wait_for_sns_repair_or_rebalance "repair" || return $?
+        _sns_repair_wait || return $?
 
         echo "query sns repair status"
-        sns_repair_or_rebalance_status "repair" || return $?
+        _sns_repair_status || return $?
 
         disk_state_set "repaired" "$fail_device" || return $?
 
