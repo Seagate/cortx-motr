@@ -152,7 +152,7 @@ node_sanity_check()
 		return 1
 	fi
 	if [ "$XPRT" = "lnet" ]; then
-		string=$(grep "$IP" "$conf" | cut -d '"' -f 2 | cut -d ':' -f 1)
+		string=$(grep "$IP" "$conf" | cut -d '"' -f 2 | cut -d ':' -f 1 | head -n 1)
 	else
 		string=$(grep "$IP" "$conf" | cut -d '"' -f 2 | cut -d '@' -f 1 | head -n 1)
 	fi
