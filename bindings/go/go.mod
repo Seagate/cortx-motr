@@ -1,3 +1,3 @@
-module github.com/kiwionly2/cortx-motr/bindings/go
+module cortx-motr/bindings/go
 
 go 1.15
