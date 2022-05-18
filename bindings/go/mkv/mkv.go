@@ -27,7 +27,7 @@ import (
     "fmt"
     "flag"
     "log"
-    "cortx-motr/bindings/go/mio"
+    "github.com/seagate/cortx-motr/bindings/go/mio"
 )
 
 func usage() {
