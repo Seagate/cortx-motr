@@ -489,7 +489,7 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 	const char         *reason = "Unknown";
 	struct m0_conf_obj *obj    = NULL;
 	struct m0_confc    *confc  = m0_reqh2confc(m0_fom2reqh(fom));
-	const bool          always_reconnect = true;
+	bool                always_reconnect = false;
 
 	M0_CO_REENTER(context,
 		      struct m0_long_lock_link   llink;
@@ -532,6 +532,7 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 		       FID_P(&F(proc)->dop_rserv_fid));
 		obj->co_ha_state = M0_NC_ONLINE;
 		m0_chan_broadcast(&obj->co_ha_chan);
+		always_reconnect = true;
 	}
 	m0_conf_cache_unlock(&confc->cc_cache);
 
@@ -561,6 +562,16 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 		 */
 		M0_CO_FUN(context, co_rlink_do(context, F(proc),
 					       DRF_CONNECTING));
+	} else {
+		if (!m0_rpc_link_is_connected(&F(proc)->dop_rlink)) {
+			rc = dtm0_process_rlink_reinit(F(proc), drf);
+			if (rc != 0) {
+				reason = "Cannot reinit RPC link.";
+				goto unlock;
+			}
+			M0_CO_FUN(context, co_rlink_do(context, F(proc),
+						       DRF_CONNECTING));
+		}
 	}
 
 	M0_ASSERT(ergo(m0_rpc_link_is_connected(&F(proc)->dop_rlink),
