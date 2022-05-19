@@ -1037,7 +1037,9 @@ motr_common_SCRIPTS = \
     scripts/install$(motr_commondir)/core-traces \
     scripts/install$(motr_commondir)/m0_sns_utils_common.sh \
     scripts/install$(motr_commondir)/m0_dix_utils_common.sh \
-    scripts/install$(motr_commondir)/m0_utils_common.sh
+    scripts/install$(motr_commondir)/m0_utils_common.sh \
+    scripts/install$(motr_commondir)/m0_spiel_sns_utils_common.sh \
+    scripts/install$(motr_commondir)/m0_spiel_dix_utils_common.sh
 EXTRA_DIST += $(motr_common_SCRIPTS)
 
 deb_pkg_files = \

@@ -433,7 +433,7 @@ static int dtm0_pmsg_fom_tick(struct m0_fom *fom)
 			 * modifed right here. We have to post an AST
 			 * to ensure DTX is modifed under the group lock held.
 			 */
-			m0_be_dtm0_log_pmsg_post(svc->dos_log, fom->fo_fop);
+			m0_dtm0_dtx_pmsg_post(svc->dos_log, fom->fo_fop);
 			rep->dr_rc = 0;
 		} else {
 			rep->dr_rc = m0_dtm0_logrec_update(svc->dos_log,
