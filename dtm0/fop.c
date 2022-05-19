@@ -363,7 +363,7 @@ M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom            *fom,
 		if (m0_fid_eq(target, source))
 			target = &txd->dtd_id.dti_fid;
 
-		rc = m0_dtm0_req_post(dtms, NULL, &req, target, fom, false);
+		rc = m0_dtm0_req_post(dtms, NULL, &req, target, fom, true);
 		if (rc != 0) {
 			M0_LOG(M0_WARN, "Failed to send PERSISTENT msg "
 				    FID_F " -> " FID_F " (%d).",
