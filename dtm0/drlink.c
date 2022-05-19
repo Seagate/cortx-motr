@@ -456,6 +456,7 @@ static void co_rlink_do(struct m0_co_context *context,
 	       &F(dc).dc_clink);
 
 	M0_CO_YIELD_RC(context, m0_co_op_tick_ret(&F(dc).dc_op, fom, what));
+	m0_chan_wait(&F(dc).dc_clink);
 
 	m0_co_op_fini(&F(dc).dc_op);
 	m0_clink_fini(&F(dc).dc_clink);
