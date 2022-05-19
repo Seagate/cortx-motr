@@ -195,7 +195,7 @@ static int timer_posix_init(struct m0_timer *timer)
 	/* preserve timer->t_ptimer if timer_create() isn't succeeded */
 	if (rc == 0)
 		timer->t_ptimer = ptimer;
-	return M0_RC(rc);
+	return rc != 0 ? M0_ERR(-errno) : 0;
 }
 
 /**
