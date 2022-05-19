@@ -1977,7 +1977,7 @@ static int dix__spare_target(struct m0_dix_rec_op         *rec_op,
 		if (rc != 0)
 			return M0_ERR(rc);
 		spare = &rec_op->dgp_units[spare_offset + slot];
-		if (!spare->dpu_failed) {
+		if (!spare->dpu_unavail) {
 			/* Found non-failed spare unit, exit the loop. */
 			*spare_unit = spare;
 			*spare_slot = slot;
@@ -2013,36 +2013,14 @@ static int dix_spare_target_with_data(struct m0_dix_rec_op         *rec_op,
 				 true);
 }
 
-static void dix_online_unit_choose(struct m0_dix_req    *req,
-				   struct m0_dix_rec_op *rec_op)
-{
-	struct m0_dix_pg_unit *pgu;
-	uint64_t               start_unit;
-	uint64_t               i;
-	uint64_t               j;
-
-	M0_ENTRY();
-	M0_PRE(req->dr_type == DIX_GET);
-	start_unit = req->dr_items[rec_op->dgp_item].dxi_pg_unit;
-	M0_ASSERT(start_unit < dix_rec_op_spare_offset(rec_op));
-	for (i = 0; i < start_unit; i++)
-		rec_op->dgp_units[i].dpu_failed = true;
-	for (i = start_unit; i < rec_op->dgp_units_nr; i++) {
-		pgu = &rec_op->dgp_units[i];
-		if (!pgu->dpu_is_spare && !pgu->dpu_failed)
-			break;
-	}
-	for (j = i + 1; j < rec_op->dgp_units_nr; j++)
-		rec_op->dgp_units[j].dpu_failed = true;
-}
-
 static void dix_pg_unit_pd_assign(struct m0_dix_pg_unit *pgu,
 				  struct m0_pooldev     *pd)
 {
 	pgu->dpu_tgt      = pd->pd_index;
 	pgu->dpu_sdev_idx = pd->pd_sdev_idx;
 	pgu->dpu_pd_state = pd->pd_state;
-	pgu->dpu_failed   = pool_failed_devs_tlink_is_in(pd);
+	pgu->dpu_unavail  = pool_failed_devs_tlink_is_in(pd) ||
+		pgu->dpu_pd_state == M0_PNDS_OFFLINE;
 }
 
 /**
@@ -2063,7 +2041,7 @@ static void dix_rop_failed_unit_tgt(struct m0_dix_req    *req,
 
 	M0_ENTRY();
 	M0_PRE(dix_req_state(req) != DIXREQ_DEL_PHASE2);
-	M0_PRE(pgu->dpu_failed);
+	M0_PRE(pgu->dpu_unavail);
 	M0_PRE(M0_IN(pgu->dpu_pd_state, (M0_PNDS_FAILED,
 					 M0_PNDS_SNS_REPAIRING,
 					 M0_PNDS_SNS_REPAIRED,
@@ -2085,7 +2063,7 @@ static void dix_rop_failed_unit_tgt(struct m0_dix_req    *req,
 		break;
 	case DIX_PUT:
 		if (pgu->dpu_pd_state == M0_PNDS_SNS_REBALANCING)
-			pgu->dpu_failed = false;
+			pgu->dpu_unavail = false;
 		rc = dix_spare_target(rec_op, pgu, &spare_slot, &spare);
 		if (rc == 0) {
 			spare_offset = dix_rec_op_spare_offset(rec_op);
@@ -2136,7 +2114,7 @@ static void dix_rop_failures_analyse(struct m0_dix_req *req)
 		rec_op = &rop->dg_rec_ops[i];
 		for (j = 0; j < rec_op->dgp_units_nr; j++) {
 			unit = &rec_op->dgp_units[j];
-			if (!unit->dpu_is_spare && unit->dpu_failed) {
+			if (!unit->dpu_is_spare && unit->dpu_unavail) {
 				rec_op->dgp_failed_devs_nr++;
 				dix_rop_failed_unit_tgt(req, rec_op, j);
 			}
@@ -2191,23 +2169,13 @@ static void dix_rop_units_set(struct m0_dix_req *req)
 	}
 
 	m0_rwlock_read_unlock(&pm->pm_lock);
-
-	/*
-	 * Only one CAS GET request should be sent for every record.
-	 * Choose the best destination for every record.
-	 */
-	if (req->dr_type == DIX_GET) {
-		for (i = 0; i < rop->dg_rec_ops_nr; i++)
-			dix_online_unit_choose(req, &rop->dg_rec_ops[i]);
-	}
 }
 
 static bool dix_pg_unit_skip(struct m0_dix_req     *req,
 			     struct m0_dix_pg_unit *unit)
 {
 	if (dix_req_state(req) != DIXREQ_DEL_PHASE2)
-		return unit->dpu_failed || unit->dpu_is_spare ||
-			unit->dpu_pd_state == M0_PNDS_OFFLINE;
+		return unit->dpu_unavail || unit->dpu_is_spare;
 	else
 		return !unit->dpu_del_phase2;
 }
@@ -2284,6 +2252,9 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 			if (del_lock)
 				map[unit->dpu_tgt]->crp_flags |= COF_DEL_LOCK;
 			map[unit->dpu_tgt]->crp_keys_nr++;
+			if (req->dr_type == DIX_GET)
+				/* A single request is enough for GET. */
+				break;
 		}
 	}
 
@@ -2393,6 +2364,9 @@ static int dix_cas_rops_fill(struct m0_dix_req *req)
 			}
 			map[tgt]->crp_attrs[idx].cra_item = item;
 			map[tgt]->crp_cur_key++;
+			if (req->dr_type == DIX_GET)
+				/* A single request is enough for GET. */
+				break;
 		}
 	}
 	return M0_RC(0);
