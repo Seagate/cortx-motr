@@ -201,7 +201,8 @@ static int drlink_fom_init(struct drlink_fom            *fom,
 static void drlink_fom_fini(struct m0_fom *fom)
 {
 	struct drlink_fom *df = fom2drlink_fom(fom);
-	m0_fop_put_lock(df->df_rfop);
+	if (df->df_rfop != NULL)
+		m0_fop_put_lock(df->df_rfop);
 	m0_co_op_fini(&df->df_co_op);
 	m0_fom_fini(fom);
 	m0_free(fom);
@@ -588,6 +589,11 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 	}
 
 unlock:
+	if (drf->df_rfop != NULL) {
+		m0_fop_put_lock(drf->df_rfop);
+		drf->df_rfop = NULL;
+	}
+
 	m0_long_write_unlock(&F(proc)->dop_llock, &F(llink));
 	m0_long_lock_link_fini(&F(llink));
 out:
