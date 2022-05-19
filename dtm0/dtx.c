@@ -46,15 +46,7 @@ static struct m0_sm_state_descr dtx_states[] = {
 	},
 	[M0_DDS_INPROGRESS] = {
 		.sd_name      = "inprogress",
-		.sd_allowed   = M0_BITS(M0_DDS_EXECUTED, M0_DDS_FAILED),
-	},
-	[M0_DDS_EXECUTED] = {
-		.sd_name      = "executed",
-		.sd_allowed   = M0_BITS(M0_DDS_EXECUTED_ALL),
-	},
-	[M0_DDS_EXECUTED_ALL] = {
-		.sd_name      = "executed-all",
-		.sd_allowed   = M0_BITS(M0_DDS_STABLE),
+		.sd_allowed   = M0_BITS(M0_DDS_STABLE, M0_DDS_FAILED),
 	},
 	[M0_DDS_STABLE] = {
 		.sd_name      = "stable",
@@ -72,11 +64,9 @@ static struct m0_sm_state_descr dtx_states[] = {
 
 static struct m0_sm_trans_descr dtx_trans[] = {
 	{ "populated",  M0_DDS_INIT,         M0_DDS_INPROGRESS   },
-	{ "executed",   M0_DDS_INPROGRESS,   M0_DDS_EXECUTED     },
-	{ "exec-all",   M0_DDS_EXECUTED,     M0_DDS_EXECUTED_ALL },
-	{ "exec-fail",  M0_DDS_INPROGRESS,   M0_DDS_FAILED       },
-	{ "stable",     M0_DDS_EXECUTED_ALL, M0_DDS_STABLE       },
-	{ "prune",      M0_DDS_STABLE,       M0_DDS_DONE         }
+	{ "stabilised", M0_DDS_INPROGRESS,   M0_DDS_STABLE       },
+	{ "stab-fail",  M0_DDS_INPROGRESS,   M0_DDS_FAILED       },
+	{ "prune-it",   M0_DDS_STABLE,       M0_DDS_DONE         }
 };
 
 struct m0_sm_conf m0_dtx_sm_conf = {
@@ -109,7 +99,6 @@ static int dtx_log_insert(struct m0_dtm0_dtx *dtx)
 	struct m0_dtm0_log_rec *record = M0_AMB(record, dtx, dlr_dtx);
 	int                     rc;
 
-	M0_PRE(m0_dtm0_tx_desc_state_eq(&dtx->dd_txd, M0_DTPS_INPROGRESS));
 	M0_PRE(dtx->dd_dtms != NULL);
 	log = dtx->dd_dtms->dos_log;
 	M0_PRE(log != NULL);
@@ -285,11 +274,19 @@ static int dtx_fid_assign(struct m0_dtm0_dtx  *dtx,
 static int dtx_close(struct m0_dtm0_dtx *dtx)
 {
 	int rc;
+	int i;
+	struct m0_dtm0_tx_pa   *pa;
 
 	M0_ENTRY("dtx=%p", dtx);
 
 	M0_PRE(dtx != NULL);
 	M0_PRE(m0_sm_group_is_locked(dtx->dd_sm.sm_grp));
+
+	for (i = 0; i < dtx->dd_txd.dtd_ps.dtp_nr; ++i) {
+		pa = &dtx->dd_txd.dtd_ps.dtp_pa[i];
+		pa->p_state = max_check(pa->p_state,
+					(uint32_t)M0_DTPS_EXECUTED);
+	}
 
 	/*
 	 * TODO:REDO: We may want to capture the fop contents here.
@@ -299,14 +296,11 @@ static int dtx_close(struct m0_dtm0_dtx *dtx)
 	 */
 
 	rc = dtx_log_insert(dtx);
-	M0_ASSERT(rc == 0);
+	if (rc == 0)
+		m0_sm_state_set(&dtx->dd_sm, M0_DDS_INPROGRESS);
+	else
+		m0_sm_move(&dtx->dd_sm, rc, M0_DDS_FAILED);
 
-	/*
-	 * Once a dtx is closed, the FOP (or FOPs) has to be serialized
-	 * into the log, so that we should no longer hold any references to it.
-	 */
-	dtx->dd_fop = NULL;
-	m0_sm_state_set(&dtx->dd_sm, M0_DDS_INPROGRESS);
 	return M0_RC(rc);
 }
 
@@ -319,24 +313,6 @@ static void dtx_done(struct m0_dtm0_dtx *dtx)
 
 	m0_sm_state_set(&dtx->dd_sm, M0_DDS_DONE);
 	dtx_fini(dtx);
-	M0_LEAVE();
-}
-
-static void dtx_exec_all_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-	struct m0_dtm0_dtx *dtx = ast->sa_datum;
-
-	M0_ENTRY("dtx=%p", dtx);
-
-	M0_ASSERT(dtx->dd_sm.sm_state == M0_DDS_EXECUTED_ALL);
-	M0_ASSERT(dtx->dd_nr_executed == dtx->dd_txd.dtd_ps.dtp_nr);
-
-	if (m0_dtm0_tx_desc_state_exists(&dtx->dd_txd, M0_DTPS_PERSISTENT)) {
-		m0_sm_state_set(&dtx->dd_sm, M0_DDS_STABLE);
-		M0_LOG(M0_DEBUG, "dtx " DTID0_F "is stable (EXEC_ALL)",
-		       DTID0_P(&dtx->dd_txd.dtd_id));
-	}
-
 	M0_LEAVE();
 }
 
@@ -355,21 +331,20 @@ static void dtx_persistent_ast_cb(struct m0_sm_group *grp,
 
 	m0_mutex_lock(&log->dl_lock);
 	rec = m0_be_dtm0_log_find(log, &txd->dtd_id);
+	dtx = rec == NULL ? NULL : &rec->dlr_dtx;
 
-	if (rec != NULL) {
+	if (dtx != NULL && dtx->dd_sm.sm_state < M0_DDS_STABLE) {
 		dtx = &rec->dlr_dtx;
 		m0_dtm0_tx_desc_apply(&dtx->dd_txd, txd);
 		dtx_log_update(dtx);
 
-		if (dtx->dd_sm.sm_state == M0_DDS_EXECUTED_ALL &&
-		    m0_dtm0_tx_desc_state_exists(&dtx->dd_txd,
-						 M0_DTPS_PERSISTENT)) {
-			M0_ASSERT(dtx->dd_nr_executed ==
-				  dtx->dd_txd.dtd_ps.dtp_nr);
-			M0_LOG(M0_DEBUG, "dtx " DTID0_F "is stable (PMA)",
-			       DTID0_P(&dtx->dd_txd.dtd_id));
-			m0_sm_state_set(&dtx->dd_sm, M0_DDS_STABLE);
-		}
+		M0_LOG(M0_DEBUG, "dtx " DTID0_F "is stable.",
+		       DTID0_P(&dtx->dd_txd.dtd_id));
+		/*
+		 * At this moment, DTX is considered to be stable if
+		 * at least one Pmsg was received.
+		 */
+		m0_sm_state_set(&dtx->dd_sm, M0_DDS_STABLE);
 	}
 	m0_mutex_unlock(&log->dl_lock);
 
@@ -404,7 +379,6 @@ M0_INTERNAL void m0_dtm0_dtx_pmsg_post(struct m0_be_dtm0_log *log,
 	m0_mutex_lock(&log->dl_lock);
 	rec = m0_be_dtm0_log_find(log, &txd->dtd_id);
 	dtx_sm_grp = rec != NULL ? rec->dlr_dtx.dd_sm.sm_grp : NULL;
-	m0_mutex_unlock(&log->dl_lock);
 
 	if (dtx_sm_grp != NULL) {
 		M0_ASSERT(fop->f_opaque != NULL);
@@ -423,61 +397,8 @@ M0_INTERNAL void m0_dtm0_dtx_pmsg_post(struct m0_be_dtm0_log *log,
 		m0_fop_get(fop);
 		m0_sm_ast_post(dtx_sm_grp, &pma->p_ast);
 	}
-	M0_LEAVE();
-}
 
-static void dtx_executed(struct m0_dtm0_dtx *dtx, uint32_t idx)
-{
-	struct m0_dtm0_tx_pa  *pa;
-
-	M0_ENTRY("dtx=%p, idx=%"PRIu32, dtx, idx);
-
-	M0_PRE(dtx != NULL);
-	M0_PRE(m0_sm_group_is_locked(dtx->dd_sm.sm_grp));
-
-	pa = &dtx->dd_txd.dtd_ps.dtp_pa[idx];
-
-	M0_ASSERT(pa->p_state >= M0_DTPS_INPROGRESS);
-
-	pa->p_state = max_check(pa->p_state, (uint32_t)M0_DTPS_EXECUTED);
-
-	dtx->dd_nr_executed++;
-
-	if (dtx->dd_sm.sm_state < M0_DDS_EXECUTED) {
-		M0_ASSERT(dtx->dd_sm.sm_state == M0_DDS_INPROGRESS);
-		m0_sm_state_set(&dtx->dd_sm, M0_DDS_EXECUTED);
-	}
-
-	if (dtx->dd_nr_executed == dtx->dd_txd.dtd_ps.dtp_nr) {
-		M0_ASSERT(dtx->dd_sm.sm_state == M0_DDS_EXECUTED);
-		M0_ASSERT_INFO(dtds_forall(&dtx->dd_txd, >= M0_DTPS_EXECUTED),
-			       "Non-executed PAs should not exist "
-			       "at this point.");
-		m0_sm_state_set(&dtx->dd_sm, M0_DDS_EXECUTED_ALL);
-
-		/*
-		 * EXECUTED and STABLE should not be triggered within the
-		 * same ast tick. This ast helps us to enforce it.
-		 * XXX: there is a catch22-like problem with DIX states:
-		 * DIX request should already be in "FINAL" state when
-		 * the corresponding dtx reaches STABLE. However, the dtx
-		 * cannot transit from EXECUTED to STABLE (through EXEC_ALL)
-		 * if DIX reached FINAL already (the list of CAS rops has been
-		 * destroyed). So that the EXEC_ALL ast cuts this knot by
-		 * scheduling the transition EXEC_ALL -> STABLE in a separate
-		 * tick where DIX request reached FINAL.
-		 */
-		dtx->dd_exec_all_ast = (struct m0_sm_ast) {
-			.sa_cb = dtx_exec_all_ast_cb,
-			.sa_datum = dtx,
-		};
-		m0_sm_ast_post(dtx->dd_sm.sm_grp, &dtx->dd_exec_all_ast);
-	}
-
-	m0_mutex_lock(&dtx->dd_dtms->dos_log->dl_lock);
-	dtx_log_update(dtx);
-	m0_mutex_unlock(&dtx->dd_dtms->dos_log->dl_lock);
-
+	m0_mutex_unlock(&log->dl_lock);
 	M0_LEAVE();
 }
 
@@ -516,17 +437,10 @@ M0_INTERNAL void m0_dtx0_fop_assign(struct m0_dtx       *dtx,
 	dtx_fop_assign(dtx->tx_dtx, pa_idx, pa_fop);
 }
 
-
 M0_INTERNAL int m0_dtx0_close(struct m0_dtx *dtx)
 {
 	M0_PRE(dtx != NULL);
 	return dtx_close(dtx->tx_dtx);
-}
-
-M0_INTERNAL void m0_dtx0_executed(struct m0_dtx *dtx, uint32_t pa_idx)
-{
-	M0_PRE(dtx != NULL);
-	dtx_executed(dtx->tx_dtx, pa_idx);
 }
 
 M0_INTERNAL void m0_dtx0_done(struct m0_dtx *dtx)
