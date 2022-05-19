@@ -43,6 +43,7 @@
 #include "lib/memory.h"           /* m0_free0 */
 #include "lib/uuid.h"             /* m0_node_uuid_string_set */
 #include "lib/misc.h"             /* m0_performance_counters */
+#include "lib/string.h"           /* m0_streq */
 
 #define UT_SANDBOX "./ut-sandbox"
 
@@ -277,7 +278,8 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &m0_fom_stats_ut, true);
 	m0_ut_add(m, &m0_net_bulk_if_ut, true);
 	m0_ut_add(m, &m0_net_bulk_mem_ut, true);
-	m0_ut_add(m, &m0_net_lnet_ut, LNET_ENABLED);
+	m0_ut_add(m, &m0_net_lnet_ut, LNET_ENABLED &&
+				      (m0_streq(M0_DEFAULT_NETWORK, "LNET")));
 	m0_ut_add(m, &m0_net_misc_ut, true);
 	m0_ut_add(m, &m0_net_module_ut, true);
 	m0_ut_add(m, &m0_net_test_ut, true);
