@@ -162,9 +162,7 @@ Requires:       perl-autodie
 Requires:       perl-Try-Tiny
 Requires:       perl-Sereal
 Requires:       perl-MCE
-Requires:       ruby
 Requires:       facter
-Requires:       rubygem-net-ssh
 %if %{rhel} < 8
 Requires:       python36-ply
 %else
