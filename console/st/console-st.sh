@@ -49,8 +49,7 @@ XPRT=$(m0_default_xprt)
 
 start_server()
 {
-	if [ "$XPRT" = "lnet" ]; then
-		modprobe lnet
+	if [[ "$(check_and_restart_lnet)" == "true" ]]; then
 		echo 8 >/proc/sys/kernel/printk
 		modload
 	fi
@@ -136,7 +135,7 @@ EOF
 stop_server()
 {
 	{ kill -KILL $SERVERPID >/dev/null 2>&1 && wait; } || true
-	if [ "$XPRT" = "lnet" ]; then
+	if [[ "$(is_lnet_available)" == "true" ]]; then
 		modunload
 	fi
 }
