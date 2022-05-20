@@ -74,8 +74,6 @@ class Cmd:
         self.nodes = get_value(self, 'node', dict)
         self.node = get_server_node(self)
         self.storage_nodes = get_data_nodes(self)
-        if self.machine_id in self.storage_nodes:
-            self.storage = get_storage(self)
         Conf.load(self._index_motr_hare, self._url_motr_hare)
     @property
     def args(self) -> str:

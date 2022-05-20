@@ -158,7 +158,7 @@ extern struct m0_ut_suite rpclib_ut;
 extern struct m0_ut_suite rpc_conn_pool_ut;
 extern struct m0_ut_suite session_ut;
 extern struct m0_ut_suite sm_ut;
-extern struct m0_ut_suite sns_cm_repair_ut;
+extern struct m0_ut_suite sns_cm_repreb_ut;
 extern struct m0_ut_suite snscm_net_ut;
 extern struct m0_ut_suite snscm_storage_ut;
 extern struct m0_ut_suite snscm_xform_ut;
@@ -306,7 +306,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &sm_ut, true);
 	m0_ut_add(m, &snscm_xform_ut, true);
 	m0_ut_add(m, &snscm_storage_ut, true);
-	m0_ut_add(m, &sns_cm_repair_ut, true);
+	m0_ut_add(m, &sns_cm_repreb_ut, true);
 	m0_ut_add(m, &snscm_net_ut, true);
 	m0_ut_add(m, &sns_flock_ut, true);
 	m0_ut_add(m, &spiel_ut, true);

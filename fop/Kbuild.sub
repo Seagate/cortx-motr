@@ -4,4 +4,5 @@ m0tr_objects += fop/fop.o \
                   fop/fom_generic.o \
                   fop/fom_simple.o \
                   fop/fom_long_lock.o \
-                  fop/fom_interpose.o
+                  fop/fom_interpose.o \
+                  fop/wire_xc.o

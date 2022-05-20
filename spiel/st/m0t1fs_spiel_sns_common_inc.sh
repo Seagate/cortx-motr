@@ -226,7 +226,7 @@ while (1):
     rc = spiel.sns_repair_status(fids['pool'], ppstatus)
     print ("sns repair status responded servers: " + str(rc))
     for i in range(0, rc):
-        print ("status of ", ppstatus[{}].sss_fid, " is: {}".format(i, ppstatus[i].sss_state))
+        print ("status of ppstatus[{}].sss_fid is: {}".format(i, ppstatus[i].sss_state))
         if (ppstatus[i].sss_state == 2) :
             print ("sns is still active on ", ppstatus[i].sss_fid)
             active = 1
@@ -300,7 +300,7 @@ while (1):
     rc = spiel.sns_rebalance_status(fids['pool'], ppstatus)
     print ("sns rebalance status responded servers: " + str(rc))
     for i in range(0, rc):
-        print ("status of ", ppstatus[{}].sss_fid, " is: {}".format(i, ppstatus[i].sss_state))
+        print ("status of ppstatus[{}].sss_fid is: {}".format(i, ppstatus[i].sss_state))
         if (ppstatus[i].sss_state == 2) :
             print ("sns is still active on ", ppstatus[i].sss_fid)
             active = 1
