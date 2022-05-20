@@ -40,6 +40,8 @@
 #include "lib/finject.h"
 #include "cas/cas_addb2.h"
 #include "dtm0/dtx.h"   /* struct m0_dtm0_dtx */
+#include "dix/layout.h" /* m0_dix_ldesc_copy() */
+
 /**
  * @addtogroup cas-client
  * @{
@@ -187,6 +189,7 @@ static void creq_op_free(struct m0_cas_op *op)
 {
 	if (op != NULL) {
 		m0_dtm0_tx_desc_fini(&op->cg_txd);
+		m0_cas_id_fini(&op->cg_id);
 		m0_free(op->cg_rec.cr_rec);
 		m0_free(op);
 	}
@@ -1584,6 +1587,12 @@ static int cas_records_op_prepare(const struct m0_cas_req  *req,
 	if (rc != 0)
 		return M0_ERR(rc);
 	op->cg_id = *index;
+	if (m0_fid_type_getfid(&op->cg_id.ci_fid) == &m0_cctg_fid_type) {
+		M0_ASSERT(index->ci_layout.dl_type == DIX_LTYPE_DESCR);
+		rc = m0_dix_ldesc_copy(&op->cg_id.ci_layout.u.dl_desc,
+				       &index->ci_layout.u.dl_desc);
+	}
+
 	rec = op->cg_rec.cr_rec;
 	for (i = 0; i < keys_nr; i++) {
 		m0_rpc_at_init(&rec[i].cr_key);
@@ -1664,7 +1673,7 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
  	 */
 	M0_PRE((flags &
 		~(COF_CREATE | COF_OVERWRITE | COF_CROW | COF_SYNC_WAIT | 
-		  COF_SKIP_LAYOUT | COF_VERSIONED)) == 0);
+		  COF_SKIP_LAYOUT | COF_VERSIONED | COF_NO_DTM)) == 0);
 	M0_PRE(m0_cas_id_invariant(index));
 
 	rc = cas_req_prep(req, index, keys, values, keys->ov_vec.v_nr, flags,

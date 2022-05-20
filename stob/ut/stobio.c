@@ -86,7 +86,7 @@ static const char test_blkdev[] = "/dev/loop0";
 
 static const char *test_location;
 static const char *test_location_dio;
-static const char linux_location[] = "linuxstob:./__s";
+static const char linux_location[] = "linuxstob:./__s_stob";
 static const char linux_location_dio[] = "linuxstob:./__s_dio";
 static const char perf_location[] = "perfstob:./__s";
 static const char perf_location_dio[] = "perfstob:./__s_dio";

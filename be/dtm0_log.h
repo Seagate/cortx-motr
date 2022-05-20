@@ -192,9 +192,11 @@ struct m0_dtm0_log_rec {
 struct m0_be_dtm0_log {
 	/** Indicates if the structure is a persistent or volatile */
 	bool                       dl_is_persistent;
-	/** dl_lock protects access to the dl_list/dl_tlist. This lock
-	 *  should be held before performing any operations on the log
-	 *  involving a log record search or insert. */
+	/**
+	 * dl_lock protects access to dl_persist/dl_inmem lists.
+	 * It should be held before performing any operations on the log
+	 * involving a log record search or insert.
+	 */
 	struct m0_mutex            dl_lock;
 	struct m0_be_seg          *dl_seg;
 	/** DTM0 clock source */
@@ -504,20 +506,20 @@ M0_INTERNAL void m0_be_dtm0_volatile_log_update(struct m0_be_dtm0_log  *log,
 						struct m0_dtm0_log_rec *rec);
 
 /**
- * Deliver a persistent message to the log.
+ * Deletes the log record from the log and optionally finalizes
+ * that log record.
  *
  * @pre log is a volatile log
- * @pre fop->f_type == &dtm0_req_fop_fopt;
  * @post None
  *
- * @param log Pointer to the dtm0 log which we wish to destroy
- * @param fop This is a fop for the request carrying a PERSISTENT notice
- * @return None
- *
- * TODO: Only volatile log is supported so far.
+ * @param log Pointer to the volatile log where we want to delete the record.
+ * @param rec The record to be deleted from the volatile log.
+ * @param fini Specifies whether deleted record needs to be finalised.
+ * @return None.
  */
-M0_INTERNAL void m0_be_dtm0_log_pmsg_post(struct m0_be_dtm0_log *log,
-					  struct m0_fop         *fop);
+M0_INTERNAL void m0_be_dtm0_volatile_log_del(struct m0_be_dtm0_log  *log,
+					     struct m0_dtm0_log_rec *rec,
+					     bool                    fini);
 
 /** @} */ /* end DTM0Internals */
 

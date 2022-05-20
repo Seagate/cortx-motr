@@ -98,6 +98,13 @@ ADDB
 
 * addb 1-pager
 
+FDMI
+----
+* [FDMI High Level Decomposition](https://github.com/swatid-seagate/cortx-motr/blob/main/doc/FDMI-High-Level-Decomposition.md)
+* [FDMI HLD](https://github.com/swatid-seagate/cortx-motr/blob/main/doc/Seagate-FDMI-HLD.md)
+* [FDMI Design Notes](https://github.com/swatid-seagate/cortx-motr/blob/main/doc/Seagate-FDMI-Design-Notes.md)
+
+
 Concurrency
 -----------
 

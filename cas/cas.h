@@ -35,8 +35,8 @@
 #include "lib/cookie_xc.h"
 #include "rpc/at.h"             /* m0_rpc_at_buf */
 #include "rpc/at_xc.h"          /* m0_rpc_at_buf_xc */
-#include "fop/fom_generic.h"    /* m0_fop_mod_rep */
-#include "fop/fom_generic_xc.h" /* m0_fop_mod_rep */
+#include "fop/wire.h"           /* m0_fop_mod_rep */
+#include "fop/wire_xc.h"
 #include "fop/fom_interpose.h"  /* m0_fom_thralldom */
 #include "dix/layout.h"
 #include "dix/layout_xc.h"
@@ -338,6 +338,10 @@ enum m0_cas_op_flags {
 	 * In other words, it might be used in degraded mode.
 	 */
 	COF_SHOW_DEAD = 1 << 10,
+	/**
+	 * NO DTM is needed for this operation.
+	 */
+	COF_NO_DTM = 1 << 11,
 };
 
 enum m0_cas_opcode {

@@ -37,7 +37,6 @@
 #include "rpc/item.h"
 #include "rpc/rpc_internal.h"
 #include "fop/fom_generic.h"
-#include "fop/fom_generic_xc.h"
 #include "reqh/ut/io_fop_xc.h"
 #include "reqh/ut/io_fop.h"
 #include "rpc/rpc_opcodes.h"
