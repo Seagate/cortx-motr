@@ -220,7 +220,7 @@ enum {
 
 enum {
 	/** Root node size for balloc extend and group descriptor trees. */
-	BALLOC_ROOT_NODE_SIZE = 4096,
+	BALLOC_ROOT_NODE_SIZE = 8192,
 };
 
 /**
