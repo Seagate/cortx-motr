@@ -1,6 +1,8 @@
 #!/bin/bash
 . /opt/seagate/cortx/motr/common/m0_sns_utils_common.sh
 . /opt/seagate/cortx/motr/common/m0_dix_utils_common.sh
+. /opt/seagate/cortx/motr/common/m0_spiel_sns_utils_common.sh
+. /opt/seagate/cortx/motr/common/m0_spiel_dix_utils_common.sh
 
 # Device id to failed. This parameter will override by
 # command line --device option
@@ -9,10 +11,202 @@ DEV_STATE=""
 DEV_PATH=""
 TYPE=""
 OPERATION=""
-REC_TYPE=""
+REC_TYPE="SNS"
+UTILITY="m0repair"
 
-CONF_FILE=$(find / -name confd.xc | head -n 1)
 READ_VERIFY=0
+
+_sns_repair_start()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_sns_repair_start
+        else
+                sns_repair # Using m0repair
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "SNS repair start failed with rc = $rc."
+        fi
+        return $rc
+}
+
+_sns_repair_wait()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_wait_for_sns_repair
+        else
+                wait_for_sns_repair_or_rebalance "repair"
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "Wait for SNS repair failed with rc = $rc."
+        fi
+        return $rc
+}
+
+_sns_repair_status()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_sns_repair_status
+        else
+                sns_repair_or_rebalance_status "repair"
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "SNS repair status failed with rc = $rc."
+        fi
+        return $rc
+}
+
+_sns_rebalance_start()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_sns_rebalance_start
+        else
+                sns_rebalance # Using m0repair
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "SNS rebalance start failed with rc = $rc."
+        fi
+        return $rc
+}
+
+_sns_rebalance_wait()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_wait_for_sns_rebalance
+        else
+                wait_for_sns_repair_or_rebalance "rebalance"
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "Wait for SNS rebalance failed with rc = $rc."
+        fi
+        return $rc
+}
+
+_sns_rebalance_status()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_sns_rebalance_status
+        else
+                sns_repair_or_rebalance_status "rebalance"
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "SNS rebalance status failed with rc = $rc."
+        fi
+        return $rc
+}
+
+_dix_repair_start()
+{
+	local rc
+	if [ "$UTILITY" == "m0spiel" ]; then
+		spiel_dix_repair_start
+	else
+		dix_repair # Using m0repair
+	fi
+	rc=$?
+	if [ $rc != 0 ]
+	then
+		echo "DIX repair start failed with rc = $rc."
+	fi
+	return $rc
+}
+
+_dix_repair_wait()
+{
+	local rc
+	if [ "$UTILITY" == "m0spiel" ]; then
+		spiel_wait_for_dix_repair
+	else
+		wait_for_dix_repair_or_rebalance "repair"
+	fi
+	rc=$?
+	if [ $rc != 0 ]
+	then
+		echo "Wait for DIX repair failed with rc = $rc."
+	fi
+	return $rc
+}
+
+_dix_repair_status()
+{
+	local rc
+	if [ "$UTILITY" == "m0spiel" ]; then
+		spiel_dix_repair_status
+	else
+		dix_repair_or_rebalance_status "repair"
+	fi
+	rc=$?
+	if [ $rc != 0 ]
+	then
+		echo "DIX repair status failed with rc = $rc."
+	fi
+	return $rc
+}
+
+_dix_rebalance_start()
+{
+	local rc
+	if [ "$UTILITY" == "m0spiel" ]; then
+		spiel_dix_rebalance_start
+	else
+		dix_rebalance # Using m0repair
+	fi
+	rc=$?
+	if [ $rc != 0 ]
+	then
+		echo "DIX rebalance start failed with rc = $rc."
+	fi
+	return $rc
+}
+
+_dix_rebalance_wait()
+{
+	local rc
+	if [ "$UTILITY" == "m0spiel" ]; then
+		spiel_wait_for_dix_rebalance
+	else
+		wait_for_dix_repair_or_rebalance "rebalance"
+	fi
+	rc=$?
+	if [ $rc != 0 ]
+	then
+		echo "Wait for DIX rebalance failed with rc = $rc."
+	fi
+	return $rc
+}
+
+_dix_rebalance_status()
+{
+	local rc
+	if [ "$UTILITY" == "m0spiel" ]; then
+		spiel_dix_rebalance_status
+	else
+		dix_repair_or_rebalance_status "rebalance"
+	fi
+	rc=$?
+	if [ $rc != 0 ]
+	then
+		echo "DIX rebalance status failed with rc = $rc."
+	fi
+	return $rc
+}
 
 _motr_trigger_sns_rebalance()
 {
@@ -28,15 +222,15 @@ _motr_trigger_sns_rebalance()
 
         disk_state_set "rebalance" "$fail_device" || return $?
         echo "Starting SNS Re-balance.."
-        sns_rebalance || return $?
+        _sns_rebalance_start || return $?
 
         # Make sure rebalance is complete.
-        wait_for_sns_repair_or_rebalance "rebalance" || return $?
+        _sns_rebalance_wait || return $?
 
         disk_state_set "online" "$fail_device" || return $?
 
         echo "query sns rebalance status"
-        sns_repair_or_rebalance_status "rebalance" || return $?
+        _sns_rebalance_status || return $?
 
         disk_state_get "$fail_device"
 
@@ -61,14 +255,13 @@ _motr_trigger_sns_repair()
 
         disk_state_set "repair" "$fail_device" || return $?
         echo "trigger sns repair"
-        sns_repair || return $?
+        _sns_repair_start || return $?
 
         echo "wait for sns repair"
-        wait_for_sns_repair_or_rebalance "repair" || return $?
-        disk_state_set "repaired" "$fail_device" || return $?
+        _sns_repair_wait || return $?
 
         echo "query sns repair status"
-        sns_repair_or_rebalance_status "repair" || return $?
+        _sns_repair_status || return $?
 
         disk_state_set "repaired" "$fail_device" || return $?
 
@@ -91,15 +284,16 @@ _motr_trigger_dix_rebalance()
 
         disk_state_set "rebalance" "$fail_device" || return $?
         echo "Starting DIX Re-balance.."
-        dix_rebalance || return $?
+        _dix_rebalance_start || return $?
 
         # Make sure rebalance is complete.
-        wait_for_dix_repair_or_rebalance "rebalance" || return $?
+        echo "Wait for DIX Re-balance.."
+        _dix_rebalance_wait || return $?
 
         disk_state_set "online" "$fail_device" || return $?
 
         echo "Query DIX rebalance status"
-        dix_repair_or_rebalance_status "rebalance" || return $?
+        _dix_rebalance_status || return $?
 
         disk_state_get "$fail_device"
 
@@ -124,14 +318,13 @@ _motr_trigger_dix_repair()
 
         disk_state_set "repair" "$fail_device" || return $?
         echo "trigger DIX repair"
-        dix_repair || return $?
+        _dix_repair_start || return $?
 
         echo "Wait for DIX repair"
-        wait_for_dix_repair_or_rebalance "repair" || return $?
-        disk_state_set "repaired" "$fail_device" || return $?
+        _dix_repair_wait || return $?
 
         echo "Query DIX repair status"
-        dix_repair_or_rebalance_status "repair" || return $?
+        _dix_repair_status || return $?
 
         disk_state_set "repaired" "$fail_device" || return $?
 
@@ -142,7 +335,7 @@ _motr_trigger_dix_repair()
 
 motr_trigger_repair()
 {
-        if [ "$1" == "DIX" ]; then
+        if [ "$REC_TYPE" == "DIX" ]; then
                 _motr_trigger_dix_repair || return 1
         else
                 _motr_trigger_sns_repair || return 1
@@ -151,7 +344,7 @@ motr_trigger_repair()
 
 motr_trigger_rebalance()
 {
-        if [ "$1" == "DIX" ]; then
+        if [ "$REC_TYPE" == "DIX" ]; then
                 _motr_trigger_dix_rebalance || return 1
         else
                 _motr_trigger_sns_rebalance || return 1
@@ -161,39 +354,41 @@ motr_trigger_rebalance()
 motr_trigger_repair_and_rebalance()
 {
         # Trigger repair first
-        motr_trigger_repair "$1" || return 1
+        motr_trigger_repair || return 1
         # Trigger rebalance if repair is successful
-        motr_trigger_rebalance "$1" || return 1
+        motr_trigger_rebalance || return 1
 }
 
 get_dev_id_from_dev_name()
 {
         local dev_idx=""
+        local conf_cg="/opt/conf.cg"
 
         if [ ! -b "$DEV_PATH" ]; then
                 echo "$DEV_PATH doesn't seem valid block device"
                 exit
         fi
 
-        if [ ! -f "$CONF_FILE" ]; then
-                echo "confd.xc doesn't seem to be present, can't get device id"
+        generate_conf_cg "$conf_cg"
+        if [ ! -f "$conf_cg" ]; then
+                echo "$conf_cg not present, can't get device id"
                 exit
         fi
-        # Generate conf.cg from confd.xc
-        m0confgen -f xcode -t confgen "$CONF_FILE" > /opt/conf.cg
-        if [ $? -ne 0 ]; then
-                echo "Failed to generate conf.cg from conf.xc"
-                exit
-        fi
-        dev_idx=$(cat /opt/conf.cg | grep "$DEV_PATH" | head -1 | awk '{print $1}' | cut -d '-' -f2)
+
+        dev_idx=$(grep "$DEV_PATH" "$conf_cg" | head -1 | awk '{print $1}' | cut -d '(' -f2)
         if [ ! -z "$dev_idx" ]; then
-                DEVICE_ID=$(cat "$CONF_FILE" | grep "\^d|1:${dev_idx}," | cut -d : -f 2 | cut -d ')' -f1)
+                DEVICE_ID=$(grep "${dev_idx}" "$conf_cg" | grep drive | awk '{print $1}' | cut -d '-' -f2)
         fi
         if [ -z "$DEVICE_ID" ]; then
                 echo "Couldn't retrieve device id for $DEV_PATH"
                 exit
         fi
+        if [[ $DEVICE_ID == "0x"* ]]; then
+                DEVICE_ID=$(echo $DEVICE_ID | cut -d 'x' -f2)
+                DEVICE_ID=$((16#$DEVICE_ID))
+        fi
         echo "Device id for $DEV_PATH is : $DEVICE_ID"
+        rm -f "$conf_cg"
 }
 
 main()
@@ -205,7 +400,14 @@ main()
 
         sandbox_init
         get_lnet_nid
-        get_ios_endpoints
+
+        set_service_type "$REC_TYPE"
+
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_prepare
+        else
+                get_ios_endpoints
+        fi
 
         if [ -z "$DEVICE_ID" ] && [ ! -z "$DEV_PATH" ]; then
                 get_dev_id_from_dev_name
@@ -230,7 +432,7 @@ main()
                         disk_state_set "$DEV_STATE" "$DEVICE_ID" || return $?
                 else
                         state_recv=""
-                        echo "Getting $DEVICE_ID state to $DEV_STATE"
+                        echo "Getting $DEVICE_ID state"
                         disk_state_get "$DEVICE_ID"
                         if [ -z "$state_recv" ]; then
                                 echo "Could not retrieve state for $DEVICE_ID"
@@ -240,15 +442,15 @@ main()
                 fi
         elif [ "$TYPE" == "repair" ]; then
                 echo "Running $REC_TYPE Repair "
-                motr_trigger_repair "$REC_TYPE"
+                motr_trigger_repair
                 rc=$?
-        elif ["$TYPE" == "rebalance" ]; then
+        elif [ "$TYPE" == "rebalance" ]; then
                 echo "Running $REC_TYPE Rebalance "
-                motr_trigger_rebalance "$REC_TYPE"
+                motr_trigger_rebalance
                 rc=$?
         elif [ "$TYPE" == "repreb" ]; then
                 echo "Running $REC_TYPE Repair and Rebalance "
-                motr_trigger_repair_and_rebalance "$REC_TYPE"
+                motr_trigger_repair_and_rebalance
                 rc=$?
         else
                 echo "Invalid or no operation is provided"
@@ -283,6 +485,8 @@ usage()
         echo "-i, --dev-id      : Device id of to failed/replaced device"
         echo "-d, --dev-path    : Dev path of to failed/replaced device"
         echo "-s, --state       : State of the device to set(failed/replaced)"
+        echo "-u, --utility     : Utility to use for repair/rebalance"
+        echo "                    (m0repair (default) / m0spiel)"
         echo "-v, --read-verify : Do IO operations before repair/rebalance and verify"
         echo "-h, --help        : To see this help options"
         exit 0
@@ -291,7 +495,7 @@ usage()
 if [ $# -eq 0 ]; then
         usage
 fi
-OPTS=`getopt -o t:o::r:i:d:s:vh --long type:,ops:,recover-type:,dev-id:,dev-path:,:state,read-verify,help -n 'parse-options' -- "$@"`
+OPTS=`getopt -o t:o::r:i:d:s:u:vh --long type:,ops:,recover-type:,dev-id:,dev-path:,:state,:utility,read-verify,help -n 'parse-options' -- "$@"`
 
 if [ $? != 0 ]; then echo "Failed parsing options." >&2; exit 1; fi
 eval set -- "$OPTS"
@@ -303,6 +507,7 @@ while true; do
         -i | --dev-id ) DEVICE_ID=$2; shift; shift;;
         -d | --dev-path )  DEV_PATH=$2; shift; shift;;
         -s | --state )  DEV_STATE=$2; shift; shift;;
+        -u | --utility ) UTILITY=$2; shift; shift;;
         -v | --read-verify ) READ_VERIFY=1; shift;;
         -h | --help )   usage; shift;;
         * ) break;;
@@ -319,6 +524,21 @@ fi
 if [ ! -z "$OPERATION" ]; then
         echo "Sub operations are not supported yet"
         usage
+fi
+
+if [ ! -z "$REC_TYPE" ]; then
+        if [[ ! "$REC_TYPE" =~ ^(SNS|DIX)$ ]]; then
+                echo "Valid recover types are only (SNS/DIX)"
+                usage
+        fi
+fi
+
+if [ ! -z "$UTILITY" ]; then
+        if [[ ! "$UTILITY" =~ ^(m0repair|m0spiel)$ ]]; then
+                echo "Valid utilities for repair / rebalance are only \
+                      (m0repair/m0spiel)"
+                usage
+        fi
 fi
 
 main
