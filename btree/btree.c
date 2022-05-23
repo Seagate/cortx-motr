@@ -9533,6 +9533,7 @@ enum {
 	RANDOM_VALUE_SIZE      = -1,
 
 	BE_UT_SEG_SIZE         = 0,
+	MAX_TEST_RETRIES       = 20,
 };
 #else
 enum {
@@ -9558,6 +9559,7 @@ enum {
 	RANDOM_VALUE_SIZE      = -1,
 
 	BE_UT_SEG_SIZE         = 10ULL * 1024ULL * 1024ULL * 1024ULL,
+	MAX_TEST_RETRIES       = 20,
 };
 #endif
 
@@ -12304,9 +12306,8 @@ static void ut_lru_test(void)
 			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 			};
 	struct ut_cb_data           put_data;
-	bool                        restart_test;
+	bool                        restart_test    = false;
 	int                         retry_cnt       = 0;
-	int                         max_retries     = 20;
 	m0_bcount_t                 limit;
 	/**
 	 * In this UT, we are testing the functionality of LRU list purge and
@@ -12323,7 +12324,6 @@ static void ut_lru_test(void)
 	btree_ut_init();
 
 start_lru_test:
-	restart_test = false;
 	mem_init = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	M0_LOG(M0_INFO,"Mem Init (%"PRId64").\n",mem_init);
 
@@ -12400,10 +12400,8 @@ start_lru_test:
 				mem_after_alloc, mem_init);
 
 		/* Cleanup records and tree then restart the test. */
-
-
-		if (retry_cnt < max_retries)
-			goto cleanup; // cleanup and restart
+		if (retry_cnt < MAX_TEST_RETRIES)
+			goto cleanup;
 		else
 			M0_ASSERT_INFO(mem_increased > 0,
 				       "Memory is still getting freed, hence "
@@ -12411,14 +12409,14 @@ start_lru_test:
 	}
 
 	M0_LOG(M0_INFO, "Mem After Alloc (%"PRId64") || Mem Increase (%"PRId64").\n",
-	       mem_after_alloc, mem_increased);
+			 mem_after_alloc, mem_increased);
 
 	M0_ASSERT(ndlist_tlist_length(&btree_lru_nds) > 0);
 
 	mem_freed      = m0_btree_lrulist_purge(mem_increased/2, 0);
 	mem_after_free = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	M0_LOG(M0_INFO, "Mem After Free (%"PRId64") || Mem freed (%"PRId64").\n",
-	       mem_after_free, mem_freed);
+			 mem_after_free, mem_freed);
 
 cleanup:
 	/**
@@ -12434,7 +12432,7 @@ cleanup:
 	M0_ASSERT(rc == 0);
 
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-				m0_btree_truncate(tree, limit, tx,
+				      m0_btree_truncate(tree, limit, tx,
 							&kv_op));
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -12444,7 +12442,7 @@ cleanup:
 
 	cred = M0_BE_TX_CREDIT(0, 0);
 	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
-			rnode_sz_shift, &cred);
+			       rnode_sz_shift, &cred);
 	m0_btree_destroy_credit(tree, NULL, &cred, 1);
 
 	m0_be_ut_tx_init(tx, ut_be);
@@ -12464,6 +12462,7 @@ cleanup:
 	m0_be_tx_fini(tx);
 
 	if (restart_test) {
+		restart_test = false;
 		/* When restarting test, Re-map the BE segment. */
 		m0_be_seg_close(ut_seg->bus_seg);
 		rc = madvise(rnode, rnode_sz, MADV_NORMAL);
@@ -12472,7 +12471,6 @@ cleanup:
 		m0_nanosleep(m0_time(2, 0), NULL);
 		goto start_lru_test;
 	}
-
 
 	btree_ut_fini();
 }
