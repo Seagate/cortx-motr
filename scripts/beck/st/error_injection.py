@@ -545,40 +545,40 @@ def ListAllEmapPerDevice():
         _, _, device_id = ConvertAdstob2Cob(stob_f_container_hex, stob_f_key_hex)
         # 16 bytes of BE_EMAP_KEY (footer) + 16 bytes of BE_EMAP_REC(header) gives offset of Corresponding BE_EMAP_REC
         emap_rec_offset = offset + 32
-        emap_rec_data, _ = ReadCompleteRecord(emap_rec_offset)
+        # emap_rec_data, _ = ReadCompleteRecord(emap_rec_offset)
 
         # Skip key CRC
         rec_hdr_offset = offset + 16
         emap_rec_data_full, _ = ReadCompleteRecordIncCRC(rec_hdr_offset)
-        if emap_rec_data[2] != "0x0" :
-            print("=============[ Count :", count, " Offset", offset, "]==============")
-            logger.info("** Metadata key at offset {},"
+        if emap_rec_data_full[4] != '0000000000000000':
+            print("=============[ Count :", count, " Key offset : ", offset," Val offset : ", rec_hdr_offset,"]==============")
+            logger.info("** Metadata key"
                         " BE_EMAP_KEY ek_prefix = {}:{},"
-                        " ek_offset = {}, Device ID = {}".format(offset,
+                        " ek_offset = {}, Device ID = {}".format(
                         emap_key_data[0], emap_key_data[1], emap_key_data[2], device_id))
-            logger.info("** Metadata val at offset {},"
-                        " BE_EMAP_REC er_start = {},"
-                        " er_value = {}, er_unit_size = {},"
-                        " er_cs_nob = {}, checksum = {}"
-                        .format(emap_rec_offset, emap_rec_data[0],
-                                emap_rec_data[1], emap_rec_data[2],
-                                emap_rec_data[3], emap_rec_data[4:]))
-            if emap_rec_data[3] != '0x0':
-                logger.info("** Full Record offset {},"
-                            " BE_EMAP_REC hd_magic = {},"
-                            " hd_bits = {}, er_start = {},"
-                            " er_value = {}, er_unit_sz = {},"
-                            " er_cksm_nob = {}, checksum = {},{},{},{}"
-                            " footer = {}, CRC = {}"
-                            .format(rec_hdr_offset, emap_rec_data_full[0],
-                                    emap_rec_data_full[1], emap_rec_data_full[2],
-                                    emap_rec_data_full[3], emap_rec_data_full[4],
-                                    emap_rec_data_full[5], emap_rec_data_full[6],
-                                    emap_rec_data_full[7], emap_rec_data_full[8],
-                                    emap_rec_data_full[9], emap_rec_data_full[10],
-                                    emap_rec_data_full[11]))
+            logger.info("** Metadata val"
+                    " BE_EMAP_REC er_start = 0x{},"
+                    " er_value = 0x{}, er_unit_size = 0x{},"
+                    " er_cs_nob = 0x{}"
+                    .format(emap_rec_data_full[2],
+                            emap_rec_data_full[3], emap_rec_data_full[4],
+                            emap_rec_data_full[5]))
+            if emap_rec_data_full[5] != '0000000000000000':
+                cksum_count = round(int(emap_rec_data_full[5], 16)/8)
+                print("Checksum : ", end = " ")
+                for i in range(cksum_count):
+                    print("0x{}".format(emap_rec_data_full[6 + i]), end = " ")
                 comp_crc = ComputeCRC(emap_rec_data_full, len(emap_rec_data_full) - 2)
-                print(">>>>>>> : ",hex(comp_crc))
+                logger.info("** Additional Record Data"
+                            " BE_EMAP_REC hd_magic = 0x{},"
+                            " hd_bits = 0x{}, footer = 0x{}, CRC = 0x{},"
+                            " Computed CRC = {}"
+                            .format(emap_rec_data_full[0],
+                                    emap_rec_data_full[1], emap_rec_data_full[10],
+                                    emap_rec_data_full[11], hex(comp_crc)))
+                if emap_rec_data_full[11] != hex(comp_crc)[2:]:
+                    logger.error("**** Computed CRC Missmatch ****")
+                print()
             count = count + 1
 
 
@@ -661,11 +661,11 @@ elif args.corrupt_emap:
 
 elif args.list_emap:
     ListAllEmapPerDevice()
-
+print()
 if not args.verify:
     logger.info("Number of errors induced by script: {}".format(noOfErrs))
 
 if noOfErrs > 0:
     logger.info("**** Successfully injected holes in metadata ****")
-else:
+elif not args.list_emap:
     logger.error("**** Failed to inject holes in metadata ****")
