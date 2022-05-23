@@ -66,10 +66,12 @@ parser.add_argument('-huge', action='store_true', default=False, dest='hugeCorru
                     help='Induce Huge amount of corruption in Metadata')
 parser.add_argument('-seed', action='store', default=0, type=float, dest='seed',
                     help='Seed is used to initialize the "random" library: to initialize the random generation')
-parser.add_argument('-corrupt_emap', action='store', dest='corrupt_emap', help='Induce Error in Emap specified by Cob Id')
+parser.add_argument('-corrupt_emap', action='store', dest='corrupt_emap', help='Induce Error in Emap specified by Cob Id (can be retrieved from list_emap command)'
+                    ' e.g. error_injection.py -corrupt_emap 0x200000200000017:0x15 -e 1 -m /var/motr/m0d-0x7200000000000001:0xc/db/o/100000000000000:2a -parse_size 10485760'
+                    ' **NOTE** : Restart m0d after corruption. e.g. systemctl restart m0d@0x7200000000000001:0xc.service')
 parser.add_argument('-list_emap', action='store_true', default=False, dest='list_emap',
                     help='Display all Emap keys with device id'
-                         ' e.g. error_injection.py -list_emap -m /var/motr/m0d-0x7200000000000001:0xc/db/o/100000000000000:2a -parse_size 10485760')
+                         'e.g. error_injection.py -list_emap -m /var/motr/m0d-0x7200000000000001:0xc/db/o/100000000000000:2a -parse_size 10485760')
 parser.add_argument('-parse_size', action='store', dest='parse_size', type=int,
                     help='Limit for metadata parsing size in bytes for list_emap and verify option')
 parser.add_argument('-offset', action='store', default=0, type=int, dest='seek_offset',
@@ -187,7 +189,7 @@ def EditEmapMetadata(emap_rec_full, offset, crc_offset):
         wbfr.write(b'\x33\x33\x44\x44\x22\x22\x11\x11')
         emap_rec_full[7] = '1111222244443333'
         val = ComputeCRC(emap_rec_full, len(emap_rec_full) - 2)
-        print("val in editemap : ", hex(val), " val to byte : ", val.to_bytes(8, 'little'),
+        print("Newly computed CRC : ", hex(val), " val to byte : ", val.to_bytes(8, 'little'),
               " offset : ", offset, " crc offset : ", crc_offset)
         wbfr.seek(crc_offset)
         wbfr.write(val.to_bytes(8, 'little'))
@@ -469,6 +471,7 @@ def CorruptEmap(recordType, stob_f_container, stob_f_key):
     count = 0
     read_metadata_file()
     lookupList = recordDict[recordType]
+    print()
     # logger.info("Offset List of {} = {} ".format(recordType, lookupList))
     logger.info("*****Corrupting BE_EMAP_KEY for Cob ID {}*****".format(args.corrupt_emap))
 
@@ -489,7 +492,7 @@ def CorruptEmap(recordType, stob_f_container, stob_f_key):
                             emap_key_data[0], emap_key_data[1], emap_key_data[2]))
                 logger.info("** Metadata val at offset {}, BE_EMAP_REC er_start = {}, er_value = {}, er_unit_size = {}, er_cs_nob = {}, checksum = {}".format(
                             saved_rec_offset, emap_rec_data[0], emap_rec_data[1], emap_rec_data[2], emap_rec_data[3], emap_rec_data[4:]))
-                # EditMetadata(saved_rec_offset + 40)
+                print()
                 logger.info("** Full Record before edit offset {},"
                             " BE_EMAP_REC hd_magic = {},"
                             " hd_bits = {}, er_start = {},"
@@ -503,7 +506,7 @@ def CorruptEmap(recordType, stob_f_container, stob_f_key):
                                     emap_rec_data_full[7], emap_rec_data_full[8],
                                     emap_rec_data_full[9], emap_rec_data_full[10],
                                     emap_rec_data_full[11]))
-                EditEmapMetadata(emap_rec_data_full, saved_rec_offset + 40, rec_hdr_offset + 88)
+                EditEmapMetadata(emap_rec_data_full, saved_rec_offset + 40, rec_hdr_offset + 84 + round(int(emap_rec_data_full[5], 16)/8))
                 logger.info("** Full Record after edit offset {},"
                             " BE_EMAP_REC hd_magic = {},"
                             " hd_bits = {}, er_start = {},"
@@ -518,13 +521,6 @@ def CorruptEmap(recordType, stob_f_container, stob_f_key):
                                     emap_rec_data_full[9], emap_rec_data_full[10],
                                     emap_rec_data_full[11]))
                 emap_rec_data, rec_offset = ReadCompleteRecord(saved_rec_offset)
-                print("===========[After curruption]==========")
-                logger.info("** Metadata val at offset {},"
-                            " BE_EMAP_REC er_start = {},"
-                            " er_value = {}, er_unit_size = {},"
-                            " er_cs_nob = {}, checksum = {}".format(
-                            saved_rec_offset, emap_rec_data[0], emap_rec_data[1],
-                    emap_rec_data[2], emap_rec_data[3], emap_rec_data[4:]))
                 count = count + 1
                 print()
     return count
