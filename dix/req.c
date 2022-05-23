@@ -1978,7 +1978,7 @@ static int dix__spare_target(struct m0_dix_rec_op         *rec_op,
 			return M0_ERR(rc);
 		spare = &rec_op->dgp_units[spare_offset + slot];
 		if (!spare->dpu_unavail) {
-			/* Found non-failed spare unit, exit the loop. */
+			/* Found an available spare unit, exit the loop. */
 			*spare_unit = spare;
 			*spare_slot = slot;
 			return M0_RC(0);
