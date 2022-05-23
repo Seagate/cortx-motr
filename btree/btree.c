@@ -12304,8 +12304,10 @@ static void ut_lru_test(void)
 			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 			};
 	struct ut_cb_data           put_data;
+	bool                        restart_test;
 	int                         retry_cnt       = 0;
 	int                         max_retries     = 20;
+	m0_bcount_t                 limit;
 	/**
 	 * In this UT, we are testing the functionality of LRU list purge and
 	 * be-allocator with chunk align parameter.
@@ -12321,6 +12323,7 @@ static void ut_lru_test(void)
 	btree_ut_init();
 
 start_lru_test:
+	restart_test = false;
 	mem_init = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	M0_LOG(M0_INFO,"Mem Init (%"PRId64").\n",mem_init);
 
@@ -12331,13 +12334,13 @@ start_lru_test:
 			       rnode_sz_shift, &cred);
 	m0_btree_create_credit(&bt, &cred, 1);
 
-	/** Prepare transaction to capture tree operations. */
+	/* Prepare transaction to capture tree operations. */
 	m0_be_ut_tx_init(tx, ut_be);
 	m0_be_tx_prep(tx, &cred);
 	rc = m0_be_tx_open_sync(tx);
 	M0_ASSERT(rc == 0);
 
-	/** Create temp node space and use it as root node for btree */
+	/* Create temp node space and use it as root node for btree */
 	buf = M0_BUF_INIT(rnode_sz, NULL);
 	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
 	rnode = buf.b_addr;
@@ -12386,6 +12389,7 @@ start_lru_test:
 	mem_after_alloc = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	mem_increased   = mem_init - mem_after_alloc;
 	if (mem_increased < 0) {
+		restart_test = true;
 		retry_cnt++;
 		M0_LOG(M0_INFO, "Memory increased is negative because "
 				"Mem After Alloc (%"PRId64") is greater than "
@@ -12395,43 +12399,11 @@ start_lru_test:
 				"the records and restarting the test.",
 				mem_after_alloc, mem_init);
 
-		/** Cleanup records and tree then restart the test. */
-		for (i = 1; i <= rec_count; i++) {
-			int      k;
+		/* Cleanup records and tree then restart the test. */
 
-			key = m0_byteorder_cpu_to_be64(i);
-			for (k = 0; k < ARRAY_SIZE(value); k++)
-				value[k] = key;
-
-			m0_be_ut_tx_init(tx, ut_be);
-			m0_be_tx_prep(tx, &cred);
-			rc = m0_be_tx_open_sync(tx);
-			M0_ASSERT(rc == 0);
-
-			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-						m0_btree_del(tree, &rec.r_key,
-								&ut_cb,
-								&kv_op, tx));
-			M0_ASSERT(rc == 0 && put_data.flags == M0_BSC_SUCCESS);
-			m0_be_tx_close_sync(tx);
-			m0_be_tx_fini(tx);
-		}
-
-		m0_be_ut_tx_init(tx, ut_be);
-		m0_be_tx_prep(tx, &cred);
-		rc = m0_be_tx_open_sync(tx);
-		M0_ASSERT(rc == 0);
-		rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree,
-							     &b_op,
-							     tx));
-		M0_ASSERT(rc == M0_BSC_SUCCESS);
-		m0_be_tx_close_sync(tx);
-		m0_be_tx_fini(tx);
-
-		m0_nanosleep(m0_time(2, 0), NULL);
 
 		if (retry_cnt < max_retries)
-			goto start_lru_test;
+			goto cleanup; // cleanup and restart
 		else
 			M0_ASSERT_INFO(mem_increased > 0,
 				       "Memory is still getting freed, hence "
@@ -12447,6 +12419,60 @@ start_lru_test:
 	mem_after_free = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	M0_LOG(M0_INFO, "Mem After Free (%"PRId64") || Mem freed (%"PRId64").\n",
 	       mem_after_free, mem_freed);
+
+cleanup:
+	/**
+	 * The test assumes that "limit" will be more than the total number of
+	 * nodes present in the record. Hence only one function call to
+	 * m0_btree_truncate is sufficient.
+	 */
+	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_btree_truncate_credit(tx, tree, &cred, &limit);
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
+	M0_ASSERT(rc == 0);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+				m0_btree_truncate(tree, limit, tx,
+							&kv_op));
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
+
+	/* Verify the tree is empty */
+	M0_ASSERT(m0_btree_is_empty(tree));
+
+	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED, rnode_sz,
+			rnode_sz_shift, &cred);
+	m0_btree_destroy_credit(tree, NULL, &cred, 1);
+
+	m0_be_ut_tx_init(tx, ut_be);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
+	M0_ASSERT(rc == 0);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_destroy(tree, &b_op, tx));
+	M0_ASSERT(rc == 0);
+	M0_SET0(&btree);
+
+	/* Delete temp node space which was used as root node for the tree. */
+	buf = M0_BUF_INIT(rnode_sz, rnode);
+	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+
+	m0_be_tx_close_sync(tx);
+	m0_be_tx_fini(tx);
+
+	if (restart_test) {
+		/* When restarting test, Re-map the BE segment. */
+		m0_be_seg_close(ut_seg->bus_seg);
+		rc = madvise(rnode, rnode_sz, MADV_NORMAL);
+		M0_ASSERT(rc == -1 && errno == ENOMEM);
+		m0_be_seg_open(ut_seg->bus_seg);
+		m0_nanosleep(m0_time(2, 0), NULL);
+		goto start_lru_test;
+	}
+
 
 	btree_ut_fini();
 }
