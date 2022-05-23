@@ -32,7 +32,7 @@
 #include <openssl/md5.h>
 #endif
 
-#define M0_CKSUM_DATA_ROUNDOFF_BYTE (8)
+#define M0_CKSUM_DATA_ROUNDOFF_BYTE (16)
 
 /* Default checksum type, TODO_DI: Get from config */
 #define M0_CKSUM_DEFAULT_PI M0_PI_TYPE_MD5
@@ -52,7 +52,7 @@
 #define M0_CALC_PAD(size, alignment) ( size%alignment ? (((size/alignment + 1 ) * alignment) - size) : 0)
 
 
-/* Constants for protection info type, max types supported is 8 */
+/* Constants for protection info type, max types supported is 255 */
 enum m0_pi_algo_type
 {
         M0_PI_TYPE_RESERVED,

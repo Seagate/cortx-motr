@@ -68,7 +68,8 @@ parser.add_argument('-seed', action='store', default=0, type=float, dest='seed',
                     help='Seed is used to initialize the "random" library: to initialize the random generation')
 parser.add_argument('-corrupt_emap', action='store', dest='corrupt_emap', help='Induce Error in Emap specified by Cob Id')
 parser.add_argument('-list_emap', action='store_true', default=False, dest='list_emap',
-                    help='Display all Emap keys with device id')
+                    help='Display all Emap keys with device id'
+                         ' e.g. error_injection.py -list_emap -m /var/motr/m0d-0x7200000000000001:0xc/db/o/100000000000000:2a -parse_size 10485760')
 parser.add_argument('-parse_size', action='store', dest='parse_size', type=int,
                     help='Limit for metadata parsing size in bytes for list_emap and verify option')
 parser.add_argument('-offset', action='store', default=0, type=int, dest='seek_offset',
@@ -170,10 +171,29 @@ def EditMetadata(offset):
     with open(filename, 'r+b') as wbfr:
         logger.info("** Corrupting 8byte of Metadata at offset {} with b'1111222244443333' **".format(offset))
         wbfr.seek(offset)
+        wbfr.flush()
         wbfr.write(b'\x33\x33\x44\x44\x22\x22\x11\x11')
+        wbfr.flush()
         wbfr.seek(offset)
-        ReadMetadata(offset)
+        wbfr.flush()
 
+def EditEmapMetadata(emap_rec_full, offset, crc_offset):
+    """Edit emap metadata with the fixed pattern of 0x1111222244443333."""
+    with open(filename, 'r+b') as wbfr:
+        logger.info("** Corrupting 8byte of Metadata at offset {}"
+                    " with b'1111222244443333' **".format(offset))
+        wbfr.seek(offset)
+        wbfr.flush()
+        wbfr.write(b'\x33\x33\x44\x44\x22\x22\x11\x11')
+        emap_rec_full[7] = '1111222244443333'
+        val = ComputeCRC(emap_rec_full, len(emap_rec_full) - 2)
+        print("val in editemap : ", hex(val), " val to byte : ", val.to_bytes(8, 'little'),
+              " offset : ", offset, " crc offset : ", crc_offset)
+        wbfr.seek(crc_offset)
+        wbfr.write(val.to_bytes(8, 'little'))
+        wbfr.flush()
+        wbfr.seek(offset)
+        wbfr.flush()
 
 # If you want to verify the written Metadata then run below segment of code
 def ReadMetadata(offset):
@@ -199,6 +219,45 @@ def ReadCompleteRecord(offset):
     # Convert list to hex representation
     curr_record = [ hex(int(i, 16)) for i in curr_record]
     return curr_record, offset # Return record data and footer offset
+
+def ReadCompleteRecordIncCRC(offset):
+    """Function read complete record starting after header and until footer for record."""
+    curr_record = []
+    while 1:
+        footerFound, data=ReadMetadata(offset)
+        curr_record.append(data.decode('utf-8'))
+        offset = offset + 8 # check next 8 bytes
+        if footerFound:
+            _, data=ReadMetadata(offset)
+            curr_record.append(data.decode('utf-8'))
+            offset = offset + 8
+            break
+
+    # Convert list to hex representation
+    # curr_record = [ hex(int(i, 16)) for i in curr_record]
+    return curr_record, offset # Return record data and footer offset
+
+def m0_hash_fnc_fnv1(buffer, len):
+    ptr = buffer
+    val = 14695981039346656037
+    mask = (1 << 64) - 1
+    if buffer == None or len == 0 :
+        return 0
+    for i in range(round(len/8)) :
+        for j in reversed(range(7 + 1)):
+            val = (val * 1099511628211) & mask
+            val = val ^ ptr[(i * 8) + j]
+            val = val & mask
+    return val
+
+def ComputeCRC(string_list, list_len):
+    result = []
+    for i in range(list_len):
+        byte_array = bytes.fromhex(string_list[i])
+        for j in range(len(byte_array)):
+            result.append(byte_array[j])
+    val = m0_hash_fnc_fnv1(result,len(result))
+    return val
 
 def ReadBeBNode(offset):
     llist = BeBnodeTypeKeys[offset]
@@ -418,15 +477,54 @@ def CorruptEmap(recordType, stob_f_container, stob_f_key):
         if (hex(stob_f_container) in emap_key_data) and (hex(stob_f_key) in emap_key_data) and ("0xffffffffffffffff" not in emap_key_data):
             # 16 bytes of BE_EMAP_KEY (footer) + 16 bytes of BE_EMAP_REC(header) gives offset of corresponding BE_EMAP_REC
             rec_offset = offset + 32
+            saved_rec_offset = rec_offset
             emap_rec_data, rec_offset = ReadCompleteRecord(rec_offset)
+            # Skip key CRC
+            rec_hdr_offset = offset + 16
+            emap_rec_data_full, _ = ReadCompleteRecordIncCRC(rec_hdr_offset)
 
             # Check er_cs_nob and if it is not 0 then go and corrupt last checksum 8 bytes
             if emap_rec_data[3] != "0x0":
-                logger.info("** Metadata at offset {}, BE_EMAP_KEY ek_prefix = {}:{}, ek_offset = {}".format(offset-24,
+                logger.info("** Metadata key at offset {}, BE_EMAP_KEY ek_prefix = {}:{}, ek_offset = {}".format(offset-24,
                             emap_key_data[0], emap_key_data[1], emap_key_data[2]))
-                logger.info("** Metadata at offset {}, BE_EMAP_REC er_start = {}, er_value = {}, er_unit_size = {}, er_cs_nob = {}, checksum = {}".format(
-                            offset+32, emap_rec_data[0], emap_rec_data[1], emap_rec_data[2], emap_rec_data[3], emap_rec_data[4:]))
-                EditMetadata(rec_offset-8)
+                logger.info("** Metadata val at offset {}, BE_EMAP_REC er_start = {}, er_value = {}, er_unit_size = {}, er_cs_nob = {}, checksum = {}".format(
+                            saved_rec_offset, emap_rec_data[0], emap_rec_data[1], emap_rec_data[2], emap_rec_data[3], emap_rec_data[4:]))
+                # EditMetadata(saved_rec_offset + 40)
+                logger.info("** Full Record before edit offset {},"
+                            " BE_EMAP_REC hd_magic = {},"
+                            " hd_bits = {}, er_start = {},"
+                            " er_value = {}, er_unit_sz = {},"
+                            " er_cksm_nob = {}, checksum = {},{},{},{}"
+                            " footer = {}, CRC = {}"
+                            .format(offset, emap_rec_data_full[0],
+                                    emap_rec_data_full[1], emap_rec_data_full[2],
+                                    emap_rec_data_full[3], emap_rec_data_full[4],
+                                    emap_rec_data_full[5], emap_rec_data_full[6],
+                                    emap_rec_data_full[7], emap_rec_data_full[8],
+                                    emap_rec_data_full[9], emap_rec_data_full[10],
+                                    emap_rec_data_full[11]))
+                EditEmapMetadata(emap_rec_data_full, saved_rec_offset + 40, rec_hdr_offset + 88)
+                logger.info("** Full Record after edit offset {},"
+                            " BE_EMAP_REC hd_magic = {},"
+                            " hd_bits = {}, er_start = {},"
+                            " er_value = {}, er_unit_sz = {},"
+                            " er_cksm_nob = {}, checksum = {},{},{},{}"
+                            " footer = {}, CRC = {}"
+                            .format(offset, emap_rec_data_full[0],
+                                    emap_rec_data_full[1], emap_rec_data_full[2],
+                                    emap_rec_data_full[3], emap_rec_data_full[4],
+                                    emap_rec_data_full[5], emap_rec_data_full[6],
+                                    emap_rec_data_full[7], emap_rec_data_full[8],
+                                    emap_rec_data_full[9], emap_rec_data_full[10],
+                                    emap_rec_data_full[11]))
+                emap_rec_data, rec_offset = ReadCompleteRecord(saved_rec_offset)
+                print("===========[After curruption]==========")
+                logger.info("** Metadata val at offset {},"
+                            " BE_EMAP_REC er_start = {},"
+                            " er_value = {}, er_unit_size = {},"
+                            " er_cs_nob = {}, checksum = {}".format(
+                            saved_rec_offset, emap_rec_data[0], emap_rec_data[1],
+                    emap_rec_data[2], emap_rec_data[3], emap_rec_data[4:]))
                 count = count + 1
                 print()
     return count
@@ -438,6 +536,7 @@ def ListAllEmapPerDevice():
     lookupList = recordDict[recordType]
     # logger.info(lookupList)
 
+    count = 0
     for offset in lookupList:
         print()
         emap_key_data , offset = ReadCompleteRecord(offset)
@@ -448,10 +547,39 @@ def ListAllEmapPerDevice():
         emap_rec_offset = offset + 32
         emap_rec_data, _ = ReadCompleteRecord(emap_rec_offset)
 
-        logger.info("** Metadata at offset {}, BE_EMAP_KEY ek_prefix = {}:{}, ek_offset = {}, Device ID = {}".format(offset,
-                    emap_key_data[0], emap_key_data[1], emap_key_data[2], device_id))
-        logger.info("** Metadata at offset {}, BE_EMAP_REC er_start = {}, er_value = {}, er_unit_size = {}, er_cs_nob = {}, checksum = {}".format(
-                    emap_rec_offset, emap_rec_data[0], emap_rec_data[1], emap_rec_data[2], emap_rec_data[3], emap_rec_data[4:]))
+        # Skip key CRC
+        rec_hdr_offset = offset + 16
+        emap_rec_data_full, _ = ReadCompleteRecordIncCRC(rec_hdr_offset)
+        if emap_rec_data[2] != "0x0" :
+            print("=============[ Count :", count, " Offset", offset, "]==============")
+            logger.info("** Metadata key at offset {},"
+                        " BE_EMAP_KEY ek_prefix = {}:{},"
+                        " ek_offset = {}, Device ID = {}".format(offset,
+                        emap_key_data[0], emap_key_data[1], emap_key_data[2], device_id))
+            logger.info("** Metadata val at offset {},"
+                        " BE_EMAP_REC er_start = {},"
+                        " er_value = {}, er_unit_size = {},"
+                        " er_cs_nob = {}, checksum = {}"
+                        .format(emap_rec_offset, emap_rec_data[0],
+                                emap_rec_data[1], emap_rec_data[2],
+                                emap_rec_data[3], emap_rec_data[4:]))
+            if emap_rec_data[3] != '0x0':
+                logger.info("** Full Record offset {},"
+                            " BE_EMAP_REC hd_magic = {},"
+                            " hd_bits = {}, er_start = {},"
+                            " er_value = {}, er_unit_sz = {},"
+                            " er_cksm_nob = {}, checksum = {},{},{},{}"
+                            " footer = {}, CRC = {}"
+                            .format(rec_hdr_offset, emap_rec_data_full[0],
+                                    emap_rec_data_full[1], emap_rec_data_full[2],
+                                    emap_rec_data_full[3], emap_rec_data_full[4],
+                                    emap_rec_data_full[5], emap_rec_data_full[6],
+                                    emap_rec_data_full[7], emap_rec_data_full[8],
+                                    emap_rec_data_full[9], emap_rec_data_full[10],
+                                    emap_rec_data_full[11]))
+                comp_crc = ComputeCRC(emap_rec_data_full, len(emap_rec_data_full) - 2)
+                print(">>>>>>> : ",hex(comp_crc))
+            count = count + 1
 
 
 def VerifyLengthOfRecord(recordDict):
