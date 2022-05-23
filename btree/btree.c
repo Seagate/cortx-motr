@@ -3311,13 +3311,12 @@ static void ff_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
 		int de_size = sizeof(struct ff_dir_entry) * de_nr;
 
 		if (cr == CR_ALL) {
-			kv_cap_size = h->ff_used *
+			kv_cap_size = h->ff_max_recs *
 				      (h->ff_ksize + ff_valsize(slot->s_node) +
 				       crc_size);
 
-			M0_BTREE_TX_CAPTURE(tx, seg, &de[0], de_size);
-			M0_BTREE_TX_CAPTURE(tx, seg, ff_key(slot->s_node, 0),
-					    kv_cap_size);
+			M0_BTREE_TX_CAPTURE(tx, seg, &de[0],
+					    de_size + kv_cap_size);
 		} else if (cr == CR_NONE) {
 			if (h->ff_max_recs != 0)
 				M0_BTREE_TX_CAPTURE(tx, seg, &de[0], de_size);
@@ -4966,18 +4965,8 @@ static void fkvv_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
 				    sizeof(*dir) * h->fkvv_dir_entries);
 
 		if (cr == CR_ALL) {
-			int krsize;
-			int vrsize;
-			M0_ASSERT(slot->s_idx == 0);
-
-			krsize = h->fkvv_ksize * h->fkvv_used;
-			vrsize = val_offset_get(slot->s_node, h->fkvv_used - 1);
-
-			start_key = fkvv_key(slot->s_node, 0);
-			last_val  = fkvv_val(slot->s_node, h->fkvv_used - 1);
-
-			M0_BTREE_TX_CAPTURE(tx, seg, start_key, krsize);
-			M0_BTREE_TX_CAPTURE(tx, seg, last_val, vrsize);
+			M0_BTREE_TX_CAPTURE(tx, seg, h+1,
+					    h->fkvv_nsize - sizeof(*h));
 		} else if (cr == CR_NONE) {
 			if (h->fkvv_opaque == NULL)
 				hsize += sizeof(h->fkvv_opaque);
