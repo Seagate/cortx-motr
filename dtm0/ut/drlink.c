@@ -44,6 +44,8 @@ enum {
 	DTM0_UT_DRLINK_SIMPLE_POST_NR = 0x100,
 };
 
+extern struct m0_semaphore dr_sema;
+
 void m0_dtm0_ut_drlink_simple(void)
 {
 	struct m0_ut_dtm0_helper *udh;
@@ -66,6 +68,8 @@ void m0_dtm0_ut_drlink_simple(void)
 
 	m0_ut_dtm0_helper_init(udh);
 	svc = udh->udh_client_dtm0_service;
+	rc = m0_semaphore_init(&dr_sema, 0);
+	M0_ASSERT(rc == 0);
 
 	M0_ALLOC_ARR(fid, DTM0_UT_DRLINK_SIMPLE_POST_NR);
 	M0_UT_ASSERT(fid != NULL);
@@ -131,8 +135,6 @@ void m0_dtm0_ut_drlink_simple(void)
 		M0_UT_ASSERT(found);
 	}
 	m0_be_op_fini(&op_out);
-	m0_be_queue_fini(svc->dos_ut_queue);
-	m0_free(svc->dos_ut_queue);
 	for (i = 0; i < DTM0_UT_DRLINK_SIMPLE_POST_NR; ++i)
 		M0_UT_ASSERT(m0_fid_eq(&fid[i], &M0_FID0));
 	m0_free(fid);
@@ -142,6 +144,11 @@ void m0_dtm0_ut_drlink_simple(void)
 	}
 	m0_free(op);
 	m0_free(fop);
+	for (i = 0; i < DTM0_UT_DRLINK_SIMPLE_POST_NR; ++i)
+		m0_semaphore_down(&dr_sema);
+
+	m0_be_queue_fini(svc->dos_ut_queue);
+	m0_free(svc->dos_ut_queue);
 
 	m0_ut_dtm0_helper_fini(udh);
 	m0_free(udh);

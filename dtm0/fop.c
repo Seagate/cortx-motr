@@ -661,7 +661,8 @@ static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
 	return M0_RC(result);
 }
 
-/** This fom is only being used in UTs. */
+/** This fom and this semaphore are only being used in UTs. */
+struct m0_semaphore dr_sema;
 static int dtm0_tmsg_fom_tick(struct m0_fom *fom)
 {
 	struct m0_dtm0_service *svc = m0_dtm0_fom2service(fom);
@@ -681,6 +682,7 @@ static int dtm0_tmsg_fom_tick(struct m0_fom *fom)
 		m0_be_queue_unlock(svc->dos_ut_queue);
 		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		result = M0_RC(M0_FSO_AGAIN);
+		m0_semaphore_up(&dr_sema);
 	}
 	return M0_RC(result);
 }
