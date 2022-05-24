@@ -12314,10 +12314,12 @@ static void ut_lru_test(void)
 	 * be-allocator with chunk align parameter.
 	 *
 	 * 1. Allocate and fill up the btree with multiple records.
-	 * 2. Verify the size increase in memory.
+	 * 2. Verify the size increase in memory. If size increase in memory is
+	 *    negative then go to step 5 and restart the test (step 1).
 	 * 3. Use the m0_btree_lrulist_purge() to reduce the size by freeing up
 	 *    the unused nodes present in LRU list.
 	 * 4. Verify the reduction in size.
+	 * 5. Cleanup btree and allocated resources.
 	 */
 	M0_ENTRY();
 
