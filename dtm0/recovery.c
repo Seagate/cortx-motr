@@ -1045,15 +1045,26 @@ m0_dtm0_recovery_machine_stop(struct m0_dtm0_recovery_machine *m)
 	int                  rc;
 	struct recovery_fom *rf;
 
+	recovery_machine_lock(m);
+
 	m0_tl_for(rfom, &m->rm_rfoms, rf) {
 		m0_be_queue_lock(&rf->rf_heq);
 		M0_LOG(M0_DEBUG, "heq_end " FID_F, FID_P(&rf->rf_tgt_svc));
+		/*
+		 * The recovery fom will finalize itself when the queue ends.
+		 */
 		m0_be_queue_end(&rf->rf_heq);
 		m0_be_queue_unlock(&rf->rf_heq);
 	}
 	m0_tlist_endfor;
 
-	recovery_machine_lock(m);
+	/*
+	 * This sm wait will release the sm lock before waiting if needed.
+	 * The same lock is used as the sm lock and machine lock. Please see
+	 * recovery_machine_lock() and m0_dtm0_recovery_machine_init().
+	 * So any other thread that wants to acquire the recovery machine
+	 * lock will have a chance to continue.
+	 */
 	rc = m0_sm_timedwait(&m->rm_sm,
 			     M0_BITS(M0_DRMS_INIT, M0_DRMS_STOPPED),
 			     M0_TIME_NEVER);
@@ -1448,6 +1459,9 @@ static void unpopulate_foms(struct m0_dtm0_recovery_machine *m)
 	M0_ENTRY("m=%p", m);
 
 	recovery_machine_lock(m);
+	/*
+	 * TODO: assert that list is empty instead of this teardown
+	 */
 	m0_tl_teardown(rfom, &m->rm_rfoms, rf) {
 		recovery_fom_fini(rf);
 		m0_free(rf);
