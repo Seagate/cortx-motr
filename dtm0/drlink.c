@@ -536,6 +536,12 @@ static void drlink_coro_fom_tick(struct m0_co_context *context)
 	}
 	m0_conf_cache_unlock(&confc->cc_cache);
 
+	/* Reconnect if the session was canceled */
+	if (m0_rpc_link_is_connected(&F(proc)->dop_rlink) &&
+	    F(proc)->dop_rlink.rlk_sess.s_cancelled) {
+		always_reconnect = true;
+	}
+
 	/* XXX:
 	 * At this moment we cannot detect client falures.
 	 * Because of that, we cannot detect the case where
