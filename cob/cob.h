@@ -237,7 +237,8 @@ enum {
 #define M0_COB_ROOT_NODE_ALIGN (4 * 1024)
 
 enum {
-	M0_COB_ROOT_NODE_SIZE = (8 * 1024),
+	M0_COB_ROOT_NODE_SIZE = (64 * 1024),
+	M0_COB_ROOT_NODE_SIZE_FOMG = (8 * 1024),
 
 	/** This should align to Block size on the storage. Change as needed */
 };
@@ -297,7 +298,7 @@ struct m0_cob_domain {
 			      __attribute__((aligned(M0_COB_ROOT_NODE_ALIGN)));
 	uint8_t          cd_fa_basic_node[M0_COB_ROOT_NODE_SIZE]
 			      __attribute__((aligned(M0_COB_ROOT_NODE_ALIGN)));
-	uint8_t          cd_fa_omg_node[M0_COB_ROOT_NODE_SIZE]
+	uint8_t          cd_fa_omg_node[M0_COB_ROOT_NODE_SIZE_FOMG]
 			      __attribute__((aligned(M0_COB_ROOT_NODE_ALIGN)));
 	uint8_t          cd_fa_ea_node[M0_COB_ROOT_NODE_SIZE]
 			      __attribute__((aligned(M0_COB_ROOT_NODE_ALIGN)));

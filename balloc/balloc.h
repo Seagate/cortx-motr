@@ -220,7 +220,8 @@ enum {
 
 enum {
 	/** Root node size for balloc extend and group descriptor trees. */
-	BALLOC_ROOT_NODE_SIZE = 8192,
+	BALLOC_GE_ROOT_NODE_SIZE = 8192,
+	BALLOC_GD_ROOT_NODE_SIZE = 20480,
 };
 
 /**
@@ -258,9 +259,9 @@ struct m0_balloc {
 	 *  containing structure m0_balloc. This is possible only if m0_balloc
 	 *  based variable is itself aligned to BALLOC_ROOT_NODE_ALIGN.
 	 */
-	uint8_t                      cb_ge_node[BALLOC_ROOT_NODE_SIZE]
+	uint8_t                      cb_ge_node[BALLOC_GE_ROOT_NODE_SIZE]
 					__AAL(BALLOC_ROOT_NODE_ALIGN);
-	uint8_t                      cb_gd_node[BALLOC_ROOT_NODE_SIZE]
+	uint8_t                      cb_gd_node[BALLOC_GD_ROOT_NODE_SIZE]
 					__AAL(BALLOC_ROOT_NODE_ALIGN);
 
 	/*
