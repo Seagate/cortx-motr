@@ -2540,7 +2540,12 @@ static void local_failures(void)
 	m0_fi_disable("cas_req_replied_cb", "send-failure");
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
-	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	/*
+	 * TODO dtm0 is introduced. As of now, the dix request is set to be
+	 * failure. This will be fixed when dtm0 is fixed.
+	 * Please see the comments in dix_rop_completed() in dix/req.c file.
+	 */
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == -ENOTCONN));
 	dix_rep_free(&rep);
 	dix_kv_destroy(&keys, &vals);
 	dix_index_fini(&index);

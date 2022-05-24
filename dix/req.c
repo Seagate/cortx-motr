@@ -1638,6 +1638,7 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	 * The feature is disabled until it gets covered by tests,
 	 * and/or the error handling gets re-evaluated in accordance
 	 * with DTM0 needs for the recovery use-cases.
+	 * Please fix local_failures() in dix/ut/client_ut.c when ready.
 	 */
 #if 0
 		if (m0_tl_forall(cas_rop, cas_rop,
