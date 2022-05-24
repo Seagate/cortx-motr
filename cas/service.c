@@ -486,7 +486,7 @@ static bool cas_is_valid     (struct cas_fom *fom, enum m0_cas_opcode opc,
 			      uint64_t rec_pos);
 static int  cas_op_recs_check(struct cas_fom *fom, enum m0_cas_opcode opc,
 			      enum m0_cas_type ct, struct m0_cas_op *op);
-
+static bool cas_op_invariant(const struct m0_cas_op *op);
 static bool cas_fom_invariant(const struct cas_fom *fom);
 
 static int  cas_buf_cid_decode(struct m0_buf    *enc_buf,
@@ -1013,6 +1013,11 @@ static int cas_op_recs_check(struct cas_fom    *fom,
 		M0_RC(0) : M0_ERR(-EPROTO);
 }
 
+static bool cas_op_invariant(const struct m0_cas_op *op)
+{
+	return true;
+}
+
 static bool cas_max_reply_payload_exceeded(struct cas_fom *fom)
 {
 	struct m0_fom *fom0 = &fom->cf_fom;
@@ -1367,12 +1372,9 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	M0_PRE(ctidx != NULL);
 	M0_PRE(cas_fom_invariant(fom));
 	M0_PRE(ergo(is_dtm0_used, m0_dtm0_tx_desc__invariant(&op->cg_txd)));
-	/*
-	 * If COF_NO_DTM is set, no DTM is needed for this operation.
-	 * CAS service may take more special actions based on this flag.
-	 */
 	M0_PRE(ergo(op->cg_flags & COF_NO_DTM,
 		    m0_dtm0_tx_desc_is_none(&op->cg_txd)));
+	M0_PRE(cas_op_invariant(op));
 
 	if (!M0_IS0(&op->cg_txd) && phase == M0_FOPH_INIT) {
 		M0_LOG(M0_DEBUG, "Got CAS with txid: " DTID0_F,
@@ -1886,6 +1888,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		M0_IMPOSSIBLE("Invalid phase");
 	}
 
+	M0_POST(cas_op_invariant(op));
 	M0_POST(cas_fom_invariant(fom));
 	return M0_RC(result);
 }
@@ -2065,6 +2068,7 @@ static int cas_op_check(struct m0_cas_op *op,
 	struct m0_dix_layout       *stored_layout;
 	int                         rc = 0;
 
+	M0_ASSERT(cas_op_invariant(op));
 	if (cas_fid_is_cctg(&cid->ci_fid)) {
 		rc = m0_ctg_op_rc(ctg_op);
 		if (rc == 0) {
