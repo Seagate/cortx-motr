@@ -52,6 +52,10 @@ static const m0_time_t zero_time = M0_MKTIME(0, 0);
 /** Clock source for M0_TIMER_HARD. @see timer_posix_set() */
 static int	       clock_source_timer = -1;
 
+/* Number of allocated HARD timers */
+static unsigned long long hard_timer_alloc = 0;
+static unsigned long long hard_timer_free = 0;
+
 /**
    Typed list of m0_timer_tid structures.
  */
@@ -193,9 +197,19 @@ static int timer_posix_init(struct m0_timer *timer)
 	}
 	rc = timer_create(clock_source_timer, &se, &ptimer);
 	/* preserve timer->t_ptimer if timer_create() isn't succeeded */
-	if (rc == 0)
+	if (rc == 0) {
 		timer->t_ptimer = ptimer;
-	return rc != 0 ? M0_ERR(-errno) : 0;
+		hard_timer_alloc++;
+	} else {
+		rc = M0_ERR(-errno);
+		M0_LOG(M0_ERROR, "Failed to allocate HARD timer (%d), "
+		       "alloc=%lld, free=%lld, inuse=%lld",
+		       rc,
+		       hard_timer_alloc,
+		       hard_timer_free,
+		       hard_timer_alloc - hard_timer_free);
+	}
+	return rc != 0 ? M0_ERR(rc) : 0;
 }
 
 /**
@@ -210,6 +224,7 @@ static void timer_posix_fini(timer_t posix_timer)
 	 * timer_delete() can fail iff timer->t_ptimer isn't valid timer ID.
 	 */
 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
+	hard_timer_free++;
 }
 
 static m0_time_t timer_time_to_realtime(m0_time_t expire)
