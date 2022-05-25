@@ -2658,7 +2658,7 @@ static void *ff_key(const struct nd *node, int idx)
 	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
 		   (0 <= idx && idx <= h->ff_used)));
 	if (IS_EMBEDDED_INDIRECT(node))
-		return (void *)h + sizeof(struct ff_head) + de[idx].ff_roff;
+		return (void *)h + de[idx].ff_roff;
 	else
 		return (void*)de + h->ff_ksize * idx;
 }
@@ -2680,8 +2680,7 @@ static void *ff_val(const struct nd *node, int idx)
 		   (0 <= idx && ((uint16_t)idx) <= h->ff_used)));
 
 	if (h->ff_seg.h_addr_type == EMBEDDED_INDIRECT)
-		return (void *)h + sizeof(struct ff_head) + de[idx].ff_roff +
-		       h->ff_ksize;
+		return (void *)h + de[idx].ff_roff + h->ff_ksize;
 	else {
 		node_end_addr = node_start_addr + h->ff_nsize;
 		if (h->ff_level == 0 &&
@@ -2790,12 +2789,12 @@ static bool segaddr_header_isvalid(const struct segaddr *addr)
 
 static void ff_dir_init(const struct nd *node)
 {
-	struct ff_head      *h        = ff_data(node);
+	struct ff_head      *h             = ff_data(node);
 	struct ff_dir_entry *de;
-	uint16_t             dir_size;
+	uint32_t             kv_start_addr = 0;
 	uint16_t             kv_size;
-	int                  crc_size = 0;
-	uint16_t             rec_size = 0;
+	int                  crc_size      = 0;
+	uint16_t             rec_size      = 0;
 	int                  i;
 
 	M0_PRE(h != NULL);
@@ -2810,11 +2809,12 @@ static void ff_dir_init(const struct nd *node)
 	h->ff_max_recs = (uint16_t)((h->ff_nsize - sizeof(struct ff_head)) /
 			 	    rec_size);
 
-	dir_size = (uint16_t)(h->ff_max_recs * sizeof(struct ff_dir_entry));
+	kv_start_addr = sizeof(struct ff_head) +
+			(uint16_t)(h->ff_max_recs * sizeof(struct ff_dir_entry));
 	kv_size = h->ff_ksize + ff_valsize(node) + crc_size;
 
 	for (i = 0; i < h->ff_max_recs; i++)
-		de[i].ff_roff = dir_size + (i * kv_size);
+		de[i].ff_roff = kv_start_addr + (i * kv_size);
 }
 
 static void ff_dir_update(const struct nd *node, int idx, bool op_del)
