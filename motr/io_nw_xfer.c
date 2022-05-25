@@ -1123,13 +1123,14 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		// Need to update PG & Unit index for every seg_per_unit
 		pgdata.seg_per_unit = layout_unit_size(pdlayout_get(ioo))/seg_sz;
 
-		M0_LOG(M0_ALWAYS, "Target"FID_F"Filter=%s PGStartOff:%"PRIu64,
+		//TODO_DI remove this log
+		M0_LOG(M0_ALWAYS, "Target"FID_F" Filter=%s",
 						FID_P(&ti->ti_fid),
-						filter == PA_DATA ? "D" : "P",
-						pgdata.pgrp0_index);
+						filter == PA_DATA ? "D" : "P");
 		
-		M0_LOG(M0_ALWAYS,"GOFF-IOVEC StIdx: %"PRIi64 " EndIdx: %"PRIi64 " Vnr: %"PRIi32 
-											" Count0: %"PRIi64 " CountEnd: %"PRIi64,
+		M0_LOG(M0_ALWAYS,"RIW=%d PGStartOff:%"PRIu64" GOFF-IOVEC StIdx: %"PRIi64 " EndIdx: %"PRIi64 " Vnr: %"PRIi32
+						 " Count0: %"PRIi64 " CountEnd: %"PRIi64,
+						   (int)read_in_write, pgdata.pgrp0_index,
 						   ti->ti_goff_ivec.iv_index[0],
 						   ti->ti_goff_ivec.iv_index[ti->ti_goff_ivec.iv_vec.v_nr-1],
 						   ti->ti_goff_ivec.iv_vec.v_nr,
