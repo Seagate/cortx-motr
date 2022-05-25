@@ -873,7 +873,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	m0_bindex_t                  offset;
 	uint32_t                     segnext;
 	uint32_t                     ndom_max_segs;
-	struct m0_client             *instance;
+	struct m0_client            *instance;
 
 	M0_ENTRY("prepare io fops for target ioreq %p filter 0x%x, tfid "FID_F,
 		 ti, filter, FID_P(&ti->ti_fid));
@@ -891,7 +891,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			(IRS_READING, IRS_DEGRADED_READING,
 			 IRS_WRITING, IRS_DEGRADED_WRITING)));
 
-	if (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE &&
+	if (M0_IN(ioo->ioo_oo.oo_oc.oc_op.op_code, (M0_OC_WRITE,
+						    M0_OC_FREE)) &&
 	    M0_IN(ioreq_sm_state(ioo), (IRS_READING, IRS_DEGRADED_READING)))
 		read_in_write = true;
 
@@ -1074,14 +1075,28 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_fid = ti->ti_fid;
 		rw_fop->crw_pver = ioo->ioo_pver;
 		rw_fop->crw_index = ti->ti_obj;
-		/* In case of partially spanned units in a parity group,
-		 * degraded read and read-verify mode expects zero-filled
-		 * units from server side.
+
+		/*
+		 * Use NOHOLE by default (i.e. return error for missing
+		 * units instead of zeros), unless we are in read-verify
+		 * mode or in the degraded-read mode. Otherwise, in case of
+		 * partially spanned parity groups (last groups, usually),
+		 * we will get a lot of bogus errors when all data units
+		 * of the group are read.
+		 *
+		 * Note: parity units are always present in the groups, even
+		 * in the partially spanned ones. So we always use NOHOLE
+		 * for them. Otherwise, the user may get corrupted data.
 		 */
 		instance = m0__op_instance(&ioo->ioo_oo.oo_oc.oc_op);
-		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
-		    !instance->m0c_config->mc_is_read_verify &&
-		    ioo->ioo_flags & M0_OOF_NOHOLE)
+		if (ioreq_sm_state(ioo) == IRS_READING && !read_in_write &&
+		    (filter == PA_PARITY ||
+		     (!instance->m0c_config->mc_is_read_verify &&
+		      !(ioo->ioo_flags & M0_OOF_HOLE))))
+			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
+
+		if (ioreq_sm_state(ioo) == IRS_DEGRADED_READING &&
+		    !read_in_write && filter == PA_PARITY)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 
 		/* Assign the checksum buffer for traget */
@@ -1724,14 +1739,6 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 			       item, item->ri_type->rit_opcode, item->ri_error,
 			       item->ri_sm.sm_state);
 
-			/* Maintains only the first error encountered. */
-			if (xfer->nxr_rc == 0 &&
-			    item->ri_sm.sm_state == M0_RPC_ITEM_FAILED) {
-				xfer->nxr_rc = item->ri_error;
-				M0_LOG(M0_DEBUG, "[%p] nwxfer rc = %d",
-				       ioo, xfer->nxr_rc);
-			}
-
 			M0_ASSERT(ergo(item->ri_sm.sm_state !=
 				       M0_RPC_ITEM_UNINITIALISED,
 				       item->ri_rmachine != NULL));
@@ -1841,7 +1848,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			continue;
 		}
 		rc = ti->ti_ops->tio_iofops_prepare(ti, PA_DATA) ?:
-			ti->ti_ops->tio_iofops_prepare(ti, PA_PARITY);
+		     ti->ti_ops->tio_iofops_prepare(ti, PA_PARITY);
 		if (rc != 0)
 			return M0_ERR(rc);
 	} m0_htable_endfor;

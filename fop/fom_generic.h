@@ -26,8 +26,8 @@
 #define __MOTR_FOP_FOM_GENERIC_H__
 
 #include "fop/fom.h"
+#include "fop/wire.h"
 #include "lib/types.h"
-#include "xcode/xcode_attr.h"
 #include "lib/string.h"
 #include "lib/string_xc.h"
 #include "be/tx.h"
@@ -219,29 +219,9 @@ extern struct m0_sm_trans_descr
 m0_generic_phases_trans[M0_FOM_GENERIC_TRANS_NR];
 extern const struct m0_sm_conf m0_generic_conf;
 
-/**
-   Generic reply.
-
-   RPC operations that return nothing but error code to sender can use
-   this generic reply fop. Request handler uses this type of fop to
-   report operation failure in generic fom phases.
- */
-struct m0_fop_generic_reply {
-	int32_t           gr_rc;
-	struct m0_fop_str gr_msg;
-} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
-
 extern struct m0_fop_type m0_fop_generic_reply_fopt;
 
 bool m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item);
-
-/**
- * m0_fop_mod_rep contains common reply values for an UPDATE fop.
- */
-struct m0_fop_mod_rep {
-	/** Remote ID assigned to this UPDATE operation */
-	struct m0_be_tx_remid fmr_remid;
-} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 M0_INTERNAL void m0_fom_mod_rep_fill(struct m0_fop_mod_rep *rep,
 				     struct m0_fom *fom);

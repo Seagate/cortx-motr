@@ -19,7 +19,7 @@
 #
 
 
-#set -x
+# set -x
 
 # This script starts and stops motr singlenode and performs some Object and
 # KV Litmus tests.
@@ -27,17 +27,22 @@
 # This script should only be run before bootstrap (that does mkfs),
 # and it will never be started after Motr mkfs is complete
 
-M0_SRC_DIR=$(dirname $(readlink -f $0))
-M0_SRC_DIR="$M0_SRC_DIR/../../../../../../../"
+M0_SRC_DIR=$(readlink -f "${BASH_SOURCE[0]}")
+M0_SRC_DIR="${M0_SRC_DIR%/*/*/*/*/*/*/*/*}"
 
-. $M0_SRC_DIR/utils/functions # m0_local_nid_get
+. "$M0_SRC_DIR"/utils/functions # m0_local_nid_get, m0_default_xprt
 
 conf="/etc/motr/conf.xc"
 user_config=/etc/sysconfig/motr
 currdir=$(pwd)
 timestamp=$(date +%d_%b_%Y_%H_%M)
 SANITY_SANDBOX_DIR="/var/motr/sanity_$timestamp"
-base_port=301
+XPRT=$(m0_default_xprt)
+if [ "$XPRT" = "lnet" ]; then
+	base_port=301
+else
+	base_port=3301
+fi
 IP=""
 port=""
 local_endpoint=""
@@ -45,7 +50,6 @@ ha_endpoint=""
 profile_fid=""
 ios1_fid=""
 process_fid=""
-services_left=
 systemd_left_err=false
 readonly systemd_services_regex='
  ^m0d@[A-Za-z0-9\:\-]*\.service
@@ -65,14 +69,14 @@ readonly systemd_services_regex='
 
 start_singlenode()
 {
-	mkdir -p $SANITY_SANDBOX_DIR
-	cd $SANITY_SANDBOX_DIR
+	mkdir -p "$SANITY_SANDBOX_DIR"
+	cd "$SANITY_SANDBOX_DIR"
 
 	# setup motr singlenode
 	m0singlenode activate
-	m0setup -cv -d $SANITY_SANDBOX_DIR -m $SANITY_SANDBOX_DIR
-	m0setup -N 1 -K 0 -S 0 -P 8 -s 8 -Mv -d $SANITY_SANDBOX_DIR \
-		-m $SANITY_SANDBOX_DIR --no-m0t1fs
+	m0setup -cv -d "$SANITY_SANDBOX_DIR" -m "$SANITY_SANDBOX_DIR"
+	m0setup -N 1 -K 0 -S 0 -P 8 -s 8 -Mv -d "$SANITY_SANDBOX_DIR" \
+		-m "$SANITY_SANDBOX_DIR" --no-m0t1fs
 
 	# start motr
 	m0singlenode start
@@ -114,16 +118,16 @@ stop_singlenode()
 {
 	# stop motr
 	m0singlenode stop
-	m0setup -cv -d $SANITY_SANDBOX_DIR -m $SANITY_SANDBOX_DIR
-	cd $currdir
+	m0setup -cv -d "$SANITY_SANDBOX_DIR" -m "$SANITY_SANDBOX_DIR"
+	cd "$currdir"
 
 	# cleanup remaining motr-services
 	systemctl start motr-cleanup
 
 	# remove sanity test sandbox directory
-	if [[ $1 == "cleanup" ]]
+	if [[ "$1" == "cleanup" ]]
 	then
-		rm -rf $SANITY_SANDBOX_DIR
+		rm -rf "$SANITY_SANDBOX_DIR"
 	fi
 
 	check_sys_state
@@ -131,7 +135,7 @@ stop_singlenode()
 
 ip_generate()
 {
-	IP=$(m0_local_nid_get)
+	IP=$(m0_local_nid_get "new")
 
 	if [[ ! ${IP} ]]; then
 		(>&2 echo 'error! m0singlenode not running.')
@@ -142,18 +146,22 @@ ip_generate()
 
 node_sanity_check()
 {
-	if [ ! -f $conf ]
+	if [ ! -f "$conf" ]
 	then
 		echo "Error: $conf is missing, it should already be created by m0setup"
 		return 1
 	fi
-	string=`grep $IP $conf | cut -d'"' -f 2 | cut -d ':' -f 1`
-	set -- $string
-	ip=`echo $1`
+	if [ "$XPRT" = "lnet" ]; then
+		string=$(grep "$IP" "$conf" | cut -d '"' -f 2 | cut -d ':' -f 1 | head -n 1)
+	else
+		string=$(grep "$IP" "$conf" | cut -d '"' -f 2 | cut -d '@' -f 1 | head -n 1)
+	fi
+	set -- "$string"
+	ip=$1
 	if [ "$ip" != "$IP" ]
 	then
-		echo $ip
-		echo $IP
+		echo "$ip"
+		echo "$IP"
 		echo "Change in configuration format"
 		return 1
 	fi
@@ -163,12 +171,12 @@ node_sanity_check()
 unused_port_get()
 {
 	hint=$1
-	port_list=`grep $IP $conf | cut -d '"' -f 2 | cut -d ':' -f 4`
+	port_list=$(grep "$IP" "$conf" | cut -d '"' -f 2 | cut -d ':' -f 4)
 	while [[ $port_list = *"$hint"* ]]
 	do
 		hint=$(($hint+1))
 	done
-	port=$hint
+	port="$hint"
 }
 
 generate_endpoints()
@@ -182,19 +190,24 @@ generate_endpoints()
 	fi
 
 	unused_port_get "$base_port"
-	local_endpoint="${IP}:12345:44:$port"
-	echo "Local endpoint: $local_endpoint"
+	if [ "$XPRT" = "lnet" ]; then
+		local_endpoint="${IP}:12345:44:$port"
+		ha_endpoint="${IP}:12345:45:1"
+	else
+		local_endpoint="${IP}@$port"
+		ha_endpoint="${IP}@2001"
+	fi
 
-	ha_endpoint="${IP}:12345:45:1"
+	echo "Local endpoint: $local_endpoint"
 	echo "HA endpoint: $ha_endpoint"
 
-	profile_fid='<0x7000000000000001:0>'
+	profile_fid='0x7000000000000001:0'
 	echo "Profile FID: $profile_fid"
 
-	ios1_fid='<0x7200000000000001:3>'
+	ios1_fid='0x7200000000000001:3'
 	echo "Ioservice 1 FID: $ios1_fid"
 
-	process_fid='<0x7200000000000000:0>'
+	process_fid='0x7200000000000000:0'
 	echo "Process FID: $process_fid"
 }
 
@@ -202,152 +215,239 @@ error_handling()
 {
 	echo "$1 with rc = $2"
 	stop_singlenode
-	exit $2
+	exit "$2"
 }
 
 object_io_test()
 {
-	echo "Running Object IO tests"
+	echo "***** Running Object IO tests *****"
+
 	obj_id1="20:20"
 	obj_id2="20:22"
 	blk_size="4k"
 	blk_count="200"
 	src_file="$SANITY_SANDBOX_DIR/src"
 	dest_file="$SANITY_SANDBOX_DIR/dest"
-        echo $blk_size $blk_count
-	dd if="/dev/urandom" of=$src_file bs=$blk_size count=$blk_count || {
+
+	echo "----- Size: $blk_size, Count: $blk_count -----"
+
+	echo "Creating source file $src_file"
+	eval "dd if=/dev/urandom of=$src_file bs=$blk_size count=$blk_count" || {
 		error_handling "dd command failed" $?
 	}
+
 	endpoint_opts="-l $local_endpoint -H $ha_endpoint -p $profile_fid \
 		       -P $process_fid"
-	rm -f $dest_file
-	m0cp $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count $src_file || {
-		error_handling "Failed to write object" $?
-	}
-	m0cat $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count $dest_file || {
-		error_handling "Failed to read object" $?
-	}
-	diff $src_file $dest_file || {
-		error_handling "Files differ" $?
-	}
-	m0unlink $endpoint_opts -o $obj_id1 || {
-		error_handling "Failed to delete object" $?
-	}
-	rm -f $dest_file
 
-	m0touch $endpoint_opts -o $obj_id2 || {
-		error_handling "Failed to create object" $?
+	rm -f "$dest_file"
+
+	echo "Writing to object $obj_id1....."
+	eval "m0cp $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
+	      $src_file" || {
+		error_handling "Failed to write object $obj_id1" $?
 	}
-	m0cp $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count $src_file -u || {
-		error_handling "Failed to write object" $?
+
+	echo "Reading from object $obj_id1 ....."
+	eval "m0cat $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
+	      $dest_file" || {
+		error_handling "Failed to read object $obj_id1" $?
 	}
-	m0cat $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count $dest_file || {
-		error_handling "Failed to read object" $?
-	}
-	diff $src_file $dest_file || {
+
+	echo "Comparing files $src_file and $dest_file ....."
+	eval "diff $src_file $dest_file" || {
 		error_handling "Files differ" $?
 	}
-	m0unlink $endpoint_opts -o $obj_id2 || {
-		error_handling "Failed to delete object" $?
+
+	echo "Deleting object $obj_id1 ....."
+	eval "m0unlink $endpoint_opts -o $obj_id1" || {
+		error_handling "Failed to delete object $obj_id1" $?
 	}
-	rm -f $dest_file $src_file
+	rm -f "$dest_file"
+
+	echo "Creating object $obj_id2 ....."
+	eval "m0touch $endpoint_opts -o $obj_id2" || {
+		error_handling "Failed to create object $obj_id2" $?
+	}
+
+	echo "Writing to object $obj_id2....."
+	eval "m0cp $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count \
+	      $src_file -u" || {
+		error_handling "Failed to write object $obj_id2" $?
+	}
+
+	echo "Reading from object $obj_id2 ....."
+	eval "m0cat $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count \
+	      $dest_file" || {
+		error_handling "Failed to read object $obj_id2" $?
+	}
+
+	echo "Comparing files $src_file and $dest_file ....."
+	eval "diff $src_file $dest_file" || {
+		error_handling "Files differ" $?
+	}
+
+	echo "Deleting object $obj_id2 ....."
+	eval "m0unlink $endpoint_opts -o $obj_id2" || {
+		error_handling "Failed to delete object $obj_id2" $?
+	}
+
+	rm -f "$dest_file" "$src_file"
 
 	blk_size_dd="1M"
 	blk_size="1m"
 	blk_count="16"
 	src_file="$SANITY_SANDBOX_DIR/src_1M"
-	dest_file="$SANITY_SANDBOX_DIRtmp/dest"
-        echo $blk_size $blk_count
-	dd if="/dev/urandom" of=$src_file bs=$blk_size_dd count=$blk_count || {
+	dest_file="$SANITY_SANDBOX_DIR/dest"
+
+	echo "----- Size: $blk_size, Count: $blk_count -----"
+
+	echo "Created source file $src_file"
+	eval "dd if=/dev/urandom of=$src_file bs=$blk_size_dd count=$blk_count" || {
 		error_handling "dd command failed" $?
 	}
-	endpoint_opts="-l $local_endpoint -H $ha_endpoint -p $profile_fid \
-		       -P $process_fid"
-	m0cp $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count $src_file -L 9 || {
-		error_handling "Failed to write object" $?
+
+	echo "Writing to object $obj_id1....."
+	eval "m0cp $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
+	      $src_file -L 9" || {
+		error_handling "Failed to write object $obj_id1" $?
 	}
-	m0cat $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count -L 9 $dest_file || {
-		error_handling "Failed to read object" $?
+
+	echo "Reading from object $obj_id1 ....."
+	eval "m0cat $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
+	      -L 9 $dest_file" || {
+		error_handling "Failed to read object $obj_id1" $?
 	}
-	diff $src_file $dest_file || {
+
+	echo "Comparing files $src_file and $dest_file ....."
+	eval "diff $src_file $dest_file" || {
 		error_handling "Files differ" $?
 	}
-	m0unlink $endpoint_opts -o $obj_id1 || {
-		error_handling "Failed to delete object" $?
+
+	echo "Deleting object $obj_id1 ....."
+	eval "m0unlink $endpoint_opts -o $obj_id1" || {
+		error_handling "Failed to delete object $obj_id1" $?
 	}
-	rm -f $dest_file $src_file
+
+	rm -f "$dest_file" "$src_file"
 }
 
 kv_test()
 {
-	echo "Running KV tests"
-	index_id1="<0x780000000000000b:1>"
-	index_id2="<0x780000000000000b:2>"
-	index_id3="<0x780000000000000b:3>"
-	endpoint_opts="-l $local_endpoint -h $ha_endpoint -p $profile_fid -f $process_fid"
+	local keys_file="keys.txt"
+	local vals_file="vals.txt"
+
+	echo "***** Running KV tests *****"
+
+	index_id1="0x780000000000000b:1"
+	index_id2="0x780000000000000b:2"
+	index_id3="0x780000000000000b:3"
+	endpoint_opts="-l $local_endpoint -h $ha_endpoint -p $profile_fid \
+		       -f $process_fid"
 	rm -f keys.txt vals.txt
-	echo "m0kv"
-	m0kv $endpoint_opts index genv 10 20 "keys.txt" &> "/dev/null"
-	m0kv $endpoint_opts index genv 10 20 "vals.txt" &> "/dev/null"
-	m0kv $endpoint_opts index create $index_id1 || {
+
+	echo "----- m0kv -----"
+
+	echo "Generate files ${keys_file} and ${vals_file}"
+	eval "m0kv $endpoint_opts index genv 10 20 ${keys_file}" &> "/dev/null"
+	eval "m0kv $endpoint_opts index genv 10 20 ${vals_file}" &> "/dev/null"
+
+	echo "Create index $index_id1 ....."
+	eval "m0kv $endpoint_opts index create $index_id1" || {
 		error_handling "Failed to create index $index_id1" $?
 	}
-	m0kv $endpoint_opts index create $index_id2 || {
+
+	echo "Create index $index_id2 ....."
+	eval "m0kv $endpoint_opts index create $index_id2" || {
 		error_handling "Failed to create index $index_id2" $?
 	}
-	m0kv $endpoint_opts index create $index_id3 || {
+
+	echo "Create index $index_id3 ....."
+	eval "m0kv $endpoint_opts index create $index_id3" || {
 		error_handling "Failed to create index $index_id3" $?
 	}
-	m0kv $endpoint_opts index list $index_id1 3 || {
+
+	echo "List indices from $index_id1 ....."
+	eval "m0kv $endpoint_opts index list $index_id1" 3 || {
 		error_handling "Failed to list indexes" $?
 	}
-	m0kv $endpoint_opts index lookup $index_id2 || {
+
+	echo "Lookup index $index_id2 ....."
+	eval "m0kv $endpoint_opts index lookup $index_id2" || {
 		error_handling "Failed to lookup index $index_id2" $?
 	}
-	m0kv $endpoint_opts index drop $index_id1 || {
+
+	echo "Drop index $index_id1 ....."
+	eval "m0kv $endpoint_opts index drop $index_id1" || {
 		error_handling "Failed to drop index $index_id1" $?
 	}
-	m0kv $endpoint_opts index drop $index_id2 || {
+
+	echo "Drop index $index_id2 ....."
+	eval "m0kv $endpoint_opts index drop $index_id2" || {
 		error_handling "Failed to drop index $index_id2" $?
 	}
-	m0kv $endpoint_opts index put $index_id3 @keys.txt @vals.txt || {
+
+	echo "Put records in index $index_id3 ....."
+	eval "m0kv $endpoint_opts index put $index_id3 @${keys_file} \
+	      @${vals_file}" || {
 		error_handling "Failed to put KV on index $index_id3" $?
 	}
-	m0kv $endpoint_opts index get $index_id3 @keys.txt || {
+
+	echo "Get records from index $index_id3 ....."
+	eval "m0kv $endpoint_opts index get $index_id3 @${keys_file}" || {
 		error_handling "Failed to get KV on index $index_id3" $?
 	}
-	m0kv $endpoint_opts index next $index_id3 "$(head -n 1 keys.txt | cut -f 2- -d ' ')" 1 || {
+
+	echo "Get next record from index $index_id3 ....."
+	eval "m0kv $endpoint_opts index next $index_id3 \"$(head -n 1 \
+	      ${keys_file} | cut -f 2- -d ' ')\" 1" || {
 		error_handling "Failed to get next KV on index $index_id3" $?
 	}
-	m0kv $endpoint_opts index del $index_id3 @keys.txt || {
+
+	echo "Delete records from index $index_id3 ....."
+	eval "m0kv $endpoint_opts index del $index_id3 @${keys_file}" || {
 		error_handling "Failed to delete KV on $index_id3" $?
 	}
-	m0kv $endpoint_opts index drop $index_id3 || {
+
+	echo "Delete index $index_id3 ....."
+	eval "m0kv $endpoint_opts index drop $index_id3" || {
 		error_handling "Failed to drop index $index_id3" $?
 	}
+
 	rm -f keys.txt vals.txt
-	echo "m0mt test"
-        m0mt $endpoint_opts || {
+
+	echo
+	echo "----- m0mt test -----"
+        eval "m0mt $endpoint_opts" || {
 		error_handling "m0mt failed" $?
 	}
 }
 
 m0spiel_test()
 {
+	local spiel_client_ep
 	local rc
+
+	if [ "$XPRT" = "lnet" ]; then
+		spiel_client_ep="${IP}:12345:45:1000"
+	else
+		spiel_client_ep="${IP}@20010"
+	fi
+
 	echo "m0_filesystem_stats"
 	libmotr_sys_path="/usr/lib64/libmotr.so"
 	[[ -n "$MOTR_DEVEL_WORKDIR_PATH" ]] && \
-        	libmotr_path=$MOTR_DEVEL_WORKDIR_PATH/motr/.libs/libmotr.so
-	[[ ! -s $libmotr_path ]] && libmotr_path=$libmotr_sys_path
-	format_profile_fid=$(echo $profile_fid | sed 's/.*<\(.*\)>/\1/' | sed 's/:/,/')
-	/usr/bin/m0_filesystem_stats -s $ha_endpoint -p $format_profile_fid -c ${ha_endpoint}000 -l $libmotr_path
+        	libmotr_path="$MOTR_DEVEL_WORKDIR_PATH"/motr/.libs/libmotr.so
+	[[ ! -s "$libmotr_path" ]] && libmotr_path="$libmotr_sys_path"
+	format_profile_fid=$(echo "$profile_fid" | sed 's/.*<\(.*\)>/\1/' | sed 's/:/,/')
+	/usr/bin/m0_filesystem_stats -s "$ha_endpoint" -p "$format_profile_fid" \
+		-c "$spiel_client_ep" -l "$libmotr_path"
 	rc=$?
 	if [ $rc -ne 0 ] ; then
 		error_handling "Failed to run m0_filesystem_stats " $rc
 	fi
-	format_process_fid=$(echo $ios1_fid | sed 's/.*<\(.*\)>/\1/' | sed 's/:/,/')
-	/usr/bin/m0_bytecount_stats -s $ha_endpoint -p $format_profile_fid -P $format_process_fid -l $libmotr_path
+	format_process_fid=$(echo "$ios1_fid" | sed 's/.*<\(.*\)>/\1/' | sed 's/:/,/')
+	/usr/bin/m0_bytecount_stats -s "$ha_endpoint" -p "$format_profile_fid" \
+		-P "$format_process_fid" -l "$libmotr_path"
 	rc=$?
         if [ $rc -ne 0 ] ; then
 		error_handling "Failed to run m0_bytecount_stats " $rc

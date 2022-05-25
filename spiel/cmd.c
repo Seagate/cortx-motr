@@ -2195,18 +2195,43 @@ static int spiel_process__counters_async(struct spiel_proc_counter_item *proc)
 	return M0_RC(rc);
 }
 
-static void count_stats_failed_free(struct m0_proc_counter *count_stats,
-				    int                     failed_index)
+static void m0_spiel_count_stats_free(struct m0_proc_counter *count_stats,
+			       int                     failed_index)
 {
 	int i;
 
-	for (i = 0; i <= failed_index; i++) {
+	for (i = 0; i < failed_index; i++) {
 		if (count_stats->pc_bckey[i] != NULL)
 			m0_free(count_stats->pc_bckey[i]);
 		if (count_stats->pc_bcrec[i] != NULL)
 			m0_free(count_stats->pc_bcrec[i]);
 	}
 }
+
+int m0_spiel_count_stats_init(struct m0_proc_counter **count_stats)
+{
+	int rc = 0;
+
+	M0_PRE(*count_stats == NULL);
+	M0_ALLOC_PTR(*count_stats);
+	if (*count_stats == NULL)
+		rc = M0_ERR(-ENOMEM);
+	return M0_RC(rc);
+}
+M0_EXPORTED(m0_spiel_count_stats_init);
+
+void m0_spiel_count_stats_fini(struct m0_proc_counter *count_stats)
+{
+	if (count_stats != NULL) { 
+		if (count_stats->pc_cnt > 0)
+			m0_spiel_count_stats_free(count_stats,
+						  count_stats->pc_cnt);
+		m0_free(count_stats->pc_bckey);
+		m0_free(count_stats->pc_bcrec);
+		m0_free(count_stats);
+	}
+}
+M0_EXPORTED(m0_spiel_count_stats_fini);
 
 int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 				 struct m0_fid          *proc_fid,
@@ -2260,7 +2285,6 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 
 	count_stats->pc_proc_fid = *proc_fid;
 	count_stats->pc_rc = proc->sci_rc;
-
 	if (proc->sci_rc != 0) {
 		rc = proc->sci_rc;
 		goto sem_fini;
@@ -2287,7 +2311,8 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 		M0_ALLOC_PTR(count_stats->pc_bcrec[i]);
 		if (count_stats->pc_bckey[i] == NULL ||
 		    count_stats->pc_bcrec[i] == NULL) {
-			count_stats_failed_free(count_stats, i);
+			/* until the failed index we need to free */
+			m0_spiel_count_stats_free(count_stats, i+1);
 			rc = M0_ERR(-ENOMEM);
 			goto buf_free;
 		}
@@ -2308,6 +2333,7 @@ sem_fini:
 	m0_semaphore_fini(&proc->sci_barrier);
 obj_close:
 	m0_confc_close(proc_obj);
+	m0_free(proc);
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_spiel_proc_counters_fetch);
