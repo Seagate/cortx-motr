@@ -345,6 +345,10 @@ ref_dec:
 	if (tioreq->ti_rc == 0)
 		tioreq->ti_rc = rc;
 
+#define LOGMSG "ioo=%p off=%llu from=%s rc=%d ti_rc=%d @"FID_F, ioo,\
+	(unsigned long long)tioreq->ti_goff,\
+	m0_rpc_conn_addr(tioreq->ti_session->s_conn),\
+	rc, tioreq->ti_rc, FID_P(&tioreq->ti_fid)
 	/*
 	 * Note: this is not necessary mean that this is 'real' error in the
 	 * case of CROW is used (object is only created when it is first
@@ -353,26 +357,23 @@ ref_dec:
 	if (xfer->nxr_rc == 0 && rc != 0) {
 		xfer->nxr_rc = rc;
 
-#define LOGMSG(ioo, rc, tireq) "ioo=%p from=%s rc=%d ti_rc=%d @"FID_F,\
-		(ioo), m0_rpc_conn_addr((tioreq)->ti_session->s_conn),\
-		(rc), (tioreq)->ti_rc, FID_P(&(tioreq)->ti_fid)
-
 		if (rc == -ENOENT) /* normal for CROW */
-			M0_LOG(M0_DEBUG, LOGMSG(ioo, rc, tireq));
+			M0_LOG(M0_DEBUG, LOGMSG);
 		else
-			M0_LOG(M0_ERROR, LOGMSG(ioo, rc, tireq));
-#undef LOGMSG
+			M0_LOG(M0_ERROR, LOGMSG);
+	} else {
+		M0_LOG(M0_DEBUG, LOGMSG);
 	}
+#undef LOGMSG
 
 	if (irfop->irf_pattr == PA_DATA)
 		tioreq->ti_databytes += rbulk->rb_bytes;
 	else
 		tioreq->ti_parbytes += rbulk->rb_bytes;
 
-	M0_LOG(M0_INFO, "[%p] fop %p, Returned no of bytes = %llu, "
-	       "expected = %llu",
-	       ioo, &iofop->if_fop, (unsigned long long)actual_bytes,
-	       (unsigned long long)rbulk->rb_bytes);
+	M0_LOG(M0_INFO, "ioo=%p fop=%p expected=%llu returned=%llu rc=%d",
+	       ioo, &iofop->if_fop, (unsigned long long)rbulk->rb_bytes,
+	       (unsigned long long)actual_bytes, rc);
 
 	/* Drops reference on reply fop. */
 	m0_fop_put0_lock(&iofop->if_fop);

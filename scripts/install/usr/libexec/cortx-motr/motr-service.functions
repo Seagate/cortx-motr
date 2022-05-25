@@ -367,7 +367,7 @@ m0_get_ep_of()
     local found=false
     local lnid=$(m0_get_lnet_nid $node)
 
-    if [ "$XPRT" = "lnet" ]; then
+    if [ "$xprt" = "lnet" ]; then
         local lpid=12345
         local confd_tid=1
         local mds_tid=201
