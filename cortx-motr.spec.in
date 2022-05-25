@@ -58,9 +58,9 @@
 %endif
 
 %if %{with ivt} || %{with ut}
-%define  configure_opts  %{configure_ut_opts} %{?configure_user_opts} %{?configure_cassandra_opts}
+%define  configure_opts  %{configure_ut_opts} %{?configure_user_opts} %{?configure_cassandra_opts} @BUILD_DEPEND_DTM@
 %else
-%define  configure_opts  %{configure_release_opts} %{?configure_user_opts} %{?configure_cassandra_opts}
+%define  configure_opts  %{configure_release_opts} %{?configure_user_opts} %{?configure_cassandra_opts} @BUILD_DEPEND_DTM@
 %endif
 
 Name:           @PACKAGE@
