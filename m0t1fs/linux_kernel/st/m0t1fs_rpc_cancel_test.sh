@@ -953,7 +953,7 @@ rcancel_test()
 		while true; do
 			echo "while_loop_i $while_loop_i"
 			echo "==========================="
-			while_loop_i=`expr $while_loop_i \+ 1`
+			while_loop_i=$(($while_loop_i + 1))
 
 			# Wipe out contents from MOTR_TEST_LOGFILE
 			echo "" > "$MOTR_TEST_LOGFILE"

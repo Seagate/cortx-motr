@@ -232,7 +232,7 @@ main()
 	fi
 	echo "Motr: Dgmod mode read verify from new pver succeeds."
 	echo "Motr: Dgmod mode IO succeeds."
-	motr_inst_cnt=`expr $cnt - 1`
+	motr_inst_cnt=$(($cnt - 1))
 	for i in `seq 1 $motr_inst_cnt`
 	do
 		echo "motr pids=${motr_pids[$i]}" >> "$MOTR_TEST_LOGFILE"
