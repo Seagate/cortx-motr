@@ -522,6 +522,9 @@ function recovery_phase()
 
     client_wait
 
+    _info "Sleeping 5 sec to prevent victim catching client eviction REDOs"
+    sleep 5
+
     # TODO: Run ctgcmp to ensure mykey3 does not exist in the victim's storage.
 
     _info "Resurrect the victim: $svc_name"
