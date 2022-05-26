@@ -283,6 +283,7 @@ static void be_log_discard_ast(struct m0_sm_group *grp,
 		if (ld_start_tlist_is_empty(&ld->lds_start_q)) {
 			be_log_discard_flush_finished(ld);
 		} else {
+			M0_LOG(M0_ALWAYS, "be_log_discard_check_sync(ld, true);");
 			be_log_discard_check_sync(ld, true);
 		}
 	}
