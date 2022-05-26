@@ -849,6 +849,7 @@ static void node_bulk_cb(struct m0_net_test_network_ctx *net_ctx,
 	bool			 role_client;
 	bool			 buf_send;
 	bool			 buf_bulk;
+	bool                     locked;
 
 	M0_PRE(net_ctx != NULL);
 	LOGD("node_bulk_cb: tm_addr = %s, buf_index = %u, q = %d"
@@ -891,8 +892,19 @@ static void node_bulk_cb(struct m0_net_test_network_ctx *net_ctx,
 	}
 	(role_client ? node_bulk_cb_client : node_bulk_cb_server)
 		(ctx, buf_index, q, ev);
-	/* Synchronise with node_bulk_worker(). */
-	m0_mutex_lock(&ctx->nbc_bulk_mutex);
+	/*
+	 * Need to synchronise with node_bulk_worker(), but this call-back can
+	 * be executed synchronously by
+	 *     node_bulk_worker()
+	 *         ->net_bulk_worker_cb()
+	 *             ->m0_net_buffer_event_deliver_all()
+	 *                 ->...
+	 *                     ->m0_net_buffer_event_post()
+	 *                         ->node_bulk_cb().
+	 */
+	locked = m0_mutex_is_locked(&ctx->nbc_bulk_mutex);
+	if (!locked)
+		m0_mutex_lock(&ctx->nbc_bulk_mutex);
 	if (M0_IN(q, (M0_NET_QT_MSG_SEND, M0_NET_QT_MSG_RECV))) {
 		/* ping buffer can be reused now */
 		m0_net_test_ringbuf_push(&ctx->nbc_rb_ping_unused, buf_index);
@@ -909,7 +921,8 @@ static void node_bulk_cb(struct m0_net_test_network_ctx *net_ctx,
 		  buf_send ? MD_SEND : MD_RECV);
 	/* state transitions from final states */
 	node_bulk_state_transition_auto_all(ctx);
-	m0_mutex_unlock(&ctx->nbc_bulk_mutex);
+	if (!locked)
+		m0_mutex_unlock(&ctx->nbc_bulk_mutex);
 }
 
 static struct m0_net_test_network_buffer_callbacks node_bulk_buf_cb = {
