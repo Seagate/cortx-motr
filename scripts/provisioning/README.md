@@ -450,10 +450,10 @@ make && make devinstall
 cd -
 
 # Create block devices
-mkdir -p /var/motr
+mkdir -p $HOME/seagate/var/motr
 for i in {0..9}; do
-    dd if=/dev/zero of=/var/motr/disk$i.img bs=1M seek=9999 count=1
-    losetup /dev/loop$i /var/motr/disk$i.img
+    dd if=/dev/zero of=$HOME/seagate/var/motr/disk$i.img bs=1M seek=9999 count=1
+    losetup /dev/loop$i $HOME/seagate/var/motr/disk$i.img
 done
 
 # Prepare CDF (Cluster Description File)
