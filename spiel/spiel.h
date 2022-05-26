@@ -1283,6 +1283,20 @@ struct m0_proc_counter {
 };
 
 /**
+ * Counter stats pointer shall be initialized
+ *
+ * @param[in]  count_stats  count_stats shall be allocated 
+ */
+int m0_spiel_count_stats_init(struct m0_proc_counter **count_stats);
+
+/**
+ * Counter stats pointer shall be freed in this func
+ *
+ * @param[in]  count_stats  count_stats shall be freed
+ */
+void m0_spiel_count_stats_fini(struct m0_proc_counter *count_stats);
+
+/**
  * Fetches byte counts and object counts per pool version written by all
  * end users from a target ioservice. All entries in the byte count btree
  * present in the ioservice is fetched by a call of this API.

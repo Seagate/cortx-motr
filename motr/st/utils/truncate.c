@@ -56,7 +56,7 @@ static void trunc_usage(FILE *file, char *prog_name)
 "  -s, --block-size     INT       Block size multiple of 4k in bytes or with "
 				 "suffix b/k/m/g.\n%*c Ex: 1k=1024, "
 				 "1m=1024*1024. Range: [4k-32m].\n"
-"  -c, --block-count    INT       Number of blocks (>0) to copy, can give with "
+"  -i, --block-index    INT       Block to truncate from (starting from 0) "
 				 "suffix b/k/m/g/K/M/G.\n%*c Ex: 1k=1024, "
 				 "1m=1024*1024, 1K=1000 1M=1000*1000.\n"
 "  -t, --trunc-len      INT       Number of blocks (>0) to punch out,"
