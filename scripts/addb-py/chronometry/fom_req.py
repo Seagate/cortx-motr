@@ -18,9 +18,9 @@
 #
 
 import sys
-from addb2db import *
+from addb2db import fom_desc, fom_req_state, fom_req, fom_to_stio, fom_to_tx, be_tx, argparse, stio_req
 from typing import List, Dict
-from req_utils import *
+from req_utils import times_tag_append, db_connect, db_close, draw_timelines, query2dlist, prepare_time_table, db_init
 
 
 def get_timelines(fom_id: int, pid: int):

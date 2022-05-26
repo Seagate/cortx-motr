@@ -58,7 +58,7 @@ import logging
 import yaml
 import numpy
 import time
-from peewee import *
+from peewee import IntegerField, TextField, FloatField, SqliteDatabase, Model, chunked, OperationalError
 from typing import List
 import multiprocessing
 from itertools import zip_longest
