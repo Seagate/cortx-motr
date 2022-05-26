@@ -844,7 +844,8 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 
 	pi->pi_hdr.pih_type = pi_type;
 	flag = M0_PI_CALC_UNIT_ZERO;
-	seed.pis_data_unit_offset   = cs_idx->ci_unit_idx;
+	seed.pis_data_unit_offset   = ((cs_idx->ci_pg_idx + map->pi_grpid) * layout_n(play)) +
+								    cs_idx->ci_unit_idx;
 	seed.pis_obj_id.f_container = ioo->ioo_obj->ob_entity.en_id.u_hi;
 	seed.pis_obj_id.f_key       = ioo->ioo_obj->ob_entity.en_id.u_lo;
 
@@ -887,7 +888,8 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 
 	M0_LOG(M0_ALWAYS,"COMPUTE CKSUM Typ:%d Sz:%d UTyp:[%s] [PG Idx:%d][Unit Idx:%d] TotalRowNum:%d ActualRowNum:%d",
 							(int)pi_type, m0_cksum_get_size(pi_type),
-							(filter == PA_PARITY) ? "P":"D",cs_idx->ci_pg_idx,
+							(filter == PA_PARITY) ? "P":"D",
+							(uint32_t)(cs_idx->ci_pg_idx + map->pi_grpid),
 							cs_idx->ci_unit_idx,(int)rows_nr(play, obj),b_idx);
 	print_buf(bvec.ov_buf[0],8);
 	bvec.ov_vec.v_nr = b_idx;
@@ -989,7 +991,8 @@ static void target_ioreq_calculate_index(struct m0_op_io *ioo,
 		M0_ASSERT( fop_cs_data->cd_num_units <= fop_cs_data->cd_max_units); 
 
 		M0_LOG(M0_ALWAYS,"FOP Unit Added Num:%d GOF:%"PRIi64 " [PG Idx:%d][Unit Idx:%d] Seg:%d",
-							fop_cs_data->cd_num_units, goff, cs_idx->ci_pg_idx, 
+							fop_cs_data->cd_num_units, goff, 
+							cs_idx->ci_pg_idx + pgdata->pi_grpid, 
 							cs_idx->ci_unit_idx, seg);
 	}
 }
@@ -1116,6 +1119,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 							   layout_n(play) : layout_k(play);
 		// Unit size multiplication will give PG size in bytes
 		pgdata.pgrp_size *= pgdata.unit_sz;
+		// Assign pi_grpid for logging/debug
+		pgdata.pi_grpid   = ioo->ioo_iomaps[0]->pi_grpid;
 
 		// The offset of PG-0
 		pgdata.pgrp0_index  = ioo->ioo_iomaps[0]->pi_grpid * layout_n(play) 

@@ -167,12 +167,13 @@ static int application_checksum_process( struct m0_op_io *ioo,
 
 			// Log all info to locate unit
 			M0_LOG(M0_ERROR,"IMP ERROR: Checksum validation failed for Obj: 0x%"PRIx64 
-			                " 0x%"PRIx64 " PG0Off: 0x%"PRIx64 " Goff:0x%"PRIx64 " PGidx : %d, Uidx : %d",
+			                " 0x%"PRIx64 " PG0Off: 0x%"PRIx64 " Goff:0x%"PRIx64 " [PG Idx:%d][Unit Idx:%d]",
 							ioo->ioo_obj->ob_entity.en_id.u_hi,
 							ioo->ioo_obj->ob_entity.en_id.u_lo,							
 							ioo->ioo_iomaps[0]->pi_grpid * data_size(pdlayout_get(ioo)),
 							ti->ti_goff_ivec.iv_index[0],
-							 cs_idx->ci_pg_idx, cs_idx->ci_unit_idx);
+							(uint32_t)(cs_idx->ci_pg_idx + ioo->ioo_iomaps[0]->pi_grpid), 
+							cs_idx->ci_unit_idx);
 		}
 		// Copy checksum to application buffer
 		if( !m0__obj_is_di_cksum_gen_enabled(ioo) && (irfop->irf_pattr != PA_PARITY) ) {
@@ -265,20 +266,25 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	rw_reply = io_rw_rep_get(reply_fop);
 
 	if(m0_is_read_rep(reply_fop)) {
-		M0_LOG(M0_ALWAYS,"Read Reply Rcvd [%s]",irfop->irf_pattr == PA_DATA ? "D" : "P");
 		if ( rw_reply->rwr_di_data_cksum.b_addr )
 				rc = application_checksum_process(ioo, tioreq,
 							irfop, &rw_reply->rwr_di_data_cksum);
 		// Debug info
 		else if( m0__obj_is_di_enabled(ioo) && irfop->irf_cksum_data.cd_num_units && 
 			     (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_READ) ) {
-			M0_LOG(M0_ERROR,"No DI data received Ext0: %"PRIi64 "ExtN: %"PRIi64 " Count0: %"PRIi64
+			int cdi;		 
+			M0_LOG(M0_ERROR,"No DI data received Ext0: %"PRIi64 " ExtN: %"PRIi64 " Count0: %"PRIi64
 											" Vnr: %"PRIi32" CountEnd: %"PRIi64,
 				   tioreq->ti_goff_ivec.iv_index[0],
 				   tioreq->ti_goff_ivec.iv_index[tioreq->ti_goff_ivec.iv_vec.v_nr-1],
 				   tioreq->ti_goff_ivec.iv_vec.v_count[0],
 				   tioreq->ti_goff_ivec.iv_vec.v_nr,
 				   tioreq->ti_goff_ivec.iv_vec.v_count[tioreq->ti_goff_ivec.iv_vec.v_nr-1]);
+			for(cdi = 0; cdi < irfop->irf_cksum_data.cd_num_units; cdi++ )	
+				M0_LOG(M0_ERROR,"%d. No DI for [%s] [PG Idx:%d][Unit Idx:%d]", cdi,
+								irfop->irf_pattr == PA_DATA ? "D" : "P",
+								(uint32_t)(irfop->irf_cksum_data.cd_idx[cdi].ci_pg_idx + ioo->ioo_iomaps[0]->pi_grpid), 
+								irfop->irf_cksum_data.cd_idx[cdi].ci_unit_idx);			
 		}
 	}
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;

@@ -845,6 +845,7 @@ struct target_ioreq {
  */
 struct fop_cksum_idx_gbl_data {
 	m0_bcount_t               	 pgrp_size;
+	uint32_t                     pi_grpid;
 	m0_bcount_t					 pgrp0_index;
 	uint32_t                     unit_sz; 
 	uint32_t                     seg_per_unit; 
