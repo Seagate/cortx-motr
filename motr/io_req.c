@@ -1686,7 +1686,7 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 		return M0_ERR(rc);
 
 	/*
-	 * Setting parity bufer type to M0_PBUF_DIR so that parity buffer will
+	 * Setting parity buffer type to M0_PBUF_DIR so that parity buffer will
 	 * be freed in pargrp_iomap_fini() --> data_buf_dealloc_fini()
 	 */
 	set_paritybuf_type(ioo);
