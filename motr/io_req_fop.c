@@ -281,7 +281,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 				   tioreq->ti_goff_ivec.iv_vec.v_nr,
 				   tioreq->ti_goff_ivec.iv_vec.v_count[tioreq->ti_goff_ivec.iv_vec.v_nr-1]);
 			for(cdi = 0; cdi < irfop->irf_cksum_data.cd_num_units; cdi++ )	
-				M0_LOG(M0_ERROR,"%d. No DI for [%s] [PG Idx:%d][Unit Idx:%d]", cdi,
+				M0_LOG(M0_ERROR,"%d. No DI for [%s] [PG Idx:%d][Unit Idx:%d]", cdi + 1,
 								irfop->irf_pattr == PA_DATA ? "D" : "P",
 								(uint32_t)(irfop->irf_cksum_data.cd_idx[cdi].ci_pg_idx + ioo->ioo_iomaps[0]->pi_grpid), 
 								irfop->irf_cksum_data.cd_idx[cdi].ci_unit_idx);			
