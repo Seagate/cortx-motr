@@ -112,7 +112,7 @@ main()
 
 	NODE_UUID=$(uuidgen)
 	local multiple_pools=0
-	motr_service start $multiple_pools $stride $N $K $S $P || {
+	motr_service start $multiple_pools "$stride" "$N" "$K" "$S" "$P" || {
 		echo "Failed to start Motr Service."
 		return 1
 	}
@@ -121,8 +121,8 @@ main()
 		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
 	done
 
-	dix_repair_quiesce_test
-	if [ $? -ne 0 ]; then
+	dix_repair_quiesce_test 2>&1 | tee -a "$MOTR_TEST_LOGFILE"
+	if [ "${PIPESTATUS[0]}" -ne 0 ]; then
 		echo "Failed: DIX repair quiesce failed.."
 		rc=1
 	fi

@@ -1904,6 +1904,7 @@ M0_INTERNAL int m0__obj_namei_send(struct m0_op_obj *oo)
 			cob_complete_op(cr->cr_op);
 			m0_sm_group_lock(&cr->cr_op->op_sm_group);
 			rc = MOTR_MDCOB_LOOKUP_SKIP;
+			cob_req_free(cr);
 		}
 	}
 

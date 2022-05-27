@@ -51,7 +51,7 @@ PVER_2="7680000000000001:42"
 read_verify="true"
 motr_pids=""
 export cnt=1
-
+export MOTR_CLIENT_ONLY=1
 # Dgmode IO
 
 MOTR_TEST_DIR=$SANDBOX_DIR
@@ -72,36 +72,25 @@ main()
 	BLOCKSIZE=16384 #4096
 	BLOCKCOUNT=3
 	echo "dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file"
-	dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file \
-              2> $MOTR_TEST_LOGFILE || {
+	dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of="$src_file" \
+              2> "$MOTR_TEST_LOGFILE" || {
 		echo "Failed to create a source file"
-		unmount_and_clean &>>$MOTR_TEST_LOGFILE
 		motr_service_stop
 		return 1
 	}
 
-	mkdir $MOTR_TRACE_DIR
+	mkdir "$MOTR_TRACE_DIR"
 
 	motr_service_start $N $K $S $P $stride
 
 	#Initialise dix
 	dix_init
 
-	#mount m0t1fs as well. This helps in two ways:
-	# 1) Currently motr does not have a utility to check attributes of an
-	#    object. Hence checking of attributes is done by fetching them via
-	#    m0t1fs.
-	# 2) A method to send HA notifications assumes presence of m0t1fs. One
-	#    way to circumvent this is by assigning same end-point to motr,
-	#    but creating a motr instance concurrently with HA notifications
-	#    is hard. Another way is to re-write the method to send HA
-	#    notifications by excluding m0t1fs end-point. We have differed these
-	#    changes in current patch.
-	local mountopt="oostore,verify"
-	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mountopt || return 1
+	# Currently motr does not provide any API to check attributes of an
+	# object. It has to be checked with S3 level or in motr trace logs.
 
 	# write an object
-	io_conduct "WRITE" $src_file $OBJ_ID1 "false"
+	io_conduct "WRITE" "$src_file" $OBJ_ID1 "false"
 	if [ $rc -ne "0" ]
 	then
 		echo "Healthy mode, write failed."
@@ -110,14 +99,14 @@ main()
 	echo "Healthy mode write succeeds."
 
 	# read the written object
-	io_conduct "READ" $OBJ_ID1  $dest_file "false"
+	io_conduct "READ" $OBJ_ID1  "$dest_file" "false"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Healthy mode, read failed."
 		error_handling $rc
 	fi
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -126,14 +115,14 @@ main()
 	fi
 	echo "Healthy mode, read file succeeds."
 	# read the written object
-	io_conduct "READ" $OBJ_ID1  $dest_file $read_verify
+	io_conduct "READ" $OBJ_ID1  "$dest_file" $read_verify
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Healthy mode, read verify failed."
 		error_handling $rc
 	fi
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -153,8 +142,8 @@ main()
 	}
 
 	# Test degraded read
-	rm -f $dest_file
-	io_conduct "READ" $OBJ_ID1 $dest_file "false"
+	rm -f "$dest_file"
+	io_conduct "READ" $OBJ_ID1 "$dest_file" "false"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -162,17 +151,17 @@ main()
 		error_handling $rc
 	fi
 	echo "Dgmode Read of 1st obj succeeds."
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Obj read in degraded mode differs."
 		error_handling $rc
 	fi
-	rm -f $dest_file
+	rm -f "$dest_file"
 
 	#Dgmode read of with Parity Verify.
-	io_conduct "READ" $OBJ_ID1 $dest_file $read_verify
+	io_conduct "READ" $OBJ_ID1 "$dest_file" $read_verify
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -180,17 +169,17 @@ main()
 		error_handling $rc
 	fi
 	echo "Dgmode Parity verify Read of 1st obj succeeds."
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Obj read in degraded mode differs."
 		error_handling $rc
 	fi
-	rm -f $dest_file
+	rm -f "$dest_file"
 
 	# Test write, when a disk is failed
-	io_conduct "WRITE" $src_file $OBJ_ID2 "false"
+	io_conduct "WRITE" "$src_file" $OBJ_ID2 "false"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -198,23 +187,7 @@ main()
 		error_handling $rc
 	fi
 	echo "New Obj write succeeds."
-	echo "Check pver of the first object"
-	output=`getfattr -n pver $MOTR_M0T1FS_MOUNT_DIR/"$OBJ_HID1"`
-	echo $output
-	if [[ $output != *"$PVER_1"* ]]
-	then
-		echo "getattr failed on $OBJ_HID1."
-		error_handling 1
-	fi
-	echo "Check pver of the second object, created post device failure."
-	output=`getfattr -n pver $MOTR_M0T1FS_MOUNT_DIR/"$OBJ_HID2"`
-	echo $output
-	if [[ $output != *"$PVER_2"* ]]
-	then
-		echo "getattr failed on $OBJ_HID2"
-		error_handling 1
-	fi
-	rm -f $dest_file
+	rm -f "$dest_file"
 
 	echo "Fail another disk"
 	fail_device3=3
@@ -226,14 +199,14 @@ main()
 
 
 	# Read a file from the new pool version.
-	io_conduct "READ" $OBJ_ID2 $dest_file "false"
+	io_conduct "READ" $OBJ_ID2 "$dest_file" "false"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Reading a file from a new pool version failed."
 		error_handling $rc
 	fi
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -243,14 +216,14 @@ main()
 	echo "Motr: Dgmod mode read from new pver succeeds."
 
 	#Read in Parity Verify from new pool version.
-	io_conduct "READ" $OBJ_ID2 $dest_file $read_verify
+	io_conduct "READ" $OBJ_ID2 "$dest_file" $read_verify
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Reading a file from a new pool version failed."
 		error_handling $rc
 	fi
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -259,13 +232,12 @@ main()
 	fi
 	echo "Motr: Dgmod mode read verify from new pver succeeds."
 	echo "Motr: Dgmod mode IO succeeds."
-	motr_inst_cnt=`expr $cnt - 1`
+	motr_inst_cnt=$(($cnt - 1))
 	for i in `seq 1 $motr_inst_cnt`
 	do
-		echo "motr pids=${motr_pids[$i]}" >> $MOTR_TEST_LOGFILE
+		echo "motr pids=${motr_pids[$i]}" >> "$MOTR_TEST_LOGFILE"
 	done
 
-	unmount_and_clean &>> $MOTR_TEST_LOGFILE
 	motr_service_stop || rc=1
 
 	if [ $rc -eq 0 ]; then

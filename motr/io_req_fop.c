@@ -345,6 +345,10 @@ ref_dec:
 	if (tioreq->ti_rc == 0)
 		tioreq->ti_rc = rc;
 
+#define LOGMSG "ioo=%p off=%llu from=%s rc=%d ti_rc=%d @"FID_F, ioo,\
+	(unsigned long long)tioreq->ti_goff,\
+	m0_rpc_conn_addr(tioreq->ti_session->s_conn),\
+	rc, tioreq->ti_rc, FID_P(&tioreq->ti_fid)
 	/*
 	 * Note: this is not necessary mean that this is 'real' error in the
 	 * case of CROW is used (object is only created when it is first
@@ -353,33 +357,23 @@ ref_dec:
 	if (xfer->nxr_rc == 0 && rc != 0) {
 		xfer->nxr_rc = rc;
 
-#define LOGMSG(ioo, rc, tireq) "ioo=%p from=%s rc=%d ti_rc=%d @"FID_F,\
-		(ioo), m0_rpc_conn_addr((tioreq)->ti_session->s_conn),\
-		(rc), (tioreq)->ti_rc, FID_P(&(tioreq)->ti_fid)
-
 		if (rc == -ENOENT) /* normal for CROW */
-			M0_LOG(M0_DEBUG, LOGMSG(ioo, rc, tireq));
+			M0_LOG(M0_DEBUG, LOGMSG);
 		else
-			M0_LOG(M0_ERROR, LOGMSG(ioo, rc, tireq));
-#undef LOGMSG
+			M0_LOG(M0_ERROR, LOGMSG);
+	} else {
+		M0_LOG(M0_DEBUG, LOGMSG);
 	}
-
-	/*
-	 * Sining: don't set the ioo_rc utill replies come back from  dgmode
-	 * IO.
-	 */
-	if (ioo->ioo_rc == 0 && ioo->ioo_dgmode_io_sent == true)
-		ioo->ioo_rc = rc;
+#undef LOGMSG
 
 	if (irfop->irf_pattr == PA_DATA)
 		tioreq->ti_databytes += rbulk->rb_bytes;
 	else
 		tioreq->ti_parbytes += rbulk->rb_bytes;
 
-	M0_LOG(M0_INFO, "[%p] fop %p, Returned no of bytes = %llu, "
-	       "expected = %llu",
-	       ioo, &iofop->if_fop, (unsigned long long)actual_bytes,
-	       (unsigned long long)rbulk->rb_bytes);
+	M0_LOG(M0_INFO, "ioo=%p fop=%p expected=%llu returned=%llu rc=%d",
+	       ioo, &iofop->if_fop, (unsigned long long)rbulk->rb_bytes,
+	       (unsigned long long)actual_bytes, rc);
 
 	/* Drops reference on reply fop. */
 	m0_fop_put0_lock(&iofop->if_fop);
@@ -759,9 +753,9 @@ M0_INTERNAL int ioreq_fop_dgmode_read(struct ioreq_fop *irfop)
 	M0_PRE(irfop != NULL);
 	M0_ENTRY("target fid = "FID_F, FID_P(&irfop->irf_tioreq->ti_fid));
 
-	ioo    = bob_of(irfop->irf_tioreq->ti_nwxfer, struct m0_op_io,
-			ioo_nwxfer, &ioo_bobtype);
-	rbulk     = &irfop->irf_iofop.if_rbulk;
+	ioo   = bob_of(irfop->irf_tioreq->ti_nwxfer, struct m0_op_io,
+	               ioo_nwxfer, &ioo_bobtype);
+	rbulk = &irfop->irf_iofop.if_rbulk;
 
 	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
 

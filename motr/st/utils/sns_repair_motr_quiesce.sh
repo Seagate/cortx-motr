@@ -138,4 +138,4 @@ main()
 
 trap unprepare EXIT
 main
-report_and_exit sns-repair-quiesce $?
+report_and_exit sns-repair-motr-quiesce $?

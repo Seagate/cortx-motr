@@ -456,10 +456,17 @@ static void cas_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_ENTRY();
 	cas_req_prepare(dix_req, &idx, oi);
+	/*
+	 * FIXME: why don't we call `flags = dix_set_cas_flags(oi);`
+	 * instead of the following code?
+	 */
 	if (oi->oi_flags & M0_OIF_OVERWRITE)
 		flags |= COF_OVERWRITE;
 	if (oi->oi_flags & M0_OIF_SYNC_WAIT)
 		flags |= COF_SYNC_WAIT;
+	if (oi->oi_flags & M0_OIF_NO_DTM)
+		flags |= COF_NO_DTM;
+
 	rc = m0_cas_put(creq, &idx, oi->oi_keys, oi->oi_vals, NULL, flags);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
@@ -1013,6 +1020,8 @@ static uint32_t dix_set_cas_flags(struct m0_op_idx *oi)
 		flags |= COF_CROW;
 	if (oi->oi_flags & M0_OIF_SKIP_LAYOUT)
 		flags |= COF_SKIP_LAYOUT;
+	if (oi->oi_flags & M0_OIF_NO_DTM)
+		flags |= COF_NO_DTM;
 	return flags;
 } 
 

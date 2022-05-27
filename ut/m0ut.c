@@ -59,6 +59,7 @@ extern struct m0_ut_suite be_ut;
 extern struct m0_ut_suite buffer_pool_ut;
 extern struct m0_ut_suite bulkio_client_ut;
 extern struct m0_ut_suite bulkio_server_ut;
+extern struct m0_ut_suite bytecount_ut;
 extern struct m0_ut_suite capa_ut;
 extern struct m0_ut_suite cas_client_ut;
 extern struct m0_ut_suite cas_service_ut;
@@ -157,7 +158,7 @@ extern struct m0_ut_suite rpclib_ut;
 extern struct m0_ut_suite rpc_conn_pool_ut;
 extern struct m0_ut_suite session_ut;
 extern struct m0_ut_suite sm_ut;
-extern struct m0_ut_suite sns_cm_repair_ut;
+extern struct m0_ut_suite sns_cm_repreb_ut;
 extern struct m0_ut_suite snscm_net_ut;
 extern struct m0_ut_suite snscm_storage_ut;
 extern struct m0_ut_suite snscm_xform_ut;
@@ -174,6 +175,12 @@ extern struct m0_ut_suite xcode_ff2c_ut;
 extern struct m0_ut_suite xcode_ut;
 extern struct m0_ut_suite sns_flock_ut;
 extern struct m0_ut_suite ut_suite_pi;
+
+#if defined(ENABLE_LUSTRE)
+#define LNET_ENABLED (true)
+#else
+#define LNET_ENABLED (false)
+#endif
 
 static void tests_add(struct m0_ut_module *m)
 {
@@ -196,6 +203,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &buffer_pool_ut, true);
 	m0_ut_add(m, &bulkio_client_ut, true);
 	m0_ut_add(m, &bulkio_server_ut, true);
+	m0_ut_add(m, &bytecount_ut, true);
 
 	/*
 	 * ALARM/WARN/XXX: `dtm0_ut' added before mt_idx_dix, due to
@@ -269,10 +277,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &m0_fom_stats_ut, true);
 	m0_ut_add(m, &m0_net_bulk_if_ut, true);
 	m0_ut_add(m, &m0_net_bulk_mem_ut, true);
-	if (USE_LIBFAB)
-		m0_ut_add(m, &m0_net_lnet_ut, false);
-	else
-		m0_ut_add(m, &m0_net_lnet_ut, true);
+	m0_ut_add(m, &m0_net_lnet_ut, LNET_ENABLED);
 	m0_ut_add(m, &m0_net_misc_ut, true);
 	m0_ut_add(m, &m0_net_module_ut, true);
 	m0_ut_add(m, &m0_net_test_ut, true);
@@ -301,7 +306,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &sm_ut, true);
 	m0_ut_add(m, &snscm_xform_ut, true);
 	m0_ut_add(m, &snscm_storage_ut, true);
-	m0_ut_add(m, &sns_cm_repair_ut, true);
+	m0_ut_add(m, &sns_cm_repreb_ut, true);
 	m0_ut_add(m, &snscm_net_ut, true);
 	m0_ut_add(m, &sns_flock_ut, true);
 	m0_ut_add(m, &spiel_ut, true);

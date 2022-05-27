@@ -428,7 +428,7 @@ void m0_obj_init(struct m0_obj *obj,
 
 #ifdef OSYNC
 	m0_mutex_init(&obj->ob_pending_tx_lock);
-	ospti_tlist_init(&obj->ob_pending_tx);
+	spti_tlist_init(&obj->ob_pending_tx);
 #endif
 
 	M0_LEAVE();
@@ -585,10 +585,9 @@ M0_INTERNAL int m0_op_get(struct m0_op **op, size_t size)
 
 		/* 0 the pre-allocated operation. */
 		memset(*op, 0, cached_size);
+		/* @todo This forgets the original size. */
 		(*op)->op_size = size;
 	}
-	m0_mutex_init(&(*op)->op_pending_tx_lock);
-	spti_tlist_init(&(*op)->op_pending_tx);
 	return M0_RC(0);
 }
 
@@ -840,6 +839,8 @@ M0_INTERNAL int m0_op_init(struct m0_op *op,
 	M0_POST(m0_sm_invariant(&op->op_sm));
 	m0_sm_group_unlock(grp);
 	m0_mutex_init(&op->op_priv_lock);
+	m0_mutex_init(&op->op_pending_tx_lock);
+	spti_tlist_init(&op->op_pending_tx);
 
 	return M0_RC(0);
 }
@@ -848,6 +849,7 @@ void m0_op_fini(struct m0_op *op)
 {
 	struct m0_op_common        *oc;
 	struct m0_sm_group         *grp;
+	struct m0_reqh_service_txid *iter;
 
 	M0_ENTRY();
 
@@ -861,6 +863,11 @@ void m0_op_fini(struct m0_op *op)
 	if (oc->oc_cb_fini != NULL)
 		oc->oc_cb_fini(oc);
 	m0_mutex_fini(&op->op_priv_lock);
+
+	m0_tl_teardown(spti, &op->op_pending_tx, iter)
+		m0_free0(&iter);
+	spti_tlist_fini(&op->op_pending_tx);
+	m0_mutex_fini(&op->op_pending_tx_lock);
 
 	grp = &op->op_sm_group;
 	m0_sm_group_lock(grp);

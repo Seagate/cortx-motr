@@ -130,10 +130,10 @@ struct m0_dix_pg_unit {
 	enum m0_pool_nd_state  dpu_pd_state;
 
 	/**
-	 * Indicates whether this parity group is unavailable, e.g. the target
-	 * for the unit has failed and not repaired yet.
+	 * Indicates whether this parity group unit is unavailable, e.g. the
+	 * target for the unit is offline or has failed and not repaired yet.
 	 */
-	bool                   dpu_failed;
+	bool                   dpu_unavail;
 	bool                   dpu_is_spare;
 	bool                   dpu_del_phase2;
 };
