@@ -442,6 +442,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 	service->rs_reqh = reqh;
 	m0_mutex_init(&service->rs_mutex);
 	reqh_service_state_set(service, M0_RST_INITIALISED);
+	m0_atomic64_set(&service->rs_fom_queued, 0);
 
 	/*
 	 * We want to track these services externally so add them to the list

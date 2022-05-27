@@ -506,12 +506,9 @@ static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_PRE(m0_fom_invariant(fom));
 	M0_PRE(m0_fom_phase(fom) == M0_FOM_PHASE_INIT);
 
-	if (m0_reqh_service_state_get(fom->fo_service) == M0_RST_STOPPED ||
-	    m0_reqh_state_get(m0_fom_reqh(fom)) == M0_REQH_ST_STOPPED) {
-		m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
-		m0_fom_fini(fom);
-		return;
-	}
+	addb2_introduce(fom);
+	m0_fom_locality_inc(fom);
+	m0_atomic64_dec(&fom->fo_service->rs_fom_queued);
 	fom_ready(fom);
 }
 
@@ -630,6 +627,9 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom)
 	struct m0_fom_domain *dom;
 	size_t                loc_idx;
 
+	M0_ENTRY("fom: %p fop %p rep fop %p", fom, fom->fo_fop,
+					      fom->fo_rep_fop);
+
 	M0_PRE(fom != NULL);
 
 	dom = m0_fom_dom();
@@ -638,17 +638,14 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom)
 	fom->fo_loc = dom->fd_localities[loc_idx];
 	fom->fo_loc_idx = loc_idx;
 	m0_fom_sm_init(fom);
-	addb2_introduce(fom);
-	m0_fom_locality_inc(fom);
-	fom->fo_cb.fc_ast.sa_cb = &queueit;
-	if (m0_reqh_service_state_get(fom->fo_service) == M0_RST_STOPPED ||
-		m0_reqh_state_get(m0_fom_reqh(fom)) == M0_REQH_ST_STOPPED) {
+	m0_atomic64_inc(&fom->fo_service->rs_fom_queued);
+	if (m0_reqh_service_state_get(fom->fo_service) == M0_RST_STOPPED) {
 		m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
 		m0_fom_fini(fom);
 		return;
 	}
+	fom->fo_cb.fc_ast.sa_cb = &queueit;
 	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
-
 }
 
 /**
@@ -1296,7 +1293,8 @@ M0_INTERNAL bool m0_fom_domain_is_idle_for(const struct m0_reqh_service *svc)
 	struct m0_fom_domain *dom = m0_fom_dom();
 	return m0_forall(i, dom->fd_localities_nr,
 			 is_loc_locker_empty(dom->fd_localities[i],
-					     svc->rs_fom_key));
+					     svc->rs_fom_key)) &&
+	       m0_atomic64_get(&svc->rs_fom_queued) == 0;
 }
 
 M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)
