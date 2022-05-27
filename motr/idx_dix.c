@@ -72,6 +72,11 @@ struct dix_req {
 	struct m0_sm_ast         idr_ast;
 	struct m0_clink          idr_clink;
 
+	/**
+	 * Clink that connects STABLE/FAILURE states of DTX with this dix_req.
+	 * Note, the clink is always initialised but not always attached
+	 * to a dtx.
+	 */
 	struct m0_clink          idr_dtx_clink;
 
 	/**
@@ -617,6 +622,7 @@ static int dix_mreq_create(struct m0_op_idx  *oi,
 	M0_ALLOC_PTR(req);
 	if (req == NULL)
 		return M0_ERR(-ENOMEM);
+	m0_clink_init(&req->idr_dtx_clink, dixreq_clink_dtx_cb);
 	if (idx_is_distributed(oi)) {
 		m0_dix_meta_req_init(&req->idr_mreq, op_dixc(oi),
 				     oi->oi_sm_grp);
@@ -654,13 +660,13 @@ static int dix_req_create(struct m0_op_idx  *oi,
 
 	M0_ALLOC_PTR(req);
 	if (req != NULL) {
+		m0_clink_init(&req->idr_dtx_clink, dixreq_clink_dtx_cb);
 		if (idx_is_distributed(oi)) {
 			m0_dix_req_init(&req->idr_dreq, op_dixc(oi),
 					oi->oi_sm_grp);
 			to_dix_map(&oi->oi_oc.oc_op, &req->idr_dreq);
 			req->idr_dreq.dr_dtx = oi->oi_dtx;
 			m0_clink_init(&req->idr_clink, dixreq_clink_cb);
-			m0_clink_init(&req->idr_dtx_clink, dixreq_clink_dtx_cb);
 
 			/* Store oi for dix callbacks to update SYNC records. */
 			if (M0_IN(oi->oi_oc.oc_op.op_code,
@@ -683,7 +689,6 @@ static void dix_req_destroy(struct dix_req *req)
 {
 	M0_ENTRY();
 	m0_clink_fini(&req->idr_clink);
-	m0_clink_fini(&req->idr_dtx_clink);
 	m0_bufvec_free(&req->idr_start_key);
 	if (idx_is_distributed(req->idr_oi)) {
 		if (req->idr_meta)
@@ -693,6 +698,7 @@ static void dix_req_destroy(struct dix_req *req)
 	} else {
 		m0_cas_req_fini(&req->idr_creq);
 	}
+	m0_clink_fini(&req->idr_dtx_clink);
 	m0_free(req);
 	M0_LEAVE();
 }
