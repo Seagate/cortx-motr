@@ -165,6 +165,7 @@ m0_dtm0_service_process_connect(struct m0_reqh_service *s,
 	 * "synchronous" mode.
 	 */
 	M0_ASSERT_INFO(0, "Direct connect() call is not supported.");
+	return 0;
 }
 
 static int dtm0_process_disconnect(struct dtm0_process *process)

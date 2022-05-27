@@ -630,7 +630,7 @@ static size_t network_bd_nr_add(struct m0_net_test_network_ctx *ctx,
 {
 	struct m0_bufvec *bv;
 	m0_bcount_t	  len;
-	size_t		  nr;
+	size_t		  nr = 0;
 
 	M0_PRE(ctx != NULL);
 	M0_PRE(buf_ping_index < ctx->ntc_cfg.ntncfg_buf_ping_nr);
