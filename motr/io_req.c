@@ -846,6 +846,7 @@ static void set_paritybuf_type(struct m0_op_io *ioo)
 	struct m0_client         *cinst = m0__op_instance(op);
 
 	if ((m0__is_read_op(op) && m0__obj_is_parity_verify_mode(cinst)) ||
+	    (m0__is_read_op(op) && ioo->ioo_dgmode_io_sent) ||
 	    (m0__is_update_op(op) && !m0_pdclust_is_replicated(play)))
 		ioo->ioo_pbuf_type = M0_PBUF_DIR;
 	else if (m0__is_update_op(op) && m0_pdclust_is_replicated(play))
@@ -1684,6 +1685,11 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 	if (rc != 0)
 		return M0_ERR(rc);
 
+	/*
+	 * Setting parity buffer type to M0_PBUF_DIR so that parity buffer will
+	 * be freed in pargrp_iomap_fini() --> data_buf_dealloc_fini()
+	 */
+	set_paritybuf_type(ioo);
 	return M0_RC(rc);
 }
 

@@ -1868,8 +1868,9 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 				 * limitation of file size.
 				 */
 				if (map->pi_state == PI_DEGRADED) {
-					map->pi_databufs[row][col] =
-					    data_buf_alloc_init(obj, PA_NONE);
+					if (map->pi_databufs[row][col] == NULL)
+						map->pi_databufs[row][col] =
+						    data_buf_alloc_init(obj, PA_NONE);
 					if (map->pi_databufs[row][col] ==
 					    NULL) {
 						rc = -ENOMEM;
