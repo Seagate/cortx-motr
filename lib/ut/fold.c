@@ -43,7 +43,7 @@ void test_fold(void)
 	/* Test summation. */
 	M0_UT_ASSERT(m0_reduce(i, 4, 0, + a[i]) == a[0] + a[1] + a[2] + a[3]);
 	/* Test empty range. */
-	M0_UT_ASSERT(m0_reduce(i, 0, 8, + 1) == 8);
+	M0_UT_ASSERT(m0_reduce(i, 0, 8, + 1/x) == 8);
 	/* Gauss' childhood problem, as in popular sources. */
 	M0_UT_ASSERT(m0_reduce(i, 100, 0, + i + 1) == 5050);
 	/* Maximum. */
@@ -55,7 +55,7 @@ void test_fold(void)
 	M0_UT_ASSERT(m0_fold(i, s, ARRAY_SIZE(a), 0, a[i] < a[s] ? i : s) == 9);
 	foo_tlist_init(&head);
 	/* Check empty list. */
-	M0_UT_ASSERT(m0_tl_reduce(foo, f, &head, 8, + 1) == 8);
+	M0_UT_ASSERT(m0_tl_reduce(foo, f, &head, 8, + 1/x) == 8);
 	for (x = 0; x < ARRAY_SIZE(a); ++x) {
 		foo_tlink_init_at(&foos[x], &head);
 		foos[x].f_val = a[x];
