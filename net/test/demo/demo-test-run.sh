@@ -95,7 +95,7 @@ for_each_node()
 	local i
 	local func="$1"
 	shift 1
-	for i in $(seq 0 $(expr $NODES_NR - 1)); do
+	for i in $(seq 0 $(($NODES_NR - 1))); do
 		$func $i $@
 	done
 }
