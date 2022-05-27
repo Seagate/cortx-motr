@@ -261,7 +261,7 @@ io_conduct()
 		cd $cwd
 		return 1
 	fi
-	cnt=`expr $cnt + 1`
+	cnt=$(($cnt + 1))
 	cd $cwd
 	return 0
 }
@@ -361,12 +361,12 @@ clean()
 		# unmounting the client file system, from next mount,
 		# fids are generated from same baseline which results
 		# in failure of cob_create fops.
-		local ios_index=`expr $i + 1`
+		local ios_index=$(($i + 1))
 		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
 	done
 
         if [ ! -z "$multiple_pools" ] && [ $multiple_pools == 1 ]; then
-		local ios_index=`expr $i + 1`
+		local ios_index=$(($i + 1))
 		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
         fi
 }

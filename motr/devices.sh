@@ -34,5 +34,5 @@ sudo fdisk -l 2>&1 |  grep "doesn't contain a valid partition table"  | awk '{ p
 do
 echo "       - id: $i" >> ./devices.conf
 echo "         filename: $line" >> ./devices.conf
-i=`expr $i + 1`
+i=$(($i + 1))
 done
