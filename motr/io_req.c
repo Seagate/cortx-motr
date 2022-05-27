@@ -1575,13 +1575,23 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 	M0_PRE_EX(m0_op_io_invariant(ioo));
 
 	/*
-	 * If all devices are ONLINE, all requests return success.
-	 * In case of read before write, due to CROW, COB will not be present,
-	 * resulting into ENOENT error.
+	 * Return immediately if all devices are ONLINE and all requests
+	 * return success.
+	 *
+	 * There exists some cases that a request returns -ENOENT error:
+	 * (1) In case of read before write, due to CROW, COB will not be
+	 *     present, resulting into -ENOENT error.
+	 * (2) The unit to read is not created if ioservice crashed before
+	 *     the corresponding cob is created.
+	 * The -ENOENT error only means the corresponding cob doesn't exist
+	 * and it doesn't mean the object to read doesn't exist as the object
+	 * has to be opened before read. So in either of these cases,
+	 * it is safe to let device_check() check if degraded read can proceed.
+	 *
+	 * Any other error will also fall to device_check().
 	 */
 	xfer = &ioo->ioo_nwxfer;
-	if ((xfer->nxr_rc == 0 || xfer->nxr_rc == -ENOENT) &&
-	    !ioo->ioo_dgmode_io_sent)
+	if (xfer->nxr_rc == 0 && !ioo->ioo_dgmode_io_sent)
 		return M0_RC(xfer->nxr_rc);
 
 	/*
