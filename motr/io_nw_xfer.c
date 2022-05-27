@@ -844,7 +844,7 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 
 	pi->pi_hdr.pih_type = pi_type;
 	flag = M0_PI_CALC_UNIT_ZERO;
-	seed.pis_data_unit_offset   = ((cs_idx->ci_pg_idx + map->pi_grpid) * layout_n(play)) +
+	seed.pis_data_unit_offset   = ((cs_idx->ci_pg_idx + ioo->ioo_iomaps[0]->pi_grpid) * layout_n(play)) +
 								    cs_idx->ci_unit_idx;
 	seed.pis_obj_id.f_container = ioo->ioo_obj->ob_entity.en_id.u_hi;
 	seed.pis_obj_id.f_key       = ioo->ioo_obj->ob_entity.en_id.u_lo;
@@ -889,7 +889,7 @@ int target_calculate_checksum( struct m0_op_io *ioo,
 	M0_LOG(M0_ALWAYS,"COMPUTE CKSUM Typ:%d Sz:%d UTyp:[%s] [PG Idx:%d][Unit Idx:%d] TotalRowNum:%d ActualRowNum:%d",
 							(int)pi_type, m0_cksum_get_size(pi_type),
 							(filter == PA_PARITY) ? "P":"D",
-							(uint32_t)(cs_idx->ci_pg_idx + map->pi_grpid),
+							(uint32_t)(cs_idx->ci_pg_idx + ioo->ioo_iomaps[0]->pi_grpid),
 							cs_idx->ci_unit_idx,(int)rows_nr(play, obj),b_idx);
 	print_buf(bvec.ov_buf[0],8);
 	bvec.ov_vec.v_nr = b_idx;
