@@ -638,12 +638,14 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom)
 	fom->fo_loc = dom->fd_localities[loc_idx];
 	fom->fo_loc_idx = loc_idx;
 	m0_fom_sm_init(fom);
-	m0_atomic64_inc(&fom->fo_service->rs_fom_queued);
-	if (m0_reqh_service_state_get(fom->fo_service) == M0_RST_STOPPED) {
+	if (fom->fo_service != NULL &&
+	    m0_reqh_service_state_get(fom->fo_service) == M0_RST_STOPPED ||
+	    fom->fo_service == NULL) {
 		m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
 		m0_fom_fini(fom);
 		return;
 	}
+	m0_atomic64_inc(&fom->fo_service->rs_fom_queued);
 	fom->fo_cb.fc_ast.sa_cb = &queueit;
 	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 }
