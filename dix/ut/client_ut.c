@@ -776,6 +776,12 @@ static void dix_disk_failure_set(uint32_t sdev_idx, enum m0_pool_nd_state state)
 	} while (dix_disk_state(sdev_idx) != state);
 }
 
+static void dix_disk_offline_set(uint32_t sdev_idx)
+{
+	M0_PRE(dix_disk_state(sdev_idx) == M0_PNDS_ONLINE);
+	dix_disk_state_set(sdev_idx, M0_PNDS_OFFLINE);
+}
+
 static void dix_disk_online_set(uint32_t sdev_idx)
 {
 	switch (dix_disk_state(sdev_idx)) {
@@ -789,6 +795,7 @@ static void dix_disk_online_set(uint32_t sdev_idx)
 		dix_disk_state_set(sdev_idx, M0_PNDS_SNS_REBALANCING);
 		/* Fall through. */
 	case M0_PNDS_SNS_REBALANCING:
+	case M0_PNDS_OFFLINE:
 		dix_disk_state_set(sdev_idx, M0_PNDS_ONLINE);
 		break;
 	default:
@@ -2086,6 +2093,64 @@ static void dix_get_dgmode(void)
 	ut_service_fini();
 }
 
+static void dix_get_transient_dgmode(void)
+{
+	struct m0_dix         index;
+	struct m0_bufvec      keys;
+	struct m0_bufvec      vals;
+	struct dix_rep_arr    rep;
+	enum ut_pg_unit       i;
+	int                   rc;
+
+	ut_service_init();
+	dix_predictable_index_init(&index, 1);
+	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
+	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
+	M0_UT_ASSERT(rc == 0);
+	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_rep_free(&rep);
+
+	dix_predictable_sdev_ids_fill(&index);
+
+	/*
+	 * Get record when drive is failed.
+	 * The drive should be skipped.
+	 */
+	dix_disk_offline_set(dix_sdev_id(PG_UNIT_DATA));
+	rc = dix_ut_get(&index, &keys, &rep);
+	dix_vals_check(&rep, COUNT);
+	M0_UT_ASSERT(rc == 0);
+	dix_rep_free(&rep);
+	dix_disk_online_set(dix_sdev_id(PG_UNIT_DATA));
+
+	/*
+	 * Get record when two first drives are failed.
+	 * The drives should be skipped.
+	 */
+	for (i = PG_UNIT_DATA; i <= PG_UNIT_PARITY0; i++)
+		dix_disk_offline_set(dix_sdev_id(i));
+	rc = dix_ut_get(&index, &keys, &rep);
+	dix_vals_check(&rep, COUNT);
+	M0_UT_ASSERT(rc == 0);
+	dix_rep_free(&rep);
+	for (i = PG_UNIT_DATA; i <= PG_UNIT_PARITY0; i++)
+		dix_disk_online_set(dix_sdev_id(i));
+
+	/* No available drives exist, -EIO is expected. */
+	for (i = PG_UNIT_DATA; i <= PG_UNIT_PARITY1; i++)
+		dix_disk_offline_set(dix_sdev_id(i));
+	rc = dix_ut_get(&index, &keys, &rep);
+	M0_UT_ASSERT(rc == -EIO);
+	dix_rep_free(&rep);
+	for (i = PG_UNIT_DATA; i <= PG_UNIT_PARITY1; i++)
+		dix_disk_online_set(dix_sdev_id(i));
+
+	dix_kv_destroy(&keys, &vals);
+	dix_index_fini(&index);
+	ut_service_fini();
+}
+
 static void dix_get_resend(void)
 {
 	struct m0_dix      index;
@@ -2287,6 +2352,66 @@ static void dix_next_dgmode(void)
 	dix_disk_online_set(10);
 	dix_disk_online_set(11);
 	dix_disk_online_set(12);
+
+	m0_bufvec_free(&start_key);
+	dix_kv_destroy(&keys, &vals);
+	dix_index_fini(&index);
+	ut_service_fini();
+}
+
+static void dix_next_transient_dgmode(void)
+{
+	struct m0_dix      index;
+	struct m0_bufvec   keys;
+	struct m0_bufvec   start_key;
+	struct m0_bufvec   vals;
+	struct dix_rep_arr rep;
+	uint32_t           recs_nr = COUNT;
+	int                rc;
+
+	ut_service_init();
+	dix_index_init(&index, 1);
+	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
+	dix_index_create_and_fill(&index, &keys, &vals, 0);
+	rc = m0_bufvec_alloc(&start_key, 1, sizeof (uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	*(uint64_t *)start_key.ov_buf[0] = dix_key(0);
+
+	/* Fetch all records when one drive is offline. */
+	dix_disk_offline_set(10);
+	rc = dix_ut_next(&index, &start_key, &recs_nr, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_vals_check(&rep, COUNT);
+	dix_rep_free(&rep);
+	dix_disk_online_set(10);
+
+	/* Fetch all records when 2 drives are offline. */
+	dix_disk_offline_set(10);
+	dix_disk_offline_set(11);
+	rc = dix_ut_next(&index, &start_key, &recs_nr, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_vals_check(&rep, COUNT);
+	dix_rep_free(&rep);
+	dix_disk_online_set(10);
+	dix_disk_online_set(11);
+
+#if 0
+	/* FIXME: need to add a check for max offline devices on DIX level. */
+	/*
+	 * Try to fetch all records when 3 drives are offline.
+	 * No available targets exist, so DIX client should return
+	 * an IO error.
+	 */
+	dix_disk_offline_set(10);
+	dix_disk_offline_set(11);
+	dix_disk_offline_set(12);
+	rc = dix_ut_next(&index, &start_key, &recs_nr, 0, &rep);
+	M0_UT_ASSERT(rc == -EIO);
+	dix_rep_free(&rep);
+	dix_disk_online_set(10);
+	dix_disk_online_set(11);
+	dix_disk_online_set(12);
+#endif
 
 	m0_bufvec_free(&start_key);
 	dix_kv_destroy(&keys, &vals);
@@ -3189,9 +3314,11 @@ struct m0_ut_suite dix_client_ut = {
 		{ "get",                    dix_get             },
 		{ "get-resend",             dix_get_resend      },
 		{ "get-dgmode",             dix_get_dgmode      },
+		{ "get-transient-dgmode",   dix_get_transient_dgmode },
 		{ "next",                   dix_next            },
 		{ "next-crow",              dix_next_crow       },
 		{ "next-dgmode",            dix_next_dgmode     },
+		{ "next-transient-dgmode",  dix_next_transient_dgmode },
 		{ "del",                    dix_del             },
 		{ "del-dgmode",             dix_del_dgmode      },
 		{ "null-value",             dix_null_value      },
