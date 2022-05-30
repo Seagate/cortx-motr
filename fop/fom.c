@@ -627,10 +627,10 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom)
 	struct m0_fom_domain *dom;
 	size_t                loc_idx;
 
+	M0_PRE(fom != NULL);
+
 	M0_ENTRY("fom: %p fop %p rep fop %p", fom, fom->fo_fop,
 					      fom->fo_rep_fop);
-
-	M0_PRE(fom != NULL);
 
 	dom = m0_fom_dom();
 	loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
