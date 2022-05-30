@@ -36,6 +36,7 @@ struct m0_conf_process;
 struct dtm0_req_fop;
 struct m0_be_dtm0_log_iter;
 struct m0_dtm0_log_rec;
+struct m0_dtm0_tid;
 struct m0_be_op;
 struct m0_fom;
 
@@ -80,21 +81,28 @@ struct m0_dtm0_recovery_machine_ops {
 
 	/**
 	 * Get next log record (or -ENOENT) from the local DTM0 log.
-	 * @param[in] tgt_svc DTM0 service this REDO shall be sent to.
-	 * @param[in,opt] origin_svc DTM0 service to be selected. When
-	 *                           this parameter is set to non-NULL,
-	 *                           the iter is supposed to select only
-	 *                           the log records that were originated
-	 *                           on this particular service.
+	 *
+	 * Note, this returns a deep copy of a record, and caller is responsible
+	 * for freeing it properly -- call m0_dtm0_log_iter_rec_fini.
 	 */
 	int (*log_iter_next)(struct m0_dtm0_recovery_machine   *m,
 			     struct m0_be_dtm0_log_iter        *iter,
-			     const struct m0_fid               *tgt_svc,
-			     const struct m0_fid               *origin_svc,
 			     struct m0_dtm0_log_rec            *record);
 
 	void (*log_iter_fini)(struct m0_dtm0_recovery_machine *m,
 			      struct m0_be_dtm0_log_iter      *iter);
+
+	/**
+	 * Get ID of the last transaction (or -ENOENT) from the local DTM0 log.
+	 */
+	int (*log_last_dtxid)(struct m0_dtm0_recovery_machine *m,
+			      struct m0_dtm0_tid              *out);
+	/**
+	 * Compare two transaction IDs (-1 less/0 equal/1 greater).
+	 */
+	int (*dtxid_cmp)(struct m0_dtm0_recovery_machine *m,
+			 struct m0_dtm0_tid              *left,
+			 struct m0_dtm0_tid              *right);
 };
 
 
