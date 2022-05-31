@@ -105,6 +105,21 @@ void set_enf_meta_flag(struct m0_idx *idx)
 	}
 }
 
+int validate_pool_version(struct m0_idx *idx)
+{
+	int rc = 0;
+	if (is_enf_meta || is_skip_layout) {
+		if (m0_fid_is_valid(&dix_pool_ver) &&
+		    m0_fid_is_set(&dix_pool_ver))
+			set_enf_meta_flag(idx);
+		else
+			rc = -EINVAL;
+	} else if (m0_fid_is_set(&dix_pool_ver)) {
+		rc = -EINVAL;
+	}
+	return rc;
+}
+
 int index_create(struct m0_realm *parent, struct m0_fid_arr *fids)
 {
 	int i;
@@ -125,8 +140,7 @@ int index_create(struct m0_realm *parent, struct m0_fid_arr *fids)
 
 		rc = m0_entity_create(NULL, &idx.in_entity, &op);
 
-		if (is_skip_layout || is_crow_disable)
-			set_idx_flags(op);
+		set_idx_flags(op);
 
 		rc = index_op_tail(&idx.in_entity, op, rc, NULL);
 		if (rc == 0 && (is_enf_meta || is_skip_layout))
@@ -151,22 +165,16 @@ int index_drop(struct m0_realm *parent, struct m0_fid_arr *fids)
 		m0_idx_init(&idx, parent,
 			    (struct m0_uint128 *)&fids->af_elems[i]);
 
-		if (is_skip_layout) {
-			if (m0_fid_is_valid(&dix_pool_ver) && m0_fid_is_set(&dix_pool_ver))
-				set_enf_meta_flag(&idx);
-			else
-				return M0_ERR(-EINVAL);
-		} else if (m0_fid_is_set(&dix_pool_ver)) {
-			return M0_ERR(-EINVAL);
-		}
+		rc = validate_pool_version(&idx);
+		if (rc != 0)
+			return M0_RC(rc);
 
 		rc = m0_entity_open(&idx.in_entity, &op) ?:
 		     m0_entity_delete(&idx.in_entity, &op);
 		if (rc != 0)
 			return M0_RC(rc);
 
-		if (is_skip_layout || is_crow_disable)
-			set_idx_flags(op);
+		set_idx_flags(op);
 
 		rc = index_op_tail(&idx.in_entity, op, rc, NULL);
 	}
@@ -194,20 +202,14 @@ int index_list(struct m0_realm  *parent,
 	m0_fid_tassume(fid, &m0_dix_fid_type);
 	m0_idx_init(&idx, parent, (struct m0_uint128 *)fid);
 
-	if (is_skip_layout) {
-		if (m0_fid_is_valid(&dix_pool_ver) && m0_fid_is_set(&dix_pool_ver))
-			set_enf_meta_flag(&idx);
-		else
-			return M0_ERR(-EINVAL);
-	} else if (m0_fid_is_set(&dix_pool_ver)) {
-		return M0_ERR(-EINVAL);
-	}
+	rc = validate_pool_version(&idx);
+	if (rc != 0)
+		return M0_RC(rc);
 
 	rc = m0_idx_op(&idx, M0_IC_LIST, keys, NULL,
 		       rcs, 0, &op);
 
-	if (is_skip_layout || is_crow_disable)
-		set_idx_flags(op);
+	set_idx_flags(op);
 
 	rc = index_op_tail(&idx.in_entity, op, rc, NULL);
 	m0_free(rcs);
@@ -236,20 +238,14 @@ int index_lookup(struct m0_realm   *parent,
 		m0_idx_init(&idx, parent,
 			    (struct m0_uint128 *)&fids->af_elems[i]);
 
-		if (is_skip_layout) {
-			if (m0_fid_is_valid(&dix_pool_ver) && m0_fid_is_set(&dix_pool_ver))
-				set_enf_meta_flag(&idx);
-			else
-				return M0_ERR(-EINVAL);
-		} else if (m0_fid_is_set(&dix_pool_ver)) {
-			return M0_ERR(-EINVAL);
-		}
+		rc = validate_pool_version(&idx);
+		if (rc != 0)
+			return M0_RC(rc);
 
 		rc = m0_idx_op(&idx, M0_IC_LOOKUP, NULL, NULL,
 			       NULL, 0, &op);
 
-		if (is_skip_layout || is_crow_disable)
-			set_idx_flags(op);
+		set_idx_flags(op);
 
 		rc = index_op_tail(&idx.in_entity, op, rc,
 				   (int *)rets->ov_buf[i]);
@@ -277,21 +273,15 @@ static int index_op(struct m0_realm    *parent,
 	m0_fid_tassume(fid, &m0_dix_fid_type);
 	m0_idx_init(&idx, parent, (struct m0_uint128 *)fid);
 
-	if (is_enf_meta || is_skip_layout) {
-		if (m0_fid_is_valid(&dix_pool_ver) && m0_fid_is_set(&dix_pool_ver))
-			set_enf_meta_flag(&idx);
-		else
-			return M0_ERR(-EINVAL);
-	} else if (m0_fid_is_set(&dix_pool_ver)) {
-		return M0_ERR(-EINVAL);
-	}	
+	rc = validate_pool_version(&idx);
+	if (rc != 0)
+		return M0_RC(rc);
 
 	rc = m0_idx_op(&idx, opcode, keys, vals, rcs,
 	               opcode == M0_IC_PUT ? M0_OIF_OVERWRITE : 0,
 		       &op);
 
-	if (is_skip_layout || is_crow_disable)
-		set_idx_flags(op);
+	set_idx_flags(op);
 
 	rc = index_op_tail(&idx.in_entity, op, rc, NULL);
 	/*
