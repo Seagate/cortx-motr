@@ -2501,7 +2501,10 @@ static void bnode_op_fini(struct node_op *op)
  */
 
 struct ff_dir_entry {
-	/* Record offset. In fixed format, key and value are stored together. */
+	/**
+	 * Record offset from the start of the container node.
+	 * In fixed format, key and value are stored together.
+	 */
 	uint32_t ff_roff;
 };
 
@@ -2517,7 +2520,7 @@ struct ff_head {
 	 * following the m0_format_header.
 	 */
 
-	uint16_t                 ff_used;     /*< Count of records */
+	uint16_t                 ff_used;     /*< Count of valid records */
 	uint16_t                 ff_max_recs; /*< Max records in the node */
 	uint8_t                  ff_level;    /*< Level in Btree */
 	uint16_t                 ff_ksize;    /*< Size of key in bytes */
@@ -2663,11 +2666,6 @@ static void *ff_key(const struct nd *node, int idx)
 		return (void*)de + h->ff_ksize * idx;
 }
 
-M0_UNUSED static uint64_t ff_dbg_key(const struct nd *node, int idx)
-{
-	return m0_byteorder_cpu_to_be64(*((uint64_t*)(ff_key(node, idx))));
-}
-
 static void *ff_val(const struct nd *node, int idx)
 {
 	void                *node_start_addr = ff_data(node);
@@ -2789,12 +2787,12 @@ static bool segaddr_header_isvalid(const struct segaddr *addr)
 
 static void ff_dir_init(const struct nd *node)
 {
-	struct ff_head      *h             = ff_data(node);
+	struct ff_head      *h               = ff_data(node);
 	struct ff_dir_entry *de;
-	uint32_t             kv_start_addr = 0;
+	uint32_t             kv_start_offset = 0;
 	uint16_t             kv_size;
-	int                  crc_size      = 0;
-	uint16_t             rec_size      = 0;
+	int                  crc_size        = 0;
+	uint16_t             rec_size        = 0;
 	int                  i;
 
 	M0_PRE(h != NULL);
@@ -2809,12 +2807,13 @@ static void ff_dir_init(const struct nd *node)
 	h->ff_max_recs = (uint16_t)((h->ff_nsize - sizeof(struct ff_head)) /
 			 	    rec_size);
 
-	kv_start_addr = sizeof(struct ff_head) +
-			(uint16_t)(h->ff_max_recs * sizeof(struct ff_dir_entry));
+	kv_start_offset = sizeof(struct ff_head) +
+			  (uint16_t)(h->ff_max_recs *
+			  			   sizeof(struct ff_dir_entry));
 	kv_size = h->ff_ksize + ff_valsize(node) + crc_size;
 
 	for (i = 0; i < h->ff_max_recs; i++)
-		de[i].ff_roff = kv_start_addr + (i * kv_size);
+		de[i].ff_roff = kv_start_offset + (i * kv_size);
 }
 
 static void ff_dir_update(const struct nd *node, int idx, bool op_del)
@@ -2923,8 +2922,9 @@ static int ff_space(const struct nd *node)
 			     (h->ff_used * (h->ff_ksize + ff_valsize(node) +
 					    crc_size));
 	} else
-		used_space = sizeof *h + ((h->ff_ksize + ff_valsize(node) +
-					   crc_size) * h->ff_used);
+		used_space = sizeof(struct ff_head) +
+			     ((h->ff_ksize + ff_valsize(node) + crc_size) *
+			     					    h->ff_used);
 
 	return h->ff_nsize - used_space;
 }
@@ -2983,9 +2983,7 @@ static bool ff_isoverflow(const struct nd *node, int max_ksize,
 		crc_size = sizeof(uint64_t);
 
 	if (IS_EMBEDDED_INDIRECT(node)) {
-		if (h->ff_used == 0 || (h->ff_used < h->ff_max_recs &&
-		    (ff_space(node) >= h->ff_ksize + ff_valsize(node) +
-		    		       crc_size)))
+		if (h->ff_used == 0 || h->ff_used < h->ff_max_recs)
 		    	return false;
 		else
 			return true;
@@ -3316,8 +3314,9 @@ static void ff_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
 				      (h->ff_ksize + ff_valsize(slot->s_node) +
 				       crc_size);
 
-			M0_BTREE_TX_CAPTURE(tx, seg, &de[0], de_size +
-							     kv_cap_size);
+			M0_BTREE_TX_CAPTURE(tx, seg, &de[0], de_size);
+			M0_BTREE_TX_CAPTURE(tx, seg, &de[0] + de_size,
+					    kv_cap_size);
 		} else if (cr == CR_NONE) {
 			if (h->ff_max_recs != 0)
 				M0_BTREE_TX_CAPTURE(tx, seg, &de[0], de_size);
