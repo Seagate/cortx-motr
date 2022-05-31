@@ -1051,10 +1051,12 @@ enum m0_magic_satchel {
 	/* lib/chan.c:clink_tl::td_head_magic (blessed head) */
 	M0_LIB_CHAN_HEAD_MAGIC = 0x33b1e55ed4ead77,
 
+	/* m0_timer::t_magix (colloidal lob) */
+	M0_LIB_TIMER_MAGIC          = 0x33c01101da110b77,
 	/* tid_tl::td_head_magic (allodial dill) */
 	M0_LIB_TIMER_TID_HEAD_MAGIC = 0x33a110d1a1d11177,
 	/* m0_timer_tid::tt_magic (eila alia dill) */
-	M0_LIB_TIMER_TID_MAGIC = 0x33e11aa11ad11177,
+	M0_LIB_TIMER_TID_MAGIC      = 0x33e11aa11ad11177,
 
 /* sss */
 	/* ss_svc::sss_magic (coffeeleaf ad) */

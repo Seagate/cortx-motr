@@ -32,7 +32,7 @@
 #include "lib/memory.h"		/* M0_ALLOC_PTR */
 #include "lib/mutex.h"		/* m0_mutex */
 #include "lib/semaphore.h"	/* m0_semaphore */
-
+#include "lib/cookie.h"	/* m0_addr_is_sane */
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
 
@@ -60,11 +60,8 @@ static unsigned long long hard_timer_free = 0;
    Typed list of m0_timer_tid structures.
  */
 M0_TL_DESCR_DEFINE(tid, "thread IDs", static, struct m0_timer_tid,
-		tt_linkage, tt_magic,
-		0x696c444954726d74,	/** ASCII "tmrTIDli" -
-					  timer thread ID list item */
-		0x686c444954726d74);	/** ASCII "tmrTIDlh" -
-					  timer thread ID list head */
+		   tt_linkage, tt_magic,
+		   M0_LIB_TIMER_TID_MAGIC, M0_LIB_TIMER_TID_HEAD_MAGIC);
 M0_TL_DEFINE(tid, static, struct m0_timer_tid);
 
 /**
@@ -196,7 +193,7 @@ static int timer_posix_init(struct m0_timer *timer)
 		se._sigev_un._tid = timer->t_tid;
 	}
 	rc = timer_create(clock_source_timer, &se, &ptimer);
-	/* preserve timer->t_ptimer if timer_create() isn't succeeded */
+	/* Preserve timer->t_ptimer if timer_create() hasn't succeeded. */
 	if (rc == 0) {
 		timer->t_ptimer = ptimer;
 		hard_timer_alloc++;
@@ -219,6 +216,7 @@ static void timer_posix_fini(timer_t posix_timer)
 {
 	int rc;
 
+	m0_mb(); /* Make sure zeroing of timer->t_magic makes it first. */
 	rc = timer_delete(posix_timer);
 	/*
 	 * timer_delete() can fail iff timer->t_ptimer isn't valid timer ID.
@@ -290,15 +288,24 @@ static int timer_sigaction(int signo,
 static void timer_sighandler(int signo, siginfo_t *si, void *u_ctx)
 {
 	struct m0_timer *timer;
-
 	M0_PRE(si != NULL && si->si_value.sival_ptr != 0);
 	M0_PRE(si->si_code == SI_TIMER);
 	M0_PRE(signo == TIMER_SIGNO);
-
+	/*
+	 * @todo for an unknown reason, the signal is sometimes (rarely)
+	 * delivered after the timer has been deleted.
+	 *
+	 * Carefully check that the timer structure is still intact.
+	 */
 	timer = si->si_value.sival_ptr;
-	M0_ASSERT_EX(ergo(timer->t_tid != 0, timer->t_tid == _gettid()));
-	m0_timer_callback_execute(timer);
-	m0_semaphore_up(&timer->t_cb_sync_sem);
+	if (m0_addr_is_sane(&timer->t_magix) && /* Nested signal! */
+	    timer->t_magix == M0_LIB_TIMER_MAGIC) {
+		M0_ASSERT_EX(ergo(timer->t_tid != 0,
+				  timer->t_tid == _gettid()));
+		m0_timer_callback_execute(timer);
+		m0_semaphore_up(&timer->t_cb_sync_sem);
+	} else
+		M0_LOG(M0_FATAL, "Signal for a deleted timer: %p.", timer);
 }
 
 /**

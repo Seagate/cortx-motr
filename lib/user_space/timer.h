@@ -37,6 +37,7 @@
  */
 
 struct m0_timer {
+	uint64_t            t_magix;
 	/** Timer type: M0_TIMER_SOFT or M0_TIMER_HARD. */
 	enum m0_timer_type  t_type;
 	/** Timer triggers this callback. */

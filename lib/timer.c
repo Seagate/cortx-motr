@@ -48,8 +48,9 @@ M0_INTERNAL int m0_timer_init(struct m0_timer	       *timer,
 	M0_PRE(M0_IN(type, (M0_TIMER_SOFT, M0_TIMER_HARD)));
 
 	M0_SET0(timer);
+	timer->t_magix    = M0_LIB_TIMER_MAGIC;
 	timer->t_type     = type;
-	timer->t_expire	  = 0;
+	timer->t_expire   = 0;
 	timer->t_callback = callback;
 	timer->t_data     = data;
 
@@ -67,6 +68,7 @@ M0_INTERNAL void m0_timer_fini(struct m0_timer *timer)
 	M0_ENTRY("%p", timer);
 	M0_PRE(M0_IN(timer->t_state, (M0_TIMER_STOPPED, M0_TIMER_INITED)));
 
+	timer->t_magix = M0_LIB_TIMER_MAGIC;
 	m0_timer_ops[timer->t_type].tmr_fini(timer);
 	timer->t_state = M0_TIMER_UNINIT;
 	M0_LEAVE("%p", timer);
