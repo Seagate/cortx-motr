@@ -446,7 +446,8 @@ static uint64_t dix_val(uint64_t i)
 	return 100 + i * i;
 }
 
-static void ut_dix_record_ops(bool dist, uint32_t flags)
+static void ut_dix_record_ops(bool dist, uint32_t cr_get_flags,
+			      uint32_t put_del_flags)
 {
 	struct m0_container  realm;
 	struct m0_idx        idx;
@@ -468,7 +469,7 @@ static void ut_dix_record_ops(bool dist, uint32_t flags)
 	general_ifid_fill(&ifid, dist);
 	m0_container_init(&realm, NULL, &M0_UBER_REALM, ut_m0c);
 	m0_idx_init(&idx, &realm.co_realm, (struct m0_uint128 *)&ifid);
-	if (flags & M0_OIF_SKIP_LAYOUT)
+	if (cr_get_flags & M0_OIF_SKIP_LAYOUT)
 		idx.in_entity.en_flags |= M0_ENF_META;
 
 	/* Create index. */
@@ -476,7 +477,7 @@ static void ut_dix_record_ops(bool dist, uint32_t flags)
 	M0_UT_ASSERT(rc == 0);
 	oc = M0_AMB(oc, op, oc_op);
 	oi = M0_AMB(oi, oc, oi_oc);
-	oi->oi_flags = flags;
+	oi->oi_flags = cr_get_flags;
 	m0_op_launch(&op, 1);
 	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
 	M0_UT_ASSERT(rc == 0);
@@ -489,8 +490,8 @@ static void ut_dix_record_ops(bool dist, uint32_t flags)
 	     m0_bufvec_empty_alloc(&vals, 1);
 	M0_UT_ASSERT(rc == 0);
 	*(uint64_t*)keys.ov_buf[0] = dix_key(10);
-	rc = m0_idx_op(&idx, M0_IC_GET, &keys, &vals, rcs, flags,
-			      &op);
+	rc = m0_idx_op(&idx, M0_IC_GET, &keys, &vals, rcs, cr_get_flags,
+			     &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_op_launch(&op, 1);
 	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
@@ -514,7 +515,7 @@ static void ut_dix_record_ops(bool dist, uint32_t flags)
 		*(uint64_t *)keys.ov_buf[i] = dix_key(i);
 		*(uint64_t *)vals.ov_buf[i] = dix_val(i);
 	}
-	rc = m0_idx_op(&idx, M0_IC_PUT, &keys, &vals, rcs, 0,
+	rc = m0_idx_op(&idx, M0_IC_PUT, &keys, &vals, rcs, put_del_flags,
 		       &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_op_launch(&op, 1);
@@ -529,7 +530,7 @@ static void ut_dix_record_ops(bool dist, uint32_t flags)
 
 	/* Try to add recs again without OVERWRITE flag. */
 	rcs = rcs_alloc(CNT);
-	rc = m0_idx_op(&idx, M0_IC_PUT, &keys, &vals, rcs, 0,
+	rc = m0_idx_op(&idx, M0_IC_PUT, &keys, &vals, rcs, put_del_flags,
 			      &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_op_launch(&op, 1);
@@ -546,7 +547,7 @@ static void ut_dix_record_ops(bool dist, uint32_t flags)
 		*(uint64_t *)vals.ov_buf[i] = dix_val(i * 10);
 
 	rc = m0_idx_op(&idx, M0_IC_PUT, &keys, &vals, rcs,
-		       M0_OIF_OVERWRITE, &op);
+		       M0_OIF_OVERWRITE | put_del_flags, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_op_launch(&op, 1);
 	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
@@ -677,7 +678,7 @@ static void ut_dix_record_ops(bool dist, uint32_t flags)
 	}
 
 	rc = m0_idx_op(&idx, M0_IC_PUT, &keys, &vals, rcs,
-		       M0_OIF_OVERWRITE, &op);
+		       M0_OIF_OVERWRITE | put_del_flags, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_op_launch(&op, 1);
 	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
@@ -751,7 +752,7 @@ static void ut_dix_record_ops(bool dist, uint32_t flags)
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < keys.ov_vec.v_nr; i++)
 		*(uint64_t *)keys.ov_buf[i] = dix_key(i);
-	rc = m0_idx_op(&idx, M0_IC_DEL, &keys, NULL, rcs, 0, &op);
+	rc = m0_idx_op(&idx, M0_IC_DEL, &keys, NULL, rcs, put_del_flags, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_op_launch(&op, 1);
 	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
@@ -777,25 +778,36 @@ static void ut_dix_record_ops(bool dist, uint32_t flags)
 
 static void ut_dix_record_ops_dist_skip_layout(void)
 {
-	uint32_t flags = M0_OIF_SKIP_LAYOUT;
-	ut_dix_record_ops(true, flags);
+	uint32_t cr_get_flags = M0_OIF_SKIP_LAYOUT;
+	ut_dix_record_ops(true, cr_get_flags, 0);
 }
 
 static void ut_dix_record_ops_dist_skip_layout_enable_crow(void)
 {
-	uint32_t flags = M0_OIF_SKIP_LAYOUT | M0_OIF_CROW;
-	ut_dix_record_ops(true, flags);
+	uint32_t cr_get_flags = M0_OIF_SKIP_LAYOUT | M0_OIF_CROW;
+	ut_dix_record_ops(true, cr_get_flags, 0);
 }
 
 static void ut_dix_record_ops_dist(void)
 {
-	ut_dix_record_ops(true, 0);
+	ut_dix_record_ops(true, 0, 0);
 }
 
 static void ut_dix_record_ops_non_dist(void)
 {
-	ut_dix_record_ops(false, 0);
+	ut_dix_record_ops(false, 0, 0);
 }
+
+static void ut_dix_record_ops_dist_no_dtm(void)
+{
+	ut_dix_record_ops(true, 0, M0_OIF_NO_DTM);
+}
+
+static void ut_dix_record_ops_non_dist_no_dtm(void)
+{
+	ut_dix_record_ops(false, 0, M0_OIF_NO_DTM);
+}
+
 
 struct m0_ut_suite ut_suite_idx_dix = {
 	.ts_name   = "idx-dix",
@@ -824,6 +836,10 @@ struct m0_ut_suite ut_suite_idx_dix = {
 		{ "record-ops-dist-skip-layout-enable-crow",
 		  ut_dix_record_ops_dist_skip_layout_enable_crow,
 		  "Venky" },
+		{ "record-ops-dist-no-dtm",
+		   ut_dix_record_ops_dist_no_dtm,     "Huang Hua" },
+		{ "record-ops-non-dist-no-dtm",
+		   ut_dix_record_ops_non_dist_no_dtm, "Huang Hua" },
 		{ NULL, NULL }
 	}
 };
@@ -892,6 +908,8 @@ static void idx_setup(void)
 	m0_idx_init(idx, &realm->co_realm, (struct m0_uint128 *) ifid);
 
 	/* Create the index */
+	if (ENABLE_DTM0)
+		idx->in_entity.en_flags |= M0_ENF_META;
 	rc = m0_entity_create(NULL, &idx->in_entity, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_op_launch(&op, 1);

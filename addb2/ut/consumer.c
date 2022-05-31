@@ -366,7 +366,8 @@ static void global_philter(void)
 	m0_addb2_callback_add(&p, &c);
 	m0_addb2_philter_global_add(&p);
 	M0_ADDB2_ADD(LABEL_ID, 2, 3, 5, 7, 11);
-	M0_UT_ASSERT(fired == 1);
+	/* Other records can be produced concurrently. */
+	M0_UT_ASSERT(fired >= 1);
 	m0_addb2_philter_global_del(&p);
 	m0_addb2_callback_del(&c);
 	m0_addb2_callback_fini(&c);
@@ -380,7 +381,7 @@ static void global_philter(void)
 	m0_addb2_philter_global_add(&p);
 	m0_addb2_philter_global_add(&p);
 	M0_ADDB2_ADD(LABEL_ID, 2, 3, 5, 7, 11);
-	M0_UT_ASSERT(fired == 2);
+	M0_UT_ASSERT(fired >= 2);
 	m0_addb2_philter_global_del(&p);
 	m0_addb2_philter_global_del(&p);
 	m0_addb2_callback_del(&c);

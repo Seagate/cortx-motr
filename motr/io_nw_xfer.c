@@ -495,7 +495,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	uint64_t                   cnt;
 	unsigned int               opcode;
 	m0_bcount_t                grp_size;
-	uint64_t                   page_size;	
+	uint64_t                   page_size;
 	struct m0_indexvec        *goff_ivec = NULL;
 
 	M0_PRE(tgt != NULL);
@@ -525,7 +525,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	toff    = target_offset(frame, play, gob_offset);
 	pgstart = toff;
 	goff    = unit_type == M0_PUT_DATA ? gob_offset : 0;
-	
+
 	// For checksum of Parity Unit the global object offset will be
 	// assumed to be aligned with PG start offset, so removing the
 	// additional value NxUS w.r.t PG start, which is added by the 
@@ -533,8 +533,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	// Removing this offset N will help to compute PG unit idx as 0,1..,k-1 
 	// which is the index of pi_paritybufs 
 	goff_cksum = unit_type == M0_PUT_DATA ? gob_offset : 
-		(gob_offset + (src->sa_unit - layout_n(play))*layout_unit_size(play));
-
+		(gob_offset + (src->sa_unit - layout_n(play))*layout_unit_size(play));	
+	
 	M0_LOG(M0_DEBUG,
 	       "[gpos %" PRIu64 ", count %" PRIu64 "] [%" PRIu64 ", %" PRIu64 "]"
 	       "->[%" PRIu64 ",%" PRIu64 "] %c", gob_offset, count, src->sa_group,
@@ -564,9 +564,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		M0_LOG(M0_DEBUG, "map_nr=%" PRIu64 " req state=%u cnt=%"PRIu64,
 				 ioo->ioo_iomap_nr, ioreq_sm_state(ioo), cnt);
 	}
-	
+
 	goff_ivec = &ti->ti_goff_ivec;
-	
 	while (pgstart < toff + count) {
 		pgend = min64u(pgstart + page_size,
 			       toff + count);
@@ -655,7 +654,6 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	}
 	M0_LEAVE();
 }
-
 
 /**
  * This is heavily based on m0t1fs/linux_kernel/file.c::target_fid().
@@ -1021,7 +1019,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	uint32_t                     maxsize;
 	uint32_t                     delta;
 	uint32_t                     num_fops = 0;
-	uint32_t 					 num_units_iter = 0;
+	uint32_t                     num_units_iter = 0;
 	enum page_attr               rw;
 	enum page_attr              *pattr;
 	struct m0_bufvec            *bvec;
@@ -1044,11 +1042,11 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	m0_bindex_t                  offset;
 	uint32_t                     segnext;
 	uint32_t                     ndom_max_segs;
-	struct m0_client             *instance;
-	struct m0_ivec_cursor 		 goff_curr;
+	struct m0_client            *instance;
+	struct m0_ivec_cursor        goff_curr;
 	struct fop_cksum_idx_gbl_data pgdata;
 	uint32_t                      seg_sz;
-	bool 						  di_enabled;
+	bool                         di_enabled;
 
 	M0_ENTRY("prepare io fops for target ioreq %p filter 0x%x, tfid "FID_F,
 		 ti, filter, FID_P(&ti->ti_fid));
@@ -1066,7 +1064,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			(IRS_READING, IRS_DEGRADED_READING,
 			 IRS_WRITING, IRS_DEGRADED_WRITING)));
 
-	if (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_WRITE &&
+	if (M0_IN(ioo->ioo_oo.oo_oc.oc_op.op_code, (M0_OC_WRITE,
+						    M0_OC_FREE)) &&
 	    M0_IN(ioreq_sm_state(ioo), (IRS_READING, IRS_DEGRADED_READING)))
 		read_in_write = true;
 
@@ -1161,8 +1160,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			if(di_enabled)
 				m0_ivec_cursor_move(&goff_curr, seg_sz);
 			continue;
-		}			 
-		
+		}
+
 		M0_ALLOC_PTR(irfop);
 		if (irfop == NULL) {
 			rc = M0_ERR(-ENOMEM);
@@ -1179,7 +1178,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		sz_added_to_fop = 0;
 		// Runt is for tracking bytes which are not accounted in unit
 		runt_sz = 0;
-
 		iofop = &irfop->irf_iofop;
 		rw_fop = io_rw_get(&iofop->if_fop);
 
@@ -1190,7 +1188,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			goto err;
 		}
 		delta += io_seg_size();
-		
+
 		/*
 		* Adds io segments and io descriptor only if it fits within
 		* permitted size.
@@ -1234,7 +1232,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 						bufnext = bvec->ov_buf[segnext];
 
 					if (buf + xfer_len == bufnext) {
- 						xfer_len += COUNT(ivec, ++seg);						
+						xfer_len += COUNT(ivec, ++seg);
 						// Next segment should be as per filter
 						segnext = seg + 1;
 						if( !(pattr[segnext] & filter) ||
@@ -1244,7 +1242,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					} else
 						break;
 				}
-				
 				seg_end = seg;
 
 				// Get number of units added
@@ -1306,12 +1303,12 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 										irfop, 
 										m0_ivec_cursor_index(&goff_curr),
 										s_idx);
-							m0_ivec_cursor_move(&goff_curr, seg_sz);							
+							m0_ivec_cursor_move(&goff_curr, seg_sz);
 						}
 					}
 				}
-			} else if(di_enabled)	
-				m0_ivec_cursor_move(&goff_curr, seg_sz);			
+			} else if(di_enabled)
+				m0_ivec_cursor_move(&goff_curr, seg_sz);
 
 			++seg;
 		}
@@ -1327,14 +1324,28 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_fid = ti->ti_fid;
 		rw_fop->crw_pver = ioo->ioo_pver;
 		rw_fop->crw_index = ti->ti_obj;
-		/* In case of partially spanned units in a parity group,
-		 * degraded read and read-verify mode expects zero-filled
-		 * units from server side.
+
+		/*
+		 * Use NOHOLE by default (i.e. return error for missing
+		 * units instead of zeros), unless we are in read-verify
+		 * mode or in the degraded-read mode. Otherwise, in case of
+		 * partially spanned parity groups (last groups, usually),
+		 * we will get a lot of bogus errors when all data units
+		 * of the group are read.
+		 *
+		 * Note: parity units are always present in the groups, even
+		 * in the partially spanned ones. So we always use NOHOLE
+		 * for them. Otherwise, the user may get corrupted data.
 		 */
 		instance = m0__op_instance(&ioo->ioo_oo.oo_oc.oc_op);
-		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
-		    !instance->m0c_config->mc_is_read_verify &&
-		    ioo->ioo_flags & M0_OOF_NOHOLE)
+		if (ioreq_sm_state(ioo) == IRS_READING && !read_in_write &&
+		    (filter == PA_PARITY ||
+		     (!instance->m0c_config->mc_is_read_verify &&
+		      !(ioo->ioo_flags & M0_OOF_HOLE))))
+			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
+
+		if (ioreq_sm_state(ioo) == IRS_DEGRADED_READING &&
+		    !read_in_write && filter == PA_PARITY)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 
 		// Clear FOP checksum data
@@ -1349,7 +1360,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		/* Assign the checksum buffer for traget */
 		if ( di_enabled && m0_is_write_fop(&iofop->if_fop) ) {
 			rw_fop->crw_cksum_size = m0__obj_di_cksum_size(ioo);
-
 			// Prepare checksum data for parity as not parity buffer are populated
 			if( target_ioreq_prepare_checksum(ioo, irfop, rw_fop) != 0) {
 				rw_fop->crw_di_data_cksum.b_addr = NULL;
@@ -1958,14 +1968,6 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 			       item, item->ri_type->rit_opcode, item->ri_error,
 			       item->ri_sm.sm_state);
 
-			/* Maintains only the first error encountered. */
-			if (xfer->nxr_rc == 0 &&
-			    item->ri_sm.sm_state == M0_RPC_ITEM_FAILED) {
-				xfer->nxr_rc = item->ri_error;
-				M0_LOG(M0_DEBUG, "[%p] nwxfer rc = %d",
-				       ioo, xfer->nxr_rc);
-			}
-
 			M0_ASSERT(ergo(item->ri_sm.sm_state !=
 				       M0_RPC_ITEM_UNINITIALISED,
 				       item->ri_rmachine != NULL));
@@ -2075,7 +2077,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			continue;
 		}
 		rc = ti->ti_ops->tio_iofops_prepare(ti, PA_DATA) ?:
-			ti->ti_ops->tio_iofops_prepare(ti, PA_PARITY);
+		     ti->ti_ops->tio_iofops_prepare(ti, PA_PARITY);
 		if (rc != 0)
 			return M0_ERR(rc);
 	} m0_htable_endfor;

@@ -50,6 +50,7 @@ trace_print_context=${M0_TRACE_PRINT_CONTEXT:-short}
 cli_args=
 binary=
 gdbparams=${GDBPARAMS:-}
+udebugger=${UDEBUGGER:-echo}
 
 #
 # Usage
@@ -99,7 +100,7 @@ Usage: $PROG_NAME [options] <exec-file> [-- exec-options]
                         'valgrind-cachegrind', 'valgrind-callgrind',
                         'valgrind-helgrind', 'valgrind-drd', 'valgrind-massif',
                         'valgrind-exp-sgcheck', 'valgrind-exp-dhat',
-                        'valgrind-exp-bbv'.
+                        'valgrind-exp-bbv' and 'user'.
 
     -l|--trace-level    Trace level (for both m0tr.ko and libmotr.so).
                         By default it's 'notice+'.
@@ -199,6 +200,12 @@ run_cgdb()
 
     log "cgdb $gdbinit --args $binary $@"
     cgdb $gdbinit --args $binary "$@"
+}
+
+run_user()
+{
+    echo "Running user debugger $udebugger (set '$UDEBUGGER' to change)."
+    $udebugger $binary "$@"
 }
 
 run_valgrind_memcheck()
@@ -406,6 +413,7 @@ if [[ -n "$debugger" ]] ; then
     case $debugger in
         gdb)                  run_gdb "$@" ;;
         cgdb)                 run_cgdb "$@" ;;
+        user)                 run_user "$@" ;;
         valgrind)             run_valgrind "$@" ;;
         valgrind-memcheck)    run_valgrind_memcheck "$@" ;;
         valgrind-cachegrind)  run_valgrind_cachegrind "$@" ;;

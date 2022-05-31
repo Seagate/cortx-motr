@@ -956,6 +956,7 @@ int m0_utility_args_init(int argc, char **argv,
 				{"object",        required_argument, NULL, 'o'},
 				{"block-size",    required_argument, NULL, 's'},
 				{"block-count",   required_argument, NULL, 'c'},
+				{"block-index",   required_argument, NULL, 'i'},
 				{"trunc-len",     required_argument, NULL, 't'},
 				{"layout-id",     required_argument, NULL, 'L'},
 				{"pver",          required_argument, NULL, 'v'},
@@ -967,13 +968,13 @@ int m0_utility_args_init(int argc, char **argv,
 				{"update_mode",   no_argument,       NULL, 'u'},
 				{"enable-locks",  no_argument,       NULL, 'e'},
 				{"read-verify",   no_argument,       NULL, 'r'},
-				{"help",          no_argument,       NULL, 'h'},
-				{"no-hole",       no_argument,       NULL, 'N'},
+				{"fill-zeros",    no_argument,       NULL, 'z'},
 				{"DI-generate",   no_argument,       NULL, 'G'},
 				{"DI-user-input", no_argument,       NULL, 'I'},
+				{"help",          no_argument,       NULL, 'h'},
 				{0,               0,                 0,     0 }};
 
-        while ((c = getopt_long(argc, argv, ":l:H:p:P:o:s:c:t:L:v:n:S:q:b:O:uerhNGI",
+        while ((c = getopt_long(argc, argv, ":l:H:p:P:o:s:c:i:t:L:v:n:S:q:b:O:uerzhGI",
 				l_opts, &option_index)) != -1)
 	{
 		switch (c) {
@@ -1022,6 +1023,7 @@ int m0_utility_args_init(int argc, char **argv,
 					exit(EXIT_FAILURE);
 				  }
 				  continue;
+			case 'i':
 			case 'c': if (m0_bcount_get(optarg,
 						    &params->cup_block_count) ==
 						    0) {
@@ -1106,14 +1108,14 @@ int m0_utility_args_init(int argc, char **argv,
 				  continue;
 			case 'u': params->cup_update_mode = true;
 				  continue;
-			case 'h': utility_usage(stderr, basename(argv[0]));
-				  exit(EXIT_FAILURE);
-			case 'N': params->flags |= M0_OOF_NOHOLE;
+			case 'z': params->flags |= M0_OOF_HOLE;
 				  continue;
 			case 'G': params->entity_flags |= M0_ENF_GEN_DI;
 				  continue;
 			case 'I': params->entity_flags |= M0_ENF_DI;
 				  continue;
+			case 'h': utility_usage(stderr, basename(argv[0]));
+				  exit(EXIT_FAILURE);
 			case '?': fprintf(stderr, "Unsupported option '%c'\n",
 					  optopt);
 				  utility_usage(stderr, basename(argv[0]));

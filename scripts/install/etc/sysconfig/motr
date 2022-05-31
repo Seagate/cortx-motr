@@ -68,16 +68,16 @@ MOTR_M0D_MAX_RPC_MSG_SIZE=524288
 # (for example, to 512) to avoid packets drops on high loads.
 # Note: MOTR_M0D_IOS_BUFFER_POOL_SIZE and MOTR_M0D_SNS_BUFFER_POOL_SIZE
 # parameters should be updated also accordingly after this one.
-#MOTR_M0D_MIN_RPC_RECVQ_LEN=16
+MOTR_M0D_MIN_RPC_RECVQ_LEN=16
 
 # ioservice buffer pool configuration.
 # This parameter controls the number of data buffers ready for 0-copy
 # receives. The recommend value == MOTR_M0D_MIN_RPC_RECVQ_LEN * 2.
-#MOTR_M0D_IOS_BUFFER_POOL_SIZE=32
+MOTR_M0D_IOS_BUFFER_POOL_SIZE=32
 
 # SNS Repair/Rebalance buffer pool configuration.
 # Same as MOTR_M0D_IOS_BUFFER_POOL_SIZE, but for SNS I/O.
-#MOTR_M0D_SNS_BUFFER_POOL_SIZE=64
+MOTR_M0D_SNS_BUFFER_POOL_SIZE=64
 
 # Backend log size (in bytes) for all m0d's. Default is 512 MiB.
 #MOTR_M0D_BELOG_SIZE=536870912

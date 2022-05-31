@@ -98,7 +98,7 @@ noinst_LTLIBRARIES =
 # documentation
 man_MANS   =
 
-EXTRA_DIST  = autogen.sh cortx-motr.spec.in README.rst LICENCE .gdbinit
+EXTRA_DIST  = autogen.sh cortx-motr.spec.in LICENCE .gdbinit
 CLEANFILES  =
 DISTCLEANFILES = @LUSTRE_CONFIG_LINK@ utils/ub.sh
 MAN_PAGES  =
@@ -784,7 +784,6 @@ bin_SCRIPTS   += utils/m0confgen \
                  utils/m0hagen
 
 sbin_SCRIPTS  += utils/m0gendisks \
-                 utils/m0genfacts \
                  utils/m0reportbug \
                  utils/m0run \
                  utils/m0setup \
@@ -1038,7 +1037,9 @@ motr_common_SCRIPTS = \
     scripts/install$(motr_commondir)/core-traces \
     scripts/install$(motr_commondir)/m0_sns_utils_common.sh \
     scripts/install$(motr_commondir)/m0_dix_utils_common.sh \
-    scripts/install$(motr_commondir)/m0_utils_common.sh
+    scripts/install$(motr_commondir)/m0_utils_common.sh \
+    scripts/install$(motr_commondir)/m0_spiel_sns_utils_common.sh \
+    scripts/install$(motr_commondir)/m0_spiel_dix_utils_common.sh
 EXTRA_DIST += $(motr_common_SCRIPTS)
 
 deb_pkg_files = \

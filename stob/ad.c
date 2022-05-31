@@ -1175,24 +1175,11 @@ static void stob_ad_write_credit(const struct m0_stob_domain *dom,
 	 */
 	m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, frags + 1, accum);
 
-	/*
-	 * Commenting out below part of code with #if 0, earlier it was based
-	 * on assumption that that adom->sad_overwrite will be always false,
-	 * Now we have set it to True by default to fix EOS-25302 hence
-	 * disabling it with "#if 0"
-	 * TODO: Probably sad_overwrite is introduced for COW(Copy on Write) and
-	 * for Object versioning in Motr, which is not implemented yet. Need to
-	 * revisit this part while implementing COW and object versioning.
-	 * We do not know whether bo_free_credit should be commented out or not,
-	 * but this is done to maintain existing behavior as the code was
-	 * anyway redundant earlier.
-	 */
-#if 0
 	if (adom->sad_overwrite && ballroom->ab_ops->bo_free_credit != NULL) {
 		/* for each emap_paste() seg_free() could be called 3 times */
 		ballroom->ab_ops->bo_free_credit(ballroom, 3 * frags, accum);
 	}
-#endif
+
 	m0_stob_io_credit(io, m0_stob_dom_get(adom->sad_bstore), accum);
 }
 

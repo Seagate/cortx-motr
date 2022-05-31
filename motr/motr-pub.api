@@ -388,6 +388,8 @@ m0_spiel_tx_open
 m0_spiel_tx_str_free
 m0_spiel_tx_to_str
 m0_spiel_tx_validate
+m0_spiel_count_stats_init
+m0_spiel_count_stats_fini
 m0_stats_free
 m0_stats_query
 m0_thread_fini

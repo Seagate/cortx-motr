@@ -26,9 +26,7 @@
 #define __MOTR_IOSERVICE_IO_FOPS_H__
 
 #include "fop/fop.h"
-#include "fop/fop_xc.h"
 #include "fop/fom_generic.h"
-#include "fop/fom_generic_xc.h"
 #include "lib/types.h"
 #include "rpc/rpc.h"
 #include "xcode/xcode_attr.h"

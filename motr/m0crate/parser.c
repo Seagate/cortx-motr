@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <stdarg.h>
 
+#include "lib/string.h"
 #include "motr/m0crate/parser.h"
 #include "motr/m0crate/crate_client.h"
 
@@ -54,6 +55,7 @@ enum config_key_val {
 	CASS_COL_FAMILY,
 	ADDB_INIT,
 	ADDB_SIZE,
+	IS_ENF_META,
 	LOG_LEVEL,
 	/*
 	 * All parameters below are workload-specific,
@@ -156,6 +158,7 @@ struct key_lookup_table lookuptable[] = {
 	{"STARTING_OBJ_ID", START_OBJ_ID},
 	{"MODE", MODE},
 	{"MAX_NR_OPS", MAX_NR_OPS},
+	{"IS_ENF_META", IS_ENF_META},
 	{"NR_ROUNDS", NR_ROUNDS},
 };
 
@@ -592,6 +595,9 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			w = &load[*index];
 			cw = workload_io(w);
 			cw->cwi_rounds = atoi(value);
+			break;
+		case IS_ENF_META:
+			conf->is_enf_meta = atoi(value);
 			break;
 		default:
 			break;
