@@ -45,6 +45,7 @@
 #define FAILURES_NR   3
 #define SPARE_NR      3
 #define DEVS_ID_SHIFT 100
+#define INVALID_IDX   0xFF
 
 static struct m0_reqh           reqh;
 static struct m0_be_ut_backend  be;
@@ -85,6 +86,19 @@ enum iter_ut_fom_phase {
 	ITER_UT_FOM_META_LOCK,
 	ITER_UT_FOM_EXEC,
 	ITER_UT_FOM_TX_COMMIT
+};
+
+enum iter_ut_pool_nd_state {
+	ITER_UT_ONLINE,
+	ITER_UT_REPAIRING,
+	ITER_UT_REPAIRED,
+	ITER_UT_REBALANCING,
+};
+
+enum iter_ut_dev_type {
+	ITER_UT_DATA,
+	ITER_UT_PARITY,
+	ITER_UT_SPARE,
 };
 
 struct iter_ut_fom {
@@ -157,6 +171,46 @@ static struct m0_dix_cm_iter* iter_ut_iter(struct m0_reqh_service *svc)
 
 	return &dix_cm->dcm_it;
 }
+
+struct iter_ut_dev_id {
+	uint32_t                   pool_dev_id;
+	uint32_t                   global_dev_id;
+	uint32_t                   spare_idx;
+	enum iter_ut_dev_type      type;
+	enum iter_ut_pool_nd_state state;
+};
+
+#define NUM_DATA_PARITY_DEV_IDS (sizeof(data_parity_dev_ids) / sizeof(data_parity_dev_ids[0]))
+#define NUM_SPARE_DEV_IDS      (sizeof(spare_dev_ids) / sizeof(spare_dev_ids[0]))
+
+#define DATA_PARITY_DEV_IDS \
+	iter_ut_dev_ids(4, 104, ITER_UT_DATA,   ITER_UT_ONLINE) \
+	iter_ut_dev_ids(9, 109, ITER_UT_PARITY, ITER_UT_ONLINE) \
+	iter_ut_dev_ids(6, 106, ITER_UT_PARITY, ITER_UT_ONLINE) \
+	iter_ut_dev_ids(5, 105, ITER_UT_PARITY, ITER_UT_ONLINE) \
+
+#define SPARE_DEV_IDS \
+	iter_ut_dev_ids(1, 101, ITER_UT_SPARE, ITER_UT_ONLINE) \
+	iter_ut_dev_ids(0, 100, ITER_UT_SPARE, ITER_UT_ONLINE) \
+	iter_ut_dev_ids(7, 107, ITER_UT_SPARE, ITER_UT_ONLINE) \
+
+static struct iter_ut_dev_id data_parity_dev_ids[] = {
+	#define iter_ut_dev_ids(_pool_dev_id, _global_dev_id, _type, _state) \
+		{.pool_dev_id=_pool_dev_id, .global_dev_id=_global_dev_id , \
+		 .spare_idx=INVALID_IDX,.type=_type, .state=_state},
+	DATA_PARITY_DEV_IDS
+	#undef iter_ut_dev_ids
+};
+
+static struct iter_ut_dev_id spare_dev_ids[] = {
+	#define iter_ut_dev_ids(_pool_dev_id, _global_dev_id, _type, _state) \
+		{.pool_dev_id=_pool_dev_id, .global_dev_id=_global_dev_id , \
+		 .spare_idx=INVALID_IDX,.type=_type, .state=_state},
+	SPARE_DEV_IDS
+	#undef iter_ut_dev_ids
+};
+
+static uint32_t spare_idx = 0;
 
 static void iter_ut_fom_fini(struct m0_fom *fom0)
 {
@@ -470,8 +524,7 @@ static void iter_ut_ctidx_delete_async(struct iter_ut_fom *fom,
 	fom->iu_op = ITER_UT_OP_CTIDX_DELETE;
 	iter_ut_fom_op(fom, sem);
 }
-
-static void iter_ut_insert(struct m0_cas_ctg *cctg, uint64_t key, uint64_t val)
+static void iter_ut_op(struct m0_cas_ctg *cctg, uint64_t key, uint64_t val, enum iter_ut_fom_op op)
 {
 	struct iter_ut_fom fom;
 	struct m0_buf      kbuf = {};
@@ -487,32 +540,20 @@ static void iter_ut_insert(struct m0_cas_ctg *cctg, uint64_t key, uint64_t val)
 	fom.iu_ctg = cctg;
 	fom.iu_key = kbuf;
 	fom.iu_val = vbuf;
-	fom.iu_op = ITER_UT_OP_KV_INSERT;
+	fom.iu_op = op;
 	iter_ut_fom_op_sync(&fom);
 	m0_buf_free(&kbuf);
 	m0_buf_free(&vbuf);
 }
 
+static void iter_ut_insert(struct m0_cas_ctg *cctg, uint64_t key, uint64_t val)
+{
+	iter_ut_op(cctg, key, val, ITER_UT_OP_KV_INSERT);
+}
+
 static void iter_ut_delete(struct m0_cas_ctg *cctg, uint64_t key, uint64_t val)
 {
-	struct iter_ut_fom fom;
-	struct m0_buf      kbuf = {};
-	struct m0_buf      vbuf = {};
-	int                rc;
-
-	M0_SET0(&fom);
-	rc = m0_buf_alloc(&kbuf, sizeof(key));
-	     m0_buf_alloc(&vbuf, sizeof(val));
-	M0_UT_ASSERT(rc == 0);
-	*(uint64_t *)kbuf.b_addr = htobe64(key);
-	*(uint64_t *)vbuf.b_addr = htobe64(val);
-	fom.iu_ctg = cctg;
-	fom.iu_key = kbuf;
-	fom.iu_val = vbuf;
-	fom.iu_op = ITER_UT_OP_KV_DELETE;
-	iter_ut_fom_op_sync(&fom);
-	m0_buf_free(&kbuf);
-	m0_buf_free(&vbuf);
+	iter_ut_op(cctg, key, val, ITER_UT_OP_KV_DELETE);
 }
 
 static void device_state_set(uint64_t pool_device_id,
@@ -526,58 +567,40 @@ static void device_state_set(uint64_t pool_device_id,
 	pdev->pd_state = dev_state;
 }
 
-static void device_repaired_set(uint64_t pool_device_id)
+static void device_state_set_op(uint64_t pool_device_id,
+				enum m0_pool_nd_state dev_state)
 {
 	struct m0_pool_spare_usage *spare_usage_array;
 	struct m0_pool_spare_usage *spare_usage_item;
 
-	device_state_set(pool_device_id, M0_PNDS_SNS_REPAIRED);
+	if ( pool_device_id != POOL_PM_SPARE_SLOT_UNUSED)
+		device_state_set(pool_device_id, dev_state);
 
 	spare_usage_array = pv.pv_mach.pm_state->pst_spare_usage_array;
 	spare_usage_item = &spare_usage_array[spare_usage_pos];
 	spare_usage_item->psu_device_index = (uint32_t)pool_device_id;
-	spare_usage_item->psu_device_state = M0_PNDS_SNS_REPAIRED;
+	spare_usage_item->psu_device_state = dev_state;
 	spare_usage_pos++;
+}
+
+static void device_repaired_set(uint64_t pool_device_id)
+{
+	device_state_set_op(pool_device_id, M0_PNDS_SNS_REPAIRED);
 }
 
 static void device_repairing_set(uint64_t pool_device_id)
 {
-	struct m0_pool_spare_usage *spare_usage_array;
-	struct m0_pool_spare_usage *spare_usage_item;
-
-	device_state_set(pool_device_id, M0_PNDS_SNS_REPAIRING);
-
-	spare_usage_array = pv.pv_mach.pm_state->pst_spare_usage_array;
-	spare_usage_item = &spare_usage_array[spare_usage_pos];
-	spare_usage_item->psu_device_index = (uint32_t)pool_device_id;
-	spare_usage_item->psu_device_state = M0_PNDS_SNS_REPAIRING;
-	spare_usage_pos++;
+	device_state_set_op(pool_device_id, M0_PNDS_SNS_REPAIRING);
 }
 
 static void device_rebalancing_set(uint64_t pool_device_id)
 {
-	struct m0_pool_spare_usage *spare_usage_array;
-	struct m0_pool_spare_usage *spare_usage_item;
-
-	device_state_set(pool_device_id, M0_PNDS_SNS_REBALANCING);
-
-	spare_usage_array = pv.pv_mach.pm_state->pst_spare_usage_array;
-	spare_usage_item = &spare_usage_array[spare_usage_pos];
-	spare_usage_item->psu_device_index = (uint32_t)pool_device_id;
-	spare_usage_item->psu_device_state = M0_PNDS_SNS_REBALANCING;
-	spare_usage_pos++;
+	device_state_set_op(pool_device_id, M0_PNDS_SNS_REBALANCING);
 }
 
 static void spare_slot_unused_set()
 {
-	struct m0_pool_spare_usage *spare_usage_array;
-	struct m0_pool_spare_usage *spare_usage_item;
-
-	spare_usage_array = pv.pv_mach.pm_state->pst_spare_usage_array;
-	spare_usage_item = &spare_usage_array[spare_usage_pos];
-	spare_usage_item->psu_device_index = POOL_PM_SPARE_SLOT_UNUSED;
-	spare_usage_item->psu_device_state = 0;
-	spare_usage_pos++;
+	device_state_set_op(POOL_PM_SPARE_SLOT_UNUSED, 0);
 }
 
 static void iter_ut_devs_setup()
@@ -816,107 +839,108 @@ static uint64_t buf_value(const struct m0_buf *buf)
 	return be64toh(*(uint64_t *)buf->b_addr);
 }
 
-
-static void one_rec(void)
+static void check_dix_iter_key_val(struct m0_dix_cm_iter *iter, int exp_rc,
+				   uint64_t exp_key, uint64_t exp_val,
+				   uint32_t exp_sdev)
 {
-	struct m0_dix_cm_iter *iter;
-	struct m0_fid          cctg_fid = M0_FID_TINIT('T', 1, 0);
-	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
-	int                    rc;
+	struct m0_buf key;
+	struct m0_buf val;
+	uint32_t      sdev_id;
+	int           rc;
 
-	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
-	iter = iter_ut_iter(repair_svc);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
-	iter_ut_insert(cctg, 10, 20);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_is_repair_coordinator", "always_coordinator");
-	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
 	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	m0_fi_enable_once("dix_cm_is_repair_coordinator", "always_coordinator");
-	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
-	m0_dix_cm_iter_stop(iter);
-	iter_ut_fini(repair_svc);
-	m0_fi_disable("dix_cm_is_repair_coordinator", "always_coordinator");
-	m0_fi_disable("dix_cm_repair_tgts_get", "single_target");
+	M0_ASSERT(rc == exp_rc);
+	if (exp_rc == 0) {
+		M0_UT_ASSERT(buf_value(&key) == exp_key);
+		M0_UT_ASSERT(buf_value(&val) == exp_val);
+		if (exp_sdev != 0)
+			M0_UT_ASSERT(sdev_id == exp_sdev);
+		m0_buf_free(&key);
+		m0_buf_free(&val);
+	}
 }
 
-static void multi_rec(void)
+static void test_dix_rec(uint32_t cctg_count, uint32_t rec_count)
 {
-	enum {
-		CCTG_COUNT = 10,
-		REC_COUNT  = 20,
-	};
-
 	struct m0_dix_cm_iter *iter;
 	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
 	int                    i;
 	int                    j;
 	int                    rc;
 
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	for (i = 0; i < CCTG_COUNT; i++) {
+	for (i = 0; i < cctg_count; i++) {
 		cctg_fid = M0_FID_TINIT('T', 1, i);
 		iter_ut_ctidx_insert(&cctg_fid);
 		iter_ut_meta_insert(&cctg_fid);
 		cctg = iter_ut_meta_lookup(&cctg_fid);
-		for (j = 0; j < REC_COUNT; j++)
+		for (j = 0; j < rec_count; j++)
 			iter_ut_insert(cctg, 100 * i + j, j * j);
 	}
 	M0_SET0(iter);
 	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
 	M0_ASSERT(rc == 0);
-	for (i = 0; i < CCTG_COUNT; i++) {
-		for (j = 0; j < REC_COUNT; j++) {
+	for (i = 0; i < cctg_count; i++) {
+		for (j = 0; j < rec_count; j++) {
 			m0_fi_enable_once("dix_cm_is_repair_coordinator",
 					  "always_coordinator");
 			m0_fi_enable_once("dix_cm_repair_tgts_get",
 					  "single_target");
-			rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-			M0_ASSERT(rc == 0);
-			M0_UT_ASSERT(buf_value(&key) == 100 * i + j);
-			M0_UT_ASSERT(buf_value(&val) == j * j);
-			m0_buf_free(&key);
-			m0_buf_free(&val);
+			check_dix_iter_key_val(iter, 0, (100 * i + j), (j * j), 0);
 		}
 	}
 	m0_fi_enable_once("dix_cm_is_repair_coordinator", "always_coordinator");
 	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 	m0_fi_disable("dix_cm_is_repair_coordinator", "always_coordinator");
 	m0_fi_disable("dix_cm_repair_tgts_get", "single_target");
 }
 
+static void one_rec(void)
+{
+	test_dix_rec(1, 1);
+}
+
+static void multi_rec(void)
+{
+	test_dix_rec(10, 20);
+}
+
+static void iter_ut_insert_cctg_fid(struct m0_fid *cctg_fid,
+				    uint32_t container,
+				    uint64_t key,
+				    uint32_t device_id)
+{
+	struct m0_fid dix_fid;
+
+	m0_dix_fid_dix_make(&dix_fid, container, key);
+	m0_dix_fid_convert_dix2cctg(&dix_fid,
+				    cctg_fid,
+				    device_id);
+	iter_ut_ctidx_insert(cctg_fid);
+	iter_ut_meta_insert(cctg_fid);
+}
+
+static struct m0_cas_ctg *iter_ut_insert_lookup_cctg(uint32_t container,
+						     uint64_t key,
+						     uint32_t device_id)
+{
+	struct m0_cas_ctg *cctg;
+	struct m0_fid      cctg_fid;
+
+	iter_ut_insert_cctg_fid(&cctg_fid, container, key, device_id);
+	cctg = iter_ut_meta_lookup(&cctg_fid);
+	return cctg;
+}
+
 static void rep_coordinator(void)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
 	int                    rc;
 
 	m0_fi_enable("m0_dix_target", "pdcluster-map");
@@ -935,27 +959,16 @@ static void rep_coordinator(void)
 	/* A coordinator, the first in the parity group. */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    104);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 104);
 	iter_ut_insert(cctg, 10, 20);
 	M0_SET0(iter);
 	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
 	M0_ASSERT(rc == 0);
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, 0, 10, 20, 0);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -974,13 +987,8 @@ static void rep_coordinator(void)
 	/* A coordinator, not the first in the parity group. */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    106);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 106);
 	iter_ut_insert(cctg, 10, 20);
 	device_state_set(4, M0_PNDS_FAILED);
 	device_state_set(9, M0_PNDS_FAILED);
@@ -989,14 +997,8 @@ static void rep_coordinator(void)
 	M0_ASSERT(rc == 0);
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, 0, 10, 20, 0);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -1015,21 +1017,15 @@ static void rep_coordinator(void)
 	/* Not a coordinator, not the first in the parity group. */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    109);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 109);
 	iter_ut_insert(cctg, 10, 20);
 	M0_SET0(iter);
 	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
 	M0_ASSERT(rc == 0);
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
@@ -1050,13 +1046,8 @@ static void rep_coordinator(void)
 	/* Not a coordinator, serves spare unit. */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    101);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 101);
 	iter_ut_insert(cctg, 10, 20);
 	device_state_set(4, M0_PNDS_FAILED);
 	device_state_set(9, M0_PNDS_FAILED);
@@ -1067,24 +1058,130 @@ static void rep_coordinator(void)
 	M0_ASSERT(rc == 0);
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_disable("dix_cm_repair_tgts_get", "single_target");
 }
 
+static void reset_parity_grp_info(void)
+{
+	uint32_t i;
+
+	for (i = 0; i < NUM_DATA_PARITY_DEV_IDS; i++)
+		data_parity_dev_ids[i].state = ITER_UT_ONLINE;
+
+	for (i = 0; i < NUM_SPARE_DEV_IDS; i++)
+		spare_dev_ids[i].state = ITER_UT_ONLINE;
+	spare_idx = 0;
+}
+
+static void iter_ut_set_drive_state(uint64_t pool_device_id,
+				    enum iter_ut_pool_nd_state state)
+{
+	uint32_t i;
+
+	for (i = 0; i < NUM_SPARE_DEV_IDS; i++) {
+		if (spare_dev_ids[i].pool_dev_id == pool_device_id) {
+			spare_dev_ids[i].state = state;
+			spare_dev_ids[i].spare_idx = spare_idx;
+			break;
+		}
+	}
+
+	if (i == NUM_SPARE_DEV_IDS)
+		for (i = 0; i < NUM_DATA_PARITY_DEV_IDS; i++) {
+			if (data_parity_dev_ids[i].pool_dev_id == pool_device_id) {
+				data_parity_dev_ids[i].state = state;
+				data_parity_dev_ids[i].spare_idx = spare_idx;
+				break;
+			}
+		}
+
+	switch (state)
+	{
+		case ITER_UT_REPAIRING:
+			device_repairing_set(pool_device_id);
+			break;
+		case ITER_UT_REPAIRED:
+			device_repaired_set(pool_device_id);
+			break;
+		case ITER_UT_REBALANCING:
+			device_rebalancing_set(pool_device_id);
+			break;
+		default:
+			break;
+	}
+	spare_idx++;
+}
+
+static void iter_ut_set_drive_repairing(uint64_t pool_device_id)
+{
+	iter_ut_set_drive_state(pool_device_id, ITER_UT_REPAIRING);
+}
+
+static void iter_ut_set_drive_repaired(uint64_t pool_device_id)
+{
+	iter_ut_set_drive_state(pool_device_id, ITER_UT_REPAIRED);
+}
+
+// TODO: For future use
+// static void iter_ut_set_drive_rebalancing(uint64_t pool_device_id)
+// {
+// 	iter_ut_set_drive_state(pool_device_id, ITER_UT_REBALANCING);
+// }
+
+static void iter_ut_rep_validate(struct m0_dix_cm_iter *iter,
+				 uint64_t exp_key,
+				 uint64_t exp_val)
+{
+	enum iter_ut_pool_nd_state  data_parity_dev_state;
+	struct iter_ut_dev_id      *curr_dev_id;
+	uint32_t                    spare_idx;
+	uint32_t                    target_dev_id = INVALID_IDX;
+	uint32_t                    i;
+	int                         rc;
+
+	M0_SET0(iter);
+	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
+	M0_UT_ASSERT(rc == 0);
+	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
+
+	for (i = 0; i < NUM_DATA_PARITY_DEV_IDS; i++) {
+		curr_dev_id = &data_parity_dev_ids[i];
+		data_parity_dev_state = curr_dev_id->state;
+
+		if (data_parity_dev_state != ITER_UT_ONLINE) {
+			spare_idx = curr_dev_id->spare_idx;
+			curr_dev_id = &spare_dev_ids[spare_idx];
+			if ((data_parity_dev_state == ITER_UT_REPAIRED) &&
+			    (curr_dev_id->state == ITER_UT_ONLINE))
+				continue;
+			else {
+				while (curr_dev_id->state != ITER_UT_ONLINE) {
+					spare_idx = curr_dev_id->spare_idx;
+					curr_dev_id = &spare_dev_ids[spare_idx];
+				}
+				target_dev_id = spare_dev_ids[spare_idx].global_dev_id;
+				M0_UT_ASSERT(target_dev_id != INVALID_IDX);
+				check_dix_iter_key_val(iter, 0, exp_key,
+						       exp_val, target_dev_id);
+			}
+		}
+	}
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
+	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
+}
+
 static void one_dev_fail(void)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
-	int                    rc;
 
 /*
  * Parity group info for key 10 (pool dev_id/global dev_id):
@@ -1116,47 +1213,19 @@ static void one_dev_fail(void)
 
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    109);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 109);
 	iter_ut_insert(cctg, 10, 20);
-	device_repairing_set(4);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 101);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repairing(4);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
-	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void two_devs_fail(void)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
-	int                    rc;
 
 /*
  * Parity group info for key 10 (pool dev_id/global dev_id):
@@ -1189,55 +1258,20 @@ static void two_devs_fail(void)
 
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    109);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 109);
 	iter_ut_insert(cctg, 10, 20);
-	device_repairing_set(4);
-	device_repairing_set(5);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 101);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 100);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repairing(4);
+	iter_ut_set_drive_repairing(5);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
-	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void outside_dev_fail(void)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
-	int                    rc;
 
 /*
  * Parity group info for key 10 (pool dev_id/global dev_id):
@@ -1263,23 +1297,11 @@ static void outside_dev_fail(void)
  */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    104);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 104);
 	iter_ut_insert(cctg, 10, 20);
-	device_repairing_set(3);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repairing(3);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -1312,31 +1334,12 @@ static void outside_dev_fail(void)
  */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    104);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 104);
 	iter_ut_insert(cctg, 10, 20);
-	device_repairing_set(3);
-	device_repairing_set(9);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 100);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repairing(3);
+	iter_ut_set_drive_repairing(9);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -1369,49 +1372,21 @@ static void outside_dev_fail(void)
  */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    104);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 104);
 	iter_ut_insert(cctg, 10, 20);
-	device_repaired_set(3);
-	device_repairing_set(1);
-	device_repairing_set(9);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 107);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repaired(3);
+	iter_ut_set_drive_repairing(1);
+	iter_ut_set_drive_repairing(9);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
-	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void empty_spare_fail(void)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
-	int                    rc;
 
 /*
  * Parity group info for key 10 (pool dev_id/global dev_id):
@@ -1437,23 +1412,11 @@ static void empty_spare_fail(void)
  */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    104);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 104);
 	iter_ut_insert(cctg, 10, 20);
-	device_repairing_set(0);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repairing(0);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -1481,24 +1444,12 @@ static void empty_spare_fail(void)
  */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    104);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 104);
 	iter_ut_insert(cctg, 10, 20);
-	device_repaired_set(1);
-	device_repairing_set(0);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repaired(1);
+	iter_ut_set_drive_repairing(0);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -1526,24 +1477,12 @@ static void empty_spare_fail(void)
  */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    104);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 104);
 	iter_ut_insert(cctg, 10, 20);
-	device_repaired_set(0);
-	device_repairing_set(1);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repaired(0);
+	iter_ut_set_drive_repairing(1);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -1571,42 +1510,21 @@ static void empty_spare_fail(void)
  */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    104);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 104);
 	iter_ut_insert(cctg, 10, 20);
-	device_repaired_set(7);
-	device_repaired_set(1);
-	device_repairing_set(0);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repaired(7);
+	iter_ut_set_drive_repaired(1);
+	iter_ut_set_drive_repairing(0);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
-	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void filled_spare_fail(void)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
-	int                    rc;
 
 /*
  * Parity group info for key 10 (pool dev_id/global dev_id):
@@ -1637,31 +1555,12 @@ static void filled_spare_fail(void)
  */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    104);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 104);
 	iter_ut_insert(cctg, 10, 20);
-	device_repaired_set(6);
-	device_repairing_set(1);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 100);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repaired(6);
+	iter_ut_set_drive_repairing(1);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -1694,32 +1593,13 @@ static void filled_spare_fail(void)
  */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    104);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 104);
 	iter_ut_insert(cctg, 10, 20);
-	device_repaired_set(6);
-	device_repaired_set(1);
-	device_repairing_set(0);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 107);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repaired(6);
+	iter_ut_set_drive_repaired(1);
+	iter_ut_set_drive_repairing(0);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -1752,32 +1632,13 @@ static void filled_spare_fail(void)
  */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    109);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 109);
 	iter_ut_insert(cctg, 10, 20);
-	device_repaired_set(4);
-	device_repaired_set(6);
-	device_repairing_set(1);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 107);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repaired(4);
+	iter_ut_set_drive_repaired(6);
+	iter_ut_set_drive_repairing(1);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -1810,32 +1671,13 @@ static void filled_spare_fail(void)
  */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    109);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 109);
 	iter_ut_insert(cctg, 10, 20);
-	device_repaired_set(4);
-	device_repairing_set(1);
-	device_repairing_set(0);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 107);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repaired(4);
+	iter_ut_set_drive_repairing(1);
+	iter_ut_set_drive_repairing(0);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -1868,32 +1710,13 @@ static void filled_spare_fail(void)
  */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    109);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 109);
 	iter_ut_insert(cctg, 10, 20);
-	device_repaired_set(4);
-	device_repairing_set(0);
-	device_repairing_set(1);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 107);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repaired(4);
+	iter_ut_set_drive_repairing(0);
+	iter_ut_set_drive_repairing(1);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -1927,55 +1750,21 @@ static void filled_spare_fail(void)
  */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    109);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 109);
 	iter_ut_insert(cctg, 10, 20);
-	device_repaired_set(4);
-	device_repairing_set(1);
-	device_repairing_set(5);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 100);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 107);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	reset_parity_grp_info();
+	iter_ut_set_drive_repaired(4);
+	iter_ut_set_drive_repairing(1);
+	iter_ut_set_drive_repairing(5);
+	iter_ut_rep_validate(iter, 10, 20);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
-	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
-	m0_fi_disable("dix_cm_iter_next_key", "print_spare_usage");
-	m0_fi_disable("dix_cm_iter_next_key", "print_targets");
 }
 
 static void many_keys_rep(void)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
 	int                    rc;
 
 /*
@@ -2008,13 +1797,7 @@ static void many_keys_rep(void)
 
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    109);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 109);
 	iter_ut_insert(cctg, 10, 20);
 	iter_ut_insert(cctg, 11, 30);
 	iter_ut_insert(cctg, 12, 40);
@@ -2025,35 +1808,16 @@ static void many_keys_rep(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 101);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 10, 20, 101);
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 11);
-	M0_UT_ASSERT(buf_value(&val) == 30);
-	M0_UT_ASSERT(sdev_id == 101);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 11, 30, 101);
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 12);
-	M0_UT_ASSERT(buf_value(&val) == 40);
-	M0_UT_ASSERT(sdev_id == 101);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, 0, 12, 40, 101);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
@@ -2064,12 +1828,7 @@ static void many_keys_rep(void)
 static void user_concur_rep(void)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
 	int                    rc;
 
 /*
@@ -2102,13 +1861,7 @@ static void user_concur_rep(void)
 
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    109);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 109);
 	iter_ut_insert(cctg, 10, 20);
 	iter_ut_insert(cctg, 11, 30);
 	iter_ut_insert(cctg, 12, 40);
@@ -2123,24 +1876,11 @@ static void user_concur_rep(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 11);
-	M0_UT_ASSERT(buf_value(&val) == 30);
-	M0_UT_ASSERT(sdev_id == 101);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 11, 30, 101);
 
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 12);
-	M0_UT_ASSERT(buf_value(&val) == 40);
-	M0_UT_ASSERT(sdev_id == 101);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 12, 40, 101);
 
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -2148,13 +1888,7 @@ static void user_concur_rep(void)
 	/* NEXT TEST */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    109);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 109);
 	iter_ut_insert(cctg, 10, 20);
 	iter_ut_insert(cctg, 11, 30);
 	iter_ut_insert(cctg, 12, 40);
@@ -2165,35 +1899,16 @@ static void user_concur_rep(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 101);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 10, 20, 101);
 
 	/* Delete current record. */
 	iter_ut_delete(cctg, 10, 20);
 
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 11);
-	M0_UT_ASSERT(buf_value(&val) == 30);
-	M0_UT_ASSERT(sdev_id == 101);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 11, 30, 101);
 
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 12);
-	M0_UT_ASSERT(buf_value(&val) == 40);
-	M0_UT_ASSERT(sdev_id == 101);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 12, 40, 101);
 
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -2201,13 +1916,7 @@ static void user_concur_rep(void)
 	/* NEXT TEST */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    109);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 109);
 	iter_ut_insert(cctg, 10, 20);
 	iter_ut_insert(cctg, 11, 30);
 	iter_ut_insert(cctg, 12, 40);
@@ -2218,27 +1927,14 @@ static void user_concur_rep(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 101);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 10, 20, 101);
 
 	/* Delete next record. */
 	iter_ut_delete(cctg, 11, 30);
 
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 12);
-	M0_UT_ASSERT(buf_value(&val) == 40);
-	M0_UT_ASSERT(sdev_id == 101);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 12, 40, 101);
 
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 
@@ -2246,13 +1942,7 @@ static void user_concur_rep(void)
 	/* NEXT TEST */
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    109);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 109);
 	iter_ut_insert(cctg, 10, 20);
 	iter_ut_insert(cctg, 11, 30);
 	iter_ut_insert(cctg, 12, 40);
@@ -2263,27 +1953,14 @@ static void user_concur_rep(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 101);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 10, 20, 101);
 
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 11);
-	M0_UT_ASSERT(buf_value(&val) == 30);
-	M0_UT_ASSERT(sdev_id == 101);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 11, 30, 101);
 
 	/* Delete the last record. */
 	iter_ut_delete(cctg, 12, 40);
 
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
 	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
@@ -2295,17 +1972,13 @@ static void user_concur_rep(void)
  * Deletes concurrently current catalogue of repair iterator.
  * Iterator should skip current catalogue and continues with the next one.
  */
-static void ctg_del_concur_rep1(void)
+static void ctg_del_concur_rep(uint8_t index)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
 	struct m0_fid          cctg_fid1;
 	struct m0_fid          cctg_fid2;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
 	struct m0_semaphore    sem;
-	uint32_t               sdev_id;
 	struct iter_ut_fom     ctidx_fom;
 	struct iter_ut_fom     meta_fom;
 	int                    rc;
@@ -2313,15 +1986,9 @@ static void ctg_del_concur_rep1(void)
 	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
 	iter = iter_ut_iter(repair_svc);
 
-	m0_dix_fid_dix_make(&dix_fid, 1, 1);
-	m0_dix_fid_convert_dix2cctg(&dix_fid, &cctg_fid1, 104);
-	iter_ut_ctidx_insert(&cctg_fid1);
-	iter_ut_meta_insert(&cctg_fid1);
+	iter_ut_insert_cctg_fid(&cctg_fid1, 1, 1, 104);
 
-	m0_dix_fid_dix_make(&dix_fid, 2, 2);
-	m0_dix_fid_convert_dix2cctg(&dix_fid, &cctg_fid2, 104);
-	iter_ut_ctidx_insert(&cctg_fid2);
-	iter_ut_meta_insert(&cctg_fid2);
+	iter_ut_insert_cctg_fid(&cctg_fid2, 2, 2, 104);
 
 	cctg = iter_ut_meta_lookup(&cctg_fid1);
 	iter_ut_insert(cctg, 10, 20);
@@ -2339,16 +2006,16 @@ static void ctg_del_concur_rep1(void)
 
 	m0_fi_enable_once("dix_cm_is_repair_coordinator", "always_coordinator");
 	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 10, 20, 0);
 
 	m0_semaphore_init(&sem, 0);
-	iter_ut_meta_delete_async(&meta_fom, &cctg_fid1, &sem);
-	iter_ut_ctidx_delete_async(&ctidx_fom, &cctg_fid1, &sem);
+	if (index == 1) {
+		iter_ut_meta_delete_async(&meta_fom, &cctg_fid1, &sem);
+		iter_ut_ctidx_delete_async(&ctidx_fom, &cctg_fid1, &sem);
+	} else {
+		iter_ut_meta_delete_async(&meta_fom, &cctg_fid2, &sem);
+		iter_ut_ctidx_delete_async(&ctidx_fom, &cctg_fid2, &sem);
+	}
 	m0_fom_timedwait(&ctidx_fom.iu_fom, M0_BITS(ITER_UT_FOM_CTIDX_LOCK),
 			 M0_TIME_NEVER);
 	m0_fom_timedwait(&meta_fom.iu_fom, M0_BITS(ITER_UT_FOM_META_LOCK),
@@ -2356,26 +2023,21 @@ static void ctg_del_concur_rep1(void)
 
 	m0_fi_enable_once("dix_cm_is_repair_coordinator", "always_coordinator");
 	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 100);
-	M0_UT_ASSERT(buf_value(&val) == 200);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	if (index == 1)
+		check_dix_iter_key_val(iter, 0, 100, 200, 0);
+	else
+		check_dix_iter_key_val(iter, 0, 11, 30, 0);
 
 	m0_fi_enable_once("dix_cm_is_repair_coordinator", "always_coordinator");
 	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 110);
-	M0_UT_ASSERT(buf_value(&val) == 300);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	if (index == 1)
+		check_dix_iter_key_val(iter, 0, 110, 300, 0);
+	else
+		check_dix_iter_key_val(iter, 0, 12, 40, 0);
 
 	m0_fi_enable_once("dix_cm_is_repair_coordinator", "always_coordinator");
 	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 
 	m0_semaphore_down(&sem);
 	m0_semaphore_down(&sem);
@@ -2388,110 +2050,27 @@ static void ctg_del_concur_rep1(void)
 }
 
 /*
+ * Deletes concurrently current catalogue of repair iterator.
+ * Iterator should skip current catalogue and continues with the next one.
+ */
+static void ctg_del_concur_rep1(void)
+{
+	ctg_del_concur_rep(1);
+}
+
+/*
  * Deletes concurrently a catalogue, that is not processed by iterator at the
  * moment. Iterator should continue processing his current catalogue.
  */
 static void ctg_del_concur_rep2(void)
 {
-	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid1;
-	struct m0_fid          cctg_fid2;
-	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	struct m0_semaphore    sem;
-	uint32_t               sdev_id;
-	struct iter_ut_fom     ctidx_fom;
-	struct iter_ut_fom     meta_fom;
-	int                    rc;
-
-	iter_ut_init(&repair_svc, &dix_repair_cmt.ct_stype);
-	iter = iter_ut_iter(repair_svc);
-
-	m0_dix_fid_dix_make(&dix_fid, 1, 1);
-	m0_dix_fid_convert_dix2cctg(&dix_fid, &cctg_fid1, 104);
-	iter_ut_ctidx_insert(&cctg_fid1);
-	iter_ut_meta_insert(&cctg_fid1);
-
-	m0_dix_fid_dix_make(&dix_fid, 2, 2);
-	m0_dix_fid_convert_dix2cctg(&dix_fid, &cctg_fid2, 104);
-	iter_ut_ctidx_insert(&cctg_fid2);
-	iter_ut_meta_insert(&cctg_fid2);
-
-	cctg = iter_ut_meta_lookup(&cctg_fid1);
-	iter_ut_insert(cctg, 10, 20);
-	iter_ut_insert(cctg, 11, 30);
-	iter_ut_insert(cctg, 12, 40);
-
-	cctg = iter_ut_meta_lookup(&cctg_fid2);
-	iter_ut_insert(cctg, 100, 200);
-	iter_ut_insert(cctg, 110, 300);
-
-	device_repairing_set(9);
-	M0_SET0(iter);
-	rc = m0_dix_cm_iter_start(iter, &dix_repair_dcmt, &reqh, RPC_CUTOFF);
-	M0_ASSERT(rc == 0);
-
-	m0_fi_enable_once("dix_cm_is_repair_coordinator", "always_coordinator");
-	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-
-	m0_semaphore_init(&sem, 0);
-	iter_ut_meta_delete_async(&meta_fom, &cctg_fid2, &sem);
-	iter_ut_ctidx_delete_async(&ctidx_fom, &cctg_fid2, &sem);
-	m0_fom_timedwait(&ctidx_fom.iu_fom, M0_BITS(ITER_UT_FOM_CTIDX_LOCK),
-			 M0_TIME_NEVER);
-	m0_fom_timedwait(&meta_fom.iu_fom, M0_BITS(ITER_UT_FOM_META_LOCK),
-			 M0_TIME_NEVER);
-
-	m0_fi_enable_once("dix_cm_is_repair_coordinator", "always_coordinator");
-	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 11);
-	M0_UT_ASSERT(buf_value(&val) == 30);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-
-	m0_fi_enable_once("dix_cm_is_repair_coordinator", "always_coordinator");
-	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 12);
-	M0_UT_ASSERT(buf_value(&val) == 40);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-
-	m0_fi_enable_once("dix_cm_is_repair_coordinator", "always_coordinator");
-	m0_fi_enable_once("dix_cm_repair_tgts_get", "single_target");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
-
-	m0_semaphore_down(&sem);
-	m0_semaphore_down(&sem);
-	m0_semaphore_fini(&sem);
-
-	m0_dix_cm_iter_stop(iter);
-	iter_ut_fini(repair_svc);
-	m0_fi_disable("dix_cm_is_repair_coordinator", "always_coordinator");
-	m0_fi_disable("dix_cm_repair_tgts_get", "single_target");
+	ctg_del_concur_rep(2);
 }
 
 static void one_dev_reb(void)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
 	int                    rc;
 
 /*
@@ -2523,13 +2102,7 @@ static void one_dev_reb(void)
  */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    101);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 101);
 	iter_ut_insert(cctg, 10, 20);
 	device_rebalancing_set(9);
 	M0_SET0(iter);
@@ -2538,15 +2111,8 @@ static void one_dev_reb(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, 0, 10, 20, 109);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
@@ -2557,12 +2123,7 @@ static void one_dev_reb(void)
 static void reb_coordinator(void)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
 	int                    rc;
 
 /*
@@ -2589,13 +2150,7 @@ static void reb_coordinator(void)
  */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    101);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 101);
 	iter_ut_insert(cctg, 10, 20);
 	device_repaired_set(4);
 	device_rebalancing_set(9);
@@ -2605,8 +2160,7 @@ static void reb_coordinator(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 
@@ -2634,13 +2188,7 @@ static void reb_coordinator(void)
  */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    100);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 100);
 	iter_ut_insert(cctg, 10, 20);
 	device_repaired_set(4);
 	device_rebalancing_set(9);
@@ -2650,15 +2198,8 @@ static void reb_coordinator(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, 0, 10, 20, 109);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 
@@ -2691,13 +2232,7 @@ static void reb_coordinator(void)
  */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    107);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 107);
 	iter_ut_insert(cctg, 10, 20);
 	device_rebalancing_set(9);
 	device_repaired_set(4);
@@ -2708,15 +2243,8 @@ static void reb_coordinator(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, 0, 10, 20, 109);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
@@ -2727,12 +2255,7 @@ static void reb_coordinator(void)
 static void outside_dev_reb(void)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
 	int                    rc;
 
 /*
@@ -2759,13 +2282,7 @@ static void outside_dev_reb(void)
  */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    101);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 101);
 	iter_ut_insert(cctg, 10, 20);
 	device_rebalancing_set(3);
 	M0_SET0(iter);
@@ -2774,8 +2291,7 @@ static void outside_dev_reb(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 
@@ -2808,13 +2324,7 @@ static void outside_dev_reb(void)
  */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    100);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 100);
 	iter_ut_insert(cctg, 10, 20);
 	device_rebalancing_set(3);
 	device_rebalancing_set(9);
@@ -2824,15 +2334,8 @@ static void outside_dev_reb(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, 0, 10, 20, 109);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 
@@ -2865,13 +2368,7 @@ static void outside_dev_reb(void)
  */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    107);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 107);
 	iter_ut_insert(cctg, 10, 20);
 	device_rebalancing_set(3);
 	device_rebalancing_set(9);
@@ -2882,15 +2379,8 @@ static void outside_dev_reb(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, 0, 10, 20, 109);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
@@ -2901,12 +2391,7 @@ static void outside_dev_reb(void)
 static void reb_unused(void)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
 	int                    rc;
 
 /*
@@ -2933,13 +2418,7 @@ static void reb_unused(void)
  */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    101);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 101);
 	iter_ut_insert(cctg, 10, 20);
 	spare_slot_unused_set();
 	device_rebalancing_set(9);
@@ -2949,8 +2428,7 @@ static void reb_unused(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 
@@ -2978,13 +2456,7 @@ static void reb_unused(void)
  */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    107);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 107);
 	iter_ut_insert(cctg, 10, 20);
 	device_rebalancing_set(9);
 	M0_SET0(iter);
@@ -2993,8 +2465,7 @@ static void reb_unused(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 
@@ -3027,13 +2498,7 @@ static void reb_unused(void)
  */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    107);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 107);
 	iter_ut_insert(cctg, 10, 20);
 	device_rebalancing_set(9);
 	spare_slot_unused_set();
@@ -3044,15 +2509,8 @@ static void reb_unused(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, 0, 10, 20, 109);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 
@@ -3088,13 +2546,7 @@ static void reb_unused(void)
  */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    107);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 107);
 	iter_ut_insert(cctg, 10, 20);
 	device_repaired_set(4);
 	spare_slot_unused_set();
@@ -3105,8 +2557,7 @@ static void reb_unused(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
@@ -3117,12 +2568,7 @@ static void reb_unused(void)
 static void many_keys_reb(void)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
 	int                    rc;
 
 /*
@@ -3154,13 +2600,7 @@ static void many_keys_reb(void)
  */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    101);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 101);
 	iter_ut_insert(cctg, 10, 20);
 	iter_ut_insert(cctg, 11, 30);
 	iter_ut_insert(cctg, 12, 40);
@@ -3171,35 +2611,16 @@ static void many_keys_reb(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 10, 20, 109);
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 11);
-	M0_UT_ASSERT(buf_value(&val) == 30);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 11, 30, 109);
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 12);
-	M0_UT_ASSERT(buf_value(&val) == 40);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, 0, 12, 40, 109);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
@@ -3210,12 +2631,7 @@ static void many_keys_reb(void)
 static void user_concur_reb(void)
 {
 	struct m0_dix_cm_iter *iter;
-	struct m0_fid          dix_fid;
-	struct m0_fid          cctg_fid;
 	struct m0_cas_ctg     *cctg;
-	struct m0_buf          key;
-	struct m0_buf          val;
-	uint32_t               sdev_id;
 	int                    rc;
 
 /*
@@ -3247,13 +2663,7 @@ static void user_concur_reb(void)
  */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    101);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 101);
 	iter_ut_insert(cctg, 10, 20);
 	iter_ut_insert(cctg, 11, 30);
 	iter_ut_insert(cctg, 12, 40);
@@ -3267,37 +2677,18 @@ static void user_concur_reb(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 11);
-	M0_UT_ASSERT(buf_value(&val) == 30);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 11, 30, 109);
 
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 12);
-	M0_UT_ASSERT(buf_value(&val) == 40);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 12, 40, 109);
 
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 
 	/* NEXT TEST */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    101);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 101);
 	iter_ut_insert(cctg, 10, 20);
 	iter_ut_insert(cctg, 11, 30);
 	iter_ut_insert(cctg, 12, 40);
@@ -3308,27 +2699,14 @@ static void user_concur_reb(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 10, 20, 109);
 
 	/* Delete next record. */
 	iter_ut_delete(cctg, 11, 30);
 
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 12);
-	M0_UT_ASSERT(buf_value(&val) == 40);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 12, 40, 109);
 
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 
@@ -3336,13 +2714,7 @@ static void user_concur_reb(void)
 	/* NEXT TEST */
 	iter_ut_init(&rebalance_svc, &dix_rebalance_cmt.ct_stype);
 	iter = iter_ut_iter(rebalance_svc);
-	m0_dix_fid_dix_make(&dix_fid, 1, 0);
-	m0_dix_fid_convert_dix2cctg(&dix_fid,
-				    &cctg_fid,
-				    101);
-	iter_ut_ctidx_insert(&cctg_fid);
-	iter_ut_meta_insert(&cctg_fid);
-	cctg = iter_ut_meta_lookup(&cctg_fid);
+	cctg = iter_ut_insert_lookup_cctg(1, 0, 101);
 	iter_ut_insert(cctg, 10, 20);
 	iter_ut_insert(cctg, 11, 30);
 	iter_ut_insert(cctg, 12, 40);
@@ -3353,27 +2725,13 @@ static void user_concur_reb(void)
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_parity_group");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_spare_usage");
 	m0_fi_enable_once("dix_cm_iter_next_key", "print_targets");
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 10);
-	M0_UT_ASSERT(buf_value(&val) == 20);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
-
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == 0);
-	M0_UT_ASSERT(buf_value(&key) == 11);
-	M0_UT_ASSERT(buf_value(&val) == 30);
-	M0_UT_ASSERT(sdev_id == 109);
-	m0_buf_free(&key);
-	m0_buf_free(&val);
+	check_dix_iter_key_val(iter, 0, 10, 20, 109);
+	check_dix_iter_key_val(iter, 0, 11, 30, 109);
 
 	/* Delete the last record. */
 	iter_ut_delete(cctg, 12, 40);
 
-	rc = iter_ut_next_sync(iter, &key, &val, &sdev_id);
-	M0_ASSERT(rc == -ENODATA);
+	check_dix_iter_key_val(iter, -ENODATA, 0, 0, 0);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(rebalance_svc);
 	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
