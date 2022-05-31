@@ -526,7 +526,7 @@ static void cob_fail_op(struct m0_op *op, int rc)
 	}
 	m0_sm_group_unlock(en_grp);
 
-	op->op_rc = rc;
+	op->op_rc = M0_RC(rc);
 	m0_sm_group_lock(op_grp);
 	M0_ASSERT(M0_IN(op->op_sm.sm_state,
 		        (M0_OS_INITIALISED, M0_OS_LAUNCHED)));

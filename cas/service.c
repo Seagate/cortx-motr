@@ -2468,8 +2468,6 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 	} else
 		m0_ctg_op_fini(&fom->cf_ctg_op);
 
-	++fom->cf_ipos;
-	++fom->cf_opos;
 	/*
 	 * Overwrite return code of put operation if key is already exist and
 	 * COF_CREATE is set or overwrite return code of del operation if key
@@ -2488,6 +2486,8 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 	 */
 	fom->cf_out_key = M0_BUF_INIT0;
 	fom->cf_out_val = M0_BUF_INIT0;
+	++fom->cf_ipos;
+	++fom->cf_opos;
 
 	return rec_out->cr_rc;
 }

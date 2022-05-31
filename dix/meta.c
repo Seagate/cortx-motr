@@ -315,7 +315,7 @@ M0_INTERNAL int m0_dix_meta_item_rc(const struct m0_dix_meta_req *req,
 				    uint64_t                      idx)
 {
 	M0_PRE(m0_dix_meta_generic_rc(req) == 0);
-	return m0_dix_item_rc(&req->dmr_req, idx);
+	return M0_RC(m0_dix_item_rc(&req->dmr_req, idx));
 }
 
 M0_INTERNAL int m0_dix_meta_req_nr(const struct m0_dix_meta_req *req)

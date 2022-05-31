@@ -747,7 +747,7 @@ static int entity_namei_op(struct m0_entity *entity,
 	int  rc;
 	bool pre_allocated = false;
 
-	M0_ENTRY();
+	M0_ENTRY("opcode=%d", opcode);
 
 	M0_PRE(entity != NULL);
 	M0_ASSERT(entity_invariant_full(entity));
@@ -804,7 +804,7 @@ int m0_entity_create(struct m0_fid *pool,
 {
 	struct m0_obj *obj;
 
-	M0_ENTRY();
+	M0_ENTRY("fid=" U128X_F, U128_P(&entity->en_id));
 	if (entity->en_flags & M0_ENF_META)
 		M0_LOG(M0_DEBUG, "M0_ENF_META FLAG is set from application");
 

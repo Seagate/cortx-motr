@@ -349,7 +349,7 @@ static void idx_op_fail(struct m0_op_idx *oi, int rc)
 	m0_sm_group_unlock(en_grp);
 
 	m0_sm_group_lock(op_grp);
-	op->op_rc = rc;
+	op->op_rc = M0_RC(rc);
 	m0_sm_move(&op->op_sm, 0, M0_OS_EXECUTED);
 	m0_op_executed(op);
 	m0_sm_move(&op->op_sm, 0, M0_OS_STABLE);
@@ -540,7 +540,7 @@ static void idx_op_cb_launch(struct m0_op_common *oc)
 	 *  = 1: the driver successes in launching the query asynchronously.
 	*/
 	rc = query(oi);
-	oi->oi_ar.ar_rc = rc;
+	oi->oi_ar.ar_rc = M0_RC(rc);
 	if (rc < 0) {
 		oi->oi_ar.ar_ast.sa_cb = &idx_op_ast_fail;
 		m0_sm_ast_post(oi->oi_sm_grp, &oi->oi_ar.ar_ast);
@@ -549,7 +549,7 @@ static void idx_op_cb_launch(struct m0_op_common *oc)
 		m0_sm_ast_post(oi->oi_sm_grp, &oi->oi_ar.ar_ast);
 	}
 
-	M0_LEAVE();
+	M0_LEAVE("rc=%d", rc);
 }
 
 int m0_idx_op(struct m0_idx       *idx,
@@ -608,7 +608,7 @@ M0_INTERNAL int m0_idx_op_namei(struct m0_entity *entity,
 	int                   rc;
 	struct m0_idx        *idx;
 
-	M0_ENTRY();
+	M0_ENTRY("opcode=%d", opcode);
 
 	M0_PRE(entity != NULL);
 	M0_PRE(op != NULL);

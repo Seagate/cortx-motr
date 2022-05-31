@@ -150,7 +150,7 @@ creates()
 	echo "Test:Create"
 	emsg="FAILED to create index by fid:${fid}"
 	${MOTRTOOL} ${drop} >/dev/null
-	${MOTRTOOL} ${create} >${out_file}
+	${MOTRTOOL} ${create} | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	#check output: should be rc code 0
@@ -165,11 +165,16 @@ createm()
 	local rc=0
 	echo "Test:Create FIDS"
 	emsg="FAILED to create index by @fids:${fids_file}"
-	${MOTRTOOL} ${dropf} >/dev/null
-	${MOTRTOOL} ${create} >/dev/null
+	${MOTRTOOL} ${dropf}
+	${MOTRTOOL} ${create}
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${MOTRTOOL} ${createf} >>${out_file}
+
+	rm -fv /var/motr/sandbox.m0kv-st/m0trace*
+	# This is going to create a list of index (fids from @fids:${fids_file})
+	# The first index was just already created. So, the first operation should
+	# fail with -EEXIST. We wiii check this failure code.
+	${MOTRTOOL} ${createf} | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -187,7 +192,7 @@ drops()
 	${MOTRTOOL} ${create} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${MOTRTOOL} ${drop} >${out_file}
+	${MOTRTOOL} ${drop} | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -205,13 +210,13 @@ dropm()
 	${MOTRTOOL} ${createf} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${MOTRTOOL} ${drop} >${out_file}
+	${MOTRTOOL} ${drop} | tee ${out_file}
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
 	grep -v "operation rc: 0" ${rc_file} >${erc_file}
 	[ -s "${erc_file}" ] && return 1
 	rm_logs
-	${MOTRTOOL} ${dropf} >${out_file}
+	${MOTRTOOL} ${dropf} | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -228,7 +233,7 @@ list()
 	emsg="FAILED to get List"
 	${MOTRTOOL} ${dropf} >/dev/null
 	${MOTRTOOL} ${createf} >/dev/null
-	${MOTRTOOL} ${list3} >${out_file}
+	${MOTRTOOL} ${list3} | tee ${out_file}
 	grep "<" ${out_file} >${res_out_file}
 	[ $(cat ${res_out_file} | wc -l) == 3 ] || return 1
 	${MOTRTOOL} ${list} >${out_file}
@@ -245,13 +250,13 @@ lookup()
 	emsg="FAILED to check lookup functionality"
 	${MOTRTOOL} ${dropf} >/dev/null
 	${MOTRTOOL} ${create} >/dev/null
-	${MOTRTOOL} ${lookup} >${out_file}
+	${MOTRTOOL} ${lookup} | tee ${out_file}
 	grep "found rc" ${out_file} >${rc_file}
 	grep -v "found rc 0" ${rc_file} >${erc_file}
 	[ -s "${erc_file}" ] && return 1
 
 	${MOTRTOOL} ${drop} >/dev/null
-	${MOTRTOOL} ${lookup} >${out_file}
+	${MOTRTOOL} ${lookup} | tee ${out_file}
 	grep "found rc" ${out_file} >${rc_file}
 	grep -v "found rc -2" ${rc_file} >${erc_file}
 	[ -s "${erc_file}" ] && return 1
@@ -269,7 +274,7 @@ puts1()
 	${MOTRTOOL} ${create} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${MOTRTOOL} ${put_fid_key} >${out_file}
+	${MOTRTOOL} ${put_fid_key} | tee ${out_file}
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
 	grep -v "operation rc: 0" ${rc_file} >${erc_file}
@@ -292,7 +297,7 @@ putsN_exist()
 	${MOTRTOOL} ${put_fid_key} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${MOTRTOOL} ${put_fid_keys} >${out_file}
+	${MOTRTOOL} ${put_fid_keys} | tee ${out_file}
 	rc=$?
 	rm_logs
 	return $rc
@@ -303,7 +308,7 @@ bputsN_exist()
 	local rc=0
 	echo "Test:Put existing KEYS by one command"
 	emsg="FAILED to put existing @keys:${keys_file} @vals:${vals_file} into ${fid}"
-	${MOTRTOOL} ${dropf} ${create} ${put_fid_key} ${put_fid_keys} >${out_file}
+	${MOTRTOOL} ${dropf} ${create} ${put_fid_key} ${put_fid_keys} | tee ${out_file}
 	rc=$?
 	rm_logs
 	return $rc
@@ -320,7 +325,7 @@ putsN()
 	${MOTRTOOL} ${create} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${MOTRTOOL} ${put_fid_keys} >${out_file}
+	${MOTRTOOL} ${put_fid_keys} | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -341,7 +346,7 @@ putsNb()
 	${MOTRTOOL} ${create} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${MOTRTOOL} ${put_fid_keys_bulk} >${out_file}
+	${MOTRTOOL} ${put_fid_keys_bulk} | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -362,7 +367,7 @@ putmN()
 	${MOTRTOOL} ${createf} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${MOTRTOOL} ${put_fids_keys} >${out_file}
+	${MOTRTOOL} ${put_fids_keys} | tee ${out_file}
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
 	grep -v "operation rc: 0" ${rc_file} >${erc_file}
@@ -385,7 +390,7 @@ gets1()
 	${MOTRTOOL} ${put_fid_key} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${MOTRTOOL} ${get_fid_key} >${out_file}
+	${MOTRTOOL} ${get_fid_key} | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -407,7 +412,7 @@ bgets1()
 	local rc=0
 	echo "Test:Get KEY by one command"
 	emsg="FAILED to get key:${key} from fid:${fid} by one command"
-	${MOTRTOOL} ${dropf} ${create} ${put_fid_key} ${get_fid_key} >${out_file}
+	${MOTRTOOL} ${dropf} ${create} ${put_fid_key} ${get_fid_key} | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -A 1 "KEY" ${out_file} > ${res_out_file}
@@ -429,7 +434,7 @@ getsN()
 	${MOTRTOOL} ${dropf} ${create} ${put_fid_keys} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${MOTRTOOL} ${get_fid_keys} >${out_file}
+	${MOTRTOOL} ${get_fid_keys} | tee ${out_file}
 	grep -A 1 "KEY" ${out_file} > ${res_out_file}
 	local lines
 	let lines=$num*3-1
@@ -450,7 +455,7 @@ bgetsN()
 	local rc=0
 	echo "Test:Get KEYS by one command"
 	emsg="FAILED to get @keys:${keys_file} from fid:${fid} by one command"
-	${MOTRTOOL} ${dropf} ${create} ${put_fid_keys} ${get_fid_keys} >${out_file}
+	${MOTRTOOL} ${dropf} ${create} ${put_fid_keys} ${get_fid_keys} | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -A 1 "KEY" ${out_file} > ${res_out_file}
@@ -476,7 +481,7 @@ nextsN()
 	${MOTRTOOL} ${dropf} ${create} ${put_fid_keys} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${MOTRTOOL} ${next} >${out_file}
+	${MOTRTOOL} ${next} | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -A 1 "KEY" ${out_file} > ${res_out_file}
@@ -495,7 +500,7 @@ bnextsN()
 	local rc=0
 	echo "Test:Get next keys by one command"
 	emsg="FAILED to get next keys from ${fid} start key ${key} by one command"
-	${MOTRTOOL} ${dropf} ${create} ${put_fid_keys} ${next} >${out_file}
+	${MOTRTOOL} ${dropf} ${create} ${put_fid_keys} ${next} | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -A 1 "KEY" ${out_file} > ${res_out_file}
@@ -517,7 +522,7 @@ dels1()
 	${MOTRTOOL} ${dropf} ${create} ${put_fid_key} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${MOTRTOOL} $del_fid_key >${out_file}
+	${MOTRTOOL} $del_fid_key | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -532,7 +537,7 @@ bdels1()
 	local rc=0
 	echo "Test:Del existing KEY by one command"
 	emsg="FAILED to del key:${key} from ${fid} by one command"
-	${MOTRTOOL} ${dropf} ${create} ${put_fid_key} $del_fid_key>${out_file}
+	${MOTRTOOL} ${dropf} ${create} ${put_fid_key} $del_fid_key | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -B 1 "del done:" ${out_file} >${rc_file}
@@ -550,7 +555,7 @@ delsN()
 	${MOTRTOOL} ${dropf} ${create} ${put_fid_keys} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${MOTRTOOL} ${del_fid_keys} >${out_file}
+	${MOTRTOOL} ${del_fid_keys} | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -565,7 +570,7 @@ bdelsN()
 	local rc=0
 	echo "Test:Del existing KEYS by one command"
 	emsg="FAILED to del keys:@${keys_file} from ${fid} by one command"
-	${MOTRTOOL} ${dropf} ${create} ${put_fid_keys} ${del_fid_keys} >${out_file}
+	${MOTRTOOL} ${dropf} ${create} ${put_fid_keys} ${del_fid_keys} | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -B 1 "del done:" ${out_file} >${rc_file}
@@ -583,7 +588,7 @@ delmN()
 	${MOTRTOOL} ${dropf} ${createf} ${put_fids_keys} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${MOTRTOOL} ${del_fids_keys} >${out_file}
+	${MOTRTOOL} ${del_fids_keys} | tee ${out_file}
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
 	grep -v "operation rc: 0" ${rc_file} >${erc_file}
@@ -597,7 +602,7 @@ bdelmN()
 	local rc=0
 	echo "Test:Del existing KEYS in several indices by one command"
 	emsg="FAILED to del keys:@${keys_file} from @${fid_file} by one command"
-	${MOTRTOOL} ${dropf} ${createf} ${put_fids_keys} ${del_fids_keys} >${out_file}
+	${MOTRTOOL} ${dropf} ${createf} ${put_fids_keys} ${del_fids_keys} | tee ${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -B 1 "del done:" ${out_file} >${rc_file}

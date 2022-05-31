@@ -306,6 +306,7 @@ static bool casreq_clink_cb(struct m0_clink *cl)
 
 	if (!M0_IN(state, (CASREQ_FAILURE, CASREQ_FINAL)))
 		return false;
+	M0_ENTRY();
 
 	m0_clink_del(cl);
 	op = &oi->oi_oc.oc_op;
@@ -320,7 +321,7 @@ static bool casreq_clink_cb(struct m0_clink *cl)
 		case M0_EO_CREATE:
 			M0_ASSERT(m0_cas_req_nr(creq) == 1);
 			m0_cas_index_create_rep(creq, 0, &rep);
-			rc = rep.crr_rc;
+			rc = M0_RC(rep.crr_rc);
 			break;
 		case M0_EO_DELETE:
 			M0_ASSERT(m0_cas_req_nr(creq) == 1);
@@ -339,6 +340,8 @@ static bool casreq_clink_cb(struct m0_clink *cl)
 			for (i = 0; i < m0_cas_req_nr(creq); i++) {
 				m0_cas_put_rep(creq, 0, &rep);
 				oi->oi_rcs[i] = rep.crr_rc;
+				M0_LOG(M0_DEBUG, "i=%d, rc=%d",
+						 (int)i, rep.crr_rc);
 			}
 			break;
 		case M0_IC_GET:
@@ -362,8 +365,8 @@ static bool casreq_clink_cb(struct m0_clink *cl)
 	/* Update TXID. */
 	cas_sync_record_update(creq, creq->ccr_sess, &creq->ccr_remid);
 
-	dixreq_completed_post(dix_req, rc);
-	return false;
+	dixreq_completed_post(dix_req, M0_RC(rc));
+	return M0_RC(false);
 }
 
 static void cas_req_prepare(struct dix_req          *req,
@@ -621,6 +624,7 @@ static int dix_mreq_create(struct m0_op_idx  *oi,
 		m0_dix_meta_req_init(&req->idr_mreq, op_dixc(oi),
 				     oi->oi_sm_grp);
 		m0_clink_init(&req->idr_clink, dix_meta_req_clink_cb);
+		m0_clink_init(&req->idr_dtx_clink, dixreq_clink_dtx_cb);
 
 		/*
 		 * Currently only LOOKUP and LIST create meta request, so
@@ -703,7 +707,7 @@ static void dixreq_completed_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_op_idx        *oi = req->idr_oi;
 	int                      rc = oi->oi_ar.ar_rc;
 
-	M0_ENTRY();
+	M0_ENTRY("rc=%d", rc);
 	oi->oi_ar.ar_ast.sa_cb = (rc == 0) ? idx_op_ast_complete :
 					     idx_op_ast_fail;
 	oi->oi_in_completion = true;
@@ -720,7 +724,7 @@ static void dixreq_completed_post(struct dix_req *req, int rc)
 {
 	struct m0_op_idx *oi = req->idr_oi;
 
-	M0_ENTRY();
+	M0_ENTRY("rc=%d", rc);
 	M0_ASSERT(req->idr_ast.sa_cb != dixreq_completed_ast);
 	oi->oi_ar.ar_rc = rc;
 	req->idr_ast.sa_cb = dixreq_completed_ast;
@@ -817,6 +821,7 @@ static bool dix_meta_req_clink_cb(struct m0_clink *cl)
 	struct m0_dix_meta_req  *mreq = &dix_req->idr_mreq;
 	struct m0_op            *op;
 	int                      rc;
+	M0_ENTRY();
 
 	m0_clink_del(cl);
 	op = &oi->oi_oc.oc_op;
@@ -827,7 +832,7 @@ static bool dix_meta_req_clink_cb(struct m0_clink *cl)
 			dix_list_reply_copy(mreq, oi->oi_rcs, oi->oi_keys) :
 			m0_dix_layout_rep_get(mreq, 0, NULL);
 	dixreq_completed_post(dix_req, rc);
-	return false;
+	return M0_RC(false);
 }
 
 static bool dix_req_is_completed(struct dix_req *dix_req)
@@ -884,6 +889,7 @@ static bool dixreq_clink_cb(struct m0_clink *cl)
 
 	if (!M0_IN(state, (DIXREQ_FAILURE, DIXREQ_FINAL)))
 		return false;
+	M0_ENTRY();
 
 	m0_clink_del(cl);
 	op = &oi->oi_oc.oc_op;
@@ -902,8 +908,11 @@ static bool dixreq_clink_cb(struct m0_clink *cl)
 			break;
 		case M0_IC_PUT:
 		case M0_IC_DEL:
-			for (i = 0; i < m0_dix_req_nr(dreq); i++)
+			for (i = 0; i < m0_dix_req_nr(dreq); i++) {
 				oi->oi_rcs[i] = m0_dix_item_rc(dreq, i);
+				if (rc == 0)
+					rc = oi->oi_rcs[i];
+			}
 			break;
 		case M0_IC_GET:
 			dix_get_reply_copy(dreq, oi->oi_rcs, oi->oi_vals);
@@ -924,8 +933,8 @@ static bool dixreq_clink_cb(struct m0_clink *cl)
 	}
 
 	if (dix_req_is_completed(dix_req))
-		dixreq_completed_post(dix_req, m0_dix_generic_rc(dreq));
-	return false;
+		dixreq_completed_post(dix_req, rc);
+	return M0_RC(false);
 }
 
 static void dix_req_immed_failure(struct dix_req *req, int rc)

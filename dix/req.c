@@ -493,6 +493,7 @@ static void dix_idxop_item_rc_update(struct m0_dix_item          *ditem,
 	struct m0_cas_rec_reply  crep;
 	const struct m0_cas_req *cas_req;
 	int                      rc;
+	M0_ENTRY();
 
 	if (ditem->dxi_rc == 0) {
 		cas_req = &creq->ds_creq;
@@ -512,7 +513,7 @@ static void dix_idxop_item_rc_update(struct m0_dix_item          *ditem,
 			default:
 				M0_IMPOSSIBLE("Unknown type %u", req->dr_type);
 			}
-			rc = crep.crr_rc;
+			rc = M0_RC(crep.crr_rc);
 			/*
 			 * It is OK to get -ENOENT during 2nd phase, because
 			 * catalogue can be deleted on 1st phase.
@@ -521,8 +522,9 @@ static void dix_idxop_item_rc_update(struct m0_dix_item          *ditem,
 			    rc == -ENOENT)
 				rc = 0;
 		}
-		ditem->dxi_rc = rc;
+		ditem->dxi_rc = M0_RC(rc);
 	}
+	M0_LEAVE();
 }
 
 static void dix_idxop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
@@ -781,6 +783,7 @@ static void dix_idxop_meta_update_ast_cb(struct m0_sm_group *grp,
 	bool                    cont = false;
 	bool                    crow = !!(req->dr_flags & COF_CROW);
 	int                     rc;
+	M0_ENTRY();
 
 	fids_nr = m0_count(i, req->dr_items_nr, req->dr_items[i].dxi_rc == 0);
 	M0_ASSERT(fids_nr > 0);
@@ -794,6 +797,8 @@ static void dix_idxop_meta_update_ast_cb(struct m0_sm_group *grp,
 				cont = cont || item->dxi_rc == 0;
 				k++;
 			}
+			M0_LOG(M0_DEBUG, "req=%p, meta=%p i=%d item=%p rc=%d",
+					 req, meta_req, i, item, item->dxi_rc);
 		}
 		M0_ASSERT(k == fids_nr);
 		if (!cont)
@@ -810,16 +815,19 @@ static void dix_idxop_meta_update_ast_cb(struct m0_sm_group *grp,
 
 	m0_dix_meta_req_fini(meta_req);
 	m0_free0(&req->dr_meta_req);
+	M0_LOG(M0_DEBUG, "rc = %d", rc);
 	if (rc == 0)
 		dix_req_state_set(req, !cont ?
 				DIXREQ_FINAL : DIXREQ_INPROGRESS);
 	else
 		dix_req_failure(req, rc);
+	M0_LEAVE();
 }
 
 static bool dix_idxop_meta_update_clink_cb(struct m0_clink *cl)
 {
 	struct m0_dix_req *req = container_of(cl, struct m0_dix_req, dr_clink);
+	M0_ENTRY();
 
 	/*
 	 * Sining: no need to update SYNC records in Client from this callback
@@ -833,7 +841,7 @@ static bool dix_idxop_meta_update_clink_cb(struct m0_clink *cl)
 	req->dr_ast.sa_cb = dix_idxop_meta_update_ast_cb;
 	req->dr_ast.sa_datum = req;
 	m0_sm_ast_post(dix_req_smgrp(req), &req->dr_ast);
-	return true;
+	return M0_RC(true);
 }
 
 static int dix_idxop_meta_update(struct m0_dix_req *req)
@@ -1411,6 +1419,7 @@ static void dix_item_rc_update(struct m0_dix_req  *req,
 	struct m0_cas_get_reply get_rep;
 	int                     rc;
 	enum dix_req_type       rtype = req->dr_type;
+	M0_ENTRY("key index=%u", (uint32_t)key_idx);
 
 	rc = m0_cas_req_generic_rc(creq);
 	if (rc == 0) {
@@ -1426,7 +1435,7 @@ static void dix_item_rc_update(struct m0_dix_req  *req,
 			break;
 		case DIX_PUT:
 			m0_cas_put_rep(creq, key_idx, &rep);
-			rc = rep.crr_rc;
+			rc = M0_RC(rep.crr_rc);
 			break;
 		case DIX_DEL:
 			m0_cas_del_rep(creq, key_idx, &rep);
@@ -1443,7 +1452,8 @@ static void dix_item_rc_update(struct m0_dix_req  *req,
 			M0_IMPOSSIBLE("Incorrect type %u", rtype);
 		}
 	}
-	ditem->dxi_rc = rc;
+	ditem->dxi_rc = M0_RC(rc);
+	M0_LEAVE();
 }
 
 static bool dix_item_get_has_failed(struct m0_dix_item *item)
@@ -1605,17 +1615,22 @@ static void dix_cas_rop_rc_update(struct m0_dix_cas_rop *cas_rop, int rc)
 	struct m0_dix_item *ditem;
 	uint64_t            item_idx;
 	uint32_t            i;
+	M0_ENTRY();
 
 	for (i = 0; i < cas_rop->crp_keys_nr; i++) {
 		item_idx = cas_rop->crp_attrs[i].cra_item;
 		ditem = &req->dr_items[item_idx];
 		if (ditem->dxi_rc != 0)
-			continue;
+			goto conti;
 		if (rc == 0)
 			dix_item_rc_update(req, &cas_rop->crp_creq, i, ditem);
 		else
 			ditem->dxi_rc = M0_ERR(rc);
+conti:
+		M0_LOG(M0_DEBUG, "req=%p i=%u, item_idx=%u item=%p: %d",
+				 req, i, (uint32_t)item_idx, ditem, ditem->dxi_rc);
 	}
+	M0_LEAVE();
 }
 
 static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
@@ -1625,6 +1640,7 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_dix_rop_ctx *rop_del_phase2 = NULL;
 	bool                   del_phase2 = false;
 	struct m0_dix_cas_rop *cas_rop;
+	M0_ENTRY();
 
 	(void)grp;
 	if (req->dr_type == DIX_NEXT)
@@ -1664,6 +1680,7 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	} else {
 		dix_req_state_set(req, DIXREQ_FINAL);
 	}
+	M0_LEAVE();
 }
 
 static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
@@ -1673,6 +1690,7 @@ static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 	uint32_t                state = crop->crp_creq.ccr_sm.sm_state;
 	struct m0_dix_rop_ctx  *rop;
 	struct m0_dix_req      *dreq;
+	M0_ENTRY();
 
 	if (M0_IN(state, (CASREQ_FINAL, CASREQ_FAILURE))) {
 		dreq = crop->crp_parent;
@@ -1702,7 +1720,7 @@ static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 				       &rop->dg_ast);
 		}
 	}
-	return true;
+	return M0_RC(true);
 }
 
 static int dix_cas_rops_send(struct m0_dix_req *req)
@@ -2497,7 +2515,7 @@ M0_INTERNAL int m0_dix_item_rc(const struct m0_dix_req *req,
 {
 	M0_PRE(m0_dix_generic_rc(req) == 0);
 	M0_PRE(idx < m0_dix_req_nr(req));
-	return req->dr_items[idx].dxi_rc;
+	return M0_RC(req->dr_items[idx].dxi_rc);
 }
 
 M0_INTERNAL int m0_dix_generic_rc(const struct m0_dix_req *req)

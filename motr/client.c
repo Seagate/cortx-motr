@@ -705,7 +705,7 @@ M0_INTERNAL void m0_op_launch_one(struct m0_op *op)
 	if (rc != 0) {
 		m0_sm_group_lock(&op->op_sm_group);
 		m0_sm_move(&op->op_sm, rc, M0_OS_FAILED);
-		op->op_rc = rc;
+		op->op_rc = M0_ERR(rc);
 		m0_sm_group_unlock(&op->op_sm_group);
 		return;
 	}

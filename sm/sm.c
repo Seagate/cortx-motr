@@ -137,6 +137,8 @@ M0_INTERNAL void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_PRE(ast->sa_cb != NULL);
 	M0_PRE(ast->sa_next == NULL);
 
+	M0_LOG(M0_DEBUG, "grp=%p ast=%p cb=%p",
+		       grp, ast, ast->sa_cb);
 	do {
 		ast->sa_next = grp->s_forkq;
 		/*

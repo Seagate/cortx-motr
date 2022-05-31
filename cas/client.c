@@ -1355,6 +1355,8 @@ static void cas_rep_copy(const struct m0_cas_req *req,
 	M0_ASSERT(idx < m0_cas_req_nr(req));
 	rep->crr_rc = recv->cr_rec[idx].cr_rc;
 	rep->crr_hint = recv->cr_rec[idx].cr_hint;
+	M0_LOG(M0_DEBUG, "cas=%p rep=%p rep->crr_rc@%u = %d",
+			 req, rep, (uint32_t)idx, (int)rep->crr_rc);
 }
 
 M0_INTERNAL void m0_cas_index_create_rep(const struct m0_cas_req *req,
