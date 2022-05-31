@@ -111,7 +111,8 @@ WHERE client_req.id = {clvid} and client_req.pid = {clvpid};
                         ext_tml, _, _, _, _ = get_timelines_fns[i](s3c['client_id'], [0, 0], s3c['pid'],
                                                                    create_attr_graph, True, attr_graph)
                         found = True
-                    except Exception:
+                    except Exception: # pylint: disable=broad-except
+                        print(sys.exc_info()[0])
                         pass
                     i = i + 1
 
@@ -155,7 +156,8 @@ def create_table_index(tbl_model):
         iq = index_query.format(f"idx_{tbl_name}_{f}", tbl_name, f)
         try:
             DB.execute_sql(iq)
-        except:
+        except: # pylint: disable=bare-except
+            print(sys.exc_info()[0])
             pass
 
 def create_indexes():

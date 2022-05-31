@@ -17,6 +17,7 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
+import sys
 import config
 from config import huey
 from datetime import datetime
@@ -115,8 +116,9 @@ def send_mail(to, status, tid):
     chain = echo[msg] | sendmail[to]
     try:
         chain()
-    except:
+    except: # pylint: disable=bare-except
         print(f"Couldn't send email to {to}")
+        print(sys.exc_info()[0])
 
 def pack_artifacts(path):
     tar = plumbum.local["tar"]

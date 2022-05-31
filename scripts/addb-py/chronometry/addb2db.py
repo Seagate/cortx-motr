@@ -633,7 +633,7 @@ def parse_app_data(file, pool):
     try:
         with open(file) as f:
             cont = f.readlines()
-    except:
+    except OSError:
         print(f"Error app reading file {file}")
         return results
 

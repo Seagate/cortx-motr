@@ -118,8 +118,10 @@ def load():
                     PLUG[plug.attr['name']] = plug.query
                     logging.info(f"Plugin loaded: file={f}, " \
                                  f"plugin={plug.attr['name']}")
-                except:
+                except ModuleNotFoundError:
                     logging.debug(f"File {f} is not a plugin")
+                finally:
+                    print(sys.exc_info()[0])
 
 if __name__ == "__main__":
     args=parse_args()
