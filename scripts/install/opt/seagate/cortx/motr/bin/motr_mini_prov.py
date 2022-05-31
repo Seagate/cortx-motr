@@ -1578,7 +1578,7 @@ def start_service(self, service, idx):
 def recursive_iterate(key, val, list_op):
     if isinstance(val, dict):
         for k in val.keys():
-            ret = recursive_iterate(k, val[k], list_op)
+            recursive_iterate(k, val[k], list_op)
     else:
         if isinstance(val, list):
             for elem in val:
@@ -1592,9 +1592,6 @@ def update_kvs_to_motr_config(self, config_kvs, flag):
     if flag not in ['update', 'append', 'delete']:
         self.logger.error(f"flag={flag} not valid\n")
         return
-    MOTR_M0D_DATA_DIR = f"{self.local_path}/motr"
-    MOTR_LOCAL_SYSCONFIG_DIR = f"{MOTR_M0D_DATA_DIR}/sysconfig"
-    MOTR_M0D_CONF_DIR = f"{MOTR_LOCAL_SYSCONFIG_DIR}/{self.machine_id}"
     update_config_file_common(self, config_kvs, flag)
 
 # In upgrade phase, update the motr config file with changed
