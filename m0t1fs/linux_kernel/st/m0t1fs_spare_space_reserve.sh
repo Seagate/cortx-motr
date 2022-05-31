@@ -57,7 +57,7 @@ spare_space_reserve_test()
 		fi
 		dd if=/dev/urandom of=$m0t1fs_file bs=$BS count=$COUNT
 		rc=$?
-		i=$(expr $i + 1)
+		i=$(($i + 1))
 	done
 	df -h $MOTR_M0T1FS_MOUNT_DIR
 	disk_state_set "failed" $fail_devices || {

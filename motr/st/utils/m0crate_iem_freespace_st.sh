@@ -104,7 +104,7 @@ main()
 
 	# Prepare and and run.
 	block_size=4096
-	block_count=`expr $m0crate_src_size \* 1024 \* 1024 / $block_size`
+	block_count=$(($m0crate_src_size * 1024 * 1024 / $block_size))
 	echo "dd if=/dev/urandom bs=$block_size count=$block_count of=$m0crate_src_file"
 	dd if=/dev/urandom bs=$block_size count=$block_count of=$m0crate_src_file 2> $m0crate_logfile || {
 		echo "Failed to create a source file"
