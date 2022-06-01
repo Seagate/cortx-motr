@@ -247,7 +247,7 @@ def graph_add_relations(graph: Digraph, relations, schema):
     '''
 
     stash=[]
-    for rel,fr,to,map,flags in schema:
+    for rel,fr,to,map,flags in schema: #pylint: disable=redefined-builtin
         layer_ids=set([(r[rel], r['cli_pid'], r['srv_pid']) for r in relations if r[rel] is not None])
         for lid_rec in layer_ids:
             lid = lid_rec[0]
