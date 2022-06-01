@@ -39,8 +39,8 @@ function generate_addb2_stob() {
 }
 
 function dump_addb2_stob() {
-    ADDB2_DUMP=`"${MOTR_SRC_DIR}"/utils/m0addb2dump -f -p "${PLUGIN_SO}" \
-    -- "${ADDB2_STOB}" | grep "measurement"`
+    ADDB2_DUMP=$("${MOTR_SRC_DIR}"/utils/m0addb2dump -f -p "${PLUGIN_SO}" \
+    -- "${ADDB2_STOB}" | grep "measurement")
 }
 
 function delete_ut_sandbox() {

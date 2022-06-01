@@ -25,7 +25,7 @@ umask 0002
 ## CAUTION: This path will be removed by superuser.
 SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.console-st}
 
-M0_SRC_DIR=`readlink -f "$0"`
+M0_SRC_DIR=$(readlink -f "$0")
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
 . "$M0_SRC_DIR"/utils/functions # die, opcode, sandbox_init, report_and_exit
@@ -144,7 +144,7 @@ stop_server()
 check_reply()
 {
 	expected="$1"
-	actual=`awk '/replied/ {print $5}' "$OUTPUT_FILE"`
+	actual=$(awk '/replied/ {print $5}' "$OUTPUT_FILE")
 	[ -z "$actual" ] && die 'Reply not found'
 	[ "$actual" -eq "$expected" ] || die 'Invalid reply'
 }
@@ -189,7 +189,7 @@ run_st()
 ## main
 ## -------------------------------------------------------------------
 
-[ `id -u` -eq 0 ] || die 'Must be run by superuser'
+[ $(id -u) -eq 0 ] || die 'Must be run by superuser'
 
 sandbox_init
 start_server
