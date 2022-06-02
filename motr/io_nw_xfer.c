@@ -782,32 +782,6 @@ static void *buf_aux_chk_get(struct m0_bufvec *aux, enum page_attr p_attr,
 		aux->ov_buf[seg_idx] != NULL) ? aux->ov_buf[seg_idx] : NULL;
 }
 
-void print_pi(void *pi,int size)
-{
-	int i;
-	char arr[size * 3];
-	char *ptr = pi;
-	M0_LOG(M0_DEBUG,">>>>>>>>>>>>>>>>>>[PI Values]<<<<<<<<<<<<<<<<<");
-	for (i = 0; i < size; i++)
-	{
-		sprintf(&arr[i*3],"%02x ",ptr[i] & 0xff);
-	}
-	M0_LOG(M0_DEBUG,"%s ",(char *)arr);
-}
-
-static void print_buf(void *pi,int size)
-{
-	int i;
-	char arr[size * 3];
-	char *ptr = pi;
-	M0_LOG(M0_DEBUG,"##################[Buf Values]#################");
-	for (i = 0; i < size; i++)
-	{
-		sprintf(&arr[i*3],"%02x ",ptr[i] & 0xff);
-	}
-	M0_LOG(M0_DEBUG,"%s ",(char *)arr);
-}
-
 /* This function will compute parity checksum in chksm_buf all other
  * parameter is input parameter
  */
@@ -888,12 +862,10 @@ int target_calculate_checksum(struct m0_op_io *ioo,
 			(filter == PA_PARITY) ? "P":"D",
 			(uint32_t)(cs_idx->ci_pg_idx + ioo->ioo_iomaps[0]->pi_grpid),
 			cs_idx->ci_unit_idx,(int)rows_nr(play, obj),b_idx);
-	print_buf(bvec.ov_buf[0],8);
 	bvec.ov_vec.v_nr = b_idx;
 
 	rc = m0_client_calculate_pi( pi, &seed, &bvec, flag, context, NULL);
 	m0_bufvec_free2(&bvec);
-	print_pi(chksm_buf, m0_cksum_get_size(pi_type));
 	return rc;
 }
 

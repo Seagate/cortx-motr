@@ -101,7 +101,18 @@ M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop)
 	return &ioo->ioo_flock;
 }
 
-extern void print_pi(void *pi,int size);
+static void print_pi(void *pi,int size)
+{
+	int i;
+	char arr[size * 3];
+	char *ptr = pi;
+	M0_LOG(M0_DEBUG,">>>>>>>>>>>>>>>>>>[PI Values]<<<<<<<<<<<<<<<<<");
+	for (i = 0; i < size; i++)
+	{
+		sprintf(&arr[i*3],"%02x ",ptr[i] & 0xff);
+	}
+	M0_LOG(M0_DEBUG,"%s ",(char *)arr);
+}
 
 static int application_checksum_process( struct m0_op_io *ioo,
 				       struct target_ioreq *ti,
@@ -142,7 +153,6 @@ static int application_checksum_process( struct m0_op_io *ioo,
 		return -ENOMEM;
 
 	M0_LOG(M0_DEBUG,"RECEIVED CS b_nob: %d PiTyp:%d",(int)rw_rep_cs_data->b_nob,cksum_type);
-	print_pi(rw_rep_cs_data->b_addr, cksum_size);
 
 	for (idx = 0; idx < num_units; idx++) {
 		struct fop_cksum_idx_data *cs_idx =
@@ -156,8 +166,8 @@ static int application_checksum_process( struct m0_op_io *ioo,
 			goto fail;
 
 		// Compare computed and received checksum
-		if (memcmp( rw_rep_cs_data->b_addr + cs_compared,
-		    compute_cs_buf, cksum_size ) != 0) {
+		if (memcmp(rw_rep_cs_data->b_addr + cs_compared,
+		    compute_cs_buf, cksum_size) != 0) {
 			// Add error code to the target status			
 			rc = M0_RC(-EIO);
 			ioo->ioo_rc = M0_RC(-EIO);
@@ -172,6 +182,8 @@ static int application_checksum_process( struct m0_op_io *ioo,
 					ti->ti_goff_ivec.iv_index[0],
 					(uint32_t)(cs_idx->ci_pg_idx + ioo->ioo_iomaps[0]->pi_grpid),
 					cs_idx->ci_unit_idx);
+			print_pi(rw_rep_cs_data->b_addr, rw_rep_cs_data->b_nob);
+			print_pi(compute_cs_buf, cksum_size);
 		}
 		// Copy checksum to application buffer
 		if (!m0__obj_is_di_cksum_gen_enabled(ioo) && (irfop->irf_pattr != PA_PARITY)) {
