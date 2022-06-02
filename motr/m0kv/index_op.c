@@ -129,7 +129,7 @@ int index_create(struct m0_realm *parent, struct m0_fid_arr *fids)
 
 	for(i = 0; rc == 0 && i < fids->af_count; ++i) {
 		struct m0_op   *op  = NULL;
-		struct m0_idx   idx = {0};
+		struct m0_idx   idx = {{0}};
 
 		m0_fid_tassume(&fids->af_elems[i], &m0_dix_fid_type);
 		m0_idx_init(&idx, parent,
@@ -158,7 +158,7 @@ int index_drop(struct m0_realm *parent, struct m0_fid_arr *fids)
 	M0_PRE(fids != NULL && fids->af_count != 0);
 
 	for(i = 0; rc == 0 && i < fids->af_count; ++i) {
-		struct m0_idx   idx = {0};
+		struct m0_idx   idx = {{0}};
 		struct m0_op   *op = NULL;
 
 		m0_fid_tassume(&fids->af_elems[i], &m0_dix_fid_type);
@@ -186,7 +186,7 @@ int index_list(struct m0_realm  *parent,
 	       int               cnt,
 	       struct m0_bufvec *keys)
 {
-	struct m0_idx  idx = {0};
+	struct m0_idx  idx = {{0}};
 	struct m0_op  *op = NULL;
 	int32_t       *rcs;
 	int            rc;
@@ -231,7 +231,7 @@ int index_lookup(struct m0_realm   *parent,
 	rc = m0_bufvec_alloc(rets, fids->af_count, sizeof(rc));
 	/* Check that indices exist. */
 	for(i = 0; rc == 0 && i < fids->af_count; ++i) {
-		struct m0_idx  idx = {0};
+		struct m0_idx  idx = {{0}};
 		struct m0_op  *op = NULL;
 
 		m0_fid_tassume(&fids->af_elems[i], &m0_dix_fid_type);
@@ -259,7 +259,7 @@ static int index_op(struct m0_realm    *parent,
 		    struct m0_bufvec   *keys,
 		    struct m0_bufvec   *vals)
 {
-	struct m0_idx  idx = {0};
+	struct m0_idx  idx = {{0}};
 	struct m0_op  *op = NULL;
 	int32_t       *rcs;
 	int            rc;
