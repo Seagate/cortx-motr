@@ -27,6 +27,7 @@ import glob
 import time
 import yaml
 import psutil
+import math
 from typing import List, Dict, Any
 from cortx.utils.conf_store import Conf
 from cortx.utils.cortx import Const
@@ -489,6 +490,74 @@ def update_copy_motr_config_file(self):
     cmd = f"cp {MOTR_SYS_CFG} {MOTR_M0D_CONF_DIR}"
     execute_command(self, cmd)
 
+def calc_resource_sz(self, resrc):
+    if resrc.isnumeric():
+        sz = int(resrc)
+    else:
+        sz = calc_size(self, resrc)
+    return sz
+
+def motr_tune_memory_config(self):
+    local_path = self.local_path
+    machine_id = self.machine_id
+    MOTR_M0D_DATA_DIR = f"{local_path}/motr"
+    if not os.path.exists(MOTR_M0D_DATA_DIR):
+        create_dirs(self, [f"{MOTR_M0D_DATA_DIR}"])
+    MOTR_LOCAL_SYSCONFIG_DIR = f"{MOTR_M0D_DATA_DIR}/sysconfig"
+    if not os.path.exists(MOTR_LOCAL_SYSCONFIG_DIR):
+        create_dirs(self, [f"{MOTR_LOCAL_SYSCONFIG_DIR}"])
+
+    MOTR_M0D_CONF_FILE_PATH = f"{MOTR_LOCAL_SYSCONFIG_DIR}/{machine_id}/motr"
+
+    if not os.path.exists(MOTR_M0D_CONF_FILE_PATH):
+        self.logger.info(f"FILE not founf  {MOTR_M0D_CONF_FILE_PATH}\n")
+        return
+
+    # collect the memory and cpu limits.
+    services_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
+    for arr_elem in services_limits:
+        if arr_elem['name'] == "ios":
+            mem_min = arr_elem['memory']['min']
+            mem_max = arr_elem['memory']['max']
+            cpu_min = arr_elem['cpu']['min']
+            cpu_max = arr_elem['cpu']['max']
+
+    self.logger.info(f"memory for io {mem_min} {mem_max}\n")
+    self.logger.info(f"Avaiable memory  {mem_min} {mem_max}\n")
+    self.logger.info(f"Avaiable CPU     {cpu_min} {cpu_max}\n")
+    M1 = int(calc_resource_sz(self, mem_min) / (1024 * 1024))
+    M2 = int(calc_resource_sz(self, mem_max) / (1024 * 1024))
+
+    if M1 == 0 or M2 == 0:
+        self.logger.info(f"memory for io mem req:{M1} mem limit: {M2}\n")
+        return
+
+    # update motr config using formula
+    factor_1 = math.floor(M2/512)
+    self.logger.info(f"memory for io {M1} {M2} {factor_1}\n")
+
+    if M2 < 4096:
+        MIN_RPC_RECVQ_LEN = 2 ** factor_1
+    else:
+        MIN_RPC_RECVQ_LEN = 512
+    self.logger.info(f"setting MOTR_M0D_MIN_RPC_RECVQ_LEN to {MIN_RPC_RECVQ_LEN}\n")
+    cmd = f'sed -i "/MOTR_M0D_MIN_RPC_RECVQ_LEN/s/.*/MOTR_M0D_MIN_RPC_RECVQ_LEN={MIN_RPC_RECVQ_LEN}/" {MOTR_M0D_CONF_FILE_PATH}'
+    execute_command(self, cmd)
+
+    IOS_BUFFER_POOL_SIZE = 16 * (2 ** (factor_1 - 1))
+    self.logger.info(f"setting MOTR_M0D_IOS_BUFFER_POOL_SIZE to {IOS_BUFFER_POOL_SIZE}\n")
+    cmd = f'sed -i "/MOTR_M0D_IOS_BUFFER_POOL_SIZE/s/.*/MOTR_M0D_IOS_BUFFER_POOL_SIZE={IOS_BUFFER_POOL_SIZE}/" {MOTR_M0D_CONF_FILE_PATH}'
+    execute_command(self, cmd)
+
+    if M2 <= 1024:
+        SNS_BUFFER_POOL_SIZE = 32
+    else:
+        SNS_BUFFER_POOL_SIZE = 64
+
+    self.logger.info(f"setting MOTR_M0D_SNS_BUFFER_POOL_SIZE to {SNS_BUFFER_POOL_SIZE}\n")
+    cmd = f'sed -i "/MOTR_M0D_SNS_BUFFER_POOL_SIZE/s/.*/MOTR_M0D_SNS_BUFFER_POOL_SIZE={SNS_BUFFER_POOL_SIZE}/" {MOTR_M0D_CONF_FILE_PATH}'
+    execute_command(self, cmd)
+
 # Get lists of metadata disks from Confstore of all cvgs
 # Input: node_info
 # Output: [['/dev/sdc'], ['/dev/sdf']]
@@ -659,6 +728,10 @@ def motr_config_k8(self):
 
     # Modify motr config file
     update_copy_motr_config_file(self)
+
+    # Modify motr config file for memory request
+    motr_tune_memory_config(self)
+
     return
 
 def motr_config(self):
