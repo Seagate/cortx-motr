@@ -844,9 +844,9 @@ struct target_ioreq {
  * Data structure for PG indexing computation
  */
 struct fop_cksum_idx_gbl_data {
-	m0_bcount_t               	 pgrp_size;
+	m0_bcount_t                  pgrp_size;
 	uint32_t                     pi_grpid;
-	m0_bcount_t					 pgrp0_index;
+	m0_bcount_t                  pgrp0_index;
 	uint32_t                     unit_sz; 
 	uint32_t                     seg_per_unit; 
 };
@@ -868,9 +868,9 @@ struct fop_cksum_data {
 	// Checksum data structure
 	struct fop_cksum_idx_data  *cd_idx;
 	// Number of units added
-	uint32_t        	       cd_num_units;
+	uint32_t                    cd_num_units;
 	// Maximum number of units
-	uint32_t                   cd_max_units;
+	uint32_t                    cd_max_units;
 };
 
 /**

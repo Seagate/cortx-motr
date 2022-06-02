@@ -50,10 +50,10 @@ do { \
  * @param flag if flag is M0_PI_CALC_UNIT_ZERO, it means this api is called for
  *             first data unit and MD5_Init should be invoked.
  */
-M0_INTERNAL int m0_calculate_md5( struct m0_md5_pi *pi,
-								  struct m0_pi_seed *seed,
-								  struct m0_bufvec *bvec,
-								  enum m0_pi_calc_flag flag )
+M0_INTERNAL int m0_calculate_md5(struct m0_md5_pi *pi,
+				 struct m0_pi_seed *seed,
+				 struct m0_bufvec *bvec,
+				 enum m0_pi_calc_flag flag)
 {
 #ifndef __KERNEL__
 	MD5_CTX context;

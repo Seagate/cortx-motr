@@ -353,7 +353,7 @@ int m0_write(struct m0_container *container, char *src,
 	     struct m0_uint128 id, uint32_t block_size,
 	     uint32_t block_count, uint64_t update_offset,
 	     int blks_per_io, bool take_locks, bool update_mode,
-		 uint32_t entity_flags)
+	     uint32_t entity_flags)
 {
 	int                           rc;
 	struct m0_indexvec            ext;
