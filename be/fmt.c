@@ -142,6 +142,7 @@ static int be_fmt_decode(struct m0_xcode_type               *type,
 	int                      rc;
 
 	m0_xcode_ctx_init(ctx, &obj);
+	fctx.cfg = cfg;
 	ctx->xcx_iter     = cfg->dc_iter;
 	ctx->xcx_iter_end = cfg->dc_iter_end;
 
