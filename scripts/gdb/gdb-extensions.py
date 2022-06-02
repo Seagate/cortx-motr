@@ -165,6 +165,7 @@ Total: 2
 
 		print "Total: %d" % total
 
+	@staticmethod
 	def get_head(self, argv):
 		ok    = True
 		head  = 0
@@ -185,6 +186,7 @@ Total: 2
 			ok = False
 		return vhead, head, ok
 
+	@staticmethod
 	def get_offset(self, argv):
 		argc     = len(argv)
 		offset   = 0
