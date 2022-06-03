@@ -930,7 +930,7 @@ static bool dixreq_clink_cb(struct m0_clink *cl)
 	}
 
 	if (dix_req_is_completed(dix_req))
-		dixreq_completed_post(dix_req, m0_dix_generic_rc(dreq));
+		dixreq_completed_post(dix_req, rc);
 	return false;
 }
 
