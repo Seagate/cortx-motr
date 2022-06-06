@@ -48,30 +48,29 @@ def get_motr_transport():
     return "libfab" if output else ''
 
 def address_get():
-    xprt = get_motr_transport()
-
-    if "libfab" in xprt :
+    if "libfab" in motr_xprt :
         conf = open("/etc/libfab.conf", "r")
         xprt = conf.read()
         iface_type = (xprt[xprt.find("=")+1:xprt.find("(")])
         iface = (xprt[xprt.find("(")+1:xprt.find(")")])
         ip_addr = get_ip_address(iface)
-        return ip_addr+"@"+iface_type
+        return "inet:"+iface_type+":"+ip_addr
     else:
-        try:
-            p = Popen(['lctl', 'list_nids'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-            output, err = p.communicate()
-        except OSError:
-            return ''
-    # When the tool is executing without sudo privileges (i. e. with "--help"
-    # option) then lctl output will be an empty string)
-    return output.split()[0] if output else ''
+        output = check_output("lctl list_nids", shell=True, encoding='ascii')
+        # When the tool is executing without sudo privileges (i. e. with "--help"
+        # option) then lctl output will be an empty string)
+        return output.split()[0] if output else ''
 
+motr_xprt = get_motr_transport()
 
 default_libmotr_path = '../../motr/.libs/libmotr.so'
 addr = address_get()
-default_ha_ep = addr + ':12345:34:1001'
-default_client_ep = addr + ':12345:34:200'
+if "libfab" in motr_xprt :
+    default_ha_ep = addr + '@4001'
+    default_client_ep = addr + '@4002'
+else:
+    default_ha_ep = addr + ':12345:34:1001'
+    default_client_ep = addr + ':12345:34:200'
 
 
 # Helper function to check the type of the function parameter. This is useful

@@ -605,6 +605,77 @@ static void m0_be_ut_dtm0_log_test(void)
 	M0_LEAVE();
 }
 
+
+static void m0_be_ut_dtm0_log_init_fini(void)
+{
+	struct m0_be_dtm0_log_iter iter;
+	struct m0_dtm0_clk_src     cs;
+	struct m0_be_dtm0_log     *log;
+	int rc;
+
+	m0_dtm0_clk_src_init(&cs, M0_DTM0_CS_PHYS);
+
+	rc = m0_be_dtm0_log_alloc(&log);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_be_dtm0_log_init(log, NULL, &cs, false);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_be_dtm0_log_iter_init(&iter, log);
+	m0_be_dtm0_log_iter_fini(&iter);
+
+	m0_be_dtm0_log_fini(log);
+	m0_be_dtm0_log_free(&log);
+	m0_dtm0_clk_src_fini(&cs);
+}
+
+static void m0_be_ut_dtm0_log_next(void)
+{
+	struct m0_dtm0_tx_desc  txd = {};
+	struct m0_buf           buf = {};
+
+	struct m0_be_dtm0_log_iter iter;
+	struct m0_dtm0_log_rec	   out;
+	struct m0_dtm0_clk_src     cs;
+	struct m0_be_dtm0_log     *log;
+	int rc;
+
+	m0_dtm0_clk_src_init(&cs, M0_DTM0_CS_PHYS);
+
+	rc = m0_be_dtm0_log_alloc(&log);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_be_dtm0_log_init(log, NULL, &cs, false);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = ut_dl_init(&txd, &buf, 42);
+	M0_UT_ASSERT(rc == 0);
+
+	p_state_set(&txd.dtd_ps.dtp_pa[0], M0_DTPS_PERSISTENT);
+	p_state_set(&txd.dtd_ps.dtp_pa[1], M0_DTPS_PERSISTENT);
+	p_state_set(&txd.dtd_ps.dtp_pa[2], M0_DTPS_PERSISTENT);
+	m0_mutex_lock(&log->dl_lock);
+	rc = m0_be_dtm0_log_update(log, NULL, &txd, &buf);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_be_dtm0_log_iter_init(&iter, log);
+	rc = m0_be_dtm0_log_iter_next(&iter, &out);
+	M0_UT_ASSERT(rc == 1);
+	m0_dtm0_log_iter_rec_fini(&out);
+
+	rc = m0_be_dtm0_log_iter_next(&iter, &out);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_dtm0_log_iter_fini(&iter);
+
+	/* make log finalisation happy */
+	rc = m0_be_dtm0_log_prune(log, NULL, &txd.dtd_id);
+	M0_UT_ASSERT(rc == 0);
+	m0_mutex_unlock(&log->dl_lock);
+	m0_be_dtm0_log_fini(log);
+	m0_be_dtm0_log_free(&log);
+	m0_dtm0_clk_src_fini(&cs);
+}
+
 struct m0_ut_suite dtm0_log_ut = {
 	.ts_name   = "dtm0-log-ut",
 	.ts_init   = NULL,
@@ -612,6 +683,8 @@ struct m0_ut_suite dtm0_log_ut = {
 	.ts_tests  = {
 		{ "dtm0-log-list",       test_volatile_dtm0_log },
 		{ "dtm0-log-persistent", m0_be_ut_dtm0_log_test },
+		{ "dtm0-log-init/fini",  m0_be_ut_dtm0_log_init_fini },
+		{ "dtm0-log-next",       m0_be_ut_dtm0_log_next },
 		{ NULL, NULL }
 	}
 };
