@@ -51,6 +51,8 @@ static const char *ip_protocol[M0_NET_IP_PROTO_NR] = {
  */
 static uint8_t ip_autotm[1024] = {};
 
+enum { IP_AUTOTM_NR = ARRAY_SIZE(ip_autotm) };
+
 /**
  * Lock used while parsing lnet address.
  */
@@ -230,9 +232,14 @@ static int m0_net_ip_lnet_parse(const char *name, struct m0_net_ip_addr *addr)
 		if (nr != 2)
 			return M0_ERR(-EPROTO);
 		m0_mutex_lock(&autotm_lock);
-		for (i = 0; i < ARRAY_SIZE(ip_autotm); ++i) {
-			if (ip_autotm[i] == 0) {
-				tmid = i;
+		for (i = 0; i < IP_AUTOTM_NR; ++i) {
+			/*
+			 * Start assigning auto-tm indices from the middle of
+			 * the bitmap to avoid clashes within UT-s.
+			 */
+			int probe = (i + IP_AUTOTM_NR / 2) % IP_AUTOTM_NR;
+			if (ip_autotm[probe] == 0) {
+				tmid = probe;
 				/* To handle '*' wildchar as tmid*/
 				addr->nia_n.nip_fmt_pvt.la.nla_autotm = true;
 				ip_autotm[tmid] = 1;

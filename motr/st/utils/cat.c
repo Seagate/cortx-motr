@@ -74,7 +74,7 @@ static void cat_usage(FILE *file, char *prog_name)
 "  -O, --offset         INT       Updates the exisiting object from given "
 				 "offset.\n%*c Default=0 if not provided. "
 				 "Offset should be multiple of 4k.\n"
-"  -N, --no-hole                  Report read error on hole in object\n"
+"  -z, --fill-zeros               Fill holes with zeros.\n"
 "  -h, --help                     Shows this help text and exit.\n"
 , prog_name, WIDTH, ' ', WIDTH, ' ', WIDTH, ' ', WIDTH, ' ', WIDTH, ' ',
 WIDTH, ' ');

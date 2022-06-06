@@ -953,17 +953,8 @@ M0_INTERNAL void m0_reqh_service_ctxs_shutdown_prepare(struct m0_reqh *reqh)
 		}
 		reqh_service_ctx_sm_unlock(ctx);
 		/* Do waiting outside the sm lock. */
-		if (connecting) {
-			m0_clink_add_lock(&ctx->sc_rlink.rlk_wait,
-					  &ctx->sc_rlink_abort);
-			/*
-			 * While we were leaving the sm lock the fom activity
-			 * might happen alright, thus timed waiting.
-			 */
-			m0_chan_timedwait(&ctx->sc_rlink_abort,
-				m0_time_from_now(REQH_SVC_CONNECT_TIMEOUT, 0));
-			m0_clink_del_lock(&ctx->sc_rlink_abort);
-		}
+		if (connecting)
+			reqh_service_ctx_state_wait(ctx, M0_RSC_OFFLINE);
 	} m0_tl_endfor;
 	M0_LEAVE();
 }

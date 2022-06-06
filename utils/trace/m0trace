@@ -35,6 +35,8 @@ use warnings;
 use autodie;
 use feature ':5.16';  # target minimum Perl version provided by the base distribution
 
+# Suppress warnings "given/when is experimental" in recent Perl versions:
+no if $] >= 5.018, warnings => qw( experimental::smartmatch );
 
 # check that all required external modules are available and display a hint to
 # the user about how they can be installed using default package management

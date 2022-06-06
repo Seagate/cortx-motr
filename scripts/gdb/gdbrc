@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 #
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
@@ -17,22 +16,19 @@
 # For any questions about this software or licensing,
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
-
-
-#This script helps to create a device configuration file viz. devices.conf.
-#The file uses yaml format, as desired by the m0d program.
-#The script uses the fdisk command and extracts only the unused devices
-#present on the system (i.e without valid partition table).
-#Below illustration describes a typical devices.conf entry,
-#Device:
-#       - id: 1
-#	  filename: /dev/sda
-
-i=0
-echo "Device:" > ./devices.conf
-sudo fdisk -l 2>&1 |  grep "doesn't contain a valid partition table"  | awk '{ print $2 }'| grep "/dev" | grep [a-z]$ | while read line
-do
-echo "       - id: $i" >> ./devices.conf
-echo "         filename: $line" >> ./devices.conf
-i=$(($i + 1))
-done
+#
+# gdb startup script for "wrapper" execution.
+#
+# Use this as gdb startup script, for example:
+#
+#     export GDBPARAMS="-x $PWD/scripts/gdb/gdbrc"; ./utils/m0run -dgdb m0ut -- ...
+#
+# The script runs the executable. If the executable completes normally (that is,
+# by calling exit(2)) the scripts exits the gdb. Otherwise (i.e., when the
+# process terminates abnormally), gdb session remains active.
+#
+set $_exitcode = -1
+run
+if $_exitcode != -1 
+    quit
+end

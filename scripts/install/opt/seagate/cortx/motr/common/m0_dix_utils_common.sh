@@ -28,7 +28,7 @@ dix_repair_or_rebalance_status()
         [ "$1" == "repair" ] && op=$CM_OP_REPAIR_STATUS
         [ "$1" == "rebalance" ] && op=$CM_OP_REBALANCE_STATUS
 
-        repair_status=$(get_m0repair_utils_cmd DIX "$op")
+        repair_status=$(get_m0repair_utils_cmd "$op")
         run "$repair_status"
         rc=$?
         if [ $rc != 0 ]; then
@@ -46,7 +46,7 @@ wait_for_dix_repair_or_rebalance()
         [ "$1" == "repair" ] && op=$CM_OP_REPAIR_STATUS
         [ "$1" == "rebalance" ] && op=$CM_OP_REBALANCE_STATUS
 
-        status_cmd=$(get_m0repair_utils_cmd DIX "$op")
+        status_cmd=$(get_m0repair_utils_cmd "$op")
         while true ; do
                 sleep 5
                 echo "$status_cmd"
@@ -71,7 +71,7 @@ dix_repair()
 {
         local rc=0
 
-        repair_trigger=$(get_m0repair_utils_cmd DIX "$CM_OP_REPAIR")
+        repair_trigger=$(get_m0repair_utils_cmd "$CM_OP_REPAIR")
         run "$repair_trigger"
         rc=$?
         if [ $rc != 0 ]; then
@@ -85,7 +85,7 @@ dix_rebalance()
 {
         local rc=0
 
-        rebalance_trigger=$(get_m0repair_utils_cmd DIX "$CM_OP_REBALANCE")
+        rebalance_trigger=$(get_m0repair_utils_cmd "$CM_OP_REBALANCE")
         run "$rebalance_trigger"
         rc=$?
         if [ $rc != 0 ]; then

@@ -133,12 +133,22 @@ var threadsN int
 
 // Init initialises mio module.
 // All the usual Motr's init stuff is done here.
-func Init() {
+func Init(connParams ...*string) {
     // Mandatory
-    localEP  := flag.String("ep", "", "my `endpoint` address")
-    haxEP    := flag.String("hax", "", "local hax `endpoint` address")
-    profile  := flag.String("prof", "", "cluster profile `fid`")
-    procFid  := flag.String("proc", "", "my process `fid`")
+    var localEP, haxEP, profile, procFid *string
+    if len(connParams) > 0 && len(connParams) != 4 {
+        log.Panicf("number of connection parameters must be 4 or none")
+    } else if len(connParams) == 4 {
+        localEP = connParams[0]
+        haxEP   = connParams[1]
+        profile = connParams[2]
+        procFid = connParams[3]
+    } else {
+        localEP = flag.String("ep", "", "local `endpoint` address")
+        haxEP   = flag.String("hax", "", "hax `endpoint` address")
+        profile = flag.String("prof", "", "cluster profile `fid`")
+        procFid = flag.String("proc", "", "local process `fid`")
+    }
     // Optional
     traceOn  := flag.Bool("trace", false, "generate m0trace.pid file")
     flag.BoolVar(&verbose, "v", false, "be more verbose")
@@ -146,10 +156,10 @@ func Init() {
 
     flag.Parse()
 
-    checkArg(localEP, "my endpoint (-ep)")
-    checkArg(haxEP,   "hax endpoint (-hax)")
-    checkArg(profile, "profile fid (-prof)")
-    checkArg(procFid, "my process fid (-proc)")
+    checkArg(localEP, "local endpoint")
+    checkArg(haxEP,   "hax endpoint")
+    checkArg(profile, "cluster profile fid")
+    checkArg(procFid, "local process fid")
 
     if !*traceOn {
         C.m0_trace_set_mmapped_buffer(false)
