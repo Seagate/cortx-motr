@@ -20,7 +20,6 @@
 
 
 import argparse
-import yaml
 
 def parse_args():
     description="""

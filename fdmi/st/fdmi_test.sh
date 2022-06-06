@@ -19,7 +19,7 @@
 
 #set -x
 
-MOTR_SRC_ROOT=$PWD/`dirname "$0"`/../..
+MOTR_SRC_ROOT=$PWD/$(dirname "$0")/../..
 M0T1FS_TEST_DIR=$MOTR_SRC_ROOT/m0t1fs/linux_kernel/st
 ECHO_PLUGIN_DIR=$MOTR_SRC_ROOT/fdmi/st/echo
 
@@ -33,7 +33,7 @@ MOTR_SVCS_CNT=1
 
 unmount_and_stop()
 {
-	for i in `seq 1 "$MOTR_SVCS_CNT"` ; do
+	for i in $(seq 1 "$MOTR_SVCS_CNT") ; do
 		echo "Unmounting file system $i ..."
 		umount "$MOTR_M0T1FS_MOUNT_DIR"-"$i"
 	done
@@ -51,9 +51,9 @@ unmount_and_stop()
 
 fdmi_test_prepare()
 {
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 
-	for i in `seq 1 "$MOTR_SVCS_CNT"` ; do
+	for i in $(seq 1 "$MOTR_SVCS_CNT") ; do
 		MOTR_M0T1FS_TEST_DIR=/var/motr/systest-$$-$i
 
 		CONFD_EP=12345:3$i:100
@@ -98,7 +98,7 @@ fdmi_file_creation_test()
 	local SOURCE_TXT=/tmp/source.txt
 
 	for i in {a..z} {A..Z} ; do
-		for c in `seq 1 4095`;
+		for c in $(seq 1 4095);
 			do echo -n "$i" ;
 		done;
 		echo;
@@ -155,7 +155,7 @@ main()
 	fdmi_test_prepare
 	echo "Run plugin..."
 	#read
-	for i in `seq 1 "$MOTR_SVCS_CNT"`; do
+	for i in $(seq 1 "$MOTR_SVCS_CNT"); do
 		fdmi_file_creation_test 10 "$MOTR_M0T1FS_MOUNT_DIR"-"$i"
 	done
 	sleep 10
