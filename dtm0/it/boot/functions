@@ -73,7 +73,7 @@ function has_m0d_failed() {
     local fid="$1"
     local rc=1
 
-    svc_name="m0d@{fid}.service"
+    svc_name="m0d@${fid}.service"
     if systemctl is-failed $svc_name > /dev/null; then
         _err "Process $svc_name failed"
         rc=0
