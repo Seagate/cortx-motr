@@ -1868,8 +1868,9 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 				 * limitation of file size.
 				 */
 				if (map->pi_state == PI_DEGRADED) {
-					map->pi_databufs[row][col] =
-					    data_buf_alloc_init(obj, PA_NONE);
+					if (map->pi_databufs[row][col] == NULL)
+						map->pi_databufs[row][col] =
+						    data_buf_alloc_init(obj, PA_NONE);
 					if (map->pi_databufs[row][col] ==
 					    NULL) {
 						rc = -ENOMEM;
@@ -1951,7 +1952,7 @@ static uint32_t iomap_dgmode_recov_prepare(struct pargrp_iomap *map,
 {
 	struct m0_pdclust_layout *play;
 	uint32_t                  col;
-	uint32_t                  K = 0;
+	uint32_t                  k = 0;
 
 	play = pdlayout_get(map->pi_ioo);
 	for (col = 0; col < layout_n(play); ++col) {
@@ -1959,7 +1960,7 @@ static uint32_t iomap_dgmode_recov_prepare(struct pargrp_iomap *map,
 		    map->pi_databufs[0][col]->db_flags &
 		    PA_READ_FAILED) {
 			failed[col] = 1;
-			++K;
+			++k;
 		}
 
 	}
@@ -1968,10 +1969,10 @@ static uint32_t iomap_dgmode_recov_prepare(struct pargrp_iomap *map,
 		if (map->pi_paritybufs[0][col]->db_flags &
 		    PA_READ_FAILED) {
 			failed[col + layout_n(play)] = 1;
-			++K;
+			++k;
 		}
 	}
-	return K;
+	return k;
 }
 
 /**
@@ -1987,7 +1988,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	int                       rc = 0;
 	uint32_t                  row;
 	uint32_t                  col;
-	uint32_t                  K;
+	uint32_t                  k;
 	uint64_t                  pagesize;
 	void                     *zpage;
 	struct m0_buf            *data;
@@ -2034,10 +2035,10 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 					    "for m0_buf");
 	}
 
-	K = iomap_dgmode_recov_prepare(map, (uint8_t *)failed.b_addr);
-	if (K > layout_k(play)) {
-		M0_LOG(M0_ERROR, "More failures in group %d",
-				(int)map->pi_grpid);
+	k = iomap_dgmode_recov_prepare(map, (uint8_t *)failed.b_addr);
+	if (k > layout_k(play)) {
+		M0_LOG(M0_ERROR, "Too many failures in group %d: %u > %u",
+				(int)map->pi_grpid, k, layout_k(play));
 		rc = -EIO;
 		goto end;
 	}
@@ -2065,7 +2066,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 		rc = m0_parity_math_recover(parity_math(ioo), data,
 					    parity, &failed, M0_LA_INVERSE);
 		if (rc != 0)
-			goto end;
+			break;
 	}
 
 end:
@@ -2076,11 +2077,9 @@ end:
 
 	return rc == 0 ?
 		M0_RC(rc) :
-		M0_ERR_INFO(-EIO,
-			    "Number of failed units"
-			    "in parity group exceeds the"
-			    "total number of parity units"
-			    "in a parity group %d.", (int)map->pi_grpid);
+		M0_ERR_INFO(-EIO, "Number of failed units in parity group %d "
+			    "exceeds the number of parity units in it",
+			    (int)map->pi_grpid);
 }
 
 static bool crc_cmp(const struct m0_buf *val1, const struct m0_buf *val2)
