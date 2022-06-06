@@ -20,7 +20,6 @@
 import os
 import sys
 import yaml
-import peewee
 import logging
 import importlib
 from addb2db import *
