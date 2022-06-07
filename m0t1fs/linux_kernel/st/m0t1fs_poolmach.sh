@@ -19,10 +19,10 @@
 #
 
 
-. `dirname $0`/common.sh
-. `dirname $0`/m0t1fs_common_inc.sh
-. `dirname $0`/m0t1fs_client_inc.sh
-. `dirname $0`/m0t1fs_server_inc.sh
+. `dirname "$0"`/common.sh
+. `dirname "$0"`/m0t1fs_common_inc.sh
+. `dirname "$0"`/m0t1fs_client_inc.sh
+. `dirname "$0"`/m0t1fs_server_inc.sh
 
 pool_mach_test()
 {
@@ -37,8 +37,8 @@ pool_mach_test()
 ####### Query
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Query -N 1 -I 'k|1:1'
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
-	echo $trigger
-	eval $trigger
+	echo "$trigger"
+	eval "$trigger"
 	rc=$?
 	if [ $rc != 0 ] ; then
 		echo "m0poolmach failed: $rc"
@@ -49,8 +49,8 @@ pool_mach_test()
 ####### Set
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -N 1 -I 'k|1:1' -s 2
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
-	echo $trigger
-	eval $trigger
+	echo "$trigger"
+	eval "$trigger"
 	rc=$?
 	if [ $rc != 0 ] ; then
 		echo "m0poolmach failed: $rc"
@@ -61,8 +61,8 @@ pool_mach_test()
 ####### Query again
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Query -N 1 -I 'k|1:1'
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
-	echo $trigger
-	eval $trigger
+	echo "$trigger"
+	eval "$trigger"
 	rc=$?
 	if [ $rc != 0 ] ; then
 		echo "m0poolmach failed: $rc"
@@ -73,8 +73,8 @@ pool_mach_test()
 ####### Set again. This set request should get error
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -N 1 -I 'k|1:1' -s 1
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
-	echo $trigger
-	eval $trigger
+	echo "$trigger"
+	eval "$trigger"
 	rc=$?
 	if [ $rc != 0 ] ; then
 		echo "m0poolmach failed: $rc"
@@ -85,8 +85,8 @@ pool_mach_test()
 ####### Set again. This set request should get error
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -N 1 -I 'k|1:1' -s 2
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
-	echo $trigger
-	eval $trigger
+	echo "$trigger"
+	eval "$trigger"
 	rc=$?
 	if [ $rc != 0 ] ; then
 		echo "m0poolmach failed: $rc"
@@ -97,8 +97,8 @@ pool_mach_test()
 ####### Set again. This set request should get error
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Set -N 1 -I 'k|1:1' -s 3
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
-	echo $trigger
-	eval $trigger
+	echo "$trigger"
+	eval "$trigger"
 	rc=$?
 	if [ $rc != 0 ] ; then
 		echo "m0poolmach failed: $rc"
@@ -109,8 +109,8 @@ pool_mach_test()
 ####### Query again
 	trigger="$M0_SRC_DIR/pool/m0poolmach -O Query -N 1 -I 'k|1:1'
                          -C ${lnet_nid}:${POOL_MACHINE_CLI_EP} $ios_eps"
-	echo $trigger
-	eval $trigger
+	echo "$trigger"
+	eval "$trigger"
 	rc=$?
 	if [ $rc != 0 ] ; then
 		echo "m0poolmach failed: $rc"
