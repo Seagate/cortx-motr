@@ -175,7 +175,7 @@ def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = Fa
         retry_count = 1
     cmd_retry_delay = 1
     for cmd_retry_count in range(retry_count):
-        ps = subprocess.run(cmd, stdin=subprocess.PIPE,
+        ps = subprocess.run(cmd, stdin=subprocess.PIPE, check=False,
                             stdout=subprocess.PIPE, timeout=timeout_secs,
                             stderr=subprocess.PIPE, shell=True)
         self.logger.info(f"ret={ps.returncode}")
@@ -193,7 +193,7 @@ def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = Fa
 def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS, retries = 1):
     for i in range(retries):
         self.logger.info(f"Retry: {i}. Executing cmd : '{cmd}'\n")
-        ps = subprocess.run(list(cmd.split(' ')), timeout=timeout_secs)
+        ps = subprocess.run(list(cmd.split(' ')), check=False, timeout=timeout_secs)
         self.logger.info(f"ret={ps.returncode}\n")
         if ps.returncode == 0:
             break
