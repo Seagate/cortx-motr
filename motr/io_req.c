@@ -479,7 +479,8 @@ static void ioreq_iosm_handle_executed(struct m0_sm_group *grp,
 	 */
 	M0_LOG(M0_DEBUG, "map=%" PRIu64 " map_nr=%"PRIu64,
 	       ioo->ioo_map_idx, ioo->ioo_iomap_nr);
-	rmw = ioo->ioo_map_idx != ioo->ioo_iomap_nr;
+	rmw = ioo->ioo_map_idx != ioo->ioo_iomap_nr &&
+	      !(ioo->ioo_flags & M0_OOF_NO_RMW);
 	if (ioreq_sm_state(ioo) == IRS_TRUNCATE_COMPLETE)
 		goto done;
 	if (!rmw) {

@@ -582,7 +582,18 @@ enum m0_op_obj_flags {
 	 * Write, alloc and free operations wait for the transaction to become
 	 * persistent before returning.
 	 */
-	M0_OOF_SYNC = 1 << 1
+	M0_OOF_SYNC = 1 << 1,
+	/**
+	 * If this flags is set during m0_obj_op() that means that IO operation
+	 * won't trigger RMW.
+	 * XXX: This flag is not to be used if the IO operation starts
+	 * from a parity group which is partially spanned as in that
+	 * case the parity needs to be re-calculated and updated by
+	 * considering the new data units, but M0_OOF_NO_RMW disables
+	 * rmw code path entirely. This will cause the parity units
+	 * to become stale and invalid.
+	 */
+	M0_OOF_NO_RMW =  1 << 2
 } M0_XCA_ENUM;
 
 /**
@@ -631,14 +642,9 @@ enum m0_entity_type {
 	 */
 	M0_ENF_META = 1 << 0,
 	/**
-	 * If this flags is set during entity_create() that means application
-	 * do not support update operation. This flag is not in use yet.
-	 */
-	M0_ENF_NO_RMW =  1 << 1,
-	/**
 	 * This flag is to enable data integrity.
 	 */
- 	M0_ENF_DI = 1 << 2
+ 	M0_ENF_DI = 1 << 1
  } M0_XCA_ENUM;
 
 /**

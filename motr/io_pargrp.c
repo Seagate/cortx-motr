@@ -589,13 +589,15 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	struct m0_op             *op;
 	struct m0_obj            *obj;
 	struct m0_client         *instance;
+	uint32_t                  flags;
 
 	M0_PRE(map != NULL);
 
-	ioo =  map->pi_ioo;
-	obj =  ioo->ioo_obj;
-	op  = &ioo->ioo_oo.oo_oc.oc_op;
-	instance = m0__op_instance(op);
+	ioo      =  map->pi_ioo;
+	flags    =  ioo->ioo_flags;
+	obj      =  ioo->ioo_obj;
+	op       = &ioo->ioo_oo.oo_oc.oc_op;
+	instance =  m0__op_instance(op);
 
 	play     = pdlayout_get(ioo);
 	grpsize  = data_size(play);
@@ -618,11 +620,29 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	 * the new page in which incoming IO is merged with older values.
 	 * But partial page modifications are not currently supported.
 	 */
+	/*
+	 * Avoid triggering RMW when M0_OOF_NO_RMW is set for an IO op.
+	 * The IO op should not span over any parity group partially if
+	 * it is not the last IO op for the object.
+	 * If it is the last IO op for the object then the IO op should not
+	 * start from a parity group which is partially spanned.
+	 */
 	if (M0_IN(op->op_code, (M0_OC_FREE, M0_OC_WRITE)) &&
-	    (m0_ivec_cursor_index(cursor) > grpstart ||
-	     m0_ivec_cursor_conti(cursor, grpend) < grpend) &&
-	    !m0_pdclust_is_replicated(play))
+	   (m0_ivec_cursor_index(cursor) > grpstart ||
+	    m0_ivec_cursor_conti(cursor, grpend) < grpend) &&
+	  !(flags & M0_OOF_NO_RMW) && !m0_pdclust_is_replicated(play))
 		rmw = true;
+
+	/* 
+	 * This assert is added to ensure that client cannot perfrom write
+	 * IO which starts from a partially spanned parity group,
+	 * as in that case the parity needs to be re-calculated and updated
+	 * by considering the new data units, but M0_OOF_NO_RMW disables
+	 * rmw code path entirely. This will cause the parity units
+	 * to become stale and invalid.
+	 */
+	M0_ASSERT(ergo(op->op_code == M0_OC_WRITE && (flags & M0_OOF_NO_RMW),
+		       m0_ivec_cursor_index(cursor) == grpstart));
 
 	M0_ENTRY("[%p] map=%p grp=%" PRIu64 " [%" PRIu64 ",+%" PRIu64 ") rmw=%d",
 		 ioo, map, map->pi_grpid, grpstart, grpsize, !!rmw);
