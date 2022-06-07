@@ -89,7 +89,7 @@ mkiosloopdevs()
 	cat > disks.conf << EOF
 Device:
    - id: $ADEV_ID
-     filename: `pwd`/$ADEV_ID$adisk
+     filename: $(pwd)/$ADEV_ID$adisk
 EOF
 
 	dev_end=$(($DDEV_ID + $nr_devs))

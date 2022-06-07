@@ -21,11 +21,11 @@
 
 usage()
 {
-	echo "Usage: `basename $0` <start|stop> [server_nid]"
+	echo "Usage: $(basename $0) <start|stop> [server_nid]"
 	echo "Please provide the server endpoint address you want to use."
 	echo "e.g. 192.168.172.130@tcp"
 	echo "If you want to use the default nid registered for lnet, then do"
-	echo "`basename $0` start default"
+	echo "$(basename $0) start default"
 }
 
 if [ $# -lt 1 ]
@@ -39,9 +39,9 @@ if [ "x$1" = "x-h" ]; then
 	exit 0
 fi
 
-. `dirname $0`/common.sh
-. `dirname $0`/m0t1fs_common_inc.sh
-. `dirname $0`/m0t1fs_server_inc.sh
+. $(dirname $0)/common.sh
+. $(dirname $0)/m0t1fs_common_inc.sh
+. $(dirname $0)/m0t1fs_server_inc.sh
 
 main()
 {
