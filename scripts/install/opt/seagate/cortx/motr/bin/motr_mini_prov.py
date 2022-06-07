@@ -175,7 +175,7 @@ def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = Fa
         retry_count = 1
     cmd_retry_delay = 1
     for cmd_retry_count in range(retry_count):
-        ps = subprocess.run(cmd, stdin=subprocess.PIPE,
+        ps = subprocess.run(cmd, stdin=subprocess.PIPE, check=False,
                             stdout=subprocess.PIPE, timeout=timeout_secs,
                             stderr=subprocess.PIPE, shell=True)
         self.logger.info(f"ret={ps.returncode}")
@@ -193,7 +193,7 @@ def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = Fa
 def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS, retries = 1):
     for i in range(retries):
         self.logger.info(f"Retry: {i}. Executing cmd : '{cmd}'\n")
-        ps = subprocess.run(list(cmd.split(' ')), timeout=timeout_secs)
+        ps = subprocess.run(list(cmd.split(' ')), check=False, timeout=timeout_secs)
         self.logger.info(f"ret={ps.returncode}\n")
         if ps.returncode == 0:
             break
@@ -326,11 +326,6 @@ def get_logical_node_class(self):
     check_type(logical_node_class, list, "logical_node_class")
     return logical_node_class
 
-def get_storage(self):
-    storage = self.node['storage']
-    check_type(storage, dict, "storage")
-    return storage
-
 def restart_services(self, services):
     for service in services:
         self.logger.info(f"Restarting {service} service\n")
@@ -459,8 +454,8 @@ def update_copy_motr_config_file(self):
 #              ['/dev/sdf'] is list of metadata disks of cvg[1]
 def get_md_disks_lists(self, node_info):
     md_disks_lists = []
-    cvg_count = node_info['storage'][CVG_COUNT_KEY]
-    cvg = node_info['storage']['cvg']
+    cvg_count = node_info[CVG_COUNT_KEY]
+    cvg = node_info['cvg']
     for i in range(cvg_count):
         temp_cvg = cvg[i]
         if temp_cvg['devices']['metadata']:
@@ -829,14 +824,14 @@ def calc_lvm_min_size(self, lv_path, lvm_min_size):
 
 def get_cvg_cnt_and_cvg(self):
     try:
-        cvg_cnt = self.server_node['storage'][CVG_COUNT_KEY]
+        cvg_cnt = self.server_node[CVG_COUNT_KEY]
     except:
         raise MotrError(errno.EINVAL, "cvg_cnt not found\n")
 
     check_type(cvg_cnt, str, CVG_COUNT_KEY)
 
     try:
-        cvg = self.server_node['storage']['cvg']
+        cvg = self.server_node['cvg']
     except:
         raise MotrError(errno.EINVAL, "cvg not found\n")
 
@@ -871,16 +866,6 @@ def validate_storage_schema(storage):
                 sz = len(val)
                 for i in range(sz):
                     check_type(val[i], str, f"data_devices[{i}]")
-
-def get_cvg_cnt_and_cvg_k8(self):
-    try:
-        cvg = self.storage['cvg']
-        cvg_cnt = len(cvg)
-    except:
-        raise MotrError(errno.EINVAL, "cvg not found\n")
-    # Check if cvg type is list
-    check_type(cvg, list, "cvg")
-    return cvg_cnt, cvg
 
 def align_val(val, size):
     return (int(val/size) * size)
@@ -1231,7 +1216,7 @@ def update_motr_hare_keys_for_all_nodes(self):
     retry_delay = 2
     for value in nodes_info.values():
         host = value["hostname"]
-        cvg_count = value["storage"][CVG_COUNT_KEY]
+        cvg_count = value[CVG_COUNT_KEY]
         name = value["name"]
         self.logger.info(f"update_motr_hare_keys for {host}\n")
         for i in range(int(cvg_count)):

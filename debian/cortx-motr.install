@@ -97,6 +97,8 @@ opt/seagate/cortx/motr/common/cortx_error_codes.sh
 opt/seagate/cortx/motr/common/m0_sns_utils_common.sh
 opt/seagate/cortx/motr/common/m0_dix_utils_common.sh
 opt/seagate/cortx/motr/common/m0_utils_common.sh
+opt/seagate/cortx/motr/common/m0_spiel_sns_utils_common.sh
+opt/seagate/cortx/motr/common/m0_spiel_dix_utils_common.sh
 opt/seagate/cortx/motr/common/cortx_util_funcs.sh
 opt/seagate/cortx/motr/common/core-traces
 opt/seagate/cortx/motr/bin/motr_mini_prov.py

@@ -19,7 +19,6 @@
 
 from addb2db import *
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 import sys
 
 def get_queue(query, sfrom: List[str], sto: List[str], filter_key_fields):

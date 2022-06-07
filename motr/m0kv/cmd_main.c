@@ -63,6 +63,8 @@ enum {
 static struct m0 instance;
 bool is_str;
 bool is_enf_meta;
+bool is_skip_layout;
+bool is_crow_disable;
 struct m0_fid dix_pool_ver;
 
 static int subsystem_id(char *name)
@@ -97,6 +99,10 @@ static void usage(void)
 		"-e  Enable M0_ENF_META flag and it is optional.\n"
 		"-v 7600000000000001:30 it is mandatory with -e for "
 		"PUT, GET, DEL and NEXT operations.\n"
+		"-L  Enable M0_OIF_SKIP_LAYOUT flag and it is optional.\n"
+		"-v 7600000000000001:30 it is mandatory with -L for "
+		"other operations except CREATE.\n"
+		"-C  Disable M0_OIF_CROW flag and it is optional.\n"
 		"Available subsystems and subsystem-specific commands are "
 		"listed below.\n");
 	for (i = 0; i < ARRAY_SIZE(subsystems); i++)
@@ -142,6 +148,10 @@ static int opts_get(struct params *par, int *argc, char ***argv)
 					&is_str),
 			M0_FLAGARG('e', "Enable M0_ENF_META flag",
 					&is_enf_meta),
+			M0_FLAGARG('L', "Enable M0_OIF_SKIP_LAYOUT flag",
+					&is_skip_layout),
+			M0_FLAGARG('C', "Disable M0_OIF_CROW flag",
+					&is_crow_disable),
 			M0_STRINGARG('v', "DIX pool version information",
 					LAMBDA(void, (const char *str) {
 						pv = (char *)str;
@@ -160,6 +170,12 @@ static int opts_get(struct params *par, int *argc, char ***argv)
 		common_args++;
 
 	if (is_enf_meta)
+		common_args++;
+
+	if (is_skip_layout)
+		common_args++;
+
+	if (is_crow_disable)
 		common_args++;
 
 	if (pv != NULL) {

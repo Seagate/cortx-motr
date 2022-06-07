@@ -19,23 +19,23 @@
 
 #set -x
 
-MOTR_SRC_ROOT=$PWD/`dirname $0`/../..
+MOTR_SRC_ROOT=$PWD/$(dirname "$0")/../..
 M0T1FS_TEST_DIR=$MOTR_SRC_ROOT/m0t1fs/linux_kernel/st
 ECHO_PLUGIN_DIR=$MOTR_SRC_ROOT/fdmi/st/echo
 
-. $M0T1FS_TEST_DIR/common.sh
-. $M0T1FS_TEST_DIR/m0t1fs_common_inc.sh
-. $M0T1FS_TEST_DIR/m0t1fs_client_inc.sh
-. $M0T1FS_TEST_DIR/m0t1fs_server_inc.sh
+. "$M0T1FS_TEST_DIR"/common.sh
+. "$M0T1FS_TEST_DIR"/m0t1fs_common_inc.sh
+. "$M0T1FS_TEST_DIR"/m0t1fs_client_inc.sh
+. "$M0T1FS_TEST_DIR"/m0t1fs_server_inc.sh
 
 MOTR_CORE_ROOT=${M0T1FS_TEST_DIR%/m0t1fs*}
 MOTR_SVCS_CNT=1
 
 unmount_and_stop()
 {
-	for i in `seq 1 $MOTR_SVCS_CNT` ; do
+	for i in $(seq 1 "$MOTR_SVCS_CNT") ; do
 		echo "Unmounting file system $i ..."
-		umount $MOTR_M0T1FS_MOUNT_DIR-$i
+		umount "$MOTR_M0T1FS_MOUNT_DIR"-"$i"
 	done
 
 	sleep 10
@@ -51,24 +51,24 @@ unmount_and_stop()
 
 fdmi_test_prepare()
 {
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 
-	for i in `seq 1 $MOTR_SVCS_CNT` ; do
+	for i in $(seq 1 "$MOTR_SVCS_CNT") ; do
 		MOTR_M0T1FS_TEST_DIR=/var/motr/systest-$$-$i
 
 		CONFD_EP=12345:3$i:100
 
 		# list of io server end points: e.g., tmid in [900, 999).
 		IOSEP=(
-		    12345:3$i:900   # IOS1 EP
-		    12345:3$i:901   # IOS2 EP
-		    12345:3$i:902   # IOS3 EP
+		    12345:3"$i":900   # IOS1 EP
+		    12345:3"$i":901   # IOS2 EP
+		    12345:3"$i":902   # IOS3 EP
 		    #12345:33:903   # IOS4 EP
 		)
 
 		# list of md server end points tmid in [800, 899)
 		MDSEP=(
-		    12345:3$i:800   # MDS1 EP
+		    12345:3"$i":800   # MDS1 EP
 		    #12345:33:801   # MDS2 EP
 		    #12345:33:802   # MDS3 EP
 		)
@@ -85,7 +85,7 @@ fdmi_test_prepare()
 			echo "Motr Services are started successfully."
 		fi
 
-		mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR-$i $NR_DATA $NR_PARITY $POOL_WIDTH || {
+		mount_m0t1fs "$MOTR_M0T1FS_MOUNT_DIR"-"$i" "$NR_DATA" "$NR_PARITY" "$POOL_WIDTH" || {
 			return 1
 		}
 	done
@@ -98,17 +98,17 @@ fdmi_file_creation_test()
 	local SOURCE_TXT=/tmp/source.txt
 
 	for i in {a..z} {A..Z} ; do
-		for c in `seq 1 4095`;
-			do echo -n $i ;
+		for c in $(seq 1 4095);
+			do echo -n "$i" ;
 		done;
 		echo;
 	done > $SOURCE_TXT
 
 	echo "Test: Creating $nr_files files on m0t1fs..."
 	for ((i=0; i<$nr_files; ++i)); do
-		touch $target_dir/file$i || break
-		cp -v $SOURCE_TXT $target_dir/file$i || break
-		cp -v $target_dir/file$i /tmp/dest.txt || break
+		touch "$target_dir"/file"$i" || break
+		cp -v $SOURCE_TXT "$target_dir"/file"$i" || break
+		cp -v "$target_dir"/file"$i" /tmp/dest.txt || break
 		diff -C 0 $SOURCE_TXT /tmp/dest.txt || {
 			echo "file content differ!!!!!!!!!!!!!!!!! at $i file. "
 #			echo "Press Enter to go";
@@ -117,7 +117,7 @@ fdmi_file_creation_test()
 		}
 	done
 	echo -n "Test: file creation: "
-	if [ $i -eq $nr_files ]; then
+	if [ "$i" -eq "$nr_files" ]; then
 		echo "success."
 	else
 		echo "failed."
@@ -126,12 +126,12 @@ fdmi_file_creation_test()
 
 	echo "Test: removing $nr_files files on m0t1fs..."
 	for ((i=0; i<$nr_files; ++i)); do
-		rm -vf $target_dir/file$i || break
+		rm -vf "$target_dir"/file"$i" || break
 	done
 
 	unmount_and_clean
 	echo -n "Test: file removal: "
-	if [ $i -eq $nr_files ]; then
+	if [ "$i" -eq "$nr_files" ]; then
 		echo "success."
 	else
 		echo "failed."
@@ -155,8 +155,8 @@ main()
 	fdmi_test_prepare
 	echo "Run plugin..."
 	#read
-	for i in `seq 1 $MOTR_SVCS_CNT`; do
-		fdmi_file_creation_test 10 $MOTR_M0T1FS_MOUNT_DIR-$i
+	for i in $(seq 1 "$MOTR_SVCS_CNT"); do
+		fdmi_file_creation_test 10 "$MOTR_M0T1FS_MOUNT_DIR"-"$i"
 	done
 	sleep 10
 	fdmi_test_unprepare || rc=$?
