@@ -367,6 +367,12 @@ IvanA: [fixed] I added a note that this thing is optional for some cases.
    The local recovery FOM cannot change its role (it cannot recover itself
    from transient or permanent failures).
 
+   UPD: The design described above has actually been implemented using
+   coroutines, not FSM.  So we do not have these states in the code.  But --
+   coroutines are implemented in the same spirit as outlined above, that is:
+   it would execute all actions needed for a given incarnation, clean up, and
+   only after this -- read next event from HEQ (HA event queue).
+
 
    <hr>
    @section DTM0BR-lspec Logical Specification
@@ -913,8 +919,6 @@ static void recovery_machine_unlock(struct m0_dtm0_recovery_machine *m);
 static struct recovery_fom *
 recovery_fom_local(struct m0_dtm0_recovery_machine *m);
 
-static const struct m0_dtm0_recovery_machine_ops default_ops;
-
 static bool ha_event_invariant(uint64_t event)
 {
 	return event < M0_NC_NR;
@@ -958,21 +962,6 @@ struct m0_sm_conf m0_drm_sm_conf = {
 	.scf_trans     = recovery_machine_trans,
 };
 
-static void ops_apply(struct m0_dtm0_recovery_machine_ops *out,
-		      const struct m0_dtm0_recovery_machine_ops *def,
-		      const struct m0_dtm0_recovery_machine_ops *over)
-{
-#define OVERWRITE_IF_SET(op) \
-	out->op = over != NULL && over->op != NULL ? over->op : def->op; \
-	M0_ASSERT_INFO(out->op != NULL, "Op %s is not set", #op)
-	OVERWRITE_IF_SET(log_iter_init);
-	OVERWRITE_IF_SET(log_iter_fini);
-	OVERWRITE_IF_SET(log_iter_next);
-	OVERWRITE_IF_SET(redo_post);
-	OVERWRITE_IF_SET(ha_event_post);
-#undef OVERWRITE_IF_SET
-}
-
 M0_INTERNAL void
 m0_dtm0_recovery_machine_init(struct m0_dtm0_recovery_machine           *m,
 			      const struct m0_dtm0_recovery_machine_ops *ops,
@@ -983,12 +972,18 @@ m0_dtm0_recovery_machine_init(struct m0_dtm0_recovery_machine           *m,
 	M0_PRE(m0_sm_conf_is_initialized(&m0_drm_sm_conf));
 
 	m->rm_svc = svc;
-	ops_apply(&m->rm_ops, &default_ops, ops);
+	if (ops)
+		m->rm_ops = ops;
+	else
+		m->rm_ops = &m0_dtm0_recovery_machine_default_ops;
 	rfom_tlist_init(&m->rm_rfoms);
 	m0_sm_group_init(&m->rm_sm_group);
 	m0_sm_init(&m->rm_sm, &m0_drm_sm_conf,
 		   M0_DRMS_INIT, &m->rm_sm_group);
 	m0_sm_addb2_counter_init(&m->rm_sm);
+
+	M0_POST(m->rm_ops != NULL);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void
@@ -996,10 +991,9 @@ m0_dtm0_recovery_machine_fini(struct m0_dtm0_recovery_machine *m)
 {
 	M0_ENTRY("m=%p", m);
 	recovery_machine_lock(m);
+	M0_ASSERT(M0_IN(m->rm_sm.sm_state, (M0_DRMS_STOPPED, M0_DRMS_INIT)));
 	if (m->rm_sm.sm_state == M0_DRMS_INIT)
 		m0_sm_state_set(&m->rm_sm, M0_DRMS_STOPPED);
-	else
-		M0_ASSERT(m->rm_sm.sm_state == M0_DRMS_STOPPED);
 	m0_sm_fini(&m->rm_sm);
 	recovery_machine_unlock(m);
 	m0_sm_group_fini(&m->rm_sm_group);
@@ -1091,23 +1085,23 @@ static int recovery_machine_log_iter_next(struct m0_dtm0_recovery_machine *m,
 					  const struct m0_fid *origin_svc,
 					  struct m0_dtm0_log_rec *record)
 {
-	M0_PRE(m->rm_ops.log_iter_next != NULL);
-	return m->rm_ops.log_iter_next(m, iter, tgt_svc, origin_svc, record);
+	M0_PRE(m->rm_ops->log_iter_next != NULL);
+	return m->rm_ops->log_iter_next(m, iter, tgt_svc, origin_svc, record);
 }
 
 static int recovery_machine_log_iter_init(struct m0_dtm0_recovery_machine *m,
 					  struct m0_be_dtm0_log_iter      *iter)
 {
-	M0_PRE(m->rm_ops.log_iter_init != NULL);
-	return m->rm_ops.log_iter_init(m, iter);
+	M0_PRE(m->rm_ops->log_iter_init != NULL);
+	return m->rm_ops->log_iter_init(m, iter);
 
 }
 
 static void recovery_machine_log_iter_fini(struct m0_dtm0_recovery_machine *m,
 					   struct m0_be_dtm0_log_iter      *iter)
 {
-	M0_PRE(m->rm_ops.log_iter_fini != NULL);
-	m->rm_ops.log_iter_fini(m, iter);
+	M0_PRE(m->rm_ops->log_iter_fini != NULL);
+	m->rm_ops->log_iter_fini(m, iter);
 }
 
 static void recovery_machine_redo_post(struct m0_dtm0_recovery_machine *m,
@@ -1117,16 +1111,16 @@ static void recovery_machine_redo_post(struct m0_dtm0_recovery_machine *m,
 				       struct dtm0_req_fop *redo,
 				       struct m0_be_op *op)
 {
-	M0_PRE(m->rm_ops.redo_post != NULL);
-	m->rm_ops.redo_post(m, fom, tgt_proc, tgt_svc, redo, op);
+	M0_PRE(m->rm_ops->redo_post != NULL);
+	m->rm_ops->redo_post(m, fom, tgt_proc, tgt_svc, redo, op);
 }
 
 static void recovery_machine_recovered(struct m0_dtm0_recovery_machine *m,
 				       const struct m0_fid *tgt_proc,
 				       const struct m0_fid *tgt_svc)
 {
-	M0_PRE(m->rm_ops.ha_event_post != NULL);
-	m->rm_ops.ha_event_post(m, tgt_proc, tgt_svc,
+	M0_PRE(m->rm_ops->ha_event_post != NULL);
+	m->rm_ops->ha_event_post(m, tgt_proc, tgt_svc,
 				M0_CONF_HA_PROCESS_DTM_RECOVERED);
 }
 
@@ -2147,7 +2141,8 @@ static void default_redo_post(struct m0_dtm0_recovery_machine *m,
 	M0_ASSERT(rc == 0);
 }
 
-static const struct m0_dtm0_recovery_machine_ops default_ops = {
+const struct m0_dtm0_recovery_machine_ops
+		m0_dtm0_recovery_machine_default_ops = {
 	.log_iter_init = default_log_iter_init,
 	.log_iter_fini = default_log_iter_fini,
 	.log_iter_next = default_log_iter_next,

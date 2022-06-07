@@ -77,7 +77,9 @@ static const struct m0_fom_ops drlink_fom_ops = {
 };
 
 static struct m0_fom_type drlink_fom_type;
-static const struct m0_fom_type_ops drlink_fom_type_ops = {};
+static const struct m0_fom_type_ops drlink_fom_type_ops = {
+	.fto_create = NULL
+};
 const static struct m0_sm_conf drlink_fom_conf;
 
 M0_INTERNAL int m0_dtm0_rpc_link_mod_init(void)

@@ -30,10 +30,6 @@
 #include "conf/ha.h"   /* m0_conf_ha_process_event */
 #include "sm/sm.h"     /* m0_sm, m0_sm_group */
 
-/* TODO: figure good literals and it move to the satchel */
-#define M0_DTM0_RMACH_MAGIC 0x3AB0DBED
-#define M0_DTM0_RMACH_HEAD_MAGIC 0xB0EB0D11
-
 /* imports */
 struct m0_dtm0_service;
 struct m0_conf_process;
@@ -100,12 +96,15 @@ struct m0_dtm0_recovery_machine_ops {
 struct m0_dtm0_recovery_machine {
 	struct m0_dtm0_service                    *rm_svc;
 	struct m0_tl                               rm_rfoms;
-	struct m0_dtm0_recovery_machine_ops        rm_ops;
+	const struct m0_dtm0_recovery_machine_ops *rm_ops;
 	struct recovery_fom                       *rm_local_rfom;
 
 	struct m0_sm_group                         rm_sm_group;
 	struct m0_sm                               rm_sm;
 };
+
+M0_EXTERN const struct m0_dtm0_recovery_machine_ops
+			m0_dtm0_recovery_machine_default_ops;
 
 M0_INTERNAL int m0_drm_domain_init(void);
 

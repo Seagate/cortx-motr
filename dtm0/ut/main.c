@@ -352,26 +352,6 @@ void um_ha_event_post(struct m0_dtm0_recovery_machine *m,
 	}
 }
 
-const struct m0_dtm0_recovery_machine_ops um_with_dummy_log_ops = {
-	.log_iter_next  = um_dummy_log_iter_next,
-	.log_iter_init  = um_dummy_log_iter_init,
-	.log_iter_fini  = um_dummy_log_iter_fini,
-
-	.redo_post      = um_dummy_log_redo_post,
-	.ha_event_post  = um_ha_event_post,
-};
-
-const struct m0_dtm0_recovery_machine_ops um_with_real_log_ops = {
-	/* Use default ops when we need to deal with real DTM0 log. */
-	.log_iter_next  = NULL,
-	.log_iter_init  = NULL,
-	.log_iter_fini  = NULL,
-
-	.redo_post      = um_real_log_redo_post,
-	.ha_event_post  = um_ha_event_post,
-};
-
-
 /*
  * Unicast an HA thought to a particular side.
  */
@@ -398,9 +378,35 @@ static void ut_remach_ha_thinks(struct ut_remach        *um,
 static const struct m0_dtm0_recovery_machine_ops*
 ut_remach_ops_get(struct ut_remach *um)
 {
-	return um->use_real_log ?
-		&um_with_real_log_ops :
-		&um_with_dummy_log_ops;
+	static struct m0_dtm0_recovery_machine_ops dummy_log_ops = {};
+	static struct m0_dtm0_recovery_machine_ops real_log_ops = {};
+	static bool initialized = false;
+
+	if (!initialized) {
+		/* Dummy log operations */
+		dummy_log_ops = m0_dtm0_recovery_machine_default_ops;
+
+		dummy_log_ops.log_iter_next  = um_dummy_log_iter_next;
+		dummy_log_ops.log_iter_init  = um_dummy_log_iter_init;
+		dummy_log_ops.log_iter_fini  = um_dummy_log_iter_fini;
+
+		dummy_log_ops.redo_post      = um_dummy_log_redo_post;
+		dummy_log_ops.ha_event_post  = um_ha_event_post;
+
+		/* Real log operations */
+		real_log_ops = m0_dtm0_recovery_machine_default_ops;
+
+		real_log_ops.redo_post      = um_real_log_redo_post;
+		real_log_ops.ha_event_post  = um_ha_event_post;
+		/*
+		 * Do not reassign log ops, as we need to deal with real DTM0
+		 * log.
+		 */
+
+		initialized = true;
+	}
+
+	return um->use_real_log ? &real_log_ops : &dummy_log_ops;
 }
 
 static void ut_srv_remach_init(struct ut_remach *um)
