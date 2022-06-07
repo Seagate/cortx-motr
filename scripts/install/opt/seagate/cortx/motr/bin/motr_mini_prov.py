@@ -60,6 +60,7 @@ CMD_RETRY_COUNT = 5
 MEM_THRESHOLD = 4*1024*1024*1024
 CVG_COUNT_KEY = "num_cvg"
 
+
 class MotrError(Exception):
     """ Generic Exception with error code and output """
 
@@ -69,6 +70,7 @@ class MotrError(Exception):
 
     def __str__(self):
         return f"error[{self._rc}]: {self._desc}"
+
 
 def execute_command_without_log(cmd,  timeout_secs = TIMEOUT_SECS,
     verbose = False, retries = 1, stdin = None, logging=False):
@@ -83,6 +85,7 @@ def execute_command_without_log(cmd,  timeout_secs = TIMEOUT_SECS,
     time.sleep(1)
     if ps.returncode != 0:
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
+
 
 #TODO: logger config(config_log) takes only self as argument so not configurable,
 #      need to make logger configurable to change formater, etc and remove below
@@ -165,6 +168,7 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
         raise MotrError(ps.returncode, f"\"{cmd}\" command execution failed")
     return stdout, ps.returncode
 
+
 # For normal command, we execute command for CMD_RETRY_COUNT(5 default) times and for each retry timeout is of TIMEOUT_SECS(120s default).
 # For daemon(e.g. m0d services), retry_count is 1 and tmeout is 0 so that we just execute this daemon command only once without timeout.
 def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False, set_timeout=True, retry_count = CMD_RETRY_COUNT):
@@ -190,6 +194,7 @@ def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = Fa
         return stdout, ps.returncode
     return
 
+
 def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS, retries = 1):
     for i in range(retries):
         self.logger.info(f"Retry: {i}. Executing cmd : '{cmd}'\n")
@@ -200,11 +205,13 @@ def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS, re
         time.sleep(1)
     return ps.returncode
 
+
 def check_type(var, vtype, msg):
     if not isinstance(var, vtype):
         raise MotrError(errno.EINVAL, f"Invalid {msg} type. Expected: {vtype}")
     if not bool(var):
         raise MotrError(errno.EINVAL, f"Empty {msg}.")
+
 
 def configure_machine_id(self, phase):
     if Conf.machine_id:
@@ -220,6 +227,7 @@ def configure_machine_id(self, phase):
     else:
         raise MotrError(errno.ENOENT, "machine id not available in conf")
 
+
 def get_server_node(self):
     """Get current node name using machine-id."""
     try:
@@ -230,6 +238,7 @@ def get_server_node(self):
 
     check_type(server_node, dict, "server_node")
     return server_node
+
 
 def calc_size(self, sz):
     ret = -1
@@ -251,6 +260,7 @@ def calc_size(self, sz):
         self.logger.error(f"Invalid format of mem limit: {sz}\n")
         self.logger.error("Please use valid format Ex: 1024, 1Ki, 1Mi, 1Gi etc..\n")
         return ret
+
 
 def set_setup_size(self, service):
     ret = False
@@ -307,6 +317,7 @@ def set_setup_size(self, service):
         self.logger.info(f"service={service} and setup_size={self.setup_size}\n")
     return ret
 
+
 def get_value(self, key, key_type):
     """Get data."""
     try:
@@ -317,6 +328,7 @@ def get_value(self, key, key_type):
     check_type(val, key_type, key)
     return val
 
+
 def get_logical_node_class(self):
     """Get logical_node_class."""
     try:
@@ -325,6 +337,7 @@ def get_logical_node_class(self):
         raise MotrError(errno.EINVAL, f"{logical_node_class} does not exist in ConfStore")
     check_type(logical_node_class, list, "logical_node_class")
     return logical_node_class
+
 
 def restart_services(self, services):
     for service in services:
@@ -336,9 +349,11 @@ def restart_services(self, services):
         cmd = f"systemctl status {service}"
         execute_command(self, cmd)
 
+
 def validate_file(file):
     if not os.path.exists(file):
         raise MotrError(errno.ENOENT, f"{file} does not exist")
+
 
 # Check if file paths are valid
 def validate_files(files):
@@ -346,12 +361,14 @@ def validate_files(files):
         if not os.path.exists(file):
             raise MotrError(errno.ENOENT, f"{file} does not exist")
 
+
 # Create directories
 def create_dirs(self, dirs):
     for entry in dirs:
         if not os.path.exists(entry):
             cmd = f"mkdir -p {entry}"
             execute_command(self, cmd, logging=False)
+
 
 def is_hw_node(self):
     try:
@@ -364,6 +381,7 @@ def is_hw_node(self):
         return True
     else:
         return False
+
 
 def validate_motr_rpm(self):
     '''
@@ -382,6 +400,7 @@ def validate_motr_rpm(self):
 
     self.logger.info(f"Checking for {MOTR_SYS_CFG}\n")
     validate_file(MOTR_SYS_CFG)
+
 
 def update_config_file(self, fname, kv_list):
     lines = []
@@ -413,6 +432,7 @@ def update_config_file(self, fname, kv_list):
     with open(f"{MOTR_SYS_CFG}", "w+") as fp:
         for line in lines:
             fp.write(f"{line}")
+
 
 def update_copy_motr_config_file(self):
     local_path = self.local_path
@@ -447,6 +467,7 @@ def update_copy_motr_config_file(self):
     cmd = f"cp {MOTR_SYS_CFG} {MOTR_M0D_CONF_DIR}"
     execute_command(self, cmd)
 
+
 # Get lists of metadata disks from Confstore of all cvgs
 # Input: node_info
 # Output: [['/dev/sdc'], ['/dev/sdf']]
@@ -462,6 +483,7 @@ def get_md_disks_lists(self, node_info):
             md_disks_lists.append(temp_cvg['devices']['metadata'])
     self.logger.info(f"md_disks lists on node = {md_disks_lists}\n")
     return md_disks_lists
+
 
 # Get metada disks from list of lists of metadata disks of
 # different cvgs of node
@@ -479,6 +501,7 @@ def get_mdisks_from_list(self, md_lists):
     self.logger.info(f"md_disks on node = {md_disks}\n")
     return md_disks
 
+
 # Update metadata disk entries to motr-hare confstore
 def update_to_file(self, index, url, machine_id, md_disks):
     ncvgs = len(md_disks)
@@ -492,6 +515,7 @@ def update_to_file(self, index, url, machine_id, md_disks):
             Conf.set(index, f"server>{machine_id}>cvg[{i}]>m0d[{j}]>md_seg1",f"{md_disk}")
             Conf.save(index)
 
+
 # populate self.storage_nodes with machine_id for all storage_nodes
 def get_data_nodes(self):
     machines: Dict[str,Any] = self.nodes
@@ -504,12 +528,14 @@ def get_data_nodes(self):
            storage_nodes.append(machine_id)
     return storage_nodes
 
+
 def update_motr_hare_keys(self, nodes):
     # key = machine_id value = node_info
     for machine_id in self.storage_nodes:
         node_info = nodes.get(machine_id)
         md_disks_lists = get_md_disks_lists(self, node_info)
         update_to_file(self, self._index_motr_hare, self._url_motr_hare, machine_id, md_disks_lists)
+
 
 # Write below content to /etc/cortx/motr/mini_prov_logrotate.conf file so that mini_mini_provisioner
 # log file will be rotated hourly and retained recent max 4 files. Max size of log file is 10M.
@@ -538,6 +564,7 @@ def add_entry_to_logrotate_conf_file(self):
     with open(f"{mini_prov_conf_file}", 'w+') as fp:
         for line in lines:
             fp.write(line)
+
 
 def motr_config_k8(self):
     if not verify_libfabric(self):
@@ -568,6 +595,7 @@ def motr_config_k8(self):
     update_copy_motr_config_file(self)
     return
 
+
 def motr_config(self):
     # Just to check if lnet is working properly
     try:
@@ -589,6 +617,7 @@ def motr_config(self):
         self.logger.info(f"Executing {MOTR_CONFIG_SCRIPT}")
         execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
 
+
 def configure_net(self):
     """Wrapper function to detect lnet/libfabric transport."""
     try:
@@ -604,6 +633,7 @@ def configure_net(self):
         configure_libfabric(self)
     else:
         raise MotrError(errno.EINVAL, "Unknown data transport type\n")
+
 
 def configure_lnet(self):
     '''
@@ -640,22 +670,27 @@ def configure_lnet(self):
     if not ret:
        raise MotrError(errno.EINVAL, "lent self ping failed\n")
 
+
 def configure_libfabric(self):
     cmd = "fi_info"
     execute_command(self, cmd, verbose=True)
+
 
 def verify_libfabric(self):
     cmd = "fi_info"
     execute_command(self, cmd)
     return True
 
+
 def swap_on(self):
     cmd = "swapon -a"
     execute_command(self, cmd)
 
+
 def swap_off(self):
     cmd = "swapoff -a"
     execute_command(self, cmd, retries=3)
+
 
 def add_swap_fstab(self, dev_name):
     '''
@@ -689,6 +724,7 @@ def add_swap_fstab(self, dev_name):
     finally:
         swap_on(self)
 
+
 def del_swap_fstab_by_vg_name(self, vg_name):
     swap_off(self)
 
@@ -696,6 +732,7 @@ def del_swap_fstab_by_vg_name(self, vg_name):
     execute_command(self, cmd)
 
     swap_on(self)
+
 
 def create_swap(self, swap_dev):
     self.logger.info(f"Make swap of {swap_dev}\n")
@@ -810,6 +847,7 @@ def create_lvm(self, index, metadata_dev):
         self.logger.info(f"swap_size after allocation ={allocated_swap_size_after}M\n")
     return True
 
+
 def calc_lvm_min_size(self, lv_path, lvm_min_size):
     cmd = f"lsblk --noheadings --bytes {lv_path} | " "awk '{print $4}'"
     res = execute_command(self, cmd)
@@ -821,6 +859,7 @@ def calc_lvm_min_size(self, lv_path, lvm_min_size):
         return lvm_min_size
     lvm_min_size = min(lv_size, lvm_min_size)
     return lvm_min_size
+
 
 def get_cvg_cnt_and_cvg(self):
     try:
@@ -842,6 +881,7 @@ def get_cvg_cnt_and_cvg(self):
     if not cvg:
         raise MotrError(errno.EINVAL, "cvg is empty\n")
     return cvg_cnt, cvg
+
 
 def validate_storage_schema(storage):
     check_type(storage, list, "storage")
@@ -867,8 +907,10 @@ def validate_storage_schema(storage):
                 for i in range(sz):
                     check_type(val[i], str, f"data_devices[{i}]")
 
+
 def align_val(val, size):
     return (int(val/size) * size)
+
 
 def update_bseg_size(self):
     dev_count = 0
@@ -885,6 +927,7 @@ def update_bseg_size(self):
         cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
         execute_command(self, cmd)
     return
+
 
 def config_lvm(self):
     dev_count = 0
@@ -916,6 +959,7 @@ def config_lvm(self):
         cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
         execute_command(self, cmd)
 
+
 def get_lnet_xface() -> str:
     """Get lnet interface."""
     lnet_xface = None
@@ -939,6 +983,7 @@ def get_lnet_xface() -> str:
                         f"Invalid iface {lnet_xface} in lnet.conf")
     return lnet_xface
 
+
 def check_pkgs(self, pkgs):
     """Check rpm packages."""
     for pkg in pkgs:
@@ -955,6 +1000,7 @@ def check_pkgs(self, pkgs):
             self.logger.info(f"rpm found: {pkg}\n")
         else:
             raise MotrError(errno.ENOENT, f"Missing rpm: {pkg}")
+
 
 def get_nids(self, nodes):
     """Get lnet nids of all available nodes in cluster."""
@@ -973,12 +1019,14 @@ def get_nids(self, nodes):
 
     return nids
 
+
 def get_nodes(self):
     nodes_info = Conf.get(self._index, 'server_node')
     nodes= []
     for value in nodes_info.values():
         nodes.append(value["hostname"])
     return nodes
+
 
 def lnet_ping(self):
     """Lnet lctl ping on all available nodes in cluster."""
@@ -990,6 +1038,7 @@ def lnet_ping(self):
        cmd = f"lctl ping {nid}"
        self.logger.info(f"lctl ping on: {nid}\n")
        execute_command(self, cmd)
+
 
 def test_lnet(self):
     '''
@@ -1023,9 +1072,11 @@ def test_lnet(self):
 
     lnet_ping(self)
 
+
 def test_libfabric(self):
     search_libfabric_pkgs = ["libfabric"]
     check_pkgs(self, search_libfabric_pkgs)
+
 
 def get_metadata_disks_count(self):
     dev_count = 0
@@ -1042,6 +1093,7 @@ def get_metadata_disks_count(self):
         for device in metadata_devices:
             dev_count += 1
     return dev_count
+
 
 def lvm_exist(self):
     metadata_disks_count = get_metadata_disks_count(self)
@@ -1068,6 +1120,7 @@ def lvm_exist(self):
             return False
     return True
 
+
 def cluster_up(self):
     cmd = '/usr/bin/hctl status'
     self.logger.info(f"Executing cmd : '{cmd}'\n")
@@ -1076,6 +1129,7 @@ def cluster_up(self):
         return True
     else:
         return False
+
 
 def pkg_installed(self, pkg):
     cmd = f'/usr/bin/yum list installed {pkg}'
@@ -1086,6 +1140,7 @@ def pkg_installed(self, pkg):
     else:
         self.logger.info(f"{pkg} is not installed\n")
         return False
+
 
 def test_io(self):
     mix_workload_path = f"{MOTR_WORKLOAD_DIR}/mix_workload.yaml"
@@ -1106,6 +1161,7 @@ def test_io(self):
     # File to log motr mini prov logs: /var/log/seagate/motr/mini_provisioner.
     # Currently we log to both console and /var/log/seagate/motr/mini_provisioner.
     # Firstly check if /var/log/seagate/motr exist. If not, create it.
+
 
 def config_logger(self):
     logger = logging.getLogger(LOGGER)
@@ -1135,6 +1191,7 @@ def config_logger(self):
     logger.addHandler(ch)
     return logger
 
+
 def remove_dirs(self, log_dir, patterns):
     if not os.path.exists(os.path.dirname(log_dir)):
         self.logger.warning(f"{log_dir} does not exist")
@@ -1159,6 +1216,7 @@ def remove_dirs(self, log_dir, patterns):
         if len(removed_dirs) > 0:
             self.logger.info(f"Removed below directories of pattern {pattern} from {log_dir}.\n{removed_dirs}")
 
+
 def remove_logs(self, patterns):
     for log_dir in MOTR_LOG_DIRS:
         if os.path.exists(log_dir):
@@ -1169,6 +1227,7 @@ def remove_logs(self, patterns):
         self.logger.info(f"Removing {IVT_DIR}")
         execute_command(self, f"rm -rf {IVT_DIR}")
 
+
 def check_services(self, services):
     for service in services:
         self.logger.info(f"Checking status of {service} service\n")
@@ -1178,6 +1237,7 @@ def check_services(self, services):
         if ret != 0:
             return False
     return True
+
 
 def verify_lnet(self):
     self.logger.info("Doing ping to nids.\n")
@@ -1195,6 +1255,7 @@ def verify_lnet(self):
         ret = lnet_self_ping(self)
     return ret
 
+
 def lnet_self_ping(self):
     nids = []
 
@@ -1208,6 +1269,7 @@ def lnet_self_ping(self):
        if ret != 0:
             return False
     return True
+
 
 def update_motr_hare_keys_for_all_nodes(self):
     hostname = self.server_node["hostname"]
@@ -1265,6 +1327,7 @@ def update_motr_hare_keys_for_all_nodes(self):
                     f" {host}:{self._motr_hare_conf}")
             execute_command(self, cmd)
 
+
 # Get voulme groups created on metadata devices mentioned in config file
 def get_vol_grps(self):
     cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
@@ -1285,6 +1348,7 @@ def get_vol_grps(self):
             if ret[0]:
                 vol_grps.append(ret[0].strip())
     return vol_grps
+
 
 def lvm_clean(self):
     self.logger.info("Removing cortx lvms")
@@ -1332,6 +1396,7 @@ def lvm_clean(self):
     # are removed. This is observed in hw setups where lvms are not cleaned up
     remove_dm_entries(self)
 
+
 def remove_dm_entries(self):
     cmd = "ls -l /dev/vg_srvnode*/* | awk '{print $9}'"
     lv_paths = execute_command(self, cmd)[0].split('\n')
@@ -1343,10 +1408,12 @@ def remove_dm_entries(self):
                 self.logger.info(f"dmsetup remove {lv_path}")
                 execute_command(self, f"dmsetup remove {lv_path}")
 
+
 def get_disk_size(self, device):
     cmd = f"fdisk -l {device} |" f"grep {device}:" "| awk '{print $5}'"
     ret = execute_command(self, cmd)
     return ret[0].strip()
+
 
 def read_config(file):
     fp = open(file, "r")
@@ -1358,6 +1425,7 @@ def read_config(file):
         entry = line.split('=',1)
         config_dict[entry[0]] = entry[1]
     return config_dict
+
 
 def part_clean(self):
     cvg_cnt, cvg = get_cvg_cnt_and_cvg(self)
@@ -1378,6 +1446,7 @@ def part_clean(self):
             dev_count += 1
     return ret
 
+
 # It will give num of partitions + 1.
 # To get partition numbers, subract 1 from output
 def get_part_count(self, device):
@@ -1385,6 +1454,7 @@ def get_part_count(self, device):
    cmd = f"lsblk -o name | grep -c {fname}"
    ret = int(execute_command(self, cmd, verbose=True)[0]) - 1
    return ret
+
 
 def delete_parts(self, dev_count, device):
     # Delete 2 partitions be_log, raw_md
@@ -1401,11 +1471,13 @@ def delete_parts(self, dev_count, device):
             return ret
         time.sleep(2)
 
+
 def delete_part(self, device, part_num):
     cmd = f"fdisk {device}"
     stdin_str = str("d\n"+f"{part_num}"+"\n" + "w\n")
     ret = execute_command(self, cmd, stdin=stdin_str, verbose=True)
     return ret[1]
+
 
 def get_fid(self, fids, service, idx):
     fids_list = []
@@ -1433,6 +1505,7 @@ def get_fid(self, fids, service, idx):
         self.logger.error(f"No fids for service({service}). Returning -1.")
         return -1
 
+
 # Fetch fid of service using command 'hctl fetch-fids'
 # First populate a yaml file with the output of command 'hctl fetch-fids'
 # Use this yaml file to get proper fid of required service.
@@ -1452,6 +1525,7 @@ def fetch_fid(self, service, idx):
     fid = get_fid(self, fids, service, idx)
     return fid
 
+
 def getListOfm0dProcess():
     '''
     Get list of running m0d process
@@ -1469,11 +1543,13 @@ def getListOfm0dProcess():
            pass
     return listOfProc
 
+
 def receiveSigTerm(signalNumber, frame):
     for proc in getListOfm0dProcess():
         cmd=f"KILL -SIGTERM {proc.get('pid')}"
         execute_command_without_log(cmd)
     return
+
 
 # If service is one of [ios,confd,hax] then we expect fid to start the service
 # and start services using motr-mkfs and motr-server.
