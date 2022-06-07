@@ -64,6 +64,6 @@ These components are spread over 5 Motr tasks:
 
 + core: external interfaces and cache data-structures;
 + sessions. The scope is clear. Note that current effort does not include "ordered" part of the guarantees (i.e., there is no resend);
-+  batching: simple rpc formation algorithm (max-in-flight, max-message-size, max-message-fragments). This includes definition and stub implementation of transport interfaces to return these parameters;
++   batching: simple rpc formation algorithm (max-in-flight, max-message-size, max-message-fragments). This includes definition and stub implementation of transport interfaces to return these parameters;
 + bulk transfer: interaction with a transport level rdma. This includes bringing the rdma branch up to date and looking through LNET bulk interfaces in Lustre to understand how rdma interfaces of the future network transport layer will look like. A stub implementation of these interfaces should be provided and rpc-level bulk implemented on top of it.
 + FOP:core: wire format of rpcs. A fop already knows how to encode itself to the wire and decode back. The scope of this task is to define a format of rpc in terms of items (an abstract item data-type should be introduced with operations to query item size, alignment requirements, decode, encode, &c.) and provide implementation of this type for fops and addb records. In addition, rpc should have a common header storing generic information, like epoch numbers.
