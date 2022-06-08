@@ -26,7 +26,7 @@ PartOf=motr-singlenode.service
 
 [Service]
 Type=oneshot
-Group=motr
+#Group=motr
 ExecStart=/usr/libexec/cortx-motr/motr start
 ExecStartPost=-/usr/libexec/cortx-motr/motr-dixinit
 ExecStop=/usr/libexec/cortx-motr/motr stop

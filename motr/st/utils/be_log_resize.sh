@@ -22,8 +22,8 @@ function usage()
 
 change_be_log_size() {
     for fid in $M0D_LIST_FID; do
-    	local log_file="/var/motr/m0d-${fid}/db-log/o/0:28"
-    	local db_file="/var/motr/m0d-${fid}/db"
+    	local log_file="$HOME/seagate/var/motr/m0d-${fid}/db-log/o/0:28"
+    	local db_file="$HOME/seagate/var/motr/m0d-${fid}/db"
 	echo "Before setting BE log size log_file=$log_file"
 	[[ -f "$log_file" ]] && ls -lsh $log_file
 	echo "db_file=$db_file"

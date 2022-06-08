@@ -26,5 +26,5 @@ Before=motr-server@%i.service
 [Service]
 Type=oneshot
 EnvironmentFile=-/var/motr/env.sh
-Group=motr
+#Group=motr
 ExecStart=/usr/libexec/cortx-motr/motr-mkfs %i

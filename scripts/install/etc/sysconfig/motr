@@ -12,7 +12,7 @@
 KERNEL_HUGEPAGE_DEFRAG='never'
 
 # Location of Motr logs and trace files, by default it's /var/log/motr.
-MOTR_LOG_DIR='/var/log/motr'
+MOTR_LOG_DIR=$HOME/seagate/var/log/motr
 
 # Override default value for m0t1fs mount point
 MOTR_M0T1FS_MOUNTPOINT='/mnt/m0t1fs'

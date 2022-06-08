@@ -14,10 +14,10 @@
 set -e
 set -E
 
-sysconfig_dir='/etc/sysconfig'
-[ -d /etc/sysconfig ] || sysconfig_dir='/etc/default'
+sysconfig_dir=$HOME/seagate/etc/sysconfig
+[ -d $HOME/seagate/etc/sysconfig ] || sysconfig_dir=$HOME/seagate/etc/default
 
-MOTR_M0D_CONF_DIR=$(source /etc/sysconfig/motr; echo $MOTR_M0D_CONF_DIR)
+MOTR_M0D_CONF_DIR=$(source $HOME/seagate/etc/sysconfig/motr; echo $MOTR_M0D_CONF_DIR)
 
 user_config=${MOTR_M0D_CONF_DIR:-$sysconfig_dir}/motr
 kernel_config=${MOTR_M0D_CONF_DIR:-$sysconfig_dir}/motr-kernel
@@ -50,7 +50,7 @@ readonly default_m0d_min_rpc_recvq_len=16
 readonly default_m0d_beseg_size=8589934592
 readonly default_m0d_ios_beseg_size=4294967296
 
-readonly MOTR_M0D_DEFAULT_DATA_DIR='/var/motr'
+readonly MOTR_M0D_DEFAULT_DATA_DIR='$HOME/seagate/var/motr'
 
 #
 # Library functions
@@ -176,7 +176,7 @@ m0_load_modules()
         local qlen=${MOTR_M0D_MIN_RPC_RECVQ_LEN:-$(m0_genders_value_of m0_min_rpc_recvq_len)}
         local ep=$(m0_get_kmod_ep)
 
-        [[ -n "$uuid" ]] || m0_exit 'MOTR_NODE_UUID is missing, check /etc/sysconfig/motr-kernel file'
+        [[ -n "$uuid" ]] || m0_exit 'MOTR_NODE_UUID is missing, check $HOME/seagate/etc/sysconfig/motr-kernel file'
 
         m0tr_params="$m0tr_params node_uuid=$uuid"
         m0tr_params="$m0tr_params local_addr=$ep"

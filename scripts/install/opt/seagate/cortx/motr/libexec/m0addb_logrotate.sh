@@ -54,7 +54,7 @@ log_dirs_max_count=2
 # Need to get it from config file 
 ADDB_RECORD_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_ADDB_STOB_DIR" | cut -d '=' -f2)
 if [ -z "$ADDB_RECORD_DIR" ]; then
-   ADDB_RECORD_DIR="/var/motr/m0d-*"
+   ADDB_RECORD_DIR="$HOME/seagate/var/motr/m0d-*"
 fi
 
 ADDB_DIR="${ADDB_RECORD_DIR%\'}"

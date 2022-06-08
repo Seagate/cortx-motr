@@ -765,12 +765,12 @@ create_swap() {
     return $exec_status
 }
 
-# Clean up /var/motr/m0d-IOS_FID/stobs/o directory in case of beck tool crash from both nodes
+# Clean up $HOME/seagate/var/motr/m0d-IOS_FID/stobs/o directory in case of beck tool crash from both nodes
 # and umount /var/motr
 cleanup_stobs_dir() {
     sleep 10 # Wait is needed to ensure both nodes process are stopped
-    run_cmd_on_local_node "rm -f /var/motr/m0d-$LOCAL_IOS_FID/stobs/o/*"
-    run_cmd_on_remote_node "rm -f /var/motr/m0d-$REMOTE_IOS_FID/stobs/o/*"
+    run_cmd_on_local_node "rm -f $HOME/seagate/var/motr/m0d-$LOCAL_IOS_FID/stobs/o/*"
+    run_cmd_on_remote_node "rm -f $HOME/seagate/var/motr/m0d-$REMOTE_IOS_FID/stobs/o/*"
     run_cmd_on_local_node "umount $MD_DIR" > /dev/null
     run_cmd_on_remote_node "umount $MD_DIR" > /dev/null
     [[ $REMOTE_STORAGE_STATUS -eq 0 ]] || run_cmd_on_local_node "umount $FAILOVER_MD_DIR" > /dev/null

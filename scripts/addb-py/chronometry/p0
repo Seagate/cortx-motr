@@ -232,7 +232,7 @@ cmd_dump() {
                 _warn "Client has no IO service"
                 exit 0
             }
-            local dump_s="/var/motr/m0d-${IOS_FID}/addb-stobs/o/100000000000000:2"
+            local dump_s="$HOME/seagate/var/motr/m0d-${IOS_FID}/addb-stobs/o/100000000000000:2"
 
             for d in $dump_s; do
                 local pid=$(echo $d | sed -E 's/.*[x]([a-z0-9]*)[/].*/\1/')
