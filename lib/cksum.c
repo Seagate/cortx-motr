@@ -159,10 +159,10 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 {
 #ifndef __KERNEL__
 	MD5_CTX context;
-	int i, rc;
+	int     i;
+	int     rc;
 
 	M0_ENTRY();
-
 	M0_PRE(pi != NULL);
 	M0_PRE(curr_context != NULL);
 	M0_PRE(ergo(bvec != NULL && bvec->ov_vec.v_nr != 0,
@@ -183,7 +183,6 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 
 	/* memcpy, so that we do not change the prev_context */
 	memcpy(curr_context, &pi->pimd5c_prev_context, sizeof(MD5_CTX));
-
 
 	/* get the curr context by updating it*/
 	if (bvec != NULL) {
@@ -210,7 +209,8 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 	if (pi_value_without_seed != NULL) {
 		/*
 		 * NOTE: MD5_final() changes the context itself and curr_context
-		 * should not be finalised, thus copy it and use it for MD5_final
+		 * should not be finalised, thus copy it and use it for
+		 * MD5_final
 		 */
 		memcpy((void *)&context, (void *)curr_context, sizeof(MD5_CTX));
 
@@ -232,7 +232,6 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 	memcpy((void *)&context, (void *)curr_context, sizeof(MD5_CTX));
 
 	if (seed != NULL) {
-
 		/*
 		 * seed_str have string represention for 3 uint64_t(8 bytes)
 		 * range for uint64_t is 0 to 18,446,744,073,709,551,615 at
@@ -289,15 +288,15 @@ M0_INTERNAL uint32_t m0_cksum_get_size(enum m0_pi_algo_type pi_type)
 M0_INTERNAL uint32_t m0_cksum_get_max_size(void)
 {
 	return (sizeof(struct m0_md5_pi) > sizeof(struct m0_md5_inc_context_pi) ?
-			sizeof(struct m0_md5_pi) : sizeof(struct m0_md5_inc_context_pi));
+		sizeof(struct m0_md5_pi) : sizeof(struct m0_md5_inc_context_pi));
 }
 
 int m0_client_calculate_pi(struct m0_generic_pi *pi,
-		struct m0_pi_seed *seed,
-		struct m0_bufvec *bvec,
-		enum m0_pi_calc_flag flag,
-		unsigned char *curr_context,
-		unsigned char *pi_value_without_seed)
+			   struct m0_pi_seed *seed,
+			   struct m0_bufvec *bvec,
+			   enum m0_pi_calc_flag flag,
+			   unsigned char *curr_context,
+			   unsigned char *pi_value_without_seed)
 {
 	int rc = 0;
 	M0_ENTRY();
@@ -313,8 +312,8 @@ int m0_client_calculate_pi(struct m0_generic_pi *pi,
 		struct m0_md5_inc_context_pi *md5_context_pi =
 			(struct m0_md5_inc_context_pi *) pi;
 		rc = m0_calculate_md5_inc_context(md5_context_pi, seed, bvec,
-				                  flag, curr_context,
-						  pi_value_without_seed);
+										  flag, curr_context,
+										  pi_value_without_seed);
 		}
 		break;
 	}
@@ -358,7 +357,7 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 					 seed->pis_obj_id.f_container,
 					 seed->pis_obj_id.f_key,
 					 seed->pis_data_unit_offset);
-				return false;
+			return false;
 		}
 		break;
 	}

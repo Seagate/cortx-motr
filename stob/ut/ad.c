@@ -191,7 +191,7 @@ static void init_vecs()
 		memset(user_buf[i], ('a' + i)|1, buf_size);
 	}
 
-	// Allocate contigious buffer for i/p checksums
+	/** Allocate contigious buffer for i/p checksums */
 	memset( user_cksm_buf[0], cs_char++, AD_CS_SZ);
 	for (i = 1; i < ARRAY_SIZE(user_cksm_buf); ++i) {
 		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_CS_SZ;
@@ -266,7 +266,7 @@ static int test_ad_init(bool use_small_credits)
 		M0_ASSERT(read_buf[i] != NULL);
 	}
 
-	// Allocate contigious buffer for o/p checksums
+	/* Allocate contiguous buffer for o/p checksums */
 	read_cksm_buf[0] = m0_alloc(AD_CS_SZ * ARRAY_SIZE(read_cksm_buf));
 	M0_ASSERT(read_cksm_buf[0] != NULL);
 
@@ -396,7 +396,7 @@ static void test_read(int nr)
 	io.si_cksum_sz = AD_CS_SZ;
 	// Checksum for i buf_size blocks
 	io.si_cksum.b_addr = read_cksm_buf[0];
-	io.si_cksum.b_nob  = ( nr * AD_CS_SZ );
+	io.si_cksum.b_nob  = (nr * AD_CS_SZ);
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
@@ -497,7 +497,7 @@ static void test_ad_rw_unordered()
 	for (i = NR/2; i < NR; ++i) {
 		stob_vi[i-(NR/2)] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i-(NR/2)], ('a' + i)|1, buf_size);
-		memset(user_cksm_buf[i-(NR/2)], ('A' + i)|1, AD_CS_SZ);
+		memset(user_cksm_buf[i - (NR / 2)], ('A' + i) | 1, AD_CS_SZ);
 	}
 	test_write(NR/2, NULL);
 
@@ -505,7 +505,7 @@ static void test_ad_rw_unordered()
 	for (i = 0; i < NR/2; ++i) {
 		stob_vi[i] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
-		memset(user_cksm_buf[i], ('A' + i)|1, AD_CS_SZ);
+		memset(user_cksm_buf[i], ('A' + i) | 1, AD_CS_SZ);
 	}
 	test_write(NR/2, NULL);
 
@@ -513,15 +513,15 @@ static void test_ad_rw_unordered()
 	for (i = 0; i < NR; ++i) {
 		stob_vi[i] = (buf_size * (i + 1)) >> block_shift;
 		memset(user_buf[i], ('a' + i)|1, buf_size);
-		memset(user_cksm_buf[i], ('A' + i)|1, AD_CS_SZ);
+		memset(user_cksm_buf[i], ('A' + i) | 1, AD_CS_SZ);
 	}
 
 	/* This generates unordered offsets for back stob io */
 	test_read(NR);
-	for (i = 0; i < NR; ++i)
-	{
+	for (i = 0; i < NR; ++i) {
 		M0_ASSERT(memcmp(user_buf[i], read_buf[i], buf_size) == 0);
-		M0_ASSERT(memcmp(user_cksm_buf[i], read_cksm_buf[i], AD_CS_SZ) == 0);
+		M0_ASSERT(memcmp(user_cksm_buf[i], read_cksm_buf[i],
+				 AD_CS_SZ) == 0);
 	}
 }
 
@@ -539,8 +539,10 @@ static void test_ad(void)
 		int j;
 		test_read(i);
 		for (j = 0; j < i; ++j) {
-			M0_ASSERT(memcmp(user_buf[j], read_buf[j], buf_size) == 0);
-			M0_ASSERT(memcmp(user_cksm_buf[j], read_cksm_buf[j], AD_CS_SZ) == 0);
+			M0_ASSERT(memcmp(user_buf[j], read_buf[j],
+					 buf_size) == 0);
+			M0_ASSERT(memcmp(user_cksm_buf[j], read_cksm_buf[j],
+					 AD_CS_SZ) == 0);
 		}
 	}
 }
@@ -558,7 +560,8 @@ static void punch_test(void)
 		test_punch(i);
 		test_read(i);
 		for (j = 0; j < i; ++j) {
-			M0_ASSERT(memcmp(zero_buf[j], read_buf[j], buf_size) == 0);
+			M0_ASSERT(memcmp(zero_buf[j], read_buf[j],
+					 buf_size) == 0);
 		}
 	}
 }

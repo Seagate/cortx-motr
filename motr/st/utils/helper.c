@@ -287,10 +287,10 @@ static int write_data_to_object(struct m0_obj *obj,
 	int                  rc;
 	struct m0_op        *ops[1] = {NULL};
 
-	/** Create write operation
-	 *  CKSUM_TODO: calculate cksum and pass in
-        *  attr instead of NULL
-        */
+	/* Create write operation
+	 * CKSUM_TODO: calculate cksum and pass in
+	 * attr instead of NULL
+	 */
 	rc = m0_obj_op(obj, M0_OC_WRITE, ext, data, NULL, 0, 0, &ops[0]);
 	if (rc != 0)
 		return M0_ERR(rc);

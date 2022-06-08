@@ -254,7 +254,7 @@ static void ut_test_target_ioreq_seg_add(void)
 	src->sa_unit = 1;
 	tgt->ta_frame = 1;
 	map = ut_dummy_pargrp_iomap_create(instance, 1);
-	/* don't use this allocated buf*/
+	/* don't use this allocated buf */
 	ut_dummy_data_buf_free(map->pi_databufs[0][0]);
 	map->pi_ioo = ioo;
 	map->pi_databufs[0][0]->db_buf.b_addr = NULL;

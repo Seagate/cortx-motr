@@ -855,8 +855,9 @@ struct fop_cksum_idx_gbl_data {
  * Data structure for unit index tracking
  */
 struct fop_cksum_idx_data {
-	// Index for tracking which Parity Group and which Index (0..k-1) or (0..n-1)
-	// will be assigned to target
+	/* Index for tracking which Parity Group and which Index (0..k-1)
+	 * or (0..n-1) will be assigned to target
+	 */
 	uint32_t                       ci_pg_idx;
 	uint32_t                       ci_unit_idx;
 };
@@ -890,7 +891,7 @@ struct ioreq_fop {
 	/** Status of IO reply fop. */
 	int                          irf_reply_rc;
 
-	/** Checksum realted: Unit start index (cd_idx) & count for tracking */
+	/** Checksum related: Unit start index (cd_idx) & count for tracking */
 	struct fop_cksum_data  		 irf_cksum_data;
 
 	/** In-memory handle for IO fop. */

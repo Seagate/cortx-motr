@@ -28,16 +28,17 @@
 
 M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start(m0_bindex_t ext_start,
 						     m0_bindex_t ext_len,
-						     m0_bindex_t unit_sz )
+						     m0_bindex_t unit_sz)
 {
 
 	/* Compute how many unit starts in a given extent spans:
-	 * Illustration below shows how extents can be received w.r.t unit size (4)
+	 * Illustration below shows how extents can be received w.r.t
+	 * unit size (4)
 	 *    | Unit 0|| Unit 1|| Unit 2|| Unit 3 |
 	      |0|1|2|3||4|5|6|7||8|9|a|b|
 	 * 1. | e1|                            => 1 (0,2)(ext_start,ext_len)
 	 * 2. |   e2  |                        => 1 (0,4) ending on unit 0
-	 * 3. |   e2     |                     => 2 (0,5) ending on unit 1's start
+	 * 3. |   e2     |                     => 2 (0,5) end on unit 1's start
 	 * 4.   |   e3   |                     => 1 (2,5)
 	 * 5.   | e4 |                         => 0 (1,3) within unit 0
 	 * 6.     | e5 |                       => 1 (3,5) ending on unit 1 end
@@ -52,9 +53,9 @@ M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start(m0_bindex_t ext_start,
 
 	m0_bcount_t cs_nob;
 	M0_ASSERT(unit_sz);
-	cs_nob = ( (ext_start + ext_len - 1)/unit_sz - ext_start/unit_sz );
+	cs_nob = ((ext_start + ext_len - 1) / unit_sz - ext_start / unit_sz);
 
-	/** Add handling for case 1 and 5 */
+	/* Add handling for case 1 and 5 */
 	if ((ext_start % unit_sz) == 0)
 		cs_nob++;
 
@@ -67,8 +68,10 @@ M0_INTERNAL m0_bcount_t m0_extent_get_unit_offset(m0_bindex_t off,
 						  m0_bindex_t unit_sz)
 {
 	M0_ASSERT(unit_sz);
-	/* Unit size we get from layout id using m0_obj_layout_id_to_unit_size(lid) */
-	return (off - base_off)/unit_sz;
+	/* Unit size we get from layout id using
+	 * m0_obj_layout_id_to_unit_size(lid)
+	 */
+	return (off - base_off) / unit_sz;
 }
 
 M0_INTERNAL void * m0_extent_get_checksum_addr(void *b_addr,
@@ -78,70 +81,78 @@ M0_INTERNAL void * m0_extent_get_checksum_addr(void *b_addr,
 					       m0_bcount_t cs_size)
 {
 	M0_ASSERT(unit_sz && cs_size);
-	return (char *)b_addr + m0_extent_get_unit_offset(off, base_off, unit_sz) *
-		                cs_size;
+	return (char *)b_addr +
+	       m0_extent_get_unit_offset(off, base_off, unit_sz) *
+	       cs_size;
 }
 
 M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob(m0_bindex_t ext_start,
 						   m0_bindex_t ext_length,
 						   m0_bindex_t unit_sz,
-						   m0_bcount_t cs_size )
+						   m0_bcount_t cs_size)
 {
 	M0_ASSERT(unit_sz && cs_size);
-	return m0_extent_get_num_unit_start(ext_start, ext_length, unit_sz) * cs_size;
+	return m0_extent_get_num_unit_start(ext_start, ext_length, unit_sz) *
+	       cs_size;
 }
 
-/* This function will get checksum address for application provided checksum buffer
- * Checksum is corresponding to on offset (e.g gob offset) & its extent and this
- * function helps to locate exact address for the above.
+/* This function will get checksum address for application provided checksum
+ * buffer Checksum is corresponding to on offset (e.g gob offset) & its extent
+ * and this function helps to locate exact address for the above.
  * Checksum is stored in contigious buffer: cksum_buf_vec, while COB extents may
  * not be contigious e.g.
  * Assuming each extent has two DU, so two checksum.
  *     | CS0 | CS1 | CS2 | CS3 | CS4 | CS5 | CS6 |
  *     | iv_index[0] |   | iv_index[1] | iv_index[2] |   | iv_index[3] |
- * Now if we have an offset for CS3 then after first travesal b_addr will point to
- * start of CS2 and then it will land in m0_ext_is_in and will compute correct
- * addr for CS3.
+ * Now if we have an offset for CS3 then after first travesal b_addr will point
+ * to start of CS2 and then it will land in m0_ext_is_in and will compute
+ * correct addr for CS3.
  */
 
 M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *cksum_buf_vec,
 						   m0_bindex_t off,
 						   void *ivec,
 						   m0_bindex_t unit_sz,
-						   m0_bcount_t cs_sz )
+						   m0_bcount_t cs_sz)
 {
-	void *cksum_addr = NULL;
-	struct m0_ext ext;
-	struct m0_indexvec *vec = (struct m0_indexvec *)ivec;
-	struct m0_bufvec *cksum_vec = (struct m0_bufvec *)cksum_buf_vec;
-	struct m0_bufvec_cursor   cksum_cursor;
-	int attr_nob = 0;
-	int i;
+	void                        *cksum_addr = NULL;
+	struct m0_ext                ext;
+	struct m0_indexvec          *vec = (struct m0_indexvec *)ivec;
+	struct m0_bufvec            *cksum_vec;
+	struct m0_bufvec_cursor      cksum_cursor;
+	int                          attr_nob = 0;
+	int                          i;
+
+	cksum_vec = (struct m0_bufvec *)cksum_buf_vec;
 
 	/* Get the checksum nobs consumed till reaching the off in given io */
-	for (i = 0; i < vec->iv_vec.v_nr; i++)  {
+	for (i = 0; i < vec->iv_vec.v_nr; i++) {
 		ext.e_start = vec->iv_index[i];
 		ext.e_end = vec->iv_index[i] + vec->iv_vec.v_count[i];
 
-		/* We construct current extent e.g for iv_index[0] and check if offset is
-		 * within the span of current extent
-		 *      | iv_index[0] || iv_index[1] | iv_index[2] || iv_index[3] |
+		/* We construct current extent e.g for iv_index[0] and check if
+		 * offset is within the span of current extent
+		 * | iv_index[0] || iv_index[1] | iv_index[2] || iv_index[3] |
 		 */
 		if (m0_ext_is_in(&ext, off)) {
-			attr_nob += ( m0_extent_get_unit_offset(off, ext.e_start, unit_sz) * cs_sz);
+			attr_nob += (m0_extent_get_unit_offset(off, ext.e_start,
+							       unit_sz) *
+							       cs_sz);
 			break;
 		}
 		else {
-			/* off is not in the current extent, so account increment the b_addr */
+			/* off is not in the current extent, so account
+			 * increment the b_addr */
 			attr_nob +=  m0_extent_get_checksum_nob(ext.e_start,
-					vec->iv_vec.v_count[i], unit_sz, cs_sz);
+								vec->iv_vec.v_count[i],
+								unit_sz, cs_sz);
 		}
 	}
 
-	/** Assert to make sure the the offset is lying within the extent */
+	/* Assert to make sure the the offset is lying within the extent */
 	M0_ASSERT(i < vec->iv_vec.v_nr);
 
-	/** get the checksum_addr */
+	/* get the checksum_addr */
 	m0_bufvec_cursor_init(&cksum_cursor, cksum_vec);
 
 	if (attr_nob) {

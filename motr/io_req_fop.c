@@ -106,12 +106,12 @@ static void print_pi(void *pi,int size)
 	int i;
 	char arr[size * 3];
 	char *ptr = pi;
-	M0_LOG(M0_DEBUG,">>>>>>>>>>>>>>>>>>[PI Values]<<<<<<<<<<<<<<<<<");
+	M0_LOG(M0_WARN,">>>>>>>>>>>>>>>>>>[PI Values]<<<<<<<<<<<<<<<<<");
 	for (i = 0; i < size; i++)
 	{
 		sprintf(&arr[i*3],"%02x ",ptr[i] & 0xff);
 	}
-	M0_LOG(M0_DEBUG,"%s ",(char *)arr);
+	M0_LOG(M0_WARN,"%s ",(char *)arr);
 }
 
 static int application_checksum_process( struct m0_op_io *ioo,
@@ -129,11 +129,11 @@ static int application_checksum_process( struct m0_op_io *ioo,
 	struct fop_cksum_data                  *cs_data;
 
 	cs_data = &irfop->irf_cksum_data;
-	// Validate if FOP has unit count set
+	/* Validate if FOP has unit count set */
 	num_units = cs_data->cd_num_units;
 	M0_ASSERT(num_units != 0);
 
-	// FOP reply data should have pi type correctly set
+	/* FOP reply data should have pi type correctly set */
 	cksum_type = ((struct m0_pi_hdr *)rw_rep_cs_data->b_addr)->pih_type;
 	M0_ASSERT(cksum_type < M0_PI_TYPE_MAX);
 	cksum_size = m0_cksum_get_size(cksum_type);
@@ -142,12 +142,14 @@ static int application_checksum_process( struct m0_op_io *ioo,
 		return rc;
 	}
 
-	// We should get checksum size which is same as requested, this will also
-	// confirm that user has correctly allocated buffer for checksum in ioo attr
-	// structure.
+	/*
+	 * We should get checksum size which is same as requested, this will also
+	 * confirm that user has correctly allocated buffer for checksum in ioo attr
+	 * structure.
+	 */
 	M0_ASSERT(rw_rep_cs_data->b_nob == num_units * cksum_size);
 
-	// Allocate checksum buffer
+	/* Allocate checksum buffer */
 	compute_cs_buf = m0_alloc(cksum_size);
 	if (compute_cs_buf == NULL )
 		return -ENOMEM;
@@ -159,34 +161,36 @@ static int application_checksum_process( struct m0_op_io *ioo,
 						&cs_data->cd_idx[idx];
 		M0_ASSERT(cs_idx->ci_pg_idx != UINT32_MAX && cs_idx->ci_unit_idx != UINT32_MAX);
 
-		// Calculate checksum for each unit
+		/* Calculate checksum for each unit */
 		rc = target_calculate_checksum(ioo, cksum_type, irfop->irf_pattr, cs_idx,
 					       compute_cs_buf );
 		if (rc != 0)
 			goto fail;
 
-		// Compare computed and received checksum
+		/* Compare computed and received checksum */
 		if (memcmp(rw_rep_cs_data->b_addr + cs_compared,
 		    compute_cs_buf, cksum_size) != 0) {
-			// Add error code to the target status			
+			/* Add error code to the target status */
 			rc = M0_RC(-EIO);
 			ioo->ioo_rc = M0_RC(-EIO);
 			ioo->ioo_di_err_count++;
 
-			// Log all info to locate unit
+			/* Log all info to locate unit */
 			M0_LOG(M0_ERROR,"IMP ERROR: Checksum validation failed for Obj: 0x%"PRIx64 
 					" 0x%"PRIx64 " PG0Off: 0x%"PRIx64 " Goff:0x%"PRIx64 " [PG Idx:%d][Unit Idx:%d]",
 					ioo->ioo_obj->ob_entity.en_id.u_hi,
 					ioo->ioo_obj->ob_entity.en_id.u_lo,
 					ioo->ioo_iomaps[0]->pi_grpid * data_size(pdlayout_get(ioo)),
 					ti->ti_goff_ivec.iv_index[0],
-					(uint32_t)(cs_idx->ci_pg_idx + ioo->ioo_iomaps[0]->pi_grpid),
+					(uint32_t)(cs_idx->ci_pg_idx +
+					           ioo->ioo_iomaps[0]->pi_grpid),
 					cs_idx->ci_unit_idx);
 			print_pi(rw_rep_cs_data->b_addr, rw_rep_cs_data->b_nob);
 			print_pi(compute_cs_buf, cksum_size);
 		}
-		// Copy checksum to application buffer
-		if (!m0__obj_is_di_cksum_gen_enabled(ioo) && (irfop->irf_pattr != PA_PARITY)) {
+		/* Copy checksum to application buffer */
+		if (!m0__obj_is_di_cksum_gen_enabled(ioo) &&
+		    (irfop->irf_pattr != PA_PARITY)) {
 			uint32_t unit_off;
 			struct m0_pdclust_layout *play = pdlayout_get(ioo);
 
@@ -200,7 +204,7 @@ static int application_checksum_process( struct m0_op_io *ioo,
 		cs_compared += cksum_size;
 		M0_ASSERT(cs_compared <= rw_rep_cs_data->b_nob);
 	}
-	// All checksum expected from target should be received
+	/* All checksum expected from target should be received */
 	M0_ASSERT(cs_compared == rw_rep_cs_data->b_nob);
 
 fail:
@@ -277,23 +281,28 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	if (m0_is_read_rep(reply_fop)) {
 		if (rw_reply->rwr_di_data_cksum.b_addr)
-				rc = application_checksum_process(ioo, tioreq,
-				     irfop, &rw_reply->rwr_di_data_cksum);
-		// Debug info
-		else if (m0__obj_is_di_enabled(ioo) && irfop->irf_cksum_data.cd_num_units &&
-			 (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_READ)) {
+			rc = application_checksum_process(ioo, tioreq,
+			     irfop, &rw_reply->rwr_di_data_cksum);
+		else if (m0__obj_is_di_enabled(ioo) &&
+		         irfop->irf_cksum_data.cd_num_units &&
+			     (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_READ)) {
 			int cdi;
-			M0_LOG(M0_ERROR,"No DI data received Ext0: %"PRIi64 " ExtN: %"PRIi64 " Count0: %"PRIi64
-					" Vnr: %"PRIi32" CountEnd: %"PRIi64,
+			M0_LOG(M0_WARN,"No DI data received Ext0: %" PRIi64
+			       "ExtN: %"PRIi64 " Count0: %" PRIi64
+					" Vnr: %"PRIi32" CountEnd: %" PRIi64 ,
 					tioreq->ti_goff_ivec.iv_index[0],
-					tioreq->ti_goff_ivec.iv_index[tioreq->ti_goff_ivec.iv_vec.v_nr-1],
+					tioreq->ti_goff_ivec.iv_index
+					                     [tioreq->ti_goff_ivec.iv_vec.v_nr-1],
 					tioreq->ti_goff_ivec.iv_vec.v_count[0],
 					tioreq->ti_goff_ivec.iv_vec.v_nr,
-					tioreq->ti_goff_ivec.iv_vec.v_count[tioreq->ti_goff_ivec.iv_vec.v_nr-1]);
+					tioreq->ti_goff_ivec.iv_vec.v_count
+					                     [tioreq->ti_goff_ivec.iv_vec.v_nr-1]);
 			for (cdi = 0; cdi < irfop->irf_cksum_data.cd_num_units; cdi++)
-				M0_LOG(M0_ERROR,"%d. No DI for [%s] [PG Idx:%d][Unit Idx:%d]", cdi + 1,
+				M0_LOG(M0_WARN,"%d. No DI for [%s] [PG Idx:%d][Unit Idx:%d]",
+				                                                      cdi + 1,
 						irfop->irf_pattr == PA_DATA ? "D" : "P",
-						(uint32_t)(irfop->irf_cksum_data.cd_idx[cdi].ci_pg_idx + ioo->ioo_iomaps[0]->pi_grpid),
+						(uint32_t)(irfop->irf_cksum_data.cd_idx[cdi].ci_pg_idx +
+						                       ioo->ioo_iomaps[0]->pi_grpid),
 						irfop->irf_cksum_data.cd_idx[cdi].ci_unit_idx);
 		}
 	}
@@ -941,29 +950,29 @@ static void ioreq_fop_release(struct m0_ref *ref)
 	M0_LEAVE();
 }
 
-// Initialize checksum data structre for a FOP
+/* Initialize checksum data structre for a FOP */
 static void ioreq_fop_checksum_data_init(struct m0_op_io *ioo,
-					 struct ioreq_fop *fop)
+					                     struct ioreq_fop *fop)
 {
 	uint32_t idx;
 	uint32_t units;
 	struct fop_cksum_data *cs_data;
 	struct m0_pdclust_layout *play = pdlayout_get(ioo);
 
-	// Get pointer to basic data structure
+	/* Get pointer to basic data structure */
 	cs_data = &fop->irf_cksum_data;
 	cs_data->cd_num_units = 0;
 	cs_data->cd_max_units = 0;
 	cs_data->cd_idx 	  = NULL;
 	
-	// In case of k = 0 the buffer will not be allocated
+	/* In case of k = 0 the buffer will not be allocated */
 	units = layout_n(play) > layout_k(play)?
 			layout_n(play) : layout_k(play);
 	
-	// Allocate and intialize buffer for storing checksum data
+	/* Allocate and intialize buffer for storing checksum data */
 	if (units && m0__obj_is_di_enabled(ioo)) {
 		
-		// DI enabled, allocate space for every unit (all PG)
+		/* DI enabled, allocate space for every unit (all PG) */
 		units *= ioo->ioo_iomap_nr; 
 		M0_ALLOC_ARR(cs_data->cd_idx, units);
 		if (cs_data->cd_idx == NULL)
@@ -1054,7 +1063,7 @@ M0_INTERNAL void ioreq_fop_fini(struct ioreq_fop *fop)
 	 */
 	iofops_tlink_fini(fop);
 
-	// Free checksum data, cd_max_units not cleared for debug purpose
+	/* Free checksum data, cd_max_units not cleared for debug purpose */
 	m0_free(fop->irf_cksum_data.cd_idx);
 	fop->irf_cksum_data.cd_num_units = 0;
 
