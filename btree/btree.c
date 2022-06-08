@@ -2127,6 +2127,21 @@ static int64_t bnode_get(struct node_op *op, struct td *tree,
 		bnode_unlock(op->no_node);
 	} else {
 		/**
+		 * Validating the seg header again to avoid the following
+		 * scenario. The other thread can invalidate the seg header
+		 * after reading the valid opaque pointer by the current thread.
+		 * As we are not taking the node lock while validating the seg
+		 * header and reading the opaque pointer, this scenario can
+		 * occur if some other thread is doing the bnode_fini()
+		 * operation and the current thread is trying to get the same
+		 * node.
+		 */
+		if (!segaddr_header_isvalid(addr)) {
+			op->no_op.o_sm.sm_rc = M0_ERR(-EINVAL);
+			m0_rwlock_write_unlock(&list_lock);
+			return nxt;
+		}
+		/**
 		 * If node descriptor is already allocated for the node, no need
 		 * to allocate node descriptor again.
 		 */
