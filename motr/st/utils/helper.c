@@ -540,6 +540,9 @@ int m0_read(struct m0_container *container,
 		prepare_ext_vecs(&ext, &attr, bcount,
 				 block_size, &last_index);
 
+		if (block_count == bcount)
+			flags |= M0_OOF_LAST;
+
 		rc = read_data_from_object(&obj, &ext, &data, NULL, flags);
 		if (rc != 0) {
 			fprintf(stderr, "Reading from object failed!\n");
