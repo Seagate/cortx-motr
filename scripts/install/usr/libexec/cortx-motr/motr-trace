@@ -125,7 +125,7 @@ m0_traced()
             local m0tr_ko_img=$MOTR_LOG_DIR/m0tr.ko~$date.img
             local output_file=$MOTR_LOG_DIR/trace-m0tr~$date.bin
             local opts="-K -O $m0tr_ko_img"
-            ln -sf $(basename $m0tr_ko_img) /var/log/motr/m0tr_ko.img
+            ln -sf $(basename $m0tr_ko_img) $HOME/seagate/var/log/motr/m0tr_ko.img
             if ! mount | grep -q /sys/kernel/debug ; then
                 mount -t debugfs none /sys/kernel/debug
             fi

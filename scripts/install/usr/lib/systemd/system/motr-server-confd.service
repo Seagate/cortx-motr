@@ -30,5 +30,5 @@ Type=notify
 TimeoutStopSec=20
 Restart=no
 EnvironmentFile=-/var/motr/env.sh
-Group=motr
+#Group=motr
 ExecStart=/usr/libexec/cortx-motr/motr-server confd

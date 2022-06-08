@@ -22,5 +22,5 @@ Description=Motr mkfs
 
 [Service]
 Type=oneshot
-Group=motr
+#Group=motr
 ExecStart=/usr/libexec/cortx-motr/motr-mkfs

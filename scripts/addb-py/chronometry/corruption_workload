@@ -249,7 +249,7 @@ function save_motr_artifacts()
             | grep ioservice | sed 's/\[.*\]//' | awk '{print $2}')
 
         for ios_fid in $ioservice_list; do
-            local ios_dir="/var/motr/m0d-$ios_fid"
+            local ios_dir="$HOME/seagate/var/motr/m0d-$ios_fid"
             local srv_node_cmd="if [ -e $ios_dir ]; then scp $ios_dir/m0trace.* ${cur_hostname}:${cur_dir} ; fi"
             $EX_SRV $srv_node_cmd
         done
@@ -266,7 +266,7 @@ function save_motr_artifacts()
         local cur_dir=$(pwd)
         local cur_hostname=$(hostname)
         for ios_fid in $ioservice_list; do
-            local ios_dir="/var/motr/m0d-$ios_fid"
+            local ios_dir="$HOME/seagate/var/motr/m0d-$ios_fid"
             local ios_addb_stob="$ios_dir/addb-stobs/o/100000000000000:2"
             local pid=$(echo $ios_addb_stob | sed -E 's/.*[x]([a-z0-9]*)[/].*/\1/')
             srv_node_cmd="if [ -e $ios_addb_stob ]; then scp $ios_addb_stob ${cur_hostname}:${cur_dir} ; fi"

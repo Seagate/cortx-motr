@@ -29,5 +29,5 @@ PartOf=motr.service
 Type=notify
 TimeoutStopSec=20
 Restart=no
-Group=motr
+#Group=motr
 ExecStart=/usr/libexec/cortx-motr/motr-server %i
