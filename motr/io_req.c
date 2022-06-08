@@ -888,7 +888,7 @@ static int ioreq_iomaps_prepare(struct m0_op_io *ioo)
 	play = pdlayout_get(ioo);
 
 	M0_LOG(M0_DEBUG, "ioo=%p spanned_groups=%"PRIu64
-			 " [N,K,us]=[%d,%d,%" PRIu64 "]",
+			 " [N,K,usz]=[%d,%d,%" PRIu64 "]",
 			 ioo, ioo->ioo_iomap_nr, layout_n(play),
 			 layout_k(play), layout_unit_size(play));
 
