@@ -32,6 +32,7 @@
 #include "cm/cm.h"
 
 extern struct m0_fop_type m0_sns_repair_trigger_fopt;
+extern struct m0_fop_type m0_sns_direct_rebalance_trigger_fopt;
 extern struct m0_fop_type m0_sns_repair_quiesce_fopt;
 extern struct m0_fop_type m0_sns_repair_status_fopt;
 extern struct m0_fop_type m0_sns_rebalance_trigger_fopt;
@@ -41,6 +42,7 @@ extern struct m0_fop_type m0_sns_repair_abort_fopt;
 extern struct m0_fop_type m0_sns_rebalance_abort_fopt;
 
 extern struct m0_fop_type m0_sns_repair_trigger_rep_fopt;
+extern struct m0_fop_type m0_sns_direct_rebalance_trigger_rep_fopt;
 extern struct m0_fop_type m0_sns_repair_quiesce_rep_fopt;
 extern struct m0_fop_type m0_sns_repair_status_rep_fopt;
 extern struct m0_fop_type m0_sns_rebalance_trigger_rep_fopt;

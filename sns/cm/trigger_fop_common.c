@@ -36,6 +36,7 @@
  */
 
 struct m0_fop_type m0_sns_repair_trigger_fopt;
+struct m0_fop_type m0_sns_direct_rebalance_trigger_fopt;
 struct m0_fop_type m0_sns_repair_quiesce_fopt;
 struct m0_fop_type m0_sns_repair_status_fopt;
 struct m0_fop_type m0_sns_rebalance_trigger_fopt;
@@ -44,6 +45,7 @@ struct m0_fop_type m0_sns_rebalance_status_fopt;
 struct m0_fop_type m0_sns_repair_abort_fopt;
 struct m0_fop_type m0_sns_rebalance_abort_fopt;
 
+struct m0_fop_type m0_sns_direct_rebalance_trigger_rep_fopt;
 struct m0_fop_type m0_sns_repair_trigger_rep_fopt;
 struct m0_fop_type m0_sns_repair_quiesce_rep_fopt;
 struct m0_fop_type m0_sns_repair_status_rep_fopt;
@@ -59,6 +61,7 @@ M0_INTERNAL int m0_sns_cm_trigger_fop_alloc(struct m0_rpc_machine  *mach,
 {
 	static struct m0_fop_type *sns_fop_type[] = {
 		[CM_OP_REPAIR]           = &m0_sns_repair_trigger_fopt,
+		[CM_OP_DIRECT_REBALANCE] = &m0_sns_direct_rebalance_trigger_fopt,
 		[CM_OP_REPAIR_QUIESCE]   = &m0_sns_repair_quiesce_fopt,
 		[CM_OP_REPAIR_RESUME]    = &m0_sns_repair_trigger_fopt,
 		[CM_OP_REBALANCE]        = &m0_sns_rebalance_trigger_fopt,

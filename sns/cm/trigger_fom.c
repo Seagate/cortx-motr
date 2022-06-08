@@ -85,6 +85,8 @@ static struct m0_fop_type *sns_fop_type(uint32_t op)
 	struct m0_fop_type *sns_fop_type[] = {
 		[M0_SNS_REPAIR_TRIGGER_OPCODE] =
 			&m0_sns_repair_trigger_rep_fopt,
+		[M0_SNS_DIRECT_REBALANCE_TRIGGER_OPCODE] =
+			&m0_sns_direct_rebalance_trigger_rep_fopt,
 		[M0_SNS_REPAIR_QUIESCE_OPCODE] =
 			&m0_sns_repair_quiesce_rep_fopt,
 		[M0_SNS_REPAIR_STATUS_OPCODE] =

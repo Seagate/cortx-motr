@@ -80,6 +80,19 @@ sns_repair()
         return $rc
 }
 
+sns_direct_rebalance()
+{
+        local rc=0
+
+        repair_trigger=$(get_m0repair_utils_cmd "$CM_OP_DIRECT_REBALANCE")
+        run "$repair_trigger"
+        rc=$?
+        if [ $rc != 0 ]; then
+                echo "SNS direct rebalance failed"
+        fi
+        return $rc
+}
+
 sns_rebalance()
 {
         local rc=0

@@ -44,6 +44,8 @@ M0_INTERNAL void m0_sns_cm_repair_trigger_fop_fini(void)
 {
 	m0_cm_trigger_fop_fini(&m0_sns_repair_trigger_fopt);
 	m0_cm_trigger_fop_fini(&m0_sns_repair_trigger_rep_fopt);
+	m0_cm_trigger_fop_fini(&m0_sns_direct_rebalance_trigger_fopt);
+	m0_cm_trigger_fop_fini(&m0_sns_direct_rebalance_trigger_rep_fopt);
 	m0_cm_trigger_fop_fini(&m0_sns_repair_quiesce_fopt);
 	m0_cm_trigger_fop_fini(&m0_sns_repair_quiesce_rep_fopt);
 	m0_cm_trigger_fop_fini(&m0_sns_repair_status_fopt);
@@ -69,6 +71,20 @@ M0_INTERNAL void m0_sns_cm_repair_trigger_fop_init(void)
 			       &sns_repair_cmt,
 			       &m0_sns_trigger_fom_type_ops);
 
+	m0_cm_trigger_fop_init(&m0_sns_direct_rebalance_trigger_fopt,
+			       M0_SNS_DIRECT_REBALANCE_TRIGGER_OPCODE,
+			       "sns direct rebalance trigger",
+			       trigger_fop_xc,
+			       M0_RPC_MUTABO_REQ,
+			       &sns_repair_cmt,
+			       &m0_sns_trigger_fom_type_ops);
+	m0_cm_trigger_fop_init(&m0_sns_direct_rebalance_trigger_rep_fopt,
+			       M0_SNS_DIRECT_REBALANCE_TRIGGER_REP_OPCODE,
+			       "sns direct rebalance trigger reply",
+			       trigger_rep_fop_xc,
+			       M0_RPC_ITEM_TYPE_REPLY,
+			       &sns_repair_cmt,
+			       &m0_sns_trigger_fom_type_ops);
 	m0_cm_trigger_fop_init(&m0_sns_repair_quiesce_fopt,
 			       M0_SNS_REPAIR_QUIESCE_OPCODE,
 			       "sns repair quiesce trigger",

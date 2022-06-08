@@ -63,6 +63,7 @@ extern const char *cl_ep_addr;
 extern const char *srv_ep_addr[MAX_SERVERS];
 
 extern struct m0_fop_type m0_sns_repair_trigger_fopt;
+extern struct m0_fop_type m0_sns_direct_rebalance_trigger_fopt;
 extern struct m0_fop_type m0_sns_repair_quiesce_fopt;
 extern struct m0_fop_type m0_sns_repair_status_fopt;
 extern struct m0_fop_type m0_sns_rebalance_trigger_fopt;
@@ -162,6 +163,7 @@ int main(int argc, char *argv[])
 				     "\t\t\tCM_OP_REBALANCE_STATUS = 8 or\n"
 				     "\t\t\tCM_OP_REPAIR_ABORT = 9 or\n"
 				     "\t\t\tCM_OP_REBALANCE_ABORT   = 10\n",
+				     "\t\t\tCM_OP_DIRECT_REBALANCE = 11 or\n"
 				     "%u", &op),
 			M0_STRINGARG('C', "Client endpoint",
 				LAMBDA(void, (const char *str){
@@ -183,7 +185,7 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	if (op < CM_OP_REPAIR || op > CM_OP_REBALANCE_ABORT ||
+	if (op < CM_OP_REPAIR || op > CM_OP_DIRECT_REBALANCE ||
 	    !M0_IN(type, (0, 1))) {
 		usage();
 		return M0_ERR(-EINVAL);

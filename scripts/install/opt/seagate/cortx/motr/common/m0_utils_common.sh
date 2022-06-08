@@ -48,6 +48,7 @@ export CM_OP_REPAIR=1
 export CM_OP_REBALANCE=2
 export CM_OP_REPAIR_STATUS=7
 export CM_OP_REBALANCE_STATUS=8
+export CM_OP_DIRECT_REBALANCE=11
 
 stride=32
 src_bs=10M
