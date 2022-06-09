@@ -2371,6 +2371,20 @@ M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
 			m0_free(proc);
 			continue;
 		}
+		M0_LOG(M0_ALWAYS, "FID="FID_F" "
+				  "FS-STAT: fsx.fx_free_seg=%llu, fsx.fx_total_seg=%llu, "
+				  "fx_free_disk=%llu, fx_avail_disk=%llu, "
+				  "fx_total_disk=%llu, fx_svc_total=%llu, "
+				  "fx_svc_replied=%llu",
+				  FID_P(&proc->spi_fid),
+				  (unsigned long long)fsx.fx_free_seg,
+				  (unsigned long long)fsx.fx_total_seg,
+				  (unsigned long long)fsx.fx_free_disk,
+				  (unsigned long long)fsx.fx_avail_disk,
+				  (unsigned long long)fsx.fx_total_disk,
+				  (unsigned long long)fsx.fx_svc_total,
+				  (unsigned long long)fsx.fx_svc_replied);
+				  
 		fsx.fx_svc_total += proc->spi_svc_count;
 	} m0_tl_endfor;
 	m0_tl_for(spiel_proc_items, &fsx.fx_items, proc) {

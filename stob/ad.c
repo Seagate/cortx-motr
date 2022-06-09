@@ -1946,6 +1946,7 @@ static int stob_ad_write_prepare(struct m0_stob_io        *io,
 		todo -= got;
 		++bfrags;
 		if (todo > 0) {
+			M0_ASSERT(bfrags < BALLOC_FRAGS_MAX);
 			if (bfrags >= BALLOC_FRAGS_MAX) {
 				rc = M0_ERR(-ENOSPC);
 				break;
