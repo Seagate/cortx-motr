@@ -1017,7 +1017,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	struct m0_ivec_cursor        goff_curr;
 	uint32_t                     seg_sz;
 	bool                         di_enabled;
-    struct fop_cksum_idx_gbl_data pgdata;
+	struct fop_cksum_idx_gbl_data pgdata;
 
 	M0_ENTRY("prepare io fops for target ioreq %p filter 0x%x, tfid "FID_F,
 		 ti, filter, FID_P(&ti->ti_fid));
@@ -1344,8 +1344,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			}
 		}
 
-		if (di_enabled && m0_is_read_fop(&iofop->if_fop) && !read_in_write &&
-		    !(sz_added_to_fop % pgdata.unit_sz)) {
+		if (di_enabled && m0_is_read_fop(&iofop->if_fop) &&
+		    !read_in_write) {
 			/* Server side expects this to be valid if checksum is to be read */
 			rw_fop->crw_cksum_size = m0__obj_di_cksum_size(ioo);
 			M0_LOG(M0_DEBUG,"Read FOP enabling checksum");

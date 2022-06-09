@@ -114,10 +114,32 @@ static void print_pi(void *pi,int size)
 	M0_LOG(M0_WARN,"%s ",(char *)arr);
 }
 
-static int application_checksum_process( struct m0_op_io *ioo,
+static void di_debug_log_print(struct target_ioreq *tioreq, struct ioreq_fop *irfop, struct m0_op_io *ioo)
+{
+	int cdi;
+	M0_LOG(M0_WARN,"- FOP details Ext0: %" PRIi64
+	       " ExtN: %"PRIi64 " Count0: %" PRIi64
+			" Vnr: %"PRIi32" CountEnd: %" PRIi64 ,
+			tioreq->ti_goff_ivec.iv_index[0],
+			tioreq->ti_goff_ivec.iv_index
+			                     [tioreq->ti_goff_ivec.iv_vec.v_nr-1],
+			tioreq->ti_goff_ivec.iv_vec.v_count[0],
+			tioreq->ti_goff_ivec.iv_vec.v_nr,
+			tioreq->ti_goff_ivec.iv_vec.v_count
+			                     [tioreq->ti_goff_ivec.iv_vec.v_nr-1]);
+	for (cdi = 0; cdi < irfop->irf_cksum_data.cd_num_units; cdi++)
+		M0_LOG(M0_WARN,"- %d. FOP DU details [%s] [PG Idx:%d][Unit Idx:%d]",
+		                                                      cdi + 1,
+				irfop->irf_pattr == PA_DATA ? "D" : "P",
+				(uint32_t)(irfop->irf_cksum_data.cd_idx[cdi].ci_pg_idx +
+				                       ioo->ioo_iomaps[0]->pi_grpid),
+				irfop->irf_cksum_data.cd_idx[cdi].ci_unit_idx);
+}
+
+static int application_checksum_process(struct m0_op_io *ioo,
 				       struct target_ioreq *ti,
 				       struct ioreq_fop *irfop,
-				       struct m0_buf *rw_rep_cs_data )
+				       struct m0_buf *rw_rep_cs_data)
 {
 	int                                     rc = 0;
 	uint32_t                                idx;
@@ -139,6 +161,7 @@ static int application_checksum_process( struct m0_op_io *ioo,
 	cksum_size = m0_cksum_get_size(cksum_type);
 	if (cksum_size == 0) {
 		M0_LOG(M0_WARN,"Skipping DI for PI Type: %d Size: %d",cksum_type,cksum_size);
+		di_debug_log_print(ti, irfop, ioo);
 		return rc;
 	}
 
@@ -286,24 +309,8 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		else if (m0__obj_is_di_enabled(ioo) &&
 		         irfop->irf_cksum_data.cd_num_units &&
 			     (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_READ)) {
-			int cdi;
-			M0_LOG(M0_WARN,"No DI data received Ext0: %" PRIi64
-			       "ExtN: %"PRIi64 " Count0: %" PRIi64
-					" Vnr: %"PRIi32" CountEnd: %" PRIi64 ,
-					tioreq->ti_goff_ivec.iv_index[0],
-					tioreq->ti_goff_ivec.iv_index
-					                     [tioreq->ti_goff_ivec.iv_vec.v_nr-1],
-					tioreq->ti_goff_ivec.iv_vec.v_count[0],
-					tioreq->ti_goff_ivec.iv_vec.v_nr,
-					tioreq->ti_goff_ivec.iv_vec.v_count
-					                     [tioreq->ti_goff_ivec.iv_vec.v_nr-1]);
-			for (cdi = 0; cdi < irfop->irf_cksum_data.cd_num_units; cdi++)
-				M0_LOG(M0_WARN,"%d. No DI for [%s] [PG Idx:%d][Unit Idx:%d]",
-				                                                      cdi + 1,
-						irfop->irf_pattr == PA_DATA ? "D" : "P",
-						(uint32_t)(irfop->irf_cksum_data.cd_idx[cdi].ci_pg_idx +
-						                       ioo->ioo_iomaps[0]->pi_grpid),
-						irfop->irf_cksum_data.cd_idx[cdi].ci_unit_idx);
+			M0_LOG(M0_WARN,"No DI data received for :");
+			di_debug_log_print(tioreq, irfop, ioo);
 		}
 	}
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;

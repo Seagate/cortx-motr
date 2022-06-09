@@ -360,6 +360,8 @@ int m0_write(struct m0_container *container, char *src,
 	struct m0_bufvec              data;
 	struct m0_bufvec              attr;
 	uint32_t                      bcount;
+	uint64_t                      unit_size;
+	uint64_t                      sz_block_in_byte;
 	uint64_t                      last_index;
 	FILE                         *fp;
 	struct m0_obj                 obj;
@@ -397,6 +399,18 @@ int m0_write(struct m0_container *container, char *src,
 
 	if (blks_per_io == 0)
 		blks_per_io = M0_MAX_BLOCK_COUNT;
+
+	unit_size = m0_obj_layout_id_to_unit_size(m0_client_layout_id(instance));
+	/* When DI is enabled we have to read full data unit so checksum is
+	 * properly evaluated. So converting blks_per_io multiple of unit size
+	 */
+	if (obj.ob_entity.en_flags & (M0_ENF_DI | M0_ENF_GEN_DI)) {
+		sz_block_in_byte = blks_per_io * block_size;
+		if (sz_block_in_byte > unit_size) {
+			sz_block_in_byte -= sz_block_in_byte % unit_size;
+			blks_per_io = sz_block_in_byte / block_size;
+		}
+	}
 
 	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size);
 	if (rc != 0)
@@ -475,6 +489,8 @@ int m0_read(struct m0_container *container,
 	int                           j;
 	int                           rc;
 	uint64_t                      last_index = 0;
+	uint64_t                      unit_size;
+	uint64_t                      sz_block_in_byte;
 	struct m0_obj                 obj;
 	struct m0_indexvec            ext;
 	struct m0_bufvec              data;
@@ -526,6 +542,18 @@ int m0_read(struct m0_container *container,
 
 	if (blks_per_io == 0)
 		blks_per_io = M0_MAX_BLOCK_COUNT;
+
+	unit_size = m0_obj_layout_id_to_unit_size(m0_client_layout_id(instance));
+	/* When DI is enabled we have to read full data unit so checksum is
+	 * properly evaluated. So converting blks_per_io multiple of unit size
+	 */
+	if (obj.ob_entity.en_flags & (M0_ENF_DI | M0_ENF_GEN_DI)) {
+		sz_block_in_byte = blks_per_io * block_size;
+		if (sz_block_in_byte > unit_size) {
+			sz_block_in_byte -= sz_block_in_byte % unit_size;
+			blks_per_io = sz_block_in_byte / block_size;
+		}
+	}
 	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size);
 	if (rc != 0)
 		goto cleanup;
@@ -746,11 +774,14 @@ int m0_write_cc(struct m0_container *container,
 		uint32_t block_size, uint32_t block_count, uint32_t entity_flags)
 {
 	int                    rc;
+	int                    blks_per_io;
 	struct m0_indexvec     ext;
 	struct m0_bufvec       data;
 	struct m0_bufvec       attr;
 	uint32_t               bcount;
 	uint64_t               last_index;
+	uint64_t               unit_size;
+	uint64_t               sz_block_in_byte;
 	FILE                  *fp;
 	struct m0_obj          obj;
 	struct m0_client      *instance;
@@ -776,14 +807,26 @@ int m0_write_cc(struct m0_container *container,
 		goto file_error;
 	}
 
+	unit_size = m0_obj_layout_id_to_unit_size(m0_client_layout_id(instance));
+	blks_per_io = M0_MAX_BLOCK_COUNT;
+	/* When DI is enabled we have to read full data unit so checksum is
+	 * properly evaluated. So converting blks_per_io multiple of unit size
+	 */
+	if (obj.ob_entity.en_flags & (M0_ENF_DI | M0_ENF_GEN_DI)) {
+		sz_block_in_byte = blks_per_io * block_size;
+		if (sz_block_in_byte > unit_size) {
+			sz_block_in_byte -= sz_block_in_byte % unit_size;
+			blks_per_io = sz_block_in_byte / block_size;
+		}
+	}
 	rc = create_object(&obj.ob_entity);
 	if (rc != 0)
 		goto cleanup;
 
 	last_index = 0;
 	while (block_count > 0) {
-		bcount = (block_count > M0_MAX_BLOCK_COUNT) ?
-			  M0_MAX_BLOCK_COUNT : block_count;
+		bcount = (block_count > blks_per_io) ?
+			  blks_per_io : block_count;
 		rc = alloc_prepare_vecs(&ext, &data, &attr, bcount,
 					       block_size, &last_index);
 		if (rc != 0)

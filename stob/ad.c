@@ -1301,7 +1301,7 @@ static void  stob_ad_get_checksum_for_fragment(struct m0_stob_io *io,
 
 	checksum_nob = m0_extent_get_checksum_nob(off, frag_sz, unit_size,
 						  cksum_unit_size);
-	if (checksum_nob) {
+	if (checksum_nob && ext->ee_cksum_buf.b_addr) {
 		/* we are looking at checksum which need to be added:
 		 * get the destination: checksum address to copy in
 		 * client buffer
