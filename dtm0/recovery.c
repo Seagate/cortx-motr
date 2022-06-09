@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2022 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -138,7 +138,7 @@ IvanA: [* question *] @Max, "Recoverable process" does not sound good to me.
    - <b>Local recovery role </b> defines a sub-set of states of a recovery FOM
       that is responsible for starting and stopping of recovery procedures on
       the local recoverable process.
-   - <b>Eviction role</b> defines a sub-set of states of a recovery FOM that is
+   - <b>Eviction role</b> defines a sub-set of states of a recovery FOM that
       restores consistency of up to N-1 (N is number of recoverable processes
       in the configuration) recoverable processes after one of the recoverable
       processes of the cluster experienced a permanent failure (see HLD[1]).
@@ -170,7 +170,7 @@ Max: [* question *] All of them? If no, please put a list here. If so, please
    Additionally, it has the following list of low-level requirements:
 --->>>
 Max: [* question *] Why do we have those requirements? Please provide a way to
-     track them to the top-level requirements or requriements for other DTM0
+     track them to the top-level requirements or requirements for other DTM0
      subcomponents.
 <<<---
 
@@ -348,8 +348,8 @@ IvanA: [fixed] I added a note that this thing is optional for some cases.
 
    On the diagram above, the transition DECIDE_WHAT_TO_DO -> RESET
    marks the point where recovery FOM enters a new incarnation,
-   the transtion HEQ -> DECIDE_WHAT_TO_DO marks the end of the life of this
-   incaration. The set of sub-states is called "role".
+   the transition HEQ -> DECIDE_WHAT_TO_DO marks the end of the life of this
+   incarnation. The set of sub-states is called "role".
    For example, if a recovery FOM is somewhere inside the first frame
    (remote recovery) then we say that it has "remote recovery role" and it
    performs "remote recovery". Correspondingly, the second frame describes
@@ -618,9 +618,9 @@ Max: [* question *] Entire DTM0 log is locked using a mutex? If no, please add
 Max: [* defect *] The watcher description/workflow/etc. is missing. Please add.
 <<<---
 
-   Interraction with RPC machine is wrapped by Motr RPC library and DTM0
+   Interaction with RPC machine is wrapped by Motr RPC library and DTM0
 --->>>
-Max: [* typo *] s/Interraction/Interaction/
+Max: [* typo *] s/Interaction/Interaction/
 <<<---
    RPC link component. It helps to unify the type of completion objects
    across the FOM code.
@@ -716,7 +716,7 @@ Max: [* doc *] Please fill this section with references to the requirements.
    <i>Mandatory.  Describe the steps that should be taken to implement this
    design.</i>
 
-   - Develop pseudocode-based description of recovery acivities.
+   - Develop pseudocode-based description of recovery activities.
    - Identify and add missing concurrency primitives (select/poll for be op).
    - Use the pseudocode and new primitives to implement a skeleton of the FOMs.
    - Incorporate RECOVERING and TRANSIENT states with their
@@ -775,7 +775,7 @@ Dependencies between patches:
 - P9 depends on P8, P1, P2, P5, P7
 - P10 depends on P9 and P11.
 
-Deviverables:
+Deliverables:
 - Recovery machine V1: unit-tested recovery machine with a small set of cases.
 - Recovery machine V2: integration-tested machine (m0crate, Hare).
 - Recovery machine V3: extended use-cases (failures during recovery and so on).
@@ -810,7 +810,7 @@ enum {
 	/*
 	 * Number of HA event that could be submitted by the HA subsystem
 	 * at once; where:
-	 *   "HA event" means state tranistion of a single DTM0 process;
+	 *   "HA event" means state transition of a single DTM0 process;
 	 *   "at once" means the maximal duration of a tick of any FOM
 	 *     running on the same locality as the recovery FOM that
 	 *     handles HA events.
@@ -1242,7 +1242,7 @@ static void eolq_post(struct m0_dtm0_recovery_machine *m,
 		/*
 		 * Assumption: the queue never gets full.
 		 * XXX: We could panic in this case. Right now, the HA/REDO FOM
-		 * should get stuck in the tick. Prorably, panic is
+		 * should get stuck in the tick. Probably, panic is
 		 * a better solution here.
 		 */
 		M0_BE_OP_SYNC(op, M0_BE_QUEUE_PUT(&rf->rf_eolq, &op, item));
@@ -1257,7 +1257,7 @@ static void heq_post(struct recovery_fom *rf, enum m0_ha_obj_state state)
 	/*
 	 * Assumption: the queue never gets full.
 	 * XXX: We could panic in this case. Right now, the HA FOM should get
-	 *      stuck in the tick. Prorably, panic is a better solution
+	 *      stuck in the tick. Probably, panic is a better solution
 	 *      here.
 	 */
 	M0_BE_OP_SYNC(op, M0_BE_QUEUE_PUT(&rf->rf_heq, &op, &event));

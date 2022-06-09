@@ -857,7 +857,7 @@ static bool dixreq_clink_dtx_cb(struct m0_clink *cl)
 	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
 
 	/*
-	 * Filter out the situations where dtx exists but not m0_op_idx
+	 * Filter out the situations where dtx exists but m0_op_idx
 	 * is not yet attached to dix_req.
 	 */
 	if (oi == NULL)
