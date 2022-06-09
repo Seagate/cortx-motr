@@ -1,0 +1,77 @@
+#!/bin/bash
+#set -x
+set -e
+
+# Integration test with Hare: bootstrap
+# -------------------------------------
+#
+# The test checks if we can successfully bootstrap a cluster
+# with 3 m0d on one machine. It ensures that hctl bootstrap
+# does not return any errors, and that it eventually
+# leads to the situation where Hare has received
+# DTM_RECOVERED process events from all m0ds.
+#
+# The test is divided into steps that could be executed
+# separately.
+
+source ./env
+source ./functions
+
+STEPS=(prepare
+       boot
+       online
+       shutdown)
+
+print_steps() {
+    for step in ${STEPS[@]}; do
+        echo "$step"
+    done
+}
+
+execute_step() {
+    local step="$1"
+
+    _info "Executing step: $step"
+    case "$step" in
+        prepare)
+            create_disks;;
+        boot)
+            bootstrap_cluster;;
+        online)
+            wait_until_all_m0d_online;;
+        shutdown)
+            shutdown_cluster
+            verify_that_all_m0d_stoped_without_errors;;
+        *)
+            print_steps;;
+    esac
+}
+
+execute_all_steps() {
+    for step in ${STEPS[@]}; do
+        execute_step "$step"
+    done
+}
+
+print_help() {
+    echo "Usage: $0 <load,step,kill,repeat,test> [<step-name>]"
+}
+
+main() {
+    case "$1" in
+        load)
+            _info "loading $0 as a library";;
+        step)
+            execute_step "$2";;
+        kill)
+            kill_cluster;;
+        repeat)
+            repeat $2 execute_all_steps;;
+        test)
+            execute_all_steps;;
+        *)
+            print_help;;
+    esac
+}
+
+main "$@"

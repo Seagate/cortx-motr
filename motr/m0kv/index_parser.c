@@ -489,13 +489,19 @@ void index_parser_print_command_help(void)
 		"\"Testing\" \n"
 		"\t\tNote: If key already exists put over-write the old value.\n"
 		"\t\t>m0kv [common args] -s index get \"1:5\" \"Department\" \n"
-		"\t\tNote: DIX pool version info on console if pass -e \n" 
-		"\t\t flag for index create.\n"
+		"\t\tNote: DIX pool version info on console if pass -e or -L"
+		"flag for index create.\n"
 		"\t\t>m0kv [common args] -e index create \"1:5\" \n"
-		"\t\tNote: Pass pool version info for PUT/GET/DEL/NEXT \n"
-		"\t\t operations if pass -e flag \n"
+		"\t\tNote: Pass pool version info for PUT/GET/DEL/NEXT "
+		"operations if pass -e flag \n"
 		"\t\t>m0kv [common args] -e -v 7600000000000001:30 -s index" 
-		" put \"1:5\" \"Department\" \"Testing\" \n" );
+		" put \"1:5\" \"Department\" \"Testing\" \n"
+		"\t\t>m0kv [common args] -L index create \"1:6\" \n"
+		"\t\tNote: Pass pool version info for other operations "
+		"if pass -L flag \n"
+		"\t\t>m0kv [common args] -L -v 7600000000000001:30 -s index"
+		" put \"1:6\" \"Department\" \"Testing\" \n"
+		"\t\t>m0kv [common args] -C index create \"1:6\" \n" );
 }
 
 #undef M0_TRACE_SUBSYSTEM

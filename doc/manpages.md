@@ -12,7 +12,7 @@ appropriate name and section number:
 
 Then edit newly created manpage document and replace all occurrences of
 'prog' with the name of your manpage (in our example it's 'm0tool').
-Remove unneeded sections or add new by desire.
+Remove unneeded sections or add new ones as necessary.
 
 Then add new manpage to the list of MAN_PAGES in doc/Makefile.sub:
 

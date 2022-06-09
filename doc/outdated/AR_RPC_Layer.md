@@ -37,7 +37,7 @@ Bulk in the rpc layer deals with the network part of a complete 0-copy path. The
 
 Bulk implementation interacts closely with the rdma capabilities exported by the underlying transport. At the moment, Motr uses ONC RPC over TCP as a transport. ONC RPC, which by itself is stream-based, has an rdma extension. This extension is described in rfc5666. rfc5666 introduces rdma at the level of XDR encoding, making it transparent for the higher layers. Motr has an (almost completed) support for rfc5666 in the "rdma" branch. On the client side, this implementation uses rfc5666 compliant sunrpc module in Linux kernel, and on the server side, it uses Infiniband verbs through a user space ibverbs library.
 
-Upper layers, including rpc layer, access network transport through interfaces defined in core/net/. These interfaces might require changes to accommodate for the new rpc layer features. Specifically, an interface for rdma must be added that would be compatible with the LNET. For the time being (until LNET support is added) this interface should be backed by a dummy implementation.  
+Upper layers, including rpc layer, access network transport through interfaces defined in core/net/. These interfaces might require changes to accommodate for the new rpc layer features. Specifically, an interface for rdma must be added that would be compatible with the LNET. For the time being (until LNET support is added) this interface should be backed by a stub implementation.  
 
 ## Sessions
 Motr rpc layer supports ordered exactly once semantics (EOS) of fop delivery. To this end an abstraction of an update stream is introduced. An update stream is established between two end-points and fops are associated with the update streams. By cooperating with other sub-systems (for example, persistent storage and local transaction engine), the rpc layer is able to guarantee that:
@@ -64,6 +64,6 @@ These components are spread over 5 Motr tasks:
 
 + core: external interfaces and cache data-structures;
 + sessions. The scope is clear. Note that current effort does not include "ordered" part of the guarantees (i.e., there is no resend);
-+ batching: simple rpc formation algorithm (max-in-flight, max-message-size, max-message-fragments). This includes definition and dummy implementation of transport interfaces to return these parameters;
++   batching: simple rpc formation algorithm (max-in-flight, max-message-size, max-message-fragments). This includes definition and stub implementation of transport interfaces to return these parameters;
 + bulk transfer: interaction with a transport level rdma. This includes bringing the rdma branch up to date and looking through LNET bulk interfaces in Lustre to understand how rdma interfaces of the future network transport layer will look like. A stub implementation of these interfaces should be provided and rpc-level bulk implemented on top of it.
 + FOP:core: wire format of rpcs. A fop already knows how to encode itself to the wire and decode back. The scope of this task is to define a format of rpc in terms of items (an abstract item data-type should be introduced with operations to query item size, alignment requirements, decode, encode, &c.) and provide implementation of this type for fops and addb records. In addition, rpc should have a common header storing generic information, like epoch numbers.
