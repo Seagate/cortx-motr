@@ -2734,14 +2734,12 @@ static int cs_level_enter(struct m0_module *module)
 		return M0_RC(0);
 	case CS_LEVEL_STARTED_EVENT_FOR_M0D:
 		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
-		/*
-		For m0d, M0_NC_DTM_RECOVERING state is being sent here just for
-		test purposes. The real notification shall be sent inside
-		dtm0_rmsg_fom_tick().
-
-		cs_ha_process_event(cctx,
-				    M0_CONF_HA_PROCESS_DTM_RECOVERED);
-		*/
+		if (m0_dtm0_domain_is_recoverable(&rctx->rc_dtm0_domain,
+						  &rctx->rc_reqh)) {
+			m0_dtm0_domain_recovered_wait(&rctx->rc_dtm0_domain);
+			cs_ha_process_event(cctx,
+					    M0_CONF_HA_PROCESS_DTM_RECOVERED);
+		}
 		return M0_RC(0);
 	case CS_LEVEL_START:
 		return M0_RC(0);
