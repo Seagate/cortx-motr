@@ -1621,14 +1621,6 @@ int m0_client_init(struct m0_client **m0c_p,
 		 * are completed successfully.
 		 */
 		ha_process_event(m0c, M0_CONF_HA_PROCESS_STARTED);
-		/*
-		   For m0crate, s3servers and other client apps,
-		   M0_NC_DTM_RECOVERING state is transient, sending
-		   M0_CONF_HA_PROCESS_DTM_RECOVERED just after
-		   M0_CONF_HA_PROCESS_STARTED.
-
-		   ha_process_event(m0c, M0_CONF_HA_PROCESS_DTM_RECOVERED);
-		*/
 	}
 
 	m0_sm_group_unlock(&m0c->m0c_sm_group);
@@ -1678,6 +1670,13 @@ int m0_client_init(struct m0_client **m0c_p,
 		m0c->m0c_dtms = m0_dtm0_service_find(&m0c->m0c_reqh);
 		M0_ASSERT(m0c->m0c_dtms != NULL);
 	}
+
+	if (m0_dtm0_domain_is_recoverable(&m0c->m0c_dtm0_domain,
+					  &m0c->m0c_reqh)) {
+		m0_dtm0_domain_recovered_wait(&m0c->m0c_dtm0_domain);
+		ha_process_event(m0c, M0_CONF_HA_PROCESS_DTM_RECOVERED);
+	}
+
 	if (conf->mc_is_addb_init) {
 		char buf[64];
 		/* Default client addb record file size set to 128M */
