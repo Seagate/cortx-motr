@@ -311,6 +311,14 @@ enum {
 struct cas_service {
 	struct m0_reqh_service  c_service;
 	struct m0_be_domain    *c_be_domain;
+
+	/*
+	 * sdev used by an instance of CAS service. This should be just one,
+	 * but current unit tests use more than one count and to make
+	 * sure those continue to run we skip the sdev replacement if more than
+	 * one sdev is discovered to be serviced by this cas service.
+	 */
+	uint32_t                c_sdev_id;
 };
 
 struct cas_kv {
@@ -477,8 +485,8 @@ static int  cas_buf_cid_decode(struct m0_buf    *enc_buf,
 			       struct m0_cas_id *cid);
 static bool cas_fid_is_cctg(const struct m0_fid *fid);
 static int  cas_id_check(const struct m0_cas_id *cid);
-static int  cas_device_check(const struct cas_fom   *fom,
-			     const struct m0_cas_id *cid);
+static int  cas_device_check(const struct cas_fom *fom,
+			     struct m0_cas_id     *cid);
 static int cas_op_check(struct m0_cas_op *op,
 			struct cas_fom   *fom,
 			bool              is_index_drop);
@@ -556,6 +564,60 @@ m0_cas__ut_svc_be_get(struct m0_reqh_service *svc)
 	return service->c_be_domain;
 }
 
+static int cas_service_get_sdev_id(struct cas_service *cas_svc)
+{
+	struct m0_reqh         *reqh;
+	struct m0_conf_cache   *cache;
+	struct m0_conf_obj     *obj;
+	struct m0_fid          *cas_svc_fid;
+	struct m0_conf_service *service;
+	struct m0_conf_obj     *sdevs_dir;
+	struct m0_conf_sdev    *sdev = NULL;
+	bool                    found = false;
+	int                     rc = 0;
+
+	M0_ASSERT(cas_svc->c_sdev_id == UINT32_MAX);
+
+	if (cas_in_ut())
+		return M0_RC(0);
+
+	reqh = cas_svc->c_service.rs_reqh;
+	cache = &m0_reqh2confc(reqh)->cc_cache;
+
+	cas_svc_fid = &cas_svc->c_service.rs_service_fid;
+	obj = m0_conf_cache_lookup(cache, cas_svc_fid);
+	M0_ASSERT(obj != NULL);
+
+	service = M0_CONF_CAST(obj, m0_conf_service);
+	M0_ASSERT(service != NULL);
+
+	sdevs_dir = &service->cs_sdevs->cd_obj;
+	rc = m0_confc_open_sync(&sdevs_dir, sdevs_dir, M0_FID0);
+	if (rc != 0)
+		return M0_RC(rc);
+
+	obj = NULL;
+	while ((rc = m0_confc_readdir_sync(sdevs_dir, &obj)) > 0) {
+		sdev = M0_CONF_CAST(obj, m0_conf_sdev);
+		if (!found) {
+			cas_svc->c_sdev_id = sdev->sd_dev_idx;
+			found = true;
+		} else {
+			/*
+			 * Several devices attached to a single CAS service are
+			 * possible if we are run in ut. In this case we
+			 * do not replace the device ID and leave the ut alone.
+			 * Also we can not break the loop until whole directory
+			 * is iterated since it leads to crash during request
+			 * handler finalisation.
+			 */
+			cas_svc->c_sdev_id = UINT32_MAX;
+		}
+	}
+
+	m0_confc_close(sdevs_dir);
+	return M0_RC(rc);
+}
 
 static int cas_service_start(struct m0_reqh_service *svc)
 {
@@ -568,6 +630,7 @@ static int cas_service_start(struct m0_reqh_service *svc)
 	/* XXX It's a workaround. It's needed until we have a better way. */
 	service->c_be_domain = ut_dom != NULL ?
 			       ut_dom : svc->rs_reqh_ctx->rc_beseg->bs_domain;
+	service->c_sdev_id = UINT32_MAX;
 	rc = m0_ctg_store_init(service->c_be_domain);
 	if (rc == 0) {
 		/*
@@ -576,6 +639,7 @@ static int cas_service_start(struct m0_reqh_service *svc)
 		 * If no pending index drop, it finishes soon.
 		 */
 		m0_cas_gc_start(svc);
+		rc = cas_service_get_sdev_id(service);
 	}
 	return rc;
 }
@@ -1808,8 +1872,8 @@ static int cas_sdev_state(struct m0_poolmach    *pm,
  * Client should send requests against catalogues which are available. DIX
  * degraded mode logic is responsible to guarantee this.
  */
-static int cas_device_check(const struct cas_fom   *fom,
-			    const struct m0_cas_id *cid)
+static int cas_device_check(const struct cas_fom *fom,
+			    struct m0_cas_id     *cid)
 {
 	uint32_t                device_id;
 	enum m0_pool_nd_state   state;
@@ -1826,12 +1890,25 @@ static int cas_device_check(const struct cas_fom   *fom,
 	 */
 	if (cas_fid_is_cctg(&cid->ci_fid) && (!cas_in_ut() || pc != NULL)) {
 		device_id = m0_dix_fid_cctg_device_id(&cid->ci_fid);
+		if (svc->c_sdev_id != UINT32_MAX &&
+		    svc->c_sdev_id != device_id &&
+		    cas_type(&fom->cf_fom) != CT_META) {
+			M0_LOG(M0_DEBUG,
+			       "Incorrect device ID (%d) found in a component "
+			       "catalogue FID, possibly because of REDO msg. "
+			       "Replacing it with correct device ID (%d).",
+			       device_id, svc->c_sdev_id);
+			m0_dix_fid__device_id_set(&cid->ci_fid, svc->c_sdev_id);
+			device_id = svc->c_sdev_id;
+		}
+
 		pver = m0_pool_version_find(pc,
 					    &cid->ci_layout.u.dl_desc.ld_pver);
 		if (pver != NULL) {
 			pm = &pver->pv_mach;
 			rc = cas_sdev_state(pm, device_id, &state);
 			if (rc == 0 && !M0_IN(state, (M0_PNDS_ONLINE,
+						      M0_PNDS_OFFLINE,
 						      M0_PNDS_SNS_REBALANCING)))
 				rc = M0_ERR(-EBADFD);
 		} else
