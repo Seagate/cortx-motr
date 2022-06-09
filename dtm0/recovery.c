@@ -1749,6 +1749,7 @@ static void remote_recovery_fom_coro(struct m0_fom *fom)
 
 static bool was_log_replayed(struct recovery_fom *rf)
 {
+	bool outcome;
 	/*
 	 * XXX: Clients are ignored by the recovery stop condition.
 	 * Once HA and Motr are able to properly handle client
@@ -1767,7 +1768,7 @@ static bool was_log_replayed(struct recovery_fom *rf)
 		is_na = false;
 	}
 
-	bool outcome = ergo(!rf->rf_is_local && !is_na,
+	outcome = ergo(!rf->rf_is_local && !is_na,
 			    M0_IN(rf->rf_last_known_ha_state,
 				  (M0_NC_ONLINE, M0_NC_DTM_RECOVERING)) &&
 			    rf->rf_last_known_eol);

@@ -50,7 +50,7 @@ struct m0_dtm0_service {
 	struct m0_dtm0_clk_src          dos_clk_src;
 	struct m0_be_dtm0_log          *dos_log;
 	struct m0_dtm0_recovery_machine dos_remach;
-	/*
+	/**
 	 * A queue for DTM_TEST message for drlink UTs.
 	 * The UTs are fully responsible for the queue init/fini/get.
 	 * DTM_TEST fom puts dtm0_req_fop::dtr_txr::dtd_id::dti_fid to the
