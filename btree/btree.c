@@ -8751,7 +8751,7 @@ M0_INTERNAL void m0_btree_create(void *addr, int nob,
 							};
 	else
 		bop->bo_keycmp  = *keycmp;
-
+	//Let the magic begin
 	m0_sm_op_init(&bop->bo_op, &btree_create_tree_tick, &bop->bo_op_exec,
 		      &btree_conf, &bop->bo_sm_group);
 }
