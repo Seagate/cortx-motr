@@ -571,6 +571,45 @@ void m0_net_test_network_ut_addr_decode(void)
 #endif
 }
 
+/**
+ * This UT verifies that concurrent access to the array of fids passed to
+ * fi_trywait() is done under mutex lock.
+ */
+void m0_net_test_libfab_fi_trywait(void)
+{
+	static struct m0_net_test_network_cfg cfg;
+	static struct m0_net_test_network_ctx send;
+	int				      rc;
+	char				      ep[150];
+	int				      ep_nr = 100;
+	int				      i;
+
+	M0_SET0(&cfg);
+	cfg.ntncfg_tm_cb	 = ping_tm_cb;
+	cfg.ntncfg_buf_cb	 = ping_buf_cb;
+	cfg.ntncfg_buf_size_ping = NET_TEST_PING_BUF_SIZE;
+	cfg.ntncfg_buf_ping_nr	 = 1;
+	cfg.ntncfg_ep_max	 = ep_nr;
+	cfg.ntncfg_timeouts	 = m0_net_test_network_timeouts_never();
+
+	rc = m0_net_test_network_ctx_init(&send, &cfg, "0@lo:12345:42:3000");
+	M0_UT_ASSERT(rc == 0);
+
+	m0_fi_enable("libfab_poller", "fail-trywait");
+	m0_nanosleep(M0_MKTIME(2,0), NULL);
+
+	for (i = 0; i < ep_nr; i++) {
+		memset(&ep, 0, sizeof(ep));
+		sprintf(ep, "0@lo:12345:42:%d", i);
+		rc = m0_net_test_network_ep_add(&send, ep);
+		M0_UT_ASSERT(rc == i);
+	}
+
+	m0_fi_disable("libfab_poller", "fail-trywait");
+
+	m0_net_test_network_ctx_fini(&send);
+}
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
