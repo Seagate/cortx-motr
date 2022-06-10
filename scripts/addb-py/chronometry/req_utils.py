@@ -229,22 +229,21 @@ def graph_add_relations(graph: Digraph, relations, schema):
         pidt=next(filter(lambda f: f in "SC", flags))
         return { 'C' : lid_rec[1],
                  'S' : lid_rec[2] }[pidt]
-    '''
-    Schema example:
-    #           relation    |      from     |     to        | table or direct| flags
-    #                       | table/mapping | table/mapping |     mapping    |
-    schema = [("client_id"  ,  "client_id"  , "dix_id"      , ""             , "C1"),
-              ("cas_id"     ,  "cas_id"     , "rpc_id"      , "cas_to_rpc"   , "C" ),
-              ("crpc_id"    ,  "crpc_id"    , "srpc_id"     , ""             , "C1"),
-              ("crpc_id"    ,  "rpc_id"     , "bulk_id"     , "bulk_to_rpc"  , "Cs"),
-              ("srpc_id"    ,  "srpc_id"    , "fom_id"      , ""             , "S1"),
-              ("fom_id"     ,  "fom_id"     , "tx_id"       , ""             , "S1"),
-              ("tx_id"      ,  ""           , ""            , ""             , "Sl"),
-              ("fom_id"     ,  "fom_id"     , "crow_fom_id" , ""             , "S1"),
-              ("crow_fom_id",  "crow_fom_id", "crow_tx_id"  , ""             , "S1"),
-              ("crow_tx_id" ,  ""           , ""            , ""             , "Sl")]
-    # flags: '1' - one to one mapping, 's' - stash samples, 'l' - leaf element
-    '''
+
+    # Schema example:
+    # #           relation    |      from     |     to        | table or direct| flags
+    # #                       | table/mapping | table/mapping |     mapping    |
+    # schema = [("client_id"  ,  "client_id"  , "dix_id"      , ""             , "C1"),
+    #           ("cas_id"     ,  "cas_id"     , "rpc_id"      , "cas_to_rpc"   , "C" ),
+    #           ("crpc_id"    ,  "crpc_id"    , "srpc_id"     , ""             , "C1"),
+    #           ("crpc_id"    ,  "rpc_id"     , "bulk_id"     , "bulk_to_rpc"  , "Cs"),
+    #           ("srpc_id"    ,  "srpc_id"    , "fom_id"      , ""             , "S1"),
+    #           ("fom_id"     ,  "fom_id"     , "tx_id"       , ""             , "S1"),
+    #           ("tx_id"      ,  ""           , ""            , ""             , "Sl"),
+    #           ("fom_id"     ,  "fom_id"     , "crow_fom_id" , ""             , "S1"),
+    #           ("crow_fom_id",  "crow_fom_id", "crow_tx_id"  , ""             , "S1"),
+    #           ("crow_tx_id" ,  ""           , ""            , ""             , "Sl")]
+    # # flags: '1' - one to one mapping, 's' - stash samples, 'l' - leaf element
 
     stash=[]
     for rel,fr,to,map,flags in schema:

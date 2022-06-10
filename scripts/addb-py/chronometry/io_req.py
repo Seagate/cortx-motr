@@ -19,7 +19,6 @@
 
 import sys
 from addb2db import *
-from typing import List, Dict
 from graphviz import Digraph
 from req_utils import *
 
