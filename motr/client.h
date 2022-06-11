@@ -631,8 +631,8 @@ enum m0_entity_type {
 	 */
 	M0_ENF_META = 1 << 0,
 	/**
-	 * If this flags is set during entity_create() that means application
-	 * do not support update operation. This flag is not in use yet.
+	 * Use this flag to avoid RMW (read-modify-write).
+	 * Useful for writing non-full last parity group.
 	 */
 	M0_ENF_NO_RMW =  1 << 1,
 	/**

@@ -621,7 +621,8 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	if (M0_IN(op->op_code, (M0_OC_FREE, M0_OC_WRITE)) &&
 	    (m0_ivec_cursor_index(cursor) > grpstart ||
 	     m0_ivec_cursor_conti(cursor, grpend) < grpend) &&
-	    !m0_pdclust_is_replicated(play))
+	    !m0_pdclust_is_replicated(play) &&
+	    !(obj->ob_entity.en_flags & M0_ENF_NO_RMW))
 		rmw = true;
 
 	M0_ENTRY("[%p] map=%p grp=%" PRIu64 " [%" PRIu64 ",+%" PRIu64 ") rmw=%d",
