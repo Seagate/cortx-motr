@@ -312,7 +312,7 @@ struct cas_service {
 	struct m0_reqh_service  c_service;
 	struct m0_be_domain    *c_be_domain;
 
-	/*
+	/**
 	 * sdev used by an instance of CAS service. This should be just one,
 	 * but current unit tests use more than one count and to make
 	 * sure those continue to run we skip the sdev replacement if more than
@@ -603,7 +603,7 @@ static int cas_service_get_sdev_id(struct cas_service *cas_svc)
 			cas_svc->c_sdev_id = sdev->sd_dev_idx;
 			found = true;
 		} else {
-			/*
+			/**
 			 * Several devices attached to a single CAS service are
 			 * possible if we are run in ut. In this case we
 			 * do not replace the device ID and leave the ut alone.
