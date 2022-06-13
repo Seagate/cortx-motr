@@ -1780,6 +1780,54 @@ M0_INTERNAL struct m0_reqh *m0_fom2reqh(const struct m0_fom *fom)
 	return fom->fo_service->rs_reqh;
 }
 
+#ifndef __KERNEL__
+M0_INTERNAL void m0_thread__print(struct m0_thread *thread)
+{
+	printf("thread %p %i %s\n", thread, thread->t_state, thread->t_namebuf);
+}
+
+M0_INTERNAL void m0_fom__print(struct m0_fom *fom)
+{
+	printf("fom: %p phase: %s state: %s service: %s\n", fom,
+	       fom->fo_type->ft_conf.scf_name,
+	       fom->fo_type->ft_state_conf.scf_name,
+	       fom->fo_type->ft_rstype->rst_name);
+}
+
+M0_INTERNAL void m0_fom_locality__print(struct m0_fom_locality *loc)
+{
+	struct m0_fom        *fom;
+	struct m0_loc_thread *thr;
+	printf("fom-locality: %p idx: %i foms: %i runq: %zu wail: %zu "
+	       "shutdown: %s\n",
+	       loc, loc->fl_idx, loc->fl_foms, loc->fl_runq_nr, loc->fl_wail_nr,
+	       m0_bool_to_str(loc->fl_shutdown));
+	m0_tl_for(thr, &loc->fl_threads, thr) {
+		printf("thread: %x ", thr->lt_state);
+		m0_thread__print(&thr->lt_thread);
+	} m0_tl_endfor;
+	m0_tl_for(runq, &loc->fl_runq, fom) {
+		printf("runq: ");
+		m0_fom__print(fom);
+	} m0_tl_endfor;
+	m0_tl_for(wail, &loc->fl_wail, fom) {
+		printf("wail: ");
+		m0_fom__print(fom);
+	} m0_tl_endfor;
+}
+
+M0_INTERNAL void m0_fom_dom__print(void)
+{
+	int i;
+	struct m0_fom_domain *dom = m0_fom_dom();
+	printf("fom-domain: %p %zu\n", dom, dom->fd_localities_nr);
+	for (i = 0; i < dom->fd_localities_nr; ++i) {
+		m0_fom_locality__print(dom->fd_localities[i]);
+	}
+}
+
+#endif
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} endgroup fom */
