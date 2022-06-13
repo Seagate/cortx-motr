@@ -402,7 +402,7 @@ def add_entries_to_config_file(self, fname, kv_list):
         for line in lines:
             fp.write(f"{line}")
 
-def update_config_file_common(self, kv_list, flag):
+def upgrade_phase_config_file(self, kv_list, flag):
     lines = []
     # Get all lines of file in buffer
     with open(f"{MOTR_SYS_CFG}", "r") as fp:
@@ -1588,76 +1588,76 @@ def recursive_iterate(key, val, list_op):
         else:
             list_op.append((key, val))
 
-def update_kvs_to_motr_config(self, config_kvs, flag):
-    if flag not in ['update', 'append', 'delete']:
-        self.logger.error(f"flag={flag} not valid\n")
-        return
-    update_config_file_common(self, config_kvs, flag)
+def get_key_val_list_from_changed_entries(self, entries, key_val_list):
+    for key in entries.keys():
+        recursive_iterate(key, entries[key], key_val_list)
 
-# In upgrade phase, update the motr config file with changed
+# Extract the changed value seperated by '|'
+# If key is 'local' or 'log' and their values are changed then
+# we have to update the dir paths dependent on these and update their entries
+# in motr config files like /etc/sysconfig/motr and /etc/cortx/motr/sysconfig/<machine-id>/motr
+# Otherwise just update the changed value of key in
+# motr config files like /etc/sysconfig/motr and /etc/cortx/motr/sysconfig/<machine-id>/motr
+
+def upgrade_phase_copy_key_val_to_motr_config(self, key_val_list, flag):
+     print("")
+     for i in key_val_list:
+        key = i[0]
+
+        if flag == 'update':
+            changed_val = i[1].split('|')[-1]
+        else:
+            changed_val = i[1]
+
+        if key == 'local':
+            self.local_path = changed_val
+            update_copy_motr_config_file(self)
+        elif key == 'log':
+            self.log_path = changed_val
+            update_copy_motr_config_file(self)
+        else:
+            # Just updated changed value
+            config_kvs = [(key, changed_val)]
+            self.logger.info(f"{flag}ing config_kvs={config_kvs}\n")
+            upgrade_phase_config_file(self, config_kvs, flag)
+
+#In upgrade phase
+#1: Update <key,val> in motr config file with changed
 # values. The changed entries are of format
 # {'cortx': {'common': {'release': {'version': '2.0.0-788|2.0.0-790'}}, 'rgw': {'gc_max_objs': '32|123', 'init_timeout': '300|123'}},
 #  'cortx1': {'common': {'release': {'version': '2.0.0-788|2.0.0-790'}}, 'rgw': {'gc_max_objs': '32|123', 'init_timeout': '300|123'}}
 # }
 # Get the chnaged values. In above case these are {'version':'2.0.0-790''}, {'gc_max_objs':'123'}, {'init_timeout':'123'} for cortx
 # and {'version':'2.0.0-790''}, {'gc_max_objs':'123'}, {'init_timeout':'123'} for cortx1
-def update_keys_in_upgrade_phase(self, changed_entries):
-    # Get the list of tuples (key,val) in op as {'version': '2.0.0-788|2.0.0-790'}
-    op = []
-    for key in changed_entries.keys():
-        recursive_iterate(key, changed_entries[key], op)
 
-    # Extract the changed value seperated by '|'
-    # If key is local_path or log_path and their values are changed then
-    # we have to update the dir paths dependent on these and update their entries
-    # in motr config files like /etc/sysconfig/motr and /etc/cortx/motr/sysconfig/<machine-id>/motr
-    # Otherwise just update the changed value of key in
-    # motr config files like /etc/sysconfig/motr and /etc/cortx/motr/sysconfig/<machine-id>/motr
-    for i in op:
-        key = i[0]
-        changed_val = i[1].split('|')[-1]
-        if key == 'local_path':
-            self.local_path = changed_val
-            update_copy_motr_config_file(self)
-        elif key == 'log_path':
-            self.log_path = changed_val
-            update_copy_motr_config_file(self)
-        else:
-            # Just updated changed value
-            config_kvs = [(key, changed_val)]
-            self.logger.info(f"Updating config_kvs={config_kvs}\n")
-            update_kvs_to_motr_config(self, config_kvs, 'update')
+#2: Add/Delete  <key, val> pairs in motr config file
 
-# Add new <key, val> pairs in motr config file
-def add_del_keys_in_upgrade_phase(self, entries, flag):
-    op = []
-    config_kvs = []
-    for key in entries.keys():
-        recursive_iterate(key, entries[key], op)
-    for i in op:
-        key = i[0]
-        val = i[1]
-        config_kvs.append((key, val))
-    self.logger.info(f"Updating config_kvs={config_kvs}\n")
-    update_config_file_common(self, config_kvs, flag)
+def add_del_update_keys_in_upgrade_phase(self, entries, flag):
+    if flag not in ['update', 'append', 'delete']:
+        self.logger.error(f"flag={flag} not valid\n")
+        return
+    key_val_list = []
+    get_key_val_list_from_changed_entries(self, entries, key_val_list)
+    upgrade_phase_copy_key_val_to_motr_config(self, key_val_list, flag)
 
 def motr_upgrade(self):
     # Update changed motr config parameters
     changed_entries = Conf.get(self.changeset_index, 'changed')
     if changed_entries is not None:
         self.logger.info(f"changed_entries={changed_entries}\n")
-        update_keys_in_upgrade_phase(self, changed_entries)
+        add_del_update_keys_in_upgrade_phase(self, changed_entries, 'update')
 
     # Add new motr config parameters
     new_entries = Conf.get(self.changeset_index, 'new')
     if new_entries is not None:
         self.logger.info(f"new_entries={new_entries}\n")
-        add_del_keys_in_upgrade_phase(self, new_entries, 'append')
+        add_del_update_keys_in_upgrade_phase(self, new_entries, 'append')
 
     # Delete motr config parameters
     entries_to_delete = Conf.get(self.changeset_index, 'deleted')
     if entries_to_delete is not None:
-        add_del_keys_in_upgrade_phase(self, entries_to_delete, 'delete')
+        add_del_update_keys_in_upgrade_phase(self, entries_to_delete, 'delete')
+
     copy_motr_config_file(self)
 
 #Copy /etc/sysconfg/motr to /etc/cortx/motr/sysconfig/<machine-id>/
@@ -1670,4 +1670,3 @@ def copy_motr_config_file(self):
     self.logger.info(f"Copying {MOTR_SYS_CFG} to {MOTR_M0D_CONF_DIR}\n")
     cmd = f"cp {MOTR_SYS_CFG} {MOTR_M0D_CONF_DIR}"
     execute_command(self, cmd)
-
