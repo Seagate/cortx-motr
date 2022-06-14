@@ -383,28 +383,12 @@ def validate_motr_rpm(self):
     self.logger.info(f"Checking for {MOTR_SYS_CFG}\n")
     validate_file(MOTR_SYS_CFG)
 
-def add_entries_to_config_file(self, fname, kv_list):
-    lines = []
-    # Get all lines of file in buffer
-    with open(f"{MOTR_SYS_CFG}", "r") as fp:
-        for line in fp:
-            lines.append(line)
-    num_lines = len(lines)
-    self.logger.info(f"Before update, in file {fname}, num_lines={num_lines}\n")
-
-    for (k, v) in kv_list:
-        lines.append(f"{k}={v}\n")
-    num_lines = len(lines)
-    self.logger.info(f"After update, in file {fname}, num_lines={num_lines}\n")
-
-    # Write buffer to file
-    with open(f"{MOTR_SYS_CFG}", "w+") as fp:
-        for line in lines:
-            fp.write(f"{line}")
-
-def upgrade_phase_config_file(self, kv_list, flag):
-    MOTR_M0D_DATA_DIR = f"{self.local_path}/motr"
-    MOTR_LOCAL_SYSCONFIG_DIR = f"{MOTR_M0D_DATA_DIR}/sysconfig"
+#ToDo: 
+#(key,val) might contain space so need to use trim before comparision.
+#Only motr sysconfig parameters need to be updated in this function.
+       
+def upgrade_phase_sysconfig_file(self, kv_list, flag):
+    MOTR_LOCAL_SYSCONFIG_DIR = f"{self.local_path}/motr/sysconfig"
     MOTR_M0D_CONF_FILE = f"{MOTR_LOCAL_SYSCONFIG_DIR}/{self.machine_id}/motr"
 
     lines = []
@@ -434,14 +418,21 @@ def upgrade_phase_config_file(self, kv_list, flag):
             if flag == 'append':
                 self.logger.info(f"({k},{v}) not found in config. flag is {flag} so appending.\n")
                 lines.append(f"{k}={v}\n")
+            #ToDO: If user want to update the key which is not available then it should be error out.
             elif flag == 'update':
-                self.logger.info(f"({k},{v}) not found in config. flag is {flag} so skipping.\n")
+                self.logger.info(f"({k},{v}) not found in config. so skipping {flag}.\n")
+            elif flag == 'delete':
+                self.logger.info(f"({k},{v}) not found in config. so skipping {flag}.\n")
             found = False
-
+        else:
+            if flag == 'append':
+                self.logger.error(f"({k},{v}) found in config. so skipping {flag}.\n")
     num_lines = len(lines)
     self.logger.info(f"After update, num_lines={num_lines}\n")
 
     # Write buffer to file
+    # TODO: Consistency whould be maintained while writing to file.
+    # For example, if upgrade if crashed while updating the file then use the previous consistent copy.
     with open(f"{MOTR_M0D_CONF_FILE}", "w+") as fp:
         for line in lines:
             fp.write(f"{line}")
@@ -1622,7 +1613,7 @@ def upgrade_phase_copy_key_val_to_motr_config(self, key_val_list, flag):
             # Just updated changed value
             config_kvs = [(key, changed_val)]
             self.logger.info(f"{flag}ing config_kvs={config_kvs}\n")
-            upgrade_phase_config_file(self, config_kvs, flag)
+            upgrade_phase_sysconfig_file(self, config_kvs, flag)
 
 #In upgrade phase
 #1: Update <key,val> in motr config file with changed
@@ -1645,12 +1636,14 @@ def add_del_update_keys_in_upgrade_phase(self, entries, flag):
 
 def motr_upgrade(self):
     # Update changed motr config parameters
+    # ToDO: update flag while calling add_del_update_keys_in_upgrade_phase should ne replaced by change.
     changed_entries = Conf.get(self.changeset_index, 'changed')
     if changed_entries is not None:
         self.logger.info(f"changed_entries={changed_entries}\n")
         add_del_update_keys_in_upgrade_phase(self, changed_entries, 'update')
 
-    # Add new motr config parameters
+    # Add new motr config parameters.
+    # ToDO: append flag while calling add_del_update_keys_in_upgrade_phase should ne replaced by new/add.
     new_entries = Conf.get(self.changeset_index, 'new')
     if new_entries is not None:
         self.logger.info(f"new_entries={new_entries}\n")
