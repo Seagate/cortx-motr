@@ -162,8 +162,8 @@ int main(int argc, char *argv[])
 				     "\t\t\tCM_OP_REPAIR_STATUS = 7 or\n"
 				     "\t\t\tCM_OP_REBALANCE_STATUS = 8 or\n"
 				     "\t\t\tCM_OP_REPAIR_ABORT = 9 or\n"
-				     "\t\t\tCM_OP_REBALANCE_ABORT   = 10\n",
-				     "\t\t\tCM_OP_DIRECT_REBALANCE = 11 or\n"
+				     "\t\t\tCM_OP_REBALANCE_ABORT   = 10\n"
+				     "\t\t\tCM_OP_DIRECT_REBALANCE = 11 or\n",
 				     "%u", &op),
 			M0_STRINGARG('C', "Client endpoint",
 				LAMBDA(void, (const char *str){

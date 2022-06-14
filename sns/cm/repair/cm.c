@@ -68,7 +68,7 @@ static int repair_cm_prepare(struct m0_cm *cm)
 	int               rc;
 
 	M0_ENTRY("cm: %p", cm);
-	M0_PRE(scm->sc_op == CM_OP_REPAIR);
+	M0_PRE(M0_IN(scm->sc_op, (CM_OP_REPAIR, CM_OP_DIRECT_REBALANCE)));
 
 	scm->sc_helpers = &repair_helpers;
 

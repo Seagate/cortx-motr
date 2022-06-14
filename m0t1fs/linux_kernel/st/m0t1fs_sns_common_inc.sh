@@ -32,6 +32,7 @@ CM_OP_REPAIR_STATUS=7
 CM_OP_REBALANCE_STATUS=8
 CM_OP_REPAIR_ABORT=9
 CM_OP_REBALANCE_ABORT=10
+CM_OP_DIRECT_REBALANCE=11
 
 export N=2
 export K=1
@@ -80,6 +81,20 @@ sns_repair()
 	fi
 
 	return $rc
+}
+
+sns_direct_rebalance()
+{
+        local rc=0
+
+	repair_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_DIRECT_REBALANCE -t 0 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+	echo $repair_trigger
+	eval $repair_trigger
+        rc=$?
+        if [ $rc != 0 ]; then
+                echo "SNS direct rebalance failed"
+        fi
+        return $rc
 }
 
 sns_rebalance()

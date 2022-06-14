@@ -148,9 +148,11 @@ static void sns_prepare(struct m0_fom *fom)
 	M0_PRE(scm != NULL);
 	M0_PRE(treq != NULL);
 	M0_PRE(M0_IN(treq->op, (CM_OP_REPAIR, CM_OP_REPAIR_RESUME,
-				CM_OP_REBALANCE, CM_OP_REBALANCE_RESUME)));
+				CM_OP_REBALANCE, CM_OP_REBALANCE_RESUME,
+				CM_OP_DIRECT_REBALANCE)));
 
-	if (M0_IN(treq->op, (CM_OP_REPAIR, CM_OP_REBALANCE))) {
+	if (M0_IN(treq->op, (CM_OP_REPAIR, CM_OP_REBALANCE,
+                             CM_OP_DIRECT_REBALANCE))) {
 		cm->cm_reset = true;
 		scm->sc_op = treq->op;
 	} else

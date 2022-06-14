@@ -18,6 +18,7 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
+# set -x
 
 TOPDIR=`dirname $0`/../../../
 
@@ -74,6 +75,7 @@ sns_repair_motr_test()
 
 main()
 {
+	local errcode=0
 	local rc=0
 
 	sandbox_init
@@ -85,10 +87,16 @@ main()
 		return 1
 	}
 
-
-	if [[ $rc -eq 0 ]] && ! $(sns_repair_motr_test | tee -a $MOTR_TEST_LOGFILE; exit $PIPESTATUS[0]) ; then
+	if [[ $rc -ne 0 ]] ; then
 		echo "Failed: SNS repair failed.."
-		rc=1
+		errcode=$rc
+        else
+            sns_repair_motr_test
+            rc=$?
+            if [[ $rc -ne 0 ]] ; then
+		echo "Failed: sns_repair_motr_test command failed.."
+		errcode=$rc
+	    fi
 	fi
 
 	motr_service stop || {

@@ -567,7 +567,8 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 	int               rc;
 
 	M0_ENTRY("cm: %p", cm);
-	M0_PRE(M0_IN(scm->sc_op, (CM_OP_REPAIR, CM_OP_REBALANCE)));
+	M0_PRE(M0_IN(scm->sc_op, (CM_OP_REPAIR, CM_OP_REBALANCE,
+	       CM_OP_DIRECT_REBALANCE)));
 
 	rc = m0_sns_cm_rm_init(scm);
 	if (rc != 0)
@@ -645,7 +646,8 @@ M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
         int               rc;
 
 	M0_ENTRY("cm: %p", cm);
-	M0_PRE(M0_IN(scm->sc_op, (CM_OP_REPAIR, CM_OP_REBALANCE)));
+	M0_PRE(M0_IN(scm->sc_op, (CM_OP_REPAIR, CM_OP_REBALANCE,
+	       CM_OP_DIRECT_REBALANCE)));
 
 	M0_ALLOC_ARR(scm->sc_total_read_size, loc_nr);
 	if (scm->sc_total_read_size == NULL)

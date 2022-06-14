@@ -190,6 +190,12 @@ static int prepare(struct m0_fom *fom)
 	struct m0_trigger_fom *tfom = trig2tfom(fom);
 	int                    rc;
 
+	if (M0_IN(treq->op, (CM_OP_DIRECT_REBALANCE))) {
+		m0_fom_phase_set(fom, M0_TPH_READY);
+                rc = M0_FSO_AGAIN;
+                goto out;
+        }
+
 	if (M0_IN(treq->op, (CM_OP_REPAIR_QUIESCE, CM_OP_REBALANCE_QUIESCE))) {
 		/* Set quiesce flag to running copy machine and quit. */
 		cm->cm_quiesce = true;
@@ -280,15 +286,21 @@ static int prepare(struct m0_fom *fom)
 		M0_LOG(M0_WARN, "CM is still active, state: %d", cm_state);
 	} else
 		m0_fom_phase_set(fom, M0_TPH_READY);
-	M0_LOG(M0_DEBUG, "got trigger: prepare");
+out:	M0_LOG(M0_DEBUG, "got trigger: prepare");
 	return M0_RC(rc);
 }
 
 static int ready(struct m0_fom *fom)
 {
-	struct m0_cm *cm = trig2cm(fom);
-	int           rc;
+        struct trigger_fop *treq = m0_fop_data(fom->fo_fop);
+	struct m0_cm       *cm = trig2cm(fom);
+	int                 rc;
 
+        if (treq->op == CM_OP_DIRECT_REBALANCE) {
+	        m0_fom_phase_set(fom, M0_TPH_START);
+		rc = M0_FSO_AGAIN;
+                goto out;
+        }
 	if (M0_FI_ENABLED("no_wait")) {
 		rc = m0_cm_ready(cm);
 		if (rc == 0) {
@@ -314,15 +326,21 @@ static int ready(struct m0_fom *fom)
 		return M0_FSO_WAIT;
 
 	m0_fom_phase_set(fom, M0_TPH_START);
+out:
 	M0_LOG(M0_DEBUG, "trigger: ready rc: %d", rc);
 	return rc;
 }
 
 static int start(struct m0_fom *fom)
 {
-	struct m0_cm *cm = trig2cm(fom);
-	int           rc;
+        struct trigger_fop *treq = m0_fop_data(fom->fo_fop);
+	struct m0_cm       *cm = trig2cm(fom);
+	int                 rc;
 
+        if (treq->op == CM_OP_DIRECT_REBALANCE) {
+		rc = 0;
+                goto out;
+        }
 	/*
 	 * CM start is potentially blocking operation. For example, DIX
 	 * repair/re-balance CM start iterator in separate FOM and waits until
@@ -339,7 +357,8 @@ static int start(struct m0_fom *fom)
 	}
 	if (rc != 0)
 		return M0_ERR(rc);
-	M0_LOG(M0_DEBUG, "trigger: start");
+
+out:	M0_LOG(M0_DEBUG, "trigger: start");
 	trigger_rep_set(fom);
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 	return M0_FSO_AGAIN;

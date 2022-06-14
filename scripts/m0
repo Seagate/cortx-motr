@@ -191,6 +191,8 @@ cmd_run_st() {
     trans=$(m0_default_xprt)
     rs_lib=$(_check_rs_library)
 
+    # set -x
+
     if [ "${1:-}" = '-l' ]; then
         list_p=1
         shift
