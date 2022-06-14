@@ -383,10 +383,10 @@ def validate_motr_rpm(self):
     self.logger.info(f"Checking for {MOTR_SYS_CFG}\n")
     validate_file(MOTR_SYS_CFG)
 
-#ToDo: 
+#TODO:
 #(key,val) might contain space so need to use trim before comparision.
 #Only motr sysconfig parameters need to be updated in this function.
-       
+
 def upgrade_phase_sysconfig_file(self, kv_list, flag):
     MOTR_LOCAL_SYSCONFIG_DIR = f"{self.local_path}/motr/sysconfig"
     MOTR_M0D_CONF_FILE = f"{MOTR_LOCAL_SYSCONFIG_DIR}/{self.machine_id}/motr"
@@ -418,7 +418,7 @@ def upgrade_phase_sysconfig_file(self, kv_list, flag):
             if flag == 'append':
                 self.logger.info(f"({k},{v}) not found in config. flag is {flag} so appending.\n")
                 lines.append(f"{k}={v}\n")
-            #ToDO: If user want to update the key which is not available then it should be error out.
+            #TODO: If user want to update the key which is not available then it should be error out.
             elif flag == 'update':
                 self.logger.info(f"({k},{v}) not found in config. so skipping {flag}.\n")
             elif flag == 'delete':
@@ -1636,14 +1636,14 @@ def add_del_update_keys_in_upgrade_phase(self, entries, flag):
 
 def motr_upgrade(self):
     # Update changed motr config parameters
-    # ToDO: update flag while calling add_del_update_keys_in_upgrade_phase should ne replaced by change.
+    # TODO: update flag while calling add_del_update_keys_in_upgrade_phase should ne replaced by change.
     changed_entries = Conf.get(self.changeset_index, 'changed')
     if changed_entries is not None:
         self.logger.info(f"changed_entries={changed_entries}\n")
         add_del_update_keys_in_upgrade_phase(self, changed_entries, 'update')
 
     # Add new motr config parameters.
-    # ToDO: append flag while calling add_del_update_keys_in_upgrade_phase should ne replaced by new/add.
+    # TODO: append flag while calling add_del_update_keys_in_upgrade_phase should ne replaced by new/add.
     new_entries = Conf.get(self.changeset_index, 'new')
     if new_entries is not None:
         self.logger.info(f"new_entries={new_entries}\n")
