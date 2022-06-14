@@ -383,6 +383,61 @@ def validate_motr_rpm(self):
     self.logger.info(f"Checking for {MOTR_SYS_CFG}\n")
     validate_file(MOTR_SYS_CFG)
 
+#TODO:
+#(key,val) might contain space so need to use trim before comparision.
+#Only motr sysconfig parameters need to be updated in this function.
+
+def upgrade_phase_sysconfig_file(self, kv_list, flag):
+    MOTR_LOCAL_SYSCONFIG_DIR = f"{self.local_path}/motr/sysconfig"
+    MOTR_M0D_CONF_FILE = f"{MOTR_LOCAL_SYSCONFIG_DIR}/{self.machine_id}/motr"
+
+    lines = []
+    # Get all lines of file in buffer
+    with open(f"{MOTR_M0D_CONF_FILE}", "r") as fp:
+        for line in fp:
+            lines.append(line)
+    num_lines = len(lines)
+    self.logger.info(f"Before update, num_lines={num_lines}\n")
+
+    #Check for keys in file
+    for (k, v) in kv_list:
+        found = False
+        for lno in range(num_lines):
+            # If found, update inline.
+            if lines[lno].startswith(f"{k}="):
+                if flag == 'update':
+                    self.logger.info(f"key={k} found in config. flag is {flag} so updating.\n")
+                    lines[lno] = f"{k}={v}\n"
+                elif flag == 'delete':
+                    self.logger.info(f"key={k} found in config. flag is {flag} so deleting.\n")
+                    lines[lno] = "\n"
+                found = True
+                break
+        # If not found, append or skip according to flag
+        if not found:
+            if flag == 'append':
+                self.logger.info(f"({k},{v}) not found in config. flag is {flag} so appending.\n")
+                lines.append(f"{k}={v}\n")
+            #TODO: If user want to update the key which is not available then it should be error out.
+            elif flag == 'update':
+                self.logger.info(f"({k},{v}) not found in config. so skipping {flag}.\n")
+            elif flag == 'delete':
+                self.logger.info(f"({k},{v}) not found in config. so skipping {flag}.\n")
+            found = False
+        else:
+            if flag == 'append':
+                self.logger.error(f"({k},{v}) found in config. so skipping {flag}.\n")
+    num_lines = len(lines)
+    self.logger.info(f"After update, num_lines={num_lines}\n")
+
+    # Write buffer to file
+    # TODO: Consistency whould be maintained while writing to file.
+    # For example, if upgrade is crashed while updating the file then use the previous consistent copy.
+    with open(f"{MOTR_M0D_CONF_FILE}", "w+") as fp:
+        for line in lines:
+            fp.write(f"{line}")
+
+
 def update_config_file(self, fname, kv_list):
     lines = []
     # Get all lines of file in buffer
@@ -440,9 +495,7 @@ def update_copy_motr_config_file(self):
                    ("MOTR_M0D_CONF_XC", f"{MOTR_M0D_CONF_XC}"),
                    ("MOTR_M0D_ADDB_STOB_DIR", f"{MOTR_M0D_ADDB_STOB_DIR}"),
                    ("MOTR_M0D_TRACE_DIR", f"{MOTR_M0D_TRACE_DIR}")]
-
     update_config_file(self, f"{MOTR_SYS_CFG}", config_kvs)
-
     # Copy config file to new path
     cmd = f"cp {MOTR_SYS_CFG} {MOTR_M0D_CONF_DIR}"
     execute_command(self, cmd)
@@ -1512,3 +1565,91 @@ def start_service(self, service, idx):
     cmd = f"{MOTR_SERVER_SCRIPT_PATH} m0d-{fid}"
     execute_command_console(self, cmd)
     return
+
+# Iterate recursively through dictionary and extract leaf <key, value>
+# For example,
+# Input: {'cortx': {'common': {'release': {'version': '2.0.0-788|2.0.0-790'}}, 'rgw': {'gc_max_objs': '32|123', 'init_timeout': '300|123'}}}
+# Output: [('version', '2.0.0-788|2.0.0-790'), ('gc_max_objs', '32|123'), ('init_timeout', '300|123')]
+def recursive_iterate(key, val, list_op):
+    if isinstance(val, dict):
+        for k in val.keys():
+            recursive_iterate(k, val[k], list_op)
+    else:
+        if isinstance(val, list):
+            for elem in val:
+                if isinstance(elem, dict):
+                    for k in elem.keys():
+                        recursive_iterate(k, elem[k], list_op)
+        else:
+            list_op.append((key, val))
+
+def get_key_val_list_from_changed_entries(self, entries, key_val_list):
+    for key in entries.keys():
+        recursive_iterate(key, entries[key], key_val_list)
+
+# Extract the changed value seperated by '|'
+# If key is 'local' or 'log' and their values are changed then
+# we have to update the dir paths dependent on these and update their entries
+# in motr config files like /etc/sysconfig/motr and /etc/cortx/motr/sysconfig/<machine-id>/motr
+# Otherwise just update the changed value of key in
+# motr config files like /etc/sysconfig/motr and /etc/cortx/motr/sysconfig/<machine-id>/motr
+
+def upgrade_phase_copy_key_val_to_motr_config(self, key_val_list, flag):
+     for i in key_val_list:
+        key = i[0]
+
+        if flag == 'update':
+            changed_val = i[1].split('|')[-1]
+        else:
+            changed_val = i[1]
+
+        if key == 'local':
+            self.local_path = changed_val
+            update_copy_motr_config_file(self)
+        elif key == 'log':
+            self.log_path = changed_val
+            update_copy_motr_config_file(self)
+        else:
+            # Just updated changed value
+            config_kvs = [(key, changed_val)]
+            self.logger.info(f"{flag}ing config_kvs={config_kvs}\n")
+            upgrade_phase_sysconfig_file(self, config_kvs, flag)
+
+#In upgrade phase
+#1: Update <key,val> in motr config file with changed
+# values. The changed entries are of format
+# {'cortx': {'common': {'release': {'version': '2.0.0-788|2.0.0-790'}}, 'rgw': {'gc_max_objs': '32|123', 'init_timeout': '300|123'}},
+#  'cortx1': {'common': {'release': {'version': '2.0.0-788|2.0.0-790'}}, 'rgw': {'gc_max_objs': '32|123', 'init_timeout': '300|123'}}
+# }
+# Get the chnaged values. In above case these are {'version':'2.0.0-790''}, {'gc_max_objs':'123'}, {'init_timeout':'123'} for cortx
+# and {'version':'2.0.0-790''}, {'gc_max_objs':'123'}, {'init_timeout':'123'} for cortx1
+
+#2: Add/Delete  <key, val> pairs in motr config file
+
+def add_del_update_keys_in_upgrade_phase(self, entries, flag):
+    if flag not in ['update', 'append', 'delete']:
+        self.logger.error(f"flag={flag} not valid\n")
+        return
+    key_val_list = []
+    get_key_val_list_from_changed_entries(self, entries, key_val_list)
+    upgrade_phase_copy_key_val_to_motr_config(self, key_val_list, flag)
+
+def motr_upgrade(self):
+    # Update changed motr config parameters
+    # TODO: update flag while calling add_del_update_keys_in_upgrade_phase should ne replaced by change.
+    changed_entries = Conf.get(self.changeset_index, 'changed')
+    if changed_entries is not None:
+        self.logger.info(f"changed_entries={changed_entries}\n")
+        add_del_update_keys_in_upgrade_phase(self, changed_entries, 'update')
+
+    # Add new motr config parameters.
+    # TODO: append flag while calling add_del_update_keys_in_upgrade_phase should ne replaced by new/add.
+    new_entries = Conf.get(self.changeset_index, 'new')
+    if new_entries is not None:
+        self.logger.info(f"new_entries={new_entries}\n")
+        add_del_update_keys_in_upgrade_phase(self, new_entries, 'append')
+
+    # Delete motr config parameters
+    entries_to_delete = Conf.get(self.changeset_index, 'deleted')
+    if entries_to_delete is not None:
+        add_del_update_keys_in_upgrade_phase(self, entries_to_delete, 'delete')
