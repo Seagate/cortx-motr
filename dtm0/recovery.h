@@ -103,7 +103,7 @@ struct m0_dtm0_recovery_machine {
 	struct m0_sm                               rm_sm;
 };
 
-M0_EXTERN const struct m0_dtm0_recovery_machine_ops
+extern const struct m0_dtm0_recovery_machine_ops
 			m0_dtm0_recovery_machine_default_ops;
 
 M0_INTERNAL int m0_drm_domain_init(void);
