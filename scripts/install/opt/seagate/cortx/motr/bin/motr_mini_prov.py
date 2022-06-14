@@ -403,9 +403,13 @@ def add_entries_to_config_file(self, fname, kv_list):
             fp.write(f"{line}")
 
 def upgrade_phase_config_file(self, kv_list, flag):
+    MOTR_M0D_DATA_DIR = f"{self.local_path}/motr"
+    MOTR_LOCAL_SYSCONFIG_DIR = f"{MOTR_M0D_DATA_DIR}/sysconfig"
+    MOTR_M0D_CONF_FILE = f"{MOTR_LOCAL_SYSCONFIG_DIR}/{self.machine_id}/motr"
+
     lines = []
     # Get all lines of file in buffer
-    with open(f"{MOTR_SYS_CFG}", "r") as fp:
+    with open(f"{MOTR_M0D_CONF_FILE}", "r") as fp:
         for line in fp:
             lines.append(line)
     num_lines = len(lines)
@@ -438,7 +442,7 @@ def upgrade_phase_config_file(self, kv_list, flag):
     self.logger.info(f"After update, num_lines={num_lines}\n")
 
     # Write buffer to file
-    with open(f"{MOTR_SYS_CFG}", "w+") as fp:
+    with open(f"{MOTR_M0D_CONF_FILE}", "w+") as fp:
         for line in lines:
             fp.write(f"{line}")
 
@@ -1600,7 +1604,6 @@ def get_key_val_list_from_changed_entries(self, entries, key_val_list):
 # motr config files like /etc/sysconfig/motr and /etc/cortx/motr/sysconfig/<machine-id>/motr
 
 def upgrade_phase_copy_key_val_to_motr_config(self, key_val_list, flag):
-     print("")
      for i in key_val_list:
         key = i[0]
 
@@ -1657,16 +1660,3 @@ def motr_upgrade(self):
     entries_to_delete = Conf.get(self.changeset_index, 'deleted')
     if entries_to_delete is not None:
         add_del_update_keys_in_upgrade_phase(self, entries_to_delete, 'delete')
-
-    copy_motr_config_file(self)
-
-#Copy /etc/sysconfg/motr to /etc/cortx/motr/sysconfig/<machine-id>/
-def copy_motr_config_file(self):
-    validate_files([MOTR_SYS_CFG, self.local_path, self.log_path])
-    MOTR_M0D_DATA_DIR = f"{self.local_path}/motr"
-    MOTR_LOCAL_SYSCONFIG_DIR = f"{MOTR_M0D_DATA_DIR}/sysconfig"
-    MOTR_M0D_CONF_DIR = f"{MOTR_LOCAL_SYSCONFIG_DIR}/{self.machine_id}"
-    validate_files([MOTR_SYS_CFG, MOTR_M0D_CONF_DIR])
-    self.logger.info(f"Copying {MOTR_SYS_CFG} to {MOTR_M0D_CONF_DIR}\n")
-    cmd = f"cp {MOTR_SYS_CFG} {MOTR_M0D_CONF_DIR}"
-    execute_command(self, cmd)
