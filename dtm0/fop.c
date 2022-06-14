@@ -24,6 +24,7 @@
 #include "lib/trace.h"         /* M0_LOG */
 #include "cas/cas.h"
 #include "cas/cas_xc.h"
+#include "dix/fid_convert.h"   /* m0_dix_fid__device_id_set */
 #include "dtm0/fop.h"
 #include "dtm0/fop_xc.h"
 #include "dtm0/addb2.h"
@@ -58,7 +59,8 @@ static int dtm0_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			       struct m0_reqh *reqh);
 static void dtm0_fom_fini(struct m0_fom *fom);
 static size_t dtm0_fom_locality(const struct m0_fom *fom);
-static int dtm0_cas_fop_prepare(struct dtm0_req_fop *req,
+static int dtm0_cas_fop_prepare(struct m0_reqh      *reqh,
+				struct dtm0_req_fop *req,
 				struct m0_fop_type  *cas_fopt,
 				struct m0_fop      **cas_fop_out);
 static int dtm0_cas_fom_spawn(
@@ -537,13 +539,43 @@ static int dtm0_cas_fom_spawn(
 #endif
 }
 
-static int dtm0_cas_fop_prepare(struct dtm0_req_fop *req,
+static void dtm0_cas_sdev_id_set(
+	struct m0_reqh                    *reqh,
+	const struct m0_reqh_service_type *stype,
+	struct m0_cas_op                  *cas_op)
+{
+#ifndef __KERNEL__
+	struct m0_cas_id             *cid = &cas_op->cg_id;
+	uint32_t                      sdev_id;
+
+	M0_PRE(reqh != NULL);
+	M0_PRE(stype != NULL);
+	M0_PRE(cas_op != NULL);
+
+	M0_ENTRY();
+
+	sdev_id = m0_cas_svc_device_id_get(stype, reqh);
+	M0_LOG(M0_DEBUG, "Replace device ID: %d -> %d",
+	       m0_dix_fid_cctg_device_id(&cid->ci_fid), sdev_id);
+	m0_dix_fid__device_id_set(&cid->ci_fid, sdev_id);
+
+	M0_LEAVE();
+#else
+	/* CAS service is not compiled for kernel. */
+	return;
+#endif
+}
+
+static int dtm0_cas_fop_prepare(struct m0_reqh      *reqh,
+				struct dtm0_req_fop *req,
 				struct m0_fop_type  *cas_fopt,
 				struct m0_fop      **cas_fop_out)
 {
 	int               rc;
 	struct m0_cas_op *cas_op;
 	struct m0_fop    *cas_fop;
+
+	M0_ENTRY();
 
 	*cas_fop_out = NULL;
 
@@ -557,9 +589,12 @@ static int dtm0_cas_fop_prepare(struct dtm0_req_fop *req,
 			&M0_XCODE_OBJ(m0_cas_op_xc, cas_op),
 			req->dtr_payload.b_addr,
 			req->dtr_payload.b_nob);
-		if (rc == 0)
-			m0_fop_init(cas_fop, cas_fopt, cas_op, &m0_fop_release);
-		else
+		if (rc == 0) {
+			dtm0_cas_sdev_id_set(
+				reqh, cas_fopt->ft_fom_type.ft_rstype, cas_op);
+			m0_fop_init(cas_fop, cas_fopt, cas_op,
+				    &m0_fop_release);
+		} else
 			M0_LOG(M0_ERROR, "Could not decode the REDO payload");
 	}
 
@@ -570,7 +605,7 @@ static int dtm0_cas_fop_prepare(struct dtm0_req_fop *req,
 		m0_free(cas_fop);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
@@ -606,7 +641,8 @@ static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
 		cs_ha_process_event(m0_cs_ctx_get(m0_fom_reqh(fom)),
 				    M0_CONF_HA_PROCESS_DTM_RECOVERED);
 		*/
-		rc = dtm0_cas_fop_prepare(req, &cas_put_fopt, &cas_fop);
+		rc = dtm0_cas_fop_prepare(dfom->dtf_fom.fo_service->rs_reqh,
+					  req, &cas_put_fopt, &cas_fop);
 		if (rc == 0) {
 			rc = dtm0_cas_fom_spawn(dfom, cas_fop,
 						&dtm0_cas_done_cb);
