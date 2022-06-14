@@ -2141,7 +2141,7 @@ static void default_redo_post(struct m0_dtm0_recovery_machine *m,
 	M0_ASSERT(rc == 0);
 }
 
-const struct m0_dtm0_recovery_machine_ops
+M0_INTERNAL const struct m0_dtm0_recovery_machine_ops
 		m0_dtm0_recovery_machine_default_ops = {
 	.log_iter_init = default_log_iter_init,
 	.log_iter_fini = default_log_iter_fini,
