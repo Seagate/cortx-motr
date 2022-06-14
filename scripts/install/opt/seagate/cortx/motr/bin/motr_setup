@@ -1,4 +1,4 @@
-#!/usr/libexec/platform-python
+#!/usr/bin/env python3
 #
 # Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
 #
@@ -35,13 +35,16 @@ MOTR_HARE_CONF_PATH = "/opt/seagate/cortx/motr/conf/motr_hare_keys.json"
 class Cmd:
     """Setup Command"""
     _index = "conf"
-
+    changeset_index = "changeset_conf"
     # Index for Hare-Motr keys required for intercomponent communication
     _index_motr_hare = "conf_motr_hare"
 
     def __init__(self, args: dict):
         self._url = args.config
-
+        if args.changeset not in [None, ""]:
+            self.changeset = args.changeset
+            Conf.load(self.changeset_index, self.changeset)
+            changeset_all_keys = Conf.get_keys(self.changeset_index)
         self._services = args.services
         self._idx = args.idx
         # URL for Hare-Motr keys required for intercomponent communication
@@ -113,6 +116,7 @@ class Cmd:
 
         parser1 = parser.add_parser(cls.name, help=f'setup {name}')
         parser1.add_argument('--config', type=str, help="Config URL")
+        parser1.add_argument('--changeset', type=str, help="Changeset URL for upgrade")
         parser1.add_argument('args', nargs='*', default=[], help='args')
         parser1.add_argument('--debug', '-d', help='enable debug print',
                          action="store_true")
@@ -235,10 +239,21 @@ class UpgradeCmd(Cmd):
     name = "upgrade"
 
     def __init__(self, args):
+        # args is of type Namespace.
+        # For example, args=Namespace(args=[], changeset=None,
+        #                             command=<class '__main__.UpgradeCmd'>,
+        #                             config='yaml:///etc/cortx/cluster.conf',
+        #                             debug=False, idx=None, services=None)
+
+        # If changeset is not given or Null then set it to default value
+        if args.changeset in [None, ""]:
+            args.changeset = "yaml:///etc/cortx/changeset.conf"
+
         super().__init__(args)
 
     def process(self):
-        pass
+        self.logger.info(f"Processing {self.name} {self.url} changeset={self.changeset} {self._args}\n")
+        motr_upgrade(self)
 
 class BackupCmd(Cmd):
     """Backup Setup Cmd"""
