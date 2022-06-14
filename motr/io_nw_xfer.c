@@ -822,7 +822,7 @@ int target_calculate_checksum(struct m0_op_io *ioo,
 	seed.pis_obj_id.f_container = ioo->ioo_obj->ob_entity.en_id.u_hi;
 	seed.pis_obj_id.f_key = ioo->ioo_obj->ob_entity.en_id.u_lo;
 
-	// Select data pointer
+	/* Select data pointer */
 	if (filter == PA_PARITY) {
 		data = map->pi_paritybufs;
 		M0_ASSERT(cs_idx->ci_unit_idx < layout_k(play));
@@ -835,12 +835,14 @@ int target_calculate_checksum(struct m0_op_io *ioo,
 	if (rc != 0)
 		return -ENOMEM;
 
-	// Populate buffer vec for give parity unit and add all buffers present
-	// in rows (page sized buffer/4K)
+	/*
+	 * Populate buffer vec for give parity unit and add all buffers present
+	 * in rows (page sized buffer/4K)
+	 */
 	for (row = 0; row < rows_nr(play, obj); ++row) {
 		if (data[row][cs_idx->ci_unit_idx]) {
 			buf = &data[row][cs_idx->ci_unit_idx]->db_buf;
-			//  New cycle so init buffer and count
+			/*  New cycle so init buffer and count */
 			bvec.ov_buf[b_idx] = buf->b_addr;
 			bvec.ov_vec.v_count[b_idx] = buf->b_nob;
 
@@ -883,32 +885,34 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 	struct fop_cksum_data 		     *cs_data;
 	struct fop_cksum_idx_data 	     *cs_idx_data;
 
-	// Validate if FOP has any checksum to be sent
-	cs_data = &irfop->irf_cksum_data;
-	cs_idx_data = cs_data->cd_idx;
 
-	// Get checksum size and type
+	/* Get checksum size and type */
 	cksum_size = m0__obj_di_cksum_size(ioo);
 	cksum_type = m0__obj_di_cksum_type(ioo);
 	M0_ASSERT(cksum_type < M0_PI_TYPE_MAX);
 
-	// Number of units will not be zero as its already checked
+	/* Number of units will not be zero as its already checked */
 	num_units = irfop->irf_cksum_data.cd_num_units;
 	
-	// Note: No need to free this as RPC layer will free this
-	// Allocate cksum buffer for number of units added to target_ioreq ti
+	/*
+	 * Note: No need to free this as RPC layer will free this
+	 * Allocate cksum buffer for number of units added to target_ioreq ti
+	 */
 	if (m0_buf_alloc(&rw_fop->crw_di_data_cksum, num_units * cksum_size) != 0)
 		return -ENOMEM;
 
+	/* Validate if FOP has any checksum to be sent */
+	cs_data = &irfop->irf_cksum_data;
+	cs_idx_data = cs_data->cd_idx;
 	for (idx = 0; idx < num_units; idx++) {
 		cs_idx_data = &cs_data->cd_idx[idx];
 
-		// Valid data should be populated
+		/* Valid data should be populated */
 		M0_ASSERT(cs_idx_data->ci_pg_idx != UINT32_MAX && cs_idx_data->ci_unit_idx != UINT32_MAX);
 
-		// For Parity Unit only Motr can generates checksum  
+		/* For Parity Unit only Motr can generates checksum */
 		if (m0__obj_is_di_cksum_gen_enabled(ioo) || (irfop->irf_pattr == PA_PARITY)) {
-			// Compute checksum for Unit
+			/* Compute checksum for Unit */
 			rc = target_calculate_checksum( ioo, cksum_type, irfop->irf_pattr,
 					cs_idx_data, rw_fop->crw_di_data_cksum.b_addr + computed_cksm_nob);
 			if (rc != 0) {
@@ -916,7 +920,7 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 				return rc;
 			}
 		} else {
-			// Case where application is passing checksum
+			/* Case where application is passing checksum */
 			uint32_t unit_off;
 			struct m0_pdclust_layout *play = pdlayout_get(ioo);
 
@@ -934,10 +938,11 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 	return rc;
 }
 
-// This function will compute PG Index and Unit Index at given goff (object
-// offset index). Relation between them is shown below.  
-// DATA	 Units  : Gob Offset - PGStart : PGStart + NxUS => PG Index - 0 : (N-1) 
-// PARITY Units : Gob Offset - PGStart : PGStart + KxUS => PG Index - 0 : (K-1) 
+/* This function will compute PG Index and Unit Index at given goff (object
+ * offset index). Relation between them is shown below.
+ * DATA	 Units  : Gob Offset - PGStart : PGStart + NxUS => PG Index - 0 : (N-1)
+ * PARITY Units : Gob Offset - PGStart : PGStart + KxUS => PG Index - 0 : (K-1)
+ */
 static void target_ioreq_calculate_index(struct m0_op_io *ioo,
 					 struct fop_cksum_idx_gbl_data *pgdata,
 					 struct ioreq_fop *irfop,
@@ -952,7 +957,7 @@ static void target_ioreq_calculate_index(struct m0_op_io *ioo,
 		cs_idx = &fop_cs_data->cd_idx[fop_cs_data->cd_num_units]; 
 		M0_ASSERT(cs_idx->ci_pg_idx == UINT32_MAX && cs_idx->ci_unit_idx == UINT32_MAX);
 	
-		// Compute PG Index and remaining exta w.r.t PG boundary
+		/* Compute PG Index and remaining exta w.r.t PG boundary */
 		cs_idx->ci_pg_idx = (goff - pgdata->pgrp0_index) / pgdata->pgrp_size;
 		rem_pg_sz         = (goff - pgdata->pgrp0_index) % pgdata->pgrp_size;
 		cs_idx->ci_unit_idx = rem_pg_sz/pgdata->unit_sz;
@@ -1201,7 +1206,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 					if (buf + xfer_len == bufnext) {
 						xfer_len += COUNT(ivec, ++seg);
-						// Next segment should be as per filter
+						/* Next segment should be as per filter */
 						segnext = seg + 1;
 						if (!(pattr[segnext] & filter) ||
 							!(pattr[segnext] & rw) ||

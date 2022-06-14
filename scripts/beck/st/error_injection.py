@@ -243,13 +243,13 @@ def ReadCompleteRecordIncCRC(offset):
     # curr_record = [ hex(int(i, 16)) for i in curr_record]
     return curr_record, offset # Return record data and footer offset
 
-def m0_hash_fnc_fnv1(buffer, len):
+def m0_hash_fnc_fnv1(buffer, length):
     ptr = buffer
     val = 14695981039346656037
     mask = (1 << 64) - 1
-    if buffer == None or len == 0 :
+    if buffer == None or length == 0 :
         return 0
-    for i in range(round(len/8)) :
+    for i in range(round(length/8)) :
         for j in reversed(range(7 + 1)):
             val = (val * 1099511628211) & mask
             val = val ^ ptr[(i * 8) + j]

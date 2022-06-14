@@ -92,7 +92,11 @@
 #include "pool/pool.h" /* M0_TL_DESCR_DECLARE(pools, M0_EXTERN) */
 
 enum {
-	LNET_MAX_PAYLOAD = 1 << 20,
+	/* Note: This is dependent on m0_net_domain_get_max_buffer_size or
+	 * libfab_get_max_buf_size() and both values should be in sync. They
+	 * help to select max unit size.
+	 */
+	NET_DOMAIN_MAX_PAYLOAD = 1 << 20,
 };
 
 extern struct m0_layout_type m0_pdclust_layout_type;
@@ -824,10 +828,12 @@ M0_INTERNAL int64_t m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
 			pa = &m0_layout_to_pdl(l)->pl_attr;
 			if (pa->pa_unit_size * pa->pa_N >= buffsize ||
 			    /*
-			     * Performance degrades for units bigger than
-			     * 4 * LNET_MAX_PAYLOAD (4MB atm), as tests show.
+			     * There is FOP split for units bigger than
+			     * NET_DOMAIN_MAX_PAYLOAD (1MB atm) and as DI
+			     * is evaluated for every unit size, this value
+			     * will avoid splitting FOP.
 			     */
-			    m0_lid_to_unit_map[i] >= 4 * LNET_MAX_PAYLOAD)
+			    m0_lid_to_unit_map[i] >= NET_DOMAIN_MAX_PAYLOAD)
 				break;
 			m0_ref_put(&l->l_ref);
 		}
