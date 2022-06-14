@@ -432,7 +432,7 @@ def upgrade_phase_sysconfig_file(self, kv_list, flag):
 
     # Write buffer to file
     # TODO: Consistency whould be maintained while writing to file.
-    # For example, if upgrade if crashed while updating the file then use the previous consistent copy.
+    # For example, if upgrade is crashed while updating the file then use the previous consistent copy.
     with open(f"{MOTR_M0D_CONF_FILE}", "w+") as fp:
         for line in lines:
             fp.write(f"{line}")
@@ -1566,7 +1566,7 @@ def start_service(self, service, idx):
     execute_command_console(self, cmd)
     return
 
-# Itertate recursiverly through dictionary and extract leaf <key, value>
+# Iterate recursively through dictionary and extract leaf <key, value>
 # For example,
 # Input: {'cortx': {'common': {'release': {'version': '2.0.0-788|2.0.0-790'}}, 'rgw': {'gc_max_objs': '32|123', 'init_timeout': '300|123'}}}
 # Output: [('version', '2.0.0-788|2.0.0-790'), ('gc_max_objs', '32|123'), ('init_timeout', '300|123')]
