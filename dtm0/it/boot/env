@@ -1,0 +1,16 @@
+#!/bin/bash
+
+CWD=$(dirname $(readlink -f $0))
+MOTR_ROOT=$(realpath $CWD/../../..)
+MOTR_UTILS_DIR=${MOTR_ROOT}/utils
+MOTR_VAR_DIR=/var/motr
+TEST_ROOT=$MOTR_VAR_DIR/it-boot
+CURRENT_CDF=$CWD/cdf.yaml
+
+# m0setup parameters
+LOOP_IMG_DIR=$TEST_ROOT
+POOL_WIDTH=4
+IPOOL_WIDTH=2
+
+# expected outputs
+expected_kv_get_recurse_processes="$CWD/expected_kv_get_recurse_processes"

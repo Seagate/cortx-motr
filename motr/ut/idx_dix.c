@@ -908,6 +908,8 @@ static void idx_setup(void)
 	m0_idx_init(idx, &realm->co_realm, (struct m0_uint128 *) ifid);
 
 	/* Create the index */
+	if (ENABLE_DTM0)
+		idx->in_entity.en_flags |= M0_ENF_META;
 	rc = m0_entity_create(NULL, &idx->in_entity, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_op_launch(&op, 1);

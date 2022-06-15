@@ -56,6 +56,8 @@ enum config_key_val {
 	ADDB_INIT,
 	ADDB_SIZE,
 	IS_ENF_META,
+	IS_SKIP_LAYOUT,
+	IS_CROW_DISABLE,
 	LOG_LEVEL,
 	/*
 	 * All parameters below are workload-specific,
@@ -159,6 +161,8 @@ struct key_lookup_table lookuptable[] = {
 	{"MODE", MODE},
 	{"MAX_NR_OPS", MAX_NR_OPS},
 	{"IS_ENF_META", IS_ENF_META},
+	{"IS_SKIP_LAYOUT", IS_SKIP_LAYOUT},
+	{"IS_CROW_DISABLE", IS_CROW_DISABLE},
 	{"NR_ROUNDS", NR_ROUNDS},
 };
 
@@ -598,6 +602,12 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			break;
 		case IS_ENF_META:
 			conf->is_enf_meta = atoi(value);
+			break;
+		case IS_SKIP_LAYOUT:
+			conf->is_skip_layout = atoi(value);
+			break;
+		case IS_CROW_DISABLE:
+			conf->is_crow_disable = atoi(value);
 			break;
 		default:
 			break;

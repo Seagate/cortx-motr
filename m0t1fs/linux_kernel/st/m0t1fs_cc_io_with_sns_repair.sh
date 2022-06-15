@@ -19,11 +19,11 @@
 #
 
 
-. `dirname $0`/common.sh
-. `dirname $0`/m0t1fs_common_inc.sh
-. `dirname $0`/m0t1fs_client_inc.sh
-. `dirname $0`/m0t1fs_server_inc.sh
-. `dirname $0`/m0t1fs_sns_common_inc.sh
+. `dirname "$0"`/common.sh
+. `dirname "$0"`/m0t1fs_common_inc.sh
+. `dirname "$0"`/m0t1fs_client_inc.sh
+. `dirname "$0"`/m0t1fs_server_inc.sh
+. `dirname "$0"`/m0t1fs_sns_common_inc.sh
 
 ###################################################
 # SNS repair is only supported in COPYTOOL mode,
@@ -131,8 +131,8 @@ verify()
 	local BS=$2
 	local COUNT=$3
 
-	local_read $BS $COUNT || return $?
-	read_and_verify $FILE $BS $COUNT || return $?
+	local_read "$BS" "$COUNT" || return $?
+	read_and_verify "$FILE" "$BS" "$COUNT" || return $?
 
 	echo "$FILE verification sucess"
 }
@@ -144,7 +144,7 @@ verify_all()
 	local end=$3
 
         for ((i=$start; i < $end; i++)) ; do
-		verify "$container${files[$i]}" $((${bs[$i]} * 1024))  ${file_size[$i]} || return $?
+		verify "$container${files[$i]}" $((${bs[$i]} * 1024))  "${file_size[$i]}" || return $?
         done
 }
 
@@ -157,7 +157,7 @@ delete_all()
 	echo "start $start, end $end"
 	for ((i=$start; i < $end; i++)) ; do
 		echo "rm -f $MOTR_M0T1FS_MOUNT_DIR/$container${files[$i]} &"
-		rm -f $MOTR_M0T1FS_MOUNT_DIR/$container${files[$i]} &
+		rm -f "$MOTR_M0T1FS_MOUNT_DIR"/"$container""${files[$i]}" &
 	done
 	sleep 5
 }
@@ -171,9 +171,9 @@ ls_all()
 
 	echo "start $start, end $end"
 	for ((i=$start; i < $end; i++)) ; do
-		ls -lh $MOTR_M0T1FS_MOUNT_DIR/$container${files[$i]}
+		ls -lh "$MOTR_M0T1FS_MOUNT_DIR"/"$container""${files[$i]}"
 		rc=$?
-		if [ $rc -ne $4 ]; then
+		if [ $rc -ne "$4" ]; then
 			echo "Error: ls -lh $MOTR_M0T1FS_MOUNT_DIR/$container${files[$i]}: rc $rc"
 			return 1 # $rc may be 0 if $expected_rc is 0
 		fi
@@ -190,9 +190,9 @@ create_files_and_checksum()
 	# With unit size of 32K dd fails for the file "1009".
 	# It runs with unit size 64K. A jira MOTR-1086 tracks this issue.
 	for ((i=$start; i < $end; i++)) ; do
-		touch_file $MOTR_M0T1FS_MOUNT_DIR/$container${files[$i]} $stride
-		_dd $container${files[$i]} $((${bs[$i]} * 1024)) ${file_size[$i]}
-		verify $container${files[$i]} $((${bs[$i]} * 1024)) ${file_size[$i]}
+		touch_file "$MOTR_M0T1FS_MOUNT_DIR"/"$container""${files[$i]}" $stride
+		_dd "$container""${files[$i]}" $((${bs[$i]} * 1024)) "${file_size[$i]}"
+		verify "$container""${files[$i]}" $((${bs[$i]} * 1024)) "${file_size[$i]}"
 	done
 }
 
@@ -312,7 +312,7 @@ sns_repair_cc_delete_test()
 	echo "TC-2 Start: SNS Repair concurrent with delete testing"
 	echo "*********************************************************"
 
-	verify_all $container 0 $files_nr || return $?
+	verify_all $container 0 "$files_nr" || return $?
 
 	echo "*** Set device Failure ***"
 	disk_state_set "failed" $fail_device1 $fail_device2 || return $?
@@ -321,7 +321,7 @@ sns_repair_cc_delete_test()
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
 	echo "**** List all the files before repair. ****"
-	ls_all $container 0 $files_nr 0 || return $?
+	ls_all $container 0 "$files_nr" 0 || return $?
 
 	echo "*** Start sns repair and it will run in background ****"
 	disk_state_set "repair" $fail_device1 $fail_device2 || return $?
@@ -329,7 +329,7 @@ sns_repair_cc_delete_test()
 	sleep 5
 
 	echo -e "**** Perform delete during repair. ****"
-	delete_all $container 0 $files_nr
+	delete_all $container 0 "$files_nr"
 
 	echo "wait for sns repair"
 	wait_for_sns_repair_or_rebalance "repair" || return $?
@@ -349,23 +349,23 @@ sns_repair_cc_delete_test()
 	echo "SNS Rebalance done."
 
 	echo "fsync before verifying that all the files are deleted"
-	$M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_fsync_test_helper $MOTR_M0T1FS_MOUNT_DIR
+	"$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_fsync_test_helper "$MOTR_M0T1FS_MOUNT_DIR"
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		echo "fsync failed"
 		return 1
 	fi
 
-	ps aux | grep $MOTR_M0T1FS_MOUNT_DIR | grep -v "grep"
-	rm_count=`ps aux | grep $MOTR_M0T1FS_MOUNT_DIR | grep -v "grep" -c`
+	ps aux | grep "$MOTR_M0T1FS_MOUNT_DIR" | grep -v "grep"
+	rm_count=`ps aux | grep "$MOTR_M0T1FS_MOUNT_DIR" | grep -v "grep" -c`
 	echo "rm_count : $rm_count"
-	if [ $rm_count -ne 0 ]; then
+	if [ "$rm_count" -ne 0 ]; then
 		echo "Error: $rm_count rm jobs still running...."
 		return 1
 	fi
 
 	echo -e "\n**** List all the files after concurrent repair and delete (shall not be found) ****\n"
-	ls_all $container 0 $files_nr 2 || return $?
+	ls_all $container 0 "$files_nr" 2 || return $?
 
 	echo "*********************************************************"
 	echo "TC-2 End: SNS Repair concurrent with delete testing"
@@ -402,17 +402,17 @@ sns_rebalance_cc_delete_test()
 
 	sns_repair_or_rebalance_status "repair" || return $?
 
-	verify_all $container 0 $files_nr || return $?
+	verify_all $container 0 "$files_nr" || return $?
 
 	echo "**** List all the files before rebalance. ****"
-	ls_all $container 0 $files_nr 0 || return $?
+	ls_all $container 0 "$files_nr" 0 || return $?
 
 	echo "*** Start sns rebalance and it will run in background ****"
 	disk_state_set "rebalance" $fail_device1 $fail_device2 || return $?
 	sns_rebalance || return $?
 
 	echo -e "**** Perform delete during rebalance. ****"
-	delete_all $container 0 $files_nr
+	delete_all $container 0 "$files_nr"
 
 	echo "wait for SNS Re-balance"
 	wait_for_sns_repair_or_rebalance "rebalance" || return $?
@@ -422,23 +422,23 @@ sns_rebalance_cc_delete_test()
 	sns_repair_or_rebalance_status "rebalance" || return $?
 
 	echo "fsync before verifying that all the files are deleted"
-	$M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_fsync_test_helper $MOTR_M0T1FS_MOUNT_DIR
+	"$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_fsync_test_helper "$MOTR_M0T1FS_MOUNT_DIR"
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		echo "fsync failed"
 		return 1
 	fi
 
-	ps aux | grep $MOTR_M0T1FS_MOUNT_DIR| grep -v "grep"
-	rm_count=`ps aux | grep $MOTR_M0T1FS_MOUNT_DIR| grep -v "grep" -c`
+	ps aux | grep "$MOTR_M0T1FS_MOUNT_DIR"| grep -v "grep"
+	rm_count=`ps aux | grep "$MOTR_M0T1FS_MOUNT_DIR"| grep -v "grep" -c`
 	echo "rm_count : $rm_count"
-	if [ $rm_count -ne 0 ]; then
+	if [ "$rm_count" -ne 0 ]; then
 		"Error: $rm_count rm jobs still running...."
 		return 1
 	fi
 
 	echo -e "\n**** List all the files after concurrent rebalance and delete (shall not be found) ****\n"
-	ls_all $container 0 $files_nr 2 || return $?
+	ls_all $container 0 "$files_nr" 2 || return $?
 
 	echo "*********************************************************"
 	echo "TC-3 End: SNS Rebalance concurrent with delete testing"
@@ -456,10 +456,10 @@ create_files()
 	create_files_and_checksum $CC_REPAIR_READ_CONTAINER 0 $CC_REPAIR_READ_FILES_NR
 
 	echo -e "\n*** Creating files for 'repair concurrent with delete' test ***"
-	create_files_and_checksum $CC_REPAIR_DELETE_CONTAINER 0 $CC_REPAIR_DELETE_FILES_NR
+	create_files_and_checksum $CC_REPAIR_DELETE_CONTAINER 0 "$CC_REPAIR_DELETE_FILES_NR"
 
 	echo -e "\n*** Creating files for 'rebalance concurrent with delete' test ***"
-	create_files_and_checksum $CC_REBAL_DELETE_CONTAINER 0 $CC_REBAL_DELETE_FILES_NR
+	create_files_and_checksum $CC_REBAL_DELETE_CONTAINER 0 "$CC_REBAL_DELETE_FILES_NR"
 }
 
 main()
@@ -500,7 +500,7 @@ main()
 	fi
 
 	echo "unmounting and cleaning.."
-	unmount_and_clean &>> $MOTR_TEST_LOGFILE
+	unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
 
 	motr_service stop || {
 		echo "Failed to stop Motr Service."
