@@ -28,7 +28,6 @@
 #include "lib/misc.h"        /* ARRAY_SIZE, m0_strtou64 */
 
 #ifdef __KERNEL__
-#  include <linux/random.h>  /* get_random_uuid */
 #  include <linux/uuid.h>    /* generate_random_uuid */
 #else
 #  include <uuid/uuid.h>     /* generate_uuid */
@@ -88,8 +87,16 @@ M0_INTERNAL int m0_uuid_parse(const char *str, struct m0_uint128 *val)
 	    parse_hex(&str[9],   4, &h2) < 0 || str[13] != '-' ||
 	    parse_hex(&str[14],  4, &h3) < 0 || str[18] != '-' ||
 	    parse_hex(&str[19],  4, &h4) < 0 || str[23] != '-' ||
-	    parse_hex(&str[24], 12, &h5) < 0 || str[36] != '\0')
-		return M0_ERR(-EINVAL);
+	    parse_hex(&str[24], 12, &h5) < 0 || str[36] != '\0') {
+		if (parse_hex(&str[0],   8, &h1) < 0 ||
+		    parse_hex(&str[8],   4, &h2) < 0 ||
+		    parse_hex(&str[12],  4, &h3) < 0 ||
+		    parse_hex(&str[16],  4, &h4) < 0 ||
+		    parse_hex(&str[20], 12, &h5) < 0 || str[32] != '\0') {
+			return M0_ERR(-EINVAL);
+		}
+	}
+
 	val->u_hi = h1 << 32 | h2 << 16 | h3;
 	val->u_lo = h4 << 48 | h5;
 	/* no validation of adherence to standard version formats */

@@ -520,7 +520,7 @@ M0_INTERNAL void m0_cas_svc_init(void)
 	cas_fom_phases[M0_FOPH_INIT].sd_allowed |= M0_BITS(CAS_CHECK_PRE);
 	cas_fom_phases[M0_FOPH_TXN_OPEN].sd_allowed |= M0_BITS(CAS_START);
 	cas_fom_phases[M0_FOPH_QUEUE_REPLY].sd_allowed |=
-		M0_BITS(M0_FOPH_TXN_COMMIT_WAIT);
+		M0_BITS(M0_FOPH_TXN_LOGGED_WAIT);
 	m0_sm_conf_init(&cas_sm_conf);
 	m0_reqh_service_type_register(&m0_cas_service_type);
 	m0_cas_gc_init();
@@ -1140,10 +1140,19 @@ static int op_sync_wait(struct m0_fom *fom)
 	struct m0_be_tx     *tx;
 
 	tx = m0_fom_tx(fom);
-	if (m0_be_tx_state(tx) < M0_BTS_LOGGED) {
-		M0_LOG(M0_DEBUG, "fom wait for tx to be logged");
-		m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
-		return M0_FSO_WAIT;
+	if (fom->fo_tx.tx_state != M0_DTX_INVALID) {
+		/*
+		 * The above checking of 'fom tx' state must go first
+		 * before any other access or checking on this fom tx,
+		 * because if the fom tx is not initialized, any access
+		 * of this fom tx is not safe or useful.
+		 */
+
+		if (m0_be_tx_state(tx) < M0_BTS_LOGGED) {
+			M0_LOG(M0_DEBUG, "fom wait for tx to be logged");
+			m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
+			return M0_FSO_WAIT;
+		}
 	}
 	return M0_FSO_AGAIN;
 }
@@ -1185,6 +1194,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		M0_LOG(M0_DEBUG, "Got CAS with txid: " DTID0_F,
 		       DTID0_P(&op->cg_txd.dtd_id));
 	}
+
 	switch (phase) {
 	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
 
@@ -1215,14 +1225,14 @@ static int cas_fom_tick(struct m0_fom *fom0)
 				result = op_sync_wait(fom0);
 		}
 		if (cas_in_ut() && m0_fom_phase(fom0) == M0_FOPH_QUEUE_REPLY) {
-			m0_fom_phase_set(fom0, M0_FOPH_TXN_COMMIT_WAIT);
+			m0_fom_phase_set(fom0, M0_FOPH_TXN_LOGGED_WAIT);
 		}
 
 		/*
-		 * Once the transition TXN_COMMIT_WAIT->FINISH is completed,
+		 * Once the transition TXN_DONE_WAIT->FINISH is completed,
 		 * we need to send out P-msg if DTM0 is in use.
 		 */
-		if (phase == M0_FOPH_TXN_COMMIT_WAIT &&
+		if (phase == M0_FOPH_TXN_DONE_WAIT &&
 		    m0_fom_phase(fom0) == M0_FOPH_FINISH && is_dtm0_used) {
 			rc = m0_dtm0_on_committed(fom0, &cas_op(fom0)->cg_txd.dtd_id);
 			if (rc != 0)
@@ -1702,8 +1712,18 @@ M0_INTERNAL void (*cas__ut_cb_fini)(struct m0_fom *fom);
 
 static void cas_fom_fini(struct m0_fom *fom0)
 {
-	struct cas_fom *fom = M0_AMB(fom, fom0, cf_fom);
-	uint64_t        i;
+	struct m0_cas_rec *rec;
+	struct m0_cas_op  *op = cas_op(fom0);
+	struct cas_fom    *fom = M0_AMB(fom, fom0, cf_fom);
+	uint64_t           i;
+
+	for (i = 0; i < op->cg_rec.cr_nr; i++) {
+		rec = cas_at(op, i);
+
+		/* Finalise input AT buffers. */
+		cas_at_fini(&rec->cr_key);
+		cas_at_fini(&rec->cr_val);
+	}
 
 	if (cas_in_ut() && cas__ut_cb_done != NULL)
 		cas__ut_cb_done(fom0);
@@ -2023,7 +2043,7 @@ static int cas_place(struct m0_buf *dst, struct m0_buf *src, m0_bcount_t cutoff)
 		return M0_ERR(-ENOMEM);
 
 	if (src->b_nob >= cutoff) {
-		dst->b_addr = m0_alloc_aligned(src->b_nob, PAGE_SHIFT);
+		dst->b_addr = m0_alloc_aligned(src->b_nob, m0_pageshift_get());
 		if (dst->b_addr == NULL)
 			return M0_ERR(-ENOMEM);
 		dst->b_nob = src->b_nob;
@@ -2135,9 +2155,11 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 	struct m0_ctg_op          *ctg_op = &fom->cf_ctg_op;
 	struct m0_fom             *fom0   = &fom->cf_fom;
 	uint32_t                   flags  = cas_op(fom0)->cg_flags;
+	struct m0_buf              lbuf   = M0_BUF_INIT0;
 	struct m0_buf              kbuf;
 	struct m0_buf              vbuf;
 	struct m0_cas_id          *cid;
+	struct m0_cas_rec         *rec;
 	enum m0_fom_phase_outcome  ret = M0_FSO_AGAIN;
 
 	cas_incoming_kv(fom, rec_pos, &kbuf, &vbuf);
@@ -2162,7 +2184,18 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 		ret = m0_ctg_insert(ctg_op, ctg, &kbuf, &vbuf, next);
 		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
-		ret = m0_ctg_delete(ctg_op, ctg, &kbuf, next);
+		ret = m0_ctg_lookup_delete(ctg_op, ctg, &kbuf, &lbuf, flags, next);
+		if (ctg_op->co_rc == 0) {
+			rec = cas_at(cas_op(fom0), rec_pos);
+
+			/*
+			 * Here @lbuf is allocated in m0_ctg_lookup_delete()
+			 * and released in cas_fom_fini().
+			 */
+			m0_rpc_at_init(&rec->cr_val);
+			rec->cr_val.ab_type = M0_RPC_AT_INLINE;
+			rec->cr_val.u.ab_buf = lbuf;
+		}
 		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
 		/*
@@ -2350,7 +2383,7 @@ static int cas_ctidx_insert(struct cas_fom *fom, const struct m0_cas_id *in_cid,
 
 static m0_bcount_t cas_rpc_cutoff(const struct cas_fom *fom)
 {
-	return cas_in_ut() ? PAGE_SIZE :
+	return cas_in_ut() ? m0_pagesize_get() :
 		m0_fop_rpc_machine(fom->cf_fom.fo_fop)->rm_bulk_cutoff;
 }
 
@@ -2395,7 +2428,6 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 	struct m0_cas_rec *rec;
 	int                ctg_rc = m0_ctg_op_rc(&fom->cf_ctg_op);
 	int                rc;
-	bool               at_fini = true;
 
 	M0_ASSERT(fom->cf_ipos < op->cg_rec.cr_nr);
 	rec_out = cas_out_at(rep, fom->cf_opos);
@@ -2413,7 +2445,6 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 		      (fom->cf_curpos < rec->cr_rc + 1)))) {
 			/* Continue with the same iteration. */
 			--fom->cf_ipos;
-			at_fini = false;
 		} else {
 			/*
 			 * End the iteration on ctg cursor error because it
@@ -2440,11 +2471,6 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 	M0_LOG(M0_DEBUG, "pos: %"PRId64" rc: %d", fom->cf_opos, rc);
 	rec_out->cr_rc = rc;
 
-	if (at_fini) {
-		/* Finalise input AT buffers. */
-		cas_at_fini(&rec->cr_key);
-		cas_at_fini(&rec->cr_val);
-	}
 	/*
 	 * Out buffers are passed to RPC AT layer. They will be deallocated
 	 * automatically as part of a reply FOP.
@@ -2538,12 +2564,44 @@ static void cas_addb2_fom_to_crow_fom(const struct m0_fom *fom0,
 	M0_ADDB2_ADD(M0_AVI_CAS_FOM_TO_CROW_FOM, fom0_sm_id, crow_fom0_sm_id);
 }
 
-static int cas_ctg_crow_handle(struct cas_fom *fom, const struct m0_cas_id *cid)
+M0_INTERNAL int m0_cas_fom_spawn(
+	struct m0_fom           *lead,
+	struct m0_fom_thralldom *thrall,
+	struct m0_fop           *cas_fop,
+	void                   (*on_fom_complete)(struct m0_fom_thralldom *,
+						  struct m0_fom           *))
 {
-	struct m0_fop         *fop;
 	struct m0_fom         *new_fom0;
 	struct m0_reqh        *reqh;
 	struct m0_rpc_machine *mach;
+	int                    rc;
+
+	reqh = lead->fo_service->rs_reqh;
+	mach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
+	m0_fop_rpc_machine_set(cas_fop, mach);
+	cas_fop->f_item.ri_session = lead->fo_fop->f_item.ri_session;
+	rc = cas_fom_create(cas_fop, &new_fom0, reqh);
+	if (rc == 0) {
+		new_fom0->fo_local = true;
+		m0_fom_enthrall(lead,
+				new_fom0,
+				thrall,
+				on_fom_complete);
+		m0_fom_queue(new_fom0);
+		cas_addb2_fom_to_crow_fom(lead, new_fom0);
+	}
+	/*
+	 * New FOM got reference to FOP, release ref counter as this
+	 * FOP is not needed here.
+	 */
+	m0_fop_put_lock(cas_fop);
+
+	return M0_RC(rc);
+}
+
+static int cas_ctg_crow_handle(struct cas_fom *fom, const struct m0_cas_id *cid)
+{
+	struct m0_fop         *fop;
 	int                    rc;
 
 	/*
@@ -2551,28 +2609,10 @@ static int cas_ctg_crow_handle(struct cas_fom *fom, const struct m0_cas_id *cid)
 	 * will appear as arrived from the network. FOP will be deallocated by a
 	 * new CAS FOM.
 	 */
-	rc = cas_ctg_crow_fop_create(cid, &fop);
-	if (rc == 0) {
-		reqh = fom->cf_fom.fo_service->rs_reqh;
-		mach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
-		m0_fop_rpc_machine_set(fop, mach);
-		fop->f_item.ri_session = fom->cf_fom.fo_fop->f_item.ri_session;
-		rc = cas_fom_create(fop, &new_fom0, reqh);
-		if (rc == 0) {
-			new_fom0->fo_local = true;
-			m0_fom_enthrall(&fom->cf_fom,
-					new_fom0,
-					&fom->cf_thrall,
-					&cas_ctg_crow_done_cb);
-			m0_fom_queue(new_fom0);
-			cas_addb2_fom_to_crow_fom(&fom->cf_fom, new_fom0);
-		}
-		/*
-		 * New FOM got reference to FOP, release ref counter as this
-		 * FOP is not needed here.
-		 */
-		m0_fop_put_lock(fop);
-	}
+	rc = cas_ctg_crow_fop_create(cid, &fop) ?:
+		m0_cas_fom_spawn(&fom->cf_fom,
+				 &fom->cf_thrall,
+				 fop, &cas_ctg_crow_done_cb);
 	return rc;
 }
 
@@ -2617,7 +2657,7 @@ static const struct m0_fom_type_ops cas_fom_type_ops = {
 static struct m0_sm_state_descr cas_fom_phases[] = {
 	[CAS_CHECK_PRE] = {
 		.sd_name      = "cas-op-check-prepare",
-		.sd_allowed   = M0_BITS(CAS_CHECK)
+		.sd_allowed   = M0_BITS(CAS_CHECK, M0_FOPH_FAILURE)
 	},
 	[CAS_CHECK] = {
 		.sd_name      = "cas-op-check",
@@ -2779,6 +2819,7 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	[ARRAY_SIZE(m0_generic_phases_trans)] =
 	{ "cas-op-check-prepare", M0_FOPH_INIT,         CAS_CHECK_PRE },
 	{ "cas-op-check",         CAS_CHECK_PRE,        CAS_CHECK },
+	{ "cas-op-check_pre_failed", CAS_CHECK_PRE,     M0_FOPH_FAILURE },
 	{ "cas-op-checked",       CAS_CHECK,            M0_FOPH_INIT },
 	{ "cas-op-check-failed",  CAS_CHECK,            M0_FOPH_FAILURE },
 	{ "tx-initialised",       M0_FOPH_TXN_OPEN,     CAS_START },
@@ -2857,7 +2898,7 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "dtm0-op-done",         CAS_DTM0,             M0_FOPH_SUCCESS },
 	{ "dtm0-op-fail",         CAS_DTM0,             M0_FOPH_FAILURE },
 
-	{ "ut-short-cut",         M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_COMMIT_WAIT }
+	{ "ut-short-cut",         M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_LOGGED_WAIT }
 };
 
 static struct m0_sm_conf cas_sm_conf = {

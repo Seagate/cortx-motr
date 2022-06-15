@@ -483,8 +483,6 @@ static void bulkclient_test(void)
 
 struct m0_ut_suite bulkio_client_ut = {
 	.ts_name = "bulk-client-ut",
-	.ts_init = NULL,
-	.ts_fini = NULL,
 	.ts_tests = {
 		{ "bulkclient_test", bulkclient_test},
 		{ NULL, NULL }

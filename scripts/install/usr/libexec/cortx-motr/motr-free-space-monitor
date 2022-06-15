@@ -83,11 +83,13 @@ def execute_command(command):
         console_output = json.loads(process.stdout.decode('utf-8'))
         capacity_info = console_output.get('filesystem',{}).get('stats',{})
         if not capacity_info:
+            time.sleep(iem_alert_check_interval)
             continue
         return capacity_info
 
     msg = " Returned with error " + str(rc)
     log.error(f"Failed to process command after {iem_max_retry} retry '{command}':{msg}")
+    log.error(f"out: {json.loads(process.stdout.decode('utf-8')).get('filesystem',{}).get('stats',{})}")
     print(process.stderr.decode('utf-8'))
     sys.exit(FS_SYSTEMD_FAILED)
 

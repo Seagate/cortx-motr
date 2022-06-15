@@ -333,9 +333,6 @@
  *
  * A few items related to concurrency worth mentioning:
  *
- *     - transfer machine shutdown (ma_stop()) is somewhat subtle, see a comment
- *       in poller() about ma__fini();
- *
  *     - the tm lock is not held while epoll_wait() is executed by poller(). On
  *       the other hand, the pointer to a sock structure is stored inside of
  *       epoll kernel-state (sock_ctl()). This means that sock structures cannot
@@ -643,6 +640,12 @@
 #include "net/sock/xcode_xc.h"
 
 #define EP_DEBUG (1)
+
+#ifdef ENABLE_SOCK_MOCK_LNET
+#define MOCK_LNET (1)
+#else
+#define MOCK_LNET (0)
+#endif
 
 struct sock;
 struct mover;
@@ -965,6 +968,27 @@ struct pfamily {
 	 */
 	void      (*f_decode)(struct addr *a, const struct sockaddr *sa);
 };
+
+/*
+ * Tracing helpers
+ */
+
+#define SAFE(val, exp, fallback) ((val) != NULL ? (exp) : (fallback))
+
+#define EP_F "%s"
+#define EP_P(e) SAFE(e, (e)->e_ep.nep_addr, "null")
+#define EP_FL EP_F "->" EP_F
+#define EP_PL(e) EP_P(SAFE(e, ma_src(ep_ma(e)), NULL)), EP_P(e)
+
+#define SOCK_F EP_FL "/%i/%"PRIx64"/%i"
+#define SOCK_P(s) EP_PL(SAFE(s, (s)->s_ep, NULL)),	\
+	SAFE(s, (s)->s_sm.sm_state, 0),			\
+	SAFE(s, (s)->s_flags, 0), SAFE(s, (s)->s_fd, 0)
+
+#define B_F "[[%i]@%p:"EP_FL"]"
+#define B_P(b) (b)->b_buf->nb_qtype, (b), EP_PL((b)->b_other)
+
+#define TLOG(...) do { /* M0_LOG(M0_DEBUG, __VA_ARGS__) */; } while (0)
 
 M0_TL_DESCR_DEFINE(s, "sockets",
 		   static, struct sock, s_linkage, s_magix,
@@ -1815,6 +1839,7 @@ static int buf_add(struct m0_net_buffer *nb)
 	if (result != 0)
 		mover_fini(w);
 	M0_POST(ma_is_locked(ma) && ma_invariant(ma) && buf_invariant(buf));
+	TLOG(B_F, B_P(buf));
 	return M0_RC(result);
 }
 
@@ -1831,6 +1856,7 @@ static void buf_del(struct m0_net_buffer *nb)
 	struct ma  *ma  = buf_ma(buf);
 
 	M0_PRE(ma_is_locked(ma) && ma_invariant(ma) && buf_invariant(buf));
+	TLOG(B_F, B_P(buf));
 	nb->nb_flags |= M0_NET_BUF_CANCELLED;
 	buf_done(buf, -ECANCELED);
 }
@@ -1862,8 +1888,11 @@ static void bev_notify(struct m0_net_transfer_mc *ma, struct m0_chan *chan)
  */
 static m0_bcount_t get_max_buffer_size(const struct m0_net_domain *dom)
 {
-	/* There is no real limit. Return an arbitrary large number. */
-	return M0_BCOUNT_MAX / 2;
+	if (MOCK_LNET)
+		return 1024*1024;
+	else
+		/* There is no real limit. Return an arbitrary large number. */
+		return M0_BCOUNT_MAX / 2;
 }
 
 /**
@@ -1875,8 +1904,11 @@ static m0_bcount_t get_max_buffer_size(const struct m0_net_domain *dom)
  */
 static m0_bcount_t get_max_buffer_segment_size(const struct m0_net_domain *dom)
 {
-	/* There is no real limit. Return an arbitrary large number. */
-	return M0_BCOUNT_MAX / 2;
+	if (MOCK_LNET)
+		return 4096;
+	else
+		/* There is no real limit. Return an arbitrary large number. */
+		return M0_BCOUNT_MAX / 2;
 }
 
 /**
@@ -1888,8 +1920,11 @@ static m0_bcount_t get_max_buffer_segment_size(const struct m0_net_domain *dom)
  */
 static int32_t get_max_buffer_segments(const struct m0_net_domain *dom)
 {
-	/* There is no real limit. Return an arbitrary large number. */
-	return INT32_MAX / 2; /* Beat this, LNet! */
+	if (MOCK_LNET)
+		return 512;
+	else
+		/* There is no real limit. Return an arbitrary large number. */
+		return INT32_MAX / 2; /* Beat this, LNet! */
 }
 
 /**
@@ -1904,10 +1939,27 @@ static m0_bcount_t get_max_buffer_desc_size(const struct m0_net_domain *dom)
 	return sizeof(struct bdesc);
 }
 
+static m0_bcount_t get_rpc_max_seg_size(struct m0_net_domain *ndom)
+{
+	if (MOCK_LNET)
+		return 4096;
+	else
+		return default_xo_rpc_max_seg_size(ndom);
+}
+
+static uint32_t get_rpc_max_segs_nr(struct m0_net_domain *ndom)
+{
+	if (MOCK_LNET)
+		return 512;
+	else
+		return default_xo_rpc_max_segs_nr(ndom);
+}
+
 /** Processes a "readable" event for a socket. */
 static int sock_in(struct sock *s)
 {
 	M0_PRE(sock_invariant(s) && s->s_sm.sm_state == S_OPEN);
+	TLOG(SOCK_F, SOCK_P(s));
 	s->s_flags |= HAS_READ;
 	return mover_op(&s->s_reader, s, M_READ);
 }
@@ -1919,6 +1971,7 @@ static void sock_out(struct sock *s)
 	int           state;
 
 	M0_PRE(sock_invariant(s));
+	TLOG(SOCK_F, SOCK_P(s));
 	s->s_flags |= HAS_WRITE;
 	/*
 	 * @todo this can monopolise processor. Consider breaking out of this
@@ -1936,6 +1989,7 @@ static void sock_out(struct sock *s)
 static void sock_close(struct sock *s)
 {
 	M0_PRE(sock_invariant(s));
+	TLOG(SOCK_F, SOCK_P(s));
 	mover_op(&s->s_reader, s, M_CLOSE);
 	if (sock_writer(s) != NULL)
 		mover_op(sock_writer(s), s, M_CLOSE);
@@ -1965,6 +2019,7 @@ static void sock_fini(struct sock *s)
 	M0_PRE(s->s_sm.sm_state == S_DELETED);
 	M0_PRE(s_tlist_contains(&ma->t_deathrow, s));
 
+	TLOG(SOCK_F, SOCK_P(s));
 	EP_PUT(s->s_ep, sock);
 	s->s_ep = NULL;
 	m0_sm_fini(&s->s_sm);
@@ -1987,6 +2042,7 @@ static void sock_done(struct sock *s, bool balance)
 	M0_PRE(s->s_sm.sm_conf != NULL);
 	M0_PRE(sock_invariant(s));
 
+	TLOG(SOCK_F, SOCK_P(s));
 	/* This function can be called multiple times, should be idempotent. */
 	if (s->s_fd > 0)
 		sock_close(s);
@@ -2151,7 +2207,7 @@ static bool sock_event(struct sock *s, uint32_t ev)
 
 	M0_PRE(sock_invariant(s));
 	M0_LOG(M0_DEBUG, "State: %x, event: %x.", s->s_sm.sm_state, ev);
-
+	TLOG(SOCK_F": %x", SOCK_P(s), ev);
 	switch (s->s_sm.sm_state) {
 	case S_INIT:
 	case S_DELETED:
@@ -2315,6 +2371,7 @@ static int ep_create(struct ma *ma, struct addr *addr, const char *name,
 	*out = ep;
 	M0_POST(*out != NULL && ep_invariant(*out));
 	M0_POST(ma_is_locked(ma));
+	TLOG(EP_FL, EP_PL(ep));
 	return M0_RC(0);
 }
 
@@ -2817,6 +2874,12 @@ static int buf_accept(struct buf *buf, struct mover *m)
 	return result;
 }
 
+/**
+ * Finalises the buffer after transfer completes (including failures and
+ * cancellations). Note that buffer completion event hasn't yet been
+ * delivered. The buffer still remains attached to the network domain, until
+ * finally freed by buf_deregister().
+ */
 static void buf_fini(struct buf *buf)
 {
 	mover_fini(&buf->b_writer);
@@ -2830,6 +2893,7 @@ static void buf_fini(struct buf *buf)
 	M0_SET0(&buf->b_peer);
 	buf->b_offset = 0;
 	buf->b_length = 0;
+	buf->b_writer.m_sm.sm_rc = 0;
 }
 
 /** Completes the buffer operation. */
@@ -2884,6 +2948,7 @@ static void buf_complete(struct buf *buf)
 	/*printf("DONE: %p[%i] %"PRIi64" %i\n", buf,
 	  buf->b_buf != NULL ? buf->b_buf->nb_qtype : -1,
 	  buf->b_length, ev.nbe_status); */
+	TLOG(B_F" nb: %p %i", B_P(buf), buf->b_buf, ev.nbe_status);
 	/*
 	 * It's ok to clear buf state, because sock doesn't support
 	 * M0_NET_BUF_RETAIN flag and the buffer will be unqueued
@@ -3549,8 +3614,9 @@ static int writer_idle(struct mover *w, struct sock *s)
 	m0_bcount_t pksize = pk_size(w, s);
 	m0_bcount_t size   = w->m_buf->b_buf->nb_length;
 
+	M0_ASSERT(size > 0);
 	pk_header_init(w, s);
-	w->m_pk.p_nr = size < pksize ? 1 : (size + pksize - 1) / pksize;
+	w->m_pk.p_nr = (size + pksize - 1) / pksize;
 	m0_format_header_pack(&w->m_pk.p_header, &put_tag);
 	return R_PK;
 }
@@ -3841,12 +3907,22 @@ static const struct m0_net_xprt_ops xprt_ops = {
 	.xo_get_max_buffer_segments     = &get_max_buffer_segments,
 	.xo_get_max_buffer_desc_size    = &get_max_buffer_desc_size,
 
-	.xo_rpc_max_seg_size            = default_xo_rpc_max_seg_size,
-	.xo_rpc_max_segs_nr             = default_xo_rpc_max_segs_nr,
+	.xo_rpc_max_seg_size            = &get_rpc_max_seg_size,
+	.xo_rpc_max_segs_nr             = &get_rpc_max_segs_nr,
 	.xo_rpc_max_msg_size            = default_xo_rpc_max_msg_size,
 	.xo_rpc_max_recv_msgs           = default_xo_rpc_max_recv_msgs,
 
 };
+
+#if MOCK_LNET
+const struct m0_net_xprt m0_net_lnet_xprt = {
+	.nx_name = "lnet",
+	.nx_ops  = &xprt_ops
+};
+M0_EXPORTED(m0_net_lnet_xprt);
+#else
+extern const struct m0_net_xprt m0_net_lnet_xprt;
+#endif
 
 const struct m0_net_xprt m0_net_sock_xprt = {
 	.nx_name = "sock",
@@ -3858,9 +3934,15 @@ M0_INTERNAL int m0_net_sock_mod_init(void)
 {
 	int result;
 
-	m0_net_xprt_register(&m0_net_sock_xprt);
-	if (m0_net_xprt_default_get() == NULL)
-		m0_net_xprt_default_set(&m0_net_sock_xprt);
+	if (MOCK_LNET) {
+		m0_net_xprt_register(&m0_net_lnet_xprt);
+		if (m0_streq(M0_DEFAULT_NETWORK, "LNET"))
+			m0_net_xprt_default_set(&m0_net_lnet_xprt);
+	} else {
+		m0_net_xprt_register(&m0_net_sock_xprt);
+		if (m0_streq(M0_DEFAULT_NETWORK, "SOCK"))
+			m0_net_xprt_default_set(&m0_net_sock_xprt);
+	}
 	/*
 	 * Ignore SIGPIPE that a write to socket gets when RST is received.
 	 *
@@ -3874,7 +3956,10 @@ M0_INTERNAL int m0_net_sock_mod_init(void)
 
 M0_INTERNAL void m0_net_sock_mod_fini(void)
 {
-	m0_net_xprt_deregister(&m0_net_sock_xprt);
+	if (MOCK_LNET)
+		m0_net_xprt_deregister(&m0_net_lnet_xprt);
+	else
+		m0_net_xprt_deregister(&m0_net_sock_xprt);
 }
 
 M0_INTERNAL void mover__print(const struct mover *m)

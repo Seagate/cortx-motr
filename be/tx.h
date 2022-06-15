@@ -343,6 +343,12 @@ struct m0_be_tx {
 	 */
 	uint64_t               t_lsn;
 	/**
+	 * No BE transaction with lsn less than this is going to be recovered by
+	 * BE recovery.
+	 * @see m0_be_log_record::lgr_log_header_discarded.
+	 */
+	m0_bindex_t            t_lsn_discarded;
+	/**
 	 * Payload area.
 	 *
 	 * - memory for the payload area is managed by the transaction. It is
@@ -659,6 +665,14 @@ M0_INTERNAL bool m0_be_should_break(struct m0_be_engine          *eng,
 M0_INTERNAL bool m0_be_should_break_half(struct m0_be_engine          *eng,
 					 const struct m0_be_tx_credit *accum,
 					 const struct m0_be_tx_credit *delta);
+
+
+M0_INTERNAL void m0_be_tx_lsn_set(struct m0_be_tx *tx,
+                                  m0_bindex_t      lsn,
+                                  m0_bindex_t      lsn_discarded);
+M0_INTERNAL void m0_be_tx_lsn_get(struct m0_be_tx *tx,
+                                  m0_bindex_t     *lsn,
+                                  m0_bindex_t     *lsn_discarded);
 
 /** @} end of be group */
 #endif /* __MOTR_BE_TX_H__ */

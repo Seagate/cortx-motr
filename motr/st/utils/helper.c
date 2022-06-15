@@ -110,7 +110,8 @@ static int alloc_vecs(struct m0_indexvec *ext, struct m0_bufvec *data,
 	 * and initialises the bufvec for us.
 	 */
 
-	rc = m0_bufvec_alloc(data, block_count, block_size);
+	rc = m0_bufvec_alloc_aligned(data, block_count, block_size,
+				     m0_pageshift_get());
 	if (rc != 0) {
 		m0_indexvec_free(ext);
 		return rc;
@@ -286,8 +287,11 @@ static int write_data_to_object(struct m0_obj *obj,
 	int                  rc;
 	struct m0_op        *ops[1] = {NULL};
 
-	/* Create write operation */
-	rc = m0_obj_op(obj, M0_OC_WRITE, ext, data, attr, 0, 0, &ops[0]);
+	/** Create write operation
+	 *  CKSUM_TODO: calculate cksum and pass in
+        *  attr instead of NULL
+        */
+	rc = m0_obj_op(obj, M0_OC_WRITE, ext, data, NULL, 0, 0, &ops[0]);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -414,7 +418,7 @@ int m0_write(struct m0_container *container, char *src,
 		M0_ASSERT(rc == bcount);
 
 		/* Copy data to the object*/
-		rc = write_data_to_object(&obj, &ext, &data, &attr);
+		rc = write_data_to_object(&obj, &ext, &data, NULL);
 		if (rc != 0) {
 			fprintf(stderr, "Writing to object failed!\n");
 			break;
@@ -536,7 +540,7 @@ int m0_read(struct m0_container *container,
 		prepare_ext_vecs(&ext, &attr, bcount,
 				 block_size, &last_index);
 
-		rc = read_data_from_object(&obj, &ext, &data, &attr, flags);
+		rc = read_data_from_object(&obj, &ext, &data, NULL, flags);
 		if (rc != 0) {
 			fprintf(stderr, "Reading from object failed!\n");
 			break;

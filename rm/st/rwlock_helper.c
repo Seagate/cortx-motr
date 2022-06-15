@@ -46,10 +46,12 @@ int main(int argc, char **argv)
 	int                        rc;
 
 	rc = m0_init(&instance);
+	M0_SET0(&domain);
 	if (rc != 0)
 		return M0_ERR(rc);
-        rc = M0_GETOPTS("m0rwlock", argc, argv,
-                            M0_STRINGARG('s',
+	M0_SET0(&domain);
+	rc = M0_GETOPTS("m0rwlock", argc, argv,
+			    M0_STRINGARG('s',
 				         "server endpoint (RM)",
                                        LAMBDA(void, (const char *string) {
                                                rm_ep = string; })),

@@ -17,6 +17,11 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
+M0_SRC_DIR=$(readlink -f ${BASH_SOURCE[0]})
+M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
+
+. $M0_SRC_DIR/utils/functions  # m0_local_nid_get
+
 M0_NC_UNKNOWN=1
 M0_NC_ONLINE=1
 M0_NC_FAILED=2
@@ -569,7 +574,7 @@ ha_notify_ios4_failure_or_online()
 	local ctrl_fid="^c|1:8"
 	local process_fid="^r|1:3"
 	local ios4_fid="^s|1:3"
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid=$(m0_local_nid_get)
 	local console_ep="$lnet_nid:$POOL_MACHINE_CLI_EP"
 	local client_endpoint="$lnet_nid:12345:33:1"
 	local eplist=()

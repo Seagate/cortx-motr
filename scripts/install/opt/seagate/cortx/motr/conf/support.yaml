@@ -1,4 +1,2 @@
-
-bundle:
-    create:
-      url: "sh /opt/seagate/cortx/motr/libexec/m0reportbug-bundler"
+support_bundle:
+    - /opt/seagate/cortx/motr/libexec/m0reportbug-bundler

@@ -34,6 +34,9 @@
  * @{
  */
 
+
+struct m0_conf_fdmi_filter;
+
 /**
  * Array of operands
  */
@@ -108,15 +111,15 @@ M0_INTERNAL void m0_fdmi_eval_del_op_cb(struct m0_fdmi_eval_ctx *ctx,
  *
  * Result of filter expression is always boolean.
  *
+ * @param filter   FDMI filter
  * @param ctx      FDMI filter evaluator context
- * @param flt      FDMI filter
  * @param var_info Information about how to get value of variable nodes
  * @return  <0, if some error occured, @n
  *           0, if result of evaluation is False @n
  *           1, if result of evaluation is True
  */
-M0_INTERNAL int m0_fdmi_eval_flt(struct m0_fdmi_eval_ctx *ctx,
-                                 struct m0_fdmi_filter   *flt,
+M0_INTERNAL int m0_fdmi_eval_flt(struct m0_fdmi_eval_ctx      *ctx,
+                                 struct m0_conf_fdmi_filter   *filter,
                                  struct m0_fdmi_eval_var_info *var_info);
 
 /**

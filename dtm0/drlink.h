@@ -40,6 +40,7 @@ struct dtm0_req_fop;
 struct m0_dtm0_service;
 struct m0_fid;
 struct m0_fom;
+struct m0_be_op;
 
 M0_INTERNAL int  m0_dtm0_rpc_link_mod_init(void);
 M0_INTERNAL void m0_dtm0_rpc_link_mod_fini(void);
@@ -47,6 +48,7 @@ M0_INTERNAL void m0_dtm0_rpc_link_mod_fini(void);
 /**
  * Asynchronously send a DTM0 message to a remote DTM0 service.
  * @param svc local DTM0 service.
+ * @param op BE op to wait for completion. Could be NULL.
  * @param req DTM0 message to be sent.
  * @param tgt FID of the remote DTM0 service.
  * @param parent_fom FOM that caused this DTM0 message (used by ADDB).
@@ -59,6 +61,7 @@ M0_INTERNAL void m0_dtm0_rpc_link_mod_fini(void);
  *         if the remote service does not exist in the conf cache (-ENOENT).
  */
 M0_INTERNAL int m0_dtm0_req_post(struct m0_dtm0_service    *svc,
+                                 struct m0_be_op           *op,
 				 const struct dtm0_req_fop *req,
 				 const struct m0_fid       *tgt,
 				 const struct m0_fom       *parent_fom,

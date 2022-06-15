@@ -87,7 +87,7 @@ static void mem_wf_active_bulk(struct m0_net_transfer_mc *tm,
 	 */
 
 	do { /* provide a break context */
- 		struct mem_desc *md;
+ 		struct mem_desc      *md         = NULL;
 		struct m0_net_buffer *passive_nb = NULL;
 		struct m0_net_buffer *inb;
 		struct m0_net_buffer *s_buf;

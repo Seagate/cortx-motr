@@ -26,6 +26,8 @@ m0tr_objects += lib/assert.o \
                   lib/m0lib.o \
                   lib/memory.o \
                   lib/misc.o \
+                  lib/cksum.o \
+                  lib/cksum_utils.o \
                   lib/mutex.o \
                   lib/queue.o \
                   lib/protocol_xc.o \
@@ -62,4 +64,5 @@ m0tr_objects += lib/linux_kernel/finject_init.o \
                   lib/linux_kernel/semaphore.o \
                   lib/linux_kernel/timer.o \
                   lib/linux_kernel/kuuid.o \
-                  lib/linux_kernel/varr.o
+                  lib/linux_kernel/varr.o \
+                  lib/linux_kernel/aarch64_cycle_counter.o

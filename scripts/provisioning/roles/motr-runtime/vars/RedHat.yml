@@ -39,3 +39,4 @@ motr_runtime_deps_pkgs:
   - rubygem-net-ssh
   - sysvinit-tools
   - libedit
+  - openssl

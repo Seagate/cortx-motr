@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+# Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published
@@ -22,7 +22,7 @@ on:
   # Trigger the workflow on pull request labeled as cla-signed
   # and synchronize for the main branch
   pull_request:
-    types: [ labeled, synchronize ]
+    types: [ opened, synchronize ]
     branches:
       - main
   # Trigger the workflow on demand
@@ -31,7 +31,7 @@ jobs:
   # Let's start the alex to scan
   alex:
     name: Alex report
-    if: ${{ github.event.label.name == 'cla-signed' || github.event.action == 'synchronize' }}
+    #if: ${{ github.event.label.name == 'alex' || github.event.action == 'synchronize' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -40,4 +40,5 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           filter_mode: added
           reporter: github-pr-review
-          fail_on_error: false
+          fail_on_error: true
+          level: warning

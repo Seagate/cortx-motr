@@ -93,7 +93,8 @@ conf_obj_types = {
              ' *sites=[objid] *pools=[objid] *profiles=[objid]'
              ' *fdmi_flt_grps=[objid]'),
     'fdmi_flt_grp': ('g', 'rec_type=NUMBER *filters=[objid]'),
-    'fdmi_filter': ('l', 'id=fid root=STRING node=objid endpoints=[STRING]'),
+    'fdmi_filter': ('l', 'type=NUMBER id=fid root=STRING node=objid'
+                    ' dix_pver=fid substrings=[STRING] endpoints=[STRING]'),
 
     # Software:
     'node': ('n', 'memsize=NUMBER nr_cpu=NUMBER last_state=NUMBER flags=NUMBER'

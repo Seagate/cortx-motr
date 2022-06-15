@@ -28,6 +28,7 @@
 #include "lib/finject.h"
 #include "xcode/xcode.h"
 #include "ut/ut.h"
+#include "conf/obj.h"           /* m0_conf_fdmi_filter */
 
 /* ------------------------------------------------------------------
  * Helper: initialize and eval simple binary operand.
@@ -38,17 +39,18 @@ static int flt_eval_binary_operator(enum m0_fdmi_flt_op_code  op_code,
 				    struct m0_fdmi_flt_node  *opnd2,
 				    struct m0_fdmi_eval_ctx  *eval_ctx)
 {
-	struct m0_fdmi_filter    flt;
-	struct m0_fdmi_flt_node *root;
-	int                      rc;
+	struct m0_conf_fdmi_filter  filter;
+	struct m0_fdmi_flt_node    *root;
+	int                         rc;
 
 	root = m0_fdmi_flt_op_node_create(op_code, opnd1, opnd2);
-	m0_fdmi_filter_init(&flt);
-	m0_fdmi_filter_root_set(&flt, root);
+	m0_fdmi_filter_init(&filter.ff_filter);
+	m0_fdmi_filter_root_set(&filter.ff_filter, root);
+	filter.ff_type = M0_FDMI_FILTER_TYPE_TREE;
 
-	rc = m0_fdmi_eval_flt(eval_ctx, &flt, NULL);
+	rc = m0_fdmi_eval_flt(eval_ctx, &filter, NULL);
 
-	m0_fdmi_filter_fini(&flt);
+	m0_fdmi_filter_fini(&filter.ff_filter);
 
 	return rc;
 }

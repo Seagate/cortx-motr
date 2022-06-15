@@ -117,7 +117,8 @@ M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
 	char                full_ep[EP_MAX_LEN];
 	char                max_rpc_size[RPC_SIZE_MAX_LEN];
 
-	snprintf(full_ep, EP_MAX_LEN, "lnet:%s", ha_ep);
+	snprintf(full_ep, EP_MAX_LEN, "%s:%s", M0_NET_XPRT_PREFIX_DEFAULT,
+		 ha_ep);
 	snprintf(max_rpc_size, RPC_SIZE_MAX_LEN,
 		 "%d", M0_RPC_DEF_MAX_RPC_MSG_SIZE);
 

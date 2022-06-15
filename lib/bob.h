@@ -146,7 +146,7 @@ scope bool type ## _bob_check(const struct type *bob)
 	__amb = container_of(__ptr, type, field);			\
 									\
 	M0_ASSERT_INFO(m0_bob_check(bt, __amb),			\
-		"%s.%s [%p->%p (%s)] got: %"PRIx64" want: %"PRIx64	\
+		"%s.%s [%p->%p (%s)] got: %" PRIx64 " want: %" PRIx64	\
 		" check: %i.", (bt)->bt_name, #field, __ptr, __amb, #type, \
 		*((uint64_t *)(((void *)__amb) + (bt)->bt_magix_offset)), \
 		(bt)->bt_magix,					\

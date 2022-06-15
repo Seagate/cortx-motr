@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,9 @@
 #include "net/net.h"
 #include "net/bulk_emulation/mem_xprt.h"
 #include "net/lnet/lnet.h"
+#ifndef __KERNEL__
+#  include "net/libfab/libfab.h"
+#endif
 #include "rpc/rpc.h"
 #include "addb2/addb2.h"
 #include "lib/finject.h"
@@ -186,10 +189,11 @@ struct init_fini_call subsystem[] = {
 	/* addb2-net must be after rpc, because it initialises a fop type. */
 	{ &m0_addb2_net_module_init, &m0_addb2_net_module_fini, "addb2-net" },
 	{ &m0_net_lnet_init,    &m0_net_lnet_fini,    "net/lnet" },
-	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
 #ifndef __KERNEL__
+	{ &m0_net_libfab_init,   &m0_net_libfab_fini,   "net/libfab" },
 	{ &m0_net_sock_mod_init, &m0_net_sock_mod_fini, "net/sock" },
 #endif
+	{ &m0_mem_xprt_init,    &m0_mem_xprt_fini,    "bulk/mem" },
 	{ &m0_cob_mod_init,     &m0_cob_mod_fini,     "cob" },
 	{ &m0_stob_mod_init,    &m0_stob_mod_fini,    "stob" },
 #ifndef __KERNEL__
@@ -227,7 +231,6 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fdms_register,    &m0_fdms_unregister,  "fdmi-service" },
 #endif /* __KERNEL__ */
 	{ &m0_cas_module_init,  &m0_cas_module_fini,  "cas" },
-	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
 	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" },
 	{ &m0_ha_mod_init,      &m0_ha_mod_fini,      "ha" },
 	{ &m0_client_global_init, &m0_client_global_fini, "client" },

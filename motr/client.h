@@ -32,7 +32,6 @@
 #include "fid/fid.h"
 #include "lib/cookie.h"
 #include "xcode/xcode_attr.h"
-
 /**
  * @defgroup client
  *

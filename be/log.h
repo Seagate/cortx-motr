@@ -315,7 +315,8 @@ struct m0_be_log {
 };
 
 /* m0_be_log */
-#define BL_F "(lg_current=%"PRIu64" lg_discarded=%"PRIu64" lg_free=%"PRIu64")"
+#define BL_F "(lg_current=%" PRIu64 " lg_discarded=%" PRIu64 \
+	     " lg_free=%" PRIu64 ")"
 #define BL_P(log) (log)->lg_current, (log)->lg_discarded, (log)->lg_free
 
 /** This structure represents minimal unit for log operations. */
@@ -335,6 +336,20 @@ struct m0_be_log_record {
 	/** Pointer to the previous record inside log */
 	m0_bindex_t          lgr_prev_pos;
 	m0_bcount_t          lgr_prev_size;
+	/**
+	 * It MUST be set to a log pointer for which all log records with
+	 * lgr_position less than the pointer have already became persistent.
+	 *
+	 * It's set to BE log header flh_discarded pointer at the time when
+	 * m0_be_log_record_io_prepare() is executed for this record.
+	 *
+	 * Use case: discard FOL records (sent as FDMI records) at FDMI plugin.
+	 * This value allows to filter out FDMI records that are never going to
+	 * be resent because BE log records before this pointer are never going
+	 * to be recovered (they are already fully written to BE segments and BE
+	 * log header is updated to reflect that).
+	 */
+	m0_bindex_t          lgr_log_header_discarded;
 
 	uint64_t             lgr_magic;
 	struct m0_tlink      lgr_linkage;
@@ -360,9 +375,9 @@ struct m0_be_log_record {
 };
 
 /* m0_be_log_record */
-#define BLR_F "(lgr_last_discarded=%"PRIu64" lgr_position=%"PRIu64" " \
-	       "lgr_size=%"PRIu64" " \
-	       "lgr_prev_pos=%"PRIu64" lgr_prev_size=%"PRIu64")"
+#define BLR_F "(lgr_last_discarded=%" PRIu64 " lgr_position=%" PRIu64 " " \
+	       "lgr_size=%" PRIu64 " " \
+	       "lgr_prev_pos=%" PRIu64 " lgr_prev_size=%" PRIu64 ")"
 #define BLR_P(record) (record)->lgr_last_discarded, (record)->lgr_position, \
 		      (record)->lgr_size, \
 		      (record)->lgr_prev_pos, (record)->lgr_prev_size
@@ -448,6 +463,18 @@ m0_be_log_record_io_bufvec(struct m0_be_log_record *record,
 M0_INTERNAL void m0_be_log_record_io_launch(struct m0_be_log_record *record,
 					    struct m0_be_op         *op);
 
+
+/** Returns absolute position of this log record in BE log */
+M0_INTERNAL m0_bindex_t
+m0_be_log_record_position(const struct m0_be_log_record *record);
+
+/**
+ * Returns BE log discarded pointer before or at the time the record was
+ * written to the log.
+ */
+M0_INTERNAL m0_bindex_t
+m0_be_log_record_discarded(const struct m0_be_log_record *record);
+
 /**
  * Reserves space for a log record. Reserved size can be bigger than actual
  * size of the log record.
@@ -480,6 +507,8 @@ M0_INTERNAL int m0_be_log_header_read(struct m0_be_log            *log,
 
 struct m0_be_log_record_iter {
 	struct m0_be_fmt_log_record_header lri_header;
+	/** @see lgr_log_header_discarded */
+	m0_bindex_t                        lri_log_header_discarded;
 	struct m0_tlink                    lri_linkage;
 	uint64_t                           lri_magic;
 };

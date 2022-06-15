@@ -256,8 +256,8 @@ static bool mem_desc_equal(struct m0_net_buf_desc *d1,
 			   struct m0_net_buf_desc *d2)
 {
 	/* could do a byte comparison too */
-	struct mem_desc *md1;
-	struct mem_desc *md2;
+	struct mem_desc *md1 = NULL;
+	struct mem_desc *md2 = NULL;
 	int rc;
 	rc = mem_desc_decode(d1, &md1);
 	if (rc == 0)

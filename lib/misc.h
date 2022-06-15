@@ -19,7 +19,6 @@
  *
  */
 
-
 #pragma once
 
 #ifndef __MOTR_LIB_MISC_H__

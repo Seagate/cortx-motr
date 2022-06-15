@@ -139,7 +139,8 @@ static void conn_pool_item_fini(struct m0_rpc_conn_pool_item *item)
 	m0_clink_fini(&item->cpi_clink);
 	m0_chan_fini_lock(&item->cpi_chan);
 	m0_rpc_link_fini(&item->cpi_rpc_link);
-	rpc_conn_pool_items_tlink_del_fini(item);
+	if (rpc_conn_pool_items_tlink_is_in(item))
+		rpc_conn_pool_items_tlink_del_fini(item);
 	m0_free(item);
 }
 
@@ -367,6 +368,113 @@ M0_INTERNAL void m0_rpc_conn_pool_fini(struct m0_rpc_conn_pool *pool)
 
 	M0_LEAVE();
 }
+
+static void pool_item_disconnected_ast(struct m0_sm_group *grp,
+				       struct m0_sm_ast   *ast)
+{
+	struct m0_rpc_conn_pool_item *item = ast->sa_datum;
+
+	M0_LOG(M0_DEBUG, "item=%p got freed", item);
+	m0_rpc_link_fini(&item->cpi_rpc_link);
+	m0_free(item);
+}
+
+static bool pool_item_disconn_cb(struct m0_clink *link)
+{
+	struct m0_rpc_conn_pool_item *item;
+	struct m0_rpc_conn_pool      *pool;
+	struct m0_rpc_session        *session;
+	struct m0_sm_ast             *ast;
+	struct m0_locality           *loc = m0_locality0_get();
+
+	M0_ENTRY("link %p", link);
+
+	item = container_of(link, struct m0_rpc_conn_pool_item, cpi_clink);
+	pool = item->cpi_pool;
+	session = &item->cpi_rpc_link.rlk_sess;
+
+	m0_mutex_lock(&pool->cp_mutex);
+	M0_LOG(M0_DEBUG, "session established=%d rpc connected=%d",
+			 !!m0_rpc_conn_pool_session_established(session),
+			 !!item->cpi_rpc_link.rlk_connected);
+
+	m0_clink_fini(&item->cpi_clink);
+	m0_chan_fini_lock(&item->cpi_chan);
+	M0_LOG(M0_DEBUG, "Going to free item=%p in an AST", item);
+
+	ast = &pool->cp_ast;
+	ast->sa_cb = pool_item_disconnected_ast;
+	ast->sa_datum = item;
+	m0_sm_ast_post(loc->lo_grp, ast);
+
+	m0_mutex_unlock(&pool->cp_mutex);
+
+	M0_LEAVE();
+	return true;
+}
+
+static void pool_item_disconn_ast(struct m0_sm_group *grp,
+				  struct m0_sm_ast   *ast)
+{
+	struct m0_rpc_conn_pool_item *item;
+	struct m0_rpc_session        *session;
+
+	item = ast->sa_datum;
+	session = &item->cpi_rpc_link.rlk_sess;
+	/* disconnect the rpc link */
+	M0_LOG(M0_DEBUG, "Async disconnect this rpc. item=%p", item);
+	if (m0_rpc_conn_pool_session_established(session) &&
+	    item->cpi_rpc_link.rlk_connected){
+		m0_rpc_session_cancel(session);
+		m0_clink_init(&item->cpi_clink, pool_item_disconn_cb);
+		item->cpi_clink.cl_is_oneshot = true;
+		m0_rpc_link_disconnect_async(&item->cpi_rpc_link,
+					     m0_time_from_now(10, 0),
+					     &item->cpi_clink);
+	}
+}
+
+
+/**
+ * Destroy this rpc session from this pool.
+ *
+ * First, the connection pool item will be identified by iterating the
+ * connection pool list and removed from the list.
+ * Then, the rpc link will be asynchronously disconnect. In the disconnection
+ * callback, we will destroy this rpc link.
+ */
+M0_INTERNAL void m0_rpc_conn_pool_destroy(struct m0_rpc_conn_pool *pool,
+					  struct m0_rpc_session   *session)
+{
+	struct m0_rpc_conn_pool_item *item;
+	struct m0_sm_ast             *ast;
+	struct m0_locality           *loc = m0_locality0_get();
+
+	M0_ENTRY();
+
+	m0_mutex_lock(&pool->cp_mutex);
+
+	m0_tl_for(rpc_conn_pool_items, &pool->cp_items, item) {
+		if (&item->cpi_rpc_link.rlk_sess != session)
+			continue;
+
+		/* remove this item from pool. */
+		rpc_conn_pool_items_tlink_del_fini(item);
+		break;
+	} m0_tl_endfor;
+
+	if (item != NULL) {
+		/* Posting an AST to dosconnect this rpc */
+		ast = &pool->cp_ast;
+		ast->sa_cb = pool_item_disconn_ast;
+		ast->sa_datum = item;
+		m0_sm_ast_post(loc->lo_grp, ast);
+	}
+	m0_mutex_unlock(&pool->cp_mutex);
+
+	M0_LEAVE();
+}
+
 
 #undef M0_TRACE_SUBSYSTEM
 

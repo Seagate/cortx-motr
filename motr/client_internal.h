@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2016-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2016-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -272,9 +272,16 @@ struct m0_op_io {
 	uint64_t                          ioo_magic;
 
 	struct m0_obj                    *ioo_obj;
+
+	/** GOB Offset extents */
 	struct m0_indexvec                ioo_ext;
+
 	struct m0_bufvec                  ioo_data;
+	/** Assumption: Checksum buff is liner stored in ov_buf
+	 *  and v_nr will be the number of checksum units
+	 */
 	struct m0_bufvec                  ioo_attr;
+
 	uint64_t                          ioo_attr_mask;
 	/** A bit-mask of m0_op_obj_flags. */
 	uint32_t                          ioo_flags;
@@ -453,7 +460,13 @@ struct m0_client_layout_ops {
 /** miscallaneous constants */
 enum {
 	/*  4K, typical linux/intel page size */
+#ifdef CONFIG_X86_64
 	M0_DEFAULT_BUF_SHIFT        = 12,
+#elif defined (CONFIG_AARCH64)
+	M0_DEFAULT_BUF_SHIFT        = 16,
+#else
+#error  "The platform is not supported"
+#endif
 	/* 512, typical disk sector */
 	M0_MIN_BUF_SHIFT            = 9,
 
@@ -474,8 +487,16 @@ enum {
 	 * These constants are used to create buffers acceptable to the
 	 * network code.
 	 */
+	
+#ifdef CONFIG_X86_64
 	M0_NETBUF_MASK              = 4096 - 1,
 	M0_NETBUF_SHIFT             = 12,
+#elif defined (CONFIG_AARCH64)
+	M0_NETBUF_MASK              = 65536 - 1,
+	M0_NETBUF_SHIFT             = 16,
+#else
+#error  "The platform is not supported"
+#endif
 };
 
 /**

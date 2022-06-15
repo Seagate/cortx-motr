@@ -37,7 +37,6 @@ STOP_TIME_S=1
 DIR_SCRIPT=${0%/*}
 TOP_SCRDIR="$DIR_SCRIPT/../../.."
 # TODO hardcoded for now
-MOD_GALOIS="$TOP_SCRDIR/extra-libs/galois/src/linux_kernel/galois.ko"
 MOD_M0KV="$TOP_SCRDIR/m0tr.ko"
 PARAMS_M0KV="node_uuid=00000000-0000-0000-0000-000000000000"
 
@@ -124,7 +123,6 @@ host_pre()
 	local ssh_credentials="$1"
 	ssh_sudo "$ssh_credentials" modprobe lnet
 	ssh_sudo "$ssh_credentials" lctl network up
-	ssh_sudo "$ssh_credentials" insmod "$MOD_GALOIS"
 	ssh_sudo "$ssh_credentials" insmod "$MOD_M0KV" "$PARAMS_M0KV"
 	[ $TRACE_RM -eq 1 ] && ssh_sudo "$ssh_credentials" "rm -rf m0.trace.*"
 }
@@ -133,7 +131,6 @@ host_post()
 {
 	local ssh_credentials="$1"
 	ssh_sudo "$ssh_credentials" rmmod m0tr
-	ssh_sudo "$ssh_credentials" rmmod galois
 }
 
 node_host_pre()

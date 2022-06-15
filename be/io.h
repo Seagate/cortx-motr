@@ -79,7 +79,8 @@ struct m0_be_io_credit {
 	.bic_part_nr = (part_nr),                                            \
 }
 
-#define BE_IOCRED_F "(reg_nr=%"PRIu64" reg_size=%"PRIu64" part_nr=%"PRIu64")"
+#define BE_IOCRED_F "(reg_nr=%" PRIu64 " reg_size=%" PRIu64 \
+		    " part_nr=%" PRIu64 ")"
 #define BE_IOCRED_P(iocred) \
 	     (iocred)->bic_reg_nr, (iocred)->bic_reg_size, (iocred)->bic_part_nr
 
@@ -117,6 +118,8 @@ struct m0_be_io {
 	struct m0_tlink         bio_sched_link;
 	uint64_t                bio_sched_magic;
 	struct m0_be_op         bio_sched_op;
+	/** The op passed to m0_be_io_sched_add() */
+	struct m0_be_op        *bio_sched_op_user;
 	struct m0_ext           bio_ext;
 };
 

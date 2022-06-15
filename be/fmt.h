@@ -206,8 +206,8 @@ struct m0_be_fmt_log_header {
 	m0_bcount_t flh_group_size;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
-#define BFLH_F "(flh_serial=%"PRIu64" flh_discarded=%"PRIu64" " \
-		"flh_group_lsn=%"PRIu64" flh_group_size=%"PRIu64")"
+#define BFLH_F "(flh_serial=%" PRIu64 " flh_discarded=%" PRIu64 " " \
+		"flh_group_lsn=%" PRIu64 " flh_group_size=%" PRIu64 ")"
 #define BFLH_P(log_hdr) (log_hdr)->flh_serial, (log_hdr)->flh_discarded, \
 			(log_hdr)->flh_group_lsn, (log_hdr)->flh_group_size
 
@@ -265,8 +265,9 @@ struct m0_be_fmt_log_record_header {
 	struct m0_be_fmt_log_record_header_io_size lrh_io_size;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
-#define BFLRH_F "(pos=%"PRIu64" size=%"PRIu64" discarded=%"PRIu64" " \
-		"prev_pos=%"PRIu64" prev_size=%"PRIu64" io_nr_max=%"PRIu64")"
+#define BFLRH_F "(pos=%" PRIu64 " size=%" PRIu64 " discarded=%" PRIu64 " " \
+		"prev_pos=%" PRIu64 " prev_size=%" PRIu64 \
+		" io_nr_max=%" PRIu64 ")"
 #define BFLRH_P(h) (h)->lrh_pos, (h)->lrh_size, (h)->lrh_discarded, \
 		   (h)->lrh_prev_pos, (h)->lrh_prev_size,           \
 		   (h)->lrh_io_nr_max

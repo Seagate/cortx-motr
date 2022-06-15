@@ -41,6 +41,7 @@
 /m0rpcping-altogether
 /m0rwlock
 /m0stats
+/fdmi_sample_plugin
 /m0t1fs_*_test_helper
 /m0t1fs_io_file_pattern
 /m0t1fs_test

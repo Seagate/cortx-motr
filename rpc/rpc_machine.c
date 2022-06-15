@@ -332,15 +332,19 @@ m0_rpc_machine_cleanup_incoming_connections(struct m0_rpc_machine *machine)
 			m0_rpc_machine_unlock(machine);
 
 			m0_chan_wait(&holder.h_clink);
+			/*
+			 * Clink was removed from the chan by
+			 * rpc_conn__on_finalised_cb().
+			 */
 			m0_clink_fini(&holder.h_clink);
 
 			m0_rpc_machine_lock(machine);
-			conn = m0_tl_find(rpc_conn,
-				conn, &machine->rm_incoming_conns,
-				holder.h_sender_id == conn->c_sender_id);
-			M0_ASSERT(conn == NULL);
+			M0_ASSERT(m0_tl_find(rpc_conn,
+					     conn, &machine->rm_incoming_conns,
+					     holder.h_sender_id ==
+						conn->c_sender_id) == NULL);
 		} else {
-			/**
+			/*
 			 * It is little chance that conn state can be FAILED.
 			 * We can fight this problem later.
 			 */

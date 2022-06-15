@@ -227,7 +227,7 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 		oi->oi_dtx = NULL;
 
 	if (opcode == M0_EO_CREATE && entity->en_type == M0_ET_IDX &&
-	    oi->oi_flags & M0_ENF_META) {
+	    entity->en_flags & M0_ENF_META) {
 		rc = idx_pool_version_get(oi);
 		if (rc != 0)
 			return M0_ERR(rc);

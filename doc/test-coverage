@@ -23,7 +23,7 @@ Make sure in the output of configure script, that CFLAGS has --coverage option
 and LDFLAGS has '-lgcov' option present.
 
 LIBS   :  ""
-CFLAGS :  "-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I/laptop/motr/coverage/motr/extra-libs/galois -I/laptop/motr/coverage/motr/extra-libs/yaml/include -I. -I/laptop/motr/coverage/motr/core --coverage -g -O0"
+CFLAGS :  "-Wall -Werror -D_REENTRANT -D_GNU_SOURCE -fno-strict-aliasing -I/laptop/motr/coverage/motr/extra-libs/yaml/include -I. -I/laptop/motr/coverage/motr/core --coverage -g -O0"
 KCFLAGS:  "-Wall -Werror -g -O0"
 LDFLAGS:  "-rdynamic -lgcov"
 
@@ -138,7 +138,7 @@ Run scripts/coverage/gcov-gen-html to collect stats, as specified in above secti
 
 [root@xyralab_02 scripts]# ls ~/lcov/kernel/
 addb       dtm          fop        index.html         ioservice  pool      snow.png    xcode
-amber.png  m0t1fs                emerald.png  galois     index-sort-b.html  layout     rpc       sns
+amber.png  m0t1fs                emerald.png  index-sort-b.html  layout     rpc       sns
 app1.info  cob                   fid          gcov.css   index-sort-f.html  lib        ruby.png  stob
 app.info   db                    fol          glass.png  index-sort-l.html  net        sm        updown.png
 

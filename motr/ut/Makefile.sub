@@ -12,6 +12,7 @@ ut_libmotr_ut_la_SOURCES += motr/ut/cs_ut_main.c rm/st/wlock_helper.c \
                             motr/ut/sync.c \
                             motr/ut/layout.c \
                             motr/ut/client.h \
-                            motr/st/mt/mt_fom.c
+                            motr/st/mt/mt_fom.c \
+                            motr/ut/protection_info_checks.c
 
 CONFXC_FILES += motr/ut/dix_conf.xc

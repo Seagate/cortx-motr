@@ -31,25 +31,29 @@
 
 /* Global structures for setting up motr service. */
 const char log_file_name[] = "sr_ut.errlog";
-char      *sns_cm_ut_svc_ad[] = { "m0d", "-T", "AD",
-                                  "-D", "sr_db", "-S", "sr_stob",
-                                  "-A", "linuxstob:sr_addb_stob",
-			          "-f", M0_UT_CONF_PROCESS,
-			          "-w", "10",
-			          "-G", "lnet:0@lo:12345:34:1",
-                                  "-e", "lnet:0@lo:12345:34:1",
-                                  "-H", "0@lo:12345:34:1",
-			          "-c", M0_UT_PATH("conf.xc")};
+char      *sns_cm_ut_svc_ad[] = {
+	"m0d", "-T", "AD",
+	"-D", "sr_db", "-S", "sr_stob",
+	"-A", "linuxstob:sr_addb_stob",
+	"-f", M0_UT_CONF_PROCESS,
+	"-w", "10",
+	"-G", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-H", "0@lo:12345:34:1",
+	"-c", M0_UT_PATH("conf.xc")
+};
 
-char      *sns_cm_ut_svc_linux[] = { "m0d", "-T", "LINUX",
-                                     "-D", "sr_db", "-S", "sr_stob",
-				     "-A", "linuxstob:sr_addb_stob",
-				     "-f", M0_UT_CONF_PROCESS,
-				     "-w", "10",
-				     "-G", "lnet:0@lo:12345:34:1",
-				     "-e", "lnet:0@lo:12345:34:1",
-				     "-H", "0@lo:12345:34:1",
-				     "-c", M0_UT_PATH("conf.xc")};
+char      *sns_cm_ut_svc_linux[] = {
+	"m0d", "-T", "LINUX",
+	"-D", "sr_db", "-S", "sr_stob",
+	"-A", "linuxstob:sr_addb_stob",
+	"-f", M0_UT_CONF_PROCESS,
+	"-w", "10",
+	"-G", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-e", M0_NET_XPRT_PREFIX_DEFAULT":0@lo:12345:34:1",
+	"-H", "0@lo:12345:34:1",
+	"-c", M0_UT_PATH("conf.xc")
+};
 
 FILE           *lfile;
 struct m0_motr  sctx;

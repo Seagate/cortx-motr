@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -171,7 +171,18 @@ enum {
 	M0_LAYOUT_ENUM_TYPE_MAX = 32
 };
 
-enum { M0_DEFAULT_LAYOUT_ID = 1 };
+#ifdef CONFIG_X86_64
+	enum { M0_DEFAULT_LAYOUT_ID = 1 };
+#elif defined (CONFIG_AARCH64)
+/*
+ * Layout id defines the object unit size which cannot be less than
+ * the page size: 1 - 4KB, 2 - 8KB, 3 - 16KB and so on. On RHEL aarch64
+ * platform the page size is 64KB, hence the default layout id must be 5.
+ */
+	enum { M0_DEFAULT_LAYOUT_ID = 5 };
+#else
+#error  "The platform is not supported"
+#endif
 
 /**
  * Layout domain.

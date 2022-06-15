@@ -20,6 +20,7 @@
  */
 
 
+#include "lib/finject.h"
 #include "net/test/node_bulk.h"		/* m0_net_test_node_bulk_init */
 #include "net/test/initfini.h"
 

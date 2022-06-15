@@ -800,10 +800,7 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_FAILED);
 	m0_rpc_item_timer_stop(item);
 	/* XXX ->rio_sent() can be called multiple times (due to cancel). */
-	if (m0_rpc_item_is_oneway(item) &&
-	    item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
-		item->ri_ops->rio_sent(item);
-
+	m0_rpc_item_sent_invoke(item);
 	m0_rpc_session_item_failed(item);
 	/*
 	 * Reference release done here is for the reference taken
@@ -1764,6 +1761,12 @@ M0_INTERNAL void m0_rpc_item_replied_invoke(struct m0_rpc_item *req)
 		req->ri_ops->rio_replied(req);
 		m0_addb2_pop(M0_AVI_RPC_REPLIED);
 	}
+}
+
+M0_INTERNAL void m0_rpc_item_sent_invoke(struct m0_rpc_item *item)
+{
+	if (item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
+		item->ri_ops->rio_sent(item);
 }
 
 #undef M0_TRACE_SUBSYSTEM

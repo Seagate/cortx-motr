@@ -70,12 +70,12 @@ static void option_add(struct cs_args *args, char *s)
 static char *
 strxdup(const char *addr)
 {
-	static const char  xpt[] = "lnet:";
-	char		  *s;
+	char *s;
 
-	s = m0_alloc(strlen(addr) + sizeof(xpt));
+	s = m0_alloc(strlen(addr) + strlen(M0_NET_XPRT_PREFIX_DEFAULT) +
+		     strlen(":") + 1);
 	if (s != NULL)
-		sprintf(s, "%s%s", xpt, addr);
+		sprintf(s, "%s:%s", M0_NET_XPRT_PREFIX_DEFAULT, addr);
 
 	return s;
 }

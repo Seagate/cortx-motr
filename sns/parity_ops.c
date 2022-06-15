@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,22 +26,6 @@
 #include "lib/memory.h"
 #include "lib/assert.h"
 #include "sns/parity_ops.h"
-
-M0_INTERNAL void m0_parity_fini(void)
-{
-#if defined(__KERNEL__)  || !defined(HAVE_ISAL)
-	galois_calc_tables_release();
-#endif /* __KERNEL__ || !HAVE_ISAL */
-}
-
-M0_INTERNAL int m0_parity_init(void)
-{
-#if defined(__KERNEL__)  || !defined(HAVE_ISAL)
-	int ret = galois_create_mult_tables(M0_PARITY_GALOIS_W);
-	M0_ASSERT(ret == 0);
-#endif /* __KERNEL__ || !HAVE_ISAL */
-	return 0;
-}
 
 M0_INTERNAL m0_parity_elem_t m0_parity_pow(m0_parity_elem_t x,
 					   m0_parity_elem_t p)

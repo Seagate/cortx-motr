@@ -512,8 +512,8 @@ M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm)
 	 */
 	scm->sc_ibp.sb_bp.nbp_ops = &bp_ops;
 	scm->sc_obp.sb_bp.nbp_ops = &bp_ops;
-	segment_size = m0_rpc_max_seg_size(ndom);
-	segments_nr  = m0_rpc_max_segs_nr(ndom);
+	segment_size = m0_net_domain_get_max_buffer_segment_size(ndom);
+	segments_nr  = m0_net_domain_get_max_buffer_segments(ndom);
 	M0_LOG(M0_DEBUG, "sns segments_nr=%d", segments_nr);
 	rc = m0_net_buffer_pool_init(&scm->sc_ibp.sb_bp, ndom,
 				     0, segments_nr, segment_size,

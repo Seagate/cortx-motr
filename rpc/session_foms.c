@@ -496,7 +496,7 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 		if (gen->ssf_term_session == NULL)
 			gen->ssf_term_session = m0_rpc_session_search_and_pop(
 							conn, session_id);
-		session = (struct m0_rpc_session *)gen->ssf_term_session;
+		session = gen->ssf_term_session;
 		if (session == NULL) {
 			rc = -ENOENT;
 			break;
@@ -604,11 +604,7 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_fop != NULL && fom->fo_rep_fop != NULL);
 
-	gen = container_of(fom,
-			       struct m0_rpc_connection_session_specific_fom,
-			       ssf_fom_generic);
-	M0_ASSERT(gen != NULL);
-
+	gen     = M0_AMB(gen, fom, ssf_fom_generic);
 	fop     = fom->fo_fop;
 	fop_rep = fom->fo_rep_fop;
 	request = m0_fop_data(fop);
@@ -648,7 +644,7 @@ M0_INTERNAL int m0_rpc_fom_conn_terminate_tick(struct m0_fom *fom)
 			}
 		} else {
 			M0_LOG(M0_DEBUG, "Session is ready for termination");
-			session = (struct m0_rpc_session *)gen->ssf_term_session;
+			session = gen->ssf_term_session;
 			M0_ASSERT(session != NULL);
 			M0_ASSERT(M0_IN(session_state(session),
 					(M0_RPC_SESSION_IDLE,

@@ -387,6 +387,28 @@ M0_INTERNAL int m0_ctg_insert(struct m0_ctg_op    *ctg_op,
 			      int                  next_phase);
 
 /**
+ * Performs lookup of value by key in the catalogue,
+ * saves it and then proceeds as normal delete.
+ * @note Key is copied before execution of operation, user does not need to keep
+ *       it when this function is called.
+ *
+ * @param ctg_op     Catalogue operation context.
+ * @param ctg        Context of catalogue for record deletion.
+ * @param key        Key of record to be deleted.
+ * @param val        Saved value of record to be deleted.
+ * @param flags      Cas op flags from cas_op(fom0)->cg_flags
+ * @param next_phase Next phase of caller FOM.
+ *
+ * @ret M0_FSO_AGAIN or M0_FSO_WAIT.
+ */
+M0_INTERNAL int m0_ctg_lookup_delete(struct m0_ctg_op    *ctg_op,
+				     struct m0_cas_ctg   *ctg,
+				     const struct m0_buf *key,
+				     struct m0_buf       *val,
+				     int                  flags,
+				     int                  next_phase);
+
+/**
  * Deletes a key/value record from catalogue.
  * @note Key is copied before execution of operation, user does not need to keep
  *       it since this function is called.

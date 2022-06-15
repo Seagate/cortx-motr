@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2020-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -144,7 +144,7 @@ static inline bool is_page_read(struct data_buf *dbuf)
  */
 M0_INTERNAL bool data_buf_invariant(const struct data_buf *db)
 {
-	return M0_RC(db != NULL &&
+	return (db != NULL &&
 	       data_buf_bob_check(db) &&
 	       ergo(db->db_buf.b_addr != NULL, db->db_buf.b_nob > 0));
 }
@@ -1160,7 +1160,7 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
  */
 static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 {
-	int                       rc;
+	int                       rc = 0;
 	uint32_t                  row;
 	uint32_t                  col;
 	struct m0_buf            *dbufs;
@@ -1225,7 +1225,6 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 						 dbufs, pbufs);
 		}
 
-		rc = 0;
 		m0_free_aligned(zpage, 1ULL<<obj->ob_attr.oa_bshift,
 				M0_NETBUF_SHIFT);
 		M0_LOG(M0_DEBUG, "Parity recalculated for %s",
@@ -1267,13 +1266,15 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 
 				dbufs[col] = map->pi_databufs[row][col]->db_buf;
 				old[col] = map->pi_databufs[row][col]->db_auxbuf;
-				m0_parity_math_diff(parity_math(map->pi_ioo),
-						    old, dbufs, pbufs, col);
+				rc = m0_parity_math_diff(parity_math(map->pi_ioo),
+							 old, dbufs, pbufs, col);
+				if (rc != 0) {
+					m0_free(old);
+					goto last;
+				}
 			}
-
 		}
 		m0_free(old);
-		rc = 0;
 	}
 last:
 	m0_free(dbufs);
@@ -1300,6 +1301,14 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 	struct m0_op             *op;
 	unsigned int              op_code;
 	struct data_buf          *dbuf;
+	void                     *pbuf;
+	void                     *ptr;
+	m0_bcount_t               seg_size;
+	m0_bcount_t               unit_size;
+	uint32_t                  num_alloc;
+	uint32_t                  row_per_seg;
+	uint32_t                  i;
+	struct data_buf          *buf;
 
 	M0_ENTRY("[%p] map %p", map->pi_ioo, map);
 
@@ -1310,30 +1319,64 @@ static int pargrp_iomap_paritybufs_alloc(struct pargrp_iomap *map)
 	op_code = op->op_code;
 
 	play = pdlayout_get(map->pi_ioo);
-	for (row = 0; row < rows_nr(play, obj); ++row) {
-		for (col = 0; col < layout_k(play); ++col) {
-			map->pi_paritybufs[row][col] =
-				data_buf_alloc_init(obj, PA_NONE);
-			if (map->pi_paritybufs[row][col] == NULL)
+	seg_size = instance->m0c_ndom.nd_get_max_buffer_segment_size;
+	unit_size = layout_unit_size(play);
+
+	if (unit_size > seg_size)
+		num_alloc = unit_size / seg_size;
+	else
+		num_alloc  = 1;
+
+	row_per_seg = rows_nr(play, obj) / num_alloc;
+
+	for (col = 0; col < layout_k(play); ++col) {
+		for (i = 0; i < num_alloc; ++i) {
+			pbuf = m0_alloc_aligned(min64(seg_size, unit_size),
+						      M0_NETBUF_SHIFT);
+			if (pbuf == NULL)
 				goto err;
 
-			dbuf = map->pi_paritybufs[row][col];
-			if (M0_IN(op_code, (M0_OC_WRITE,
-					    M0_OC_FREE)))
-				dbuf->db_flags |= PA_WRITE;
+			ptr = pbuf;
+			for (row = 0; row < row_per_seg; ++row) {
+				M0_ALLOC_PTR(map->pi_paritybufs[
+						    (i*row_per_seg)+ row][col]);
+				if (map->pi_paritybufs[
+					     (i*row_per_seg)+ row][col] == NULL)
+					goto err;
 
-			if (map->pi_rtype == PIR_READOLD ||
-			    (op_code == M0_OC_READ &&
-			     instance->m0c_config->mc_is_read_verify))
-				dbuf->db_flags |= PA_READ;
+				dbuf = map->pi_paritybufs[
+						     (i*row_per_seg)+ row][col];
+				data_buf_init(dbuf, ptr, obj_buffer_size(obj),
+					      PA_NONE);
+				ptr += obj_buffer_size(obj);
+
+				M0_LOG(M0_DEBUG, "row=%d col=%d dbuf=%p pbuf=%p ptr=%p",
+				       row, col, dbuf, pbuf, ptr);
+
+				if (M0_IN(op_code, (M0_OC_WRITE,
+						    M0_OC_FREE)))
+					dbuf->db_flags |= PA_WRITE;
+
+				if (map->pi_rtype == PIR_READOLD ||
+				    (op_code == M0_OC_READ &&
+				     instance->m0c_config->mc_is_read_verify))
+					dbuf->db_flags |= PA_READ;
+			}
 		}
 	}
 
 	return M0_RC(0);
 err:
-	for (row = 0; row < rows_nr(play, obj); ++row) {
-		for (col = 0; col < layout_k(play); ++col)
-			m0_free0(&map->pi_paritybufs[row][col]);
+	for (i = 0; i < col; ++i) {
+		for (row = 0; row < rows_nr(play, obj); ++row) {
+			buf = map->pi_paritybufs[row][col];
+			if (buf != NULL) {
+				if ((row % row_per_seg) == 0 )
+					m0_buf_free(&buf->db_buf);
+				data_buf_fini(buf);
+				m0_free(buf);
+			}
+		}
 	}
 
 	return M0_ERR(-ENOMEM);
@@ -1996,13 +2039,6 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 		rc = -EIO;
 		goto end;
 	}
-	if (parity_math(map->pi_ioo)->pmi_parity_algo ==
-	    M0_PARITY_CAL_ALGO_REED_SOLOMON) {
-		rc = m0_parity_recov_mat_gen(parity_math(map->pi_ioo),
-				(uint8_t *)failed.b_addr);
-		if (rc != 0)
-			goto end;
-	}
 
 	/* Populates data and failed buffers. */
 	for (row = 0; row < rows_nr(play, ioo->ioo_obj); ++row) {
@@ -2024,13 +2060,12 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 			parity[col].b_nob  = pagesize;
 		}
 
-		m0_parity_math_recover(parity_math(ioo), data,
-				       parity, &failed, M0_LA_INVERSE);
+		rc = m0_parity_math_recover(parity_math(ioo), data,
+					    parity, &failed, M0_LA_INVERSE);
+		if (rc != 0)
+			goto end;
 	}
 
-	if (parity_math(map->pi_ioo)->pmi_parity_algo ==
-	    M0_PARITY_CAL_ALGO_REED_SOLOMON)
-		m0_parity_recov_mat_destroy(parity_math(map->pi_ioo));
 end:
 	m0_free(data);
 	m0_free(parity);
@@ -2435,6 +2470,12 @@ M0_INTERNAL void pargrp_iomap_fini(struct pargrp_iomap *map,
 	uint32_t                  col_r; /* num of col in replicated layout */
 	struct data_buf          *buf;
 	struct m0_pdclust_layout *play;
+	m0_bcount_t               seg_size;
+	m0_bcount_t               unit_size;
+	struct m0_client         *instance;
+	struct m0_op             *op;
+	uint32_t                  num_alloc;
+	uint32_t                  row_per_seg;
 
 	M0_ENTRY("map %p", map);
 
@@ -2445,6 +2486,18 @@ M0_INTERNAL void pargrp_iomap_fini(struct pargrp_iomap *map,
 	map->pi_ops   = NULL;
 	map->pi_rtype = PIR_NONE;
 	map->pi_state = PI_NONE;
+
+	op = &map->pi_ioo->ioo_oo.oo_oc.oc_op;
+	instance = m0__op_instance(op);
+
+	seg_size = instance->m0c_ndom.nd_get_max_buffer_segment_size;
+	unit_size = layout_unit_size(play);
+	if (unit_size > seg_size)
+		num_alloc = unit_size / seg_size;
+	else
+		num_alloc  = 1;
+
+	row_per_seg = rows_nr(play, obj) / num_alloc;
 
 	pargrp_iomap_bob_fini(map);
 	m0_indexvec_free(&map->pi_ivec);
@@ -2471,11 +2524,12 @@ M0_INTERNAL void pargrp_iomap_fini(struct pargrp_iomap *map,
 	}
 
 	if (map->pi_paritybufs != NULL) {
-		for (row = 0; row < rows_nr(play, obj); ++row) {
-			for (col = 0; col < layout_k(play); ++col) {
+		for (col = 0; col < layout_k(play); ++col) {
+			for (row = 0; row < rows_nr(play, obj); ++row) {
 				buf = map->pi_paritybufs[row][col];
 				if (buf != NULL) {
-					if (are_pbufs_allocated(map->pi_ioo)) {
+					if (are_pbufs_allocated(map->pi_ioo) &&
+					    (row % row_per_seg) == 0 ) {
 						data_buf_dealloc_fini(buf);
 					} else {
 						data_buf_fini(buf);
@@ -2484,8 +2538,12 @@ M0_INTERNAL void pargrp_iomap_fini(struct pargrp_iomap *map,
 					map->pi_paritybufs[row][col] = NULL;
 				}
 			}
-			m0_free0(&map->pi_paritybufs[row]);
 		}
+	}
+
+	for (row = 0; row < rows_nr(play, obj); ++row) {
+		if (map->pi_paritybufs != NULL)
+			m0_free0(&map->pi_paritybufs[row]);
 	}
 
 	m0_free0(&map->pi_databufs);

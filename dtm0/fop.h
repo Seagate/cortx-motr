@@ -37,11 +37,13 @@ struct m0_be_dtm0_log;
 
 extern struct m0_fop_type dtm0_req_fop_fopt;
 extern struct m0_fop_type dtm0_rep_fop_fopt;
+extern struct m0_fop_type dtm0_redo_fop_fopt;
 
 M0_INTERNAL int m0_dtm0_fop_init(void);
 M0_INTERNAL void m0_dtm0_fop_fini(void);
 
 enum m0_dtm0s_msg {
+	DTM_TEST,
 	DTM_EXECUTE,
 	DTM_EXECUTED,
 	DTM_PERSISTENT,
@@ -52,6 +54,7 @@ enum m0_dtm0s_msg {
 struct dtm0_req_fop {
 	uint32_t               dtr_msg M0_XCA_FENUM(m0_dtm0s_msg);
 	struct m0_dtm0_tx_desc dtr_txr;
+	struct m0_buf          dtr_payload;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct dtm0_rep_fop {

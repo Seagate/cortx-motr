@@ -68,7 +68,6 @@ static int test_fs_encode(struct m0_fdmi_src_rec *src_rec,
 
 static void test_fs_get(struct m0_fdmi_src_rec *src_rec)
 {
-	M0_UT_ASSERT(false);
 }
 
 static void test_fs_put(struct m0_fdmi_src_rec *src_rec)
@@ -145,6 +144,9 @@ int imitate_release_fop_recv(struct test_rpc_env *env)
 	return rc;
 }
 
+static void g_src_rec_free(struct m0_ref *ref)
+{
+}
 void fdmi_sd_release_fom(void)
 {
 	struct m0_fdmi_src             *src = src_alloc();
@@ -164,6 +166,8 @@ void fdmi_sd_release_fom(void)
 	g_src_rec.fsr_src = src;
 	m0_fdmi__record_init(&g_src_rec);
 	m0_fdmi__rec_id_gen(&g_src_rec);
+	m0_ref_init(&g_src_rec.fsr_ref, 1, g_src_rec_free);
+	m0_fdmi__fs_get(&g_src_rec);
 	rec_id_to_release = g_src_rec.fsr_rec_id;
 	rc = imitate_release_fop_recv(&g_rpc_env);
 	M0_UT_ASSERT(rc == 0);

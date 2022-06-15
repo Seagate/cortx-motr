@@ -38,21 +38,6 @@ modprobe_lnet()
 	modprobe lnet || abort "Error probing lnet."
 }
 
-modload_galois()
-{
-	BASE=@GALOIS_ABS_SRC@
-	if [ -z "$BASE" ]; then
-		modprobe galois
-	else
-		insmod $BASE/src/linux_kernel/galois.ko
-	fi
-}
-
-modunload_galois()
-{
-	rmmod galois &> /dev/null
-}
-
 modload()
 {
 	local m
