@@ -42,7 +42,7 @@ m0_be_io_err_send(uint32_t errcode, uint8_t location, uint8_t io_opcode)
 
 	M0_ENTRY("errcode=%d location=%u io_opcode=%u",
 		 errcode, location, io_opcode);
-	M0_PRE(errcode < 0);
+	M0_PRE(errcode > 0);
 	M0_PRE(M0_BE_LOC_NONE <= location && location <= M0_BE_LOC_SEGMENT_2);
 	M0_PRE(SIO_INVALID <= io_opcode && io_opcode <= SIO_SYNC);
 

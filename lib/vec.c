@@ -560,6 +560,14 @@ M0_INTERNAL void m0_indexvec_free(struct m0_indexvec *ivec)
 }
 M0_EXPORTED(m0_indexvec_free);
 
+M0_INTERNAL m0_bindex_t m0_indexvec_end(const struct m0_indexvec *ivec)
+{
+	uint32_t i = ivec->iv_vec.v_nr - 1;
+
+	return ivec->iv_index[i] + ivec->iv_vec.v_count[i];
+}
+M0_EXPORTED(m0_indexvec_end);
+
 M0_INTERNAL void m0_bufvec_cursor_init(struct m0_bufvec_cursor *cur,
 				       const struct m0_bufvec *bvec)
 {
