@@ -114,7 +114,7 @@ main()
 
 	sandbox_init
 
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 	local multiple_pools=0
 	motr_service start $multiple_pools "$stride" "$N" "$K" "$S" "$P" || {
 		echo "Failed to start Motr Service."

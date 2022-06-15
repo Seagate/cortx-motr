@@ -374,7 +374,7 @@ AS_IF([test x$enable_m0_asserts = xno],
 # dtm0 {{{3
 AC_ARG_ENABLE([dtm0],
         AS_HELP_STRING([--enable-dtm0],[enable DTM0 mode]),
-        [], [enable_dtm0=no]
+        [BUILD_DEPEND_DTM="--enable-dtm0"], [enable_dtm0=no]
 )
 AS_IF([test x$enable_dtm0 = xyes],
       AC_DEFINE([ENABLE_DTM0], [1]),
@@ -968,6 +968,7 @@ AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
 )
 AC_SUBST([LIBFAB_LIBS])
 AC_SUBST([BUILD_DEPEND_LIBFAB])
+AC_SUBST([BUILD_DEPEND_DTM])
 AM_CONDITIONAL([ENABLE_LIBFAB],
                [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
 

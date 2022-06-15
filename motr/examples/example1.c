@@ -401,7 +401,7 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 	obj_id.u_lo = atoll(argv[5]);
-	if (obj_id.u_lo < M0_ID_APP.u_lo) {
+	if (obj_id.u_lo <= M0_ID_APP.u_lo) {
 		printf("obj_id invalid. Please refer to M0_ID_APP "
 		       "in motr/client.c\n");
 		exit(-EINVAL);
