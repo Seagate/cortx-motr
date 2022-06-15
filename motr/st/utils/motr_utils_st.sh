@@ -283,7 +283,7 @@ EOF
 	rm -f $src_file-trunc $dest_file
 
 	# Truncate range beyond EOF
-	$motr_st_util_dir/m0cp -G $MOTR_PARAMS_V -o $object_id1 $src_file \
+	"$motr_st_util_dir/m0cp" -G "$MOTR_PARAMS_V" -o "$object_id1" "$src_file" \
                                  -s $block_size -c $block_count -L 9 \
                                  -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
