@@ -1029,7 +1029,7 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 		 */
 		if (((!rm_is_set && is_local_svc(svc, M0_CST_RMS)) ||
 		    !M0_IN(svc->cs_type, (M0_CST_CONFD, M0_CST_RMS, M0_CST_HA,
-					  M0_CST_FIS, M0_CST_DTM0)))) {
+					  M0_CST_DTM0)))) {
 			rc = __service_ctx_create(pc, svc, service_connect);
 			if (rc != 0)
 				break;

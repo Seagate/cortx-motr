@@ -1155,18 +1155,18 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx,
 		if (rctx->rc_services[i] == NULL ||
 		    M0_IN(i, (M0_CST_HA, M0_CST_SSS)))
 			continue;
-		if (i == M0_CST_FIS) {
+/*		if (i == M0_CST_FIS) {
 			if (!rctx->rc_fis_enabled)
-				/*
+*/				/*
 				 * Even in case FIS is present in conf, the
 				 * service must stay down being not enabled by
 				 * command line parameter '-j'.
 				 */
-				continue;
+/*				continue;
 			else
 				M0_LOG(M0_DEBUG, "FIS enabled by command opt.");
 		}
-		rc = cs_service_init(rctx->rc_services[i], rctx, &rctx->rc_reqh,
+*/		rc = cs_service_init(rctx->rc_services[i], rctx, &rctx->rc_reqh,
 				     &rctx->rc_service_fids[i]);
 		M0_LOG(M0_DEBUG, "service: %s" FID_F " cs_service_init: %d",
 		       rctx->rc_services[i], FID_P(&rctx->rc_service_fids[i]),

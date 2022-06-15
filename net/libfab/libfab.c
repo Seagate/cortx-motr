@@ -652,7 +652,7 @@ static void libfab_txep_event_check(struct m0_fab__ep *txep,
 	 */
 	if (aep->aep_tx_state == FAB_CONNECTING &&
 	    m0_time_is_in_past(aep->aep_connecting_tmout)) {
-		M0_LOG(M0_DEBUG,"Reset Conn from %s to %s",
+		M0_LOG(M0_ERROR,"Reset Conn from %s to %s",
 		       (char*)tm->ftm_pep->fep_name.nia_p,
 		       (char*)txep->fep_name.nia_p);
 		libfab_txep_init(aep, tm, txep);
