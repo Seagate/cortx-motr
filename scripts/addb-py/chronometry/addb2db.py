@@ -598,7 +598,7 @@ def db_consume_data(files: List[str]):
                 t.update(len(tables[k]))
 
 def db_setup_loggers():
-    format='%(asctime)s %(name)s %(levelname)s %(message)s'
+    format='%(asctime)s %(name)s %(levelname)s %(message)s' #pylint: disable=redefined-builtin
     level=logging.INFO
     level_sh=logging.WARN
     logging.basicConfig(filename='logfile.txt',

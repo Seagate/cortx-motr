@@ -19,10 +19,10 @@
 
 # m0t1fs related helper functions
 
-M0_SRC_DIR=$(dirname $(readlink -f $0))
+M0_SRC_DIR=$(dirname "$(readlink -f "$0")")
 M0_SRC_DIR="$M0_SRC_DIR/../../../"
 
-. $M0_SRC_DIR/utils/functions # m0_default_xprt
+. "$M0_SRC_DIR"/utils/functions # m0_default_xprt
 
 XPRT=$(m0_default_xprt)
 
@@ -38,7 +38,7 @@ mount_m0t1fs()
 	fi
 
 	# Create mount directory
-	sudo mkdir -p $m0t1fs_mount_dir || {
+	sudo mkdir -p "$m0t1fs_mount_dir" || {
 		echo "Failed to create mount directory."
 		return 1
 	}
@@ -53,8 +53,8 @@ mount_m0t1fs()
 	local cmd="sudo mount -t m0t1fs \
 	    -o profile='$PROF_OPT',confd='$CONFD_EP',$mountop \
 	    none $m0t1fs_mount_dir"
-	echo $cmd
-	eval $cmd || {
+	echo "$cmd"
+	eval "$cmd" || {
 		echo "Failed to mount m0t1fs file system."
 		return 1
 	}
@@ -70,19 +70,19 @@ umount_m0t1fs()
 
 	local m0t1fs_mount_dir=$1
 	echo "Unmounting file system ..."
-	umount $m0t1fs_mount_dir &>/dev/null
+	umount "$m0t1fs_mount_dir" &>/dev/null
 
 	sleep 2
 
 	echo "Cleaning up test directory..."
-	rm -rf $m0t1fs_mount_dir &>/dev/null
+	rm -rf "$m0t1fs_mount_dir" &>/dev/null
 }
 
 # main entry
 
 # Get the location of this script and look for the command in the
 # same directory
-dir=`dirname $0`
+dir=`dirname "$0"`
 
 # Get local address
 if [ "$XPRT" = "lnet" ]; then
@@ -100,11 +100,11 @@ cmd_args="$LOCAL_EP $CONFD_EP '$PROF_OPT' '$PROC_FID'"
 case "$1" in
 	mount)
 		echo "mount m0t1fs ... "
-		mount_m0t1fs $2
+		mount_m0t1fs "$2"
 		;;
 	umount)
 		echo "umount m0t1fs ... "
-		umount_m0t1fs $2
+		umount_m0t1fs "$2"
 		;;
 	*)
 		echo "Usage: $0 [mount|umount] dir}"

@@ -76,12 +76,12 @@ struct m0_dtm0_dtx {
 
 /** An AST object for persistent message processing. */
 struct m0_dtm0_pmsg_ast {
-	/** AST where the update is applied */
+	/** AST where the update is applied. */
 	struct m0_sm_ast       p_ast;
 	/** A FOP that contains a partial update to be applied. */
 	struct m0_fop         *p_fop;
-	/** A dtx that has to be update */
-	struct m0_dtm0_dtx    *p_dtx;
+	/** A pointer to the DTM0 log. */
+	struct m0_be_dtm0_log *p_log;
 };
 
 M0_INTERNAL void m0_dtm0_dtx_domain_init(void);
@@ -147,11 +147,11 @@ M0_INTERNAL void m0_dtx0_done(struct m0_dtx *dtx);
 
 /**
  * Launches asynchronous processing of a persistent message.
- * @param dtx A DTX that is the context for the processing.
- * @param fop An FOP with the P message.
+ * @param log A pointer to the DTM0 log.
+ * @param fop A FOP with the P message.
  */
-M0_INTERNAL void m0_dtm0_dtx_pmsg_post(struct m0_dtm0_dtx *dtx,
-				       struct m0_fop      *fop);
+M0_INTERNAL void m0_dtm0_dtx_pmsg_post(struct m0_be_dtm0_log *log,
+				       struct m0_fop         *fop);
 
 /**
  * Puts a copy of dtx's transaction descriptor into "dst".

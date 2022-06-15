@@ -25,10 +25,10 @@ umask 0002
 ## CAUTION: This path will be removed by superuser.
 SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.console-st}
 
-M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=$(readlink -f "$0")
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
-. $M0_SRC_DIR/utils/functions # die, opcode, sandbox_init, report_and_exit
+. "$M0_SRC_DIR"/utils/functions # die, opcode, sandbox_init, report_and_exit
 
 CLIENT=$M0_SRC_DIR/console/m0console
 SERVER=$M0_SRC_DIR/console/st/server
@@ -43,7 +43,7 @@ CONF_FILE_PATH=$M0_SRC_DIR/ut/diter.xc
 CONF_PROFILE='<0x7000000000000001:0>'
 
 NODE_UUID=02e94b88-19ab-4166-b26b-91b51f22ad91  # required by `common.sh'
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh  # modload
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/common.sh  # modload
 
 XPRT=$(m0_default_xprt)
 
@@ -66,15 +66,15 @@ start_server()
 	## registers "ds1" and "ds2" service types, so we do not pass
 	## these services to m0mkfs.
 	##
-	$M0_SRC_DIR/utils/mkfs/m0mkfs -T AD -D console_st_srv.db \
+	"$M0_SRC_DIR"/utils/mkfs/m0mkfs -T AD -D console_st_srv.db \
 	    -S console_st_srv.stob -A linuxstob:console_st_srv-addb.stob \
 	    -w 10 -e "$XPRT:$SERVER_EP_ADDR" -H $SERVER_EP_ADDR \
 	    -q 2 -m $((1 << 17)) \
-	    -c $CONF_FILE_PATH  \
-	    &>$SANDBOX_DIR/mkfs.log || die 'm0mkfs failed'
+	    -c "$CONF_FILE_PATH"  \
+	    &>"$SANDBOX_DIR"/mkfs.log || die 'm0mkfs failed'
 	echo 'OK' >&2
 
-	$SERVER -v &>$SANDBOX_DIR/server.log 2>&1 &
+	$SERVER -v &>"$SANDBOX_DIR"/server.log 2>&1 &
 	SERVERPID=$!
 	sleep 1
 	pgrep $(basename "$SERVER") >/dev/null || die 'Service failed to start'
@@ -83,7 +83,7 @@ start_server()
 
 create_yaml_files()
 {
-	cat <<EOF >$YAML_FILE9
+	cat <<EOF >"$YAML_FILE9"
 server  : $SERVER_EP_ADDR
 client  : $CLIENT_EP_ADDR
 
@@ -98,7 +98,7 @@ EOF
 
 	## The content of `Write FOP' below should correspond to
 	## m0_fop_cob_writev definition (see ioservice/io_fops.h).
-	cat <<EOF >$YAML_FILE41
+	cat <<EOF >"$YAML_FILE41"
 server  : $SERVER_EP_ADDR
 client  : $CLIENT_EP_ADDR
 
@@ -144,7 +144,7 @@ stop_server()
 check_reply()
 {
 	expected="$1"
-	actual=`awk '/replied/ {print $5}' $OUTPUT_FILE`
+	actual=$(awk '/replied/ {print $5}' "$OUTPUT_FILE")
 	[ -z "$actual" ] && die 'Reply not found'
 	[ "$actual" -eq "$expected" ] || die 'Invalid reply'
 }
@@ -157,8 +157,8 @@ test_fop()
 	local reply="$1"; shift
 
 	echo -n "$message: " >&2
-	$CLIENT -f $request -v "$@" | tee $OUTPUT_FILE
-	check_reply $reply
+	$CLIENT -f "$request" -v "$@" | tee "$OUTPUT_FILE"
+	check_reply "$reply"
 	echo OK >&2
 }
 
@@ -172,7 +172,7 @@ run_st()
 
 	test_fop 'Console test fop, YAML input' \
 		$(opcode M0_CONS_TEST) $(opcode M0_CONS_FOP_REPLY_OPCODE) \
-		-i -y $YAML_FILE9
+		-i -y "$YAML_FILE9"
 
 	## This test case does not work: $SERVER crashes while
 	## processing the fop (m0_fop_cob_writev).
@@ -181,7 +181,7 @@ run_st()
 		test_fop 'Write request fop' \
 			$(opcode M0_IOSERVICE_WRITEV_OPCODE) \
 			$(opcode M0_IOSERVICE_WRITEV_REP_OPCODE) \
-			-i -y $YAML_FILE41
+			-i -y "$YAML_FILE41"
 	fi
 }
 
@@ -189,7 +189,7 @@ run_st()
 ## main
 ## -------------------------------------------------------------------
 
-[ `id -u` -eq 0 ] || die 'Must be run by superuser'
+[ $(id -u) -eq 0 ] || die 'Must be run by superuser'
 
 sandbox_init
 start_server

@@ -28,17 +28,19 @@
  */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
-#include "lib/assert.h"        /* M0_ASSERT */
-#include "lib/memory.h"        /* M0_ALLOC_ARR */
-#include "lib/time.h"          /* M0_TIME_NEVER */
+#include "lib/assert.h"             /* M0_ASSERT */
+#include "lib/memory.h"             /* M0_ALLOC_ARR */
+#include "lib/time.h"               /* M0_TIME_NEVER */
 #include "lib/errno.h"
-#include "lib/trace.h"         /* M0_ERR */
+#include "lib/trace.h"              /* M0_ERR */
 #include "index_op.h"
 #include "motr/client.h"
 #include "motr/idx.h"
 #include "index.h"
-#include "cas/cas.h"           /* m0_dix_fid_type */
-#include "fid/fid.h"           /* m0_fid_tassume */
+#include "cas/cas.h"                /* m0_dix_fid_type */
+#include "fid/fid.h"                /* m0_fid_tassume */
+#include "lib/misc.h"               /* M0_AMB */
+#include "motr/client_internal.h"   /* m0_op_common */
 
 static int per_item_rcs_analyse(int32_t *rcs, int cnt)
 {
@@ -75,6 +77,23 @@ static int index_op_tail(struct m0_entity *ce,
 	return M0_RC(rc);
 }
 
+void set_idx_flags(struct m0_op *op)
+{
+	struct m0_op_common *oc;
+	struct m0_op_idx    *oi;
+
+	oc = M0_AMB(oc, op, oc_op);
+	oi = M0_AMB(oi, oc, oi_oc);
+
+	if (is_skip_layout)
+		oi->oi_flags |= M0_OIF_SKIP_LAYOUT;
+
+	if (is_crow_disable)
+		oi->oi_flags &= ~M0_OIF_CROW;
+	else
+		oi->oi_flags |= M0_OIF_CROW;
+}
+
 void set_enf_meta_flag(struct m0_idx *idx)
 {
 	idx->in_entity.en_flags |= M0_ENF_META;
@@ -86,6 +105,21 @@ void set_enf_meta_flag(struct m0_idx *idx)
 	}
 }
 
+int validate_pool_version(struct m0_idx *idx)
+{
+	int rc = 0;
+	if (is_enf_meta || is_skip_layout) {
+		if (m0_fid_is_valid(&dix_pool_ver) &&
+		    m0_fid_is_set(&dix_pool_ver))
+			set_enf_meta_flag(idx);
+		else
+			rc = -EINVAL;
+	} else if (m0_fid_is_set(&dix_pool_ver)) {
+		rc = -EINVAL;
+	}
+	return rc;
+}
+
 int index_create(struct m0_realm *parent, struct m0_fid_arr *fids)
 {
 	int i;
@@ -95,18 +129,21 @@ int index_create(struct m0_realm *parent, struct m0_fid_arr *fids)
 
 	for(i = 0; rc == 0 && i < fids->af_count; ++i) {
 		struct m0_op   *op  = NULL;
-		struct m0_idx   idx;
+		struct m0_idx   idx = {{0}};
 
 		m0_fid_tassume(&fids->af_elems[i], &m0_dix_fid_type);
 		m0_idx_init(&idx, parent,
 				   (struct m0_uint128 *)&fids->af_elems[i]);
 
-		if (is_enf_meta)
+		if (is_enf_meta || is_skip_layout)
 			set_enf_meta_flag(&idx);
 
 		rc = m0_entity_create(NULL, &idx.in_entity, &op);
+
+		set_idx_flags(op);
+
 		rc = index_op_tail(&idx.in_entity, op, rc, NULL);
-		if (rc == 0 && is_enf_meta)
+		if (rc == 0 && (is_enf_meta || is_skip_layout))
 			m0_console_printf("DIX pool version: "FID_F" \n",
 					  FID_P(&idx.in_attr.idx_pver));
 	}
@@ -121,15 +158,25 @@ int index_drop(struct m0_realm *parent, struct m0_fid_arr *fids)
 	M0_PRE(fids != NULL && fids->af_count != 0);
 
 	for(i = 0; rc == 0 && i < fids->af_count; ++i) {
-		struct m0_idx   idx;
+		struct m0_idx   idx = {{0}};
 		struct m0_op   *op = NULL;
 
 		m0_fid_tassume(&fids->af_elems[i], &m0_dix_fid_type);
 		m0_idx_init(&idx, parent,
 			    (struct m0_uint128 *)&fids->af_elems[i]);
+
+		rc = validate_pool_version(&idx);
+		if (rc != 0)
+			return M0_RC(rc);
+
 		rc = m0_entity_open(&idx.in_entity, &op) ?:
-		     m0_entity_delete(&idx.in_entity, &op) ?:
-		     index_op_tail(&idx.in_entity, op, rc, NULL);
+		     m0_entity_delete(&idx.in_entity, &op);
+		if (rc != 0)
+			return M0_RC(rc);
+
+		set_idx_flags(op);
+
+		rc = index_op_tail(&idx.in_entity, op, rc, NULL);
 	}
 	return M0_RC(rc);
 }
@@ -139,7 +186,7 @@ int index_list(struct m0_realm  *parent,
 	       int               cnt,
 	       struct m0_bufvec *keys)
 {
-	struct m0_idx  idx;
+	struct m0_idx  idx = {{0}};
 	struct m0_op  *op = NULL;
 	int32_t       *rcs;
 	int            rc;
@@ -154,8 +201,16 @@ int index_list(struct m0_realm  *parent,
 	}
 	m0_fid_tassume(fid, &m0_dix_fid_type);
 	m0_idx_init(&idx, parent, (struct m0_uint128 *)fid);
+
+	rc = validate_pool_version(&idx);
+	if (rc != 0)
+		return M0_RC(rc);
+
 	rc = m0_idx_op(&idx, M0_IC_LIST, keys, NULL,
 		       rcs, 0, &op);
+
+	set_idx_flags(op);
+
 	rc = index_op_tail(&idx.in_entity, op, rc, NULL);
 	m0_free(rcs);
 	return M0_RC(rc);
@@ -176,14 +231,22 @@ int index_lookup(struct m0_realm   *parent,
 	rc = m0_bufvec_alloc(rets, fids->af_count, sizeof(rc));
 	/* Check that indices exist. */
 	for(i = 0; rc == 0 && i < fids->af_count; ++i) {
-		struct m0_idx  idx;
+		struct m0_idx  idx = {{0}};
 		struct m0_op  *op = NULL;
 
 		m0_fid_tassume(&fids->af_elems[i], &m0_dix_fid_type);
 		m0_idx_init(&idx, parent,
 			    (struct m0_uint128 *)&fids->af_elems[i]);
+
+		rc = validate_pool_version(&idx);
+		if (rc != 0)
+			return M0_RC(rc);
+
 		rc = m0_idx_op(&idx, M0_IC_LOOKUP, NULL, NULL,
 			       NULL, 0, &op);
+
+		set_idx_flags(op);
+
 		rc = index_op_tail(&idx.in_entity, op, rc,
 				   (int *)rets->ov_buf[i]);
 	}
@@ -196,7 +259,7 @@ static int index_op(struct m0_realm    *parent,
 		    struct m0_bufvec   *keys,
 		    struct m0_bufvec   *vals)
 {
-	struct m0_idx  idx;
+	struct m0_idx  idx = {{0}};
 	struct m0_op  *op = NULL;
 	int32_t       *rcs;
 	int            rc;
@@ -210,18 +273,16 @@ static int index_op(struct m0_realm    *parent,
 	m0_fid_tassume(fid, &m0_dix_fid_type);
 	m0_idx_init(&idx, parent, (struct m0_uint128 *)fid);
 
-	if (is_enf_meta) {
-		if (m0_fid_is_valid(&dix_pool_ver) && m0_fid_is_set(&dix_pool_ver))
-			set_enf_meta_flag(&idx);
-		else
-			return M0_ERR(-EINVAL);
-	} else if (m0_fid_is_set(&dix_pool_ver)) {
-		return M0_ERR(-EINVAL);
-	}	
+	rc = validate_pool_version(&idx);
+	if (rc != 0)
+		return M0_RC(rc);
 
 	rc = m0_idx_op(&idx, opcode, keys, vals, rcs,
 	               opcode == M0_IC_PUT ? M0_OIF_OVERWRITE : 0,
 		       &op);
+
+	set_idx_flags(op);
+
 	rc = index_op_tail(&idx.in_entity, op, rc, NULL);
 	/*
 	 * Don't analyse per-item codes for NEXT, because usually user gets

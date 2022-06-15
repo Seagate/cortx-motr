@@ -203,7 +203,7 @@ function run_test()
 	files=""
 	for node in $CLIENT_LIST; do
 		client_index0=$(printf %02d $client_index)
-		for f in $(seq 0 $(expr $THREADS_PER_CLIENT - 1)); do
+		for f in $(seq 0 $(($THREADS_PER_CLIENT - 1))); do
 			files="$files $FILE_DIR/$FILE_PREFIX$client_index0$f"
 		done
 		((++client_index))
@@ -255,7 +255,7 @@ function run_command()
 	"mkfs")
 		ssh -n $CONFD_NODE systemctl start motr-mkfs@confd
 		ssh -n $CONFD_NODE systemctl start motr-server-confd
-		i=0; for n in $SERVER_LIST; do ssh -n $n systemctl start motr-mkfs@ios$i & i=`expr $i + 1`; done
+		i=0; for n in $SERVER_LIST; do ssh -n $n systemctl start motr-mkfs@ios$i & i=$(($i + 1)); done
 		ssh -n $CONFD_NODE systemctl start motr-mkfs@mds &
 		ssh -n $CONFD_NODE systemctl start motr-mkfs@ha &
 		wait

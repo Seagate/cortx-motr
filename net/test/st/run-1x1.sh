@@ -54,7 +54,7 @@ node_start_addr()
 		DIRS_TO_DELETE="$DIRS_TO_DELETE $dir"
 		mkdir -p $dir
 		pushd $dir > /dev/null
-		DIR_COUNTER=$(expr $DIR_COUNTER + 1)
+		DIR_COUNTER=$(($DIR_COUNTER + 1))
 		"$CMD_M0NETTESTD" -a "$addr" -c "$addr_console" &
 		popd > /dev/null
 		eval PID_$4=$!

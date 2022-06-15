@@ -114,12 +114,12 @@ unmount_and_clean()
 		# unmounting the client file system, from next mount,
 		# fids are generated from same baseline which results
 		# in failure of cob_create fops.
-		local ios_index=`expr $i + 1`
+		local ios_index=$(($i + 1))
 		rm -rf $MOTR_M0T1FS_TEST_DIR/d$ios_index/stobs/o/*
 	done
 
         if [ ! -z "$multiple_pools" ] && [ $multiple_pools == 1 ]; then
-		local ios_index=`expr $i + 1`
+		local ios_index=$(($i + 1))
 		rm -rf $MOTR_M0T1FS_TEST_DIR/d$ios_index/stobs/o/*
         fi
 }
@@ -179,12 +179,12 @@ bulkio_test()
 
 	echo -n "Reading data from m0t1fs file "
 	if [ $io_counts -gt 1 ]; then
-		trigger=`expr \( ${trigger:-0} + 1 \) % 2`
+		trigger=$((( ${trigger:-0} + 1 ) % 2))
 		# run 50% of such tests with different io_size
 		if [ $trigger -eq 0 ]; then
 			echo -n "with different io_size "
 			io_suffix=${io_size//[^KM]}
-			io_size=`expr ${io_size%[KM]} '*' $io_counts`$io_suffix
+			io_size=$((${io_size%[KM]} '*' $io_counts))$io_suffix
 			io_counts=1
 		fi
 	fi
@@ -232,7 +232,7 @@ io_combinations()
 	spare_units=$4
 	mode=$5
 
-	p=`expr $data_units + $parity_units + $spare_units`
+	p=$(($data_units + $parity_units + $spare_units))
 	if [ $p -gt $pool_width ]
 	then
 		echo "Error: pool_width should be >= data_units + parity_units + spare_units."
@@ -242,11 +242,11 @@ io_combinations()
 	# unit size in K
 	for unit_size in 4 8 32 128 512 2048 4096
 	do
-	    stripe_size=`expr $unit_size '*' $data_units`
+	    stripe_size=$(($unit_size '*' $data_units))
 
 	    for io_size in 1 2 4
 	    do
-		io_size=`expr $io_size '*' $stripe_size`
+		io_size=$(($io_size '*' $stripe_size))
 		io_size=${io_size}K
 
 		for io_count in 1 2
@@ -366,7 +366,7 @@ file_creation_test()
 	for ((i=0; i<$nr_files; ++i)); do
 		#arbitrary file size. "1021" is a prime close to 1024.
 		touch $MOTR_M0T1FS_MOUNT_DIR/file$i || break
-		dd if=$SFILE of=/tmp/src bs=1021 count=`expr $i + 1` >/dev/null 2>&1 || break
+		dd if=$SFILE of=/tmp/src bs=1021 count=$(($i + 1)) >/dev/null 2>&1 || break
 		cp -v /tmp/src $MOTR_M0T1FS_MOUNT_DIR/file$i      || break
 		cp -v $MOTR_M0T1FS_MOUNT_DIR/file$i /tmp/dest     || break
 		diff -C 0 /tmp/src /tmp/dest || {
@@ -822,7 +822,7 @@ m0t1fs_test_MOTR_2099()
 		rc=1
 	fi
 
-	total_blocks=`expr 200 \* 20 \* 1024` #in 1K blocks
+	total_blocks=$((200 * 20 * 1024)) #in 1K blocks
 	echo "total_blocks = $total_blocks"
 	if [ $used_after -le $total_blocks ] ; then
 		echo "Are you kidding? The used blocks are less than expected."
