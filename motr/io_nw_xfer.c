@@ -903,7 +903,6 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 
 	/* Validate if FOP has any checksum to be sent */
 	cs_data = &irfop->irf_cksum_data;
-	cs_idx_data = cs_data->cd_idx;
 	for (idx = 0; idx < num_units; idx++) {
 		cs_idx_data = &cs_data->cd_idx[idx];
 

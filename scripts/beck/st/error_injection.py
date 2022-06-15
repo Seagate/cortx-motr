@@ -260,8 +260,8 @@ def ComputeCRC(string_list, list_len):
     result = []
     for i in range(list_len):
         byte_array = bytes.fromhex(string_list[i])
-        for j in range(len(byte_array)):
-            result.append(byte_array[j])
+        for j in byte_array:
+            result.append(j)
     val = m0_hash_fnc_fnv1(result,len(result))
     return val
 

@@ -199,7 +199,7 @@ EOF
 
 	# Test m0cp_mt
 	echo "m0cp_mt test"
-	$motr_st_util_dir/m0cp_mt -G $MOTR_PARAMS_V -o $object_id4 \
+	"$motr_st_util_dir/m0cp_mt" -G "$MOTR_PARAMS_V" -o "$object_id4" \
 				    -n $obj_count $src_file -s $block_size \
 				    -c $block_count -L 9 -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
@@ -207,7 +207,7 @@ EOF
 	for i in $(seq 0 $(($obj_count - 1)))
 	do
 		object_id=$(($object_id4 + $i));
-		$motr_st_util_dir/m0cat -G $MOTR_PARAMS_V -o $object_id \
+		"$motr_st_util_dir/m0cat" -G "$MOTR_PARAMS_V" -o "$object_id" \
 					  -s $block_size -c $block_count -L 9 \
                                           -b $blks_per_io $dest_file || {
 			error_handling $? "Failed to read object"
@@ -225,7 +225,7 @@ EOF
 	echo "m0cp_mt is successful"
 
 	# Test truncate/punch utility
-	$motr_st_util_dir/m0cp -G $MOTR_PARAMS_V -o $object_id1 $src_file \
+	"$motr_st_util_dir/m0cp" -G "$MOTR_PARAMS_V" -o "$object_id1" "$src_file" \
                                  -s $block_size -c $block_count -L 9 \
                                  -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
@@ -235,7 +235,7 @@ EOF
 				    -s $block_size -L 9 -b $blks_per_io || {
 		error_handling $? "Failed to truncate object"
 	}
-	$motr_st_util_dir/m0cat -G $MOTR_PARAMS_V -o $object_id1 \
+	"$motr_st_util_dir/m0cat" -G "$MOTR_PARAMS_V" -o "$object_id1" \
 				  -s $block_size -c $block_count -L 9 \
 				  -b $blks_per_io -z $dest_file-full || {
 		error_handling $? "Failed to read object"
@@ -254,7 +254,7 @@ EOF
 	rm -f $src_file-punch $dest_file-full
 
 	# Truncate file to zero
-	$motr_st_util_dir/m0cp -G $MOTR_PARAMS_V -o $object_id1 $src_file \
+	"$motr_st_util_dir/m0cp" -G "$MOTR_PARAMS_V" -o "$object_id1" "$src_file" \
                                  -s $block_size -c $block_count -L 9 \
                                  -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
@@ -264,7 +264,7 @@ EOF
                                    -b $blks_per_io || {
 		error_handling $? "Failed to truncate object"
 	}
-	$motr_st_util_dir/m0cat -G $MOTR_PARAMS_V -o $object_id1 \
+	"$motr_st_util_dir/m0cat" -G "$MOTR_PARAMS_V" -o "$object_id1" \
 				  -s $block_size -c $block_count -L 9 \
                                   -b $blks_per_io -z \
 				  $dest_file || {
@@ -293,7 +293,7 @@ EOF
 				    -s $block_size -L 9 -b $blks_per_io || {
 		error_handling $? "Failed to truncate object"
 	}
-	$motr_st_util_dir/m0cat -G $MOTR_PARAMS_V -o $object_id1 \
+	"$motr_st_util_dir/m0cat" -G "$MOTR_PARAMS_V" -o "$object_id1" \
 				  -s $block_size \
 				  -c $(($block_count + $trunc_idx)) -L 9 \
                                   -b $blks_per_io -z \
