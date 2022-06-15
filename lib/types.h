@@ -66,6 +66,11 @@ M0_INTERNAL void m0_uint128_add(struct m0_uint128 *res,
 /** res = a * b; */
 M0_INTERNAL void m0_uint128_mul64(struct m0_uint128 *res, uint64_t a,
 				  uint64_t b);
+
+/**
+ * Scans uint128 in num:num format, where num can be in hex, octal
+ * or decimal format (depending on prefix).
+ */
 M0_INTERNAL int m0_uint128_sscanf(const char *s, struct m0_uint128 *u128);
 
 /** count of bytes (in extent, IO operation, etc.) */

@@ -444,7 +444,7 @@ int obj_fid_make_name(char *name, size_t name_len,
 	M0_PRE(name_len > 0);
 	M0_PRE(fid != NULL);
 
-	rc = snprintf(name, name_len, "%"PRIx64":%"PRIx64, FID_P(fid));
+	rc = snprintf(name, name_len, "%" PRIx64 ":%"PRIx64, FID_P(fid));
 	M0_ASSERT(rc >= 0 && rc < name_len);
 	return M0_RC(0);
 }

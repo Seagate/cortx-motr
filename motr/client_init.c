@@ -103,6 +103,7 @@ enum initlift_states {
 	IL_IDX_SERVICE,
 	IL_ROOT_FID, /* TODO: remove this m0t1fs ism */
 	IL_ADDB2,
+	IL_DTM0,
 	IL_INITIALISED,
 	IL_FAILED,
 };
@@ -121,6 +122,7 @@ static int initlift_layouts(struct m0_sm *mach);
 static int initlift_idx_service(struct m0_sm *mach);
 static int initlift_rootfid(struct m0_sm *mach);
 static int initlift_addb2(struct m0_sm *mach);
+static int initlift_dtm0(struct m0_sm *mach);
 
 /**
  * State machine phases for client operations.
@@ -197,13 +199,19 @@ struct m0_sm_state_descr initlift_phases[] = {
 	},
 	[IL_ADDB2] = {
 		.sd_name = "init/fini-addb2",
-		.sd_allowed = M0_BITS(IL_INITIALISED,
+		.sd_allowed = M0_BITS(IL_DTM0,
 				      IL_ROOT_FID),
 		.sd_in = initlift_addb2,
 	},
+	[IL_DTM0] = {
+		.sd_name = "init/fini-dtm0",
+		.sd_allowed = M0_BITS(IL_INITIALISED,
+				      IL_ADDB2),
+		.sd_in = initlift_dtm0,
+	},
 	[IL_INITIALISED] = {
 		.sd_name = "initialised",
-		.sd_allowed = M0_BITS(IL_ADDB2),
+		.sd_allowed = M0_BITS(IL_DTM0),
 	},
 	[IL_FAILED] = {
 		.sd_name = "failed",
@@ -241,12 +249,15 @@ struct m0_sm_trans_descr initlift_trans[] = {
 				       IL_ROOT_FID},
 	{"initialising-addb2",         IL_ROOT_FID,
 				       IL_ADDB2},
-	{"initialised",                IL_ADDB2,
-				       IL_INITIALISED},
+	{"initialising-dtm0",          IL_ADDB2, IL_DTM0},
+	{"initialised",                IL_DTM0, IL_INITIALISED},
 
 	/* FINI section*/
 	{"shutting-down",              IL_INITIALISED,
+				       IL_DTM0},
+	{"finalising-dtm0",            IL_DTM0,
 				       IL_ADDB2},
+
 	{"finalising-addb2",           IL_ADDB2,
 				       IL_ROOT_FID},
 	{"finalising-root-fid",        IL_ROOT_FID,
@@ -1422,6 +1433,30 @@ static int initlift_addb2(struct m0_sm *mach)
 	return M0_RC(initlift_get_next_floor(m0c));
 }
 
+static int initlift_dtm0(struct m0_sm *mach)
+{
+	int                  rc = 0;
+	struct m0_client    *m0c;
+
+	M0_ENTRY();
+	M0_PRE(mach != NULL);
+
+	m0c = bob_of(mach, struct m0_client, m0c_initlift_sm, &m0c_bobtype);
+	M0_ASSERT(m0c_invariant(m0c));
+
+	if (m0c->m0c_initlift_direction == STARTUP) {
+		rc = m0_dtm0_domain_init(&m0c->m0c_dtm0_domain, NULL);
+		if (rc != 0) {
+			initlift_fail(rc, m0c);
+			return M0_RC(initlift_get_next_floor(m0c));
+		}
+	} else {
+		m0_dtm0_domain_fini(&m0c->m0c_dtm0_domain);
+	}
+
+	return M0_RC(initlift_get_next_floor(m0c));
+}
+
 M0_INTERNAL void m0_client_global_fini(void)
 {
 	M0_ENTRY();
@@ -1586,14 +1621,6 @@ int m0_client_init(struct m0_client **m0c_p,
 		 * are completed successfully.
 		 */
 		ha_process_event(m0c, M0_CONF_HA_PROCESS_STARTED);
-		/*
-		   For m0crate, s3servers and other client apps,
-		   M0_NC_DTM_RECOVERING state is transient, sending
-		   M0_CONF_HA_PROCESS_DTM_RECOVERED just after
-		   M0_CONF_HA_PROCESS_STARTED.
-
-		   ha_process_event(m0c, M0_CONF_HA_PROCESS_DTM_RECOVERED);
-		*/
 	}
 
 	m0_sm_group_unlock(&m0c->m0c_sm_group);
@@ -1643,6 +1670,13 @@ int m0_client_init(struct m0_client **m0c_p,
 		m0c->m0c_dtms = m0_dtm0_service_find(&m0c->m0c_reqh);
 		M0_ASSERT(m0c->m0c_dtms != NULL);
 	}
+
+	if (m0_dtm0_domain_is_recoverable(&m0c->m0c_dtm0_domain,
+					  &m0c->m0c_reqh)) {
+		m0_dtm0_domain_recovered_wait(&m0c->m0c_dtm0_domain);
+		ha_process_event(m0c, M0_CONF_HA_PROCESS_DTM_RECOVERED);
+	}
+
 	if (conf->mc_is_addb_init) {
 		char buf[64];
 		/* Default client addb record file size set to 128M */
@@ -1651,7 +1685,7 @@ int m0_client_init(struct m0_client **m0c_p,
 			if (conf->mc_addb_size > MAX_ADDB2_RECORD_SIZE)
 				M0_LOG(M0_WARN, "ADDB size is more than recommended");
 			size = conf->mc_addb_size;
-			M0_LOG(M0_DEBUG, "ADDB size = %"PRIu64"", size);
+			M0_LOG(M0_DEBUG, "ADDB size = %" PRIu64 "", size);
 		}
 		sprintf(buf, "linuxstob:./addb_%d", (int)m0_pid());
 		M0_LOG(M0_DEBUG, "addb size=%llu\n", (unsigned long long)size);

@@ -23,31 +23,61 @@ import errno
 import argparse
 import inspect
 import traceback
+import signal
+import psutil
+
 
 from cortx.utils.conf_store import Conf
 from motr_mini_prov import *
 
+MOTR_HARE_CONF_PATH = "/opt/seagate/cortx/motr/conf/motr_hare_keys.json"
 
 class Cmd:
     """Setup Command"""
     _index = "conf"
-
+    changeset_index = "changeset_conf"
     # Index for Hare-Motr keys required for intercomponent communication
     _index_motr_hare = "conf_motr_hare"
 
     def __init__(self, args: dict):
         self._url = args.config
-
+        if args.changeset not in [None, ""]:
+            self.changeset = args.changeset
+            Conf.load(self.changeset_index, self.changeset)
+            changeset_all_keys = Conf.get_keys(self.changeset_index)
+        self._services = args.services
+        self._idx = args.idx
         # URL for Hare-Motr keys required for intercomponent communication
-        self._motr_hare_conf = "/opt/seagate/cortx/motr/conf/motr_hare_keys.json"
-        self._url_motr_hare = f"json://{self._motr_hare_conf}"
         Conf.load(self._index, self._url)
-        Conf.load(self._index_motr_hare, self._url_motr_hare)
         self._args = args.args
         self._debug = args.debug
-        self.logger = config_logger(self)
-        self.server_node = get_server_node(self)
+        configure_machine_id(self, None)
 
+        # Configure log files and logger
+        self.local_path = get_value(self, 'cortx>common>storage>local', str)
+        self.log_path = get_value(self, 'cortx>common>storage>log', str)
+        self.local_path_motr = f"{self.local_path}/motr/{self.machine_id}"
+        self._motr_hare_conf = f"{self.local_path_motr}/motr_hare_keys.json"
+        self._url_motr_hare = f"json://{self._motr_hare_conf}"
+        self.log_path_motr = f"{self.log_path}/motr/{self.machine_id}"
+
+        # Check if local and log path exists, return if not exists
+        validate_files([self.local_path, self.log_path])
+
+        create_dirs(self, [self.local_path_motr, self.log_path_motr])
+        self.logfile =  f"{self.log_path_motr}/mini_provisioner"
+        self.logger = config_logger(self)
+
+        # Default setup size is small
+        set_setup_size(self, self._services)
+
+        # Fetch important data from Confstore
+        self.cortx = get_value(self, 'cortx', dict)
+        self.cluster = get_value(self, 'cluster', dict)
+        self.nodes = get_value(self, 'node', dict)
+        self.node = get_server_node(self)
+        self.storage_nodes = get_data_nodes(self)
+        Conf.load(self._index_motr_hare, self._url_motr_hare)
     @property
     def args(self) -> str:
         return self._args
@@ -64,7 +94,7 @@ class Cmd:
             f"usage: {prog} [-h] <cmd> --config <url> <args>\n"
             f"where:\n"
             f"cmd           post_install, prepare, config, init, test, reset, cleanup,"
-            f" upgarde, backup, restore\n"
+            f" upgrade, backup, restore\n"
             f"url           Config URL\n")
 
     @staticmethod
@@ -86,9 +116,12 @@ class Cmd:
 
         parser1 = parser.add_parser(cls.name, help=f'setup {name}')
         parser1.add_argument('--config', type=str, help="Config URL")
+        parser1.add_argument('--changeset', type=str, help="Changeset URL for upgrade")
         parser1.add_argument('args', nargs='*', default=[], help='args')
         parser1.add_argument('--debug', '-d', help='enable debug print',
                          action="store_true")
+        parser1.add_argument('--services', type=str, help='Service name')
+        parser1.add_argument('--idx', type=str, help='Service index')
         parser1.set_defaults(command=cls)
 
 class PrepareCmd(Cmd):
@@ -100,12 +133,6 @@ class PrepareCmd(Cmd):
 
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
-
-        # If hare is installed and cluster is up then exit otherwise go ahead
-        if pkg_installed(self, "cortx-hare"):
-            if cluster_up(self):
-                self.logger.warning("Cluster is already up...Exiting.\n")
-                return
         configure_net(self)
         self.logger.info("SUCCESS\n")
 
@@ -118,20 +145,10 @@ class PostInstallCmd(Cmd):
 
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
-        validate_motr_rpm(self)
 
-        # Check if lvms are already created.
-        # If not, create it. Otherwise, skip.
-        # If cluster is not up, go ahead. Otherwise, exit.
-        if pkg_installed(self, "cortx-hare"):
-            if cluster_up(self):
-                self.logger.warning("Cluster is already up...Exiting.\n")
-                return
-        if not lvm_exist(self):
-            config_lvm(self)
-        else:
-            self.logger.error("There are LVM configurations present on the system. "
-                              "Skipping LVM creation.\n")
+        # Nothing required for post_install stage in k8
+        self.logger.info("SUCCESS\n")
+        return 0
 
 class ConfigCmd(Cmd):
     """Config Setup Cmd"""
@@ -142,12 +159,8 @@ class ConfigCmd(Cmd):
 
     def process(self):
         self.logger.info(f"Processing {self.name} {self.url} {self._args}\n")
-        motr_config(self)
-
-        # Update keys from other nodes 
-        if self.server_node["name"] == "srvnode-1":
-            update_motr_hare_keys_for_all_nodes(self)
-        self.logger.info("SUCCESS\n")
+        motr_config_k8(self)
+        return
 
 class InitCmd(Cmd):
     """Init Setup Cmd"""
@@ -209,7 +222,7 @@ class CleanupCmd(Cmd):
     def process(self):
         if (len(self._args) > 1):
             self.logger.error(f"Invalid number of arguments of 'cleanup'\n")
-            self.logger.error(f"usage: <prog> [-h] <cmd> --config <url> <args>\n")
+            self.logger.error(f"Usage: <prog> [-h] <cmd> --config <url> <args>\n")
             self.logger.error(f"Ex: /opt/seagate/cortx/motr/bin/motr_setup cleanup --config <config_url> [pre-factory]")
             return
         if pkg_installed(self, "cortx-hare"):
@@ -219,8 +232,6 @@ class CleanupCmd(Cmd):
 
         patterns = ["addb", "*trace", "m0d"]
         remove_logs(self, patterns)
-        if (len(self._args) == 1) and (self._args[0] == "pre-factory"):
-            lvm_clean(self)
         pass
 
 class UpgradeCmd(Cmd):
@@ -228,10 +239,21 @@ class UpgradeCmd(Cmd):
     name = "upgrade"
 
     def __init__(self, args):
+        # args is of type Namespace.
+        # For example, args=Namespace(args=[], changeset=None,
+        #                             command=<class '__main__.UpgradeCmd'>,
+        #                             config='yaml:///etc/cortx/cluster.conf',
+        #                             debug=False, idx=None, services=None)
+
+        # If changeset is not given or Null then set it to default value
+        if args.changeset in [None, ""]:
+            args.changeset = "yaml:///etc/cortx/changeset.conf"
+
         super().__init__(args)
 
     def process(self):
-        pass
+        self.logger.info(f"Processing {self.name} {self.url} changeset={self.changeset} {self._args}\n")
+        motr_upgrade(self)
 
 class BackupCmd(Cmd):
     """Backup Setup Cmd"""
@@ -253,6 +275,46 @@ class RestoreCmd(Cmd):
     def process(self):
         pass
 
+class StartCmd(Cmd):
+    """Start Cmd"""
+    name = "start"
+
+    def __init__(self, args: dict):
+        super().__init__(args)
+
+    def process(self):
+        name = "start"
+        self.logger.info(f"Processing cmd={self.name} config={self.url} services={self._services} idx={self._idx}\n")
+        nargs = len(self._args) #0
+
+        if re.match('^[0-9]*$', self._services):
+            self.logger.error(f"Invalid service name({self._services}).")
+            return
+        if (nargs == 0):
+            svc = self._services
+
+            if not self._idx:
+                self._idx = 1
+            idx = int(self._idx)
+            if idx < 1:
+                self.logger.error(f"Invalid index({idx}). Index starts from 1\n")
+                return
+            configure_machine_id(self, name)
+            start_service(self, svc, idx)
+        else:
+            self.logger.error(f"Invalid number of arguments.\n")
+            self.logger.error("Usage: <prog> [-h] <cmd> --config <url> --services <service_name>  --idx <index>\n")
+            self.logger.error("Ex: /opt/seagate/cortx/motr/bin/motr_setup start"
+                              " --config yaml:///root/cluster_conf_store.yaml "
+                              "--services ioservice --idx 1\n")
+            self.logger.error("Ex: /opt/seagate/cortx/motr/bin/motr_setup start"
+                              " --config yaml:///root/cluster_conf_store.yaml "
+                              "--services fsm\n")
+            self.logger.error("Ex: /opt/seagate/cortx/motr/bin/motr_setup start"
+                              " --config yaml:///root/cluster_conf_store.yaml "
+                              "--services confd\n")
+        return
+
 def main(argv: dict):
     try:
         desc = "Motr Setup command"
@@ -266,5 +328,5 @@ def main(argv: dict):
         return errno.EINVAL
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGTERM, receiveSigTerm)
     sys.exit(main(sys.argv))
-

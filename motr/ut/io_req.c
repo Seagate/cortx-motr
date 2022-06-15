@@ -1103,10 +1103,17 @@ static void ut_test_device_check(void)
 
 	ut_set_device_state(
 			&instance->m0c_pools_common.pc_cur_pver->pv_mach,
-			0, M0_PNDS_FAILED);
+			0, M0_PNDS_OFFLINE);
 
 	rc = device_check(ioo);
 	M0_UT_ASSERT(rc == 1);
+
+	ut_set_node_state(
+			&instance->m0c_pools_common.pc_cur_pver->pv_mach,
+			0, M0_PNDS_FAILED);
+
+	rc = device_check(ioo);
+	M0_UT_ASSERT(rc == -EIO);
 
 	tioreqht_htable_del(&xfer->nxr_tioreqs_hash, ti);
 	ut_dummy_target_ioreq_delete(ti);

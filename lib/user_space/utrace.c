@@ -61,10 +61,14 @@ static size_t trace_buf_size = M0_TRACE_UBUF_SIZE;
 
 static int logbuf_map()
 {
-	struct m0_trace_area *trace_area;
-	size_t trace_area_size = M0_TRACE_BUF_HEADER_SIZE + trace_buf_size;
-	int    rc;
+	struct    m0_trace_area *trace_area;
+	size_t    trace_area_size = M0_TRACE_BUF_HEADER_SIZE + trace_buf_size;
+	int       rc;
+        m0_time_t stamp = m0_time_now();
+        time_t    ts    = m0_time_seconds(stamp);
+        struct tm tm;
 
+        localtime_r(&ts, &tm);
 	M0_PRE((trace_area_size % m0_pagesize_get()) == 0);
 
 	if (strlen(trace_file_path) == 0) {
@@ -80,7 +84,10 @@ static int logbuf_map()
 		int available_bytes = sizeof trace_file_path -
 				      strlen(trace_file_path);
 		rc = snprintf(trace_file_path + strlen(trace_file_path),
-			available_bytes, "m0trace.%u", m0_pid_cached);
+			available_bytes,
+                        "m0trace.%u.%04d-%02d-%02d-%02d:%02d:%02d",
+                        m0_pid_cached, tm.tm_year + 1900,
+                        tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 		if (rc < 0) {
 			warn("failed to construct trace file path");
 			return rc;
@@ -186,12 +193,16 @@ int m0_trace_set_buffer_size(size_t size)
 static int set_trace_dir(const char *path)
 {
 	int rc;
+        m0_time_t stamp = m0_time_now();
+        time_t    ts    = m0_time_seconds(stamp);
+        struct tm tm;
 
 	if (path == NULL)
 		return 0;
-
-	rc = snprintf(trace_file_path, sizeof trace_file_path, "%s/m0trace.%u",
-		      path, m0_pid_cached);
+        localtime_r(&ts, &tm);
+	rc = snprintf(trace_file_path, sizeof trace_file_path, "%s/m0trace.%u.%04d-%02d-%02d-%02d:%02d:%02d",
+		      path, m0_pid_cached, tm.tm_year + 1900,
+                      tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 	if (rc < 0) {
 		warn("ignoring environment variable M0_TRACE_DIR - failed"
 		     " to construct trace file path");
@@ -391,7 +402,7 @@ static void print_trace_buf_header(FILE *ofile,
 	fprintf(ofile, "  header_addr:        %p\n", tbh->tbh_header_addr);
 	fprintf(ofile, "  header_size:        %u\t\t# bytes\n", tbh->tbh_header_size);
 	fprintf(ofile, "  buffer_addr:        %p\n", tbh->tbh_buf_addr);
-	fprintf(ofile, "  buffer_size:        %"PRId64"\t\t# bytes\n",
+	fprintf(ofile, "  buffer_size:        %" PRId64 "\t\t# bytes\n",
 		tbh->tbh_buf_size);
 
 	if (tbh->tbh_buf_type == M0_TRACE_BUF_KERNEL) {
@@ -458,7 +469,7 @@ static int calc_trace_descr_offset(const struct m0_trace_buf_header *tbh,
 		msym = (uint64_t*)((char*)ko_addr + msym_file_offset);
 		if (*msym != M0_TRACE_MAGIC) {
 			warnx("invalid trace magic symbol value in '%s' file at"
-			      " offset 0x%"PRIx64": 0x%"PRIx64
+			      " offset 0x%" PRIx64 ": 0x%"PRIx64
 			      " (expected 0x%lx)",
 			      m0tr_ko_path, msym_file_offset, *msym,
 			      M0_TRACE_MAGIC);

@@ -1178,22 +1178,30 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	struct m0_cas_ctg  *meta    = m0_ctg_meta();
 	struct m0_cas_ctg  *ctidx   = m0_ctg_ctidx();
 	struct m0_cas_rec  *rec     = NULL;
-	bool                is_dtm0_used =
-		!m0_dtm0_tx_desc_is_none(&op->cg_txd);
+	bool                is_dtm0_used = ENABLE_DTM0 &&
+					   !m0_dtm0_tx_desc_is_none(&op->cg_txd);
 	bool                is_index_drop;
 	bool                do_ctidx;
 	int                 next_phase;
 
-	M0_ENTRY("fom %p phase %d", fom, phase);
-	is_index_drop = op_is_index_drop(opc, ct);
+	M0_ENTRY("fom %p phase %d (%s) op_flag=0x%x", fom, phase,
+		 m0_fom_phase_name(fom0, phase), op->cg_flags);
+
 	M0_PRE(ctidx != NULL);
 	M0_PRE(cas_fom_invariant(fom));
-	M0_PRE(ergo(ENABLE_DTM0 && !M0_IS0(&op->cg_txd),
-		    m0_dtm0_tx_desc__invariant(&op->cg_txd)));
-	if (!M0_IS0(&op->cg_txd) && phase == M0_FOPH_INIT) {
+	M0_PRE(ergo(is_dtm0_used, m0_dtm0_tx_desc__invariant(&op->cg_txd)));
+	/*
+	 * If COF_NO_DTM is set, no DTM is needed for this operation.
+	 * CAS service may take more special actions based on this flag.
+	 */
+	M0_PRE(ergo(op->cg_flags & COF_NO_DTM,
+		    m0_dtm0_tx_desc_is_none(&op->cg_txd)));
+
+	if (!M0_IS0(&op->cg_txd) && phase == M0_FOPH_INIT)
 		M0_LOG(M0_DEBUG, "Got CAS with txid: " DTID0_F,
 		       DTID0_P(&op->cg_txd.dtd_id));
-	}
+
+	is_index_drop = op_is_index_drop(opc, ct);
 
 	switch (phase) {
 	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
@@ -1640,6 +1648,8 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		M0_ASSERT(fom->cf_opos < rep->cgr_rep.cr_nr);
 		rec = cas_out_at(rep, fom->cf_opos);
 		M0_ASSERT(rec != NULL);
+		m0_ctg_op_get_ver(ctg_op,
+				  &cas_out_at(rep, fom->cf_opos)->cr_ver);
 		if (rec->cr_rc == 0) {
 			rec->cr_rc = m0_ctg_op_rc(ctg_op);
 			if (rec->cr_rc == 0) {
@@ -2161,6 +2171,7 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 	struct m0_cas_id          *cid;
 	struct m0_cas_rec         *rec;
 	enum m0_fom_phase_outcome  ret = M0_FSO_AGAIN;
+	M0_ENTRY("opc=%d ct=%d", opc, ct);
 
 	cas_incoming_kv(fom, rec_pos, &kbuf, &vbuf);
 	if (ct == CT_META)
@@ -2468,7 +2479,7 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 	    (opc == CO_DEL && rc == -ENOENT && (op->cg_flags & COF_CROW)))
 		rc = 0;
 
-	M0_LOG(M0_DEBUG, "pos: %"PRId64" rc: %d", fom->cf_opos, rc);
+	M0_LOG(M0_DEBUG, "pos: %" PRId64 " rc: %d", fom->cf_opos, rc);
 	rec_out->cr_rc = rc;
 
 	/*

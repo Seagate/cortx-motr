@@ -1009,6 +1009,12 @@ M0_INTERNAL void ut_set_device_state(struct m0_poolmach *pm, int dev,
 	pm->pm_state->pst_devices_array[dev].pd_state = state;
 }
 
+M0_INTERNAL void ut_set_node_state(struct m0_poolmach *pm, int node,
+				   enum m0_pool_nd_state state)
+{
+	pm->pm_state->pst_nodes_array[node].pn_state = state;
+}
+
 static void ut_test_pargrp_src_addr(void)
 {
 }

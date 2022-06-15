@@ -612,7 +612,6 @@ static int dix_idxop_pver_analyse(struct m0_dix_idxop_req *idxop_req,
 	M0_ENTRY();
 
 	M0_PRE(M0_IN(type, (DIX_CREATE, DIX_DELETE, DIX_CCTGS_LOOKUP)));
-	M0_PRE(ergo(type == DIX_CREATE, (dreq->dr_flags & COF_CROW) == 0));
 
 	*creqs_nr = 0;
 	for (i = 0; i < pm->pm_state->pst_nr_devices; i++) {
@@ -707,7 +706,7 @@ static int dix_idxop_req_send(struct m0_dix_idxop_req *idxop_req,
 			continue;
 		sdev_idx = sdev->pd_sdev_idx;
 		creq = &idxop_req->dcr_creqs[k++];
-		M0_LOG(M0_DEBUG, "creqs_nr=%"PRIu64" this is the %d th creq=%p",
+		M0_LOG(M0_DEBUG, "creqs_nr=%" PRIu64 " this is the %d th creq=%p",
 				 creqs_nr, k-1, creq);
 		creq->ds_parent = dreq;
 		cas_svc = pc->pc_dev2svc[sdev_idx].pds_ctx;
@@ -887,7 +886,7 @@ static int dix_idxop_meta_update(struct m0_dix_req *req)
 	m0_clink_init(&req->dr_clink, dix_idxop_meta_update_clink_cb);
 	m0_clink_add_lock(&meta_req->dmr_chan, &req->dr_clink);
 	rc = create ?
-	     m0_dix_layout_put(meta_req, fids, layouts, fids_nr, 0) :
+	     m0_dix_layout_put(meta_req, fids, layouts, fids_nr, req->dr_flags) :
 	     m0_dix_layout_del(meta_req, fids, fids_nr);
 	if (rc != 0) {
 		m0_clink_del_lock(&req->dr_clink);
@@ -972,7 +971,8 @@ static void dix_idxop(struct m0_dix_req *req)
 	 * Put/delete ordinary indices layouts in 'layout' meta-index.
 	 */
 	if (!req->dr_is_meta &&
-	    M0_IN(req->dr_type, (DIX_CREATE, DIX_DELETE))) {
+	    M0_IN(req->dr_type, (DIX_CREATE, DIX_DELETE)) &&
+	    !(req->dr_flags & COF_SKIP_LAYOUT)) {
 		rc = dix_idxop_meta_update(req);
 		next_state = DIXREQ_META_UPDATE;
 	} else {
@@ -1003,7 +1003,7 @@ M0_INTERNAL int m0_dix_create(struct m0_dix_req   *req,
 	M0_PRE(m0_forall(i, indices_nr,
 	       indices[i].dd_layout.dl_type != DIX_LTYPE_UNKNOWN));
 	M0_PRE(ergo(req->dr_is_meta, dix_id_layouts_nr(req) == 0));
-	M0_PRE(M0_IN(flags, (0, COF_CROW)));
+	M0_PRE((flags & ~(COF_CROW | COF_SKIP_LAYOUT)) == 0);
 	req->dr_dtx = dtx;
 	/*
 	 * Save indices identifiers in two arrays. Indices identifiers in
@@ -1164,8 +1164,8 @@ void m0_dix_req_cancel(struct m0_dix_req *dreq)
 		rop = dreq->dr_rop;
 		if (rop == NULL)
 			return;
-		M0_LOG(M0_DEBUG, "dg_completed_nr=%"PRIu64" "
-		      "dg_cas_reqs_nr=%"PRIu64" dr_type=%d",
+		M0_LOG(M0_DEBUG, "dg_completed_nr=%" PRIu64 " "
+		      "dg_cas_reqs_nr=%" PRIu64 " dr_type=%d",
 		       rop->dg_completed_nr, rop->dg_cas_reqs_nr,
 		       dreq->dr_type);
 		if (rop->dg_completed_nr < rop->dg_cas_reqs_nr) {
@@ -1196,7 +1196,7 @@ M0_INTERNAL int m0_dix_delete(struct m0_dix_req   *req,
 	int rc;
 
 	M0_ENTRY();
-	M0_PRE(M0_IN(flags, (0, COF_CROW)));
+	M0_PRE((flags & ~(COF_CROW | COF_SKIP_LAYOUT)) == 0);
 	req->dr_dtx = dtx;
 	rc = dix_req_indices_copy(req, indices, indices_nr);
 	if (rc != 0)
@@ -1629,11 +1629,23 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	(void)grp;
 	if (req->dr_type == DIX_NEXT)
 		m0_dix_next_result_prepare(req);
-	else
-		m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
-			dix_cas_rop_rc_update(cas_rop, 0);
+	else {
+		/*
+		 * Consider DIX request to be successful if there is at least
+		 * one successful CAS request.
+		 */
+		if (m0_tl_forall(cas_rop, cas_rop,
+				 &rop->dg_cas_reqs,
+				 cas_rop->crp_creq.ccr_sm.sm_rc != 0))
+			    dix_cas_rop_rc_update(cas_rop_tlist_tail(
+						  &rop->dg_cas_reqs), 0);
+
+		m0_tl_for (cas_rop, &rop->dg_cas_reqs, cas_rop) {
+			if (cas_rop->crp_creq.ccr_sm.sm_rc == 0)
+				dix_cas_rop_rc_update(cas_rop, 0);
 			m0_cas_req_fini(&cas_rop->crp_creq);
 		} m0_tl_endfor;
+	}
 
 	if (req->dr_type == DIX_DEL &&
 	    dix_req_state(req) == DIXREQ_INPROGRESS)
@@ -1735,6 +1747,7 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 	struct m0_dix_cas_rop      *cas_rop;
 	struct m0_cas_req          *creq;
 	uint32_t                    sdev_idx;
+	uint32_t                    pa_idx;
 	struct m0_cas_id            cctg_id;
 	struct m0_reqh_service_ctx *cas_svc;
 	struct m0_dix_layout       *layout = &req->dr_indices[0].dd_layout;
@@ -1757,37 +1770,59 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 					    &cctg_id.ci_fid, sdev_idx);
 		M0_ASSERT(layout->dl_type == DIX_LTYPE_DESCR);
 		cctg_id.ci_layout.dl_type = layout->dl_type;
-		/** @todo CAS request should copy cctg_id internally. */
 		rc = m0_dix_ldesc_copy(&cctg_id.ci_layout.u.dl_desc,
 				       &layout->u.dl_desc);
-		M0_LOG(M0_DEBUG, "Processing dix_req %p[%u] "FID_F
-				  " creq=%p "FID_F,
-				  req, req->dr_type,
-				  FID_P(&req->dr_indices[0].dd_fid),
-				  creq, FID_P(&cctg_id.ci_fid));
+		if (rc == 0) {
+			M0_LOG(M0_DEBUG, "Processing dix_req %p[%u] "FID_F
+			       " creq=%p "FID_F,
+			       req, req->dr_type,
+			       FID_P(&req->dr_indices[0].dd_fid),
+			       creq, FID_P(&cctg_id.ci_fid));
 
-		switch (req->dr_type) {
-		case DIX_GET:
-			rc = m0_cas_get(creq, &cctg_id, &cas_rop->crp_keys);
-			break;
-		case DIX_PUT:
-			rc = m0_cas_put(creq, &cctg_id, &cas_rop->crp_keys,
-					&cas_rop->crp_vals, req->dr_dtx,
-					cas_rop->crp_flags);
-			break;
-		case DIX_DEL:
-			rc = m0_cas_del(creq, &cctg_id, &cas_rop->crp_keys,
-					req->dr_dtx, cas_rop->crp_flags);
-			break;
-		case DIX_NEXT:
-			rc = m0_cas_next(creq, &cctg_id, &cas_rop->crp_keys,
-					 req->dr_recs_nr,
-					 cas_rop->crp_flags | COF_SLANT);
-			break;
-		default:
-			M0_IMPOSSIBLE("Unknown req type %u", req->dr_type);
+			switch (req->dr_type) {
+			case DIX_GET:
+				rc = m0_cas_get(creq, &cctg_id,
+						&cas_rop->crp_keys);
+				break;
+			case DIX_PUT:
+				rc = m0_cas_put(creq, &cctg_id,
+						&cas_rop->crp_keys,
+						&cas_rop->crp_vals,
+						req->dr_dtx,
+						cas_rop->crp_flags);
+				break;
+			case DIX_DEL:
+				rc = m0_cas_del(creq, &cctg_id,
+						&cas_rop->crp_keys,
+						req->dr_dtx,
+						cas_rop->crp_flags);
+				break;
+			case DIX_NEXT:
+				rc = m0_cas_next(creq, &cctg_id,
+						 &cas_rop->crp_keys,
+						 req->dr_recs_nr,
+						 cas_rop->crp_flags |
+						 COF_SLANT);
+				break;
+			default:
+				M0_IMPOSSIBLE("Unknown req type %u",
+					      req->dr_type);
+			}
+			m0_cas_id_fini(&cctg_id);
 		}
+
 		if (rc != 0) {
+			/*
+			 * Treat failed and not sent CAS requests as executed
+			 * to unblock the EXECUTED-ALL logic. It allows to move
+			 * transaction to the stable state once the persistent
+			 * message received (EXECUTED state required for all
+			 * participants). So EXECUTED participant state is
+			 * reused in case of failure.
+			 */
+			if (req->dr_dtx != NULL)
+				m0_dtx0_executed(req->dr_dtx,
+						 cas_rop->crp_pa_idx);
 			m0_clink_del(&cas_rop->crp_clink);
 			m0_clink_fini(&cas_rop->crp_clink);
 			m0_cas_req_fini(&cas_rop->crp_creq);
@@ -1814,6 +1849,16 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 		rc = m0_dtx0_close(req->dr_dtx);
 		if (rc != 0)
 			return M0_ERR(rc);
+		/*
+		 * It is safe to set EXECUTED dtx state for those
+		 * participants that experience transient failure,
+		 * it allows to trigger EXECUTED-ALL logic. See
+		 * the similar comment above for details.
+		 */
+		for (pa_idx = cas_rop_tlist_length(&rop->dg_cas_reqs);
+		     pa_idx < req->dr_dtx->tx_dtx->dd_txd.dtd_ps.dtp_nr;
+		     pa_idx++)
+			m0_dtx0_executed(req->dr_dtx, pa_idx);
 	}
 
 	return M0_RC(0);
@@ -1932,8 +1977,8 @@ static int dix__spare_target(struct m0_dix_rec_op         *rec_op,
 		if (rc != 0)
 			return M0_ERR(rc);
 		spare = &rec_op->dgp_units[spare_offset + slot];
-		if (!spare->dpu_failed) {
-			/* Found non-failed spare unit, exit the loop. */
+		if (!spare->dpu_unavail) {
+			/* Found an available spare unit, exit the loop. */
 			*spare_unit = spare;
 			*spare_slot = slot;
 			return M0_RC(0);
@@ -1981,14 +2026,14 @@ static void dix_online_unit_choose(struct m0_dix_req    *req,
 	start_unit = req->dr_items[rec_op->dgp_item].dxi_pg_unit;
 	M0_ASSERT(start_unit < dix_rec_op_spare_offset(rec_op));
 	for (i = 0; i < start_unit; i++)
-		rec_op->dgp_units[i].dpu_failed = true;
+		rec_op->dgp_units[i].dpu_unavail = true;
 	for (i = start_unit; i < rec_op->dgp_units_nr; i++) {
 		pgu = &rec_op->dgp_units[i];
-		if (!pgu->dpu_is_spare && !pgu->dpu_failed)
+		if (!pgu->dpu_is_spare && !pgu->dpu_unavail)
 			break;
 	}
 	for (j = i + 1; j < rec_op->dgp_units_nr; j++)
-		rec_op->dgp_units[j].dpu_failed = true;
+		rec_op->dgp_units[j].dpu_unavail = true;
 }
 
 static void dix_pg_unit_pd_assign(struct m0_dix_pg_unit *pgu,
@@ -1997,7 +2042,8 @@ static void dix_pg_unit_pd_assign(struct m0_dix_pg_unit *pgu,
 	pgu->dpu_tgt      = pd->pd_index;
 	pgu->dpu_sdev_idx = pd->pd_sdev_idx;
 	pgu->dpu_pd_state = pd->pd_state;
-	pgu->dpu_failed   = pool_failed_devs_tlink_is_in(pd);
+	pgu->dpu_unavail  = pool_failed_devs_tlink_is_in(pd) ||
+		pgu->dpu_pd_state == M0_PNDS_OFFLINE;
 }
 
 /**
@@ -2018,7 +2064,7 @@ static void dix_rop_failed_unit_tgt(struct m0_dix_req    *req,
 
 	M0_ENTRY();
 	M0_PRE(dix_req_state(req) != DIXREQ_DEL_PHASE2);
-	M0_PRE(pgu->dpu_failed);
+	M0_PRE(pgu->dpu_unavail);
 	M0_PRE(M0_IN(pgu->dpu_pd_state, (M0_PNDS_FAILED,
 					 M0_PNDS_SNS_REPAIRING,
 					 M0_PNDS_SNS_REPAIRED,
@@ -2040,7 +2086,7 @@ static void dix_rop_failed_unit_tgt(struct m0_dix_req    *req,
 		break;
 	case DIX_PUT:
 		if (pgu->dpu_pd_state == M0_PNDS_SNS_REBALANCING)
-			pgu->dpu_failed = false;
+			pgu->dpu_unavail = false;
 		rc = dix_spare_target(rec_op, pgu, &spare_slot, &spare);
 		if (rc == 0) {
 			spare_offset = dix_rec_op_spare_offset(rec_op);
@@ -2091,7 +2137,7 @@ static void dix_rop_failures_analyse(struct m0_dix_req *req)
 		rec_op = &rop->dg_rec_ops[i];
 		for (j = 0; j < rec_op->dgp_units_nr; j++) {
 			unit = &rec_op->dgp_units[j];
-			if (!unit->dpu_is_spare && unit->dpu_failed) {
+			if (!unit->dpu_is_spare && unit->dpu_unavail) {
 				rec_op->dgp_failed_devs_nr++;
 				dix_rop_failed_unit_tgt(req, rec_op, j);
 			}
@@ -2161,7 +2207,7 @@ static bool dix_pg_unit_skip(struct m0_dix_req     *req,
 			     struct m0_dix_pg_unit *unit)
 {
 	if (dix_req_state(req) != DIXREQ_DEL_PHASE2)
-		return unit->dpu_failed || unit->dpu_is_spare;
+		return unit->dpu_unavail || unit->dpu_is_spare;
 	else
 		return !unit->dpu_del_phase2;
 }
@@ -2175,15 +2221,30 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 	struct m0_dix_rec_op       *rec_op;
 	uint32_t                    i;
 	uint32_t                    j;
+	uint32_t                    pa_idx = 0;
+	uint32_t                    pa_nr = 0;
 	uint32_t                    max_failures;
 	struct m0_dix_cas_rop     **map = rop->dg_target_rop;
 	struct m0_dix_cas_rop      *cas_rop;
 	struct m0_dix_pg_unit      *unit;
 	bool                        del_lock;
+	uint32_t                   *skipped_sdevs = NULL;
+	uint32_t                    skipped_sdevs_num = 0;
+	uint32_t                    skipped_sdevs_max =
+		rop->dg_pver->pv_attr.pa_P;
+	enum                      { INVALID_SDEV_ID = UINT32_MAX };
 	int                         rc = 0;
 
 	M0_ENTRY("req %p %u", req, rop->dg_rec_ops_nr);
 	M0_ASSERT(rop->dg_rec_ops_nr > 0);
+
+	if (dtx != NULL) {
+		M0_ALLOC_ARR(skipped_sdevs, skipped_sdevs_max);
+		if (skipped_sdevs == NULL)
+			return M0_ERR(-ENOMEM);
+		for (i = 0; i < skipped_sdevs_max; i++)
+			skipped_sdevs[i] = INVALID_SDEV_ID;
+	}
 
 	max_failures = dix_rop_max_failures(rop);
 	for (i = 0; i < rop->dg_rec_ops_nr; i++) {
@@ -2202,8 +2263,17 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 		}
 		for (j = 0; j < rec_op->dgp_units_nr; j++) {
 			unit = &rec_op->dgp_units[j];
-			if (dix_pg_unit_skip(req, unit))
+			if (dix_pg_unit_skip(req, unit)) {
+				if (dtx != NULL &&
+				    unit->dpu_pd_state == M0_PNDS_OFFLINE &&
+				    skipped_sdevs[unit->dpu_tgt] ==
+				    INVALID_SDEV_ID) {
+					skipped_sdevs[unit->dpu_tgt] =
+						unit->dpu_sdev_idx;
+					skipped_sdevs_num++;
+				}
 				continue;
+			}
 			if (map[unit->dpu_tgt] == NULL) {
 				rc = dix_cas_rop_alloc(req, unit->dpu_sdev_idx,
 						       &cas_rop);
@@ -2218,21 +2288,25 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 	}
 
 	/* It is possible that all data units are not available. */
-	if (cas_rop_tlist_is_empty(&rop->dg_cas_reqs))
+	if (cas_rop_tlist_is_empty(&rop->dg_cas_reqs)) {
+		m0_free(skipped_sdevs);
 		return M0_ERR(-EIO);
+	}
 
 	if (dtx != NULL) {
 		M0_ASSERT(!req->dr_is_meta);
 		M0_ASSERT(M0_IN(req->dr_type, (DIX_PUT, DIX_DEL)));
-		rc = m0_dtx0_open(dtx, cas_rop_tlist_length(&rop->dg_cas_reqs));
+		pa_nr = cas_rop_tlist_length(&rop->dg_cas_reqs) +
+			skipped_sdevs_num;
+		rc = m0_dtx0_open(dtx, pa_nr);
 		if (rc != 0)
 			goto end;
 	}
 
-	i = 0;
+	pa_idx = 0;
 	m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
 		if (dtx != NULL) {
-			cas_rop->crp_pa_idx = i++;
+			cas_rop->crp_pa_idx = pa_idx++;
 			cas_svc = pc->pc_dev2svc[cas_rop->crp_sdev_idx].pds_ctx;
 			M0_ASSERT(cas_svc->sc_type == M0_CST_CAS);
 			rc = m0_dtx0_fid_assign(dtx, cas_rop->crp_pa_idx,
@@ -2258,7 +2332,21 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 		cas_rop->crp_cur_key = 0;
 	} m0_tl_endfor;
 
+	if (dtx == NULL)
+		goto end;
+
+	for (i = 0; i < skipped_sdevs_max && rc == 0; i++) {
+		if (skipped_sdevs[i] != INVALID_SDEV_ID) {
+			cas_svc = pc->pc_dev2svc[skipped_sdevs[i]].pds_ctx;
+			M0_ASSERT(cas_svc->sc_type == M0_CST_CAS);
+			M0_ASSERT(pa_idx < pa_nr);
+			rc = m0_dtx0_fid_assign(dtx, pa_idx,
+						&cas_svc->sc_fid);
+			pa_idx++;
+		}
+	}
 end:
+	m0_free(skipped_sdevs);
 	if (rc != 0) {
 		dix_cas_rops_fini(&rop->dg_cas_reqs);
 		return M0_ERR(rc);
@@ -2322,8 +2410,11 @@ M0_INTERNAL int m0_dix_put(struct m0_dix_req      *req,
 
 	M0_PRE(keys->ov_vec.v_nr == vals->ov_vec.v_nr);
 	M0_PRE(keys_nr != 0);
-	/* Only overwrite, crow and sync_wait flags are allowed. */
-	M0_PRE((flags & ~(COF_OVERWRITE | COF_CROW | COF_SYNC_WAIT)) == 0);
+	/*
+	 * Only the following flags are allowed.
+	 */
+	M0_PRE((flags & ~(COF_OVERWRITE | COF_CROW | COF_SYNC_WAIT |
+	       COF_SKIP_LAYOUT | COF_NO_DTM)) == 0);
 	rc = dix_req_indices_copy(req, index, 1);
 	if (rc != 0)
 		return M0_ERR(rc);

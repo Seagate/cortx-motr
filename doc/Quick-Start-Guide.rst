@@ -6,82 +6,99 @@ This guide provides information on how to get Motr ready and test it. After foll
 *************
 Prerequisites
 *************
-The prerequisite that is necessary to install the Motr component is mentioned below.
 
-- CentOS 7 on x86_64 or ARM64 (AArch64) platform.
-
-- **Ansible** is needed::
-
-    sudo yum install epel-release # Install EPEL yum repo
-    sudo yum install ansible
+- CentOS 7.9/8.3+ or Rocky Linux 8.4+ (supported) or
+  Ubuntu 18.04+ / Debian 10+ (experimental) OS
+  on x86_64 (supported) or arm64 (experimental) platform.
+- At least 4 CPU Cores with 6GB RAM.
 
 Get the Sources
 ===============
-Clone Motr::
+::
 
     git clone --recursive https://github.com/Seagate/cortx-motr.git
 
 Build
 =====
 
-1. Build and install the necessary dependencies::
+1. Install the necessary build dependencies first.
+   On RHEL-based OSes::
 
-    cd cortx-motr
-    sudo scripts/install-build-deps
+    cd cortx-motr && sudo ./scripts/install-build-deps
 
-2. If using lnet as the transport, check the Lustre network interface configuration::
+   On Ubuntu / Debian OSes::
 
-    sudo vi /etc/modprobe.d/lnet.conf
+    sudo apt install devscripts equivs # enable mk-build-deps
+    cd cortx-motr && sudo mk-build-deps --install debian/control
 
-   Use ``ip a`` command to get a list of network interfaces.
-   Then modify ``lnet.conf`` to use one of the listed network interfaces.
-   After this run::
+2. Choose the networking transport.
 
-    sudo modprobe lnet
-    sudo lctl list_nids
+   Currently there are two options: Lustre LNet and libfabric.
+   LNet is the legacy transport in Motr used for years. libfabric
+   was added recently, but it's the mainline transport now in CORTX.
+   If libfabric is installed in the system and detected by configure,
+   Motr will be built to work with libfabric only (no matter whether
+   LNet is installed or not).
 
-   Make sure that libfabric package is not installed.
-   Please refer the following document for un-installation of libfabric package.
-   https://seagate-systems.atlassian.net/wiki/spaces/PUB/pages/711230113/Libfabric+setup+and+using+libfabric+with+motr#Uninstalling-libfabric-package ::
+   In LNet case, check the network interface configuration at
+   ``/etc/modprobe.d/lnet.conf``, make sure the interface name is correct
+   there and matches with the one you have in your system. Here is an
+   example configuration line::
 
-    fi_info --version
-    bash: fi_info: command not found
+    options lnet networks=tcp(eth0) config_on_load=1
 
-3. If using libfabric as the transport, check the Libfabric network interface configuration::
+   Notes:
 
-    sudo vi /etc/libfab.conf
+   - LNet transport option requires support from Motr kernel module and
+     it implies the kernel version dependency. Thus, this option won't fit
+     for contrainer-based deployments. For container-based deployments,
+     consider using libfabric, and use ``--with-user-mode-only`` configure
+     option during the build (see below).
+   - Make sure libfabric package is not installed for LNet-transport builds.
+     If it is installed, uninstall it manually using ``sudo yum remove libfabric`` 
+     or ``sudo apt purge libfabric``, depending on your Linux distribution.
 
-   Use ``ip a`` command to get a list of network interfaces.
-   Then modify ``libfab.conf`` to use one of the listed network interfaces.
-   Verify the libfab.conf file contents::
+   In libfabric case, download and install the packages from:
 
-    cat /etc/libfab.conf
-    networks=tcp(eth1)
+   - https://github.com/Seagate/cortx/releases/download/build-dependencies/libfabric-1.11.2-1.el7.x86_64.rpm
+   - https://github.com/Seagate/cortx/releases/download/build-dependencies/libfabric-devel-1.11.2-1.el7.x86_64.rpm
 
-   Please refer the below document for installation.
+   Currently, there is a performance issue with default libfabric versions
+   provided by Linux distributions on tcp. That's why we build customised
+   version of the library. Hopefully, the issue will be resolved soon.
+   For more information about our changes to libfabric refer to
    https://seagate-systems.atlassian.net/wiki/spaces/PUB/pages/711230113/Libfabric+setup+and+using+libfabric+with+motr
 
-   Verify that libfabric package is installed::
+   Verify that libfabric package is installed with ``fi_info --version`` cmd.
+   Make sure the network interface name is correctly set at ``/etc/libfab.conf``.
+   Here is an example configuration line::
 
-    fi_info --version
-    fi_info: 1.11.2
-    libfabric: 1.11.2
-    libfabric api: 1.11
+    networks=tcp(eth1)
 
-4. To build Motr, run::
+3. Build it::
 
-    scripts/m0 make
+    ./autogen.sh && ./configure && make
 
-   Note: use ``scripts/m0 rebuild`` command to re-build Motr.
- 
-RPMs Generation
-===============
+   This will build the development version of the binaries.
+   To evaluate the performance of Motr, use ``--enable-release`` configure
+   option::
 
-To build RPMs, run::
+    ./autogen.sh && ./configure --enable-release && make
+
+   or build and use the distribution packages. For RHEL-based OSes::
 
     make rpms
 
-The generated RPMs will be placed at ``$HOME/rpmbuild/RPMS/$(arch)/`` directory.
+   For Ubuntu / Debian based OSes::
+
+    make deb
+
+   (The generated rpms will be placed at ``~/rpmbuild/RPMS/``,
+   .deb packages will be placed at the current folder.)
+
+   Note: use ``--with-user-mode-only`` configure option to avoid
+   kernel module build, if you intend to use libfabric transport.
+   This is the default mode for .deb packages build.
 
 Running Tests
 =============
@@ -197,6 +214,12 @@ The files will be generated at doc/html/ folder.
 
 
 Tested by:
+
+- April 22, 2022: Bhargav Dekivadiya (bhargav.dekivadiya@seagate.com) Rocky Linux version 8.4 verified with git (#7d8c19574e9d7748faa3e008f72f2eac8f139ab9)
+
+- February 4, 2022: Bhargav Dekivadiya (bhargav.dekivadiya@seagate.com) Rocky Linux version 8.4 verified with git (#f7d2eb4710c297709662c0de2a011ed22d9c238b)
+ 
+- January 31, 2022: Bhargav Dekivadiya (bhargav.dekivadiya@seagate.com) CentOS Linux release 7.9 verified with git (#e998dff5bd00d20654a250edc6042e5f7b5e52a0)
 
 - December 01, 2021: Naga Kishore Kommuri (nagakishore.kommuri@seagate.com) CentOS Linux release 7.9.2009 verified with git (#43a75c54d15b23532d883b6065a201b5d6a7f385)
 

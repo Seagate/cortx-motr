@@ -3,7 +3,7 @@
 _« Par ma foi ! il y a plus de quarante ans que je dis de la prose sans que j'en susse rien, et je vous suis le
 plus obligé du monde de m'avoir appris cela. »_
 
-This document attempts to be a master document for the whole of Motr, 
+This document attempts to be a primary document for the whole of Motr, 
 concentrating on giving a consistent overview of the architecture.
 
 The document is structured as a collection of fragments. Each fragment, 
@@ -125,8 +125,9 @@ network messages.
 Distributed transaction manager ([dt](#dtm-idea)) allows operations to be 
 grouped into distributed transactions, which are guaranteed to be atomic in 
 the face of certain failures.
-
-![](/doc/Images/1-Distributed-transaction-manager.JPG)
+<p align="center">
+<img src="/doc/Images/1-Distributed-transaction-manager.JPG" width=400 height=300>
+</p>
 
 Main novel ideas of Motr, that distinguish it from other cluster  file-systems are:
 * fdmi;
@@ -134,7 +135,7 @@ Main novel ideas of Motr, that distinguish it from other cluster  file-systems a
 * fops;
 * distributed transaction manager (dt);
 * resource manager (rm);
-* layouts, including parity de-clustering (pdclust);
+* layouts, including [parity de-clustering (pdclust)](https://github.com/Seagate/cortx-motr/blob/documentation/doc/pdclust/index.rst);
 * containers;
 * addb.
 
@@ -225,9 +226,9 @@ re-ordering. See NRS in the references below.
 Each node in the cluster runs one or more Motr instances. Each instance has the 
 same overall structure:
 
-
-![](/doc/Images/2-Motr-Instance.jpg)
-
+<p align="center">
+<img src="/doc/Images/2-Motr-Instance.jpg" width=500 height=550>
+</p>
 
 At the heart of Motr instance is [reqh](#reqh-idea) (request handler). Request 
 handler processes requests in form of [fops](#fop-idea) 
@@ -373,7 +374,9 @@ occur in the Motr system.
 The figure below shows the flow of fol records from the nodes where they are 
 generated to fdmi subscribers.
 
-![](/doc/Images/3-MapReduce-style-algorithm.JPG)
+<p align="center">
+<img src="/doc/Images/3-MapReduce-style-algorithm.JPG" width=400 height=450>
+</p>
 
 As a simplified example, consider an fdmi-based application running on a 
 dedicated server, connected to two Motr object stores (source and target) and 
@@ -457,8 +460,10 @@ Fol is used for multiple purposes:
   fol is used to redo local transactions as during usual data-base recovery;
 * system-wide fol is used for [distributed transaction recovery](#dtm-idea);
 * system-wide fol is used to implement [fdmi](#fdmi-idea) event feeds
-
-![](/doc/Images/4-File-OperationLog.JPG)
+* 
+<p align="center">
+<img src="/doc/Images/4-File-OperationLog.JPG" width=600 height=500>
+</p>
 
 ### Reality check
 At the moment, clients don't use fol. They will.
@@ -499,7 +504,10 @@ impacting data performance.
 
 The figure below shows subcomponents of the addb subsystem.
 
-![](/doc/Images/5-addb-components-and-control-flow.JPG)
+
+<p align="center">
+<img src="/doc/Images/5-addb-components-and-control-flow.JPG" width=450 height=450> 
+</p>
 
 Motr code is systematically instrumented to produce addb records. Each record 
 contains context information, which identifies system activity to which the 
@@ -542,8 +550,9 @@ and simulate application behavior in proposed configurations.
 
 The figure below shows the possible uses of addb.
 
-![](/doc/Images/6-Interaction-of-addb.JPG)
-
+<p align="center">
+<img src="/doc/Images/6-Interaction-of-addb.JPG" width=400 height=400>
+</p>
 ## Monitoring
 The simplest addb use case is cluster monitoring. If an addb record, produced 
 by a Motr node, matches a filter, specified by a cluster monitoring 
@@ -914,7 +923,9 @@ mdservice perhaps)
 
 ## security, architecture
 
-![](/doc/Images/7-Security-Architecture.JPG)
+<p align="center">
+<img src="/doc/Images/7-Security-Architecture.JPG" width=650 height=650>
+<p>
 
 ### References:
 ### Related:
@@ -958,7 +969,7 @@ Legend:
 
 ## pdclust, idea
 Parity de-clustering (pdclust) is a method to implement network RAID (also 
-known as server network striping, SNS).
+known as server network striping, SNS).  Additional details are available here: [pdclust](https://github.com/Seagate/cortx-motr/edit/main/doc/motr-in-prose.md#pdclust-idea)
 
 pdclust consists of two components:
 * pdclust layout. This is an algorithm and related code that determines how an 
@@ -1066,8 +1077,10 @@ following properties:
 Note that each parity group is mapped individually, which means that each next 
 group from the same file would go to a different set of targets (and, hence, a 
 different set of storage devices) than previous.
-
-![](/doc/Images/8-Capture.jpg)
+  
+<p align="center">
+<img src="/doc/Images/8-Capture.jpg" width=550 height=550>
+</p>
 
 ### References:
 * [CMU PDL publications](http://www.pdl.cmu.edu/RAID/publications.shtml) 

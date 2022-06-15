@@ -43,11 +43,6 @@ M0_TL_DESCR_DEFINE(rpc_conn_pool_items,
 
 M0_TL_DEFINE(rpc_conn_pool_items, M0_INTERNAL, struct m0_rpc_conn_pool_item);
 
-static const char *rpc_link2remote_addr(struct m0_rpc_link *link)
-{
-	return link->rlk_conn.c_rpcchan->rc_destep->nep_addr;
-}
-
 static struct m0_rpc_conn_pool_item *find_item_by_ep(
 		struct m0_rpc_conn_pool *pool,
 		const char              *remote_ep)
@@ -58,7 +53,7 @@ static struct m0_rpc_conn_pool_item *find_item_by_ep(
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(&pool->cp_mutex));
 	m0_tl_for(rpc_conn_pool_items, &pool->cp_items, pool_item) {
-		if (!strcmp(rpc_link2remote_addr(&pool_item->cpi_rpc_link),
+		if (!strcmp(m0_rpc_conn_addr(&pool_item->cpi_rpc_link.rlk_conn),
 			    remote_ep))
 		{
 			ret = pool_item;
@@ -261,15 +256,22 @@ M0_INTERNAL int m0_rpc_conn_pool_get_async(
 			 * called twice, even in case first attempt fails
 			 * (phase 2).
 			 */
-			if (item->cpi_rpc_link.rlk_connected) {
-				rpc_link = &item->cpi_rpc_link;
+			rpc_link = &item->cpi_rpc_link;
+			if (rpc_link->rlk_connected) {
 				m0_rpc_link_disconnect_sync(rpc_link,
-					pool->cp_timeout);
+					pool->cp_timeout == M0_TIME_NEVER ?
+					    M0_TIME_NEVER :
+					    m0_time_now() + pool->cp_timeout);
 			}
 			item->cpi_connecting = true;
+			rpc_link->rlk_rc = 0;
+			M0_LOG(M0_DEBUG, "ASYNC CONN to %s", remote_ep);
+
 			m0_rpc_link_connect_async(
-				&item->cpi_rpc_link,
-				pool->cp_timeout,
+				rpc_link,
+				pool->cp_timeout == M0_TIME_NEVER ?
+					M0_TIME_NEVER :
+					m0_time_now() + pool->cp_timeout,
 				&item->cpi_clink);
 			rc = -EBUSY;
 		}
@@ -354,7 +356,9 @@ M0_INTERNAL void m0_rpc_conn_pool_fini(struct m0_rpc_conn_pool *pool)
 				&item->cpi_rpc_link.rlk_sess)) {
 			m0_rpc_link_disconnect_sync(
 					&item->cpi_rpc_link,
-					pool->cp_timeout);
+					pool->cp_timeout == M0_TIME_NEVER ?
+					    M0_TIME_NEVER :
+					    m0_time_now() + pool->cp_timeout);
 		}
 
 		conn_pool_item_fini(item);

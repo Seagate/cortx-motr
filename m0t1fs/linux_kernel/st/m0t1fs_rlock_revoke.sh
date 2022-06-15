@@ -19,13 +19,13 @@
 #
 
 
-. `dirname $0`/common.sh
-. `dirname $0`/m0t1fs_common_inc.sh
-. `dirname $0`/m0t1fs_client_inc.sh
-. `dirname $0`/m0t1fs_server_inc.sh
-. `dirname $0`/m0t1fs_sns_common_inc.sh
+. `dirname "$0"`/common.sh
+. `dirname "$0"`/m0t1fs_common_inc.sh
+. `dirname "$0"`/m0t1fs_client_inc.sh
+. `dirname "$0"`/m0t1fs_server_inc.sh
+. `dirname "$0"`/m0t1fs_sns_common_inc.sh
 
-. $M0_SRC_DIR/utils/functions  # opcode
+. "$M0_SRC_DIR"/utils/functions  # opcode
 
 # If DEBUG_MODE is set to 1, trace file is generated. This may be useful when
 # some issue is to be debugged in developer environment.
@@ -60,27 +60,25 @@ revoke_pre()
 	prog_file_pattern="$st_dir/m0t1fs_io_file_pattern"
 	local source_abcd="$revoke_sandbox/revoke_abcd"
 
-	load_motr_ctl_module || return 1
-
-	rm -rf $revoke_sandbox
-	mkdir -p $revoke_sandbox
+	rm -rf "$revoke_sandbox"
+	mkdir -p "$revoke_sandbox"
 	echo "Creating data file $source_abcd"
-	$prog_file_pattern $source_abcd 2>&1 >> $MOTR_TEST_LOGFILE || {
+	$prog_file_pattern "$source_abcd" 2>&1 >> "$MOTR_TEST_LOGFILE" || {
 		echo "Failed: $prog_file_pattern"
 		return 1
 	}
 
 	echo "Creating source file $source_file"
-	dd if=$source_abcd of=$source_file bs=$bs count=$count >> $MOTR_TEST_LOGFILE 2>&1
+	dd if="$source_abcd" of="$source_file" bs=$bs count=$count >> "$MOTR_TEST_LOGFILE" 2>&1
 
 	echo "ls -l $source_file (Reference for data files generated)"
-	ls -l $source_file
+	ls -l "$source_file"
 
 	if [ $DEBUG_MODE -eq 1 ]
 	then
 		rm -f /var/log/motr/m0tr_ko.img
 		rm -f /var/log/motr/m0trace.bin*
-		$M0_SRC_DIR/utils/trace/m0traced -K -d
+		"$M0_SRC_DIR"/utils/trace/m0traced -K -d
 	fi
 }
 
@@ -92,8 +90,6 @@ revoke_post()
 		# Note: trace may be read as follows
 		#$M0_SRC_DIR/utils/trace/m0trace -w0 -s m0t1fs,rpc -I /var/log/motr/m0tr_ko.img -i /var/log/motr/m0trace.bin -o $MOTR_TEST_LOGFILE.trace
 	fi
-
-	unload_motr_ctl_module || return 1
 }
 
 revoke_read_lock()
@@ -104,7 +100,7 @@ revoke_read_lock()
 	local delay=${1:-5}
 
 	echo "getting write lock..."
-	$M0_SRC_DIR/utils/m0rwlock -s $s_endpoint -c $c_endpoint -d $delay &
+	"$M0_SRC_DIR"/utils/m0rwlock -s "$s_endpoint" -c "$c_endpoint" -d "$delay" &
 }
 
 revoke_during_io_test()
@@ -114,7 +110,7 @@ revoke_during_io_test()
 	local rt_cmp_rc
 	local rt_rm_rc
 
-	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mountopt || return 1
+	mount_m0t1fs "$MOTR_M0T1FS_MOUNT_DIR" $mountopt || return 1
 
 	#echo "Test: Have $rt_read_nr_files data files created on m0t1fs, to be used for read test"
 	#for ((i=0; i<$rt_read_nr_files; ++i)); do
@@ -190,10 +186,10 @@ main()
 		EXECUTOR=revoke_read_lock
 	esac
 
-	$EXECUTOR  2>&1 | tee -a $MOTR_TEST_LOGFILE
+	$EXECUTOR  2>&1 | tee -a "$MOTR_TEST_LOGFILE"
 	rc=${PIPESTATUS[0]}
 	echo "$EXECUTOR rc $rc"
-	if [ $rc -ne "0" ]; then
+	if [ "$rc" -ne "0" ]; then
 		echo "Failed m0t1fs read lock revocation test."
 	fi
 	
@@ -203,7 +199,7 @@ main()
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to stop Motr Service."
-		if [ $rc -eq "0" ]; then
+		if [ "$rc" -eq "0" ]; then
 			rc=1
 		fi
 	fi

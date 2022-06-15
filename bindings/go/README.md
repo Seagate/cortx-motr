@@ -1,6 +1,9 @@
 # Go bindings for Motr - go/mio
 
-`go/mio` Go package implements Reader/Writer interface over Motr client I/O API.
+`go/mio` Go package implements
+[Reader](https://pkg.go.dev/io#Reader) /
+[Writer](https://pkg.go.dev/io#Writer)
+interface over Motr client I/O API.
 This allows writing Motr client applications quickly and efficiently in the Go language.
 
 `go/mio` automatically determines the optimal unit (stripe) size for the newly created object
@@ -13,6 +16,12 @@ maximum I/O performance on it and yet don't waste space (in case of a small obje
 provided there is enough buffer size to accomodate several of such blocks in one
 Read()/Write() request. (For example, see the source code of `mcp` utility and its `-bsz`
 option.)
+
+To use `go/mio` in your app 1) install motr-devel pkg and 2):
+
+```Go
+import github.com/Seagate/cortx-motr/bindings/go/mio
+```
 
 ## mcp
 

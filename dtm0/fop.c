@@ -99,6 +99,8 @@ static const struct m0_fom_type_ops dtm0_req_fom_type_ops = {
 
 M0_INTERNAL void m0_dtm0_fop_fini(void)
 {
+	m0_fop_type_addb2_deinstrument(&dtm0_req_fop_fopt);
+	m0_fop_type_addb2_deinstrument(&dtm0_redo_fop_fopt);
 	m0_fop_type_fini(&dtm0_req_fop_fopt);
 	m0_fop_type_fini(&dtm0_rep_fop_fopt);
 	m0_fop_type_fini(&dtm0_redo_fop_fopt);
@@ -431,7 +433,7 @@ static int dtm0_pmsg_fom_tick(struct m0_fom *fom)
 			 * modifed right here. We have to post an AST
 			 * to ensure DTX is modifed under the group lock held.
 			 */
-			m0_be_dtm0_log_pmsg_post(svc->dos_log, fom->fo_fop);
+			m0_dtm0_dtx_pmsg_post(svc->dos_log, fom->fo_fop);
 			rep->dr_rc = 0;
 		} else {
 			rep->dr_rc = m0_dtm0_logrec_update(svc->dos_log,

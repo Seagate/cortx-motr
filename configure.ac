@@ -374,7 +374,7 @@ AS_IF([test x$enable_m0_asserts = xno],
 # dtm0 {{{3
 AC_ARG_ENABLE([dtm0],
         AS_HELP_STRING([--enable-dtm0],[enable DTM0 mode]),
-        [], [enable_dtm0=no]
+        [BUILD_DEPEND_DTM="--enable-dtm0"], [enable_dtm0=no]
 )
 AS_IF([test x$enable_dtm0 = xyes],
       AC_DEFINE([ENABLE_DTM0], [1]),
@@ -968,6 +968,7 @@ AS_IF([ test -z "$with_libfab" && test x$enable_libfab = xno],
 )
 AC_SUBST([LIBFAB_LIBS])
 AC_SUBST([BUILD_DEPEND_LIBFAB])
+AC_SUBST([BUILD_DEPEND_DTM])
 AM_CONDITIONAL([ENABLE_LIBFAB],
                [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
 
@@ -1057,7 +1058,9 @@ AS_IF([test x$enable_debug = xyes],
        M0_CPPFLAGS="-DDEBUG $M0_CPPFLAGS"
        M0_KCPPFLAGS="-DDEBUG $M0_KCPPFLAGS"
        M0_CFLAGS="-g -O0 $M0_CFLAGS"
-       M0_KCFLAGS="-g -O0 $M0_KCFLAGS"
+       # Kernel code cannot be compiled without any optimisation at all,
+       # but -Og can be used, see https://lwn.net/Articles/756616/.
+       M0_KCFLAGS="-g -Og $M0_KCFLAGS"
        AC_DEFINE([ENABLE_DEBUG])
       ],[
        M0_CFLAGS="-g -O2 $M0_CFLAGS"

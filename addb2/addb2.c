@@ -448,7 +448,7 @@ void m0_addb2_pop(uint64_t id)
 		M0_PRE(MACH_DEPTH(m) > 0);
 		M0_PRE(!m->ma_stopping);
 		M0_ASSERT_INFO(e->e_recval->va_id == id,
-			       "Want: %"PRIx64" got: %"PRIx64".",
+			       "Want: %" PRIx64 " got: %" PRIx64 ".",
 			       e->e_recval->va_id, id);
 
 		m0_tl_teardown(sensor, &e->e_sensor, s) {
@@ -755,7 +755,7 @@ int m0_addb2_cursor_next(struct m0_addb2_cursor *cur)
 			m0_addb2_consume(&cur->cu_src, r);
 			return +1;
 		default:
-			M0_LOG(M0_NOTICE, "Opcode: %"PRIx64".", datum);
+			M0_LOG(M0_NOTICE, "Opcode: %" PRIx64 ".", datum);
 		}
 		return M0_ERR(-EPROTO);
 	}

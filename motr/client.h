@@ -50,8 +50,6 @@
  *
  *     - Motr-based block device (part of BOMO);
  *
- *     - exascale E10 stack (see eiow.org).
- *
  * Client interface is divided into the following sub-interfaces:
  *
  *     - access sub-interface, which provides basic abstraction to build storage
@@ -554,13 +552,18 @@ enum m0_idx_opcode {
 	M0_IC_GET = M0_OC_NR + 1,  /* 15 */
 	/** Insert or update the value, given a key. */
 	M0_IC_PUT,                 /* 16 */
-	/** Delete the value, if any, for the given key. */
+	/** Delete the record, if any, for the given key. */
 	M0_IC_DEL,                 /* 17 */
-	/** Given a key, return the next key and its value. */
+	/** Given a key, return the next keys and their values. */
 	M0_IC_NEXT,                /* 18 */
-	/** Check an index for an existence. */
+	/** Check the given index for existence. */
 	M0_IC_LOOKUP,              /* 19 */
-	/** Given an index id, get the list of next indices. */
+	/**
+	 * Given an index id, get the list of next indices.
+	 *
+	 * @note the index ids will be fetched into the keys array
+	 *       argument of m0_idx_op().
+	 */
 	M0_IC_LIST,                /* 20 */
 	M0_IC_NR                   /* 21 */
 } M0_XCA_ENUM;
@@ -570,15 +573,38 @@ enum m0_idx_opcode {
  */
 enum m0_op_obj_flags {
 	/**
-	 * Read operation should not see any holes. If a hole is met during
-	 * read, return error instead.
+	 * If a hole is met during read, return zeros instead of error.
+	 * WARNING: this might result in a corrupted data, when the hole was
+	 * caused by some error during write. So it's better to verify it.
 	 */
-	M0_OOF_NOHOLE = 1 << 0,
+	M0_OOF_HOLE = 1 << 0,
 	/**
 	 * Write, alloc and free operations wait for the transaction to become
 	 * persistent before returning.
 	 */
-	M0_OOF_SYNC   = 1 << 1
+	M0_OOF_SYNC = 1 << 1,
+	/**
+	 * Last unit(s) of the object. User must specify this flag when reading
+	 * or writing last unit(s) of the object to indicate where the object
+	 * ends. Otherwise, in degraded read mode, libmotr may try to read all
+	 * the missing units of the last parity group, including those which
+	 * are beyond the object end, and may end up with too many errors to be
+	 * able to recover the data. Or, on writing, it may trigger needless
+	 * RMW and result with the wrong parity data after reading the stale
+	 * data units of the existing old object.
+	 *
+	 * Note: this flag is needed, because Motr does not know the size of
+	 * objects it stores. (But the user does know, for example, by storing
+	 * objects' metadata in KV-store.)
+	 */
+	M0_OOF_LAST = 1 << 2,
+	/**
+	 * Use this flag to indicate that the provided extents at indexvec
+	 * for the I/O operation fully span the parity groups, and that RMW
+	 * (read-modify-write) should not happen. Motr will check it, and
+	 * return -EINVAL if it is not so.
+	 */
+	M0_OOF_FULL = 1 << 3,
 } M0_XCA_ENUM;
 
 /**
@@ -596,35 +622,48 @@ enum m0_entity_type {
  */
  enum m0_entity_flags {
 	/**
-	 * During create if this flag is set in entity->en_flags, that means
-	 * application has capability to store meta-data and hence pver and
-	 * lid can be stored in  application's meta-data.
-	 * Before calling to m0_entity_create/open(), application is
-	 * expected to set obj>ob_entity->en_flags |= M0_ENF_META, so when
-	 * m0_entity_create() returns to application, pool version and layout id
-	 * will be available to application into obj->ob_attr.oa_pver and
-	 * obj->ob_attr.oa_lid respectively and can be stored into application's
-	 * meta-data.
+	 * If motr client application has the capability to store object
+	 * metadata by itself (such as pool version and layout, which can
+	 * be stored by the application at motr distributed index, for example),
+	 * it can use this flag to avoid sending additional metadata fops on
+	 * such object operations as CREATE, OPEN, DELETE, GETATTR and, thus,
+	 * improve its performance.
 	 *
-	 * For example:
-	 * Create workflow would be like:
+	 * Before calling m0_entity_create() or m0_entity_open(), application
+	 * is expected to set obj->ob_entity->en_flags |= M0_ENF_META. When
+	 * m0_entity_create() returns, the pool version and layout id will be
+	 * available for the application at obj->ob_attr.oa_pver and
+	 * obj->ob_attr.oa_lid respectively.
+	 *
+	 * For example, create workflow can look like this:
+	 *
 	 *   obj->ob_entity.en_flags |= M0_ENF_META;
-	 *   m0_entity_create((NULL, &obj.ob_entity, &ops[0]);
-	 *   //  Save the returned pool version and lid into app_meta_data
+	 *   m0_entity_create(NULL, &obj->ob_entity, &ops[0]);
+	 *   // Save the returned pool version and lid into app_meta_data
 	 *   app_meta_data.pver = obj->ob_attr.oa_pver;
-	 *   app_meta_data.lid = obj->ob_attr.oa_lid;
+	 *   app_meta_data.lid  = obj->ob_attr.oa_lid;
 	 *
-	 * Read workflow:
+	 * And read workflow:
+	 *
+	 *   obj->ob_entity.en_flags |= M0_ENF_META;
+	 *   // Set the pool version and lid from app_meta_data
 	 *   obj->ob_attr.oa_pver = app_meta_data.pver;
-	 *   obj->ob_attr.oa_lid =  app_meta_data.lid;
-	 *   m0_entity_open(NULL, &obj.ob_entity, &ops[0]);
+	 *   obj->ob_attr.oa_lid  = app_meta_data.lid;
+	 *   m0_entity_open(NULL, &obj->ob_entity, &ops[0]);
 	 */
 	M0_ENF_META = 1 << 0,
 	/**
 	 * If this flags is set during entity_create() that means application
-	 * do not support update operation. This flag is not in use yet.
+	 * do not support update operation.
+	 * XXX: This flag is not in use and will be deleted soon, so please
+	 *      remove it from your code. If you need to avoid RMW when writing
+	 *      the non-full last parity group, use M0_OOF_LAST flag instead.
 	 */
-	M0_ENF_NO_RMW =  1 << 1
+	M0_ENF_NO_RMW =  1 << 1,
+	/**
+	 * This flag is to enable data integrity.
+	 */
+ 	M0_ENF_DI = 1 << 2
  } M0_XCA_ENUM;
 
 /**
@@ -1438,8 +1477,9 @@ void m0_obj_idx_init(struct m0_idx       *idx,
  *                       (m0_vec_count(&ext->iv_vec) >> obj->ob_attr.oa_bshift)
  * @pre ergo(M0_IN(opcode, (M0_OC_ALLOC, M0_OC_FREE)),
  *           data == NULL && attr == NULL && mask == 0)
- * @pre ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOHOLE)))
- * @pre ergo(opcode != M0_OC_READ, M0_IN(flags, (0, M0_OOF_SYNC)))
+ * @pre ergo(opcode == M0_OC_READ, !(flags & ~(M0_OOF_HOLE|M0_OOF_LAST)))
+ * @pre ergo(opcode != M0_OC_READ,
+ *           !(flags & ~(M0_OOF_SYNC|M0_OOF_LAST|M0_OOF_FULL)))
  *
  * @post ergo(*op != NULL, *op->op_code == opcode &&
  *            *op->op_sm.sm_state == M0_OS_INITIALISED)

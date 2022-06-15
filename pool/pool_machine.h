@@ -273,18 +273,27 @@ M0_INTERNAL void m0_poolmach_state_last_cancel(struct m0_poolmach *pm);
  */
 M0_INTERNAL int m0_poolmach_device_state(struct m0_poolmach *pm,
 					 uint32_t device_index,
-					 uint32_t *state_out);
+					 enum m0_pool_nd_state *state_out);
 
 /**
- * Query the current state of a specified device.
+ * Query the current state of a specified node.
  * @param pm pool machine.
  * @param node_index the index of the node to query.
  * @param state_out the output state.
  */
 M0_INTERNAL int m0_poolmach_node_state(struct m0_poolmach *pm,
 				       uint32_t node_index,
-				       uint32_t *state_out);
+				       enum m0_pool_nd_state *state_out);
 
+/**
+ * Returns the parent node object of the specified device in the pool.
+ * @param pm pool machine.
+ * @param device_index the index of the device to query.
+ * @param node_out the parent node object.
+ */
+M0_INTERNAL int m0_poolmach_device_node_return(struct m0_poolmach *pm,
+					       uint32_t device_index,
+					       struct m0_poolnode **node_out);
 
 /**
  * Returns true if device is in the spare usage array of pool machine.

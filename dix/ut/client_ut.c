@@ -336,7 +336,10 @@ static void layout_check(struct m0_dix_linst *dli)
 	    dli->li_pl->pl_attr.pa_K +
 	    dli->li_pl->pl_attr.pa_S;
 	for (unit = 0; unit < W; ++unit) {
-		m0_dix_target(dli, unit, &key, &id1);
+		
+    
+    
+    (dli, unit, &key, &id1);
 		m0_dix_target(dli, unit, &key, &id2);
 		M0_UT_ASSERT(id1 == id2);
 	}
@@ -365,6 +368,7 @@ void pdclust_map(void)
 	struct m0_ext           range[] = {{.e_start = 0, .e_end = 100}};
 	uint64_t                fd_child_nr[2];
 
+	m0_fi_enable("m0_dix_target", "pdcluster-map");
 	fid = DFID(0,1);
 	rc = m0_pool_init(&pool, &M0_FID_TINIT('o', 0, 1), 0);
 	M0_UT_ASSERT(rc == 0);
@@ -390,6 +394,7 @@ void pdclust_map(void)
 	rc = m0_dix_layout_init(&dli, &domain, &fid, id, &pool_ver, &dld);
 	M0_UT_ASSERT(rc == 0);
 	layout_check(&dli);
+	m0_fi_disable("m0_dix_target", "pdcluster-map");
 	m0_fd_tree_destroy(&pool_ver.pv_fd_tree);
 	m0_dix_layout_fini(&dli);
 	m0_dix_ldesc_fini(&dld);
@@ -772,6 +777,12 @@ static void dix_disk_failure_set(uint32_t sdev_idx, enum m0_pool_nd_state state)
 	} while (dix_disk_state(sdev_idx) != state);
 }
 
+static void dix_disk_offline_set(uint32_t sdev_idx)
+{
+	M0_PRE(dix_disk_state(sdev_idx) == M0_PNDS_ONLINE);
+	dix_disk_state_set(sdev_idx, M0_PNDS_OFFLINE);
+}
+
 static void dix_disk_online_set(uint32_t sdev_idx)
 {
 	switch (dix_disk_state(sdev_idx)) {
@@ -785,6 +796,7 @@ static void dix_disk_online_set(uint32_t sdev_idx)
 		dix_disk_state_set(sdev_idx, M0_PNDS_SNS_REBALANCING);
 		/* Fall through. */
 	case M0_PNDS_SNS_REBALANCING:
+	case M0_PNDS_OFFLINE:
 		dix_disk_state_set(sdev_idx, M0_PNDS_ONLINE);
 		break;
 	default:
@@ -2082,6 +2094,64 @@ static void dix_get_dgmode(void)
 	ut_service_fini();
 }
 
+static void dix_get_transient_dgmode(void)
+{
+	struct m0_dix         index;
+	struct m0_bufvec      keys;
+	struct m0_bufvec      vals;
+	struct dix_rep_arr    rep;
+	enum ut_pg_unit       i;
+	int                   rc;
+
+	ut_service_init();
+	dix_predictable_index_init(&index, 1);
+	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
+	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
+	M0_UT_ASSERT(rc == 0);
+	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_rep_free(&rep);
+
+	dix_predictable_sdev_ids_fill(&index);
+
+	/*
+	 * Get record when drive is failed.
+	 * The drive should be skipped.
+	 */
+	dix_disk_offline_set(dix_sdev_id(PG_UNIT_DATA));
+	rc = dix_ut_get(&index, &keys, &rep);
+	dix_vals_check(&rep, COUNT);
+	M0_UT_ASSERT(rc == 0);
+	dix_rep_free(&rep);
+	dix_disk_online_set(dix_sdev_id(PG_UNIT_DATA));
+
+	/*
+	 * Get record when two first drives are failed.
+	 * The drives should be skipped.
+	 */
+	for (i = PG_UNIT_DATA; i <= PG_UNIT_PARITY0; i++)
+		dix_disk_offline_set(dix_sdev_id(i));
+	rc = dix_ut_get(&index, &keys, &rep);
+	dix_vals_check(&rep, COUNT);
+	M0_UT_ASSERT(rc == 0);
+	dix_rep_free(&rep);
+	for (i = PG_UNIT_DATA; i <= PG_UNIT_PARITY0; i++)
+		dix_disk_online_set(dix_sdev_id(i));
+
+	/* No available drives exist, -EIO is expected. */
+	for (i = PG_UNIT_DATA; i <= PG_UNIT_PARITY1; i++)
+		dix_disk_offline_set(dix_sdev_id(i));
+	rc = dix_ut_get(&index, &keys, &rep);
+	M0_UT_ASSERT(rc == -EIO);
+	dix_rep_free(&rep);
+	for (i = PG_UNIT_DATA; i <= PG_UNIT_PARITY1; i++)
+		dix_disk_online_set(dix_sdev_id(i));
+
+	dix_kv_destroy(&keys, &vals);
+	dix_index_fini(&index);
+	ut_service_fini();
+}
+
 static void dix_get_resend(void)
 {
 	struct m0_dix      index;
@@ -2283,6 +2353,66 @@ static void dix_next_dgmode(void)
 	dix_disk_online_set(10);
 	dix_disk_online_set(11);
 	dix_disk_online_set(12);
+
+	m0_bufvec_free(&start_key);
+	dix_kv_destroy(&keys, &vals);
+	dix_index_fini(&index);
+	ut_service_fini();
+}
+
+static void dix_next_transient_dgmode(void)
+{
+	struct m0_dix      index;
+	struct m0_bufvec   keys;
+	struct m0_bufvec   start_key;
+	struct m0_bufvec   vals;
+	struct dix_rep_arr rep;
+	uint32_t           recs_nr = COUNT;
+	int                rc;
+
+	ut_service_init();
+	dix_index_init(&index, 1);
+	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
+	dix_index_create_and_fill(&index, &keys, &vals, 0);
+	rc = m0_bufvec_alloc(&start_key, 1, sizeof (uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	*(uint64_t *)start_key.ov_buf[0] = dix_key(0);
+
+	/* Fetch all records when one drive is offline. */
+	dix_disk_offline_set(10);
+	rc = dix_ut_next(&index, &start_key, &recs_nr, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_vals_check(&rep, COUNT);
+	dix_rep_free(&rep);
+	dix_disk_online_set(10);
+
+	/* Fetch all records when 2 drives are offline. */
+	dix_disk_offline_set(10);
+	dix_disk_offline_set(11);
+	rc = dix_ut_next(&index, &start_key, &recs_nr, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_vals_check(&rep, COUNT);
+	dix_rep_free(&rep);
+	dix_disk_online_set(10);
+	dix_disk_online_set(11);
+
+#if 0
+	/* FIXME: need to add a check for max offline devices on DIX level. */
+	/*
+	 * Try to fetch all records when 3 drives are offline.
+	 * No available targets exist, so DIX client should return
+	 * an IO error.
+	 */
+	dix_disk_offline_set(10);
+	dix_disk_offline_set(11);
+	dix_disk_offline_set(12);
+	rc = dix_ut_next(&index, &start_key, &recs_nr, 0, &rep);
+	M0_UT_ASSERT(rc == -EIO);
+	dix_rep_free(&rep);
+	dix_disk_online_set(10);
+	dix_disk_online_set(11);
+	dix_disk_online_set(12);
+#endif
 
 	m0_bufvec_free(&start_key);
 	dix_kv_destroy(&keys, &vals);
@@ -2527,15 +2657,16 @@ static void local_failures(void)
 	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
 	M0_UT_ASSERT(rc == 0);
 	/*
-	 * Only two CAS requests can be sent successfully, but N + K = 3, so
-	 * no record will be successfully put to all component catalogues.
+ 	 * Consider DIX request to be successful if there is at least
+ 	 * one successful CAS request. Here two cas requests can be 
+ 	 * sent successfully. 
 	 */
 	m0_fi_enable_off_n_on_m("cas_req_replied_cb", "send-failure", 2, 3);
 	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
 	m0_fi_disable("cas_req_replied_cb", "send-failure");
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
-	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc != 0));
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
 	dix_rep_free(&rep);
 	dix_kv_destroy(&keys, &vals);
 	dix_index_fini(&index);
@@ -3148,8 +3279,9 @@ static void server_is_down(void)
 
 	ut_service_init();
 	dix_index_init(&index, 1);
-	m0_fi_enable_once("cas_sdev_state", "sdev_fail");
+	m0_fi_enable("cas_sdev_state", "sdev_fail");
 	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
+	m0_fi_disable("cas_sdev_state", "sdev_fail");
 	M0_UT_ASSERT(rc == -EBADFD);
 	dix_index_fini(&index);
 	ut_service_fini();
@@ -3183,9 +3315,11 @@ struct m0_ut_suite dix_client_ut = {
 		{ "get",                    dix_get             },
 		{ "get-resend",             dix_get_resend      },
 		{ "get-dgmode",             dix_get_dgmode      },
+		{ "get-transient-dgmode",   dix_get_transient_dgmode },
 		{ "next",                   dix_next            },
 		{ "next-crow",              dix_next_crow       },
 		{ "next-dgmode",            dix_next_dgmode     },
+		{ "next-transient-dgmode",  dix_next_transient_dgmode },
 		{ "del",                    dix_del             },
 		{ "del-dgmode",             dix_del_dgmode      },
 		{ "null-value",             dix_null_value      },

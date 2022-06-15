@@ -111,7 +111,7 @@ M0_UNUSED static inline void indexvec_dump(struct m0_indexvec *ivec)
 
 	for (seg = 0; seg < SEG_NR(ivec); ++seg)
 		M0_LOG(M0_DEBUG, "seg# %d: [pos, +len) = [%"PRIu64
-				 ", +%"PRIu64")", seg, INDEX(ivec, seg),
+				 ", +%" PRIu64 ")", seg, INDEX(ivec, seg),
 				 COUNT(ivec, seg));
 }
 
@@ -380,6 +380,7 @@ static void obj_io_ast_fini(struct m0_sm_group *grp,
 	nw_xfer_request_fini(&ioo->ioo_nwxfer);
 	m0_layout_instance_fini(ioo->ioo_oo.oo_layout_instance);
 	m0_free(ioo->ioo_failed_session);
+	m0_free(ioo->ioo_failed_nodes);
 	m0_chan_signal_lock(&ioo->ioo_completion);
 
 	M0_LEAVE();
@@ -468,7 +469,8 @@ static int obj_io_init(struct m0_obj      *obj,
 {
 	int                  rc;
 	int                  i;
-	uint64_t             max_failures;
+	uint64_t             max_svc_failures;
+	uint64_t             max_node_failures;
 	struct m0_op_io     *ioo;
 	struct m0_op_obj    *oo;
 	struct m0_op_common *oc;
@@ -495,15 +497,25 @@ static int obj_io_init(struct m0_obj      *obj,
 		goto err;
 	}
 
-	/* Allocate and initialise failed sessions. */
-	max_failures = tolerance_of_level(ioo, M0_CONF_PVER_LVL_CTRLS);
-	M0_ALLOC_ARR(ioo->ioo_failed_session, max_failures + 1);
+	/* Allocate and initialise failed sessions and  nodes. */
+	max_svc_failures = tolerance_of_level(ioo, M0_CONF_PVER_LVL_CTRLS);
+	M0_ALLOC_ARR(ioo->ioo_failed_session, max_svc_failures + 1);
 	if (ioo->ioo_failed_session == NULL) {
 		rc = M0_ERR(-ENOMEM);
 		goto err;
 	}
-	for (i = 0; i < max_failures; ++i)
+	for (i = 0; i < max_svc_failures; ++i)
 		ioo->ioo_failed_session[i] = ~(uint64_t)0;
+
+	max_node_failures = tolerance_of_level(ioo, M0_CONF_PVER_LVL_ENCLS);
+	M0_ALLOC_ARR(ioo->ioo_failed_nodes, max_node_failures + 1);
+
+	if (ioo->ioo_failed_nodes == NULL) {
+		rc = M0_ERR(-ENOMEM);
+		goto err;
+	}
+	for (i = 0; i < max_node_failures; ++i)
+		ioo->ioo_failed_nodes[i] = ~(uint64_t)0;
 
 	/* Initialise the state machine */
 	locality = m0__locality_pick(cinst);
@@ -601,7 +613,7 @@ static int obj_op_init(struct m0_obj      *obj,
 					   &oo->oo_layout_instance);
 	if (rc != 0) {
 		/*
-		 * Setting the callbacks to NULL so the m0_op_fini()
+		 * Setting the callbacks to NULL so that m0_op_fini()
 		 * and m0_op_free() functions don't fini and free
 		 * m0_op_io as it has not been initialized now.
 		 */
@@ -638,6 +650,28 @@ static void obj_io_args_check(struct m0_obj      *obj,
 		       data == NULL && attr == NULL && mask == 0));
 	/* Block metadata is not yet supported */
 	M0_ASSERT(mask == 0);
+}
+
+M0_INTERNAL bool m0__obj_is_parity_verify_mode(struct m0_client *instance)
+{
+        return instance->m0c_config->mc_is_read_verify;
+}
+
+M0_INTERNAL bool m0__obj_is_di_enabled(struct m0_op_io *ioo)
+{
+	return ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI;
+}
+
+M0_INTERNAL bool m0__obj_is_cksum_validation_allowed(struct m0_op_io *ioo)
+{
+	/*
+	 * Checksum validation is not allowed for degraded read and
+	 * for read verify mode in parity.
+	 */
+	return m0__obj_is_di_enabled(ioo) &&
+	       !ioo->ioo_dgmode_io_sent &&
+	       !m0__obj_is_parity_verify_mode(
+			       m0__op_instance(m0__ioo_to_op(ioo)));
 }
 
 M0_INTERNAL int m0__obj_io_build(struct m0_io_args *args,
@@ -700,8 +734,10 @@ int m0_obj_op(struct m0_obj       *obj,
 		  opcode == M0_OC_FREE ? "free" : "");
 	M0_PRE(obj != NULL);
 	M0_PRE(op != NULL);
-	M0_PRE(ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOHOLE))));
-	M0_PRE(ergo(opcode != M0_OC_READ, M0_IN(flags, (0, M0_OOF_SYNC))));
+	M0_PRE(ergo(opcode == M0_OC_READ,
+		    !(flags & ~(M0_OOF_HOLE|M0_OOF_LAST))));
+	M0_PRE(ergo(opcode != M0_OC_READ,
+		    !(flags & ~(M0_OOF_SYNC|M0_OOF_LAST|M0_OOF_FULL))));
 	if (M0_FI_ENABLED("fail_op"))
 		return M0_ERR(-EINVAL);
 

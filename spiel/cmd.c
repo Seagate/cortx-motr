@@ -1655,6 +1655,53 @@ int m0_spiel_pool_rebalance_abort(struct m0_spiel     *spl,
 	return m0_spiel_sns_rebalance_abort(spl, pool_fid);
 }
 
+/***********************************************/
+/*                 Byte count                  */
+/***********************************************/
+
+/**
+ * List element of an individual key value pair on the byte count btree.
+ */
+struct m0_proc_data {
+	struct m0_buf         pd_key;
+	struct m0_buf         pd_rec;
+	uint32_t              pd_kv_count;
+	struct m0_tlink       pd_link;
+	/** Not needed now, will be used in CORTX-28389 */
+	/* uint64_t              pd_magic; */
+};
+
+/**
+ * A context for fetching counters from an ioservice.
+ */
+struct spiel_proc_counter_item {
+	/** Process fid */
+	struct m0_fid         sci_fid;
+	/** Rpc link for connect to a process */
+	struct m0_rpc_link    sci_rlink;
+	/** Process counter fetch request. */
+	struct m0_fop         sci_fop;
+	/**
+	 * Signalled when session is established. @see
+	 * m0_rpc_link_connect_async
+	 */
+	struct m0_clink       sci_rlink_wait;
+	/**
+	 * List of data received from an ioservice from each reply
+	 * fop. Linked from m0_proc_data::pd_link. List will be
+	 * implemented during retry mechanism task CORTX-28389.
+	 */
+	struct m0_tl         *sci_counters;
+	/** temp field, till the counters list is implemented */
+	struct m0_proc_data   sci_data;
+	struct m0_spiel_core *sci_spc;
+	struct m0_sm_ast      sci_ast;
+	/** For waiting till reply fop is recived */
+	struct m0_semaphore   sci_barrier;
+	uint64_t              sci_magic;
+	int                   sci_rc;
+};
+
 /****************************************************/
 /*                    Filesystem                    */
 /****************************************************/
@@ -2000,6 +2047,297 @@ obj_close:
 	return M0_RC(rc);
 }
 
+static void spiel_process_counter_replied_ast(struct m0_sm_group *grp,
+					      struct m0_sm_ast   *ast)
+{
+	struct spiel_proc_counter_item *proc = M0_AMB(proc, ast, sci_ast);
+	struct m0_rpc_item             *item = &proc->sci_fop.f_item;
+	struct m0_ss_process_rep       *rep;
+	m0_time_t                       conn_timeout;
+	int                             rc;
+
+	M0_ENTRY(FID_F, FID_P(&proc->sci_fid));
+	rc = m0_rpc_item_error(item);
+	if (rc != 0)
+		goto leave;
+	rep = spiel_process_reply_data(&proc->sci_fop);
+
+	rc = m0_buf_alloc(&proc->sci_data.pd_key, rep->sspr_bckey.b_nob);
+	if (rc != 0)
+		goto leave;
+	rc = m0_buf_alloc(&proc->sci_data.pd_rec, rep->sspr_bcrec.b_nob);
+	if (rc != 0) {
+		m0_buf_free(&proc->sci_data.pd_key);
+		goto leave;
+	}
+
+	memcpy(proc->sci_data.pd_key.b_addr, rep->sspr_bckey.b_addr,
+		rep->sspr_bckey.b_nob);
+	memcpy(proc->sci_data.pd_rec.b_addr, rep->sspr_bcrec.b_addr,
+		rep->sspr_bcrec.b_nob);
+	proc->sci_data.pd_kv_count = rep->sspr_kv_count;
+
+leave:
+	m0_rpc_machine_lock(proc->sci_spc->spc_rmachine);
+	m0_fop_put(&proc->sci_fop);
+	m0_fop_fini(&proc->sci_fop);
+	m0_rpc_machine_unlock(proc->sci_spc->spc_rmachine);
+
+	conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
+	m0_rpc_link_disconnect_sync(&proc->sci_rlink, conn_timeout);
+	m0_rpc_link_fini(&proc->sci_rlink);
+	proc->sci_rc = rc;
+	m0_semaphore_up(&proc->sci_barrier);
+	M0_LEAVE();
+}
+
+static struct m0_sm_group* spiel_counter_sm_group(struct spiel_proc_counter_item *i)
+{
+	return i->sci_spc->spc_confc->cc_group;
+}
+
+static void spiel_process_counter_replied(struct m0_rpc_item *item)
+{
+	struct m0_fop                  *fop  = m0_rpc_item_to_fop(item);
+	struct spiel_proc_counter_item *proc = M0_AMB(proc, fop, sci_fop);
+
+	M0_ENTRY(FID_F, FID_P(&proc->sci_fid));
+	proc->sci_ast.sa_cb = spiel_process_counter_replied_ast;
+	m0_sm_ast_post(spiel_counter_sm_group(proc), &proc->sci_ast);
+	M0_LEAVE();
+}
+
+struct m0_rpc_item_ops spiel_process_counter_ops = {
+	.rio_replied = spiel_process_counter_replied
+};
+
+static bool spiel_proc_counter_item_rlink_cb(struct m0_clink *clink)
+{
+	struct spiel_proc_counter_item *proc = M0_AMB(proc, clink, sci_rlink_wait);
+	struct m0_ss_process_req       *req;
+	struct m0_fop                  *fop = &proc->sci_fop;
+	struct m0_rpc_item             *item;
+	m0_time_t                       conn_timeout;
+	int                             rc;
+
+	M0_ENTRY(FID_F, FID_P(&proc->sci_fid));
+	m0_clink_fini(clink);
+	if (proc->sci_rlink.rlk_rc != 0) {
+		M0_LOG(M0_ERROR, "connect failed");
+		proc->sci_rc = proc->sci_rlink.rlk_rc;
+		m0_semaphore_up(&proc->sci_barrier);
+		goto ret;
+	}
+	m0_fop_init(fop, &m0_fop_process_fopt, NULL, m0_fop_release);
+	rc = m0_fop_data_alloc(fop);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "fop data alloc failed");
+		goto fop_fini;
+	}
+
+	fop->f_item.ri_rmachine = proc->sci_spc->spc_rmachine;
+	req                     = m0_ss_fop_process_req(fop);
+	req->ssp_cmd            = M0_PROCESS_COUNTER;
+	req->ssp_id             = proc->sci_fid;
+	item                    = &fop->f_item;
+	item->ri_ops            = &spiel_process_counter_ops;
+	item->ri_session        = &proc->sci_rlink.rlk_sess;
+	item->ri_prio           = M0_RPC_ITEM_PRIO_MID;
+	item->ri_nr_sent_max    = 5;
+	m0_fop_get(fop);
+	rc = m0_rpc_post(item);	
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "rpc post failed");
+		m0_fop_put_lock(fop);
+		goto fop_fini;
+	}
+
+	proc->sci_rc = rc;
+	goto ret;
+	
+fop_fini:
+	m0_fop_fini(fop);
+	conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
+	m0_rpc_link_disconnect_sync(&proc->sci_rlink, conn_timeout);
+	m0_rpc_link_fini(&proc->sci_rlink);
+	proc->sci_rc = rc;
+	m0_semaphore_up(&proc->sci_barrier);
+	M0_LEAVE();
+	return true;
+
+ret:
+	M0_LEAVE();
+	return true;
+}
+
+static int spiel_process__counters_async(struct spiel_proc_counter_item *proc)
+{
+	struct m0_conf_process *process;
+	struct m0_spiel_core   *spc = proc->sci_spc;
+	m0_time_t               conn_timeout;
+	int                     rc;
+
+	M0_ENTRY("proc fid "FID_F, FID_P(&proc->sci_fid));
+	rc = spiel_proc_conf_obj_find(spc, &proc->sci_fid, &process);
+	if (rc != 0)
+		return M0_ERR(rc);
+	m0_confc_close(&process->pc_obj);
+	conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
+	rc = m0_rpc_link_init(&proc->sci_rlink, spc->spc_rmachine, NULL,
+			      process->pc_endpoint, SPIEL_MAX_RPCS_IN_FLIGHT);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	m0_clink_init(&proc->sci_rlink_wait, spiel_proc_counter_item_rlink_cb);
+	proc->sci_rlink_wait.cl_is_oneshot = true;
+	m0_rpc_link_connect_async(&proc->sci_rlink, conn_timeout,
+				  &proc->sci_rlink_wait);
+	return M0_RC(rc);
+}
+
+static void m0_spiel_count_stats_free(struct m0_proc_counter *count_stats,
+			       int                     failed_index)
+{
+	int i;
+
+	for (i = 0; i < failed_index; i++) {
+		if (count_stats->pc_bckey[i] != NULL)
+			m0_free(count_stats->pc_bckey[i]);
+		if (count_stats->pc_bcrec[i] != NULL)
+			m0_free(count_stats->pc_bcrec[i]);
+	}
+}
+
+int m0_spiel_count_stats_init(struct m0_proc_counter **count_stats)
+{
+	int rc = 0;
+
+	M0_PRE(*count_stats == NULL);
+	M0_ALLOC_PTR(*count_stats);
+	if (*count_stats == NULL)
+		rc = M0_ERR(-ENOMEM);
+	return M0_RC(rc);
+}
+M0_EXPORTED(m0_spiel_count_stats_init);
+
+void m0_spiel_count_stats_fini(struct m0_proc_counter *count_stats)
+{
+	if (count_stats != NULL) { 
+		if (count_stats->pc_cnt > 0)
+			m0_spiel_count_stats_free(count_stats,
+						  count_stats->pc_cnt);
+		m0_free(count_stats->pc_bckey);
+		m0_free(count_stats->pc_bcrec);
+		m0_free(count_stats);
+	}
+}
+M0_EXPORTED(m0_spiel_count_stats_fini);
+
+int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
+				 struct m0_fid          *proc_fid,
+				 struct m0_proc_counter *count_stats)
+{
+	struct spiel_proc_counter_item *proc = NULL;
+	struct m0_spiel_core           *spc = &spl->spl_core;
+	struct m0_conf_obj             *proc_obj;
+	struct m0_spiel_bckey          *key_cur;
+	struct m0_spiel_bcrec          *rec_cur;
+	int                             rc = 0;
+	int                             i;
+
+	M0_ENTRY();
+	M0_PRE(spl != NULL);
+	M0_PRE(spc->spc_confc != NULL);
+	M0_PRE(count_stats != NULL);
+
+	if (!m0_confc_is_inited(spc->spc_confc))
+		return M0_ERR_INFO(-EAGAIN, "confc is finalised");
+
+	rc = m0_confc_open_by_fid_sync(spc->spc_confc, proc_fid, &proc_obj);
+	if (rc != 0)
+		return M0_ERR(rc);
+	if (proc_obj->co_ha_state != M0_NC_ONLINE) {
+		rc = M0_ERR(-EPERM);
+		goto obj_close;
+	}
+
+	M0_ALLOC_PTR(proc);
+	if (proc == NULL) {
+		rc = M0_ERR(-ENOMEM);
+		goto obj_close;
+	}
+
+	m0_semaphore_init(&proc->sci_barrier, 0);
+	proc->sci_fid = *proc_fid;
+	proc->sci_spc =  spc;
+
+      /* List will be implemented when adding retry mechanism CORTX-28389. */
+	/*
+	M0_TL_DESCR_DEFINE(proc_counter, "proc-counter", M0_INTERNAL,
+			   struct m0_proc_data, pd_link, pd_magic,
+			   M0_NET_BUFFER_LINK_MAGIC, M0_NET_BUFFER_HEAD_MAGIC);
+	M0_TL_DEFINE(proc_counter, M0_INTERNAL, struct m0_proc_data);
+	*/
+	rc = spiel_process__counters_async(proc);
+	if (rc != 0)
+		goto sem_fini;
+	m0_semaphore_down(&proc->sci_barrier);
+
+	count_stats->pc_proc_fid = *proc_fid;
+	count_stats->pc_rc = proc->sci_rc;
+	if (proc->sci_rc != 0) {
+		rc = proc->sci_rc;
+		goto sem_fini;
+	}
+
+	count_stats->pc_cnt = proc->sci_data.pd_kv_count;
+	M0_ALLOC_ARR(count_stats->pc_bckey, proc->sci_data.pd_kv_count);
+	if (count_stats->pc_bckey == NULL) {
+		rc = M0_ERR(-ENOMEM);
+		goto buf_free;
+	}
+	M0_ALLOC_ARR(count_stats->pc_bcrec, proc->sci_data.pd_kv_count);
+	if (count_stats->pc_bcrec == NULL) {
+		m0_free(count_stats->pc_bckey);
+		rc = M0_ERR(-ENOMEM);
+		goto buf_free;
+	}
+
+	key_cur = (struct m0_spiel_bckey *)proc->sci_data.pd_key.b_addr;
+	rec_cur = (struct m0_spiel_bcrec *)proc->sci_data.pd_rec.b_addr;
+
+	for (i = 0; i < proc->sci_data.pd_kv_count; i++) {
+		M0_ALLOC_PTR(count_stats->pc_bckey[i]);
+		M0_ALLOC_PTR(count_stats->pc_bcrec[i]);
+		if (count_stats->pc_bckey[i] == NULL ||
+		    count_stats->pc_bcrec[i] == NULL) {
+			/* until the failed index we need to free */
+			m0_spiel_count_stats_free(count_stats, i+1);
+			rc = M0_ERR(-ENOMEM);
+			goto buf_free;
+		}
+
+		memcpy(count_stats->pc_bckey[i], key_cur,
+			sizeof(struct m0_spiel_bckey));
+		memcpy(count_stats->pc_bcrec[i], rec_cur,
+			sizeof(struct m0_spiel_bcrec));
+
+		key_cur++;
+		rec_cur++;
+	}
+
+buf_free:
+	m0_buf_free(&proc->sci_data.pd_key);
+	m0_buf_free(&proc->sci_data.pd_rec);
+sem_fini:
+	m0_semaphore_fini(&proc->sci_barrier);
+obj_close:
+	m0_confc_close(proc_obj);
+	m0_free(proc);
+	return M0_RC(rc);
+}
+M0_EXPORTED(m0_spiel_proc_counters_fetch);
+
 M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
 					 struct m0_fs_stats   *stats)
 {
@@ -2082,6 +2420,22 @@ int m0_spiel_confstr(struct m0_spiel *spl, char **out)
 }
 M0_EXPORTED(m0_spiel_confstr);
 
+int m0_spiel_conf_pver_status(struct m0_spiel          *spl,
+			      struct m0_fid            *fid,
+			      struct m0_conf_pver_info *out_info)
+{
+	struct m0_confc *confc;
+
+	M0_ENTRY();
+	M0_PRE(spl != NULL);
+
+	confc = spl->spl_core.spc_confc;
+	if (!m0_confc_is_inited(confc))
+		return M0_ERR_INFO(-EAGAIN, "confc is finalised");
+
+	return M0_RC(m0_conf_pver_status(fid, confc, out_info));
+}
+M0_EXPORTED(m0_spiel_conf_pver_status);
 /** @} */
 #undef M0_TRACE_SUBSYSTEM
 

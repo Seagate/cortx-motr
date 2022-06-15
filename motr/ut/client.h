@@ -228,6 +228,9 @@ M0_INTERNAL void ut_dummy_data_buf_delete(struct data_buf *db);
  */
 M0_INTERNAL void ut_dummy_data_buf_init(struct data_buf *db);
 
+/** Frees the buffers of the data buf. */
+M0_INTERNAL void ut_dummy_data_buf_free(struct data_buf *db);
+
 /**
  * Finalises a UT dummy data_buf.
  */
@@ -342,6 +345,9 @@ M0_INTERNAL void ut_dummy_poolmach_delete(struct m0_pool_version *pv);
 
 M0_INTERNAL void ut_set_device_state(struct m0_poolmach *pm, int dev,
 				     enum m0_pool_nd_state state);
+
+M0_INTERNAL void ut_set_node_state(struct m0_poolmach *pm, int node,
+				   enum m0_pool_nd_state state);
 #endif /* __MOTR_UT_H__ */
 
 /*

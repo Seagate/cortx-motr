@@ -1151,6 +1151,9 @@ enum m0_magic_satchel {
 	M0_DTM0_PROC_MAGIC      = 0x335e1f5e11ab1e77,
 	/** dopr_tlist head magic (cocobolo flea) */
 	M0_DTM0_PROC_HEAD_MAGIC = 0x33c0c0b010f1ea77,
+	/* m0_dtm0_domain::dod_magix (defacto bob of) */
+	M0_DTM0_DOMAIN_MAGIC    = 0x33defac70b0b0f77,
+
 /* FDMI */
 	/* m0_reqh_fdmi_service::rfdms_magic (abide dazzled) */
 	M0_FDMS_REQH_SVC_MAGIC = 0x33ab1deda221ed77,

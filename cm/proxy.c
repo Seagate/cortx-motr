@@ -161,30 +161,26 @@ static void cm_proxy_cp_del(struct m0_cm_proxy *pxy,
 M0_INTERNAL struct m0_cm_proxy *m0_cm_proxy_locate(struct m0_cm *cm,
 						   const char *addr)
 {
-	struct m0_net_transfer_mc *tm;
-	struct m0_net_end_point   *ep;
-	struct m0_cm_proxy        *pxy;
+	struct m0_cm_proxy	*pxy = NULL;
+	struct m0_net_ip_addr	addr_ipaddr, pxy_ipaddr;
+
 	/*
 	 * Proxy address string (pxy->px_endpoint) cannot be directly compared
 	 * with supplied address string, because the same end-point might have
 	 * different address strings.
 	 *
-	 * Instantiate the endpoints and compare them directly.
+	 * Convert both address strings into m0_net_ip_addr objects, and
+	 * compare them  using m0_net_ip_addr_eq() API
 	 */
-	tm = &m0_reqh_rpc_mach_tlist_head
-		(&cm->cm_service.rs_reqh->rh_rpc_machines)->rm_tm;
-	if (tm == NULL || m0_net_end_point_create(&ep, tm, addr) != 0)
-		return NULL;
 
+	if (m0_net_ip_parse(addr, &addr_ipaddr) != 0)
+		return NULL;
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
-		struct m0_net_end_point *scan;
-		if (m0_net_end_point_create(&scan, tm, pxy->px_endpoint) != 0)
-			continue;
-		m0_net_end_point_put(scan); /* OK to put before comparison. */
-		if (scan == ep)
+		if (m0_net_ip_parse(pxy->px_endpoint, &pxy_ipaddr) != 0)
+			return NULL;
+		if (m0_net_ip_addr_eq(&addr_ipaddr, &pxy_ipaddr, true))
 			break;
 	} m0_tl_endfor;
-	m0_net_end_point_put(ep);
 	return pxy;
 }
 
@@ -217,7 +213,7 @@ static bool epoch_check(struct m0_cm_proxy *pxy, m0_time_t px_epoch)
 static void proxy_done(struct m0_cm_proxy *proxy)
 {
 	struct m0_cm *cm = proxy->px_cm;
-	M0_ENTRY("pxy=%p id=%"PRIu64", to %s",
+	M0_ENTRY("pxy=%p id=%" PRIu64 ", to %s",
 		 proxy, proxy->px_id, proxy->px_endpoint);
 
 	if (!proxy->px_is_done) {
@@ -255,7 +251,7 @@ static int px_ready(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 	struct m0_cm       *cm = p->px_cm;
 	struct m0_cm_ag_id  hi;
 	int                 rc = 0;
-	M0_ENTRY("pxy=%p id=%"PRIu64", to %s", p, p->px_id, p->px_endpoint);
+	M0_ENTRY("pxy=%p id=%" PRIu64 ", to %s", p, p->px_id, p->px_endpoint);
 
 	if (p->px_epoch == 0 && m0_cm_state_get(cm) == M0_CMS_READY) {
 		p->px_epoch = px_epoch;
@@ -282,7 +278,7 @@ static int px_active(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 		     struct m0_cm_sw *out_interval, m0_time_t px_epoch,
 		     uint32_t px_status)
 {
-	M0_ENTRY("pxy=%p id=%"PRIu64", to %s", p, p->px_id, p->px_endpoint);
+	M0_ENTRY("pxy=%p id=%" PRIu64 ", to %s", p, p->px_id, p->px_endpoint);
 	_sw_update(p, in_interval, out_interval, px_status);
 	/* TODO This is expensive during M0_CMS_CTIVE phase but needed to
 	 * handle cleanup in case of copy machine failures during active
@@ -296,7 +292,7 @@ static int px_complete(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 		       struct m0_cm_sw *out_interval, m0_time_t px_epoch,
 		       uint32_t px_status)
 {
-	M0_ENTRY("pxy=%p id=%"PRIu64", to %s", p, p->px_id, p->px_endpoint);
+	M0_ENTRY("pxy=%p id=%" PRIu64 ", to %s", p, p->px_id, p->px_endpoint);
 	_sw_update(p, in_interval, out_interval, px_status);
 	m0_cm_frozen_ag_cleanup(p->px_cm, p);
 	return M0_RC(0);
@@ -306,7 +302,7 @@ static int px_stop_fail(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 			struct m0_cm_sw *out_interval, m0_time_t px_epoch,
 			uint32_t px_status)
 {
-	M0_ENTRY("pxy=%p id=%"PRIu64", to %s state=%u",
+	M0_ENTRY("pxy=%p id=%" PRIu64 ", to %s state=%u",
 		 p, p->px_id, p->px_endpoint, px_status);
 	_sw_update(p, in_interval, out_interval, px_status);
 	m0_cm_frozen_ag_cleanup(p->px_cm, p);
@@ -412,7 +408,7 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 				 &cm->cm_sw_last_updated_hi);
 	m0_cm_ag_out_interval(cm, &out_interval);
 	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %"PRIu64
-			 " pending updates: %u posted: %"PRIu64" state=%u"
+			 " pending updates: %u posted: %" PRIu64 " state=%u"
 			 " px_update_rc=%d px_send_final_update=%d",
 			 proxy->px_endpoint,
 			 cm->cm_aggr_grps_in_nr,
@@ -615,7 +611,7 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 M0_INTERNAL bool m0_cm_proxy_is_done(const struct m0_cm_proxy *pxy)
 {
 	M0_LOG(M0_DEBUG, "proxy %p (to %s) state: is_done %d "
-			 "px_nr_updates_posted %"PRIu64" onwire_ast.sa_next %p",
+			 "px_nr_updates_posted %" PRIu64 " onwire_ast.sa_next %p",
 			 pxy, pxy->px_endpoint,
 			 pxy->px_is_done, pxy->px_nr_updates_posted,
 			 pxy->px_sw_onwire_ast.sa_next);

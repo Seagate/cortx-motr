@@ -19,20 +19,13 @@
 
 import sys
 import fileinput
-import re
-import json
 import copy
 
-from pyleri import Choice
 from pyleri import Optional
 from pyleri import Grammar
-from pyleri import Keyword
 from pyleri import Repeat
 from pyleri import Sequence
 from pyleri import Regex
-from pyleri import List
-from pyleri import Prio
-from pyleri import end_of_statement
 
 
 class Addb2Grammar(Grammar):

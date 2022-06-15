@@ -41,8 +41,6 @@
     - lustre-client
     - motr-build
     - motr-runtime
-    - halon-build
-    - halon-runtime
     - hare-build
     - hare-runtime
     - role: iscsi-target

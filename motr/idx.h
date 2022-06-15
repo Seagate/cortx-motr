@@ -89,7 +89,23 @@ enum m0_op_idx_flags {
 	 * For M0_IC_PUT/M0_IC_DEL operation, instructs it to
 	 * delay the reply until data is persisted.
 	 */
-        M0_OIF_SYNC_WAIT = 1 << 2
+        M0_OIF_SYNC_WAIT = 1 << 2,
+	/**
+	 * For M0_EO_CREATE/M0_EO_DELETE operations, instructs to skip
+	 * update of meta indices during index operations.
+	 */
+        M0_OIF_SKIP_LAYOUT = 1 << 3,
+	/**
+	 * For M0_EO_CREATE/M0_EO_DELETE operations, instructs to create
+	 * btree on write during PUT operation.
+	 */
+        M0_OIF_CROW = 1 << 4,
+	/**
+	 * No DTM for this operation. This flag is set by the motr user (e.g.,
+	 * s3 server), passed through layers of motr client stack and is sent to
+	 * the server.
+	 */
+	M0_OIF_NO_DTM = 1 << 5
 };
 
 /**
