@@ -304,7 +304,7 @@ AC_SUBST([ENABLE_COVERAGE], [$enable_coverage])
 AC_ARG_ENABLE([finject],
         AS_HELP_STRING([--disable-finject],[disable fault injection support]),
         [],
-        [enable_finject=$enable_dev_mode]
+        [enable_finject=$enable_release_mode]
 )
 AS_IF([test x$enable_finject = xyes],
       AC_DEFINE([ENABLE_FAULT_INJECTION]))
