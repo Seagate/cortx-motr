@@ -1959,7 +1959,7 @@ static int libfab_check_for_comp(struct fid_cq *cq, uint32_t *ctx,
 	} else if (ret != -FI_EAGAIN) {
 		memset(&err_entry, 0, sizeof(err_entry));
 		fi_cq_readerr(cq, &err_entry, 0);
-		M0_LOG(M0_DEBUG, "Error = %d %s %s\n", ret,
+		M0_LOG(M0_ERROR, "Error = %d %s %s\n", ret,
 		       fi_strerror(err_entry.err),
 		       fi_cq_strerror(cq, err_entry.prov_errno,
 				      err_entry.err_data, NULL, 0));

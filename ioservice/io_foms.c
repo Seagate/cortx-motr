@@ -1643,6 +1643,7 @@ static int zero_copy_finish(struct m0_fom *fom)
 	if (rbulk->rb_rc != 0){
 		m0_mutex_unlock(&rbulk->rb_mutex);
 
+		M0_LOG(M0_ERROR, "bulk load failure rc:%d", rbulk->rb_rc);
 		if (!M0_FI_ENABLED("keep-net-buffers")) {
 			m0_rpc_bulk_fini(rbulk);
 			nbuf_release_done(fom, 0);
@@ -2373,7 +2374,6 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 		struct m0_conf_obj  *obj    = NULL;
 		struct m0_confc     *confc  = m0_reqh2confc(m0_fom2reqh(fom));
 
-		M0_LOG(M0_ALWAYS, "fom:%p", fom);
 		fi_rc = m0_confc_service_find(m0_reqh2confc(m0_fom_reqh(fom)), M0_CST_FIS,
 				m0_rpc_conn_addr(fom->fo_fop->f_item.ri_session->s_conn),
 				&svc_obj);
@@ -2405,17 +2405,19 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 		m0_fom_mod_rep_fill(&rwrep->rwr_mod_rep, fom);
 
 		if (fis_session != NULL) {
-				m0_conf_cache_lock(&confc->cc_cache);
-				obj = m0_conf_cache_lookup(&confc->cc_cache, svc_fid);
-				m0_conf_cache_unlock(&confc->cc_cache);
-				M0_ASSERT(obj != NULL);
-					M0_LOG(M0_ALWAYS, "state %s for " FID_F,
-							m0_ha_state2str(obj->co_ha_state),
-							FID_P(svc_fid));
-			if (false && m0_rpc_link_is_connected(&fis_ctx->sc_rlink)  && fis_ctx->sc_rlink.rlk_sess.s_cancelled) {
+			M0_LOG(M0_ALWAYS, "fom:%p state:%d", fom, m0_fom_phase(fom));
+			m0_conf_cache_lock(&confc->cc_cache);
+			obj = m0_conf_cache_lookup(&confc->cc_cache, svc_fid);
+			m0_conf_cache_unlock(&confc->cc_cache);
+			M0_ASSERT(obj != NULL);
+			M0_LOG(M0_ALWAYS, "state %s for " FID_F,
+				m0_ha_state2str(obj->co_ha_state),
+				FID_P(svc_fid));
+			if (false && m0_rpc_link_is_connected(&fis_ctx->sc_rlink) &&
+				     fis_ctx->sc_rlink.rlk_sess.s_cancelled) {
 				M0_LOG(M0_ALWAYS, "fi session is cancelled:%p",&fis_ctx->sc_rlink.rlk_sess);
 				if (obj->co_ha_state != M0_NC_ONLINE) {
-					M0_LOG(M0_DEBUG, "Force state transition %s -> M0_NC_ONLINE for " FID_F,
+					M0_LOG(M0_ALWAYS, "Force state transition %s -> M0_NC_ONLINE for " FID_F,
 							m0_ha_state2str(obj->co_ha_state),
 							FID_P(svc_fid));
 
@@ -2431,7 +2433,8 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 
 				fi_rc = m0_fi_command_post_sync(fis_session, func, tag,
 					M0_FI_DISP_ENABLE_ONCE, 0, 0);
-				M0_LOG(M0_ALWAYS, "fi rc:%d",fi_rc);
+				if (fi_rc != 0)
+					M0_LOG(M0_ALWAYS, "fi rc:%d",fi_rc);
 			} else
 				M0_LOG(M0_ALWAYS, "fi is not connected:%p",&fis_ctx->sc_rlink.rlk_sess);
 		} else M0_LOG(M0_ERROR, "FIS service is not configured or connected");
