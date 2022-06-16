@@ -23,6 +23,7 @@
 #include "lib/trace.h"
 #include "addb2/identifier.h"        /* M0_AVI_FOM_TO_TX */
 #include "dtm0/fop.h"                /* dtm0_req_fop */
+#include "dtm0/fop_xc.h"             /* dtm0_req_fop_xc */
 #include "dtm0/service.h"            /* m0_dtm0_service */
 #include "dtm0/svc_internal.h"       /* dtm0_process */
 #include "lib/coroutine.h"           /* m0_co API */
@@ -96,39 +97,26 @@ M0_INTERNAL void m0_dtm0_rpc_link_mod_fini(void)
 {
 }
 
-/* Create a deep copy of the given request. */
+/** Create a deep copy of the given request. */
 static struct dtm0_req_fop *dtm0_req_fop_dup(const struct dtm0_req_fop *src)
 {
-	int                  rc;
-	struct dtm0_req_fop *dst;
+	int                 rc = 0;
+	struct m0_xcode_obj src_obj;
+	struct m0_xcode_obj dest_obj;
+	struct m0_xcode_ctx sctx;
+	struct m0_xcode_ctx dctx;
+	struct dtm0_req_fop *dest = NULL;
 
-	M0_ALLOC_PTR(dst);
-	if (dst == NULL)
-		return NULL;
-
-	/* Replace dynamic parts if there any. */
-	if (!m0_dtm0_tx_desc_is_none(&src->dtr_txr)) {
-		rc = m0_dtm0_tx_desc_copy(&src->dtr_txr, &dst->dtr_txr);
-		if (rc != 0) {
-			M0_ASSERT(rc == -ENOMEM);
-			m0_free(dst);
-			return NULL;
-		}
-	}
-
-	rc = m0_buf_copy(&dst->dtr_payload, &src->dtr_payload);
-	if (rc != 0) {
-		M0_ASSERT(rc == -ENOMEM);
-		m0_dtm0_tx_desc_fini(&dst->dtr_txr);
-		m0_free(dst);
-		return NULL;
-	}
-
-	dst->dtr_msg = src->dtr_msg;
-	dst->dtr_flags = src->dtr_flags;
-	dst->dtr_initiator = src->dtr_initiator;
-
-	return dst;
+	/* There is no const version of xcode objects, we'll have to cast it. */
+	src_obj = M0_XCODE_OBJ(dtm0_req_fop_xc, (struct dtm0_req_fop *)src);
+	dest_obj = M0_XCODE_OBJ(dtm0_req_fop_xc, NULL);
+	m0_xcode_ctx_init(&sctx, &src_obj);
+	m0_xcode_ctx_init(&dctx, &dest_obj);
+	dctx.xcx_alloc = m0_xcode_alloc;
+	rc = m0_xcode_dup(&dctx, &sctx);
+	if (rc == 0)
+		dest = dctx.xcx_it.xcu_stack[0].s_obj.xo_ptr;
+	return dest;
 }
 
 static void dtm0_req_fop_fini(struct dtm0_req_fop *req)

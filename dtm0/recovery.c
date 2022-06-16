@@ -996,6 +996,25 @@ m0_dtm0_recovery_machine_fini(struct m0_dtm0_recovery_machine *m)
 		m0_sm_state_set(&m->rm_sm, M0_DRMS_STOPPED);
 	m0_sm_fini(&m->rm_sm);
 	recovery_machine_unlock(m);
+	/*
+	 * Question: This uses the sm group lock and immediately finalises it,
+	 * which is, in general, wrong (if there can be other threads waiting on
+	 * the lock, then finalisation is incorrect, if no other threads are
+	 * possible at this point, the lock-unlock are not needed). Please add a
+	 * comment explaining why this is correct.
+	 *
+	 * Answer: There are indeed no other threads waiting on the lock.
+	 * Lock-unlock is needed because m0_sm_fini requires it (otherwise
+	 * asserts fail).  The reason there are no other threads below:
+	 *
+	 * See ASSERT above: this function only runs when sm_state is
+	 * M0_DRMS_INIT or M0_DRMS_STOPPED.  When M0_DRMS_INIT, there are no
+	 * other threads _yet_.  When other threads are created -- state becomes
+	 * M0_DRMS_STARTED (threads are recovery FOMs, see
+	 * m0_dtm0_recovery_machine_start()).  When M0_DRMS_STOPPED, there are
+	 * no other threads _already_.  We go to M0_DRMS_STOPPED when the last
+	 * FOM is finalized -- see recovery_fom_self_fini().
+	 */
 	m0_sm_group_fini(&m->rm_sm_group);
 	M0_ASSERT(rfom_tlist_is_empty(&m->rm_rfoms));
 	rfom_tlist_fini(&m->rm_rfoms);
@@ -1013,13 +1032,12 @@ m0_dtm0_recovery_machine_start(struct m0_dtm0_recovery_machine *m)
 	if (rc < 0)
 		return M0_RC(rc);
 
-	M0_ASSERT(equi(rfom_tlist_is_empty(&m->rm_rfoms),
-		       m->rm_local_rfom == NULL));
+	M0_ASSERT(rfom_tlist_is_empty(&m->rm_rfoms) ==
+		  (m->rm_local_rfom == NULL));
 
 	m0_tl_for(rfom, &m->rm_rfoms, rf) {
 		m0_fom_queue(&rf->rf_base);
-	}
-	m0_tlist_endfor;
+	} m0_tlist_endfor;
 
 	if (m->rm_local_rfom != NULL) {
 		recovery_machine_lock(m);
@@ -1942,10 +1960,12 @@ m0_ut_remach_populate(struct m0_dtm0_recovery_machine *m,
 		      uint64_t                         objs_nr)
 {
 	uint64_t i;
+	int rc;
 
-	for (i = 0; i < objs_nr; ++i)
-		M0_ASSERT(recovery_fom_add(m, procs + i,
-					   svcs + i, is_volatile[i]) == 0);
+	for (i = 0; i < objs_nr; ++i) {
+		rc = recovery_fom_add(m, procs + i, svcs + i, is_volatile[i]);
+		M0_ASSERT(rc == 0);
+	}
 }
 
 M0_INTERNAL void
@@ -2141,7 +2161,7 @@ static void default_redo_post(struct m0_dtm0_recovery_machine *m,
 	M0_ASSERT(rc == 0);
 }
 
-const struct m0_dtm0_recovery_machine_ops
+M0_INTERNAL const struct m0_dtm0_recovery_machine_ops
 		m0_dtm0_recovery_machine_default_ops = {
 	.log_iter_init = default_log_iter_init,
 	.log_iter_fini = default_log_iter_fini,

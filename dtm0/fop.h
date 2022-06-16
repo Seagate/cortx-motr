@@ -61,7 +61,7 @@ struct dtm0_req_fop {
 	struct m0_dtm0_tx_desc dtr_txr;
 	struct m0_buf          dtr_payload;
 	uint64_t               dtr_flags;
-	/*
+	/**
 	 * The participant (DTM0 service) that sent this message.
 	 * The initiator is set for DTM_REDO messages.
 	 */

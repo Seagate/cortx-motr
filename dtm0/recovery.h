@@ -131,6 +131,20 @@ m0_dtm0_recovery_machine_stop(struct m0_dtm0_recovery_machine *m);
 M0_INTERNAL void
 m0_dtm0_recovery_machine_fini(struct m0_dtm0_recovery_machine *m);
 
+/**
+ * Post a REDO message into recovery machine.
+ *
+ * Recovery machine needs to know what REDO messages were received by the local
+ * Motr process. It helps to properly advance the state of the local process.
+ * For example, the transition RECOVERING -> ONLINE may happen only when it
+ * receives enough REDO messages with EOL flag set (or simply EOL messages).
+ *
+ * Note, at this moment recovery machine sends out REDO messages but it does not
+ * apply incoming REDO messages. It must be done elsewhere. However, there is an
+ * ongoing effort to change this by getting rid of self-sufficient REDO FOMs.
+ * After these changes are done, recovery machine as a module will be fully
+ * responsible for sending and executing REDO messages.
+ */
 M0_INTERNAL void
 m0_dtm0_recovery_machine_redo_post(struct m0_dtm0_recovery_machine *m,
 				   struct dtm0_req_fop             *redo,
