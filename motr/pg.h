@@ -858,8 +858,8 @@ struct fop_cksum_idx_data {
 	/* Index for tracking which Parity Group and which Index (0..k-1)
 	 * or (0..n-1) will be assigned to target
 	 */
-	uint32_t                       ci_pg_idx;
-	uint32_t                       ci_unit_idx;
+	uint64_t                       ci_pg_idx;
+	uint64_t                       ci_unit_idx;
 };
 
 /**

@@ -128,10 +128,10 @@ static void di_debug_log_print(struct target_ioreq *tioreq, struct ioreq_fop *ir
 			tioreq->ti_goff_ivec.iv_vec.v_count
 			                     [tioreq->ti_goff_ivec.iv_vec.v_nr-1]);
 	for (cdi = 0; cdi < irfop->irf_cksum_data.cd_num_units; cdi++)
-		M0_LOG(M0_WARN,"- %d. FOP DU details [%s] [PG Idx:%d][Unit Idx:%d]",
+		M0_LOG(M0_WARN,"- %d. FOP DU details [%s] [PG Idx:%" PRIu64 "][Unit Idx:%" PRIu64 "]",
 		                                                      cdi + 1,
 				irfop->irf_pattr == PA_DATA ? "D" : "P",
-				(uint32_t)(irfop->irf_cksum_data.cd_idx[cdi].ci_pg_idx +
+				(uint64_t)(irfop->irf_cksum_data.cd_idx[cdi].ci_pg_idx +
 				                       ioo->ioo_iomaps[0]->pi_grpid),
 				irfop->irf_cksum_data.cd_idx[cdi].ci_unit_idx);
 }
@@ -200,12 +200,12 @@ static int application_checksum_process(struct m0_op_io *ioo,
 
 			/* Log all info to locate unit */
 			M0_LOG(M0_ERROR,"IMP ERROR: Checksum validation failed for Obj: 0x%"PRIx64 
-					" 0x%"PRIx64 " PG0Off: 0x%"PRIx64 " Goff:0x%"PRIx64 " [PG Idx:%d][Unit Idx:%d]",
+					" 0x%"PRIx64 " PG0Off: 0x%"PRIx64 " Goff:0x%"PRIx64 " [PG Idx:%" PRIu64 "][Unit Idx:%" PRIu64 "]",
 					ioo->ioo_obj->ob_entity.en_id.u_hi,
 					ioo->ioo_obj->ob_entity.en_id.u_lo,
 					ioo->ioo_iomaps[0]->pi_grpid * data_size(pdlayout_get(ioo)),
 					ti->ti_goff_ivec.iv_index[0],
-					(uint32_t)(cs_idx->ci_pg_idx +
+					(uint64_t)(cs_idx->ci_pg_idx +
 					           ioo->ioo_iomaps[0]->pi_grpid),
 					cs_idx->ci_unit_idx);
 			print_pi(rw_rep_cs_data->b_addr, rw_rep_cs_data->b_nob);

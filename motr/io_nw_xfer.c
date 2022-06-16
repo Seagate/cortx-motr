@@ -860,10 +860,10 @@ int target_calculate_checksum(struct m0_op_io *ioo,
 		}
 	}
 
-	M0_LOG(M0_DEBUG,"COMPUTE CKSUM Typ:%d Sz:%d UTyp:[%s] [PG Idx:%d][Unit Idx:%d] TotalRowNum:%d ActualRowNum:%d",
+	M0_LOG(M0_DEBUG,"COMPUTE CKSUM Typ:%d Sz:%d UTyp:[%s] [PG Idx:%" PRIu64 "][Unit Idx:%"PRIu64"] TotalRowNum:%d ActualRowNum:%d",
 			(int)pi_type, m0_cksum_get_size(pi_type),
 			(filter == PA_PARITY) ? "P":"D",
-			(uint32_t)(cs_idx->ci_pg_idx + ioo->ioo_iomaps[0]->pi_grpid),
+			(cs_idx->ci_pg_idx + ioo->ioo_iomaps[0]->pi_grpid),
 			cs_idx->ci_unit_idx,(int)rows_nr(play, obj),b_idx);
 	bvec.ov_vec.v_nr = b_idx;
 
@@ -963,7 +963,7 @@ static void target_ioreq_calculate_index(struct m0_op_io *ioo,
 		fop_cs_data->cd_num_units++;
 		M0_ASSERT( fop_cs_data->cd_num_units <= fop_cs_data->cd_max_units);
 
-		M0_LOG(M0_DEBUG,"FOP Unit Added Num:%d GOF:%"PRIi64 " [PG Idx:%d][Unit Idx:%d] Seg:%d",
+		M0_LOG(M0_DEBUG,"FOP Unit Added Num:%d GOF:%"PRIi64 " [PG Idx:%" PRIu64 "][Unit Idx:%" PRIu64 "] Seg:%d",
 				fop_cs_data->cd_num_units, goff,
 				cs_idx->ci_pg_idx + pgdata->pi_grpid,
 				cs_idx->ci_unit_idx, seg);
