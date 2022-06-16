@@ -22,4 +22,4 @@ Authentication, based on capability[0], will be used in Motr. In this document, 
 
 ## Design Highlights
 -----------------------
-There is a capability master on a node. Capabilities for objects (or component objects) are issued by this master, and can be authenticated later.
+There is a capability module on a node. Capabilities for objects (or component objects) are issued by this module, and can be authenticated later.
