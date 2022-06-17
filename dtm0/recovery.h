@@ -54,6 +54,11 @@ enum m0_dtm0_recovery_machine_states {
 struct m0_dtm0_recovery_machine_ops {
 	/**
 	 * Post a REDO message to the target DTM0 service.
+	 *
+	 * The expectation is that `redo` structure is either processed
+	 * immediately, before function completes, or it is cloned and stored
+	 * for future use.  Caller will destroy all content of `redo` structure
+	 * right after the call to redo_post().
 	 */
 	void (*redo_post)(struct m0_dtm0_recovery_machine *m,
 			  struct m0_fom                   *fom,

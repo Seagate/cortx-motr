@@ -738,55 +738,6 @@ Max: [* defect *] No mention of tests being done. Please clearly state when and
 <<<---
  */
 
-/* XXX
-Implementation plan
--------------------
-
-Areas/responsibilities:
-- fom-groundwork (Ivan).
-- be-op-set-or (Max).
-- log-watcher (Ivan).
-- test-stubs (Ivan).
-- drlink-completion (vacancy).
-  A be op is needed to be DONE when drlink gets reply.
-- REDO2CAS-replay (Sergey).
-- EOL-notice (Ivan).
-- RECOVER-ED-ING-groundwork (Anatoliy).
-- all2all-integration-v3 (vacancy).
-  It will be needed only after P9 is ready for landing.
-- log-iter (vacancy).
-  Extend DTM0 log API to support iteration.
-- dtx-integration-v3 (Ivan).
-- recovery-stop-ha-polling-v2 (vacancy).
-  V2 should support a stop condition where it watcher for
-  HA states of the other participants.
-- versioned-cas (Ivan).
-
-Atomic patches for upstream:
-- P1 DTM0 log iterator.
-- P2 BE op set or.
-- P3 New HA states/events -- RECOVERED/RECOVERING.
-- P4 DTM0 log watcher.
-- P5 DTM0 log iterator.
-- P6 A dummy REDO FOM.
-- P7 REDO-fom-to-CAS-fom re-play.
-- P8 Recovery machine V1.
-- P9 Recovery machine V2.
-- P10 Recovery machine V3.
-- P11 Versioned CAS.
-
-Dependencies between patches:
-- P7 depends on P6.
-- P8 depends on P3.
-- P9 depends on P8, P1, P2, P5, P7
-- P10 depends on P9 and P11.
-
-Deliverables:
-- Recovery machine V1: unit-tested recovery machine with a small set of cases.
-- Recovery machine V2: integration-tested machine (m0crate, Hare).
-- Recovery machine V3: extended use-cases (failures during recovery and so on).
-*/
-
 
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DTM0
@@ -1067,8 +1018,7 @@ m0_dtm0_recovery_machine_stop(struct m0_dtm0_recovery_machine *m)
 		 */
 		m0_be_queue_end(&rf->rf_heq);
 		m0_be_queue_unlock(&rf->rf_heq);
-	}
-	m0_tlist_endfor;
+	} m0_tlist_endfor;
 
 	/*
 	 * This sm wait will release the sm lock before waiting if needed.
@@ -1180,14 +1130,11 @@ static struct m0_sm_state_descr recovery_fom_states[] = {
 	},
 
 	/* intermediate states */
-#define _ST(name, allowed)            \
-	[name] = {                    \
-		.sd_name    = #name,  \
-		.sd_allowed = allowed \
-	}
-	_ST(RFS_WAITING,           M0_BITS(RFS_DONE,
-					   RFS_FAILED, RFS_WAITING)),
-#undef _ST
+	[RFS_WAITING] = {
+		.sd_name    = "RFS_WAITING",
+		.sd_allowed = M0_BITS(RFS_DONE,
+				      RFS_FAILED, RFS_WAITING),
+	},
 };
 
 const static struct m0_sm_conf recovery_fom_conf = {
@@ -1214,20 +1161,20 @@ M0_INTERNAL int m0_drm_domain_init(void)
 {
 	int         rc = 0;
 
-	if (!m0_sm_conf_is_initialized(&m0_drm_sm_conf)) {
-		m0_fom_type_init(&recovery_fom_type,
-				 M0_DTM0_RECOVERY_FOM_OPCODE,
-				 &recovery_fom_type_ops,
-				 &dtm0_service_type,
-				 &recovery_fom_conf);
+	M0_PRE(!m0_sm_conf_is_initialized(&m0_drm_sm_conf));
 
-		m0_sm_conf_init(&m0_drm_sm_conf);
-		rc = m0_sm_addb2_init(&m0_drm_sm_conf,
-				      M0_AVI_DRM_SM_STATE,
-				      M0_AVI_DRM_SM_COUNTER);
+	m0_fom_type_init(&recovery_fom_type,
+			 M0_DTM0_RECOVERY_FOM_OPCODE,
+			 &recovery_fom_type_ops,
+			 &dtm0_service_type,
+			 &recovery_fom_conf);
 
-		M0_POST(m0_sm_conf_is_initialized(&m0_drm_sm_conf));
-	}
+	m0_sm_conf_init(&m0_drm_sm_conf);
+	rc = m0_sm_addb2_init(&m0_drm_sm_conf,
+			      M0_AVI_DRM_SM_STATE,
+			      M0_AVI_DRM_SM_COUNTER);
+
+	M0_POST(m0_sm_conf_is_initialized(&m0_drm_sm_conf));
 
 	return M0_RC(rc);
 }
@@ -1279,6 +1226,22 @@ static void heq_post(struct recovery_fom *rf, enum m0_ha_obj_state state)
 	       FID_P(&rf->rf_tgt_svc),
 	       m0_ha_state2str(state));
 
+	/*
+	 * Recovery machine uses two kinds of queues: HEQ and EOLQ.  HEQ is HA
+	 * Events Queue, every recovery FOM has its own instance; it is used to
+	 * track HA events of a specific participant (tied to this given rfom).
+	 * EOLQ is EOL Queue, queue to track end-of-log events during recovery.
+	 * When we receive EOL from all participants -- we know recovery is
+	 * completed.  There is a nuance though.  If some remote participant
+	 * goes TRANSIENT/FAILED during recovery, we do not need to wait for EOL
+	 * from that side.  The easiest way to deliver this information to local
+	 * recovery FOM is to add an entry in EOLQ (since local RFOM already
+	 * 'listens' on that queue).  So that's what happens below.  heq_post()
+	 * is called when there is an HA event on some participant.  We add the
+	 * HA event itself in HEQ above, and then add it to EOLQ below.  Since
+	 * local recovery FOM is not expecting EOL from itself, we only do
+	 * eolq_post() if HA event does not come from local participant.
+	 */
 	if (!rf->rf_is_local)
 		eolq_post(rf->rf_m,
 			  &(struct eolq_item) {
@@ -1313,9 +1276,17 @@ static int recovery_fom_init(struct recovery_fom             *rf,
 
 	rc = m0_be_queue_init(&rf->rf_heq, &(struct m0_be_queue_cfg){
 		.bqc_q_size_max       = HEQ_MAX_LEN,
-		/* Conf-obj (1) and stop-and-wait-when-finalising (2) */
-		.bqc_producers_nr_max = 2, /* XXX */
-		.bqc_consumers_nr_max = 1, /* XXX */
+		/*
+		 * Two producers:
+		 * 1. Conf-obj HA state updates (heq_post()).
+		 * 2. Stop-and-wait-when-finalising
+		 *    (m0_dtm0_recovery_machine_stop()).
+		 */
+		.bqc_producers_nr_max = 2,
+		/*
+		 * Single consumer - recovery machine FOM (recovery_fom_coro()).
+		 */
+		.bqc_consumers_nr_max = 1,
 		.bqc_item_length      = sizeof(uint64_t),
 	});
 	if (rc != 0)
@@ -1324,8 +1295,12 @@ static int recovery_fom_init(struct recovery_fom             *rf,
 	if (is_local) {
 		rc = m0_be_queue_init(&rf->rf_eolq, &(struct m0_be_queue_cfg){
 				.bqc_q_size_max       = EOLQ_MAX_LEN,
-				.bqc_producers_nr_max = 2,   /* XXX */
-				.bqc_consumers_nr_max = 1,   /* XXX */
+				/*
+				 * Consumers and producers are the same as for
+				 * rf_heq above.
+				 */
+				.bqc_producers_nr_max = 2,
+				.bqc_consumers_nr_max = 1,
 				.bqc_item_length      = sizeof(struct eolq_item),
 		});
 		if (rc != 0) {
@@ -1335,8 +1310,17 @@ static int recovery_fom_init(struct recovery_fom             *rf,
 		M0_ASSERT(!rf->rf_eolq.bq_the_end);
 		m->rm_local_rfom = rf;
 
-		/* XXX */
+		/*
+		 * This is local recovery FOM.  We don't need to wait for EOL
+		 * from ourselves.
+		 */
 		rf->rf_last_known_eol = true;
+		/*
+		 * Local recovery FOM is responsible for accepting REDO
+		 * messages.  We're starting up, we know for sure that we will
+		 * go through RECOVERING phase, so we are defaulting to
+		 * M0_NC_DTM_RECOVERING.
+		 */
 		rf->rf_last_known_ha_state = M0_NC_DTM_RECOVERING;
 	}
 
@@ -1662,15 +1646,22 @@ static void eolq_await(struct m0_fom *fom, struct eolq_item *out)
 	*out = F(got) ? F(item) : (struct eolq_item) { .ei_type = EIT_END };
 }
 
-static void restore(struct m0_fom *fom,
-		    enum m0_ha_obj_state *out, bool *eoq)
+/**
+ * Restore missing transactions on remote participant.
+ *
+ * Implements part of recovery process.  Healthy ONLINE participant will iterate
+ * through the local DTM log and send all needed REDOs to a remote peer.
+ */
+static void dtm0_restore(struct m0_fom        *fom,
+			 enum m0_ha_obj_state *out,
+			 bool                 *eoq)
 {
 	struct recovery_fom   *rf = M0_AMB(rf, fom, rf_base);
 	struct m0_dtm0_log_rec record;
+	struct dtm0_req_fop    redo;
 	int                    rc = 0;
 
 	M0_CO_REENTER(CO(fom),
-		      struct dtm0_req_fop redo;
 		      struct m0_fid       initiator;
 		      struct m0_be_op     reply_op;
 		      bool                next;
@@ -1691,7 +1682,7 @@ static void restore(struct m0_fom *fom,
 						    &record);
 		/* Any value except zero means that we should stop recovery. */
 		F(next) = rc == 0;
-		F(redo) = (struct dtm0_req_fop) {
+		redo = (struct dtm0_req_fop) {
 			.dtr_msg       = DTM_REDO,
 			.dtr_initiator = F(initiator),
 			.dtr_payload   = record.dlr_payload,
@@ -1699,12 +1690,19 @@ static void restore(struct m0_fom *fom,
 			.dtr_flags     = F(next) ? 0 : M0_BITS(M0_DMF_EOL),
 		};
 
+		/*
+		 * TODO: there is extra memcpy happening here -- first copy done
+		 * in recovery_machine_log_iter_next (it clones the record),
+		 * second copy is done in recovery_machine_redo_post() below.
+		 * If this proves to be too inefficient, we can eliminate extra
+		 * copies.
+		 */
 		recovery_machine_redo_post(rf->rf_m, &rf->rf_base,
 					   &rf->rf_tgt_proc, &rf->rf_tgt_svc,
-					   &F(redo), &F(reply_op));
+					   &redo, &F(reply_op));
 
 		M0_LOG(M0_DEBUG, "out-redo: (m=%p) " REDO_F,
-		       rf->rf_m, REDO_P(&F(redo)));
+		       rf->rf_m, REDO_P(&redo));
 		M0_CO_YIELD_RC(CO(fom), m0_be_op_tick_ret(&F(reply_op),
 							  fom, RFS_WAITING));
 		m0_be_op_reset(&F(reply_op));
@@ -1741,13 +1739,18 @@ static void remote_recovery_fom_coro(struct m0_fom *fom)
 
 		switch (F(state)) {
 		case M0_NC_DTM_RECOVERING:
-			F(action) = rf->rf_is_volatile ? heq_await : restore;
+			F(action) = rf->rf_is_volatile ? heq_await :
+							 dtm0_restore;
 			break;
 		case M0_NC_FAILED:
 			if (ALL2ALL)
 				M0_LOG(M0_WARN, "Eviction is not supported.");
 			else
 				M0_IMPOSSIBLE("Eviction is not supported.");
+			/*
+			 * Fall-through is intentional here.  Eviction code will
+			 * be added here in the future.
+			 */
 		default:
 			F(action) = heq_await;
 			break;
@@ -1891,13 +1894,23 @@ static void local_recovery_fom_coro(struct m0_fom *fom)
 		recovery_machine_unlock(rf->rf_m);
 	}
 
+	/*
+	 * At this point we do not expect any more EOL messages, so we 'end'
+	 * and flush the queue to ensure it.
+	 */
 	M0_BE_QUEUE__FINISH(&rf->rf_eolq, typeof(F(item)));
 
 	/*
-	 * Emit "RECOVERED". It shall cause HA to tell us to transit from
-	 * RECOVERING to ONLINE.
+	 * When F(recovered) is true, we know we received all needed EOL
+	 * messages and have recovered everything.  If it is false -- at this
+	 * point, this can only mean that recovery machine is shutting down, and
+	 * there is nothing we need to do further.
 	 */
 	if (F(recovered)) {
+		/*
+		 * Emit "RECOVERED". It shall cause HA to tell us to transit
+		 * from RECOVERING to ONLINE.
+		 */
 		recovery_machine_recovered(rf->rf_m,
 					   &rf->rf_tgt_proc, &rf->rf_tgt_svc);
 
@@ -1911,6 +1924,11 @@ static void local_recovery_fom_coro(struct m0_fom *fom)
 	}
 
 out:
+	/*
+	 * This is not a duplication to the similar call above -- FINISH is
+	 * indempotent call, and we want to ensure that it's called on all paths
+	 * leading out of this function.
+	 */
 	M0_BE_QUEUE__FINISH(&rf->rf_eolq, typeof(F(item)));
 	m0_fom_phase_set(fom, RFS_DONE);
 }
@@ -2136,7 +2154,6 @@ static void default_ha_event_post(struct m0_dtm0_recovery_machine *m,
 			       "have a reqh ctx.");
 		server_process_event(m0_cs_ctx_get(reqh), event);
 	} else {
-		/* XXX */
 		m0c = M0_AMB(m0c, reqh, m0c_reqh);
 		client_process_event(m0c, event);
 	}
