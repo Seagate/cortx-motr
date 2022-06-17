@@ -221,13 +221,17 @@ static void ha_dtm_msg_send(const struct m0_ha_msg *msg,
 	m0_ha_msg_nvec_send(&nvec, 0, false, M0_HA_NVEC_SET, hl);
 	M0_LEAVE();
 }
+struct m0_ha_sim_db {
+	struct m0_ha_link *ha_sim_link;
+	struct m0_fid      ha_sim_fid;
+};
 static void ha_dtm_msg_simulator(const struct m0_ha_msg *msg,
 			         struct m0_ha_link      *hl)
 {
-	enum { MAX_HA_LINK = 8 };
-	static struct m0_ha_link *hl_database[MAX_HA_LINK];
-	static int                current_ha_link = 0;
-	int                       i;
+	enum { MAX_HA_LINK = 10 };
+	static struct m0_ha_sim_db  hl_db[MAX_HA_LINK];
+	static int                  cur_hl = 0;
+	int                         i;
 
 	if (m0_confc_is_ha_proc(hl)) {
 		const struct m0_ha_msg_data *data = &msg->hm_data;
@@ -237,20 +241,34 @@ static void ha_dtm_msg_simulator(const struct m0_ha_msg *msg,
 
 			uint64_t event = data->u.hed_event_process.chp_event;
 			uint64_t state = M0_NC_NR;
-
 			M0_LOG(M0_ALWAYS,
-			       "process fid="FID_F" event=%s",
+			       "process fid="FID_F" event=%s, hl = %p ",
 			       FID_P(&msg->hm_fid),
-			       m0_ha_processevent2str(event));
+			       m0_ha_processevent2str(event), hl);
 
 			if (event == M0_CONF_HA_PROCESS_STARTING) {
+				bool hl_added = false;
+
+				for (i = 0; i < cur_hl; i++) {
+					if (m0_fid_eq(&msg->hm_fid,
+						      (const struct m0_fid *)
+						      &hl_db[i].ha_sim_fid)) {
+						if (hl != hl_db[i].ha_sim_link)
+							hl_db[i].ha_sim_link = hl;
+						hl_added = true;
+						break;
+					}
+				}
+				if (hl_added == false) {
+					hl_db[cur_hl].ha_sim_link = hl;
+					hl_db[cur_hl++].ha_sim_fid = msg->hm_fid;
+				}
 				state = M0_NC_TRANSIENT;
-				M0_ASSERT(current_ha_link < MAX_HA_LINK);
-				hl_database[current_ha_link++] = hl;
+				M0_ASSERT(cur_hl <= MAX_HA_LINK);
 			}
-			else if(event == M0_CONF_HA_PROCESS_STARTED)
+			else if (event == M0_CONF_HA_PROCESS_STARTED)
 				state = M0_NC_DTM_RECOVERING;
-			else if(event == M0_CONF_HA_PROCESS_DTM_RECOVERED)
+			else if (event == M0_CONF_HA_PROCESS_DTM_RECOVERED)
 				state = M0_NC_ONLINE;
 
 			if (state != M0_NC_NR) {
@@ -283,9 +301,9 @@ static void ha_dtm_msg_simulator(const struct m0_ha_msg *msg,
 					}
 					m0_conf_cache_unlock(cache);
 				}
-				for(i = 0; i < current_ha_link; i++)
+				for (i = 0; i < cur_hl; i++)
 					ha_dtm_msg_send(msg,
-							hl_database[i],
+							hl_db[i].ha_sim_link,
 							state);
 
 			}

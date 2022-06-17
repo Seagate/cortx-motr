@@ -49,17 +49,27 @@
 
 M0_INTERNAL bool m0_confc_is_ha_proc(struct m0_ha_link *hl)
 {
-	struct m0_motr *motr;
+	struct m0_motr *motr = NULL;
 	struct cs_endpoint_and_xprt *ep;
 	bool ha_proc = false;
-	motr = hl->hln_cfg.hlc_reqh ? m0_cs_ctx_get(hl->hln_cfg.hlc_reqh): NULL;
-	if(motr && (motr->cc_mkfs == false)) {
+	struct m0_reqh_service *c_svc;
+
+	if (hl->hln_cfg.hlc_reqh){
+		m0_tl_for(m0_reqh_svc, &hl->hln_cfg.hlc_reqh->rh_services,
+				  c_svc) {
+		if (strcmp(c_svc->rs_type->rst_name, "be-tx-service") == 0 )
+			motr = m0_cs_ctx_get(hl->hln_cfg.hlc_reqh);
+		}m0_tl_endfor;
+	}
+	if ((motr != NULL) && (motr->cc_mkfs == false)) {
 		m0_tl_for(cs_eps, &motr->cc_reqh_ctx.rc_eps, ep) {
 			M0_LOG(M0_ALWAYS,"nw endpoint = %s , ha endpoint = %s",
 	                    ep->ex_endpoint, motr->cc_motr_ha.mh_cfg.mhc_addr);
-			if(ep->ex_endpoint && motr->cc_motr_ha.mh_cfg.mhc_addr)
-				if(strcmp(ep->ex_endpoint, motr->cc_motr_ha.mh_cfg.mhc_addr) == 0)
-				   ha_proc = true;
+			if ((ep->ex_endpoint &&
+			     motr->cc_motr_ha.mh_cfg.mhc_addr) &&
+			    (strcmp(ep->ex_endpoint,
+				    motr->cc_motr_ha.mh_cfg.mhc_addr) == 0))
+				ha_proc = true;
 		} m0_tl_endfor;
 		if(ha_proc == true)
 			M0_LOG(M0_ALWAYS,"in ha proc");

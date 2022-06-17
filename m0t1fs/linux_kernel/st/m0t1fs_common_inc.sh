@@ -347,7 +347,7 @@ function build_conf()
 	local site_count=1
 	local PROC_FID_CONT='^r|1'
 	local MD_REDUNDANCY=1
-	local m0t1fs_ep="$lnet_nid:12345:33:1"
+	local m0t1fs_ep="$lnet_nid:12345:34:101"
 	local nr_ios=${#IOSEP[*]}
 
 	if [ $SINGLE_NODE -eq 1 ] ; then

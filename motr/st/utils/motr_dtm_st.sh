@@ -28,6 +28,9 @@ SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.motr-dtm-st}
 emsg="---"
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
+num=10
+large_size=30
+small_size=20
 
 . $M0_SRC_DIR/utils/functions # sandbox_init, report_and_exit
 # following scripts are mandatory for start the motr service (motr_start/stop)
@@ -36,6 +39,20 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
 . $M0_SRC_DIR/motr/st/utils/motr_local_conf.sh
 
+out_file="${SANDBOX_DIR}/dtm_st.log"
+rc_file="${SANDBOX_DIR}/dtm_st.cod.log"
+erc_file="${SANDBOX_DIR}/dtm_st.ecod.log"
+res_out_file="${SANDBOX_DIR}/dtm_st.results.log"
+
+keys_file="${SANDBOX_DIR}/keys.txt"
+keys_bulk_file="${SANDBOX_DIR}/keys_bulk.txt"
+vals_file="${SANDBOX_DIR}/vals.txt"
+vals_bulk_file="${SANDBOX_DIR}/vals_bulk.txt"
+fids_file="${SANDBOX_DIR}/fids.txt"
+
+genf="genf ${num} ${fids_file}"
+genv_bulk="genv ${num} ${large_size} ${vals_bulk_file}"
+genv="genv ${num} ${small_size} ${vals_file}"
 verbose=0
 
 #NODE_UUID=`uuidgen`
@@ -113,10 +130,131 @@ motr_dtm_st_post()
 	report_and_exit $0 $rc
 }
 
+function load_item()
+{
+	local resultvar=$3
+	local fil=$1
+	local n=$2
+	local t=${n}p
+
+	local  myresult=$(sed -n "${t}" < ${fil})
+	if [[ "$resultvar" ]]; then
+		eval $resultvar="'$myresult'"
+	else
+		echo "$myresult"
+	fi
+}
+
+function rm_logs()
+{
+	rm -rf ${out_file} ${rc_file} ${erc_file} ${res_out_file} >/dev/null
+}
+
+st_init()
+{
+	# generate source files for KEYS, VALS, FIDS
+	${MOTRTOOL} ${genf} ${genv} ${genv_bulk} >/dev/null
+	[ $? != 0 ] && return 1
+	cp ${vals_file} ${keys_file}
+	cp ${vals_bulk_file} ${keys_bulk_file}
+	fid=$(load_item $fids_file 1)
+	key=$(load_item $keys_file 1)
+	val=$(load_item $vals_file 1)
+	t=${key#* }
+	key=$t
+	t=${val#* }
+	val=$t
+	dropf="drop @${fids_file}"
+	drop="drop \"${fid}\""
+	createf="create @${fids_file}"
+	create="create \"${fid}\""
+
+	put_fids_keys="put @${fids_file} @${keys_file} @${vals_file}"
+	put_fids_key="put @${fids_file} ${key} ${val}"
+	put_fid_keys="put \"${fid}\" @${keys_file} @${vals_file}"
+	put_fid_key="put \"${fid}\" ${key} ${val}"
+	put_fid_keys_bulk="put \"${fid}\" @${keys_bulk_file} @${vals_bulk_file}"
+
+	del_fids_keys="del @${fids_file} @${keys_file}"
+	del_fids_key="del @${fids_file} ${key}"
+	del_fid_keys="del \"${fid}\" @${keys_file}"
+	del_fid_key="del \"${fid}\" ${key}"
+
+	get_fid_keys="get \"${fid}\" @${keys_file}"
+	get_fid_key="get \"${fid}\" ${key}"
+
+	next="next \"${fid}\" ${key} 10"
+
+	lookup="lookup \"${fid}\""
+	lookups="lookup @${fids_file}"
+
+	list="list \"${fid}\" ${num}"
+	list3="list \"${fid}\" 3"
+}
+
+gets1()
+{
+	local rc=0
+	echo "Test:Get KEY"
+	emsg="FAILED to get key:${key} from fid:${fid}"
+	${MOTRTOOL} ${dropf} >/dev/null
+	rc=$?
+	[ $rc != 0 ] && return $rc
+	${MOTRTOOL} ${create} >/dev/null
+	rc=$?
+	[ $rc != 0 ] && return $rc
+	${MOTRTOOL} ${put_fid_key} >/dev/null
+	rc=$?
+	[ $rc != 0 ] && return $rc
+	${MOTRTOOL} ${get_fid_key} >${out_file}
+	rc=$?
+	[ $rc != 0 ] && return $rc
+	grep "operation rc:" ${out_file} >${rc_file}
+	grep -v "operation rc: 0" ${rc_file} >${erc_file}
+	[ -s "${erc_file}" ] && return 1
+	grep -A 1 "KEY" ${out_file} > ${res_out_file}
+	key_line=$(load_item ${res_out_file} 1)
+	val_line=$(load_item ${res_out_file} 2)
+	key_line=${key_line#"/KEY/"}
+	val_line=${val_line#"/VAL/"}
+	[ "${val_line}" != "${key_line}" ] && return 1
+	[ $(cat ${res_out_file} | wc -l) == 2 ] || return 1
+	rm_logs
+	return $rc
+}
+
+dtm_run_kv_ios()
+{
+	local rc
+	local vflag=''
+
+	if [ $verbose == 1 ] ; then
+		vflag="-v"
+	fi
+	MOTRTOOL="$M0_SRC_DIR/motr/st/utils/m0kv_start.sh local $vflag index"
+
+	st_init
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "Failed to init test $rc"
+		return $rc
+	fi
+
+	gets1
+	rc=$?
+	if [ $rc != 0 ]; then
+		echo "Failed: $f"
+		echo "MSG   : ${emsg}"
+		return $rc
+	fi
+	return $rc
+}
+
+
 main()
 {
 	motr_dtm_st_pre
-
+	dtm_run_kv_ios
 	motr_dtm_st_post
 }
 
