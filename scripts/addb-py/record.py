@@ -202,6 +202,7 @@ class trace(object):
             f.done(self)
         return f
 
+    @staticmethod
     def getcolour(self, str):
         seed = str + "^" + str
         red   = hash(seed + "r") % 90
@@ -218,6 +219,7 @@ class trace(object):
         lane   = self.getlane(fom, lane)
         return { "insert": (lane, start), "size": (self.lane_width, height) }
 
+    @staticmethod
     def statecolour(self, fom):
         state = fom.state
         if state == "Init":

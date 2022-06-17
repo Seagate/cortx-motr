@@ -702,8 +702,11 @@ static int conf_pver_tolerance_adjust(struct m0_conf_pver *pver)
 
 	do {
 		rc = m0_fd_tolerance_check(pver, &level);
-		if (rc == -EINVAL)
+		if (rc == -EINVAL &&
+		    pver->pv_u.subtree.pvs_tolerance[level] > 0)
 			M0_CNT_DEC(pver->pv_u.subtree.pvs_tolerance[level]);
+		else
+			break;
 	} while (rc == -EINVAL);
 	return rc;
 }
