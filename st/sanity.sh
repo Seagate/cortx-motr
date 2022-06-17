@@ -25,12 +25,12 @@ set -e
     exit 1
 }
 
-M0_SRC_DIR=`readlink -f $0`
-M0_SRC_DIR=${M0_SRC_DIR%/*/*}
+M0_SRC_DIR=$(readlink -f "${BASH_SOURCE[0]}")
+M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 
-. $M0_SRC_DIR/utils/functions # report_and_exit
+. "$M0_SRC_DIR"/utils/functions # report_and_exit
 
-cd $M0_SRC_DIR
+cd "$M0_SRC_DIR"
 
 echo 'Installing Motr services'
 scripts/install-motr-service -u
@@ -39,7 +39,7 @@ rm -rf /etc/motr
 rm -f  /etc/sysconfig/motr
 scripts/install-motr-service -l
 
-PATH=$PATH:$M0_SRC_DIR/utils
+PATH="$PATH:$M0_SRC_DIR/utils"
 scripts/install/opt/seagate/cortx/motr/sanity/motr_sanity.sh
 rc=$?
 

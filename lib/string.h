@@ -67,11 +67,6 @@ static inline char *strerror(int errnum)
 
 #include "lib/types.h"
 
-struct m0_fop_str {
-	uint32_t s_len;
-	uint8_t *s_buf;
-} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
-
 /**
  * Converts m0_bcount_t number into a reduced string representation, calculating
  * a magnitude and representing it as standard suffix like "Ki", "Mi", "Gi" etc.

@@ -1405,7 +1405,7 @@ static void rm_remote_free(struct m0_ref *ref)
 	 * (In particular, at rm-ut:fom-funcs.)
 	 */
 	if (sess != NULL)
-		m0_rpc_service_reverse_session_put(sess);
+		m0_rpc_service_reverse_session_put(sess, true);
 }
 
 M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote   *rem,

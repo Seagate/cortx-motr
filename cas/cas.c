@@ -26,6 +26,7 @@
 #include "lib/finject.h"     /* M0_FI_ENABLED */
 #include "fid/fid.h"         /* m0_fid_type_register */
 #include "fop/fop.h"
+#include "fop/wire_xc.h"
 #include "rpc/rpc_opcodes.h"
 #include "cas/cas.h"
 #include "cas/cas_xc.h"

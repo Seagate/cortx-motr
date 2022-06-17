@@ -18,18 +18,18 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-motr_st_util_dir=$(dirname $(readlink -f $0))
+motr_st_util_dir=$(dirname "$(readlink -f "$0")")
 m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
 M0_SRC_DIR="$motr_st_util_dir/../../../"
-. $M0_SRC_DIR/utils/functions # m0_default_xprt
+. "$M0_SRC_DIR"/utils/functions # m0_default_xprt
 
-. $m0t1fs_dir/common.sh
-. $m0t1fs_dir/m0t1fs_common_inc.sh
-. $m0t1fs_dir/m0t1fs_client_inc.sh
-. $m0t1fs_dir/m0t1fs_server_inc.sh
-. $motr_st_util_dir/motr_local_conf.sh
-. $motr_st_util_dir/motr_st_inc.sh
+. "$m0t1fs_dir"/common.sh
+. "$m0t1fs_dir"/m0t1fs_common_inc.sh
+. "$m0t1fs_dir"/m0t1fs_client_inc.sh
+. "$m0t1fs_dir"/m0t1fs_server_inc.sh
+. "$motr_st_util_dir"/motr_local_conf.sh
+. "$motr_st_util_dir"/motr_st_inc.sh
 
 
 MOTR_TEST_DIR=$SANDBOX_DIR
@@ -46,13 +46,13 @@ clean()
 		# unmounting the client file system, from next mount,
 		# fids are generated from same baseline which results
 		# in failure of cob_create fops.
-		local ios_index=`expr $i + 1`
-		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
+		local ios_index=$(($i + 1))
+		rm -rf "$MOTR_TEST_DIR"/d"$ios_index"/stobs/o/*
 	done
 
-        if [ ! -z "$multiple_pools" ] && [ $multiple_pools == 1 ]; then
-		local ios_index=`expr $i + 1`
-		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
+        if [ ! -z "$multiple_pools" ] && [ "$multiple_pools" == 1 ]; then
+		local ios_index=$(($i + 1))
+		rm -rf "$MOTR_TEST_DIR"/d"$ios_index"/stobs/o/*
         fi
 }
 
@@ -88,12 +88,12 @@ error_handling()
 {
 	rc=$1
 	msg=$2
-	clean 0 &>>$MOTR_TEST_LOGFILE
+	clean 0 &>>"$MOTR_TEST_LOGFILE"
 	motr_service_stop
-	echo $msg
+	echo "$msg"
 	echo "Test log file available at $MOTR_TEST_LOGFILE"
 	echo "motr trace files are available at: $MOTR_TRACE_DIR"
-	exit $1
+	exit "$1"
 }
 
 io_ops()
@@ -127,7 +127,7 @@ revoke_read_lock()
 	local c_ep="$lnet_nid:12345:34:*"
 	local delay=${1:-5}
 	echo "getting write lock..."
-	$M0_SRC_DIR/utils/m0rwlock -s $confd_ep -c $c_ep -d $delay
+	"$M0_SRC_DIR"/utils/m0rwlock -s "$confd_ep" -c "$c_ep" -d "$delay"
 }
 
 
@@ -145,13 +145,13 @@ main()
 	block_size=8192
 	block_count=4096
 
-	rm -f $src_file $dest_file
+	rm -f "$src_file" "$dest_file"
 
-	dd if=/dev/urandom bs=$block_size count=$block_count of=$src_file \
-	      2> $MOTR_TEST_LOGFILE || {
+	dd if=/dev/urandom bs=$block_size count=$block_count of="$src_file" \
+	      2> "$MOTR_TEST_LOGFILE" || {
 		error_handling $? "Failed to create a source file"
 	}
-	mkdir $MOTR_TRACE_DIR
+	mkdir "$MOTR_TRACE_DIR"
 
 	# Test IO while read lock revoked (configuration update going on).
 	motr_service_start
@@ -159,10 +159,10 @@ main()
 
 	revoke_read_lock 30 &
 	pid=$!
-	io_ops $object_id1 $block_size $block_count $src_file $dest_file1
+	io_ops $object_id1 $block_size $block_count "$src_file" "$dest_file1"
 	wait $pid
 
-	cmp $src_file $dest_file1 2> $MOTR_TEST_LOGFILE || {
+	cmp "$src_file" "$dest_file1" 2> "$MOTR_TEST_LOGFILE" || {
 		rc=$?
 		error_handling $rc "Files are different"
 	}
@@ -173,19 +173,19 @@ main()
 	# Test read lock revoke (configuration update) while IO going on.
 	motr_service_start
 	dix_init
-	io_ops $object_id2 $block_size $block_count $src_file $dest_file2  &
+	io_ops $object_id2 $block_size $block_count "$src_file" "$dest_file2"  &
 	pid=$!
 	# Let client start
 	sleep 10
 	revoke_read_lock 15
 	wait $pid
-	cmp $src_file $dest_file2 2> $MOTR_TEST_LOGFILE || {
+	cmp "$src_file" "$dest_file2" 2> "$MOTR_TEST_LOGFILE" || {
 		rc=$?
 		error_handling $rc "Files are different"
 	}
 
 	dix_destroy
-	clean &>>$MOTR_TEST_LOGFILE
+	clean &>>"$MOTR_TEST_LOGFILE"
 	motr_service_stop
 
 }

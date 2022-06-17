@@ -620,12 +620,21 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	 */
 	if (M0_IN(op->op_code, (M0_OC_FREE, M0_OC_WRITE)) &&
 	    (m0_ivec_cursor_index(cursor) > grpstart ||
-	     m0_ivec_cursor_conti(cursor, grpend) < grpend) &&
+	     (m0_ivec_cursor_conti(cursor, grpend) < grpend &&
+	      !(ioo->ioo_flags & M0_OOF_LAST))) &&
 	    !m0_pdclust_is_replicated(play))
 		rmw = true;
 
-	M0_ENTRY("[%p] map=%p grp=%" PRIu64 " [%" PRIu64 ",+%" PRIu64 ") rmw=%d",
+	M0_ENTRY("[%p] map=%p grp=%" PRIu64 " [%" PRIu64 ",%" PRIu64 ") rmw=%d",
 		 ioo, map, map->pi_grpid, grpstart, grpsize, !!rmw);
+
+	if (rmw && (ioo->ioo_flags & M0_OOF_FULL))
+		return M0_ERR_INFO(-EINVAL, "[%p] invalid extent "
+				   "[%" PRIu64 ",%" PRIu64 "), group: "
+				   "[%" PRIu64 ",%" PRIu64 ")", ioo,
+				   m0_ivec_cursor_index(cursor),
+				   m0_ivec_cursor_conti(cursor, grpend),
+				   grpstart, grpend);
 
 	if (op->op_code == M0_OC_FREE && rmw)
 		map->pi_trunc_partial = true;
@@ -1855,7 +1864,6 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 	 */
 	for (col = 0; col < layout_n(play); ++col) {
 		for (row = 0; row < rows_nr(play, obj); ++row) {
-
 			if (map->pi_databufs[row][col] != NULL &&
 			    map->pi_databufs[row][col]->db_flags &
 			    PA_READ_FAILED) {
@@ -1868,8 +1876,9 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 				 * limitation of file size.
 				 */
 				if (map->pi_state == PI_DEGRADED) {
-					map->pi_databufs[row][col] =
-					    data_buf_alloc_init(obj, PA_NONE);
+					if (map->pi_databufs[row][col] == NULL)
+						map->pi_databufs[row][col] =
+						    data_buf_alloc_init(obj, PA_NONE);
 					if (map->pi_databufs[row][col] ==
 					    NULL) {
 						rc = -ENOMEM;
@@ -1883,10 +1892,17 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 			}
 			dbuf = map->pi_databufs[row][col];
 
-			if (dbuf->db_flags & PA_READ_FAILED
-			    || is_page_read(dbuf)) {
+			if (dbuf->db_flags & PA_READ_FAILED ||
+			    is_page_read(dbuf))
 				continue;
-			}
+
+			/* Don't read beyond the object end. */
+			if ((ioo->ioo_flags & M0_OOF_LAST) &&
+			    m0_indexvec_end(&ioo->ioo_ext) <=
+			            map->pi_grpid * data_size(play) +
+			                      col * layout_unit_size(play))
+				continue;
+
 			dbuf->db_flags |= PA_DGMODE_READ;
 		}
 	}
@@ -1920,7 +1936,6 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 	/* parity matrix from parity group. */
 	for (row = 0; row < rows_nr(play, obj); ++row) {
 		for (col = 0; col < layout_k(play); ++col) {
-
 			if (map->pi_paritybufs[row][col] == NULL) {
 				map->pi_paritybufs[row][col] =
 					data_buf_alloc_init(obj, PA_NONE);
@@ -1929,13 +1944,13 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 					break;
 				}
 			}
-			dbuf = map->pi_paritybufs[row][col];
 			mark_page_as_read_failed(map, row, col, PA_PARITY);
-			/* Skips the page if it is marked as PA_READ_FAILED. */
+
+			dbuf = map->pi_paritybufs[row][col];
 			if (dbuf->db_flags & PA_READ_FAILED ||
-			    is_page_read(dbuf)) {
+			    is_page_read(dbuf))
 				continue;
-			}
+
 			dbuf->db_flags |= PA_DGMODE_READ;
 		}
 	}
@@ -1951,7 +1966,7 @@ static uint32_t iomap_dgmode_recov_prepare(struct pargrp_iomap *map,
 {
 	struct m0_pdclust_layout *play;
 	uint32_t                  col;
-	uint32_t                  K = 0;
+	uint32_t                  k = 0;
 
 	play = pdlayout_get(map->pi_ioo);
 	for (col = 0; col < layout_n(play); ++col) {
@@ -1959,7 +1974,7 @@ static uint32_t iomap_dgmode_recov_prepare(struct pargrp_iomap *map,
 		    map->pi_databufs[0][col]->db_flags &
 		    PA_READ_FAILED) {
 			failed[col] = 1;
-			++K;
+			++k;
 		}
 
 	}
@@ -1968,10 +1983,10 @@ static uint32_t iomap_dgmode_recov_prepare(struct pargrp_iomap *map,
 		if (map->pi_paritybufs[0][col]->db_flags &
 		    PA_READ_FAILED) {
 			failed[col + layout_n(play)] = 1;
-			++K;
+			++k;
 		}
 	}
-	return K;
+	return k;
 }
 
 /**
@@ -1987,7 +2002,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	int                       rc = 0;
 	uint32_t                  row;
 	uint32_t                  col;
-	uint32_t                  K;
+	uint32_t                  k;
 	uint64_t                  pagesize;
 	void                     *zpage;
 	struct m0_buf            *data;
@@ -2034,10 +2049,10 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 					    "for m0_buf");
 	}
 
-	K = iomap_dgmode_recov_prepare(map, (uint8_t *)failed.b_addr);
-	if (K > layout_k(play)) {
-		M0_LOG(M0_ERROR, "More failures in group %d",
-				(int)map->pi_grpid);
+	k = iomap_dgmode_recov_prepare(map, (uint8_t *)failed.b_addr);
+	if (k > layout_k(play)) {
+		M0_LOG(M0_ERROR, "Too many failures in group %d: %u > %u",
+				(int)map->pi_grpid, k, layout_k(play));
 		rc = -EIO;
 		goto end;
 	}
@@ -2065,7 +2080,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 		rc = m0_parity_math_recover(parity_math(ioo), data,
 					    parity, &failed, M0_LA_INVERSE);
 		if (rc != 0)
-			goto end;
+			break;
 	}
 
 end:
@@ -2076,11 +2091,9 @@ end:
 
 	return rc == 0 ?
 		M0_RC(rc) :
-		M0_ERR_INFO(-EIO,
-			    "Number of failed units"
-			    "in parity group exceeds the"
-			    "total number of parity units"
-			    "in a parity group %d.", (int)map->pi_grpid);
+		M0_ERR_INFO(-EIO, "Number of failed units in parity group %d "
+			    "exceeds the number of parity units in it",
+			    (int)map->pi_grpid);
 }
 
 static bool crc_cmp(const struct m0_buf *val1, const struct m0_buf *val2)

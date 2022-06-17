@@ -37,6 +37,7 @@
 #include "fid/fid.h"
 #include "rpc/link.h"    /* m0_rpc_link */
 #include "sm/sm.h"
+#include "fop/wire.h"
 
 struct m0_fop;
 struct m0_fom;
@@ -236,6 +237,8 @@ struct m0_reqh_service {
 	unsigned                           rs_level;
 	/** Key for per-locality-per-svc fom count. */
 	int                                rs_fom_key;
+	/** Fom's posted to queueit() AST */
+	struct m0_atomic64                 rs_fom_queued;
 	/**
 	   Service state machine.
 
