@@ -650,8 +650,8 @@ static bool be_dtm0_log_iter_is_first(const struct m0_be_dtm0_log_iter *iter)
 static bool be_dtm0_log_iter_invariant(const struct m0_be_dtm0_log_iter *iter)
 {
 	return _0C(m0_be_dtm0_log__invariant(iter->dli_log)) &&
-	       _0C(be_dtm0_log_iter_is_first(iter) ||
-		   m0_dtm0_tid__invariant(&iter->dli_current_tid));
+	       _0C(ergo(!be_dtm0_log_iter_is_first(iter),
+			m0_dtm0_tid__invariant(&iter->dli_current_tid)));
 }
 
 M0_INTERNAL void m0_be_dtm0_log_iter_init(struct m0_be_dtm0_log_iter *iter,
