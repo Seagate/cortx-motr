@@ -1364,7 +1364,7 @@ displaying records from all levels.
 
 Example:
 
-  m0trace --format=call,error+
+  m0trace --level=call,error+
 
 =item B<-s|--subsys=I<SBS>>
 
