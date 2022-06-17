@@ -1274,7 +1274,7 @@ static void test_invalid_input(void)
 	M0_UT_ASSERT(ret == 0);
 	total_failures = math.pmi_parity_count + 1;
 	failed_arr = failure_setup(&math, total_failures, MIXED_FAILURE);
-	ret = m0_sns_ir_init(&math, 0, &ir);
+	m0_sns_ir_init(&math, 0, &ir);
 	for (i = 0; i < total_failures - 1; ++i) {
 		ret = m0_sns_ir_failure_register(&recov_arr,
 						 failed_arr[i],

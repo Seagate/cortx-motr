@@ -147,7 +147,8 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 	cp->c_ag->cag_cm = cm;
 	if (!is_acc_cp)
 		cp->c_ops = &m0_sns_cm_repair_cp_ops;
-	cp->c_ops = &m0_sns_cm_acc_cp_ops;
+	else
+		cp->c_ops = &m0_sns_cm_acc_cp_ops;
 	m0_cm_cp_fom_init(cm, cp, NULL, NULL);
 	m0_cm_cp_buf_add(cp, buf);
 	cp->c_data_seg_nr = bv_seg_nr;
