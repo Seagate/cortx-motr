@@ -89,8 +89,8 @@ static int   nr_ping_item      = 1;
 static int   tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 static int   max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 
-static char client_endpoint[M0_NET_LNET_XEP_ADDR_LEN];
-static char server_endpoint[M0_NET_LNET_XEP_ADDR_LEN];
+static char client_endpoint[M0_NET_LNET_XEP_ADDR_LEN + 1];
+static char server_endpoint[M0_NET_LNET_XEP_ADDR_LEN + 1];
 
 
 #ifdef __KERNEL__
@@ -414,8 +414,8 @@ static int run_server(void)
 	strcpy(server_endpoint, M0_NET_XPRT_PREFIX_DEFAULT":");
 
 	rc = build_endpoint_addr(
-		EP_SERVER, server_endpoint + strlen(server_endpoint),
-		sizeof(server_endpoint) - strlen(server_endpoint));
+		EP_SERVER, server_endpoint + strnlen(server_endpoint, M0_NET_LNET_XEP_ADDR_LEN),
+		sizeof(server_endpoint) - strnlen(server_endpoint, M0_NET_LNET_XEP_ADDR_LEN));
 	if (rc != 0)
 		goto fop_fini;
 
@@ -452,6 +452,9 @@ int main(int argc, char *argv[])
 {
 	int rc;
 
+	client_endpoint[M0_NET_LNET_XEP_ADDR_LEN] = '\0';
+	server_endpoint[M0_NET_LNET_XEP_ADDR_LEN] = '\0';
+	
 	rc = m0_init(&instance);
 	if (rc != 0)
 		return -rc;
