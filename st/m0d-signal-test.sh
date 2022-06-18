@@ -29,9 +29,9 @@ SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.signal-st}
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
-. $M0_SRC_DIR/utils/functions # report_and_exit
+. "$M0_SRC_DIR"/utils/functions # report_and_exit
 
-cd $M0_SRC_DIR
+cd "$M0_SRC_DIR"
 
 scripts/install-motr-service -u
 scripts/install-motr-service -l
@@ -62,7 +62,7 @@ test_for_signal()
     done
 
     echo "Sending $sig to ios1"
-    systemctl -s $sig --kill-who=main kill motr-server@ios1
+    systemctl -s "$sig" --kill-who=main kill motr-server@ios1
 
     if [[ $sig == SIGUSR1 ]] ; then
         sleep 5
@@ -112,7 +112,7 @@ rc2=$?
 
 rc=$((rc1 + rc2))
 if [ $rc -eq 0 ]; then
-    rm -r $SANDBOX_DIR
+    rm -r "$SANDBOX_DIR"
 fi
 
 report_and_exit m0d-signal $rc
