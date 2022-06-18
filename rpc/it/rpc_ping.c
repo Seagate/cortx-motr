@@ -366,6 +366,14 @@ static void quit_dialog(void)
 	printf("\n\nPress Enter to terminate\n\n");
 	printf("\n########################################\n");
 	rc = read(0, &ch, sizeof ch);
+	// if (rc == -1 || rc != 1) {
+	// 	return;
+	// }
+	// scanf("%c", &ch);
+
+	// ch = getc(stdin);
+	// fflush(stdin);
+	// while((ch = getchar()) != '\n');
 }
 
 static int int2str(char *dest, size_t size, int src, int defval)
@@ -414,8 +422,8 @@ static int run_server(void)
 	strcpy(server_endpoint, M0_NET_XPRT_PREFIX_DEFAULT":");
 
 	rc = build_endpoint_addr(
-		EP_SERVER, server_endpoint + strlen(server_endpoint),
-		sizeof(server_endpoint) - strlen(server_endpoint));
+		EP_SERVER, server_endpoint + strnlen(server_endpoint, M0_NET_LNET_XEP_ADDR_LEN),
+		sizeof(server_endpoint) - strnlen(server_endpoint, M0_NET_LNET_XEP_ADDR_LEN));
 	if (rc != 0)
 		goto fop_fini;
 
@@ -451,7 +459,6 @@ int m0_rpc_ping_init()
 int main(int argc, char *argv[])
 {
 	int rc;
-
 	rc = m0_init(&instance);
 	if (rc != 0)
 		return -rc;
