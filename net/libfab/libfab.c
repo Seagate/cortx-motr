@@ -764,19 +764,13 @@ static void libfab_poller(struct m0_fab__tm *tm)
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
 	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
 		do {
-			while(M0_FI_ENABLED("fail-trywait")) {
+			do {
 				m0_mutex_lock(&tm->ftm_fids.ftf_lock);
 				ret = fi_trywait(tm->ftm_fab->fab_fab,
 						 tm->ftm_fids.ftf_head,
 						 tm->ftm_fids.ftf_cnt);
 				m0_mutex_unlock(&tm->ftm_fids.ftf_lock);
-			}
-
-			m0_mutex_lock(&tm->ftm_fids.ftf_lock);
-			ret = fi_trywait(tm->ftm_fab->fab_fab,
-					 tm->ftm_fids.ftf_head,
-					 tm->ftm_fids.ftf_cnt);
-			m0_mutex_unlock(&tm->ftm_fids.ftf_lock);
+			} while (M0_FI_ENABLED("fail-trywait"));
 			/*
 			 * TBD : Add handling of other return values of
 			 * fi_trywait() if it returns something other than

@@ -51,7 +51,6 @@ extern void m0_net_test_client_server_stub_ut(void);
 extern void m0_net_test_client_server_ping_ut(void);
 extern void m0_net_test_client_server_bulk_ut(void);
 extern void m0_net_test_xprt_dynamic_reg_dereg_ut(void);
-extern void m0_net_test_libfab_fi_trywait(void);
 
 static int net_test_fini(void)
 {
@@ -89,9 +88,6 @@ struct m0_ut_suite m0_net_test_ut = {
 #endif
 		{ "client-server-bulk",	m0_net_test_client_server_bulk_ut },
 		{ "xprt-dynamic-reg-dereg",	m0_net_test_xprt_dynamic_reg_dereg_ut },
-#if USE_LIBFAB
-		{ "libfab-fi-trywait",	m0_net_test_libfab_fi_trywait },
-#endif
 		{ NULL,			NULL				  }
 	}
 };
