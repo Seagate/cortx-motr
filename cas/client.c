@@ -1778,6 +1778,7 @@ M0_INTERNAL void m0_cas_get_rep(const struct m0_cas_req *req,
 	rep->cge_ver = rcvd->cr_ver;
 	if (rep->cge_rc == 0)
 	      m0_rpc_at_rep_get(&sent->cr_val, &rcvd->cr_val, &rep->cge_val);
+	M0_LOG(M0_FATAL, "creq=%p cas get rc:%d", req, rep->cge_rc);
 	M0_LEAVE();
 }
 

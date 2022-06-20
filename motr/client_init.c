@@ -1527,6 +1527,43 @@ M0_INTERNAL int m0_client_global_init(void)
 	return M0_RC(rc);
 }
 
+/* =============== DTM0 Client Eviction Demo Starts========================== */
+volatile sig_atomic_t sigusr_got = 0;
+
+/**
+   Signal handler registered so that pause()
+   returns in order to trigger proper cleanup.
+ */
+static void my_sig_handler(int signum)
+{
+	sigusr_got = !sigusr_got;
+	if (sigusr_got != 0)
+		m0_console_printf("SIGUSR1! Client Eviction Demo Enabled\n");
+	else
+		m0_console_printf("SIGUSR1! Client Eviction Demo Disabled\n");
+}
+
+/**
+ * Registers signal handler to catch SIGUSR1 to trigger DTM0 client
+ * eviction demo code.
+ */
+static int my_register_signal(void)
+{
+	struct sigaction my_act;
+	int rc;
+
+	my_act.sa_handler = my_sig_handler;
+	sigemptyset(&my_act.sa_mask);
+	my_act.sa_flags = 0;
+
+	rc = sigaction(SIGUSR1, &my_act, NULL);
+	m0_console_printf("Registering SIGUSR1 handler:%d\n", rc);
+	return rc;
+}
+
+/* =============== DTM0 Client Eviction Demo Ends =========================== */
+
+
 #define NOT_EMPTY(x) (x != NULL && *x != '\0')
 
 static struct m0 m0_client_motr_instance;
@@ -1692,6 +1729,7 @@ int m0_client_init(struct m0_client **m0c_p,
 		rc = m0_reqh_addb2_init(&m0c->m0c_reqh, buf,
 					0xaddbf11e, true, true, size);
 	}
+	my_register_signal();
 	/* publish the allocated client instance */
 	*m0c_p = m0c;
 	return M0_RC(rc);
