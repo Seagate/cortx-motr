@@ -2127,6 +2127,21 @@ static int64_t bnode_get(struct node_op *op, struct td *tree,
 		bnode_unlock(op->no_node);
 	} else {
 		/**
+		 * Validating the seg header again to avoid the following
+		 * scenario. The other thread can invalidate the seg header
+		 * after reading the valid opaque pointer by the current thread.
+		 * As we are not taking the node lock while validating the seg
+		 * header and reading the opaque pointer, this scenario can
+		 * occur if some other thread is doing the bnode_fini()
+		 * operation and the current thread is trying to get the same
+		 * node.
+		 */
+		if (!segaddr_header_isvalid(addr)) {
+			op->no_op.o_sm.sm_rc = M0_ERR(-EINVAL);
+			m0_rwlock_write_unlock(&list_lock);
+			return nxt;
+		}
+		/**
 		 * If node descriptor is already allocated for the node, no need
 		 * to allocate node descriptor again.
 		 */
@@ -7278,6 +7293,16 @@ static int  btree_sibling_first_key(struct m0_btree_oimpl *oi, struct td *tree)
 			while (i < oi->i_used) {
 				curr_node = oi->i_nop.no_node;
 				bnode_lock(curr_node);
+
+				if (!bnode_isvalid(lev->l_sibling) ||
+				    (oi->i_pivot > 0 &&
+				     bnode_rec_count(lev->l_sibling) == 0)) {
+						bnode_unlock(lev->l_sibling);
+						return m0_sm_op_sub(&bop->bo_op,
+								    P_CLEANUP,
+								    P_SETUP);
+				}
+
 				bnode_child(&s, &child);
 				if (!address_in_segment(child)) {
 					bnode_unlock(curr_node);
