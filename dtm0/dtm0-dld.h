@@ -38,6 +38,11 @@
    - @ref DLD-fspec-usecases
    - @ref DLDDFS "Detailed Functional Specification" <!-- Note link -->
 
+   XXX
+   DTM0 has two interfaces: dtx0 and domain. DTM0 domain is used to initiallize
+   global dtm0-related structures. DTX0 is used to execute transactions.
+
+
    The Functional Specification section of the DLD shall be placed in a
    separate Doxygen page, identified as a @@subpage of the main specification
    document through the table of contents in the main document page.  The

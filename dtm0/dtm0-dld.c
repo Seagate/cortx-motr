@@ -31,7 +31,7 @@
    - @subpage DLD-fspec "Functional Specification" <!-- Note @subpage -->
    - @ref DLD-lspec
       - @ref DLD-lspec-comps
-      - @ref DLD-lspec-sc1
+      - @ref DLD-lspec-sub
       - @ref DLD-lspec-state
       - @ref DLD-lspec-thread
       - @ref DLD-lspec-numa
@@ -156,6 +156,10 @@
    M0 Glossary and the component's HLD are permitted and encouraged.
    Agreed upon terminology should be incorporated in the glossary.</i>
 
+
+   XXX
+   Pmsg, Pmsgs
+
    Previously defined terms:
    - <b>Logical Specification</b> This explains how the component works.
    - <b>Functional Specification</b> This is explains how to use the component.
@@ -180,6 +184,35 @@
    - We want to be able to clean up the log in a way that this operation
      is not limited by the time when someone entered TRANSIENT.
 
+   - N% of performance degradation is allowed during dtm0 recovery.
+
+   - dtm0 must maximize A, D and performance of the system.
+
+   - dtm0 must restore missing replicas in minimal time.
+
+   - replicas may become missing due to process crash/restart or because of
+   unreliable network.
+
+   - dtm0 must restore missing replicas even without process restarts.
+
+   - dtm0 must not restore missing replicas in case of permanent failures.
+
+   - dtm0 must not introduce bottlenecks in the system.
+
+   - dtm0 memory usage must be limited.
+
+   - dtm0 must not introduce unnecessary delays.
+
+   - dtm0 should not support transaction dependencies.
+
+   - dtm0 consistency model must be configurable.
+
+   - dtm0 performance/D tradeoff must be configurable.
+
+   - dtm0 must minimize the use of storage for the transactions that are
+   replicated on all non-failed participants.
+
+
    They should be expressed in a list, thusly:
    - @b R.DLD.Structured The DLD shall be decomposed into a standard
    set of section.  Sub-sections may be used to further decompose the
@@ -197,6 +230,15 @@
    <i>Mandatory. Identify other components on which this specification
    depends.</i>
 
+
+   - dtm0 relies on Motr HA (Hare) to provide state of Motr configuration
+   objects in the cluster.
+
+   - DIX relies dtm0 to restore missing replicas.
+
+   -
+
+
    The DLD specification style guide depends on the HLD and AR
    specifications as they identify requirements, use cases, @a \&c.
 
@@ -207,7 +249,31 @@
    logical specifications, and enumerates topics that need special
    attention.</i>
 
-   Sliding window.
+   DTM0 "information" needed for ordering (two timestamps):
+       - txid;
+       - txid previously sent to this participant.
+
+
+   [INPROGRESS, EXECUTED, STABLE, DONE]
+
+   INPROGRESS -> EXECUTED: enough CAS replies
+   INPROGRESS -> DONE: canceled before it was executed
+   EXECUTED -> STABLE: enough Pmsgs
+   EXECUTED -> DONE: canceled after it was executed
+   STABLE -> DONE: successfully completed.
+
+   [ INPROGRESS ]  [ EXECUTED ] [ STABLE ] [ DONE ]
+
+   [ head  ... tail] [ to_be_assigned/current ]
+
+   Sliding window: all transactions on the client:
+
+   - min timestamp (the "head" of the list or "current" if the list is empty);
+   - "current" timestamp;
+
+   Invatiant: for the given [min, current) interval, its boundaries are never
+   decreasing (TODO: look up term for "monotonically non-decreasing").
+
    Min xid sent to servers.
    Client concurrency * timeout value == window size.
    Server-side window size is limited by performance of server.
@@ -217,13 +283,26 @@
 	has not left the client
 	did not arrive to servers
 	not related.
+   Sliding window is updated whenver client is not idle.
+   When client is idle then we rely on local detection: if there is no io
+   from that client while there is io from others then the client is idle.
+   Sliding window allows us to prune records at the right time.
 
+   - dtm0 uses persistent dtm0 log on participans other than originator,
+   and it uses volatile dtm0 long on originator.
 
-   - The DLD specification requires formal sectioning to address specific
-   aspects of the design.
-   - The DLD is with the code, and the specification is designed to be
-   viewed either as text or through Doxygen.
-   - This document can be used as a template.
+   - persistent dtm0 log uses BE as storage for dtm0 log records.
+
+   - dtm0 uses m0 network for communication.
+
+   - dtm0 saves information in dtm0 log that may be needed for dtm0 recovery up
+   until the transaction is replicated on all non-failed participants.
+
+   - to restore a missing replica, dtm0 participant sends dtm0 log record to the
+   participant where the replica is missing.
+
+   - dtm0 propagates back pressure (memory, IO, etc) across the system, thus
+   helping us to avoid overload due to "too many operations are in-progress".
 
    <hr>
    @section DLD-lspec Logical Specification
@@ -236,8 +315,8 @@
    contents here.</i>
 
    - @ref DLD-lspec-comps
-   - @ref DLD-lspec-sc1
-      - @ref DLD-lspec-ds1
+   - @ref DLD-lspec-sub
+      - @ref DLD-lspec-ds-log
       - @ref DLD-lspec-sub1
       - @ref DLDDFSInternal  <!-- Note link -->
    - @ref DLD-lspec-state
@@ -251,92 +330,131 @@
    A diagram of the interaction between internal components and
    between external consumers and the internal components is useful.</i>
 
-   Doxygen is limited in its internal support for diagrams. It has built in
-   support for @c dot and @c mscgen, and examples of both are provided in this
-   template.  Please remember that every diagram @a must be accompanied by
-   an explanation.
+   - TODO: add the component diagram of "the R dtm0".
 
-   The following @@dot diagram shows the internal components of the Network
-   layer, and also illustrates its primary consumer, the RPC layer.
-   @dot
-   digraph {
-     node [style=box];
-     label = "Network Layer Components and Interactions";
-     subgraph cluster_rpc {
-         label = "RPC Layer";
-         rpcC [label="Connectivity"];
-	 rpcO [label="Output"];
-     }
-     subgraph cluster_net {
-         label = "Network Layer";
-	 netM [label="Messaging"];
-	 netT [label="Transport"];
-	 netL [label="Legacy RPC emulation", style="filled"];
-	 netM -> netT;
-	 netL -> netM;
-     }
-     rpcC -> netM;
-     rpcO -> netM;
-   }
-   @enddot
+   - dtm0 consists of dtm0 log, pruner, recovery machine, persistent machine,
+   net, HA, dtx0 modules.
 
-   The @@msc command is used to invoke @c mscgen, which creates sequence
-   diagrams. For example:
-   @msc
-   a,b,c;
-
-   a->b [ label = "ab()" ] ;
-   b->c [ label = "bc(TRUE)"];
-   c=>c [ label = "process(1)" ];
-   c=>c [ label = "process(2)" ];
-   ...;
-   c=>c [ label = "process(n)" ];
-   c=>c [ label = "process(END)" ];
-   a<<=c [ label = "callback()"];
-   ---  [ label = "If more to run", ID="*" ];
-   a->a [ label = "next()"];
-   a->c [ label = "ac1()\nac2()"];
-   b<-c [ label = "cb(TRUE)"];
-   b->b [ label = "stalled(...)"];
-   a<-b [ label = "ab() = FALSE"];
-   @endmsc
-   Note that when entering commands for @c mscgen, do not include the
-   <tt>msc { ... }</tt> block delimiters.
-   You need the @c mscgen program installed on your system - it is part
-   of the Scientific Linux based DevVM.
-
-   UML and sequence diagrams often illustrate points better than any written
-   explanation.  However, you have to resort to an external tool to generate
-   the diagram, save the image in a file, and load it into your DLD.
-
-   An image is relatively easy to load provided you remember that the
-   Doxygen output is viewed from the @c doc/html directory, so all paths
-   should be relative to that frame of reference.  For example:
-   <img src="../../doc/dld/dld-sample-uml.png">
-   I found that a PNG format image from Visio shows up with the correct
-   image size while a GIF image was wrongly sized.  Your experience may
-   be different, so please ensure that you validate the Doxygen output
-   for correct image rendering.
-
-   If an external tool, such as Visio or @c dia, is used to create an
-   image, the source of that image (e.g. the Visio <tt>.vsd</tt> or
-   the <tt>.dia</tt> file) should be checked into the source tree so
-   that future maintainers can modify the figure.  This applies to all
-   non-embedded image source files, not just Visio or @c dia.
-
-   @subsection DLD-lspec-sc1 Subcomponent design
+   @subsection DLD-lspec-sub Subcomponent design
    <i>Such sections briefly describes the purpose and design of each
    sub-component. Feel free to add multiple such sections, and any additional
    sub-sectioning within.</i>
 
-   Sample non-standard sub-section to illustrate that it is possible to
-   document the design of a sub-component.  This contrived example demonstrates
-   @@subsubsections for the sub-component's data structures and subroutines.
+   - DTM0 log:
+   DTM0 log uses BE to store data.
+   It uses BTree, key are txids, values are records.
+   BTrees are "threaded" trees: each record is linked into several lists in
+   adddtion to being in the tree.
+   DTM0 log provides an API that allows the user to add or remove log records.
+   Also, there are log iterators: API that allows the user to traverse over
+   specific kinds of records (for example, "all-p" records).
 
-   @subsubsection DLD-lspec-ds1 Subcomponent Data Structures
+   - DTM0 net:
+   DTM0 net uses Motr RPC.
+   It provides a queue-like API: a message could be posted into the network,
+   and the user may subscribe to particular kind of incoming messages.
+   It has no persistence state.
+   The API provides asynchronous completion: the user may wait until message was
+   acknoweledged by the remote side (RPC reply was sent).
+   It cancels all outgoing/incoming messages when the HA tells us that
+   participant goes to FAILED/TRANSIENT state.
+
+   - DTX0:
+   It is the facade [todo: c` instead of just c] of dtm0 for dtm0 users.
+
+   - Persistent machine:
+   It solves two tasks. It sends out a Pmsg when a local transction becomes
+   persistent (1).
+   It updates the log when a Pmsg is received from a remote participant (2).
+
+   - Recovery machine:
+   It solves two tasks. It sends out REDO messages (1).
+   It applies incoming REDO messages sent from other recovery machines (2).
+   REDO messages are read out from the log directly. They are applied through
+   a callback (for example, posted as CAS FOMs).
+
+   - Pruner:
+   It removes records when thier respective transactions become persistent on
+   all non-failed participants.
+   It removes records of FAILED participants (eviction).
+
+   - HA (dtm0 ha):
+   It provides interface to Motr HA tailored for dtm0 needs.
+
+   - domain:
+    DTM0 domain is a container for DTM0 log, pruner, recovery machine,
+    persistent machine, network. It serves as an entry point for any other
+    component that wants to interact with DTM0. For example, distributed
+    transactions are created within the scope of DTM0 domain.
+    TODO: remove it from domain.h.
+
+
+   @subsubsection DLD-lspec-ds-log Subcomponent Data Structures: DTM0 log
    <i>This section briefly describes the internal data structures that are
    significant to the design of the sub-component. These should not be a part
    of the Functional Specification.</i>
+
+   XXX
+   DTM0 log record is linked to one BTree and many BE lists.
+   DTM0 log BTree: key is txid, value is a pointer to log record.
+   BE list links in record: one for originator, many for participants.
+   DTM0 log contains the BTree and a data structure that holds the
+   heads of BE lists and related information.
+   DTM0 log also contains a hashtable that keeps the local in-flight DTM0
+   transactions and the corresponding BE txs. Usecases:
+        - incoming REDO: find by dtxid;
+        - find dtx0 by be_tx?;
+   Hashtable: (key=txid, value=(ptr to dtx, ptr to be_tx))
+
+   [ BTree (p) | Participants+Originators ds? (p) | in-flight tx (v) ]
+
+   @section m0_dtm0_remach interface
+
+   Note: log iter here does not care about holes in the log.
+
+   - m0_dtm0_log_iter_init() - initializes log record iterator for a
+     sdev participant. It iterates over all records that were in the log during
+     last local process restart or during last remote process restart for the
+     process that handles that sdev.
+   - m0_dtm0_log_iter_next() - gives next log record for the sdev participant.
+   - m0_dtm0_log_iter_fini() - finalises the iterator. It MUST be done for every
+     call of m0_dtm0_log_iter_init().
+   - m0_dtm0_log_participant_restarted() - notifies the log that the participant
+     has restarted. All iterators for the participant MUST be finalized at the
+     time of the call. Any record that doesn't have P from the participant at
+     the time of the call will be returned during the next iteration for the
+     participant.
+
+   @section pmach interface
+
+   - m0_dtm0_log_p_get_local() - returns the next P message that becomes local.
+     Returns M0_FID0 during m0_dtm0_log_stop() call. After M0_FID0 is returned
+     new calls to the log MUST NOT be made.
+   - m0_dtm0_log_p_put() - records that P message was received for the sdev
+     participant.
+
+   @section pruner interface
+
+   - m0_dtm0_log_p_get_none_left() - returns dtx0 id for the dtx which has all
+     participants (except originator) reported P for the dtx0. Also returns all
+     dtx0 which were cancelled.
+   - m0_dtm0_log_prune() - remove the REDO message about dtx0 from the log
+
+   dtx0 interface, client & server
+
+   - m0_dtm0_log_redo_add() - adds a REDO message and, optionally, P message, to
+     the log.
+
+   @section dtx0 interface, client only
+
+   - m0_dtm0_log_redo_p_wait() - returns the number of P messages for the dtx
+     and waits until either the number increases or m0_dtm0_log_redo_cancel() is
+     called.
+   - m0_dtm0_log_redo_cancel() - notification that the client doesn't need the
+     dtx anymore. Before the function returns the op
+   - m0_dtm0_log_redo_end() - notifies dtx0 that the operation dtx0 is a part of
+     is complete. This function MUST be called for every m0_dtm0_log_redo_add().
+
 
    Describe @a briefly the internal data structures that are significant to
    the design.  These should not be described in the Functional Specification
@@ -589,6 +707,12 @@
 
    The implementation plan should be deleted from the DLD when the feature
    is landed into dev.
+
+
+   Unsolved questions:
+   - Let's say we have a hole in the log. How to understand that the hole is
+   valid (i.e., no redo will be received) or non-valid (a missing record)?
+
 
  */
 
