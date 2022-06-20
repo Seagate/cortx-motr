@@ -366,6 +366,7 @@ static void dix_layout_find_ast_cb(struct m0_sm_group *grp,
 	} else {
 		dix_req_failure(req, rc);
 	}
+	M0_LEAVE();
 }
 
 static bool dix_layout_find_clink_cb(struct m0_clink *cl)
@@ -960,6 +961,9 @@ static int dix_idxop_reqs_send(struct m0_dix_req *req)
 	return M0_RC(0);
 }
 
+/**
+ * Index operations: index create/delete/...
+ */
 static void dix_idxop(struct m0_dix_req *req)
 {
 	enum m0_dix_req_state next_state = DIXREQ_INVALID;
@@ -1146,6 +1150,7 @@ static void dix_discovery(struct m0_dix_req *req)
 	req->dr_ast.sa_cb = dix_discovery_ast;
 	req->dr_ast.sa_datum = req;
 	m0_sm_ast_post(dix_req_smgrp(req), &req->dr_ast);
+	M0_LEAVE();
 }
 
 /** Cancels launched dix index operation by cancelling rpc items. */
@@ -1391,6 +1396,9 @@ static void dix__rop(struct m0_dix_req *req, const struct m0_bufvec *keys,
 	M0_LEAVE();
 }
 
+/**
+ * dix record operations: put/get/del/next
+ */
 static void dix_rop(struct m0_dix_req *req)
 {
 	M0_PRE(req->dr_indices_nr == 1);
@@ -1705,6 +1713,8 @@ static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 	return true;
 }
 
+extern volatile sig_atomic_t sigusr_got;
+
 static int dix_cas_rops_send(struct m0_dix_req *req)
 {
 	struct m0_pools_common     *pc = req->dr_cli->dx_pc;
@@ -1737,7 +1747,7 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 		rc = m0_dix_ldesc_copy(&cctg_id.ci_layout.u.dl_desc,
 				       &layout->u.dl_desc);
 		if (rc == 0) {
-			M0_LOG(M0_DEBUG, "Processing dix_req %p[%u] "FID_F
+			M0_LOG(M0_FATAL, "Processing dix_req %p[%u] "FID_F
 			       " creq=%p "FID_F,
 			       req, req->dr_type,
 			       FID_P(&req->dr_indices[0].dd_fid),
@@ -1790,11 +1800,18 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 						   creq->ccr_fop);
 			}
 			rop->dg_cas_reqs_nr++;
+			if (sigusr_got && !req->dr_is_meta && req->dr_type == DIX_PUT) {
+				M0_LOG(M0_FATAL, "For DTM0 Client Eviction demo, We will wait 5 seconds and panic ");
+				m0_nanosleep(m0_time(5, 0), NULL);
+				M0_ASSERT_INFO(0, "The client is gone. DTM recovery should start momentarily.");
+			}
 		}
 	} m0_tl_endfor;
 
-	M0_LOG(M0_DEBUG, "Processing dix_req %p rop=%p: dg_cas_reqs_nr=%"PRIu64,
-				  req, rop, rop->dg_cas_reqs_nr);
+	M0_LOG(M0_FATAL, "Processed  dix_req %p[%u][meta=%u] rop=%p: "
+			 "dg_cas_reqs_nr=%" PRIu64,
+			 req, req->dr_type, req->dr_is_meta,
+			 rop, rop->dg_cas_reqs_nr);
 	if (rop->dg_cas_reqs_nr == 0)
 		return M0_ERR(-EFAULT);
 
@@ -1956,6 +1973,7 @@ static int dix_spare_target_with_data(struct m0_dix_rec_op         *rec_op,
 				 true);
 }
 
+
 static void dix_online_unit_choose(struct m0_dix_req    *req,
 				   struct m0_dix_rec_op *rec_op)
 {
@@ -1968,6 +1986,10 @@ static void dix_online_unit_choose(struct m0_dix_req    *req,
 	M0_PRE(req->dr_type == DIX_GET);
 	start_unit = req->dr_items[rec_op->dgp_item].dxi_pg_unit;
 	M0_ASSERT(start_unit < dix_rec_op_spare_offset(rec_op));
+/* =============== DTM0 Client Eviction Demo Starts========================== */
+	if (sigusr_got && !req->dr_is_meta)
+		return; /* Let's fetch all units */
+/* =============== DTM0 Client Eviction Demo Ends =========================== */
 	for (i = 0; i < start_unit; i++)
 		rec_op->dgp_units[i].dpu_unavail = true;
 	for (i = start_unit; i < rec_op->dgp_units_nr; i++) {
@@ -2178,7 +2200,7 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 	enum                      { INVALID_SDEV_ID = UINT32_MAX };
 	int                         rc = 0;
 
-	M0_ENTRY("req %p %u", req, rop->dg_rec_ops_nr);
+	M0_ENTRY("req %p rec_ops_nr=%u", req, rop->dg_rec_ops_nr);
 	M0_ASSERT(rop->dg_rec_ops_nr > 0);
 
 	if (dtx != NULL) {
@@ -2206,6 +2228,10 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 		}
 		for (j = 0; j < rec_op->dgp_units_nr; j++) {
 			unit = &rec_op->dgp_units[j];
+			if (!req->dr_is_meta)
+				M0_LOG(M0_FATAL, "type=%u meta=%d skipping unit[%u]? %d",
+					 req->dr_type, !!req->dr_is_meta,
+					 j, !!dix_pg_unit_skip(req, unit));
 			if (dix_pg_unit_skip(req, unit)) {
 				if (dtx != NULL &&
 				    unit->dpu_pd_state == M0_PNDS_OFFLINE &&
@@ -2350,6 +2376,7 @@ M0_INTERNAL int m0_dix_put(struct m0_dix_req      *req,
 {
 	uint32_t keys_nr = keys->ov_vec.v_nr;
 	int      rc;
+	M0_ENTRY("m0_dix_req=%p", req);
 
 	M0_PRE(keys->ov_vec.v_nr == vals->ov_vec.v_nr);
 	M0_PRE(keys_nr != 0);
@@ -2380,6 +2407,7 @@ M0_INTERNAL int m0_dix_get(struct m0_dix_req      *req,
 {
 	uint32_t keys_nr = keys->ov_vec.v_nr;
 	int      rc;
+	M0_ENTRY("m0_dix_req=%p", req);
 
 	M0_PRE(keys_nr != 0);
 	rc = dix_req_indices_copy(req, index, 1);

@@ -206,6 +206,17 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 	oi->oi_vals = vals;
 	oi->oi_rcs  = rcs;
 	oi->oi_flags = flags;
+	{
+		int i;
+		for (i = 0; i< keys->ov_vec.v_nr; i++) {
+			M0_LOG(M0_FATAL, "%u: [%.*s -> %.*s]",
+					 opcode,
+					 (unsigned int)keys->ov_vec.v_count[i],
+					 (const char*)keys->ov_buf[i],
+					 (unsigned int)vals->ov_vec.v_count[i],
+					 (const char*)vals->ov_buf[i]);
+		}
+	}
 
 	locality = m0__locality_pick(oi_instance(oi));
 	M0_ASSERT(locality != NULL);

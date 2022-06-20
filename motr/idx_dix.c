@@ -109,7 +109,7 @@ static bool idx_is_distributed(const struct m0_op_idx *oi)
 
 	M0_PRE(M0_IN(ifid_type, (m0_dix_fid_type.ft_id,
 				 m0_cas_index_fid_type.ft_id)));
-	return ifid_type == m0_dix_fid_type.ft_id;
+	return M0_RC(ifid_type == m0_dix_fid_type.ft_id);
 }
 
 static void  idx_sync_record_update(struct m0_op   *op,
@@ -462,7 +462,7 @@ static void cas_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	uint32_t                 flags = 0;
 	int                      rc;
 
-	M0_ENTRY();
+	M0_ENTRY("oi=%p", oi);
 	cas_req_prepare(dix_req, &idx, oi);
 	/*
 	 * FIXME: why don't we call `flags = dix_set_cas_flags(oi);`
@@ -607,11 +607,13 @@ static void cas_req_init(struct dix_req   *req,
 			 struct m0_op_idx *oi)
 {
 	struct m0_reqh_service_ctx *svc;
+	M0_ENTRY();
 
 	svc = svc_find(oi);
 	M0_ASSERT(svc != NULL);
 	m0_cas_req_init(&req->idr_creq, &svc->sc_rlink.rlk_sess, oi->oi_sm_grp);
 	m0_clink_init(&req->idr_clink, casreq_clink_cb);
+	M0_LEAVE();
 }
 
 static int dix_mreq_create(struct m0_op_idx  *oi,
@@ -1083,7 +1085,7 @@ static void dix_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	uint32_t                 flags;
 	int                      rc;
 
-	M0_ENTRY();
+	M0_ENTRY("oi=%p, req=%p", oi, dix_req);
 	dix_dreq_prepare(dix_req, &dix, oi);
 	flags = dix_set_cas_flags(oi);
 	
@@ -1319,6 +1321,7 @@ static int dix_put(struct m0_op_idx *oi)
 {
 	struct dix_req *req;
 	int             rc;
+	M0_ENTRY("oi=%p [" FID_F "]", oi, FID_P(OI_IFID(oi)));
 
 	/* 
 	 * @todo: User application (S3) need to set M0_OIF_CROW and
@@ -1331,7 +1334,7 @@ static int dix_put(struct m0_op_idx *oi)
 	if (rc != 0)
 		return M0_ERR(rc);
 	dix_req_exec(req, idx_is_distributed(oi) ? dix_put_ast : cas_put_ast);
-	return 1;
+	return M0_RC(1);
 }
 
 static int dix_get(struct m0_op_idx *oi)
