@@ -29,6 +29,7 @@ def filter(argv):
     rec = ""
     fname = ""
     f = None
+    node = ""
     for line in fileinput.input([]):
         params = line[1:].split()
         if line[0] == "*":
