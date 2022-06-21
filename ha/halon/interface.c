@@ -318,25 +318,29 @@ halon_interface_process_failure_check(struct m0_halon_interface_internal *hii,
 				       FID_F, FID_P(&note->no_id));
 				continue;
 			}
-			if (note->no_state == M0_NC_FAILED) {
-				if (just_added) {
-					M0_LOG(M0_DEBUG,
-					       "Ignoring M0_NC_FAILED as "
-					       "it's the 1st notification "
-					       "for no_id="FID_F,
+			/*
+			 * XXX Workaround: ignore process state change to
+			 * M0_NC_FAILED if it's the first M0_NC_FAILED about the
+			 * process. Remove this after epochs are implemented and
+			 * there are no unnecessary state change duplicates.
+			 */
+			if (note->no_state == M0_NC_FAILED && just_added) {
+				M0_LOG(M0_DEBUG,
+				       "Ignoring M0_NC_FAILED as "
+				       "it's the 1st notification "
+				       "for no_id="FID_F,
+				       FID_P(&note->no_id));
+			} else if (M0_IN(note->no_state,
+					 (M0_NC_FAILED, M0_NC_TRANSIENT))) {
+				M0_LOG(M0_DEBUG, "no_id="FID_F,
+				       FID_P(&note->no_id));
+				if (hii->hii_cfg.hic_log_link) {
+					M0_LOG(M0_WARN, "disconnecting "
+					       "all links to no_id="FID_F,
 					       FID_P(&note->no_id));
-				} else {
-					M0_LOG(M0_DEBUG, "no_id="FID_F,
-					       FID_P(&note->no_id));
-					if (hii->hii_cfg.hic_log_link) {
-						M0_LOG(M0_WARN, "disconnecting "
-						       "all links to "
-						       "no_id="FID_F,
-						       FID_P(&note->no_id));
-					}
-					m0_ha_process_failed(&hii->hii_ha,
-							     &note->no_id);
 				}
+				m0_ha_process_failed(&hii->hii_ha,
+				                     &note->no_id);
 			}
 			hii->hii_nvec[j].no_state = note->no_state;
 		}
