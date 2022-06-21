@@ -243,6 +243,8 @@ M0_INTERNAL bool
 m0_dtm0_domain_is_recoverable(struct m0_dtm0_domain *dod,
 			      struct m0_reqh        *reqh)
 {
+	struct m0_confc * confc;
+
 	(void)dod;
 	/*
 	 * XXX:
@@ -253,10 +255,10 @@ m0_dtm0_domain_is_recoverable(struct m0_dtm0_domain *dod,
 	 */
 	if (ENABLE_DTM0)
 		return false;
-	else
-		M0_LOG(M0_DEBUG, "Recovery machine is not here yet.");
 
-	return m0_reqh2confc(reqh) != NULL && has_in_conf(reqh);
+	M0_LOG(M0_DEBUG, "Recovery machine is not here yet.");
+	confc = m0_reqh2confc(reqh);
+	return confc != NULL && m0_confc_is_inited(confc) && has_in_conf(reqh);
 }
 
 #undef M0_TRACE_SUBSYSTEM
