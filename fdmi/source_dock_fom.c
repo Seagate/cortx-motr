@@ -270,6 +270,8 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 	M0_PRE(!src_dock->fsdc_filters_defined);
 
 	m0_semaphore_init(&sd_fom->fsf_shutdown, 0);
+	m0_mutex_init(&sd_fom->fsf_chan_guard);
+	m0_chan_init(&sd_fom->fsf_wake, &sd_fom->fsf_chan_guard);
 
 	rpc_mach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
 	M0_SET0(&sd_fom->fsf_conn_pool);
@@ -325,61 +327,19 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 	return M0_RC(0);
 }
 
-static void wakeup_iff_waiting(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-	struct m0_fom *fom = ast->sa_datum;
-
-	M0_ENTRY();
-	if (m0_fom_is_waiting(fom))
-		m0_fom_ready(fom);
-	M0_LEAVE();
-}
-
 M0_INTERNAL void m0_fdmi__src_dock_fom_wakeup(struct fdmi_sd_fom *sd_fom)
 {
-	struct m0_fom *fom;
-
 	M0_ENTRY("sd_fom %p", sd_fom);
 	M0_PRE(sd_fom != NULL);
-
-	fom = &sd_fom->fsf_fom;
-
-	/**
-	 * FOM can be uninitialized here, because posting
-	 * is allowed even if FDMI service is not started
-	 * @todo Small possibility of races exist (Phase 2).
-	 */
-	if (fom == NULL || fom->fo_loc == NULL) {
-		M0_LEAVE("FDMI FOM is not initialized yet");
-		return;
-	}
-	if (sd_fom->fsf_wakeup_ast.sa_next == NULL) {
-		sd_fom->fsf_wakeup_ast = (struct m0_sm_ast) {
-			.sa_cb    = wakeup_iff_waiting,
-			.sa_datum = fom
-		};
-		m0_sm_ast_post(&fom->fo_loc->fl_group, &sd_fom->fsf_wakeup_ast);
-	}
+	m0_chan_signal_lock(&sd_fom->fsf_wake);
 	M0_LEAVE();
 }
 
 static void fdmi__src_dock_timer_fom_wakeup(struct fdmi_sd_timer_fom *timer_fom)
 {
-	struct m0_fom *fom;
-
 	M0_ENTRY("sd_timer_fom %p", timer_fom);
 	M0_PRE(timer_fom != NULL);
-
-	fom = &timer_fom->fstf_fom;
-
-	if (timer_fom->fstf_wakeup_ast.sa_next == NULL) {
-		timer_fom->fstf_wakeup_ast = (struct m0_sm_ast) {
-			.sa_cb    = wakeup_iff_waiting,
-			.sa_datum = fom
-		};
-		m0_sm_ast_post(&fom->fo_loc->fl_group,
-			       &timer_fom->fstf_wakeup_ast);
-	}
+	m0_fom_wakeup(&timer_fom->fstf_fom);
 	M0_LEAVE();
 }
 
@@ -403,6 +363,8 @@ m0_fdmi__src_dock_fom_stop(struct m0_fdmi_src_dock *src_dock)
 	/* Wait for fom finished */
 	m0_semaphore_down(&src_dock->fsdc_sd_fom.fsf_shutdown);
 	m0_semaphore_fini(&src_dock->fsdc_sd_fom.fsf_shutdown);
+	m0_chan_fini_lock(&src_dock->fsdc_sd_fom.fsf_wake);
+	m0_mutex_fini(&src_dock->fsdc_sd_fom.fsf_chan_guard);
 
 	M0_LEAVE();
 }
@@ -988,9 +950,14 @@ static int fdmi_sd_fom_tick(struct m0_fom *fom)
 			if (m0_reqh_service_state_get(rsvc) == M0_RST_STOPPING)
 				m0_fom_phase_set(fom,
 						 FDMI_SRC_DOCK_FOM_PHASE_FINI);
-			else
+			else {
+				m0_mutex_lock(&sd_fom->fsf_chan_guard);
+				m0_fom_wait_on(fom, &sd_fom->fsf_wake,
+					       &fom->fo_cb);
+				m0_mutex_unlock(&sd_fom->fsf_chan_guard);
 				m0_fom_phase_set(fom,
 						 FDMI_SRC_DOCK_FOM_PHASE_WAIT);
+			}
 			return M0_RC(M0_FSO_WAIT);
 		} else {
 			M0_LOG(M0_DEBUG, "popped from record list id =" U128X_F,

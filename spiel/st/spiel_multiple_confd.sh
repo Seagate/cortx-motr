@@ -84,7 +84,7 @@ stop() {
 }
 
 _init() {
-    lnet_up
+    lnet_up "new"
     if [ "$XPRT" = "lnet" ]; then
         m0_modules_insert
     fi

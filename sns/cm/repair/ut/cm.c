@@ -68,6 +68,7 @@ static struct m0_fom_simple     iter_fom;
 static struct m0_fom_timeout    iter_fom_timeout;
 static struct m0_semaphore      iter_sem;
 static const struct m0_fid      M0_SNS_CM_REPAIR_UT_PVER = M0_FID_TINIT('v', 1, 8);
+static enum m0_cm_op            op;
 
 static struct m0_sm_state_descr iter_ut_fom_phases[] = {
 	[M0_FOM_PHASE_INIT] = {
@@ -128,7 +129,7 @@ static void service_start_failure(void)
 	M0_ASSERT(rc != 0);
 }
 
-static void iter_setup(enum m0_cm_op op, uint64_t fd)
+static void iter_setup(uint64_t fd)
 {
 	struct m0_motr         *motr;
 	struct m0_pool_version *pver;
@@ -138,8 +139,13 @@ static void iter_setup(enum m0_cm_op op, uint64_t fd)
 	M0_ASSERT(rc == 0);
 
 	reqh = m0_cs_reqh_get(&sctx);
-	service = m0_reqh_service_find(
-		m0_reqh_service_type_find("M0_CST_SNS_REP"), reqh);
+	if (op == CM_OP_REPAIR) {
+		service = m0_reqh_service_find(
+			m0_reqh_service_type_find("M0_CST_SNS_REP"), reqh);
+	} else {
+		service = m0_reqh_service_find(
+			m0_reqh_service_type_find("M0_CST_SNS_REB"), reqh);
+	}
 	M0_UT_ASSERT(service != NULL);
 
 	cm = container_of(service, struct m0_cm, cm_service);
@@ -150,6 +156,10 @@ static void iter_setup(enum m0_cm_op op, uint64_t fd)
 	M0_UT_ASSERT(pver != NULL);
 	pool_mach_transit(reqh, &pver->pv_mach, fd, M0_PNDS_FAILED);
 	pool_mach_transit(reqh, &pver->pv_mach, fd, M0_PNDS_SNS_REPAIRING);
+	if (op == CM_OP_REBALANCE) {
+		pool_mach_transit(reqh, &pver->pv_mach, fd, M0_PNDS_SNS_REPAIRED);
+		pool_mach_transit(reqh, &pver->pv_mach, fd, M0_PNDS_SNS_REBALANCING);
+	}
 	rc = cm->cm_ops->cmo_prepare(cm);
 	M0_UT_ASSERT(rc == 0);
 	m0_cm_lock(cm);
@@ -281,12 +291,31 @@ static void repair_ag_destroy(const struct m0_tl_descr *descr, struct m0_tl *hea
 	} m0_tlist_endfor;
 }
 
+static void rebalance_ag_destroy(const struct m0_tl_descr *descr, struct m0_tl *head)
+{
+	struct m0_cm_aggr_group    *ag;
+	bool can_fini_ag;
+
+	m0_tlist_for(descr, head, ag) {
+		M0_CNT_INC(ag->cag_freed_cp_nr);
+		can_fini_ag = ag->cag_ops->cago_ag_can_fini(ag);
+		M0_UT_ASSERT(can_fini_ag);
+		ag->cag_ops->cago_fini(ag);
+	} m0_tlist_endfor;
+}
+
 static void ag_destroy(void)
 {
 	if (cm->cm_aggr_grps_in_nr == 0 && cm->cm_aggr_grps_out_nr == 0)
 		m0_sns_cm_fctx_cleanup(scm);
-	repair_ag_destroy(&aggr_grps_in_tl, &cm->cm_aggr_grps_in);
-	repair_ag_destroy(&aggr_grps_out_tl, &cm->cm_aggr_grps_out);
+	
+	if (op == CM_OP_REPAIR) {
+		repair_ag_destroy(&aggr_grps_in_tl, &cm->cm_aggr_grps_in);
+		repair_ag_destroy(&aggr_grps_out_tl, &cm->cm_aggr_grps_out);
+	} else {
+		rebalance_ag_destroy(&aggr_grps_in_tl, &cm->cm_aggr_grps_in);
+		rebalance_ag_destroy(&aggr_grps_out_tl, &cm->cm_aggr_grps_out);
+	}
 }
 
 static void cobs_create(uint64_t nr_files, uint64_t nr_cobs)
@@ -331,7 +360,10 @@ static int iter_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 	switch (*phase) {
 		case M0_FOM_PHASE_INIT:
 			M0_SET0(&scp);
-			scp.sc_base.c_ops = &m0_sns_cm_repair_cp_ops;
+			if (op == CM_OP_REPAIR)
+				scp.sc_base.c_ops = &m0_sns_cm_repair_cp_ops;
+			else
+				scp.sc_base.c_ops = &m0_sns_cm_rebalance_cp_ops;
 			m0_cm_cp_only_init(cm, &scp.sc_base);
 			scm->sc_it.si_cp = &scp;
 			*phase = ITER_RUN;
@@ -409,7 +441,8 @@ static void iter_run(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 	m0_semaphore_down(&iter_sem);
 	m0_semaphore_fini(&iter_sem);
 	m0_fom_timeout_fini(&iter_fom_timeout);
-	pool_mach_transit(reqh, &pver->pv_mach, fd, M0_PNDS_SNS_REPAIRED);
+	if (op == CM_OP_REPAIR)
+		pool_mach_transit(reqh, &pver->pv_mach, fd, M0_PNDS_SNS_REPAIRED);
 
 	m0_fi_disable("m0_sns_cm_file_attr_and_layout", "ut_attr_layout");
 	m0_fi_disable("iter_fid_attr_fetch", "ut_attr_fetch");
@@ -460,28 +493,44 @@ static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 	 * for subsequent failure tests so that pool machine doesn't interpret
 	 * it as a multiple failure after reading from the persistence store.
 	 */
-	pool_mach_transit(reqh, &pver->pv_mach, fd, M0_PNDS_SNS_REBALANCING);
+	if (op == CM_OP_REPAIR)
+		pool_mach_transit(reqh, &pver->pv_mach, fd, M0_PNDS_SNS_REBALANCING);
 	pool_mach_transit(reqh, &pver->pv_mach, fd, M0_PNDS_ONLINE);
 	cs_fini(&sctx);
 }
 
-static void iter_repair_single_file(void)
+static void iter_repreb_single_file(void)
 {
-	iter_setup(CM_OP_REPAIR, 2);
+	op = CM_OP_REPAIR;
+	iter_setup(2);
+	iter_run(6, 1, 2);
+	iter_stop(6, 1, 2);
+	op = CM_OP_REBALANCE;
+	iter_setup(2);
 	iter_run(6, 1, 2);
 	iter_stop(6, 1, 2);
 }
 
-static void iter_repair_multi_file(void)
+static void iter_repreb_multi_file(void)
 {
-	iter_setup(CM_OP_REPAIR, 4);
+	op = CM_OP_REPAIR;
+	iter_setup(4);
+	iter_run(6, 2, 4);
+	iter_stop(6, 2, 4);
+	op = CM_OP_REBALANCE;
+	iter_setup(4);
 	iter_run(6, 2, 4);
 	iter_stop(6, 2, 4);
 }
 
-static void iter_repair_large_file_with_large_unit_size(void)
+static void iter_repreb_large_file_with_large_unit_size(void)
 {
-	iter_setup(CM_OP_REPAIR, 1);
+	op = CM_OP_REPAIR;
+	iter_setup(1);
+	iter_run(6, 1, 1);
+	iter_stop(6, 1, 1);
+	op = CM_OP_REBALANCE;
+	iter_setup(1);
 	iter_run(6, 1, 1);
 	iter_stop(6, 1, 1);
 }
@@ -521,19 +570,29 @@ static void iter_rebalance_large_file_with_large_unit_size(void)
 static void iter_ag_init_failure(void)
 {
 	m0_fi_enable_once("m0_sns_cm_ag_init", "ag_init_failure");
-	iter_setup(CM_OP_REPAIR, 2);
+	op = CM_OP_REPAIR;
+	iter_setup(2);
+	iter_run(6, 1, 2);
+	iter_stop(6, 1, 2);
+	op = CM_OP_REBALANCE;
+	iter_setup(2);
 	iter_run(6, 1, 2);
 	iter_stop(6, 1, 2);
 }
 
 static void iter_invalid_nr_cobs(void)
 {
-	iter_setup(CM_OP_REPAIR, 3);
+	op = CM_OP_REPAIR;
+	iter_setup(3);
+	iter_run(3, 1, 3);
+	iter_stop(3, 1, 3);
+	op = CM_OP_REBALANCE;
+	iter_setup(3);
 	iter_run(3, 1, 3);
 	iter_stop(3, 1, 3);
 }
 
-struct m0_ut_suite sns_cm_repair_ut = {
+struct m0_ut_suite sns_cm_repreb_ut = {
 	.ts_name = "sns-cm-repair-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
@@ -541,10 +600,10 @@ struct m0_ut_suite sns_cm_repair_ut = {
 		{ "service-startstop", service_start_success},
 		{ "service-init-fail", service_init_failure},
 		{ "service-start-fail", service_start_failure},
-		{ "iter-repair-single-file", iter_repair_single_file},
-		{ "iter-repair-multi-file", iter_repair_multi_file},
-		{ "iter-repair-large-file-with-large-unit-size",
-		  iter_repair_large_file_with_large_unit_size},
+		{ "iter-repreb-single-file", iter_repreb_single_file},
+		{ "iter-repreb-multi-file", iter_repreb_multi_file},
+		{ "iter-repreb-large-file-with-large-unit-size",
+		  iter_repreb_large_file_with_large_unit_size},
 		{ "iter-ag-init-failure", iter_ag_init_failure},
 		{ "iter-invalid-nr-cobs", iter_invalid_nr_cobs},
 		{ NULL, NULL }

@@ -68,6 +68,10 @@ struct index_ctx
 };
 
 extern bool is_str;
+extern bool is_enf_meta;
+extern bool is_skip_layout;
+extern bool is_crow_disable;
+extern struct m0_fid dix_pool_ver;
 
 int  index_execute(int argc, char** argv);
 int  index_init(struct params *params);

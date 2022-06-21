@@ -215,7 +215,8 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 	m0_op_idx_bob_init(oi);
 	m0_ast_rc_bob_init(&oi->oi_ar);
 
-	if (ENABLE_DTM0 && M0_IN(op->op_code, (M0_IC_PUT, M0_IC_DEL))) {
+	if (ENABLE_DTM0 && !(flags & M0_OIF_NO_DTM) &&
+	    M0_IN(op->op_code, (M0_IC_PUT, M0_IC_DEL))) {
 		M0_ASSERT(m0c->m0c_dtms != NULL);
 		oi->oi_dtx = m0_dtx0_alloc(m0c->m0c_dtms, oi->oi_sm_grp);
 		if (oi->oi_dtx == NULL)

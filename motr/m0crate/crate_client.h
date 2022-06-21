@@ -55,6 +55,9 @@ struct crate_conf {
 	int col_family;
 	int log_level;
 	uint64_t addb_size;
+	bool is_enf_meta;
+	bool is_skip_layout;
+	bool is_crow_disable;
 };
 
 enum m0_operation_type {

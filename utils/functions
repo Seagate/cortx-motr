@@ -35,7 +35,7 @@
                  36spare-reservation
                  37protocol
                  51kem)
- 
+
  # libisal does not need kernel based ST
  LIBISAL_TESTS_SKIPLIST=(
              08spiel-sns-repair
@@ -113,22 +113,38 @@ m0_modules_remove() {
 }
 
 lnet_up() {
+    local format=${1:-old}
+    local NID=$(m0_local_nid_get "$format")
+    XPRT=$(m0_default_xprt)
+
     if [ "$XPRT" = "lnet" ]; then
         modprobe lnet
         lctl network up >/dev/null
     fi
-    local LNET_NID=$(m0_local_nid_get)
 
-    ## LNet endpoint address format (see net/lnet/lnet.h):
-    ##     NID:PID:Portal:TMID
-    ##
-    ## The PID value of 12345 is used by Lustre in the kernel and is
-    ## the only value currently supported.
-    export M0T1FS_ENDPOINT="$LNET_NID:12345:34:1"
-    export M0D1_ENDPOINT="$LNET_NID:12345:34:1001"
-    export M0D2_ENDPOINT="$LNET_NID:12345:34:1002"
-    export M0D3_ENDPOINT="$LNET_NID:12345:34:1003"
-    export SPIEL_ENDPOINT="$LNET_NID:12345:34:2001"
+    if [[ "$XPRT" == "lnet" || "$format" == "old" ]]; then
+        ## LNet endpoint address format (see net/lnet/lnet.h):
+        ##     NID:PID:Portal:TMID
+        ##
+        ## The PID value of 12345 is used by Lustre in the kernel and is
+        ## the only value currently supported.
+        M0T1FS_EP=":12345:34:1"
+        M0D1_EP=":12345:34:1001"
+        M0D2_EP=":12345:34:1002"
+        M0D3_EP=":12345:34:1003"
+        SPIEL_EP=":12345:34:2001"
+    else
+        M0T1FS_EP="@3000"
+        M0D1_EP="@4001"
+        M0D2_EP="@4002"
+        M0D3_EP="@4003"
+        SPIEL_EP="@5001"
+    fi
+    export M0T1FS_ENDPOINT="$NID$M0T1FS_EP"
+    export M0D1_ENDPOINT="$NID$M0D1_EP"
+    export M0D2_ENDPOINT="$NID$M0D2_EP"
+    export M0D3_ENDPOINT="$NID$M0D3_EP"
+    export SPIEL_ENDPOINT="$NID$SPIEL_EP"
 }
 
 ## Adding function to identify the default available transport layer
@@ -161,7 +177,7 @@ m0_local_nid_get()
     local local_nid
     XPRT=$(m0_default_xprt)
     if [ "$XPRT" = "lnet" ]
-    then 
+    then
         local_nid=`sudo lctl list_nids | head -1`
     else
         touch /etc/libfab.conf
@@ -175,7 +191,13 @@ m0_local_nid_get()
         local iface=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "(" -f2 | cut -d ")" -f1`
         local proto=`cat /etc/libfab.conf | grep '\S' | grep --invert-match "^ *#" | cut -d "=" -f2 | cut -d "(" -f1`
         local ip_addr=`ip addr show $iface |grep inet| head -1 | awk '{print $2}'|cut -d '/' -f1`
-        local_nid=$ip_addr@$proto
+
+        local format=${1:-old}
+        if [[ "$format" == "new" ]]; then
+            local_nid=inet:$proto:$ip_addr
+        else
+            local_nid=$ip_addr@$proto
+        fi
     fi
     echo $local_nid
 }
