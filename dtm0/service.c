@@ -354,7 +354,7 @@ static int dtm0_service_start(struct m0_reqh_service *service)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	if (!is_manual_ss_enabled()) {
+	if (ENABLE_DTM0 && !is_manual_ss_enabled()) {
 		m0_dtm0_recovery_machine_init(&dtms->dos_remach,
 					      NULL, dtms);
 		rc = m0_dtm0_recovery_machine_start(&dtms->dos_remach);
@@ -369,7 +369,7 @@ static void dtm0_service_prepare_to_stop(struct m0_reqh_service *reqh_rs)
 
 	M0_PRE(reqh_rs != NULL);
 	dtms = M0_AMB(dtms, reqh_rs, dos_generic);
-	if (!is_manual_ss_enabled())
+	if (ENABLE_DTM0 && !is_manual_ss_enabled())
 		m0_dtm0_recovery_machine_stop(&dtms->dos_remach);
 	dtm0_service_conns_term(dtms);
 }
@@ -390,7 +390,7 @@ static void dtm0_service_stop(struct m0_reqh_service *service)
 		m0_be_dtm0_log_free0(&dtm0->dos_log);
 	}
 
-	if (!is_manual_ss_enabled())
+	if (ENABLE_DTM0 && !is_manual_ss_enabled())
 		m0_dtm0_recovery_machine_fini(&dtm0->dos_remach);
 }
 
