@@ -306,6 +306,7 @@ usr/include/motr/lib/buf_xc.h
 usr/include/motr/lib/byteorder.h
 usr/include/motr/lib/chan.h
 usr/include/motr/lib/cksum.h
+usr/include/motr/lib/cksum_data.h
 usr/include/motr/lib/cksum_utils.h
 usr/include/motr/lib/combinations.h
 usr/include/motr/lib/cond.h

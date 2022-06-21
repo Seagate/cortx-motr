@@ -22,26 +22,19 @@
 
 #pragma once
 
+/* This file contains only generic interfaces */
+
 #ifndef __MOTR_CKSUM_H__
 #define __MOTR_CKSUM_H__
 
 #include "lib/vec.h"
 #include "fid/fid.h"
 #include "xcode/xcode_attr.h"
-#ifndef __KERNEL__
-#include <openssl/md5.h>
-#endif
 
 #define M0_CKSUM_DATA_ROUNDOFF_BYTE (16)
 
 /* Default checksum type, TODO_DI: Get from config */
 #define M0_CKSUM_DEFAULT_PI M0_PI_TYPE_MD5
-
-/* Max checksum size for all supported PIs */
-#define M0_CKSUM_MAX_SIZE (sizeof(struct m0_md5_pi) > \
-                           sizeof(struct m0_md5_inc_context_pi) ? \
-                           sizeof(struct m0_md5_pi) : \
-                           sizeof(struct m0_md5_inc_context_pi))
 
 /*
  * Macro calculates the size of padding required in a struct
@@ -79,48 +72,6 @@ struct m0_pi_hdr {
 	uint8_t pih_type : 8;
 	/*size of PI Structure in multiple of  32 bytes*/
 	uint8_t pih_size : 8;
-};
-
-/*********************** MD5 Cksum Structure ***************************************/
-/** Padding size for MD5 structure */
-#define M0_CKSUM_PAD_MD5 (M0_CALC_PAD((sizeof(struct m0_pi_hdr)+MD5_DIGEST_LENGTH), \
-			               M0_CKSUM_DATA_ROUNDOFF_BYTE))
-
-/** MD5 checksum structure, the checksum value is in pimd5_value */
-struct m0_md5_pi {
-	/* header for protection info */
-	struct m0_pi_hdr pimd5_hdr;
-#ifndef __KERNEL__
-	/* protection value computed for the current data*/
-	unsigned char    pimd5_value[MD5_DIGEST_LENGTH];
-	/* structure should be 32 byte aligned */
-	char             pimd5_pad[M0_CKSUM_PAD_MD5];
-#endif
-};
-
-/*********************** MD5 Including Context Checksum Structure ******************/
-/** Padding size for MD5 Including Context structure */
-#define M0_CKSUM_PAD_MD5_INC_CXT (M0_CALC_PAD((sizeof(struct m0_pi_hdr)+ \
-				     sizeof(MD5_CTX)+MD5_DIGEST_LENGTH), M0_CKSUM_DATA_ROUNDOFF_BYTE))
-
-/** MD5 checksum structure:
- *  - The computed checksum value will be in pimd5c_value.
- *  - Input context from previous MD5 computation in pimd5c_prev_context
- */
-struct m0_md5_inc_context_pi {
-	/* header for protection info */
-	struct m0_pi_hdr pimd5c_hdr;
-#ifndef __KERNEL__
-	/*context of previous data unit, required for checksum computation */
-	unsigned char    pimd5c_prev_context[sizeof(MD5_CTX)];
-	/* protection value computed for the current data unit.
-	 * If seed is not provided then this checksum is
-	 * calculated without seed.
-	 */
-	unsigned char    pimd5c_value[MD5_DIGEST_LENGTH];
-	/* structure should be 32 byte aligned */
-	char             pi_md5c_pad[M0_CKSUM_PAD_MD5_INC_CXT];
-#endif
 };
 
 /*********************** Generic Protection Info Structure *****************/

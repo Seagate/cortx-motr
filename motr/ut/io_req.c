@@ -26,6 +26,7 @@
 #include "lib/trace.h"        /* M0_LOG */
 #include "lib/uuid.h"         /* m0_uuid_generate */
 #include "lib/finject.h"      /* Failure Injection */
+#include "lib/cksum_data.h"
 #include "ioservice/fid_convert.h"
 
 #include "ut/ut.h"            /* M0_UT_ASSERT */

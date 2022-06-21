@@ -21,7 +21,7 @@
 
 
 #include "lib/memory.h"               /* m0_alloc, m0_free */
-#include "lib/cksum.h"
+#include "lib/cksum_data.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"

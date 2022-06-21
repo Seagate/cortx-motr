@@ -30,6 +30,7 @@
 #include "lib/errno.h"           /* ENOMEM */
 #include "lib/finject.h"         /* M0_FI_ */
 #include "lib/cksum_utils.h"
+#include "lib/cksum_data.h"
 #include "fid/fid.h"             /* m0_fid */
 #include "rpc/rpclib.h"          /* m0_rpc_ */
 #include "lib/ext.h"             /* struct m0_ext */
@@ -40,7 +41,6 @@
 #include "motr/addb.h"
 #include "rpc/item.h"
 #include "rpc/rpc_internal.h"
-#include "lib/cksum.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include "lib/trace.h"           /* M0_LOG */
