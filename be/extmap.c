@@ -126,7 +126,7 @@ static struct m0_rwlock *emap_rwlock(struct m0_be_emap *emap)
 	return &emap->em_lock.bl_u.rwlock;
 }
 
-static void emap_dump(struct m0_be_emap_cursor *it)
+M0_UNUSED static void emap_dump(struct m0_be_emap_cursor *it)
 {
 	int                       i;
 	int                       rc;
@@ -1387,7 +1387,11 @@ be_emap_prev(struct m0_be_emap_cursor *it)
 	return rc;
 }
 
-#if 1
+/**
+ * Disabling invariant checks as they are causing timeout in motr ST's.
+ * TBD: Re-Enable when CORTX-32380 is fixed.
+ */
+#if 0
 static bool
 be_emap_invariant_check(struct m0_be_emap_cursor *it)
 {
