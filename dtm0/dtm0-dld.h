@@ -170,18 +170,18 @@ struct m0_dtm0_pmsg {
  * records that were in the log during last local process restart or during
  * last remote process restart for the process that handles that sdev.
 */
-m0_dtm0_log_iter_init();
+M0_INTERNAL void m0_dtm0_log_iter_init(struct m0_dtm0_log *dol);
 
 /**
  * Gives next log record for the sdev participant.
  */
-m0_dtm0_log_iter_next();
+M0_INTERNAL void m0_dtm0_log_iter_next(struct m0_dtm0_log *dol);
 
 /**
  * Finalises the iterator. It MUST be done for every call of
  * m0_dtm0_log_iter_init().
  */
-m0_dtm0_log_iter_fini();
+M0_INTERNAL void m0_dtm0_log_iter_fini(struct m0_dtm0_log *dol);
 
 /**
  * Notifies the log that the participant has restarted.
@@ -189,8 +189,8 @@ m0_dtm0_log_iter_fini();
  * Any record that doesn't have P from the participant at the time of the call
  * will be returned during the next iteration for the participant.
  */
-m0_dtm0_log_participant_restarted();
-m0_dtm0_log_participant_restarted_credit();
+M0_INTERNAL void m0_dtm0_log_participant_restarted(struct m0_dtm0_log *dol);
+M0_INTERNAL void m0_dtm0_log_participant_restarted_credit(struct m0_dtm0_log *dol);
 
 /* pmach interface */
 
@@ -203,44 +203,75 @@ m0_dtm0_log_participant_restarted_credit();
  * If returned dtxs_nr then the log is being stopped, so that no further calls
  * to the function should be made.
  */
-M0_INTERNAL void m0_dtm0_log_p_get(struct m0_dtm0_log *dol, struct m0_be_op *op,
-				   struct m0_fid *sdev_fid, struct m0_dtx0_id
-				   *dtxs, uint64_t *dtxs_nr);
+M0_INTERNAL void m0_dtm0_log_p_get(struct m0_dtm0_log *dol,
+				   struct m0_be_op    *op,
+				   struct m0_fid      *sdev_fid,
+				   struct m0_dtx0_id  *dtxs,
+				   uint64_t           *dtxs_nr);
 
 /**
  * Records that P message was received for the sdev participant.
  */
-M0_INTERNAL void m0_dtm0_log_p_put(struct m0_dtm0_log *dol, struct m0_be_tx *tx,
-				   struct m0_dtm0_pmsg *pmsgs, uint64_t pmsgs_nr);
-M0_INTERNAL void m0_dtm0_log_p_put_credit();
+M0_INTERNAL void m0_dtm0_log_p_put(struct m0_dtm0_log  *dol,
+				   struct m0_be_tx     *tx,
+				   struct m0_dtm0_pmsg *pmsgs,
+				   uint64_t             pmsgs_nr);
+
+M0_INTERNAL void m0_dtm0_log_p_put_credit(struct m0_dtm0_log     *dol,
+                                          uint64_t                pmsgs_nr,
+                                          struct m0_be_tx_credit *accum);
 
 /* pruner interface */
 
 /**
  * Returns dtx0 id for the dtx which has all participants (except originator)
- * reported P for the dtx0. Also returns all dtx0 which were cancelled.
+ * reported P for the dtx0.
  */
-m0_dtm0_log_p_get_none_left();
+M0_INTERNAL void m0_dtm0_log_p_get_none_left(struct m0_dtm0_log *dol);
 
 /**
- * Remove the REDO message about dtx0 from the log
+ * Remove the REDO message about dtxs from the log.
  */
-m0_dtm0_log_prune();
-m0_dtm0_log_prune_credit();
+M0_INTERNAL void m0_dtm0_log_prune(struct m0_dtm0_log *dol,
+                                   struct m0_dtx0_id  *dtxs,
+                                   uint64_t            nr);
+
+M0_INTERNAL void m0_dtm0_log_prune_credit(struct m0_dtm0_log *dol,
+                                          uint64_t            nr);
 
 /* dtx0 interface, client & server */
 
 /**
- * Check if the transaction has to be applied or not, and reserves a slot in
- * the log for that record (in case if it has to be applied).
+ * Check if the transaction has to be applied or not, and records to the log
+ * about an intent to apply for that redo (in case if it has to be applied).
+ * @param op_executed   will let the caller know when the record becomes
+ *                      executed. Useful for CAS foms to send the reply back.
+ *                      If it's NULL then it will not be used.
+ * @param op_persistent will let the caller know when the record becomes
+ *                      persistent (i.e. BE tx becomes M0_BTS_LOGGED). Useful
+ *                      for local recovery machine to tell remote recovery
+ *                      machine that the redo message was processed.
+ *                      If it's NULL then it will not be used.
+ * @param redo          The redo message to add the intent for.
+ * @param sdev_fid      Storage device the redo will be applied for.
+ * @return true  if the redo has never been added to the log and this function
+ *               hasn't been called for this dtx.
+ * @return false if the redo has been applied earlier or there was an intent to
+ *               add it to the log. In this case op_executed and op_persistent 
  */
-bool m0_dtm0_log_redo_add_intent();
-
+M0_INTERNAL bool m0_dtm0_log_redo_add_intent(struct m0_dtm0_log  *dol,
+                                             struct m0_be_op     *op_executed,
+                                             struct m0_be_op     *op_persistent,
+                                             struct m0_dtm0_redo *redo,
+                                             struct m0_fid       *sdev_fid);
 
 /**
  * Adds a REDO message and, optionally, P message, to the log.
  */
-m0_dtm0_log_redo_add();
+M0_INTERNAL void m0_dtm0_log_redo_add(struct m0_dtm0_log  *dol,
+                                      struct m0_be_tx     *tx,
+                                      struct m0_dtm0_redo *redo,
+                                      struct m0_fid       *p_sdev_fid);
 
 /* dtx0 interface, client only */
 
@@ -248,19 +279,19 @@ m0_dtm0_log_redo_add();
  * Returns the number of P messages for the dtx and waits until either the
  * number increases or m0_dtm0_log_redo_cancel() is called.
  */
-m0_dtm0_log_redo_p_wait();
+M0_INTERNAL void m0_dtm0_log_redo_p_wait(struct m0_dtm0_log *dol);
 
 /**
  * Notification that the client doesn't need the dtx anymore. Before the
  * function returns the op
  */
-m0_dtm0_log_redo_cancel();
+M0_INTERNAL void m0_dtm0_log_redo_cancel(struct m0_dtm0_log *dol);
 
 /**
  * Notifies dtx0 that the operation dtx0 is a part of is complete.
  * This function MUST be called for every m0_dtm0_log_redo_add().
  */
-m0_dtm0_log_redo_end();
+M0_INTERNAL void m0_dtm0_log_redo_end(struct m0_dtm0_log *dol);
 
 
 /** @} */ /* DLDDFS end group */
