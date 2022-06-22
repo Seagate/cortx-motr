@@ -42,7 +42,6 @@
    - @ref DLD-ref
    - @ref DLD-impl-plan
 
-
    <hr>
    @section DLD-ovw Overview
    <i>All specifications must start with an Overview section that
@@ -160,6 +159,34 @@
    XXX
    Pmsg, Pmsgs
 
+   Read availability of participant: it can successfully serve READ requests.
+   Participant is available for reads in ONLINE state only.
+   Write availability of participant: it can successfully serve WRITE requests.
+   Participant is available for writes in ONLINE and RECOVERING states.
+
+   XXX:DixRecord is READ-available if at least read-quorum of replicas are on
+   READ-available participants, i.e. on ONLINE storage devices.
+   XXX:DixRecord is WRITE-available if at least write-quorum of replicas are on
+   WRITE-available participants, i.e. on ONLINE or RECOVERING storage devices.
+
+   Read availability for pool: every possible object in the pool is
+   READ-available, i.e. at least (pool_width - (number-of-replicas - read-quorum))
+   storage devices are READ-available, i.e. in ONLINE state.
+   Write availability for pool: every possible object in the pool is
+   WRITE-available, i.e. at least (pool_width - (number-of-replicas - write-quorum))
+   storage devices are WRITE-available, i.e. in ONLINE or RECOVERING state.
+   XXX:Explanation: (number-of-replicas - x-quorum) corresponds to the maximal
+   number of devices in the "wrong" state among the pool.
+
+   XXX:XXX: Consider failure domains for READ and WRITE pool availability.
+
+   Log record has/is All-P: P messages were received about all non-FAILED
+   storage devices that are participants of this log record's dtx.
+
+   Local participant -- participant which is handled by the current DTM0 domain.
+   Remote participant -- participant which is not local participant.
+
+
    Previously defined terms:
    - <b>Logical Specification</b> This explains how the component works.
    - <b>Functional Specification</b> This is explains how to use the component.
@@ -178,6 +205,10 @@
    <i>Mandatory.
    The DLD shall state the requirements that it attempts to meet.</i>
 
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119.
+
    - Client has limited capacity (timeout for operation).
      Conclusion: Sliding window is always moving on.
    - Duration of TRANSIENT failure - 1 month.
@@ -186,32 +217,47 @@
 
    - N% of performance degradation is allowed during dtm0 recovery.
 
-   - dtm0 must maximize A, D and performance of the system.
+   - dtm0 MUST maximize A, D and performance of the system.
+	   - R.dtm0.maximize.availability
+	   - R.dtm0.maximize.durability
+	   - R.dtm0.maximize.performance
 
-   - dtm0 must restore missing replicas in minimal time.
+   - dtm0 MUST restore missing replicas in minimal time (REDO outside of RECOVERING).
 
-   - replicas may become missing due to process crash/restart or because of
-   unreliable network.
+   - dtm0 MUST handle ... ->
+	   - replicas MAY become missing due to process crash/restart or because of
+	   unreliable network.
 
-   - dtm0 must restore missing replicas even without process restarts.
+   - dtm0 MUST restore missing replicas even without process restarts.
 
-   - dtm0 must not restore missing replicas in case of permanent failures.
+   - dtm0 MUST NOT restore missing replicas in case of permanent failures.
 
-   - dtm0 must not introduce bottlenecks in the system.
+   - dtm0 MUST NOT introduce bottlenecks in the system.
 
-   - dtm0 memory usage must be limited.
+   - [R.dtm0.limited-ram] dtm0 memory usage MUST be limited;
+	Comment: either we do recovery from the client (mem is not limited?) or
+	         we do not do that (cancel) or a mix of that.
 
-   - dtm0 must not introduce unnecessary delays.
+   - dtm0 MAY perform recovery from the originator side XXX.
 
-   - dtm0 should not support transaction dependencies.
+   - dtm0 MUST NOT introduce unnecessary delays.
 
-   - dtm0 consistency model must be configurable.
+   - dtm0 SHOULD NOT support transaction dependencies.
 
-   - dtm0 performance/D tradeoff must be configurable.
+   - dtm0 consistency model MUST be configurable.
 
-   - dtm0 must minimize the use of storage for the transactions that are
+   - dtm0 performance/D tradeoff MUST be configurable.
+
+   - configuration options:
+        1. Read quorum, write quorum.
+        2. Number of replicas.
+        3. XXX: Read A, WRITE A.
+
+   - dtm0 MUST handle out-of-disk-space and out-of-memory conditions.
+
+   - dtm0 MUST minimize the use of storage for the transactions that are
    replicated on all non-failed participants.
-
+      Comment: no need to prune dtm0 log/FOL all the time.
 
    They should be expressed in a list, thusly:
    - @b R.DLD.Structured The DLD shall be decomposed into a standard
@@ -253,6 +299,14 @@
        - txid;
        - txid previously sent to this participant.
 
+   Log record states:
+   - was never added to dtm0 log;
+   - is in dtm0 log;
+     + does not have REDO message;
+     + has REDO message;
+       * does not have All-P;
+       * has All-P;
+   - was added to dtm0 log and was removed from dtm0 log;
 
    [INPROGRESS, EXECUTED, STABLE, DONE]
 
@@ -280,9 +334,9 @@
    We maintain ordered list on each client; they are ordered by client-side
    timestamp.
    3 cat of tx for a client:
-	has not left the client
-	did not arrive to servers
-	not related.
+     has not left the client
+     did not arrive to servers
+     not related.
    Sliding window is updated whenver client is not idle.
    When client is idle then we rely on local detection: if there is no io
    from that client while there is io from others then the client is idle.
@@ -303,6 +357,11 @@
 
    - dtm0 propagates back pressure (memory, IO, etc) across the system, thus
    helping us to avoid overload due to "too many operations are in-progress".
+
+   [Cat of fids]
+   Originator is service.
+   Storage device is persistent participant.
+   Participant is a service or a storage device.
 
    <hr>
    @section DLD-lspec Logical Specification
@@ -348,6 +407,67 @@
    DTM0 log provides an API that allows the user to add or remove log records.
    Also, there are log iterators: API that allows the user to traverse over
    specific kinds of records (for example, "all-p" records).
+   @verbatim
+
+   struct m0_dtx0_id {
+   	uint64_t      dti_timestamp;
+   	struct m0_fid dti_originator_sdev_fid;
+   } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
+
+   struct m0_dtx0_participants {
+   	uint64_t       dtpa_participants_nr;
+   	struct m0_fid *dtpa_participants;
+   } M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc|be);
+
+   struct m0_dtx0_descriptor {
+   	struct m0_dtx0_id           dtd_id;
+   	struct m0_dtx0_participants dtd_participants;
+   } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
+
+   struct m0_dtx0_payload {
+   	uint32_t         dtp_type M0_XCA_FENUM(m0_dtx0_payload_type);
+   	struct m0_bufs   dtp_data;
+   } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
+
+   struct m0_dtm0_redo {
+   	struct m0_dtx0_descriptor dtr_descriptor;
+   	struct m0_dtx0_payload    dtr_payload;
+   };
+
+   struct pmsg {
+	   dtx0_id;
+	   uint64_t nr_participants;
+	   fid source; // sdev_fid
+	   fid destination; // sdev|service fid
+   };
+
+   struct log_record {
+	   dtx0_id   id;
+	   dtm0_redo redo;
+	   be_list_link allp;
+	   be_list_link redo;
+	   be_list_link participants[]; // [0] == originator, rest - sdevs
+	   fid          fids[];
+	   uint64_t     nr_participants;
+   };
+   // states:
+   //   REDO message is not here:
+   //      first incoming Pmsg -- create a new log record with empty REDO,
+   //                             msg.source is added to log_record.fids.
+   //      next incoming Pmsgs -- add msg.source to log_record.fids.
+   //   when REDO message finaly arrives:
+   //      take all non-zero fids from log_record.fids and ignore these
+   //      participants when we link the log_record to the
+   //      log_record.participants lists.
+   // for a local participant log record is added to the list when the operation
+   // is executed on the local participant.
+   // for a remote participant: TODO
+
+   struct dtm0_log {
+	   btree tree(key=dtxid, value=log_record);
+   };
+
+   @endverbatim
 
    - DTM0 net:
    DTM0 net uses Motr RPC.
@@ -358,14 +478,69 @@
    acknoweledged by the remote side (RPC reply was sent).
    It cancels all outgoing/incoming messages when the HA tells us that
    participant goes to FAILED/TRANSIENT state.
+   Optimizations:
+   - Do not use network if the destination is in the same Motr process.
 
    - DTX0:
    It is the facade [todo: c` instead of just c] of dtm0 for dtm0 users.
+   Duplicates (CAS requests, REDO messages, etc.) are checked at the DTM0 log
+   level.
 
    - Persistent machine:
    It solves two tasks. It sends out a Pmsg when a local transction becomes
    persistent (1).
    It updates the log when a Pmsg is received from a remote participant (2).
+   Persistent machine contains a set of local participants. For each participant,
+   there is a set of iterators that correspond to the remote participants:
+
+   @verbatim
+   [ local-sdev-1, local-sdev-2]   [remote-sdev-1, remote-sdev-2]
+
+   local-sdev-1 has the following iterators:
+        remote-sdev-1
+        remote-sdev-2
+   local-sdev-2 has the same set of iterators.
+   @endverbatim
+
+   However, we want to minimize the latency of user operation. In Pmach, we can
+   prioritize sending P messages to clients over sending of P messages to other
+   participants. Clients are interested in Pmsgs only for in-progress
+   transactions. Because of that, we can create an in-memory queue for each
+   client which will be used as the source of Pmsgs to the client. If we keep
+   this queue sorted and remove Pmsgs for transactions with T < T.client.min
+   then this queue will not grow much more than the total amount of all
+   in-progress transactions for the client, which will satisfy
+   R.dtm0.limited-ram.
+   The queue does not have to be persistent, so we keep it in RAM, thus
+   satisfying R.dtm0.maximize-performance.
+
+   Alternatives:
+   1. In-memory queue (for outgoing Pmsgs). Cons: the queue is not bounded; it
+   can grow quickly if the remote is slow. It is not acceptable (see
+   R.dtm0.limited-ram).
+   2. One iterator per local participant (send Pmsgs, advance one single iter,
+   send again and so on). Cons: unecessary delays (for example when one remote
+   is in TRANSIENT). The delays have negative impact on reliability, durability,
+   and increases storage consumption.
+
+   Pmach algorithm for outgoing Pmsgs:
+   1. Take a Pmsg from any iterator mentioned above (for example,
+   local-sdev-1.remote-sdev-2).
+   2. Send the Pmsg to the remote (for example, remote-sdev-2).
+
+   Pmach algorithm for incoming Pmsgs:
+   1. Take an incoming Pmsg.
+   2. Apply it to the log.
+
+   Pmach optimizations:
+   For outgoing: coalescing is done at the net level; wait until all local
+   transactions are persistent before sending Pmsg about local participants.
+   XXX: persistent on all local participants which are ONLINE, RECOVERING,
+   during rebalance/direct rebalance.
+   For incoming:
+   Wait until Pmsgs about a dtx received from all non-failed (XXX: ONLINE,
+   etc. like before) participants before persisting those Pmsgs. This
+   will improve BE seg locality of reference.
 
    - Recovery machine:
    It solves two tasks. It sends out REDO messages (1).
@@ -373,20 +548,97 @@
    REDO messages are read out from the log directly. They are applied through
    a callback (for example, posted as CAS FOMs).
 
+   @verbatim
+   [ remote participant restarted]
+      -> [ merge REDO-list with ongoing-list of the participant ]
+
+   [ remote participant: * -> RECOVERING ]
+      -> [ local -> remote: REDO ]
+   REDO: XXX: Contains Pmsgs for all local participants that are persistent.
+   @endverbatim
+
+   For each local participant, we iterate over the REDO-list, send out REDOs,
+   thus recovering the corresponding remote participant. The recovery machine
+   sends the (REDO, local participant Pmsg) tuple to the remote participant.
+   Once all the mesages were sent, it sends End-of-log (EOL) message for the
+   local participant.
+   On the recovering side: recovery machine awaits EOL from a particular set
+   of participants (see below).
+   Local storage device recovery is considered as complete
+   ("recovery-stop-condition") when the following sets are READ-available:
+     - Set1: local storage device + set of remote storage devices that sent EOL.
+     - Set2: local storage device + set of remote storage devices to which EOL
+     was sent.
+
+   Note, recovery machine may need to recover a local storage device
+   (inter-process recovery). It is done in the same way as with remote storage
+   devices, except DTM0 net will not be sending messages over network, instead
+   they will be loopback-ed.
+
+   When a REDO message is received, recovery machine calls the corresponding
+   callback that will apply the message. For example, the callback submits a CAS
+   FOM and then recovery machine awaits until the data gets landed on disk.
+   Then, the machine sends reply. The remote recovery machine receives the reply
+   and then sends another REDO. It allows to propagate the back pressure from
+   the recovering participant to the remote.
+
+   Duplicates are not checked by recovery machine. Instead, DTX0 and DTM0 log
+   do that.
+
+   Aside from recovering of TRANSIENT failures, recovery machine reacts to
+   FAILED state: in case of originator it causes "client eviction"; in case of
+   storage device, the machine does nothing -- Motr
+   repair/rebalance/direct-rebalance will take care of such device.
+
+   Moreover, recovery machine is also taking care of restoring missing replicas
+   for XXX:DixRecords outside of the usual recovery process caused by the state
+   transition of a storage device. This may happen due to losses in the network
+   or due to user operation cancelation.
+
+   Optimizations:
+      - send one REDO message for multiple participants that exist in the same
+      process.
+
    - Pruner:
-   It removes records when thier respective transactions become persistent on
+   It removes records when their respective transactions become persistent on
    all non-failed participants.
-   It removes records of FAILED participants (eviction).
+   It removes records of FAILED participants (eviction). After storage device
+   goes to FAILED state, pruner assumes that the records which have this storage
+   device as a participant no longer have this participant without P message.
+   If there are no other missing P messages then the pruner assumes that this
+   log record has All-P.
+   Pruner is only interested in only log records that are in the log and that
+   have All-P.
 
    - HA (dtm0 ha):
    It provides interface to Motr HA tailored for dtm0 needs.
+   What is needed from HA
+     - Pmach wants to know states and transitions for remote participants,
+     history does not matter.
+     - Remach: states and transitions of all participants, history matters.
+     Also, it allows motr/setup to send RECOVERED to HA (through domain).
+     - Net: states and transitions of all participants, history does not matter.
+     - Pruner: TRANSIENT and FAILED states, history matters.
+
+   [subscription to transitions]
+   DTM0 HA allows its user to subscribe to storage device states or service
+   states updates.
+
+   [persistent ha history]
+   DTM0 HA uses BE to keep the persistent history of state trasitions of
+   participants. The history is garbadge-collected by DTM0 HA itself:
+   for example, FAILED participants are removed when eviction is complete.
+   The other components may use the history.
 
    - domain:
-    DTM0 domain is a container for DTM0 log, pruner, recovery machine,
-    persistent machine, network. It serves as an entry point for any other
-    component that wants to interact with DTM0. For example, distributed
-    transactions are created within the scope of DTM0 domain.
-    TODO: remove it from domain.h.
+   DTM0 domain is a container for DTM0 log, pruner, recovery machine,
+   persistent machine, network. It serves as an entry point for any other
+   component that wants to interact with DTM0. For example, distributed
+   transactions are created within the scope of DTM0 domain.
+   TODO: remove it from domain.h.
+   To initialize DTM0, the user has to initialize DTM0 domain which will
+   initialize all internal DTM0 subsystems.
+   There may be more than one DTM0 domain per Motr process.
 
 
    @subsubsection DLD-lspec-ds-log Subcomponent Data Structures: DTM0 log
@@ -712,7 +964,17 @@
    Unsolved questions:
    - Let's say we have a hole in the log. How to understand that the hole is
    valid (i.e., no redo will be received) or non-valid (a missing record)?
+   - DTM0 service FIDs, user-service FIDs, storage device FIDs, process FID --
+   what is the relation between them? see/grep [Cat of fids].
 
+   Q: Isolation?
+   A: RM/locks/etc. Executed state is required.
+   It allows us not to wait on STABLE in certain cases.
+     Counter point: but still there are some guarantees that dtm0 must provide.
+     A: Nikita will provide an answer to the question about READ availablity.
+
+   Q: Cancel really needed?
+   A: no requirement for an explicit cancel().
 
  */
 
