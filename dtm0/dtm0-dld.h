@@ -163,55 +163,91 @@ struct dld_sample_ds1 {
 /* LOG */
 
 /**
-initializes log record iterator for a
-     sdev participant. It iterates over all records that were in the log during
-     last local process restart or during last remote process restart for the
-     process that handles that sdev.
+ * Initializes log record iterator for a sdev participant. It iterates over all
+ * records that were in the log during last local process restart or during
+ * last remote process restart for the process that handles that sdev.
 */
 m0_dtm0_log_iter_init();
 
-m0_dtm0_log_iter_next() - gives next log record for the sdev participant.
-m0_dtm0_log_iter_fini() - finalises the iterator. It MUST be done for every
-     call of m0_dtm0_log_iter_init().
-m0_dtm0_log_participant_restarted() - notifies the log that the participant
-     has restarted. All iterators for the participant MUST be finalized at the
-     time of the call. Any record that doesn't have P from the participant at
-     the time of the call will be returned during the next iteration for the
-     participant.
+/**
+ * Gives next log record for the sdev participant.
+ */
+m0_dtm0_log_iter_next();
 
-   @section pmach interface
+/**
+ * Finalises the iterator. It MUST be done for every call of
+ * m0_dtm0_log_iter_init().
+ */
+m0_dtm0_log_iter_fini();
 
-m0_dtm0_log_p_get_local() - returns the next P message that becomes local.
-     Returns M0_FID0 during m0_dtm0_log_stop() call. After M0_FID0 is returned
-     new calls to the log MUST NOT be made.
-m0_dtm0_log_p_put() - records that P message was received for the sdev
-     participant.
+/**
+ * Notifies the log that the participant has restarted.
+ * All iterators for the participant MUST be finalized at the time of the call.
+ * Any record that doesn't have P from the participant at the time of the call
+ * will be returned during the next iteration for the participant.
+ */
+m0_dtm0_log_participant_restarted();
 
-   @section pruner interface
+/* pmach interface */
 
-m0_dtm0_log_p_get_none_left() - returns dtx0 id for the dtx which has all
-     participants (except originator) reported P for the dtx0. Also returns all
-     dtx0 which were cancelled.
-   - m0_dtm0_log_prune() - remove the REDO message about dtx0 from the log
+/**
+ * Returns the next P message that becomes local. 
+ * Returns M0_FID0 during m0_dtm0_log_stop() call. After M0_FID0 is returned
+ * new calls to the log MUST NOT be made.
+ */
+m0_dtm0_log_p_get_local();
 
-   dtx0 interface, client & server
+/**
+ * Records that P message was received for the sdev participant.
+ */
+m0_dtm0_log_p_put();
 
-bool m0_dtm0_log_redo_add_intent() - function to check if the transaction
-     has to be applied or not, and reserves a slot in the log for that
-     record (in case if it has to be applied).
+/* pruner interface */
 
-m0_dtm0_log_redo_add() - adds a REDO message and, optionally, P message, to
-     the log.
+/**
+ * Returns dtx0 id for the dtx which has all participants (except originator)
+ * reported P for the dtx0. Also returns all dtx0 which were cancelled.
+ */
+m0_dtm0_log_p_get_none_left();
 
-   @section dtx0 interface, client only
+/**
+ * Remove the REDO message about dtx0 from the log
+ */
+m0_dtm0_log_prune();
 
-m0_dtm0_log_redo_p_wait() - returns the number of P messages for the dtx
-     and waits until either the number increases or m0_dtm0_log_redo_cancel() is
-     called.
-m0_dtm0_log_redo_cancel() - notification that the client doesn't need the
-     dtx anymore. Before the function returns the op
-m0_dtm0_log_redo_end() - notifies dtx0 that the operation dtx0 is a part of
-     is complete. This function MUST be called for every m0_dtm0_log_redo_add().
+/* dtx0 interface, client & server */
+
+/**
+ * Check if the transaction has to be applied or not, and reserves a slot in
+ * the log for that record (in case if it has to be applied).
+ */
+bool m0_dtm0_log_redo_add_intent();
+
+
+/**
+ * Adds a REDO message and, optionally, P message, to the log.
+ */
+m0_dtm0_log_redo_add();
+
+/* dtx0 interface, client only */
+
+/**
+ * Returns the number of P messages for the dtx and waits until either the
+ * number increases or m0_dtm0_log_redo_cancel() is called.
+ */
+m0_dtm0_log_redo_p_wait();
+
+/**
+ * Notification that the client doesn't need the dtx anymore. Before the
+ * function returns the op
+ */
+m0_dtm0_log_redo_cancel();
+
+/**
+ * Notifies dtx0 that the operation dtx0 is a part of is complete.
+ * This function MUST be called for every m0_dtm0_log_redo_add().
+ */
+m0_dtm0_log_redo_end();
 
 
 /** @} */ /* DLDDFS end group */
