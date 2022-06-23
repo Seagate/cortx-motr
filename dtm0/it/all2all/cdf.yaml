@@ -2,25 +2,26 @@ nodes:
   - hostname: localhost
     data_iface: eth0
     data_iface_type: tcp
+    transport_type: libfab
     m0_servers:
       - runs_confd: true
         io_disks:
           data: []
       - io_disks:
           data:
-            - /dev/loop0
-            - /dev/loop1
+            - path: /dev/loop0
+            - path: /dev/loop1
       - io_disks:
           data:
-            - /dev/loop2
-            - /dev/loop3
+            - path: /dev/loop2
+            - path: /dev/loop3
       - io_disks:
           data:
-            - /dev/loop4
-            - /dev/loop5
+            - path: /dev/loop4
+            - path: /dev/loop5
     m0_clients:
-        s3: 0
-        other: 1
+        - name: motr_client
+          instances: 1
 
 pools:
   - name: SNS pool
@@ -32,6 +33,7 @@ pools:
   - name: DIX pool
     type: dix  # optional; supported values: "sns" (default), "dix", "md"
     data_units: 1
-    parity_units: 1
+    parity_units: 2
+    spare_units: 0
     allowed_failures: { site: 0, rack: 0, encl: 0, ctrl: 1, disk: 1 }
 
