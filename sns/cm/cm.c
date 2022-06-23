@@ -852,7 +852,7 @@ M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
 	       scm->sc_obp.sb_bp.nbp_seg_size) ?
 	       m0_pdclust_unit_size(pl) /
 	       scm->sc_obp.sb_bp.nbp_seg_size + 1 :
-	       m0_pdclust_unit_size(pl) /	
+	       m0_pdclust_unit_size(pl) /
 	       scm->sc_obp.sb_bp.nbp_seg_size;
 }
 
