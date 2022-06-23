@@ -141,7 +141,7 @@ static void addr_sanity(const uint64_t *addr, bool sane, bool aligned)
 void test_cookie(void)
 {
 	int		   insane_cnt = 0;
-	uint64_t	   automatic;
+	uint64_t	   automatic = 0;
 	uint64_t	  *dynamic;
 	uint64_t	   i;
 	struct m0_cookie   cookie_test;
