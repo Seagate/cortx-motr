@@ -179,8 +179,12 @@ static int dtm0_process_disconnect(struct dtm0_process *process)
 	if (M0_IS0(&process->dop_rlink))
 		return M0_RC(0);
 
-	rc = m0_rpc_link_is_connected(&process->dop_rlink) ?
-		m0_rpc_link_disconnect_sync(&process->dop_rlink, timeout) : 0;
+	if (m0_rpc_link_is_connected(&process->dop_rlink)) {
+		m0_rpc_conn_sessions_cancel(&process->dop_rlink.rlk_conn);
+		rc = m0_rpc_link_disconnect_sync(&process->dop_rlink, timeout);
+	} else
+		rc = 0;
+
 
 	if (M0_IN(rc, (0, -ETIMEDOUT, -ECANCELED))) {
 		/*
@@ -263,7 +267,7 @@ static int volatile_log_init(struct m0_dtm0_service *dtm0)
 		rc = m0_be_dtm0_log_init(dtm0->dos_log, NULL,
 					 &dtm0->dos_clk_src, false);
 		if (rc != 0)
-			m0_be_dtm0_log_free(&dtm0->dos_log);
+			m0_be_dtm0_log_free0(&dtm0->dos_log);
 	}
 	return rc;
 }
@@ -330,10 +334,33 @@ out:
 	return M0_RC_INFO(rc, "origin=%d", dtm0->dos_origin);
 }
 
+/*
+ * Certain UTs manually control the lifetime of recovery machine.
+ * When manual start-stop is disabled, DTM0 service automatically
+ * starts-stops the machine.
+ */
+static bool is_manual_ss_enabled(void)
+{
+	return M0_FI_ENABLED("ut");
+}
+
 static int dtm0_service_start(struct m0_reqh_service *service)
 {
+	struct m0_dtm0_service *dtms = to_dtm(service);
+	int                     rc;
+
         M0_PRE(service != NULL);
-        return dtm_service__origin_fill(service);
+        rc = dtm_service__origin_fill(service);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	if (ENABLE_DTM0 && !is_manual_ss_enabled()) {
+		m0_dtm0_recovery_machine_init(&dtms->dos_remach,
+					      NULL, dtms);
+		rc = m0_dtm0_recovery_machine_start(&dtms->dos_remach);
+	}
+
+	return M0_RC(rc);
 }
 
 static void dtm0_service_prepare_to_stop(struct m0_reqh_service *reqh_rs)
@@ -342,6 +369,8 @@ static void dtm0_service_prepare_to_stop(struct m0_reqh_service *reqh_rs)
 
 	M0_PRE(reqh_rs != NULL);
 	dtms = M0_AMB(dtms, reqh_rs, dos_generic);
+	if (ENABLE_DTM0 && !is_manual_ss_enabled())
+		m0_dtm0_recovery_machine_stop(&dtms->dos_remach);
 	dtm0_service_conns_term(dtms);
 }
 
@@ -358,8 +387,11 @@ static void dtm0_service_stop(struct m0_reqh_service *service)
 	if (dtm0->dos_origin == DTM0_ON_VOLATILE && dtm0->dos_log != NULL) {
 		m0_be_dtm0_log_clear(dtm0->dos_log);
 		m0_be_dtm0_log_fini(dtm0->dos_log);
-		m0_be_dtm0_log_free(&dtm0->dos_log);
+		m0_be_dtm0_log_free0(&dtm0->dos_log);
 	}
+
+	if (ENABLE_DTM0 && !is_manual_ss_enabled())
+		m0_dtm0_recovery_machine_fini(&dtm0->dos_remach);
 }
 
 static void dtm0_service_fini(struct m0_reqh_service *service)
@@ -377,12 +409,14 @@ M0_INTERNAL int m0_dtm0_stype_init(void)
 				M0_AVI_DTX0_SM_STATE, M0_AVI_DTX0_SM_COUNTER) ?:
 		m0_dtm0_fop_init() ?:
 		m0_reqh_service_type_register(&dtm0_service_type) ?:
-		m0_dtm0_rpc_link_mod_init();
+		m0_dtm0_rpc_link_mod_init() ?:
+		m0_drm_domain_init();
 }
 
 M0_INTERNAL void m0_dtm0_stype_fini(void)
 {
 	extern struct m0_sm_conf m0_dtx_sm_conf;
+	m0_drm_domain_fini();
 	m0_dtm0_rpc_link_mod_fini();
 	m0_reqh_service_type_unregister(&dtm0_service_type);
 	m0_dtm0_fop_fini();
@@ -409,6 +443,11 @@ m0_dtm0_service_find(const struct m0_reqh *reqh)
 	rh_srv = m0_reqh_service_find(&dtm0_service_type, reqh);
 
 	return rh_srv == NULL ? NULL : to_dtm(rh_srv);
+}
+
+M0_INTERNAL bool m0_dtm0_is_expecting_redo_from_client(void)
+{
+	return M0_FI_ENABLED("ut");
 }
 
 M0_INTERNAL bool m0_dtm0_in_ut(void)
