@@ -1142,7 +1142,7 @@ static bool ctg_op_cb(struct m0_clink *clink)
 	if (opc == CO_PUT &&
 	    ctg_op->co_flags & COF_CREATE &&
 	    rc == -EEXIST)
-		ctg_op->co_rc = 0;
+		rc = 0;
 
 	ctg_op->co_rc = M0_RC(rc);
 	m0_chan_broadcast_lock(&ctg_op->co_channel);
