@@ -318,7 +318,8 @@ halon_interface_process_failure_check(struct m0_halon_interface_internal *hii,
 				       FID_F, FID_P(&note->no_id));
 				continue;
 			}
-			if (note->no_state == M0_NC_FAILED) {
+			if (note->no_state == M0_NC_FAILED ||
+			    note->no_state == M0_NC_TRANSIENT) {
 				if (just_added) {
 					M0_LOG(M0_DEBUG,
 					       "Ignoring M0_NC_FAILED as "
