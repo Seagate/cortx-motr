@@ -289,6 +289,179 @@
    specifications as they identify requirements, use cases, @a \&c.
 
    <hr>
+   @section DLD-highlights-clocks Design Highlights: Clocks
+
+   Originator keeps uint64_t clock for itself and for every storage device.
+   The clocks are initialized with zero when the originator starts.
+   When a new transaction is created then the originator clock and the
+   corresponding clocks of the storage devices are getting incremented,
+   and then they all are added to the transaction descriptor:
+
+   @verbatim
+   XXX: o.sdev1,sdev2,..sdev6 are used solve the problem log holes.
+
+   [o.originator] [o.sdev1] [o.sdev2] [o.sdev3] [o.sdev4] [o.sdev5] [o.sdev6]
+      |               |         |         |         |         |         |
+      0               0         0         0         0         0         0
+      |               |         |         |         |         |         |
+    +----------------------------------------+      |         |         |
+  T1| 1               1         1         1  |      0         0         0
+    +----------------------------------------+      |         |         |
+      |               |         |         |         |         |         |
+      1               1         1         1         0         0         0
+      |               |         |         |         |         |         |
+    +----------------------------------------------------+    |         |
+  T2| 2                         2         2         1    |    0         0
+    +----------------------------------------------------+    |         |
+      |               |         |         |         |         |         |
+      2               1         2         2         1         0         0
+   @endverbatim
+
+   The picture represents volatile counters on the originator.
+   We are sending a window. The window is range [o.BEGIN, o.END) where:
+   - o.END is max(o.originator)+1 for any transactions ever created
+   on the originator (sinec the process started) or 1 there was not any.
+   - o.BEGIN is min(o.originator) for all non-finalised transactions or
+   o.END if there are no non-finalised transactions.
+
+   DTM0 log on a persistent participant maintains the following structure
+   for every originator:
+
+   @verbatim
+   struct originator {
+     map<sdev-id, u64/o.originator> max_all_p;
+   };
+   @endverbatim
+
+   In this structure we store the information passed with P message: the
+   most recent (max) o.originator value among the transactions received
+   from that originator that have become All-P.
+
+   <hr>
+   @section DLD-highlights-holes Design Highlights: Holes
+
+   For every sdev we have per-originator lists ordered by originator's clocks.
+   If we have no holes then the updates in the history will be advancing with
+   +1.
+   We may have holes, so we have to be able deal with them.
+   Let's say we have the following kinds of holes:
+   - permanent hole -- transaction with such sdev clock value will never come;
+   - temporary hole -- transaction has no REDO and transaction with such sdev
+   clock will eventually come either from the originator or from another sdev;
+   Recovery machine is not interested in the missing record (holes) because:
+   - permanent hole is, essentionally, a replicated empty space -- it just does
+   not exist anywhere in the system.
+   - termporary hole will be eventually replicated by the participants that have
+   it (by the definition of the temporary hole).
+
+   <hr>
+   @section DLD-highlights-clocks Design Highlights: REDO-without-RECOVERING
+
+   Idea: we have window (o.BEGIN, o.END) on the client. We have "recent"
+   transactions from the client such as:
+
+   @verbatim
+   w1 [BEGIN=1 END=11]
+     w2 [BEGIN=2 END=12]
+     ...
+                        w13 [BEGIN=13 END=14]
+                        ...
+                                               w14 [BEGIN=14 END=34]
+
+   ------------------------------------------------------------------>
+                                                          o.originator
+   @endverbatim
+
+   @verbatim
+
+   [All-P / almost-All-P] [REDO-without-RECOVERING] [N-txns] [current-window]
+   ------------------------------------------------------------------>
+
+   Almost-All-P -- transactions that does not have P messages from TRANSIENT
+   or FAILED participants but all other participants have sent Pmsgs.
+
+   N-txnds -- a group of transactions for which we are not going to send
+   out REDO-without-RECOVERING because it is possible that the requests
+   are still somewhere in the incoming queue on the server side, so that
+   they could be executed (or any similiar situation).
+
+   current-window -- [o.BEGIN, o.END).
+
+   @endverbatim
+
+   We maintain two kinds of vectors for every originator: max-all-p and
+   min-nall-p.
+
+   @verbatim
+   for each t in originator.allp:
+     for each sdev in t.sdevs:
+       max-all-p[originator][sdev] max= t.sdev.clock_value
+
+   for each t in originator.records filtered by "t is not all-p":
+     for each sdev in t.sdevs:
+       min-nall-p[originator][sdev] min= t.sdev.clock_value
+   @endverbatim
+
+   (max-all-p, min-nall-p) pair is added to every Pmsg:
+
+   @verbatim
+   struct pmsg {
+     fid source;
+     fid destination;
+
+     u64(o.originator) timestamp;
+     fid originator;
+
+     u64(o.originator) max-all-p;
+     u64(o.originator) min-nall-p;
+   };
+   @endverbatim
+
+   Let's start with the case where we have no TRANSIENT failures of storage
+   devices in the pool. In this case, the diagram would look like the following
+   picture:
+
+   @verbatim
+   [    All-P   ]   [REDO-without-RECOVERING] [N-txns] [current-window]
+   ------------------------------------------------------------------>
+                    [ <- may have temporary and permanent holes --->  ] (2)
+   [ may have
+     permanent but
+     not temporary
+     holes      ] (1)
+   @endverbatim
+
+   We need volatile structure to keep track of the range (2).
+   We make a tree (for example, rb) such as:
+   @verbatim
+     key = o.originator;
+     value = {
+       ptr to log record in BE seg,
+       fid participant_array[] (participant_index -> fids),
+       bool pmsg_array[] (participant_index -> has Pmsg or not),
+       bool is_locally_persistent (locally persistent or not),
+     };
+   @endverbatim
+
+   The is owned by the log.
+
+
+
+   <hr>
+   @section DLD-highlights-clocks Design Highlights: HA
+
+   HA must be able to detect slow servers and deal with them one way or another.
+   DTM will send information to HA that will help to detect slow servers.
+   It allows to limit the size of REDO-with-RECOVERING range
+   (to satisfy R.dtm0.limited-ram).
+
+
+   <hr>
+   @section DLD-highlights-clocks Design Highlights: ADDB counters
+   TODO.
+
+
+   <hr>
    @section DLD-highlights Design Highlights
    <i>Mandatory. This section briefly summarizes the key design
    decisions that are important for understanding the functional and
@@ -463,9 +636,40 @@
    // is executed on the local participant.
    // for a remote participant: TODO
 
+   struct dtm0_log_originator {
+	   fid;
+	   be_list records; // ordered by o.originator
+	   u64 o.BEGIN; // max received from originator
+	   u64 o.END;   // max received from originator
+
+	   //XXX
+	   sdev -> u64: max(allp) for sdev
+   };
+
+   struct dtm0_log_sdev {
+	   fid;
+	   be_list current;
+	   be_list redo;
+
+	   //XXX
+	   u64 max_allp;
+   };
+
    struct dtm0_log {
 	   btree tree(key=dtxid, value=log_record);
+	   be_list<dtm0_log_originator> originators;
+	   be_list<dtm0_log_sdev> sdevs;
    };
+
+   @endverbatim
+
+   @verbatim
+   Per originator lists are ordered by originator's clocks.
+   Per sdev lists are not ordered.
+   All-p list is not ordered.
+   Record is moved to All-p only ...
+
+
 
    @endverbatim
 
@@ -693,6 +897,10 @@
    - m0_dtm0_log_prune() - remove the REDO message about dtx0 from the log
 
    dtx0 interface, client & server
+
+   - bool m0_dtm0_log_redo_add_intent() - function to check if the transaction
+     has to be applied or not, and reserves a slot in the log for that
+     record (in case if it has to be applied).
 
    - m0_dtm0_log_redo_add() - adds a REDO message and, optionally, P message, to
      the log.
@@ -976,6 +1184,30 @@
    Q: Cancel really needed?
    A: no requirement for an explicit cancel().
 
+
+   NOTES
+   Holes in the log
+   ----------------
+
+   Kinds of holes:
+   - missing or canceled record
+   - missing Pmsg
+
+   Client sends:
+   - earliest non-stable
+   - latest non-stable
+
+   Server (to server) sends:
+   - lastest allp
+   - earliest non-allp
+
+   Log
+   ---
+
+   originator list is ordered by its clock.
+
+   TODO: add client cache of REDO message that are not linked with
+   dtx'es (not needed for the client).
  */
 
 

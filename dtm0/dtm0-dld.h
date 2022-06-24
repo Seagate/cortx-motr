@@ -160,47 +160,59 @@ struct dld_sample_ds1 {
  */
 
 
-/** Data structure to do something. */
-struct dld_sample_ds1 {
-	/** The z field */
-	int dsd_z_field;
-	/** Flux density */
-	int dsd_flux_density;
-};
-
-/*
- * Documented elsewhere to illustrate bad documentation of an external symbol.
- * Doxygen cannot automatically reference it from elsewhere, as can be seen in
- * the Doxygen output for the reference in the Functional Specification above.
- */
-extern unsigned int dld_bad_example;
+/* LOG */
 
 /**
-   Subroutine1 opens a foo for access.
+initializes log record iterator for a
+     sdev participant. It iterates over all records that were in the log during
+     last local process restart or during last remote process restart for the
+     process that handles that sdev.
+*/
+m0_dtm0_log_iter_init();
 
-   Some particulars:
-   - Proper grammar, punctuation and spelling is required
-   in all documentation.
-   This requirement is not relaxed in the detailed functional specification.
-   - Function documentation should be in the 3rd person, singular, present
-   tense, indicative mood, active voice.  For example, "creates",
-   "initializes", "finds", etc.
-   - Functional parameters should not trivialize the
-   documentation by repeating what is already clear from the function
-   prototype.  For example it would be wrong to say, <tt>"@param read_only
-   A boolean parameter."</tt>.
-   - The default return convention (0 for success and @c -errno
-   on failure) should not be repeated.
-   - The @@pre and @@post conditions are preferably expressed in code.
+m0_dtm0_log_iter_next() - gives next log record for the sdev participant.
+m0_dtm0_log_iter_fini() - finalises the iterator. It MUST be done for every
+     call of m0_dtm0_log_iter_init().
+m0_dtm0_log_participant_restarted() - notifies the log that the participant
+     has restarted. All iterators for the participant MUST be finalized at the
+     time of the call. Any record that doesn't have P from the participant at
+     the time of the call will be returned during the next iteration for the
+     participant.
 
-   @param param1 Parameter 1 must be locked before use.
-   @param read_only This controls the modifiability of the foo object.
-   Set to @c true to prevent modification.
-   @retval return value
-   @pre Pre-condition, preferably expressed in code.
-   @post Post-condition, preferably expressed in code.
- */
-M0_INTERNAL int dld_sample_sub1(struct dld_sample_ds1 *param1, bool read_only);
+   @section pmach interface
+
+m0_dtm0_log_p_get_local() - returns the next P message that becomes local.
+     Returns M0_FID0 during m0_dtm0_log_stop() call. After M0_FID0 is returned
+     new calls to the log MUST NOT be made.
+m0_dtm0_log_p_put() - records that P message was received for the sdev
+     participant.
+
+   @section pruner interface
+
+m0_dtm0_log_p_get_none_left() - returns dtx0 id for the dtx which has all
+     participants (except originator) reported P for the dtx0. Also returns all
+     dtx0 which were cancelled.
+   - m0_dtm0_log_prune() - remove the REDO message about dtx0 from the log
+
+   dtx0 interface, client & server
+
+bool m0_dtm0_log_redo_add_intent() - function to check if the transaction
+     has to be applied or not, and reserves a slot in the log for that
+     record (in case if it has to be applied).
+
+m0_dtm0_log_redo_add() - adds a REDO message and, optionally, P message, to
+     the log.
+
+   @section dtx0 interface, client only
+
+m0_dtm0_log_redo_p_wait() - returns the number of P messages for the dtx
+     and waits until either the number increases or m0_dtm0_log_redo_cancel() is
+     called.
+m0_dtm0_log_redo_cancel() - notification that the client doesn't need the
+     dtx anymore. Before the function returns the op
+m0_dtm0_log_redo_end() - notifies dtx0 that the operation dtx0 is a part of
+     is complete. This function MUST be called for every m0_dtm0_log_redo_add().
+
 
 /** @} */ /* DLDDFS end group */
 
