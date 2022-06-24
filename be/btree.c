@@ -1469,8 +1469,10 @@ static void btree_save(struct m0_be_btree        *tree,
 	} else {
 fi_exist:
 		op_tree(op)->t_rc = -EEXIST;
-		M0_LOG(M0_NOTICE, "the key entry at %p already exist",
-			key->b_addr);
+		if (tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS ||
+		    tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC )
+			M0_LOG(M0_ERROR, "the key entry at %p already exist",
+			       key->b_addr);
 	}
 
 	if (anchor == NULL)
@@ -1974,12 +1976,17 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 
 	op_tree(op)->t_rc = rc = be_btree_delete_key(tree, tx, tree->bb_root,
 						     key->b_addr);
-	if (rc != 0)
+	if (rc != 0) {
 		op_tree(op)->t_rc = -ENOENT;
+		if (tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS ||
+		    tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC )
+			M0_LOG(M0_ERROR, "the key entry at %p doesn't exist",
+			       key->b_addr);
+	}
 
 	m0_rwlock_write_unlock(btree_rwlock(tree));
 	m0_be_op_done(op);
-	M0_LEAVE("tree=%p", tree);
+	M0_LEAVE("tree=%p t_rc=%d", tree, op_tree(op)->t_rc);
 }
 
 static void be_btree_lookup(struct m0_be_btree *tree,
@@ -2022,8 +2029,12 @@ static void be_btree_lookup(struct m0_be_btree *tree,
 			memcpy(key_out->b_addr, kv->btree_key, key_out->b_nob);
 		}
 		op_tree(op)->t_rc = 0;
-	} else
+	} else {
 		op_tree(op)->t_rc = -ENOENT;
+		if (tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS ||
+		    tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC )
+			M0_LOG(M0_ERROR, "key lookup failed");
+	}
 
 	m0_rwlock_read_unlock(btree_rwlock(tree));
 	m0_be_op_done(op);
@@ -2060,7 +2071,14 @@ M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *tree,
 	m0_rwlock_read_lock(btree_rwlock(tree));
 
 	key = be_btree_get_max_key(tree);
-	op_tree(op)->t_rc = key == NULL ? -ENOENT : 0;
+	if (key == NULL) {
+		if (tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS ||
+		    tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC )
+			M0_LOG(M0_ERROR, "get max key failed");
+		op_tree(op)->t_rc = -ENOENT;
+	}
+	else
+		op_tree(op)->t_rc = 0;
 	m0_buf_init(out, key, key == NULL ? 0 : be_btree_ksize(tree, key));
 
 	m0_rwlock_read_unlock(btree_rwlock(tree));
@@ -2081,7 +2099,14 @@ M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *tree,
 	m0_rwlock_read_lock(btree_rwlock(tree));
 
 	key = be_btree_get_min_key(tree);
-	op_tree(op)->t_rc = key == NULL ? -ENOENT : 0;
+	if (key == NULL) {
+		if (tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS ||
+		    tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC )
+			M0_LOG(M0_ERROR, "get min key failed");
+		op_tree(op)->t_rc = -ENOENT;
+	}
+	else
+		op_tree(op)->t_rc = 0;
 	m0_buf_init(out, key, key == NULL ? 0 : be_btree_ksize(tree, key));
 
 	m0_rwlock_read_unlock(btree_rwlock(tree));
@@ -2116,11 +2141,15 @@ M0_INTERNAL void m0_be_btree_update_inplace(struct m0_be_btree        *tree,
 		M0_ASSERT(anchor->ba_value.b_nob <=
 			  be_btree_vsize(tree, kv->btree_val));
 		anchor->ba_value.b_addr = kv->btree_val;
-	} else
+	} else {
 		op_tree(op)->t_rc = -ENOENT;
-
+		if (tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS ||
+		    tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC )
+			M0_LOG(M0_ERROR, "failed to update in place, key entry at %p doen't exist",
+			       key->b_addr);
+	}
 	m0_be_op_done(op);
-	M0_LEAVE();
+	M0_LEAVE("t_rc=%d", op_tree(op)->t_rc);
 }
 
 M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree        *tree,
@@ -2167,9 +2196,13 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *tree,
 	anchor->ba_tree = tree;
 	anchor->ba_write = false;
 	kv = be_btree_search(tree, key->b_addr);
-	if (kv == NULL)
+	if (kv == NULL) {
 		op_tree(op)->t_rc = -ENOENT;
-	else
+		if (tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS ||
+		    tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC )
+			M0_LOG(M0_ERROR, "failed to update in place, key entry at %p doen't exist",
+			       key->b_addr);
+	} else
 		m0_buf_init(&anchor->ba_value, kv->btree_val,
 			    be_btree_vsize(tree, kv->btree_val));
 
@@ -2311,6 +2344,10 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
 		M0_SET0(&op_tree(op)->t_out_val);
 		M0_SET0(&op_tree(op)->t_out_key);
 		op_tree(op)->t_rc = -ENOENT;
+		if (tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS ||
+		    tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC )
+			M0_LOG(M0_ERROR, "failed to get cursor, key entry at %p doen't exist",
+			       key->b_addr);
 	} else {
 		cur->bc_pos  = last.bnp_index;
 		cur->bc_node = last.bnp_node;
@@ -2370,6 +2407,9 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 	node = cur->bc_node;
 	if (node == NULL) {
 		op_tree(op)->t_rc = -EINVAL;
+		if (tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS ||
+		    tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC )
+			M0_LOG(M0_ERROR, "invalid cursor next");
 		goto out;
 	}
 
@@ -2392,6 +2432,9 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 		M0_SET0(&op_tree(op)->t_out_val);
 		M0_SET0(&op_tree(op)->t_out_key);
 		op_tree(op)->t_rc = -ENOENT;
+		if (tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS ||
+		    tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC )
+			M0_LOG(M0_ERROR, "cursor next, no entry");
 		goto out;
 	}
 	/* cursor end move */
@@ -2445,6 +2488,9 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
 		M0_SET0(&op_tree(op)->t_out_val);
 		M0_SET0(&op_tree(op)->t_out_key);
 		op_tree(op)->t_rc = -ENOENT;
+		if (tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_EXTENTS ||
+		    tree->bb_ops->ko_type == M0_BBT_BALLOC_GROUP_DESC )
+			M0_LOG(M0_ERROR, "cursor prev, no entry");
 		goto out;
 	}
 	/* cursor end move */

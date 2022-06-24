@@ -1602,6 +1602,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 		key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 
 		rc = btree_delete_sync(db, tx, &key);
+		M0_ASSERT(rc == 0);
 		if (rc != 0)
 			return M0_RC(rc);
 
@@ -1614,6 +1615,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
 			rc = btree_insert_sync(db, tx, &key, &val);
+			M0_ASSERT(rc == 0);
 			if (rc != 0)
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(cur));
@@ -1638,6 +1640,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 		key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 		val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
 		rc = btree_update_sync(db, tx, &key, &val);
+		M0_ASSERT(rc == 0);
 		if (rc != 0)
 			return M0_RC(rc);
 
@@ -1655,6 +1658,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&new.e_end);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&new.e_start);
 			rc = btree_insert_sync(db, tx, &key, &val);
+			M0_ASSERT(rc == 0);
 			if (rc != 0) {
 				m0_free(le);
 				return M0_RC(rc);
@@ -1758,6 +1762,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_end);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_start);
 			rc = btree_insert_sync(db, tx, &key, &val);
+			M0_ASSERT(rc == 0);
 			if (rc != 0) {
 				m0_free(le);
 				return M0_RC(rc);
@@ -1779,6 +1784,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 				key = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_end);
 				val = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_start);
 				rc = btree_insert_sync(db, tx, &key, &val);
+				M0_ASSERT(rc == 0);
 				if (rc != 0) {
 					m0_free(le);
 					return M0_RC(rc);
@@ -1794,11 +1800,13 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 				M0_ASSERT(cur->e_end == tgt->e_start);
 				key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 				rc = btree_delete_sync(db, tx, &key);
+				M0_ASSERT(rc == 0);
 				if (rc != 0)
 					return M0_RC(rc);
 				cur->e_end = tgt->e_end;
 				val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
 				rc = btree_insert_sync(db, tx, &key, &val);
+				M0_ASSERT(rc == 0);
 				if (rc != 0)
 					return M0_RC(rc);
 				maxchunk = max_check(maxchunk, m0_ext_length(cur));
@@ -1818,6 +1826,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_end);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_start);
 			rc = btree_insert_sync(db, tx, &key, &val);
+			M0_ASSERT(rc == 0);
 			if (rc != 0) {
 				m0_free(le);
 				return M0_RC(rc);
@@ -1836,6 +1845,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
 			rc = btree_update_sync(db, tx, &key, &val);
+			M0_ASSERT(rc == 0);
 			if (rc != 0)
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(cur));
@@ -1851,6 +1861,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			/* +-------+-------+-------------------+ */
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_end);
 			rc = btree_delete_sync(db, tx, &key);
+			M0_ASSERT(rc == 0);
 			if (rc != 0)
 				return M0_RC(rc);
 			cur->e_start = pre->e_start;
@@ -1871,11 +1882,13 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			/* +-------+-------+-------------------+ */
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_end);
 			rc = btree_delete_sync(db, tx, &key);
+			M0_ASSERT(rc == 0);
 			if (rc != 0)
 				return M0_RC(rc);
 			pre->e_end = tgt->e_end;
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&pre->e_start);
 			rc = btree_insert_sync(db, tx, &key, &val);
+			M0_ASSERT(rc == 0);
 			if (rc != 0)
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(pre));
@@ -1889,6 +1902,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_start);
 			rc = btree_update_sync(db, tx, &key, &val);
+			M0_ASSERT(rc == 0);
 			if (rc != 0)
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(cur));
@@ -1904,6 +1918,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			key = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_end);
 			val = (struct m0_buf)M0_BUF_INIT_PTR(&tgt->e_start);
 			rc = btree_insert_sync(db, tx, &key, &val);
+			M0_ASSERT(rc == 0);
 			if (rc != 0) {
 				m0_free(le);
 				return M0_RC(rc);
