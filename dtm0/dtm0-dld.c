@@ -422,6 +422,7 @@
    picture:
 
    @verbatim
+        (IV)                  (III)             (II)       (I)
    [    All-P   ]   [REDO-without-RECOVERING] [N-txns] [current-window]
    ------------------------------------------------------------------>
                     [ <- may have temporary and permanent holes --->  ] (2)
@@ -447,7 +448,20 @@
 
    The tree is owned by the log.
 
+   B -> A: min-nall-p;
+   txA, txB;
+   txA \in A; txB \in B;
+   txA == min-nall-p(on A, contains B); // == next(max-all-p(A, B))
+   txB == min-nall-p(on B, contains A);
 
+   txB.clock < txA.clock; // send A -> B: REDO-without-RECOVERING
+
+   \E A.tx: B.min-nall-p(A) < A.min-nall-p(B)
+
+   <hr>
+   @section DLD-highlights-clocks Design Highlights: With T
+
+   struct log { ... preserved_max_all_p[originator -> o.originator]; };
 
    <hr>
    @section DLD-highlights-clocks Design Highlights: HA
@@ -650,7 +664,7 @@
 
    struct dtm0_log_sdev {
 	   fid;
-	   be_list current;
+	   be_list current; // move items current -> redo when sdev leaves T state
 	   be_list redo;
 
 	   //XXX
@@ -1210,6 +1224,11 @@
 
    TODO: add client cache of REDO message that are not linked with
    dtx'es (not needed for the client).
+
+   TODO: right now we assume one DTM0 log per pool. Later on, we need a
+   a single DTM0 log.
+
+   TODO: consider almost "immutable" list links in log records (for FOL).
  */
 
 
