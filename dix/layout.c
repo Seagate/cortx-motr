@@ -112,12 +112,15 @@ static void dix_hash(struct m0_dix_ldesc *ldesc,
 		     struct m0_buf       *buf,
 		     uint64_t            *hash)
 {
-	void        *val = buf->b_addr;
-	m0_bcount_t  len = buf->b_nob;
+	void        *val;
+	m0_bcount_t  len;
 
 	M0_PRE(ldesc != NULL);
 	M0_PRE(buf != NULL);
 	M0_PRE(buf->b_addr != NULL);
+
+        val = buf->b_addr;
+        len = buf->b_nob;
 
 	len = M0_BYTES(len);
 	switch(ldesc->ld_hash_fnc) {
