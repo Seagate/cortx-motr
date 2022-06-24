@@ -295,7 +295,8 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 	if (rc < 0 || reply_item == NULL) {
 		M0_ASSERT(ergo(reply_item == NULL, rc != 0));
-		M0_LOG(M0_ERROR, "[%p] rpc item %p rc=%d", ioo, req_item, rc);
+		M0_LOG(M0_ERROR, "[%p] rpc item %p rc=%d session = %p", ioo,
+				 req_item, rc, req_item->ri_session);
 		goto ref_dec;
 	}
 	M0_ASSERT(!m0_rpc_item_is_generic_reply_fop(reply_item));
