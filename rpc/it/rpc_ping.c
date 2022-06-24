@@ -366,14 +366,6 @@ static void quit_dialog(void)
 	printf("\n\nPress Enter to terminate\n\n");
 	printf("\n########################################\n");
 	rc = read(0, &ch, sizeof ch);
-	// if (rc == -1 || rc != 1) {
-	// 	return;
-	// }
-	// scanf("%c", &ch);
-
-	// ch = getc(stdin);
-	// fflush(stdin);
-	// while((ch = getchar()) != '\n');
 }
 
 static int int2str(char *dest, size_t size, int src, int defval)
