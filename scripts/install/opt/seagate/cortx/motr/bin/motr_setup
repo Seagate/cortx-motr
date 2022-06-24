@@ -67,7 +67,7 @@ class Cmd:
         create_dirs(self, [self.local_path_motr, self.log_path_motr])
         self.logfile =  f"{self.log_path_motr}/mini_provisioner"
         self.logger = config_logger(self)
-
+        self.logger.info(f"Logger configured for phase={self.name}\n")
         # Default setup size is small
         set_setup_size(self, self._services)
 

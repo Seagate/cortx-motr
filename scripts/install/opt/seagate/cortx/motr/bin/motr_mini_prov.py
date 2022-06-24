@@ -89,38 +89,12 @@ def execute_command_without_log(cmd,  timeout_secs = TIMEOUT_SECS,
 #      need to make logger configurable to change formater, etc and remove below
 #      duplicate code,
 def execute_command_console(self, command):
-    logger = logging.getLogger("console")
-    if not os.path.exists(LOGDIR):
-        try:
-            os.makedirs(LOGDIR, exist_ok=True)
-            with open(f'{self.logfile}', 'w'): pass
-        except:
-            raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
-    else:
-        if not os.path.exists(self.logfile):
-            try:
-                with open(f'{self.logfile}', 'w'): pass
-            except:
-                raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
-    logger.setLevel(logging.DEBUG)
-    # create file handler which logs debug message in log file
-    fh = logging.FileHandler(self.logfile)
-    fh.setLevel(logging.DEBUG)
-    # create console handler to log messages ERROR and above
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s - %(message)s')
-    fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
-    logger.addHandler(fh)
-    logger.addHandler(ch)
-    logger.info(f"executing command {command}")
     try:
         process = subprocess.Popen(command, stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                    shell=True)
     except Exception as e:
-        logger.error("ERROR {} when running {} with exception {}".format(sys.exc_info()[1],
+        self.logger.error("ERROR {} when running {} with exception {}".format(sys.exc_info()[1],
                       command, e.message))
         return None
     while True:
@@ -128,7 +102,7 @@ def execute_command_console(self, command):
         if process.poll() is not None:
             break
         if stdout:
-            logger.info(stdout.strip().decode())
+            self.logger.info(stdout.strip().decode())
     rc = process.poll()
     return rc
 
@@ -1164,18 +1138,24 @@ def test_io(self):
 
 def config_logger(self):
     logger = logging.getLogger(LOGGER)
-    if not os.path.exists(LOGDIR):
+    if not os.path.exists(self.log_path_motr):
         try:
-            os.makedirs(LOGDIR, exist_ok=True)
+            os.makedirs(self.log_path_motr, exist_ok=True)
             with open(f'{self.logfile}', 'w'): pass
         except:
             raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
     else:
-        if not os.path.exists(self.logfile):
+        if not os.path.exists(f'{self.logfile}'):
             try:
                 with open(f'{self.logfile}', 'w'): pass
             except:
                 raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
+        else:
+            try:
+                with open(f'{self.logfile}', 'a'): pass
+            except:
+                raise MotrError(errno.EINVAL, f"{self.logfile} open in append mode  failed\n")
+
     logger.setLevel(logging.DEBUG)
     # create file handler which logs debug message in log file
     fh = logging.FileHandler(self.logfile)
@@ -1554,10 +1534,10 @@ def start_service(self, service, idx):
     create_dirs(self, ["/etc/motr"])
 
     cmd = f"cp -f {confd_path} /etc/motr/"
-    execute_command(self, cmd)
+    execute_command(self, cmd, verbose=True, logging=True)
 
     cmd = f"cp -v {self.local_path}/motr/sysconfig/{self.machine_id}/motr /etc/sysconfig/"
-    execute_command(self, cmd)
+    execute_command(self, cmd, verbose=True, logging=True)
 
     fid = fetch_fid(self, service, idx)
     if fid == -1:
