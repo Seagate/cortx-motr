@@ -160,6 +160,9 @@ struct dld_sample_ds1 {
  */
 
 
+struct m0_dtm0_pmsg {
+};
+
 /* LOG */
 
 /**
@@ -187,20 +190,29 @@ m0_dtm0_log_iter_fini();
  * will be returned during the next iteration for the participant.
  */
 m0_dtm0_log_participant_restarted();
+m0_dtm0_log_participant_restarted_credit();
 
 /* pmach interface */
 
 /**
- * Returns the next P message that becomes local. 
- * Returns M0_FID0 during m0_dtm0_log_stop() call. After M0_FID0 is returned
- * new calls to the log MUST NOT be made.
+ * Returns the next P messages for transactions that became persistent
+ * locally.
+ * @param[in,out] dtxs Array allocated by the caller.
+ * @param[in,out] dtxs_nr The size of dtxs, and the the number of transactions
+ *                        returned by this function.
+ * If returned dtxs_nr then the log is being stopped, so that no further calls
+ * to the function should be made.
  */
-m0_dtm0_log_p_get_local();
+M0_INTERNAL void m0_dtm0_log_p_get(struct m0_dtm0_log *dol, struct m0_be_op *op,
+				   struct m0_fid *sdev_fid, struct m0_dtx0_id
+				   *dtxs, uint64_t *dtxs_nr);
 
 /**
  * Records that P message was received for the sdev participant.
  */
-m0_dtm0_log_p_put();
+M0_INTERNAL void m0_dtm0_log_p_put(struct m0_dtm0_log *dol, struct m0_be_tx *tx,
+				   struct m0_dtm0_pmsg *pmsgs, uint64_t pmsgs_nr);
+M0_INTERNAL void m0_dtm0_log_p_put_credit();
 
 /* pruner interface */
 
@@ -214,6 +226,7 @@ m0_dtm0_log_p_get_none_left();
  * Remove the REDO message about dtx0 from the log
  */
 m0_dtm0_log_prune();
+m0_dtm0_log_prune_credit();
 
 /* dtx0 interface, client & server */
 

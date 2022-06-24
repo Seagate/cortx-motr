@@ -440,10 +440,12 @@
        fid participant_array[] (participant_index -> fids),
        bool pmsg_array[] (participant_index -> has Pmsg or not),
        bool is_locally_persistent (locally persistent or not),
+       be_op *executed;
+       be_op *persistent;
      };
    @endverbatim
 
-   The is owned by the log.
+   The tree is owned by the log.
 
 
 
