@@ -32,7 +32,8 @@
 
 #include "lib/bob.h"            /* M0_BOB_DEFINE */
 #include "module/instance.h"    /* m0_get */
-
+#include "conf/helpers.h"       /* m0_conf_process2service_get */
+#include "reqh/reqh.h"          /* m0_reqh2confc */
 
 static const struct m0_bob_type dtm0_domain_bob_type = {
 	.bt_name         = "m0_dtm0_domain",
@@ -214,6 +215,50 @@ M0_INTERNAL int m0_dtm0_domain_create(struct m0_dtm0_domain            *dod,
 
 M0_INTERNAL void m0_dtm0_domain_destroy(struct m0_dtm0_domain *dod)
 {
+}
+
+M0_INTERNAL void m0_dtm0_domain_recovered_wait(struct m0_dtm0_domain *dod)
+{
+	M0_ENTRY();
+	M0_LEAVE();
+}
+
+static bool has_in_conf(struct m0_reqh *reqh)
+{
+	struct m0_confc     *confc = m0_reqh2confc(reqh);
+	struct m0_conf_root *root;
+	struct m0_fid        svc_fid = {};
+	int                  rc;
+
+	rc = m0_confc_root_open(confc, &root);
+	if (rc == 0) {
+		rc = m0_conf_process2service_get(confc, &reqh->rh_fid,
+						 M0_CST_DTM0, &svc_fid);
+		m0_confc_close(&root->rt_obj);
+	}
+	return rc == 0 && m0_fid_is_set(&svc_fid);
+}
+
+M0_INTERNAL bool
+m0_dtm0_domain_is_recoverable(struct m0_dtm0_domain *dod,
+			      struct m0_reqh        *reqh)
+{
+	struct m0_confc * confc;
+
+	(void)dod;
+	/*
+	 * XXX:
+	 * Recovery machine is the one who sends RECOVERED event
+	 * when DTM0 is enabled. Therefore, domain should not send it.
+	 * Once recovery machine (dtm/recovery branch) is merged
+	 * and enabled by default, this workaround should be removed.
+	 */
+	if (ENABLE_DTM0)
+		return false;
+
+	M0_LOG(M0_DEBUG, "Recovery machine is not here yet.");
+	confc = m0_reqh2confc(reqh);
+	return confc != NULL && m0_confc_is_inited(confc) && has_in_conf(reqh);
 }
 
 #undef M0_TRACE_SUBSYSTEM

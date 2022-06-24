@@ -295,7 +295,7 @@ yaml.add_implicit_resolver(Fid.yaml_tag, Fid.re_conf,
 
 # enum m0_ha_obj_state
 ha_states = ['unknown', 'online', 'failed', 'transient', 'repair', 'repaired',
-             'rebalance']
+             'rebalance', 'dtm-recovering']
 
 
 class HAMsgNVec(XCodeable):

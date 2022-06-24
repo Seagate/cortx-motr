@@ -179,7 +179,7 @@ struct m0_dtm0_log_rec {
 };
 
 /**
- * @b  m0_be_dtm0_log_rec structure
+ * @b  m0_be_dtm0_log structure
  *
  * A DTM0 log is represented by m0_be_dtm0_log structure. The important
  * fields in this structure are:
@@ -277,13 +277,21 @@ M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log *log);
  * Free the memory allocated by m0_be_dtm0_log_alloc
  *
  * @pre m0_be_dtm0_log->dl_is_persistent needs to be false.
- * @post *log is set to NULL.
+ * @post None
  *
  * @param log Pointer to a log structure that has been previously allocated.
  *
  * @return None
  */
-M0_INTERNAL void m0_be_dtm0_log_free(struct m0_be_dtm0_log **log);
+M0_INTERNAL void m0_be_dtm0_log_free(struct m0_be_dtm0_log *log);
+
+/** Frees memory and zeroes the pointer. */
+#define m0_be_dtm0_log_free0(pptr)            \
+	do {                                  \
+		typeof(pptr) __pptr = (pptr); \
+		m0_be_dtm0_log_free(*__pptr); \
+		*__pptr = NULL;               \
+	} while (0)
 
 /**
  * For performing an operation on a persistent log, we need to take the
@@ -520,6 +528,44 @@ M0_INTERNAL void m0_be_dtm0_volatile_log_update(struct m0_be_dtm0_log  *log,
 M0_INTERNAL void m0_be_dtm0_volatile_log_del(struct m0_be_dtm0_log  *log,
 					     struct m0_dtm0_log_rec *rec,
 					     bool                    fini);
+
+
+/**
+ * DTM0 Log iterator
+ *
+ * Provides a way to iterate over the DTM0 Log structure. Today it has a very
+ * inefficient implementation and is used to glue log related code together with
+ * redo logic and expose interfaces which hopefully will not change.
+ */
+struct m0_be_dtm0_log_iter {
+	struct m0_be_dtm0_log *dli_log;
+	struct m0_dtm0_tid     dli_current_tid;
+};
+
+M0_INTERNAL int m0_dtm0_log_rec_copy(struct m0_dtm0_log_rec       *dst,
+				     const struct m0_dtm0_log_rec *src);
+/**
+ * Used to finalise record returned from the iterator. Could be generalised in
+ * future.
+ */
+M0_INTERNAL void m0_dtm0_log_iter_rec_fini(struct m0_dtm0_log_rec *rec);
+
+M0_INTERNAL void m0_be_dtm0_log_iter_init(struct m0_be_dtm0_log_iter *iter,
+					  struct m0_be_dtm0_log      *log);
+
+M0_INTERNAL void m0_be_dtm0_log_iter_fini(struct m0_be_dtm0_log_iter *iter);
+
+/**
+ * Returns next record of the iterator pointing to the log.
+ *
+ * @param out returned record which is copied and needs to be freed with
+ *            m0_dtm0_log_iter_rec_fini()
+ *
+ * @return 0 when the iterator was successfully moved to the next record.
+ * @return  -ENOENT when the end of the log has been reached.
+ */
+M0_INTERNAL int m0_be_dtm0_log_iter_next(struct m0_be_dtm0_log_iter *iter,
+					 struct m0_dtm0_log_rec     *out);
 
 /** @} */ /* end DTM0Internals */
 

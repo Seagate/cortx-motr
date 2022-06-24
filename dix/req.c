@@ -1666,33 +1666,6 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 }
 
-static void dix_rop_one_completed(struct m0_dix_cas_rop *crop)
-{
-	struct m0_dix_req     *dreq = crop->crp_parent;
-	struct m0_dix_rop_ctx *rop;
-
-	M0_ENTRY();
-	M0_PRE(!dreq->dr_is_meta);
-	M0_PRE(M0_IN(dreq->dr_type, (DIX_PUT, DIX_DEL)));
-	M0_PRE(dreq->dr_dtx != NULL);
-	M0_PRE(dix_req_smgrp(dreq) == dreq->dr_dtx->tx_dtx->dd_sm.sm_grp);
-
-	rop = crop->crp_parent->dr_rop;
-	dix_cas_rop_rc_update(crop, 0);
-
-	m0_dtx0_executed(dreq->dr_dtx, crop->crp_pa_idx);
-
-	if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
-		rop->dg_ast = (struct m0_sm_ast) {
-			.sa_cb = dix_rop_completed,
-			.sa_datum = dreq,
-		};
-		m0_sm_ast_post(dix_req_smgrp(dreq), &rop->dg_ast);
-	}
-
-	M0_LEAVE();
-}
-
 static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 {
 	struct m0_dix_cas_rop  *crop = container_of(cl, struct m0_dix_cas_rop,
@@ -1714,28 +1687,20 @@ static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 				dreq, crop->crp_creq.ccr_sess,
 				&crop->crp_creq.ccr_remid);
 
-
 		m0_clink_del(cl);
 		m0_clink_fini(cl);
 		rop = crop->crp_parent->dr_rop;
 		rop->dg_completed_nr++;
 		M0_PRE(rop->dg_completed_nr <= rop->dg_cas_reqs_nr);
 
-		if (dreq->dr_dtx != NULL) {
-			M0_ASSERT(dix_req_smgrp(dreq) ==
-				  dreq->dr_dtx->tx_dtx->dd_sm.sm_grp);
-			dix_rop_one_completed(crop);
-		} else {
-			if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
-				rop->dg_ast = (struct m0_sm_ast) {
-					.sa_cb = dix_rop_completed,
-					.sa_datum = dreq,
-				};
-				m0_sm_ast_post(dix_req_smgrp(dreq),
-					       &rop->dg_ast);
-			}
+		if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
+			rop->dg_ast = (struct m0_sm_ast) {
+				.sa_cb = dix_rop_completed,
+				.sa_datum = dreq,
+			};
+			m0_sm_ast_post(dix_req_smgrp(dreq),
+				       &rop->dg_ast);
 		}
-
 	}
 	return true;
 }
@@ -1747,7 +1712,6 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 	struct m0_dix_cas_rop      *cas_rop;
 	struct m0_cas_req          *creq;
 	uint32_t                    sdev_idx;
-	uint32_t                    pa_idx;
 	struct m0_cas_id            cctg_id;
 	struct m0_reqh_service_ctx *cas_svc;
 	struct m0_dix_layout       *layout = &req->dr_indices[0].dd_layout;
@@ -1812,17 +1776,6 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 		}
 
 		if (rc != 0) {
-			/*
-			 * Treat failed and not sent CAS requests as executed
-			 * to unblock the EXECUTED-ALL logic. It allows to move
-			 * transaction to the stable state once the persistent
-			 * message received (EXECUTED state required for all
-			 * participants). So EXECUTED participant state is
-			 * reused in case of failure.
-			 */
-			if (req->dr_dtx != NULL)
-				m0_dtx0_executed(req->dr_dtx,
-						 cas_rop->crp_pa_idx);
 			m0_clink_del(&cas_rop->crp_clink);
 			m0_clink_fini(&cas_rop->crp_clink);
 			m0_cas_req_fini(&cas_rop->crp_creq);
@@ -1849,16 +1802,6 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 		rc = m0_dtx0_close(req->dr_dtx);
 		if (rc != 0)
 			return M0_ERR(rc);
-		/*
-		 * It is safe to set EXECUTED dtx state for those
-		 * participants that experience transient failure,
-		 * it allows to trigger EXECUTED-ALL logic. See
-		 * the similar comment above for details.
-		 */
-		for (pa_idx = cas_rop_tlist_length(&rop->dg_cas_reqs);
-		     pa_idx < req->dr_dtx->tx_dtx->dd_txd.dtd_ps.dtp_nr;
-		     pa_idx++)
-			m0_dtx0_executed(req->dr_dtx, pa_idx);
 	}
 
 	return M0_RC(0);

@@ -106,11 +106,11 @@ export FDMI_FILTER_FID2="6c00000000000002:0"
 SNS_CLI_EP="12345:33:400"
 DIX_CLI_EP="12345:33:401"
 
-POOL_WIDTH=$(expr ${#IOSEP[*]} \* 5)
+POOL_WIDTH=$((${#IOSEP[*]} * 5))
 NR_PARITY=2
 NR_SPARE=2
 NR_DATA=3
-UNIT_SIZE=$(expr 1024 \* 1024)
+UNIT_SIZE=$((1024 * 1024))
 
 # CAS service starts by default in every process where IOS starts.
 # For every CAS service one dedicated "dummy" storage device is assigned.
