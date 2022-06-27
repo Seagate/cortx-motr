@@ -175,7 +175,8 @@
  * reply.
  * The report is formed as "X of Y is done". The last such message is "Y of Y
  * is done" which means the operations has been succesfully finished by Motr.
- * X and Y are monotonically non-decreasing, X <= Y.
+ * X and Y are monotonically non-decreasing, X <= Y. The first message is "0 of
+ * Y" and it means that the operation has started.
  * Currently we send failvec as a separate message. With epochs implemented,
  * failvec can be determined using HA state history and stored permanently by
  * the process, thus eliminating the need to send failvec separately.
