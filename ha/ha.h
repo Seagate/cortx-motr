@@ -138,6 +138,8 @@
  *   2. No separate MKFS phase:
  *      T -> MKFS -> O;
  *
+ * TODO conf object out of make repair/rebalance/direct rebalance
+ *
  * Sdev state transitions when process starts:
  *   Before initiating startup of the process, HA moves the coresponding objects
  *   to the desired states:
