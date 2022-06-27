@@ -118,8 +118,9 @@
  *   T -> RP: HA makes decision to start SNS/DIX repair;
  *   RP -> O: HA makes decision that the device functions normaly and the spare
  *   units created during RP could be cleaned up.
- *   RP -> F: HA makes decision that this storage device has failed permanently,
- *   and all data stored there is not going to be available at all;
+ *   RP -> T: Repair is finished
+ *   RP -> T -> F: HA makes decision that this storage device has failed
+ *   permanently, and all data stored there is not going to be available at all;
  *   T -> MKFS: mkfs for the new device (after replacement);
  *   MKFS -> RB: HA initiates SNS/DIX rebalance.
  *   RB -> O: rebalance is complete.
