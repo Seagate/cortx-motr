@@ -26,6 +26,127 @@
 #define __MOTR_HA_HA_H__
 
 /**
+ * @defgroup design
+ *
+ * Groundwork
+ * ----------
+ *
+ * Every piece of hardware used by Motr is a part of Motr configuration, i.e.
+ * conf ojbect. Proccess, service and others are conf objects too.
+ * HA task is to support the hierarcy and notify Motr about the changes in that
+ * hierarcy.
+ * HA communicates with the system admin.
+ * HA has sensors and actuators.
+ * Sensors -- a way to perceive the informnation from the outside world.
+ * It could be software or human; systemd, k8s and so on.
+ * Actuator -- a way to affer the outside world. It includes restarts of
+ * processes/pods/etc, communication with sys admin.
+ * Sensors for Motr: IO error, RPC error, etc.
+ * Actuators for Motr: SNS trigger and so on.
+ *
+ * What HA does? it makes decision about every conf object in the cluster.
+ * Why HA does it? its purpose is to bring the cluster to the state desired
+ * by the system administrator. Something has to be powered on? it powers it on.
+ * Something has to be recovered? HA initiates recovery and ensures that the
+ * thing has been recovered.
+ *
+ * Decision-making process
+ * -----------------------
+ *
+ * If HA knows that the cluster is not in the desired state then HA decides
+ * what is the next step to bring the cluster to the desired state and
+ * what actions have to be done and what states have to be changed.
+ *
+ * The set of actions and state changes make an epoch. The state changes
+ * are sent to Motr, the actions are initiated by the HA. Then the HA makes
+ * decision about the next step. To decide what is the next step, the HA takes
+ * into account the information about the current state and the infromation
+ * taken from the sensors.
+ *
+ * State updates are sent to Motr in form of HA messages. Each message consists
+ * of the list of pairs (FID, state) for every configuration object which state
+ * has been changed. Each message also has "epoch" that describes the
+ * corresponding epoch. Epochs are monotonically increasing.
+ *
+ * HA keeps those decisions in the decision log. After the process is added
+ * to the configuration HA starts keeping track of what messages it sends to
+ * the process, and for every message the process could send reply indicating
+ * that the particular epoch is no longer needed.
+ *
+ * If all the processes sent this "no-longer-needed" message for a particular
+ * epoch and the epochs "before" then the decision log could be pruned for
+ * this message and the "previous" messages in the log.
+ *
+ * Delivery of state changes
+ * -------------------------
+ *
+ * Each conf object has state machine defined. HA moves the state of a conf
+ * object as per the definition of the corresponding machine.
+ * Inital state -- TRANSIENT. During bootstrap every object has T state.
+ * Semantic of T state: we MUST NOT interact with that object but we should
+ * keep in mind that we may need to interact with that object in future.
+ * Semantic of O state: if there is a need to interact with the entity that
+ * the conf object represents then the inteaction MUST be continued until
+ * the object goes out of the ONLINE state.
+ * Semantic of F state: it means that there MUST be no interaction with
+ * the entity that the object represents. FAILED is a final state.
+ *
+ *
+ * SNS/DIX repair/rebalance/direct-rebalance workflow
+ * --------------------------------------------------
+ *
+ * Simple case: sdev in a pool goes to F state. HA initiates SNS repair for
+ * this storage device. HA waits for the storage device to be replaces, and
+ * after it is replaces and SNS repair is complete, HA initiates SNS rebalance.
+ * Storage devices have REPAIRING and REBALANCING states. REPAIRING means
+ * there is neither read nor write availability, REBALANCING means there is
+ * write availability but there is no read availability.
+ * MKFS means the lack of read and write availability.
+ *
+ * States: O, T, F, RB, RP, MKFS.
+ *
+ * State  Availability
+ * T      x
+ * O      READ and WRITE
+ * F      x
+ * MKFS   x
+ * RP     x
+ * RB     WRITE
+ *
+ * Transtions:
+ *   O -> T: transient failure;
+ *   T -> RP: HA makes decision to start SNS/DIX repair;
+ *   RP -> O: HA makes decision that the device functions normaly and the spare
+ *   units created during RP could be cleaned up.
+ *   RP -> F: HA makes decision that this storage device has failed permanently,
+ *   and all data stored there is not going to be available at all;
+ *   T -> MKFS: mkfs for the new device (after replacement);
+ *   MKFS -> RB: HA initiates SNS/DIX rebalance.
+ *   RB -> O: rebalance is complete.
+ *
+ * Sdev state transtions during process restart:
+ *   O -> T -> O;
+ *   RP -> T -> RP;
+ *   RB -> T -> RB;
+ *   F;
+ *
+ * Sdev state transitions during bootstrap:
+ *   1. Separate MKFS phase:
+ *      T -> MKFS -> T -> O (failure-free case);
+ *            m0mkfs      m0d
+ *   2. No separate MKFS phase:
+ *      T -> MKFS -> O;
+ *
+ * Sdev state transitions when process starts:
+ *   Before initiating startup of the process, HA moves the coresponding objects
+ *   to the desired states:
+ *	process state on HA: T -> O (broadcasted by HA);
+ *	OS process: HA starts the process;
+ *	process -> HA: connects;
+ *	process -> HA: entrypoint;
+ *	process -> HA: starting;
+ *
+ *
  * @defgroup ha
  *
  * - TODO 2 cases TRANSIENT -> ONLINE: if m0d reconnected or it's restarted
