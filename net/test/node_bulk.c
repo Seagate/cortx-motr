@@ -850,10 +850,10 @@ static void node_bulk_cb(struct m0_net_test_network_ctx *net_ctx,
 	bool			 buf_send;
 	bool			 buf_bulk;
 
+	M0_PRE(net_ctx != NULL);
 	LOGD("node_bulk_cb: tm_addr = %s, buf_index = %u, q = %d"
 	     ", ev-nbe_status = %d",
 	     net_ctx->ntc_tm->ntm_ep->nep_addr, buf_index, q, ev->nbe_status);
-	M0_PRE(net_ctx != NULL);
 	role_client = ctx->nbc_nh.ntnh_role == M0_NET_TEST_ROLE_CLIENT;
 	M0_PRE(ergo(q == M0_NET_QT_MSG_RECV, !role_client));
 	M0_PRE(ergo(q == M0_NET_QT_MSG_SEND, role_client));
