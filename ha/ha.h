@@ -141,10 +141,14 @@
  * Sdev state transitions when process starts:
  *   Before initiating startup of the process, HA moves the coresponding objects
  *   to the desired states:
- *	process state on HA: T -> O (broadcasted by HA);
  *	OS process: HA starts the process;
  *	process -> HA: connects (RPC, halink);
- *	process -> HA: entrypoint request/reply;
+ *	process -> HA: entrypoint request
+ *	IF process IN conf: process state on HA:
+ *	  - then: T -> O
+ *	  - else: add to conf, T, T -> O
+ *	  Broadcast the state changes (as usual)
+ *	HA -> process: ennrypoint reply;
  *	process -> HA: process starting;
  *	for each service:
  *		process -> HA: service starting;
