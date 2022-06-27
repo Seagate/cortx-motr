@@ -506,8 +506,6 @@ ref_dec:
 		ti->ti_rc = rc;
 	if (xfer->nxr_rc == 0 && rc != 0)
 		xfer->nxr_rc = rc;
-	if (ioo->ioo_rc == 0 && rc != 0)
-		ioo->ioo_rc = rc;
 	m0_fop_put0_lock(&cc_fop->crf_fop);
 	if (reply_fop != NULL)
 		m0_fop_put0_lock(reply_fop);
