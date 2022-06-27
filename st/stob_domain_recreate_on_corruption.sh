@@ -67,7 +67,8 @@ stop() {
 }
 
 _init() {
-    if [[ "$(lnet_up)" == "true" ]]; then
+    export_test_eps
+    if [[ "$(check_and_restart_lnet)" == "true" ]]; then
         m0_modules_insert
     fi
     mkdir -p $SANDBOX_DIR/confd

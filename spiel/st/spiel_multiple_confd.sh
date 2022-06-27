@@ -84,7 +84,8 @@ stop() {
 }
 
 _init() {
-    local result=$(lnet_up "new")
+    export_test_eps
+    local result=$(check_and_restart_lnet "new")
     if [[ "$result" == "true" ]]; then
         m0_modules_insert
     fi

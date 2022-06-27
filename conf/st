@@ -67,7 +67,8 @@ stop() {
 }
 
 _init() {
-    if [[ "$(lnet_up)" == "true" ]]; then
+    export_test_eps
+    if [[ "$(check_and_restart_lnet)" == "true" ]]; then
         m0_modules_insert
     fi
     sandbox_init # changes current directory to $SANDBOX_DIR
@@ -237,7 +238,8 @@ EOF
 
 case "${1:-}" in
     run|'') ;;
-    insmod) if [[ "$(lnet_up)" == "true" ]]; then
+    insmod) export_test_eps
+            if [[ "$(check_and_restart_lnet)" == "true" ]]; then
                 m0_modules_insert
             fi
             exit;;

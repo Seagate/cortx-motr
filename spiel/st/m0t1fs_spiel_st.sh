@@ -102,8 +102,10 @@ stop() {
 }
 
 _init() {
-    lnet_up
-    m0_modules_insert
+    export_test_eps
+    if [[ "$(check_and_restart_lnet)" == "true" ]]; then
+        m0_modules_insert
+    fi
     mkdir -p $SANDBOX_DIR/mnt
     mkdir -p $SANDBOX_DIR/confd
     mkdir -p $SANDBOX_DIR/systest-$$
@@ -592,8 +594,15 @@ EOF
 
 case "${1:-}" in
     run|'') ;;
-    insmod) lnet_up; m0_modules_insert; exit;;
-    rmmod) m0_modules_remove; exit;;
+    insmod) export_test_eps
+            if [[ "$(check_and_restart_lnet)" == "true" ]]; then
+                m0_modules_insert
+            fi
+            exit;;
+    rmmod)  if [[ "$(is_lnet_available)" == "true" ]]; then
+                m0_modules_remove
+            fi
+            exit;;
     sstart) start; exit;;
     sstop) stop; exit;;
     help) usage; exit;;

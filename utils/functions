@@ -142,12 +142,10 @@ m0_modules_remove() {
     rmmod m0tr || true
 }
 
-lnet_up() {
+export_test_eps() {
     local format=${1:-old}
     local NID=$(m0_local_nid_get "$format")
     XPRT=$(m0_default_xprt)
-
-    local result=$(check_and_restart_lnet)
 
     if [[ "$XPRT" == "lnet" || "$format" == "old" ]]; then
         ## LNet endpoint address format (see net/lnet/lnet.h):
@@ -172,8 +170,6 @@ lnet_up() {
     export M0D2_ENDPOINT="$NID$M0D2_EP"
     export M0D3_ENDPOINT="$NID$M0D3_EP"
     export SPIEL_ENDPOINT="$NID$SPIEL_EP"
-
-    echo "$result"
 }
 
 ## Adding function to identify the default available transport layer
