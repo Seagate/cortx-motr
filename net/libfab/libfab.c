@@ -764,9 +764,13 @@ static void libfab_poller(struct m0_fab__tm *tm)
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
 	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
 		do {
-			ret = fi_trywait(tm->ftm_fab->fab_fab,
-					 tm->ftm_fids.ftf_head,
-					 tm->ftm_fids.ftf_cnt);
+			do {
+				m0_mutex_lock(&tm->ftm_fids.ftf_lock);
+				ret = fi_trywait(tm->ftm_fab->fab_fab,
+						 tm->ftm_fids.ftf_head,
+						 tm->ftm_fids.ftf_cnt);
+				m0_mutex_unlock(&tm->ftm_fids.ftf_lock);
+			} while (M0_FI_ENABLED("fail-trywait"));
 			/*
 			 * TBD : Add handling of other return values of
 			 * fi_trywait() if it returns something other than
@@ -1610,6 +1614,7 @@ static int libfab_tm_param_free(struct m0_fab__tm *tm)
 	close(tm->ftm_epfd);
 	m0_free(tm->ftm_fids.ftf_head);
 	m0_free(tm->ftm_fids.ftf_ctx);
+	m0_mutex_fini(&tm->ftm_fids.ftf_lock);
 	m0_free(tm->ftm_rem_iov);
 	m0_free(tm->ftm_loc_iov);
 
@@ -2476,17 +2481,21 @@ static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm, void *ctx)
 	rc = epoll_ctl(tm->ftm_epfd, EPOLL_CTL_ADD, fd, &ev);
 
 	if (rc == 0) {
+		m0_mutex_lock(&tmfid->ftf_lock);
 		if (tmfid->ftf_cnt >= (tmfid->ftf_arr_size - 1)) {
 			rc = libfab_fid_array_grow(tmfid,
 						   FAB_TM_FID_MALLOC_STEP);
-			if (rc != 0)
+			if (rc != 0) {
+				m0_mutex_unlock(&tmfid->ftf_lock);
 				return M0_ERR(rc);
+			}
 		}
 		tmfid->ftf_head[tmfid->ftf_cnt] = fid;
 		tmfid->ftf_ctx[tmfid->ftf_cnt]  = ptr;
 		ptr->evctx_pos = tmfid->ftf_cnt;
 		tmfid->ftf_cnt++;
 		M0_ASSERT(tmfid->ftf_cnt < tmfid->ftf_arr_size);
+		m0_mutex_unlock(&tmfid->ftf_lock);
 	}
 
 	return M0_RC(rc);
@@ -2512,6 +2521,7 @@ static int libfab_waitfd_unbind(struct fid* fid, struct m0_fab__tm *tm,
 
 	rc = epoll_ctl(tm->ftm_epfd, EPOLL_CTL_DEL, fd, &ev);
 	if (rc == 0) {
+		m0_mutex_lock(&tmfid->ftf_lock);
 		M0_LOG(M0_DEBUG, "DEL_FROM_EPOLL %s fid=%p fd=%d tm=%p pos=%d",
 		       ptr->evctx_dbg, fid, fd, tm, ptr->evctx_pos);
 		for (i = ptr->evctx_pos; i < tmfid->ftf_cnt - 1; i++) {
@@ -2523,6 +2533,7 @@ static int libfab_waitfd_unbind(struct fid* fid, struct m0_fab__tm *tm,
 		tmfid->ftf_head[tmfid->ftf_cnt] = 0;
 		tmfid->ftf_ctx[tmfid->ftf_cnt]  = 0;
 		ptr->evctx_pos = 0;
+		m0_mutex_unlock(&tmfid->ftf_lock);
 	}
 
 	return M0_RC(rc);
@@ -2934,6 +2945,7 @@ static int libfab_ma_init(struct m0_net_transfer_mc *ntm)
 		ftm->ftm_fids.ftf_cnt = 0;
 		M0_ALLOC_ARR(ftm->ftm_fids.ftf_head, FAB_TM_FID_MALLOC_STEP);
 		M0_ALLOC_ARR(ftm->ftm_fids.ftf_ctx, FAB_TM_FID_MALLOC_STEP);
+		m0_mutex_init(&ftm->ftm_fids.ftf_lock);
 		if (ftm->ftm_fids.ftf_head == NULL ||
 		    ftm->ftm_fids.ftf_ctx == NULL) {
 			m0_free(ftm->ftm_fids.ftf_head);
