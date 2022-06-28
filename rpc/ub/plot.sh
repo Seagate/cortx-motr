@@ -103,7 +103,7 @@ set: rpc-ub
 	         run: [      1]  14.69  14.69  14.69  0.00% 1.469e+01/6.806e-02
 
 EOF
-    } | awk -v OPTS="$OPTS" '
+    } | awk -v OPTS=$OPTS '
 $2 == OPTS        { p = 1; next }
 p                 { print }
 p && $1 == "run:" { exit }
@@ -128,7 +128,7 @@ gen_csv() {
     local VAR_OPT="$1"; shift
     local VALUES="$*"
 
-    local NR_MSGS=$(get_val nr_msgs "$COMMON_OPTS")
+    local NR_MSGS=$(get_val nr_msgs $COMMON_OPTS)
 
     echo "# $VAR_OPT time msg/s MB/s" >"$OUT"
 
@@ -137,7 +137,7 @@ gen_csv() {
 	echo "----------[ $OPTS ]----------"
 
 	rpc-ub -o $OPTS | tee "$TMP"
-	[ "${PIPESTATUS[0]}" -eq 0 ] || exit "${PIPESTATUS[0]}"
+	[ ${PIPESTATUS[0]} -eq 0 ] || exit ${PIPESTATUS[0]}
 
 	local NR_CONNS=$(get_val nr_conns $OPTS)
 	local MSG_LEN=$(get_val msg_len $OPTS)
@@ -201,7 +201,7 @@ nr_conns=96,nr_msgs=100  msg_len  64 128 256 512
 EOF
 } | while read -a ARGS; do
     CSV=$((++i)).csv
-    gen_csv "$CSV" "$TMP" "${ARGS[@]}"
-    gen_script "${ARGS[0]}" "$CSV" "${ARGS[1]}" >"$TMP"
-    gnuplot "$TMP"
+    gen_csv $CSV $TMP ${ARGS[@]}
+    gen_script ${ARGS[0]} $CSV ${ARGS[1]} >$TMP
+    gnuplot $TMP
 done
