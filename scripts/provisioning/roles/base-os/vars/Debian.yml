@@ -52,6 +52,7 @@ basic_tools_pkgs:
 devel_tools_pkgs:
   - crash
   - expect
+  - gdb
   - jq
   - ltrace
   - linux-tools-common  # perf

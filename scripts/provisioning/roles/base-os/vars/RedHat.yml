@@ -46,6 +46,7 @@ basic_tools_pkgs:
 devel_tools_pkgs:
   - crash
   - expect
+  - gdb
   - iscsi-initiator-utils
   - jq
   - ltrace
