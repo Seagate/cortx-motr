@@ -13046,7 +13046,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 }
 
 /** TBD: Implement function to print the BTree. */
-M0_UNUSED static void btree_dbg_print(struct m0_btree btree)
+M0_INTERNAL void btree_dbg_print(struct m0_btree btree)
 {
 }
 

@@ -1218,7 +1218,7 @@ static struct m0_btree *cr_btree_create(void)
 	uint32_t                    rnode_sz_shift;
 	int                         rc;;
 	struct m0_btree_type        bt;
-	struct m0_btree_op          b_op = {};
+	struct m0_btree_op          b_op   = {};
 	struct m0_btree_rec_key_op  keycmp = { .rko_keycmp = cr_cmp, };
 
 	M0_BE_ALLOC_PTR_SYNC(btree, seg, NULL);
@@ -1226,15 +1226,15 @@ static struct m0_btree *cr_btree_create(void)
 	rnode_sz_shift = __builtin_ffsl(rnode_sz) - 1;
 	M0_BE_ALLOC_ALIGN_ARR_SYNC(rnode, rnode_sz, rnode_sz_shift, seg, NULL);
 	bt = (struct m0_btree_type){ .tt_id = M0_BT_UT_KV_OPS,
-				     .ksize = sizeof (struct m0_fid),
+				     .ksize = sizeof(struct m0_fid),
 				     .vsize = -1,
 				   };
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
-							     &bt,
-							     M0_BCT_NO_CRC,
-							     &b_op, btree,
-							     seg, &M0_FID_TINIT('b', 0, 1),
-							     NULL, &keycmp));
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_create(rnode, rnode_sz,
+						      &bt, M0_BCT_NO_CRC,
+						      &b_op, btree, seg,
+						      &M0_FID_TINIT('b', 0, 1),
+						      NULL, &keycmp));
 	if (rc != 0)
 		M0_BE_FREE_ALIGN_ARR_SYNC(rnode, seg, NULL);
 
@@ -1271,13 +1271,13 @@ static void cr_btree_insert(struct m0_key_val *kv)
 					 };
 
 	M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_put(tree, &rec, &insert_cb,
-				 &kv_op, NULL));
+						      &kv_op, NULL));
 }
 
 static int cr_btree_lookup_callback(struct m0_btree_cb *cb,
 				    struct m0_btree_rec *rec)
 {
-	struct m0_btree_rec     *datum = cb->c_datum;
+	struct m0_btree_rec *datum = cb->c_datum;
 
 	/** Only copy the Value for the caller. */
 	m0_bufvec_copy(&datum->r_val, &rec->r_val,
@@ -1287,12 +1287,12 @@ static int cr_btree_lookup_callback(struct m0_btree_cb *cb,
 
 static void cr_btree_lookup(struct m0_key_val *kv)
 {
-	struct m0_btree_op   kv_op        = {};
+	struct m0_btree_op   kv_op = {};
 	void                *k_ptr = &kv->kv_key.b_addr;
 	void                *v_ptr = &kv->kv_val.b_addr;
 	m0_bcount_t          ksize = kv->kv_key.b_nob;
 	m0_bcount_t          vsize = kv->kv_val.b_nob;
-	struct m0_btree_rec  rec       = {
+	struct m0_btree_rec  rec   = {
 			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
 			};
@@ -1306,11 +1306,11 @@ static void cr_btree_lookup(struct m0_key_val *kv)
 
 static void cr_btree_delete(struct m0_key_val *kv)
 {
-	struct m0_btree_op   kv_op        = {};
+	struct m0_btree_op   kv_op = {};
 	void                *k_ptr = &kv->kv_key.b_addr;
 	m0_bcount_t          ksize = kv->kv_key.b_nob;
 	struct m0_btree_key  r_key = {
-				  .k_data  = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+				.k_data  = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
 				};
 
 	M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_del(tree, &r_key, NULL,
