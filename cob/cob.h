@@ -34,7 +34,6 @@
 #include "fid/fid.h"
 #include "mdservice/md_fid.h"
 #include "btree/btree.h"
-#include "be/btree_xc.h"
 
 /* import */
 struct m0_be_tx;

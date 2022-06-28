@@ -206,6 +206,9 @@ enum m0_btree_purge_user{
 	M0_PU_EXTERNAL,
 };
 
+/** Btree fid type */
+M0_EXTERN const struct m0_fid_type m0_btree_fid_type;
+
 #define REC_INIT(p_rec, pp_key, p_ksz, pp_val, p_vsz)                          \
 	({                                                                     \
 		M0_CASSERT(M0_HAS_TYPE((p_rec), struct m0_btree_rec *));       \

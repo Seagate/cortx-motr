@@ -900,10 +900,11 @@ be_tool_m0betool_LDADD     = $(top_builddir)/motr/libmotr.la
 # be/tool/m0beck -------------------------------------- {{{2
 #
 
-sbin_PROGRAMS               += be/tool/m0beck
-be_tool_m0beck_CPPFLAGS      = -DM0_TARGET='m0beck' $(AM_CPPFLAGS)
-be_tool_m0beck_LDADD         = $(top_builddir)/motr/libmotr.la \
-                                @YAML_LIBS@
+#TBD: Uncomment following block after CORTX-32593 is fixed.
+#sbin_PROGRAMS               += be/tool/m0beck
+#be_tool_m0beck_CPPFLAGS      = -DM0_TARGET='m0beck' $(AM_CPPFLAGS)
+#be_tool_m0beck_LDADD         = $(top_builddir)/motr/libmotr.la \
+#                                @YAML_LIBS@
 
 #
 # scripts/systemtap/kem/m0kemc ----------------------------------- {{{2

@@ -110,7 +110,6 @@
 #include "lib/types_xc.h"  /* m0_uint128_xc */
 #include "be/tx.h"
 #include "btree/btree.h"   /* m0_btree_cursor */
-#include "be/btree_xc.h"
 #include "be/op.h"         /* struct m0_be_op */
 
 #include "be/extmap_internal.h"
