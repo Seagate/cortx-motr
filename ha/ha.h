@@ -142,9 +142,43 @@
  *   to the desired states:
  *	process state on HA: T -> O (broadcasted by HA);
  *	OS process: HA starts the process;
- *	process -> HA: connects;
- *	process -> HA: entrypoint;
- *	process -> HA: starting;
+ *	process -> HA: connects (RPC, halink);
+ *	process -> HA: entrypoint request/reply;
+ *	process -> HA: process starting;
+ *	for each service:
+ *		process -> HA: service starting;
+ *		process -> HA: service started;
+ *		service states on HA: T -> O (broadcasted by HA);
+ *	endfor
+ *	process -> HA: process started;
+ *   Storage device state is related to the process state:
+ *      when process is T then sdev is T;
+ *      when process is O then sdev state corresponds to its real state;
+ *      when process is F then it does not mean that sdev is F because
+ *      the sdev may be "attached" to another process; however, sdev is
+ *      at least T in that case;
+ *
+ * @section tbd
+ * How mkfs, dtm recovery, SNS/DIX repair/rebalance/direct rebalance is
+ * triggered?
+ *
+ * HA sets storage device state which defines the desired operation.
+ * Motr starts the operation.
+ * Motr reports process with the interval defined by HA in the entrypoint
+ * reply.
+ * The report is formed as "X of Y is done". The last such message is "Y of Y
+ * is done" which means the operations has been succesfully finished by Motr.
+ * X and Y are monotonically non-decreasing, X <= Y.
+ * Currently we send failvec as a separate message. With epochs implemented,
+ * failvec can be determined using HA state history and stored permanently by
+ * the process, thus eliminating the need to send failvec separately.
+ * TODO: add BE recovery to this list if it takes too much time.
+ *
+ * @secion tbd
+ * Configuration objects outside of processes
+ * When such conf object enters T then the sub-tree goes T.
+ * When such conf object enters F then the sub-tree goes to T and some items
+ * may go to F (similiar to the sdev case).
  *
  *
  * @defgroup ha
