@@ -1377,6 +1377,10 @@ struct m0_btree_oimpl {
 
 };
 
+M0_INTERNAL const struct m0_fid_type m0_btree_fid_type = {
+	.ft_id   = 'b',
+	.ft_name = "btree fid",
+};
 
 /**
  * Adding following functions prototype in btree temporarily. It should be move
@@ -13039,6 +13043,11 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	m0_be_tx_fini(tx);
 
 	btree_ut_fini();
+}
+
+/** TBD: Implement function to print the BTree. */
+M0_UNUSED static void btree_dbg_print(struct m0_btree btree)
+{
 }
 
 static void ut_btree_crc_persist_test(void)

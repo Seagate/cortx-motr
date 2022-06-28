@@ -46,7 +46,7 @@
 #include "lib/types.h"
 #include "lib/trace.h"
 #include "module/instance.h"
-#include "be/btree.h"
+#include "btree/btree.h"
 
 #include "motr/m0crate/logger.h"
 #include "motr/m0crate/workload.h"
@@ -70,7 +70,9 @@ const bcnt_t cr_default_key_size   = sizeof(struct m0_fid);
 const bcnt_t cr_default_max_ksize  = 1 << 10; /* default upper limit for key_size parameter. i.e 1KB */
 const bcnt_t cr_default_max_vsize  = 1 << 20; /* default upper limit for value_size parameter. i.e 1MB */
 static struct m0_be_seg *seg;
-static struct m0_be_btree *tree;
+static struct m0_btree *tree;
+uint8_t *rnode; /* Root Node */
+
 
 const char *cr_btree_opname[BOT_OPS_NR] = {
         [BOT_INSERT]  = "Insert",
@@ -112,14 +114,14 @@ static void btree_op_run(struct workload *w, struct workload_task *task,
 			const struct workload_op *op);
 static int  btree_parse (struct workload *w, char ch, const char *optarg);
 static void btree_check (struct workload *w);
-static struct m0_be_btree *cr_btree_create(void);
+static struct m0_btree *cr_btree_create(void);
 static void cr_btree_insert(struct m0_key_val *kv);
 static void cr_btree_delete(struct m0_key_val *kv);
 static void cr_btree_lookup(struct m0_key_val *kv);
 static void cr_btree_warmup(struct cr_workload_btree *cwb);
 static void cr_btree_key_make(int ksize, uint64_t key, int pattern,
 			      struct cr_btree_key *bk);
-extern void btree_dbg_print(struct m0_be_btree *tree);
+/* extern void btree_dbg_print(struct m0_btree *tree); */
 M0_INTERNAL int m0_time_init(void);
 
 static const struct workload_type_ops w_ops[CWT_NR] = {
@@ -1208,54 +1210,111 @@ static size_t btree_key_size(const struct cr_btree_key *cbk)
 	return sizeof *cbk + m0_bitstring_len_get(&cbk->pattern);
 }
 
-static m0_bcount_t cr_key_size(const void *key)
-{
-	return btree_key_size(key) ;
-}
+static const uint32_t rnode_sz = 4096; /* Root Node size. */
 
-static m0_bcount_t cr_val_size(const void *val)
+static struct m0_btree *cr_btree_create(void)
 {
-	return val != NULL ? strlen(val) + 1 : 0;
-}
-
-static const struct m0_be_btree_kv_ops cr_kv_ops = {
-	.ko_type    = M0_BBT_UT_KV_OPS,
-	.ko_ksize   = cr_key_size,
-	.ko_vsize   = cr_val_size,
-	.ko_compare = cr_cmp
-};
-
-static struct m0_be_btree *cr_btree_create(void)
-{
-	struct m0_be_btree     *btree;
-	struct m0_be_op         op = {};
+	struct m0_btree            *btree;
+	uint32_t                    rnode_sz_shift;
+	int                         rc;;
+	struct m0_btree_type        bt;
+	struct m0_btree_op          b_op = {};
+	struct m0_btree_rec_key_op  keycmp = { .rko_keycmp = cr_cmp, };
 
 	M0_BE_ALLOC_PTR_SYNC(btree, seg, NULL);
-	m0_be_btree_init(btree, seg, &cr_kv_ops);
-	M0_BE_OP_SYNC_WITH(&op,
-			   m0_be_btree_create(btree, NULL, &op,
-					      &M0_FID_TINIT('b', 0, 1)));
+	M0_ASSERT(rnode_sz > 0 && m0_is_po2(rnode_sz));
+	rnode_sz_shift = __builtin_ffsl(rnode_sz) - 1;
+	M0_BE_ALLOC_ALIGN_ARR_SYNC(rnode, rnode_sz, rnode_sz_shift, seg, NULL);
+	bt = (struct m0_btree_type){ .tt_id = M0_BT_UT_KV_OPS,
+				     .ksize = sizeof (struct m0_fid),
+				     .vsize = -1,
+				   };
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(rnode, rnode_sz,
+							     &bt,
+							     M0_BCT_NO_CRC,
+							     &b_op, btree,
+							     seg, &M0_FID_TINIT('b', 0, 1),
+							     NULL, &keycmp));
+	if (rc != 0)
+		M0_BE_FREE_ALIGN_ARR_SYNC(rnode, seg, NULL);
+
 	return btree;
+}
+
+static int cr_btree_insert_callback(struct m0_btree_cb  *cb,
+				    struct m0_btree_rec *rec)
+{
+	struct m0_btree_rec *datum = cb->c_datum;
+
+	/** Write the Key and Value to the location indicated in rec. */
+	m0_bufvec_copy(&rec->r_key.k_data,  &datum->r_key.k_data,
+		       m0_vec_count(&datum->r_key.k_data.ov_vec));
+	m0_bufvec_copy(&rec->r_val, &datum->r_val,
+		       m0_vec_count(&rec->r_val.ov_vec));
+	return 0;
 }
 
 static void cr_btree_insert(struct m0_key_val *kv)
 {
-	M0_BE_OP_SYNC_RET(op, m0_be_btree_insert(tree, NULL, &op, &kv->kv_key,
-						 &kv->kv_val),
-			  bo_u.u_btree.t_rc);
+	struct m0_btree_op   kv_op        = {};
+	void                *k_ptr = &kv->kv_key.b_addr;
+	void                *v_ptr = &kv->kv_val.b_addr;
+	m0_bcount_t          ksize = kv->kv_key.b_nob;
+	m0_bcount_t          vsize = kv->kv_val.b_nob;
+	struct m0_btree_rec  rec = {
+			   .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+			   .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+			   .r_crc_type   = M0_BCT_NO_CRC,
+			};
+	struct m0_btree_cb   insert_cb = {.c_act = cr_btree_insert_callback,
+					  .c_datum = &rec,
+					 };
+
+	M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_put(tree, &rec, &insert_cb,
+				 &kv_op, NULL));
+}
+
+static int cr_btree_lookup_callback(struct m0_btree_cb *cb,
+				    struct m0_btree_rec *rec)
+{
+	struct m0_btree_rec     *datum = cb->c_datum;
+
+	/** Only copy the Value for the caller. */
+	m0_bufvec_copy(&datum->r_val, &rec->r_val,
+		       m0_vec_count(&rec->r_val.ov_vec));
+	return 0;
 }
 
 static void cr_btree_lookup(struct m0_key_val *kv)
 {
-	M0_BE_OP_SYNC_RET(op, m0_be_btree_lookup(tree, &op, &kv->kv_key,
-						 &kv->kv_val),
-			  bo_u.u_btree.t_rc);
+	struct m0_btree_op   kv_op        = {};
+	void                *k_ptr = &kv->kv_key.b_addr;
+	void                *v_ptr = &kv->kv_val.b_addr;
+	m0_bcount_t          ksize = kv->kv_key.b_nob;
+	m0_bcount_t          vsize = kv->kv_val.b_nob;
+	struct m0_btree_rec  rec       = {
+			    .r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+			    .r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize),
+			};
+	struct m0_btree_cb   lookup_cb = {.c_act = cr_btree_lookup_callback,
+					  .c_datum = &rec,
+					 };
+
+	M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_get(tree, &rec.r_key,
+				 &lookup_cb, BOF_EQUAL, &kv_op));
 }
 
 static void cr_btree_delete(struct m0_key_val *kv)
 {
-	M0_BE_OP_SYNC_RET(op, m0_be_btree_delete(tree, NULL, &op, &kv->kv_key),
-			  bo_u.u_btree.t_rc);
+	struct m0_btree_op   kv_op        = {};
+	void                *k_ptr = &kv->kv_key.b_addr;
+	m0_bcount_t          ksize = kv->kv_key.b_nob;
+	struct m0_btree_key  r_key = {
+				  .k_data  = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize),
+				};
+
+	M0_BTREE_OP_SYNC_WITH_RC(&kv_op, m0_btree_del(tree, &r_key, NULL,
+				 &kv_op, NULL));
 }
 
 static void cr_btree_warmup(struct cr_workload_btree *cwb)
@@ -1350,6 +1409,8 @@ static void btree_run(struct workload *w, struct workload_task *task)
 
 	m0_free(seg);
 	M0_BE_FREE_PTR_SYNC(tree, seg, NULL);
+	M0_BE_FREE_ALIGN_ARR_SYNC(rnode, seg, NULL);
+
 	cwb->cwb_finish_time = m0_time_now();
 
 	cr_log(CLL_INFO, "BTREE workload is finished.\n");
