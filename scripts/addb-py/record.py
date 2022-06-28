@@ -17,8 +17,8 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-"""trace class accepts a stream of incoming records (represented by 
-   the record class) and produces the output in the form of an SVG image, 
+"""trace class accepts a stream of incoming records (represented by
+   the record class) and produces the output in the form of an SVG image,
    describing the stream.
 
    Some assumptions are made about the input stream:
@@ -209,7 +209,7 @@ class trace(object):
         green = hash(seed + "g") % 90
         blue  = hash(seed + "b") % 90
         return svgwrite.rgb(red, green, blue, '%')
-        
+
     def fomcolour(self, fom):
         return self.getcolour(fom.phase)
 
@@ -357,7 +357,7 @@ class trace(object):
         if not exists:
             if len(self.locks) >= self.lockmax:
                 if not self.warnedlock:
-                    self.warnedlock = True                
+                    self.warnedlock = True
                     print "Too many locks. Increase lockmax."
                 return
             self.locks[addr] = len(self.locks)
@@ -543,7 +543,7 @@ class netbuf(record):
     def done(self, trace):
         super(netbuf, self).done(trace)
         assert (self.params[0] == "buf:" and self.params[2] == "qtype:" and
-                self.params[4] == "time:" and self.params[6] == "duration:" 
+                self.params[4] == "time:" and self.params[6] == "duration:"
                 and self.params[8] == "status:" and self.params[10] == "len:")
         trace.netbufadd(self.time,
                         buf     = self.params[1][:-1],

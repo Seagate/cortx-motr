@@ -391,6 +391,15 @@ struct m0_fab__ep {
  * to be monitored in epoll_wait().
  */
 struct m0_fab__tm_fids {
+	/**
+	 * Lock used to protect the transfer machine fids structure.
+	 * The fids and contexts of event queue, completion queue are
+	 * added/removed from ftf_head and ftf_ctx arrays during
+	 * endpoint creation/deletion which can happen in main or poller thread.
+	 * And the same arrays are used by fi_trywait().
+	 */
+	struct m0_mutex         ftf_lock;
+
 	/* Pointer to the head of the list (array in this case) */
 	struct fid            **ftf_head;
 

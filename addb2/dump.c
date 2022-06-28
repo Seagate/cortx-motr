@@ -861,6 +861,17 @@ static void dtx0_state_counter(struct m0_addb2__context *ctx, char *buf)
 	sm_trans(&m0_dtx_sm_conf, "dtx0", ctx, buf);
 }
 
+extern struct m0_sm_conf m0_drm_sm_conf;
+static void drm_state(struct m0_addb2__context *ctx, const uint64_t *v,
+		      char *buf)
+{
+	sm_state(&m0_drm_sm_conf, ctx, v, buf);
+}
+
+static void drm_state_counter(struct m0_addb2__context *ctx, char *buf)
+{
+	sm_trans(&m0_drm_sm_conf, "drm", ctx, buf);
+}
 
 extern struct m0_sm_conf op_states_conf;
 static void beop_state_counter(struct m0_addb2__context *ctx, char *buf)
@@ -1148,6 +1159,11 @@ struct m0_addb2__id_intrp ids[] = {
 	{ M0_AVI_DTX0_SM_COUNTER,   "",
 	  .ii_repeat = M0_AVI_DTX0_SM_COUNTER_END - M0_AVI_DTX0_SM_COUNTER,
 	  .ii_spec   = &dtx0_state_counter },
+
+	{ M0_AVI_DRM_SM_STATE,     "drm-state",    { &drm_state, SKIP2  } },
+	{ M0_AVI_DRM_SM_COUNTER,   "",
+	  .ii_repeat = M0_AVI_DRM_SM_COUNTER_END - M0_AVI_DRM_SM_COUNTER,
+	  .ii_spec   = &drm_state_counter },
 
 	{ M0_AVI_BE_TX_STATE,     "tx-state",        { &tx_state, SKIP2  } },
 	{ M0_AVI_BE_TX_COUNTER,   "",

@@ -59,6 +59,7 @@ TEMP_FID_FILE = "/opt/seagate/cortx/motr/conf/service_fid.yaml"
 CMD_RETRY_COUNT = 5
 MEM_THRESHOLD = 4*1024*1024*1024
 CVG_COUNT_KEY = "num_cvg"
+MOTR_M0D_MIN_RPC_RECVQ_LEN = 64
 
 class MotrError(Exception):
     """ Generic Exception with error code and output """
@@ -494,6 +495,7 @@ def update_copy_motr_config_file(self):
                    ("MOTR_M0D_DATA_DIR", f"{MOTR_M0D_DATA_DIR}"),
                    ("MOTR_M0D_CONF_XC", f"{MOTR_M0D_CONF_XC}"),
                    ("MOTR_M0D_ADDB_STOB_DIR", f"{MOTR_M0D_ADDB_STOB_DIR}"),
+                   ("MOTR_M0D_MIN_RPC_RECVQ_LEN", f"{MOTR_M0D_MIN_RPC_RECVQ_LEN}"),
                    ("MOTR_M0D_TRACE_DIR", f"{MOTR_M0D_TRACE_DIR}")]
     update_config_file(self, f"{MOTR_SYS_CFG}", config_kvs)
     # Copy config file to new path
