@@ -74,7 +74,7 @@
  *
  * <hr>
  * @section cas-ovw Overview
- * Catalogue service exports BE btrees (be/btree.[ch]) to the network.
+ * Catalogue service exports BE btrees (btree/btree.[ch]) to the network.
  *
  * <hr>
  * @section cas-def Definitions

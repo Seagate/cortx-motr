@@ -144,8 +144,6 @@ extern void m0_be_ut_alloc_spare(void);
 extern void m0_be_ut_alloc_align(void);
 
 extern void m0_be_ut_list(void);
-extern void m0_be_ut_btree_create_destroy(void);
-extern void m0_be_ut_btree_create_truncate(void);
 extern void m0_be_ut_emap(void);
 extern void m0_be_ut_seg_dict(void);
 extern void m0_be_ut_seg0_test(void);
@@ -160,7 +158,6 @@ struct m0_ut_suite be_ut = {
 	.ts_yaml_config_string = "{ valgrind: { timeout: 3600 },"
 				 "  helgrind: { timeout: 3600 },"
 				 "  exclude:  ["
-				 "    btree,"
 				 "    emap,"
 				 "    tx-concurrent,"
 				 "    tx-concurrent-excl"
@@ -268,8 +265,6 @@ struct m0_ut_suite be_ut = {
 		{ "actrec",                  m0_be_ut_actrec_test             },
 #endif /* __KERNEL__ */
 		{ "list",                    m0_be_ut_list                    },
-		{ "btree-create_destroy",    m0_be_ut_btree_create_destroy    },
-		{ "btree-create_truncate",   m0_be_ut_btree_create_truncate   },
 		{ "seg_dict",                m0_be_ut_seg_dict                },
 #ifndef __KERNEL__
 		{ "seg0",                    m0_be_ut_seg0_test               },

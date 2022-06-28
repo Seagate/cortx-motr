@@ -29,7 +29,6 @@
 #include "fop/fom_long_lock.h"
 #include "be/op.h"
 #include "btree/btree.h"
-#include "be/btree_xc.h"
 #include "be/tx_credit.h"
 #include "format/format.h"
 #include "cas/cas.h"
