@@ -1226,7 +1226,7 @@ static struct m0_btree *cr_btree_create(void)
 	rnode_sz_shift = __builtin_ffsl(rnode_sz) - 1;
 	M0_BE_ALLOC_ALIGN_ARR_SYNC(rnode, rnode_sz, rnode_sz_shift, seg, NULL);
 	bt = (struct m0_btree_type){ .tt_id = M0_BT_UT_KV_OPS,
-				     .ksize = sizeof(struct m0_fid),
+				     .ksize = -1,
 				     .vsize = -1,
 				   };
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
@@ -1256,7 +1256,7 @@ static int cr_btree_insert_callback(struct m0_btree_cb  *cb,
 
 static void cr_btree_insert(struct m0_key_val *kv)
 {
-	struct m0_btree_op   kv_op        = {};
+	struct m0_btree_op   kv_op = {};
 	void                *k_ptr = &kv->kv_key.b_addr;
 	void                *v_ptr = &kv->kv_val.b_addr;
 	m0_bcount_t          ksize = kv->kv_key.b_nob;
