@@ -471,6 +471,33 @@
    It allows to limit the size of REDO-with-RECOVERING range
    (to satisfy R.dtm0.limited-ram).
 
+   <hr>
+   @section DLD-highlights-clocks Design Highlights: Single clock
+
+   Client has its own logical clock (o.originator).
+   Transactions in all server lists (per originator, per sdev) are ordered.
+   Transactions in the originator's list are ordered by o.originator.
+   For each originator the participant keeps per storage device arrays.
+   First array points to Max-All-P, second array points to the lowest Non-All-P.
+   With every Pmsg (src sdev, dst sdev, originator fid, dtxid), the min
+   Non-All-P for ...
+
+   Let's assume we have one originator. It will help us to define the algorithm
+   for one single originator, and then we can just extend it to the multiple
+   originators case (because originators are independent).
+   Let's start with the alrogithm that figures out holes in the
+   REDO-without-recovery case. For each local storage device we keep an array
+   with elements for each storage device, and the elements of the array would
+   define the min-nall-p for a transaction on this originator which includes
+   both storage devices (local and remote).
+   In each Pmsg we send this min-nall-p value for src (local) and dst (remote).
+   On the receiving end we compare this min-nall-p with the value we have for
+   the same pair of storage devices. If remote value min-nall-p > local then
+   it means we should send REDO to that participant.
+   Each Pmsg also updates max-all-p and min-nall-p.
+   all-p can be moved forward if remote min-nall-p > local all-p?
+
+
 
    <hr>
    @section DLD-highlights-clocks Design Highlights: ADDB counters
