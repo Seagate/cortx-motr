@@ -57,7 +57,7 @@
 #include "format/format.h"
 #include "format/format_xc.h"
 #include "balloc/balloc.h"    /* M0_BALLOC_GROUP_DESC_FORMAT_VERSION */
-#include "be/btree_internal.h"
+#include "btree/btree.h"
 #include "be/list.h"
 #include "be/seg_internal.h"
 #include "be/op.h"            /* m0_be_op_active */
@@ -159,7 +159,7 @@ struct bstats {
 };
 
 struct btype { /* b-tree type */
-	enum m0_be_btree_type  b_type;
+	enum m0_btree_types    b_type;
 	const char            *b_name;
 	int                  (*b_proc)(struct scanner *s, struct btype *b,
 				       struct m0_be_bnode *node,
