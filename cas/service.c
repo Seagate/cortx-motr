@@ -308,9 +308,21 @@ enum {
 	STATS_NR
 };
 
+enum {
+	INVALID_CAS_SDEV_ID = UINT32_MAX
+};
+
 struct cas_service {
 	struct m0_reqh_service  c_service;
 	struct m0_be_domain    *c_be_domain;
+
+	/**
+	 * sdev used by an instance of CAS service. This should be just one
+	 * for the standard configuration, but current unit tests use more
+	 * than one storage device attached to emulate several CAS services.
+	 * In this case a special invalid value is used.
+	 */
+	uint32_t                c_sdev_id;
 };
 
 struct cas_kv {
@@ -556,6 +568,60 @@ m0_cas__ut_svc_be_get(struct m0_reqh_service *svc)
 	return service->c_be_domain;
 }
 
+static int cas_service_sdev_id_set(struct cas_service *cas_svc)
+{
+	struct m0_reqh         *reqh;
+	struct m0_conf_cache   *cache;
+	struct m0_conf_obj     *obj;
+	struct m0_fid          *cas_svc_fid;
+	struct m0_conf_service *service;
+	struct m0_conf_obj     *sdevs_dir;
+	struct m0_conf_sdev    *sdev = NULL;
+	bool                    found = false;
+	int                     rc = 0;
+
+	M0_ASSERT(cas_svc->c_sdev_id == INVALID_CAS_SDEV_ID);
+
+	if (cas_in_ut())
+		return M0_RC(0);
+
+	reqh = cas_svc->c_service.rs_reqh;
+	cache = &m0_reqh2confc(reqh)->cc_cache;
+
+	cas_svc_fid = &cas_svc->c_service.rs_service_fid;
+	obj = m0_conf_cache_lookup(cache, cas_svc_fid);
+	M0_ASSERT(obj != NULL);
+
+	service = M0_CONF_CAST(obj, m0_conf_service);
+	M0_ASSERT(service != NULL);
+
+	sdevs_dir = &service->cs_sdevs->cd_obj;
+	rc = m0_confc_open_sync(&sdevs_dir, sdevs_dir, M0_FID0);
+	if (rc != 0)
+		return M0_RC(rc);
+
+	obj = NULL;
+	while ((rc = m0_confc_readdir_sync(sdevs_dir, &obj)) > 0) {
+		sdev = M0_CONF_CAST(obj, m0_conf_sdev);
+		if (!found) {
+			cas_svc->c_sdev_id = sdev->sd_dev_idx;
+			found = true;
+		} else {
+			/*
+			 * Several devices attached to a single CAS service are
+			 * possible if we are run in ut. In this case we use
+			 * an invalid value for attached storage device.
+			 * Also we can not break the loop until whole directory
+			 * is iterated since it leads to crash during request
+			 * handler finalisation.
+			 */
+			cas_svc->c_sdev_id = INVALID_CAS_SDEV_ID;
+		}
+	}
+
+	m0_confc_close(sdevs_dir);
+	return M0_RC(rc);
+}
 
 static int cas_service_start(struct m0_reqh_service *svc)
 {
@@ -568,6 +634,7 @@ static int cas_service_start(struct m0_reqh_service *svc)
 	/* XXX It's a workaround. It's needed until we have a better way. */
 	service->c_be_domain = ut_dom != NULL ?
 			       ut_dom : svc->rs_reqh_ctx->rc_beseg->bs_domain;
+	service->c_sdev_id = INVALID_CAS_SDEV_ID;
 	rc = m0_ctg_store_init(service->c_be_domain);
 	if (rc == 0) {
 		/*
@@ -576,6 +643,7 @@ static int cas_service_start(struct m0_reqh_service *svc)
 		 * If no pending index drop, it finishes soon.
 		 */
 		m0_cas_gc_start(svc);
+		rc = cas_service_sdev_id_set(service);
 	}
 	return rc;
 }
@@ -1832,6 +1900,7 @@ static int cas_device_check(const struct cas_fom   *fom,
 			pm = &pver->pv_mach;
 			rc = cas_sdev_state(pm, device_id, &state);
 			if (rc == 0 && !M0_IN(state, (M0_PNDS_ONLINE,
+						      M0_PNDS_OFFLINE,
 						      M0_PNDS_SNS_REBALANCING)))
 				rc = M0_ERR(-EBADFD);
 		} else
@@ -2608,6 +2677,26 @@ M0_INTERNAL int m0_cas_fom_spawn(
 	m0_fop_put_lock(cas_fop);
 
 	return M0_RC(rc);
+}
+
+M0_INTERNAL uint32_t m0_cas_svc_device_id_get(
+	const struct m0_reqh_service_type *stype,
+	const struct m0_reqh              *reqh)
+{
+	struct m0_reqh_service *svc;
+	struct cas_service     *cas_svc;
+
+	M0_PRE(stype != NULL);
+	M0_PRE(reqh != NULL);
+
+	svc = m0_reqh_service_find(stype, reqh);
+	M0_ASSERT(svc != NULL);
+	M0_ASSERT(m0_reqh_service_state_get(svc) == M0_RST_STARTED);
+
+	cas_svc = M0_AMB(cas_svc, svc, c_service);
+
+	M0_ASSERT(cas_svc->c_sdev_id != INVALID_CAS_SDEV_ID);
+	return cas_svc->c_sdev_id;
 }
 
 static int cas_ctg_crow_handle(struct cas_fom *fom, const struct m0_cas_id *cid)
