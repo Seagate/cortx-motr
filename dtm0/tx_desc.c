@@ -107,11 +107,11 @@ M0_INTERNAL int m0_dtm0_tx_desc_init(struct m0_dtm0_tx_desc *td,
 	return M0_RC(0);
 }
 
-M0_INTERNAL void m0_dtm0_tx_desc_fini(struct m0_dtm0_tx_desc *td)
+M0_INTERNAL void m0_dtm0_tx_desc_fini(const struct m0_dtm0_tx_desc *td)
 {
 	M0_ENTRY();
 	m0_free(td->dtd_ps.dtp_pa);
-	M0_SET0(td);
+//	M0_SET0(td);
 	M0_LEAVE();
 }
 

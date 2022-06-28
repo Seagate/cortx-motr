@@ -83,7 +83,7 @@ struct dtm0_rep_fop {
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom            *fom,
-				     const struct m0_dtm0_tid *id);
+				     const struct m0_dtm0_tx_desc *txd);
 
 M0_INTERNAL int m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
 				      struct m0_be_tx        *tx,

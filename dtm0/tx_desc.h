@@ -130,7 +130,7 @@ M0_INTERNAL int m0_dtm0_tx_desc_copy(const struct m0_dtm0_tx_desc *src,
 M0_INTERNAL int m0_dtm0_tx_desc_init(struct m0_dtm0_tx_desc *td,
 				     uint32_t                nr_pa);
 
-M0_INTERNAL void m0_dtm0_tx_desc_fini(struct m0_dtm0_tx_desc *td);
+M0_INTERNAL void m0_dtm0_tx_desc_fini(const struct m0_dtm0_tx_desc *td);
 
 M0_INTERNAL int m0_dtm0_tid_cmp(struct m0_dtm0_clk_src   *cs,
 				const struct m0_dtm0_tid *left,

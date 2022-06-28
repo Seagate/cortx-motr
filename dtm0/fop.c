@@ -295,10 +295,11 @@ M0_INTERNAL int m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
 				      struct m0_dtm0_tx_desc *txd,
 				      struct m0_buf          *payload)
 {
-	int rc;
+	int rc = 0;
 
 	M0_ENTRY();
 
+	return M0_RC(rc);
 	m0_mutex_lock(&log->dl_lock);
 	rc = m0_be_dtm0_log_update(log, tx, txd, payload);
 	m0_mutex_unlock(&log->dl_lock);
@@ -307,15 +308,15 @@ M0_INTERNAL int m0_dtm0_logrec_update(struct m0_be_dtm0_log  *log,
 }
 
 M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom            *fom,
-				     const struct m0_dtm0_tid *id)
+				     const struct m0_dtm0_tx_desc *txd)
 {
 	struct m0_dtm0_service       *dtms;
 	struct m0_be_dtm0_log        *log;
-	const struct m0_dtm0_log_rec *rec;
+//	const struct m0_dtm0_log_rec *rec;
 	const struct m0_fid          *target;
 	const struct m0_fid          *source;
 	struct dtm0_req_fop           req = { .dtr_msg = DTM_PERSISTENT };
-	struct m0_dtm0_tx_desc       *txd = &req.dtr_txr;
+//	struct m0_dtm0_tx_desc       *txd = &req.dtr_txr;
 	int                           rc;
 	int                           i;
 
@@ -333,21 +334,21 @@ M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom            *fom,
 
 	M0_ENTRY();
 
-	m0_mutex_lock(&log->dl_lock);
+//	m0_mutex_lock(&log->dl_lock);
 	/* Get the latest state of the log record. */
-	rec = m0_be_dtm0_log_find(log, id);
+//	rec = m0_be_dtm0_log_find(log, id);
 	/*
 	 * It is impossible to commit a record that is not a part of the
 	 * DTM log.
 	 */
-	M0_ASSERT_INFO(rec != NULL, "Log record must be inserted into the log "
+/*	M0_ASSERT_INFO(rec != NULL, "Log record must be inserted into the log "
 		       "in cas_fom_tick().");
 	rc = m0_dtm0_tx_desc_copy(&rec->dlr_txd, txd);
 	m0_mutex_unlock(&log->dl_lock);
 
 	if (rc != 0)
 		goto out;
-
+*/
 	/*
 	 * We have to send N PERSISTENT messages once a local transaction
 	 * gets committed (where N == txd->dtd_ps.dtp_nr):
@@ -355,6 +356,14 @@ M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom            *fom,
 	 *	1   to the originator (txd->dtd_id.dti_fid).
 	 */
 	source = &dtms->dos_generic.rs_service_fid;
+
+	for (i = 0; i < txd->dtd_ps.dtp_nr; ++i) {
+		if (m0_fid_eq(&txd->dtd_ps.dtp_pa[i].p_fid, source)) {
+			txd->dtd_ps.dtp_pa[i].p_state = M0_DTPS_PERSISTENT;
+			break;
+		}
+	}
+
 	for (i = 0; i < txd->dtd_ps.dtp_nr; ++i) {
 		target = &txd->dtd_ps.dtp_pa[i].p_fid;
 
@@ -381,7 +390,7 @@ M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom            *fom,
 
 	m0_dtm0_tx_desc_fini(txd);
 
-out:
+//out:
 	return M0_RC(rc);
 }
 

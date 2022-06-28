@@ -1310,7 +1310,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 */
 		if (phase == M0_FOPH_TXN_DONE_WAIT &&
 		    m0_fom_phase(fom0) == M0_FOPH_FINISH && is_dtm0_used) {
-			rc = m0_dtm0_on_committed(fom0, &cas_op(fom0)->cg_txd.dtd_id);
+			rc = m0_dtm0_on_committed(fom0, &cas_op(fom0)->cg_txd);
 			if (rc != 0)
 				M0_LOG(M0_WARN, "Could not send PERSISTENT "
 				       "messages out");
