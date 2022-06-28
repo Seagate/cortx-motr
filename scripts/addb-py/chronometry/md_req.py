@@ -58,7 +58,7 @@ def graph_build(m_relations, relations, ext_graph: Digraph=None):
     if ext_graph is None:
         rel = relations if relations else m_relations
         graph.render(filename='md_graph_{}'.format(rel[0]['client_id']))
-    
+
     return graph
 
 # ================================================================================
