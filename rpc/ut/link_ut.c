@@ -40,7 +40,6 @@ enum {
 	RLUT_MAX_RPCS_IN_FLIGHT = 10,
 	RLUT_CONN_TIMEOUT       = 40, /* seconds */
 	RLUT_SESS_TIMEOUT       = 20, /* seconds */
-	CONF_SERVICE_IOS_LEN    = 10, /* "M0_CST_IOS" string length */ 
 };
 
 struct m0_clink clink;
@@ -335,7 +334,7 @@ static struct m0_fop *ut_fop_alloc(const char *name, uint32_t cmd)
 	M0_ALLOC_PTR(rfop);
 	M0_UT_ASSERT(rfop != NULL);
 
-	m0_buf_init(&rfop->ss_name, (void *)name, strnlen(name, CONF_SERVICE_IOS_LEN));
+	m0_buf_init(&rfop->ss_name, (void *)name, strlen(name));
 	rfop->ss_cmd = cmd;
 
 	m0_fop_init(fop, &m0_fop_ss_fopt, (void *)rfop, m0_ss_fop_release);
