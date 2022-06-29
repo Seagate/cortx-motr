@@ -7297,6 +7297,14 @@ static int  btree_sibling_first_key(struct m0_btree_oimpl *oi, struct td *tree)
 			while (i < oi->i_used) {
 				curr_node = oi->i_nop.no_node;
 				bnode_lock(curr_node);
+
+				if (!bnode_isvalid(curr_node) ||
+				    (oi->i_pivot > 0 &&
+				     bnode_rec_count(curr_node) == 0)) {
+						bnode_unlock(curr_node);
+						return M0_ERR(-EACCES);
+				}
+
 				bnode_child(&s, &child);
 				if (!address_in_segment(child)) {
 					bnode_unlock(curr_node);
