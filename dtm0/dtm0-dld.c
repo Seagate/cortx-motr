@@ -282,7 +282,6 @@
 
    - DIX relies dtm0 to restore missing replicas.
 
-   -
 
 
    The DLD specification style guide depends on the HLD and AR
@@ -503,6 +502,16 @@
    @section DLD-highlights-clocks Design Highlights: ADDB counters
    TODO.
 
+   <hr>
+   @section DLD-highlights-holes Design Highlights: RECOVERING is not needed
+
+   We assume that REDO-with-RECOVERING may happen any time.
+   Moreover, any operation can be canceled at any moment, including the time
+   when write-quorum has not been reached.
+   If record was written with write-quorum then consequent read-quorum read
+   will return the recent data. In any other case, consistency is not
+   guaranteed.
+   Therfore, there is no need to have a separate RECOVERING state.
 
    <hr>
    @section DLD-highlights Design Highlights
