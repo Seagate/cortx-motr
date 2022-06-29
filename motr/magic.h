@@ -430,6 +430,10 @@ enum m0_magic_satchel {
 	M0_DTM_CAT_MAGIX = 0x33acce551b1e4277,
 	/* m0_dtm::d_excited::t_magic (flooded baboo) */
 	M0_DTM_EXC_MAGIX = 0x33f100dedbab0077,
+	/* recovery_fom::rf_magic (solidified 66) */
+	M0_DTM0_RMACH_MAGIC = 0x335011D1F1ED6677,
+	/* rfom_tl::td_head_magic (seeded cobble) */
+	M0_DTM0_RMACH_HEAD_MAGIC = 0x335EEDEDC0BB1E77,
 
 /* Failure Domains */
 	/* m0_fd_perm_cache::fpc_magic (fascia doodia) */

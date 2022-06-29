@@ -26,10 +26,7 @@ M0_SRC_DIR="$M0_SRC_DIR/../../../"
 XPRT=$(m0_default_xprt)
 
 # Get local address and other parameters to start services
-if [ "$XPRT" = "lnet" ]; then
-	modprobe lnet &>> /dev/null
-	lctl network up &>> /dev/null
-fi
+check_and_restart_lnet
 LOCAL_NID=$(m0_local_nid_get)
 
 if [ X"$LOCAL_NID" == X ]; then

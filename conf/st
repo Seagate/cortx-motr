@@ -54,7 +54,7 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 M0CONFGEN=$M0_SRC_DIR/utils/m0confgen
 
 XPRT=$(m0_default_xprt)
-	
+
 start() {
    _init
    services_start
@@ -67,8 +67,8 @@ stop() {
 }
 
 _init() {
-    lnet_up
-    if [ "$XPRT" = "lnet" ]; then
+    export_test_eps
+    if [[ "$(check_and_restart_lnet)" == "true" ]]; then
         m0_modules_insert
     fi
     sandbox_init # changes current directory to $SANDBOX_DIR
@@ -78,7 +78,7 @@ _init() {
 _fini() {
     rmdir mnt
     sandbox_fini ${1:-}
-    if [ "$XPRT" = "lnet" ]; then
+    if [[ "$(is_lnet_available)" == "true" ]]; then
         m0_modules_remove
     fi
 }
@@ -238,11 +238,12 @@ EOF
 
 case "${1:-}" in
     run|'') ;;
-    insmod) if [ "$XPRT" = "lnet" ]; then
-                lnet_up; m0_modules_insert;
+    insmod) export_test_eps
+            if [[ "$(check_and_restart_lnet)" == "true" ]]; then
+                m0_modules_insert
             fi
             exit;;
-    rmmod)  if [ "$XPRT" = "lnet" ]; then
+    rmmod)  if [[ "$(is_lnet_available)" == "true" ]]; then
                 m0_modules_remove;
             fi
             exit;;

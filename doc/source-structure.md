@@ -24,7 +24,7 @@ Core is built either by running "./autogen.sh && ./configure && make"
 in its top-level directory or by running "../configure" from a
 separate build directory where build output will be stored (the latter
 will work only for user-space part, i.e. `make all-user`, because our
-kerne-mode makefiles don't support this feature at the moment). This
+kernel-mode makefiles don't support this feature at the moment). This
 process builds all the libraries and executable specified in the
 current configuration (currently only one configuration is supported,
 2010.06.27), including database, internal Motr libraries,
