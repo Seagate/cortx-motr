@@ -2639,13 +2639,13 @@ static bool ff_verify(const struct nd *node)
 
 static bool segaddr_header_isvalid(const struct segaddr *addr)
 {
-	struct ff_head       *h = segaddr_addr(addr);
-	struct m0_format_tag  tag;
+	struct m0_format_header *node_fmt = segaddr_addr(addr);
+	struct m0_format_tag     tag;
 
-	if (h->ff_fmt.hd_magic != M0_FORMAT_HEADER_MAGIC)
+	if (node_fmt->hd_magic != M0_FORMAT_HEADER_MAGIC)
 		return false;
 
-	m0_format_header_unpack(&tag, &h->ff_fmt);
+	m0_format_header_unpack(&tag, node_fmt);
 	if (tag.ot_version != M0_BTREE_NODE_FORMAT_VERSION ||
 	    tag.ot_type != M0_FORMAT_TYPE_BE_BNODE)
 	    return false;
