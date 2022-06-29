@@ -138,8 +138,6 @@
  *   2. No separate MKFS phase:
  *      T -> MKFS -> O;
  *
- * TODO conf object out of make repair/rebalance/direct rebalance
- *
  * Sdev state transitions when process starts:
  *   Before initiating startup of the process, HA moves the coresponding objects
  *   to the desired states:
@@ -158,12 +156,22 @@
  *		service states on HA: T -> O (broadcasted by HA);
  *	endfor
  *	process -> HA: process started;
- *   Storage device state is related to the process state:
- *      when process is T then sdev is T;
- *      when process is O then sdev state corresponds to its real state;
- *      when process is F then it does not mean that sdev is F because
- *      the sdev may be "attached" to another process; however, sdev is
- *      at least T in that case;
+ *   Storage device state is not related to the process state: one device
+ *   may be related more than one process. Because of that, we cannot
+ *   unconditionally mark sdev as T when the process is T.
+ *   The same thing with the F state: when process is F then it does not mean
+ *   that sdev is F because the sdev may be "attached" to another process;
+ *
+ *  States when process stops:
+ *    process -> HA: process stopping;
+ *    for each service:
+ *       service -> HA: stopping
+ *       service state on HA: * -> T;
+ *       service -> HA: stopped
+ *    endfor
+ *    process -> HA: process stopped;
+ *    process state on HA: * -> T;
+ *
  *
  * @section tbd
  * How mkfs, dtm recovery, SNS/DIX repair/rebalance/direct rebalance is
@@ -181,6 +189,37 @@
  * failvec can be determined using HA state history and stored permanently by
  * the process, thus eliminating the need to send failvec separately.
  * TODO: add BE recovery to this list if it takes too much time.
+ *
+ * @secion tbd
+ * TODO conf object out of make repair/rebalance/direct rebalance
+ *
+ * Sdev states: W, R, F, T, O.
+ * RP/RB/DRB: separate conf object;
+ * Its states: T (initial), RP, RB, DRB.
+ * Transtions for that kind conf objects:
+ *   T -> *: initiate repair;
+ *   O -> T: transient failure;
+ *   T -> RP: HA makes decision to start SNS/DIX repair;
+ *   RP -> O: HA makes decision that the device functions normaly and the spare
+ *   units created during RP could be cleaned up.
+ *   RP -> T: Repair is finished
+ *   RP -> T -> F: HA makes decision that this storage device has failed
+ *   permanently, and all data stored there is not going to be available at all;
+ *   T -> MKFS: mkfs for the new device (after replacement);
+ *   MKFS -> RB: HA initiates SNS/DIX rebalance.
+ *   RB -> O: rebalance is complete.
+ * MKFS as a command: MKFS has no meaning for the external obervers
+ * (the device is considered to be in T state). Because of that, it is enough
+ * to send MKFS as a command from HA. Then, when mkfs is done, Motr sends back
+ * to HA a notification about that. While mkfs is in progress, Motr sends
+ * "keep-avalive" messages that contain the status of the operation completion
+ * (x of y is done).
+ *
+ * DTM recovery
+ * ------------
+ *
+ * It is launched automatically.
+ *
  *
  * @secion tbd
  * Configuration objects outside of processes
