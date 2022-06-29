@@ -84,15 +84,16 @@ stop() {
 }
 
 _init() {
-    lnet_up "new"
-    if [ "$XPRT" = "lnet" ]; then
+    export_test_eps "new"
+    local result=$(check_and_restart_lnet "new")
+    if [[ "$result" == "true" ]]; then
         m0_modules_insert
     fi
     mkdir -p $SANDBOX_DIR/confd{1..3}
 }
 
 _fini() {
-    if [ "$XPRT" = "lnet" ]; then
+    if [[ "$(is_lnet_available)" == "true" ]]; then
         m0_modules_remove
     fi
     cd $M0_SRC_DIR/utils/spiel

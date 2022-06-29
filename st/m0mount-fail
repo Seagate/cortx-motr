@@ -75,8 +75,10 @@ stop() {
 }
 
 _init() {
-    lnet_up
-    m0_modules_insert
+    export_test_eps
+    if [[ "$(check_and_restart_lnet)" == "true" ]]; then
+        m0_modules_insert
+    fi
     sandbox_init # changes current directory to $SANDBOX_DIR
     mkdir mnt
 }
@@ -86,7 +88,9 @@ _fini() {
 
     rmdir mnt
     sandbox_fini ${1:-}
-    m0_modules_remove
+    if [[ "$(is_lnet_available)" == "true" ]]; then
+        m0_modules_remove
+    fi
 }
 
 # The generated configuration does not include RMS. This is a to cause
