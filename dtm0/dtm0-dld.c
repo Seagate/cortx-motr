@@ -496,7 +496,7 @@
    Each Pmsg also updates max-all-p and min-nall-p.
    all-p can be moved forward if remote min-nall-p > local all-p?
 
-
+   TODO: describe persistent iterators for TRANSIENT failures (Almost-All-P).
 
    <hr>
    @section DLD-highlights-clocks Design Highlights: ADDB counters
@@ -512,6 +512,93 @@
    will return the recent data. In any other case, consistency is not
    guaranteed.
    Therfore, there is no need to have a separate RECOVERING state.
+
+   <hr>
+   @section DLD-highlights-holes Design Highlights: Simple recovery
+
+   The goal: move Max-All-P as far as possible.
+   For that, we have to solve two tasks:
+   - fill in the missing remote temporary holes;
+   - figure out if there are local temporary holes right after the current
+   Max-All-P.
+
+   At first, let's take a look once again the intervals:
+
+   @verbatim
+        (IV)                  (III)             (II)       (I)
+   [ Seq-All-P  ]   [REDO-without-RECOVERING] [N-txns] [current-window]
+   x------------x-----------------------------x------x--------------->
+   ^            ^                             ^
+   |            | Max-All-P                   |
+   |                                          | Last-non-r-w-r-able-dtx
+   | Last non-pruned dtx
+
+   Intervals:
+     IV:  [last non-pruned dtx, Max-All-P]
+     III: (Max-All-P, Non-Rwr]
+   @endverbatim
+
+   We use Min-Non-All-P to determine if remote side requires
+   REDO-without-RECOVERING (r-w-r).
+   For every remote storage device we keep volatile Min-Non-All-P:
+   - initialized with zero;
+   - updated when Pmsg is received;
+
+   Note, transactions on the originator start with 1.
+   Note, Min-Non-All-P is sent as a part of Pmsg.
+
+   Whenever the R-w-R interval becomes non-empty we start sending REDOs to
+   the corresponding participants. By definition, the interval may contain
+   non-All-P transactions, temporary holes and All-P records.
+   There are 3 possible cases for the log record after Max-All-P:
+   - next record is Non-All-P (1);
+   - next record is a temporary hole (2);
+   - next record is All-P (3);
+   The first case is a reason to send REDO to the corresponding participants.
+   We send REDO message for next(Max-All-P) log record.
+   The participants will send us Pmsgs, which, will eventually lead us to
+   the third case.
+   The second and third cases are handled with help of remote min-nall-p values:
+   - we check if the next log record clock value is less than the minimum of the
+   set of remote min-nall-p and check if All-P was reached for the record. We
+   set Max-All-P to point to next record if both conditions (min, All-P) are
+   satisfied:
+   @verbatim
+     Let's say min-min-nall-p = min(p.min-nall-p) for all participants p in the
+     cluster).
+     Then, we have the following condition and action:
+     if next(Max-All-P) < min-min-nall-p and next(Max-All-P) is All-P then
+       then we move Max-All-P = next(Max-All-P)
+     endif.
+   @endverbatim
+
+   <hr>
+   @section DLD-highlights-holes Design Highlights: Improvements for simple
+   recovery
+
+   Now, let's take a look at the intervals when one participant is in transient.
+   In this case, All-P interval will not be able to advance because we are
+   expecting that all participants will be able to execute REDOs and send
+   their min-nall-p. This will lead as to the situation where DTM0 log
+   is cannot be pruned. There are way to avoid this.
+   TODO
+
+   The basic algorithm requies O(N^2) memory for per-sdev data (lists, counters,
+   etc.). To alleviate the problem, we may keep volatile data on the client side.
+   In this case, the client will tell storage devices about min-nall-p.
+   TODO
+
+   The basic algorithm requires O(N^2) P messages (per sdev). To alleviate the
+   problem, the client may redistribute Pmsgs: server may send Pmsg to the
+   client as a part of EXECUTED message (for example, inside CAS reply). The
+   client will send other server's Pmsgs as a part of EXECUTE message
+   (for example, CAS request).
+   TODO
+
+   The basic algorithm requiers O(N^2) REDO messages (per sdev). To alleviate
+   the problem, we send REDOs from the first non-failed participant in the
+   participant list of the transaction.
+   TODO
 
    <hr>
    @section DLD-highlights Design Highlights
@@ -1178,6 +1265,33 @@
    - <a href="http://www.graphviz.org">Graphviz - Graph Visualization
    Software</a> for documentation on the @c dot command.
    - <a href="http://www.mcternan.me.uk/mscgen">Mscgen home page</a>
+
+   <hr>
+   @section DLD-impl-plan-components Implementation Plan: Components
+
+   On the client side:
+   - dtx0: init/fini tx, cancel tx, STABLE callback;
+   - log: add redo, cancel, add p, ...;
+   - pmach: recv(net) and apply them to the log;
+   - pruner: removes STABLE and canceled transaction after a delay;
+   - net: send and recv;
+   - ha: subscription to new states;
+   - remach: sends REDOs;
+
+   On the server side:
+   - dtx0: init/fini tx with be, persistent callback;
+   - log: add redo, add p, ...;
+   - pmach: set of FOMs that recv(net) and add_p(log), also they
+   are awaiting on log and send(net);
+   - pruner: awaits on log for new Max-All-P, awaits on ha for new FAILED;
+   - net: send, recv;
+   - ha: persistent log, delivered(), subscription to new states;
+   - remach: set of FOMs that await on log records for which we should send
+   REDO, and receives incoming REDOs from net, and applies incoming REDOs.
+
+   unordered:
+   - optimizations: persistent iterators, client-based persistence-related
+   coordination, first-non-falied participant sends REDO;
 
    <hr>
    @section DLD-impl-plan Implementation Plan
