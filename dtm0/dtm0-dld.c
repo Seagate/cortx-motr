@@ -1293,6 +1293,62 @@
    - optimizations: persistent iterators, client-based persistence-related
    coordination, first-non-falied participant sends REDO;
 
+   V1:
+   - DTM0 log:
+     + Static list of participants, each item is a dtx for which we have not
+     received Pmsgs;
+     + No client lists;
+   - Pmach (simple shim between log and net);
+   - Pruner (removes all-p records);
+   - no recovery machine;
+   - DTX0 (simple shim between user and log);
+
+   V2:
+   - V1;
+   - add recovery after restart;
+   - adpter for client (pmsg old -> new);
+   - remach that sends REDO from lists and merges lists;
+
+   V3:
+   - V2;
+   - Replace the old one with the new DTM0;
+
+   Features (starts with V3):
+   - Originators lists, unordered, client evition;
+     + Add when client appears;
+     + Remove when client eviction is done;
+   - Dtx0, Pmach, pruner, volatile log for client:
+     + Pmach: receives Pmsg, marks them in the log;
+     + Log, dtx0: sends STABLE to user;
+     + User may cancel a dtx0 at any time;
+     + Canceled dtx0 is removed from the log;
+   - Logical clock on originators:
+     + increment when added to the log;
+     + send the window to the server side (juts send);
+   - Remove RECOVERING state;
+   - DTM0 net based on drlink (could be neede earlier for V1,V2);
+   - DTM0 net based on queues and Motr RPC;
+   - DTM0 HA;
+   - in-memory queue for pmach;
+   - independent (per-participant) iterators for pmach;
+   - DTM0 log: tracking of real local p:
+     + a data structure (htable+list) to keep track of in-progress be tx.
+   - Redo-without-RECOVERING:
+     + Start after a delay (physical T timeout == N CAS timeouts);
+   - R-w-R: add new criteria -- starts after N local txns or T timeout.
+   - Client eviction is replaced by R-W-R;
+   - Ordinary recovery is replaced by R-W-R;
+   - R-W-R, ordering, min-nall-p/max-all-p, pruner by max-all-p, sending of
+   min-nall-p;
+   - Optimize R-W-R: route messages through the client;
+   - Optimize: Delay pruning until V amount of space is consumed or N tnxs;
+   - Optimize: Send REDO from the first non-failed;
+   - Optimize: Send REDO from the client log (cache);
+   - Optimize: Pmach, batching of Pmsgs for the same tx, for the same sdev;
+   - Optimize: Partition of DTM0 log by dtx0id;
+   - Optimize: Persistent per-participant list for FOL purposes;
+
+
    <hr>
    @section DLD-impl-plan Implementation Plan
    <i>Mandatory.  Describe the steps that should be taken to implement this
