@@ -137,6 +137,7 @@ static int conf_pver_find_locked(const struct m0_conf_pool *pool,
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "Recd update failed for pool "FID_F,
 			   FID_P(&pool->pl_obj.co_id));
+	*out = NULL;
 	m0_tl_for (m0_conf_dir, &pool->pl_pvers->cd_items, obj) {
 		pver = M0_CONF_CAST(obj, m0_conf_pver);
 		M0_LOG(M0_DEBUG, "pver="FID_F, FID_P(&pver->pv_obj.co_id));
@@ -145,14 +146,22 @@ static int conf_pver_find_locked(const struct m0_conf_pool *pool,
 			M0_LOG(M0_INFO, "Skipping "FID_F, FID_P(pver_to_skip));
 			continue;
 		}
+		if (pver->pv_kind == M0_CONF_PVER_ACTUAL)
+			*out = pver; /* cache it for now */
 		if (!m0_conf_pver_is_clean(pver))
 			continue;
-		if (pver->pv_kind == M0_CONF_PVER_ACTUAL) {
-			*out = pver;
+		if (pver->pv_kind == M0_CONF_PVER_ACTUAL)
 			return M0_RC(0);
-		}
 		return M0_RC(conf_pver_formulate(pver, out));
 	} m0_tl_endfor;
+
+	/*
+	 * Return the actual pver if we cannot find anything better.
+	 * The I/O will be performed in the degraded mode.
+	 */
+	if (*out != NULL)
+		return M0_RC(0);
+
 	return M0_ERR_INFO(-ENOENT, "No suitable pver is found at pool "FID_F,
 			   FID_P(&pool->pl_obj.co_id));
 }
