@@ -496,7 +496,7 @@ static void ut_remach_init(struct ut_remach *um)
 
 	m0_fi_enable("m0_dtm0_in_ut", "ut");
 	m0_fi_enable("is_manual_ss_enabled", "ut");
-	m0_fi_enable("m0_dtm0_is_expecting_redo_from_client", "ut");
+	/* m0_fi_enable("m0_dtm0_is_expecting_redo_from_client", "ut"); */
 	if (um->cp == UT_CP_PERSISTENT_CLIENT)
 		m0_fi_enable("is_svc_volatile", "always_false");
 
@@ -523,7 +523,7 @@ static void ut_remach_fini(struct ut_remach *um)
 	m0_ut_dtm0_helper_fini(&um->udh);
 	if (um->cp == UT_CP_PERSISTENT_CLIENT)
 		m0_fi_disable("is_svc_volatile", "always_false");
-	m0_fi_disable("m0_dtm0_is_expecting_redo_from_client", "ut");
+	/* m0_fi_disable("m0_dtm0_is_expecting_redo_from_client", "ut"); */
 	m0_fi_disable("is_manual_ss_enabled", "ut");
 	m0_fi_disable("m0_dtm0_in_ut", "ut");
 	for (i = 0; i < ARRAY_SIZE(um->recovered); ++i) {
