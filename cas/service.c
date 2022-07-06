@@ -488,7 +488,8 @@ static bool cas_fom_invariant(const struct cas_fom *fom);
 static int  cas_buf_cid_decode(struct m0_buf    *enc_buf,
 			       struct m0_cas_id *cid);
 static bool cas_fid_is_cctg(const struct m0_fid *fid);
-static int  cas_id_check(const struct m0_cas_id *cid);
+static int  cas_id_check(const struct m0_cas_id *cid,
+			 const struct cas_fom   *fom);
 static int  cas_device_check(const struct cas_fom   *fom,
 			     const struct m0_cas_id *cid);
 static int cas_op_check(struct m0_cas_op *op,
@@ -1317,7 +1318,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		}
 		break;
 	case CAS_CHECK_PRE:
-		rc = cas_id_check(&op->cg_id);
+		rc = cas_id_check(&op->cg_id, fom);
 		if (rc == 0) {
 			if (cas_fid_is_cctg(&op->cg_id.ci_fid))
 				result = cas_ctidx_lookup(fom, &op->cg_id,
@@ -1909,10 +1910,12 @@ static int cas_device_check(const struct cas_fom   *fom,
 	return M0_RC(rc);
 }
 
-static int cas_id_check(const struct m0_cas_id *cid)
+static int cas_id_check(const struct m0_cas_id *cid, const struct cas_fom *fom)
 {
 	const struct m0_dix_layout *layout;
 	int                         rc = 0;
+	struct cas_service         *svc;
+	uint32_t                    device_id = 0;
 
 	if (!m0_fid_is_valid(&cid->ci_fid) ||
 	    !M0_IN(m0_fid_type_getfid(&cid->ci_fid), (&m0_cas_index_fid_type,
@@ -1923,6 +1926,20 @@ static int cas_id_check(const struct m0_cas_id *cid)
 		layout = &cid->ci_layout;
 		if (layout->dl_type != DIX_LTYPE_DESCR)
 			rc = M0_ERR(-EPROTO);
+		if (fom != NULL) {
+			svc = M0_AMB(svc, fom->cf_fom.fo_service, c_service);
+			device_id = m0_dix_fid_cctg_device_id(&cid->ci_fid);
+			if (svc->c_sdev_id != INVALID_CAS_SDEV_ID &&
+			    svc->c_sdev_id != device_id &&
+			    cas_type(&fom->cf_fom) != CT_META) {
+				M0_ASSERT_INFO(svc->c_sdev_id == device_id,
+				       	       "Incorrect device ID (%d) found "
+					       "in component catalogue FID. "
+					       "Valid device ID should be %d", 
+					       device_id, svc->c_sdev_id);
+				rc = M0_ERR(-EPROTO);
+			}
+		}
 	}
 	return rc;
 }
