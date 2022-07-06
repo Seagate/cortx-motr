@@ -1739,8 +1739,9 @@ static void remote_recovery_fom_coro(struct m0_fom *fom)
 
 		switch (F(state)) {
 		case M0_NC_DTM_RECOVERING:
-			F(action) = rf->rf_is_volatile ? heq_await :
-							 dtm0_restore;
+			F(action) = rf->rf_is_volatile ||
+				    recovery_fom_local(rf->rf_m)->rf_is_volatile ?
+				    	heq_await : dtm0_restore;
 			break;
 		case M0_NC_FAILED:
 			if (ALL2ALL)
