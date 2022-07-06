@@ -1883,10 +1883,10 @@ M0_INTERNAL void m0_btree_lrulist_set_lru_config(int64_t slow_lru_mem_release,
 	M0_ASSERT(lru_space_wm_high >= lru_space_wm_target &&
 		  lru_space_wm_target >= lru_space_wm_low);
 
-	M0_LOG(M0_INFO, "Btree LRU List Watermarks: Low - %"PRIi64" Mid - "
+	M0_LOG(M0_ALWAYS, "Btree LRU List Watermarks: Low - %"PRIi64" Mid - "
 	       "%"PRIi64" High - %"PRIi64" \n", lru_space_wm_low,
 	       lru_space_wm_target, lru_space_wm_high);
-	M0_LOG(M0_INFO, "Btree LRU List trickle release: %s \n",
+	M0_LOG(M0_ALWAYS, "Btree LRU List trickle release: %s \n",
 	       lru_trickle_release_en ? "true" : "false");
 }
 
