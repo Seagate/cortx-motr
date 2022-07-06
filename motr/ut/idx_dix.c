@@ -1118,7 +1118,7 @@ static void dtm0_ut_cas_op_prepare(const struct m0_fid    *cfid,
 	}
 }
 
-static void dtm0_ut_send_redo(const struct m0_fid *ifid,
+static void dtm0_ut_send_redo(const struct m0_fid *ifid, uint32_t sdev_id,
 			      uint64_t *key, uint64_t *val)
 {
 	int                     rc;
@@ -1142,8 +1142,6 @@ static void dtm0_ut_send_redo(const struct m0_fid *ifid,
 	 * Ivan Alekhin.
 	 */
 	struct m0_fom           zero_fom_to_be_deleted = {};
-	/* Extreme hack to convert index fid to component catalogue fid. */
-	uint32_t                sdev_idx = 10;
 
 	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
 	m0_dtm0_clk_src_now(&dcs, &now);
@@ -1162,7 +1160,7 @@ static void dtm0_ut_send_redo(const struct m0_fid *ifid,
 		.dti_fid = cli_dtm0_fid
 	};
 
-	m0_dix_fid_convert_dix2cctg(ifid, &cctg_fid, sdev_idx);
+	m0_dix_fid_convert_dix2cctg(ifid, &cctg_fid, sdev_id);
 
 	dtm0_ut_cas_op_prepare(&cctg_fid, &cas_op, &cas_rec, key, val, &txr);
 
@@ -1216,7 +1214,59 @@ static void dtm0_ut_read_and_check(uint64_t key, uint64_t val)
 	m0_free0(&rcs);
 }
 
-static void st_dtm0_r(void)
+static uint32_t dtm0_ut_cas_sdev_id_get(void)
+{
+	struct m0_fid           srv_cas_fid;
+	struct m0_fid           srv_proc_fid;
+	struct m0_confc        *confc = m0_reqh2confc(&ut_m0c->m0c_reqh);
+	struct m0_conf_obj     *obj;
+	struct m0_conf_service *service;
+	struct m0_conf_obj     *sdevs_dir;
+	struct m0_conf_sdev    *sdev;
+	bool                    found = false;
+	uint32_t                sdev_id = 0;
+	int                     rc;
+
+	rc = m0_fid_sscanf(ut_m0_config.mc_process_fid, &srv_proc_fid);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_conf_process2service_get(confc, &srv_proc_fid,
+					 M0_CST_CAS, &srv_cas_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	obj = m0_conf_cache_lookup(&confc->cc_cache, &srv_cas_fid);
+	M0_ASSERT(obj != NULL);
+
+	service = M0_CONF_CAST(obj, m0_conf_service);
+	M0_ASSERT(service != NULL);
+
+	sdevs_dir = &service->cs_sdevs->cd_obj;
+	rc = m0_confc_open_sync(&sdevs_dir, sdevs_dir, M0_FID0);
+	M0_ASSERT(rc == 0);
+
+	obj = NULL;
+	while ((rc = m0_confc_readdir_sync(sdevs_dir, &obj)) > 0) {
+		sdev = M0_CONF_CAST(obj, m0_conf_sdev);
+		if (!found) {
+			sdev_id = sdev->sd_dev_idx;
+			found = true;
+		} else {
+			/*
+			 * Single device attached to the CAS service
+			 * is a standard configuration for now, don't
+			 * support several attached devices in the UT.
+			 */
+			M0_IMPOSSIBLE("Do not support several CAS devices.");
+		}
+	}
+
+	m0_confc_close(sdevs_dir);
+
+	M0_ASSERT(found);
+
+	return sdev_id;
+}
+
+static void st_dtm0_r_common(uint32_t sdev_id)
 {
 	m0_time_t rem;
 	uint64_t  key = 111;
@@ -1227,7 +1277,7 @@ static void st_dtm0_r(void)
 
 	idx_setup();
 	exec_one_by_one(1, M0_IC_PUT);
-	dtm0_ut_send_redo(&duc.duc_ifid, &key, &val);
+	dtm0_ut_send_redo(&duc.duc_ifid, sdev_id, &key, &val);
 
 	/* XXX dirty hack, but now we don't have completion notification */
 	rem = 2ULL * M0_TIME_ONE_SECOND;
@@ -1236,6 +1286,27 @@ static void st_dtm0_r(void)
 
 	dtm0_ut_read_and_check(key, val);
 	idx_teardown();
+}
+
+static void st_dtm0_r(void)
+{
+	/* CAS sdev id from the configuration. */
+	uint32_t sdev_id = dtm0_ut_cas_sdev_id_get();
+	st_dtm0_r_common(sdev_id);
+}
+
+static void st_dtm0_r_wrong_sdev(void)
+{
+	/*
+	 * Random CAS sdev id, should be fixed by REDO handler.
+	 * In a real system participants will send the REDO messages
+	 * with their own CAS devices IDs during recovery, so the REDO
+	 * handler of the process to be recovered needs to get the CAS
+	 * device ID attached to a local CAS service and set it in an
+	 * operation CAS ID.
+	 */
+	uint32_t sdev_id = dtm0_ut_cas_sdev_id_get() + 12345;
+	st_dtm0_r_common(sdev_id);
 }
 
 struct m0_ut_suite ut_suite_mt_idx_dix = {
@@ -1252,6 +1323,7 @@ struct m0_ut_suite ut_suite_mt_idx_dix = {
 		{ "dtm0_e_then_s",  st_dtm0_e_then_s, "Ivan"     },
 		{ "dtm0_c",         st_dtm0_c,        "Ivan"     },
 		{ "dtm0_r",         st_dtm0_r,        "Sergey"   },
+		{ "dtm0_r_wrong_sdev", st_dtm0_r_wrong_sdev, "Sergey" },
 		{ NULL, NULL }
 	}
 };

@@ -33,10 +33,6 @@ enum m0_dtm0_dtx_state {
 	M0_DDS_INIT,
 	/* dtx has a valid tx record. */
 	M0_DDS_INPROGRESS,
-	/* dtx got one reply. */
-	M0_DDS_EXECUTED,
-	/* dtx got all replies. */
-	M0_DDS_EXECUTED_ALL,
 	/* dtx got enough PERSISTENT messages. */
 	M0_DDS_STABLE,
 	/* dtx can be released when this state reached. */
@@ -61,8 +57,6 @@ struct m0_dtm0_dtx {
 	struct m0_sm            dd_sm;
 	struct m0_dtm0_tx_desc  dd_txd;
 	struct m0_dtm0_service *dd_dtms;
-	uint32_t                dd_nr_executed;
-	struct m0_sm_ast        dd_exec_all_ast;
 
 	/*
 	 * XXX: The implementation is very simple and it relies on the idea
@@ -128,13 +122,6 @@ M0_INTERNAL void m0_dtx0_fop_assign(struct m0_dtx       *dtx,
  * move to INPROGRESS state.
  */
 M0_INTERNAL int m0_dtx0_close(struct m0_dtx *dtx);
-
-/**
- * Notifies DTM0 that DTX is executed on the particular participant.
- * @param dtx    A DTX that is executed on the particular participant.
- * @param pa_idx Index of the participant.
- */
-M0_INTERNAL void m0_dtx0_executed(struct m0_dtx *dtx, uint32_t pa_idx);
 
 /**
  * Marks a transaction as "no longer in-use".

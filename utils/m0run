@@ -295,7 +295,7 @@ run_valgrind()
 # not found.
 load_modules()
 {
-    if [ "$XPRT" = "lnet" ]; then
+    if [[ $(is_lnet_available) == "true" ]]; then
         if [[ -n "$top_srcdir" ]] ; then
             source $top_srcdir/utils/modload-all.sh
         else
