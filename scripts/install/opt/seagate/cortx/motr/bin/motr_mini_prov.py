@@ -599,7 +599,6 @@ def update_btree_watermarks(self):
     services_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
     try:
         cvg = self.storage['cvg']
-        cvg_cnt = len(cvg)
     except:
         raise MotrError(errno.EINVAL, "cvg not found\n")
     # Check if cvg type is list
@@ -609,17 +608,17 @@ def update_btree_watermarks(self):
 
     for arr_elem in services_limits:
         if arr_elem['name'] == "ios":
-            min = arr_elem['memory']['min']
-            if min.isnumeric():
-                min_mem_limit_for_ios = int(min)
+            l_min = arr_elem['memory']['min']
+            if l_min.isnumeric():
+                min_mem_limit_for_ios = int(l_min)
             else:
-                min_mem_limit_for_ios = calc_size(self, min)
+                min_mem_limit_for_ios = calc_size(self, l_min)
 
-            max = arr_elem['memory']['max']
-            if max.isnumeric():
-                max_mem_limit_for_ios = int(max)
+            l_max = arr_elem['memory']['max']
+            if l_max.isnumeric():
+                max_mem_limit_for_ios = int(l_max)
             else:
-                max_mem_limit_for_ios = calc_size(self, max)
+                max_mem_limit_for_ios = calc_size(self, l_max)
 
     wm_low  = min_mem_limit_for_ios
     wm_targ = int(max_mem_limit_for_ios * 0.60)
