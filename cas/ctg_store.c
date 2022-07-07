@@ -2053,7 +2053,7 @@ M0_INTERNAL void m0_ctg_create_credit(struct m0_be_tx_credit *accum)
 	m0_bcount_t             knob;
 	m0_bcount_t             vnob;
 	struct m0_btree        *btree = ctg_store.cs_state->cs_meta->cc_tree;
-	struct m0_cas_ctg      *ctg;
+	struct m0_cas_ctg      *ctg = NULL;
 	struct m0_btree_type    bt    = {
 		.tt_id = M0_BT_CAS_CTG,
 		.ksize = -1,

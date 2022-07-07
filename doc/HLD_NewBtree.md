@@ -71,7 +71,7 @@ b. Delete operation
 
 c. Lookup operation
 
-  As a part of this operation an existing record from the tree is returned back to the caller. If this record is not found in the tree but SLANT flag is set then the next record (whose Key is just higher than the Key which was sent for lookup) is returned back to the caller.
+  As a part of this operation an existing record from the tree is returned back to the caller. If this record is not found in the tree but BOF_SLANT flag is set then the next record (whose Key is just higher than the Key which was sent for lookup) is returned back to the caller.
 
 ### Memory Limit Feature
 --------------------------
