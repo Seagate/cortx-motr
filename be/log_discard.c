@@ -270,6 +270,8 @@ static void be_log_discard_ast(struct m0_sm_group *grp,
 	} while (ldi != sync_item);
 
 	be_log_discard_lock(ld);
+	M0_ASSERT(ld->lds_sync_item != NULL);
+	M0_ASSERT(ld->lds_sync_in_progress);
 	ld->lds_sync_item = NULL;
 	ld->lds_sync_in_progress = false;
 	if (ld_start_tlist_is_empty(&ld->lds_start_q))
@@ -277,8 +279,13 @@ static void be_log_discard_ast(struct m0_sm_group *grp,
 	be_log_discard_check_sync(ld, false);
 	ld->lds_discard_ast_posted = false;
 
-	if (ld->lds_flush_op != NULL)
-		be_log_discard_flush_finished(ld);
+	if (ld->lds_flush_op != NULL) {
+		if (ld_start_tlist_is_empty(&ld->lds_start_q)) {
+			be_log_discard_flush_finished(ld);
+		} else {
+			be_log_discard_check_sync(ld, true);
+		}
+	}
 	if (ld->lds_discard_waiting)
 		m0_semaphore_up(&ld->lds_discard_wait_sem);
 	be_log_discard_unlock(ld);

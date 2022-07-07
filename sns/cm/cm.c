@@ -605,7 +605,7 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 M0_INTERNAL int m0_sns_cm_fail_dev_log(struct m0_cm *cm,
 					enum m0_pool_nd_state state)
 {
-	struct m0_pools_common *pc = cm->cm_service.rs_reqh->rh_pools;
+	struct m0_pools_common *pc;
 	struct m0_pool         *pool;
 	struct m0_pooldev      *pd;
 	uint32_t                nr_devs = 0;
@@ -617,6 +617,7 @@ M0_INTERNAL int m0_sns_cm_fail_dev_log(struct m0_cm *cm,
 	M0_PRE(cm != NULL);
 	M0_PRE(M0_IN(state, (M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REBALANCING)));
 
+	pc = cm->cm_service.rs_reqh->rh_pools;
 	m0_tl_for(pools, &pc->pc_pools, pool) {
 		m0_tl_for(pool_failed_devs, &pool->po_failed_devices, pd) {
 			if (pd->pd_state == state) {
@@ -795,7 +796,7 @@ M0_INTERNAL void m0_sns_cm_fini(struct m0_cm *cm)
 M0_INTERNAL uint64_t m0_sns_cm_cp_buf_nr(struct m0_net_buffer_pool *bp,
 					 uint64_t data_seg_nr)
 {
-	return data_seg_nr % bp->nbp_seg_nr ?
+	return (data_seg_nr % bp->nbp_seg_nr) ?
 	       data_seg_nr / bp->nbp_seg_nr + 1 :
 	       data_seg_nr / bp->nbp_seg_nr;
 }
@@ -847,8 +848,8 @@ M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
 {
 	M0_PRE(scm != NULL && pl != NULL);
 
-	return m0_pdclust_unit_size(pl) %
-	       scm->sc_obp.sb_bp.nbp_seg_size ?
+	return (m0_pdclust_unit_size(pl) %
+	       scm->sc_obp.sb_bp.nbp_seg_size) ?
 	       m0_pdclust_unit_size(pl) /
 	       scm->sc_obp.sb_bp.nbp_seg_size + 1 :
 	       m0_pdclust_unit_size(pl) /

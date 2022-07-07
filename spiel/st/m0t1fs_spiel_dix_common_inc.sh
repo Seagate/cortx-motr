@@ -196,9 +196,9 @@ while (1):
     rc = spiel.dix_repair_status(fids['pool'], ppstatus)
     print ("dix repair status responded servers: " + str(rc))
     for i in range(0, rc):
-        print "status of ", ppstatus[i].sss_fid, " is: ", ppstatus[i].sss_state
+        print ("status of ", ppstatus[i].sss_fid, " is: ", ppstatus[i].sss_state)
         if (ppstatus[i].sss_state == 2) :
-            print "dix is still active on ", ppstatus[i].sss_fid
+            print ("dix is still active on ", ppstatus[i].sss_fid)
             active = 1
     if (active == 0):
         break;
@@ -270,9 +270,9 @@ while (1):
     rc = spiel.dix_rebalance_status(fids['pool'], ppstatus)
     print ("dix rebalance status responded servers: " + str(rc))
     for i in range(0, rc):
-        print "status of ", ppstatus[i].sss_fid, " is: ", ppstatus[i].sss_state
+        print ("status of ", ppstatus[i].sss_fid, " is: ", ppstatus[i].sss_state)
         if (ppstatus[i].sss_state == 2) :
-            print "dix is still active on ", ppstatus[i].sss_fid
+            print ("dix is still active on ", ppstatus[i].sss_fid)
             active = 1
     if (active == 0):
         break;

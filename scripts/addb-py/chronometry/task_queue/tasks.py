@@ -24,7 +24,7 @@ import os
 import plumbum
 
 def get_overrides(overrides):
-    return " ".join([f"{x}={y}" for (x,y) in overrides.items()]) 
+    return " ".join([f"{x}={y}" for (x,y) in overrides.items()])
 
 def parse_options(conf, result_dir):
     options = []

@@ -1,4 +1,5 @@
-#
+#! /bin/bash
+
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

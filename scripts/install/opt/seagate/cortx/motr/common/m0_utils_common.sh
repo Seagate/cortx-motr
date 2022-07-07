@@ -32,6 +32,8 @@ M0_HAGEN_UTILS=/usr/sbin/m0hagen
 MOTR_COPY=/usr/bin/m0cp
 MOTR_CAT=/usr/bin/m0cat
 
+export M0_SPIEL_UTILS=/usr/bin/m0spiel
+
 SERVICE_TYPE=0   # SNS = 0, DIX = 1
 
 M0_NC_UNKNOWN=1
@@ -95,17 +97,21 @@ _get_client_endpoints()
         fi
 
         if [ "$XPRT" = "lnet" ]; then
-                SNS_CLI_EP=":12345:33:1000"
-                M0HAM_CLI_EP=":12345:33:1001"
+                M0HAM_CLI_EP=":12345:33:1000"
+                SNS_CLI_EP=":12345:33:1001"
                 SNS_QUIESCE_CLI_EP=":12345:33:1002"
-                DIX_CLI_EP=":12345:33:1003"
-                DIX_QUIESCE_CLI_EP=":12345:33:1004"
+                SNS_SPIEL_CLI_EP=":12345:33:1003"
+                DIX_CLI_EP=":12345:33:1004"
+                DIX_QUIESCE_CLI_EP=":12345:33:1005"
+                DIX_SPIEL_CLI_EP=":12345:33:1006"
         else
-                SNS_CLI_EP="@3400"
-                M0HAM_CLI_EP="@10003"
+                M0HAM_CLI_EP="@10000"
+                SNS_CLI_EP="@10001"
                 SNS_QUIESCE_CLI_EP="@10002"
-                DIX_CLI_EP="@3401"
-                DIX_QUIESCE_CLI_EP="@10004"
+                SNS_SPIEL_CLI_EP="@10003"
+                DIX_CLI_EP="@10004"
+                DIX_QUIESCE_CLI_EP="@10005"
+                DIX_SPIEL_CLI_EP="@10006"
         fi
 }
 
@@ -465,17 +471,63 @@ run()
         eval "$*"
 }
 
+# Set the service type depending on the service being used now.
+# Currently supported services are SNS and DIX.
 # input parameters:
-# (i) type of repair (SNS / DIX)
-# (iI) Operation to perform
+# (i) name of the service DIX / SNS
+set_service_type()
+{
+        [[ "$1" == "DIX" ]] && SERVICE_TYPE=1 || SERVICE_TYPE=0
+}
+
+# Finds confd.xc in cluster
+# input parameters: - None
+_get_confd_xc()
+{
+        declare -a confd_xc_paths=("/etc/cortx/motr" "/var/lib/hare")
+        local conf_file=""
+
+        for i in "${confd_xc_paths[@]}"
+        do
+                if [ -d "$i" ]; then
+                        conf_file=$(find "$i" -name confd.xc | head -n 1)
+                        break
+                fi
+        done
+        echo "$conf_file"
+}
+
+# Generates the conf.cg from confd.xc using m0confgen
+# input parameters:
+# (i) File name with path for conf.cg
+generate_conf_cg()
+{
+        local conf_cg_file=$1
+        local confd_xc=""
+
+        confd_xc=$(_get_confd_xc)
+        if [ -z "$confd_xc" ]; then
+                echo "Unable to find confd.xc, can't generate $conf_cg_file"
+                exit
+        fi
+
+        # Generate conf.cg from confd.xc
+        m0confgen -f xcode -t confgen "$confd_xc" > "$conf_cg_file"
+        if [ $? -ne 0 ]; then
+                echo "Failed to generate $conf_cg_file from confd.xc"
+                exit
+        fi
+}
+
+# Create the command for m0repair depending on the operation to be performed.
+# input parameters:
+# (i) Operation to perform
 get_m0repair_utils_cmd()
 {
         local cli_ep=""
-        local op=$2
+        local op=$1
 
-        [[ "$1" == "DIX" ]] && SERVICE_TYPE=1 || SERVICE_TYPE=0
-
-        if [ "$SERVICE_TYPE" -eq 1 ]; then
+        if [ "$SERVICE_TYPE" -eq 1 ]; then # DIX
                 if [ "$op" == $CM_OP_REPAIR_STATUS ] ||
                    [ "$op" == $CM_OP_REBALANCE_STATUS ]; then
                         cli_ep=$DIX_QUIESCE_CLI_EP
@@ -493,4 +545,94 @@ get_m0repair_utils_cmd()
 
         cmd_trigger="$M0_REPAIR_UTILS -O $op -t $SERVICE_TYPE -C ${LOCAL_NID}${cli_ep} $IOS_EP "
         echo "$cmd_trigger"
+}
+
+# Get DIX pool fid from confd.xc as it is currently not available in
+# 'hctl status' output.
+get_dix_pool_fid()
+{
+        local conf_cg="/tmp/conf.cg"
+
+        generate_conf_cg "$conf_cg"
+        if [ ! -f "$conf_cg" ]; then
+                echo "$conf_cg not present, can't get dix pool fid"
+                exit
+        fi
+
+        # Get pool version and then pool fid from conf.cg
+        pver=$(grep imeta_pver "$conf_cg" | grep -o -P '(?<=imeta_pver=).*?(?= )')
+        pool=$(grep "$pver" "$conf_cg" | grep -v imeta_pver | grep "pool-" | grep -o -P '(?<=pool-).*?(?= )')
+
+        pool="0x6f00000000000001:$pool"
+        rm -f "$conf_cg"
+        echo "$pool"
+}
+
+# Get fids for data / metadata pool, profile and HA endpoint address.
+get_fids_list()
+{
+        local HCTL_STATUS_FILE="/tmp/hctl_status.log"
+        hctl status > "$HCTL_STATUS_FILE"
+
+        host=$(hostname)
+        if [ "$SERVICE_TYPE" -eq 1 ]; then # DIX
+                POOL_FID=$(get_dix_pool_fid)
+        else
+                POOL_FID=$(grep -A2 'Data pool:' "$HCTL_STATUS_FILE" | awk '{print $1}' | tail -n 1)
+        fi
+        PROFILE_FID=$(grep -A2 'Profile:' "$HCTL_STATUS_FILE" | awk '{print $1}' | tail -n 1)
+        HA_ENDPOINT_ADDR=$(grep -A 50 "$host" "$HCTL_STATUS_FILE" | grep -m 1 hax | awk '{print $4}')
+
+        rm -f "$HCTL_STATUS_FILE"
+}
+
+# This function converts fid to the list format
+# e.g. "0x7200000000000001:0x32" is converted to "Fid(0x7200000000000001, 0x32)"
+# input parameters:
+# (i) fid to put it in list e.g. 0x7200000000000001:0x32
+_create_fid_list()
+{
+        IFS=':'
+        read -ra arrFID <<< "$1"
+        echo "Fid(${arrFID[0]}, ${arrFID[1]})"
+}
+
+# This function prepares FIDs and options required for spiel commands.
+spiel_prepare() {
+        local cli_ep=""
+        local prof_fid_str=""
+        local pool_fid_str=""
+
+        _get_client_endpoints
+        get_fids_list
+
+        [ "$SERVICE_TYPE" -eq 1 ] && cli_ep=$DIX_SPIEL_CLI_EP || cli_ep=$SNS_SPIEL_CLI_EP
+
+        LIBMOTR_SO="/usr/lib64/libmotr.so"
+        SPIEL_OPTS=" -l $LIBMOTR_SO --client ${LOCAL_NID}${cli_ep} --ha $HA_ENDPOINT_ADDR"
+
+        prof_fid_str=$(_create_fid_list "$PROFILE_FID")
+        pool_fid_str=$(_create_fid_list "$POOL_FID")
+        SPIEL_FIDS_LIST="fids = {'profile' : $prof_fid_str, 'pool' : $pool_fid_str,}"
+
+        export SPIEL_OPTS=$SPIEL_OPTS
+        export SPIEL_FIDS_LIST=$SPIEL_FIDS_LIST
+
+        echo "SPIEL_OPTS=$SPIEL_OPTS"
+        echo "SPIEL_FIDS_LIST=$SPIEL_FIDS_LIST"
+
+        export SPIEL_RCONF_START="
+print ('Hello, start to run Motr embedded python')
+
+if spiel.cmd_profile_set(str(fids['profile'])):
+        sys.exit('cannot set profile {0}'.format(fids['profile']))
+
+if spiel.rconfc_start():
+        sys.exit('cannot start rconfc')
+"
+
+        export SPIEL_RCONF_STOP="
+spiel.rconfc_stop()
+print ('----------Done------------')
+"
 }

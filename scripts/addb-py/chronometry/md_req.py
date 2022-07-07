@@ -19,9 +19,7 @@
 
 import sys
 from addb2db import *
-from typing import List, Dict
 from graphviz import Digraph
-from copy import deepcopy
 from req_utils import *
 
 
@@ -60,7 +58,7 @@ def graph_build(m_relations, relations, ext_graph: Digraph=None):
     if ext_graph is None:
         rel = relations if relations else m_relations
         graph.render(filename='md_graph_{}'.format(rel[0]['client_id']))
-    
+
     return graph
 
 # ================================================================================

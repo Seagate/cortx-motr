@@ -3,7 +3,7 @@
 _« Par ma foi ! il y a plus de quarante ans que je dis de la prose sans que j'en susse rien, et je vous suis le
 plus obligé du monde de m'avoir appris cela. »_
 
-This document attempts to be a master document for the whole of Motr, 
+This document attempts to be a primary document for the whole of Motr, 
 concentrating on giving a consistent overview of the architecture.
 
 The document is structured as a collection of fragments. Each fragment, 
@@ -526,7 +526,7 @@ read request, to be identified. Below is a real-life example of addb record:
 ```
 
 This record describes allocation of 40 bytes of memory, which happened on a 
-node with uuid f3b62b87d9e642b2:96a4e0520cc5477b, on the 1st locality (core) of 
+node with UUID f3b62b87d9e642b2:96a4e0520cc5477b, on the 1st locality (core) of 
 this node, while the specified thread was executing “Zero-copy finish” state 
 transition of the specified fom and, in particular, while IO to storage objects 
 was initiated.

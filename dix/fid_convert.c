@@ -35,6 +35,15 @@
  * @{
  */
 
+/* Set device id in a DIX fid. */
+M0_INTERNAL void m0_dix_fid__device_id_set(struct m0_fid *fid,
+					   uint32_t       dev_id)
+{
+	M0_PRE(fid != NULL && (dev_id <= M0_DIX_FID_DEVICE_ID_MAX));
+	fid->f_container = (fid->f_container & ~M0_DIX_FID_DEVICE_ID_MASK) |
+			   (((uint64_t)dev_id) << M0_DIX_FID_DEVICE_ID_OFFSET);
+}
+
 /* extract bits [32, 56) from fid->f_container */
 M0_INTERNAL uint32_t m0_dix_fid__device_id_extract(const struct m0_fid *fid)
 {

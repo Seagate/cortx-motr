@@ -540,10 +540,6 @@ static void be_tx_group_format_seg_io_finished(struct m0_be_op *op, void *param)
 
 static void be_tx_group_format_seg_io_op_gc(struct m0_be_op *op, void *param)
 {
-	struct m0_be_group_format *gft = param;
-
-	m0_be_op_done(&gft->gft_tmp_op);
-	m0_be_op_fini(&gft->gft_tmp_op);
 	m0_be_op_fini(op);
 }
 
@@ -571,11 +567,8 @@ M0_INTERNAL void m0_be_group_format_seg_place(struct m0_be_group_format *gft,
 	gft_op = &gft->gft_pd_io_op;
 	M0_SET0(gft_op);
 	m0_be_op_init(gft_op);
-	M0_SET0(&gft->gft_tmp_op);
-	m0_be_op_init(&gft->gft_tmp_op);
+	m0_be_op_active(op);
 	m0_be_op_set_add(op, gft_op);
-	m0_be_op_set_add(op, &gft->gft_tmp_op);
-	m0_be_op_active(&gft->gft_tmp_op);
 	m0_be_op_callback_set(gft_op, &be_tx_group_format_seg_io_starting,
 	                      gft, M0_BOS_ACTIVE);
 	m0_be_op_callback_set(gft_op, &be_tx_group_format_seg_io_finished,
