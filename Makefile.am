@@ -386,6 +386,7 @@ include $(top_srcdir)/motr/ut/Makefile.sub
 include $(top_srcdir)/module/ut/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/ut/Makefile.sub
 include $(top_srcdir)/net/lnet/ut/Makefile.sub
+include $(top_srcdir)/net/libfab/ut/Makefile.sub
 include $(top_srcdir)/net/test/ut/Makefile.sub
 include $(top_srcdir)/net/ut/Makefile.sub
 include $(top_srcdir)/pool/ut/Makefile.sub

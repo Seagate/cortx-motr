@@ -61,13 +61,13 @@ class Cmd:
         self._url_motr_hare = f"json://{self._motr_hare_conf}"
         self.log_path_motr = f"{self.log_path}/motr/{self.machine_id}"
 
-        # Check if local and log path exists, return if not exists
+        # Check if local and log path exist, return if not exist
         validate_files([self.local_path, self.log_path])
 
         create_dirs(self, [self.local_path_motr, self.log_path_motr])
         self.logfile =  f"{self.log_path_motr}/mini_provisioner"
         self.logger = config_logger(self)
-
+        self.logger.info(f"Logger configured for phase={self.name}\n")
         # Default setup size is small
         set_setup_size(self, self._services)
 

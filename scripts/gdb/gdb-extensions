@@ -113,3 +113,37 @@ define runever
     end
   end
 end
+
+define coro-bt
+	set $c = ((struct m0_co_context *) ($arg0))
+	set $i = 0
+	while ($i < $c->mc_frame)
+		list *$c->mc_stack[$i]
+		set $i = $i + 1
+	end
+end
+
+document coro-bt
+	Prints the backtrace of a coroutine context.
+end
+
+define rfom-print
+	set $s = ((struct recovery_fom *) ($arg0))
+	printf "p=%p, v=%d, l=%d, ", $s, (int) $s->rf_is_volatile, (int) $s->rf_is_local
+	printf "eol=%d, ", (int) $s->rf_last_known_eol
+	printf "ha=%d, end=%d, ", (int) $s->rf_last_known_ha_state, (int) $s->rf_eolq.bq_the_end
+	printf "coro=%p \n", ($s->rf_coro.mc_stack[$s->rf_coro.mc_frame - 1])
+	coro-bt &$s->rf_coro
+end
+
+define drm-print
+	set $r = (struct m0_dtm0_recovery_machine *) ($arg0)
+	m0-list-print &($arg0)->rm_rfoms struct recovery_fom rf_linkage rfom-print
+end
+
+document drm-print
+	Prints parts of DTM0 recovery machine state in human-readable format.
+	The only argument is a pointer to a recovery machine.
+	The function prints some properties of recovery FOMs and the
+	backtraces of their coroutines.
+

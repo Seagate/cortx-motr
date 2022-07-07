@@ -60,6 +60,7 @@ void m0_dtm0_ut_drlink_simple(void)
 	int                       rc;
 	int                       i;
 	int                       j;
+	struct m0_be_queue       *q;
 
 	M0_ALLOC_PTR(udh);
 	M0_ASSERT(udh != NULL);
@@ -93,16 +94,16 @@ void m0_dtm0_ut_drlink_simple(void)
 	for (i = 0; i < DTM0_UT_DRLINK_SIMPLE_POST_NR; ++i)
 		m0_be_op_init(&op[i]);
 
-	M0_ALLOC_PTR(svc->dos_ut_queue);
-	M0_UT_ASSERT(svc->dos_ut_queue != 0);
-	rc = m0_be_queue_init(svc->dos_ut_queue,
-			      &(struct m0_be_queue_cfg){
+	M0_ALLOC_PTR(q);
+	M0_UT_ASSERT(q != 0);
+	rc = m0_be_queue_init(q, &(struct m0_be_queue_cfg){
 			.bqc_q_size_max = DTM0_UT_DRLINK_SIMPLE_POST_NR,
 			.bqc_producers_nr_max = DTM0_UT_DRLINK_SIMPLE_POST_NR,
 			.bqc_consumers_nr_max = 1,
 			.bqc_item_length = sizeof fid[0],
                               });
 	M0_UT_ASSERT(rc == 0);
+	svc->dos_ut_queue = q;
 
 	for (i = 0; i < DTM0_UT_DRLINK_SIMPLE_POST_NR; ++i) {
 		rc = m0_dtm0_req_post(udh->udh_server_dtm0_service,
@@ -131,8 +132,6 @@ void m0_dtm0_ut_drlink_simple(void)
 		M0_UT_ASSERT(found);
 	}
 	m0_be_op_fini(&op_out);
-	m0_be_queue_fini(svc->dos_ut_queue);
-	m0_free(svc->dos_ut_queue);
 	for (i = 0; i < DTM0_UT_DRLINK_SIMPLE_POST_NR; ++i)
 		M0_UT_ASSERT(m0_fid_eq(&fid[i], &M0_FID0));
 	m0_free(fid);
@@ -144,6 +143,8 @@ void m0_dtm0_ut_drlink_simple(void)
 	m0_free(fop);
 
 	m0_ut_dtm0_helper_fini(udh);
+	m0_be_queue_fini(q);
+	m0_free(q);
 	m0_free(udh);
 
 }
