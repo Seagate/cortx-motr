@@ -15,6 +15,10 @@ LOOP_IMG_DIR=$TEST_ROOT
 CLIENT_PID=
 M0D_DIR_COMMON=$MOTR_VAR_DIR/m0d-0x720000000000000
 ADDB_DUMP_DIR="/tmp/a2a-addb-out"
+CTGDUMP="$MOTR_ROOT/cas/m0ctgdump"
+DINDEX="1:5"
+CTGDUMP_DIR="/tmp/a2a-ctgdump"
+
 
 M0D_ENDPOINTS=()
 M0D_FIDS_DEC=()
@@ -23,9 +27,15 @@ M0D_PIDS=()
 
 M0D_CLI_FID_DEC=
 M0D_CLI_FID_HEX=
+MOD_CLI_EP=
 
 POOL_WIDTH=4
 IPOOL_WIDTH=2
+
+# m0d that got killed
+VICTIM=1
+# m0ds that are alive
+WITNESSES=(0 2)
 
 . ${MOTR_ROOT}/scripts/addb-py/chronometry/common/common_funcs
 
@@ -37,7 +47,12 @@ function stop_cluster()
 
 function bootstrap_cluster()
 {
-    hctl bootstrap --mkfs $CURRENT_CDF
+    # XXX: For some reason Hare does not like localhost.
+    hctl bootstrap --mkfs <(sed "s/localhost/$(hostname -f)/" $CURRENT_CDF)
+    if [[ $? -ne 0 ]]; then
+      _err "Cluster bootstrap failed"
+      exit 1
+    fi
 }
 
 function get_m0d_pids()
@@ -46,7 +61,7 @@ function get_m0d_pids()
     local pid
 
     for fid in ${M0D_FIDS_HEX[@]} ; do
-        pid=$(ps ax | grep m0d | grep $fid | awk '{ print $1; }')
+        pid=$(pgrep -a lt-m0d | grep $fid | awk '{ print $1; }')
         M0D_PIDS+=($pid)
         pids+="$pid "
     done
@@ -60,9 +75,11 @@ function create_m0crate_cfg()
     local svcs_json_out=$(echo $hctl_json_out | jq -r '.nodes[] | .svcs[]')
 
     local PROF=$(echo $hctl_json_out | jq -r '.profiles[] | .fid')
-    local MOTR_LOCAL_ADDR=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client")) | .ep')
-    local PROCESS_FID=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client")) | .fid')
+    local MOTR_LOCAL_ADDR=$(echo $svcs_json_out | jq -r 'select( .name | contains("motr_client")) | .ep')
+    local PROCESS_FID=$(echo $svcs_json_out | jq -r 'select( .name | contains("motr_client")) | .fid')
     local MOTR_HA_ADDR=$(echo $svcs_json_out | jq -r 'select( .name | contains("hax")) | .ep')
+
+    MOD_CLI_EP=$(echo "$MOTR_LOCAL_ADDR")
 
     local M0CRATE_CFG_TMP=m0crate_cfg.tmp
     cp $M0CRATE_CFG_IN $M0CRATE_CFG_TMP
@@ -77,64 +94,175 @@ function get_params_for_ha_msgs()
 {
     local svcs_json_out=$(hctl status --json | jq -r '.nodes[] | .svcs[]')
     local svc_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("ioservice"))')
-    local cli_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("m0_client"))')
-    M0D_ENDPOINTS=($(echo $svc_json_out | jq -r '.ep' | sed -E 's/.*@tcp[:](.*)/\1/'))
+    local cli_json_out=$(echo $svcs_json_out | jq -r 'select( .name | contains("motr_client"))')
+    M0D_ENDPOINTS=($(echo $svc_json_out | jq -r '.ep'))
     M0D_FIDS_HEX=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/'))
     M0D_FIDS_DEC=($(echo $svc_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e'))
     M0D_CLI_FID_DEC=$(echo $cli_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:])(0x[A-Za-z0-9]+)/printf "%s%d" \1 \2/e')
     M0D_CLI_FID_HEX=$(echo $cli_json_out | jq -r '.fid' | sed -E 's/0x720+([0-9][:]0x[A-Za-z0-9]+)/\1/')
 }
 
-function ha_msg_send_transient()
+# params
+# (i) whom to send the message (endpoint). Use "cli" for the client; 0, 1, 2, etc. for m0ds.
+# (ii) who has changed its state. Use "cli" or 0, 1, 2.
+# (iii) what happened. Use "transient", "online" etc.
+function ha_msg_send()
 {
-    # Here we send "TRANSIENT" messages to trigger start of
-    # HA messages handling on the m0d side as dtm0 doesn't
-    # handle them until "TRANSIENT" received due to incomplete
-    # implementation on the Hare side.
-    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
-        for j in $(seq 0 $((${#M0D_FIDS_DEC[@]}-1))) ; do
-            if [[ $i -ne $j ]]; then
-                $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_FIDS_DEC[$j]}" "transient"
-                break
-            fi
-        done
+    local whom="$1"
+    local who="$2"
+    local what="$3"
+
+    if [[ "x$whom" == "xcli" ]]; then
+        whom="${MOD_CLI_EP}"
+    else
+        whom="${M0D_ENDPOINTS[$whom]}"
+    fi
+
+    if [[ "x$who" == "xcli" ]]; then
+        who="${M0D_CLI_FID_DEC}"
+    else
+        who="${M0D_FIDS_DEC[$who]}"
+    fi
+
+    _info "ha_msg_send: whom='${whom}', who='${who}', what='${what}'"
+    $MOTR_ST_UTILS_DIR/ha_msg_send.sh "$whom" "^r|$who" "$what"
+}
+
+function ha_msg_send_cli()
+{
+    local whom="cli"
+    local who="$1"
+    local what="$2"
+    ha_msg_send $whom $who $what
+}
+
+# params
+# (i)   who     Who changed its state?
+# (ii)  what    What is the new state?
+function ha_msg_send_m0ds()
+{
+    local who="$1"
+    local what="$2"
+
+    if [[ ${#M0D_ENDPOINTS[@]} -ne ${#M0D_FIDS_DEC[@]} ]]; then
+        echo "The number of endpoints is not equal to the number of fids. How is that possible?"
+        exit 1
+    fi
+
+    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))); do
+        ha_msg_send $i $who $what
     done
 }
 
-function ha_msg_send_online()
+function ha_msg_send_all()
 {
-    # Here we send "ONLINE" messages to trigger connections logic.
-    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
-        for j in $(seq 0 $((${#M0D_FIDS_DEC[@]}-1))) ; do
-            if [[ $i -ne $j ]]; then
-                $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_FIDS_DEC[$j]}" "online"
-            fi
-        done
-    done
+    local who="$1"
+    local what="$2"
+    ha_msg_send_cli  "$who" "$what"
+    ha_msg_send_m0ds "$who" "$what"
 }
 
-function ha_msg_send_cli_online()
+# param
+# (i)   trace_path Path to the trace file
+# (ii)  pattern    String to grep.
+# (iii) exp_cnt    Expected number of lines that match the pattern.
+function expect_trace_lines
 {
-    # Here we send "ONLINE" messages to connect servers to client.
-    for i in $(seq 0 $((${#M0D_ENDPOINTS[@]}-1))) ; do
-        $MOTR_ST_UTILS_DIR/ha_msg_send.sh "${M0D_ENDPOINTS[$i]}" "^r|${M0D_CLI_FID_DEC}" "online"
-    done
+    local trace_path="$1"
+    local pattern="$2"
+    local exp_cnt="$3"
+    local cnt
+    local cmd;
+
+    _info "expect trace: path=$trace_path, pattern=$pattern, exp_cnt=$exp_cnt"
+    cnt=$($MOTR_ROOT/utils/trace/m0trace -i "$trace_path*" | grep -c "$pattern")
+    if [[ $cnt -ne $exp_cnt ]]; then
+        _info "Unexpected number of trace lines: $cnt != $exp_cnt"
+        return 1
+    fi
+
+    _info "Found"
+    return 0
 }
 
-function expected_trace_lines_num()
+function expect_trace_lines_from_m0d()
+{
+    local index="$1"
+    local pattern="$2"
+    local exp_cnt="$3"
+    local path="${M0D_DIR_COMMON}${M0D_FIDS_HEX[index]}/m0trace.${M0D_PIDS[index]}"
+
+    if expect_trace_lines "$path" "$pattern" "$exp_cnt"; then
+        return 0;
+    fi
+
+    return 1;
+}
+
+function expect_trace_lines_from_m0ds()
 {
     local pattern="$1"
     local exp_cnt=$2
-    local cnt
 
     for i in ${!M0D_PIDS[@]} ; do
-        cnt=$($MOTR_ROOT/utils/trace/m0trace -i "${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}/m0trace.${M0D_PIDS[i]}" | grep "$pattern" | wc -l)
-        if [[ $cnt -ne $exp_cnt ]]; then
+        if ! expect_trace_lines_from_m0d "$i" "$pattern" "$exp_cnt"; then
+            _info "Not found in ${M0D_PIDS[i]}"
             return 1
         fi
     done
 
-    return 0
+    return 0;
+}
+
+function expect_trace_lines_from_cli()
+{
+    local pattern="$1"
+    local exp_cnt="$2"
+    local path="$PWD/m0trace.$CLIENT_PID"
+    local cnt
+
+    if ! expect_trace_lines "$path" "$pattern" "$exp_cnt"; then
+        return 1;
+    fi
+
+    return 0;
+}
+
+function expect_trace_lines_from_all()
+{
+    local pattern="$1"
+    local exp_cnt="$2"
+
+    if expect_trace_lines_from_m0ds "$pattern" "$exp_cnt" && \
+        expect_trace_lines_from_cli  "$pattern" "$exp_cnt"; then
+        return 0;
+    fi
+
+    return 1
+}
+
+function addb2dump()
+{
+    local inpfile=$1
+    local outfile=$2
+    local a2d=$MOTR_ROOT/utils/m0addb2dump
+    local size
+
+    _info "Dumping ${inpfile} -> ${outfile} ..."
+
+    if ! $a2d -f "${inpfile}" > "${outfile}"; then
+        if [[ "$(stat -c %s ${inpfile})" == "0" ]]; then
+            _info "Skipping empty ADDB file."
+            return 0;
+        else
+            _info "Addb file is not empty but cannot dump it"
+            return 1;
+        fi
+    else
+        echo "OK."
+        return 0;
+    fi
+
 }
 
 function addb_dump()
@@ -143,7 +271,6 @@ function addb_dump()
     local outfile
     local inpfile
     local fid
-    local a2d=$MOTR_ROOT/utils/m0addb2dump
 
     rm -fR "${outdir}"
     mkdir "${outdir}"
@@ -152,15 +279,17 @@ function addb_dump()
         fid=$(echo "${M0D_FIDS_HEX[i]}" | awk -F'x' '{ print $2; }')
         outfile="${outdir}/addb_${fid}.dump"
         inpfile="${M0D_DIR_COMMON}${M0D_FIDS_HEX[i]}/addb-stobs-${M0D_PIDS[i]}/o/100000000000000:2"
-        _info "Dumping ${inpfile} -> ${outfile} ..."
-        $a2d -f "${inpfile}" > "${outfile}"
+        addb2dump ${inpfile} ${outfile}
     done
 
-    inpfile="$PWD/addb_${CLIENT_PID}/o/100000000000000:2"
-    fid=$(echo "$M0D_CLI_FID_HEX" | awk -F'x' '{ print $2; }')
-    outfile="${outdir}/addb_${fid}.dump"
-    _info "Dumping ${inpfile} -> ${outfile} ..."
-    $a2d -f "${inpfile}" > "${outfile}"
+    if [[ "x$CLIENT_PID" != "x" ]]; then
+        inpfile="$PWD/addb_${CLIENT_PID}/o/100000000000000:2"
+        fid=$(echo "$M0D_CLI_FID_HEX" | awk -F'x' '{ print $2; }')
+        outfile="${outdir}/addb_${fid}.dump"
+        addb2dump ${inpfile} ${outfile}
+    else
+        _info "Skipping client addb dumps."
+    fi
 }
 
 function processes_status_check()
@@ -186,9 +315,134 @@ function fail()
     exit 1
 }
 
-function main()
+function client_run()
+{
+    _info "Launching the client..."
+    $MOTR_ROOT/motr/m0crate/m0crate -S $M0CRATE_CFG &
+    CLIENT_PID=$!
+    _info "Client pid: ${CLIENT_PID}"
+}
+
+function client_run_gdb()
+{
+    _info "Launching the client under gdb ..."
+    libtool --mode=execute gdb --args $MOTR_ROOT/motr/m0crate/m0crate -S $M0CRATE_CFG
+}
+
+function client_wait()
+{
+    wait ${CLIENT_PID}
+    rc="$?"
+    if [[ "$rc" -gt 127 ]]; then
+      _err "Client terminated, rc = $rc"
+      exit 1
+    fi
+    return "$rc"
+}
+
+function m0kv_async()
+{
+    local args
+    args=$(python3 -c "import yaml; \
+        conf = yaml.load(open('$M0CRATE_CFG'), Loader=yaml.FullLoader); \
+        m = conf['MOTR_CONFIG']; \
+        print('-l %s -h %s -p %s -f %s' % (m['MOTR_LOCAL_ADDR'], m['MOTR_HA_ADDR'], m['PROF'], m['PROCESS_FID']));")
+
+    _info "m0kv $args $@"
+    ${MOTR_UTILS_DIR}/m0kv $args $@ &
+    CLIENT_PID=$!
+}
+
+function m0kv()
+{
+    m0kv_async $@
+    client_wait
+}
+
+function m0kv_run_sync()
+{
+    m0kv index create "${DINDEX}"
+    m0kv -s index put "${DINDEX}" mykey myvalue
+    m0kv -s index get "${DINDEX}" mykey
+    m0kv index drop "${DINDEX}"
+}
+
+function client_run_sync()
+{
+    client_run
+    client_wait
+}
+
+function ctgdump()
+{
+    local svc_num=$1
+    local proc_fid="0x720000000000000${M0D_FIDS_HEX[$svc_num]}"
+    local index=$DINDEX
+    local svc_ep="${M0D_ENDPOINTS[$svc_num]}"
+    local stobs="/var/motr/m0d-${proc_fid}/stobs"
+    local db="/var/motr/m0d-${proc_fid}/db"
+    local rest="-m 524288 -q 16 -w 8  -U -r 134217728  -c /etc/motr/confd.xc"
+    local out_dir=$CTGDUMP_DIR
+    local fid_hex=$(echo "${M0D_FIDS_HEX[$svc_num]}" | awk -F'x' '{ print $2; }')
+    local out_file="${out_dir}/cas-${fid_hex}.dump"
+    local cmd=$CTGDUMP
+
+    local cmd_args="-e libfab:${svc_ep} -A linuxstob:addb-stobs -f ${proc_fid} -T ad -S ${stobs} -D ${db} ${rest} str ${index}"
+
+    mkdir -p $out_dir
+
+    _info "$cmd $cmd_args"
+    $cmd $cmd_args | sort > "$out_file"
+}
+
+function ctg_eq()
+{
+    local left=$1
+    local right=$2
+    local left_hex=$(echo "${M0D_FIDS_HEX[$left]}" | awk -F'x' '{ print $2; }')
+    local right_hex=$(echo "${M0D_FIDS_HEX[$right]}" | awk -F'x' '{ print $2; }')
+
+    local left_file="${CTGDUMP_DIR}/cas-${right_hex}.dump"
+    local right_file="${CTGDUMP_DIR}/cas-${left_hex}.dump"
+
+    if ! diff -u $left_file $right_file; then
+        _info "Catalogues are different. Run 'diff -u $left_file $right_file' to see the difference."
+        return 1
+    else
+        local nr_records=$(wc -l $left_file | cut -f1 -d' ')
+        _info "Compared ${left_hex} with ${right_hex}. Found ${nr_records} identical records."
+        return 0;
+    fi
+}
+
+function check_ctg_consistency()
+{
+    local ref=$VICTIM
+    local targets=(${WITNESSES[@]})
+
+    rm -fR "$CTGDUMP_DIR"
+
+    for i in $(seq 0 $((${#M0D_FIDS_HEX[@]}-1))); do
+        ctgdump $i
+    done
+
+    for i in ${targets[@]}; do
+        if ! ctg_eq $ref $i; then
+            local ref_pid=${M0D_PIDS[$ref]}
+            local tgt_pid=${M0D_PIDS[$i]}
+            _info "Inconsistency detected between $ref and $tgt processes."
+            exit 1
+        fi
+    done
+}
+
+
+# Phase where we power on the cluster.
+function boot_phase()
 {
     local cli_pid
+
+    _info "Phase recovery:boot"
 
     ${MOTR_UTILS_DIR}/m0setup --init-loop-only -s 1 -d ${TEST_ROOT} --pool-width ${POOL_WIDTH} --ipool-width ${IPOOL_WIDTH}
 
@@ -200,16 +454,112 @@ function main()
 
     _info "Create m0crate configuration..."
     create_m0crate_cfg
+}
 
-    _info "Run the client..."
-    $MOTR_ROOT/motr/m0crate/m0crate -S $M0CRATE_CFG &
-    cli_pid=$!
-    wait ${cli_pid}
-    _info "Client pid: ${cli_pid}"
-    CLIENT_PID=${cli_pid}
+# Phase where we ensure that all m0ds are online
+# from DTM0 perspective.
+function online_phase()
+{
+    _info "Phase recovery:online"
+
+    _info "Wait until every m0d started"
+    while ! expect_trace_lines_from_m0ds "ALL2ALL_STARTED" 1; do
+        :;
+    done
+
+    _info "Wait until every m0d has recovered"
+    while ! expect_trace_lines_from_m0ds "ALL2ALL_DTM_RECOVERED" 1; do
+        :;
+    done
+}
+
+# Phase where we perform recovery.
+function recovery_phase()
+{
+    # 2 * (3 + 1) where:
+    #   2 is the number of witnesses;
+    #   3 is the number of records (mykey1, mykey2, mykey3);
+    #   1 is the EOL.
+    local nr_redo=8
+    local redo_pattern="m0_dtm0_recovery_machine_redo_post   > in-redo"
+    local dtx_done_pattern="dtx_done                             >"
+    local m0kv_wait_file="/tmp/m0kv_wait"
+
+    _info "Phase recovery:recovery"
+    local svc_name="m0d@0x720000000000000${M0D_FIDS_HEX[VICTIM]}.service"
+
+    _info "Create an index"
+    m0kv index create "${DINDEX}"
+
+    _info "Populate the index"
+    m0kv -s index put "${DINDEX}" mykey1 myvalue1
+
+    _info "PUT one key, hang on"
+    m0kv_async -s index put "${DINDEX}" mykey2 myvalue2 \
+        wait "${m0kv_wait_file}" put "${DINDEX}" mykey3 myvalue3
+
+    _info "Wait until mykey2 reached the persistent storage on at least one node."
+    while ! expect_trace_lines_from_cli "$dtx_done_pattern" 1; do
+        :;
+    done
+
+    _info "Kill the victim (${M0D_PIDS[VICTIM]})."
+    kill -9 "${M0D_PIDS[VICTIM]}"
+
+    # XXX We may use the pool machine state change to identify this point.
+    # However, it may not be enough: we need to get to the point
+    # where the even was consumed _fully_ (i.e., Motr sent "ack" back to Hare).
+    _info "Wait a few seconds to ensure everyone learned about it."
+    sleep 10
+
+    # Let the client create a non-fully replicated record.
+    touch "$m0kv_wait_file"
+
+    client_wait
+
+    # TODO: Run ctgcmp to ensure mykey3 does not exist in the victim's storage.
+
+    _info "Resurrect the victim: $svc_name"
+    systemctl start "$svc_name"
+
+    # Victim's PID should be updated.
+    M0D_PIDS=()
+    get_m0d_pids
+
+    _info "Wait until the victim gets started."
+    while ! expect_trace_lines_from_m0d ${VICTIM} "ALL2ALL_STARTED" 1; do
+        :;
+    done
+
+    _info "Wait until the victim gets recovered."
+    while ! expect_trace_lines_from_m0d ${VICTIM} "ALL2ALL_DTM_RECOVERED" 1; do
+        :;
+    done
+
+    _info "Wait until the victim gets recovered."
+    while ! expect_trace_lines_from_m0d ${VICTIM} "ALL2ALL_DTM_RECOVERED" 1; do
+        :;
+    done
+
+    _info "Ensure we got enough REDO messages."
+    while ! expect_trace_lines_from_m0d ${VICTIM} "$redo_pattern" $nr_redo; do
+        :;
+    done
+
+    # TODO: Run ctgcmp to ensure mykey3 exists in the victim's storage.
+}
+
+# Phase where we are gathering artifacts
+# and shutting down the cluster.
+function shutdown_phase()
+{
+    _info "Phase recovery:shutdown"
+
+    _info "m0d pids: ${M0D_PIDS[@]}"
+
     stop_cluster
-
     addb_dump
+    check_ctg_consistency
 
     _info "Checking processes exit status..."
     processes_status_check || {
@@ -220,4 +570,144 @@ function main()
     _info "TEST STATUS: PASSED"
 }
 
-main
+function recovery_cycle()
+{
+    _info "Starting the recovery cycle"
+
+    boot_phase && \
+        online_phase && \
+        recovery_phase && \
+        shutdown_phase
+}
+
+function simple_boot_cycle()
+{
+    _info "Starting the simple boot cycle"
+
+    boot_phase &&
+        client_run_sync &&
+        shutdown_phase
+}
+
+function print_help()
+{
+    echo -en "
+    The script allows you to check one of the following cases:
+    '$0 ss'  - 'Simple' bootstrap/shutdown of the 3-process cluster.
+    '$0 rec' - 'Recovery procedures' where the cluster is trying to
+       recover a failed participant.
+    Each case is called a 'cycle', and there are several
+    phases withing each cycle. You can use these phases to manually
+    run pieces of the cycles or individual commands. For example:
+        $0 rec boot
+        $0 rec m0kv index create \"1:5\"
+        $0 rec m0kv -s index put \"1:5\" mykey myvalue
+        $0 rec m0kv -s index put \"1:5\" mykey myvalue
+        $0 rec m0kv -s index get \"1:5\" mykey
+        $0 rec m0kv -s index next \"1:5\" \"\\\0\" 1
+        $0 rec m0kv -s index del \"1:5\" mykey
+        $0 rec stop
+
+    Debugging and testing:
+    1. Use DTM0 UTs to ensure recovery machine works
+    with your changes:
+        sudo ./utils/m0run -d -- m0ut -t dtm0-ut
+    2. Use 'dtm0-remach' gdb command to print backtraces
+    of the coroutines:
+        $ m0trace -i <dir/m0trace.pid> | grep recovery_machine_init
+        .... m=0xabcd
+        $ gdb -p <pid>
+        (gdb) p (struct m0_dtm0_recovery_machine *) 0xabcd
+        \$1 = (struct m0_dtm0_recovery_machine *) 0xabcd
+        (gdb) dtm0-remach $1
+        < ... prints information about machine ...>
+
+    Known issues:
+    1. FOM HUNG warnings for recovery FOM. They have
+    one single state for waiting on something, and because
+    of that you may see this warning.
+    \n";
+}
+
+# Prints various variables used by the
+# script. The function is used only
+# for debugging of the script.
+function print_env()
+{
+    get_params_for_ha_msgs
+    get_m0d_pids
+    echo "M0D_ENDPOINTS: ${M0D_ENDPOINTS[@]}"
+    echo "M0D_FIDS_DEC: ${M0D_FIDS_DEC[@]}"
+    echo "M0D_FIDS_HEX: ${M0D_FIDS_HEX[@]}"
+    echo "M0D_PIDS: ${M0D_PIDS[@]}"
+
+    echo "M0D_CLI_FID_DEC: ${M0D_CLI_FID_DEC}"
+    echo "M0D_CLI_FID_HEX: ${M0D_CLI_FID_HEX}"
+    echo "MOD_CLI_EP: ${MOD_CLI_EP}"
+}
+
+# params:
+# (i) cycle_name Name of the test (cycle)
+# (ii) phase_name Name of a phase in the cycle.
+function main()
+{
+    local cycle_name="$1"
+    local phase_name="$2"
+
+    # Run the whole cycle if phase was not
+    # specified.
+    if [ "x$phase_name" == "x" ]; then
+        case $cycle_name in
+            "ss")
+                simple_boot_cycle;;
+            "rec")
+                recovery_cycle;;
+            "-h")
+                print_help;;
+            "--help")
+                print_help;;
+            "--print-env")
+                print_env;;
+            *)
+                # Run ordinary all2al by default.
+                simple_boot_cycle;;
+        esac
+    else
+        if [[ "x$cycle_name" == "xrec" ]]; then
+            case $phase_name in
+                "boot")
+                    boot_phase;;
+                "online")
+                    online_phase;;
+                "recovery")
+                    recovery_phase;;
+                "shutdown")
+                    shutdown_phase;;
+                "m0kv")
+                    shift;
+                    shift;
+                    m0kv $@;;
+                "stop")
+                    killall -9 lt-m0ham || true;
+                    killall -9 lt-m0d || true;
+                    killall -9 hax || true;
+                    killall -9 lt-m0crate || true;
+                    killall -9 lt-m0kv || true;
+                    killall -9 lt-m0mkfs || true;
+                    hctl shutdown;;
+                *)
+                    echo "Wrong phase: $phase_name"
+                    echo "Use one of the following: "
+                    echo "  boot online recovery shutdown stop"
+                    exit 1;;
+            esac
+        else
+            echo "Unsupported cycle: $cycle_name."
+            echo "Use 'r' or 's' (recovery, simple)."
+            exit 1
+        fi
+    fi
+
+}
+
+main $@

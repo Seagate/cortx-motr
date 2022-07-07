@@ -1349,10 +1349,18 @@ static bool rpc_conn__on_service_event_cb(struct m0_clink *clink)
 	M0_PRE(m0_rpc_conn2svc(conn) == obj);
 	M0_LOG(M0_DEBUG, "obj->co_ha_state = %d", obj->co_ha_state);
 	/*
+	 * At this moment, M0_NC_TRANSIENT means that some volatile state
+	 * associated with that process was lost (its memory, packets,
+	 * connections -- anything).
+	 * In this case, the best thing we can do is to cancel
+	 * all the sessions and let the user to re-connect.
+	 * M0_NC_FAILED means the same thing plus some persistent state
+	 * was lost.
+	 * Previous outdated comment:
 	 * Ignore M0_NC_TRANSIENT state to keep items re-sending until service
 	 * gets M0_NC_ONLINE or becomes M0_NC_FAILED finally.
 	 */
-	if (obj->co_ha_state == M0_NC_FAILED)
+	if (M0_IN(obj->co_ha_state, (M0_NC_FAILED, M0_NC_TRANSIENT)))
 		m0_rpc_conn_sessions_cancel(conn);
 	/**
 	 * @todo See if to __conn_ha_unsubscribe() right now, but not wait until

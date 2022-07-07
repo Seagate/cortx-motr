@@ -179,7 +179,7 @@ struct m0_dtm0_log_rec {
 };
 
 /**
- * @b  m0_be_dtm0_log_rec structure
+ * @b  m0_be_dtm0_log structure
  *
  * A DTM0 log is represented by m0_be_dtm0_log structure. The important
  * fields in this structure are:
@@ -277,13 +277,21 @@ M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log *log);
  * Free the memory allocated by m0_be_dtm0_log_alloc
  *
  * @pre m0_be_dtm0_log->dl_is_persistent needs to be false.
- * @post *log is set to NULL.
+ * @post None
  *
  * @param log Pointer to a log structure that has been previously allocated.
  *
  * @return None
  */
-M0_INTERNAL void m0_be_dtm0_log_free(struct m0_be_dtm0_log **log);
+M0_INTERNAL void m0_be_dtm0_log_free(struct m0_be_dtm0_log *log);
+
+/** Frees memory and zeroes the pointer. */
+#define m0_be_dtm0_log_free0(pptr)            \
+	do {                                  \
+		typeof(pptr) __pptr = (pptr); \
+		m0_be_dtm0_log_free(*__pptr); \
+		*__pptr = NULL;               \
+	} while (0)
 
 /**
  * For performing an operation on a persistent log, we need to take the
@@ -553,11 +561,11 @@ M0_INTERNAL void m0_be_dtm0_log_iter_fini(struct m0_be_dtm0_log_iter *iter);
  * @param out returned record which is copied and needs to be freed with
  *            m0_dtm0_log_iter_rec_fini()
  *
- * @return +1 when the iterator was successfully moved to the next record.
- * @return  0 when the end of the log has been reached.
+ * @return 0 when the iterator was successfully moved to the next record.
+ * @return  -ENOENT when the end of the log has been reached.
  */
 M0_INTERNAL int m0_be_dtm0_log_iter_next(struct m0_be_dtm0_log_iter *iter,
-					 struct m0_dtm0_log_rec	    *out);
+					 struct m0_dtm0_log_rec     *out);
 
 /** @} */ /* end DTM0Internals */
 

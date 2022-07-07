@@ -526,7 +526,7 @@ read request, to be identified. Below is a real-life example of addb record:
 ```
 
 This record describes allocation of 40 bytes of memory, which happened on a 
-node with uuid f3b62b87d9e642b2:96a4e0520cc5477b, on the 1st locality (core) of 
+node with UUID f3b62b87d9e642b2:96a4e0520cc5477b, on the 1st locality (core) of 
 this node, while the specified thread was executing “Zero-copy finish” state 
 transition of the specified fom and, in particular, while IO to storage objects 
 was initiated.

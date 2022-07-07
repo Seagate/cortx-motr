@@ -295,7 +295,8 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 	if (rc < 0 || reply_item == NULL) {
 		M0_ASSERT(ergo(reply_item == NULL, rc != 0));
-		M0_LOG(M0_ERROR, "[%p] rpc item %p rc=%d", ioo, req_item, rc);
+		M0_LOG(M0_ERROR, "[%p] rpc item %p rc=%d session = %p", ioo,
+				 req_item, rc, req_item->ri_session);
 		goto ref_dec;
 	}
 	M0_ASSERT(!m0_rpc_item_is_generic_reply_fop(reply_item));
@@ -505,8 +506,6 @@ ref_dec:
 		ti->ti_rc = rc;
 	if (xfer->nxr_rc == 0 && rc != 0)
 		xfer->nxr_rc = rc;
-	if (ioo->ioo_rc == 0 && rc != 0)
-		ioo->ioo_rc = rc;
 	m0_fop_put0_lock(&cc_fop->crf_fop);
 	if (reply_fop != NULL)
 		m0_fop_put0_lock(reply_fop);

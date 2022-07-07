@@ -95,7 +95,7 @@ static void args_help(void)
 	fprintf(stderr, "Expecting a comma-separated list of parameter"
 		" specifications:\n");
 #define X(name, defval, max) \
-	fprintf(stderr, "  %s=NUM\t(default = %u, ulimit = %u)\n", \
+	fprintf(stderr, "  %s=NUM\t(default = %u, ulimit = %d)\n", \
 		#name, defval, max);
 	ARGS
 #undef X

@@ -95,6 +95,36 @@ opcode() {
         awk "/$NAME/ {print \$3}" | tr -d ,
 }
 
+is_lnet_available() {
+    local lnid
+    local result="false"
+
+    lnid=$(lctl list_nids | head -n1)
+    if [[ ! -z "$lnid" && -f $M0_SRC_DIR/m0tr.ko ]]; then
+        result="true"
+    fi
+    echo "$result"
+}
+
+check_and_restart_lnet() {
+    local lustre_rpm
+    local result="false"
+
+    lustre_rpm=$(rpm -qa | grep -w lustre)
+    if [[ ! -z "$lustre_rpm" && -f $M0_SRC_DIR/m0tr.ko ]]; then
+        if [[ $(is_lnet_available) == "false" ]]; then
+            modprobe lnet
+            lctl network up >/dev/null
+            if [[ $(is_lnet_available) == "true" ]]; then
+                result="true"
+            fi
+        else
+            result="true"
+        fi
+    fi
+    echo "$result"
+}
+
 m0_modules_insert() {
     insmod $M0_SRC_DIR/m0tr.ko \
     local_addr=${M0T1FS_ENDPOINT%:*}: \
@@ -112,15 +142,10 @@ m0_modules_remove() {
     rmmod m0tr || true
 }
 
-lnet_up() {
+export_test_eps() {
     local format=${1:-old}
     local NID=$(m0_local_nid_get "$format")
     XPRT=$(m0_default_xprt)
-
-    if [ "$XPRT" = "lnet" ]; then
-        modprobe lnet
-        lctl network up >/dev/null
-    fi
 
     if [[ "$XPRT" == "lnet" || "$format" == "old" ]]; then
         ## LNet endpoint address format (see net/lnet/lnet.h):

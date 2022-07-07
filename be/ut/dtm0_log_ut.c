@@ -281,7 +281,7 @@ void test_volatile_dtm0_log(void)
 
 	m0_mutex_unlock(&log->dl_lock);
 	m0_be_dtm0_log_fini(log);
-	m0_be_dtm0_log_free(&log);
+	m0_be_dtm0_log_free0(&log);
 	m0_dtm0_clk_src_fini(&cs);
 }
 
@@ -625,7 +625,7 @@ static void m0_be_ut_dtm0_log_init_fini(void)
 	m0_be_dtm0_log_iter_fini(&iter);
 
 	m0_be_dtm0_log_fini(log);
-	m0_be_dtm0_log_free(&log);
+	m0_be_dtm0_log_free0(&log);
 	m0_dtm0_clk_src_fini(&cs);
 }
 
@@ -635,10 +635,10 @@ static void m0_be_ut_dtm0_log_next(void)
 	struct m0_buf           buf = {};
 
 	struct m0_be_dtm0_log_iter iter;
-	struct m0_dtm0_log_rec	   out;
+	struct m0_dtm0_log_rec     out;
 	struct m0_dtm0_clk_src     cs;
 	struct m0_be_dtm0_log     *log;
-	int rc;
+	int                        rc;
 
 	m0_dtm0_clk_src_init(&cs, M0_DTM0_CS_PHYS);
 
@@ -660,11 +660,12 @@ static void m0_be_ut_dtm0_log_next(void)
 
 	m0_be_dtm0_log_iter_init(&iter, log);
 	rc = m0_be_dtm0_log_iter_next(&iter, &out);
-	M0_UT_ASSERT(rc == 1);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(ut_dl_verify_log_rec(&out, 42));
 	m0_dtm0_log_iter_rec_fini(&out);
 
 	rc = m0_be_dtm0_log_iter_next(&iter, &out);
-	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc != 0);
 	m0_be_dtm0_log_iter_fini(&iter);
 
 	/* make log finalisation happy */
@@ -672,7 +673,7 @@ static void m0_be_ut_dtm0_log_next(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_mutex_unlock(&log->dl_lock);
 	m0_be_dtm0_log_fini(log);
-	m0_be_dtm0_log_free(&log);
+	m0_be_dtm0_log_free0(&log);
 	m0_dtm0_clk_src_fini(&cs);
 }
 
