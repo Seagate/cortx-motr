@@ -30,6 +30,8 @@
 
 #include "dtm0/dtm0.h"
 #include "dtm0/pruner.h"
+#include "lib/memory.h" /* M0_ALLOC_ARR */
+#include "lib/errno.h" /* ENOMEM */
 
 M0_INTERNAL bool m0_dtx0_id_eq(const struct m0_dtx0_id *left,
 			       const struct m0_dtx0_id *right)
@@ -43,6 +45,69 @@ M0_INTERNAL int m0_dtx0_id_cmp(const struct m0_dtx0_id *left,
 	return M0_3WAY(left->dti_timestamp, right->dti_timestamp) ?:
 		m0_fid_cmp(&left->dti_originator_sdev_fid,
 			   &right->dti_originator_sdev_fid);
+}
+
+static int descriptor_copy(struct m0_dtx0_descriptor *dst,
+			   const struct m0_dtx0_descriptor *src)
+{
+	struct m0_fid *dst_arr;
+	struct m0_fid *src_arr = src->dtd_participants.dtpa_participants;
+	uint64_t       nr = src->dtd_participants.dtpa_participants_nr;
+
+	if (nr == 0) {
+		M0_SET0(dst);
+		return 0;
+	}
+
+	M0_ALLOC_ARR(dst_arr, nr);
+	if (dst_arr == NULL)
+		return M0_ERR(-ENOMEM);
+
+	memcpy(dst_arr, src_arr, sizeof(*dst_arr) * nr);
+
+	dst->dtd_participants.dtpa_participants = dst_arr;
+	dst->dtd_participants.dtpa_participants_nr = nr;
+	return 0;
+}
+
+static int buf2bufs_copy(struct m0_bufs *dst, const struct m0_buf *src)
+{
+	struct m0_buf *dst_buf;
+	int            rc;
+
+	M0_ALLOC_PTR(dst_buf);
+	if (dst_buf == NULL)
+		return M0_ERR(-ENOMEM);
+	rc = m0_buf_copy(dst_buf, src);
+	if (rc != 0) {
+		m0_free(dst_buf);
+		return M0_ERR(rc);
+	}
+	dst->ab_count = 1;
+	dst->ab_elems = dst_buf;
+	return 0;
+}
+
+M0_INTERNAL int
+m0_dtm0_redo_init(struct m0_dtm0_redo *redo,
+		  const struct m0_dtx0_descriptor *descriptor,
+		  const struct m0_buf             *payload,
+		  enum m0_dtx0_payload_type        type)
+{
+	int rc;
+
+	redo->dtr_payload.dtp_type = type;
+	rc = descriptor_copy(&redo->dtr_descriptor, descriptor) ?:
+		buf2bufs_copy(&redo->dtr_payload.dtp_data, payload);
+	if (rc != 0)
+		m0_dtm0_redo_fini(redo);
+	return rc;
+}
+
+M0_INTERNAL void m0_dtm0_redo_fini(struct m0_dtm0_redo *redo)
+{
+	m0_free(redo->dtr_descriptor.dtd_participants.dtpa_participants);
+	m0_bufs_free(&redo->dtr_payload.dtp_data);
 }
 
 M0_INTERNAL int  m0_dtm0_mod_init(void)

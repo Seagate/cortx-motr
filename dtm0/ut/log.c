@@ -223,6 +223,18 @@ void m0_dtm0_ut_log_mpsc(void)
  * 6. DTX0 for server, and call it from CAS.
  * 7. Random dtxid if CAS request has empty dtx descriptor.
  *
+ * 6-7, options:
+ *   ENABLE_DTM0:
+ *     Server: Use old dtm0 code.
+ *     Client: send correct txd.
+ *   !ENABLE_DTM0:
+ *     NODTM0:
+ *       Server: Use non-dtm0 code.
+ *       Client: send empty txd.
+ *     !NODTM0:
+ *       Server: Use new-dtm0 code.
+ *       Client: send random txd.
+ *
  * [2.1]
  * log_add()
  * log_end()
@@ -249,6 +261,8 @@ void m0_dtm0_ut_log_mpsc(void)
  * 5. Pruner: do not add records to FOL.
  * 6. s/dod/dodc in DTM0 log.
  * 7. Co-fom service or DTM fom service? single service for coroutines?
+ *
+ * Send Pmsg from CAS when dtx is PERSISTENT already.
  */
 
 #undef M0_TRACE_SUBSYSTEM

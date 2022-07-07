@@ -1649,6 +1649,18 @@ static int cas_req_prep(struct m0_cas_req       *req,
 	return M0_RC(rc);
 }
 
+static int
+m0_dtm0_tx_desc2dtx0_descriptor_prep(const struct m0_dtm0_tx_desc *txd,
+				     struct m0_dtx0_descriptor    *descriptor)
+{
+	/*
+	 * TODO: Check if txd is valid or not. If txd is not valid then
+	 * just fill the descriptor with some random data.
+	 * (txd is not valid == it was zeroed).
+	 */
+	return 0;
+}
+
 M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 			   struct m0_cas_id       *index,
 			   const struct m0_bufvec *keys,
@@ -1683,6 +1695,12 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 	rc = m0_dtx0_txd_copy(dtx, &op->cg_txd);
 	if (rc != 0)
 		return M0_ERR(rc);
+
+	rc = m0_dtm0_tx_desc2dtx0_descriptor_prep(&op->cg_txd,
+						  &op->cg_descriptor);
+	if (rc != 0)
+		return M0_ERR(rc);
+
 	rc = creq_fop_create_and_prepare(req, &cas_put_fopt, op, &next_state);
 	if (rc == 0) {
 		cas_fop_send(req);

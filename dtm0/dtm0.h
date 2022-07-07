@@ -138,6 +138,14 @@ struct m0_dtm0_p {
 	struct m0_fid     dtmp_sdev_fid;
 };
 
+M0_INTERNAL int
+m0_dtm0_redo_init(struct m0_dtm0_redo *redo,
+		  const struct m0_dtx0_descriptor *descriptor,
+		  const struct m0_buf             *payload,
+		  enum m0_dtx0_payload_type        type);
+
+M0_INTERNAL void m0_dtm0_redo_fini(struct m0_dtm0_redo *redo);
+
 M0_INTERNAL bool m0_dtx0_id_eq(const struct m0_dtx0_id *left,
 			       const struct m0_dtx0_id *right);
 

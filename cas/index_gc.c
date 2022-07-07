@@ -488,6 +488,7 @@ static void cgc_start_fom(struct m0_fom *fom0, struct m0_fop *fop)
 	m0_fom_init(fom0, &fop->f_type->ft_fom_type,
 		    &cgc_fom_ops, fop, NULL, fom->cg_reqh);
 	fom0->fo_local = true;
+	fom0->fo_local_update = true;
 	fom->cg_ctg_op_initialized = false;
 	m0_long_lock_link_init(&fom->cg_dead_index, fom0,
 			       &fom->cg_dead_index_addb2);

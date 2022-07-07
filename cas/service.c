@@ -26,6 +26,7 @@
 #include "be/dtm0_log.h"             /* m0_be_dtm0_log API */
 #include "dtm0/fop.h"                /* DTM0 msg and tx_desc */
 #include "dtm0/service.h"            /* m0_dtm0_service API */
+#include "dtm0/dtx0.h"               /* m0_dtx0_redo_add */
 #include "lib/trace.h"
 #include "lib/memory.h"
 #include "lib/finject.h"
@@ -323,6 +324,7 @@ struct cas_service {
 	 * In this case a special invalid value is used.
 	 */
 	uint32_t                c_sdev_id;
+	struct m0_dtm0_domain  *c_dtm0_domain;
 };
 
 struct cas_kv {
@@ -383,6 +385,7 @@ struct cas_fom {
 	uint64_t                  cf_kv_stats[STATS_KV_NR]
 				       	     [STATS_KV_IO_NR]
 				       	     [STATS_NR];
+	struct m0_dtm0_redo      *cf_redo;
 };
 
 enum cas_fom_phase {
@@ -458,6 +461,7 @@ static void                 cas_prep   (struct cas_fom *fom,
 					struct m0_cas_ctg *ctg,
 					uint64_t rec_pos,
 					struct m0_be_tx_credit *accum);
+static int cas_dtm0_prep(struct cas_fom *fom);
 static int                  cas_exec   (struct cas_fom *fom,
 					enum m0_cas_opcode opc,
 					enum m0_cas_type ct,
@@ -516,6 +520,8 @@ static int cas_ctidx_lookup(struct cas_fom *fom, const struct m0_cas_id *in_cid,
 			    int next);
 static int cas_ctidx_delete(struct cas_fom *fom, const struct m0_cas_id *in_cid,
 			    int next);
+static int cas_redo_alloc(struct m0_fom *fom0, struct m0_dtm0_redo **out);
+static void cas_redo_free0(struct m0_dtm0_redo **redo);
 
 static const struct m0_reqh_service_ops      cas_service_ops;
 static const struct m0_reqh_service_type_ops cas_service_type_ops;
@@ -559,6 +565,13 @@ M0_INTERNAL void m0_cas__ut_svc_be_set(struct m0_reqh_service *svc,
 {
 	struct cas_service *service = M0_AMB(service, svc, c_service);
 	service->c_be_domain = dom;
+}
+
+M0_INTERNAL void m0_cas__ut_svc_dtm0_domain_set(struct m0_reqh_service *svc,
+						struct m0_dtm0_domain  *dod)
+{
+	struct cas_service *service = M0_AMB(service, svc, c_service);
+	service->c_dtm0_domain = dod;
 }
 
 M0_INTERNAL struct m0_be_domain *
@@ -623,17 +636,28 @@ static int cas_service_sdev_id_set(struct cas_service *cas_svc)
 	return M0_RC(rc);
 }
 
+M0_INTERNAL struct m0_dtm0_domain *
+m0_cas__ut_svc_dtm0_domain_get(struct m0_reqh_service *svc)
+{
+	struct cas_service *service = M0_AMB(service, svc, c_service);
+	return service->c_dtm0_domain;
+}
+
 static int cas_service_start(struct m0_reqh_service *svc)
 {
-	int                  rc;
-	struct cas_service  *service = M0_AMB(service, svc, c_service);
-	struct m0_be_domain *ut_dom;
+	int                    rc;
+	struct cas_service    *service = M0_AMB(service, svc, c_service);
+	struct m0_be_domain   *ut_be_dom;
+	struct m0_dtm0_domain *dod;
 
 	M0_PRE(m0_reqh_service_state_get(svc) == M0_RST_STARTING);
-	ut_dom = m0_cas__ut_svc_be_get(svc);
+	ut_be_dom = m0_cas__ut_svc_be_get(svc);
+	dod = m0_cas__ut_svc_dtm0_domain_get(svc);
 	/* XXX It's a workaround. It's needed until we have a better way. */
-	service->c_be_domain = ut_dom != NULL ?
-			       ut_dom : svc->rs_reqh_ctx->rc_beseg->bs_domain;
+	service->c_be_domain = ut_be_dom != NULL ?  ut_be_dom :
+				svc->rs_reqh_ctx->rc_beseg->bs_domain;
+	service->c_dtm0_domain = dod != NULL ? dod :
+				&svc->rs_reqh_ctx->rc_dtm0_domain;
 	service->c_sdev_id = INVALID_CAS_SDEV_ID;
 	rc = m0_ctg_store_init(service->c_be_domain);
 	if (rc == 0) {
@@ -1140,8 +1164,53 @@ static int cas_dtm0_logrec_add(struct m0_fom *fom0,
 	return rc;
 }
 
+static const struct m0_fid *cas_fom_sdev_fid(struct cas_fom *fom)
+{
+	uint32_t                sdev_idx;
+	struct m0_fom          *fom0 = &fom->cf_fom;
+	struct m0_reqh         *reqh = m0_fom2reqh(fom0);
+	struct m0_pool_version *pver;
+	struct m0_poolmach     *pm;
+	struct m0_pooldev      *sdev;
+	struct m0_cas_op       *op = cas_op(fom0);
+	struct m0_cas_id       *cid = &op->cg_id;
+
+	sdev_idx = m0_dix_fid_cctg_device_id(&cid->ci_fid);
+	pver = m0_pool_version_find(reqh->rh_pools,
+				    &cid->ci_layout.u.dl_desc.ld_pver);
+	if (pver != NULL) {
+		pm = &pver->pv_mach;
+		M0_ASSERT(sdev_idx < pm->pm_state->pst_nr_devices);
+		sdev = &pm->pm_state->pst_devices_array[sdev_idx];
+		return &sdev->pd_id;
+	}
+
+	return NULL;
+}
+
+static void cas_fom_executed(struct cas_fom *fom)
+{
+	int                    rc = 0;
+	struct m0_dtm0_domain *dod =
+		m0_cas__ut_svc_dtm0_domain_get(fom->cf_fom.fo_service);
+	struct m0_be_tx       *tx = &fom->cf_fom.fo_tx.tx_betx;
+	struct m0_dtm0_redo   *redo = fom->cf_redo;
+	const struct m0_fid   *sdev;
+
+	if (redo != NULL) {
+		sdev = cas_fom_sdev_fid(fom);
+		M0_ASSERT(sdev != NULL);
+		rc = m0_dtx0_redo_add(dod, tx, redo, sdev);
+		M0_ASSERT_INFO(rc == 0, "Failed to update DTM0 log (%d)", rc);
+		cas_redo_free0(&fom->cf_redo);
+		m0_dtm0_redo_fini(redo);
+		fom->cf_redo = NULL;
+	}
+}
+
 static void cas_fom_success(struct cas_fom *fom, enum m0_cas_opcode opc)
 {
+	cas_fom_executed(fom);
 	cas_fom_cleanup(fom, opc == CO_CUR);
 	m0_fom_phase_set(&fom->cf_fom, M0_FOPH_SUCCESS);
 }
@@ -1494,19 +1563,12 @@ static int cas_fom_tick(struct m0_fom *fom0)
 				       cas_op(fom0)->cg_flags);
 		}
 
-		/*
-		 * If dtm0 is used we need to calculate credits for creating
-		 * a dtm0 log record.
-		 */
-		if (is_dtm0_used) {
-			rc = cas_dtm0_logrec_credit_add(fom0);
-			if (rc != 0) {
-				cas_fom_failure(fom, M0_ERR(rc), false);
-				break;
-			}
-		}
+		rc = cas_dtm0_prep(fom);
+		if (rc != 0)
+			cas_fom_failure(fom, M0_ERR(rc), false);
+		else
+			m0_fom_phase_set(fom0, M0_FOPH_TXN_OPEN);
 
-		m0_fom_phase_set(fom0, M0_FOPH_TXN_OPEN);
 		/*
 		 * @todo waiting for transaction open with btree (which can be
 		 * the meta-catalogue) locked, because tree height has to be
@@ -1794,6 +1856,8 @@ static void cas_fom_fini(struct m0_fom *fom0)
 	struct m0_cas_op  *op = cas_op(fom0);
 	struct cas_fom    *fom = M0_AMB(fom, fom0, cf_fom);
 	uint64_t           i;
+
+	cas_redo_free0(&fom->cf_redo);
 
 	for (i = 0; i < op->cg_rec.cr_nr; i++) {
 		rec = cas_at(op, i);
@@ -2193,6 +2257,39 @@ static void cas_prep(struct cas_fom *fom, enum m0_cas_opcode opc,
 			m0_ctg_delete_credit(ctg, knob, vnob, accum);
 		break;
 	}
+}
+
+static int cas_dtm0_prep(struct cas_fom *fom)
+{
+	int                    rc;
+	struct m0_fom         *fom0 = &fom->cf_fom;
+	struct m0_cas_op      *op = cas_op(fom0);
+	struct m0_dtm0_domain *dod =
+		m0_cas__ut_svc_dtm0_domain_get(fom->cf_fom.fo_service);
+	/* Try to update "old" dtm0 log. */
+	if (!m0_dtm0_tx_desc_is_none(&op->cg_txd)) {
+		rc = cas_dtm0_logrec_credit_add(fom0);
+		if (rc != 0)
+			goto out;
+	} else
+		rc = 0;
+
+	M0_ASSERT(fom->cf_redo == NULL);
+
+	/* Try to update "new" dtm0 log. */
+	if (m0_cas_fop_is_redoable(fom0->fo_fop) &&
+	    cas_type(fom0) == CT_BTREE) {
+		/* See cas_redo_free0. */
+		rc = cas_redo_alloc(fom0, &fom->cf_redo);
+		if (rc != 0)
+			goto out;
+		m0_dtx0_redo_add_credit(dod, fom->cf_redo,
+					&fom0->fo_tx.tx_betx_cred);
+	} else
+		rc = 0;
+
+out:
+	return rc;
 }
 
 static struct m0_cas_rec *cas_at(struct m0_cas_op *op, int idx)
@@ -2740,6 +2837,32 @@ static void cas_fom_addb2_descr(struct m0_fom *fom)
 		M0_ADDB2_ADD(M0_AVI_CAS_KV_SIZES, FID_P(&op->cg_id.ci_fid),
 			     m0_rpc_at_len(&rec->cr_key),
 			     m0_rpc_at_len(&rec->cr_val));
+	}
+}
+
+static int cas_redo_alloc(struct m0_fom *fom0, struct m0_dtm0_redo **out)
+{
+	struct m0_dtm0_redo *redo;
+	struct m0_fop       *fop = fom0->fo_fop;
+	int                  rc;
+
+	M0_ENTRY("fom0=%p", fom0);
+	M0_ALLOC_PTR(redo);
+	if (redo == NULL)
+		return M0_ERR(-ENOMEM);
+	rc = m0_cas_fop2redo(fop, redo);
+	if (rc == 0)
+		*out = redo;
+	else
+		m0_free(redo);
+	return M0_RC_INFO(rc, "redo=%p", redo);
+}
+
+static void cas_redo_free0(struct m0_dtm0_redo **redo)
+{
+	if (*redo != NULL) {
+		m0_dtm0_redo_fini(*redo);
+		m0_free0(redo);
 	}
 }
 
