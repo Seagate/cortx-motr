@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -922,7 +922,7 @@ static int cob_attr_get(struct m0_cob        *cob,
 
 static int cob_locate(const struct m0_fom *fom, struct m0_cob **cob_out)
 {
-	struct m0_cob_oikey   oikey;
+	struct m0_cob_oikey   oikey = {};
 	struct m0_cob_domain *cdom;
 	struct m0_fid         fid;
 	struct m0_fom_cob_op *cob_op;

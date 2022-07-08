@@ -92,7 +92,6 @@ struct fdmi_rr_fom {
 struct fdmi_sd_timer_fom {
 	struct m0_fom           fstf_fom;
 	struct m0_fom_timeout   fstf_timeout;
-	struct m0_sm_ast        fstf_wakeup_ast;
 	struct m0_semaphore     fstf_shutdown;
 };
 

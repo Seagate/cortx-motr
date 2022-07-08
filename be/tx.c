@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -253,6 +253,8 @@ M0_INTERNAL void m0_be_tx_fini(struct m0_be_tx *tx)
 	 * m0_be_tx::t_reg_area should be finalized after m0_be_tx::t_sm.
 	 */
 	m0_sm_fini(&tx->t_sm);
+	if (tx->t_prepared.tc_cb_nr != 0)
+		m0_free0(&tx->t_callback);
 	m0_be_reg_area_fini(&tx->t_reg_area);
 	m0_free(tx->t_payload.b_addr);
 }
@@ -307,6 +309,17 @@ static void be_tx_make_reg_d(struct m0_be_tx        *tx,
 	*rd = M0_BE_REG_D(M0_BE_REG(reg->br_seg == NULL ? seg : reg->br_seg,
 				    reg->br_size, reg->br_addr), NULL);
 	M0_POST(m0_be_reg__invariant(&rd->rd_reg));
+}
+
+M0_INTERNAL void m0_be_tx_cb_capture(struct m0_be_tx *tx, void *addr,
+				     m0_be_callback_t func)
+{
+	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
+	M0_PRE(tx->t_callback != NULL);
+
+	tx->t_callback[tx->t_callback_nr].tc_data = addr;
+	tx->t_callback[tx->t_callback_nr].tc_func = func;
+	tx->t_callback_nr++;
 }
 
 M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx        *tx,
@@ -457,6 +470,17 @@ static int be_tx_memory_allocate(struct m0_be_tx *tx)
 			m0_free0(&tx->t_payload.b_addr);
 			M0_LOG(M0_ERROR, "tx=%p t_prepared="BETXCR_F" rc=%d",
 			       tx, BETXCR_P(&tx->t_prepared), rc);
+		} else if (tx->t_prepared.tc_cb_nr != 0) {
+			tx->t_callback_nr = 0;
+			M0_ALLOC_ARR(tx->t_callback, tx->t_prepared.tc_cb_nr);
+			if (tx->t_callback == NULL) {
+				m0_free0(&tx->t_payload.b_addr);
+				m0_be_reg_area_fini(&tx->t_reg_area);
+				rc = -ENOMEM;
+				M0_LOG(M0_ERROR, "tx=%p tc_cb_nr=%"PRIu64" "
+				       "rc=%d", tx, tx->t_prepared.tc_cb_nr,
+				       rc);
+			}
 		}
 	}
 	return M0_RC(rc);
@@ -476,6 +500,16 @@ static void be_tx_gc(struct m0_be_tx *tx)
 		gc_free(tx, gc_param);
 	else
 		m0_free(tx);
+}
+
+static void be_tx_callback(struct m0_be_callback *cb, uint64_t num)
+{
+	int i;
+
+	M0_ENTRY("t_callback=%p t_callback_nr=%"PRIu64, cb, num);
+
+	for (i = 0; i < num; i++)
+		cb[i].tc_func(cb[i].tc_data);
 }
 
 static void be_tx_state_move(struct m0_be_tx     *tx,
@@ -505,6 +539,8 @@ static void be_tx_state_move(struct m0_be_tx     *tx,
 		tx->t_persistent(tx);
 	if (state == M0_BTS_DONE && tx->t_discarded != NULL)
 		tx->t_discarded(tx);
+	if (state == M0_BTS_DONE && tx->t_callback_nr != 0)
+		be_tx_callback(tx->t_callback, tx->t_callback_nr);
 
 	m0_sm_move(&tx->t_sm, rc, state);
 	m0_be_engine__tx_state_set(tx->t_engine, tx, state);

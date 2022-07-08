@@ -27,7 +27,7 @@
 
 #include "be/tx_group_fom.h"    /* m0_be_tx_group_fom_mod_init */
 #include "be/tx_internal.h"     /* m0_be_tx_mod_init */
-#include "be/btree.h"           /* m0_be_fid_type */
+#include "btree/btree.h"
 
 /**
  * @addtogroup be
