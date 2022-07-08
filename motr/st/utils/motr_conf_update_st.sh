@@ -176,7 +176,7 @@ main()
 	io_ops $object_id2 $block_size $block_count "$src_file" "$dest_file2"  &
 	pid=$!
 	# Let client start
-	sleep 10
+	sleep 2
 	revoke_read_lock 15
 	wait $pid
 	cmp "$src_file" "$dest_file2" 2> "$MOTR_TEST_LOGFILE" || {
