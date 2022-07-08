@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -170,7 +170,7 @@ M0_INTERNAL int m0_mdstore_dir_nlink_update(struct m0_mdstore   *md,
 					    struct m0_be_tx     *tx)
 {
 	struct m0_cob         *cob;
-	struct m0_cob_oikey    oikey;
+	struct m0_cob_oikey    oikey = {};
 	int                    rc;
 
 	M0_ENTRY("%+d nlinks for dir "FID_F, inc, FID_P(fid));
@@ -393,7 +393,7 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 {
 	struct m0_cob         *ncob;
 	struct m0_cob_nskey   *nskey = NULL;
-	struct m0_cob_oikey    oikey;
+	struct m0_cob_oikey    oikey = {};
 	time_t                 now;
 	int                    rc;
 
@@ -821,7 +821,7 @@ M0_INTERNAL int m0_mdstore_locate(struct m0_mdstore     *md,
 				  struct m0_cob        **cob,
 				  int                    flags)
 {
-	struct m0_cob_oikey oikey;
+	struct m0_cob_oikey oikey = {};
 	int                 rc;
 
 	M0_ENTRY(FID_F, FID_P(fid));

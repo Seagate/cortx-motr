@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -270,6 +270,13 @@ enum m0_be_tx_state {
 	M0_BTS_NR
 };
 
+typedef void (*m0_be_callback_t)(void *data);
+
+struct m0_be_callback {
+	void             *tc_data;
+	m0_be_callback_t  tc_func;
+};
+
 /*
  * NOTE: Call-backs of this type must be asynchronous, because they can be
  * called from state transition functions.
@@ -422,6 +429,10 @@ struct m0_be_tx {
 	 * in second phase of FDMI work.
 	 */
 	struct m0_sm_ast       t_fdmi_put_ast;
+	/** Total number of callbacks. */
+	uint64_t               t_callback_nr;
+	/** Callbacks to be invoked on tx commit. */
+	struct m0_be_callback *t_callback;
 };
 
 #if M0_DEBUG_BE_CREDITS == 1
@@ -488,6 +499,8 @@ M0_INTERNAL void m0_be_tx_payload_prep(struct m0_be_tx *tx, m0_bcount_t size);
 M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx);
 M0_INTERNAL void m0_be_tx_exclusive_open(struct m0_be_tx *tx);
 
+M0_INTERNAL void m0_be_tx_cb_capture(struct m0_be_tx *tx, void *addr,
+				     m0_be_callback_t func);
 M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx        *tx,
 				  const struct m0_be_reg *reg);
 M0_INTERNAL void m0_be_tx_uncapture(struct m0_be_tx        *tx,

@@ -48,7 +48,7 @@
  * - m0_be_tx_credit (be/tx_credit.h);
  * - m0_be_op        (be/op.h);
  * - m0_be_allocator (be/alloc.h);
- * - m0_be_btree     (be/btree.h);
+ * - m0_btree        (btree/btree.h);
  * - m0_be_list      (be/list.h);
  * - m0_be_emap      (be/extmap.h);
  * - m0_be_0type     (be/seg0.h);

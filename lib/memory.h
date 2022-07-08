@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -175,7 +175,10 @@ M0_INTERNAL bool m0_is_poisoned(const void *p);
  */
 M0_INTERNAL int m0_dont_dump(void *p, size_t size);
 
-
+/**
+ * Wrapper function over memmove.
+ */
+M0_INTERNAL void m0_memmove(void *tgt, void *src, size_t size);
 /** @} end of memory group */
 #endif /* __MOTR_LIB_MEMORY_H__ */
 
