@@ -854,12 +854,13 @@ M0_INTERNAL void m0_rpc_session_cancel(struct m0_rpc_session *session)
 	M0_ENTRY("session %p", session);
 
 	M0_PRE(session->s_session_id != SESSION_ID_0);
+	m0_rpc_machine_lock(session->s_conn->c_rpc_machine);
 	if (!M0_IN(session_state(session),
            (M0_RPC_SESSION_BUSY, M0_RPC_SESSION_IDLE))) {
-		M0_LEAVE("session %p", session);
+		M0_LEAVE("session %p state=%d", session, session_state(session));
+		m0_rpc_machine_unlock(session->s_conn->c_rpc_machine);
 		return;
 	}
-	m0_rpc_machine_lock(session->s_conn->c_rpc_machine);
 	if (session->s_cancelled)
 		goto leave_unlock;
 	session->s_cancelled = true;
@@ -871,11 +872,6 @@ M0_INTERNAL void m0_rpc_session_cancel(struct m0_rpc_session *session)
 leave_unlock:
 	m0_rpc_machine_unlock(session->s_conn->c_rpc_machine);
 	M0_POST(pending_item_tlist_is_empty(&session->s_pending_cache));
-	if (!M0_IN(session_state(session),
-           (M0_RPC_SESSION_BUSY, M0_RPC_SESSION_IDLE))) {
-		M0_LEAVE("session is already finalised %p", session);
-		return;
-	}
 	M0_LEAVE("session %p", session);
 }
 
