@@ -435,9 +435,15 @@ static void ctg_open(struct m0_cas_ctg *ctg, struct m0_be_seg *seg)
 
 static void ctg_fini(struct m0_cas_ctg *ctg)
 {
+	struct m0_btree_op b_op = {};
+	int                rc   = 0;
+
 	M0_ENTRY("ctg=%p", ctg);
 
 	ctg->cc_inited = false;
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				      m0_btree_close(ctg->cc_tree, &b_op));
+	M0_ASSERT(rc == 0);
 	m0_free0(&ctg->cc_tree);
 	m0_long_lock_fini(m0_ctg_lock(ctg));
 	m0_chan_fini_lock(&ctg->cc_chan.bch_chan);
@@ -2462,12 +2468,15 @@ M0_INTERNAL int ctg_index_btree_dump(struct m0_motr *motr_ctx,
                                      struct m0_cas_ctg *ctg,
 				     bool dump_in_hex)
 {
-	struct m0_buf key;
-	struct m0_buf val;
-	struct m0_btree_cursor cursor;
-	int rc;
+	struct m0_be_seg       *seg =
+				  cas_seg(&motr_ctx->cc_reqh_ctx.rc_be.but_dom);
+	struct m0_buf           key;
+	struct m0_buf           val;
+	struct m0_btree_cursor  cursor;
+	int                     rc;
 
-	ctg_init(ctg, cas_seg(&motr_ctx->cc_reqh_ctx.rc_be.but_dom));
+	ctg_init(ctg, seg);
+	ctg_open(ctg, seg);
 
 	m0_btree_cursor_init(&cursor, ctg->cc_tree);
 	for (rc = m0_btree_cursor_first(&cursor); rc == 0;
