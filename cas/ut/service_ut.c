@@ -250,6 +250,8 @@ static void init_fail(void)
 
 	reqh_init(true, false);
 
+	ut_dod_init(&dtm0_domain, &reqh, &be.but_dom);
+
 	/* Failure to add meta-index to segment dictionary. */
 	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(rc == 0);
