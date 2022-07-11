@@ -1892,7 +1892,9 @@ enum {
 	 * 2000 is enough to test multiple transactions if decrease transaction
 	 * size limit by using -c switch.
 	 */
-	BIG_ROWS_NUMBER = 2000,
+	/* TODO: return back to 2000 when dtm0 log is on be_seg1
+	 * (currently it's on seg0) */
+	BIG_ROWS_NUMBER = 500,
 	/*
 	 * Number of rows for 2-level btree.
 	 */
