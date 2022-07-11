@@ -807,7 +807,7 @@ static void remach_real_log_replay(void)
 }
 
 extern void m0_dtm0_ut_drlink_simple(void);
-extern void m0_dtm0_ut_domain_init_fini(void);
+extern void m0_dtm0_ut_volatile_domain_init_fini(void);
 extern void m0_dtm0_ut_log_simple(void);
 extern void m0_dtm0_ut_log_mpsc(void);
 extern void m0_dtm0_ut_pruner_init_fini(void);
@@ -817,14 +817,14 @@ extern void m0_dtm0_ut_pruner_two(void);
 extern void m0_dtm0_ut_pruner_many_left(void);
 extern void m0_dtm0_ut_pruner_mpsc(void);
 extern void m0_dtm0_ut_pruner_mpsc_many(void);
-extern void m0_dtm0_ut_domain_full_init_fini(void);
+extern void m0_dtm0_ut_persistent_domain_init_fini(void);
 
 struct m0_ut_suite dtm0_ut = {
 	.ts_name = "dtm0-ut",
 	.ts_tests = {
 		{ "xcode",                  cas_xcode_test        },
 		{ "drlink-simple",         &m0_dtm0_ut_drlink_simple },
-		{ "domain_init-fini",      &m0_dtm0_ut_domain_init_fini },
+		{ "domain_init-fini",      &m0_dtm0_ut_volatile_domain_init_fini },
 		{ "log-simple",            &m0_dtm0_ut_log_simple  },
 		{ "log-mpsc",              &m0_dtm0_ut_log_mpsc    },
 		{ "pruner_init-fini",      &m0_dtm0_ut_pruner_init_fini       },
@@ -834,7 +834,7 @@ struct m0_ut_suite dtm0_ut = {
 		{ "pruner_many_left",      &m0_dtm0_ut_pruner_many_left       },
 		{ "pruner_mpsc",           &m0_dtm0_ut_pruner_mpsc            },
 		{ "pruner_mpsc_many",      &m0_dtm0_ut_pruner_mpsc_many       },
-		{ "domain_full_init-fini", &m0_dtm0_ut_domain_full_init_fini  },
+		{ "domain_full_init-fini", &m0_dtm0_ut_persistent_domain_init_fini  },
 		{ "remach-init-fini",       remach_init_fini       },
 		{ "remach-start-stop",      remach_start_stop      },
 		{ "remach-boot-cluster-ss", remach_boot_cluster_ss },

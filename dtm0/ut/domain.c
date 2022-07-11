@@ -86,7 +86,7 @@ static void dtm0_ut_domain_fini(struct dtm0_ut_domain_ctx *dctx)
 	m0_dtm0_domain_cfg_free(&dctx->dod_cfg);
 }
 
-void m0_dtm0_ut_domain_init_fini(void)
+void m0_dtm0_ut_volatile_domain_init_fini(void)
 {
 	struct m0_dtm0_domain     *dod;
 	struct m0_dtm0_domain_cfg *dod_cfg;
@@ -111,7 +111,7 @@ void m0_dtm0_ut_domain_init_fini(void)
 	m0_free(dod);
 }
 
-void m0_dtm0_ut_domain_full_init_fini(void)
+void m0_dtm0_ut_persistent_domain_init_fini(void)
 {
 	struct dtm0_ut_domain_ctx dctx = {};
 
