@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2015-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2015-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,18 +79,17 @@ static const char *betool_help = ""
 "Usage: m0betool be_log_resize <path> <size> \n"
 "\n";
 
-extern void btree_dbg_print(struct m0_be_btree *tree);
+extern void btree_dbg_print(struct m0_btree *tree);
 
 void track_cob_btrees(struct m0_cob_domain *cdom, bool print_btree)
 {
 	if (print_btree) {
 		M0_LOG(M0_ALWAYS, "cd_object_index ");
-		btree_dbg_print(&cdom->cd_object_index);
+		btree_dbg_print((struct m0_btree *)cdom->cd_object_index);
 		M0_LOG(M0_ALWAYS, "cd_namespace ");
-		btree_dbg_print(&cdom->cd_namespace);
+		btree_dbg_print((struct m0_btree *)cdom->cd_namespace);
 		M0_LOG(M0_ALWAYS, "cd_fileattr_basic ");
-		btree_dbg_print(&cdom->
-				cd_fileattr_basic);
+		btree_dbg_print((struct m0_btree *)cdom->cd_fileattr_basic);
 	} else
 		M0_LOG(M0_ALWAYS,"M0_BE:COB "
 				"cd_object_index btree = %p "
@@ -107,18 +106,26 @@ void track_cob_btrees(struct m0_cob_domain *cdom, bool print_btree)
 
 void track_ad_btrees(struct stob_ad_0type_rec *rec, bool print_btree)
 {
-	struct m0_balloc         *m0balloc;
+	struct m0_balloc   *m0balloc;
+	struct m0_btree *db_ext;
+	struct m0_btree *db_gd;
+	struct m0_btree *emap;
+
 
 	m0balloc = container_of(rec->sa0_ad_domain->sad_ballroom,
 				struct m0_balloc, cb_ballroom);
 
+	db_ext = (struct m0_btree *)m0balloc->cb_db_group_extents;
+	db_gd  = (struct m0_btree *)m0balloc->cb_db_group_desc;
+	emap   = (struct m0_btree *)rec->sa0_ad_domain->sad_adata.em_mapping;
+
 	if (print_btree) {
 		M0_LOG(M0_ALWAYS, "em_mapping");
-		btree_dbg_print(&rec->sa0_ad_domain->sad_adata.em_mapping);
+		btree_dbg_print(emap);
 		M0_LOG(M0_ALWAYS, "grp_exts");
-		btree_dbg_print(&m0balloc->cb_db_group_extents);
+		btree_dbg_print(db_ext);
 		M0_LOG(M0_ALWAYS, "grp_dsc");
-		btree_dbg_print(&m0balloc->cb_db_group_desc);
+		btree_dbg_print(db_gd);
 	} else
 		M0_LOG(M0_ALWAYS,"M0_BE:AD em_mapping = %p"
 				 "cb_db_group_extents btree= %p "

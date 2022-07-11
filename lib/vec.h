@@ -170,6 +170,19 @@ struct m0_bufvec {
 	.ov_buf = (addr_ptr)						\
 }
 
+#define M0_BUFVEC_SEG_COUNT(bufvec)                                     \
+	({                                                              \
+		M0_CASSERT(M0_HAS_TYPE((bufvec), struct m0_bufvec *));  \
+		(bufvec)->ov_vec.v_nr;                                  \
+	})
+
+#define M0_BUFVEC_DATA(bufvec)                                          \
+	({                                                              \
+		M0_CASSERT(M0_HAS_TYPE((bufvec), struct m0_bufvec *));  \
+		M0_ASSERT((bufvec)->ov_vec.v_nr == 1);                  \
+		(bufvec)->ov_buf[0];                                    \
+	})
+
 /**
    Allocates memory for a struct m0_bufvec.  All segments are of equal
    size.

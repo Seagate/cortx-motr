@@ -30,9 +30,9 @@ SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.fsync-st}
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
-. $M0_SRC_DIR/utils/functions # report_and_exit
+. "$M0_SRC_DIR"/utils/functions # report_and_exit
 
-cd $M0_SRC_DIR
+cd "$M0_SRC_DIR"
 
 echo "Installing Motr services"
 scripts/install-motr-service -u
@@ -60,14 +60,14 @@ sleep 10 # allow motr to finish its startup
 
 echo "Perform fsync test"
 for i in 0:1{0..9}0000; do touch /mnt/m0t1fs/$i & done
-for i in $(jobs -p) ; do wait $i ; done
+for i in $(jobs -p) ; do wait "$i" ; done
 
 for i in 0:1{0..9}0000; do setfattr -n lid -v 8 /mnt/m0t1fs/$i & done
-for i in $(jobs -p) ; do wait $i ; done
+for i in $(jobs -p) ; do wait "$i" ; done
 
 for i in 0:1{0..9}0000; do dd if=/dev/zero of=/mnt/m0t1fs/$i \
     bs=8M count=20 conv=fsync & done
-for i in $(jobs -p) ; do wait $i ; done
+for i in $(jobs -p) ; do wait "$i" ; done
 
 echo "Tear down Motr services"
 systemctl stop motr-singlenode
@@ -77,7 +77,7 @@ utils/m0setup -v -P 12 -N 2 -K 1 -S 1 -i 3 -d /var/motr/img -s 8 -c
 scripts/install-motr-service -u
 
 if [ $rc -eq 0 ]; then
-    rm -r $SANDBOX_DIR
+    rm -r "$SANDBOX_DIR"
 fi
 
 report_and_exit m0d-fsync $rc

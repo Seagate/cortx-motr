@@ -56,11 +56,12 @@ M0_INTERNAL int m0_sns_cm_repair_cp_recv_wait(struct m0_cm_cp *cp);
 
 static void acc_cp_free(struct m0_cm_cp *cp)
 {
-	struct m0_sns_cm_repair_ag             *rag = sag2repairag(ag2snsag(cp->c_ag));
+	struct m0_sns_cm_repair_ag             *rag;
 	struct m0_sns_cm_repair_ag_failure_ctx *fc;
 
 	M0_PRE(cp != NULL);
 
+	rag = sag2repairag(ag2snsag(cp->c_ag));
 	m0_sns_cm_cp_buf_release(cp);
 	fc = container_of(cp2snscp(cp), struct m0_sns_cm_repair_ag_failure_ctx,
 			  fc_tgt_acc_cp);
@@ -133,11 +134,14 @@ M0_INTERNAL int m0_sns_cm_acc_cp_setup(struct m0_sns_cm_cp *scp,
 				       uint64_t failed_unit_idx,
 				       uint64_t data_seg_nr)
 {
-	struct m0_sns_cm_ag                    *sag = ag2snsag(scp->sc_base.c_ag);
-	struct m0_cm                           *cm = sag->sag_base.cag_cm;
+	struct m0_sns_cm_ag                    *sag;
+	struct m0_cm                           *cm;
 	struct m0_sns_cm_repair_ag_failure_ctx *rag_fc;
 
-        M0_PRE(scp != NULL && sag != NULL);
+        M0_PRE(scp != NULL);
+	sag = ag2snsag(scp->sc_base.c_ag);
+        M0_PRE(sag != NULL);
+	cm = sag->sag_base.cag_cm;
 	M0_PRE(m0_cm_is_locked(cm));
 
 	if (!sag->sag_base.cag_has_incoming)

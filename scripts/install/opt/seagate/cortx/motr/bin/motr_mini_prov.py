@@ -48,6 +48,7 @@ LOGDIR = "/var/log/seagate/motr"
 LOGGER = "mini_provisioner"
 IVT_DIR = "/var/log/seagate/motr/ivt"
 MOTR_LOG_DIR = "/var/motr"
+MOTR_OVERRIDE_CONF = "./opt/seagate/cortx/motr/conf/motr.conf"
 TIMEOUT_SECS = 120
 MACHINE_ID_LEN = 32
 MOTR_LOG_DIRS = [LOGDIR, MOTR_LOG_DIR]
@@ -89,38 +90,12 @@ def execute_command_without_log(cmd,  timeout_secs = TIMEOUT_SECS,
 #      need to make logger configurable to change formater, etc and remove below
 #      duplicate code,
 def execute_command_console(self, command):
-    logger = logging.getLogger("console")
-    if not os.path.exists(LOGDIR):
-        try:
-            os.makedirs(LOGDIR, exist_ok=True)
-            with open(f'{self.logfile}', 'w'): pass
-        except:
-            raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
-    else:
-        if not os.path.exists(self.logfile):
-            try:
-                with open(f'{self.logfile}', 'w'): pass
-            except:
-                raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
-    logger.setLevel(logging.DEBUG)
-    # create file handler which logs debug message in log file
-    fh = logging.FileHandler(self.logfile)
-    fh.setLevel(logging.DEBUG)
-    # create console handler to log messages ERROR and above
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s - %(message)s')
-    fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
-    logger.addHandler(fh)
-    logger.addHandler(ch)
-    logger.info(f"executing command {command}")
     try:
         process = subprocess.Popen(command, stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                    shell=True)
     except Exception as e:
-        logger.error("ERROR {} when running {} with exception {}".format(sys.exc_info()[1],
+        self.logger.error("ERROR {} when running {} with exception {}".format(sys.exc_info()[1],
                       command, e.message))
         return None
     while True:
@@ -128,7 +103,7 @@ def execute_command_console(self, command):
         if process.poll() is not None:
             break
         if stdout:
-            logger.info(stdout.strip().decode())
+            self.logger.info(stdout.strip().decode())
     rc = process.poll()
     return rc
 
@@ -593,6 +568,37 @@ def add_entry_to_logrotate_conf_file(self):
     with open(f"{mini_prov_conf_file}", 'w+') as fp:
         for line in lines:
             fp.write(line)
+
+def update_watermark_in_config(self, wm_str, wm_val):
+    self.logger.info(f"setting MOTR_M0D_BTREE_LRU_{wm_str} to {wm_val}\n")
+    cmd = f'sed -i "/MOTR_M0D_BTREE_LRU_{wm_str}/s/.*/MOTR_M0D_BTREE_LRU_{wm_str}={wm_val}/" {MOTR_SYS_CFG}'
+    execute_command(self, cmd)
+
+    #Making change in motr.conf in order to avoid any unintended update to watermark values
+    #due to overriding of configuration
+    cmd = f'sed -i "/MOTR_M0D_BTREE_LRU_{wm_str}/s/.*/MOTR_M0D_BTREE_LRU_{wm_str}={wm_val}/" {MOTR_OVERRIDE_CONF}'
+    execute_command(self, cmd)
+
+def update_btree_watermarks(self):
+    services_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
+    min_mem_limit_for_ios = 0
+
+    for arr_elem in services_limits:
+        if arr_elem['name'] == "ios":
+            l_min = arr_elem['memory']['min']
+            if l_min.isnumeric():
+                min_mem_limit_for_ios = int(l_min)
+            else:
+                min_mem_limit_for_ios = calc_size(self, l_min)
+
+    #TBD: If the performance is seen to be low, please tune these parameters.
+    wm_low  = int(min_mem_limit_for_ios * 0.40)
+    wm_targ = int(min_mem_limit_for_ios * 0.50)
+    wm_high = int(min_mem_limit_for_ios * 0.70)
+
+    update_watermark_in_config(self, "WM_LOW", wm_low)
+    update_watermark_in_config(self, "WM_TARGET", wm_targ)
+    update_watermark_in_config(self, "WM_HIGH", wm_high)
 
 def motr_config_k8(self):
     if not verify_libfabric(self):
@@ -1164,18 +1170,24 @@ def test_io(self):
 
 def config_logger(self):
     logger = logging.getLogger(LOGGER)
-    if not os.path.exists(LOGDIR):
+    if not os.path.exists(self.log_path_motr):
         try:
-            os.makedirs(LOGDIR, exist_ok=True)
+            os.makedirs(self.log_path_motr, exist_ok=True)
             with open(f'{self.logfile}', 'w'): pass
         except:
             raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
     else:
-        if not os.path.exists(self.logfile):
+        if not os.path.exists(f'{self.logfile}'):
             try:
                 with open(f'{self.logfile}', 'w'): pass
             except:
                 raise MotrError(errno.EINVAL, f"{self.logfile} creation failed\n")
+        else:
+            try:
+                with open(f'{self.logfile}', 'a'): pass
+            except:
+                raise MotrError(errno.EINVAL, f"{self.logfile} open in append mode  failed\n")
+
     logger.setLevel(logging.DEBUG)
     # create file handler which logs debug message in log file
     fh = logging.FileHandler(self.logfile)
@@ -1554,10 +1566,10 @@ def start_service(self, service, idx):
     create_dirs(self, ["/etc/motr"])
 
     cmd = f"cp -f {confd_path} /etc/motr/"
-    execute_command(self, cmd)
+    execute_command(self, cmd, verbose=True, logging=True)
 
     cmd = f"cp -v {self.local_path}/motr/sysconfig/{self.machine_id}/motr /etc/sysconfig/"
-    execute_command(self, cmd)
+    execute_command(self, cmd, verbose=True, logging=True)
 
     fid = fetch_fid(self, service, idx)
     if fid == -1:
