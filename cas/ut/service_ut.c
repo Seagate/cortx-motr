@@ -163,6 +163,7 @@ static void ut_dod_init(struct m0_dtm0_domain *dod, struct m0_reqh *reqh,
 
 static void ut_dod_fini(struct m0_dtm0_domain *dod)
 {
+	m0_dtm0_domain_fini(&dtm0_domain);
 	/* TODO */
 }
 
