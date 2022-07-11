@@ -48,6 +48,7 @@ LOGDIR = "/var/log/seagate/motr"
 LOGGER = "mini_provisioner"
 IVT_DIR = "/var/log/seagate/motr/ivt"
 MOTR_LOG_DIR = "/var/motr"
+MOTR_OVERRIDE_CONF = "./opt/seagate/cortx/motr/conf/motr.conf"
 TIMEOUT_SECS = 120
 MACHINE_ID_LEN = 32
 MOTR_LOG_DIRS = [LOGDIR, MOTR_LOG_DIR]
@@ -567,6 +568,37 @@ def add_entry_to_logrotate_conf_file(self):
     with open(f"{mini_prov_conf_file}", 'w+') as fp:
         for line in lines:
             fp.write(line)
+
+def update_watermark_in_config(self, wm_str, wm_val):
+    self.logger.info(f"setting MOTR_M0D_BTREE_LRU_{wm_str} to {wm_val}\n")
+    cmd = f'sed -i "/MOTR_M0D_BTREE_LRU_{wm_str}/s/.*/MOTR_M0D_BTREE_LRU_{wm_str}={wm_val}/" {MOTR_SYS_CFG}'
+    execute_command(self, cmd)
+
+    #Making change in motr.conf in order to avoid any unintended update to watermark values
+    #due to overriding of configuration
+    cmd = f'sed -i "/MOTR_M0D_BTREE_LRU_{wm_str}/s/.*/MOTR_M0D_BTREE_LRU_{wm_str}={wm_val}/" {MOTR_OVERRIDE_CONF}'
+    execute_command(self, cmd)
+
+def update_btree_watermarks(self):
+    services_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
+    min_mem_limit_for_ios = 0
+
+    for arr_elem in services_limits:
+        if arr_elem['name'] == "ios":
+            l_min = arr_elem['memory']['min']
+            if l_min.isnumeric():
+                min_mem_limit_for_ios = int(l_min)
+            else:
+                min_mem_limit_for_ios = calc_size(self, l_min)
+
+    #TBD: If the performance is seen to be low, please tune these parameters.
+    wm_low  = int(min_mem_limit_for_ios * 0.40)
+    wm_targ = int(min_mem_limit_for_ios * 0.50)
+    wm_high = int(min_mem_limit_for_ios * 0.70)
+
+    update_watermark_in_config(self, "WM_LOW", wm_low)
+    update_watermark_in_config(self, "WM_TARGET", wm_targ)
+    update_watermark_in_config(self, "WM_HIGH", wm_high)
 
 def motr_config_k8(self):
     if not verify_libfabric(self):
