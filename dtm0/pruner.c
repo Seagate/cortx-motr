@@ -204,7 +204,7 @@ static int pruner_fom_tick(struct m0_fom *fom)
 		if (dpf->dpf_successful) {
 			m0_fom_phase_set(fom, M0_FOPH_TXN_INIT);
 			result = M0_FSO_AGAIN;
-		} else {
+		} else { /* log_end() was called */
 			m0_fom_phase_set(fom, PFS_FINISH);
 			result = M0_FSO_WAIT;
 		}

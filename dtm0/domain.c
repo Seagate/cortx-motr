@@ -203,6 +203,7 @@ static void dtm0_domain_level_leave(struct m0_module *module)
 		m0_dtm0_pruner_fini(&dod->dod_pruner);
 		break;
 	case M0_DTM0_DOMAIN_LEVEL_PRUNER_START:
+		m0_dtm0_log_end(&dod->dod_log);
 		m0_dtm0_pruner_stop(&dod->dod_pruner);
 		break;
 
