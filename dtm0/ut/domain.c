@@ -71,6 +71,7 @@ static void dtm0_ut_domain_init(struct dtm0_ut_domain_ctx *dctx)
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_start(&dctx->reqh);
 
+	dctx->dod_cfg.dod_reqh = &dctx->reqh;
 	rc = m0_dtm0_domain_init(&dctx->dod, &dctx->dod_cfg);
 	M0_UT_ASSERT(rc == 0);
 }
