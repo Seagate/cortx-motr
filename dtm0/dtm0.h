@@ -100,8 +100,8 @@
 
 
 struct m0_dtx0_id {
-	uint64_t      dti_timestamp;    /* XXX fix the type */
 	struct m0_fid dti_originator_sdev_fid;
+	uint64_t      dti_timestamp;    /* XXX fix the type */
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
 
 

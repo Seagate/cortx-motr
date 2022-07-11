@@ -115,6 +115,7 @@ static int dtm0_domain_level_enter(struct m0_module *module)
 		if (reqh != NULL)
 			cfg->dodc_log.dlc_be_domain = reqh->rh_beseg->bs_domain;
 		cfg->dodc_pruner.dpc_cfs = &dod->dod_cfs;
+		cfg->dodc_pruner.dpc_dol = &dod->dod_log;
 		return M0_RC(0);
 	case M0_DTM0_DOMAIN_LEVEL_LOG_CREATE:
 		if (cfg->dod_create)
@@ -216,8 +217,8 @@ M0_INTERNAL int m0_dtm0_domain_init(struct m0_dtm0_domain     *dod,
 				    struct m0_dtm0_domain_cfg *dod_cfg)
 {
 	int  rc;
-	bool has_be_domain = dod_cfg->dod_reqh != NULL &&
-		dod_cfg->dod_reqh->rh_beseg->bs_domain == NULL;
+//	bool has_be_domain = dod_cfg->dod_reqh != NULL &&
+//		dod_cfg->dod_reqh->rh_beseg->bs_domain == NULL;
 
 	M0_ENTRY("dod=%p dod_cfg=%p", dod, dod_cfg);
 	m0_module_setup(&dod->dod_module, "m0_dtm0_domain module",
@@ -233,10 +234,11 @@ M0_INTERNAL int m0_dtm0_domain_init(struct m0_dtm0_domain     *dod,
 	 * TODO: volatile log is not implemented yet, so skip init for the
 	 * case where BE is not present (client side).
 	 */
-	rc = m0_module_init(&dod->dod_module, has_be_domain ?
+	rc = m0_module_init(&dod->dod_module, M0_DTM0_DOMAIN_LEVEL_READY);
+		/*	has_be_domain ?
 			    M0_DTM0_DOMAIN_LEVEL_READY :
 			    M0_DTM0_DOMAIN_LEVEL_INIT);
-	if (rc != 0)
+*/	if (rc != 0)
 		m0_module_fini(&dod->dod_module, M0_MODLEV_NONE);
 	return M0_RC(rc);
 }

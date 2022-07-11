@@ -1164,7 +1164,7 @@ static int cas_dtm0_logrec_add(struct m0_fom *fom0,
 	return rc;
 }
 
-static const struct m0_fid *cas_fom_sdev_fid(struct cas_fom *fom)
+static inline const struct m0_fid *cas_fom_sdev_fid(struct cas_fom *fom)
 {
 	uint32_t                sdev_idx;
 	struct m0_fom          *fom0 = &fom->cf_fom;
@@ -1196,14 +1196,20 @@ static void cas_fom_executed(struct cas_fom *fom)
 	struct m0_be_tx       *tx = &fom->cf_fom.fo_tx.tx_betx;
 	struct m0_dtm0_redo   *redo = fom->cf_redo;
 	const struct m0_fid   *sdev;
+	struct m0_fom          *fom0 = &fom->cf_fom;
+	enum m0_cas_opcode  opc     = m0_cas_opcode(fom0->fo_fop);
 
-	if (redo != NULL) {
-		sdev = cas_fom_sdev_fid(fom);
+	if (M0_IN(opc, (CO_PUT, CO_DEL)) && redo != NULL) {
+		/* @TODO: Get the storage device where this operation will
+ 		 * be persisted.
+ 		 * sdev = cas_fom_sdev_fid(fom);
+ 		 */
+		sdev = &M0_FID0;
 		M0_ASSERT(sdev != NULL);
 		rc = m0_dtx0_redo_add(dod, tx, redo, sdev);
 		M0_ASSERT_INFO(rc == 0, "Failed to update DTM0 log (%d)", rc);
 		cas_redo_free0(&fom->cf_redo);
-		m0_dtm0_redo_fini(redo);
+		//m0_dtm0_redo_fini(redo);
 		fom->cf_redo = NULL;
 	}
 }

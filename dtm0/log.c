@@ -108,7 +108,9 @@ M0_INTERNAL int m0_dtm0_log_open(struct m0_dtm0_log     *dol,
 	struct dtm0_log_data *log_data;
 	struct m0_be_domain  *dom = dol_cfg->dlc_be_domain;
 	struct m0_be_seg     *seg0 = m0_be_domain_seg0_get(dom);
-	struct m0_buf        *log_data_buf;
+	struct m0_be_seg     *seg = dol_cfg->dlc_seg != NULL ? dol_cfg->dlc_seg :
+					m0_be_domain_seg_first(dom);
+	struct m0_buf        *log_data_buf = NULL;
 	size_t                size_prefix;
 	size_t                size_suffix;
 	char                  name[0x100];
@@ -118,6 +120,7 @@ M0_INTERNAL int m0_dtm0_log_open(struct m0_dtm0_log     *dol,
 	M0_PRE(dol->dtl_data == NULL);
 
 	dol->dtl_cfg = *dol_cfg;
+	dol->dtl_cfg.dlc_seg = seg;
 	size_prefix = strlen(m0_dtm0_log0.b0_name);
 	/* XXX check that there is at least one \0 in the array */
 	size_suffix = strlen((const char *)&dol_cfg->dlc_seg0_suffix);
@@ -132,7 +135,8 @@ M0_INTERNAL int m0_dtm0_log_open(struct m0_dtm0_log     *dol,
 		return M0_ERR(rc);
 	log_data = *(struct dtm0_log_data **)log_data_buf->b_addr;
 	m0_be_btree_init(&log_data->dtld_transactions,
-			 m0_be_domain_seg_first(dom),
+			 seg,
+			//m0_be_domain_seg_first(dom),
 	                 &dtm0_log_transactions_kv_ops);
 	dol->dtl_data = log_data;
 	m0_mutex_init(&dol->dtl_lock);
@@ -159,7 +163,9 @@ M0_INTERNAL int m0_dtm0_log_create(struct m0_dtm0_log     *dol,
 	struct m0_be_domain    *dom = dol_cfg->dlc_be_domain;
 	struct m0_sm_group     *grp = m0_locality0_get()->lo_grp;
 	struct m0_be_btree      dummy_tree = {};
-	struct m0_be_seg       *seg = m0_be_domain_seg_first(dom);
+	struct m0_be_seg       *seg = dol_cfg->dlc_seg != NULL ? dol_cfg->dlc_seg :
+					m0_be_domain_seg_first(dom);
+//	struct m0_be_seg       *seg = m0_be_domain_seg0_get(dom); //m0_be_domain_seg_first(dom);
 	struct m0_be_tx         tx = {};
 	int                     rc;
 

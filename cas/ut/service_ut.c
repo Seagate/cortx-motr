@@ -62,6 +62,7 @@ static struct m0_reqh          reqh;
 static struct m0_be_ut_backend be;
 static struct m0_dtm0_domain   dtm0_domain;
 static struct m0_be_seg       *seg0;
+//struct m0_be_ut_seg            ut_seg;
 static struct m0_reqh_service *cas;
 static struct m0_reqh_service *fdmi;
 static struct m0_rpc_machine   rpc_machine;
@@ -135,6 +136,10 @@ static void reqh_init(bool mkfs, bool use_small_credits)
 		cfg.bc_engine.bec_tx_size_max =
 			M0_BE_TX_CREDIT(6 << 10, 5 << 18);
 	result = m0_be_ut_backend_init_cfg(&be, &cfg, mkfs);
+//        m0_be_ut_backend_init(&be);
+       /* m0_be_ut_seg_init(&ut_seg, &be,
+                          M0_DTM0_UT_DOMAIN_SEG_SIZE);
+*/
 	M0_ASSERT(result == 0);
 }
 
@@ -148,7 +153,8 @@ static void ut_dod_init(struct m0_dtm0_domain *dod, struct m0_reqh *reqh,
 	M0_UT_ASSERT(rc == 0);
 
 	cfg.dodc_log.dlc_be_domain = be_domain;
-	cfg.dodc_log.dlc_seg = m0_be_domain_seg_first(be_domain);
+	cfg.dodc_log.dlc_seg = seg0; //m0_be_domain_seg_first(be_domain);
+//	M0_UT_ASSERT(cfg.dodc_log.dlc_seg != NULL);
 	cfg.dod_reqh = reqh;
 
 	rc = m0_dtm0_domain_init(&dtm0_domain, &cfg);
@@ -1002,7 +1008,7 @@ static void insert(void)
 	init();
 	meta_fid_submit(&cas_put_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
-	index_op(&cas_put_fopt, &ifid, 1, 2);
+        index_op(&cas_put_fopt, &ifid, 1, 2);
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
