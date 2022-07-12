@@ -1463,7 +1463,8 @@
    btree by its txn_id and remove it from the correspondent redo_lists[p]. If
    it was the last non-empty redo_list for this log record (which means we've
    got pmsgs from all participant for it and it becomes all-p), and this log
-   record is min-nall-p - we can move min-nall-p pointer on one position right.
+   record is min-nall-p - we can move min-nall-p pointer to the right until
+   we find the next nall-p log record.
 
    */
 
