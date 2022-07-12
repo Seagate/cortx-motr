@@ -1439,8 +1439,8 @@
 
    Upon receiving a new cas request from the originator, the 1st thing we must
    check whether it is in the right interval: if it's older than the min-nall-p,
-   it should be dropped. (This might be some duplicate cas request which got
-   stuck for a while in the network somewhere.)
+   it should be dropped. (This might be a request which got stuck for a while
+   in the network somewhere which is stale by now.)
 
    After inserting the record to the log-btree, we should add it to redo_lists
    for each participant the transaction belongs to. But only in case when
