@@ -1432,14 +1432,14 @@
    it should be dropped. (This might be some duplicate cas request which got
    stuck for a while in the network somewhere.)
 
-   Note: there is no need to add redo msgs from other participants to the
-   redo_lists[]. Otherwise, we will multiply the redos in the network, which
-   will only aggravate the situation on a busy networks and systems.
-
    After inserting the record to the log-btree, we should add it to redo_lists
    for each participant the transaction belongs to. But only in case when
    it falls into the III-rd interval (REDO-without-RECOVERING). Usually, it
    will happen when the Last-non-r-w-r-able-dtx pointer is moved.
+
+   Note: there is no need to add redo msgs from other participants to the
+   redo_lists[]. Otherwise, we will multiply the redos in the network, which
+   will only aggravate the situation on a busy networks and systems.
 
    In most cases, the records will be sorted if we just add them to the end of
    the redo_lists[], and in a very rare cases when it is not (for example, when
