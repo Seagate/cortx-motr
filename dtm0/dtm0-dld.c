@@ -23,8 +23,8 @@
 /**
    @page DLD Motr DLD Template
 
-   - @ref DLD-ovw
-   - @ref DLD-def
+   - @ref DLD-ovw (todo)
+   - @ref DLD-def (done)
    - @ref DLD-req
    - @ref DLD-depends
    - @ref DLD-highlights
@@ -48,103 +48,7 @@
    briefly describes the document and provides any additional
    instructions or hints on how to best read the specification.</i>
 
-   This document is intended to be a style guide for a detail level
-   design specification, and is designed to be viewed both through a
-   text editor and in a browser after Doxygen processing.
-
-   You can use this document as a template by deleting all content,
-   while retaining the sections referenced above and the overall
-   Doxygen structure of a page with one or more component modules.
-   You @b <i>must</i> change the Doxygen reference tags used in
-   @@page, @@section, @@subsection and @@defgroup examples when
-   copying this template, and adjust @@ref and @@subpage references in
-   the table of contents of your own document accordingly.
-
-   Please provide a table of contents for the major sections, as shown above.
-   Please use horizontal ruling exactly as shown in this template, and do not
-   introduce additional lines.
-
-   It is recommended that you retain the italicized instructions that
-   follow the formally recognized section headers until at least the
-   DLD review phase.  You may leave the instructions in the final
-   document if you wish.
-
-   It is imperative that the document be neat when viewed textually
-   through an editor and when browsing the Doxygen output - it is
-   intended to be relevant for the entire code life-cycle.  Please
-   check your grammar and punctuation, and run the document through a
-   spelling checker.  It is also recommended that you run the source
-   document through a paragraph formatting tool to produce neater
-   text, though be careful while doing so as text formatters do not
-   understand Doxygen syntax and significant line breaks.
-
-   Please link your DLD to the index of all detailed designs maintained
-   in @ref DLDIX "Detailed Designs". <!-- doc/dld/dld-index.c -->
-
-   <b>Purpose of a DLD</b> @n
-   The purpose of the Detailed Level Design (DLD) specification of a
-   component is to:
-   - Refine higher level designs
-   - To be verified by inspectors and architects
-   - To guide the coding phase
-
-   <b>Location and layout of the DLD Specification</b> @n
-   The Motr project requires Detailed Level Designs in the source
-   code itself.  This greatly aids in keeping the design documentation
-   up to date through the lifetime of the implementation code.
-
-   The main DLD specification shall primarily be located in a C file
-   in the component being designed.  The main DLD specification can be
-   quite large and is probably not of interest to a consumer of the
-   component.
-
-   It is @a required that the <b>Functional Specification</b> and
-   the <b>Detailed Functional Specification</b> be located in the
-   primary header file - this is the header file with the declaration
-   of the external interfaces that consumers of the component's API
-   would include.  In case of stand alone components, an appropriate
-   alternative header file should be chosen.
-
-   <b>Structure of the DLD</b> @n
-   The DLD specification is @b required to be sectioned in the
-   specific manner illustrated by the @c dld-sample.c and
-   @c dld-sample.h files.  This is similar in structure and
-   purpose to the sectioning found in a High Level Design.
-
-   Not all sections may be applicable to every design, but sections
-   declared to be mandatory may not be omitted.  If a mandatory
-   section does not apply, it should clearly be marked as
-   non-applicable, along with an explanation.  Additional sections or
-   sub-sectioning may be added as required.
-
-   It is probably desirable to split the Detailed Functional
-   Specifications into separate header files for each sub-module of
-   the component.  This example illustrates a component with a single
-   module.
-
-   <b>Formatting language</b> @n
-   Doxygen is the formatting tool of choice.  The Doxygen @@page
-   format is used to define a separate top-level browsable element
-   that contains the body of the DLD. The @@section, @@subsection and
-   @@subsubsection formatting commands are used to provide internal
-   structure.  The page title will be visible in the <b>Related Pages</b>
-   tab in the main browser window, as well as displayed as a top-level
-   element in the explorer side-bar.
-
-   The Functional Specification is to be located in the primary header
-   file of the component in a Doxygen @@page that is referenced as a
-   @@subpage from the table of contents of the main DLD specification.
-   This sub-page shows up as leaf element of the DLD in the explorer
-   side-bar.
-
-   Detailed functional specifications follow the Functional
-   Specification, using Doxygen @@defgroup commands for each component
-   module.
-
-   Within the text, Doxygen commands such as @@a, @@b, @@c and @@n are
-   preferred over equivalent HTML markup; this enhances the readability
-   of the DLD in a text editor.  However, visual enhancement of
-   multiple consecutive words does require HTML markup.
+   TODO: write overview; add to the index in dld-index.c.
 
    <hr>
    @section DLD-def Definitions
@@ -155,50 +59,52 @@
    M0 Glossary and the component's HLD are permitted and encouraged.
    Agreed upon terminology should be incorporated in the glossary.</i>
 
+   Previously defined terms:
+   - <b>Storage device</b> A configuration object that corresponds to a physical
+   device where Motr keeps data. In this document, this term is used as synonym
+   for "persistent participant": Motr stores its persistent data on persistent
+   participants.
+   - <b>Unit</b> Unit of data. In this document, this term is used
+   primary to describe DIX records (DIX/CAS) and data units (IO/IOS).
+   New terms:
+   - <b>Participant</b> A member of a distributed transaction. Participants
+   comprise originators and storage devices.
+   - <b>Originator</b> The initiator of a distributed transaction. Originators
+   has no persistent storage.
+   - <b>PERSISTENT message, Pmsg, Pmgs (plural)</b> A message that indicates
+   that a certain information (transaction, log record) became persistent
+   on a certain storage device.
+   <b>Log record has/is All-P</b>: P messages were received about all non-FAILED
+   storage devices that are participants of this log record's dtx.
+   <b>Local participant</b> -- participant which is handled by the current DTM0
+   domain.
+   <b>Remote participant</b> -- participant which is not local participant.
+   - <b>Availability</b> This term could be used in the following cases:
 
-   XXX
-   Pmsg, Pmsgs
-
-   Read availability of participant: it can successfully serve READ requests.
-   Participant is available for reads in ONLINE state only.
-   Write availability of participant: it can successfully serve WRITE requests.
+   <i>Read availability of participant</i> if it can successfully serve READ
+   requests.  Participant is available for reads in ONLINE state only.  Write
+   availability of participant: it can successfully serve WRITE requests.
    Participant is available for writes in ONLINE and RECOVERING states.
 
-   XXX:DixRecord is READ-available if at least read-quorum of replicas are on
+   <i>Unit is READ-available</i> if at least read-quorum of replicas are on
    READ-available participants, i.e. on ONLINE storage devices.
-   XXX:DixRecord is WRITE-available if at least write-quorum of replicas are on
+
+   <i>Unit is WRITE-available</i> if at least write-quorum of replicas are on
    WRITE-available participants, i.e. on ONLINE or RECOVERING storage devices.
 
-   Read availability for pool: every possible object in the pool is
-   READ-available, i.e. at least (pool_width - (number-of-replicas - read-quorum))
-   storage devices are READ-available, i.e. in ONLINE state.
-   Write availability for pool: every possible object in the pool is
-   WRITE-available, i.e. at least (pool_width - (number-of-replicas - write-quorum))
+   <i>Read availability for pool</i>: every possible object in the pool is
+   READ-available, i.e. at least (pool_width - (number-of-replicas -
+   read-quorum)) storage devices are READ-available, i.e. in ONLINE state.
+
+   <i>Write availability for pool<i>: every possible object in the pool is
+   WRITE-available, i.e. at least
+   (pool_width - (number-of-replicas - write-quorum))
    storage devices are WRITE-available, i.e. in ONLINE or RECOVERING state.
-   XXX:Explanation: (number-of-replicas - x-quorum) corresponds to the maximal
+   Explanation: (number-of-replicas - x-quorum) corresponds to the maximal
    number of devices in the "wrong" state among the pool.
 
-   XXX:XXX: Consider failure domains for READ and WRITE pool availability.
-
-   Log record has/is All-P: P messages were received about all non-FAILED
-   storage devices that are participants of this log record's dtx.
-
-   Local participant -- participant which is handled by the current DTM0 domain.
-   Remote participant -- participant which is not local participant.
-
-
-   Previously defined terms:
-   - <b>Logical Specification</b> This explains how the component works.
-   - <b>Functional Specification</b> This is explains how to use the component.
-
-   New terms:
-   - <b>Detailed Functional Specification</b> This provides
-     documentation of ll the data structures and interfaces (internal
-     and external).
-   - <b>State model</b> This explains the life cycle of component data
-     structures.
-   - <b>Concurrency and threading model</b> This explains how the the
-     component works in a multi-threaded environment.
+   XXX: [Difficult task] Consider failure domains for READ and WRITE pool
+   availability.
 
    <hr>
    @section DLD-req Requirements
@@ -209,24 +115,27 @@
    "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and "OPTIONAL" in this
    document are to be interpreted as described in RFC 2119.
 
+   Considerations/assumptions (TODO: move it into the respective secions):
    - Client has limited capacity (timeout for operation).
      Conclusion: Sliding window is always moving on.
    - Duration of TRANSIENT failure - 1 month.
    - We want to be able to clean up the log in a way that this operation
      is not limited by the time when someone entered TRANSIENT.
-
    - N% of performance degradation is allowed during dtm0 recovery.
+
+   Requirements:
 
    - dtm0 MUST maximize A, D and performance of the system.
 	   - R.dtm0.maximize.availability
 	   - R.dtm0.maximize.durability
 	   - R.dtm0.maximize.performance
 
-   - dtm0 MUST restore missing replicas in minimal time (REDO outside of RECOVERING).
+   - dtm0 MUST restore missing replicas in minimal time.
+   See REDO-without-RECOVERING for the details.
 
-   - dtm0 MUST handle ... ->
-	   - replicas MAY become missing due to process crash/restart or because of
-	   unreliable network.
+   - dtm0 MUST handle at least the folloing kinds of failures:
+     + replicas MAY become missing due to process crash/restart or because of
+     unreliable network.
 
    - dtm0 MUST restore missing replicas even without process restarts.
 
@@ -527,7 +436,7 @@
    @verbatim
         (IV)                  (III)             (II)       (I)
    [ Seq-All-P  ]   [REDO-without-RECOVERING] [N-txns] [current-window]
-   x------------x-----------------------------x------x--------------->
+   x------------x-----------------------------x------x---------------> (originator's clock)
    ^            ^                             ^
    |            | Max-All-P                   |
    |                                          | Last-non-r-w-r-able-dtx
@@ -1435,7 +1344,72 @@
    a single DTM0 log.
 
    TODO: consider almost "immutable" list links in log records (for FOL).
- */
+
+
+
+   @verbatim
+        (IV)                  (III)             (II)       (I)
+   [ Seq-All-P  ]   [REDO-without-RECOVERING] [N-txns] [current-window]
+
+   (sdev1.self)
+   x------------x-------------O1-m1----------------x------x--------------->
+   (sdev1.sdev2)
+   x------------x--------m2-m3------------------x------x--------------->
+
+
+   (sdev2.self)
+   x------------x--------m4-O2-------------------x------x--------------->
+   (sdev2.sdev1)
+   x------------x----------------m5--------------------x------x--------------->
+   ^            ^                             ^
+   |            | Max-All-P                   |
+   |                                          | Last-non-r-w-r-able-dtx
+   | Last non-pruned dtx
+
+   Intervals:
+     IV:  [last non-pruned dtx, Max-All-P]
+     III: (Max-All-P, Non-Rwr]
+
+   m - min-nall-p
+   @endverbatim
+
+   @verbatim
+                                                              CAS REQ
+							      (will be executed)
+                                                                |
+                                                               \|/
+
+        (IV)                  (III)             (II)       (I)
+   [ Seq-All-P  ]   [REDO-without-RECOVERING] [N-txns] [current-window]
+   x------------x-----------------------------x--------x--------------->
+                ^                             ^
+		| Max-All-P                   | Last-non-r-w-r-able-dtx
+
+                                         CAS REQ (will be droped)
+                                           |
+                                          \|/
+
+        (IV)                  (III)             (II)       (I)
+   [ Seq-All-P  ][                    ] [     ] [current-window]
+   x------------x----------------------x------x--------------->
+   ^            ^                      ^
+   |            | Max-All-P            |
+   |                                   | Last-non-r-w-r-able-dtx
+   | Last non-pruned dtx
+
+   Intervals:
+     IV:  [last non-pruned dtx, Max-All-P]
+     III: (Max-All-P, Non-Rwr]
+
+   m - min-nall-p
+   @endverbatim
+
+   New conclusions:
+   - we can (must?) reject CAS requests which txid is less than min-non-all-p
+   (local).
+   - but redo will be ignored when their txid is less than min-min-non-all-p
+   (global).
+   */
 
 
 #include "doc/dld/dld_template.h"
