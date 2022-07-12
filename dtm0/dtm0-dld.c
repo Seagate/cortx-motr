@@ -1427,18 +1427,25 @@
    There is no strict requirement for redo msgs to be ordered, but it's good
    to have them in order by txn_id in the redo_lists[].
 
-   Upon receiving a new redo record (either it is cas request or redo from
-   another participant), the 1st thing we must check whether it is in the right
-   interval: if it's older than Max-All-P pointer - it should be dropped.
-   (This might be some cas request which got stuck for a while in a network.)
+   Upon receiving a new cas request from the originator, the 1st thing we must
+   check whether it is in the right interval: if it's older than the Max-All-P,
+   it should be dropped. (This might be some duplicate cas request which got
+   stuck for a while in the network somewhere.)
 
-   After inserting the record to the log-btree, we should add to to redo_lists
-   for each participant the transaction belonged to. In most cases the right
-   place for the new records will be just at the end of the redo_lists[], and
-   in a rare cases when it is not the case (due to some network issues or some
-   delays) it would be enough to make a few steps back in the list to find the
-   right place. But this optimisation is not critical and can be implemented
-   later.
+   Note: there is no need to add redo msgs from other participants to the
+   redo_lists[]. Otherwise, we will multiply the redos in the network, which
+   will only aggravate the situation on a busy networks and systems.
+
+   After inserting the record to the log-btree, we should add it to redo_lists
+   for each participant the transaction belongs to. But only in case when
+   it falls into the III-rd interval (REDO-without-RECOVERING). Usually, it
+   will happen when the Last-non-r-w-r-able-dtx pointer is moved.
+
+   In most cases, the records will be sorted if we just add them to the end of
+   the redo_lists[], and in a very rare cases when it is not (for example, when
+   some cas request was delayed in the network for some reason so that it
+   immediately falls into the III-rd interval) - the right place can be easily
+   found by searching from the end of the list.
 
    */
 
