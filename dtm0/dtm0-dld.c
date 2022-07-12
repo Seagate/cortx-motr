@@ -1422,7 +1422,7 @@
    down. With the redo_lists[i], we will just skip the participant(s) which
    is(are) offline.
 
-   How do we add new redo records to redo_lists[]?
+   How do we add redo records to the redo_lists[]?
 
    There is no strict requirement for redo msgs to be ordered, but it's good
    to have them in order by txn_id in the redo_lists[].
@@ -1446,6 +1446,11 @@
    some cas request was delayed in the network for some reason so that it
    immediately falls into the III-rd interval) - the right place can be easily
    found by searching from the end of the list.
+
+   How the redo_lists[] are cleaned up?
+
+   Upon receival of pmsg from the participant p, we find the record in the log-
+   btree by its txn_id and remove it from the correspondent redo_lists[p].
 
    */
 
