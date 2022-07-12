@@ -1410,17 +1410,27 @@
    - but redo will be ignored when their txid is less than min-min-non-all-p
    (global).
 
-   Why do we need redo_lists[by_participants] ?
+   redo_lists[by_participants] - what are they?
+
+   Cas request from the III-rd (REDO-without-RECOVERING) interval might be
+   present in at least one the redo_lists[by_participant], so that the
+   recovery process can send the redo msgs to the online participants from
+   which there was no pmsg yet. Therefore, every log record must have
+   redo_links[i], where i < K. (This, in turn, requires the btree log record
+   to be the pointer to the actual log record with the redo_links, so that
+   the lists pointers are not broken on btree rebalance.)
+
+   Why do we need redo_lists[] exactly?
 
    Consider the case when some participant is down for a while, like days.
    There will be huge amount of redo records in the log for it. But we still
-   need to be able to find the redo records to be sent to online participants
-   from which we don't have any pmsgs (for some reason) - this is part of the
-   normal online recovery work. If we don't have such redo_lists[i], we will
-   need to traverse the btree-log from the start (from the olders records)
-   every time and skip a huge amount of records for the participant which is
-   down. With the redo_lists[i], we will just skip the participant(s) which
-   is(are) offline.
+   need to be able to find quickly the redo records to be sent to online
+   participants from which we don't have any pmsgs (for some reason) -
+   this is part of the normal online recovery work. If we don't have such
+   redo_lists[i], we will need to traverse the btree-log from the start (from
+   the olders records) every time and skip a huge amount of records for the
+   participant which is down. redo_lists[i] allow us to ignore offline
+   participant(s) easily and work only with online ones.
 
    How do we add redo records to the redo_lists[]?
 
