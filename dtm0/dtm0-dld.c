@@ -1438,7 +1438,7 @@
    to have them in order by txn_id in the redo_lists[].
 
    Upon receiving a new cas request from the originator, the 1st thing we must
-   check whether it is in the right interval: if it's older than the Max-All-P,
+   check whether it is in the right interval: if it's older than the min-nall-p,
    it should be dropped. (This might be some duplicate cas request which got
    stuck for a while in the network somewhere.)
 
@@ -1460,7 +1460,10 @@
    How the redo_lists[] are cleaned up?
 
    Upon receival of pmsg from the participant p, we find the record in the log-
-   btree by its txn_id and remove it from the correspondent redo_lists[p].
+   btree by its txn_id and remove it from the correspondent redo_lists[p]. If
+   it was the last non-empty redo_list for this log record (which means we've
+   got pmsgs from all participant for it and it becomes all-p), and this log
+   record is min-nall-p - we can move min-nall-p pointer on one position right.
 
    */
 
