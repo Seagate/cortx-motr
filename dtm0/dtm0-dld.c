@@ -1409,6 +1409,37 @@
    (local).
    - but redo will be ignored when their txid is less than min-min-non-all-p
    (global).
+
+   Why do we need redo_lists[by_participants] ?
+
+   Consider the case when some participant is down for a while, like days.
+   There will be huge amount of redo records in the log for it. But we still
+   need to be able to find the redo records to be sent to online participants
+   from which we don't have any pmsgs (for some reason) - this is part of the
+   normal online recovery work. If we don't have such redo_lists[i], we will
+   need to traverse the btree-log from the start (from the olders records)
+   every time and skip a huge amount of records for the participant which is
+   down. With the redo_lists[i], we will just skip the participant(s) which
+   is(are) offline.
+
+   How do we add new redo records to redo_lists[]?
+
+   There is no strict requirement for redo msgs to be ordered, but it's good
+   to have them in order by txn_id in the redo_lists[].
+
+   Upon receiving a new redo record (either it is cas request or redo from
+   another participant), the 1st thing we must check whether it is in the right
+   interval: if it's older than Max-All-P pointer - it should be dropped.
+   (This might be some cas request which got stuck for a while in a network.)
+
+   After inserting the record to the log-btree, we should add to to redo_lists
+   for each participant the transaction belonged to. In most cases the right
+   place for the new records will be just at the end of the redo_lists[], and
+   in a rare cases when it is not the case (due to some network issues or some
+   delays) it would be enough to make a few steps back in the list to find the
+   right place. But this optimisation is not critical and can be implemented
+   later.
+
    */
 
 
