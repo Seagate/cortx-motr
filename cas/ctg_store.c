@@ -436,7 +436,7 @@ static void ctg_open(struct m0_cas_ctg *ctg, struct m0_be_seg *seg)
 static void ctg_fini(struct m0_cas_ctg *ctg)
 {
 	struct m0_btree_op b_op = {};
-	int                rc   = 0;
+	int                rc;
 
 	M0_ENTRY("ctg=%p", ctg);
 
