@@ -1194,10 +1194,11 @@ def config_logger(self):
     fh.setLevel(logging.DEBUG)
     # create console handler to log messages ERROR and above
     ch = logging.StreamHandler()
-    ch.setLevel(logging.ERROR)
+    ch.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    formatter_stream = logging.Formatter('%(asctime)s - %(message)s')
     fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
+    ch.setFormatter(formatter_stream)
     logger.addHandler(fh)
     logger.addHandler(ch)
     return logger
