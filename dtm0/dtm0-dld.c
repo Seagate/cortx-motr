@@ -1435,27 +1435,23 @@
    How do we add redo records to the redo_lists[]?
 
    There is no strict requirement for redo msgs to be ordered, but it's good
-   to have them in order by txn_id in the redo_lists[].
+   to have them in order by txn_id in the redo_lists[]. In the initial
+   implementation we can just append the records at the tail of the lists.
 
-   Upon receiving a new cas request from the originator, the 1st thing we must
+   Upon receiving a new cas request or redo msg, the 1st thing we must
    check whether it is in the right interval: if it's older than the min-nall-p,
    it should be dropped. (This might be a request which got stuck for a while
    in the network somewhere which is stale by now.)
 
-   After inserting the record to the log-btree, we should add it to redo_lists
-   for each participant the transaction belongs to. But only in case when
-   it falls into the III-rd interval (REDO-without-RECOVERING). Usually, it
-   will happen when the Last-non-r-w-r-able-dtx pointer is moved.
-
-   Note: there is no need to add redo msgs from other participants to the
-   redo_lists[]. Otherwise, we will multiply the redos in the network, which
-   will only aggravate the situation on a busy networks and systems.
+   After inserting the record to the log-btree, we should add it to redo_lists[]
+   for each participant the transaction belongs to.
 
    In most cases, the records will be sorted if we just add them to the end of
    the redo_lists[], and in a very rare cases when it is not (for example, when
    some cas request was delayed in the network for some reason so that it
    immediately falls into the III-rd interval) - the right place can be easily
-   found by searching from the end of the list.
+   found by searching from the end of the list. As it was mentioned above, this
+   optimisation can be implemented later.
 
    How the redo_lists[] are cleaned up?
 
@@ -1465,6 +1461,22 @@
    got pmsgs from all participant for it and it becomes all-p), and this log
    record is min-nall-p - we can move min-nall-p pointer to the right until
    we find the next nall-p log record.
+
+   What if we get pmsg for which there is no log record yet?
+
+   Such situations may happen, indeed, when, for example, one server processes
+   requests faster than the other or due to some network delays. In any case,
+   we should record such pmsgs to avoid sending needless redo msgs later, which
+   will only aggravate the situation on a busy networks and systems.
+
+   So we should create a placeholder records in the log with the correspondent
+   flag in the payload structure. On the 1st such pmsg arrival, we should add
+   the placeholder record to all redo_lists[] of the correspondent participants,
+   except the one from which the pmsg arrived. On subsequent arrival of pmsgs,
+   we can just remove the placeholder record from the correspondent redo_list.
+   On actual request arrival, we can just update the placeholder with the
+   payload and don't touch the redo_lists[].
+
 
    */
 
