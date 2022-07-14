@@ -346,7 +346,7 @@ function m0kv_async()
     args=$(python3 -c "import yaml; \
         conf = yaml.load(open('$M0CRATE_CFG'), Loader=yaml.FullLoader); \
         m = conf['MOTR_CONFIG']; \
-        print('-l %s -h %s -p %s -f %s' % (m['MOTR_LOCAL_ADDR'], m['MOTR_HA_ADDR'], m['PROF'], m['PROCESS_FID']));")
+        print('-L -C -l %s -h %s -p %s -f %s' % (m['MOTR_LOCAL_ADDR'], m['MOTR_HA_ADDR'], m['PROF'], m['PROCESS_FID']));")
 
     _info "m0kv $args $@"
     ${MOTR_UTILS_DIR}/m0kv $args $@ &
@@ -361,9 +361,15 @@ function m0kv()
 
 function m0kv_run_sync()
 {
-    m0kv index create "${DINDEX}"
-    m0kv -s index put "${DINDEX}" mykey myvalue
-    m0kv -s index get "${DINDEX}" mykey
+    local m0kv_tmp_out="/tmp/m0kv_tmp_out"
+    local pool_version=
+
+    m0kv -e index create "${DINDEX}" | tee "${m0kv_tmp_out}"
+    pool_version=$(cat "${m0kv_tmp_out}" | grep "pool" | awk '{ print $4; }')
+    rm -f "${m0kv_tmp_out}"
+
+    m0kv -v "${pool_version}" -s index put "${DINDEX}" mykey myvalue
+    m0kv -v "${pool_version}" -s index get "${DINDEX}" mykey
     m0kv index drop "${DINDEX}"
 }
 
@@ -489,18 +495,22 @@ function recovery_phase()
     local redo_pattern="m0_dtm0_recovery_machine_redo_post   > in-redo"
     local dtx_done_pattern="dtx_done                             >"
     local m0kv_wait_file="/tmp/m0kv_wait"
+    local m0kv_tmp_out="/tmp/m0kv_tmp_out"
+    local pool_version=
 
     _info "Phase recovery:recovery"
     local svc_name="m0d@0x720000000000000${M0D_FIDS_HEX[VICTIM]}.service"
 
     _info "Create an index"
-    m0kv index create "${DINDEX}"
+    m0kv -e index create "${DINDEX}" | tee "${m0kv_tmp_out}"
+    pool_version=$(cat "${m0kv_tmp_out}" | grep "pool" | awk '{ print $4; }')
+    rm -f "${m0kv_tmp_out}"
 
     _info "Populate the index"
-    m0kv -s index put "${DINDEX}" mykey1 myvalue1
+    m0kv -v "${pool_version}" -s index put "${DINDEX}" mykey1 myvalue1
 
     _info "PUT one key, hang on"
-    m0kv_async -s index put "${DINDEX}" mykey2 myvalue2 \
+    m0kv_async -v "${pool_version}" -s index put "${DINDEX}" mykey2 myvalue2 \
         wait "${m0kv_wait_file}" put "${DINDEX}" mykey3 myvalue3
 
     _info "Wait until mykey2 reached the persistent storage on at least one node."
