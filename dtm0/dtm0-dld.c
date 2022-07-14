@@ -60,51 +60,49 @@
    Agreed upon terminology should be incorporated in the glossary.</i>
 
    Previously defined terms:
-   - <b>Storage device</b> A configuration object that corresponds to a physical
-   device where Motr keeps data. In this document, this term is used as synonym
-   for "persistent participant": Motr stores its persistent data on persistent
-   participants.
+
+   - <b>Storage device (sdev)</b> A configuration object that corresponds to a
+   physical device where Motr keeps data. In this document, this term is used
+   as synonym for "persistent participant": Motr stores its persistent data on
+   persistent participants.
+
    - <b>Unit</b> Unit of data. In this document, this term is used
    primary to describe DIX records (DIX/CAS) and data units (IO/IOS).
+
    New terms:
+
    - <b>Participant</b> A member of a distributed transaction. Participants
-   comprise originators and storage devices.
+   comprise originators and storage devices. One persistent participant
+   corresponds to one sdev.
+
    - <b>Originator</b> The initiator of a distributed transaction. Originators
    has no persistent storage.
+
    - <b>PERSISTENT message, Pmsg, Pmgs (plural)</b> A message that indicates
    that a certain information (transaction, log record) became persistent
-   on a certain storage device.
-   <b>Log record has/is All-P</b>: P messages were received about all non-FAILED
-   storage devices that are participants of this log record's dtx.
-   <b>Local participant</b> -- participant which is handled by the current DTM0
-   domain.
-   <b>Remote participant</b> -- participant which is not local participant.
-   - <b>Availability</b> This term could be used in the following cases:
+   on a certain storage device (persistent participant).
 
-   <i>Read availability of participant</i> if it can successfully serve READ
-   requests.  Participant is available for reads in ONLINE state only.  Write
-   availability of participant: it can successfully serve WRITE requests.
-   Participant is available for writes in ONLINE and RECOVERING states.
+   - <b>Log record has/is All-P</b>: P messages were received about all
+   non-FAILED storage devices that are participants of this log record's
+   dtx. (FAILED sdevs will be replaced later with the new sdevs which will have
+   new FIDs, and the data will be rebalanced to them.)
 
-   <i>Unit is READ-available</i> if at least read-quorum of replicas are on
-   READ-available participants, i.e. on ONLINE storage devices.
+   - <b>Local participant</b> -- participant which is handled by the current
+   DTM0 domain. (One DTM0 domain may have several local participants.)
 
-   <i>Unit is WRITE-available</i> if at least write-quorum of replicas are on
-   WRITE-available participants, i.e. on ONLINE or RECOVERING storage devices.
+   - <b>Remote participant</b> -- participant which is not local participant.
 
-   <i>Read availability for pool</i>: every possible object in the pool is
-   READ-available, i.e. at least (pool_width - (number-of-replicas -
-   read-quorum)) storage devices are READ-available, i.e. in ONLINE state.
+     <i>Read availability of participant</i> if it can successfully serve READ
+     requests.  Participant is available for reads in ONLINE state only.
 
-   <i>Write availability for pool<i>: every possible object in the pool is
-   WRITE-available, i.e. at least
-   (pool_width - (number-of-replicas - write-quorum))
-   storage devices are WRITE-available, i.e. in ONLINE or RECOVERING state.
-   Explanation: (number-of-replicas - x-quorum) corresponds to the maximal
-   number of devices in the "wrong" state among the pool.
+     <i>Write availability of participant</i> if it can successfully serve WRITE
+     requests.  Participant is available for writes in ONLINE state.
 
-   XXX: [Difficult task] Consider failure domains for READ and WRITE pool
-   availability.
+     <i>Unit is READ-available</i> if at least read-quorum of replicas are on
+     READ-available participants, i.e. on ONLINE storage devices.
+
+     <i>Unit is WRITE-available</i> if at least write-quorum of replicas are on
+     WRITE-available participants, i.e. on ONLINE storage devices.
 
    <hr>
    @section DLD-req Requirements
@@ -812,15 +810,6 @@
    For each local participant, we iterate over the REDO-list, send out REDOs,
    thus recovering the corresponding remote participant. The recovery machine
    sends the (REDO, local participant Pmsg) tuple to the remote participant.
-   Once all the mesages were sent, it sends End-of-log (EOL) message for the
-   local participant.
-   On the recovering side: recovery machine awaits EOL from a particular set
-   of participants (see below).
-   Local storage device recovery is considered as complete
-   ("recovery-stop-condition") when the following sets are READ-available:
-     - Set1: local storage device + set of remote storage devices that sent EOL.
-     - Set2: local storage device + set of remote storage devices to which EOL
-     was sent.
 
    Note, recovery machine may need to recover a local storage device
    (inter-process recovery). It is done in the same way as with remote storage
