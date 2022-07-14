@@ -1004,6 +1004,8 @@ extern void m0_dtm0_ut_drlink_simple(void);
 extern void m0_dtm0_ut_domain_init_fini(void);
 extern void m0_dtm0_ut_net_tranceive(void);
 extern void m0_dtm0_ut_net_init_fini(void);
+extern void m0_dtm0_ut_net_thin_init_fini(void);
+extern void m0_dtm0_ut_net_thin_start_stop(void);
 
 struct m0_ut_suite dtm0_ut = {
 	.ts_name = "dtm0-ut",
@@ -1021,8 +1023,10 @@ struct m0_ut_suite dtm0_ut = {
 		{ "remach-real-log-replay",   remach_real_log_replay      },
 		{ "remach-rec-mark-empty",    remach_rec_mark_empty       },
 		{ "remach-rec-mark-nonempty", remach_rec_mark_nonempty    },
-		{ "net-init-fini",            m0_dtm0_ut_net_tranceive    },
-		{ "net-tranceive",            m0_dtm0_ut_net_tranceive    },
+		{ "net-init-fini",            m0_dtm0_ut_net_init_fini     },
+		{ "net-thin-init-fini",       m0_dtm0_ut_net_thin_init_fini},
+		{ "net-thin-start-stop",      m0_dtm0_ut_net_thin_start_stop},
+		{ "net-tranceive",            m0_dtm0_ut_net_tranceive     },
 		{ NULL, NULL },
 	}
 };

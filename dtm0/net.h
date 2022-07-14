@@ -80,9 +80,14 @@ struct m0_dtm0_msg_persistent {
 enum m0_dtm0_msg_type {
 	M0_DMT_REDO,
 	M0_DMT_PERSISTENT,
+	M0_DMT_BLOB,
 	M0_DMT_EOL,
 	M0_DMT_NR,
 } M0_XCA_ENUM;
+
+struct m0_dtm0_msg_blob {
+	struct m0_buf datum;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_dtm0_msg {
 	uint32_t dm_type M0_XCA_FENUM(m0_dtm0_msg_type);
@@ -93,6 +98,8 @@ struct m0_dtm0_msg {
 			M0_XCA_TAG(_QUOTE(M0_DMT_EOL));
 		struct m0_dtm0_msg_persistent persistent
 			M0_XCA_TAG(_QUOTE(M0_DMT_PERSISTENT));
+		struct m0_dtm0_msg_blob       blob
+			M0_XCA_TAG(_QUOTE(M0_DMT_BLOB));
 	} dm_msg;
 } M0_XCA_UNION M0_XCA_DOMAIN(rpc);
 

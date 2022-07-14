@@ -38,63 +38,101 @@
 
 enum {
 	MSG_NR = 0x100,
+	EP_STR_LEN = 255,
+
+	CLUSTER_SIZE = 5,
 };
 
-#if 0
-/*
- * TODO: implement it fully.
- */
-struct ut_motr_net {
-	void *domain;
-	void *reqh;
-	void *buf_pool;
-	void *rpc_machine;
+struct endpoint {
+	char as_string[EP_STR_LEN + 1];
 };
-#endif
+
+
+struct ut_motr_net {
+	struct m0_net_domain      domain;
+	struct m0_reqh            reqh;
+	struct m0_net_buffer_pool buf_pool;
+	struct m0_rpc_machine     rpc_machine;
+	struct m0_reqh_service    service;
+	struct endpoint           endpoint;
+	struct m0_dtm0_net        dnet;
+};
+
+struct ut_motr_net_cs {
+	struct ut_motr_net server;
+	struct ut_motr_net client;
+};
 
 struct m0_ut_dtm0_net_helper {
-	/* TODO: use ut_motr_net here */
 	struct m0_ut_dtm0_helper base;
 	struct m0_dtm0_net       dnet_client;
 	struct m0_dtm0_net       dnet_server;
 };
-#if 0
-static int ut_motr_net_init(struct ut_motr_net *net, const m0_fid *fid,
-			    const char *ep_addr)
+
+void ut_motr_net_init(struct ut_motr_net    *net,
+		      const struct m0_fid   *fid,
+		      const struct endpoint *endpoint)
 {
 	enum { NR_TMS = 1 };
 	int      rc;
 	uint32_t bufs_nr;
+	const char *ep_addr = &endpoint->as_string[0];
 
+	/*M0_UT_ASSERT(M0_IS0(net));*/
 	rc = m0_net_domain_init(&net->domain, m0_net_xprt_default_get());
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	bufs_nr = m0_rpc_bufs_nr(M0_NET_TM_RECV_QUEUE_DEF_LEN, NR_TMS);
-	rc = m0_rpc_net_buffer_pool_setup(&ut_client_net_dom, &net->buf_pool,
+	rc = m0_rpc_net_buffer_pool_setup(&net->domain, &net->buf_pool,
 					  bufs_nr, NR_TMS);
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	rc = M0_REQH_INIT(&net->reqh,
 			  .rhia_dtm     = (void *)1,
 			  .rhia_db      = NULL,
 			  .rhia_mdstore = (void *)1,
-			  .rhia_fid     = fid) ?:
-		m0_rpc_machine_init(&net->rpc_machine, &net->domain,
-				    ep_addr, &net->reqh, &net->buf_pool,
-				    M0_BUFFER_ANY_COLOUR,
-				    M0_RPC_DEF_MAX_RPC_MSG_SIZE,
-				    M0_NET_TM_RECV_QUEUE_DEF_LEN);
-	return rc;
-}
-#endif
+			  .rhia_fid     = fid);
+	M0_UT_ASSERT(rc == 0);
 
-#if 0
-static void reqh_service_ctx_ut__remote_rmach_fini(void)
-{
-	m0_rpc_machine_fini(&ut_rmach);
-	m0_reqh_fini(&ut_reqh);
-	m0_rpc_net_buffer_pool_cleanup(&ut_buf_pool);
-	m0_net_domain_fini(&ut_client_net_dom);
+	rc = m0_rpc_machine_init(&net->rpc_machine, &net->domain,
+				 ep_addr, &net->reqh, &net->buf_pool,
+				 M0_BUFFER_ANY_COLOUR,
+				 M0_RPC_DEF_MAX_RPC_MSG_SIZE,
+				 M0_NET_TM_RECV_QUEUE_DEF_LEN);
+	net->endpoint = *endpoint;
+	M0_UT_ASSERT(rc == 0);
 }
-#endif
+
+extern struct m0_reqh_service_type dtm0_service_type;
+
+void ut_motr_net_start(struct ut_motr_net *net)
+{
+	struct m0_reqh_service_type *type = &dtm0_service_type;
+	struct m0_reqh_service      *svc = &net->service;
+	struct m0_fid                service_fid =
+		M0_FID_TINIT('s', 0, net->reqh.rh_fid.f_key);
+	int                          rc;
+
+	rc = m0_reqh_service_setup(&svc, type, &net->reqh, NULL, &service_fid);
+	M0_UT_ASSERT(rc == 0);
+}
+
+void ut_motr_net_stop(struct ut_motr_net *net)
+{
+	m0_reqh_service_quit(&net->service);
+}
+
+static void ut_motr_net_fini(struct ut_motr_net *net)
+{
+	m0_reqh_services_terminate(&net->reqh);
+	m0_rpc_machine_fini(&net->rpc_machine);
+	if (m0_reqh_state_get(&net->reqh) != M0_REQH_ST_STOPPED)
+		m0_reqh_services_terminate(&net->reqh);
+	m0_reqh_fini(&net->reqh);
+	m0_rpc_net_buffer_pool_cleanup(&net->buf_pool);
+	m0_net_domain_fini(&net->domain);
+	/*M0_SET0(net);*/
+}
+
+
 
 static void m0_ut_dtm0_net_helper_init(struct m0_ut_dtm0_net_helper *h)
 {
@@ -218,7 +256,142 @@ void m0_dtm0_ut_net_tranceive(void)
 	m0_free(h);
 }
 
+struct ut_motr_cluster {
+	struct ut_motr_net items[CLUSTER_SIZE];
+};
 
+static void ut_motr_cluster_init(struct ut_motr_cluster *cluster)
+{
+	struct m0_fid process_fid = g_process_fid;
+	struct endpoint endpoint = {};
+	char *ep_addr = &endpoint.as_string[0];
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(cluster->items); ++i) {
+		(void) sprintf(ep_addr, "inet:tcp:127.0.0.1@220%d0", i);
+		process_fid.f_key = i;
+		ut_motr_net_init(&cluster->items[i], &process_fid, &endpoint);
+	}
+}
+
+static void ut_motr_cluster_fini(struct ut_motr_cluster *cluster)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(cluster->items); ++i) {
+		ut_motr_net_fini(&cluster->items[i]);
+	}
+}
+
+static void ut_motr_cluster_start(struct ut_motr_cluster *cluster)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(cluster->items); ++i) {
+		ut_motr_net_start(&cluster->items[i]);
+	}
+}
+
+static void ut_motr_cluster_stop(struct ut_motr_cluster *cluster)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(cluster->items); ++i) {
+		ut_motr_net_stop(&cluster->items[i]);
+	}
+}
+
+void m0_dtm0_ut_net_thin_init_fini(void)
+{
+	struct ut_motr_cluster cluster = {};
+	ut_motr_cluster_init(&cluster);
+	ut_motr_cluster_fini(&cluster);
+}
+
+void m0_dtm0_ut_net_thin_start_stop(void)
+{
+	struct ut_motr_cluster cluster = {};
+	ut_motr_cluster_init(&cluster);
+	ut_motr_cluster_start(&cluster);
+	ut_motr_cluster_stop(&cluster);
+	ut_motr_cluster_fini(&cluster);
+}
+
+static void ut_blob_init(struct m0_dtm0_msg *msg)
+{
+	static char message[] = "Hello";
+
+	msg->dm_type = M0_DMT_BLOB;
+	msg->dm_msg.blob.datum.b_addr = message;
+	msg->dm_msg.blob.datum.b_nob  = sizeof(message);
+}
+
+static void ut_blob_fini(struct m0_dtm0_msg *msg)
+{
+}
+
+static void ut_motr_net_send(struct ut_motr_net *client,
+			     struct m0_be_op *op,
+			     struct ut_motr_net *server,
+			     const struct m0_dtm0_msg *msg)
+{
+	/* TODO: won't work unless confc is here. */
+	M0_UT_ASSERT(false);
+	m0_dtm0_net_send(&client->dnet, op, &server->reqh.rh_fid, msg, NULL);
+}
+
+static void ut_motr_net_recv(struct ut_motr_net *client,
+			     struct m0_be_op *op,
+			     bool *successful,
+			     struct m0_dtm0_msg *msg)
+{
+	m0_dtm0_net_recv(&client->dnet, op, successful, msg, M0_DMT_BLOB);
+}
+
+static void ut_motr_cluster_tranceive_simple(struct ut_motr_cluster *cluster,
+					     int client_id, int server_id)
+{
+	struct ut_motr_net *client = &cluster->items[client_id];
+	struct ut_motr_net *server = &cluster->items[server_id];
+	struct m0_be_op snd_op;
+	struct m0_be_op rcv_op;
+	struct m0_dtm0_msg snd_msg;
+	struct m0_dtm0_msg rcv_msg;
+	bool               rcv_successful;
+	int                rc;
+
+	m0_be_op_init(&snd_op);
+	m0_be_op_init(&rcv_op);
+
+	ut_blob_init(&snd_msg);
+
+	ut_motr_net_send(client,  &snd_op, server, &snd_msg);
+	ut_motr_net_recv(server, &rcv_op, &rcv_successful, &rcv_msg);
+
+	m0_be_op_wait(&rcv_op);
+	M0_UT_ASSERT(rcv_successful);
+	rc = memcmp(&snd_msg, &rcv_msg, sizeof(snd_msg));
+	M0_UT_ASSERT(rc == 0);
+
+	m0_be_op_wait(&snd_op);
+
+	ut_blob_fini(&rcv_msg);
+	ut_blob_fini(&snd_msg);
+
+	m0_be_op_fini(&snd_op);
+	m0_be_op_fini(&rcv_op);
+}
+
+void m0_dtm0_ut_net_thin_tranceive(void)
+{
+	enum { CLIENT = 0, SERVER = 1 };
+	struct ut_motr_cluster cluster = {};
+	ut_motr_cluster_init(&cluster);
+	ut_motr_cluster_start(&cluster);
+	ut_motr_cluster_tranceive_simple(&cluster, CLIENT, SERVER);
+	ut_motr_cluster_stop(&cluster);
+	ut_motr_cluster_fini(&cluster);
+}
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of dtm0 group */
