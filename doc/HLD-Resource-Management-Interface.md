@@ -76,7 +76,7 @@ The external resource management interface is centered around the following data
 
 The following sequence diagram illustrates the interaction between resource users, resource owners, and resource servers.
 
-![image](link?)
+![image](./Images/HLDQ.PNG)
 
 Here a solid arrow represents a (local) function call and a dashed arrow—a potentially remote call.  
 
