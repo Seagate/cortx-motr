@@ -92,6 +92,8 @@
 
    - <b>Remote participant</b> -- participant which is not local participant.
 
+   - <b>Availability</b> This term is used in the following cases:
+
      <i>Read availability of participant</i> if it can successfully serve READ
      requests.  Participant is available for reads in ONLINE state only.
 
