@@ -1117,12 +1117,13 @@ static int cas_dtm0_logrec_add(struct m0_fom *fom0,
 			       enum m0_dtm0_tx_pa_state state)
 {
 	/* log the dtm0 logrec before completing the cas op */
-	struct m0_dtm0_service *dtms =
+	struct m0_dtm0_service         *dtms =
 		m0_dtm0_service_find(fom0->fo_service->rs_reqh);
-	struct m0_dtm0_tx_desc *msg = &cas_op(fom0)->cg_txd;
-	struct m0_buf           buf = {};
-	int                     i;
-	int                     rc;
+	struct m0_dtm0_tx_desc         *msg = &cas_op(fom0)->cg_txd;
+	struct m0_buf                  buf = {};
+	struct m0_cas_dtm0_log_payload dtm_payload;
+	int                            i;
+	int                            rc;
 
 	for (i = 0; i < msg->dtd_ps.dtp_nr; ++i) {
 		if (m0_fid_eq(&msg->dtd_ps.dtp_pa[i].p_fid,
@@ -1131,7 +1132,9 @@ static int cas_dtm0_logrec_add(struct m0_fom *fom0,
 			break;
 		}
 	}
-	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, cas_op(fom0)),
+	memcpy(&dtm_payload.cdg_cas_op, cas_op(fom0), sizeof(dtm_payload.cdg_cas_op));
+	dtm_payload.cdg_cas_opcode = m0_fop_opcode(fom0->fo_fop);
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_dtm0_log_payload_xc, &dtm_payload),
 				     &buf.b_addr, &buf.b_nob) ?:
 		m0_dtm0_logrec_update(dtms->dos_log, &fom0->fo_tx.tx_betx, msg,
 				      &buf);
