@@ -1232,7 +1232,8 @@ static struct m0_btree *cr_btree_create(void)
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(rnode, rnode_sz,
 						      &bt, M0_BCT_NO_CRC,
-						      &b_op, btree, seg,
+						      EMBEDDED_RECORD, &b_op,
+                                                      btree, seg,
 						      &M0_FID_TINIT('b', 0, 1),
 						      NULL, &keycmp));
 	if (rc != 0)
