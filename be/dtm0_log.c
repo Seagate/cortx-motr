@@ -379,8 +379,10 @@ static void plog_rec_fini(struct m0_dtm0_log_rec **dl_lrec,
 	struct m0_be_seg       *seg = log->dl_seg;
 	struct m0_dtm0_log_rec *rec = *dl_lrec;
 
-	M0_BE_FREE_PTR_SYNC(rec->dlr_txd.dtd_ps.dtp_pa, seg, tx);
-	M0_BE_FREE_PTR_SYNC(rec->dlr_payload.b_addr, seg, tx);
+	if (rec->dlr_txd.dtd_ps.dtp_pa != NULL)
+		M0_BE_FREE_PTR_SYNC(rec->dlr_txd.dtd_ps.dtp_pa, seg, tx);
+	if (rec->dlr_payload.b_addr != NULL)
+		M0_BE_FREE_PTR_SYNC(rec->dlr_payload.b_addr, seg, tx);
 	M0_BE_FREE_PTR_SYNC(rec, seg, tx);
 	*dl_lrec = NULL;
 }
@@ -711,6 +713,28 @@ M0_INTERNAL void m0_dtm0_log_iter_rec_fini(struct m0_dtm0_log_rec *rec)
 {
 	m0_dtm0_tx_desc_fini(&rec->dlr_txd);
 	m0_buf_free(&rec->dlr_payload);
+}
+
+M0_INTERNAL int m0_be_dtm0_log_get_last_dtxid(struct m0_be_dtm0_log *log,
+					      struct m0_dtm0_tid    *out)
+{
+	struct m0_dtm0_log_rec *rec;
+	int    rc;
+
+	M0_PRE(m0_mutex_is_locked(&log->dl_lock));
+	M0_ENTRY();
+
+	rec = log->dl_is_persistent
+		? lrec_be_list_tail(log->u.dl_persist)
+		: lrec_tlist_tail(log->u.dl_inmem);
+
+	if (rec != NULL) {
+		*out = rec->dlr_txd.dtd_id;
+		rc = 0;
+	} else
+		rc = -ENOENT;
+
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM
