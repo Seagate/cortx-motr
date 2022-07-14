@@ -902,7 +902,7 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
 				      m0_btree_create(&dom->cd_fa_omg_node,
 						      sizeof dom->cd_fa_omg_node,
 						      &bt, M0_BCT_NO_CRC,
-						      EMBEDDED_RECORD, &b_op,
+						      EMBEDDED_INDIRECT, &b_op,
 						      dom->cd_fileattr_omg, seg,
 						      &fid, tx, &keycmp));
 	M0_ASSERT(rc == 0);
