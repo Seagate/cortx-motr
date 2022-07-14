@@ -30,4 +30,4 @@ TimeoutStopSec=5min
 Restart=no
 Environment=SHELL=/bin/bash
 #Group=motr
-ExecStart=/usr/libexec/cortx-motr/motr-server m0d-%i
+ExecStart=%h/seagate/motr/usr/libexec/cortx-motr/motr-server m0d-%i

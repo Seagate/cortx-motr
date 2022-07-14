@@ -30,4 +30,4 @@ Type=notify
 TimeoutStopSec=20
 Restart=no
 #Group=motr
-ExecStart=/usr/libexec/cortx-motr/motr-server ha
+ExecStart=%h/seagate/motr/usr/libexec/cortx-motr/motr-server ha

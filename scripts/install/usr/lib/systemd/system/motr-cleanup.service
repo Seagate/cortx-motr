@@ -22,4 +22,4 @@ Description=Motr cleanup
 
 [Service]
 Type=oneshot
-ExecStart=/usr/libexec/cortx-motr/motr-cleanup
+ExecStart=%h/seagate/motr/usr/libexec/cortx-motr/motr-cleanup
