@@ -1192,7 +1192,7 @@ def config_logger(self):
     # create file handler which logs debug message in log file
     fh = logging.FileHandler(self.logfile)
     fh.setLevel(logging.DEBUG)
-    # create console handler to log messages ERROR and above
+    # create console handler to log motr logs from console
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
