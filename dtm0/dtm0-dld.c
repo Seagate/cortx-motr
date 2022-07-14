@@ -1469,14 +1469,21 @@
    we should record such pmsgs to avoid sending needless redo msgs later, which
    will only aggravate the situation on a busy networks and systems.
 
-   So we should create a placeholder records in the log with the correspondent
-   flag in the payload structure. On the 1st such pmsg arrival, we should add
-   the placeholder record to all redo_lists[] of the correspondent participants,
-   except the one from which the pmsg arrived. On subsequent arrival of pmsgs,
-   we can just remove the placeholder record from the correspondent redo_list.
-   On actual request arrival, we can just update the placeholder with the
-   payload and don't touch the redo_lists[].
+   One way to record such pmsgs is to create a placeholder records in the log
+   with the correspondent flag in the payload structure. On the 1st such pmsg
+   arrival, we should add the placeholder record to all redo_lists[] of the
+   correspondent participants, except the one from which the pmsg arrived. On
+   subsequent arrival of pmsgs, we can just remove the placeholder record from
+   the correspondent redo_list.  On actual request arrival, we can just update
+   the placeholder with the payload and don't touch the redo_lists[].
 
+   This method has several drawbacks: 1) it generates additional transactions
+   (when they are not strictly necessary); 2) it requires to add information
+   about all participants into the pmsgs (additional network load). So here is
+   another, more lightweight approach: collect such pmsgs in a volatile hash
+   table (key - txn_id, value - list of participants we've got pmsgs from), and
+   consult this table each time we create a new log record: if there were pmsgs
+   for it already, don't add this log to the correspondent redo_lists[].
 
    */
 
