@@ -113,7 +113,6 @@ struct m0_btree_type {
 	int vsize;
 };
 
-
 struct m0_bcookie {
 	void     *segaddr;
 	uint64_t  n_seq;
