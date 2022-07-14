@@ -25,6 +25,7 @@
 #include "be/domain.h"       /* m0_be_domain_cfg */
 #include "be/tx.h"           /* m0_be_tx_state */
 #include "be/seg_internal.h" /* m0_be_seg_hdr */
+#include "be/queue.h"        /* m0_be_queue */
 
 #include "be/ut/helper.h" /* m0_be_ut_backend, m0_be_ut_seg */
 
@@ -327,5 +328,24 @@ M0_INTERNAL void m0_be_queue_unlock(struct m0_be_queue *bq)
 {
 }
 
+M0_INTERNAL int m0_be_queue_init(struct m0_be_queue     *bq,
+                                 struct m0_be_queue_cfg *cfg)
+{
+	return M0_ERR(-ENOSYS);
+}
+
+M0_INTERNAL void m0_be_queue_fini(struct m0_be_queue *bq)
+{
+}
+
+M0_INTERNAL void m0_be_queue_end(struct m0_be_queue *bq)
+{
+}
+M0_INTERNAL void m0_be_queue_get(struct m0_be_queue *bq,
+                                 struct m0_be_op    *op,
+                                 struct m0_buf      *data,
+                                 bool               *successful)
+{
+}
 
 #undef M0_TRACE_SUBSYSTEM

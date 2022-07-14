@@ -41,12 +41,14 @@ motr_libmotr_la_SOURCES += \
 nodist_motr_libmotr_la_SOURCES += \
                                   dtm0/clk_src_xc.c \
                                   dtm0/fop_xc.c \
+                                  dtm0/net_xc.c \
                                   dtm0/tx_desc_xc.c
 
 
 XC_FILES += \
             dtm0/clk_src_xc.h \
             dtm0/fop_xc.h \
+            dtm0/net_xc.h \
             dtm0/tx_desc_xc.h
 
 CONFXC_FILES += dtm0/conf.xc

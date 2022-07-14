@@ -30,6 +30,8 @@
 #include "xcode/xcode_attr.h" /* M0_XCA attrs */
 #include "dtm0/tx_desc.h"     /* m0_dtm0_tx_desc */
 #include "dtm0/tx_desc_xc.h"  /* m0_dtm0_tx_desc_xc */
+#include "dtm0/net.h"         /* m0_dtm0_msg */
+#include "dtm0/net_xc.h"      /* m0_dtm0_msg_xc */
 
 struct m0_be_tx;
 struct m0_buf;
@@ -48,6 +50,7 @@ enum m0_dtm0s_msg {
 	DTM_EXECUTED,
 	DTM_PERSISTENT,
 	DTM_REDO,
+	DTM_NET,
 } M0_XCA_ENUM;
 
 enum m0_dtm0_msg_flags {
@@ -66,6 +69,7 @@ struct dtm0_req_fop {
 	 * The initiator is set for DTM_REDO messages.
 	 */
 	struct m0_fid          dtr_initiator;
+	struct m0_dtm0_msg     dtr_net_msg;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 

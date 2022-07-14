@@ -57,6 +57,8 @@ struct m0_dtm0_service {
 	 * queue.
 	 */
 	struct m0_be_queue             *dos_ut_queue;
+	/* XXX */
+	struct m0_dtm0_net             *dos_net;
 };
 
 extern struct m0_reqh_service_type dtm0_service_type;

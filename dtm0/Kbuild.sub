@@ -14,5 +14,6 @@ m0tr_objects += \
                   dtm0/pruner.o \
                   dtm0/remach.o \
                   dtm0/service.o \
+                  dtm0/net_xc.o \
                   dtm0/tx_desc.o \
                   dtm0/tx_desc_xc.o

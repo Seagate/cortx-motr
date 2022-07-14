@@ -234,7 +234,7 @@ M0_INTERNAL bool m0_be_queue_peek(struct m0_be_queue *bq,
                                   struct m0_buf      *data);
 
 #define M0_BE_QUEUE_PUT(bq, op, ptr)                                           \
-		m0_be_queue_put(bq, op, &M0_BUF_INIT_PTR(ptr))
+		m0_be_queue_put(bq, op, &M0_BUF_INIT_PTR_CONST(ptr))
 #define M0_BE_QUEUE_GET(bq, op, ptr, successful)                               \
 		m0_be_queue_get(bq, op, &M0_BUF_INIT_PTR(ptr), successful)
 #define M0_BE_QUEUE_PEEK(bq, ptr)                                              \

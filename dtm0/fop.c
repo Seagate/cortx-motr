@@ -93,6 +93,16 @@ static const struct m0_fom_ops dtm0_tmsg_fom_ops = {
 	.fo_home_locality = dtm0_fom_locality
 };
 
+
+/* XXX */
+extern int dtm0_net_fom_tick(struct m0_fom *fom);
+
+static const struct m0_fom_ops dtm0_net_fom_ops = {
+	.fo_fini = dtm0_fom_fini,
+	.fo_tick = dtm0_net_fom_tick,
+	.fo_home_locality = dtm0_fom_locality
+};
+
 extern struct m0_reqh_service_type dtm0_service_type;
 
 static const struct m0_fom_type_ops dtm0_req_fom_type_ops = {
@@ -268,6 +278,9 @@ static int dtm0_fom_create(struct m0_fop *fop,
 	} else if (req->dtr_msg == DTM_TEST) {
 		m0_fom_init(&fom->dtf_fom, &fop->f_type->ft_fom_type,
 			    &dtm0_tmsg_fom_ops, fop, repfop, reqh);
+	} else if (req->dtr_msg == DTM_NET) {
+		m0_fom_init(&fom->dtf_fom, &fop->f_type->ft_fom_type,
+			    &dtm0_net_fom_ops, fop, repfop, reqh);
 	} else
 		M0_IMPOSSIBLE();
 
