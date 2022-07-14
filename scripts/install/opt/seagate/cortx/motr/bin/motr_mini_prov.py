@@ -117,7 +117,7 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
 
     for i in range(retries):
         if logging == True:
-            self.logger.info(f"Retry: {i}. Executing cmd: '{cmd}'")
+            self.logger.debug(f"Retry: {i}. Executing cmd: '{cmd}'")
 
         ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -128,7 +128,7 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
         stdout = str(stdout, 'utf-8')
 
         if logging == True:
-            self.logger.info(f"ret={ps.returncode}\n")
+            self.logger.debug(f"ret={ps.returncode}\n")
 
         if (self._debug or verbose) and (logging == True):
             self.logger.debug(f"[CMD] {cmd}\n")
@@ -144,7 +144,7 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
 # For normal command, we execute command for CMD_RETRY_COUNT(5 default) times and for each retry timeout is of TIMEOUT_SECS(120s default).
 # For daemon(e.g. m0d services), retry_count is 1 and tmeout is 0 so that we just execute this daemon command only once without timeout.
 def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False, set_timeout=True, retry_count = CMD_RETRY_COUNT):
-    self.logger.info(f"Executing cmd : '{cmd}' \n")
+    self.logger.debug(f"Executing cmd : '{cmd}' \n")
     # For commands without timeout
     if set_timeout == False:
         timeout_secs = None
@@ -154,7 +154,7 @@ def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = Fa
         ps = subprocess.run(cmd, stdin=subprocess.PIPE, check=False,
                             stdout=subprocess.PIPE, timeout=timeout_secs,
                             stderr=subprocess.PIPE, shell=True)
-        self.logger.info(f"ret={ps.returncode}")
+        self.logger.debug(f"ret={ps.returncode}")
         self.logger.debug(f"Executing {cmd_retry_count} time")
         stdout = ps.stdout.decode('utf-8')
         self.logger.debug(f"[OUT]{stdout}")
@@ -168,9 +168,9 @@ def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = Fa
 
 def execute_command_without_exception(self, cmd, timeout_secs = TIMEOUT_SECS, retries = 1):
     for i in range(retries):
-        self.logger.info(f"Retry: {i}. Executing cmd : '{cmd}'\n")
+        self.logger.debug(f"Retry: {i}. Executing cmd : '{cmd}'\n")
         ps = subprocess.run(list(cmd.split(' ')), check=False, timeout=timeout_secs)
-        self.logger.info(f"ret={ps.returncode}\n")
+        self.logger.debug(f"ret={ps.returncode}\n")
         if ps.returncode == 0:
             break
         time.sleep(1)
@@ -239,7 +239,7 @@ def set_setup_size(self, service):
     # It will set default setup size i.e. small
     if service not in ["ioservice", "ios", "io", "all", "confd"]:
         self.setup_size = "small"
-        self.logger.info(f"service is {service}. So seting setup size to {self.setup_size}\n")
+        self.logger.debug(f"service is {service}. So seting setup size to {self.setup_size}\n")
         return True
 
     #Provisioner passes io as parameter to motr_setup.
@@ -259,7 +259,7 @@ def set_setup_size(self, service):
             else:
                 sz = calc_size(self, min_mem)
 
-            self.logger.info(f"mem limit in config is {min_mem} i.e. {sz}\n")
+            self.logger.debug(f"mem limit in config is {min_mem} i.e. {sz}\n")
 
             # Invalid min mem format
             if sz < 0:
@@ -268,19 +268,19 @@ def set_setup_size(self, service):
             # If mem limit in ios > 4G then it is large setup size
             elif sz > MEM_THRESHOLD:
                 self.setup_size = "large"
-                self.logger.info(f"setup_size set to {self.setup_size}\n")
+                self.logger.debug(f"setup_size set to {self.setup_size}\n")
                 ret = True
                 break
             else:
                 self.setup_size = "small"
-                self.logger.info(f"setup_size set to {self.setup_size}\n")
+                self.logger.debug(f"setup_size set to {self.setup_size}\n")
                 ret = True
                 break
     if ret == False:
         raise MotrError(errno.EINVAL, f"Setup size is not set properly for service {service}."
                                       f"Please update valid mem limits for {service}")
     else:
-        self.logger.info(f"service={service} and setup_size={self.setup_size}\n")
+        self.logger.debug(f"service={service} and setup_size={self.setup_size}\n")
     return ret
 
 def get_value(self, key, key_type):
@@ -304,7 +304,7 @@ def get_logical_node_class(self):
 
 def restart_services(self, services):
     for service in services:
-        self.logger.info(f"Restarting {service} service\n")
+        self.logger.debug(f"Restarting {service} service\n")
         cmd = f"systemctl stop {service}"
         execute_command(self, cmd)
         cmd = f"systemctl start {service}"
@@ -353,10 +353,10 @@ def validate_motr_rpm(self):
     check_type(kernel_ver, str, "kernel version")
 
     kernel_module = f"/lib/modules/{kernel_ver}/kernel/fs/motr/m0tr.ko"
-    self.logger.info(f"Checking for {kernel_module}\n")
+    self.logger.debug(f"Checking for {kernel_module}\n")
     validate_file(kernel_module)
 
-    self.logger.info(f"Checking for {MOTR_SYS_CFG}\n")
+    self.logger.debug(f"Checking for {MOTR_SYS_CFG}\n")
     validate_file(MOTR_SYS_CFG)
 
 #TODO:
@@ -373,7 +373,7 @@ def upgrade_phase_sysconfig_file(self, kv_list, flag):
         for line in fp:
             lines.append(line)
     num_lines = len(lines)
-    self.logger.info(f"Before update, num_lines={num_lines}\n")
+    self.logger.debug(f"Before update, num_lines={num_lines}\n")
 
     #Check for keys in file
     for (k, v) in kv_list:
@@ -382,29 +382,29 @@ def upgrade_phase_sysconfig_file(self, kv_list, flag):
             # If found, update inline.
             if lines[lno].startswith(f"{k}="):
                 if flag == 'update':
-                    self.logger.info(f"key={k} found in config. flag is {flag} so updating.\n")
+                    self.logger.debug(f"key={k} found in config. flag is {flag} so updating.\n")
                     lines[lno] = f"{k}={v}\n"
                 elif flag == 'delete':
-                    self.logger.info(f"key={k} found in config. flag is {flag} so deleting.\n")
+                    self.logger.debug(f"key={k} found in config. flag is {flag} so deleting.\n")
                     lines[lno] = "\n"
                 found = True
                 break
         # If not found, append or skip according to flag
         if not found:
             if flag == 'append':
-                self.logger.info(f"({k},{v}) not found in config. flag is {flag} so appending.\n")
+                self.logger.debug(f"({k},{v}) not found in config. flag is {flag} so appending.\n")
                 lines.append(f"{k}={v}\n")
             #TODO: If user want to update the key which is not available then it should be error out.
             elif flag == 'update':
-                self.logger.info(f"({k},{v}) not found in config. so skipping {flag}.\n")
+                self.logger.debug(f"({k},{v}) not found in config. so skipping {flag}.\n")
             elif flag == 'delete':
-                self.logger.info(f"({k},{v}) not found in config. so skipping {flag}.\n")
+                self.logger.debug(f"({k},{v}) not found in config. so skipping {flag}.\n")
             found = False
         else:
             if flag == 'append':
                 self.logger.error(f"({k},{v}) found in config. so skipping {flag}.\n")
     num_lines = len(lines)
-    self.logger.info(f"After update, num_lines={num_lines}\n")
+    self.logger.debug(f"After update, num_lines={num_lines}\n")
 
     # Write buffer to file
     # TODO: Consistency whould be maintained while writing to file.
@@ -421,7 +421,7 @@ def update_config_file(self, fname, kv_list):
         for line in fp:
             lines.append(line)
     num_lines = len(lines)
-    self.logger.info(f"Before update, in file {fname}, num_lines={num_lines}\n")
+    self.logger.debug(f"Before update, in file {fname}, num_lines={num_lines}\n")
 
     #Check for keys in file
     for (k, v) in kv_list:
@@ -438,7 +438,7 @@ def update_config_file(self, fname, kv_list):
             found = False
 
     num_lines = len(lines)
-    self.logger.info(f"After update, in file {fname}, num_lines={num_lines}\n")
+    self.logger.debug(f"After update, in file {fname}, num_lines={num_lines}\n")
 
     # Write buffer to file
     with open(f"{MOTR_SYS_CFG}", "w+") as fp:
@@ -490,7 +490,7 @@ def get_md_disks_lists(self, node_info):
         temp_cvg = cvg[i]
         if temp_cvg['devices']['metadata']:
             md_disks_lists.append(temp_cvg['devices']['metadata'])
-    self.logger.info(f"md_disks lists on node = {md_disks_lists}\n")
+    self.logger.debug(f"md_disks lists on node = {md_disks_lists}\n")
     return md_disks_lists
 
 # Get metada disks from list of lists of metadata disks of
@@ -506,7 +506,7 @@ def get_mdisks_from_list(self, md_lists):
         md_len_innner = len(md_lists[i])
         for j in range(md_len_innner):
             md_disks.append(md_lists[i][j])
-    self.logger.info(f"md_disks on node = {md_disks}\n")
+    self.logger.debug(f"md_disks on node = {md_disks}\n")
     return md_disks
 
 # Update metadata disk entries to motr-hare confstore
@@ -517,7 +517,7 @@ def update_to_file(self, index, url, machine_id, md_disks):
         len_md = len(md)
         for j in range(len_md):
             md_disk = md[j]
-            self.logger.info(f"setting key server>{machine_id}>cvg[{i}]>m0d[{j}]>md_seg1"
+            self.logger.debug(f"setting key server>{machine_id}>cvg[{i}]>m0d[{j}]>md_seg1"
                          f" with value {md_disk} in {url}")
             Conf.set(index, f"server>{machine_id}>cvg[{i}]>m0d[{j}]>md_seg1",f"{md_disk}")
             Conf.save(index)
@@ -570,7 +570,7 @@ def add_entry_to_logrotate_conf_file(self):
             fp.write(line)
 
 def update_watermark_in_config(self, wm_str, wm_val):
-    self.logger.info(f"setting MOTR_M0D_BTREE_LRU_{wm_str} to {wm_val}\n")
+    self.logger.debug(f"setting MOTR_M0D_BTREE_LRU_{wm_str} to {wm_val}\n")
     cmd = f'sed -i "/MOTR_M0D_BTREE_LRU_{wm_str}/s/.*/MOTR_M0D_BTREE_LRU_{wm_str}={wm_val}/" {MOTR_SYS_CFG}'
     execute_command(self, cmd)
 
@@ -647,7 +647,7 @@ def motr_config(self):
 
     is_hw = is_hw_node(self)
     if is_hw:
-        self.logger.info(f"Executing {MOTR_CONFIG_SCRIPT}")
+        self.logger.debug(f"Executing {MOTR_CONFIG_SCRIPT}")
         execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
 
 def configure_net(self):
@@ -942,7 +942,7 @@ def update_bseg_size(self):
         lvm_min_size = calc_lvm_min_size(self, md_disks[i], lvm_min_size)
     if lvm_min_size:
         align_val(lvm_min_size, ALLIGN_SIZE)
-        self.logger.info(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
+        self.logger.debug(f"setting MOTR_M0D_IOS_BESEG_SIZE to {lvm_min_size}\n")
         cmd = f'sed -i "/MOTR_M0D_IOS_BESEG_SIZE/s/.*/MOTR_M0D_IOS_BESEG_SIZE={lvm_min_size}/" {MOTR_SYS_CFG}'
         execute_command(self, cmd)
     return
@@ -1098,7 +1098,7 @@ def get_metadata_disks_count(self):
         except:
             raise MotrError(errno.EINVAL, "metadata devices not found\n")
         check_type(metadata_devices, list, "metadata_devices")
-        self.logger.info(f"\nlvm metadata_devices: {metadata_devices}\n\n")
+        self.logger.debug(f"\nlvm metadata_devices: {metadata_devices}\n\n")
 
         for device in metadata_devices:
             dev_count += 1
@@ -1131,7 +1131,7 @@ def lvm_exist(self):
 
 def cluster_up(self):
     cmd = '/usr/bin/hctl status'
-    self.logger.info(f"Executing cmd : '{cmd}'\n")
+    self.logger.debug(f"Executing cmd : '{cmd}'\n")
     ret = execute_command_without_exception(self, cmd)
     if ret == 0:
         return True
@@ -1142,10 +1142,10 @@ def pkg_installed(self, pkg):
     cmd = f'/usr/bin/yum list installed {pkg}'
     ret = execute_command_without_exception(self, cmd)
     if ret == 0:
-        self.logger.info(f"{pkg} is installed\n")
+        self.logger.debug(f"{pkg} is installed\n")
         return True
     else:
-        self.logger.info(f"{pkg} is not installed\n")
+        self.logger.debug(f"{pkg} is not installed\n")
         return False
 
 def test_io(self):
@@ -1159,7 +1159,7 @@ def test_io(self):
        ):
         cmd = f"{m0worklaod_path} -t {mix_workload_path}"
         out = execute_command(self, cmd, timeout_secs=1000)
-        self.logger.info(f"{out[0]}\n")
+        self.logger.debug(f"{out[0]}\n")
     else:
         self.logger.error("workload files are missing\n")
 
@@ -1194,10 +1194,11 @@ def config_logger(self):
     fh.setLevel(logging.DEBUG)
     # create console handler to log messages ERROR and above
     ch = logging.StreamHandler()
-    ch.setLevel(logging.ERROR)
+    ch.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    formatter_stream = logging.Formatter('%(asctime)s - %(message)s')
     fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
+    ch.setFormatter(formatter_stream)
     logger.addHandler(fh)
     logger.addHandler(ch)
     return logger
@@ -1208,7 +1209,7 @@ def remove_dirs(self, log_dir, patterns):
         return
 
     if len(patterns) == 0:
-        self.logger.info(f"Removing {log_dir}")
+        self.logger.debug(f"Removing {log_dir}")
         execute_command(self, f"rm -rf {log_dir}")
         return
 
@@ -1224,7 +1225,7 @@ def remove_dirs(self, log_dir, patterns):
             removed_dirs.append(dname)
             execute_command(self, f"rm -rf {dname}")
         if len(removed_dirs) > 0:
-            self.logger.info(f"Removed below directories of pattern {pattern} from {log_dir}.\n{removed_dirs}")
+            self.logger.debug(f"Removed below directories of pattern {pattern} from {log_dir}.\n{removed_dirs}")
 
 def remove_logs(self, patterns):
     for log_dir in MOTR_LOG_DIRS:
@@ -1233,12 +1234,12 @@ def remove_logs(self, patterns):
         else:
             self.logger.warning(f"{log_dir} does not exist")
     if os.path.exists(IVT_DIR):
-        self.logger.info(f"Removing {IVT_DIR}")
+        self.logger.debug(f"Removing {IVT_DIR}")
         execute_command(self, f"rm -rf {IVT_DIR}")
 
 def check_services(self, services):
     for service in services:
-        self.logger.info(f"Checking status of {service} service\n")
+        self.logger.debug(f"Checking status of {service} service\n")
         cmd = f"systemctl status {service}"
         execute_command(self, cmd)
         ret = execute_command_without_exception(self, cmd)
@@ -1507,7 +1508,7 @@ def fetch_fid(self, service, idx):
     hare_lib_path = f"{self.local_path}/hare/config/{self.machine_id}"
     cmd = f"hctl fetch-fids --conf-dir {hare_lib_path}"
     out = execute_command(self, cmd)
-    self.logger.info(f"Available fids:\n{out[0]}\n")
+    self.logger.debug(f"Available fids:\n{out[0]}\n")
     fp = open(TEMP_FID_FILE, "w")
     fp.write(out[0])
     fp.close()
@@ -1546,7 +1547,7 @@ def receiveSigTerm(signalNumber, frame):
 # and start services using motr-mkfs and motr-server.
 # For other services like 'motr-free-space-mon' we do nothing.
 def start_service(self, service, idx):
-    self.logger.info(f"service={service}\nidx={idx}\n")
+    self.logger.debug(f"service={service}\nidx={idx}\n")
 
     if service in ["fsm", "client", "motr_client"]:
         cmd = f"{MOTR_FSM_SCRIPT_PATH}"
@@ -1626,7 +1627,7 @@ def upgrade_phase_copy_key_val_to_motr_config(self, key_val_list, flag):
         else:
             # Just updated changed value
             config_kvs = [(key, changed_val)]
-            self.logger.info(f"{flag}ing config_kvs={config_kvs}\n")
+            self.logger.debug(f"{flag}ing config_kvs={config_kvs}\n")
             upgrade_phase_sysconfig_file(self, config_kvs, flag)
 
 #In upgrade phase
@@ -1653,14 +1654,14 @@ def motr_upgrade(self):
     # TODO: update flag while calling add_del_update_keys_in_upgrade_phase should ne replaced by change.
     changed_entries = Conf.get(self.changeset_index, 'changed')
     if changed_entries is not None:
-        self.logger.info(f"changed_entries={changed_entries}\n")
+        self.logger.debug(f"changed_entries={changed_entries}\n")
         add_del_update_keys_in_upgrade_phase(self, changed_entries, 'update')
 
     # Add new motr config parameters.
     # TODO: append flag while calling add_del_update_keys_in_upgrade_phase should ne replaced by new/add.
     new_entries = Conf.get(self.changeset_index, 'new')
     if new_entries is not None:
-        self.logger.info(f"new_entries={new_entries}\n")
+        self.logger.debug(f"new_entries={new_entries}\n")
         add_del_update_keys_in_upgrade_phase(self, new_entries, 'append')
 
     # Delete motr config parameters
