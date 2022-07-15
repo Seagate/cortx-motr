@@ -677,8 +677,8 @@ enum {
 		(__cb) = (__cb);                                             \
 	} while (0)
 
-#undef M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC
-#define M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(buf, shift, seg, tx)                \
+#undef M0_BE_ALLOC_NO_CLEAR_CHUNK_ALIGN_BUF_SYNC
+#define M0_BE_ALLOC_NO_CLEAR_CHUNK_ALIGN_BUF_SYNC(buf, shift, seg, tx)       \
 		(buf)->b_addr = m0_alloc_aligned((buf)->b_nob, shift)
 
 #undef M0_BE_ALLOC_ALIGN_BUF_SYNC
@@ -891,7 +891,8 @@ struct node_type {
 	/** Initializes newly allocated node */
 	void (*nt_init)(const struct segaddr *addr, int ksize, int vsize,
 			int nsize, uint32_t ntype, uint64_t crc_type,
-			uint64_t addr_type, uint64_t gen, struct m0_fid fid);
+			uint64_t addr_type, uint64_t gen, struct m0_fid fid,
+			struct m0_be_seg *seg, struct m0_be_tx *tx);
 
 	/** Cleanup of the node if any before deallocation */
 	void (*nt_fini)(const struct nd *node);
@@ -1046,7 +1047,8 @@ struct node_type {
 	void* (*nt_opaque_get)(const struct segaddr *addr);
 
 	/** Captures node data in segment */
-	void (*nt_capture)(struct slot *slot, int cr, struct m0_be_tx *tx);
+	void (*nt_capture)(struct nd *node, struct slot *slot, int cr,
+			   struct m0_be_tx *tx);
 
 	/** Returns the header size for credit calculation of tree operations */
 	int  (*nt_create_delete_credit_size)(void);
@@ -1088,7 +1090,6 @@ struct node_type {
 	void (*nt_rec_del_credit)(const struct nd *node, m0_bcount_t ksize,
 				  m0_bcount_t vsize,
 				  struct m0_be_tx_credit *accum);
-
 };
 
 /**
@@ -1148,7 +1149,7 @@ struct nd {
 
 	/**
 	 * flag for indicating if node on BE segment is valid or not, but it
-	 * does not indicated anything about node descriptor validity.
+	 * DOES NOT imply node descriptor validity.
 	 */
 	bool                    n_be_node_valid;
 };
@@ -1230,7 +1231,8 @@ static int  bnode_init(struct segaddr *addr, int ksize, int vsize, int nsize,
 		       const struct node_type *nt,
 		       const enum m0_btree_crc_type crc_type,
 		       const enum m0_btree_addr_type addr_type,
-		       uint64_t gen, struct m0_fid fid, int nxt);
+		       uint64_t gen, struct m0_fid fid, struct m0_be_seg *seg,
+		       struct m0_be_tx *tx, int nxt);
 static uint32_t bnode_crctype_get(const struct nd *node);
 /* Returns the number of valid keys in the node. */
 static int  bnode_key_count(const struct nd *node);
@@ -1519,7 +1521,8 @@ static int bnode_init(struct segaddr *addr, int ksize, int vsize, int nsize,
 		      const struct node_type *nt,
 		      const enum m0_btree_crc_type crc_type,
 		      const enum m0_btree_addr_type addr_type,
-		      uint64_t gen, struct m0_fid fid, int nxt)
+		      uint64_t gen, struct m0_fid fid, struct m0_be_seg *seg,
+		      struct m0_be_tx *tx, int nxt)
 {
 	/**
 	 * bnode_access() will ensure that we have node data loaded in our
@@ -1533,7 +1536,8 @@ static int bnode_init(struct segaddr *addr, int ksize, int vsize, int nsize,
 	 */
 
 	nt->nt_init(addr, ksize, vsize, nsize, nt->nt_id, crc_type, addr_type,
-		    gen, fid);
+		    gen, fid, seg, tx);
+
 	return nxt;
 }
 
@@ -1817,7 +1821,8 @@ static void bnode_move(struct nd *src, struct nd *tgt, enum direction dir,
 
 static void bnode_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
 {
-	slot->s_node->n_type->nt_capture(slot, cr, tx);
+	struct nd* node = (struct nd *)slot->s_node;
+	slot->s_node->n_type->nt_capture(node, slot, cr, tx);
 }
 
 static void bnode_lock(struct nd *node)
@@ -2434,7 +2439,8 @@ static int64_t bnode_alloc(struct node_op *op, struct td *tree, int nsize,
 
 	nsize -= chunk_header_size;
 	buf = M0_BUF_INIT(nsize, NULL);
-	M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(&buf, page_shift, tree->t_seg, tx);
+	M0_BE_ALLOC_NO_CLEAR_CHUNK_ALIGN_BUF_SYNC(&buf, page_shift,
+						  tree->t_seg, tx);
 	area = buf.b_addr;
 
 	M0_ASSERT(area != NULL);
@@ -2444,7 +2450,7 @@ static int64_t bnode_alloc(struct node_op *op, struct td *tree, int nsize,
 
 	nxt_state = bnode_init(&op->no_addr, ksize, vsize, nsize, nt,
 			       crc_type, addr_type, tree->t_seg->bs_gen,
-			       tree->t_fid, nxt);
+			       tree->t_fid, tree->t_seg, tx, nxt);
 	/**
 	 * TODO: Consider adding a state here to return in case we might need to
 	 * visit bnode_init() again to complete its execution.
@@ -2584,7 +2590,8 @@ struct ff_head {
 
 static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
 		    uint32_t ntype, uint64_t crc_type, uint64_t addr_type,
-		    uint64_t gen, struct m0_fid fid);
+		    uint64_t gen, struct m0_fid fid, struct m0_be_seg *seg,
+		    struct m0_be_tx *tx);
 static void ff_fini(const struct nd *node);
 static uint32_t ff_crctype_get(const struct nd *node);
 static uint32_t ff_addrtype_get(const struct nd *node);
@@ -2624,7 +2631,8 @@ static bool ff_expensive_invariant(const struct nd *node);
 static bool ff_verify(const struct nd *node);
 static void ff_opaque_set(const struct segaddr *addr, void *opaque);
 static void *ff_opaque_get(const struct segaddr *addr);
-static void ff_capture(struct slot *slot, int cr, struct m0_be_tx *tx);
+static void ff_capture(struct nd *node, struct slot *slot, int cr,
+		       struct m0_be_tx *tx);
 static void ff_node_alloc_credit(const struct nd *node,
 				 struct m0_be_tx_credit *accum);
 static void ff_node_free_credit(const struct nd *node,
@@ -2894,7 +2902,8 @@ static void ff_dir_update(const struct nd *node, int idx, bool op_del)
 
 static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
 		    uint32_t ntype, uint64_t crc_type, uint64_t addr_type,
-		    uint64_t gen, struct m0_fid fid)
+		    uint64_t gen, struct m0_fid fid, struct m0_be_seg *seg,
+		    struct m0_be_tx *tx)
 {
 	struct ff_head *h   = segaddr_addr(addr);
 
@@ -2925,6 +2934,7 @@ static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
 	 * other place should the opaque data get captured and written to BE
 	 * segment.
 	 */
+	M0_BTREE_TX_CAPTURE(tx, seg, &h->ff_opaque, sizeof(h->ff_opaque));	
 }
 
 static void ff_fini(const struct nd *node)
@@ -3358,7 +3368,8 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 	bnode_fix(tgt);
 }
 
-static void ff_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
+static void ff_capture(struct nd *node, struct slot *slot, int cr,
+		       struct m0_be_tx *tx)
 {
 	struct ff_head      *h        = ff_data(slot->s_node);
 	struct ff_dir_entry *de       = (struct ff_dir_entry *)(h + 1);
@@ -3437,8 +3448,8 @@ static void ff_node_alloc_credit(const struct nd *node,
 	int             node_size   = node->n_size;
 	int             shift       = __builtin_ffsl(node_size) - 1;
 
-	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED,
-			       node_size, shift, accum);
+	m0_be_allocator_credit_no_clear(NULL, M0_BAO_ALLOC_ALIGNED,
+					node_size, shift, accum);
 }
 
 static void ff_node_free_credit(const struct nd *node,
@@ -3448,8 +3459,8 @@ static void ff_node_free_credit(const struct nd *node,
 	int             shift       = __builtin_ffsl(node_size) - 1;
 	int             header_size = sizeof(struct ff_head);
 
-	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED,
-			       node_size, shift, accum);
+	m0_be_allocator_credit_no_clear(NULL, M0_BAO_FREE_ALIGNED,
+					node_size, shift, accum);
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, header_size));
 }
@@ -3867,7 +3878,8 @@ struct fkvv_head {
 
 static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 		      int nsize, uint32_t ntype, uint64_t crc_type,
-		      uint64_t addr_type, uint64_t gen, struct m0_fid fid);
+		      uint64_t addr_type, uint64_t gen, struct m0_fid fid,
+		      struct m0_be_seg *seg, struct m0_be_tx *tx);
 static void fkvv_fini(const struct nd *node);
 static uint32_t fkvv_crctype_get(const struct nd *node);
 static uint32_t fkvv_addrtype_get(const struct nd *node);
@@ -3905,7 +3917,8 @@ static bool fkvv_expensive_invariant(const struct nd *node);
 static bool fkvv_verify(const struct nd *node);
 static void fkvv_opaque_set(const struct segaddr *addr, void *opaque);
 static void *fkvv_opaque_get(const struct segaddr *addr);
-static void fkvv_capture(struct slot *slot, int cr, struct m0_be_tx *tx);
+static void fkvv_capture(struct nd *node, struct slot *slot, int cr,
+			 struct m0_be_tx *tx);
 static void fkvv_node_alloc_credit(const struct nd *node,
 				   struct m0_be_tx_credit *accum);
 static void fkvv_node_free_credit(const struct nd *node,
@@ -3999,7 +4012,8 @@ static void fkvv_dir_init(const struct segaddr *addr)
 
 static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 		      int nsize, uint32_t ntype, uint64_t crc_type,
-		      uint64_t addr_type, uint64_t gen, struct m0_fid fid)
+		      uint64_t addr_type, uint64_t gen, struct m0_fid fid,
+		      struct m0_be_seg *seg, struct m0_be_tx *tx)
 {
 	struct fkvv_head *h       = segaddr_addr(addr);
 
@@ -4030,6 +4044,7 @@ static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 	 * other place should the opaque data get captured and written to BE
 	 * segment.
 	 */
+	M0_BTREE_TX_CAPTURE(tx, seg, &h->fkvv_opaque, sizeof(h->fkvv_opaque));	
 }
 
 static void fkvv_fini(const struct nd *node)
@@ -5031,7 +5046,8 @@ static void fkvv_capture_krsize_vrsize_cal(struct slot *slot, int *p_krsize,
 	}
 }
 
-static void fkvv_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
+static void fkvv_capture(struct nd *node, struct slot *slot, int cr,
+			 struct m0_be_tx *tx)
 {
 	/**
 	 * This function will capture the data in node segment.
@@ -5095,9 +5111,7 @@ static void fkvv_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
 
 		M0_BTREE_TX_CAPTURE(tx, seg, start_key, krsize);
 		M0_BTREE_TX_CAPTURE(tx, seg, last_val, vrsize);
-
-	} else if (h->fkvv_opaque == NULL)
-		hsize += sizeof(h->fkvv_opaque);
+	}
 
 	M0_BTREE_TX_CAPTURE(tx, seg, h, hsize);
 }
@@ -5115,8 +5129,8 @@ static void fkvv_node_alloc_credit(const struct nd *node,
 	int             node_size   = node->n_size;
 	int             shift       = __builtin_ffsl(node_size) - 1;
 
-	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED,
-			       node_size, shift, accum);
+	m0_be_allocator_credit_no_clear(NULL, M0_BAO_ALLOC_ALIGNED,
+					node_size, shift, accum);
 }
 
 static void fkvv_node_free_credit(const struct nd *node,
@@ -5126,8 +5140,8 @@ static void fkvv_node_free_credit(const struct nd *node,
 	int             shift       = __builtin_ffsl(node_size) - 1;
 	int             header_size = sizeof(struct fkvv_head);
 
-	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED,
-			       node_size, shift, accum);
+	m0_be_allocator_credit_no_clear(NULL, M0_BAO_FREE_ALIGNED,
+					node_size, shift, accum);
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, header_size));
 }
@@ -5390,7 +5404,8 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 
 static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
 		      int nsize, uint32_t ntype, uint64_t crc_type,
-		      uint64_t addr_type, uint64_t gen, struct m0_fid fid);
+		      uint64_t addr_type, uint64_t gen, struct m0_fid fid,
+		      struct m0_be_seg *seg, struct m0_be_tx *tx);
 static void vkvv_fini(const struct nd *node);
 static uint32_t vkvv_crctype_get(const struct nd *node);
 static uint32_t vkvv_addrtype_get(const struct nd *node);
@@ -5428,7 +5443,8 @@ static bool vkvv_expensive_invariant(const struct nd *node);
 static bool vkvv_verify(const struct nd *node);
 static void vkvv_opaque_set(const struct segaddr *addr, void *opaque);
 static void *vkvv_opaque_get(const struct segaddr *addr);
-static void vkvv_capture(struct slot *slot, int cr, struct m0_be_tx *tx);
+static void vkvv_capture(struct nd *node, struct slot *slot, int cr,
+			 struct m0_be_tx *tx);
 static int  vkvv_create_delete_credit_size(void);
 static void vkvv_node_alloc_credit(const struct nd *node,
 				struct m0_be_tx_credit *accum);
@@ -5581,7 +5597,8 @@ static void vkvv_dir_init(const struct segaddr *addr)
  */
 static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
 		      int nsize, uint32_t ntype, uint64_t crc_type,
-		      uint64_t addr_type, uint64_t gen, struct m0_fid fid)
+		      uint64_t addr_type, uint64_t gen, struct m0_fid fid,
+		      struct m0_be_seg *seg, struct m0_be_tx *tx)
 {
 	struct vkvv_head *h     = segaddr_addr(addr);
 	M0_SET0(h);
@@ -5604,6 +5621,13 @@ static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
 		.ot_footer_offset = offsetof(struct vkvv_head, vkvv_foot)
 	});
 	m0_format_footer_update(h);
+
+	/**
+	 * This is the only time we capture the opaque data of the header. No
+	 * other place should the opaque data get captured and written to BE
+	 * segment.
+	 */
+	M0_BTREE_TX_CAPTURE(tx, seg, &h->vkvv_opaque, sizeof(h->vkvv_opaque));	
 }
 
 /**
@@ -7234,7 +7258,8 @@ static void vkvv_calc_size_for_capture(struct slot *slot, int count,
 /**
  * @brief This function will capture the data in BE segment.
  */
-static void vkvv_capture(struct slot *slot, int cr, struct m0_be_tx *tx)
+static void vkvv_capture(struct nd *node, struct slot *slot, int cr,
+			 struct m0_be_tx *tx)
 {
 	struct vkvv_head *h       = vkvv_data(slot->s_node);
 	struct m0_be_seg *seg     = slot->s_node->n_tree->t_seg;
@@ -7314,8 +7339,8 @@ static void vkvv_node_alloc_credit(const struct nd *node,
 	int             node_size   = node->n_size;
 	int             shift       = __builtin_ffsl(node_size) - 1;
 
-	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED,
-			       node_size, shift, accum);
+	m0_be_allocator_credit_no_clear(NULL, M0_BAO_ALLOC_ALIGNED,
+					node_size, shift, accum);
 }
 
 static void vkvv_node_free_credit(const struct nd *node,
@@ -7325,8 +7350,8 @@ static void vkvv_node_free_credit(const struct nd *node,
 	int             shift       = __builtin_ffsl(node_size) - 1;
 	int             header_size = sizeof(struct vkvv_head);
 
-	m0_be_allocator_credit(NULL, M0_BAO_FREE_ALIGNED,
-			       node_size, shift, accum);
+	m0_be_allocator_credit_no_clear(NULL, M0_BAO_FREE_ALIGNED,
+					node_size, shift, accum);
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(1, header_size));
 }
@@ -7357,6 +7382,7 @@ static void vkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(4, node_size));
 }
+
 /**
  *  --------------------------------------------
  *  Section END -
@@ -8954,8 +8980,8 @@ static int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 		oi->i_nop.no_addr = segaddr_build(data->addr);
 		return bnode_init(&oi->i_nop.no_addr, k_size, v_size,
 				  data->num_bytes, data->nt, data->crc_type,
-				  data->addr_type, bop->bo_seg->bs_gen,
-				  data->fid, P_TREE_GET);
+				  data->addr_type, bop->bo_seg->bs_gen, data->fid, bop->bo_seg,
+				  bop->bo_tx, P_TREE_GET);
 
 	case P_TREE_GET:
 		return tree_get(&oi->i_nop, &oi->i_nop.no_addr, P_ACT);

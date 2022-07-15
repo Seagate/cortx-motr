@@ -61,12 +61,33 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	m0_be_alloc(a, tx, op, ptr, size);
 }
 
+M0_INTERNAL void m0_be_alloc_aligned_no_clear(struct m0_be_allocator *a,
+					      struct m0_be_tx *tx,
+					      struct m0_be_op *op,
+					      void **ptr,
+					      m0_bcount_t size,
+					      unsigned shift,
+					      uint64_t zonemask,
+					      bool chunk_align)
+{
+	m0_be_alloc_aligned(a, tx, op, ptr, size, shift, zonemask, chunk_align);
+}
+
 M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 					enum m0_be_allocator_op optype,
 					m0_bcount_t size,
 					unsigned shift,
 					struct m0_be_tx_credit *accum)
 {
+}
+
+M0_INTERNAL void m0_be_allocator_credit_no_clear(struct m0_be_allocator *a,
+						 enum m0_be_allocator_op optype,
+						 m0_bcount_t             size,
+						 unsigned                shift,
+						 struct m0_be_tx_credit *accum)
+{
+	m0_be_allocator_credit(a, optype, size, shift, accum);
 }
 
 M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,

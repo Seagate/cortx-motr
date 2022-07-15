@@ -138,6 +138,7 @@ extern void m0_be_ut_alloc_init_fini(void);
 extern void m0_be_ut_alloc_create_destroy(void);
 extern void m0_be_ut_alloc_multiple(void);
 extern void m0_be_ut_alloc_concurrent(void);
+extern void m0_be_ut_alloc_verify(void);
 extern void m0_be_ut_alloc_oom(void);
 extern void m0_be_ut_alloc_info(void);
 extern void m0_be_ut_alloc_spare(void);
@@ -261,6 +262,7 @@ struct m0_ut_suite be_ut = {
 		{ "alloc-info",              m0_be_ut_alloc_info              },
 		{ "alloc-spare",             m0_be_ut_alloc_spare             },
                 { "alloc-align",             m0_be_ut_alloc_align             },
+                { "alloc-verify",            m0_be_ut_alloc_verify            },
 		{ "obj",                     m0_be_ut_obj_test                },
 		{ "actrec",                  m0_be_ut_actrec_test             },
 #endif /* __KERNEL__ */
