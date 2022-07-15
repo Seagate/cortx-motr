@@ -31,4 +31,4 @@ TimeoutStopSec=20
 Restart=no
 EnvironmentFile=-/var/motr/env.sh
 #Group=motr
-ExecStart=/usr/libexec/cortx-motr/motr-server confd
+ExecStart=%h/seagate/motr/usr/libexec/cortx-motr/motr-server confd

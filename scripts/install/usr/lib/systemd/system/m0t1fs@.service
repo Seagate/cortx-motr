@@ -24,7 +24,7 @@ After=motr-kernel.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/libexec/cortx-motr/motr-client start %i
-ExecStop=/usr/libexec/cortx-motr/motr-client stop %i
+ExecStart=%h/seagate/motr/usr/libexec/cortx-motr/motr-client start %i
+ExecStop=%h/seagate/motr/usr/libexec/cortx-motr/motr-client stop %i
 RemainAfterExit=yes
 KillMode=none

@@ -29,7 +29,7 @@ readonly PROG_NAME=$(basename $0)
 MOTR_GENDERS_CONF=/etc/motr/genders
 
 # service local variables
-service_funcs=/usr/libexec/cortx-motr/motr-service.functions
+service_funcs=$HOME/seagate/motr/usr/libexec/cortx-motr/motr-service.functions
 
 calc_log_rotation_options()
 {

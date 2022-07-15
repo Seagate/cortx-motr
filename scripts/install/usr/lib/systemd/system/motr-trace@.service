@@ -25,4 +25,4 @@ PartOf=motr-kernel.service motr-server@%i.service m0d@%i.service
 [Service]
 Type=simple
 #Group=motr
-ExecStart=/usr/libexec/cortx-motr/motr-trace %i
+ExecStart=%h/seagate/motr/usr/libexec/cortx-motr/motr-trace %i

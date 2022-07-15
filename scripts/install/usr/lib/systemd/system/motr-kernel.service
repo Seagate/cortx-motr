@@ -25,8 +25,8 @@ PartOf=motr-server@.service m0d@.service motr-mkfs@.service motr-server-confd.se
 
 [Service]
 Type=oneshot
-ExecStart=/usr/libexec/cortx-motr/motr-kernel start
-ExecStop=/usr/libexec/cortx-motr/motr-kernel stop
+ExecStart=%h/seagate/motr/usr/libexec/cortx-motr/motr-kernel start
+ExecStop=%h/seagate/motr/usr/libexec/cortx-motr/motr-kernel stop
 RemainAfterExit=yes
 KillMode=none
 TimeoutStopSec=1min

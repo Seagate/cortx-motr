@@ -29,7 +29,7 @@ readonly PROG_NAME=$(basename $0)
 MOTR_GENDERS_CONF=/etc/motr/genders
 
 # service local variables
-motr_exec_dir=/usr/libexec/cortx-motr
+motr_exec_dir=$HOME/seagate/motr/usr/libexec/cortx-motr
 service_funcs=$motr_exec_dir/motr-service.functions
 
 
@@ -59,8 +59,10 @@ m0_mkfs()
     elif m0_genders_has_variable m0_be_log_size ; then
         be_opts+=" -V $(m0_genders_value_of m0_be_log_size)"
     fi
-
-    $motr_exec_dir/motr-server $service m0mkfs "-F -u $node_uuid $be_opts" $conf_opts
+    
+    LD_LIBRARY_PATH=$HOME/seagate/motr/usr/lib64
+    export LD_LIBRARY_PATH
+    $motr_exec_dir/motr-server $service $HOME/seagate/motr/usr/sbin/m0mkfs "-F -u $node_uuid $be_opts" $conf_opts
 }
 
 source $service_funcs

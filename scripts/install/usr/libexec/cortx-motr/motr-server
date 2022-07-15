@@ -30,7 +30,7 @@ MOTR_GENDERS_CONF=/etc/motr/genders
 MOTR_CONF_XC_DEFAULT=/etc/motr/conf.xc
 
 # service local variables
-service_funcs=/usr/libexec/cortx-motr/motr-service.functions
+service_funcs=$HOME/seagate/motr/usr/libexec/cortx-motr/motr-service.functions
 
 # BE log resize
 M0BETOOL="m0betool"
@@ -266,6 +266,9 @@ m0_server()
     fi
 
     set -x
+
+    LD_LIBRARY_PATH=$HOME/seagate/motr/usr/lib64
+    export LD_LIBRARY_PATH
     exec $binary -e $service_ep \
                     -A linuxstob:${addbstob_dir}addb-stobs \
                     -f $proc_fid $stob_type $stob_path $MOTR_M0D_OPTS \

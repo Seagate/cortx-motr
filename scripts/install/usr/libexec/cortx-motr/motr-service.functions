@@ -118,6 +118,10 @@ m0_path_to()
 
     if [ -n "$MOTR_DEVEL_WORKDIR_PATH" ] ; then
         echo "$MOTR_DEVEL_WORKDIR_PATH/${_path_inside_workdir[$binary]}"
+    elif [ -d $HOME/seagate/motr ] && ([ $1 == "m0d" ] || [ $1 == "m0traced" ]); then
+            echo "$HOME/seagate/motr/usr/bin/$1"
+    elif [ -d $HOME/seagate/motr ] && ([ $1 == "m0mkfs" ] || [ $1 == "m0dixinit" ]); then
+            echo "$HOME/seagate/motr/usr/sbin/$1"
     else
         echo "$(which $binary)"
     fi
