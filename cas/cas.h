@@ -405,10 +405,10 @@ struct m0_cas_op {
  * The structure to be passed in DTM0 log as a payload
  */
 struct m0_cas_dtm0_log_payload  {
-   /**  CAS op */
-	struct m0_cas_op  cdg_cas_op;
+        /**  CAS op */
+	struct m0_cas_op cdg_cas_op;
 	/** CAS operation code */
-	uint32_t          cdg_cas_opcode;
+	uint32_t         cdg_cas_opcode;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
