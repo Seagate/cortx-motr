@@ -116,40 +116,54 @@
    document are to be interpreted as described in RFC 2119.
 
    Considerations/assumptions (TODO: move it into the respective secions):
+
    - Client has limited capacity (timeout for operation).
      Conclusion: Sliding window is always moving on.
-   - Duration of TRANSIENT failure - 1 month.
+     Need to support m0_op_cancel(). On client we just drop the txn from the
+     log. For the servers we just update o.BEGIN in the window range in the
+     new txn_reqs.
+
+   - Max duration of TRANSIENT failure - up to 1 month. Algorithms should
+     support this and work without impact (performance-wise).
+
    - We want to be able to clean up the log in a way that this operation
-     is not limited by the time when someone entered TRANSIENT.
+     is not limited by the time when someone entered TRANSIENT. (This
+     optimisation can be done on top of the base algorithm later. Consider
+     an additional Max-All-P' pointer which skips the records of transient
+     participants, and which allows to clean up the log.)
+
    - N% of performance degradation is allowed during dtm0 recovery.
 
    Requirements:
 
-   - dtm0 MUST maximize A, D and performance of the system.
-	   - R.dtm0.maximize.availability
-	   - R.dtm0.maximize.durability
-	   - R.dtm0.maximize.performance
+   - dtm0 MUST maximize availability and durability of the system without
+     big impact on its performance.
 
-   - dtm0 MUST restore missing replicas in minimal time.
-   See REDO-without-RECOVERING for the details.
+     - R.dtm0.maximize.availability
+
+     - R.dtm0.maximize.durability
+       dtm0 MUST restore missing units replicas in a minimal time.
+       See REDO-without-RECOVERING for the details.
+
+     - R.dtm0.little-impact.performance
+       - dtm0 MUST NOT introduce bottlenecks in the system.
+       - dtm0 MUST NOT introduce unnecessary delays.
 
    - dtm0 MUST handle at least the folloing kinds of failures:
-     + replicas MAY become missing due to process crash/restart or because of
-     unreliable network.
+     - replicas MAY become missing due to process crash/restart or because of
+       unreliable network (missing packets or network partitioning).
 
    - dtm0 MUST restore missing replicas even without process restarts.
+     No special RECOVERING state is needed, recovery is done automatically.
 
    - dtm0 MUST NOT restore missing replicas in case of permanent failures.
 
-   - dtm0 MUST NOT introduce bottlenecks in the system.
-
-   - [R.dtm0.limited-ram] dtm0 memory usage MUST be limited;
-	Comment: either we do recovery from the client (mem is not limited?) or
-	         we do not do that (cancel) or a mix of that.
-
-   - dtm0 MAY perform recovery from the originator side XXX.
-
-   - dtm0 MUST NOT introduce unnecessary delays.
+   - [R.dtm0.client.limited-ram] dtm0 memory usage MUST be limited.
+     - Clients have the window of pending requests which limits the memory
+       consumption of clients, as well as of the servers.
+     - Failures (like transient participants etc.) should not cause the increase
+       of memory usage on the clients. Clients MAY participate in the recovery
+       process, when their memory permits.
 
    - dtm0 SHOULD NOT support transaction dependencies.
 
