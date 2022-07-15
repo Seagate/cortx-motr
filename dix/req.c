@@ -46,6 +46,7 @@
 #include "dix/fid_convert.h"
 #include "dix/dix_addb.h"
 #include "dtm0/dtx.h"   /* m0_dtx0_* API */
+#include "motr/idx.h" /* M0_DIX_MIN_REPLICA_QUORUM */
 
 static struct m0_sm_state_descr dix_req_states[] = {
 	[DIXREQ_INIT] = {
@@ -209,11 +210,15 @@ M0_INTERNAL int m0_dix_req_wait(struct m0_dix_req *req, uint64_t states,
 static void dix_req_init(struct m0_dix_req  *req,
 			 struct m0_dix_cli  *cli,
 			 struct m0_sm_group *grp,
+			 int64_t             min_success,
 			 bool                meta)
 {
+	M0_PRE(ergo(min_success < 1,
+		    min_success == M0_DIX_MIN_REPLICA_QUORUM));
 	M0_SET0(req);
 	req->dr_cli = cli;
 	req->dr_is_meta = meta;
+	req->dr_min_success = min_success;
 	m0_sm_init(&req->dr_sm, &dix_req_sm_conf, DIXREQ_INIT, grp);
 	m0_sm_addb2_counter_init(&req->dr_sm);
 }
@@ -222,14 +227,15 @@ M0_INTERNAL void m0_dix_mreq_init(struct m0_dix_req  *req,
 				  struct m0_dix_cli  *cli,
 				  struct m0_sm_group *grp)
 {
-	dix_req_init(req, cli, grp, true);
+	dix_req_init(req, cli, grp, 1, true);
 }
 
 M0_INTERNAL void m0_dix_req_init(struct m0_dix_req  *req,
 				 struct m0_dix_cli  *cli,
-				 struct m0_sm_group *grp)
+				 struct m0_sm_group *grp,
+				 int64_t             min_success)
 {
-	dix_req_init(req, cli, grp, false);
+	dix_req_init(req, cli, grp, min_success, false);
 }
 
 static enum m0_dix_req_state dix_req_state(const struct m0_dix_req *req)
@@ -1402,6 +1408,20 @@ static void dix_rop(struct m0_dix_req *req)
 	M0_LEAVE();
 }
 
+/** Checks if the given cas get reply has a newer version of the value */
+static bool dix_item_version_cmp(struct m0_dix_item *ditem,
+				 struct m0_cas_get_reply *get_rep) {
+	/*
+	 * TODO: once cas versions are propagated, check if the get reply
+	 * has a newer version than seen previously. Will need to add
+	 * version info to struct m0_dix_item. This function should return
+	 * true if no previous value is set, or if the previous value has
+	 * an older version. For now, always return true so the last
+	 * reply in the array wins.
+	 */
+	return true;
+}
+
 static void dix_item_rc_update(struct m0_dix_req  *req,
 			       struct m0_cas_req  *creq,
 			       uint64_t            key_idx,
@@ -1418,7 +1438,8 @@ static void dix_item_rc_update(struct m0_dix_req  *req,
 		case DIX_GET:
 			m0_cas_get_rep(creq, key_idx, &get_rep);
 			rc = get_rep.cge_rc;
-			if (rc == 0) {
+			if (rc == 0 && dix_item_version_cmp(ditem, &get_rep)) {
+				m0_buf_free(&ditem->dxi_val);
 				ditem->dxi_val = get_rep.cge_val;
 				/* Value will be freed at m0_dix_req_fini(). */
 				m0_cas_rep_mlock(creq, key_idx);
@@ -1625,24 +1646,38 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_dix_rop_ctx *rop_del_phase2 = NULL;
 	bool                   del_phase2 = false;
 	struct m0_dix_cas_rop *cas_rop;
+	struct m0_pool_version *pver;
+	int64_t                min_success;
+	int64_t                successful_ops = 0;
 
 	(void)grp;
 	if (req->dr_type == DIX_NEXT)
 		m0_dix_next_result_prepare(req);
 	else {
-		/*
-		 * Consider DIX request to be successful if there is at least
-		 * one successful CAS request.
-		 */
-		if (m0_tl_forall(cas_rop, cas_rop,
-				 &rop->dg_cas_reqs,
-				 cas_rop->crp_creq.ccr_sm.sm_rc != 0))
-			    dix_cas_rop_rc_update(cas_rop_tlist_tail(
-						  &rop->dg_cas_reqs), 0);
+		min_success = req->dr_min_success;
+		M0_ASSERT(ergo(min_success < 1,
+			       min_success == M0_DIX_MIN_REPLICA_QUORUM));
+		if (min_success == M0_DIX_MIN_REPLICA_QUORUM) {
+			pver = m0_dix_pver(req->dr_cli, &req->dr_indices[0]);
+			min_success = (pver->pv_attr.pa_N +
+				       pver->pv_attr.pa_K)/2 + 1;
+		}
+		M0_ASSERT(min_success > 0);
 
+		successful_ops = m0_tl_reduce(cas_rop, scan, &rop->dg_cas_reqs, 0,
+				  + !!(scan->crp_creq.ccr_sm.sm_rc == 0));
+
+		/*
+		 * If enough operations succeeded to satisfy min_success,
+		 * ignore any operations that failed. If we don't have enough,
+		 * count all operations when deciding overall success (ensures the
+		 * overall operation is considered a failure).
+		 */
 		m0_tl_for (cas_rop, &rop->dg_cas_reqs, cas_rop) {
-			if (cas_rop->crp_creq.ccr_sm.sm_rc == 0)
+			if (successful_ops < min_success ||
+			    cas_rop->crp_creq.ccr_sm.sm_rc == 0) {
 				dix_cas_rop_rc_update(cas_rop, 0);
+			}
 			m0_cas_req_fini(&cas_rop->crp_creq);
 		} m0_tl_endfor;
 	}
@@ -1956,29 +1991,6 @@ static int dix_spare_target_with_data(struct m0_dix_rec_op         *rec_op,
 				 true);
 }
 
-static void dix_online_unit_choose(struct m0_dix_req    *req,
-				   struct m0_dix_rec_op *rec_op)
-{
-	struct m0_dix_pg_unit *pgu;
-	uint64_t               start_unit;
-	uint64_t               i;
-	uint64_t               j;
-
-	M0_ENTRY();
-	M0_PRE(req->dr_type == DIX_GET);
-	start_unit = req->dr_items[rec_op->dgp_item].dxi_pg_unit;
-	M0_ASSERT(start_unit < dix_rec_op_spare_offset(rec_op));
-	for (i = 0; i < start_unit; i++)
-		rec_op->dgp_units[i].dpu_unavail = true;
-	for (i = start_unit; i < rec_op->dgp_units_nr; i++) {
-		pgu = &rec_op->dgp_units[i];
-		if (!pgu->dpu_is_spare && !pgu->dpu_unavail)
-			break;
-	}
-	for (j = i + 1; j < rec_op->dgp_units_nr; j++)
-		rec_op->dgp_units[j].dpu_unavail = true;
-}
-
 static void dix_pg_unit_pd_assign(struct m0_dix_pg_unit *pgu,
 				  struct m0_pooldev     *pd)
 {
@@ -2135,15 +2147,6 @@ static void dix_rop_units_set(struct m0_dix_req *req)
 	}
 
 	m0_rwlock_read_unlock(&pm->pm_lock);
-
-	/*
-	 * Only one CAS GET request should be sent for every record.
-	 * Choose the best destination for every record.
-	 */
-	if (req->dr_type == DIX_GET) {
-		for (i = 0; i < rop->dg_rec_ops_nr; i++)
-			dix_online_unit_choose(req, &rop->dg_rec_ops[i]);
-	}
 }
 
 static bool dix_pg_unit_skip(struct m0_dix_req     *req,

@@ -1244,7 +1244,7 @@ static int dix_common_idx_flagged_op(const struct m0_dix *indices,
 	int               rc;
 	int               i;
 
-	m0_dix_req_init(&req, &dix_ut_cctx.cl_cli, dix_ut_cctx.cl_grp);
+	m0_dix_req_init(&req, &dix_ut_cctx.cl_cli, dix_ut_cctx.cl_grp, 1);
 	m0_dix_req_lock(&req);
 	switch (type) {
 	case REQ_CREATE:
@@ -1294,7 +1294,7 @@ static int dix_common_rec_op(const struct m0_dix    *index,
 	int               i;
 	int               k = 0;
 
-	m0_dix_req_init(&req, &dix_ut_cctx.cl_cli, dix_ut_cctx.cl_grp);
+	m0_dix_req_init(&req, &dix_ut_cctx.cl_cli, dix_ut_cctx.cl_grp, 1);
 	m0_dix_req_lock(&req);
 	switch (type) {
 	case REQ_PUT:
