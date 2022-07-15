@@ -924,11 +924,12 @@ M0_INTERNAL void m0_be_allocator_destroy(struct m0_be_allocator *a,
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
-					enum m0_be_allocator_op optype,
-					m0_bcount_t             size,
-					unsigned                shift,
-					struct m0_be_tx_credit *accum)
+M0_INTERNAL void m0_be_allocator_credit_common(struct m0_be_allocator *a,
+					       enum m0_be_allocator_op optype,
+					       m0_bcount_t             size,
+					       unsigned                shift,
+					       struct m0_be_tx_credit *accum,
+					       bool                    mem_zero)
 {
 	/*
 	 * XXX `a' can be NULL, &(struct m0_be_seg)(0)->bs_allocator or
@@ -965,7 +966,8 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 			    &M0_BE_TX_CREDIT_PTR(&h->bah_addr));
 
 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
-	mem_zero_credit = M0_BE_TX_CREDIT(1, size);
+	mem_zero_credit = (mem_zero) ? M0_BE_TX_CREDIT(1, size)
+				     : M0_BE_TX_CREDIT(0, 0);
 
 	chunks_all_be_list_credit(M0_BLO_CREATE,  1, &cred_list_create);
 	chunks_all_be_list_credit(M0_BLO_DESTROY, 1, &cred_list_destroy);
@@ -1044,14 +1046,33 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT(40, 640));
 }
 
-M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
-				     struct m0_be_tx *tx,
-				     struct m0_be_op *op,
-				     void **ptr,
-				     m0_bcount_t size,
-				     unsigned shift,
-				     uint64_t zonemask,
-				     bool chunk_align)
+M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
+					enum m0_be_allocator_op optype,
+					m0_bcount_t             size,
+					unsigned                shift,
+					struct m0_be_tx_credit *accum)
+{
+	m0_be_allocator_credit_common(a, optype, size, shift, accum, true);
+}
+
+M0_INTERNAL void m0_be_allocator_credit_no_clear(struct m0_be_allocator *a,
+					enum m0_be_allocator_op optype,
+					m0_bcount_t             size,
+					unsigned                shift,
+					struct m0_be_tx_credit *accum)
+{
+	m0_be_allocator_credit_common(a, optype, size, shift, accum, false);
+}
+
+M0_INTERNAL void m0_be_alloc_aligned_common(struct m0_be_allocator *a,
+				     	    struct m0_be_tx *tx,
+				     	    struct m0_be_op *op,
+				     	    void **ptr,
+				     	    m0_bcount_t size,
+				     	    unsigned shift,
+				     	    uint64_t zonemask,
+				    	    bool chunk_align,
+					    bool clear_space)
 {
 	enum  m0_be_alloc_zone_type  ztype;
 	struct be_alloc_chunk       *c = NULL;
@@ -1084,8 +1105,11 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 					    chunk_align);
 		M0_ASSERT(c != NULL);
 		M0_ASSERT(c->bac_zone == ztype);
-		memset(&c->bac_mem, 0, size);
-		m0_be_tx_capture(tx, &M0_BE_REG(a->ba_seg, size, &c->bac_mem));
+		if (clear_space) {
+			memset(&c->bac_mem, 0, size);
+			m0_be_tx_capture(tx, &M0_BE_REG(a->ba_seg, size,
+					 &c->bac_mem));
+		}
 	}
 	*ptr = c == NULL ? NULL : &c->bac_mem;
 	be_allocator_stats_update(&a->ba_h[ztype]->bah_stats,
@@ -1120,6 +1144,32 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	m0_be_op_done(op);
 }
 
+M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
+				     struct m0_be_tx *tx,
+				     struct m0_be_op *op,
+				     void **ptr,
+				     m0_bcount_t size,
+				     unsigned shift,
+				     uint64_t zonemask,
+				     bool chunk_align)
+{
+	m0_be_alloc_aligned_common(a, tx, op, ptr, size, shift, zonemask,
+				   chunk_align, true);
+}
+
+M0_INTERNAL void m0_be_alloc_aligned_no_clear(struct m0_be_allocator *a,
+					      struct m0_be_tx *tx,
+					      struct m0_be_op *op,
+					      void **ptr,
+					      m0_bcount_t size,
+					      unsigned shift,
+					      uint64_t zonemask,
+					      bool chunk_align)
+{
+	m0_be_alloc_aligned_common(a, tx, op, ptr, size, shift, zonemask,
+				   chunk_align, false);
+}
+
 M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
 			     struct m0_be_tx *tx,
 			     struct m0_be_op *op,
@@ -1128,6 +1178,17 @@ M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
 {
 	m0_be_alloc_aligned(a, tx, op, ptr, size, M0_BE_ALLOC_SHIFT_MIN,
 			    M0_BITS(M0_BAP_NORMAL), false);
+}
+
+M0_INTERNAL void m0_be_alloc_no_clear(struct m0_be_allocator *a,
+				      struct m0_be_tx *tx,
+				      struct m0_be_op *op,
+				      void **ptr,
+				      m0_bcount_t size)
+{
+	m0_be_alloc_aligned_no_clear(a, tx, op, ptr, size,
+				     M0_BE_ALLOC_SHIFT_MIN,
+				     M0_BITS(M0_BAP_NORMAL), false);
 }
 
 M0_INTERNAL size_t m0_be_chunk_header_size(void)

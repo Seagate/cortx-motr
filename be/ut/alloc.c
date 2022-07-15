@@ -192,6 +192,138 @@ M0_INTERNAL void m0_be_ut_alloc_concurrent(void)
 	be_ut_alloc_mt(BE_UT_ALLOC_THR_NR);
 }
 
+M0_INTERNAL void m0_be_ut_alloc_verify(void)
+{
+	struct m0_be_ut_backend *ut_be  = &be_ut_alloc_backend;
+	struct m0_be_ut_seg     *ut_seg = &be_ut_alloc_seg;
+	struct m0_be_allocator  *a;
+	int                      rc;
+	int                      i = 0;
+	void                    *p = NULL;
+	void                    *saved_p = NULL;
+	struct m0_be_tx          tx;
+	struct m0_be_tx_credit   cred = {};
+	struct m0_be_tx_credit   empty_cred = {};
+	m0_bcount_t              size;
+	unsigned                 shift;
+	m0_bcount_t              overhead_reg_nr;
+	m0_bcount_t              overhead_reg_size;
+
+	m0_be_ut_backend_init(ut_be);
+	m0_be_ut_seg_init(ut_seg, ut_be, BE_UT_ALLOC_SEG_SIZE);
+	m0_be_ut_seg_allocator_init(ut_seg, ut_be);
+
+	a = m0_be_seg_allocator(be_ut_alloc_seg.bus_seg);
+	M0_UT_ASSERT(a != NULL);
+
+	/**
+	 * Find the size of the allocator metadata. We do this by allocating
+	 * 4096 bytes of memory and finding the credit requirements (TX_NR,
+	 * TX_SIZE). (TX_NR-1, TX_SIZE-4096) is the credit required by the
+	 * allocator.
+	 */
+	size = 4096;
+	shift = 0;
+	m0_be_allocator_credit(a, M0_BAO_ALLOC_ALIGNED, size, shift, &cred);
+	overhead_reg_nr   = cred.tc_reg_nr - 1;
+	overhead_reg_size = cred.tc_reg_size - size;
+
+	/**
+	 * Confirm only the overhead size is taken as credit when
+	 * m0_be_allocator_credit_no_clear() is called.
+	 */
+	cred = empty_cred;
+	m0_be_allocator_credit_no_clear(a, M0_BAO_ALLOC_ALIGNED, size, shift, &cred);
+	M0_ASSERT(overhead_reg_nr == cred.tc_reg_nr);
+	M0_ASSERT(overhead_reg_size == cred.tc_reg_size);
+
+	/**
+	 * Get credits and allocate memory. Confirm the memory allocated with
+	 * m0_be_alloc_aligned() is filled with zeroes. Fill this memory with
+	 * some non-zero data and release this memory. Again allocate memory and
+	 * confirm the same memory pointer is returned by the allocator and the
+	 * memory is zeroed out.
+	 * Next get the credits and allocate memory with no-clear. Confirm the
+	 * memory allocated using m0_be_alloc_aligned is NOT filled with zeroes.
+	 */
+	size = 4096;
+	shift = 0;
+	cred = empty_cred;
+	m0_be_allocator_credit(a, M0_BAO_ALLOC_ALIGNED, size, shift, &cred);
+	m0_be_allocator_credit(a, M0_BAO_FREE_ALIGNED, size, shift, &cred);
+	m0_be_allocator_credit(a, M0_BAO_ALLOC_ALIGNED, size, shift, &cred);
+	m0_be_allocator_credit(a, M0_BAO_FREE_ALIGNED, size, shift, &cred);
+	m0_be_allocator_credit_no_clear(a, M0_BAO_ALLOC_ALIGNED, size, shift,
+					&cred);
+	m0_be_allocator_credit_no_clear(a, M0_BAO_FREE_ALIGNED, size, shift,
+					&cred);
+	m0_be_allocator_credit_no_clear(a, M0_BAO_ALLOC_ALIGNED, size, shift,
+					&cred);
+	m0_be_allocator_credit_no_clear(a, M0_BAO_FREE_ALIGNED, size, shift,
+					&cred);
+
+	m0_be_ut_tx_init(&tx, ut_be);
+	m0_be_tx_prep(&tx, &cred);
+	rc = m0_be_tx_open_sync(&tx);
+	M0_ASSERT(rc == 0);
+
+	M0_BE_OP_SYNC(op, m0_be_alloc_aligned(a, &tx, &op, &p, size,
+					      shift, M0_BITS(M0_BAP_NORMAL),
+					      false));
+	M0_ASSERT(p != NULL);
+	saved_p = p;
+	for (i=0; i < size/sizeof(uint64_t); i++) {
+		M0_ASSERT(((uint64_t *)p)[i] == 0);
+		((uint64_t *)p)[i] = i;
+	}
+
+	M0_BE_OP_SYNC(op, m0_be_free_aligned(a, &tx, &op, p));
+
+	M0_BE_OP_SYNC(op, m0_be_alloc_aligned(a, &tx, &op, &p, size,
+					      shift, M0_BITS(M0_BAP_NORMAL),
+					      false));
+	/**
+	 * We know the allocator uses the LIFO scheme when dispersing memory to
+	 * its callers. Based on this we can assume to get the recently released
+	 * memory back with the allocation call above.
+	 */
+	M0_ASSERT(p != NULL && p == saved_p);
+	for (i=0; i < size/sizeof(uint64_t); i++) {
+		M0_ASSERT(((uint64_t *)p)[i] == 0);
+	}
+	M0_BE_OP_SYNC(op, m0_be_free_aligned(a, &tx, &op, p));
+
+
+	M0_BE_OP_SYNC(op, m0_be_alloc_aligned_no_clear(a, &tx, &op, &p, size,
+						       shift,
+						       M0_BITS(M0_BAP_NORMAL),
+						       false));
+	M0_ASSERT(p != NULL);
+	for (i=0; i < size/sizeof(uint64_t); i++) {
+		M0_ASSERT(((uint64_t *)p)[i] == 0);
+		((uint64_t *)p)[i] = i;
+	}
+
+	M0_BE_OP_SYNC(op, m0_be_free_aligned(a, &tx, &op, p));
+
+	M0_BE_OP_SYNC(op, m0_be_alloc_aligned_no_clear(a, &tx, &op, &p, size,
+						       shift,
+						       M0_BITS(M0_BAP_NORMAL),
+						       false));
+	M0_ASSERT(p != NULL && p == saved_p);
+	for (i=0; i < size/sizeof(uint64_t); i++) {
+		M0_ASSERT(((uint64_t *)p)[i] == i);
+	}
+	M0_BE_OP_SYNC(op, m0_be_free_aligned(a, &tx, &op, p));
+
+	m0_be_tx_close_sync(&tx);
+	m0_be_tx_fini(&tx);
+	m0_be_ut_seg_allocator_fini(ut_seg, ut_be);
+	m0_be_ut_seg_fini(ut_seg);
+	m0_be_ut_backend_fini(ut_be);
+	M0_SET0(ut_be);
+}
+
 static void be_ut_alloc_credit_log(struct m0_be_allocator  *a,
 				   enum m0_be_allocator_op  optype,
 				   const char              *optype_str,

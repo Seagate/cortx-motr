@@ -224,7 +224,28 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 					struct m0_be_tx_credit *accum);
 
 /**
- * Allocate memory.
+ * Accumulate credits for optype in accum with no memory clear.
+ *
+ * @param a Allocator
+ * @param optype Allocator operation type
+ * @param size Size of allocation. Makes sense only for
+ *	       M0_IN(optype, (M0_BAO_ALLOC_ALIGNED, M0_BAO_ALLOC)).
+ *	       It is ignored for other optypes.
+ * @param shift Memory alignment shift. Makes sense only for
+ *		optype == M0_BAO_ALLOC_ALIGNED. It is ignored for other optypes.
+ * @param accum Accumulator for credits.
+ *
+ * @see m0_be_alloc_aligned(), m0_be_alloc(), m0_be_free(),
+ * m0_be_free_aligned(), m0_be_allocator_op, m0_be_tx_credit.
+ */
+M0_INTERNAL void m0_be_allocator_credit_no_clear(struct m0_be_allocator *a,
+						 enum m0_be_allocator_op optype,
+						 m0_bcount_t             size,
+						 unsigned                shift,
+						 struct m0_be_tx_credit *accum);
+
+/**
+ * Allocate memory and clear its contents.
  *
  * @param a Allocator
  * @param tx Allocation will be done in this transaction
@@ -259,7 +280,42 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 				     bool chunk_align);
 
 /**
- * Allocate memory.
+ * Allocate memory without clearing its contents.
+ *
+ * @param a Allocator
+ * @param tx Allocation will be done in this transaction
+ * @param op See m0_be_op.
+ * @param ptr Pointer to allocated memory will be stored to *ptr.
+ *	      *ptr shouldn't be used before completion of the operation.
+ *	      Can be NULL.
+ * @param size Memory size
+ * @param shift Memory will be aligned on (shift^2)-byte boundary.
+ *		It can be less than M0_BE_ALLOC_SHIFT_MIN - in this case
+ *		allocation will be done as if it is equal to
+ *		M0_BE_ALLOC_SHIFT_MIN.
+ * @param zonemask Bit mask of the zones where memory should be allocated.
+ *                 The first zone from the bit mask with sufficient space will
+ *                 be chosen for allocation, see m0_be_alloc_zone_type.
+ * @param chunk_align Chunk header(be_alloc_chunk) will be aligned to
+ *		      (shift^2)-byte boundary. Memory will follow after chunk
+ *		      header.
+ *
+ * The memory should be freed using m0_be_free_aligned().
+ *
+ * @see m0_be_alloc(), m0_be_allocator_credit(), M0_BAO_ALLOC_ALIGNED,
+ * m0_alloc_aligned(), M0_BE_ALLOC_SHIFT_MIN.
+ */
+M0_INTERNAL void m0_be_alloc_aligned_no_clear(struct m0_be_allocator *a,
+					      struct m0_be_tx *tx,
+					      struct m0_be_op *op,
+					      void **ptr,
+					      m0_bcount_t size,
+					      unsigned shift,
+					      uint64_t zonemask,
+					      bool chunk_align);
+
+/**
+ * Allocate memory and clear its contents.
  *
  * The memory allocated is guaranteed to be suitably aligned
  * for any kind of variable. See m0_be_alloc_aligned() for
@@ -274,7 +330,23 @@ M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
 			     m0_bcount_t size);
 
 /**
- * Free memory allocated with m0_be_alloc_aligned().
+ * Allocate memory without clearing its contents.
+ *
+ * The memory allocated is guaranteed to be suitably aligned but not zeroed out
+ * for any kind of variable. See m0_be_alloc_aligned_no_clear() for
+ * parameters description.
+ *
+ * @see m0_be_alloc_aligned_no_clear(), M0_BAO_ALLOC, m0_alloc().
+ */
+M0_INTERNAL void m0_be_alloc_no_clear(struct m0_be_allocator *a,
+				      struct m0_be_tx *tx,
+				      struct m0_be_op *op,
+				      void **ptr,
+				      m0_bcount_t size);
+
+/**
+ * Free memory allocated with
+ * m0_be_alloc_aligned()/m0_be_alloc_aligned_no_clear().
  *
  * @param a Allocator
  * @param tx Free operation will be done in this transaction
@@ -415,6 +487,12 @@ M0_INTERNAL size_t m0_be_chunk_header_size(void);
 
 #define M0_BE_ALLOC_CHUNK_ALIGN_BUF_SYNC(buf, shift, seg, tx)                  \
 		M0_BE_OP_SYNC(__op,m0_be_alloc_aligned(                        \
+					m0_be_seg_allocator(seg), (tx), &__op, \
+					&(buf)->b_addr, (buf)->b_nob, (shift), \
+					M0_BITS(M0_BAP_NORMAL), true))
+
+#define M0_BE_ALLOC_NO_CLEAR_CHUNK_ALIGN_BUF_SYNC(buf, shift, seg, tx)         \
+		M0_BE_OP_SYNC(__op,m0_be_alloc_aligned_no_clear(               \
 					m0_be_seg_allocator(seg), (tx), &__op, \
 					&(buf)->b_addr, (buf)->b_nob, (shift), \
 					M0_BITS(M0_BAP_NORMAL), true))
