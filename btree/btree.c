@@ -862,6 +862,35 @@ enum {
 enum {
 	CR_ALL = -1,
 	CR_NONE = -2,
+	/**
+	 * Flags to indicate which regions are to be captured in the node.
+	 *     Bits 0-1 : HDR flags
+	 *     Bits 2-3 : DIR flags
+	 *     Bits 4-5 : KV flags
+	 *     Bit    6 : Not used
+	 *     Bit    7 : Op flag to indicate ins/del operation
+	 * 
+	 * Value of flag bits:
+	 * 	0x00 - capture nothing.
+	 * 	0x01 - capture only modified part.
+	 * 	0x10 - Invalid value.
+	 * 	0x11 - capture full.
+	 */
+	CR_OP_DEL    = 0x80,
+	CR_HDR_SHIFT = 0,
+	CR_DIR_SHIFT = 2,
+	CR_KV_SHIFT  = 4,
+	CR_MOD       = 0x01,
+	CR_FULL      = 0x03,
+	CR_HDR_MOD   = CR_MOD  << CR_HDR_SHIFT,
+	CR_HDR_FULL  = CR_FULL << CR_HDR_SHIFT,
+	CR_HDR_MASK  = CR_HDR_FULL,
+	CR_DIR_MOD   = CR_MOD  << CR_DIR_SHIFT,
+	CR_DIR_FULL  = CR_FULL << CR_DIR_SHIFT,
+	CR_DIR_MASK  = CR_DIR_FULL,
+	CR_KV_MOD    = CR_MOD  << CR_KV_SHIFT,
+	CR_KV_FULL   = CR_FULL << CR_KV_SHIFT,
+	CR_KV_MASK   = CR_KV_FULL,
 };
 
 /** Direction of move in bnode_move(). */
@@ -1093,6 +1122,25 @@ struct node_type {
 };
 
 /**
+ * Structure which contains the address and sizes to be captured.
+ */
+struct node_capture_reg {
+	void     *ncr_hdr_beg;
+	void     *ncr_hdr_end;
+	void     *ncr_dir_beg;
+	void     *ncr_dir_end;
+	void     *ncr_key_beg;
+	void     *ncr_key_end;
+	void     *ncr_val_beg;
+	void     *ncr_val_end;
+};
+
+#define VPTR_TO_U64(a)   (uint64_t)((uintptr_t)(a))
+#define U64_TO_VPTR(a)   (void*)((uintptr_t)(a))
+#define MIN64U_PTR(a,b)  U64_TO_VPTR(min64u(VPTR_TO_U64(a), VPTR_TO_U64(b)))
+#define MAX64U_PTR(a,b)  U64_TO_VPTR(max64u(VPTR_TO_U64(a), VPTR_TO_U64(b)))
+
+/**
  * Node descriptor.
  *
  * This structure is allocated (outside of the segment) for each node actively
@@ -1152,6 +1200,9 @@ struct nd {
 	 * DOES NOT imply node descriptor validity.
 	 */
 	bool                    n_be_node_valid;
+
+	/* Structure containing info about regions to be captured */
+	struct node_capture_reg n_cap;
 };
 
 enum node_opcode {
@@ -3148,27 +3199,108 @@ static void ff_done(struct slot *slot, bool modified)
 	}
 }
 
+static void ff_cap_reg_define(struct nd *tgt, int idx, uint8_t flags)
+{
+	struct ff_head          *h        = ff_data(tgt);
+	struct node_capture_reg *cap      = &tgt->n_cap;
+	struct ff_dir_entry     *de       = (struct ff_dir_entry *)(h + 1);
+	struct node_capture_reg  tmp      = {};
+	int                      crc_size = 0;
+
+	if (h->ff_var.ff_level == 0 &&
+	    ff_crctype_get(tgt) == M0_BCT_BTREE_ENC_RAW_HASH)
+		crc_size = CRC_VALUE_SIZE;
+
+	if ((flags & CR_HDR_MASK) == CR_HDR_FULL) {
+		tmp.ncr_hdr_beg = h;
+		tmp.ncr_hdr_end = h->ff_opaque == NULL ?
+				  tmp.ncr_hdr_beg + sizeof(*h) :
+				  (void *)(&h->ff_opaque) - 1;
+	} else {
+		tmp.ncr_hdr_beg = &h->ff_var;
+		tmp.ncr_hdr_end = tmp.ncr_hdr_beg + sizeof(struct ff_hdr_var);
+	}
+
+	if ((flags & CR_DIR_MASK) == CR_DIR_FULL) {
+		tmp.ncr_dir_beg = de;
+		tmp.ncr_dir_end = tmp.ncr_dir_beg +
+				  (sizeof(*de) * h->ff_var.ff_max_recs);
+	} else if ((flags & CR_DIR_MASK) == CR_DIR_MOD) {
+		tmp.ncr_dir_beg = &de[idx];
+		tmp.ncr_dir_end = tmp.ncr_dir_beg +
+				  (sizeof(*de) * (h->ff_var.ff_used - idx));
+	}
+
+	if ((flags & CR_KV_MASK) == CR_KV_FULL) {
+		tmp.ncr_key_beg = &de[h->ff_var.ff_max_recs];
+		tmp.ncr_key_end = tmp.ncr_key_beg + 
+				  (h->ff_var.ff_used * (h->ff_ksize +
+				     		   ff_valsize(tgt) + crc_size));
+	} else if ((flags & CR_KV_MASK) == CR_KV_MOD &&
+		   (flags & CR_OP_DEL) == 0) {
+		tmp.ncr_key_beg = ff_key(tgt, idx);
+		tmp.ncr_key_end = tmp.ncr_key_beg + h->ff_ksize +
+				  ff_valsize(tgt) + crc_size;
+	}
+
+	cap->ncr_hdr_beg = cap->ncr_hdr_beg != NULL ?
+			   MIN64U_PTR(cap->ncr_hdr_beg, tmp.ncr_hdr_beg) :
+			   tmp.ncr_hdr_beg;
+	cap->ncr_hdr_end = cap->ncr_hdr_end != NULL ?
+			   MAX64U_PTR(cap->ncr_hdr_end, tmp.ncr_hdr_end) :
+			   tmp.ncr_hdr_end;
+	M0_ASSERT(cap->ncr_hdr_end >= cap->ncr_hdr_beg);
+	cap->ncr_dir_beg = cap->ncr_dir_beg != NULL ?
+			   MIN64U_PTR(cap->ncr_dir_beg, tmp.ncr_dir_beg) :
+			   tmp.ncr_dir_beg;
+	cap->ncr_dir_end = cap->ncr_dir_end != NULL ?
+			   MAX64U_PTR(cap->ncr_dir_end, tmp.ncr_dir_end) :
+			   tmp.ncr_dir_end;
+	M0_ASSERT(cap->ncr_dir_end >= cap->ncr_dir_beg);
+	cap->ncr_key_beg = cap->ncr_key_beg != NULL ?
+			   MIN64U_PTR(cap->ncr_key_beg, tmp.ncr_key_beg) :
+			   tmp.ncr_key_beg;
+	cap->ncr_key_end = cap->ncr_key_end != NULL ?
+			   MAX64U_PTR(cap->ncr_key_end, tmp.ncr_key_end) :
+			   tmp.ncr_key_end;
+	M0_ASSERT(cap->ncr_key_end >= cap->ncr_key_beg);
+	cap->ncr_val_beg = cap->ncr_val_beg != NULL ?
+			   MIN64U_PTR(cap->ncr_val_beg, tmp.ncr_val_beg) :
+			   tmp.ncr_val_beg;
+	cap->ncr_val_end = cap->ncr_val_end != NULL ?
+			   MAX64U_PTR(cap->ncr_val_end, tmp.ncr_val_end) :
+			   tmp.ncr_val_end;
+	M0_ASSERT(cap->ncr_val_end >= cap->ncr_val_beg);
+}
+
 static void ff_make(struct slot *slot)
 {
-	struct ff_head *h  = ff_data(slot->s_node);
+	struct ff_head *h               = ff_data(slot->s_node);
+	struct nd      *tgt             = (struct nd *)slot->s_node;
 	void           *key_addr;
 	void           *val_addr;
-	int             crc_size = 0;
+	int             crc_size        = 0;
 	int             vsize;
 	int             total_key_size;
 	int             total_val_size;
+	uint8_t         flags           = CR_HDR_MOD | CR_DIR_MOD | CR_KV_MOD;
 
 	if (h->ff_var.ff_used == 0 || slot->s_idx == h->ff_var.ff_used) {
 		if (IS_EMBEDDED_INDIRECT(slot->s_node) &&
-		    h->ff_var.ff_used == 0)
+		    h->ff_var.ff_used == 0) {
 			ff_dir_init(slot->s_node);
+			flags |= CR_HDR_FULL | CR_DIR_FULL;
+		}
 		h->ff_var.ff_used++;
+		ff_cap_reg_define(tgt, slot->s_idx, flags);
 		return;
 	}
 
-	if (IS_EMBEDDED_INDIRECT(slot->s_node))
+	if (IS_EMBEDDED_INDIRECT(slot->s_node)) {
 		ff_dir_update(slot->s_node, slot->s_idx, false);
-	else {
+		++h->ff_var.ff_used;
+		ff_cap_reg_define(tgt, slot->s_idx, flags);
+	} else {
 		if (h->ff_var.ff_level == 0 &&
 		    ff_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
 			crc_size = CRC_VALUE_SIZE;
@@ -3185,9 +3317,9 @@ static void ff_make(struct slot *slot)
 		m0_memmove(key_addr + h->ff_ksize, key_addr, total_key_size);
 		m0_memmove(val_addr - (vsize + crc_size), val_addr,
 			total_val_size);
+		h->ff_var.ff_used++;
 	}
 
-	h->ff_var.ff_used++;
 }
 
 static bool ff_newval_isfit(struct slot *slot, struct m0_btree_rec *old_rec,
@@ -3223,24 +3355,28 @@ static void ff_cut(const struct nd *node, int idx, int size)
 
 static void ff_del(const struct nd *node, int idx)
 {
-	struct ff_head *h     = ff_data(node);
+	struct ff_head *h               = ff_data(node);
+	struct nd      *tgt             = (struct nd *)node;
 	void           *key_addr;
 	void           *val_addr;
-	int             crc_size = 0;
+	int             crc_size        = 0;
 	int             vsize;
 	int             total_key_size;
 	int             total_val_size;
+	uint8_t         flags           = CR_HDR_MOD | CR_DIR_MOD | 0x80;
 
 	M0_PRE(h->ff_var.ff_used > 0 && idx < h->ff_var.ff_used);
 
 	if (idx == h->ff_var.ff_used - 1) {
+		ff_cap_reg_define(tgt, idx, flags);
 		h->ff_var.ff_used--;
 		return;
 	}
 
-	if (IS_EMBEDDED_INDIRECT(node))
+	if (IS_EMBEDDED_INDIRECT(node)) {
 		ff_dir_update(node, idx, true);
-	else {
+		ff_cap_reg_define(tgt, idx, flags);
+	} else {
 		if (h->ff_var.ff_level == 0 &&
 		    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
 			crc_size = CRC_VALUE_SIZE;
@@ -3382,44 +3518,31 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 static void ff_capture(struct nd *node, struct slot *slot, int cr,
 		       struct m0_be_tx *tx)
 {
-	struct ff_head      *h        = ff_data(slot->s_node);
-	struct ff_dir_entry *de       = (struct ff_dir_entry *)(h + 1);
-	struct m0_be_seg    *seg      = slot->s_node->n_tree->t_seg;
-	m0_bcount_t          hsize    = sizeof(*h) - sizeof(h->ff_opaque);
-	int                  crc_size = 0;
-	int                  kv_cap_size;
+	struct ff_head          *h        = ff_data(slot->s_node);
+	struct nd               *tgt      = (struct nd *)slot->s_node;
+	struct node_capture_reg *cap      = &tgt->n_cap;
+	struct m0_be_seg        *seg      = slot->s_node->n_tree->t_seg;
+	m0_bcount_t              hsize    = sizeof(*h) - sizeof(h->ff_opaque);
+	int                      crc_size = 0;
 
 	if (h->ff_var.ff_level == 0 &&
 	    ff_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
 		crc_size = CRC_VALUE_SIZE;
 
 	if (IS_EMBEDDED_INDIRECT(slot->s_node)) {
-		int de_nr   = h->ff_var.ff_max_recs;
-		int de_size = sizeof(struct ff_dir_entry) * de_nr;
-
-		if (cr == CR_ALL) {
-			kv_cap_size = h->ff_var.ff_max_recs *
-				      (h->ff_ksize + ff_valsize(slot->s_node) +
-				       crc_size);
-
-			M0_BTREE_TX_CAPTURE(tx, seg, &de[0],
-					    de_size + kv_cap_size);
-		} else if (cr == CR_NONE) {
-			if (h->ff_var.ff_max_recs != 0)
-				M0_BTREE_TX_CAPTURE(tx, seg, &de[0], de_size);
-
-			if (h->ff_opaque == NULL)
-				hsize += sizeof(h->ff_opaque);
-		} else {
-			M0_ASSERT(cr == 1);
-			kv_cap_size = h->ff_ksize + ff_valsize(slot->s_node) +
-				      crc_size;
-
-			M0_BTREE_TX_CAPTURE(tx, seg, &de[0], de_size);
-			M0_BTREE_TX_CAPTURE(tx, seg,
-					    ff_key(slot->s_node, slot->s_idx),
-					    kv_cap_size);
-		}
+		if (cap->ncr_hdr_beg != NULL && cap->ncr_hdr_end != NULL &&
+		    cap->ncr_hdr_end != cap->ncr_hdr_beg)
+			M0_BTREE_TX_CAPTURE(tx, seg, cap->ncr_hdr_beg,
+					    cap->ncr_hdr_end - cap->ncr_hdr_beg);
+		if (cap->ncr_dir_beg != NULL && cap->ncr_dir_end != NULL &&
+		    cap->ncr_dir_end != cap->ncr_dir_beg)
+			M0_BTREE_TX_CAPTURE(tx, seg, cap->ncr_dir_beg,
+					    cap->ncr_dir_end - cap->ncr_dir_beg);
+		if (cap->ncr_key_beg != NULL && cap->ncr_key_end != NULL &&
+		    cap->ncr_key_end != cap->ncr_key_beg)
+			M0_BTREE_TX_CAPTURE(tx, seg, cap->ncr_key_beg,
+					    cap->ncr_key_end - cap->ncr_key_beg);
+		M0_SET0(cap);
 	} else {
 		/**
 		 *  Capture starting from the location where new record may have
