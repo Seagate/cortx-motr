@@ -27,7 +27,6 @@
 #include "lib/assert.h"
 #include "lib/misc.h"    /* M0_BITS */
 #include "lib/finject.h"
-#include "fis/fi_command.h"
 #include "lib/cksum_utils.h"
 #include "net/net_internal.h"
 #include "net/buffer_pool.h"
@@ -52,7 +51,7 @@
 #include "balloc/balloc.h"         /* M0_BALLOC_NORMAL_ZONE */
 #include "stob/addb2.h"            /* M0_AVI_STOB_IO_REQ */
 #include "layout/layout.h"         /* m0_lid_to_unit_map */
-#include "conf/helpers.h"
+
 /**
    @page DLD-bulk-server DLD of Bulk Server
 
@@ -1643,7 +1642,6 @@ static int zero_copy_finish(struct m0_fom *fom)
 	if (rbulk->rb_rc != 0){
 		m0_mutex_unlock(&rbulk->rb_mutex);
 
-		M0_LOG(M0_ERROR, "bulk load failure rc:%d", rbulk->rb_rc);
 		if (!M0_FI_ENABLED("keep-net-buffers")) {
 			m0_rpc_bulk_fini(rbulk);
 			nbuf_release_done(fom, 0);
@@ -2364,7 +2362,6 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	/* Set operation status in reply fop if FOM ends.*/
 	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
 	    m0_fom_phase(fom) == M0_FOPH_FAILURE) {
-
 		if (fom_obj->fcrw_stob != NULL)
 			m0_storage_dev_stob_put(m0_cs_storage_devs_get(),
 						fom_obj->fcrw_stob);
@@ -2373,7 +2370,6 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 		rwrep->rwr_count = fom_obj->fcrw_count << fom_obj->fcrw_bshift;
 		/* Information about the transaction for this update op. */
 		m0_fom_mod_rep_fill(&rwrep->rwr_mod_rep, fom);
-
 		return M0_RC(rc);
 	}
 
@@ -2407,15 +2403,6 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	struct m0_net_transfer_mc *tm;
 	struct m0_stob_io_desc    *stio_desc;
 	struct m0_fop_cob_rw      *rw;
-	const char                *func = "m0_rpc_item_received";
-	const char                *tag  = "log";
-	int                        fi_rc;
-	struct m0_conf_obj        *svc_obj = NULL;
-	struct m0_fid             *svc_fid = NULL;
-	struct m0_reqh_service_ctx *fis_ctx;
-	struct m0_rpc_session      *fis_session = NULL;
-	struct m0_conf_obj         *obj    = NULL;
-	struct m0_confc            *confc  = m0_reqh2confc(m0_fom2reqh(fom));
 
 
 	M0_PRE(fom != NULL);
@@ -2434,60 +2421,6 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 	M0_LOG(M0_DEBUG, "FOM fini: fom=%p op=%s@"FID_F", nbytes=%lu", fom,
 	       m0_is_read_fop(fop) ? "READ" : "WRITE", FID_P(&rw->crw_fid),
 	       (unsigned long)(fom_obj->fcrw_count << fom_obj->fcrw_bshift));
-
-	fi_rc = m0_confc_service_find(m0_reqh2confc(m0_fom_reqh(fom)), M0_CST_FIS,
-				m0_rpc_conn_addr(fom->fo_fop->f_item.ri_session->s_conn),
-				&svc_obj);
-	M0_ASSERT(fi_rc == 0);
-
-	if (svc_obj != NULL)
-		svc_fid = &svc_obj->co_id;
-	M0_LOG(M0_ALWAYS, "addr:%s service fid:"FID_F,
-				m0_rpc_conn_addr(fom->fo_fop->f_item.ri_session->s_conn),
-				FID_P(svc_fid));
-
-	fis_ctx = m0_tl_find(pools_common_svc_ctx, fis_ctx, &m0_fom_reqh(fom)->rh_pools->pc_svc_ctxs,
-				     m0_fid_eq(svc_fid, &fis_ctx->sc_fid));
-	if (fis_ctx != NULL)
-		fis_session = &fis_ctx->sc_rlink.rlk_sess;
-
-	M0_LOG(M0_ALWAYS, "remote fis addr:%s service fid:"FID_F,
-				m0_rpc_conn_addr(fis_session->s_conn),
-				FID_P(&fis_ctx->sc_fid));
-
-	if (fis_session != NULL) {
-		M0_LOG(M0_ALWAYS, "fom:%p state:%d", fom, m0_fom_phase(fom));
-		m0_conf_cache_lock(&confc->cc_cache);
-		obj = m0_conf_cache_lookup(&confc->cc_cache, svc_fid);
-		m0_conf_cache_unlock(&confc->cc_cache);
-		M0_ASSERT(obj != NULL);
-		M0_LOG(M0_ALWAYS, "state %s for " FID_F,
-			m0_ha_state2str(obj->co_ha_state),
-			FID_P(svc_fid));
-		if (false && m0_rpc_link_is_connected(&fis_ctx->sc_rlink) &&
-		    fis_ctx->sc_rlink.rlk_sess.s_cancelled) {
-			M0_LOG(M0_ALWAYS, "fi session is cancelled:%p",&fis_ctx->sc_rlink.rlk_sess);
-			if (obj->co_ha_state != M0_NC_ONLINE) {
-			M0_LOG(M0_ALWAYS, "Force state transition %s -> M0_NC_ONLINE for " FID_F,
-				m0_ha_state2str(obj->co_ha_state), FID_P(svc_fid));
-
-			obj->co_ha_state = M0_NC_ONLINE;
-			m0_chan_broadcast(&obj->co_ha_chan);
-			}
-		} else if (obj->co_ha_state == M0_NC_ONLINE &&
-			   m0_rpc_link_is_connected(&fis_ctx->sc_rlink)  &&
-			   !fis_ctx->sc_rlink.rlk_sess.s_cancelled) {
-				M0_LOG(M0_ALWAYS, "Send fi fop to addr:%s service fid:"FID_F,
-						m0_rpc_conn_addr(fis_session->s_conn), FID_P(svc_fid));
-
-				fi_rc = m0_fi_command_post_sync(fis_session, func, tag,
-					M0_FI_DISP_ENABLE_ONCE, 0, 0);
-				if (fi_rc != 0)
-					M0_LOG(M0_ALWAYS, "fi rc:%d",fi_rc);
-		} else
-			M0_LOG(M0_ALWAYS, "fi is not connected:%p",&fis_ctx->sc_rlink.rlk_sess);
-	} else M0_LOG(M0_ERROR, "FIS service is not configured or connected");
-
 
 	M0_ADDB2_ADD(M0_AVI_ATTR, m0_sm_id_get(&fom->fo_sm_phase),
 		     M0_AVI_IOS_IO_ATTR_FOMCRW_TOTAL_IOIVEC_CNT,
