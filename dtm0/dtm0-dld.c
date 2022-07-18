@@ -167,32 +167,28 @@
 
    - dtm0 SHOULD NOT support transaction dependencies.
 
-   - dtm0 consistency model MUST be configurable.
+   - dtm0 consistency model MUST be configurable??
+     Note: this sounds like hard-to-implement requirement atm.
+           Maybe for the future.
 
-   - dtm0 performance/D tradeoff MUST be configurable.
+   - dtm0 performance/durability tradeoff MUST be configurable??
+     Note: this might be hard to implement, but try to design with this
+           thought in mind.
+     Example: configure the priority of online recovery.
 
    - configuration options:
         1. Read quorum, write quorum.
-        2. Number of replicas.
-        3. XXX: Read A, WRITE A.
+        2. Number of replicas (N+K).
 
    - dtm0 MUST handle out-of-disk-space and out-of-memory conditions.
+     User should get an error, the system should not crash or hang
+     leaving the system in inconsistent state.
 
    - dtm0 MUST minimize the use of storage for the transactions that are
-   replicated on all non-failed participants.
-      Comment: no need to prune dtm0 log/FOL all the time.
-
-   They should be expressed in a list, thusly:
-   - @b R.DLD.Structured The DLD shall be decomposed into a standard
-   set of section.  Sub-sections may be used to further decompose the
-   material of a section into logically disjoint units.
-   - @b R.DLD.What The DLD shall describe the externally visible
-   data structures and interfaces of the component through a
-   functional specification section.
-   - @b R.DLD.How The DLD shall explain its inner algorithms through
-   a logical specification section.
-   - @b R.DLD.Maintainable The DLD shall be easily maintainable during
-   the lifetime of the code.
+     replicated on all non-failed participants. (Justification of the Pruner.)
+     Comment: log record eventually might serve as FOL (File Operations
+              Log) record, in this case pruning of the log will depend on the
+              FOL liveness requirements.
 
    <hr>
    @section DLD-depends Dependencies
@@ -201,17 +197,31 @@
 
 
    - dtm0 relies on Motr HA (Hare) to provide state of Motr configuration
-   objects in the cluster.
+     objects in the cluster.
 
-   - DIX relies dtm0 to restore missing replicas.
+   - DIX relies on dtm0 to restore missing units replicas.
 
+   <hr>
+   @section DLD-highlights-window Design Highlights: Window
+   Each client has a window of pending transactions which have not
+   reached the stable state nor have been cancelled yet.
 
+   We are sending this window to each paricipant with every new request.
+   The window is range [o.BEGIN, o.END) where:
+   - o.END is max(o.originator)+1 for any transactions ever created
+   on the originator (since the process start) or 1 there was not any.
+   - o.BEGIN is min(o.originator) for all non-finalised transactions or
+   o.END if there are no non-finalised transactions.
 
-   The DLD specification style guide depends on the HLD and AR
-   specifications as they identify requirements, use cases, @a \&c.
+   The window is used as a logical timeout to start sending redo msgs
+   for this originator. We don't need to send redos to the transactions
+   which are still pending. To the window we also add some fixed N-txns
+   number of transactions during which we still give a chance for
+   participants to send us pmsgs before we start sending redos to them.
 
    <hr>
    @section DLD-highlights-clocks Design Highlights: Clocks
+   TODO: revisit
 
    Originator keeps uint64_t clock for itself and for every storage device.
    The clocks are initialized with zero when the originator starts.
@@ -240,11 +250,6 @@
    @endverbatim
 
    The picture represents volatile counters on the originator.
-   We are sending a window. The window is range [o.BEGIN, o.END) where:
-   - o.END is max(o.originator)+1 for any transactions ever created
-   on the originator (sinec the process started) or 1 there was not any.
-   - o.BEGIN is min(o.originator) for all non-finalised transactions or
-   o.END if there are no non-finalised transactions.
 
    DTM0 log on a persistent participant maintains the following structure
    for every originator:
