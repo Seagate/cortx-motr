@@ -1049,12 +1049,10 @@ recovery_machine_local_id(const struct m0_dtm0_recovery_machine *m)
 
 static int recovery_machine_log_iter_next(struct m0_dtm0_recovery_machine *m,
 					  struct m0_be_dtm0_log_iter *iter,
-					  const struct m0_fid *tgt_svc,
-					  const struct m0_fid *origin_svc,
 					  struct m0_dtm0_log_rec *record)
 {
 	M0_PRE(m->rm_ops->log_iter_next != NULL);
-	return m->rm_ops->log_iter_next(m, iter, tgt_svc, origin_svc, record);
+	return m->rm_ops->log_iter_next(m, iter, record);
 }
 
 static int recovery_machine_log_iter_init(struct m0_dtm0_recovery_machine *m,
@@ -1070,6 +1068,21 @@ static void recovery_machine_log_iter_fini(struct m0_dtm0_recovery_machine *m,
 {
 	M0_PRE(m->rm_ops->log_iter_fini != NULL);
 	m->rm_ops->log_iter_fini(m, iter);
+}
+
+static int recovery_machine_log_last_dtxid(struct m0_dtm0_recovery_machine *m,
+					   struct m0_dtm0_tid              *out)
+{
+	M0_PRE(m->rm_ops->log_last_dtxid != NULL);
+	return m->rm_ops->log_last_dtxid(m, out);
+}
+
+static int recovery_machine_dtxid_cmp(struct m0_dtm0_recovery_machine *m,
+				      struct m0_dtm0_tid              *left,
+				      struct m0_dtm0_tid              *right)
+{
+	M0_PRE(m->rm_ops->dtxid_cmp != NULL);
+	return m->rm_ops->dtxid_cmp(m, left, right);
 }
 
 static void recovery_machine_redo_post(struct m0_dtm0_recovery_machine *m,
@@ -1646,6 +1659,14 @@ static void eolq_await(struct m0_fom *fom, struct eolq_item *out)
 	*out = F(got) ? F(item) : (struct eolq_item) { .ei_type = EIT_END };
 }
 
+static bool participated(const struct m0_dtm0_log_rec *record,
+			 const struct m0_fid          *svc)
+{
+	return m0_exists(i, record->dlr_txd.dtd_ps.dtp_nr,
+			 m0_fid_eq(&record->dlr_txd.dtd_ps.dtp_pa[i].p_fid,
+				   svc));
+}
+
 /**
  * Restore missing transactions on remote participant.
  *
@@ -1665,7 +1686,40 @@ static void dtm0_restore(struct m0_fom        *fom,
 		      struct m0_fid       initiator;
 		      struct m0_be_op     reply_op;
 		      bool                next;
+		      struct m0_dtm0_tid  last_dtx_id;
+		      bool                last_dtx_met;
 		      );
+
+	/*
+	 * Remember the last DTX ID before this remote service went to
+	 * RECOVERING.  Then replay the log up to this transaction and stop. We
+	 * do it becase remote participant is accepting PUT operations even
+	 * during recovery, so no need to send REDOs for them.
+	 *
+	 * FIXME: Race condition scenario: client sent a lot of CAS reqs, then
+	 * one of participants restarted.  Some of the requests are still "in
+	 * queue to be executed" in this m0d, i.e.  don't yet have log record.
+	 * If restore is called at this moment (i.e. motr/HA were fast enough to
+	 * get to recovery), these "in queue" transactions won't be replayed.
+	 *
+	 * FIXME: This approach is in any case not fully correct.  The very
+	 * basic not-handled scenario is: at the point when this function
+	 * starts, the client may not yet "know" that TRANSIENT participant
+	 * became RECOVERING, e.g. because HA event was not yet delivered, and
+	 * so client keeps working in "degraded" mode (i.e. it is still not
+	 * sending CAS requests to now RECOVERING client).  These transactions
+	 * that were sent in degraded mode must also be replayed, even though
+	 * they came after we started recovery.  But this above described
+	 * approach will not replay them.  Still this approach is better than
+	 * nothing -- it will at least allow to put an upper boundary on the
+	 * recovery process; without this fix, under high load, recovery will
+	 * never end (new entries will be continuously added to the end of the
+	 * log, and recovery machine will keep replaying them forever).
+	 */
+	M0_SET0(&F(last_dtx_id));
+	rc = recovery_machine_log_last_dtxid(rf->rf_m, &F(last_dtx_id));
+	M0_ASSERT(M0_IN(rc, (0, -ENOENT)));
+	F(last_dtx_met) = (rc == -ENOENT);
 
 	recovery_machine_log_iter_init(rf->rf_m, &rf->rf_log_iter);
 
@@ -1675,20 +1729,70 @@ static void dtm0_restore(struct m0_fom        *fom,
 	M0_SET0(&F(reply_op));
 	m0_be_op_init(&F(reply_op));
 
+	/*
+	 * last_dtx_met and next seem to have very close meaning, but they are
+	 * not the same.  last_dtx_met is "we have reached the last transaction
+	 * to be analyzed".  next is "we need at least one more iteration" (and
+	 * !next is "no more iterations; send EOL message").  The iteration
+	 * starts with last_dtx_met=false and next=true.  At the end,
+	 * last_dtx_met=true and next=false.  But just before the end, last
+	 * entry in the log may or may not need to be sent -- that is when we
+	 * need both flags to define what to do.
+	 */
 	do {
-		M0_SET0(&record);
-		rc = recovery_machine_log_iter_next(rf->rf_m, &rf->rf_log_iter,
-						    &rf->rf_tgt_svc, NULL,
-						    &record);
-		/* Any value except zero means that we should stop recovery. */
-		F(next) = rc == 0;
+		if (F(last_dtx_met)) {
+			/*
+			 * Last iteration reached the RECOVERING mark in the
+			 * log, don't need to send REDOs past this mark.  But we
+			 * still need to send EOL flag (EOL message).
+			 */
+			F(next) = false;
+		} else {
+			do {
+				rc = recovery_machine_log_iter_next(
+						rf->rf_m, &rf->rf_log_iter,
+						&record);
+				/*
+				 * Any value except zero means that we should
+				 * stop recovery.
+				 *
+				 * XXX: handle cases when rc not in (0,
+				 * -ENOENT).
+				 */
+				M0_ASSERT(M0_IN(rc, (0, -ENOENT)));
+				F(next) = (rc == 0);
+				if (!F(next))
+					break;
+				rc = recovery_machine_dtxid_cmp(
+						rf->rf_m,
+						&record.dlr_txd.dtd_id,
+						&F(last_dtx_id));
+				F(last_dtx_met) = (rc == 0);
+				if (participated(&record, &rf->rf_tgt_svc))
+					break;
+				m0_dtm0_log_iter_rec_fini(&record);
+				if (F(last_dtx_met))
+					F(next) = false;
+			} while (!F(last_dtx_met));
+		}
+
+		/*
+		 * At this point, a record is either fully initialized and must
+		 * be sent, or is holding garbage from previous iterations and
+		 * F(next) is then set to false, so we will send EOL flag.  With
+		 * current implementation, EOL flags should be sent on a
+		 * separate message, which must not have any payload.
+		 */
 		redo = (struct dtm0_req_fop) {
 			.dtr_msg       = DTM_REDO,
 			.dtr_initiator = F(initiator),
-			.dtr_payload   = record.dlr_payload,
-			.dtr_txr       = record.dlr_txd,
-			.dtr_flags     = F(next) ? 0 : M0_BITS(M0_DMF_EOL),
 		};
+		if (F(next)) {
+			redo.dtr_payload   = record.dlr_payload;
+			redo.dtr_txr       = record.dlr_txd;
+		} else {
+			redo.dtr_flags     = M0_BITS(M0_DMF_EOL);
+		}
 
 		/*
 		 * TODO: there is extra memcpy happening here -- first copy done
@@ -1700,6 +1804,9 @@ static void dtm0_restore(struct m0_fom        *fom,
 		recovery_machine_redo_post(rf->rf_m, &rf->rf_base,
 					   &rf->rf_tgt_proc, &rf->rf_tgt_svc,
 					   &redo, &F(reply_op));
+
+		if (F(next))
+			m0_dtm0_log_iter_rec_fini(&record);
 
 		M0_LOG(M0_DEBUG, "out-redo: (m=%p) " REDO_F,
 		       rf->rf_m, REDO_P(&redo));
@@ -2050,40 +2157,15 @@ static void default_log_iter_fini(struct m0_dtm0_recovery_machine *m,
 	m0_be_dtm0_log_iter_fini(iter);
 }
 
-static bool participated(const struct m0_dtm0_log_rec *record,
-			 const struct m0_fid          *svc)
-{
-	return m0_exists(i, record->dlr_txd.dtd_ps.dtp_nr,
-			 m0_fid_eq(&record->dlr_txd.dtd_ps.dtp_pa[i].p_fid,
-				   svc));
-}
-
 static int default_log_iter_next(struct m0_dtm0_recovery_machine *m,
 				 struct m0_be_dtm0_log_iter      *iter,
-				 const struct m0_fid             *tgt_svc,
-				 const struct m0_fid             *origin_svc,
 				 struct m0_dtm0_log_rec          *record)
 {
 	struct m0_be_dtm0_log *log = m->rm_svc->dos_log;
 	int rc;
 
-	/* XXX: not supported yet */
-	M0_ASSERT(origin_svc == NULL);
-
 	m0_mutex_lock(&log->dl_lock);
-
-	/* Filter out records where tgt_svc is not a participant. */
-	do {
-		M0_SET0(record);
-		rc = m0_be_dtm0_log_iter_next(iter, record);
-		if (rc == 0) {
-			if (participated(record, tgt_svc))
-				break;
-			else
-				m0_dtm0_log_iter_rec_fini(record);
-		}
-	} while (rc == 0);
-
+	rc = m0_be_dtm0_log_iter_next(iter, record);
 	m0_mutex_unlock(&log->dl_lock);
 
 	/* XXX: error codes will be adjusted separately. */
@@ -2093,6 +2175,26 @@ static int default_log_iter_next(struct m0_dtm0_recovery_machine *m,
 	default:
 		return M0_ERR(rc);
 	}
+}
+
+static int default_log_last_dtxid(struct m0_dtm0_recovery_machine *m,
+				  struct m0_dtm0_tid              *out)
+{
+	struct m0_be_dtm0_log *log = m->rm_svc->dos_log;
+	int                    rc;
+
+	m0_mutex_lock(&log->dl_lock);
+	rc = m0_be_dtm0_log_get_last_dtxid(log, out);
+	m0_mutex_unlock(&log->dl_lock);
+
+	return rc;
+}
+
+static int default_dtxid_cmp(struct m0_dtm0_recovery_machine *m,
+			     struct m0_dtm0_tid              *left,
+			     struct m0_dtm0_tid              *right)
+{
+	return m0_dtm0_tid_cmp(m->rm_svc->dos_log->dl_cs, left, right);
 }
 
 /*
@@ -2184,6 +2286,9 @@ M0_INTERNAL const struct m0_dtm0_recovery_machine_ops
 	.log_iter_init = default_log_iter_init,
 	.log_iter_fini = default_log_iter_fini,
 	.log_iter_next = default_log_iter_next,
+
+	.log_last_dtxid = default_log_last_dtxid,
+	.dtxid_cmp      = default_dtxid_cmp,
 
 	.redo_post     = default_redo_post,
 	.ha_event_post = default_ha_event_post,

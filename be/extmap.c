@@ -349,10 +349,9 @@ m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db)
 {
 	struct m0_btree_op         b_op = {};
 	int                        rc;
-	struct m0_btree_rec_key_op keycmp;
+	struct m0_btree_rec_key_op keycmp = { .rko_keycmp = be_emap_cmp };
 	be_emap_init(map, db);
 
-	keycmp.rko_keycmp = be_emap_cmp;
 	M0_ALLOC_PTR(map->em_mapping);
 	if (map->em_mapping == NULL)
 		M0_ASSERT(0);
@@ -388,7 +387,7 @@ M0_INTERNAL void m0_be_emap_create(struct m0_be_emap   *map,
 	struct m0_btree_op         b_op = {};
 	struct m0_fid              fid;
 	int                        rc;
-	struct m0_btree_rec_key_op keycmp;
+	struct m0_btree_rec_key_op keycmp = { .rko_keycmp = be_emap_cmp };
 	M0_PRE(map->em_seg != NULL);
 
 	m0_be_op_active(op);
@@ -402,7 +401,7 @@ M0_INTERNAL void m0_be_emap_create(struct m0_be_emap   *map,
 		.ksize = sizeof(struct m0_be_emap_key),
 		.vsize = -1,
 	};
-	keycmp.rko_keycmp = be_emap_cmp;
+
 	fid = M0_FID_TINIT('b', M0_BT_EMAP_EM_MAPPING, bfid->f_key);
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				      m0_btree_create(&map->em_mp_node,

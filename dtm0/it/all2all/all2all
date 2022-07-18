@@ -392,7 +392,9 @@ function ctgdump()
     mkdir -p $out_dir
 
     _info "$cmd $cmd_args"
-    $cmd $cmd_args | sort > "$out_file"
+    (set -o pipefail
+     $cmd $cmd_args | sort > "$out_file"
+    )
 }
 
 function ctg_eq()
@@ -423,7 +425,10 @@ function check_ctg_consistency()
     rm -fR "$CTGDUMP_DIR"
 
     for i in $(seq 0 $((${#M0D_FIDS_HEX[@]}-1))); do
-        ctgdump $i
+        if ! ctgdump $i; then
+            _err "ctgdump failed, terminating."
+            exit 1
+        fi
     done
 
     for i in ${targets[@]}; do
