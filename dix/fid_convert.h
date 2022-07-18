@@ -78,6 +78,8 @@ M0_INTERNAL bool m0_dix_fid_validate_cctg(const struct m0_fid *cctg_fid);
 
 M0_INTERNAL uint32_t m0_dix_fid__device_id_extract(const struct m0_fid *fid);
 
+M0_INTERNAL void m0_dix_fid__device_id_set(struct m0_fid *fid,
+					   uint32_t       dev_id);
 /** @} end of dix group */
 #endif /* __MOTR_DIX_FID_CONVERT_H__ */
 

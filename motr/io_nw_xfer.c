@@ -1079,14 +1079,10 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		/*
 		 * Use NOHOLE by default (i.e. return error for missing
 		 * units instead of zeros), unless we are in read-verify
-		 * mode or in the degraded-read mode. Otherwise, in case of
-		 * partially spanned parity groups (last groups, usually),
-		 * we will get a lot of bogus errors when all data units
-		 * of the group are read.
+		 * mode.
 		 *
-		 * Note: parity units are always present in the groups, even
-		 * in the partially spanned ones. So we always use NOHOLE
-		 * for them. Otherwise, the user may get corrupted data.
+		 * Note: parity units are always present in the groups,
+		 * so we always use NOHOLE for them.
 		 */
 		instance = m0__op_instance(&ioo->ioo_oo.oo_oc.oc_op);
 		if (ioreq_sm_state(ioo) == IRS_READING && !read_in_write &&
@@ -1096,7 +1092,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 
 		if (ioreq_sm_state(ioo) == IRS_DEGRADED_READING &&
-		    !read_in_write && filter == PA_PARITY)
+		    !read_in_write)
 			rw_fop->crw_flags |= M0_IO_FLAG_NOHOLE;
 
 		/* Assign the checksum buffer for traget */

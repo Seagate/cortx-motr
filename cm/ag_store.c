@@ -331,12 +331,10 @@ static int ag_store__update(struct m0_cm_ag_store *store)
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "Cannot load ag store, status=%d phase=%d",
 					store->s_status, m0_fom_phase(fom));
-	if (rc == 0) {
-		s_data->d_in       = store->s_data.d_in;
-		s_data->d_out      = store->s_data.d_out;
-		s_data->d_cm_epoch = store->s_data.d_cm_epoch;
-		M0_BE_TX_CAPTURE_PTR(seg, tx, s_data);
-	}
+	s_data->d_in       = store->s_data.d_in;
+	s_data->d_out      = store->s_data.d_out;
+	s_data->d_cm_epoch = store->s_data.d_cm_epoch;
+	M0_BE_TX_CAPTURE_PTR(seg, tx, s_data);
 
 	return M0_RC(rc);
 }

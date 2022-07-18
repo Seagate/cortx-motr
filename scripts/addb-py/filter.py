@@ -29,6 +29,7 @@ def filter(argv):
     rec = ""
     fname = ""
     f = None
+    node = ""
     for line in fileinput.input([]):
         params = line[1:].split()
         if line[0] == "*":
@@ -54,4 +55,4 @@ def filter(argv):
 if __name__ == "__main__":
     filter(sys.argv)
 
-        
+

@@ -170,6 +170,19 @@ struct m0_bufvec {
 	.ov_buf = (addr_ptr)						\
 }
 
+#define M0_BUFVEC_SEG_COUNT(bufvec)                                     \
+	({                                                              \
+		M0_CASSERT(M0_HAS_TYPE((bufvec), struct m0_bufvec *));  \
+		(bufvec)->ov_vec.v_nr;                                  \
+	})
+
+#define M0_BUFVEC_DATA(bufvec)                                          \
+	({                                                              \
+		M0_CASSERT(M0_HAS_TYPE((bufvec), struct m0_bufvec *));  \
+		M0_ASSERT((bufvec)->ov_vec.v_nr == 1);                  \
+		(bufvec)->ov_buf[0];                                    \
+	})
+
 /**
    Allocates memory for a struct m0_bufvec.  All segments are of equal
    size.
@@ -314,6 +327,11 @@ M0_INTERNAL void m0_indexvec_free(struct m0_indexvec *ivec);
  * @return the number of squashed chunks.
  */
 M0_INTERNAL uint32_t m0_indexvec_pack(struct m0_indexvec *ivec);
+
+/**
+ * Returns the end index (exclusive) of the given ivec.
+ */
+M0_INTERNAL m0_bindex_t m0_indexvec_end(const struct m0_indexvec *ivec);
 
 /** Cursor to traverse a bufvec */
 struct m0_bufvec_cursor {

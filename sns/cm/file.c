@@ -406,7 +406,7 @@ M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm *scm,
 				    struct m0_sns_cm_file_ctx **out)
 {
 	struct m0_sns_cm_file_ctx *fctx;
-	struct m0_fid              f = *fid;
+	struct m0_fid              f;
 	int                        rc;
 
 	M0_ENTRY();
@@ -416,6 +416,7 @@ M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm *scm,
 	M0_PRE(m0_sns_cm_fid_is_valid(scm, fid));
 	M0_PRE(m0_mutex_is_locked(&scm->sc_file_ctx_mutex));
 
+	f = *fid;
 	fctx = m0_scmfctx_htable_lookup(&scm->sc_file_ctx, &f);
 	if ( fctx != NULL) {
 		*out = fctx;
@@ -534,7 +535,7 @@ static uint64_t max_frame(const struct m0_sns_cm_file_ctx *fctx,
 	if (max_cob_size < frame_size)
 		frame = 0;
 	else {
-		frame = max_cob_size % frame_size ?
+		frame = (max_cob_size % frame_size) ?
 			max_cob_size / frame_size + 1 :
 			max_cob_size / frame_size;
 	}
@@ -769,11 +770,11 @@ M0_INTERNAL uint64_t m0_sns_cm_file_data_units(struct m0_sns_cm_file_ctx *fctx)
 {
 	size_t                    fsize;
 	uint64_t                  nr_total_du = 0;
-	struct m0_pdclust_layout *pl = m0_layout_to_pdl(fctx->sf_layout);
+	struct m0_pdclust_layout *pl;
 
 	M0_PRE(fctx != NULL);
 	M0_ENTRY();
-
+	pl = m0_layout_to_pdl(fctx->sf_layout);
 	fsize = fctx->sf_attr.ca_size;
 	nr_total_du = fsize / m0_pdclust_unit_size(pl);
 	if (fsize % m0_pdclust_unit_size(pl) > 0)

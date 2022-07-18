@@ -159,7 +159,7 @@ static int spiel_copy_file(const char *source, const char* dest)
 	char buf[1024];
 	int in_fd;
 	int out_fd;
-	size_t result;
+	ssize_t result;
 	int rc = 0;
 
 	in_fd = open(source, O_RDONLY);

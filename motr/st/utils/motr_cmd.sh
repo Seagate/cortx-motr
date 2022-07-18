@@ -35,10 +35,7 @@ XPRT=$(m0_default_xprt)
 #. $dir/motr_config.sh
 
 # Get local address
-if [ "$XPRT" = "lnet" ]; then
-	modprobe lnet
-	lctl network up &>> /dev/null
-fi
+check_and_restart_lnet
 LOCAL_NID=$(m0_local_nid_get)
 LOCAL_EP=$LOCAL_NID:12345:33:100
 HA_EP=$LOCAL_NID:12345:34:1

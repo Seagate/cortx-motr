@@ -112,7 +112,8 @@ static void test_pver_find(void)
 
 	conf_ut_ha_state_set(cache, &failed[0], M0_NC_FAILED);
 	rc = m0_conf_pver_find(pool, NULL, &pver);
-	M0_UT_ASSERT(rc == -ENOENT);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(pver->pv_kind == M0_CONF_PVER_ACTUAL);
 	for (i = 1; i < ARRAY_SIZE(failed); ++i)
 		conf_ut_ha_state_set(cache, &failed[i], M0_NC_FAILED);
 	rc = m0_conf_pver_find(pool, NULL, &pver_virt);
