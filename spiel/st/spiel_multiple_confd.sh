@@ -158,8 +158,8 @@ confd_mkfs_start() {
     echo "--- $(date) ---" >>"$path"/m0d.log
     cd $path
 
-    echo "$M0_SRC_DIR"/utils/mkfs/m0mkfs "$OPTS"
-    "$M0_SRC_DIR"/utils/mkfs/m0mkfs "$OPTS" >>"$path"/mkfs.log ||
+    echo "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS
+    "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS >>"$path"/mkfs.log ||
     error 'm0mkfs failed'
 }
 
@@ -176,7 +176,7 @@ confd_start() {
     echo "--- `date` ---" >>$path/m0d.log
     cd $path
 
-    echo "$M0_SRC_DIR"/motr/m0d "$OPTS"
+    echo "$M0_SRC_DIR"/motr/m0d $OPTS
     $M0_SRC_DIR/motr/m0d $OPTS >>$path/m0d.log 2>&1 &
     local PID=$!
     sleep 10

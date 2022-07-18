@@ -36,7 +36,7 @@ spiel_sns_repair_and_rebalance_test()
 	echo "Starting SNS repair testing ..."
 	for ((i=0; i < ${#files[*]}; i++)) ; do
 		touch_file "$MOTR_M0T1FS_MOUNT_DIR"/${files[$i]} ${unit_size[$i]}
-		_dd "${files["$i"]}" $(("${unit_size["$i"]}" * 1024)) "${file_size["$i"]}"
+		_dd "${files["$i"]}" $((${unit_size["$i"]} * 1024)) "${file_size["$i"]}"
 	done
 
 	verify || return $?

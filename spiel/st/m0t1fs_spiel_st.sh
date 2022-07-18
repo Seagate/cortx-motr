@@ -219,12 +219,12 @@ m0d_with_rms_start() {
     echo "--- $(date) ---" >>"$path"/m0d.log
     cd "$path"
 
-    echo "$M0_SRC_DIR"/utils/mkfs/m0mkfs "$OPTS"
-    "$M0_SRC_DIR"/utils/mkfs/m0mkfs "$OPTS" >>"$path"/mkfs.log ||
+    echo "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS
+    "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS >>"$path"/mkfs.log ||
     error 'm0mkfs failed'
 
-    echo "$M0_SRC_DIR"/motr/m0d "$M0D_OPTS"
-    "$M0_SRC_DIR"/motr/m0d "$M0D_OPTS" >>"$path"/m0d.log 2>&1 &
+    echo "$M0_SRC_DIR"/motr/m0d $M0D_OPTS
+    "$M0_SRC_DIR"/motr/m0d $M0D_OPTS >>"$path"/m0d.log 2>&1 &
     local PID=$!
     sleep 10
     kill -0 $PID 2>/dev/null ||
@@ -256,8 +256,8 @@ test_m0d_start() {
 
     cd $path
 
-    echo "$M0_SRC_DIR"/motr/m0d "$OPTS"
-    "$M0_SRC_DIR"/motr/m0d "$OPTS" >>"$path"/m0d.log 2>&1 &
+    echo "$M0_SRC_DIR"/motr/m0d $OPTS
+    "$M0_SRC_DIR"/motr/m0d $OPTS >>"$path"/m0d.log 2>&1 &
     local PID=$!
     sleep 10
     kill -0 $PID 2>/dev/null ||
@@ -334,7 +334,7 @@ HEALTH_GOOD, HEALTH_BAD, HEALTH_INACTIVE, HEALTH_UNKNOWN = range(4)
 }
 
 construct_db() {
-    "$M0_SRC_DIR"/utils/spiel/m0spiel "$M0_SPIEL_OPTS" <<EOF
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
 N, K, S, P = 2, 1, 1, 4
 mask = c_uint64(3)
@@ -545,7 +545,7 @@ _mount() {
     local MOUNT_OPTS="-t m0t1fs -o pfid=<0x7200000000000001:1>,profile=$PROF_OPT,ha=$M0D2_ENDPOINT \
 none $SANDBOX_DIR/mnt"
     echo "mount $MOUNT_OPTS"
-    mount "$MOUNT_OPTS" || return $?
+    mount $MOUNT_OPTS || return $?
 }
 
 device_commands_check() {

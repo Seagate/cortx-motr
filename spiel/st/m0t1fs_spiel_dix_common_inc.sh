@@ -19,7 +19,7 @@
 #
 
 if [ ! -d "$M0_SRC_DIR" ]; then
-     echo "Directory "$M0_SRC_DIR" not found."
+     echo "Directory $M0_SRC_DIR not found."
      exit 1;
 fi
 . "$M0_SRC_DIR"/utils/functions # die, sandbox_init, report_and_exit
@@ -124,8 +124,8 @@ spiel_cleanup()
 
 spiel_dix_repair_start()
 {
-echo "$M0_SRC_DIR"/utils/spiel/m0spiel "$SPIEL_OPTS"
-    "$M0_SRC_DIR"/utils/spiel/m0spiel "$SPIEL_OPTS" <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
