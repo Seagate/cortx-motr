@@ -20,7 +20,7 @@
 
 # set -x
 
-motr_st_util_dir="$(dirname $(readlink -f $0))"
+motr_st_util_dir=$(dirname "$(readlink -f "$0")")
 motr_src="$motr_st_util_dir/../../../"
 m0t1fs_dir="$motr_src/m0t1fs/linux_kernel/st"
 
@@ -61,18 +61,18 @@ create_files()
 	dd if=/dev/urandom bs=$block_size count=$block_count of=$src_file \
            2> "$MOTR_TEST_LOGFILE" || {
 		error_handling $? "Failed to create a source file"
-		break
+		return
 	}
 	cp $src_file $src_file'2'
 	dd if=/dev/urandom bs="$block_size" count="$update_count" of="$update_file"\
-           2> $MOTR_TEST_LOGFILE || {
+           2> "$MOTR_TEST_LOGFILE" || {
 		error_handling $? "Failed to create a source file"
-		break
+		return
 	}
 	dd conv=notrunc if=$update_file of=$src_file'2' seek=$update_offset oflag=seek_bytes\
-           2> $MOTR_TEST_LOGFILE || {
+           2> "$MOTR_TEST_LOGFILE" || {
 		error_handling $? "Failed to update a source file"
-		break
+		return
 	}
 }
 
@@ -82,28 +82,28 @@ write_update_read()
 	local update_count=$1
 
 	echo "m0cp"
+	# We can skip double quote for $MOTR_PARAMS as assigned value contains double quote.
 	"$motr_st_util_dir/m0cp" -G $MOTR_PARAMS -o "$object_id" "$src_file" \
                                 -s $block_size -c $block_count -L $LID || {
 		error_handling $? "Failed to copy object"
-		break
+		return
 	}
 
 	echo "m0cp update"
 	"$motr_st_util_dir/m0cp" -G $MOTR_PARAMS -o "$object_id" "$update_file" \
-                                 -s $block_size -c $update_count -L $LID \
-                                 -u -O $update_offset|| {
+                                 -s $block_size -c "$update_count" -L $LID \
+                                 -u -O $update_offset || {
 		error_handling $? "Failed to copy object"
-		break
+		return
 	}
 	echo "m0cat"
 	"$motr_st_util_dir/m0cat" -G $MOTR_PARAMS -o "$object_id" -s "$block_size" \
                                   -c $block_count -L $LID \
-                                  $dest_file'_'$LID
-	if [ "$?" -eq 0 ]; then
-            rc=1
-        else
-            rc=0
-        fi
+                                  $dest_file'_'$LID || {
+		rc=0
+		return
+	}
+	rc=1
 }
 
 test_corruption_detection()
@@ -123,7 +123,7 @@ test_corruption_detection()
 main()
 {
 	sandbox_init
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 	motr_dgmode_sandbox="$MOTR_TEST_DIR/sandbox"
 	rc=0
 
