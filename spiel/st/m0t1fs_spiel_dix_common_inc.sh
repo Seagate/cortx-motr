@@ -18,7 +18,10 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-
+if [ ! -d "$M0_SRC_DIR" ]; then
+     echo "Directory "$M0_SRC_DIR" not found."
+     exit 1;
+fi
 . "$M0_SRC_DIR"/utils/functions # die, sandbox_init, report_and_exit
 . "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/common.sh
 . "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
