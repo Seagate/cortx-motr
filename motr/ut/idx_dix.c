@@ -1102,6 +1102,10 @@ static void dtm0_ut_cas_op_prepare(const struct m0_fid    *cfid,
 
 	rec->cr_key = at_buf_key;
 	rec->cr_val = at_buf_val;
+	if (val == NULL) {
+		rec->cr_val.ab_type = M0_RPC_AT_EMPTY;
+		rec->cr_val.u.ab_buf = M0_BUF_INIT0;
+	}
 
 	op->cg_id.ci_layout.dl_type = DIX_LTYPE_DESCR;
 	rc = m0_dix_ldesc_init(&op->cg_id.ci_layout.u.dl_desc,
@@ -1167,12 +1171,6 @@ static void dtm0_ut_send_redo(const struct m0_fid *ifid, uint32_t sdev_id,
 	dtm0_ut_cas_op_prepare(&cctg_fid, &cas_op, &cas_rec, key, val, &txr);
 	dtm_payload.cdg_cas_op = cas_op;
 	dtm_payload.cdg_cas_opcode = opcode;
-	if (opcode == M0_CAS_DEL_FOP_OPCODE) {
-		dtm_payload.cdg_cas_op.cg_rec.cr_rec->cr_val.ab_type =
-								M0_RPC_AT_EMPTY;
-		dtm_payload.cdg_cas_op.cg_rec.cr_rec->cr_val.u.ab_buf =
-								M0_BUF_INIT0;
-	}
 	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_dtm0_log_payload_xc,
 						   &dtm_payload),
 				     &payload.b_addr, &payload.b_nob);
@@ -1291,7 +1289,6 @@ static void st_dtm0_r_common(uint32_t sdev_id)
 		return;
 
 	idx_setup();
-	/** PUT redo */
 	exec_one_by_one(1, M0_IC_PUT);
 	dtm0_ut_send_redo(&duc.duc_ifid, sdev_id, &key, &val,
 			  M0_CAS_PUT_FOP_OPCODE);
@@ -1303,14 +1300,8 @@ static void st_dtm0_r_common(uint32_t sdev_id)
 
 	dtm0_ut_read_and_check(key, val, M0_CAS_PUT_FOP_OPCODE);
 
-	idx_teardown();
-
-	/** Delete Redo */
-	idx_setup();
-	exec_one_by_one(1, M0_IC_PUT);
 	exec_one_by_one(1, M0_IC_DEL);
-
-	dtm0_ut_send_redo(&duc.duc_ifid, sdev_id, &key, &val,
+	dtm0_ut_send_redo(&duc.duc_ifid, sdev_id, &key, NULL,
 			  M0_CAS_DEL_FOP_OPCODE);
 
 	/* XXX dirty hack, but now we don't have completion notification */

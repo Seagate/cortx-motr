@@ -366,7 +366,6 @@ enum m0_cas_type {
 	CT_MEM
 } M0_XCA_ENUM;
 
-
 /**
  * CAS-GET, CAS-PUT, CAS-DEL and CAS-CUR fops.
  *
@@ -406,7 +405,7 @@ struct m0_cas_op {
  */
 struct m0_cas_dtm0_log_payload  {
         /**  CAS op */
-	struct m0_cas_op cdg_cas_op;
+	struct           m0_cas_op cdg_cas_op;
 	/** CAS operation code */
 	uint32_t         cdg_cas_opcode;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);

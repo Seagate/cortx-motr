@@ -648,7 +648,7 @@ static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
 				    M0_CONF_HA_PROCESS_DTM_RECOVERED);
 		*/
 		rc = dtm0_cas_fop_prepare(dfom->dtf_fom.fo_service->rs_reqh,
-					  req,  &cas_fop);
+					  req, &cas_fop);
 		if (rc == 0) {
 			rc = dtm0_cas_fom_spawn(dfom, cas_fop,
 						&dtm0_cas_done_cb);

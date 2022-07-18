@@ -1135,7 +1135,7 @@ static int cas_dtm0_logrec_add(struct m0_fom *fom0,
 	}
 	dtm_payload.cdg_cas_op = *cas_op(fom0);
 	dtm_payload.cdg_cas_opcode = m0_fop_opcode(fom0->fo_fop);
-	if(dtm_payload.cdg_cas_opcode == M0_CAS_DEL_FOP_OPCODE) {
+	if (dtm_payload.cdg_cas_opcode == M0_CAS_DEL_FOP_OPCODE) {
 		dtm_payload.cdg_cas_op.cg_rec.cr_rec->cr_val.ab_type = M0_RPC_AT_EMPTY;
 		dtm_payload.cdg_cas_op.cg_rec.cr_rec->cr_val.u.ab_buf = M0_BUF_INIT0;
 	}
@@ -1939,11 +1939,11 @@ static int cas_id_check(const struct m0_cas_id *cid, const struct cas_fom *fom)
 			if (svc->c_sdev_id != INVALID_CAS_SDEV_ID &&
 			    svc->c_sdev_id != device_id &&
 			    cas_type(&fom->cf_fom) != CT_META) {
-				return M0_ERR_INFO(-EPROTO, 
+				return M0_ERR_INFO(-EPROTO,
 						   "Incorrect device ID (%d) "
 						   "found in component "
 						   "catalogue FID. Valid device"
-						   " ID should be %d", 
+						   " ID should be %d",
 						   device_id, svc->c_sdev_id);
 			}
 		}
