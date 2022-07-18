@@ -20,21 +20,21 @@
 
 # set -x
 
-motr_st_util_dir=$(dirname $(readlink -f $0))
+motr_st_util_dir="$(dirname $(readlink -f $0))"
 motr_src="$motr_st_util_dir/../../../"
 m0t1fs_dir="$motr_src/m0t1fs/linux_kernel/st"
 
 # Re-use as many m0t1fs system scripts as possible
-. $m0t1fs_dir/common.sh
-. $m0t1fs_dir/m0t1fs_common_inc.sh
-. $m0t1fs_dir/m0t1fs_client_inc.sh
-. $m0t1fs_dir/m0t1fs_server_inc.sh
-. $motr_st_util_dir/motr_local_conf.sh
-. $motr_st_util_dir/motr_st_inc.sh
+. "$m0t1fs_dir/common.sh"
+. "$m0t1fs_dir/m0t1fs_common_inc.sh"
+. "$m0t1fs_dir/m0t1fs_client_inc.sh"
+. "$m0t1fs_dir/m0t1fs_server_inc.sh"
+. "$motr_st_util_dir/motr_local_conf.sh"
+. "$motr_st_util_dir/motr_st_inc.sh"
 
 SANDBOX_DIR=/var/motr
 MOTR_TEST_DIR=$SANDBOX_DIR
-MOTR_TEST_LOGFILE=$SANDBOX_DIR/motr_`date +"%Y-%m-%d_%T"`.log
+MOTR_TEST_LOGFILE=$SANDBOX_DIR/motr_$(date +"%Y-%m-%d_%T").log
 MOTR_TRACE_DIR=$SANDBOX_DIR/motr
 export MOTR_CLIENT_ONLY=1
 
@@ -59,12 +59,12 @@ create_files()
 
 	rm -rf $src_file $src_file'2' $dest_file $update_file
 	dd if=/dev/urandom bs=$block_size count=$block_count of=$src_file \
-           2> $MOTR_TEST_LOGFILE || {
+           2> "$MOTR_TEST_LOGFILE" || {
 		error_handling $? "Failed to create a source file"
 		break
 	}
 	cp $src_file $src_file'2'
-	dd if=/dev/urandom bs=$block_size count=$update_count of=$update_file\
+	dd if=/dev/urandom bs="$block_size" count="$update_count" of="$update_file"\
            2> $MOTR_TEST_LOGFILE || {
 		error_handling $? "Failed to create a source file"
 		break
@@ -82,21 +82,21 @@ write_update_read()
 	local update_count=$1
 
 	echo "m0cp"
-	$motr_st_util_dir/m0cp -G $MOTR_PARAMS -o $object_id $src_file \
+	"$motr_st_util_dir/m0cp" -G $MOTR_PARAMS -o "$object_id" "$src_file" \
                                 -s $block_size -c $block_count -L $LID || {
 		error_handling $? "Failed to copy object"
 		break
 	}
 
-	# echo "m0cp update"
-	# $motr_st_util_dir/m0cp -G $MOTR_PARAMS -o $object_id $update_file \
-        #                          -s $block_size -c $update_count -L $LID \
-        #                          -u -O $update_offset|| {
-	# 	error_handling $? "Failed to copy object"
-	# 	break
-	# }
+	echo "m0cp update"
+	"$motr_st_util_dir/m0cp" -G $MOTR_PARAMS -o "$object_id" "$update_file" \
+                                 -s $block_size -c $update_count -L $LID \
+                                 -u -O $update_offset|| {
+		error_handling $? "Failed to copy object"
+		break
+	}
 	echo "m0cat"
-	$motr_st_util_dir/m0cat -G $MOTR_PARAMS -o $object_id -s $block_size \
+	"$motr_st_util_dir/m0cat" -G $MOTR_PARAMS -o "$object_id" -s "$block_size" \
                                   -c $block_count -L $LID \
                                   $dest_file'_'$LID
 	if [ "$?" -eq 0 ]; then
@@ -123,7 +123,6 @@ test_corruption_detection()
 main()
 {
 	sandbox_init
-
 	NODE_UUID=`uuidgen`
 	motr_dgmode_sandbox="$MOTR_TEST_DIR/sandbox"
 	rc=0
