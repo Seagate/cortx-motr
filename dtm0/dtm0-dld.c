@@ -143,7 +143,7 @@
 
      - R.dtm0.maximize.durability
        dtm0 MUST restore missing units replicas in a minimal time.
-       See REDO-without-RECOVERING for the details.
+       See Online-Recovering for the details.
 
      - R.dtm0.little-impact.performance
        - dtm0 MUST NOT introduce bottlenecks in the system.
@@ -221,7 +221,7 @@
 
    <hr>
    @section DLD-highlights-clocks Design Highlights: Clocks
-   TODO: revisit
+   TODO: revisit, maybe not needed.
 
    Originator keeps uint64_t clock for itself and for every storage device.
    The clocks are initialized with zero when the originator starts.
@@ -267,33 +267,35 @@
    <hr>
    @section DLD-highlights-holes Design Highlights: Holes
 
-   For every sdev we have per-originator lists ordered by originator's clocks.
-   If we have no holes then the updates in the history will be advancing with
-   +1.
-   We may have holes, so we have to be able deal with them.
-   Let's say we have the following kinds of holes:
-   - permanent hole -- transaction with such sdev clock value will never come;
-   - temporary hole -- transaction has no REDO and transaction with such sdev
-   clock will eventually come either from the originator or from another sdev;
-   Recovery machine is not interested in the missing record (holes) because:
-   - permanent hole is, essentionally, a replicated empty space -- it just does
-   not exist anywhere in the system.
-   - termporary hole will be eventually replicated by the participants that have
-   it (by the definition of the temporary hole).
+   The idea of holes is to make sure that we don't prune the log before some
+   transaction is still present at some participant.
+
+   There are two type of holes: temporary and permanent.
+   - Temporary hole -- transaction has no REDO and transaction with such sdev
+     clock will eventually come either from the originator or from another sdev;
+   - Permanent hole -- transaction with such sdev clock value will never come;
+     or, of it comes (for some weird reason) to some participant - it should be
+     discarded as a stale one.
+
+   Temporary holes are possible on the right side of Max-All-P pointer,
+   that's why the pruner can prune only the records before Max-All-P.
 
    <hr>
-   @section DLD-highlights-clocks Design Highlights: REDO-without-RECOVERING
+   @section DLD-highlights-clocks Design Highlights: Online-Recovering
 
-   Idea: we have window (o.BEGIN, o.END) on the client. We have "recent"
+   Online-Recovering interval is where we send REDOs to others from which
+   we don't have Pmsgs.
+
+   Idea: we have window [o.BEGIN, o.END) on the client. We have "recent"
    transactions from the client such as:
 
    @verbatim
-   w1 [BEGIN=1 END=11]
-     w2 [BEGIN=2 END=12]
+   w1 [BEGIN=1 END=11)
+     w2 [BEGIN=2 END=12)
      ...
-                        w13 [BEGIN=13 END=14]
+                        w13 [BEGIN=13 END=14)
                         ...
-                                               w14 [BEGIN=14 END=34]
+                                               w14 [BEGIN=14 END=34)
 
    ------------------------------------------------------------------>
                                                           o.originator
@@ -301,16 +303,21 @@
 
    @verbatim
 
-   [All-P / almost-All-P] [REDO-without-RECOVERING] [N-txns] [current-window]
+   [All-P / almost-All-P] [Online-Recovering] [N-txns] [current-window]
    ------------------------------------------------------------------>
 
-   Almost-All-P -- transactions that does not have P messages from TRANSIENT
-   or FAILED participants but all other participants have sent Pmsgs.
+   All-P -- transactions that do have Pmsgs from all participants except
+   FAILED ones (if any). In other words, FAILED participants do not affect
+   All-P (because they are failed permanently and we don't expect anything
+   from them).
 
-   N-txnds -- a group of transactions for which we are not going to send
-   out REDO-without-RECOVERING because it is possible that the requests
-   are still somewhere in the incoming queue on the server side, so that
-   they could be executed (or any similiar situation).
+   Almost-All-P -- transactions that do not have P messages from TRANSIENT
+   participants but all other participants have sent Pmsgs or are FAILED.
+
+   N-txns -- a group of transactions for which we are not going to send out
+   REDOs because it is possible that the requests are still somewhere in the
+   incoming queue on the server side, so that they could be executed (or any
+   similiar situation).
 
    current-window -- [o.BEGIN, o.END).
 
@@ -350,7 +357,7 @@
 
    @verbatim
         (IV)                  (III)             (II)       (I)
-   [    All-P   ]   [REDO-without-RECOVERING] [N-txns] [current-window]
+   [    All-P   ]   [Online-Recovering] [N-txns] [current-window]
    ------------------------------------------------------------------>
                     [ <- may have temporary and permanent holes --->  ] (2)
    [ may have
@@ -381,7 +388,7 @@
    txA == min-nall-p(on A, contains B); // == next(max-all-p(A, B))
    txB == min-nall-p(on B, contains A);
 
-   txB.clock < txA.clock; // send A -> B: REDO-without-RECOVERING
+   txB.clock < txA.clock; // send A -> B: Online-Recovering
 
    \E A.tx: B.min-nall-p(A) < A.min-nall-p(B)
 
@@ -454,7 +461,7 @@
 
    @verbatim
         (IV)                  (III)             (II)       (I)
-   [ Seq-All-P  ]   [REDO-without-RECOVERING] [N-txns] [current-window]
+   [ Seq-All-P  ]   [Online-Recovering] [N-txns] [current-window]
    x------------x-----------------------------x------x---------------> (originator's clock)
    ^            ^                             ^
    |            | Max-All-P                   |
@@ -467,7 +474,7 @@
    @endverbatim
 
    We use Min-Non-All-P to determine if remote side requires
-   REDO-without-RECOVERING (r-w-r).
+   Online-Recovering (r-w-r).
    For every remote storage device we keep volatile Min-Non-All-P:
    - initialized with zero;
    - updated when Pmsg is received;
@@ -1359,7 +1366,7 @@
 
    @verbatim
         (IV)                  (III)             (II)       (I)
-   [ Seq-All-P  ]   [REDO-without-RECOVERING] [N-txns] [current-window]
+   [ Seq-All-P  ]   [Online-Recovering] [N-txns] [current-window]
 
    (sdev1.self)
    x------------x-------------O1-m1----------------x------x--------------->
@@ -1390,7 +1397,7 @@
                                                                \|/
 
         (IV)                  (III)             (II)       (I)
-   [ Seq-All-P  ]   [REDO-without-RECOVERING] [N-txns] [current-window]
+   [ Seq-All-P  ]   [Online-Recovering] [N-txns] [current-window]
    x------------x-----------------------------x--------x--------------->
                 ^                             ^
 		| Max-All-P                   | Last-non-r-w-r-able-dtx
@@ -1422,7 +1429,7 @@
 
    redo_lists[by_participants] - what are they?
 
-   Cas request from the III-rd (REDO-without-RECOVERING) interval might be
+   Cas request from the III-rd (Online-Recovering) interval might be
    present in at least one the redo_lists[by_participant], so that the
    recovery process can send the redo msgs to the online participants from
    which there was no pmsg yet. Therefore, every log record must have
