@@ -43,6 +43,7 @@ struct m0_fop_type m0_sns_rebalance_quiesce_fopt;
 struct m0_fop_type m0_sns_rebalance_status_fopt;
 struct m0_fop_type m0_sns_repair_abort_fopt;
 struct m0_fop_type m0_sns_rebalance_abort_fopt;
+struct m0_fop_type m0_sns_dtrebalance_trigger_fopt;
 
 struct m0_fop_type m0_sns_repair_trigger_rep_fopt;
 struct m0_fop_type m0_sns_repair_quiesce_rep_fopt;
@@ -52,6 +53,7 @@ struct m0_fop_type m0_sns_rebalance_quiesce_rep_fopt;
 struct m0_fop_type m0_sns_rebalance_status_rep_fopt;
 struct m0_fop_type m0_sns_repair_abort_rep_fopt;
 struct m0_fop_type m0_sns_rebalance_abort_rep_fopt;
+struct m0_fop_type m0_sns_dtrebalance_trigger_rep_fopt;
 
 M0_INTERNAL int m0_sns_cm_trigger_fop_alloc(struct m0_rpc_machine  *mach,
 					    uint32_t                op,
@@ -67,7 +69,8 @@ M0_INTERNAL int m0_sns_cm_trigger_fop_alloc(struct m0_rpc_machine  *mach,
 		[CM_OP_REPAIR_STATUS]    = &m0_sns_repair_status_fopt,
 		[CM_OP_REBALANCE_STATUS] = &m0_sns_rebalance_status_fopt,
 		[CM_OP_REPAIR_ABORT]     = &m0_sns_repair_abort_fopt,
-		[CM_OP_REBALANCE_ABORT]  = &m0_sns_rebalance_abort_fopt
+		[CM_OP_REBALANCE_ABORT]  = &m0_sns_rebalance_abort_fopt,
+		[CM_OP_DTREBALANCE]      = &m0_sns_dtrebalance_trigger_fopt
 	};
 	M0_ENTRY();
 	M0_PRE(IS_IN_ARRAY(op, sns_fop_type));

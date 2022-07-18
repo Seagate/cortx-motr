@@ -189,7 +189,8 @@ enum {
 	X_CST(M0_CST_M0T1FS)  /**< m0t1fs service */             \
 	X_CST(M0_CST_CLIENT)  /**< Client service */             \
 	X_CST(M0_CST_ISCS)    /**< ISC service */                \
-	X_CST(M0_CST_DTM0)    /**< DTM0 service */
+	X_CST(M0_CST_DTM0)    /**< DTM0 service */               \
+	X_CST(M0_CST_SNS_DTREB) /**< SNS direct rebalance */     \
 
 enum m0_conf_service_type {
 #define X_CST(name) name,

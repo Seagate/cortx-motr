@@ -770,6 +770,7 @@ static int halon_interface_level_enter(struct m0_module *module)
 	case M0_HALON_INTERFACE_LEVEL_SNS_CM_TRIGGER_FOPS:
 		m0_sns_cm_repair_trigger_fop_init();
 		m0_sns_cm_rebalance_trigger_fop_init();
+		m0_sns_cm_dtrebalance_trigger_fop_init();
 		return M0_RC(0);
 	case M0_HALON_INTERFACE_LEVEL_EVENTS_STARTED:
 		halon_interface_process_event(hii, M0_CONF_HA_PROCESS_STARTED);
@@ -848,6 +849,7 @@ static void halon_interface_level_leave(struct m0_module *module)
 	case M0_HALON_INTERFACE_LEVEL_SNS_CM_TRIGGER_FOPS:
 		m0_sns_cm_rebalance_trigger_fop_fini();
 		m0_sns_cm_repair_trigger_fop_fini();
+		m0_sns_cm_dtrebalance_trigger_fop_fini();
 		break;
 	case M0_HALON_INTERFACE_LEVEL_EVENTS_STARTED:
 		halon_interface_process_event(hii, M0_CONF_HA_PROCESS_STOPPING);

@@ -1,0 +1,11 @@
+nobase_motr_include_HEADERS += sns/cm/dtrebalance/ag.h
+
+motr_libmotr_la_SOURCES  += sns/cm/dtrebalance/ag.c \
+                            sns/cm/dtrebalance/ag.h \
+                            sns/cm/dtrebalance/cm.c \
+                            sns/cm/dtrebalance/net.c \
+                            sns/cm/dtrebalance/sw_onwire_fop.c \
+                            sns/cm/dtrebalance/dtrebalance_cp_onwire.c \
+                            sns/cm/dtrebalance/service.c \
+                            sns/cm/dtrebalance/helpers.c \
+                            sns/cm/dtrebalance/trigger_fop.c

@@ -1628,8 +1628,10 @@ static void misc_init(void)
 {
 	m0_sns_cm_repair_trigger_fop_init();
 	m0_sns_cm_rebalance_trigger_fop_init();
+	m0_sns_cm_dtrebalance_trigger_fop_init();
 	m0_sns_cm_repair_sw_onwire_fop_init();
 	m0_sns_cm_rebalance_sw_onwire_fop_init();
+	m0_sns_cm_dtrebalance_sw_onwire_fop_init();
 	m0_dix_cm_repair_cpx_init();
 	m0_dix_cm_rebalance_cpx_init();
 }
@@ -1640,8 +1642,10 @@ static void misc_fini(void)
 	m0_dix_cm_repair_cpx_fini();
 	m0_sns_cm_repair_trigger_fop_fini();
 	m0_sns_cm_rebalance_trigger_fop_fini();
+	m0_sns_cm_dtrebalance_trigger_fop_fini();
 	m0_sns_cm_repair_sw_onwire_fop_fini();
 	m0_sns_cm_rebalance_sw_onwire_fop_fini();
+	m0_sns_cm_dtrebalance_sw_onwire_fop_fini();
 }
 
 /** @} end of addb2 group */

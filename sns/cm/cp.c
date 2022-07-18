@@ -53,6 +53,7 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp);
 
 M0_INTERNAL int m0_sns_cm_repair_cp_send(struct m0_cm_cp *cp);
 M0_INTERNAL int m0_sns_cm_rebalance_cp_send(struct m0_cm_cp *cp);
+M0_INTERNAL int m0_sns_cm_dtrebalance_cp_send(struct m0_cm_cp *cp);
 
 M0_INTERNAL struct m0_sns_cm_cp *cp2snscp(const struct m0_cm_cp *cp)
 {
@@ -468,6 +469,30 @@ const struct m0_cm_cp_ops m0_sns_cm_rebalance_cp_ops = {
 	.co_free                 = &m0_sns_cm_cp_free,
 };
 
+const struct m0_cm_cp_ops m0_sns_cm_dtrebalance_cp_ops = {
+	.co_action = {
+		[M0_CCP_INIT]         = &m0_sns_cm_cp_init,
+		[M0_CCP_READ]         = &m0_sns_cm_cp_read,
+		[M0_CCP_WRITE_PRE]    = &m0_sns_cm_cp_write_pre,
+		[M0_CCP_WRITE]        = &m0_sns_cm_cp_write,
+		[M0_CCP_IO_WAIT]      = &m0_sns_cm_cp_io_wait,
+		[M0_CCP_XFORM]        = &m0_sns_cm_repair_cp_xform,
+		[M0_CCP_SW_CHECK]     = &m0_sns_cm_cp_sw_check,
+		[M0_CCP_SEND]         = &m0_sns_cm_dtrebalance_cp_send,
+		[M0_CCP_SEND_WAIT]    = &m0_sns_cm_cp_send_wait,
+		[M0_CCP_RECV_INIT]    = &m0_sns_cm_cp_recv_init,
+		[M0_CCP_RECV_WAIT]    = &m0_sns_cm_cp_recv_wait,
+		[M0_CCP_FAIL]         = &m0_sns_cm_cp_fail,
+		/* To satisfy the m0_cm_cp_invariant() */
+		[M0_CCP_FINI]         = &m0_sns_cm_cp_fini,
+	},
+	.co_action_nr            = M0_CCP_NR,
+	.co_phase_next	         = &m0_sns_cm_cp_phase_next,
+	.co_invariant	         = &m0_sns_cm_cp_invariant,
+	.co_home_loc_helper      = &cp_home_loc_helper,
+	.co_complete	         = &m0_sns_cm_cp_complete,
+	.co_free                 = &m0_sns_cm_cp_free,
+};
 /** @} SNSCMCP */
 
 #undef M0_TRACE_SUBSYSTEM

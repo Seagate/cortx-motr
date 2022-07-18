@@ -382,6 +382,7 @@ enum {
 
 M0_EXTERN struct m0_cm_type sns_repair_cmt;
 M0_EXTERN struct m0_cm_type sns_rebalance_cmt;
+M0_EXTERN struct m0_cm_type sns_dtrebalance_cmt;
 
 extern const struct m0_sns_cm_helpers repair_helpers;
 extern const struct m0_sns_cm_helpers rebalance_helpers;
@@ -396,7 +397,8 @@ M0_INTERNAL int m0_sns_cm_type_register(void)
 	int rc;
 
 	rc = m0_cm_type_register(&sns_repair_cmt) ?:
-	     m0_cm_type_register(&sns_rebalance_cmt);
+	     m0_cm_type_register(&sns_rebalance_cmt) ?:
+	     m0_cm_type_register(&sns_dtrebalance_cmt);
 
 	return M0_RC(rc);
 }
@@ -405,6 +407,7 @@ M0_INTERNAL void m0_sns_cm_type_deregister(void)
 {
 	m0_cm_type_deregister(&sns_repair_cmt);
 	m0_cm_type_deregister(&sns_rebalance_cmt);
+	m0_cm_type_deregister(&sns_dtrebalance_cmt);
 }
 
 M0_INTERNAL struct m0_cm_cp *m0_sns_cm_cp_alloc(struct m0_cm *cm)
@@ -567,7 +570,8 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 	int               rc;
 
 	M0_ENTRY("cm: %p", cm);
-	M0_PRE(M0_IN(scm->sc_op, (CM_OP_REPAIR, CM_OP_REBALANCE)));
+	M0_PRE(M0_IN(scm->sc_op, (CM_OP_REPAIR, CM_OP_REBALANCE,
+	       CM_OP_DTREBALANCE)));
 
 	rc = m0_sns_cm_rm_init(scm);
 	if (rc != 0)
@@ -646,7 +650,8 @@ M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
         int               rc;
 
 	M0_ENTRY("cm: %p", cm);
-	M0_PRE(M0_IN(scm->sc_op, (CM_OP_REPAIR, CM_OP_REBALANCE)));
+	M0_PRE(M0_IN(scm->sc_op, (CM_OP_REPAIR, CM_OP_REBALANCE,
+	       CM_OP_DTREBALANCE)));
 
 	M0_ALLOC_ARR(scm->sc_total_read_size, loc_nr);
 	if (scm->sc_total_read_size == NULL)

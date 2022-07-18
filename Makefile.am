@@ -260,6 +260,7 @@ include $(top_srcdir)/sns/Makefile.sub
 include $(top_srcdir)/sns/cm/Makefile.sub
 include $(top_srcdir)/sns/cm/repair/Makefile.sub
 include $(top_srcdir)/sns/cm/rebalance/Makefile.sub
+include $(top_srcdir)/sns/cm/dtrebalance/Makefile.sub
 include $(top_srcdir)/spiel/Makefile.sub
 include $(top_srcdir)/sss/Makefile.sub
 include $(top_srcdir)/stob/Makefile.sub
