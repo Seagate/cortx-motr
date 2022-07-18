@@ -1482,10 +1482,13 @@ static int initlift_fis(struct m0_sm *mach)
 		if (rc != 0)
 			initlift_fail(rc, m0c);
 	} else {
-/*		rc = service_stop(reqh, &sfid, &m0_fis_type, &service);
-		if (rc != 0)
-			initlift_fail(rc, m0c);
-*/	}
+		/* reqh_services_terminate is handled by rpc_fini.
+		 * Reqh services are terminated not in reverse order because
+		 * m0_reqh_services_terminate() terminates all services
+		 * including rpc_service. Rpc_service starts in
+		 * rpc_init() implicitly.
+		 */
+	}
 exit:
 	return M0_RC(initlift_get_next_floor(m0c));
 }
