@@ -146,8 +146,6 @@ void m0_free(void *data)
 	if (data != NULL) {
 		size_t size = m0_arch_alloc_size(data);
 
-		M0_LOG(M0_DEBUG, "%p", data);
-
 		if (DEV_MODE) {
 			m0_atomic64_sub(&allocated, size);
 			m0_atomic64_add(&cumulative_free, size);
