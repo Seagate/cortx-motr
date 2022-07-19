@@ -567,6 +567,17 @@ M0_INTERNAL void m0_be_dtm0_log_iter_fini(struct m0_be_dtm0_log_iter *iter);
 M0_INTERNAL int m0_be_dtm0_log_iter_next(struct m0_be_dtm0_log_iter *iter,
 					 struct m0_dtm0_log_rec     *out);
 
+/**
+ * Get ID of the last transaction (or -ENOENT) from the log.
+ *
+ * @param out returned ID.
+ *
+ * @return 0 when the log is not empty and out parameter is properly filled.
+ * @return  -ENOENT when the log is empty.
+ */
+M0_INTERNAL int m0_be_dtm0_log_get_last_dtxid(struct m0_be_dtm0_log *log,
+					      struct m0_dtm0_tid    *out);
+
 /** @} */ /* end DTM0Internals */
 
 #endif /* __MOTR_BE_DTM0_LOG_H__ */

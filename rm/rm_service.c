@@ -48,6 +48,7 @@ static void rms_fini(struct m0_reqh_service *service);
 
 static int rms_start(struct m0_reqh_service *service);
 static void rms_stop(struct m0_reqh_service *service);
+static void rms_prepare_to_stop(struct m0_reqh_service *service);
 
 /**
    RM Service type operations.
@@ -62,6 +63,7 @@ static const struct m0_reqh_service_type_ops rms_type_ops = {
 static const struct m0_reqh_service_ops rms_ops = {
 	.rso_start           = rms_start,
 	.rso_start_async     = m0_reqh_service_async_start_simple,
+	.rso_prepare_to_stop = rms_prepare_to_stop,
 	.rso_stop            = rms_stop,
 	.rso_fini            = rms_fini,
 };
@@ -195,7 +197,7 @@ static void rms_resources_free(struct m0_rm_resource_type *rtype)
 	} m0_tl_endfor;
 }
 
-static void rms_stop(struct m0_reqh_service *service)
+static void rms_prepare_to_stop(struct m0_reqh_service *service)
 {
 	struct m0_reqh_rm_service *rms;
 
@@ -206,6 +208,19 @@ static void rms_stop(struct m0_reqh_service *service)
 
 	rms_resources_free(&rms->rms_flock_rt);
 	rms_resources_free(&rms->rms_rwlockable_rt);
+
+	M0_LEAVE();
+}
+
+static void rms_stop(struct m0_reqh_service *service)
+{
+	struct m0_reqh_rm_service *rms;
+
+	M0_PRE(service != NULL);
+	M0_ENTRY();
+
+	rms = bob_of(service, struct m0_reqh_rm_service, rms_svc, &rms_bob);
+
 	m0_file_lock_type_deregister(&rms->rms_flock_rt);
 	m0_rw_lockable_type_deregister(&rms->rms_rwlockable_rt);
 	m0_rm_domain_fini(&rms->rms_dom);
