@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
+# Copyright (c) 2022 Seagate Technology LLC and/or its Affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -123,8 +123,6 @@ test_corruption_detection()
 main()
 {
 	sandbox_init
-	NODE_UUID=$(uuidgen)
-	motr_dgmode_sandbox="$MOTR_TEST_DIR/sandbox"
 	rc=0
 
 	echo "Testing DI Corruption Detection"
