@@ -248,7 +248,6 @@ static void ut_remach_log_add_sync(struct ut_remach       *um,
 
 static void um_dummy_log_redo_post(struct m0_dtm0_recovery_machine *m,
 				   struct m0_fom                   *fom,
-				   const struct m0_fid *tgt_proc,
 				   const struct m0_fid *tgt_svc,
 				   struct dtm0_req_fop *redo,
 				   struct m0_be_op *op)
@@ -264,7 +263,6 @@ static void um_dummy_log_redo_post(struct m0_dtm0_recovery_machine *m,
 
 static void um_real_log_redo_post(struct m0_dtm0_recovery_machine *m,
 				  struct m0_fom                   *fom,
-				  const struct m0_fid *tgt_proc,
 				  const struct m0_fid *tgt_svc,
 				  struct dtm0_req_fop *redo,
 				  struct m0_be_op *op)
@@ -592,7 +590,7 @@ static void ut_remach_prune_plog(struct ut_remach *um, enum ut_sides side)
 		m0_free(tx);
 
 		rc = m0_be_dtm0_log_get_last_dtxid(log, &last_dtx_id);
-		M0_ASSERT(rc == -ENOENT);
+		M0_UT_ASSERT(rc == -ENOENT);
 	}
 
 	m0_mutex_unlock(&log->dl_lock);
@@ -762,8 +760,10 @@ static void ut_remach_boot(struct ut_remach *um)
 	ut_remach_init(um);
 	ut_remach_start(um);
 
-	/* Assert that DTM log is empty (make sure there is no left overs from
-	 * other unit tests that ran before us). */
+	/*
+	 * Assert that DTM log is empty (make sure there is no left overs from
+	 * other unit tests that ran before us).
+	 */
 	for (i = 0; i < UT_SIDE_NR; ++i) {
 		struct m0_be_dtm0_log *log = ut_remach_svc_get(um, i)->dos_log;
 		struct m0_dtm0_tid     last_dtx_id;
@@ -772,7 +772,7 @@ static void ut_remach_boot(struct ut_remach *um)
 		m0_mutex_lock(&log->dl_lock);
 		rc = m0_be_dtm0_log_get_last_dtxid(log, &last_dtx_id);
 		m0_mutex_unlock(&log->dl_lock);
-		M0_ASSERT(rc == -ENOENT);
+		M0_UT_ASSERT(rc == -ENOENT);
 	}
 
 	for (i = 0; i < ARRAY_SIZE(starting); ++i)
@@ -1000,6 +1000,457 @@ static void remach_rec_mark_nonempty(void)
 	remach_recovering_marker(5, 10);
 }
 
+/*
+ * Eviction use case definitions go below.  See remach_client_eviction().
+ */
+
+typedef void (*ut_evict_log_gen_cb)(struct ut_remach *um,
+				    uint64_t          ts_start,
+				    uint64_t          records_nr);
+typedef void (*ut_evict_redo_post_verify_cb)(const struct m0_fid *tgt_svc,
+					     struct dtm0_req_fop *redo);
+typedef void (*ut_evict_log_verify_cb)(uint64_t actual_evicted_call_count,
+				       uint64_t ts_start,
+				       uint64_t records_nr);
+
+static struct m0_fid gs_dummy_client_fid =
+			M0_FID_INIT(0x7300000000000001,
+				    0xBA5EBA11); /* baseball */
+static struct m0_fid gs_dummy_server_fid1 =
+			M0_FID_INIT(0x7300000000000001,
+				    0xC1A551F1ED); /* classified */
+static struct m0_fid gs_dummy_server_fid2 =
+			M0_FID_INIT(0x7300000000000001,
+				    0xACCE551B1E); /* accessible */
+static struct m0_be_op gs_evicted_be_op = {};
+static uint64_t gs_evicted_call_count;
+static ut_evict_redo_post_verify_cb gs_evict_redo_post_verify_cb;
+
+static void um_eviction_log_redo_post(struct m0_dtm0_recovery_machine *m,
+				      struct m0_fom                   *fom,
+				      const struct m0_fid *tgt_svc,
+				      struct dtm0_req_fop *redo,
+				      struct m0_be_op     *op)
+{
+	if (m0_fid_eq(tgt_svc, &gs_dummy_server_fid1) ||
+	    m0_fid_eq(tgt_svc, &gs_dummy_server_fid2)) {
+		gs_evicted_call_count++;
+		if (gs_evict_redo_post_verify_cb)
+			gs_evict_redo_post_verify_cb(tgt_svc, redo);
+		m0_be_op_active(op);
+		m0_be_op_done(op);
+	} else
+		um_real_log_redo_post(m, fom, tgt_svc, redo, op);
+}
+
+static void um_eviction_evicted(struct m0_dtm0_recovery_machine *m,
+				const struct m0_fid             *tgt_svc)
+{
+	(void)m;
+	M0_UT_ASSERT(m0_fid_eq(tgt_svc, ut_remach_fid_get(UT_SIDE_CLI)));
+	m0_be_op_active(&gs_evicted_be_op);
+	m0_be_op_done(&gs_evicted_be_op);
+}
+
+/*
+ * Generic function for client eviction use-cases: When client goes offline,
+ * server need to send REDO for non-all-P transactions from this client to
+ * respective participants.
+ *
+ * More detailed explanation.  Assume 2 persistent participants and 1 volatile
+ * client.  Client sends CAS req to participant A and immediately crashes.  The
+ * update has made it to participant A and is applied there, but participant B
+ * did not even "hear" about it.  To restore consistency, A has to send REDO to
+ * B to apply this update.
+ *
+ * In this unit-test we cannot have two actual servers and 1 client.  So we will
+ * simulate this.  We can use dtm ut helper to create 1 client and 1 server.  We
+ * will create log entries on server which have additional dummy participants,
+ * which are not actually running.  We will also put in a dummy "redo_post"
+ * callback for the server.  Then simulate client death, and make sure that
+ * server calls our dummy redo_post on appropriate log entries and sends
+ * expected REDO messages.
+ *
+ * Scenarios:
+ *   * empty log -- no replay
+ *   * entire log to be replayed
+ *   * odd entries belong to evicted/dead client
+ *   * even entries belong to evicted/dead client
+ *   * non empty log with all P in every rec not replayed
+ *   * multiple participants in one entry to be replied in different
+ *     combinations
+ */
+static void remach_client_eviction(
+		ut_evict_log_gen_cb          log_gen_cb,
+		ut_evict_redo_post_verify_cb redo_post_verify_cb,
+		ut_evict_log_verify_cb       log_verify_cb)
+{
+	struct m0_dtm0_recovery_machine_ops ops = *ut_remach_ops_get_real_log();
+	struct ut_remach um = {
+		.cp         = UT_CP_VOLATILE_CLIENT,
+		.remach_ops = &ops,
+	};
+	/* cafe bell */
+	const uint64_t since = 0xCAFEBELL;
+	const uint64_t records_nr = 10;
+
+	ops.redo_post = um_eviction_log_redo_post;
+	ops.evicted   = um_eviction_evicted;
+	/* custom verifier for individual redo-post calls */
+	gs_evict_redo_post_verify_cb = redo_post_verify_cb;
+
+	m0_be_op_init(&gs_evicted_be_op);
+	ut_remach_boot(&um);
+	/* First client eviction is done during startup. */
+	M0_UT_ASSERT(m0_be_op_is_done(&gs_evicted_be_op));
+	m0_be_op_reset(&gs_evicted_be_op);
+	gs_evicted_call_count = 0;
+	/* custom log generator */
+	if (log_gen_cb)
+		log_gen_cb(&um, since, records_nr);
+	/* simulate client death */
+	ut_remach_ha_tells(&um, &HA_THOUGHT(UT_SIDE_CLI, M0_NC_FAILED),
+			   UT_SIDE_SRV);
+	m0_be_op_wait(&gs_evicted_be_op);
+	/* custom log verifier */
+	if (log_verify_cb)
+		log_verify_cb(gs_evicted_call_count, since, records_nr);
+	ut_remach_shutdown(&um);
+	m0_be_op_fini(&gs_evicted_be_op);
+	M0_SET0(&gs_evicted_be_op);
+}
+
+static void ut_evict_log_verify_empty(uint64_t actual_evicted_call_count,
+				      uint64_t ts_start,
+				      uint64_t records_nr)
+{
+	M0_UT_ASSERT(actual_evicted_call_count == 0);
+}
+
+/*
+ * Generate log with 1 client and 2 participants.  1st participant is server
+ * initialized with dtm ut helpers, it always has P-flag.  2nd participant uses
+ * dummy fid defined above (gs_dummy_server_fid1), and P-flag specified through
+ * pa_state parameter.
+ */
+static void ut_evict_log_gen_1c2pa(struct ut_remach *um,
+				   uint64_t          ts_start,
+				   uint64_t          records_nr,
+				   uint32_t          pa_state)
+{
+	struct m0_dtm0_tx_desc           txd = {};
+	struct m0_buf                    payload = {};
+	int                              rc;
+	int                              i;
+
+	rc = m0_dtm0_tx_desc_init(&txd, 2);
+	M0_UT_ASSERT(rc == 0);
+	txd.dtd_ps.dtp_pa[0] = (struct m0_dtm0_tx_pa) {
+		.p_state = M0_DTPS_PERSISTENT,
+		.p_fid = *ut_remach_fid_get(UT_SIDE_SRV),
+	};
+	txd.dtd_ps.dtp_pa[1] = (struct m0_dtm0_tx_pa) {
+		.p_state = pa_state,
+		.p_fid = gs_dummy_server_fid1,
+	};
+	txd.dtd_id = (struct m0_dtm0_tid) {
+		.dti_ts.dts_phys = 0,
+		.dti_fid = *ut_remach_fid_get(UT_SIDE_CLI),
+	};
+
+	for (i = 0; i < records_nr; ++i) {
+		txd.dtd_id.dti_ts.dts_phys = ts_start + i;
+		ut_remach_log_add_sync(um, UT_SIDE_SRV, &txd, &payload);
+	}
+
+	m0_dtm0_tx_desc_fini(&txd);
+}
+
+/*
+ * Generate log with 2 participants, one with P-flag in all records, another one
+ * without P-flag.  1st participant is server initialized with helpers, 2nd
+ * participant uses dummy fid defined above (gs_dummy_server_fid1).
+ */
+static void ut_evict_log_gen_replay_all(struct ut_remach *um,
+					uint64_t          ts_start,
+					uint64_t          records_nr)
+{
+	ut_evict_log_gen_1c2pa(um, ts_start, records_nr, M0_DTPS_INIT);
+}
+
+/*
+ * Generate log with 2 participants, both with P-flag in all records.  1st
+ * participant is server initialized with helpers, 2nd participant uses dummy
+ * fid defined above (gs_dummy_server_fid1).
+ */
+static void ut_evict_log_gen_all_p(struct ut_remach *um,
+				   uint64_t          ts_start,
+				   uint64_t          records_nr)
+{
+	ut_evict_log_gen_1c2pa(um, ts_start, records_nr, M0_DTPS_PERSISTENT);
+}
+
+static void ut_evict_log_verify_replay_all(uint64_t actual_evicted_call_count,
+					   uint64_t ts_start,
+					   uint64_t records_nr)
+{
+	M0_UT_ASSERT(actual_evicted_call_count == records_nr);
+}
+
+static void ut_evict_log_verify_all_p(uint64_t actual_evicted_call_count,
+				      uint64_t ts_start,
+				      uint64_t records_nr)
+{
+	M0_UT_ASSERT(actual_evicted_call_count == 0);
+}
+
+/*
+ * Generate log with 2 participants, one with P-flag in all records, another one
+ * without P-flag.  1st participant is server initialized with helpers, 2nd
+ * participant uses dummy fid defined above (gs_dummy_server_fid1).  Odd records
+ * have originator = UT_SIDE_CLI (first, third, etc), even records have
+ * originator = gs_dummy_client_fid (second, fourth, etc).  Or vise versa,
+ * depending on use_odd value.
+ */
+static void ut_evict_log_gen_replay_alt(struct ut_remach *um,
+					uint64_t          ts_start,
+					uint64_t          records_nr,
+					bool              use_odd)
+{
+	struct m0_dtm0_tx_desc           txd = {};
+	struct m0_buf                    payload = {};
+	int                              rc;
+	int                              i;
+	int  remainder = use_odd ? 0 : 1 ;
+
+	rc = m0_dtm0_tx_desc_init(&txd, 2);
+	M0_UT_ASSERT(rc == 0);
+	txd.dtd_ps.dtp_pa[0] = (struct m0_dtm0_tx_pa) {
+		.p_state = M0_DTPS_PERSISTENT,
+		.p_fid = *ut_remach_fid_get(UT_SIDE_SRV),
+	};
+	txd.dtd_ps.dtp_pa[1] = (struct m0_dtm0_tx_pa) {
+		.p_state = M0_DTPS_INIT,
+		.p_fid = gs_dummy_server_fid1,
+	};
+
+	for (i = 0; i < records_nr; ++i) {
+		txd.dtd_id = (struct m0_dtm0_tid) {
+			.dti_ts.dts_phys = ts_start + i,
+			.dti_fid = ((ts_start + i) % 2 == remainder)
+				? *ut_remach_fid_get(UT_SIDE_CLI)
+				: gs_dummy_client_fid,
+		};
+		ut_remach_log_add_sync(um, UT_SIDE_SRV, &txd, &payload);
+	}
+
+	m0_dtm0_tx_desc_fini(&txd);
+}
+
+static void ut_evict_log_gen_replay_odd(struct ut_remach *um,
+					uint64_t          ts_start,
+					uint64_t          records_nr)
+{
+	ut_evict_log_gen_replay_alt(um, ts_start, records_nr, true);
+}
+
+static void ut_evict_log_gen_replay_even(struct ut_remach *um,
+					 uint64_t          ts_start,
+					 uint64_t          records_nr)
+{
+	ut_evict_log_gen_replay_alt(um, ts_start, records_nr, false);
+}
+
+void ut_evict_redo_post_verify_replay_alt(const struct m0_fid *tgt_svc,
+					  struct dtm0_req_fop *redo,
+					  bool                 use_odd)
+{
+	int  remainder = use_odd ? 0 : 1 ;
+
+	M0_UT_ASSERT(m0_fid_eq(&redo->dtr_txr.dtd_id.dti_fid,
+			    ut_remach_fid_get(UT_SIDE_CLI)));
+	M0_UT_ASSERT(redo->dtr_txr.dtd_id.dti_ts.dts_phys % 2 == remainder);
+}
+
+void ut_evict_redo_post_verify_replay_odd(const struct m0_fid *tgt_svc,
+					  struct dtm0_req_fop *redo)
+{
+	ut_evict_redo_post_verify_replay_alt(tgt_svc, redo, true);
+}
+
+void ut_evict_redo_post_verify_replay_even(const struct m0_fid *tgt_svc,
+					   struct dtm0_req_fop *redo)
+{
+	ut_evict_redo_post_verify_replay_alt(tgt_svc, redo, false);
+}
+
+static void ut_evict_log_verify_replay_alt(uint64_t actual_evicted_call_count,
+					   uint64_t ts_start,
+					   uint64_t records_nr,
+					   bool     use_odd)
+{
+	int expected_count = use_odd == (ts_start % 2 == 0)
+		? (records_nr + 1) / 2
+		: records_nr / 2;
+	M0_UT_ASSERT(actual_evicted_call_count == expected_count);
+}
+
+static void ut_evict_log_verify_replay_odd(uint64_t actual_evicted_call_count,
+					   uint64_t ts_start,
+					   uint64_t records_nr)
+{
+	ut_evict_log_verify_replay_alt(actual_evicted_call_count, ts_start,
+				       records_nr, true);
+}
+
+static void ut_evict_log_verify_replay_even(uint64_t actual_evicted_call_count,
+					    uint64_t ts_start,
+					    uint64_t records_nr)
+{
+	ut_evict_log_verify_replay_alt(actual_evicted_call_count, ts_start,
+				       records_nr, false);
+}
+
+/*
+ * Generate log with 1 client and 3 persistent participants.  1st participant is
+ * server initialized with helpers and always has P-flag, 2nd and 3rd
+ * participants use dummy fids defined above (gs_dummy_server_fid1,
+ * gs_dummy_server_fid2).  2nd participant has P-flag in every other record, 3rd
+ * -- in every 3rd.
+ *
+ * To check for borders, we will put 1st participant in the middle of PA array,
+ * and 2nd/3rd as first/last.
+ */
+static void ut_evict_log_gen_1c3pa(struct ut_remach *um,
+				   uint64_t          ts_start,
+				   uint64_t          records_nr)
+{
+	struct m0_dtm0_tx_desc           txd = {};
+	struct m0_buf                    payload = {};
+	int                              rc;
+	int                              i;
+	int                              ts;
+
+	rc = m0_dtm0_tx_desc_init(&txd, 3);
+	M0_UT_ASSERT(rc == 0);
+	txd.dtd_ps.dtp_pa[0] = (struct m0_dtm0_tx_pa) {
+		.p_fid = gs_dummy_server_fid1,
+	};
+	txd.dtd_ps.dtp_pa[1] = (struct m0_dtm0_tx_pa) {
+		.p_state = M0_DTPS_PERSISTENT,
+		.p_fid = *ut_remach_fid_get(UT_SIDE_SRV),
+	};
+	txd.dtd_ps.dtp_pa[2] = (struct m0_dtm0_tx_pa) {
+		.p_fid = gs_dummy_server_fid2,
+	};
+
+	for (i = 0; i < records_nr; ++i) {
+		ts = ts_start + i;
+		txd.dtd_id = (struct m0_dtm0_tid) {
+			.dti_ts.dts_phys = ts,
+			.dti_fid = *ut_remach_fid_get(UT_SIDE_CLI),
+		};
+		txd.dtd_ps.dtp_pa[0].p_state = (ts % 2 == 0)
+						? M0_DTPS_PERSISTENT
+						: M0_DTPS_INIT;
+		txd.dtd_ps.dtp_pa[2].p_state = (ts % 3 == 0)
+						? M0_DTPS_PERSISTENT
+						: M0_DTPS_INIT;
+		ut_remach_log_add_sync(um, UT_SIDE_SRV, &txd, &payload);
+	}
+
+	m0_dtm0_tx_desc_fini(&txd);
+}
+
+void ut_evict_redo_post_verify_mixed(const struct m0_fid *tgt_svc,
+				     struct dtm0_req_fop *redo)
+{
+	M0_UT_ASSERT(m0_fid_eq(&redo->dtr_txr.dtd_id.dti_fid,
+			    ut_remach_fid_get(UT_SIDE_CLI)));
+	if (m0_fid_eq(tgt_svc, &gs_dummy_server_fid1))
+		M0_UT_ASSERT(redo->dtr_txr.dtd_id.dti_ts.dts_phys % 2 != 0);
+	else if (m0_fid_eq(tgt_svc, &gs_dummy_server_fid2))
+		M0_UT_ASSERT(redo->dtr_txr.dtd_id.dti_ts.dts_phys % 3 != 0);
+	else
+		M0_UT_ASSERT(false); /* Must never get here. */
+}
+
+static void ut_evict_log_verify_mixed(uint64_t actual_evicted_call_count,
+				      uint64_t ts_start,
+				      uint64_t records_nr)
+{
+	int i;
+	int expected_count;
+
+	expected_count = 0;
+	for (i = 0; i < records_nr; i++)
+		expected_count +=
+			((ts_start + i) % 2 != 0) +
+			((ts_start + i) % 3 != 0);
+	M0_UT_ASSERT(actual_evicted_call_count == expected_count);
+}
+
+/* Use-case: client eviction with empty log -- nothing to replay. */
+static void remach_cli_evict_empty_log(void)
+{
+	remach_client_eviction(NULL, NULL, ut_evict_log_verify_empty);
+}
+
+/*
+ * Use-case: client eviction with all log records coming from this client --
+ * replay entire log.
+ */
+static void remach_cli_evict_replay_all(void)
+{
+	remach_client_eviction(ut_evict_log_gen_replay_all, NULL,
+			       ut_evict_log_verify_replay_all);
+}
+
+/*
+ * Use-case: client eviction.  Two persistent participants, all-P in all
+ * entries, there must be no replay.
+ */
+static void remach_cli_evict_all_p(void)
+{
+	remach_client_eviction(ut_evict_log_gen_all_p, NULL,
+			       ut_evict_log_verify_all_p);
+}
+
+/*
+ * Use-case: client eviction; two clients, their transactions are alternating in
+ * the log (one client in odd transactions, another in even); one of the clients
+ * dies.  This test case for evicting odd entries.
+ */
+static void remach_cli_evict_replay_odd(void)
+{
+	remach_client_eviction(ut_evict_log_gen_replay_odd,
+			       ut_evict_redo_post_verify_replay_odd,
+			       ut_evict_log_verify_replay_odd);
+}
+
+/*
+ * Use-case: client eviction; two clients, their transactions are alternating in
+ * the log (one client in odd transactions, another in even); one of the clients
+ * dies.  This test case for evicting even entries.
+ */
+static void remach_cli_evict_replay_even(void)
+{
+	remach_client_eviction(ut_evict_log_gen_replay_even,
+			       ut_evict_redo_post_verify_replay_even,
+			       ut_evict_log_verify_replay_even);
+}
+
+/*
+ * Use-case: client eviction.  Three persistent participants, different
+ * combinations of P-flag in different records.
+ */
+static void remach_cli_evict_mixed(void)
+{
+	remach_client_eviction(ut_evict_log_gen_1c3pa,
+			       ut_evict_redo_post_verify_mixed,
+			       ut_evict_log_verify_mixed);
+}
+
 extern void m0_dtm0_ut_drlink_simple(void);
 extern void m0_dtm0_ut_domain_init_fini(void);
 
@@ -1019,6 +1470,18 @@ struct m0_ut_suite dtm0_ut = {
 		{ "remach-real-log-replay",   remach_real_log_replay      },
 		{ "remach-rec-mark-empty",    remach_rec_mark_empty       },
 		{ "remach-rec-mark-nonempty", remach_rec_mark_nonempty    },
+		{ "remach-client-eviction-empty-log",
+			                      remach_cli_evict_empty_log  },
+		{ "remach-client-eviction-replay-all",
+			                      remach_cli_evict_replay_all },
+		{ "remach-client-eviction-all-p",
+			                      remach_cli_evict_all_p      },
+		{ "remach-client-eviction-replay-odd",
+			                      remach_cli_evict_replay_odd },
+		{ "remach-client-eviction-replay-even",
+			                      remach_cli_evict_replay_even },
+		{ "remach-client-eviction-mixed",
+			                      remach_cli_evict_mixed      },
 		{ NULL, NULL },
 	}
 };
