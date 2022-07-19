@@ -1136,10 +1136,12 @@ static int cas_dtm0_logrec_add(struct m0_fom *fom0,
 	dtm_payload.cdg_cas_op = *cas_op(fom0);
 	dtm_payload.cdg_cas_opcode = m0_fop_opcode(fom0->fo_fop);
 	if (dtm_payload.cdg_cas_opcode == M0_CAS_DEL_FOP_OPCODE) {
-		dtm_payload.cdg_cas_op.cg_rec.cr_rec->cr_val.ab_type = M0_RPC_AT_EMPTY;
-		dtm_payload.cdg_cas_op.cg_rec.cr_rec->cr_val.u.ab_buf = M0_BUF_INIT0;
+		struct m0_cas_rec *rec = dtm_payload.cdg_cas_op.cg_rec.cr_rec;
+		rec->cr_val.ab_type = M0_RPC_AT_EMPTY;
+		rec->cr_val.u.ab_buf = M0_BUF_INIT0;
 	}
-	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_dtm0_log_payload_xc, &dtm_payload),
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_dtm0_log_payload_xc,
+						   &dtm_payload),
 				     &buf.b_addr, &buf.b_nob) ?:
 		m0_dtm0_logrec_update(dtms->dos_log, &fom0->fo_tx.tx_betx, msg,
 				      &buf);
