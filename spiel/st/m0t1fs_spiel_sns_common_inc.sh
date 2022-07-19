@@ -151,8 +151,8 @@ spiel_cleanup()
 
 spiel_sns_repair_start()
 {
-echo "$M0_SRC_DIR"/utils/spiel/m0spiel "$SPIEL_OPTS"
-    "$M0_SRC_DIR"/utils/spiel/m0spiel "$SPIEL_OPTS" <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
