@@ -507,6 +507,20 @@
      endif.
    @endverbatim
 
+   @verbatim
+   Virtual-Max-All-P: iterator, created when one of sdevs goes TRANSIENT.
+   Initial state: Virtual-Max-All-P == Max-All-P.
+
+   v-min-min-nall-p = min(p.min-nall-p) for all participants p in the cluster
+   except the one that is in T.
+
+   Then, v-min-min-nall-p is used instead of min-min-nall-p in the basic
+   algorithm.
+
+   [Max-All-P, Virtual-Max-All-P]
+   Max-All-P == Virtual-Max-All-P
+   @endverbatim
+
    <hr>
    @section DLD-highlights-holes Design Highlights: Improvements for simple
    recovery
