@@ -2,9 +2,6 @@ m0tr_objects += \
                   be/addb2_xc.o \
                   be/alloc_xc.o \
                   be/alloc_internal_xc.o \
-                  be/btree.o \
-                  be/btree_xc.o \
-                  be/btree_internal_xc.o \
                   be/domain_xc.o \
                   be/extmap.o \
                   be/extmap_xc.o \

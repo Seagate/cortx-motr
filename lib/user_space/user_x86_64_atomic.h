@@ -38,7 +38,7 @@
  */
 
 struct m0_atomic64 {
-	long a_value;
+	volatile long a_value;
 };
 
 static inline void m0_atomic64_set(struct m0_atomic64 *a, int64_t num)

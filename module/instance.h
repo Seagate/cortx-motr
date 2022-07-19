@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2014-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ enum m0_module_id {
 	M0_MODULE_PROCESSOR,
 	M0_MODULE_POOL,
 	M0_MODULE_ISC,
+	M0_MODULE_BTREE,
 	/* XXX ... more to come ... */
 	M0_MODULE_NR
 };

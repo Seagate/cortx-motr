@@ -2286,6 +2286,10 @@ int m0_spiel_proc_counters_fetch(struct m0_spiel        *spl,
 	count_stats->pc_proc_fid = *proc_fid;
 	count_stats->pc_rc = proc->sci_rc;
 	if (proc->sci_rc != 0) {
+                /* rpc link is initialized in
+		 * spiel_process__counters_async()
+		 */
+                m0_rpc_link_fini(&proc->sci_rlink);
 		rc = proc->sci_rc;
 		goto sem_fini;
 	}
