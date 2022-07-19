@@ -79,6 +79,12 @@ import svgwrite
 
 
 class trace(object):
+    """
+    Trace class accepts a stream of incoming records (represented by
+    the record class) and produces the output in the form of an SVG image,
+    describing the stream
+    """
+
     def __init__(self, width, height, loc_nr, duration, starttime=None,
                  step=100, outname="out.svg", maxfom=20, verbosity=0,
                  label=True):
@@ -96,7 +102,7 @@ class trace(object):
         self.step = step
         self.verb = verbosity
         self.maxfom = maxfom
-        self.out = svgwrite.Drawing(outname, profile='full', \
+        self.out = svgwrite.Drawing(outname, profile='full',
                                     size=(str(width) + "px",
                                           str(height) + "px"))
         self.lmargin = width * 0.01
@@ -182,9 +188,12 @@ class trace(object):
 
     def getlane(self, fom, lane):
         assert 0 <= lane < self.maxlane
-        return self.getloc(fom.loc.idx) + self.loc_margin + \
-               self.fom_width * fom.loc_idx + self.lane_margin + \
-               self.lane_width * lane
+        return self.getloc(fom.loc.idx) \
+               + self.loc_margin \
+               + self.fom_width \
+               * fom.loc_idx \
+               + self.lane_margin \
+               + self.lane_width * lane
 
     def getpos(self, stamp):
         interval = stamp - self.start
@@ -204,7 +213,7 @@ class trace(object):
         return f
 
     @staticmethod
-    def getcolour(self, word):
+    def getcolour(word):
         seed = word + "^" + word
         red = hash(seed + "r") % 90
         green = hash(seed + "g") % 90
@@ -405,14 +414,14 @@ def keep(word):
 
 
 def parsetime(stamp):
-    '''
+    """
     strptime() is expensive. Hard-code.
     cut to microsecond precision
     datetime.datetime.strptime(stamp[0:-3], trace.timeformat)
 
     2016-03-24-09:18:46.359427942
     01234567890123456789012345678
-    '''
+    """
     return datetime.datetime(year=int(stamp[0: 4]),
                              month=int(stamp[5: 7]),
                              day=int(stamp[8:10]),
@@ -451,8 +460,7 @@ class record(object):
         trace.processed = trace.processed + 1
         if (trace.verb > 0 and
                 self.time - trace.lastreport > datetime.timedelta(seconds=1)):
-            print
-            self.time, trace.processed - trace.reported, trace.processed
+            print(self.time, trace.processed - trace.reported, trace.processed)
             trace.lastreport = self.time
             trace.reported = trace.processed
 
