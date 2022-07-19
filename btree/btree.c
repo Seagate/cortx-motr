@@ -2637,8 +2637,11 @@ struct ff_head {
 	uint32_t                 ff_nsize;    /*< Node size */
 	uint16_t                 ff_ksize;    /*< Size of key in bytes */
 	uint16_t                 ff_vsize;    /*< Size of value in bytes */
+
+	/* === DO NOT add any members below this section === */
 	struct ff_hdr_var        ff_var;
 	struct m0_format_footer  ff_foot;     /*< Node Footer */
+	/*   === Section end ===   */
 	void                    *ff_opaque;   /*< opaque data */
 	/**
 	 *  This space is used to host the Keys and Values upto the size of the
