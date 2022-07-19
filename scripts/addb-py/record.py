@@ -79,13 +79,11 @@ import svgwrite
 
 
 class trace(object):
-
     """
-    Trace class accepts a stream of incoming records (represented by
-    the record class) and produces the output in the form of an SVG image,
-    describing the stream
-    """
+    Trace class accepts a stream of incoming records
 
+    output in the form of an SVG image, describing the stream
+    """
     def __init__(self, width, height, loc_nr, duration, starttime=None,
                  step=100, outname="out.svg", maxfom=20, verbosity=0,
                  label=True):
