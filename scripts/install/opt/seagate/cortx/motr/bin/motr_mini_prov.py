@@ -285,6 +285,11 @@ def set_setup_size(self, service):
         self.logger.info(f"service={service} and setup_size={self.setup_size}\n")
     return ret
 
+# Changes required for consul and and so for backward compatibility with yaml
+# 1: In case of consul, all values are stored as string format.
+# So for consul, key_type should be always string.
+# 2: In yaml, values are represented as it is; e.g. numeric as int, strings as str etc.
+# So, for yaml, key_type should be specific to type.
 def get_value(self, key, key_type):
     """Get data."""
     try:
@@ -292,13 +297,6 @@ def get_value(self, key, key_type):
     except:
         raise MotrError(errno.EINVAL, "{key} does not exist in ConfStore")
 
-    # Changes required for gconf and and so for backward compatibility with yaml
-    # In gconf, numeric values are represented as str whereas
-    # In yaml, numeric values are represented as int
-    # To make check_type works for both:
-    # 1: If type of val is int and user expects str, then no error
-    # 2: If type of val is str and user expects str, then convert it to int
-    # and dont call check_type
     if (key_type is str):
         if isinstance(val, int):
             return val
