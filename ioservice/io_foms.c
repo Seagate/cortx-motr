@@ -1861,6 +1861,7 @@ static int io_launch(struct m0_fom *fom)
 	} m0_tl_endfor;
 
 	m0_cob_put(container_of(file, struct m0_cob, co_file));
+	m0_cob_put(fom_obj->fcrw_cob);
 
 	M0_LOG(M0_DEBUG, "total  fom: %" PRIi64 ", expect: %"PRIi64,
 	       fom_obj->fcrw_fom_start_time,
@@ -2357,6 +2358,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 					      m0_fom_tx(fom));
 			if (bc_rc != 0)
 				M0_ERR_INFO(bc_rc, "Failed to update cob_size");
+			m0_cob_put(cob);
 		}
 	}
 	/* Set operation status in reply fop if FOM ends.*/

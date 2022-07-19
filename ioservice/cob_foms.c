@@ -480,7 +480,7 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 static bool cob_pool_version_mismatch(const struct m0_fom *fom)
 {
 	int                       rc;
-	struct m0_cob            *cob;
+	struct m0_cob            *cob = NULL;
 	struct m0_fop_cob_common *common;
 
 	common = m0_cobfop_common_get(fom->fo_fop);
@@ -489,8 +489,12 @@ static bool cob_pool_version_mismatch(const struct m0_fom *fom)
 		M0_LOG(M0_DEBUG, "cob pver"FID_F", common pver"FID_F,
 				FID_P(&cob->co_nsrec.cnr_pver),
 				FID_P(&common->c_body.b_pver));
-		return !m0_fid_eq(&cob->co_nsrec.cnr_pver,
-				  &common->c_body.b_pver);
+		if (!m0_fid_eq(&cob->co_nsrec.cnr_pver, &common->c_body.b_pver))
+			return true;
+		else {
+			m0_cob_put(cob);
+			return false;
+		}
 	}
 	return false;
 }
