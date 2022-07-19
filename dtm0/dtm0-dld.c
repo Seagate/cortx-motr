@@ -323,20 +323,10 @@
 
    @endverbatim
 
-   We maintain two kinds of vectors for every originator: max-all-p and
-   min-nall-p.
+   min-nall-p is the oldest transaction from the originator for which we
+   still wait for pmsg(s).
 
-   @verbatim
-   for each t in originator.allp:
-     for each sdev in t.sdevs:
-       max-all-p[originator][sdev] max= t.sdev.clock_value
-
-   for each t in originator.records filtered by "t is not all-p":
-     for each sdev in t.sdevs:
-       min-nall-p[originator][sdev] min= t.sdev.clock_value
-   @endverbatim
-
-   (max-all-p, min-nall-p) pair is added to every Pmsg:
+   (min-nall-p) is added to every Pmsg:
 
    @verbatim
    struct pmsg {
@@ -346,17 +336,33 @@
      u64(o.originator) timestamp;
      fid originator;
 
-     u64(o.originator) max-all-p;
      u64(o.originator) min-nall-p;
    };
    @endverbatim
+
+   <hr>
+   @section DLD-highlights-clocks Design Highlights: Basic-Recovery-Algorithm
+
+   Upon receival of cas request or redo msg we add the record to the btree log,
+   if it's not already there. (Otherwise, we just close the local transaction.)
+   The key is the originator_fid + timestamp, so all the records will be
+   naturally sorted in the btree by the time.
+
+   As the new records are coming, the older ones will move leftwise.
+   When the record moves to the 3rd interval (Online-Recovering, see below),
+   we can start sending redo msgs to other paricipants, from which we didn't
+   receive pmsg yet.
+
+   When the record got all pmsgs from all participants, it becomes all-p and
+   can move to the 4th interval (All-P), where it can be eventually deleted by
+   the pruner.
 
    Let's start with the case where we have no TRANSIENT failures of storage
    devices in the pool. In this case, the diagram would look like the following
    picture:
 
    @verbatim
-        (IV)                  (III)             (II)       (I)
+        (IV)                 (III)        (II)       (I)
    [    All-P   ]   [Online-Recovering] [N-txns] [current-window]
    ------------------------------------------------------------------>
                     [ <- may have temporary and permanent holes --->  ] (2)
