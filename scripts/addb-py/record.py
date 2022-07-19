@@ -79,14 +79,19 @@ import svgwrite
 
 
 class trace(object):
+
     """
-    Trace class accepts a stream of incoming records and produces the output
+    Trace class accepts a stream of incoming records (represented by
+    the record class) and produces the output in the form of an SVG image,
+    describing the stream
     """
 
     def __init__(self, width, height, loc_nr, duration, starttime=None,
                  step=100, outname="out.svg", maxfom=20, verbosity=0,
                  label=True):
-        """Initialize the parameters"""
+        """
+        Initialize the parameters
+        """
         self.timeformat = "%Y-%m-%d-%H:%M:%S.%f"
         if starttime is not None:
             self.start = datetime.datetime.strptime(starttime, self.timeformat)
