@@ -315,6 +315,7 @@ M0_INTERNAL int m0_dtm0_log_redo_add(struct m0_dtm0_log        *dol,
 	struct dtm0_log_record  *rec;
 	struct m0_be_seg        *seg = dol->dtl_cfg.dlc_seg;
 
+	M0_LOG(M0_DEBUG, "fid:"FID_F, FID_P(p_sdev_fid));
 	m0_mutex_lock(&dol->dtl_lock);
 	M0_PRE(!dol->dtl_the_end);
 	M0_PRE(dtm0_log_invariant(dol));
@@ -427,6 +428,8 @@ M0_INTERNAL void m0_dtm0_log_prune(struct m0_dtm0_log *dol,
 {
 	struct dtm0_log_record *rec;
 	struct m0_buf           rec_buf = M0_BUF_INIT(sizeof rec, &rec);
+
+	M0_LOG(M0_DEBUG, "DTX id: " DTID1_F, DTID1_P(dtx0_id));
 	/* TODO handle lookup errors */
 	redo_log_lookup(&dol->dtl_data->dtld_transactions,
 	                &M0_BUF_INIT_PTR(dtx0_id), &rec_buf);

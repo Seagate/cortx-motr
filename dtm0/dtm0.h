@@ -115,6 +115,8 @@ struct m0_dtx0_descriptor {
 	struct m0_dtx0_participants dtd_participants;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
 
+#define DTID1_F "{" DTS0_F "," FID_F "}"
+#define DTID1_P(__tid) (__tid)->dti_timestamp, FID_P(&(__tid)->dti_originator_sdev_fid)
 enum m0_dtx0_payload_type {
 	M0_DTX0_PAYLOAD_CAS,    /** it's supposed to be handled by CAS */
 	M0_DTX0_PAYLOAD_BLOB,   /**

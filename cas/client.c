@@ -1653,11 +1653,17 @@ static int
 m0_dtm0_tx_desc2dtx0_descriptor_prep(const struct m0_dtm0_tx_desc *txd,
 				     struct m0_dtx0_descriptor    *descriptor)
 {
+	static int i = 0;
+
 	/*
 	 * TODO: Check if txd is valid or not. If txd is not valid then
 	 * just fill the descriptor with some random data.
 	 * (txd is not valid == it was zeroed).
 	 */
+	descriptor->dtd_id.dti_originator_sdev_fid.f_key = i++;
+	descriptor->dtd_id.dti_originator_sdev_fid.f_container = 1;
+	descriptor->dtd_id.dti_timestamp = m0_time_now();
+	M0_LOG(M0_DEBUG, "DTX id: " DTID1_F, DTID1_P(&descriptor->dtd_id));
 	return 0;
 }
 

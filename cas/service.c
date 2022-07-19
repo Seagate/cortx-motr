@@ -618,6 +618,7 @@ static int cas_service_sdev_id_set(struct cas_service *cas_svc)
 		sdev = M0_CONF_CAST(obj, m0_conf_sdev);
 		if (!found) {
 			cas_svc->c_sdev_id = sdev->sd_dev_idx;
+			M0_LOG(M0_DEBUG,"dev id:%d", (int) cas_svc->c_sdev_id);
 			found = true;
 		} else {
 			/*
@@ -1160,7 +1161,6 @@ static int cas_dtm0_logrec_add(struct m0_fom *fom0,
 		m0_dtm0_logrec_update(dtms->dos_log, &fom0->fo_tx.tx_betx, msg,
 				      &buf);
 	m0_buf_free(&buf);
-
 	return rc;
 }
 
@@ -1175,16 +1175,21 @@ static inline const struct m0_fid *cas_fom_sdev_fid(struct cas_fom *fom)
 	struct m0_cas_op       *op = cas_op(fom0);
 	struct m0_cas_id       *cid = &op->cg_id;
 
+	M0_ASSERT(cas_fid_is_cctg(&cid->ci_fid));
 	sdev_idx = m0_dix_fid_cctg_device_id(&cid->ci_fid);
+	M0_LOG(M0_DEBUG,"dev id:%d", (int) sdev_idx);
 	pver = m0_pool_version_find(reqh->rh_pools,
 				    &cid->ci_layout.u.dl_desc.ld_pver);
 	if (pver != NULL) {
+		int i;
 		pm = &pver->pv_mach;
-		M0_ASSERT(sdev_idx < pm->pm_state->pst_nr_devices);
-		sdev = &pm->pm_state->pst_devices_array[sdev_idx];
-		return &sdev->pd_id;
-	}
+		for (i = 0; i < pm->pm_state->pst_nr_devices; i++) {
+			sdev = &pm->pm_state->pst_devices_array[i];
 
+			if (sdev->pd_sdev_idx == sdev_idx)
+				return &sdev->pd_id;
+		}
+	}
 	return NULL;
 }
 
@@ -1195,18 +1200,21 @@ static void cas_fom_executed(struct cas_fom *fom)
 		m0_cas__ut_svc_dtm0_domain_get(fom->cf_fom.fo_service);
 	struct m0_be_tx       *tx = &fom->cf_fom.fo_tx.tx_betx;
 	struct m0_dtm0_redo   *redo = fom->cf_redo;
-	const struct m0_fid   *sdev;
-	struct m0_fom          *fom0 = &fom->cf_fom;
-	enum m0_cas_opcode  opc     = m0_cas_opcode(fom0->fo_fop);
+	const struct m0_fid   *sdev_fid;
+	struct m0_fom         *fom0 = &fom->cf_fom;
+	enum m0_cas_opcode     opc = m0_cas_opcode(fom0->fo_fop);
 
-	if (M0_IN(opc, (CO_PUT, CO_DEL)) && redo != NULL) {
-		/* @TODO: Get the storage device where this operation will
- 		 * be persisted.
- 		 * sdev = cas_fom_sdev_fid(fom);
- 		 */
-		sdev = &M0_FID0;
-		M0_ASSERT(sdev != NULL);
-		rc = m0_dtx0_redo_add(dod, tx, redo, sdev);
+	if (M0_IN(opc, (CO_PUT, CO_DEL)) &&
+	    cas_fid_is_cctg(&cas_op(fom0)->cg_id.ci_fid) &&
+	    redo != NULL) {
+		M0_LOG(M0_DEBUG, "Got CAS with txid: " DTID0_F,
+		       DTID0_P(&cas_op(fom0)->cg_txd.dtd_id));
+		M0_LOG(M0_DEBUG, "Got CAS with new txid: " DTID1_F,
+		       DTID1_P(&cas_op(fom0)->cg_descriptor.dtd_id));
+ 		sdev_fid = cas_fom_sdev_fid(fom);
+		if (sdev_fid == NULL);
+			return;
+		rc = m0_dtx0_redo_add(dod, tx, redo, sdev_fid);
 		M0_ASSERT_INFO(rc == 0, "Failed to update DTM0 log (%d)", rc);
 		cas_redo_free0(&fom->cf_redo);
 		//m0_dtm0_redo_fini(redo);
@@ -1340,9 +1348,12 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	M0_PRE(ergo(op->cg_flags & COF_NO_DTM,
 		    m0_dtm0_tx_desc_is_none(&op->cg_txd)));
 
-	if (!M0_IS0(&op->cg_txd) && phase == M0_FOPH_INIT)
+	if (!M0_IS0(&op->cg_txd) && phase == M0_FOPH_INIT) {
 		M0_LOG(M0_DEBUG, "Got CAS with txid: " DTID0_F,
 		       DTID0_P(&op->cg_txd.dtd_id));
+		M0_LOG(M0_DEBUG, "Got CAS new with txid: " DTID1_F,
+		       DTID1_P(&cas_op(fom0)->cg_descriptor.dtd_id));
+	}
 
 	is_index_drop = op_is_index_drop(opc, ct);
 
@@ -2766,6 +2777,7 @@ M0_INTERNAL int m0_cas_fom_spawn(
 	rc = cas_fom_create(cas_fop, &new_fom0, reqh);
 	if (rc == 0) {
 		new_fom0->fo_local = true;
+		new_fom0->fo_local_update = true;
 		m0_fom_enthrall(lead,
 				new_fom0,
 				thrall,
