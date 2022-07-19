@@ -348,10 +348,10 @@
    The key is the originator_fid + timestamp, so all the records will be
    naturally sorted in the btree by the time.
 
-   As the new records are coming, the older ones will move leftwise.
-   When the record moves to the 3rd interval (Online-Recovering, see below),
-   we can start sending redo msgs to other paricipants, from which we didn't
-   receive pmsg yet.
+   As the new records are coming, the older ones will move leftwise.  When the
+   record moves to the 3rd interval (Online-Recovering, see the timeline
+   diagram below), we can start sending redo msgs to other paricipants, from
+   which we didn't receive pmsg yet.
 
    When the record got all pmsgs from all participants, it becomes all-p and
    can move to the 4th interval (All-P), where it can be eventually deleted by
@@ -480,7 +480,7 @@
    @endverbatim
 
    We use Min-Non-All-P to determine if remote side requires
-   Online-Recovering (r-w-r).
+   Online-Recovering.
    For every remote storage device we keep volatile Min-Non-All-P:
    - initialized with zero;
    - updated when Pmsg is received;
@@ -488,22 +488,26 @@
    Note, transactions on the originator start with 1.
    Note, Min-Non-All-P is sent as a part of Pmsg.
 
-   Whenever the R-w-R interval becomes non-empty we start sending REDOs to
-   the corresponding participants. By definition, the interval may contain
-   non-All-P transactions, temporary holes and All-P records.
+   Whenever the Online-Recovery interval becomes non-empty we start sending
+   REDOs to the corresponding participants. By definition, the interval may
+   contain non-All-P transactions, temporary holes and All-P records.
+
    There are 3 possible cases for the log record after Max-All-P:
+
    - next record is Non-All-P (1);
    - next record is a temporary hole (2);
    - next record is All-P (3);
-   The first case is a reason to send REDO to the corresponding participants.
-   We send REDO message for next(Max-All-P) log record.
-   The participants will send us Pmsgs, which, will eventually lead us to
-   the third case.
-   The second and third cases are handled with help of remote min-nall-p values:
-   - we check if the next log record clock value is less than the minimum of the
-   set of remote min-nall-p and check if All-P was reached for the record. We
-   set Max-All-P to point to next record if both conditions (min, All-P) are
-   satisfied:
+
+   In the 1st first case we just send REDO msg(s) to the participant(s) from
+   which we did not get Pmsgs yet. The participants will send us Pmsgs, which
+   will eventually lead us to the third case.
+
+   To progress in the second and third cases we use remote min-nall-p values:
+   we check if the next log record clock value is less than the minimum of the
+   set of remote min-nall-p from all participants, it means there are no
+   temporary holes between the current Max-All-P and the next record (whish is
+   All-P record by itself, 3rd case), so we move Max-All-P to it.
+
    @verbatim
      Let's say min-min-nall-p = min(p.min-nall-p) for all participants p in the
      cluster).
