@@ -1285,6 +1285,7 @@ static int dix_common_rec_op(const struct m0_dix    *index,
 			     const struct m0_bufvec *keys,
 			     struct m0_bufvec       *vals,
 			     const uint32_t         *recs_nr,
+			     int64_t                 min_success,
 			     uint32_t                flags,
 			     struct dix_rep_arr     *rep,
 			     enum ut_dix_req_type    type)
@@ -1294,7 +1295,7 @@ static int dix_common_rec_op(const struct m0_dix    *index,
 	int               i;
 	int               k = 0;
 
-	m0_dix_req_init(&req, &dix_ut_cctx.cl_cli, dix_ut_cctx.cl_grp, 1);
+	m0_dix_req_init(&req, &dix_ut_cctx.cl_cli, dix_ut_cctx.cl_grp, min_success);
 	m0_dix_req_lock(&req);
 	switch (type) {
 	case REQ_PUT:
@@ -1397,21 +1398,31 @@ static int dix_ut_put(const struct m0_dix    *index,
 		      uint32_t                flags,
 		      struct dix_rep_arr     *rep)
 {
-	return dix_common_rec_op(index, keys, vals, NULL, flags, rep, REQ_PUT);
+	return dix_common_rec_op(index, keys, vals, NULL, 1, flags, rep, REQ_PUT);
+}
+
+static int dix_ut_put_min_success(const struct m0_dix    *index,
+		      const struct m0_bufvec *keys,
+		      struct m0_bufvec       *vals,
+		      int64_t                 min_success,
+		      uint32_t                flags,
+		      struct dix_rep_arr     *rep)
+{
+	return dix_common_rec_op(index, keys, vals, NULL, min_success, flags, rep, REQ_PUT);
 }
 
 static int dix_ut_get(const struct m0_dix    *index,
 		      const struct m0_bufvec *keys,
 		      struct dix_rep_arr     *rep)
 {
-	return dix_common_rec_op(index, keys, NULL, NULL, 0, rep, REQ_GET);
+	return dix_common_rec_op(index, keys, NULL, NULL, 1, 0, rep, REQ_GET);
 }
 
 static int dix_ut_del(const struct m0_dix    *index,
 		      const struct m0_bufvec *keys,
 		      struct dix_rep_arr     *rep)
 {
-	return dix_common_rec_op(index, keys, NULL, NULL, 0, rep, REQ_DEL);
+	return dix_common_rec_op(index, keys, NULL, NULL, 1, 0, rep, REQ_DEL);
 }
 
 static int dix_ut_next(const struct m0_dix    *index,
@@ -1420,7 +1431,7 @@ static int dix_ut_next(const struct m0_dix    *index,
 		       uint32_t                flags,
 		       struct dix_rep_arr     *rep)
 {
-	return dix_common_rec_op(index, start_keys, NULL, recs_nr, flags,
+	return dix_common_rec_op(index, start_keys, NULL, recs_nr, 1, flags,
 				 rep, REQ_NEXT);
 }
 
@@ -2655,17 +2666,35 @@ static void local_failures(void)
 	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
 	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
 	M0_UT_ASSERT(rc == 0);
+
 	/*
- 	 * Consider DIX request to be successful if there is at least
- 	 * one successful CAS request. Here two cas requests can be 
- 	 * sent successfully. 
+	 * Consider DIX request to be successful only if there are
+	 * enough successful CAS requests to satisfy min_success.
+	 * Here two cas requests can be sent successfully. First, try with
+	 * min_success = 3, which should result in all CAS requests failing.
 	 */
 	m0_fi_enable_off_n_on_m("cas_req_replied_cb", "send-failure", 2, 3);
-	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
+	rc = dix_ut_put_min_success(&index, &keys, &vals, 3, 0, &rep);
+	m0_fi_disable("cas_req_replied_cb", "send-failure");
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.dra_nr == COUNT);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == -ENOTCONN));
+
+	dix_rep_free(&rep);
+	rc = dix_ut_del(&index, &keys, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_rep_free(&rep);
+
+	/*
+	 * Now try again with min_success = 2, which should succeed.
+	 */
+	m0_fi_enable_off_n_on_m("cas_req_replied_cb", "send-failure", 2, 3);
+	rc = dix_ut_put_min_success(&index, &keys, &vals, 2, 0, &rep);
 	m0_fi_disable("cas_req_replied_cb", "send-failure");
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+
 	dix_rep_free(&rep);
 	dix_kv_destroy(&keys, &vals);
 	dix_index_fini(&index);
