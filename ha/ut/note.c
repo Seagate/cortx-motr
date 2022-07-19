@@ -493,6 +493,7 @@ static void test_poolversion_get(void)
 	struct m0_conf_pver    *pver2 = NULL;
 	struct m0_conf_pver    *pver3 = NULL;
 	struct m0_conf_pver    *pver4 = NULL;
+	struct m0_conf_pver    *pver5 = NULL;
 	struct m0_reqh          reqh;
 	struct m0_confc        *confc = m0_reqh2confc(&reqh);
 	int                     rc;
@@ -542,10 +543,10 @@ static void test_poolversion_get(void)
 	M0_UT_ASSERT(recd_disks(pver0) == 2);
 
 	ha_state_accept_1(&disk_76, M0_NC_TRANSIENT);
-	rc = m0_conf_pver_get(confc, &pool4_fid, &pver3);
-	M0_UT_ASSERT(rc == -ENOENT);
-	M0_UT_ASSERT(pver3 == NULL);
-
+	rc = m0_conf_pver_get(confc, &pool4_fid, &pver5);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(pver5 == pver0);
+	M0_UT_ASSERT(pver5->pv_kind == M0_CONF_PVER_ACTUAL);
 
 	rc = m0_conf_pver_get(confc, &pool56_fid, &pver3);
 	M0_UT_ASSERT(rc == 0);
@@ -574,6 +575,7 @@ static void test_poolversion_get(void)
 	m0_confc_close(&pver2->pv_obj);
 	m0_confc_close(&pver3->pv_obj);
 	m0_confc_close(&pver4->pv_obj);
+	m0_confc_close(&pver5->pv_obj);
 	ha_ut_conf_fini(&reqh);
 	m0_reqh_fini(&reqh);
 }

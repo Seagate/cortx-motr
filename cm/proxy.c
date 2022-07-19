@@ -329,8 +329,8 @@ M0_INTERNAL int m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 	struct m0_cm *cm;
 	int           rc;
 
-	M0_ENTRY("proxy: %p ep: %s", pxy, pxy->px_endpoint);
 	M0_PRE(pxy != NULL && in_interval != NULL && out_interval != NULL);
+	M0_ENTRY("proxy: %p ep: %s", pxy, pxy->px_endpoint);
 
 	m0_cm_proxy_lock(pxy);
 	cm = pxy->px_cm;

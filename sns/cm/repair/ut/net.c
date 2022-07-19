@@ -544,20 +544,23 @@ static void cm_ready(struct m0_cm *cm)
 	m0_cm_unlock(cm);
 }
 
+static struct m0_motr sctx_net;
+
 static void receiver_init(void)
 {
 	int rc;
 
 	M0_SET0(&rag);
 	M0_SET0(&fctx);
+	M0_SET0(&sctx_net);
 
 	rc = m0_cm_type_register(&sender_cm_cmt);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = cs_init(&sctx);
+	rc = cs_init(&sctx_net);
 	M0_UT_ASSERT(rc == 0);
 
-	s0_reqh = m0_cs_reqh_get(&sctx);
+	s0_reqh = m0_cs_reqh_get(&sctx_net);
 	scm_service = m0_reqh_service_find(
 		m0_reqh_service_type_find("M0_CST_SNS_REP"), s0_reqh);
 	M0_UT_ASSERT(scm_service != NULL);
@@ -838,7 +841,7 @@ static void receiver_fini()
 	m0_ios_cdom_get(s0_reqh, &cdom);
 	cob_delete(cdom, s0_reqh->rh_beseg->bs_domain, 0, &gob_fid);
 	m0_free(r_rag.rag_fc);
-	cs_fini(&sctx);
+	cs_fini(&sctx_net);
 	m0_cm_type_deregister(&sender_cm_cmt);
 }
 

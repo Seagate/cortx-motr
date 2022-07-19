@@ -265,6 +265,7 @@ static int test_setup(void)
 
 static int test_fini(void)
 {
+	m0_nanosleep(m0_time(1, 0), NULL);
 	m0_sns_cm_rm_fini(scm);
 	m0_cm_ast_run_thread_fini(cm);
 	cs_fini(&sctx);

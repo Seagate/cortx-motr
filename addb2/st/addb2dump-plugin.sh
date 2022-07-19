@@ -19,13 +19,13 @@
 #
 
 
-SCRIPT_PATH="$(readlink -f $0)"
+SCRIPT_PATH="$(readlink -f "$0")"
 MOTR_SRC_DIR="${SCRIPT_PATH%/*/*/*}"
 UT_SANDBOX_DIR="/var/motr/m0ut/ut-sandbox"
 ADDB2_STOB="/var/motr/m0ut/ut-sandbox/__s/o/100000000000000:2"
 PLUGIN_SO="${MOTR_SRC_DIR}/addb2/st/.libs/libaddb2dump-plugin-test.so"
 
-. ${MOTR_SRC_DIR}/utils/functions
+. "${MOTR_SRC_DIR}"/utils/functions
 
 function check_root() {
     [[ $UID -eq 0 ]] || {
@@ -35,12 +35,12 @@ function check_root() {
 }
 
 function generate_addb2_stob() {
-    ${MOTR_SRC_DIR}/utils/m0run -- "m0ut -k -t addb2-storage:write-many" > /dev/null
+    "${MOTR_SRC_DIR}"/utils/m0run -- "m0ut -k -t addb2-storage:write-many" > /dev/null
 }
 
 function dump_addb2_stob() {
-    ADDB2_DUMP=`${MOTR_SRC_DIR}/utils/m0addb2dump -f -p ${PLUGIN_SO} \
-    -- ${ADDB2_STOB} | grep "measurement"`
+    ADDB2_DUMP=$("${MOTR_SRC_DIR}"/utils/m0addb2dump -f -p "${PLUGIN_SO}" \
+    -- "${ADDB2_STOB}" | grep "measurement")
 }
 
 function delete_ut_sandbox() {

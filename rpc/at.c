@@ -563,9 +563,9 @@ M0_INTERNAL int m0_rpc_at_reply(struct m0_rpc_at_buf *in,
 			    in->u.ab_recv.bdd_used >= repbuf->b_nob) {
 				rc = rpc_at_bulk_init(out, conn);
 				if (rc == 0) {
-				     rpc_at_bulk_ssend(in, out, repbuf, fom);
-				     if (rc != 0)
-					     rpc_at_bulk_fini(rpc_at_bulk(out));
+				    rc = rpc_at_bulk_ssend(in, out, repbuf, fom);
+				    if (rc != 0)
+					    rpc_at_bulk_fini(rpc_at_bulk(out));
 				}
 			} else {
 				rc = -ENOMSG; /* Not really a error. */

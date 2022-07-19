@@ -31,7 +31,7 @@ end box
 s3c   -> s3   ++ : http/put(header+data)
 
 note left of s3: fetch global s3 meta-data
-s3    -> cl   ++ : clovis-get(index, key)
+s3    -> cl   ++ : client-get(index, key)
 cl    -> cas0 ++ : GET(key)
 note right of md0: lookup b-tree in meta-b-tree
 cas0  -> md0  ++ : READ(meta-b-tree-node) (if not cached)
@@ -51,7 +51,7 @@ cl   <-- cas0 -- : RET(val)
 s3   <-- cl   -- : RET(val)
 
 note left of s3: fetch other s3 meta-data
-s3    -> cl   ++ : clovis-get(index, key)
+s3    -> cl   ++ : client-get(index, key)
 cl    -> cas0 ++ : GET(key)
 note right of md0: lookup b-tree in meta-b-tree
 cas0  -> md0  ++ : READ(meta-b-tree-node) (if not cached)
@@ -71,7 +71,7 @@ cl   <-- cas0 -- : RET(val)
 s3   <-- cl   -- : RET(val)
 
 note left of s3: insert meta-data for the new object
-s3    -> cl   ++ : clovis-put(index, key, val)
+s3    -> cl   ++ : client-put(index, key, val)
 cl    -> cas0 ++ : PUT(key,val)
 cas0  -> cas0    : tx_open(tx)
 cl    -> cas1 ++ : PUT(key,val)

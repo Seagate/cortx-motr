@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2016-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2016-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,8 +28,7 @@
 #include "fop/fom_generic.h"
 #include "fop/fom_long_lock.h"
 #include "be/op.h"
-#include "be/btree.h"
-#include "be/btree_xc.h"
+#include "btree/btree.h"
 #include "be/tx_credit.h"
 #include "format/format.h"
 #include "cas/cas.h"
@@ -89,7 +88,45 @@
  * Every user should take care about locking of CAS catalogues.
  */
 
+#define M0_CTG_ROOT_NODE_ALIGN 4096
+#define M0_CTG_SHIFT 12
+#define M0_CTG_ROOT_NODE_SHIFT 16
 
+enum {
+	M0_CTG_ROOT_NODE_SIZE = 65536,
+
+	/** This should align to Block size on the storage. Change as needed */
+};
+
+/**
+ * CAS catalogue store uses four types of btree.
+ */
+enum cas_tree_type {
+
+	/** Catalogue tree: This tree stores catalogues provided by the user. */
+	CTT_CTG,
+
+	/**
+	 * META catalog tree: This tree stores records containing information
+	 * about existing catalogues.
+	 */
+	CTT_META,
+
+	/**
+	 * Dead index catalogue tree: The records(specifically, keys) present in
+	 * this tree contain catalogue pointers. This tree is referred by the
+	 * garbage collector to delete all the catalogue pointed by records
+	 * present in the tree.
+	 */
+	CTT_DEADIDX,
+
+	/**
+	 * Catalogue-index tree: The record mapping the catalogue to the index
+	 * is inserted in this tree. Such records are used by the index repair
+	 * and re-balance to find locations of other replicas.
+	 */
+	CTT_CTIDX,
+};
 /** CAS catalogue. */
 struct m0_cas_ctg {
 	struct m0_format_header cc_head;
@@ -98,7 +135,9 @@ struct m0_cas_ctg {
 	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
 	 * before the m0_format_footer, where only persistent fields allowed
 	 */
-	struct m0_be_btree      cc_tree;
+	struct m0_btree        *cc_tree;
+	uint8_t                 cc_node[M0_CTG_ROOT_NODE_SIZE]
+			      __attribute__((aligned(M0_CTG_ROOT_NODE_ALIGN)));
 	struct m0_be_long_lock  cc_lock;
 	/** Channel to announce catalogue modifications (put, delete). */
 	struct m0_be_chan       cc_chan;
@@ -192,10 +231,8 @@ struct m0_ctg_op {
 	 * all operations, but it is marked deprecated in btree.h.
 	 */
 	struct m0_be_op           co_beop;
-	/** BTree anchor used for inplace operations. */
-	struct m0_be_btree_anchor co_anchor;
 	/** BTree cursor used for cursor operations. */
-	struct m0_be_btree_cursor co_cur;
+	struct m0_btree_cursor    co_cur;
 	/** Shows whether catalogue cursor is initialised. */
 	bool                      co_cur_initialised;
 	/** Current cursor phase. */
@@ -784,12 +821,13 @@ M0_INTERNAL struct m0_long_lock *m0_ctg_lock(struct m0_cas_ctg *ctg);
  */
 M0_INTERNAL int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 			      struct m0_cas_ctg **out,
-		              const struct m0_fid *cas_fid);
+		              const struct m0_fid *cas_fid,
+			      enum cas_tree_type ctype);
 
 /**
  * Insert record into meta catalogue.
  */
-M0_INTERNAL int m0_ctg__meta_insert(struct m0_be_btree  *meta,
+M0_INTERNAL int m0_ctg__meta_insert(struct m0_btree     *meta,
 				    const struct m0_fid *fid,
 			            struct m0_cas_ctg   *ctg,
 			            struct m0_be_tx     *tx);
@@ -802,7 +840,7 @@ M0_INTERNAL int m0_ctg_meta_find_ctg(struct m0_cas_ctg    *meta,
 			             struct m0_cas_ctg   **ctg);
 
 /** Get btree ops for ctg tree. */
-M0_INTERNAL const struct m0_be_btree_kv_ops *m0_ctg_btree_ops(void);
+M0_INTERNAL const struct m0_btree_rec_key_op *m0_ctg_btree_ops(void);
 
 /** Update number of records and record size in cas state. */
 M0_INTERNAL void m0_ctg_state_inc_update(struct m0_be_tx *tx, uint64_t size);

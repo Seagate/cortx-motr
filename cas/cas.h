@@ -35,8 +35,8 @@
 #include "lib/cookie_xc.h"
 #include "rpc/at.h"             /* m0_rpc_at_buf */
 #include "rpc/at_xc.h"          /* m0_rpc_at_buf_xc */
-#include "fop/fom_generic.h"    /* m0_fop_mod_rep */
-#include "fop/fom_generic_xc.h" /* m0_fop_mod_rep */
+#include "fop/wire.h"           /* m0_fop_mod_rep */
+#include "fop/wire_xc.h"
 #include "fop/fom_interpose.h"  /* m0_fom_thralldom */
 #include "dix/layout.h"
 #include "dix/layout_xc.h"
@@ -471,6 +471,9 @@ M0_INTERNAL int m0_cas_fom_spawn(
 	struct m0_fop           *cas_fop,
 	void                   (*on_fom_complete)(struct m0_fom_thralldom *,
 						  struct m0_fom           *));
+M0_INTERNAL uint32_t m0_cas_svc_device_id_get(
+	const struct m0_reqh_service_type *stype,
+	const struct m0_reqh              *reqh);
 #else
 #define m0_cas_svc_init()
 #define m0_cas_svc_fini()

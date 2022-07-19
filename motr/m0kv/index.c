@@ -30,6 +30,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include <stdio.h>                    /* FILE */
 #include <uuid/uuid.h>                /* uuid_generate */
+#include <unistd.h>                   /* access(), sleep() */
 #include "lib/assert.h"               /* M0_ASSERT */
 #include "lib/errno.h"
 #include "lib/memory.h"
@@ -79,6 +80,7 @@ static int instance_init(struct params *params)
 		.cc_params = params,
 		.cc_conf = {
 			.mc_is_oostore     = true,
+			.mc_is_addb_init   = true,
 			.mc_is_read_verify = false,
 			.mc_local_addr     = params->cp_local_addr,
 			.mc_ha_addr        = params->cp_ha_addr,
@@ -158,6 +160,25 @@ static int genv(char *filename, int cnt, int size)
 		fprintf(f, "0x%02x]\n", 1);
 	}
 	fclose(f);
+	return 0;
+}
+
+static int wait_file(const char *expected_file)
+{
+	int rc;
+
+	m0_console_printf("Awaiting: 'touch %s' \n", expected_file);
+
+	while (access(expected_file, F_OK ) != 0) {
+		rc = -errno;
+		M0_ASSERT_INFO(rc == -ENOENT, "Wrong file or directory? "
+			       "file=%s, rc=%d", expected_file, rc);
+		sleep(1);
+	}
+
+	m0_console_printf("File detected: '%s'\n", expected_file);
+	(void) remove(expected_file);
+
 	return 0;
 }
 
@@ -273,6 +294,9 @@ static int cmd_exec(struct index_cmd *cmd)
 		break;
 	case GENV:
 		rc = genv(cmd->ic_filename, cmd->ic_cnt, cmd->ic_len);
+		break;
+	case WLF:
+		rc = wait_file(cmd->ic_filename);
 		break;
 	default:
 		rc = M0_ERR(-EINVAL);
