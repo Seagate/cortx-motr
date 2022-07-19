@@ -633,9 +633,9 @@ enum {
 	CRC_VALUE_SIZE           = sizeof(uint64_t),
 };
 
-#define IS_INTERNAL_NODE(node) bnode_level(node) > 0 ? true : false
+#define IS_INTERNAL_NODE(node) (bnode_level(node) > 0 ? true : false)
 
-#define IS_EMBEDDED_INDIRECT(node) bnode_addrtype_get(node) == EMBEDDED_INDIRECT
+#define IS_EMBEDDED_INDIRECT(node) (bnode_addrtype_get(node) == EMBEDDED_INDIRECT)
 
 #define M0_BTREE_TX_CAPTURE(tx, seg, ptr, size)                              \
 			   m0_be_tx_capture(tx, &M0_BE_REG(seg, size, ptr))
@@ -3213,12 +3213,12 @@ static void ff_cap_reg_define(struct nd *tgt, int idx, uint8_t flags)
 
 	if ((flags & CR_HDR_MASK) == CR_HDR_FULL) {
 		tmp.ncr_hdr_beg = h;
-		tmp.ncr_hdr_end = h->ff_opaque == NULL ?
-				  tmp.ncr_hdr_beg + sizeof(*h) :
-				  (void *)(&h->ff_opaque) - 1;
+		tmp.ncr_hdr_end = (void *)(&h->ff_opaque);
 	} else {
+		/* Capture footer along with ff_var. */
 		tmp.ncr_hdr_beg = &h->ff_var;
-		tmp.ncr_hdr_end = tmp.ncr_hdr_beg + sizeof(struct ff_hdr_var);
+		tmp.ncr_hdr_end = tmp.ncr_hdr_beg + sizeof(h->ff_var) +
+				  sizeof(h->ff_foot);
 	}
 
 	if ((flags & CR_DIR_MASK) == CR_DIR_FULL) {
