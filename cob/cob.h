@@ -979,8 +979,11 @@ M0_INTERNAL int m0_cob_bc_iterator_get(struct m0_cob_bc_iterator *it);
  *
  * Similar logic applies to record buffer.
  *
- * @pre   out_keys == NULL
- * @pre   out_recs == NULL
+ * Memory for *out_keys and *out_recs is allocated inside the function and
+ * must be freed by the caller.
+ *
+ * @pre  *out_keys == NULL
+ * @pre  *out_recs == NULL
  *
  * @param cdom      cob domain where the bytecount btree resides.
  * @param out_keys  out parameter buffer which gets populated by keys.

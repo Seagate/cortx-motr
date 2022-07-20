@@ -408,6 +408,8 @@ static int ss_bytecount_stats_ingest(struct m0_cob_domain *cdom,
 	if (rc == 0) {
 		m0_buf_init(&rep->sspr_bckey, key_buf->b_addr, key_buf->b_nob);
 		m0_buf_init(&rep->sspr_bcrec, rec_buf->b_addr, rec_buf->b_nob);
+		m0_free(key_buf);
+		m0_free(rec_buf);
 	}
 
 	return rc;
