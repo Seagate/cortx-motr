@@ -517,19 +517,11 @@
      endif.
    @endverbatim
 
-   @verbatim
-   Virtual-Max-All-P: iterator, created when one of sdevs goes TRANSIENT.
-   Initial state: Virtual-Max-All-P == Max-All-P.
-
-   v-min-min-nall-p = min(p.min-nall-p) for all participants p in the cluster
-   except the one that is in T.
-
-   Then, v-min-min-nall-p is used instead of min-min-nall-p in the basic
-   algorithm.
-
-   [Max-All-P, Virtual-Max-All-P]
-   Max-All-P == Virtual-Max-All-P
-   @endverbatim
+   Known problem: if an originator did not have enought transactions to get the
+   pmsgs from all participants in the cluster before it crashed or got
+   disconnected or just stopped sending new transactions for a while for some
+   reason, and we cannot move Max-All-P because of that, we don't cleanup
+   its records from the log for now. TODO.
 
    <hr>
    @section DLD-highlights-holes Design Highlights: Improvements for simple
@@ -539,8 +531,25 @@
    In this case, All-P interval will not be able to advance because we are
    expecting that all participants will be able to execute REDOs and send
    their min-nall-p. This will lead as to the situation where DTM0 log
-   is cannot be pruned. There are way to avoid this.
-   TODO
+   cannot be pruned. There are ways to avoid this.
+
+   Here is an example of the algorithm with using an additional
+   Virtual-Max-All-P pointer which skips transactions which have all-p except
+   the TRANSIENT participant(s).
+
+   @verbatim
+   Virtual-Max-All-P: iterator, created when some sdev(s) go TRANSIENT.
+   Initial state: Virtual-Max-All-P == Max-All-P.
+
+   v-min-min-nall-p = min(p.min-nall-p) for all participants p in the cluster
+   except the ones that are in TRANSIENT.
+
+   Then, v-min-min-nall-p is used instead of min-min-nall-p in the basic
+   algorithm.
+
+   [Max-All-P, Virtual-Max-All-P]
+   Max-All-P == Virtual-Max-All-P
+   @endverbatim
 
    The basic algorithm requies O(N^2) memory for per-sdev data (lists, counters,
    etc.). To alleviate the problem, we may keep volatile data on the client side.
@@ -555,8 +564,8 @@
    TODO
 
    The basic algorithm requiers O(N^2) REDO messages (per sdev). To alleviate
-   the problem, we send REDOs from the first non-failed participant in the
-   participant list of the transaction.
+   the problem, we send REDOs from the first non-failed and non-transient
+   participant in the participant list of the transaction.
    TODO
 
    <hr>
@@ -1251,7 +1260,7 @@
      of REDOs in the cluster);
 
    V1: always working log without online recovery, only happy-path
-   - DTM0 log:
+   - DTM0 log in btree:
      - Static list of participants, each item is a dtx for which we have not
        received Pmsgs;
    - Pmach (simple shim between log and net);
