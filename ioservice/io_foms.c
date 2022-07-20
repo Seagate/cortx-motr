@@ -1861,7 +1861,6 @@ static int io_launch(struct m0_fom *fom)
 	} m0_tl_endfor;
 
 	m0_cob_put(container_of(file, struct m0_cob, co_file));
-	m0_cob_put(fom_obj->fcrw_cob);
 
 	M0_LOG(M0_DEBUG, "total  fom: %" PRIi64 ", expect: %"PRIi64,
 	       fom_obj->fcrw_fom_start_time,

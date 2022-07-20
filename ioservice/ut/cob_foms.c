@@ -925,6 +925,8 @@ static void cc_cob_create_test()
 
 	/*
 	 * Test-case 1 - Verify COB creation
+	 * The test_cob is not released here, because it is used later in this
+	 * test to do cob_delete.
 	 */
 	cob_verify(fom, true, false);
 
