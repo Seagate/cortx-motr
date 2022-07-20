@@ -17,10 +17,61 @@ provided there is enough buffer size to accomodate several of such blocks in one
 Read()/Write() request. (For example, see the source code of `mcp` utility and its `-bsz`
 option.)
 
-To use `go/mio` in your app 1) install motr-devel pkg and 2):
+## Installation
+
+Use go get, make sure you using Go version with [modules](https://github.com/golang/go/wiki/Modules) support.
+
+```Shell
+go get github.com/Seagate/cortx-motr/bindings/go
+```
+
+Next install `motr` and `motr-devel` pkgs from rpms.
+
+## Quickstart
+
+First, import this to go source code:
 
 ```Go
 import github.com/Seagate/cortx-motr/bindings/go/mio
+```
+
+Then initial `mio`. There are 2 ways to initial `mio`:
+
+Initialize when the application start:
+
+First, call `mio.Init()` in your code:
+
+```Go
+mio.Init()
+```
+
+Then passing as project argument in when your application start
+
+```Shell
+./myApp \
+-hax 192.168.63.52@tcp:12345:34:1 \
+-ep 192.168.63.52@tcp:12345:33:1000 \
+-proc 0x7200000000000001:64 \
+-prof 0x7000000000000001:0 \
+```
+
+Or you could initialize programmatically :
+
+```Go
+// you might get this values from saome properties file
+ha_addr := "192.168.63.52@tcp:12345:34:1"
+local_addr := "192.168.63.52@tcp:12345:33:1000"
+profile := "0x7000000000000001:0"
+process_fid := "0x7200000000000001:64"
+mio.Init(local_addr, ha_addr, profile, process_fid)
+```
+
+To build you project, you need to set `CGO_CFLAGS` and `CGO_LDFLAGS` cgo environment variables as below, this will override `CFLAGS` and `LDFLAGS` in `mio.go`.
+
+```Shell
+export MOTR_HOME=/home/cortx-motr
+CGO_CFLAGS="-I/$MOTR_HOME -I/usr/include/motr -DM0_EXTERN=extern -DM0_INTERNAL= -Wno-attributes" \
+CGO_LDFLAGS="-L$MOTR_HOME/motr/.libs -Wl,-rpath=$MOTR_HOME/motr/.libs -lmotr" go build
 ```
 
 ## mcp
