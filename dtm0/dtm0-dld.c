@@ -466,12 +466,12 @@
    At first, let's take a look once again the intervals:
 
    @verbatim
-        (IV)                  (III)             (II)       (I)
-   [ Seq-All-P  ]   [Online-Recovering] [N-txns] [current-window]
-   x------------x-----------------------------x------x---------------> (originator's clock)
-   ^            ^                             ^
-   |            | Max-All-P                   |
-   |                                          | Last-non-r-w-r-able-dtx
+        (IV)                  (III)      (II)       (I)
+   [ Seq-All-P  ]  [Online-Recovering][N-txns] [current-window]
+   x------------x---------------------x-------x---------------> (originator's clock)
+   ^            ^                     ^
+   |            | Max-All-P           |
+   |                                  | Last-chance-before-recovering-starts
    | Last non-pruned dtx
 
    Intervals:
@@ -681,8 +681,8 @@
    @verbatim
 
    struct m0_dtx0_id {
-   	uint64_t      dti_timestamp;
-   	struct m0_fid dti_originator_sdev_fid;
+        struct m0_fid dti_originator_sdev_fid;
+        uint64_t      dti_timestamp;
    } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
 
    struct m0_dtx0_participants {
@@ -1220,38 +1220,46 @@
    @section DLD-impl-plan-components Implementation Plan: Components
 
    On the client side:
-   - dtx0: init/fini tx, cancel tx, STABLE callback;
-   - log: add redo, cancel, add p, ...;
-   - pmach: recv(net) and apply them to the log;
-   - pruner: removes STABLE and canceled transaction after a delay;
-   - net: send and recv;
-   - ha: subscription to new states;
+   - dtx0: dtm0 api to others, init/fini tx, cancel tx, STABLE callback;
+   - log: add req/redo, handle cancel tx, hadle pmsg, ...;
+   - pmach: recv(net) and apply pmsgs to the log;
+   - pruner: cleans up the log to keep memory footprint in the limits
+     (removes STABLE and canceled transaction after a delay??);
+   - net: simple send and recv api (establishing sessions/connections
+     automatically);
+   - ha: subscription to new states (exactly once semantics?? can we
+     lose an ha-event?? we need to store events in BE to not miss them
+     after crash-restart);
    - remach: sends REDOs;
 
    On the server side:
-   - dtx0: init/fini tx with be, persistent callback;
-   - log: add redo, add p, ...;
-   - pmach: set of FOMs that recv(net) and add_p(log), also they
-   are awaiting on log and send(net);
+   - dtx0: dtm0 api to others, init/fini tx with be, persistent callback;
+   - log: add req/redo, handle pmsgs, signals about local txns getting
+     persistent...;
+   - pmach: set of FOMs that recv(net) and add_p(log) pmsgs, also they
+     are awaiting on the log to signal and send(net) pmsgs;
    - pruner: awaits on log for new Max-All-P, awaits on ha for new FAILED;
    - net: send, recv;
    - ha: persistent log, delivered(), subscription to new states;
    - remach: set of FOMs that await on log records for which we should send
-   REDO, and receives incoming REDOs from net, and applies incoming REDOs.
+     REDO, and receives incoming REDOs from net, and applies incoming REDOs.
 
    unordered:
-   - optimizations: persistent iterators, client-based persistence-related
-   coordination, first-non-falied participant sends REDO;
+   - optimizations: persistent iterators (Virutial-Max-All-P), client-based
+     persistence-related coordination (to reduce the number of pmsgs in the
+     cluster), first-non-falied participant sends REDO (to reduce the number
+     of REDOs in the cluster);
 
-   V1:
+   V1: always working log without online recovery, only happy-path
    - DTM0 log:
-     + Static list of participants, each item is a dtx for which we have not
-     received Pmsgs;
-     + No client lists;
+     - Static list of participants, each item is a dtx for which we have not
+       received Pmsgs;
    - Pmach (simple shim between log and net);
    - Pruner (removes all-p records);
    - no recovery machine;
    - DTX0 (simple shim between user and log);
+   - drlink-based net (drlink == old net);
+   - dix fills m0_dtx0_descriptor of m0_cas_op;
 
    V2:
    - V1;
@@ -1387,9 +1395,8 @@
    TODO: consider almost "immutable" list links in log records (for FOL).
 
 
-
    @verbatim
-        (IV)                  (III)             (II)       (I)
+        (IV)                  (III)       (II)       (I)
    [ Seq-All-P  ]   [Online-Recovering] [N-txns] [current-window]
 
    (sdev1.self)
