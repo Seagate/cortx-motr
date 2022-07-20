@@ -406,7 +406,7 @@ struct m0_cas_op {
 struct m0_cas_dtm0_log_payload  {
 	/** CAS op */
 	struct m0_cas_op cdg_cas_op;
-	/** CAS operation code */
+	/** CAS rpc fop/item opcode */
 	uint32_t         cdg_cas_opcode;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
