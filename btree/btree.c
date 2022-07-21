@@ -633,9 +633,9 @@ enum {
 	CRC_VALUE_SIZE           = sizeof(uint64_t),
 };
 
-#define IS_INTERNAL_NODE(node) bnode_level(node) > 0 ? true : false
+#define IS_INTERNAL_NODE(node) (bnode_level(node) > 0 ? true : false)
 
-#define IS_EMBEDDED_INDIRECT(node) bnode_addrtype_get(node) == EMBEDDED_INDIRECT
+#define IS_EMBEDDED_INDIRECT(node) (bnode_addrtype_get(node) == EMBEDDED_INDIRECT)
 
 #define M0_BTREE_TX_CAPTURE(tx, seg, ptr, size)                              \
 			   m0_be_tx_capture(tx, &M0_BE_REG(seg, size, ptr))
@@ -862,6 +862,35 @@ enum {
 enum {
 	CR_ALL = -1,
 	CR_NONE = -2,
+	/**
+	 * Flags to indicate which regions are to be captured in the node.
+	 *     Bits 0-1 : HDR flags
+	 *     Bits 2-3 : DIR flags
+	 *     Bits 4-5 : KV flags
+	 *     Bit    6 : Not used
+	 *     Bit    7 : Op flag to indicate ins/del operation
+	 * 
+	 * Value of flag bits:
+	 * 	0x00 - capture nothing.
+	 * 	0x01 - capture only modified part.
+	 * 	0x10 - Invalid value.
+	 * 	0x11 - capture full.
+	 */
+	CR_OP_DEL    = 0x80,
+	CR_HDR_SHIFT = 0,
+	CR_DIR_SHIFT = 2,
+	CR_KV_SHIFT  = 4,
+	CR_MOD       = 0x01,
+	CR_FULL      = 0x03,
+	CR_HDR_MOD   = CR_MOD  << CR_HDR_SHIFT,
+	CR_HDR_FULL  = CR_FULL << CR_HDR_SHIFT,
+	CR_HDR_MASK  = CR_HDR_FULL,
+	CR_DIR_MOD   = CR_MOD  << CR_DIR_SHIFT,
+	CR_DIR_FULL  = CR_FULL << CR_DIR_SHIFT,
+	CR_DIR_MASK  = CR_DIR_FULL,
+	CR_KV_MOD    = CR_MOD  << CR_KV_SHIFT,
+	CR_KV_FULL   = CR_FULL << CR_KV_SHIFT,
+	CR_KV_MASK   = CR_KV_FULL,
 };
 
 /** Direction of move in bnode_move(). */
@@ -1093,6 +1122,25 @@ struct node_type {
 };
 
 /**
+ * Structure which contains the address and sizes to be captured.
+ */
+struct node_capture_reg {
+	void     *ncr_hdr_beg;
+	void     *ncr_hdr_end;
+	void     *ncr_dir_beg;
+	void     *ncr_dir_end;
+	void     *ncr_key_beg;
+	void     *ncr_key_end;
+	void     *ncr_val_beg;
+	void     *ncr_val_end;
+};
+
+#define VPTR_TO_U64(a)   (uint64_t)((uintptr_t)(a))
+#define U64_TO_VPTR(a)   (void*)((uintptr_t)(a))
+#define MIN64U_PTR(a,b)  U64_TO_VPTR(min64u(VPTR_TO_U64(a), VPTR_TO_U64(b)))
+#define MAX64U_PTR(a,b)  U64_TO_VPTR(max64u(VPTR_TO_U64(a), VPTR_TO_U64(b)))
+
+/**
  * Node descriptor.
  *
  * This structure is allocated (outside of the segment) for each node actively
@@ -1152,6 +1200,9 @@ struct nd {
 	 * DOES NOT imply node descriptor validity.
 	 */
 	bool                    n_be_node_valid;
+
+	/* Structure containing info about regions to be captured */
+	struct node_capture_reg n_cap;
 };
 
 enum node_opcode {
@@ -2551,9 +2602,18 @@ static void bnode_op_fini(struct node_op *op)
  */
 
 /**
+ * Structure which contains members which are frequently changed and captured
+ * during every put/del operation.
+ */
+struct ff_hdr_var {
+	uint16_t ff_used;     /*< Count of valid records */
+	uint16_t ff_max_recs; /*< Max records in the node */
+	uint8_t  ff_level;    /*< Level in Btree */
+};
+
+/**
  *  Structure of the directory entry.
  */
-
 struct ff_dir_entry {
 	/**
 	 * Record offset from the start of the container node.
@@ -2574,13 +2634,14 @@ struct ff_head {
 	 * following the m0_format_header.
 	 */
 
-	uint16_t                 ff_used;     /*< Count of valid records */
-	uint16_t                 ff_max_recs; /*< Max records in the node */
-	uint8_t                  ff_level;    /*< Level in Btree */
+	uint32_t                 ff_nsize;    /*< Node size */
 	uint16_t                 ff_ksize;    /*< Size of key in bytes */
 	uint16_t                 ff_vsize;    /*< Size of value in bytes */
-	uint32_t                 ff_nsize;    /*< Node size */
+
+	/* === DO NOT add any members below this section === */
+	struct ff_hdr_var        ff_var;
 	struct m0_format_footer  ff_foot;     /*< Node Footer */
+	/*   === Section end ===   */
 	void                    *ff_opaque;   /*< opaque data */
 	/**
 	 *  This space is used to host the Keys and Values upto the size of the
@@ -2718,8 +2779,8 @@ static void *ff_key(const struct nd *node, int idx)
 	struct ff_head      *h  = ff_data(node);
 	struct ff_dir_entry *de = (struct ff_dir_entry *)(h + 1);
 
-	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
-		   (0 <= idx && idx <= h->ff_used)));
+	M0_PRE(ergo(!(h->ff_var.ff_used == 0 && idx == 0),
+		    (0 <= idx && idx <= h->ff_var.ff_used)));
 	if (IS_EMBEDDED_INDIRECT(node))
 		return (void *)h + de[idx].ff_roff;
 	else
@@ -2734,15 +2795,15 @@ static void *ff_val(const struct nd *node, int idx)
 	void                *node_end_addr;
 	int                  value_offset;
 
-	M0_PRE(ergo(!(h->ff_used == 0 && idx == 0),
-		   (0 <= idx && ((uint16_t)idx) <= h->ff_used)));
+	M0_PRE(ergo(!(h->ff_var.ff_used == 0 && idx == 0),
+		   (0 <= idx && ((uint16_t)idx) <= h->ff_var.ff_used)));
 
 	if (h->ff_seg.h_addr_type == EMBEDDED_INDIRECT)
 		return (void *)h + de[idx].ff_roff + h->ff_ksize;
 	else {
 		node_end_addr = node_start_addr + h->ff_nsize;
-		if (h->ff_level == 0 &&
-		ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		if (h->ff_var.ff_level == 0 &&
+		    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
 			value_offset  = (ff_valsize(node) + CRC_VALUE_SIZE) *
 					(idx + 1);
 		else
@@ -2758,7 +2819,8 @@ static bool ff_rec_is_valid(const struct slot *slot)
 	int             vsize = m0_vec_count(&slot->s_rec.r_val.ov_vec);
 	bool            val_is_valid;
 
-	val_is_valid = h->ff_level > 0 ? vsize == INTERNAL_NODE_VALUE_SIZE :
+	val_is_valid = h->ff_var.ff_level > 0 ?
+		       vsize == INTERNAL_NODE_VALUE_SIZE :
 		       vsize == h->ff_vsize;
 
 	return
@@ -2857,22 +2919,21 @@ static void ff_dir_init(const struct nd *node)
 
 	M0_PRE(h != NULL);
 
-	if (h->ff_level == 0 &&
+	if (h->ff_var.ff_level == 0 &&
 	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
 		crc_size = CRC_VALUE_SIZE;
 
 	de = (struct ff_dir_entry *)(h + 1);
 	rec_size = h->ff_ksize + ff_valsize(node) + crc_size +
 		   sizeof(struct ff_dir_entry);
-	h->ff_max_recs = (uint16_t)((h->ff_nsize - sizeof(struct ff_head)) /
-			 	    rec_size);
+	h->ff_var.ff_max_recs = (uint16_t)((h->ff_nsize - sizeof(*h)) /
+			 		   rec_size);
 
-	kv_start_offset = sizeof(struct ff_head) +
-			  (uint16_t)(h->ff_max_recs *
+	kv_start_offset = sizeof(*h) + (uint16_t)(h->ff_var.ff_max_recs *
 			  			   sizeof(struct ff_dir_entry));
 	kv_size = h->ff_ksize + ff_valsize(node) + crc_size;
 
-	for (i = 0; i < h->ff_max_recs; i++)
+	for (i = 0; i < h->ff_var.ff_max_recs; i++)
 		de[i].ff_roff = kv_start_offset + (i * kv_size);
 }
 
@@ -2883,18 +2944,18 @@ static void ff_dir_update(const struct nd *node, int idx, bool op_del)
 	uint32_t             tmp_roff;
 	int                  i;
 
-	M0_PRE(h != NULL && h->ff_max_recs != 0);
+	M0_PRE(h != NULL && h->ff_var.ff_max_recs != 0);
 
 	de = (struct ff_dir_entry *)(h + 1);
 
 	if (op_del) {
 		tmp_roff = de[idx].ff_roff;
-		for (i = idx; i < (int)(h->ff_used - 1); i++)
+		for (i = idx; i < (int)(h->ff_var.ff_used - 1); i++)
 			de[i].ff_roff = de[i + 1].ff_roff;
-		de[h->ff_used - 1].ff_roff = tmp_roff;
+		de[h->ff_var.ff_used - 1].ff_roff = tmp_roff;
 	} else {
-		tmp_roff = de[h->ff_used].ff_roff;
-		for (i = h->ff_used; i > idx; i--)
+		tmp_roff = de[h->ff_var.ff_used].ff_roff;
+		for (i = h->ff_var.ff_used; i > idx; i--)
 			de[i].ff_roff = de[i - 1].ff_roff;
 		de[idx].ff_roff = tmp_roff;
 	}
@@ -2920,7 +2981,7 @@ static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
 	h->ff_seg.h_gen       = gen;
 	h->ff_seg.h_fid       = fid;
 	h->ff_opaque          = NULL;
-	h->ff_used            = 0;
+	h->ff_var.ff_used     = 0;
 
 	m0_format_header_pack(&h->ff_fmt, &(struct m0_format_tag){
 		.ot_version       = M0_BTREE_NODE_FORMAT_VERSION,
@@ -2945,10 +3006,10 @@ static void ff_fini(const struct nd *node)
 		.ot_type          = 0,
 		.ot_footer_offset = 0
 	});
-	h->ff_max_recs     = 0;
-	h->ff_used         = 0;
-	h->ff_opaque       = NULL;
-	h->ff_fmt.hd_magic = 0;
+	h->ff_var.ff_max_recs = 0;
+	h->ff_var.ff_used     = 0;
+	h->ff_opaque          = NULL;
+	h->ff_fmt.hd_magic    = 0;
 }
 
 static uint32_t ff_crctype_get(const struct nd *node)
@@ -2965,7 +3026,7 @@ static uint32_t ff_addrtype_get(const struct nd *node)
 
 static int ff_rec_count(const struct nd *node)
 {
-	return ff_data(node)->ff_used;
+	return ff_data(node)->ff_var.ff_used;
 }
 
 static int ff_space(const struct nd *node)
@@ -2974,26 +3035,26 @@ static int ff_space(const struct nd *node)
 	uint32_t        used_space = 0;
 	int             crc_size   = 0;
 
-	if (h->ff_level == 0 &&
+	if (h->ff_var.ff_level == 0 &&
 	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
 		crc_size = CRC_VALUE_SIZE;
 
 	if (IS_EMBEDDED_INDIRECT(node)) {
-		used_space = sizeof(struct ff_head) +
-			     (h->ff_max_recs * sizeof(struct ff_dir_entry)) +
-			     (h->ff_used * (h->ff_ksize + ff_valsize(node) +
-					    crc_size));
+		used_space = sizeof(*h) + (h->ff_var.ff_max_recs *
+					   sizeof(struct ff_dir_entry)) +
+			     (h->ff_var.ff_used *
+			      (h->ff_ksize + ff_valsize(node) + crc_size));
 	} else
-		used_space = sizeof(struct ff_head) +
+		used_space = sizeof(*h) +
 			     ((h->ff_ksize + ff_valsize(node) + crc_size) *
-			     					    h->ff_used);
+			     				     h->ff_var.ff_used);
 
 	return h->ff_nsize - used_space;
 }
 
 static int ff_level(const struct nd *node)
 {
-	return ff_data(node)->ff_level;
+	return ff_data(node)->ff_var.ff_level;
 }
 
 static int ff_shift(const struct nd *node)
@@ -3015,7 +3076,7 @@ static inline int ff_valsize(const struct nd *node)
 {
 	struct ff_head *h = ff_data(node);
 
-	if (h->ff_level == 0)
+	if (h->ff_var.ff_level == 0)
 		return ff_data(node)->ff_vsize;
 	else
 		return INTERNAL_NODE_VALUE_SIZE;
@@ -3028,7 +3089,7 @@ static int ff_max_ksize(const struct nd *node)
 
 static bool ff_isunderflow(const struct nd *node, bool predict)
 {
-	int16_t rec_count = ff_data(node)->ff_used;
+	int16_t rec_count = ff_data(node)->ff_var.ff_used;
 	if (predict && rec_count != 0)
 		rec_count--;
 	return  rec_count == 0;
@@ -3040,12 +3101,13 @@ static bool ff_isoverflow(const struct nd *node, int max_ksize,
 	struct ff_head *h = ff_data(node);
 	int             crc_size = 0;
 
-	if (h->ff_level == 0 &&
+	if (h->ff_var.ff_level == 0 &&
 	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
 		crc_size = sizeof(uint64_t);
 
 	if (IS_EMBEDDED_INDIRECT(node)) {
-		if (h->ff_used == 0 || h->ff_used < h->ff_max_recs)
+		if (h->ff_var.ff_used == 0 ||
+		    h->ff_var.ff_used < h->ff_var.ff_max_recs)
 		    	return false;
 		else
 			return true;
@@ -3066,8 +3128,8 @@ static void ff_rec(struct slot *slot)
 {
 	struct ff_head *h = ff_data(slot->s_node);
 
-	M0_PRE(ergo(!(h->ff_used == 0 && slot->s_idx == 0),
-		    slot->s_idx <= h->ff_used));
+	M0_PRE(ergo(!(h->ff_var.ff_used == 0 && slot->s_idx == 0),
+		    slot->s_idx <= h->ff_var.ff_used));
 
 	slot->s_rec.r_val.ov_vec.v_nr = 1;
 	slot->s_rec.r_val.ov_vec.v_count[0] = ff_valsize(slot->s_node);
@@ -3081,8 +3143,8 @@ static void ff_node_key(struct slot *slot)
 	const struct nd  *node = slot->s_node;
 	struct ff_head   *h    = ff_data(node);
 
-	M0_PRE(ergo(!(h->ff_used == 0 && slot->s_idx == 0),
-		    slot->s_idx <= h->ff_used));
+	M0_PRE(ergo(!(h->ff_var.ff_used == 0 && slot->s_idx == 0),
+		    slot->s_idx <= h->ff_var.ff_used));
 
 	slot->s_rec.r_key.k_data.ov_vec.v_nr = 1;
 	slot->s_rec.r_key.k_data.ov_vec.v_count[0] = h->ff_ksize;
@@ -3094,7 +3156,7 @@ static void ff_child(struct slot *slot, struct segaddr *addr)
 	const struct nd *node = slot->s_node;
 	struct ff_head  *h    = ff_data(node);
 
-	M0_PRE(slot->s_idx < h->ff_used);
+	M0_PRE(slot->s_idx < h->ff_var.ff_used);
 	*addr = *(struct segaddr *)ff_val(node, slot->s_idx);
 }
 
@@ -3132,7 +3194,7 @@ static void ff_done(struct slot *slot, bool modified)
 	void            *val_addr;
 	uint64_t         calculated_csum;
 
-	if (modified && h->ff_level == 0 &&
+	if (modified && h->ff_var.ff_level == 0 &&
 	    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH) {
 		val_addr = ff_val(slot->s_node, slot->s_idx);
 		calculated_csum = m0_hash_fnc_fnv1(val_addr, h->ff_vsize);
@@ -3140,44 +3202,127 @@ static void ff_done(struct slot *slot, bool modified)
 	}
 }
 
+static void ff_cap_reg_define(struct nd *tgt, int idx, uint8_t flags)
+{
+	struct ff_head          *h        = ff_data(tgt);
+	struct node_capture_reg *cap      = &tgt->n_cap;
+	struct ff_dir_entry     *de       = (struct ff_dir_entry *)(h + 1);
+	struct node_capture_reg  tmp      = {};
+	int                      crc_size = 0;
+
+	if (h->ff_var.ff_level == 0 &&
+	    ff_crctype_get(tgt) == M0_BCT_BTREE_ENC_RAW_HASH)
+		crc_size = CRC_VALUE_SIZE;
+
+	if ((flags & CR_HDR_MASK) == CR_HDR_FULL) {
+		tmp.ncr_hdr_beg = h;
+		tmp.ncr_hdr_end = (void *)(&h->ff_opaque);
+	} else {
+		/* Capture footer along with ff_var. */
+		tmp.ncr_hdr_beg = &h->ff_var;
+		tmp.ncr_hdr_end = tmp.ncr_hdr_beg + sizeof(h->ff_var) +
+				  sizeof(h->ff_foot);
+	}
+
+	if ((flags & CR_DIR_MASK) == CR_DIR_FULL) {
+		tmp.ncr_dir_beg = de;
+		tmp.ncr_dir_end = tmp.ncr_dir_beg +
+				  (sizeof(*de) * h->ff_var.ff_max_recs);
+	} else if ((flags & CR_DIR_MASK) == CR_DIR_MOD) {
+		tmp.ncr_dir_beg = &de[idx];
+		tmp.ncr_dir_end = tmp.ncr_dir_beg +
+				  (sizeof(*de) * (h->ff_var.ff_used - idx));
+	}
+
+	if ((flags & CR_KV_MASK) == CR_KV_FULL) {
+		tmp.ncr_key_beg = &de[h->ff_var.ff_max_recs];
+		tmp.ncr_key_end = tmp.ncr_key_beg + 
+				  (h->ff_var.ff_used * (h->ff_ksize +
+				     		   ff_valsize(tgt) + crc_size));
+	} else if ((flags & CR_KV_MASK) == CR_KV_MOD &&
+		   (flags & CR_OP_DEL) == 0) {
+		tmp.ncr_key_beg = ff_key(tgt, idx);
+		tmp.ncr_key_end = tmp.ncr_key_beg + h->ff_ksize +
+				  ff_valsize(tgt) + crc_size;
+	}
+
+	cap->ncr_hdr_beg = cap->ncr_hdr_beg != NULL ?
+			   MIN64U_PTR(cap->ncr_hdr_beg, tmp.ncr_hdr_beg) :
+			   tmp.ncr_hdr_beg;
+	cap->ncr_hdr_end = cap->ncr_hdr_end != NULL ?
+			   MAX64U_PTR(cap->ncr_hdr_end, tmp.ncr_hdr_end) :
+			   tmp.ncr_hdr_end;
+	M0_ASSERT(cap->ncr_hdr_end >= cap->ncr_hdr_beg);
+	cap->ncr_dir_beg = cap->ncr_dir_beg != NULL ?
+			   MIN64U_PTR(cap->ncr_dir_beg, tmp.ncr_dir_beg) :
+			   tmp.ncr_dir_beg;
+	cap->ncr_dir_end = cap->ncr_dir_end != NULL ?
+			   MAX64U_PTR(cap->ncr_dir_end, tmp.ncr_dir_end) :
+			   tmp.ncr_dir_end;
+	M0_ASSERT(cap->ncr_dir_end >= cap->ncr_dir_beg);
+	cap->ncr_key_beg = cap->ncr_key_beg != NULL ?
+			   MIN64U_PTR(cap->ncr_key_beg, tmp.ncr_key_beg) :
+			   tmp.ncr_key_beg;
+	cap->ncr_key_end = cap->ncr_key_end != NULL ?
+			   MAX64U_PTR(cap->ncr_key_end, tmp.ncr_key_end) :
+			   tmp.ncr_key_end;
+	M0_ASSERT(cap->ncr_key_end >= cap->ncr_key_beg);
+	cap->ncr_val_beg = cap->ncr_val_beg != NULL ?
+			   MIN64U_PTR(cap->ncr_val_beg, tmp.ncr_val_beg) :
+			   tmp.ncr_val_beg;
+	cap->ncr_val_end = cap->ncr_val_end != NULL ?
+			   MAX64U_PTR(cap->ncr_val_end, tmp.ncr_val_end) :
+			   tmp.ncr_val_end;
+	M0_ASSERT(cap->ncr_val_end >= cap->ncr_val_beg);
+}
+
 static void ff_make(struct slot *slot)
 {
-	struct ff_head *h  = ff_data(slot->s_node);
+	struct ff_head *h               = ff_data(slot->s_node);
+	struct nd      *tgt             = (struct nd *)slot->s_node;
 	void           *key_addr;
 	void           *val_addr;
-	int             crc_size = 0;
+	int             crc_size        = 0;
 	int             vsize;
 	int             total_key_size;
 	int             total_val_size;
+	uint8_t         flags           = CR_HDR_MOD | CR_DIR_MOD | CR_KV_MOD;
 
-	if (h->ff_used == 0 || slot->s_idx == h->ff_used) {
-		if (IS_EMBEDDED_INDIRECT(slot->s_node) && h->ff_used == 0)
+	if (h->ff_var.ff_used == 0 || slot->s_idx == h->ff_var.ff_used) {
+		if (IS_EMBEDDED_INDIRECT(slot->s_node) &&
+		    h->ff_var.ff_used == 0) {
 			ff_dir_init(slot->s_node);
-		h->ff_used++;
+			flags |= CR_HDR_FULL | CR_DIR_FULL;
+		}
+		h->ff_var.ff_used++;
+		ff_cap_reg_define(tgt, slot->s_idx, flags);
 		return;
 	}
 
-	if (IS_EMBEDDED_INDIRECT(slot->s_node))
+	if (IS_EMBEDDED_INDIRECT(slot->s_node)) {
 		ff_dir_update(slot->s_node, slot->s_idx, false);
-	else {
-		if (h->ff_level == 0 &&
-		ff_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		++h->ff_var.ff_used;
+		ff_cap_reg_define(tgt, slot->s_idx, flags);
+	} else {
+		if (h->ff_var.ff_level == 0 &&
+		    ff_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
 			crc_size = CRC_VALUE_SIZE;
 
 		key_addr       = ff_key(slot->s_node, slot->s_idx);
-		val_addr       = ff_val(slot->s_node, h->ff_used - 1);
+		val_addr       = ff_val(slot->s_node, h->ff_var.ff_used - 1);
 
 		vsize          = ff_valsize(slot->s_node);
-		total_key_size = h->ff_ksize * (h->ff_used - slot->s_idx);
-		total_val_size = (vsize + crc_size) * (h->ff_used -
+		total_key_size = h->ff_ksize * (h->ff_var.ff_used -
+						slot->s_idx);
+		total_val_size = (vsize + crc_size) * (h->ff_var.ff_used -
 						       slot->s_idx);
 
 		m0_memmove(key_addr + h->ff_ksize, key_addr, total_key_size);
 		m0_memmove(val_addr - (vsize + crc_size), val_addr,
 			total_val_size);
+		h->ff_var.ff_used++;
 	}
 
-	h->ff_used++;
 }
 
 static bool ff_newval_isfit(struct slot *slot, struct m0_btree_rec *old_rec,
@@ -3195,7 +3340,7 @@ static void ff_val_resize(struct slot *slot, int vsize_diff,
 
 	M0_PRE(vsize_diff == 0);
 	M0_PRE(!(IS_INTERNAL_NODE(slot->s_node)));
-	M0_PRE(slot->s_idx < h->ff_used && h->ff_used > 0);
+	M0_PRE(slot->s_idx < h->ff_var.ff_used && h->ff_var.ff_used > 0);
 }
 
 static void ff_fix(const struct nd *node)
@@ -3213,48 +3358,53 @@ static void ff_cut(const struct nd *node, int idx, int size)
 
 static void ff_del(const struct nd *node, int idx)
 {
-	struct ff_head *h     = ff_data(node);
+	struct ff_head *h               = ff_data(node);
+	struct nd      *tgt             = (struct nd *)node;
 	void           *key_addr;
 	void           *val_addr;
-	int             crc_size = 0;
+	int             crc_size        = 0;
 	int             vsize;
 	int             total_key_size;
 	int             total_val_size;
+	uint8_t         flags           = CR_HDR_MOD | CR_DIR_MOD | 0x80;
 
-	M0_PRE(h->ff_used > 0 && idx < h->ff_used);
+	M0_PRE(h->ff_var.ff_used > 0 && idx < h->ff_var.ff_used);
 
-	if (idx == h->ff_used - 1) {
-		h->ff_used--;
+	if (idx == h->ff_var.ff_used - 1) {
+		ff_cap_reg_define(tgt, idx, flags);
+		h->ff_var.ff_used--;
 		return;
 	}
 
-	if (IS_EMBEDDED_INDIRECT(node))
+	if (IS_EMBEDDED_INDIRECT(node)) {
 		ff_dir_update(node, idx, true);
-	else {
-		if (h->ff_level == 0 &&
-		ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
+		ff_cap_reg_define(tgt, idx, flags);
+	} else {
+		if (h->ff_var.ff_level == 0 &&
+		    ff_crctype_get(node) == M0_BCT_BTREE_ENC_RAW_HASH)
 			crc_size = CRC_VALUE_SIZE;
 
 		key_addr       = ff_key(node, idx);
-		val_addr       = ff_val(node, h->ff_used - 1);
+		val_addr       = ff_val(node, h->ff_var.ff_used - 1);
 
 		vsize          = ff_valsize(node);
-		total_key_size = h->ff_ksize * (h->ff_used - idx - 1);
-		total_val_size = (vsize + crc_size) * (h->ff_used - idx - 1);
+		total_key_size = h->ff_ksize * (h->ff_var.ff_used - idx - 1);
+		total_val_size = (vsize + crc_size) *
+				 (h->ff_var.ff_used - idx - 1);
 
 		m0_memmove(key_addr, key_addr + h->ff_ksize, total_key_size);
 		m0_memmove(val_addr + (vsize + crc_size), val_addr,
 			total_val_size);
 	}
 
-	h->ff_used--;
+	h->ff_var.ff_used--;
 }
 
 static void ff_set_level(const struct nd *node, uint8_t new_level)
 {
 	struct ff_head *h = ff_data(node);
 
-	h->ff_level = new_level;
+	h->ff_var.ff_level = new_level;
 	/** Capture these changes in ff_capture.*/
 }
 
@@ -3262,7 +3412,7 @@ static void ff_set_rec_count(const struct nd *node, uint16_t count)
 {
 	struct ff_head *h = ff_data(node);
 
-	h->ff_used = count;
+	h->ff_var.ff_used = count;
 }
 
 static void ff_opaque_set(const struct  segaddr *addr, void *opaque)
@@ -3371,44 +3521,31 @@ static void generic_move(struct nd *src, struct nd *tgt, enum direction dir,
 static void ff_capture(struct nd *node, struct slot *slot, int cr,
 		       struct m0_be_tx *tx)
 {
-	struct ff_head      *h        = ff_data(slot->s_node);
-	struct ff_dir_entry *de       = (struct ff_dir_entry *)(h + 1);
-	struct m0_be_seg    *seg      = slot->s_node->n_tree->t_seg;
-	m0_bcount_t          hsize    = sizeof(*h) - sizeof(h->ff_opaque);
-	int                  crc_size = 0;
-	int                  kv_cap_size;
+	struct ff_head          *h        = ff_data(slot->s_node);
+	struct nd               *tgt      = (struct nd *)slot->s_node;
+	struct node_capture_reg *cap      = &tgt->n_cap;
+	struct m0_be_seg        *seg      = slot->s_node->n_tree->t_seg;
+	m0_bcount_t              hsize    = sizeof(*h) - sizeof(h->ff_opaque);
+	int                      crc_size = 0;
 
-	if (h->ff_level == 0 &&
+	if (h->ff_var.ff_level == 0 &&
 	    ff_crctype_get(slot->s_node) == M0_BCT_BTREE_ENC_RAW_HASH)
 		crc_size = CRC_VALUE_SIZE;
 
 	if (IS_EMBEDDED_INDIRECT(slot->s_node)) {
-		int de_nr   = h->ff_max_recs;
-		int de_size = sizeof(struct ff_dir_entry) * de_nr;
-
-		if (cr == CR_ALL) {
-			kv_cap_size = h->ff_max_recs *
-				      (h->ff_ksize + ff_valsize(slot->s_node) +
-				       crc_size);
-
-			M0_BTREE_TX_CAPTURE(tx, seg, &de[0],
-					    de_size + kv_cap_size);
-		} else if (cr == CR_NONE) {
-			if (h->ff_max_recs != 0)
-				M0_BTREE_TX_CAPTURE(tx, seg, &de[0], de_size);
-
-			if (h->ff_opaque == NULL)
-				hsize += sizeof(h->ff_opaque);
-		} else {
-			M0_ASSERT(cr == 1);
-			kv_cap_size = h->ff_ksize + ff_valsize(slot->s_node) +
-				      crc_size;
-
-			M0_BTREE_TX_CAPTURE(tx, seg, &de[0], de_size);
-			M0_BTREE_TX_CAPTURE(tx, seg,
-					    ff_key(slot->s_node, slot->s_idx),
-					    kv_cap_size);
-		}
+		if (cap->ncr_hdr_beg != NULL && cap->ncr_hdr_end != NULL &&
+		    cap->ncr_hdr_end != cap->ncr_hdr_beg)
+			M0_BTREE_TX_CAPTURE(tx, seg, cap->ncr_hdr_beg,
+					    cap->ncr_hdr_end - cap->ncr_hdr_beg);
+		if (cap->ncr_dir_beg != NULL && cap->ncr_dir_end != NULL &&
+		    cap->ncr_dir_end != cap->ncr_dir_beg)
+			M0_BTREE_TX_CAPTURE(tx, seg, cap->ncr_dir_beg,
+					    cap->ncr_dir_end - cap->ncr_dir_beg);
+		if (cap->ncr_key_beg != NULL && cap->ncr_key_end != NULL &&
+		    cap->ncr_key_end != cap->ncr_key_beg)
+			M0_BTREE_TX_CAPTURE(tx, seg, cap->ncr_key_beg,
+					    cap->ncr_key_end - cap->ncr_key_beg);
+		M0_SET0(cap);
 	} else {
 		/**
 		 *  Capture starting from the location where new record may have
@@ -3416,12 +3553,12 @@ static void ff_capture(struct nd *node, struct slot *slot, int cr,
 		 *  deleted record was at the end then no records need to be
 		 *  captured only the header modifications need to be persisted.
 		 */
-		if (h->ff_used > slot->s_idx) {
+		if (h->ff_var.ff_used > slot->s_idx) {
 			void *start_key        = ff_key(slot->s_node,
 							slot->s_idx);
 			void *last_val         = ff_val(slot->s_node,
-							h->ff_used - 1);
-			int   rec_modify_count = h->ff_used - slot->s_idx;
+							h->ff_var.ff_used - 1);
+			int   rec_modify_count = h->ff_var.ff_used - slot->s_idx;
 			int   vsize            = ff_valsize(slot->s_node);
 			int   krsize;
 			int   vrsize;
@@ -5805,7 +5942,7 @@ static int vkvv_valsize(const struct nd *node)
 
 /**
  * @brief This function will identify the possibility of underflow
- *        while adding a new record. We need to check if ff_used will
+ *        while adding a new record. We need to check if vkvv_used will
  *        become 0 or not.
  */
 static bool vkvv_isunderflow(const struct nd *node, bool predict)
