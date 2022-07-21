@@ -575,38 +575,16 @@
    logical specifications, and enumerates topics that need special
    attention.</i>
 
-   DTM0 "information" needed for ordering (two timestamps):
-       - txid;
-       - txid previously sent to this participant.
-
-   Log record states:
-   - was never added to dtm0 log;
-   - is in dtm0 log;
-     + does not have REDO message;
-     + has REDO message;
-       * does not have All-P;
-       * has All-P;
-   - was added to dtm0 log and was removed from dtm0 log;
-
-   [INPROGRESS, EXECUTED, STABLE, DONE]
-
-   INPROGRESS -> EXECUTED: enough CAS replies
-   INPROGRESS -> DONE: canceled before it was executed
-   EXECUTED -> STABLE: enough Pmsgs
-   EXECUTED -> DONE: canceled after it was executed
-   STABLE -> DONE: successfully completed.
-
-   [ INPROGRESS ]  [ EXECUTED ] [ STABLE ] [ DONE ]
-
    [ head  ... tail] [ to_be_assigned/current ]
 
-   Sliding window: all transactions on the client:
+   Sliding window: all pending transactions on the client:
 
    - min timestamp (the "head" of the list or "current" if the list is empty);
    - "current" timestamp;
 
    Invatiant: for the given [min, current) interval, its boundaries are never
-   decreasing (TODO: look up term for "monotonically non-decreasing").
+   decreasing (or never go leftward).
+   (TODO: look up term for "monotonically non-decreasing").
 
    Min xid sent to servers.
    Client concurrency * timeout value == window size.
