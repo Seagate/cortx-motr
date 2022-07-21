@@ -1244,12 +1244,15 @@
    - dix fills m0_dtx0_descriptor of m0_cas_op;
 
    Tasks for V1:
-   - DTM0 log without REDO list + Simple Pruner (dtm/log)
-   - Add static REDO lists for remote storage device.
-   - Implement dtm/net (dtm/net)
+   - DTM0 log without REDO list + Simple Pruner (dtm/log branch).
+   - Add static REDO lists for remote storage devices (to handle Pmsgs).
+   - Implement dtm/net (dtm/net branch).
    - Implement PMach (initial code present in dtm/refactoring-next)
-   - dix fills m0_dtx0_descriptor of m0_cas_op;
-   - Handle new PMSG on Client(s)
+   - dix fills m0_dtx0_descriptor of m0_cas_op:
+     - move clk_src into dtm0 domain;
+   - Handle new PMSG on Client(s), options:
+     - an adapter (new -> old) (with enabled by default dtm0);
+     - m0_cookie or just disable dtm0 by default (as it is right now);
 
    V2:
    - V1;
