@@ -614,7 +614,9 @@
    participant where the replica is missing.
 
    - dtm0 propagates back pressure (memory, IO, etc) across the system, thus
-   helping us to avoid overload due to "too many operations are in-progress".
+     helping us to avoid overload due to "too many operations are in-progress".
+     This is needed to make sure the User requests are not affected by 
+     performance.
 
    [Cat of fids]
    Originator is service.
@@ -1248,11 +1250,24 @@
    - drlink-based net (drlink == old net);
    - dix fills m0_dtx0_descriptor of m0_cas_op;
 
+   Tasks for V1:
+   - DTM0 log without REDO list + Simple Pruner (dtm/log)
+   - Add static REDO lists for remote storage device.
+   - Implement dtm/net (dtm/net)
+   - Implement PMach (initial code present in dtm/refactoring-next)
+   - dix fills m0_dtx0_descriptor of m0_cas_op;
+   - Handle new PMSG on Client(s)
+
    V2:
    - V1;
    - add recovery after restart;
    - adpter for client (pmsg old -> new);
    - remach that sends REDO from lists and merges lists;
+
+   Tasks for V2:
+   - Complete tasks in V1
+   - Handle Send/Receive REDOs in servers. Simple way to determine when to send
+     REDO to the peer (physical timeout !!!)
 
    V3:
    - V2;
