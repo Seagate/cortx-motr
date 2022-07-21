@@ -112,7 +112,8 @@ static int dtm0_domain_level_enter(struct m0_module *module)
 	         dod, level, levels_dtm0_domain[level].ml_name);
 	switch (level) {
 	case M0_DTM0_DOMAIN_LEVEL_INIT:
-		if (reqh != NULL)
+		if (reqh != NULL && reqh->rh_beseg != (void *)1 &&
+		    reqh->rh_beseg != NULL)
 			cfg->dodc_log.dlc_be_domain = reqh->rh_beseg->bs_domain;
 		cfg->dodc_pruner.dpc_cfs = &dod->dod_cfs;
 		cfg->dodc_pruner.dpc_dol = &dod->dod_log;
@@ -219,6 +220,8 @@ M0_INTERNAL int m0_dtm0_domain_init(struct m0_dtm0_domain     *dod,
 {
 	int  rc;
 	bool has_be_domain = dod_cfg->dod_reqh != NULL &&
+			     dod_cfg->dod_reqh->rh_beseg != (void *)1 &&
+			     dod_cfg->dod_reqh->rh_beseg != NULL &&
 		             dod_cfg->dod_reqh->rh_beseg->bs_domain != NULL;
 
 	M0_ENTRY("dod=%p dod_cfg=%p", dod, dod_cfg);
