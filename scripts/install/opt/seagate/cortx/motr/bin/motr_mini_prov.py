@@ -27,6 +27,7 @@ import glob
 import time
 import yaml
 import psutil
+import math
 from typing import List, Dict, Any
 from cortx.utils.conf_store import Conf
 from cortx.utils.cortx import Const
@@ -230,29 +231,31 @@ def calc_size(self, sz):
 
 def set_setup_size(self, service):
     ret = False
-    sevices_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
 
-    # Default self.setup_size  is "small"
-    self.setup_size = "small"
-
-    # For services other then ioservice and confd, return True
+    # For services other than ioservice and confd, return True
     # It will set default setup size i.e. small
     if service not in ["ioservice", "ios", "io", "all", "confd"]:
         self.setup_size = "small"
         self.logger.info(f"service is {service}. So seting setup size to {self.setup_size}\n")
         return True
 
-    #Provisioner passes io as parameter to motr_setup.
-    #Ex: /opt/seagate/cortx/motr/bin/motr_setup config --config yaml:///etc/cortx/cluster.conf --services io
-    #But in /etc/cortx/cluster.conf io is represented by ios. So first get the service names right
+    # Provisioner passes io as parameter to motr_setup
+    # Ex: /opt/seagate/cortx/motr/bin/motr_setup config --config yaml:///etc/cortx/cluster.conf --services io
+    # But in /etc/cortx/cluster.conf io is represented by ios. So first get the service names right
     if service in ["io", "ioservice"]:
          svc = "ios"
     else:
          svc = service
-    for arr_elem in sevices_limits:
-        # For ios, confd we check for setup size according to mem size
-        if arr_elem['name'] == svc:
-            min_mem = arr_elem['memory']['min']
+
+    # Get number of services.
+    # Ex: num_of_services will be 2 since in motr services will be confd, ios
+    # But in /etc/cortx/cluster.conf io is represented by ios. So first get the service names right
+    num_of_services = get_value(self, 'cortx>motr>limits>num_services', str)
+
+    for i in range(num_of_services):
+        service_name = get_value(self, f'cortx>motr>limits>services[{i}]>name', str)
+        if svc == service_name:
+            min_mem = get_value(self, f'cortx>motr>limits>services[{i}]>memory>min', str)
 
             if min_mem.isnumeric():
                 sz = int(min_mem)
@@ -283,6 +286,11 @@ def set_setup_size(self, service):
         self.logger.info(f"service={service} and setup_size={self.setup_size}\n")
     return ret
 
+# Changes required for consul and and so for backward compatibility with yaml
+# 1: In case of consul, all values are stored as string format.
+# So for consul, key_type should be always string.
+# 2: In yaml, values are represented as it is; e.g. numeric as int, strings as str etc.
+# So, for yaml, key_type should be specific to type.
 def get_value(self, key, key_type):
     """Get data."""
     try:
@@ -290,6 +298,11 @@ def get_value(self, key, key_type):
     except:
         raise MotrError(errno.EINVAL, "{key} does not exist in ConfStore")
 
+    if (key_type is str):
+        if isinstance(val, int):
+            return val
+        elif val.isnumeric():
+            return int(val)
     check_type(val, key_type, key)
     return val
 
@@ -477,20 +490,92 @@ def update_copy_motr_config_file(self):
     cmd = f"cp {MOTR_SYS_CFG} {MOTR_M0D_CONF_DIR}"
     execute_command(self, cmd)
 
+def calc_resource_sz(self, resrc):
+    if resrc.isnumeric():
+        sz = int(resrc)
+    else:
+        sz = calc_size(self, resrc)
+    return sz
+
+def motr_tune_memory_config(self):
+    local_path = self.local_path
+    machine_id = self.machine_id
+    MOTR_M0D_DATA_DIR = f"{local_path}/motr"
+    if not os.path.exists(MOTR_M0D_DATA_DIR):
+        create_dirs(self, [f"{MOTR_M0D_DATA_DIR}"])
+    MOTR_LOCAL_SYSCONFIG_DIR = f"{MOTR_M0D_DATA_DIR}/sysconfig"
+    if not os.path.exists(MOTR_LOCAL_SYSCONFIG_DIR):
+        create_dirs(self, [f"{MOTR_LOCAL_SYSCONFIG_DIR}"])
+
+    MOTR_M0D_CONF_FILE_PATH = f"{MOTR_LOCAL_SYSCONFIG_DIR}/{machine_id}/motr"
+
+    if not os.path.exists(MOTR_M0D_CONF_FILE_PATH):
+        self.logger.info(f"FILE not founf  {MOTR_M0D_CONF_FILE_PATH}\n")
+        return
+
+    # collect the memory and cpu limits.
+    services_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
+    for arr_elem in services_limits:
+        if arr_elem['name'] == "ios":
+            mem_min = arr_elem['memory']['min']
+            mem_max = arr_elem['memory']['max']
+            cpu_min = arr_elem['cpu']['min']
+            cpu_max = arr_elem['cpu']['max']
+
+    self.logger.info(f"memory for io {mem_min} {mem_max}\n")
+    self.logger.info(f"Avaiable memory  {mem_min} {mem_max}\n")
+    self.logger.info(f"Avaiable CPU     {cpu_min} {cpu_max}\n")
+    M1 = int(calc_resource_sz(self, mem_min) / (1024 * 1024))
+    M2 = int(calc_resource_sz(self, mem_max) / (1024 * 1024))
+
+    if M1 == 0 or M2 == 0:
+        self.logger.info(f"memory for io mem req:{M1} mem limit: {M2}\n")
+        return
+
+    # update motr config using formula
+    factor_1 = math.floor(M2/512)
+    self.logger.info(f"memory for io {M1} {M2} {factor_1}\n")
+
+    if M2 < 4096:
+        MIN_RPC_RECVQ_LEN = 2 ** factor_1
+    else:
+        MIN_RPC_RECVQ_LEN = 512
+    self.logger.info(f"setting MOTR_M0D_MIN_RPC_RECVQ_LEN to {MIN_RPC_RECVQ_LEN}\n")
+    cmd = f'sed -i "/MOTR_M0D_MIN_RPC_RECVQ_LEN/s/.*/MOTR_M0D_MIN_RPC_RECVQ_LEN={MIN_RPC_RECVQ_LEN}/" {MOTR_M0D_CONF_FILE_PATH}'
+    execute_command(self, cmd)
+
+    IOS_BUFFER_POOL_SIZE = 16 * (2 ** (factor_1 - 1))
+    self.logger.info(f"setting MOTR_M0D_IOS_BUFFER_POOL_SIZE to {IOS_BUFFER_POOL_SIZE}\n")
+    cmd = f'sed -i "/MOTR_M0D_IOS_BUFFER_POOL_SIZE/s/.*/MOTR_M0D_IOS_BUFFER_POOL_SIZE={IOS_BUFFER_POOL_SIZE}/" {MOTR_M0D_CONF_FILE_PATH}'
+    execute_command(self, cmd)
+
+    if M2 <= 1024:
+        SNS_BUFFER_POOL_SIZE = 32
+    else:
+        SNS_BUFFER_POOL_SIZE = 64
+
+    self.logger.info(f"setting MOTR_M0D_SNS_BUFFER_POOL_SIZE to {SNS_BUFFER_POOL_SIZE}\n")
+    cmd = f'sed -i "/MOTR_M0D_SNS_BUFFER_POOL_SIZE/s/.*/MOTR_M0D_SNS_BUFFER_POOL_SIZE={SNS_BUFFER_POOL_SIZE}/" {MOTR_M0D_CONF_FILE_PATH}'
+    execute_command(self, cmd)
+
 # Get lists of metadata disks from Confstore of all cvgs
 # Input: node_info
 # Output: [['/dev/sdc'], ['/dev/sdf']]
 #        where ['/dev/sdc'] is list of metadata disks of cvg[0]
 #              ['/dev/sdf'] is list of metadata disks of cvg[1]
-def get_md_disks_lists(self, node_info):
+def get_md_disks_lists(self, machine_id):
     md_disks_lists = []
-    cvg_count = node_info[CVG_COUNT_KEY]
-    cvg = node_info['cvg']
-    for i in range(cvg_count):
-        temp_cvg = cvg[i]
-        if temp_cvg['devices']['metadata']:
-            md_disks_lists.append(temp_cvg['devices']['metadata'])
-    self.logger.info(f"md_disks lists on node = {md_disks_lists}\n")
+    cvg_count = int(get_value(self, f'node>{machine_id}>{CVG_COUNT_KEY}', str))
+    for cvg_index in range(cvg_count):
+        temp_format = f'node>{machine_id}>cvg[{cvg_index}]>devices>num_metadata'
+        # Get num of metadata devices
+        num_metadata = int(get_value(self, temp_format, str))
+        metadata_per_cvg_list = []
+        for metadata_index in range(num_metadata):
+            temp_format = f'node>{machine_id}>cvg[{cvg_index}]>devices>metadata[{metadata_index}]'
+            metadata_disk = get_value(self, temp_format, str)
+            metadata_per_cvg_list.append(metadata_disk)
+        md_disks_lists.append(metadata_per_cvg_list)
     return md_disks_lists
 
 # Get metada disks from list of lists of metadata disks of
@@ -522,23 +607,37 @@ def update_to_file(self, index, url, machine_id, md_disks):
             Conf.set(index, f"server>{machine_id}>cvg[{i}]>m0d[{j}]>md_seg1",f"{md_disk}")
             Conf.save(index)
 
-# populate self.storage_nodes with machine_id for all storage_nodes
-def get_data_nodes(self):
-    machines: Dict[str,Any] = self.nodes
-    storage_nodes: List[str] = []
-    services = Conf.search(self._index, 'node', 'services', Const.SERVICE_MOTR_IO.value)
-    for machine_id in machines.keys():
-       result = [svc for svc in services if machine_id in svc]
-       # skipped control , HA and server pod
-       if result:
-           storage_nodes.append(machine_id)
-    return storage_nodes
+def get_storage_set_counts(self):
+    return int(get_value(self, 'cluster>num_storage_set', str))
 
-def update_motr_hare_keys(self, nodes):
-    # key = machine_id value = node_info
-    for machine_id in self.storage_nodes:
-        node_info = nodes.get(machine_id)
-        md_disks_lists = get_md_disks_lists(self, node_info)
+def get_machine_id_list(self):
+    machine_id_list: List[str] = []
+    storage_set_counts = get_storage_set_counts(self)
+    for i in range(storage_set_counts):
+        num_of_nodes = int(get_value(self, f'cluster>storage_set[{i}]>num_nodes', str))
+        for j in range(num_of_nodes):
+            machine_id_list.append(get_value(self, f'cluster>storage_set[{i}]>nodes[{j}]', str))
+    return machine_id_list
+
+def get_data_nodes(self):
+    data_nodes = []
+    # Get machine ids
+    # Traverse the nodes using machine id and check for type type
+    # Ex: node>machine_id>type
+    machine_id_list = get_machine_id_list(self)
+    for machine_id in machine_id_list:
+        t = get_value(self, f'node>{machine_id}>type', str)
+        if t == 'data_node':
+            data_nodes.append(machine_id)
+
+    # If data nodes not found
+    if not data_nodes:
+        MotrError(errno.ENOENT, "data nodes not found")
+    return data_nodes
+
+def update_motr_hare_keys(self):
+    for machine_id in self.data_nodes:
+        md_disks_lists = get_md_disks_lists(self, machine_id)
         update_to_file(self, self._index_motr_hare, self._url_motr_hare, machine_id, md_disks_lists)
 
 # Write below content to /etc/cortx/motr/mini_prov_logrotate.conf file so that mini_mini_provisioner
@@ -580,16 +679,18 @@ def update_watermark_in_config(self, wm_str, wm_val):
     execute_command(self, cmd)
 
 def update_btree_watermarks(self):
-    services_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
-    min_mem_limit_for_ios = 0
+    # Get number of services.
+    # Ex: num_of_services will be 2 since in motr services will be confd, ios
+    num_of_services = get_value(self, 'cortx>motr>limits>num_services', str)
 
-    for arr_elem in services_limits:
-        if arr_elem['name'] == "ios":
-            l_min = arr_elem['memory']['min']
-            if l_min.isnumeric():
-                min_mem_limit_for_ios = int(l_min)
+    for i in range(num_of_services):
+        service_name = get_value(self, f'cortx>motr>limits>services[{i}]>name', str)
+        if service_name == "ios":
+            min_mem = get_value(self, f'cortx>motr>limits>services[{i}]>memory>min', str)
+            if min_mem.isnumeric():
+                min_mem_limit_for_ios = int(min_mem)
             else:
-                min_mem_limit_for_ios = calc_size(self, l_min)
+                min_mem_limit_for_ios = calc_size(self, min_mem)
 
     #TBD: If the performance is seen to be low, please tune these parameters.
     wm_low  = int(min_mem_limit_for_ios * 0.40)
@@ -607,7 +708,7 @@ def motr_config_k8(self):
     # To rotate mini_provisioner log file
     add_entry_to_logrotate_conf_file(self)
 
-    if self.machine_id not in self.storage_nodes:
+    if self.machine_id not in self.data_nodes:
         # Modify motr config file
         update_copy_motr_config_file(self)
         return
@@ -619,7 +720,7 @@ def motr_config_k8(self):
         cmd = "{} {}".format(MOTR_CONFIG_SCRIPT, " -c")
         execute_command(self, cmd, verbose = True)
 
-    update_motr_hare_keys(self, self.nodes)
+    update_motr_hare_keys(self)
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
 
     # Update be_seg size only for storage node
@@ -627,6 +728,10 @@ def motr_config_k8(self):
 
     # Modify motr config file
     update_copy_motr_config_file(self)
+
+    # Modify motr config file for memory request
+    motr_tune_memory_config(self)
+
     return
 
 def motr_config(self):
@@ -935,7 +1040,7 @@ def update_bseg_size(self):
     dev_count = 0
     lvm_min_size = None
 
-    md_disks_list = get_md_disks_lists(self, self.node)
+    md_disks_list = get_md_disks_lists(self, self.machine_id)
     md_disks = get_mdisks_from_list(self, md_disks_list)
     md_len = len(md_disks)
     for i in range(md_len):

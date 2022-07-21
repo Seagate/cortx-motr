@@ -18,7 +18,7 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=$(readlink -f "$0")
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
 . "$M0_SRC_DIR"/spiel/st/m0t1fs_spiel_dix_common_inc.sh
@@ -107,7 +107,7 @@ main()
 
 	sandbox_init
 
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 	local multiple_pools=0
 	motr_service start $multiple_pools "$stride" "$N" "$K" "$S" "$P" || {
 		echo "Failed to start Motr Service."
