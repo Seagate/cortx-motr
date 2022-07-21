@@ -586,19 +586,12 @@
    decreasing (or never go leftward).
    (TODO: look up term for "monotonically non-decreasing").
 
-   Min xid sent to servers.
-   Client concurrency * timeout value == window size.
-   Server-side window size is limited by performance of server.
-   We maintain ordered list on each client; they are ordered by client-side
-   timestamp.
-   3 cat of tx for a client:
-     has not left the client
-     did not arrive to servers
-     not related.
    Sliding window is updated whenver client is not idle.
    When client is idle then we rely on local detection: if there is no io
    from that client while there is io from others then the client is idle.
    Sliding window allows us to prune records at the right time.
+   TODO: figure out an algorithm to detect idle client to be able to
+         shrink the window. (Otherwise, the recovery will get stuck.)
 
    - dtm0 uses persistent dtm0 log on participans other than originator,
    and it uses volatile dtm0 long on originator.
