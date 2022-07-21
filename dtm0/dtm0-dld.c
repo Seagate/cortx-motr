@@ -1244,6 +1244,7 @@
    - DTM0 log without REDO list + Simple Pruner (dtm/log branch).
      (See https://github.com/Seagate/cortx-motr/pull/1503)
    - Add static REDO lists for remote storage devices (to handle Pmsgs).
+     (See https://github.com/Seagate/cortx-motr/issues/2006)
    - Implement m0_dtm0_log_p_get_local().
    - Implement dtm/net (dtm/net branch).
    - Implement PMach (initial code present in dtm/refactoring-next)
