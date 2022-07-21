@@ -584,34 +584,31 @@
 
    Invatiant: for the given [min, current) interval, its boundaries are never
    decreasing (or never go leftward).
-   (TODO: look up term for "monotonically non-decreasing").
 
    Sliding window is updated whenver client is not idle.
    When client is idle then we rely on local detection: if there is no io
    from that client while there is io from others then the client is idle.
    Sliding window allows us to prune records at the right time.
-   TODO: figure out an algorithm to detect idle client to be able to
+   TODO: figure out an algorithm to detect the idle client, to be able to
          shrink the window. (Otherwise, the recovery will get stuck.)
 
    - dtm0 uses persistent dtm0 log on participans other than originator,
-   and it uses volatile dtm0 long on originator.
+     and it uses volatile dtm0 long on originator.
 
    - persistent dtm0 log uses BE as storage for dtm0 log records.
 
    - dtm0 uses m0 network for communication.
 
-   - dtm0 saves information in dtm0 log that may be needed for dtm0 recovery up
-   until the transaction is replicated on all non-failed participants.
+   - dtm0 saves information in dtm0 log that may be needed for dtm0 recovery
+     until the transaction is replicated on all non-failed participants.
 
    - to restore a missing replica, dtm0 participant sends dtm0 log record to the
-   participant where the replica is missing.
+     participant where the replica is missing.
 
    - dtm0 propagates back pressure (memory, IO, etc) across the system, thus
      helping us to avoid overload due to "too many operations are in-progress".
-     This is needed to make sure the User requests are not affected by 
-     performance.
 
-   [Cat of fids]
+   [Categories of fids]
    Originator is service.
    Storage device is persistent participant.
    Participant is a service or a storage device.
