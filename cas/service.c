@@ -1213,7 +1213,7 @@ static void cas_fom_executed(struct cas_fom *fom)
 		M0_LOG(M0_DEBUG, "Got CAS with new txid: " DTID1_F,
 		       DTID1_P(&cas_op(fom0)->cg_descriptor.dtd_id));
  		sdev_fid = cas_fom_sdev_fid(fom);
-		if (sdev_fid == NULL);
+		if (sdev_fid == NULL)
 			return;
 		rc = m0_dtx0_redo_add(dod, tx, redo, sdev_fid);
 		M0_ASSERT_INFO(rc == 0, "Failed to update DTM0 log (%d)", rc);
