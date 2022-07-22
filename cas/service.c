@@ -1910,7 +1910,6 @@ static int cas_device_check(const struct cas_fom   *fom,
 			pm = &pver->pv_mach;
 			rc = cas_sdev_state(pm, device_id, &state);
 			if (rc == 0 && !M0_IN(state, (M0_PNDS_ONLINE,
-						      M0_PNDS_OFFLINE,
 						      M0_PNDS_SNS_REBALANCING)))
 				rc = M0_ERR(-EBADFD);
 		} else
