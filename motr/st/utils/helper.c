@@ -774,7 +774,8 @@ init_error:
  */
 int m0_write_cc(struct m0_container *container,
 		char **src, struct m0_uint128 id, int *index,
-		uint32_t block_size, uint32_t block_count, uint32_t entity_flags)
+		uint32_t block_size, uint32_t block_count,
+		uint32_t entity_flags)
 {
 	int                    rc;
 	int                    blks_per_io;
@@ -1020,7 +1021,8 @@ int m0_utility_args_init(int argc, char **argv,
 				{"help",          no_argument,       NULL, 'h'},
 				{0,               0,                 0,     0 }};
 
-        while ((c = getopt_long(argc, argv, ":l:H:p:P:o:s:c:i:t:L:v:n:S:q:b:O:uerzhGI",
+        while ((c = getopt_long(argc, argv,
+				":l:H:p:P:o:s:c:i:t:L:v:n:S:q:b:O:uerzhGI",
 				l_opts, &option_index)) != -1)
 	{
 		switch (c) {

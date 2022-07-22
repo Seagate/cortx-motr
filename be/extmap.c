@@ -591,14 +591,17 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 		val_orig  = seg->ee_val;
 		cksum[1] = it->ec_app_cksum_buf;
 
-		compute_cksum = seg->ee_cksum_buf.b_nob && it->ec_app_cksum_buf.b_nob;
+		compute_cksum = seg->ee_cksum_buf.b_nob &&
+				it->ec_app_cksum_buf.b_nob;
 		if (compute_cksum) {
 			/* Compute checksum unit size for given segment */
-			chunk_cs_count = m0_extent_get_num_unit_start(chunk->e_start,
-			                                              m0_ext_length(chunk),
-								                          it->ec_unit_size);
+			chunk_cs_count =
+			m0_extent_get_num_unit_start(chunk->e_start,
+						     m0_ext_length(chunk),
+						     it->ec_unit_size);
 			M0_ASSERT(chunk_cs_count);
-			cksum_unit_size = seg->ee_cksum_buf.b_nob / chunk_cs_count;
+			cksum_unit_size = seg->ee_cksum_buf.b_nob /
+					  chunk_cs_count;
 			M0_ASSERT(cksum_unit_size);
 		}
 
@@ -607,10 +610,11 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 				cut_left(seg, &clip, val_orig);
 			bstart[0] = seg->ee_val;
 			if (compute_cksum) {
-				cksum[0].b_nob = m0_extent_get_checksum_nob(chunk->e_start,
-				                                            length[0],
-									                        it->ec_unit_size,
-									                        cksum_unit_size);
+				cksum[0].b_nob =
+				m0_extent_get_checksum_nob(chunk->e_start,
+							   length[0],
+							   it->ec_unit_size,
+							   cksum_unit_size);
 				cksum[0].b_addr = seg->ee_cksum_buf.b_addr;
 			}
 		}
@@ -619,22 +623,25 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 				cut_right(seg, &clip, val_orig);
 			bstart[2] = seg->ee_val;
 			if (compute_cksum) {
-				cksum[2].b_nob  = m0_extent_get_checksum_nob(clip.e_end, length[2],
-				                                             it->ec_unit_size,
-									                         cksum_unit_size);
+				cksum[2].b_nob  =
+				m0_extent_get_checksum_nob(clip.e_end, length[2],
+							   it->ec_unit_size,
+							   cksum_unit_size);
 				/*
-				 * There are test scenario where during RMW operation sub unit
-				 * size updates arrives and in that case the cut right operation
+				 * There are test scenario where during RMW
+				 * operation sub unit size updates arrives and
+				 * in that case the cut right operation
 				 * should start from next unit, unit size is 4:
 				 * e.g.
 				 * eext=[0, 1) chunk=[0, c) clip=[0, 1)
 				 * len123=0:1:b
 				 */
-				cksum[2].b_addr = m0_extent_get_checksum_addr(seg->ee_cksum_buf.b_addr,
-									      m0_round_up(clip.e_end,it->ec_unit_size),
-									      chunk->e_start,
-									      it->ec_unit_size,
-									      cksum_unit_size);
+				cksum[2].b_addr =
+				m0_extent_get_checksum_addr(seg->ee_cksum_buf.b_addr,
+							    m0_round_up(clip.e_end,it->ec_unit_size),
+							    chunk->e_start,
+							    it->ec_unit_size,
+							    cksum_unit_size);
 			}
 		}
 		if (length[0] == 0 && length[2] == 0 && del)

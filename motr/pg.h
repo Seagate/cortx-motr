@@ -809,8 +809,8 @@ struct target_ioreq {
 	 * Index vector of global object offset which is added to this target.
 	 * This global offset vector helps to compute PG Idx and Unit Idx.
 	 * For the PG and Unit Index Computation
-	 * DATA   Units : Gob Offset - PGStart : PGStart + NxUS => PG Index - 0 : (N-1) 
-	 * PARITY Units : Gob Offset - PGStart : PGStart + KxUS => PG Index - 0 : (K-1) 
+	 * DATA   Units : Gob Offset - PGStart : PGStart + NxUS => PG Index - 0 : (N-1)
+	 * PARITY Units : Gob Offset - PGStart : PGStart + KxUS => PG Index - 0 : (K-1)
 	 */
 	struct m0_indexvec             ti_goff_ivec;
 
@@ -892,7 +892,7 @@ struct ioreq_fop {
 	int                          irf_reply_rc;
 
 	/** Checksum related: Unit start index (cd_idx) & count for tracking */
-	struct fop_cksum_data  		 irf_cksum_data;
+	struct fop_cksum_data        irf_cksum_data;
 
 	/** In-memory handle for IO fop. */
 	struct m0_io_fop             irf_iofop;

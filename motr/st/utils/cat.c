@@ -106,7 +106,8 @@ int main(int argc, char **argv)
 		          cat_param.cup_block_size, cat_param.cup_block_count,
 			  cat_param.cup_offset,
 			  cat_param.cup_blks_per_io, cat_param.cup_take_locks,
-			  cat_param.flags, &cat_param.cup_pver, cat_param.entity_flags);
+			  cat_param.flags, &cat_param.cup_pver,
+			  cat_param.entity_flags);
 	if (rc < 0) {
 		fprintf(stderr, "m0_read failed! rc = %d\n", rc);
 	}

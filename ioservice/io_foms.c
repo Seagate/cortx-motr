@@ -2083,7 +2083,7 @@ static int stob_io_create(struct m0_fom *fom)
 		/* Its expected to receive atleast on unit start in a fop */
 		if (rw_replyfop->rwr_di_data_cksum.b_nob > 0) {
 			if (m0_buf_alloc(&rw_replyfop->rwr_di_data_cksum,
-					 rw_replyfop->rwr_di_data_cksum.b_nob) != 0) {
+			    rw_replyfop->rwr_di_data_cksum.b_nob) != 0) {
 				m0_free(fom_obj->fcrw_stio);
 				return M0_ERR(-ENOMEM);
 			}
@@ -2133,10 +2133,10 @@ static int stob_io_create(struct m0_fom *fom)
 			si_stob = &stio->si_stob;
 			for (j = 0; j < si_stob->iv_vec.v_nr; j++) {
 				stio->si_cksum.b_nob +=
-					m0_extent_get_checksum_nob(si_stob->iv_index[j],
-								   si_stob->iv_vec.v_count[j],
-								   unit_size,
-								   stio->si_cksum_sz );
+				m0_extent_get_checksum_nob(si_stob->iv_index[j],
+							   si_stob->iv_vec.v_count[j],
+							   unit_size,
+							   stio->si_cksum_sz );
 			}
 
 			/* assign checksum buffer to repsective stob */
@@ -2157,27 +2157,29 @@ static int stob_io_create(struct m0_fom *fom)
 	/* Verify that total checksum nob in FOP reply is equal to sum of
 	 * checksum-nob for all stobs
 	 */
-	if( m0_is_read_fop(fom->fo_fop) )
+	if (m0_is_read_fop(fom->fo_fop))
 		M0_ASSERT(curr_cksum_nob == rw_replyfop->rwr_di_data_cksum.b_nob);
-	else if((curr_cksum_nob != rwfop->crw_di_data_cksum.b_nob) && rwfop->crw_cksum_size) {	
-		M0_LOG(M0_WARN,"Write Disabling DI for Ext0: %"PRIi64" ExtNr: %"PRIi64" Count0: %"PRIi64
+	else if ((curr_cksum_nob != rwfop->crw_di_data_cksum.b_nob) && rwfop->crw_cksum_size) {
+		M0_LOG(M0_WARN,"Write Disabling DI for Ext0: %"PRIi64
+			       " ExtNr: %"PRIi64" Count0: %"PRIi64
 			       " Vnr: %"PRIi32" CountEnd: %"PRIi64,
 			       fom_obj->fcrw_io.si_stob.iv_index[0],
 			       fom_obj->fcrw_io.si_stob.iv_index[fom_obj->fcrw_io.si_stob.iv_vec.v_nr-1],
 			       fom_obj->fcrw_io.si_stob.iv_vec.v_count[0],
 			       fom_obj->fcrw_io.si_stob.iv_vec.v_nr,
 			       fom_obj->fcrw_io.si_stob.iv_vec.v_count[fom_obj->fcrw_io.si_stob.iv_vec.v_nr-1]);
-		M0_LOG(M0_WARN,"CRW IVEC for Ext0: %"PRIi64 " %"PRIi64 " ExtNr: %d Count0: %"PRIi64
+		M0_LOG(M0_WARN,"CRW IVEC for Ext0: %"PRIi64 " %"PRIi64
+			       " ExtNr: %d Count0: %"PRIi64
 			       " CountEnd: %"PRIi64,
 			       rwfop->crw_ivec.ci_iosegs[0].ci_index,
 			       rwfop->crw_ivec.ci_iosegs[rwfop->crw_ivec.ci_nr-1].ci_index,
 			       rwfop->crw_ivec.ci_nr,
 			       rwfop->crw_ivec.ci_iosegs[0].ci_count,
-			       rwfop->crw_ivec.ci_iosegs[rwfop->crw_ivec.ci_nr-1].ci_count );
-		// Cleanup checksum data for FOP		   
+			       rwfop->crw_ivec.ci_iosegs[rwfop->crw_ivec.ci_nr-1].ci_count);
+		/* Cleanup checksum data for FOP */
 		rwfop->crw_cksum_size = 0;
 		rwfop->crw_di_data_cksum.b_nob = 0;
-		if( rw_replyfop->rwr_di_data_cksum.b_addr )
+		if (rw_replyfop->rwr_di_data_cksum.b_addr)
 			m0_buf_free(&rw_replyfop->rwr_di_data_cksum);
 		rw_replyfop->rwr_di_data_cksum.b_nob  = 0;
 		rw_replyfop->rwr_di_data_cksum.b_addr = NULL;

@@ -647,7 +647,7 @@ static void obj_io_args_check(struct m0_obj      *obj,
 		   (m0_vec_count(&ext->iv_vec) >> obj->ob_attr.oa_bshift)));
 #endif
 	M0_ASSERT(ergo(M0_IN(opcode, (M0_OC_ALLOC, M0_OC_FREE)),
-		  data == NULL && attr == NULL && mask == 0));
+		       data == NULL && attr == NULL && mask == 0));
 	/* Block metadata is not yet supported */
 	M0_ASSERT(mask == 0);
 }
@@ -671,23 +671,22 @@ M0_INTERNAL uint8_t m0__obj_di_cksum_type(struct m0_op_io *ioo)
 {
 	struct m0_generic_pi *pi;
 
-	if(ioo->ioo_obj->ob_entity.en_flags & M0_ENF_GEN_DI)
+	if (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_GEN_DI)
 		return M0_CKSUM_DEFAULT_PI;
-	else if( (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) &&
-			  ioo->ioo_attr.ov_buf ) {
+	else if ((ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) &&
+		 ioo->ioo_attr.ov_buf) {
 		pi = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[0];
 		return pi->pi_hdr.pih_type;
-	}
-	else
+	} else
 		return M0_PI_TYPE_MAX;
 }
 
 M0_INTERNAL uint32_t m0__obj_di_cksum_size(struct m0_op_io *ioo)
 {
-	if(ioo->ioo_obj->ob_entity.en_flags & M0_ENF_GEN_DI)
+	if (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_GEN_DI)
 		return m0_cksum_get_size(M0_CKSUM_DEFAULT_PI);
-	else if( (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) &&
-		      ioo->ioo_attr.ov_buf )
+	else if ((ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) &&
+		 ioo->ioo_attr.ov_buf)
 		return ioo->ioo_attr.ov_vec.v_count[0];
 	else
 		return 0;
@@ -749,10 +748,10 @@ int m0_obj_op(struct m0_obj       *obj,
 	enum m0_client_layout_type type;
 
 	M0_ENTRY("obj_id: " U128X_F " opcode = %s",
-		  U128_P(&obj->ob_entity.en_id),
-		  opcode == M0_OC_READ ? "read" :  \
-		  opcode == M0_OC_WRITE ? "write" :  \
-		  opcode == M0_OC_FREE ? "free" : "");
+		 U128_P(&obj->ob_entity.en_id),
+		 opcode == M0_OC_READ ? "read" :  \
+		 opcode == M0_OC_WRITE ? "write" :  \
+		 opcode == M0_OC_FREE ? "free" : "");
 	M0_PRE(obj != NULL);
 	M0_PRE(op != NULL);
 	M0_PRE(ergo(opcode == M0_OC_READ,

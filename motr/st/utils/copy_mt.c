@@ -54,7 +54,7 @@ static void copy_thread_launch(struct m0_copy_mt_args *args)
 				       args->cma_utility->cup_blks_per_io,
 				       false,
 				       args->cma_utility->cup_update_mode,
-					   args->cma_utility->entity_flags);
+				       args->cma_utility->entity_flags);
 }
 
 static void copy_mt_usage(FILE *file, char *prog_name)

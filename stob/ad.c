@@ -1693,16 +1693,14 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 	 * of the corresponding physical extent.
 	 */
 	if (io->si_cksum.b_nob != 0) {
-
 		/* Compute checksum units info which belong to this extent
 		 * (COB off & Sz)
 		 */
 		it.ec_app_cksum_buf.b_addr = m0_stob_ad_get_checksum_addr(io,
 									  off);
-		it.ec_app_cksum_buf.b_nob  = m0_extent_get_checksum_nob(off,
-									m0_ext_length(&todo),
-									io->si_unit_sz,
-									io->si_cksum_sz);
+		it.ec_app_cksum_buf.b_nob =
+		m0_extent_get_checksum_nob(off, m0_ext_length(&todo),
+					   io->si_unit_sz, io->si_cksum_sz);
 	} else {
 		it.ec_app_cksum_buf.b_addr = NULL;
 		it.ec_app_cksum_buf.b_nob = 0;

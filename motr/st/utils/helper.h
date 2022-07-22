@@ -126,7 +126,7 @@ int m0_read(struct m0_container *container,
 	    struct m0_uint128 id, char *dest, uint32_t block_size,
 	    uint32_t block_count, uint64_t offset, int blks_per_io,
 	    bool take_locks, uint32_t flags, struct m0_fid *read_pver,
-		uint32_t entity_flags);
+	    uint32_t entity_flags);
 
 int m0_truncate(struct m0_container *container,
 		struct m0_uint128 id, uint32_t block_size,
@@ -143,7 +143,7 @@ int m0_write_cc(struct m0_container *container,
 int m0_read_cc(struct m0_container *container,
 	       struct m0_uint128 id, char **dest, int *index,
 	       uint32_t block_size, uint32_t block_count,
-		   uint32_t entity_flags);
+	       uint32_t entity_flags);
 
 
 int m0_obj_id_sscanf(char *idstr, struct m0_uint128 *obj_id);

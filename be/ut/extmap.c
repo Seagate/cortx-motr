@@ -548,7 +548,7 @@ static void test_paste_checksum_validation(void)
 	es[idx] = e_temp[idx] = e;
 	e_val[idx] = 12;
 
-	m0_buf_alloc(&cksum[idx], (EXTMAP_UT_CS_SIZE * 
+	m0_buf_alloc(&cksum[idx], (EXTMAP_UT_CS_SIZE *
 		     m0_ext_length(&e)) / EXTMAP_UT_UNIT_SIZE);
 	memset(cksum[idx].b_addr, 'A', cksum[idx].b_nob);
 	it.ec_unit_size = EXTMAP_UT_UNIT_SIZE;
@@ -691,8 +691,8 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(seg->ee_ext.e_end   == es[2].e_start);
 	M0_UT_ASSERT(seg->ee_val         == e_val[0]);
 	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == ((cksum[0].b_nob)*
-						 (es[2].e_start - es[0].e_start)) /
-						 (es[0].e_end - es[0].e_start));
+		     (es[2].e_start - es[0].e_start)) /
+		     (es[0].e_end - es[0].e_start));
 	M0_UT_ASSERT(memcmp(seg->ee_cksum_buf.b_addr, cksum[0].b_addr,
 			    seg->ee_cksum_buf.b_nob) == 0);
 

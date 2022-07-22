@@ -28,27 +28,27 @@
 
 #define m0_cksum_print(buf, seg, dbuf, msg) \
 do { \
-		struct m0_vec *vec = &(buf)->ov_vec; \
-		char *dst = (char *)(buf)->ov_buf[seg]; \
-		char *data = (char *)(dbuf)->ov_buf[seg]; \
-		M0_LOG(M0_DEBUG, msg " count[%d] = %"PRIu64 \
-			   " cksum = %c%c data = %c%c", \
-			   seg, vec->v_count[seg], dst[0], dst[1], data[0],data[1]); \
-}while(0)
+	struct m0_vec *vec = &(buf)->ov_vec; \
+	char *dst = (char *)(buf)->ov_buf[seg]; \
+	char *data = (char *)(dbuf)->ov_buf[seg]; \
+	M0_LOG(M0_DEBUG, msg " count[%d] = %"PRIu64 \
+		   " cksum = %c%c data = %c%c", \
+		   seg, vec->v_count[seg], dst[0], dst[1], data[0],data[1]); \
+} while(0)
 
 /**
  * Calculate checksum/protection info for data/KV
  *
  * @param pi  pi struct m0_md5_pi
- *            This function will calculate the checksum and set
- *            pi_value field of struct m0_md5_pi.
- * @param seed seed value (pis_obj_id+pis_data_unit_offset) required to calculate
- *             the checksum. If this pointer is NULL that means either
- *             this checksum calculation is meant for KV or user does
- *             not want seeding.
+ *        This function will calculate the checksum and set
+ *        pi_value field of struct m0_md5_pi.
+ * @param seed seed value (pis_obj_id+pis_data_unit_offset) required to
+ *        calculate the checksum. If this pointer is NULL that means either
+ *        this checksum calculation is meant for KV or user does
+ *        not want seeding.
  * @param m0_bufvec - Set of buffers for which checksum is computed.
  * @param flag if flag is M0_PI_CALC_UNIT_ZERO, it means this api is called for
- *             first data unit and MD5_Init should be invoked.
+ *        first data unit and MD5_Init should be invoked.
  */
 M0_INTERNAL int m0_calculate_md5(struct m0_md5_pi *pi,
 				 struct m0_pi_seed *seed,
@@ -57,24 +57,27 @@ M0_INTERNAL int m0_calculate_md5(struct m0_md5_pi *pi,
 {
 #ifndef __KERNEL__
 	MD5_CTX context;
-	int i, rc;
+	int i;
+	int rc;
 
 	M0_ENTRY();
 
 	M0_PRE(pi != NULL);
 	M0_PRE(ergo(bvec != NULL && bvec->ov_vec.v_nr != 0,
-				bvec != NULL && bvec->ov_vec.v_count != NULL &&
-				bvec->ov_buf != NULL));
+		    bvec != NULL && bvec->ov_vec.v_count != NULL &&
+		    bvec->ov_buf != NULL));
 
-	pi->pimd5_hdr.pih_size = sizeof(struct m0_md5_pi)/M0_CKSUM_DATA_ROUNDOFF_BYTE;
-	if( M0_CKSUM_PAD_MD5 )
+	pi->pimd5_hdr.pih_size = sizeof(struct m0_md5_pi) /
+				 M0_CKSUM_DATA_ROUNDOFF_BYTE;
+	if (M0_CKSUM_PAD_MD5)
 		memset(pi->pimd5_pad,0,sizeof(pi->pimd5_pad));
 
 	/* This call is for first data unit, need to initialize prev_context */
 	if (flag & M0_PI_CALC_UNIT_ZERO) {
 		rc = MD5_Init(&context);
 		if (rc != 1) {
-			return M0_ERR_INFO(rc, "MD5_Init failed v_nr: %d",bvec->ov_vec.v_nr);
+			return M0_ERR_INFO(rc, "MD5_Init failed v_nr: %d",
+					   bvec->ov_vec.v_nr);
 		}
 	}
 
@@ -84,12 +87,12 @@ M0_INTERNAL int m0_calculate_md5(struct m0_md5_pi *pi,
 					bvec->ov_vec.v_count[i]);
 			if (rc != 1) {
 				return M0_ERR_INFO(rc, "MD5_Update failed."
-						"v_nr=%d, "
-						"bvec->ov_buf[%d]=%p, "
-						"bvec->ov_vec.v_count[%d]=%lu",
-						bvec->ov_vec.v_nr, i,
-						bvec->ov_buf[i], i,
-						bvec->ov_vec.v_count[i]);
+						   "v_nr=%d, "
+						   "bvec->ov_buf[%d]=%p, "
+						   "bvec->ov_vec.v_count[%d]=%lu",
+						   bvec->ov_vec.v_nr, i,
+						   bvec->ov_buf[i], i,
+						   bvec->ov_vec.v_count[i]);
 			}
 		}
 	}
@@ -102,20 +105,22 @@ M0_INTERNAL int m0_calculate_md5(struct m0_md5_pi *pi,
 		 * seed_str needs to be 61 bytes, round off and taking 64 bytes.
 		 */
 		char seed_str[64] = {'\0'};
-		snprintf(seed_str, sizeof(seed_str), "%" PRIx64 "%" PRIx64 "%"PRIx64,
-				seed->pis_obj_id.f_container, seed->pis_obj_id.f_key,
-				seed->pis_data_unit_offset);
+		snprintf(seed_str, sizeof(seed_str), "%" PRIx64 "%" PRIx64
+			 "%"PRIx64, seed->pis_obj_id.f_container,
+			 seed->pis_obj_id.f_key, seed->pis_data_unit_offset);
 		rc = MD5_Update(&context, (unsigned char *)seed_str,
 				sizeof(seed_str));
 		if (rc != 1) {
-
 			return M0_ERR_INFO(rc, "MD5_Update fail =%d"
-					"f_container 0x%" PRIx64 " f_key 0x%"PRIx64
-					" data_unit_offset 0x%" PRIx64 " seed_str %s",
-					bvec->ov_vec.v_nr, seed->pis_obj_id.f_container,
-					seed->pis_obj_id.f_key,
-					seed->pis_data_unit_offset,
-					(char *)seed_str);
+					   "f_container 0x%" PRIx64
+					   " f_key 0x%"PRIx64
+					   " data_unit_offset 0x%" PRIx64
+					   " seed_str %s",
+					   bvec->ov_vec.v_nr,
+					   seed->pis_obj_id.f_container,
+					   seed->pis_obj_id.f_key,
+					   seed->pis_data_unit_offset,
+					   (char *)seed_str);
 		}
 	}
 
@@ -123,7 +128,7 @@ M0_INTERNAL int m0_calculate_md5(struct m0_md5_pi *pi,
 		rc = MD5_Final(pi->pimd5_value, &context);
 		if (rc != 1) {
 			return M0_ERR_INFO(rc, "MD5_Final fail =%d",
-					bvec->ov_vec.v_nr);
+					   bvec->ov_vec.v_nr);
 		}
 	}
 #endif
@@ -134,20 +139,21 @@ M0_INTERNAL int m0_calculate_md5(struct m0_md5_pi *pi,
  * Calculate checksum/protection info for data/KV
  *
  * @param pi  pi struct m0_md5_inc_context_pi
- *            This function will calculate the checksum and set
- *            pi_value field of struct m0_md5_inc_context_pi.
- * @param seed seed value (pis_obj_id+pis_data_unit_offset) required to calculate
- *             the checksum. If this pointer is NULL that means either
- *             this checksum calculation is meant for KV or user does
- *             not want seeding.
+ *        This function will calculate the checksum and set
+ *        pi_value field of struct m0_md5_inc_context_pi.
+ * @param seed seed value (pis_obj_id+pis_data_unit_offset) required to
+ *        calculate the checksum. If this pointer is NULL that means either
+ *        this checksum calculation is meant for KV or user does
+ *        not want seeding.
  * @param m0_bufvec - Set of buffers for which checksum is computed.
  * @param flag if flag is M0_PI_CALC_UNIT_ZERO, it means this api is called for
- *             first data unit and MD5_Init should be invoked.
- * @param[out] curr_context context of data unit N, will be required to calculate checksum for
- *                         next data unit, N+1. Curre_context is calculated and set in this func.
- * @param[out] pi_value_without_seed - Caller may need checksum value without seed and with seed.
- *                                     With seed checksum is set in pi_value of PI type struct.
- *                                     Without seed checksum is set in this field.
+ *        first data unit and MD5_Init should be invoked.
+ * @param[out] curr_context context of data unit N, will be required to
+ *             calculate checksum for next data unit, N+1. Curre_context is
+ *             calculated and set in this func.
+ * @param[out] pi_value_without_seed - Caller may need checksum value without
+ *             seed and with seed. With seed checksum is set in pi_value of PI
+ *             type struct. Without seed checksum is set in this field.
  */
 M0_INTERNAL int m0_calculate_md5_inc_context(
 		struct m0_md5_inc_context_pi *pi,
@@ -169,15 +175,17 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 				bvec != NULL && bvec->ov_vec.v_count != NULL &&
 				bvec->ov_buf != NULL));
 
-	pi->pimd5c_hdr.pih_size = sizeof(struct m0_md5_inc_context_pi)/M0_CKSUM_DATA_ROUNDOFF_BYTE;
-	if( M0_CKSUM_PAD_MD5_INC_CXT )
+	pi->pimd5c_hdr.pih_size = sizeof(struct m0_md5_inc_context_pi) /
+				  M0_CKSUM_DATA_ROUNDOFF_BYTE;
+	if (M0_CKSUM_PAD_MD5_INC_CXT)
 		memset(pi->pi_md5c_pad,0,sizeof(pi->pi_md5c_pad));
 
 	/* This call is for first data unit, need to initialize prev_context */
 	if (flag & M0_PI_CALC_UNIT_ZERO) {
 		rc = MD5_Init((MD5_CTX *)&pi->pimd5c_prev_context);
 		if (rc != 1) {
-			return M0_ERR_INFO(rc, "MD5_Init failed v_nr=%d",bvec->ov_vec.v_nr);
+			return M0_ERR_INFO(rc, "MD5_Init failed v_nr=%d",
+					   bvec->ov_vec.v_nr);
 		}
 	}
 
@@ -191,12 +199,12 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 					bvec->ov_vec.v_count[i]);
 			if (rc != 1) {
 				return M0_ERR_INFO(rc, "MD5_Update failed."
-						"v_nr=%d, "
-						"bvec->ov_buf[%d]=%p, "
-						"bvec->ov_vec.v_count[%d]=%lu",
-						bvec->ov_vec.v_nr, i,
-						bvec->ov_buf[i], i,
-						bvec->ov_vec.v_count[i]);
+						   "v_nr=%d, "
+						   "bvec->ov_buf[%d]=%p, "
+						   "bvec->ov_vec.v_count[%d]=%lu",
+						   bvec->ov_vec.v_nr, i,
+						   bvec->ov_buf[i], i,
+						   bvec->ov_vec.v_count[i]);
 			}
 		}
 	}
@@ -217,9 +225,9 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 		rc = MD5_Final(pi_value_without_seed, &context);
 		if (rc != 1) {
 			return M0_ERR_INFO(rc, "MD5_Final failed"
-					"pi_value_without_seed=%p"
-					"v_nr=%d",
-					pi_value_without_seed, bvec->ov_vec.v_nr);
+					   "pi_value_without_seed=%p"
+					   "v_nr=%d", pi_value_without_seed,
+					   bvec->ov_vec.v_nr);
 		}
 	}
 
@@ -239,20 +247,23 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 		 * seed_str needs to be 61 bytes, round off and taking 64 bytes.
 		 */
 		char seed_str[64] = {'\0'};
-		snprintf(seed_str, sizeof(seed_str), "%" PRIx64 "%" PRIx64 "%"PRIx64,
-				seed->pis_obj_id.f_container, seed->pis_obj_id.f_key,
-				seed->pis_data_unit_offset);
+		snprintf(seed_str, sizeof(seed_str), "%" PRIx64 "%" PRIx64
+			 "%"PRIx64, seed->pis_obj_id.f_container,
+			 seed->pis_obj_id.f_key, seed->pis_data_unit_offset);
 		rc = MD5_Update(&context, (unsigned char *)seed_str,
 				sizeof(seed_str));
 		if (rc != 1) {
 
 			return M0_ERR_INFO(rc, "MD5_Update fail v_nr=%d"
-					"f_container 0x%" PRIx64 " f_key 0x%"PRIx64
-					" data_unit_offset 0x%" PRIx64 " seed_str %s",
-					bvec->ov_vec.v_nr, seed->pis_obj_id.f_container,
-					seed->pis_obj_id.f_key,
-					seed->pis_data_unit_offset,
-					(char *)seed_str);
+					   "f_container 0x%" PRIx64
+					   " f_key 0x%"PRIx64
+					   " data_unit_offset 0x%" PRIx64
+					   " seed_str %s",
+					   bvec->ov_vec.v_nr,
+					   seed->pis_obj_id.f_container,
+					   seed->pis_obj_id.f_key,
+					   seed->pis_data_unit_offset,
+					   (char *)seed_str);
 		}
 	}
 
@@ -260,7 +271,7 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 		rc = MD5_Final(pi->pimd5c_value, &context);
 		if (rc != 1) {
 			return M0_ERR_INFO(rc, "MD5_Final fail v_nr=%d",
-							   bvec->ov_vec.v_nr);
+					   bvec->ov_vec.v_nr);
 		}
 	}
 #endif
@@ -312,8 +323,8 @@ int m0_client_calculate_pi(struct m0_generic_pi *pi,
 		struct m0_md5_inc_context_pi *md5_context_pi =
 			(struct m0_md5_inc_context_pi *) pi;
 		rc = m0_calculate_md5_inc_context(md5_context_pi, seed, bvec,
-										  flag, curr_context,
-										  pi_value_without_seed);
+						  flag, curr_context,
+						  pi_value_without_seed);
 		}
 		break;
 	}
@@ -352,7 +363,8 @@ bool m0_calc_verify_cksum_one_unit(struct m0_generic_pi *pi,
 		}
 		else {
 			M0_LOG(M0_ERROR, "checksum fail "
-					 "f_container 0x%" PRIx64 " f_key 0x%"PRIx64
+					 "f_container 0x%" PRIx64
+					 " f_key 0x%"PRIx64
 					 " data_unit_offset 0x%"PRIx64,
 					 seed->pis_obj_id.f_container,
 					 seed->pis_obj_id.f_key,

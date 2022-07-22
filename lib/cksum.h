@@ -43,7 +43,7 @@
  * alignment - power of two, byte alignment
  */
 #define M0_CALC_PAD(size, alignment) \
-		(size%alignment ? (((size/alignment + 1 ) * alignment) - size) : 0)
+	(size%alignment ? (((size/alignment + 1 ) * alignment) - size) : 0)
 
 /* Constants for protection info type, max types supported is 255 */
 enum m0_pi_algo_type

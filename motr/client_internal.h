@@ -294,7 +294,7 @@ struct m0_op_io {
 	int32_t                           ioo_rc;
 
 	/** Number of units which encountered error */
-	uint32_t                           ioo_di_err_count;
+	uint32_t                          ioo_di_err_count;
 
 	/**
 	 * Array of struct pargrp_iomap pointers.
@@ -980,10 +980,10 @@ M0_INTERNAL bool m0__obj_is_di_enabled(struct m0_op_io *ioo);
 M0_INTERNAL uint8_t m0__obj_di_cksum_type(struct m0_op_io *ioo);
 M0_INTERNAL uint32_t m0__obj_di_cksum_size(struct m0_op_io *ioo);
 M0_INTERNAL int target_calculate_checksum(struct m0_op_io *ioo,
-					                      uint8_t pi_type,
-					                      enum page_attr filter,
-					                      struct fop_cksum_idx_data *cs_idx,
-					                      void *chksm_buf );
+					  uint8_t pi_type,
+					  enum page_attr filter,
+					  struct fop_cksum_idx_data *cs_idx,
+					  void *chksm_buf );
 M0_INTERNAL int m0__obj_io_build(struct m0_io_args *args,
 				 struct m0_op     **op);
 M0_INTERNAL void m0__obj_op_done(struct m0_op *op);

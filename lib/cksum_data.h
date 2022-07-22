@@ -41,10 +41,11 @@
                            sizeof(struct m0_md5_pi) : \
                            sizeof(struct m0_md5_inc_context_pi))
 
-/*********************** MD5 Cksum Structure ***************************************/
+/*********************** MD5 Cksum Structure ***********************/
 /** Padding size for MD5 structure */
-#define M0_CKSUM_PAD_MD5 (M0_CALC_PAD((sizeof(struct m0_pi_hdr)+MD5_DIGEST_LENGTH), \
-			               M0_CKSUM_DATA_ROUNDOFF_BYTE))
+#define M0_CKSUM_PAD_MD5 (M0_CALC_PAD((sizeof(struct m0_pi_hdr) + \
+				      MD5_DIGEST_LENGTH), \
+			              M0_CKSUM_DATA_ROUNDOFF_BYTE))
 
 /** MD5 checksum structure, the checksum value is in pimd5_value */
 struct m0_md5_pi {
@@ -58,10 +59,11 @@ struct m0_md5_pi {
 #endif
 };
 
-/*********************** MD5 Including Context Checksum Structure ******************/
+/****************** MD5 Including Context Checksum Structure ******************/
 /** Padding size for MD5 Including Context structure */
-#define M0_CKSUM_PAD_MD5_INC_CXT (M0_CALC_PAD((sizeof(struct m0_pi_hdr)+ \
-				     sizeof(MD5_CTX)+MD5_DIGEST_LENGTH), M0_CKSUM_DATA_ROUNDOFF_BYTE))
+#define M0_CKSUM_PAD_MD5_INC_CXT (M0_CALC_PAD((sizeof(struct m0_pi_hdr) + \
+				  sizeof(MD5_CTX)+MD5_DIGEST_LENGTH), \
+				  M0_CKSUM_DATA_ROUNDOFF_BYTE))
 
 /** MD5 checksum structure:
  *  - The computed checksum value will be in pimd5c_value.
