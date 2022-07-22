@@ -35,12 +35,12 @@ TM_MIN_RECV_QUEUE_LEN=2
 INSTALLED_FILES=cleanup-on-quit.txt
 
 error() { echo "$@" >&2; stop 1; }
-say() { echo "$@" | tee -a $SANDBOX_DIR/confd1/m0d.log; }
+say() { echo "$@" | tee -a "$SANDBOX_DIR"/confd1/m0d.log; }
 
-M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=$(readlink -f $0)
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
-. $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit
+. "$M0_SRC_DIR"/utils/functions # die, sandbox_init, report_and_exit
 
 ## Path to the file with configuration string for confd.
 CONF_FILE=$SANDBOX_DIR/confd1/conf.txt
@@ -61,12 +61,12 @@ XPRT=$(m0_default_xprt)
 
 start() {
     # install "motr" Python module required by m0spiel tool
-    cd $M0_SRC_DIR/utils/spiel
+    cd "$M0_SRC_DIR"/utils/spiel
     python3 setup.py install --record $INSTALLED_FILES > /dev/null ||
         die 'Cannot install Python "motr" module'
     sandbox_init
     _init
-    stub_confdb | $M0_SRC_DIR/utils/m0confgen >$CONF_FILE
+    stub_confdb | "$M0_SRC_DIR"/utils/m0confgen >"$CONF_FILE"
 }
 
 stop() {
@@ -84,15 +84,16 @@ stop() {
 }
 
 _init() {
-    lnet_up "new"
-    if [ "$XPRT" = "lnet" ]; then
+    export_test_eps "new"
+    local result=$(check_and_restart_lnet "new")
+    if [[ "$result" == "true" ]]; then
         m0_modules_insert
     fi
-    mkdir -p $SANDBOX_DIR/confd{1..3}
+    mkdir -p "$SANDBOX_DIR"/confd{1..3}
 }
 
 _fini() {
-    if [ "$XPRT" = "lnet" ]; then
+    if [[ "$(is_lnet_available)" == "true" ]]; then
         m0_modules_remove
     fi
     cd $M0_SRC_DIR/utils/spiel
@@ -154,11 +155,11 @@ confd_mkfs_start() {
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
     -w 3 -f ${!fid}"
 
-    echo "--- `date` ---" >>$path/m0d.log
+    echo "--- $(date) ---" >>"$path"/m0d.log
     cd $path
 
-    echo $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS
-    $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS >>$path/mkfs.log ||
+    echo "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS
+    "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS >>"$path"/mkfs.log ||
     error 'm0mkfs failed'
 }
 
@@ -175,7 +176,7 @@ confd_start() {
     echo "--- `date` ---" >>$path/m0d.log
     cd $path
 
-    echo $M0_SRC_DIR/motr/m0d $OPTS
+    echo "$M0_SRC_DIR"/motr/m0d $OPTS
     $M0_SRC_DIR/motr/m0d $OPTS >>$path/m0d.log 2>&1 &
     local PID=$!
     sleep 10
@@ -187,15 +188,15 @@ connect_to_confds() {
     ### Successful m0spiel start means that its internal rconfc instance is
     ### started, i. e. quorum is reached. Successful stopping of the tool means
     ### that rconfc's herd list was finalised without errors.
-    $M0_SRC_DIR/utils/spiel/m0spiel -l $M0_SRC_DIR/motr/.libs/libmotr.so\
-	    --client $SPIEL_ENDPOINT <<EOF
+    "$M0_SRC_DIR"/utils/spiel/m0spiel -l "$M0_SRC_DIR"/motr/.libs/libmotr.so\
+	    --client "$SPIEL_ENDPOINT" <<EOF
 $PYTHON_BOILERPLATE
 
 spiel.rconfc_stop()
 EOF
 }
 
-[ `id -u` -eq 0 ] || die 'Must be run by superuser'
+[ $(id -u) -eq 0 ] || die 'Must be run by superuser'
 
 trap stop EXIT
 

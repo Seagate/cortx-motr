@@ -18,16 +18,16 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=$(readlink -f "$0")
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
-. $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common_service_fids_inc.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_sns_common_inc.sh
+. "$M0_SRC_DIR"/utils/functions # die, sandbox_init, report_and_exit
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/common.sh
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/common_service_fids_inc.sh
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_sns_common_inc.sh
 
 ###################################################
 # SNS repair is only supported in COPYTOOL mode,
@@ -131,11 +131,11 @@ spiel_prepare()
 	export SPIEL_OPTS=$SPIEL_OPTS
 	export SPIEL_FIDS_LIST=$SPIEL_FIDS_LIST
 
-	echo SPIEL_OPTS=$SPIEL_OPTS
-	echo SPIEL_FIDS_LIST=$SPIEL_FIDS_LIST
+	echo SPIEL_OPTS="$SPIEL_OPTS"
+	echo SPIEL_FIDS_LIST="$SPIEL_FIDS_LIST"
 
 	# install "motr" Python module required by m0spiel tool
-	cd $M0_SRC_DIR/utils/spiel
+	cd "$M0_SRC_DIR"/utils/spiel
 	python3 setup.py install --record $PYTHON_STUFF > /dev/null ||\
 		die 'Cannot install Python "motr" module'
 	cd -
@@ -151,8 +151,8 @@ spiel_cleanup()
 
 spiel_sns_repair_start()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START

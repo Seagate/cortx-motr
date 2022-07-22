@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -430,6 +430,10 @@ enum m0_magic_satchel {
 	M0_DTM_CAT_MAGIX = 0x33acce551b1e4277,
 	/* m0_dtm::d_excited::t_magic (flooded baboo) */
 	M0_DTM_EXC_MAGIX = 0x33f100dedbab0077,
+	/* recovery_fom::rf_magic (solidified 66) */
+	M0_DTM0_RMACH_MAGIC = 0x335011D1F1ED6677,
+	/* rfom_tl::td_head_magic (seeded cobble) */
+	M0_DTM0_RMACH_HEAD_MAGIC = 0x335EEDEDC0BB1E77,
 
 /* Failure Domains */
 	/* m0_fd_perm_cache::fpc_magic (fascia doodia) */
@@ -793,6 +797,12 @@ enum m0_magic_satchel {
 /* State Machine */
 	/* m0_sm_conf::scf_magic (falsie zodiac) */
 	M0_SM_CONF_MAGIC = 0x33FA151E20D1AC77,
+
+/* State machine operation */
+	/* m0_sm_op_exec::oe_op (alas adobe cod) */
+	M0_SM_OP_HEAD_MAGIC = 0x33a1a5ad0bec0d77,
+	/* m0_sm_op::o_magix (callable ebb 0) */
+	M0_SM_OP_MAGIC = 0x33ca11ab1eebb077,
 
 /* Resource Manager */
 	/* m0_rm_pin::rp_magix (bellicose bel) */
@@ -1198,6 +1208,13 @@ enum m0_magic_satchel {
 	M0_BE_DTM0_LOG_MAGIX = 0x33d73010600077,
 	/* be/dtm0_log.c::dlr_link (dtm0 log rec) */
 	M0_BE_DTM0_LOG_REC_MAGIX = 0x33d73010673c77,
+/* BTREE */	
+	/* nd::n_magic (classic idea) */
+	M0_BTREE_ND_LIST_MAGIC = 0x33c1a551c1dea77,
+
+	/* node descriptor list head magic (soleless boss) */
+	M0_BTREE_ND_LIST_HEAD_MAGIC = 0x33501e1e55b05577,
+
 };
 
 #endif /* __MOTR_MAGIC_H__ */

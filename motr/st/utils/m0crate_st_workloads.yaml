@@ -33,6 +33,10 @@ MOTR_CONFIG:
    IS_ENF_META: 0                # Pool version info will be stored by client and pass
                                  # the pool version for PUT/GET/DEL/NEXT operations if
                                  # IS_ENF_META enabled.
+   IS_SKIP_LAYOUT: 0             # It will be enable M0_OIF_SKIP_LAYOUT flag if
+                                 # IS_SKIP_LAYOUT is 1
+   IS_CROW_DISABLE: 0            # M0_OIF_CROW flag will be disable if IS_CROW_DISABLE
+                                 # is 1
 
 WORKLOAD_SPEC:                   # Workload specification section
    WORKLOAD:                     # First Workload

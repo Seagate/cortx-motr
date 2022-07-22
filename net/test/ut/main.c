@@ -22,6 +22,7 @@
 
 #include "ut/ut.h"		/* m0_ut_suite */
 
+#include "net/net.h"
 #include "net/test/initfini.h"	/* m0_net_test_init */
 
 extern void m0_net_test_ringbuf_ut(void);

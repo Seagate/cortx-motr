@@ -209,6 +209,7 @@ include $(top_srcdir)/addb2/st/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/be/Makefile.sub
 include $(top_srcdir)/be/tool/Makefile.sub
+include $(top_srcdir)/btree/Makefile.sub
 include $(top_srcdir)/capa/Makefile.sub
 include $(top_srcdir)/cas/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
@@ -386,6 +387,7 @@ include $(top_srcdir)/motr/ut/Makefile.sub
 include $(top_srcdir)/module/ut/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/ut/Makefile.sub
 include $(top_srcdir)/net/lnet/ut/Makefile.sub
+include $(top_srcdir)/net/libfab/ut/Makefile.sub
 include $(top_srcdir)/net/test/ut/Makefile.sub
 include $(top_srcdir)/net/ut/Makefile.sub
 include $(top_srcdir)/pool/ut/Makefile.sub
@@ -898,10 +900,11 @@ be_tool_m0betool_LDADD     = $(top_builddir)/motr/libmotr.la
 # be/tool/m0beck -------------------------------------- {{{2
 #
 
-sbin_PROGRAMS               += be/tool/m0beck
-be_tool_m0beck_CPPFLAGS      = -DM0_TARGET='m0beck' $(AM_CPPFLAGS)
-be_tool_m0beck_LDADD         = $(top_builddir)/motr/libmotr.la \
-                                @YAML_LIBS@
+#TBD: Uncomment following block after CORTX-32593 is fixed.
+#sbin_PROGRAMS               += be/tool/m0beck
+#be_tool_m0beck_CPPFLAGS      = -DM0_TARGET='m0beck' $(AM_CPPFLAGS)
+#be_tool_m0beck_LDADD         = $(top_builddir)/motr/libmotr.la \
+#                                @YAML_LIBS@
 
 #
 # scripts/systemtap/kem/m0kemc ----------------------------------- {{{2
@@ -1123,6 +1126,7 @@ EXTRA_DIST += \
               balloc/Kbuild.sub \
               be/Kbuild.sub \
               be/ut/Kbuild.sub \
+              btree/Kbuild.sub \
               cas/Kbuild.sub \
               cob/Kbuild.sub \
               motr/Kbuild.sub\

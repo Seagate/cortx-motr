@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -85,6 +85,11 @@ void *m0_arch_alloc(size_t size)
 void m0_arch_free(void *data)
 {
 	free(data);
+}
+
+M0_INTERNAL void m0_memmove(void *tgt, void *src, size_t size)
+{
+	memmove(tgt,src,size);
 }
 
 M0_INTERNAL void m0_arch_allocated_zero(void *data, size_t size)
