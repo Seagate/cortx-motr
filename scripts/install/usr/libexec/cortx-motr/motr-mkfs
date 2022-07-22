@@ -60,7 +60,7 @@ m0_mkfs()
         be_opts+=" -V $(m0_genders_value_of m0_be_log_size)"
     fi
     
-    LD_LIBRARY_PATH=$HOME/seagate/motr/usr/lib64
+    LD_LIBRARY_PATH=$HOME/seagate/motr/usr/lib64:$HOME/intel/usr/lib64
     export LD_LIBRARY_PATH
     $motr_exec_dir/motr-server $service $HOME/seagate/motr/usr/sbin/m0mkfs "-F -u $node_uuid $be_opts" $conf_opts
 }

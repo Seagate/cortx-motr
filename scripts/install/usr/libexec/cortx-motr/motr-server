@@ -267,7 +267,7 @@ m0_server()
 
     set -x
 
-    LD_LIBRARY_PATH=$HOME/seagate/motr/usr/lib64
+    LD_LIBRARY_PATH=$HOME/seagate/motr/usr/lib64:$HOME/intel/usr/lib64
     export LD_LIBRARY_PATH
     exec $binary -e $service_ep \
                     -A linuxstob:${addbstob_dir}addb-stobs \
