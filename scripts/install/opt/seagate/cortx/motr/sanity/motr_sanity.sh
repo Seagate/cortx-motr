@@ -207,7 +207,7 @@ generate_endpoints()
 	ios1_fid='0x7200000000000001:3'
 	echo "Ioservice 1 FID: $ios1_fid"
 
-	process_fid='0x7200000000000000:0'
+	process_fid='0x7200000000000001:5'
 	echo "Process FID: $process_fid"
 }
 

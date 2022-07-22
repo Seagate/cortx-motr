@@ -353,6 +353,7 @@ static bool hung_fom_notify(const struct m0_fom *fom)
 					M0_DTM0_REDO_OPCODE,
 					M0_DTM0_RLINK_OPCODE,
 					M0_DTM0_RECOVERY_FOM_OPCODE,
+					M0_DTM0_PRUNER_OPCODE,
 					M0_FDMI_SOURCE_DOCK_OPCODE)))
 	    return true;
 
