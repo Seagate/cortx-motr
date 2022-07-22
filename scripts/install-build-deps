@@ -187,9 +187,21 @@ if ! $use_ansible ; then
    exit 0
 elif ! which ansible &>/dev/null ; then
     case $(distro_type) in
-        redhat) yum -y install epel-release
+        redhat) rc=0
+                yum -y install epel-release
                 yum -y install epel-release # Update it
-                yum -y install ansible ;;
+                yum -y install ansible || rc=$?
+                if [[ rc -ne 0 ]]; then
+                        EPEL_REPO_NAME=$(rpm -qa | grep epel)
+                        rpm -e "$EPEL_REPO_NAME"
+                        source /etc/os-release
+                        ARCH="$(uname -m)"
+                        yum-config-manager --add-repo https://archives.fedoraproject.org/pub/archive/epel/"$VERSION_ID"/Everything/"$ARCH"/
+                        mv /etc/yum.repos.d/archives.fedoraproject.org_pub_archive_epel_"$VERSION_ID"_Everything_"$ARCH"_.repo /etc/yum.repos.d/epel.repo
+                        yum -y install epel-release
+                        yum -y install ansible
+                fi
+                ;;
         debian) apt install ansible ;;
     esac
 fi
