@@ -639,7 +639,8 @@
    A diagram of the interaction between internal components and
    between external consumers and the internal components is useful.</i>
 
-   - TODO: add the component diagram of "the R dtm0".
+   - The components diagram of DTM0:
+     ./doc/Images/DTM0R Components and message flow.svg
 
    - dtm0 consists of dtm0 log, pruner, recovery machine, persistent machine,
    net, HA, dtx0 modules.
@@ -660,7 +661,7 @@
    @verbatim
 
    struct m0_dtx0_id {
-        struct m0_fid dti_originator_sdev_fid;
+        struct m0_fid dti_originator;
         uint64_t      dti_timestamp;
    } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
 
@@ -686,20 +687,23 @@
 
    struct pmsg {
 	   dtx0_id;
-	   uint64_t nr_participants;
 	   fid source; // sdev_fid
 	   fid destination; // sdev|service fid
    };
 
+   struct m0_dtx0_redo_links {
+       uint64_t                dtrl_redo_links_nr;
+       struct m0_be_list_link  dtrl_redo_links[];
+   } M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc|be);
+
    struct log_record {
-	   dtx0_id   id;
-	   dtm0_redo redo;
-	   be_list_link allp;
-	   be_list_link redo;
-	   be_list_link participants[]; // [0] == originator, rest - sdevs
-	   fid          fids[];
-	   uint64_t     nr_participants;
+       struct m0_dtm0_redo redo;
+       be_list_link allp;
+       be_list_link participants[]; // [0] == originator, rest - sdevs
+       fid          fids[];
+       struct m0_dtx0_redo_links redo_links;
    };
+
    // states:
    //   REDO message is not here:
    //      first incoming Pmsg -- create a new log record with empty REDO,
@@ -951,7 +955,8 @@
 
    @section pmach interface
 
-   - m0_dtm0_log_p_get_local() - returns the next P message that becomes local.
+   - m0_dtm0_log_p_get_local() - returns the next P message for the local
+     transactions that become persistent (logged).
      Returns M0_FID0 during m0_dtm0_log_stop() call. After M0_FID0 is returned
      new calls to the log MUST NOT be made.
    - m0_dtm0_log_p_put() - records that P message was received for the sdev
@@ -1245,7 +1250,7 @@
      (See https://github.com/Seagate/cortx-motr/pull/1503)
    - Add static REDO lists for remote storage devices (to handle Pmsgs).
      (See https://github.com/Seagate/cortx-motr/issues/2006)
-   - Implement m0_dtm0_log_p_get_local().
+   - Implement m0_dtm0_log_p_get_local() for sending pmsgs.
    - Implement dtm/net (dtm/net branch).
    - Implement PMach (initial code present in dtm/refactoring-next)
    - dix fills m0_dtx0_descriptor of m0_cas_op:
