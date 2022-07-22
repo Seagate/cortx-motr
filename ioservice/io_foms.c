@@ -883,10 +883,10 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
 		 * stob_ad_read_prepare for every emap segment read with
 		 * non-zero CS, this value gets updated.
 		 */
-		rwrep->rwr_cksum_nob_read += stio_desc->siod_stob_io.si_cksum_nob_read;
-
-		M0_ASSERT(rwrep->rwr_cksum_nob_read <=
-			  rwrep->rwr_di_data_cksum.b_nob);
+		rwrep->rwr_di_data_cksum.b_nob +=
+		stio_desc->siod_stob_io.si_cksum_nob_read;
+		M0_ASSERT(rwrep->rwr_di_data_cksum.b_nob <=
+			  rwrep->rwr_cksum_max_nob );
 	}
 
 	M0_CNT_DEC(fom_obj->fcrw_num_stobio_launched);
@@ -2064,11 +2064,6 @@ static int stob_io_create(struct m0_fom *fom)
 	unit_size = (m0_lid_to_unit_map[M0_OBJ_LAYOUT_ID(rwfop->crw_lid)]) >>
 		     m0_stob_block_shift(fom_obj->fcrw_stob);
 	if ((m0_is_read_fop(fom->fo_fop)) && rwfop->crw_cksum_size) {
-		/* Init tracker variable, this gets updated 
-		 * in stobio_complete_cb
-		 */
-		rw_replyfop->rwr_cksum_nob_read = 0;
-
 		/* Compute nob based on the COB extents */
 		rw_replyfop->rwr_di_data_cksum.b_nob = 0;
 		si_stob = &fom_obj->fcrw_io.si_stob;
@@ -2080,6 +2075,9 @@ static int stob_io_create(struct m0_fom *fom)
 							   rwfop->crw_cksum_size);
 		}
 
+		/* Set the max checksum limit here */
+		rw_replyfop->rwr_cksum_max_nob =
+			rw_replyfop->rwr_di_data_cksum.b_nob;
 		/* Its expected to receive atleast on unit start in a fop */
 		if (rw_replyfop->rwr_di_data_cksum.b_nob > 0) {
 			if (m0_buf_alloc(&rw_replyfop->rwr_di_data_cksum,
@@ -2087,8 +2085,12 @@ static int stob_io_create(struct m0_fom *fom)
 				m0_free(fom_obj->fcrw_stio);
 				return M0_ERR(-ENOMEM);
 			}
-		/* Disabling checksum */
+			/* Init tracker variable, this gets updated
+			 * in stobio_complete_cb
+			 */
+			rw_replyfop->rwr_di_data_cksum.b_nob = 0;
 		} else
+			/* Disabling checksum */
 			rwfop->crw_cksum_size = 0;
 
 	} else {
@@ -2158,8 +2160,9 @@ static int stob_io_create(struct m0_fom *fom)
 	 * checksum-nob for all stobs
 	 */
 	if (m0_is_read_fop(fom->fo_fop))
-		M0_ASSERT(curr_cksum_nob == rw_replyfop->rwr_di_data_cksum.b_nob);
-	else if ((curr_cksum_nob != rwfop->crw_di_data_cksum.b_nob) && rwfop->crw_cksum_size) {
+		M0_ASSERT(curr_cksum_nob == rw_replyfop->rwr_cksum_max_nob);
+	else if ((curr_cksum_nob != rwfop->crw_di_data_cksum.b_nob) &&
+		 rwfop->crw_cksum_size) {
 		M0_LOG(M0_WARN,"Write Disabling DI for Ext0: %"PRIi64
 			       " ExtNr: %"PRIi64" Count0: %"PRIi64
 			       " Vnr: %"PRIi32" CountEnd: %"PRIi64,

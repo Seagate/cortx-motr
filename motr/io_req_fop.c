@@ -311,8 +311,11 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
 	rw_reply = io_rw_rep_get(reply_fop);
 
+	/* Evaluate checksum if it present even though there is error in fop
+	 * rw_reply->rwr_rc != 0
+	 */
 	if (m0_is_read_rep(reply_fop)) {
-		if (rw_reply->rwr_di_data_cksum.b_addr)
+		if (rw_reply->rwr_di_data_cksum.b_nob)
 			rc = application_checksum_process(ioo, tioreq,
 			     irfop, &rw_reply->rwr_di_data_cksum);
 		else if (m0__obj_is_di_enabled(ioo) &&
@@ -361,8 +364,10 @@ ref_dec:
 
 		if (rc == -ENOENT) /* normal for CROW */
 			M0_LOG(M0_DEBUG, LOGMSG);
-		else
+		else {
 			M0_LOG(M0_ERROR, LOGMSG);
+			di_debug_log_print(tioreq, irfop, ioo);
+		}
 	} else {
 		M0_LOG(M0_DEBUG, LOGMSG);
 	}

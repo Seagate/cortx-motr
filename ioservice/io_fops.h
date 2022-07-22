@@ -330,8 +330,8 @@ struct m0_fop_cob_rw_reply {
 	 */
 	uint32_t                rwr_repair_done;
 
-	/** Total number of checksum bytes read by FOP till now for debug */
-	uint32_t                rwr_cksum_nob_read;
+	/** Max number of checksum bytes to be read by FOP */
+	uint32_t                rwr_cksum_max_nob;
 
 	/** Returned values for an UPDATE operation */
 	struct m0_fop_mod_rep   rwr_mod_rep;
