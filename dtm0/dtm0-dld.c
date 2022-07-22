@@ -691,17 +691,33 @@
 	   fid destination; // sdev|service fid
    };
 
-   struct m0_dtx0_redo_links {
-       uint64_t                dtrl_redo_links_nr;
-       struct m0_be_list_link  dtrl_redo_links[];
+   struct redo_list_link {
+       struct log_record      *rll_rec;
+       struct m0_be_list_link  rll_link;
+   } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
+
+   struct redo_list_links {
+       uint32_t               rll_nr;
+       struct redo_list_link *rll_links;
    } M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc|be);
+
+   struct redo_ptrs {
+       struct log_record *prev;
+       struct log_record *next;
+   };
+
+   // Voletile, used by log to collect records for pmachine
+   struct persistent_records {
+       struct log_record *pr_rec;
+       m0_list_link       pr_link;
+   };
 
    struct log_record {
        struct m0_dtm0_redo redo;
-       be_list_link allp;
-       be_list_link participants[]; // [0] == originator, rest - sdevs
-       fid          fids[];
-       struct m0_dtx0_redo_links redo_links;
+       //be_list_link allp; ?? for the pruner ready to cleanup
+       struct redo_list_links redo_links;
+       //struct redo_list_link redo_links[MAX N+K+S - 1];
+       //struct redo_ptrs redo_links[MAX N+K+S - 1];
    };
 
    // states:
@@ -953,12 +969,18 @@
      the time of the call will be returned during the next iteration for the
      participant.
 
-   @section pmach interface
+   @section interface used by pmach
 
    - m0_dtm0_log_p_get_local() - returns the next P message for the local
      transactions that become persistent (logged).
      Returns M0_FID0 during m0_dtm0_log_stop() call. After M0_FID0 is returned
      new calls to the log MUST NOT be made.
+
+          *pmsg
+     bool *successful - true if got something
+
+   m0_dtm0_log_p_get_local(*op, *pmsg, *successful)
+
    - m0_dtm0_log_p_put() - records that P message was received for the sdev
      participant.
 
@@ -1250,7 +1272,7 @@
      (See https://github.com/Seagate/cortx-motr/pull/1503)
    - Add static REDO lists for remote storage devices (to handle Pmsgs).
      (See https://github.com/Seagate/cortx-motr/issues/2006)
-   - Implement m0_dtm0_log_p_get_local() for sending pmsgs.
+   - Implement m0_dtm0_log_p_get_local(op) for sending pmsgs.
    - Implement dtm/net (dtm/net branch).
    - Implement PMach (initial code present in dtm/refactoring-next)
    - dix fills m0_dtx0_descriptor of m0_cas_op:
