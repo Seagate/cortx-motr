@@ -713,7 +713,9 @@ def motr_config_k8(self):
         update_copy_motr_config_file(self)
         return
 
-    # If setup_size is large i.e.HW, read the (key,val)
+    # If setup_size is large i.e.HW
+    # we are calling 'MOTR_CONFIG_SCRIPT with -c'
+    # which will read (key,val) pairs
     # from /opt/seagate/cortx/motr/conf/motr.conf and
     # update to /etc/sysconfig/motr
     if self.setup_size == "large":
@@ -721,6 +723,8 @@ def motr_config_k8(self):
         execute_command(self, cmd, verbose = True)
 
     update_motr_hare_keys(self)
+
+    # If setup size is small MOTR_CONFIG_SCRIPT will not do anything
     execute_command(self, MOTR_CONFIG_SCRIPT, verbose = True)
 
     # Update be_seg size only for storage node
