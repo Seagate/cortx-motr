@@ -76,6 +76,8 @@ as the last argument to the object program. In the object example, we will only 
     *   [m0crate](/motr/m0crate/)
 *   CORTX Motr Go bindings:
     *   [bindings/go/](/bindings/go)
+*   CORTX Motr Rust API:
+    *   https://github.com/mengwanguc/rust_motr
 *   CORTX Motr HSM utility and library:
     *   [hsm/](/hsm/)
 *   CORTX Motr Python wrapper:
