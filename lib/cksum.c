@@ -88,8 +88,8 @@ M0_INTERNAL int m0_calculate_md5(struct m0_md5_pi *pi,
 			if (rc != 1) {
 				return M0_ERR_INFO(rc, "MD5_Update failed."
 						   "v_nr=%d, "
-						   "bvec->ov_buf[%d]=%p, "
-						   "bvec->ov_vec.v_count[%d]=%lu",
+						   "ov_buf[%d]=%p, "
+						   "ov_vec.v_count[%d]=%lu",
 						   bvec->ov_vec.v_nr, i,
 						   bvec->ov_buf[i], i,
 						   bvec->ov_vec.v_count[i]);
@@ -195,13 +195,14 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 	/* get the curr context by updating it*/
 	if (bvec != NULL) {
 		for (i = 0; i < bvec->ov_vec.v_nr; i++) {
-			rc = MD5_Update((MD5_CTX *)curr_context, bvec->ov_buf[i],
+			rc = MD5_Update((MD5_CTX *)curr_context,
+					bvec->ov_buf[i],
 					bvec->ov_vec.v_count[i]);
 			if (rc != 1) {
 				return M0_ERR_INFO(rc, "MD5_Update failed."
 						   "v_nr=%d, "
-						   "bvec->ov_buf[%d]=%p, "
-						   "bvec->ov_vec.v_count[%d]=%lu",
+						   "ov_buf[%d]=%p, "
+						   "ov_vec.v_count[%d]=%lu",
 						   bvec->ov_vec.v_nr, i,
 						   bvec->ov_buf[i], i,
 						   bvec->ov_vec.v_count[i]);
@@ -298,8 +299,10 @@ M0_INTERNAL uint32_t m0_cksum_get_size(enum m0_pi_algo_type pi_type)
 
 M0_INTERNAL uint32_t m0_cksum_get_max_size(void)
 {
-	return (sizeof(struct m0_md5_pi) > sizeof(struct m0_md5_inc_context_pi) ?
-		sizeof(struct m0_md5_pi) : sizeof(struct m0_md5_inc_context_pi));
+	return (sizeof(struct m0_md5_pi) >
+		sizeof(struct m0_md5_inc_context_pi) ?
+		sizeof(struct m0_md5_pi) :
+		sizeof(struct m0_md5_inc_context_pi));
 }
 
 int m0_client_calculate_pi(struct m0_generic_pi *pi,

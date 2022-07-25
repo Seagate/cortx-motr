@@ -844,11 +844,12 @@ struct target_ioreq {
  * Data structure for PG indexing computation
  */
 struct fop_cksum_idx_gbl_data {
-	m0_bcount_t                  pgrp_size;
-	uint32_t                     pi_grpid;
-	m0_bcount_t                  pgrp0_index;
-	uint32_t                     unit_sz; 
-	uint32_t                     seg_per_unit; 
+	m0_bcount_t                  fg_pgrp_sz;
+	uint32_t                     fg_pi_grpid;
+	m0_bcount_t                  fg_pgrp0_index;
+	uint32_t                     fg_unit_sz;
+	uint32_t                     fg_seg_per_unit;
+	uint32_t                     fg_seg_sz;
 };
 
 /**

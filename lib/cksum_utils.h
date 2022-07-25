@@ -28,9 +28,9 @@
 /**
  * Function to get number of units starting in a given extent range.
  */
-M0_INTERNAL m0_bcount_t m0_extent_get_num_unit_start(m0_bindex_t ext_start,
-						     m0_bindex_t ext_len,
-						     m0_bindex_t unit_sz);
+M0_INTERNAL m0_bcount_t m0_ext_get_num_unit_start(m0_bindex_t ext_start,
+						  m0_bindex_t ext_len,
+						  m0_bindex_t unit_sz);
 
 /**
  * Function returns offset for a given unit size
@@ -42,18 +42,18 @@ M0_INTERNAL m0_bcount_t m0_extent_get_unit_offset(m0_bindex_t off,
 /**
  * Calculates checksum address for a cob segment and unit size
  */
-M0_INTERNAL void * m0_extent_get_checksum_addr(void *b_addr, m0_bindex_t off,
-					       m0_bindex_t base_off,
-					       m0_bindex_t unit_sz,
-					       m0_bcount_t cs_size);
+M0_INTERNAL void * m0_ext_get_cksum_addr(void *b_addr, m0_bindex_t off,
+					 m0_bindex_t base_off,
+					 m0_bindex_t unit_sz,
+					 m0_bcount_t cs_size);
 
 /**
  * Calculates checksum nob for a cob segment and unit size
  */
-M0_INTERNAL m0_bcount_t m0_extent_get_checksum_nob(m0_bindex_t ext_start,
-						   m0_bindex_t ext_length,
-						   m0_bindex_t unit_sz,
-						   m0_bcount_t cs_size);
+M0_INTERNAL m0_bcount_t m0_ext_get_cksum_nob(m0_bindex_t ext_start,
+					     m0_bindex_t ext_length,
+					     m0_bindex_t unit_sz,
+					     m0_bcount_t cs_size);
 
 M0_INTERNAL void * m0_extent_vec_get_checksum_addr(void *b_addr,
 						   m0_bindex_t off,

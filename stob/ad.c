@@ -345,19 +345,19 @@ M0_INTERNAL void * m0_stob_ad_get_checksum_addr(struct m0_stob_io *io,
 		ext.e_end = stob->iv_index[i] + stob->iv_vec.v_count[i];
 
 		if (m0_ext_is_in(&ext, off)) {
-			cksum_addr = m0_extent_get_checksum_addr(b_addr, off,
-								 ext.e_start,
-								 io->si_unit_sz,
-								 io->si_cksum_sz);
+			cksum_addr = m0_ext_get_cksum_addr(b_addr, off,
+							   ext.e_start,
+							   io->si_unit_sz,
+							   io->si_cksum_sz);
 			break;
 		} else {
 			/* off is beyond the current extent,
 			 * increment the b_addr
 			 */
-			b_addr +=  m0_extent_get_checksum_nob(ext.e_start,
-							      stob->iv_vec.v_count[i],
-							      io->si_unit_sz,
-							      io->si_cksum_sz);
+			b_addr +=  m0_ext_get_cksum_nob(ext.e_start,
+							stob->iv_vec.v_count[i],
+							io->si_unit_sz,
+							io->si_cksum_sz);
 			M0_ASSERT(b_addr <= io->si_cksum.b_addr +
 				  io->si_cksum.b_nob);
 		}
@@ -1299,8 +1299,8 @@ static void  stob_ad_get_checksum_for_fragment(struct m0_stob_io *io,
 	void                   *dst;
 	void                   *src;
 
-	checksum_nob = m0_extent_get_checksum_nob(off, frag_sz, unit_size,
-						  cksum_unit_size);
+	checksum_nob = m0_ext_get_cksum_nob(off, frag_sz, unit_size,
+					    cksum_unit_size);
 	if (checksum_nob && ext->ee_cksum_buf.b_addr) {
 		/* we are looking at checksum which need to be added:
 		 * get the destination: checksum address to copy in
@@ -1308,9 +1308,9 @@ static void  stob_ad_get_checksum_for_fragment(struct m0_stob_io *io,
 		 */
 		dst = m0_stob_ad_get_checksum_addr(io, off);
 		/* get the source: checksum address from segment */
-		src = m0_extent_get_checksum_addr(ext->ee_cksum_buf.b_addr, off,
-						  ext->ee_ext.e_start,
-						  unit_size, cksum_unit_size);
+		src = m0_ext_get_cksum_addr(ext->ee_cksum_buf.b_addr, off,
+					    ext->ee_ext.e_start,
+					    unit_size, cksum_unit_size);
 
 		/* copy from source to client buffer */
 		memcpy(dst, src, checksum_nob);
@@ -1699,8 +1699,8 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 		it.ec_app_cksum_buf.b_addr = m0_stob_ad_get_checksum_addr(io,
 									  off);
 		it.ec_app_cksum_buf.b_nob =
-		m0_extent_get_checksum_nob(off, m0_ext_length(&todo),
-					   io->si_unit_sz, io->si_cksum_sz);
+		m0_ext_get_cksum_nob(off, m0_ext_length(&todo),
+				     io->si_unit_sz, io->si_cksum_sz);
 	} else {
 		it.ec_app_cksum_buf.b_addr = NULL;
 		it.ec_app_cksum_buf.b_nob = 0;

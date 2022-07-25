@@ -35,17 +35,11 @@
 #include <openssl/md5.h>
 #endif
 
-/* Max checksum size for all supported PIs */
-#define M0_CKSUM_MAX_SIZE (sizeof(struct m0_md5_pi) > \
-                           sizeof(struct m0_md5_inc_context_pi) ? \
-                           sizeof(struct m0_md5_pi) : \
-                           sizeof(struct m0_md5_inc_context_pi))
-
 /*********************** MD5 Cksum Structure ***********************/
 /** Padding size for MD5 structure */
 #define M0_CKSUM_PAD_MD5 (M0_CALC_PAD((sizeof(struct m0_pi_hdr) + \
 				      MD5_DIGEST_LENGTH), \
-			              M0_CKSUM_DATA_ROUNDOFF_BYTE))
+				      M0_CKSUM_DATA_ROUNDOFF_BYTE))
 
 /** MD5 checksum structure, the checksum value is in pimd5_value */
 struct m0_md5_pi {
@@ -83,6 +77,17 @@ struct m0_md5_inc_context_pi {
 	/* structure should be 32 byte aligned */
 	char             pi_md5c_pad[M0_CKSUM_PAD_MD5_INC_CXT];
 #endif
+};
+
+union m0_md5_union_pi
+{
+	struct m0_md5_pi p;
+	struct m0_md5_inc_context_pi c;
+};
+
+/* Max checksum size for all supported PIs */
+enum {
+	M0_CKSUM_MAX_SIZE = sizeof(union m0_md5_union_pi)
 };
 
 #endif /* __MOTR_CKSUM_DATA_H__ */
