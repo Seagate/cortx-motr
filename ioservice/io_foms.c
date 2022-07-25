@@ -884,7 +884,7 @@ static void stobio_complete_cb(struct m0_fom_callback *cb)
 		 * non-zero CS, this value gets updated.
 		 */
 		rwrep->rwr_di_data_cksum.b_nob +=
-		stio_desc->siod_stob_io.si_cksum_nob_read;
+			stio_desc->siod_stob_io.si_cksum_nob_read;
 		M0_ASSERT(rwrep->rwr_di_data_cksum.b_nob <=
 			  rwrep->rwr_cksum_max_nob );
 	}

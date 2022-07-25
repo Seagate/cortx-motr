@@ -867,11 +867,11 @@ struct fop_cksum_idx_data {
  * Collection of data structure for checksum computation
  */
 struct fop_cksum_data {
-	// Checksum data structure
+	/** Checksum data structure. */
 	struct fop_cksum_idx_data  *cd_idx;
-	// Number of units added
+	/** Number of units added. */
 	uint32_t                    cd_num_units;
-	// Maximum number of units
+	/** Maximum number of units. */
 	uint32_t                    cd_max_units;
 };
 

@@ -186,9 +186,9 @@ static int application_checksum_process(struct m0_op_io *ioo,
 			  cs_idx->ci_unit_idx != UINT32_MAX);
 
 		/* Calculate checksum for each unit */
-		rc = target_calculate_checksum(ioo, cksum_type,
-					       irfop->irf_pattr, cs_idx,
-					       compute_cs_buf );
+		rc = m0_target_calculate_checksum(ioo, cksum_type,
+						  irfop->irf_pattr, cs_idx,
+						  compute_cs_buf );
 		if (rc != 0)
 			goto fail;
 
@@ -974,9 +974,9 @@ static void ioreq_fop_release(struct m0_ref *ref)
 static void ioreq_fop_checksum_data_init(struct m0_op_io *ioo,
 					 struct ioreq_fop *fop)
 {
-	uint32_t idx;
-	uint32_t units;
-	struct fop_cksum_data *cs_data;
+	uint32_t                  idx;
+	uint32_t                  units;
+	struct fop_cksum_data    *cs_data;
 	struct m0_pdclust_layout *play = pdlayout_get(ioo);
 
 	/* Get pointer to basic data structure */

@@ -787,10 +787,10 @@ static void *buf_aux_chk_get(struct m0_bufvec *aux, enum page_attr p_attr,
 /* This function will compute parity checksum in chksm_buf all other
  * parameter is input parameter
  */
-int target_calculate_checksum(struct m0_op_io *ioo, uint8_t pi_type,
-			      enum page_attr filter,
-			      struct fop_cksum_idx_data *cs_idx,
-			      void *chksm_buf)
+int m0_target_calculate_checksum(struct m0_op_io *ioo, uint8_t pi_type,
+				 enum page_attr filter,
+				 struct fop_cksum_idx_data *cs_idx,
+				 void *chksm_buf)
 {
 	struct m0_generic_pi       *pi;
 	struct m0_pi_seed           seed;
@@ -921,11 +921,11 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 		if (m0__obj_is_di_cksum_gen_enabled(ioo) ||
 		    (irfop->irf_pattr == PA_PARITY)) {
 			/* Compute checksum for Unit */
-			rc = target_calculate_checksum(ioo, cksum_type,
-						       irfop->irf_pattr,
-						       cs_idx_data,
-						       b_addr +
-						       computed_cksm_nob);
+			rc = m0_target_calculate_checksum(ioo, cksum_type,
+							  irfop->irf_pattr,
+							  cs_idx_data,
+							  b_addr +
+							  computed_cksm_nob);
 			if (rc != 0) {
 				m0_buf_free(&rw_fop->crw_di_data_cksum);
 				return rc;
