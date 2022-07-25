@@ -185,7 +185,7 @@ As mentioned previously, every FOM should implement corresponding fo_state() met
 
 +  Calling Synchronous function from FOM  
   + For synchronous operations, FOM should invoke m0_fom_block_enter(), before the operation is started.
-  + It creates and adds one or more locality worker threads so that there exist at least one thread to service incoming FOPs.
+ + It creates and adds one or more locality worker threads so that there exist at least one thread to service incoming FOPs.
   + On completion of operation, FOM should call m0_fom_block_leave(), this is an undo routine corresponding to m0_fom_block_enter(), It terminates any extra idle locality worker threads.  
 +  Calling Asynchronous function from FOM
   + For an asynchronous FOM operation, FOM should invoke m0_fom_block_at(), and m0_fom_block_enter() is not mandatory in this case.

@@ -39,7 +39,6 @@ Components responsibilities:
     *  participate in transaction recovery;
 
   *  fol source: use source interface;  
-
   *  sample plugin: use plugin interface.   
 
 ## Data-flow diagram   
