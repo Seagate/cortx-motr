@@ -184,20 +184,17 @@ Every potentially blocking FOP specific operation should have a corresponding ex
 As mentioned previously, every FOM should implement corresponding fo_state() method that performs actual state transitions as well as FOP specific operations.
 
 +  Calling Synchronous function from FOM  
-
-  +  For synchronous operations, FOM should invoke m0_fom_block_enter(), before the operation is started.
-  +  It creates and adds one or more locality worker threads so that there exist at least one thread to service incoming FOPs.
-  +  On completion of operation, FOM should call m0_fom_block_leave(), this is an undo routine corresponding to m0_fom_block_enter(), It terminates any extra idle locality worker threads.  
-
+  + For synchronous operations, FOM should invoke m0_fom_block_enter(), before the operation is started.
+  + It creates and adds one or more locality worker threads so that there exist at least one thread to service incoming FOPs.
+  + On completion of operation, FOM should call m0_fom_block_leave(), this is an undo routine corresponding to m0_fom_block_enter(), It terminates any extra idle locality worker threads.  
 +  Calling Asynchronous function from FOM
+  + For an asynchronous FOM operation, FOM should invoke m0_fom_block_at(), and m0_fom_block_enter() is not mandatory in this case.
 
-  +  For an asynchronous FOM operation, FOM should invoke m0_fom_block_at(), and m0_fom_block_enter() is not mandatory in this case.
+  + Before executing a blocking operation, FOM should invoke m0_fom_block_at() and register the waiting channel, and transition FOM into its corresponding wait phase. m0_fom_block_at() puts the FOM onto locality wait list, so now the thread execution FOM, can pick up the next ready to be executed FOM from the locality run queue and begin its execution.
 
-  +  Before executing a blocking operation, FOM should invoke m0_fom_block_at() and register the waiting channel, and transition FOM into its corresponding wait phase. m0_fom_block_at() puts the FOM onto locality wait list, so now the thread execution FOM, can pick up the next ready to be executed FOM from the locality run queue and begin its execution.
+  + FOM waits until it receives a completion event on the registered channel.
 
-  +  FOM waits until it receives a completion event on the registered channel.
-
-  +  On completion of blocking operation, the waiting channel is signaled.
+  + On completion of blocking operation, the waiting channel is signaled.
 
 FOM is then removed from the locality wait list and put back on the locality runq for further execution.
 
