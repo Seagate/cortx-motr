@@ -1,0 +1,15 @@
+[package]
+authors = ["Meng Wang <mengwanguc@gmail.com>"]
+build = "build.rs"
+name = "rust_motr"
+version = "0.1.0"
+description = "Rust API of Cortx motr read"
+license = "Apache-2.0"
+
+[dependencies]
+anyhow = "1.0.23"
+libc = "0.2.102"
+
+[build-dependencies]
+bindgen = "0.59.1"
+run_script = "0.6.3"

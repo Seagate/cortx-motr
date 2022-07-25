@@ -489,3 +489,7 @@ m0_thread_exec_init
 *__gcov_flush
 *__gcov_reset
 *__gcov_sort_n_vals
+m0_init_instance
+m0_object_read
+m0_object_create
+m0_object_write

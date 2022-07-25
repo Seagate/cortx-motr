@@ -1874,6 +1874,27 @@ void m0_client_layout_free(struct m0_client_layout *layout);
 #include "motr/idx.h" /* export m0_idx operations and services to client. */
 #include "cas/cas.h"
 
+struct read_result {
+        char  *data;
+        size_t len;
+        int    rc;
+};
+
+int m0_init_instance(const char* ha_addr,
+		     const char* local_addr,
+		     const char* profile_fid,
+		     const char* process_fid);
+struct read_result * m0_object_read(uint64_t obj_hi,
+				    uint64_t obj_low,
+				    uint64_t start,
+				    uint64_t len);
+int m0_object_create(uint64_t obj_hi, uint64_t obj_low);
+int m0_object_write(uint64_t obj_hi,
+		    uint64_t obj_low,
+		    uint64_t start,
+		    uint64_t len,
+		    char* d);
+
 #endif /* __MOTR_CLIENT_H__ */
 
 /*

@@ -28,6 +28,7 @@ motr_libmotr_la_SOURCES += motr/ha.c \
                            motr/process_attr.c \
                            motr/iem.c \
                            motr/client.c \
+                           motr/client_rust.c \
                            motr/obj_lock.c \
                            motr/client_init.c \
                            motr/io_pargrp.c \
