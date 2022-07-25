@@ -331,6 +331,8 @@ M0_INTERNAL int m0_dtm0_log_redo_add(struct m0_dtm0_log        *dol,
 	m0_buf_memcpy(&rec->lr_payload_data,
 		      &redo->dtr_payload.dtp_data.ab_elems[0]);
 	rec->lr_descriptor = redo->dtr_descriptor;
+	M0_LOG(M0_DEBUG, "redo add txid: " DTID1_F,
+		       DTID1_P(&rec->lr_descriptor.dtd_id));
 	redo_insert(&dol->dtl_data->dtld_transactions, tx,
 		    &M0_BUF_INIT_PTR(&rec->lr_descriptor.dtd_id),
 	            &M0_BUF_INIT(sizeof rec, &rec));

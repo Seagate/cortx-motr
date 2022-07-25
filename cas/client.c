@@ -1664,6 +1664,29 @@ m0_dtm0_tx_desc2dtx0_descriptor_prep(const struct m0_dtm0_tx_desc *txd,
 	descriptor->dtd_id.dti_originator_sdev_fid.f_container = 1;
 	descriptor->dtd_id.dti_timestamp = m0_time_now();
 	M0_LOG(M0_DEBUG, "DTX id: " DTID1_F, DTID1_P(&descriptor->dtd_id));
+
+	/**
+	 * @todo update all participants of this request in the descriptor,
+	 * until then originator only is added as a participant.
+	 */ 
+	if (txd->dtd_ps.dtp_nr == 0) {
+		descriptor->dtd_participants.dtpa_participants_nr = 1;
+		M0_ALLOC_ARR(descriptor->dtd_participants.dtpa_participants, 1);
+		if (descriptor->dtd_participants.dtpa_participants == NULL)
+			return -ENOMEM;
+		descriptor->dtd_participants.dtpa_participants[0] =
+			descriptor->dtd_id.dti_originator_sdev_fid;
+		return 0;
+	}
+	
+	descriptor->dtd_participants.dtpa_participants_nr = txd->dtd_ps.dtp_nr;
+	M0_ALLOC_ARR(descriptor->dtd_participants.dtpa_participants,
+		     txd->dtd_ps.dtp_nr);
+	if (descriptor->dtd_participants.dtpa_participants == NULL)
+		return -ENOMEM;
+	for (i = 0; i < txd->dtd_ps.dtp_nr; i++)
+		descriptor->dtd_participants.dtpa_participants[i] =
+				txd->dtd_ps.dtp_pa->p_fid;
 	return 0;
 }
 
