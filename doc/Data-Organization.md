@@ -10,9 +10,9 @@ In the context of a particular server, an object can be either local or not, dep
 There are 5 kinds of local objects, described in more detail below:
 
 +  3 types of container objects:
- + device container objects;
- + meta-data container objects;
- + data container objects  
++  device container objects;
++  meta-data container objects;
++  data container objects  
 +  objects that contain meta-data data-base tables
 +  objects that are sets of records of data locations  
 
