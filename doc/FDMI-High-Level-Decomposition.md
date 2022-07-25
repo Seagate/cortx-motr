@@ -4,43 +4,43 @@
 
 Interfaces:
 
-  * plugin interface:  
+  *  plugin interface:  
 
-    * register (unregister) a filter;  
+    *  register (unregister) a filter;  
 
-    * specify a call-back to be invoked when matching record appears.
+    *  specify a call-back to be invoked when matching record appears.
 
-  * source interface:
+  *  source interface:
 
-    * register (unregister) a source;
+    *  register (unregister) a source;
 
-    * notify fdmi about new records;
+    *  notify fdmi about new records;
 
-    * match a record against a filter;
+    *  match a record against a filter;
 
-    * specify a call-back to be invoked when a record is no longer needed by fdmi (required, for example, to truncate fol).
+    *  specify a call-back to be invoked when a record is no longer needed by fdmi (required, for example, to truncate fol).
 
 
 
 Components responsibilities:
 
-  * fdmi core:
+  *  fdmi core:
 
-    * keep information about plugins, filters and sources,
+    *  keep information about plugins, filters and sources,
 
-    * match incoming records against filters,
+    *  match incoming records against filters,
 
-    * record transmission to plugins,
+    *  record transmission to plugins,
 
-    * implement plugin interface,
+    *  implement plugin interface,
 
-    * implement source interface,
+    *  implement source interface,
 
-    * participate in transaction recovery;
+    *  participate in transaction recovery;
 
-  * fol source: use source interface;
+  *  fol source: use source interface;
 
-  * sample plugin: use plugin interface.   
+  *  sample plugin: use plugin interface.   
 
 
 ## Data-flow diagram   
@@ -51,8 +51,8 @@ Components responsibilities:
 
 Key data-types introduced by fdmi are:
 
-* filter: represents an fdmi plugin, specifies how records are matched, accepts matching records from fdmi;
+*  filter: represents an fdmi plugin, specifies how records are matched, accepts matching records from fdmi;
 
-* source: a source of records, provides records to fdmi;
+*  source: a source of records, provides records to fdmi;
 
-* record: something that is produced by a source and can be matched against a filter.
+*  record: something that is produced by a source and can be matched against a filter.

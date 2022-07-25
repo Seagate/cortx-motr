@@ -9,18 +9,18 @@ In the context of a particular server, an object can be either local or not, dep
 
 There are 5 kinds of local objects, described in more detail below:
 
-+ 3 types of container objects:
-  + device container objects;
-  + meta-data container objects;
-  + data container objects  
-+ objects that contain meta-data data-base tables
-+ objects that are sets of records of data locations  
++  3 types of container objects:
+  +  device container objects;
+  +  meta-data container objects;
+  +  data container objects  
++  objects that contain meta-data data-base tables
++  objects that are sets of records of data locations  
 
 In addition to object data, an object requires some amount of meta-data:
 
-+ allocation meta-data, specifying where object data and other object meta-data can be found
-+ integrity meta-data in the form of block or record level check-sums
-+ other object attributes, like size  
++  allocation meta-data, specifying where object data and other object meta-data can be found
++  integrity meta-data in the form of block or record level check-sums
++  other object attributes, like size  
 
 Meta-data are stored in data-bases in meta-data containers.
 
@@ -41,9 +41,9 @@ This is a special object type for an entire device. Each storage device is a dev
 
 A device container root object contains the following.
 
-+ a name of the device,
-+ a list of containers on the device and
-+ a pointer to a special meta-data container on the same device, storing container allocation data (mostly read-only).  
++  a name of the device,
++  a list of containers on the device and
++  a pointer to a special meta-data container on the same device, storing container allocation data (mostly read-only).  
 
 The following diagram represents a typical device container.
 ![image](./Images/Device_container.PNG)
