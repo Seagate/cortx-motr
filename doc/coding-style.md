@@ -152,7 +152,7 @@ try to adhere to some higher level idioms.
       This expression means "return first non-zero value among a, b,
       c". Operands, including "a" can have any suitable type.
 
-  * simplify:
+  *  simplify:
 
             return q != 0;            to     return q;
             return expr ? 0 : 1;      to     return !expr;
@@ -163,11 +163,11 @@ try to adhere to some higher level idioms.
       (Rationale: if `(x == true)` is clearer than `(x)`, then `((x == true) == true)`
       is even more clearer.)
 
-  * use `!!x` to convert a "boolean" integer into an "arithmetic" integer;
+  *  use `!!x` to convert a "boolean" integer into an "arithmetic" integer;
 
-  * use C99 bool type;
+  *  use C99 bool type;
 
-  * naming:
+  *  naming:
 
       globally visible name:
 
@@ -185,7 +185,7 @@ try to adhere to some higher level idioms.
       `m0_<module-name>__` (that is double _). This rule applies to invariants as
       well;
 
-  * use C99 "designated initializers":
+  *  use C99 "designated initializers":
 
           static const struct foo bar = { /* initialize a struct */
                   .field0 = ...,
@@ -196,12 +196,12 @@ try to adhere to some higher level idioms.
                   ...
           };
 
-  * avoid implicit field initialization using designated initializers;
+  *  avoid implicit field initialization using designated initializers;
 
       (Rationale: it helps to find all struct field usage and it documents
       default value of the field.);
 
-  * use enums to define numerical constants:
+  *  use enums to define numerical constants:
 
           enum LSD_HASHTABLE_PARAMS {
                   LHP_PRIME   = 32416190071ULL,
@@ -216,7 +216,7 @@ try to adhere to some higher level idioms.
       (Rationale: enums (as opposed to #defines) have types, visible
       in a debugger, etc.)
 
-  * inline functions are preferable to macros
+  *  inline functions are preferable to macros
 
       (Rationale: type-checking, sane argument evaluation rules.);
 
@@ -271,7 +271,7 @@ try to adhere to some higher level idioms.
   * use assertions freely to verify state invariants. An asserted
     expression should have no side-effects;
 
-  * factor common code. Always prefer creating a common helper
+  *  factor common code. Always prefer creating a common helper
     function to copying code
 
       (Rationale: avoids duplication of bugs.);

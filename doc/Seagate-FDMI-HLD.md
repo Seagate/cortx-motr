@@ -14,9 +14,9 @@
 The document is intended to specify the design of Mero FDMI interface. FDMI is a part of Mero product. FDMI provides interface for Mero plugins and allows horizontally extending the features and capabilities of the system.   
 
 ## 1.2 Intended Audience
-* Product Architect
-* Developers
-* QA Engineers   
+*  Product Architect
+*  Developers
+*  QA Engineers   
 
 ## 1.3 Definitions, Acronyms, and Abbreviations
 FDMI: File data manipulation interface

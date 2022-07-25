@@ -5,15 +5,15 @@ FOP stands for File Operation Packet. In a network or a distributed file-system,
 A FOP structure can comprise of following user defined and native types:
 
 User defined:
-+ record (a structure in c programming language)
-+ union
-+ sequence (an array in programming languages)
++  record (a structure in c programming language)
++  union
++  sequence (an array in programming languages)
 
 Native types:
-+ u32
-+ u64
-+ u8
-+ void  
++  u32
++  u64
++  u8
++  void  
 
 A FOP can be declared as follows:
 ```
@@ -165,10 +165,10 @@ The major purpose of having FOMs and request handler is to have a non-blocking e
 ### FOM - Execution
 A FOP is submitted to request handler through m0_reqh_fop_handle() interface for processing. Request handler then creates corresponding FOM by invoking the following:
 
-+ m0_fop_type::ft_fom_type::ft_ops::fto_create()
-+ m0_fop_type_ops::ft_fom_init()
++  m0_fop_type::ft_fom_type::ft_ops::fto_create()
++  m0_fop_type_ops::ft_fom_init()
 Once the FOM is created, a home locality is selected for the FOM by invoking the following:
-+ m0_fom_ops::fo_home_locality()  
++  m0_fom_ops::fo_home_locality()  
 
 After selecting home locality, FOM is then submitted into the locality's run queue for processing. Every FOM submitted into locality run queue is picked up by the idle locality handler thread for execution. Handler thread invokes m0_fom_ops::fo_phase() (core FOM execution routine also performs FOM phase transitions) method implemented by every FOM. FOM initially executes its standard/generic phases and then transitions to FOP specific execution phases.
 
@@ -183,30 +183,30 @@ Every potentially blocking FOP specific operation should have a corresponding ex
 
 As mentioned previously, every FOM should implement corresponding fo_state() method that performs actual state transitions as well as FOP specific operations.
 
-+ Calling Synchronous function from FOM  
++  Calling Synchronous function from FOM  
 
-  + For synchronous operations, FOM should invoke m0_fom_block_enter(), before the operation is started.
-  +It creates and adds one or more locality worker threads so that there exist at least one thread to service incoming FOPs.
-  + On completion of operation, FOM should call m0_fom_block_leave(), this is an undo routine corresponding to m0_fom_block_enter(), It terminates any extra idle locality worker threads.  
+  +  For synchronous operations, FOM should invoke m0_fom_block_enter(), before the operation is started.
+  +  It creates and adds one or more locality worker threads so that there exist at least one thread to service incoming FOPs.
+  +  On completion of operation, FOM should call m0_fom_block_leave(), this is an undo routine corresponding to m0_fom_block_enter(), It terminates any extra idle locality worker threads.  
 
-+ Calling Asynchronous function from FOM
++  Calling Asynchronous function from FOM
 
-  + For an asynchronous FOM operation, FOM should invoke m0_fom_block_at(), and m0_fom_block_enter() is not mandatory in this case.
+  +  For an asynchronous FOM operation, FOM should invoke m0_fom_block_at(), and m0_fom_block_enter() is not mandatory in this case.
 
-  + Before executing a blocking operation, FOM should invoke m0_fom_block_at() and register the waiting channel, and transition FOM into its corresponding wait phase. m0_fom_block_at() puts the FOM onto locality wait list, so now the thread execution FOM, can pick up the next ready to be executed FOM from the locality run queue and begin its execution.
+  +  Before executing a blocking operation, FOM should invoke m0_fom_block_at() and register the waiting channel, and transition FOM into its corresponding wait phase. m0_fom_block_at() puts the FOM onto locality wait list, so now the thread execution FOM, can pick up the next ready to be executed FOM from the locality run queue and begin its execution.
 
-  + FOM waits until it receives a completion event on the registered channel.
+  +  FOM waits until it receives a completion event on the registered channel.
 
-  + On completion of blocking operation, the waiting channel is signaled.
+  +  On completion of blocking operation, the waiting channel is signaled.
 
 FOM is then removed from the locality wait list and put back on the locality runq for further execution.
 
 ### Sending a reply FOP
-+ On successful execution, FOM creates the corresponding reply FOP and assigns it to m0_fom::fo_rep_fop (reply is sent by the request handler and not the FOM).
-+ Sending reply fop could be a blocking operation, So this is done by one of the generic or standard phases of the FOM.
-+ Once FOM execution is complete (that could mean success or failure) FOM sets appropriate reply FOP within the FOM object.
-+ Once the reply FOP is set, change the FOM phase to FOPH_SUCCESS or FOPH_FAILURE as per the result of operation and return from the m0_fom::fo_state() method (FOM execution routine).
-+ FOM is then transitioned back to its one of the standard phases (FOPH_QUEUE_REPLY) which sends the reply (as mentioned in the above diagram). Once reply is sent, FOM is transitioned back to one of the fop specific phases, in order to perform cleanup operations if any.
++  On successful execution, FOM creates the corresponding reply FOP and assigns it to m0_fom::fo_rep_fop (reply is sent by the request handler and not the FOM).
++  Sending reply fop could be a blocking operation, So this is done by one of the generic or standard phases of the FOM.
++  Once FOM execution is complete (that could mean success or failure) FOM sets appropriate reply FOP within the FOM object.
++  Once the reply FOP is set, change the FOM phase to FOPH_SUCCESS or FOPH_FAILURE as per the result of operation and return from the m0_fom::fo_state() method (FOM execution routine).
++  FOM is then transitioned back to its one of the standard phases (FOPH_QUEUE_REPLY) which sends the reply (as mentioned in the above diagram). Once reply is sent, FOM is transitioned back to one of the fop specific phases, in order to perform cleanup operations if any.
 
 Examples  
 Consider the following write FOM example
@@ -223,10 +223,10 @@ record {
  };  
  ```  
 ***There are two types of structures defined:***
-  + reqh_ut_fom_fop_fid, is a structure with native data types, (i.e uint64_t). This is optional, although we would need to build these user defined types separately to use them in other structures.
-  + reqh_ut_fom_io_write, is a structure containing an object of struct reqh_ut_fom_fop_fid and a native byte type member.  
+  +  reqh_ut_fom_fop_fid, is a structure with native data types, (i.e uint64_t). This is optional, although we would need to build these user defined types separately to use them in other structures.
+  +  reqh_ut_fom_io_write, is a structure containing an object of struct reqh_ut_fom_fop_fid and a native byte type member.  
 
-+ Defining and building a FOP
++  Defining and building a FOP
 
 To build a particular FOP we need to define its corresponding m0_fop_type_ops and m0_fop_type structures as follows:  
 ```  

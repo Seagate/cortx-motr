@@ -222,7 +222,7 @@ This document provides information on how to build motr from source and then run
         ```sh
         vi /etc/ssh/sshd_config
         ```
-        * And make sure that the following parameters are set:
+    * And make sure that the following parameters are set:
             ```sh
             PasswordAuthentication yes
             PermitRootLogin yes
