@@ -60,7 +60,7 @@ def human_readable(count):
 
 	return str(saved_count) + "<" + result.strip() + ">"
 
-def sum(start_addr, count):
+def add(start_addr, count):
 	a = gdb.parse_and_eval("(unsigned char *){0:#x}".format(start_addr))
 	s = 0
 	for i in range(count):
@@ -132,7 +132,7 @@ Total: 2
 		argv = gdb.string_to_argv(arg)
 		argc = len(argv)
 		if argc not in (1, 4, 5):
-			print 'Error: Usage: m0-list-print [&]list' \
+			print 'Error: Usage: m0-list-print [&]list' + \
 				' [[struct|union] tag link [visit|"in-detail"]]'
 			return
 
@@ -166,28 +166,28 @@ Total: 2
 		print "Total: %d" % total
 
 	@staticmethod
-	def get_head(self, argv):
+	def get_head(argv):
 		ok    = True
 		head  = 0
 		vhead = gdb.parse_and_eval(argv[0])
-		type  = str(vhead.type)
-		if type.startswith('const '):
-			type = type[len('const '):]
+		head_type  = str(vhead.type)
+		if head_type.startswith('const '):
+			head_type = head_type[len('const '):]
 
-		if type == "struct m0_list":
+		if head_type == "struct m0_list":
 			head = long(vhead.address)
-		elif type == "struct m0_list *":
+		elif head_type == "struct m0_list *":
 			head = long(vhead)
-		elif type in ("struct m0_tl", "struct m0_tl *"):
+		elif head_type in ("struct m0_tl", "struct m0_tl *"):
 			vhead = vhead['t_head']
 			head = long(vhead.address)
 		else:
-			print "Error: Invalid argument type: '%s'" % type
+			print "Error: Invalid argument type: '%s'" % head_type
 			ok = False
 		return vhead, head, ok
 
 	@staticmethod
-	def get_offset(self, argv):
+	def get_offset(argv):
 		argc     = len(argv)
 		offset   = 0
 		elm_type = None
@@ -202,16 +202,16 @@ Total: 2
 			anchor = argv[3]
 			try:
 				elm_type = gdb.lookup_type(str_elm_type)
-			except:
+			except Exception as e:
 				print "Error: type '{0}' does not exist".format(str_elm_type)
 				return 0, None, False
 
-			type = str(field_type(str_elm_type, anchor))
-			if type not in ("struct m0_list_link", "struct m0_tlink"):
+			elm_type = str(field_type(str_elm_type, anchor))
+			if elm_type not in ("struct m0_list_link", "struct m0_tlink"):
 				print "Error: Argument 4 must be of type m0_list_link or m0_tlink"
 				return 0, None, False
 
-			if type == "struct m0_tlink":
+			if elm_type == "struct m0_tlink":
 				anchor = anchor.strip() + ".t_link"
 
 			offset = offset_of(str_elm_type, anchor)
@@ -239,7 +239,8 @@ For each segment, the command prints,
 		gdb.Command.__init__(self, "m0-bufvec-print", \
 				     gdb.COMMAND_SUPPORT, gdb.COMPLETE_SYMBOL)
 
-	def invoke(self, arg, from_tty):
+	@classmethod
+	def invoke(cls, arg, from_tty):
 		argv = gdb.string_to_argv(arg)
 		argc = len(argv)
 
@@ -263,7 +264,7 @@ For each segment, the command prints,
 			start_addr = long(vbufvec['ov_buf'][i])
 			count      = long(vbufvec['ov_vec']['v_count'][i])
 			end_addr   = start_addr + count
-			sum_of_bytes_in_seg = sum(start_addr, count)
+			sum_of_bytes_in_seg = add(start_addr, count)
 			print "seg:{0} {1:#x} {2:#x} {3} {4} {5}".format(i, \
 				start_addr, end_addr, human_readable(offset), \
 				human_readable(count), sum_of_bytes_in_seg)
