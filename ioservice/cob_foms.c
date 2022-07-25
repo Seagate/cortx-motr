@@ -1156,7 +1156,7 @@ static int cd_cob_delete(struct m0_fom            *fom,
 	if (rc != 0)
 		M0_ERR_INFO(rc, "Bytecount decrement unsuccesfull");
 
-	rc = m0_cob_delete(cob, m0_fom_tx(fom));
+	rc = m0_cob_delete_put(cob, m0_fom_tx(fom));
 	if (rc == 0)
 		M0_LOG(M0_DEBUG, "Cob deleted successfully.");
 

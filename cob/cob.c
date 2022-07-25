@@ -2171,7 +2171,6 @@ M0_INTERNAL int m0_cob_delete(struct m0_cob *cob, struct m0_be_tx *tx)
 		cob_table_delete(cob->co_dom->cd_fileattr_omg, tx, &key);
 	}
 out:
-	m0_cob_put(cob);
 	return M0_RC(rc);
 }
 
