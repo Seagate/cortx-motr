@@ -709,7 +709,7 @@ M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
  * a record; i.e. the filename. This also lookups for all attributes,
  * that is, fab, omg, etc., according to @need flags.
  * 
- * Note : If this function returns success, the result cob must be released
+ * Note : If this function returns success, the returned cob must be released
  *        by calling m0_cob_put().
  *
  * @param dom   cob domain to use
