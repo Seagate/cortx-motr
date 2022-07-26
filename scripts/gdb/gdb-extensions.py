@@ -133,7 +133,7 @@ Total: 2
 		argc = len(argv)
 		if argc not in (1, 4, 5):
 			print 'Error: Usage: m0-list-print [&]list' + \
-				' [[struct|union] tag link [visit|"in-detail"]]'
+			' [[struct|union] tag link [visit|"in-detail"]]'
 			return
 
 		vhead, head, ok = self.get_head(argv)
@@ -202,7 +202,7 @@ Total: 2
 			anchor = argv[3]
 			try:
 				elm_type = gdb.lookup_type(str_elm_type)
-			except Exception as e:
+			except Exception:
 				print "Error: type '{0}' does not exist".format(str_elm_type)
 				return 0, None, False
 
