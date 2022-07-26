@@ -25,7 +25,7 @@ Following are the features of CORTX Motr:
 >>>>>>> dd7df078... Updating following files for formatting issues
 -   Fault-tolerant: with flexible erasure coding that takes hardware and network topology into account.
 
--   Fast network raid repair.
+-   Fast network raid repairs.
 
 -   Observable: with built-in monitoring that collects detailed information about the system behavior.
 
