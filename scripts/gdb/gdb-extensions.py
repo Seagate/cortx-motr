@@ -132,8 +132,8 @@ Total: 2
 		argv = gdb.string_to_argv(arg)
 		argc = len(argv)
 		if argc not in (1, 4, 5):
-			print 'Error: Usage: m0-list-print [&]list' + \
-			' [[struct|union] tag link [visit|"in-detail"]]'
+			print 'Error: Usage: m0-list-print [&]list' \
+			+ ' [[struct|union] tag link [visit|"in-detail"]]'
 			return
 
 		vhead, head, ok = self.get_head(argv)
