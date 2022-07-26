@@ -285,6 +285,7 @@ static int test_ad_fini(void)
 	int i;
 
 	m0_stob_put(obj_fore);
+	m0_stob_domain_truncate(dom_fore);
 	m0_stob_domain_destroy(dom_fore);
 	m0_stob_put(obj_back);
 	m0_stob_domain_destroy(dom_back);

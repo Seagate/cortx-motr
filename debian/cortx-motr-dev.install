@@ -23,10 +23,6 @@ usr/include/motr/be/alloc_internal.h
 usr/include/motr/be/alloc_internal_xc.h
 usr/include/motr/be/alloc_xc.h
 usr/include/motr/be/be.h
-usr/include/motr/be/btree.h
-usr/include/motr/be/btree_internal.h
-usr/include/motr/be/btree_internal_xc.h
-usr/include/motr/be/btree_xc.h
 usr/include/motr/be/domain.h
 usr/include/motr/be/domain_xc.h
 usr/include/motr/be/dtm0_log.h

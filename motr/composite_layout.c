@@ -166,8 +166,6 @@ static void layout_dix_req_ast(struct m0_sm_group *grp,
 				layout_op_failed(op, rc);
 		} else
 			layout_op_completed(op);
-		//M0_ASSERT(lid <= 32);
-		M0_LOG(M0_DEBUG, "YJC: layout if = %"PRIu64, obj->ob_attr.oa_layout_id);
 	} else
 		layout_op_completed(op);
 

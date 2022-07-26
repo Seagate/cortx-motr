@@ -725,6 +725,17 @@ struct m0_op {
 	/* Operation's private data, can be used as arguments for callbacks.*/
 	void                          *op_datum;
 	uint64_t                       op_count;
+
+	/**
+	 * This flag is set when there is an onging cancel operation.
+	 * There is no refcount in this op. But the op cancelling AST
+	 * needs this op being valid. The op cancelling AST will
+	 * semaphore up when it is done. The m0_op_fini() checks this flag
+	 * and semaphore down on it if needed. This will make sure the op
+	 * is not freed before the op cancel is done.
+	 */
+	bool                           op_cancelling;
+	struct m0_semaphore            op_sema;
 	/**
 	 * Private field, to be used by internal implementation.
 	 */
