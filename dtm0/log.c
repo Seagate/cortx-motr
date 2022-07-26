@@ -428,13 +428,16 @@ M0_INTERNAL void m0_dtm0_log_prune(struct m0_dtm0_log *dol,
                                    struct m0_be_tx    *tx,
                                    struct m0_dtx0_id  *dtx0_id)
 {
-	struct dtm0_log_record *rec;
+	struct dtm0_log_record *rec = NULL;
 	struct m0_buf           rec_buf = M0_BUF_INIT(sizeof rec, &rec);
+	int                     rc;
 
 	M0_LOG(M0_DEBUG, "DTX id: " DTID1_F, DTID1_P(dtx0_id));
 	/* TODO handle lookup errors */
-	redo_log_lookup(&dol->dtl_data->dtld_transactions,
-	                &M0_BUF_INIT_PTR(dtx0_id), &rec_buf);
+	rc = redo_log_lookup(&dol->dtl_data->dtld_transactions,
+			     &M0_BUF_INIT_PTR(dtx0_id), &rec_buf);
+	M0_ASSERT(ergo(rc != 0, rec == NULL));
+	M0_ASSERT(rc == 0);
 	m0_mutex_lock(&dol->dtl_lock);
 	M0_ASSERT(dtm0_log_invariant(dol));
 	dtm0_log_all_p_be_list_del(&dol->dtl_data->dtld_all_p, tx, rec);
@@ -510,11 +513,12 @@ M0_INTERNAL bool m0_dtm0_log_is_empty(struct m0_dtm0_log *dol)
 	bool result;
 
 	M0_PRE(dol != NULL);
-	/*m0_mutex_lock(&dol->dtl_lock);*/
+	m0_mutex_lock(&dol->dtl_lock);
 	M0_PRE(dol->dtl_data != NULL);
-	result = m0_btree_is_empty(&dol->dtl_data->dtld_transactions);
-	/*m0_mutex_unlock(&dol->dtl_lock);*/
-	return M0_RC(result);
+	result = m0_btree_is_empty(&dol->dtl_data->dtld_transactions) &&
+		dtm0_log_all_p_be_list_head(&dol->dtl_data->dtld_all_p) == NULL;
+	m0_mutex_unlock(&dol->dtl_lock);
+	return M0_RC(!!result);
 }
 
 #undef M0_TRACE_SUBSYSTEM
