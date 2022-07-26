@@ -196,7 +196,7 @@ static int cob_stob_check(struct m0_cm_cp *cp)
 	struct m0_fid              fid;
 	struct m0_sns_cm_file_ctx *fctx;
 	struct m0_fid             *pver;
-	struct m0_cob             *cob;
+	struct m0_cob             *cob = NULL;
 	int                        ret;
 
 	fctx = ag2snsag(cp->c_ag)->sag_fctx;
@@ -205,7 +205,7 @@ static int cob_stob_check(struct m0_cm_cp *cp)
 
 	ret = m0_io_cob_stob_create(&cp->c_fom, m0_sns_cm_cp2cdom(cp), &fid,
 				    pver, fctx->sf_attr.ca_lid, true, &cob);
-	if(cob != NULL)
+	if (cob != NULL)
 		m0_cob_put(cob);
 	return ret;
 }
