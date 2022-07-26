@@ -1433,7 +1433,7 @@ M0_INTERNAL int m0_rpc_conn_ha_timer_start(struct m0_rpc_conn *conn)
 		return M0_RC(0); /* there's no point to arm the timer */
 	if (m0_sm_timer_is_armed(&conn->c_ha_timer))
 		return M0_RC(0); /* Already started */
-	else
+	else if (conn->c_ha_timer.tr_timer.t_state != M0_TIMER_UNINIT)
 		m0_sm_timer_fini(&conn->c_ha_timer);
 	if (conn->c_rpc_machine->rm_stopping)
 		return M0_RC(0);
@@ -1448,10 +1448,12 @@ M0_INTERNAL int m0_rpc_conn_ha_timer_start(struct m0_rpc_conn *conn)
 
 M0_INTERNAL void m0_rpc_conn_ha_timer_stop(struct m0_rpc_conn *conn)
 {
+	M0_ENTRY("conn %p", conn);
 	M0_PRE(m0_rpc_machine_is_locked(conn->c_rpc_machine));
 	if (m0_sm_timer_is_armed(&conn->c_ha_timer)) {
 		M0_LOG(M0_DEBUG, "Cancelling HA timer; rpc conn=%p", conn);
 		m0_sm_timer_cancel(&conn->c_ha_timer);
+		m0_sm_timer_fini(&conn->c_ha_timer);
 	}
 }
 
