@@ -35,6 +35,12 @@
 #include "lib/string.h"              /* m0_streq */
 
 enum {
+	/*
+	 * TODO: DTM model assumes infinite timeouts. But this is too scary at
+	 * the moment, we cannot yet rely that infinite timeout will work
+	 * without issues in connect/disconnect case. These timeouts will be
+	 * adjusted/reworked when we work more on stabilising the DTM.
+	 */
 	DRLINK_CONNECT_TIMEOUT_SEC = 1,
 	DRLINK_DISCONN_TIMEOUT_SEC = DRLINK_CONNECT_TIMEOUT_SEC,
 };

@@ -123,6 +123,7 @@ static void test_confdb(void)
 	int                     j;
 	int                     hit;
 	int                     rc;
+	m0_bcount_t             limit;
 	struct {
 		const struct m0_fid *fid;
 		void (*check)(const struct m0_confx_obj *xobj);
@@ -217,6 +218,18 @@ static void test_confdb(void)
 	m0_free(dec->cx__objs);
 	m0_free(dec);
 	m0_confdb_fini(seg);
+	/** 
+	 * Delete all the btree nodes except root node before calling destroy.
+	 */
+	M0_SET0(&accum);
+	rc = m0_confdb_truncate_credit(seg, &tx, &accum, &limit);
+	M0_UT_ASSERT(rc == 0);
+	rc = conf_ut_be_tx_create(&tx, &ut_be, &accum);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_confdb_truncate(seg, &tx, limit);
+	M0_UT_ASSERT(rc == 0);
+	conf_ut_be_tx_fini(&tx);
+	/** Destroy the btree. */
 	M0_SET0(&accum);
 	m0_confdb_destroy_credit(seg, &accum);
 	rc = conf_ut_be_tx_create(&tx, &ut_be, &accum);

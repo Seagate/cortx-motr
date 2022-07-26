@@ -62,7 +62,7 @@ def processinput(argv):
     for opt, arg in opts:
         xl = xlate[opt]
         kw[xl[0]] = xl[1](arg)
-   
+
     tr = record.trace(**kw)
     rec = None;
     for line in fileinput.input([]):

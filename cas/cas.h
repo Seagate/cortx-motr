@@ -401,6 +401,16 @@ struct m0_cas_op {
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
+ * The structure to be passed in DTM0 log as a payload
+ */
+struct m0_cas_dtm0_log_payload  {
+	/** CAS op */
+	struct m0_cas_op cdg_cas_op;
+	/** CAS rpc fop/item opcode */
+	uint32_t         cdg_cas_opcode;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
+
+/**
  * CAS-GET, CAS-PUT, CAS-DEL and CAS-CUR reply fops.
  *
  * @note CAS-CUR reply may contain less records than requested.
@@ -471,6 +481,9 @@ M0_INTERNAL int m0_cas_fom_spawn(
 	struct m0_fop           *cas_fop,
 	void                   (*on_fom_complete)(struct m0_fom_thralldom *,
 						  struct m0_fom           *));
+M0_INTERNAL uint32_t m0_cas_svc_device_id_get(
+	const struct m0_reqh_service_type *stype,
+	const struct m0_reqh              *reqh);
 #else
 #define m0_cas_svc_init()
 #define m0_cas_svc_fini()

@@ -4,8 +4,6 @@ nobase_motr_include_HEADERS += \
                                be/alloc_internal.h  \
                                be/active_record.h   \
                                be/be.h              \
-                               be/btree.h           \
-                               be/btree_internal.h  \
 			       be/domain.h          \
 			       be/engine.h          \
                                be/extmap_internal.h \
@@ -45,7 +43,6 @@ nobase_motr_include_HEADERS += \
 motr_libmotr_la_SOURCES += be/alloc.c           \
                            be/active_record.c   \
 			   be/be.c              \
-			   be/btree.c           \
 			   be/domain.c          \
 			   be/engine.c          \
 			   be/extmap.c          \
@@ -82,8 +79,6 @@ nodist_motr_libmotr_la_SOURCES  +=                 \
 			   be/addb2_xc.c           \
 			   be/alloc_xc.c           \
 			   be/alloc_internal_xc.c  \
-			   be/btree_xc.c           \
-			   be/btree_internal_xc.c  \
 			   be/domain_xc.c          \
 			   be/extmap_internal_xc.c \
 			   be/extmap_xc.c          \
@@ -98,8 +93,6 @@ nodist_motr_libmotr_la_SOURCES  +=                 \
 XC_FILES += be/addb2_xc.h           \
             be/alloc_xc.h           \
             be/alloc_internal_xc.h  \
-            be/btree_xc.h           \
-            be/btree_internal_xc.h  \
             be/domain_xc.h          \
             be/extmap_internal_xc.h \
             be/extmap_xc.h          \

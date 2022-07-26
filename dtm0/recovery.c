@@ -574,6 +574,20 @@ Max: [* question *] How? Please also describe what is expected from HA.
 
    TODO: GC of FAILED processes and handling of clients restart.
 
+   UPD 6/2/2022 IvanT: Basic client eviction is implemented (see dtm0_evict()).
+   The logic is as follows.  Every persistent participant has a fom, which is
+   watching HA events from every other participant, including clients / volatile
+   participants.  When there is an HA event, indicating that client went to
+   TRANSIENT or FAILED, we begin eviction.  First we capture TX ID of the last
+   transaction in log at the moment.  Then we iterate over all log entries from
+   the beginning of the log up to and including this captured TX ID.  New
+   entries in log after this TX ID mean that client started again -- in that
+   case we don't need to act on new records, unless client fails again -- but in
+   that scenario, we will start another round of eviction and cover new entries.
+   For every record which has originated from the client in question, we iterate
+   over all participants in this transaction, and for every participant without
+   P-flag, we send a REDO message.
+
    @subsection DTM0BR-lspec-state State Specification
    <i>Mandatory.
    This section describes any formal state models used by the component,
@@ -737,55 +751,6 @@ Max: [* defect *] No mention of tests being done. Please clearly state when and
      to find this information.
 <<<---
  */
-
-/* XXX
-Implementation plan
--------------------
-
-Areas/responsibilities:
-- fom-groundwork (Ivan).
-- be-op-set-or (Max).
-- log-watcher (Ivan).
-- test-stubs (Ivan).
-- drlink-completion (vacancy).
-  A be op is needed to be DONE when drlink gets reply.
-- REDO2CAS-replay (Sergey).
-- EOL-notice (Ivan).
-- RECOVER-ED-ING-groundwork (Anatoliy).
-- all2all-integration-v3 (vacancy).
-  It will be needed only after P9 is ready for landing.
-- log-iter (vacancy).
-  Extend DTM0 log API to support iteration.
-- dtx-integration-v3 (Ivan).
-- recovery-stop-ha-polling-v2 (vacancy).
-  V2 should support a stop condition where it watcher for
-  HA states of the other participants.
-- versioned-cas (Ivan).
-
-Atomic patches for upstream:
-- P1 DTM0 log iterator.
-- P2 BE op set or.
-- P3 New HA states/events -- RECOVERED/RECOVERING.
-- P4 DTM0 log watcher.
-- P5 DTM0 log iterator.
-- P6 A dummy REDO FOM.
-- P7 REDO-fom-to-CAS-fom re-play.
-- P8 Recovery machine V1.
-- P9 Recovery machine V2.
-- P10 Recovery machine V3.
-- P11 Versioned CAS.
-
-Dependencies between patches:
-- P7 depends on P6.
-- P8 depends on P3.
-- P9 depends on P8, P1, P2, P5, P7
-- P10 depends on P9 and P11.
-
-Deliverables:
-- Recovery machine V1: unit-tested recovery machine with a small set of cases.
-- Recovery machine V2: integration-tested machine (m0crate, Hare).
-- Recovery machine V3: extended use-cases (failures during recovery and so on).
-*/
 
 
 
@@ -1045,7 +1010,7 @@ m0_dtm0_recovery_machine_start(struct m0_dtm0_recovery_machine *m)
 		recovery_machine_unlock(m);
 	}
 
-	if (ALL2ALL || M0_FI_ENABLED("in-dtm-st"))
+	if (ALL2ALL)
 		M0_LOG(M0_DEBUG, "ALL2ALL_STARTED");
 
 	return M0_RC(rc);
@@ -1067,8 +1032,7 @@ m0_dtm0_recovery_machine_stop(struct m0_dtm0_recovery_machine *m)
 		 */
 		m0_be_queue_end(&rf->rf_heq);
 		m0_be_queue_unlock(&rf->rf_heq);
-	}
-	m0_tlist_endfor;
+	} m0_tlist_endfor;
 
 	/*
 	 * This sm wait will release the sm lock before waiting if needed.
@@ -1099,12 +1063,10 @@ recovery_machine_local_id(const struct m0_dtm0_recovery_machine *m)
 
 static int recovery_machine_log_iter_next(struct m0_dtm0_recovery_machine *m,
 					  struct m0_be_dtm0_log_iter *iter,
-					  const struct m0_fid *tgt_svc,
-					  const struct m0_fid *origin_svc,
 					  struct m0_dtm0_log_rec *record)
 {
 	M0_PRE(m->rm_ops->log_iter_next != NULL);
-	return m->rm_ops->log_iter_next(m, iter, tgt_svc, origin_svc, record);
+	return m->rm_ops->log_iter_next(m, iter, record);
 }
 
 static int recovery_machine_log_iter_init(struct m0_dtm0_recovery_machine *m,
@@ -1122,15 +1084,29 @@ static void recovery_machine_log_iter_fini(struct m0_dtm0_recovery_machine *m,
 	m->rm_ops->log_iter_fini(m, iter);
 }
 
+static int recovery_machine_log_last_dtxid(struct m0_dtm0_recovery_machine *m,
+					   struct m0_dtm0_tid              *out)
+{
+	M0_PRE(m->rm_ops->log_last_dtxid != NULL);
+	return m->rm_ops->log_last_dtxid(m, out);
+}
+
+static int recovery_machine_dtxid_cmp(struct m0_dtm0_recovery_machine *m,
+				      struct m0_dtm0_tid              *left,
+				      struct m0_dtm0_tid              *right)
+{
+	M0_PRE(m->rm_ops->dtxid_cmp != NULL);
+	return m->rm_ops->dtxid_cmp(m, left, right);
+}
+
 static void recovery_machine_redo_post(struct m0_dtm0_recovery_machine *m,
 				       struct m0_fom                   *fom,
-				       const struct m0_fid *tgt_proc,
 				       const struct m0_fid *tgt_svc,
 				       struct dtm0_req_fop *redo,
 				       struct m0_be_op *op)
 {
 	M0_PRE(m->rm_ops->redo_post != NULL);
-	m->rm_ops->redo_post(m, fom, tgt_proc, tgt_svc, redo, op);
+	m->rm_ops->redo_post(m, fom, tgt_svc, redo, op);
 }
 
 static void recovery_machine_recovered(struct m0_dtm0_recovery_machine *m,
@@ -1140,6 +1116,13 @@ static void recovery_machine_recovered(struct m0_dtm0_recovery_machine *m,
 	M0_PRE(m->rm_ops->ha_event_post != NULL);
 	m->rm_ops->ha_event_post(m, tgt_proc, tgt_svc,
 				M0_CONF_HA_PROCESS_DTM_RECOVERED);
+}
+
+static void recovery_machine_evicted(struct m0_dtm0_recovery_machine *m,
+				     const struct m0_fid             *tgt_svc)
+{
+	M0_PRE(m->rm_ops->evicted != NULL);
+	m->rm_ops->evicted(m, tgt_svc);
 }
 
 static void recovery_machine_lock(struct m0_dtm0_recovery_machine *m)
@@ -1180,14 +1163,11 @@ static struct m0_sm_state_descr recovery_fom_states[] = {
 	},
 
 	/* intermediate states */
-#define _ST(name, allowed)            \
-	[name] = {                    \
-		.sd_name    = #name,  \
-		.sd_allowed = allowed \
-	}
-	_ST(RFS_WAITING,           M0_BITS(RFS_DONE,
-					   RFS_FAILED, RFS_WAITING)),
-#undef _ST
+	[RFS_WAITING] = {
+		.sd_name    = "RFS_WAITING",
+		.sd_allowed = M0_BITS(RFS_DONE,
+				      RFS_FAILED, RFS_WAITING),
+	},
 };
 
 const static struct m0_sm_conf recovery_fom_conf = {
@@ -1214,20 +1194,20 @@ M0_INTERNAL int m0_drm_domain_init(void)
 {
 	int         rc = 0;
 
-	if (!m0_sm_conf_is_initialized(&m0_drm_sm_conf)) {
-		m0_fom_type_init(&recovery_fom_type,
-				 M0_DTM0_RECOVERY_FOM_OPCODE,
-				 &recovery_fom_type_ops,
-				 &dtm0_service_type,
-				 &recovery_fom_conf);
+	M0_PRE(!m0_sm_conf_is_initialized(&m0_drm_sm_conf));
 
-		m0_sm_conf_init(&m0_drm_sm_conf);
-		rc = m0_sm_addb2_init(&m0_drm_sm_conf,
-				      M0_AVI_DRM_SM_STATE,
-				      M0_AVI_DRM_SM_COUNTER);
+	m0_fom_type_init(&recovery_fom_type,
+			 M0_DTM0_RECOVERY_FOM_OPCODE,
+			 &recovery_fom_type_ops,
+			 &dtm0_service_type,
+			 &recovery_fom_conf);
 
-		M0_POST(m0_sm_conf_is_initialized(&m0_drm_sm_conf));
-	}
+	m0_sm_conf_init(&m0_drm_sm_conf);
+	rc = m0_sm_addb2_init(&m0_drm_sm_conf,
+			      M0_AVI_DRM_SM_STATE,
+			      M0_AVI_DRM_SM_COUNTER);
+
+	M0_POST(m0_sm_conf_is_initialized(&m0_drm_sm_conf));
 
 	return M0_RC(rc);
 }
@@ -1279,6 +1259,22 @@ static void heq_post(struct recovery_fom *rf, enum m0_ha_obj_state state)
 	       FID_P(&rf->rf_tgt_svc),
 	       m0_ha_state2str(state));
 
+	/*
+	 * Recovery machine uses two kinds of queues: HEQ and EOLQ.  HEQ is HA
+	 * Events Queue, every recovery FOM has its own instance; it is used to
+	 * track HA events of a specific participant (tied to this given rfom).
+	 * EOLQ is EOL Queue, queue to track end-of-log events during recovery.
+	 * When we receive EOL from all participants -- we know recovery is
+	 * completed.  There is a nuance though.  If some remote participant
+	 * goes TRANSIENT/FAILED during recovery, we do not need to wait for EOL
+	 * from that side.  The easiest way to deliver this information to local
+	 * recovery FOM is to add an entry in EOLQ (since local RFOM already
+	 * 'listens' on that queue).  So that's what happens below.  heq_post()
+	 * is called when there is an HA event on some participant.  We add the
+	 * HA event itself in HEQ above, and then add it to EOLQ below.  Since
+	 * local recovery FOM is not expecting EOL from itself, we only do
+	 * eolq_post() if HA event does not come from local participant.
+	 */
 	if (!rf->rf_is_local)
 		eolq_post(rf->rf_m,
 			  &(struct eolq_item) {
@@ -1313,9 +1309,17 @@ static int recovery_fom_init(struct recovery_fom             *rf,
 
 	rc = m0_be_queue_init(&rf->rf_heq, &(struct m0_be_queue_cfg){
 		.bqc_q_size_max       = HEQ_MAX_LEN,
-		/* Conf-obj (1) and stop-and-wait-when-finalising (2) */
-		.bqc_producers_nr_max = 2, /* XXX */
-		.bqc_consumers_nr_max = 1, /* XXX */
+		/*
+		 * Two producers:
+		 * 1. Conf-obj HA state updates (heq_post()).
+		 * 2. Stop-and-wait-when-finalising
+		 *    (m0_dtm0_recovery_machine_stop()).
+		 */
+		.bqc_producers_nr_max = 2,
+		/*
+		 * Single consumer - recovery machine FOM (recovery_fom_coro()).
+		 */
+		.bqc_consumers_nr_max = 1,
 		.bqc_item_length      = sizeof(uint64_t),
 	});
 	if (rc != 0)
@@ -1324,8 +1328,12 @@ static int recovery_fom_init(struct recovery_fom             *rf,
 	if (is_local) {
 		rc = m0_be_queue_init(&rf->rf_eolq, &(struct m0_be_queue_cfg){
 				.bqc_q_size_max       = EOLQ_MAX_LEN,
-				.bqc_producers_nr_max = 2,   /* XXX */
-				.bqc_consumers_nr_max = 1,   /* XXX */
+				/*
+				 * Consumers and producers are the same as for
+				 * rf_heq above.
+				 */
+				.bqc_producers_nr_max = 2,
+				.bqc_consumers_nr_max = 1,
 				.bqc_item_length      = sizeof(struct eolq_item),
 		});
 		if (rc != 0) {
@@ -1335,8 +1343,17 @@ static int recovery_fom_init(struct recovery_fom             *rf,
 		M0_ASSERT(!rf->rf_eolq.bq_the_end);
 		m->rm_local_rfom = rf;
 
-		/* XXX */
+		/*
+		 * This is local recovery FOM.  We don't need to wait for EOL
+		 * from ourselves.
+		 */
 		rf->rf_last_known_eol = true;
+		/*
+		 * Local recovery FOM is responsible for accepting REDO
+		 * messages.  We're starting up, we know for sure that we will
+		 * go through RECOVERING phase, so we are defaulting to
+		 * M0_NC_DTM_RECOVERING.
+		 */
 		rf->rf_last_known_ha_state = M0_NC_DTM_RECOVERING;
 	}
 
@@ -1444,17 +1461,6 @@ recovery_fom_by_svc_find(struct m0_dtm0_recovery_machine *m,
 {
 	return m0_tl_find(rfom, rf, &m->rm_rfoms,
 			  m0_fid_eq(tgt_svc, &rf->rf_tgt_svc));
-}
-
-static struct recovery_fom *
-recovery_fom_by_svc_find_lock(struct m0_dtm0_recovery_machine *m,
-			      const struct m0_fid             *tgt_svc)
-{
-	struct recovery_fom *rf;
-	recovery_machine_lock(m);
-	rf = recovery_fom_by_svc_find(m, tgt_svc);
-	recovery_machine_unlock(m);
-	return rf;
 }
 
 static struct recovery_fom *
@@ -1662,19 +1668,67 @@ static void eolq_await(struct m0_fom *fom, struct eolq_item *out)
 	*out = F(got) ? F(item) : (struct eolq_item) { .ei_type = EIT_END };
 }
 
-static void restore(struct m0_fom *fom,
-		    enum m0_ha_obj_state *out, bool *eoq)
+static bool participated(const struct m0_dtm0_log_rec *record,
+			 const struct m0_fid          *svc)
+{
+	return m0_exists(i, record->dlr_txd.dtd_ps.dtp_nr,
+			 m0_fid_eq(&record->dlr_txd.dtd_ps.dtp_pa[i].p_fid,
+				   svc));
+}
+
+/**
+ * Restore missing transactions on remote participant.
+ *
+ * Implements part of recovery process.  Healthy ONLINE participant will iterate
+ * through the local DTM log and send all needed REDOs to a remote peer.
+ */
+static void dtm0_restore(struct m0_fom        *fom,
+			 enum m0_ha_obj_state *out,
+			 bool                 *eoq)
 {
 	struct recovery_fom   *rf = M0_AMB(rf, fom, rf_base);
 	struct m0_dtm0_log_rec record;
+	struct dtm0_req_fop    redo;
 	int                    rc = 0;
 
 	M0_CO_REENTER(CO(fom),
-		      struct dtm0_req_fop redo;
 		      struct m0_fid       initiator;
 		      struct m0_be_op     reply_op;
 		      bool                next;
+		      struct m0_dtm0_tid  last_dtx_id;
+		      bool                last_dtx_met;
 		      );
+
+	/*
+	 * Remember the last DTX ID before this remote service went to
+	 * RECOVERING.  Then replay the log up to this transaction and stop. We
+	 * do it becase remote participant is accepting PUT operations even
+	 * during recovery, so no need to send REDOs for them.
+	 *
+	 * FIXME: Race condition scenario: client sent a lot of CAS reqs, then
+	 * one of participants restarted.  Some of the requests are still "in
+	 * queue to be executed" in this m0d, i.e.  don't yet have log record.
+	 * If restore is called at this moment (i.e. motr/HA were fast enough to
+	 * get to recovery), these "in queue" transactions won't be replayed.
+	 *
+	 * FIXME: This approach is in any case not fully correct.  The very
+	 * basic not-handled scenario is: at the point when this function
+	 * starts, the client may not yet "know" that TRANSIENT participant
+	 * became RECOVERING, e.g. because HA event was not yet delivered, and
+	 * so client keeps working in "degraded" mode (i.e. it is still not
+	 * sending CAS requests to now RECOVERING client).  These transactions
+	 * that were sent in degraded mode must also be replayed, even though
+	 * they came after we started recovery.  But this above described
+	 * approach will not replay them.  Still this approach is better than
+	 * nothing -- it will at least allow to put an upper boundary on the
+	 * recovery process; without this fix, under high load, recovery will
+	 * never end (new entries will be continuously added to the end of the
+	 * log, and recovery machine will keep replaying them forever).
+	 */
+	M0_SET0(&F(last_dtx_id));
+	rc = recovery_machine_log_last_dtxid(rf->rf_m, &F(last_dtx_id));
+	M0_ASSERT(M0_IN(rc, (0, -ENOENT)));
+	F(last_dtx_met) = (rc == -ENOENT);
 
 	recovery_machine_log_iter_init(rf->rf_m, &rf->rf_log_iter);
 
@@ -1684,27 +1738,87 @@ static void restore(struct m0_fom *fom,
 	M0_SET0(&F(reply_op));
 	m0_be_op_init(&F(reply_op));
 
+	/*
+	 * last_dtx_met and next seem to have very close meaning, but they are
+	 * not the same.  last_dtx_met is "we have reached the last transaction
+	 * to be analyzed".  next is "we need at least one more iteration" (and
+	 * !next is "no more iterations; send EOL message").  The iteration
+	 * starts with last_dtx_met=false and next=true.  At the end,
+	 * last_dtx_met=true and next=false.  But just before the end, last
+	 * entry in the log may or may not need to be sent -- that is when we
+	 * need both flags to define what to do.
+	 */
 	do {
-		M0_SET0(&record);
-		rc = recovery_machine_log_iter_next(rf->rf_m, &rf->rf_log_iter,
-						    &rf->rf_tgt_svc, NULL,
-						    &record);
-		/* Any value except zero means that we should stop recovery. */
-		F(next) = rc == 0;
-		F(redo) = (struct dtm0_req_fop) {
+		if (F(last_dtx_met)) {
+			/*
+			 * Last iteration reached the RECOVERING mark in the
+			 * log, don't need to send REDOs past this mark.  But we
+			 * still need to send EOL flag (EOL message).
+			 */
+			F(next) = false;
+		} else {
+			do {
+				rc = recovery_machine_log_iter_next(
+						rf->rf_m, &rf->rf_log_iter,
+						&record);
+				/*
+				 * Any value except zero means that we should
+				 * stop recovery.
+				 *
+				 * XXX: handle cases when rc not in (0,
+				 * -ENOENT).
+				 */
+				M0_ASSERT(M0_IN(rc, (0, -ENOENT)));
+				F(next) = (rc == 0);
+				if (!F(next))
+					break;
+				rc = recovery_machine_dtxid_cmp(
+						rf->rf_m,
+						&record.dlr_txd.dtd_id,
+						&F(last_dtx_id));
+				F(last_dtx_met) = (rc == 0);
+				if (participated(&record, &rf->rf_tgt_svc))
+					break;
+				m0_dtm0_log_iter_rec_fini(&record);
+				if (F(last_dtx_met))
+					F(next) = false;
+			} while (!F(last_dtx_met));
+		}
+
+		/*
+		 * At this point, a record is either fully initialized and must
+		 * be sent, or is holding garbage from previous iterations and
+		 * F(next) is then set to false, so we will send EOL flag.  With
+		 * current implementation, EOL flags should be sent on a
+		 * separate message, which must not have any payload.
+		 */
+		redo = (struct dtm0_req_fop) {
 			.dtr_msg       = DTM_REDO,
 			.dtr_initiator = F(initiator),
-			.dtr_payload   = record.dlr_payload,
-			.dtr_txr       = record.dlr_txd,
-			.dtr_flags     = F(next) ? 0 : M0_BITS(M0_DMF_EOL),
 		};
+		if (F(next)) {
+			redo.dtr_payload   = record.dlr_payload;
+			redo.dtr_txr       = record.dlr_txd;
+		} else {
+			redo.dtr_flags     = M0_BITS(M0_DMF_EOL);
+		}
 
+		/*
+		 * TODO: there is extra memcpy happening here -- first copy done
+		 * in recovery_machine_log_iter_next (it clones the record),
+		 * second copy is done in recovery_machine_redo_post() below.
+		 * If this proves to be too inefficient, we can eliminate extra
+		 * copies.
+		 */
 		recovery_machine_redo_post(rf->rf_m, &rf->rf_base,
-					   &rf->rf_tgt_proc, &rf->rf_tgt_svc,
-					   &F(redo), &F(reply_op));
+					   &rf->rf_tgt_svc,
+					   &redo, &F(reply_op));
+
+		if (F(next))
+			m0_dtm0_log_iter_rec_fini(&record);
 
 		M0_LOG(M0_DEBUG, "out-redo: (m=%p) " REDO_F,
-		       rf->rf_m, REDO_P(&F(redo)));
+		       rf->rf_m, REDO_P(&redo));
 		M0_CO_YIELD_RC(CO(fom), m0_be_op_tick_ret(&F(reply_op),
 							  fom, RFS_WAITING));
 		m0_be_op_reset(&F(reply_op));
@@ -1715,6 +1829,169 @@ static void restore(struct m0_fom *fom,
 	recovery_machine_log_iter_fini(rf->rf_m, &rf->rf_log_iter);
 	M0_SET0(&rf->rf_log_iter);
 
+	M0_CO_FUN(CO(fom), heq_await(fom, out, eoq));
+}
+
+/**
+ * Restore missing transactions on remote participants when client terminates.
+ *
+ * Implements part of client eviction.  If client terminates abruptly, there is
+ * a possibility of the following scenario: DIX op is initiated and launched;
+ * some of CAS requests are sent successfully over RPC, but not all of them, and
+ * here client terminates.  This means some participants don't receive CAS
+ * request at all.  So GET will return different values depending on which m0d
+ * it lands on.  There is not self-healing mechanism for this condition.
+ *
+ * Proposed solution is -- every participant will replay all transactions from
+ * terminated client to all other participants which did not yet send
+ * corresponding Pmsg.
+ */
+static void dtm0_evict(struct m0_fom *fom,
+		       enum m0_ha_obj_state *out, bool *eoq)
+{
+	struct recovery_fom  *rf = M0_AMB(rf, fom, rf_base);
+	int                   rc = 0;
+	struct m0_dtm0_tx_pa *tx_pa;
+
+	M0_CO_REENTER(CO(fom),
+		      struct dtm0_req_fop redo;
+		      struct m0_fid       initiator;
+		      struct m0_be_op     reply_op;
+		      bool                next;
+		      struct m0_dtm0_tid  last_dtx_id;
+		      bool                last_dtx_met;
+		      int                 i;
+		      struct m0_dtm0_log_rec record;
+		      );
+
+	/* For now, we only do eviction for clients. */
+	if (!rf->rf_is_volatile) {
+		M0_LOG(M0_WARN, "Eviction is not supported for persistent "
+			        "DTM participants.");
+		goto end_no_callback;
+	}
+
+	M0_LOG(M0_DEBUG, "Starting eviction for rf = %p (rf_tgt_svc: " FID_F
+	       ")", rf, FID_P(&rf->rf_tgt_svc));
+
+	/*
+	 * Remember the last DTX ID before eviction started.  Then replay
+	 * the log up to this transaction and stop.  If for any reason client
+	 * starts again -- new transactions do not need replay.
+	 *
+	 * FIXME: Race condition scenario: client sent a lot of CAS reqs then
+	 * shut down.  Some of them are still "in queue to be executed" in this
+	 * m0d, i.e.  don't yet have log record.  If eviction is called at this
+	 * moment (i.e. HA was fast enough to report failure/transient before
+	 * every CAS was executed), these "in queue" transactions won't be
+	 * replayed.
+	 */
+	M0_SET0(&F(last_dtx_id));
+	rc = recovery_machine_log_last_dtxid(rf->rf_m, &F(last_dtx_id));
+	M0_ASSERT(M0_IN(rc, (0, -ENOENT)));
+	if (rc == -ENOENT) {
+		M0_LOG(M0_DEBUG, "Log is empty, nothing to do.");
+		goto end;
+	}
+
+	recovery_machine_log_iter_init(rf->rf_m, &rf->rf_log_iter);
+
+	/* XXX: race condition in the case where we are stopping the FOM. */
+	F(initiator) = recovery_fom_local(rf->rf_m)->rf_tgt_svc;
+
+	M0_SET0(&F(reply_op));
+	m0_be_op_init(&F(reply_op));
+
+	/*
+	 * last_dtx_met and next seem to have very close meaning, but they are
+	 * not the same.  last_dtx_met is "we have reached the last transaction
+	 * to be analyzed".  next is "we need at least one more iteration" (and
+	 * !next is "no more iterations; end the loop").  The iteration
+	 * starts with last_dtx_met=false and next=true.  At the end,
+	 * last_dtx_met=true and next=false.  But just before the end, last
+	 * entry in the log may or may not need to be sent -- that is when we
+	 * need both flags to define what to do.
+	 */
+
+	do {
+		/*
+		 * Search the log for next transaction to replay -- a next
+		 * record from the given client.
+		 */
+		do {
+			rc = recovery_machine_log_iter_next(
+					rf->rf_m, &rf->rf_log_iter, &F(record));
+			/*
+			 * Any value except zero means that we should stop
+			 * recovery.
+			 *
+			 * XXX: handle cases when rc not in (0, -ENOENT).
+			 */
+			M0_ASSERT(M0_IN(rc, (0, -ENOENT)));
+			F(next) = (rc == 0);
+			if (!F(next))
+				break;
+			rc = recovery_machine_dtxid_cmp(
+					rf->rf_m, &F(record).dlr_txd.dtd_id,
+					&F(last_dtx_id));
+			F(last_dtx_met) = (rc == 0);
+			/* Is this transaction coming from the given client? */
+			if (m0_fid_eq(&F(record).dlr_txd.dtd_id.dti_fid,
+				      &rf->rf_tgt_svc))
+				break;
+			m0_dtm0_log_iter_rec_fini(&F(record));
+			if (F(last_dtx_met))
+				F(next) = false;
+		} while (!F(last_dtx_met));
+
+		/*
+		 * Note -- there is no EOL concept for eviction, so (in contrast
+		 * with restore()) we simply break the loop when we don't have
+		 * any more records to send.
+		 */
+		if (!F(next))
+			break;
+
+		F(redo) = (struct dtm0_req_fop) {
+			.dtr_msg       = DTM_REDO,
+			.dtr_initiator = F(initiator),
+			.dtr_payload   = F(record).dlr_payload,
+			.dtr_txr       = F(record).dlr_txd,
+			.dtr_flags     = M0_BITS(M0_DMF_EVICTION),
+		};
+
+		for (F(i) = 0; F(i) < F(record).dlr_txd.dtd_ps.dtp_nr; F(i)++) {
+			tx_pa = &F(record).dlr_txd.dtd_ps.dtp_pa[F(i)];
+			M0_LOG(M0_DEBUG, "i=%d fid=" FID_F " state=%"PRIu32,
+			       F(i), FID_P(&tx_pa->p_fid), tx_pa->p_state);
+			if (tx_pa->p_state == M0_DTPS_PERSISTENT)
+				continue;
+			recovery_machine_redo_post(rf->rf_m, &rf->rf_base,
+						   &tx_pa->p_fid,
+						   &F(redo), &F(reply_op));
+			M0_LOG(M0_DEBUG, "out-redo: (m=%p) " REDO_F,
+			       rf->rf_m, REDO_P(&F(redo)));
+			M0_CO_YIELD_RC(CO(fom), m0_be_op_tick_ret(
+							&F(reply_op), fom,
+							RFS_WAITING));
+			m0_be_op_reset(&F(reply_op));
+		}
+
+		m0_dtm0_log_iter_rec_fini(&F(record));
+
+		if (F(last_dtx_met))
+			break;
+	} while (true);
+
+	m0_be_op_fini(&F(reply_op));
+
+	recovery_machine_log_iter_fini(rf->rf_m, &rf->rf_log_iter);
+	M0_SET0(&rf->rf_log_iter);
+
+end:
+	recovery_machine_evicted(rf->rf_m, &rf->rf_tgt_svc);
+end_no_callback:
+	M0_LOG(M0_DEBUG, "Finished eviction for rf = %p", rf);
 	M0_CO_FUN(CO(fom), heq_await(fom, out, eoq));
 }
 
@@ -1741,13 +2018,15 @@ static void remote_recovery_fom_coro(struct m0_fom *fom)
 
 		switch (F(state)) {
 		case M0_NC_DTM_RECOVERING:
-			F(action) = rf->rf_is_volatile ? heq_await : restore;
+			F(action) = rf->rf_is_volatile ||
+				    recovery_fom_local(rf->rf_m)->rf_is_volatile ?
+				    	heq_await : dtm0_restore;
 			break;
 		case M0_NC_FAILED:
-			if (ALL2ALL)
-				M0_LOG(M0_WARN, "Eviction is not supported.");
-			else
-				M0_IMPOSSIBLE("Eviction is not supported.");
+			/* XXX what to do with the FOM after eviction? */
+		case M0_NC_TRANSIENT:
+			F(action) = dtm0_evict;
+			break;
 		default:
 			F(action) = heq_await;
 			break;
@@ -1891,13 +2170,23 @@ static void local_recovery_fom_coro(struct m0_fom *fom)
 		recovery_machine_unlock(rf->rf_m);
 	}
 
+	/*
+	 * At this point we do not expect any more EOL messages, so we 'end'
+	 * and flush the queue to ensure it.
+	 */
 	M0_BE_QUEUE__FINISH(&rf->rf_eolq, typeof(F(item)));
 
 	/*
-	 * Emit "RECOVERED". It shall cause HA to tell us to transit from
-	 * RECOVERING to ONLINE.
+	 * When F(recovered) is true, we know we received all needed EOL
+	 * messages and have recovered everything.  If it is false -- at this
+	 * point, this can only mean that recovery machine is shutting down, and
+	 * there is nothing we need to do further.
 	 */
 	if (F(recovered)) {
+		/*
+		 * Emit "RECOVERED". It shall cause HA to tell us to transit
+		 * from RECOVERING to ONLINE.
+		 */
 		recovery_machine_recovered(rf->rf_m,
 					   &rf->rf_tgt_proc, &rf->rf_tgt_svc);
 
@@ -1911,6 +2200,11 @@ static void local_recovery_fom_coro(struct m0_fom *fom)
 	}
 
 out:
+	/*
+	 * This is not a duplication to the similar call above -- FINISH is
+	 * indempotent call, and we want to ensure that it's called on all paths
+	 * leading out of this function.
+	 */
 	M0_BE_QUEUE__FINISH(&rf->rf_eolq, typeof(F(item)));
 	m0_fom_phase_set(fom, RFS_DONE);
 }
@@ -1946,7 +2240,7 @@ m0_ut_remach_heq_post(struct m0_dtm0_recovery_machine *m,
 		      const struct m0_fid             *tgt_svc,
 		      enum m0_ha_obj_state             state)
 {
-	struct recovery_fom *rf = recovery_fom_by_svc_find_lock(m, tgt_svc);
+	struct recovery_fom *rf = recovery_fom_by_svc_find(m, tgt_svc);
 	M0_ASSERT_INFO(rf != NULL,
 		       "Trying to post HA event to a wrong service?");
 	heq_post(rf, state);
@@ -1985,12 +2279,10 @@ m0_dtm0_recovery_machine_redo_post(struct m0_dtm0_recovery_machine *m,
 
 	if (is_eol) {
 		M0_ASSERT_INFO(!is_eviction,
-			       "TODO: Eviction is not handled yet.");
+			       "EOL mmessage cannot have Eviction flag.");
 
 		rf = recovery_fom_local(m);
 		if (rf != NULL) {
-			M0_ASSERT_INFO(equi(is_eviction, !rf->rf_is_local),
-				       "Participant cannot evict itself.");
 			item = (struct eolq_item) {
 				.ei_type = EIT_EOL,
 				.ei_source = *initiator,
@@ -2031,49 +2323,62 @@ static void default_log_iter_fini(struct m0_dtm0_recovery_machine *m,
 	m0_be_dtm0_log_iter_fini(iter);
 }
 
-static bool participated(const struct m0_dtm0_log_rec *record,
-			 const struct m0_fid          *svc)
-{
-	return m0_exists(i, record->dlr_txd.dtd_ps.dtp_nr,
-			 m0_fid_eq(&record->dlr_txd.dtd_ps.dtp_pa[i].p_fid,
-				   svc));
-}
-
 static int default_log_iter_next(struct m0_dtm0_recovery_machine *m,
 				 struct m0_be_dtm0_log_iter      *iter,
-				 const struct m0_fid             *tgt_svc,
-				 const struct m0_fid             *origin_svc,
 				 struct m0_dtm0_log_rec          *record)
 {
 	struct m0_be_dtm0_log *log = m->rm_svc->dos_log;
 	int rc;
 
-	/* XXX: not supported yet */
-	M0_ASSERT(origin_svc == NULL);
-
 	m0_mutex_lock(&log->dl_lock);
-
-	/* Filter out records where tgt_svc is not a participant. */
-	do {
-		M0_SET0(record);
-		rc = m0_be_dtm0_log_iter_next(iter, record);
-		if (rc == 0) {
-			if (participated(record, tgt_svc))
-				break;
-			else
-				m0_dtm0_log_iter_rec_fini(record);
-		}
-	} while (rc == 0);
-
+	rc = m0_be_dtm0_log_iter_next(iter, record);
 	m0_mutex_unlock(&log->dl_lock);
 
 	/* XXX: error codes will be adjusted separately. */
 	switch (rc) {
 	case 0:
 		return 0;
+	case -ENOENT:
+		return rc;
 	default:
 		return M0_ERR(rc);
 	}
+}
+
+static int default_log_last_dtxid(struct m0_dtm0_recovery_machine *m,
+				  struct m0_dtm0_tid              *out)
+{
+	struct m0_be_dtm0_log *log = m->rm_svc->dos_log;
+	int                    rc;
+
+	m0_mutex_lock(&log->dl_lock);
+	rc = m0_be_dtm0_log_get_last_dtxid(log, out);
+	m0_mutex_unlock(&log->dl_lock);
+
+	return rc;
+}
+
+static int default_dtxid_cmp(struct m0_dtm0_recovery_machine *m,
+			     struct m0_dtm0_tid              *left,
+			     struct m0_dtm0_tid              *right)
+{
+	return m0_dtm0_tid_cmp(m->rm_svc->dos_log->dl_cs, left, right);
+}
+
+static void default_evicted(struct m0_dtm0_recovery_machine *m,
+			    const struct m0_fid             *tgt_svc)
+{
+	/*
+	 * Placeholder for now.  In future, this will send HA event "client X is
+	 * evicted".  HA will collect these messages from all servers, and
+	 * update config when eviction is fully completed.
+	 *
+	 * TODO: now it is implemented as "ops" callback.  It's needed for DTM
+	 * recovery UTs.  When HA event is implemented, the callback should be
+	 * removed from ops structure, and recovery_machine_evicted() should be
+	 * implemented the same way as recovery_machine_recovered() -- and UTs
+	 * must be updated accordingly.
+	 */
 }
 
 /*
@@ -2121,7 +2426,7 @@ static void default_ha_event_post(struct m0_dtm0_recovery_machine *m,
 	(void) tgt_proc;
 	(void) tgt_svc;
 
-	if (ALL2ALL || M0_FI_ENABLED("in-dtm-st")) {
+	if (ALL2ALL) {
 		M0_LOG(M0_DEBUG, "ALL2ALL_DTM_RECOVERED");
 	}
 
@@ -2136,7 +2441,6 @@ static void default_ha_event_post(struct m0_dtm0_recovery_machine *m,
 			       "have a reqh ctx.");
 		server_process_event(m0_cs_ctx_get(reqh), event);
 	} else {
-		/* XXX */
 		m0c = M0_AMB(m0c, reqh, m0c_reqh);
 		client_process_event(m0c, event);
 	}
@@ -2145,7 +2449,6 @@ static void default_ha_event_post(struct m0_dtm0_recovery_machine *m,
 
 static void default_redo_post(struct m0_dtm0_recovery_machine *m,
 			      struct m0_fom                   *fom,
-			      const struct m0_fid             *tgt_proc,
 			      const struct m0_fid             *tgt_svc,
 			      struct dtm0_req_fop             *redo,
 			      struct m0_be_op                 *op)
@@ -2167,8 +2470,12 @@ M0_INTERNAL const struct m0_dtm0_recovery_machine_ops
 	.log_iter_fini = default_log_iter_fini,
 	.log_iter_next = default_log_iter_next,
 
+	.log_last_dtxid = default_log_last_dtxid,
+	.dtxid_cmp      = default_dtxid_cmp,
+
 	.redo_post     = default_redo_post,
 	.ha_event_post = default_ha_event_post,
+	.evicted       = default_evicted,
 };
 
 #undef M0_TRACE_SUBSYSTEM

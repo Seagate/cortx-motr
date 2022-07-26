@@ -340,6 +340,8 @@ static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint32_t *depth,
 		if (rc < 0)
 			return M0_RC(rc);
 		children_nr[i] = level_info.psi_nr_objs;
+		if (children_nr[i] == 0)
+			return M0_ERR(-EINVAL);
 	}
 	/*
 	 * Total number of leaf nodes can be calculated by reducing elements of

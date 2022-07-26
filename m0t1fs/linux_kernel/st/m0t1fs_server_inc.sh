@@ -312,7 +312,7 @@ EOF
 		build_conf "$N" "$K" "$S" "$P" "$multiple_pools" | tee $DIR/conf.xc
 		common_opts="-D db -S stobs -A linuxstob:addb-stobs \
 			     -w $P -m $MAX_RPC_MSG_SIZE \
-			     -q $TM_MIN_RECV_QUEUE_LEN -N 100663296 -C 262144 -K 100663296 -k 262144"
+			     -q $TM_MIN_RECV_QUEUE_LEN -N 100663296 -C 307200 -K 100663296 -k 307200"
 
 		# mkfs for confd server
 		opts="$common_opts -T linux -e $XPRT:${CONFD_EP%:*:*}:$MKFS_PORTAL:1\

@@ -345,6 +345,14 @@ struct m0_reqh_context {
 
 	/** ADDB Record Max record size in bytes */
 	m0_bcount_t                  rc_addb_record_file_size;
+
+	/** Enable slow remapping of Btree's LRU List */
+	int64_t                      rc_enable_trickle_release;
+
+	/** Watermark values for Btree's LRU List */
+	int64_t                      rc_lru_wm_low;
+	int64_t                      rc_lru_wm_mid;
+	int64_t                      rc_lru_wm_high;
 };
 
 /**
@@ -470,7 +478,11 @@ struct m0_motr {
 };
 
 enum {
-	CS_MAX_EP_ADDR_LEN = 86 /* "lnet:" + M0_NET_LNET_XEP_ADDR_LEN */
+	/**
+	 * Increased to 300 to support long fqdn names of the type
+	 * <xprt>:<family>:<proto>:<fqdn/ip>@<port>
+	 * For eg - libfab:inet:tcp:cortx-data-0.cortx-data-headless.reallylongnamespace.svc.cluster.local@22002 */
+	CS_MAX_EP_ADDR_LEN = 300
 };
 M0_BASSERT(CS_MAX_EP_ADDR_LEN >= sizeof "lnet:" + M0_NET_LNET_XEP_ADDR_LEN);
 
