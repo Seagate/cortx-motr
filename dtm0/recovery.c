@@ -1045,7 +1045,7 @@ m0_dtm0_recovery_machine_start(struct m0_dtm0_recovery_machine *m)
 		recovery_machine_unlock(m);
 	}
 
-	if (ALL2ALL)
+	if (ALL2ALL || M0_FI_ENABLED("in-dtm-st"))
 		M0_LOG(M0_DEBUG, "ALL2ALL_STARTED");
 
 	return M0_RC(rc);
@@ -2121,7 +2121,7 @@ static void default_ha_event_post(struct m0_dtm0_recovery_machine *m,
 	(void) tgt_proc;
 	(void) tgt_svc;
 
-	if (ALL2ALL) {
+	if (ALL2ALL || M0_FI_ENABLED("in-dtm-st")) {
 		M0_LOG(M0_DEBUG, "ALL2ALL_DTM_RECOVERED");
 	}
 

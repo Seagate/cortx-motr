@@ -80,6 +80,9 @@ IOS_PVER2_EP="12345:33:904"
 IOS5_CMD=""       #IOS5 process commandline to spawn it again on Controller event.
 
 IOS4_CMD=""
+IOS3_CMD=""
+IOS3_FID=""
+IOS3_DIR=""
 
 # list of md server end points tmid in [800, 899)
 MDSEP=(

@@ -250,10 +250,95 @@ dtm_run_kv_ios()
 	return $rc
 }
 
+# param
+# (i)   trace_path Path to the trace file
+# (ii)  pattern    String to grep.
+# (iii) exp_cnt    Expected number of lines that match the pattern.
+expect_trace_lines()
+{
+    local trace_path="$1"
+    local pattern="$2"
+    local exp_cnt="$3"
+    local cnt
+    local cmd;
+
+    echo "expect trace: path=$trace_path, pattern=$pattern, exp_cnt=$exp_cnt"
+    cnt=$($M0_SRC_DIR/utils/trace/m0trace -i "$trace_path*" | grep -c "$pattern")
+    if [[ $cnt -ne $exp_cnt ]]; then
+        echo "Unexpected number of trace lines: $cnt != $exp_cnt"
+        return 1
+    fi
+
+    echo "Found"
+    return 0
+}
+
+expect_trace_lines_from_pid()
+{
+    local dir="$1"
+    local pid="$2"
+    local pattern="$3"
+    local exp_cnt="$4"
+    local path="$dir/m0trace.$pid."
+
+    if expect_trace_lines "$path" "$pattern" "$exp_cnt"; then
+        return 0;
+    fi
+
+    return 1;
+}
+
+wait_ios3_to_recover()
+{
+	local pid=$(pgrep -a m0d | grep $IOS3_FID | awk '{ print $1; }')
+
+	while ! expect_trace_lines_from_pid $IOS3_DIR $pid "ALL2ALL_DTM_RECOVERED" 1;
+	do
+		sleep 1;
+	done
+
+}
+
+restart_ios3()
+{
+	local rc
+	local pid=$(pgrep -a m0d | grep $IOS3_FID | awk '{ print $1; }')
+
+	echo "ios3: pid=$pid fid=$IOS3_FID"
+	echo "ios3: cmd=$IOS3_CMD"
+
+	echo "terminating ios3: pid=$pid"
+	kill -TERM $pid
+	sleep 4
+	ps -p $pid
+	rc=$?
+	echo $rc
+	if [ $rc == 0 ]; then
+		echo "ios3: pid=$pid is not terminated, killing it now"
+		kill -KILL $pid
+		sleep 2
+	fi
+	#dtm_run_kv_ios
+
+	local m0d_log=$IOS3_DIR/m0d.log
+	rm -rf $m0d_log
+	echo $IOS3_CMD
+	(eval "$IOS3_CMD") &
+
+	sleep 1
+	wait_ios3_to_recover
+}
 
 main()
 {
 	motr_dtm_st_pre
+	if [ $verbose == 1 ]; then
+		wait_ios3_to_recover
+		restart_ios3
+	else
+		wait_ios3_to_recover >/dev/null 2>&1
+		restart_ios3 >/dev/null 2>&1
+	fi
 	dtm_run_kv_ios
 	motr_dtm_st_post
 }

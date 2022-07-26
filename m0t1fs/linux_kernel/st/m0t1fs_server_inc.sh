@@ -459,6 +459,11 @@ EOF
 			local m0d_log=$DIR/m0d.log
 			touch "$m0d_log"
 			(eval "$cmd") &
+			if (($ios == 3)); then
+				IOS3_CMD=$cmd
+				IOS3_FID="$PROC_FID_CNTR:$i"
+				IOS3_DIR=$DIR
+			fi
 			IOS4_CMD=$cmd
 		done
 		if ((multiple_pools == 1)); then

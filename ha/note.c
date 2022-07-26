@@ -208,16 +208,17 @@ static const char *m0_ha_processevent2str(enum m0_conf_ha_process_event event)
 #undef S_CASE
 }
 
-static void ha_dtm_msg_send(const struct m0_ha_msg *msg,
+static void ha_dtm_msg_send(const struct m0_fid     fid,
 			    struct m0_ha_link      *hl,
 			    uint64_t state)
 {
-	struct m0_ha_note note = { .no_id = msg->hm_fid, .no_state = state };
+	struct m0_ha_note note = { .no_id = fid, .no_state = state };
 	struct m0_ha_nvec nvec = { .nv_nr = 1, .nv_note = &note };
 
-	M0_ENTRY( "fid="FID_F" state=%s",
-		  FID_P(&msg->hm_fid),
-		  m0_ha_state2str(state));
+	M0_ENTRY( "fid="FID_F" state=%s hl = %p ",
+		  FID_P(&fid),
+		  m0_ha_state2str(state),
+		  hl);
 	m0_ha_msg_nvec_send(&nvec, 0, false, M0_HA_NVEC_SET, hl);
 	M0_LEAVE();
 }
@@ -241,7 +242,7 @@ static void ha_dtm_msg_simulator(const struct m0_ha_msg *msg,
 
 			uint64_t event = data->u.hed_event_process.chp_event;
 			uint64_t state = M0_NC_NR;
-			M0_LOG(M0_ALWAYS,
+			M0_LOG(M0_DEBUG,
 			       "process fid="FID_F" event=%s, hl = %p ",
 			       FID_P(&msg->hm_fid),
 			       m0_ha_processevent2str(event), hl);
@@ -270,12 +271,32 @@ static void ha_dtm_msg_simulator(const struct m0_ha_msg *msg,
 				state = M0_NC_DTM_RECOVERING;
 			else if (event == M0_CONF_HA_PROCESS_DTM_RECOVERED)
 				state = M0_NC_ONLINE;
+			else if (event == M0_CONF_HA_PROCESS_STOPPED) {
+				for (i = 0; i < cur_hl; i++) {
+					/* find and remove db entry for
+					 * stopped/failed process */
+					if (m0_fid_eq(&msg->hm_fid,
+						      (const struct m0_fid *)
+						      &hl_db[i].ha_sim_fid)) {
+						if ((i + 1) < cur_hl)
+							memmove((void *)&hl_db[i],
+								(void *)&hl_db[i+1],
+								sizeof(struct m0_ha_sim_db) *
+								(cur_hl - (i + 1)));
+						cur_hl--;
+						break;
+
+					}
+				}
+				state = M0_NC_TRANSIENT;
+			}
 
 			if (state != M0_NC_NR) {
 				struct m0_confc       *confc;
 				struct m0_conf_cache  *cache;
 				struct m0_conf_obj    *obj;
 				struct m0_fid          rdtms_fid;
+				bool                   is_dtms_fid_valid = false;
 				int                    rc;
 
 				confc = m0_reqh2confc(hl->hln_cfg.hlc_reqh);
@@ -292,6 +313,7 @@ static void ha_dtm_msg_simulator(const struct m0_ha_msg *msg,
 								 M0_CST_DTM0,
 								 &rdtms_fid);
 				if (rc == 0) {
+					is_dtms_fid_valid = true;
 					m0_conf_cache_lock(cache);
 					obj = m0_conf_cache_lookup(cache,
 								   &rdtms_fid);
@@ -301,10 +323,16 @@ static void ha_dtm_msg_simulator(const struct m0_ha_msg *msg,
 					}
 					m0_conf_cache_unlock(cache);
 				}
-				for (i = 0; i < cur_hl; i++)
-					ha_dtm_msg_send(msg,
+				for (i = 0; i < cur_hl; i++) {
+					ha_dtm_msg_send(msg->hm_fid,
 							hl_db[i].ha_sim_link,
 							state);
+					if (is_dtms_fid_valid) {
+						ha_dtm_msg_send(rdtms_fid,
+								hl_db[i].ha_sim_link,
+								state);
+					}
+				}
 
 			}
 		}
