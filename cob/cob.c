@@ -1692,6 +1692,7 @@ M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 		return M0_RC(rc);
 	}
 
+	/* The result cob must be released by calling m0_cob_put(). */
 	*out = cob;
 	return M0_RC(rc);
 }

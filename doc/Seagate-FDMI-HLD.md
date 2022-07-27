@@ -78,29 +78,18 @@ Source in its turn refreshes its own subset of filters against the database. The
 FDMI consists of APIs implementing particular roles in accordance with FDMI use cases. The roles are:
 
 * Plug-in dock, responsible for:
-
   * Plug-in registration in FDMI instance
-
   * Filter registration in Mero Filter Database
-
   * Listening to notifications coming over RPC
-
   * Payload processing
-
-  * Self-diagnostic (TBD)
+  * Self-diagnostic (TBD)  
 
 * Source dock (FDMI service), responsible for:
-
   * Source registration
-
   * Retrieving/refreshing filter set for the source
-
   * Input data filtration
-
   * Deciding on and posting notifications to filter subscribers over Mero RPC
-
   * Deferred input data release
-
   * Self-diagnostic (TBD)
 
 ![image](./images/Image1.PNG)  
