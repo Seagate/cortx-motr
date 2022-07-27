@@ -1541,6 +1541,74 @@
    consult this table each time we create a new log record: if there were pmsgs
    for it already, don't add this log to the correspondent redo_lists[].
 
+   Case: find next min_nall_p
+	sdev fid, originator fid, timestamp
+
+
+   Case: min_nall_p array
+	Independent clocks o1 and o2.
+
+	o1,s1,s2,o2
+
+	s1: min_nall_p for o1 is @10.
+	s1 -> s2: Pmsg { o=o1, src=s1, dst=s2 ... min_nall_p=@10 }
+
+		what happens on s2?
+		min_nall_p[sdev][originator];
+		min_nall_p[local-sdev][*]; // owned by local dtm0 domain
+		min_nall_p[remote-sdev][*]; // is not owned by it
+
+		min_nall_p[size = nr of sdev][size = nr of originators];
+		min_nall_p[s1][o1] = @10;
+		ToMoveMaxAllP(o1):
+			min_nall_p_set = min_nall_p[*][o1];
+			if for all m in min_nall_p_set : m != 0 then
+				min_min_nall_p = min(min_nall_p_set)
+				if next(MaxAllP) < min_min_nall_p then
+					MaxAllP = next(MaxAllP)
+			fi
+
+		what happens on s1? how min_nall_p is updated?
+		s2 -> s1: Pmsg { o=o1, src=s2, dst=s1 ... min_nall_p=@5 }
+		local - s1, remote - s2, local - s3
+		tx1: o1, s1, s2, ...
+		tx2: o1, s3, s4, ...
+
+
+		on_pmsg(pmsg):
+			assert s1 is pmsg.dst
+			record = log.lookup(pmsg.id)
+			record.redo_list[pmsg.src].del()
+			if allp(record) and record.id ==
+				local_min_nall_p[pmsg.id.originator]:
+				local_min_nall_p[pmsg.id.originator] =
+					Next(?);
+				Next(?) is:
+				iter = record
+				while all(iter) or is not participant(iter, s1):
+					iter = next(iter)
+				return iter.timestamp
+
+		end
+		min_min_nall_p = ...
+		if ... then
+			min
+
+		min_nall_p[s1][o1];
+
+
+	s1: min_nall_p for o2 is @9.
+	s1 -> s2: Pmsg { o=o2, src=s1, dst=s2 ... min_nall_p=@9 }
+
+		what happens on s2?
+		min_nall_p[size = nr of sdev];
+		min_nall_p[s1] = @10 or @9???;
+		can we compare @10 and @9?;
+
+		...
+		min_nall_p[s1][o2] = @9;
+		min_nall_p[*][o2];
+
    */
 
 
