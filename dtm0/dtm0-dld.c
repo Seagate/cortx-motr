@@ -689,6 +689,7 @@
 	   dtx0_id;
 	   fid source; // sdev_fid
 	   fid destination; // sdev|service fid
+           u64 min_nallp;
    };
 
    struct redo_list_link {
@@ -718,44 +719,26 @@
        struct redo_list_links redo_links;
        //struct redo_list_link redo_links[MAX N+K+S - 1];
        //struct redo_ptrs redo_links[MAX N+K+S - 1];
-   };
-
-   // states:
-   //   REDO message is not here:
-   //      first incoming Pmsg -- create a new log record with empty REDO,
-   //                             msg.source is added to log_record.fids.
-   //      next incoming Pmsgs -- add msg.source to log_record.fids.
-   //   when REDO message finaly arrives:
-   //      take all non-zero fids from log_record.fids and ignore these
-   //      participants when we link the log_record to the
-   //      log_record.participants lists.
-   // for a local participant log record is added to the list when the operation
-   // is executed on the local participant.
-   // for a remote participant: TODO
+   } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
 
    struct dtm0_log_originator {
-	   fid;
-	   be_list records; // ordered by o.originator
-	   u64 o.BEGIN; // max received from originator
-	   u64 o.END;   // max received from originator
+	   fid originator;
+	   u64 o.BEGIN; // win start, max received from originator
+	   u64 o.END;   // win end, max received from originator
 
-	   //XXX
-	   sdev -> u64: max(allp) for sdev
+	   u64 max_allp; // value is the timestamp of max_allp txn
    };
 
    struct dtm0_log_sdev {
-	   fid;
-	   be_list current; // move items current -> redo when sdev leaves T state
-	   be_list redo;
-
-	   //XXX
-	   u64 max_allp;
+	   fid     sdev;
+	   be_list redo; // see rll_link
    };
 
    struct dtm0_log {
 	   btree tree(key=dtxid, value=log_record);
 	   be_list<dtm0_log_originator> originators;
 	   be_list<dtm0_log_sdev> sdevs;
+	   (originator, sdev) -> u64: min_nallp; // we get it from pmsgs
    };
 
    @endverbatim
