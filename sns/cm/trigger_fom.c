@@ -99,6 +99,8 @@ static struct m0_fop_type *sns_fop_type(uint32_t op)
 			&m0_sns_repair_abort_rep_fopt,
 		[M0_SNS_REBALANCE_ABORT_OPCODE] =
 			&m0_sns_rebalance_abort_rep_fopt,
+		[M0_SNS_DTREBALANCE_TRIGGER_OPCODE] =
+			&m0_sns_dtrebalance_trigger_rep_fopt,
 	};
 	M0_ASSERT(IS_IN_ARRAY(op, sns_fop_type));
 	return sns_fop_type[op];
@@ -146,9 +148,11 @@ static void sns_prepare(struct m0_fom *fom)
 	M0_PRE(scm != NULL);
 	M0_PRE(treq != NULL);
 	M0_PRE(M0_IN(treq->op, (CM_OP_REPAIR, CM_OP_REPAIR_RESUME,
-				CM_OP_REBALANCE, CM_OP_REBALANCE_RESUME)));
+				CM_OP_REBALANCE, CM_OP_REBALANCE_RESUME,
+				CM_OP_DTREBALANCE)));
 
-	if (M0_IN(treq->op, (CM_OP_REPAIR, CM_OP_REBALANCE))) {
+	if (M0_IN(treq->op, (CM_OP_REPAIR, CM_OP_REBALANCE,
+                             CM_OP_DTREBALANCE))) {
 		cm->cm_reset = true;
 		scm->sc_op = treq->op;
 	} else

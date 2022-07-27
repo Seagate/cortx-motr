@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2016-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,50 +20,27 @@
  */
 
 
-#pragma once
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
+#include "lib/memory.h"
+#include "lib/trace.h"
 
-#ifndef __MOTR_CM_REPREB_CM_H__
-#define __MOTR_CM_REPREB_CM_H__
+#include "sns/cm/cp.h"
 
 /**
- * @defgroup XXX
- *
+ * @addtogroup SNSCMCP
  * @{
  */
 
-/**
- * Operation that copy machine is carrying out.
- */
-enum m0_cm_op {
-	CM_OP_INVALID           = 0,
-	CM_OP_REPAIR,
-	CM_OP_REBALANCE,
-	CM_OP_REPAIR_QUIESCE,
-	CM_OP_REBALANCE_QUIESCE,
-	CM_OP_REPAIR_RESUME,
-	CM_OP_REBALANCE_RESUME,
-	CM_OP_REPAIR_STATUS,
-	CM_OP_REBALANCE_STATUS,
-	CM_OP_REPAIR_ABORT,
-	CM_OP_REBALANCE_ABORT,
-	CM_OP_DTREBALANCE
-};
+extern struct m0_fop_type m0_sns_dtrebalance_cpx_fopt;
+extern struct m0_fop_type m0_sns_dtrebalance_cpx_reply_fopt;
 
-/**
- * Repair/re-balance copy machine status
- */
-enum m0_cm_status {
-	CM_STATUS_INVALID = 0,
-	CM_STATUS_IDLE    = 1,
-	CM_STATUS_STARTED = 2,
-	CM_STATUS_FAILED  = 3,
-	CM_STATUS_PAUSED  = 4,
-	CM_STATUS_NR,
-};
+M0_INTERNAL int m0_sns_cm_dtrebalance_cp_send(struct m0_cm_cp *cp)
+{
+	return m0_sns_cm_cp_send(cp, &m0_sns_dtrebalance_cpx_fopt);
+}
 
-/** @} end of XXX group */
-#endif /* __MOTR_CM_REPREB_CM_H__ */
-
+/** @} SNSCMCP */
+#undef M0_TRACE_SUBSYSTEM
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
@@ -72,7 +49,4 @@ enum m0_cm_status {
  *  fill-column: 80
  *  scroll-step: 1
  *  End:
- */
-/*
- * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
  */

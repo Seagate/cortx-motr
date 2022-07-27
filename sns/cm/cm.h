@@ -110,6 +110,7 @@ enum m0_sns_cm_op {
 	SNS_REBALANCE_STATUS  = 1 << 6,
 	SNS_REPAIR_ABORT      = 1 << 7,
 	SNS_REBALANCE_ABORT   = 1 << 8,
+	SNS_DTREBALANCE       = 1 << 9,
 };
 
 /**
@@ -360,11 +361,17 @@ M0_INTERNAL void m0_sns_cm_repair_trigger_fop_fini(void);
 M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_init(void);
 M0_INTERNAL void m0_sns_cm_rebalance_trigger_fop_fini(void);
 
+M0_INTERNAL void m0_sns_cm_dtrebalance_trigger_fop_init(void);
+M0_INTERNAL void m0_sns_cm_dtrebalance_trigger_fop_fini(void);
+
 M0_INTERNAL void m0_sns_cm_repair_sw_onwire_fop_init(void);
 M0_INTERNAL void m0_sns_cm_repair_sw_onwire_fop_fini(void);
 
 M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_init(void);
 M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_fini(void);
+
+M0_INTERNAL void m0_sns_cm_dtrebalance_sw_onwire_fop_init(void);
+M0_INTERNAL void m0_sns_cm_dtrebalance_sw_onwire_fop_fini(void);
 
 M0_INTERNAL void m0_sns_cm_print_status(struct m0_sns_cm *scm);
 
