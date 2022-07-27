@@ -111,6 +111,38 @@ void m0_net_end_point_put(struct m0_net_end_point *ep)
 }
 M0_EXPORTED(m0_net_end_point_put);
 
+M0_INTERNAL int m0_net_end_point_lookup(struct m0_net_transfer_mc *tm, const char *addr,
+			   struct m0_net_end_point **epp)
+{
+	struct m0_net_domain *dom;
+	struct m0_net_end_point *net;
+	struct m0_net_ip_addr ip_addr;
+	struct m0_net_ip_addr net_addr;
+	bool                  found = false;
+
+	M0_PRE(tm != NULL && tm->ntm_state == M0_NET_TM_STARTED);
+	M0_PRE(epp != NULL);
+	dom = tm->ntm_dom;
+	M0_PRE(dom->nd_xprt != NULL);
+
+	m0_mutex_lock(&tm->ntm_mutex);
+	if (m0_net_ip_parse(addr, &ip_addr) != 0)
+		return -EINVAL;
+
+	m0_tl_for(m0_nep, &tm->ntm_end_points, net) {
+		if (m0_net_ip_parse(net->nep_addr, &net_addr) != 0)
+			return -EINVAL;
+		if (m0_net_ip_addr_eq(&ip_addr, &net_addr, true)) {
+			found = true;
+			break;
+		}
+	} m0_tl_endfor;
+
+	*epp = found ? net : NULL;
+	m0_mutex_unlock(&tm->ntm_mutex);
+	return 0;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of net group */

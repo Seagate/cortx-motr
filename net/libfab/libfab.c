@@ -912,16 +912,11 @@ static bool libfab_ep_find_by_str(const char *name,
 				  struct m0_fab__ep **ep)
 {
 	struct m0_net_end_point *net;
-	struct m0_net_ip_addr    addr;
 
 	net = m0_tl_find(m0_nep, net, &ntm->ntm_end_points,
 			 strcmp((libfab_ep(net))->fep_name.nia_p, name) == 0);
 
 	*ep = net != NULL ? libfab_ep(net) : NULL;
-
-	if (net == NULL && m0_net_ip_parse(name, &addr) == 0) {
-		return libfab_ep_find_by_num(&addr, ntm, ep);
-	}
 
 	return net != NULL;
 }
@@ -3454,6 +3449,7 @@ struct m0_net_xprt m0_net_libfab_xprt = {
 	.nx_name = "libfab",
 	.nx_ops  = &libfab_xprt_ops
 };
+
 M0_EXPORTED(m0_net_libfab_xprt);
 
 #else /* ENABLE_LIBFAB */

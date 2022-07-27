@@ -562,6 +562,13 @@ M0_INTERNAL void m0_net_end_point_get(struct m0_net_end_point *ep);
 void m0_net_end_point_put(struct m0_net_end_point *ep);
 
 /**
+ * Search if hostname already has a endpoint
+ */
+
+M0_INTERNAL int m0_net_end_point_lookup(struct m0_net_transfer_mc *tm, const char *addr,
+			   struct m0_net_end_point **epp);
+
+/**
     This enumeration describes the types of logical queues in a transfer
     machine.
 

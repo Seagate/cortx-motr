@@ -341,6 +341,7 @@ static int dtm0_process_rlink_reinit(struct dtm0_process *proc,
 {
 	struct m0_rpc_machine *mach = df->df_rfop->f_item.ri_rmachine;
 	const int max_in_flight = DTM0_MAX_RPCS_IN_FLIGHT;
+	struct m0_net_end_point *net = NULL;
 
 	if (!M0_IS0(&proc->dop_rlink)) {
 		m0_rpc_conn_sessions_cancel(&proc->dop_rlink.rlk_conn);
@@ -348,8 +349,12 @@ static int dtm0_process_rlink_reinit(struct dtm0_process *proc,
 		M0_SET0(&proc->dop_rlink);
 	}
 
+	if (m0_net_end_point_lookup(&mach->rm_tm, proc->dop_rep, &net) < 0)
+		return -EINVAL;
+
 	return m0_rpc_link_init(&proc->dop_rlink, mach, &proc->dop_rserv_fid,
-				proc->dop_rep, max_in_flight);
+				net == NULL ? proc->dop_rep : net->nep_addr,
+				max_in_flight);
 }
 
 static int dtm0_process_rlink_send(struct dtm0_process *proc,
