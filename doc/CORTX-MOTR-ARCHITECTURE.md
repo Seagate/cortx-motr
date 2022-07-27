@@ -16,23 +16,23 @@
 # What is CORTX?  
 +  CORTX core is a component of the new cloud software stack developed by Seagate
 +  CORTX provides basic functionality through its Motr client interface:
-+  object store
-+  key-value store
+  +  object store
+  +  key-value store
 +  The complete software stack also includes other components:
-+  S3 server
-+  pNFS server
-+  Provisioner
-+  RAS
-+  HA
-+  Administration and monitoring toolset  
+  +  S3 server
+  +  pNFS server
+  +  Provisioner
+  +  RAS
+  +  HA
+  +  Administration and monitoring toolset  
 
 ![image](./Images/2_What is_EOS.png)  
 
 +  Similar products:
-+  Ceph
-+  ActiveScale
-+  IBM/COS
-+  Scality  
+  +  Ceph
+  +  ActiveScale
+  +  IBM/COS
+  +  Scality  
 
 # How is CORTX Different?  
 +  Scalable

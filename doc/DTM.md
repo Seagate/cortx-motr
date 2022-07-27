@@ -25,4 +25,4 @@ It's not a coincidence that these issues of concurrency control and failure atom
 
 +  To achieve this atomicity property, DTM uses a well-known technique of Write-Ahead Logging (WAL): before executing an operation, a server puts into its FOL a record, describing this operation and distributed transaction the operation is a part of. On a restart, the server goes through the FOL and undoes or redoes the operations from it to achieve atomicity.  
 
-+  Evidently, the restart process described above needs some mechanism by which servers can agree which operations are to be restored and which are to be eliminated. Motr has two such mechanisms: redo-only recovery and redo-undo recovery.
++  Clearly, the restart process described above needs some mechanism by which servers can agree which operations are to be restored and which are to be eliminated. Motr has two such mechanisms: redo-only recovery and redo-undo recovery.
