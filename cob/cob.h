@@ -981,8 +981,8 @@ M0_INTERNAL int m0_cob_bc_iterator_get(struct m0_cob_bc_iterator *it);
  *
  * Similar logic applies to record buffer.
  *
- * @pre out_keys != NULL
- * @pre out_recs != NULL
+ * @pre   out_keys == NULL
+ * @pre   out_recs == NULL
  *
  * @param cdom      cob domain where the bytecount btree resides.
  * @param out_keys  out parameter buffer which gets populated by keys.
@@ -993,8 +993,8 @@ M0_INTERNAL int m0_cob_bc_iterator_get(struct m0_cob_bc_iterator *it);
  * @retval -errno   Other error.
  */
 M0_INTERNAL int m0_cob_bc_entries_dump(struct m0_cob_domain *cdom,
-				       struct m0_buf        *out_keys,
-				       struct m0_buf        *out_recs,
+				       struct m0_buf       **out_keys,
+				       struct m0_buf       **out_recs,
 				       uint32_t             *out_count);
 
 /**
