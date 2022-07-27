@@ -60,8 +60,7 @@ Usage: mcp [options] src dst
 
 In order to build:
 
- 1. [Build Motr](../../doc/Quick-Start-Guide.rst) first
-   (or install pre-built motr-devel package).
+ 1. [Build Motr](../../doc/Quick-Start-Guide.rst) first (or install pre-built motr-devel package).
  2. Install Go: `sudo yum install go`.
 
 Then run:
