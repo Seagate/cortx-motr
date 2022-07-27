@@ -1117,6 +1117,7 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 	m0_cob_oikey_make(&oikey, &cc.fco_cfid, 0);
 	rc = m0_cob_locate(ios->rios_cdom, &oikey, 0, &cob);
 	M0_UT_ASSERT(rc == 0);
+	m0_cob_put(cob);
 
 	wrep = m0_fop_data(fom->fo_rep_fop);
 	wrep->c_rep.rwr_rc = 0;
