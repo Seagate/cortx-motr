@@ -250,7 +250,8 @@ This document provides information on how to build motr from source and then run
         sudo losetup /dev/loop$i /var/motr/disk$i.img
     done
     ``` 
-    Check using `lsblk | grep loop` and make sure that you have loop devices listed.
+    Check using `lsblk | grep loop` and make sure that you have loop devices listed.  
+
 1. ### Start the cluster:
     Run this at the main node, the first node (hostname) listed at the CDF.
     ```sh

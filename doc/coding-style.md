@@ -231,13 +231,9 @@ try to adhere to some higher level idioms.
     achieve the required goal. When creating a macro take care to:
 
       - evaluate arguments only once,
-
       - type-check (see min_t() macro in the Linux kernel),
-
       - never affect control flow from a macro,
-
       - capitalize macro name,
-
       - properly parenthesize so that macro works in any context;
 
   * return code conventions follow linux: return 0 for success,
