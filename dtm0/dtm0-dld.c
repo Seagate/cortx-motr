@@ -689,7 +689,7 @@
 	   dtx0_id;
 	   fid source; // sdev_fid
 	   fid destination; // sdev|service fid
-           u64 min_nallp;
+     u64 min_nall_p;
    };
 
    struct redo_list_link {
@@ -702,43 +702,52 @@
        struct redo_list_link *rll_links;
    } M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc|be);
 
+   // Volatile, used by log to collect records for pmachine to send pmsgs.
+   // XXX: consider using be_queue, if it's easier
+   struct persistent_records {
+       // struct pmsg pr_pmsgs[participants_n];  // another variant to consider?
+       struct m0_dtx0_descriptor pr_rec;
+       fid                       pr_source_sdev;
+       u64                       pr_min_nall_p;
+       m0_list_link              pr_link;
+   };
+
    struct redo_ptrs {
        struct log_record *prev;
        struct log_record *next;
-   };
-
-   // Voletile, used by log to collect records for pmachine
-   struct persistent_records {
-       struct log_record *pr_rec;
-       m0_list_link       pr_link;
    };
 
    struct log_record {
        struct m0_dtm0_redo redo;
        //be_list_link allp; ?? for the pruner ready to cleanup
        struct redo_list_links redo_links;
-       //struct redo_list_link redo_links[MAX N+K+S - 1];
        //struct redo_ptrs redo_links[MAX N+K+S - 1];
    } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
 
    struct dtm0_log_originator {
 	   fid originator;
-	   u64 o.BEGIN; // win start, max received from originator
-	   u64 o.END;   // win end, max received from originator
+
+     // window rcvd from the originator
+	   u64 o.BEGIN; // max value received from originator
+	   u64 o.END;   // max value received from originator
 
 	   u64 max_allp; // value is the timestamp of max_allp txn
+
+     u64 local_min_nall_p; // volatile
+
+     // Volatile hashmap to store min_nall_p values from pmsgs
+     u64 min_nall_p[sdev];
    };
 
    struct dtm0_log_sdev {
-	   fid     sdev;
 	   be_list redo; // see rll_link
    };
 
    struct dtm0_log {
-	   btree tree(key=dtxid, value=log_record);
-	   be_list<dtm0_log_originator> originators;
-	   be_list<dtm0_log_sdev> sdevs;
-	   (originator, sdev) -> u64: min_nallp; // we get it from pmsgs
+	   btree records(key=dtxid, value=log_record);
+	   btree originators(key=o_fid, value=dtm0_log_originator);
+	   btree redo_lists(key=sdev, value=dtm0_log_sdev);
+     m0_tlist persistent_records; // see pr_link
    };
 
    @endverbatim
