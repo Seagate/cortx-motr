@@ -49,11 +49,11 @@ main()
 
 	read line
 	CONSOLE_SSH=$(echo "$line" | awk "{print \$1}")
-	CONSOLE_CMD="$(echo $line | cmd_get)"
+	CONSOLE_CMD="$(echo "$line" | cmd_get)"
 	while read line; do
 		node_ssh=$(echo "$line" | awk "{print \$1}")
 		node_space=$(echo "$line" | awk "{print \$2}")
-		node_cmd="$(echo $line | cmd_get)"
+		node_cmd="$(echo "$line" | cmd_get)"
 		node_set $NODES_NR "ssh" "$node_ssh"
 		node_set $NODES_NR "space" "$node_space"
 		node_set $NODES_NR "cmd" "$node_cmd"
@@ -96,7 +96,7 @@ for_each_node()
 	local func="$1"
 	shift 1
 	for i in $(seq 0 $(($NODES_NR - 1))); do
-		$func $i $@
+		$func "$i" "$@"
 	done
 }
 
@@ -135,31 +135,31 @@ host_post()
 
 node_host_pre()
 {
-	host_pre "$(node_get $1 ssh)"
+	host_pre "$(node_get "$1" ssh)"
 }
 
 node_host_post()
 {
-	host_post "$(node_get $1 ssh)"
+	host_post "$(node_get "$1" ssh)"
 }
 
 node_kernel_pre()
 {
-	local ssh_credentials="$(node_get $1 ssh)"
-	local module="$(node_get $1 cmd)"
+	local ssh_credentials="$(node_get "$1" ssh)"
+	local module="$(node_get "$1" cmd)"
 	ssh_sudo "$ssh_credentials" insmod "$module"
 }
 
 node_kernel_post()
 {
-	local ssh_credentials="$(node_get $1 ssh)"
+	local ssh_credentials="$(node_get "$1" ssh)"
 	ssh_sudo "$ssh_credentials" rmmod m0nettestd
 }
 
 node_user_pre()
 {
-	local ssh_credentials="$(node_get $1 ssh)"
-	local cmd="$(node_get $1 cmd)"
+	local ssh_credentials="$(node_get "$1" ssh)"
+	local cmd="$(node_get "$1" cmd)"
 	ssh_sudo "$ssh_credentials" "$cmd" &
 }
 
@@ -170,12 +170,12 @@ node_user_post()
 
 node_pre()
 {
-	node_$(node_get $1 space)_pre "$@"
+	node_$(node_get "$1" space)_pre "$@"
 }
 
 node_post()
 {
-	node_$(node_get $1 space)_post "$@"
+	node_$(node_get "$1" space)_post "$@"
 }
 
 main "$@"
