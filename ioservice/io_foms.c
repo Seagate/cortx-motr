@@ -2357,6 +2357,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 					      m0_fom_tx(fom));
 			if (bc_rc != 0)
 				M0_ERR_INFO(bc_rc, "Failed to update cob_size");
+			m0_cob_put(cob);
 		}
 	}
 	/* Set operation status in reply fop if FOM ends.*/

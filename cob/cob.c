@@ -469,8 +469,8 @@ M0_INTERNAL void m0_cob_bc_iterator_fini(struct m0_cob_bc_iterator *it)
 }
 
 M0_INTERNAL int m0_cob_bc_entries_dump(struct m0_cob_domain *cdom,
-				       struct m0_buf       **out_keys,
-				       struct m0_buf       **out_recs,
+				       struct m0_buf        *out_keys,
+				       struct m0_buf        *out_recs,
 				       uint32_t             *out_count)
 {
 	struct m0_cob_bc_iterator it;
@@ -482,8 +482,8 @@ M0_INTERNAL int m0_cob_bc_entries_dump(struct m0_cob_domain *cdom,
 
 	M0_ENTRY();
 
-	M0_PRE(*out_keys == NULL);
-	M0_PRE(*out_recs == NULL);
+	M0_PRE(out_keys != NULL);
+	M0_PRE(out_recs != NULL);
 
 	if (cdom->cd_bytecount == NULL)
 		return M0_ERR(-ENOENT);
@@ -499,33 +499,23 @@ M0_INTERNAL int m0_cob_bc_entries_dump(struct m0_cob_domain *cdom,
 
 	M0_LOG(M0_DEBUG, "Found %" PRIu32 " entries in btree", *out_count);
 
-	M0_ALLOC_PTR(*out_keys);
-	if (*out_keys == NULL)
-		return M0_ERR(-ENOMEM);
-	M0_ALLOC_PTR(*out_recs);
-	if (*out_recs == NULL) {
-		m0_free(*out_keys);
-		return M0_ERR(-ENOMEM);
-	}
-
-	rc = m0_buf_alloc(*out_keys, sizeof(struct m0_cob_bckey) *
+	rc = m0_buf_alloc(out_keys, sizeof(struct m0_cob_bckey) *
 			 (*out_count));
 	if (rc != 0) {
-		m0_free(*out_keys);
-		m0_free(*out_recs);
+		m0_btree_cursor_fini(&it.ci_cursor);
 		return M0_ERR(rc);
 	}
-	rc = m0_buf_alloc(*out_recs, sizeof(struct m0_cob_bcrec) *
+	
+	rc = m0_buf_alloc(out_recs, sizeof(struct m0_cob_bcrec) *
 			 (*out_count));
 	if (rc != 0) {
-		m0_buf_free(*out_keys);
-		m0_free(*out_keys);
-		m0_free(*out_recs);
+		m0_buf_free(out_keys);
+		m0_btree_cursor_fini(&it.ci_cursor);
 		return M0_ERR(rc);
 	}
 
-	key_cursor = (struct m0_cob_bckey *)(*out_keys)->b_addr;
-	rec_cursor = (struct m0_cob_bcrec *)(*out_recs)->b_addr;
+	key_cursor = (struct m0_cob_bckey *)out_keys->b_addr;
+	rec_cursor = (struct m0_cob_bcrec *)out_recs->b_addr;
 
 	rc = m0_btree_cursor_first(&it.ci_cursor);
 
@@ -1702,6 +1692,7 @@ M0_INTERNAL int m0_cob_locate(struct m0_cob_domain *dom,
 		return M0_RC(rc);
 	}
 
+	/* The result cob must be released by calling m0_cob_put(). */
 	*out = cob;
 	return M0_RC(rc);
 }
