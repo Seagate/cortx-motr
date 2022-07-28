@@ -44,7 +44,7 @@
 #include "cob/cob.h"
 
 #include "be/domain.h"
-#include "btree/btree.h"
+#include "be/btree.h"
 #include "be/seg0.h"
 #include "be/tx.h"
 

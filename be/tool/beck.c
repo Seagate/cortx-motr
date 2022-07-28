@@ -57,7 +57,7 @@
 #include "format/format.h"
 #include "format/format_xc.h"
 #include "balloc/balloc.h"    /* M0_BALLOC_GROUP_DESC_FORMAT_VERSION */
-#include "btree/btree.h"
+#include "be/btree.h"
 #include "be/list.h"
 #include "be/seg_internal.h"
 #include "be/op.h"            /* m0_be_op_active */
