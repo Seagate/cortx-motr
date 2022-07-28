@@ -318,6 +318,7 @@ M0_INTERNAL void m0_dtm0_pruner_mod_init(void)
 
 M0_INTERNAL void m0_dtm0_pruner_mod_fini(void)
 {
+	m0_sm_conf_fini(&pruner_fom_sm_conf);
 }
 #undef M0_TRACE_SUBSYSTEM
 
