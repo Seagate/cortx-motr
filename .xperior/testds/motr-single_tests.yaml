@@ -490,7 +490,7 @@ Tests:
   - id       : 37protocol
     script   : 'm0 run-st 37protocol'
     dir      : src/scripts
-    executor : Xperior::Executor::Skip
+    executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/root/sandbox.st-37protocol
     groupname: 01motr-single-node
     polltime : 30
