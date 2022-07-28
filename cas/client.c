@@ -1174,7 +1174,7 @@ static void cas_req_replied_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		 */
 		suppress_err_msg = !req->ccr_is_meta &&
 			req_fop_type == &cas_cur_fopt && rc == -ENOENT;
-		cas_req_failure(req, suppress_err_msg ? rc : M0_ERR(rc));
+		cas_req_failure(req, suppress_err_msg ? rc : M0_RC(rc));
 	}
 }
 
