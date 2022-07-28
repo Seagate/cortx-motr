@@ -708,12 +708,14 @@ M0_INTERNAL int m0_cob_lookup(struct m0_cob_domain *dom,
  * Create a new cob and populate it with the contents of the
  * a record; i.e. the filename. This also lookups for all attributes,
  * that is, fab, omg, etc., according to @need flags.
+ * 
+ * Note : If this function returns success, the returned cob must be released
+ *        by calling m0_cob_put().
  *
  * @param dom   cob domain to use
  * @param oikey oikey (fid) to lookup
  * @param flags flags specifying what parts of cob to populate
  * @param out   resulting cob is store here
- * @param tx    db transaction to be used
  *
  * @see m0_cob_lookup
  */
@@ -979,8 +981,8 @@ M0_INTERNAL int m0_cob_bc_iterator_get(struct m0_cob_bc_iterator *it);
  *
  * Similar logic applies to record buffer.
  *
- * @pre   out_keys == NULL
- * @pre   out_recs == NULL
+ * @pre out_keys != NULL
+ * @pre out_recs != NULL
  *
  * @param cdom      cob domain where the bytecount btree resides.
  * @param out_keys  out parameter buffer which gets populated by keys.
@@ -991,8 +993,8 @@ M0_INTERNAL int m0_cob_bc_iterator_get(struct m0_cob_bc_iterator *it);
  * @retval -errno   Other error.
  */
 M0_INTERNAL int m0_cob_bc_entries_dump(struct m0_cob_domain *cdom,
-				       struct m0_buf       **out_keys,
-				       struct m0_buf       **out_recs,
+				       struct m0_buf        *out_keys,
+				       struct m0_buf        *out_recs,
 				       uint32_t             *out_count);
 
 /**

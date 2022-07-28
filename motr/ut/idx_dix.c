@@ -29,6 +29,7 @@
 #include "ut/ut.h"
 #include "ut/misc.h"                /* M0_UT_CONF_PROFILE */
 #include "rpc/rpclib.h"             /* m0_rpc_server_ctx */
+#include "rpc/rpc_opcodes.h"
 #include "fid/fid.h"
 #include "motr/client.h"
 #include "motr/client_internal.h"
@@ -314,7 +315,7 @@ static void ut_dix_namei_ops(bool dist, uint32_t flags)
 	int                  rc;
 	struct m0_op_common *oc;
 	struct m0_op_idx    *oi;
-	
+
 	idx_dix_ut_init();
 	m0_container_init(&realm, NULL, &M0_UBER_REALM, ut_m0c);
 	general_ifid_fill(&ifid, dist);
@@ -1101,6 +1102,10 @@ static void dtm0_ut_cas_op_prepare(const struct m0_fid    *cfid,
 
 	rec->cr_key = at_buf_key;
 	rec->cr_val = at_buf_val;
+	if (val == NULL) {
+		rec->cr_val.ab_type = M0_RPC_AT_EMPTY;
+		rec->cr_val.u.ab_buf = M0_BUF_INIT0;
+	}
 
 	op->cg_id.ci_layout.dl_type = DIX_LTYPE_DESCR;
 	rc = m0_dix_ldesc_init(&op->cg_id.ci_layout.u.dl_desc,
@@ -1119,20 +1124,21 @@ static void dtm0_ut_cas_op_prepare(const struct m0_fid    *cfid,
 }
 
 static void dtm0_ut_send_redo(const struct m0_fid *ifid, uint32_t sdev_id,
-			      uint64_t *key, uint64_t *val)
+			      uint64_t *key, uint64_t *val, uint32_t opcode)
 {
-	int                     rc;
-	struct dtm0_req_fop     req = { .dtr_msg = DTM_REDO };
-	struct m0_dtm0_tx_desc  txr = {};
-	struct m0_dtm0_clk_src  dcs;
-	struct m0_dtm0_ts       now;
-	struct m0_dtm0_service *dtm0 = ut_m0c->m0c_dtms;
-	struct m0_buf           payload;
-	struct m0_cas_op        cas_op = {};
-	struct m0_cas_rec       cas_rec = {};
-	struct m0_fid           srv_dtm0_fid;
-	struct m0_fid           srv_proc_fid;
-	struct m0_fid           cctg_fid;
+	int                            rc;
+	struct dtm0_req_fop            req = { .dtr_msg = DTM_REDO };
+	struct m0_dtm0_tx_desc         txr = {};
+	struct m0_dtm0_clk_src         dcs;
+	struct m0_dtm0_ts              now;
+	struct m0_dtm0_service        *dtm0 = ut_m0c->m0c_dtms;
+	struct m0_buf                  payload;
+	struct m0_cas_op               cas_op = {};
+	struct m0_cas_rec              cas_rec = {};
+	struct m0_fid                  srv_dtm0_fid;
+	struct m0_fid                  srv_proc_fid;
+	struct m0_fid                  cctg_fid;
+	struct m0_cas_dtm0_log_payload dtm_payload;
 	/*
 	 * FIXME: this zeroed fom is added by DTM0 team mates' request
 	 * to make the merge easier as there is a massive parallel work.
@@ -1163,8 +1169,10 @@ static void dtm0_ut_send_redo(const struct m0_fid *ifid, uint32_t sdev_id,
 	m0_dix_fid_convert_dix2cctg(ifid, &cctg_fid, sdev_id);
 
 	dtm0_ut_cas_op_prepare(&cctg_fid, &cas_op, &cas_rec, key, val, &txr);
-
-	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, &cas_op),
+	dtm_payload.cdg_cas_op = cas_op;
+	dtm_payload.cdg_cas_opcode = opcode;
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_dtm0_log_payload_xc,
+						   &dtm_payload),
 				     &payload.b_addr, &payload.b_nob);
 	M0_UT_ASSERT(rc == 0);
 
@@ -1183,7 +1191,7 @@ static void dtm0_ut_send_redo(const struct m0_fid *ifid, uint32_t sdev_id,
 	M0_UT_ASSERT(rc == 0);
 }
 
-static void dtm0_ut_read_and_check(uint64_t key, uint64_t val)
+static void dtm0_ut_read_and_check(uint64_t key, uint64_t val, uint32_t opcode)
 {
 	struct m0_idx      *idx = &duc.duc_idx;
 	struct m0_op       *op = NULL;
@@ -1202,11 +1210,16 @@ static void dtm0_ut_read_and_check(uint64_t key, uint64_t val)
 	m0_op_launch(&op, 1);
 	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(rcs[0] == 0);
-	M0_UT_ASSERT(vals.ov_vec.v_nr == 1);
-	M0_UT_ASSERT(vals.ov_vec.v_count[0] == sizeof(val));
-	M0_UT_ASSERT(vals.ov_buf[0] != NULL);
-	M0_UT_ASSERT(*(uint64_t *)vals.ov_buf[0] == val);
+	if (opcode == M0_CAS_PUT_FOP_OPCODE) {
+		M0_UT_ASSERT(rcs[0] == 0);
+		M0_UT_ASSERT(vals.ov_vec.v_nr == 1);
+		M0_UT_ASSERT(vals.ov_vec.v_count[0] == sizeof(val));
+		M0_UT_ASSERT(vals.ov_buf[0] != NULL);
+		M0_UT_ASSERT(*(uint64_t *)vals.ov_buf[0] == val);
+	}
+	else if (opcode == M0_CAS_DEL_FOP_OPCODE) {
+		 M0_UT_ASSERT(rcs[0] == -ENOENT);
+	}
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&vals);
 	m0_op_fini(op);
@@ -1277,14 +1290,26 @@ static void st_dtm0_r_common(uint32_t sdev_id)
 
 	idx_setup();
 	exec_one_by_one(1, M0_IC_PUT);
-	dtm0_ut_send_redo(&duc.duc_ifid, sdev_id, &key, &val);
+	dtm0_ut_send_redo(&duc.duc_ifid, sdev_id, &key, &val,
+			  M0_CAS_PUT_FOP_OPCODE);
 
 	/* XXX dirty hack, but now we don't have completion notification */
 	rem = 2ULL * M0_TIME_ONE_SECOND;
         while (rem != 0)
                 m0_nanosleep(rem, &rem);
 
-	dtm0_ut_read_and_check(key, val);
+	dtm0_ut_read_and_check(key, val, M0_CAS_PUT_FOP_OPCODE);
+
+	exec_one_by_one(1, M0_IC_DEL);
+	dtm0_ut_send_redo(&duc.duc_ifid, sdev_id, &key, NULL,
+			  M0_CAS_DEL_FOP_OPCODE);
+
+	/* XXX dirty hack, but now we don't have completion notification */
+	rem = 2ULL * M0_TIME_ONE_SECOND;
+        while (rem != 0)
+                m0_nanosleep(rem, &rem);
+
+	dtm0_ut_read_and_check(key, val, M0_CAS_DEL_FOP_OPCODE);
 	idx_teardown();
 }
 
