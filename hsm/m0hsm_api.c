@@ -113,7 +113,7 @@ static int read_params(FILE *in, struct param *p, int max_params)
                  */
 		if (sscanf(s, " %128[#\n\r]", p->name))
 			continue; /* skip emty line or comment */
-		if (sscanf(s, " %[a-z_A-Z0-9] = %128[^#\n\r]",
+		if (sscanf(s, " %128[a-z_A-Z0-9] = %128[^#\n\r]",
 		           p->name, p->value) < 2) {
 			ERROR("m0hsm: %s: error at line %d: %s\n", __func__,
 			      ln, s);
