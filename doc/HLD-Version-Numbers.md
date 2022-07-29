@@ -13,7 +13,7 @@ A version number is stored together with the file system state whose version it 
 
 ## Definitions  
 See the Glossary for general M0 definitions and HLD of FOL for the definitions of file system operation, update, and lsn. The following additional definitions are required:
-- For the present design, it is assumed that a file system update acts on units (r.dtx.units). For example, a typical meta-data update acts on one or more "inodes" and a typical data update acts on inodes and data blocks. Inodes, data blocks, directory entries, etc. are all examples of units. It is further assumed that units involved in an update are unambiguously identified (r.dtx.units.identify) and that a complete file system state is a disjoint union of states comprising units. (Of course, there are consistent relationships between units, e.g., the inode nlink counter must be consistent with the contents of directories in the name-space).  
+- For the present design, it is assumed that a file system update acts on units (r.dtx.units). For example, a typical meta-data update acts on one or more "inodes" and a typical data update acts on inodes and data blocks. Inodes, data blocks, directory entries, etc. are all examples of units. It is further assumed that units involved in an update are unambiguously identified (r.dtx.units.identify) and that a complete file system state is a disjoint union of states comprising units. (there are consistent relationships between units, e.g., the inode nlink counter must be consistent with the contents of directories in the name-space).  
 - It is guaranteed that operations (updates and queries) against a given unit are serializable in the face of concurrent requests issued by the file system users. This means that the observable (through query requests) unit state looks as if updates of the unit were executed serially in some order. Note that the ordering of updates is further constrained by the distributed transaction management considerations which are outside the scope of this document.  
 - A unit version number is an additional piece of information attached to the unit. A version number is drawn from some linearly ordered domain. A version number changes on every update of the unit state in such a way that the ordering of unit states in the serial history can be deduced by comparing version numbers associated with the corresponding states.  
 
@@ -27,7 +27,7 @@ See the Glossary for general M0 definitions and HLD of FOL for the definitions o
 
 ## Design Highlights   
 
-In the presence of caching, requirements [r.verno.resource] and [r.verno.fol] are seemingly contradictory: if two caching client nodes assigned (as allowed by [r.verno.resource]) version numbers to two independent units, then after re-integration of units to their common master server, the version numbers must refer to the master's fol, but clients cannot produce such references without extremely inefficient serialization of all accesses to the units on the server.  
+In the presence of caching, requirements [r.verno.resource] and [r.verno.fol] are seemingly contradictory: if two caching client nodes assigned (as allowed by [r.verno.resource]) version numbers to two independent units, then after re-integration of units to their common master server, the version numbers must refer to primary fol, but clients cannot produce such references without extremely inefficient serialization of all accesses to the units on the server.  
 
 To deal with that, a version number is made compound: it consists of two components:  
 
