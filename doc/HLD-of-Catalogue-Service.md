@@ -21,7 +21,7 @@ Catalogues are used by other Motr sub-systems to store and access meta-data. Dis
 
 ##  Requirements
 -   [r.cas.persistency]: modifications to catalogues are stored persistently;
--   [r.cas.atomicity]: operations executed as part of particular cas fop are atomic w.r.t. service failures. If the service crashes and restarts, either all or none modifications are visible to the future queries;
+-   [r.cas.atomicity]: operations executed as part of particular cas fop are atomic w.r.t. service failures. If the service fails and restarts, either all or none modifications are visible to the future queries;
 -   [r.cas.efficiency]: complexity of catalogue query and modification is logarithmic in the number of records in the catalogue;
 -   [r.cas.vectored]: cas operations are vectored. Multiple records can be queried or updated by the same operation;
 -   [r.cas.scatter-gather-scatter]: input and output parameters (keys and values) of an operation are provided by the user in arbitrary vectored buffers to avoid data-copy;
@@ -143,7 +143,7 @@ tx_close(tx);
 
 ```  
 
-Deathrow catalogue contains all large catalogues which are in the process of being deleted. If the service crashes and restarts, it scans the deathrow and completes pending deletions. In other words, deathrow is used for logical logging of catalogue deletions.
+Deathrow catalogue contains all large catalogues which are in the process of being deleted. If the service fails and restarts, it scans the deathrow and completes pending deletions. In other words, deathrow is used for logical logging of catalogue deletions.
 
 GET	cfid, input: array of {key	rc, output: array of {exists, val}
 
