@@ -65,7 +65,7 @@ One or few handler threads are attached to every locality. These threads run a l
 * (CALL) execute the next state transition until fom is just about to block.  
 * (RETURN) register the wait-queue call-back and place the fom to the wait-queue.    
 
-(NEXT) and (RETURN) steps in this loop are atomic w.r.t. other handler threads of the same locality. Ideally, (CALL) step is non-blocking (of course, a user-level thread can always be preempted by the kernel, but this is not relevant).  
+(NEXT) and (RETURN) steps in this loop are atomic w.r.t. other handler threads of the same locality. Ideally, (CALL) step is non-blocking (a user-level thread can always be preempted by the kernel, but this is not relevant).  
  Unfortunately, this is not always possible because:
 * In some cases, only blocking interfaces are available (e.g., a page fault in a user-level process, or a POSIX mutex acquisition);
 * In some cases, splitting state transition into non-blocking segments would be excessively cumbersome. For example, making every call to the memory allocator a blocking point would render code very difficult to follow.  
@@ -202,10 +202,10 @@ An important question is how db5 accesses are handled in a non-blocking model.
 
 * Use a per-locality thread (or a few per-locality threads) to handle db5 activity in the locale:  
     - Advantages: purity and efficiency of the non-blocking model are maintained. db5 foot-print is confined and distributed across localities.
-    - Disadvantages: db5 threads of different localities will fight for shared db5 data, including cache-hot b-tree index nodes leading to worse cache utilization and cache-line ping-ponging (on the positive side, higher level b-tree nodes are rarely modified and so can be shared by multiple cores).  
+    - Disadvantages: db5 threads of different localities will compete for shared db5 data, including cache-hot b-tree index nodes leading to worse cache utilization and cache-line ping-ponging (on the positive side, higher level b-tree nodes are rarely modified and so can be shared by multiple cores).  
 
 ### Scalability  
-The point of the non-blocking model is to improve server scalability by  
+The point of the non-blocking model is to improve server scalability by: 
 
 - Reducing cache foot-print, by replacing thread stacks with smaller fom-s.
 -	Reducing scheduler overhead by using state machines instead of blocking and waking threads.
