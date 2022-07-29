@@ -27,7 +27,7 @@ See the Glossary for general M0 definitions and HLD of FOL for the definitions o
 
 ## Design Highlights   
 
-In the presence of caching, requirements [r.verno.resource] and [r.verno.fol] are seemingly contradictory: if two caching client nodes assigned (as allowed by [r.verno.resource]) version numbers to two independent units, then after re-integration of units to their common master server, the version numbers must refer to primary fol, but clients cannot produce such references without extremely inefficient serialization of all accesses to the units on the server.  
+In the presence of caching, requirements [r.verno.resource] and [r.verno.fol] are seemingly contradictory: if two caching client nodes assigned (as allowed by [r.verno.resource]) version numbers to two independent units, then after re-integration of units to their common primary server, the version numbers must refer to primary fol, but clients cannot produce such references without extremely inefficient serialization of all accesses to the units on the server.  
 
 To deal with that, a version number is made compound: it consists of two components:  
 
