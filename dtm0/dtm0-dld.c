@@ -48,7 +48,30 @@
    briefly describes the document and provides any additional
    instructions or hints on how to best read the specification.</i>
 
-   TODO: write overview; add to the index in dld-index.c.
+   DTM0 does anynchronous replication of Units (see in the definitions)
+   among the transaction participants. This is needed to improve the data
+   durability in case of some transient cluster components failures or
+   some network issues (like temporary disconnections or partitioning).
+   
+   Let's take for example the following scenario: 3-way replication
+   (3 CAS services), write quorum == 2, read quorum == 2. In this case,
+   if we have more than 1 failure, we may get the wrong data. Consider
+   the following sequence:
+
+   1) dix PUT1
+   2) cas3 is TRANSIENT, PUT1 is written in cas1 and cas2
+   3) PUT1 is SUCCESSFUL, because write quorum was reached
+   4) cas1 goes FAILED and replaced by a new cas4
+   5) cas3 goes ONLINE
+   6) cas2 goes TRANSIENT
+   7) dix rebalance start to cas4
+   8) cas2 goes ONLINE
+   9) PUT1 is replicating to cas4 via rebalance
+   10) In addition to PUT1 another 1 million records are replicated
+   ..... TODO
+
+   XXX: must we use the same read quorum on rebalance?? if yes - the
+   above use case is not valid.
 
    <hr>
    @section DLD-def Definitions
@@ -517,7 +540,7 @@
      endif.
    @endverbatim
 
-   Known problem: if an originator did not have enought transactions to get the
+   Known problem: if an originator did not have enough transactions to get the
    pmsgs from all participants in the cluster before it crashed or got
    disconnected or just stopped sending new transactions for a while for some
    reason, and we cannot move Max-All-P because of that, we don't cleanup
@@ -702,7 +725,7 @@
        struct redo_list_link *rll_links;
    } M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc|be);
 
-   // Volatile, used by log to collect records for pmachine to send pmsgs.
+   // Volatile list populated by log for pmachine to send pmsgs.
    // XXX: consider using be_queue, if it's easier
    struct persistent_records {
        // struct pmsg pr_pmsgs[participants_n];  // another variant to consider?
@@ -722,6 +745,10 @@
        //be_list_link allp; ?? for the pruner ready to cleanup
        struct redo_list_links redo_links;
        //struct redo_ptrs redo_links[MAX N+K+S - 1];
+
+       // Is transaction still volatile or already persistent?
+       // Note: this field itself is not captured in BE.
+       bool is_volatile; // 1 - yes, (i.e. not persistent), 0 - no (persistent)
    } M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
 
    struct dtm0_log_originator {
@@ -768,14 +795,14 @@
    and the user may subscribe to particular kind of incoming messages.
    It has no persistence state.
    The API provides asynchronous completion: the user may wait until message was
-   acknoweledged by the remote side (RPC reply was sent).
+   acknoweledged by the remote side (RPC reply was received).
    It cancels all outgoing/incoming messages when the HA tells us that
    participant goes to FAILED/TRANSIENT state.
    Optimizations:
    - Do not use network if the destination is in the same Motr process.
 
    - DTX0:
-   It is the facade [todo: c` instead of just c] of dtm0 for dtm0 users.
+   It is external API of dtm0 for dtm0 users.
    Duplicates (CAS requests, REDO messages, etc.) are checked at the DTM0 log
    level.
 
@@ -783,17 +810,7 @@
    It solves two tasks. It sends out a Pmsg when a local transction becomes
    persistent (1).
    It updates the log when a Pmsg is received from a remote participant (2).
-   Persistent machine contains a set of local participants. For each participant,
-   there is a set of iterators that correspond to the remote participants:
-
-   @verbatim
-   [ local-sdev-1, local-sdev-2]   [remote-sdev-1, remote-sdev-2]
-
-   local-sdev-1 has the following iterators:
-        remote-sdev-1
-        remote-sdev-2
-   local-sdev-2 has the same set of iterators.
-   @endverbatim
+   Persistent machine contains a set of local participants.
 
    However, we want to minimize the latency of user operation. In Pmach, we can
    prioritize sending P messages to clients over sending of P messages to other
@@ -810,20 +827,8 @@
    Alternatives:
    1. In-memory queue (for outgoing Pmsgs). Cons: the queue is not bounded; it
    can grow quickly if the remote is slow. It is not acceptable (see
-   R.dtm0.limited-ram).
-   2. One iterator per local participant (send Pmsgs, advance one single iter,
-   send again and so on). Cons: unecessary delays (for example when one remote
-   is in TRANSIENT). The delays have negative impact on reliability, durability,
-   and increases storage consumption.
-
-   Pmach algorithm for outgoing Pmsgs:
-   1. Take a Pmsg from any iterator mentioned above (for example,
-   local-sdev-1.remote-sdev-2).
-   2. Send the Pmsg to the remote (for example, remote-sdev-2).
-
-   Pmach algorithm for incoming Pmsgs:
-   1. Take an incoming Pmsg.
-   2. Apply it to the log.
+   R.dtm0.limited-ram). XXX: if we use one-way RPC msgs, this argument is
+   not relevant.
 
    Pmach optimizations:
    For outgoing: coalescing is done at the net level; wait until all local
@@ -841,21 +846,13 @@
    REDO messages are read out from the log directly. They are applied through
    a callback (for example, posted as CAS FOMs).
 
-   @verbatim
-   [ remote participant restarted]
-      -> [ merge REDO-list with ongoing-list of the participant ]
-
-   [ remote participant: * -> RECOVERING ]
-      -> [ local -> remote: REDO ]
-   REDO: XXX: Contains Pmsgs for all local participants that are persistent.
-   @endverbatim
-
    For each local participant, we iterate over the REDO-list, send out REDOs,
    thus recovering the corresponding remote participant. The recovery machine
-   sends the (REDO, local participant Pmsg) tuple to the remote participant.
+   sends the REDO to the remote participant. Note: REDO implies that the txn
+   was persistent on the sender participant.
 
    Note, recovery machine may need to recover a local storage device
-   (inter-process recovery). It is done in the same way as with remote storage
+   (intra-process recovery). It is done in the same way as with remote storage
    devices, except DTM0 net will not be sending messages over network, instead
    they will be loopback-ed.
 
@@ -865,19 +862,19 @@
    Then, the machine sends reply. The remote recovery machine receives the reply
    and then sends another REDO. It allows to propagate the back pressure from
    the recovering participant to the remote.
+   XXX: with one-way RPC msgs no replies are needed, pmsg will be sent instead
+   when the redo becomes persistent. The sender should not try to resend redo
+   until some timeout expires, like 10 secs or more.
 
    Duplicates are not checked by recovery machine. Instead, DTX0 and DTM0 log
    do that.
 
    Aside from recovering of TRANSIENT failures, recovery machine reacts to
-   FAILED state: in case of originator it causes "client eviction"; in case of
-   storage device, the machine does nothing -- Motr
-   repair/rebalance/direct-rebalance will take care of such device.
-
-   Moreover, recovery machine is also taking care of restoring missing replicas
-   for XXX:Unit outside of the usual recovery process caused by the state
-   transition of a storage device. This may happen due to losses in the network
-   or due to user operation cancelation.
+   FAILED state: in case of originator it causes "client eviction" (reduce the
+   current window to zero).
+   In case permanent failure of the storage device, the machine does nothing --
+   Motr repair/rebalance/direct-rebalance will take care of such device when
+   the device is replaced.
 
    Optimizations:
       - send one REDO message for multiple participants that exist in the same
@@ -897,15 +894,23 @@
    - HA (dtm0 ha):
    It provides interface to Motr HA tailored for dtm0 needs.
    What is needed from HA
-     - Pmach wants to know states and transitions for remote participants,
-     history does not matter.
-     - Remach: states and transitions of all participants, history matters.
-     - Net: states and transitions of all participants, history does not matter.
-     - Pruner: TRANSIENT and FAILED states, history matters.
+     - Pmach wants to know states and transitions for remote participants.
+     - Remach: states and transitions of all participants.
+     - Net: states and transitions of all participants.
+     - Pruner: TRANSIENT and FAILED states.
+
+   History of ha events means that we should receive the same events again
+   in case of crash and restart. To implement such semantics we need to inform
+   ha when we finished consuming and handling the ha event.
+
+   For the basic version of the algorithm, the history of ha events does NOT
+   matter.
 
    [subscription to transitions]
    DTM0 HA allows its user to subscribe to storage device states or service
    states updates.
+   Note: to avoid missing ha states while you subscribe, always check the
+   ha state already after subscription.
 
    [persistent ha history]
    DTM0 HA uses BE to keep the persistent history of state trasitions of
@@ -918,10 +923,11 @@
    persistent machine, network. It serves as an entry point for any other
    component that wants to interact with DTM0. For example, distributed
    transactions are created within the scope of DTM0 domain.
-   TODO: remove it from domain.h.
+   TODO: remove this text from domain.h, or from here.
    To initialize DTM0, the user has to initialize DTM0 domain which will
    initialize all internal DTM0 subsystems.
-   There may be more than one DTM0 domain per Motr process.
+   In normal m0d process there will be one DTM0 domain, but in the UT
+   there may be more than one DTM0 domain per Motr process.
 
 
    @subsubsection DLD-lspec-ds-log Subcomponent Data Structures: DTM0 log
@@ -932,18 +938,12 @@
    XXX
    DTM0 log record is linked to one BTree and many BE lists.
    DTM0 log BTree: key is txid, value is a pointer to log record.
-   BE list links in record: one for originator, many for participants.
+   BE list links records for participants redo_lists.
    DTM0 log contains the BTree and a data structure that holds the
    heads of BE lists and related information.
-   DTM0 log also contains a hashtable that keeps the local in-flight DTM0
-   transactions and the corresponding BE txs. Usecases:
-        - incoming REDO: find by dtxid;
-        - find dtx0 by be_tx?;
-   Hashtable: (key=txid, value=(ptr to dtx, ptr to be_tx))
 
-   [ BTree (p) | Participants+Originators ds? (p) | in-flight tx (v) ]
-
-   @section m0_dtm0_remach interface
+   @section m0_dtm0_log interface for recovery machine
+   TODO: remove this text either from here or from log.h
 
    Note: log iter here does not care about holes in the log.
 
@@ -954,11 +954,6 @@
    - m0_dtm0_log_iter_next() - gives next log record for the sdev participant.
    - m0_dtm0_log_iter_fini() - finalises the iterator. It MUST be done for every
      call of m0_dtm0_log_iter_init().
-   - m0_dtm0_log_participant_restarted() - notifies the log that the participant
-     has restarted. All iterators for the participant MUST be finalized at the
-     time of the call. Any record that doesn't have P from the participant at
-     the time of the call will be returned during the next iteration for the
-     participant.
 
    @section interface used by pmach
 
@@ -970,14 +965,14 @@
           *pmsg
      bool *successful - true if got something
 
-   m0_dtm0_log_p_get_local(*op, *pmsg, *successful)
+     m0_dtm0_log_p_get_local(*op, *pmsg, *successful)
 
    - m0_dtm0_log_p_put() - records that P message was received for the sdev
      participant.
 
-   @section pruner interface
+   @section interface for pruner
 
-   - m0_dtm0_log_p_get_none_left() - returns dtx0 id for the dtx which has all
+   - m0_dtm0_log_prune_get() - returns dtx0 id for the dtx which has all
      participants (except originator) reported P for the dtx0. Also returns all
      dtx0 which were cancelled.
    - m0_dtm0_log_prune() - remove the REDO message about dtx0 from the log
@@ -985,22 +980,25 @@
    dtx0 interface, client & server
 
    - bool m0_dtm0_log_redo_add_intent() - function to check if the transaction
-     has to be applied or not, and reserves a slot in the log for that
-     record (in case if it has to be applied).
+     has to be applied or not (if it's a duplicate), and reserves a slot in the
+     log for that record (in case if it has to be applied). Note: this is just
+     an optimisation to avoid creating additional BE transactions just to check
+     for the duplicates.
 
-   - m0_dtm0_log_redo_add() - adds a REDO message and, optionally, P message, to
-     the log.
+   - m0_dtm0_log_redo_add() - adds a REDO message into the log.
 
    @section dtx0 interface, client only
 
-   - m0_dtm0_log_redo_p_wait() - returns the number of P messages for the dtx
-     and waits until either the number increases or m0_dtm0_log_redo_cancel() is
-     called.
+   - m0_dtm0_log_redo_p_wait(op) - returns the number of P messages for the dtx
+     and user can wait (on the op) for bigger number of P msgs or until
+     m0_dtm0_log_redo_cancel() is called. TODO: revise, because client has no
+     foms.
    - m0_dtm0_log_redo_cancel() - notification that the client doesn't need the
-     dtx anymore. Before the function returns the op
+     dtx anymore. Before the function returns the op. Note: can be done later.
    - m0_dtm0_log_redo_end() - notifies dtx0 that the operation dtx0 is a part of
      is complete. This function MUST be called for every m0_dtm0_log_redo_add().
-
+     It's called when we've got enough pmsgs and don't need to keep this txn
+     in the queue anymore.
 
    <hr>
    @section DLD-impl-plan-components Implementation Plan: Components
