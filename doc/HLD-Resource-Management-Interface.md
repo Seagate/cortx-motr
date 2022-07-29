@@ -81,14 +81,14 @@ The following sequence diagram illustrates the interaction between resource user
 Here a solid arrow represents a (local) function call and a dashed arrow—a potentially remote call.  
 
 The external resource management interface consists of the following calls:
-- credit_get(resource_owner, resource_credit_description, notify_callback): obtains the specified resource usage credit. If no matching credit is granted to the owner, the credit acquisition request is enqueued to the master resource owner, if any. This call is asynchronous and signals completion through some synchronization mechanism (e.g., a condition variable). The call outcome can be one of:
+- credit_get(resource_owner, resource_credit_description, notify_callback): obtains the specified resource usage credit. If no matching credit is granted to the owner, the credit acquisition request is enqueued to the primary resource owner, if any. This call is asynchronous and signals completion through some synchronization mechanism (e.g., a condition variable). The call outcome can be one of:
   - success: a credit, matching the description is granted;
   - denied: usage credit cannot be granted. The user is not allowed to cache the resource and must use no-cache operation mode;
   - error: some other error, e.g., a communication failure, occurred.
 
   Several additional flags, modifying call behavior can be specified:  
 - non-block-local: deny immediately if no matching credit is granted (i.e., don't enqueue).
-- non-block-remote: deny if no matching credit is granted to the master owner (i.e., don't resolve conflicts).  
+- non-block-remote: deny if no matching credit is granted to the primary owner (i.e., don't resolve conflicts).  
 
 On successful completion, the granted credit is held. notify_callback is invoked by the resource manager when the cached resource credit has to be revoked to satisfy a conflict resolution or some other policy.
 - 	`credit_put(resource_credit)`: release held credit
