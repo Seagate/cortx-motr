@@ -129,12 +129,12 @@ In order to do that, we need to run the `fdmi_app` script typing in the console 
 The basic arguments needed are the cluster info which will be picked by default from the `etc/motr/confd.xc` config file if not specified at the time of running. This way the FDMI plugin knows where to connect.
 
 Examples of the flags you can provide to the python script are:
-*  `-pp`: `plugin path`
-*  `-le`: `Local endpoint`
-*  `-fi`: `Filter id`
-*  `-ha`: `HA endpoint`
-*  `-pf`: `Profile fid`
-*  `-sf`: `Process fid`
+-  `-pp`: `plugin path`
+-  `-le`: `Local endpoint`
+-  `-fi`: `Filter id`
+-  `-ha`: `HA endpoint`
+-  `-pf`: `Profile fid`
+-  `-sf`: `Process fid`
 
 All the flags can be known by running the help:`-h` option.
 
