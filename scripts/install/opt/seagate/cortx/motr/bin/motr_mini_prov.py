@@ -77,7 +77,7 @@ def execute_command_without_log(cmd,  timeout_secs = TIMEOUT_SECS,
     verbose = False, retries = 1, stdin = None, logging=False):
     ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                         shell=True)
+                         shell=False)
     if stdin:
         ps.stdin.write(stdin.encode())
     stdout, stderr = ps.communicate(timeout=timeout_secs);
@@ -154,7 +154,7 @@ def execute_command_verbose(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = Fa
     for cmd_retry_count in range(retry_count):
         ps = subprocess.run(cmd, stdin=subprocess.PIPE, check=False,
                             stdout=subprocess.PIPE, timeout=timeout_secs,
-                            stderr=subprocess.PIPE, shell=True)
+                            stderr=subprocess.PIPE, shell=False)
         self.logger.debug(f"ret={ps.returncode}")
         self.logger.debug(f"Executing {cmd_retry_count} time")
         stdout = ps.stdout.decode('utf-8')
