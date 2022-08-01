@@ -15,9 +15,7 @@ The processing is to be done on an incoming FOL record against the Filter set. T
 Filter Store is to be filled in by means of Subscription API. Filter Index is updated internally on adding Filter.
 
 Currently 2 options for Plug-in architecture are anticipated:  
-
 1. Option 1: FDMI-Plug-in. Each plug-in is linked with FDMI making use of internal FDMI API only (some callback, for instance). See Fig.1
-
 1. Option 2: FDMI Plug-in transforms to Mero Core Plug-in. Mero core in this case most likely provides limited features for RPC only. Mero RPC is used to collect notifications from all Mero instances.    
 
 ## Plug-in API
@@ -27,9 +25,7 @@ The API is to allow the plug-ins making use of FDMI to register with the latter 
 Besides, plug-in may additionally inform FDMI about its specifics, like FOL type it is to process, optimization/tweak requirements (e.g. no batching), etc.
 
 Public Entries:
-
 * Initialize plug-in
-
 * <..>
 
 **N.B.** Plug-in API design details depend on selected architecture option 1 or 2.   
@@ -53,9 +49,7 @@ Failure results in dropping current FOL copy
 For both options FOLs are fed to Filer Processor the same way: locally.
 
 Public Entries:
-
 * <..>
-
 * <..>
 
 
@@ -64,11 +58,8 @@ Public Entries:
 The API is to provide a way for adding Filter rules to FDMI instances, identifying FOL processing traits as well as associating Filter with Consumer
 
 Public Entries:
-
 * Register Filter
-
 * Unregister Filter
-
 * <..>   
 
 ## Notification API
@@ -92,11 +83,8 @@ Public Entries:
 ### Filter
 
 Filter identifies:
-
 * Consumer to be notified
-
 * Conditions FOL to meet
-
 The index format: TBD
 
 Filter once registered will be eventually spread across the whole number of Cluster nodes running FDMI services.
@@ -106,9 +94,7 @@ The number of Filters registered in Mero Cluster is expected to be of no explici
 ### Filter semantics
 
 Filter syntax need to remain flexible to adopt any future improvements/enhancements, but fully covering initial requirements of multi-type support and human readability. Possible options are:
-
 * Native-language-like syntax (SQL-like)
-
 * Symbolic object notation, easily parsed (some standard adherent notation preferred), easily extensible, including object nesting, e.g. JSON (current DSR’s choice)  
 
 NB: Filter being parsed on ingestion may be transformed to a combination of elementary rules in case the transformation does not change Filter semantics but potentially improves Processor performance (decomposition is being performed)
