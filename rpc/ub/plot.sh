@@ -128,7 +128,7 @@ gen_csv() {
     local VAR_OPT="$1"; shift
     local VALUES="$*"
 
-    local NR_MSGS=$(get_val nr_msgs "$COMMON_OPTS")
+    local NR_MSGS=$(get_val nr_msgs $COMMON_OPTS)
 
     echo "# $VAR_OPT time msg/s MB/s" >"$OUT"
 
@@ -139,8 +139,8 @@ gen_csv() {
 	rpc-ub -o "$OPTS" | tee "$TMP"
 	[ "${PIPESTATUS[0]}" -eq 0 ] || exit "${PIPESTATUS[0]}"
 
-	local NR_CONNS=$(get_val nr_conns "$OPTS")
-	local MSG_LEN=$(get_val msg_len "$OPTS")
+	local NR_CONNS=$(get_val nr_conns $OPTS)
+	local MSG_LEN=$(get_val msg_len $OPTS)
 	awk -v X="$x" -v NR_MSGS=$((NR_CONNS * NR_MSGS)) -v MSG_LEN="$MSG_LEN" \
 	    -v PROG="${0##*/}" '
 function die(msg) {
