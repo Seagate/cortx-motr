@@ -128,7 +128,7 @@ gen_csv() {
     local VAR_OPT="$1"; shift
     local VALUES="$*"
 
-    local NR_MSGS=$(get_val nr_msgs "$COMMON_OPTS")
+    local NR_MSGS=$(get_val nr_msgs $COMMON_OPTS)
 
     echo "# $VAR_OPT time msg/s MB/s" >"$OUT"
 
