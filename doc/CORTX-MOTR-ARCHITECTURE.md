@@ -1,5 +1,4 @@
-
-![image](./Images/1_EOS_Core_Architecture_Overview.png)
+![image](./Images/1_EOS_Core_Architecture_Overview.png)  
 
 # Outline  
 +  This presentation is a beginner's guide to the CORTX core architecture
@@ -13,7 +12,7 @@
 +  FDMI
 +  ADDB  
 
-# What is CORTX?  
+## What is CORTX 
 +  CORTX core is a component of the new cloud software stack developed by Seagate
 +  CORTX provides basic functionality through its Motr client interface:
    +  object store
