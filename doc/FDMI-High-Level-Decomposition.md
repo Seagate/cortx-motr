@@ -50,9 +50,6 @@ Components responsibilities:
 ### Data-types
 
 Key data-types introduced by fdmi are:
-
 * filter: represents an fdmi plugin, specifies how records are matched, accepts matching records from fdmi;
-
 * source: a source of records, provides records to fdmi;
-
 * record: something that is produced by a source and can be matched against a filter.

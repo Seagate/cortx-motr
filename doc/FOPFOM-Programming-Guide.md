@@ -166,7 +166,7 @@ The major purpose of having FOMs and request handler is to have a non-blocking e
 A FOP is submitted to request handler through m0_reqh_fop_handle() interface for processing. Request handler then creates corresponding FOM by invoking the following:
 
 + m0_fop_type::ft_fom_type::ft_ops::fto_create()
-+ m0_fop_type_ops::ft_fom_init()
++ m0_fop_type_ops::ft_fom_init()   
 Once the FOM is created, a home locality is selected for the FOM by invoking the following:
 + m0_fom_ops::fo_home_locality()  
 
