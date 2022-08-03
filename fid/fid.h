@@ -119,6 +119,7 @@ M0_INTERNAL uint64_t m0_fid_hash(const struct m0_fid *fid);
 
 M0_INTERNAL int m0_fid_arr_copy(struct m0_fid_arr *to,
 				const struct m0_fid_arr *from);
+M0_INTERNAL void m0_fid_arr_free(struct m0_fid_arr *a);
 M0_INTERNAL bool m0_fid_arr_eq(const struct m0_fid_arr *a,
 			       const struct m0_fid_arr *b);
 M0_INTERNAL bool m0_fid_arr_all_unique(const struct m0_fid_arr *a);

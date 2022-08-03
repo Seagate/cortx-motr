@@ -316,6 +316,12 @@ M0_INTERNAL int m0_fid_arr_copy(struct m0_fid_arr *to,
 	return M0_RC(0);
 }
 
+M0_INTERNAL void m0_fid_arr_free(struct m0_fid_arr *a)
+{
+    m0_free(a->af_elems);
+
+}
+
 M0_INTERNAL bool m0_fid_arr_eq(const struct m0_fid_arr *a,
 			       const struct m0_fid_arr *b)
 {
