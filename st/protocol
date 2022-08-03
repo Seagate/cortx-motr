@@ -60,7 +60,7 @@ $diff_cmd $proto_dev $proto_current
 exit_code=$?
 if [ $exit_code -ne 0 ]; then
     echo -n "37protocol ST may fail if there are some local changes done to "
-    echo -n "the BE structures. please confirm these are intended changes to "
+    echo -n "the BE structures. Please confirm these are intended changes to "
     echo "the BE structures in the new version before ignoring this error"
 fi
 
