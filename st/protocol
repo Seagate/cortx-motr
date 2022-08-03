@@ -59,7 +59,7 @@ echo "Comparing '$proto_dev' and '$proto_current' files"
 $diff_cmd $proto_dev $proto_current
 exit_code=$?
 
-# remove test files
+# remove test files if needed
 rm -rf $test_dir 2>&1> /dev/null
 
 report_and_exit initscripts $exit_code
