@@ -919,8 +919,26 @@ static bool libfab_ep_find_by_str(const char *name,
 
 	*ep = net != NULL ? libfab_ep(net) : NULL;
 
-	if (net == NULL && m0_net_ip_parse(name, &addr) == 0) {
-		return libfab_ep_find_by_num(&addr, ntm, ep);
+	/*
+	 * TODO:
+	 * During pod retart, restarted pod will have a new ip assigned.
+	 * endpoint create request on remote service will still have the old ip
+	 * address and will return a stalled endpoint, when it tries to
+	 * get host by name it will fail.
+	 * During dtm0_process_rlink_reinit, it is possible that dtm  has a
+	 * differnt valid hostname, for ex : hostname.local and lookup will not
+	 * find a valid ep, to avoid this if str comparision does not match,
+	 * continue with ip comparision, details  available in CORTX-32086.
+	 * This changes is not required when DTM is not enabled, so adding this
+	 * under DTM enabled flag to support pod restart when dtm is not
+	 * enabled.
+	 * TODO: pod restart will fail when DTM is enabled, avoiding lookup of
+	 * stalled entries
+	 */
+	if (ENABLE_DTM0) {
+		if (net == NULL && m0_net_ip_parse(name, &addr) == 0) {
+			return libfab_ep_find_by_num(&addr, ntm, ep);
+		}
 	}
 
 	return net != NULL;

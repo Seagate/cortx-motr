@@ -29,7 +29,7 @@
 #include "lib/types.h"
 #include "lib/list.h"
 #include "lib/mutex.h"
-#include "btree/btree.h"
+#include "be/btree.h"
 #include "format/format.h"
 #include "stob/ad.h"
 #include "stob/ad_xc.h"
