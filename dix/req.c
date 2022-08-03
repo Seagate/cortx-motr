@@ -1668,10 +1668,36 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 				  + !!(scan->crp_creq.ccr_sm.sm_rc == 0));
 
 		/*
-		 * If enough operations succeeded to satisfy min_success,
-		 * ignore any operations that failed. If we don't have enough,
-		 * count all operations when deciding overall success (ensures the
-		 * overall operation is considered a failure).
+		 * The idea here is that transient failures are likely to
+		 * occur and may not persist long enough that the node gets
+		 * marked as failed. These will still affect individual
+		 * operations, so we need to make sure that dix correctly
+		 * handles the issues (if possible) or returns a failure to
+		 * the client. We therefore let the user choose min_success,
+		 * which determines the minimum number of successful cas
+		 * operations to consider the parent dix operation successful.
+		 * This is necessary to ensure read-after-write consistency.
+		 * If min_success is set to (N+K)/2 + 1 for both reads and
+		 * writes, then even in the presence of transient failures at
+		 * least one copy of the most recent version of data will be
+		 * found. Other values can be set for reduced consistency or
+		 * balancing read vs. write.
+		 *
+		 * Here we compare the previously computed successful_ops
+		 * and min_success to decide if we can ignore failed cas
+		 * operations. If successful_ops >= min_success, we've met
+		 * the quorum requirement and can ignore failures. This is
+		 * done by skipping dix_cas_rop_rc_update for failed cas
+		 * operations. We're guaranteed to have at least one
+		 * successful cas op somewhere in the list, so this results
+		 * in the parent dix operation being considered a success,
+		 * and cas version is used to break ties between multiple
+		 * successful replies (see dix_item_version_cmp). In the
+		 * case that successful_ops < min_success, we call
+		 * dix_cas_rop_rc_update for every cas op, with the result
+		 * that the failed operations will cause the parent dix op
+		 * to fail. Since min_success must be greater than 0, this
+		 * covers the case that all cas requests fail.
 		 */
 		m0_tl_for (cas_rop, &rop->dg_cas_reqs, cas_rop) {
 			if (successful_ops < min_success ||
