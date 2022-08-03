@@ -490,7 +490,7 @@ Tests:
   - id       : 37protocol
     script   : 'm0 run-st 37protocol'
     dir      : src/scripts
-    # this ST confirms that no BE structures are changed
+    # This ST confirms that no BE structures are changed
     # in the new version of the code since that would
     # create a mismatch of BE structures and thus cause
     # corruption in case of upgrades. During development

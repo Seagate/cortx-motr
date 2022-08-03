@@ -59,8 +59,9 @@ echo "Comparing '$proto_dev' and '$proto_current' files"
 $diff_cmd $proto_dev $proto_current
 exit_code=$?
 if [ $exit_code -ne 0 ]; then
-    echo -n "37protocol ST may fail if there are some local changes done to"
-    echo " the BE structures and such failures can be safely ignored."
+    echo -n "37protocol ST may fail if there are some local changes done to "
+    echo -n "the BE structures. please confirm these are intended changes to "
+    echo "the BE structures in the new version before ignoring this error"
 fi
 
 # remove test files
