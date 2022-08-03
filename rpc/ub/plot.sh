@@ -201,7 +201,7 @@ nr_conns=96,nr_msgs=100  msg_len  64 128 256 512
 EOF
 } | while read -a ARGS; do
     CSV=$((++i)).csv
-    gen_csv $CSV "$TMP" "${ARGS[@]}"
+    gen_csv $CSV "$TMP" ${ARGS[@]}
     gen_script "${ARGS[0]}" $CSV "${ARGS[1]}" >"$TMP"
     gnuplot "$TMP"
 done
