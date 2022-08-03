@@ -490,12 +490,13 @@ Tests:
   - id       : 37protocol
     script   : 'm0 run-st 37protocol'
     dir      : src/scripts
-    # this ST checks checksum of the BE structures during
-    # developmental phase they are bound to fail so code
-    # changes are required but ST has to be in disabled
-    # state for now when the release is in GA phase we will
-    # enable the ST again to ensure there will be no changes
-    # in BE structures.
+    # this ST confirms that no BE structures are changed
+    # in the new version of the code since that would
+    # create a mismatch of BE structures and thus cause
+    # corruption in case of upgrades. During development
+    # phase the BE structures are assumed to be modified
+    # and to avoid this ST from failing it is better to disable
+    # the ST until a GA release is done
     executor : Xperior::Executor::Skip
     sandbox  : /var/motr/root/sandbox.st-37protocol
     groupname: 01motr-single-node
