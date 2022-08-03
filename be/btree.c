@@ -550,7 +550,7 @@
 #include "lib/bitmap.h"     /** struct m0_bitmap */
 #include "lib/byteorder.h"  /** m0_byteorder_cpu_to_be64() */
 #include "lib/atomic.h"     /** m0_atomic64_set() */
-#include "btree/btree.h"
+#include "be/btree.h"
 #include "format/format.h"   /** m0_format_header ff_fmt */
 #include "module/instance.h"
 #include "lib/memory.h"
