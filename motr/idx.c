@@ -208,7 +208,7 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 	oi->oi_vals = vals;
 	oi->oi_rcs  = rcs;
 	oi->oi_flags = flags;
-	oi->oi_min_success = 1;
+	oi->oi_min_success = M0_DIX_MIN_REPLICA_QUORUM;
 
 	locality = m0__locality_pick(oi_instance(oi));
 	M0_ASSERT(locality != NULL);
