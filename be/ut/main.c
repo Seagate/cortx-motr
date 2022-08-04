@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -116,6 +116,7 @@ extern void m0_be_ut_tx_concurrent_excl(void);
 extern void m0_be_ut_tx_force(void);
 extern void m0_be_ut_tx_gc(void);
 extern void m0_be_ut_tx_payload(void);
+extern void m0_be_ut_tx_callback(void);
 
 extern void m0_be_ut_tx_bulk_usecase(void);
 extern void m0_be_ut_tx_bulk_empty(void);
@@ -140,10 +141,9 @@ extern void m0_be_ut_alloc_concurrent(void);
 extern void m0_be_ut_alloc_oom(void);
 extern void m0_be_ut_alloc_info(void);
 extern void m0_be_ut_alloc_spare(void);
+extern void m0_be_ut_alloc_align(void);
 
 extern void m0_be_ut_list(void);
-extern void m0_be_ut_btree_create_destroy(void);
-extern void m0_be_ut_btree_create_truncate(void);
 extern void m0_be_ut_emap(void);
 extern void m0_be_ut_seg_dict(void);
 extern void m0_be_ut_seg0_test(void);
@@ -158,7 +158,6 @@ struct m0_ut_suite be_ut = {
 	.ts_yaml_config_string = "{ valgrind: { timeout: 3600 },"
 				 "  helgrind: { timeout: 3600 },"
 				 "  exclude:  ["
-				 "    btree,"
 				 "    emap,"
 				 "    tx-concurrent,"
 				 "    tx-concurrent-excl"
@@ -237,6 +236,7 @@ struct m0_ut_suite be_ut = {
 // XXX		{ "tx-force",                m0_be_ut_tx_force                },
 		{ "tx-fast",                 m0_be_ut_tx_fast                 },
 		{ "tx-payload",              m0_be_ut_tx_payload              },
+		{ "tx-callback",             m0_be_ut_tx_callback             },
 		{ "tx-concurrent",           m0_be_ut_tx_concurrent           },
 		{ "tx-concurrent-excl",      m0_be_ut_tx_concurrent_excl      },
 		{ "tx_bulk-usecase",         m0_be_ut_tx_bulk_usecase         },
@@ -260,12 +260,11 @@ struct m0_ut_suite be_ut = {
 		{ "alloc-oom",               m0_be_ut_alloc_oom               },
 		{ "alloc-info",              m0_be_ut_alloc_info              },
 		{ "alloc-spare",             m0_be_ut_alloc_spare             },
+                { "alloc-align",             m0_be_ut_alloc_align             },
 		{ "obj",                     m0_be_ut_obj_test                },
 		{ "actrec",                  m0_be_ut_actrec_test             },
 #endif /* __KERNEL__ */
 		{ "list",                    m0_be_ut_list                    },
-		{ "btree-create_destroy",    m0_be_ut_btree_create_destroy    },
-		{ "btree-create_truncate",   m0_be_ut_btree_create_truncate   },
 		{ "seg_dict",                m0_be_ut_seg_dict                },
 #ifndef __KERNEL__
 		{ "seg0",                    m0_be_ut_seg0_test               },

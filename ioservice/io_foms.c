@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -956,7 +956,7 @@ M0_INTERNAL int m0_io_cob_stob_create(struct m0_fom *fom,
 				      bool crow,
 				      struct m0_cob **out)
 {
-	struct m0_cob_oikey   oikey;
+	struct m0_cob_oikey   oikey = {};
 	struct m0_cob        *cob;
 	struct m0_stob_id     stob_id;
 	bool                  cob_recreate = false;
@@ -1090,7 +1090,7 @@ static int align_bufvec(struct m0_fom    *fom,
 static int fom_cob_locate(struct m0_fom *fom)
 {
 	struct m0_io_fom_cob_rw *fom_obj;
-	struct m0_cob_oikey      oikey;
+	struct m0_cob_oikey      oikey = {};
 	struct m0_fop_cob_rw    *rwfop;
 	int                      rc;
 
@@ -2357,6 +2357,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 					      m0_fom_tx(fom));
 			if (bc_rc != 0)
 				M0_ERR_INFO(bc_rc, "Failed to update cob_size");
+			m0_cob_put(cob);
 		}
 	}
 	/* Set operation status in reply fop if FOM ends.*/

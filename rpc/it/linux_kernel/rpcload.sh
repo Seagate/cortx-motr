@@ -23,7 +23,6 @@ MODLIST="m0tr.ko"
 
 abort()
 {
-    msg="$1"
     echo "$1 Aborting."
     exit 1
 }
@@ -38,11 +37,10 @@ modload()
 modunload()
 {
     local rc=0
-    for m in $MODLIST ;do
-	echo $m
-    done | tac | while read ;do
-	rmmod $REPLY                || {
-		rc=$?
+    for ((i=${#MODLIST[@]}-1; i>=0; i--)); do
+        echo "${MODLIST[i]}"
+        rmmod ${MODLIST[i]}     || {
+		rc="$?"
 		echo "Error unloading $m."
 	}
     done

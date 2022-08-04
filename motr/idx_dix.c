@@ -1178,7 +1178,7 @@ static void idx_op_cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_ENTRY();
 	if (oi->oi_in_completion)
-		return;
+		goto out;
 
 	req = oi->oi_dix_req;
 	if (idx_is_distributed(oi)) {
@@ -1188,6 +1188,8 @@ static void idx_op_cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	} else {
 		cas_index_cancel(req);
 	}
+out:
+	m0_semaphore_up(&oi->oi_oc.oc_op.op_sema);
 	M0_LEAVE();
 }
 	
@@ -1214,8 +1216,10 @@ M0_INTERNAL int m0__idx_cancel(struct m0_op_idx *oi)
 	if (!M0_IN(dreq->dr_type, (DIX_CREATE,
 				   DIX_DELETE,
 				   DIX_CCTGS_LOOKUP)) &&
-	    !oi->oi_in_completion)
+	    !oi->oi_in_completion) {
+		oi->oi_oc.oc_op.op_cancelling = true;
 		m0_sm_ast_post(oi->oi_sm_grp, op_ast);
+	}
 
 	return M0_RC(0);
 }

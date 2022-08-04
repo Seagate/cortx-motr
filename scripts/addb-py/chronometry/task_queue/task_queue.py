@@ -62,7 +62,8 @@ def task_add():
         return
 
     opt  = { 'enqueue_time': str(datetime.now()) }
-    task = io_workload_task((config, opt), priority=config['common']['priority'])
+    task_priority = config['common']['priority']
+    task = io_workload_task((config, opt), task_priority)
     print_info(task.id, 'ENQUEUED')
 
 def task_del(tid):
@@ -126,7 +127,8 @@ def task_set_prio(tid, prio):
         huey.revoke_by_id(tid)
         print_info(tid, 'REVOKED')
         params[0][0]['priority'] = prio
-        task = io_workload_task(params[0], priority=prio)
+        task_priority = prio
+        task = io_workload_task(params[0], task_priority)
         print_info(task.id, 'ENQUEUED')
     else:
         print_info(tid, 'NOT_FOUND')

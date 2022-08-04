@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@
 #include "be/extmap.h"
 
 #define EXTMAP_UT_UNIT_SIZE 10
-#define EXTMAP_UT_CS_SIZE   16 
+#define EXTMAP_UT_CS_SIZE   16
 
 static struct m0_be_ut_backend be_ut_emap_backend;
 static struct m0_be_ut_seg     be_ut_emap_seg;
@@ -61,7 +61,7 @@ static void emap_be_alloc(struct m0_be_tx *tx)
 	rc = m0_be_tx_open_sync(tx);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_BE_ALLOC_PTR_SYNC(emap, be_seg, tx);
+	M0_BE_ALLOC_ALIGN_PTR_SYNC(emap, 12, be_seg, tx);
 	M0_UT_ASSERT(emap != NULL);
 
 	m0_be_tx_close_sync(tx);
@@ -136,9 +136,20 @@ static void test_init(void)
 	be_seg = be_ut_emap_seg.bus_seg;
 
 	emap_be_alloc(&tx1);
-	m0_be_emap_init(emap, be_seg);
+	emap->em_seg = be_seg;
 
 	m0_be_emap_credit(emap, M0_BEO_CREATE, 1, &cred);
+	m0_be_ut_tx_init(&tx2, &be_ut_emap_backend);
+	m0_be_tx_prep(&tx2, &cred);
+	rc = m0_be_tx_open_sync(&tx2);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_BE_OP_SYNC(op, m0_be_emap_create(emap, &tx2, &op,
+					    &M0_FID_INIT(0,1)));
+
+	m0_be_tx_close_sync(&tx2);
+	m0_be_tx_fini(&tx2);
+
 	m0_be_emap_credit(emap, M0_BEO_DESTROY, 1, &cred);
 	m0_be_emap_credit(emap, M0_BEO_INSERT, 1, &cred);
 	m0_be_emap_credit(emap, M0_BEO_DELETE, 1, &cred);
@@ -151,13 +162,10 @@ static void test_init(void)
 	rc = m0_be_tx_open_sync(&tx2);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_BE_OP_SYNC(op, m0_be_emap_create(emap, &tx2, &op,
-					    &M0_FID_INIT(0,1)));
-
 	m0_uint128_init(&prefix, "some random iden");
 	seg = m0_be_emap_seg_get(&it);
 	it_op = m0_be_emap_op(&it);
-	
+
 	it.ec_unit_size = EXTMAP_UT_UNIT_SIZE;
 
 	m0_free(cfg);
@@ -198,7 +206,6 @@ static int be_emap_lookup(struct m0_be_emap        *map,
 static void test_lookup(void)
 {
 	int rc;
-
 	rc = be_emap_lookup(emap, &prefix, 0, &it);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_be_emap_ext_is_first(&seg->ee_ext));
@@ -239,7 +246,7 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 			.v_count = len
 		},
 		.iv_index = val
-	};	
+	};
 
 	struct m0_buf          cksum[4] = { {0, NULL},
 					    {0, NULL},
@@ -254,7 +261,7 @@ static void split(m0_bindex_t offset, int nr, bool commit)
 
 	memset(cksum[0].b_addr, 'A', cksum[0].b_nob);
 	memset(cksum[1].b_addr, 'B', cksum[1].b_nob);
-	
+
 	M0_LOG(M0_INFO, "off=%lu nr=%d", (unsigned long)offset, nr);
 	for (i = 0; i < nr; ++i) {
 		m0_bcount_t seglen;
@@ -507,7 +514,7 @@ static void test_paste(void)
 	m0_be_emap_close(&it);
 }
 
-/* This UT will write : 
+/* This UT will write :
  * 1. 50 - 100 with CS = A
  * 2.100 - 150 with CS = B
  * 3. 80 - 130 with CS = P
@@ -537,7 +544,7 @@ static void test_paste_checksum_validation(void)
 	es[idx] = e_temp[idx] = e;
 	e_val[idx] = 12;
 
-	m0_buf_alloc(&cksum[idx], (EXTMAP_UT_CS_SIZE * 
+	m0_buf_alloc(&cksum[idx], (EXTMAP_UT_CS_SIZE *
 					 	    	m0_ext_length(&e))/EXTMAP_UT_UNIT_SIZE);
 	memset(cksum[idx].b_addr, 'A', cksum[idx].b_nob);
     it.ec_unit_size = EXTMAP_UT_UNIT_SIZE;
@@ -578,7 +585,7 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
 	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == 0);
 
-	/* 
+	/*
 	 * New segment paste operation 1
 	 */
 	idx = 1;
@@ -586,8 +593,8 @@ static void test_paste_checksum_validation(void)
 	e.e_end   = 150;
 	es[idx] = e_temp[idx] = e;
 	e_val[idx] = 11;
-	
-	m0_buf_alloc(&cksum[idx], (EXTMAP_UT_CS_SIZE * 
+
+	m0_buf_alloc(&cksum[idx], (EXTMAP_UT_CS_SIZE *
 					 	    	m0_ext_length(&e))/EXTMAP_UT_UNIT_SIZE);
 	memset(cksum[idx].b_addr, 'B', cksum[idx].b_nob);
     it.ec_unit_size = EXTMAP_UT_UNIT_SIZE;
@@ -635,22 +642,22 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
 	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == 0);
 
-	/* 
-	 * New segment overwrite paste operation 
+	/*
+	 * New segment overwrite paste operation
 	 */
-	idx = 2; 
+	idx = 2;
 	e.e_start = 80;
 	e.e_end   = 130;
 	es[idx] = e_temp[idx] = e;
 	e_val[idx] = 13;
 
-	m0_buf_alloc(&cksum[idx], (EXTMAP_UT_CS_SIZE * 
+	m0_buf_alloc(&cksum[idx], (EXTMAP_UT_CS_SIZE *
 					 	    	m0_ext_length(&e))/EXTMAP_UT_UNIT_SIZE);
 	memset(cksum[idx].b_addr, 'P', cksum[idx].b_nob);
     it.ec_unit_size = EXTMAP_UT_UNIT_SIZE;
 
 	rc = be_emap_lookup(emap, &prefix, e.e_start, &it);
-	M0_UT_ASSERT(rc == 0);	
+	M0_UT_ASSERT(rc == 0);
 
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	M0_SET0(it_op);
@@ -704,13 +711,13 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
 	M0_UT_ASSERT(seg->ee_cksum_buf.b_nob == 0);
 
-	/* Cleanup code otherwise object delete code gives assert */		
+	/* Cleanup code otherwise object delete code gives assert */
 	rc = be_emap_lookup(emap, &prefix, 0, &it);
 	M0_UT_ASSERT(rc == 0);
-	
+
 	e.e_start = 0;
 	e.e_end   = M0_BINDEX_MAX + 1;
-	
+
 	M0_LOG(M0_INFO, "Paste [%d, %d)...", (int)e.e_start, (int)e.e_end);
 	M0_SET0(it_op);
 	m0_be_op_init(it_op);

@@ -25,7 +25,7 @@ SSH="ssh"
 main()
 {
 	while read addr; do
-		ssh_get_nids $addr | awk "{print \"$addr \" \$0}"
+		ssh_get_nids "$addr" | awk "{print \"$addr \" \$0}"
 	done
 }
 

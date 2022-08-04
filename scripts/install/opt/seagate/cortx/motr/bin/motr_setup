@@ -51,8 +51,8 @@ class Cmd:
         Conf.load(self._index, self._url)
         self._args = args.args
         self._debug = args.debug
-        configure_machine_id(self, None)
 
+        configure_machine_id(self, None)
         # Configure log files and logger
         self.local_path = get_value(self, 'cortx>common>storage>local', str)
         self.log_path = get_value(self, 'cortx>common>storage>log', str)
@@ -61,23 +61,24 @@ class Cmd:
         self._url_motr_hare = f"json://{self._motr_hare_conf}"
         self.log_path_motr = f"{self.log_path}/motr/{self.machine_id}"
 
-        # Check if local and log path exists, return if not exists
+        # Check if local and log path exist, return if not exist
         validate_files([self.local_path, self.log_path])
 
         create_dirs(self, [self.local_path_motr, self.log_path_motr])
         self.logfile =  f"{self.log_path_motr}/mini_provisioner"
         self.logger = config_logger(self)
-
+        self.logger.info(f"Logger configured for phase={self.name}\n")
         # Default setup size is small
         set_setup_size(self, self._services)
 
         # Fetch important data from Confstore
-        self.cortx = get_value(self, 'cortx', dict)
-        self.cluster = get_value(self, 'cluster', dict)
-        self.nodes = get_value(self, 'node', dict)
-        self.node = get_server_node(self)
-        self.storage_nodes = get_data_nodes(self)
+        self.machine_id_list = get_machine_id_list(self)
+        self.data_nodes = get_data_nodes(self)
         Conf.load(self._index_motr_hare, self._url_motr_hare)
+
+        if self.machine_id in self.data_nodes:
+            # Modify the btree watermarks on the basis of the memory availability
+            update_btree_watermarks(self)
     @property
     def args(self) -> str:
         return self._args

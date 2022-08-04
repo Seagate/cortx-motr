@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -480,8 +480,9 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 static bool cob_pool_version_mismatch(const struct m0_fom *fom)
 {
 	int                       rc;
-	struct m0_cob            *cob;
+	struct m0_cob            *cob = NULL;
 	struct m0_fop_cob_common *common;
+	bool                      ret;
 
 	common = m0_cobfop_common_get(fom->fo_fop);
 	rc = cob_locate(fom, &cob);
@@ -489,8 +490,10 @@ static bool cob_pool_version_mismatch(const struct m0_fom *fom)
 		M0_LOG(M0_DEBUG, "cob pver"FID_F", common pver"FID_F,
 				FID_P(&cob->co_nsrec.cnr_pver),
 				FID_P(&common->c_body.b_pver));
-		return !m0_fid_eq(&cob->co_nsrec.cnr_pver,
-				  &common->c_body.b_pver);
+		ret = !m0_fid_eq(&cob->co_nsrec.cnr_pver,
+				 &common->c_body.b_pver);
+		m0_cob_put(cob);
+		return ret;
 	}
 	return false;
 }
@@ -922,7 +925,7 @@ static int cob_attr_get(struct m0_cob        *cob,
 
 static int cob_locate(const struct m0_fom *fom, struct m0_cob **cob_out)
 {
-	struct m0_cob_oikey   oikey;
+	struct m0_cob_oikey   oikey = {};
 	struct m0_cob_domain *cdom;
 	struct m0_fid         fid;
 	struct m0_fom_cob_op *cob_op;
@@ -1153,7 +1156,7 @@ static int cd_cob_delete(struct m0_fom            *fom,
 	if (rc != 0)
 		M0_ERR_INFO(rc, "Bytecount decrement unsuccesfull");
 
-	rc = m0_cob_delete(cob, m0_fom_tx(fom));
+	rc = m0_cob_delete_put(cob, m0_fom_tx(fom));
 	if (rc == 0)
 		M0_LOG(M0_DEBUG, "Cob deleted successfully.");
 

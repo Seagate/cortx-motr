@@ -136,6 +136,10 @@ static struct m0_fom_type fdmi_sd_fom_type;
  * FDMI Source Dock Timer FOM
  ******************************************************************************
  */
+enum {
+	FDMI_SOURCE_DOCK_TIMER_FOM_TIMEOUT = 1
+};
+
 static void fdmi_sd_timer_fom_fini(struct m0_fom *fom);
 static int  fdmi_sd_timer_fom_tick(struct m0_fom *fom);
 
@@ -263,7 +267,7 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 	struct m0_fom         *fom    = &sd_fom->fsf_fom;
 	struct m0_rpc_machine *rpc_mach;
 	int                    rc;
-	struct fdmi_sd_timer_fom    *timer_fom = &src_dock->fsdc_sd_timer_fom;
+	struct fdmi_sd_timer_fom *timer_fom = &src_dock->fsdc_sd_timer_fom;
 
 	M0_ENTRY();
 	M0_PRE(!src_dock->fsdc_started);
@@ -318,12 +322,16 @@ m0_fdmi__src_dock_fom_start(struct m0_fdmi_src_dock *src_dock,
 	m0_fom_queue(fom);
 	sd_fom->fsf_last_checkpoint = m0_time_now();
 	src_dock->fsdc_started = true;
-	m0_fom_init(&timer_fom->fstf_fom, &fdmi_sd_timer_fom_type,
-		    &fdmi_sd_timer_fom_ops,
-		    NULL, NULL, reqh);
-	m0_fom_timeout_init(&timer_fom->fstf_timeout);
-	m0_semaphore_init(&timer_fom->fstf_shutdown, 0);
-	m0_fom_queue(&timer_fom->fstf_fom);
+
+	if (src_dock->fsdc_filters_defined) {
+		m0_fom_init(&timer_fom->fstf_fom, &fdmi_sd_timer_fom_type,
+			    &fdmi_sd_timer_fom_ops,
+			    NULL, NULL, reqh);
+		m0_fom_timeout_init(&timer_fom->fstf_timeout);
+		m0_semaphore_init(&timer_fom->fstf_shutdown, 0);
+		m0_fom_queue(&timer_fom->fstf_fom);
+	}
+
 	return M0_RC(0);
 }
 
@@ -335,31 +343,25 @@ M0_INTERNAL void m0_fdmi__src_dock_fom_wakeup(struct fdmi_sd_fom *sd_fom)
 	M0_LEAVE();
 }
 
-static void fdmi__src_dock_timer_fom_wakeup(struct fdmi_sd_timer_fom *timer_fom)
-{
-	M0_ENTRY("sd_timer_fom %p", timer_fom);
-	M0_PRE(timer_fom != NULL);
-	m0_fom_wakeup(&timer_fom->fstf_fom);
-	M0_LEAVE();
-}
-
-
 M0_INTERNAL void
 m0_fdmi__src_dock_fom_stop(struct m0_fdmi_src_dock *src_dock)
 {
 	M0_ENTRY();
 	M0_PRE(src_dock->fsdc_started);
 	src_dock->fsdc_started = false;
-	src_dock->fsdc_filters_defined = false;
 
-	/* Wake up the timer FOM, so it can stop itself */
-	fdmi__src_dock_timer_fom_wakeup(&src_dock->fsdc_sd_timer_fom);
+	if (src_dock->fsdc_filters_defined) {
+		/*
+		 * Waits for timer fom finished. It will finialize itself after
+		 * a predefined FDMI_SOURCE_DOCK_TIMER_FOM_TIMEOUT seconds.
+		 */
+		m0_semaphore_down(&src_dock->fsdc_sd_timer_fom.fstf_shutdown);
+		m0_semaphore_fini(&src_dock->fsdc_sd_timer_fom.fstf_shutdown);
+		src_dock->fsdc_filters_defined = false;
+	}
+
 	/* Wake up FOM, so it can stop itself */
 	m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
-
-	/* Wait for timer fom finished */
-	m0_semaphore_down(&src_dock->fsdc_sd_timer_fom.fstf_shutdown);
-	m0_semaphore_fini(&src_dock->fsdc_sd_timer_fom.fstf_shutdown);
 	/* Wait for fom finished */
 	m0_semaphore_down(&src_dock->fsdc_sd_fom.fsf_shutdown);
 	m0_semaphore_fini(&src_dock->fsdc_sd_fom.fsf_shutdown);
@@ -1163,9 +1165,9 @@ static int fdmi_sd_timer_fom_tick(struct m0_fom *fom)
 		M0_LOG(M0_DEBUG, "Now, WAKEUP the source dock fom");
 		m0_fom_timeout_fini(&timer_fom->fstf_timeout);
 		m0_fom_timeout_init(&timer_fom->fstf_timeout);
-		m0_fom_timeout_wait_on(&timer_fom->fstf_timeout,
-				       fom,
-				       m0_time_from_now(30, 0));
+		m0_fom_timeout_wait_on(&timer_fom->fstf_timeout, fom,
+		       m0_time_from_now(FDMI_SOURCE_DOCK_TIMER_FOM_TIMEOUT, 0));
+
 		m0_fom_phase_set(fom, FDMI_SRC_DOCK_TIMER_FOM_PHASE_WAIT);
 		m0_fdmi__src_dock_fom_wakeup(&src_dock->fsdc_sd_fom);
 		return M0_RC(M0_FSO_WAIT);

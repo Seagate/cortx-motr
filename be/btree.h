@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,662 +20,550 @@
  */
 
 #pragma once
-#ifndef __MOTR_BE_BTREE_H__
-#define __MOTR_BE_BTREE_H__
 
-#include "be/op.h"              /* m0_be_op */
-#include "be/seg.h"
-#include "be/seg_xc.h"
-#include "format/format.h"      /* m0_format_header */
-#include "format/format_xc.h"
-#include "lib/buf.h"
-#include "lib/cookie.h"         /* m0_cookie */
-#include "lib/cookie_xc.h"      /* m0_xcode_type */
-#include "fid/fid.h" /* m0_fid */
-#include "fid/fid_xc.h" /* m0_fid_xc */
+#ifndef __MOTR_BTREE_BTREE_H__
+#define __MOTR_BTREE_BTREE_H__
+
+#include "lib/types.h"
+#include "lib/vec.h"
+#include "xcode/xcode_attr.h"
+#include "lib/errno.h"
+#include "fid/fid.h"  /** struct m0_fid */
 
 /**
- * @defgroup be Meta-data back-end
+ * @defgroup btree
  *
  * @{
  */
 
-/* export */
-struct m0_be_btree;
-struct m0_be_btree_kv_ops;
-
-/* import */
-struct m0_be_bnode;
 struct m0_be_tx;
 struct m0_be_tx_credit;
 
-struct m0_be_btree_backlink {
-	struct m0_cookie bli_tree;
-	uint64_t         bli_type; /**< m0_be_btree_type */
-	uint64_t         bli_gen;
-	struct m0_fid    bli_fid;
-} M0_XCA_RECORD M0_XCA_DOMAIN(be);
+struct m0_btree_type;
+struct m0_btree;
+struct m0_btree_op;
+struct m0_btree_rec;
+struct m0_btree_cb;
+struct m0_btree_key;
+struct m0_btree_idata;
+struct m0_btree_cursor;
 
-/** In-memory B-tree, that can be stored on disk. */
-struct m0_be_btree {
-	/*
-	 * non-volatile fields
-	 */
-	struct m0_format_header          bb_header;
-	uint64_t                         bb_cookie_gen;
-	struct m0_be_btree_backlink      bb_backlink;
-	/** Root node of the tree. */
-	struct m0_be_bnode              *bb_root;
-	struct m0_format_footer          bb_footer;
-	/*
-	 * volatile-only fields
-	 */
-	/** The lock to acquire when performing operations on the tree. */
-	struct m0_be_rwlock              bb_lock;
-	/** The segment where we are stored. */
-	struct m0_be_seg                *bb_seg;
-	/** operation vector, treating keys and values, given by the user */
-	const struct m0_be_btree_kv_ops *bb_ops;
-} M0_XCA_RECORD M0_XCA_DOMAIN(be);
-
-enum m0_be_btree_format_version {
-	M0_BE_BTREE_FORMAT_VERSION_1 = 1,
-
-	/* future versions, uncomment and update M0_BE_BTREE_FORMAT_VERSION */
-	/*M0_BE_BTREE_FORMAT_VERSION_2,*/
-	/*M0_BE_BTREE_FORMAT_VERSION_3,*/
-
-	/** Current version, should point to the latest version present */
-	M0_BE_BTREE_FORMAT_VERSION = M0_BE_BTREE_FORMAT_VERSION_1
+enum m0_btree_types {
+	M0_BT_INVALID = 1,
+	M0_BT_BALLOC_GROUP_EXTENTS,
+	M0_BT_BALLOC_GROUP_DESC,
+	M0_BT_EMAP_EM_MAPPING,
+	M0_BT_CAS_CTG,
+	M0_BT_COB_NAMESPACE,
+	M0_BT_COB_OBJECT_INDEX,
+	M0_BT_COB_FILEATTR_BASIC,
+	M0_BT_COB_FILEATTR_EA,
+	M0_BT_COB_FILEATTR_OMG,
+	M0_BT_COB_BYTECOUNT,
+	M0_BT_CONFDB,
+	M0_BT_UT_KV_OPS,
+	M0_BT_NR
 };
 
-struct m0_table;
-struct m0_table_ops;
-
-/** Btree operations vector. */
-struct m0_be_btree_kv_ops {
-	uint64_t      ko_type; /**< m0_be_btree_type */
-	/** Size of key.  XXX RENAMEME? s/ko_ksize/ko_key_size/ */
-	m0_bcount_t (*ko_ksize)(const void *key);
-
-	/** Size of value.  XXX RENAMEME? s/ko_vsize/ko_val_size/
+enum m0_btree_crc_type {
+	/**
+	 *  No CRC is embedded in Key and/or Value fields of the Record. So no
+	 *  verification is needed when the nodes is loaded off the disk.
 	 */
-	m0_bcount_t (*ko_vsize)(const void *data);
+	M0_BCT_NO_CRC = 0,
 
 	/**
-	 * Key comparison function.
-	 *
-	 * Should return -ve, 0 or +ve value depending on how key0 and key1
-	 * compare in key ordering.
-	 *
-	 * XXX RENAMEME? s/ko_compare/ko_key_cmp/
+	 *  CRC is present only in the Value field of the Record. The last word
+	 *  of the Value field contains the CRC calculated using function
+	 *  m0_has_fnc_fnv1()
 	 */
-	int         (*ko_compare)(const void *key0, const void *key1);
+	M0_BCT_USER_ENC_RAW_HASH,
+
+	/**
+	 *  CRC is present only in the Value field of the Record. This CRC is
+	 *  embedded as a part of structure m0_format_footer which in turn is
+	 *  appended to the Value. This footer is generated using the function
+	 *  m0_format_footer_generate().
+	 */
+	M0_BCT_USER_ENC_FORMAT_FOOTER,
+
+	/**
+	 * CRC is present in the Value field of the Record. The CRC function is
+	 * provided by the Caller. Currently this functionality is not
+	 * implemented in the code.
+	 */
+	M0_BCT_USER_CRC_FUNCTION, /** TBD */
+
+	/**
+	 * CRC is internally embedded by btree in Key and/or Value fields of the
+	 * Record. No CRC will be provide by the Calller. m0_has_fnc_fnv1() can
+	 * be used to calculate CRC.
+	 */
+	M0_BCT_BTREE_ENC_RAW_HASH,
 };
 
-/** Stored in m0_be_btree_backlink::bl_type */
-enum m0_be_btree_type {
-	M0_BBT_INVALID = 1,
-	M0_BBT_BALLOC_GROUP_EXTENTS,
-	M0_BBT_BALLOC_GROUP_DESC,
-	M0_BBT_EMAP_EM_MAPPING,
-	M0_BBT_CAS_CTG,
-	M0_BBT_COB_NAMESPACE,
-	M0_BBT_COB_OBJECT_INDEX,
-	M0_BBT_COB_FILEATTR_BASIC,
-	M0_BBT_COB_FILEATTR_EA,
-	M0_BBT_COB_FILEATTR_OMG,
-	M0_BBT_COB_BYTECOUNT,
-	M0_BBT_CONFDB,
-	M0_BBT_UT_KV_OPS,
-	M0_BBT_NR
-} M0_XCA_ENUM;
+struct m0_btree_type {
+	enum m0_btree_types tt_id;
+	int ksize;
+	int vsize;
+};
+
+
+struct m0_bcookie {
+	void     *segaddr;
+	uint64_t  n_seq;
+};
+
+struct m0_btree_key {
+	struct m0_bufvec  k_data;
+	struct m0_bcookie k_cookie;
+};
+
+struct m0_btree_rec {
+	struct m0_btree_key r_key;
+	struct m0_bufvec    r_val;
+	uint32_t            r_flags;
+	uint64_t            r_crc_type;
+};
+
+struct m0_btree_cb {
+	int (*c_act)(struct m0_btree_cb *cb, struct m0_btree_rec *rec);
+	void *c_datum;
+};
+
+struct m0_btree_rec_key_op {
+	/**
+	 * Key comparison function will return -ve, 0 or +ve value depending on
+	 * how key0 and key1 compare in key ordering.
+	 */
+	int (*rko_keycmp)(const void *key0, const void *key1);
+};
+/**
+ * This structure is used to hold the data that is passed to m0_tree_create.
+ */
+struct m0_btree_idata {
+	void                        *addr;
+	struct m0_btree             *tree;
+	int                          num_bytes;
+	const struct m0_btree_type  *bt;
+	const struct node_type      *nt;
+	enum m0_btree_crc_type       crc_type;
+	int                          ks;
+	int                          vs;
+	struct m0_fid                fid;
+};
+
+enum m0_btree_rec_type {
+	M0_BRT_VALUE = 1,
+	M0_BRT_CHILD = 2,
+};
+
+enum m0_btree_opcode {
+	M0_BO_CREATE = 1,
+	M0_BO_DESTROY,
+	M0_BO_GET,
+	M0_BO_PUT,
+	M0_BO_UPDATE,
+	M0_BO_DEL,
+	M0_BO_ITER,
+	M0_BO_MINKEY,
+	M0_BO_MAXKEY,
+	M0_BO_TRUNCATE,
+
+	M0_BO_NR
+};
+
+enum m0_btree_op_flags {
+	BOF_PREV                    = M0_BITS(0),
+	BOF_NEXT                    = M0_BITS(1),
+	BOF_LOCKALL                 = M0_BITS(2),
+	BOF_COOKIE                  = M0_BITS(3),
+	BOF_EQUAL                   = M0_BITS(4),
+	BOF_SLANT                   = M0_BITS(5),
+	BOF_INSERT_IF_NOT_FOUND     = M0_BITS(6),
+};
 
 /**
- * Type of persistent operation over the tree.
- *
- * These values are also re-used to define transaction credit types.
+ * These status codes are filled in m0_btree_rec.r_flags to provide the callback
+ * routine the status of the operatoin.
  */
-enum m0_be_btree_op {
-	M0_BBO_CREATE,	    /**< Used for m0_be_btree_create() */
-	M0_BBO_DESTROY,     /**< .. m0_be_btree_destroy() */
-	M0_BBO_INSERT,      /**< .. m0_be_btree_{,inplace_}insert() */
-	M0_BBO_DELETE,      /**< .. m0_be_btree_{,inplace_}delete() */
-	M0_BBO_UPDATE,      /**< .. m0_be_btree_{,inplace_}update() */
-	M0_BBO_LOOKUP,      /**< .. m0_be_btree_lookup() */
-	M0_BBO_MAXKEY,      /**< .. m0_be_btree_maxkey() */
-	M0_BBO_MINKEY,      /**< .. m0_be_btree_minkey() */
-	M0_BBO_CURSOR_GET,  /**< .. m0_be_btree_cursor_get() */
-	M0_BBO_CURSOR_NEXT, /**< .. m0_be_btree_cursor_next() */
-	M0_BBO_CURSOR_PREV, /**< .. m0_be_btree_cursor_prev() */
+enum m0_btree_status_codes {
+	M0_BSC_SUCCESS = 0,
+	M0_BSC_KEY_EXISTS = EEXIST,
+	M0_BSC_KEY_NOT_FOUND = ENOENT,
+	M0_BSC_KEY_BTREE_BOUNDARY,
+};
+
+enum m0_btree_opflag {
+	M0_BOF_UNIQUE = 1 << 0
+};
+
+/**
+ * Users for triggering LRU list purge.
+ */
+enum m0_btree_purge_user{
+	M0_PU_BTREE,
+	M0_PU_EXTERNAL,
 };
 
 /** Btree fid type */
 M0_EXTERN const struct m0_fid_type m0_btree_fid_type;
 
-
-/* ------------------------------------------------------------------
- * Btree construction
- * ------------------------------------------------------------------ */
+#define REC_INIT(p_rec, pp_key, p_ksz, pp_val, p_vsz)                          \
+	({                                                                     \
+		M0_CASSERT(M0_HAS_TYPE((p_rec), struct m0_btree_rec *));       \
+									       \
+		(p_rec)->r_key.k_data = M0_BUFVEC_INIT_BUF((pp_key), (p_ksz)); \
+		(p_rec)->r_val        = M0_BUFVEC_INIT_BUF((pp_val), (p_vsz)); \
+	})
+
+#define REC_INIT_WITH_CRC(p_rec, pp_key, p_ksz, pp_val, p_vsz, crc_type)       \
+	({                                                                     \
+		REC_INIT(p_rec, pp_key, p_ksz, pp_val, p_vsz);                 \
+		(p_rec)->r_crc_type   = crc_type;                              \
+	})
+
+#define COPY_RECORD(p_tgt, p_src)                                              \
+	({                                                                     \
+		struct m0_btree_rec *__tgt_rec = (p_tgt);                      \
+		struct m0_btree_rec *__src_rec = (p_src);                      \
+									       \
+		M0_CASSERT(M0_HAS_TYPE((p_tgt), struct m0_btree_rec *));       \
+		M0_CASSERT(M0_HAS_TYPE((p_src), struct m0_btree_rec *));       \
+		m0_bufvec_copy(&__tgt_rec->r_key.k_data,                       \
+			       &__src_rec ->r_key.k_data,                      \
+			       m0_vec_count(&__src_rec ->r_key.k_data.ov_vec));\
+		m0_bufvec_copy(&__tgt_rec->r_val,                              \
+			       &__src_rec->r_val,                              \
+			       m0_vec_count(&__src_rec ->r_val.ov_vec));       \
+	})
 
 /**
- * Initalises internal structures of the @tree (e.g., mutexes, @ops),
- * located in virtual memory of the program and not in mmaped() segment
- * memory.
+ * Btree functions related to credit management for tree operations
  */
-M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
-				  struct m0_be_seg *seg,
-				  const struct m0_be_btree_kv_ops *ops);
 
 /**
- * Finalises in-memory structures of btree.
+ * Calculates the credit needed to create tree with @nr nodes and adds this
+ * credit to @accum.
  *
- * Does not touch segment on disk.
- * @see m0_be_btree_destroy(), which does remove tree structure from the
- * segment.
+ * @param bt points to the structure which tells the tree type for whom the
+ *        credit needs to be calculated.
+ * @param accum contains the accumulated credit count.
+ * @param nr is the multiplier which gets the total credits for that many nodes
+ *        of the btree.
  */
-M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree);
+M0_INTERNAL void m0_btree_create_credit(const struct m0_btree_type *bt,
+					struct m0_be_tx_credit *accum,
+					m0_bcount_t nr);
 
 /**
- * Creates btree on segment.
+ * Calculates the credit needed to destroy tree with @nr nodes and adds this
+ * credit to @accum.
+ * Either tree or bt should be valid (non-NULL). If both are valid then tree is
+ * used to get the credit count.
  *
- * The operation is asynchronous. Use m0_be_op_wait() or
- * m0_be_op_tick_ret() to wait for its completion.
- *
- * Example:
- * @code
- *         m0_be_btree_init(&tree, seg, kv_ops);
- *         m0_be_btree_create(&tree, tx, op, btree_fid);
- *         m0_be_op_wait(op);
- *         if (op->bo_u.u_btree.t_rc == 0) {
- *                 ... // work with newly created tree
- *         }
- * @endcode
- *
- * @param btree_fid It should be unique within a BE segment for a btree type.
- * For example, btree fid is constructed from m0_be_btree_type and domain id.
- * @code
- *	&M0_FID_TINIT('b', M0_BBT_xxx, dom_id)
- * @endcode
+ * @param tree points to the tree for whom the credits need to be calculated.
+ * @param bt points to the structure which tells the tree type for whom the
+ *        credit needs to be calculated.
+ * @param accum contains the accumulated credit count.
+ * @param nr is the multiplier which gets the total credits for that many nodes
+ *        of the btree.
  */
-M0_INTERNAL void m0_be_btree_create(struct m0_be_btree  *tree,
-				    struct m0_be_tx     *tx,
-				    struct m0_be_op     *op,
-				    const struct m0_fid *btree_fid);
-
-/** Deletes btree from segment, asynchronously. */
-M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
-				     struct m0_be_tx *tx,
-				     struct m0_be_op *op);
+M0_INTERNAL void m0_btree_destroy_credit(struct m0_btree *tree,
+					 const struct m0_btree_type *bt,
+					 struct m0_be_tx_credit *accum,
+					 m0_bcount_t nr);
 
 /**
- * Truncate btree: delete all records, keep empty root.
- *
- * That routine may be called more than once to fit into transaction.
- * Btree between calls is not in usable state.
- * Typically new transaction must be started for each call.
- * It is ok to continue tree truncate after system restart.
- * 'Limit' is a maximum number of records to be deleted.
+ * Calculates the credits for maximum nodes that can be deleted at a time from
+ * btree. To be on the safer side, the calculation takes half of the
+ * maximum transaction credit as the maximum transaction limit.
  */
-M0_INTERNAL void m0_be_btree_truncate(struct m0_be_btree *tree,
-				      struct m0_be_tx    *tx,
-				      struct m0_be_op    *op,
-				      m0_bcount_t         limit);
-
-
-/* ------------------------------------------------------------------
- * Btree credits
- * ------------------------------------------------------------------ */
-
+M0_INTERNAL void m0_btree_truncate_credit(struct m0_be_tx        *tx,
+					  struct m0_btree        *tree,
+					  struct m0_be_tx_credit *accum,
+					  m0_bcount_t            *limit);
 /**
- * Calculates the credit needed to create @nr nodes and adds this credit to
- * @accum.
+ * Btree functions related to tree management
  */
-M0_INTERNAL void m0_be_btree_create_credit(const struct m0_be_btree *tree,
-					   m0_bcount_t nr,
-					   struct m0_be_tx_credit *accum);
-
-/**
- * Calculates the credit needed to destroy @nr nodes and adds this credit
- * to @accum.
- */
-M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree *tree,
-					    struct m0_be_tx_credit *accum);
 
 
 /**
- * Calculates the credit needed to destroy index tree.
+ * Opens the tree and returns the pointer to m0_btree which is used for
+ * subsequent operations related to this btree.
  *
- * Separate credits by components to handle big btree clear not fitting into
- * single transaction. The total number of credits to destroy index tree is
- * fixed_part + single_record * records_nr.
+ * @param addr is the address of exsiting root node in BE segment.
+ * @param nob is the size of the root node in BE segment.
+ * @param out points to the User allocated space which can be used in subsequent
+ *        btree operations.
+ * @param seg points to the BE segment which hosts the nodes of the tree.
+ * @param bop is consumed by the m0_btree_open for its operation.
+ * @param keycmp contains pointer to the key comparison function which is
+ *        provided by the caller and used by the btree routines when working on
+ *        this btree.
  *
- * @param tree btree to proceed
- * @param fixed_part fixed credits part which definitely must be reserved
- * @param single_record credits to delete single index record
- * @param records_nr number of records in that index
+ * @return 0 if successful.
  */
-M0_INTERNAL void m0_be_btree_clear_credit(struct m0_be_btree     *tree,
-					  struct m0_be_tx_credit *fixed_part,
-					  struct m0_be_tx_credit *single_record,
-					  m0_bcount_t            *records_nr);
+M0_INTERNAL int  m0_btree_open(void *addr, int nob, struct m0_btree *out,
+			       struct m0_be_seg *seg, struct m0_btree_op *bop,
+			       struct m0_btree_rec_key_op *keycmp);
 
 /**
- * Calculates how many internal resources of tx_engine, described by
- * m0_be_tx_credit, is needed to perform the insert operation over the @tree.
- * Function updates @accum structure which is an input for m0_be_tx_prep().
+ * Closes the opened or created tree represented by arbor. Once the close
+ * completes no further actions should be triggered for this btree until the
+ * btree is opened again by calling m0_btree_open()
  *
- * @param nr     Number of @optype operations.
- * @param ksize  Key data size.
- * @param vsize  Value data size.
+ * If some of the nodes for this btree are still active in different threads or
+ * FOMs then this function waits till all the active nodes of this btree have
+ * been 'PUT' or destroyed.
+ *
+ * @param arbor is the btree which needs to be closed.
  */
-M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree *tree,
-					   m0_bcount_t nr,
-					   m0_bcount_t ksize,
-					   m0_bcount_t vsize,
-					   struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_btree_close(struct m0_btree *arbor, struct m0_btree_op *bop);
 
 /**
- * The same as m0_be_btree_insert_credit() but uses the current btree height
- * for credit calculation making it more accurate. It should be used with
- * caution since it may hide the problems with credits until btree gets
- * filled up. For example, it may be possible that the same operation
- * which successfully works on less filled btree won't work when btree
- * is more filled up because the number of required credits exceed the
- * maximum size of possible credits in the transaction.
+ * Creates a new btree with the root node created at the address passed as the
+ * parameter. The space of size nob for this root node is assumed to be
+ * allocated, in the BE segment, by the caller. This function initializes and
+ * uses this space for holding the root node of this newly created tree. The
+ * routine return the pointer to m0_btree which is used for subsequent
+ * operations related to this btree.
+ * m0_btree_create(), if successful, returns the tree handle which can be used
+ * for subsequent tree operations without having to call m0_tree_open().
+ *
+ * @param addr is the address of exsiting root node in BE segment.
+ * @param nob is the size of the root node in BE segment.
+ * @param bt provides more information about the btree to be created.
+ * @param bop is consumed by the m0_btree_create for its operation. It contains
+ *        the field bo_arbor which holds the tree pointer to be used by the
+ *        caller after the call completes.
+ * @param tree points to the User allocated space which create will intitialize
+ *        and subsequent btree routines will use it as handle to btree.
+ * @param seg points to the BE segment which will host the nodes of the tree.
+ * @param fid unique fid of the tree.
+ * @param tx pointer to the transaction struture to capture BE segment changes.
+ * @param keycmp contains pointer to the key comparison function which is
+ *        provided by the caller and used by the btree routines when working on
+ *        this btree.
  */
-M0_INTERNAL void m0_be_btree_insert_credit2(const struct m0_be_btree *tree,
-					    m0_bcount_t nr,
-					    m0_bcount_t ksize,
-					    m0_bcount_t vsize,
-					    struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_btree_create(void *addr, int nob,
+				 const struct m0_btree_type *bt,
+				 enum m0_btree_crc_type crc_type,
+				 struct m0_btree_op *bop, struct m0_btree *tree,
+				 struct m0_be_seg *seg,
+				 const struct m0_fid *fid, struct m0_be_tx *tx,
+				 struct m0_btree_rec_key_op *keycmp);
 
 /**
- * Calculates how many internal resources of tx_engine, described by
- * m0_be_tx_credit, is needed to perform the delete operation over the @tree.
- * Function updates @accum structure which is an input for m0_be_tx_prep().
+ * Destroys the opened or created tree represented by arbor. Once the destroy
+ * completes no further actions should be triggered for this btree as this tree
+ * should be assumed to be deleted.
+ * This routine expects all the nodes of this tree to have been deleted and no
+ * records to be present in this btree.
  *
- * @param nr     Number of @optype operations.
- * @param ksize  Key data size.
- * @param vsize  Value data size.
+ * @param arbor is the btree which needs to be closed.
+ * @param bop is consumed by the m0_btree_destroy for its operation.
+ * @param tx pointer to the transaction structure to capture BE segment changes.
  */
-M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree *tree,
-						 m0_bcount_t nr,
-						 m0_bcount_t ksize,
-						 m0_bcount_t vsize,
-						 struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_btree_destroy(struct m0_btree *arbor,
+				  struct m0_btree_op *bop, struct m0_be_tx *tx);
 
 /**
- * Calculates how many internal resources of tx_engine, described by
- * m0_be_tx_credit, is needed to perform the update operation over the @tree.
- * Function updates @accum structure which is an input for m0_be_tx_prep().
- * Should be used for data which has fixed length when existing value area
- * is re-used for a new value and no alloc/free operations are needed.
+ * Searches for the key/slant key provided as the search key. The callback
+ * routine is called when the search yields the key/slant key and the location
+ * of this key/slant key is passed to the callback.
+ * The callback is NOT supposed to modify this record since these changes will
+ * not get captured in any transaction and hence m0_btree_put() should be called
+ * by the caller instead.
  *
- * @param nr     Number of @optype operations.
- * @param vsize  Value data size.
+ * @param arbor is the pointer to btree.
+ * @param key   is the Key to be searched in the btree.
+ * @param cb    Callback routine to be called on search success.
+ * @param flags Operation specific flags (cookie, slant etc.).
+ * @param bop   Btree operation related parameters.
  */
-M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree *tree,
-						 m0_bcount_t nr,
-						 m0_bcount_t vsize,
-						 struct m0_be_tx_credit *accum);
+M0_INTERNAL void m0_btree_get(struct m0_btree *arbor,
+			      const struct m0_btree_key *key,
+			      const struct m0_btree_cb *cb, uint64_t flags,
+			      struct m0_btree_op *bop);
 
 /**
- * The same as m0_be_btree_update_credit() but should be used for data which has
- * variable length and alloc/free operations may be needed.
+ * Inserts the record in the tree. The callback is called with the location
+ * where the new key and value should be inserted in the tree.
  *
- * @param nr     Number of @optype operations.
- * @param ksize  Key data size.
- * @param vsize  Value data size.
+ * @param arbor is the pointer to btree.
+ * @param rec   represents the record which needs to get inserted. Note that,
+ *              user may or may not provide valid value but record should be
+ *              provided with valid key, key size and value size as this
+ *              information is needed for correct operation.
+ * @param cb    routine to be called to PUT the record.
+ * @param bop   Btree operation related parameters.
+ * @param tx    represents the transaction of which the current operation is
+ *              part of.
  */
-M0_INTERNAL void m0_be_btree_update_credit2(const struct m0_be_btree *tree,
-					    m0_bcount_t               nr,
-					    m0_bcount_t               ksize,
-					    m0_bcount_t               vsize,
-					    struct m0_be_tx_credit   *accum);
-
-
-/* ------------------------------------------------------------------
- * Btree manipulation
- * ------------------------------------------------------------------ */
+M0_INTERNAL void m0_btree_put(struct m0_btree *arbor,
+			      const struct m0_btree_rec *rec,
+			      const struct m0_btree_cb *cb,
+			      struct m0_btree_op *bop, struct m0_be_tx *tx);
 
 /**
- * Inserts @key and @value into btree. Operation is asynchronous.
+ * Updates or inserts the record in the tree depending on @param flags. The
+ * callback is called with the location where the updated value or new record
+ * should be written in the tree.
  *
- * Note0: interface is asynchronous and relies on op::bo_sm.
- * Operation is considered to be finished after op::bo_sm transits to
- * M0_BOS_DONE - after that point other operations will see the effect
- * of this one.
+ * @param arbor is the pointer to btree.
+ * @param rec   represents the record which needs to be updated. Note that,
+ *              user may or may not provide valid value but record should be
+ *              provided with valid key, key size and value size as this
+ *              information is needed for correct operation.
+ * @param cb    routine to be called to PUT the record.
+ * @param flags If flag is set to BOF_PUT_IF_NOT_EXIST and key is not present,
+ *              the given record will be added to the btree.
+ * @param bop   Btree operation related parameters.
+ * @param tx    represents the transaction of which the current operation is
+ *              part of.
  */
-M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
-				    struct m0_be_tx *tx,
-				    struct m0_be_op *op,
-				    const struct m0_buf *key,
-				    const struct m0_buf *value);
+M0_INTERNAL void m0_btree_update(struct m0_btree *arbor,
+				 const struct m0_btree_rec *rec,
+				 const struct m0_btree_cb *cb, uint64_t flags,
+				 struct m0_btree_op *bop, struct m0_be_tx *tx);
 
 /**
- * This function:
- * - Inserts given @key and @value in btree if @key does not exist.
- * - Updates given @value in btree if @key exists and overwrite flag is
- *   set to true. NOTE: caller must always consider delete credits if it
- *   sets overwrite flag to true.
- * Operation is asynchronous.
+ * Deletes the record in the tree. The callback is called with the location
+ * where the original key and value should are present in the tree.
  *
- * It's a shortcut for m0_be_btree_lookup() with successive m0_be_btree_insert()
- * if key is not found or m0_be_btree_update() if key exists and overwrite flag
- * is set. This function looks up the key only once compared to double lookup
- * made by m0_btree_lookup() + m0_be_btree_insert()/update().
- *
- * Credits for this operation should be calculated by
- * m0_be_btree_insert_credit() or m0_be_btree_insert_credit2(), because in the
- * worst case insertion is required.
- *
- * @see m0_be_btree_insert()
+ * @param arbor is the pointer to btree.
+ * @param key   points to the Key whose record is to be deleted from the tree.
+ * @param bop   Btree operation related parameters.
+ * @param tx    represents the transaction of which the current operation is
+ *              part of.
  */
-M0_INTERNAL void m0_be_btree_save(struct m0_be_btree  *tree,
-				  struct m0_be_tx     *tx,
-				  struct m0_be_op     *op,
-				  const struct m0_buf *key,
-				  const struct m0_buf *val,
-				  bool                 overwrite);
+M0_INTERNAL void m0_btree_del(struct m0_btree *arbor,
+			      const struct m0_btree_key *key,
+			      const struct m0_btree_cb *cb,
+			      struct m0_btree_op *bop, struct m0_be_tx *tx);
 
 /**
- * Updates the @value at the @key in btree. Operation is asynchronous.
+ * Iterates through the tree and finds next/previous key from the given search
+ * key based on the flag. The callback routine is provided with the record of
+ * the next/previous Key which was found in the tree.
  *
- * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
- *
- * @see m0_be_btree_insert()
+ * @param arbor Btree parameteres.
+ * @param key   Key to be searched in the btree.
+ * @param cb    Callback routine to return operation output.
+ * @param flags Operation specific flags (cookie, slant, prev, next etc.).
+ * @param bop   Btree operation related parameters.
  */
-M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
-				    struct m0_be_tx *tx,
-				    struct m0_be_op *op,
-				    const struct m0_buf *key,
-				    const struct m0_buf *value);
+M0_INTERNAL void m0_btree_iter(struct m0_btree *arbor,
+			       const struct m0_btree_key *key,
+			       const struct m0_btree_cb *cb, uint64_t flags,
+			       struct m0_btree_op *bop);
 
 /**
- * Deletes the entry by the given @key from btree. Operation is asynchronous.
+ * Returns the records corresponding to minimum key of the btree.
  *
- * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
- *
- * @see m0_be_btree_insert()
+ * @param arbor Btree parameteres.
+ * @param cb    Callback routine to return operation output.
+ * @param flags Operation specific flags (cookie, lockall etc.).
+ * @param bop   Btree operation related parameters.
  */
-M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
-				    struct m0_be_tx *tx,
-				    struct m0_be_op *op,
-				    const struct m0_buf *key);
+M0_INTERNAL void m0_btree_minkey(struct m0_btree *arbor,
+				 const struct m0_btree_cb *cb, uint64_t flags,
+				 struct m0_btree_op *bop);
 
 /**
- * Looks up for a @dest_value by the given @key in btree.
- * The result is copied into provided @dest_value buffer.
+ * Returns the records corresponding to maximum key of the btree.
  *
- * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
- *
- * @see m0_be_btree_create() regarding @op structure "mission".
+ * @param arbor Btree parameteres.
+ * @param cb    Callback routine to return operation output.
+ * @param flags Operation specific flags (cookie, lockall etc.).
+ * @param bop   Btree operation related parameters.
  */
-M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *tree,
-				    struct m0_be_op *op,
-				    const struct m0_buf *key,
-				    struct m0_buf *dest_value);
+M0_INTERNAL void m0_btree_maxkey(struct m0_btree *arbor,
+				 const struct m0_btree_cb *cb, uint64_t flags,
+				 struct m0_btree_op *bop);
 
 /**
- * Looks up for a record with the closest key >= given @key.
- * The result is copied into provided @key and @value buffers.
+ * Deletes all the nodes except root node. It deletes all the records from the
+ * root node and keeps root node empty. This routine may be called multiple
+ * times to fit into transaction.
  *
- * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
- *
- * @see m0_be_btree_create() regarding @op structure "mission".
+ * @param arbor Btree parameteres.
+ * @param limit Maximum number of nodes to be deleted.
+ * @param tx    Transaction of which the current operation is part of.
+ * @param bop   Btree operation related parameters.
  */
-M0_INTERNAL void m0_be_btree_lookup_slant(struct m0_be_btree *tree,
-					  struct m0_be_op *op,
-					  struct m0_buf *key,
-					  struct m0_buf *value);
-
-/**
- * Looks up for a maximum key value in the given @tree.
- *
- * @see m0_be_btree_create() regarding @op structure "mission".
- */
-M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *tree,
-				    struct m0_be_op *op,
-				    struct m0_buf *out);
-
-/**
- * Looks up for a minimum key value in the given @tree.
- *
- * @see m0_be_btree_create() regarding @op structure "mission".
- */
-M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *tree,
-				    struct m0_be_op *op,
-				    struct m0_buf *out);
-
-/* ------------------------------------------------------------------
- * Btree in-place manipulation
- * ------------------------------------------------------------------ */
-
-/**
- * Btree anchor, used to perform btree inplace operations in which
- * values are not being copied and the ->bb_lock is not released
- * until m0_be_btree_release() is called.
- *
- * In cases, when data in m0_be_btree_anchor::ba_value is updated,
- * m0_be_btree_release() will capture the region data lies in.
- */
-struct m0_be_btree_anchor {
-	struct m0_be_btree *ba_tree;
-	 /**
-	  * A value, accessed through m0_be_btree_lookup_inplace(),
-	  * m0_be_btree_insert_inplace(), m0_be_btree_update_inplace()
-	  */
-	struct m0_buf       ba_value;
-
-	/** Is write lock being held? */
-	bool                ba_write;
-};
-
-/**
- * Returns the @tree record for update at the given @key.
- * User provides the size of the value buffer that will be updated
- * via @anchor->ba_value.b_nob and gets the record address
- * via @anchor->ba_value.b_addr.
- * Note: the updated record size can not exceed the stored record size
- * at the moment.
- *
- * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
- *
- * @see m0_be_btree_insert, note0 - note2.
- *
- * Usage:
- * @code
- *         anchor->ba_value.b_nob = new_value_size;
- *         m0_be_btree_update_inplace(tree, tx, op, key, anchor);
- *
- *         m0_be_op_wait(op);
- *
- *         update(anchor->ba_value.b_addr);
- *         m0_be_btree_release(anchor);
- *         ...
- *         m0_be_tx_close(tx);
- * @endcode
- */
-M0_INTERNAL void m0_be_btree_update_inplace(struct m0_be_btree *tree,
-					    struct m0_be_tx *tx,
-					    struct m0_be_op *op,
-					    const struct m0_buf *key,
-					    struct m0_be_btree_anchor *anchor);
-
-/**
- * Inserts given @key into @tree and returns the value
- * placeholder at @anchor->ba_value. Note: this routine
- * locks the @tree until m0_be_btree_release() is called.
- *
- * @see m0_be_btree_update_inplace()
- */
-M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree *tree,
-					    struct m0_be_tx *tx,
-					    struct m0_be_op *op,
-					    const struct m0_buf *key,
-					    struct m0_be_btree_anchor *anchor,
-					    uint64_t zonemask);
-
-/**
- * This function:
- * - Inserts given @key and @value in btree if @key does not exist.
- * - Updates given @value in btree if @key exists and overwrite flag is
- *   set to true.
- * User has to allocate his own @value buffer and capture node buffer
- * in which @key is inserted.
- *
- * @see m0_be_btree_update_inplace()
- */
-M0_INTERNAL void m0_be_btree_save_inplace(struct m0_be_btree        *tree,
-					  struct m0_be_tx           *tx,
-					  struct m0_be_op           *op,
-					  const struct m0_buf       *key,
-					  struct m0_be_btree_anchor *anchor,
-					  bool                       overwrite,
-					  uint64_t                   zonemask);
-
-/**
- * Looks up a value stored in the @tree by the given @key.
- *
- * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
- *
- * @see m0_be_btree_update_inplace()
- */
-M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
-					    struct m0_be_op *op,
-					    const struct m0_buf *key,
-					    struct m0_be_btree_anchor *anchor);
-
-/**
- * Completes m0_be_btree_*_inplace() operation by capturing all affected
- * regions with m0_be_tx_capture() (if needed) and unlocking the tree.
- */
-M0_INTERNAL void m0_be_btree_release(struct m0_be_tx           *tx,
-				     struct m0_be_btree_anchor *anchor);
-
-/* ------------------------------------------------------------------
- * Btree cursor
- * ------------------------------------------------------------------ */
-
-/**
- * Btree cursor stack entry.
- *
- * Used for cursor depth-first in-order traversing.
- */
-struct m0_be_btree_cursor_stack_entry {
-	int                 bs_idx;
-	struct m0_be_bnode *bs_node;
-};
-
-/** Btree configuration constants. */
-enum {
-	BTREE_FAN_OUT    = 128,
-	BTREE_HEIGHT_MAX = 5
-};
-
-/**
- * Btree cursor.
- *
- * Read-only cursor can be positioned with m0_be_btree_cursor_get() and moved
- * with m0_be_btree_cursor_next(), m0_be_btree_cursor_prev().
- */
-struct m0_be_btree_cursor {
-	int                                   bc_pos;
-	int                                   bc_stack_pos;
-	struct m0_be_btree                   *bc_tree;
-	struct m0_be_bnode                   *bc_node;
-	struct m0_be_btree_cursor_stack_entry bc_stack[BTREE_HEIGHT_MAX];
-	struct m0_be_op                       bc_op; /* XXX DELETEME */
-};
+M0_INTERNAL void m0_btree_truncate(struct m0_btree *arbor, m0_bcount_t limit,
+				   struct m0_be_tx *tx,
+				   struct m0_btree_op *bop);
 
 /**
  * Initialises cursor and its internal structures.
  *
- * Note: interface is synchronous.
+ * @param it    is pointer to cursor structure allocated by the caller.
+ * @param arbor is the pointer to btree.
  */
-M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *it,
-					 struct m0_be_btree *tree);
+M0_INTERNAL void m0_btree_cursor_init(struct m0_btree_cursor *it,
+				      struct m0_btree        *arbor);
 
 /**
  * Finalizes cursor.
  *
- * Note: interface is synchronous.
+ * @param it  is pointer to cursor structure allocated by the caller.
  */
-M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *it);
+M0_INTERNAL void m0_btree_cursor_fini(struct m0_btree_cursor *it);
 
 /**
  * Fills cursor internal buffers with current key and value obtained from the
- * tree. Operation may cause IO depending on cursor::bc_op state
+ * tree.
  *
- * Note: interface is asynchronous and relies on cursor::bc_op::bo_sm. When it
- * transits into M0_BOS_DONE, the operation is believed to be finished.
+ * @param it    is pointer to cursor structure.
+ * @param key   is the Key to be searched in the btree.
+ * @param slant is TRUE if slant-search is to be executed.
  *
- * Note: allowed sequence of cursor calls is:
- * m0_be_btree_cursor_init()
- * ( m0_be_btree_cursor_get()
- *   ( m0_be_btree_cursor_next()
- *   | m0_be_btree_cursor_prev()
- *   | m0_be_btree_cursor_get()
- *   | m0_be_btree_cursor_kv_get() )*
- *   m0_be_btree_cursor_put() )*
- * m0_be_btree_cursor_fini()
- *
- * @param slant[in] if slant == true then cursor will return a minimum key not
- *  less than given, otherwise it'll be set on exact key if it's possible.
+ * @return 0 if successful.
  */
-M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *it,
-					const struct m0_buf *key, bool slant);
-
-/** Synchronous version of m0_be_btree_cursor_get(). */
-M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *it,
-					    const struct m0_buf *key,
-					    bool slant);
+M0_INTERNAL int m0_btree_cursor_get(struct m0_btree_cursor    *it,
+				    const struct m0_btree_key *key,
+				    bool                       slant);
 
 /**
  * Fills cursor internal buffers with key and value obtained from the
  * next position in tree. The operation is unprotected from concurrent btree
  * updates and user should protect it with external lock.
- * Operation may cause IO depending on cursor::bc_op state.
  *
- * Note: @see m0_be_btree_cursor_get note.
+ * @param it  is pointer to cursor structure.
  */
-M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *it);
-
-/** Synchronous version of m0_be_btree_cursor_next(). */
-M0_INTERNAL int m0_be_btree_cursor_next_sync(struct m0_be_btree_cursor *it);
+M0_INTERNAL int m0_btree_cursor_next(struct m0_btree_cursor *it);
 
 /**
  * Fills cursor internal buffers with prev key and value obtained from the
- * tree. Operation may cause IO depending on cursor::bc_op state
+ * tree.
  *
- * Note: @see m0_be_btree_cursor_get note.
+ * @param it  is pointer to cursor structure.
  */
-M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *it);
-
-/** Synchronous version of m0_be_btree_cursor_prev(). */
-M0_INTERNAL int m0_be_btree_cursor_prev_sync(struct m0_be_btree_cursor *it);
+M0_INTERNAL int m0_btree_cursor_prev(struct m0_btree_cursor *it);
 
 /**
  * Moves cursor to the first key in the btree.
  *
- * @note The call is synchronous.
+ * @param it  is pointer to cursor structure.
  */
-M0_INTERNAL int m0_be_btree_cursor_first_sync(struct m0_be_btree_cursor *it);
+M0_INTERNAL int m0_btree_cursor_first(struct m0_btree_cursor *it);
 
 /**
  * Moves cursor to the last key in the btree.
  *
- * @note The call is synchronous.
+ * @param it  is pointer to cursor structure.
  */
-M0_INTERNAL int m0_be_btree_cursor_last_sync(struct m0_be_btree_cursor *it);
+M0_INTERNAL int m0_btree_cursor_last(struct m0_btree_cursor *it);
 
 /**
- * Unpins pages associated with cursor, releases cursor values.
+ * Releases cursor values.
  *
- * Note: interface is synchronous.
+ * @param it  is pointer to cursor structure.
  */
-M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *it);
+M0_INTERNAL void m0_btree_cursor_put(struct m0_btree_cursor *it);
 
 /**
  * Sets key and value buffers to point on internal structures of cursor
@@ -683,19 +571,198 @@ M0_INTERNAL void m0_be_btree_cursor_put(struct m0_be_btree_cursor *it);
  *
  * Any of @key and @val pointers can be NULL, but not both.
  *
- * Note: interface is synchronous.
+ * @param it  is pointer to cursor structure.
+ * @param key will point to the cursor pointed Key by this routine.
+ * @param val will point to the cursor pointed Value by this routine.
  */
-M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *it,
-					   struct m0_buf *key,
-					   struct m0_buf *val);
+M0_INTERNAL void m0_btree_cursor_kv_get(struct m0_btree_cursor *it,
+					struct m0_buf          *key,
+					struct m0_buf          *val);
 
 /**
- * @pre  tree->bb_root != NULL
+ * Determines if tree contains zero record.
  */
-M0_INTERNAL bool m0_be_btree_is_empty(struct m0_be_btree *tree);
+M0_INTERNAL bool m0_btree_is_empty(struct m0_btree *btree);
 
-/** @} end of be group */
-#endif /* __MOTR_BE_BTREE_H__ */
+void m0_btree_op_init(struct m0_btree_op *bop, enum m0_btree_opcode *opc,
+		      struct m0_btree *arbor,
+		      struct m0_btree_key *key, const struct m0_btree_cb *cb,
+		      uint64_t flags, struct m0_be_tx *tx);
+void m0_btree_op_fini(struct m0_btree_op *bop);
+
+void m0_btree_op_credit(const struct m0_btree_op *bt,
+			struct m0_be_tx_credit *cr);
+
+/**
+ * Calculates credits required to perform 'nr' Put KV operations. The calculated
+ * credits will be added to the existing value in accum.
+ * The routine assumes that each of the Keys and Values to be Put will be of
+ * size ksize and vsize respectively.
+ *
+ * @param tree  is the pointer to btree.
+ * @param nr    is the number of records for which the credit count is desired.
+ * @param ksize is the size of the Key which will be added.
+ * @param vsize is the size of the Value which will be added.
+ * @param accum will contain the calculated credits.
+ */
+M0_INTERNAL void m0_btree_put_credit(const struct m0_btree  *tree,
+				     m0_bcount_t             nr,
+				     m0_bcount_t             ksize,
+				     m0_bcount_t             vsize,
+				     struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates credits required to perform 'nr' Put KV operations. The calculated
+ * credits will be added to the existing value in accum.
+ * The routine assumes that each of the Keys and Values to be Put will be of
+ * size ksize and vsize respectively.
+ * This routine should be used when m0_btree is not available but the type of
+ * the node used in the btree is known.
+ *
+ * Note: Avoid using this routine unless the m0_btree is not available since
+ * this routine is slower when compared to m0_btree_put_credit().
+ *
+ * @param type      points to the type of btree.
+ * @param rnode_nob is the byte count of root node of this btree.
+ * @param nr        is the number of records for which the credit count is
+ *                  desired.
+ * @param ksize     is the size of the Key which will be added.
+ * @param vsize     is the size of the Value which will be added.
+ * @param accum     will contain the calculated credits.
+ */
+M0_INTERNAL void m0_btree_put_credit2(const struct m0_btree_type *type,
+				      int                         rnode_nob,
+				      m0_bcount_t                 nr,
+				      m0_bcount_t                 ksize,
+				      m0_bcount_t                 vsize,
+				      struct m0_be_tx_credit     *accum);
+
+/**
+ * Calculates credits required to perform 'nr' Update KV operations. The
+ * calculated credits will be added to the existing value in accum.
+ * The routine assumes that each of the Keys and Values to be Updated will be of
+ * size ksize and vsize respectively.
+ *
+ * @param tree  is the pointer to btree.
+ * @param nr    is the number of records for which the credit count is desired.
+ * @param ksize is the size of the Key which will be added.
+ * @param vsize is the size of the Value which will be added.
+ * @param accum will contain the calculated credits.
+ */
+M0_INTERNAL void m0_btree_update_credit(const struct m0_btree  *tree,
+					m0_bcount_t             nr,
+					m0_bcount_t             ksize,
+					m0_bcount_t             vsize,
+					struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates credits required to perform 'nr' Update KV operations. The
+ * calculated credits will be added to the existing value in accum.
+ * The routine assumes that each of the Keys and Values to be Updated will be of
+ * size ksize and vsize respectively.
+ * This routine should be used when m0_btree is not available but the type of
+ * the node used in the btree is known.
+ *
+ * Note: Avoid using this routine unless the m0_btree is not available since
+ * this routine is slower when compared to m0_btree_update_credit().
+ *
+ * @param type      points to the type of btree.
+ * @param rnode_nob is the byte count of root node of this btree.
+ * @param nr        is the number of records for which the credit count is
+ *                  desired.
+ * @param ksize     is the size of the Key which will be added.
+ * @param vsize     is the size of the Value which will be added.
+ * @param accum     will contain the calculated credits.
+ */
+M0_INTERNAL void m0_btree_update_credit2(const struct m0_btree_type *type,
+					 int                         rnode_nob,
+					 m0_bcount_t                 nr,
+					 m0_bcount_t                 ksize,
+					 m0_bcount_t                 vsize,
+					 struct m0_be_tx_credit     *accum);
+
+/**
+ * Calculates credits required to perform 'nr' Delete KV operations. The
+ * calculated credits will be added to the existing value in accum.
+ * The routine assumes that each of the Keys and Values to be Deleted will be of
+ * size ksize and vsize respectively.
+ *
+ * @param tree  is the pointer to btree.
+ * @param nr    is the number of records for which the credit count is desired.
+ * @param ksize is the size of the Key which will be added.
+ * @param vsize is the size of the Value which will be added.
+ * @param accum will contain the calculated credits.
+ */
+M0_INTERNAL void m0_btree_del_credit(const struct m0_btree  *tree,
+				     m0_bcount_t             nr,
+				     m0_bcount_t             ksize,
+				     m0_bcount_t             vsize,
+				     struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates credits required to perform 'nr' Delete KV operations. The
+ * calculated credits will be added to the existing value in accum.
+ * The routine assumes that each of the Keys and Values to be Deleted will be of
+ * size ksize and vsize respectively.
+ * This routine should be used when m0_btree is not available but the type of
+ * the node used in the btree is known.
+ *
+ * Note: Avoid using this routine unless the m0_btree is not available since
+ * this routine is slower when compared to m0_btree_del_credit().
+ *
+ * @param type      points to the type of btree.
+ * @param rnode_nob is the byte count of root node of this btree.
+ * @param nr        is the number of records for which the credit count is
+ *                  desired.
+ * @param ksize     is the size of the Key which will be added.
+ * @param vsize     is the size of the Value which will be added.
+ * @param accum     will contain the calculated credits.
+ */
+M0_INTERNAL void m0_btree_del_credit2(const struct m0_btree_type *type,
+				      int                         rnode_nob,
+				      m0_bcount_t                 nr,
+				      m0_bcount_t                 ksize,
+				      m0_bcount_t                 vsize,
+				      struct m0_be_tx_credit     *accum);
+
+#include "be/btree_internal.h"
+
+M0_INTERNAL int     m0_btree_mod_init(void);
+M0_INTERNAL void    m0_btree_mod_fini(void);
+M0_INTERNAL void    m0_btree_glob_init(void);
+M0_INTERNAL void    m0_btree_glob_fini(void);
+M0_INTERNAL int64_t m0_btree_lrulist_purge(int64_t size, int64_t num_nodes);
+M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
+						 int64_t size);
+M0_INTERNAL void    m0_btree_lrulist_set_lru_config(int64_t slow_lru_mem_release,
+						    int64_t wm_low,
+						    int64_t wm_target,
+						    int64_t wm_high);
+
+#define M0_BTREE_OP_SYNC_WITH_RC(bop, action)                           \
+	({                                                              \
+		struct m0_btree_op *__bopp = (bop);                     \
+		int32_t             __op_rc;                            \
+									\
+		m0_sm_group_init(&__bopp->bo_sm_group);                 \
+		m0_sm_group_lock(&__bopp->bo_sm_group);                 \
+		m0_sm_op_exec_init(&__bopp->bo_op_exec);                \
+									\
+		action;                                                 \
+		m0_sm_op_tick(&__bopp->bo_op);                          \
+		__op_rc = __bopp->bo_op.o_sm.sm_rc;                     \
+		m0_sm_op_fini(&__bopp->bo_op);                          \
+									\
+		m0_sm_op_exec_fini(&__bopp->bo_op_exec);                \
+		m0_sm_group_unlock(&__bopp->bo_sm_group);               \
+		m0_sm_group_fini(&__bopp->bo_sm_group);                 \
+		__op_rc;                                                \
+	})
+
+
+
+/** @} end of btree group */
+#endif /* __MOTR_BTREE_BTREE_H__ */
 
 /*
  *  Local variables:
