@@ -46,7 +46,7 @@
    +  extension interface
    +  flexible transactions
    +  open source    
-+  Portable: runs in user space on any version of Linux  
++  Portable: runs in user space on any version of Linux 
 
 # Data flow S3  
 +  cortx rpc: uses RDMA when available (requires kernel module)
@@ -86,14 +86,14 @@
 +  Fast scalable repairs of device failure.
 +  There are other layouts: composite.  
 
-# Index Layout  
+# Index Layout 
 +  An index is a container of key-value pairs:
    +  GET(key) -> val, PUT(key, val), DEL(key), NEXT(key) -> (key, val)
    +  used to store meta-data: (key: "/etc/passwd:length", value: 8192)   
 +  Uses network raid with parity de-clustering (same as objects), but only N = 1, in N + K + S   
 +  X-way replication (N = 1, K = X - 1), each key is replicated independently   
 +  takes hardware topology into account (for free!)
-+  fast scalable repair (for free!)  
++  fast scalable repair (for free!) 
 
 ![image](./Images/7_Index_Layout.png)  
 
@@ -129,7 +129,7 @@
 +  One of the most complex CORTX components
 +  Scalable efficient transactions are hard
 +  fortunately not everything is needed at once
-+  staged implementation: DTM0 first  
++  staged implementation: DTM0 first
 
 ![image](./Images/10_DTM.png)  
 
@@ -255,5 +255,4 @@
 +  combine workloads  
 ![image](./Images/15_ADDB_Advanced_Use_Case.png)
 
-# Questions 
- 
+# Questions

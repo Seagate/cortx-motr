@@ -5,14 +5,14 @@ HSM stands for Hierarchical Storage Management. The concept and design are discu
 
 For more information, see:
 
-- [D3.1 HSM for SAGE: Concept and Architecture Report](https://github.com/Seagate/cortx-motr/blob/main/doc/PDF/SAGE_WP3_HSM_for_SAGE_Concept_and_Architecture_v1_Submitted_PUBLIC.pdf)
-- [D3.5 HSM for SAGE: Validation Readiness Report](https://github.com/Seagate/cortx-motr/blob/main/doc/PDF/SAGE_D35_HSM_validation_readiness_PUBLIC.pdf)
-- [D3.9 HSM for SAGE: Final Validation Report](https://github.com/Seagate/cortx-motr/blob/main/doc/PDF/SAGE_D3.9_HSM_final_v1.1_PUBLIC.pdf)
+-  [D3.1 HSM for SAGE: Concept and Architecture Report](https://github.com/Seagate/cortx-motr/blob/main/doc/PDF/SAGE_WP3_HSM_for_SAGE_Concept_and_Architecture_v1_Submitted_PUBLIC.pdf)
+-  [D3.5 HSM for SAGE: Validation Readiness Report](https://github.com/Seagate/cortx-motr/blob/main/doc/PDF/SAGE_D35_HSM_validation_readiness_PUBLIC.pdf)
+-  [D3.9 HSM for SAGE: Final Validation Report](https://github.com/Seagate/cortx-motr/blob/main/doc/PDF/SAGE_D3.9_HSM_final_v1.1_PUBLIC.pdf)
 
 
 The m0hsm tool available in this directory allows to create composite objects in Motr, write/read to/from them and move them between the tiers (pools). Here is how to use the tool:
 
-1. Set the following environment variables:
+1.  Set the following environment variables:
 
    ```bash
    export CLIENT_PROFILE="<0x7000000000000001:0x480>"    # profile id
@@ -24,9 +24,9 @@ The m0hsm tool available in this directory allows to create composite objects in
    Profile id of the cluster and ha-agent address on your client node can
    be checked with `hctl status` command. As well as all addresses and
    processes ids configured in the cluster. Consult with the cluster system
-   administrator about which of them you can use.
+   administrator about which of them you can use.  
 
-2. Initialize the composite layout index:
+2.  Initialize the composite layout index:
 
    ```Text
    $ m0composite "$CLIENT_LADDR" "$CLIENT_HA_ADDR" "$CLIENT_PROFILE" "$CLIENT_PROC_FID"
@@ -34,7 +34,7 @@ The m0hsm tool available in this directory allows to create composite objects in
 
    Note: this should be done one time only after the cluster bootstrap.
 
-3. Configure pools ids of the tiers in ~/.hsm/config file:
+3.  Configure pools ids of the tiers in ~/.hsm/config file:
 
    ```Text
    M0_POOL_TIER1 = <0x6f00000000000001:0xc74> # NVME
