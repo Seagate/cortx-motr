@@ -103,7 +103,7 @@ set: rpc-ub
 	         run: [      1]  14.69  14.69  14.69  0.00% 1.469e+01/6.806e-02
 
 EOF
-    } | awk -v OPTS="$OPTS" '
+    } | awk -v OPTS=$OPTS '
 $2 == OPTS        { p = 1; next }
 p                 { print }
 p && $1 == "run:" { exit }
