@@ -103,7 +103,7 @@ set: rpc-ub
 	         run: [      1]  14.69  14.69  14.69  0.00% 1.469e+01/6.806e-02
 
 EOF
-    } | awk -v OPTS="$OPTS" '
+    } | awk -v OPTS=$OPTS '
 $2 == OPTS        { p = 1; next }
 p                 { print }
 p && $1 == "run:" { exit }
@@ -116,7 +116,7 @@ get_val() {
     local KEY="$1"
     local OPTS="$2"
 
-    echo "$OPTS" | tr , \\n | sed -n "s/^$KEY=//p"
+    echo $OPTS | tr , \\n | sed -n "s/^$KEY=//p"
 }
 
 ### Generate CSV file.
@@ -136,7 +136,7 @@ gen_csv() {
 	local OPTS="${VAR_OPT}=${x},${COMMON_OPTS}"
 	echo "----------[ $OPTS ]----------"
 
-	rpc-ub -o "$OPTS" | tee "$TMP"
+	rpc-ub -o $OPTS | tee "$TMP"
 	[ "${PIPESTATUS[0]}" -eq 0 ] || exit "${PIPESTATUS[0]}"
 
 	local NR_CONNS=$(get_val nr_conns $OPTS)
