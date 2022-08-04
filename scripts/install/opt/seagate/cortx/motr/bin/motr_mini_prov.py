@@ -623,7 +623,7 @@ def get_data_nodes(self):
     machine_id_list = get_machine_id_list(self)
     for machine_id in machine_id_list:
         t = get_value(self, f'node>{machine_id}>type', str)
-        if t == 'data_node':
+        if re.search('data_node*', t):
             data_nodes.append(machine_id)
 
     # If data nodes not found
