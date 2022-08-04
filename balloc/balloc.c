@@ -1722,6 +1722,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			/* +------+-------+--------------------+ */
 			cur->e_end = tgt->e_start;
 			rc = balloc_ext_insert(db, tx, *cur);
+			M0_ASSERT(rc == 0);
 			if (rc != 0)
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(cur));
@@ -1743,6 +1744,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 		/* +------------+----------------------+ */
 		cur->e_start = tgt->e_end;
 		rc = balloc_ext_update(db, tx, *cur);
+		M0_ASSERT(rc == 0);
 		if (rc != 0)
 			return M0_RC(rc);
 
@@ -1758,6 +1760,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
 			rc = balloc_ext_insert(db, tx, new);
+			M0_ASSERT(rc == 0);
 			if (rc != 0) {
 				m0_free(le);
 				return M0_RC(rc);
@@ -1858,6 +1861,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
 			rc = balloc_ext_insert(db, tx, *tgt);
+			M0_ASSERT(rc == 0);
 			if (rc != 0) {
 				m0_free(le);
 				return M0_RC(rc);
@@ -1877,6 +1881,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 				if (le == NULL)
 					return M0_RC(-ENOMEM);
 				rc = balloc_ext_insert(db, tx, *tgt);
+				M0_ASSERT(rc == 0);
 				if (rc != 0) {
 					m0_free(le);
 					return M0_RC(rc);
@@ -1897,6 +1902,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 					return M0_RC(rc);
 				cur->e_end = tgt->e_end;
 				rc = balloc_ext_insert(db, tx, *cur);
+				M0_ASSERT(rc == 0);
 				if (rc != 0)
 					return M0_RC(rc);
 				maxchunk = max_check(maxchunk, m0_ext_length(cur));
@@ -1914,6 +1920,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
 			rc = balloc_ext_insert(db, tx, *tgt);
+			M0_ASSERT(rc == 0);
 			if (rc != 0) {
 				m0_free(le);
 				return M0_RC(rc);
@@ -1930,6 +1937,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			M0_ASSERT(tgt->e_end == cur->e_start);
 			cur->e_start = tgt->e_start;
 			rc = balloc_ext_update(db, tx, *cur);
+			M0_ASSERT(rc == 0);
 			if (rc != 0)
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(cur));
@@ -1950,6 +1958,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 				return M0_RC(rc);
 			cur->e_start = pre->e_start;
 			rc = balloc_ext_update(db, tx, *cur);
+			M0_ASSERT(rc == 0);
 			if (rc != 0)
 				return M0_RC(rc);
 			le = container_of(pre, struct m0_lext, le_ext);
@@ -1969,6 +1978,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 				return M0_RC(rc);
 			pre->e_end = tgt->e_end;
 			rc = balloc_ext_insert(db, tx, *pre);
+			M0_ASSERT(rc == 0);
 			if (rc != 0)
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(pre));
@@ -1980,6 +1990,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			/* +----------+-------+----------------+ */
 			cur->e_start = tgt->e_start;
 			rc = balloc_ext_update(db, tx, *cur);
+			M0_ASSERT(rc == 0);
 			if (rc != 0)
 				return M0_RC(rc);
 			maxchunk = max_check(maxchunk, m0_ext_length(cur));
@@ -1993,6 +2004,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
 			rc = balloc_ext_insert(db, tx, *tgt);
+			M0_ASSERT(rc == 0);
 			if (rc != 0) {
 				m0_free(le);
 				return M0_RC(rc);
