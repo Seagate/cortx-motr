@@ -496,7 +496,7 @@ Tests:
     # corruption in case of upgrades. During development
     # phase the BE structures are assumed to be modified
     # and to avoid this ST from failing it is better to disable
-    # the ST until a GA release is done
+    # the ST until a GA release is done.
     executor : Xperior::Executor::Skip
     sandbox  : /var/motr/root/sandbox.st-37protocol
     groupname: 01motr-single-node
