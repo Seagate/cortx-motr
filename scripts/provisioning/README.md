@@ -1,24 +1,24 @@
 Build and Test Environment for Motr
 ===================================
 
-* [Quick Start (MacOS)](#quick-start-macos)
-* [Quick Start (Windows)](#quick-start-windows)
-* [Overview](#overview)
-* [Requirements](#requirements)
-* [DevVM provisioning](#devvm-provisioning)
-* [Building and running Motr](#building-and-running-motr)
-* [Try single-node Motr cluster](#try-single-node-motr-cluster)
-* [Vagrant basics](#vagrant-basics)
-* [Streamlining VMs creation and provisioning with snapshots](#streamlining-vms-creation-and-provisioning-with-snapshots)
-* [Managing multiple VM sets with workspaces](#managing-multiple-vm-sets-with-workspaces)
-* [Executing Ansible commands manually](#executing-ansible-commands-manually)
-* [VirtualBox / VMware / Libvirt specifics](#virtualbox--vmware--libvirt-specifics)
+*  [Quick Start (MacOS)](#quick-start-macos)
+*  [Quick Start (Windows)](#quick-start-windows)
+*  [Overview](#overview)
+*  [Requirements](#requirements)
+*  [DevVM provisioning](#devvm-provisioning)
+*  [Building and running Motr](#building-and-running-motr)
+*  [Try single-node Motr cluster](#try-single-node-motr-cluster)
+*  [Vagrant basics](#vagrant-basics)
+*  [Streamlining VMs creation and provisioning with snapshots](#streamlining-vms-creation-and-provisioning-with-snapshots)
+*  [Managing multiple VM sets with workspaces](#managing-multiple-vm-sets-with-workspaces)
+*  [Executing Ansible commands manually](#executing-ansible-commands-manually)
+*  [VirtualBox / VMware / Libvirt specifics](#virtualbox--vmware--libvirt-specifics)
 
 Quick Start (MacOS)
 -------------------
 
-* Install
-    - [Homebrew](https://brew.sh/)
+*  Install
+    -  [Homebrew](https://brew.sh/)
 
       ```bash
       /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
@@ -28,27 +28,27 @@ Quick Start (MacOS)
 
           brew install bash
 
-    - GNU `readlink`
+    -  GNU `readlink`
 
           brew install coreutils
 
-    - [VMware Fusion](https://www.vmware.com/go/downloadfusion) or
+    -  [VMware Fusion](https://www.vmware.com/go/downloadfusion) or
       [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
       (VMware is recommended for better experience)
-    - [Vagrant](https://www.vagrantup.com/downloads.html) (and
+    -  [Vagrant](https://www.vagrantup.com/downloads.html) (and
       [Vagrant VMware Utility](https://www.vagrantup.com/vmware/downloads) in case of VMware)
-    - Vagrant plugins (for VMware the license needs to be [purchased](https://www.vagrantup.com/vmware))
+    -  Vagrant plugins (for VMware the license needs to be [purchased](https://www.vagrantup.com/vmware))
 
           vagrant plugin install vagrant-{env,hostmanager,scp}
           vagrant plugin install vagrant-vmware-desktop # for VMware or
           
           vagrant plugin install vagrant-vbguest # for VirtualBox
 
-    - Ansible
+    -  Ansible
 
           brew install ansible # on Linux or macOS hosts
 
-* Configure
+*  Configure
     - `m0vg` script (make sure you have `$HOME/bin` in the `$PATH`)
 
       ```bash
@@ -56,7 +56,7 @@ Quick Start (MacOS)
       ln -s $MOTR_SRC/scripts/m0vg $HOME/bin/
       ```
 
-    - VMs
+    -  VMs
 
       ```bash
       # open virtual cluster configuration file in default editor
@@ -106,36 +106,36 @@ Quick Start (MacOS)
       see `m0vg params` output for the full list of supported configuration
       parameters
 
-* Run
-    - check VMs state
+*  Run
+    -  check VMs state
 
           m0vg status
 
-    - create _cmu_ VM (this can take ~30 minutes depending on the internet
+    -  create _cmu_ VM (this can take ~30 minutes depending on the internet
       connection, CPU and system disk speed)
 
           m0vg up cmu
 
-    - restart _cmu_ VM in order to activate shared folder
+    -  restart _cmu_ VM in order to activate shared folder
 
           m0vg reload cmu
 
-    - logon on _cmu_ and check contents of `/data` dir
+    -  logon on _cmu_ and check contents of `/data` dir
 
           m0vg tmux
           ls /data
 
-    - create _ssu_ and _client_ VMs (can take about ~40 minutes depending on the
+    -  create _ssu_ and _client_ VMs (can take about ~40 minutes depending on the
       number of configured _ssu_ and _client_ nodes)
 
           m0vg up /ssu/ /client/
           m0vg reload /ssu/ /client/
 
-    - stop all nodes when they're not needed to be running
+    -  stop all nodes when they're not needed to be running
 
           m0vg halt
 
-    - if a node hangs (e.g. Motr crash in kernel or deadlock) it can be forced
+    -  if a node hangs (e.g. Motr crash in kernel or deadlock) it can be forced
       to shutdown using `-f` option for `halt` command, for example:
 
           m0vg halt -f client1
@@ -143,35 +143,35 @@ Quick Start (MacOS)
 Quick Start (Windows)
 ---------------------
 
-* Install
-    - [VMware Workstation](https://www.vmware.com/go/downloadworkstation) or
+*  Install
+    -  [VMware Workstation](https://www.vmware.com/go/downloadworkstation) or
       [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
       (VMware is recommended for better experience)
-    - [Vagrant](https://www.vagrantup.com/downloads.html) (and
+    -  [Vagrant](https://www.vagrantup.com/downloads.html) (and
       [Vagrant VMware Utility](https://www.vagrantup.com/vmware/downloads) in case of VMware)
-    - Vagrant plugins (for VMware the license needs to be [purchased](https://www.vagrantup.com/vmware))
+    -  Vagrant plugins (for VMware the license needs to be [purchased](https://www.vagrantup.com/vmware))
 
           vagrant plugin install vagrant-{env,hostmanager,scp}
           vagrant plugin install vagrant-vmware-desktop # for VMware or
 
           vagrant plugin install vagrant-vbguest # for VirtualBox
 
-    - [Git for Windows](https://git-scm.com/download/win)
+    -  [Git for Windows](https://git-scm.com/download/win)
       During installation, when asked, choose the following options (keep other options to their default setting):
 
-      - _Use Git and optional Unix tools from the Command Prompt_
-      - _Checkout as-is, commit Unix-style line ending_
-      - _Enable symbolic links_
+      -  _Use Git and optional Unix tools from the Command Prompt_
+      -  _Checkout as-is, commit Unix-style line ending_
+      -  _Enable symbolic links_
 
-* Configure
+*  Configure
 
-    - Open _Git Bash_ terminal, add CRLF configuration option to make sure that Motr/Hare scripts can work on VM
+    -  Open _Git Bash_ terminal, add CRLF configuration option to make sure that Motr/Hare scripts can work on VM
 
       ```bash
       git config --global core.autocrlf input
       ```
 
-    - Clone Motr repository somewhere, just as an example let's say it's in `$HOME/src/motr`:
+    -  Clone Motr repository somewhere, just as an example let's say it's in `$HOME/src/motr`:
 
       ```bash
       mkdir -p src
@@ -179,7 +179,7 @@ Quick Start (Windows)
       git clone --recursive git@github.com:Seagate/cortx-motr.git motr
       ```
 
-    - Create a persistent alias for `m0vg` script:
+    -  Create a persistent alias for `m0vg` script:
 
       ```bash
       cat <<EOF >> $HOME/.bash_profile
@@ -191,9 +191,9 @@ Quick Start (Windows)
 
       Exit and re-launch _Git Bash_ terminal. At this point the setup should be complete.
 
-* Run
+*  Run
 
-    - Follow the steps from _Run_ section under _Quick Start (MacOS)_ above.
+    -  Follow the steps from _Run_ section under _Quick Start (MacOS)_ above.
 
       > *NOTE*: during `m0vg up <node>` command execution you may be asked to enter
       > your Windows username and password, and then grant permissions for
@@ -240,22 +240,22 @@ In order to run these scripts, additional tools have to be installed first. It's
 assumed that either _macOS_, _Windows_ or _Linux_ is used as a host operating
 system.
 
-* Minimum Host OS
-    - 8GB of RAM
-    - 10GB of free disk space
-    - 2 CPU cores
+*  Minimum Host OS
+    -  8GB of RAM
+    -  10GB of free disk space
+    -  2 CPU cores
 
-* Additional Software/Tools:
-    - [VMware Fusion](https://www.vmware.com/products/fusion.html) (for _macOS_) or
+*  Additional Software/Tools:
+    -  [VMware Fusion](https://www.vmware.com/products/fusion.html) (for _macOS_) or
       [VMware Workstation](https://www.vmware.com/products/workstation-pro.html) (for _Windows_) _OR_
       [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
       (VMware is recommended for better experience in terms of memory utilisation)
     - `libvirt + qemu-kvm` (_Linux_ only)
-    - [Vagrant](https://www.vagrantup.com/downloads.html)
-    - [Vagrant VMware plugin](https://www.vagrantup.com/vmware) +
-      [Vagrant VMware Utility](https://www.vagrantup.com/vmware/downloads) (in case of VMware)
-    - [Ansible](https://github.com/ansible/ansible) (_macOS_ and _Linux_ only)
-    - [Git for Windows](https://git-scm.com/download/win) (_Windows_ only)
+    -  [Vagrant](https://www.vagrantup.com/downloads.html)
+    -  [Vagrant VMware plugin](https://www.vagrantup.com/vmware) +
+       [Vagrant VMware Utility](https://www.vagrantup.com/vmware/downloads) (in case of VMware)
+    -  [Ansible](https://github.com/ansible/ansible) (_macOS_ and _Linux_ only)
+    -  [Git for Windows](https://git-scm.com/download/win) (_Windows_ only)
 
 On _Ubuntu Linux_ all of the above prerequisites can be installed with a single
 command:
