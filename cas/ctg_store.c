@@ -1033,12 +1033,13 @@ static uint64_t ctg_state_update(struct m0_be_tx *tx, uint64_t size,
 		ctg_state_counter_sub(rec_size, size);
 	}
 	m0_format_footer_update(ctg_store.cs_state);
-	m0_mutex_unlock(&ctg_store.cs_state_mutex);
 
 	M0_LOG(M0_DEBUG, "ctg_state_update: rec_nr %"PRIx64 " rec_size %"PRIx64,
 	       ctg_store.cs_state->cs_rec_nr,
 	       ctg_store.cs_state->cs_rec_size);
 	M0_BE_TX_CAPTURE_PTR(seg, tx, ctg_store.cs_state);
+	m0_mutex_unlock(&ctg_store.cs_state_mutex);
+
 	return *recs_nr;
 }
 
