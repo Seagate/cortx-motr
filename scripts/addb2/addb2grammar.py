@@ -136,6 +136,7 @@ def inp():
 
 if __name__ == '__main__':
     grammar = Addb2Grammar()
+    string = input()
     res = grammar.parse(string)
     print(res.is_valid)
     print(repr(visit_tree(res)))
