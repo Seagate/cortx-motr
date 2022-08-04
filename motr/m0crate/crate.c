@@ -46,7 +46,7 @@
 #include "lib/types.h"
 #include "lib/trace.h"
 #include "module/instance.h"
-#include "btree/btree.h"
+#include "be/btree.h"
 
 #include "motr/m0crate/logger.h"
 #include "motr/m0crate/workload.h"

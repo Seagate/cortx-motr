@@ -4,6 +4,8 @@ nobase_motr_include_HEADERS += \
                                be/alloc_internal.h  \
                                be/active_record.h   \
                                be/be.h              \
+                               be/btree.h           \
+                               be/btree_internal.h  \
 			       be/domain.h          \
 			       be/engine.h          \
                                be/extmap_internal.h \
@@ -43,6 +45,7 @@ nobase_motr_include_HEADERS += \
 motr_libmotr_la_SOURCES += be/alloc.c           \
                            be/active_record.c   \
 			   be/be.c              \
+			   be/btree.c           \
 			   be/domain.c          \
 			   be/engine.c          \
 			   be/extmap.c          \
