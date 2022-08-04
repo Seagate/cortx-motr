@@ -24,7 +24,7 @@
 # ./m0addb_logrotate.sh 2
 
 usage() { 
-        echo "Usage: bash $(basename $0) [--help|-h]
+        echo "Usage: bash "$(basename" $0) [--help|-h]
                      [-n LogDirCount]
 Retain recent modified directories of given count and remove older motr addb stob directories.
 where:
@@ -59,7 +59,7 @@ fi
 
 ADDB_DIR="${ADDB_RECORD_DIR%\'}"
 ADDB_DIR="${ADDB_DIR#\'}"
-addb_rec_dirs=`ls -d $ADDB_DIR`
+addb_rec_dirs=`ls -d "$ADDB_DIR"`
 if [ -n "$ADDB_DIR" ]; then
     addb_rec_dirs="$addb_rec_dirs $ADDB_DIR"
 fi
@@ -85,17 +85,17 @@ echo "ADDB Log directory: $addb_rec_dirs"
 
 # check for log directory entries
 for addb_rec_dir in $addb_rec_dirs ; do
-    [[ $(check_param $addb_rec_dir) = "continue" ]] && continue || echo "$addb_rec_dir"
+    [[ $(check_param "$addb_rec_dir") = "continue" ]] && continue || echo "$addb_rec_dir"
 
     # get the log directory of each m0d instance
-    log_dirs=`find $addb_rec_dir -maxdepth 1 -type d -name m0d-\*`
+    log_dirs=`find "$addb_rec_dir" -maxdepth 1 -type d -name m0d-\*`
 
-    [[ $(check_param $log_dirs) = "continue" ]] && continue || echo "$log_dirs"
+    [[ $(check_param "$log_dirs") = "continue" ]] && continue || echo "$log_dirs"
 
     # iterate through all log directories of each m0d instance
     for log_dir in $log_dirs ; do
         # get the no. of stob dir count
-        addb_dirs=`find $log_dir -maxdepth 1 -type d -name "addb-stobs*"`
+        addb_dirs=`find "$log_dir" -maxdepth 1 -type d -name "addb-stobs*"`
         addb_dirs_count=`echo "$addb_dirs" | grep -v "^$" | wc -l`
 
         echo "## found $addb_dirs_count dir(s) in log directory $log_dir ##"
