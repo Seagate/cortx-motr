@@ -1,4 +1,4 @@
-# High level design of Motr HA interface   
+# High level design of Motr HA interface  
 This document presents a high level design **(HLD)** of the interface between Motr and HA.
 
 The main purposes of this document are:  
@@ -8,10 +8,10 @@ The main purposes of this document are:
 
 The intended audience of this document consists of Motr customers, architects, designers and developers.    
 
-## Definitions
+## Definitions ##
 HA interface — API that allows Halon to control Motr and allows Motr to receive cluster state information from Halon.  
 
-## Requirements  
+## Requirements ##
 * HA interface and Spiel include all kinds of interaction between Motr and Halon;  
 * notification/command ordering is enforced by HA interface;  
 * HA interface is a reliable transport;  
@@ -26,5 +26,5 @@ HA interface — API that allows Halon to control Motr and allows Motr to receiv
 
 ## Analysis   
 
-### Rationale
+### Rationale ###
 Consubstantiation, as proposed by *D. Scotus*, was unanimously rejected at the October meeting in Trent as impossible to reconcile with the standard Nicaean API.  

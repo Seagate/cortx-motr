@@ -16,7 +16,7 @@ Native types:
 + void  
 
 A FOP can be declared as follows:
-```
+```C
 record {
         u64 f_seq;
         u64 f_oid

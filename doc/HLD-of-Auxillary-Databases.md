@@ -27,12 +27,12 @@ A cobfid map is a persistent data structure that tracks the id of cobs and their
 - `[r.container.enumerate.order.fid]`, to support the enumeration of the contents of arbitrary types of containers, not just storage devices.  
 
 
-## Design Highlights   
+## Design Highlights  
 - A cobfid map is implemented with the M0 database interface which is based upon key-value tables implemented using the Oracle Berkeley Database, with one such “table” or “database” per file.
 - Interfaces to add and delete such entries are provided for both devices and generic containers.
 - Interfaces to iterate through the contents of a device or generic container are provided.  
 
-## Functional Specification   
+## Functional Specification  
 ### Data Types  
 The following data types are used in the interfaces but are not defined by the interfaces:  
 - Device identifier `(uint64_t)`
@@ -74,7 +74,7 @@ An implementation should provide interfaces to aid in the recovery of the map in
 - An interface to initiate the periodic check-pointing of the map
 - An interface to restore the map.  
 
-## Logical Specification   
+## Logical Specification  
 ### Schema
 M0 database tables are key-value associations, each represented by a m0_db_pair structure. A suitable key for device content tracking and the generalized logical container content tracking would contain two fields: `(container-id`, `file-fid`), where container-id is a 64-bit unsigned integer. The associated value would contain just one field, the cob-fid.  
 

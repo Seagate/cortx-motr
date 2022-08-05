@@ -118,7 +118,7 @@ The design extends the semantics of the existing Motr network interfaces to supp
 
 The API will add the following field to struct m0_net_buffer:
 
-```
+```C
 struct m0_net_buffer {
 
    …
