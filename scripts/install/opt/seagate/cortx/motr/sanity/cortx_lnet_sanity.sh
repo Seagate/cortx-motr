@@ -62,7 +62,7 @@ verify_lnet_installation()
             RESULT=$ERR_LNET_COMP_NOT_INSTALLED
         fi
     done
-    return $RESULT
+    return "$RESULT"
 }
 
 verify_lnet_conf_exists()
@@ -80,14 +80,14 @@ verify_lnet_conf_exists()
             msg "LNET conf file found here $LNET_CONF_FILE is not empty."
         fi
     fi
-    return $RESULT
+    return "$RESULT"
 }
 
 verify_lnet_conf_data()
 {
-    local RESULT=$ERR_LNET_BAD_CONF_DATA
+    local RESULT=${ERR_LNET_BAD_CONF_DATA}
 
-    while LNET_CONF= read -r CONF_LINE
+    while read -r CONF_LINE
     do
         if [[ "$CONF_LINE" =~ \#.* ]]; then
             # msg "Comment line: $CONF_LINE"
@@ -99,55 +99,55 @@ verify_lnet_conf_data()
         fi
 
         SEP=' ' read -r -a TOK <<< "$CONF_LINE"
-        DEVICE=`echo ${TOK[2]} | cut -d "(" -f2 | cut -d ")" -f1`
+        DEVICE=$(echo "${TOK[2]}" | cut -d "(" -f2 | cut -d ")" -f1)
         msg "Found configured device: [$DEVICE]"
-        if [ ! -L "/sys/class/net/"$DEVICE ]; then
-            err "Device File [/sys/class/net/$DEVICE] not found."
-            RESULT=$ERR_LNET_DEV_FILE_NOT_FOUND
+        if [ ! -L "/sys/class/net/${DEVICE}" ]; then
+            err "Device File [/sys/class/net/${DEVICE}] not found."
+            RESULT=${ERR_LNET_DEV_FILE_NOT_FOUND}
             break
         fi
 
-        IP_ADDR=`ifconfig $DEVICE | awk '/inet /{print substr($2,1)}'`
+        IP_ADDR=$(ifconfig "${DEVICE}" | awk '/inet /{print substr($2,1)}')
         if [ "$IP_ADDR" == "" ]; then
-            err "Cound not extract IP for Device $DEVICE \n$(ifconfig $DEVICE)"
+            err "Cound not extract IP for Device $DEVICE \n$(ifconfig "${DEVICE}")"
             RESULT=$ERR_LNET_INVALID_IP
             break
         fi
 
         msg "Configured device: [$DEVICE] has address [$IP_ADDR]."
-        PING_TEST=$(ping -c 3 $IP_ADDR)
+        PING_TEST=$(ping -c 3 "${IP_ADDR}")
         PING_TEST_RESULT=$?
         if [ "$PING_TEST_RESULT" != "0" ]; then
             err "Failed to ping IP_ADDR [$IP_ADDR]\n$PING_TEST"
-            RESULT=$ERR_LNET_IP_ADDR_PING_FAILED
+            RESULT=${ERR_LNET_IP_ADDR_PING_FAILED}
             break
         fi
 
         msg "IP_ADDR [$IP_ADDR] is a valid and reachable IP address"
-        RESULT=$ERR_SUCCESS
+        RESULT=${ERR_SUCCESS}
 
         ## we are assuming only one Device for LNET configuration
         break
 
     done < $LNET_CONF_FILE
-    return $RESULT
+    return "${RESULT}"
 }
 
 verify_lnet_status()
 {
     local RESULT=0
     LIST_NIDS=$(sudo lctl list_nids)
-    if [ "$LIST_NIDS" != "$IP_ADDR@tcp" ] && [ "$LIST_NIDS" != "$IP_ADDR@o2ib" ]; then
+    if [ "${LIST_NIDS}" != "$IP_ADDR@tcp" ] && [ "$LIST_NIDS" != "$IP_ADDR@o2ib" ]; then
         err "NID [$LIST_NIDS] for [$IP_ADDR] not found."
-        LNET_PORT=`netstat -a | grep ":988" | wc -l`
-        if [ $LNET_PORT -ge 1 ]; then
+        LNET_PORT=$(netstat -a | grep -c ":988")
+        if [ "${LNET_PORT}" -ge 1 ]; then
             err "Port 988 seems to be in in use \n$(netstat -a | grep \":988\")"
         fi
         RESULT=$ERR_LNET_NID_FOR_IP_ADDR_NOT_FOUND
     else
         msg "NID [$LIST_NIDS] found device [$DEVICE] IP [$IP_ADDR]"
     fi
-    return $RESULT
+    return "${RESULT}"
 }
 
 ## main
@@ -158,7 +158,7 @@ is_sudoed
 workflow
 
 verify_lnet_installation
-die_if_failed $? "Required Lustre packages [${LNET_INSTALLED_COMPONENTS[@]}] were not found."
+die_if_failed $? "Required Lustre packages [${LNET_INSTALLED_COMPONENTS[*]}] were not found."
 
 verify_lnet_conf_exists
 die_if_failed $? "File [$LNET_CONF_FILE] not found or is empty."
