@@ -2428,6 +2428,29 @@ struct ff_head {
 	 */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
+/**
+ * Below asserts are added to verify the order of members in struct ff_head
+ * because this order is expected while performing data recovery.
+ */
+
+/**
+ * Assert to ensure struct m0_format_header should be first member of
+ * struct ff_head.
+ */
+M0_BASSERT(offsetof(struct ff_head, ff_fmt) == 0);
+
+/**
+ * Assert to ensure struct node_header is placed after struct m0_format_header.
+ */
+M0_BASSERT(offsetof(struct ff_head, ff_fmt) +
+	   sizeof(((struct ff_head *)0)->ff_fmt) == offsetof(struct ff_head,
+							     ff_seg));
+
+/** Assert to ensure void *ff_opaque is placed after struct m0_format_footer. */
+M0_BASSERT(offsetof(struct ff_head, ff_foot) +
+	   sizeof(((struct ff_head *)0)->ff_foot) == offsetof(struct ff_head,
+							      ff_opaque));
+
 static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
 		    uint32_t ntype, enum m0_btree_types t_type,
 		    uint64_t crc_type, uint64_t gen, struct m0_fid fid);
@@ -3405,6 +3428,31 @@ struct fkvv_head {
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 #define OFFSET_SIZE sizeof(uint32_t)
+
+/**
+ * Below asserts are added to verify the order of members in struct fkvv_head
+ * because this order is expected while performing data recovery.
+ */
+
+/**
+ * Assert to ensure struct m0_format_header should be first member of
+ * struct fkvv_head.
+ */
+M0_BASSERT(offsetof(struct fkvv_head, fkvv_fmt) == 0);
+
+/**
+ * Assert to ensure struct node_header is placed after struct m0_format_header.
+ */
+M0_BASSERT(offsetof(struct fkvv_head, fkvv_fmt) +
+	   sizeof(((struct fkvv_head *)0)->fkvv_fmt) ==
+	   offsetof(struct fkvv_head, fkvv_seg));
+
+/**
+ * Assert to ensure void *fkvv_opaque is placed after struct m0_format_footer.
+ */
+M0_BASSERT(offsetof(struct fkvv_head, fkvv_foot) +
+	   sizeof(((struct fkvv_head *)0)->fkvv_foot) ==
+	   offsetof(struct fkvv_head, fkvv_opaque));
 
 static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
 		      int nsize, uint32_t ntype, enum m0_btree_types t_type,
@@ -4490,6 +4538,31 @@ struct vkvv_head {
 	 *  size of the node.
 	 */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
+
+/**
+ * Below asserts are added to verify the order of members in struct vkvv_head
+ * because this order is expected while performing data recovery.
+ */
+
+/**
+ * Assert to ensure struct m0_format_header should be first member of
+ * struct vkvv_head.
+ */
+M0_BASSERT(offsetof(struct vkvv_head, vkvv_fmt) == 0);
+
+/**
+ * Assert to ensure struct node_header is placed after struct m0_format_header.
+ */
+M0_BASSERT(offsetof(struct vkvv_head, vkvv_fmt) +
+	   sizeof(((struct vkvv_head *)0)->vkvv_fmt) ==
+	   offsetof(struct vkvv_head, vkvv_seg));
+
+/**
+ * Assert to ensure void *vkvv_opaque is placed after struct m0_format_footer.
+ */
+M0_BASSERT(offsetof(struct vkvv_head, vkvv_foot) +
+	   sizeof(((struct vkvv_head *)0)->vkvv_foot) ==
+	   offsetof(struct vkvv_head, vkvv_opaque));
 
 static struct vkvv_head *vkvv_data(const struct nd *node)
 {
