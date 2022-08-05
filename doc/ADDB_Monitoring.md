@@ -40,7 +40,7 @@ Reporting of statistics is required, which is similar to df, vmstat, top, etc. T
 Statistics belong to two categories:  
 
 1.  Stats which are readily available, eg. balloc will generate addb records about free space in a container periodically.
-1.  Stats which are not readily available.  
+2.  Stats which are not readily available.  
 
 These stats summary ADDB records can be produced on any node, this could be client or server. If produced on client they are sent to endpoint where addb service is running (using the current mechanism) and also to the endpoint where stats service is running, while if produced on server they are written to addb stob and also sent to this endpoint where stats service is running.  
 
@@ -57,7 +57,7 @@ Monitors will be used to detect exceptional conditions. Periodic posting is not 
 ## Logical Specification
 ADDB monitors are represented as follows:
 
-```
+```c
         struct m0_addb_monitor {
               void (*am_watch) (const struct m0_addb_monitor *mon,  
                                       const struct m0_addb_rec *rec,  
@@ -131,8 +131,8 @@ Following steps show how an addb monitor collects statistical information on a p
 
 1.  Create ADDB monitor, add it to the global list of monitors.
 2.  Define the type of addb record that it will generate.
-1.  Continuously compute statistics from the monitored addb records.
-1.  Send this statistical information to the endpoint where stats service is running as addb records & to the endpoint where addb service is running if the node is a client or to the addb stob if the node is server periodically.  
+3.  Continuously compute statistics from the monitored addb records.
+4.  Send this statistical information to the endpoint where stats service is running as addb records & to the endpoint where addb service is running if the node is a client or to the addb stob if the node is server periodically.  
 
 **Exceptional conditions monitoring**
 
@@ -145,8 +145,8 @@ Following steps are to be taken:
 **Building a cluster wide global & local state in memory on a node where stats service is running**
 
 1.  Create in-memory state structure of the cluster on this node.
-1.  Receive statistical summary addb records from all the node.
-1.  Update the state with the information in these latest addb records.  
+2.  Receive statistical summary addb records from all the node.
+3.  Update the state with the information in these latest addb records.  
 
 **Query for some state information to the stats service**
 

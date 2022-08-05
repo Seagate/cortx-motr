@@ -1,4 +1,4 @@
-# HLD Resource Management Interface   
+# HLD Resource Management Interface  
 This document presents a high level design **(HLD)** of scalable resource management interfaces for Motr.  
  The main purposes of this document are:   
 1.  To be inspected by M0 architects and peer designers to ascertain that high level design is aligned with M0 architecture and other designs, and contains no defects.  
@@ -7,10 +7,10 @@ This document presents a high level design **(HLD)** of scalable resource manage
 
 The intended audience of this document consists of M0 customers, architects, designers, and developers.  
 
-## Introduction   
+## Introduction ##
 Motr functionality, both internal and external, is often specified in terms of resources. A resource is part of the system or its environment for which a notion of ownership is well-defined.
 
-## Definitions   
+## Definitions ##
 - A resource is part of the system or its environment for which a notion of ownership is well-defined. Resource ownership is used for two purposes:  
 
   - concurrency control. resource owners can manipulate the resource and the ownership transfer protocol assures that owners do not step on each other. That is, resources provide a traditional distributed locking mechanism.  
@@ -26,7 +26,7 @@ Motr functionality, both internal and external, is often specified in terms of r
 - A usage credit can be associated with a lease, which is a time interval for which the credit is granted. The usage credit automatically cancels at the end of the lease. A lease can be renewed.
 - One possible conflict resolution policy would revoke all already granted conflicting credits before granting the new credit. Revocation is effected by sending conflict call-backs to the owners of the credit. The owners are expected to react by canceling their cached credits.  
 
-## Requirements  
+## Requirements ##
 - `[R.M0.LAYOUT.LAYID.RESOURCE]`: layids are handled as a distributed resource (similarly to fids).  
 - `[R.M0.RESOURCE]`: scalable hierarchical resource allocation is supported
 - `[R.M0.RESOURCE.CACHEABLE]`: resources can be cached by clients
@@ -59,7 +59,7 @@ Motr functionality, both internal and external, is often specified in terms of r
 - `[r.resource.power]`: (electrical) power consumed by a device is a resource.  
 
 
-##  Design Highlights  
+##  Design Highlights ##
 - hierarchical resource names. Resource name assignment can be simplified by introducing variable length resource identifiers.
 - conflict-free schedules: no observable conflicts. Before a resource usage credit is canceled, the owner must re-integrate all changes made to the local copy of the resource. Conflicting usage credits can be granted only after all changes are re-integrated. Yet, the ordering between actual re-integration network requests and cancellation requests can be arbitrary, subject to server-side NRS policy.
 - resource management code is split into two parts:
@@ -67,7 +67,7 @@ Motr functionality, both internal and external, is often specified in terms of r
  2.  per-resource type code that implements type-specific functionality (conflict resolution, etc.).
 - an important distinction with a more traditional design (as exemplified by the Vax Cluster or Lustre distributed lock managers) is that there is no strict separation of rôles between "resource manager" and "resource user": the same resource owner can request usage credits from and grant usage credits to other resource owners. This reflects the more dynamic nature of Motr resource control flow, with its hierarchical and peer-to-peer caches.
 
-## Functional Specification   
+## Functional Specification ##
 The external resource management interface is centered around the following data types:
 * a resource type
 * a resource owner
@@ -93,7 +93,7 @@ The external resource management interface consists of the following calls:
 On successful completion, the granted credit is held. notify_callback is invoked by the resource manager when the cached resource credit has to be revoked to satisfy a conflict resolution or some other policy.
 - 	`credit_put(resource_credit)`: release held credit
 
-## Logical Specification   
+## Logical Specification ##
 
 A resource owner maintains:
 
@@ -106,7 +106,7 @@ Examples:
 - a queue of incoming pending credits. This is a queue of incoming requests for usage credits, which were sent to this resource owner and are not yet granted, due to whatever circumstances (unresolved conflict, long-term resource scheduling decision, etc.);
 - a queue of outgoing pending credits. This is a queue of usage credits that users asked this resource owner to obtain, but that are not yet obtained.
 
-### Conformance  
+### Conformance ###
 
 - `[R.M0.LAYOUT.LAYID.RESOURCE]`, `[r.resource.fid]`, `[r.resource.inode-number]`: layout, file and other identifiers are implemented as a special resource type. These identifiers must be globally unique. Typical identifier allocator operates as following:
   - originally, a dedicated "management" node runs a resource owner that owns all identifiers (i.e., owns the [0, 0xffffffffffffffff] extent in identifiers name-space).
@@ -140,7 +140,7 @@ Examples:
 - `[r.resource.cluster-configuration]`: cluster configuration is a resource.
 - `[r.resource.power]`: (electrical) power consumed by a device is a resource.  
 
-### Resource Type Methods  
+### Resource Type Methods ###
 Implementations of these methods are provided by each resource type.
 
 See examples below:  

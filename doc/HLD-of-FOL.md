@@ -1,4 +1,4 @@
-# High-Level Design of a File Operation Log  
+# High-Level Design of a File Operation Log
 This document provides a High-Level Design **(HLD)** of a File Operation Log **(FOL)** of the Motr M0 core. The main purposes of this document are:  
 1. To be inspected by M0 architects and peer designers to ensure that HLD is aligned with M0 architecture and other designs and contains no defects.  
 2. To be a source of material for Active Reviews of Intermediate Design **(ARID)** and Detailed Level Design **(DLD)** of the same component.
@@ -6,7 +6,7 @@ This document provides a High-Level Design **(HLD)** of a File Operation Log **(
 
 The intended audience of this document consists of M0 customers, architects, designers, and developers.  
 
-## Introduction   
+## Introduction
 A FOL is a central M0 data structure, maintained by every node where the M0 core is deployed and serves multiple goals:  
 - It is used by a node database component to implement local transactions through WAL logging.  
 - It is used by DTM to implement distributed transactions. DTM uses FOL for multiple purposes internally:
@@ -19,7 +19,7 @@ A FOL is a central M0 data structure, maintained by every node where the M0 core
 
 Roughly speaking, a FOL is a partially ordered collection of FOL records, each corresponding to (part of) a consistent modification of the file system state. A FOL record contains information determining the durability of the modification (how many volatile and persistent copies it has and where etc.) and dependencies between modifications, among other things. When a client node has to modify a file system state to serve a system call from a user, it places a record in its (possibly volatile) FOL. The record keeps track of operation state: has it been re-integrated to servers, has it been committed on the servers, etc. A server, on receiving a request to execute an update on a client's behalf, inserts a record, describing the request into its FOL. Eventually, FOL is purged to reclaim storage, culling some of the records.  
 
-## Definitions  
+## Definitions ##
 - a (file system) operation is a modification of a file system state preserving file system consistency (i.e., when applied to a file system in a consistent state it produces a consistent state). There is a limited repertoire of operation types: mkdir, link, create, write, truncate, etc. M0 core maintains serializability of operation execution;
 - an update (of an operation) is a sub-modification of a file system state that modifies the state on a single node only. For example, a typical write operation against a RAID-6 striped file includes updates that modify data blocks on a server A and updates which modify parity blocks on a server B;
 - an operation or update undo is a reversal of state modification, restoring the original state. An operation can be undone only when the parts of the state it modifies are compatible with the operation having been executed. Similarly, an operation or update redo is modifying state in the "forward" direction, possibly after undo;
@@ -43,7 +43,7 @@ Roughly speaking, a FOL is a partially ordered collection of FOL records, each c
      <strong>Note</strong>: It would be nice to refine the terminology to distinguish between operation description (i.e., intent to carry it out) and its actual execution. This would make a description of dependencies and recovery less obscure, at the expense of some additional complexity.    
   </p>  
 
-## Requirements  
+## Requirements ##
 
 - `[R.FOL.EVERY-NODE]`: every node where M0 core is deployed maintains FOL;  
 - `[R.FOL.LOCAL-TXN]`: a node FOL is used to implement local transactional containers  
@@ -68,23 +68,23 @@ Roughly speaking, a FOL is a partially ordered collection of FOL records, each c
 - `[R.FOL.ADDB]`: FOL is integrated with ADDB. ADDB records matching a given FOL record can be found efficiently;  
 - `[R.FOL.FILE]`: FOL records pertaining to a given file (-set) can be found efficiently.     
 
-## Design Highlights  
+## Design Highlights ##
 A FOL record is identified by its LSN. LSN is defined and selected as to be able to encode various partial orders imposed on FOL records by the requirements.  
 
-## Functional Specification
+## Functional Specification ##
 The FOL manager exports two interfaces:    
 - main interface used by the request handler. Through this interface FOL records can be added to the FOL and the FOL can be forced (i.e., made persistent up to a certain record);
 - auxiliary interfaces, used for FOL pruning and querying.  
 
-## Logical Specification
+## Logical Specification ##
 
-### Overview  
+### Overview ###
 FOL is stored in a transactional container [1] populated with records indexed [2] by LSN. An LSN is used to refer to a point in FOL from other meta-data tables (epochs table, object index, sessions table, etc.). To make such references more flexible, a FOL, in addition to genuine records corresponding to updates, might contain pseudo-records marking points of interest in the FOL to which other file system tables might want to refer (for example, an epoch boundary, a snapshot origin, a new server secret key, etc.). By abuse of terminology, such pseudo-records will be called FOL records too. Similarly, as part of the redo-recovery implementation, DTM might populate a node FOL with records describing updates to be performed on other nodes.  
 
 [1][R.BACK-END.TRANSACTIONAL] ST  
 [2][R.BACK-END.INDEXING] ST  
 
-### Record Structure   
+### Record Structure ###
 A FOL record, added via the main FOL interface, contains the following:  
 - an operation opcode, identifying the type of file system operation;  
 - LSN;    
@@ -100,11 +100,11 @@ A FOL record, added via the main FOL interface, contains the following:
 - distributed transaction management data, including an epoch this update and operation, are parts of;  
 - liveness state: a number of outstanding references to this record.  
 
-### Liveness and Pruning   
+### Liveness and Pruning ###
 A node FOL must be prunable if only to function correctly on a node without persistent storage. At the same time, a variety of sub-systems both from M0 core and outside of it might want to refer to FOL records. To make pruning possible and flexible, each FOL record is augmented with a reference counter, counting all outstanding references to the record. A record can be pruned if its reference count drops to 0 together with reference counters of all earlier (in lsn sense) unpruned records in the FOL.   
 
 
-### Conformance  
+### Conformance ###
 - `[R.FOL.EVERY-NODE]`: on nodes with persistent storage, M0 core runs in the user space and the FOL is stored in a database table. On a node without persistent storage, or M0 core runs in the kernel space, the FOL is stored in the memory-only index. Data-base and memory-only index provide the same external interface, making FOL code portable;  
 - `[R.FOL.LOCAL-TXN]`: request handler inserts a record into FOL table in the context of the same transaction where the update is executed. This guarantees WAL property of FOL;  
 - `[R.FOL]`: vacuous;
@@ -129,38 +129,38 @@ A node FOL must be prunable if only to function correctly on a node without pers
 - `[R.FOL.FILE]`: an object index table, enumerating all files and file sets for the node contains references to the latest FOL record for the file (or file-set). By following the previous operation LSN references the history of modifications of a given file can be recovered.       
 
 
-### Dependencies  
+### Dependencies ###
 - back-end:
   - `[R.BACK-END.TRANSACTIONAL] ST`: back-end supports local transactions so that FOL could be populated atomically with other tables.  
   - `[R.BACK-END.INDEXING] ST`: back-end supports containers with records indexed by a key.   
 
-### Security Model
+### Security Model ###
 FOL manager by itself does not deal with security issues. It trusts its callers (request handler, DTM, etc.) to carry out necessary authentication and authorization checks before manipulating FOL records. The FOL stores some security information as part of its records.  
 
-### Refinement   
+### Refinement ###
 The FOL is organized as a single indexed table containing records with LSN as a primary key. The structure of an individual record as outlined above. The detailed main FOL interface is straightforward. FOL navigation and querying in the auxiliary interface are based on a FOL cursor.  
 
-## State
+## State ##
 FOL introduces no extra state.  
 
-## Use Cases   
-### Scenarios   
+## Use Cases
+### Scenarios ###
 
 FOL QAS list is included here by reference.   
 
-### Failures  
+### Failures ###
 Failure of the underlying storage container in which FOL is stored is treated as any storage failure. All other FOL-related failures are handled by DTM.   
 
-## Analysis  
+## Analysis ##
 
-### Other
+### Other ###
 An alternative design is to store FOL in a special data structure, instead of a standard indexed container. For example, FOL can be stored in an append-only flat file with starting offset of a record serving as its lsn. The perceived advantage of this solution is avoiding overhead of full-fledged indexing (b-tree). Indeed, general-purpose indexing is not needed, because records with lsn less than the maximal one used in the past are never inserted into the FOL (aren't they?).  
 
 Yet another possible design is to use db4 extensible logging to store FOL records directly in a db4 transactional log. The advantage of this is that forcing FOL up to a specific record becomes possible (and easy to implement), and the overhead of indexing is again avoided. On the other hand, it is not clear how to deal with pruning.  
 
-###  Rationale   
+### Rationale ### 
 The simplest solution first.    
-## References   
+## References
 •	[0] FOL QAS  
 •	[1] FOL architecture view packet  
 •	[2] FOL overview  

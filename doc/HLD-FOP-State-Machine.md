@@ -35,15 +35,15 @@ See [4] and [5] for the description of fop architecture.
 ## Design Highlights
 A set of data structures similar to one maintained by a typical thread or process scheduler in an operating system kernel (or a user-level library thread package) is used for non-blocking fop processing: prioritized run-queues of fom-s ready for the next state transition and wait-queues of fom-s parked waiting for events to happen.  
 
-## Functional Specification   
+## Functional Specification ##
 A fop belongs to a fop type. Similarly, a fom belongs to a fom type. The latter is part of the corresponding fop type. fom type specifies machine states as well as its transition function. A mandatory part of fom state is a phase, indicating how far the fop processing progressed. Each fom goes through standard phases, described in [7], as well as some fop-type specific phases.  
 
 The fop-type implementation provides an enumeration of non-standard phases and state-transition function for the fom.   
 
 <p/> Care is taken to guarantee that at least one handler thread is runnable, i.e., not blocked in the kernel at any time. Typically, a state transition is triggered by some event, e.g., the arrival of an incoming fop, availability of a resource, completion of a network, or storage communication. When a fom is about to wait for an event to happen, the source of a future event is registered with the fom infrastructure. When an event happens, the appropriate state transition function is invoked.<p>
 
-## Logical Specification  
-###  Locality  
+## Logical Specification
+### Locality
 <p/> For the present design, server computational resources are partitioned into localities. A typical locality includes a sub-set of available processors [r.lib.cores] and a collection of allocated memory areas[r.lib.memory-partitioning]. fom scheduling algorithm tries to confine processing of a particular fom to a specific locality (called a home locality of the fom) establishing affinity of resources and optimizing cache hierarchy utilization. For example, the inclusion of all cores sharing processor caches in the same locality allows fom to be processed on any of said cores without incurring a penalty of cache misses.<p>  
 
 **Run-queue**  
@@ -94,7 +94,7 @@ Two possible strategies to deal with this are:
 **Long Term Scheduling**  
 The network request scheduler (NRS) has its queue of fop-s waiting for the execution. Together with request handler queues, this comprises a two-level scheduling mechanism for long-term scheduling decisions.
 
-## Conformance  
+## Conformance
 * `[r.non-blocking.few-threads]`: thread-per-request model is abandoned. A locality has only a few threads, typically some small number (1–3) of threads per core.  
 * `[r.non-blocking.easy]`: fom processing is split into a relatively small number of relatively large non-blocking phases.  
 * `[r.non-blocking.extensibility]`: a "cross-cut" functionality adds new state to the common part of fom. This state is automatically present in all fom-s.    
@@ -103,7 +103,7 @@ The network request scheduler (NRS) has its queue of fop-s waiting for the execu
 * `[r.non-blocking.resources]`: resource enqueuing interface (right_get()) supports asynchronous completion notification (see [3])`[r.resource.enqueue.async]`.  
 * `[r.non-blocking.other-block]`: this requirement is discharged by enter-block/leave-block pairs described in the handler thread subsection above.   
 
-## Dependencies  
+## Dependencies
 * fop: fops are used by **Mero**  
 * library:  
     * `[r.lib.threads]`: library supports threading
@@ -118,16 +118,16 @@ The network request scheduler (NRS) has its queue of fop-s waiting for the execu
 * resources:
     * `[r.resource.enqueue.async]`: asynchronous resource enqueuing is supported.    
 
-## Security Model  
+## Security Model
 Security checks (authorization and authentication) are done in one of the standards fom phases (see [7]).  
 
-## Refinement     
+## Refinement ##
 The data structures, their relationships, concurrency control, and liveness issues follow quite straightforwardly from the logical specification above.
 
-# State  
+## State ##
 See [7] for the description of fom state machine.  
 
-## Use Cases   
+## Use Cases ##
 
 **Scenarios**   
 
@@ -183,7 +183,7 @@ Scenario 4
 |Response|	handler threads wait on a per-locality condition variable until the locality run-queue is non-empty again. |
 |Response Measure|  
 
-## Failures	  
+## Failures ##
 - Failure of a fom state transition: this lands fom in the standard FAILED phase;
 - Dead-lock: dealing with the dead-lock (including ones involving activity in multiple address spaces) is outside of the scope of the present design. It is assumed that general mechanisms of dead-lock avoidance (resource ordering, &c.) are used.  
 - Time-out: if a fom is staying on the wait-list for too long, it is forced into the FAILED state.
@@ -204,14 +204,14 @@ An important question is how db5 accesses are handled in a non-blocking model.
     - Advantages: purity and efficiency of the non-blocking model are maintained. db5 foot-print is confined and distributed across localities.
     - Disadvantages: db5 threads of different localities will compete for shared db5 data, including cache-hot b-tree index nodes leading to worse cache utilization and cache-line ping-ponging (on the positive side, higher level b-tree nodes are rarely modified and so can be shared by multiple cores).  
 
-### Scalability  
+### Scalability
 The point of the non-blocking model is to improve server scalability by: 
 
 - Reducing cache foot-print, by replacing thread stacks with smaller fom-s.
 -	Reducing scheduler overhead by using state machines instead of blocking and waking threads.
 - Improving cache utilization by binding fom-s to home localities.  
 
-## References 	
+## References
 - [0] The C10K problem
 - [1] LKML Archive Query: debate on 700 threads vs. asynchronous code
 - [2] Why Events Are A Bad Idea (for High-concurrency Servers)

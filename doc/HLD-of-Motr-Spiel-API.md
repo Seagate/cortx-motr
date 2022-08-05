@@ -1,15 +1,15 @@
-# High Level Design of Motr Spiel API   
+# High Level Design of Motr Spiel API
 This document presents a High-Level Design (HLD) for Motr Spiel API.   
 The main purposes of this document are:  
 To be inspected by the Motr architects and the peer designers to ascertain that the HLD is aligned with Motr architecture and other designs, and contains no defects - To be a source of material for the Active Reviews of Intermediate Design (ARID) and the Detailed Level Design (DLD) of the same component - To serve as a design reference document  
 The intended audience of this document consists of Motr customers, architects, designers, and developers.  
 
-## Introduction
-## 1. Definitions  
+## Introduction ##
+## 1. Definitions ##
 * CMI: Spiel Configuration Management Interface  
 * CI: Spiel Command Interface  
 
-## 2.  Requirements  
+## 2.  Requirements ##
 Spiel requirements  
 * `[r.m0.spiel]` Spiel library implements the API to allow the controlling of cluster elements state/subordination/etc. opaquely for API user.  
 * `[r.m0.spiel.concurrency-and-consistency]` Every CMI API call results in originating a Spiel transaction to:     
@@ -105,7 +105,7 @@ Note: The simplest case is A = Q -1, which gives Nconfd = 2Q - 1
   * `[r.m0.confc.rw-lock]` The new lock is adopted by confc implementation where applicable  
   * `[r.m0.confc.quorum]` Client needs to poll all known configuration servers to find out a configuration version reaching quorum Q in the cluster right now. The quorum version must be the only one used in process of serving configuration requests from Motr modules  
 
-## 3. Design highlights
+## 3. Design highlights ##
 The Spiel roughly falls into 2 types of interfaces:  
 * Configuration Management Interface (CMI)  
 * Command Interface (CI)    
@@ -113,9 +113,9 @@ Logically these interfaces provide different modes of operation.
 The CMI calls series must explicitly form a transaction.   
 The CI calls does not require any transaction mechanism.  
 
-## 4. Functional specification  
+## 4. Functional specification ##
 
-### 4.1 Configuration database
+### 4.1 Configuration database ###
 The configuration database format remains as is. But a new configuration path must be introduced to represent current database attributes:  
 * Version number  
 * Quorum Q  
@@ -621,9 +621,9 @@ Note: This is non-deterministic test, but there does not seem to be a way within
   •	Stop Motr cluster.  
 
 
-## 5. Logical specification
+## 5. Logical specification ##
 
-### 5.1 Conformance
+### 5.1 Conformance ###
 
 `[i.m0.spiel]`    
 The Spiel library purpose, behavior patterns, and mechanisms are explicitly and extensively described by the current design document.    
@@ -699,9 +699,9 @@ The two-phase update protocol is described in Phase 1: LOAD and Phase 2: FLIP se
 The process of reaching quorum in configuration client is described in Version re-election section.    
 
 
-## Use cases  
+## Use cases ##
 
-### 6.1 Scenarios    
+### 6.1 Scenarios
 
 |Scenario|	[usecase.component.name] |  
 |--------|---------------------------|
