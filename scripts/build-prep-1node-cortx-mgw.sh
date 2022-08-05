@@ -28,11 +28,11 @@ mgs="--without-dashboard"
 [[ -d cortx ]] || {
   available_device=$(lsblk --output NAME,FSTYPE -dsn | awk '$2 == "" {print $1}' | grep sd | head -n 1)
   mkfs.ext4 "/dev/$available_device"
-  mkdir -p $CORTX_WDIR
-  mount "/dev/$available_device" $CORTX_WDIR
+  mkdir -p "$CORTX_WDIR"
+  mount "/dev/$available_device" "$CORTX_WDIR"
 }
 
-cd $CORTX_WDIR
+cd "$CORTX_WDIR"
 
 yum install wget -y
 wget https://raw.githubusercontent.com/Seagate/cortx-motr/main/scripts/build-prep-1node.sh
@@ -56,7 +56,7 @@ echo "========================================="
    sudo ./install-deps.sh
 }
 
-cd $CORTX_WDIR/cortx-rgw
+cd "$CORTX_WDIR"/cortx-rgw
 cmake3 -GNinja -DWITH_PYTHON3=3.6 -DWITH_RADOSGW_MOTR=YES -B build
 cd build && time ninja vstart-base && time ninja radosgw-admin && time ninja radosgw
 
