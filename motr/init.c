@@ -66,7 +66,7 @@
 #else
 #  include "be/tx_service.h"    /* m0_be_txs_register */
 #  include "be/be.h"            /* m0_backend_init */
-#  include "btree/btree.h"      /* m0_btree_mod_init */
+#  include "be/btree.h"      /* m0_btree_mod_init */
 #  include "conf/confd.h"       /* m0_confd_register */
 #  include "mdstore/mdstore.h"  /* m0_mdstore_mod_init */
 #endif

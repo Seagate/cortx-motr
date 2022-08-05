@@ -149,6 +149,8 @@ m0_server()
     local be_seg0_path=
     local be_seg_path=
     local be_seg_size=
+    local log_device_path=
+    local log_device_size=
 
     # @todo
     # These BE segment devices needs to pass through Motr configuration
@@ -162,6 +164,13 @@ m0_server()
         be_seg_path=" -B $MOTR_BE_SEG_PATH "
         if [[ -n "$MOTR_M0D_IOS_BESEG_SIZE" ]]; then
             be_seg_size=" -z $MOTR_M0D_IOS_BESEG_SIZE"
+        fi
+    fi
+
+    if [[ -n "$MOTR_LOG_PATH" && -b $MOTR_LOG_PATH ]]; then
+        log_device_path=" -L $MOTR_LOG_PATH "
+        if [[ -n "$MOTR_LOG_SIZE" ]]; then
+            log_device_size=" -V $MOTR_LOG_SIZE "
         fi
     fi
 
@@ -270,6 +279,7 @@ m0_server()
                     -A linuxstob:${addbstob_dir}addb-stobs \
                     -f $proc_fid $stob_type $stob_path $MOTR_M0D_OPTS \
                        $be_seg0_path $be_seg_path $be_seg_size \
+                       $log_device_path $log_device_size \
                        $stob_opts $cmd_opts $addb_opts $conf_opts \
                        $MOTR_M0D_EXTRA_OPTS
 }

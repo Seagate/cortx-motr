@@ -725,7 +725,7 @@ M0_INTERNAL void m0_btree_del_credit2(const struct m0_btree_type *type,
 				      m0_bcount_t                 vsize,
 				      struct m0_be_tx_credit     *accum);
 
-#include "btree/internal.h"
+#include "be/btree_internal.h"
 
 M0_INTERNAL int     m0_btree_mod_init(void);
 M0_INTERNAL void    m0_btree_mod_fini(void);
