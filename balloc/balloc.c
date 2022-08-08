@@ -1757,6 +1757,7 @@ static int balloc_alloc_db_update(struct m0_balloc *motr, struct m0_be_tx *tx,
 			/* +-------+---------+-----------------+ */
 			new.e_end = tgt->e_start;
 			le = lext_create(&new);
+			M0_ASSERT(le != NULL);
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
 			rc = balloc_ext_insert(db, tx, new);
@@ -1858,6 +1859,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			/* |       |     tgt free     |        | */
 			/* +-------+------------------+--------+ */
 			le = lext_create(tgt);
+			M0_ASSERT(le != NULL);
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
 			rc = balloc_ext_insert(db, tx, *tgt);
@@ -1878,6 +1880,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 				/* |           |  |      tgt free      | */
 				/* +-----------+--+--------------------+ */
 				le = lext_create(tgt);
+				M0_ASSERT(le != NULL);
 				if (le == NULL)
 					return M0_RC(-ENOMEM);
 				rc = balloc_ext_insert(db, tx, *tgt);
@@ -1917,6 +1920,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			/* | |   tgt   |   |                   | */
 			/* +-+---------+---+-------------------+ */
 			le = lext_create(tgt);
+			M0_ASSERT(le != NULL);
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
 			rc = balloc_ext_insert(db, tx, *tgt);
@@ -2001,6 +2005,7 @@ static int balloc_free_db_update(struct m0_balloc *motr,
 			/* |          |  tgt  |                | */
 			/* +----------+-------+----------------+ */
 			le = lext_create(tgt);
+			M0_ASSERT(le != NULL);
 			if (le == NULL)
 				return M0_RC(-ENOMEM);
 			rc = balloc_ext_insert(db, tx, *tgt);
@@ -2094,6 +2099,7 @@ static int balloc_find_by_goal(struct m0_balloc_allocation_context *bac)
 
 		ret = balloc_alloc_db_update(bac->bac_ctxt, tx, grp,
 					  &bac->bac_final);
+		M0_ASSERT(ret == 0);
 	}
 
 	m0_balloc_release_extents(grp);
@@ -2461,6 +2467,7 @@ static int balloc_try_best_found(struct balloc_allocation_context *bac,
 					 &cur));
 		rc = balloc_alloc_db_update(bac->bac_ctxt, bac->bac_tx, grp,
 					    &bac->bac_final, alloc_flag, cur);
+		M0_ASSERT(rc == 0);
 	}
 out:
 	m0_balloc_unlock_group(grp);
@@ -2662,6 +2669,7 @@ static int allocate_blocks(int cr, struct balloc_allocation_context *bac,
 					 &cur));
 		rc = balloc_alloc_db_update(bac->bac_ctxt, bac->bac_tx, grp,
 					    &bac->bac_final, alloc_type, cur);
+		M0_ASSERT(rc == 0);
 	}
 	return rc;
 }
@@ -2806,6 +2814,7 @@ static int balloc_free_internal(struct m0_balloc *ctx,
 			fex.e_end  = grp->bgi_spare.bzp_range.e_start;
 			rc = balloc_free_db_update(ctx, tx, grp, &fex,
 						   M0_BALLOC_NORMAL_ZONE);
+			M0_ASSERT(rc == 0);
 			if (rc != 0)
 				break;
 			fex.e_start = zone_start_get(grp,
@@ -2813,9 +2822,11 @@ static int balloc_free_internal(struct m0_balloc *ctx,
 			fex.e_end = start + step;
 			alloc_flag = M0_BALLOC_SPARE_ZONE;
 		}
-		if (rc == 0)
+		if (rc == 0) {
 			rc = balloc_free_db_update(ctx, tx, grp, &fex,
 						   alloc_flag);
+			M0_ASSERT(rc == 0);
+		}
 		m0_balloc_unlock_group(grp);
 		start += step;
 		len -= step;
@@ -2952,6 +2963,7 @@ static int balloc_reserve_extent(struct m0_ad_balloc *ballroom,
 	}
 
 	rc = balloc_alloc_db_update(ctx, tx, grp, ext, alloc_zone, cur);
+	M0_ASSERT(rc == 0);
 
 out_unlock:
 	m0_balloc_unlock_group(grp);
