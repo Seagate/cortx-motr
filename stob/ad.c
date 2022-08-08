@@ -555,6 +555,7 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 	 */
 	rc = m0_balloc_create(dom_key, seg, grp, &cb,
 			      &cfg->adg_id.si_fid);
+	cb->cb_ballroom.ab_ops->bo_fini(&cb->cb_ballroom);
 	rc = rc ?: m0_be_tx_exclusive_open_sync(&tx);
 
 	M0_ASSERT(adom == NULL);
@@ -940,6 +941,10 @@ static int ext_punch(struct m0_stob *stob, struct m0_dtx *tx,
 		}));
 
 	M0_ASSERT(m0_be_op_is_done(it_op));
+	if (it.ec_recbuf.b_addr != NULL) {
+		m0_buf_free(&it.ec_recbuf);
+		it.ec_recbuf.b_addr = NULL;
+	}
 	rc = m0_be_emap_op_rc(&it);
 	m0_be_op_fini(it_op);
 	return M0_RC(rc);
