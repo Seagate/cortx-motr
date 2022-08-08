@@ -23,7 +23,7 @@ See [4] and [5] for the description of fop architecture.
 * fop state machine (fom) is a state machine [6] that represents the current state of the fop's [r.fop]ST execution on a node. fom is associated with the particular fop and implicitly includes this fop as part of its state.
 * a fom state transition is executed by a handler thread[r.lib.threads]. The association between the fom and the handler thread is short-living: a different handler thread can be selected to execute the next state transition.  
 
-## Requirements  
+## Requirements 
 * `[r.non-blocking.few-threads]` : Motr service should use a relatively small number of threads: a few per processor [r.lib.processors].  
 * `[r.non-blocking.easy]`: non-blocking infrastructure should be easy to use and non-intrusive.
 * `[r.non-blocking.extensibility]`: addition of new "cross-cut" functionality (e.g., logging, reporting) potentially including blocking points and affecting multiple fop types should not require extensive changes to the data structures for each fop type involved.  
@@ -35,7 +35,7 @@ See [4] and [5] for the description of fop architecture.
 ## Design Highlights
 A set of data structures similar to one maintained by a typical thread or process scheduler in an operating system kernel (or a user-level library thread package) is used for non-blocking fop processing: prioritized run-queues of fom-s ready for the next state transition and wait-queues of fom-s parked waiting for events to happen.  
 
-## Functional Specification ##
+## Functional Specification
 A fop belongs to a fop type. Similarly, a fom belongs to a fom type. The latter is part of the corresponding fop type. fom type specifies machine states as well as its transition function. A mandatory part of fom state is a phase, indicating how far the fop processing progressed. Each fom goes through standard phases, described in [7], as well as some fop-type specific phases.  
 
 The fop-type implementation provides an enumeration of non-standard phases and state-transition function for the fom.   
@@ -121,13 +121,13 @@ The network request scheduler (NRS) has its queue of fop-s waiting for the execu
 ## Security Model
 Security checks (authorization and authentication) are done in one of the standards fom phases (see [7]).  
 
-## Refinement ##
+## Refinement
 The data structures, their relationships, concurrency control, and liveness issues follow quite straightforwardly from the logical specification above.
 
-## State ##
+## State
 See [7] for the description of fom state machine.  
 
-## Use Cases ##
+## Use Cases
 
 **Scenarios**   
 
@@ -183,7 +183,7 @@ Scenario 4
 |Response|	handler threads wait on a per-locality condition variable until the locality run-queue is non-empty again. |
 |Response Measure|  
 
-## Failures ##
+## Failures
 - Failure of a fom state transition: this lands fom in the standard FAILED phase;
 - Dead-lock: dealing with the dead-lock (including ones involving activity in multiple address spaces) is outside of the scope of the present design. It is assumed that general mechanisms of dead-lock avoidance (resource ordering, &c.) are used.  
 - Time-out: if a fom is staying on the wait-list for too long, it is forced into the FAILED state.

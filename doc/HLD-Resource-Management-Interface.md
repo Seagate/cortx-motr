@@ -59,7 +59,7 @@ Motr functionality, both internal and external, is often specified in terms of r
 - `[r.resource.power]`: (electrical) power consumed by a device is a resource.  
 
 
-##  Design Highlights ##
+## Design Highlights ##
 - hierarchical resource names. Resource name assignment can be simplified by introducing variable length resource identifiers.
 - conflict-free schedules: no observable conflicts. Before a resource usage credit is canceled, the owner must re-integrate all changes made to the local copy of the resource. Conflicting usage credits can be granted only after all changes are re-integrated. Yet, the ordering between actual re-integration network requests and cancellation requests can be arbitrary, subject to server-side NRS policy.
 - resource management code is split into two parts:
