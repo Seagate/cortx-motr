@@ -40,7 +40,7 @@
 #include "lib/buf_xc.h"
 #include "lib/types.h"     /* m0_uint128 */
 #include "lib/types_xc.h"
-#include "btree/btree.h"      /* m0_btree */
+#include "be/btree.h"      /* m0_btree */
 
 #include "format/format.h"      /* m0_format_header */
 #include "format/format_xc.h"
