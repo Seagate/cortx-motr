@@ -1716,6 +1716,8 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 	struct m0_reqh_service_ctx *cas_svc;
 	struct m0_dix_layout       *layout = &req->dr_indices[0].dd_layout;
 	int                         rc;
+	uint32_t                    extra_flags;
+
 	M0_ENTRY("req=%p", req);
 
 	M0_PRE(rop->dg_cas_reqs_nr == 0);
@@ -1745,21 +1747,29 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 
 			switch (req->dr_type) {
 			case DIX_GET:
-				rc = m0_cas_get(creq, &cctg_id,
-						&cas_rop->crp_keys);
+				rc = (req->dr_is_meta ?
+					m0_cas_get : m0_cas_versioned_get)
+						(creq, &cctg_id,
+						 &cas_rop->crp_keys);
 				break;
 			case DIX_PUT:
+				extra_flags = req->dr_is_meta ?
+					0 : COF_VERSIONED | COF_OVERWRITE;
 				rc = m0_cas_put(creq, &cctg_id,
 						&cas_rop->crp_keys,
 						&cas_rop->crp_vals,
 						req->dr_dtx,
-						cas_rop->crp_flags);
+						cas_rop->crp_flags |
+							extra_flags);
 				break;
 			case DIX_DEL:
+				extra_flags = req->dr_is_meta ?
+					0 : COF_VERSIONED;
 				rc = m0_cas_del(creq, &cctg_id,
 						&cas_rop->crp_keys,
 						req->dr_dtx,
-						cas_rop->crp_flags);
+						cas_rop->crp_flags |
+							extra_flags);
 				break;
 			case DIX_NEXT:
 				rc = m0_cas_next(creq, &cctg_id,

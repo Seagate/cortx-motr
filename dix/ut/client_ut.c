@@ -903,7 +903,7 @@ static int dix_cctg_records_del(struct m0_dix    *index,
 	m0_cas_req_init(&creq, cctg_rpc_sess(sdev_idx),
 			m0_locality0_get()->lo_grp);
 	m0_cas_req_lock(&creq);
-	rc = m0_cas_del(&creq, &cctg_id, keys, NULL, 0);
+	rc = m0_cas_del(&creq, &cctg_id, keys, NULL, COF_VERSIONED);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_sm_timedwait(&creq.ccr_sm,
 			M0_BITS(CASREQ_FINAL, CASREQ_FAILURE),
