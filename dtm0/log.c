@@ -38,7 +38,7 @@
 #include "lib/locality.h"       /* m0_locality0_get */
 
 #include "be/domain.h"          /* m0_be_domain_seg0_get */
-#include "btree/btree.h"        /* m0_btree */
+#include "be/btree.h"           /* m0_btree */
 #include "be/list.h"            /* m0_be_list */
 #include "be/seg0.h"            /* m0_be_0type */
 #include "be/seg.h"             /* m0_be_seg_allocator */

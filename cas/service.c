@@ -1362,7 +1362,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		M0_LOG(M0_DEBUG, "Got CAS with txid: " DTID0_F,
 		       DTID0_P(&op->cg_txd.dtd_id));
 		M0_LOG(M0_DEBUG, "Got CAS new with txid: " DTID1_F,
-		       DTID1_P(&cas_op(fom0)->cg_descriptor.dtd_id));
+		       DTID1_P(&op->cg_descriptor.dtd_id));
 	}
 
 	is_index_drop = op_is_index_drop(opc, ct);
