@@ -43,7 +43,13 @@ M0_INTERNAL void m0_dtm0_tx_desc_init_none(struct m0_dtm0_tx_desc *td)
 
 M0_INTERNAL bool m0_dtm0_tx_desc_is_none(const struct m0_dtm0_tx_desc *td)
 {
-	return M0_IS0(td);
+	/*
+	 * Do not consider timestamp when checking if the tx desc is none.
+	 * CAS takes version info via transaction, but we still want to be
+	 * able to use versioned ops without dtm enabled.
+	 */
+	return M0_IS0(&td->dtd_ps) &&
+		M0_IS0(&td->dtd_id.dti_fid);
 }
 
 M0_INTERNAL bool m0_dtm0_tx_desc__invariant(const struct m0_dtm0_tx_desc *td)

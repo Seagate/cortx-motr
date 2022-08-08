@@ -31,6 +31,7 @@
 #include "lib/memory.h"   /* M0_ALLOC */
 #include "lib/errno.h"    /* ENOMEM */
 #include "lib/trace.h"    /* M0_ERR */
+#include "lib/time.h"     /* m0_time_now */
 #include "be/dtm0_log.h"  /* dtm0_log API */
 #include "conf/helpers.h" /* proc2srv */
 #include "reqh/reqh.h"    /* reqh2confc */
@@ -459,8 +460,14 @@ M0_INTERNAL int m0_dtx0_txd_copy(const struct m0_dtx    *dtx,
 				 struct m0_dtm0_tx_desc *dst)
 {
 	if (dtx == NULL) {
-		/* No DTX => no txr */
+		/*
+		 * No DTX => no txr
+		 * We still want to be able to use versioned CAS without
+		 * needing a transaction, so fill in the timestamp with
+		 * the current time.
+		 */
 		M0_SET0(dst);
+		dst->dtd_id.dti_ts.dts_phys = m0_time_now();
 		return 0;
 	}
 

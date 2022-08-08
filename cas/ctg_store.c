@@ -2550,7 +2550,7 @@ int ctgdump(struct m0_motr *motr_ctx, char *fidstr, char *dump_in_hex_str)
 static bool ctg_op_is_versioned(const struct m0_ctg_op *ctg_op)
 {
 	const struct m0_cas_op       *cas_op;
-	bool                          has_txd;
+	bool                          has_txd_ts;
 
 	/*
 	 * Since the versioned behavior is optional, it may get turned off
@@ -2577,7 +2577,7 @@ static bool ctg_op_is_versioned(const struct m0_ctg_op *ctg_op)
 	if ((ctg_op->co_flags & COF_VERSIONED) == 0)
 		return M0_RC_INFO(false, "CAS request is not versioned.");
 
-	has_txd = !m0_dtm0_tx_desc_is_none(&cas_op->cg_txd);
+	has_txd_ts = !m0_dtm0_ts_is_none(&cas_op->cg_txd.dtd_id.dti_ts);
 
 	switch (CTG_OP_COMBINE(ctg_op->co_opcode, ctg_op->co_ct)) {
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
@@ -2586,11 +2586,11 @@ static bool ctg_op_is_versioned(const struct m0_ctg_op *ctg_op)
 					  "PUT request without OVERWRITE is "
 					  "not versioned.");
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
-		if (has_txd)
+		if (has_txd_ts)
 			return M0_RC(true);
 		else
 			return M0_RC_INFO(false,
-					  "%s request is has an empty txd.",
+					  "%s request has an empty txd timestamp.",
 					  ctg_op->co_opcode == CO_PUT ?
 					  "PUT" : "DEL");
 	case CTG_OP_COMBINE(CO_GET, CT_BTREE):

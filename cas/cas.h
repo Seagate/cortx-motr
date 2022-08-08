@@ -300,11 +300,15 @@ enum m0_cas_op_flags {
 	 *       Requirements:
 	 *         x COF_OVERWRITE is set.
 	 *         x Transaction descriptor has a valid DTX ID.
+	 *           Note that if no transaction descriptor is provided,
+	 *           the current time will be used (for non-DTM0 operation).
 	 *     - DEL puts a tombstone instead of an actual removal. In this
 	 *       mode, DEL does not return -ENOENT in the same way as
 	 *       PUT-with-COF_OVERWRITE does not return -EEXIST.
 	 *       Requirements:
 	 *         x Transaction descriptor has a valid DTX ID.
+	 *           Note that if no transaction descriptor is provided,
+	 *           the current time will be used (for non-DTM0 operation).
 	 *     - GET returns only "alive" entries (without tombstones).
 	 *     - NEXT also skips entries with tombstones.
 	 *
