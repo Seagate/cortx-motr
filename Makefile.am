@@ -209,7 +209,6 @@ include $(top_srcdir)/addb2/st/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/be/Makefile.sub
 include $(top_srcdir)/be/tool/Makefile.sub
-include $(top_srcdir)/btree/Makefile.sub
 include $(top_srcdir)/capa/Makefile.sub
 include $(top_srcdir)/cas/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
@@ -1126,7 +1125,6 @@ EXTRA_DIST += \
               balloc/Kbuild.sub \
               be/Kbuild.sub \
               be/ut/Kbuild.sub \
-              btree/Kbuild.sub \
               cas/Kbuild.sub \
               cob/Kbuild.sub \
               motr/Kbuild.sub\
