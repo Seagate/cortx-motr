@@ -508,12 +508,12 @@ def motr_tune_memory_config(self):
         create_dirs(self, [f"{MOTR_LOCAL_SYSCONFIG_DIR}"])
 
     MOTR_M0D_CONF_FILE_PATH = f"{MOTR_LOCAL_SYSCONFIG_DIR}/{machine_id}/motr"
-    # Copy motr to motr-io 
+    # Copy motr to motr-io
     cmd = f"cp {MOTR_M0D_CONF_FILE_PATH} {MOTR_M0D_CONF_FILE_PATH}-io"
     execute_command(self, cmd)
 
     if not os.path.exists(MOTR_M0D_CONF_FILE_PATH):
-        self.logger.info(f"FILE not founf  {MOTR_M0D_CONF_FILE_PATH}\n")
+        self.logger.debug(f"FILE not found  {MOTR_M0D_CONF_FILE_PATH}\n")
         return
 
     # collect the memory and cpu limits.
@@ -525,8 +525,8 @@ def motr_tune_memory_config(self):
             cpu_min = arr_elem['cpu']['min']
             cpu_max = arr_elem['cpu']['max']
 
-    self.logger.info(f"Avaiable memory  {mem_min} {mem_max}\n")
-    self.logger.info(f"Avaiable CPU     {cpu_min} {cpu_max}\n")
+    self.logger.debug(f"Avaiable memory  {mem_min} {mem_max}\n")
+    self.logger.debug(f"Avaiable CPU     {cpu_min} {cpu_max}\n")
     M1 = int(calc_resource_sz(self, mem_min) / (1024 * 1024))
     M2 = int(calc_resource_sz(self, mem_max) / (1024 * 1024))
 
@@ -536,12 +536,12 @@ def motr_tune_memory_config(self):
 
     if M2 > 4096:
         MIN_RPC_RECVQ_LEN = 512
-        self.logger.info(f"setting MOTR_M0D_MIN_RPC_RECVQ_LEN to {MIN_RPC_RECVQ_LEN}\n")
+        self.logger.debug(f"setting MOTR_M0D_MIN_RPC_RECVQ_LEN to {MIN_RPC_RECVQ_LEN}\n")
         cmd = f'sed -i "/MOTR_M0D_MIN_RPC_RECVQ_LEN=/s/.*/MOTR_M0D_MIN_RPC_RECVQ_LEN={MIN_RPC_RECVQ_LEN}/" {MOTR_M0D_CONF_FILE_PATH}'
         execute_command(self, cmd)
 
-        IOS_BUFFER_POOL_SIZE = MIN_RPC_RECVQ_LEN * 2 
-        self.logger.info(f"setting MOTR_M0D_IOS_BUFFER_POOL_SIZE to {IOS_BUFFER_POOL_SIZE}\n")
+        IOS_BUFFER_POOL_SIZE = MIN_RPC_RECVQ_LEN * 2
+        self.logger.debug(f"setting MOTR_M0D_IOS_BUFFER_POOL_SIZE to {IOS_BUFFER_POOL_SIZE}\n")
         cmd = f'sed -i "/MOTR_M0D_IOS_BUFFER_POOL_SIZE=/s/.*/MOTR_M0D_IOS_BUFFER_POOL_SIZE={IOS_BUFFER_POOL_SIZE}/" {MOTR_M0D_CONF_FILE_PATH}'
         execute_command(self, cmd)
 
@@ -550,7 +550,7 @@ def motr_tune_memory_config(self):
     else:
         SNS_BUFFER_POOL_SIZE = 64
 
-    self.logger.info(f"setting MOTR_M0D_SNS_BUFFER_POOL_SIZE to {SNS_BUFFER_POOL_SIZE}\n")
+    self.logger.debug(f"setting MOTR_M0D_SNS_BUFFER_POOL_SIZE to {SNS_BUFFER_POOL_SIZE}\n")
     cmd = f'sed -i "/MOTR_M0D_SNS_BUFFER_POOL_SIZE=/s/.*/MOTR_M0D_SNS_BUFFER_POOL_SIZE={SNS_BUFFER_POOL_SIZE}/" {MOTR_M0D_CONF_FILE_PATH}'
     execute_command(self, cmd)
 
@@ -623,7 +623,7 @@ def get_data_nodes(self):
     machine_id_list = get_machine_id_list(self)
     for machine_id in machine_id_list:
         t = get_value(self, f'node>{machine_id}>type', str)
-        if t == 'data_node':
+        if re.search('data_node*', t):
             data_nodes.append(machine_id)
 
     # If data nodes not found
