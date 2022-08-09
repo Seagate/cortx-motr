@@ -529,7 +529,10 @@ static void ut_dix_record_ops(bool dist, uint32_t cr_get_flags,
 	m0_free0(&op);
 	m0_free0(&rcs);
 
-	/* Try to add recs again without OVERWRITE flag. */
+	/*
+	 * Try to add recs again without OVERWRITE flag
+	 * (will be added due to versioning).
+	 */
 	rcs = rcs_alloc(CNT);
 	rc = m0_idx_op(&idx, M0_IC_PUT, &keys, &vals, rcs, put_del_flags,
 			      &op);
@@ -537,7 +540,7 @@ static void ut_dix_record_ops(bool dist, uint32_t cr_get_flags,
 	m0_op_launch(&op, 1);
 	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
 	M0_UT_ASSERT(op->op_sm.sm_rc == 0);
-	M0_UT_ASSERT(m0_forall(i, CNT, rcs[i] == -EEXIST));
+	M0_UT_ASSERT(m0_forall(i, CNT, rcs[i] == 0));
 	m0_op_fini(op);
 	m0_free0(&op);
 	m0_free0(&rcs);

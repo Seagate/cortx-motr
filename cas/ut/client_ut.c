@@ -2378,11 +2378,14 @@ static void put_overwrite_ver(void)
 	M0_UT_ASSERT(has_versions(&index, &keys,
 				  version[V_FUTURE], COF_VERSIONED));
 
-	/* However, empty version disables the versioned behavior. */
+	/*
+	 * However, empty version with COF_VERSIONED uses current timestamp.
+	 * Check that version[V_NONE] got overwritten.
+	 */
 	put_get_verified(&index, &keys, &vals[V_PAST], &vals[V_PAST],
 			 version[V_NONE], COF_VERSIONED | COF_OVERWRITE,
 			 COF_VERSIONED);
-	M0_UT_ASSERT(has_versions(&index, &keys,
+	M0_UT_ASSERT(!has_versions(&index, &keys,
 				  version[V_NONE], COF_VERSIONED));
 
 	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
