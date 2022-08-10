@@ -41,7 +41,7 @@ ctrls=[controller-54] pvers=[pver-57])
 (process-5 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1"
     services=[service-9, service-10, service-20, service-21, service-22,
-              service-23, service-24, service-25, service-26, service-28])
+              service-23, service-24, service-25, service-26, service-28, service-29])
 (process-6 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[])
 (service-9 type=@M0_CST_IOS endpoints=["0@lo:12345:34:1"] params=[]
@@ -59,6 +59,8 @@ ctrls=[controller-54] pvers=[pver-57])
 (service-26 type=@M0_CST_DS1 endpoints=["0@lo:12345:34:1"] params=[]
     sdevs=[sdev-96, sdev-97])
 (service-28 type=@M0_CST_DS2 endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
+(service-29 type=@M0_CST_SNS_DTREB endpoints=["0@lo:12345:34:1"] params=[]
+    sdevs=[])
 (sdev-13 dev_idx=3 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev0")
 (sdev-14 dev_idx=0 iface=4 media=1 bsize=4096 size=1073741824 last_state=3

@@ -111,6 +111,9 @@ enum m0_sns_cm_op {
 	SNS_REPAIR_ABORT      = 1 << 7,
 	SNS_REBALANCE_ABORT   = 1 << 8,
 	SNS_DTREBALANCE       = 1 << 9,
+	SNS_DTREBALANCE_QUIESCE = 1 << 10,
+	SNS_DTREBALANCE_STATUS  = 1 << 11,
+	SNS_DTREBALANCE_ABORT   = 1 << 12,
 };
 
 /**

@@ -1126,6 +1126,8 @@ int m0_spiel_pool_repair_status(struct m0_spiel             *spl,
  */
 int m0_spiel_sns_rebalance_start(struct m0_spiel     *spl,
 			         const struct m0_fid *pool_fid);
+int m0_spiel_sns_dtrebalance_start(struct m0_spiel     *spl,
+			           const struct m0_fid *pool_fid);
 int m0_spiel_dix_rebalance_start(struct m0_spiel     *spl,
 				 const struct m0_fid *pool_fid);
 
@@ -1166,6 +1168,8 @@ int m0_spiel_node_direct_rebalance_start(struct m0_spiel     *spl,
  */
 int m0_spiel_sns_rebalance_continue(struct m0_spiel     *spl,
 				    const struct m0_fid *pool_fid);
+int m0_spiel_sns_dtrebalance_continue(struct m0_spiel     *spl,
+				      const struct m0_fid *pool_fid);
 int m0_spiel_dix_rebalance_continue(struct m0_spiel     *spl,
 				    const struct m0_fid *pool_fid);
 
@@ -1195,6 +1199,8 @@ int m0_spiel_pool_rebalance_continue(struct m0_spiel     *spl,
  */
 int m0_spiel_sns_rebalance_quiesce(struct m0_spiel     *spl,
 				   const struct m0_fid *pool_fid);
+int m0_spiel_sns_dtrebalance_quiesce(struct m0_spiel     *spl,
+				     const struct m0_fid *pool_fid);
 int m0_spiel_dix_rebalance_quiesce(struct m0_spiel     *spl,
 				   const struct m0_fid *pool_fid);
 
@@ -1221,6 +1227,9 @@ int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
 int m0_spiel_sns_rebalance_status(struct m0_spiel                *spl,
 				  const struct m0_fid            *pool_fid,
 				  struct m0_spiel_repreb_status **statuses);
+int m0_spiel_sns_dtrebalance_status(struct m0_spiel                *spl,
+				    const struct m0_fid            *pool_fid,
+				    struct m0_spiel_repreb_status **statuses);
 int m0_spiel_dix_rebalance_status(struct m0_spiel                *spl,
 				  const struct m0_fid            *pool_fid,
 				  struct m0_spiel_repreb_status **statuses);
@@ -1243,6 +1252,8 @@ int m0_spiel_pool_rebalance_status(struct m0_spiel             *spl,
  */
 int m0_spiel_sns_rebalance_abort(struct m0_spiel     *spl,
 				 const struct m0_fid *pool_fid);
+int m0_spiel_sns_dtrebalance_abort(struct m0_spiel     *spl,
+				   const struct m0_fid *pool_fid);
 int m0_spiel_dix_rebalance_abort(struct m0_spiel     *spl,
 				 const struct m0_fid *pool_fid);
 
@@ -1264,7 +1275,7 @@ struct m0_spiel_bckey {
 
 struct m0_spiel_bcrec {
 	uint64_t  sbr_byte_count;   /** Bytes written in a pool version */
-	uint64_t  sbr_object_count; /** Objects written in a pool version */ 
+	uint64_t  sbr_object_count; /** Objects written in a pool version */
 };
 
 /**
@@ -1285,7 +1296,7 @@ struct m0_proc_counter {
 /**
  * Counter stats pointer shall be initialized
  *
- * @param[in]  count_stats  count_stats shall be allocated 
+ * @param[in]  count_stats  count_stats shall be allocated
  */
 int m0_spiel_count_stats_init(struct m0_proc_counter **count_stats);
 
@@ -1386,9 +1397,9 @@ int m0_spiel_confstr(struct m0_spiel *spl, char **out);
  * This is a wrapper over conf/pvers.h m0_conf_pver_status().
  *
  * @param  spl      spiel instance, must have confc cache initialized
- *                  and populated.  
+ *                  and populated.
  * @param  fid      fid of the pool version whose status is queried.
- * @param  out_info out parameter which will contain status along with 
+ * @param  out_info out parameter which will contain status along with
  *                  some pdclust attributes of pool version.
  * @pre    fid != NULL
  * @pre    m0_confc_is_inited(confc) == true

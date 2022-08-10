@@ -97,11 +97,15 @@ opcode() {
 
 is_lnet_available() {
     local lnid
+    local lustre_rpm
     local result="false"
 
-    lnid=$(lctl list_nids | head -n1)
-    if [[ ! -z "$lnid" && -f $M0_SRC_DIR/m0tr.ko ]]; then
-        result="true"
+    lustre_rpm=$(rpm -qa | grep -w lustre)
+    if [[ ! -z "$lustre_rpm" ]]; then
+        lnid=$(lctl list_nids | head -n1)
+        if [[ ! -z "$lnid" && -f $M0_SRC_DIR/m0tr.ko ]]; then
+            result="true"
+        fi
     fi
     echo "$result"
 }

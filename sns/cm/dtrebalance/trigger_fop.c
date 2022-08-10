@@ -43,7 +43,16 @@ extern const struct m0_fom_type_ops m0_sns_trigger_fom_type_ops;
 M0_INTERNAL void m0_sns_cm_dtrebalance_trigger_fop_fini(void)
 {
 	m0_cm_trigger_fop_fini(&m0_sns_dtrebalance_trigger_fopt);
+        m0_cm_trigger_fop_fini(&m0_sns_dtrebalance_quiesce_fopt);
+        m0_cm_trigger_fop_fini(&m0_sns_dtrebalance_resume_fopt);
+        m0_cm_trigger_fop_fini(&m0_sns_dtrebalance_status_fopt);
+        m0_cm_trigger_fop_fini(&m0_sns_dtrebalance_abort_fopt);
+
 	m0_cm_trigger_fop_fini(&m0_sns_dtrebalance_trigger_rep_fopt);
+        m0_cm_trigger_fop_fini(&m0_sns_dtrebalance_quiesce_rep_fopt);
+        m0_cm_trigger_fop_fini(&m0_sns_dtrebalance_resume_rep_fopt);
+        m0_cm_trigger_fop_fini(&m0_sns_dtrebalance_status_rep_fopt);
+        m0_cm_trigger_fop_fini(&m0_sns_dtrebalance_abort_rep_fopt);
 }
 
 M0_INTERNAL void m0_sns_cm_dtrebalance_trigger_fop_init(void)
@@ -58,6 +67,48 @@ M0_INTERNAL void m0_sns_cm_dtrebalance_trigger_fop_init(void)
 	m0_cm_trigger_fop_init(&m0_sns_dtrebalance_trigger_rep_fopt,
 			       M0_SNS_DTREBALANCE_TRIGGER_REP_OPCODE,
 			       "sns dtrebalance trigger reply",
+			       trigger_rep_fop_xc,
+			       M0_RPC_ITEM_TYPE_REPLY,
+			       &sns_dtrebalance_cmt,
+			       &m0_sns_trigger_fom_type_ops);
+	m0_cm_trigger_fop_init(&m0_sns_dtrebalance_quiesce_fopt,
+			       M0_SNS_DTREBALANCE_QUIESCE_OPCODE,
+			       "sns dtrebalance quiesce trigger",
+			       trigger_fop_xc,
+			        M0_RPC_MUTABO_REQ,
+			        &sns_dtrebalance_cmt,
+			        &m0_sns_trigger_fom_type_ops);
+	m0_cm_trigger_fop_init(&m0_sns_dtrebalance_quiesce_rep_fopt,
+			       M0_SNS_DTREBALANCE_QUIESCE_REP_OPCODE,
+			       "sns dtrebalance quiesce reply",
+			       trigger_rep_fop_xc,
+			       M0_RPC_ITEM_TYPE_REPLY,
+			       &sns_dtrebalance_cmt,
+			       &m0_sns_trigger_fom_type_ops);
+	m0_cm_trigger_fop_init(&m0_sns_dtrebalance_status_fopt,
+			       M0_SNS_DTREBALANCE_STATUS_OPCODE,
+			       "sns dtrebalance status",
+			       trigger_fop_xc,
+			        M0_RPC_MUTABO_REQ,
+			        &sns_dtrebalance_cmt,
+			        &m0_sns_trigger_fom_type_ops);
+	m0_cm_trigger_fop_init(&m0_sns_dtrebalance_status_rep_fopt,
+			       M0_SNS_DTREBALANCE_STATUS_REP_OPCODE,
+			       "sns dtrebalance status reply",
+			       trigger_rep_fop_xc,
+			       M0_RPC_ITEM_TYPE_REPLY,
+			       &sns_dtrebalance_cmt,
+			       &m0_sns_trigger_fom_type_ops);
+	m0_cm_trigger_fop_init(&m0_sns_dtrebalance_abort_fopt,
+			       M0_SNS_DTREBALANCE_ABORT_OPCODE,
+			       "sns dtrebalance abort trigger",
+			       trigger_fop_xc,
+			        M0_RPC_MUTABO_REQ,
+			        &sns_dtrebalance_cmt,
+			        &m0_sns_trigger_fom_type_ops);
+	m0_cm_trigger_fop_init(&m0_sns_dtrebalance_abort_rep_fopt,
+			       M0_SNS_DTREBALANCE_ABORT_REP_OPCODE,
+			       "sns dtrebalance abort reply",
 			       trigger_rep_fop_xc,
 			       M0_RPC_ITEM_TYPE_REPLY,
 			       &sns_dtrebalance_cmt,

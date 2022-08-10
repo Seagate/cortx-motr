@@ -1655,6 +1655,60 @@ int m0_spiel_pool_rebalance_abort(struct m0_spiel     *spl,
 	return m0_spiel_sns_rebalance_abort(spl, pool_fid);
 }
 
+int m0_spiel_sns_dtrebalance_start(struct m0_spiel     *spl,
+				   const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_DTREBALANCE, NULL,
+						M0_REPREB_TYPE_SNS));
+}
+M0_EXPORTED(m0_spiel_sns_dtrebalance_start);
+
+int m0_spiel_sns_dtrebalance_continue(struct m0_spiel     *spl,
+				      const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_DTREBALANCE_RESUME, NULL,
+						M0_REPREB_TYPE_SNS));
+}
+M0_EXPORTED(m0_spiel_sns_dtrebalance_continue);
+
+int m0_spiel_sns_dtrebalance_quiesce(struct m0_spiel     *spl,
+				     const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_DTREBALANCE_QUIESCE, NULL,
+						M0_REPREB_TYPE_SNS));
+}
+M0_EXPORTED(m0_spiel_sns_dtrebalance_quiesce);
+
+int m0_spiel_sns_dtrebalance_status(struct m0_spiel                *spl,
+				    const struct m0_fid            *pool_fid,
+				  struct m0_spiel_repreb_status **statuses)
+{
+	int rc;
+
+	M0_ENTRY();
+	M0_PRE(statuses != NULL);
+	rc = spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+					CM_OP_DTREBALANCE_STATUS, statuses,
+					M0_REPREB_TYPE_SNS);
+	return rc >= 0 ? M0_RC(rc) : M0_ERR(rc);
+}
+M0_EXPORTED(m0_spiel_sns_dtrebalance_status);
+
+int m0_spiel_sns_dtrebalance_abort(struct m0_spiel     *spl,
+				   const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_DTREBALANCE_ABORT, NULL,
+						M0_REPREB_TYPE_SNS));
+}
+M0_EXPORTED(m0_spiel_sns_dtrebalance_abort);
 /***********************************************/
 /*                 Byte count                  */
 /***********************************************/
@@ -2145,7 +2199,7 @@ static bool spiel_proc_counter_item_rlink_cb(struct m0_clink *clink)
 	item->ri_prio           = M0_RPC_ITEM_PRIO_MID;
 	item->ri_nr_sent_max    = 5;
 	m0_fop_get(fop);
-	rc = m0_rpc_post(item);	
+	rc = m0_rpc_post(item);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "rpc post failed");
 		m0_fop_put_lock(fop);
@@ -2154,7 +2208,7 @@ static bool spiel_proc_counter_item_rlink_cb(struct m0_clink *clink)
 
 	proc->sci_rc = rc;
 	goto ret;
-	
+
 fop_fini:
 	m0_fop_fini(fop);
 	conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
@@ -2222,7 +2276,7 @@ M0_EXPORTED(m0_spiel_count_stats_init);
 
 void m0_spiel_count_stats_fini(struct m0_proc_counter *count_stats)
 {
-	if (count_stats != NULL) { 
+	if (count_stats != NULL) {
 		if (count_stats->pc_cnt > 0)
 			m0_spiel_count_stats_free(count_stats,
 						  count_stats->pc_cnt);
