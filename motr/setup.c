@@ -1099,8 +1099,10 @@ static int cs_storage_init(const char *stob_type,
 /**
    Finalises storage for a request handler in a motr context.
  */
-static void cs_storage_fini(struct cs_stobs *stob)
+static void cs_storage_fini(struct m0_reqh_context *rctx)
 {
+	struct cs_stobs *stob = &rctx->rc_stob;
+	m0_free(&rctx->rc_addb_stlocation);
 	cs_storage_devs_fini();
 	if (stob->s_sdom != NULL)
 		m0_stob_domain_fini(stob->s_sdom);
@@ -1687,7 +1689,7 @@ static int cs_storage_setup(struct m0_motr *cctx)
 cleanup_addb2:
 	m0_reqh_addb2_fini(&rctx->rc_reqh);
 cleanup_stob:
-	cs_storage_fini(&rctx->rc_stob);
+	cs_storage_fini(rctx);
 reqh_be_fini:
 	m0_reqh_be_fini(&rctx->rc_reqh);
 be_fini:
@@ -2874,7 +2876,7 @@ static void cs_level_leave(struct m0_module *module)
 		break;
 	case CS_LEVEL_STORAGE_SETUP:
 		if (rctx->rc_state == RC_INITIALISED) {
-			cs_storage_fini(&rctx->rc_stob);
+			cs_storage_fini(rctx);
 			rctx->rc_reqh.rh_pools = NULL;
 		}
 		break;

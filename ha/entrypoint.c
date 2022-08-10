@@ -600,6 +600,7 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 		fop->f_opaque = ecl;
 		next_state = M0_HEC_SEND_WAIT;
 		rc = m0_rpc_post(item) == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;
+		m0_free(req_fop_data->erf_git_rev_id.b_addr);
 		break;
 
 	case M0_HEC_SEND_WAIT:
