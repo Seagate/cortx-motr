@@ -78,6 +78,7 @@ static void profile_delete(struct m0_conf_obj *obj)
 	struct m0_conf_profile *x = M0_CONF_CAST(obj, m0_conf_profile);
 
 	m0_conf_profile_bob_fini(x);
+	arrfid_free(&x->cp_pools);
 	m0_free(x);
 }
 
