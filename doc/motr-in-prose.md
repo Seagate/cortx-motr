@@ -168,9 +168,9 @@ Commonalities between Lustre and Motr include:
 * various network optimisations including intents and 0-copy transfers;
 * highly asynchronous servers and associated recovery.
 
-### Correlated:
+### Related:
 
-### More elaborate:
+### More details:
 
 ## reqh, idea
 
@@ -347,7 +347,7 @@ The interface used by plugins is called File-system Data Manipulation Interface
 (fdmi). Event feeds are populated from [fol](#fol-idea). fdmi makes Motr into an 
 extensible storage system. fdmi used to be called Horizontal Scale Data 
 Management Language (HSDML) in earlier documents.
-### Reference:
+### References:
 ### Related: [fol, idea](#fol-idea)
 ### More details: [fdmi, architecture](#fdmi-architecture)
 
