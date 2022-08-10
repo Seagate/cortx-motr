@@ -447,7 +447,9 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
 	if (rc == 0) {
 		session_state_set(session, M0_RPC_SESSION_ESTABLISHING);
 	} else {
-		session_failed(session, rc);
+		if(!M0_IN(session_state(session), (M0_RPC_SESSION_FAILED))) {
+			session_failed(session, rc);
+		}
 	}
 	m0_fop_put(fop);
 
