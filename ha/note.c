@@ -51,6 +51,7 @@
 #include "ha/link.h"            /* m0_ha_link_send */
 #include "ha/ha.h"              /* m0_ha_send */
 #include "motr/ha.h"            /* m0_motr_ha */
+#include "conf/cache.h"
 
 /**
  * @see: confc_fop_release()
@@ -168,13 +169,25 @@ static void ha_state_accept(struct m0_confc         *confc,
 	cache = &confc->cc_cache;
 	m0_conf_cache_lock(cache);
 	for (i = 0; i < note->nv_nr; ++i) {
-		obj = m0_conf_cache_lookup(cache, &note->nv_note[i].no_id);
+		obj = m0_conf_cache_lookup_dynamic(cache,
+						   &note->nv_note[i].no_id);
 		M0_LOG(M0_DEBUG, "nv_note[%d]=(no_id="FID_F" no_state=%"PRIu32
 		       ") obj=%p obj->co_status=%d", i,
 		       FID_P(&note->nv_note[i].no_id),
 		       note->nv_note[i].no_state,
 		       obj, obj == NULL ? -1 : obj->co_status);
-		if (obj != NULL && obj->co_status == M0_CS_READY) {
+		if ((obj != NULL) &&
+		    !cache->ca_is_phony &&
+		    (!m0_fid_eq(&obj->co_id, &note->nv_note[i].no_id))) {
+			/*
+			 * Received new dynamic configuration object, adding
+			 * this to configuration cache.
+			 */
+			M0_LOG(M0_ALWAYS, "Adding dynamic fid to confc "FID_F,FID_P(&note->nv_note[i].no_id));
+//			m0_ha_add_dynamic_fid_to_confc(cache, obj,
+//					&note->nv_note[i].no_id, ignore_same_state);
+
+		} else if (obj != NULL && obj->co_status == M0_CS_READY) {
 			prev_ha_state = obj->co_ha_state;
 			obj->co_ha_state = note->nv_note[i].no_state;
 			if (!ignore_same_state ||

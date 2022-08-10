@@ -30,7 +30,7 @@
 #include "conf/onwire.h"    /* m0_confx */
 #include "lib/errno.h"      /* EEXIST */
 #include "lib/memory.h"     /* M0_ALLOC_PTR, M0_ALLOC_ARR */
-
+#include "conf/confc.h"     /* m0_confc_cache_add_process */
 /**
  * @defgroup conf_dlspec_cache Configuration Cache (lspec)
  *
@@ -66,11 +66,12 @@ M0_INTERNAL void
 m0_conf_cache_init(struct m0_conf_cache *cache, struct m0_mutex *lock)
 {
 	M0_ENTRY();
-
+	M0_LOG(M0_ALWAYS, "Init cache : %p, lock : %p", cache, lock);
 	m0_conf_cache_tlist_init(&cache->ca_registry);
 	cache->ca_lock = lock;
 	cache->ca_ver  = 0;
 	cache->ca_fid_counter = 0;
+	cache->ca_is_phony = false;
 
 	M0_LEAVE();
 }
@@ -100,6 +101,44 @@ M0_INTERNAL bool m0_conf_cache_contains(struct m0_conf_cache *cache,
 	ret = m0_conf_cache_lookup(cache, fid) != NULL;
 	m0_conf_cache_unlock(cache);
 	return ret;
+}
+
+M0_INTERNAL struct m0_conf_obj *
+m0_conf_cache_lookup_dynamic(const struct m0_conf_cache *cache,
+			     const struct m0_fid *id)
+{
+	struct m0_conf_obj *obj;
+	uint32_t            dynamic_val1;
+	uint32_t	    dynamic_val2;
+        /*
+         * For process and service fid different approach is taken to compare
+	 * FID's. Specifically for process/service fid considering base fid
+	 * only (excluding dynamic bit) for comparison. Dynamic bits are higher
+	 * 32 bits of the key of FID.
+	 *  e.g.
+	 *  |-------- Container------------| |----------------Key-------------|
+	 *
+	 *  F F F F F F F F F F F F F F F F : F F F F F F F F  F F F F F F F F
+	 *                                    |-Dynamic bits-|
+	 */
+	/*
+	 * TODO: Current implementation we are assuming that dynamic FID's will
+	 * always be generated in sequential manner (w.r.t dynamic bits), so
+	 * that we can fetch latest last dynamic FID, but It may not be in
+	 * sequential always. This scenario needs to be handled.
+	 */
+	dynamic_val1 = GET_FID_DYNAMIC_VAL(id);
+	m0_tl_for (m0_conf_cache, &cache->ca_registry, obj) {
+		if (m0_base_fid_eq(&obj->co_id, id)) {
+			dynamic_val2 = GET_FID_DYNAMIC_VAL(&obj->co_id);
+			if (dynamic_val1 == dynamic_val2)
+				return obj;
+			else if (dynamic_val1 != (dynamic_val2 + 1))
+				continue;
+			return obj;
+		}
+	} m0_tl_endfor;
+	return NULL;
 }
 
 M0_INTERNAL struct m0_conf_obj *
@@ -324,5 +363,42 @@ m0_conf_cache_pinned(const struct m0_conf_cache *cache)
 			  obj->co_nrefs != 0);
 }
 
+M0_INTERNAL
+void m0_ha_add_dynamic_fid_to_confc(
+			struct m0_conf_cache    *cache,
+			struct m0_conf_obj      *base_obj,
+			struct m0_fid           *no_fid,
+			uint64_t                ignore_same_state)
+{
+	struct m0_conf_obj     *new_obj;
+        enum m0_ha_obj_state    prev_ha_state;
+	int                     rc;
+
+	M0_LOG(M0_ALWAYS, "Received fid: "FID_F" look up fid :"FID_F,
+		FID_P(no_fid), FID_P(&base_obj->co_id));
+
+	if (m0_fid_tget(no_fid) == 'r') {
+		rc = m0_confc_cache_add_process(cache, no_fid,
+						base_obj, &new_obj);
+		M0_ASSERT(rc == 0);
+		new_obj->co_ha_state = 1;
+		prev_ha_state = base_obj->co_ha_state;
+		new_obj->co_status = M0_CS_READY;
+		/*
+		 * TODO: Need to decide on should we copy subscribers from
+		 * older to new objetct or broadcast on older object
+		 */
+		if (!ignore_same_state ||
+		    prev_ha_state != new_obj->co_ha_state)
+			m0_chan_broadcast(&new_obj->co_ha_chan);
+
+		M0_LOG(M0_ALWAYS,"Conf obj for dynamic FID Added "FID_F,
+		        FID_P(no_fid));
+	} else if (m0_fid_tget(no_fid) == 's') {
+	rc = m0_confc_cache_add_service(cache, no_fid,
+					base_obj, &new_obj);
+	M0_ASSERT(rc == 0);
+	}
+}
 /** @} conf_dlspec_cache */
 #undef M0_TRACE_SUBSYSTEM

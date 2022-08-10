@@ -185,6 +185,7 @@ M0_INTERNAL int m0_conf_full_load(struct m0_conf_root *r)
 	const struct m0_fid to_fdmifs[] = {M0_CONF_ROOT_FDMI_FLT_GRPS_FID,
 	                                   M0_CONF_FDMI_FGRP_FILTERS_FID};
 
+	M0_LOG(M0_ALWAYS, "configuration full loaded");
 	rc = _conf_load(r, to_sdevs,  ARRAY_SIZE(to_sdevs)) ?:
 	     _conf_load(r, to_drives, ARRAY_SIZE(to_drives)) ?:
 	     _conf_load(r, to_drvsvs, ARRAY_SIZE(to_drvsvs)) ?:

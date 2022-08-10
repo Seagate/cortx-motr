@@ -816,6 +816,7 @@ static int _confc_phony_init(struct m0_confc *confc)
 	rc = m0_confc_init(confc, fake_ptr, NULL, fake_ptr, NULL);
 	if (rc != 0)
 		return M0_ERR(rc);
+	confc->cc_cache.ca_is_phony = true;
 	rc = m0_ha_client_add(confc);
 	if (rc != 0)
 		m0_confc_fini(confc);

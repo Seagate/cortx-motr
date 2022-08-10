@@ -861,6 +861,8 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
 	struct m0_rpc_session *session_0;
 	struct m0_rpc_machine *machine;
 	int                    rc;
+	struct m0_fid          process_fid;
+	struct m0_rpc_fop_conn_establish *conn_est_req;
 
 	M0_ENTRY("conn: %p", conn);
 	M0_PRE(conn != NULL && conn->c_rpc_machine != NULL);
@@ -869,15 +871,40 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
 		return M0_ERR(-EINVAL);
 
 	machine = conn->c_rpc_machine;
+	process_fid = machine->rm_reqh->rh_fid;
 
-	fop = m0_fop_alloc(&m0_rpc_fop_conn_establish_fopt, NULL, machine);
-	if (fop == NULL) {
-		m0_rpc_machine_lock(machine);
-		conn_failed(conn, -ENOMEM);
-		m0_rpc_machine_unlock(machine);
-		return M0_ERR(-ENOMEM);
+	M0_LOG(M0_ALWAYS, "process fid is "FID_F, FID_P(&process_fid));
+	if (process_fid.f_container == 0x7200000000000001 && process_fid.f_key == 0x3) 
+	{
+		M0_LOG(M0_ALWAYS, "process fid is "FID_F, FID_P(&process_fid));
+
+		fop = m0_fop_alloc(&m0_rpc_fop_conn_establish_fopt, NULL, machine);
+		if (fop == NULL) {
+			m0_rpc_machine_lock(machine);
+			conn_failed(conn, -ENOMEM);
+			m0_rpc_machine_unlock(machine);
+			return M0_ERR(-ENOMEM);
+		}
+		M0_LOG(M0_ALWAYS, "getting fop data");
+		conn_est_req = m0_fop_data(fop);
+		M0_LOG(M0_ALWAYS, "got fop data");
+		conn_est_req->rce_conf_fids.af_count = 1;
+		M0_ALLOC_ARR(conn_est_req->rce_conf_fids.af_elems,
+			     conn_est_req->rce_conf_fids.af_count);
+		conn_est_req->rce_conf_fids.af_elems[0].f_container = process_fid.f_container;
+		conn_est_req->rce_conf_fids.af_elems[0].f_key = 0x0000000100000003;
+//		M0_LOG(M0_ALWAYS, "Setting conn establish fop data, FID "FID_F,
+//				FID_P(&conn_est_req->rce_conf_fids.af_elems[0]));
+
+	} else {
+		fop = m0_fop_alloc(&m0_rpc_fop_conn_establish_fopt, NULL, machine);
+		if (fop == NULL) {
+			m0_rpc_machine_lock(machine);
+			conn_failed(conn, -ENOMEM);
+			m0_rpc_machine_unlock(machine);
+			return M0_ERR(-ENOMEM);
+		}
 	}
-
 	m0_rpc_machine_lock(machine);
 
 	M0_ASSERT(m0_rpc_conn_invariant(conn));

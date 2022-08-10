@@ -109,6 +109,8 @@ struct m0_conf_cache {
 	 * fids of newly created m0_conf_objv objects.
 	 */
 	uint64_t         ca_fid_counter;
+
+	bool             ca_is_phony;
 };
 
 /** Initialises configuration cache. */
@@ -176,6 +178,10 @@ M0_INTERNAL bool m0_conf_cache_contains(struct m0_conf_cache *cache,
  * Returns NULL if there is no such object in the cache.
  */
 M0_INTERNAL struct m0_conf_obj *
+m0_conf_cache_lookup_dynamic(const struct m0_conf_cache *cache,
+			     const struct m0_fid *id);
+
+M0_INTERNAL struct m0_conf_obj *
 m0_conf_cache_lookup(const struct m0_conf_cache *cache,
 		     const struct m0_fid *id);
 
@@ -223,6 +229,12 @@ m0_conf_cache_pinned(const struct m0_conf_cache *cache);
  * Path is a sequence of m0_fids, used for conf DAG traversal.
  */
 enum { M0_CONF_PATH_MAX = 15 };
-
+M0_INTERNAL
+void m0_ha_add_dynamic_fid_to_confc(
+			struct m0_conf_cache    *cache,
+			struct m0_conf_obj      *base_obj,
+//			const struct m0_ha_note *nv_note,
+			struct m0_fid           *no_fid,
+			uint64_t                ignore_same_state);
 /** @} conf_dfspec_cache */
 #endif /* __MOTR_CONF_CACHE_H__ */

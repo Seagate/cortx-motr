@@ -602,6 +602,7 @@ M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx);
  */
 M0_INTERNAL void m0_confc_ctx_fini_locked(struct m0_confc_ctx *ctx);
 
+
 /**
  * Lets rconfc to switch to another confd address on the fly without touching
  * any confc internals including cache. Timely cache invalidation is a
@@ -820,5 +821,18 @@ M0_INTERNAL bool m0_confc_is_online(const struct m0_confc *confc);
 M0_INTERNAL struct m0_rpc_conn    *m0_confc2conn(struct m0_confc *confc);
 M0_INTERNAL struct m0_rpc_session *m0_confc2sess(struct m0_confc *confc);
 
+/**
+ * This function to add configuration object for prosess/service with dynamic
+ * FID's into configuration cache.
+ */
+M0_INTERNAL int m0_confc_cache_add_process(struct m0_conf_cache    *cache,
+					   const struct m0_fid     *process_fid,
+					   struct m0_conf_obj      *base_obj,
+					   struct m0_conf_obj      **new_obj);
+
+M0_INTERNAL int m0_confc_cache_add_service(struct m0_conf_cache    *cache,
+					   const struct m0_fid     *process_fid,
+					   struct m0_conf_obj      *base_obj,
+					   struct m0_conf_obj      **new_obj);
 /** @} confc_dfspec */
 #endif /* __MOTR_CONF_CONFC_H__ */

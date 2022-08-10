@@ -89,6 +89,7 @@ struct m0_rpc_fop_conn_establish {
 	 * establinshing procedure
 	 */
 	struct m0_protocol_id rce_protocol;
+	struct m0_fid_arr     rce_conf_fids;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**

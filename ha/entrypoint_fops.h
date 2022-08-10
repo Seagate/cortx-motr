@@ -152,6 +152,7 @@ struct m0_ha_entrypoint_req {
 struct m0_ha_entrypoint_rep {
 	uint32_t                        hae_quorum;
 	struct m0_fid_arr               hae_confd_fids;
+	struct m0_fid_arr               hae_conf_fids;
 	const char                    **hae_confd_eps;
 	struct m0_fid                   hae_active_rm_fid;
 	char                           *hae_active_rm_ep;

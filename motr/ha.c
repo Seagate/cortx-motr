@@ -300,7 +300,7 @@ motr_ha_entrypoint_request_cb(struct m0_ha                      *ha,
 static void motr_ha_entrypoint_replied_cb(struct m0_ha                *ha,
                                           struct m0_ha_entrypoint_rep *hep)
 {
-	M0_LOG(M0_DEBUG, "replied");
+	M0_LOG(M0_ALWAYS, "entrypoint replied called");
 }
 
 static void motr_ha_msg_received_cb(struct m0_ha      *ha,
