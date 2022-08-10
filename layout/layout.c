@@ -92,7 +92,8 @@
 #include "pool/pool.h" /* M0_TL_DESCR_DECLARE(pools, M0_EXTERN) */
 
 enum {
-	/* Note: This is dependent on m0_net_domain_get_max_buffer_size or
+	/**
+	 * Note: This is dependent on m0_net_domain_get_max_buffer_size or
 	 * libfab_get_max_buf_size() and both values should be in sync. They
 	 * help to select max unit size.
 	 */
@@ -827,7 +828,7 @@ M0_INTERNAL int64_t m0_layout_find_by_buffsize(struct m0_layout_domain *dom,
 		if (l != NULL) {
 			pa = &m0_layout_to_pdl(l)->pl_attr;
 			if (pa->pa_unit_size * pa->pa_N >= buffsize ||
-			    /*
+			    /**
 			     * There is FOP split for units bigger than
 			     * NET_DOMAIN_MAX_PAYLOAD (1MB atm) and as DI
 			     * is evaluated for every unit size, this value

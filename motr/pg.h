@@ -852,9 +852,7 @@ struct fop_cksum_idx_gbl_data {
 	uint32_t                     fg_seg_sz;
 };
 
-/**
- * Data structure for unit index tracking
- */
+/* Data structure for unit index tracking. */
 struct fop_cksum_idx_data {
 	/* Index for tracking which Parity Group and which Index (0..k-1)
 	 * or (0..n-1) will be assigned to target
@@ -863,15 +861,13 @@ struct fop_cksum_idx_data {
 	uint64_t                       ci_unit_idx;
 };
 
-/**
- * Collection of data structure for checksum computation
- */
+/* Collection of data structure for checksum computation */
 struct fop_cksum_data {
-	/** Checksum data structure. */
+	/* Checksum data structure. */
 	struct fop_cksum_idx_data  *cd_idx;
-	/** Number of units added. */
+	/* Number of units added. */
 	uint32_t                    cd_num_units;
-	/** Maximum number of units. */
+	/* Maximum number of units. */
 	uint32_t                    cd_max_units;
 };
 

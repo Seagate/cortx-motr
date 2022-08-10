@@ -637,7 +637,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 INDEX(ivec, seg), COUNT(ivec, seg),
 				 FID_P(&ti->ti_fid), pattr[seg]);
 
-		/*
+		/**
 		 * Storing the values of goff(checksum offset) into the
 		 * goff_ivec according to target offset. This creates a
 		 * mapping between target offset and cheksum offset.
@@ -839,7 +839,7 @@ int m0_target_calculate_checksum(struct m0_op_io *ioo, uint8_t pi_type,
 	if (rc != 0)
 		return -ENOMEM;
 
-	/*
+	/**
 	 * Populate buffer vec for give parity unit and add all buffers present
 	 * in rows (page sized buffer/4K)
 	 */
@@ -901,7 +901,7 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 	/* Number of units will not be zero as its already checked */
 	num_units = irfop->irf_cksum_data.cd_num_units;
 	
-	/*
+	/**
 	 * Note: No need to free this as RPC layer will free this
 	 * Allocate cksum buffer for number of units added to target_ioreq ti
 	 */
@@ -964,7 +964,7 @@ static void target_ioreq_calc_idx(struct m0_op_io *ioo,
 	uint32_t                         seg;
 	m0_bindex_t                      goff;
 
-	/*
+	/**
 	 * Loop through all the segments added and check & add
 	 * Units spanning those segments to FOP
 	 */
@@ -1108,7 +1108,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		/* Assign all the data needed for index computation. */
 		pgdata.fg_unit_sz = layout_unit_size(pdlayout_get(ioo));
 
-		/*
+		/**
 		 * There are scenarios where K > N in such case when the 
 		 * filter is PA_PARITY, increase the size of PG so that
 		 * right PG and Unit index will get computed based on goff
@@ -1188,16 +1188,18 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		}
 		delta += io_seg_size();
 
-		/*
-		* Adds io segments and io descriptor only if it fits within
-		* permitted size.
-		*/
-		/* TODO: can this loop become a function call?
-		 * -- too many levels of indentation */
+		/**
+		 * Adds io segments and io descriptor only if it fits within
+		 * permitted size.
+		 */
+		/**
+		 *  TODO: can this loop become a function call?
+		 * -- too many levels of indentation
+		 */
 		while (seg < SEG_NR(ivec) &&
 		       m0_io_fop_size_get(&iofop->if_fop) + delta < maxsize &&
 		       bbsegs < ndom_max_segs) {
-			/*
+			/**
 			* Adds a page to rpc bulk buffer only if it passes
 			* through the filter.
 			*/
@@ -1215,7 +1217,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				offset = INDEX(ivec, seg);
 
 				seg_start = seg;
-				/*
+				/**
 				 * Accommodate multiple pages in a single
 				 * net buffer segment, if they are consecutive
 				 * pages.
@@ -1232,8 +1234,10 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 					if (buf + xfer_len == bufnext) {
 						xfer_len += COUNT(ivec, ++seg);
-						/* Next segment should be as per
-						 * filter */
+						/**
+						 * Next segment should be as per
+						 * filter
+						 */
 						segnext = seg + 1;
 						if (!(pattr[segnext] & filter) ||
 						    !(pattr[segnext] & rw) ||
@@ -1258,7 +1262,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 								 offset, ndom);
 
 				if (rc == -EMSGSIZE) {
-					/*
+					/**
 					 * Fix the number of segments in
 					 * current m0_rpc_bulk_buf structure.
 					 */
@@ -1270,7 +1274,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 					delta -= (io_seg_size() +
 						  io_di_size(ioo));
-					/* In case of DI enabled delta will be
+					/**
+					 * In case of DI enabled delta will be
 					 * adjusted otherwise num_units will
 					 * be 0
 					 */
@@ -1279,7 +1284,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					delta -= (num_units_iter *
 						  m0__obj_di_cksum_size(ioo));
 
-					/*
+					/**
 					 * Buffer must be 4k aligned to be
 					 * used by network hw
 					 */
@@ -1291,7 +1296,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					else if (rc != 0)
 						goto fini_fop;
 
-					/*
+					/**
 					 * Since current bulk buffer is full,
 					 * new bulk buffer is added and
 					 * existing segment is attempted to
@@ -1327,7 +1332,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_pver = ioo->ioo_pver;
 		rw_fop->crw_index = ti->ti_obj;
 
-		/*
+		/**
 		 * Use NOHOLE by default (i.e. return error for missing
 		 * units instead of zeros), unless we are in read-verify
 		 * mode.
@@ -1359,7 +1364,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		/* Assign the checksum buffer for traget */
 		if (di_enabled && m0_is_write_fop(&iofop->if_fop)) {
 			rw_fop->crw_cksum_size = m0__obj_di_cksum_size(ioo);
-			/*
+			/**
 			 * Prepare checksum data for parity as not parity buffer
 			 * are populated
 			 */
@@ -1521,7 +1526,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 			goto fail;
 	}
 
-	/*
+	/**
 	 * Allocating index vector to track object global offset
 	 * which is getting sent to a target. This will help to
 	 * compute the PG Index and Unit Index which are being
@@ -1541,7 +1546,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	if (ti->ti_bufvec.ov_buf == NULL)
 		goto fail;
 
-	/*
+	/**
 	 * For READOLD method, an extra bufvec is needed to remember
 	 * the addresses of auxillary buffers so those auxillary
 	 * buffers can be used in rpc bulk transfer to avoid polluting

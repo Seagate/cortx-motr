@@ -26,7 +26,7 @@
 
 #include "lib/cksum.h"
 
-/*
+/**
  * This file will content the specific data structure for implementation
  * e.g. MD5, CRC, etc
  */
@@ -36,12 +36,12 @@
 #endif
 
 /*********************** MD5 Cksum Structure ***********************/
-/** Padding size for MD5 structure */
+/* Padding size for MD5 structure */
 #define M0_CKSUM_PAD_MD5 (M0_CALC_PAD((sizeof(struct m0_pi_hdr) + \
 				      MD5_DIGEST_LENGTH), \
 				      M0_CKSUM_DATA_ROUNDOFF_BYTE))
 
-/** MD5 checksum structure, the checksum value is in pimd5_value */
+/* MD5 checksum structure, the checksum value is in pimd5_value */
 struct m0_md5_pi {
 	/* header for protection info */
 	struct m0_pi_hdr pimd5_hdr;
@@ -54,12 +54,13 @@ struct m0_md5_pi {
 };
 
 /****************** MD5 Including Context Checksum Structure ******************/
-/** Padding size for MD5 Including Context structure */
+/* Padding size for MD5 Including Context structure */
 #define M0_CKSUM_PAD_MD5_INC_CXT (M0_CALC_PAD((sizeof(struct m0_pi_hdr) + \
 				  sizeof(MD5_CTX)+MD5_DIGEST_LENGTH), \
 				  M0_CKSUM_DATA_ROUNDOFF_BYTE))
 
-/** MD5 checksum structure:
+/**
+ * MD5 checksum structure:
  *  - The computed checksum value will be in pimd5c_value.
  *  - Input context from previous MD5 computation in pimd5c_prev_context
  */

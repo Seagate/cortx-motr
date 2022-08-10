@@ -279,8 +279,9 @@ struct m0_op_io {
 	struct m0_indexvec                ioo_ext;
 
 	struct m0_bufvec                  ioo_data;
-	/** Assumption: Checksum buff is linearly stored in ov_buf
-	 *  and v_nr will be the number of checksum units
+	/**
+	 * Assumption: Checksum buff is linearly stored in ov_buf
+	 * and v_nr will be the number of checksum units
 	 */
 	struct m0_bufvec                  ioo_attr;
 

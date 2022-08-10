@@ -287,7 +287,8 @@ static int write_data_to_object(struct m0_obj *obj,
 	int                  rc;
 	struct m0_op        *ops[1] = {NULL};
 
-	/* Create write operation
+	/**
+	 * Create write operation
 	 * CKSUM_TODO: calculate cksum and pass in
 	 * attr instead of NULL
 	 */

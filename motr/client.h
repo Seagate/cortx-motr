@@ -675,9 +675,7 @@ enum m0_entity_type {
 	 * This flag is to indicate that application is passing checkum for the IO.
 	 */
 	M0_ENF_DI = 1 << 2,
-	 /**
-	  * This flag will let Motr generate DI for the IO.
-	  */
+	 /* This flag will let Motr generate DI for the IO. */
 	M0_ENF_GEN_DI = 1 << 3
 
  } M0_XCA_ENUM;

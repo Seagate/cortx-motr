@@ -612,7 +612,7 @@ static int obj_op_init(struct m0_obj      *obj,
 	rc = m0__obj_layout_instance_build(cinst, layout_id, &oo->oo_fid,
 					   &oo->oo_layout_instance);
 	if (rc != 0) {
-		/*
+		/**
 		 * Setting the callbacks to NULL so the m0_op_fini()
 		 * and m0_op_free() functions don't fini and free
 		 * m0_op_io as it has not been initialized now.

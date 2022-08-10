@@ -60,8 +60,6 @@ M0_INTERNAL int m0_calculate_md5(struct m0_md5_pi *pi,
 	int i;
 	int rc;
 
-	M0_ENTRY();
-
 	M0_PRE(pi != NULL);
 	M0_PRE(ergo(bvec != NULL && bvec->ov_vec.v_nr != 0,
 		    bvec != NULL && bvec->ov_vec.v_count != NULL &&
@@ -98,7 +96,7 @@ M0_INTERNAL int m0_calculate_md5(struct m0_md5_pi *pi,
 	}
 
 	if (seed != NULL) {
-		/*
+		/**
 		 * seed_str have string represention for 3 uint64_t(8 bytes)
 		 * range for uint64_t is 0 to 18,446,744,073,709,551,615 at
 		 * max 20 chars per var, for three var it will be 3*20, +1 '\0'.
@@ -132,7 +130,7 @@ M0_INTERNAL int m0_calculate_md5(struct m0_md5_pi *pi,
 		}
 	}
 #endif
-	return  M0_RC(0);
+	return  0;
 }
 
 /**
@@ -168,7 +166,6 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 	int     i;
 	int     rc;
 
-	M0_ENTRY();
 	M0_PRE(pi != NULL);
 	M0_PRE(curr_context != NULL);
 	M0_PRE(ergo(bvec != NULL && bvec->ov_vec.v_nr != 0,
@@ -216,7 +213,7 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 	 * seeded checksum.
 	 */
 	if (pi_value_without_seed != NULL) {
-		/*
+		/**
 		 * NOTE: MD5_final() changes the context itself and curr_context
 		 * should not be finalised, thus copy it and use it for
 		 * MD5_final
@@ -241,7 +238,7 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 	memcpy((void *)&context, (void *)curr_context, sizeof(MD5_CTX));
 
 	if (seed != NULL) {
-		/*
+		/**
 		 * seed_str have string represention for 3 uint64_t(8 bytes)
 		 * range for uint64_t is 0 to 18,446,744,073,709,551,615 at
 		 * max 20 chars per var, for three var it will be 3*20, +1 '\0'.
@@ -276,12 +273,11 @@ M0_INTERNAL int m0_calculate_md5_inc_context(
 		}
 	}
 #endif
-	return  M0_RC(0);
+	return  0;
 }
 
 M0_INTERNAL uint32_t m0_cksum_get_size(enum m0_pi_algo_type pi_type)
 {
-	M0_ENTRY();
 #ifndef __KERNEL__
 	switch (pi_type) {
 	case M0_PI_TYPE_MD5_INC_CONTEXT:
@@ -313,7 +309,6 @@ int m0_client_calculate_pi(struct m0_generic_pi *pi,
 			   unsigned char *pi_value_without_seed)
 {
 	int rc = 0;
-	M0_ENTRY();
 #ifndef __KERNEL__
 	switch (pi->pi_hdr.pih_type) {
 	case M0_PI_TYPE_MD5: {
@@ -332,7 +327,7 @@ int m0_client_calculate_pi(struct m0_generic_pi *pi,
 		break;
 	}
 #endif
-	return M0_RC(rc);
+	return rc;
 }
 
 M0_EXPORTED(m0_client_calculate_pi);

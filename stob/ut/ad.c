@@ -191,7 +191,7 @@ static void init_vecs()
 		memset(user_buf[i], ('a' + i)|1, buf_size);
 	}
 
-	/** Allocate contigious buffer for i/p checksums */
+	/* Allocate contigious buffer for i/p checksums */
 	memset( user_cksm_buf[0], cs_char++, AD_CS_SZ);
 	for (i = 1; i < ARRAY_SIZE(user_cksm_buf); ++i) {
 		user_cksm_buf[i] = user_cksm_buf[i-1] + AD_CS_SZ;

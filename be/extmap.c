@@ -176,7 +176,8 @@ static void emap_rec_init(struct m0_be_emap_rec *rec)
 	m0_format_header_pack(&rec->er_header, &(struct m0_format_tag){
 			.ot_version = M0_BE_EMAP_REC_FORMAT_VERSION,
 			.ot_type    = M0_FORMAT_TYPE_BE_EMAP_REC,
-			/* cksum of size cksum_nob will be present just before
+			/**
+			 * cksum of size cksum_nob will be present just before
 			 * footer, update the same in emap header.
 			 */
 			.ot_footer_offset = offsetof(struct m0_be_emap_rec,
@@ -629,18 +630,18 @@ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
  *    (term left/right w.r.t area of current segment left after
  *    removing clip area)
  *    a. Left   sub-seg : Overlap of start of cur-seg  with ext
- *			      |  cur-seg  |
- *			       | clip - ext |
- *			  |Left| => [curr-seg:Start - clip:Start]
+ *                        |  cur-seg  |
+ *                             | clip - ext |
+ *                        |Left| => [curr-seg:Start - clip:Start]
  *    b. Middle sub-seg : If ext part (to be pasted) fully overlaps
- *			  with curr-seg (clip)
- *        			      |         cur-seg              |
- *				| clip - ext |
- *			  | Left |   Middle   |  Right   |
+ *                        with curr-seg (clip)
+ *                        |         cur-seg              |
+ *                               | clip - ext |
+ *                        | Left |   Middle   |  Right   |
  *    c. Right  sub-seg : Overalp of end of cur-seg with ext
- *        			      |  cur-seg  |
- *		  | clip - ext |
- *			       |Right | => [clip:End - curr-seg:End]
+ *                        |  cur-seg  |
+ *                | clip - ext |
+ *                             |Right | => [clip:End - curr-seg:End]
  * 3. EMAP operation for these three segments are performed
  *    (not all may be needed)
  * 4. If part of extent (after removing clip) is remaining then new segment is
@@ -648,7 +649,7 @@ M0_INTERNAL void m0_be_emap_split(struct m0_be_emap_cursor *it,
  *
  * For checksum operation :
  * a. Left Opn  : Reduce the checksum number of byte 
- *		  from checksum of left segment
+ *                from checksum of left segment
  * b. Right Opn : Update checksum new start and size
  *
  * During operation like punch, we need to find the size of single unit of
@@ -686,12 +687,12 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 	bool                   compute_cksum;
 	m0_bindex_t            eus;
 	struct m0_indexvec     vec = {
-		.iv_vec = {
-			.v_nr    = ARRAY_SIZE(length),
-			.v_count = length
-		},
-		.iv_index = bstart
-	};
+					.iv_vec = {
+						.v_nr    = ARRAY_SIZE(length),
+						.v_count = length
+					},
+					.iv_index = bstart
+				     };
 
 	M0_PRE(m0_ext_is_in(chunk, ext->e_start));
 	M0_INVARIANT_EX(be_emap_invariant(it));
@@ -772,7 +773,7 @@ M0_INTERNAL void m0_be_emap_paste(struct m0_be_emap_cursor *it,
 							     length[2],
 							     it->ec_unit_size,
 							     cksum_unit_size);
-				/*
+				/**
 				 * There are test scenario where during RMW
 				 * operation sub unit size updates arrives and
 				 * in that case the cut right operation
@@ -1562,10 +1563,6 @@ be_emap_split(struct m0_be_emap_cursor *it,
 		rc = emap_it_get(it);
 
 	it->ec_op.bo_u.u_emap.e_rc = rc;
-	if (it->ec_recbuf.b_addr != NULL) {
-		m0_buf_free(&it->ec_recbuf);
-		it->ec_recbuf.b_addr = NULL;
-	}
 	return M0_RC(rc);
 }
 

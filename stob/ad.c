@@ -948,6 +948,7 @@ static int ext_punch(struct m0_stob *stob, struct m0_dtx *tx,
 	M0_ASSERT(m0_be_op_is_done(it_op));
 	rc = m0_be_emap_op_rc(&it);
 	m0_be_op_fini(it_op);
+	m0_be_emap_close(&it);
 	return M0_RC(rc);
 }
 

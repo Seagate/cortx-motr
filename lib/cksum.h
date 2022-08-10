@@ -33,7 +33,7 @@
 
 #define M0_CKSUM_DATA_ROUNDOFF_BYTE (16)
 
-/*
+/**
  * Macro calculates the size of padding required in a struct
  * for byte alignment
  * size - size of all structure members

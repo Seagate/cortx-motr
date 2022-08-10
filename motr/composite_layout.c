@@ -946,7 +946,8 @@ composite_sub_io_op_build(struct m0_obj *cobj,
 	if (rc != 0)
 		goto error;
 
-	/* Create an IO op for the sub object.
+	/**
+	 * Create an IO op for the sub object.
 	 * CKSUM_TODO: calculate cksum and pass in
 	 * attr instead of NULL
 	 */

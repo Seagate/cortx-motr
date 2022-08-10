@@ -165,7 +165,7 @@ static int application_checksum_process(struct m0_op_io *ioo,
 		return rc;
 	}
 
-	/*
+	/**
 	 * We should get checksum size which is same as requested, this will
 	 * also confirm that user has correctly allocated buffer for checksum
 	 * in ioo attr structure.
@@ -311,7 +311,8 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
 	rw_reply = io_rw_rep_get(reply_fop);
 
-	/* Evaluate checksum if it present even though there is error in fop
+	/**
+	 * Evaluate checksum if it present even though there is error in fop
 	 * rw_reply->rwr_rc != 0
 	 */
 	if (m0_is_read_rep(reply_fop)) {
@@ -1085,7 +1086,7 @@ M0_INTERNAL void ioreq_fop_fini(struct ioreq_fop *fop)
 	m0_free(fop->irf_cksum_data.cd_idx);
 	fop->irf_cksum_data.cd_num_units = 0;
 
-	/*
+	/**
 	 * ioreq_bob_fini() is not done here so that struct ioreq_fop
 	 * can be retrieved from struct m0_rpc_item using bob_of() and
 	 * magic numbers can be checked.
