@@ -22,7 +22,7 @@ $ touch example1.c
 
 Include necessary header files
 
-```
+```C
 #include "motr/client.h"
 ```
 

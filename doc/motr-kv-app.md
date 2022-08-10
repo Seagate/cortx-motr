@@ -7,7 +7,7 @@ Source code is available at: [example2.c](/motr/examples/example2.c)
 Motr index FID is a special type of FID. It must be the m0\_dix\_fid\_type.  
 So, the index FID must be initialized with:
 
-```
+```C
 m0_fid_tassume((struct m0_fid*)&index_id, &m0_dix_fid_type);
 ```
 
