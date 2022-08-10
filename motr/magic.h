@@ -434,6 +434,10 @@ enum m0_magic_satchel {
 	M0_DTM0_RMACH_MAGIC = 0x335011D1F1ED6677,
 	/* rfom_tl::td_head_magic (seeded cobble) */
 	M0_DTM0_RMACH_HEAD_MAGIC = 0x335EEDEDC0BB1E77,
+	/* persistent_records::pr_magic (solidified 66) */
+	M0_DTM0_PLIST_MAGIC = 0x335011D1F1EF6677,
+	/* persistent_tl::td_head_magic (seeded cobble) */
+	M0_DTM0_PLIST_HEAD_MAGIC = 0x335EEDEDC0BB6677,
 
 /* Failure Domains */
 	/* m0_fd_perm_cache::fpc_magic (fascia doodia) */

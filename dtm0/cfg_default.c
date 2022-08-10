@@ -42,7 +42,9 @@ m0_dtm0_domain_cfg_default_dup(struct m0_dtm0_domain_cfg *dod_cfg, bool mkfs)
 		.dodc_log = {
 			.dlc_seg0_suffix = "default",
 			.dlc_be_domain   = NULL,
-			.dlc_btree_fid   = M0_FID_TINIT('b', 1 /* XXX */, 2),
+			.dlc_btree_fid   = M0_FID_TINIT('b', M0_BT_DTM0_LOG, 2),
+			.dlc_btree_originators_fid   = M0_FID_TINIT('b', M0_BT_DTM0_LOG, 3),
+			.dlc_btree_redo_lists_fid   = M0_FID_TINIT('b', M0_BT_DTM0_LOG, 4),
 		},
 		.dodc_pruner = {
 		},

@@ -288,20 +288,32 @@ M0_INTERNAL bool m0_crv_is_none(const struct m0_crv *crv)
 
 M0_INTERNAL bool m0_cas_fop_is_redoable(struct m0_fop *fop)
 {
-	struct m0_fop_type *cas_fopt = &cas_put_fopt;
-	return fop->f_type == cas_fopt;
+	struct m0_fop_type *cas_pfopt = &cas_put_fopt;
+	struct m0_fop_type *cas_dfopt = &cas_del_fopt;
+
+	return fop->f_type == cas_pfopt || fop->f_type == cas_dfopt;
 }
 
 M0_INTERNAL int m0_cas_fop2redo(struct m0_fop *fop,
 				struct m0_dtm0_redo *redo)
 {
-	struct m0_cas_op *op = m0_fop_data(fop);
-	struct m0_buf     payload = {};
-	int               rc;
+	struct m0_cas_op               *op = m0_fop_data(fop);
+	struct m0_cas_dtm0_log_payload  dtm_payload;
+	struct m0_buf                   payload = {};
+	int                             rc;
 
 	/* TODO: encode fop opcode and fop reply as well. */
 
-	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, op),
+	dtm_payload.cdg_cas_op = *op;
+	dtm_payload.cdg_cas_opcode = m0_fop_opcode(fop);
+	if (dtm_payload.cdg_cas_opcode == M0_CAS_DEL_FOP_OPCODE) {
+		struct m0_cas_rec *rec = op->cg_rec.cr_rec;
+
+		rec->cr_val.ab_type = M0_RPC_AT_EMPTY;
+		rec->cr_val.u.ab_buf = M0_BUF_INIT0;
+	}
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_dtm0_log_payload_xc,
+				     &dtm_payload),
 				     &payload.b_addr, &payload.b_nob);
 	if (rc != 0)
 		return M0_ERR(rc);

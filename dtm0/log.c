@@ -53,21 +53,74 @@ struct m0_be_domain;
 enum {
 	M0_DTM0_LOG_ROOT_NODE_SIZE = (8 * 1024),
 	M0_DTM0_LOG_SHIFT = 12,
+	M0_SDEV_NR = 64,
 };
+
+struct dtm0_log_originator {
+	struct m0_fid lo_originator;
+	/* window rcvd from the originator */
+	uint64_t      lo_begin; /* max value received from originator */
+	uint64_t      lo_end;   /* max value received from originator */
+	uint64_t      lo_max_allp; /* value is the timestamp of max_allp txn */
+	uint64_t      lo_local_min_nall_p; /* volatile */
+	/* Volatile hashmap to store min_nall_p values from pmsgs */
+	uint64_t      lo_min_nall_p[M0_SDEV_NR];
+};
+
+struct dtm0_redo_list_link {
+	struct dtm0_log_record *rl_rec;
+	struct m0_be_list_link  rl_link;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
+
+struct dtm0_redo_list_links {
+	uint32_t                    rll_nr;
+	struct dtm0_redo_list_link *rll_links;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc|be);
+
+struct dtm0_log_sdev {
+	struct m0_be_list ls_redo; /* see rll_link */
+};
+
+/**
+ * Volatile list populated by log for pmachine to send pmsgs.
+ * TODO: consider using be_queue, if it's easier.
+ */
+struct dtm0_persistent_records {
+	struct m0_dtx0_descriptor pr_rec;
+	struct m0_fid             pr_source_sdev;
+	uint64_t                  pr_min_nall_p;
+	struct m0_tlink           pr_linkage;
+	uint64_t                  pr_magic;
+};
+
+M0_TL_DESCR_DEFINE(pmsg, "persistent_records",
+		   static, struct dtm0_persistent_records, pr_linkage,
+		   pr_magic, M0_DTM0_PLIST_MAGIC, M0_DTM0_PLIST_HEAD_MAGIC);
+M0_TL_DEFINE(pmsg, static, struct dtm0_persistent_records);
 
 struct dtm0_log_data {
 	uint8_t             dtld_node[M0_DTM0_LOG_ROOT_NODE_SIZE];
+	uint8_t             dtld_origin_node[M0_DTM0_LOG_ROOT_NODE_SIZE];
+	uint8_t             dtld_redo_node[M0_DTM0_LOG_ROOT_NODE_SIZE];
 	struct m0_btree     dtld_transactions;
+	struct m0_btree     dtld_originators;
+	struct m0_btree     dtld_redo_lists;
 	struct m0_be_list   dtld_all_p;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct dtm0_log_record {
-	struct m0_dtx0_descriptor lr_descriptor;
-	uint32_t                  lr_payload_type
+	struct m0_dtx0_descriptor   lr_descriptor;
+	uint32_t                    lr_payload_type
 		M0_XCA_FENUM(m0_dtx0_payload_type);
-	struct m0_buf             lr_payload_data;
-	struct m0_be_list_link    lr_link_all_p;
-	uint64_t                  lr_magic;
+	struct m0_buf               lr_payload_data;
+	struct m0_be_list_link      lr_link_all_p; /* TODO: Remove it */
+	struct dtm0_redo_list_links lr_redo_links;
+	/**
+	 * Is transaction still volatile or already persistent?
+	 * 1 - yes, (i.e. not persistent), 0 - no (persistent)
+	 */
+	bool                        lr_is_volatile;
+	uint64_t                    lr_magic;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 static int dtm0_log0_init(struct m0_be_domain *dom, const char *suffix,

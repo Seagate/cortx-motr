@@ -1799,6 +1799,7 @@ static void dtm0_restore(struct m0_fom        *fom,
 		if (F(next)) {
 			redo.dtr_payload   = record.dlr_payload;
 			redo.dtr_txr       = record.dlr_txd;
+//			redo.dtr_tx_descriptor = record.dlr_tx_descriptor;
 		} else {
 			redo.dtr_flags     = M0_BITS(M0_DMF_EOL);
 		}

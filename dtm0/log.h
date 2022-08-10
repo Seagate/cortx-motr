@@ -120,6 +120,8 @@ struct m0_dtm0_log_cfg {
 	struct m0_be_domain *dlc_be_domain;
 	struct m0_be_seg    *dlc_seg;
 	struct m0_fid        dlc_btree_fid;
+	struct m0_fid        dlc_btree_originators_fid;
+	struct m0_fid        dlc_btree_redo_lists_fid;
 };
 
 struct m0_dtm0_log {
@@ -131,6 +133,7 @@ struct m0_dtm0_log {
 	struct m0_dtx0_id      *dtl_allp;
 	bool                   *dtl_successful;
 	bool                    dtl_the_end;
+	struct m0_tl            dtl_persistent_records;
 };
 
 M0_INTERNAL int m0_dtm0_log_open(struct m0_dtm0_log     *dol,
