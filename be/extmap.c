@@ -1251,7 +1251,7 @@ static int emap_it_open(struct m0_be_emap_cursor *it, int prev_rc)
 		ext->ee_cksum_buf.b_addr = rec->er_cksum_nob ?
 					   (void *)&rec->er_footer : NULL;
 		it->ec_unit_size = rec->er_unit_size;
- 		if (!emap_it_prefix_ok(it))
+		if (!emap_it_prefix_ok(it))
 			rc = -ESRCH;
 	}
 	it->ec_op.bo_u.u_emap.e_rc = rc;
@@ -1278,7 +1278,7 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 static void be_emap_close(struct m0_be_emap_cursor *it)
 {
 	if (it->ec_recbuf.b_addr != NULL ) {
-	   m0_buf_free(&it->ec_recbuf);
+		m0_buf_free(&it->ec_recbuf);
 	}
 
 	m0_btree_cursor_fini(&it->ec_cursor);
@@ -1562,6 +1562,10 @@ be_emap_split(struct m0_be_emap_cursor *it,
 		rc = emap_it_get(it);
 
 	it->ec_op.bo_u.u_emap.e_rc = rc;
+	if (it->ec_recbuf.b_addr != NULL) {
+		m0_buf_free(&it->ec_recbuf);
+		it->ec_recbuf.b_addr = NULL;
+	}
 	return M0_RC(rc);
 }
 

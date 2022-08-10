@@ -560,6 +560,7 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 	 */
 	rc = m0_balloc_create(dom_key, seg, grp, &cb,
 			      &cfg->adg_id.si_fid);
+	cb->cb_ballroom.ab_ops->bo_fini(&cb->cb_ballroom);
 	rc = rc ?: m0_be_tx_exclusive_open_sync(&tx);
 
 	M0_ASSERT(adom == NULL);
