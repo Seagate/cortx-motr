@@ -146,12 +146,17 @@ struct m0_be_0type m0_dtm0_log0 = {
 static m0_bcount_t dtm0_log_transactions_ksize(const void *key);
 static m0_bcount_t dtm0_log_transactions_vsize(const void *key);
 static int dtm0_log_transactions_compare(const void *key0, const void *key1);
+static int dtm0_log_fids_compare(const void *key0, const void *key1);
 
 M0_BE_LIST_DESCR_DEFINE(dtm0_log_all_p, "dtm0_log_data::dtld_all_p",
 			static, struct dtm0_log_record,
 			lr_link_all_p, lr_magic, 1 /* XXX */, 2 /* XXX */);
 M0_BE_LIST_DEFINE(dtm0_log_all_p, static, struct dtm0_log_record);
 
+static int dtm0_log_fids_compare(const void *key0, const void *key1)
+{
+	return m0_fid_cmp(key0, key1);
+}
 
 M0_INTERNAL int m0_dtm0_log_open(struct m0_dtm0_log     *dol,
 				 struct m0_dtm0_log_cfg *dol_cfg)
@@ -169,6 +174,8 @@ M0_INTERNAL int m0_dtm0_log_open(struct m0_dtm0_log     *dol,
 	struct m0_btree_op    b_op = {};
 	struct m0_btree_rec_key_op keycmp = {
 		keycmp.rko_keycmp = dtm0_log_transactions_compare };
+	struct m0_btree_rec_key_op keycmp_fid = {
+		keycmp_fid.rko_keycmp = dtm0_log_fids_compare};
 
 	M0_PRE(dom != NULL);
 	M0_PRE(dol->dtl_data == NULL);
@@ -190,12 +197,25 @@ M0_INTERNAL int m0_dtm0_log_open(struct m0_dtm0_log     *dol,
 	log_data = *(struct dtm0_log_data **)log_data_buf->b_addr;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 			m0_btree_open(&log_data->dtld_node,
-					sizeof log_data->dtld_node,
-					&log_data->dtld_transactions,
-					seg, &b_op,
-					&keycmp));
-	M0_ASSERT(rc == 0);
+				      sizeof log_data->dtld_node,
+				      &log_data->dtld_transactions,
+				      seg, &b_op, &keycmp));
+	rc = rc ?: M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+			m0_btree_open(&log_data->dtld_origin_node,
+				      sizeof log_data->dtld_origin_node,
+				      &log_data->dtld_originators,
+				      seg, &b_op, &keycmp_fid));
 
+	rc = rc ?: M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+			m0_btree_open(&log_data->dtld_redo_node,
+				      sizeof log_data->dtld_redo_node,
+				      &log_data->dtld_redo_lists,
+				      seg, &b_op, &keycmp_fid));
+
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	pmsg_tlist_init(&dol->dtl_persistent_records);
 	dol->dtl_data = log_data;
 	m0_mutex_init(&dol->dtl_lock);
 	dol->dtl_allp_op = NULL;
@@ -214,8 +234,21 @@ M0_INTERNAL void m0_dtm0_log_close(struct m0_dtm0_log *dol)
 	M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 				 m0_btree_close(&dol->dtl_data->dtld_transactions,
 						&b_op));
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				 m0_btree_close(&dol->dtl_data->dtld_originators,
+					        &b_op));
+	M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+				 m0_btree_close(&dol->dtl_data->dtld_redo_lists,
+					        &b_op));
+	pmsg_tlist_fini(&dol->dtl_persistent_records);
+
 	dol->dtl_data = NULL;
 }
+
+static inline int dtm0_log_btree_create(struct dtm0_log_data *log_data,
+				 struct m0_dtm0_log *dol,
+				 struct m0_be_tx *tx,
+				 struct m0_be_tx_credit *cred);
 
 M0_INTERNAL int m0_dtm0_log_create(struct m0_dtm0_log     *dol,
                                    struct m0_dtm0_log_cfg *dol_cfg)
@@ -229,9 +262,6 @@ M0_INTERNAL int m0_dtm0_log_create(struct m0_dtm0_log     *dol,
 	struct m0_be_tx         tx = {};
 	int                     rc;
 	struct m0_btree_type    bt;
-	struct m0_btree_op      b_op = {};
-	struct m0_btree_rec_key_op keycmp = {
-		keycmp.rko_keycmp = dtm0_log_transactions_compare };
 
 	M0_ENTRY();
 
@@ -264,7 +294,7 @@ M0_INTERNAL int m0_dtm0_log_create(struct m0_dtm0_log     *dol,
 		.ksize = sizeof(struct m0_dtx0_id),
 		.vsize = -1,
 	};
-	m0_btree_create_credit(&bt, &cred, 1);
+	m0_btree_create_credit(&bt, &cred, 3);
 
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_exclusive_open_sync(&tx);
@@ -276,14 +306,11 @@ M0_INTERNAL int m0_dtm0_log_create(struct m0_dtm0_log     *dol,
 			     (const char *)&dol_cfg->dlc_seg0_suffix,
 			     &M0_BUF_INIT(sizeof log_data, &log_data));
 
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
-			m0_btree_create(&log_data->dtld_node,
-					sizeof log_data->dtld_node,
-					&bt, M0_BCT_NO_CRC, &b_op,
-					&log_data->dtld_transactions, seg,
-					&dol_cfg->dlc_btree_fid, &tx, &keycmp));
-	M0_ASSERT(rc == 0);
-
+	rc = rc ?: dtm0_log_btree_create(log_data, dol, &tx, &cred);
+	if (rc == 0) {
+		dtm0_log_all_p_be_list_create(&log_data->dtld_all_p, &tx);
+		pmsg_tlist_init(&dol->dtl_persistent_records);
+	}
 
 	dtm0_log_all_p_be_list_create(&log_data->dtld_all_p, &tx);
 
@@ -292,6 +319,74 @@ M0_INTERNAL int m0_dtm0_log_create(struct m0_dtm0_log     *dol,
 	m0_be_tx_close_sync(&tx);
 	m0_be_tx_fini(&tx);
 	m0_sm_group_unlock(grp);
+	return M0_RC(0);
+}
+
+static inline int dtm0_log_btree_create(struct dtm0_log_data *log_data,
+				 struct m0_dtm0_log *dol,
+				 struct m0_be_tx *tx,
+				 struct m0_be_tx_credit *cred)
+{
+	struct m0_btree_type       bt;
+	struct m0_btree_type       bt_originators;
+	struct m0_btree_type       bt_redo_lists;
+	struct m0_btree_op         b_op = {};
+	struct m0_btree_rec_key_op keycmp = {
+		keycmp.rko_keycmp = dtm0_log_transactions_compare };
+	struct m0_btree_rec_key_op keycmp_fid = {
+		keycmp_fid.rko_keycmp = dtm0_log_fids_compare};
+	struct m0_dtm0_log_cfg    *dol_cfg = &dol->dtl_cfg;
+	struct m0_be_seg          *seg;
+	int                        rc;
+
+	bt = (struct m0_btree_type) {
+		.tt_id = M0_BT_DTM0_LOG,
+		.ksize = sizeof(struct m0_dtx0_id),
+		.vsize = -1,
+	};
+	m0_btree_create_credit(&bt, cred, 1);
+
+	bt_originators = (struct m0_btree_type) {
+		.tt_id = M0_BT_DTM0_LOG,
+		.ksize = sizeof(struct m0_fid),
+		.vsize = -1,
+	};
+        m0_btree_create_credit(&bt_originators, cred, 1);
+
+	bt_redo_lists = (struct m0_btree_type) {
+		.tt_id = M0_BT_DTM0_LOG,
+		.ksize = sizeof(struct m0_fid),
+		.vsize = -1,
+	};
+	m0_btree_create_credit(&bt_redo_lists, cred, 1);
+
+	seg = dol_cfg->dlc_seg;
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+		m0_btree_create(&log_data->dtld_node,
+				sizeof log_data->dtld_node,
+				&bt, M0_BCT_NO_CRC, &b_op,
+				&log_data->dtld_transactions, seg,
+				&dol_cfg->dlc_btree_fid, tx, &keycmp));
+	M0_ASSERT(rc == 0);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+		m0_btree_create(&log_data->dtld_origin_node,
+			        sizeof log_data->dtld_origin_node,
+				&bt_originators, M0_BCT_NO_CRC, &b_op,
+				&log_data->dtld_originators, seg,
+				&dol_cfg->dlc_btree_originators_fid,
+				tx, &keycmp_fid));
+	M0_ASSERT(rc == 0);
+
+	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
+		m0_btree_create(&log_data->dtld_redo_node,
+				sizeof log_data->dtld_redo_node,
+				&bt_redo_lists, M0_BCT_NO_CRC, &b_op,
+				&log_data->dtld_redo_lists, seg,
+				&dol_cfg->dlc_btree_redo_lists_fid,
+				tx, &keycmp));
+	M0_ASSERT(rc == 0);
+
 	return M0_RC(0);
 }
 
