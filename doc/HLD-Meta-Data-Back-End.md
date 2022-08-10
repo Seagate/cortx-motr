@@ -6,13 +6,13 @@ The main purposes of this document are:
  3. To serve as a design reference document. The intended audience of this document consists of Motr customers, architects, designers, and developers.  
 
 
- ## Introduction    
+## Introduction
  Meta-data back-end (BE) is a module presenting an interface for a transactional local meta-data storage. BE users manipulate and access meta-data structures in memory. BE maps this memory to persistent storage. User groups meta-data updates in transactions. BE guarantees that transactions are atomic in the face of process failures.
 
 BE provides support for a few frequently used data structures: double linked list, B-tree, and exit map.  
 
 
- ## Dependencies  
+ ## Dependencies
  - a storage object *(stob)* is a container for unstructured data, accessible through the `m0_stob` interface. BE uses stobs to store meta-data on a persistent store. BE accesses persistent store only through the `m0_stob` interface and assumes that every completed stob write survives any node failure. It is up to a stob implementation to guarantee this.  
  - a segment is a stob mapped to an extent in process address space. Each address in the extent uniquely corresponds to the offset in the stob and vice versa. Stob is divided into blocks of fixed size. Memory extent is divided into pages of fixed size. Page size is a multiple of the block size (it follows that stob size is a multiple of page size). At a given moment in time, some pages are up-to-date (their contents are the same as of the corresponding stob blocks) and some are bad (their contents were modified relative to the stob blocks). In the initial implementation, all pages are up-to-date, when the segment is opened. In the later versions, pages will be loaded dynamically on demand. The memory extent to which a segment is mapped is called segment memory.
  - a region is an extent within segment memory. A (meta-data) update is a modification of some region.
@@ -50,8 +50,8 @@ When a segment is closed (perhaps implicitly as a result of a failure) and re-op
 
 BE-exported objects (domain, segment, region, transaction, linked list, and b-tree) support Motr non-blocking server architecture.  
 
-## Use Cases  
-### Scenarios   
+## Use Cases
+### Scenarios
 
 |Scenario | Description |
 |---------|-------------|
