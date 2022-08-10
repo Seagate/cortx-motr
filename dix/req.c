@@ -1641,14 +1641,14 @@ static void dix_cas_rop_rc_update(struct m0_dix_cas_rop *cas_rop, int rc)
 
 static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_dix_req     *req = ast->sa_datum;
-	struct m0_dix_rop_ctx *rop = req->dr_rop;
-	struct m0_dix_rop_ctx *rop_del_phase2 = NULL;
-	bool                   del_phase2 = false;
-	struct m0_dix_cas_rop *cas_rop;
+	struct m0_dix_req      *req = ast->sa_datum;
+	struct m0_dix_rop_ctx  *rop = req->dr_rop;
+	struct m0_dix_rop_ctx  *rop_del_phase2 = NULL;
+	bool                    del_phase2 = false;
+	struct m0_dix_cas_rop  *cas_rop;
 	struct m0_pool_version *pver;
-	int64_t                min_success;
-	int64_t                successful_ops = 0;
+	int64_t                 min_success;
+	int64_t                 successful_ops = 0;
 
 	(void)grp;
 	if (req->dr_type == DIX_NEXT)
