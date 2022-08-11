@@ -1126,6 +1126,22 @@ static int cas_dtm0_logrec_add(struct m0_fom *fom0,
 	int                            i;
 	int                            rc;
 
+	/*
+	 * It is impossible to commit a transaction without DTM0 service up and
+	 * running.
+	 */
+	if (dtms == NULL) {
+		static uint32_t count = 0;
+		if (count == 0) {
+			M0_LOG(M0_FATAL, "DTM is enabled but is not "
+					 "configured in conf. Skip "
+					 "DTM now. Please Check!");
+			count++; /* Only print the message at the first time. */
+		}
+		return 0; /* FIXME but now let's skip it if no DTM service. */
+	}
+	M0_ASSERT(dtms != NULL);
+
 	for (i = 0; i < msg->dtd_ps.dtp_nr; ++i) {
 		if (m0_fid_eq(&msg->dtd_ps.dtp_pa[i].p_fid,
 			      &dtms->dos_generic.rs_service_fid)) {
