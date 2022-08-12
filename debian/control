@@ -34,7 +34,7 @@ Build-Depends: automake,
                libio-all-perl,
                libfile-slurp-perl,
                libyaml-libyaml-perl,
-               python2-dev,
+               python2-dev | python3-dev,
                python3-ply
  
 Package: cortx-motr

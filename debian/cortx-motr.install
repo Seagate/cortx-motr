@@ -12,8 +12,8 @@ usr/lib/systemd/system/motr.service
 usr/lib/systemd/system/motr-singlenode.service
 usr/lib/systemd/system/motr-cleanup.service
 usr/lib/systemd/system/motr-server@.service
-usr/lib/python2.7/site-packages/motr-1.0-py2.7.egg-info
-usr/lib/python2.7/site-packages/motr.so
+usr/lib/python*/site-packages/motr-1.0-py*.egg-info
+usr/lib/python*/site-packages/motr.*so
 usr/lib/*/libmotr.so*
 usr/lib/*/libmotr-helpers.so*
 usr/lib/*/libm0isc.so*
