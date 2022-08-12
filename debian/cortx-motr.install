@@ -30,11 +30,11 @@ usr/lib/*/cortx-motr/motr-server
 usr/lib/*/cortx-motr/motr-dixinit
 usr/lib/udev/rules.d/99-motr.rules
 usr/sbin/m0gendisks
-usr/sbin/m0beck
+# usr/sbin/m0beck
 usr/sbin/m0protocol
 usr/sbin/m0ham
 usr/sbin/m0console
-usr/sbin/m0genfacts
+# usr/sbin/m0genfacts
 usr/sbin/m0kv
 usr/sbin/m0composite
 usr/sbin/m0betool
