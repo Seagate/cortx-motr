@@ -6,6 +6,7 @@ Maintainer: Andriy Tkachuk <andriy.tkachuk@seagate.com>
 Standards-Version: 4.4.0
 Build-Depends: automake,
                autoconf,
+               autoconf-archive,
                binutils-dev,
                libtool,
                make (>= 4.1),

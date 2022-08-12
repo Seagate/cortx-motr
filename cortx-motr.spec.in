@@ -83,6 +83,7 @@ Provides:       motr-modules = %{version}-%{release}
 
 BuildRequires:  automake
 BuildRequires:  autoconf
+BuildRequires:  autoconf-archive
 BuildRequires:  libtool
 BuildRequires:  make
 BuildRequires:  gcc

@@ -1094,6 +1094,12 @@ AS_IF([test x$enable_coverage = xyes],
       ]
 )
 
+AX_CHECK_COMPILE_FLAG([-Wno-array-bounds],
+  [M0_CFLAGS="-Wno-array-bounds $M0_CFLAGS"])
+
+AX_CHECK_COMPILE_FLAG([-Wno-return-local-addr],
+  [M0_CFLAGS="-Wno-return-local-addr $M0_CFLAGS"])
+
 AS_IF([test x$enable_mcheck = xyes],
       [M0_LDFLAGS="-lmcheck $M0_LDFLAGS"]
 )
@@ -1118,7 +1124,7 @@ M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+|-inc\S+' |
 # __attribute__, such as __attribute__((gccxml(...))). It's important because we
 # use -Werror, which turns warnings into errors, but we still need to be able to
 # use gccxml attributes.
-M0_CFLAGS="-pipe -Wall -Werror -Wno-attributes -fno-strict-aliasing $M0_CFLAGS"
+M0_CFLAGS="-pipe -Wall -Werror -Wno-deprecated-declarations -Wno-attributes -fno-strict-aliasing $M0_CFLAGS"
 
 # Prevents gcc from introducing common symbols in object files. These symbols
 # are avoided because they break the compilation toolchain that Parallel
