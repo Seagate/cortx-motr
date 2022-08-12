@@ -518,7 +518,6 @@ def motr_tune_memory_config(self):
 
     # Get number of services.
     # Ex: num_of_services will be 2 since in motr services will be confd, ios
-    # But in /etc/cortx/cluster.conf io is represented by ios. So first get the service names right
     num_of_services = get_value(self, 'cortx>motr>limits>num_services', str)
 
     # collect the memory and cpu limits.
