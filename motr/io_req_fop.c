@@ -756,6 +756,7 @@ M0_INTERNAL int ioreq_fop_dgmode_read(struct ioreq_fop *irfop)
 	               ioo_nwxfer, &ioo_bobtype);
 	rbulk = &irfop->irf_iofop.if_rbulk;
 
+	m0_mutex_lock(&rbulk->rb_mutex);
 	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
 
 		index  = rbuf->bb_zerovec.z_index;
@@ -787,6 +788,7 @@ M0_INTERNAL int ioreq_fop_dgmode_read(struct ioreq_fop *irfop)
 				return M0_ERR(rc);
 		}
 	} m0_tl_endfor;
+	m0_mutex_unlock(&rbulk->rb_mutex);
 	return M0_RC(0);
 }
 
