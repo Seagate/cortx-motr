@@ -1102,7 +1102,7 @@ static int cs_storage_init(const char *stob_type,
 static void cs_storage_fini(struct m0_reqh_context *rctx)
 {
 	struct cs_stobs *stob = &rctx->rc_stob;
-	m0_free(&rctx->rc_addb_stlocation);
+	m0_free((char*)rctx->rc_addb_stlocation);
 	cs_storage_devs_fini();
 	if (stob->s_sdom != NULL)
 		m0_stob_domain_fini(stob->s_sdom);
