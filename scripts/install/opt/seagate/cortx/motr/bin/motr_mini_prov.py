@@ -516,14 +516,20 @@ def motr_tune_memory_config(self):
         self.logger.debug(f"FILE not found  {MOTR_M0D_CONF_FILE_PATH}\n")
         return
 
+    # Get number of services.
+    # Ex: num_of_services will be 2 since in motr services will be confd, ios
+    # But in /etc/cortx/cluster.conf io is represented by ios. So first get the service names right
+    num_of_services = get_value(self, 'cortx>motr>limits>num_services', str)
+
     # collect the memory and cpu limits.
-    services_limits = Conf.get(self._index, 'cortx>motr>limits')['services']
-    for arr_elem in services_limits:
-        if arr_elem['name'] == "ios":
-            mem_min = arr_elem['memory']['min']
-            mem_max = arr_elem['memory']['max']
-            cpu_min = arr_elem['cpu']['min']
-            cpu_max = arr_elem['cpu']['max']
+    for i in range(num_of_services):
+        service_name = get_value(self, f'cortx>motr>limits>services[{i}]>name', str)
+        if service_name == "ios":
+            mem_min = get_value(self, f'cortx>motr>limits>services[{i}]>memory>min', str)
+            mem_max = get_value(self, f'cortx>motr>limits>services[{i}]>memory>max', str)
+            cpu_min = get_value(self, f'cortx>motr>limits>services[{i}]>cpu>min', str)
+            cpu_max = get_value(self, f'cortx>motr>limits>services[{i}]>cpu>max', str)
+            break
 
     self.logger.debug(f"Avaiable memory  {mem_min} {mem_max}\n")
     self.logger.debug(f"Avaiable CPU     {cpu_min} {cpu_max}\n")
