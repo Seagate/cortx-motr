@@ -7,8 +7,8 @@ The purpose of this document is to provide an overview of the expectations of bo
 
 ![image](./Images/Castor.PNG)  
 
-# PLEX Framework
+# PLEX Framework #
 The basic design concept for management and monitoring is that it will be implemented through a high level control API (SSPL-HL) that will be implemented as a collection of “PLEX applications” running in the PLEX framework.
 
-# Command Line Interface
+# Command Line Interface #
 The command line interface will initially be implemented as a collection of Python scripts. These scripts will not implement any functionality themselves, but rather call functionality provided by the SSPL-HL API.

@@ -90,7 +90,7 @@ Allocate and initialize new catalogue object and insert it in the meta-catalogue
 
 The problem with delete is that deletion of a catalogue with a large number of records might require more meta-data updates than can fit in a single transaction. Because of this a technique similar to handling of truncates for open-unlinked files in a POSIX file system is used. (Also see stob deletion code in io service).
 
-```c
+```C
 bool deathrowed = false;
 
 tx_open(tx);

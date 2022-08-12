@@ -1,10 +1,10 @@
 # HLD of FDMI  
 This document presents a High-Level Design (HLD) of Motr’s FDMI interface.  
 
-### Introduction
+### Introduction ###
 This document specifies the design of the Motr FDMI interface. FDMI is a part of the Motr product and provides an interface for the Motr plugins. It horizontally extends the features and capabilities of the system. The intended audience for this document includes product architects, developers, and QA engineers.  
 
-### Definitions
+### Definitions ###
 * FDMI: File Data Manipulation Interface  
 * FDMI source  
 * FDMI plugin  
@@ -14,18 +14,17 @@ This document specifies the design of the Motr FDMI interface. FDMI is a part of
 * FDMI record type  
 * FDMI filter  
 
-
-## Overview
+## Overview ##
 Motr is a storage core capable of deployment for a wide range of large-scale storage regimes from the cloud and enterprise systems to exascale HPC installations. FDMI is a part of Motr core, providing an interface for plugins implementation. FDMI is built around the core and allows for horizontally extending the features and capabilities of the system in a scalable and reliable manner.  
 
-## Architecture  
+## Architecture ##
 This section provides the architectural information including the below but not limited to:  
 1. Common design strategy including  
   * General approach to the decomposition  
   * Chosen architecture style and template if any  
 2. Key aspects and consideration that affect on the other design  
 
-### FDMI Position in Overall Motr Core Design
+### FDMI Position in Overall Motr Core Design ###
 FDMI is an interface to allow the Motr Core to scale horizontally. The scaling includes two aspects:  
 * Core expansion in the aspect of adding core data processing abilities, including data volumes as well as transformation into alternative representation.
 The expansion is provided by introducing FDMI plugins.  
@@ -41,7 +40,7 @@ Considering the amount of data Motr Core operates, it is obvious that the plugin
 
 Source in its turn, refreshes its subset of filters against the database. The subset selects filters from the overall filters as per the knowledge of data types. The source feeds the FDMI as well as operations with the data that the source supports.  
 
-### FDMI Roles
+### FDMI Roles ###
 The FDMI consists of APIs that implements particular roles as per the FDMI use cases.  
  The roles are:  
 * plugin dock, responsible for:  
@@ -60,7 +59,7 @@ The FDMI consists of APIs that implements particular roles as per the FDMI use c
 
 ![Image](./Images/FDMI_Dock_Architecture.png)  
 
-### FDMI plugin dock
+### FDMI plugin dock ###
 
 Initialization
 
@@ -94,7 +93,7 @@ The application plugin can change filter active status by sending the enable fil
 The plugin initiates de-initialization by calling the local FDMI. The latter deregisters the plugin’s filter set with filterd service. After confirmation, it deregisters the associated plugin’s callback function.  
 All the registered sources are notified about changes in the filter set if any occurred as the result of the plugin coming off.  
 
-### FDMI source dock
+### FDMI source dock ###
 **Initialization**
 
 ![image](./Images/FDMI_source_dock_Source_initialization.png)
@@ -129,16 +128,16 @@ Note how the FDMI handles tree: all the operations are evaluated by the FDMI eng
 
 When traversing is completed, the FDMI engine calculates the final Boolean result for the filter tree and decides whether to put serialized input data onto RPC for the plugin associated with the filter.
 
-#### Deferred Input Data Release  
+#### Deferred Input Data Release ####
 ![image](./Images/FDMI_source_dock_Deferred_input_data_release.png)  
 
 The input data may require to remain preserved in the Source until the moment when plugin does not need it anymore. The preservation implies the protection from being deleted/modified. The data processing inside the plugin is an asynchronous process in general, and the plugin is expected to notify corresponding source allowing it to release the data. The message comes from the plugin to the FDMI instance hosting the corresponding source.      
 
-### FDMI Service Found Dead   
+### FDMI Service Found Dead ###
 When interaction between Motr services results in a timeout exceeding pre-configured value, the not responding service needs to be announced dead across the whole system. First of all confc client is notified by HA about the service not responding and announced dead. After being marked dead in confc cache, the service has to be reported by HA to filterd as well
 
 
-## Interfaces
+## Interfaces ##
 1. FDMI service
 2. FDMI source registration
 3. FDMI source implementation guideline
@@ -154,7 +153,7 @@ When interaction between Motr services results in a timeout exceeding pre-config
 10. FDMI plugin dock FOM
 11. FDMI plugin implementation guideline  
 
-## FDMI Service  
+## FDMI Service ##
 ![image](./Images/FDMI_Service_Startup.png)   
 
 The FDMI service runs as a part of Motr instance. The FDMI service stores context data for both FDMI source dock and FDMI plugin dock. The FDMI service is initialized and started on Motr instance start up, the FDMI Source dock and FDMI plugin dock are both initialised on the service start unconditionally.  
@@ -164,7 +163,7 @@ The FDMI service runs as a part of Motr instance. The FDMI service stores contex
 Later the docks can be managed separately and specific API may be provided for this purposes.  
 
 
-### FDMI source registration  
+### FDMI source registration ###
 ![image](./Images/FDMI_source_registration.png)  
 
 The FDMI source instance main task is to post the FDMI records of a specific type to FDMI source dock for further analysis, Only one FDMI source instance with a specific type should be registered: the FDMI record type uniquely identifies FDMI source instance. A list of FDMI record types:  
@@ -183,7 +182,7 @@ On the FDMI source registration all its internals are initialized and saved as F
 * FDMI generic source interface
 * FDMI source dock interface
 
-### FDMI source implementation guideline
+### FDMI source implementation guideline ###
 The FDMI source implementation depends on data domain. Specific FDMI source type stores:  
 * FDMI generic source interface  
 * FDMI specific source context data (source private data)  
@@ -202,7 +201,7 @@ The FOL record interface functions are aware of particular FOL record structure 
 
 On the FDMI FOL record type FDMI record registration all its internals are initialized and saved as FDMI FOL record context data. Pointer to FDMI FOL record type is stored as a list in FDMI specific source context data.  
 
-### FDMI Record Post
+### FDMI Record Post ###
 ![image](./Images/FDMI_source_dock_Source_Feed.png)  
 
 Source starts with local locking data to be fed to the FDMI interface, then it calls post FDMI API. On the FDMI side a new FDMI record (data container) is created with new record ID, and posted data gets packed into the record. The record is queued for further processing to the FDMI FOM queue, and the FDMI record ID is returned to Source.  
@@ -212,7 +211,7 @@ To process further calling back from the FDMI about a particular data (such as o
 **NB**:
 The Source is responsible for the initial record locking (incrementing ref counter), but the FDMI is responsible for further record release.  
 
-### FDMI Source Dock FOM
+### FDMI Source Dock FOM ###
 The FDMI source dock FOM implements the main control flow for the FDMI source dock:  
 * Takes out posted FDMI records  
 * Examines filters  
@@ -297,7 +296,7 @@ In the latter case the FDMI source dock should inform the FDMI source to release
 
  The FDMI filter may be disabled by plugin itself or by some 3rd parties (administrator, HA, etc.). On the filter state change (disabling the filter) a signal is sent to FDMI source dock. Upon receiving this signal, the FDMI source dock iterates through the stored map <Filter Id, FDMI record id> and check each filter status. If a filter status is found to be disabled, the same handling that is done for “FDMI record release request” should be done for all the FDMI records, bound to the specified filter id.
 
- ### FilterD   
+### FilterD ###
  The FDMI plugin creates a filter to specify the criteria for FDMI records. The FDMI filter service (filterD) maintains a central database of FDMI filters available in the Motr cluster. There is only one (possibly duplicated) Motr instance with filterD service in the whole Motr cluster. The FilterD provides users read/write access to its database via RPC requests.  
 
  The FilterD service starts as a part of chosen for this purpose Motr instance. Address of FilterD service endpoint is stored in confd database. The FilterD database is empty after startup.  
@@ -339,7 +338,7 @@ Initial implementation of filterD will be based on confd. Actually, two types of
 
 This implementation makes handling of HA notifications on filterD impossible, because confd doesn’t track the HA statuses for conf objects.  
 
-### FilterC  
+### FilterC ###
 FilterC is a part of Motr instance that caches locally filters obtained from filterD. The FDMI source dock initialize the FilterC service at its startup.  
 
 Also, the FilterC have a channel in its context which is signaled when some filter state is changed from enabled to disabled.  
@@ -350,7 +349,7 @@ The FilterC achieves local cache consistency with filterD database content by us
 
 The initial implementation of the FilterC will be based on confc. So the confc will cache filter descriptions locally. In that case implementation of the FilterC channel for signaling disabled filters is quite problematic.
 
-### FDMI Plugin Registration
+### FDMI Plugin Registration ###
 ![Image](./Images/FDMI_plugin_dock_Plugin_Startup.png)  
 
 * Filter id:   
@@ -369,7 +368,7 @@ The initial implementation of the FilterC will be based on confc. So the confc w
   A complimentary case occurs when plugin was just fed with the FDMI record and did not instructed the FDMI to release the one yet. Instead, it declares the corresponding filter instance to be de-activated. Current approach implies that plugin is responsible for proper issuing release commands once it was fed with the FDMI record, disregarding filter activation aspect.
 
 
-### FDMI Plugin Dock FOM  
+### FDMI Plugin Dock FOM ###
 ![Image](./Images/FDMI_plugin_dock_On_FDMI_Record.png)  
 
 Received FDMI record goes directly to plugin Dock’s FOM. At this time a new session for re-using the incoming RPC connection needs to be created and stored in communication context being associated with FDMI Record ID. Immediately at this step RPC reply is sent confirming FDMI record delivery.  
@@ -379,10 +378,10 @@ Per filter ID, the corresponding plugin is called feeding it with FDMI data, the
 The plugin decides on its own when to report the FDMI original record to be released by the Source. It calls the plugin dock about releasing a particular record identified by the FDMI record ID. In the context of the call FDMI record reference counter is decremented locally, and in case the reference counter gets to 0, the corresponding Source is called via RPC to release the record (see Normal workflow, FDMI Source Dock: Release Request from plugin).
 
 
-### FDMI Plugin Implementation Guideline
+### FDMI Plugin Implementation Guideline ###
 The main logic behind the use of the FDMI plugin is a subscription to some events in sources that comply with conditions described in the filters that the plugin registers at its start. In case some source record matches with at least one filter, the source-originated record is routed to the corresponding plugin.  
 
-#### Plugin responsibilities
+#### Plugin responsibilities ####
 **During standard initialization workflow plugin**:
 
 * Obtains private plugin Dock callback interface  
@@ -416,7 +415,7 @@ During active subscription workflow looks like following:
 * The same way plugin is allowed to de-register and quit any time it wants. The decision making is again entirely on plugin’s side. After de-registering itself the plugin is not allowed to call private FDMI plugin Dock in part of filter activation/deactivation as well as FDMI record releasing. The said actions become available only after registering filter set another time.  
 
 
-## Implementation Plan
+## Implementation Plan ##
 
 Phase 1  
 1. Implement FDMI service

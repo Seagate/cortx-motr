@@ -57,7 +57,7 @@ Monitors will be used to detect exceptional conditions. Periodic posting is not 
 ## Logical Specification
 ADDB monitors are represented as follows:
 
-```c
+```C
         struct m0_addb_monitor {
               void (*am_watch) (const struct m0_addb_monitor *mon,  
                                       const struct m0_addb_rec *rec,  

@@ -5,7 +5,7 @@ This document presents a high level design (HLD) of version numbers in Motr M0 c
 2. To be a source of material for Active Reviews of Intermediate Design (ARID) and detailed level design (DLD) of the same component.  
 3. To serve as a design reference document.
 
-## Introduction   
+## Introduction  
 Version numbers identify particular file system states and order updates thereof. They are used for distributed transaction management, concurrency control (both lock-based and optimistic), and object history navigation.  
 
 A version number is stored together with the file system state whose version it identifies. Specifically, multiple cached replicas of the same state are all tagged with version numbers matching each other in the sense defined below. Version numbers are treated as a distributed resource. A piece of the file system state to which a version number is assigned is called a unit. Unit granularity can be a file system object or a part of a file system object.  
@@ -25,7 +25,7 @@ See the Glossary for general M0 definitions and HLD of FOL for the definitions o
 - `[r.verno.update-streams]`: version numbers are usable for implementation of update streams (R.NET.RPC.STREAMS.MULTIPLE) (see On file versions [0]).
 - `[r.verno.fol]`: a unit version number identifies the fol record that brought the unit into the state corresponding to the version number.  
 
-## Design Highlights   
+## Design Highlights  
 
 In the presence of caching, requirements [r.verno.resource] and [r.verno.fol] are seemingly contradictory: if two caching client nodes assigned (as allowed by [r.verno.resource]) version numbers to two independent units, then after re-integration of units to their common master server, the version numbers must refer to the master's fol, but clients cannot produce such references without extremely inefficient serialization of all accesses to the units on the server.  
 
@@ -61,7 +61,7 @@ becomes after open("foo") call:
 - `[a version number in an update stream]` cache re-integration uses version numbers to implement update streams. For each update stream between a client node C and a server node S, a special stream unit U is created. This unit is persistently stored on S and cached on C. Each update cached on C and targeted for re-integration on S modifies U. Therefore, each update sent from C to S contains U's version counter which is incremented by each update. This counteracts like a xid of the traditional Lustre protocol, and the (U, U.VC) pair acts as a (session, slot) pair of the NFSv4 session protocol. The collection of these special units for all update streams is similar to the last_rcvd file of Lustre and the EOS cache of NFSv4.  
 
 
-## Logical Specification   
+## Logical Specification  
 
 ### Ordering  
 Internally, the version number is defined as a two-component data structure **(struct m0_verno)**, with little internal state or logic.
@@ -163,7 +163,7 @@ Scenario 3
 Scenario 4   
 ![link](image)    
 
-## Failures   
+## Failures  
 This specification is all about handling failures.  
 
 ### Analysis  

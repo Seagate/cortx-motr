@@ -66,7 +66,7 @@ Three database tables are used to capture cob metadata:
   There may be multiple cob_domains within a metadata container, but the usual case will be 1 cob_domain per container. A cob_domain may be identified by an ordinal index inside a container.
   The list of domains will be created at container ingest.    
 
-```alpha
+```C
   struct m0_cob_domain {
 
         cob_domain_id cd_id /* domain identifier */  
@@ -88,7 +88,7 @@ Three database tables are used to capture cob metadata:
 
   A m0_cob is an in-memory structure, instantiated by the method cob_find and populated as needed from the above database tables. The m0_cob may be cached and should be protected by a lock.  
 
-  ```alpha
+  ```C
   struct m0_cob {
 
             fid co_fid;     

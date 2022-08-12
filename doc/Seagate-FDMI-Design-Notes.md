@@ -16,7 +16,7 @@ Filter Store is to be filled in by means of Subscription API. Filter Index is up
 
 Currently 2 options for Plug-in architecture are anticipated:  
 1.  Option 1: FDMI-Plug-in. Each plug-in is linked with FDMI making use of internal FDMI API only (some callback, for instance). See Fig.1
-1.  Option 2: FDMI Plug-in transforms to Mero Core Plug-in. Mero core in this case most likely provides limited features for RPC only. Mero RPC is used to collect notifications from all Mero instances.    
+2.  Option 2: FDMI Plug-in transforms to Mero Core Plug-in. Mero core in this case most likely provides limited features for RPC only. Mero RPC is used to collect notifications from all Mero instances.    
 
 ## Plug-in API
 
