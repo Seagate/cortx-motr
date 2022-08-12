@@ -1925,7 +1925,7 @@ out:
 		 *    In 'parity verify' mode, a whole parity group, including
 		 *    data and parity units are all read from ioservices.
 		 *    If some units failed to read, no need to read extra unit.
-		 *    The units needed for recvoery are ready.
+		 *    The units needed for recovery are ready.
 		 */
 		M0_ASSERT(ioreq_sm_state(ioo) == IRS_DEGRADED_READING);
 		if (op->op_code == M0_OC_READ &&
