@@ -21,11 +21,11 @@ This component introduces infrastructure for “generic fop methods”. To recal
 - `[r.fop-object.ordering]`: fop object iterator must return objects in a consistent order so that the request handler can deal with objects without risking deadlocks and without additional sorting passes.  
 
 
-## Design Highlights   
+## Design Highlights  
 
 A fop format defines the structure of fields within a fop (of a given fop type). For each fop format, a list is maintained, enumerating the format's fields and identifying file system objects. This list is built statically when the fop format is constructed. A fop object iterator goes through this list, descending into sub-fields and sub-fops.  
 
-## Functional Specification   
+## Functional Specification  
 Fop object iterator component exports a fop object cursor data-type. A cursor is initialized for a given fop instance.  
 
 Fop object cursor is used in the following ways (among others):  
@@ -52,7 +52,7 @@ Each fop field has associated with it an enumeration of sub-fields identifying f
 - `[r.fop-object.batch]`: design of fop object cursor supports fop batching by recording a stack of positions in a cursor.
 - `[r.fop-object.ordering]`: the fop iterator assumes that objects are listed in a fop in the proper order.
 
-## Dependencies   
+## Dependencies  
 - fop
   - `[r.fop.batching]`: fops can be batched.
   - `[r.fop.nrs]`: fops can be used by NRS.

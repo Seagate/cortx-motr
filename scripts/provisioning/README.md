@@ -26,11 +26,13 @@ Quick Start (MacOS)
 
     - `bash` 4.x
 
-          brew install bash
+	brew install bash
 
     -  GNU `readlink`
 
+	```bash
           brew install coreutils
+	```
 
     -  [VMware Fusion](https://www.vmware.com/go/downloadfusion) or
       [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
@@ -195,7 +197,7 @@ Quick Start (Windows)
 
     -  Follow the steps from _Run_ section under _Quick Start (MacOS)_ above.
 
-      > *NOTE*: during `m0vg up <node>` command execution you may be asked to enter
+      > _NOTE_ : during `m0vg up <node>` command execution you may be asked to enter
       > your Windows username and password, and then grant permissions for
       > creating Windows shared directory. To avoid manually entering the
       > credentials for every node, set SMB_USERNAME/SMB_PASSWORD environment
@@ -260,7 +262,9 @@ system.
 On _Ubuntu Linux_ all of the above prerequisites can be installed with a single
 command:
 
+    ```bash
     sudo apt install qemu-kvm libvirt-bin vagrant ansible
+    ```
 
 Though, it's actually better to get a more up-to-day versions of _Vagrant_ and
 _Ansible_ than those provided by a distribution. The procedure is same as
@@ -324,7 +328,9 @@ run `vagrant up` command in the directory containing this `README` file, that
 will do rest of the work. But, there is a better way to achieve the same result
 which is more convenient:
 
+    ```bash
     ./scripts/m0vg up
+    ```
 
 The `m0vg` helper script is a wrapper around _Vagrant_ and _Ansible_ commands
 that can be *symlinked* somewhere into the `PATH` and be called from any
@@ -379,12 +385,14 @@ All additional nodes can be accessed from the main machine (_cmu_) by their name
 in a `.local` domain. For example, here is how to execute a command on the
 _ssu1_ from _cmu_:
 
+    ```bash
     ssh ssu1.local <command>
+    ```
 
 The host directory containing motr sources directory will be mounted over _NFS_
 on each VM under `/data`.
 
-> *NOTE*: one important aspect of how _Vagrant_ works is that it creates a hidden
+> _NOTE_: one important aspect of how _Vagrant_ works is that it creates a hidden
 > `.vagrant` directory, alongside `Vagrantfile`, where it keeps all configuration
 > data related to provisioned VMs. If that directory is lost the access to the VMs
 > is lost as well. Which can happen unintentionally as a result of
@@ -421,8 +429,10 @@ cd motr
 
 Resulting _rpm_ files will be available in `~/rpmbuild/RPMS/x86_64/` directory.
 To verify them they can be installed with:
-
+     
+    ```bash
     sudo yum install rpmbuild/RPMS/x86_64/*
+    ```
 
 Try single-node Motr cluster
 ----------------------------
@@ -523,7 +533,7 @@ vagrant up /ssu/
 vagrant up cmu /ssu/ /client/
 ```
 
-> *NOTE*: on Windows host, _Ansible_ is running on guest VMs (not on host) and
+> _NOTE_: on Windows host, _Ansible_ is running on guest VMs (not on host) and
 > all the _Ansible_ tasks scripts are rsync-ed to guests at `/vagrant/` folder.
 > So whenever the scripts are updated on host they can be rsync-ed to guests
 > (in order to pick up the changes) with the following command:
@@ -553,8 +563,10 @@ m0vg snapshot save client1 clean-vm
 
 Then later, in order to discard the current state and restore a clean VM one may
 do:
-
+    
+    ```bash
     m0vg snapshot restore --no-provision cmu clean-vm
+    ```
 
 If `--no-provision` option is omitted, the _Ansible_ provisioning will be
 repeated after the restore phase. It may come in handy for getting latest
@@ -571,9 +583,11 @@ directories and switch between them, thus having multiple virtual clusters.
 
 The `m0vg` supports following actions on workspaces:
 
+    ```bash
     m0vg workspace list
     m0vg workspace add    <NAME>
     m0vg workspace switch <NAME>
+    ```
 
 The `workspace` sub-command can be shortened as just `ws`.
 

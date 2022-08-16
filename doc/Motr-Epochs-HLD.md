@@ -66,7 +66,7 @@ Each wrapper process maintains a structure representing the HA domain. Upon rece
 
 ## Interfaces
 To handle epoch failures, we introduce the following HA event:
-```
+```Text
 EpochTransitionRequest { service :: ServiceId
 
                        , currentEpoch :: EpochId
