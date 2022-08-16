@@ -784,8 +784,10 @@ M0_INTERNAL int ioreq_fop_dgmode_read(struct ioreq_fop *irfop)
 			rc = map->pi_ops->pi_dgmode_process(map,
 					irfop->irf_tioreq, &index[seg - cnt],
 					cnt);
-			if (rc != 0)
+			if (rc != 0) {
+				m0_mutex_unlock(&rbulk->rb_mutex);
 				return M0_ERR(rc);
+			}
 		}
 	} m0_tl_endfor;
 	m0_mutex_unlock(&rbulk->rb_mutex);
