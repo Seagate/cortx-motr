@@ -1,4 +1,4 @@
-# High level design of Motr Network Benchmark     
+# High level design of Motr Network Benchmark
 This document presents a high level design **(HLD)** of Motr Network Benchmark.  
  The main purposes of this document are:   
 1. To be inspected by M0 architects and peer designers to ascertain that high level design is aligned with M0 architecture and other designs, and contains no defects.  
@@ -7,7 +7,7 @@ This document presents a high level design **(HLD)** of Motr Network Benchmark.
 
 The intended audience of this document consists of M0 customers, architects, designers, and developers.  
 
-## Introduction  
+## Introduction
 Motr network benchmark is designed to test the network subsystem of Motr and network connections between nodes that are running Motr.  
 
 ## Definitions
@@ -50,11 +50,11 @@ Motr network benchmark is designed to test the network subsystem of Motr and net
   - Messages RTT and bandwidth from each test client to each corresponding test server in both directions need to be measured;  
 - Test console sends commands to load/unload the kernel module (implementation of **m0_net_test** test client/test server), obtains statistics from every node, and generates aggregate statistics.  
 
-## Logical specification  
+## Logical specification
 
-### Kernel module specification   
+### Kernel module specification
 
-#### start/finish   
+#### start/finish
 After the kernel module is loaded all statistics are reset. Then the module determines is it a test client or a test server and acts according to this. Test client starts sending test messages immediately. All statistical data remain accessible until the kernel module is unloaded.  
 
 #### test console
@@ -63,7 +63,7 @@ Test console uses pdsh to load/unload kernel module and gather statistics from e
 #### test duration
 End-user should be able to specify how long a test should run, by the loop. Test client checks command line parameters to determine the number of test messages.  
 
-### Test Message  
+### Test Message
 
 #### message structure
 Every message contains a timestamp and sequence number, which is set and checked on the test client and the test server and must be preserved on the test server. The timestamp is used to measure latency and the sequence number is used to identify message loss.  
@@ -90,24 +90,24 @@ Test client will keep statistics for all test servers with which communication w
 #### messages concurrency
 Messages concurrency looks like the test client has a semaphore, which has several concurrent operations as its initial value. One thread will down this semaphore and send a message to the test client in a loop, and the other thread will up this semaphore when the reply message is received or the message is considered lost.
 
-#### messages loss   
+#### messages loss
 Message loss is determined using timeouts.  
 
-#### message frequency  
+#### message frequency
 Measure how many messages can be sent in a time interval.
 
-### Bulk Test   
-#### test client
+### Bulk Test
+#### Bulk Test Client
 The test client allocates a set of network buffers, used to receive replies from test servers. Then test client sends bulk data messages to all test servers (as a passive bulk sender) from the command line. After that, the test client will wait for the bulk transfer (as a passive bulk receiver) from the test server. Test clients can perform more than one concurrent send/receive to the same server.  
 
-#### test server
+#### Bulk Test Server
 Test server allocates a set of network buffers and then waits for a message from clients as an active bulk receiver. When the bulk data arrives, the test server will send it back to the test client as an active bulk sender.  
 
-### Ping test   
-#### test server
+### Ping Test
+#### Ping Test Server
 Test server waits for incoming test messages and simply sends them back.   
 
-#### test client
+#### Ping Test Client
 Test client sends test messages to the server and waits for reply messages. If reply message isn't received within a timeout, then it is considered that the message is lost.  
 
 ### Conformance
@@ -119,7 +119,7 @@ Test client sends test messages to the server and waits for reply messages. If r
 - `[i.m0.net.self-test.test.duration.simple]`: end-user should be able to specify how long a test should run, by loop;  
 - `[i.m0.net.self-test.kernel]`: test client/server is implemented as a kernel module.  
 
-## Use Cases  
+## Use Cases
 
 ### Scenarios
 Scenario 1  
@@ -136,7 +136,7 @@ Scenario 1
 |Response measure|	statistics are consistent|  
 
 
-### Failures  
+### Failures
 
 #### network failure
 Message loss is determined by timeout. If the message wasn't expected and if it did come, it is rejected. If some node isn't accessible from the console, it is assumed that all messages, associated with this node have been lost.  
@@ -144,8 +144,8 @@ Message loss is determined by timeout. If the message wasn't expected and if it 
 #### test node failure
 If the test node isn't accessible at the beginning of the test, it is assumed a network failure. Otherwise, the test console will try to reach it every time it uses other nodes.  
 
-## Analysis  
-### Scalability  
+## Analysis
+### Scalability
 
 #### network buffer sharing
 Single buffer (except timestamp/sequence number fields in the test message) can be shared between all bulk send/receive operations.  
