@@ -85,7 +85,7 @@ verify_lnet_conf_exists()
 
 verify_lnet_conf_data()
 {
-    local RESULT=${ERR_LNET_BAD_CONF_DATA}
+    local RESULT=$ERR_LNET_BAD_CONF_DATA
 
     while read -r CONF_LINE
     do
