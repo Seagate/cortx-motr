@@ -17,10 +17,10 @@ Init the m0\_idx struct with m0\_idx\_init().
 
 Init the index create operation with m0\_entity\_create().
 
-```
+`
 An ID is needed for this index. In this example, ID is configured from command line.
 Developers are responsible to generate an unique ID for their indices.
-```
+`
 
 Launch the operation with m0\_op\_launch().
 
