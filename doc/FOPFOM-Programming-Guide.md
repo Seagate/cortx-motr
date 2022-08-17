@@ -16,7 +16,7 @@ Native types:
 + void  
 
 A FOP can be declared as follows:
-```
+```C
 record {
         u64 f_seq;
         u64 f_oid
@@ -38,7 +38,7 @@ A .ff file should be compiled using ff2c compiler.
 After writing FOPs and creating .ff file for a particular module, we need to make an entry for the same in the module's Makefile.am file. This would automatically invoke ff2c on the .ff files and create corresponding “C” format structures.
 
 ** A FOP, containing native data types in file fom_io_xc.ff:**  
-```  
+```C  
 record {
         u64 f_seq;
         u64 f_oid

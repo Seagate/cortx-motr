@@ -1,4 +1,4 @@
-# High level design of a Motr lostore module   
+# High level design of a Motr lostore module  
 This document presents a high level design **(HLD)** of a lower store (lostore) module of Motr core.   
 The main purposes of this document are:   
 1. To be inspected by M0 architects and peer designers to ascertain that high level design is aligned with M0 architecture and other designs, and contains no defects.
@@ -9,7 +9,7 @@ The main purposes of this document are:
 The intended audience of this document consists of M0 customers, architects, designers, and developers.  
 
 
-## Introduction
+## Introduction ##
 - A table is a collection of pairs, each consisting of a key and a record. Keys and records of pairs in a given table have the same structure as defined by the table type. "Container" might be a better term for a collection of pairs (compare with various "container libraries"), but this term is already used by Motr;
 - records consist of fields and some of the fields can be pointers to pairs in (the same or other) table;  
 - a table is ordered, if a total ordering is defined on possible keys of its records. For an ordered table an interface is defined to iterate over existing keys in order;  
@@ -25,7 +25,7 @@ The intended audience of this document consists of M0 customers, architects, des
 
 Otherwise, a function call is called non-blocking.
 
-## Requirements  
+## Requirements ##
 - `R.M0.MDSTORE.BACKEND.VARIABILITY`: Supports various implementations: db5 and RVM  
 - `R.M0.MDSTORE.SCHEMA.EXPLICIT`: Entities and their relations are explicitly documented. "Foreign key" following access functions provided.  
 - `R.M0.MDSTORE.SCHEMA.STABLE`: Resistant against upgrades and interoperable  
@@ -55,7 +55,7 @@ Otherwise, a function call is called non-blocking.
 - `R.M0.MDSTORE.CRYPTOGRAPHY`: optionally meta-data records are encrypted.  
 - `R.M0.MDSTORE.PROXY`: proxy meta-data server is supported. A client and a server are almost identical.  
 
-## Design highlights   
+## Design highlights ##
 Key problem of lostore interface design is to accommodate for different implementations, viz., a db5-based one and RVM-based. To address this problem, keys, records, tables and their relationships are carefully defined in a way that allows different underlying implementations without impairing efficiency.    
 
 lostore transactions provide very weak guarantees, compared with the typical **ACID** transactions:
@@ -65,7 +65,7 @@ lostore transactions provide very weak guarantees, compared with the typical **A
 
 The requirement of non-blocking access to tables implies that access is implemented as a state machine, rather than a function call. The same state machine is used to iterate over tables.
 
-## Functional Specification
+## Functional Specification ##
 mdstore and iostore use lostore to access a database, where meta-data is kept. Meta-data are orgianised according to a meta-data schema, which is defined as a set of lostore tables referencing each other together with consistency constraints.  
 
 lostore public interface consists of the following major types of entities:   
@@ -79,7 +79,7 @@ lostore public interface consists of the following major types of entities:
 - table operation, table iterator: a state machine encoding the state of table operation;  
 - domain: a collection of tables sharing underlying database implementation. A transaction is confined to a single domain.   
 
-### Tables  
+### Tables ###
 For a table type, a user has to define operations to encode and decode records and keys (unless the table is a sack, in which case key encoding and decoding functions are provided automatically) and an optional key comparison function. It's expected that encoding and decoding functions will often be generated automatically in a way similar to fop encoding and decoding functions.
 
 The following functions are defined in tables:  
@@ -93,7 +93,7 @@ The following functions are defined in tables:
 - next: move to the pair with the next key;  
 - follow: follow a pointer to a record.  
 
-### Transactions
+### Transactions ###
 The following operations are defined for transactions:  
 - open: start a new transaction. Transaction flags can be specified, e.g., whether the transaction can be aborted, or whether persistence notification is needed.  
 - add: add an update to the transaction. This is internally called part of any table update operation (insert, update, delete);  
@@ -101,13 +101,13 @@ The following operations are defined for transactions:
 - abort: close the transaction and roll it back;  
 - force: indicate that transaction should be made persistent as soon as possible.  
 
-### Segments   
+### Segments ###
 The following operations are defined for segments:  
 - create a segment backed up by a storage object (note that because the meta-data describing the storage object are accessible through lostore, the boot-strapping issues have to be addressed);  
 - create a segment backed up by a remote storage object;  
 - destroy a segment, none of which pages are assigned to tables.  
 
-## Logical Specification
+## Logical Specification ##
 Internally, a lostore domain belongs to one of the following types:  
 - a db5 domain, where tables are implemented as db5 databases and transactions as db5 transactions;  
 - an rvm domain, where tables are implemented as hash tables in the RVM segments and transactions as RVM transactions;  

@@ -660,10 +660,24 @@ enum m0_entity_type {
 	 *      the non-full last parity group, use M0_OOF_LAST flag instead.
 	 */
 	M0_ENF_NO_RMW =  1 << 1,
+
 	/**
-	 * This flag is to enable data integrity.
+	 * Note below two flags are for Data Integrity:
+	 * M0_ENF_DI - This flag should be set if application is passing checksum
+	 *             into ioo_attr
+	 * M0_ENF_GEN_DI - This flag should be set if application wants Motr to
+	 *                 generate checksum. Default checksum will be generated using
+	 *                 this M0_CKSUM_DEFAULT_PI algorithm
+	 * Note: Ideally only one flag should be set for DI, if both is set the Motr
+	 * will give priority to DI generation (M0_ENF_GEN_DI)
 	 */
- 	M0_ENF_DI = 1 << 2
+	/**
+	 * This flag is to indicate that application is passing checkum for the IO.
+	 */
+	M0_ENF_DI = 1 << 2,
+	 /* This flag will let Motr generate DI for the IO. */
+	M0_ENF_GEN_DI = 1 << 3
+
  } M0_XCA_ENUM;
 
 /**

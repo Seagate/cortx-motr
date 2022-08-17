@@ -242,13 +242,13 @@ object_io_test()
 	rm -f "$dest_file"
 
 	echo "Writing to object $obj_id1....."
-	eval "m0cp $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
+	eval "m0cp -G $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
 	      $src_file" || {
 		error_handling "Failed to write object $obj_id1" $?
 	}
 
 	echo "Reading from object $obj_id1 ....."
-	eval "m0cat $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
+	eval "m0cat -G $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
 	      $dest_file" || {
 		error_handling "Failed to read object $obj_id1" $?
 	}
@@ -270,13 +270,13 @@ object_io_test()
 	}
 
 	echo "Writing to object $obj_id2....."
-	eval "m0cp $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count \
+	eval "m0cp -G $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count \
 	      $src_file -u" || {
 		error_handling "Failed to write object $obj_id2" $?
 	}
 
 	echo "Reading from object $obj_id2 ....."
-	eval "m0cat $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count \
+	eval "m0cat -G $endpoint_opts -o $obj_id2 -s $blk_size -c $blk_count \
 	      $dest_file" || {
 		error_handling "Failed to read object $obj_id2" $?
 	}
@@ -307,13 +307,13 @@ object_io_test()
 	}
 
 	echo "Writing to object $obj_id1....."
-	eval "m0cp $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
+	eval "m0cp -G $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
 	      $src_file -L 9" || {
 		error_handling "Failed to write object $obj_id1" $?
 	}
 
 	echo "Reading from object $obj_id1 ....."
-	eval "m0cat $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
+	eval "m0cat -G $endpoint_opts -o $obj_id1 -s $blk_size -c $blk_count \
 	      -L 9 $dest_file" || {
 		error_handling "Failed to read object $obj_id1" $?
 	}
