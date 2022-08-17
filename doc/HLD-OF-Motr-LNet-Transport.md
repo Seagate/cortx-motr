@@ -140,7 +140,7 @@ See Support for multiple message delivery in a single network buffer.
 
 The design provides an API for the higher level application to associate the internal threads used by a transfer machine with a set of processors. In particular the API guarantees that buffer and transfer machine callbacks will be made only on the processors specified.
 
-```
+```C
 #include “lib/processor.h”
 
 ...

@@ -147,7 +147,7 @@ Deathrow catalogue contains all large catalogues which are in the process of bei
 
 GET	cfid, input: array of {key	rc, output: array of {exists, val}
 
-```
+```C
 cat = catalogue_get(req.cfid);
 
 foreach key in req.input {
