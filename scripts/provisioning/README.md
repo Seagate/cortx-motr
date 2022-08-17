@@ -333,7 +333,7 @@ which is more convenient:
     ```
 
 The `m0vg` helper script is a wrapper around _Vagrant_ and _Ansible_ commands
-that can be *symlinked* somewhere into the `PATH` and be called from any
+that can be **symlinked** somewhere into the `PATH` and be called from any
 directory. Check out `m0vg --help` for more info.
 
 It will spawn a VM and configure it using _Ansible_ "playbook"
@@ -354,7 +354,9 @@ below for the list of other useful _Vagrant_ commands.
 
 If a cluster-like environment is needed, more machines can be provisioned:
 
-    ./scripts/m0vg up cmu /ssu/ /client/
+```sh
+./scripts/m0vg up cmu /ssu/ /client/
+```
 
 The additional parameters are also explained in the _Vagrant basics_ section
 below.
