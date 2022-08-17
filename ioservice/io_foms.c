@@ -1957,12 +1957,11 @@ static int io_finish(struct m0_fom *fom)
 		}
 	}
 
-	M0_LOG(M0_DEBUG, "got    fom: %"PRIi64", req_count: %"PRIi64", "
-	       "count: %"PRIx64", nob: %"PRIx64"", fom_obj->fcrw_fom_start_time,
-	       fom_obj->fcrw_req_count, fom_obj->fcrw_count, nob);
 	fom_obj->fcrw_count += nob;
-	M0_ASSERT(ergo(rc == 0,
-		       fom_obj->fcrw_req_count == fom_obj->fcrw_count));
+	M0_LOG(M0_DEBUG, "got    fom: %"PRIi64", req_count: %"PRIi64", "
+			 "count: %"PRIx64", nob: %"PRIx64 ", rc:%d",
+			 fom_obj->fcrw_fom_start_time,
+			 fom_obj->fcrw_req_count, fom_obj->fcrw_count, nob, rc);
 	rc = fom_obj->fcrw_rc ?: rc;
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "rc=%d", rc);
