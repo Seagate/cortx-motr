@@ -749,6 +749,16 @@ Tests:
     polltime : 30
     timeout  : 1800
 
+  - id       : 73motr-io-small-disks
+    script   : 'm0 run-st 73motr-io-small-disks'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-73motr-io-small-disks
+    groupname: 04motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+
 
 # 25 min
 dangerous: 'yes'

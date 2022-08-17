@@ -95,7 +95,7 @@ EOF
 	for (( ; DDEV_ID < $dev_end; DDEV_ID++)) ; do
 		conf_ios_device_setup $DDEV_ID $id_count id_count "$ids" ids
 
-		dd if=/dev/zero of=$DDEV_ID$ddisk bs=1M seek=1M count=1 ||
+		dd if=/dev/zero of=$DDEV_ID$ddisk bs=1M seek=$IOS_DISK_SEEK_BLOCK_COUNT count=1 ||
 			return 1
 		if [ ! -e /dev/loop$DDEV_ID ]; then
 			create_loop_device $DDEV_ID
