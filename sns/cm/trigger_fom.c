@@ -89,18 +89,24 @@ static struct m0_fop_type *sns_fop_type(uint32_t op)
 			&m0_sns_repair_quiesce_rep_fopt,
 		[M0_SNS_REPAIR_STATUS_OPCODE] =
 			&m0_sns_repair_status_rep_fopt,
+		[M0_SNS_REPAIR_ABORT_OPCODE] =
+			&m0_sns_repair_abort_rep_fopt,
 		[M0_SNS_REBALANCE_TRIGGER_OPCODE] =
 			&m0_sns_rebalance_trigger_rep_fopt,
 		[M0_SNS_REBALANCE_QUIESCE_OPCODE] =
 			&m0_sns_rebalance_quiesce_rep_fopt,
 		[M0_SNS_REBALANCE_STATUS_OPCODE] =
 			&m0_sns_rebalance_status_rep_fopt,
-		[M0_SNS_REPAIR_ABORT_OPCODE] =
-			&m0_sns_repair_abort_rep_fopt,
 		[M0_SNS_REBALANCE_ABORT_OPCODE] =
 			&m0_sns_rebalance_abort_rep_fopt,
 		[M0_SNS_DTREBALANCE_TRIGGER_OPCODE] =
 			&m0_sns_dtrebalance_trigger_rep_fopt,
+		[M0_SNS_DTREBALANCE_QUIESCE_OPCODE] =
+			&m0_sns_dtrebalance_quiesce_rep_fopt,
+		[M0_SNS_DTREBALANCE_STATUS_OPCODE] =
+			&m0_sns_dtrebalance_status_rep_fopt,
+		[M0_SNS_DTREBALANCE_ABORT_OPCODE] =
+			&m0_sns_dtrebalance_abort_rep_fopt,
 	};
 	M0_ASSERT(IS_IN_ARRAY(op, sns_fop_type));
 	return sns_fop_type[op];

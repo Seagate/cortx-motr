@@ -159,10 +159,13 @@ static int trigger_fom_tick(struct m0_fom *fom)
 					     M0_CMS_FAIL)) ||
 			    M0_IN(treq->op, (CM_OP_REPAIR_QUIESCE,
 					     CM_OP_REBALANCE_QUIESCE,
+					     CM_OP_DTREBALANCE_QUIESCE,
 					     CM_OP_REPAIR_ABORT,
 					     CM_OP_REBALANCE_ABORT,
+					     CM_OP_DTREBALANCE_ABORT,
 					     CM_OP_REPAIR_STATUS,
-					     CM_OP_REBALANCE_STATUS))) {
+					     CM_OP_REBALANCE_STATUS,
+					     CM_OP_DTREBALANCE_STATUS))) {
 				m0_fom_phase_set(fom, M0_TPH_PREPARE);
 				return M0_FSO_AGAIN;
 			}
@@ -190,7 +193,8 @@ static int prepare(struct m0_fom *fom)
 	struct m0_trigger_fom *tfom = trig2tfom(fom);
 	int                    rc;
 
-	if (M0_IN(treq->op, (CM_OP_REPAIR_QUIESCE, CM_OP_REBALANCE_QUIESCE))) {
+	if (M0_IN(treq->op, (CM_OP_REPAIR_QUIESCE, CM_OP_REBALANCE_QUIESCE,
+            CM_OP_DTREBALANCE_QUIESCE))) {
 		/* Set quiesce flag to running copy machine and quit. */
 		cm->cm_quiesce = true;
 		trigger_rep_set(fom);
@@ -200,7 +204,8 @@ static int prepare(struct m0_fom *fom)
 		return M0_FSO_WAIT;
 	}
 
-	if (M0_IN(treq->op, (CM_OP_REPAIR_ABORT, CM_OP_REBALANCE_ABORT))) {
+	if (M0_IN(treq->op, (CM_OP_REPAIR_ABORT, CM_OP_REBALANCE_ABORT,
+            CM_OP_DTREBALANCE_ABORT))) {
 		/* Set abort flag. */
 		m0_cm_lock(cm);
 		/* Its an explicit abort command, no need to transition cm
@@ -219,7 +224,8 @@ static int prepare(struct m0_fom *fom)
 	cm_state = m0_cm_state_get(cm);
 	m0_cm_unlock(cm);
 
-	if (M0_IN(treq->op, (CM_OP_REPAIR_STATUS, CM_OP_REBALANCE_STATUS))) {
+	if (M0_IN(treq->op, (CM_OP_REPAIR_STATUS, CM_OP_REBALANCE_STATUS,
+            CM_OP_DTREBALANCE_STATUS))) {
 		struct m0_fop            *rfop = fom->fo_rep_fop;
 		struct m0_status_rep_fop *trep = m0_fop_data(rfop);
 		enum m0_cm_status         cm_status;
