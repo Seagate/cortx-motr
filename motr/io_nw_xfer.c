@@ -1925,11 +1925,17 @@ out:
 		 *    In 'parity verify' mode, a whole parity group, including
 		 *    data and parity units are all read from ioservices.
 		 *    If some units failed to read, no need to read extra unit.
-		 *    The units needed for recvoery are ready.
+		 *    The units needed for recovery are ready.
 		 */
 		M0_ASSERT(ioreq_sm_state(ioo) == IRS_DEGRADED_READING);
-		M0_ASSERT(op->op_code == M0_OC_READ &&
-			  instance->m0c_config->mc_is_read_verify);
+		if (op->op_code == M0_OC_READ &&
+		    instance->m0c_config->mc_is_read_verify) {
+			M0_LOG(M0_DEBUG, "As per design in Read verify mode");
+		} else {
+			M0_LOG(M0_ERROR, "More than K targets are offline");
+			rc = -EIO;
+		}
+
 		ioreq_sm_state_set_locked(ioo, IRS_READ_COMPLETE);
 	} else if (rc == 0)
 		xfer->nxr_state = NXS_INFLIGHT;
