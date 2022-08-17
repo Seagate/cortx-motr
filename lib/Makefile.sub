@@ -45,6 +45,7 @@ nobase_motr_include_HEADERS += lib/arith.h \
                                lib/varr_private.h \
                                lib/vec.h \
                                lib/cksum.h \
+                               lib/cksum_data.h \
                                lib/cksum_utils.h \
                                lib/user_space/getopts.h \
                                lib/user_space/misc.h \
