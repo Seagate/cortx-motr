@@ -121,7 +121,7 @@ the data to plug-in instance.
 
 Successful data processing results in returning acknowledge along with confirmation allowing data release, if required.  
 
-### 1.9.3 De-initialization  
+### 1.9.3 De-initialization ###
 ![image](./images/Image4_sequenceDiagram.PNG)    
 
 Plug-in initiates de-initialization by calling local FDMI. The latter deregisters plug-in’s filter set with filtered service. After
