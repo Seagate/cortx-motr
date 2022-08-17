@@ -328,6 +328,7 @@ M0_INTERNAL int m0_dtm0_log_redo_add(struct m0_dtm0_log        *dol,
 	rec->lr_payload_data.b_nob =
 		redo->dtr_payload.dtp_data.ab_elems[0].b_nob;
 	M0_BE_ALLOC_BUF_SYNC(&rec->lr_payload_data, seg, tx);
+	/* TODO check if memcpy can be avoided */
 	m0_buf_memcpy(&rec->lr_payload_data,
 		      &redo->dtr_payload.dtp_data.ab_elems[0]);
 	rec->lr_descriptor = redo->dtr_descriptor;
