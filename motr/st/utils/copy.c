@@ -128,7 +128,7 @@ int main(int argc, char **argv)
 
 	client_fini(m0_instance);
 
-	return rc == 0 ? 0 : 1;
+	return -rc;
 }
 
 /*
