@@ -759,6 +759,15 @@ Tests:
     timeout  : 1800
 
 
+  - id       : 74motr-di-corruption-detection
+    script   : 'm0 run-st 74motr-di-corruption-detection'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-73motr-di-corruption-detection
+    groupname: 04motr-single-node
+    polltime : 30
+    timeout  : 1800
+
 
 # 25 min
 dangerous: 'yes'
