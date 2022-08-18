@@ -32,12 +32,12 @@
 |  20 |       fop/fom_generic.h           |  50         | [HLD of fop object iterator](/doc/PDF/HLD_of_fop_object_iterator.pdf) | [HLD of fop object iterator](/doc/HLD-fop-object-Iterator.md)  |
 |  22 |       ioservice/io_foms.c         |  556        | [FOPFOM Programming Guide](/doc/PDF/FOPFOM_Programming_Guide.pdf) | [FOPFOM Programming Guide](/doc/FOPFOM-Programming-Guide.md)  |
 |  23 |       ioservice/io_fops.c         |  526        | [HLD of FOL](/doc/PDF/HLD_of_FOL.pdf) | [HLD of FOL](/doc/HLD-of-FOL.md)  |
-|  20 |       fop/fom_generic.h           |  50         | [HLD of fop object iterator](/doc/PDF/HLD_of_fop_object_iterator.pdf) | [HLD of fop object iterator](/doc/HLD-fop-object-Iterator.md)  |
-|  20 |       fop/fom_generic.h           |  50         | [HLD of fop object iterator](/doc/PDF/HLD_of_fop_object_iterator.pdf) | [HLD of fop object iterator](/doc/HLD-fop-object-Iterator.md)  |
-|  20 |       fop/fom_generic.h           |  50         | [HLD of fop object iterator](/doc/PDF/HLD_of_fop_object_iterator.pdf) | [HLD of fop object iterator](/doc/HLD-fop-object-Iterator.md)  |
-
-
-
+|     |       fop/fom_generic.h           |             | [HLD of Data Block Allocator](/doc/PDF/HLD_of_fop_object_iterator.pdf) | [HLD of Data Block Allocator](/doc/HLD-Data-Block-Allocator.md)  |
+|  24 |       ioservice/io_fops.c         |  795        | [RPC Bulk Transfer Task Plan](/doc/PDF/RPC_Bulk_Transfer_Task_Plan.pdf) |
+|  25 |          iscservice/isc.h         |  101        | [ISC Service User Guide](/doc/PDF/ISC_user_guide.pdf) |  [ISC Service User Guide](ISC-Service-User-Guide.md)
+|  25 |          iscservice/isc.h         |  57         | [HLD_of_Object_Index](/doc/PDF/HLD_of_Object_Index_(COB).pdf) |  [HLD_of_Object_Index](HLD-of-Motr-Object-Index.md) 
+|  25 |          iscservice/isc.h         |  101        | [ISC Service User Guide](/doc/PDF/ISC_user_guide.pdf) |  [ISC Service User Guide](ISC-Service-User-Guide.md) 
+|  25 |          iscservice/isc.h         |  101        | [ISC Service User Guide](/doc/PDF/ISC_user_guide.pdf) |  [ISC Service User Guide](ISC-Service-User-Guide.md) 
 
 
 
