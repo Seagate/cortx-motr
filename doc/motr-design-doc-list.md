@@ -1,5 +1,32 @@
-Motr - Design Document List
-############################
+# Motr - Design Document List
+
+| No. | Ref file from Motr Source Code     | Line no.   | PDF File Link                                                       | GitHub Link     | 
+|-----|------------------------------------|------------|---------------------------------------------------------------------|-----------------|
+| 1   | capa/capa.h                        | 48         | [HLD of Capability in Motr](/doc/PDF/HLD_of_Capability_in_Motr.pdf) | [HLD Capability Motr](/doc/HLD-Capability-Motr.md) |
+| 2   | cas/service.c                      | 274        | [HLD of Catalogue Service](/doc/PDF/HLD_of_catalogue_service.pdf)   | [HLD of Catalogue Services](/doc/HLD-of-Catalogue-Service.md) |
+|  3  |  cm/cp.c                           |     377    |  [HLD of SNS Repair](/doc/PDF/HLD_of_SNS_Repair.pdf)                |   [HLD of SNS Repair](/doc/HLD-of-SNS-Repair.md)              |
+|  4  |          conf/confd.h              |     101    | [HLD of Configuration Schema](/doc/PDF/HLD_of_configuration.schema.pdf) |  [HLD of Configuration Schema](/doc/HLD-Configuration-Schema.md)   |                 |
+|     |                                   |            | [HLD of Configuration Caching](/doc/PDF/HLD_of_configuration_caching.pdf) |  [HLD of Configuration Caching](doc/HLD-of-Motr-Caching.md)  |
+|   5 |            conf/objs/pool.c       |  155       | [Pools in Configuration Schema](/doc/PDF/Pools_in_configuration_schema.pdf) |  [Pools in Configuration Schema](/doc/Pools_in_configuration_schema.rst)  |
+|   6 |            dix/client.h           |  153       | [HLD of Distributed Indexing](/doc/HLD-of-distributed-indexing.md) |  [HLD of Distributed Indexing](/doc/HLD-of-distributed-indexing.md)  |
+|   7 |            doc/reading-list.md    |  4         | [Reading List](/doc/PDF/Motr_reading_list.pdf) |  [Reading List](/doc/reading-list.md)  |
+|     |                                   |  5         | [Data Organization](/doc/PDF/Motr_Data_Organization.pdf) |  [Data Organization](/doc/Data-Organization.md)  |
+|     |                                   |  6         | [Motr Architecture 2](/doc/PDF/Motr_architectural_2-pager.pdf) |  [Motr Architecture 2](/doc/Motr_Architectural_2.rst)  |
+|     |                                   |  11         | [Motr Architecture](/doc/PDF/Motr_%20Architecture_Documentation.pdf) |  [Motr Architecture](https://github.com/Seagate/cortx-motr/blob/main/doc/CORTX-MOTR-ARCHITECTURE.md)  |
+|     |                                   |  12         | [FAQs](/doc/PDF/Motr_FAQ.pdf) |    |
+|     |                                   |  13         | [Glossary](/doc/PDF/Glossary.pdf) |    |
+|     |                                   |  18         | [Containers Overview](/doc/PDF/Containers_overview.pdf) |    |
+|     |                                   |  23         | [DTM Overview](/doc/PDF/DTM_overview.pdf) |  [DTM](/doc/DTM.md)  |
+|     |                                   |  24         |                                           | [Resource Management Interface](/doc/HLD-Resource-Management-Interface.md)    |
+|     |                                   |  31         | [HLD of Version Numbers](/doc/PDF/HLD_of_version_numbers.pdf) | [HLD of Version Numbers](/doc/HLD-Version-Numbers.md)   |
+|     |                                   |  47         | [Paxos](/doc/PDF/Paxos_overview.pdf) |  [Paxos](/doc/Paxos.rst)  |
+
+
+
+
+
+
+
 
 +-------+------------------------------------+--------+-------------------------------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | No.   | Ref file from Motr Source Code     | Line No|                 PDF File Link                                                                         |                   Github Link                                                                 |        Google Drive Link                                                                                                                                                                                                                                 |  Corresponding Sharepoint link                                                                                                                                                                                                                                                                                        |
