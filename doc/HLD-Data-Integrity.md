@@ -35,7 +35,7 @@ The example below describes scenario where application sends second request to m
 
   - Current IO is for DU7-15 or PG 2 & PG 3 
 
-![](https://github.com/Seagate/cortx-motr/raw/main/doc/Images/DI01.png)
+![image](./Images/DI01.png)
 Data Received from application
 ### I.2 Parity Group Computation 
 - Motr client computes number of parity group in the request (ioo_iomap_nr)
@@ -46,29 +46,29 @@ Data Received from application
 
 - Data allocated are page or segment (4K) basis.
 
-![](https://github.com/Seagate/cortx-motr/raw/main/doc/Images/DI02.png)
+![image](./Images/DI02.png)
 Parity Group Data Structure
 ### I.2 Tracking Data Unit Allocated to Object
 For DI computation an array (ti_goff_ivec) for each target is allocated to track global offset of each segment.
 
-![](https://github.com/Seagate/cortx-motr/raw/main/doc/Images/DI03.png)
+![image](./Images/DI03.png)
 Mapping Data and Parity to Global Offset Space
  
 
-![](https://github.com/Seagate/cortx-motr/raw/main/doc/Images/DI04.png)
+![image](./Images/DI04.png)
 ### I.3 FOP Sending and Checksum Processing
 During FOP processing based on the DU goff which is added to the target structure (ti_goff_ivec), Parity Group Index and Data Unit Index is computed and stored in structure/array of FOP (irf_cksum_data)
 
 ### Write Path
  During write path the checksum for data also gets computed for each DU which is added to the FOP. Checksum computation is seeded with DU Index.
 
-![](https://github.com/Seagate/cortx-motr/raw/main/doc/Images/DI05.png)
+![image](./Images/DI05.png)
 ### Read Path
 During read path when the data is received from Motr Server, the checksum is computed and compared against received checksum
 
 
  
-![](https://github.com/Seagate/cortx-motr/raw/main/doc/Images/DI06.png)
+![image](./Images/DI06.png)
 ## II. Motr Server Write Path
 ### II.1 GOB => COB
 Every Motr object is identified by FID also known as GOB (Global Object) FID and its stripe on devices are identified as COB (Component Object) FID.
@@ -101,11 +101,11 @@ As part of balloc processing, server codes find the number of contiguous fragmen
 
 - m0_indexvec si_stob : Tracking balloc fragment
 
-![](https://github.com/Seagate/cortx-motr/raw/main/doc/Images/DI07.png)
+![image](./Images/DI07.png)
 Balloc Processing and Fragment Computation 
 These balloc-extent along with its buffer from unit for Storage IO.  
 
-![](https://github.com/Seagate/cortx-motr/raw/main/doc/Images/DI08.png)
+![image](./Images/DI08.png)
 ### II.3 EMAP Extent Processing
 As part of EMPA extent processing contiguous fragment is computed using overlap of Object offset extent (COB Offset) and balloc extent. These EMAP fragment data are processed later and gets written to the device EMAP btree.
 
@@ -121,7 +121,7 @@ EMAP Fragment Data consist of following important fields
 
   - ee_val
 
-![](https://github.com/Seagate/cortx-motr/raw/main/doc/Images/DI09.png)
+![image](./Images/DI09.png)
 ### II.4 COB-EMAP Details
 - When COB is created a default entry for the object extent is created
 
@@ -133,11 +133,11 @@ EMAP Fragment Data consist of following important fields
 
   - Dummy hole gets right shifted.
 
-![](https://github.com/Seagate/cortx-motr/raw/main/doc/Images/DI10.png)
+![image](./Images/DI10.png)
 Using above concepts the three EMAP extent gets added to EMAP metadata btree.
 
 ### II.5 Checksum storage with EMAP Extent
 Checksum for all the DUs which are starting in a Balloc extent, gets added to that corresponding EMAP entry. During EMAP processing checksum gets correctly transferred to the extent and gets written in btree node.
-![](https://github.com/Seagate/cortx-motr/raw/main/doc/Images/DI11.png)
+![image](./Images/DI11.png)
 
 
