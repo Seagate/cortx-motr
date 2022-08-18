@@ -159,7 +159,7 @@ foreach key in req.input {
 | PUT    | cfid, input: array of {key, val}     | rc, count
 | :------------- | :------------- | :-------------|
 
-```		
+```C		
 reply.count = 0;
 
 cat = catalogue_get(req.cfid);
