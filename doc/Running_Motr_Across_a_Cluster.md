@@ -18,14 +18,14 @@ This document provides information on how to build motr from source and then run
 
 3.  ### Configure your CDF ( cluster description file ) to "point" to all nodes in your cluster:
     1.  Create the CDF:
-        ```sh
+        ```yaml
         cp /opt/seagate/cortx/hare/share/cfgen/examples/singlenode.yaml ~/CDF.yaml
         vi ~/CDF.yaml
         ```
 
     2. Configure the CDF to "point" to each node in the cluster:
         1. Add this text N-1 times, where N is the number of nodes to your CDF. The `ip a` will provide your available data_iface values, you must use the one that has `state UP`. Next, you can get the hostname for the node by running `cat /etc/hostname`. However, in some cases, the hostname might not be publicly recognizable by other nodes, so it's recommended to put an IP address instead of a hostname.
-            ```sh
+            ```yaml
             - hostname: ssu0     # [user@]hostname
               data_iface: ens33        # name of data network interface
               #data_iface_type: o2ib  # type of network interface (optional);
@@ -53,10 +53,11 @@ This document provides information on how to build motr from source and then run
             ```
             > A single node CDF should look like this:
                 
-                ```sh
                 # Cluster Description File (CDF).
                 # See `cfgen --help-schema` for the format description.
                 nodes:
+		
+                ```yaml
 	            - hostname: ssu0     # [user@]hostname
 	              data_iface: ens33        # name of data network interface
 	              #data_iface_type: o2ib  # type of network interface (optional);
@@ -107,6 +108,8 @@ This document provides information on how to build motr from source and then run
                 # Cluster Description File (CDF).
                 # See `cfgen --help-schema` for the format description.
                 nodes:
+
+		```yaml
 	            - hostname: ssu0     # [user@]hostname
 	              data_iface: ens33        # name of data network interface
 	              #data_iface_type: o2ib  # type of network interface (optional);
@@ -201,7 +204,7 @@ This document provides information on how to build motr from source and then run
 	                 #profiles:
 	                 #  - name: default
 	                 #    pools: [ the pool ]
-                      
+                      ```
 
 4. ### Disable the firewall on each node:
     This is needed by s3 server, no need to do this if you don't have s3 client (`s3: 0`) on the CDF (at `m0_clients` section).
