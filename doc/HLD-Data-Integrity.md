@@ -37,6 +37,7 @@ The example below describes scenario where application sends second request to m
 
 ![image](./Images/DI01.png)
 <p align="center">Received from application</p>
+
 ### I.2 Parity Group Computation 
 - Motr client computes number of parity group in the request (ioo_iomap_nr)
 
@@ -48,12 +49,12 @@ The example below describes scenario where application sends second request to m
 
 ![image](./Images/DI02.png)
 <p align="center">Parity Group Data Structure</p>
+
 ### I.3 Tracking Data Unit Allocated to Object
 For DI computation an array (ti_goff_ivec) for each target is allocated to track global offset of each segment.
 
 ![image](./Images/DI03.png)
 <p align="center">Mapping Data and Parity to Global Offset Space</p>
- 
 
 ![image](./Images/DI04.png)
 ### I.4 FOP Sending and Checksum Processing
