@@ -18,11 +18,11 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=$(readlink -f "$0")
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 testname="spiel-sns-repair"
 
-. $M0_SRC_DIR/spiel/st/m0t1fs_spiel_sns_common_inc.sh
+. "$M0_SRC_DIR"/spiel/st/m0t1fs_spiel_sns_common_inc.sh
 
 
 spiel_sns_repair_and_rebalance_test()
@@ -35,8 +35,8 @@ spiel_sns_repair_and_rebalance_test()
 
 	echo "Starting SNS repair testing ..."
 	for ((i=0; i < ${#files[*]}; i++)) ; do
-		touch_file $MOTR_M0T1FS_MOUNT_DIR/${files[$i]} ${unit_size[$i]}
-		_dd ${files[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]}
+		touch_file "$MOTR_M0T1FS_MOUNT_DIR"/${files[$i]} ${unit_size[$i]}
+		_dd "${files[$i]}" $((${unit_size["$i"]} * 1024)) "${file_size[$i]}"
 	done
 
 	verify || return $?
@@ -132,9 +132,9 @@ test_repaired_device_failure()
 {
 	local fail_device1=$1
 
-	disk_state_get $fail_device1 || return $?
+	disk_state_get "$fail_device1" || return $?
 
-	disk_state_set "rebalance" $fail_device1 || return $?
+	disk_state_set "rebalance" "$fail_device1" || return $?
 	echo "Starting SNS Rebalance.."
 	spiel_sns_rebalance_start
 
@@ -142,7 +142,7 @@ test_repaired_device_failure()
         spiel_wait_for_sns_rebalance || return $?
 	sleep 2
 
-	disk_state_set "online" $fail_device1 || return $?
+	disk_state_set "online" "$fail_device1" || return $?
 	echo "SNS Rebalance done."
 
 	verify || return $?
@@ -155,8 +155,8 @@ test_new_device_failure()
 	local fail_device2=$2
 
 	echo "Set $fail_device2 to "failed""
-	disk_state_set "failed" $fail_device2 || return $?
-	disk_state_set "repair" $fail_device2 || return $?
+	disk_state_set "failed" "$fail_device2" || return $?
+	disk_state_set "repair" "$fail_device2" || return $?
 
 	echo "Start SNS repair again"
 	spiel_sns_repair_start
@@ -166,11 +166,11 @@ test_new_device_failure()
 	spiel_wait_for_sns_repair || return $?
 	verify || return $?
 
-	disk_state_set "repaired" $fail_device2 || return $?
+	disk_state_set "repaired" "$fail_device2" || return $?
 
-	disk_state_get $fail_device1 $fail_device2 || return $?
+	disk_state_get "$fail_device1" "$fail_device2" || return $?
 
-	disk_state_set "rebalance" $fail_device1 $fail_device2 || return $?
+	disk_state_set "rebalance" "$fail_device1" "$fail_device2" || return $?
 	echo "Starting SNS Rebalance.."
 	spiel_sns_rebalance_start
 
@@ -178,7 +178,7 @@ test_new_device_failure()
         spiel_wait_for_sns_rebalance || return $?
 	sleep 2
 
-	disk_state_set "online" $fail_device1 $fail_device2 || return $?
+	disk_state_set "online" "$fail_device1" "$fail_device2" || return $?
 	echo "SNS Rebalance done."
 
 	verify || return $?
@@ -191,18 +191,18 @@ rebalance_abort()
 	local fail_device2=$2
 
 	echo "Set Failure device: $fail_device1"
-	disk_state_set "failed" $fail_device1 || return $?
+	disk_state_set "failed" "$fail_device1" || return $?
 
 	echo "Start SNS repair."
         echo "set $fail_device1 to repairing"
-	disk_state_set "repair" $fail_device1 || return $?
+	disk_state_set "repair" "$fail_device1" || return $?
 	spiel_sns_repair_start
 	sleep 2
 
 	echo "wait for sns repair to finish."
 	spiel_wait_for_sns_repair || return $?
 
-	disk_state_set "repaired" $fail_device1 || return $?
+	disk_state_set "repaired" "$fail_device1" || return $?
 	echo "SNS Repair done."
 	verify || return $?
 
@@ -219,11 +219,11 @@ rebalance_abort()
 
 	echo "Set $fail_device1 back to "repaired""
 	disk_state_set "repaired" $fail_device1 || return $?
-	if [ $fail_device1 -eq $fail_device2 ]
+	if [ "$fail_device1" -eq "$fail_device2" ]
 	then
-		test_repaired_device_failure $fail_device1
+		test_repaired_device_failure "$fail_device1"
 	else
-		test_new_device_failure $fail_device1 $fail_device2
+		test_new_device_failure "$fail_device1" "$fail_device2"
 	fi
 }
 
@@ -233,7 +233,7 @@ main()
 
 	sandbox_init
 
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 	local multiple_pools=0
 	motr_service start $multiple_pools $stride $N $K $S $P || {
 		echo "Failed to start Motr Service."
@@ -252,7 +252,7 @@ main()
 	spiel_cleanup
 
 	echo "unmounting and cleaning.."
-	unmount_and_clean &>> $MOTR_TEST_LOGFILE
+	unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
 
 	motr_service stop || {
 		echo "Failed to stop Motr Service."

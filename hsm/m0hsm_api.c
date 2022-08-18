@@ -108,9 +108,12 @@ static int read_params(FILE *in, struct param *p, int max_params)
 	char s[MAX_LEN];
 
 	for (ln=1; max_params > 0 && fgets(s, MAX_LEN, in); ln++) {
-		if (sscanf(s, " %[#\n\r]", p->name))
+                /* Value of MAX_LEN is hardcoded because inside
+                 * double quotes we will not able to use macro MAX_LEN
+                 */
+		if (sscanf(s, " %128[#\n\r]", p->name))
 			continue; /* skip emty line or comment */
-		if (sscanf(s, " %[a-z_A-Z0-9] = %[^#\n\r]",
+		if (sscanf(s, " %128[a-z_A-Z0-9] = %128[^#\n\r]",
 		           p->name, p->value) < 2) {
 			ERROR("m0hsm: %s: error at line %d: %s\n", __func__,
 			      ln, s);

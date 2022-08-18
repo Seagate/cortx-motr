@@ -116,15 +116,12 @@ M0_INTERNAL void m0_be_dtm0_log_fini(struct m0_be_dtm0_log *log)
 	log->dl_cs = NULL;
 }
 
-M0_INTERNAL void m0_be_dtm0_log_free(struct m0_be_dtm0_log **in_log)
+M0_INTERNAL void m0_be_dtm0_log_free(struct m0_be_dtm0_log *log)
 {
-	struct m0_be_dtm0_log *log = *in_log;
-
 	M0_PRE(!log->dl_is_persistent);
 
 	m0_free(log->u.dl_inmem);
 	m0_free(log);
-	*in_log = NULL;
 }
 
 /**
@@ -382,8 +379,10 @@ static void plog_rec_fini(struct m0_dtm0_log_rec **dl_lrec,
 	struct m0_be_seg       *seg = log->dl_seg;
 	struct m0_dtm0_log_rec *rec = *dl_lrec;
 
-	M0_BE_FREE_PTR_SYNC(rec->dlr_txd.dtd_ps.dtp_pa, seg, tx);
-	M0_BE_FREE_PTR_SYNC(rec->dlr_payload.b_addr, seg, tx);
+	if (rec->dlr_txd.dtd_ps.dtp_pa != NULL)
+		M0_BE_FREE_PTR_SYNC(rec->dlr_txd.dtd_ps.dtp_pa, seg, tx);
+	if (rec->dlr_payload.b_addr != NULL)
+		M0_BE_FREE_PTR_SYNC(rec->dlr_payload.b_addr, seg, tx);
 	M0_BE_FREE_PTR_SYNC(rec, seg, tx);
 	*dl_lrec = NULL;
 }
@@ -394,8 +393,8 @@ static int dtm0_log__insert(struct m0_be_dtm0_log  *log,
 			    struct m0_buf          *payload)
 {
 	int                      rc;
-	struct m0_dtm0_log_rec	*rec;
-	struct m0_be_seg	*seg = log->dl_seg;
+	struct m0_dtm0_log_rec  *rec;
+	struct m0_be_seg        *seg = log->dl_seg;
 
 	if (log->dl_is_persistent) {
 		rc = plog_rec_init(&rec, tx, seg, txd, payload);
@@ -454,7 +453,7 @@ M0_INTERNAL int m0_be_dtm0_log_update(struct m0_be_dtm0_log  *log,
 				      struct m0_dtm0_tx_desc *txd,
 				      struct m0_buf          *payload)
 {
-	struct m0_dtm0_log_rec	*rec;
+	struct m0_dtm0_log_rec *rec;
 
 	M0_PRE(payload != NULL);
 	M0_PRE(m0_be_dtm0_log__invariant(log));
@@ -653,8 +652,8 @@ static bool be_dtm0_log_iter_is_first(const struct m0_be_dtm0_log_iter *iter)
 static bool be_dtm0_log_iter_invariant(const struct m0_be_dtm0_log_iter *iter)
 {
 	return _0C(m0_be_dtm0_log__invariant(iter->dli_log)) &&
-	       _0C(be_dtm0_log_iter_is_first(iter) ||
-		   m0_dtm0_tid__invariant(&iter->dli_current_tid));
+	       _0C(ergo(!be_dtm0_log_iter_is_first(iter),
+			m0_dtm0_tid__invariant(&iter->dli_current_tid)));
 }
 
 M0_INTERNAL void m0_be_dtm0_log_iter_init(struct m0_be_dtm0_log_iter *iter,
@@ -671,10 +670,10 @@ M0_INTERNAL void m0_be_dtm0_log_iter_fini(struct m0_be_dtm0_log_iter *iter)
 }
 
 M0_INTERNAL int m0_be_dtm0_log_iter_next(struct m0_be_dtm0_log_iter *iter,
-					 struct m0_dtm0_log_rec	    *out)
+					 struct m0_dtm0_log_rec     *out)
 {
 	struct m0_dtm0_log_rec *rec;
-	int rc;
+	int    rc;
 
 	M0_PRE(m0_mutex_is_locked(&iter->dli_log->dl_lock));
 	M0_PRE(be_dtm0_log_iter_invariant(iter));
@@ -699,7 +698,10 @@ M0_INTERNAL int m0_be_dtm0_log_iter_next(struct m0_be_dtm0_log_iter *iter,
 			return M0_ERR(rc);
 	}
 
-	return M0_RC(rec == NULL ? 0 : +1);
+	if (rec)
+		M0_LOG(M0_DEBUG, "next record dtxid: " DTID0_F,
+		       DTID0_P(&rec->dlr_txd.dtd_id));
+	return M0_RC(rec != NULL ? 0 : -ENOENT);
 }
 
 M0_INTERNAL int m0_dtm0_log_rec_copy(struct m0_dtm0_log_rec       *dst,
@@ -714,6 +716,29 @@ M0_INTERNAL void m0_dtm0_log_iter_rec_fini(struct m0_dtm0_log_rec *rec)
 {
 	m0_dtm0_tx_desc_fini(&rec->dlr_txd);
 	m0_buf_free(&rec->dlr_payload);
+}
+
+M0_INTERNAL int m0_be_dtm0_log_get_last_dtxid(struct m0_be_dtm0_log *log,
+					      struct m0_dtm0_tid    *out)
+{
+	struct m0_dtm0_log_rec *rec;
+	int    rc;
+
+	M0_PRE(m0_mutex_is_locked(&log->dl_lock));
+	M0_ENTRY();
+
+	rec = log->dl_is_persistent
+		? lrec_be_list_tail(log->u.dl_persist)
+		: lrec_tlist_tail(log->u.dl_inmem);
+
+	if (rec != NULL) {
+		*out = rec->dlr_txd.dtd_id;
+		M0_LOG(M0_DEBUG, "tail entry dtxid: " DTID0_F, DTID0_P(out));
+		rc = 0;
+	} else
+		rc = -ENOENT;
+
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM

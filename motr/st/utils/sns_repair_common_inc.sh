@@ -42,7 +42,8 @@ prepare_datafiles_and_objects()
 						 -o ${file[$i]}      \
 					 "$MOTR_M0T1FS_TEST_DIR/srcfile" || {
 			rc=$?
-			echo "Writing object ${file[$i]} failed"
+			echo "Writing object ${file[$i]} failed: $rc"
+			return $rc
 		}
 	done
 	return $rc

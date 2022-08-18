@@ -22,7 +22,7 @@ $ touch example1.c
 
 Include necessary header files
 
-```
+```C
 #include "motr/client.h"
 ```
 
@@ -31,7 +31,7 @@ Motr applications. Please refer to source code "lib/"
 
 Define necessary variables (global or in main() function)
 
-```
+```C
     static struct m0_client         *m0_instance = NULL;
     static struct m0_container       motr_container;
     static struct m0_config          motr_conf;
@@ -40,7 +40,7 @@ Define necessary variables (global or in main() function)
 
 Get configuration arguments from command line
 
-```
+```C
 
 #include "motr/client.h"
 

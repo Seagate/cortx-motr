@@ -795,7 +795,7 @@ static void cc_stob_create_test()
 /*
  * Test function to check COB record in the database.
  */
-static void cob_verify(struct m0_fom *fom, const bool exists)
+static void cob_verify(struct m0_fom *fom, const bool exists, bool to_free)
 {
 	int		      rc;
 	struct m0_cob_domain *cobdom;
@@ -828,6 +828,9 @@ static void cob_verify(struct m0_fom *fom, const bool exists)
 		M0_UT_ASSERT(rc == -ENOENT);
         if (rc != 0)
 	        m0_free(nskey);
+
+	if (to_free)
+		m0_cob_put(test_cob);
 }
 
 static void md_cob_fop_create_delete_test(bool create_p,
@@ -864,6 +867,7 @@ static void md_cob_create_delete()
 	md_cob_fop_create_delete_test(true, &CONF_PVER_FID, 0);
 	/* Create the same mdcob again. */
 	md_cob_fop_create_delete_test(true, &CONF_PVER_FID, -EEXIST);
+	md_cob_fop_create_delete_test(false, &CONF_PVER_FID, 0);
 	/* Create the same mdcob with different pool version. */
 	md_cob_fop_create_delete_test(true, &CONF_PVER_FID1, 0);
 	/* Delete the mdcob. */
@@ -921,8 +925,10 @@ static void cc_cob_create_test()
 
 	/*
 	 * Test-case 1 - Verify COB creation
+	 * The test_cob is not released here, because it is used later in this
+	 * test to do cob_delete.
 	 */
-	cob_verify(fom, true);
+	cob_verify(fom, true, false);
 
 	/*
 	 * Test-case 2 - Test failure case. Try to create the
@@ -978,7 +984,7 @@ static void cc_fom_state_test(void)
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	M0_UT_ASSERT(m0_fom_phase(cfom) == M0_FOPH_SUCCESS);
 
-	cob_verify(cfom, true);
+	cob_verify(cfom, true, true);
 
 	/*
 	 * Now create delete fom. Use FOM functions to delete cob-data.
@@ -1217,7 +1223,7 @@ static void cd_cob_delete_test()
 	/*
 	 * Make sure that there no entry in the database.
 	 */
-	cob_verify(cfom, false);
+	cob_verify(cfom, false, false);
 
 	/*
 	 * Test-case 2: Delete cob again. The test should fail.

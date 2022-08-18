@@ -149,8 +149,8 @@ void test_entries_dump(void)
 	uint32_t             count;
 	struct m0_cob_bckey  dump_keys[KEY_VAL_NR];
 	struct m0_cob_bcrec  dump_recs[KEY_VAL_NR];
-	struct m0_buf       *keys = NULL;
-	struct m0_buf       *recs = NULL;
+	struct m0_buf        keys;
+	struct m0_buf        recs;
 	struct m0_fid        temp_fid;
 	struct m0_cob_bckey *kcurr;
 	struct m0_cob_bcrec *rcurr;
@@ -159,8 +159,8 @@ void test_entries_dump(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(count == KEY_VAL_NR);
 
-	kcurr = (struct m0_cob_bckey *)keys->b_addr;
-	rcurr = (struct m0_cob_bcrec *)recs->b_addr;
+	kcurr = (struct m0_cob_bckey *)keys.b_addr;
+	rcurr = (struct m0_cob_bcrec *)recs.b_addr;
 
 	for (i =0; i < count; i++) {
 		memcpy(&dump_keys[i], kcurr, sizeof(struct m0_cob_bckey));

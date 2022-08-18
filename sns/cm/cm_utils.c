@@ -158,7 +158,7 @@ M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
 				     const struct m0_fid *cob_fid)
 {
 	struct m0_cob        *cob;
-	struct m0_cob_oikey   oikey;
+	struct m0_cob_oikey   oikey = {};
 	int                   rc;
 
 	M0_ENTRY("dom=%p cob="FID_F, cdom, FID_P(cob_fid));
