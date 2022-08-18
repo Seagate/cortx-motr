@@ -155,7 +155,7 @@ static void sns_prepare(struct m0_fom *fom)
 	M0_PRE(treq != NULL);
 	M0_PRE(M0_IN(treq->op, (CM_OP_REPAIR, CM_OP_REPAIR_RESUME,
 				CM_OP_REBALANCE, CM_OP_REBALANCE_RESUME,
-				CM_OP_DTREBALANCE)));
+				CM_OP_DTREBALANCE, CM_OP_DTREBALANCE_RESUME)));
 
 	if (M0_IN(treq->op, (CM_OP_REPAIR, CM_OP_REBALANCE,
                              CM_OP_DTREBALANCE))) {
@@ -163,7 +163,8 @@ static void sns_prepare(struct m0_fom *fom)
 		scm->sc_op = treq->op;
 	} else
 		scm->sc_op = treq->op == CM_OP_REPAIR_RESUME ? CM_OP_REPAIR :
-			     CM_OP_REBALANCE;
+		             treq->op == CM_OP_REBALANCE_RESUME ? CM_OP_REBALANCE :
+			     CM_OP_DTREBALANCE;
 }
 
 #undef M0_TRACE_SUBSYSTEM

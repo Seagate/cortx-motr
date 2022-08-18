@@ -80,7 +80,7 @@ M0_INTERNAL int m0_sns_cm_trigger_fop_alloc(struct m0_rpc_machine  *mach,
 		[CM_OP_REBALANCE_ABORT]  = &m0_sns_rebalance_abort_fopt,
 		[CM_OP_DTREBALANCE]      = &m0_sns_dtrebalance_trigger_fopt,
 		[CM_OP_DTREBALANCE_QUIESCE]= &m0_sns_dtrebalance_quiesce_fopt,
-		[CM_OP_DTREBALANCE_RESUME] = &m0_sns_dtrebalance_resume_fopt,
+		[CM_OP_DTREBALANCE_RESUME] = &m0_sns_dtrebalance_trigger_fopt,
 		[CM_OP_DTREBALANCE_STATUS] = &m0_sns_dtrebalance_status_fopt,
 		[CM_OP_DTREBALANCE_ABORT]  = &m0_sns_dtrebalance_abort_fopt,
 	};
