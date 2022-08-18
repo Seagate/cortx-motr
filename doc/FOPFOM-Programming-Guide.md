@@ -43,9 +43,10 @@ record {
         u64 f_seq;
         u64 f_oid
 } reqh_ut_fom_fop_fid;  
-```  
+``` 
+
 **Makefile.am entry:**  
-```
+```C
 UT_SRCDIR = @SRCDIR@/reqh/ut
 noinst_LTLIBRARIES = libreqh-ut.la
 INCLUDES = -I. -I$(top_srcdir)/include \ -I$(top_srcdir)
@@ -62,6 +63,7 @@ EXTRA_DIST = fom_io.ff
 
 MOSTLYCLEANFILES = $(FOM_FOPS)  
 ```  
+
 On compiling fom_io_xc.ff file using ff2c compiler, it creates corresponding fom_io_xc.h and fom_io_xc.c.
 
 ## Encoding-Decoding FOP
