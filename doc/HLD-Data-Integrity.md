@@ -36,7 +36,7 @@ The example below describes scenario where application sends second request to m
   - Current IO is for DU7-15 or PG 2 & PG 3 
 
 ![image](./Images/DI01.png)
-Data Received from application
+<p align="center">Received from application</p>
 ### I.2 Parity Group Computation 
 - Motr client computes number of parity group in the request (ioo_iomap_nr)
 
@@ -47,12 +47,12 @@ Data Received from application
 - Data allocated are page or segment (4K) basis.
 
 ![image](./Images/DI02.png)
-Parity Group Data Structure
+<p align="center">Parity Group Data Structure</p>
 ### I.3 Tracking Data Unit Allocated to Object
 For DI computation an array (ti_goff_ivec) for each target is allocated to track global offset of each segment.
 
 ![image](./Images/DI03.png)
-Mapping Data and Parity to Global Offset Space
+<p align="center">Mapping Data and Parity to Global Offset Space</p>
  
 
 ![image](./Images/DI04.png)
@@ -102,7 +102,7 @@ As part of balloc processing, server codes find the number of contiguous fragmen
 - m0_indexvec si_stob : Tracking balloc fragment
 
 ![image](./Images/DI07.png)
-Balloc Processing and Fragment Computation
+<p align="center">Balloc Processing and Fragment Computation</p>
 
 These balloc-extent along with its buffer from unit for Storage IO.  
 
