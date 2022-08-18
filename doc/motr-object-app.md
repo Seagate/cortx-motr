@@ -79,9 +79,8 @@ The most important and necessary configuration parameters:
 
 These parameters can be queried with one of the following options:
 
-```
 - `hctl status` will show these parameters
-```
+
 
 If you've followed these instructions [Cluster Setup](https://github.com/Seagate/Cortx/blob/main/doc/Cluster_Setup.md) or [Quick Start Guide](/doc/Quick-Start-Guide.rst) to setup a Cortx Motr system. Or
 
