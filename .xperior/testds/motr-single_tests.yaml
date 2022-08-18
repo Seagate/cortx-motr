@@ -490,6 +490,13 @@ Tests:
   - id       : 37protocol
     script   : 'm0 run-st 37protocol'
     dir      : src/scripts
+    # This ST confirms that no BE structures are changed
+    # in the new version of the code since that would
+    # create a mismatch of BE structures and thus cause
+    # corruption in case of upgrades. During development
+    # phase the BE structures are assumed to be modified
+    # and to avoid this ST from failing it is better to disable
+    # the ST until a GA release is done.
     executor : Xperior::Executor::Skip
     sandbox  : /var/motr/root/sandbox.st-37protocol
     groupname: 01motr-single-node
@@ -739,6 +746,25 @@ Tests:
     executor : Xperior::Executor::MotrTest
     sandbox  : /var/motr/root/sandbox.st-72spiel-sns-motr-repair-quiesce
     groupname: 03motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 73motr-io-small-disks
+    script   : 'm0 run-st 73motr-io-small-disks'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-73motr-io-small-disks
+    groupname: 04motr-single-node
+    polltime : 30
+    timeout  : 1800
+
+
+  - id       : 74motr-di-corruption-detection
+    script   : 'm0 run-st 74motr-di-corruption-detection'
+    dir      : src/scripts
+    executor : Xperior::Executor::MotrTest
+    sandbox  : /var/motr/root/sandbox.st-73motr-di-corruption-detection
+    groupname: 04motr-single-node
     polltime : 30
     timeout  : 1800
 

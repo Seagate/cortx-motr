@@ -186,8 +186,15 @@ static void _write_lock_put(struct wlock_ctx *wlx)
 M0_INTERNAL void rm_write_lock_put()
 {
 	_write_lock_put(&wlx);
-	wlock_ctx_destroy(&wlx);
+	/*
+	 * This gives other RM requests a chance to be handled and complete.
+	 * TODO: Even after some time, there might be some pending requests.
+	 * We need a better to handle this corner cases.
+	 */
+	m0_nanosleep(m0_time(3, 0), NULL);
+
 	wlock_ctx_disconnect(&wlx);
+	wlock_ctx_destroy(&wlx);
 	m0_free0(&wlx.wlc_rm_addr);
 	M0_LEAVE();
 }

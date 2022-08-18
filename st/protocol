@@ -38,13 +38,33 @@ if which wdiff 2>/dev/null ; then
 fi
 
 proto_current="$M0_SRC_DIR/xcode/protocol.txt"
-proto_dev="/tmp/protocol-dev.txt"
+proto_prod="http://cortx-storage.colo.seagate.com/releases/cortx/github/main/"
+proto_prod+="rockylinux-8.4/last_successful_prod/cortx_iso/"
+test_dir="/tmp/37protocol-test"
+proto_dev="${test_dir}/usr/share/motr/protocol.txt"
 
-echo "Downloading latest protocol file from dev"
-wget -O "$proto_dev" \
-     '10.230.45.149:8080/job/motr-test-dev/lastSuccessfulBuild/artifact/artifacts/protocol.txt'
+# remove old st dir if already exists
+rm -rf $test_dir 2>&1> /dev/null
+
+# create st dir if does not exists
+mkdir -p $test_dir
+
+pushd $test_dir
+echo "Downloading latest protocol file from prod"
+wget -q -np -nd -r -P $test_dir -A "cortx-motr-[0-9]*_git*.x86_64.rpm" $proto_prod
+rpm2cpio cortx-motr*.rpm | cpio -id
+popd
 
 echo "Comparing '$proto_dev' and '$proto_current' files"
 $diff_cmd $proto_dev $proto_current
+exit_code=$?
+if [ $exit_code -ne 0 ]; then
+    echo -n "37protocol ST may fail if there are some local changes done to "
+    echo -n "the BE structures. Please confirm these are intended changes to "
+    echo "the BE structures in the new version before ignoring this error."
+fi
 
-report_and_exit initscripts $?
+# remove test files
+rm -rf $test_dir 2>&1> /dev/null
+
+report_and_exit initscripts $exit_code

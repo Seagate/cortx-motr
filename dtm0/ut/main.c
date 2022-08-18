@@ -117,10 +117,11 @@ enum ut_client_persistence {
 	UT_CP_PERSISTENT_CLIENT,
 };
 
-struct m0_fid g_service_fids[UT_SIDE_NR];
+static struct m0_fid g_service_fids[UT_SIDE_NR];
 
 struct ut_remach {
-	bool                             use_real_log;
+	const struct m0_dtm0_recovery_machine_ops
+		                        *remach_ops;
 	enum ut_client_persistence       cp;
 
 	struct m0_ut_dtm0_helper         udh;
@@ -247,7 +248,6 @@ static void ut_remach_log_add_sync(struct ut_remach       *um,
 
 static void um_dummy_log_redo_post(struct m0_dtm0_recovery_machine *m,
 				   struct m0_fom                   *fom,
-				   const struct m0_fid *tgt_proc,
 				   const struct m0_fid *tgt_svc,
 				   struct dtm0_req_fop *redo,
 				   struct m0_be_op *op)
@@ -263,7 +263,6 @@ static void um_dummy_log_redo_post(struct m0_dtm0_recovery_machine *m,
 
 static void um_real_log_redo_post(struct m0_dtm0_recovery_machine *m,
 				  struct m0_fom                   *fom,
-				  const struct m0_fid *tgt_proc,
 				  const struct m0_fid *tgt_svc,
 				  struct dtm0_req_fop *redo,
 				  struct m0_be_op *op)
@@ -311,8 +310,6 @@ static void um_real_log_redo_post(struct m0_dtm0_recovery_machine *m,
 
 static int um_dummy_log_iter_next(struct m0_dtm0_recovery_machine *m,
 				  struct m0_be_dtm0_log_iter *iter,
-				  const struct m0_fid *tgt_svc,
-				  const struct m0_fid *origin_svc,
 				  struct m0_dtm0_log_rec *record)
 {
 	M0_SET0(record);
@@ -322,17 +319,19 @@ static int um_dummy_log_iter_next(struct m0_dtm0_recovery_machine *m,
 static int um_dummy_log_iter_init(struct m0_dtm0_recovery_machine *m,
 				  struct m0_be_dtm0_log_iter *iter)
 {
-	(void) m;
-	(void) iter;
 	return 0;
 }
 
 static void um_dummy_log_iter_fini(struct m0_dtm0_recovery_machine *m,
 				   struct m0_be_dtm0_log_iter *iter)
 {
-	(void) m;
-	(void) iter;
 	/* nothing to do */
+}
+
+static int um_dummy_log_last_dtxid(struct m0_dtm0_recovery_machine *m,
+				   struct m0_dtm0_tid              *out)
+{
+	return -ENOENT;
 }
 
 void um_ha_event_post(struct m0_dtm0_recovery_machine *m,
@@ -376,10 +375,9 @@ static void ut_remach_ha_thinks(struct ut_remach        *um,
 }
 
 static const struct m0_dtm0_recovery_machine_ops*
-ut_remach_ops_get(struct ut_remach *um)
+ut_remach_ops_get_dummy_log(void)
 {
 	static struct m0_dtm0_recovery_machine_ops dummy_log_ops = {};
-	static struct m0_dtm0_recovery_machine_ops real_log_ops = {};
 	static bool initialized = false;
 
 	if (!initialized) {
@@ -389,10 +387,24 @@ ut_remach_ops_get(struct ut_remach *um)
 		dummy_log_ops.log_iter_next  = um_dummy_log_iter_next;
 		dummy_log_ops.log_iter_init  = um_dummy_log_iter_init;
 		dummy_log_ops.log_iter_fini  = um_dummy_log_iter_fini;
+		dummy_log_ops.log_last_dtxid = um_dummy_log_last_dtxid,
 
 		dummy_log_ops.redo_post      = um_dummy_log_redo_post;
 		dummy_log_ops.ha_event_post  = um_ha_event_post;
 
+		initialized = true;
+	}
+
+	return &dummy_log_ops;
+}
+
+static const struct m0_dtm0_recovery_machine_ops*
+ut_remach_ops_get_real_log(void)
+{
+	static struct m0_dtm0_recovery_machine_ops real_log_ops = {};
+	static bool initialized = false;
+
+	if (!initialized) {
 		/* Real log operations */
 		real_log_ops = m0_dtm0_recovery_machine_default_ops;
 
@@ -406,7 +418,14 @@ ut_remach_ops_get(struct ut_remach *um)
 		initialized = true;
 	}
 
-	return um->use_real_log ? &real_log_ops : &dummy_log_ops;
+	return &real_log_ops;
+}
+
+static const struct m0_dtm0_recovery_machine_ops*
+ut_remach_ops_get(struct ut_remach *um)
+{
+	M0_ASSERT(um->remach_ops != NULL);
+	return um->remach_ops;
 }
 
 static void ut_srv_remach_init(struct ut_remach *um)
@@ -496,7 +515,7 @@ static void ut_remach_init(struct ut_remach *um)
 
 	m0_fi_enable("m0_dtm0_in_ut", "ut");
 	m0_fi_enable("is_manual_ss_enabled", "ut");
-	m0_fi_enable("m0_dtm0_is_expecting_redo_from_client", "ut");
+	/* m0_fi_enable("m0_dtm0_is_expecting_redo_from_client", "ut"); */
 	if (um->cp == UT_CP_PERSISTENT_CLIENT)
 		m0_fi_enable("is_svc_volatile", "always_false");
 
@@ -514,16 +533,81 @@ static void ut_remach_init(struct ut_remach *um)
 	ut_cli_remach_init(um);
 }
 
+static void ut_remach_prune_plog(struct ut_remach *um, enum ut_sides side)
+{
+	struct m0_dtm0_recovery_machine *m = ut_remach_get(um, side);
+	struct m0_dtm0_service    *svc   = m->rm_svc;
+	struct m0_be_dtm0_log     *log   = svc->dos_log;
+	struct m0_be_tx           *tx    = NULL;
+	struct m0_be_seg          *seg   = log->dl_seg;
+	struct m0_be_tx_credit     cred  = {};
+	struct m0_be_ut_backend   *ut_be;
+	struct m0_be_dtm0_log_iter iter;
+	struct m0_dtm0_log_rec     record;
+	struct m0_dtm0_tid         last_dtx_id;
+	bool is_empty;
+	int rc;
+
+	if (!log->dl_is_persistent)
+		return;
+
+	m0_mutex_lock(&log->dl_lock);
+
+	M0_UT_ASSERT(svc->dos_generic.rs_reqh_ctx != NULL);
+	ut_be = &svc->dos_generic.rs_reqh_ctx->rc_be;
+
+	m0_be_dtm0_log_iter_init(&iter, log);
+
+	is_empty = true;
+	while (true) {
+		rc = m0_be_dtm0_log_iter_next(&iter, &record);
+		M0_UT_ASSERT(M0_IN(rc, (0, -ENOENT)));
+		if (rc == -ENOENT)
+			break;
+		M0_UT_ASSERT(rc == 0);
+
+		is_empty = false;
+		last_dtx_id = record.dlr_txd.dtd_id;
+		m0_be_dtm0_log_credit(M0_DTML_PRUNE, NULL, NULL, seg, &record,
+				      &cred);
+		m0_dtm0_log_iter_rec_fini(&record);
+	}
+
+	m0_be_dtm0_log_iter_fini(&iter);
+
+	if (!is_empty) {
+		M0_ALLOC_PTR(tx);
+		M0_UT_ASSERT(tx != NULL);
+		m0_be_ut_tx_init(tx, ut_be);
+		m0_be_tx_prep(tx, &cred);
+		rc = m0_be_tx_open_sync(tx);
+		M0_UT_ASSERT(rc == 0);
+
+		m0_be_dtm0_plog_prune(log, tx, &last_dtx_id);
+
+		m0_be_tx_close_sync(tx);
+		m0_be_tx_fini(tx);
+		m0_free(tx);
+
+		rc = m0_be_dtm0_log_get_last_dtxid(log, &last_dtx_id);
+		M0_UT_ASSERT(rc == -ENOENT);
+	}
+
+	m0_mutex_unlock(&log->dl_lock);
+}
+
 static void ut_remach_fini(struct ut_remach *um)
 {
 	int i;
 
+	ut_remach_prune_plog(um, UT_SIDE_SRV);
+	ut_remach_prune_plog(um, UT_SIDE_CLI);
 	ut_cli_remach_fini(um);
 	ut_srv_remach_fini(um);
 	m0_ut_dtm0_helper_fini(&um->udh);
 	if (um->cp == UT_CP_PERSISTENT_CLIENT)
 		m0_fi_disable("is_svc_volatile", "always_false");
-	m0_fi_disable("m0_dtm0_is_expecting_redo_from_client", "ut");
+	/* m0_fi_disable("m0_dtm0_is_expecting_redo_from_client", "ut"); */
 	m0_fi_disable("is_manual_ss_enabled", "ut");
 	m0_fi_disable("m0_dtm0_in_ut", "ut");
 	for (i = 0; i < ARRAY_SIZE(um->recovered); ++i) {
@@ -549,9 +633,9 @@ static void ut_remach_reset_srv(struct ut_remach *um)
 }
 
 static void ut_remach_log_gen_sync(struct ut_remach *um,
-				   enum ut_sides side,
-				   uint64_t ts_start,
-				   uint64_t records_nr)
+				   enum ut_sides     side,
+				   uint64_t          ts_start,
+				   uint64_t          records_nr)
 {
 	struct m0_dtm0_tx_desc           txd = {};
 	struct m0_buf                    payload = {};
@@ -625,6 +709,8 @@ static void log_subset_verify(struct ut_remach *um,
 		actual_records_nr++;
 	}
 
+	m0_be_dtm0_log_iter_fini(&a_iter);
+
 	M0_UT_ASSERT(ergo(expected_records_nr >= 0,
 			  expected_records_nr == actual_records_nr));
 
@@ -635,7 +721,10 @@ static void log_subset_verify(struct ut_remach *um,
 /* Case: Ensure the machine initialised properly. */
 static void remach_init_fini(void)
 {
-	struct ut_remach um = { .cp = UT_CP_PERSISTENT_CLIENT };
+	struct ut_remach um = {
+		.cp         = UT_CP_PERSISTENT_CLIENT,
+		.remach_ops = ut_remach_ops_get_dummy_log(),
+	};
 	ut_remach_init(&um);
 	ut_remach_fini(&um);
 }
@@ -643,7 +732,10 @@ static void remach_init_fini(void)
 /* Case: Ensure the machine is able to start/stop. */
 static void remach_start_stop(void)
 {
-	struct ut_remach um = { .cp = UT_CP_PERSISTENT_CLIENT };
+	struct ut_remach um = {
+		.cp         = UT_CP_PERSISTENT_CLIENT,
+		.remach_ops = ut_remach_ops_get_dummy_log(),
+	};
 	ut_remach_init(&um);
 	ut_remach_start(&um);
 	ut_remach_stop(&um);
@@ -668,6 +760,21 @@ static void ut_remach_boot(struct ut_remach *um)
 	ut_remach_init(um);
 	ut_remach_start(um);
 
+	/*
+	 * Assert that DTM log is empty (make sure there is no left overs from
+	 * other unit tests that ran before us).
+	 */
+	for (i = 0; i < UT_SIDE_NR; ++i) {
+		struct m0_be_dtm0_log *log = ut_remach_svc_get(um, i)->dos_log;
+		struct m0_dtm0_tid     last_dtx_id;
+		int                    rc;
+
+		m0_mutex_lock(&log->dl_lock);
+		rc = m0_be_dtm0_log_get_last_dtxid(log, &last_dtx_id);
+		m0_mutex_unlock(&log->dl_lock);
+		M0_UT_ASSERT(rc == -ENOENT);
+	}
+
 	for (i = 0; i < ARRAY_SIZE(starting); ++i)
 		ut_remach_ha_thinks(um, starting + i);
 
@@ -689,7 +796,10 @@ static void ut_remach_shutdown(struct ut_remach *um)
 /* Use-case: gracefull boot and shutdown of 2-node cluster. */
 static void remach_boot_cluster(enum ut_client_persistence cp)
 {
-	struct ut_remach um = { .cp = cp };
+	struct ut_remach um = {
+		.cp         = cp,
+		.remach_ops = ut_remach_ops_get_dummy_log(),
+	};
 
 	ut_remach_boot(&um);
 	ut_remach_shutdown(&um);
@@ -708,7 +818,10 @@ static void remach_boot_cluster_cs(void)
 /* Use-case: re-boot an ONLINE node. */
 static void remach_reboot_server(void)
 {
-	struct ut_remach um = { .cp = UT_CP_PERSISTENT_CLIENT };
+	struct ut_remach um = {
+		.cp         = UT_CP_PERSISTENT_CLIENT,
+		.remach_ops = ut_remach_ops_get_dummy_log(),
+	};
 
 	ut_remach_boot(&um);
 
@@ -730,7 +843,10 @@ static void remach_reboot_server(void)
 /* Use-case: reboot a node when it started to recover. */
 static void remach_reboot_twice(void)
 {
-	struct ut_remach um = { .cp = UT_CP_PERSISTENT_CLIENT };
+	struct ut_remach um = {
+		.cp         = UT_CP_PERSISTENT_CLIENT,
+		.remach_ops = ut_remach_ops_get_dummy_log(),
+	};
 
 	ut_remach_boot(&um);
 
@@ -768,8 +884,8 @@ static void remach_reboot_twice(void)
 static void remach_boot_real_log(void)
 {
 	struct ut_remach um = {
-		.cp = UT_CP_PERSISTENT_CLIENT,
-		.use_real_log = true
+		.cp         = UT_CP_PERSISTENT_CLIENT,
+		.remach_ops = ut_remach_ops_get_real_log(),
 	};
 	ut_remach_boot(&um);
 	ut_remach_shutdown(&um);
@@ -779,8 +895,8 @@ static void remach_boot_real_log(void)
 static void remach_real_log_replay(void)
 {
 	struct ut_remach um = {
-		.cp = UT_CP_PERSISTENT_CLIENT,
-		.use_real_log = true
+		.cp         = UT_CP_PERSISTENT_CLIENT,
+		.remach_ops = ut_remach_ops_get_real_log(),
 	};
 	/* cafe bell */
 	const uint64_t since = 0xCAFEBELL;
@@ -797,6 +913,7 @@ static void remach_real_log_replay(void)
 	ut_remach_ha_thinks(&um, &HA_THOUGHT(UT_SIDE_SRV, M0_NC_TRANSIENT));
 	ut_remach_ha_tells(&um, &HA_THOUGHT(UT_SIDE_CLI, M0_NC_ONLINE),
 			   UT_SIDE_SRV);
+
 	ut_remach_ha_thinks(&um, &HA_THOUGHT(UT_SIDE_SRV,
 					     M0_NC_DTM_RECOVERING));
 	m0_be_op_wait(um.recovered + UT_SIDE_SRV);
@@ -806,23 +923,565 @@ static void remach_real_log_replay(void)
 	ut_remach_shutdown(&um);
 }
 
+static uint64_t last_dtxid_dts_phys;
+static bool     last_dtxid_log_empty;
+
+static int um_dummy_last_dtxid(struct m0_dtm0_recovery_machine *m,
+			       struct m0_dtm0_tid              *out)
+{
+	static int call_counter = -1;
+
+	call_counter = (call_counter + 1) % 3;
+	if (call_counter < 2)
+		return -ENOENT;
+	if (last_dtxid_log_empty)
+		return -ENOENT;
+	out->dti_fid = *ut_remach_fid_get(UT_SIDE_CLI);
+	out->dti_ts.dts_phys = last_dtxid_dts_phys;
+	return 0;
+}
+
+/*
+ * Use-case: operations happen while node is recovering -- they must not be
+ * replayed.
+ */
+static void remach_recovering_marker(const int      recovering_mark_index,
+				     const uint64_t records_nr)
+{
+	struct m0_dtm0_recovery_machine_ops ops = *ut_remach_ops_get_real_log();
+	struct ut_remach um = {
+		.cp         = UT_CP_PERSISTENT_CLIENT,
+		.remach_ops = &ops,
+	};
+	/* cafe bell */
+	const uint64_t since = 0xCAFEBELL;
+
+	ops.log_last_dtxid = um_dummy_last_dtxid;
+	last_dtxid_log_empty = (recovering_mark_index == 0);
+	last_dtxid_dts_phys = since + recovering_mark_index - 1;
+
+	ut_remach_boot(&um);
+
+	m0_be_op_reset(um.recovered + UT_SIDE_SRV);
+	m0_be_op_active(um.recovered + UT_SIDE_SRV);
+	ut_remach_reset_srv(&um);
+
+	ut_remach_ha_thinks(&um, &HA_THOUGHT(UT_SIDE_SRV, M0_NC_TRANSIENT));
+	ut_remach_ha_tells(&um, &HA_THOUGHT(UT_SIDE_CLI, M0_NC_ONLINE),
+			   UT_SIDE_SRV);
+
+	ut_remach_log_gen_sync(&um, UT_SIDE_CLI, since, records_nr);
+
+	ut_remach_ha_thinks(&um, &HA_THOUGHT(UT_SIDE_SRV,
+					     M0_NC_DTM_RECOVERING));
+
+	m0_be_op_wait(um.recovered + UT_SIDE_SRV);
+	log_subset_verify(&um, recovering_mark_index, UT_SIDE_SRV, UT_SIDE_CLI);
+	ut_remach_ha_thinks(&um, &HA_THOUGHT(UT_SIDE_SRV, M0_NC_ONLINE));
+
+	ut_remach_shutdown(&um);
+}
+
+/*
+ * Use-case: operations happen while node is recovering -- they must not be
+ * replayed.  Empty log when recovery starts.
+ */
+static void remach_rec_mark_empty(void)
+{
+	remach_recovering_marker(0, 10);
+}
+
+/*
+ * Use-case: operations happen while node is recovering -- they must not be
+ * replayed.  Non-empty log when recovery starts.
+ */
+static void remach_rec_mark_nonempty(void)
+{
+	remach_recovering_marker(5, 10);
+}
+
+/*
+ * Eviction use case definitions go below.  See remach_client_eviction().
+ */
+
+typedef void (*ut_evict_log_gen_cb)(struct ut_remach *um,
+				    uint64_t          ts_start,
+				    uint64_t          records_nr);
+typedef void (*ut_evict_redo_post_verify_cb)(const struct m0_fid *tgt_svc,
+					     struct dtm0_req_fop *redo);
+typedef void (*ut_evict_log_verify_cb)(uint64_t actual_evicted_call_count,
+				       uint64_t ts_start,
+				       uint64_t records_nr);
+
+static struct m0_fid gs_dummy_client_fid =
+			M0_FID_INIT(0x7300000000000001,
+				    0xBA5EBA11); /* baseball */
+static struct m0_fid gs_dummy_server_fid1 =
+			M0_FID_INIT(0x7300000000000001,
+				    0xC1A551F1ED); /* classified */
+static struct m0_fid gs_dummy_server_fid2 =
+			M0_FID_INIT(0x7300000000000001,
+				    0xACCE551B1E); /* accessible */
+static struct m0_be_op gs_evicted_be_op = {};
+static uint64_t gs_evicted_call_count;
+static ut_evict_redo_post_verify_cb gs_evict_redo_post_verify_cb;
+
+static void um_eviction_log_redo_post(struct m0_dtm0_recovery_machine *m,
+				      struct m0_fom                   *fom,
+				      const struct m0_fid *tgt_svc,
+				      struct dtm0_req_fop *redo,
+				      struct m0_be_op     *op)
+{
+	if (m0_fid_eq(tgt_svc, &gs_dummy_server_fid1) ||
+	    m0_fid_eq(tgt_svc, &gs_dummy_server_fid2)) {
+		gs_evicted_call_count++;
+		if (gs_evict_redo_post_verify_cb)
+			gs_evict_redo_post_verify_cb(tgt_svc, redo);
+		m0_be_op_active(op);
+		m0_be_op_done(op);
+	} else
+		um_real_log_redo_post(m, fom, tgt_svc, redo, op);
+}
+
+static void um_eviction_evicted(struct m0_dtm0_recovery_machine *m,
+				const struct m0_fid             *tgt_svc)
+{
+	(void)m;
+	M0_UT_ASSERT(m0_fid_eq(tgt_svc, ut_remach_fid_get(UT_SIDE_CLI)));
+	m0_be_op_active(&gs_evicted_be_op);
+	m0_be_op_done(&gs_evicted_be_op);
+}
+
+/*
+ * Generic function for client eviction use-cases: When client goes offline,
+ * server need to send REDO for non-all-P transactions from this client to
+ * respective participants.
+ *
+ * More detailed explanation.  Assume 2 persistent participants and 1 volatile
+ * client.  Client sends CAS req to participant A and immediately crashes.  The
+ * update has made it to participant A and is applied there, but participant B
+ * did not even "hear" about it.  To restore consistency, A has to send REDO to
+ * B to apply this update.
+ *
+ * In this unit-test we cannot have two actual servers and 1 client.  So we will
+ * simulate this.  We can use dtm ut helper to create 1 client and 1 server.  We
+ * will create log entries on server which have additional dummy participants,
+ * which are not actually running.  We will also put in a dummy "redo_post"
+ * callback for the server.  Then simulate client death, and make sure that
+ * server calls our dummy redo_post on appropriate log entries and sends
+ * expected REDO messages.
+ *
+ * Scenarios:
+ *   * empty log -- no replay
+ *   * entire log to be replayed
+ *   * odd entries belong to evicted/dead client
+ *   * even entries belong to evicted/dead client
+ *   * non empty log with all P in every rec not replayed
+ *   * multiple participants in one entry to be replied in different
+ *     combinations
+ */
+static void remach_client_eviction(
+		ut_evict_log_gen_cb          log_gen_cb,
+		ut_evict_redo_post_verify_cb redo_post_verify_cb,
+		ut_evict_log_verify_cb       log_verify_cb)
+{
+	struct m0_dtm0_recovery_machine_ops ops = *ut_remach_ops_get_real_log();
+	struct ut_remach um = {
+		.cp         = UT_CP_VOLATILE_CLIENT,
+		.remach_ops = &ops,
+	};
+	/* cafe bell */
+	const uint64_t since = 0xCAFEBELL;
+	const uint64_t records_nr = 10;
+
+	ops.redo_post = um_eviction_log_redo_post;
+	ops.evicted   = um_eviction_evicted;
+	/* custom verifier for individual redo-post calls */
+	gs_evict_redo_post_verify_cb = redo_post_verify_cb;
+
+	m0_be_op_init(&gs_evicted_be_op);
+	ut_remach_boot(&um);
+	/* First client eviction is done during startup. */
+	M0_UT_ASSERT(m0_be_op_is_done(&gs_evicted_be_op));
+	m0_be_op_reset(&gs_evicted_be_op);
+	gs_evicted_call_count = 0;
+	/* custom log generator */
+	if (log_gen_cb)
+		log_gen_cb(&um, since, records_nr);
+	/* simulate client death */
+	ut_remach_ha_tells(&um, &HA_THOUGHT(UT_SIDE_CLI, M0_NC_FAILED),
+			   UT_SIDE_SRV);
+	m0_be_op_wait(&gs_evicted_be_op);
+	/* custom log verifier */
+	if (log_verify_cb)
+		log_verify_cb(gs_evicted_call_count, since, records_nr);
+	ut_remach_shutdown(&um);
+	m0_be_op_fini(&gs_evicted_be_op);
+	M0_SET0(&gs_evicted_be_op);
+}
+
+static void ut_evict_log_verify_empty(uint64_t actual_evicted_call_count,
+				      uint64_t ts_start,
+				      uint64_t records_nr)
+{
+	M0_UT_ASSERT(actual_evicted_call_count == 0);
+}
+
+/*
+ * Generate log with 1 client and 2 participants.  1st participant is server
+ * initialized with dtm ut helpers, it always has P-flag.  2nd participant uses
+ * dummy fid defined above (gs_dummy_server_fid1), and P-flag specified through
+ * pa_state parameter.
+ */
+static void ut_evict_log_gen_1c2pa(struct ut_remach *um,
+				   uint64_t          ts_start,
+				   uint64_t          records_nr,
+				   uint32_t          pa_state)
+{
+	struct m0_dtm0_tx_desc           txd = {};
+	struct m0_buf                    payload = {};
+	int                              rc;
+	int                              i;
+
+	rc = m0_dtm0_tx_desc_init(&txd, 2);
+	M0_UT_ASSERT(rc == 0);
+	txd.dtd_ps.dtp_pa[0] = (struct m0_dtm0_tx_pa) {
+		.p_state = M0_DTPS_PERSISTENT,
+		.p_fid = *ut_remach_fid_get(UT_SIDE_SRV),
+	};
+	txd.dtd_ps.dtp_pa[1] = (struct m0_dtm0_tx_pa) {
+		.p_state = pa_state,
+		.p_fid = gs_dummy_server_fid1,
+	};
+	txd.dtd_id = (struct m0_dtm0_tid) {
+		.dti_ts.dts_phys = 0,
+		.dti_fid = *ut_remach_fid_get(UT_SIDE_CLI),
+	};
+
+	for (i = 0; i < records_nr; ++i) {
+		txd.dtd_id.dti_ts.dts_phys = ts_start + i;
+		ut_remach_log_add_sync(um, UT_SIDE_SRV, &txd, &payload);
+	}
+
+	m0_dtm0_tx_desc_fini(&txd);
+}
+
+/*
+ * Generate log with 2 participants, one with P-flag in all records, another one
+ * without P-flag.  1st participant is server initialized with helpers, 2nd
+ * participant uses dummy fid defined above (gs_dummy_server_fid1).
+ */
+static void ut_evict_log_gen_replay_all(struct ut_remach *um,
+					uint64_t          ts_start,
+					uint64_t          records_nr)
+{
+	ut_evict_log_gen_1c2pa(um, ts_start, records_nr, M0_DTPS_INIT);
+}
+
+/*
+ * Generate log with 2 participants, both with P-flag in all records.  1st
+ * participant is server initialized with helpers, 2nd participant uses dummy
+ * fid defined above (gs_dummy_server_fid1).
+ */
+static void ut_evict_log_gen_all_p(struct ut_remach *um,
+				   uint64_t          ts_start,
+				   uint64_t          records_nr)
+{
+	ut_evict_log_gen_1c2pa(um, ts_start, records_nr, M0_DTPS_PERSISTENT);
+}
+
+static void ut_evict_log_verify_replay_all(uint64_t actual_evicted_call_count,
+					   uint64_t ts_start,
+					   uint64_t records_nr)
+{
+	M0_UT_ASSERT(actual_evicted_call_count == records_nr);
+}
+
+static void ut_evict_log_verify_all_p(uint64_t actual_evicted_call_count,
+				      uint64_t ts_start,
+				      uint64_t records_nr)
+{
+	M0_UT_ASSERT(actual_evicted_call_count == 0);
+}
+
+/*
+ * Generate log with 2 participants, one with P-flag in all records, another one
+ * without P-flag.  1st participant is server initialized with helpers, 2nd
+ * participant uses dummy fid defined above (gs_dummy_server_fid1).  Odd records
+ * have originator = UT_SIDE_CLI (first, third, etc), even records have
+ * originator = gs_dummy_client_fid (second, fourth, etc).  Or vise versa,
+ * depending on use_odd value.
+ */
+static void ut_evict_log_gen_replay_alt(struct ut_remach *um,
+					uint64_t          ts_start,
+					uint64_t          records_nr,
+					bool              use_odd)
+{
+	struct m0_dtm0_tx_desc           txd = {};
+	struct m0_buf                    payload = {};
+	int                              rc;
+	int                              i;
+	int  remainder = use_odd ? 0 : 1 ;
+
+	rc = m0_dtm0_tx_desc_init(&txd, 2);
+	M0_UT_ASSERT(rc == 0);
+	txd.dtd_ps.dtp_pa[0] = (struct m0_dtm0_tx_pa) {
+		.p_state = M0_DTPS_PERSISTENT,
+		.p_fid = *ut_remach_fid_get(UT_SIDE_SRV),
+	};
+	txd.dtd_ps.dtp_pa[1] = (struct m0_dtm0_tx_pa) {
+		.p_state = M0_DTPS_INIT,
+		.p_fid = gs_dummy_server_fid1,
+	};
+
+	for (i = 0; i < records_nr; ++i) {
+		txd.dtd_id = (struct m0_dtm0_tid) {
+			.dti_ts.dts_phys = ts_start + i,
+			.dti_fid = ((ts_start + i) % 2 == remainder)
+				? *ut_remach_fid_get(UT_SIDE_CLI)
+				: gs_dummy_client_fid,
+		};
+		ut_remach_log_add_sync(um, UT_SIDE_SRV, &txd, &payload);
+	}
+
+	m0_dtm0_tx_desc_fini(&txd);
+}
+
+static void ut_evict_log_gen_replay_odd(struct ut_remach *um,
+					uint64_t          ts_start,
+					uint64_t          records_nr)
+{
+	ut_evict_log_gen_replay_alt(um, ts_start, records_nr, true);
+}
+
+static void ut_evict_log_gen_replay_even(struct ut_remach *um,
+					 uint64_t          ts_start,
+					 uint64_t          records_nr)
+{
+	ut_evict_log_gen_replay_alt(um, ts_start, records_nr, false);
+}
+
+void ut_evict_redo_post_verify_replay_alt(const struct m0_fid *tgt_svc,
+					  struct dtm0_req_fop *redo,
+					  bool                 use_odd)
+{
+	int  remainder = use_odd ? 0 : 1 ;
+
+	M0_UT_ASSERT(m0_fid_eq(&redo->dtr_txr.dtd_id.dti_fid,
+			    ut_remach_fid_get(UT_SIDE_CLI)));
+	M0_UT_ASSERT(redo->dtr_txr.dtd_id.dti_ts.dts_phys % 2 == remainder);
+}
+
+void ut_evict_redo_post_verify_replay_odd(const struct m0_fid *tgt_svc,
+					  struct dtm0_req_fop *redo)
+{
+	ut_evict_redo_post_verify_replay_alt(tgt_svc, redo, true);
+}
+
+void ut_evict_redo_post_verify_replay_even(const struct m0_fid *tgt_svc,
+					   struct dtm0_req_fop *redo)
+{
+	ut_evict_redo_post_verify_replay_alt(tgt_svc, redo, false);
+}
+
+static void ut_evict_log_verify_replay_alt(uint64_t actual_evicted_call_count,
+					   uint64_t ts_start,
+					   uint64_t records_nr,
+					   bool     use_odd)
+{
+	int expected_count = use_odd == (ts_start % 2 == 0)
+		? (records_nr + 1) / 2
+		: records_nr / 2;
+	M0_UT_ASSERT(actual_evicted_call_count == expected_count);
+}
+
+static void ut_evict_log_verify_replay_odd(uint64_t actual_evicted_call_count,
+					   uint64_t ts_start,
+					   uint64_t records_nr)
+{
+	ut_evict_log_verify_replay_alt(actual_evicted_call_count, ts_start,
+				       records_nr, true);
+}
+
+static void ut_evict_log_verify_replay_even(uint64_t actual_evicted_call_count,
+					    uint64_t ts_start,
+					    uint64_t records_nr)
+{
+	ut_evict_log_verify_replay_alt(actual_evicted_call_count, ts_start,
+				       records_nr, false);
+}
+
+/*
+ * Generate log with 1 client and 3 persistent participants.  1st participant is
+ * server initialized with helpers and always has P-flag, 2nd and 3rd
+ * participants use dummy fids defined above (gs_dummy_server_fid1,
+ * gs_dummy_server_fid2).  2nd participant has P-flag in every other record, 3rd
+ * -- in every 3rd.
+ *
+ * To check for borders, we will put 1st participant in the middle of PA array,
+ * and 2nd/3rd as first/last.
+ */
+static void ut_evict_log_gen_1c3pa(struct ut_remach *um,
+				   uint64_t          ts_start,
+				   uint64_t          records_nr)
+{
+	struct m0_dtm0_tx_desc           txd = {};
+	struct m0_buf                    payload = {};
+	int                              rc;
+	int                              i;
+	int                              ts;
+
+	rc = m0_dtm0_tx_desc_init(&txd, 3);
+	M0_UT_ASSERT(rc == 0);
+	txd.dtd_ps.dtp_pa[0] = (struct m0_dtm0_tx_pa) {
+		.p_fid = gs_dummy_server_fid1,
+	};
+	txd.dtd_ps.dtp_pa[1] = (struct m0_dtm0_tx_pa) {
+		.p_state = M0_DTPS_PERSISTENT,
+		.p_fid = *ut_remach_fid_get(UT_SIDE_SRV),
+	};
+	txd.dtd_ps.dtp_pa[2] = (struct m0_dtm0_tx_pa) {
+		.p_fid = gs_dummy_server_fid2,
+	};
+
+	for (i = 0; i < records_nr; ++i) {
+		ts = ts_start + i;
+		txd.dtd_id = (struct m0_dtm0_tid) {
+			.dti_ts.dts_phys = ts,
+			.dti_fid = *ut_remach_fid_get(UT_SIDE_CLI),
+		};
+		txd.dtd_ps.dtp_pa[0].p_state = (ts % 2 == 0)
+						? M0_DTPS_PERSISTENT
+						: M0_DTPS_INIT;
+		txd.dtd_ps.dtp_pa[2].p_state = (ts % 3 == 0)
+						? M0_DTPS_PERSISTENT
+						: M0_DTPS_INIT;
+		ut_remach_log_add_sync(um, UT_SIDE_SRV, &txd, &payload);
+	}
+
+	m0_dtm0_tx_desc_fini(&txd);
+}
+
+void ut_evict_redo_post_verify_mixed(const struct m0_fid *tgt_svc,
+				     struct dtm0_req_fop *redo)
+{
+	M0_UT_ASSERT(m0_fid_eq(&redo->dtr_txr.dtd_id.dti_fid,
+			    ut_remach_fid_get(UT_SIDE_CLI)));
+	if (m0_fid_eq(tgt_svc, &gs_dummy_server_fid1))
+		M0_UT_ASSERT(redo->dtr_txr.dtd_id.dti_ts.dts_phys % 2 != 0);
+	else if (m0_fid_eq(tgt_svc, &gs_dummy_server_fid2))
+		M0_UT_ASSERT(redo->dtr_txr.dtd_id.dti_ts.dts_phys % 3 != 0);
+	else
+		M0_UT_ASSERT(false); /* Must never get here. */
+}
+
+static void ut_evict_log_verify_mixed(uint64_t actual_evicted_call_count,
+				      uint64_t ts_start,
+				      uint64_t records_nr)
+{
+	int i;
+	int expected_count;
+
+	expected_count = 0;
+	for (i = 0; i < records_nr; i++)
+		expected_count +=
+			((ts_start + i) % 2 != 0) +
+			((ts_start + i) % 3 != 0);
+	M0_UT_ASSERT(actual_evicted_call_count == expected_count);
+}
+
+/* Use-case: client eviction with empty log -- nothing to replay. */
+static void remach_cli_evict_empty_log(void)
+{
+	remach_client_eviction(NULL, NULL, ut_evict_log_verify_empty);
+}
+
+/*
+ * Use-case: client eviction with all log records coming from this client --
+ * replay entire log.
+ */
+static void remach_cli_evict_replay_all(void)
+{
+	remach_client_eviction(ut_evict_log_gen_replay_all, NULL,
+			       ut_evict_log_verify_replay_all);
+}
+
+/*
+ * Use-case: client eviction.  Two persistent participants, all-P in all
+ * entries, there must be no replay.
+ */
+static void remach_cli_evict_all_p(void)
+{
+	remach_client_eviction(ut_evict_log_gen_all_p, NULL,
+			       ut_evict_log_verify_all_p);
+}
+
+/*
+ * Use-case: client eviction; two clients, their transactions are alternating in
+ * the log (one client in odd transactions, another in even); one of the clients
+ * dies.  This test case for evicting odd entries.
+ */
+static void remach_cli_evict_replay_odd(void)
+{
+	remach_client_eviction(ut_evict_log_gen_replay_odd,
+			       ut_evict_redo_post_verify_replay_odd,
+			       ut_evict_log_verify_replay_odd);
+}
+
+/*
+ * Use-case: client eviction; two clients, their transactions are alternating in
+ * the log (one client in odd transactions, another in even); one of the clients
+ * dies.  This test case for evicting even entries.
+ */
+static void remach_cli_evict_replay_even(void)
+{
+	remach_client_eviction(ut_evict_log_gen_replay_even,
+			       ut_evict_redo_post_verify_replay_even,
+			       ut_evict_log_verify_replay_even);
+}
+
+/*
+ * Use-case: client eviction.  Three persistent participants, different
+ * combinations of P-flag in different records.
+ */
+static void remach_cli_evict_mixed(void)
+{
+	remach_client_eviction(ut_evict_log_gen_1c3pa,
+			       ut_evict_redo_post_verify_mixed,
+			       ut_evict_log_verify_mixed);
+}
+
 extern void m0_dtm0_ut_drlink_simple(void);
 extern void m0_dtm0_ut_domain_init_fini(void);
 
 struct m0_ut_suite dtm0_ut = {
 	.ts_name = "dtm0-ut",
 	.ts_tests = {
-		{ "xcode",                  cas_xcode_test        },
-		{ "drlink-simple",         &m0_dtm0_ut_drlink_simple },
-		{ "domain_init-fini",      &m0_dtm0_ut_domain_init_fini },
-		{ "remach-init-fini",       remach_init_fini      },
-		{ "remach-start-stop",      remach_start_stop     },
-		{ "remach-boot-cluster-ss", remach_boot_cluster_ss },
-		{ "remach-boot-cluster-cs", remach_boot_cluster_cs },
-		{ "remach-reboot-server",   remach_reboot_server  },
-		{ "remach-reboot-twice",    remach_reboot_twice   },
-		{ "remach-boot-real-log",   remach_boot_real_log  },
-		{ "remach-real-log-replay", remach_real_log_replay  },
+		{ "xcode",                    cas_xcode_test              },
+		{ "drlink-simple",           &m0_dtm0_ut_drlink_simple    },
+		{ "domain_init-fini",        &m0_dtm0_ut_domain_init_fini },
+		{ "remach-init-fini",         remach_init_fini            },
+		{ "remach-start-stop",        remach_start_stop           },
+		{ "remach-boot-cluster-ss",   remach_boot_cluster_ss      },
+		{ "remach-boot-cluster-cs",   remach_boot_cluster_cs      },
+		{ "remach-reboot-server",     remach_reboot_server        },
+		{ "remach-reboot-twice",      remach_reboot_twice         },
+		{ "remach-boot-real-log",     remach_boot_real_log        },
+		{ "remach-real-log-replay",   remach_real_log_replay      },
+		{ "remach-rec-mark-empty",    remach_rec_mark_empty       },
+		{ "remach-rec-mark-nonempty", remach_rec_mark_nonempty    },
+		{ "remach-client-eviction-empty-log",
+			                      remach_cli_evict_empty_log  },
+		{ "remach-client-eviction-replay-all",
+			                      remach_cli_evict_replay_all },
+		{ "remach-client-eviction-all-p",
+			                      remach_cli_evict_all_p      },
+		{ "remach-client-eviction-replay-odd",
+			                      remach_cli_evict_replay_odd },
+		{ "remach-client-eviction-replay-even",
+			                      remach_cli_evict_replay_even },
+		{ "remach-client-eviction-mixed",
+			                      remach_cli_evict_mixed      },
 		{ NULL, NULL },
 	}
 };

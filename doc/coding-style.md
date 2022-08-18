@@ -231,13 +231,9 @@ try to adhere to some higher level idioms.
     achieve the required goal. When creating a macro take care to:
 
       - evaluate arguments only once,
-
       - type-check (see min_t() macro in the Linux kernel),
-
       - never affect control flow from a macro,
-
       - capitalize macro name,
-
       - properly parenthesize so that macro works in any context;
 
   * return code conventions follow linux: return 0 for success,
@@ -496,12 +492,12 @@ abstraction, the more effort is spent jumping around the abstraction wall.
 The experience with large long term projects, such as Lustre and Linux kernel,
 demonstrated that after a certain threshold readability is at least as important
 as modifiability. In such projects, abstraction and modularity are properties of
-the software *design*, whereas the code, produced from the design, is optimised
+the software **design**, whereas the code, produced from the design, is optimised
 toward the long term readability.
 
 Some concrete consequences:
 
-  * keep the code *visually* compact. The amount of code visible at the screen
+  * keep the code **visually** compact. The amount of code visible at the screen
     at once is very important, if you stare at it for hours. Blank lines are
     precious resource;
 
@@ -517,7 +513,7 @@ Some concrete consequences:
     accesses have nice properties (like side-effect freedom), which are
     important for code analysis and which function wrapper hides. Besides, C
     type system doesn't allow correct handling of constness in this case,
-    unless you have *two* wrappers;
+    unless you have **two** wrappers;
 
   * more generally, abstractions should be introduced for design purposes,
     e.g., to mark a point of possible variability. Sub-modules,

@@ -33,7 +33,6 @@
                  34sns-repair-1n-1f
                  35m0singlenode
                  36spare-reservation
-                 37protocol
                  51kem)
 
  # libisal does not need kernel based ST
@@ -115,6 +114,7 @@ check_and_restart_lnet() {
         if [[ $(is_lnet_available) == "false" ]]; then
             modprobe lnet
             lctl network up >/dev/null
+            systemctl restart lnet
             if [[ $(is_lnet_available) == "true" ]]; then
                 result="true"
             fi

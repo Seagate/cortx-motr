@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1068,7 +1068,7 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 	struct m0_fom_cob_op	      cc;
 	struct m0_reqh_io_service    *ios;
 	struct m0_cob_attr            attr = { {0, } };
-	struct m0_cob_oikey           oikey;
+	struct m0_cob_oikey           oikey = {};
 	struct m0_cob                *cob;
 
 	cob_attr_default_fill(&attr);
@@ -1117,6 +1117,7 @@ static int bulkio_stob_create_fom_tick(struct m0_fom *fom)
 	m0_cob_oikey_make(&oikey, &cc.fco_cfid, 0);
 	rc = m0_cob_locate(ios->rios_cdom, &oikey, 0, &cob);
 	M0_UT_ASSERT(rc == 0);
+	m0_cob_put(cob);
 
 	wrep = m0_fop_data(fom->fo_rep_fop);
 	wrep->c_rep.rwr_rc = 0;

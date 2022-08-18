@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -596,6 +596,12 @@ M0_INTERNAL void m0_sm_move(struct m0_sm *mach, int32_t rc, int state);
    @post m0_mutex_is_locked(&mach->sm_grp->s_lock)
  */
 void m0_sm_state_set(struct m0_sm *mach, int state);
+
+/**
+ * Behaves similar to m0_sm_state_set() but also adds the provided return 
+ * code in the state machine.
+ */
+M0_INTERNAL void m0_sm_state_and_rc_set(struct m0_sm *mach, int state, int32_t rc);
 
 /** Get human readable name (m0_sm_state_descr::sd_name) for the given state */
 M0_INTERNAL const char *m0_sm_state_name(const struct m0_sm *mach, int state);
