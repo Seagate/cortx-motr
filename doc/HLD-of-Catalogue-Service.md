@@ -187,7 +187,7 @@ tx_close(tx);
 | :------------- | :------------- | :-------------|
 
 
-```
+```C
 count = 0;
 
 cat = catalogue_get(req.cfid);
@@ -219,7 +219,7 @@ tx_close(tx);
 | NEXT    | cfid, input: array of {key, nr}	rc     | output: array of { rec: array of { key, val } }
 | :------------- | :------------- | :---------------|
 
-```	 
+```C	 
 count = 0;
 
 cat = catalogue_get(req.cfid);
