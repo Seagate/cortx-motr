@@ -3,8 +3,8 @@
 - I. Motr Client
   - I.1 Application and motr data structure
   - I.2 Parity Group Computation 
-  - I.2 Tracking Data Unit Allocated to Object
-  - I.3 FOP Sending and Checksum Processing
+  - I.3 Tracking Data Unit Allocated to Object
+  - I.4 FOP Sending and Checksum Processing
     - Write Path
     - Read Path
 - II. Motr Server Write Path
@@ -48,7 +48,7 @@ Data Received from application
 
 ![image](./Images/DI02.png)
 Parity Group Data Structure
-### I.2 Tracking Data Unit Allocated to Object
+### I.3 Tracking Data Unit Allocated to Object
 For DI computation an array (ti_goff_ivec) for each target is allocated to track global offset of each segment.
 
 ![image](./Images/DI03.png)
@@ -56,7 +56,7 @@ Mapping Data and Parity to Global Offset Space
  
 
 ![image](./Images/DI04.png)
-### I.3 FOP Sending and Checksum Processing
+### I.4 FOP Sending and Checksum Processing
 During FOP processing based on the DU goff which is added to the target structure (ti_goff_ivec), Parity Group Index and Data Unit Index is computed and stored in structure/array of FOP (irf_cksum_data)
 
 ### Write Path
@@ -102,7 +102,8 @@ As part of balloc processing, server codes find the number of contiguous fragmen
 - m0_indexvec si_stob : Tracking balloc fragment
 
 ![image](./Images/DI07.png)
-Balloc Processing and Fragment Computation 
+Balloc Processing and Fragment Computation
+
 These balloc-extent along with its buffer from unit for Storage IO.  
 
 ![image](./Images/DI08.png)
