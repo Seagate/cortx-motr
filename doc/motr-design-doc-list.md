@@ -28,9 +28,13 @@
 |     |                                   |  89         | [ADDB Overview](/doc/PDF/ADDB_overview.pdf) |  [ADDB](/doc/ADDB.rst)  |
 |  14 |      dtm/dtm.h                    |  71         | [HLD of DTM](/doc/PDF/HLD_of_distributed_transaction_manager.pdf) |    |
 |  16 |       fdmi/fdmi.c                 |  842        | [HLD of FDMI](/doc/PDF/HLD_of_FDMI_(reformatted).pdf) |  [HLD of FDMI](/doc/HLD-of-FDMI.md)  |
-|     |       fdmi/fdmi.c                 |  842        | [HLD of FDMI](/doc/PDF/HLD_of_FDMI_(reformatted).pdf) |  [HLD of FDMI](/doc/HLD-of-FDMI.md)  |
-|     |       fdmi/fdmi.c                 |  842        | [HLD of FDMI](/doc/PDF/HLD_of_FDMI_(reformatted).pdf) |  [HLD of FDMI](/doc/HLD-of-FDMI.md)  |
-
+|  18 |       file/file.c                 |  122        | [HLD of RM Interfaces](/doc/PDF/HLD_of_RM_interfaces.pdf) |  [HLD of RM Interfaces](/doc/HLD-Resource-Management-Interface.md)  |
+|  20 |       fop/fom_generic.h           |  50         | [HLD of fop object iterator](/doc/PDF/HLD_of_fop_object_iterator.pdf) | [HLD of fop object iterator](/doc/HLD-fop-object-Iterator.md)  |
+|  22 |       ioservice/io_foms.c         |  556        | [FOPFOM Programming Guide](/doc/PDF/FOPFOM_Programming_Guide.pdf) | [FOPFOM Programming Guide](/doc/FOPFOM-Programming-Guide.md)  |
+|  23 |       ioservice/io_fops.c         |  526        | [HLD of FOL](/doc/PDF/HLD_of_FOL.pdf) | [HLD of FOL](/doc/HLD-of-FOL.md)  |
+|  20 |       fop/fom_generic.h           |  50         | [HLD of fop object iterator](/doc/PDF/HLD_of_fop_object_iterator.pdf) | [HLD of fop object iterator](/doc/HLD-fop-object-Iterator.md)  |
+|  20 |       fop/fom_generic.h           |  50         | [HLD of fop object iterator](/doc/PDF/HLD_of_fop_object_iterator.pdf) | [HLD of fop object iterator](/doc/HLD-fop-object-Iterator.md)  |
+|  20 |       fop/fom_generic.h           |  50         | [HLD of fop object iterator](/doc/PDF/HLD_of_fop_object_iterator.pdf) | [HLD of fop object iterator](/doc/HLD-fop-object-Iterator.md)  |
 
 
 
