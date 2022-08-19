@@ -53,11 +53,10 @@ This document provides information on how to build motr from source and then run
             ```
             > A single node CDF should look like this:
                 
+		```yaml
                 # Cluster Description File (CDF).
                 # See `cfgen --help-schema` for the format description.
                 nodes:
-		
-                ```yaml
 	            - hostname: ssu0     # [user@]hostname
 	              data_iface: ens33        # name of data network interface
 	              #data_iface_type: o2ib  # type of network interface (optional);
@@ -104,12 +103,10 @@ This document provides information on how to build motr from source and then run
 	                 #    pools: [ the pool ]
                 ```
             > Whereas a CDF with 3 nodes should look like this:
-               
+               ```yaml
                 # Cluster Description File (CDF).
                 # See `cfgen --help-schema` for the format description.
                 nodes:
-
-		```yaml
 	            - hostname: ssu0     # [user@]hostname
 	              data_iface: ens33        # name of data network interface
 	              #data_iface_type: o2ib  # type of network interface (optional);
@@ -258,7 +255,7 @@ This document provides information on how to build motr from source and then run
 
 8. ### Start the cluster:
     Run this at the main node, the first node (hostname) listed at the CDF.
-    ```sh
+    ```yaml
     hctl bootstrap --mkfs ~/CDF.yaml
     ```
 9. ### Run I/O test:
@@ -276,5 +273,3 @@ This document provides information on how to build motr from source and then run
 - Jul 2, 2021: Daniar Kurniawan (daniar@uchicago.edu) using CentOS 7.8.2003 on 4 bare-metal servers hosted by [Chameleon](https://www.chameleoncloud.org/) (node_type=Skylake).
 - Feb 22, 2021: Mayur Gupta (mayur.gupta@seagate.com) using CentOS 7.8.2003 on a Windows laptop running VMware Workstation.
 - Feb 10, 2021: Patrick Hession (patrick.hession@seagate.com) using CentOS 7.8.2003 on a Windows laptop running Windows Hyper-V.
-
-
