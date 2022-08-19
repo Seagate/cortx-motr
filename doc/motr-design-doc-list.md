@@ -34,10 +34,27 @@
 |  23 |       ioservice/io_fops.c         |  526        | [HLD of FOL](/doc/PDF/HLD_of_FOL.pdf) | [HLD of FOL](/doc/HLD-of-FOL.md)  |
 |     |       fop/fom_generic.h           |             | [HLD of Data Block Allocator](/doc/PDF/HLD_of_fop_object_iterator.pdf) | [HLD of Data Block Allocator](/doc/HLD-Data-Block-Allocator.md)  |
 |  24 |       ioservice/io_fops.c         |  795        | [RPC Bulk Transfer Task Plan](/doc/PDF/RPC_Bulk_Transfer_Task_Plan.pdf) |
-|  25 |          iscservice/isc.h         |  101        | [ISC Service User Guide](/doc/PDF/ISC_user_guide.pdf) |  [ISC Service User Guide](ISC-Service-User-Guide.md)
-|  25 |          iscservice/isc.h         |  57         | [HLD_of_Object_Index](/doc/PDF/HLD_of_Object_Index_(COB).pdf) |  [HLD_of_Object_Index](HLD-of-Motr-Object-Index.md) 
-|  25 |          iscservice/isc.h         |  101        | [ISC Service User Guide](/doc/PDF/ISC_user_guide.pdf) |  [ISC Service User Guide](ISC-Service-User-Guide.md) 
-|  25 |          iscservice/isc.h         |  101        | [ISC Service User Guide](/doc/PDF/ISC_user_guide.pdf) |  [ISC Service User Guide](ISC-Service-User-Guide.md) 
+|  25 |          iscservice/isc.h         |  101        | [ISC Service User Guide](/doc/PDF/ISC_user_guide.pdf) |  [ISC Service User Guide](/doc/ISC-Service-User-Guide.md)
+|  26 |          iscservice/isc.h         |  57         | [HLD_of_Object_Index](/doc/PDF/HLD_of_Object_Index_(COB).pdf) |  [HLD_of_Object_Index](/doc/HLD-of-Motr-Object-Index.md) 
+|  27 |          layout/layout_db.c       |  336        | [HLD of Layout Schema](/doc/PDF/HLD_of_layout_schema.pdf) |  [HLD of Layout Schema](/doc/HLD-Layout-Schema.md) 
+| 33  | net/bulk_emulation/mem_xprt.h     |     95      | [RPC Bulk Transfer Task Plan](/doc/PDF/RPC_Bulk_Transfer_Task_Plan.pdf) |          
+|  34 |            	net/lnet/bev_cqueue.c |      61     | [HLD of Motr LNet Transport](/doc/PDF/HLD_Motr_LNet_Transport.pdf) |  [HLD of Motr LNet Transport](/doc/HLD-OF-Motr-LNet-Transport.md)
+|  54	|                  reqh/reqh.h	    |       56	  | [HLD of Request Handler](/doc/PDF/HLD_of_request_handler.pdf) |   [HLD of Request Handler](/doc/Request_Handler.rst)
+|  55 |     rm/rm_rwlock.c                |   145       | [HLD of RM Interfaces](/doc/PDF/HLD_of_RM_interfaces.pdf) |  [HLD of RM Interfaces](/doc/HLD-Resource-Management-Interface.md)
+| 57 |       rpc/at.h        |   203   |  |  [RP Adaptive Transmission](/doc/RPC_Adaptive_Transmission.rst)
+|  |     |         | [HLD of Function Shipping](/doc/PDF/HLD_of_Function_Shipping_and_In-Storage_Compute.pdf) |  
+|   |   |   | [HLD of ADDB Monitoring](/doc/PDF/HLD_of_ADDB_Monitoring.pdf) |  [HLD of ADDB Monitoring](/doc/ADDB_Monitoring.md)
+|  |  | | [HLD of Auxillary Databases](/doc/PDF/HLD_%20of_%20Auxiliary_Databases_%20for_%20SNS%20repair.pdf) |  [HLD of Auxillary Databases](/doc/HLD-of-Auxillary-Databases.md)
+|   |   |   | [HLD of Background Scrub](/doc/PDF/HLD_of_Background_Scrub.pdf) |  [HLD of Background Scrub](/doc/HLD-Background-Scrub.md)
+|   |   |   | [HLD of Motr Lostore](/doc/PDF/HLD_of_Motr_lostore.pdf) |  [HLD of Motr Lostore](/doc/HLD-of-Motr-Lostore.md)
+|   |   |   | [HLD of Motr Network Benchmark](/doc/PDF/HLD_of_Motr_Network_Benchmark.pdf) |  
+|   |   |   | [HLD of Configuration Caching](/doc/PDF/HLD_of_configuration_caching.pdf) |  [HLD of Configuration Caching](HLD-of-Motr-Caching.md)
+|   |   |   | [HLD of ADDB Monitoring](/doc/PDF/HLD_of_ADDB_Monitoring.pdf) |  [HLD of ADDB Monitoring](/doc/ADDB_Monitoring.md)
+|   |   |   | [HLD of ADDB Monitoring](/doc/PDF/HLD_of_ADDB_Monitoring.pdf) |  [HLD of ADDB Monitoring](/doc/ADDB_Monitoring.md)
+|   |   |   | [HLD of ADDB Monitoring](/doc/PDF/HLD_of_ADDB_Monitoring.pdf) |  [HLD of ADDB Monitoring](/doc/ADDB_Monitoring.md)
+|   |   |   | [HLD of ADDB Monitoring](/doc/PDF/HLD_of_ADDB_Monitoring.pdf) |  [HLD of ADDB Monitoring](/doc/ADDB_Monitoring.md)
+|   |   |   | [HLD of ADDB Monitoring](/doc/PDF/HLD_of_ADDB_Monitoring.pdf) |  [HLD of ADDB Monitoring](/doc/ADDB_Monitoring.md)
+
 
 
 
