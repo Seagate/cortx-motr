@@ -6,7 +6,7 @@ The main purposes of this document are:
  3. To serve as a design reference document. The intended audience of this document consists of Motr customers, architects, designers, and developers.  
 
 
- ## Introduction    
+## Introduction  
  Meta-data back-end (BE) is a module presenting an interface for a transactional local meta-data storage. BE users manipulate and access meta-data structures in memory. BE maps this memory to persistent storage. User groups meta-data updates in transactions. BE guarantees that transactions are atomic in the face of process failures.
 
 BE provides support for a few frequently used data structures: double linked list, B-tree, and exit map.  

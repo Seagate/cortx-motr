@@ -447,7 +447,9 @@ M0_INTERNAL int m0_rpc_session_establish(struct m0_rpc_session *session,
 	if (rc == 0) {
 		session_state_set(session, M0_RPC_SESSION_ESTABLISHING);
 	} else {
-		session_failed(session, rc);
+		if(!M0_IN(session_state(session), (M0_RPC_SESSION_FAILED))) {
+			session_failed(session, rc);
+		}
 	}
 	m0_fop_put(fop);
 
@@ -510,11 +512,11 @@ M0_INTERNAL void m0_rpc_session_establish_reply_received(struct m0_rpc_item
 	M0_ASSERT(m0_rpc_machine_is_locked(machine));
 
 	M0_ASSERT(m0_rpc_session_invariant(session));
-	M0_ASSERT_INFO(session_state(session) == M0_RPC_SESSION_ESTABLISHING,
-		       "Invalid session state: expected %s, got %s",
+	if (session_state(session) != M0_RPC_SESSION_ESTABLISHING) {
+		M0_LOG(M0_ERROR, "Invalid session state: expected %s, got %s",
 		       m0_rpc_session_state_to_str(M0_RPC_SESSION_ESTABLISHING),
 		       m0_rpc_session_state_to_str(session_state(session)));
-
+	}
 	rc = m0_rpc_item_error(item);
 	if (rc == 0) {
 		reply_item = item->ri_reply;

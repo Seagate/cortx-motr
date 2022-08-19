@@ -26,6 +26,7 @@
 #include "lib/trace.h"        /* M0_LOG */
 #include "lib/uuid.h"         /* m0_uuid_generate */
 #include "lib/finject.h"      /* Failure Injection */
+#include "lib/cksum_data.h"
 #include "ioservice/fid_convert.h"
 
 #include "ut/ut.h"            /* M0_UT_ASSERT */
@@ -933,7 +934,6 @@ static void ut_test_ioreq_application_data_copy(void)
 	int                          buf_idx = 0;
 	enum m0_pi_calc_flag         flag = M0_PI_CALC_UNIT_ZERO;
 	struct m0_ivec_cursor        extcur;
-	//int l;
 
 	/* init client */
 	instance = dummy_instance;
@@ -955,7 +955,8 @@ static void ut_test_ioreq_application_data_copy(void)
 	M0_UT_ASSERT(rc == 0);
 
 	stashed1 = ioo->ioo_attr;
-	rc = m0_bufvec_alloc(&ioo->ioo_attr, 6, sizeof(struct m0_md5_inc_context_pi));
+	rc = m0_bufvec_alloc(&ioo->ioo_attr, 6,
+	                     sizeof(struct m0_md5_inc_context_pi));
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_bufvec_alloc(&ioo->ioo_attr, 6, UT_DEFAULT_BLOCK_SIZE);
@@ -976,11 +977,11 @@ static void ut_test_ioreq_application_data_copy(void)
 	/* Check multiple blocks of data are copied */
 	for (i = 0; i < ioo->ioo_data.ov_vec.v_nr; i++)
 		memset(ioo->ioo_data.ov_buf[i], 0,
-			ioo->ioo_data.ov_vec.v_count[i]);
+		       ioo->ioo_data.ov_vec.v_count[i]);
 
 	for (i = 0; i < ioo->ioo_attr.ov_vec.v_nr; i++)
 		memset(ioo->ioo_attr.ov_buf[i], 0,
-			ioo->ioo_attr.ov_vec.v_count[i]);
+		       ioo->ioo_attr.ov_vec.v_count[i]);
 
 	for (k = 0; k < ioo->ioo_iomap_nr; k++) {
 		struct pargrp_iomap *map = ioo->ioo_iomaps[k];
@@ -1013,7 +1014,8 @@ static void ut_test_ioreq_application_data_copy(void)
 
 			if (unit_idx != 0) {
 				flag = M0_PI_NO_FLAG; 
-				memcpy(pi.pimd5c_prev_context, curr_context, sizeof(MD5_CTX));
+				memcpy(pi.pimd5c_prev_context, curr_context,
+				       sizeof(MD5_CTX));
 			}
 
 			for (i = 0; i < map->pi_max_row; i++) {
@@ -1024,12 +1026,14 @@ static void ut_test_ioreq_application_data_copy(void)
 				seed.pis_data_unit_offset = m0_ivec_cursor_index(&extcur);
 
 				rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-						&seed, &user_data, flag,
-						curr_context, NULL);
+							    &seed, &user_data,
+							    flag, curr_context,
+							    NULL);
 				M0_UT_ASSERT(rc == 0);
 			}
 
-			memcpy(ioo->ioo_attr.ov_buf[unit_idx], &pi, sizeof(struct m0_md5_inc_context_pi));
+			memcpy(ioo->ioo_attr.ov_buf[unit_idx], &pi,
+			       sizeof(struct m0_md5_inc_context_pi));
 			unit_idx++;
 			m0_ivec_cursor_move(&extcur, UT_DEFAULT_BLOCK_SIZE);
 		}
