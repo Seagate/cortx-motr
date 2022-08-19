@@ -27,12 +27,53 @@ set -e
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
+currdir=$(pwd)
+SANITY_SANDBOX_DIR="/var/motr/sanity_$timestamp"
 . $M0_SRC_DIR/utils/functions # report_and_exit
 
 cd $M0_SRC_DIR
+start_singlenode()
+{
+	mkdir -p "$SANITY_SANDBOX_DIR"
+	cd "$SANITY_SANDBOX_DIR"
 
+	# setup motr singlenode
+	$M0_SRC_DIR/utils/m0singlenode activate
+	$M0_SRC_DIR/utils/m0setup -cv -d "$SANITY_SANDBOX_DIR" -m "$SANITY_SANDBOX_DIR"
+	$M0_SRC_DIR/utils/m0setup -N 1 -K 0 -S 0 -P 8 -s 8 -Mv -d "$SANITY_SANDBOX_DIR" \
+		-m "$SANITY_SANDBOX_DIR" --no-m0t1fs
+
+	# start motr
+	$M0_SRC_DIR/utils/m0singlenode start
+}
+
+stop_singlenode()
+{
+	# stop motr
+	$M0_SRC_DIR/utils/m0singlenode stop
+	$M0_SRC_DIR/utils/m0setup -cv -d "$SANITY_SANDBOX_DIR" -m "$SANITY_SANDBOX_DIR"
+	cd "$currdir"
+
+	# cleanup remaining motr-services
+	systemctl start motr-cleanup
+
+	# remove sanity test sandbox directory
+	if [[ "$1" == "cleanup" ]]
+	then
+		rm -rf "$SANITY_SANDBOX_DIR"
+	fi
+}
 sudo ./scripts/install-motr-service -u
 sudo ./scripts/install-motr-service -l
-sudo /usr/bin/time -v ./st/m0t1fs -vv
+
+start_singlenode
+echo "=================================================="
+echo "========Motr singlenode services started=========="
+echo "=================================================="
+stop_singlenode "cleanup"
+echo "=================================================="
+echo "========Motr singlenode services stopped=========="
+echo "=================================================="
+
 
 report_and_exit initscripts $?
