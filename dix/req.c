@@ -1409,8 +1409,8 @@ static void dix_rop(struct m0_dix_req *req)
 }
 
 /** Checks if the given cas get reply has a newer version of the value */
-static bool dix_item_version_cmp(struct m0_dix_item *ditem,
-				 struct m0_cas_get_reply *get_rep) {
+static int dix_item_version_cmp(const struct m0_dix_item *ditem,
+				const struct m0_cas_get_reply *get_rep) {
 	/*
 	 * TODO: once cas versions are propagated, check if the get reply
 	 * has a newer version than seen previously. Will need to add
@@ -1419,7 +1419,7 @@ static bool dix_item_version_cmp(struct m0_dix_item *ditem,
 	 * an older version. For now, always return true so the last
 	 * reply in the array wins.
 	 */
-	return true;
+	return -1;
 }
 
 static void dix_item_rc_update(struct m0_dix_req  *req,
@@ -1438,7 +1438,7 @@ static void dix_item_rc_update(struct m0_dix_req  *req,
 		case DIX_GET:
 			m0_cas_get_rep(creq, key_idx, &get_rep);
 			rc = get_rep.cge_rc;
-			if (rc == 0 && dix_item_version_cmp(ditem, &get_rep)) {
+			if (rc == 0 && dix_item_version_cmp(ditem, &get_rep) < 0) {
 				m0_buf_free(&ditem->dxi_val);
 				ditem->dxi_val = get_rep.cge_val;
 				/* Value will be freed at m0_dix_req_fini(). */
