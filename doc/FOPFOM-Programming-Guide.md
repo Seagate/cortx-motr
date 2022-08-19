@@ -16,7 +16,7 @@ Native types:
 + void  
 
 A FOP can be declared as follows:
-```
+```C
 record {
         u64 f_seq;
         u64 f_oid
@@ -38,14 +38,15 @@ A .ff file should be compiled using ff2c compiler.
 After writing FOPs and creating .ff file for a particular module, we need to make an entry for the same in the module's Makefile.am file. This would automatically invoke ff2c on the .ff files and create corresponding “C” format structures.
 
 ** A FOP, containing native data types in file fom_io_xc.ff:**  
-```  
+```C  
 record {
         u64 f_seq;
         u64 f_oid
 } reqh_ut_fom_fop_fid;  
-```  
+``` 
+
 **Makefile.am entry:**  
-```
+```C
 UT_SRCDIR = @SRCDIR@/reqh/ut
 noinst_LTLIBRARIES = libreqh-ut.la
 INCLUDES = -I. -I$(top_srcdir)/include \ -I$(top_srcdir)
@@ -62,6 +63,7 @@ EXTRA_DIST = fom_io.ff
 
 MOSTLYCLEANFILES = $(FOM_FOPS)  
 ```  
+
 On compiling fom_io_xc.ff file using ff2c compiler, it creates corresponding fom_io_xc.h and fom_io_xc.c.
 
 ## Encoding-Decoding FOP
@@ -166,7 +168,7 @@ The major purpose of having FOMs and request handler is to have a non-blocking e
 A FOP is submitted to request handler through m0_reqh_fop_handle() interface for processing. Request handler then creates corresponding FOM by invoking the following:
 
 + m0_fop_type::ft_fom_type::ft_ops::fto_create()
-+ m0_fop_type_ops::ft_fom_init()
++ m0_fop_type_ops::ft_fom_init()   
 Once the FOM is created, a home locality is selected for the FOM by invoking the following:
 + m0_fom_ops::fo_home_locality()  
 

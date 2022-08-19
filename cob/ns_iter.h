@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2012-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2012-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,7 +50,6 @@ struct m0_cob_fid_ns_iter {
 	/** Cob domain. */
 	struct m0_cob_domain *cni_cdom;
 
-	struct m0_be_btree_cursor  cni_it;
 	/** Last fid value returned. */
 	struct m0_fid         cni_last_fid;
 };
@@ -76,7 +75,7 @@ M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
 				    struct m0_fid *gfid,
 				    struct m0_cob_nsrec **nsrec);
 
-M0_INTERNAL int m0_cob_ns_rec_of(struct m0_be_btree *cob_namespace,
+M0_INTERNAL int m0_cob_ns_rec_of(struct m0_btree *cob_namespace,
 				 const struct m0_fid *key_gfid,
 				 struct m0_fid *next_gfid,
 				 struct m0_cob_nsrec **nsrec);

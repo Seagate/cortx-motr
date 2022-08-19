@@ -193,7 +193,7 @@ static void test_write(int i)
 	io.si_cksum_sz = AD_ADIEU_CS_SZ;
 	// Checksum for i buf_size blocks
 	io.si_cksum.b_addr = user_cksm_buf[0];
-	io.si_cksum.b_nob  = ( i * AD_ADIEU_CS_SZ );
+	io.si_cksum.b_nob  = (i * AD_ADIEU_CS_SZ);
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
@@ -232,7 +232,7 @@ static void test_read(int i)
 	io.si_cksum_sz = AD_ADIEU_CS_SZ;
 	// Checksum for i buf_size blocks
 	io.si_cksum.b_addr = read_cksm_buf[0];
-	io.si_cksum.b_nob  = ( i * AD_ADIEU_CS_SZ );
+	io.si_cksum.b_nob  = (i * AD_ADIEU_CS_SZ);
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
@@ -286,7 +286,8 @@ static void test_adieu(const char *path)
 
 	for (i = 1; i < NR; ++i) {
 		test_read(i);
-		M0_ASSERT(memcmp(user_buf[i - 1], read_buf[i - 1], buf_size) == 0);
+		M0_ASSERT(memcmp(user_buf[i - 1], read_buf[i - 1],
+				 buf_size) == 0);
 		// TODO: Check how this can be enabled for linux stob
 		// M0_ASSERT(memcmp(user_cksm_buf[i - 1], read_cksm_buf[i - 1], AD_ADIEU_CS_SZ) == 0);
 	}

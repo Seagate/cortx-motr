@@ -18,14 +18,14 @@ This document provides information on how to build motr from source and then run
 
 3.  ### Configure your CDF ( cluster description file ) to "point" to all nodes in your cluster:
     1.  Create the CDF:
-        ```sh
+        ```yaml
         cp /opt/seagate/cortx/hare/share/cfgen/examples/singlenode.yaml ~/CDF.yaml
         vi ~/CDF.yaml
         ```
 
-    1. Configure the CDF to "point" to each node in the cluster:
+    2. Configure the CDF to "point" to each node in the cluster:
         1. Add this text N-1 times, where N is the number of nodes to your CDF. The `ip a` will provide your available data_iface values, you must use the one that has `state UP`. Next, you can get the hostname for the node by running `cat /etc/hostname`. However, in some cases, the hostname might not be publicly recognizable by other nodes, so it's recommended to put an IP address instead of a hostname.
-            ```sh
+            ```yaml
             - hostname: ssu0     # [user@]hostname
               data_iface: ens33        # name of data network interface
               #data_iface_type: o2ib  # type of network interface (optional);
@@ -53,10 +53,11 @@ This document provides information on how to build motr from source and then run
             ```
             > A single node CDF should look like this:
                 
-                
                 # Cluster Description File (CDF).
                 # See `cfgen --help-schema` for the format description.
                 nodes:
+		
+                ```yaml
 	            - hostname: ssu0     # [user@]hostname
 	              data_iface: ens33        # name of data network interface
 	              #data_iface_type: o2ib  # type of network interface (optional);
@@ -101,12 +102,14 @@ This document provides information on how to build motr from source and then run
 	                 #profiles:
 	                 #  - name: default
 	                 #    pools: [ the pool ]
-                
+                ```
             > Whereas a CDF with 3 nodes should look like this:
-     
+               
                 # Cluster Description File (CDF).
                 # See `cfgen --help-schema` for the format description.
                 nodes:
+
+		```yaml
 	            - hostname: ssu0     # [user@]hostname
 	              data_iface: ens33        # name of data network interface
 	              #data_iface_type: o2ib  # type of network interface (optional);
@@ -201,19 +204,20 @@ This document provides information on how to build motr from source and then run
 	                 #profiles:
 	                 #  - name: default
 	                 #    pools: [ the pool ]
+                      ```
 
-1. ### Disable the firewall on each node:
+4. ### Disable the firewall on each node:
     This is needed by s3 server, no need to do this if you don't have s3 client (`s3: 0`) on the CDF (at `m0_clients` section).
     ```sh
     sudo systemctl stop firewalld 
     sudo systemctl disable firewalld
     ```
 
-1. ### Make sure that selinux is turned off:
+5. ### Make sure that selinux is turned off:
     This is needed by s3 server, no need to do this if you don't have s3 client (`s3: 0`) on the CDF (at `m0_clients` section).
     * `vi /etc/selinux/config` and make sure that selinux is turned off
 
-1. ### Configure passwordless ssh:
+6. ### Configure passwordless ssh:
     * On the main node:
         ```sh
         ssh-keygen
@@ -241,7 +245,7 @@ This document provides information on how to build motr from source and then run
             PasswordAuthentication no
             PermitRootLogin without-password
             ```
-1. ### Run the following commands on ALL ( main and child ) nodes:
+7. ### Run the following commands on ALL ( main and child ) nodes:
     Should be run only once. If you run it twice, the second run will cancel out the setup. 
     ```sh
     sudo mkdir -p /var/motr
@@ -250,19 +254,20 @@ This document provides information on how to build motr from source and then run
         sudo losetup /dev/loop$i /var/motr/disk$i.img
     done
     ``` 
-    Check using `lsblk | grep loop` and make sure that you have loop devices listed.
-1. ### Start the cluster:
+    Check using `lsblk | grep loop` and make sure that you have loop devices listed.  
+
+8. ### Start the cluster:
     Run this at the main node, the first node (hostname) listed at the CDF.
     ```sh
     hctl bootstrap --mkfs ~/CDF.yaml
     ```
-1. ### Run I/O test:
+9. ### Run I/O test:
     ```sh
     /opt/seagate/cortx/hare/libexec/m0crate-io-conf >/tmp/m0crate-io.yaml
     dd if=/dev/urandom of=/tmp/128M bs=1M count=128
     sudo m0crate -S /tmp/m0crate-io.yaml
     ```
-1. ### Stop the cluster:
+10. ### Stop the cluster:
     ```sh
     hctl shutdown
     ```

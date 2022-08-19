@@ -40,7 +40,6 @@ usr/sbin/m0composite
 usr/sbin/m0betool
 usr/sbin/m0dixinit
 usr/sbin/m0kemc
-usr/sbin/m0iscorrupt
 usr/sbin/m0mkfs
 usr/sbin/m0crate
 usr/sbin/m0reportbug

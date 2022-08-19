@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
@@ -95,7 +96,7 @@ EOF
 	for (( ; DDEV_ID < $dev_end; DDEV_ID++)) ; do
 		conf_ios_device_setup $DDEV_ID $id_count id_count "$ids" ids
 
-		dd if=/dev/zero of=$DDEV_ID$ddisk bs=1M seek=1M count=1 ||
+		dd if=/dev/zero of=$DDEV_ID$ddisk bs=1M seek=$IOS_DISK_SEEK_BLOCK_COUNT count=1 ||
 			return 1
 		if [ ! -e /dev/loop$DDEV_ID ]; then
 			create_loop_device $DDEV_ID
@@ -312,7 +313,7 @@ EOF
 		build_conf "$N" "$K" "$S" "$P" "$multiple_pools" | tee $DIR/conf.xc
 		common_opts="-D db -S stobs -A linuxstob:addb-stobs \
 			     -w $P -m $MAX_RPC_MSG_SIZE \
-			     -q $TM_MIN_RECV_QUEUE_LEN -N 100663296 -C 262144 -K 100663296 -k 262144"
+			     -q $TM_MIN_RECV_QUEUE_LEN -N 100663296 -C 307200 -K 100663296 -k 307200"
 
 		# mkfs for confd server
 		opts="$common_opts -T linux -e $XPRT:${CONFD_EP%:*:*}:$MKFS_PORTAL:1\
