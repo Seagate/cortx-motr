@@ -71,7 +71,7 @@ wget https://releases.hashicorp.com/vagrant/2.2.6/vagrant_2.2.6_x86_64.rpm
 sudo yum -y install ./vagrant_2.2.6_x86_64.rpm
 rm -fv ./vagrant_2.2.6_x86_64.rpm
 vagrant plugin install vagrant-{env,hostmanager,scp,libvirt}
-sudo usermod -a -G libvirt $USER
+sudo usermod -a -G libvirt "$USER"
 mv "/usr/bin/kvm" "/usr/bin/kvm--`date +'%d%m%Y_%H%M%S_%s'`"
 sudo ln -s /usr/libexec/qemu-kvm /usr/bin/kvm
 ls -l /usr/bin/kvm
@@ -89,14 +89,14 @@ echo -en "\nIf you already have the box image of the Vanila [CentOS/7] Box, ente
 read -t 300 box_path
 
 
-cd $HOME
+cd "$HOME"
 mkdir Centos7
 cd Centos7
 vagrant init "Centos/7"
 if [ "$box_path" == "" ]; then
 	vagrant box add Centos/7 --provider=libvirt
 else
-	vagrant box add "Centos/7" $box_path
+	vagrant box add "Centos/7" "$box_path"
 fi
 vagrant up
 vagrant status
