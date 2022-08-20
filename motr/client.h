@@ -660,10 +660,24 @@ enum m0_entity_type {
 	 *      the non-full last parity group, use M0_OOF_LAST flag instead.
 	 */
 	M0_ENF_NO_RMW =  1 << 1,
+
 	/**
-	 * This flag is to enable data integrity.
+	 * Note below two flags are for Data Integrity:
+	 * M0_ENF_DI - This flag should be set if application is passing checksum
+	 *             into ioo_attr
+	 * M0_ENF_GEN_DI - This flag should be set if application wants Motr to
+	 *                 generate checksum. Default checksum will be generated using
+	 *                 this M0_CKSUM_DEFAULT_PI algorithm
+	 * Note: Ideally only one flag should be set for DI, if both is set the Motr
+	 * will give priority to DI generation (M0_ENF_GEN_DI)
 	 */
- 	M0_ENF_DI = 1 << 2
+	/**
+	 * This flag is to indicate that application is passing checkum for the IO.
+	 */
+	M0_ENF_DI = 1 << 2,
+	 /* This flag will let Motr generate DI for the IO. */
+	M0_ENF_GEN_DI = 1 << 3
+
  } M0_XCA_ENUM;
 
 /**
@@ -709,6 +723,17 @@ struct m0_op {
 	/* Operation's private data, can be used as arguments for callbacks.*/
 	void                          *op_datum;
 	uint64_t                       op_count;
+
+	/**
+	 * This flag is set when there is an onging cancel operation.
+	 * There is no refcount in this op. But the op cancelling AST
+	 * needs this op being valid. The op cancelling AST will
+	 * semaphore up when it is done. The m0_op_fini() checks this flag
+	 * and semaphore down on it if needed. This will make sure the op
+	 * is not freed before the op cancel is done.
+	 */
+	bool                           op_cancelling;
+	struct m0_semaphore            op_sema;
 	/**
 	 * Private field, to be used by internal implementation.
 	 */

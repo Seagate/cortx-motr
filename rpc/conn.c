@@ -1210,6 +1210,9 @@ static void rpc_conn_sessions_cleanup_fail(struct m0_rpc_conn *conn, bool fail)
 			m0_rpc_rcv_session_terminate(session);
 		}
 		m0_rpc_session_fini_locked(session);
+		if (!fail) {
+			m0_free(session);
+		}
 	} m0_tl_endfor;
 	M0_POST(rpc_session_tlist_length(&conn->c_sessions) == 1);
 }

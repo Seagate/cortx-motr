@@ -3,7 +3,8 @@ be_tool_m0betool_SOURCES = \
                            be/tool/main.c \
                            be/tool/st.c
 
-be_tool_m0beck_SOURCES = be/tool/beck.c
+#TBD: Uncomment this after CORTX-32593 is fixed.
+#be_tool_m0beck_SOURCES = be/tool/beck.c
 
 EXTRA_DIST += \
               be/tool/common.h \
