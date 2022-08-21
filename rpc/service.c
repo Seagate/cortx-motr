@@ -55,6 +55,8 @@ static const struct m0_bob_type rpc_svc_bob = {
 };
 M0_BOB_DEFINE(M0_INTERNAL, &rpc_svc_bob, m0_rpc_service);
 
+static bool rev_conn_disconnected_cb(struct m0_clink *link);
+
 static int rpc_service_start(struct m0_reqh_service *service)
 {
 	struct m0_rpc_service *svc;
@@ -65,13 +67,17 @@ static int rpc_service_start(struct m0_reqh_service *service)
 	return 0;
 }
 
-static void rpc_service_stop(struct m0_reqh_service *service)
+static void rpc_service_prepare_to_stop(struct m0_reqh_service *service)
 {
 	struct m0_rpc_service *svc;
 
 	svc = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
 	m0_rpc_service_reverse_sessions_cleanup(service);
 	rev_conn_tlist_fini(&svc->rps_rev_conns);
+}
+
+static void rpc_service_stop(struct m0_reqh_service *service)
+{
 }
 
 static void rpc_service_fini(struct m0_reqh_service *service)
@@ -93,7 +99,8 @@ static const struct m0_reqh_service_ops rpc_ops = {
 	.rso_start      = rpc_service_start,
 	.rso_stop       = rpc_service_stop,
 	.rso_fini       = rpc_service_fini,
-	.rso_fop_accept = rpc_service_fop_accept
+	.rso_fop_accept = rpc_service_fop_accept,
+	.rso_prepare_to_stop = rpc_service_prepare_to_stop
 };
 
 static int rpc_service_allocate(struct m0_reqh_service **service,
@@ -178,17 +185,20 @@ m0_rpc_service_reverse_session_get(struct m0_reqh_service   *service,
 	rem_ep = m0_rpc_item_remote_ep_addr(item);
 
 	M0_ALLOC_PTR(revc);
-	rc = revc == NULL ? -ENOMEM : 0;
-	rc = rc ?: m0_rpc_link_init(&revc->rcf_rlink,
-				    item->ri_rmachine, NULL, rem_ep,
-				    M0_REV_CONN_MAX_RPCS_IN_FLIGHT);
-	if (rc == 0) {
-		m0_rpc_link_connect_async(&revc->rcf_rlink,
-				m0_time_from_now(M0_REV_CONN_TIMEOUT, 0),
-				clink);
-		*session = &revc->rcf_rlink.rlk_sess;
-		rev_conn_tlink_init_at_tail(revc, &svc->rps_rev_conns);
-	}
+	if (revc != NULL) {
+		m0_clink_init(&revc->rcf_disc_wait, NULL);
+		rc = m0_rpc_link_init(&revc->rcf_rlink,
+				      item->ri_rmachine, NULL, rem_ep,
+				      M0_REV_CONN_MAX_RPCS_IN_FLIGHT);
+		if (rc == 0) {
+			m0_rpc_link_connect_async(&revc->rcf_rlink,
+				     m0_time_from_now(M0_REV_CONN_TIMEOUT, 0),
+				     clink);
+			*session = &revc->rcf_rlink.rlk_sess;
+			rev_conn_tlink_init_at_tail(revc, &svc->rps_rev_conns);
+		}
+	} else
+		rc = M0_ERR(-ENOMEM);
 	return M0_RC(rc);
 }
 
@@ -217,7 +227,7 @@ static bool rev_conn_disconnected_cb(struct m0_clink *link)
 }
 
 M0_INTERNAL void
-m0_rpc_service_reverse_session_put(struct m0_rpc_session *sess)
+m0_rpc_service_reverse_session_put(struct m0_rpc_session *sess, bool disc)
 {
 	struct m0_rpc_link           *rlk;
 	struct m0_reverse_connection *revc;
@@ -227,9 +237,11 @@ m0_rpc_service_reverse_session_put(struct m0_rpc_session *sess)
 	rlk  = container_of(sess, struct m0_rpc_link, rlk_sess);
 	revc = container_of(rlk, struct m0_reverse_connection, rcf_rlink);
 
-	M0_SET0(&revc->rcf_disc_wait);
 	if (revc->rcf_rlink.rlk_connected) {
-		m0_clink_init(&revc->rcf_disc_wait, rev_conn_disconnected_cb);
+		M0_PRE(!m0_clink_is_armed(&revc->rcf_disc_wait));
+		m0_clink_fini(&revc->rcf_disc_wait);
+		m0_clink_init(&revc->rcf_disc_wait,
+			      disc ? &rev_conn_disconnected_cb : NULL);
 		revc->rcf_disc_wait.cl_is_oneshot = true;
 		m0_rpc_link_disconnect_async(&revc->rcf_rlink,
 				m0_time_from_now(M0_REV_CONN_TIMEOUT, 0),
@@ -255,17 +267,11 @@ m0_rpc_service_reverse_sessions_cleanup(struct m0_reqh_service *service)
 	m0_sm_group_lock(m0_locality0_get()->lo_grp);
 	svc = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
 	m0_tl_for(rev_conn, &svc->rps_rev_conns, revc) {
-		M0_SET0(&revc->rcf_disc_wait);
-		if (revc->rcf_rlink.rlk_connected) {
-			m0_clink_init(&revc->rcf_disc_wait, NULL);
-			revc->rcf_disc_wait.cl_is_oneshot = true;
-			m0_rpc_link_disconnect_async(&revc->rcf_rlink,
-				m0_time_from_now(M0_REV_CONN_TIMEOUT, 0),
-				&revc->rcf_disc_wait);
-		}
+		m0_rpc_service_reverse_session_put(&revc->rcf_rlink.rlk_sess,
+						   false);
 	} m0_tlist_endfor;
 	m0_tl_teardown(rev_conn, &svc->rps_rev_conns, revc) {
-		if (revc->rcf_disc_wait.cl_group != NULL) {
+		if (m0_clink_is_armed(&revc->rcf_disc_wait)) {
 			m0_chan_wait(&revc->rcf_disc_wait);
 			m0_clink_fini(&revc->rcf_disc_wait);
 		}

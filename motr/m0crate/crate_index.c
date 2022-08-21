@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2017-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2017-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,8 +27,13 @@
 #include "motr/m0crate/logger.h"
 #include "motr/m0crate/crate_client.h"
 #include "motr/m0crate/crate_client_utils.h"
+#include "lib/misc.h"
+#include "motr/client_internal.h"
 
-/** @defgroup crate Crate
+struct m0_fid dix_pool_ver;
+extern struct crate_conf *conf;
+
+/* @nefgroup crate Crate
  * Utility for executing simple performance tests.
  */
 
@@ -205,7 +210,7 @@ static bool cr_rand_bool()
 }
 
 /** Get random string */
-static void cr_get_random_string(char *dest, size_t length)
+void cr_get_random_string(char *dest, size_t length)
 {
 	char set[] = "0123456789"
 		"abcdefghijklmnopqrstuvwxyz"
@@ -973,6 +978,24 @@ static int cr_idx_w_find_rnd_k(struct cr_idx_w *w,
 	return M0_RC(rc);
 }
 
+void set_idx_flags(struct m0_op *op)
+{
+	struct m0_op_common *oc;
+	struct m0_op_idx    *oi;
+
+	oc = M0_AMB(oc, op, oc_op);
+	oi = M0_AMB(oi, oc, oi_oc);
+
+	if (conf->is_skip_layout)
+		oi->oi_flags |= M0_OIF_SKIP_LAYOUT;
+
+	if (conf->is_crow_disable)
+		oi->oi_flags &= ~M0_OIF_CROW;
+	else
+		oi->oi_flags |= M0_OIF_CROW;
+
+}
+
 static int cr_execute_query(struct m0_fid *id,
 			     struct kv_pair *p,
 			     enum cr_opcode opcode)
@@ -993,12 +1016,23 @@ static int cr_execute_query(struct m0_fid *id,
 
 	m0_idx_init(&idx, crate_uber_realm(), (struct m0_uint128 *) id);
 
+	if (conf->is_enf_meta && m0_fid_is_valid(&dix_pool_ver) && 
+	    m0_fid_is_set(&dix_pool_ver)) {
+		idx.in_entity.en_flags |= M0_ENF_META;
+		idx.in_attr.idx_layout_type = DIX_LTYPE_DESCR;
+		idx.in_attr.idx_pver = dix_pool_ver;
+		crlog(CLL_DEBUG, "DIX pool version: "FID_F"",
+		      FID_P(&idx.in_attr.idx_pver));
+	}	
+
 	rc = m0_idx_op(&idx, op->m0_op, p->k, p->v, rcs, flags, &ops[0]);
 	if (rc != 0) {
 		crlog(CLL_ERROR, "Unable to init Client idx op: %s",
 		      strerror(-rc));
 		goto end;
 	}
+
+	set_idx_flags(ops[0]);
 
 	m0_op_launch(ops, 1);
 
@@ -1356,6 +1390,7 @@ static M0_UNUSED int delete_index(struct m0_uint128 id)
 	return M0_RC(rc);
 }
 
+
 static int create_index(struct m0_uint128 id)
 {
 	int            rc;
@@ -1368,8 +1403,16 @@ static int create_index(struct m0_uint128 id)
 	/* Set an index creation operation. */
 	m0_idx_init(&idx, crate_uber_realm(), &id);
 
+	if (conf->is_skip_layout)
+		conf->is_enf_meta = true;
+
+	if (conf->is_enf_meta)
+		idx.in_entity.en_flags |= M0_ENF_META;
+
 	rc = m0_entity_create(NULL, &idx.in_entity, &ops[0]);
 	if (rc == 0) {
+		set_idx_flags(ops[0]);
+
 		/* Launch and wait for op to complete */
 		m0_op_launch(ops, 1);
 		rc = m0_op_wait(ops[0], M0_BITS(M0_OS_FAILED,
@@ -1383,6 +1426,12 @@ static int create_index(struct m0_uint128 id)
 				crlog(CLL_WARN, "Index alredy exists.");
 			else
 				rc = ops[0]->op_sm.sm_rc;
+		}
+
+		if (rc == 0 && conf->is_enf_meta) {
+			crlog(CLL_DEBUG, "DIX pool version: "FID_F"",
+			      FID_P(&idx.in_attr.idx_pver));
+			dix_pool_ver = idx.in_attr.idx_pver;
 		}
 	} else
 		crlog(CLL_ERROR, "Unable to set index create operation.");

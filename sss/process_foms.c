@@ -385,8 +385,8 @@ static int ss_bytecount_stats_ingest(struct m0_cob_domain *cdom,
 				     struct m0_ss_process_rep *rep)
 {
 	int                  rc;
-	struct m0_buf       *key_buf = NULL;
-	struct m0_buf       *rec_buf = NULL;
+	struct m0_buf        key_buf = {};
+	struct m0_buf        rec_buf = {};
 
 	/* DUMMY values */
 	if (M0_FI_ENABLED("dummy_bytecount_data")) {
@@ -406,8 +406,8 @@ static int ss_bytecount_stats_ingest(struct m0_cob_domain *cdom,
 
 	rc = m0_cob_bc_entries_dump(cdom, &key_buf, &rec_buf, &rep->sspr_kv_count);
 	if (rc == 0) {
-		m0_buf_init(&rep->sspr_bckey, key_buf->b_addr, key_buf->b_nob);
-		m0_buf_init(&rep->sspr_bcrec, rec_buf->b_addr, rec_buf->b_nob);
+		m0_buf_init(&rep->sspr_bckey, key_buf.b_addr, key_buf.b_nob);
+		m0_buf_init(&rep->sspr_bcrec, rec_buf.b_addr, rec_buf.b_nob);
 	}
 
 	return rc;

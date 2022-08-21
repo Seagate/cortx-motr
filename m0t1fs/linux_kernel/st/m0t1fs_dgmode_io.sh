@@ -53,21 +53,21 @@ valid_count_get()
 	local j=$((RANDOM%9))
 	local i=$((10-$j))
 	local bs=$1
-	input_file_size=`expr $i \* $bs`
-	echo $input_file_size
-	echo $ABCD_SOURCE_SIZE
+	input_file_size=$(($i * $bs))
+	echo "$input_file_size"
+	echo "$ABCD_SOURCE_SIZE"
 	while [ $input_file_size -gt $ABCD_SOURCE_SIZE ]
 	do
 		j=$((RANDOM%9))
 		i=$((10-$j))
-		input_file_size=`expr $i \* $bs`
+		input_file_size=$(($i * $bs))
 	done
 	return $i
 }
 
 largest_count_get()
 {
-	cnt=`expr $ABCD_SOURCE_SIZE \/ $1`
+	cnt=$(($ABCD_SOURCE_SIZE / $1))
 	return $cnt
 }
 
@@ -118,10 +118,10 @@ fmio_truncation_module()
 		echo "File truncation failed."
 		return $rc
 	fi
-	seek=`expr $cnt \+ 1`
+	seek=$(($cnt + 1))
 	echo "Ensure that truncating to a size larger than the
 	      current one succeeds"
-	fmio_files_write dd bs=$blk_size count=1 seek=$seek
+	fmio_files_write dd bs=$blk_size count=1 seek="$seek"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -155,17 +155,17 @@ fmio_truncation_module()
 
 fmio_source_files_create()
 {
-	if [ $pattern == $ABCD ] || [ $pattern == $ALTERNATE ]
+	if [ "$pattern" == "$ABCD" ] || [ "$pattern" == "$ALTERNATE" ]
 	then
-		$prog_file_pattern $source_abcd 2>&1 >> $MOTR_TEST_LOGFILE || {
+		$prog_file_pattern "$source_abcd" 2>&1 >> "$MOTR_TEST_LOGFILE" || {
 			echo "Failed: m0t1fs_io_file_pattern..."
 			return 1
 		}
 	fi
 
-	if [ $pattern == $RANDOM1 ] || [ $pattern == $ALTERNATE ]
+	if [ "$pattern" == "$RANDOM1" ] || [ "$pattern" == "$ALTERNATE" ]
 	then
-		dd if=/dev/urandom bs=$block_size count=$random_source_dd_count of=$source_random 2>&1 >> $MOTR_TEST_LOGFILE || {
+		dd if=/dev/urandom bs="$block_size" count=$random_source_dd_count of="$source_random" 2>&1 >> "$MOTR_TEST_LOGFILE" || {
 			echo "Failed: dd..."
 			return 1
 		}
@@ -177,11 +177,11 @@ fmio_source_files_create()
 # pre: value of bs shall be necessarily specified in terms of bytes
 fmio_files_write()
 {
-	dd_count=`expr $dd_count + 1`
+	dd_count=$(($dd_count + 1))
 
 	# Verify that 'the size of the file to be written' is not larger than
 	# 'the ABCD source file size'
-	bs=$(echo $2 | cut -d= -f2)
+	bs=$(echo "$2" | cut -d= -f2)
 
 	if [ $bs -lt 0 ]
 	then
@@ -207,15 +207,15 @@ fmio_files_write()
 
 	# Select source file from the sandbox, according to the configured
 	# pattern
-	if [ $pattern == $ABCD ]
+	if [ "$pattern" == "$ABCD" ]
 	then
 		source_sandbox=$source_abcd
-	elif [ $pattern == $RANDOM1 ]
+	elif [ "$pattern" == "$RANDOM1" ]
 	then
 		source_sandbox=$source_random
-	elif [ $pattern == $ALTERNATE ]
+	elif [ "$pattern" == "$ALTERNATE" ]
 	then
-		if [ `expr $dd_count % 2` == 0 ]
+		if [ $(($dd_count % 2)) == 0 ]
 		then
 			echo "dd_count $dd_count (even), pattern to use $ABCD"
 			source_sandbox=$source_abcd
@@ -234,34 +234,34 @@ fmio_files_write()
 		file_to_compare_m0t1fs="$MOTR_M0T1FS_MOUNT_DIR/0:1000$dd_count"
 		echo "touch $file_to_compare_m0t1fs"
 		echo "setfattr -n lid -v 4 $file_to_compare_m0t1fs"
-		touch $file_to_compare_m0t1fs
-		setfattr -n lid -v 4 $file_to_compare_m0t1fs
-		getfattr -n pver $file_to_compare_m0t1fs
+		touch "$file_to_compare_m0t1fs"
+		setfattr -n lid -v 4 "$file_to_compare_m0t1fs"
+		getfattr -n pver "$file_to_compare_m0t1fs"
 	fi
 	echo -e "Write to the files from sandbox and m0t1fs (dd_count #$dd_count):"
 	echo -e "\t - $file_to_compare_sandbox \n\t - $file_to_compare_m0t1fs"
 
 
 	$@ \
-	   if=$source_sandbox of=$file_to_compare_sandbox >> $MOTR_TEST_LOGFILE || {
+	   if="$source_sandbox" of="$file_to_compare_sandbox" >> "$MOTR_TEST_LOGFILE" || {
 		echo "Failed: dd..."
 		return 1
 	}
 	$@ \
-	   if=$source_sandbox of=$file_to_compare_m0t1fs >> $MOTR_TEST_LOGFILE || {
+	   if="$source_sandbox" of="$file_to_compare_m0t1fs" >> "$MOTR_TEST_LOGFILE" || {
 		echo "Failed: dd..."
 		return 1
 	}
 
-	if [ $debug_level != $DEBUG_LEVEL_OFF ]
+	if [ "$debug_level" != "$DEBUG_LEVEL_OFF" ]
 	then
 		echo "od -A d -c $file_to_compare_sandbox | tail"
-		od -A d -c $file_to_compare_sandbox | tail
+		od -A d -c "$file_to_compare_sandbox" | tail
 		echo "od -A d -c $file_to_compare_m0t1fs | tail"
-		od -A d -c $file_to_compare_m0t1fs | tail
+		od -A d -c "$file_to_compare_m0t1fs" | tail
 	fi
 
-	if [ $debug_level == $DEBUG_LEVEL_3 ]
+	if [ "$debug_level" == "$DEBUG_LEVEL_3" ]
 	then
 		echo "stob_read after dd execution (dd_count #$dd_count)"
 		fmio_stob_read_full
@@ -277,11 +277,11 @@ fmio_files_write()
 fmio_files_compare()
 {
 	#Read file from m0t1fs with minimum possible count
-	local block_size=`expr $ABCD_SOURCE_SIZE \+ $random_source_size`
+	local block_size=$(($ABCD_SOURCE_SIZE + $random_source_size))
 	mount | grep m0t1
-	ls -l $file_to_compare_m0t1fs
-	dd if=$file_to_compare_m0t1fs bs=$block_size count=1 of=$fmio_sandbox/local_m0t1fs_cp
-	cmp $file_to_compare_sandbox $fmio_sandbox/local_m0t1fs_cp
+	ls -l "$file_to_compare_m0t1fs"
+	dd if="$file_to_compare_m0t1fs" bs="$block_size" count=1 of="$fmio_sandbox"/local_m0t1fs_cp
+	cmp "$file_to_compare_sandbox" "$fmio_sandbox"/local_m0t1fs_cp
 	rc=$?
 	if [ $rc -ne 0 ]
 	then
@@ -289,12 +289,12 @@ fmio_files_compare()
 		echo -e "\tparity group number may be calculated as:"
 		echo -e "\t\tpg_no = differing_offset / (unit_size * N)\n"
 		echo "od -A d -c $file_to_compare_sandbox | tail"
-		od -A d -c $file_to_compare_sandbox | tail
+		od -A d -c "$file_to_compare_sandbox" | tail
 		echo "od -A d -c $file_to_compare_m0t1fs | tail"
-		od -A d -c $file_to_compare_m0t1fs | tail
+		od -A d -c "$file_to_compare_m0t1fs" | tail
 
-		if [ $debug_level == $DEBUG_LEVEL_2 ] ||
-		   [ $debug_level == $DEBUG_LEVEL_3 ]
+		if [ "$debug_level" == "$DEBUG_LEVEL_2" ] ||
+		   [ "$debug_level" == "$DEBUG_LEVEL_3" ]
 		then
 			echo "stob_read after data discrepancy is encountered (dd_count #$dd_count)"
 			fmio_stob_read_full
@@ -302,11 +302,11 @@ fmio_files_compare()
 	fi
 
 	echo "cmp output (dd_count #$dd_count): $rc"
-	if [ $debug_level == $DEBUG_LEVEL_INTERACTIVE ]
+	if [ "$debug_level" == "$DEBUG_LEVEL_INTERACTIVE" ]
 	then
 		fmio_if_to_continue_check
 	fi
-	rm -f $fmio_sandbox/local_m0t1fs_cp
+	rm -f "$fmio_sandbox"/local_m0t1fs_cp
 	return $rc
 }
 
@@ -317,13 +317,13 @@ fmio_pool_mach_set_failure()
 		echo "parameter 'device' is required"
 		return 1
 	}
-	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
+	if [ "$debug_level" != "$DEBUG_LEVEL_STTEST" ]
 	then
-		disk_state_set "failed" $device || {
+		disk_state_set "failed" "$device" || {
 			echo "Failed: disk_state_set failed for $device ..."
 			return 1
 		}
-		disk_state_get $fail_devices
+		disk_state_get "$fail_devices"
 	fi
 	return 0
 }
@@ -336,9 +336,9 @@ fmio_sns_repair()
 		return 1
 	}
 
-	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
+	if [ "$debug_level" != "$DEBUG_LEVEL_STTEST" ]
 	then
-		disk_state_set "repair" $device || return 1
+		disk_state_set "repair" "$device" || return 1
 
 		sns_repair || {
 			echo "Failed: SNS repair..."
@@ -347,12 +347,12 @@ fmio_sns_repair()
 		echo "wait for sns repair"
 		wait_for_sns_repair_or_rebalance "repair" || return $?
 
-		disk_state_set "repaired" $device || return 1
+		disk_state_set "repaired" "$device" || return 1
 		echo "sns repair done"
-		disk_state_get $fail_devices
+		disk_state_get "$fail_devices"
 	fi
 
-	if [ $debug_level == $DEBUG_LEVEL_3 ]
+	if [ "$debug_level" == "$DEBUG_LEVEL_3" ]
 	then
 		echo "stob_read after repair (dd_count #$dd_count)"
 		fmio_stob_read_full
@@ -369,9 +369,9 @@ fmio_sns_rebalance()
 		return 1
 	}
 
-	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
+	if [ "$debug_level" != "$DEBUG_LEVEL_STTEST" ]
 	then
-		disk_state_set "rebalance" $device || return 1
+		disk_state_set "rebalance" "$device" || return 1
 
 		sns_rebalance || {
 			echo "Failed: SNS rebalance..."
@@ -380,10 +380,10 @@ fmio_sns_rebalance()
 		echo "wait for sns rebalance"
 		wait_for_sns_repair_or_rebalance "rebalance" || return $?
 
-		disk_state_set "online" $device || return 1
+		disk_state_set "online" "$device" || return 1
 		echo "sns rebalance done"
 
-		disk_state_get $fail_devices
+		disk_state_get "$fail_devices"
 	fi
 	return 0
 }
@@ -411,7 +411,7 @@ fmio_stob_read_full()
 		return 0 # Not returning error intentionally
 	fi
 
-	if [ $file_kind != $SINGLE_FILE ]
+	if [ "$file_kind" != "$SINGLE_FILE" ]
 	then
 		echo "stob reading supported with $SINGLE_FILE kind only..."
 		return 0 # Not returning error intentionally
@@ -440,7 +440,7 @@ fmio_stob_read_full()
 		echo "stobid $stobid"
 
 		echo "od -A d -c $MOTR_M0T1FS_TEST_DIR/$ios/stobs/o/$stobid"
-		od -A d -c $MOTR_M0T1FS_TEST_DIR/$ios/stobs/o/$stobid
+		od -A d -c "$MOTR_M0T1FS_TEST_DIR"/$ios/stobs/o/"$stobid"
 		# Note: During development, the above can be quickly modified
 		# using 'sed' to read specific lines of interest from the stob
 		# output.
@@ -483,11 +483,11 @@ fmio_pre()
 	file_to_create2="$MOTR_M0T1FS_MOUNT_DIR/0:11112"
 	file_to_create3="$MOTR_M0T1FS_MOUNT_DIR/0:11113"
 
-	rm -rf $fmio_sandbox
-	mkdir -p $fmio_sandbox
-	if [ $debug_level == $DEBUG_LEVEL_STTEST ]
+	rm -rf "$fmio_sandbox"
+	mkdir -p "$fmio_sandbox"
+	if [ "$debug_level" == "$DEBUG_LEVEL_STTEST" ]
 	then
-		mkdir $fmio_sandbox/tmp
+		mkdir "$fmio_sandbox"/tmp
 	fi
 
 	echo "Creating source files"
@@ -511,9 +511,9 @@ fmio_io_test()
 	fi
 
 	echo "All the devices are online at this point"
-	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
+	if [ "$debug_level" != "$DEBUG_LEVEL_STTEST" ]
 	then
-		disk_state_get $fail_devices
+		disk_state_get "$fail_devices"
 	fi
 
 	echo "Creating files initially"
@@ -549,9 +549,9 @@ fmio_io_test()
 	}
 
 	echo "Create a file after first $step: $file_to_create1"
-	touch $file_to_create1
+	touch "$file_to_create1"
 	rc=$?
-	getfattr -n pver $file_to_create1
+	getfattr -n pver "$file_to_create1"
 	if [ $rc -ne 0 ]
 	then
 		echo "Failed: create after first $step, rc $rc..."
@@ -570,7 +570,7 @@ fmio_io_test()
 		echo "Failed: IO or read after first $step, rc=$rc OOSTORE=$OOSTORE"
 		return 1
 	fi
-	if [ $single_file_test -eq 1 ]
+	if [ "$single_file_test" -eq 1 ]
 	then
 		echo -e "\n*** $test_name test 2.1: Another IO and read after first $step ***"
 		fmio_files_write dd bs=8821 count=5 seek=23 conv=notrunc
@@ -580,9 +580,9 @@ fmio_io_test()
 			return 1
 		fi
 	fi
-	if [ $OOSTORE -eq 1 ]
+	if [ "$OOSTORE" -eq 1 ]
 	then
-		rm -rf $file_to_create1
+		rm -rf "$file_to_create1"
 		rc=$?
 		if [ $rc -ne 0 ]
 		then
@@ -601,9 +601,9 @@ fmio_io_test()
 		fmio_sns_repair $fail_device2 || return 1
         fi
 	echo "Create a file after second $step: $file_to_create2"
-	touch $file_to_create2
+	touch "$file_to_create2"
 	rc=$?
-	getfattr -n pver $file_to_create2
+	getfattr -n pver "$file_to_create2"
 	if [ $rc -ne 0 ]
 	then
 		echo "Failed: create after second $step, rc $rc..."
@@ -658,9 +658,9 @@ fmio_io_test()
 	}
 
 	echo "Create a file after third $step: $file_to_create3"
-	touch $file_to_create3
+	touch "$file_to_create3"
 	rc=$?
-	getfattr -n pver $file_to_create3
+	getfattr -n pver "$file_to_create3"
 	if [ $rc -ne 0 ]
 	then
 		echo "Failed: create after third $step, rc $rc..."
@@ -683,7 +683,7 @@ fmio_io_test()
 
 fmio_failed_dev_test()
 {
-	if [ $failed_dev_test -eq 0 ]
+	if [ "$failed_dev_test" -eq 0 ]
 	then
 		return 1
 	fi
@@ -700,7 +700,7 @@ fmio_failed_dev_test()
 
 fmio_repaired_dev_test()
 {
-	if [ $failed_dev_test -eq 1 ]
+	if [ "$failed_dev_test" -eq 1 ]
 	then
 		return 1
 	fi
@@ -717,7 +717,7 @@ fmio_repaired_dev_test()
 
 fmio_motr_service_start()
 {
-	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
+	if [ "$debug_level" != "$DEBUG_LEVEL_STTEST" ]
 	then
 		local multiple_pools=0
 		echo "About to start Motr service"
@@ -739,7 +739,7 @@ fmio_motr_service_start()
 
 fmio_motr_service_stop()
 {
-	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
+	if [ "$debug_level" != "$DEBUG_LEVEL_STTEST" ]
 	then
 		echo "About to stop Motr service"
 		motr_service stop
@@ -763,19 +763,19 @@ fmio_m0t1fs_mount()
 		local mountopt="oostore,verify"
 	fi
 	echo "Mount options are $mountopt"
-	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
+	if [ "$debug_level" != "$DEBUG_LEVEL_STTEST" ]
 	then
-		mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mountopt || return 1
+		mount_m0t1fs "$MOTR_M0T1FS_MOUNT_DIR" $mountopt || return 1
 	fi
 	return 0
 }
 
 fmio_m0t1fs_unmount()
 {
-	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
+	if [ "$debug_level" != "$DEBUG_LEVEL_STTEST" ]
 	then
 		echo "unmounting and cleaning.."
-		unmount_and_clean &>> $MOTR_TEST_LOGFILE
+		unmount_and_clean &>> "$MOTR_TEST_LOGFILE"
 	fi
 	return 0
 }
@@ -783,9 +783,9 @@ fmio_m0t1fs_unmount()
 fmio_m0t1fs_clean()
 {
 	echo "cleaning Motr mountpoint.."
-	rm -f $file_to_create1
-	rm -f $file_to_create2
-	rm -f $file_to_create3
+	rm -f "$file_to_create1"
+	rm -f "$file_to_create2"
+	rm -f "$file_to_create3"
 	# Delete file created for single file io testing.
 	rm -f "$MOTR_M0T1FS_MOUNT_DIR/0:10000"
 	# Delete files created for separate file io testing.
@@ -803,12 +803,12 @@ failure_modes_test()
 		str="single file"
 		# Set the unit size for the file on m0t1fs to 32K. This is
 		# necessary for large IO.
-		touch $file_to_compare_m0t1fs
+		touch "$file_to_compare_m0t1fs"
 		# Currently server-side receives an issue while writing a
 		# large file after two repairs and one failure, when unit size
 		# is more than 32K.
-		setfattr -n lid -v 4 $file_to_compare_m0t1fs
-		getfattr -n pver $file_to_compare_m0t1fs
+		setfattr -n lid -v 4 "$file_to_compare_m0t1fs"
+		getfattr -n pver "$file_to_compare_m0t1fs"
 		if [ $? -ne "0" ]
 		then
 			echo "Setfattr failed."
@@ -818,7 +818,7 @@ failure_modes_test()
 		str="separate file"
 	fi
 
-	if [ $failure_mode == $FAILED_DEVICES ] || [ $failure_mode == $BOTH_DEVICES ]
+	if [ "$failure_mode" == "$FAILED_DEVICES" ] || [ "$failure_mode" == "$BOTH_DEVICES" ]
 	then
 		echo "--------------------------------------------------------"
 		echo "Start with the failed device IO testing ($str)"
@@ -841,7 +841,7 @@ failure_modes_test()
 			return 0
 		fi
 		echo "Mark the devices online again before the next test"
-		fmio_repair_n_rebalance $fail_devices || return 1
+		fmio_repair_n_rebalance "$fail_devices" || return 1
 	fi
 	#@todo Run sns_repair and rebalance tests in oostore mode only when MOTR-1166 lands.
 	# This is so because till then new pool version won't get created for
@@ -849,7 +849,7 @@ failure_modes_test()
 	# case.
 	return 0
 
-	if [ $failure_mode == $REPAIRED_DEVICES ] || [ $failure_mode == $BOTH_DEVICES ]
+	if [ "$failure_mode" == "$REPAIRED_DEVICES" ] || [ "$failure_mode" == "$BOTH_DEVICES" ]
 	then
 		echo "--------------------------------------------------------"
 		echo "Starting with the repaired device IO testing ($str)"
@@ -869,7 +869,7 @@ failure_modes_test()
 		echo "--------------------------------------------------------"
 
 		echo "Mark the devices online again before the next test"
-		fmio_sns_rebalance $fail_devices || {
+		fmio_sns_rebalance "$fail_devices" || {
 			echo "Failed: sns rebalance..."
 			return 1
 		}
@@ -883,7 +883,7 @@ main()
 
 	echo '*********************************************************'
 	echo -n 'Running '
-	[ $OOSTORE -eq 0 ] || echo -n 'non-'
+	[ "$OOSTORE" -eq 0 ] || echo -n 'non-'
 	echo 'oostore test.'
 	echo '*********************************************************'
 
@@ -896,14 +896,14 @@ main()
 	echo "*********************************************************"
 
 	# Override this variable so as to use linux stob, for debugging
-	if [ $debug_level != $DEBUG_LEVEL_OFF ]
+	if [ "$debug_level" != "$DEBUG_LEVEL_OFF" ]
 	then
 		MOTR_STOB_DOMAIN="linux"
 	fi
 
 	# Override these variables so as to test the ST framework without
 	# involving motr service and m0t1fs
-	if [ $debug_level == $DEBUG_LEVEL_STTEST ]
+	if [ "$debug_level" == "$DEBUG_LEVEL_STTEST" ]
 	then
 		MOTR_TEST_LOGFILE="$fmio_sandbox/log"
 		MOTR_M0T1FS_MOUNT_DIR="$fmio_sandbox/tmp"
@@ -923,13 +923,13 @@ main()
 
 	fmio_pre || return 1
 
-	fmio_m0t1fs_mount $OOSTORE || {
+	fmio_m0t1fs_mount "$OOSTORE" || {
 		fmio_motr_service_stop
 		return 1
 	}
 	echo -e "Done with preprocessing for failure modes IO testing\n"
 
-	if [ $file_kind == $SINGLE_FILE ] || [ $file_kind == $BOTH_FILE_KINDS ]
+	if [ "$file_kind" == "$SINGLE_FILE" ] || [ "$file_kind" == "$BOTH_FILE_KINDS" ]
 	then
 		echo "========================================================"
 		echo "Start with the single file IO testing"
@@ -945,7 +945,7 @@ main()
 		echo "========================================================"
 	fi
 
-	if [ $file_kind == $SEPARATE_FILE ] || [ $file_kind == $BOTH_FILE_KINDS ]
+	if [ "$file_kind" == "$SEPARATE_FILE" ] || [ "$file_kind" == "$BOTH_FILE_KINDS" ]
 	then
 		echo "========================================================"
 		echo "Start with the separate file IO testing"
@@ -953,7 +953,7 @@ main()
 		single_file_test=0
 		# Save current dd_count to track number of files created for
 		# separate file IO testing.
-		separate_file_dd_count_start=`expr $dd_count + 1`
+		separate_file_dd_count_start=$(($dd_count + 1))
 		failure_modes_test || {
 			fmio_m0t1fs_unmount
 			fmio_motr_service_stop

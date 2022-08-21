@@ -58,9 +58,9 @@
 %endif
 
 %if %{with ivt} || %{with ut}
-%define  configure_opts  %{configure_ut_opts} %{?configure_user_opts} %{?configure_cassandra_opts}
+%define  configure_opts  %{configure_ut_opts} %{?configure_user_opts} %{?configure_cassandra_opts} @BUILD_DEPEND_DTM@
 %else
-%define  configure_opts  %{configure_release_opts} %{?configure_user_opts} %{?configure_cassandra_opts}
+%define  configure_opts  %{configure_release_opts} %{?configure_user_opts} %{?configure_cassandra_opts} @BUILD_DEPEND_DTM@
 %endif
 
 Name:           @PACKAGE@
@@ -147,7 +147,6 @@ Requires:       libaio
 Requires:       libyaml
 #Supported openssl versions -- CentOS 7 its 1.0.2k, RHEL8 its 1.1.1
 Requires:       openssl
-Requires:       gdb
 Requires:       genders
 %if %{rhel} < 8
 Requires:       sysvinit-tools
@@ -162,9 +161,6 @@ Requires:       perl-autodie
 Requires:       perl-Try-Tiny
 Requires:       perl-Sereal
 Requires:       perl-MCE
-Requires:       ruby
-Requires:       facter
-Requires:       rubygem-net-ssh
 %if %{rhel} < 8
 Requires:       python36-ply
 %else
@@ -299,7 +295,7 @@ fi
 %files
 
 %if !%{with ivt} && !%{with ut}
-%doc AUTHORS README.rst NEWS ChangeLog COPYING
+%doc AUTHORS NEWS ChangeLog COPYING
 %{_bindir}/*
 %{_sbindir}/*
 %{_libdir}/*
@@ -313,6 +309,7 @@ fi
 %config %attr(0664, motr, motr) %{_sysconfdir}/sysconfig/*
 %config %attr(0755, root, root) %{_sysconfdir}/cron.hourly/m0trace*
 %config %attr(0755, root, root) %{_sysconfdir}/cron.hourly/m0addb*
+%config %attr(0755, root, root) %{_sysconfdir}/cron.hourly/motr_mini_prov*
 %{_sysconfdir}/systemd/system/*
 %{_sysconfdir}/security/limits.d/90-motr.conf
 /opt/seagate/cortx/motr/*

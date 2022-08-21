@@ -424,7 +424,6 @@ void m0_obj_init(struct m0_obj *obj,
 	obj_size = obj->ob_attr.oa_buf_size;
 	obj->ob_attr.oa_layout_id = obj_size == 0 && layout_id == 0 ?
 					M0_DEFAULT_LAYOUT_ID : layout_id;
-	M0_LOG(M0_DEBUG, "YJC: layout id = %"PRIu64, obj->ob_attr.oa_layout_id);
 
 #ifdef OSYNC
 	m0_mutex_init(&obj->ob_pending_tx_lock);
@@ -585,10 +584,9 @@ M0_INTERNAL int m0_op_get(struct m0_op **op, size_t size)
 
 		/* 0 the pre-allocated operation. */
 		memset(*op, 0, cached_size);
+		/* @todo This forgets the original size. */
 		(*op)->op_size = size;
 	}
-	m0_mutex_init(&(*op)->op_pending_tx_lock);
-	spti_tlist_init(&(*op)->op_pending_tx);
 	return M0_RC(0);
 }
 
@@ -840,6 +838,10 @@ M0_INTERNAL int m0_op_init(struct m0_op *op,
 	M0_POST(m0_sm_invariant(&op->op_sm));
 	m0_sm_group_unlock(grp);
 	m0_mutex_init(&op->op_priv_lock);
+	m0_mutex_init(&op->op_pending_tx_lock);
+	spti_tlist_init(&op->op_pending_tx);
+	op->op_cancelling = false;
+	m0_semaphore_init(&op->op_sema, 0);
 
 	return M0_RC(0);
 }
@@ -858,6 +860,9 @@ void m0_op_fini(struct m0_op *op)
 					  M0_OS_FAILED)));
 	M0_PRE(op->op_size >= sizeof *oc);
 
+	if (op->op_cancelling)
+		m0_semaphore_down(&op->op_sema);
+
 	oc = bob_of(op, struct m0_op_common, oc_op, &oc_bobtype);
 	if (oc->oc_cb_fini != NULL)
 		oc->oc_cb_fini(oc);
@@ -875,6 +880,8 @@ void m0_op_fini(struct m0_op *op)
 	m0_sm_group_unlock(grp);
 	m0_sm_group_fini(grp);
 
+	op->op_cancelling = false;
+	m0_semaphore_fini(&op->op_sema);
 	/* Finalise op's bob */
 	m0_op_bob_fini(op);
 

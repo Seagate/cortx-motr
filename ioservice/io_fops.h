@@ -26,9 +26,7 @@
 #define __MOTR_IOSERVICE_IO_FOPS_H__
 
 #include "fop/fop.h"
-#include "fop/fop_xc.h"
 #include "fop/fom_generic.h"
-#include "fop/fom_generic_xc.h"
 #include "lib/types.h"
 #include "rpc/rpc.h"
 #include "xcode/xcode_attr.h"
@@ -332,8 +330,8 @@ struct m0_fop_cob_rw_reply {
 	 */
 	uint32_t                rwr_repair_done;
 
-	/** Total number of checksum bytes read by FOP till now for debug */
-	uint32_t                rwr_cksum_nob_read;
+	/** Max number of checksum bytes to be read by FOP */
+	uint32_t                rwr_cksum_max_nob;
 
 	/** Returned values for an UPDATE operation */
 	struct m0_fop_mod_rep   rwr_mod_rep;
@@ -413,9 +411,9 @@ struct m0_fop_cob_rw {
 	uint64_t                  crw_flags;
 	/** Checksum and tag values for the input data blocks. */
 	m0_bcount_t               crw_cksum_size;
-	struct m0_buf		  crw_di_data;
+	struct m0_buf             crw_di_data;
 	/** Checksum value used for write operation for read it will be unused */
-	struct m0_buf		  crw_di_data_cksum;
+	struct m0_buf             crw_di_data_cksum;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**

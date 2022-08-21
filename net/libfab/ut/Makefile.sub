@@ -1,0 +1,1 @@
+ut_libmotr_ut_la_SOURCES += net/libfab/ut/libfab_ut.c

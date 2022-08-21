@@ -137,6 +137,7 @@ static int conf_pver_find_locked(const struct m0_conf_pool *pool,
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "Recd update failed for pool "FID_F,
 			   FID_P(&pool->pl_obj.co_id));
+	*out = NULL;
 	m0_tl_for (m0_conf_dir, &pool->pl_pvers->cd_items, obj) {
 		pver = M0_CONF_CAST(obj, m0_conf_pver);
 		M0_LOG(M0_DEBUG, "pver="FID_F, FID_P(&pver->pv_obj.co_id));
@@ -145,14 +146,22 @@ static int conf_pver_find_locked(const struct m0_conf_pool *pool,
 			M0_LOG(M0_INFO, "Skipping "FID_F, FID_P(pver_to_skip));
 			continue;
 		}
+		if (pver->pv_kind == M0_CONF_PVER_ACTUAL)
+			*out = pver; /* cache it for now */
 		if (!m0_conf_pver_is_clean(pver))
 			continue;
-		if (pver->pv_kind == M0_CONF_PVER_ACTUAL) {
-			*out = pver;
+		if (pver->pv_kind == M0_CONF_PVER_ACTUAL)
 			return M0_RC(0);
-		}
 		return M0_RC(conf_pver_formulate(pver, out));
 	} m0_tl_endfor;
+
+	/*
+	 * Return the actual pver if we cannot find anything better.
+	 * The I/O will be performed in the degraded mode.
+	 */
+	if (*out != NULL)
+		return M0_RC(0);
+
 	return M0_ERR_INFO(-ENOENT, "No suitable pver is found at pool "FID_F,
 			   FID_P(&pool->pl_obj.co_id));
 }
@@ -702,8 +711,11 @@ static int conf_pver_tolerance_adjust(struct m0_conf_pver *pver)
 
 	do {
 		rc = m0_fd_tolerance_check(pver, &level);
-		if (rc == -EINVAL)
+		if (rc == -EINVAL &&
+		    pver->pv_u.subtree.pvs_tolerance[level] > 0)
 			M0_CNT_DEC(pver->pv_u.subtree.pvs_tolerance[level]);
+		else
+			break;
 	} while (rc == -EINVAL);
 	return rc;
 }
@@ -811,6 +823,31 @@ err:
 }
 
 /**
+ * Builds a vector consisting of failed/offline objects in the conf tree of a
+ * pool version. Repaired devices are not considered to be failed.
+ */
+static int conf_pver_nonhealty_recd_build(struct m0_conf_obj *obj, void *args)
+{
+	uint32_t            *recd = args;
+	struct m0_conf_objv *objv;
+	unsigned             lvl;
+
+	if (m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE) {
+		objv = M0_CONF_CAST(obj, m0_conf_objv);
+		if (!M0_IN(objv->cv_real->co_ha_state,
+			  (M0_NC_ONLINE, M0_NC_REPAIRED))) {
+			M0_LOG(M0_DEBUG, FID_F" is failed",
+			       FID_P(&objv->cv_real->co_id));
+			lvl = m0_conf_pver_level(obj);
+			M0_ASSERT(lvl != 0 && lvl < M0_CONF_PVER_HEIGHT);
+			M0_CNT_INC(recd[lvl]);
+			return M0_CW_SKIP_SUBTREE;
+		}
+	}
+	return M0_CW_CONTINUE;
+}
+
+/**
  * Check if failures at any level has reached or exceeded max allowed failures.
  */
 static int tolerance_failure_cmp(struct m0_conf_pver *pv,
@@ -862,7 +899,7 @@ int m0_conf_pver_status(struct m0_fid *fid,
 
 	M0_SET_ARR0(srecd);
 	m0_conf_cache_lock(&confc->cc_cache);
-	rc = m0_conf_walk(conf_pver_recd_build, &pver->pv_obj, srecd);
+	rc = m0_conf_walk(conf_pver_nonhealty_recd_build, &pver->pv_obj, srecd);
 	m0_conf_cache_unlock(&confc->cc_cache);
 	if (rc != 0)
 		return M0_ERR(rc);

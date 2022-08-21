@@ -37,8 +37,10 @@
 
 enum isc_comp_type {
 	ICT_PING,
-	ICT_MIN,
+	ICT_MIN,  /* format - floating point strings */
 	ICT_MAX,
+	ICT_MIN2, /* arrays of 8-byte doubles */
+	ICT_MAX2,
 };
 
 static int op_type_parse(const char *op_name)
@@ -51,6 +53,10 @@ static int op_type_parse(const char *op_name)
 		return ICT_MIN;
 	else if (!strcmp(op_name, "max"))
 		return ICT_MAX;
+	else if (!strcmp(op_name, "min2"))
+		return ICT_MIN2;
+	else if (!strcmp(op_name, "max2"))
+		return ICT_MAX2;
 	else
 		return -EINVAL;
 
@@ -84,8 +90,12 @@ static int minmax_input_prepare(struct m0_buf *out, struct m0_fid *comp_fid,
 
 	if (type == ICT_MIN)
 		isc_fid_get("comp_min", comp_fid);
-	else
+	else if (type == ICT_MAX)
 		isc_fid_get("comp_max", comp_fid);
+	else if (type == ICT_MIN2)
+		isc_fid_get("comp_min2", comp_fid);
+	else if (type == ICT_MAX2)
+		isc_fid_get("comp_max2", comp_fid);
 
 	*reply_len = CBL_DEFAULT_MAX;
 
@@ -118,6 +128,8 @@ static int input_prepare(struct m0_buf *buf, struct m0_fid *comp_fid,
 		return ping_input_prepare(buf, comp_fid, reply_len, type);
 	case ICT_MIN:
 	case ICT_MAX:
+	case ICT_MIN2:
+	case ICT_MAX2:
 		return minmax_input_prepare(buf, comp_fid, iop,
 					    reply_len, type);
 	}
@@ -128,7 +140,8 @@ static int input_prepare(struct m0_buf *buf, struct m0_fid *comp_fid,
  * Compute the final result from two results received from the server.
  */
 static struct mm_result *
-op_result(struct mm_result *x, struct mm_result *y, enum isc_comp_type op_type)
+minmax_op_result(struct mm_result *x, struct mm_result *y,
+		 enum isc_comp_type op_type)
 {
 	int     rc;
 	int     len;
@@ -194,6 +207,25 @@ op_result(struct mm_result *x, struct mm_result *y, enum isc_comp_type op_type)
 		y->mr_idx = x->mr_nr + 1;
 
 	m0_free(buf);
+
+	return y;
+}
+
+static struct mm_result *
+minmax2_op_result(struct mm_result *x, struct mm_result *y,
+		  enum isc_comp_type op_type)
+{
+	y->mr_idx += x->mr_nr;
+	y->mr_nr  += x->mr_nr;
+
+	if (ICT_MIN2 == op_type)
+		y->mr_val = min_check(x->mr_val, y->mr_val);
+	else
+		y->mr_val = max_check(x->mr_val, y->mr_val);
+
+	/* Update the resulting value index. */
+	if (y->mr_val == x->mr_val)
+		y->mr_idx = x->mr_idx;
 
 	return y;
 }
@@ -277,7 +309,44 @@ static void *minmax_output_prepare(struct m0_buf *result,
 		check_edge_val(&new, ELM_LAST, type);
 
 	/* Copy the current resulting value. */
-	if (op_result(prev, &new, type)) {
+	if (minmax_op_result(prev, &new, type)) {
+		mm_result_free_xcode_bufs(prev);
+		*prev = new;
+	}
+ out:
+	/* Print the result. */
+	if (last_unit && prev != NULL) {
+		printf("idx=%lu val=%lf\n", prev->mr_idx, prev->mr_val);
+		mm_result_free_xcode_bufs(prev);
+		m0_free(prev);
+		prev = NULL;
+	}
+
+	return prev;
+}
+
+static void *minmax2_output_prepare(struct m0_buf *result,
+				    bool last_unit,
+				    struct mm_result *prev,
+				    enum isc_comp_type type)
+{
+	int               rc;
+	struct mm_result  new = {};
+
+	rc = m0_xcode_obj_dec_from_buf(&M0_XCODE_OBJ(mm_result_xc, &new),
+				       result->b_addr, result->b_nob);
+	if (rc != 0) {
+		ERR("failed to parse result: rc=%d\n", rc);
+		goto out;
+	}
+	if (prev == NULL) {
+		M0_ALLOC_PTR(prev);
+		*prev = new;
+		goto out;
+	}
+
+	/* Copy the current resulting value. */
+	if (minmax2_op_result(prev, &new, type)) {
 		mm_result_free_xcode_bufs(prev);
 		*prev = new;
 	}
@@ -309,6 +378,9 @@ static void* output_process(struct m0_buf *result, bool last,
 	case ICT_MIN:
 	case ICT_MAX:
 		return minmax_output_prepare(result, last, out, type);
+	case ICT_MIN2:
+	case ICT_MAX2:
+		return minmax2_output_prepare(result, last, out, type);
 	}
 	return NULL;
 }
@@ -319,7 +391,9 @@ const char *help_str = "\
 \n\
 Usage: %s OPTIONS COMP OBJ_ID LEN\n\
 \n\
- Supported COMPutations: ping, min, max\n\
+ Supported COMPutations: ping, min, max, min2, max2.\n\
+ min, max - for floating point numbers in string format;\n\
+ min2, max2 - for arrays of 8-byte doubles.\n\
 \n\
  OBJ_ID is two uint64 numbers in hi:lo format (dec or hex)\n\
  LEN    is the length of object (in KiB)\n\

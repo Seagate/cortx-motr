@@ -72,14 +72,14 @@ main()
 	BLOCKSIZE=16384 #4096
 	BLOCKCOUNT=3
 	echo "dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file"
-	dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file \
-              2> $MOTR_TEST_LOGFILE || {
+	dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of="$src_file" \
+              2> "$MOTR_TEST_LOGFILE" || {
 		echo "Failed to create a source file"
 		motr_service_stop
 		return 1
 	}
 
-	mkdir $MOTR_TRACE_DIR
+	mkdir "$MOTR_TRACE_DIR"
 
 	motr_service_start $N $K $S $P $stride
 
@@ -90,7 +90,7 @@ main()
 	# object. It has to be checked with S3 level or in motr trace logs.
 
 	# write an object
-	io_conduct "WRITE" $src_file $OBJ_ID1 "false"
+	io_conduct "WRITE" "$src_file" $OBJ_ID1 "false"
 	if [ $rc -ne "0" ]
 	then
 		echo "Healthy mode, write failed."
@@ -99,14 +99,14 @@ main()
 	echo "Healthy mode write succeeds."
 
 	# read the written object
-	io_conduct "READ" $OBJ_ID1  $dest_file "false"
+	io_conduct "READ" $OBJ_ID1  "$dest_file" "false"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Healthy mode, read failed."
 		error_handling $rc
 	fi
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -115,14 +115,14 @@ main()
 	fi
 	echo "Healthy mode, read file succeeds."
 	# read the written object
-	io_conduct "READ" $OBJ_ID1  $dest_file $read_verify
+	io_conduct "READ" $OBJ_ID1  "$dest_file" $read_verify
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Healthy mode, read verify failed."
 		error_handling $rc
 	fi
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -142,8 +142,8 @@ main()
 	}
 
 	# Test degraded read
-	rm -f $dest_file
-	io_conduct "READ" $OBJ_ID1 $dest_file "false"
+	rm -f "$dest_file"
+	io_conduct "READ" $OBJ_ID1 "$dest_file" "false"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -151,17 +151,17 @@ main()
 		error_handling $rc
 	fi
 	echo "Dgmode Read of 1st obj succeeds."
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Obj read in degraded mode differs."
 		error_handling $rc
 	fi
-	rm -f $dest_file
+	rm -f "$dest_file"
 
 	#Dgmode read of with Parity Verify.
-	io_conduct "READ" $OBJ_ID1 $dest_file $read_verify
+	io_conduct "READ" $OBJ_ID1 "$dest_file" $read_verify
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -169,17 +169,17 @@ main()
 		error_handling $rc
 	fi
 	echo "Dgmode Parity verify Read of 1st obj succeeds."
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Obj read in degraded mode differs."
 		error_handling $rc
 	fi
-	rm -f $dest_file
+	rm -f "$dest_file"
 
 	# Test write, when a disk is failed
-	io_conduct "WRITE" $src_file $OBJ_ID2 "false"
+	io_conduct "WRITE" "$src_file" $OBJ_ID2 "false"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -187,7 +187,7 @@ main()
 		error_handling $rc
 	fi
 	echo "New Obj write succeeds."
-	rm -f $dest_file
+	rm -f "$dest_file"
 
 	echo "Fail another disk"
 	fail_device3=3
@@ -199,14 +199,14 @@ main()
 
 
 	# Read a file from the new pool version.
-	io_conduct "READ" $OBJ_ID2 $dest_file "false"
+	io_conduct "READ" $OBJ_ID2 "$dest_file" "false"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Reading a file from a new pool version failed."
 		error_handling $rc
 	fi
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -216,14 +216,14 @@ main()
 	echo "Motr: Dgmod mode read from new pver succeeds."
 
 	#Read in Parity Verify from new pool version.
-	io_conduct "READ" $OBJ_ID2 $dest_file $read_verify
+	io_conduct "READ" $OBJ_ID2 "$dest_file" $read_verify
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
 		echo "Reading a file from a new pool version failed."
 		error_handling $rc
 	fi
-	diff $src_file $dest_file
+	diff "$src_file" "$dest_file"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -232,10 +232,10 @@ main()
 	fi
 	echo "Motr: Dgmod mode read verify from new pver succeeds."
 	echo "Motr: Dgmod mode IO succeeds."
-	motr_inst_cnt=`expr $cnt - 1`
+	motr_inst_cnt=$(($cnt - 1))
 	for i in `seq 1 $motr_inst_cnt`
 	do
-		echo "motr pids=${motr_pids[$i]}" >> $MOTR_TEST_LOGFILE
+		echo "motr pids=${motr_pids[$i]}" >> "$MOTR_TEST_LOGFILE"
 	done
 
 	motr_service_stop || rc=1
