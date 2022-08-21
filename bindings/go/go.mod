@@ -1,3 +1,3 @@
-module cortx-motr/bindings/go
+module github.com/Seagate/cortx-motr/bindings/go
 
 go 1.15

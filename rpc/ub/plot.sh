@@ -116,7 +116,7 @@ get_val() {
     local KEY="$1"
     local OPTS="$2"
 
-    echo "$OPTS" | tr , \\n | sed -n "s/^$KEY=//p"
+    echo $OPTS | tr , \\n | sed -n "s/^$KEY=//p"
 }
 
 ### Generate CSV file.
@@ -137,7 +137,7 @@ gen_csv() {
 	echo "----------[ $OPTS ]----------"
 
 	rpc-ub -o $OPTS | tee "$TMP"
-	[ ${PIPESTATUS[0]} -eq 0 ] || exit ${PIPESTATUS[0]}
+	[ "${PIPESTATUS[0]}" -eq 0 ] || exit "${PIPESTATUS[0]}"
 
 	local NR_CONNS=$(get_val nr_conns $OPTS)
 	local MSG_LEN=$(get_val msg_len $OPTS)
@@ -201,7 +201,7 @@ nr_conns=96,nr_msgs=100  msg_len  64 128 256 512
 EOF
 } | while read -a ARGS; do
     CSV=$((++i)).csv
-    gen_csv $CSV $TMP ${ARGS[@]}
-    gen_script ${ARGS[0]} $CSV ${ARGS[1]} >$TMP
-    gnuplot $TMP
+    gen_csv $CSV "$TMP" ${ARGS[@]}
+    gen_script "${ARGS[0]}" $CSV "${ARGS[1]}" >"$TMP"
+    gnuplot "$TMP"
 done

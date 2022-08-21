@@ -105,8 +105,8 @@ The executable binary file will be compiled as part of the initial Motr compilat
 
 The `fdmi_sample_plugin` application can be tested in two forms: 
 
-- Running the `fdmi_app` python script
-- Running the `fdmi_plugin_st` shell script
+-  Running the `fdmi_app` python script
+-  Running the `fdmi_plugin_st` shell script
 
 For the first case, `fdmi_sample_plugin` communicates with the [fdmi_app]( https://github.com/Seagate/cortx-motr/blob/main/fdmi/plugins/fdmi_app) python script by printing to standard output all the FDMI records. 
 
@@ -129,12 +129,12 @@ In order to do that, we need to run the `fdmi_app` script typing in the console 
 The basic arguments needed are the cluster info which will be picked by default from the `etc/motr/confd.xc` config file if not specified at the time of running. This way the FDMI plugin knows where to connect.
 
 Examples of the flags you can provide to the python script are:
-- `-pp`: `plugin path`
-- `-le`: `Local endpoint`
-- `-fi`: `Filter id`
-- `-ha`: `HA endpoint`
-- `-pf`: `Profile fid`
-- `-sf`: `Process fid`
+-  `-pp`: `plugin path`
+-  `-le`: `Local endpoint`
+-  `-fi`: `Filter id`
+-  `-ha`: `HA endpoint`
+-  `-pf`: `Profile fid`
+-  `-sf`: `Process fid`
 
 All the flags can be known by running the help:`-h` option.
 
@@ -210,4 +210,4 @@ More details about the FDMI design and settings can be found in this link:
 
 ## Tested by
 
-- Dec 7, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linus release 7.8.2003 x86_64
+-  Dec 7, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linus release 7.8.2003 x86_64

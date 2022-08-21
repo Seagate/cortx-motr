@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,8 +109,8 @@
 #include "lib/types.h"     /* struct m0_uint128 */
 #include "lib/types_xc.h"  /* m0_uint128_xc */
 #include "be/tx.h"
-#include "be/btree.h"
-#include "be/btree_xc.h"
+#include "be/btree.h"   /* m0_btree_cursor */
+#include "be/op.h"         /* struct m0_be_op */
 
 #include "be/extmap_internal.h"
 #include "be/extmap_internal_xc.h"
@@ -151,6 +151,11 @@ M0_INTERNAL void m0_be_emap_create(struct m0_be_emap   *map,
 				   struct m0_be_tx     *tx,
 				   struct m0_be_op     *op,
 				   const struct m0_fid *fid);
+
+M0_INTERNAL void m0_be_emap_truncate(struct m0_be_emap *map,
+				    struct m0_be_tx   *tx,
+				    struct m0_be_op   *op,
+				    m0_bcount_t       *limit);
 
 /** Destroy maps collection. */
 M0_INTERNAL void m0_be_emap_destroy(struct m0_be_emap *map,
@@ -205,7 +210,7 @@ struct m0_be_emap_cursor {
 	/** Segment currently reached. */
 	struct m0_be_emap_seg     ec_seg;
 	/** Data-base cursor. */
-	struct m0_be_btree_cursor ec_cursor;
+	struct m0_btree_cursor    ec_cursor;
 	struct m0_be_emap_key     ec_key;
 	struct m0_be_emap_rec     ec_rec;
 	struct m0_buf             ec_keybuf;
@@ -437,6 +442,11 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *emap,
 				   enum m0_be_emap_optype  optype,
 				   m0_bcount_t             nr,
 				   struct m0_be_tx_credit *accum);
+
+M0_INTERNAL void m0_be_emap_truncate_credit(struct m0_be_tx  *tx,
+					    struct m0_be_emap      *map,
+					    struct m0_be_tx_credit *accum,
+					    m0_bcount_t            *limit);
 
 M0_INTERNAL
 struct m0_be_domain *m0_be_emap_seg_domain(const struct m0_be_emap *emap);

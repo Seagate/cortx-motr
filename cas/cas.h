@@ -401,6 +401,16 @@ struct m0_cas_op {
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
+ * The structure to be passed in DTM0 log as a payload
+ */
+struct m0_cas_dtm0_log_payload  {
+	/** CAS op */
+	struct m0_cas_op cdg_cas_op;
+	/** CAS rpc fop/item opcode */
+	uint32_t         cdg_cas_opcode;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
+
+/**
  * CAS-GET, CAS-PUT, CAS-DEL and CAS-CUR reply fops.
  *
  * @note CAS-CUR reply may contain less records than requested.
