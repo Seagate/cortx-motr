@@ -43,7 +43,7 @@ for s in m0d@* m0t1fs@* motr-client motr-kernel motr-mkfs motr-mkfs@* motr-serve
 	motr_services="$motr_services $s.service"
 done
 
-systemctl list-units --all $motr_services
+systemctl list-units --all $motr_services | tee
 
 m0_log 'Stopping motr-kernel with all dependencies ...'
 systemctl stop motr-kernel || m0_exit 'Failed to stop motr-kernel.'
@@ -51,7 +51,7 @@ systemctl stop motr-kernel || m0_exit 'Failed to stop motr-kernel.'
 m0_log 'Stopping all Motr services ...'
 systemctl stop $motr_services || m0_exit 'Failed to stop Motr services.'
 
-systemctl list-units --all $motr_services
+systemctl list-units --all $motr_services | tee
 
 for s in $(systemctl list-units --failed $motr_services | awk '/failed/ {if ($4 == "failed") print $2}'); do
 	m0_log "Resetting failed state for $s."

@@ -101,138 +101,146 @@ M0_INTERNAL struct m0_file *m0_client_fop_to_file(struct m0_fop *fop)
 	return &ioo->ioo_flock;
 }
 
-/**
- * Copies correct part of attribute buffer to client's attribute bufvec.
- * received from reply fop.
- *
- *     | CS0 | CS1 | CS2 | CS3 | CS4 | CS5 | CS6 |
- *
- *  1. rep_ivec* will be COB offset received from target
- *     | rep_index[0] || rep_index[1] || rep_index[2] |
- *
- *  2. ti_ivec will be COB offset while sending
- *     | ti_index[0] || ti_index[1] || ti_index[2] || ti_index[3] |
- *     *Note: rep_ivec will be subset of ti_ivec
- *
- *  3. ti_goff_ivec will be GOB offset while sending
- *     Note: rep_ivec will be subset of ti_ivec
- *
- * Steps:
- *   1. Bring reply ivec to start of unit
- *   2. Then move cursor of ti_vec so that it matches rep_ivec start.
- *      Move the ti_goff_ivec for by the same size
- *      Note: This will make all vec aligned
- *   3. Then iterate over rep_ivec one unit at a time till we process all
- *      extents, get corresponding GOB offset and use GOB Offset and GOB
- *      Extents (ioo_ext) to locate the checksum add and copy one checksum
- *      to the application checksum buffer.
- * @param rep_ivec m0_indexvec representing the extents spanned by IO.
- * @param ti       target_ioreq structure for this reply's taregt.
- * @param ioo      Object's context for client's internal workings.
- * @param buf      buffer contaiing attributes received from server.
- */
-static void application_attribute_copy(struct m0_indexvec *rep_ivec,
-				       struct target_ioreq *ti,
-				       struct m0_op_io *ioo,
-				       struct m0_buf *buf)
+static void print_pi(void *pi,int size)
 {
-	uint32_t                unit_size;
-	uint32_t                off;
-	uint32_t                cs_sz;
-	m0_bindex_t             rep_index;
-	m0_bindex_t             ti_cob_index;
-	m0_bindex_t             ti_goff_index;
-	struct m0_ivec_cursor   rep_cursor;
-	struct m0_ivec_cursor   ti_cob_cursor;
-	struct m0_ivec_cursor   ti_goff_cursor;
-	struct m0_indexvec     *ti_ivec = &ti->ti_ivec;
-	struct m0_indexvec     *ti_goff_ivec = &ti->ti_goff_ivec;
-	void                   *dst;
-	void                   *src;
-
-	if (!m0__obj_is_di_enabled(ioo)) {
-		return;
+	int i;
+	char arr[size * 3];
+	char *ptr = pi;
+	M0_LOG(M0_WARN, ">>>>>>>>>>>>>>>>>>[PI Values]<<<<<<<<<<<<<<<<<");
+	for (i = 0; i < size; i++)
+	{
+		sprintf(&arr[i * 3], "%02x ", ptr[i] & 0xff);
 	}
-	src = buf->b_addr;
+	M0_LOG(M0_WARN, "%s ", (char *)arr);
+}
 
-	if (!buf->b_nob) {
-		/* Return as no checksum is present */
-		return;
+static void di_debug_log_print(struct target_ioreq *tioreq,
+			       struct ioreq_fop *irfop, struct m0_op_io *ioo)
+{
+	int cdi;
+	uint32_t v_nr = tioreq->ti_goff_ivec.iv_vec.v_nr;
+	M0_LOG(M0_WARN,"- FOP details Ext0: %" PRIi64
+	       " ExtN: %"PRIi64 " Count0: %" PRIi64
+	       " Vnr: %"PRIi32" CountEnd: %" PRIi64 ,
+	       tioreq->ti_goff_ivec.iv_index[0],
+	       tioreq->ti_goff_ivec.iv_index[v_nr-1],
+	       tioreq->ti_goff_ivec.iv_vec.v_count[0], v_nr,
+	       tioreq->ti_goff_ivec.iv_vec.v_count[v_nr-1]);
+	for (cdi = 0; cdi < irfop->irf_cksum_data.cd_num_units; cdi++)
+		M0_LOG(M0_WARN,"- %d. FOP DU details [%s] [PG Idx:%" PRIu64
+		       "][Unit Idx:%" PRIu64 "]", cdi + 1,
+		       irfop->irf_pattr == PA_DATA ? "D" : "P",
+		       (uint64_t)(irfop->irf_cksum_data.cd_idx[cdi].ci_pg_idx +
+		       ioo->ioo_iomaps[0]->pi_grpid),
+		       irfop->irf_cksum_data.cd_idx[cdi].ci_unit_idx);
+}
+
+static int application_checksum_process(struct m0_op_io *ioo,
+				        struct target_ioreq *ti,
+				        struct ioreq_fop *irfop,
+				        struct m0_buf *rw_rep_cs_data)
+{
+	int                                     rc = 0;
+	uint32_t                                idx;
+	uint32_t                                num_units;
+	uint32_t                                cksum_size;
+	uint32_t                                cs_compared = 0;
+	void                                   *compute_cs_buf;
+	enum m0_pi_algo_type                    cksum_type;
+	struct fop_cksum_data                  *cs_data;
+
+	cs_data = &irfop->irf_cksum_data;
+	/* Validate if FOP has unit count set */
+	num_units = cs_data->cd_num_units;
+	M0_ASSERT(num_units != 0);
+
+	/* FOP reply data should have pi type correctly set */
+	cksum_type = ((struct m0_pi_hdr *)rw_rep_cs_data->b_addr)->pih_type;
+	M0_ASSERT(cksum_type < M0_PI_TYPE_MAX);
+	cksum_size = m0_cksum_get_size(cksum_type);
+	if (cksum_size == 0) {
+		M0_LOG(M0_WARN, "Skipping DI for PI Type: %d Size: %d",
+		       cksum_type,cksum_size);
+		di_debug_log_print(ti, irfop, ioo);
+		return rc;
 	}
-
-	unit_size = m0_obj_layout_id_to_unit_size(m0__obj_lid(ioo->ioo_obj));
-	cs_sz = ioo->ioo_attr.ov_vec.v_count[0];
-
-	m0_ivec_cursor_init(&rep_cursor, rep_ivec);
-	m0_ivec_cursor_init(&ti_cob_cursor, ti_ivec);
-	m0_ivec_cursor_init(&ti_goff_cursor, ti_goff_ivec);
-
-	rep_index = m0_ivec_cursor_index(&rep_cursor);
-	ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
-	ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
-
-	/* Move rep_cursor on unit boundary */
-	off = rep_index % unit_size;
-	if (off) {
-		if (!m0_ivec_cursor_move(&rep_cursor, unit_size - off))
-			rep_index = m0_ivec_cursor_index(&rep_cursor);
-		else
-			return;
-	}
-	off = ti_cob_index % unit_size;
-	if (off != 0) {
-		if (!m0_ivec_cursor_move(&ti_cob_cursor, unit_size - off)) {
-			ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
-		}
-	}
-	off = ti_goff_index % unit_size;
-	if (off != 0) {
-		if (!m0_ivec_cursor_move(&ti_goff_cursor, unit_size - off)) {
-			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
-		}
-	}
-	M0_ASSERT(ti_cob_index <= rep_index);
 
 	/**
-	 * Cursor iterating over segments spanned by this IO. At each iteration
-	 * index of reply fop is matched with all the target offsets stored in
-	 * target_ioreq::ti_ivec, once matched, the checksum offset is
-	 * retrieved from target_ioreq::ti_goff_ivec for the corresponding
-	 * target offset.
-	 *
-	 * The checksum offset represents the correct segemnt of
-	 * m0_op_io::ioo_attr which needs to be populated for the current
-	 * target offset(represented by rep_index).
-	 *
+	 * We should get checksum size which is same as requested, this will
+	 * also confirm that user has correctly allocated buffer for checksum
+	 * in ioo attr structure.
 	 */
-	do {
-		rep_index = m0_ivec_cursor_index(&rep_cursor);
-		while (ti_cob_index != rep_index) {
-			if (m0_ivec_cursor_move(&ti_cob_cursor, unit_size) ||
-			    m0_ivec_cursor_move(&ti_goff_cursor, unit_size)) {
-				M0_ASSERT(0);
-			}
-			ti_cob_index = m0_ivec_cursor_index(&ti_cob_cursor);
-			ti_goff_index = m0_ivec_cursor_index(&ti_goff_cursor);
+	M0_ASSERT(rw_rep_cs_data->b_nob == num_units * cksum_size);
+
+	/* Allocate checksum buffer */
+	compute_cs_buf = m0_alloc(cksum_size);
+	if (compute_cs_buf == NULL )
+		return -ENOMEM;
+
+	M0_LOG(M0_DEBUG, "RECEIVED CS b_nob: %d PiTyp:%d",
+	       (int)rw_rep_cs_data->b_nob,cksum_type);
+
+	for (idx = 0; idx < num_units; idx++) {
+		struct fop_cksum_idx_data *cs_idx = &cs_data->cd_idx[idx];
+		M0_ASSERT(cs_idx->ci_pg_idx != UINT32_MAX &&
+			  cs_idx->ci_unit_idx != UINT32_MAX);
+
+		/* Calculate checksum for each unit */
+		rc = m0_target_calculate_checksum(ioo, cksum_type,
+						  irfop->irf_pattr, cs_idx,
+						  compute_cs_buf );
+		if (rc != 0)
+			goto fail;
+
+		/* Compare computed and received checksum */
+		if (memcmp(rw_rep_cs_data->b_addr + cs_compared,
+		    compute_cs_buf, cksum_size) != 0) {
+			/* Add error code to the target status */
+			rc = M0_RC(-EIO);
+			ioo->ioo_rc = M0_RC(-EIO);
+			ioo->ioo_di_err_count++;
+
+			/* Log all info to locate unit */
+			M0_LOG(M0_ERROR,"IMP ERROR: Checksum validation failed"
+					" for Obj: 0x%" PRIx64 " 0x%" PRIx64
+					" PG0Off: 0x%" PRIx64 " Goff:0x%" PRIx64
+					" UTyp:[%s] [PG Idx:%" PRIu64
+					"][Unit Idx:%" PRIu64 "]",
+					ioo->ioo_obj->ob_entity.en_id.u_hi,
+					ioo->ioo_obj->ob_entity.en_id.u_lo,
+					ioo->ioo_iomaps[0]->pi_grpid *
+					data_size(pdlayout_get(ioo)),
+					ti->ti_goff_ivec.iv_index[0],
+					(irfop->irf_pattr == PA_PARITY) ?
+					"P":"D",
+					(uint64_t)(cs_idx->ci_pg_idx +
+					ioo->ioo_iomaps[0]->pi_grpid),
+					cs_idx->ci_unit_idx);
+			print_pi(rw_rep_cs_data->b_addr, rw_rep_cs_data->b_nob);
+			print_pi(compute_cs_buf, cksum_size);
+		}
+		/* Copy checksum to application buffer */
+		if (!m0__obj_is_di_cksum_gen_enabled(ioo) &&
+		    (irfop->irf_pattr != PA_PARITY)) {
+			uint32_t unit_off;
+			struct m0_pdclust_layout *play = pdlayout_get(ioo);
+
+			unit_off = cs_idx->ci_pg_idx * layout_n(play) +
+				   cs_idx->ci_unit_idx;
+			memcpy(ioo->ioo_attr.ov_buf[unit_off],
+			       rw_rep_cs_data->b_addr + cs_compared,
+			       cksum_size);
 		}
 
-		/* GOB offset should be in span of application provided GOB extent */
-		M0_ASSERT(ti_goff_index <=
-			  (ioo->ioo_ext.iv_index[ioo->ioo_ext.iv_vec.v_nr-1] +
-			  ioo->ioo_ext.iv_vec.v_count[ioo->ioo_ext.iv_vec.v_nr-1]));
+		cs_compared += cksum_size;
+		M0_ASSERT(cs_compared <= rw_rep_cs_data->b_nob);
+	}
+	/* All checksum expected from target should be received */
+	M0_ASSERT(cs_compared == rw_rep_cs_data->b_nob);
 
-		dst = m0_extent_vec_get_checksum_addr(&ioo->ioo_attr,
-						      ti_goff_index,
-						      &ioo->ioo_ext,
-						      unit_size, cs_sz);
-                M0_ASSERT(dst != NULL);
-		memcpy(dst, src, cs_sz);
-		src = (char *)src + cs_sz;
-
-		/* Source is m0_buf and we have to copy all the checksum one at a time */
-		M0_ASSERT(src <= (buf->b_addr + buf->b_nob));
-
-	} while (!m0_ivec_cursor_move(&rep_cursor, unit_size));
+fail:
+	m0_free(compute_cs_buf);
+	return rc;
 }
 
 /**
@@ -259,9 +267,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_rpc_item          *reply_item;
 	struct m0_rpc_bulk	    *rbulk;
 	struct m0_fop_cob_rw_reply  *rw_reply;
-	struct m0_indexvec           rep_attr_ivec;
 	struct m0_fop_generic_reply *gen_rep;
-	struct m0_fop_cob_rw        *rwfop;
 
 	M0_ENTRY("sm_group %p sm_ast %p", grp, ast);
 
@@ -286,7 +292,6 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	/* Check errors in rpc items of an IO reqest and its reply. */
 	rbulk      = &iofop->if_rbulk;
 	req_item   = &iofop->if_fop.f_item;
-	rwfop      = io_rw_get(&iofop->if_fop);
 	reply_item = req_item->ri_reply;
 	rc         = req_item->ri_error;
 	if (reply_item != NULL) {
@@ -295,7 +300,8 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 	if (rc < 0 || reply_item == NULL) {
 		M0_ASSERT(ergo(reply_item == NULL, rc != 0));
-		M0_LOG(M0_ERROR, "[%p] rpc item %p rc=%d", ioo, req_item, rc);
+		M0_LOG(M0_ERROR, "[%p] rpc item %p rc=%d session = %p", ioo,
+				 req_item, rc, req_item->ri_session);
 		goto ref_dec;
 	}
 	M0_ASSERT(!m0_rpc_item_is_generic_reply_fop(reply_item));
@@ -305,20 +311,20 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
 	rw_reply = io_rw_rep_get(reply_fop);
 
-	/*
-	 * Copy attributes to client if reply received from read operation
-	 * Skipping attribute_copy() if cksum validation is not allowed.
+	/**
+	 * Evaluate checksum if it present even though there is error in fop
+	 * rw_reply->rwr_rc != 0
 	 */
-	if (m0_is_read_rep(reply_fop) && op->op_code == M0_OC_READ &&
-	    m0__obj_is_cksum_validation_allowed(ioo)) {
-		m0_indexvec_wire2mem(&rwfop->crw_ivec,
-					rwfop->crw_ivec.ci_nr, 0,
-					&rep_attr_ivec);
-
-		application_attribute_copy(&rep_attr_ivec, tioreq, ioo,
-					   &rw_reply->rwr_di_data_cksum);
-
-		m0_indexvec_free(&rep_attr_ivec);
+	if (m0_is_read_rep(reply_fop)) {
+		if (rw_reply->rwr_di_data_cksum.b_nob)
+			rc = application_checksum_process(ioo, tioreq,
+			     irfop, &rw_reply->rwr_di_data_cksum);
+		else if (m0__obj_is_di_enabled(ioo) &&
+		         irfop->irf_cksum_data.cd_num_units &&
+			 (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_READ)) {
+			M0_LOG(M0_WARN,"No DI data received for :");
+			di_debug_log_print(tioreq, irfop, ioo);
+		}
 	}
 	ioo->ioo_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
@@ -359,8 +365,10 @@ ref_dec:
 
 		if (rc == -ENOENT) /* normal for CROW */
 			M0_LOG(M0_DEBUG, LOGMSG);
-		else
+		else {
 			M0_LOG(M0_ERROR, LOGMSG);
+			di_debug_log_print(tioreq, irfop, ioo);
+		}
 	} else {
 		M0_LOG(M0_DEBUG, LOGMSG);
 	}
@@ -505,8 +513,6 @@ ref_dec:
 		ti->ti_rc = rc;
 	if (xfer->nxr_rc == 0 && rc != 0)
 		xfer->nxr_rc = rc;
-	if (ioo->ioo_rc == 0 && rc != 0)
-		ioo->ioo_rc = rc;
 	m0_fop_put0_lock(&cc_fop->crf_fop);
 	if (reply_fop != NULL)
 		m0_fop_put0_lock(reply_fop);
@@ -670,8 +676,6 @@ M0_INTERNAL int ioreq_fop_async_submit(struct m0_io_fop      *iofop,
 	struct m0_fop_cob_rw *rwfop;
 	struct m0_rpc_item   *item;
 
-	M0_ENTRY("m0_io_fop %p m0_rpc_session %p", iofop, session);
-
 	M0_PRE(iofop != NULL);
 	M0_PRE(session != NULL);
 
@@ -688,6 +692,8 @@ M0_INTERNAL int ioreq_fop_async_submit(struct m0_io_fop      *iofop,
 	item->ri_session = session;
 	item->ri_nr_sent_max = M0_RPC_MAX_RETRIES;
 	item->ri_resend_interval = M0_RPC_RESEND_INTERVAL;
+	M0_ENTRY("m0_io_fop %p m0_rpc_session %p item = %p", iofop, session,
+		 item);
 	rc = m0_rpc_post(item);
 	M0_LOG(M0_INFO, "IO fops submitted to rpc, rc = %d", rc);
 
@@ -757,6 +763,7 @@ M0_INTERNAL int ioreq_fop_dgmode_read(struct ioreq_fop *irfop)
 	               ioo_nwxfer, &ioo_bobtype);
 	rbulk = &irfop->irf_iofop.if_rbulk;
 
+	m0_mutex_lock(&rbulk->rb_mutex);
 	m0_tl_for (rpcbulk, &rbulk->rb_buflist, rbuf) {
 
 		index  = rbuf->bb_zerovec.z_index;
@@ -784,10 +791,13 @@ M0_INTERNAL int ioreq_fop_dgmode_read(struct ioreq_fop *irfop)
 			rc = map->pi_ops->pi_dgmode_process(map,
 					irfop->irf_tioreq, &index[seg - cnt],
 					cnt);
-			if (rc != 0)
+			if (rc != 0) {
+				m0_mutex_unlock(&rbulk->rb_mutex);
 				return M0_ERR(rc);
+			}
 		}
 	} m0_tl_endfor;
+	m0_mutex_unlock(&rbulk->rb_mutex);
 	return M0_RC(0);
 }
 
@@ -965,6 +975,41 @@ static void ioreq_fop_release(struct m0_ref *ref)
 	M0_LEAVE();
 }
 
+/* Initialize checksum data structre for a FOP */
+static void ioreq_fop_checksum_data_init(struct m0_op_io *ioo,
+					 struct ioreq_fop *fop)
+{
+	uint32_t                  idx;
+	uint32_t                  units;
+	struct fop_cksum_data    *cs_data;
+	struct m0_pdclust_layout *play = pdlayout_get(ioo);
+
+	/* Get pointer to basic data structure */
+	cs_data = &fop->irf_cksum_data;
+	cs_data->cd_num_units = 0;
+	cs_data->cd_max_units = 0;
+	cs_data->cd_idx = NULL;
+	
+	/* In case of k = 0 the buffer will not be allocated */
+	units = layout_n(play) > layout_k(play) ?
+		layout_n(play) : layout_k(play);
+	
+	/* Allocate and intialize buffer for storing checksum data */
+	if (units && m0__obj_is_di_enabled(ioo)) {
+		/* DI enabled, allocate space for every unit (all PG) */
+		units *= ioo->ioo_iomap_nr; 
+		M0_ALLOC_ARR(cs_data->cd_idx, units);
+		if (cs_data->cd_idx == NULL)
+			return;
+
+		cs_data->cd_max_units = units;
+		for (idx = 0; idx < units; idx++) {
+			cs_data->cd_idx[idx].ci_pg_idx = UINT32_MAX;
+			cs_data->cd_idx[idx].ci_unit_idx = UINT32_MAX;
+		}
+	}
+}
+
 /**
  * This is heavily based on m0t1fs/linux_kernel/file.c::io_req_fop_fini
  */
@@ -997,6 +1042,7 @@ M0_INTERNAL int ioreq_fop_init(struct ioreq_fop    *fop,
 	fop->irf_ast.sa_cb = io_bottom_half;
 	fop->irf_ast.sa_mach = &ioo->ioo_sm;
 
+	ioreq_fop_checksum_data_init(ioo, fop);
 	fop_type = M0_IN(ioreq_sm_state(ioo),
 			 (IRS_WRITING, IRS_DEGRADED_WRITING)) ?
 		   &m0_fop_cob_writev_fopt : &m0_fop_cob_readv_fopt;
@@ -1038,15 +1084,17 @@ M0_INTERNAL void ioreq_fop_fini(struct ioreq_fop *fop)
 	 * using m0_rpc_item::m0_rpc_item_ops::rio_free().
 	 * see m0_io_item_free().
 	 */
-
 	iofops_tlink_fini(fop);
 
-	/*
+	/* Free checksum data, cd_max_units not cleared for debug purpose */
+	m0_free(fop->irf_cksum_data.cd_idx);
+	fop->irf_cksum_data.cd_num_units = 0;
+
+	/**
 	 * ioreq_bob_fini() is not done here so that struct ioreq_fop
 	 * can be retrieved from struct m0_rpc_item using bob_of() and
 	 * magic numbers can be checked.
 	 */
-
 	fop->irf_tioreq = NULL;
 	fop->irf_ast.sa_cb = NULL;
 	fop->irf_ast.sa_mach = NULL;

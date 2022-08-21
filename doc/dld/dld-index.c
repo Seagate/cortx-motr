@@ -53,6 +53,7 @@ file.c -->
 - @subpage spiel-dld "SPIEL API DLD" <!-- spiel/spiel.h -->
 - @subpage cas-dld "The catalogue service (CAS)" <!-- cas/service.c -->
 - @subpage fis-dld "Fault Injection at run time" <!-- fis/fi_service.h -->
+- @subpage dtm0br-dld "DTM0 basic recovery SM" <!-- dtm0/recovery.c -->
 
 Detailed designs should use the <i>@subpage DLD "Motr DLD Template"
 <!-- doc/dld-template.c --> </i> as a style guide.

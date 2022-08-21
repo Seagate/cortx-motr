@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2017-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,60 +19,67 @@
  *
  */
 
-
 #pragma once
 
-#ifndef __MOTR_BE_BTREE_INTERNAL_H__
-#define __MOTR_BE_BTREE_INTERNAL_H__
+#ifndef __MOTR_BTREE_INTERNAL_H__
+#define __MOTR_BTREE_INTERNAL_H__
+
+#include "sm/op.h"
+#include "be/op.h"   /* m0_be_op */
 
 /**
- * @defgroup be Meta-data back-end
+ * @defgroup btree
  *
  * @{
  */
 
-#include "format/format.h" /* m0_format_header */
-#include "be/btree.h"      /* BTREE_FAN_OUT */
-#include "be/btree_xc.h"   /* m0_be_btree_backlink_xc */
+enum m0_btree_opcode;
+struct m0_btree_oimpl;
 
-/* btree constants */
-enum {
-	KV_NR = 2 * BTREE_FAN_OUT - 1,
+struct m0_btree_op {
+	struct m0_sm_op             bo_op;
+	struct m0_sm_group          bo_sm_group;
+	struct m0_sm_op_exec        bo_op_exec;
+	enum m0_btree_opcode        bo_opc;
+	struct m0_btree            *bo_arbor;
+	struct m0_btree_rec         bo_rec;
+	struct m0_btree_cb          bo_cb;
+	struct m0_be_tx            *bo_tx;
+	struct m0_be_seg           *bo_seg;
+	uint64_t                    bo_flags;
+	m0_bcount_t                 bo_limit;
+	struct m0_btree_oimpl      *bo_i;
+	struct m0_btree_idata       bo_data;
+	struct m0_btree_rec_key_op  bo_keycmp;
 };
 
-struct be_btree_key_val  {
-	void *btree_key;
-	void *btree_val;
-} M0_XCA_RECORD M0_XCA_DOMAIN(be);
-
-/* WARNING!: fields position is paramount, see node_update() */
-struct m0_be_bnode {
-	struct m0_format_header      bt_header;  /* Header of node */
-	struct m0_be_btree_backlink  bt_backlink;
-	struct m0_be_bnode          *bt_next;    /* Pointer to next node */
-	unsigned int                 bt_num_active_key;/* Count of active keys */
-	unsigned int                 bt_level;   /* Level of node in B-Tree */
-	bool                         bt_isleaf;  /* Is this Leaf node? */
-	char                         bt_pad[7];  /* Used to padd */
-	struct be_btree_key_val      bt_kv_arr[KV_NR]; /* Array of key-vals */
-	struct m0_be_bnode          *bt_child_arr[KV_NR + 1]; /* childnode array */
-	struct m0_format_footer      bt_footer;  /* Footer of node */
-} M0_XCA_RECORD M0_XCA_DOMAIN(be);
-M0_BASSERT(sizeof(bool) == 1);
-
-enum m0_be_bnode_format_version {
-	M0_BE_BNODE_FORMAT_VERSION_1 = 1,
+enum m0_btree_node_format_version {
+	M0_BTREE_NODE_FORMAT_VERSION_1 = 1,
 
 	/* future versions, uncomment and update M0_BE_BNODE_FORMAT_VERSION */
-	/*M0_BE_BNODE_FORMAT_VERSION_2,*/
-	/*M0_BE_BNODE_FORMAT_VERSION_3,*/
+	/*M0_BTREE_NODE_FORMAT_VERSION_2,*/
+	/*M0_BTREE_NODE_FORMAT_VERSION_3,*/
 
 	/** Current version, should point to the latest version present */
-	M0_BE_BNODE_FORMAT_VERSION = M0_BE_BNODE_FORMAT_VERSION_1
+	M0_BTREE_NODE_FORMAT_VERSION = M0_BTREE_NODE_FORMAT_VERSION_1
 };
 
-/** @} end of be group */
-#endif /* __MOTR_BE_BTREE_INTERNAL_H__ */
+struct m0_btree_cursor {
+	struct m0_buf    bc_key;
+	struct m0_buf    bc_val;
+	struct m0_btree *bc_arbor;
+	struct m0_be_op  bc_op;
+};
+
+struct td;
+struct m0_btree {
+	const struct m0_btree_type *t_type;
+	unsigned                    t_height;
+	struct td                  *t_desc;
+};
+
+/** @} end of btree group */
+#endif /* __MOTR_BTREE_INTERNAL_H__ */
 
 /*
  *  Local variables:

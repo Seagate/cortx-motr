@@ -1,0 +1,110 @@
+#!/bin/bash
+#set -x
+set -e
+
+source ./env
+
+. ${MOTR_ROOT}/scripts/addb-py/chronometry/common/common_funcs
+
+function shutdown_cluster() {
+    hctl shutdown
+}
+
+function kill_cluster() {
+    killall -9 lt-m0d || true;
+    killall -9 hax || true;
+    killall -9 lt-m0mkfs || true;
+    shutdown_cluster
+}
+
+function bootstrap_cluster()
+{
+    local rc
+    # XXX: For some reason Hare does not like localhost.
+    hctl bootstrap --mkfs \
+        <(sed "s/localhost/$(hostname -f)/" $CURRENT_CDF)
+    rc=$?
+
+    if [[ $rc -ne 0 ]]; then 
+        _err "bootstrap_cluster() failed"
+        exit 1
+    fi
+}
+
+
+function create_disks() {
+    local rc
+    ${MOTR_UTILS_DIR}/m0setup --init-loop-only \
+        -s 1 -d ${TEST_ROOT} --pool-width ${POOL_WIDTH} \
+        --ipool-width ${IPOOL_WIDTH}
+    rc=$?
+
+    if [[ $rc -ne 0 ]]; then 
+        _err "create_disks() failed"
+        exit 1
+    fi
+}
+
+function get_kv_m0d_proc() {
+    # Cut off hax and confd
+    consul kv get -recurse /processes | \
+        grep -v '0x0' | grep -v '0x1'
+}
+
+function are_all_m0d_online() {
+    diff <(get_kv_m0d_proc) \
+        "$expected_kv_get_recurse_processes"
+}
+
+function wait_until_all_m0d_online() {
+    while ! are_all_m0d_online; do
+        _info "Awaiting on RECOVERED"
+        sleep 1;
+    done
+    _info "All m0ds are online"
+}
+
+function gen_reference_output_for_online_m0ds() {
+    get_kv_m0d_proc > \
+        "$expected_kv_get_recurse_processes"
+}
+
+function has_m0d_failed() {
+    local fid="$1"
+    local rc=1
+
+    svc_name="m0d@${fid}.service"
+    if systemctl is-failed $svc_name > /dev/null; then
+        _err "Process $svc_name failed"
+        rc=0
+    fi
+
+    return $rc
+}
+
+function verify_that_all_m0d_stoped_without_errors() {
+    for fid in $(grep -Eo '0x720+1:0x[0-9]' \
+        expected_kv_get_recurse_processes); do
+        if has_m0d_failed "$fid"; then
+            exit 1
+        fi
+    done
+}
+
+# repeat <n times> <function>
+function repeat() {
+    local nr="$1"
+    local what="$2"
+
+    for (( i=0; i < nr; i++ )) do
+        _info "Iteration: $((i + 1)) of $nr"
+        "${what}"
+    done
+}
+
+case "$1" in
+    gen)
+        gen_reference_output_for_online_m0ds;;
+    *)
+        ;;
+esac

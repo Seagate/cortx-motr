@@ -132,6 +132,7 @@ extern struct m0_ut_suite m0_fom_stats_ut;
 extern struct m0_ut_suite m0_net_bulk_if_ut;
 extern struct m0_ut_suite m0_net_bulk_mem_ut;
 extern struct m0_ut_suite m0_net_lnet_ut;
+extern struct m0_ut_suite m0_net_libfab_ut;
 extern struct m0_ut_suite m0_net_misc_ut;
 extern struct m0_ut_suite m0_net_module_ut;
 extern struct m0_ut_suite m0_net_test_ut;
@@ -175,11 +176,18 @@ extern struct m0_ut_suite xcode_ff2c_ut;
 extern struct m0_ut_suite xcode_ut;
 extern struct m0_ut_suite sns_flock_ut;
 extern struct m0_ut_suite ut_suite_pi;
+extern struct m0_ut_suite btree_ut;
 
 #if defined(ENABLE_LUSTRE)
 #define LNET_ENABLED (true)
 #else
 #define LNET_ENABLED (false)
+#endif
+
+#if defined(USE_LIBFAB)
+#define LIBFAB_ENABLED (true)
+#else
+#define LIBFAB_ENABLED (false)
 #endif
 
 static void tests_add(struct m0_ut_module *m)
@@ -212,6 +220,7 @@ static void tests_add(struct m0_ut_module *m)
 	 */
 	m0_ut_add(m, &dtm0_ut, true);
 
+	m0_ut_add(m, &btree_ut, true);
 	m0_ut_add(m, &capa_ut, true);
 	m0_ut_add(m, &cas_client_ut, true);
 	m0_ut_add(m, &cas_service_ut, true);
@@ -278,6 +287,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &m0_net_bulk_if_ut, true);
 	m0_ut_add(m, &m0_net_bulk_mem_ut, true);
 	m0_ut_add(m, &m0_net_lnet_ut, LNET_ENABLED);
+	m0_ut_add(m, &m0_net_libfab_ut, LIBFAB_ENABLED);
 	m0_ut_add(m, &m0_net_misc_ut, true);
 	m0_ut_add(m, &m0_net_module_ut, true);
 	m0_ut_add(m, &m0_net_test_ut, true);

@@ -29,6 +29,7 @@
 #include "ut/ut.h"
 #include "ut/misc.h"                /* M0_UT_CONF_PROFILE */
 #include "rpc/rpclib.h"             /* m0_rpc_server_ctx */
+#include "rpc/rpc_opcodes.h"
 #include "fid/fid.h"
 #include "motr/client.h"
 #include "motr/client_internal.h"
@@ -314,7 +315,7 @@ static void ut_dix_namei_ops(bool dist, uint32_t flags)
 	int                  rc;
 	struct m0_op_common *oc;
 	struct m0_op_idx    *oi;
-	
+
 	idx_dix_ut_init();
 	m0_container_init(&realm, NULL, &M0_UBER_REALM, ut_m0c);
 	general_ifid_fill(&ifid, dist);
@@ -1101,6 +1102,10 @@ static void dtm0_ut_cas_op_prepare(const struct m0_fid    *cfid,
 
 	rec->cr_key = at_buf_key;
 	rec->cr_val = at_buf_val;
+	if (val == NULL) {
+		rec->cr_val.ab_type = M0_RPC_AT_EMPTY;
+		rec->cr_val.u.ab_buf = M0_BUF_INIT0;
+	}
 
 	op->cg_id.ci_layout.dl_type = DIX_LTYPE_DESCR;
 	rc = m0_dix_ldesc_init(&op->cg_id.ci_layout.u.dl_desc,
@@ -1118,21 +1123,22 @@ static void dtm0_ut_cas_op_prepare(const struct m0_fid    *cfid,
 	}
 }
 
-static void dtm0_ut_send_redo(const struct m0_fid *ifid,
-			      uint64_t *key, uint64_t *val)
+static void dtm0_ut_send_redo(const struct m0_fid *ifid, uint32_t sdev_id,
+			      uint64_t *key, uint64_t *val, uint32_t opcode)
 {
-	int                     rc;
-	struct dtm0_req_fop     req = { .dtr_msg = DTM_REDO };
-	struct m0_dtm0_tx_desc  txr = {};
-	struct m0_dtm0_clk_src  dcs;
-	struct m0_dtm0_ts       now;
-	struct m0_dtm0_service *dtm0 = ut_m0c->m0c_dtms;
-	struct m0_buf           payload;
-	struct m0_cas_op        cas_op = {};
-	struct m0_cas_rec       cas_rec = {};
-	struct m0_fid           srv_dtm0_fid;
-	struct m0_fid           srv_proc_fid;
-	struct m0_fid           cctg_fid;
+	int                            rc;
+	struct dtm0_req_fop            req = { .dtr_msg = DTM_REDO };
+	struct m0_dtm0_tx_desc         txr = {};
+	struct m0_dtm0_clk_src         dcs;
+	struct m0_dtm0_ts              now;
+	struct m0_dtm0_service        *dtm0 = ut_m0c->m0c_dtms;
+	struct m0_buf                  payload;
+	struct m0_cas_op               cas_op = {};
+	struct m0_cas_rec              cas_rec = {};
+	struct m0_fid                  srv_dtm0_fid;
+	struct m0_fid                  srv_proc_fid;
+	struct m0_fid                  cctg_fid;
+	struct m0_cas_dtm0_log_payload dtm_payload;
 	/*
 	 * FIXME: this zeroed fom is added by DTM0 team mates' request
 	 * to make the merge easier as there is a massive parallel work.
@@ -1142,8 +1148,6 @@ static void dtm0_ut_send_redo(const struct m0_fid *ifid,
 	 * Ivan Alekhin.
 	 */
 	struct m0_fom           zero_fom_to_be_deleted = {};
-	/* Extreme hack to convert index fid to component catalogue fid. */
-	uint32_t                sdev_idx = 10;
 
 	m0_dtm0_clk_src_init(&dcs, M0_DTM0_CS_PHYS);
 	m0_dtm0_clk_src_now(&dcs, &now);
@@ -1162,11 +1166,13 @@ static void dtm0_ut_send_redo(const struct m0_fid *ifid,
 		.dti_fid = cli_dtm0_fid
 	};
 
-	m0_dix_fid_convert_dix2cctg(ifid, &cctg_fid, sdev_idx);
+	m0_dix_fid_convert_dix2cctg(ifid, &cctg_fid, sdev_id);
 
 	dtm0_ut_cas_op_prepare(&cctg_fid, &cas_op, &cas_rec, key, val, &txr);
-
-	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, &cas_op),
+	dtm_payload.cdg_cas_op = cas_op;
+	dtm_payload.cdg_cas_opcode = opcode;
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_dtm0_log_payload_xc,
+						   &dtm_payload),
 				     &payload.b_addr, &payload.b_nob);
 	M0_UT_ASSERT(rc == 0);
 
@@ -1185,7 +1191,7 @@ static void dtm0_ut_send_redo(const struct m0_fid *ifid,
 	M0_UT_ASSERT(rc == 0);
 }
 
-static void dtm0_ut_read_and_check(uint64_t key, uint64_t val)
+static void dtm0_ut_read_and_check(uint64_t key, uint64_t val, uint32_t opcode)
 {
 	struct m0_idx      *idx = &duc.duc_idx;
 	struct m0_op       *op = NULL;
@@ -1204,11 +1210,16 @@ static void dtm0_ut_read_and_check(uint64_t key, uint64_t val)
 	m0_op_launch(&op, 1);
 	rc = m0_op_wait(op, M0_BITS(M0_OS_STABLE), WAIT_TIMEOUT);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(rcs[0] == 0);
-	M0_UT_ASSERT(vals.ov_vec.v_nr == 1);
-	M0_UT_ASSERT(vals.ov_vec.v_count[0] == sizeof(val));
-	M0_UT_ASSERT(vals.ov_buf[0] != NULL);
-	M0_UT_ASSERT(*(uint64_t *)vals.ov_buf[0] == val);
+	if (opcode == M0_CAS_PUT_FOP_OPCODE) {
+		M0_UT_ASSERT(rcs[0] == 0);
+		M0_UT_ASSERT(vals.ov_vec.v_nr == 1);
+		M0_UT_ASSERT(vals.ov_vec.v_count[0] == sizeof(val));
+		M0_UT_ASSERT(vals.ov_buf[0] != NULL);
+		M0_UT_ASSERT(*(uint64_t *)vals.ov_buf[0] == val);
+	}
+	else if (opcode == M0_CAS_DEL_FOP_OPCODE) {
+		 M0_UT_ASSERT(rcs[0] == -ENOENT);
+	}
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&vals);
 	m0_op_fini(op);
@@ -1216,7 +1227,59 @@ static void dtm0_ut_read_and_check(uint64_t key, uint64_t val)
 	m0_free0(&rcs);
 }
 
-static void st_dtm0_r(void)
+static uint32_t dtm0_ut_cas_sdev_id_get(void)
+{
+	struct m0_fid           srv_cas_fid;
+	struct m0_fid           srv_proc_fid;
+	struct m0_confc        *confc = m0_reqh2confc(&ut_m0c->m0c_reqh);
+	struct m0_conf_obj     *obj;
+	struct m0_conf_service *service;
+	struct m0_conf_obj     *sdevs_dir;
+	struct m0_conf_sdev    *sdev;
+	bool                    found = false;
+	uint32_t                sdev_id = 0;
+	int                     rc;
+
+	rc = m0_fid_sscanf(ut_m0_config.mc_process_fid, &srv_proc_fid);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_conf_process2service_get(confc, &srv_proc_fid,
+					 M0_CST_CAS, &srv_cas_fid);
+	M0_UT_ASSERT(rc == 0);
+
+	obj = m0_conf_cache_lookup(&confc->cc_cache, &srv_cas_fid);
+	M0_ASSERT(obj != NULL);
+
+	service = M0_CONF_CAST(obj, m0_conf_service);
+	M0_ASSERT(service != NULL);
+
+	sdevs_dir = &service->cs_sdevs->cd_obj;
+	rc = m0_confc_open_sync(&sdevs_dir, sdevs_dir, M0_FID0);
+	M0_ASSERT(rc == 0);
+
+	obj = NULL;
+	while ((rc = m0_confc_readdir_sync(sdevs_dir, &obj)) > 0) {
+		sdev = M0_CONF_CAST(obj, m0_conf_sdev);
+		if (!found) {
+			sdev_id = sdev->sd_dev_idx;
+			found = true;
+		} else {
+			/*
+			 * Single device attached to the CAS service
+			 * is a standard configuration for now, don't
+			 * support several attached devices in the UT.
+			 */
+			M0_IMPOSSIBLE("Do not support several CAS devices.");
+		}
+	}
+
+	m0_confc_close(sdevs_dir);
+
+	M0_ASSERT(found);
+
+	return sdev_id;
+}
+
+static void st_dtm0_r_common(uint32_t sdev_id)
 {
 	m0_time_t rem;
 	uint64_t  key = 111;
@@ -1227,15 +1290,48 @@ static void st_dtm0_r(void)
 
 	idx_setup();
 	exec_one_by_one(1, M0_IC_PUT);
-	dtm0_ut_send_redo(&duc.duc_ifid, &key, &val);
+	dtm0_ut_send_redo(&duc.duc_ifid, sdev_id, &key, &val,
+			  M0_CAS_PUT_FOP_OPCODE);
 
 	/* XXX dirty hack, but now we don't have completion notification */
 	rem = 2ULL * M0_TIME_ONE_SECOND;
         while (rem != 0)
                 m0_nanosleep(rem, &rem);
 
-	dtm0_ut_read_and_check(key, val);
+	dtm0_ut_read_and_check(key, val, M0_CAS_PUT_FOP_OPCODE);
+
+	exec_one_by_one(1, M0_IC_DEL);
+	dtm0_ut_send_redo(&duc.duc_ifid, sdev_id, &key, NULL,
+			  M0_CAS_DEL_FOP_OPCODE);
+
+	/* XXX dirty hack, but now we don't have completion notification */
+	rem = 2ULL * M0_TIME_ONE_SECOND;
+        while (rem != 0)
+                m0_nanosleep(rem, &rem);
+
+	dtm0_ut_read_and_check(key, val, M0_CAS_DEL_FOP_OPCODE);
 	idx_teardown();
+}
+
+static void st_dtm0_r(void)
+{
+	/* CAS sdev id from the configuration. */
+	uint32_t sdev_id = dtm0_ut_cas_sdev_id_get();
+	st_dtm0_r_common(sdev_id);
+}
+
+static void st_dtm0_r_wrong_sdev(void)
+{
+	/*
+	 * Random CAS sdev id, should be fixed by REDO handler.
+	 * In a real system participants will send the REDO messages
+	 * with their own CAS devices IDs during recovery, so the REDO
+	 * handler of the process to be recovered needs to get the CAS
+	 * device ID attached to a local CAS service and set it in an
+	 * operation CAS ID.
+	 */
+	uint32_t sdev_id = dtm0_ut_cas_sdev_id_get() + 12345;
+	st_dtm0_r_common(sdev_id);
 }
 
 struct m0_ut_suite ut_suite_mt_idx_dix = {
@@ -1252,6 +1348,7 @@ struct m0_ut_suite ut_suite_mt_idx_dix = {
 		{ "dtm0_e_then_s",  st_dtm0_e_then_s, "Ivan"     },
 		{ "dtm0_c",         st_dtm0_c,        "Ivan"     },
 		{ "dtm0_r",         st_dtm0_r,        "Sergey"   },
+		{ "dtm0_r_wrong_sdev", st_dtm0_r_wrong_sdev, "Sergey" },
 		{ NULL, NULL }
 	}
 };

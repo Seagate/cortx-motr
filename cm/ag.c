@@ -345,10 +345,7 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 	M0_ASSERT(rc <= 0);
 	if (rc == 0 || rc == -ENOBUFS)
 		m0_cm_aggr_group_add(cm, *out, has_incoming);
-	else if (rc != 0)
-		return M0_RC(rc);
 
-	M0_ASSERT(rc <= 0);
 	return M0_RC(rc);
 }
 

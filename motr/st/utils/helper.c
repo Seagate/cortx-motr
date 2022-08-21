@@ -287,10 +287,11 @@ static int write_data_to_object(struct m0_obj *obj,
 	int                  rc;
 	struct m0_op        *ops[1] = {NULL};
 
-	/** Create write operation
-	 *  CKSUM_TODO: calculate cksum and pass in
-        *  attr instead of NULL
-        */
+	/**
+	 * Create write operation
+	 * CKSUM_TODO: calculate cksum and pass in
+	 * attr instead of NULL
+	 */
 	rc = m0_obj_op(obj, M0_OC_WRITE, ext, data, NULL, 0, 0, &ops[0]);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -352,13 +353,16 @@ init_error:
 int m0_write(struct m0_container *container, char *src,
 	     struct m0_uint128 id, uint32_t block_size,
 	     uint32_t block_count, uint64_t update_offset,
-	     int blks_per_io, bool take_locks, bool update_mode)
+	     int blks_per_io, bool take_locks, bool update_mode,
+	     uint32_t entity_flags)
 {
 	int                           rc;
 	struct m0_indexvec            ext;
 	struct m0_bufvec              data;
 	struct m0_bufvec              attr;
 	uint32_t                      bcount;
+	uint64_t                      unit_size;
+	uint64_t                      sz_block_in_byte;
 	uint64_t                      last_index;
 	FILE                         *fp;
 	struct m0_obj                 obj;
@@ -375,6 +379,7 @@ int m0_write(struct m0_container *container, char *src,
 	instance = container->co_realm.re_instance;
 	m0_obj_init(&obj, &container->co_realm, &id,
 		    m0_client_layout_id(instance));
+	obj.ob_entity.en_flags = entity_flags;
 	rc = lock_ops->olo_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -395,6 +400,18 @@ int m0_write(struct m0_container *container, char *src,
 
 	if (blks_per_io == 0)
 		blks_per_io = M0_MAX_BLOCK_COUNT;
+
+	unit_size = m0_obj_layout_id_to_unit_size(m0_client_layout_id(instance));
+	/* When DI is enabled we have to read full data unit so checksum is
+	 * properly evaluated. So converting blks_per_io multiple of unit size
+	 */
+	if (obj.ob_entity.en_flags & (M0_ENF_DI | M0_ENF_GEN_DI)) {
+		sz_block_in_byte = blks_per_io * block_size;
+		if (sz_block_in_byte > unit_size) {
+			sz_block_in_byte -= sz_block_in_byte % unit_size;
+			blks_per_io = sz_block_in_byte / block_size;
+		}
+	}
 
 	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size);
 	if (rc != 0)
@@ -467,12 +484,14 @@ int m0_read(struct m0_container *container,
 	    struct m0_uint128 id, char *dest,
 	    uint32_t block_size, uint32_t block_count,
 	    uint64_t offset, int blks_per_io, bool take_locks,
-	    uint32_t flags, struct m0_fid *read_pver)
+	    uint32_t flags, struct m0_fid *read_pver, uint32_t entity_flags)
 {
 	int                           i;
 	int                           j;
 	int                           rc;
 	uint64_t                      last_index = 0;
+	uint64_t                      unit_size;
+	uint64_t                      sz_block_in_byte;
 	struct m0_obj                 obj;
 	struct m0_indexvec            ext;
 	struct m0_bufvec              data;
@@ -498,6 +517,7 @@ int m0_read(struct m0_container *container,
 	M0_SET0(&obj);
 	m0_obj_init(&obj, &container->co_realm, &id,
 		    m0_client_layout_id(instance));
+	obj.ob_entity.en_flags = entity_flags;
 	rc = lock_ops->olo_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -523,6 +543,18 @@ int m0_read(struct m0_container *container,
 
 	if (blks_per_io == 0)
 		blks_per_io = M0_MAX_BLOCK_COUNT;
+
+	unit_size = m0_obj_layout_id_to_unit_size(m0_client_layout_id(instance));
+	/* When DI is enabled we have to read full data unit so checksum is
+	 * properly evaluated. So converting blks_per_io multiple of unit size
+	 */
+	if (obj.ob_entity.en_flags & (M0_ENF_DI | M0_ENF_GEN_DI)) {
+		sz_block_in_byte = blks_per_io * block_size;
+		if (sz_block_in_byte > unit_size) {
+			sz_block_in_byte -= sz_block_in_byte % unit_size;
+			blks_per_io = sz_block_in_byte / block_size;
+		}
+	}
 	rc = alloc_vecs(&ext, &data, &attr, blks_per_io, block_size);
 	if (rc != 0)
 		goto cleanup;
@@ -539,6 +571,9 @@ int m0_read(struct m0_container *container,
 		}
 		prepare_ext_vecs(&ext, &attr, bcount,
 				 block_size, &last_index);
+
+		if (block_count == bcount)
+			flags |= M0_OOF_LAST;
 
 		rc = read_data_from_object(&obj, &ext, &data, NULL, flags);
 		if (rc != 0) {
@@ -740,14 +775,18 @@ init_error:
  */
 int m0_write_cc(struct m0_container *container,
 		char **src, struct m0_uint128 id, int *index,
-		uint32_t block_size, uint32_t block_count)
+		uint32_t block_size, uint32_t block_count,
+		uint32_t entity_flags)
 {
 	int                    rc;
+	int                    blks_per_io;
 	struct m0_indexvec     ext;
 	struct m0_bufvec       data;
 	struct m0_bufvec       attr;
 	uint32_t               bcount;
 	uint64_t               last_index;
+	uint64_t               unit_size;
+	uint64_t               sz_block_in_byte;
 	FILE                  *fp;
 	struct m0_obj          obj;
 	struct m0_client      *instance;
@@ -758,6 +797,7 @@ int m0_write_cc(struct m0_container *container,
 	m0_obj_init(&obj, &container->co_realm, &id,
 		    m0_client_layout_id(instance));
 
+	obj.ob_entity.en_flags = entity_flags;
 	rc = m0_obj_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -772,14 +812,26 @@ int m0_write_cc(struct m0_container *container,
 		goto file_error;
 	}
 
+	unit_size = m0_obj_layout_id_to_unit_size(m0_client_layout_id(instance));
+	blks_per_io = M0_MAX_BLOCK_COUNT;
+	/* When DI is enabled we have to read full data unit so checksum is
+	 * properly evaluated. So converting blks_per_io multiple of unit size
+	 */
+	if (obj.ob_entity.en_flags & (M0_ENF_DI | M0_ENF_GEN_DI)) {
+		sz_block_in_byte = blks_per_io * block_size;
+		if (sz_block_in_byte > unit_size) {
+			sz_block_in_byte -= sz_block_in_byte % unit_size;
+			blks_per_io = sz_block_in_byte / block_size;
+		}
+	}
 	rc = create_object(&obj.ob_entity);
 	if (rc != 0)
 		goto cleanup;
 
 	last_index = 0;
 	while (block_count > 0) {
-		bcount = (block_count > M0_MAX_BLOCK_COUNT) ?
-			  M0_MAX_BLOCK_COUNT : block_count;
+		bcount = (block_count > blks_per_io) ?
+			  blks_per_io : block_count;
 		rc = alloc_prepare_vecs(&ext, &data, &attr, bcount,
 					       block_size, &last_index);
 		if (rc != 0)
@@ -813,7 +865,7 @@ init_error:
 
 int m0_read_cc(struct m0_container *container,
 	       struct m0_uint128 id, char **dest, int *index,
-	       uint32_t block_size, uint32_t block_count)
+	       uint32_t block_size, uint32_t block_count, uint32_t entity_flags)
 {
 	int                           i;
 	int                           j;
@@ -839,6 +891,7 @@ int m0_read_cc(struct m0_container *container,
 	m0_obj_init(&obj, &container->co_realm, &id,
 			   m0_client_layout_id(instance));
 
+	obj.ob_entity.en_flags = entity_flags;
 	rc = m0_obj_lock_init(&obj);
 	if (rc != 0)
 		goto init_error;
@@ -929,6 +982,7 @@ int m0_utility_args_init(int argc, char **argv,
 	params->cup_update_mode = false;
 	params->cup_offset = 0;
 	params->flags = 0;
+	params->entity_flags = 0;
 	conf->mc_is_read_verify = false;
 	conf->mc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	conf->mc_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
@@ -963,10 +1017,13 @@ int m0_utility_args_init(int argc, char **argv,
 				{"enable-locks",  no_argument,       NULL, 'e'},
 				{"read-verify",   no_argument,       NULL, 'r'},
 				{"fill-zeros",    no_argument,       NULL, 'z'},
+				{"DI-generate",   no_argument,       NULL, 'G'},
+				{"DI-user-input", no_argument,       NULL, 'I'},
 				{"help",          no_argument,       NULL, 'h'},
 				{0,               0,                 0,     0 }};
 
-        while ((c = getopt_long(argc, argv, ":l:H:p:P:o:s:c:i:t:L:v:n:S:q:b:O:uerzh",
+        while ((c = getopt_long(argc, argv,
+				":l:H:p:P:o:s:c:i:t:L:v:n:S:q:b:O:uerzhGI",
 				l_opts, &option_index)) != -1)
 	{
 		switch (c) {
@@ -1101,6 +1158,10 @@ int m0_utility_args_init(int argc, char **argv,
 			case 'u': params->cup_update_mode = true;
 				  continue;
 			case 'z': params->flags |= M0_OOF_HOLE;
+				  continue;
+			case 'G': params->entity_flags |= M0_ENF_GEN_DI;
+				  continue;
+			case 'I': params->entity_flags |= M0_ENF_DI;
 				  continue;
 			case 'h': utility_usage(stderr, basename(argv[0]));
 				  exit(EXIT_FAILURE);

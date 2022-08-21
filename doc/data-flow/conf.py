@@ -30,7 +30,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 # General information about the project.
 project = u'Motr'
-copyright = u'2020, Seagate'
+copyright = u'2020, Seagate' #pylint: disable=redefined-builtin
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
