@@ -161,11 +161,11 @@ static void scan_btree(struct m0_be_domain *dom, bool print_btree)
 					  objtype->b0_name, suffix,
 					  objtype, seg );
 
-			if (m0_streq(objtype->b0_name, "M0_BE:COB") == 0) {
+			if (m0_streq(objtype->b0_name, "M0_BE:COB")) {
 				cdom = *(struct m0_cob_domain**)opt.b_addr;
 				track_cob_btrees(cdom, print_btree);
 			}
-			else if (m0_streq(objtype->b0_name, "M0_BE:AD") == 0) {
+			else if (m0_streq(objtype->b0_name, "M0_BE:AD")) {
 				rec = (struct stob_ad_0type_rec *)opt.b_addr;
 				track_ad_btrees(rec, print_btree);
 			}
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
 
 	if (argc == 3 && m0_streq(argv[1], "st") &&
 	    (m0_streq(argv[2], "mkfs") || m0_streq(argv[2], "run"))) {
-		if (m0_streq(argv[2], "mkfs") == 0)
+		if (m0_streq(argv[2], "mkfs"))
 			rc = m0_betool_st_mkfs();
 		else
 			rc = m0_betool_st_run();

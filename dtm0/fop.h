@@ -69,11 +69,13 @@ struct dtm0_req_fop {
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 
-#define REDO_F "redo={ txid=" DTID0_F ", ini=" FID_F ", is_eol=%d }"
+#define REDO_F "redo={ txid=" DTID0_F ", ini=" FID_F ", is_eol=%d " \
+	       "is_eviction=%d }"
 #define REDO_P(_redo)                       \
 	DTID0_P(&(_redo)->dtr_txr.dtd_id),  \
 	FID_P(&(_redo)->dtr_initiator),      \
-	!!((_redo)->dtr_flags & M0_BITS(M0_DMF_EOL))
+	!!((_redo)->dtr_flags & M0_BITS(M0_DMF_EOL)), \
+	!!((_redo)->dtr_flags & M0_BITS(M0_DMF_EVICTION))
 
 struct dtm0_rep_fop {
 	/** Status code of dtm operation. */

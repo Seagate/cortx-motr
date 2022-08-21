@@ -46,7 +46,7 @@ class CallbackModule(CallbackBase):
     #
 
     def pretty_print(self, data):
-        if type(data) is dict:
+        if isinstance(data, dict):
             for rec in RECORDS:
                 no_log = data.get('_ansible_no_log', False)
                 if rec in data and data[rec] and not no_log:
@@ -55,14 +55,14 @@ class CallbackModule(CallbackBase):
                                           log_only=False)
 
     def _format(self, output):
-        if type(output) is dict:
+        if isinstance(output, dict):
             return json.dumps(output, indent=2, sort_keys=True)
 
         # output may contain nested results when a task uses 'with_items'
-        if type(output) is list and type(output[0]) is dict:
+        if isinstance(output, list) and isinstance(output[0], dict):
             formatted_output = []
-            for i, elem in enumerate(output):
-                if type(elem) is dict:
+            for _, elem in enumerate(output):
+                if isinstance(elem, dict):
                     for rec in set(RECORDS) & set(elem):
                         formatted_output.append( self._format(elem[rec]) )
             if len(formatted_output) == 1:
@@ -70,7 +70,7 @@ class CallbackModule(CallbackBase):
             else:
                 return '\n  ' + '\n  '.join(formatted_output)
 
-        if type(output) is list and type(output[0]) is not dict:
+        if isinstance(output, list) and not isinstance(output[0], dict):
             if len(output) == 1:
                 return output[0]
             else:

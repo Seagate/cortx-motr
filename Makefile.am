@@ -209,7 +209,6 @@ include $(top_srcdir)/addb2/st/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
 include $(top_srcdir)/be/Makefile.sub
 include $(top_srcdir)/be/tool/Makefile.sub
-include $(top_srcdir)/btree/Makefile.sub
 include $(top_srcdir)/capa/Makefile.sub
 include $(top_srcdir)/cas/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
@@ -789,7 +788,6 @@ sbin_SCRIPTS  += utils/m0gendisks \
                  utils/m0reportbug \
                  utils/m0run \
                  utils/m0setup \
-                 utils/m0iscorrupt \
                  utils/m0singlenode
 
 
@@ -1037,7 +1035,6 @@ motr_commondir = $(motrdir)/common
 motr_common_SCRIPTS = \
     scripts/install$(motr_commondir)/cortx_error_codes.sh \
     scripts/install$(motr_commondir)/cortx_util_funcs.sh \
-    scripts/install$(motr_commondir)/core-traces \
     scripts/install$(motr_commondir)/m0_sns_utils_common.sh \
     scripts/install$(motr_commondir)/m0_dix_utils_common.sh \
     scripts/install$(motr_commondir)/m0_utils_common.sh \
@@ -1126,7 +1123,6 @@ EXTRA_DIST += \
               balloc/Kbuild.sub \
               be/Kbuild.sub \
               be/ut/Kbuild.sub \
-              btree/Kbuild.sub \
               cas/Kbuild.sub \
               cob/Kbuild.sub \
               motr/Kbuild.sub\

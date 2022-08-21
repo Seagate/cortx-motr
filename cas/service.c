@@ -74,7 +74,7 @@
  *
  * <hr>
  * @section cas-ovw Overview
- * Catalogue service exports BE btrees (btree/btree.[ch]) to the network.
+ * Catalogue service exports BE btrees (be/btree.[ch]) to the network.
  *
  * <hr>
  * @section cas-def Definitions
@@ -488,7 +488,8 @@ static bool cas_fom_invariant(const struct cas_fom *fom);
 static int  cas_buf_cid_decode(struct m0_buf    *enc_buf,
 			       struct m0_cas_id *cid);
 static bool cas_fid_is_cctg(const struct m0_fid *fid);
-static int  cas_id_check(const struct m0_cas_id *cid);
+static int  cas_id_check(const struct m0_cas_id *cid,
+			 const struct cas_fom   *fom);
 static int  cas_device_check(const struct cas_fom   *fom,
 			     const struct m0_cas_id *cid);
 static int cas_op_check(struct m0_cas_op *op,
@@ -1117,12 +1118,13 @@ static int cas_dtm0_logrec_add(struct m0_fom *fom0,
 			       enum m0_dtm0_tx_pa_state state)
 {
 	/* log the dtm0 logrec before completing the cas op */
-	struct m0_dtm0_service *dtms =
+	struct m0_dtm0_service         *dtms =
 		m0_dtm0_service_find(fom0->fo_service->rs_reqh);
-	struct m0_dtm0_tx_desc *msg = &cas_op(fom0)->cg_txd;
-	struct m0_buf           buf = {};
-	int                     i;
-	int                     rc;
+	struct m0_dtm0_tx_desc         *msg = &cas_op(fom0)->cg_txd;
+	struct m0_buf                  buf = {};
+	struct m0_cas_dtm0_log_payload dtm_payload;
+	int                            i;
+	int                            rc;
 
 	for (i = 0; i < msg->dtd_ps.dtp_nr; ++i) {
 		if (m0_fid_eq(&msg->dtd_ps.dtp_pa[i].p_fid,
@@ -1131,7 +1133,15 @@ static int cas_dtm0_logrec_add(struct m0_fom *fom0,
 			break;
 		}
 	}
-	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, cas_op(fom0)),
+	dtm_payload.cdg_cas_op = *cas_op(fom0);
+	dtm_payload.cdg_cas_opcode = m0_fop_opcode(fom0->fo_fop);
+	if (dtm_payload.cdg_cas_opcode == M0_CAS_DEL_FOP_OPCODE) {
+		struct m0_cas_rec *rec = dtm_payload.cdg_cas_op.cg_rec.cr_rec;
+		rec->cr_val.ab_type = M0_RPC_AT_EMPTY;
+		rec->cr_val.u.ab_buf = M0_BUF_INIT0;
+	}
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_dtm0_log_payload_xc,
+						   &dtm_payload),
 				     &buf.b_addr, &buf.b_nob) ?:
 		m0_dtm0_logrec_update(dtms->dos_log, &fom0->fo_tx.tx_betx, msg,
 				      &buf);
@@ -1317,7 +1327,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		}
 		break;
 	case CAS_CHECK_PRE:
-		rc = cas_id_check(&op->cg_id);
+		rc = cas_id_check(&op->cg_id, fom);
 		if (rc == 0) {
 			if (cas_fid_is_cctg(&op->cg_id.ci_fid))
 				result = cas_ctidx_lookup(fom, &op->cg_id,
@@ -1900,7 +1910,6 @@ static int cas_device_check(const struct cas_fom   *fom,
 			pm = &pver->pv_mach;
 			rc = cas_sdev_state(pm, device_id, &state);
 			if (rc == 0 && !M0_IN(state, (M0_PNDS_ONLINE,
-						      M0_PNDS_OFFLINE,
 						      M0_PNDS_SNS_REBALANCING)))
 				rc = M0_ERR(-EBADFD);
 		} else
@@ -1909,20 +1918,36 @@ static int cas_device_check(const struct cas_fom   *fom,
 	return M0_RC(rc);
 }
 
-static int cas_id_check(const struct m0_cas_id *cid)
+static int cas_id_check(const struct m0_cas_id *cid, const struct cas_fom *fom)
 {
 	const struct m0_dix_layout *layout;
 	int                         rc = 0;
+	struct cas_service         *svc;
+	uint32_t                    device_id;
 
 	if (!m0_fid_is_valid(&cid->ci_fid) ||
 	    !M0_IN(m0_fid_type_getfid(&cid->ci_fid), (&m0_cas_index_fid_type,
 						      &m0_cctg_fid_type)))
-		rc = M0_ERR(-EPROTO);
+		return M0_ERR(-EPROTO);
 
-	if (rc == 0 && cas_fid_is_cctg(&cid->ci_fid)) {
+	if (cas_fid_is_cctg(&cid->ci_fid)) {
 		layout = &cid->ci_layout;
 		if (layout->dl_type != DIX_LTYPE_DESCR)
-			rc = M0_ERR(-EPROTO);
+			return M0_ERR(-EPROTO);
+		if (fom != NULL) {
+			svc = M0_AMB(svc, fom->cf_fom.fo_service, c_service);
+			device_id = m0_dix_fid_cctg_device_id(&cid->ci_fid);
+			if (svc->c_sdev_id != INVALID_CAS_SDEV_ID &&
+			    svc->c_sdev_id != device_id &&
+			    cas_type(&fom->cf_fom) != CT_META) {
+				return M0_ERR_INFO(-EPROTO,
+						   "Incorrect device ID (%d) "
+						   "found in component "
+						   "catalogue FID. Valid device"
+						   " ID should be %d",
+						   device_id, svc->c_sdev_id);
+			}
+		}
 	}
 	return rc;
 }
