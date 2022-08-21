@@ -543,7 +543,6 @@ M0_INTERNAL struct target_ioreq *ut_dummy_target_ioreq_create(void)
 	ti->ti_bufvec.ov_buf = (void **)DUMMY_PTR;
 	ti->ti_auxbufvec.ov_buf = (void **)DUMMY_PTR;
 	ti->ti_ivec.iv_index = (void *)DUMMY_PTR;
-	ti->ti_goff_ivec.iv_index = (void *)DUMMY_PTR;
 	m0_fid_set(&ti->ti_fid, 0, 1);
 	iofops_tlist_init(&ti->ti_iofops);
 	tioreqht_tlink_init(ti);

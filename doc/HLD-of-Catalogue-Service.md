@@ -4,13 +4,13 @@ This document presents a High Level Design (HLD) of the Motr catalogue service. 
 
 The intended audience of this document consists of Motr customers, architects, designers and developers.
 
-##  Introduction
+## Introduction
 
 Catalogue service (cas) is a Motr service exporting key-value catalogues (indices). Users can access catalogues by sending appropriate fops to an instance of the catalogue service. Externally, a catalogue is a collection of key-value pairs, called records. A user can insert and delete records, lookup records by key and iterate through records in a certain order. A catalogue service does not interpret keys or values, (except that keys are ordered as bit-strings)—semantics are left to users.
 
 Catalogues are used by other Motr sub-systems to store and access meta-data. Distributed meta-data storage is implemented on top of cas.
 
-##  Definitions
+## Definitions
 
 -   catalogue: a container for records. A catalogue is explicitly created and deleted by a user and has an identifier, assigned by the user;
 -   record: a key-value pair;
@@ -19,7 +19,7 @@ Catalogues are used by other Motr sub-systems to store and access meta-data. Dis
 -   key order: total order, defined on keys within a given container. Iterating through the container, returns keys in this order. The order is defined as lexicographical order of keys, interpreted as bit-strings.
 -   user: any Motr component or external application using a cas instance by sending fops to it.
 
-##  Requirements
+## Requirements
 -   [r.cas.persistency]: modifications to catalogues are stored persistently;
 -   [r.cas.atomicity]: operations executed as part of particular cas fop are atomic w.r.t. service failures. If the service fails and restarts, either all or none modifications are visible to the future queries;
 -   [r.cas.efficiency]: complexity of catalogue query and modification is logarithmic in the number of records in the catalogue;
@@ -34,11 +34,11 @@ Catalogues are used by other Motr sub-systems to store and access meta-data. Dis
 -   [r.cas.locality]: the implementation guarantees that spatial (in key order) together with temporal locality of accesses to the same catalogue is statistically optimal. That is, consecutive access to records with close keys is more efficient than random access;
 -   [r.cas.cookies]: a service returns to the user an opaque cookie together with every returned record, plus a cookie for a newly inserted record. This cookie is optionally passed by the user (along with the key) to later access the same record. The cookie might speed up the access.
 
-##  Design Highlights
+## Design Highlights
 
 A catalogue, exported by cas is local: records of the catalogue are stored in the meta-data back-end (BE) in the instance where cas is running. A catalogue is implemented as a BE b-tree. New fid type is registered for catalogue fids.
 
-##  Functional Specification
+## Functional Specification
 
 Catalogue service introduces and accepts the following fop types:
 
@@ -56,7 +56,7 @@ In addition, there are fops for operations on catalogues, which all take catalog
 
 - NEXT: given a vector of keys, lookup next N (in the ascending key order) records for each key and return them.
 
-##  Logical Specification
+## Logical Specification
 
 ### Service
 Catalogue service is implemented as a standard request handler service. Catalogue service instance startup is regulated by configuration.
@@ -90,7 +90,7 @@ Allocate and initialize new catalogue object and insert it in the meta-catalogue
 
 The problem with delete is that deletion of a catalogue with a large number of records might require more meta-data updates than can fit in a single transaction. Because of this a technique similar to handling of truncates for open-unlinked files in a POSIX file system is used. (Also see stob deletion code in io service).
 
-```
+```C
 bool deathrowed = false;
 
 tx_open(tx);
@@ -147,7 +147,7 @@ Deathrow catalogue contains all large catalogues which are in the process of bei
 
 GET	cfid, input: array of {key	rc, output: array of {exists, val}
 
-```
+```C
 cat = catalogue_get(req.cfid);
 
 foreach key in req.input {
@@ -159,7 +159,7 @@ foreach key in req.input {
 | PUT    | cfid, input: array of {key, val}     | rc, count
 | :------------- | :------------- | :-------------|
 
-```		
+```C		
 reply.count = 0;
 
 cat = catalogue_get(req.cfid);
@@ -187,7 +187,7 @@ tx_close(tx);
 | :------------- | :------------- | :-------------|
 
 
-```
+```C
 count = 0;
 
 cat = catalogue_get(req.cfid);
@@ -219,7 +219,7 @@ tx_close(tx);
 | NEXT    | cfid, input: array of {key, nr}	rc     | output: array of { rec: array of { key, val } }
 | :------------- | :------------- | :---------------|
 
-```	 
+```C	 
 count = 0;
 
 cat = catalogue_get(req.cfid);

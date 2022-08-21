@@ -46,7 +46,7 @@
    +  extension interface
    +  flexible transactions
    +  open source    
-+  Portable: runs in user space on any version of Linux  
++  Portable: runs in user space on any version of Linux 
 
 # Data flow S3  
 +  cortx rpc: uses RDMA when available (requires kernel module)
@@ -72,9 +72,10 @@
 +  Asynchronous network and storage interface
 +  Same on "client" (libmotr) and server (not quite yet).  
 
-# Object Layout
+# Object Layout #
 +  Object is an array of blocks. Arbitrary scatter-gather IO with overwrite. Object has layout.
 +  Default layout is parity de-clustered network raid: N+K+S striping.
+   + More details about [parity declustering](doc/pdclust/index.rst)
 +  Layout takes hardware topology into account: distribute units to support fault-tolerance.  
 
 ![image](./Images/6_Object_Layout.png)     
@@ -86,18 +87,18 @@
 +  Fast scalable repairs of device failure.
 +  There are other layouts: composite.  
 
-# Index Layout  
+# Index Layout #
 +  An index is a container of key-value pairs:
    +  GET(key) -> val, PUT(key, val), DEL(key), NEXT(key) -> (key, val)
    +  used to store meta-data: (key: "/etc/passwd:length", value: 8192)   
 +  Uses network raid with parity de-clustering (same as objects), but only N = 1, in N + K + S   
 +  X-way replication (N = 1, K = X - 1), each key is replicated independently   
 +  takes hardware topology into account (for free!)
-+  fast scalable repair (for free!)  
++  fast scalable repair (for free!) 
 
 ![image](./Images/7_Index_Layout.png)  
 
-# Data Flow S3 Redux
+# Data Flow S3 Redux #
 +  libmotr calculates cob identities and offsets within cobs
 +  ioservice maps cob offset to device offset though ad (allocation data) index
 +  mapping is done independently for each object and each parity group (aka stripe)
@@ -105,7 +106,7 @@
 
 ![image](./Images/8_Dataflow_S3_Redux.png)   
 
-# Data Flow with meta - data
+# Data Flow with meta - data #
 +  2, 2': rpc from a client to services (async)
 +  3, 7: various meta-data lookups on the service
 +  {4,8}.n: meta-data storage requests (btree operations)   
@@ -129,11 +130,11 @@
 +  One of the most complex CORTX components
 +  Scalable efficient transactions are hard
 +  fortunately not everything is needed at once
-+  staged implementation: DTM0 first  
++  staged implementation: DTM0 first
 
 ![image](./Images/10_DTM.png)  
 
-# DTM Implementation Overview   
+# DTM Implementation Overview #
 +  Track distributed transactions for each operation (send transaction identifier)
 +  Each service, before executing the operation, writes its description into FOL: file operations log
 +  In case of a service or a client failure, surviving nodes look through their logs and determine incomplete transactions.
@@ -187,8 +188,7 @@
 
 ![image](./Images/13_FDMI_Example_Plugin.png)  
 
-# Inverse meta-data 
- 
+# Inverse meta-data  
 +  block allocation  
 +  pdclust structure
 +  key distribution
@@ -225,7 +225,7 @@
 +  always on (post-mortem analysis, first incident fix)
 +  simulation (change configuration, larger system, load mix)
 
-```
+```sh
 2020-02-20-14:36:13.687531192 alloc size: 40, addr: @0x7fd27c53eb20
 
 | node <f3b62b87d9e642b2:96a4e0520cc5477b>
@@ -241,7 +241,7 @@
 | stob-io-launch 2020-02-20-14:36:13.666152841, <100000000adf11e:3>, count: 8, bvec-nr: 8, ivec-nr: 8, offset: 65536  
 ```  
 
-# ADDB: Monitoring and Profiling
+# ADDB: Monitoring and Profiling  
 ![image](./Images/14_ADDB_Monitoring_and_Profiling.png)   
 
 
@@ -255,5 +255,4 @@
 +  combine workloads  
 ![image](./Images/15_ADDB_Advanced_Use_Case.png)
 
-# Questions 
- 
+# Questions  
