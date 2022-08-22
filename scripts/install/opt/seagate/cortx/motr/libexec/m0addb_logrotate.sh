@@ -103,7 +103,7 @@ for addb_rec_dir in $addb_rec_dirs ; do
         # check addb stob dir count is greater than max dir  count
         if [[ $addb_dirs_count -gt $log_dirs_max_count ]]; then
             # get dirs sort by date - older will come on top
-            remove_dir_count=`expr $addb_dirs_count - $log_dirs_max_count`
+            remove_dir_count=$(($addb_dirs_count - $log_dirs_max_count))
 
             echo "## ($remove_dir_count) dir(s) can be removed from \
                            log directory($log_dir) ##"               

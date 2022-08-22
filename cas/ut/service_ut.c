@@ -115,6 +115,8 @@ static void reqh_init(bool mkfs, bool use_small_credits)
 {
 	struct m0_be_domain_cfg cfg = {};
 	int                     result;
+	/** Increase default seg0 size to 16 MB for cas-service ut. */
+	m0_bcount_t             segment_size = 1 << 24;
 
 	M0_SET0(&reqh);
 	M0_SET0(&be);
@@ -130,6 +132,9 @@ static void reqh_init(bool mkfs, bool use_small_credits)
 	if (use_small_credits || m0_ut_small_credits())
 		cfg.bc_engine.bec_tx_size_max =
 			M0_BE_TX_CREDIT(6 << 10, 5 << 18);
+	cfg.bc_seg0_cfg.bsc_size = segment_size;
+	cfg.bc_seg0_cfg.bsc_addr = m0_be_ut_seg_allocate_addr(segment_size);
+
 	result = m0_be_ut_backend_init_cfg(&be, &cfg, mkfs);
 	M0_ASSERT(result == 0);
 }
@@ -238,7 +243,7 @@ static void init_fail(void)
 	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
-	m0_fi_enable_once("btree_save", "already_exists");
+	m0_fi_enable_once("btree_put_kv_tick", "already_exists");
 	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	rc = m0_reqh_service_start(cas);
 	M0_UT_ASSERT(rc == -EEXIST);
@@ -260,11 +265,11 @@ static void init_fail(void)
 	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
-	m0_fi_enable_off_n_on_m("btree_save", "already_exists",
+	m0_fi_enable_off_n_on_m("btree_put_kv_tick", "already_exists",
 				1, 1);
 	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	rc = m0_reqh_service_start(cas);
-	m0_fi_disable("btree_save", "already_exists");
+	m0_fi_disable("btree_put_kv_tick", "already_exists");
 	M0_UT_ASSERT(rc == -EEXIST);
 	m0_reqh_service_fini(cas);
 
@@ -450,6 +455,7 @@ static void meta_fop_submit(struct m0_fop_type *fopt,
 
 	for (i = 0; i < meta_recs_num; i++)
 		m0_rpc_at_fini(&recs[i].cr_key);
+	m0_free(recs);
 }
 
 static bool rec_check(const struct m0_cas_rec *rec, int rc, int key, int val)
@@ -1872,7 +1878,9 @@ static void create_insert_drop_with_fail(bool inject_fail)
 	 * ones. BE performs quadratic number of checks inside invariants
 	 * comparing to number of capture operations.
 	 */
-	_init(true, true);
+	/** Uncomment _init once we found the calculation for small credits. */
+	/* _init(true, true);*/
+	init();
 	/*
 	 * Create 2 catalogs.
 	 */

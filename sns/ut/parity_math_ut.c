@@ -56,12 +56,12 @@ static uint8_t expected[DATA_UNIT_COUNT_MAX][UNIT_BUFF_SIZE_MAX];
 static uint8_t data    [DATA_UNIT_COUNT_MAX][UNIT_BUFF_SIZE_MAX];
 static uint8_t parity  [DATA_UNIT_COUNT_MAX][UNIT_BUFF_SIZE_MAX];
 static uint8_t fail    [DATA_UNIT_COUNT_MAX+PARITY_UNIT_COUNT_MAX];
-static int32_t duc = DATA_UNIT_COUNT_MAX;
-static int32_t puc = PARITY_UNIT_COUNT_MAX;
-static int32_t fuc = PARITY_UNIT_COUNT_MAX;
-static uint32_t UNIT_BUFF_SIZE = 256;
+static int32_t duc;
+static int32_t puc;
+static int32_t fuc;
+static uint32_t UNIT_BUFF_SIZE;
 static int32_t fail_index_xor;
-static uint64_t seed = 42;
+static uint64_t seed;
 
 struct mat_collection {
 	struct m0_matrix mc_mat;
@@ -102,6 +102,7 @@ static void test_matrix_inverse(void);
 static void test_incr_recov_init(void);
 static void test_incr_recov(void);
 static void test_invalid_input(void);
+static void test_init(void);
 static int matrix_init(struct mat_collection*);
 static void mat_fill(struct m0_matrix *mat, int N, int K,
 		     enum ir_matrix_type mt);
@@ -365,6 +366,7 @@ static void test_recovery(const enum m0_parity_cal_algo algo,
 
 static void test_rs_fv_recover(void)
 {
+	test_init();
 	test_recovery(M0_PARITY_CAL_ALGO_REED_SOLOMON, FAIL_VECTOR);
 }
 
@@ -381,6 +383,7 @@ static void test_rs_fv_rand_recover(void)
 	struct m0_parity_math math;
 	int		      ret;
 
+	test_init();
 	duc = DATA_UNIT_COUNT_MAX;
 	puc = PARITY_UNIT_COUNT_MAX;
 	fuc = PARITY_UNIT_COUNT_MAX;
@@ -415,6 +418,7 @@ static void test_rs_fv_rand_recover(void)
 
 static void test_xor_fv_recover(void)
 {
+	test_init();
 	duc = DATA_UNIT_COUNT_MAX;
 	fail_index_xor = DATA_UNIT_COUNT_MAX + 1;
 	test_recovery(M0_PARITY_CAL_ALGO_XOR, FAIL_VECTOR);
@@ -422,6 +426,7 @@ static void test_xor_fv_recover(void)
 
 static void test_xor_fail_idx_recover(void)
 {
+	test_init();
 	duc = DATA_UNIT_COUNT_MAX;
 	fail_index_xor = DATA_UNIT_COUNT_MAX + 1;
 	test_recovery(M0_PARITY_CAL_ALGO_XOR, FAIL_INDEX);
@@ -436,6 +441,7 @@ static void test_buffer_xor(void)
 	struct m0_buf buf1;
 	struct m0_buf buf2;
 
+	test_init();
 	duc = 3;
 	fail_index_xor = 0;
 	generated = config_generate(&data_count, &parity_count, &buff_size,
@@ -535,12 +541,14 @@ static void test_parity_math_diff(uint32_t parity_cnt)
 
 static void test_parity_math_diff_xor(void)
 {
+	test_init();
 	test_parity_math_diff(PARITY_UNIT_COUNT);
 }
 
 static void test_parity_math_diff_rs(void)
 {
 	uint32_t i;
+	test_init();
 	for (i = 2; i <= RS_MAX_PARITY_UNIT_COUNT; ++i) {
 		test_parity_math_diff(i);
 	}
@@ -548,6 +556,7 @@ static void test_parity_math_diff_rs(void)
 
 static void test_incr_recov_rs(void)
 {
+	test_init();
 	test_matrix_inverse();
 	test_incr_recov_init();
 	test_incr_recov();
@@ -1266,6 +1275,7 @@ static void test_invalid_input(void)
 	total_failures = math.pmi_parity_count + 1;
 	failed_arr = failure_setup(&math, total_failures, MIXED_FAILURE);
 	ret = m0_sns_ir_init(&math, 0, &ir);
+	M0_UT_ASSERT(ret == 0);
 	for (i = 0; i < total_failures - 1; ++i) {
 		ret = m0_sns_ir_failure_register(&recov_arr,
 						 failed_arr[i],
@@ -1400,6 +1410,20 @@ static bool bufvec_eq(struct m0_bufvec *bvec_1, struct m0_bufvec *bvec_2)
 static inline uint32_t block_nr(const struct m0_sns_ir *ir)
 {
 	return ir->si_data_nr + ir->si_parity_nr;
+}
+
+static void test_init(void)
+{
+	M0_SET_ARR0(expected);
+	M0_SET_ARR0(data);
+	M0_SET_ARR0(parity);
+	M0_SET_ARR0(fail);
+	duc = DATA_UNIT_COUNT_MAX;
+	puc = PARITY_UNIT_COUNT_MAX;
+	fuc = PARITY_UNIT_COUNT_MAX;
+	UNIT_BUFF_SIZE = 256;
+	fail_index_xor = 0;
+	seed = 42;
 }
 
 #define _TESTS									\

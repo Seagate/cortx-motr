@@ -44,15 +44,13 @@ role_space()
 }
 
 unload_all() {
-	if [ "$XPRT" = "lnet" ]; then
+	if [[ "$(is_lnet_available)" == "true" ]]; then
 		modunload
 	fi
 }
 trap unload_all EXIT
 
-if [ "$XPRT" = "lnet" ]; then
-	modprobe_lnet
-	lctl network up > /dev/null
+if [[ "$(check_and_restart_lnet)" == "true" ]]; then
 	modload || exit $?
 fi
 

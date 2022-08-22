@@ -200,10 +200,11 @@ M0_INTERNAL void m0_bitmap_onwire_fini(struct m0_bitmap_onwire *ow_map)
 M0_INTERNAL void m0_bitmap_store(const struct m0_bitmap *im_map,
                                  struct m0_bitmap_onwire *ow_map)
 {
-	size_t s = M0_BITMAP_WORDS(im_map->b_nr);
+	size_t s; 
 
 	M0_PRE(im_map != NULL && ow_map != NULL);
 	M0_PRE(im_map->b_words != NULL);
+	s = M0_BITMAP_WORDS(im_map->b_nr);
 	M0_PRE(s == ow_map->bo_size);
 
 	memcpy(ow_map->bo_words, im_map->b_words,

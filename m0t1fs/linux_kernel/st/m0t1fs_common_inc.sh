@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
@@ -81,6 +82,8 @@ IOS5_CMD=""       #IOS5 process commandline to spawn it again on Controller even
 
 IOS4_CMD=""
 
+export IOS_DISK_SEEK_BLOCK_COUNT=1M
+
 # list of md server end points tmid in [800, 899)
 MDSEP=(
     12345:33:800   # MDS1 EP
@@ -106,11 +109,11 @@ export FDMI_FILTER_FID2="6c00000000000002:0"
 SNS_CLI_EP="12345:33:400"
 DIX_CLI_EP="12345:33:401"
 
-POOL_WIDTH=$(expr ${#IOSEP[*]} \* 5)
+POOL_WIDTH=$((${#IOSEP[*]} * 5))
 NR_PARITY=2
 NR_SPARE=2
 NR_DATA=3
-UNIT_SIZE=$(expr 1024 \* 1024)
+UNIT_SIZE=$((1024 * 1024))
 
 # CAS service starts by default in every process where IOS starts.
 # For every CAS service one dedicated "dummy" storage device is assigned.

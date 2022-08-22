@@ -25,16 +25,11 @@
 #ifndef __MOTR_MDSERVICE_MD_FOPS_H__
 #define __MOTR_MDSERVICE_MD_FOPS_H__
 
-#include "fop/fop.h"
-#include "fop/fop_xc.h"
-#include "fop/fom_generic.h"
-#include "fop/fom_generic_xc.h"
-#include "lib/types.h"
-#include "xcode/xcode_attr.h"
-#include "fid/fid_xc.h"
+#include "fop/wire.h"
+#include "fop/wire_xc.h"
 #include "fid/fid.h"
-#include "lib/string.h"
-#include "lib/string_xc.h"
+#include "fid/fid_xc.h"
+#include "xcode/xcode_attr.h"
 
 extern struct m0_fop_type m0_fop_create_fopt;
 extern struct m0_fop_type m0_fop_lookup_fopt;

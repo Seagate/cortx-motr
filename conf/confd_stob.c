@@ -149,7 +149,7 @@ int m0_confd_stob_read(struct m0_stob *stob, char **str)
 
 	rc = m0_stob_io_bufvec_launch(stob, &bv, SIO_READ, 0);
 	if (rc != 0) {
-		m0_free(*str);
+		m0_free_aligned(*str, length + 1, m0_stob_block_shift(stob));
 		return M0_ERR(rc);
 	}
 

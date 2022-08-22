@@ -31,13 +31,13 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 # Number of test iterations
 ITER_NR=10
 
-. $M0_SRC_DIR/utils/functions # report_and_exit
+. "$M0_SRC_DIR"/utils/functions # report_and_exit
 
 # install "motr" Python module required by m0spiel tool
-cd $M0_SRC_DIR/utils/spiel
-python2 setup.py install > /dev/null ||
+cd "$M0_SRC_DIR"/utils/spiel
+python3 setup.py install > /dev/null ||
     die 'Cannot install Python "motr" module'
-cd $M0_SRC_DIR
+cd "$M0_SRC_DIR"
 
 echo "Installing Motr services"
 scripts/install-motr-service -u
@@ -59,7 +59,7 @@ systemctl start motr-singlenode
 sleep 10 # allow motr to finish its startup
 
 echo "Perform device-detach test"
-cd $SANDBOX_DIR
+cd "$SANDBOX_DIR"
 
 LNET_NID=`lctl list_nids | head -1`
 SPIEL_ENDPOINT="$LNET_NID:12345:34:1021"
@@ -68,7 +68,7 @@ M0_SPIEL_OPTS="-l $M0_SRC_DIR/motr/.libs/libmotr.so --client $SPIEL_ENDPOINT \
                --ha $HA_ENDPOINT"
 
 function spiel_cmd {
-    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 fids = {'profile'       : Fid(0x7000000000000001, 0),
         'disk0'         : Fid(0x6b00000000000001, 2)
 }
@@ -99,11 +99,11 @@ rc=0
 for I in $(seq 1 $ITER_NR); do
     filename="/mnt/m0t1fs/1:$I"
     echo "Iteration $I of $ITER_NR (file: $filename)"
-    touch $filename && setfattr -n lid -v 8 $filename
+    touch "$filename" && setfattr -n lid -v 8 "$filename"
     rc=$?
     if [ $rc -ne 0 ]; then echo "Cannot create file"; break; fi
     echo "Start I/O"
-    dd if=/dev/zero of=$filename bs=1M count=10 >/dev/null 2>&1 &
+    dd if=/dev/zero of="$filename" bs=1M count=10 >/dev/null 2>&1 &
     dd_pid=$!
 
     spiel_cmd device_detach
@@ -129,12 +129,12 @@ if [ $rc -eq 0 ]; then
     rc=$motr_rc
 fi
 
-cd $M0_SRC_DIR
+cd "$M0_SRC_DIR"
 scripts/install-motr-service -u
 utils/m0setup -v -P 3 -N 1 -K 1 -S 1 -i 1 -d /var/motr/img -s 8 -c
 
 if [ $rc -eq 0 ]; then
-    rm -r $SANDBOX_DIR
+    rm -r "$SANDBOX_DIR"
 fi
 
 report_and_exit m0d-device-detach $rc

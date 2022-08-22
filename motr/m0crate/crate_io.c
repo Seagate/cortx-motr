@@ -100,6 +100,7 @@
 #include "motr/m0crate/crate_client.h"
 #include "motr/m0crate/crate_client_utils.h"
 
+extern struct crate_conf *conf;
 
 void integrity(struct m0_uint128 object_id, unsigned char **md5toverify,
 		int block_count, int idx_op);
@@ -322,7 +323,10 @@ int cr_io_vector_prep(struct m0_workload_io *cwi,
 	m0_bitmap_fini(&segment_indices);
 	op_ctx->coc_buf_vec = buf_vec;
 	op_ctx->coc_index_vec = index_vec;
-	/**TODO: set attr to NULL to disable cksum, enable after addding cksum in ST */
+	/**
+	 * TODO: set attr to NULL to disable cksum,
+	 * enable after addding cksum in ST
+	 */
 	op_ctx->coc_attr = NULL;
 
 	return 0;

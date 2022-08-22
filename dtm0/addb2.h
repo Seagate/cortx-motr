@@ -34,9 +34,15 @@
 #include "addb2/identifier.h"
 
 enum m0_avi_dtm0_labels {
-	M0_AVI_DTX0_SM_STATE = M0_AVI_DTM0_RANGE_START,
+	/* dtx0 */
+	M0_AVI_DTX0_SM_STATE = M0_AVI_DTM0_RANGE_START + 1,
 	M0_AVI_DTX0_SM_COUNTER,
 	M0_AVI_DTX0_SM_COUNTER_END = M0_AVI_DTX0_SM_COUNTER + 0x100,
+
+	/* Recovery Machine */
+	M0_AVI_DRM_SM_STATE = M0_AVI_DTX0_SM_COUNTER_END + 1,
+	M0_AVI_DRM_SM_COUNTER,
+	M0_AVI_DRM_SM_COUNTER_END = M0_AVI_DRM_SM_COUNTER + 0x100,
 };
 
 /** @} end of dtm0 group */

@@ -142,11 +142,15 @@ int detour_create(struct m0_fop *fop, struct m0_fom **out, struct m0_reqh *reqh)
 
 	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 2, 1);
 	rc = (*native_create)(fop, out, reqh);
-	M0_UT_ASSERT(rc == -ENOENT);
+	/*
+	 * Cannot be precise, because of concurrent allocations in other
+	 * threads.
+	 */
+	M0_UT_ASSERT(M0_IN(rc, (-ENOENT, -ENOMEM)));
 
 	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 3, 1);
 	rc = (*native_create)(fop, out, reqh);
-	M0_UT_ASSERT(rc == -ENOMEM);
+	M0_UT_ASSERT(M0_IN(rc, (-ENOENT, -ENOMEM)));
 
 	m0_fi_disable("m0_alloc", "fail_allocation");
 

@@ -764,9 +764,13 @@ static void libfab_poller(struct m0_fab__tm *tm)
 	libfab_tm_event_post(tm, M0_NET_TM_STARTED);
 	while (tm->ftm_state != FAB_TM_SHUTDOWN) {
 		do {
-			ret = fi_trywait(tm->ftm_fab->fab_fab,
-					 tm->ftm_fids.ftf_head,
-					 tm->ftm_fids.ftf_cnt);
+			do {
+				m0_mutex_lock(&tm->ftm_fids.ftf_lock);
+				ret = fi_trywait(tm->ftm_fab->fab_fab,
+						 tm->ftm_fids.ftf_head,
+						 tm->ftm_fids.ftf_cnt);
+				m0_mutex_unlock(&tm->ftm_fids.ftf_lock);
+			} while (M0_FI_ENABLED("fail-trywait"));
 			/*
 			 * TBD : Add handling of other return values of
 			 * fi_trywait() if it returns something other than
@@ -848,12 +852,19 @@ static void libfab_poller(struct m0_fab__tm *tm)
 		 */
 		net = m0_nep_tlist_pop(&tm->ftm_ntm->ntm_end_points);
 		M0_ASSERT(net != NULL);
+		/*
+		 * TM lock can be released by libfab_txep_event_check(), make
+		 * sure the end-point stays alive.
+		 */
+		m0_net_end_point_get(net);
 		m0_nep_tlist_add_tail(&tm->ftm_ntm->ntm_end_points, net);
 		xep = libfab_ep(net);
 		aep = libfab_aep_get(xep);
 		libfab_txep_event_check(xep, aep, tm);
 		cq = aep->aep_rx_res.frr_cq;
 		libfab_rxep_comp_read(cq, xep, tm);
+		/* Release, with TM lock already held. */
+		m0_ref_put(&net->nep_ref);
 
 		libfab_bufq_process(tm);
 		if (m0_time_is_in_past(tm->ftm_tmout_check))
@@ -901,11 +912,34 @@ static bool libfab_ep_find_by_str(const char *name,
 				  struct m0_fab__ep **ep)
 {
 	struct m0_net_end_point *net;
+	struct m0_net_ip_addr    addr;
 
 	net = m0_tl_find(m0_nep, net, &ntm->ntm_end_points,
 			 strcmp((libfab_ep(net))->fep_name.nia_p, name) == 0);
 
 	*ep = net != NULL ? libfab_ep(net) : NULL;
+
+	/*
+	 * TODO:
+	 * During pod retart, restarted pod will have a new ip assigned.
+	 * endpoint create request on remote service will still have the old ip
+	 * address and will return a stalled endpoint, when it tries to
+	 * get host by name it will fail.
+	 * During dtm0_process_rlink_reinit, it is possible that dtm  has a
+	 * differnt valid hostname, for ex : hostname.local and lookup will not
+	 * find a valid ep, to avoid this if str comparision does not match,
+	 * continue with ip comparision, details  available in CORTX-32086.
+	 * This changes is not required when DTM is not enabled, so adding this
+	 * under DTM enabled flag to support pod restart when dtm is not
+	 * enabled.
+	 * TODO: pod restart will fail when DTM is enabled, avoiding lookup of
+	 * stalled entries
+	 */
+	if (ENABLE_DTM0) {
+		if (net == NULL && m0_net_ip_parse(name, &addr) == 0) {
+			return libfab_ep_find_by_num(&addr, ntm, ep);
+		}
+	}
 
 	return net != NULL;
 }
@@ -1549,9 +1583,6 @@ static int libfab_ep_param_free(struct m0_fab__ep *ep, struct m0_fab__tm *tm)
 
 	if (rc != 0)
 		return M0_ERR(rc);
-
-	M0_SET0(&ep->fep_name);
-
 	m0_free(ep);
 	return M0_RC(0);
 }
@@ -1606,6 +1637,7 @@ static int libfab_tm_param_free(struct m0_fab__tm *tm)
 	close(tm->ftm_epfd);
 	m0_free(tm->ftm_fids.ftf_head);
 	m0_free(tm->ftm_fids.ftf_ctx);
+	m0_mutex_fini(&tm->ftm_fids.ftf_lock);
 	m0_free(tm->ftm_rem_iov);
 	m0_free(tm->ftm_loc_iov);
 
@@ -2358,7 +2390,6 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
 	struct fi_info        *info;
 	struct fi_info        *hints = NULL;
 	int                    rc;
-	bool                   is_verbs = libfab_is_verbs(tm);
 	char                   ip[LIBFAB_ADDR_LEN_MAX] = {};
 	char                   port[LIBFAB_PORT_LEN_MAX] = {};
 
@@ -2375,38 +2406,34 @@ static int libfab_txep_init(struct m0_fab__active_ep *aep,
 	aep->aep_txq_full = false;
 	ep->fep_connlink = FAB_CONNLINK_DOWN;
 
-	if (is_verbs) {
-		hints = fi_allocinfo();
-		if (hints == NULL)
-			return M0_ERR(-ENOMEM);
-		hints->ep_attr->type = FI_EP_MSG;
-		hints->caps = FI_MSG | FI_RMA;
+	hints = fi_allocinfo();
+	if (hints == NULL)
+		return M0_ERR(-ENOMEM);
+	hints->ep_attr->type = FI_EP_MSG;
+	hints->caps = FI_MSG | FI_RMA;
 
-		hints->mode |= FI_RX_CQ_DATA;
-		hints->domain_attr->cq_data_size = 4;
-		hints->domain_attr->mr_mode = FI_MR_LOCAL | FI_MR_ALLOCATED |
-					      FI_MR_PROV_KEY | FI_MR_VIRT_ADDR;
-		hints->fabric_attr->prov_name =
-					    fab->fab_fi->fabric_attr->prov_name;
+	hints->mode |= FI_RX_CQ_DATA;
+	hints->domain_attr->cq_data_size = 4;
+	hints->domain_attr->mr_mode = FI_MR_LOCAL | FI_MR_ALLOCATED |
+				      FI_MR_PROV_KEY | FI_MR_VIRT_ADDR;
+	hints->fabric_attr->prov_name = fab->fab_fi->fabric_attr->prov_name;
 
-		libfab_straddr_gen(&en->nia_n, ip);
-		snprintf(port, ARRAY_SIZE(port), "%d", en->nia_n.nip_port);
-		rc = fi_getinfo(LIBFAB_VERSION, ip, port, 0,
-				hints, &info);
-		if (rc != 0)
-			return M0_ERR(rc);
-	} else
-		info = tm->ftm_fab->fab_fi;
+	libfab_straddr_gen(&en->nia_n, ip);
+	snprintf(port, ARRAY_SIZE(port), "%d", en->nia_n.nip_port);
+	rc = fi_getinfo(LIBFAB_VERSION, ip, port, 0, hints, &info);
+	if (rc != 0) {
+		hints->fabric_attr->prov_name = NULL;
+		fi_freeinfo(hints);
+		return M0_ERR(rc);
+	}
 
 	rc = fi_endpoint(fab->fab_dom, info, &aep->aep_txep, NULL) ? :
 	     libfab_ep_txres_init(aep, tm, ctx) ? :
 	     fi_enable(aep->aep_txep);
 
-	if (is_verbs) {
-		hints->fabric_attr->prov_name = NULL;
-		fi_freeinfo(hints);
-		fi_freeinfo(info);
-	}
+	hints->fabric_attr->prov_name = NULL;
+	fi_freeinfo(hints);
+	fi_freeinfo(info);
 
 	return M0_RC(rc);
 }
@@ -2477,17 +2504,21 @@ static int libfab_waitfd_bind(struct fid* fid, struct m0_fab__tm *tm, void *ctx)
 	rc = epoll_ctl(tm->ftm_epfd, EPOLL_CTL_ADD, fd, &ev);
 
 	if (rc == 0) {
+		m0_mutex_lock(&tmfid->ftf_lock);
 		if (tmfid->ftf_cnt >= (tmfid->ftf_arr_size - 1)) {
 			rc = libfab_fid_array_grow(tmfid,
 						   FAB_TM_FID_MALLOC_STEP);
-			if (rc != 0)
+			if (rc != 0) {
+				m0_mutex_unlock(&tmfid->ftf_lock);
 				return M0_ERR(rc);
+			}
 		}
 		tmfid->ftf_head[tmfid->ftf_cnt] = fid;
 		tmfid->ftf_ctx[tmfid->ftf_cnt]  = ptr;
 		ptr->evctx_pos = tmfid->ftf_cnt;
 		tmfid->ftf_cnt++;
 		M0_ASSERT(tmfid->ftf_cnt < tmfid->ftf_arr_size);
+		m0_mutex_unlock(&tmfid->ftf_lock);
 	}
 
 	return M0_RC(rc);
@@ -2513,6 +2544,7 @@ static int libfab_waitfd_unbind(struct fid* fid, struct m0_fab__tm *tm,
 
 	rc = epoll_ctl(tm->ftm_epfd, EPOLL_CTL_DEL, fd, &ev);
 	if (rc == 0) {
+		m0_mutex_lock(&tmfid->ftf_lock);
 		M0_LOG(M0_DEBUG, "DEL_FROM_EPOLL %s fid=%p fd=%d tm=%p pos=%d",
 		       ptr->evctx_dbg, fid, fd, tm, ptr->evctx_pos);
 		for (i = ptr->evctx_pos; i < tmfid->ftf_cnt - 1; i++) {
@@ -2524,6 +2556,7 @@ static int libfab_waitfd_unbind(struct fid* fid, struct m0_fab__tm *tm,
 		tmfid->ftf_head[tmfid->ftf_cnt] = 0;
 		tmfid->ftf_ctx[tmfid->ftf_cnt]  = 0;
 		ptr->evctx_pos = 0;
+		m0_mutex_unlock(&tmfid->ftf_lock);
 	}
 
 	return M0_RC(rc);
@@ -2770,6 +2803,7 @@ static int libfab_domain_params_get(struct m0_fab__ndom *fab_ndom)
 			  ARRAY_SIZE(fab_ndom->fnd_loc_ip));
 		fab_ndom->fnd_seg_nr = FAB_VERBS_IOV_MAX;
 		fab_ndom->fnd_seg_size = FAB_VERBS_MAX_BULK_SEG_SIZE;
+		fi_freeinfo(fi); /* This frees the entire list. */
 	} else {
 		/* For TCP/Socket provider */
 		t_src.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
@@ -2778,10 +2812,8 @@ static int libfab_domain_params_get(struct m0_fab__ndom *fab_ndom)
 		fab_ndom->fnd_seg_nr = FAB_TCP_SOCK_IOV_MAX;
 		fab_ndom->fnd_seg_size = FAB_TCP_SOCK_MAX_BULK_SEG_SIZE;
 	}
-
 	hints->fabric_attr->prov_name = NULL;
 	fi_freeinfo(hints);
-	fi_freeinfo(fi);
 	return M0_RC(0);
 }
 
@@ -2936,6 +2968,7 @@ static int libfab_ma_init(struct m0_net_transfer_mc *ntm)
 		ftm->ftm_fids.ftf_cnt = 0;
 		M0_ALLOC_ARR(ftm->ftm_fids.ftf_head, FAB_TM_FID_MALLOC_STEP);
 		M0_ALLOC_ARR(ftm->ftm_fids.ftf_ctx, FAB_TM_FID_MALLOC_STEP);
+		m0_mutex_init(&ftm->ftm_fids.ftf_lock);
 		if (ftm->ftm_fids.ftf_head == NULL ||
 		    ftm->ftm_fids.ftf_ctx == NULL) {
 			m0_free(ftm->ftm_fids.ftf_head);

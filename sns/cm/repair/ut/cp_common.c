@@ -33,7 +33,7 @@
 const char log_file_name[] = "sr_ut.errlog";
 char      *sns_cm_ut_svc_ad[] = {
 	"m0d", "-T", "AD",
-	"-D", "sr_db", "-S", "sr_stob",
+	"-D", "sr_db", "-S", "sr-ad-stob",
 	"-A", "linuxstob:sr_addb_stob",
 	"-f", M0_UT_CONF_PROCESS,
 	"-w", "10",
@@ -45,7 +45,7 @@ char      *sns_cm_ut_svc_ad[] = {
 
 char      *sns_cm_ut_svc_linux[] = {
 	"m0d", "-T", "LINUX",
-	"-D", "sr_db", "-S", "sr_stob",
+	"-D", "sr_db", "-S", "sr-linux-stob",
 	"-A", "linuxstob:sr_addb_stob",
 	"-f", M0_UT_CONF_PROCESS,
 	"-w", "10",
@@ -145,9 +145,9 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 		m0_ios_cdom_get(reqh, &scm->sc_cob_dom);
 	}
 	cp->c_ag->cag_cm = cm;
+	cp->c_ops = &m0_sns_cm_acc_cp_ops;
 	if (!is_acc_cp)
 		cp->c_ops = &m0_sns_cm_repair_cp_ops;
-	cp->c_ops = &m0_sns_cm_acc_cp_ops;
 	m0_cm_cp_fom_init(cm, cp, NULL, NULL);
 	m0_cm_cp_buf_add(cp, buf);
 	cp->c_data_seg_nr = bv_seg_nr;

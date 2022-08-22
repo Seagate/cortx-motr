@@ -132,6 +132,7 @@ extern struct m0_ut_suite m0_fom_stats_ut;
 extern struct m0_ut_suite m0_net_bulk_if_ut;
 extern struct m0_ut_suite m0_net_bulk_mem_ut;
 extern struct m0_ut_suite m0_net_lnet_ut;
+extern struct m0_ut_suite m0_net_libfab_ut;
 extern struct m0_ut_suite m0_net_misc_ut;
 extern struct m0_ut_suite m0_net_module_ut;
 extern struct m0_ut_suite m0_net_test_ut;
@@ -158,7 +159,7 @@ extern struct m0_ut_suite rpclib_ut;
 extern struct m0_ut_suite rpc_conn_pool_ut;
 extern struct m0_ut_suite session_ut;
 extern struct m0_ut_suite sm_ut;
-extern struct m0_ut_suite sns_cm_repair_ut;
+extern struct m0_ut_suite sns_cm_repreb_ut;
 extern struct m0_ut_suite snscm_net_ut;
 extern struct m0_ut_suite snscm_storage_ut;
 extern struct m0_ut_suite snscm_xform_ut;
@@ -175,6 +176,19 @@ extern struct m0_ut_suite xcode_ff2c_ut;
 extern struct m0_ut_suite xcode_ut;
 extern struct m0_ut_suite sns_flock_ut;
 extern struct m0_ut_suite ut_suite_pi;
+extern struct m0_ut_suite btree_ut;
+
+#if defined(ENABLE_LUSTRE)
+#define LNET_ENABLED (true)
+#else
+#define LNET_ENABLED (false)
+#endif
+
+#if defined(USE_LIBFAB)
+#define LIBFAB_ENABLED (true)
+#else
+#define LIBFAB_ENABLED (false)
+#endif
 
 static void tests_add(struct m0_ut_module *m)
 {
@@ -206,6 +220,7 @@ static void tests_add(struct m0_ut_module *m)
 	 */
 	m0_ut_add(m, &dtm0_ut, true);
 
+	m0_ut_add(m, &btree_ut, true);
 	m0_ut_add(m, &capa_ut, true);
 	m0_ut_add(m, &cas_client_ut, true);
 	m0_ut_add(m, &cas_service_ut, true);
@@ -271,10 +286,8 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &m0_fom_stats_ut, true);
 	m0_ut_add(m, &m0_net_bulk_if_ut, true);
 	m0_ut_add(m, &m0_net_bulk_mem_ut, true);
-	if (USE_LIBFAB)
-		m0_ut_add(m, &m0_net_lnet_ut, false);
-	else
-		m0_ut_add(m, &m0_net_lnet_ut, true);
+	m0_ut_add(m, &m0_net_lnet_ut, LNET_ENABLED);
+	m0_ut_add(m, &m0_net_libfab_ut, LIBFAB_ENABLED);
 	m0_ut_add(m, &m0_net_misc_ut, true);
 	m0_ut_add(m, &m0_net_module_ut, true);
 	m0_ut_add(m, &m0_net_test_ut, true);
@@ -303,7 +316,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &sm_ut, true);
 	m0_ut_add(m, &snscm_xform_ut, true);
 	m0_ut_add(m, &snscm_storage_ut, true);
-	m0_ut_add(m, &sns_cm_repair_ut, true);
+	m0_ut_add(m, &sns_cm_repreb_ut, true);
 	m0_ut_add(m, &snscm_net_ut, true);
 	m0_ut_add(m, &sns_flock_ut, true);
 	m0_ut_add(m, &spiel_ut, true);

@@ -35,8 +35,8 @@
 #include "lib/cookie_xc.h"
 #include "rpc/at.h"             /* m0_rpc_at_buf */
 #include "rpc/at_xc.h"          /* m0_rpc_at_buf_xc */
-#include "fop/fom_generic.h"    /* m0_fop_mod_rep */
-#include "fop/fom_generic_xc.h" /* m0_fop_mod_rep */
+#include "fop/wire.h"           /* m0_fop_mod_rep */
+#include "fop/wire_xc.h"
 #include "fop/fom_interpose.h"  /* m0_fom_thralldom */
 #include "dix/layout.h"
 #include "dix/layout_xc.h"
@@ -338,6 +338,10 @@ enum m0_cas_op_flags {
 	 * In other words, it might be used in degraded mode.
 	 */
 	COF_SHOW_DEAD = 1 << 10,
+	/**
+	 * NO DTM is needed for this operation.
+	 */
+	COF_NO_DTM = 1 << 11,
 };
 
 enum m0_cas_opcode {
@@ -394,6 +398,16 @@ struct m0_cas_op {
 	 * Transaction descriptor associated with CAS operation.
 	 */
 	struct m0_dtm0_tx_desc cg_txd;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
+
+/**
+ * The structure to be passed in DTM0 log as a payload
+ */
+struct m0_cas_dtm0_log_payload  {
+	/** CAS op */
+	struct m0_cas_op cdg_cas_op;
+	/** CAS rpc fop/item opcode */
+	uint32_t         cdg_cas_opcode;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
@@ -467,6 +481,9 @@ M0_INTERNAL int m0_cas_fom_spawn(
 	struct m0_fop           *cas_fop,
 	void                   (*on_fom_complete)(struct m0_fom_thralldom *,
 						  struct m0_fom           *));
+M0_INTERNAL uint32_t m0_cas_svc_device_id_get(
+	const struct m0_reqh_service_type *stype,
+	const struct m0_reqh              *reqh);
 #else
 #define m0_cas_svc_init()
 #define m0_cas_svc_fini()

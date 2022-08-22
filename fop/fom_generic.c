@@ -37,7 +37,7 @@
 #include "rpc/item_internal.h"  /* m0_rpc_item_is_update */
 #include "reqh/reqh.h"
 #include "fop/fom_generic.h"
-#include "fop/fom_generic_xc.h"
+#include "fop/wire_xc.h"
 #include "addb2/addb2.h"
 #include "addb2/identifier.h"
 #include "dtm0/service.h"	/* m0_dtm0_is_a_volatile_dtm */

@@ -61,6 +61,7 @@ static const struct command_descr commands[] = {
 	{ GENF, "genf",   "genf CNT FILE, generate file with several FID" },
 	{ GENV, "genv",   "genv CNT SIZE FILE, generate file with several "
 			  "KEY_PARAM/VAL_PARAM. Note: SIZE > 16" },
+	{ WLF,  "wait",   "wait FILE, await a file to appear" },
 };
 
 static int command_id(const char *name)
@@ -362,6 +363,11 @@ static int command_assign(struct index_cmd *cmd, int *argc, char ***argv)
 		++*params;
 		*argc -= 3;
 		break;
+	case WLF:
+		cmd->ic_filename = **params;
+		++*params;
+		--*argc;
+		break;
 	default:
 		M0_IMPOSSIBLE("Wrong command");
 	}
@@ -408,6 +414,9 @@ static bool command_is_valid(struct index_cmd *cmd)
 		rc = cmd->ic_filename != NULL &&
 		     cmd->ic_cnt != 0 &&
 		     cmd->ic_len != 0;
+		break;
+	case WLF:
+		rc = cmd->ic_filename != NULL;
 		break;
 	default:
 		M0_IMPOSSIBLE("Wrong command.");
@@ -479,8 +488,20 @@ void index_parser_print_command_help(void)
 		"\t\t>m0kv [common args] -s index put \"1:5\" \"Department\" "
 		"\"Testing\" \n"
 		"\t\tNote: If key already exists put over-write the old value.\n"
-		"\t\t>m0kv [common args] -s index get \"1:5\" \"Department\" "
-		"\n");
+		"\t\t>m0kv [common args] -s index get \"1:5\" \"Department\" \n"
+		"\t\tNote: DIX pool version info on console if pass -e or -L"
+		"flag for index create.\n"
+		"\t\t>m0kv [common args] -e index create \"1:5\" \n"
+		"\t\tNote: Pass pool version info for PUT/GET/DEL/NEXT "
+		"operations if pass -e flag \n"
+		"\t\t>m0kv [common args] -e -v 7600000000000001:30 -s index" 
+		" put \"1:5\" \"Department\" \"Testing\" \n"
+		"\t\t>m0kv [common args] -L index create \"1:6\" \n"
+		"\t\tNote: Pass pool version info for other operations "
+		"if pass -L flag \n"
+		"\t\t>m0kv [common args] -L -v 7600000000000001:30 -s index"
+		" put \"1:6\" \"Department\" \"Testing\" \n"
+		"\t\t>m0kv [common args] -C index create \"1:6\" \n" );
 }
 
 #undef M0_TRACE_SUBSYSTEM

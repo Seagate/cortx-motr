@@ -67,15 +67,15 @@ stop() {
 }
 
 _init() {
-    lnet_up
-    if [ "$XPRT" = "lnet" ]; then
+    export_test_eps
+    if [[ "$(check_and_restart_lnet)" == "true" ]]; then
         m0_modules_insert
     fi
     mkdir -p $SANDBOX_DIR/confd
 }
 
 _fini() {
-    if [ "$XPRT" = "lnet" ]; then
+    if [[ "$(is_lnet_available)" == "true" ]]; then
         m0_modules_remove
     fi
 }

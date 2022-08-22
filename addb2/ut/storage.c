@@ -47,7 +47,7 @@ enum {
 	SIZE = 4 * 1024 * 1024 * 1024ull
 };
 
-const char *location = "linuxstob:./__s";
+const char *location = "linuxstob:./__s-addb2-storage";
 
 static void stob_get(void)
 {

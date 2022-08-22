@@ -46,6 +46,12 @@
 	       vector[M0_CONF_PVER_LVL_CTRLS],                         \
 	       vector[M0_CONF_PVER_LVL_DRIVES])
 
+enum {
+	MAX_FAILURES_NOT_REACHED,
+	MAX_FAILURES_REACHED,
+	MAX_FAILURES_EXCEEDED
+};
+
 /** Array of int values. */
 struct arr_int {
 	uint32_t ai_count;
@@ -131,6 +137,7 @@ static int conf_pver_find_locked(const struct m0_conf_pool *pool,
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "Recd update failed for pool "FID_F,
 			   FID_P(&pool->pl_obj.co_id));
+	*out = NULL;
 	m0_tl_for (m0_conf_dir, &pool->pl_pvers->cd_items, obj) {
 		pver = M0_CONF_CAST(obj, m0_conf_pver);
 		M0_LOG(M0_DEBUG, "pver="FID_F, FID_P(&pver->pv_obj.co_id));
@@ -139,14 +146,22 @@ static int conf_pver_find_locked(const struct m0_conf_pool *pool,
 			M0_LOG(M0_INFO, "Skipping "FID_F, FID_P(pver_to_skip));
 			continue;
 		}
+		if (pver->pv_kind == M0_CONF_PVER_ACTUAL)
+			*out = pver; /* cache it for now */
 		if (!m0_conf_pver_is_clean(pver))
 			continue;
-		if (pver->pv_kind == M0_CONF_PVER_ACTUAL) {
-			*out = pver;
+		if (pver->pv_kind == M0_CONF_PVER_ACTUAL)
 			return M0_RC(0);
-		}
 		return M0_RC(conf_pver_formulate(pver, out));
 	} m0_tl_endfor;
+
+	/*
+	 * Return the actual pver if we cannot find anything better.
+	 * The I/O will be performed in the degraded mode.
+	 */
+	if (*out != NULL)
+		return M0_RC(0);
+
 	return M0_ERR_INFO(-ENOENT, "No suitable pver is found at pool "FID_F,
 			   FID_P(&pool->pl_obj.co_id));
 }
@@ -696,8 +711,11 @@ static int conf_pver_tolerance_adjust(struct m0_conf_pver *pver)
 
 	do {
 		rc = m0_fd_tolerance_check(pver, &level);
-		if (rc == -EINVAL)
+		if (rc == -EINVAL &&
+		    pver->pv_u.subtree.pvs_tolerance[level] > 0)
 			M0_CNT_DEC(pver->pv_u.subtree.pvs_tolerance[level]);
+		else
+			break;
 	} while (rc == -EINVAL);
 	return rc;
 }
@@ -804,6 +822,55 @@ err:
 	return rc;
 }
 
+/**
+ * Builds a vector consisting of failed/offline objects in the conf tree of a
+ * pool version. Repaired devices are not considered to be failed.
+ */
+static int conf_pver_nonhealty_recd_build(struct m0_conf_obj *obj, void *args)
+{
+	uint32_t            *recd = args;
+	struct m0_conf_objv *objv;
+	unsigned             lvl;
+
+	if (m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE) {
+		objv = M0_CONF_CAST(obj, m0_conf_objv);
+		if (!M0_IN(objv->cv_real->co_ha_state,
+			  (M0_NC_ONLINE, M0_NC_REPAIRED))) {
+			M0_LOG(M0_DEBUG, FID_F" is failed",
+			       FID_P(&objv->cv_real->co_id));
+			lvl = m0_conf_pver_level(obj);
+			M0_ASSERT(lvl != 0 && lvl < M0_CONF_PVER_HEIGHT);
+			M0_CNT_INC(recd[lvl]);
+			return M0_CW_SKIP_SUBTREE;
+		}
+	}
+	return M0_CW_CONTINUE;
+}
+
+/**
+ * Check if failures at any level has reached or exceeded max allowed failures.
+ */
+static int tolerance_failure_cmp(struct m0_conf_pver *pv,
+				 const uint32_t      *srecd)
+{
+	int      i = 0;
+	int      result = MAX_FAILURES_NOT_REACHED;
+	uint32_t tolerance ;
+
+	while(i < M0_CONF_PVER_HEIGHT) {
+		tolerance = pv->pv_u.subtree.pvs_tolerance[i];
+		/* Ignore the case of srecd[i] == tolerance == 0. */
+		if (srecd[i] > 0 && srecd[i] == tolerance)
+			result = MAX_FAILURES_REACHED;
+		else if (srecd[i] > tolerance) {
+			result = MAX_FAILURES_EXCEEDED;
+			break;
+		}
+		i++;
+	}
+	return result;
+}
+
 int m0_conf_pver_status(struct m0_fid *fid,
 			struct m0_confc *confc,
 			struct m0_conf_pver_info *out_info)
@@ -812,9 +879,11 @@ int m0_conf_pver_status(struct m0_fid *fid,
 	struct m0_conf_pver      *pver;
 	int                       rc;
 	int                       i = 0;
+	int                       failures_at_lvl;
 	uint32_t                  srecd[M0_CONF_PVER_HEIGHT];
 	uint32_t                  failures = 0;
 	uint32_t                  K;
+	uint32_t                 *tolerance;
 
 	M0_ENTRY();
 	M0_PRE(fid != NULL);
@@ -830,7 +899,7 @@ int m0_conf_pver_status(struct m0_fid *fid,
 
 	M0_SET_ARR0(srecd);
 	m0_conf_cache_lock(&confc->cc_cache);
-	rc = m0_conf_walk(conf_pver_recd_build, &pver->pv_obj, srecd);
+	rc = m0_conf_walk(conf_pver_nonhealty_recd_build, &pver->pv_obj, srecd);
 	m0_conf_cache_unlock(&confc->cc_cache);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -838,14 +907,31 @@ int m0_conf_pver_status(struct m0_fid *fid,
 	while (i < M0_CONF_PVER_HEIGHT)
 		failures += srecd[i++];
 
+	failures_at_lvl = tolerance_failure_cmp(pver, srecd); 
+	tolerance = pver->pv_u.subtree.pvs_tolerance;
+
+	/**
+	 * HEALTHY: if no failures in pver.
+	 * DEGRADED: if less than K failures in pver and failures at any level
+	 *           has not reached maximum supported failures.
+	 * CRITICAL: if we have K failures or any level has reached maximum
+	 *           supported failures.
+	 * DAMAGED: if we have more than K failures or any level has exceeded
+	 *          maximum supported failures.
+	 */
 	if (failures == 0)
 		out_info->cpi_state = M0_CPS_HEALTHY;
-	else if (failures < K)
+	if (failures > 0 && failures < K &&
+	    failures_at_lvl == MAX_FAILURES_NOT_REACHED)
 		out_info->cpi_state = M0_CPS_DEGRADED;
-	else if (failures == K)
+	if (failures == K || failures_at_lvl == MAX_FAILURES_REACHED)
 		out_info->cpi_state = M0_CPS_CRITICAL;
-	else
+	if (failures > K || failures_at_lvl == MAX_FAILURES_EXCEEDED)
 		out_info->cpi_state = M0_CPS_DAMAGED;
+
+	M0_LOG(M0_DEBUG, "state: %d, failures: %d", out_info->cpi_state, failures);
+	CONF_PVER_VECTOR_LOG("failed objs of", FID_P(&pver->pv_obj.co_id), srecd);
+	CONF_PVER_VECTOR_LOG("tolerance of", FID_P(&pver->pv_obj.co_id), tolerance);
 
 	return M0_RC(rc);
 } M0_EXPORTED(m0_conf_pver_status);

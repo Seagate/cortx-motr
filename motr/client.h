@@ -552,13 +552,18 @@ enum m0_idx_opcode {
 	M0_IC_GET = M0_OC_NR + 1,  /* 15 */
 	/** Insert or update the value, given a key. */
 	M0_IC_PUT,                 /* 16 */
-	/** Delete the value, if any, for the given key. */
+	/** Delete the record, if any, for the given key. */
 	M0_IC_DEL,                 /* 17 */
-	/** Given a key, return the next key and its value. */
+	/** Given a key, return the next keys and their values. */
 	M0_IC_NEXT,                /* 18 */
-	/** Check an index for an existence. */
+	/** Check the given index for existence. */
 	M0_IC_LOOKUP,              /* 19 */
-	/** Given an index id, get the list of next indices. */
+	/**
+	 * Given an index id, get the list of next indices.
+	 *
+	 * @note the index ids will be fetched into the keys array
+	 *       argument of m0_idx_op().
+	 */
 	M0_IC_LIST,                /* 20 */
 	M0_IC_NR                   /* 21 */
 } M0_XCA_ENUM;
@@ -568,15 +573,38 @@ enum m0_idx_opcode {
  */
 enum m0_op_obj_flags {
 	/**
-	 * Read operation should not see any holes. If a hole is met during
-	 * read, return error instead.
+	 * If a hole is met during read, return zeros instead of error.
+	 * WARNING: this might result in a corrupted data, when the hole was
+	 * caused by some error during write. So it's better to verify it.
 	 */
-	M0_OOF_NOHOLE = 1 << 0,
+	M0_OOF_HOLE = 1 << 0,
 	/**
 	 * Write, alloc and free operations wait for the transaction to become
 	 * persistent before returning.
 	 */
-	M0_OOF_SYNC   = 1 << 1
+	M0_OOF_SYNC = 1 << 1,
+	/**
+	 * Last unit(s) of the object. User must specify this flag when reading
+	 * or writing last unit(s) of the object to indicate where the object
+	 * ends. Otherwise, in degraded read mode, libmotr may try to read all
+	 * the missing units of the last parity group, including those which
+	 * are beyond the object end, and may end up with too many errors to be
+	 * able to recover the data. Or, on writing, it may trigger needless
+	 * RMW and result with the wrong parity data after reading the stale
+	 * data units of the existing old object.
+	 *
+	 * Note: this flag is needed, because Motr does not know the size of
+	 * objects it stores. (But the user does know, for example, by storing
+	 * objects' metadata in KV-store.)
+	 */
+	M0_OOF_LAST = 1 << 2,
+	/**
+	 * Use this flag to indicate that the provided extents at indexvec
+	 * for the I/O operation fully span the parity groups, and that RMW
+	 * (read-modify-write) should not happen. Motr will check it, and
+	 * return -EINVAL if it is not so.
+	 */
+	M0_OOF_FULL = 1 << 3,
 } M0_XCA_ENUM;
 
 /**
@@ -626,13 +654,30 @@ enum m0_entity_type {
 	M0_ENF_META = 1 << 0,
 	/**
 	 * If this flags is set during entity_create() that means application
-	 * do not support update operation. This flag is not in use yet.
+	 * do not support update operation.
+	 * XXX: This flag is not in use and will be deleted soon, so please
+	 *      remove it from your code. If you need to avoid RMW when writing
+	 *      the non-full last parity group, use M0_OOF_LAST flag instead.
 	 */
 	M0_ENF_NO_RMW =  1 << 1,
+
 	/**
-	 * This flag is to enable data integrity.
+	 * Note below two flags are for Data Integrity:
+	 * M0_ENF_DI - This flag should be set if application is passing checksum
+	 *             into ioo_attr
+	 * M0_ENF_GEN_DI - This flag should be set if application wants Motr to
+	 *                 generate checksum. Default checksum will be generated using
+	 *                 this M0_CKSUM_DEFAULT_PI algorithm
+	 * Note: Ideally only one flag should be set for DI, if both is set the Motr
+	 * will give priority to DI generation (M0_ENF_GEN_DI)
 	 */
- 	M0_ENF_DI = 1 << 2
+	/**
+	 * This flag is to indicate that application is passing checkum for the IO.
+	 */
+	M0_ENF_DI = 1 << 2,
+	 /* This flag will let Motr generate DI for the IO. */
+	M0_ENF_GEN_DI = 1 << 3
+
  } M0_XCA_ENUM;
 
 /**
@@ -678,6 +723,17 @@ struct m0_op {
 	/* Operation's private data, can be used as arguments for callbacks.*/
 	void                          *op_datum;
 	uint64_t                       op_count;
+
+	/**
+	 * This flag is set when there is an onging cancel operation.
+	 * There is no refcount in this op. But the op cancelling AST
+	 * needs this op being valid. The op cancelling AST will
+	 * semaphore up when it is done. The m0_op_fini() checks this flag
+	 * and semaphore down on it if needed. This will make sure the op
+	 * is not freed before the op cancel is done.
+	 */
+	bool                           op_cancelling;
+	struct m0_semaphore            op_sema;
 	/**
 	 * Private field, to be used by internal implementation.
 	 */
@@ -1446,8 +1502,9 @@ void m0_obj_idx_init(struct m0_idx       *idx,
  *                       (m0_vec_count(&ext->iv_vec) >> obj->ob_attr.oa_bshift)
  * @pre ergo(M0_IN(opcode, (M0_OC_ALLOC, M0_OC_FREE)),
  *           data == NULL && attr == NULL && mask == 0)
- * @pre ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOHOLE)))
- * @pre ergo(opcode != M0_OC_READ, M0_IN(flags, (0, M0_OOF_SYNC)))
+ * @pre ergo(opcode == M0_OC_READ, !(flags & ~(M0_OOF_HOLE|M0_OOF_LAST)))
+ * @pre ergo(opcode != M0_OC_READ,
+ *           !(flags & ~(M0_OOF_SYNC|M0_OOF_LAST|M0_OOF_FULL)))
  *
  * @post ergo(*op != NULL, *op->op_code == opcode &&
  *            *op->op_sm.sm_state == M0_OS_INITIALISED)

@@ -52,9 +52,9 @@ struct m0_thread_handle {
 /** User space thread-local storage. */
 struct m0_thread_arch_tls {
 	/** Non-zero iff the thread is in awkward context. */
-	uint32_t   tat_awkward;
+	uint32_t    tat_awkward;
 	/** Stack context/environment, saved with setjmp(3). */
-	jmp_buf   *tat_jmp;
+	sigjmp_buf *tat_jmp;
 };
 
 /**

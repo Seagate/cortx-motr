@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2011-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2011-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -481,6 +481,13 @@ void m0_sm_state_set(struct m0_sm *mach, int state)
 	state_set(mach, state, 0);
 }
 M0_EXPORTED(m0_sm_state_set);
+
+M0_INTERNAL void m0_sm_state_and_rc_set(struct m0_sm *mach, int state, int32_t rc)
+{
+	M0_PRE(m0_sm_invariant(mach));
+	state_set(mach, state, rc);
+}
+M0_EXPORTED(m0_sm_state_and_rc_set);
 
 M0_INTERNAL void m0_sm_move(struct m0_sm *mach, int32_t rc, int state)
 {

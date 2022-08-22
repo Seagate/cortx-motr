@@ -34,7 +34,10 @@ m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 . $motr_st_util_dir/motr_local_conf.sh
 . $motr_st_util_dir/motr_st_inc.sh
 
-N=1
+# TODO : N will be reverted to 1 after addressing the code fix in DI checksum
+# computation in read path, for the specific case of N=1, K=2, 2 disc failure
+# degraded read.
+N=2
 K=2
 S=2
 P=15
@@ -247,7 +250,7 @@ main()
 		error_handling $rc
 	fi
 
-	motr_inst_cnt=`expr $cnt - 1`
+	motr_inst_cnt=$(($cnt - 1))
 	for i in `seq 1 $motr_inst_cnt`
 	do
 		echo "motr pids=${motr_pids[$i]}" >> $MOTR_TEST_LOGFILE

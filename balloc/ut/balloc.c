@@ -118,6 +118,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg,
 	grp = m0_be_ut_backend_sm_group_lookup(ut_be);
 	rc = m0_balloc_create(0, seg, grp, &motr_balloc, &M0_FID_INIT(0, 1));
 	M0_UT_ASSERT(rc == 0);
+	motr_balloc->cb_ballroom.ab_ops->bo_fini(&motr_balloc->cb_ballroom);
 
 	rc = motr_balloc->cb_ballroom.ab_ops->bo_init
 		(&motr_balloc->cb_ballroom, seg, BALLOC_DEF_BLOCK_SHIFT,
@@ -299,10 +300,22 @@ void test_reserve_extent()
 	m0_be_ut_backend_fini(&ut_be);
 }
 
+static int test_balloc_ut_suite_init(void)
+{
+	m0_btree_glob_init();
+	return 0;
+}
+
+static int test_balloc_ut_suite_fini(void)
+{
+	m0_btree_glob_fini();
+	return 0;
+}
+
 struct m0_ut_suite balloc_ut = {
         .ts_name  = "balloc-ut",
-	.ts_init = NULL,
-	.ts_fini = NULL,
+	.ts_init = test_balloc_ut_suite_init,
+	.ts_fini = test_balloc_ut_suite_fini,
         .ts_tests = {
 		{ "balloc", test_balloc},
 		{ "reserve blocks for extmap", test_reserve_extent},
