@@ -62,11 +62,15 @@
 |   |   |   | [RPC Layer Core](/doc/PDF/HLD_of_rpc_layer_core.pdf) |  [RPC Layer Core](/doc/RPC_Layer_Core.rst)
 |   |   |   | [HLD of SNS client](/doc/PDF/HLD_of_SNS_client.pdf) |  [HLD of SNS client](/doc/HLD-of-SNS-client.md)
 |   |   |   | [HLD of SNS Repair](/doc/PDF/HLD_of_SNS_Repair.pdf) |  [HLD of SNS Repair](HLD-of-SNS-Repair.md)
-
-|   |   |   | [RPC Layer Core](/doc/PDF/HLD_of_rpc_layer_core.pdf) |  [RPC Layer Core](/doc/RPC_Layer_Core.rst)
-|   |   |   | [RPC Layer Core](/doc/PDF/HLD_of_rpc_layer_core.pdf) |  [RPC Layer Core](/doc/RPC_Layer_Core.rst)
-|   |   |   | [RPC Layer Core](/doc/PDF/HLD_of_rpc_layer_core.pdf) |  [RPC Layer Core](/doc/RPC_Layer_Core.rst)
-|   |   |   | [RPC Layer Core](/doc/PDF/HLD_of_rpc_layer_core.pdf) |  [RPC Layer Core](/doc/RPC_Layer_Core.rst)
+|   |   |   | [HLD of SNS Server](/doc/PDF/HLD_of_SNS_server.pdf) |  [HLD of SNS Server](/doc/HLD_of_SNS_Server.rst)
+|   |   |   | [HLD of Version Numbers](/doc/PDF/HLD_of_version_numbers.pdf) |  [HLD of Version Numbers](/doc/HLD-Version-Numbers.md)
+|   |   |   | [HLD of Spiel API](/doc/PDF/HLD.spiel.api.pdf) | [HLD of Spiel API](/doc/HLD-of-Motr-Spiel-API.md)
+|   |   |   | [Repair Auxdb](/doc/PDF/repair_auxdb.pdf) | [Repair Auxdb](/doc/Repair_auxdb.rst)
+|   |   |   | [HLD of SSPL](/doc/PDF/SSPL_HLD.pdf) | [HLD of SSPL](/doc/SSPL_HLD.rst)
+|   |   |   | [HLD of Build Environment](/doc/PDF/Build_Environment_HLD.pdf) | 
+|   |   |   | [HLD of CaStor Management](/doc/PDF/CaStor_Management_HLD.pdf) | [HLD of CaStor Management](/doc/Castor-Management.md)
+|   |   |   | [HLD of Meroepochs](/doc/PDF/Copy_of_Meroepochs_%20HLD.pdf) | [HLD of Meroepochs](/doc/Motr-Epochs-HLD.md)
+|   |   |   | [Data Integrity in Motr](/doc/PDF/Data_integrity_in_Motr.pdf) | [Data Integrity in Motr](/doc/End-to-end-Data-Integrity.md)
 
 
 
