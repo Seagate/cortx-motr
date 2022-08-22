@@ -40,7 +40,7 @@ CONFD_NODE="172.16.1.1"
 SERVER_LIST="$(echo 172.16.1.{1..6} 172.16.2.{1..7})"
 CLIENT_LIST="$(echo 10.22.192.{51,52,{59..64},68,69})"
 TEST_TYPE="write"
-NUMBER_OF_CLIENTS=$(echo $CLIENT_LIST | wc -w)
+NUMBER_OF_CLIENTS=$(echo "$CLIENT_LIST" | wc -w)
 FILE_LID=13
 TEST_DURATION="10m"
 FILE_PREFIX="0:1000"
@@ -58,7 +58,7 @@ FIO_BINARY="/root/fio"
 function on_each_server()
 {
 	for node in $SERVER_LIST; do
-		ssh -n $node "$@" &
+		ssh -n "$node" "$@" &
 	done
 	wait
 }
@@ -66,7 +66,7 @@ function on_each_server()
 function on_each_client()
 {
 	for node in $CLIENT_LIST; do
-		ssh -n $node "$@" &
+		ssh -n "$node" "$@" &
 	done
 	wait
 }
@@ -74,7 +74,7 @@ function on_each_client()
 function on_each_node()
 {
 	for node in $CLIENT_LIST $SERVER_LIST; do
-		ssh -n $node "$@" &
+		ssh -n "$node" "$@" &
 	done
 	wait
 }
@@ -90,7 +90,7 @@ function scp_to_each_node()
 	local remote_file="$2"
 
 	for node in $CLIENT_LIST $SERVER_LIST; do
-		scp $local_file $node:$remote_file &
+		scp "$local_file" "$node":"$remote_file" &
 	done
 	wait
 }
@@ -98,7 +98,7 @@ function scp_to_each_node()
 function fio_script()
 {
 	local client_index=$1
-	local client_index0=$(printf %02d $client_index)
+	local client_index0=$(printf %02d "$client_index")
 	cat << EOF
 # tested with patched fio-2.2.10
 [global]
@@ -213,8 +213,8 @@ function run_test()
 	done
 	if [ "x$TEST_TYPE" = "xwrite" ]; then
 		echo "`date` Creating $FILE_PREFIX-prefixed files on $node..."
-		ssh -n $node "touch $files"
-		ssh -n $node "setfattr -n lid -v $FILE_LID $files"
+		ssh -n "$node" "touch $files"
+		ssh -n "$node" "setfattr -n lid -v $FILE_LID $files"
 		echo "`date` Done."
 	fi
 	i=0
@@ -228,7 +228,7 @@ function run_test()
 			break
 		fi
 	done
-	$FIO_BINARY --eta-newline=5 --status-interval=30 $FIO_PARAMS
+	"$FIO_BINARY" --eta-newline=5 --status-interval=30 $FIO_PARAMS
 	on_each_client pkill -x fio
 	wait
 }
@@ -253,11 +253,11 @@ function run_command()
 		ssh -n $CONFD_NODE sed \''s/.*$pool_width $data_units $parity_units.*/          [2: "$pool_width $data_units $parity_units", "'$FILE_LID'"],/'\' -i /usr/libexec/cortx-motr/motr-service.functions
 		;;
 	"mkfs")
-		ssh -n $CONFD_NODE systemctl start motr-mkfs@confd
-		ssh -n $CONFD_NODE systemctl start motr-server-confd
-		i=0; for n in $SERVER_LIST; do ssh -n $n systemctl start motr-mkfs@ios$i & i=$(($i + 1)); done
-		ssh -n $CONFD_NODE systemctl start motr-mkfs@mds &
-		ssh -n $CONFD_NODE systemctl start motr-mkfs@ha &
+		ssh -n "$CONFD_NODE" systemctl start motr-mkfs@confd
+		ssh -n "$CONFD_NODE" systemctl start motr-server-confd
+		i=0; for n in "$SERVER_LIST"; do ssh -n "$n" systemctl start motr-mkfs@ios$i & i=$(($i + 1)); done
+		ssh -n "$CONFD_NODE" systemctl start motr-mkfs@mds &
+		ssh -n "$CONFD_NODE" systemctl start motr-mkfs@ha &
 		wait
 		;;
 	"start_servers")
@@ -296,7 +296,7 @@ function main()
 		i)
 			local rpm_file="$OPTARG"
 			scp_to_each_node "$rpm_file" "$rpm_file"
-			on_each_node rpm -U --force $rpm_file
+			on_each_node rpm -U --force "$rpm_file"
 			;;
 		g)
 			cat genders
