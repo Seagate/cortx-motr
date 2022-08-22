@@ -76,9 +76,9 @@ script_terminate()
 {
     local RESULT=$1
     pwd
-    cd $HOME_DIR
+    cd "$HOME_DIR"
     print_msg "Using [$DESTROY_CLUSTER_SCRIPT $CL_DIR_TAG]"
-    $DESTROY_CLUSTER_SCRIPT $CL_DIR_TAG "--force"
+    "$DESTROY_CLUSTER_SCRIPT" "$CL_DIR_TAG" "--force"
     SCRIPT_TIME=$(( $(date +%s) - $SCRIPT_START ))
     if [ $RESULT != 0 ]; then
         print_msg "Returing $RESULT; Status: FAILED; in $SCRIPT_TIME seconds."
@@ -158,7 +158,7 @@ clone_motr()
     print_msg "Pulling MOTR_REF [$MOTR_REF]"
     cd motr
     print_msg "Executing [git pull $MOTR_REPO $MOTR_REF]"
-    git pull $MOTR_REPO $MOTR_REF
+    git pull "$MOTR_REPO" "$MOTR_REF"
     RESULT=$?
     if [ $RESULT != 0 ]; then
         print_msg "ERROR pulling $MOTR_REF!!!"
@@ -232,7 +232,7 @@ clone_hare()
 
     print_msg "Executing [git checkout -b " \
         "$HARE_USER/hare-$HARE_USER_BRANCH FETCH_HEAD]"
-    git checkout -b $HARE_USER/hare-$HARE_USER_BRANCH FETCH_HEAD
+    git checkout -b "$HARE_USER/hare-$HARE_USER_BRANCH" FETCH_HEAD
     RESULT=$?
     if [ $RESULT != 0 ]; then
         print_status_and_time  $FSTART $RESULT
@@ -256,7 +256,7 @@ clone_hare()
     fi
 
     print_msg "Executing [git merge --no-ff $USER/hare-$HARE_USER_BRANCH]"
-    git merge --no-ff $USER/hare-$HARE_USER_BRANCH
+    git merge --no-ff "$USER/hare-$HARE_USER_BRANCH"
     RESULT=$?
     if [ $RESULT != 0 ]; then
         print_status_and_time  $FSTART $RESULT
@@ -268,28 +268,28 @@ clone_hare()
 
 use_centos76()
 {
-    $M0VG env add M0_VM_BOX=centos76/dev
-    $M0VG env add M0_VM_BOX_URL="http://cortx-storage.colo.seagate.com/vagrant/centos76/dev"
+    "$M0VG" env add M0_VM_BOX=centos76/dev
+    "$M0VG" env add M0_VM_BOX_URL="http://cortx-storage.colo.seagate.com/vagrant/centos76/dev"
 }
 
 use_centos77()
 {
-    $M0VG env add M0_VM_BOX=centos77/dev
-    $M0VG env add M0_VM_BOX_URL="http://cortx-storage.colo.seagate.com/vagrant/centos77/dev"
+    "$M0VG" env add M0_VM_BOX=centos77/dev
+    "$M0VG" env add M0_VM_BOX_URL="http://cortx-storage.colo.seagate.com/vagrant/centos77/dev"
 }
 
 edit_m0vg_params()
 {
     local FSTART=$(date +%s); local RESULT=0
     print_msg "Editing the m0vg params."
-    $M0VG env add M0_VM_HOSTNAME_PREFIX=$CL_DIR_TAG
-    $M0VG env add M0_VM_NAME_PREFIX=$CL_DIR_TAG
-    $M0VG env add M0_VM_NFS_VERSION=3
-    $M0VG env add M0_VM_CMU_MEM_MB=8384
-    $M0VG env add M0_VM_CLIENT_NR=1
-    $M0VG env add M0_VM_CLIENT_MEM_MB=2046
-    $M0VG env add M0_VM_SSU_DISKS=6
-    $M0VG env add M0_VM_SSU_DISK_SIZE_GB=2
+    "$M0VG" env add M0_VM_HOSTNAME_PREFIX="$CL_DIR_TAG"
+    "$M0VG" env add M0_VM_NAME_PREFIX="$CL_DIR_TAG"
+    "$M0VG" env add M0_VM_NFS_VERSION=3
+    "$M0VG" env add M0_VM_CMU_MEM_MB=8384
+    "$M0VG" env add M0_VM_CLIENT_NR=1
+    "$M0VG" env add M0_VM_CLIENT_MEM_MB=2046
+    "$M0VG" env add M0_VM_SSU_DISKS=6
+    "$M0VG" env add M0_VM_SSU_DISK_SIZE_GB=2
     # use_centos76
     use_centos77
     print_status_and_time  $FSTART $RESULT
@@ -307,7 +307,7 @@ create_vms()
     read -t 30 CH
     if [ "$CH" != "4" ]; then
         print_msg "Creating only cmu !!!"
-        $M0VG up cmu
+        "$M0VG" up cmu
         RESULT=$?
         if [ $RESULT != 0 ]; then
             print_msg "IGNORED ERROR in creating cmu vm!!!"
@@ -316,7 +316,7 @@ create_vms()
         ALL_FOUR_VMS_CREATED="NO"
     else
         print_msg "Creating all 4 VMs (cmu, ssu1, ssu2, client1) !!!"
-        $M0VG up cmu ssu1 ssu2 client1
+        "$M0VG" up cmu ssu1 ssu2 client1
         RESULT=$?
         if [ $RESULT != 0 ]; then
             print_msg "IGNORED ERROR in creating cmu vm!!!"
@@ -339,7 +339,7 @@ create_cluster()
     print_msg "Using CL_DIR_PATH [$CL_DIR_PATH];"
 
     cleanup_if_existing
-    mkdir $CL_DIR_PATH; cd $CL_DIR_PATH
+    mkdir "$CL_DIR_PATH"; cd "$CL_DIR_PATH"
 
     clone_motr
     RESULT=$?
@@ -381,7 +381,7 @@ verify_mount()
     TEST_FILE_VM_PATH="/data/TEST_FILE"
     TEST_FILE_HOST_PATH="$CL_DIR_PATH/TEST_FILE"
 
-    $M0VG run --vm $VM "touch $TEST_FILE_VM_PATH"
+    "$M0VG" run --vm "$VM" "touch $TEST_FILE_VM_PATH"
     RESULT=$?
     if [ $? = 0 ] && [ -f "$TEST_FILE_HOST_PATH" ]; then
         print_msg "Mount of /data is verified successfully for [$VM];"
@@ -392,8 +392,8 @@ verify_mount()
             "Will retry after 30 sec."
         read -t 30 a
         ## CAREFUL -- We are making a recursive call here
-        $M0VG reload $VM
-        verify_mount $VM
+        "$M0VG" reload "$VM"
+        verify_mount "$VM"
     fi
     print_status_and_time  $FSTART $RESULT
     return $RESULT
@@ -424,7 +424,7 @@ compile_install_motr()
     ## COMPILATION OF MOTR
     M0C_START=$(date +%s)
     print_msg " COMPILATION OF MOTR STARTED!!! M0C_START [$M0C_START]!!!"
-    $M0VG run --vm cmu $COMPILE_INSTALL_MOTR_SCRIPT
+    "$M0VG" run --vm cmu "$COMPILE_INSTALL_MOTR_SCRIPT"
     RESULT=$?;
     FTIME=$(( $(date +%s) - $FSTART ))
     if [ $RESULT = 0 ]; then
@@ -441,7 +441,7 @@ compile_install_hare()
     ## COMPILATION OF HARE
     H0C_START=$(date +%s)
     print_msg "COMPILATION OF HARE STARTED!!! H0C_START [$H0C_START]!!!"
-    $M0VG run --vm cmu $COMPILE_INSTALL_HARE_SCRIPT
+    "$M0VG" run --vm cmu "$COMPILE_INSTALL_HARE_SCRIPT"
     RESULT=$?;
     FTIME=$(( $(date +%s) - $FSTART ))
     if [ $RESULT = 0 ]; then
@@ -458,7 +458,7 @@ start_cluster()
     ## Starting the cluster
     STCL_START=$(date +%s)
     print_msg "Starting the cluster !!!"
-    $M0VG run --vm cmu $START_CLUSTER_SCRIPT
+    "$M0VG" run --vm cmu "$START_CLUSTER_SCRIPT"
     RESULT=$?;
     FTIME=$(( $(date +%s) - $FSTART ))
     if [ $RESULT = 0 ]; then
@@ -475,7 +475,7 @@ run_tests()
     ## Run tests
     print_msg "TESTS WILL BE EXEUTED FROM THE [$RUN_TESTS_SCRIPT]"
     print_msg "To add your own tests, append these to this file."
-    $M0VG run --vm cmu $RUN_TESTS_SCRIPT
+    "$M0VG" run --vm cmu "$RUN_TESTS_SCRIPT"
     RESULT=$?;
     FTIME=$(( $(date +%s) - $FSTART ))
     if [ $RESULT = 0 ]; then
@@ -491,17 +491,17 @@ reboot_cluster()
 {
     local FSTART=$(date +%s); local RESULT=0
     if [ "$ALL_FOUR_VMS_CREATED" == "YES" ]; then
-        $M0VG reload cmu
-        $M0VG reload ssu1
-        $M0VG reload ssu2
-        $M0VG reload client1
+        "$M0VG" reload cmu
+        "$M0VG" reload ssu1
+        "$M0VG" reload ssu2
+        "$M0VG" reload client1
     elif [ "$ALL_FOUR_VMS_CREATED" == "NO" ]; then
-        $M0VG reload cmu
+        "$M0VG" reload cmu
     else
         print_msg "Some thing has gone wrong with reboot of VMs."
         script_terminate -1
     fi
-    vagrant global-status --prune | grep $CL_DIR_TAG
+    vagrant global-status --prune | grep "$CL_DIR_TAG"
     print_msg "Now waiting for 120 secs for the machines to reboot."
     print_msg "Press ENTER to verify reboot now."
     read -t 120 a
@@ -547,7 +547,7 @@ print_msg "tests will be executed"
 
 check_load_on_host
 
-mkdir -p $CL_HOME; cd $CL_HOME
+mkdir -p "$CL_HOME"; cd "$CL_HOME"
 
 create_cluster
 RESULT=$?
