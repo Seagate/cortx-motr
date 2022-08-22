@@ -48,12 +48,25 @@
 |   |   |   | [HLD of Background Scrub](/doc/PDF/HLD_of_Background_Scrub.pdf) |  [HLD of Background Scrub](/doc/HLD-Background-Scrub.md)
 |   |   |   | [HLD of Motr Lostore](/doc/PDF/HLD_of_Motr_lostore.pdf) |  [HLD of Motr Lostore](/doc/HLD-of-Motr-Lostore.md)
 |   |   |   | [HLD of Motr Network Benchmark](/doc/PDF/HLD_of_Motr_Network_Benchmark.pdf) |  
-|   |   |   | [HLD of Configuration Caching](/doc/PDF/HLD_of_configuration_caching.pdf) |  [HLD of Configuration Caching](HLD-of-Motr-Caching.md)
-|   |   |   | [HLD of ADDB Monitoring](/doc/PDF/HLD_of_ADDB_Monitoring.pdf) |  [HLD of ADDB Monitoring](/doc/ADDB_Monitoring.md)
-|   |   |   | [HLD of ADDB Monitoring](/doc/PDF/HLD_of_ADDB_Monitoring.pdf) |  [HLD of ADDB Monitoring](/doc/ADDB_Monitoring.md)
-|   |   |   | [HLD of ADDB Monitoring](/doc/PDF/HLD_of_ADDB_Monitoring.pdf) |  [HLD of ADDB Monitoring](/doc/ADDB_Monitoring.md)
-|   |   |   | [HLD of ADDB Monitoring](/doc/PDF/HLD_of_ADDB_Monitoring.pdf) |  [HLD of ADDB Monitoring](/doc/ADDB_Monitoring.md)
-|   |   |   | [HLD of ADDB Monitoring](/doc/PDF/HLD_of_ADDB_Monitoring.pdf) |  [HLD of ADDB Monitoring](/doc/ADDB_Monitoring.md)
+|   |   |   | [HLD of Configuration Caching](/doc/PDF/HLD_of_configuration_caching.pdf) |  [HLD of Configuration Caching](/doc/HLD-of-Motr-Caching.md)
+|   |   |   | [HLD of Configuration Schema](/doc/PDF/HLD_of_configuration.schema.pdf) |  [HLD of Configuration Schema](/doc/HLD-Configuration-Schema.md)
+|   |   |   | [HLD of Data Block Allocator](/doc/PDF/HLD_of_data-block-allocator.pdf) |  [HLD of Data Block Allocator](/doc/HLD_Data_Block_Allocator.rst)
+|   |   |   | [Data Integrity in Motr](/doc/PDF/Data_integrity_in_Motr.pdf) |  [Data Integrity in Motr](/doc/End-to-end-Data-Integrity.md)
+|   |   |   | [HLD of FDMI](/doc/PDF/HLD_of_FDMI_(reformatted).pdf) |  [HLD of FDMI](/doc/HLD-of-FDMI.md)
+|   |   |   | [HLD of FOL](/doc/PDF/HLD_of_FOL.pdf) |  [HLD of FOL](/doc/HLD-of-FOL.md)
+|   |   |   | [HLD of HA interface](/doc/PDF/HLD_of_HA_interface.pdf) |  [HLD of HA interface](/doc/HLD-of-Motr-HA-nterface.md)
+|   |   |   | [HLD of Meta Data Back End](/doc/PDF/HLD_of_meta-data_back-end.pdf) |  [HLD of Meta Data Back End](/doc/HLD-Meta-Data-Back-End.md)
+|   |   |   | [HLD of NBA](/doc/PDF/HLD_of_NBA.pdf) |  
+|   |   |   | [HLD of Object Index](/doc/PDF/HLD_of_Object_Index_(COB).pdf) |  [HLD of Object Index](/doc/HLD-of-Motr-Object-Index.md)
+|   |   |   | [HLD of RPC Formation](/doc/PDF/HLD_of_RPC_Formation.pdf) |  [HLD of RPC Formation](/doc/RPC_Formation.rst)
+|   |   |   | [RPC Layer Core](/doc/PDF/HLD_of_rpc_layer_core.pdf) |  [RPC Layer Core](/doc/RPC_Layer_Core.rst)
+|   |   |   | [HLD of SNS client](/doc/PDF/HLD_of_SNS_client.pdf) |  [HLD of SNS client](/doc/HLD-of-SNS-client.md)
+|   |   |   | [HLD of SNS Repair](/doc/PDF/HLD_of_SNS_Repair.pdf) |  [HLD of SNS Repair](HLD-of-SNS-Repair.md)
+
+|   |   |   | [RPC Layer Core](/doc/PDF/HLD_of_rpc_layer_core.pdf) |  [RPC Layer Core](/doc/RPC_Layer_Core.rst)
+|   |   |   | [RPC Layer Core](/doc/PDF/HLD_of_rpc_layer_core.pdf) |  [RPC Layer Core](/doc/RPC_Layer_Core.rst)
+|   |   |   | [RPC Layer Core](/doc/PDF/HLD_of_rpc_layer_core.pdf) |  [RPC Layer Core](/doc/RPC_Layer_Core.rst)
+|   |   |   | [RPC Layer Core](/doc/PDF/HLD_of_rpc_layer_core.pdf) |  [RPC Layer Core](/doc/RPC_Layer_Core.rst)
 
 
 
