@@ -349,6 +349,10 @@ static bool hung_fom_notify(const struct m0_fom *fom)
 	if (M0_IN(fom->fo_type->ft_id, (M0_BE_TX_GROUP_OPCODE,
 					M0_ADDB_FOP_OPCODE,
 					M0_HA_LINK_OUTGOING_OPCODE,
+					M0_DTM0_REQ_OPCODE,
+					M0_DTM0_REDO_OPCODE,
+					M0_DTM0_RLINK_OPCODE,
+					M0_DTM0_RECOVERY_FOM_OPCODE,
 					M0_FDMI_SOURCE_DOCK_OPCODE)))
 	    return true;
 
@@ -508,6 +512,7 @@ static void queueit(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	addb2_introduce(fom);
 	m0_fom_locality_inc(fom);
+	m0_atomic64_dec(&fom->fo_service->rs_fom_queued);
 	fom_ready(fom);
 }
 
@@ -628,12 +633,24 @@ M0_INTERNAL void m0_fom_queue(struct m0_fom *fom)
 
 	M0_PRE(fom != NULL);
 
+	M0_ENTRY("fom: %p fop %p rep fop %p", fom, fom->fo_fop,
+					      fom->fo_rep_fop);
+
 	dom = m0_fom_dom();
 	loc_idx = fom->fo_ops->fo_home_locality(fom) % dom->fd_localities_nr;
 	M0_ASSERT(loc_idx < dom->fd_localities_nr);
 	fom->fo_loc = dom->fd_localities[loc_idx];
 	fom->fo_loc_idx = loc_idx;
 	m0_fom_sm_init(fom);
+	if ((fom->fo_service != NULL &&
+	    m0_reqh_service_state_get(fom->fo_service) == M0_RST_STOPPED) ||
+	    fom->fo_service == NULL) {
+		m0_fom_phase_set(fom, M0_FOM_PHASE_FINISH);
+		m0_fom_fini(fom);
+		M0_LEAVE("Service is already stopped, fom:%p", fom);
+		return;
+	}
+	m0_atomic64_inc(&fom->fo_service->rs_fom_queued);
 	fom->fo_cb.fc_ast.sa_cb = &queueit;
 	m0_sm_ast_post(&fom->fo_loc->fl_group, &fom->fo_cb.fc_ast);
 }
@@ -1283,7 +1300,8 @@ M0_INTERNAL bool m0_fom_domain_is_idle_for(const struct m0_reqh_service *svc)
 	struct m0_fom_domain *dom = m0_fom_dom();
 	return m0_forall(i, dom->fd_localities_nr,
 			 is_loc_locker_empty(dom->fd_localities[i],
-					     svc->rs_fom_key));
+					     svc->rs_fom_key)) &&
+	       m0_atomic64_get(&svc->rs_fom_queued) == 0;
 }
 
 M0_INTERNAL bool m0_fom_domain_is_idle(const struct m0_fom_domain *dom)

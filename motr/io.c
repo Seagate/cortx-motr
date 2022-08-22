@@ -537,7 +537,7 @@ static int obj_io_init(struct m0_obj      *obj,
 	if (M0_IN(opcode, (M0_OC_READ, M0_OC_WRITE))) {
 		ioo->ioo_data = *data;
 		ioo->ioo_attr_mask = mask;
-		/** If checksum is disabled, then attr is NULL */
+		/* If checksum is disabled, then attr is NULL */
 		if (attr != NULL && attr->ov_vec.v_nr)
 			ioo->ioo_attr = *attr;
 		else
@@ -612,7 +612,7 @@ static int obj_op_init(struct m0_obj      *obj,
 	rc = m0__obj_layout_instance_build(cinst, layout_id, &oo->oo_fid,
 					   &oo->oo_layout_instance);
 	if (rc != 0) {
-		/*
+		/**
 		 * Setting the callbacks to NULL so the m0_op_fini()
 		 * and m0_op_free() functions don't fini and free
 		 * m0_op_io as it has not been initialized now.
@@ -657,21 +657,39 @@ M0_INTERNAL bool m0__obj_is_parity_verify_mode(struct m0_client *instance)
         return instance->m0c_config->mc_is_read_verify;
 }
 
-M0_INTERNAL bool m0__obj_is_di_enabled(struct m0_op_io *ioo)
+M0_INTERNAL bool m0__obj_is_di_cksum_gen_enabled(struct m0_op_io *ioo)
 {
-	return ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI;
+	return ioo->ioo_obj->ob_entity.en_flags & M0_ENF_GEN_DI;
 }
 
-M0_INTERNAL bool m0__obj_is_cksum_validation_allowed(struct m0_op_io *ioo)
+M0_INTERNAL bool m0__obj_is_di_enabled(struct m0_op_io *ioo)
 {
-	/*
-	 * Checksum validation is not allowed for degraded read and
-	 * for read verify mode in parity.
-	 */
-	return m0__obj_is_di_enabled(ioo) &&
-	       !ioo->ioo_dgmode_io_sent &&
-	       !m0__obj_is_parity_verify_mode(
-			       m0__op_instance(m0__ioo_to_op(ioo)));
+	return ioo->ioo_obj->ob_entity.en_flags & (M0_ENF_DI | M0_ENF_GEN_DI);
+}
+
+M0_INTERNAL uint8_t m0__obj_di_cksum_type(struct m0_op_io *ioo)
+{
+	struct m0_generic_pi *pi;
+
+	if (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_GEN_DI)
+		return M0_CKSUM_DEFAULT_PI;
+	else if ((ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) &&
+		 ioo->ioo_attr.ov_buf) {
+		pi = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[0];
+		return pi->pi_hdr.pih_type;
+	} else
+		return M0_PI_TYPE_MAX;
+}
+
+M0_INTERNAL uint32_t m0__obj_di_cksum_size(struct m0_op_io *ioo)
+{
+	if (ioo->ioo_obj->ob_entity.en_flags & M0_ENF_GEN_DI)
+		return m0_cksum_get_size(M0_CKSUM_DEFAULT_PI);
+	else if ((ioo->ioo_obj->ob_entity.en_flags & M0_ENF_DI) &&
+		 ioo->ioo_attr.ov_buf)
+		return ioo->ioo_attr.ov_vec.v_count[0];
+	else
+		return 0;
 }
 
 M0_INTERNAL int m0__obj_io_build(struct m0_io_args *args,
@@ -729,13 +747,17 @@ int m0_obj_op(struct m0_obj       *obj,
 	struct m0_io_args          io_args;
 	enum m0_client_layout_type type;
 
-	M0_ENTRY("obj_id: " U128X_F " opcode = %s", U128_P(&obj->ob_entity.en_id),
-		  opcode == M0_OC_READ ? "read" : opcode == M0_OC_WRITE ? "write" :  \
-		  opcode == M0_OC_FREE ? "free" : "");
+	M0_ENTRY("obj_id: " U128X_F " opcode = %s",
+		 U128_P(&obj->ob_entity.en_id),
+		 opcode == M0_OC_READ ? "read" :  \
+		 opcode == M0_OC_WRITE ? "write" :  \
+		 opcode == M0_OC_FREE ? "free" : "");
 	M0_PRE(obj != NULL);
 	M0_PRE(op != NULL);
-	M0_PRE(ergo(opcode == M0_OC_READ, M0_IN(flags, (0, M0_OOF_NOHOLE))));
-	M0_PRE(ergo(opcode != M0_OC_READ, M0_IN(flags, (0, M0_OOF_SYNC))));
+	M0_PRE(ergo(opcode == M0_OC_READ,
+		    !(flags & ~(M0_OOF_HOLE|M0_OOF_LAST))));
+	M0_PRE(ergo(opcode != M0_OC_READ,
+		    !(flags & ~(M0_OOF_SYNC|M0_OOF_LAST|M0_OOF_FULL))));
 	if (M0_FI_ENABLED("fail_op"))
 		return M0_ERR(-EINVAL);
 

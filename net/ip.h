@@ -25,7 +25,7 @@
 #ifndef __MOTR_NET_IP_H__
 #define __MOTR_NET_IP_H__
 
-#define M0_NET_IP_STRLEN_MAX  150
+#define M0_NET_IP_STRLEN_MAX  255
 #define M0_NET_IP_PORTLEN_MAX 6
 #define M0_NET_IP_PORT_MAX    65536
 

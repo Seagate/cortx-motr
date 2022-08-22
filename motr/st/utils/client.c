@@ -99,6 +99,8 @@ static void c0client_usage(FILE *file, char *prog_name)
 "  -b  --blocks-per-io  INT         Number of blocks (>=0) per IO. Default=100 "
 				   "if 0 or nothing is provided.\n"
 "  -r, --read-verify                Verify parity after reading the data\n"
+"  -G, --DI-generate                Flag to generate Data Integrity\n"
+"  -I, --DI-user-input              Flag to pass checksum by user\n"
 "  -S, --msg_size       INT         Max RPC msg size 64k i.e 65536\n"
                                    "%*c Note: this should match with m0d's current "
                                    "rpc msg size\n"
@@ -167,7 +169,7 @@ int main(int argc, char **argv)
 				     block_size, block_count, offset,
 				     blocks_per_io,
 				     params.cup_take_locks,
-				     0, NULL);
+				     0, NULL, params.entity_flags);
 		} else if (strcmp(arg, "write") == 0) {
 			GET_COMMON_ARG(arg, fname, saveptr, id,
 				       block_size, block_count,
@@ -196,7 +198,7 @@ int main(int argc, char **argv)
 			rc = m0_write(&container, fname, id,
 				      block_size, block_count, offset,
 				      blocks_per_io, params.cup_take_locks,
-				      update_flag);
+				      update_flag, params.entity_flags);
 		} else if (strcmp(arg, "touch") == 0) {
 			GET_ARG(arg, NULL, &saveptr);
 			m0_obj_id_sscanf(arg, &id);

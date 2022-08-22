@@ -173,9 +173,6 @@ static void rpc_client_and_server_stop(void)
 	m0_net_domain_fini(&client_net_dom);
 }
 
-static struct m0_cond match_cond;
-static struct m0_mutex cond_mutex;
-
 static int test_fs_node_eval(
 		struct m0_fdmi_src_rec *src_rec,
 		struct m0_fdmi_flt_var_node *value_desc,
@@ -225,13 +222,13 @@ static void test_fs_begin(struct m0_fdmi_src_rec *src_rec)
 	M0_UT_ASSERT(src_rec == &g_src_rec);
 }
 
+static struct m0_semaphore g_sem;
 static void test_fs_end(struct m0_fdmi_src_rec *src_rec)
 {
 	M0_UT_ASSERT(src_rec != NULL);
 	M0_UT_ASSERT(src_rec == &g_src_rec);
-	m0_mutex_lock(&cond_mutex);
-	m0_cond_broadcast(&match_cond);
-	m0_mutex_unlock(&cond_mutex);
+
+	m0_semaphore_up(&g_sem);
 }
 
 static struct m0_fdmi_src *src_alloc()
@@ -258,8 +255,7 @@ static void filterc_connect_to_confd(void)
 	int                    rc;
 	M0_ENTRY();
 
-	m0_mutex_init(&cond_mutex);
-	m0_cond_init(&match_cond, &cond_mutex);
+	m0_semaphore_init(&g_sem, 0);
 
 	ufc_fco = &fc_ops;
 	fc_ops.fco_start = ut_filterc_fco_start;
@@ -281,17 +277,14 @@ static void filterc_connect_to_confd(void)
 
 	M0_FDMI_SOURCE_POST_RECORD(&g_src_rec);
 
-	m0_mutex_lock(&cond_mutex);
-	m0_cond_wait(&match_cond);
-	m0_mutex_unlock(&cond_mutex);
+	/* wait for fom finishing */
+	m0_semaphore_down(&g_sem);
 	M0_UT_ASSERT(g_src_rec.fsr_matched);
 
+	rpc_client_and_server_stop();
 	m0_fdmi_source_deregister(src);
 	m0_fdmi_source_free(src);
-
-	rpc_client_and_server_stop();
-	m0_cond_fini(&match_cond);
-	m0_mutex_fini(&cond_mutex);
+	m0_semaphore_fini(&g_sem);
 
 	M0_LEAVE();
 }

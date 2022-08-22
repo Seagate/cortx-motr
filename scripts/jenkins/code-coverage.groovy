@@ -1,10 +1,15 @@
 pipeline { 
-    agent any
+
+    agent {
+        label "jenkins-client-for-cortx-motr"
+    }
+
     parameters {
         string(name: 'NODE_HOST', defaultValue: '', description: 'Node 1 Host FQDN', trim: true)
         string(name: 'NODE_USER', defaultValue: '', description: 'Host machine root user', trim: true)
         string(name: 'NODE_PASS', defaultValue: '', description: 'Host machine root user password', trim: true)
         string(name: 'BRANCH', defaultValue: '', description: 'Branch name', trim: true)
+        string(name: 'OPTIONS', defaultValue: '', description: 'Build options', trim: true)
         booleanParam(name: 'UT', defaultValue: true, description: 'Run UT')
         booleanParam(name: 'ST', defaultValue: false, description: 'Run ST')
     }
@@ -40,7 +45,7 @@ pipeline {
                     sshpass -p ${NODE_PASS} ssh -o StrictHostKeyChecking=no ${NODE_USER}@${NODE_HOST} "cd /root/ ; git clone --recursive -b ${BRANCH} https://github.com/Seagate/cortx-motr"
                     sshpass -p ${NODE_PASS} ssh -o StrictHostKeyChecking=no ${NODE_USER}@${NODE_HOST} "cd /root/cortx-motr ; sudo ./scripts/install-build-deps"
                     sshpass -p ${NODE_PASS} ssh -o StrictHostKeyChecking=no ${NODE_USER}@${NODE_HOST} "cd /root/cortx-motr ; ./autogen.sh"
-                    sshpass -p ${NODE_PASS} ssh -o StrictHostKeyChecking=no ${NODE_USER}@${NODE_HOST} "cd /root/cortx-motr ; ./configure --enable-coverage --enable-debug"
+                    sshpass -p ${NODE_PASS} ssh -o StrictHostKeyChecking=no ${NODE_USER}@${NODE_HOST} "cd /root/cortx-motr ; ./configure --enable-coverage --enable-debug ${OPTIONS}"
                     sshpass -p ${NODE_PASS} ssh -o StrictHostKeyChecking=no ${NODE_USER}@${NODE_HOST} "cd /root/cortx-motr ; make -j6"
 
                     if [ ${UT} == true ]

@@ -1,6 +1,9 @@
 # Go bindings for Motr - go/mio
 
-`go/mio` Go package implements Reader/Writer interface over Motr client I/O API.
+`go/mio` Go package implements
+[Reader](https://pkg.go.dev/io#Reader) /
+[Writer](https://pkg.go.dev/io#Writer)
+interface over Motr client I/O API.
 This allows writing Motr client applications quickly and efficiently in the Go language.
 
 `go/mio` automatically determines the optimal unit (stripe) size for the newly created object
@@ -57,8 +60,7 @@ Usage: mcp [options] src dst
 
 In order to build:
 
- 1. [Build Motr](../../doc/Quick-Start-Guide.rst) first
-   (or install pre-built motr-devel package).
+ 1. [Build Motr](../../doc/Quick-Start-Guide.rst) first (or install pre-built motr-devel package).
  2. Install Go: `sudo yum install go`.
 
 Then run:

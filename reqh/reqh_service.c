@@ -442,6 +442,7 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
 	service->rs_reqh = reqh;
 	m0_mutex_init(&service->rs_mutex);
 	reqh_service_state_set(service, M0_RST_INITIALISED);
+	m0_atomic64_set(&service->rs_fom_queued, 0);
 
 	/*
 	 * We want to track these services externally so add them to the list
@@ -836,8 +837,11 @@ M0_INTERNAL int m0_reqh_service_disconnect_wait(struct m0_reqh_service_ctx *ctx)
 static void reqh_service_reconnect_locked(struct m0_reqh_service_ctx *ctx,
 					  const char                 *addr)
 {
-	M0_PRE(addr != NULL &&
-	       strcmp(addr, m0_rpc_link_end_point(&ctx->sc_rlink)) == 0);
+	/**
+	 * Disabled this assert, TODO : Add description to disable this assert 
+	 * M0_PRE(addr != NULL &&
+	 *     strcmp(addr, m0_rpc_link_end_point(&ctx->sc_rlink)) == 0); 
+	 */
 
 	if (M0_IN(CTX_STATE(ctx), (M0_RSC_DISCONNECTING,
 				   M0_RSC_CONNECTING))) {
@@ -953,17 +957,8 @@ M0_INTERNAL void m0_reqh_service_ctxs_shutdown_prepare(struct m0_reqh *reqh)
 		}
 		reqh_service_ctx_sm_unlock(ctx);
 		/* Do waiting outside the sm lock. */
-		if (connecting) {
-			m0_clink_add_lock(&ctx->sc_rlink.rlk_wait,
-					  &ctx->sc_rlink_abort);
-			/*
-			 * While we were leaving the sm lock the fom activity
-			 * might happen alright, thus timed waiting.
-			 */
-			m0_chan_timedwait(&ctx->sc_rlink_abort,
-				m0_time_from_now(REQH_SVC_CONNECT_TIMEOUT, 0));
-			m0_clink_del_lock(&ctx->sc_rlink_abort);
-		}
+		if (connecting)
+			reqh_service_ctx_state_wait(ctx, M0_RSC_OFFLINE);
 	} m0_tl_endfor;
 	M0_LEAVE();
 }

@@ -134,12 +134,12 @@ User-space
 
 Subsystem filtering is controlled in two ways:
 
-  1. environment variable:
+  1.  environment variable:
 
         $ export M0_TRACE_IMMEDIATE_MASK='!rpc'
         $ ./utils/ut.sh
 
-  2. CLI options for utils/ut:
+  2.  CLI options for utils/ut:
 
         -m     string: trace mask, either numeric (HEX/DEC) or comma-separated
                        list of subsystem names, use ! at the beginning to invert
@@ -153,12 +153,12 @@ Subsystem filtering is controlled in two ways:
 
 Trace levels:
 
-  1. environment variable:
+  1.  environment variable:
 
         export M0_TRACE_LEVEL=debug
         ./utils/ut.sh
 
-  2. CLI options for utils/ut:
+  2.  CLI options for utils/ut:
 
         -e     string: trace level: level[+][,level[+]] where level is one of
 	               call|debug|info|warn|error|fatal
@@ -170,12 +170,12 @@ Trace levels:
 
 Trace print context:
 
-  1. environment variable:
+  1.  environment variable:
 
         export M0_TRACE_PRINT_CONTEXT=none
         ./utils/ut.sh
 
-  2. CLI options for utils/ut:
+  2.  CLI options for utils/ut:
 
         -p     string: trace print context, values: none, func, short, full
 

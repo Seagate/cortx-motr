@@ -1262,7 +1262,7 @@ M0_INTERNAL int ut_fini(void)
 }
 
 struct m0_ut_suite ut_suite = {
-	.ts_name = "ut",
+	.ts_name = "client-ut",
 	.ts_init = ut_init,
 	.ts_fini = ut_fini,
 	.ts_tests = {

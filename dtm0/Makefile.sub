@@ -15,6 +15,7 @@ nobase_motr_include_HEADERS += \
                             dtm0/remach.h \
                             dtm0/service.h \
                             dtm0/svc_internal.h \
+                            dtm0/recovery.h \
                             dtm0/tx_desc.h
 
 
@@ -33,6 +34,7 @@ motr_libmotr_la_SOURCES += \
                         dtm0/pruner.c \
                         dtm0/remach.c \
                         dtm0/service.c \
+                        dtm0/recovery.c \
                         dtm0/tx_desc.c
 
 

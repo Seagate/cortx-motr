@@ -26,10 +26,10 @@ M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
 export H0_SRC_DIR=${H0_SRC_DIR:-${M0_SRC_DIR%/*}/halon}
 
 
-. $M0_SRC_DIR/utils/functions
+. "$M0_SRC_DIR"/utils/functions
 
 # Start halon and all involved motr services.
-$H0_SRC_DIR/scripts/h0 start
+"$H0_SRC_DIR"/scripts/h0 start
 [ $? -eq 0 ] || report_and_exit m0mt $?
 
 # Run motr load test with parameters $MOTR_EP, $HALON_EP, $PROFILE, $PROCESS
@@ -37,10 +37,10 @@ PROFILE=$(halonctl motr status | grep profile | sed -r 's/[ \t]+//g' | sed -r 's
 PROCESS=$(halonctl motr status | grep motr-app | grep N/A | head -1 | sed -r 's/[ \t]+/~/g' | sed -r 's/.*~(0x[0-9a-z]+:0x[0-9a-z]+)~(.*)~motr-app/\1/g')
 MOTR_EP=$(halonctl motr status | grep motr-app | grep N/A | head -1 | sed -r 's/[ \t]+/~/g' | sed -r 's/.*~(0x[0-9a-z]+:0x[0-9a-z]+)~(.*)~motr-app/\2/g')
 HALON_EP=$(halonctl motr status | grep halon  | sed -r 's/[ \t]+/~/g' | sed -r 's/.*~(0x[0-9a-z]+:0x[0-9a-z]+)~(.*)~halon/\2/g')
-$M0_SRC_DIR/motr/st/mt/utils/m0mt -l $MOTR_EP -h $HALON_EP \
-				    -p $PROFILE -f $PROCESS
+"$M0_SRC_DIR"/motr/st/mt/utils/m0mt -l "$MOTR_EP" -h "$HALON_EP" \
+				    -p "$PROFILE" -f "$PROCESS"
 [ $? -eq 0 ] || report_and_exit m0mt $?
 
 # Stop halon and all involved motr services.
-$H0_SRC_DIR/scripts/h0 stop
+"$H0_SRC_DIR"/scripts/h0 stop
 report_and_exit m0mt $?

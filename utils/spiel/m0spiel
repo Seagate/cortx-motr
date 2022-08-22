@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 #
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
@@ -34,8 +34,6 @@ from subprocess import Popen, PIPE, check_output
 from motr import *
 from ctypes import *
 
-
-
 def get_ip_address(ifname):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     return socket.inet_ntoa(fcntl.ioctl(
@@ -50,30 +48,29 @@ def get_motr_transport():
     return "libfab" if output else ''
 
 def address_get():
-    xprt = get_motr_transport()
-
-    if "libfab" in xprt :
+    if "libfab" in motr_xprt :
         conf = open("/etc/libfab.conf", "r")
         xprt = conf.read()
         iface_type = (xprt[xprt.find("=")+1:xprt.find("(")])
         iface = (xprt[xprt.find("(")+1:xprt.find(")")])
         ip_addr = get_ip_address(iface)
-        return ip_addr+"@"+iface_type
+        return "inet:"+iface_type+":"+ip_addr
     else:
-        try:
-            p = Popen(['lctl', 'list_nids'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-            output, err = p.communicate()
-        except OSError:
-            return ''
-    # When the tool is executing without sudo privileges (i. e. with "--help"
-    # option) then lctl output will be an empty string)
-    return output.split()[0] if output else ''
+        output = check_output("lctl list_nids", shell=True, encoding='ascii')
+        # When the tool is executing without sudo privileges (i. e. with "--help"
+        # option) then lctl output will be an empty string)
+        return output.split()[0] if output else ''
 
+motr_xprt = get_motr_transport()
 
 default_libmotr_path = '../../motr/.libs/libmotr.so'
 addr = address_get()
-default_ha_ep = addr + ':12345:34:1001'
-default_client_ep = addr + ':12345:34:200'
+if "libfab" in motr_xprt :
+    default_ha_ep = addr + '@4001'
+    default_client_ep = addr + '@4002'
+else:
+    default_ha_ep = addr + ':12345:34:1001'
+    default_client_ep = addr + ':12345:34:200'
 
 
 # Helper function to check the type of the function parameter. This is useful
@@ -98,9 +95,9 @@ default_client_ep = addr + ':12345:34:200'
 def require(**params):
     def check_types(func, params=params):
         def modified(*args, **kw):
-            arg_names = func.func_code.co_varnames
+            arg_names = func.__code__.co_varnames
             kw.update(zip(arg_names, args))
-            for name, type in params.iteritems():
+            for name, type in params.items():
                 param = kw[name]
                 param_valid = param is None or isinstance(param, type)
                 if not param_valid:
@@ -145,7 +142,7 @@ class Fid(Structure):
     _fields_ = [("f_container", c_uint64), ("f_key", c_uint64)]
 
     def __str__(self):
-        return "<" + hex(self.f_container)[:-1] + ":" + str(self.f_key) + ">"
+        return str("<" + hex(self.f_container)[:-1] + ":" + str(self.f_key) + ">")
 
 
 spiel_rms_fid = Fid(0x7300000000000004, 100)
@@ -233,8 +230,10 @@ class SpielWrapper:
         self.signal_cb = None
 
     def spiel_init(self, client, ha):
-        self.client_ep = c_char_p(client or default_client_ep)
-        self.ha_ep = c_char_p(ha or default_ha_ep)
+        client = client or default_client_ep
+        ha = ha or default_ha_ep
+        self.client_ep = c_char_p(client.encode('ascii'))
+        self.ha_ep = c_char_p(ha.encode('ascii'))
         self.__m0_init()
         self.__net_domain_init()
         self.__net_buffer_pool_setup()
@@ -302,14 +301,14 @@ class SpielWrapper:
                                            mdredundancy, params_p)
 
     @require(spiel_tx=SpielTx, fid=Fid, memsize=int, nr_cpu=int,
-             last_state=long, flags=long)
+             last_state=int, flags=int)
     def node_add(self, spiel_tx, fid, memsize, nr_cpu, last_state, flags):
         return self.motr.m0_spiel_node_add(spiel_tx.data, byref(fid), memsize,
                                            nr_cpu, last_state, flags)
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, cores=Bitmap,
-             memory_limit_as=long, memory_limit_rss=long,
-             memory_limit_stack=long, memory_limit_memlock=long, endpoint=str)
+             memory_limit_as=int, memory_limit_rss=int,
+             memory_limit_stack=int, memory_limit_memlock=int, endpoint=str)
     def process_add(self, spiel_tx, fid, parent, cores, memory_limit_as,
                     memory_limit_rss, memory_limit_stack,
                     memory_limit_memlock, endpoint):
@@ -335,8 +334,8 @@ class SpielWrapper:
                                               byref(parent), byref(svc_info))
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, drive=Fid, dev_idx=int,
-             iface=int, media=int, bsize=int, size=long, last_state=long,
-             flags=long, filename=str)
+             iface=int, media=int, bsize=int, size=int, last_state=int,
+             flags=int, filename=str)
     def device_add(self, spiel_tx, fid, parent, drive, dev_idx, iface, media,
                    bsize, size, last_state, flags, filename):
         if iface not in storage_device_interface:
@@ -468,7 +467,9 @@ class SpielWrapper:
 
     @require(profile=str)
     def cmd_profile_set(self, profile):
-        return self.motr.m0_spiel_cmd_profile_set(self.spiel, profile)
+        profile_b = profile.encode('utf-8')
+        print(f'profile = {profile}')
+        return self.motr.m0_spiel_cmd_profile_set(self.spiel, c_char_p(profile_b))
 
     @require(fid=Fid)
     def service_init(self, fid):
@@ -776,7 +777,7 @@ if __name__ == "__main__":
        prompt = '> ' if sys.stdin.isatty() else ''
        while 1:
            try:
-               s = raw_input(prompt)
+               s = input(prompt)
                res = interpreter.push(s)
            except (EOFError, KeyboardInterrupt):
                break

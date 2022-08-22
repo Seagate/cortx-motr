@@ -24,6 +24,7 @@
 #include "lib/trace.h"         /* M0_LOG */
 #include "cas/cas.h"
 #include "cas/cas_xc.h"
+#include "dix/fid_convert.h"   /* m0_dix_fid__device_id_set */
 #include "dtm0/fop.h"
 #include "dtm0/fop_xc.h"
 #include "dtm0/addb2.h"
@@ -58,8 +59,8 @@ static int dtm0_fom_create(struct m0_fop *fop, struct m0_fom **out,
 			       struct m0_reqh *reqh);
 static void dtm0_fom_fini(struct m0_fom *fom);
 static size_t dtm0_fom_locality(const struct m0_fom *fom);
-static int dtm0_cas_fop_prepare(struct dtm0_req_fop *req,
-				struct m0_fop_type  *cas_fopt,
+static int dtm0_cas_fop_prepare(struct m0_reqh      *reqh,
+				struct dtm0_req_fop *req,
 				struct m0_fop      **cas_fop_out);
 static int dtm0_cas_fom_spawn(
 	struct dtm0_fom *dfom,
@@ -99,6 +100,8 @@ static const struct m0_fom_type_ops dtm0_req_fom_type_ops = {
 
 M0_INTERNAL void m0_dtm0_fop_fini(void)
 {
+	m0_fop_type_addb2_deinstrument(&dtm0_req_fop_fopt);
+	m0_fop_type_addb2_deinstrument(&dtm0_redo_fop_fopt);
 	m0_fop_type_fini(&dtm0_req_fop_fopt);
 	m0_fop_type_fini(&dtm0_rep_fop_fopt);
 	m0_fop_type_fini(&dtm0_redo_fop_fopt);
@@ -117,6 +120,7 @@ struct m0_sm_state_descr dtm0_phases[] = {
 		.sd_name      = "dtm0-entry",
 		.sd_allowed   = M0_BITS(M0_FOPH_DTM0_LOGGING,
 					M0_FOPH_DTM0_TO_CAS,
+					M0_FOPH_DTM0_CAS_DONE,
 					M0_FOPH_SUCCESS,
 					M0_FOPH_FAILURE)
 	},
@@ -147,6 +151,8 @@ struct m0_sm_trans_descr dtm0_phases_trans[] = {
 	{"dtm0-logging-success", M0_FOPH_DTM0_LOGGING, M0_FOPH_SUCCESS},
 
 	{"dtm0-to-cas", M0_FOPH_DTM0_ENTRY, M0_FOPH_DTM0_TO_CAS},
+
+	{"dtm0-empty-rec", M0_FOPH_DTM0_ENTRY, M0_FOPH_DTM0_CAS_DONE},
 
 	{"dtm0-to-cas-fail", M0_FOPH_DTM0_TO_CAS, M0_FOPH_FAILURE},
 	{"dtm0-cas-done", M0_FOPH_DTM0_TO_CAS, M0_FOPH_DTM0_CAS_DONE},
@@ -200,8 +206,10 @@ M0_INTERNAL int m0_dtm0_fop_init(void)
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
 			 .fom_ops   = &dtm0_req_fom_type_ops);
 
-	return m0_fop_type_addb2_instrument(&dtm0_req_fop_fopt) ?:
+	return m0_fop_type_addb2_instrument(&dtm0_req_fop_fopt);
+	/*
 		m0_fop_type_addb2_instrument(&dtm0_redo_fop_fopt);
+		*/
 }
 
 
@@ -356,7 +364,7 @@ M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom            *fom,
 		if (m0_fid_eq(target, source))
 			target = &txd->dtd_id.dti_fid;
 
-		rc = m0_dtm0_req_post(dtms, NULL, &req, target, fom, false);
+		rc = m0_dtm0_req_post(dtms, NULL, &req, target, fom, true);
 		if (rc != 0) {
 			M0_LOG(M0_WARN, "Failed to send PERSISTENT msg "
 				    FID_F " -> " FID_F " (%d).",
@@ -431,7 +439,7 @@ static int dtm0_pmsg_fom_tick(struct m0_fom *fom)
 			 * modifed right here. We have to post an AST
 			 * to ensure DTX is modifed under the group lock held.
 			 */
-			m0_be_dtm0_log_pmsg_post(svc->dos_log, fom->fo_fop);
+			m0_dtm0_dtx_pmsg_post(svc->dos_log, fom->fo_fop);
 			rep->dr_rc = 0;
 		} else {
 			rep->dr_rc = m0_dtm0_logrec_update(svc->dos_log,
@@ -530,40 +538,80 @@ static int dtm0_cas_fom_spawn(
 #endif
 }
 
-static int dtm0_cas_fop_prepare(struct dtm0_req_fop *req,
-				struct m0_fop_type  *cas_fopt,
+static void dtm0_cas_sdev_id_set(
+	struct m0_reqh                    *reqh,
+	const struct m0_reqh_service_type *stype,
+	struct m0_cas_op                  *cas_op)
+{
+#ifndef __KERNEL__
+	struct m0_cas_id             *cid = &cas_op->cg_id;
+	uint32_t                      sdev_id;
+
+	M0_PRE(reqh != NULL);
+	M0_PRE(stype != NULL);
+	M0_PRE(cas_op != NULL);
+
+	M0_ENTRY();
+
+	sdev_id = m0_cas_svc_device_id_get(stype, reqh);
+	M0_LOG(M0_DEBUG, "Replace device ID: %d -> %d",
+	       m0_dix_fid_cctg_device_id(&cid->ci_fid), sdev_id);
+	m0_dix_fid__device_id_set(&cid->ci_fid, sdev_id);
+
+	M0_LEAVE();
+#else
+	/* CAS service is not compiled for kernel. */
+	return;
+#endif
+}
+
+static int dtm0_cas_fop_prepare(struct m0_reqh      *reqh,
+				struct dtm0_req_fop *req,
 				struct m0_fop      **cas_fop_out)
 {
-	int               rc;
-	struct m0_cas_op *cas_op;
-	struct m0_fop    *cas_fop;
+	int                             rc;
+	struct m0_cas_op               *cas_op;
+	struct m0_fop                  *cas_fop;
+	struct m0_cas_dtm0_log_payload *dtm_payload;
+	struct m0_fop_type             *cas_fopt = NULL;
+	M0_ENTRY();
 
 	*cas_fop_out = NULL;
 
-	M0_ALLOC_PTR(cas_op);
+	M0_ALLOC_PTR(dtm_payload);
 	M0_ALLOC_PTR(cas_fop);
 
-	if (cas_op == NULL || cas_fop == NULL) {
+	if (dtm_payload == NULL || cas_fop == NULL) {
 		rc = -ENOMEM;
 	} else {
 		rc = m0_xcode_obj_dec_from_buf(
-			&M0_XCODE_OBJ(m0_cas_op_xc, cas_op),
+			&M0_XCODE_OBJ(m0_cas_dtm0_log_payload_xc, dtm_payload),
 			req->dtr_payload.b_addr,
 			req->dtr_payload.b_nob);
-		if (rc == 0)
-			m0_fop_init(cas_fop, cas_fopt, cas_op, &m0_fop_release);
-		else
+		if (rc == 0) {
+			cas_op = &dtm_payload->cdg_cas_op;
+			if (dtm_payload->cdg_cas_opcode == M0_CAS_PUT_FOP_OPCODE)
+				 cas_fopt = &cas_put_fopt;
+			else if(dtm_payload->cdg_cas_opcode == M0_CAS_DEL_FOP_OPCODE)
+				 cas_fopt = &cas_del_fopt;
+			M0_ASSERT(cas_fopt != NULL);
+
+			dtm0_cas_sdev_id_set(
+				reqh, cas_fopt->ft_fom_type.ft_rstype, cas_op);
+			m0_fop_init(cas_fop, cas_fopt, cas_op,
+				    &m0_fop_release);
+		} else
 			M0_LOG(M0_ERROR, "Could not decode the REDO payload");
 	}
 
 	if (rc == 0) {
 		*cas_fop_out = cas_fop;
 	} else {
-		m0_free(cas_op);
+		m0_free(dtm_payload);
 		m0_free(cas_fop);
 	}
 
-	return rc;
+	return M0_RC(rc);
 }
 
 static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
@@ -574,6 +622,12 @@ static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
 	struct dtm0_fom     *dfom = M0_AMB(dfom, fom, dtf_fom);
 	struct dtm0_req_fop *req  = m0_fop_data(fom->fo_fop);
 	struct m0_fop       *cas_fop = NULL;
+	struct m0_dtm0_service          *svc = m0_dtm0_fom2service(fom);
+	struct m0_dtm0_recovery_machine *m = &svc->dos_remach;
+	const struct m0_dtm0_tx_desc    *txd = &req->dtr_txr;
+
+	M0_PRE(ergo(m0_dtm0_tx_desc_is_none(txd),
+		    !!(req->dtr_flags & M0_BITS(M0_DMF_EOL))));
 
 	M0_ENTRY("fom %p phase %d", fom, phase);
 
@@ -582,7 +636,9 @@ static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
 		result = m0_fom_tick_generic(fom);
 		break;
 	case M0_FOPH_DTM0_ENTRY:
-		m0_fom_phase_set(fom, M0_FOPH_DTM0_TO_CAS);
+		m0_fom_phase_set(fom,
+				 m0_dtm0_tx_desc_is_none(txd) ?
+				 M0_FOPH_DTM0_CAS_DONE : M0_FOPH_DTM0_TO_CAS);
 		break;
 	case M0_FOPH_DTM0_TO_CAS:
 		/* REDO_END()s from all recovering processes received, send
@@ -591,7 +647,8 @@ static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
 		cs_ha_process_event(m0_cs_ctx_get(m0_fom_reqh(fom)),
 				    M0_CONF_HA_PROCESS_DTM_RECOVERED);
 		*/
-		rc = dtm0_cas_fop_prepare(req, &cas_put_fopt, &cas_fop);
+		rc = dtm0_cas_fop_prepare(dfom->dtf_fom.fo_service->rs_reqh,
+					  req, &cas_fop);
 		if (rc == 0) {
 			rc = dtm0_cas_fom_spawn(dfom, cas_fop,
 						&dtm0_cas_done_cb);
@@ -619,6 +676,25 @@ static int dtm0_rmsg_fom_tick(struct m0_fom *fom)
 					  M0_FOPH_FAILURE);
 		} else {
 			m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+			/*
+			 * TODO: make it async when recovery machine starts
+			 * using a larger sliding window or the amount of
+			 * participants gets bigger than the length of
+			 * the EOL queue.
+			 * At this moment EOLQ_MAX_LEN is 100, and we may
+			 * have at most 3 concurrent EOL. It leaves room
+			 * for 97 pending HA state transitions which is
+			 * far more than enough for a 3 node cluster with
+			 * one single failure.
+			 */
+			/*
+			 * TODO: Consider propagating FOM or its sm_id
+			 * (directly or indirectly) down to the recovery
+			 * machine, so that we may relate REDO FOM
+			 * and the corresponding recovery FOM.
+			 */
+			M0_BE_OP_SYNC(op,
+			      m0_dtm0_recovery_machine_redo_post(m, req, &op));
 		}
 		break;
 	default:

@@ -532,7 +532,7 @@ of the module operation.
 
 In our example, ``A_op`` has fields to track execution of ad-stob read-write,
 ``B_op`` is ``struct m0_btree_op`` (`see
-<https://github.com/Seagate/cortx-motr/blob/btree/btree/internal.h>`_) and
+<https://github.com/Seagate/cortx-motr/blob/be/btree_internal.h>`_) and
 ``C_op`` tracks execution of page daemon operation. Each ``X_op`` starts with
 ``struct m0_sm_op`` field.
 

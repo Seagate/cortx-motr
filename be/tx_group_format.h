@@ -123,7 +123,6 @@ struct m0_be_group_format {
 	struct m0_be_log_discard_item *gft_log_discard_item;
 	struct m0_ext                  gft_ext;
 	struct m0_be_op                gft_pd_io_op;
-	struct m0_be_op                gft_tmp_op;
 	/** is used in m0_be_group_format_prepare() */
 	struct m0_be_op                gft_pd_io_get;
 	/** is used in m0_be_group_format_prepare() */

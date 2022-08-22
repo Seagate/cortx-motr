@@ -68,16 +68,16 @@ MOTR_M0D_MAX_RPC_MSG_SIZE=524288
 # (for example, to 512) to avoid packets drops on high loads.
 # Note: MOTR_M0D_IOS_BUFFER_POOL_SIZE and MOTR_M0D_SNS_BUFFER_POOL_SIZE
 # parameters should be updated also accordingly after this one.
-#MOTR_M0D_MIN_RPC_RECVQ_LEN=16
+MOTR_M0D_MIN_RPC_RECVQ_LEN=16
 
 # ioservice buffer pool configuration.
 # This parameter controls the number of data buffers ready for 0-copy
 # receives. The recommend value == MOTR_M0D_MIN_RPC_RECVQ_LEN * 2.
-#MOTR_M0D_IOS_BUFFER_POOL_SIZE=32
+MOTR_M0D_IOS_BUFFER_POOL_SIZE=32
 
 # SNS Repair/Rebalance buffer pool configuration.
 # Same as MOTR_M0D_IOS_BUFFER_POOL_SIZE, but for SNS I/O.
-#MOTR_M0D_SNS_BUFFER_POOL_SIZE=64
+MOTR_M0D_SNS_BUFFER_POOL_SIZE=64
 
 # Backend log size (in bytes) for all m0d's. Default is 512 MiB.
 #MOTR_M0D_BELOG_SIZE=536870912
@@ -98,7 +98,7 @@ MOTR_M0D_BESEG_SIZE=8589934592
 #MOTR_M0D_BETXGR_FREEZE_TIMEOUT_MAX=50
 
 # Backend transactions configuration parameters.
-#MOTR_M0D_BETX_REG_NR_MAX=262144
+MOTR_M0D_BETX_REG_NR_MAX=307200
 #MOTR_M0D_BETX_REG_SIZE_MAX=46137344
 #MOTR_M0D_BETX_PAYLOAD_SIZE_MAX=2097152
 
@@ -162,3 +162,11 @@ MOTR_TRACED_KEEP_LOGS_NUM=2
 
 #MOTR ADDB Record default record size in bytes (128M)
 MOTR_MOD_ADDB_RECORD_SIZE=134217728
+
+# Option to enable slow memory unmapping of LRU List
+MOTR_M0D_BTREE_ENABLE_TRICKLE_RELEASE=0
+
+# Btree LRU List watermarks
+MOTR_M0D_BTREE_LRU_WM_LOW=209715200
+MOTR_M0D_BTREE_LRU_WM_TARGET=314572800
+MOTR_M0D_BTREE_LRU_WM_HIGH=524288000

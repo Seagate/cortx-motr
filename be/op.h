@@ -65,7 +65,6 @@ enum m0_be_op_state {
 };
 
 enum m0_be_op_type {
-	M0_BOP_TREE,
 	M0_BOP_LIST,
 };
 
@@ -90,18 +89,6 @@ struct m0_be_op {
 
 	enum m0_be_op_type  bo_utype; /* bo_u type */
 	union {
-		struct m0_be_op__btree {
-			struct m0_be_btree        *t_tree;
-			struct m0_be_tx           *t_tx;
-			/* XXX to be defined in btree.c */
-			unsigned int               t_op;
-			const struct m0_buf       *t_in;
-			struct m0_buf              t_out_val;
-			struct m0_buf              t_out_key;
-			struct m0_be_btree_anchor *t_anchor;
-			int                        t_rc;
-		} u_btree;
-
 		struct {
 			int                        e_rc;
 		} u_emap;

@@ -48,16 +48,16 @@ node_start_addr()
 	local dir
 
 	if [ "$role" == "$KERNEL_ROLE" ]; then
-		insmod "$MOD_M0NETTESTD" addr=$addr addr_console=$addr_console
+		insmod "$MOD_M0NETTESTD" addr="$addr" addr_console="$addr_console"
 	else
 		dir="net-test$DIR_COUNTER"
 		DIRS_TO_DELETE="$DIRS_TO_DELETE $dir"
 		mkdir -p $dir
 		pushd $dir > /dev/null
-		DIR_COUNTER=$(expr $DIR_COUNTER + 1)
+		DIR_COUNTER=$(($DIR_COUNTER + 1))
 		"$CMD_M0NETTESTD" -a "$addr" -c "$addr_console" &
 		popd > /dev/null
-		eval PID_$4=$!
+		eval PID_"$4"=$!
 	fi
 }
 
@@ -68,10 +68,10 @@ node_start()
 	local addr_console
 
 	if [ "$role" == "client" ]; then
-		node_start_addr $role "$ADDR_CMD_CLIENT" \
+		node_start_addr "$role" "$ADDR_CMD_CLIENT" \
 			"$ADDR_CONSOLE4CLIENTS" CLIENT
 	elif [ "$role" == "server" ]; then
-		node_start_addr $role "$ADDR_CMD_SERVER" \
+		node_start_addr "$role" "$ADDR_CMD_SERVER" \
 			"$ADDR_CONSOLE4SERVERS" SERVER
 	fi
 }
@@ -86,8 +86,8 @@ node_stop()
 }
 
 eval_kill_pid() {
-	eval pid=\${$1-xxx}
-	if [ "$pid" != "xxx" -a -f /proc/$pid/exe ]; then
+	eval pid=\${"$1"-xxx}
+	if [ "$pid" != "xxx" -a -f /proc/"$pid"/exe ]; then
 		KILL_PID+="$pid "
 	fi
 }
@@ -100,11 +100,11 @@ unload_all() {
 	eval_kill_pid "PID_CLIENT"
 	eval_kill_pid "PID_CONSOLE"
 	for pid in $KILL_PID; do
-		kill $pid > /dev/null 2>&1 || true
-		wait $pid > /dev/null 2>&1 || true
+		kill "$pid" > /dev/null 2>&1 || true
+		wait "$pid" > /dev/null 2>&1 || true
 	done
-	sleep $NET_CLEANUP_TIMEOUT
-	rm -rf $DIRS_TO_DELETE
+	sleep "$NET_CLEANUP_TIMEOUT"
+	rm -rf "$DIRS_TO_DELETE"
 }
 trap unload_all EXIT
 
@@ -118,7 +118,7 @@ export M0_TRACE_IMMEDIATE_MASK=all
 
 node_start "client"
 node_start "server"
-sleep $NODE_INIT_DELAY
+sleep "$NODE_INIT_DELAY"
 
 BULK_PARAMETERS=
 
@@ -141,11 +141,11 @@ fi
 		 -s "$MSG_SIZE" \
 		 -E "$CONCURRENCY_SERVER" \
 		 -e "$CONCURRENCY_CLIENT" \
-		 $VERBOSE \
-		 $PARSABLE \
+		 "$VERBOSE" \
+		 "$PARSABLE" \
 		 $BULK_PARAMETERS &
 PID_CONSOLE=$!
 wait $PID_CONSOLE
 
 # The same time for fini
-sleep $NODE_INIT_DELAY
+sleep "$NODE_INIT_DELAY"

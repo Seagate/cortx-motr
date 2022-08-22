@@ -23,11 +23,11 @@ set +e
 ## CAUTION: This path will be removed by superuser.
 SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.restart_motr_service}
 
-. `dirname $0`/common.sh
-. `dirname $0`/m0t1fs_common_inc.sh
-. `dirname $0`/m0t1fs_client_inc.sh
-. `dirname $0`/m0t1fs_server_inc.sh
-. `dirname $0`/m0t1fs_sns_common_inc.sh
+. `dirname "$0"`/common.sh
+. `dirname "$0"`/m0t1fs_common_inc.sh
+. `dirname "$0"`/m0t1fs_client_inc.sh
+. `dirname "$0"`/m0t1fs_server_inc.sh
+. `dirname "$0"`/m0t1fs_sns_common_inc.sh
 
 rcancel_sandbox="$MOTR_M0T1FS_TEST_DIR/rcancel_sandbox"
 source_file="$rcancel_sandbox/rcancel_source"
@@ -36,7 +36,7 @@ rcancel_motr_service_start()
 {
 	local multiple_pools=${1:-0}
 
-	motr_service start $multiple_pools
+	motr_service start "$multiple_pools"
 	if [ $? -ne 0 ]
 	then
 		echo "Failed to start Motr Service"
@@ -60,7 +60,7 @@ main()
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to stop Motr Service."
-		if [ $rc -eq "0" ]; then
+		if [ "$rc" -eq "0" ]; then
 			return 1
 		fi
 	fi
@@ -92,7 +92,7 @@ main()
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to stop Motr Service."
-		if [ $rc -eq "0" ]; then
+		if [ "$rc" -eq "0" ]; then
 			return 1
 		fi
 	fi
