@@ -386,6 +386,7 @@ include $(top_srcdir)/motr/ut/Makefile.sub
 include $(top_srcdir)/module/ut/Makefile.sub
 include $(top_srcdir)/net/bulk_emulation/ut/Makefile.sub
 include $(top_srcdir)/net/lnet/ut/Makefile.sub
+include $(top_srcdir)/net/libfab/ut/Makefile.sub
 include $(top_srcdir)/net/test/ut/Makefile.sub
 include $(top_srcdir)/net/ut/Makefile.sub
 include $(top_srcdir)/pool/ut/Makefile.sub
@@ -787,7 +788,6 @@ sbin_SCRIPTS  += utils/m0gendisks \
                  utils/m0reportbug \
                  utils/m0run \
                  utils/m0setup \
-                 utils/m0iscorrupt \
                  utils/m0singlenode
 
 
@@ -898,10 +898,11 @@ be_tool_m0betool_LDADD     = $(top_builddir)/motr/libmotr.la
 # be/tool/m0beck -------------------------------------- {{{2
 #
 
-sbin_PROGRAMS               += be/tool/m0beck
-be_tool_m0beck_CPPFLAGS      = -DM0_TARGET='m0beck' $(AM_CPPFLAGS)
-be_tool_m0beck_LDADD         = $(top_builddir)/motr/libmotr.la \
-                                @YAML_LIBS@
+#TBD: Uncomment following block after CORTX-32593 is fixed.
+#sbin_PROGRAMS               += be/tool/m0beck
+#be_tool_m0beck_CPPFLAGS      = -DM0_TARGET='m0beck' $(AM_CPPFLAGS)
+#be_tool_m0beck_LDADD         = $(top_builddir)/motr/libmotr.la \
+#                                @YAML_LIBS@
 
 #
 # scripts/systemtap/kem/m0kemc ----------------------------------- {{{2
@@ -1034,7 +1035,6 @@ motr_commondir = $(motrdir)/common
 motr_common_SCRIPTS = \
     scripts/install$(motr_commondir)/cortx_error_codes.sh \
     scripts/install$(motr_commondir)/cortx_util_funcs.sh \
-    scripts/install$(motr_commondir)/core-traces \
     scripts/install$(motr_commondir)/m0_sns_utils_common.sh \
     scripts/install$(motr_commondir)/m0_dix_utils_common.sh \
     scripts/install$(motr_commondir)/m0_utils_common.sh \

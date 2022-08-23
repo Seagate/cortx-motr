@@ -116,7 +116,7 @@ get_val() {
     local KEY="$1"
     local OPTS="$2"
 
-    echo "$OPTS" | tr , \\n | sed -n "s/^$KEY=//p"
+    echo $OPTS | tr , \\n | sed -n "s/^$KEY=//p"
 }
 
 ### Generate CSV file.
@@ -130,19 +130,19 @@ gen_csv() {
 
     local NR_MSGS=$(get_val nr_msgs $COMMON_OPTS)
 
-    echo "# $VAR_OPT time msg/s MB/s" >$OUT
+    echo "# $VAR_OPT time msg/s MB/s" >"$OUT"
 
     for x in $VALUES; do
 	local OPTS="${VAR_OPT}=${x},${COMMON_OPTS}"
 	echo "----------[ $OPTS ]----------"
 
-	rpc-ub -o $OPTS | tee $TMP
-	[ ${PIPESTATUS[0]} -eq 0 ] || exit ${PIPESTATUS[0]}
+	rpc-ub -o $OPTS | tee "$TMP"
+	[ "${PIPESTATUS[0]}" -eq 0 ] || exit "${PIPESTATUS[0]}"
 
 	local NR_CONNS=$(get_val nr_conns $OPTS)
 	local MSG_LEN=$(get_val msg_len $OPTS)
-	awk -v X=$x -v NR_MSGS=$((NR_CONNS * NR_MSGS)) -v MSG_LEN=$MSG_LEN \
-	    -v PROG=${0##*/} '
+	awk -v X="$x" -v NR_MSGS=$((NR_CONNS * NR_MSGS)) -v MSG_LEN="$MSG_LEN" \
+	    -v PROG="${0##*/}" '
 function die(msg) {
 	print PROG ": " msg >"/dev/stderr"
 	exit 1
@@ -161,7 +161,7 @@ END {
 	if (runs == 0)
 		die("No data to parse")
 }
-' $TMP >>$OUT
+' "$TMP" >>"$OUT"
     done
 }
 
@@ -189,7 +189,7 @@ plot '$CSV' using 1:3 title 'msg/s' axes x1y1 with linespoints, \
 EOF
 }
 
-TMP=`mktemp -t "${0##*/}.XXXXXXX"`
+TMP=$(mktemp -t "${0##*/}.XXXXXXX")
 trap "rm $TMP" 0
 
 i=0
@@ -201,7 +201,7 @@ nr_conns=96,nr_msgs=100  msg_len  64 128 256 512
 EOF
 } | while read -a ARGS; do
     CSV=$((++i)).csv
-    gen_csv $CSV $TMP ${ARGS[@]}
-    gen_script ${ARGS[0]} $CSV ${ARGS[1]} >$TMP
-    gnuplot $TMP
+    gen_csv $CSV "$TMP" ${ARGS[@]}
+    gen_script "${ARGS[0]}" $CSV "${ARGS[1]}" >"$TMP"
+    gnuplot "$TMP"
 done

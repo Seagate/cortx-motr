@@ -1385,7 +1385,6 @@ static void rm_remote_free(struct m0_ref *ref)
 {
 	struct m0_rm_remote *rem =
 	             container_of(ref, struct m0_rm_remote, rem_refcnt);
-	struct m0_rpc_session *sess = rem->rem_session;
 
 	/*
 	 * Free only those remotes who connected to us asking for
@@ -1399,13 +1398,6 @@ static void rm_remote_free(struct m0_ref *ref)
 	m0_remotes_tlist_del(rem);
 	m0_rm_remote_fini(rem);
 	m0_free(rem);
-
-	/*
-	 * Note: it seems the session can be NULL only in UTs here.
-	 * (In particular, at rm-ut:fom-funcs.)
-	 */
-	if (sess != NULL)
-		m0_rpc_service_reverse_session_put(sess, true);
 }
 
 M0_INTERNAL void m0_rm_remote_init(struct m0_rm_remote   *rem,

@@ -36,7 +36,7 @@ TM_MIN_RECV_QUEUE_LEN=2
 error() { echo "$@" >&2; stop 1; }
 say() { echo "$@" | tee -a "$SANDBOX_DIR"/confd/m0d.log; }
 
-M0_SRC_DIR=`readlink -f "$0"`
+M0_SRC_DIR=$(readlink -f "$0")
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 . "$M0_SRC_DIR"/utils/functions # die, sandbox_init, report_and_exit
@@ -67,15 +67,15 @@ stop() {
 }
 
 _init() {
-    lnet_up
-    if [ "$XPRT" = "lnet" ]; then
+    export_test_eps
+    if [[ "$(check_and_restart_lnet)" == "true" ]]; then
         m0_modules_insert
     fi
     mkdir -p "$SANDBOX_DIR"/confd
 }
 
 _fini() {
-    if [ "$XPRT" = "lnet" ]; then
+    if [[ "$(is_lnet_available)" == "true" ]]; then
         m0_modules_remove
     fi
 }
@@ -122,8 +122,8 @@ _mkfs() {
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
     -w 3 -f $fid"
 
-    echo "$M0_SRC_DIR"/utils/mkfs/m0mkfs "$OPTS"
-    "$M0_SRC_DIR"/utils/mkfs/m0mkfs "$OPTS" >>"$path"/mkfs.log ||
+    echo "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS
+    "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS >>"$path"/mkfs.log ||
     error 'm0mkfs failed'
 }
 

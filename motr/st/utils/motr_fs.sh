@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
@@ -85,10 +86,7 @@ umount_m0t1fs()
 dir=`dirname "$0"`
 
 # Get local address
-if [ "$XPRT" = "lnet" ]; then
-	modprobe lnet &>> /dev/null
-	lctl network up &>> /dev/null
-fi
+check_and_restart_lnet
 LOCAL_NID=$(m0_local_nid_get)
 
 LOCAL_EP=$LOCAL_NID:12345:33:100

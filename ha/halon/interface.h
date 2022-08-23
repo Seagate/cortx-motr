@@ -269,6 +269,12 @@
  */
 
 #include "lib/types.h"          /* bool */
+#include "net/ip.h"
+
+enum {
+        HALON_INTERFACE_EP_BUF        = M0_NET_IP_STRLEN_MAX,
+        HALON_INTERFACE_NVEC_SIZE_MAX = 0x1000,
+};
 
 struct m0_rpc_machine;
 struct m0_reqh;

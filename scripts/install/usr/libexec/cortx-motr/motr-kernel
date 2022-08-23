@@ -33,6 +33,9 @@ start()
 {
     source $service_funcs
     local XPRT=$(m0_get_motr_transport)
+    # TODO: When we want to support multiple transports in cluster, we have to
+    # replace below check with is_lnet_available() instead of
+    # m0_get_motr_transport().
     if [ "$XPRT" == "lnet" ]; then
         # Re-configure lnet to bring up '--all' interfaces.
         # It works somehow on CentOS-7 even without this, but on CentOS-8

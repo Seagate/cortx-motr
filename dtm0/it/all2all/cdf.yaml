@@ -7,18 +7,22 @@ nodes:
       - runs_confd: true
         io_disks:
           data: []
+          log: []
       - io_disks:
           data:
             - path: /dev/loop0
             - path: /dev/loop1
+          log: []
       - io_disks:
           data:
             - path: /dev/loop2
             - path: /dev/loop3
+          log: []
       - io_disks:
           data:
             - path: /dev/loop4
             - path: /dev/loop5
+          log: []
     m0_clients:
         - name: motr_client
           instances: 1

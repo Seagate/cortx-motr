@@ -82,8 +82,6 @@ nodist_motr_libmotr_la_SOURCES  +=                 \
 			   be/addb2_xc.c           \
 			   be/alloc_xc.c           \
 			   be/alloc_internal_xc.c  \
-			   be/btree_xc.c           \
-			   be/btree_internal_xc.c  \
 			   be/domain_xc.c          \
 			   be/extmap_internal_xc.c \
 			   be/extmap_xc.c          \
@@ -98,8 +96,6 @@ nodist_motr_libmotr_la_SOURCES  +=                 \
 XC_FILES += be/addb2_xc.h           \
             be/alloc_xc.h           \
             be/alloc_internal_xc.h  \
-            be/btree_xc.h           \
-            be/btree_internal_xc.h  \
             be/domain_xc.h          \
             be/extmap_internal_xc.h \
             be/extmap_xc.h          \

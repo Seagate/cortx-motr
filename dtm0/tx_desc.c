@@ -130,7 +130,7 @@ M0_INTERNAL void m0_dtm0_tx_desc_apply(struct m0_dtm0_tx_desc *tgt,
 	struct m0_dtm0_tx_pa *tgt_pa;
 	struct m0_dtm0_tx_pa *upd_pa;
 
-	M0_ENTRY();
+	M0_ENTRY("updating dtxid " DTID0_F, DTID0_P(&tgt->dtd_id));
 
 	M0_PRE(m0_dtm0_tx_desc__invariant(tgt));
 	M0_PRE(m0_dtm0_tx_desc__invariant(upd));
@@ -143,9 +143,10 @@ M0_INTERNAL void m0_dtm0_tx_desc_apply(struct m0_dtm0_tx_desc *tgt,
 	for (i = 0; i < upd->dtd_ps.dtp_nr; ++i) {
 		tgt_pa = &tgt->dtd_ps.dtp_pa[i];
 		upd_pa = &upd->dtd_ps.dtp_pa[i];
-
+		M0_LOG(M0_DEBUG, "tgt state %" PRIu32 ", upd state %" PRIu32,
+		       tgt_pa->p_state, upd_pa->p_state);
 		tgt_pa->p_state = max_check(tgt_pa->p_state,
-					     upd_pa->p_state);
+					    upd_pa->p_state);
 	}
 
 	M0_LEAVE();
