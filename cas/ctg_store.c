@@ -479,8 +479,8 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 			bt.vsize = sizeof(struct meta_value);
 			break;
 		case CTT_DEADIDX:
-			bt.ksize = sizeof(struct meta_value);
-			bt.vsize = sizeof(void *);
+			bt.ksize = sizeof(struct generic_key *) + sizeof(void *);
+ 			bt.vsize = sizeof(void *);
 			break;
 		case CTT_CTIDX:
 			bt.ksize = sizeof(struct fid_key);
@@ -966,6 +966,10 @@ static void ctg_store_release(struct m0_ref *ref)
 
 	M0_ENTRY();
 	m0_mutex_fini(&ctg_store->cs_state_mutex);
+	// TODO: Cleanup all in-memory allocations done for indices in meta tree
+	ctg_fini(ctg_store->cs_state->cs_meta);
+	ctg_fini(ctg_store->cs_ctidx);
+	ctg_fini(ctg_store->cs_dead_index);
 	ctg_store->cs_state = NULL;
 	ctg_store->cs_ctidx = NULL;
 	m0_long_lock_fini(&ctg_store->cs_del_lock);
@@ -1382,14 +1386,14 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 		 * m0_be_btree_insert_inplace() have 0 there.
 		 */
 
-		vsize = sizeof(struct generic_value);
+		vsize = sizeof(void *);
 		rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
 		rec.r_crc_type   = M0_BCT_NO_CRC;
 
-		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_put(btree, &rec, &cb,
-							   &kv_op, tx));
+							&kv_op, tx));
 		m0_be_op_done(beop);
 		break;
 	case CTG_OP_COMBINE(CO_GET, CT_BTREE):
@@ -1425,6 +1429,8 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 								&kv_op, tx));
 		m0_be_op_done(beop);
 		break;
+	case CTG_OP_COMBINE(CO_DEL, CT_DEAD_INDEX):
+		ksize = sizeof(struct generic_key *) + sizeof(void *);
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
 		m0_be_op_active(beop);
@@ -1665,8 +1671,11 @@ static int ctg_exec(struct m0_ctg_op    *ctg_op,
 {
 	int ret = M0_FSO_AGAIN;
 
-	ctg_op->co_ctg = ctg;
-	ctg_op->co_ct = CT_BTREE;
+	/* Do not overwrite ctg_op params if co_ct == CT_DEAD_INDEX. */
+	if (ctg_op->co_ct != CT_DEAD_INDEX) {
+		ctg_op->co_ctg = ctg;
+		ctg_op->co_ct  = CT_BTREE;
+	}
 
 	if (!M0_IN(ctg_op->co_opcode, (CO_MIN, CO_TRUNC, CO_DROP)) &&
 	    (ctg_op->co_opcode != CO_CUR ||

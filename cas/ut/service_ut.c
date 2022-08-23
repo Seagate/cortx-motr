@@ -453,8 +453,10 @@ static void meta_fop_submit(struct m0_fop_type *fopt,
 
 	fop_submit(fopt, &m0_cas_meta_fid, recs);
 
-	for (i = 0; i < meta_recs_num; i++)
+	for (i = 0; i < meta_recs_num; i++) {
 		m0_rpc_at_fini(&recs[i].cr_key);
+		m0_free(recs[i].cr_key.u.ab_buf.b_addr);
+	}
 	m0_free(recs);
 }
 
@@ -554,6 +556,9 @@ static void create(void)
 	init();
 	meta_fid_submit(&cas_put_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -586,6 +591,11 @@ static void cctg_create(void)
 	meta_cid_submit(&cas_put_fopt, &cid2);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	m0_dix_ldesc_fini(desc);
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_cid_submit(&cas_del_fopt, &cid1);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	meta_cid_submit(&cas_del_fopt, &cid2);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -614,6 +624,9 @@ static void cctg_create_lookup(void)
 	meta_cid_submit(&cas_get_fopt, &cid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	m0_dix_ldesc_fini(desc);
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_cid_submit(&cas_del_fopt, &cid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -667,6 +680,9 @@ static void create_lookup(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	meta_fid_submit(&cas_get_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -681,6 +697,9 @@ static void create_create(void)
 	meta_fid_submit(&cas_put_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, -EEXIST, BUNSET, BUNSET));
 	meta_fid_submit(&cas_get_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
@@ -716,6 +735,9 @@ static void recreate(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	meta_fid_submit(&cas_get_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -737,6 +759,9 @@ static void meta_cur_1(void)
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep_check(0, 1, BSET, BUNSET));
 	M0_UT_ASSERT(m0_fid_eq(repv[0].cr_key.u.ab_buf.b_addr, &ifid));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -759,6 +784,9 @@ static void meta_cur_eot(void)
 	M0_UT_ASSERT(rep_check(0, 1, BSET, BUNSET));
 	M0_UT_ASSERT(rep_check(1, -ENOENT, BUNSET, BUNSET));
 	M0_UT_ASSERT(m0_fid_eq(repv[0].cr_key.u.ab_buf.b_addr, &ifid));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -778,6 +806,9 @@ static void meta_cur_0(void)
 			1);
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 0);
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -819,6 +850,9 @@ static void meta_cur_none(void)
 	M0_UT_ASSERT(rep_check(1, 0, BUNSET, BUNSET));
 	M0_UT_ASSERT(rep_check(2, 0, BUNSET, BUNSET));
 	M0_UT_ASSERT(rep_check(3, 0, BUNSET, BUNSET));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -856,6 +890,9 @@ static void meta_cur_all(void)
 	M0_UT_ASSERT(m0_fid_eq(repv[2].cr_key.u.ab_buf.b_addr,
 			       &m0_cas_dead_index_fid));
 	M0_UT_ASSERT(m0_fid_eq(repv[3].cr_key.u.ab_buf.b_addr, &fid));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &fid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -982,6 +1019,9 @@ static void insert(void)
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1005,6 +1045,9 @@ static void insert_lookup(void)
 		     == sizeof (uint64_t));
 	M0_UT_ASSERT(2 ==
 		     *(uint64_t *)rep.cgr_rep.cr_rec[0].cr_val.u.ab_buf.b_addr);
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1023,6 +1066,9 @@ static void insert_delete(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1037,6 +1083,10 @@ static void lookup_none(void)
 	index_op(&cas_put_fopt, &ifid, 1, 2);
 	index_op(&cas_get_fopt, &ifid, 3, NOVAL);
 	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+
 	fini();
 }
 
@@ -1063,6 +1113,9 @@ static void empty_value(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1080,6 +1133,10 @@ static void insert_2(void)
 	M0_UT_ASSERT(rep_check(0, -EEXIST, BUNSET, BUNSET));
 	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+
 	fini();
 }
 
@@ -1093,6 +1150,9 @@ static void delete_2(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	index_op(&cas_del_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1144,6 +1204,9 @@ static void lookup_N(void)
 	meta_fid_submit(&cas_put_fopt, &ifid);
 	insert_odd(&ifid);
 	lookup_all(&ifid);
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1175,6 +1238,9 @@ static void lookup_restart(void)
 	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	m0_reqh_service_start(cas);
 	lookup_all(&ifid);
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1230,6 +1296,9 @@ static void cur_N(void)
 		M0_UT_ASSERT(rep_check(k, -ENOENT, BUNSET, BUNSET));
 		M0_UT_ASSERT(rep.cgr_rep.cr_nr == INSERTS);
 	}
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1302,6 +1371,9 @@ static void meta_lookup_fail(void)
 	/* Lookup without ENOMEM returns record. */
 	meta_fid_submit(&cas_get_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1316,6 +1388,9 @@ static void meta_delete_fail(void)
 	M0_UT_ASSERT(rep_check(0, -ENOMEM, BUNSET, BUNSET));
 	/* Lookup should return record. */
 	meta_fid_submit(&cas_get_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
@@ -1341,6 +1416,9 @@ static void insert_fail(void)
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_rc == -ENOENT);
 	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_val.u.ab_buf.b_addr == NULL);
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1371,6 +1449,9 @@ static void lookup_fail(void)
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(repv[0].cr_val.u.ab_buf.b_nob == sizeof (uint64_t));
 	M0_UT_ASSERT(*(uint64_t *)repv[0].cr_val.u.ab_buf.b_addr == 2);
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1412,6 +1493,9 @@ static void delete_fail(void)
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_rc == -ENOENT);
 	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_val.u.ab_buf.b_addr == NULL);
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1485,6 +1569,9 @@ static void cur_fail(void)
 	for (i = 2; i < MULTI_INS - 1; i++)
 		M0_UT_ASSERT(repv[i].cr_rc == 0);
 
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1552,6 +1639,9 @@ static void multi_insert(void)
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
 				rep.cgr_rep.cr_rec[i].cr_rc == 0));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1581,6 +1671,9 @@ static void multi_lookup(void)
 			rep.cgr_rep.cr_rec[i].cr_rc == 0));
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
 			*(uint64_t *)repv[i].cr_val.u.ab_buf.b_addr == i * i));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1616,6 +1709,9 @@ static void multi_delete(void)
 				rep.cgr_rep.cr_rec[i].cr_rc == -ENOENT));
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
 				repv[i].cr_val.u.ab_buf.b_addr == NULL));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1641,6 +1737,9 @@ static void multi_insert_fail(void)
 				i % 2 ?
 				rep.cgr_rep.cr_rec[i].cr_rc == 0 :
 				rep.cgr_rep.cr_rec[i].cr_rc == -ENOMEM));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1676,6 +1775,9 @@ static void multi_lookup_fail(void)
 			i % 2 ?
 			*(uint64_t *)repv[i].cr_val.u.ab_buf.b_addr == i*i :
 			repv[i].cr_val.u.ab_buf.b_addr == NULL));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1719,6 +1821,9 @@ static void multi_delete_fail(void)
 			i % 2 ?
 			repv[i].cr_val.u.ab_buf.b_addr == NULL :
 			*(uint64_t *)repv[i].cr_val.u.ab_buf.b_addr == i * i));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	fini();
 }
 
@@ -1843,6 +1948,14 @@ static void multi_create_drop(void)
 			2);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	M0_UT_ASSERT(rep_check(1, 0, BUNSET, BUNSET));
+	/* Cleaning up allocated memory to avoid leaks. */
+	meta_fop_submit(&cas_del_fopt,
+			(struct meta_rec[]) {
+				{ .cid = nonce0 },
+				{ .cid = nonce1 } },
+			2);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 2);
 
 	fini();
 }
