@@ -515,7 +515,7 @@ record pertains. Mapping the context of multiple related records enables, for
 example, records produced by multiple Motr services while executing the same 
 read request, to be identified. Below is a real-life example of addb record:
 
-```
+```Text
 *alloc size:40, addr:@0x7fd27c53eb20
 | node <f3b62b87d9e642b2:96a4e0520cc5477b>
 | locality 1

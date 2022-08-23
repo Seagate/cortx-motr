@@ -66,7 +66,7 @@ Each wrapper process maintains a structure representing the HA domain. Upon rece
 
 ## Interfaces
 To handle epoch failures, we introduce the following HA event:
-```
+```Text
 EpochTransitionRequest { service :: ServiceId
 
                        , currentEpoch :: EpochId
@@ -74,7 +74,7 @@ EpochTransitionRequest { service :: ServiceId
                        , targetEpoch  :: EpochId }
 ```
 HA services that wrap Motr services must be able to accept the following additional messages:
-```
+```Text
 EpochTransition { targetEpoch            :: EpochId
 
                 , epochTransitionPayload :: a }  

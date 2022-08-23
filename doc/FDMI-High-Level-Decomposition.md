@@ -43,7 +43,7 @@ Components responsibilities:
   * sample plugin: use plugin interface.   
 
 
-## Data-flow diagram   
+## Data-flow diagram
 
 ![image](./images/data-flow-diagram.PNG)  
 
