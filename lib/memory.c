@@ -271,15 +271,24 @@ static void *alloc0(size_t size)
 
         /* 9% of logs in m0trace log file is due to M0_ENTRY  and M0_LEAVE */
 	//M0_ENTRY("size=%zi", size);
+#ifdef ENABLE_DEV_MODE
 	if (M0_FI_ENABLED_IN("m0_alloc", "fail_allocation"))
 		return NULL;
+#endif
 	area = m0_arch_alloc(size);
 	alloc_tail(area, size);
 	if (area != NULL) {
 		m0_arch_allocated_zero(area, size);
-	} else if (!M0_FI_ENABLED_IN("m0_alloc", "keep_quiet")) {
+	} else {
+#ifdef ENABLE_DEV_MODE
+		if (!M0_FI_ENABLED_IN("m0_alloc", "keep_quiet")) {
+			M0_LOG(M0_ERROR, "Failed to allocate %zi bytes.", size);
+			m0_backtrace();
+		}
+#else
 		M0_LOG(M0_ERROR, "Failed to allocate %zi bytes.", size);
 		m0_backtrace();
+#endif
 	}
 	//M0_LEAVE("ptr=%p size=%zi", area, size);
 	return area;
@@ -312,9 +321,10 @@ static void *alloc0_aligned(size_t size, unsigned shift)
 	void  *result;
 	size_t alignment;
 
+#ifdef ENABLE_DEV_MODE
 	if (M0_FI_ENABLED_IN("m0_alloc_aligned", "fail_allocation"))
 		return NULL;
-
+#endif
 	/*
 	 * posix_memalign(3):
 	 *
