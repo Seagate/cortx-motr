@@ -79,19 +79,16 @@ The most important and necessary configuration parameters:
 
 These parameters can be queried with one of the following options:
 
-```
 - `hctl status` will show these parameters
-```
+
 
 If you've followed these instructions [Cluster Setup](https://github.com/Seagate/Cortx/blob/main/doc/Cluster_Setup.md) or [Quick Start Guide](/doc/Quick-Start-Guide.rst) to setup a Cortx Motr system. Or
 
-```
 - Run "motr/examples/setup_a_running_motr_system.sh" to setup a single node Motr, and parameters will be shown there.
-```
 
 The first function to use Cortx Motr is to call m0\_client\_init():
 
-```
+```C
     rc = m0_client_init(&m0_instance, &motr_conf, true);
     if (rc != 0) {
             printf("error in m0_client_init: %d\n", rc);
@@ -108,7 +105,7 @@ The first function to use Cortx Motr is to call m0\_client\_init():
 
 And as the final step, application needs to call m0\_client\_fini():
 
-```
+```C
     m0_client_fini(m0_instance, true);
 ```
 
@@ -143,9 +140,9 @@ The steps to write to an existing object: function object\_write().
 *   Open the object.
 *   Allocate indexvec (struct m0\_indexvec), data buf (struct m0\_bufvec), attr buf (struct m0\_bufvec)
 
-```
+`
        with specified count and block size. Please note, Motr I/O must be performed with multiple blocks with some 4K-aligned block size.
-```
+`
 
 *   Fill the indexvec with desired logical offset within the object, and correct buffer size.
 *   Fill the data buf with your data.
@@ -164,9 +161,9 @@ The steps to read from an exiting object: function object\_read().
 *   Open the object.
 *   Allocate indexvec (struct m0\_indexvec), data buf (struct m0\_bufvec), attr buf (struct m0\_bufvec)
 
-```
+`
        with specified count and block size. Please note, Motr I/O must be performed with multiple blocks with some 4K-aligned block size.
-```
+`
 
 *   Fill the indexvec with desired logical offset within the object, and correct buffer size.
 *   Init the read operation with m0\_obj\_op().
@@ -204,3 +201,4 @@ If run `example1` and encounter error "obj_id invalid. Please refer to M0_ID_APP
 
 *   Mar 17, 2022: Bo Wei (bo.b.wei@seagate.com) tested using CentOS 7.9.
 *   Sep 28, 2021: Liana Valdes Rodriguez (liana.valdes@seagate.com / lvald108@fiu.edu) tested using CentOS Linux release 7.8.2003 x86_64
+
