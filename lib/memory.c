@@ -270,8 +270,8 @@ static void *alloc0(size_t size)
 	void *area;
 
         /* 9% of logs in m0trace log file is due to M0_ENTRY  and M0_LEAVE */
-	//M0_ENTRY("size=%zi", size);
 #ifdef ENABLE_DEV_MODE
+	M0_ENTRY("size = %zi", size);
 	if (M0_FI_ENABLED_IN("m0_alloc", "fail_allocation"))
 		return NULL;
 #endif
@@ -290,7 +290,9 @@ static void *alloc0(size_t size)
 		m0_backtrace();
 #endif
 	}
-	//M0_LEAVE("ptr=%p size=%zi", area, size);
+#ifdef ENABLE_DEV_MODE
+	M0_LEAVE("ptr=%p size=%zi", area, size);
+#endif
 	return area;
 }
 
@@ -300,7 +302,9 @@ static void free0(void *data)
 		size_t size = m0_arch_alloc_size(data);
 
                 /* 5% of logs in m0trace log file is m0_free */
-		//M0_LOG(M0_DEBUG, "%p", data);
+#ifdef ENABLE_DEV_MODE
+		M0_LOG(M0_DEBUG, "%p", data);
+#endif
 
 		if (DEV_MODE) {
 			m0_atomic64_sub(&allocated, size);
