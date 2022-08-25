@@ -272,6 +272,8 @@ static void ut_test_target_ioreq_seg_add(void)
 	m0_bufvec_alloc(&ti->ti_auxbufvec, 1, unit_size);
 	M0_SET0(&ioo->ioo_attr);
 	M0_ALLOC_ARR(ti->ti_pageattrs, 1);
+	m0_indexvec_alloc(&ti->ti_goff_ivec, 1);
+	ti->ti_goff_ivec.iv_vec.v_nr = 0;
 
 	target_ioreq_seg_add(ti, src, tgt, 111, 1, map);
 	M0_UT_ASSERT(ti->ti_ivec.iv_vec.v_nr == 1);
@@ -287,6 +289,7 @@ static void ut_test_target_ioreq_seg_add(void)
 	m0_bufvec_free(&ti->ti_bufvec);
 	m0_bufvec_free(&ti->ti_auxbufvec);
 	m0_indexvec_free(&ti->ti_ivec);
+	m0_indexvec_free(&ti->ti_goff_ivec);
 
 	ut_dummy_pargrp_iomap_delete(map, instance);
 	m0_free(tgt);

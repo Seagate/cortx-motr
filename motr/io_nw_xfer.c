@@ -528,15 +528,29 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 
 	/* For checksum of Parity Unit the global object offset will be
 	 * assumed to be aligned with PG start offset, so removing the
-	 * additional value NxUS w.r.t PG start, which is added by the 
+	 * additional value NxUS w.r.t PG start, which is added by the
 	 * nw_xfer_io_distribute() function. src.sa_unit = layout_n(play) + unit
-	 * Removing this offset N will help to compute PG unit idx as 0,1..,k-1 
+	 * Removing this offset N will help to compute PG unit idx as 0,1..,k-1
 	 * which is the index of pi_paritybufs
-	 */ 
-	goff_cksum = unit_type == M0_PUT_DATA ? gob_offset : 
+	 */
+	goff_cksum = unit_type == M0_PUT_DATA ? gob_offset :
 		     (gob_offset + (src->sa_unit - layout_n(play)) *
 		     layout_unit_size(play));
-	
+
+	/**
+	 * There are scenarios where K > N in such case when the
+	 * unit type is M0_PUT_PARITY, adding [(K-N) x gob offset] into
+	 * global object offset so that right PG and Unit index will get
+	 * computed.
+	 */
+	if ((unit_type == M0_PUT_PARITY) &&
+	   (layout_k(play) > layout_n(play))) {
+		m0_bcount_t goff_delta = (layout_k(play) -
+					  layout_n(play)) *
+					  gob_offset;
+		goff_cksum += goff_delta;
+	}
+
 	M0_LOG(M0_DEBUG,
 	       "[gpos %" PRIu64 ", count %" PRIu64 "] [%" PRIu64 ", %" PRIu64 "]"
 	       "->[%" PRIu64 ",%" PRIu64 "] %c", gob_offset, count, src->sa_group,
@@ -642,7 +656,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		 * goff_ivec according to target offset. This creates a
 		 * mapping between target offset and cheksum offset.
 		 *
-		 * This mapping will be used to compute PG Index and 
+		 * This mapping will be used to compute PG Index and
 		 * Unit Index for each target when FOP is being prepared.
 		 */
 		INDEX(goff_ivec, seg) = goff_cksum;
@@ -900,7 +914,7 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 
 	/* Number of units will not be zero as its already checked */
 	num_units = irfop->irf_cksum_data.cd_num_units;
-	
+
 	/**
 	 * Note: No need to free this as RPC layer will free this
 	 * Allocate cksum buffer for number of units added to target_ioreq ti
@@ -963,6 +977,8 @@ static void target_ioreq_calc_idx(struct m0_op_io *ioo,
 	struct fop_cksum_data           *fop_cs_data = &irfop->irf_cksum_data;
 	uint32_t                         seg;
 	m0_bindex_t                      goff;
+	struct m0_pdclust_layout        *play = pdlayout_get(ioo);
+	m0_bcount_t                      grp0_idx;
 
 	/**
 	 * Loop through all the segments added and check & add
@@ -975,10 +991,24 @@ static void target_ioreq_calc_idx(struct m0_op_io *ioo,
 				&fop_cs_data->cd_idx[fop_cs_data->cd_num_units];
 			M0_ASSERT(cs_idx->ci_pg_idx == UINT32_MAX &&
 				  cs_idx->ci_unit_idx == UINT32_MAX);
+			grp0_idx = pgdata->fg_pgrp0_index;
+			/**
+			 * There are scenarios where K > N in such case when the
+			 * unit type is parity, shifting grp0 index by
+			 * [(K-N) x pgrp0] for parity so that right PG and Unit
+			 * index will get computed.
+			 */
+			if((irfop->irf_pattr == PA_PARITY) &&
+			   (layout_k(play) > layout_n(play))) {
+				grp0_idx += (layout_k(play) -
+					     layout_n(play)) *
+					     pgdata->fg_pgrp0_index;
+			}
+
 			/* Compute PG Index & remaining exta wrt PG boundary */
-			cs_idx->ci_pg_idx = (goff - pgdata->fg_pgrp0_index) /
+			cs_idx->ci_pg_idx = (goff - grp0_idx) /
 					    pgdata->fg_pgrp_sz;
-			rem_pg_sz = (goff - pgdata->fg_pgrp0_index) %
+			rem_pg_sz = (goff - grp0_idx) %
 				     pgdata->fg_pgrp_sz;
 			cs_idx->ci_unit_idx = rem_pg_sz/pgdata->fg_unit_sz;
 			fop_cs_data->cd_num_units++;
@@ -1094,13 +1124,13 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 	ndom_max_segs = m0_net_domain_get_max_buffer_segments(ndom);
 
-	di_enabled = m0__obj_is_di_enabled(ioo) &&  
+	di_enabled = m0__obj_is_di_enabled(ioo) &&
 		     ti->ti_goff_ivec.iv_vec.v_nr;
 
 	if (di_enabled) {
 		struct m0_pdclust_layout *play = pdlayout_get(ioo);
- 
-		/* Init object global offset currsor for a given target */ 
+
+		/* Init object global offset currsor for a given target */
 		m0_ivec_cursor_init(&goff_curr, &ti->ti_goff_ivec);
 		seg_sz = m0__page_size(ioo);
 		pgdata.fg_seg_sz = m0__page_size(ioo);
@@ -1109,7 +1139,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		pgdata.fg_unit_sz = layout_unit_size(pdlayout_get(ioo));
 
 		/**
-		 * There are scenarios where K > N in such case when the 
+		 * There are scenarios where K > N in such case when the
 		 * filter is PA_PARITY, increase the size of PG so that
 		 * right PG and Unit index will get computed based on goff
 		 */

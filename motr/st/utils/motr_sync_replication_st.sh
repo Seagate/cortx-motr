@@ -34,10 +34,7 @@ m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 . $motr_st_util_dir/motr_local_conf.sh
 . $motr_st_util_dir/motr_st_inc.sh
 
-# TODO : N will be reverted to 1 after addressing the code fix in DI checksum
-# computation in read path, for the specific case of N=1, K=2, 2 disc failure
-# degraded read.
-N=2
+N=1
 K=2
 S=2
 P=15
