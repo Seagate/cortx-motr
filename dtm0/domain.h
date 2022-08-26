@@ -29,6 +29,7 @@
 #include "dtm0/pmach.h"    /* m0_dtm0_pmach */
 #include "dtm0/remach.h"   /* m0_dtm0_remach */
 #include "dtm0/net.h"      /* m0_dtm0_net */
+#include "dtm0/service.h"  /* m0_co_fom_service */
 #include "module/module.h" /* m0_module */
 
 struct m0_reqh;
@@ -54,10 +55,15 @@ struct m0_dtm0_domain_cfg {
 	struct m0_dtm0_remach_cfg dodc_remach;
 	struct m0_dtm0_pmach_cfg  dodc_pmach;
 	struct m0_dtm0_net_cfg    dodc_net;
+
+	/* TODO: s/dod/dodc/ */
+	bool                      dod_create;
+	bool                      dod_destroy;
+	struct m0_reqh           *dod_reqh;
 };
 
 struct m0_dtm0_domain_create_cfg {
-	struct m0_dtm0_log_create_cfg dcc_log;
+	int unused;
 };
 
 struct m0_dtm0_domain {
@@ -66,6 +72,7 @@ struct m0_dtm0_domain {
 	struct m0_dtm0_remach     dod_remach;
 	struct m0_dtm0_pmach      dod_pmach;
 	struct m0_dtm0_net        dod_net;
+	struct m0_co_fom_service  dod_cfs;
 	struct m0_dtm0_domain_cfg dod_cfg;
 	struct m0_module          dod_module;
 	uint64_t                  dod_magix;

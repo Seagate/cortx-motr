@@ -24,8 +24,6 @@
 #ifndef __MOTR___DTM0_DTX0_H__
 #define __MOTR___DTM0_DTX0_H__
 
-#include "sm/sm.h" /* m0_sm */
-
 /**
  * @defgroup dtm0
  *
@@ -82,53 +80,20 @@
  *
  */
 
-
 struct m0_dtm0_domain;
-struct m0_dtm0_tx_desc;
-struct m0_fid;
-struct m0_buf;
-struct m0_be_tx_credit;
+struct m0_dtm0_redo;
 struct m0_be_tx;
-struct m0_be_op;
+struct m0_be_tx_credit;
+struct m0_fid;
 
-struct m0_dtx0 {
-	/** See m0_dtx0_state */
-	struct m0_sm dtx0_sm;
-};
+M0_INTERNAL void m0_dtx0_redo_add_credit(struct m0_dtm0_domain  *dod,
+					 struct m0_dtm0_redo    *redo,
+					 struct m0_be_tx_credit *accum);
 
-enum m0_dtx0_state {
-	M0_DTX0_STATE_INIT,
-	M0_DTX0_STATE_EXECUTED,
-	M0_DTX0_STATE_STABLE,
-};
-
-M0_INTERNAL int m0_dtx0_init(struct m0_dtx0        *dtx0,
-			     struct m0_dtm0_domain *dod);
-M0_INTERNAL void m0_dtx0_fini(struct m0_dtx0 *dtx0);
-
-M0_INTERNAL int m0_dtx0_set(struct m0_dtx0               *dtx0,
-			    const struct m0_dtm0_tx_desc *txd,
-			    const struct m0_buf          *buf);
-
-M0_INTERNAL void m0_dtx0_timestamp_set(struct m0_dtx0 *dtx0);
-
-M0_INTERNAL int m0_dtx0_participants_set(struct m0_dtx0       *dtx0,
-					 const  struct m0_fid *rdtm_svcs,
-					 int                   rdtm_svcs_nr);
-
-M0_INTERNAL int m0_dtx0_buf_set(struct m0_dtx0      *dtx0,
-				const struct m0_buf *buf);
-
-M0_INTERNAL void m0_dtx0_credit(struct m0_dtx0         *dtx0,
-				struct m0_be_tx_credit *accum);
-
-M0_INTERNAL int m0_dtx0_log_update(struct m0_dtx0  *dtx0,
-				   struct m0_be_tx *tx,
-				   struct m0_be_op *op,
-				   bool             is_redo);
-
-/* TODO */
-M0_INTERNAL void m0_dtx0_cancel(struct m0_dtx0 *dtx0);
+M0_INTERNAL int m0_dtx0_redo_add(struct m0_dtm0_domain *dod,
+				 struct m0_be_tx       *tx,
+				 struct m0_dtm0_redo   *redo,
+				 const struct m0_fid   *sdev);
 
 /** @} end of dtm0 group */
 #endif /* __MOTR___DTM0_DTX0_H__ */
