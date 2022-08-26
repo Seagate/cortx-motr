@@ -29,7 +29,7 @@
 #include "conf/onwire_xc.h"
 #include "conf/obj.h"
 #include "xcode/xcode.h"
-#include "btree/btree.h"
+#include "be/btree.h"
 #include "be/tx.h"
 #include "be/op.h"
 #include "lib/memory.h"      /* m0_alloc, m0_free */

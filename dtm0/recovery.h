@@ -63,7 +63,6 @@ struct m0_dtm0_recovery_machine_ops {
 	 */
 	void (*redo_post)(struct m0_dtm0_recovery_machine *m,
 			  struct m0_fom                   *fom,
-			  const struct m0_fid             *tgt_proc,
 			  const struct m0_fid             *tgt_svc,
 			  struct dtm0_req_fop             *redo,
 			  struct m0_be_op                 *op);
@@ -103,6 +102,12 @@ struct m0_dtm0_recovery_machine_ops {
 	int (*dtxid_cmp)(struct m0_dtm0_recovery_machine *m,
 			 struct m0_dtm0_tid              *left,
 			 struct m0_dtm0_tid              *right);
+
+	/**
+	 * Callback for the moment when eviction is completed.
+	 */
+	void (*evicted)(struct m0_dtm0_recovery_machine *m,
+			const struct m0_fid             *tgt_svc);
 };
 
 

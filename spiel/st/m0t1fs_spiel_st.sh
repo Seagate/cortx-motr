@@ -37,10 +37,10 @@ INSTALLED_FILES=cleanup-on-quit.txt
 
 error() { echo "$@" >&2; stop 1; }
 
-M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=$(readlink -f "$0")
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
-. $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit
+. "$M0_SRC_DIR"/utils/functions # die, sandbox_init, report_and_exit
 
 ## Path to the file with configuration string for confd.
 CONF_FILE=$SANDBOX_DIR/confd/conf.txt
@@ -61,14 +61,14 @@ if spiel.rconfc_start():
     sys.exit('cannot start rconfc')"
 
 iosloopdevs() {
-    cat > $CONF_DRIVES << EOF
+    cat > "$CONF_DRIVES" << EOF
     Device:
 EOF
     for i in $(seq $DEV_NR); do
-        dd if=/dev/zero of=$SANDBOX_DIR/${i}.img bs=$DEV_SIZE seek=$DEV_SIZE count=1
-        losetup -d /dev/loop$i &> /dev/null || true
-        losetup /dev/loop$i $SANDBOX_DIR/${i}.img
-        cat >> $CONF_DRIVES << EOF
+        dd if=/dev/zero of="$SANDBOX_DIR"/"${i}".img bs="$DEV_SIZE" seek="$DEV_SIZE" count=1
+        losetup -d /dev/loop"$i" &> /dev/null || true
+        losetup /dev/loop"$i" "$SANDBOX_DIR"/"${i}".img
+        cat >> "$CONF_DRIVES" << EOF
        - id: $i
          filename: /dev/loop$i
 EOF
@@ -77,7 +77,7 @@ EOF
 
 start() {
     # install "motr" Python module required by m0spiel tool
-    cd $M0_SRC_DIR/utils/spiel
+    cd "$M0_SRC_DIR"/utils/spiel
     python3 setup.py install --record $INSTALLED_FILES > /dev/null ||
         die 'Cannot install Python "motr" module'
     sandbox_init
@@ -89,7 +89,7 @@ stop() {
     local rc=${1:-$?}
 
     trap - EXIT
-    if mount | grep -q m0t1fs; then umount $SANDBOX_DIR/mnt; fi
+    if mount | grep -q m0t1fs; then umount "$SANDBOX_DIR"/mnt; fi
 
     pkill m0d && wait || rc=$?
     _fini
@@ -106,15 +106,15 @@ _init() {
     if [[ "$(check_and_restart_lnet)" == "true" ]]; then
         m0_modules_insert
     fi
-    mkdir -p $SANDBOX_DIR/mnt
-    mkdir -p $SANDBOX_DIR/confd
-    mkdir -p $SANDBOX_DIR/systest-$$
+    mkdir -p "$SANDBOX_DIR"/mnt
+    mkdir -p "$SANDBOX_DIR"/confd
+    mkdir -p "$SANDBOX_DIR"/systest-$$
     iosloopdevs
 }
 
 _fini() {
     for i in $(seq $DEV_NR); do
-        losetup -d /dev/loop$i
+        losetup -d /dev/loop"$i"
     done
     m0_modules_remove
     cd $M0_SRC_DIR/utils/spiel
@@ -214,17 +214,17 @@ m0d_with_rms_start() {
     local FI_OPTS="m0_ha_msg_accept:invalid_confc:always"
     local M0D_OPTS="$OPTS -o $FI_OPTS"
 
-    stub_confdb | $M0_SRC_DIR/utils/m0confgen >$CONF_FILE
+    stub_confdb | "$M0_SRC_DIR"/utils/m0confgen >"$CONF_FILE"
 
-    echo "--- `date` ---" >>$path/m0d.log
-    cd $path
+    echo "--- $(date) ---" >>"$path"/m0d.log
+    cd "$path"
 
-    echo $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS
-    $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS >>$path/mkfs.log ||
+    echo "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS
+    "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS >>"$path"/mkfs.log ||
     error 'm0mkfs failed'
 
-    echo $M0_SRC_DIR/motr/m0d $M0D_OPTS
-    $M0_SRC_DIR/motr/m0d $M0D_OPTS >>$path/m0d.log 2>&1 &
+    echo "$M0_SRC_DIR"/motr/m0d $M0D_OPTS
+    "$M0_SRC_DIR"/motr/m0d $M0D_OPTS >>"$path"/m0d.log 2>&1 &
     local PID=$!
     sleep 10
     kill -0 $PID 2>/dev/null ||
@@ -256,8 +256,8 @@ test_m0d_start() {
 
     cd $path
 
-    echo $M0_SRC_DIR/motr/m0d $OPTS
-    $M0_SRC_DIR/motr/m0d $OPTS >>$path/m0d.log 2>&1 &
+    echo "$M0_SRC_DIR"/motr/m0d $OPTS
+    "$M0_SRC_DIR"/motr/m0d $OPTS >>"$path"/m0d.log 2>&1 &
     local PID=$!
     sleep 10
     kill -0 $PID 2>/dev/null ||
@@ -334,7 +334,7 @@ HEALTH_GOOD, HEALTH_BAD, HEALTH_INACTIVE, HEALTH_UNKNOWN = range(4)
 }
 
 construct_db() {
-    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
 N, K, S, P = 2, 1, 1, 4
 mask = c_uint64(3)
@@ -513,10 +513,10 @@ perform_io() {
     local TEST_STR="Hello world"
     local TEST_FILE=$SANDBOX_DIR/mnt/file.txt
 
-    ls $SANDBOX_DIR/mnt
-    touch $TEST_FILE || die "m0t1fs: Can't touch file"
-    setfattr -n lid -v 5 $TEST_FILE || die "m0t1fs: Can't set an attribute"
-    dd if=/dev/zero of=$TEST_FILE bs=1M count=10
+    ls "$SANDBOX_DIR"/mnt
+    touch "$TEST_FILE" || die "m0t1fs: Can't touch file"
+    setfattr -n lid -v 5 "$TEST_FILE" || die "m0t1fs: Can't set an attribute"
+    dd if=/dev/zero of="$TEST_FILE" bs=1M count=10
     echo $TEST_STR > $TEST_FILE || die "m0t1fs: Can't write to file"
     [ "`cat $TEST_FILE`" == "$TEST_STR" ] || die "IO error"
 }
@@ -570,7 +570,7 @@ EOF
 }
 
 ## Keep the audience engaged.
-say() { echo "$@" | tee -a $SANDBOX_DIR/confd/m0d.log; }
+say() { echo "$@" | tee -a "$SANDBOX_DIR"/confd/m0d.log; }
 
 usage() {
     cat <<EOF
@@ -590,7 +590,7 @@ EOF
 ## main()
 ## -------------------------------------------------------------------
 
-[ `id -u` -eq 0 ] || die 'Must be run by superuser'
+[ $(id -u) -eq 0 ] || die 'Must be run by superuser'
 
 case "${1:-}" in
     run|'') ;;
@@ -647,7 +647,7 @@ reconfig_process || stop
 
 say "Wait for reconfigure"
 sleep 10
-grep -q "Restarting" $SANDBOX_DIR/systest-$$/m0d.log ||
+grep -q "Restarting" "$SANDBOX_DIR"/systest-$$/m0d.log ||
 	die "Reconfigure is not finished"
 validate_health || stop
 

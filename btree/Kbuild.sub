@@ -1,2 +1,0 @@
-m0tr_objects += \
-                  btree/btree.o

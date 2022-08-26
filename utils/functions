@@ -33,7 +33,6 @@
                  34sns-repair-1n-1f
                  35m0singlenode
                  36spare-reservation
-                 37protocol
                  51kem)
 
  # libisal does not need kernel based ST

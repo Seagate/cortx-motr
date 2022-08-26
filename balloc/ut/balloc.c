@@ -118,6 +118,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg,
 	grp = m0_be_ut_backend_sm_group_lookup(ut_be);
 	rc = m0_balloc_create(0, seg, grp, &motr_balloc, &M0_FID_INIT(0, 1));
 	M0_UT_ASSERT(rc == 0);
+	motr_balloc->cb_ballroom.ab_ops->bo_fini(&motr_balloc->cb_ballroom);
 
 	rc = motr_balloc->cb_ballroom.ab_ops->bo_init
 		(&motr_balloc->cb_ballroom, seg, BALLOC_DEF_BLOCK_SHIFT,

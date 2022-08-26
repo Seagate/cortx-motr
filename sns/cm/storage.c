@@ -196,14 +196,18 @@ static int cob_stob_check(struct m0_cm_cp *cp)
 	struct m0_fid              fid;
 	struct m0_sns_cm_file_ctx *fctx;
 	struct m0_fid             *pver;
-	struct m0_cob             *cob;
+	struct m0_cob             *cob = NULL;
+	int                        ret;
 
 	fctx = ag2snsag(cp->c_ag)->sag_fctx;
 	pver = &fctx->sf_attr.ca_pver;
 	m0_fid_convert_stob2cob(&cp2snscp(cp)->sc_stob_id, &fid);
 
-	return m0_io_cob_stob_create(&cp->c_fom, m0_sns_cm_cp2cdom(cp), &fid,
-				     pver, fctx->sf_attr.ca_lid, true, &cob);
+	ret = m0_io_cob_stob_create(&cp->c_fom, m0_sns_cm_cp2cdom(cp), &fid,
+				    pver, fctx->sf_attr.ca_lid, true, &cob);
+	if (cob != NULL)
+		m0_cob_put(cob);
+	return ret;
 }
 
 static int cp_stob_release_exts(struct m0_stob *stob,
@@ -366,6 +370,7 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 		if (rc == 0) {
 			io_size = max64u(cob->co_nsrec.cnr_size, io_size);
 			rc = m0_cob_size_update(cob, io_size, betx);
+			m0_cob_put(cob);
 		}
 	}
 	if (rc == 0) {

@@ -77,11 +77,6 @@
 #include "ha/note.h"            /* M0_HA_NVEC_SET */
 
 
-enum {
-	HALON_INTERFACE_EP_BUF        = 0x40,
-	HALON_INTERFACE_NVEC_SIZE_MAX = 0x1000,
-};
-
 struct m0_halon_interface_cfg {
 	const char      *hic_build_git_rev_id;
 	const char      *hic_build_configure_opts;

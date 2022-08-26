@@ -424,7 +424,6 @@ void m0_obj_init(struct m0_obj *obj,
 	obj_size = obj->ob_attr.oa_buf_size;
 	obj->ob_attr.oa_layout_id = obj_size == 0 && layout_id == 0 ?
 					M0_DEFAULT_LAYOUT_ID : layout_id;
-	M0_LOG(M0_DEBUG, "YJC: layout id = %"PRIu64, obj->ob_attr.oa_layout_id);
 
 #ifdef OSYNC
 	m0_mutex_init(&obj->ob_pending_tx_lock);
