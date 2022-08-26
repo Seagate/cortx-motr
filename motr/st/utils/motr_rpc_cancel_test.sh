@@ -297,7 +297,7 @@ motr_cancel_during_unlink()
 	pid=$!
 
 	echo "Wait for few seconds to generate enough fops "
-	sleep 15
+	sleep 5
 
 	echo "Sending cancle fop"
 	motr_cancel_session_fop
