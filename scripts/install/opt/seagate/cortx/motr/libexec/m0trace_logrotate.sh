@@ -59,7 +59,7 @@ log_files_max_count=5
 # have hard coded the log path, 
 # Need to get it from config file 
 motr_logdirs=`ls -d /var/motr*`
-M0TR_M0D_TRACE_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_TRACE_DIR" | cut -d '=' -f2)
+M0TR_M0D_TRACE_DIR=$(grep "^MOTR_M0D_TRACE_DIR" /etc/sysconfig/motr | cut -d '=' -f2)
 M0D_TRACE_DIR="${M0TR_M0D_TRACE_DIR%\'}"
 M0D_TRACE_DIR="${M0D_TRACE_DIR#\'}"
 if [ -n "$M0D_TRACE_DIR" ]; then

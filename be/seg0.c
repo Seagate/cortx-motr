@@ -115,7 +115,7 @@ int m0_be_0type_del(struct m0_be_0type  *zt,
 		    const char          *suffix)
 {
 	struct m0_be_seg *seg;
-	struct m0_buf    *opt;
+	struct m0_buf    *opt = NULL;
 	char              keyname[256] = {};
 	int               rc;
 
