@@ -33,7 +33,7 @@
 #include "be/ut/helper.h"
 #include "be/extmap.h"
 
-#define EXTMAP_UT_UNIT_SIZE 10
+#define EXTMAP_UT_UNIT_SIZE 16
 #define EXTMAP_UT_CS_SIZE   16
 
 static struct m0_be_ut_backend be_ut_emap_backend;
@@ -550,8 +550,8 @@ static void test_paste_checksum_validation(void)
 	M0_UT_ASSERT(seg->ee_ext.e_end   == M0_BINDEX_MAX + 1);
 
 	idx = 0;
-	e.e_start = 50;
-	e.e_end   = 100;
+	e.e_start = m0_round_up(50, EXTMAP_UT_UNIT_SIZE);
+	e.e_end   = m0_round_up(100, EXTMAP_UT_UNIT_SIZE);
 	es[idx] = e_temp[idx] = e;
 	e_val[idx] = 12;
 
@@ -601,8 +601,8 @@ static void test_paste_checksum_validation(void)
 	 * New segment paste operation 1
 	 */
 	idx = 1;
-	e.e_start = 100;
-	e.e_end   = 150;
+	e.e_start = m0_round_up(100, EXTMAP_UT_UNIT_SIZE);
+	e.e_end   = m0_round_up(150, EXTMAP_UT_UNIT_SIZE);
 	es[idx] = e_temp[idx] = e;
 	e_val[idx] = 11;
 
@@ -660,8 +660,8 @@ static void test_paste_checksum_validation(void)
 	 * New segment overwrite paste operation
 	 */
 	idx = 2;
-	e.e_start = 80;
-	e.e_end   = 130;
+	e.e_start = m0_round_up(80, EXTMAP_UT_UNIT_SIZE);
+	e.e_end   = m0_round_up(130, EXTMAP_UT_UNIT_SIZE);
 	es[idx] = e_temp[idx] = e;
 	e_val[idx] = 13;
 

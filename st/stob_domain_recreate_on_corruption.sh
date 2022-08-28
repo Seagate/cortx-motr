@@ -34,12 +34,12 @@ MAX_RPC_MSG_SIZE=163840
 TM_MIN_RECV_QUEUE_LEN=2
 
 error() { echo "$@" >&2; stop 1; }
-say() { echo "$@" | tee -a $SANDBOX_DIR/confd/m0d.log; }
+say() { echo "$@" | tee -a "$SANDBOX_DIR"/confd/m0d.log; }
 
-M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=$(readlink -f "$0")
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
-. $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit
+. "$M0_SRC_DIR"/utils/functions # die, sandbox_init, report_and_exit
 
 ## Path to the file with configuration string for confd.
 CONF_FILE=$SANDBOX_DIR/confd/conf.txt
@@ -51,7 +51,7 @@ XPRT=$(m0_default_xprt)
 start() {
     sandbox_init
     _init
-    stub_confdb | $M0_SRC_DIR/utils/m0confgen >$CONF_FILE
+    stub_confdb | "$M0_SRC_DIR"/utils/m0confgen >"$CONF_FILE"
 }
 
 stop() {
@@ -59,10 +59,10 @@ stop() {
 
     trap - EXIT
     _fini
-    if [ $rc -eq 0 ]; then
+    if [ "$rc" -eq 0 ]; then
         sandbox_fini
     else
-        report_and_exit stob-domain-recreate-on-corruption $rc
+        report_and_exit stob-domain-recreate-on-corruption "$rc"
     fi
 }
 
@@ -71,7 +71,7 @@ _init() {
     if [[ "$(check_and_restart_lnet)" == "true" ]]; then
         m0_modules_insert
     fi
-    mkdir -p $SANDBOX_DIR/confd
+    mkdir -p "$SANDBOX_DIR"/confd
 }
 
 _fini() {
@@ -122,8 +122,8 @@ _mkfs() {
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
     -w 3 -f $fid"
 
-    echo $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS
-    $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS >>$path/mkfs.log ||
+    echo "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS
+    "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS >>"$path"/mkfs.log ||
     error 'm0mkfs failed'
 }
 
@@ -133,7 +133,7 @@ trap stop EXIT
 
 echo "Prepare"
 start
-cd $SANDBOX_DIR
+cd "$SANDBOX_DIR"
 say "mkfs"
 _mkfs
 say "mkfs (truncate stobs id file)"

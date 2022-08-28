@@ -66,8 +66,8 @@ iosloopdevs() {
 EOF
     for i in $(seq $DEV_NR); do
         dd if=/dev/zero of="$SANDBOX_DIR"/"${i}".img bs="$DEV_SIZE" seek="$DEV_SIZE" count=1
-        losetup -d /dev/loop"$i" &> /dev/null || true
-        losetup /dev/loop"$i" "$SANDBOX_DIR"/"${i}".img
+        losetup -d "/dev/loop$i" &> /dev/null || true
+        losetup "/dev/loop$i" "$SANDBOX_DIR"/"${i}".img
         cat >> "$CONF_DRIVES" << EOF
        - id: $i
          filename: /dev/loop$i
@@ -117,7 +117,7 @@ _fini() {
         losetup -d /dev/loop"$i"
     done
     m0_modules_remove
-    cd $M0_SRC_DIR/utils/spiel
+    cd "$M0_SRC_DIR"/utils/spiel
     cat $INSTALLED_FILES | xargs rm -rf
     rm -rf build/ $INSTALLED_FILES
 }
@@ -239,10 +239,10 @@ test_m0mkfs() {
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 \
     -f $PROC_FID2 -d $CONF_DRIVES -H $M0D2_ENDPOINT"
 
-    cd $path
+    cd "$path"
 
-    echo $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS
-    $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS >>$path/mkfs.log ||
+    echo "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS
+    "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS >>$path/mkfs.log ||
     error 'm0mkfs failed'
 }
 
@@ -254,7 +254,7 @@ test_m0d_start() {
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 \
     -f $PROC_FID2 -d $CONF_DRIVES -H $M0D2_ENDPOINT"
 
-    cd $path
+    cd "$path"
 
     echo "$M0_SRC_DIR"/motr/m0d $OPTS
     "$M0_SRC_DIR"/motr/m0d $OPTS >>"$path"/m0d.log 2>&1 &
@@ -449,7 +449,7 @@ EOF
 
 validate_health() {
     say 'Validate health'
-    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
 $SERVICES
 $HEALTH
@@ -471,7 +471,7 @@ EOF
 }
 
 restart_services() {
-    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
 $SERVICES
 
@@ -496,7 +496,7 @@ EOF
 }
 
 reconfig_process() {
-    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
 $PYTHON_BOILERPLATE
 
@@ -517,12 +517,12 @@ perform_io() {
     touch "$TEST_FILE" || die "m0t1fs: Can't touch file"
     setfattr -n lid -v 5 "$TEST_FILE" || die "m0t1fs: Can't set an attribute"
     dd if=/dev/zero of="$TEST_FILE" bs=1M count=10
-    echo $TEST_STR > $TEST_FILE || die "m0t1fs: Can't write to file"
+    echo "$TEST_STR" > "$TEST_FILE" || die "m0t1fs: Can't write to file"
     [ "`cat $TEST_FILE`" == "$TEST_STR" ] || die "IO error"
 }
 
 fs_stats_fetch() {
-    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
 $PYTHON_BOILERPLATE
 
@@ -549,7 +549,7 @@ none $SANDBOX_DIR/mnt"
 }
 
 device_commands_check() {
-    $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
 $PYTHON_BOILERPLATE
 

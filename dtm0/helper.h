@@ -29,7 +29,7 @@ struct m0_reqh_service;
 struct m0_reqh;
 struct m0_fid;
 
-M0_INTERNAL int m0_dtm0_log_create(struct m0_sm_group  *grp,
+M0_INTERNAL int m0_dtm0_old_log_create(struct m0_sm_group  *grp,
 				   struct m0_be_domain *bedom,
 				   struct m0_be_seg    *seg);
 
