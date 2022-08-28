@@ -45,6 +45,9 @@
 #include "fdmi/fdmi.h"
 #include "rpc/rpc_machine.h"
 
+#include "dtm0/cfg_default.h" /* m0_dtm0_domain_cfg_default_dup */
+#include "dtm0/domain.h"      /* m0_dtm0_domain */
+
 #define IFID(x, y) M0_FID_TINIT('i', (x), (y))
 #define TFID(x, y) M0_FID_TINIT('T', (x), (y))
 
@@ -57,7 +60,9 @@ struct meta_rec {
 
 static struct m0_reqh          reqh;
 static struct m0_be_ut_backend be;
+static struct m0_dtm0_domain   dtm0_domain;
 static struct m0_be_seg       *seg0;
+//struct m0_be_ut_seg            ut_seg;
 static struct m0_reqh_service *cas;
 static struct m0_reqh_service *fdmi;
 static struct m0_rpc_machine   rpc_machine;
@@ -136,7 +141,35 @@ static void reqh_init(bool mkfs, bool use_small_credits)
 	cfg.bc_seg0_cfg.bsc_addr = m0_be_ut_seg_allocate_addr(segment_size);
 
 	result = m0_be_ut_backend_init_cfg(&be, &cfg, mkfs);
+//        m0_be_ut_backend_init(&be);
+       /* m0_be_ut_seg_init(&ut_seg, &be,
+                          M0_DTM0_UT_DOMAIN_SEG_SIZE);
+*/
 	M0_ASSERT(result == 0);
+}
+
+static void ut_dod_init(struct m0_dtm0_domain *dod, struct m0_reqh *reqh,
+			struct m0_be_domain   *be_domain)
+{
+	int                       rc;
+	struct m0_dtm0_domain_cfg cfg = {};
+
+	rc = m0_dtm0_domain_cfg_default_dup(&cfg, true);
+	M0_UT_ASSERT(rc == 0);
+
+	cfg.dodc_log.dlc_be_domain = be_domain;
+	cfg.dodc_log.dlc_seg = seg0; //m0_be_domain_seg_first(be_domain);
+//	M0_UT_ASSERT(cfg.dodc_log.dlc_seg != NULL);
+	cfg.dod_reqh = reqh;
+
+	rc = m0_dtm0_domain_init(&dtm0_domain, &cfg);
+	M0_UT_ASSERT(rc == 0);
+}
+
+static void ut_dod_fini(struct m0_dtm0_domain *dod)
+{
+	m0_dtm0_domain_fini(&dtm0_domain);
+	/* TODO */
 }
 
 static void _init(bool mkfs, bool use_small_credits)
@@ -160,6 +193,8 @@ static void _init(bool mkfs, bool use_small_credits)
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
 	m0_cas__ut_svc_be_set(cas, &be.but_dom);
+	ut_dod_init(&dtm0_domain, &reqh, &be.but_dom);
+	m0_cas__ut_svc_dtm0_domain_set(cas, &dtm0_domain);
 	m0_reqh_service_start(cas);
 	m0_reqh_start(&reqh);
 	cas__ut_cb_done = &cb_done;
@@ -188,6 +223,7 @@ static void service_stop(void)
 static void fini(void)
 {
 	service_stop();
+	ut_dod_fini(&dtm0_domain);
 	m0_be_ut_backend_fini(&be);
 	m0_fi_disable("cas_in_ut", "ut");
 	rep_clear();
@@ -218,6 +254,8 @@ static void init_fail(void)
 	int rc;
 
 	reqh_init(true, false);
+
+	ut_dod_init(&dtm0_domain, &reqh, &be.but_dom);
 
 	/* Failure to add meta-index to segment dictionary. */
 	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
@@ -1015,7 +1053,7 @@ static void insert(void)
 	init();
 	meta_fid_submit(&cas_put_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
-	index_op(&cas_put_fopt, &ifid, 1, 2);
+        index_op(&cas_put_fopt, &ifid, 1, 2);
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
@@ -1967,7 +2005,9 @@ enum {
 	 * 2000 is enough to test multiple transactions if decrease transaction
 	 * size limit by using -c switch.
 	 */
-	BIG_ROWS_NUMBER = 2000,
+	/* TODO: return back to 2000 when dtm0 log is on be_seg1
+	 * (currently it's on seg0) */
+	BIG_ROWS_NUMBER = 500,
 	/*
 	 * Number of rows for 2-level btree.
 	 */
@@ -2077,6 +2117,56 @@ static void init_cgc_fail_fini(void)
 	m0_fi_disable("cgc_fom_tick", "fail_after_index_found");
 }
 
+static void dtm0_encdec(void)
+{
+	int           ref_key   = 0xABCD;
+	int           ref_value = 0xCDBA;
+	struct m0_fid ref_index = m0_cas_meta_fid;
+	struct m0_cas_rec ref_rec[1] = {
+		{
+			.cr_key = (struct m0_rpc_at_buf) {
+				.ab_type  = 1,
+				.u.ab_buf = M0_BUF_INIT_PTR(&ref_key),
+			},
+			.cr_val = (struct m0_rpc_at_buf) {
+				.ab_type  = 1,
+				.u.ab_buf = M0_BUF_INIT_PTR(&ref_value),
+			},
+			.cr_rc = 0,
+		},
+	};
+	struct m0_cas_op ref_op[1] = {{
+		.cg_id  = { .ci_fid = ref_index },
+		.cg_rec = { .cr_rec = ref_rec, .cr_nr = 1 }
+	}};
+	struct m0_cas_op *redo_op;
+	struct m0_fop        put_fop[1];
+	struct m0_fop        get_fop[1];
+	struct m0_dtm0_redo  put_redo[1];
+	struct m0_fop        put_redo_fop[1];
+	int                  rc;
+
+	m0_fop_init(put_fop, &cas_put_fopt, ref_op, &fop_release);
+	m0_fop_init(get_fop, &cas_get_fopt, ref_op, &fop_release);
+
+	M0_UT_ASSERT(m0_cas_fop_is_redoable(put_fop));
+	M0_UT_ASSERT(!m0_cas_fop_is_redoable(get_fop));
+
+	rc = m0_cas_fop2redo(put_fop, put_redo);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_cas_redo2fop(put_redo_fop, put_redo);
+	M0_UT_ASSERT(rc == 0);
+
+	redo_op = m0_fop_data(put_redo_fop);
+	M0_UT_ASSERT(m0_fid_eq(&redo_op->cg_id.ci_fid,
+			       &ref_op->cg_id.ci_fid));
+	M0_UT_ASSERT(m0_buf_eq(&redo_op->cg_rec.cr_rec->cr_key.u.ab_buf,
+		     &ref_op->cg_rec.cr_rec->cr_key.u.ab_buf));
+	M0_UT_ASSERT(m0_buf_eq(&redo_op->cg_rec.cr_rec->cr_val.u.ab_buf,
+		     &ref_op->cg_rec.cr_rec->cr_val.u.ab_buf));
+}
+
 struct m0_ut_suite cas_service_ut = {
 	.ts_name   = "cas-service",
 	.ts_owners = "Nikita",
@@ -2135,6 +2225,7 @@ struct m0_ut_suite cas_service_ut = {
 		{ "cctg-create-lookup",      &cctg_create_lookup,    "Sergey" },
 		{ "cctg-create-delete",      &cctg_create_delete,    "Sergey" },
 		{ "server-restart-nomkfs",   &server_restart_nomkfs, "Egor"   },
+		{ "dtm0-encdec",             &dtm0_encdec,           "Ivan"   },
 		{ NULL, NULL }
 	}
 };
