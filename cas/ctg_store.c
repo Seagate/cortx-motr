@@ -169,6 +169,10 @@ static int  ctg_op_exec      (struct m0_ctg_op *ctg_op, int next_phase);
 static int  ctg_meta_exec    (struct m0_ctg_op    *ctg_op,
 			      const struct m0_fid *fid,
 			      int                  next_phase);
+static int  ctg_dead_exec    (struct m0_ctg_op    *ctg_op,
+			      struct m0_cas_ctg   *ctg,
+			      const struct m0_buf *key,
+			      int                  next_phase);
 static int  ctg_exec         (struct m0_ctg_op    *ctg_op,
 			      struct m0_cas_ctg   *ctg,
 			      const struct m0_buf *key,
@@ -480,7 +484,7 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 			break;
 		case CTT_DEADIDX:
 			bt.ksize = sizeof(struct generic_key *) + sizeof(void *);
- 			bt.vsize = sizeof(void *);
+			bt.vsize = sizeof(void *);
 			break;
 		case CTT_CTIDX:
 			bt.ksize = sizeof(struct fid_key);
@@ -966,7 +970,8 @@ static void ctg_store_release(struct m0_ref *ref)
 
 	M0_ENTRY();
 	m0_mutex_fini(&ctg_store->cs_state_mutex);
-	// TODO: Cleanup all in-memory allocations done for indices in meta tree
+	/* TODO: Clean up every index in memory tree allocation upon any CAS
+	   operation on the index */
 	ctg_fini(ctg_store->cs_state->cs_meta);
 	ctg_fini(ctg_store->cs_ctidx);
 	ctg_fini(ctg_store->cs_dead_index);
@@ -1391,9 +1396,9 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 		rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
 		rec.r_crc_type   = M0_BCT_NO_CRC;
 
-			rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
+		rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
 					      m0_btree_put(btree, &rec, &cb,
-							&kv_op, tx));
+							   &kv_op, tx));
 		m0_be_op_done(beop);
 		break;
 	case CTG_OP_COMBINE(CO_GET, CT_BTREE):
@@ -1655,13 +1660,34 @@ M0_INTERNAL int m0_ctg_dead_index_insert(struct m0_ctg_op  *ctg_op,
 					 struct m0_cas_ctg *ctg,
 					 int                next_phase)
 {
-	ctg_op->co_ctg = m0_ctg_dead_index();
-	ctg_op->co_ct = CT_DEAD_INDEX;
 	ctg_op->co_opcode = CO_PUT;
 	/* Dead index value is empty */
 	ctg_op->co_val = M0_BUF_INIT0;
 	/* Dead index key is a pointer to a catalogue */
-	return ctg_exec(ctg_op, ctg, &M0_BUF_INIT_PTR(&ctg), next_phase);
+	return ctg_dead_exec(ctg_op, ctg, &M0_BUF_INIT_PTR(&ctg), next_phase);
+}
+
+static int ctg_dead_exec(struct m0_ctg_op    *ctg_op,
+			 struct m0_cas_ctg   *ctg,
+			 const struct m0_buf *key,
+			 int                  next_phase)
+{
+	int ret = M0_FSO_AGAIN;
+
+	ctg_op->co_ctg = m0_ctg_dead_index();
+	ctg_op->co_ct  = CT_DEAD_INDEX;
+
+	if (!M0_IN(ctg_op->co_opcode, (CO_MIN, CO_TRUNC, CO_DROP)) &&
+	    (ctg_op->co_opcode != CO_CUR ||
+	     ctg_op->co_cur_phase != CPH_NEXT))
+		ctg_op->co_rc = ctg_kbuf_get(&ctg_op->co_key, key, true);
+
+	if (ctg_op->co_rc != 0)
+		m0_fom_phase_set(ctg_op->co_fom, next_phase);
+	else
+		ret = ctg_op_exec(ctg_op, next_phase);
+
+	return ret;
 }
 
 static int ctg_exec(struct m0_ctg_op    *ctg_op,
@@ -1801,7 +1827,10 @@ M0_INTERNAL int m0_ctg_delete(struct m0_ctg_op    *ctg_op,
 
 	ctg_op->co_opcode = CO_DEL;
 
-	return ctg_exec(ctg_op, ctg, key, next_phase);
+	if (ctg != m0_ctg_dead_index())
+		return ctg_exec(ctg_op, ctg, key, next_phase);
+	else
+		return ctg_dead_exec(ctg_op, ctg, key, next_phase);
 }
 
 M0_INTERNAL int m0_ctg_lookup(struct m0_ctg_op    *ctg_op,

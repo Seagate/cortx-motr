@@ -361,7 +361,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 			fom->cg_ctg_op_initialized = true;
 			result = m0_ctg_drop(ctg_op, fom->cg_ctg,
 					     CGC_LOCK_DEAD_INDEX);
-			/**
+			/*
 			 * Free the memory allocated for the root node after
 			 * destroying the tree.
 			 */
@@ -397,9 +397,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		 * Now completely forget this ctg by deleting its descriptor
 		 * from "dead index" catalogue.
 		 */
-		ctg_op->co_ct = CT_DEAD_INDEX;
-		ctg_op->co_ctg = m0_ctg_dead_index();
- 		result = m0_ctg_delete(ctg_op, m0_ctg_dead_index(),
+		result = m0_ctg_delete(ctg_op, m0_ctg_dead_index(),
 				       &fom->cg_ctg_key, CGC_SUCCESS);
 		break;
 	case CGC_SUCCESS:
