@@ -267,7 +267,7 @@ wait_for_sns_repair_or_rebalance_not_4()
 		repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps_not_4"
 
 		echo $repair_status
-		status=`eval $repair_status`
+		status=$(eval $repair_status)
 		rc=$?
 		if [ $rc != 0 ]; then
 			echo "SNS Repair status query failed"
@@ -290,7 +290,7 @@ wait_for_sns_repair_or_rebalance()
 		sleep 5
 		repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
 		echo $repair_status
-		status=`eval $repair_status`
+		status=$(eval $repair_status)
 		rc=$?
 		if [ $rc != 0 ]; then
 			echo "SNS Repair status query failed"
@@ -301,7 +301,7 @@ wait_for_sns_repair_or_rebalance()
 		break;
 	done
 
-	op=`echo $status | grep status=3`
+	op=$(echo $status | grep status=3)
 	[[ !  -z  "$op"  ]] && return 1
 
 	return 0
@@ -442,7 +442,7 @@ kill_ios4_ioservice()
 {
 	echo "finding ios4 ..."
 	echo pgrep -fn ${prog_exec}.+${IOSEP[3]}
-	ios4_pid=`pgrep -fn ${prog_exec}.+${IOSEP[3]}`
+	ios4_pid=$(pgrep -fn ${prog_exec}.+${IOSEP[3]})
 	echo === pid of ios4: $ios4_pid ===
 	kill -KILL $ios4_pid >/dev/null 2>&1
 	echo "finding ios4 again..."
