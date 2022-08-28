@@ -365,7 +365,8 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 			 * Free the memory allocated for the root node after
 			 * destroying the tree.
 			 */
-			m0_free0(&fom->cg_ctg->cc_tree);
+			if (result == M0_FSO_AGAIN)
+				m0_free0(&fom->cg_ctg->cc_tree);
 		} else {
 			M0_LOG(M0_DEBUG, "out of credits, commit & restart");
 			m0_long_unlock(m0_ctg_lock(m0_ctg_dead_index()),
