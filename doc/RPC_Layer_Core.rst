@@ -60,7 +60,7 @@ Requirements
 
 - [r.rpccore.efficient.bulk] 0-copy, if provided by the underlying network transport, is utilized;
 
-- [r.rpccore.cortx] support ordered exactly once semantics (CORTX) of delivery;
+- [r.rpccore.exactly-once-semantics] support ordered exactly once semantics of delivery;
 
 - [r.rpccore.formation.settings] support different setting like max_rpc_in_flight, max_page_per_rpc, etc.
 
