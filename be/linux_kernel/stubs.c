@@ -111,6 +111,13 @@ M0_INTERNAL bool m0_be_op_is_done(struct m0_be_op *op)
 	return true;
 }
 
+M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op,
+				  struct m0_fom   *fom,
+				  int              next_state)
+{
+	return 0;
+}
+
 M0_INTERNAL struct m0_be_allocator *m0_be_seg_allocator(struct m0_be_seg *seg)
 {
 	return NULL;

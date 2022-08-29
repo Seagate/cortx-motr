@@ -28,7 +28,7 @@
 #include "fop/fom_generic.h"
 #include "fop/fom_long_lock.h"
 #include "be/op.h"
-#include "btree/btree.h"
+#include "be/btree.h"
 #include "be/tx_credit.h"
 #include "format/format.h"
 #include "cas/cas.h"
@@ -389,6 +389,18 @@ M0_INTERNAL int m0_ctg_gc_wait(struct m0_ctg_op *ctg_op,
 M0_INTERNAL int m0_ctg_dead_index_insert(struct m0_ctg_op  *ctg_op,
 					 struct m0_cas_ctg *ctg,
 					 int                next_phase);
+
+/**
+ * Deletes 'ctg' from "dead index" catalogue.
+ *
+ * @param ctg_op     Catalogue operation context.
+ * @param ctg        Catalogue to be deleted from "dead index" catalogue.
+ * @param next_phase Next phase of caller FOM.
+ */
+M0_INTERNAL int m0_ctg_dead_delete(struct m0_ctg_op    *ctg_op,
+				   struct m0_cas_ctg   *ctg,
+				   const struct m0_buf *key,
+				   int                  next_phase);
 
 /**
  * Looks up a catalogue in meta catalogue.

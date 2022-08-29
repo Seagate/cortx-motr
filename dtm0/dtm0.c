@@ -29,6 +29,7 @@
 #include "lib/trace.h"
 
 #include "dtm0/dtm0.h"
+#include "dtm0/clk_src.h"
 #include "dtm0/pruner.h"
 #include "lib/memory.h" /* M0_ALLOC_ARR */
 #include "lib/errno.h" /* ENOMEM */
@@ -67,6 +68,7 @@ static int descriptor_copy(struct m0_dtx0_descriptor *dst,
 
 	dst->dtd_participants.dtpa_participants = dst_arr;
 	dst->dtd_participants.dtpa_participants_nr = nr;
+	dst->dtd_id = src->dtd_id;
 	return 0;
 }
 
@@ -97,6 +99,9 @@ m0_dtm0_redo_init(struct m0_dtm0_redo *redo,
 	int rc;
 
 	redo->dtr_payload.dtp_type = type;
+	M0_LOG(M0_DEBUG, "dtx id: " DTID1_F "participants:%d",
+		DTID1_P(&descriptor->dtd_id),
+		(int)descriptor->dtd_participants.dtpa_participants_nr);
 	rc = descriptor_copy(&redo->dtr_descriptor, descriptor) ?:
 		buf2bufs_copy(&redo->dtr_payload.dtp_data, payload);
 	if (rc != 0)

@@ -38,7 +38,7 @@
 #include "lib/locality.h"       /* m0_locality0_get */
 
 #include "be/domain.h"          /* m0_be_domain_seg0_get */
-#include "btree/btree.h"        /* m0_btree */
+#include "be/btree.h"           /* m0_btree */
 #include "be/list.h"            /* m0_be_list */
 #include "be/seg0.h"            /* m0_be_0type */
 #include "be/seg.h"             /* m0_be_seg_allocator */
@@ -223,6 +223,7 @@ M0_INTERNAL int m0_dtm0_log_create(struct m0_dtm0_log     *dol,
 			     (const char *)&dol_cfg->dlc_seg0_suffix,
 			     &M0_BUF_INIT(sizeof log_data, &log_data));
 
+	M0_ASSERT(rc == 0);     /* XXX */
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op,
 			m0_btree_create(&log_data->dtld_node,
 					sizeof log_data->dtld_node,
@@ -328,9 +329,12 @@ M0_INTERNAL int m0_dtm0_log_redo_add(struct m0_dtm0_log        *dol,
 	rec->lr_payload_data.b_nob =
 		redo->dtr_payload.dtp_data.ab_elems[0].b_nob;
 	M0_BE_ALLOC_BUF_SYNC(&rec->lr_payload_data, seg, tx);
+	/* TODO check if memcpy can be avoided */
 	m0_buf_memcpy(&rec->lr_payload_data,
 		      &redo->dtr_payload.dtp_data.ab_elems[0]);
 	rec->lr_descriptor = redo->dtr_descriptor;
+	M0_LOG(M0_DEBUG, "redo add txid: " DTID1_F,
+		       DTID1_P(&rec->lr_descriptor.dtd_id));
 	redo_insert(&dol->dtl_data->dtld_transactions, tx,
 		    &M0_BUF_INIT_PTR(&rec->lr_descriptor.dtd_id),
 	            &M0_BUF_INIT(sizeof rec, &rec));
@@ -426,13 +430,19 @@ M0_INTERNAL void m0_dtm0_log_prune(struct m0_dtm0_log *dol,
                                    struct m0_be_tx    *tx,
                                    struct m0_dtx0_id  *dtx0_id)
 {
-	struct dtm0_log_record *rec;
+	struct dtm0_log_record *rec = NULL;
 	struct m0_buf           rec_buf = M0_BUF_INIT(sizeof rec, &rec);
+	int                     rc;
 
 	M0_LOG(M0_DEBUG, "DTX id: " DTID1_F, DTID1_P(dtx0_id));
 	/* TODO handle lookup errors */
-	redo_log_lookup(&dol->dtl_data->dtld_transactions,
-	                &M0_BUF_INIT_PTR(dtx0_id), &rec_buf);
+	rc = redo_log_lookup(&dol->dtl_data->dtld_transactions,
+			     &M0_BUF_INIT_PTR(dtx0_id), &rec_buf);
+	M0_ASSERT(ergo(rc != 0, rec == NULL));
+	M0_ASSERT(M0_IN(rc, (0, -ENOENT)));
+
+	if (rc == -ENOENT)
+		return;
 	m0_mutex_lock(&dol->dtl_lock);
 	M0_ASSERT(dtm0_log_invariant(dol));
 	dtm0_log_all_p_be_list_del(&dol->dtl_data->dtld_all_p, tx, rec);
@@ -508,11 +518,12 @@ M0_INTERNAL bool m0_dtm0_log_is_empty(struct m0_dtm0_log *dol)
 	bool result;
 
 	M0_PRE(dol != NULL);
-	/*m0_mutex_lock(&dol->dtl_lock);*/
+	m0_mutex_lock(&dol->dtl_lock);
 	M0_PRE(dol->dtl_data != NULL);
-	result = m0_btree_is_empty(&dol->dtl_data->dtld_transactions);
-	/*m0_mutex_unlock(&dol->dtl_lock);*/
-	return M0_RC(result);
+	result = m0_btree_is_empty(&dol->dtl_data->dtld_transactions) &&
+		dtm0_log_all_p_be_list_head(&dol->dtl_data->dtld_all_p) == NULL;
+	m0_mutex_unlock(&dol->dtl_lock);
+	return M0_RC(!!result);
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -292,7 +292,7 @@ M0_INTERNAL bool m0_cas_fop_is_redoable(struct m0_fop *fop)
 	return fop->f_type == cas_fopt;
 }
 
-M0_INTERNAL int m0_cas_fop2redo(struct m0_fop *fop,
+M0_INTERNAL int m0_cas_fop2redo(const struct m0_fop *fop,
 				struct m0_dtm0_redo *redo)
 {
 	struct m0_cas_op *op = m0_fop_data(fop);
@@ -308,14 +308,13 @@ M0_INTERNAL int m0_cas_fop2redo(struct m0_fop *fop,
 
 	rc = m0_dtm0_redo_init(redo, &op->cg_descriptor,
 			       &payload, M0_DTX0_PAYLOAD_CAS);
-	if (rc != 0)
-		m0_buf_free(&payload);
+	m0_buf_free(&payload);
 
 	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_cas_redo2fop(struct m0_fop *fop,
-				struct m0_dtm0_redo *redo)
+				const struct m0_dtm0_redo *redo)
 {
 	struct m0_buf      *payload = redo->dtr_payload.dtp_data.ab_elems;
 	struct m0_cas_op   *op;

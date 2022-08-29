@@ -75,7 +75,7 @@
  *
  * <hr>
  * @section cas-ovw Overview
- * Catalogue service exports BE btrees (btree/btree.[ch]) to the network.
+ * Catalogue service exports BE btrees (be/btree.[ch]) to the network.
  *
  * <hr>
  * @section cas-def Definitions
@@ -1205,7 +1205,7 @@ static inline const struct m0_fid *cas_fom_sdev_fid(struct cas_fom *fom)
 
 static void cas_fom_executed(struct cas_fom *fom)
 {
-	int                    rc = 0;
+	int                    rc;
 	struct m0_dtm0_domain *dod =
 		m0_cas__ut_svc_dtm0_domain_get(fom->cf_fom.fo_service);
 	struct m0_be_tx       *tx = &fom->cf_fom.fo_tx.tx_betx;
@@ -1222,7 +1222,7 @@ static void cas_fom_executed(struct cas_fom *fom)
 		M0_LOG(M0_DEBUG, "Got CAS with new txid: " DTID1_F,
 		       DTID1_P(&cas_op(fom0)->cg_descriptor.dtd_id));
  		sdev_fid = cas_fom_sdev_fid(fom);
-		if (sdev_fid == NULL);
+		if (sdev_fid == NULL)
 			return;
 		rc = m0_dtx0_redo_add(dod, tx, redo, sdev_fid);
 		M0_ASSERT_INFO(rc == 0, "Failed to update DTM0 log (%d)", rc);
@@ -1362,7 +1362,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		M0_LOG(M0_DEBUG, "Got CAS with txid: " DTID0_F,
 		       DTID0_P(&op->cg_txd.dtd_id));
 		M0_LOG(M0_DEBUG, "Got CAS new with txid: " DTID1_F,
-		       DTID1_P(&cas_op(fom0)->cg_descriptor.dtd_id));
+		       DTID1_P(&op->cg_descriptor.dtd_id));
 	}
 
 	is_index_drop = op_is_index_drop(opc, ct);

@@ -66,7 +66,7 @@ void m0_dtm0_ut_log_simple(void)
 	int                        j;
 	struct m0_dtx0_id          dtx0_id;
 	struct dtm0_ut_log_ctx    *lctx;
-	bool                       successful = false;
+	bool                       successful;
 
 	M0_ALLOC_PTR(redo);
 	M0_UT_ASSERT(redo != NULL);
