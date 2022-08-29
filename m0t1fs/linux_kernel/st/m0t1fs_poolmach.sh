@@ -19,10 +19,10 @@
 #
 
 
-. $(dirname $0)/common.sh
-. $(dirname $0)/m0t1fs_common_inc.sh
-. $(dirname $0)/m0t1fs_client_inc.sh
-. $(dirname $0)/m0t1fs_server_inc.sh
+. $(dirname "$0")/common.sh
+. $(dirname "$0")/m0t1fs_common_inc.sh
+. $(dirname "$0")/m0t1fs_client_inc.sh
+. $(dirname "$0")/m0t1fs_server_inc.sh
 
 pool_mach_test()
 {

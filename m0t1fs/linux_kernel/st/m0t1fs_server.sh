@@ -39,9 +39,9 @@ if [ "x$1" = "x-h" ]; then
 	exit 0
 fi
 
-. $(dirname $0)/common.sh
-. $(dirname $0)/m0t1fs_common_inc.sh
-. $(dirname $0)/m0t1fs_server_inc.sh
+. $(dirname "$0")/common.sh
+. $(dirname "$0")/m0t1fs_common_inc.sh
+. $(dirname "$0")/m0t1fs_server_inc.sh
 
 main()
 {
