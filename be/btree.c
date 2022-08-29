@@ -1893,10 +1893,10 @@ M0_INTERNAL void m0_btree_lrulist_set_lru_config(int64_t slow_lru_mem_release,
 	M0_ASSERT(lru_space_wm_high >= lru_space_wm_target &&
 		  lru_space_wm_target >= lru_space_wm_low);
 
-	M0_LOG(M0_INFO, "Btree LRU List Watermarks: Low - %"PRIi64" Mid - "
+	M0_LOG(M0_NOTICE, "Btree LRU List Watermarks: Low - %"PRIi64" Mid - "
 	       "%"PRIi64" High - %"PRIi64" \n", lru_space_wm_low,
 	       lru_space_wm_target, lru_space_wm_high);
-	M0_LOG(M0_INFO, "Btree LRU List trickle release: %s \n",
+	M0_LOG(M0_NOTICE, "Btree LRU List trickle release: %s \n",
 	       lru_trickle_release_en ? "true" : "false");
 }
 
@@ -2024,7 +2024,6 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 
 	return nxt;
 }
-
 
 /**
  * Returns the tree to the free tree pool if the reference count for this tree
@@ -8780,7 +8779,7 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 	if (lru_space_used < lru_space_wm_low) {
 		/** Do nothing. */
 		if (user == M0_PU_EXTERNAL)
-			M0_LOG(M0_INFO, "Skipping memory release since used "
+			M0_LOG(M0_ALWAYS, "Skipping memory release since used "
 			       "space is below threshold requested size=%"PRId64
 			       " used space=%"PRId64, size, lru_space_used);
 		lru_trickle_release_mode = false;
@@ -8806,7 +8805,7 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 			purged_size = m0_btree_lrulist_purge(size_to_purge,
 						size_to_purge != 0 ? 0 :
 						M0_BTREE_TRICKLE_NUM_NODES);
-			M0_LOG(M0_INFO, " Below critical External user Purge,"
+			M0_LOG(M0_ALWAYS, " Below critical External user Purge,"
 			       " requested size=%"PRId64" used space=%"PRId64
 			       " purged size=%"PRId64, size, lru_space_used,
 			       purged_size);
@@ -8827,7 +8826,7 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 	purged_size = m0_btree_lrulist_purge(size_to_purge,
 			      (lru_trickle_release_mode && size_to_purge == 0) ?
 			      M0_BTREE_TRICKLE_NUM_NODES : 0);
-	M0_LOG(M0_INFO, " Above critical purge, User=%s requested size="
+	M0_LOG(M0_ALWAYS, " Above critical purge, User=%s requested size="
 	       "%"PRId64" used space=%"PRIu64" purged size="
 	       "%"PRIu64, user == M0_PU_BTREE ? "btree" : "external", size,
 	       lru_space_used, purged_size);
