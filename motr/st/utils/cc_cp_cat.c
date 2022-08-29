@@ -39,14 +39,14 @@ static void writer_thread_launch(struct m0_cc_io_args *args)
 {
 	m0_write_cc(args->cia_container, args->cia_files,
 		    args->cia_id, &args->cia_index, args->cia_block_size,
-		    args->cia_block_count);
+		    args->cia_block_count, args->entity_flags);
 }
 
 static void reader_thread_launch(struct m0_cc_io_args *args)
 {
 	m0_read_cc(args->cia_container, args->cia_id,
 		   args->cia_files, &args->cia_index, args->cia_block_size,
-		   args->cia_block_count);
+		   args->cia_block_count, args->entity_flags);
 }
 
 static void mt_io(struct m0_thread *writer_t,
@@ -98,6 +98,8 @@ static void usage(FILE *file, char *prog_name)
 				   "suffix b/k/m/g/K/M/G. Ex: 1k=1024, " \
 				   "1m=1024*1024, 1K=1000 1M=1000*1000\n"
 "  -r, --read-verify                verify parity after reading the data\n"
+"  -G, --DI-generate                Flag to generate Data Integrity\n"
+"  -I, --DI-user-input              Flag to pass checksum by user\n"
 "  -h, --help                       shows this help text and exit\n"
 , prog_name);
 }
@@ -117,6 +119,7 @@ int main(int argc, char **argv)
 	int                option_index = 0;
 	int                writer_numb = 0;
 	int                reader_numb = 0;
+	uint32_t           entity_flags = 0;
 
 	static struct option l_opts[] = {
 				{"local",        required_argument, NULL, 'l'},
@@ -129,6 +132,8 @@ int main(int argc, char **argv)
 				{"block-size",   required_argument, NULL, 's'},
 				{"block-count",  required_argument, NULL, 'c'},
 				{"read-verify",  no_argument,       NULL, 'r'},
+				{"DI-generate",  no_argument,       NULL, 'G'},
+				{"DI-user-input",no_argument,       NULL, 'I'},
 				{"help",         no_argument,       NULL, 'h'},
 				{0,              0,                 0,     0 }};
 
@@ -154,6 +159,10 @@ int main(int argc, char **argv)
 			case 'c': block_count = atoi(optarg);
 				  continue;
 			case 'r': conf.mc_is_read_verify = true;
+				  continue;
+			case 'G': entity_flags |= M0_ENF_GEN_DI;
+				  continue;
+			case 'I': entity_flags |= M0_ENF_DI;
 				  continue;
 			case 'h': usage(stderr, basename(argv[0]));
 				  exit(EXIT_FAILURE);
@@ -202,6 +211,7 @@ int main(int argc, char **argv)
 	writer_args.cia_block_size       = block_size;
 	writer_args.cia_files            = src_fnames;
 	writer_args.cia_index            = 0;
+	writer_args.entity_flags         = entity_flags;
 
 	reader_args.cia_container = &container;
 	reader_args.cia_id               = id;
@@ -209,6 +219,7 @@ int main(int argc, char **argv)
 	reader_args.cia_block_size       = block_size;
 	reader_args.cia_files            = dest_fnames;
 	reader_args.cia_index            = 0;
+	reader_args.entity_flags         = entity_flags;
 
 	mt_io(writer_t, writer_args, reader_t, reader_args,
 	      writer_numb, reader_numb);

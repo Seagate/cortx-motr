@@ -615,6 +615,7 @@ M0_INTERNAL int m0_rpc_link_init(struct m0_rpc_link *rlink,
 
 	rlink->rlk_connected = false;
 	rlink->rlk_rc        = 0;
+	rlink->rlk_async_disconnecting = false;
 
 	rc = m0_net_end_point_create(&net_ep, &mach->rm_tm, ep);
 	if (rc == 0) {

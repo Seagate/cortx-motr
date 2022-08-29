@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
@@ -88,14 +89,14 @@ mkiosloopdevs()
 	cat > disks.conf << EOF
 Device:
    - id: $ADEV_ID
-     filename: `pwd`/$ADEV_ID$adisk
+     filename: $(pwd)/$ADEV_ID$adisk
 EOF
 
 	dev_end=$(($DDEV_ID + $nr_devs))
 	for (( ; DDEV_ID < $dev_end; DDEV_ID++)) ; do
 		conf_ios_device_setup $DDEV_ID $id_count id_count "$ids" ids
 
-		dd if=/dev/zero of=$DDEV_ID$ddisk bs=1M seek=1M count=1 ||
+		dd if=/dev/zero of=$DDEV_ID$ddisk bs=1M seek=$IOS_DISK_SEEK_BLOCK_COUNT count=1 ||
 			return 1
 		if [ ! -e /dev/loop$DDEV_ID ]; then
 			create_loop_device $DDEV_ID
@@ -170,7 +171,7 @@ servers_stop()
 
 	# shutdown services. mds should be stopped last, because
 	# other ioservices may have connections to mdservice.
-	local pids=$(pgrep "$prog")
+	local pids=$(pgrep "$prog" | sort -r)
 	echo === pids of services: $pids ===
 	echo "Shutting down services one by one. mdservice is the last."
 	local delay=5
@@ -336,7 +337,7 @@ EOF
 		DIR=$MOTR_M0T1FS_TEST_DIR/ha
 		rm -rf $DIR
 		mkdir -p $DIR
-		opts="$common_opts -T ad -e $XPRT:${lnet_nid}:${HA_EP%:*:*}:$MKFS_PORTAL:1 \
+		opts="$common_opts -T linux -e $XPRT:${lnet_nid}:${HA_EP%:*:*}:$MKFS_PORTAL:1 \
 		      -c $CONFDB"
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0mkfs.log"
 		echo $cmd
@@ -390,7 +391,7 @@ EOF
 
 		# spawn ha agent
 		proc_fid="'<"$PROC_FID_CNTR:$ha_key">'"
-		opts="$common_opts -T ad -e $XPRT:${lnet_nid}:$HA_EP \
+		opts="$common_opts -T linux -e $XPRT:${lnet_nid}:$HA_EP \
 		      -c $CONFDB -f $proc_fid ${FI_OPT:-} -H ${lnet_nid}:$HA_EP"
 		DIR=$MOTR_M0T1FS_TEST_DIR/ha
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"

@@ -798,7 +798,6 @@ struct target_ioreq {
 	 */
 	struct m0_indexvec             ti_trunc_ivec;
 
-
 	/**
 	 * Buffer vector corresponding to index vector above.
 	 * This buffer is in sync with ::ti_ivec.
@@ -806,16 +805,12 @@ struct target_ioreq {
 	struct m0_bufvec               ti_bufvec;
 	struct m0_bufvec               ti_auxbufvec;
 
-	// TODO: Combine this into one struct for checksums
-	struct m0_buf                  ti_attrbuf;
-	m0_bcount_t		       ti_cksum_copied;
-
-	/* Array for segment having b_nob value of checksum */
-	uint32_t                      *ti_cksum_seg_b_nob;
-
 	/**
-	 * Index vector containing segment number of attribute bufvec
-	 * m0_op_io::ioo_attr for this target.
+	 * Index vector of global object offset which is added to this target.
+	 * This global offset vector helps to compute PG Idx and Unit Idx.
+	 * For the PG and Unit Index Computation
+	 * DATA   Units : Gob Offset - PGStart : PGStart + NxUS => PG Index - 0 : (N-1)
+	 * PARITY Units : Gob Offset - PGStart : PGStart + KxUS => PG Index - 0 : (K-1)
 	 */
 	struct m0_indexvec             ti_goff_ivec;
 
@@ -846,6 +841,37 @@ struct target_ioreq {
 };
 
 /**
+ * Data structure for PG indexing computation
+ */
+struct fop_cksum_idx_gbl_data {
+	m0_bcount_t                  fg_pgrp_sz;
+	uint32_t                     fg_pi_grpid;
+	m0_bcount_t                  fg_pgrp0_index;
+	uint32_t                     fg_unit_sz;
+	uint32_t                     fg_seg_per_unit;
+	uint32_t                     fg_seg_sz;
+};
+
+/* Data structure for unit index tracking. */
+struct fop_cksum_idx_data {
+	/* Index for tracking which Parity Group and which Index (0..k-1)
+	 * or (0..n-1) will be assigned to target
+	 */
+	uint64_t                       ci_pg_idx;
+	uint64_t                       ci_unit_idx;
+};
+
+/* Collection of data structure for checksum computation */
+struct fop_cksum_data {
+	/* Checksum data structure. */
+	struct fop_cksum_idx_data  *cd_idx;
+	/* Number of units added. */
+	uint32_t                    cd_num_units;
+	/* Maximum number of units. */
+	uint32_t                    cd_max_units;
+};
+
+/**
  * Represents a wrapper over generic IO fop and its callback
  * to keep track of such IO fops issued by the same target_ioreq structure.
  *
@@ -861,6 +887,9 @@ struct ioreq_fop {
 
 	/** Status of IO reply fop. */
 	int                          irf_reply_rc;
+
+	/** Checksum related: Unit start index (cd_idx) & count for tracking */
+	struct fop_cksum_data        irf_cksum_data;
 
 	/** In-memory handle for IO fop. */
 	struct m0_io_fop             irf_iofop;

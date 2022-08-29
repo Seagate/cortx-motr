@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -eu
+
+exec $SUDO "$M0_SRC_DIR/motr/st/utils/motr_io_small_disks.sh"

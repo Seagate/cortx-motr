@@ -90,7 +90,7 @@ motr_cancel_during_write()
 	echo "src file : $src_file"
 	echo "dest file : $dest_file"
 
-	local cp_cmd="$motr_st_util_dir/m0cp $MOTR_PARAMS $MOTR_CP_PARAMS  \
+	local cp_cmd="$motr_st_util_dir/m0cp -G $MOTR_PARAMS $MOTR_CP_PARAMS  \
 	&> $MOTR_TRACE_DIR/m0cp.log  &"
 
 	echo "Executing command: $cp_cmd"
@@ -124,7 +124,7 @@ motr_cancel_during_write()
 	# If session cancelled successfully during write, then same object
 	# read should not be same as src file.
 	echo "Check for file difference "
-	local cat_cmd="$motr_st_util_dir/m0cat $MOTR_PARAMS $MOTR_CAT_PARAMS $dest_file  "
+	local cat_cmd="$motr_st_util_dir/m0cat -G $MOTR_PARAMS $MOTR_CAT_PARAMS $dest_file  "
 	eval $cat_cmd
 
 	diff $src_file $dest_file
@@ -162,7 +162,7 @@ motr_cancel_during_read()
 	echo "dest file : $dest_file"
 
 	echo "Write the object first before reading it"
-	local cp_cmd="$motr_st_util_dir/m0cp $MOTR_PARAMS $MOTR_CP_PARAMS  \
+	local cp_cmd="$motr_st_util_dir/m0cp -G $MOTR_PARAMS $MOTR_CP_PARAMS  \
 	&> $MOTR_TRACE_DIR/m0cp.log  &"
 
 	echo "Executing command: $cp_cmd"
@@ -175,7 +175,7 @@ motr_cancel_during_read()
 	echo "Copy operation complete"
 
 	echo "Read the object with object id $object_id"
-	local cat_cmd="$motr_st_util_dir/m0cat $MOTR_PARAMS $MOTR_CAT_PARAMS $dest_file 2> $MOTR_TRACE_DIR/m0cat.log &"
+	local cat_cmd="$motr_st_util_dir/m0cat -G $MOTR_PARAMS $MOTR_CAT_PARAMS $dest_file 2> $MOTR_TRACE_DIR/m0cat.log &"
 	eval $cat_cmd
 	pid=$!
 	date
@@ -238,7 +238,7 @@ motr_cancel_during_create()
 	pid=$!
 
 	echo "Wait for few seconds to generate enough fops "
-	sleep 3
+	sleep 1
 
 	echo "Sending cancle fop"
 	motr_cancel_session_fop
@@ -297,7 +297,7 @@ motr_cancel_during_unlink()
 	pid=$!
 
 	echo "Wait for few seconds to generate enough fops "
-	sleep 15
+	sleep 5
 
 	echo "Sending cancle fop"
 	motr_cancel_session_fop

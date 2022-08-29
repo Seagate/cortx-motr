@@ -1205,7 +1205,7 @@ static inline const struct m0_fid *cas_fom_sdev_fid(struct cas_fom *fom)
 
 static void cas_fom_executed(struct cas_fom *fom)
 {
-	int                    rc = 0;
+	int                    rc;
 	struct m0_dtm0_domain *dod =
 		m0_cas__ut_svc_dtm0_domain_get(fom->cf_fom.fo_service);
 	struct m0_be_tx       *tx = &fom->cf_fom.fo_tx.tx_betx;

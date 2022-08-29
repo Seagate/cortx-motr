@@ -559,10 +559,10 @@ struct m0_fop;
 struct m0_dtm0_redo;
 
 M0_INTERNAL bool m0_cas_fop_is_redoable(struct m0_fop *fop);
-M0_INTERNAL int m0_cas_fop2redo(struct m0_fop *fop,
+M0_INTERNAL int m0_cas_fop2redo(const struct m0_fop *fop,
 				struct m0_dtm0_redo *redo);
 M0_INTERNAL int m0_cas_redo2fop(struct m0_fop *fop,
-				struct m0_dtm0_redo *redo);
+				const struct m0_dtm0_redo *redo);
 
 /** @} end of cas_dfspec */
 #endif /* __MOTR_CAS_CAS_H__ */

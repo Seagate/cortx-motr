@@ -16,7 +16,7 @@ Native types:
 + void  
 
 A FOP can be declared as follows:
-```
+```C
 record {
         u64 f_seq;
         u64 f_oid
@@ -38,14 +38,15 @@ A .ff file should be compiled using ff2c compiler.
 After writing FOPs and creating .ff file for a particular module, we need to make an entry for the same in the module's Makefile.am file. This would automatically invoke ff2c on the .ff files and create corresponding “C” format structures.
 
 ** A FOP, containing native data types in file fom_io_xc.ff:**  
-```  
+```C  
 record {
         u64 f_seq;
         u64 f_oid
 } reqh_ut_fom_fop_fid;  
-```  
+``` 
+
 **Makefile.am entry:**  
-```
+```C
 UT_SRCDIR = @SRCDIR@/reqh/ut
 noinst_LTLIBRARIES = libreqh-ut.la
 INCLUDES = -I. -I$(top_srcdir)/include \ -I$(top_srcdir)
@@ -62,6 +63,7 @@ EXTRA_DIST = fom_io.ff
 
 MOSTLYCLEANFILES = $(FOM_FOPS)  
 ```  
+
 On compiling fom_io_xc.ff file using ff2c compiler, it creates corresponding fom_io_xc.h and fom_io_xc.c.
 
 ## Encoding-Decoding FOP
@@ -69,7 +71,7 @@ Rather than sending individual items between Colibri services as separate RPCs, 
 
 ## Sending a FOP
 A fop can be sent as a request FOP or a reply FOP. A fop is sent across using the various rpc interfaces. Every fop has an rpc item embedded into it.  
-```
+```C
 struct m0_fop {
       ...
       /**
@@ -83,14 +85,14 @@ struct m0_fop {
 Sending a fop involves initializing various fop and rpc item structures and then invoking the m0_rpc_post routines. The steps for the same are described below with few code examples.
 
 **Define and initialize the fop_type ops**   
-```
+```C
 const struct m0_fop_type_ops m0_rpc_fop_conn_establish_ops = {
       .fto_fom_init = &m0_rpc_fop_conn_establish_fom_init
 };  
 ```  
 
 **Define and initialize the rpc item_type ops**
-```
+```C
 static struct m0_rpc_item_type_ops default_item_type_ops = {
       .rito_encode = m0_rpc_fop_item_type_default_encode,
       .rito_decode = m0_rpc_fop_item_type_default_decode,
@@ -99,7 +101,7 @@ static struct m0_rpc_item_type_ops default_item_type_ops = {
 ```
 
 **Define and initialize the rpc item type**
-```
+```C
 m0_RPC_ITEM_TYPE_DEF(m0_rpc_item_conn_establish,
                  m0_RPC_FOP_CONN_ESTABLISH_OPCODE,
                  m0_RPC_ITEM_TYPE_REQUEST | m0_RPC_ITEM_TYPE_MUTABO,
@@ -107,7 +109,8 @@ m0_RPC_ITEM_TYPE_DEF(m0_rpc_item_conn_establish,
 ```                 
 
 **Define and initialize the fop type for the new fop and associate the corresponding item type**
-```struct m0_fop_type m0_rpc_fop_conn_establish_fopt;
+```C
+struct m0_fop_type m0_rpc_fop_conn_establish_fopt;
 /* In module’s init function */
 foo_subsystem_init()
 {
@@ -125,7 +128,7 @@ A request FOP is sent by invoking a rpc routine m0_rpc_post(), and its correspon
 + Client side
 
 Every request fop should be submitted to request handler for processing (both at the client as well as at the server side) which is then forwarded by the request handler itself, although currently (for “november” demo) we do not have request handler at the client side. Thus sending a FOP from the client side just involves submitting it to rpc layer by invoking m0_rpc_post(). So, this may look something similar to this:    
-```
+```C
 system_call()->m0t1fs_sys_call()
 m0t2fs_sys_call() {
      /* create fop */
@@ -140,7 +143,7 @@ At server side a fop should be submitted to request handler for processing, invo
 The current format of fop operations need all fop formats referenced in the .ff file to be present in the same file. However with introduction of bulk IO client-server, there arises a need of referencing remote fops from one .ff file. Bulk IO transfer needs IO fop to contain a m0_net_buf_desc which is fop itself. ff2c compiler has a construct called “require” for this purpose. "require" statement introduces a dependency on other source file. For each "require", an #include directive is produced, which includes corresponding header file, "lib/vec.h" in this case require "lib/vec";
 
 Example:  
-```  
+```C  
 require "net/net_otw_types";
 require "addb/addbff/addb";
 
@@ -212,7 +215,7 @@ Examples
 Consider the following write FOM example
 
 Declaring FOP in reqh_ut_fom_xc.ff file
-```
+```C
 record {
         u64 f_seq;
         u64 f_oid
@@ -229,7 +232,7 @@ record {
 + Defining and building a FOP
 
 To build a particular FOP we need to define its corresponding m0_fop_type_ops and m0_fop_type structures as follows:  
-```  
+```C  
 static struct m0_fop_type_ops reqh_ut_write_fop_ops = {
        .fto_fom_init = reqh_ut_io_fom_init,
 };
@@ -237,7 +240,7 @@ static struct m0_fop_type_ops reqh_ut_write_fop_ops = {
 struct m0_fop_type reqh_ut_fom_io_write_fopt;
 ```  
 After defining the above structure, we need to have two subroutines(something like below) which actually builds the FOPs, and adds them to the global FOPs list.
-```
+```C
 /** Function to clean reqh ut io fops */
 void reqh_ut_fom_io_fop_fini(void)
 {
@@ -260,7 +263,7 @@ int reqh_ut_fom_io_fop_init(void)
 After defining and building a FOP as above, we can now define its corresponding FOM.
 
 + Defining FOM
-```
+```C
 static struct m0_fom_ops reqh_ut_write_fom_ops = {
       .fo_fini = reqh_ut_io_fom_fini
       .fo_state = reqh_ut_write_fom_state, (implements actual fom operation)
@@ -269,20 +272,20 @@ static struct m0_fom_ops reqh_ut_write_fom_ops = {
 ```
 **FOM type operations structure**
 FOM type operations structure
-```
+```C
 static const struct m0_fom_type_ops reqh_ut_write_fom_type_ops = {
       .fto_create = reqh_ut_write_fom_create,
 };
 ```
 
 FOM type structure, this is embedded inside struct m0_fop_type,
-```
+```C
 static struct m0_fom_type reqh_ut_write_fom_mopt = {
       .ft_ops = &reqh_ut_write_fom_type_ops,
 };  
 ```
 A typical fom state function would look something similar to this:
-```
+```C
 int reqh_ut_write_fom_state(struct m0_fom *fom
 {
         ...

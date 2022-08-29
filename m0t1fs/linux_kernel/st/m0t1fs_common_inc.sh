@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
@@ -80,6 +81,8 @@ IOS_PVER2_EP="12345:33:904"
 IOS5_CMD=""       #IOS5 process commandline to spawn it again on Controller event.
 
 IOS4_CMD=""
+
+export IOS_DISK_SEEK_BLOCK_COUNT=1M
 
 # list of md server end points tmid in [800, 899)
 MDSEP=(

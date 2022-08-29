@@ -1673,7 +1673,12 @@ static int cs_storage_setup(struct m0_motr *cctx)
 		}
 	}
 
-	M0_ASSERT(rctx->rc_mdstore.md_dom != NULL);
+	if (rctx->rc_mdstore.md_dom == NULL) {
+		rc = -ENOENT;
+		M0_ERR_INFO(rc, "Cob domain not found for root cob");
+		goto cleanup_addb2;
+	}
+
 	/* Init mdstore and root cob as it should be created by mkfs. */
 	rc = m0_mdstore_init(&rctx->rc_mdstore, rctx->rc_beseg, true);
 	if (rc != 0) {

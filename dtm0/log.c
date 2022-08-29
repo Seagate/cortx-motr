@@ -262,6 +262,8 @@ M0_INTERNAL int m0_dtm0_log_create(struct m0_dtm0_log     *dol,
 	struct m0_be_tx         tx = {};
 	int                     rc;
 	struct m0_btree_type    bt;
+	struct m0_btree_rec_key_op keycmp = {
+		keycmp.rko_keycmp = dtm0_log_transactions_compare };
 
 	M0_ENTRY();
 
