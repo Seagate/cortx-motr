@@ -398,8 +398,8 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		 * Now completely forget this ctg by deleting its descriptor
 		 * from "dead index" catalogue.
 		 */
-		result = m0_ctg_delete(ctg_op, m0_ctg_dead_index(),
-				       &fom->cg_ctg_key, CGC_SUCCESS);
+		result = m0_ctg_dead_delete(ctg_op, m0_ctg_dead_index(),
+					    &fom->cg_ctg_key, CGC_SUCCESS);
 		break;
 	case CGC_SUCCESS:
 		m0_long_unlock(m0_ctg_lock(m0_ctg_dead_index()),

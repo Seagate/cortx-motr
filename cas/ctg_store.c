@@ -1667,6 +1667,21 @@ M0_INTERNAL int m0_ctg_dead_index_insert(struct m0_ctg_op  *ctg_op,
 	return ctg_dead_exec(ctg_op, ctg, &M0_BUF_INIT_PTR(&ctg), next_phase);
 }
 
+M0_INTERNAL int m0_ctg_dead_delete(struct m0_ctg_op    *ctg_op,
+				   struct m0_cas_ctg   *ctg,
+				   const struct m0_buf *key,
+				   int                  next_phase)
+{
+	M0_PRE(ctg_op != NULL);
+	M0_PRE(ctg != NULL);
+	M0_PRE(key != NULL);
+	M0_PRE(ctg_op->co_beop.bo_sm.sm_state == M0_BOS_INIT);
+
+	ctg_op->co_opcode = CO_DEL;
+
+	return ctg_dead_exec(ctg_op, ctg, key, next_phase);
+}
+
 static int ctg_dead_exec(struct m0_ctg_op    *ctg_op,
 			 struct m0_cas_ctg   *ctg,
 			 const struct m0_buf *key,
@@ -1697,11 +1712,8 @@ static int ctg_exec(struct m0_ctg_op    *ctg_op,
 {
 	int ret = M0_FSO_AGAIN;
 
-	/* Do not overwrite ctg_op params if co_ct == CT_DEAD_INDEX. */
-	if (ctg_op->co_ct != CT_DEAD_INDEX) {
-		ctg_op->co_ctg = ctg;
-		ctg_op->co_ct  = CT_BTREE;
-	}
+	ctg_op->co_ctg = ctg;
+	ctg_op->co_ct  = CT_BTREE;
 
 	if (!M0_IN(ctg_op->co_opcode, (CO_MIN, CO_TRUNC, CO_DROP)) &&
 	    (ctg_op->co_opcode != CO_CUR ||
@@ -1827,10 +1839,7 @@ M0_INTERNAL int m0_ctg_delete(struct m0_ctg_op    *ctg_op,
 
 	ctg_op->co_opcode = CO_DEL;
 
-	if (ctg != m0_ctg_dead_index())
-		return ctg_exec(ctg_op, ctg, key, next_phase);
-	else
-		return ctg_dead_exec(ctg_op, ctg, key, next_phase);
+	return ctg_exec(ctg_op, ctg, key, next_phase);
 }
 
 M0_INTERNAL int m0_ctg_lookup(struct m0_ctg_op    *ctg_op,
