@@ -114,6 +114,15 @@ int m0_be_0type_del(struct m0_be_0type  *zt,
 		    struct m0_be_tx     *tx,
 		    const char          *suffix);
 
+
+/**
+ * Returns a record with a given m0_be_0type and a given suffix.
+ * @return -ENOENT no such record exists.
+ */
+int m0_be_0type_get(struct m0_be_0type  *zt,
+                    struct m0_be_domain *dom,
+                    const char          *suffix,
+                    struct m0_buf       *data);
 /**
  * <hr> <!------------------------------------------------------------>
  * @section seg0-metadata Meta-segment (seg0), systematic BE storage startup.

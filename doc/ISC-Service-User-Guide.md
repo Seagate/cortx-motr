@@ -1,19 +1,19 @@
-#  ISC User Guide
+# ISC User Guide
 This is ISC user guide.
-##  Preparing Library
+## Preparing Library
 APIs from external library can not be linked directly with a Motr instance. A library is supposed to have a function named motr_lib_init(). This function will then link the relevant APIs with Motr. Every function to be linked with motr shall confine to the following signature:
 
-```
+```C
 int comp(struct m0_buf *args, struct m0_buf *out,
         struct m0_isc_comp_private *comp_data, int *rc)
 ```
 
 All relevant library APIs shall be prepared with a wrapper confining to this signature. Let libarray be the library we intend to link with Motr, with following APIs: arr_max(), arr_min(), arr_histo().
 
-###  Registering APIs
+### Registering APIs
 motr_lib_init() links all the APIs. Here is an example code (please see iscservice/isc.h for more details):
 
-```
+```C
  void motr_lib_init(void)
  {
       rc = m0_isc_comp_register(arr_max, “max”,
@@ -40,7 +40,7 @@ motr_lib_init() links all the APIs. Here is an example code (please see iscservi
 ## Registering Library
 Let libpath be the path the library is located at. The program needs to load the same at each of the Motr node. This needs to be done using:
 
-```
+```C
 int m0_spiel_process_lib_load2(struct m0_spiel *spiel,
                                struct m0_fid *proc_fid,
                                char *libpath)
@@ -50,7 +50,7 @@ This will ensure that motr_lib_init() is called to register the relevant APIs.
 ## Invoking API
 Motr has its own RPC mechanism to invoke a remote operation. In order to conduct a computation on data stored with Motr it’s necessary to share the computation’s fid (a unique identifier associated with it during its registration) and relevant input arguments. Motr uses fop/fom framework to execute an RPC. A fop represents a request to invoke a remote operation and it shall be populated with relevant parameters by a client. A request is executed by a server using a fom. The fop for ISC service is self-explanatory. Examples in next subsection shall make it more clear.
 
-```
+```C
  /** A fop for the ISC service */
  struct m0_fop_isc {
           /** An identifier of the computation registered with the
@@ -82,7 +82,7 @@ Motr has its own RPC mechanism to invoke a remote operation. In order to conduct
 
 Consider a simple API that on reception of string “Hello” responds with “World” along with return code 0. For any other input it does not respond with any string, but returns an error code of -EINVAL. Client needs to send m0_isc_fop populated with “Hello”. First we will see how client or caller needs to initialise certain structures and send them across. Subsequently we will see what needs to be done at the server side. Following code snippet illustrates how we can initialize m0_isc_fop .
 
-```
+```C
  /**
   * prerequisite: in_string is null terminated.
   * isc_fop : A fop to be populated.
@@ -121,7 +121,7 @@ Consider a simple API that on reception of string “Hello” responds with “W
 Let’s see how this fop is sent across to execute the required computation.
 
 
-```
+```C
 #include “iscservice/isc.h”
 #include “fop/fop.h”
 #include “rpc/rpclib.h”
@@ -178,7 +178,8 @@ int isc_fop_send_sync(struct m0_isc_fop *isc_fop,
 ```
 
 We now discuss the callee side code. Let’s assume that the function is registered as “greetings” with the service.
-```
+
+```C
  void motr_lib_init(void)
  {
       rc = m0_isc_comp_register(greetings, “hello-world”,
@@ -214,14 +215,14 @@ We now discuss the callee side code. Let’s assume that the function is registe
 }
 ```
 
-##  Min/Max
+## Min/Max
 Hello-World example sends across a string. In real applications the input can be a composition of multiple data types. It’s necessary to serialise a composite data type into a buffer. Motr provides a mechanism to do so using xcode/xcode.[ch]. Any other serialization mechanism that’s suitable and tested can also be used eg. Google’s Protocol buffers . But we have not tested any such external library for serialization and hence in this document would use Motr’s xcode APIs.
 
 In this example we will see how to send a composite data type to a registered function. A declaration of an object that needs to be serialised shall be tagged with one of the types identified by xcode. Every member of this structure shall also be representable using xcode type. Please refer xcode/ut/ for different examples.
 
 Suppose we have a collection of arrays of integers, each stored as a Motr object. Our aim is to find out the min or max of the values stored across all arrays. The caller communicates the list of global fids(unique identification of stored object in Motr) with the registered computation for min/max. The computation then returns the min or max of locally (on relevant node) stored values. The caller then takes min or max of all the received values. The following structure can be used to communicate with registered computation.
 
-```
+```C
 /* Arguments for getting min/max. */
 struct arr_fids {
      /* Number of arrays stored with Motr. */
@@ -248,7 +249,7 @@ int arr_to_buff (struct arr_fids *in_array, struct m0_buf *out_buf)
 
 The output buffer out_buf can now be used with RPC AT mechanism introduced in previous subsection. On the receiver side a computation can deserialize the buffer to convert into original structure. The following snippet demonstrates the same.
 
-```
+```C
 int buff_to_arr(struct m0_buf *in_buf, struct arr_fids *out_arr)
 {
     int rc;
@@ -265,10 +266,10 @@ int buff_to_arr(struct m0_buf *in_buf, struct arr_fids *out_arr)
 
 Preparation and handling of a fop is similar to that in Hello-World example. Once a computation is invoked, it will read each object’s locally stored values, and find min/max of the same, eventually finding out min/max across all arrays stored locally. In the next example we shall see how a computation involving an IO can be designed.
 
-##  Histogram
+## Histogram
 We now explore a complex example where a computation involves an IO, and hence needs to wait for the completion of IO. User stores an object with Motr. This object holds a sequence of values. The size of an object in terms of the number of values held is known. The aim is to generate a histogram of values stored. This is accomplished in two steps. In the first step user invokes a computation with remote Motr servers and each server generates a histogram of values stored with it. In the second step, these histograms are communicated with the user and it adds them cumulatively to generate the final histogram. The following structure describes a list of arguments that will be communicated by a caller with the ISC service for generating a histogram. ISC is associated only with the first part.
 
-```
+```C
 /* Input for histogram generation. */
 struct histo_args {
     /** Number of bins for histogram. */
@@ -290,13 +291,13 @@ The array of values stored with Motr will be identified using a global id repres
 
 Here we discuss the API for generating a histogram of values, local to a node. The caller side or client side shall be populating the struct histo_args and sending it across using m0_isc_fop.
 
-```
 /*
  * Structure of a computation is advisable to be similar to
  * Motr foms. It returns M0_FSO_WAIT when it has to wait for
  * an external event (n/w or disk I/O)else it returns
  * M0_FSO_AGAIN. These two symbols are defined in Motr.
  */
+```C
 int histo_generate(struct m0_buf *in, struct m0_buf *out,
                    struct m0_isc_comp_private *comp_data,
                    int *ret)

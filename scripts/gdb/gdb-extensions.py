@@ -31,7 +31,7 @@ def field_type(container, field):
 
 def offset_of(container, field):
 	macro_call = "offsetof({0}, {1})".format(container, field)
-	offset = long(gdb.parse_and_eval(macro_call))
+	offset = int(gdb.parse_and_eval(macro_call))
 	return offset
 
 def human_readable(count):
@@ -132,8 +132,8 @@ Total: 2
 		argv = gdb.string_to_argv(arg)
 		argc = len(argv)
 		if argc not in (1, 4, 5):
-			print 'Error: Usage: m0-list-print [&]list' \
-				' [[struct|union] tag link [visit|"in-detail"]]'
+			print('Error: Usage: m0-list-print [&]list' \
+				' [[struct|union] tag link [visit|"in-detail"]]')
 			return
 
 		vhead, head, ok = self.get_head(argv)
@@ -145,13 +145,13 @@ Total: 2
 
 		visit = argv[4] if argc == 5 else None
 		vnd   = vhead['l_head']
-		nd    = long(vnd)
+		nd    = int(vnd)
 		total = 0
 
 		while nd != head:
 			obj_addr = nd - offset
 			if visit is None:
-				print "0x%x" % obj_addr
+				print("0x%x" % obj_addr)
 			elif visit == "in-detail":
 				cmd = "p *({0} *){1}".format(str(elm_type), obj_addr)
 				gdb.execute(cmd)
@@ -160,10 +160,10 @@ Total: 2
 				gdb.execute(cmd)
 
 			vnd    = vnd['ll_next']
-			nd     = long(vnd)
+			nd     = int(vnd)
 			total += 1
 
-		print "Total: %d" % total
+		print("Total: %d" % total)
 
 	@staticmethod
 	def get_head(argv):
@@ -175,14 +175,14 @@ Total: 2
 			type = type[len('const '):]
 
 		if type == "struct m0_list":
-			head = long(vhead.address)
+			head = int(vhead.address)
 		elif type == "struct m0_list *":
-			head = long(vhead)
+			head = int(vhead)
 		elif type in ("struct m0_tl", "struct m0_tl *"):
 			vhead = vhead['t_head']
-			head = long(vhead.address)
+			head = int(vhead.address)
 		else:
-			print "Error: Invalid argument type: '%s'" % type
+			print("Error: Invalid argument type: '%s'" % type)
 			ok = False
 		return vhead, head, ok
 
@@ -194,8 +194,8 @@ Total: 2
 
 		if argc in (4, 5):
 			if argv[1] not in ("struct", "union"):
-				print 'Error: Argument 2 must be ' + \
-				      'either "struct" or "union"'
+				print('Error: Argument 2 must be ' + \
+				      'either "struct" or "union"')
 				return 0, None, False
 
 			str_elm_type = "{0} {1}".format(argv[1], argv[2])
@@ -203,12 +203,12 @@ Total: 2
 			try:
 				elm_type = gdb.lookup_type(str_elm_type)
 			except:
-				print "Error: type '{0}' does not exist".format(str_elm_type)
+				print("Error: type '{0}' does not exist".format(str_elm_type))
 				return 0, None, False
 
 			type = str(field_type(str_elm_type, anchor))
 			if type not in ("struct m0_list_link", "struct m0_tlink"):
-				print "Error: Argument 4 must be of type m0_list_link or m0_tlink"
+				print("Error: Argument 4 must be of type m0_list_link or m0_tlink")
 				return 0, None, False
 
 			if type == "struct m0_tlink":
@@ -244,36 +244,36 @@ For each segment, the command prints,
 		argc = len(argv)
 
 		if argc != 1:
-			print "Error: Usage: m0-bufvec-print [&]m0_bufvec"
+			print("Error: Usage: m0-bufvec-print [&]m0_bufvec")
 			return
 
 		vbufvec = gdb.parse_and_eval(argv[0])
 		t = str(vbufvec.type)
 		if t != "struct m0_bufvec" and t != "struct m0_bufvec *":
-			print "Error: Argument 1 must be either 'struct m0_bufvec' or" + \
-					" 'struct m0_bufvec *' type"
+			print("Error: Argument 1 must be either 'struct m0_bufvec' or" + \
+					" 'struct m0_bufvec *' type")
 			return
 
-		nr_seg   = long(vbufvec['ov_vec']['v_nr'])
+		nr_seg   = int(vbufvec['ov_vec']['v_nr'])
 		buf_size = 0
 		offset   = 0
 		sum_of_bytes_in_buf = 0
-		print "seg:index start_addr end_addr offset bcount sum"
+		print("seg:index start_addr end_addr offset bcount sum")
 		for i in range(nr_seg):
-			start_addr = long(vbufvec['ov_buf'][i])
-			count      = long(vbufvec['ov_vec']['v_count'][i])
+			start_addr = int(vbufvec['ov_buf'][i])
+			count      = int(vbufvec['ov_vec']['v_count'][i])
 			end_addr   = start_addr + count
 			sum_of_bytes_in_seg = sum(start_addr, count)
-			print "seg:{0} {1:#x} {2:#x} {3} {4} {5}".format(i, \
+			print("seg:{0} {1:#x} {2:#x} {3} {4} {5}".format(i, \
 				start_addr, end_addr, human_readable(offset), \
-				human_readable(count), sum_of_bytes_in_seg)
+				human_readable(count), sum_of_bytes_in_seg))
 			buf_size += count
 			offset   += count
 			sum_of_bytes_in_buf += sum_of_bytes_in_seg
 
-		print "nr_seg:", nr_seg
-		print "buf_size:", human_readable(buf_size)
-		print "sum:", sum_of_bytes_in_buf
+		print("nr_seg:", nr_seg)
+		print("buf_size:", human_readable(buf_size))
+		print("sum:", sum_of_bytes_in_buf)
 
 #
 #==============================================================================
@@ -293,28 +293,28 @@ Usage: m0-indexvec-print [&]m0_indexvec
 		argc = len(argv)
 
 		if argc != 1:
-			print "Error: Usage: m0-indexvec-print [&]m0_indexvec"
+			print("Error: Usage: m0-indexvec-print [&]m0_indexvec")
 			return
 
 		v_ivec = gdb.parse_and_eval(argv[0])
 		t = str(v_ivec.type)
 		if t != "struct m0_indexvec" and t != "struct m0_indexvec *":
-			print "Error: Argument 1 must be of either 'struct m0_indexvec' or" + \
-					" 'struct m0_indexvec *' type."
+			print("Error: Argument 1 must be of either 'struct m0_indexvec' or" + \
+					" 'struct m0_indexvec *' type.")
 			return
 
-		nr_seg      = long(v_ivec['iv_vec']['v_nr'])
+		nr_seg      = int(v_ivec['iv_vec']['v_nr'])
 		total_count = 0
 
-		print "   :seg_num index count"
+		print("   :seg_num index count")
 		for i in range(nr_seg):
-			index = long(v_ivec['iv_index'][i])
-			count = long(v_ivec['iv_vec']['v_count'][i])
-			print "seg:", i, index, count
+			index = int(v_ivec['iv_index'][i])
+			count = int(v_ivec['iv_vec']['v_count'][i])
+			print("seg:", i, index, count)
 			total_count += count
 
-		print "nr_seg:", nr_seg
-		print "total:", total_count
+		print("nr_seg:", nr_seg)
+		print("total:", total_count)
 
 # List of macros to be defined
 macros = [ \
@@ -324,12 +324,19 @@ macros = [ \
 ]
 
 # Define macros listed in macros[]
-for m in macros:
-	gdb.execute("macro define %s" % m)
+#
+# TODO: Fix and uncomment following 'for loop'. For the time being
+# execute following manually at gdb command prompt
+#
+# macro define offsetof(typ,memb) ((unsigned long)((char *)&(((typ *)0)->memb)))
+# macro define container_of(ptr, type, member) ((type *)((char *)(ptr)-(char *)(&((type *)0)->member)))
+#
+#for m in macros:
+#	gdb.execute("macro define %s" % m)
 
 M0ListPrint()
 M0BufvecPrint()
 M0IndexvecPrint()
 
-print "Loading python gdb extensions for Motr..."
+print("Loading python gdb extensions for Motr...")
 #print "NOTE: If you've not already loaded, you may also want to load gdb-extensions"

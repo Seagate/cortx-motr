@@ -254,7 +254,7 @@ static void ut_test_target_ioreq_seg_add(void)
 	src->sa_unit = 1;
 	tgt->ta_frame = 1;
 	map = ut_dummy_pargrp_iomap_create(instance, 1);
-	/* don't use this allocated buf*/
+	/* don't use this allocated buf */
 	ut_dummy_data_buf_free(map->pi_databufs[0][0]);
 	map->pi_ioo = ioo;
 	map->pi_databufs[0][0]->db_buf.b_addr = NULL;
@@ -267,13 +267,13 @@ static void ut_test_target_ioreq_seg_add(void)
 	ti->ti_nwxfer = &ioo->ioo_nwxfer;
 	m0_indexvec_alloc(&ti->ti_ivec, 1);
 	ti->ti_ivec.iv_vec.v_nr = 0;
-	m0_indexvec_alloc(&ti->ti_goff_ivec, 1);
-	ti->ti_goff_ivec.iv_vec.v_nr = 0;
 	m0_bufvec_alloc(&ti->ti_bufvec, 1, unit_size);
 	m0_free(ti->ti_bufvec.ov_buf[0]); /* don't use this buf*/
 	m0_bufvec_alloc(&ti->ti_auxbufvec, 1, unit_size);
 	M0_SET0(&ioo->ioo_attr);
 	M0_ALLOC_ARR(ti->ti_pageattrs, 1);
+	m0_indexvec_alloc(&ti->ti_goff_ivec, 1);
+	ti->ti_goff_ivec.iv_vec.v_nr = 0;
 
 	target_ioreq_seg_add(ti, src, tgt, 111, 1, map);
 	M0_UT_ASSERT(ti->ti_ivec.iv_vec.v_nr == 1);
@@ -387,7 +387,6 @@ static void ut_test_target_ioreq_fini(void)
 	M0_ALLOC_PTR(ti->ti_pageattrs);
 	rc = m0_indexvec_alloc(&ti->ti_ivec, 1);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_indexvec_alloc(&ti->ti_goff_ivec,1);
 	M0_UT_ASSERT(rc == 0);
 
 	target_ioreq_fini(ti);

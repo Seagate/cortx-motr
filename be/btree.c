@@ -4113,6 +4113,7 @@ static bool fkvv_invariant(const struct nd *node)
 					    M0_BT_COB_OBJECT_INDEX,
 					    M0_BT_COB_FILEATTR_BASIC,
 					    M0_BT_CONFDB,
+					    M0_BT_DTM0_LOG,
 					    M0_BT_UT_KV_OPS))) &&
 	_0C(h->fkvv_ksize != 0);
 }

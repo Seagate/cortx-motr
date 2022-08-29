@@ -53,6 +53,7 @@ struct m0_rpc_link {
 	struct m0_mutex        rlk_wait_mutex;
 	m0_time_t              rlk_timeout;
 	bool                   rlk_connected;
+	bool                   rlk_async_disconnecting;
 };
 
 enum m0_rpc_link_states {

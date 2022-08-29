@@ -19,11 +19,11 @@
 #
 
 
-. `dirname $0`/common.sh
-. `dirname $0`/m0t1fs_common_inc.sh
-. `dirname $0`/m0t1fs_client_inc.sh
-. `dirname $0`/m0t1fs_server_inc.sh
-. `dirname $0`/m0t1fs_sns_common_inc.sh
+. $(dirname $0)/common.sh
+. $(dirname $0)/m0t1fs_common_inc.sh
+. $(dirname $0)/m0t1fs_client_inc.sh
+. $(dirname $0)/m0t1fs_server_inc.sh
+. $(dirname $0)/m0t1fs_sns_common_inc.sh
 
 . $M0_SRC_DIR/utils/functions  # opcode
 
@@ -146,7 +146,7 @@ rcancel_post()
 
 rcancel_change_controller_state()
 {
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid=$(sudo lctl list_nids | head -1)
 	local s_endpoint="$lnet_nid:12345:33:1"
 	local c_endpoint="$lnet_nid:$M0HAM_CLI_EP"
 	local dev_fid=$1
@@ -299,7 +299,7 @@ rcancel_cancel_during_write_test()
 	# It is to verify that some RPC items were indeed canceled through
 	# RPC session cancelation. Some items are going to get canceled
 	# while attempting to be posted after session cancelation.
-	num=`grep -n "dd: " $MOTR_TEST_LOGFILE | grep "writing" | grep "Operation canceled" | grep "$wt_write_file_base" | wc -l | cut -f1 -d' '`
+	num=$(grep -n "dd: " $MOTR_TEST_LOGFILE | grep "writing" | grep "Operation canceled" | grep "$wt_write_file_base" | wc -l | cut -f1 -d' ')
 	echo "dd write processes canceled : $num"
 	if [ $num -eq 0 ]; then
 		echo "Failed: No dd writing operation was canceled"
@@ -307,10 +307,10 @@ rcancel_cancel_during_write_test()
 		return 1
 	fi
 
-	num=`grep -n "dd: closing" $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$wt_write_file_base" | wc -l | cut -f1 -d' '`
+	num=$(grep -n "dd: closing" $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$wt_write_file_base" | wc -l | cut -f1 -d' ')
 	echo "dd closing processes canceled : $num"
 
-	num=`grep -n "ls: cannot access" $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$wt_write_file_base" | wc -l | cut -f1 -d' '`
+	num=$(grep -n "ls: cannot access" $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$wt_write_file_base" | wc -l | cut -f1 -d' ')
 	echo "ls processes canceled : $num"
 	if [ $num -gt 0 ] && [ $rcancel_md_redundancy > 1 ]; then
 		echo "Failed: ls was canceled inspite-of having rcancel_md_redundancy ($rcancel_md_redundancy) > 1"
@@ -471,7 +471,7 @@ rcancel_cancel_during_read_test()
 	# to verify that RPC session was indeed canceled.
 	# Many of those read ops fail with the error "Input/output error"
 	# while a few fail with the error "Operation canceled"
-	num=`grep -n "dd: " $MOTR_TEST_LOGFILE | grep "reading" | egrep 'Operation canceled|Input\/output error' | grep "$rt_file_base" | wc -l | cut -f1 -d' '`
+	num=$(grep -n "dd: " $MOTR_TEST_LOGFILE | grep "reading" | egrep 'Operation canceled|Input\/output error' | grep "$rt_file_base" | wc -l | cut -f1 -d' ')
 	echo "dd read processes canceled : $num"
 	if [ $num -eq 0 ]; then
 		echo "Failed: No dd reading operation was canceled"
@@ -479,7 +479,7 @@ rcancel_cancel_during_read_test()
 		return 1
 	fi
 
-	num=`grep -n "dd: closing" $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$rt_read_file_base" | wc -l | cut -f1 -d' '`
+	num=$(grep -n "dd: closing" $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$rt_read_file_base" | wc -l | cut -f1 -d' ')
 	echo "dd closing processes canceled : $num"
 
 	# Test ls with canceled session
@@ -488,7 +488,7 @@ rcancel_cancel_during_read_test()
 		ls -l "$rt_read_file_base"$i
 		echo "ls_rc: $?"
 	done
-	num=`grep -n "ls: cannot access" $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$rt_read_file_base" | wc -l | cut -f1 -d' '`
+	num=$(grep -n "ls: cannot access" $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$rt_read_file_base" | wc -l | cut -f1 -d' ')
 	echo "ls processes canceled : $num"
 	if [ $num -gt 0 ] && [ $rcancel_md_redundancy > 1 ]; then
 		echo "Failed: ls was canceled inspite-of having rcancel_md_redundancy ($rcancel_md_redundancy) > 1"
@@ -585,7 +585,7 @@ rcancel_cancel_during_create_test()
 
 	# Verify that some create operations were indeed canceled due to
 	# RPC session cancelation.
-	num=`grep -n "touch: " $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$ct_create_file_base" | wc -l | cut -f1 -d' '`
+	num=$(grep -n "touch: " $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$ct_create_file_base" | wc -l | cut -f1 -d' ')
 	echo "create processes canceled : $num"
 	if [ $num -eq 0 ]; then
 		echo "Failed: No create operation was canceled"
@@ -679,7 +679,7 @@ rcancel_cancel_during_delete_test()
 
 	# Verify that some delete operations were indeed canceled due to
 	# RPC session cancelation.
-	num=`grep -n "rm: " $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$delete_file_base" | wc -l | cut -f1 -d' '`
+	num=$(grep -n "rm: " $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$delete_file_base" | wc -l | cut -f1 -d' ')
 	echo "delete processes canceled : $num"
 	if [ $num -eq 0 ]; then
 		echo "Failed: No delete operation was canceled"
@@ -761,7 +761,7 @@ rcancel_cancel_during_setfattr_ops_test()
 
 	# Verify that some setfattr operations were indeed canceled due to
 	# RPC session cancelation.
-	num=`grep -n "setfattr: " $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$setfattr_file_base" | wc -l | cut -f1 -d' '`
+	num=$(grep -n "setfattr: " $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$setfattr_file_base" | wc -l | cut -f1 -d' ')
 	echo "setfattr processes canceled : $num"
 	if [ $num -eq 0 ]; then
 		echo "Failed: No setfattr operation was canceled"
@@ -841,7 +841,7 @@ rcancel_cancel_during_getfattr_ops_test()
 
 	# Verify that some getfattr operations were indeed canceled due to
 	# RPC session cancelation.
-	num=`grep -n "getfattr: " $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$getfattr_file_base" | wc -l | cut -f1 -d' '`
+	num=$(grep -n "getfattr: " $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$getfattr_file_base" | wc -l | cut -f1 -d' ')
 	echo "getfattr processes canceled : $num"
 	if [ $num -eq 0 ]; then
 		if [ $rcancel_md_redundancy -eq $RCANCEL_MD_REDUNDANCY_1 ]; then
@@ -934,7 +934,7 @@ rcancel_test_cases()
 	echo "TC.8.End: Session cancel with concurrent getfattr ops"
 	echo "======================================================="
 
-	num=`grep -n "Connection timed out" $MOTR_TEST_LOGFILE | wc -l | cut -f1 -d' '`
+	num=$(grep -n "Connection timed out" $MOTR_TEST_LOGFILE | wc -l | cut -f1 -d' ')
 	echo "Connection timed out : $num"
 	if [ $num -gt 0 ]; then
 		echo "Failed: Connection timed out error has occurred"
@@ -974,7 +974,7 @@ rcancel_test()
 
 main()
 {
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 	local rc
 
 	echo "*********************************************************"

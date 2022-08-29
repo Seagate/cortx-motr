@@ -524,6 +524,100 @@ M0_INTERNAL void dtm0_service_conns_term(struct m0_dtm0_service *service)
 	M0_LEAVE();
 }
 
+/* -----8<------------------------------------------------------------------- */
+/* CO_FOM service */
+
+struct cfs_service {
+	struct m0_reqh_service cfs_base;
+};
+
+static int cfs_allocate(struct m0_reqh_service           **out,
+			const struct m0_reqh_service_type *stype);
+
+static const struct m0_reqh_service_type_ops cfs_stype_ops = {
+	.rsto_service_allocate = cfs_allocate
+};
+
+struct m0_reqh_service_type m0_cfs_stype = {
+	.rst_name  = "co-fom-service",
+	.rst_ops   = &cfs_stype_ops,
+	/* Level justification: co_foms may be needed before NORMAL level. */
+	.rst_level = M0_BE_TX_SVC_LEVEL,
+};
+
+M0_INTERNAL int m0_cfs_register(void)
+{
+	return m0_reqh_service_type_register(&m0_cfs_stype);
+}
+
+M0_INTERNAL void m0_cfs_unregister(void)
+{
+	m0_reqh_service_type_unregister(&m0_cfs_stype);
+}
+
+static int  cfs_start(struct m0_reqh_service *service);
+static void cfs_stop(struct m0_reqh_service *service);
+static void cfs_fini(struct m0_reqh_service *service);
+
+static const struct m0_reqh_service_ops cfs_ops = {
+	.rso_start = cfs_start,
+	.rso_stop  = cfs_stop,
+	.rso_fini  = cfs_fini
+};
+
+static int cfs_allocate(struct m0_reqh_service           **service,
+			const struct m0_reqh_service_type *stype)
+{
+	struct cfs_service *s;
+
+	M0_ENTRY();
+	M0_PRE(stype == &m0_cfs_stype);
+
+	M0_ALLOC_PTR(s);
+	if (s == NULL)
+		return M0_ERR(-ENOMEM);
+
+	s->cfs_base.rs_ops = &cfs_ops;
+	*service = &s->cfs_base;
+
+	return M0_RC(0);
+}
+
+static void cfs_fini(struct m0_reqh_service *service)
+{
+	M0_ENTRY();
+	m0_free(container_of(service, struct cfs_service, cfs_base));
+	M0_LEAVE();
+}
+
+static int cfs_start(struct m0_reqh_service *service)
+{
+	M0_ENTRY();
+	return M0_RC(0);
+}
+
+static void cfs_stop(struct m0_reqh_service *service)
+{
+	M0_ENTRY();
+	M0_LEAVE();
+}
+
+M0_INTERNAL int m0_co_fom_service_init(struct m0_co_fom_service *cfs,
+				      struct m0_reqh           *reqh)
+{
+	M0_PRE(cfs->cfs_reqh_service == NULL);
+	return m0_reqh_service_setup(&cfs->cfs_reqh_service, &m0_cfs_stype,
+				     reqh, NULL, NULL);
+}
+
+M0_INTERNAL void m0_co_fom_service_fini(struct m0_co_fom_service *cfs)
+{
+	m0_reqh_service_quit(cfs->cfs_reqh_service);
+	cfs->cfs_reqh_service = NULL;
+}
+
+/* -----8<------------------------------------------------------------------- */
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
