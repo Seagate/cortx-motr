@@ -1310,12 +1310,13 @@ static int dix_rop_ctx_init(struct m0_dix_req      *req,
 			    const struct m0_bufvec *keys,
 			    uint64_t               *indices)
 {
-	struct m0_dix       *dix = &req->dr_indices[0];
-	struct m0_dix_ldesc *ldesc;
-	uint32_t             keys_nr;
-	struct m0_buf        key;
-	uint32_t             i;
-	int                  rc = 0;
+	struct m0_dix          *dix = &req->dr_indices[0];
+	struct m0_dix_ldesc    *ldesc;
+	struct m0_pool_version *pver;
+	uint32_t                keys_nr;
+	struct m0_buf           key;
+	uint32_t                i;
+	int                     rc = 0;
 
 	M0_ENTRY();
 	M0_PRE(M0_IS0(rop));
@@ -1326,6 +1327,13 @@ static int dix_rop_ctx_init(struct m0_dix_req      *req,
 	M0_PRE(keys_nr != 0);
 	ldesc = &dix->dd_layout.u.dl_desc;
 	rop->dg_pver = dix_pver_find(req, &ldesc->ld_pver);
+	M0_ASSERT(ergo(req->dr_min_success < 1,
+		       req->dr_min_success == M0_DIX_MIN_REPLICA_QUORUM));
+	if (req->dr_min_success == M0_DIX_MIN_REPLICA_QUORUM) {
+		pver = m0_dix_pver(req->dr_cli, &req->dr_indices[0]);
+		req->dr_min_success = (pver->pv_attr.pa_N +
+				       pver->pv_attr.pa_K)/2 + 1;
+	}
 	M0_ALLOC_ARR(rop->dg_rec_ops, keys_nr);
 	M0_ALLOC_ARR(rop->dg_target_rop, rop->dg_pver->pv_attr.pa_P);
 	if (rop->dg_rec_ops == NULL || rop->dg_target_rop == NULL)
@@ -1646,7 +1654,6 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_dix_rop_ctx  *rop_del_phase2 = NULL;
 	bool                    del_phase2 = false;
 	struct m0_dix_cas_rop  *cas_rop;
-	struct m0_pool_version *pver;
 	int64_t                 min_success;
 	int64_t                 successful_ops = 0;
 
@@ -1655,13 +1662,6 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		m0_dix_next_result_prepare(req);
 	else {
 		min_success = req->dr_min_success;
-		M0_ASSERT(ergo(min_success < 1,
-			       min_success == M0_DIX_MIN_REPLICA_QUORUM));
-		if (min_success == M0_DIX_MIN_REPLICA_QUORUM) {
-			pver = m0_dix_pver(req->dr_cli, &req->dr_indices[0]);
-			min_success = (pver->pv_attr.pa_N +
-				       pver->pv_attr.pa_K)/2 + 1;
-		}
 		M0_ASSERT(min_success > 0);
 
 		successful_ops = m0_tl_reduce(cas_rop, scan, &rop->dg_cas_reqs, 0,
