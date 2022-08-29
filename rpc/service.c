@@ -237,7 +237,9 @@ m0_rpc_service_reverse_session_put(struct m0_rpc_session *sess, bool disc)
 	rlk  = container_of(sess, struct m0_rpc_link, rlk_sess);
 	revc = container_of(rlk, struct m0_reverse_connection, rcf_rlink);
 
-	if (revc->rcf_rlink.rlk_connected) {
+	if (revc->rcf_rlink.rlk_connected &&
+	    !revc->rcf_rlink.rlk_async_disconnecting) {
+		revc->rcf_rlink.rlk_async_disconnecting = true;
 		M0_PRE(!m0_clink_is_armed(&revc->rcf_disc_wait));
 		m0_clink_fini(&revc->rcf_disc_wait);
 		m0_clink_init(&revc->rcf_disc_wait,
@@ -271,7 +273,8 @@ m0_rpc_service_reverse_sessions_cleanup(struct m0_reqh_service *service)
 						   false);
 	} m0_tlist_endfor;
 	m0_tl_teardown(rev_conn, &svc->rps_rev_conns, revc) {
-		if (m0_clink_is_armed(&revc->rcf_disc_wait)) {
+		if (m0_clink_is_armed(&revc->rcf_disc_wait) &&
+		    revc->rcf_rlink.rlk_async_disconnecting) {
 			m0_chan_wait(&revc->rcf_disc_wait);
 			m0_clink_fini(&revc->rcf_disc_wait);
 		}

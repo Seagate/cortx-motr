@@ -381,7 +381,7 @@ A Motr server uses the following pattern to use the LNet transport to initiate a
 
 A Motr tool uses the following pattern to use the LNet transport to initiate passive bulk tranfers to Motr server components:
 
-1.  The tool should use an end point address that is not assigned to any mero server or file system client. It should use a dynamic address to achieve this.
+1.  The tool should use an end point address that is not assigned to any motr server or file system client. It should use a dynamic address to achieve this.
 2.  To perform a bulk operation, the tool provisions a network buffer. The tool then registers this buffer and enqueues the buffer for transmission.
 3.  When a buffer operation completes, the buffer can be de-registered and the memory can be de-provisioned.
 
@@ -437,7 +437,7 @@ LNet is capable of running without Lustre, but currently is distributed only thr
 
 ### References
 *  [1] T1 Task Definitions
-*  [2] Mero Summary Requirements Table
+*  [2] Motr Summary Requirements Table
 *  [3] m0 Glossary
 *  [4] m0LNet Preliminary Design Questions
 *  [5] RPC Bulk Transfer Task Plan

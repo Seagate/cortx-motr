@@ -33,7 +33,8 @@
 #include "lib/bob.h"            /* M0_BOB_DEFINE */
 #include "module/instance.h"    /* m0_get */
 #include "conf/helpers.h"       /* m0_conf_process2service_get */
-#include "reqh/reqh.h"          /* m0_reqh2confc */
+#include "reqh/reqh.h"          /* m0_reqh fields */
+
 
 static const struct m0_bob_type dtm0_domain_bob_type = {
 	.bt_name         = "m0_dtm0_domain",
@@ -60,8 +61,10 @@ static void dtm0_domain_level_leave(struct m0_module *module);
 enum dtm0_domain_level {
 	M0_DTM0_DOMAIN_LEVEL_INIT,
 
-	M0_DTM0_DOMAIN_LEVEL_LOG_MKFS,
-	M0_DTM0_DOMAIN_LEVEL_LOG_INIT,
+	M0_DTM0_DOMAIN_LEVEL_LOG_CREATE,
+	M0_DTM0_DOMAIN_LEVEL_LOG_OPEN,
+
+	M0_DTM0_DOMAIN_LEVEL_CFS_INIT,
 
 	M0_DTM0_DOMAIN_LEVEL_REMACH_INIT,
 	M0_DTM0_DOMAIN_LEVEL_PMACH_INIT,
@@ -71,6 +74,7 @@ enum dtm0_domain_level {
 	M0_DTM0_DOMAIN_LEVEL_REMACH_START,
 	M0_DTM0_DOMAIN_LEVEL_PMACH_START,
 	M0_DTM0_DOMAIN_LEVEL_PRUNER_INIT,
+	M0_DTM0_DOMAIN_LEVEL_PRUNER_START,
 
 	M0_DTM0_DOMAIN_LEVEL_READY,
 };
@@ -78,8 +82,10 @@ enum dtm0_domain_level {
 static const struct m0_modlev levels_dtm0_domain[] = {
 	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_INIT),
 
-	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_LOG_MKFS),
-	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_LOG_INIT),
+	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_LOG_CREATE),
+	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_LOG_OPEN),
+
+	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_CFS_INIT),
 
 	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_REMACH_INIT),
 	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_PMACH_INIT),
@@ -89,6 +95,7 @@ static const struct m0_modlev levels_dtm0_domain[] = {
 	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_REMACH_START),
 	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_PMACH_START),
 	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_PRUNER_INIT),
+	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_PRUNER_START),
 
 	DTM0_DOMAIN_LEVEL(M0_DTM0_DOMAIN_LEVEL_READY),
 };
@@ -99,17 +106,29 @@ static int dtm0_domain_level_enter(struct m0_module *module)
 	enum dtm0_domain_level     level = module->m_cur + 1;
 	struct m0_dtm0_domain     *dod = dtm0_module2domain(module);
 	struct m0_dtm0_domain_cfg *cfg = &dod->dod_cfg;
+	struct m0_reqh            *reqh = cfg->dod_reqh;
 
 	M0_ENTRY("dod=%p level=%d level_name=%s",
 	         dod, level, levels_dtm0_domain[level].ml_name);
 	switch (level) {
 	case M0_DTM0_DOMAIN_LEVEL_INIT:
+		if (reqh != NULL && reqh->rh_beseg != (void *)1 &&
+		    reqh->rh_beseg != NULL)
+			cfg->dodc_log.dlc_be_domain = reqh->rh_beseg->bs_domain;
+		cfg->dodc_pruner.dpc_cfs = &dod->dod_cfs;
+		cfg->dodc_pruner.dpc_dol = &dod->dod_log;
 		return M0_RC(0);
-	case M0_DTM0_DOMAIN_LEVEL_LOG_MKFS:
+	case M0_DTM0_DOMAIN_LEVEL_LOG_CREATE:
+		if (cfg->dod_create)
+			return M0_RC(m0_dtm0_log_create(&dod->dod_log,
+							&cfg->dodc_log));
 		return M0_RC(0);
-	case M0_DTM0_DOMAIN_LEVEL_LOG_INIT:
-		return M0_RC(m0_dtm0_log_init(&dod->dod_log,
+	case M0_DTM0_DOMAIN_LEVEL_LOG_OPEN:
+		return M0_RC(m0_dtm0_log_open(&dod->dod_log,
 					      &cfg->dodc_log));
+
+	case M0_DTM0_DOMAIN_LEVEL_CFS_INIT:
+		return M0_RC(m0_co_fom_service_init(&dod->dod_cfs, reqh));
 
 	case M0_DTM0_DOMAIN_LEVEL_REMACH_INIT:
 		return M0_RC(m0_dtm0_remach_init(&dod->dod_remach,
@@ -130,6 +149,9 @@ static int dtm0_domain_level_enter(struct m0_module *module)
 	case M0_DTM0_DOMAIN_LEVEL_PRUNER_INIT:
 		return M0_RC(m0_dtm0_pruner_init(&dod->dod_pruner,
 						 &cfg->dodc_pruner));
+	case M0_DTM0_DOMAIN_LEVEL_PRUNER_START:
+		m0_dtm0_pruner_start(&dod->dod_pruner);
+		return M0_RC(0);
 	case M0_DTM0_DOMAIN_LEVEL_READY:
 		return M0_RC(0);
 	default:
@@ -139,19 +161,27 @@ static int dtm0_domain_level_enter(struct m0_module *module)
 
 static void dtm0_domain_level_leave(struct m0_module *module)
 {
-	enum dtm0_domain_level  level = module->m_cur;
-	struct m0_dtm0_domain  *dod = dtm0_module2domain(module);
+	enum dtm0_domain_level     level = module->m_cur;
+	struct m0_dtm0_domain     *dod = dtm0_module2domain(module);
+	struct m0_dtm0_domain_cfg *cfg = &dod->dod_cfg;
 
 	M0_ENTRY("dod=%p level=%d level_name=%s",
 	         dod, level, levels_dtm0_domain[level].ml_name);
 	switch (level) {
 	case M0_DTM0_DOMAIN_LEVEL_INIT:
 		break;
-	case M0_DTM0_DOMAIN_LEVEL_LOG_MKFS:
+	case M0_DTM0_DOMAIN_LEVEL_LOG_CREATE:
+		if (cfg->dod_destroy)
+			m0_dtm0_log_destroy(&dod->dod_log);
 		break;
-	case M0_DTM0_DOMAIN_LEVEL_LOG_INIT:
-		m0_dtm0_log_fini(&dod->dod_log);
+	case M0_DTM0_DOMAIN_LEVEL_LOG_OPEN:
+		m0_dtm0_log_close(&dod->dod_log);
 		break;
+
+	case M0_DTM0_DOMAIN_LEVEL_CFS_INIT:
+		m0_co_fom_service_fini(&dod->dod_cfs);
+		break;
+
 	case M0_DTM0_DOMAIN_LEVEL_REMACH_INIT:
 		m0_dtm0_remach_fini(&dod->dod_remach);
 		break;
@@ -173,6 +203,10 @@ static void dtm0_domain_level_leave(struct m0_module *module)
 	case M0_DTM0_DOMAIN_LEVEL_PRUNER_INIT:
 		m0_dtm0_pruner_fini(&dod->dod_pruner);
 		break;
+	case M0_DTM0_DOMAIN_LEVEL_PRUNER_START:
+		m0_dtm0_log_end(&dod->dod_log);
+		m0_dtm0_pruner_stop(&dod->dod_pruner);
+		break;
 
 	case M0_DTM0_DOMAIN_LEVEL_READY:
 		break;
@@ -184,20 +218,32 @@ static void dtm0_domain_level_leave(struct m0_module *module)
 M0_INTERNAL int m0_dtm0_domain_init(struct m0_dtm0_domain     *dod,
 				    struct m0_dtm0_domain_cfg *dod_cfg)
 {
-	int rc;
+	int  rc;
+	bool has_be_domain = dod_cfg->dod_reqh != NULL &&
+			     dod_cfg->dod_reqh->rh_beseg != (void *)1 &&
+			     dod_cfg->dod_reqh->rh_beseg != NULL &&
+		             dod_cfg->dod_reqh->rh_beseg->bs_domain != NULL;
 
 	M0_ENTRY("dod=%p dod_cfg=%p", dod, dod_cfg);
 	m0_module_setup(&dod->dod_module, "m0_dtm0_domain module",
 	                levels_dtm0_domain, ARRAY_SIZE(levels_dtm0_domain),
 	                m0_get());
+	m0_dtm0_domain_bob_init(dod);
 	/*
 	 * TODO use m0_dtm0_domain_cfg_dup to copy the configuration
 	 * into dod::dod_cfg.
 	 */
-	m0_dtm0_domain_bob_init(dod);
-	rc = m0_module_init(&dod->dod_module, M0_DTM0_DOMAIN_LEVEL_READY);
+	dod->dod_cfg = *dod_cfg;
+	/*
+	 * TODO: volatile log is not implemented yet, so skip init for the
+	 * case where BE is not present (client side).
+	 */
+	rc = m0_module_init(&dod->dod_module,
+			    has_be_domain ? M0_DTM0_DOMAIN_LEVEL_READY :
+			                    M0_DTM0_DOMAIN_LEVEL_INIT);
 	if (rc != 0)
 		m0_module_fini(&dod->dod_module, M0_MODLEV_NONE);
+
 	return M0_RC(rc);
 }
 

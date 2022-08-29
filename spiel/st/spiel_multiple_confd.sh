@@ -96,7 +96,7 @@ _fini() {
     if [[ "$(is_lnet_available)" == "true" ]]; then
         m0_modules_remove
     fi
-    cd $M0_SRC_DIR/utils/spiel
+    cd "$M0_SRC_DIR"/utils/spiel
     cat $INSTALLED_FILES | xargs rm -rf
     rm -rf build/ $INSTALLED_FILES
 }
@@ -156,7 +156,7 @@ confd_mkfs_start() {
     -w 3 -f ${!fid}"
 
     echo "--- $(date) ---" >>"$path"/m0d.log
-    cd $path
+    cd "$path"
 
     echo "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS
     "$M0_SRC_DIR"/utils/mkfs/m0mkfs $OPTS >>"$path"/mkfs.log ||
@@ -173,11 +173,11 @@ confd_start() {
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
     -w 3 -f ${!fid}"
 
-    echo "--- `date` ---" >>$path/m0d.log
-    cd $path
+    echo "--- `date` ---" >>"$path"/m0d.log
+    cd "$path"
 
     echo "$M0_SRC_DIR"/motr/m0d $OPTS
-    $M0_SRC_DIR/motr/m0d $OPTS >>$path/m0d.log 2>&1 &
+    "$M0_SRC_DIR"/motr/m0d $OPTS >>"$path"/m0d.log 2>&1 &
     local PID=$!
     sleep 10
     kill -0 $PID 2>/dev/null ||

@@ -256,7 +256,7 @@ void client(struct client_params *params)
 	if (params->xprt->px_3part_addr) {
 		cctx.pc_port = params->base_port;
 		cctx.pc_id   = params->client_id;
-		sprintf(ident, "Client %d:%d", cctx.pc_port, cctx.pc_id);
+		sprintf(ident, "Client %d:%u", cctx.pc_port, cctx.pc_id);
 		cctx.pc_rid  = PART3_SERVER_ID;
 	} else {
 		cctx.pc_port = params->base_port + params->client_id;

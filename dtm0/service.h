@@ -93,6 +93,23 @@ M0_INTERNAL struct m0_dtm0_service *m0_dtm0_fom2service(struct m0_fom *fom);
 M0_INTERNAL bool m0_dtm0_in_ut(void);
 M0_INTERNAL bool m0_dtm0_is_expecting_redo_from_client(void);
 
+/* -----8<------------------------------------------------------------------- */
+struct m0_reqh_service;
+
+struct m0_co_fom_service {
+	struct m0_reqh_service *cfs_reqh_service;
+};
+
+M0_INTERNAL int m0_co_fom_service_init(struct m0_co_fom_service *cfs,
+				       struct m0_reqh          *reqh);
+M0_INTERNAL void m0_co_fom_service_fini(struct m0_co_fom_service *cfs);
+M0_INTERNAL int m0_cfs_register(void);
+M0_INTERNAL void m0_cfs_unregister(void);
+
+extern struct m0_reqh_service_type m0_cfs_stype;
+
+/* -----8<------------------------------------------------------------------- */
+
 #endif /* __MOTR_DTM0_SERVICE_H__ */
 
 /*
