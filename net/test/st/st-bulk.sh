@@ -21,15 +21,15 @@
 
 CWD=$(cd "$( dirname "$0")" && pwd)
 
-source $CWD/st-config.sh
-TEST_TYPE="bulk"
-MSG_NR=1048576
-MSG_SIZE=1m
-CONCURRENCY_CLIENT=8
-CONCURRENCY_SERVER=16
-BD_BUF_NR_CLIENT=16
-BD_BUF_NR_SERVER=32
-BD_BUF_SIZE=16k
-BD_BUF_NR_MAX=8
+source "$CWD"/st-config.sh
+export TEST_TYPE="bulk"
+export MSG_NR=1048576
+export MSG_SIZE=1m
+export CONCURRENCY_CLIENT=8
+export CONCURRENCY_SERVER=16
+export BD_BUF_NR_CLIENT=16
+export BD_BUF_NR_SERVER=32
+export BD_BUF_SIZE=16k
+export BD_BUF_NR_MAX=8
 
-source $CWD/run-1x1.sh
+source "$CWD"/run-1x1.sh
