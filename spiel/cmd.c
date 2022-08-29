@@ -1164,7 +1164,8 @@ static int spiel__pool_cmd_status_get(struct _pool_cmd_ctx *ctx,
 	rc = repreb->sr_rc ?: m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER) ?:
 		m0_rpc_item_error(item);
 
-	if (M0_IN(cmd, (CM_OP_REPAIR_STATUS, CM_OP_REBALANCE_STATUS))) {
+	if (M0_IN(cmd, (CM_OP_REPAIR_STATUS, CM_OP_REBALANCE_STATUS,
+            CM_OP_DTREBALANCE_STATUS))) {
 		status->srs_fid = repreb->sr_service->cs_obj.co_id;
 		if (rc == 0) {
 			reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
@@ -1267,7 +1268,8 @@ static int spiel_pool_generic_handler(struct m0_spiel_core           *spc,
 	if (rc != 0)
 		goto leave;
 
-	cmd_status = M0_IN(cmd, (CM_OP_REPAIR_STATUS, CM_OP_REBALANCE_STATUS));
+	cmd_status = M0_IN(cmd, (CM_OP_REPAIR_STATUS, CM_OP_REBALANCE_STATUS,
+                           CM_OP_DTREBALANCE_STATUS));
 	service_count = m0_fids_tlist_length(&ctx.pl_services_fid);
 
 	M0_ALLOC_ARR(repreb, service_count);

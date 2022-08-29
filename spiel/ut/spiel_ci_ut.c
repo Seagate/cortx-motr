@@ -735,7 +735,7 @@ static void test_spiel_pool_dtrebalance(enum m0_repreb_type type)
 	const struct m0_fid         pool_fid = M0_FID_TINIT(
                                 M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 4);
 	struct m0_fid               svc_fid = M0_FID_TINIT(
-                                M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 23);
+                                M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 9);
 	struct m0_fid               pool_invalid_fid = M0_FID_TINIT(
 				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 3);
 	struct m0_fid               invalid_fid = M0_FID_TINIT(
@@ -769,13 +769,9 @@ static void test_spiel_pool_dtrebalance(enum m0_repreb_type type)
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	rc = m0_spiel_sns_dtrebalance_status(&spiel, &pool_fid, &status);
-	/*
-         * M0_UT_ASSERT(rc == 1);
-         * XXX The existing SNS repair/rebalance UT asserts here for rc == 1.
-         * However, looking at the code I think the rc should be 0 here.
-         * This needs further investigation.
-         */
-	M0_UT_ASSERT(rc == 0);
+
+        M0_UT_ASSERT(rc == 1);
+
 	M0_UT_ASSERT(m0_fid_eq(&status[0].srs_fid, &svc_fid));
 	M0_UT_ASSERT(status[0].srs_state == CM_STATUS_IDLE);
 	M0_UT_ASSERT(status[0].srs_progress >= 0);

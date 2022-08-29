@@ -127,9 +127,9 @@ conf_obj_types = {
 # NOTE: Should be in sync with m0_conf_service_type in conf/schema.h.
 conf_service_types = (
     '_UNUSED', 'MDS', 'IOS', 'CONFD', 'RMS', 'STATS', 'HA', 'SSS',
-    'SNS_REP', 'SNS_REB', 'SNS_DTREB', 'ADDB2', 'CAS', 'DIX_REP', 'DIX_REB',
+    'SNS_REP', 'SNS_REB', 'ADDB2', 'CAS', 'DIX_REP', 'DIX_REB',
     'DS1', 'DS2',  # UT-specific
-    'FIS', 'FDMI', 'BE', 'M0T1FS', 'CLIENT', 'ISCS', 'DTM0'
+    'FIS', 'FDMI', 'BE', 'M0T1FS', 'CLIENT', 'ISCS', 'DTM0', 'SNS_DTREB'
 )
 conf_service_types = tuple('M0_CST_' + s for s in conf_service_types)
 
