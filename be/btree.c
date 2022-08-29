@@ -2025,7 +2025,6 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 	return nxt;
 }
 
-
 /**
  * Returns the tree to the free tree pool if the reference count for this tree
  * reaches zero.
