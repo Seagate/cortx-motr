@@ -187,6 +187,7 @@ static int net_test_buf_init(struct m0_net_buffer *buf,
 static void net_test_buf_fini(struct m0_net_buffer *buf,
 			      struct m0_net_domain *dom)
 {
+	M0_PRE(buf != NULL);
 	M0_PRE(buf->nb_dom == dom);
 
 	m0_net_buffer_deregister(buf, dom);
