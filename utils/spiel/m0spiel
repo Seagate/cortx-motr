@@ -546,6 +546,27 @@ class SpielWrapper:
                                                     byref(ppstatus))
 
     @require(fid=Fid)
+    def sns_dtrebalance_start(self, fid):
+        return self.motr.m0_spiel_sns_dtrebalance_start(self.spiel, byref(fid))
+
+    @require(fid=Fid)
+    def sns_dtrebalance_abort(self, fid):
+        return self.motr.m0_spiel_sns_dtrebalance_abort(self.spiel, byref(fid))
+
+    @require(fid=Fid)
+    def sns_dtrebalance_quiesce(self, fid):
+        return self.motr.m0_spiel_sns_dtrebalance_quiesce(self.spiel, byref(fid))
+
+    @require(fid=Fid)
+    def sns_dtrebalance_continue(self, fid):
+        return self.motr.m0_spiel_sns_dtrebalance_continue(self.spiel, byref(fid))
+
+    @require(fid=Fid, ppstatus=POINTER(SpielSnsStatus))
+    def sns_dtrebalance_status(self, fid, ppstatus):
+        return self.motr.m0_spiel_sns_dtrebalance_status(self.spiel, byref(fid),
+                                                         byref(ppstatus))
+
+    @require(fid=Fid)
     def dix_repair_start(self, fid):
         return self.motr.m0_spiel_dix_repair_start(self.spiel, byref(fid))
 

@@ -112,6 +112,61 @@ _sns_rebalance_status()
         return $rc
 }
 
+
+_sns_dtrebalance_start()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_sns_dtrebalance_start
+        else
+                # sns_repair # Using m0repair
+                echo "unsupported utility $UTILITY; use m0spiel"
+                return rc=1
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "SNS dtrebalance start failed with rc = $rc."
+        fi
+        return $rc
+}
+
+_sns_dtrebalance_wait()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_wait_for_sns_dtrebalance
+        else
+                # wait_for_sns_repair_or_rebalance "dtrebalance"
+                echo "unsupported utility $UTILITY; use m0spiel"
+                return rc=1
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "Wait for SNS dtrebalance failed with rc = $rc."
+        fi
+        return $rc
+}
+
+_sns_dtrebalance_status()
+{
+        local rc
+        if [ "$UTILITY" == "m0spiel" ]; then
+                spiel_sns_dtrebalance_status
+        else
+                # sns_repair_or_rebalance_status "dtrebalance"
+                echo "unsupported utility $UTILITY; use m0spiel"
+                return rc=1
+        fi
+        rc=$?
+        if [ $rc != 0 ]
+        then
+                echo "SNS repair status failed with rc = $rc."
+        fi
+        return $rc
+}
+
 _dix_repair_start()
 {
 	local rc
@@ -270,6 +325,37 @@ _motr_trigger_sns_repair()
        return $?
 }
 
+_motr_trigger_sns_dtrebalance()
+{
+        local rc=0
+        local fail_device=$DEVICE_ID
+
+        echo "Starting SNS direct rebalance ..."
+
+        echo "Disk state get"
+        disk_state_get "$fail_device"
+        if [ "$state_recv" != "failed" ]; then
+                echo "Device state doesn't seem in  "failed""
+                return 1
+        fi
+
+        disk_state_set "repair" "$fail_device" || return $?
+        echo "trigger sns direct rebalance"
+        _sns_dtrebalance_start || return $?
+
+        echo "wait for sns direct rebalance"
+        _sns_dtrebalance_wait || return $?
+
+        echo "query sns direct rebalance status"
+        _sns_dtrebalance_status || return $?
+
+        disk_state_set "online" "$fail_device" || return $?
+
+        echo "SNS Direct rebalance done."
+
+        return $?
+}
+
 _motr_trigger_dix_rebalance()
 {
         local rc=0
@@ -339,6 +425,16 @@ motr_trigger_repair()
                 _motr_trigger_dix_repair || return 1
         else
                 _motr_trigger_sns_repair || return 1
+        fi
+}
+
+motr_trigger_dtrebalance()
+{
+        if [ "$REC_TYPE" == "DIX" ]; then
+                # _motr_trigger_dix_repair || return 1
+                return 1
+        else
+                _motr_trigger_sns_dtrebalance || return 1
         fi
 }
 
@@ -447,6 +543,10 @@ main()
         elif [ "$TYPE" == "rebalance" ]; then
                 echo "Running $REC_TYPE Rebalance "
                 motr_trigger_rebalance
+                rc=$?
+        elif [ "$TYPE" == "dtrebalance" ]; then
+                echo "Running $REC_TYPE Direct Rebalance "
+                motr_trigger_dtrebalance
                 rc=$?
         elif [ "$TYPE" == "repreb" ]; then
                 echo "Running $REC_TYPE Repair and Rebalance "
