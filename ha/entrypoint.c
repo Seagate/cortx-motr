@@ -501,11 +501,12 @@ static struct m0_rpc_item_ops ha_entrypoint_client_item_ops = {
 static void ha_entrypoint_client_fop_release(struct m0_ref *ref)
 {
 	struct m0_fop *fop;
-
+	struct m0_ha_entrypoint_req_fop    *req_fop_data;
 	M0_ENTRY();
 	M0_PRE(ref != NULL);
 	fop = container_of(ref, struct m0_fop, f_ref);
-	m0_free(fop->f_data.fd_data);
+	req_fop_data = (struct m0_ha_entrypoint_req_fop*)fop->f_data.fd_data;
+	m0_buf_free(&req_fop_data->erf_git_rev_id);
 	fop->f_data.fd_data = NULL;
 	m0_fop_fini(fop);
 	M0_SET0(fop);
@@ -601,8 +602,6 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 		fop->f_opaque = ecl;
 		next_state = M0_HEC_SEND_WAIT;
 		rc = m0_rpc_post(item) == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;
-		//m0_free(req_fop_data->erf_git_rev_id.b_addr);
-		//m0_buf_free(&req_fop_data->erf_git_rev_id);
 		break;
 
 	case M0_HEC_SEND_WAIT:
