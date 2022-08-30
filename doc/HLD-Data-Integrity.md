@@ -8,7 +8,7 @@
     - Write Path
     - Read Path
 - II. Motr Server Write Path
-  - II.1 GOB => COB
+  - II.1 Global Object => Component Object
   - II.2 Balloc Processing
     - Balloc extent and buffer extent processing
   - II.3 EMAP Extent Processing
@@ -71,10 +71,10 @@ During read path when the data is received from Motr Server, the checksum is com
  
 ![image](./Images/DI06.png)
 ## II. Motr Server Write Path
-### II.1 GOB => COB
-Every Motr object is identified by FID also known as GOB (Global Object) FID and its stripe on devices are identified as COB (Component Object) FID.
+### II.1 Global Object => Component Object
+Every Motr object is identified by FID also known as Global Object FID and its stripe on devices are identified as Component Object FID.
 
-COB FID is derived from GOB FID by adding Device ID to the GOB FID. 
+Component Object FID is derived from Global Object FID by adding Device ID to the Global Object FID.
 
 ```c
 // Logical representation 
@@ -127,13 +127,13 @@ EMAP Fragment Data consist of following important fields
 ### II.4 COB-EMAP Details
 - When COB is created a default entry for the object extent is created
 
-  - Dummy hole (value 0) extent with a span of 0 to ∞
+  - Fake extent with a span of 0 to ∞
 
-- If an entry at start gets added then it cuts into this Dummy hole and creates two segment 
+- If an entry at start gets added then it cuts into this Fake extent and creates two segment
 
-  - New Entry 
+  - New Entry.
 
-  - Dummy hole gets right shifted.
+  - Fake extent gets right shifted.
 
 ![image](./Images/DI10.png)
 Using above concepts the three EMAP extent gets added to EMAP metadata btree.
