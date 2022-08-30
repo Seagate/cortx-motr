@@ -22,8 +22,8 @@
 
 #pragma once
 
-#ifndef __MOTR_DLD_TEMPLATE_H__
-#define __MOTR_DLD_TEMPLATE_H__
+#ifndef __MOTR_DLD_DTM0_H__
+#define __MOTR_DLD_DTM0_H__
 
 /**
    @page DLD-fspec DLD Functional Specification Template
