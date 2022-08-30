@@ -19,11 +19,11 @@
 #
 
 
-. `dirname "$0"`/common.sh
-. `dirname "$0"`/m0t1fs_common_inc.sh
-. `dirname "$0"`/m0t1fs_client_inc.sh
-. `dirname "$0"`/m0t1fs_server_inc.sh
-. `dirname "$0"`/m0t1fs_sns_common_inc.sh
+. $(dirname "$0")/common.sh
+. $(dirname "$0")/m0t1fs_common_inc.sh
+. $(dirname "$0")/m0t1fs_client_inc.sh
+. $(dirname "$0")/m0t1fs_server_inc.sh
+. $(dirname "$0")/m0t1fs_sns_common_inc.sh
 
 . "$M0_SRC_DIR"/utils/functions  # opcode
 
@@ -94,7 +94,7 @@ revoke_post()
 
 revoke_read_lock()
 {
-	local lnet_nid=`sudo lctl list_nids | head -1`
+	local lnet_nid=$(sudo lctl list_nids | head -1)
 	local s_endpoint="$lnet_nid:12345:33:100"
 	local c_endpoint="$lnet_nid:12345:30:*"
 	local delay=${1:-5}
@@ -155,7 +155,7 @@ revoke_test()
 
 main()
 {
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 	local rc
 	local EXECUTOR
 

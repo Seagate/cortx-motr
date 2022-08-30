@@ -42,7 +42,7 @@ External SNS client interfaces are standard Linux file_operations and address_sp
 ## Logical Specification  
 
 ### fop builder, NRS, and request handler
-A fop, representing IO operation is created at the VFS or VM entry point1. The fop is then passed to the dummy NRS(23), which immediately passes it down to the request handler. The request handler uses file meta-data to identify the layout and calls the layout IO engine to proceed with the IO operation.  
+A fop, representing IO operation is created at the VFS or VM entry point1. The fop is then passed to the fake NRS(23), which immediately passes it down to the request handler. The request handler uses file meta-data to identify the layout and calls the layout IO engine to proceed with the IO operation.  
 
 ### Layout Schema
 The layout formula generates a parity de-clustered file layout for a particular file, using file id (fid) as an identifier[2]. See Parity De-clustering Algorithm HLD [3] for details. At the moment, **m0t1fs** supports a single file with fid supplied as a mount option.    

@@ -123,6 +123,7 @@ static int ut_dom_init(const struct m0_net_xprt *xprt,
 	ut_end_point_release_called = false;
 	ut_dom_fini_called = false;
 	ut_dom_init_called = true;
+	ut_xprt_pvt.num = 0;
 	dom->nd_xprt_private = &ut_xprt_pvt;
 	return 0;
 }

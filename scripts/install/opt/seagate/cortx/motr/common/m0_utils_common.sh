@@ -28,7 +28,7 @@ XPRT=""
 
 M0_REPAIR_UTILS=/usr/sbin/m0repair
 M0_HAM_UTILS=/usr/sbin/m0ham
-M0_HAGEN_UTILS=/usr/sbin/m0hagen
+M0_HAGEN_UTILS=/usr/bin/m0hagen
 MOTR_COPY=/usr/bin/m0cp
 MOTR_CAT=/usr/bin/m0cat
 
