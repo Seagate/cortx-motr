@@ -43,7 +43,7 @@ struct m0_buf {
 struct m0_bufs {
 	uint32_t       ab_count;
 	struct m0_buf *ab_elems;
-} M0_XCA_SEQUENCE M0_XCA_DOMAIN(conf|rpc);
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(conf|rpc|be);
 
 /**
  * Initialisers for struct m0_buf.

@@ -7,6 +7,8 @@ m0tr_objects += \
                   dtm0/dtx0.o \
                   dtm0/fop.o \
                   dtm0/fop_xc.o \
+                  dtm0/dtm0.o \
+                  dtm0/dtm0_xc.o \
                   dtm0/linux_kernel/stubs.o \
                   dtm0/log.o \
                   dtm0/net.o \

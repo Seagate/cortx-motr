@@ -57,7 +57,7 @@ struct m0_be_0type m0_be_dtm0 = {
 	.b0_fini = dtm0_log_fini,
 };
 
-M0_INTERNAL int m0_dtm0_log_create(struct m0_sm_group  *grp,
+M0_INTERNAL int m0_dtm0_old_log_create(struct m0_sm_group  *grp,
 				   struct m0_be_domain *bedom,
 				   struct m0_be_seg    *seg)
 {

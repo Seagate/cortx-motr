@@ -57,7 +57,7 @@ node_start_addr()
 		DIR_COUNTER=$(($DIR_COUNTER + 1))
 		"$CMD_M0NETTESTD" -a "$addr" -c "$addr_console" &
 		popd > /dev/null
-		eval PID_"$4"=$!
+		eval PID_"${pid_role}"=$!
 	fi
 }
 
@@ -145,7 +145,7 @@ fi
 		 "$PARSABLE" \
 		 $BULK_PARAMETERS &
 PID_CONSOLE=$!
-wait $PID_CONSOLE
+wait "$PID_CONSOLE"
 
 # The same time for fini
 sleep "$NODE_INIT_DELAY"
