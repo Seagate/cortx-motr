@@ -587,7 +587,10 @@ M0_INTERNAL void m0_dtm0_log_prune(struct m0_dtm0_log *dol,
 	rc = redo_log_lookup(&dol->dtl_data->dtld_transactions,
 			     &M0_BUF_INIT_PTR(dtx0_id), &rec_buf);
 	M0_ASSERT(ergo(rc != 0, rec == NULL));
-	M0_ASSERT(rc == 0);
+	M0_ASSERT(M0_IN(rc, (0, -ENOENT)));
+
+	if (rc == -ENOENT)
+		return;
 	m0_mutex_lock(&dol->dtl_lock);
 	M0_ASSERT(dtm0_log_invariant(dol));
 	dtm0_log_all_p_be_list_del(&dol->dtl_data->dtld_all_p, tx, rec);

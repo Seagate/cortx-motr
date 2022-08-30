@@ -24,7 +24,7 @@
 #include "pool/pool.h"        /* m0_pool_version */
 #include "conf/confc.h"        /* m0_confc_close */
 #include "net/lnet/lnet.h"    /* m0_net_lnet_xprt */
-#include "mero/ha.h"
+#include "motr/ha.h"
 #include "rpc/rpc_machine.h"    /* m0_rpc_machine */
 #include "rpc/rpc.h"        /* m0_rpc_bufs_nr */
 #include "reqh/reqh.h"        /* m0_reqh */
@@ -34,9 +34,9 @@
 #include "fdmi/service.h"
 #include "fdmi/plugin_dock.h"
 #include "fdmi/plugin_dock_internal.h"
-#include <clovis/clovis.h>
+#include <motr/client.h>
 #include <clovis/clovis_cont.h>
-#include <clovis/clovis_internal.h>
+#include <motr/client_internal.h>
 
 #define MALLOC_ARR(arr, nr)  ((arr) = malloc((nr) * sizeof ((arr)[0])))
 

@@ -89,7 +89,7 @@ Following topics deserve attention:
 * Details of interaction between repair and DTM must be specified.  
 * Redundancy other than N+1 (N+K, K > 1) must be regarded as a default configuration.   
 * Multiple failures and repair in the presence of multiple failures must be considered systematically.  
-* Repair and re-balancing must be clearly distinguished.    
+* Repair and re-balancing must be distinguished appropriately.
 * Reclaim of a distributed spare space must be addressed (this is done in a separate Distributed Spare design documentation).  
 * locking optimizations.
 
@@ -150,7 +150,7 @@ Agent iterates components over the affected container or all the containers whic
 ### 5.11. SNS repair and layout ###
 The SNS manager gets an input set configuration and output set configuration as the repair is initiated. These input/output sets can be described by some form of layout. The SNS repair will read the data/parity from the devices described with the input set and reconstruct the missing data. In the process of reconstruction object layouts affected by the data reconstruction (layouts with data located on the lost storage device or node) are transactionally updated to reflect changed data placement. Additionally, while the reconstruction is in-progress, all affected layouts are switched into a degraded mode so that the clients can continue to access and modify data.  
 
-Note that the standard mode of operation is a so-called "non-blocking availability" (NBA) where after a failure the client can immediately continue writing new data without any IO degradation. To this end, a client is handed out a new layout to which it can write. After this point, the cluster-wide object has a composite layout: some parts of the object's linear name-space are laid accordingly to the old layout, and other parts (ones where clients write after a failure)—are a new one. In this configuration, clients never write to the old layout, while its content is being reconstructed.  
+Note that the standard mode of operation is a so-called "non-blocking availability" (NBA) where after a failure the client can immediately continue writing new data without any IO degradation. To this end, a client is handed out a new layout to which it can write. After this point, the cluster-wide object has a composite layout: some parts of the object's linear name-space are mapped accordingly to the old layout, and other parts (ones where clients write after a failure)—are a new one. In this configuration, clients never write to the old layout, while its content is being reconstructed.  
 
 The situation where there is a client-originated IO against layouts being reconstructed is possible because of:    
 * Reads have to access old data even under NBA policy and

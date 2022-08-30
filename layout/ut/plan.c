@@ -311,6 +311,8 @@ static int lap_ut_init(void)
 {
 	int rc;
 
+	m0_fi_enable("m0_dtm0_in_ut", "ut");
+
 	rc = lap_ut_server_start();
 	M0_ASSERT(rc == 0);
 
@@ -325,6 +327,7 @@ static int lap_ut_fini(void)
 	lap_ut_client_stop();
 	lap_ut_server_stop();
 
+	m0_fi_disable("m0_dtm0_in_ut", "ut");
 	return 0;
 }
 
