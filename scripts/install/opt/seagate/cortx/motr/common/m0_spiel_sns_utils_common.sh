@@ -82,6 +82,68 @@ $SPIEL_RCONF_STOP
 EOF
 }
 
+spiel_sns_dtrebalance_start()
+{
+echo "$M0_SPIEL_UTILS $SPIEL_OPTS"
+    eval "$M0_SPIEL_UTILS $SPIEL_OPTS" <<EOF
+$SPIEL_FIDS_LIST
+
+$SPIEL_RCONF_START
+
+rc = spiel.sns_dtrebalance_start(fids['pool'])
+print ("sns dtrebalance start rc: " + str(rc))
+
+$SPIEL_RCONF_STOP
+EOF
+}
+
+spiel_wait_for_sns_dtrebalance()
+{
+echo "$M0_SPIEL_UTILS $SPIEL_OPTS"
+    eval "$M0_SPIEL_UTILS $SPIEL_OPTS" <<EOF
+import time
+$SPIEL_FIDS_LIST
+
+$SPIEL_RCONF_START
+
+one_status = SpielSnsStatus()
+ppstatus = pointer(one_status)
+active = 0
+while (1):
+    active = 0
+    nr = spiel.sns_dtrebalance_status(fids['pool'], ppstatus)
+    print ("sns dtrebalance status responded servers: " + str(nr))
+    for i in range(0, nr):
+        print ("status of ", ppstatus[{}].sss_fid, " is: {}".format(i, ppstatus[i].sss_state))
+        if (ppstatus[i].sss_state == 2) :
+            print ("sns is still active on ", ppstatus[i].sss_fid)
+            active = 1
+    if (active == 0):
+        break;
+    time.sleep(3)
+
+$SPIEL_RCONF_STOP
+EOF
+}
+
+spiel_sns_dtrebalance_status()
+{
+echo "$M0_SPIEL_UTILS $SPIEL_OPTS"
+    eval "$M0_SPIEL_UTILS $SPIEL_OPTS" <<EOF
+$SPIEL_FIDS_LIST
+$SPIEL_RCONF_START
+one_status = SpielSnsStatus()
+ppstatus = pointer(one_status)
+nr = spiel.sns_dtrebalance_status(fids['pool'], ppstatus)
+print ("sns dtrebalance status responded servers: " + str(nr))
+for i in range(0, nr):
+        print("status of ", ppstatus[i].sss_fid, " is: ", ppstatus[i].sss_state)
+        if (ppstatus[i].sss_state == 2) :
+                print("sns dtrebalance is still active on ", ppstatus[i].sss_fid)
+$SPIEL_RCONF_STOP
+EOF
+}
+
 spiel_sns_rebalance_start()
 {
 echo "$M0_SPIEL_UTILS $SPIEL_OPTS"
