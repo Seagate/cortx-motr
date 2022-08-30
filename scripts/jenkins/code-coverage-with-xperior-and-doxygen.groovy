@@ -59,15 +59,15 @@ pipeline {
 							sh '''
 								set -ae
 								set
-								WD=$(pwd)
+								WORKING_DIR=$(pwd)
 								hostname
 								id
 								ls
 								export DO_MOTR_BUILD=yes
 								export TESTDIR=motr/.xperior/testds/
-								export XPERIOR="${WD}/xperior"
-								export ITD="${WD}/seagate-ci/xperior"
-								export XPLIB="${WD}/xperior-perl-libs/extlib/lib/perl5"
+								export XPERIOR="${WORKING_DIR}/xperior"
+								export ITD="${WORKING_DIR}/seagate-ci/xperior"
+								export XPLIB="${WORKING_DIR}/xperior-perl-libs/extlib/lib/perl5"
 								export PERL5LIB="${XPERIOR}/mongo/lib:${XPERIOR}/lib:${ITD}/lib:${XPLIB}/"
 								export PERL_HOME="/opt/perlbrew/perls/perl-5.22.0/"
 								export PATH="${PERL_HOME}/bin/:$PATH:/sbin/:/usr/sbin/"

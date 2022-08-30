@@ -1293,7 +1293,7 @@ static void st_dtm0_r_common(uint32_t sdev_id)
 	dtm0_ut_send_redo(&duc.duc_ifid, sdev_id, &key, &val,
 			  M0_CAS_PUT_FOP_OPCODE);
 
-	/* XXX dirty hack, but now we don't have completion notification */
+	/* XXX dirty workaround, but now we don't have completion notification */
 	rem = 2ULL * M0_TIME_ONE_SECOND;
         while (rem != 0)
                 m0_nanosleep(rem, &rem);
@@ -1304,7 +1304,7 @@ static void st_dtm0_r_common(uint32_t sdev_id)
 	dtm0_ut_send_redo(&duc.duc_ifid, sdev_id, &key, NULL,
 			  M0_CAS_DEL_FOP_OPCODE);
 
-	/* XXX dirty hack, but now we don't have completion notification */
+	/* XXX dirty workaround, but now we don't have completion notification */
 	rem = 2ULL * M0_TIME_ONE_SECOND;
         while (rem != 0)
                 m0_nanosleep(rem, &rem);

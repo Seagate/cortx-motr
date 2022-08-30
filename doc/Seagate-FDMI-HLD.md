@@ -12,7 +12,7 @@
 
 # Introduction #
 ## 1.1 Document's Purpose ##
-The document is intended to specify the design of Mero FDMI interface. FDMI is a part of Mero product. FDMI provides interface for Mero plugins and allows horizontally extending the features and capabilities of the system.   
+The document is intended to specify the design of Motr FDMI interface. FDMI is a part of Motr product. FDMI provides interface for Motr plugins and allows horizontally extending the features and capabilities of the system.   
 
 ## 1.2 Intended Audience ##
 * Product Architect
@@ -23,12 +23,12 @@ The document is intended to specify the design of Mero FDMI interface. FDMI is a
 FDMI: File data manipulation interface
 
 ## 1.4 References ##
-1. “Mero Object Store Architecture: Technical” MeroTechnicalWhitepaper.pdf
-2. “mero a scalable storage platform” Mero technical (toi).pdf
+1. “Motr Object Store Architecture: Technical” MotrTechnicalWhitepaper.pdf
+2. “motr a scalable storage platform” Motr technical (toi).pdf
 3. fdmihighleveldecomposition.pdf	   
 
 # Overview #
-Mero is a storage core capable of deployment for a wide range of large scale storage regimes, from cloud and enterprise systems to exascale HPC installations. FDMI is a part of Mero core, providing interface for plugins implementation. FDMI is build around the core and allows for horizontally extending the features and capabilities of the system in a scalable and reliable manner.
+Motr is a storage core capable of deployment for a wide range of large scale storage regimes, from cloud and enterprise systems to exascale HPC installations. FDMI is a part of Motr core, providing interface for plugins implementation. FDMI is build around the core and allows for horizontally extending the features and capabilities of the system in a scalable and reliable manner.
 
 ## 1.5 Product Purpose ##
 TBD
@@ -52,9 +52,9 @@ In this section only architectural information like the following is displayed b
 
 
 
-## 1.7 FDMI position in overall Mero Core design ##
+## 1.7 FDMI position in overall Motr Core design ##
 
-FDMI is an interface allowing Mero Core scale horizontally. The scaling includes two aspects:
+FDMI is an interface allowing Motr Core scale horizontally. The scaling includes two aspects:
 
 * Core expansion in aspect of adding core data processing abilities, including data volumes as well as transformation into alternative representation. The expansion is provided by introducing FDMI plug-ins.
 
@@ -62,15 +62,15 @@ FDMI is an interface allowing Mero Core scale horizontally. The scaling includes
 
 * Core expansion in aspect of adding new types of data the core is able to feed plug-ins. This sort of expansion is provided by introducing FDMI sources.
 
-  * Initial design implies that FOL record is the only source data type Mero Core provides so far.
+  * Initial design implies that FOL record is the only source data type Motr Core provides so far.
 
-FDMI plug-in is an application linked with Mero Core to make use of corresponding FDMI interfaces and run separate from Mero instance/services. The purpose of introducing plug-in is getting notifications from Mero Core about particular changes in stored data and further post-processing of the data intended for producing some additional classes of data the Core currently is not able to provide.
-
-
-Instead, FDMI source appears to be a part of Mero instance being linked with appropriate FDMI interfaces and allowing connection to additional data providers.
+FDMI plug-in is an application linked with Motr Core to make use of corresponding FDMI interfaces and run separate from Motr instance/services. The purpose of introducing plug-in is getting notifications from Motr Core about particular changes in stored data and further post-processing of the data intended for producing some additional classes of data the Core currently is not able to provide.
 
 
-Considering the amount of data Mero Core operates with it obvious that plug-in typically requires a sufficiently reduced bulk of data to be routed to it for post-processing. The reduction is provided by introduction of mechanism of subscription to particular data types and conditions met at runtime. The subscription mechanism is based on set of filters the plug-in registers in Mero Filter Database during its initialization.
+Instead, FDMI source appears to be a part of Motr instance being linked with appropriate FDMI interfaces and allowing connection to additional data providers.
+
+
+Considering the amount of data Motr Core operates with it obvious that plug-in typically requires a sufficiently reduced bulk of data to be routed to it for post-processing. The reduction is provided by introduction of mechanism of subscription to particular data types and conditions met at runtime. The subscription mechanism is based on set of filters the plug-in registers in Motr Filter Database during its initialization.
 
 
 Source in its turn refreshes its own subset of filters against the database. The subset is selected from overall filter set based on the knowledge about data types the source is able to feed FDMI with as well as operation with the data the source supports.   
@@ -80,7 +80,7 @@ FDMI consists of APIs implementing particular roles in accordance with FDMI use 
 
 * Plug-in dock, responsible for:
   * Plug-in registration in FDMI instance
-  * Filter registration in Mero Filter Database
+  * Filter registration in Motr Filter Database
   * Listening to notifications coming over RPC
   * Payload processing
   * Self-diagnostic (TBD)  
@@ -89,7 +89,7 @@ FDMI consists of APIs implementing particular roles in accordance with FDMI use 
   * Source registration
   * Retrieving/refreshing filter set for the source
   * Input data filtration
-  * Deciding on and posting notifications to filter subscribers over Mero RPC
+  * Deciding on and posting notifications to filter subscribers over Motr RPC
   * Deferred input data release
   * Self-diagnostic (TBD)
 
@@ -176,6 +176,6 @@ Input data may require to remain locked in the Source until the moment when plug
 ![image](./images/Image8_FDMIserviceFoundDead.PNG)  
 
 
-When interaction between Mero services results in a timeout exceeding pre-configured value, the not responding service needs to be announced dead across the whole system. First of all **confd** service is notified about the service not responding. After being marked dead in **confd** database, the service has to be reported to **filterd** as well. The main purpose is to deregister FDMI sources hosted by the service, if any, to stop propagating **filterd** database changes to those.  
+When interaction between Motr services results in a timeout exceeding pre-configured value, the not responding service needs to be announced dead across the whole system. First of all **confd** service is notified about the service not responding. After being marked dead in **confd** database, the service has to be reported to **filterd** as well. The main purpose is to deregister FDMI sources hosted by the service, if any, to stop propagating **filterd** database changes to those.  
 
 As well, the moment of the last instance of the source type coming out, the corresponding plug-ins might be notified.
