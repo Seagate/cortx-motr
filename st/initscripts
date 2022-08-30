@@ -29,6 +29,7 @@ M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 
+echo $M0_SRC_DIR
 m0t1fs_dir="$M0_SRC_DIR/m0t1fs/linux_kernel/st"
 . $m0t1fs_dir/common.sh
 . $m0t1fs_dir/m0t1fs_common_inc.sh
