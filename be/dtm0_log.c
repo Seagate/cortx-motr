@@ -698,6 +698,9 @@ M0_INTERNAL int m0_be_dtm0_log_iter_next(struct m0_be_dtm0_log_iter *iter,
 			return M0_ERR(rc);
 	}
 
+	if (rec)
+		M0_LOG(M0_DEBUG, "next record dtxid: " DTID0_F,
+		       DTID0_P(&rec->dlr_txd.dtd_id));
 	return M0_RC(rec != NULL ? 0 : -ENOENT);
 }
 
@@ -730,6 +733,7 @@ M0_INTERNAL int m0_be_dtm0_log_get_last_dtxid(struct m0_be_dtm0_log *log,
 
 	if (rec != NULL) {
 		*out = rec->dlr_txd.dtd_id;
+		M0_LOG(M0_DEBUG, "tail entry dtxid: " DTID0_F, DTID0_P(out));
 		rc = 0;
 	} else
 		rc = -ENOENT;

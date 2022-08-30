@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <clovis/clovis.h>
-#include <clovis/clovis_internal.h>
+#include <motr/client.h>
+#include <motr/client_internal.h>
 #include "lib/trace.h"
 #include "fdmi/fdmi.h"
 #include "fdmi/service.h"

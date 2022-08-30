@@ -61,6 +61,7 @@ enum m0_btree_types {
 	M0_BT_COB_FILEATTR_OMG,
 	M0_BT_COB_BYTECOUNT,
 	M0_BT_CONFDB,
+	M0_BT_DTM0_LOG,
 	M0_BT_UT_KV_OPS,
 	M0_BT_NR
 };
@@ -725,7 +726,7 @@ M0_INTERNAL void m0_btree_del_credit2(const struct m0_btree_type *type,
 				      m0_bcount_t                 vsize,
 				      struct m0_be_tx_credit     *accum);
 
-#include "btree/internal.h"
+#include "be/btree_internal.h"
 
 M0_INTERNAL int     m0_btree_mod_init(void);
 M0_INTERNAL void    m0_btree_mod_fini(void);

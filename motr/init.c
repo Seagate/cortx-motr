@@ -47,6 +47,7 @@
 #include "fol/fol.h"
 #include "dtm/dtm.h"
 #include "dtm0/service.h"
+#include "dtm0/dtm0.h"
 #include "reqh/reqh.h"
 #include "lib/timer.h"
 #include "fid/fid.h"
@@ -66,7 +67,7 @@
 #else
 #  include "be/tx_service.h"    /* m0_be_txs_register */
 #  include "be/be.h"            /* m0_backend_init */
-#  include "btree/btree.h"      /* m0_btree_mod_init */
+#  include "be/btree.h"      /* m0_btree_mod_init */
 #  include "conf/confd.h"       /* m0_confd_register */
 #  include "mdstore/mdstore.h"  /* m0_mdstore_mod_init */
 #endif
@@ -244,6 +245,8 @@ struct init_fini_call subsystem[] = {
 	{ &m0_fdmi_init,         &m0_fdmi_fini,         "fdmi" },
 	{ &m0_fol_fdmi_src_init, &m0_fol_fdmi_src_fini, "fol_fdmi_source" },
 	{ &m0_dtm0_stype_init,   &m0_dtm0_stype_fini,   "dtm0"},
+	{ &m0_cfs_register,      &m0_cfs_unregister,    "co_fom"},
+	{ &m0_dtm0_mod_init,     &m0_dtm0_mod_fini,     "dtm0_mod"},
 #endif
 };
 

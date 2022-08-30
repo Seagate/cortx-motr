@@ -1,24 +1,24 @@
 Build and Test Environment for Motr
 ===================================
 
-* [Quick Start (MacOS)](#quick-start-macos)
-* [Quick Start (Windows)](#quick-start-windows)
-* [Overview](#overview)
-* [Requirements](#requirements)
-* [DevVM provisioning](#devvm-provisioning)
-* [Building and running Motr](#building-and-running-motr)
-* [Try single-node Motr cluster](#try-single-node-motr-cluster)
-* [Vagrant basics](#vagrant-basics)
-* [Streamlining VMs creation and provisioning with snapshots](#streamlining-vms-creation-and-provisioning-with-snapshots)
-* [Managing multiple VM sets with workspaces](#managing-multiple-vm-sets-with-workspaces)
-* [Executing Ansible commands manually](#executing-ansible-commands-manually)
-* [VirtualBox / VMware / Libvirt specifics](#virtualbox--vmware--libvirt-specifics)
+*  [Quick Start (MacOS)](#quick-start-macos)
+*  [Quick Start (Windows)](#quick-start-windows)
+*  [Overview](#overview)
+*  [Requirements](#requirements)
+*  [DevVM provisioning](#devvm-provisioning)
+*  [Building and running Motr](#building-and-running-motr)
+*  [Try single-node Motr cluster](#try-single-node-motr-cluster)
+*  [Vagrant basics](#vagrant-basics)
+*  [Streamlining VMs creation and provisioning with snapshots](#streamlining-vms-creation-and-provisioning-with-snapshots)
+*  [Managing multiple VM sets with workspaces](#managing-multiple-vm-sets-with-workspaces)
+*  [Executing Ansible commands manually](#executing-ansible-commands-manually)
+*  [VirtualBox / VMware / Libvirt specifics](#virtualbox--vmware--libvirt-specifics)
 
 Quick Start (MacOS)
 -------------------
 
-* Install
-    - [Homebrew](https://brew.sh/)
+*  Install
+    -  [Homebrew](https://brew.sh/)
 
       ```bash
       /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
@@ -26,29 +26,31 @@ Quick Start (MacOS)
 
     - `bash` 4.x
 
-          brew install bash
+	brew install bash
 
-    - GNU `readlink`
+    -  GNU `readlink`
 
+	```bash
           brew install coreutils
+	```
 
-    - [VMware Fusion](https://www.vmware.com/go/downloadfusion) or
+    -  [VMware Fusion](https://www.vmware.com/go/downloadfusion) or
       [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
       (VMware is recommended for better experience)
-    - [Vagrant](https://www.vagrantup.com/downloads.html) (and
+    -  [Vagrant](https://www.vagrantup.com/downloads.html) (and
       [Vagrant VMware Utility](https://www.vagrantup.com/vmware/downloads) in case of VMware)
-    - Vagrant plugins (for VMware the license needs to be [purchased](https://www.vagrantup.com/vmware))
+    -  Vagrant plugins (for VMware the license needs to be [purchased](https://www.vagrantup.com/vmware))
 
           vagrant plugin install vagrant-{env,hostmanager,scp}
           vagrant plugin install vagrant-vmware-desktop # for VMware or
           
           vagrant plugin install vagrant-vbguest # for VirtualBox
 
-    - Ansible
+    -  Ansible
 
           brew install ansible # on Linux or macOS hosts
 
-* Configure
+*  Configure
     - `m0vg` script (make sure you have `$HOME/bin` in the `$PATH`)
 
       ```bash
@@ -56,7 +58,7 @@ Quick Start (MacOS)
       ln -s $MOTR_SRC/scripts/m0vg $HOME/bin/
       ```
 
-    - VMs
+    -  VMs
 
       ```bash
       # open virtual cluster configuration file in default editor
@@ -106,36 +108,36 @@ Quick Start (MacOS)
       see `m0vg params` output for the full list of supported configuration
       parameters
 
-* Run
-    - check VMs state
+*  Run
+    -  check VMs state
 
           m0vg status
 
-    - create _cmu_ VM (this can take ~30 minutes depending on the internet
+    -  create _cmu_ VM (this can take ~30 minutes depending on the internet
       connection, CPU and system disk speed)
 
           m0vg up cmu
 
-    - restart _cmu_ VM in order to activate shared folder
+    -  restart _cmu_ VM in order to activate shared folder
 
           m0vg reload cmu
 
-    - logon on _cmu_ and check contents of `/data` dir
+    -  logon on _cmu_ and check contents of `/data` dir
 
           m0vg tmux
           ls /data
 
-    - create _ssu_ and _client_ VMs (can take about ~40 minutes depending on the
+    -  create _ssu_ and _client_ VMs (can take about ~40 minutes depending on the
       number of configured _ssu_ and _client_ nodes)
 
           m0vg up /ssu/ /client/
           m0vg reload /ssu/ /client/
 
-    - stop all nodes when they're not needed to be running
+    -  stop all nodes when they're not needed to be running
 
           m0vg halt
 
-    - if a node hangs (e.g. Motr crash in kernel or deadlock) it can be forced
+    -  if a node hangs (e.g. Motr crash in kernel or deadlock) it can be forced
       to shutdown using `-f` option for `halt` command, for example:
 
           m0vg halt -f client1
@@ -143,35 +145,35 @@ Quick Start (MacOS)
 Quick Start (Windows)
 ---------------------
 
-* Install
-    - [VMware Workstation](https://www.vmware.com/go/downloadworkstation) or
+*  Install
+    -  [VMware Workstation](https://www.vmware.com/go/downloadworkstation) or
       [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
       (VMware is recommended for better experience)
-    - [Vagrant](https://www.vagrantup.com/downloads.html) (and
+    -  [Vagrant](https://www.vagrantup.com/downloads.html) (and
       [Vagrant VMware Utility](https://www.vagrantup.com/vmware/downloads) in case of VMware)
-    - Vagrant plugins (for VMware the license needs to be [purchased](https://www.vagrantup.com/vmware))
+    -  Vagrant plugins (for VMware the license needs to be [purchased](https://www.vagrantup.com/vmware))
 
           vagrant plugin install vagrant-{env,hostmanager,scp}
           vagrant plugin install vagrant-vmware-desktop # for VMware or
 
           vagrant plugin install vagrant-vbguest # for VirtualBox
 
-    - [Git for Windows](https://git-scm.com/download/win)
+    -  [Git for Windows](https://git-scm.com/download/win)
       During installation, when asked, choose the following options (keep other options to their default setting):
 
-      - _Use Git and optional Unix tools from the Command Prompt_
-      - _Checkout as-is, commit Unix-style line ending_
-      - _Enable symbolic links_
+      -  _Use Git and optional Unix tools from the Command Prompt_
+      -  _Checkout as-is, commit Unix-style line ending_
+      -  _Enable symbolic links_
 
-* Configure
+*  Configure
 
-    - Open _Git Bash_ terminal, add CRLF configuration option to make sure that Motr/Hare scripts can work on VM
+    -  Open _Git Bash_ terminal, add CRLF configuration option to make sure that Motr/Hare scripts can work on VM
 
       ```bash
       git config --global core.autocrlf input
       ```
 
-    - Clone Motr repository somewhere, just as an example let's say it's in `$HOME/src/motr`:
+    -  Clone Motr repository somewhere, just as an example let's say it's in `$HOME/src/motr`:
 
       ```bash
       mkdir -p src
@@ -179,7 +181,7 @@ Quick Start (Windows)
       git clone --recursive git@github.com:Seagate/cortx-motr.git motr
       ```
 
-    - Create a persistent alias for `m0vg` script:
+    -  Create a persistent alias for `m0vg` script:
 
       ```bash
       cat <<EOF >> $HOME/.bash_profile
@@ -191,11 +193,11 @@ Quick Start (Windows)
 
       Exit and re-launch _Git Bash_ terminal. At this point the setup should be complete.
 
-* Run
+*  Run
 
-    - Follow the steps from _Run_ section under _Quick Start (MacOS)_ above.
+    -  Follow the steps from _Run_ section under _Quick Start (MacOS)_ above.
 
-      > *NOTE*: during `m0vg up <node>` command execution you may be asked to enter
+      > _NOTE_ : during `m0vg up <node>` command execution you may be asked to enter
       > your Windows username and password, and then grant permissions for
       > creating Windows shared directory. To avoid manually entering the
       > credentials for every node, set SMB_USERNAME/SMB_PASSWORD environment
@@ -240,27 +242,29 @@ In order to run these scripts, additional tools have to be installed first. It's
 assumed that either _macOS_, _Windows_ or _Linux_ is used as a host operating
 system.
 
-* Minimum Host OS
-    - 8GB of RAM
-    - 10GB of free disk space
-    - 2 CPU cores
+*  Minimum Host OS
+    -  8GB of RAM
+    -  10GB of free disk space
+    -  2 CPU cores
 
-* Additional Software/Tools:
-    - [VMware Fusion](https://www.vmware.com/products/fusion.html) (for _macOS_) or
+*  Additional Software/Tools:
+    -  [VMware Fusion](https://www.vmware.com/products/fusion.html) (for _macOS_) or
       [VMware Workstation](https://www.vmware.com/products/workstation-pro.html) (for _Windows_) _OR_
       [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
       (VMware is recommended for better experience in terms of memory utilisation)
     - `libvirt + qemu-kvm` (_Linux_ only)
-    - [Vagrant](https://www.vagrantup.com/downloads.html)
-    - [Vagrant VMware plugin](https://www.vagrantup.com/vmware) +
-      [Vagrant VMware Utility](https://www.vagrantup.com/vmware/downloads) (in case of VMware)
-    - [Ansible](https://github.com/ansible/ansible) (_macOS_ and _Linux_ only)
-    - [Git for Windows](https://git-scm.com/download/win) (_Windows_ only)
+    -  [Vagrant](https://www.vagrantup.com/downloads.html)
+    -  [Vagrant VMware plugin](https://www.vagrantup.com/vmware) +
+       [Vagrant VMware Utility](https://www.vagrantup.com/vmware/downloads) (in case of VMware)
+    -  [Ansible](https://github.com/ansible/ansible) (_macOS_ and _Linux_ only)
+    -  [Git for Windows](https://git-scm.com/download/win) (_Windows_ only)
 
 On _Ubuntu Linux_ all of the above prerequisites can be installed with a single
 command:
 
+    ```bash
     sudo apt install qemu-kvm libvirt-bin vagrant ansible
+    ```
 
 Though, it's actually better to get a more up-to-day versions of _Vagrant_ and
 _Ansible_ than those provided by a distribution. The procedure is same as
@@ -324,10 +328,12 @@ run `vagrant up` command in the directory containing this `README` file, that
 will do rest of the work. But, there is a better way to achieve the same result
 which is more convenient:
 
+    ```bash
     ./scripts/m0vg up
+    ```
 
 The `m0vg` helper script is a wrapper around _Vagrant_ and _Ansible_ commands
-that can be *symlinked* somewhere into the `PATH` and be called from any
+that can be **symlinked** somewhere into the `PATH` and be called from any
 directory. Check out `m0vg --help` for more info.
 
 It will spawn a VM and configure it using _Ansible_ "playbook"
@@ -348,7 +354,9 @@ below for the list of other useful _Vagrant_ commands.
 
 If a cluster-like environment is needed, more machines can be provisioned:
 
-    ./scripts/m0vg up cmu /ssu/ /client/
+```sh
+./scripts/m0vg up cmu /ssu/ /client/
+```
 
 The additional parameters are also explained in the _Vagrant basics_ section
 below.
@@ -379,12 +387,14 @@ All additional nodes can be accessed from the main machine (_cmu_) by their name
 in a `.local` domain. For example, here is how to execute a command on the
 _ssu1_ from _cmu_:
 
+    ```bash
     ssh ssu1.local <command>
+    ```
 
 The host directory containing motr sources directory will be mounted over _NFS_
 on each VM under `/data`.
 
-> *NOTE*: one important aspect of how _Vagrant_ works is that it creates a hidden
+> _NOTE_: one important aspect of how _Vagrant_ works is that it creates a hidden
 > `.vagrant` directory, alongside `Vagrantfile`, where it keeps all configuration
 > data related to provisioned VMs. If that directory is lost the access to the VMs
 > is lost as well. Which can happen unintentionally as a result of
@@ -421,8 +431,10 @@ cd motr
 
 Resulting _rpm_ files will be available in `~/rpmbuild/RPMS/x86_64/` directory.
 To verify them they can be installed with:
-
+     
+    ```bash
     sudo yum install rpmbuild/RPMS/x86_64/*
+    ```
 
 Try single-node Motr cluster
 ----------------------------
@@ -523,7 +535,7 @@ vagrant up /ssu/
 vagrant up cmu /ssu/ /client/
 ```
 
-> *NOTE*: on Windows host, _Ansible_ is running on guest VMs (not on host) and
+> _NOTE_: on Windows host, _Ansible_ is running on guest VMs (not on host) and
 > all the _Ansible_ tasks scripts are rsync-ed to guests at `/vagrant/` folder.
 > So whenever the scripts are updated on host they can be rsync-ed to guests
 > (in order to pick up the changes) with the following command:
@@ -553,8 +565,10 @@ m0vg snapshot save client1 clean-vm
 
 Then later, in order to discard the current state and restore a clean VM one may
 do:
-
+    
+    ```bash
     m0vg snapshot restore --no-provision cmu clean-vm
+    ```
 
 If `--no-provision` option is omitted, the _Ansible_ provisioning will be
 repeated after the restore phase. It may come in handy for getting latest
@@ -571,9 +585,11 @@ directories and switch between them, thus having multiple virtual clusters.
 
 The `m0vg` supports following actions on workspaces:
 
+    ```bash
     m0vg workspace list
     m0vg workspace add    <NAME>
     m0vg workspace switch <NAME>
+    ```
 
 The `workspace` sub-command can be shortened as just `ws`.
 

@@ -28,9 +28,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/mutex.h"
-#ifndef __KERNEL__
-#  include "lib/string.h"  /* m0_streq */
-#endif
+#include "lib/string.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_NET
 #include "lib/trace.h"

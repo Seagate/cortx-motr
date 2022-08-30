@@ -103,6 +103,7 @@ static void test_mkfs(void)
 	rc = _locate(M0_MDSERVICE_SLASH_FID.f_container,
 	             M0_MDSERVICE_SLASH_FID.f_key); /* slash */
 	M0_UT_ASSERT(rc == 0);
+	m0_cob_put(cob);
 	rc = _locate(M0_COB_ROOT_FID.f_container,
 	             M0_COB_ROOT_FID.f_key); /* root */
 	M0_UT_ASSERT(rc != 0);

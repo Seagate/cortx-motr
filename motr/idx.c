@@ -217,6 +217,18 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 
 	if (ENABLE_DTM0 && !(flags & M0_OIF_NO_DTM) &&
 	    M0_IN(op->op_code, (M0_IC_PUT, M0_IC_DEL))) {
+		if (m0c->m0c_dtms == NULL) {
+			static uint32_t count = 0;
+			if (count == 0) {
+				M0_LOG(M0_FATAL, "DTM is enabled but is not "
+						 "configured in conf. Skip "
+						 "DTM now. Please Check!");
+				count++;
+				/* Only print the msg at the first time. */
+			}
+			oi->oi_dtx = NULL;
+			goto skip_dtm; /* FIXME Add DTM service to conf */
+		}
 		M0_ASSERT(m0c->m0c_dtms != NULL);
 		oi->oi_dtx = m0_dtx0_alloc(m0c->m0c_dtms, oi->oi_sm_grp);
 		if (oi->oi_dtx == NULL)
@@ -226,6 +238,7 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 		M0_ADDB2_ADD(M0_AVI_CLIENT_TO_DIX, cid, did);
 	} else
 		oi->oi_dtx = NULL;
+skip_dtm:
 
 	if (opcode == M0_EO_CREATE && entity->en_type == M0_ET_IDX &&
 	    entity->en_flags & M0_ENF_META) {
