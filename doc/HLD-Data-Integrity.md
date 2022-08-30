@@ -19,11 +19,11 @@ This document will give details of DI implementation in Motr
 
 ## I. Motr Client 
 ### I.1 Application and motr data structure
-Application sends buffer as scatter gather list (SGL) of buffers (ioo_data), it also sends a index-list for object offset corresponding to the buffer (ioo_ext). There can be multiple request for send for read/writing to the same object
+Application sends data as scatter gather list (SGL) of buffers (ioo_data), it also sends an index-list for object offset corresponding to the buffer (ioo_ext). There can be multiple send requests for reading/writing to the same object
 
 The example below describes scenario where application sends second request to motr for the same object.   
 
-- Parity Stripe having N (Data Units) = 4  K (Parity Units) = 2 S (Spare Units) = 0
+- Parity Stripe having N (Data Units) = 4; K (Parity Units) = 2; S (Spare Units) = 0
 
 - Application buffer size 16KB
 
@@ -41,7 +41,7 @@ The example below describes scenario where application sends second request to m
 ### I.2 Parity Group Computation 
 - Motr client computes number of parity group in the request (ioo_iomap_nr)
 
-- Allocates data structure for all including parity units (K)
+- Allocates data structure for all data(N) and parity units (K)
 
 - Populates parity group data structure for further processing (ioo_iomaps)
 
@@ -72,7 +72,7 @@ During read path when the data is received from Motr Server, the checksum is com
 ![image](./Images/DI06.png)
 ## II. Motr Server Write Path
 ### II.1 Global Object => Component Object
-Every Motr object is identified by FID also known as Global Object FID and its stripe on devices are identified as Component Object FID.
+Every Motr object is identified by FID also known as Global Object FID and its Stripe Units on devices are identified as Component Object FID.
 
 Component Object FID is derived from Global Object FID by adding Device ID to the Global Object FID.
 
@@ -85,7 +85,7 @@ Every device on which stripe/shard of object is present will have COB entry.
 ### II.2 Balloc Processing
 Motr client send data buffer, checksum buffer using RPC to server.
 
-- Motr server allocated balloc space for the total size of data buffer sent by client
+- Motr server requests blocks from the balloc module to cover the total size of data buffer sent by client
 
 - Balloc will attempt to allocate total size as one extent
 
@@ -96,7 +96,7 @@ Motr client send data buffer, checksum buffer using RPC to server.
 - In the diagram below it is shown that three balloc extents are getting allocated for two data DUs.
 
 ### Balloc extent and buffer extent processing
-As part of balloc processing, server codes find the number of contiguous fragment using overlap of balloc-extent and buffer extent. Also data structure is populated to track this.
+As part of balloc processing, server code finds the number of contiguous fragment using overlap of balloc-extent and buffer extent. Also data structure is populated to track this.
 
 - m0_bufvec   si_user : Tracking buffer fragment
 
@@ -109,7 +109,7 @@ These balloc-extent along with its buffer from unit for Storage IO.
 
 ![image](./Images/DI08.png)
 ### II.3 EMAP Extent Processing
-As part of EMPA extent processing contiguous fragment is computed using overlap of Object offset extent (COB Offset) and balloc extent. These EMAP fragment data are processed later and gets written to the device EMAP btree.
+As part of EMAP extent processing, contiguous fragment is computed using overlap of Object offset extent (COB Offset) and balloc extent. This EMAP fragment data is processed later and gets written to the device EMAP btree.
 
 EMAP Fragment Data consist of following important fields
 
