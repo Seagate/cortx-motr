@@ -230,6 +230,12 @@ struct m0_op_idx {
 	struct m0_sm_group  *oi_sm_grp;
 	struct m0_ast_rc     oi_ar;
 
+	/**
+	 * Minimum number of successful CAS operations to treat
+	 * parent DIX operation as successful.
+	 */
+	int64_t              oi_min_success;
+
 	/* A bit-mask of m0_op_idx_flags. */
 	uint32_t             oi_flags;
 
