@@ -29,7 +29,6 @@ M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
 
-echo $M0_SRC_DIR
 m0t1fs_dir="$M0_SRC_DIR/m0t1fs/linux_kernel/st"
 . $m0t1fs_dir/common.sh
 . $m0t1fs_dir/m0t1fs_common_inc.sh
@@ -38,10 +37,10 @@ m0t1fs_dir="$M0_SRC_DIR/m0t1fs/linux_kernel/st"
 
 cd $M0_SRC_DIR
 
-N=$1
+N=$4
 K=$2
-S=$3
-P=$4
+S=$0
+P=$12
 stride=$32
 
 motr_service_start()
