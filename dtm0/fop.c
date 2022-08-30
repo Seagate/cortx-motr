@@ -324,7 +324,18 @@ M0_INTERNAL int m0_dtm0_on_committed(struct m0_fom            *fom,
 	 * It is impossible to commit a transaction without DTM0 service up and
 	 * running.
 	 */
+	if (dtms == NULL) {
+		static uint32_t count = 0;
+		if (count == 0) {
+			M0_LOG(M0_FATAL, "DTM is enabled but is not "
+					 "configured in conf. Skip "
+					 "DTM now. Please Check!");
+			count++; /* Only print the message at the first time. */
+		}
+		return 0; /* FIXME but now let's skip it if no DTM service. */
+	}
 	M0_PRE(dtms != NULL);
+
 	log = dtms->dos_log;
 	M0_PRE(log != NULL);
 	/* It is impossible to commit something on a volatile log. */

@@ -466,6 +466,8 @@ static void ut_dix_record_ops(bool dist, uint32_t cr_get_flags,
 	struct m0_op_common *oc;
 	struct m0_op_idx    *oi;
 
+	if (ENABLE_DTM0) /* If DTM0 enabled, no multiple keys/vals in a op. */
+		return;
 	idx_dix_ut_init();
 	general_ifid_fill(&ifid, dist);
 	m0_container_init(&realm, NULL, &M0_UBER_REALM, ut_m0c);
@@ -809,12 +811,23 @@ static void ut_dix_record_ops_non_dist_no_dtm(void)
 	ut_dix_record_ops(false, 0, M0_OIF_NO_DTM);
 }
 
+static int ut_suite_idx_dix_init()
+{
+	m0_fi_enable("m0_dtm0_in_ut", "ut");
+	return 0;
+}
+static int ut_suite_idx_dix_fini()
+{
+	m0_fi_disable("m0_dtm0_in_ut", "ut");
+	return 0;
+}
+
 
 struct m0_ut_suite ut_suite_idx_dix = {
 	.ts_name   = "idx-dix",
 	.ts_owners = "Egor",
-	.ts_init   = NULL,
-	.ts_fini   = NULL,
+	.ts_init   = ut_suite_idx_dix_init,
+	.ts_fini   = ut_suite_idx_dix_fini,
 	.ts_tests  = {
 		{ "init-fini",            ut_dix_init_fini,           "Egor" },
 		{ "namei-ops-dist",       ut_dix_namei_ops_dist,      "Egor" },
