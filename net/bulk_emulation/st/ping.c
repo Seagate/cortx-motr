@@ -136,6 +136,9 @@ int encode_msg(struct m0_net_buffer *nb, const char *str)
 	struct m0_bufvec_cursor incur;
 	struct m0_bufvec_cursor cur;
 
+	if(nb == NULL)
+		return -1;
+
 	nb->nb_length = len + 1;
 	m0_bufvec_cursor_init(&cur, &nb->nb_buffer);
 	bp = m0_bufvec_cursor_addr(&cur);
@@ -1189,6 +1192,7 @@ int ping_client_passive_send(struct ping_ctx *ctx,
 	M0_ASSERT(nb != NULL);
 	/* reuse encode_msg for convenience */
 	rc = encode_msg(nb, data);
+	M0_ASSERT(rc == 0);
 	nb->nb_qtype = M0_NET_QT_PASSIVE_BULK_SEND;
 	nb->nb_ep = server_ep;
 	if (ctx->pc_passive_bulk_timeout > 0) {

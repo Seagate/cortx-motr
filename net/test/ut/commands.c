@@ -671,6 +671,7 @@ static void commands_node_thread2(struct net_test_cmd_node *node)
 
 	M0_ALLOC_PTR(cmd);
 	M0_UT_ASSERT(cmd != NULL);
+	M0_UT_ASSERT(nodes != NULL);
 
 	if (console_thread) {
 		buf[0] = '\0';

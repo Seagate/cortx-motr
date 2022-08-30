@@ -43,6 +43,6 @@ Mero -> Motr rename
         make[1]: *** [all-recursive] Error 1
         make: *** [all] Error 2
 
-   A: Remove ``/etc/ld.so.conf.d/mero.conf``, then rebuild Motr after ``git
+   A: Remove ``/etc/ld.so.conf.d/motr.conf``, then rebuild Motr after ``git
    clean -dfx`` (WARNING: removes all files that are not staged and are not in
    the repo).

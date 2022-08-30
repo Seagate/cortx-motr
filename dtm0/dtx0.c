@@ -29,15 +29,21 @@
 #include "lib/trace.h"
 
 #include "dtm0/dtx0.h"
+#include "dtm0/domain.h" /* m0_dtm0_domain */
 
-M0_INTERNAL int m0_dtx0_init(struct m0_dtx0 *dtx0,
-			     struct m0_dtm0_domain *dod)
+M0_INTERNAL void m0_dtx0_redo_add_credit(struct m0_dtm0_domain  *dod,
+					 struct m0_dtm0_redo    *redo,
+					 struct m0_be_tx_credit *accum)
 {
-	return 0;
+	m0_dtm0_log_redo_add_credit(&dod->dod_log, redo, accum);
 }
 
-M0_INTERNAL void m0_dtx0_fini(struct m0_dtx0 *dtx0)
+M0_INTERNAL int m0_dtx0_redo_add(struct m0_dtm0_domain *dod,
+				 struct m0_be_tx       *tx,
+				 struct m0_dtm0_redo   *redo,
+				 const struct m0_fid   *sdev)
 {
+	return m0_dtm0_log_redo_add(&dod->dod_log, tx, redo, sdev);
 }
 
 #undef M0_TRACE_SUBSYSTEM
