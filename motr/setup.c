@@ -2281,7 +2281,7 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				LAMBDA(void, (const char *s)
 				{
                                         char tmp_buf[512];
-                                        snprintf(tmp_buf, "%s-%d", s, (int)m0_pid());
+                                        snprintf(tmp_buf,sizeof(tmp_buf) ,"%s-%d", s, (int)m0_pid());
                                         rctx->rc_addb_stlocation = m0_strdup(tmp_buf);
 				})),
 			M0_STRINGARG('d', "Device configuration file",
