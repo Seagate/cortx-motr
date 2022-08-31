@@ -89,6 +89,8 @@ static char *cas_startup_cmd[] = {
 	"-w", "10", "-F",
 	"-f", M0_UT_CONF_PROCESS,
 	"-c", M0_SRC_PATH("cas/ut/conf.xc")
+	/* FIXME If DTM is enabled, the above conf.xc must be updated to include
+	 * DTM0 services. */
 };
 
 static const char         *cdbnames[] = { "cas1" };
