@@ -20,7 +20,7 @@
 ---
 Tests:
   - id       : 00userspace-tests
-    script   : 'm0 run-ut'
+    script   : 'm0 run-ut -x mdservice-ut'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
