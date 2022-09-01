@@ -301,7 +301,7 @@ M0_INTERNAL void m0_balloc_debug_dump_group_extent(const char *tag,
 if (ENABLE_BALLOC_DUMP) {
 	struct m0_lext	*ex;
 
-	if (grp == NULL || grp->bgi_extents == NULL)
+	if (grp == NULL || grp->bgi_extents_loaded)
 		return;
 
 	M0_LOG(M0_DEBUG, "free extents@%p:%s for grp=%04llx:",
@@ -424,6 +424,7 @@ M0_INTERNAL int m0_balloc_release_extents(struct m0_balloc_group_info *grp)
 	extents_release(grp, M0_BALLOC_SPARE_ZONE);
 	extents_release(grp, M0_BALLOC_NORMAL_ZONE);
 	m0_free0(&grp->bgi_extents);
+	grp->bgi_extents_loaded = false;
 	return 0;
 }
 
@@ -482,6 +483,7 @@ static int balloc_group_info_init(struct m0_balloc_group_info *gi,
 	if (rc == 0) {
 		gi->bgi_state   = M0_BALLOC_GROUP_INFO_INIT;
 		gi->bgi_extents = NULL;
+		gi->bgi_extents_loaded = false;
 
 		spare_zone_size =
 			m0_stob_ad_spares_calc(cb->cb_sb.bsb_groupsize);
@@ -1306,7 +1308,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		 (int)group_spare_fragments_get(grp));
 	M0_PRE(m0_mutex_is_locked(bgi_mutex(grp)));
 
-	if (grp->bgi_extents != NULL) {
+	if (grp->bgi_extents_loaded) {
 		M0_LOG(M0_DEBUG, "Already loaded");
 		return M0_RC(0);
 	}
@@ -1319,6 +1321,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	if (group_fragments_get(grp) == 0 &&
 	    group_spare_fragments_get(grp) == 0) {
 		M0_LOG(M0_NOTICE, "zero fragments");
+		grp->bgi_extents_loaded = true;
 		return M0_RC(0);
 	}
 
@@ -1365,6 +1368,8 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 					     group_spare_fragments_get(grp)));
 	if (rc != 0)
 		m0_balloc_release_extents(grp);
+	else
+		grp->bgi_extents_loaded = true;
 
 	return M0_RC(rc);
 }
@@ -1401,7 +1406,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		 (int)group_spare_fragments_get(grp));
 	M0_PRE(m0_mutex_is_locked(bgi_mutex(grp)));
 
-	if (grp->bgi_extents != NULL) {
+	if (grp->bgi_extents_loaded) {
 		M0_LOG(M0_DEBUG, "Already loaded");
 		return M0_RC(0);
 	}
@@ -1409,6 +1414,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	if (group_fragments_get(grp) +
 	    group_spare_fragments_get(grp) == 0) {
 		M0_LOG(M0_NOTICE, "zero fragments");
+		grp->bgi_extents_loaded = true;
 		return M0_RC(0);
 	}
 
@@ -1469,6 +1475,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	else {
 		grp->bgi_normal.bzp_fragments = normal_frags;
 		grp->bgi_spare.bzp_fragments = spare_frags;
+		grp->bgi_extents_loaded = true;
 	}
 
 	return M0_RC(rc);

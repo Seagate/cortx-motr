@@ -156,6 +156,7 @@ struct m0_balloc_group_info {
 	struct m0_balloc_zone_param  bgi_spare;
 	/** Array of group extents */
 	struct m0_lext              *bgi_extents;
+	bool                         bgi_extents_loaded;
 	/** per-group lock */
 	struct m0_be_mutex           bgi_mutex;
 };
