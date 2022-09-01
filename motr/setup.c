@@ -459,6 +459,7 @@ static void cs_reqh_ctx_fini(struct m0_reqh_context *rctx)
 		m0_free(rctx->rc_services[i]);
 	m0_free(rctx->rc_services);
 	m0_free(rctx->rc_service_fids);
+	m0_free((char*)rctx->rc_addb_stlocation);
 	rctx->rc_stob.s_sfile.sf_is_initialised = false;
 	rctx->rc_stob.s_ad_disks_init = false;
 }
@@ -2291,8 +2292,8 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				LAMBDA(void, (const char *s)
 				{
                                         char tmp_buf[512];
-                                        sprintf(tmp_buf, "%s-%d", s, (int)m0_pid());
-                                        rctx->rc_addb_stlocation = strdup(tmp_buf);
+                                        snprintf(tmp_buf, sizeof(tmp_buf), "%s-%d", s, (int)m0_pid());
+                                        rctx->rc_addb_stlocation = m0_strdup(tmp_buf);
 				})),
 			M0_STRINGARG('d', "Device configuration file",
 				LAMBDA(void, (const char *s)
