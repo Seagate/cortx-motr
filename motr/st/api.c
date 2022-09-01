@@ -122,6 +122,8 @@ int st_idx_op(struct m0_idx     *idx,
 
 	rc = m0_idx_op(idx, opcode, keys, vals, rcs, flag, op);
 	if (*op != NULL) st_mark_op(*op);
+	m0_idx_op_setoption(*op, M0_OIO_MIN_SUCCESS,
+			    M0_DIX_MIN_REPLICA_QUORUM);
 
 	return rc;
 }

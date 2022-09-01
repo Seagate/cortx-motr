@@ -1,4 +1,4 @@
-# High Level Design of SNS Repair   
+# High Level Design of SNS Repair #
 This document provides a High-Level Design (HLD) of SNS repair for Motr.
  The main purposes of this document are:  
 * To be inspected by Motr architects and peer designers to make sure that HLD is aligned with Motr architecture and other designs, and contains no defects    
@@ -6,10 +6,10 @@ This document provides a High-Level Design (HLD) of SNS repair for Motr.
 * To serve as a design reference document  
 The intended audience of this document consists of Motr customers, architects, designers, and developers.    
 
-## Introduction
+## Introduction ##
 Redundant striping is a proven technology to achieve higher throughput and data availability. The Server Network Striping (SNS) applies this technology to network devices and achieves similar goals as a local RAID. In the case of storage and/or server failure, the SNS repair reconstructs the lost data from survived data reliably and quickly, without a major impact on the production systems. This document presents the HLD of SNS repair.  
 
-## Definitions  
+## Definitions ##
 Repair is a scalable mechanism to reconstruct data or meta-data in a redundant striping pool. Redundant striping stores a cluster-wide object in a collection of components, according to a particular striping pattern.
 
 The following terms are used to discuss and describe Repair:  
@@ -41,7 +41,7 @@ Examples of striping patterns:
 * K = 2 < N. RAID6  
 A cluster-wide object layout owns its target components. That is, no two cluster-wide objects store data or redundancy information in the same component object.  
 
-## Requirements
+## Requirements ##
 These requirements are already listed in the SNS repair requirement analysis document:  
 * [r.sns.repair.triggers] Repair can be triggered by storage, network, or node failure.  
 * [r.sns.repair.code-reuse] Repair of a network array and a local array is done by the same code.  
@@ -73,7 +73,7 @@ While the data restructuring is in-progress, the affected objects that have the 
 * [r.sns.repair.failure.permanent] Repair handles permanent failures gracefully.  
 * [r.sns.repair.used-only] Repair should not reconstruct unused (free) parts of failed storage.   
 
-## Design highlights
+## Design highlights ##
 The current design structure of SNS repair implementation is a composition of two sub-systems:  
 * Generic data restructuring engine (copy machine): A copy machine is a scalable distributed mechanism to restructure data in multiple ways (copying, moving, re-striping, reconstructing, encrypting, compressing, re-integrating, etc.). It can be used in a variety of scenarios, some enumerated in the following text.  
 * SNS repair specific part: An SNS-specific part of repair interacts with sources of repair relevant events (failures, recoveries, administrative commands, client IO requests). It constructs a copy machine suitable for SNS repair and controls its execution.
@@ -89,32 +89,32 @@ Following topics deserve attention:
 * Details of interaction between repair and DTM must be specified.  
 * Redundancy other than N+1 (N+K, K > 1) must be regarded as a default configuration.   
 * Multiple failures and repair in the presence of multiple failures must be considered systematically.  
-* Repair and re-balancing must be clearly distinguished.    
+* Repair and re-balancing must be distinguished appropriately.
 * Reclaim of a distributed spare space must be addressed (this is done in a separate Distributed Spare design documentation).  
 * locking optimizations.
 
-## Functional specification  
+## Functional specification ##
 
-### 5.1. Overview
+### 5.1. Overview ###
 When a failure is detected, the system decides to do the SNS repair. The SNS repair can simultaneously read data from the multiple storage devices, aggregates them, transfer them over the network, and place them into distributed spare space. The entire process can utilize the system resources with complete bandwidth. If another failure happens during this process, it is reconfigured with new parameters and starts repair again, or fails gracefully.  
 
-### 5.2. Failure type
+### 5.2. Failure type ###
 * Transient failure: Transient failure includes a short network partition or a node crash followed by a reboot. Formally, a transient failure is a failure that was healed before the system decided to declare the failure permanent. RPC and networking layer (resend) handles the transient network failures transparently. The DTM (recovery) handles the transient node failures. The Data or meta-data stored on the media drive is not damaged.  
 * Permanent failure. Permanent failure means permanent damage to media drives and there is no way to recover the data physically from the drive. The Data will have to be reconstructed from redundant information living in surviving drives or restored from archival backups.    
 * For the SNS repair purposes, we only talk about the permanent failure of the storage devices or nodes. The C4 and/or SNS repair manager can distinguish the two types of failures from each other.  
 * Failure detections will be done by various components, e.g. liveness.
 
 
-### 5.3. Redundancy level
+### 5.3. Redundancy level ###
 * A pool using the N+K striping pattern can recover most from the K drives failures. System can reconstruct lost units from the surviving unit. K can be selected so that a pool can recover from a given number Kd or device failures and a given number Ks of server failures (assuming a uniform distribution of units across servers).    
 * The default configuration will always have K > 1 (and L > 1) to ensure the system can tolerate multiple failures.    
 * More detailed discussion on this can be found in: "Reliability Calculations and Redundancy Level" and in the Scalability analysis section.     
 
-### 5.4. Triggers of SNS repair
+### 5.4. Triggers of SNS repair ###
 * When a failure of storage, network, or node is detected by various components (For example, the liveness layer). It will be reported to components that are interested in the failure, including the pool machine and C4. The Pool machine will decide whether to trigger a SNS repair.    
 * Multiple SNS repairs can be running simultaneously.  
 
-### 5.5. Control of SNS repair
+### 5.5. Control of SNS repair ###
 * Running and queued SNS repair can be listed upon query by management tools.  
 * Status of individual SNS repair can be retrieved upon query by management tools: estimated progress, estimated size, estimated time left, queued or running or completed, etc.  
 * Individual SNS repair can be paused/resumed.  
@@ -123,43 +123,43 @@ When a failure is detected, the system decides to do the SNS repair. The SNS rep
 * Status report will be trapped asynchronously to C4 while a repair is started, completed, failed, or progressed.    
 
 
-### 5.6. Concurrency & priority
+### 5.6. Concurrency & priority ###
 * To guarantee that a sufficient fraction of system resources are used, we:    
   * Guarantee that only a single repair can go on a given server pool and
   * Different pools do not compete for resources.  
 * Every container has a repair priority. A repair for failed container has the priority derived from the container.  
 
 
-### 5.7.  Client I/O during SNS repair
+### 5.7.  Client I/O during SNS repair ###
 * From the client's point of view, the client I/O will be served while the SNS repair is going on. Some performance degradation may be experienced, but this should not lead to starvation or indefinite delays.    
 * Client I/O to surviving containers or servers will be handled normally. But the SNS repair agent will also read from or write to the containers while SNS repair is going on.  
 * Client I/O to the failed container (or failed server) will be directed to the proper container according to the new layout, or data will be served by retrieving from other containers and computing from parity/data unit. This depends on the implementation options. We will discuss this later.  
 * When repair is completed, the client I/O will restore to its normal performance.  
 
 
-### 5.8. Repair throttling
+### 5.8. Repair throttling ###
 •	The SNS manager can throttle the repair according to system bandwidth, and user control. This is done by dynamically changing the fraction of resource usage of individual repair or overall.  
 
-### 5.9. Repair logging
+### 5.9. Repair logging ###
 •	SNS repair will produce ADDB records about its operations and progress. These records include but are not limited to, (start, pause, resume, or complete) of individual repair, failure of individual repair, the progress of the individual repair, the throughput of individual repair, etc.  
 
-### 5.10. Device-oriented repair
+### 5.10. Device-oriented repair ###
 Agent iterates components over the affected container or all the containers which have surviving data/parity units in the need-to-reconstruct parity group. These data/parity units will be read and sent to a proper agent where spare space lives and used to re-compute the lost data. Please refer to "HLD of Copy Machine and Agents".  
 
 
-### 5.11. SNS repair and layout
+### 5.11. SNS repair and layout ###
 The SNS manager gets an input set configuration and output set configuration as the repair is initiated. These input/output sets can be described by some form of layout. The SNS repair will read the data/parity from the devices described with the input set and reconstruct the missing data. In the process of reconstruction object layouts affected by the data reconstruction (layouts with data located on the lost storage device or node) are transactionally updated to reflect changed data placement. Additionally, while the reconstruction is in-progress, all affected layouts are switched into a degraded mode so that the clients can continue to access and modify data.  
 
-Note that the standard mode of operation is a so-called "non-blocking availability" (NBA) where after a failure the client can immediately continue writing new data without any IO degradation. To this end, a client is handed out a new layout to which it can write. After this point, the cluster-wide object has a composite layout: some parts of the object's linear name-space are laid accordingly to the old layout, and other parts (ones where clients write after a failure)—are a new one. In this configuration, clients never write to the old layout, while its content is being reconstructed.  
+Note that the standard mode of operation is a so-called "non-blocking availability" (NBA) where after a failure the client can immediately continue writing new data without any IO degradation. To this end, a client is handed out a new layout to which it can write. After this point, the cluster-wide object has a composite layout: some parts of the object's linear name-space are mapped accordingly to the old layout, and other parts (ones where clients write after a failure)—are a new one. In this configuration, clients never write to the old layout, while its content is being reconstructed.  
 
 The situation where there is a client-originated IO against layouts being reconstructed is possible because of:    
 * Reads have to access old data even under NBA policy and
 * The non-repair reconstructions like migration or replication.  
 
-## Logical specification
+## Logical specification ##
 Please refer to "HLD of Copy Machine and Agents" for logical specifications of a copy machine.  
 
-### Concurrency control
+### Concurrency control ###
 Motr will support a variety of concurrency control mechanisms selected dynamically to optimize resource utilization. Without going into much detail, the following mechanisms are considered for controlling access to cluster-wide object data:  
 * A complete file lock is acquired on a meta-data server when the cluster-wide object meta-data are fetched. This works only for the cluster-wide objects visible in a file system name-space (i.e., for files).  
 * An extent lock is taken on one of the lock servers. A replicated lock service runs on the pool servers. Every cluster-wide object has an associated locking server where locks on extents of object data are taken. The locking server might be one of the servers where object data are stored.  
@@ -170,10 +170,9 @@ Independently of whether a cluster-wide object-level locking model [1], where th
 
 Fortunately, this ordering requirement can be weakened by making every agent take (the same) required to lock and assuming that the lock manager recognizes, by comparing transaction identifiers, that lock requests from different agents are part of the same transaction and, hence, are not in conflict [4]. Overhead of locking can be amortized by batching and locking-ahead.  
 
-### Pool machine
+### Pool machine ###
 Pool machine is a replicated state machine, having replicas on all pool nodes. Each replica maintains the following state:   
-````
-node          : array of struct { id    : node identity,  
+````node          : array of struct { id    : node identity,
                              state : enum state };  
 device        : array of struct { id    : device identity,
                              state : enum state };  
@@ -212,11 +211,11 @@ As part of changing its state, a pool machine interacts with external entities s
 
 Additional STOPPED state can be introduced for nodes and devices. This state is entered when a node or a device is deliberately temporarily inactivated, for example, to move a device from one node to another or to re-cable a node as part of preventive maintenance. After a device or a node stood in STOPPED state for more than some predefined time, it enters OFFLINE state. See details in the State section.  
 
-### Server state machine
+### Server state machine ###
 Persistent server state consists of its copy of the pool state.
 On boot, a server contacts a quorum [6] of pool servers (counting itself) and updates its copy of the pool state. If recovery is necessary (unclean shutdown, server state as returned by the quorum is not OFFLINE), the server changes the pool state (through the quorum) to register that it is recovering. After the recovery of distributed transactions completes, the server changes the pool state to indicate that the server is now in ONLINE state (which must have been the server's pre-recovery state). See details in the State section.  
 
-#### 6.1. Conformance
+#### 6.1. Conformance ####
 * [i.sns.repair.triggers] A pool machine registers with the health layer its interest [7] in hearing about device [8], node [9], and network [10] failures. When health layer notifies [11] the pool machine about a failure, state transition happens [12] and repair, if necessary, is triggered.    
 * [i.sns.repair.code-reuse] Local RAID repair is a special case of general repair. When a storage device fails that requires only local repair, the pool machine records this failure as in general case and creates a copy engine to handle the repair. All agents of this machine are operating on the same node.  
 * [i.sns.repair.layout-update] When a pool state machine enters a non-normal state, it changes its version. The client attempts to do the IO on layouts tagged with the old version, would have to re-fetch the pool state. Optionally, the requests layout manager proactively revokes all layouts intersecting [13] with the failed device or node. Optionally, use the copy machine "enter layout" progress call-back to revoke a particular layout. As part of re-fetching layouts, clients learn the updated list of alive nodes and devices. This list is a parameter to the layout [14]. The layout IO engine uses this parameter to do IO in degraded mode [15].  
@@ -243,7 +242,7 @@ On boot, a server contacts a quorum [6] of pool servers (counting itself) and up
 * [i.sns.repair.failure.permanent] Repair handles permanent failures gracefully. Repair updates file layouts at the transaction boundary. Together with copy machine state replication, this guarantees that repair can continue in the face of multiple failures.  
 * [i.sns.repair.used-only] Repair should not reconstruct unused (free) parts of failed storage: this is a property of a container-based repair design.   
 
-### 6.2. Dependencies  
+### 6.2. Dependencies ###
 * Layouts   
   * [r.layout.intersects]: It must be possible to efficiently find all layouts intersecting with a given server or a given storage device.
   * [r.layout.parameter.dead]: A list of failed servers and devices is a parameter to a layout formula.    
@@ -296,12 +295,12 @@ On boot, a server contacts a quorum [6] of pool servers (counting itself) and up
   * [r.quorum.consensus]: Quorum based consensus mechanism is needed.  
   * [r.quorum.read]: Read access to quorum decisions is needed.  
 
-### 6.3. Security model
+### 6.3. Security model ###
 
-#### 6.3.1. Network  
+#### 6.3.1. Network ####
   It is assumed that messages exchanged over the network are signed so that a message sender can be established reliably. Under this condition, nodes cannot impersonate each other.  
 
-#### 6.3.2. Servers
+#### 6.3.2. Servers ####
   The present design provides very little protection against a compromised server. While compromised storage-in or network agents can be detected by using striping redundancy information, there is no way to independently validate the output of a collecting agent or check that the storage-out agent wrote the right data to the storage. In general, this issue is unavoidable as long as the output set can be non-redundant.  
 
   If we restrict ourselves to the situations where the output set is always redundant, the quorum-based agreement can be used to deal with malicious servers in the spirit of Practical Byzantine Fault Tolerance. Replicated state machine design of a copy machine lends itself naturally to a quorum-based solution.  
@@ -310,22 +309,22 @@ On boot, a server contacts a quorum [6] of pool servers (counting itself) and up
 
   The systematic solution to such problems is to utilize the already present redundancy in the input set. For example, when a layout with N+K (where K > 2) striping pattern is repaired after a single failure, the N+K-1 survived striping units are gathered from each parity group. The collecting agent uses the additional units to check in three ways that every received unit matches the redundancy and uses the majority in case of a mismatch. This guarantees a single malign server can be detected. RAID-like striping patterns can be generalized from fail-stop failures to Byzantine failures. It seems that as typical for agreement protocols, an N+K pattern with K > 2*F would suffice to handle up to F arbitrary failures (including usual fail-stop failures).  
 
-#### 6.3.3. Clients  
+#### 6.3.3. Clients ####
   In general, the fundamental difference between a server and a client is that the latter cannot be replicated because it runs arbitrary code outside of Motr control. While the well-formedness of client-supplied transactions and client liveness can be checked with some effort, there is no obvious way to verify that a client calculates redundancy information correctly, without sacrificing system performance to a considerable degree. It is, hence, posited that SNS operations, including client interaction with repair machinery, can originate only from trusted clients [18].  
 
-#### 6.3.4. Others
+#### 6.3.4. Others ####
   The SNS repair interacts with and depends on a variety of core distributed Motr services including liveness layer, lock servers, distributed transaction manager, and management tool. Security concerns for such services should be addressed generically and are beyond the scope of the present design.  
 
   **6.3.5. Issues**  
 
 It is in no way clear that the analysis above is any close to exhaustive. A formal security model is required [19].  
 
-### 6.4. Refinement  
+### 6.4. Refinement ###
 * Pool machine:   
     * Device-node function: Mapping between the device identifier and the node identifier is an implicit part of the pool state.  
 
-## State
-### 7.1. Pool machine states, events, transitions
+## State ##
+### 7.1. Pool machine states, events, transitions ###
   The pool machine states can be classified into state classes S(n, k). "Macroscopic" transitions between state classes are described by the following state machine diagram:  
 
 ![image](./Images/StateMachine.png)
@@ -362,14 +361,14 @@ Events:
 * client read  
 * client write   
 
-### 7.2. Pool machine state invariants
+### 7.2. Pool machine state invariants ###
 In a state class  S(n, k) the following invariants are maintained (for a replicated machine a state invariant is a condition that is true on at least some quorum of state replicas):  
 * If  n <= max-node-failures and k <= max-device-failures, then exactly F(n, k)/F(max-node-failures, max-device-failures) of pool (distributed) spare space is busy, where the definition of F(n, k) function depends on details of striping pattern is used by the pool (described elsewhere). Otherwise, the pool is a dud and all spare space is busy.  
 * (This is not, technically speaking, an invariant) Version vector a part of pool machine state is updated so that layouts issued before cross-class state transition can be invalidated if necessary.  
 * No repair or rebalancing copy machine is running when a state class is entered or left.  
 
 
-### 7.3. Server machine states, events, transitions
+### 7.3. Server machine states, events, transitions ###
 
 State transition diagram:  
 ![image](./Images/StateTransition.png)
@@ -391,15 +390,15 @@ In the table form:
 |device_leave|	defer|	defer|	on line/notify|	off line/notify|
 |reset|	restart|	restart	|restart|	restart|   
 
-### 7.4. Server state machine invariants  
+### 7.4. Server state machine invariants ###
 Server state machine: no storage operations in OFFLINE state.  
 
-### 7.5. Concurrency control
+### 7.5. Concurrency control ###
 All state machines function according to the Run-To-Completion (RTC) model. In the RTC model each state transition is executed completely before the next state transition is allowed to start. Queuing [20] is used to defer concurrently incoming events.
 
 
-## Use cases  
-### 8.1. Scenarios
+## Use cases ##
+### 8.1. Scenarios ###
 
 |Scenario|	usecase.repair.throughput-single|
 |--------|----------------------------------|
@@ -563,10 +562,10 @@ All state machines function according to the Run-To-Completion (RTC) model. In t
 |Response measure|	SNS repairs are executed with higher priority first.  This is achieved by looping from the highest priority to the lowest one to initiate new repairs.|
 |Questions and issues|	 
 
-### 8.2. Failures
+### 8.2. Failures ###
 See Logical specification and State section for failure handling and Security model sub-section for Byzantine failures.  
 
-## 9.1. Scalability  
+## 9.1. Scalability ##
 Major input parameters, affecting SNS repair behavior are:  
 * Number of storage devices attached to a server  
 * Number of servers in the pool  
@@ -654,7 +653,7 @@ For a larger configuration with N<sub small>S = 10, </sub> N<sub small>D </sub> 
 
 In all cases, storage IO is the bottleneck.  
 
-### 9.2. Rationale  
+### 9.2. Rationale ###
 * Flow control. Should network-in agents drop incoming copy packets when node runs out of resource limits?  
 * Pipeline based flow control.  
 * A dedicated lock(-ahead) agent can be split out of storage-in agent for uniformity.  

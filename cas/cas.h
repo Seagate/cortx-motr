@@ -42,6 +42,8 @@
 #include "dix/layout_xc.h"
 #include "dtm0/tx_desc.h"	/* tx_desc */
 #include "dtm0/tx_desc_xc.h"	/* xc for tx_desc */
+#include "dtm0/dtm0.h"          /* m0_dtx0_descriptor */
+#include "dtm0/dtm0_xc.h"       /* xc for m0_dtx0_descriptor */
 
 /**
  * @page cas-fspec The catalogue service (CAS)
@@ -402,6 +404,12 @@ struct m0_cas_op {
 	 * Transaction descriptor associated with CAS operation.
 	 */
 	struct m0_dtm0_tx_desc cg_txd;
+
+	/**
+	 * Transaction descriptor (new DTM0) associated with this CAS
+	 * operation.
+	 */
+	struct m0_dtx0_descriptor cg_descriptor;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
@@ -479,6 +487,11 @@ M0_INTERNAL void m0_cas__ut_svc_be_set(struct m0_reqh_service *svc,
 				       struct m0_be_domain *dom);
 M0_INTERNAL struct m0_be_domain *
 m0_cas__ut_svc_be_get(struct m0_reqh_service *svc);
+struct m0_dtm0_domain;
+M0_INTERNAL void m0_cas__ut_svc_dtm0_domain_set(struct m0_reqh_service *svc,
+						struct m0_dtm0_domain  *dod);
+M0_INTERNAL struct m0_be_domain *
+m0_cas__ut_svc_be_get(struct m0_reqh_service *svc);
 M0_INTERNAL int m0_cas_fom_spawn(
 	struct m0_fom           *lead,
 	struct m0_fom_thralldom *thrall,
@@ -545,6 +558,15 @@ M0_INTERNAL void m0_crv_tbs_set(struct m0_crv *crv, bool tbs);
 M0_INTERNAL struct m0_dtm0_ts m0_crv_ts(const struct m0_crv *crv);
 M0_INTERNAL void m0_crv_ts_set(struct m0_crv           *crv,
 			       const struct m0_dtm0_ts *ts);
+
+struct m0_fop;
+struct m0_dtm0_redo;
+
+M0_INTERNAL bool m0_cas_fop_is_redoable(struct m0_fop *fop);
+M0_INTERNAL int m0_cas_fop2redo(const struct m0_fop *fop,
+				struct m0_dtm0_redo *redo);
+M0_INTERNAL int m0_cas_redo2fop(struct m0_fop *fop,
+				const struct m0_dtm0_redo *redo);
 
 /** @} end of cas_dfspec */
 #endif /* __MOTR_CAS_CAS_H__ */

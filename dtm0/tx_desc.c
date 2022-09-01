@@ -86,7 +86,7 @@ M0_INTERNAL int m0_dtm0_tx_desc_copy(const struct m0_dtm0_tx_desc *src,
 	M0_ENTRY();
 
 	M0_PRE(m0_dtm0_tx_desc__invariant(src));
-
+	M0_LOG(M0_DEBUG, "participants nr:%d", src->dtd_ps.dtp_nr);
 	rc = m0_dtm0_tx_desc_init(dst, src->dtd_ps.dtp_nr);
 	if (rc == 0) {
 		dst->dtd_id = src->dtd_id;

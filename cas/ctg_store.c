@@ -169,6 +169,10 @@ static int  ctg_op_exec      (struct m0_ctg_op *ctg_op, int next_phase);
 static int  ctg_meta_exec    (struct m0_ctg_op    *ctg_op,
 			      const struct m0_fid *fid,
 			      int                  next_phase);
+static int  ctg_dead_exec    (struct m0_ctg_op    *ctg_op,
+			      struct m0_cas_ctg   *ctg,
+			      const struct m0_buf *key,
+			      int                  next_phase);
 static int  ctg_exec         (struct m0_ctg_op    *ctg_op,
 			      struct m0_cas_ctg   *ctg,
 			      const struct m0_buf *key,
@@ -479,7 +483,7 @@ int m0_ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 			bt.vsize = sizeof(struct meta_value);
 			break;
 		case CTT_DEADIDX:
-			bt.ksize = sizeof(struct meta_value);
+			bt.ksize = sizeof(struct generic_key *) + sizeof(void *);
 			bt.vsize = sizeof(void *);
 			break;
 		case CTT_CTIDX:
@@ -966,6 +970,11 @@ static void ctg_store_release(struct m0_ref *ref)
 
 	M0_ENTRY();
 	m0_mutex_fini(&ctg_store->cs_state_mutex);
+	/* TODO: Clean up every index in memory tree allocation upon any CAS
+	   operation on the index */
+	ctg_fini(ctg_store->cs_state->cs_meta);
+	ctg_fini(ctg_store->cs_ctidx);
+	ctg_fini(ctg_store->cs_dead_index);
 	ctg_store->cs_state = NULL;
 	ctg_store->cs_ctidx = NULL;
 	m0_long_lock_fini(&ctg_store->cs_del_lock);
@@ -1382,7 +1391,7 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 		 * m0_be_btree_insert_inplace() have 0 there.
 		 */
 
-		vsize = sizeof(struct generic_value);
+		vsize = sizeof(void *);
 		rec.r_key.k_data = M0_BUFVEC_INIT_BUF(&k_ptr, &ksize);
 		rec.r_val        = M0_BUFVEC_INIT_BUF(&v_ptr, &vsize);
 		rec.r_crc_type   = M0_BCT_NO_CRC;
@@ -1425,6 +1434,8 @@ static int ctg_op_exec_normal(struct m0_ctg_op *ctg_op, int next_phase)
 								&kv_op, tx));
 		m0_be_op_done(beop);
 		break;
+	case CTG_OP_COMBINE(CO_DEL, CT_DEAD_INDEX):
+		ksize = sizeof(struct generic_key *) + sizeof(void *);
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
 		m0_be_op_active(beop);
@@ -1649,13 +1660,49 @@ M0_INTERNAL int m0_ctg_dead_index_insert(struct m0_ctg_op  *ctg_op,
 					 struct m0_cas_ctg *ctg,
 					 int                next_phase)
 {
-	ctg_op->co_ctg = m0_ctg_dead_index();
-	ctg_op->co_ct = CT_DEAD_INDEX;
 	ctg_op->co_opcode = CO_PUT;
 	/* Dead index value is empty */
 	ctg_op->co_val = M0_BUF_INIT0;
 	/* Dead index key is a pointer to a catalogue */
-	return ctg_exec(ctg_op, ctg, &M0_BUF_INIT_PTR(&ctg), next_phase);
+	return ctg_dead_exec(ctg_op, ctg, &M0_BUF_INIT_PTR(&ctg), next_phase);
+}
+
+M0_INTERNAL int m0_ctg_dead_delete(struct m0_ctg_op    *ctg_op,
+				   struct m0_cas_ctg   *ctg,
+				   const struct m0_buf *key,
+				   int                  next_phase)
+{
+	M0_PRE(ctg_op != NULL);
+	M0_PRE(ctg != NULL);
+	M0_PRE(key != NULL);
+	M0_PRE(ctg_op->co_beop.bo_sm.sm_state == M0_BOS_INIT);
+
+	ctg_op->co_opcode = CO_DEL;
+
+	return ctg_dead_exec(ctg_op, ctg, key, next_phase);
+}
+
+static int ctg_dead_exec(struct m0_ctg_op    *ctg_op,
+			 struct m0_cas_ctg   *ctg,
+			 const struct m0_buf *key,
+			 int                  next_phase)
+{
+	int ret = M0_FSO_AGAIN;
+
+	ctg_op->co_ctg = m0_ctg_dead_index();
+	ctg_op->co_ct  = CT_DEAD_INDEX;
+
+	if (!M0_IN(ctg_op->co_opcode, (CO_MIN, CO_TRUNC, CO_DROP)) &&
+	    (ctg_op->co_opcode != CO_CUR ||
+	     ctg_op->co_cur_phase != CPH_NEXT))
+		ctg_op->co_rc = ctg_kbuf_get(&ctg_op->co_key, key, true);
+
+	if (ctg_op->co_rc != 0)
+		m0_fom_phase_set(ctg_op->co_fom, next_phase);
+	else
+		ret = ctg_op_exec(ctg_op, next_phase);
+
+	return ret;
 }
 
 static int ctg_exec(struct m0_ctg_op    *ctg_op,
@@ -1666,7 +1713,7 @@ static int ctg_exec(struct m0_ctg_op    *ctg_op,
 	int ret = M0_FSO_AGAIN;
 
 	ctg_op->co_ctg = ctg;
-	ctg_op->co_ct = CT_BTREE;
+	ctg_op->co_ct  = CT_BTREE;
 
 	if (!M0_IN(ctg_op->co_opcode, (CO_MIN, CO_TRUNC, CO_DROP)) &&
 	    (ctg_op->co_opcode != CO_CUR ||

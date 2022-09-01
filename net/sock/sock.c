@@ -2386,6 +2386,7 @@ static int ep_find(struct ma *ma, const char *name, struct ep **out)
 /** Returns end-point transfer machine. */
 static struct ma *ep_ma(struct ep *ep)
 {
+	M0_PRE(ep != NULL);
 	return ep->e_ep.nep_tm->ntm_xprt_private;
 }
 

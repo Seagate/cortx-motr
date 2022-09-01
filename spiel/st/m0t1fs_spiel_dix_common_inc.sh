@@ -83,8 +83,8 @@ verify()
 	local log_file=$SANDBOX_DIR/check.txt
 	local res=$SANDBOX_DIR/res.txt
 	echo "verifying ..."
-	$DIXINIT_TOOL_CHECK  >$log_file 2>&1
-	grep "Metadata exists:" $log_file | grep -v "Metadata exists: true" > $res
+	"$DIXINIT_TOOL_CHECK"  >"$log_file" 2>&1
+	grep "Metadata exists:" "$log_file" | grep -v "Metadata exists: true" > $res
 	if [ -s $res ]
 	then
 		echo "See log file with results: $log_file, $res"
@@ -116,7 +116,7 @@ spiel_prepare()
 
 spiel_cleanup()
 {
-	cd $M0_SRC_DIR/utils/spiel
+	cd "$M0_SRC_DIR"/utils/spiel
 	cat $PYTHON_STUFF | xargs rm -rf
 	rm -rf build/ $PYTHON_STUFF
 	cd -
@@ -139,8 +139,8 @@ EOF
 
 spiel_dix_repair_abort()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+     "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -154,8 +154,8 @@ EOF
 
 spiel_dix_repair_quiesce()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+     "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -169,8 +169,8 @@ EOF
 
 spiel_dix_repair_continue()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+     "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -184,8 +184,8 @@ EOF
 
 spiel_wait_for_dix_repair()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+     "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 import time
 $SPIEL_FIDS_LIST
 
@@ -213,8 +213,8 @@ EOF
 
 spiel_dix_rebalance_start()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+     "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -228,8 +228,8 @@ EOF
 
 spiel_dix_rebalance_quiesce()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+     "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -243,8 +243,8 @@ EOF
 
 spiel_dix_rebalance_continue()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+     "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -258,8 +258,8 @@ EOF
 
 spiel_wait_for_dix_rebalance()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+     "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 import time
 $SPIEL_FIDS_LIST
 
@@ -287,8 +287,8 @@ EOF
 
 spiel_dix_rebalance_abort()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+     "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START

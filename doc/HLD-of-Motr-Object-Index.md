@@ -1,4 +1,4 @@
-# High-Level Design of a Motr Object Index  
+# High-Level Design of a Motr Object Index
 This document provides a High-Level Design **(HLD)** of an Object Index for the Motr M0 core. The main purposes of this document are:  
 - To be inspected by M0 architects and peer designers to ensure that HLD is aligned with M0 architecture and other designs and contains no defects.  
 - To be a source of material for Active Reviews of Intermediate Design **(ARID)** and Detailed Level Design **(DLD)** of the same component.
@@ -66,7 +66,7 @@ Three database tables are used to capture cob metadata:
   There may be multiple cob_domains within a metadata container, but the usual case will be 1 cob_domain per container. A cob_domain may be identified by an ordinal index inside a container.
   The list of domains will be created at container ingest.    
 
-````
+```C
   struct m0_cob_domain {
 
         cob_domain_id cd_id /* domain identifier */  
@@ -84,11 +84,11 @@ Three database tables are used to capture cob metadata:
         m0_addb_ctx cd_addb   
 
   }
-  `````  
+  ```  
 
   A m0_cob is an in-memory structure, instantiated by the method cob_find and populated as needed from the above database tables. The m0_cob may be cached and should be protected by a lock.  
 
-  ````
+  ```C
   struct m0_cob {
 
             fid co_fid;     
@@ -107,7 +107,7 @@ Three database tables are used to capture cob metadata:
 
             struct object_index_rec *co_oi_rec; /* pfid, filename */  
 };  
-``````  
+``` 
 
 The *_rec members are pointers to the records from the database tables. These records may or may not be populated at various stages in cob life.  
 The co_stob reference is also likely to remain unset, as metadata operations will not frequently affect the underlying storage object and, indeed, the storage object is likely to live on a different node.
@@ -134,12 +134,12 @@ Simple mapping functions from the fid to stob:so_id and to the cob_domain:cd_id 
 - `[I.M0.FOL.UNDO]`: versions and lsn's are stored with metadata for recovery  
 - `[I.M0.CACHE.MD]`: m0_cob is refcounted and locked.  
 
-### Dependencies  
+### Dependencies
 - `[R.M0.FID.UNIQUE]`: uses; fids can be used to uniquely identify a stob  
 - `[R.M0.CONTAINER.FID]`: uses; fids indentify the cob_domain via the container  
 - `[R.M0.LAYOUT.LAYID]`: uses; reference stored in fileattr_basic table.      
 
-## Use Cases  
+## Use Cases
 
 ### Scenarios
 

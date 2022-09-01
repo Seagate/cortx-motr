@@ -27,7 +27,7 @@
 #include "motr/client.h"
 #include "motr/client_internal.h"
 #include "motr/ut/client.h"
-#include "lib/cksum.h"
+#include "lib/cksum_data.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLIENT
 #include "lib/trace.h"          /* M0_LOG */
@@ -47,13 +47,13 @@ enum {
 #define OBJ_KEY 0x456
 
 struct m0_bufvec *user_data;
-unsigned char *curr_context[DATA_UNIT_COUNT];
-unsigned char *seeded_sum[DATA_UNIT_COUNT];
-unsigned char *final_sum;
+unsigned char    *curr_context[DATA_UNIT_COUNT];
+unsigned char    *seeded_sum[DATA_UNIT_COUNT];
+unsigned char    *final_sum;
 
 struct m0_bufvec *big_user_data;
-unsigned char *big_curr_context;
-unsigned char *big_final_sum;
+unsigned char    *big_curr_context;
+unsigned char    *big_final_sum;
 
 M0_INTERNAL int pi_init(void)
 {
@@ -61,8 +61,10 @@ M0_INTERNAL int pi_init(void)
 	ut_shuffle_test_order(&ut_suite_pi);
 #endif
 
-	int i, j, rc;
-	// allocate and populate buffers
+	int i;
+	int j;
+	int rc;
+	/* allocate and populate buffers */
 
 	M0_ALLOC_ARR(user_data, DATA_UNIT_COUNT);
 	M0_UT_ASSERT(user_data != NULL);
@@ -121,13 +123,15 @@ M0_INTERNAL int pi_fini(void)
 
 void verify_case_one_two(void)
 {
-	int i, j, rc;
-	MD5_CTX curr_ctx;
-	MD5_CTX tmp_ctx;
-	char seed_str[64] = {'\0'};
-	struct m0_pi_seed seed;
-	unsigned char *seed_sum;
-	unsigned char *unseed_final_sum;
+	int                i;
+	int                j;
+	int                rc;
+	MD5_CTX            curr_ctx;
+	MD5_CTX            tmp_ctx;
+	char               seed_str[64] = {'\0'};
+	struct m0_pi_seed  seed;
+	unsigned char     *seed_sum;
+	unsigned char     *unseed_final_sum;
 
 	M0_ALLOC_ARR(seed_sum, MD5_DIGEST_LENGTH);
 	M0_UT_ASSERT(seed_sum != NULL);
@@ -137,8 +141,7 @@ void verify_case_one_two(void)
 	rc = MD5_Init(&curr_ctx);
 	M0_UT_ASSERT(rc == 1);
 
-	for (j = 0; j < DATA_UNIT_COUNT; j++)
-	{
+	for (j = 0; j < DATA_UNIT_COUNT; j++) {
 		for (i = 0; i < user_data[j].ov_vec.v_nr; i++) {
 			rc = MD5_Update(&curr_ctx, user_data[j].ov_buf[i],
 					user_data[j].ov_vec.v_count[i]);
@@ -146,24 +149,24 @@ void verify_case_one_two(void)
 		}
 
 		M0_UT_ASSERT(memcmp((MD5_CTX *)curr_context[j], &curr_ctx,
-					sizeof(MD5_CTX)) == 0);
+				    sizeof(MD5_CTX)) == 0);
 
 		if (j == DATA_UNIT_COUNT - 1 ) {
 			rc = MD5_Final(unseed_final_sum, &curr_ctx);
 			M0_UT_ASSERT(rc == 1);
 			M0_UT_ASSERT(memcmp(final_sum, unseed_final_sum,
-						MD5_DIGEST_LENGTH) == 0);
+					    MD5_DIGEST_LENGTH) == 0);
 		}
 	}
 
 	m0_fid_set(&seed.pis_obj_id, OBJ_CONTAINER, OBJ_KEY);
-	for (j = 0; j < DATA_UNIT_COUNT; j++)
-	{
-		memcpy((void *)&tmp_ctx,(void *)curr_context[j],sizeof(MD5_CTX));
-		seed.pis_data_unit_offset = j*SEGS_NR*BUFFER_SIZE;
-		snprintf(seed_str,sizeof(seed_str),"%" PRIx64 "%" PRIx64 "%"PRIx64,
-				seed.pis_obj_id.f_container, seed.pis_obj_id.f_key,
-				seed.pis_data_unit_offset);
+	for (j = 0; j < DATA_UNIT_COUNT; j++) {
+		memcpy((void *)&tmp_ctx, (void *)curr_context[j],
+		       sizeof(MD5_CTX));
+		seed.pis_data_unit_offset = j * SEGS_NR * BUFFER_SIZE;
+		snprintf(seed_str, sizeof(seed_str),"%"PRIx64"%"PRIx64"%"PRIx64,
+			 seed.pis_obj_id.f_container, seed.pis_obj_id.f_key,
+			 seed.pis_data_unit_offset);
 
 		rc = MD5_Update(&tmp_ctx, (unsigned char *)seed_str,
 				sizeof(seed_str));
@@ -171,11 +174,11 @@ void verify_case_one_two(void)
 		rc = MD5_Final(seed_sum, &tmp_ctx);
 		M0_UT_ASSERT(rc == 1);
 		M0_UT_ASSERT(memcmp(seeded_sum[j], seed_sum,
-					MD5_DIGEST_LENGTH) == 0);
+				    MD5_DIGEST_LENGTH) == 0);
 	}
 
 	M0_UT_ASSERT(memcmp(final_sum, big_final_sum,
-				MD5_DIGEST_LENGTH) == 0);
+			    MD5_DIGEST_LENGTH) == 0);
 
 	m0_free(seed_sum);
 	m0_free(unseed_final_sum);
@@ -203,9 +206,10 @@ void verify_case_one_two(void)
 static void ut_test_pi_api_case_one_two(void)
 {
 
-	int j, rc;
+	int                          j;
+	int                          rc;
 	struct m0_md5_inc_context_pi pi;
-	struct m0_pi_seed seed;
+	struct m0_pi_seed            seed;
 
 	m0_fid_set(&seed.pis_obj_id, OBJ_CONTAINER, OBJ_KEY);
 
@@ -214,35 +218,37 @@ static void ut_test_pi_api_case_one_two(void)
 
 	for (j = 0; j < DATA_UNIT_COUNT; j++) {
 
-		seed.pis_data_unit_offset = j*SEGS_NR*BUFFER_SIZE;
+		seed.pis_data_unit_offset = j * SEGS_NR * BUFFER_SIZE;
 		if (j == 0) {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-					&seed, &user_data[j], M0_PI_CALC_UNIT_ZERO,
-					curr_context[j], NULL);
+						    &seed, &user_data[j],
+						    M0_PI_CALC_UNIT_ZERO,
+						    curr_context[j], NULL);
 			M0_UT_ASSERT(rc == 0);
-		}
-		else if (j == DATA_UNIT_COUNT - 1) {
+		} else if (j == DATA_UNIT_COUNT - 1) {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-					&seed, &user_data[j], M0_PI_NO_FLAG,
-					curr_context[j], final_sum);
+						    &seed, &user_data[j],
+						    M0_PI_NO_FLAG,
+						    curr_context[j], final_sum);
 			M0_UT_ASSERT(rc == 0);
-		}
-		else {
+		} else {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-					&seed, &user_data[j], M0_PI_NO_FLAG,
-					curr_context[j], NULL);
+						    &seed, &user_data[j],
+						    M0_PI_NO_FLAG,
+						    curr_context[j], NULL);
 			M0_UT_ASSERT(rc == 0);
 		}
 
-		memcpy(pi.pimd5c_prev_context, curr_context[j], sizeof(MD5_CTX));
+		memcpy(pi.pimd5c_prev_context, curr_context[j],
+		       sizeof(MD5_CTX));
 		memcpy(seeded_sum[j], pi.pimd5c_value, MD5_DIGEST_LENGTH);
 	}
 
 	memset(&pi, 0, sizeof(struct m0_md5_inc_context_pi));
 	pi.pimd5c_hdr.pih_type = M0_PI_TYPE_MD5_INC_CONTEXT;
 	rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi, NULL,
-			big_user_data, M0_PI_CALC_UNIT_ZERO,
-			big_curr_context, big_final_sum);
+				    big_user_data, M0_PI_CALC_UNIT_ZERO,
+				    big_curr_context, big_final_sum);
 	M0_UT_ASSERT(rc == 0);
 
 	verify_case_one_two();
@@ -259,13 +265,14 @@ static void ut_test_pi_api_case_one_two(void)
 static void ut_test_pi_api_case_third(void)
 {
 
-	int j, rc;
-	struct m0_md5_inc_context_pi pi;
-	struct m0_pi_seed seed;
-	unsigned char seeded_final_chunks_value[MD5_DIGEST_LENGTH];
+	int                            j;
+	int                            rc;
+	struct m0_md5_inc_context_pi   pi;
+	struct m0_pi_seed              seed;
+	unsigned char                  seeded_final_chunks_value[MD5_DIGEST_LENGTH];
 
 	m0_fid_set(&seed.pis_obj_id, OBJ_CONTAINER, OBJ_KEY);
-	seed.pis_data_unit_offset = (DATA_UNIT_COUNT-1)*SEGS_NR*BUFFER_SIZE;
+	seed.pis_data_unit_offset = (DATA_UNIT_COUNT-1) * SEGS_NR * BUFFER_SIZE;
 
 	memset(&pi, 0, sizeof(struct m0_md5_inc_context_pi));
 	pi.pimd5c_hdr.pih_type = M0_PI_TYPE_MD5_INC_CONTEXT;
@@ -275,24 +282,26 @@ static void ut_test_pi_api_case_third(void)
 
 		if (j == 0) {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-					NULL, &user_data[j], M0_PI_CALC_UNIT_ZERO,
-					curr_context[j], NULL);
+						    NULL, &user_data[j],
+						    M0_PI_CALC_UNIT_ZERO,
+						    curr_context[j], NULL);
 			M0_UT_ASSERT(rc == 0);
-		}
-		else if (j == DATA_UNIT_COUNT - 1) {
+		} else if (j == DATA_UNIT_COUNT - 1) {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-					&seed, &user_data[j], M0_PI_NO_FLAG,
-					curr_context[j], final_sum);
+						    &seed, &user_data[j],
+						    M0_PI_NO_FLAG,
+						    curr_context[j], final_sum);
 			M0_UT_ASSERT(rc == 0);
-		}
-		else {
+		} else {
 			rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-					NULL, &user_data[j], M0_PI_NO_FLAG,
-					curr_context[j], NULL);
+						    NULL, &user_data[j],
+						    M0_PI_NO_FLAG,
+						    curr_context[j], NULL);
 			M0_UT_ASSERT(rc == 0);
 		}
 
-		memcpy(pi.pimd5c_prev_context, curr_context[j], sizeof(MD5_CTX));
+		memcpy(pi.pimd5c_prev_context, curr_context[j],
+		       sizeof(MD5_CTX));
 		memcpy(seeded_sum[j], pi.pimd5c_value, MD5_DIGEST_LENGTH);
 	}
 
@@ -302,13 +311,13 @@ static void ut_test_pi_api_case_third(void)
 	memset(&pi, 0, sizeof(struct m0_md5_inc_context_pi));
 	pi.pimd5c_hdr.pih_type = M0_PI_TYPE_MD5_INC_CONTEXT;
 	rc = m0_client_calculate_pi((struct m0_generic_pi *)&pi,
-			&seed, big_user_data, M0_PI_CALC_UNIT_ZERO,
-			big_curr_context, big_final_sum);
+				    &seed, big_user_data, M0_PI_CALC_UNIT_ZERO,
+				    big_curr_context, big_final_sum);
 	M0_UT_ASSERT(rc == 0);
 
 	/* VERIFICATION */
 	M0_UT_ASSERT(memcmp(&seeded_final_chunks_value, pi.pimd5c_value,
-				MD5_DIGEST_LENGTH) == 0);
+			    MD5_DIGEST_LENGTH) == 0);
 	M0_UT_ASSERT(memcmp(final_sum, big_final_sum, MD5_DIGEST_LENGTH) == 0);
 
 }
@@ -328,3 +337,5 @@ struct m0_ut_suite ut_suite_pi = {
 };
 
 #undef M0_TRACE_SUBSYSTEM
+
+

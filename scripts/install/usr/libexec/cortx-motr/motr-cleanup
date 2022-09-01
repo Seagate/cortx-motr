@@ -39,11 +39,11 @@ source $service_funcs
 
 motr_services=""
 # motr-cleanup is excluded from the list
-for s in m0d@* m0t1fs@* motr-client motr-kernel motr-mkfs motr-mkfs@* motr-server-confd motr-server-ha motr-server@* motr motr-singlenode motr-trace@*; do
+for s in m0d@* m0t1fs@* motr-client motr-kernel motr-mkfs motr-mkfs@* motr-server@* motr-server-confd motr-server-ha motr motr-singlenode motr-trace@*; do
 	motr_services="$motr_services $s.service"
 done
 
-systemctl list-units --all $motr_services
+systemctl list-units --all $motr_services | tee
 
 m0_log 'Stopping motr-kernel with all dependencies ...'
 systemctl stop motr-kernel || m0_exit 'Failed to stop motr-kernel.'
@@ -51,12 +51,16 @@ systemctl stop motr-kernel || m0_exit 'Failed to stop motr-kernel.'
 m0_log 'Stopping all Motr services ...'
 systemctl stop $motr_services || m0_exit 'Failed to stop Motr services.'
 
-systemctl list-units --all $motr_services
+systemctl list-units --all $motr_services | tee
 
 for s in $(systemctl list-units --failed $motr_services | awk '/failed/ {if ($4 == "failed") print $2}'); do
 	m0_log "Resetting failed state for $s."
 	systemctl reset-failed $s
 done
+
+systemctl stop *mkfs.slice
+systemctl stop *trace.slice
+systemctl stop *server.slice
 
 m0_log 'Done.'
 

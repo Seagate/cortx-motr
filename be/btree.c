@@ -609,10 +609,10 @@ enum base_phase {
 };
 
 enum btree_node_type {
-	BNT_FIXED_FORMAT                         = 1,
-	BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE     = 2,
-	BNT_VARIABLE_KEYSIZE_FIXED_VALUESIZE     = 3,
-	BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE  = 4,
+	BNT_FIXED_FORMAT                        = 1,
+	BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE    = 2,
+	BNT_VARIABLE_KEYSIZE_FIXED_VALUESIZE    = 3,
+	BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE = 4,
 };
 
 enum {
@@ -882,8 +882,8 @@ struct node_type {
 
 	/** Initializes newly allocated node */
 	void (*nt_init)(const struct segaddr *addr, int ksize, int vsize,
-			int nsize, uint32_t ntype, uint64_t crc_type,
-			uint64_t gen, struct m0_fid fid);
+			int nsize, uint32_t ntype, enum m0_btree_types t_type,
+			uint64_t crc_type, uint64_t gen, struct m0_fid fid);
 
 	/** Cleanup of the node if any before deallocation */
 	void (*nt_fini)(const struct nd *node);
@@ -1182,28 +1182,30 @@ struct slot {
 			       m0_vec_count(&__src_rec->r_val.ov_vec));        \
 	})
 
-static int64_t tree_get   (struct node_op *op, struct segaddr *addr, int nxt);
-static void    tree_put   (struct td *tree);
+static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt);
+static void    tree_put(struct td *tree);
 
-static int64_t    bnode_get  (struct node_op *op, struct td *tree,
-			      struct segaddr *addr, int nxt);
-static void       bnode_put  (struct node_op *op, struct nd *node);
+static int64_t bnode_get(struct node_op *op, struct td *tree,
+			 struct segaddr *addr, int nxt);
+static void    bnode_put(struct node_op *op, struct nd *node);
 
 static void bnode_crc_validate(struct nd *node);
 
-static int64_t    bnode_free(struct node_op *op, struct nd *node,
-			     struct m0_be_tx *tx, int nxt);
-static int64_t    bnode_alloc(struct node_op *op, struct td *tree, int shift,
-			      const struct node_type *nt,
-			      const enum m0_btree_crc_type crc_type,
-			      int ksize, int vsize,
-			      struct m0_be_tx *tx, int nxt);
+static int64_t bnode_free(struct node_op *op, struct nd *node,
+			  struct m0_be_tx *tx, int nxt);
+static int64_t bnode_alloc(struct node_op *op, struct td *tree, int shift,
+			   const struct node_type *nt,
+			   enum m0_btree_types t_type,
+			   const enum m0_btree_crc_type crc_type,
+			   int ksize, int vsize,
+			   struct m0_be_tx *tx, int nxt);
 static void bnode_op_fini(struct node_op *op);
-static int bnode_access(struct segaddr *addr, int nxt);
+static int  bnode_access(struct segaddr *addr, int nxt);
 static int  bnode_init(struct segaddr *addr, int ksize, int vsize, int nsize,
-		       const struct node_type *nt,
+		       const struct node_type *nt, enum m0_btree_types t_type,
 		       const enum m0_btree_crc_type crc_type, uint64_t gen,
 		       struct m0_fid fid, int nxt);
+static enum m0_btree_types bnode_ttype_get(const struct nd *node);
 static uint32_t bnode_crctype_get(const struct nd *node);
 /* Returns the number of valid keys in the node. */
 static int  bnode_key_count(const struct nd *node);
@@ -1215,8 +1217,8 @@ static int  bnode_level(const struct nd *node);
 static int  bnode_nsize(const struct nd *node);
 static int  bnode_keysize(const struct nd *node);
 static int  bnode_valsize(const struct nd *node);
-static bool  bnode_isunderflow(const struct nd *node, bool predict);
-static bool  bnode_isoverflow(const struct nd *node, int max_ksize,
+static bool bnode_isunderflow(const struct nd *node, bool predict);
+static bool bnode_isoverflow(const struct nd *node, int max_ksize,
 			      const struct m0_btree_rec *rec);
 
 static void bnode_rec  (struct slot *slot);
@@ -1478,8 +1480,8 @@ static int bnode_access(struct segaddr *addr, int nxt)
 }
 
 static int bnode_init(struct segaddr *addr, int ksize, int vsize, int nsize,
-		      const struct node_type *nt,
-		      const enum m0_btree_crc_type crc_type,uint64_t gen,
+		      const struct node_type *nt, enum m0_btree_types t_type,
+		      const enum m0_btree_crc_type crc_type, uint64_t gen,
 		      struct m0_fid fid, int nxt)
 {
 	/**
@@ -1493,13 +1495,21 @@ static int bnode_init(struct segaddr *addr, int ksize, int vsize, int nsize,
 	 * requires some time to complete its operation.
 	 */
 
-	nt->nt_init(addr, ksize, vsize, nsize, nt->nt_id, crc_type, gen, fid);
+	nt->nt_init(addr, ksize, vsize, nsize, nt->nt_id, t_type, crc_type, gen,
+		    fid);
 	return nxt;
 }
 
 static uint32_t bnode_crctype_get(const struct nd *node)
 {
 	return node->n_type->nt_crctype_get(node);
+}
+
+static enum m0_btree_types bnode_ttype_get(const struct nd *node)
+{
+	struct node_header *h = segaddr_addr(&node->n_addr) +
+				sizeof(struct m0_format_header);
+	return h->h_tree_type;
 }
 
 static bool bnode_invariant(const struct nd *node)
@@ -1883,10 +1893,10 @@ M0_INTERNAL void m0_btree_lrulist_set_lru_config(int64_t slow_lru_mem_release,
 	M0_ASSERT(lru_space_wm_high >= lru_space_wm_target &&
 		  lru_space_wm_target >= lru_space_wm_low);
 
-	M0_LOG(M0_INFO, "Btree LRU List Watermarks: Low - %"PRIi64" Mid - "
+	M0_LOG(M0_NOTICE, "Btree LRU List Watermarks: Low - %"PRIi64" Mid - "
 	       "%"PRIi64" High - %"PRIi64" \n", lru_space_wm_low,
 	       lru_space_wm_target, lru_space_wm_high);
-	M0_LOG(M0_INFO, "Btree LRU List trickle release: %s \n",
+	M0_LOG(M0_NOTICE, "Btree LRU List trickle release: %s \n",
 	       lru_trickle_release_en ? "true" : "false");
 }
 
@@ -2014,7 +2024,6 @@ static int64_t tree_get(struct node_op *op, struct segaddr *addr, int nxt)
 
 	return nxt;
 }
-
 
 /**
  * Returns the tree to the free tree pool if the reference count for this tree
@@ -2347,6 +2356,7 @@ static int64_t bnode_free(struct node_op *op, struct nd *node,
  */
 static int64_t bnode_alloc(struct node_op *op, struct td *tree, int nsize,
 			   const struct node_type *nt,
+			   enum m0_btree_types t_type,
 			   const enum m0_btree_crc_type crc_type, int ksize,
 			   int vsize, struct m0_be_tx *tx, int nxt)
 {
@@ -2369,7 +2379,7 @@ static int64_t bnode_alloc(struct node_op *op, struct td *tree, int nsize,
 	op->no_addr = segaddr_build(area);
 	op->no_tree = tree;
 
-	nxt_state = bnode_init(&op->no_addr, ksize, vsize, nsize, nt,
+	nxt_state = bnode_init(&op->no_addr, ksize, vsize, nsize, nt, t_type,
 			       crc_type, tree->t_seg->bs_gen, tree->t_fid, nxt);
 	/**
 	 * TODO: Consider adding a state here to return in case we might need to
@@ -2417,9 +2427,32 @@ struct ff_head {
 	 */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
+/**
+ * Below asserts are added to verify the order of members in struct ff_head
+ * because this order is expected while performing data recovery.
+ */
+
+/**
+ * Assert to ensure struct m0_format_header should be first member of
+ * struct ff_head.
+ */
+M0_BASSERT(offsetof(struct ff_head, ff_fmt) == 0);
+
+/**
+ * Assert to ensure struct node_header is placed after struct m0_format_header.
+ */
+M0_BASSERT(offsetof(struct ff_head, ff_fmt) +
+	   sizeof(((struct ff_head *)0)->ff_fmt) == offsetof(struct ff_head,
+							     ff_seg));
+
+/** Assert to ensure void *ff_opaque is placed after struct m0_format_footer. */
+M0_BASSERT(offsetof(struct ff_head, ff_foot) +
+	   sizeof(((struct ff_head *)0)->ff_foot) == offsetof(struct ff_head,
+							      ff_opaque));
+
 static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
-		    uint32_t ntype, uint64_t crc_type, uint64_t gen,
-		    struct m0_fid fid);
+		    uint32_t ntype, enum m0_btree_types t_type,
+		    uint64_t crc_type, uint64_t gen, struct m0_fid fid);
 static void ff_fini(const struct nd *node);
 static uint32_t ff_crctype_get(const struct nd *node);
 static int  ff_rec_count(const struct nd *node);
@@ -2625,9 +2658,14 @@ static bool ff_invariant(const struct nd *node)
 {
 	const struct ff_head *h = ff_data(node);
 
-	/* TBD: add check for h_tree_type after initializing it in node_init. */
 	return  _0C(h->ff_fmt.hd_magic == M0_FORMAT_HEADER_MAGIC) &&
 		_0C(h->ff_seg.h_node_type == BNT_FIXED_FORMAT) &&
+		_0C(M0_IN(h->ff_seg.h_tree_type, (M0_BT_BALLOC_GROUP_EXTENTS,
+						  M0_BT_BALLOC_GROUP_DESC,
+						  M0_BT_CAS_CTG,
+						  M0_BT_COB_FILEATTR_OMG,
+						  M0_BT_COB_BYTECOUNT,
+						  M0_BT_UT_KV_OPS))) &&
 		_0C(h->ff_ksize != 0) && _0C(h->ff_vsize != 0);
 }
 
@@ -2654,16 +2692,17 @@ static bool segaddr_header_isvalid(const struct segaddr *addr)
 }
 
 static void ff_init(const struct segaddr *addr, int ksize, int vsize, int nsize,
-		    uint32_t ntype, uint64_t crc_type, uint64_t gen,
-		    struct m0_fid fid)
+		    uint32_t ntype, enum m0_btree_types t_type,
+		    uint64_t crc_type, uint64_t gen, struct m0_fid fid)
 {
-	struct ff_head *h   = segaddr_addr(addr);
+	struct ff_head *h     = segaddr_addr(addr);
 
 	M0_PRE(ksize != 0);
 	M0_PRE(vsize != 0);
 	M0_SET0(h);
 
 	h->ff_seg.h_crc_type  = crc_type;
+	h->ff_seg.h_tree_type = t_type;
 	h->ff_ksize           = ksize;
 	h->ff_vsize           = vsize;
 	h->ff_nsize           = nsize;
@@ -3389,9 +3428,34 @@ struct fkvv_head {
 
 #define OFFSET_SIZE sizeof(uint32_t)
 
+/**
+ * Below asserts are added to verify the order of members in struct fkvv_head
+ * because this order is expected while performing data recovery.
+ */
+
+/**
+ * Assert to ensure struct m0_format_header should be first member of
+ * struct fkvv_head.
+ */
+M0_BASSERT(offsetof(struct fkvv_head, fkvv_fmt) == 0);
+
+/**
+ * Assert to ensure struct node_header is placed after struct m0_format_header.
+ */
+M0_BASSERT(offsetof(struct fkvv_head, fkvv_fmt) +
+	   sizeof(((struct fkvv_head *)0)->fkvv_fmt) ==
+	   offsetof(struct fkvv_head, fkvv_seg));
+
+/**
+ * Assert to ensure void *fkvv_opaque is placed after struct m0_format_footer.
+ */
+M0_BASSERT(offsetof(struct fkvv_head, fkvv_foot) +
+	   sizeof(((struct fkvv_head *)0)->fkvv_foot) ==
+	   offsetof(struct fkvv_head, fkvv_opaque));
+
 static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
-		      int nsize, uint32_t ntype, uint64_t crc_type,
-		      uint64_t gen, struct m0_fid fid);
+		      int nsize, uint32_t ntype, enum m0_btree_types t_type,
+		      uint64_t crc_type, uint64_t gen, struct m0_fid fid);
 static void fkvv_fini(const struct nd *node);
 static uint32_t fkvv_crctype_get(const struct nd *node);
 static int  fkvv_rec_count(const struct nd *node);
@@ -3490,21 +3554,22 @@ static struct fkvv_head *fkvv_data(const struct nd *node)
 }
 
 static void fkvv_init(const struct segaddr *addr, int ksize, int vsize,
-		      int nsize, uint32_t ntype, uint64_t crc_type,
-		      uint64_t gen, struct m0_fid fid)
+		      int nsize, uint32_t ntype, enum m0_btree_types t_type,
+		      uint64_t crc_type, uint64_t gen, struct m0_fid fid)
 {
-	struct fkvv_head *h       = segaddr_addr(addr);
+	struct fkvv_head *h     = segaddr_addr(addr);
 
 	M0_PRE(ksize != 0);
 	M0_SET0(h);
 
-	h->fkvv_seg.h_crc_type    = crc_type;
-	h->fkvv_ksize             = ksize;
-	h->fkvv_nsize             = nsize;
-	h->fkvv_seg.h_node_type   = ntype;
-	h->fkvv_seg.h_gen         = gen;
-	h->fkvv_seg.h_fid         = fid;
-	h->fkvv_opaque            = NULL;
+	h->fkvv_seg.h_crc_type  = crc_type;
+	h->fkvv_seg.h_tree_type = t_type;
+	h->fkvv_ksize           = ksize;
+	h->fkvv_nsize           = nsize;
+	h->fkvv_seg.h_node_type = ntype;
+	h->fkvv_seg.h_gen       = gen;
+	h->fkvv_seg.h_fid       = fid;
+	h->fkvv_opaque          = NULL;
 
 	m0_format_header_pack(&h->fkvv_fmt, &(struct m0_format_tag){
 		.ot_version       = M0_BTREE_NODE_FORMAT_VERSION,
@@ -4040,10 +4105,15 @@ static bool fkvv_invariant(const struct nd *node)
 {
 	const struct fkvv_head *h = fkvv_data(node);
 
-	/* TBD: add check for h_tree_type after initializing it in node_init. */
 	return
 	_0C(h->fkvv_fmt.hd_magic == M0_FORMAT_HEADER_MAGIC) &&
 	_0C(h->fkvv_seg.h_node_type == BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE) &&
+	_0C(M0_IN(h->fkvv_seg.h_tree_type, (M0_BT_EMAP_EM_MAPPING,
+					    M0_BT_COB_OBJECT_INDEX,
+					    M0_BT_COB_FILEATTR_BASIC,
+					    M0_BT_CONFDB,
+					    M0_BT_DTM0_LOG,
+					    M0_BT_UT_KV_OPS))) &&
 	_0C(h->fkvv_ksize != 0);
 }
 
@@ -4346,8 +4416,8 @@ static void fkvv_rec_del_credit(const struct nd *node, m0_bcount_t ksize,
 #define INT_OFFSET sizeof(uint32_t)
 
 static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
-		      int nsize, uint32_t ntype, uint64_t crc_type,
-		      uint64_t gen, struct m0_fid fid);
+		      int nsize, uint32_t ntype, enum m0_btree_types t_type,
+		      uint64_t crc_type, uint64_t gen, struct m0_fid fid);
 static void vkvv_fini(const struct nd *node);
 static uint32_t vkvv_crctype_get(const struct nd *node);
 static int  vkvv_rec_count(const struct nd *node);
@@ -4469,6 +4539,31 @@ struct vkvv_head {
 	 */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
+/**
+ * Below asserts are added to verify the order of members in struct vkvv_head
+ * because this order is expected while performing data recovery.
+ */
+
+/**
+ * Assert to ensure struct m0_format_header should be first member of
+ * struct vkvv_head.
+ */
+M0_BASSERT(offsetof(struct vkvv_head, vkvv_fmt) == 0);
+
+/**
+ * Assert to ensure struct node_header is placed after struct m0_format_header.
+ */
+M0_BASSERT(offsetof(struct vkvv_head, vkvv_fmt) +
+	   sizeof(((struct vkvv_head *)0)->vkvv_fmt) ==
+	   offsetof(struct vkvv_head, vkvv_seg));
+
+/**
+ * Assert to ensure void *vkvv_opaque is placed after struct m0_format_footer.
+ */
+M0_BASSERT(offsetof(struct vkvv_head, vkvv_foot) +
+	   sizeof(((struct vkvv_head *)0)->vkvv_foot) ==
+	   offsetof(struct vkvv_head, vkvv_opaque));
+
 static struct vkvv_head *vkvv_data(const struct nd *node)
 {
 	return segaddr_addr(&node->n_addr);
@@ -4489,13 +4584,14 @@ static uint32_t vkvv_get_vspace(void)
  *         present in the middle of the node memory for leaf nodes.
  */
 static void vkvv_init(const struct segaddr *addr, int ksize, int vsize,
-		      int nsize, uint32_t ntype, uint64_t crc_type,
-		      uint64_t gen, struct m0_fid fid)
+		      int nsize, uint32_t ntype, enum m0_btree_types t_type,
+		      uint64_t crc_type, uint64_t gen, struct m0_fid fid)
 {
 	struct vkvv_head *h     = segaddr_addr(addr);
 	M0_SET0(h);
 
 	h->vkvv_seg.h_crc_type  = crc_type;
+	h->vkvv_seg.h_tree_type = t_type;
 	h->vkvv_dir_offset      = (nsize - sizeof(*h))/2;
 	h->vkvv_nsize           = nsize;
 	h->vkvv_seg.h_node_type = ntype;
@@ -4903,6 +4999,10 @@ static bool vkvv_invariant(const struct nd *node)
 	struct vkvv_head *h = vkvv_data(node);
 
 	return  _0C(h->vkvv_fmt.hd_magic == M0_FORMAT_HEADER_MAGIC) &&
+		_0C(M0_IN(h->vkvv_seg.h_tree_type, (M0_BT_CAS_CTG,
+						    M0_BT_COB_NAMESPACE,
+						    M0_BT_COB_FILEATTR_EA,
+						    M0_BT_UT_KV_OPS))) &&
 		_0C(h->vkvv_seg.h_node_type ==
 		    BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE);
 }
@@ -6618,11 +6718,13 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				int vsize   = bnode_valsize(lev->l_node);
 				int nsize   = bnode_nsize(tree->t_root);
 				int crctype = bnode_crctype_get(lev->l_node);
+				enum m0_btree_types t_type =
+						   bnode_ttype_get(lev->l_node);
 				oi->i_nop.no_opc = NOP_ALLOC;
 				bnode_unlock(lev->l_node);
 				return bnode_alloc(&oi->i_nop, tree,
 						  nsize, lev->l_node->n_type,
-						  crctype, ksize, vsize,
+						  t_type, crctype, ksize, vsize,
 						  bop->bo_tx, P_ALLOC_STORE);
 
 			}
@@ -6652,6 +6754,7 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 				int vsize;
 				int nsize;
 				int crctype;
+				enum m0_btree_types t_type;
 
 				lev->l_alloc = oi->i_nop.no_node;
 				oi->i_nop.no_node = NULL;
@@ -6661,15 +6764,16 @@ static int64_t btree_put_kv_tick(struct m0_sm_op *smop)
 					return m0_sm_op_sub(&bop->bo_op,
 							    P_CLEANUP, P_SETUP);
 				}
-				ksize  = bnode_keysize(lev->l_node);
+				ksize   = bnode_keysize(lev->l_node);
 				vsize   = bnode_valsize(lev->l_node);
 				nsize   = bnode_nsize(tree->t_root);
 				crctype = bnode_crctype_get(lev->l_node);
+				t_type  = bnode_ttype_get(lev->l_node);
 				oi->i_nop.no_opc = NOP_ALLOC;
 				bnode_unlock(lev->l_node);
 				return bnode_alloc(&oi->i_nop, tree,
 						  nsize, lev->l_node->n_type,
-						  crctype, ksize, vsize,
+						  t_type, crctype, ksize, vsize,
 						  bop->bo_tx, P_ALLOC_STORE);
 
 			} else if (oi->i_extra_node == NULL) {
@@ -7065,6 +7169,7 @@ static int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 								data->bt->ksize;
 	int                    v_size = data->bt->vsize == -1 ? MAX_VAL_SIZE :
 								data->bt->vsize;
+	enum m0_btree_types   t_type  = data->bt->tt_id;
 	struct slot            node_slot;
 
 	switch (bop->bo_op.o_sm.sm_state) {
@@ -7085,8 +7190,9 @@ static int64_t btree_create_tree_tick(struct m0_sm_op *smop)
 
 		oi->i_nop.no_addr = segaddr_build(data->addr);
 		return bnode_init(&oi->i_nop.no_addr, k_size, v_size,
-				  data->num_bytes, data->nt, data->crc_type,
-				  bop->bo_seg->bs_gen, data->fid, P_TREE_GET);
+				  data->num_bytes, data->nt, t_type,
+				  data->crc_type, bop->bo_seg->bs_gen,
+				  data->fid, P_TREE_GET);
 
 	case P_TREE_GET:
 		return tree_get(&oi->i_nop, &oi->i_nop.no_addr, P_ACT);
@@ -8673,7 +8779,7 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 	if (lru_space_used < lru_space_wm_low) {
 		/** Do nothing. */
 		if (user == M0_PU_EXTERNAL)
-			M0_LOG(M0_INFO, "Skipping memory release since used "
+			M0_LOG(M0_ALWAYS, "Skipping memory release since used "
 			       "space is below threshold requested size=%"PRId64
 			       " used space=%"PRId64, size, lru_space_used);
 		lru_trickle_release_mode = false;
@@ -8699,7 +8805,7 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 			purged_size = m0_btree_lrulist_purge(size_to_purge,
 						size_to_purge != 0 ? 0 :
 						M0_BTREE_TRICKLE_NUM_NODES);
-			M0_LOG(M0_INFO, " Below critical External user Purge,"
+			M0_LOG(M0_ALWAYS, " Below critical External user Purge,"
 			       " requested size=%"PRId64" used space=%"PRId64
 			       " purged size=%"PRId64, size, lru_space_used,
 			       purged_size);
@@ -8720,7 +8826,7 @@ M0_INTERNAL int64_t m0_btree_lrulist_purge_check(enum m0_btree_purge_user user,
 	purged_size = m0_btree_lrulist_purge(size_to_purge,
 			      (lru_trickle_release_mode && size_to_purge == 0) ?
 			      M0_BTREE_TRICKLE_NUM_NODES : 0);
-	M0_LOG(M0_INFO, " Above critical purge, User=%s requested size="
+	M0_LOG(M0_ALWAYS, " Above critical purge, User=%s requested size="
 	       "%"PRId64" used space=%"PRIu64" purged size="
 	       "%"PRIu64, user == M0_PU_BTREE ? "btree" : "external", size,
 	       lru_space_used, purged_size);
@@ -12505,98 +12611,98 @@ cleanup:
 }
 
 /**
- * This test launches multiple threads each of of which create different btree's
+ * This test launches multiple threads each of which create different btree's
  * which host records with different CRC type embedded within them.
  */
 static void ut_btree_crc_test(void)
 {
-	int                         rc;
+	int                          rc;
 	struct btree_ut_thread_info *ti;
-	int                         i;
-	uint16_t                    cpu;
+	int                          i;
+	uint16_t                     cpu;
 	void                        *rnode;
-	struct m0_btree_op          b_op           = {};
+	struct m0_btree_op           b_op = {};
 	struct btree_crc_data {
 				struct m0_btree_type    bcr_btree_type;
 				enum m0_btree_crc_type  bcr_crc_type;
 			      } btrees_with_crc[] = {
 			{
 				{
-					BNT_FIXED_FORMAT, 2 * sizeof(uint64_t),
+					M0_BT_UT_KV_OPS, 2 * sizeof(uint64_t),
 					2 * sizeof(uint64_t)
 				},
 				M0_BCT_NO_CRC,
 			},
 			{
 				{
-					BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+					M0_BT_UT_KV_OPS,
 					2 * sizeof(uint64_t), RANDOM_VALUE_SIZE
 				},
 				M0_BCT_NO_CRC,
 			},
 			{
 				{
-					BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+					M0_BT_UT_KV_OPS,
 					RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
 				},
 				M0_BCT_NO_CRC,
 			},
 			{
 				{
-					BNT_FIXED_FORMAT, 2 * sizeof(uint64_t),
+					M0_BT_UT_KV_OPS, 2 * sizeof(uint64_t),
 					3 * sizeof(uint64_t)
 				},
 				M0_BCT_USER_ENC_RAW_HASH,
 			},
 			{
 				{
-					BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+					M0_BT_UT_KV_OPS,
 					2 * sizeof(uint64_t), RANDOM_VALUE_SIZE
 				},
 				M0_BCT_USER_ENC_RAW_HASH,
 			},
 			{
 				{
-					BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+					M0_BT_UT_KV_OPS,
 					RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
 				},
 				M0_BCT_USER_ENC_RAW_HASH,
 			},
 			{
 				{
-					BNT_FIXED_FORMAT, 2 * sizeof(uint64_t),
+					M0_BT_UT_KV_OPS, 2 * sizeof(uint64_t),
 					2 * sizeof(uint64_t)
 				},
 				M0_BCT_BTREE_ENC_RAW_HASH,
 			},
 			{
 				{
-					BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+					M0_BT_UT_KV_OPS,
 					2 * sizeof(uint64_t), RANDOM_VALUE_SIZE
 				},
 				M0_BCT_BTREE_ENC_RAW_HASH,
 			},
 			{
 				{
-					BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
+					M0_BT_UT_KV_OPS,
 					RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
 				},
 				M0_BCT_BTREE_ENC_RAW_HASH,
 			},
 		};
-	uint16_t                    thread_count = ARRAY_SIZE(btrees_with_crc);
-	struct m0_be_tx_credit      cred;
-	struct m0_be_tx             tx_data        = {};
-	struct m0_be_tx             *tx            = &tx_data;
-	struct m0_fid               fid            = M0_FID_TINIT('b', 0, 1);
-	struct m0_buf               buf;
-	uint16_t                    *cpuid_ptr;
-	uint16_t                    cpu_count;
-	size_t                      cpu_max;
-	time_t                      curr_time;
-	uint32_t                    rnode_sz       = sysconf(_SC_PAGESIZE);
-	uint32_t                    rnode_sz_shift;
-	struct m0_btree             btree[thread_count];
+	uint16_t                thread_count = ARRAY_SIZE(btrees_with_crc);
+	struct m0_be_tx_credit  cred;
+	struct m0_be_tx         tx_data      = {};
+	struct m0_be_tx        *tx           = &tx_data;
+	struct m0_fid           fid          = M0_FID_TINIT('b', 0, 1);
+	struct m0_buf           buf;
+	uint16_t               *cpuid_ptr;
+	uint16_t                cpu_count;
+	size_t                  cpu_max;
+	time_t                  curr_time;
+	uint32_t                rnode_sz     = sysconf(_SC_PAGESIZE);
+	uint32_t                rnode_sz_shift;
+	struct m0_btree         btree[thread_count];
 
 	M0_ENTRY();
 
@@ -12779,7 +12885,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	struct ut_cb_data           get_data;
 	m0_bcount_t                 limit;
 
-	M0_ASSERT(bt->ksize == RANDOM_VALUE_SIZE || bt->ksize == sizeof(key));
+	M0_ASSERT(bt->ksize == RANDOM_KEY_SIZE || bt->ksize == sizeof(key));
 	M0_ASSERT(bt->vsize == RANDOM_VALUE_SIZE ||
 		  (bt->vsize % sizeof(uint64_t) == 0 &&
 		   (((crc_type == M0_BCT_NO_CRC &&
@@ -13053,98 +13159,93 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	btree_ut_fini();
 }
 
-/** TBD: Implement function to print the BTree. */
-M0_INTERNAL void btree_dbg_print(struct m0_btree btree)
-{
-}
-
 static void ut_btree_crc_persist_test(void)
 {
 	struct btree_crc_data {
-		struct m0_btree_type    bcr_btree_type;
-		enum m0_btree_crc_type  bcr_crc_type;
+		struct m0_btree_type   bcr_btree_type;
+		enum m0_btree_crc_type bcr_crc_type;
 	} btrees_with_crc[] = {
 		{
 			{
-				BNT_FIXED_FORMAT, sizeof(uint64_t),
+				M0_BT_UT_KV_OPS, sizeof(uint64_t),
 				2 * sizeof(uint64_t)
 			},
 			M0_BCT_NO_CRC,
 		},
 		{
 			{
-				BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+				M0_BT_UT_KV_OPS,
 				sizeof(uint64_t), RANDOM_VALUE_SIZE
 			},
 			M0_BCT_NO_CRC,
 		},
 		{
 			{
-				BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
-				sizeof(uint64_t), RANDOM_VALUE_SIZE
+				M0_BT_UT_KV_OPS,
+				RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
 			},
 			M0_BCT_NO_CRC,
 		},
 		{
 			{
-				BNT_FIXED_FORMAT, sizeof(uint64_t),
+				M0_BT_UT_KV_OPS, sizeof(uint64_t),
 				3 * sizeof(uint64_t)
 			},
 			M0_BCT_USER_ENC_RAW_HASH,
 		},
 		{
 			{
-				BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+				M0_BT_UT_KV_OPS,
 				sizeof(uint64_t), RANDOM_VALUE_SIZE
 			},
 			M0_BCT_USER_ENC_RAW_HASH,
 		},
 		{
 			{
-				BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
-				sizeof(uint64_t), RANDOM_VALUE_SIZE
+				M0_BT_UT_KV_OPS,
+				RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
 			},
 			M0_BCT_USER_ENC_RAW_HASH,
 		},
 		{
 			{
-				BNT_FIXED_FORMAT, sizeof(uint64_t),
+				M0_BT_UT_KV_OPS, sizeof(uint64_t),
 				6 * sizeof(uint64_t)
 			},
 			M0_BCT_USER_ENC_FORMAT_FOOTER,
 		},
 		{
 			{
-				BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+				M0_BT_UT_KV_OPS,
 				sizeof(uint64_t), RANDOM_VALUE_SIZE
 			},
 			M0_BCT_USER_ENC_FORMAT_FOOTER,
 		},
 		{
 			{
-				BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
-				sizeof(uint64_t), RANDOM_VALUE_SIZE
+				M0_BT_UT_KV_OPS,
+				RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
 			},
 			M0_BCT_USER_ENC_FORMAT_FOOTER,
 		},
 		{
 			{
-				BNT_FIXED_FORMAT, sizeof(uint64_t),
+				M0_BT_UT_KV_OPS, sizeof(uint64_t),
 				2 * sizeof(uint64_t)
 			},
 			M0_BCT_BTREE_ENC_RAW_HASH,
 		},
 		{
 			{
-				BNT_FIXED_KEYSIZE_VARIABLE_VALUESIZE,
+				M0_BT_UT_KV_OPS,
 				sizeof(uint64_t), RANDOM_VALUE_SIZE
 			},
 			M0_BCT_BTREE_ENC_RAW_HASH,
 		},
 		{
 			{
-				BNT_VARIABLE_KEYSIZE_VARIABLE_VALUESIZE,
-				RANDOM_VALUE_SIZE, RANDOM_VALUE_SIZE
+				M0_BT_UT_KV_OPS,
+				RANDOM_KEY_SIZE, RANDOM_VALUE_SIZE
 			},
 			M0_BCT_BTREE_ENC_RAW_HASH,
 		},
@@ -13159,6 +13260,11 @@ static void ut_btree_crc_persist_test(void)
 		ut_btree_crc_persist_test_internal(bt, crc);
 	}
 
+}
+
+/** TBD: Implement function to print the BTree. */
+M0_INTERNAL void btree_dbg_print(struct m0_btree btree)
+{
 }
 
 static int ut_btree_suite_init(void)
