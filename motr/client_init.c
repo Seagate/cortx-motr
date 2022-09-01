@@ -190,7 +190,8 @@ struct m0_sm_state_descr initlift_phases[] = {
 	[IL_IDX_SERVICE] = {
 		.sd_name = "init/fini-resource-manager",
 		.sd_allowed = M0_BITS(IL_ROOT_FID,
-				      IL_LAYOUT_DB),
+				      IL_LAYOUT_DB,
+				      IL_IDX_SERVICE),
 		.sd_in = initlift_idx_service,
 	},
 	[IL_ROOT_FID] = {
@@ -246,6 +247,9 @@ struct m0_sm_trans_descr initlift_trans[] = {
 				       IL_LAYOUT_DB},
 	{"initialising-index-service",
 				       IL_LAYOUT_DB,
+				       IL_IDX_SERVICE},
+	{"retry-initialising-index-service",
+				       IL_IDX_SERVICE,
 				       IL_IDX_SERVICE},
 	{"retrieving-root-fid",        IL_IDX_SERVICE,
 				       IL_ROOT_FID},
@@ -354,6 +358,18 @@ static int initlift_get_next_floor(struct m0_client *m0c)
 	M0_POST(rc <= IL_INITIALISED);
 
 	return M0_RC(rc);
+}
+
+/**
+ * Helper function to get the value of the current floor.
+ *
+ * @param m0c the client instance we are working with.
+ * @return the current state/floor.
+ */
+static int initlift_get_cur_floor(struct m0_client *m0c)
+{
+	M0_PRE(m0c != NULL);
+	return M0_RC(m0c->m0c_initlift_sm.sm_state);
 }
 
 /**
@@ -1222,6 +1238,8 @@ static int initlift_layouts(struct m0_sm *mach)
 	return M0_RC(initlift_get_next_floor(m0c));
 }
 
+#define MAX_CLIENT_INIT_RETRIES 1000
+int retry_count = 0;
 static int initlift_idx_service(struct m0_sm *mach)
 {
 	int                               rc = 0;
@@ -1250,8 +1268,25 @@ static int initlift_idx_service(struct m0_sm *mach)
 		rc = service->is_svc_ops->iso_init((void *)ctx);
 		m0_sm_group_lock(&m0c->m0c_sm_group);
 
-		if (rc != 0)
-			initlift_fail(rc, m0c);
+		if (rc != 0) {
+			/*
+			 * Added retry logic to handle out of
+			 * order startup of data and server
+			 * PODs. Ref: Jira ID Cortx-33899
+			 */
+			if (retry_count < MAX_CLIENT_INIT_RETRIES
+			    && (rc == -EIO || rc == -EPROTO)) {
+				retry_count += 1;
+				M0_LOG(M0_ERROR, "client init \
+				       failed with %d. Retrying.", rc);
+				return M0_RC(initlift_get_cur_floor(m0c));
+			} else {
+				retry_count = 0;
+				initlift_fail(rc, m0c);
+			}
+		} else {
+			retry_count = 0;
+		}
 	} else {
 		service = ctx->isc_service;
 		M0_ASSERT(service != NULL &&
