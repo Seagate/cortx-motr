@@ -214,6 +214,11 @@ static int st_common_tick(struct m0_fom *fom, void *data, int *phase,
 	int               *rcs  = fctx->sfc_rcs;
 	int64_t            ci;
 	int                rc;
+	int                batch;
+
+	batch = CMT_BATCH;
+	if (ENABLE_DTM0)
+		batch = 0; /* A single k/v in a DIX op. */
 
 	M0_LOG(M0_DEBUG, "i=%d fired=%d rqtype=%d",
 	       fctx->sfc_i, !!fctx->sfc_fired, rqtype);
@@ -229,7 +234,7 @@ static int st_common_tick(struct m0_fom *fom, void *data, int *phase,
 		M0_SET0(vals);
 		st_kv_alloc_and_fill(keys, vals,
 				     (int)ci * CMT_BATCH_OFF,
-				     (int)ci * CMT_BATCH_OFF + CMT_BATCH,
+				     (int)ci * CMT_BATCH_OFF + batch,
 				     M0_IN(rqtype, (REQ_GET, REQ_DEL)));
 		switch(rqtype) {
 		case REQ_CREATE:
@@ -279,7 +284,7 @@ static int st_common_tick(struct m0_fom *fom, void *data, int *phase,
 	case REQ_GET:
 		ci = fctx->sfc_ci;
 		st_vals_check(keys, vals, (int)ci * CMT_BATCH_OFF,
-				     (int)ci * CMT_BATCH_OFF + CMT_BATCH);
+				     (int)ci * CMT_BATCH_OFF + batch);
 	default:
 		M0_ASSERT(m0_forall(i, CMT_IDXS_NR, rcs[i] == 0));
 	}

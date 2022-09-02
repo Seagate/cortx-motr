@@ -663,7 +663,7 @@ static int dix_req_create(struct m0_op_idx  *oi,
 		m0_clink_init(&req->idr_dtx_clink, dixreq_clink_dtx_cb);
 		if (idx_is_distributed(oi)) {
 			m0_dix_req_init(&req->idr_dreq, op_dixc(oi),
-					oi->oi_sm_grp);
+					oi->oi_sm_grp, oi->oi_min_success);
 			to_dix_map(&oi->oi_oc.oc_op, &req->idr_dreq);
 			req->idr_dreq.dr_dtx = oi->oi_dtx;
 			m0_clink_init(&req->idr_clink, dixreq_clink_cb);

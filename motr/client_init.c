@@ -40,7 +40,9 @@
 #include "net/lnet/lnet_core_types.h" /* M0_NET_LNET_NIDSTR_SIZE */
 #include "dtm0/service.h"             /* m0_dtm0_service_find */
 #include "dtm0/helper.h"              /* m0_dtm_client_service_start */
+#include "dtm0/cfg_default.h"         /* m0_dtm0_domain_cfg_default_dup */
 #include "fis/fi_service.h"
+
 #include "motr/io.h"                /* io_sm_conf */
 #include "motr/client.h"
 #include "motr/addb.h"
@@ -1496,8 +1498,9 @@ exit:
 
 static int initlift_dtm0(struct m0_sm *mach)
 {
-	int                  rc = 0;
-	struct m0_client    *m0c;
+	int                       rc = 0;
+	struct m0_client         *m0c;
+	struct m0_dtm0_domain_cfg cfg;
 
 	M0_ENTRY();
 	M0_PRE(mach != NULL);
@@ -1506,7 +1509,11 @@ static int initlift_dtm0(struct m0_sm *mach)
 	M0_ASSERT(m0c_invariant(m0c));
 
 	if (m0c->m0c_initlift_direction == STARTUP) {
-		rc = m0_dtm0_domain_init(&m0c->m0c_dtm0_domain, NULL);
+		rc = m0_dtm0_domain_cfg_default_dup(&cfg, false);
+		if (rc != 0)
+			return M0_RC(rc);
+		cfg.dod_reqh = &m0c->m0c_reqh;
+		rc = m0_dtm0_domain_init(&m0c->m0c_dtm0_domain, &cfg);
 		if (rc != 0) {
 			initlift_fail(rc, m0c);
 			return M0_RC(initlift_get_next_floor(m0c));
@@ -1704,11 +1711,27 @@ int m0_client_init(struct m0_client **m0c_p,
 
 	if (ENABLE_DTM0) {
 		struct m0_reqh_service *reqh_svc;
+		struct m0_confc        *confc = m0_reqh2confc(&m0c->m0c_reqh);
+		if (M0_IS0(confc)) {
+			M0_LOG(M0_FATAL, "DTM is enabled, but the confc is not "
+					 "initialised. This happens in UT to "
+					 "test failure cases. If not, please "
+					 "check! Skip DTM now");
+			rc = 0;
+			goto skip_dtm;   /* FIXME */
+		}
 
 		rc = m0_conf_process2service_get(m0_reqh2confc(&m0c->m0c_reqh),
 						 &m0c->m0c_reqh.rh_fid,
 						 M0_CST_DTM0, &cli_svc_fid);
-		M0_ASSERT(rc == 0);
+		if (rc != 0) {
+			M0_LOG(M0_FATAL, "DTM is enabled, but DTM service is"
+					 " not defined in conf.\nPlease check"
+					 " the conf file for more details\n"
+					 "Now let's just skip DTM init");
+			rc = 0;
+			goto skip_dtm;   /* FIXME Please add DTM service. */
+		}
 
 		if (m0_dtm0_in_ut()) {
 			/* When in UT, m0c_reqh.rh_fid is the same as the
@@ -1737,6 +1760,7 @@ int m0_client_init(struct m0_client **m0c_p,
 		ha_process_event(m0c, M0_CONF_HA_PROCESS_DTM_RECOVERED);
 	}
 
+skip_dtm:
 	if (conf->mc_is_addb_init) {
 		char        buf[256];
 		/* uint64 max character size */
@@ -1795,7 +1819,10 @@ void m0_client_fini(struct m0_client *m0c, bool fini_m0)
 	M0_PRE(m0_sm_conf_is_initialized(&m0_op_conf));
 	M0_PRE(m0_sm_conf_is_initialized(&entity_conf));
 	M0_PRE(m0c != NULL);
+
+	/* FIXME please see m0_client_init()
 	M0_PRE(ergo(ENABLE_DTM0, m0c->m0c_dtms != NULL));
+	*/
 
 	if (m0c->m0c_dtms != NULL)
 		m0_dtm_client_service_stop(&m0c->m0c_dtms->dos_generic);

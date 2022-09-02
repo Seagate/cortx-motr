@@ -34,8 +34,8 @@ spiel_sns_repair_quiesce_test()
 
 	echo "Starting SNS repair testing ..."
 	for ((i=0; i < ${#files[*]}; i++)) ; do
-		touch_file "$MOTR_M0T1FS_MOUNT_DIR"/${files[$i]} ${unit_size[$i]}
-		_dd ${files[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]}
+		touch_file "$MOTR_M0T1FS_MOUNT_DIR/${files[$i]}" "${unit_size[$i]}"
+		_dd "${files[$i]}" $((${unit_size[$i]} * 1024)) "${file_size[$i]}"
 	done
 
 	verify || return $?
@@ -123,7 +123,7 @@ main()
 
 	NODE_UUID=$(uuidgen)
 	local multiple_pools=0
-	motr_service start $multiple_pools $stride $N $K $S $P || {
+	motr_service start $multiple_pools $stride "$N" "$K" "$S" "$P" || {
 		echo "Failed to start Motr Service."
 		return 1
 	}

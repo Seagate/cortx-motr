@@ -67,10 +67,15 @@
  *   +--------+                                             +----+
  */
 
+struct m0_dtx0_payload;
+
 struct m0_dtm0_remach {
 };
 
 struct m0_dtm0_remach_cfg {
+	void (*dtrc_blob_handler)(struct m0_dtx0_payload *payload,
+	                          void                   *datum);
+	void  *dtrc_blob_handler_datum;
 };
 
 M0_INTERNAL int m0_dtm0_remach_init(struct m0_dtm0_remach     *drm,

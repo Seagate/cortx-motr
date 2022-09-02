@@ -2907,6 +2907,7 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 	m0_mutex_init(&rconfc->rc_herd_lock);
 	m0_chan_init(&rconfc->rc_herd_chan, &rconfc->rc_herd_lock);
 	m0_sm_init(&rconfc->rc_sm, &rconfc_sm_conf, M0_RCS_INIT, sm_group);
+	m0_confc_bob_init(&rconfc->rc_confc);
 
 	/* Subscribe on ha entrypoint callbacks */
 	ha = m0_get()->i_ha;
