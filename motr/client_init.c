@@ -1476,7 +1476,9 @@ static int initlift_fis(struct m0_sm *mach)
 				&reqh->rh_fid, M0_CST_FIS,
 				&sfid);
 	m0_sm_group_lock(&m0c->m0c_sm_group);
-	if (rc != 0) {
+	if (rc == -ENOENT)
+		return M0_RC(initlift_get_next_floor(m0c));
+	else if (rc != 0) {
 		initlift_fail(rc, m0c);
 		goto exit;
 	}
