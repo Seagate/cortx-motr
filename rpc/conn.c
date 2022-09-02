@@ -1454,8 +1454,9 @@ M0_INTERNAL void m0_rpc_conn_ha_timer_stop(struct m0_rpc_conn *conn)
 	if (m0_sm_timer_is_armed(&conn->c_ha_timer)) {
 		M0_LOG(M0_DEBUG, "Cancelling HA timer; rpc conn=%p", conn);
 		m0_sm_timer_cancel(&conn->c_ha_timer);
-	} else if (M0_IN(conn->c_ha_timer.tr_timer.t_state,
-			(M0_TIMER_STOPPED, M0_TIMER_INITED)))
+	}
+	if (M0_IN(conn->c_ha_timer.tr_timer.t_state,
+		 (M0_TIMER_STOPPED, M0_TIMER_INITED)))
 		m0_sm_timer_fini(&conn->c_ha_timer);
 }
 
