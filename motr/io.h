@@ -228,7 +228,7 @@ M0_INTERNAL uint64_t target_offset(uint64_t                  frame,
  * @return The cksum:object offset.
  */
 M0_INTERNAL uint32_t di_cksum_offset(struct m0_pdclust_layout *play,
-				   m0_bindex_t               gob_offset);
+				     m0_bindex_t gob_offset);
 /**
  * Calculates the group index, given a data index and the block size.
  *

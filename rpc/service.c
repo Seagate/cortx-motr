@@ -67,13 +67,17 @@ static int rpc_service_start(struct m0_reqh_service *service)
 	return 0;
 }
 
-static void rpc_service_stop(struct m0_reqh_service *service)
+static void rpc_service_prepare_to_stop(struct m0_reqh_service *service)
 {
 	struct m0_rpc_service *svc;
 
 	svc = bob_of(service, struct m0_rpc_service, rps_svc, &rpc_svc_bob);
 	m0_rpc_service_reverse_sessions_cleanup(service);
 	rev_conn_tlist_fini(&svc->rps_rev_conns);
+}
+
+static void rpc_service_stop(struct m0_reqh_service *service)
+{
 }
 
 static void rpc_service_fini(struct m0_reqh_service *service)
@@ -95,7 +99,8 @@ static const struct m0_reqh_service_ops rpc_ops = {
 	.rso_start      = rpc_service_start,
 	.rso_stop       = rpc_service_stop,
 	.rso_fini       = rpc_service_fini,
-	.rso_fop_accept = rpc_service_fop_accept
+	.rso_fop_accept = rpc_service_fop_accept,
+	.rso_prepare_to_stop = rpc_service_prepare_to_stop
 };
 
 static int rpc_service_allocate(struct m0_reqh_service **service,
@@ -232,7 +237,9 @@ m0_rpc_service_reverse_session_put(struct m0_rpc_session *sess, bool disc)
 	rlk  = container_of(sess, struct m0_rpc_link, rlk_sess);
 	revc = container_of(rlk, struct m0_reverse_connection, rcf_rlink);
 
-	if (revc->rcf_rlink.rlk_connected) {
+	if (revc->rcf_rlink.rlk_connected &&
+	    !revc->rcf_rlink.rlk_async_disconnecting) {
+		revc->rcf_rlink.rlk_async_disconnecting = true;
 		M0_PRE(!m0_clink_is_armed(&revc->rcf_disc_wait));
 		m0_clink_fini(&revc->rcf_disc_wait);
 		m0_clink_init(&revc->rcf_disc_wait,
@@ -266,7 +273,8 @@ m0_rpc_service_reverse_sessions_cleanup(struct m0_reqh_service *service)
 						   false);
 	} m0_tlist_endfor;
 	m0_tl_teardown(rev_conn, &svc->rps_rev_conns, revc) {
-		if (revc->rcf_disc_wait.cl_group != NULL) {
+		if (m0_clink_is_armed(&revc->rcf_disc_wait) &&
+		    revc->rcf_rlink.rlk_async_disconnecting) {
 			m0_chan_wait(&revc->rcf_disc_wait);
 			m0_clink_fini(&revc->rcf_disc_wait);
 		}

@@ -3,7 +3,6 @@ EXTRA_DIST += utils/m0confgen \
               utils/m0hagen \
               utils/m0mount \
               utils/m0reportbug \
-              utils/m0iscorrupt \
               utils/m0run \
               utils/m0setup \
               utils/m0singlenode \

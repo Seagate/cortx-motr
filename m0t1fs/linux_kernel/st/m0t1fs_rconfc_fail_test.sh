@@ -19,11 +19,11 @@
 #
 
 
-. `dirname "$0"`/common.sh
-. `dirname "$0"`/m0t1fs_common_inc.sh
-. `dirname "$0"`/m0t1fs_client_inc.sh
-. `dirname "$0"`/m0t1fs_server_inc.sh
-. `dirname "$0"`/m0t1fs_sns_common_inc.sh
+. $(dirname "$0")/common.sh
+. $(dirname "$0")/m0t1fs_common_inc.sh
+. $(dirname "$0")/m0t1fs_client_inc.sh
+. $(dirname "$0")/m0t1fs_server_inc.sh
+. $(dirname "$0")/m0t1fs_sns_common_inc.sh
 
 . "$M0_SRC_DIR"/utils/functions  # opcode
 
@@ -98,7 +98,7 @@ rconfc_fatal_test()
 	local file_base="$MOTR_M0T1FS_MOUNT_DIR/0:1"
 	local bs=8192
 	local count=150
-	local LNET_NID=`lctl list_nids | head -1`
+	local LNET_NID=$(lctl list_nids | head -1)
 	local FAKE_HA_EP=$LNET_NID:12345:34:1
 	local RM_EP=$LNET_NID:12345:33:100
 	local CLIENT_EP=$LNET_NID:12345:34:1001
@@ -132,7 +132,7 @@ rconfc_fatal_test()
 
 main()
 {
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 	local rc
 
 	echo "*********************************************************"

@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2013-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2013-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -313,6 +313,9 @@ void __dummy_function(void);
 	M0_CASSERT(m0_is_array(array));             \
 	((unsigned long)(idx)) < ARRAY_SIZE(array); \
 })
+
+#define ARRAY_SIZE_FOR_BITS(BITS_NEEDED,ARRAY_ELE_SIZE) \
+	(((BITS_NEEDED)+((ARRAY_ELE_SIZE)*8) - 1) / ((ARRAY_ELE_SIZE)*8))
 
 M0_INTERNAL bool m0_elems_are_unique(const void *array, unsigned nr_elems,
 				     size_t elem_size);

@@ -60,7 +60,7 @@ Requirements
 
 - [r.rpccore.efficient.bulk] 0-copy, if provided by the underlying network transport, is utilized;
 
-- [r.rpccore.eos] support ordered exactly once semantics (EOS) of delivery;
+- [r.rpccore.exactly-once-semantics] support ordered exactly once semantics of delivery;
 
 - [r.rpccore.formation.settings] support different setting like max_rpc_in_flight, max_page_per_rpc, etc.
 
@@ -239,7 +239,7 @@ Cached FOPs might have dependencies each on other. This could affect the order o
 
 - m0_rpcmachine is a RPC processing machine, several instances of it might be existing simultaneously.
 
-- m0_update_stream is an ADT associated with sessions and slots used for FOP sending with FIFO and EOS constrains.
+- m0_update_stream is an ADT associated with sessions and slots used for FOP sending with FIFO and CORTX constrains.
 
 
 *********************

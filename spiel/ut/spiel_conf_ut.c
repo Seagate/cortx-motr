@@ -159,7 +159,7 @@ static int spiel_copy_file(const char *source, const char* dest)
 	char buf[1024];
 	int in_fd;
 	int out_fd;
-	size_t result;
+	ssize_t result;
 	int rc = 0;
 
 	in_fd = open(source, O_RDONLY);
@@ -200,6 +200,7 @@ static void spiel_conf_ut_init(void)
 	/* Use a copy of conf.xc file as confd path - file may have changed */
 	m0_spiel__ut_init(&spiel, "tmp-conf.xc", false);
 	m0_rconfc_lock(rconfc);
+	m0_confc_bob_init(&rconfc->rc_confc);
 	rconfc->rc_expired_cb = &m0_confc_expired_cb;
 	rconfc->rc_ready_cb   = &m0_confc_ready_cb;
 	m0_rconfc_unlock(rconfc);

@@ -132,7 +132,7 @@ static void cm_setup_ut(void)
 	cm->cm_sw_update.swu_is_complete = true;
 	while (m0_fom_domain_is_idle_for(&cm->cm_service) ||
 	       !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump))
-		usleep(200);
+               m0_nanosleep(m0_time(0, 200000), NULL);
 
 	m0_cm_lock(cm);
 	m0_cm_complete_notify(cm);

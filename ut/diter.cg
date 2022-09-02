@@ -11,7 +11,7 @@
 (process-5 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=1 endpoint="0@lo:12345:34:1"
     services=[service-0, service-1, service-2, service-3, service-4, service-5,
-              service-6, service-7])
+              service-6, service-7, service-8])
 (service-0 type=@M0_CST_IOS endpoints=["0@lo:12345:34:1"] params=[]
     sdevs=[sdev-10, sdev-11, sdev-12, sdev-13, sdev-14])
 (service-1 type=@M0_CST_MDS endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
@@ -23,6 +23,7 @@
 (service-5 type=@M0_CST_ADDB2 endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
 (service-6 type=@M0_CST_CONFD endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
 (service-7 type=@M0_CST_HA endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
+(service-8 type=@M0_CST_DTM0 endpoints=["0@lo:12345:34:1"] params=[] sdevs=[])
 (sdev-10 dev_idx=1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev0")
 (sdev-11 dev_idx=2 iface=4 media=1 bsize=4096 size=596000000000 last_state=3

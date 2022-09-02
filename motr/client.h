@@ -569,6 +569,24 @@ enum m0_idx_opcode {
 } M0_XCA_ENUM;
 
 /**
+ * Option to set on an index operation.
+ *
+ * See @ref m0_idx_op_setoption.
+ */
+enum m0_op_idx_option {
+	/**
+	 * Index operations are distributed across one or more CAS services
+	 * to achieve the configured durability. This option specifies the
+	 * minimum number of services that must successfully complete an
+	 * operation for the operation as a whole to be considered
+	 * successful. The value for this option must be greater than zero
+	 * or a special value. This should normally be set to
+	 * @ref M0_DIX_MIN_REPLICA_QUORUM to ensure consistency.
+	 */
+	M0_OIO_MIN_SUCCESS = 1,
+};
+
+/**
  * Flags passed to m0_obj_op() to specify object IO operation behaviour.
  */
 enum m0_op_obj_flags {
@@ -660,10 +678,24 @@ enum m0_entity_type {
 	 *      the non-full last parity group, use M0_OOF_LAST flag instead.
 	 */
 	M0_ENF_NO_RMW =  1 << 1,
+
 	/**
-	 * This flag is to enable data integrity.
+	 * Note below two flags are for Data Integrity:
+	 * M0_ENF_DI - This flag should be set if application is passing checksum
+	 *             into ioo_attr
+	 * M0_ENF_GEN_DI - This flag should be set if application wants Motr to
+	 *                 generate checksum. Default checksum will be generated using
+	 *                 this M0_CKSUM_DEFAULT_PI algorithm
+	 * Note: Ideally only one flag should be set for DI, if both is set the Motr
+	 * will give priority to DI generation (M0_ENF_GEN_DI)
 	 */
- 	M0_ENF_DI = 1 << 2
+	/**
+	 * This flag is to indicate that application is passing checkum for the IO.
+	 */
+	M0_ENF_DI = 1 << 2,
+	 /* This flag will let Motr generate DI for the IO. */
+	M0_ENF_GEN_DI = 1 << 3
+
  } M0_XCA_ENUM;
 
 /**
@@ -709,6 +741,17 @@ struct m0_op {
 	/* Operation's private data, can be used as arguments for callbacks.*/
 	void                          *op_datum;
 	uint64_t                       op_count;
+
+	/**
+	 * This flag is set when there is an onging cancel operation.
+	 * There is no refcount in this op. But the op cancelling AST
+	 * needs this op being valid. The op cancelling AST will
+	 * semaphore up when it is done. The m0_op_fini() checks this flag
+	 * and semaphore down on it if needed. This will make sure the op
+	 * is not freed before the op cancel is done.
+	 */
+	bool                           op_cancelling;
+	struct m0_semaphore            op_sema;
 	/**
 	 * Private field, to be used by internal implementation.
 	 */
@@ -1602,6 +1645,18 @@ int m0_idx_op(struct m0_idx       *idx,
 	      int32_t             *rcs,
 	      uint32_t             flags,
 	      struct m0_op       **op);
+
+/**
+ * Set an option on an index operation.
+ *
+ * The index op must have been previously initialized with @ref m0_idx_op.
+ * It is undefined behavior to change an option after the index op has
+ * been launched. The meaning of each option is documented in
+ * @ref m0_op_idx_option.
+ */
+void m0_idx_op_setoption(struct m0_op *op,
+			 enum m0_op_idx_option option,
+			 int64_t value);
 
 void m0_realm_create(struct m0_realm    *realm,
 		     uint64_t wcount, uint64_t rcount,

@@ -7,7 +7,7 @@ Source code is available at: [example2.c](/motr/examples/example2.c)
 Motr index FID is a special type of FID. It must be the m0\_dix\_fid\_type.  
 So, the index FID must be initialized with:
 
-```
+```C
 m0_fid_tassume((struct m0_fid*)&index_id, &m0_dix_fid_type);
 ```
 
@@ -17,10 +17,10 @@ Init the m0\_idx struct with m0\_idx\_init().
 
 Init the index create operation with m0\_entity\_create().
 
-```
+`
 An ID is needed for this index. In this example, ID is configured from command line.
 Developers are responsible to generate an unique ID for their indices.
-```
+`
 
 Launch the operation with m0\_op\_launch().
 

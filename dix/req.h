@@ -253,6 +253,11 @@ struct m0_dix_req {
 	 * starting key in DIX_NEXT request.
 	 */
 	uint32_t                     *dr_recs_nr;
+	/**
+	 * Minimum number of successful CAS operations to treat
+	 * parent DIX operation as successful.
+	 */
+	int64_t                       dr_min_success;
 	/** Request flags bitmask of m0_cas_op_flags values. */
 	uint32_t                      dr_flags;
 
@@ -283,7 +288,8 @@ struct m0_dix_next_reply {
 /** Initialises DIX request. */
 M0_INTERNAL void m0_dix_req_init(struct m0_dix_req  *req,
 				 struct m0_dix_cli  *cli,
-				 struct m0_sm_group *grp);
+				 struct m0_sm_group *grp,
+				 int64_t             min_success);
 
 /**
  * Initialises DIX request operating with meta-indices.

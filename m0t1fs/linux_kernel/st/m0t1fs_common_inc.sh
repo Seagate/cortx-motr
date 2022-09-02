@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # Copyright (c) 2020 Seagate Technology LLC and/or its Affiliates
 #
@@ -80,6 +81,8 @@ IOS_PVER2_EP="12345:33:904"
 IOS5_CMD=""       #IOS5 process commandline to spawn it again on Controller event.
 
 IOS4_CMD=""
+
+export IOS_DISK_SEEK_BLOCK_COUNT=1M
 
 # list of md server end points tmid in [800, 899)
 MDSEP=(
@@ -347,7 +350,7 @@ function build_conf()
 	local site_count=1
 	local PROC_FID_CONT='^r|1'
 	local MD_REDUNDANCY=1
-	local m0t1fs_ep="$lnet_nid:12345:33:1"
+	local m0t1fs_ep="$lnet_nid:12345:34:101"
 	local nr_ios=${#IOSEP[*]}
 
 	if [ $SINGLE_NODE -eq 1 ] ; then
@@ -389,6 +392,7 @@ function build_conf()
 	local CONFD="$CONF_FID_CON:0"
 	local HA_SVC_ID='^s|1:6'
 	local FIS_SVC_ID='^s|1:7'
+	local DTM_SVC_ID='^s|1:8'
 	local  SITEID='^S|1:6'
 	local  RACKID='^a|1:6'
 	local  ENCLID='^e|1:7'
@@ -409,6 +413,7 @@ function build_conf()
 	local  MDCTRLVID="^j|2:$(($pool_width + 4))"
 
 	local M0T1FS_RMID="^s|1:101"
+	local M0T1FS_DTMID="^s|1:102"
 	local M0T1FS_PROCID="^r|1:100"
 
 	local NODES="$NODE"
@@ -419,7 +424,8 @@ function build_conf()
 	local PROC_OBJS
 	local M0D=0
 	local M0T1FS_RM="{0x73| (($M0T1FS_RMID), @M0_CST_RMS, [1: \"${m0t1fs_ep}\"], [0], [0])}"
-	local M0T1FS_PROC="{0x72| (($M0T1FS_PROCID), [1:3], 0, 0, 0, 0, \"${m0t1fs_ep}\", [1: $M0T1FS_RMID])}"
+	local M0T1FS_DTM="{0x73| (($M0T1FS_DTMID), @M0_CST_DTM0, [1: \"${m0t1fs_ep}\"], [1: "\"origin:in-volatile\""], [0])}"
+	local M0T1FS_PROC="{0x72| (($M0T1FS_PROCID), [1:3], 0, 0, 0, 0, \"${m0t1fs_ep}\", [2: $M0T1FS_DTMID, $M0T1FS_RMID])}"
 	PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $M0T1FS_PROC"
 	PROC_NAMES="$PROC_NAMES${PROC_NAMES:+, }$M0T1FS_PROCID"
 
@@ -458,8 +464,10 @@ function build_conf()
 	    local SNS_REP_OBJ="{0x73| (($SNS_REP_NAME), @M0_CST_SNS_REP, [1: $iosep], [0], [0])}"
 	    local SNS_REB_OBJ="{0x73| (($SNS_REB_NAME), @M0_CST_SNS_REB, [1: $iosep], [0], [0])}"
 	    local RM_NAME="$RMS_FID_CON:$M0D"
+	    local DTM_NAME="$DTM_FID_CON:$M0D"
 	    local RM_OBJ="{0x73| (($RM_NAME), @M0_CST_RMS, [1: $iosep], [0], [0])}"
-	    local NAMES_NR=5
+	    local DTM_OBJ="{0x73| (($DTM_NAME), @M0_CST_DTM0, [1: $iosep], [1: "\"origin:in-volatile\""], [0])}"
+	    local NAMES_NR=6
 	    if [ $ENABLE_CAS -eq 1 ] ; then
 	        local DIX_REP_NAME="$DIXR_FID_CON:$i"
 	        local DIX_REB_NAME="$DIXB_FID_CON:$i"
@@ -468,14 +476,14 @@ function build_conf()
 	        local DIX_REP_OBJ="{0x73| (($DIX_REP_NAME), @M0_CST_DIX_REP, [1: $iosep], [0], [0])}"
 	        local DIX_REB_OBJ="{0x73| (($DIX_REB_NAME), @M0_CST_DIX_REB, [1: $iosep], [0], [0])}"
                 local CAS_OBJS="$CAS_OBJ, \n  $DIX_REP_OBJ, \n  $DIX_REB_OBJ"
-	        NAMES_NR=8
+	        NAMES_NR=9
 	    fi
 
 	    PROC_NAME="$PROC_FID_CONT:$M0D"
-	    IOS_NAMES[$i]="$IOS_NAME, $ADDB_NAME, $SNS_REP_NAME, $SNS_REB_NAME, \
+	    IOS_NAMES[$i]="$IOS_NAME, $ADDB_NAME, $SNS_REP_NAME, $SNS_REB_NAME, $DTM_NAME, \
 	                   $RM_NAME${CAS_NAME:+,} $CAS_NAME, $DIX_REP_NAME, $DIX_REB_NAME"
 	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $iosep, [$NAMES_NR: ${IOS_NAMES[$i]}])}"
-	    IOS_OBJS="$IOS_OBJS${IOS_OBJS:+, }\n  $IOS_OBJ, \n  $ADDB_OBJ, \
+	    IOS_OBJS="$IOS_OBJS${IOS_OBJS:+, }\n  $IOS_OBJ, \n  $ADDB_OBJ, \n $DTM_OBJ, \
 	               \n $SNS_REP_OBJ, \n  $SNS_REB_OBJ, \n $RM_OBJ${CAS_OBJS:+, \n} $CAS_OBJS"
 	    PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $PROC_OBJ"
 	    # +1 here for process object
@@ -490,12 +498,14 @@ function build_conf()
 	    local MDS_OBJ="{0x73| (($MDS_NAME), @M0_CST_MDS, [1: $mdsep], [0], [0])}"
 	    local ADDB_OBJ="{0x73| (($ADDB_NAME), @M0_CST_ADDB2, [1: $mdsep], [0], [0])}"
 	    local RM_NAME="$RMS_FID_CON:$M0D"
+	    local DTM_NAME="$DTM_FID_CON:$M0D"
 	    local RM_OBJ="{0x73| (($RM_NAME), @M0_CST_RMS, [1: $mdsep], [0], [0])}"
+	    local DTM_OBJ="{0x73| (($DTM_NAME), @M0_CST_DTM0, [1: $mdsep], [1: "\"origin:in-volatile\""], [0])}"
 
 	    PROC_NAME="$PROC_FID_CONT:$M0D"
-	    MDS_NAMES[$i]="$MDS_NAME, $ADDB_NAME, $RM_NAME"
-	    MDS_OBJS="$MDS_OBJS${MDS_OBJS:+,} \n $MDS_OBJ, \n  $ADDB_OBJ, \n  $RM_OBJ"
-	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $mdsep, [3: ${MDS_NAMES[$i]}])}"
+	    MDS_NAMES[$i]="$MDS_NAME, $ADDB_NAME, $RM_NAME, $DTM_NAME"
+	    MDS_OBJS="$MDS_OBJS${MDS_OBJS:+,} \n $MDS_OBJ, \n  $ADDB_OBJ, \n  $RM_OBJ, \n $DTM_OBJ"
+	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $mdsep, [4: ${MDS_NAMES[$i]}])}"
 	    PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
 	    PROC_NAMES="$PROC_NAMES, $PROC_NAME"
 	done
@@ -546,16 +556,22 @@ function build_conf()
 	RM_NAME="$RMS_FID_CON:$M0D"
 	RM_OBJ="{0x73| (($RM_NAME), @M0_CST_RMS, [1: $HA_ENDPOINT], [0], [0])}"
 	RM_OBJS="$RM_OBJS${RM_OBJS:+,} \n $RM_OBJ"
+	DTM_NAME="$DTM_FID_CON:$M0D"
+	DTM_OBJ="{0x73| (($DTM_NAME), @M0_CST_DTM0, [1: $HA_ENDPOINT], [1: "\"origin:in-volatile\""], [0])}"
+	DTM_OBJS="$DTM_OBJS${DTM_OBJS:+,} \n $DTM_OBJ"
 	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${HA_ENDPOINT}",
-                          [3: $HA_SVC_ID, $FIS_SVC_ID, $RM_NAME])}"
+                          [4: $HA_SVC_ID, $FIS_SVC_ID, $DTM_NAME, $RM_NAME])}"
 	PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
 	PROC_NAMES="$PROC_NAMES, $PROC_NAME"
 	PROC_NAME="$PROC_FID_CONT:$((M0D++))"
 	RM_NAME="$RMS_FID_CON:$M0D"
 	RM_OBJ="{0x73| (($RM_NAME), @M0_CST_RMS, [1: $CONFD_ENDPOINT], [0], [0])}"
 	RM_OBJS="$RM_OBJS${RM_OBJS:+,} \n $RM_OBJ"
+	DTM_NAME="$DTM_FID_CON:$M0D"
+	DTM_OBJ="{0x73| (($DTM_NAME), @M0_CST_DTM0, [1: $CONFD_ENDPOINT], [1: "\"origin:in-volatile\""], [0])}"
+        DTM_OBJS="$DTM_OBJS${DTM_OBJS:+,} \n $DTM_OBJ"
 	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${CONFD_ENDPOINT}",
-                          [2: $CONFD, $RM_NAME])}"
+                          [3: $CONFD, $DTM_NAME, $RM_NAME])}"
 	PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
 	PROC_NAMES="$PROC_NAMES, $PROC_NAME"
 	local SITE="{0x53| (($SITEID), [1: $RACKID], [$pvers_count: $PVER_IDS])}"
@@ -652,7 +668,7 @@ function build_conf()
  # Here "15" configuration objects includes services excluding ios & mds,
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
-[$(($IOS_OBJS_NR + $((${#mdservices[*]} * 5)) + $NR_IOS_DEVS + 19
+[$(($IOS_OBJS_NR + $((${#mdservices[*]} * 6)) + $NR_IOS_DEVS + 19 + 3
     + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 5 + $DIX_PVER_OBJ_COUNT + $FDMI_ITEMS_NR)):
   {0x74| (($ROOT), 1, (11, 22), $MDPOOLID, $IMETA_PVER, $MD_REDUNDANCY,
 	  [1: \"$pool_width $nr_data_units $nr_parity_units $nr_spare_units\"],
@@ -667,12 +683,14 @@ function build_conf()
   {0x73| (($HA_SVC_ID), @M0_CST_HA, [1: $HA_ENDPOINT], [0], [0])},
   {0x73| (($FIS_SVC_ID), @M0_CST_FIS, [1: $HA_ENDPOINT], [0], [0])},
   $M0T1FS_RM,
+  $M0T1FS_DTM,
   $FDMI_GROUP
   $FDMI_FILTER
   $FDMI_FILTER2
   $MDS_OBJS,
   $IOS_OBJS,
   $RM_OBJS,
+  $DTM_OBJS,
   $IOS_DEVS,
   $SITE,
   $RACK,

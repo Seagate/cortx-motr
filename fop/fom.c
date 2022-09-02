@@ -349,6 +349,11 @@ static bool hung_fom_notify(const struct m0_fom *fom)
 	if (M0_IN(fom->fo_type->ft_id, (M0_BE_TX_GROUP_OPCODE,
 					M0_ADDB_FOP_OPCODE,
 					M0_HA_LINK_OUTGOING_OPCODE,
+					M0_DTM0_REQ_OPCODE,
+					M0_DTM0_REDO_OPCODE,
+					M0_DTM0_RLINK_OPCODE,
+					M0_DTM0_RECOVERY_FOM_OPCODE,
+					M0_DTM0_PRUNER_OPCODE,
 					M0_FDMI_SOURCE_DOCK_OPCODE)))
 	    return true;
 
@@ -1396,6 +1401,7 @@ void m0_fom_init(struct m0_fom *fom, const struct m0_fom_type *fom_type,
 	fom->fo_ops	    = ops;
 	fom->fo_transitions = 0;
 	fom->fo_local	    = false;
+	fom->fo_local_update = false;
 	m0_fom_callback_init(&fom->fo_cb);
 	runq_tlink_init(fom);
 

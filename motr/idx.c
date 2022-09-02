@@ -42,7 +42,9 @@ static void idx_op_cb_free(struct m0_op_common *oc);
 static void idx_op_cb_cancel(struct m0_op_common *oc);
 
 const struct m0_bob_type oi_bobtype;
+
 M0_BOB_DEFINE(M0_INTERNAL, &oi_bobtype,  m0_op_idx);
+
 const struct m0_bob_type oi_bobtype = {
 	.bt_name         = "oi_bobtype",
 	.bt_magix_offset = offsetof(struct m0_op_idx, oi_magic),
@@ -206,6 +208,7 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 	oi->oi_vals = vals;
 	oi->oi_rcs  = rcs;
 	oi->oi_flags = flags;
+	oi->oi_min_success = M0_DIX_MIN_REPLICA_QUORUM;
 
 	locality = m0__locality_pick(oi_instance(oi));
 	M0_ASSERT(locality != NULL);
@@ -217,6 +220,18 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 
 	if (ENABLE_DTM0 && !(flags & M0_OIF_NO_DTM) &&
 	    M0_IN(op->op_code, (M0_IC_PUT, M0_IC_DEL))) {
+		if (m0c->m0c_dtms == NULL) {
+			static uint32_t count = 0;
+			if (count == 0) {
+				M0_LOG(M0_FATAL, "DTM is enabled but is not "
+						 "configured in conf. Skip "
+						 "DTM now. Please Check!");
+				count++;
+				/* Only print the msg at the first time. */
+			}
+			oi->oi_dtx = NULL;
+			goto skip_dtm; /* FIXME Add DTM service to conf */
+		}
 		M0_ASSERT(m0c->m0c_dtms != NULL);
 		oi->oi_dtx = m0_dtx0_alloc(m0c->m0c_dtms, oi->oi_sm_grp);
 		if (oi->oi_dtx == NULL)
@@ -226,6 +241,7 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 		M0_ADDB2_ADD(M0_AVI_CLIENT_TO_DIX, cid, did);
 	} else
 		oi->oi_dtx = NULL;
+skip_dtm:
 
 	if (opcode == M0_EO_CREATE && entity->en_type == M0_ET_IDX &&
 	    entity->en_flags & M0_ENF_META) {
@@ -592,6 +608,28 @@ int m0_idx_op(struct m0_idx       *idx,
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_idx_op);
+
+void m0_idx_op_setoption(struct m0_op *op,
+			 enum m0_op_idx_option option,
+			 int64_t value)
+{
+	struct m0_op_common *oc;
+	struct m0_op_idx *oi;
+
+	M0_PRE(op != NULL);
+	oc = bob_of(op, struct m0_op_common, oc_op, &oc_bobtype);
+	oi = bob_of(oc, struct m0_op_idx, oi_oc, &oi_bobtype);
+
+	switch (option) {
+	case M0_OIO_MIN_SUCCESS:
+		M0_PRE(ergo(value < 1, value == M0_DIX_MIN_REPLICA_QUORUM));
+		oi->oi_min_success = value;
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid index op option");
+	}
+}
+M0_EXPORTED(m0_idx_op_setoption);
 
 /**
  * Sets an entity operation to create or delete an index.

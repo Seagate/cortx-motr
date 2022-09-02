@@ -13,7 +13,6 @@
 
 set -e
 set -E
-
 sysconfig_dir='/etc/sysconfig'
 [ -d /etc/sysconfig ] || sysconfig_dir='/etc/default'
 
@@ -376,6 +375,7 @@ m0_get_ep_of()
         local ios_tid=401
         local cas_tid=501
         local fdmi_tid=601
+        local client_tid=601
         local portal=$(_portal_id $1)
         local ep_str="$lnid:$lpid:$portal:"
     else
@@ -386,6 +386,7 @@ m0_get_ep_of()
         local ios_tid=3401
         local cas_tid=3501
         local fdmi_tid=3601
+        local client_tid=3701
         local ep_str="$lnid@"
     fi
 
@@ -415,6 +416,11 @@ m0_get_ep_of()
             break
         fi
     done
+
+    if [[ $service == "client" ]] ; then
+       ep=${MOTR_HA_EP:-$ep_str$((client_tid++))}
+       found=true
+    fi
 
     if ! $found ; then
         m0_echo_err "cannot find endpoint of '$service' on the" \
@@ -580,6 +586,22 @@ m0_get_core_params()
         optional_params+=" -J $MOTR_M0D_SNS_BUFFER_POOL_SIZE"
     fi
 
+    if [[ -n "$MOTR_M0D_BTREE_ENABLE_TRICKLE_RELEASE" ]]; then
+        optional_params+=" -t $MOTR_M0D_BTREE_ENABLE_TRICKLE_RELEASE"
+    fi
+
+    if [[ -n "$MOTR_M0D_BTREE_LRU_WM_LOW" ]]; then
+        optional_params+=" -X $MOTR_M0D_BTREE_LRU_WM_LOW"
+    fi
+
+    if [[ -n "$MOTR_M0D_BTREE_LRU_WM_TARGET" ]]; then
+        optional_params+=" -P $MOTR_M0D_BTREE_LRU_WM_TARGET"
+    fi
+
+    if [[ -n "$MOTR_M0D_BTREE_LRU_WM_HIGH" ]]; then
+        optional_params+=" -O $MOTR_M0D_BTREE_LRU_WM_HIGH"
+    fi
+
     if m0_genders_has_variable m0_pool_width ; then
         optional_params+=" -w $(m0_genders_value_of m0_pool_width)"
     fi
@@ -659,6 +681,9 @@ m0_build_service_fid()
         dix-rebalance) cid=12 ;;
         fdmi)          cid=13 ;;
         iscs)          cid=14 ;;
+        dtm)           cid=15 ;;
+        dtmc)          cid=16 ;;
+        rmsc)          cid=17 ;;
     esac
 
     printf %s:%d "^s|$(( $cid + $node_idx * 16 ))" $sidx
@@ -781,6 +806,9 @@ _build_process_names()
             names="$names${names:+, }$name"
             ((++key)) || true
         done
+        name="$proc_fid_con:$key"
+        names="$names${names:+, }$name"
+        ((++key)) || true
     done
 
     echo -e "$names"
@@ -796,6 +824,7 @@ _build_process_objects()
     local rms_nr=$(m0_get_global_services rms | wc -w)
 
     for node in $(m0_get_nodes) ; do
+        local epc=$(m0_get_ep_of client $node)
         for s in $(m0_get_services $node) ; do
             local ep=$(m0_get_ep_of $s $node)
             local sname="$(m0_build_service_fid $s $node_idx)"
@@ -803,6 +832,7 @@ _build_process_objects()
             local rms="$(m0_build_service_fid "rms$idx" $node_idx)"
             local fdmi="$(m0_build_service_fid "fdmi$idx" $node_idx)"
             local iscs="$(m0_build_service_fid "iscs$idx" $node_idx)"
+            local dtm="$(m0_build_service_fid "dtm$idx" $node_idx)"
 
             proc_name="$proc_fid_con:$idx"
 
@@ -823,14 +853,20 @@ _build_process_objects()
                 repair="$(m0_build_service_fid ${s/$svc_name/${prefix}-repair} $node_idx)"
                 rebalance="$(m0_build_service_fid ${s/$svc_name/${prefix}-rebalance} $node_idx)"
 
-                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [7: $sname, $repair, $rebalance, $rms, $addb, $fdmi, $iscs])}"
+                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [8: $sname, $repair, $rebalance, $rms, $addb, $fdmi, $iscs, $dtm])}"
             else
-                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [5: $sname, $rms, $addb, $fdmi, $iscs])}"
+                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [6: $sname, $rms, $addb, $fdmi, $iscs, $dtm])}"
             fi
 
             objs="$objs${objs:+, \n} $obj"
             ((idx++)) || true
         done
+            local dtmc="$(m0_build_service_fid "dtmc$idx" $node_idx)"
+            local rmsc="$(m0_build_service_fid "rmsc$idx" $node_idx)"
+            proc_name="$proc_fid_con:$idx"
+            obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$epc\"", [2: $rmsc, $dtmc])}"
+            objs="$objs${objs:+, \n} $obj"
+            ((idx++)) || true
         ((node_idx++)) || true
     done
 
@@ -857,6 +893,7 @@ _type_id()
         dix-repair)    type_id=@M0_CST_DIX_REP ;;
         dix-rebalance) type_id=@M0_CST_DIX_REB ;;
         iscs)          type_id=@M0_CST_ISCS ;;
+        dtm)           type_id=@M0_CST_DTM0 ;;
 
 #        cas*)          type_id=11 ;;
 #        dix-repair)    type_id=12 ;;
@@ -876,6 +913,7 @@ _build_service_objects()
     local rms_nr=$(m0_get_global_services rms | wc -w)
 
     for node in $(m0_get_nodes) ; do
+        local lep=$(m0_get_ep_of "client" $node)
         for s in $(m0_get_services $node) ; do
             local ep=$(m0_get_ep_of $s $node)
             local type_id=$(_type_id $s)
@@ -916,6 +954,10 @@ _build_service_objects()
             type_id=$(_type_id "iscs")
             objs="$objs${objs:+,\n  }{0x73| (($iscs), $type_id, [1: "\"$ep\""], [0], [0])}"
 
+            dtm="$(m0_build_service_fid "dtm$idx" $node_idx)"
+            type_id=$(_type_id "dtm")
+            objs="$objs${objs:+,\n  }{0x73| (($dtm), $type_id, [1: "\"$ep\""], [1: "\"origin:in-volatile\""], [0])}"
+
             if [[ $s == ios* || $s == cas* ]] ; then
                 local repair
                 local rebalance
@@ -941,6 +983,13 @@ _build_service_objects()
             fi
             ((idx++)) || true
         done
+            dtmc="$(m0_build_service_fid "dtmc$idx" $node_idx)"
+            type_id=$(_type_id "dtm")
+            objs="$objs${objs:+,\n  }{0x73| (($dtmc), $type_id, [1: "\"$lep\""], [1: "\"origin:in-volatile\""], [0])}"
+            rmsc="$(m0_build_service_fid "rmsc$idx" $node_idx)"
+            type_id=$(_type_id "rms")
+            objs="$objs${objs:+,\n  }{0x73| (($rmsc), $type_id, [1: "\"$lep\""], [0], [0])}"
+            ((idx++)) || true
         ((node_idx++)) || true
     done
 
@@ -1036,12 +1085,13 @@ m0_build_local_conf()
     local proc_names=$(_build_process_names $proc_fid_con)
     local proc_objs=$(_build_process_objects $proc_fid_con)
     local procs=$(m0_get_global_services | wc -w)
+    local client_procs=$(m0_get_nodes | wc -w)
     local service_objs=$(_build_service_objects)
     local services=$(echo "$service_objs" | wc -l)
     local cas_objs_nr
     m0_cas_enabled && cas_objs_nr=$(($ipool_width * 3 + 6)) || cas_objs_nr=0
     local local_conf=$(cat <<CONF_END
-[$(($procs + $services + $pool_width * 3 + 13 + 7 + $cas_objs_nr)):
+[$(($procs + $client_procs + $services + $pool_width * 3 + 13 + 7 + $cas_objs_nr)):
   {0x74| (($root), 1, (11, 22), $mdpoolid, $imetapverid, 1,
           [1: "$pool_width $data_units $parity_units $spare_units"],
           [1: $node],
@@ -1049,7 +1099,7 @@ m0_build_local_conf()
           $(_build_pool_ids_str $poolid $mdpoolid $imetapoolid),
           [1: $prof], [0])},
   {0x70| (($prof), $(_build_pool_ids_str $poolid $mdpoolid $imetapoolid))},
-  {0x6e| (($node), 16000, 2, 3, 2, [$procs: $proc_names])},
+  {0x6e| (($node), 16000, 2, 3, 2, [$(($procs + $client_procs)): $proc_names])},
   $proc_objs,
   $service_objs,
   $(_build_ios_devs $pool_width $pverid),

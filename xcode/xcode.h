@@ -231,6 +231,7 @@ extern const char *m0_xcode_aggr_name[M0_XA_NR];
 enum m0_xode_atom_type {
 	M0_XAT_VOID,
 	M0_XAT_U8,
+	M0_XAT_U16,
 	M0_XAT_U32,
 	M0_XAT_U64,
 
@@ -914,6 +915,7 @@ M0_INTERNAL void m0_xcode_union_close(struct m0_xcode_type *un);
 
 extern const struct m0_xcode_type M0_XT_VOID;
 extern const struct m0_xcode_type M0_XT_U8;
+extern const struct m0_xcode_type M0_XT_U16;
 extern const struct m0_xcode_type M0_XT_U32;
 extern const struct m0_xcode_type M0_XT_U64;
 

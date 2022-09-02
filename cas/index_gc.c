@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * Copyright (c) 2015-2020 Seagate Technology LLC and/or its Affiliates
+ * Copyright (c) 2015-2021 Seagate Technology LLC and/or its Affiliates
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -355,12 +355,18 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		rc = m0_ctg_op_rc(ctg_op);
 		m0_ctg_op_fini(ctg_op);
 		fom->cg_ctg_op_initialized = false;
-		if (rc == 0 && m0_be_btree_is_empty(&fom->cg_ctg->cc_tree)) {
+		if (rc == 0 && m0_btree_is_empty(fom->cg_ctg->cc_tree)) {
 			M0_LOG(M0_DEBUG, "tree cleaned, now drop it");
 			m0_ctg_op_init(ctg_op, fom0, 0);
 			fom->cg_ctg_op_initialized = true;
 			result = m0_ctg_drop(ctg_op, fom->cg_ctg,
 					     CGC_LOCK_DEAD_INDEX);
+			/*
+			 * Free the memory allocated for the root node after
+			 * destroying the tree.
+			 */
+			if (result == M0_FSO_AGAIN)
+				m0_free0(&fom->cg_ctg->cc_tree);
 		} else {
 			M0_LOG(M0_DEBUG, "out of credits, commit & restart");
 			m0_long_unlock(m0_ctg_lock(m0_ctg_dead_index()),
@@ -387,12 +393,13 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 		m0_ctg_op_fini(ctg_op);
 		m0_ctg_op_init(ctg_op, fom0, 0);
 		fom->cg_ctg_op_initialized = true;
+		fom->cg_ctg_key = M0_BUF_INIT_PTR(&fom->cg_ctg);
 		/*
 		 * Now completely forget this ctg by deleting its descriptor
 		 * from "dead index" catalogue.
 		 */
-		result = m0_ctg_delete(ctg_op, m0_ctg_dead_index(),
-				       &fom->cg_ctg_key, CGC_SUCCESS);
+		result = m0_ctg_dead_delete(ctg_op, m0_ctg_dead_index(),
+					    &fom->cg_ctg_key, CGC_SUCCESS);
 		break;
 	case CGC_SUCCESS:
 		m0_long_unlock(m0_ctg_lock(m0_ctg_dead_index()),
@@ -488,6 +495,7 @@ static void cgc_start_fom(struct m0_fom *fom0, struct m0_fop *fop)
 	m0_fom_init(fom0, &fop->f_type->ft_fom_type,
 		    &cgc_fom_ops, fop, NULL, fom->cg_reqh);
 	fom0->fo_local = true;
+	fom0->fo_local_update = true;
 	fom->cg_ctg_op_initialized = false;
 	m0_long_lock_link_init(&fom->cg_dead_index, fom0,
 			       &fom->cg_dead_index_addb2);
