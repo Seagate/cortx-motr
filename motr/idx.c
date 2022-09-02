@@ -42,7 +42,9 @@ static void idx_op_cb_free(struct m0_op_common *oc);
 static void idx_op_cb_cancel(struct m0_op_common *oc);
 
 const struct m0_bob_type oi_bobtype;
+
 M0_BOB_DEFINE(M0_INTERNAL, &oi_bobtype,  m0_op_idx);
+
 const struct m0_bob_type oi_bobtype = {
 	.bt_name         = "oi_bobtype",
 	.bt_magix_offset = offsetof(struct m0_op_idx, oi_magic),
@@ -206,6 +208,7 @@ static int idx_op_init(struct m0_idx *idx, int opcode,
 	oi->oi_vals = vals;
 	oi->oi_rcs  = rcs;
 	oi->oi_flags = flags;
+	oi->oi_min_success = M0_DIX_MIN_REPLICA_QUORUM;
 
 	locality = m0__locality_pick(oi_instance(oi));
 	M0_ASSERT(locality != NULL);
@@ -605,6 +608,28 @@ int m0_idx_op(struct m0_idx       *idx,
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_idx_op);
+
+void m0_idx_op_setoption(struct m0_op *op,
+			 enum m0_op_idx_option option,
+			 int64_t value)
+{
+	struct m0_op_common *oc;
+	struct m0_op_idx *oi;
+
+	M0_PRE(op != NULL);
+	oc = bob_of(op, struct m0_op_common, oc_op, &oc_bobtype);
+	oi = bob_of(oc, struct m0_op_idx, oi_oc, &oi_bobtype);
+
+	switch (option) {
+	case M0_OIO_MIN_SUCCESS:
+		M0_PRE(ergo(value < 1, value == M0_DIX_MIN_REPLICA_QUORUM));
+		oi->oi_min_success = value;
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid index op option");
+	}
+}
+M0_EXPORTED(m0_idx_op_setoption);
 
 /**
  * Sets an entity operation to create or delete an index.
