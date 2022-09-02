@@ -412,7 +412,7 @@ static const struct m0_bob_type confc_bob = {
 	.bt_magix        = M0_CONFC_MAGIC,
 	.bt_check        = _confc_check
 };
-M0_BOB_DEFINE(static, &confc_bob, m0_confc);
+M0_BOB_DEFINE(M0_INTERNAL, &confc_bob, m0_confc);
 
 static const struct m0_bob_type ctx_bob = {
 	.bt_name         = "m0_confc_ctx",
@@ -524,6 +524,7 @@ M0_INTERNAL int m0_confc_init_wait(struct m0_confc       *confc,
 	M0_LOG(M0_DEBUG, "confd=%s lconf=%s", confd_addr, local_conf);
 
 	m0_mutex_init(&confc->cc_lock);
+	m0_confc_bob_init(confc);
 	confc_lock(confc);
 	rc = confc_cache_create(confc, local_conf);
 	confc_unlock(confc);
@@ -539,7 +540,6 @@ M0_INTERNAL int m0_confc_init_wait(struct m0_confc       *confc,
 	if (rc == 0) {
 		confc->cc_group = sm_group;
 		confc->cc_nr_ctx = 0;
-		m0_confc_bob_init(confc);
 		m0_mutex_init(&confc->cc_unatt_guard);
 		m0_chan_init(&confc->cc_unattached, &confc->cc_unatt_guard);
 		confc->cc_gops = NULL;
