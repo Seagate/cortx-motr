@@ -569,6 +569,24 @@ enum m0_idx_opcode {
 } M0_XCA_ENUM;
 
 /**
+ * Option to set on an index operation.
+ *
+ * See @ref m0_idx_op_setoption.
+ */
+enum m0_op_idx_option {
+	/**
+	 * Index operations are distributed across one or more CAS services
+	 * to achieve the configured durability. This option specifies the
+	 * minimum number of services that must successfully complete an
+	 * operation for the operation as a whole to be considered
+	 * successful. The value for this option must be greater than zero
+	 * or a special value. This should normally be set to
+	 * @ref M0_DIX_MIN_REPLICA_QUORUM to ensure consistency.
+	 */
+	M0_OIO_MIN_SUCCESS = 1,
+};
+
+/**
  * Flags passed to m0_obj_op() to specify object IO operation behaviour.
  */
 enum m0_op_obj_flags {
@@ -1627,6 +1645,18 @@ int m0_idx_op(struct m0_idx       *idx,
 	      int32_t             *rcs,
 	      uint32_t             flags,
 	      struct m0_op       **op);
+
+/**
+ * Set an option on an index operation.
+ *
+ * The index op must have been previously initialized with @ref m0_idx_op.
+ * It is undefined behavior to change an option after the index op has
+ * been launched. The meaning of each option is documented in
+ * @ref m0_op_idx_option.
+ */
+void m0_idx_op_setoption(struct m0_op *op,
+			 enum m0_op_idx_option option,
+			 int64_t value);
 
 void m0_realm_create(struct m0_realm    *realm,
 		     uint64_t wcount, uint64_t rcount,
