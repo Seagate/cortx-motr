@@ -80,9 +80,10 @@ motr_service_stop()
 }
 
 motr_service_start $N $K $S $P $stride 
+rc=$?
 echo "CORTX- Motr Service is started"
 motr_service_stop
 echo "CORTX- Motr Service is stopped"
 
 
-report_and_exit initscripts $?
+report_and_exit initscripts $rc
