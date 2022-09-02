@@ -77,9 +77,9 @@ static int    dtm0_net_fom_create(struct m0_fop  *fop, struct m0_fom **out,
 				  struct m0_reqh *reqh);
 static void   dtm0_net_fom_fini(struct m0_fom *fom);
 static size_t dtm0_net_fom_locality(const struct m0_fom *fom);
-/* XXX: static */ int    dtm0_net_fom_tick(struct m0_fom *fom);
+/* XXX: static */ /* TODO: Remove it. int    dtm0_net_fom_tick(struct m0_fom *fom); */
 
-static const struct m0_fom_ops dtm0_pmsg_fom_ops = {
+static const struct m0_fom_ops dtm0_pmsg_net_fom_ops = {
 	.fo_fini          = dtm0_net_fom_fini,
 	.fo_tick          = dtm0_net_fom_tick,
 	.fo_home_locality = dtm0_net_fom_locality
@@ -297,7 +297,7 @@ M0_INTERNAL struct m0_dtm0_msg *m0_dtm0_msg_dup(const struct m0_dtm0_msg *msg)
 }
 
 
-/* XXX: static */ int    dtm0_net_fom_tick(struct m0_fom *fom)
+M0_INTERNAL int dtm0_net_fom_tick(struct m0_fom *fom)
 {
 	int                     phase = m0_fom_phase(fom);
 	int                     result = M0_FSO_AGAIN;

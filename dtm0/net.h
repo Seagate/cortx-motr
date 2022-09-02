@@ -31,6 +31,7 @@
 #include "be/queue.h"        /* m0_be_queue */
 #include "dtm0/tx_desc.h"    /* m0_dtm0_tx_desc */
 #include "dtm0/tx_desc_xc.h" /* m0_dtm0_tx_desc_xc */
+#include "fop/fom.h"         /* m0_fom */
 
 /**
  * @defgroup dtm0
@@ -51,14 +52,14 @@
 struct m0_be_op;
 struct m0_buf;
 
-struct m0_dtm0_redo {
+struct m0_dtm0_net_redo {
 	struct m0_dtm0_tx_desc redo_txd;
 	struct m0_buf          redo_udata;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_dtm0_msg_redo {
-	uint64_t             size;
-	struct m0_dtm0_redo *buf;
+	uint64_t                 size;
+	struct m0_dtm0_net_redo *buf;
 } M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 struct m0_dtm0_msg_eol {
@@ -166,6 +167,7 @@ M0_INTERNAL struct m0_dtm0_msg *m0_dtm0_msg_dup(const struct m0_dtm0_msg *msg);
 M0_INTERNAL int m0_dtm0_msg_copy(struct m0_dtm0_msg *dst,
 				 const struct m0_dtm0_msg *src);
 
+M0_INTERNAL int dtm0_net_fom_tick(struct m0_fom *fom);
 M0_INTERNAL int m0_dtm0_net_mod_init(void);
 M0_INTERNAL void m0_dtm0_net_mod_fini(void);
 /** @} end of dtm0 group */

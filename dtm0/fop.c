@@ -93,8 +93,8 @@ static const struct m0_fom_ops dtm0_tmsg_fom_ops = {
 };
 
 
-/* XXX */
-extern int dtm0_net_fom_tick(struct m0_fom *fom);
+/* XXX TODO: Remove it */
+/* extern int dtm0_net_fom_tick(struct m0_fom *fom); */
 
 static const struct m0_fom_ops dtm0_net_fom_ops = {
 	.fo_fini = dtm0_fom_fini,
