@@ -4,7 +4,7 @@ This document describes how to develop a simple application with Motr APIs.
 This document also list links to more useful Motr applications with richer
 features.
 
-The first document developers should read is: [Motr Client API](/motr/client.h).
+The first document developers should read is: [Motr Client API](https://github.com/Seagate/cortx-motr/blob/main/motr/client.h).
 It explains basic notations, terminologies, and data structures in CORTX Motr.
 Example motr client applications can be found in our
 [motr client apps repo](https://github.com/Seagate/cortx-motr-apps)
@@ -12,27 +12,29 @@ and an alternative higher-level interface to motr can be found in our
 [Maestro repo](https://github.com/Seagate/cortx-mio).
 Developers are also assumed having a running CORTX Motr system: please refer to
 [Cluster Setup](https://github.com/Seagate/CORTX/blob/main/doc/Cluster_Setup.md)
-and [Quick Start Guide](/doc/Quick-Start-Guide.rst). For debugging, ADDB can be
-very useful and is described in these [two](ADDB.rst) [documents](addb2-primer).
+and [Quick Start Guide](https://github.com/Seagate/cortx-motr/blob/main/doc/Quick-Start-Guide.rst). For debugging, ADDB can be
+very useful and is described in these two documents, [ADDB](https://github.com/Seagate/cortx-motr/blob/main/doc/ADDB.rst) [addb2-primer](https://github.com/Seagate/cortx-motr/blob/main/doc/addb2-primer).
 
 For your convenience to build and develop motr, we offer a
 [CentOS-7.9-based Development VM](https://github.com/Seagate/cortx-motr/releases/tag/ova-centos79)
 with all dependencies installed ready to build and start single-node Motr cluster.
 
 CORTX Motr provides object based operations and index (a.k.a key/value) based operations as well as FDMI interface.
-For architectural documents, please refer to our [reading list](reading-list.md).
+For architectural documents, please refer to our [reading list](https://github.com/Seagate/cortx-motr/blob/main/doc/reading-list.md).
 
 ## A simple CORTX Motr Object Application
 
-[Object Application](motr-object-app.md)
++  [A simple Cortx Motr application (object)](https://github.com/Seagate/cortx-motr/blob/main/doc/motr-object-app.md)
++  [A simple Cortx Motr application (index)](#a-simple-cortx-motr-index-key-value-application)
++  [More examples, utilities, and applications](#more-examples-utilities-and-applications)
 
-## A simple CORTX Motr Index/Key-Value Application
+## A simple CORTX Motr Index Key-Value Application
 
-[Key-Value Application](motr-kv-app.md)
+[Key-Value Application](https://github.com/Seagate/cortx-motr/blob/main/doc/motr-kv-app.md)
 
 ## A simple CORTX Motr FDMI application
 
-[FDMI Application](/fdmi/plugins/motr-fdmi-app.md)
+[FDMI Application](https://github.com/Seagate/cortx-motr/blob/main/fdmi/plugins/motr-fdmi-app.md)
 
 ## How to compile & build the application examples
 
@@ -49,7 +51,7 @@ files in "/usr/include/motr " dir and binary libraries in "/lib".
 
 The first way is to run application against a running CORTX Motr system. Please
 refer to [Cluster Setup](https://github.com/Seagate/CORTX/blob/main/doc/Cluster_Setup.md)
-and [Quick Start Guide](/doc/Quick-Start-Guide.rst). `hctl status` will display Motr service
+and [Quick Start Guide](https://github.com/Seagate/cortx-motr/blob/main/doc/Quick-Start-Guide.rst). `hctl status` will display Motr service
 configuration parameters.
 
 The second way is to run the "motr/examples/setup\_a\_running\_motr\_system.sh" in a singlenode mode.
@@ -64,31 +66,31 @@ as the last argument to the object program. In the object example, we will only 
 ## More examples, utilities, and applications
 
 *   CORTX Motr examples (object) and utilities are:
-    *   [m0cp](/motr/st/utils/copy.c)
-    *   [m0cat](/motr/st/utils/cat.c)
-    *   [m0touch](/motr/st/utils/touch.c)
-    *   [m0unlink](/motr/st/utils/unlink.c)
-    *   [m0client](/motr/st/utils/client.c)
-    *   [m0kv](/motr/m0kv/)
+    *   [m0cp](https://github.com/Seagate/cortx-motr/blob/main/motr/st/utils/copy.c)
+    *   [m0cat](https://github.com/Seagate/cortx-motr/blob/main/motr/st/utils/cat.c)
+    *   [m0touch](https://github.com/Seagate/cortx-motr/blob/main/motr/st/utils/touch.c)
+    *   [m0unlink](https://github.com/Seagate/cortx-motr/blob/main/motr/st/utils/unlink.c)
+    *   [m0client](https://github.com/Seagate/cortx-motr/blob/main/motr/st/utils/client.c)
+    *   [m0kv](https://github.com/Seagate/cortx-motr/tree/main/motr/m0kv)
 *   CORTX Maestro
     * [A higher-level API to motr](https://github.com/Seagate/cortx-mio)
 *   CORTX Motr benchmarking utility:
-    *   [m0crate](/motr/m0crate/)
+    *   [m0crate](https://github.com/Seagate/cortx-motr/tree/main/motr/m0crate)
 *   CORTX Motr Go bindings:
-    *   [bindings/go/](/bindings/go)
+    *   [bindings/go/](https://github.com/Seagate/cortx-motr/tree/main/bindings/go)
 *   CORTX Motr HSM utility and library:
-    *   [hsm/](/hsm/)
+    *   [hsm/](https://github.com/Seagate/cortx-motr/tree/main/hsm)
 *   CORTX Motr Python wrapper:
-    *   [spiel/](/spiel)
+    *   [spiel/](https://github.com/Seagate/cortx-motr/tree/main/spiel)
 *   CORTX S3Server using Motr client APIs to access CORTX Motr services:
-    *   https://github.com/Seagate/cortx-s3server
+    *   [https://github.com/Seagate/cortx-s3server](https://github.com/Seagate/cortx-s3server)
         This is one of the components of CORTX project.
 *   Motr SAL implementation for [Ceph RGW](https://docs.ceph.com/en/pacific/radosgw/):
     *   https://github.com/ceph/ceph/pull/44379 (TODO: update the link after PR is merged.)
         This is another CORTX S3 frontend which is actively developed atm.
 *   A library which uses Motr client APIs to access CORTX Motr services, to provide file system accessibility:
-    *   https://github.com/Seagate/cortx-posix
+    *   [https://github.com/Seagate/cortx-posix](https://github.com/Seagate/cortx-posix)
         This is one of the components of CORTX project.
 *   In-Store Computation (aka Function Shipping) demo:
-    *   [iscservice/demo/](/iscservice/demo)
+    *   [iscservice/demo/](https://github.com/Seagate/cortx-motr/tree/main/iscservice/demo)
 
