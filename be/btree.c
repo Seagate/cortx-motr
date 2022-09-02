@@ -14189,38 +14189,36 @@ static void ut_mtree_mthread_test(void)
 		uint64_t               node_size;
 		uint64_t               no_of_trees;
 	} btrees_mthreads[] = {
-				{
-					{
-						M0_BT_BALLOC_GROUP_EXTENTS,
-						M0_MEMBER_SIZE(struct m0_ext,
-                                                               e_start),
-						M0_MEMBER_SIZE(struct m0_ext,
-                                                               e_end)
-				},
-                                        4096, // BALLOC_ROOT_NODE_SIZE
-					      // from balloc.h
-					2
-				},
-				{
-					{
-						M0_BT_EMAP_EM_MAPPING,
-						48,
-						-1
-					},
-					16384,
-					2
-				},
-				{
-					{
-						M0_BT_COB_NAMESPACE,
-						-1,
-						-1
-					},
-					8192,
-					10
-				}
+		{
+			{
+				M0_BT_BALLOC_GROUP_EXTENTS,
+				8,
+				8
+			},
+                        4096, // BALLOC_ROOT_NODE_SIZE
+			      // from balloc.h
+			2
+		},
+		{
+			{
+				M0_BT_EMAP_EM_MAPPING,
+				48,
+				-1
+			},
+			16384,
+			2
+		},
+		{
+			{
+				M0_BT_COB_NAMESPACE,
+				-1,
+				-1
+			},
+			8192,
+			10
+		}
 
-			      };
+	};
 	uint16_t                      tree_count= 0;
 	uint16_t                      arr_size  = ARRAY_SIZE(btrees_mthreads);
 	struct m0_be_tx_credit        cred;
