@@ -1396,6 +1396,7 @@ static void m0_be_queue__finish(struct m0_be_queue *bq, struct m0_buf *item)
 	}
 	M0_POST(bq->bq_the_end);
 	m0_be_queue_unlock(bq);
+	M0_LOG(M0_DEBUG, "The queue %p is ended.", bq);
 }
 #define M0_BE_QUEUE__FINISH(bq, item_type) ({                \
 	item_type item;                                      \
@@ -2262,15 +2263,18 @@ m0_ut_remach_populate(struct m0_dtm0_recovery_machine *m,
 	}
 }
 
+/**
+ * This function is called as a postmortem after a REDO message has already
+ * been replayed. It checks if the REDO message contains EOL flag. If yes,
+ * an EOL item is added to the EOL queue. This is to end the queue.
+ */
 M0_INTERNAL void
 m0_dtm0_recovery_machine_redo_post(struct m0_dtm0_recovery_machine *m,
 				   struct dtm0_req_fop             *redo,
 				   struct m0_be_op                 *op)
 {
-	bool                 is_eol =
-		!!(redo->dtr_flags & M0_BITS(M0_DMF_EOL));
-	bool                 is_eviction =
-		!!(redo->dtr_flags & M0_BITS(M0_DMF_EVICTION));
+	bool is_eol = !!(redo->dtr_flags & M0_BITS(M0_DMF_EOL));
+	bool is_eviction = !!(redo->dtr_flags & M0_BITS(M0_DMF_EVICTION));
 	const struct m0_fid *initiator = &redo->dtr_initiator;
 	struct eolq_item     item = {};
 	struct recovery_fom *rf;
@@ -2287,11 +2291,14 @@ m0_dtm0_recovery_machine_redo_post(struct m0_dtm0_recovery_machine *m,
 				.ei_type = EIT_EOL,
 				.ei_source = *initiator,
 			};
+			/* Similar to eolq_post(). Maybe call it directly? */
 			m0_be_queue_lock(&rf->rf_eolq);
-			M0_ASSERT_INFO(!rf->rf_eolq.bq_the_end,
-				       "REDOs are not allowed if local recovery"
-				       " has already been finished.");
-			M0_BE_QUEUE_PUT(&rf->rf_eolq, op, &item);
+			if (!rf->rf_eolq.bq_the_end)
+				M0_BE_QUEUE_PUT(&rf->rf_eolq, op, &item);
+			else {
+				m0_be_op_active(op);
+				m0_be_op_done(op);
+			}
 			m0_be_queue_unlock(&rf->rf_eolq);
 		} else {
 			M0_LOG(M0_WARN,

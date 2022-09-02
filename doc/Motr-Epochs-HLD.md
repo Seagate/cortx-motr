@@ -74,7 +74,7 @@ EpochTransitionRequest { service :: ServiceId
                        , targetEpoch  :: EpochId }
 ```
 HA services that wrap Motr services must be able to accept the following additional messages:
-```
+```Text
 EpochTransition { targetEpoch            :: EpochId
 
                 , epochTransitionPayload :: a }  

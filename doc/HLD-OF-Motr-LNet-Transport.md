@@ -140,7 +140,7 @@ See Support for multiple message delivery in a single network buffer.
 
 The design provides an API for the higher level application to associate the internal threads used by a transfer machine with a set of processors. In particular the API guarantees that buffer and transfer machine callbacks will be made only on the processors specified.
 
-```
+```C
 #include “lib/processor.h”
 
 ...
@@ -152,7 +152,7 @@ Support for this interface is transport specific and availability may also vary 
 #### Controlling network buffer event delivery
 
 The design provides the following APIs for the higher level application to control when network buffer event delivery takes place and which thread is used for the buffer event callback.
-```
+```C
 void m0_net_buffer_event_deliver_all(struct m0_net_transfer_mc *tm);
 int m0_net_buffer_event_deliver_synchronously(struct m0_net_transfer_mc *tm);
 bool m0_net_buffer_event_pending(struct m0_net_transfer_mc *tm);

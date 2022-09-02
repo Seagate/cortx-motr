@@ -501,10 +501,12 @@ static struct m0_rpc_item_ops ha_entrypoint_client_item_ops = {
 static void ha_entrypoint_client_fop_release(struct m0_ref *ref)
 {
 	struct m0_fop *fop;
-
+	struct m0_ha_entrypoint_req_fop    *req_fop_data;
 	M0_ENTRY();
 	M0_PRE(ref != NULL);
 	fop = container_of(ref, struct m0_fop, f_ref);
+	req_fop_data = (struct m0_ha_entrypoint_req_fop*)fop->f_data.fd_data;
+	m0_buf_free(&req_fop_data->erf_git_rev_id);
 	fop->f_data.fd_data = NULL;
 	m0_fop_fini(fop);
 	M0_SET0(fop);

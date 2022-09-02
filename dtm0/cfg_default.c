@@ -32,12 +32,17 @@
 
 #include "dtm0/domain.h"        /* struct m0_dtm0_domain_cfg */
 
+#include "fid/fid.h"            /* M0_FID_TINIT */
+
 
 M0_INTERNAL int
-m0_dtm0_domain_cfg_default_dup(struct m0_dtm0_domain_cfg *dod_cfg)
+m0_dtm0_domain_cfg_default_dup(struct m0_dtm0_domain_cfg *dod_cfg, bool mkfs)
 {
 	*dod_cfg = (struct m0_dtm0_domain_cfg){
 		.dodc_log = {
+			.dlc_seg0_suffix = "default",
+			.dlc_be_domain   = NULL,
+			.dlc_btree_fid   = M0_FID_TINIT('b', 1 /* XXX */, 2),
 		},
 		.dodc_pruner = {
 		},
@@ -47,6 +52,8 @@ m0_dtm0_domain_cfg_default_dup(struct m0_dtm0_domain_cfg *dod_cfg)
 		},
 		.dodc_net = {
 		},
+		.dod_create = mkfs,
+		.dod_destroy = false,
 	};
 	return M0_RC(0);
 }

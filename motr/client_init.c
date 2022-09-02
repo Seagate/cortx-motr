@@ -27,6 +27,7 @@
 #include "lib/arith.h"                /* M0_CNT_INC */
 #include "lib/mutex.h"                /* m0_mutex_lock */
 #include "lib/time.h"                 /* m0_nanosleep */
+#include "lib/string.h"               /* getenv() */
 #include "addb2/global.h"
 #include "addb2/sys.h"
 #include "fid/fid.h"                  /* m0_fid */
@@ -39,6 +40,7 @@
 #include "net/lnet/lnet_core_types.h" /* M0_NET_LNET_NIDSTR_SIZE */
 #include "dtm0/service.h"             /* m0_dtm0_service_find */
 #include "dtm0/helper.h"              /* m0_dtm_client_service_start */
+#include "dtm0/cfg_default.h"         /* m0_dtm0_domain_cfg_default_dup */
 
 #include "motr/io.h"                /* io_sm_conf */
 #include "motr/client.h"
@@ -1435,8 +1437,9 @@ static int initlift_addb2(struct m0_sm *mach)
 
 static int initlift_dtm0(struct m0_sm *mach)
 {
-	int                  rc = 0;
-	struct m0_client    *m0c;
+	int                       rc = 0;
+	struct m0_client         *m0c;
+	struct m0_dtm0_domain_cfg cfg;
 
 	M0_ENTRY();
 	M0_PRE(mach != NULL);
@@ -1445,7 +1448,11 @@ static int initlift_dtm0(struct m0_sm *mach)
 	M0_ASSERT(m0c_invariant(m0c));
 
 	if (m0c->m0c_initlift_direction == STARTUP) {
-		rc = m0_dtm0_domain_init(&m0c->m0c_dtm0_domain, NULL);
+		rc = m0_dtm0_domain_cfg_default_dup(&cfg, false);
+		if (rc != 0)
+			return M0_RC(rc);
+		cfg.dod_reqh = &m0c->m0c_reqh;
+		rc = m0_dtm0_domain_init(&m0c->m0c_dtm0_domain, &cfg);
 		if (rc != 0) {
 			initlift_fail(rc, m0c);
 			return M0_RC(initlift_get_next_floor(m0c));
@@ -1528,7 +1535,6 @@ M0_INTERNAL int m0_client_global_init(void)
 }
 
 #define NOT_EMPTY(x) (x != NULL && *x != '\0')
-
 static struct m0 m0_client_motr_instance;
 int m0_client_init(struct m0_client **m0c_p,
 		   struct m0_config *conf, bool init_m0)
@@ -1644,11 +1650,27 @@ int m0_client_init(struct m0_client **m0c_p,
 
 	if (ENABLE_DTM0) {
 		struct m0_reqh_service *reqh_svc;
+		struct m0_confc        *confc = m0_reqh2confc(&m0c->m0c_reqh);
+		if (M0_IS0(confc)) {
+			M0_LOG(M0_FATAL, "DTM is enabled, but the confc is not "
+					 "initialised. This happens in UT to "
+					 "test failure cases. If not, please "
+					 "check! Skip DTM now");
+			rc = 0;
+			goto skip_dtm;   /* FIXME */
+		}
 
 		rc = m0_conf_process2service_get(m0_reqh2confc(&m0c->m0c_reqh),
 						 &m0c->m0c_reqh.rh_fid,
 						 M0_CST_DTM0, &cli_svc_fid);
-		M0_ASSERT(rc == 0);
+		if (rc != 0) {
+			M0_LOG(M0_FATAL, "DTM is enabled, but DTM service is"
+					 " not defined in conf.\nPlease check"
+					 " the conf file for more details\n"
+					 "Now let's just skip DTM init");
+			rc = 0;
+			goto skip_dtm;   /* FIXME Please add DTM service. */
+		}
 
 		if (m0_dtm0_in_ut()) {
 			/* When in UT, m0c_reqh.rh_fid is the same as the
@@ -1677,17 +1699,39 @@ int m0_client_init(struct m0_client **m0c_p,
 		ha_process_event(m0c, M0_CONF_HA_PROCESS_DTM_RECOVERED);
 	}
 
+skip_dtm:
 	if (conf->mc_is_addb_init) {
-		char buf[64];
+		char        buf[256];
+		/* uint64 max character size */
+		enum { MAX_PID_IN_CHAR_SIZE = 20 };
+		const char *addb_stob_location = NULL;
 		/* Default client addb record file size set to 128M */
 		m0_bcount_t size = DEFAULT_CLIENT_ADDB2_RECORD_SIZE;
+
 		if (conf->mc_addb_size != 0) {
 			if (conf->mc_addb_size > MAX_ADDB2_RECORD_SIZE)
 				M0_LOG(M0_WARN, "ADDB size is more than recommended");
 			size = conf->mc_addb_size;
 			M0_LOG(M0_DEBUG, "ADDB size = %" PRIu64 "", size);
 		}
-		sprintf(buf, "linuxstob:./addb_%d", (int)m0_pid());
+#ifndef __KERNEL__
+		addb_stob_location = getenv("M0_CLIENT_ADDB_DIR");
+#endif
+		/* checking for buf size overflow */
+		if (addb_stob_location != NULL && sizeof(&addb_stob_location) >=
+		   sizeof(buf) - (sizeof("linuxstob:/addb_") +
+		   MAX_PID_IN_CHAR_SIZE))
+		{
+			M0_LOG(M0_WARN, "ADDB location is more than defined "
+			                "size .. ignoring it.");
+			addb_stob_location = NULL;
+		}
+		if (addb_stob_location == NULL)
+			addb_stob_location = ".";
+
+		snprintf(buf, 255, "linuxstob:%s/addb_%d",
+		         addb_stob_location, (int)m0_pid());
+		M0_LOG(M0_DEBUG, "addb_files directory=%s\n", addb_stob_location);
 		M0_LOG(M0_DEBUG, "addb size=%llu\n", (unsigned long long)size);
 		rc = m0_reqh_addb2_init(&m0c->m0c_reqh, buf,
 					0xaddbf11e, true, true, size);
@@ -1714,7 +1758,10 @@ void m0_client_fini(struct m0_client *m0c, bool fini_m0)
 	M0_PRE(m0_sm_conf_is_initialized(&m0_op_conf));
 	M0_PRE(m0_sm_conf_is_initialized(&entity_conf));
 	M0_PRE(m0c != NULL);
+
+	/* FIXME please see m0_client_init()
 	M0_PRE(ergo(ENABLE_DTM0, m0c->m0c_dtms != NULL));
+	*/
 
 	if (m0c->m0c_dtms != NULL)
 		m0_dtm_client_service_stop(&m0c->m0c_dtms->dos_generic);

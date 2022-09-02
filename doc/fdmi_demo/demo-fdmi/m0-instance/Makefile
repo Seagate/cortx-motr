@@ -1,6 +1,6 @@
 CC=gcc
 
-MERO_PATH=/root/mero-true-bulk-rebased
+MOTR_PATH=/root/motr-true-bulk-rebased
 LUSTRE_PATH=/usr/src/lustre-2.7.18.4-headers
 
 CFLAGS=-g -std=gnu99 -Wall -Werror -Wno-attributes -Wno-unused-variable			\
@@ -8,10 +8,10 @@ CFLAGS=-g -std=gnu99 -Wall -Werror -Wno-attributes -Wno-unused-variable			\
 -DM0_EXTERN=extern -fno-strict-aliasing -fno-omit-frame-pointer -fno-common	\
 -fPIC
 
-INCLUDE_FLAGS=-include config.h -I$(MERO_PATH) -I$(LUSTRE_PATH)/lnet/include	\
+INCLUDE_FLAGS=-include config.h -I$(MOTR_PATH) -I$(LUSTRE_PATH)/lnet/include	\
 -I$(LUSTRE_PATH)/lustre/include
 
-LDFLAGS=-L$(MERO_PATH)/extra-libs/gf-complete/src/.libs -L$(MERO_PATH)/mero/.libs -lm -lpthread -lrt -lgf_complete -lyaml -luuid -lmero
+LDFLAGS=-L$(MOTR_PATH)/extra-libs/gf-complete/src/.libs -L$(MOTR_PATH)/motr/.libs -lm -lpthread -lrt -lgf_complete -lyaml -luuid -lmotr
 
 OBJS=src/main.o
 

@@ -22,14 +22,14 @@
 ## This is our rescue script when there is system overload because of 
 ## un-cleaned VMs lying in the system.
 
-SCRIPT_DIR="`dirname $0`"
+SCRIPT_DIR=$(dirname "$0")
 DIR_TO_CLEAN="$HOME/virtual_clusters"
 
 if [ "$1" != "" ]; then
 	DIR_TO_CLEAN="$1"
 fi
 
-if [ ! -d $DIR_TO_CLEAN ]; then
+if [ ! -d "$DIR_TO_CLEAN" ]; then
 	echo "Path $DIR_TO_CLEAN doesnot exist." 
 	exit 1
 fi
@@ -52,7 +52,7 @@ echo ""
 echo "Following files exist in the [$DIR_TO_CLEAN] path."
 echo ""
 echo ""
-ls -l $DIR_TO_CLEAN
+ls -l "$DIR_TO_CLEAN"
 echo -n "Do you want to clean-up every file/cluster? Type [YES] in 30 seconds to continue. "
 read -t 30 CH 
 if [ "$CH" != "YES" ]; then
@@ -64,10 +64,10 @@ fi
 
 echo "No looking back now !!!"
 
-for CLSTR_PATH in $DIR_TO_CLEAN/*; do
+for CLSTR_PATH in "$DIR_TO_CLEAN"/*; do
     if [ -d "${CLSTR_PATH}" ]; then
-		CLSTR="`basename $CLSTR_PATH`"
-		$SCRIPT_DIR/destroy-cluster.sh $CLSTR --force
+		CLSTR=$(basename "$CLSTR_PATH")
+		"$SCRIPT_DIR"/destroy-cluster.sh "$CLSTR" --force
     fi
 done
 
