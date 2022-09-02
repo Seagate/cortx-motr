@@ -301,7 +301,7 @@ M0_INTERNAL void m0_balloc_debug_dump_group_extent(const char *tag,
 if (ENABLE_BALLOC_DUMP) {
 	struct m0_lext	*ex;
 
-	if (grp == NULL || grp->bgi_extents_loaded)
+	if (grp == NULL || !grp->bgi_extents_loaded)
 		return;
 
 	M0_LOG(M0_DEBUG, "free extents@%p:%s for grp=%04llx:",
