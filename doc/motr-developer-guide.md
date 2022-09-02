@@ -20,21 +20,22 @@ For your convenience to build and develop motr, we offer a
 with all dependencies installed ready to build and start single-node Motr cluster.
 
 CORTX Motr provides object based operations and index (a.k.a key/value) based operations as well as FDMI interface.
-For architectural documents, please refer to our [reading list](https://github.com/Seagate/cortx-motr/blob/main/doc/reading-list.md).
+For architectural documents, please refer to our [reading list](https://github.com/Seagate/cortx-motr/blob/main/doc/reading-list.md) .
 
++  [A simple Cortx Motr application (object)](#a-simple-cortx-motr-object-application)
++  [A simple Cortx Motr application (index)](#a-simple-cortx-motr-index-key-value-application)
++  [More examples, utilities, and applications](#more-examples-utilities-and-applications)
 ## A simple CORTX Motr Object Application
 
 +  [A simple Cortx Motr application (object)](https://github.com/Seagate/cortx-motr/blob/main/doc/motr-object-app.md)
-+  [A simple Cortx Motr application (index)](#a-simple-cortx-motr-index-key-value-application)
-+  [More examples, utilities, and applications](#more-examples-utilities-and-applications)
 
 ## A simple CORTX Motr Index Key-Value Application
 
-[Key-Value Application](https://github.com/Seagate/cortx-motr/blob/main/doc/motr-kv-app.md)
++  [Key-Value Application](https://github.com/Seagate/cortx-motr/blob/main/doc/motr-kv-app.md)
 
 ## A simple CORTX Motr FDMI application
 
-[FDMI Application](https://github.com/Seagate/cortx-motr/blob/main/fdmi/plugins/motr-fdmi-app.md)
++  [FDMI Application](https://github.com/Seagate/cortx-motr/blob/main/fdmi/plugins/motr-fdmi-app.md)
 
 ## How to compile & build the application examples
 
