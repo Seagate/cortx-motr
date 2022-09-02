@@ -820,5 +820,7 @@ M0_INTERNAL bool m0_confc_is_online(const struct m0_confc *confc);
 M0_INTERNAL struct m0_rpc_conn    *m0_confc2conn(struct m0_confc *confc);
 M0_INTERNAL struct m0_rpc_session *m0_confc2sess(struct m0_confc *confc);
 
+M0_BOB_DECLARE(M0_INTERNAL, m0_confc);
+
 /** @} confc_dfspec */
 #endif /* __MOTR_CONF_CONFC_H__ */
