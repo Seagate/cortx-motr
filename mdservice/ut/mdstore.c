@@ -86,6 +86,7 @@ static int fom_create(struct m0_fop *fop, struct m0_fom **m,
 	if (rc == 0) {
 		M0_UT_ASSERT(*m != NULL);
 		(*m)->fo_local = true;
+		(*m)->fo_local_update = true;
 	}
 	return rc;
 }
