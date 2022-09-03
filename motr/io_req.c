@@ -846,6 +846,7 @@ static void set_paritybuf_type(struct m0_op_io *ioo)
 	struct m0_client         *cinst = m0__op_instance(op);
 
 	if ((m0__is_read_op(op) && m0__obj_is_parity_verify_mode(cinst)) ||
+	    (m0__is_read_op(op) && ioo->ioo_dgmode_io_sent) ||
 	    (m0__is_update_op(op) && !m0_pdclust_is_replicated(play)))
 		ioo->ioo_pbuf_type = M0_PBUF_DIR;
 	else if (m0__is_update_op(op) && m0_pdclust_is_replicated(play))
@@ -887,7 +888,7 @@ static int ioreq_iomaps_prepare(struct m0_op_io *ioo)
 	play = pdlayout_get(ioo);
 
 	M0_LOG(M0_DEBUG, "ioo=%p spanned_groups=%"PRIu64
-			 " [N,K,us]=[%d,%d,%" PRIu64 "]",
+			 " [N,K,usz]=[%d,%d,%" PRIu64 "]",
 			 ioo, ioo->ioo_iomap_nr, layout_n(play),
 			 layout_k(play), layout_unit_size(play));
 
@@ -1139,113 +1140,6 @@ static int application_data_copy(struct pargrp_iomap      *map,
 	return M0_RC(0);
 }
 
-/* This function calculates and verify checksum for data read.
- * It divides the data in multiple units and call the client api
- * to verify checksum for each data unit.
- */
-static bool verify_checksum(struct m0_op_io *ioo)
-{
-	struct m0_pi_seed         seed;
-	struct m0_bufvec          user_data = {};
-	int                       usz;
-	int                       rc;
-	int                       count;
-	int                       i;
-	struct m0_generic_pi     *pi_ondisk;
-	struct m0_bufvec_cursor   datacur;
-	struct m0_bufvec_cursor   tmp_datacur;
-	struct m0_ivec_cursor     extcur;
-	uint32_t                  nr_seg;
-	int                       attr_idx = 0;
-	m0_bcount_t               bytes;
-
-	M0_ENTRY();
-	usz = m0_obj_layout_id_to_unit_size(
-			m0__obj_lid(ioo->ioo_obj));
-
-	m0_bufvec_cursor_init(&datacur, &ioo->ioo_data);
-	m0_bufvec_cursor_init(&tmp_datacur, &ioo->ioo_data);
-	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
-
-	while ( !m0_bufvec_cursor_move(&datacur, 0) &&
-		!m0_ivec_cursor_move(&extcur, 0) &&
-		attr_idx < ioo->ioo_attr.ov_vec.v_nr){
-
-		/* calculate number of segments required for 1 data unit */
-		nr_seg = 0;
-		count = usz;
-		while (count > 0) {
-			nr_seg++;
-			bytes = m0_bufvec_cursor_step(&tmp_datacur);
-			if (bytes < count) {
-				m0_bufvec_cursor_move(&tmp_datacur, bytes);
-				count -= bytes;
-			}
-			else {
-				m0_bufvec_cursor_move(&tmp_datacur, count);
-				count = 0;
-			}
-		}
-
-		/* allocate an empty buf vec */
-		rc = m0_bufvec_empty_alloc(&user_data, nr_seg);
-		if (rc != 0) {
-			M0_LOG(M0_ERROR, "buffer allocation failed, rc %d", rc);
-			return false;
-		}
-
-		/* populate the empty buf vec with data pointers
-		 * and create 1 data unit worth of buf vec
-		 */
-		i = 0;
-		count = usz;
-		while (count > 0) {
-			bytes = m0_bufvec_cursor_step(&datacur);
-			if (bytes < count) {
-				user_data.ov_vec.v_count[i] = bytes;
-				user_data.ov_buf[i] = m0_bufvec_cursor_addr(&datacur);
-				m0_bufvec_cursor_move(&datacur, bytes);
-				count -= bytes;
-			}
-			else {
-				user_data.ov_vec.v_count[i] = count;
-				user_data.ov_buf[i] = m0_bufvec_cursor_addr(&datacur);
-				m0_bufvec_cursor_move(&datacur, count);
-				count = 0;
-			}
-			i++;
-		}
-
-		if (ioo->ioo_attr.ov_vec.v_nr && ioo->ioo_attr.ov_vec.v_count[attr_idx] != 0) {
-
-			seed.pis_data_unit_offset   = m0_ivec_cursor_index(&extcur);
-			seed.pis_obj_id.f_container = ioo->ioo_obj->ob_entity.en_id.u_hi;
-			seed.pis_obj_id.f_key       = ioo->ioo_obj->ob_entity.en_id.u_lo;
-
-			pi_ondisk = (struct m0_generic_pi *)ioo->ioo_attr.ov_buf[attr_idx];
-
-			if (!m0_calc_verify_cksum_one_unit(pi_ondisk, &seed, &user_data)) {
-				return false;
-			}
-		}
-
-		attr_idx++;
-		m0_ivec_cursor_move(&extcur, usz);
-
-		m0_bufvec_free2(&user_data);
-	}
-
-	if (m0_bufvec_cursor_move(&datacur, 0) &&
-	    m0_ivec_cursor_move(&extcur, 0) &&
-	    attr_idx == ioo->ioo_attr.ov_vec.v_nr) {
-		return true;
-	}
-	else {
-		/* something wrong, we terminated early */
-		M0_IMPOSSIBLE("something wrong while arranging data");
-	}
-}
-
 /**
  * Copies the file-data between the iomap buffers and the application-provided
  * buffers, one row at a time.
@@ -1307,26 +1201,15 @@ static int ioreq_application_data_copy(struct m0_op_io *ioo,
 			rc = application_data_copy(
 				ioo->ioo_iomaps[i], ioo->ioo_obj,
 				pgstart, pgend, &appdatacur, dir, filter);
-			if (rc != 0)
+			if (rc != 0) {
 				return M0_ERR_INFO(
 					rc, "[%p] Copy failed (pgstart=%" PRIu64
 					" pgend=%" PRIu64 ")",
 					ioo, pgstart, pgend);
+			}
 		}
 
 	}
-
-	if (dir == CD_COPY_TO_APP) {
-		/* verify the checksum during data read.
-		 * skip checksum verification during degraded I/O
-		 */
-		if (ioreq_sm_state(ioo) != IRS_DEGRADED_READING &&
-		    m0__obj_is_cksum_validation_allowed(ioo) &&
-		    !verify_checksum(ioo)) {
-			return M0_RC(-EIO);
-		}
-	}
-
 	return M0_RC(0);
 }
 
@@ -1446,10 +1329,13 @@ static bool is_node_marked(struct m0_op_io *ioo,
 }
 
 /**
- * Returns number of failed devices or -EIO if number of failed devices exceeds
- * the value of K (number of spare devices in parity group). Once MOTR-899 lands
- * into dev the code for this function will change. In that case it will only
- * check if a given pool is dud.
+ * If everything is fine, returns 0. Otherwise, returns -EIO if
+ * number of failed devices exceeds the value of K (number of parity
+ * units in the parity group). Or a positive number if there are some
+ * failures (devices, processes, nodes) but they are tolerable.
+ *
+ * Once MOTR-899 lands into dev the code for this function will change.
+ * In that case it will only check if a given pool is dud.
  *
  * This is heavily based on m0t1fs/linux_kernel/file.c::device_check
  */
@@ -1501,22 +1387,26 @@ static int device_check(struct m0_op_io *ioo)
 		node_id = node_obj->pn_id.f_key;
 
 		ti->ti_state = state;
-		if (ti->ti_rc == -ECANCELED) {
-			/* Ignore service failures in a failed node */
-			if (M0_IN(node_state, (M0_PNDS_FAILED,
-					       M0_PNDS_OFFLINE))) {
-				if (!is_node_marked(ioo, node_id))
-					M0_CNT_INC(fnode_nr);
-				is_session_marked(ioo, ti->ti_session);
-			} else if (!is_session_marked(ioo, ti->ti_session)) {
-				M0_CNT_INC(fsvc_nr);
-			}
-		} else if (M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
-			   M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED)) &&
+
+		if (M0_IN(node_state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE))) {
+			if (!is_node_marked(ioo, node_id))
+				M0_CNT_INC(fnode_nr);
+			is_session_marked(ioo, ti->ti_session);
+		} else if (M0_IN(ti->ti_rc, (-ECANCELED, -ENOTCONN)) &&
+			   !is_session_marked(ioo, ti->ti_session)) {
+			M0_CNT_INC(fsvc_nr);
+		} else if ((M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
+				  M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED))
+			     || ti->ti_rc != 0 /* any error */) &&
 			   !is_session_marked(ioo, ti->ti_session)) {
 			/*
-			 * The case when multiple devices under the same service
-			 * are unavailable.
+			 * If services failure toleratance is not enabled,
+			 * is_session_marked() will return false always, and
+			 * we count failed devices under any services. But
+			 * if services failure tolerance is enabled, we count
+			 * failed devices under different services - only
+			 * these failures matter in this check (those that
+			 * belong to different upper failure domains).
 			 */
 			M0_CNT_INC(fdev_nr);
 		}
@@ -1532,23 +1422,17 @@ static int device_check(struct m0_op_io *ioo)
 
 	if (is_pver_dud(fdev_nr, layout_k(play), fsvc_nr, max_svc_failures,
 			fnode_nr, max_node_failures))
-		return M0_ERR_INFO(-EIO, "[%p] Failed to recover data "
-				"since number of failed data units "
-				"(%lu) exceeds number of parity "
-				"units in parity group (%lu) OR "
-				"number of failed services (%lu) "
-				"exceeds number of max failures "
-				"supported (%lu) OR "
-				"number of failed nodes (%lu) "
-				"exceeds number of max node failures "
-				"supported (%lu)",
-				ioo, (unsigned long)fdev_nr,
-				(unsigned long)layout_k(play),
-				(unsigned long)fsvc_nr,
-				(unsigned long)max_svc_failures,
+		return M0_ERR_INFO(-EIO, "[%p] too many failures: "
+				"nodes=%lu + svcs=%lu + devs=%lu, allowed: "
+				"nodes=%lu or svcs=%lu or devs=%lu", ioo,
 				(unsigned long)fnode_nr,
-				(unsigned long)max_node_failures);
-	return M0_RC(fdev_nr);
+				(unsigned long)fsvc_nr,
+				(unsigned long)fdev_nr,
+				(unsigned long)max_node_failures,
+				(unsigned long)max_svc_failures,
+				(unsigned long)layout_k(play));
+
+	return M0_RC(fdev_nr | fsvc_nr | fnode_nr);
 }
 
 /**
@@ -1567,20 +1451,29 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 	struct pargrp_iomap    *iomap;
 	struct ioreq_fop       *irfop;
 	struct target_ioreq    *ti;
-	enum m0_pool_nd_state   state;
 	struct m0_poolmach     *pm;
 
 	M0_ENTRY();
 	M0_PRE_EX(m0_op_io_invariant(ioo));
 
 	/*
-	 * If all devices are ONLINE, all requests return success.
-	 * In case of read before write, due to CROW, COB will not be present,
-	 * resulting into ENOENT error.
+	 * Return immediately if all devices are ONLINE and all requests
+	 * return success.
+	 *
+	 * There exists some cases that a request returns -ENOENT error:
+	 * (1) In case of read before write, due to CROW, COB will not be
+	 *     present, resulting into -ENOENT error.
+	 * (2) The unit to read is not created if ioservice crashed before
+	 *     the corresponding cob is created.
+	 * The -ENOENT error only means the corresponding cob doesn't exist
+	 * and it doesn't mean the object to read doesn't exist as the object
+	 * has to be opened before read. So in either of these cases,
+	 * it is safe to let device_check() check if degraded read can proceed.
+	 *
+	 * Any other error will also fall to device_check().
 	 */
 	xfer = &ioo->ioo_nwxfer;
-	if ((xfer->nxr_rc == 0 || xfer->nxr_rc == -ENOENT) &&
-	    !ioo->ioo_dgmode_io_sent)
+	if (xfer->nxr_rc == 0 && !ioo->ioo_dgmode_io_sent)
 		return M0_RC(xfer->nxr_rc);
 
 	/*
@@ -1596,28 +1489,12 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 	pm = ioo_to_poolmach(ioo);
 	M0_ASSERT(pm != NULL);
 
+	rc = 0;
 	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
 		/*
-		 * Data was retrieved successfully, so no need to check the
-		 * state of the device.
+		 * Data was retrieved successfully from this target.
 		 */
 		if (ti->ti_rc == 0)
-			continue;
-
-		/* state is already queried in device_check() and stored
-		 * in ti->ti_state. Why do we do this again?
-		 */
-		rc = m0_poolmach_device_state(
-			pm, ti->ti_obj, &state);
-		if (rc != 0)
-			return M0_ERR(rc);
-		M0_LOG(M0_INFO, "device state for "FID_F" is %d",
-		       FID_P(&ti->ti_fid), state);
-		ti->ti_state = state;
-
-		if (!M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
-			   M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED,
-			   M0_PNDS_SNS_REBALANCING)))
 			continue;
 		/*
 		 * Finds out parity groups for which read IO failed and marks
@@ -1700,6 +1577,11 @@ static int ioreq_dgmode_read(struct m0_op_io *ioo, bool rmw)
 	if (rc != 0)
 		return M0_ERR(rc);
 
+	/*
+	 * Setting parity buffer type to M0_PBUF_DIR so that parity buffer will
+	 * be freed in pargrp_iomap_fini() --> data_buf_dealloc_fini()
+	 */
+	set_paritybuf_type(ioo);
 	return M0_RC(rc);
 }
 
@@ -1716,6 +1598,7 @@ static int ioreq_dgmode_write(struct m0_op_io *ioo, bool rmw)
 	int                      rc;
 	struct target_ioreq     *ti;
 	struct nw_xfer_request  *xfer;
+	struct m0_pdclust_layout *play;
 
 	M0_ENTRY();
 	M0_PRE_EX(m0_op_io_invariant(ioo));
@@ -1733,6 +1616,31 @@ static int ioreq_dgmode_write(struct m0_op_io *ioo, bool rmw)
 	rc = device_check(ioo);
 	if (rc < 0)
 		return M0_RC(rc);
+
+	play = pdlayout_get(ioo);
+	if (rc > 0 && play->pl_attr.pa_S == 0) {
+		/*
+		 * Some units write failed, but no more than K (otherwise,
+		 * rc would be < 0), and there are no spare units configured
+		 * in the parity groups. In this case, there is no point in
+		 * degraded write, and it's OK to return success for now (XXX).
+		 * The redundancy of the user data will be restored during
+		 * SNS repair later.
+		 */
+		m0_htable_for (tioreqht, ti, &xfer->nxr_tioreqs_hash) {
+			ti->ti_rc = 0;
+		} m0_htable_endfor;
+
+		xfer->nxr_rc = 0;
+		ioo->ioo_rc = 0;
+
+		M0_LOG(M0_NOTICE, "user data written with degraded redundancy: "
+		       "off=%" PRIu64 " len=%" PRIu64 " failed_devs=%d",
+		       INDEX(&ioo->ioo_ext, 0),
+		       m0_vec_count(&ioo->ioo_ext.iv_vec), rc);
+
+		return M0_RC(0);
+	}
 
 	/*
 	 * This IO request has already acquired distributed lock on the

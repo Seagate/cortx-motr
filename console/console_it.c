@@ -93,6 +93,33 @@ static void byte_set(const struct m0_xcode_type *xct,
 	}
 }
 
+static void u16_get(const struct m0_xcode_type *xct,
+		    const char *name, void *data)
+{
+	if (m0_console_verbose)
+		printf("%s(%s) = %hu\n", name, xct->xct_name, *(uint16_t *)data);
+}
+
+static void u16_set(const struct m0_xcode_type *xct,
+		    const char *name, void *data)
+{
+	uint16_t value;
+	void    *tmp_value;
+
+	if (yaml_support) {
+		tmp_value = cons_yaml_get_unsafe(name);
+		*(uint16_t *)data = (uint16_t)strtoul((const char *)tmp_value,
+						      NULL, 10);;
+		if (m0_console_verbose)
+			printf("%s(%s) = %u\n", name, xct->xct_name,
+			       *(uint16_t *)data);
+	} else {
+		printf("%s(%s) = ", name, xct->xct_name);
+		if (scanf("%hu", &value) != EOF)
+			*(uint16_t *)data = value;
+	}
+}
+
 static void u32_get(const struct m0_xcode_type *xct,
 		    const char *name, void *data)
 {
@@ -152,6 +179,7 @@ static void u64_set(const struct m0_xcode_type *xct,
 static struct m0_cons_atom_ops atom_ops[M0_XAT_NR] = {
 	[M0_XAT_VOID] = { void_get, void_set, default_show },
 	[M0_XAT_U8]   = { byte_get, byte_set, default_show },
+	[M0_XAT_U16]  = { u16_get, u16_set, default_show },
 	[M0_XAT_U32]  = { u32_get, u32_set, default_show },
 	[M0_XAT_U64]  = { u64_get, u64_set, default_show }
 };

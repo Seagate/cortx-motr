@@ -29,8 +29,10 @@
 #include "dtm0/pmach.h"    /* m0_dtm0_pmach */
 #include "dtm0/remach.h"   /* m0_dtm0_remach */
 #include "dtm0/net.h"      /* m0_dtm0_net */
+#include "dtm0/service.h"  /* m0_co_fom_service */
 #include "module/module.h" /* m0_module */
 
+struct m0_reqh;
 /**
  * @defgroup dtm0
  *
@@ -53,10 +55,15 @@ struct m0_dtm0_domain_cfg {
 	struct m0_dtm0_remach_cfg dodc_remach;
 	struct m0_dtm0_pmach_cfg  dodc_pmach;
 	struct m0_dtm0_net_cfg    dodc_net;
+
+	/* TODO: s/dod/dodc/ */
+	bool                      dod_create;
+	bool                      dod_destroy;
+	struct m0_reqh           *dod_reqh;
 };
 
 struct m0_dtm0_domain_create_cfg {
-	struct m0_dtm0_log_create_cfg dcc_log;
+	int unused;
 };
 
 struct m0_dtm0_domain {
@@ -65,6 +72,7 @@ struct m0_dtm0_domain {
 	struct m0_dtm0_remach     dod_remach;
 	struct m0_dtm0_pmach      dod_pmach;
 	struct m0_dtm0_net        dod_net;
+	struct m0_co_fom_service  dod_cfs;
 	struct m0_dtm0_domain_cfg dod_cfg;
 	struct m0_module          dod_module;
 	uint64_t                  dod_magix;
@@ -81,8 +89,22 @@ m0_dtm0_domain_create(struct m0_dtm0_domain            *dod,
 
 M0_INTERNAL void m0_dtm0_domain_destroy(struct m0_dtm0_domain *dod);
 
+M0_INTERNAL void m0_dtm0_domain_recovered_wait(struct m0_dtm0_domain *dod);
 
-
+/**
+ * Check if this process must send DTM_RECOVERED process event to the HA.
+ * As per current protocol, Motr skips sending of DTM_RECOVERED when the
+ * configuration does not have DTM0 service (for example, confd process cannot
+ * be recovered by DTM0, therefore it does not send DTM_RECOVERED).
+ *
+ * XXX: reqh argument must be removed when domain configuration gets properly
+ * initialised with reqh. Until that moment, we just pass it explicitely.
+ *
+ * @see ::M0_CONF_HA_PROCESS_DTM_RECOVERED
+ */
+M0_INTERNAL bool
+m0_dtm0_domain_is_recoverable(struct m0_dtm0_domain *dod,
+				     struct m0_reqh        *reqh);
 
 /** @} end of dtm0 group */
 #endif /* __MOTR___DTM0_DOMAIN_H__ */

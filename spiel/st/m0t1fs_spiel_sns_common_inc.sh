@@ -18,16 +18,16 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=$(readlink -f "$0")
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
-. $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common_service_fids_inc.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_sns_common_inc.sh
+. "$M0_SRC_DIR"/utils/functions # die, sandbox_init, report_and_exit
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/common.sh
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/common_service_fids_inc.sh
+. "$M0_SRC_DIR"/m0t1fs/linux_kernel/st/m0t1fs_sns_common_inc.sh
 
 ###################################################
 # SNS repair is only supported in COPYTOOL mode,
@@ -91,8 +91,8 @@ verify()
 {
 	echo "verifying ..."
 	for ((i=0; i < ${#files[*]}; i++)) ; do
-		local_read $((${unit_size[$i]} * 1024)) ${file_size[$i]} || return $?
-		read_and_verify ${files[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]} || return $?
+		local_read $((${unit_size[$i]} * 1024)) "${file_size[$i]}" || return $?
+		read_and_verify "${files[$i]}" $((${unit_size[$i]} * 1024)) "${file_size[$i]}" || return $?
 	done
 
 	echo "file verification sucess"
@@ -131,11 +131,11 @@ spiel_prepare()
 	export SPIEL_OPTS=$SPIEL_OPTS
 	export SPIEL_FIDS_LIST=$SPIEL_FIDS_LIST
 
-	echo SPIEL_OPTS=$SPIEL_OPTS
-	echo SPIEL_FIDS_LIST=$SPIEL_FIDS_LIST
+	echo SPIEL_OPTS="$SPIEL_OPTS"
+	echo SPIEL_FIDS_LIST="$SPIEL_FIDS_LIST"
 
 	# install "motr" Python module required by m0spiel tool
-	cd $M0_SRC_DIR/utils/spiel
+	cd "$M0_SRC_DIR"/utils/spiel
 	python3 setup.py install --record $PYTHON_STUFF > /dev/null ||\
 		die 'Cannot install Python "motr" module'
 	cd -
@@ -143,7 +143,7 @@ spiel_prepare()
 
 spiel_cleanup()
 {
-	cd $M0_SRC_DIR/utils/spiel
+	cd "$M0_SRC_DIR"/utils/spiel
 	cat $PYTHON_STUFF | xargs rm -rf
 	rm -rf build/ $PYTHON_STUFF
 	cd -
@@ -151,8 +151,8 @@ spiel_cleanup()
 
 spiel_sns_repair_start()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -166,8 +166,8 @@ EOF
 
 spiel_sns_repair_abort()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -181,8 +181,8 @@ EOF
 
 spiel_sns_repair_quiesce()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -196,8 +196,8 @@ EOF
 
 spiel_sns_repair_continue()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -211,8 +211,8 @@ EOF
 
 spiel_wait_for_sns_repair()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 import time
 $SPIEL_FIDS_LIST
 
@@ -226,7 +226,7 @@ while (1):
     rc = spiel.sns_repair_status(fids['pool'], ppstatus)
     print ("sns repair status responded servers: " + str(rc))
     for i in range(0, rc):
-        print ("status of ", ppstatus[{}].sss_fid, " is: {}".format(i, ppstatus[i].sss_state))
+        print ("status of ppstatus[{}].sss_fid is: {}".format(i, ppstatus[i].sss_state))
         if (ppstatus[i].sss_state == 2) :
             print ("sns is still active on ", ppstatus[i].sss_fid)
             active = 1
@@ -240,8 +240,8 @@ EOF
 
 spiel_sns_rebalance_start()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -255,8 +255,8 @@ EOF
 
 spiel_sns_rebalance_quiesce()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -270,8 +270,8 @@ EOF
 
 spiel_sns_rebalance_continue()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
@@ -285,8 +285,8 @@ EOF
 
 spiel_wait_for_sns_rebalance()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 import time
 $SPIEL_FIDS_LIST
 
@@ -300,7 +300,7 @@ while (1):
     rc = spiel.sns_rebalance_status(fids['pool'], ppstatus)
     print ("sns rebalance status responded servers: " + str(rc))
     for i in range(0, rc):
-        print ("status of ", ppstatus[{}].sss_fid, " is: {}".format(i, ppstatus[i].sss_state))
+        print ("status of ppstatus[{}].sss_fid is: {}".format(i, ppstatus[i].sss_state))
         if (ppstatus[i].sss_state == 2) :
             print ("sns is still active on ", ppstatus[i].sss_fid)
             active = 1
@@ -314,8 +314,8 @@ EOF
 
 spiel_sns_rebalance_abort()
 {
-echo $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS
-    $M0_SRC_DIR/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
+echo "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS
+    "$M0_SRC_DIR"/utils/spiel/m0spiel $SPIEL_OPTS <<EOF
 $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START

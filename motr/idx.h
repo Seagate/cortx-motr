@@ -108,6 +108,16 @@ enum m0_op_idx_flags {
 	M0_OIF_NO_DTM = 1 << 5
 };
 
+enum {
+	/**
+	 * Special value for @ref M0_OIO_MIN_SUCCESS. Sets the required
+	 * successful operations to (N+K)/2 + 1. This ensures that transient
+	 * failues cannot result in inconsistent/stale data for
+	 * the index operation.
+	 */
+	M0_DIX_MIN_REPLICA_QUORUM = -1
+};
+
 /**
  * Query operations for an index service. The operations in this data
  * structure can be divided into 2 groups:

@@ -52,7 +52,7 @@ check_param()
 log_dirs_max_count=2
 # have hard coded the log path, 
 # Need to get it from config file 
-ADDB_RECORD_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_ADDB_STOB_DIR" | cut -d '=' -f2)
+ADDB_RECORD_DIR=$(grep "^MOTR_M0D_ADDB_STOB_DIR" /etc/sysconfig/motr | cut -d '=' -f2)
 if [ -z "$ADDB_RECORD_DIR" ]; then
    ADDB_RECORD_DIR="/var/motr/m0d-*"
 fi
@@ -103,7 +103,7 @@ for addb_rec_dir in $addb_rec_dirs ; do
         # check addb stob dir count is greater than max dir  count
         if [[ $addb_dirs_count -gt $log_dirs_max_count ]]; then
             # get dirs sort by date - older will come on top
-            remove_dir_count=`expr $addb_dirs_count - $log_dirs_max_count`
+            remove_dir_count=$(($addb_dirs_count - $log_dirs_max_count))
 
             echo "## ($remove_dir_count) dir(s) can be removed from \
                            log directory($log_dir) ##"               

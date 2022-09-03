@@ -380,11 +380,12 @@ M0_INTERNAL int m0_dix_root_read(struct m0_dix_meta_req *req)
 {
 	int                rc;
 	struct m0_bufvec  *keys = &req->dmr_keys;
-	struct m0_dix_cli *cli = req->dmr_req.dr_cli;
+	struct m0_dix_cli *cli;
 	struct m0_dix      root = {};
 
 	M0_ENTRY();
 	M0_PRE(req != NULL);
+        cli = req->dmr_req.dr_cli;
 	M0_PRE(M0_IN(cli->dx_sm.sm_state, (DIXCLI_READY,
 					   DIXCLI_BOOTSTRAP,
 					   DIXCLI_STARTING)));

@@ -61,7 +61,10 @@ int hello_world(struct m0_buf *in, struct m0_buf *out,
 	return M0_FSO_AGAIN;
 }
 
-enum op {MIN, MAX};
+enum op {
+	MIN, MAX,  /* data format: floating point strings */
+	MIN2, MAX2 /* 8-bytes doubles */
+};
 
 int launch_io(struct m0_isc_comp_private *pdata, struct m0_buf *in, int *rc)
 {
@@ -170,6 +173,46 @@ int compute_minmax(enum op op, struct m0_isc_comp_private *pdata,
 	return M0_FSO_AGAIN;
 }
 
+int compute_minmax2(enum op op, struct m0_isc_comp_private *pdata,
+		    struct m0_buf *out, int *rc)
+{
+	int               i;
+	double           *p;
+	m0_bcount_t       len;
+	struct mm_result  res = {};
+	struct m0_buf     buf = M0_BUF_INIT0;
+
+	len = m0_isc_io_res((struct m0_stob_io *)pdata->icp_data, (char**)&p);
+	if (len < 0) {
+		*rc = M0_ERR_INFO((int)len, "failed to read data");
+		return M0_FSO_AGAIN;
+	}
+
+	M0_ASSERT((len & 7) == 0); /* unit size is multiple of 8 */
+	len /= 8; /* Number of 8-bytes doubles. */
+
+	/* Read 1st element to compare with. */
+	res.mr_val = p[0];
+	res.mr_idx = 1;
+
+	for (i = 1; i < len; i++) {
+		if (op == MIN2 ? p[i] < res.mr_val :
+		                 p[i] > res.mr_val) {
+			res.mr_idx = i + 1;
+			res.mr_val = p[i];
+		}
+	}
+	res.mr_nr = i + 1;
+
+	*rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(mm_result_xc, &res),
+				      &buf.b_addr, &buf.b_nob) ?:
+	      m0_buf_copy_aligned(out, &buf, M0_0VEC_SHIFT);
+
+	m0_buf_free(&buf);
+
+	return M0_FSO_AGAIN;
+}
+
 /**
  * Do the computation of min/max.
  *
@@ -197,7 +240,10 @@ int do_minmax(enum op op, struct m0_buf *in, struct m0_buf *out,
 		if (*rc != -EAGAIN)
 			m0_free(stio);
 	} else {
-		res = compute_minmax(op, data, out, rc);
+		if (op == MIN || op == MAX)
+			res = compute_minmax(op, data, out, rc);
+		else /* MIN2 || MAX2 */
+			res = compute_minmax2(op, data, out, rc);
 		m0_isc_io_fini(stio);
 		m0_free(stio);
 	}
@@ -231,6 +277,18 @@ int comp_max(struct m0_buf *in, struct m0_buf *out,
 	return do_minmax(MAX, in, out, comp_data, rc);
 }
 
+int comp_min2(struct m0_buf *in, struct m0_buf *out,
+	      struct m0_isc_comp_private *comp_data, int *rc)
+{
+	return do_minmax(MIN2, in, out, comp_data, rc);
+}
+
+int comp_max2(struct m0_buf *in, struct m0_buf *out,
+	      struct m0_isc_comp_private *comp_data, int *rc)
+{
+	return do_minmax(MAX2, in, out, comp_data, rc);
+}
+
 static void comp_reg(const char *f_name, int (*ftn)(struct m0_buf *arg_in,
 						    struct m0_buf *args_out,
 					            struct m0_isc_comp_private
@@ -252,5 +310,7 @@ void motr_lib_init(void)
 	comp_reg("hello_world", hello_world);
 	comp_reg("comp_min", comp_min);
 	comp_reg("comp_max", comp_max);
+	comp_reg("comp_min2", comp_min2);
+	comp_reg("comp_max2", comp_max2);
 	m0_xc_iscservice_demo_libdemo_init();
 }

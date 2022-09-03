@@ -66,7 +66,8 @@
 #include "ioservice/io_service.h"  /* m0_ios_net_buffer_pool_size_set */
 #include "stob/linux.h"
 #include "conf/ha.h"            /* m0_conf_ha_process_event_post */
-#include "dtm0/helper.h"        /* m0_dtm0_log_create */
+#include "dtm0/helper.h"        /* m0_dtm0_old_log_create */
+#include "dtm0/cfg_default.h"   /* m0_dtm0_domain_cfg_default_dup */
 
 /**
    @addtogroup m0d
@@ -458,6 +459,7 @@ static void cs_reqh_ctx_fini(struct m0_reqh_context *rctx)
 		m0_free(rctx->rc_services[i]);
 	m0_free(rctx->rc_services);
 	m0_free(rctx->rc_service_fids);
+	m0_free((char*)rctx->rc_addb_stlocation);
 	rctx->rc_stob.s_sfile.sf_is_initialised = false;
 	rctx->rc_stob.s_ad_disks_init = false;
 }
@@ -1332,7 +1334,7 @@ static int cs_storage_prepare(struct m0_reqh_context *rctx, bool erase)
 
 	rc = rc ?: m0_mdstore_create(&rctx->rc_mdstore, grp, &rctx->rc_cdom_id,
 				     bedom, rctx->rc_beseg)
-		?: m0_dtm0_log_create(grp, bedom, rctx->rc_beseg);
+		?: m0_dtm0_old_log_create(grp, bedom, rctx->rc_beseg);
 	if (rc != 0)
 		goto end;
 	dom = rctx->rc_mdstore.md_dom;
@@ -1597,6 +1599,11 @@ static int cs_storage_setup(struct m0_motr *cctx)
 	if (cctx->cc_no_storage)
 		return M0_RC(0);
 
+	m0_btree_lrulist_set_lru_config(rctx->rc_enable_trickle_release,
+					rctx->rc_lru_wm_low,
+					rctx->rc_lru_wm_mid,
+					rctx->rc_lru_wm_high);
+
 	rctx->rc_be.but_dom_cfg.bc_engine.bec_reqh = &rctx->rc_reqh;
 
 	rc = cs_be_init(rctx, &rctx->rc_be, rctx->rc_bepath,
@@ -1667,7 +1674,12 @@ static int cs_storage_setup(struct m0_motr *cctx)
 		}
 	}
 
-	M0_ASSERT(rctx->rc_mdstore.md_dom != NULL);
+	if (rctx->rc_mdstore.md_dom == NULL) {
+		rc = -ENOENT;
+		M0_ERR_INFO(rc, "Cob domain not found for root cob");
+		goto cleanup_addb2;
+	}
+
 	/* Init mdstore and root cob as it should be created by mkfs. */
 	rc = m0_mdstore_init(&rctx->rc_mdstore, rctx->rc_beseg, true);
 	if (rc != 0) {
@@ -1690,9 +1702,16 @@ be_fini:
 	return M0_ERR(rc);
 }
 
-static int cs_dtm0_init(struct m0_reqh_context *rctx)
+static int cs_dtm0_init(struct m0_reqh_context *rctx, bool mkfs)
 {
-	return m0_dtm0_domain_init(&rctx->rc_dtm0_domain, NULL);
+	struct m0_dtm0_domain_cfg cfg;
+	int                       rc;
+
+	rc = m0_dtm0_domain_cfg_default_dup(&cfg, mkfs);
+	if (rc != 0)
+		return rc;
+	cfg.dod_reqh = &rctx->rc_reqh;
+	return m0_dtm0_domain_init(&rctx->rc_dtm0_domain, &cfg);
 }
 
 static void cs_dtm0_fini(struct m0_reqh_context *rctx)
@@ -2273,8 +2292,8 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				LAMBDA(void, (const char *s)
 				{
                                         char tmp_buf[512];
-                                        sprintf(tmp_buf, "%s-%d", s, (int)m0_pid());
-                                        rctx->rc_addb_stlocation = strdup(tmp_buf);
+                                        snprintf(tmp_buf, sizeof(tmp_buf), "%s-%d", s, (int)m0_pid());
+                                        rctx->rc_addb_stlocation = m0_strdup(tmp_buf);
 				})),
 			M0_STRINGARG('d', "Device configuration file",
 				LAMBDA(void, (const char *s)
@@ -2330,6 +2349,26 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 						M0_LOG(M0_WARN, "ADDB size is more than recommended");
 					M0_LOG(M0_DEBUG, "ADDB size = %" PRIu64 "", size);
 					rctx->rc_addb_record_file_size = size;
+				})),
+			M0_NUMBERARG('t', "Btree Memory Trickle Release",
+				LAMBDA(void, (int64_t val)
+				{
+					rctx->rc_enable_trickle_release = val;
+				})),
+			M0_NUMBERARG('X', "Btree LRU list low watermark",
+				LAMBDA(void, (int64_t low)
+				{
+					rctx->rc_lru_wm_low = low;
+				})),
+			M0_NUMBERARG('P', "Btree LRU list target watermark",
+				LAMBDA(void, (int64_t mid)
+				{
+					rctx->rc_lru_wm_mid = mid;
+				})),
+			M0_NUMBERARG('O', "Btree LRU list high watermark",
+				LAMBDA(void, (int64_t high)
+				{
+					rctx->rc_lru_wm_high = high;
 				})),
 			);
 	/* generate reqh fid in case it is all-zero */
@@ -2646,7 +2685,7 @@ static int cs_level_enter(struct m0_module *module)
 	case CS_LEVEL_STORAGE_SETUP:
 		return M0_RC(cs_storage_setup(cctx));
 	case CS_LEVEL_DTM0_INIT:
-		return M0_RC(cs_dtm0_init(rctx));
+		return M0_RC(cs_dtm0_init(rctx, cctx->cc_mkfs));
 	case CS_LEVEL_RWLOCK_UNLOCK:
 		m0_rwlock_write_unlock(&cctx->cc_rwlock);
 		return M0_RC(0);
@@ -2734,14 +2773,12 @@ static int cs_level_enter(struct m0_module *module)
 		return M0_RC(0);
 	case CS_LEVEL_STARTED_EVENT_FOR_M0D:
 		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
-		/*
-		For m0d, M0_NC_DTM_RECOVERING state is being sent here just for
-		test purposes. The real notification shall be sent inside
-		dtm0_rmsg_fom_tick().
-
-		cs_ha_process_event(cctx,
-				    M0_CONF_HA_PROCESS_DTM_RECOVERED);
-		*/
+		if (m0_dtm0_domain_is_recoverable(&rctx->rc_dtm0_domain,
+						  &rctx->rc_reqh)) {
+			m0_dtm0_domain_recovered_wait(&rctx->rc_dtm0_domain);
+			cs_ha_process_event(cctx,
+					    M0_CONF_HA_PROCESS_DTM_RECOVERED);
+		}
 		return M0_RC(0);
 	case CS_LEVEL_START:
 		return M0_RC(0);

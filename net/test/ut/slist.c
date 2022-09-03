@@ -117,7 +117,7 @@ void m0_net_test_slist_ut(void)
 		rc = m0_net_test_slist_init(&slist, buf, ',');
 		M0_UT_ASSERT(rc == 0);
 		rc_bool = m0_net_test_slist_unique(&slist);
-		M0_UT_ASSERT(!rc_bool ^ (i < 10));
+		M0_UT_ASSERT((!rc_bool) ^ (i < 10));
 		slist_check(&slist, i, buf);
 		/* serialize string list to buffer */
 		len = m0_net_test_slist_serialize(M0_NET_TEST_SERIALIZE, &slist,

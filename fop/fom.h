@@ -501,6 +501,12 @@ struct m0_fom {
 	 *  e.g., undo or redo during recovery.
 	 */
 	bool                      fo_local;
+
+	/**
+	 * Set when local fom is used to execute a local operation
+	 * under a be tx. See fom_is_update.
+	 */
+	bool                      fo_local_update;
 	/** Pointer to service instance. */
 	struct m0_reqh_service   *fo_service;
 	/**

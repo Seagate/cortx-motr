@@ -23,10 +23,6 @@ usr/include/motr/be/alloc_internal.h
 usr/include/motr/be/alloc_internal_xc.h
 usr/include/motr/be/alloc_xc.h
 usr/include/motr/be/be.h
-usr/include/motr/be/btree.h
-usr/include/motr/be/btree_internal.h
-usr/include/motr/be/btree_internal_xc.h
-usr/include/motr/be/btree_xc.h
 usr/include/motr/be/domain.h
 usr/include/motr/be/domain_xc.h
 usr/include/motr/be/dtm0_log.h
@@ -237,13 +233,11 @@ usr/include/motr/fol/fol_private.h
 usr/include/motr/fol/fol_xc.h
 usr/include/motr/fop/fom.h
 usr/include/motr/fop/fom_generic.h
-usr/include/motr/fop/fom_generic_xc.h
 usr/include/motr/fop/fom_interpose.h
 usr/include/motr/fop/fom_long_lock.h
 usr/include/motr/fop/fom_simple.h
 usr/include/motr/fop/fop.h
 usr/include/motr/fop/fop_item_type.h
-usr/include/motr/fop/fop_xc.h
 usr/include/motr/fop/ut/iterator_test_xc.h
 usr/include/motr/format/format.h
 usr/include/motr/format/format_xc.h
@@ -308,6 +302,7 @@ usr/include/motr/lib/buf_xc.h
 usr/include/motr/lib/byteorder.h
 usr/include/motr/lib/chan.h
 usr/include/motr/lib/cksum.h
+usr/include/motr/lib/cksum_data.h
 usr/include/motr/lib/cksum_utils.h
 usr/include/motr/lib/combinations.h
 usr/include/motr/lib/cond.h

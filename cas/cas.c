@@ -26,6 +26,7 @@
 #include "lib/finject.h"     /* M0_FI_ENABLED */
 #include "fid/fid.h"         /* m0_fid_type_register */
 #include "fop/fop.h"
+#include "fop/wire_xc.h"
 #include "rpc/rpc_opcodes.h"
 #include "cas/cas.h"
 #include "cas/cas_xc.h"
@@ -33,6 +34,7 @@
 #include "mdservice/fsync_fops.h"       /* m0_fsync_fom_ops */
 #include "mdservice/fsync_fops_xc.h"    /* m0_fop_fsync_xc */
 #include "cas/client.h"                 /* m0_cas_sm_conf_init */
+#include "lib/memory.h"                 /* M0_ALLOC_PTR */
 
 struct m0_fom_type_ops;
 struct m0_sm_conf;
@@ -283,6 +285,62 @@ M0_INTERNAL bool m0_crv_is_none(const struct m0_crv *crv)
 {
 	return memcmp(crv, &M0_CRV_INIT_NONE, sizeof(*crv)) == 0;
 }
+
+M0_INTERNAL bool m0_cas_fop_is_redoable(struct m0_fop *fop)
+{
+	struct m0_fop_type *cas_fopt = &cas_put_fopt;
+	return fop->f_type == cas_fopt;
+}
+
+M0_INTERNAL int m0_cas_fop2redo(const struct m0_fop *fop,
+				struct m0_dtm0_redo *redo)
+{
+	struct m0_cas_op *op = m0_fop_data(fop);
+	struct m0_buf     payload = {};
+	int               rc;
+
+	/* TODO: encode fop opcode and fop reply as well. */
+
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_op_xc, op),
+				     &payload.b_addr, &payload.b_nob);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	rc = m0_dtm0_redo_init(redo, &op->cg_descriptor,
+			       &payload, M0_DTX0_PAYLOAD_CAS);
+	m0_buf_free(&payload);
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_cas_redo2fop(struct m0_fop *fop,
+				const struct m0_dtm0_redo *redo)
+{
+	struct m0_buf      *payload = redo->dtr_payload.dtp_data.ab_elems;
+	struct m0_cas_op   *op;
+	struct m0_fop_type *cas_fopt;
+	int                 rc;
+
+	M0_PRE(redo->dtr_payload.dtp_type == M0_DTX0_PAYLOAD_CAS);
+	M0_PRE(redo->dtr_payload.dtp_data.ab_count == 1);
+
+	/* TODO: Select the right fop type based on encoded req type. */
+	cas_fopt = &cas_put_fopt;
+
+	M0_ALLOC_PTR(op);
+	if (op == NULL)
+		return M0_ERR(-ENOMEM);
+
+	rc = m0_xcode_obj_dec_from_buf(&M0_XCODE_OBJ(m0_cas_op_xc, op),
+				       payload->b_addr, payload->b_nob);
+	if (rc == 0)
+		m0_fop_init(fop, cas_fopt, op, &m0_fop_release);
+	else
+		m0_free(op);
+
+	return M0_RC(rc);
+}
+
 
 #undef M0_TRACE_SUBSYSTEM
 

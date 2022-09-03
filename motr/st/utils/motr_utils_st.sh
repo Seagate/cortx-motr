@@ -18,7 +18,6 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-
 motr_st_util_dir=$(dirname $(readlink -f $0))
 m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
@@ -45,12 +44,12 @@ clean()
 		# unmounting the client file system, from next mount,
 		# fids are generated from same baseline which results
 		# in failure of cob_create fops.
-		local ios_index=`expr $i + 1`
+		local ios_index=$(($i + 1))
 		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
 	done
 
         if [ ! -z "$multiple_pools" ] && [ $multiple_pools == 1 ]; then
-		local ios_index=`expr $i + 1`
+		local ios_index=$(($i + 1))
 		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
         fi
 }
@@ -80,7 +79,7 @@ test_with_N_K()
 	block_count=5120
 	obj_count=5
 	trunc_len=2560
-	trunc_count=17
+	trunc_idx=17
 	read_verify="false"
 	blks_per_io=100
 	MOTR_PARAMS="-l $MOTR_LOCAL_EP -H $MOTR_HA_EP -p $MOTR_PROF_OPT \
@@ -97,7 +96,7 @@ test_with_N_K()
 		error_handling $? "Failed to create a source file"
 	}
 	dd if=$source_abcd bs=$block_size \
-	   count=$(($block_count + $trunc_count)) of=$src_file_extra \
+	   count=$(($block_count + $trunc_idx)) of=$src_file_extra \
 	   2> $MOTR_TEST_LOGFILE || {
 		error_handling $? "Failed to create a source file"
 	}
@@ -150,12 +149,12 @@ EOF
 	}
 	echo "m0touch and m0unlink successful"
 
-	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
+	"$motr_st_util_dir/m0cp" -G $MOTR_PARAMS_V -o "$object_id1" "$src_file" \
                                  -s $block_size -c $block_count -L 9 \
                                  -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
 	}
-	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
+	"$motr_st_util_dir/m0cat" -G $MOTR_PARAMS_V -o "$object_id1" \
 				  -s $block_size -c $block_count -L 9 -b $blks_per_io \
 				  $dest_file || {
 		error_handling $? "Failed to read object"
@@ -199,7 +198,7 @@ EOF
 
 	# Test m0cp_mt
 	echo "m0cp_mt test"
-	$motr_st_util_dir/m0cp_mt $MOTR_PARAMS_V -o $object_id4 \
+	"$motr_st_util_dir/m0cp_mt" -G $MOTR_PARAMS_V -o "$object_id4" \
 				    -n $obj_count $src_file -s $block_size \
 				    -c $block_count -L 9 -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
@@ -207,7 +206,7 @@ EOF
 	for i in $(seq 0 $(($obj_count - 1)))
 	do
 		object_id=$(($object_id4 + $i));
-		$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id \
+		"$motr_st_util_dir/m0cat" -G $MOTR_PARAMS_V -o "$object_id" \
 					  -s $block_size -c $block_count -L 9 \
                                           -b $blks_per_io $dest_file || {
 			error_handling $? "Failed to read object"
@@ -225,27 +224,26 @@ EOF
 	echo "m0cp_mt is successful"
 
 	# Test truncate/punch utility
-	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
+	"$motr_st_util_dir/m0cp" -G $MOTR_PARAMS_V -o "$object_id1" "$src_file" \
                                  -s $block_size -c $block_count -L 9 \
                                  -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
 	}
 	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 \
-				    -c $trunc_count -t $trunc_len \
+				    -i $trunc_idx -t $trunc_len \
 				    -s $block_size -L 9 -b $blks_per_io || {
 		error_handling $? "Failed to truncate object"
 	}
-	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
+	"$motr_st_util_dir/m0cat" -G $MOTR_PARAMS_V -o "$object_id1" \
 				  -s $block_size -c $block_count -L 9 \
-                                  -b $blks_per_io \
-				  $dest_file-full || {
+				  -b $blks_per_io -z $dest_file-full || {
 		error_handling $? "Failed to read object"
 	}
 	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
 		error_handling $? "Failed to delete object"
 	}
 	cp $src_file $src_file-punch
-	fallocate -p -o $(($trunc_count * $block_size)) \
+	fallocate -p -o $(($trunc_idx * $block_size)) \
 		  -l $(($trunc_len * $block_size)) -n $src_file-punch
 	diff -q $src_file-punch $dest_file-full || {
 		rc=$?
@@ -255,19 +253,19 @@ EOF
 	rm -f $src_file-punch $dest_file-full
 
 	# Truncate file to zero
-	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
+	"$motr_st_util_dir/m0cp" -G $MOTR_PARAMS_V -o "$object_id1" "$src_file" \
                                  -s $block_size -c $block_count -L 9 \
                                  -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
 	}
-	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 -c 0 \
+	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 -i 0 \
                                    -t $block_count -s $block_size -L 9 \
                                    -b $blks_per_io || {
 		error_handling $? "Failed to truncate object"
 	}
-	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
+	"$motr_st_util_dir/m0cat" -G $MOTR_PARAMS_V -o "$object_id1" \
 				  -s $block_size -c $block_count -L 9 \
-                                  -b $blks_per_io \
+                                  -b $blks_per_io -z \
 				  $dest_file || {
 		error_handling $? "Failed to read from truncated object"
 	}
@@ -284,27 +282,27 @@ EOF
 	rm -f $src_file-trunc $dest_file
 
 	# Truncate range beyond EOF
-	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
+	"$motr_st_util_dir/m0cp" -G $MOTR_PARAMS_V -o "$object_id1" "$src_file" \
                                  -s $block_size -c $block_count -L 9 \
                                  -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
 	}
 	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 \
-				    -c $trunc_count -t $block_count \
+				    -i $trunc_idx -t $block_count \
 				    -s $block_size -L 9 -b $blks_per_io || {
 		error_handling $? "Failed to truncate object"
 	}
-	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
+	"$motr_st_util_dir/m0cat" -G $MOTR_PARAMS_V -o "$object_id1" \
 				  -s $block_size \
-				  -c $(($block_count + $trunc_count)) -L 9 \
-                                  -b $blks_per_io \
+				  -c $(($block_count + $trunc_idx)) -L 9 \
+                                  -b $blks_per_io -z \
 				  $dest_file || {
 		error_handling $? "Failed to read from truncated object"
 	}
 	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
 		error_handling $? "Failed to delete object"
 	}
-	fallocate -p -o $(($trunc_count * $block_size)) \
+	fallocate -p -o $(($trunc_idx * $block_size)) \
 		  -l $(($block_count  * $block_size)) -n $src_file_extra
 	diff -q $src_file_extra $dest_file || {
 		rc=$?
@@ -317,7 +315,7 @@ EOF
 	$motr_st_util_dir/m0touch $MOTR_PARAMS -o $object_id1 -L 9|| {
 		error_handling $? "Failed to create a object"
 	}
-	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 -c 0 \
+	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 -i 0 \
 				    -t $block_count -s $block_size -L 9 \
                                     -b $blks_per_io || {
 		error_handling $? "Failed to truncate object"

@@ -59,7 +59,7 @@ log_files_max_count=5
 # have hard coded the log path, 
 # Need to get it from config file 
 motr_logdirs=`ls -d /var/motr*`
-M0TR_M0D_TRACE_DIR=$(cat /etc/sysconfig/motr  | grep "^MOTR_M0D_TRACE_DIR" | cut -d '=' -f2)
+M0TR_M0D_TRACE_DIR=$(grep "^MOTR_M0D_TRACE_DIR" /etc/sysconfig/motr | cut -d '=' -f2)
 M0D_TRACE_DIR="${M0TR_M0D_TRACE_DIR%\'}"
 M0D_TRACE_DIR="${M0D_TRACE_DIR#\'}"
 if [ -n "$M0D_TRACE_DIR" ]; then
@@ -83,7 +83,7 @@ done
 if [[ $platform = "virtual" ]]; then
     log_files_max_count=2
 else
-    log_files_max_count=`expr $log_files_max_count + 2`
+    log_files_max_count=$(($log_files_max_count + 2))
 fi
 
 echo "Max log file count: $log_files_max_count"
@@ -109,7 +109,7 @@ for motr_logdir in $motr_logdirs ; do
         # check log files count is greater than max log file count
         if [[ $log_files_count -gt $log_files_max_count ]]; then
             # get files sort by date - older will come on top
-            remove_file_count=`expr $log_files_count - $log_files_max_count`
+            remove_file_count=$(($log_files_count - $log_files_max_count))
 
             echo "## ($remove_file_count) file(s) can be removed from \
                            log directory($log_dir) ##"               
@@ -120,7 +120,7 @@ for motr_logdir in $motr_logdirs ; do
             echo "LOG_DIR is $log_dir"
             
             if [[ $platform = "physical" ]]; then
-                peserve_files=`expr $log_files_max_count - 2`
+                peserve_files=$(($log_files_max_count - 2))
                 files_to_remove=`ls -tr "$log_dir" | grep m0trace | \
                                      head -n -$peserve_files | awk 'NR>2'`
             else
