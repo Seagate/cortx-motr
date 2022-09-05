@@ -14197,7 +14197,17 @@ static void ut_mtree_mthread_test(void)
 			},
                         4096, // BALLOC_ROOT_NODE_SIZE
 			      // from balloc.h
-			2
+			1
+		},
+		{
+			{
+				M0_BT_BALLOC_GROUP_DESC,
+				8,
+				8
+			},
+                        4096, // BALLOC_ROOT_NODE_SIZE
+			      // from balloc.h
+			1
 		},
 		{
 			{
@@ -14206,7 +14216,7 @@ static void ut_mtree_mthread_test(void)
 				-1
 			},
 			16384,
-			2
+			1
 		},
 		{
 			{
@@ -14215,7 +14225,52 @@ static void ut_mtree_mthread_test(void)
 				-1
 			},
 			8192,
-			10
+			1
+		},
+		{
+			{
+				M0_BT_COB_OBJECT_INDEX,
+				24,
+				-1
+			},
+			8192,
+			1
+		},
+		{
+			{
+				M0_BT_COB_FILEATTR_BASIC,
+				16,
+				-1
+			},
+			8192,
+			1
+		},
+		{
+			{
+				M0_BT_COB_FILEATTR_EA,
+				-1,
+				-1
+			},
+			8192,
+			1
+		},
+		{
+			{
+				M0_BT_COB_FILEATTR_OMG,
+				8,
+				16
+			},
+			8192,
+			1
+		},
+		{
+			{
+				M0_BT_COB_BYTECOUNT,
+				24,
+				16
+			},
+			8192,
+			1
 		}
 
 	};
