@@ -14267,7 +14267,6 @@ static void ut_mtree_mthread_test(void)
 	cpu_max = m0_processor_nr_max();
 
 	cpu = 1; /** We skip Core-0 for Linux kernel and other processes. */
-	/* if we create */
 	for (i = 0; i < arr_size; i++) {
 		rnode_sz = btrees_mthreads[i].node_size;
 
