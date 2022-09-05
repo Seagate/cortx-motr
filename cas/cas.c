@@ -289,6 +289,10 @@ M0_INTERNAL bool m0_crv_is_none(const struct m0_crv *crv)
 M0_INTERNAL bool m0_cas_fop_is_redoable(struct m0_fop *fop)
 {
 	struct m0_fop_type *cas_fopt = &cas_put_fopt;
+	/*
+	 * TODO: disable only for required operation
+	 * for ex: enable redo only for delete operation.
+	 */
 	return ENABLE_DTM0 && fop->f_type == cas_fopt;
 }
 
