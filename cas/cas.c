@@ -289,7 +289,7 @@ M0_INTERNAL bool m0_crv_is_none(const struct m0_crv *crv)
 M0_INTERNAL bool m0_cas_fop_is_redoable(struct m0_fop *fop)
 {
 	struct m0_fop_type *cas_fopt = &cas_put_fopt;
-	return fop->f_type == cas_fopt;
+	return ENABLE_DTM0 && fop->f_type == cas_fopt;
 }
 
 M0_INTERNAL int m0_cas_fop2redo(const struct m0_fop *fop,
