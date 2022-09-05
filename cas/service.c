@@ -1449,7 +1449,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 				     fom->cf_ikv_nr);
 			m0_fom_phase_set(fom0, M0_FOPH_INIT);
 		} else
-			m0_fom_phase_move(fom0, M0_ERR(rc), M0_FOPH_FAILURE);
+			m0_fom_phase_move(fom0, M0_RC(rc), M0_FOPH_FAILURE);
 		break;
 	case CAS_START:
 		if (is_meta) {
