@@ -1958,7 +1958,7 @@ static int ad_dom_init(struct builder *b)
 	if (disable_directio)
 		str_cfg_init = "directio=false";
 
-	stob_location = m0_alloc(strlen(b->b_stob_path) + 20);
+	stob_location = m0_alloc(strnlen(b->b_stob_path,b->b_size) + 20);
 	if (stob_location == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -2041,7 +2041,7 @@ static int builder_init(struct builder *b)
 			      .rhia_fid     = &fid);
 	if (result != 0)
 		return M0_ERR(result);
-	ub->but_stob_domain_location = m0_alloc(strlen(b->b_dom_path) + 20);
+	ub->but_stob_domain_location = m0_alloc(strnlen(b->b_dom_path,b->b_size) + 20);
 	if (ub->but_stob_domain_location == NULL)
 		return M0_ERR(-ENOMEM); /* No cleanup, fatal anyway. */
 	sprintf(ub->but_stob_domain_location, "linuxstob:%s%s",
