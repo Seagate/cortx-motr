@@ -1239,13 +1239,13 @@ static int initlift_layouts(struct m0_sm *mach)
 }
 
 #define MAX_CLIENT_INIT_RETRIES 1000
-int retry_count = 0;
 static int initlift_idx_service(struct m0_sm *mach)
 {
 	int                               rc = 0;
 	struct m0_client                 *m0c;
 	struct m0_idx_service            *service;
 	struct m0_idx_service_ctx        *ctx;
+	static int 			 retry_count = 0;
 
 	M0_ENTRY();
 	M0_PRE(mach != NULL);
@@ -1275,7 +1275,7 @@ static int initlift_idx_service(struct m0_sm *mach)
 			 * PODs. Ref: Jira ID Cortx-33899
 			 */
 			if (retry_count < MAX_CLIENT_INIT_RETRIES
-			    && (rc == -EIO || rc == -EPROTO)) {
+			    && M0_IN(rc, (-EIO, -EPROTO))) {
 				retry_count += 1;
 				M0_LOG(M0_ERROR, "client init \
 				       failed with %d. Retrying.", rc);
