@@ -2080,7 +2080,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 	struct m0_op           *op;
 	struct target_ioreq    *ti;
 	struct m0_client       *instance;
-	int                     bulk_error = 0;
+	int                     non_rpc_post_error = 0;
 
 	M0_ENTRY();
 
@@ -2197,10 +2197,9 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 				 * the error response */
 				ti->ti_rc = ti->ti_rc ?: rc;
 				xfer->nxr_rc = xfer->nxr_rc ?: rc;
-				bulk_error = rc;
+				non_rpc_post_error = rc;
 				rc = 0;
-			}
-			else {
+			} else {
 				m0_atomic64_inc(&instance->m0c_pending_io_nr);
 				if (ri_error == 0)
 					M0_CNT_INC(nr_dispatched);
@@ -2211,13 +2210,12 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 	} m0_htable_endfor;
 
 	if (rc == 0 && nr_dispatched == 0 && post_error == 0 &&
-	    bulk_error != 0) {
+	    non_rpc_post_error != 0) {
 		/* No fop has been dispatched, bulk error has been detected,
 		 * dispatch can fail immediately with error
 		 */
-		rc = bulk_error;
-	}
-	else if (rc == 0 && nr_dispatched == 0 && post_error == 0) {
+		rc = non_rpc_post_error;
+	} else if (rc == 0 && nr_dispatched == 0 && post_error == 0) {
 		/* No fop has been dispatched.
 		 *
 		 * This might happen in dgmode reading:
