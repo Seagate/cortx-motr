@@ -2080,7 +2080,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 	struct m0_op           *op;
 	struct target_ioreq    *ti;
 	struct m0_client       *instance;
-	bool                    rpc_error = false;
+	int                     bulk_error = 0;
 
 	M0_ENTRY();
 
@@ -2139,15 +2139,16 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			M0_LOG(M0_DEBUG, "item="ITEM_FMT" osr_xid=%"PRIu64,
 				ITEM_ARG(item), item->ri_header.osr_xid);
 			rc = m0_rpc_post(item);
-			if (rc != 0 ) {
-				rpc_error = true;
-				M0_LOG(M0_WARN, "item="ITEM_FMT" osr_xid=%"
-				       PRIu64"rc = %d, ri_error = %d",
-				ITEM_ARG(item), item->ri_header.osr_xid,
-				rc, item->ri_error);
-				goto out;
+			/*
+			 * An error returned by rpc post has been ignored.
+			 * It will be handled in the respective bottom half.
+			 */
+			if (rc == 0)
+				M0_CNT_INC(nr_dispatched);
+			else {
+				post_error = rc;
+				rc = 0;
 			}
-			M0_CNT_INC(nr_dispatched);
 			m0_op_io_to_rpc_map(ioo, item);
 			continue;
 		}
@@ -2160,15 +2161,16 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 						 ITEM_ARG(item),
 						 item->ri_header.osr_xid);
 				rc = m0_rpc_post(item);
-				if (rc != 0 ) {
-					rpc_error = true;
-					M0_LOG(M0_WARN, "item="ITEM_FMT" osr_xid=%"
-					PRIu64"rc = %d, ri_error = %d",
-					ITEM_ARG(item), item->ri_header.osr_xid,
-					rc, item->ri_error);
-					goto out;
+				/*
+				 * An error returned by rpc post has been ignored.
+			         * It will be handled in the respective bottom half.
+			         */
+				if (rc == 0)
+					M0_CNT_INC(nr_dispatched);
+				else {
+					post_error = rc;
+					rc = 0;
 				}
-				M0_CNT_INC(nr_dispatched);
 				m0_op_io_to_rpc_map(ioo, item);
 			}
 			continue;
@@ -2190,29 +2192,32 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 					&irfop->irf_iofop.if_fop.f_item);
 
 			if (rc != 0) {
-				if (ri_error != 0 ) {
-					M0_LOG(M0_DEBUG, "[%p] Failed RPC Submit"
-					" of fop for device "FID_F"@%p, item %p,"
-				        " fop_nr=%llu, rc=%d, "
-					"ri_error=%d", ioo, FID_P(&ti->ti_fid),
-					irfop, &irfop->irf_iofop.if_fop.f_item,
-					(unsigned long long)
-					m0_atomic64_get(&xfer->nxr_iofop_nr),
-					rc, ri_error);
-					rpc_error = true;
-				}
-				goto out;
+				/* This will only occur for rpc_bulk error,
+				 * continue dispatch operations after updating
+				 * the error response */
+				ti->ti_rc = ti->ti_rc ?: rc;
+				xfer->nxr_rc = xfer->nxr_rc ?: rc;
+				bulk_error = rc;
+				rc = 0;
 			}
-			m0_atomic64_inc(&instance->m0c_pending_io_nr);
-			if (ri_error == 0)
-				M0_CNT_INC(nr_dispatched);
-			else if (post_error == 0)
-				post_error = ri_error;
+			else {
+				m0_atomic64_inc(&instance->m0c_pending_io_nr);
+				if (ri_error == 0)
+					M0_CNT_INC(nr_dispatched);
+				else if (post_error == 0)
+					post_error = ri_error;
+			}
 		} m0_tl_endfor;
 	} m0_htable_endfor;
 
-out:
-	if (rc == 0 && nr_dispatched == 0 && post_error == 0) {
+	if (rc == 0 && nr_dispatched == 0 && post_error == 0 &&
+	    bulk_error != 0) {
+		/* No fop has been dispatched, bulk error has been detected,
+		 * dispatch can fail immediately with error
+		 */
+		rc = bulk_error;
+	}
+	else if (rc == 0 && nr_dispatched == 0 && post_error == 0) {
 		/* No fop has been dispatched.
 		 *
 		 * This might happen in dgmode reading:
@@ -2233,23 +2238,6 @@ out:
 		ioreq_sm_state_set_locked(ioo, IRS_READ_COMPLETE);
 	} else if (rc == 0)
 		xfer->nxr_state = NXS_INFLIGHT;
-	else {  /* rc != 0 */
-		/* Do not immediately return the error if one or more fops are
-		 * successfully sent or if any rpc error is detected while
-		 * sending first fop, in that case error will be reported after
-		 * processing of corresponding bottom halfs */
-		if (nr_dispatched || (rpc_error == true)) {
-			 xfer->nxr_state = NXS_INFLIGHT;
-			/* meanwhile set the nxr state to error so that when
-			 * submitted fops are completed without any errors,
-			 * corresponding ioo still completes with error */
-			xfer->nxr_rc = rc;
-			/* set the rc to zero so that completion of ioo will be
-			 * triggered through the bottom half handling */
-			rc = 0;
-		}
-	}
-
 	M0_LOG(M0_DEBUG, "[%p] nxr_iofop_nr %llu, nxr_rdbulk_nr %llu, "
 	       "nr_dispatched %llu", ioo,
 	       (unsigned long long)m0_atomic64_get(&xfer->nxr_iofop_nr),
