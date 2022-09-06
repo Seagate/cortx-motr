@@ -2334,9 +2334,13 @@ static int cas_dtm0_prep(struct cas_fom *fom)
 
 	M0_ASSERT(fom->cf_redo == NULL);
 
-	/* Try to update "new" dtm0 log. */
-	if (m0_cas_fop_is_redoable(fom0->fo_fop) &&
+	/*
+	 * TODO: disable only for required operation
+	 * for ex: enable redo only for delete operation.
+	 */
+	if (ENABLE_DTM0 && m0_cas_fop_is_redoable(fom0->fo_fop) &&
 	    cas_type(fom0) == CT_BTREE) {
+		/* Try to update "new" dtm0 log. */
 		/* See cas_redo_free0. */
 		rc = cas_redo_alloc(fom0, &fom->cf_redo);
 		if (rc != 0)
