@@ -10296,6 +10296,7 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 #define FILL_KEY_MTREE_UT(key, ksize, data)                                    \
 	do {                                                                   \
 		uint32_t i;                                                    \
+		(void)(&i == &key[0]);                                         \
 		key[0] = data;                                                 \
 		key[1] = m0_byteorder_cpu_to_be32(ksize);                      \
 		for (i = 2; i < (ksize / sizeof(key[0])); i++)                 \
@@ -10305,6 +10306,7 @@ static int btree_ut_thread_init(struct btree_ut_thread_info *ti)
 #define FILL_VALUE_MTREE_UT(value, vsize, data, crc)                           \
 	do {                                                                   \
 		uint32_t i = 0;                                                \
+		(void)(&i == &value[0]);                                       \
 		if (crc == M0_BCT_NO_CRC) {                                    \
 			value[0] = data;                                       \
 			value[1] = m0_byteorder_cpu_to_be32(vsize);            \
