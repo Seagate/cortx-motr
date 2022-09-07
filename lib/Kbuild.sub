@@ -46,7 +46,8 @@ m0tr_objects += lib/assert.o \
                   lib/varr.o \
                   lib/vec.o \
                   lib/vec.o \
-                  lib/vec_xc.o
+                  lib/vec_xc.o \
+                  lib/alloc_prof.o
 
 m0tr_objects += lib/linux_kernel/finject_init.o \
                   lib/linux_kernel/fs.o \
