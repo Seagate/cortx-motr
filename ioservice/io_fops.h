@@ -368,6 +368,12 @@ enum m0_io_flags {
 	M0_IO_FLAG_SYNC   = (1 << 2)
 };
 
+enum m0_io_unit_type {
+	M0_IO_UNIT_DATA,
+	M0_IO_UNIT_PARITY,
+	M0_IO_UNIT_NR
+};
+
 /**
  * Common structure for read and write request fops.
  */
@@ -414,6 +420,7 @@ struct m0_fop_cob_rw {
 	struct m0_buf             crw_di_data;
 	/** Checksum value used for write operation for read it will be unused */
 	struct m0_buf             crw_di_data_cksum;
+	uint64_t                  crw_unit_type;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**

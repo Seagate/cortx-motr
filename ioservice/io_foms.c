@@ -2267,8 +2267,6 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 {
 	int                                       rc;
 	int                                       phase = m0_fom_phase(fom);
-	m0_bcount_t                               byte_count;
-	struct m0_fid                             pver;
 	struct m0_cob                            *cob;
 	struct m0_io_fom_cob_rw                  *fom_obj;
 	struct m0_io_fom_cob_rw_state_transition  st;
@@ -2282,8 +2280,6 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
 	rwfop = io_rw_get(fom->fo_fop);
-	byte_count = m0_io_count(&rwfop->crw_ivec);
-	pver = rwfop->crw_pver;
 
 	M0_ENTRY("fom %p, fop %p, item %p[%u] %s" FID_F, fom, fom->fo_fop,
 		 m0_fop_to_rpc_item(fom->fo_fop), m0_fop_opcode(fom->fo_fop),
@@ -2369,11 +2365,14 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	M0_ASSERT(m0_io_fom_cob_rw_invariant(fom_obj));
 
 	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS &&
-	    m0_is_write_fop(fom->fo_fop)) {
+	    m0_is_write_fop(fom->fo_fop) &&
+	    rwfop->crw_unit_type == M0_IO_UNIT_DATA) {
 		int                 bc_rc;
 		struct m0_cob_bckey key;
+		m0_bcount_t         byte_count;
 
-		key.cbk_pfid = pver;
+		byte_count = m0_io_count(&rwfop->crw_ivec);
+		key.cbk_pfid = rwfop->crw_pver;
 		key.cbk_user_id = M0_BYTECOUNT_USER_ID;
 		bc_rc = fom_cob_locate(fom);
 		if (bc_rc == 0) {

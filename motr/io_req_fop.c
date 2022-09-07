@@ -1059,6 +1059,9 @@ M0_INTERNAL int ioreq_fop_init(struct ioreq_fop    *fop,
 			rwfop->crw_flags &= ~M0_IO_FLAG_CROW;
 		}
 
+		rwfop->crw_unit_type = pattr & PA_DATA ? M0_IO_UNIT_DATA :
+				       M0_IO_UNIT_PARITY;
+
 		/*
 		 * Changes ri_ops of rpc item so as to execute client's own
 		 * callback on receiving a reply.
