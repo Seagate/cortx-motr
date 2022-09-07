@@ -1251,7 +1251,10 @@ static int initlift_layouts(struct m0_sm *mach)
 	return M0_RC(initlift_get_next_floor(m0c));
 }
 
-#define MAX_CLIENT_INIT_RETRIES 1000
+/*
+ * Retry for at most 4min in exponential backoff manner
+ */
+#define MAX_CLIENT_INIT_RETRIES 38
 static int initlift_idx_service(struct m0_sm *mach)
 {
 	int                               rc = 0;
@@ -1289,9 +1292,10 @@ static int initlift_idx_service(struct m0_sm *mach)
 			 */
 			if (retry_count < MAX_CLIENT_INIT_RETRIES
 			    && M0_IN(rc, (-EIO, -EPROTO))) {
-				retry_count += 1;
 				M0_LOG(M0_ERROR, "client init \
 				       failed with %d. Retrying.", rc);
+				m0_nanosleep(1 << retry_count, NULL);
+				retry_count += 1;
 				return M0_RC(initlift_get_cur_floor(m0c));
 			} else {
 				retry_count = 0;
