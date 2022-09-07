@@ -618,12 +618,12 @@ int main(int argc, char **argv)
 		   M0_STRINGARG('a', "stob domain path",
 			   LAMBDA(void, (const char *s) {
 				   beck_builder.b_stob_path = s;
-				   b_stob_path_length = sizeof(s);
+				   b_stob_path_length = sizeof(*s);
 				   })),
 		   M0_STRINGARG('d', "segment stob domain path path",
 			LAMBDA(void, (const char *s) {
 				   beck_builder.b_dom_path = s;
-				   b_dom_path_length = sizeof(s);
+				   b_dom_path_length = sizeof(*s);
 			})),
 		   M0_FLAGARG('m', "MMAP BE segment file. Useful for "
 			      "developer debugging.", &mmap_be_segment));
