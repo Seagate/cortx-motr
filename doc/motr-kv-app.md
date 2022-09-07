@@ -76,6 +76,24 @@ The steps to delete an existing index: function index\_delete().
 
 To find the application's 2nd parameter (LOCAL_ADDR), look for the running motr's Client_addr. 
 
+For example, for the motr instance below,
+
+```
+HA_addr    : 192.168.53.101@tcp:12345:34:1                                                                               
+Client_addr: 192.168.53.101@tcp:12345:33:1000                                                                            
+Profile_fid: 0x7000000000000001:0                                                                                     
+Process_fid: 0x7200000000000001:64    
+```
+
+Run the application with the following command parameters.
+
+```
+./example2 192.168.53.101@tcp:12345:34:1 192.168.53.101@tcp:12345:33:1000 0x7000000000000001:0 0x7200000000000001:64 1234567         
+rc=0 op_rc=0                                                                                                  index create rc:0                                                                                                     rc=0 op_rc=0                                                                                                  PUT 0: key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA val=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+...
+app completed: 0 
+```
+
 # Tested by
 
 *   Aug 16, 2022: Bo Wei (bo.b.wei@seagate.com) tested using CentOS 7.9.
