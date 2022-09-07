@@ -155,7 +155,7 @@ btreeType = {b'01': 'M0_BBT_INVALID', b'02': 'M0_BBT_BALLOC_GROUP_EXTENTS',
 BeBnodeTypeKeys = {}
 
 def RecordOffset(record, i, size):
-    if record in recordDict.keys():
+    if record in recordDict:
         recordDict[record].append(i)
         if record == "BE_BNODE":
             bliType = i + 16                              # bli_type offet
@@ -523,7 +523,7 @@ def ListAllEmapPerDevice():
         _, _, device_id = ConvertAdstob2Cob(stob_f_container_hex, stob_f_key_hex)
         # 16 bytes of BE_EMAP_KEY (footer) + 16 bytes of BE_EMAP_REC(header)
         # gives offset of Corresponding BE_EMAP_REC
-        emap_rec_offset = offset + 32
+        # emap_rec_offset = offset + 32
         # emap_rec_data, _ = ReadCompleteRecord(emap_rec_offset)
 
         # Skip key CRC
@@ -584,7 +584,7 @@ def read_metadata_file():
             if byte == header:
                 byte = binascii.hexlify((metadata.read(8))[::-1])  # Read the Type Size Version
                 rtype, size = ReadTypeSize(byte)
-                if rtype not in typeDict.keys():
+                if rtype not in typeDict:
                     continue
                 record = typeDict[rtype]
                 i = i + 8

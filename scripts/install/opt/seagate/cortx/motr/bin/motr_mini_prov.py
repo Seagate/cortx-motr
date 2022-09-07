@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/libexec/platform-python
 #
 # Copyright (c) 2021 Seagate Technology LLC and/or its Affiliates
 #
@@ -125,7 +125,7 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
                               shell=True)
         if stdin:
             ps.stdin.write(stdin.encode())
-        stdout, stderr = ps.communicate(timeout=timeout_secs);
+        stdout = ps.communicate(timeout=timeout_secs)[0]
         stdout = str(stdout, 'utf-8')
 
         if logging == True:
@@ -311,7 +311,7 @@ def get_logical_node_class(self):
     try:
         logical_node_class = self.cluster['logical_node_class']
     except:
-        raise MotrError(errno.EINVAL, f"{logical_node_class} does not exist in ConfStore")
+        raise MotrError(errno.EINVAL, f"logical_node_class does not exist in ConfStore")
     check_type(logical_node_class, list, "logical_node_class")
     return logical_node_class
 
@@ -1042,7 +1042,6 @@ def align_val(val, size):
     return (int(val/size) * size)
 
 def update_bseg_size(self):
-    dev_count = 0
     lvm_min_size = None
 
     md_disks_list = get_md_disks_lists(self, self.machine_id)
@@ -1209,9 +1208,7 @@ def get_metadata_disks_count(self):
             raise MotrError(errno.EINVAL, "metadata devices not found\n")
         check_type(metadata_devices, list, "metadata_devices")
         self.logger.debug(f"\nlvm metadata_devices: {metadata_devices}\n\n")
-
-        for device in metadata_devices:
-            dev_count += 1
+        dev_count = len(metadata_devices)
     return dev_count
 
 def lvm_exist(self):

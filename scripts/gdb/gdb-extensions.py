@@ -60,7 +60,7 @@ def human_readable(count):
 
 	return str(saved_count) + "<" + result.strip() + ">"
 
-def sum(start_addr, count):
+def sum_addr(start_addr, count):
 	a = gdb.parse_and_eval("(unsigned char *){0:#x}".format(start_addr))
 	s = 0
 	for i in range(count):
@@ -170,19 +170,19 @@ Total: 2
 		ok    = True
 		head  = 0
 		vhead = gdb.parse_and_eval(argv[0])
-		type  = str(vhead.type)
-		if type.startswith('const '):
-			type = type[len('const '):]
+		type_var  = str(vhead.type)
+		if type_var.startswith('const '):
+			type_var = type_var[len('const '):]
 
-		if type == "struct m0_list":
+		if type_var == "struct m0_list":
 			head = int(vhead.address)
-		elif type == "struct m0_list *":
+		elif type_var == "struct m0_list *":
 			head = int(vhead)
-		elif type in ("struct m0_tl", "struct m0_tl *"):
+		elif type_var in ("struct m0_tl", "struct m0_tl *"):
 			vhead = vhead['t_head']
 			head = int(vhead.address)
 		else:
-			print("Error: Invalid argument type: '%s'" % type)
+			print("Error: Invalid argument type: '%s'" % type_var)
 			ok = False
 		return vhead, head, ok
 
@@ -202,16 +202,16 @@ Total: 2
 			anchor = argv[3]
 			try:
 				elm_type = gdb.lookup_type(str_elm_type)
-			except:
+			except Exception as e:
 				print("Error: type '{0}' does not exist".format(str_elm_type))
 				return 0, None, False
 
-			type = str(field_type(str_elm_type, anchor))
-			if type not in ("struct m0_list_link", "struct m0_tlink"):
+			type_var = str(field_type(str_elm_type, anchor))
+			if type_var not in ("struct m0_list_link", "struct m0_tlink"):
 				print("Error: Argument 4 must be of type m0_list_link or m0_tlink")
 				return 0, None, False
 
-			if type == "struct m0_tlink":
+			if type_var == "struct m0_tlink":
 				anchor = anchor.strip() + ".t_link"
 
 			offset = offset_of(str_elm_type, anchor)
@@ -263,7 +263,7 @@ For each segment, the command prints,
 			start_addr = int(vbufvec['ov_buf'][i])
 			count      = int(vbufvec['ov_vec']['v_count'][i])
 			end_addr   = start_addr + count
-			sum_of_bytes_in_seg = sum(start_addr, count)
+			sum_of_bytes_in_seg = sum_addr(start_addr, count)
 			print("seg:{0} {1:#x} {2:#x} {3} {4} {5}".format(i, \
 				start_addr, end_addr, human_readable(offset), \
 				human_readable(count), sum_of_bytes_in_seg))
