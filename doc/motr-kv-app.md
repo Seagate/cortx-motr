@@ -89,7 +89,10 @@ Run the application with the following command parameters.
 
 ```
 ./example2 192.168.53.101@tcp:12345:34:1 192.168.53.101@tcp:12345:33:1000 0x7000000000000001:0 0x7200000000000001:64 1234567         
-rc=0 op_rc=0                                                                                                  index create rc:0                                                                                                     rc=0 op_rc=0                                                                                                  PUT 0: key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA val=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+rc=0 op_rc=0                                                                                                  
+index create rc:0                                                                                                     
+rc=0 op_rc=0                                                                                                 
+PUT 0: key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA val=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 ...
 app completed: 0 
 ```
