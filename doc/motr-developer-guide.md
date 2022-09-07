@@ -22,6 +22,14 @@ with all dependencies installed ready to build and start single-node Motr cluste
 CORTX Motr provides object based operations and index (a.k.a key/value) based operations as well as FDMI interface.
 For architectural documents, please refer to our [reading list](reading-list.md).
 
+Document contains following sections-
++ [A simple CORTX Motr Object Application](#a-simple-cortx-motr-object-application)
++ [A simple CORTX Motr Index/Key-Value Application](#a-simple-cortx-motr-indexkey-value-application)
++ [A simple CORTX Motr FDMI application](#a-simple-cortx-motr-fdmi-application)
++ [How to compile & build the application examples](#how-to-compile--build-the-application-examples)
++ [How to run the examples for Object and Key-Value](#how-to-run-the-examples-for-object-and-key-value)
++ [More examples, utilities, and applications](#more-examples-utilities-and-applications)
+
 ## A simple CORTX Motr Object Application
 
 [Object Application](motr-object-app.md)
