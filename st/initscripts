@@ -18,7 +18,8 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-set -e
+#set -x
+#set -e
 
 #
 # Wrapper script for Jenkins test '03initscript-tests'
@@ -27,12 +28,62 @@ set -e
 M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*}
 
-. $M0_SRC_DIR/utils/functions # report_and_exit
+
+m0t1fs_dir="$M0_SRC_DIR/m0t1fs/linux_kernel/st"
+. $m0t1fs_dir/common.sh
+. $m0t1fs_dir/m0t1fs_common_inc.sh
+. $m0t1fs_dir/m0t1fs_client_inc.sh
+. $m0t1fs_dir/m0t1fs_server_inc.sh
 
 cd $M0_SRC_DIR
 
-sudo ./scripts/install-motr-service -u
-sudo ./scripts/install-motr-service -l
-sudo /usr/bin/time -v ./st/m0t1fs -vv
 
-report_and_exit initscripts $?
+N=4
+K=2
+S=0
+P=12
+stride=32
+
+motr_service_start()
+{
+	local n=$1
+	local k=$2
+	local s=$3
+	local p=$4
+	local stride=$5
+	local multiple_pools=0
+
+	echo "n k s p:$N $K $S $P"
+	motr_service start $multiple_pools $stride $n $k $s $p
+	if [ $? -ne 0 ]
+	then
+		echo "Failed to start Motr Service..."
+		return 1
+	fi
+	echo "motr service started"
+
+	ios_eps=""
+	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
+	done
+	return 0
+}
+
+motr_service_stop()
+{
+	motr_service stop
+	if [ $? -ne 0 ]
+	then
+		echo "Failed to stop Motr Service..."
+		return 1
+	fi
+}
+
+motr_service_start $N $K $S $P $stride 
+rc=$?
+echo "CORTX- Motr Service is started"
+motr_service_stop
+echo "CORTX- Motr Service is stopped"
+
+
+report_and_exit initscripts $rc

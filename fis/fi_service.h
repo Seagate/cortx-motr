@@ -80,6 +80,7 @@ struct m0_reqh_fi_service {
 M0_INTERNAL int m0_fis_register(void);
 M0_INTERNAL void m0_fis_unregister(void);
 
+extern struct m0_reqh_service_type m0_fis_type;
 /** @} fis-dfspec */
 #endif /* __MOTR_FIS_FI_SERVICE_H__ */
 

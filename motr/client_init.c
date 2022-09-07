@@ -41,6 +41,7 @@
 #include "dtm0/service.h"             /* m0_dtm0_service_find */
 #include "dtm0/helper.h"              /* m0_dtm_client_service_start */
 #include "dtm0/cfg_default.h"         /* m0_dtm0_domain_cfg_default_dup */
+#include "fis/fi_service.h"
 
 #include "motr/io.h"                /* io_sm_conf */
 #include "motr/client.h"
@@ -104,6 +105,7 @@ enum initlift_states {
 	IL_LAYOUT_DB,
 	IL_IDX_SERVICE,
 	IL_ROOT_FID, /* TODO: remove this m0t1fs ism */
+	IL_FIS,
 	IL_ADDB2,
 	IL_DTM0,
 	IL_INITIALISED,
@@ -125,6 +127,7 @@ static int initlift_idx_service(struct m0_sm *mach);
 static int initlift_rootfid(struct m0_sm *mach);
 static int initlift_addb2(struct m0_sm *mach);
 static int initlift_dtm0(struct m0_sm *mach);
+static int initlift_fis(struct m0_sm *mach);
 
 /**
  * State machine phases for client operations.
@@ -196,14 +199,20 @@ struct m0_sm_state_descr initlift_phases[] = {
 	},
 	[IL_ROOT_FID] = {
 		.sd_name = "retrieve-root-fid",
-		.sd_allowed = M0_BITS(IL_ADDB2,
+		.sd_allowed = M0_BITS(IL_FIS,
 				      IL_IDX_SERVICE),
 		.sd_in = initlift_rootfid,
+	},
+	[IL_FIS] = {
+		.sd_name = "init/fini-fis",
+		.sd_allowed = M0_BITS(IL_ADDB2,
+				      IL_ROOT_FID),
+		.sd_in = initlift_fis,
 	},
 	[IL_ADDB2] = {
 		.sd_name = "init/fini-addb2",
 		.sd_allowed = M0_BITS(IL_DTM0,
-				      IL_ROOT_FID),
+				      IL_FIS),
 		.sd_in = initlift_addb2,
 	},
 	[IL_DTM0] = {
@@ -253,7 +262,9 @@ struct m0_sm_trans_descr initlift_trans[] = {
 				       IL_IDX_SERVICE},
 	{"retrieving-root-fid",        IL_IDX_SERVICE,
 				       IL_ROOT_FID},
-	{"initialising-addb2",         IL_ROOT_FID,
+	{"initialising-fis",           IL_ROOT_FID,
+				       IL_FIS},
+	{"initialising-addb2",         IL_FIS,
 				       IL_ADDB2},
 	{"initialising-dtm0",          IL_ADDB2, IL_DTM0},
 	{"initialised",                IL_DTM0, IL_INITIALISED},
@@ -265,6 +276,8 @@ struct m0_sm_trans_descr initlift_trans[] = {
 				       IL_ADDB2},
 
 	{"finalising-addb2",           IL_ADDB2,
+				       IL_FIS},
+	{"finalising-fis",             IL_FIS,
 				       IL_ROOT_FID},
 	{"finalising-root-fid",        IL_ROOT_FID,
 				       IL_IDX_SERVICE},
@@ -1467,6 +1480,56 @@ static int initlift_addb2(struct m0_sm *mach)
 #endif
 	}
 
+	return M0_RC(initlift_get_next_floor(m0c));
+}
+
+static int initlift_fis(struct m0_sm *mach)
+{
+	int                     rc = 0;
+        struct m0_client       *m0c;
+        struct m0_reqh_service *service;
+        struct m0_reqh         *reqh;
+        struct m0_fid           sfid;
+
+        M0_ENTRY();
+        M0_PRE(mach != NULL);
+
+        m0c = bob_of(mach, struct m0_client, m0c_initlift_sm, &m0c_bobtype);
+        M0_ASSERT(m0c_invariant(m0c));
+        reqh = &m0c->m0c_reqh;
+
+	if (!m0_confc_is_inited(&reqh->rh_rconfc.rc_confc)) {
+		/* confd quorum is not possible. */
+		rc = M0_ERR(-EINVAL);
+		initlift_fail(rc, m0c);
+		goto exit;
+	}
+
+	/* Confc needs the lock to proceed. */
+	m0_sm_group_unlock(&m0c->m0c_sm_group);
+	rc = m0_conf_process2service_get(&reqh->rh_rconfc.rc_confc,
+				&reqh->rh_fid, M0_CST_FIS,
+				&sfid);
+	m0_sm_group_lock(&m0c->m0c_sm_group);
+	if (rc == -ENOENT)
+		return M0_RC(initlift_get_next_floor(m0c));
+	else if (rc != 0) {
+		initlift_fail(rc, m0c);
+		goto exit;
+	}
+	if (m0c->m0c_initlift_direction == STARTUP) {
+		rc = service_start(reqh, &sfid, &m0_fis_type, &service);
+		if (rc != 0)
+			initlift_fail(rc, m0c);
+	} else {
+		/* reqh_services_terminate is handled by rpc_fini.
+		 * Reqh services are terminated not in reverse order because
+		 * m0_reqh_services_terminate() terminates all services
+		 * including rpc_service. Rpc_service starts in
+		 * rpc_init() implicitly.
+		 */
+	}
+exit:
 	return M0_RC(initlift_get_next_floor(m0c));
 }
 
