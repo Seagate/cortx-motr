@@ -19,11 +19,11 @@
 #
 
 
-. `dirname $0`/common.sh
-. `dirname $0`/m0t1fs_common_inc.sh
-. `dirname $0`/m0t1fs_client_inc.sh
-. `dirname $0`/m0t1fs_server_inc.sh
-. `dirname $0`/m0t1fs_sns_common_inc.sh
+. $(dirname "$0")/common.sh
+. $(dirname "$0")/m0t1fs_common_inc.sh
+. $(dirname "$0")/m0t1fs_client_inc.sh
+. $(dirname "$0")/m0t1fs_server_inc.sh
+. $(dirname "$0")/m0t1fs_sns_common_inc.sh
 
 ###################################################
 # SNS repair is only supported in COPYTOOL mode,
@@ -169,7 +169,7 @@ main()
 
 	sandbox_init
 
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 	local multiple_pools=0
 	motr_service start $multiple_pools $stride $N $K $S $P || {
 		echo "Failed to start Motr Service."

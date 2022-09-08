@@ -375,6 +375,7 @@ enum M0_RPC_OPCODES {
 	M0_DTM0_RLINK_OPCODE                    = 1073,
 	M0_FDMI_SOURCE_DOCK_TIMER_OPCODE        = 1074,
 	M0_DTM0_RECOVERY_FOM_OPCODE             = 1075,
+	M0_DTM0_PRUNER_OPCODE                   = 1076,
 
 
 	M0_OPCODES_NR                           = 2048

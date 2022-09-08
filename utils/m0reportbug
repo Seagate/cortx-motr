@@ -156,6 +156,14 @@ main() {
         echo "OK$(_time $t)" >&2
     done
 
+    # Helps in debugging, If m0reportbug fails due to huge size
+    if [ -d "$LIVE_CORE_DIR" ]; then
+	echo "du -sh $LIVE_CORE_DIR" >&2
+	du_output=`du -sh "$LIVE_CORE_DIR" 2>&1`
+	du_size=`echo $du_output | awk '{print $1}'`
+	echo "The size of $LIVE_CORE_DIR is : $du_size"
+    fi
+
     # Create directory and put only latest files created into it.
     TEMP_WORKSPACE="$LIVE_CORE_DIR/tmpspace/"
     rm -rf "$TEMP_WORKSPACE"
