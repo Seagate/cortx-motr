@@ -2570,7 +2570,7 @@ static void dix_del_dgmode_common(bool versioned)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
-	M0_UT_ASSERT(dix_rec_is_deleted(&index, &keys, versioned));
+	M0_UT_ASSERT(dix_rec_is_deleted(&index, &keys, true));
 	dix_rep_free(&rep);
 	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
 	M0_UT_ASSERT(rc == 0);
@@ -2584,7 +2584,7 @@ static void dix_del_dgmode_common(bool versioned)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
-	M0_UT_ASSERT(dix_rec_is_deleted(&index, &keys, versioned));
+	M0_UT_ASSERT(dix_rec_is_deleted(&index, &keys, true));
 	dix_rep_free(&rep);
 	dix_disk_online_set(sdev_id);
 	dix_records_restore(&index, &keys, &vals);
@@ -2598,13 +2598,13 @@ static void dix_del_dgmode_common(bool versioned)
 	rc = dix_cctg_records_del(&index, &keys, sdev_id, versioned);
 	M0_UT_ASSERT(rc == 0);
 	dix_cctg_records_put(&index, &keys, &vals, dix_sdev_id(PG_UNIT_SPARE0),
-			     versioned);
+			     true);
 	dix_disk_failure_set(sdev_id, M0_PNDS_SNS_REBALANCING);
 	rc = dix_ut_del(&index, &keys, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
-	M0_UT_ASSERT(dix_rec_is_deleted(&index, &keys, versioned));
+	M0_UT_ASSERT(dix_rec_is_deleted(&index, &keys, true));
 	dix_rep_free(&rep);
 	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
 	M0_UT_ASSERT(rc == 0);
@@ -2618,7 +2618,7 @@ static void dix_del_dgmode_common(bool versioned)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
-	M0_UT_ASSERT(dix_rec_is_deleted(&index, &keys, versioned));
+	M0_UT_ASSERT(dix_rec_is_deleted(&index, &keys, true));
 	dix_rep_free(&rep);
 	dix_disk_online_set(sdev_id);
 	dix_records_restore(&index, &keys, &vals);
