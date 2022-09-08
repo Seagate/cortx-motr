@@ -45,6 +45,7 @@ struct m0_cm_type;
 struct m0_cm_sw {
 	struct m0_cm_ag_id     sw_lo;
 	struct m0_cm_ag_id     sw_hi;
+	uint64_t               sw_nr_bufs;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** Copy machine replica's local endpoint. */

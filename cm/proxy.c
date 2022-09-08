@@ -546,6 +546,8 @@ static void proxy_sw_onwire_release(struct m0_ref *ref)
 	m0_free(pso_fop);
 }
 
+M0_EXTERN struct m0_cm_type sns_dtrebalance_cmt;
+
 M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 					  struct m0_cm_sw *in_interval,
 					  struct m0_cm_sw *out_interval)
@@ -600,7 +602,11 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
 	cm_proxy_sw_onwire_post(proxy, fop, conn);
-	m0_cm_sw_copy(&proxy->px_last_sw_onwire_sent, in_interval);
+        /* We do not support sliding window for direct rebalance.
+         * We accept incoming packets for all aggregator groups.
+         */
+        if (cm->cm_type == &sns_dtrebalance_cmt)
+	        m0_cm_sw_copy(&proxy->px_last_sw_onwire_sent, in_interval);
 
 	M0_LOG(M0_DEBUG, "Sending to %s hi: ["M0_AG_F"]",
 	       proxy->px_endpoint, M0_AG_P(&in_interval->sw_hi));

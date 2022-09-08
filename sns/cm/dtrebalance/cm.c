@@ -223,6 +223,34 @@ m0_sns_cm_fid_dtrebalance_done(struct m0_fid *gfid, struct m0_reqh *reqh,
 	return SRS_UNINITIALIZED;
 }
 
+M0_INTERNAL int dtrebalance_cm_ag_next(struct m0_cm *cm,
+				       const struct m0_cm_ag_id *id_curr,
+				       struct m0_cm_ag_id *id_next)
+{
+	int rc;
+	size_t count;
+	struct m0_fom *fom;
+	struct m0_sns_cm *scm = cm2sns(cm);
+
+	M0_PRE(cm != NULL);
+	M0_PRE(m0_cm_is_locked(cm));
+	fom = &cm->cm_sw_update.swu_fom;
+
+	count = scm->sc_ibp.sb_bp.nbp_free;
+	if (count == 0) {
+		cm->cm_sw_update.swu_sw.sw_nr_bufs = 0;
+		m0_sns_cm_buf_wait(&scm->sc_ibp, fom);
+		rc = -ENOBUFS;
+	} else {
+		cm->cm_sw_update.swu_sw.sw_nr_bufs = count;
+		rc = 0;
+	}
+	return rc;
+        /* The below code is  not required for now and has thus been
+         * commented */
+	/* return m0_sns_cm_ag__next(scm, id_curr, id_next); */
+}
+
 /** Copy machine operations. */
 M0_INTERNAL const struct m0_cm_ops sns_dtrebalance_ops = {
 	.cmo_setup               = m0_sns_cm_setup,
@@ -231,7 +259,7 @@ M0_INTERNAL const struct m0_cm_ops sns_dtrebalance_ops = {
 	.cmo_ag_alloc            = m0_sns_cm_dtrebalance_ag_alloc,
 	.cmo_cp_alloc            = dtrebalance_cm_cp_alloc,
 	.cmo_data_next           = m0_sns_cm_iter_next,
-	.cmo_ag_next             = m0_sns_cm_ag_next,
+	.cmo_ag_next             = dtrebalance_cm_ag_next,
 	.cmo_get_space_for       = dtrebalance_cm_get_space_for,
 	.cmo_sw_onwire_fop_setup = m0_sns_cm_dtrebalance_sw_onwire_fop_setup,
 	.cmo_is_peer             = m0_sns_is_peer,
