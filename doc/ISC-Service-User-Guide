@@ -96,11 +96,11 @@ Consider a simple API that on reception of string “Hello” responds with “W
                   char *in_string, struct m0_rpc_conn *conn)
  {
        int rc;
-       /* A string is mapped to a mero buffer. */
+       /* A string is mapped to a motr buffer. */
        m0_buf_init(in_args, in_string, strlen(in_string));
        /* Initialise RPC adaptive transmission data structure. */
        m0_rpc_at_init(&isc_fop->fi_args);
-       /* Add mero buffer to m0_rpc_at */
+       /* Add motr buffer to m0_rpc_at */
 
        rc = m0_rpc_at_add(&isc_fop->fi_args, in_args, conn);
 
@@ -198,7 +198,7 @@ We now discuss the callee side code. Let’s assume that the function is registe
      if (m0_buf_streq(in, “Hello”)) {
            /*
             * The string allocated here should not be freed by
-            * computation and Mero takes care of freeing it.
+            * computation and Motr takes care of freeing it.
             */
 
            out_str = m0_strdup(“World”);
@@ -224,7 +224,7 @@ Suppose we have a collection of arrays of integers, each stored as a Motr object
 ```
 /* Arguments for getting min/max. */
 struct arr_fids {
-     /* Number of arrays stored with Mero. */
+     /* Number of arrays stored with Motr. */
      uint32_t af_arr_nr;
      /* An array holding unique identifiers of arrays. */
      struct m0_fid *af_gfids
@@ -280,7 +280,7 @@ struct histo_args {
     /** Minimum value. */
     uint64_t ha_min_val;
 
-    /** Global fid of object stored with Mero. */
+    /** Global fid of object stored with Motr. */
     struct m0_fid ha_gob_fid;
 
 } M0_XCA_RECORD;
@@ -295,7 +295,7 @@ Here we discuss the API for generating a histogram of values, local to a node. T
  * Structure of a computation is advisable to be similar to
  * Motr foms. It returns M0_FSO_WAIT when it has to wait for
  * an external event (n/w or disk I/O)else it returns
- * M0_FSO_AGAIN. These two symbols are defined in Mero.
+ * M0_FSO_AGAIN. These two symbols are defined in Motr.
  */
 int histo_generate(struct m0_buf *in, struct m0_buf *out,
                    struct m0_isc_comp_private *comp_data,

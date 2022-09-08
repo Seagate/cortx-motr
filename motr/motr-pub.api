@@ -91,6 +91,7 @@ m0_obj_fini
 m0_obj_op
 m0_idx_init
 m0_idx_fini
+m0_idx_op_setoption
 m0_idx_op
 m0_op_kick
 m0_rc

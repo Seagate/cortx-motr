@@ -1452,22 +1452,42 @@ static void remach_cli_evict_mixed(void)
 }
 
 extern void m0_dtm0_ut_drlink_simple(void);
-extern void m0_dtm0_ut_domain_init_fini(void);
+extern void m0_dtm0_ut_volatile_domain_init_fini(void);
+extern void m0_dtm0_ut_log_simple(void);
+extern void m0_dtm0_ut_log_mpsc(void);
+extern void m0_dtm0_ut_pruner_init_fini(void);
+extern void m0_dtm0_ut_pruner_start_stop(void);
+extern void m0_dtm0_ut_pruner_one(void);
+extern void m0_dtm0_ut_pruner_two(void);
+extern void m0_dtm0_ut_pruner_many_left(void);
+extern void m0_dtm0_ut_pruner_mpsc(void);
+extern void m0_dtm0_ut_pruner_mpsc_many(void);
+extern void m0_dtm0_ut_persistent_domain_init_fini(void);
 
 struct m0_ut_suite dtm0_ut = {
 	.ts_name = "dtm0-ut",
 	.ts_tests = {
-		{ "xcode",                    cas_xcode_test              },
-		{ "drlink-simple",           &m0_dtm0_ut_drlink_simple    },
-		{ "domain_init-fini",        &m0_dtm0_ut_domain_init_fini },
-		{ "remach-init-fini",         remach_init_fini            },
-		{ "remach-start-stop",        remach_start_stop           },
-		{ "remach-boot-cluster-ss",   remach_boot_cluster_ss      },
-		{ "remach-boot-cluster-cs",   remach_boot_cluster_cs      },
-		{ "remach-reboot-server",     remach_reboot_server        },
-		{ "remach-reboot-twice",      remach_reboot_twice         },
-		{ "remach-boot-real-log",     remach_boot_real_log        },
-		{ "remach-real-log-replay",   remach_real_log_replay      },
+		{ "xcode",                  cas_xcode_test        },
+		{ "drlink-simple",         &m0_dtm0_ut_drlink_simple },
+		{ "domain_init-fini",      &m0_dtm0_ut_volatile_domain_init_fini },
+		{ "log-simple",            &m0_dtm0_ut_log_simple  },
+		{ "log-mpsc",              &m0_dtm0_ut_log_mpsc    },
+		{ "pruner_init-fini",      &m0_dtm0_ut_pruner_init_fini       },
+		{ "pruner_start-stop",     &m0_dtm0_ut_pruner_start_stop      },
+		{ "pruner_one",            &m0_dtm0_ut_pruner_one             },
+		{ "pruner_two",            &m0_dtm0_ut_pruner_two             },
+		{ "pruner_many_left",      &m0_dtm0_ut_pruner_many_left       },
+		{ "pruner_mpsc",           &m0_dtm0_ut_pruner_mpsc            },
+		{ "pruner_mpsc_many",      &m0_dtm0_ut_pruner_mpsc_many       },
+		{ "domain_full_init-fini", &m0_dtm0_ut_persistent_domain_init_fini  },
+		{ "remach-init-fini",       remach_init_fini       },
+		{ "remach-start-stop",      remach_start_stop      },
+		{ "remach-boot-cluster-ss", remach_boot_cluster_ss },
+		{ "remach-boot-cluster-cs", remach_boot_cluster_cs },
+		{ "remach-reboot-server",   remach_reboot_server   },
+		{ "remach-reboot-twice",    remach_reboot_twice    },
+		{ "remach-boot-real-log",   remach_boot_real_log   },
+		{ "remach-real-log-replay", remach_real_log_replay  },
 		{ "remach-rec-mark-empty",    remach_rec_mark_empty       },
 		{ "remach-rec-mark-nonempty", remach_rec_mark_nonempty    },
 		{ "remach-client-eviction-empty-log",
