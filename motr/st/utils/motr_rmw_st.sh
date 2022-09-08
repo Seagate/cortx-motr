@@ -241,7 +241,7 @@ test_rmw()
 			create_files $update_count
 
 			write_and_update $LID $update_count true
-			write_and_update $LID $update_count false -G
+			write_and_update $LID $update_count true -G
 
 			echo "diff"
 			diff $src_file'2' $dest_file'_'$LID || {
