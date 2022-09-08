@@ -532,8 +532,8 @@ static void ut_dix_record_ops(bool dist, uint32_t cr_get_flags,
 	m0_free0(&rcs);
 
 	/*
-	 * Try to add recs again without OVERWRITE flag
-	 * (will be added due to versioning).
+	 * With versioning enabled, it will succeed to put Key/Val pairs again
+	 * when the keys already exist. It will not return -EEXIST error.
 	 */
 	rcs = rcs_alloc(CNT);
 	rc = m0_idx_op(&idx, M0_IC_PUT, &keys, &vals, rcs, put_del_flags,
