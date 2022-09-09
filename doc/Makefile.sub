@@ -11,7 +11,7 @@ EXTRA_DIST += doc/Doxyfile \
               doc/logging-and-tracing \
               doc/man/manpage-template.1.txt \
               doc/profiling \
-              doc/motr-design-doc-list.rst \
+              doc/motr-design-doc-list.md \
               doc/reading-list.md \
               doc/source-structure.md \
               doc/test-coverage \
