@@ -184,12 +184,6 @@ extern struct m0_ut_suite btree_ut;
 #define LNET_ENABLED (false)
 #endif
 
-#if defined(USE_LIBFAB)
-#define LIBFAB_ENABLED (true)
-#else
-#define LIBFAB_ENABLED (false)
-#endif
-
 static void tests_add(struct m0_ut_module *m)
 {
 	/*
@@ -287,7 +281,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &m0_net_bulk_if_ut, true);
 	m0_ut_add(m, &m0_net_bulk_mem_ut, true);
 	m0_ut_add(m, &m0_net_lnet_ut, LNET_ENABLED);
-	m0_ut_add(m, &m0_net_libfab_ut, LIBFAB_ENABLED);
+	m0_ut_add(m, &m0_net_libfab_ut, USE_LIBFAB);
 	m0_ut_add(m, &m0_net_misc_ut, true);
 	m0_ut_add(m, &m0_net_module_ut, true);
 	m0_ut_add(m, &m0_net_test_ut, true);
