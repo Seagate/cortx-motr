@@ -549,7 +549,7 @@ M0_INTERNAL int m0_conf_process2service_get(struct m0_confc *confc,
 	}
 	m0_conf_diter_fini(&it);
 	m0_confc_close(pobj);
-	return m0_fid_is_set(sfid) ? M0_RC(rc) : M0_ERR(-ENOENT);
+	return m0_fid_is_set(sfid) ? M0_RC(rc) : M0_RC(-ENOENT);
 }
 
 /* --------------------------------- >8 --------------------------------- */
