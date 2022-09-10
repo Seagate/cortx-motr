@@ -1250,6 +1250,9 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 		return M0_RC(-ENOENT);
 	item->ri_session = sess;
 
+	if (M0_FI_ENABLED("log"))
+		M0_LOG(M0_ALWAYS, ITEM_FMT" xid=%llu machine=%p", ITEM_ARG(item),
+			 (unsigned long long)item->ri_header.osr_xid, machine);
 	/*
 	 * If item is a request, then it may be the first arrival of the
 	 * request item, or the same request may be sent again if resend

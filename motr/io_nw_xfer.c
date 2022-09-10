@@ -2080,6 +2080,7 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 	struct m0_op           *op;
 	struct target_ioreq    *ti;
 	struct m0_client       *instance;
+	int                     non_rpc_post_error = 0;
 
 	M0_ENTRY();
 
@@ -2135,14 +2136,19 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 		}
 		if (ti->ti_req_type == TI_COB_CREATE &&
 		    ioreq_sm_state(ioo) == IRS_WRITING) {
+			M0_LOG(M0_DEBUG, "item="ITEM_FMT" osr_xid=%"PRIu64,
+				ITEM_ARG(item), item->ri_header.osr_xid);
+			rc = m0_rpc_post(item);
 			/*
 			 * An error returned by rpc post has been ignored.
 			 * It will be handled in the respective bottom half.
 			 */
-			M0_LOG(M0_DEBUG, "item="ITEM_FMT" osr_xid=%"PRIu64,
-				ITEM_ARG(item), item->ri_header.osr_xid);
-			rc = m0_rpc_post(item);
-			M0_CNT_INC(nr_dispatched);
+			if (rc == 0)
+				M0_CNT_INC(nr_dispatched);
+			else {
+				post_error = rc;
+				rc = 0;
+			}
 			m0_op_io_to_rpc_map(ioo, item);
 			continue;
 		}
@@ -2150,17 +2156,21 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 		    ioreq_sm_state(ioo) == IRS_TRUNCATE &&
 		    ti->ti_req_type == TI_COB_TRUNCATE) {
 			if (ti->ti_trunc_ivec.iv_vec.v_nr > 0) {
-				/*
-				 * An error returned by rpc post has been
-				 * ignored. It will be handled in the
-				 * io_bottom_half().
-				 */
 				M0_LOG(M0_DEBUG, "item="ITEM_FMT
 						 " osr_xid=%"PRIu64,
 						 ITEM_ARG(item),
 						 item->ri_header.osr_xid);
 				rc = m0_rpc_post(item);
-				M0_CNT_INC(nr_dispatched);
+				/*
+				 * An error returned by rpc post has been ignored.
+			         * It will be handled in the respective bottom half.
+			         */
+				if (rc == 0)
+					M0_CNT_INC(nr_dispatched);
+				else {
+					post_error = rc;
+					rc = 0;
+				}
 				m0_op_io_to_rpc_map(ioo, item);
 			}
 			continue;
@@ -2181,18 +2191,31 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			m0_op_io_to_rpc_map(ioo,
 					&irfop->irf_iofop.if_fop.f_item);
 
-			if (rc != 0)
-				goto out;
-			m0_atomic64_inc(&instance->m0c_pending_io_nr);
-			if (ri_error == 0)
-				M0_CNT_INC(nr_dispatched);
-			else if (post_error == 0)
-				post_error = ri_error;
+			if (rc != 0) {
+				/* This will only occur for rpc_bulk error,
+				 * continue dispatch operations after updating
+				 * the error response */
+				ti->ti_rc = ti->ti_rc ?: rc;
+				xfer->nxr_rc = xfer->nxr_rc ?: rc;
+				non_rpc_post_error = rc;
+				rc = 0;
+			} else {
+				m0_atomic64_inc(&instance->m0c_pending_io_nr);
+				if (ri_error == 0)
+					M0_CNT_INC(nr_dispatched);
+				else if (post_error == 0)
+					post_error = ri_error;
+			}
 		} m0_tl_endfor;
 	} m0_htable_endfor;
 
-out:
-	if (rc == 0 && nr_dispatched == 0 && post_error == 0) {
+	if (rc == 0 && nr_dispatched == 0 && post_error == 0 &&
+	    non_rpc_post_error != 0) {
+		/* No fop has been dispatched, bulk error has been detected,
+		 * dispatch can fail immediately with error
+		 */
+		rc = non_rpc_post_error;
+	} else if (rc == 0 && nr_dispatched == 0 && post_error == 0) {
 		/* No fop has been dispatched.
 		 *
 		 * This might happen in dgmode reading:
@@ -2213,7 +2236,6 @@ out:
 		ioreq_sm_state_set_locked(ioo, IRS_READ_COMPLETE);
 	} else if (rc == 0)
 		xfer->nxr_state = NXS_INFLIGHT;
-
 	M0_LOG(M0_DEBUG, "[%p] nxr_iofop_nr %llu, nxr_rdbulk_nr %llu, "
 	       "nr_dispatched %llu", ioo,
 	       (unsigned long long)m0_atomic64_get(&xfer->nxr_iofop_nr),
