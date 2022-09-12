@@ -77,6 +77,7 @@ static void cat_usage(FILE *file, char *prog_name)
 "  -z, --fill-zeros               Fill holes with zeros.\n"
 "  -G, --DI-generate              Flag to generate Data Integrity\n"
 "  -I, --DI-user-input            Flag to pass checksum by user\n"
+"  -g, --get-pver                 Print pool version of object read"
 "  -h, --help                     Shows this help text and exit.\n"
 , prog_name, WIDTH, ' ', WIDTH, ' ', WIDTH, ' ', WIDTH, ' ', WIDTH, ' ',
 WIDTH, ' ');
@@ -107,7 +108,7 @@ int main(int argc, char **argv)
 			  cat_param.cup_offset,
 			  cat_param.cup_blks_per_io, cat_param.cup_take_locks,
 			  cat_param.flags, &cat_param.cup_pver,
-			  cat_param.entity_flags);
+			  cat_param.entity_flags, cat_param.cup_print_pver);
 	if (rc < 0) {
 		fprintf(stderr, "m0_read failed! rc = %d\n", rc);
 	}
