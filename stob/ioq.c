@@ -439,8 +439,10 @@ static void ioq_io_error(struct m0_stob_ioq *ioq, struct ioq_qev *qev)
 	uint64_t              tag;
 
 	M0_ENTRY();
-	M0_LOG(M0_WARN, "IO error: stob_id=" STOB_ID_F " conf_sdev=" FID_F,
-	       STOB_ID_P(&lstob->sl_stob.so_id), FID_P(&lstob->sl_conf_sdev));
+	M0_LOG(M0_WARN, "IO error: stob_id=" STOB_ID_F " conf_sdev=" FID_F
+			" opcode=%d rc=%d",
+			STOB_ID_P(&lstob->sl_stob.so_id),
+			FID_P(&lstob->sl_conf_sdev), io->si_opcode, io->si_rc);
 
 	if (m0_get()->i_ha == NULL || m0_get()->i_ha_link == NULL) {
 		/*

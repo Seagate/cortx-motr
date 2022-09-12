@@ -278,8 +278,13 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 		rc = -ENOMEM;
 
 	if (rc == 0) {
-		if (cfg->adg_container_size == 0)
+		if (cfg->adg_container_size == 0) {
+			M0_LOG(M0_WARN, "The default container size %" PRId64
+					" is used for this device, but it may "
+					"differ from the actual size.",
+					BALLOC_DEF_CONTAINER_SIZE);
 			cfg->adg_container_size = BALLOC_DEF_CONTAINER_SIZE;
+		}
 		cfg->adg_bshift     = BALLOC_DEF_BLOCK_SHIFT;
 		/*
 		 * Big number of groups slows balloc initialisation. Therefore,

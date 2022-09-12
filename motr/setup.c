@@ -884,9 +884,12 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 						break;
 					}
 					M0_LOG(M0_DEBUG, "cid:0x%"PRIx64
-					       " -> sdev_fid:"FID_F" idx:0x%x",
+					       " -> sdev_fid:"FID_F" idx:0x%x"
+					       " size=%" PRIu64,
 					       cid, FID_P(&sdev_fid),
-					       conf_sdev->sd_dev_idx);
+					       conf_sdev->sd_dev_idx,
+					       conf_sdev->sd_size);
+					size = conf_sdev->sd_size;
 				} else
 					/* Every storage device need not have a
 					 * counterpart in configuration. */
@@ -897,6 +900,8 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 					 * sizes reduced to 256 MB.
 					 */
 					size = 1024ULL *1024 * 256;
+				M0_LOG(M0_DEBUG, "cid=%"PRIu64 "path=%s size=%"
+						 PRIu64, cid, f_path, size);
 				rc = m0_storage_dev_new(devs, cid, f_path, size,
 							conf_sdev, force, &dev);
 				if (rc == 0) {

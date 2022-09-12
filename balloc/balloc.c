@@ -3026,8 +3026,7 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 			 (unsigned long long)freeblocks,
 			 (unsigned long long)motr->cb_sb.bsb_freeblocks);
 
-
-	return M0_RC(rc);
+	return rc != 0 ? M0_ERR(rc) : M0_RC(rc);
 }
 
 /**

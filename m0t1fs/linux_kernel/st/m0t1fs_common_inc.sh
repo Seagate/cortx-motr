@@ -82,7 +82,7 @@ IOS5_CMD=""       #IOS5 process commandline to spawn it again on Controller even
 
 IOS4_CMD=""
 
-export IOS_DISK_SEEK_BLOCK_COUNT=1M
+export IOS_DISK_SEEK_BLOCK_COUNT=1048576 #1024 * 1024
 
 # list of md server end points tmid in [800, 899)
 MDSEP=(

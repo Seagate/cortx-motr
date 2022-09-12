@@ -25,14 +25,53 @@ TOPDIR=$(dirname "$0")/../../../
 . "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh"
 . "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_client_inc.sh"
 . "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh"
-. "${TOPDIR}/m0t1fs/linux_kernel/st/m0t1fs_sns_common_inc.sh"
-. "${TOPDIR}/motr/st/utils/sns_repair_common_inc.sh"
+
+export N=2
+export K=1
+export S=1
+export P=4
+export stride=32
 
 
 export MOTR_CLIENT_ONLY=1
 
 # The ioservice will have a very small disk to trigger -ENOSPC test
-export IOS_DISK_SEEK_BLOCK_COUNT=500
+export IOS_DISK_SEEK_BLOCK_COUNT=1024
+
+writing_objects_to_fill_devices()
+{
+	local rc=0
+	local i=0
+
+	dd if=/dev/urandom bs=1M count=128 \
+	   of="$MOTR_M0T1FS_TEST_DIR/srcfile" || return $?
+
+	for i in $(seq 0 1000) ; do
+		local lid=9
+		local us=$((1024 * 1024))
+		local count=128
+		local obj="100000:10000$i"
+
+		echo "creating object ${obj} bs=${us} * c=${count}"
+
+		"$M0_SRC_DIR/motr/st/utils/m0cp" -l "${lnet_nid}:$SNS_MOTR_CLI_EP"  \
+						 -H "${lnet_nid}:$HA_EP"            \
+						 -p "$PROF_OPT"                     \
+						 -P "$M0T1FS_PROC_ID"               \
+						 -L "${lid}"                        \
+						 -s "${us}"                         \
+						 -c "${count}"                      \
+						 -o "${obj}"                        \
+						 "$MOTR_M0T1FS_TEST_DIR/srcfile" || {
+			rc=$?
+			echo "Writing object ${obj} failed: $rc"
+			return $rc
+		}
+		rm -f m0trace.*
+	done
+	return $rc
+}
+
 
 motr_io_small_disks()
 {
@@ -40,7 +79,7 @@ motr_io_small_disks()
 
 	echo "Startin motr_io_small_disks testing ..."
 
-	prepare_datafiles_and_objects
+	writing_objects_to_fill_devices
 	rc=$?
 	if [[ $rc -eq 28 ]] ; then
 		# ENOSPC == 28
@@ -51,7 +90,7 @@ motr_io_small_disks()
 		rc=1
 	fi
 
-	return $?
+	return $rc
 }
 
 main()
