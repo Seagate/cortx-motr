@@ -53,8 +53,6 @@ main()
 {
 	sandbox_init
 
-	NODE_UUID=`uuidgen`
-	motr_dgmode_sandbox="$MOTR_TEST_DIR/sandbox"
 	src_file="$MOTR_TEST_DIR/motr_source"
 	dest_file="$MOTR_TEST_DIR/motr_dest"
 	dest_file2="$MOTR_TEST_DIR/motr_dest2"
@@ -151,7 +149,7 @@ main()
         fi
 	fi
 
-    rm -f "$SANDBOX_DIR"/m0cat.log
+	rm -f "$SANDBOX_DIR"/m0cat.log
 
 	if [ "$pver_obj1" != "$pver_obj2" ]; then
 		echo "Pool version of obj1 and obj2 are different as expected."
