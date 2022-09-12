@@ -203,6 +203,7 @@ Total: 2
 			try:
 				elm_type = gdb.lookup_type(str_elm_type)
 			except Exception as e:
+				print(f"{e.message} {e.args}")
 				print("Error: type '{0}' does not exist".format(str_elm_type))
 				return 0, None, False
 
