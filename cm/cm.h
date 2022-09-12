@@ -358,6 +358,15 @@ struct m0_cm_ops {
 
 	/** Copy machine specific finalisation routine. */
 	void (*cmo_fini)(struct m0_cm *cm);
+
+	/** Copy machine specific buf pool provision */
+	int (*cmo_buf_pools_provision)(struct m0_cm *cm);
+
+	/** Copy machine specific buf pools pruning*/
+	void (*cmo_buf_pools_prune)(struct m0_cm *cm);
+
+	/** Copy machine specific buf pools finalization*/
+	void (*cmo_buf_pools_fini)(struct m0_cm *cm);
 };
 
 M0_INTERNAL int m0_cm_type_register(struct m0_cm_type *cmt);

@@ -197,7 +197,10 @@ const struct m0_cm_ops sns_rebalance_ops = {
 	.cmo_is_peer             = m0_sns_is_peer,
 	.cmo_ha_msg		 = m0_sns_cm_ha_msg,
 	.cmo_stop                = rebalance_cm_stop,
-	.cmo_fini                = m0_sns_cm_fini
+	.cmo_fini                = m0_sns_cm_fini,
+	.cmo_buf_pools_provision = sns_repreb_cm_buf_pools_provision,
+	.cmo_buf_pools_prune     = sns_repreb_cm_buf_pools_prune,
+	.cmo_buf_pools_fini      = sns_repreb_cm_buf_pools_fini
 };
 
 #undef M0_TRACE_SUBSYSTEM
