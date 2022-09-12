@@ -35,7 +35,7 @@ main()
 {
 	sandbox_init
 
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 	echo "About to start Motr service"
 	local multiple_pools=0
 	motr_service start $multiple_pools
