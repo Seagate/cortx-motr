@@ -1468,6 +1468,7 @@ extern void m0_dtm0_ut_pruner_many_left(void);
 extern void m0_dtm0_ut_pruner_mpsc(void);
 extern void m0_dtm0_ut_pruner_mpsc_many(void);
 extern void m0_dtm0_ut_persistent_domain_init_fini(void);
+extern void m0_dtm0_ut_net_thin_tranceive(void);
 
 struct m0_ut_suite dtm0_ut = {
 	.ts_name = "dtm0-ut",
@@ -1499,6 +1500,7 @@ struct m0_ut_suite dtm0_ut = {
 		{ "net-thin-init-fini",       m0_dtm0_ut_net_thin_init_fini},
 		{ "net-thin-start-stop",      m0_dtm0_ut_net_thin_start_stop},
 		{ "net-tranceive",            m0_dtm0_ut_net_tranceive     },
+		{ "net-thin-tranceive",       m0_dtm0_ut_net_thin_tranceive},
 		{ "remach-client-eviction-empty-log",
 			                      remach_cli_evict_empty_log  },
 		{ "remach-client-eviction-replay-all",

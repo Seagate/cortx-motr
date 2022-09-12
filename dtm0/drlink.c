@@ -34,6 +34,8 @@
 #include "rpc/rpc_opcodes.h"         /* M0_DTM0_{RLINK,REQ}_OPCODE */
 #include "lib/string.h"              /* m0_streq */
 
+#include<stdio.h>
+
 enum {
 	/*
 	 * TODO: DTM model assumes infinite timeouts. But this is too scary at
@@ -658,6 +660,8 @@ M0_INTERNAL int m0_dtm0_req_post(struct m0_dtm0_service    *svc,
 	M0_ALLOC_PTR(fom);
 	if (fom == NULL)
 		return M0_ERR(-ENOMEM);
+
+	printf("fom = %p\n", fom);
 
 	rc = drlink_fom_init(fom, svc, op, tgt, req, parent_fom, wait_for_ack);
 

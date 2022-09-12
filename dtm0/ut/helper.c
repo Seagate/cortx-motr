@@ -64,6 +64,7 @@ static const char *ut_dtm0_client_endpoint = "0@lo:12345:34:2";
 const char        *ut_dtm0_helper_log      = "dtm0_ut_server.log";
 
 
+
 M0_INTERNAL void m0_ut_dtm0_helper_init(struct m0_ut_dtm0_helper *udh)
 {
 	struct m0_reqh_service *svc;
