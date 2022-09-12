@@ -25,7 +25,7 @@
 . $(dirname "$0")/m0t1fs_server_inc.sh
 . $(dirname "$0")/m0t1fs_sns_common_inc.sh
 
-. $M0_SRC_DIR/utils/functions  # opcode
+. "$M0_SRC_DIR"/utils/functions  # opcode
 
 # If DEBUG_MODE is set to 1, trace file is generated. This may be useful when
 # some issue is to be debugged in developer environment.
@@ -231,18 +231,18 @@ rcancel_issue_writes_n_cancel()
 
 	echo "Test: Creating $wc_nr_files files on m0t1fs"
 	for ((i=0; i<$wc_nr_files; ++i)); do
-		touch $wc_file_base$i || break
+		touch "$wc_file_base$i" || break
 	done
 
 	echo "Test: Writing to $wc_nr_files files on m0t1fs, for concurrent cancel"
 	for ((i=0; i<$wc_nr_files; ++i)); do
 		echo "dd if=$source_file of=$wc_file_base$i bs=$bs count=$count &"
-		dd if="$source_file" of="$wc_file_base"$i bs=$bs count=$count &
+		dd if="$source_file" of="$wc_file_base$i" bs=$bs count=$count &
 	done
 
 	dd_count=$(jobs | grep "dd.*wc_file_base" | wc -l)
 	echo "dd write processes running : $dd_count"
-	if [ $dd_count -ne $wc_nr_files ]
+	if [ "$dd_count" -ne "$wc_nr_files" ]
 	then
 		echo "Failed to issue long running $wc_nr_files dd write requests"
 		rcancel_test_cleanup "$wc_file_base" "$wc_nr_files" "dd"
@@ -257,9 +257,9 @@ rcancel_issue_writes_n_cancel()
 	wait
 
 	# Ensure that all the dd have either failed or finished
-	dd_count=$(pgrep -fc dd.*$wc_file_base)
+	dd_count=$(pgrep -fc "dd.*$wc_file_base")
 	echo "dd write processes running : $dd_count"
-	if [ $dd_count -ne 0 ]
+	if [ "$dd_count" -ne 0 ]
 	then
 		echo "Failed to complete $wc_nr_files dd requests"
 		rcancel_test_cleanup "$wc_file_base" "$wc_nr_files" "dd"
@@ -291,7 +291,7 @@ rcancel_cancel_during_write_test()
 	# troubleshooting, in case required.
 	echo "Test: ls for $wt_write_nr_files files before restore (Succeeds if 'Operation canceled' is not received. Shall succeed for all, if rcancel_md_redundancy > 1)"
 	for ((i=0; i<$wt_write_nr_files; ++i)); do
-		ls -l $wt_write_file_base$i
+		ls -l "$wt_write_file_base$i"
 		echo "ls_rc: $?"
 	done
 
@@ -299,20 +299,20 @@ rcancel_cancel_during_write_test()
 	# It is to verify that some RPC items were indeed canceled through
 	# RPC session cancelation. Some items are going to get canceled
 	# while attempting to be posted after session cancelation.
-	num=$(grep -n "dd: " $MOTR_TEST_LOGFILE | grep "writing" | grep "Operation canceled" | grep "$wt_write_file_base" | wc -l | cut -f1 -d' ')
+	num=$(grep -n "dd: " "$MOTR_TEST_LOGFILE" | grep "writing" | grep "Operation canceled" | grep "$wt_write_file_base" | wc -l | cut -f1 -d' ')
 	echo "dd write processes canceled : $num"
-	if [ $num -eq 0 ]; then
+	if [ "$num" -eq 0 ]; then
 		echo "Failed: No dd writing operation was canceled"
 		unmount_and_clean
 		return 1
 	fi
 
-	num=$(grep -n "dd: closing" $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$wt_write_file_base" | wc -l | cut -f1 -d' ')
+	num=$(grep -n "dd: closing" "$MOTR_TEST_LOGFILE" | grep "Operation canceled" | grep "$wt_write_file_base" | wc -l | cut -f1 -d' ')
 	echo "dd closing processes canceled : $num"
 
-	num=$(grep -n "ls: cannot access" $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$wt_write_file_base" | wc -l | cut -f1 -d' ')
+	num=$(grep -n "ls: cannot access" "$MOTR_TEST_LOGFILE" | grep "Operation canceled" | grep "$wt_write_file_base" | wc -l | cut -f1 -d' ')
 	echo "ls processes canceled : $num"
-	if [ $num -gt 0 ] && [ $rcancel_md_redundancy > 1 ]; then
+	if [ "$num" -gt 0 ] && [ "$rcancel_md_redundancy" > 1 ]; then
 		echo "Failed: ls was canceled inspite-of having rcancel_md_redundancy ($rcancel_md_redundancy) > 1"
 		return 1
 	fi
@@ -321,7 +321,7 @@ rcancel_cancel_during_write_test()
 
 	echo "Test: ls for $wt_write_nr_files files after restore (written during cancel)"
 	for ((i=0; i<$wt_write_nr_files; ++i)); do
-		ls -l "$wt_write_file_base"$i
+		ls -l "$wt_write_file_base$i"
 		wt_ls_rc=$?
 		echo "ls_rc: $wt_ls_rc"
 		if [ $wt_ls_rc -ne 0 ]
@@ -334,13 +334,13 @@ rcancel_cancel_during_write_test()
 
 	echo "Test: read $wt_write_nr_files files after restore (written during cancel) (They receive either 'No such file or directory', 'EOF' or 'Input/output error' since some gobs/cobs may not be created)"
 	for ((i=0; i<$wt_write_nr_files; ++i)); do
-		cmp "$source_file" "$wt_write_file_base"$i
+		cmp "$source_file" "$wt_write_file_base$i"
 		echo "cmp $wt_write_file_base$i: rc $?"
 	done
 
 	echo "Test: rm $wt_write_nr_files files after restore (written during cancel) (Expected to fail for the files for which gob is not created)"
 	for ((i=0; i<$wt_write_nr_files; ++i)); do
-		rm -f "$wt_write_file_base"$i
+		rm -f "$wt_write_file_base$i"
 		wt_rm_rc=$?
 		echo "rm -f $wt_write_file_base$i: rc $wt_rm_rc"
 		if [ $wt_rm_rc -ne 0 ]
@@ -351,7 +351,7 @@ rcancel_cancel_during_write_test()
 
 	echo "Test: write to new $wt_write_nr_files files after restore"
 	for ((i=0; i<$wt_write_nr_files; ++i)); do
-		dd if="$source_file" of="$wt_write_new_file_base"$i bs=$bs count=$count
+		dd if="$source_file" of="$wt_write_new_file_base$i" bs="$bs" count="$count"
 		wt_write_rc=$?
 		echo "Write to $wt_write_new_file_base$i: rc $wt_write_rc"
 		if [ $wt_write_rc -ne 0 ]
@@ -364,7 +364,7 @@ rcancel_cancel_during_write_test()
 
 	echo "Test: ls new $wt_write_nr_files files after restore (written after restore)"
 	for ((i=0; i<$wt_write_nr_files; ++i)); do
-		ls -l "$wt_write_new_file_base"$i
+		ls -l "$wt_write_new_file_base$i"
 		wt_ls_rc=$?
 		echo "ls_rc: $wt_ls_rc"
 		if [ $wt_ls_rc -ne 0 ]
@@ -377,7 +377,7 @@ rcancel_cancel_during_write_test()
 
 	echo "Test: Read $wt_write_nr_files files after restore (written after restore)"
 	for ((i=0; i<$wt_write_nr_files; ++i)); do
-		cmp "$source_file" "$wt_write_new_file_base"$i
+		cmp "$source_file" "$wt_write_new_file_base$i"
 		wt_cmp_rc=$?
 		echo "cmp $wt_write_new_file_base$i: rc $wt_cmp_rc"
 		if [ $wt_cmp_rc -ne 0 ]
@@ -390,7 +390,7 @@ rcancel_cancel_during_write_test()
 
 	echo "Test: rm $wt_write_nr_files files after restore (written after restore)"
 	for ((i=0; i<$wt_write_nr_files; ++i)); do
-		rm -f "$wt_write_new_file_base"$i
+		rm -f "$wt_write_new_file_base$i"
 		wt_rm_rc=$?
 		echo "rm -f $wt_write_new_file_base$i: rc $wt_rm_rc"
 		if [ $wt_rm_rc -ne 0 ]
@@ -412,12 +412,12 @@ rcancel_issue_reads_n_cancel()
 	echo "Test: Reading from $rc_nr_files files on m0t1fs, for concurrent cancel"
 	for ((i=0; i<$rc_nr_files; ++i)); do
 		echo "dd if=$rc_file_base$i of=$rcancel_sandbox/$i bs=$bs count=$count &"
-		dd if="$rc_file_base"$i of="$rcancel_sandbox"/$i bs=$bs count=$count &
+		dd if="$rc_file_base$i" of="$rcancel_sandbox/$i" bs="$bs" count="$count" &
 	done
 
 	dd_count=$(jobs | grep "dd.*rc_file_base" | wc -l)
 	echo "dd read processes running : $dd_count"
-	if [ $dd_count -ne $rc_nr_files ]
+	if [ "$dd_count" -ne "$rc_nr_files" ]
 	then
 		echo "Failed to issue long running $rc_nr_files dd read requests"
 		rcancel_test_cleanup "$rc_file_base" "$rc_nr_files" "dd"
@@ -429,9 +429,9 @@ rcancel_issue_reads_n_cancel()
 	wait
 
 	# Ensure that all the dd have either failed or finished
-	dd_count=$(pgrep -fc dd.*$rc_file_base)
+	dd_count=$(pgrep -fc "dd.*$rc_file_base")
 	echo "dd read processes running : $dd_count"
-	if [ $dd_count -ne 0 ]
+	if [ "$dd_count" -ne 0 ]
 	then
 		echo "Failed to complete $rc_nr_files dd requests"
 		rcancel_test_cleanup "$rc_file_base" "$rc_nr_files" "dd"
@@ -451,14 +451,14 @@ rcancel_cancel_during_read_test()
 
 	echo "Test: Have $rt_read_nr_files data files created on m0t1fs, to be used for read test"
 	for ((i=0; i<$rt_read_nr_files; ++i)); do
-		touch "$rt_read_file_base"$i
-		dd if="$source_file" of="$rt_read_file_base"$i bs=$bs count=$count &
+		touch "$rt_read_file_base$i"
+		dd if="$source_file" of="$rt_read_file_base$i" bs="$bs" count="$count" &
 	done
 	wait
 
 	echo "Files prepared for read test:"
 	for ((i=0; i<$rt_read_nr_files; ++i)); do
-		ls -l "$rt_read_file_base"$i
+		ls -l "$rt_read_file_base$i"
 	done
 
 	# Cancel a session while running some parallel read operations
@@ -471,26 +471,26 @@ rcancel_cancel_during_read_test()
 	# to verify that RPC session was indeed canceled.
 	# Many of those read ops fail with the error "Input/output error"
 	# while a few fail with the error "Operation canceled"
-	num=$(grep -n "dd: " $MOTR_TEST_LOGFILE | grep "reading" | egrep 'Operation canceled|Input\/output error' | grep "$rt_file_base" | wc -l | cut -f1 -d' ')
+	num=$(grep -n "dd: " "$MOTR_TEST_LOGFILE" | grep "reading" | egrep 'Operation canceled|Input\/output error' | grep "$rt_file_base" | wc -l | cut -f1 -d' ')
 	echo "dd read processes canceled : $num"
-	if [ $num -eq 0 ]; then
+	if [ "$num" -eq 0 ]; then
 		echo "Failed: No dd reading operation was canceled"
 		unmount_and_clean
 		return 1
 	fi
 
-	num=$(grep -n "dd: closing" $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$rt_read_file_base" | wc -l | cut -f1 -d' ')
+	num=$(grep -n "dd: closing" "$MOTR_TEST_LOGFILE" | grep "Operation canceled" | grep "$rt_read_file_base" | wc -l | cut -f1 -d' ')
 	echo "dd closing processes canceled : $num"
 
 	# Test ls with canceled session
 	echo "Test: ls for $rt_read_nr_files files before restore (Succeeds if "Operation canceled" is not received. Shall succeed for all, if rcancel_md_redundancy > 1)"
 	for ((i=0; i<$rt_read_nr_files; ++i)); do
-		ls -l "$rt_read_file_base"$i
+		ls -l "$rt_read_file_base$i"
 		echo "ls_rc: $?"
 	done
-	num=$(grep -n "ls: cannot access" $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$rt_read_file_base" | wc -l | cut -f1 -d' ')
+	num=$(grep -n "ls: cannot access" "$MOTR_TEST_LOGFILE" | grep "Operation canceled" | grep "$rt_read_file_base" | wc -l | cut -f1 -d' ')
 	echo "ls processes canceled : $num"
-	if [ $num -gt 0 ] && [ $rcancel_md_redundancy > 1 ]; then
+	if [ "$num" -gt 0 ] && [ "$rcancel_md_redundancy" > 1 ]; then
 		echo "Failed: ls was canceled inspite-of having rcancel_md_redundancy ($rcancel_md_redundancy) > 1"
 		return 1
 	fi
@@ -515,7 +515,7 @@ rcancel_cancel_during_read_test()
 
 	echo "Test: rm $rt_read_nr_files files after restore (written before cancel)"
 	for ((i=0; i<$rt_read_nr_files; ++i)); do
-		rm -f "$rt_read_file_base"$i
+		rm -f "$rt_read_file_base$i"
 		rt_rm_rc=$?
 		echo "rm -f $rt_read_file_base$i: rc $rt_rm_rc"
 		if [ $rt_rm_rc -ne 0 ]
@@ -534,7 +534,7 @@ rcancel_cancel_during_create_test()
 	local create_nr_files=20
 	local create_file_base="$MOTR_M0T1FS_MOUNT_DIR/0:4444"
 
-	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mountopt || return 1
+	mount_m0t1fs "$MOTR_M0T1FS_MOUNT_DIR" $mountopt || return 1
 
 	echo "Test: Enable FP to drop create reply items"
 	echo 'enable item_reply_received_fi drop_create_item_reply always' > /sys/kernel/debug/motr/finject/ctl
@@ -542,12 +542,12 @@ rcancel_cancel_during_create_test()
 	echo "Test: Create $create_nr_files files on m0t1fs"
 	for ((i=0; i<$create_nr_files; ++i)); do
 		echo "touch $create_file_base$i &"
-		touch "$create_file_base"$i &
+		touch "$create_file_base$i" &
 	done
 
 	create_count=$(jobs | grep "touch.*create_file_base" | wc -l)
 	echo "create processes running : $create_count"
-	if [ $create_count -ne $create_nr_files ]
+	if [ "$create_count" -ne "$create_nr_files" ]
 	then
 		echo 'disable item_reply_received_fi drop_create_item_reply' > /sys/kernel/debug/motr/finject/ctl
 		echo "Failed to issue long running $create_nr_files create requests"
@@ -566,7 +566,7 @@ rcancel_cancel_during_create_test()
 	# Ensure that all create ops have either failed or finished
 	create_count=$(pgrep -fc touch)
 	echo "create processes running : $create_count"
-	if [ $create_count -ne 0 ]
+	if [ "$create_count" -ne 0 ]
 	then
 		echo "Failed to complete $create_nr_files create requests"
 		rcancel_test_cleanup "$create_file_base" $create_nr_files "touch"
@@ -578,16 +578,16 @@ rcancel_cancel_during_create_test()
 	echo "Test: ls $create_nr_files files after cancel"
 	for ((i=0; i<$create_nr_files; ++i)); do
 		echo "ls -l $create_file_base$i"
-		ls -l "$ct_create_file_base"$i
+		ls -l "$ct_create_file_base$i"
 	done
 
 	rcancel_session_restore_fop
 
 	# Verify that some create operations were indeed canceled due to
 	# RPC session cancelation.
-	num=$(grep -n "touch: " $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$ct_create_file_base" | wc -l | cut -f1 -d' ')
+	num=$(grep -n "touch: " "$MOTR_TEST_LOGFILE" | grep "Operation canceled" | grep "$ct_create_file_base" | wc -l | cut -f1 -d' ')
 	echo "create processes canceled : $num"
-	if [ $num -eq 0 ]; then
+	if [ "$num" -eq 0 ]; then
 		echo "Failed: No create operation was canceled"
 		unmount_and_clean
 		return 1
@@ -595,7 +595,7 @@ rcancel_cancel_during_create_test()
 
 	echo "Test: rm $create_nr_files files after restore"
 	for ((i=0; i<$create_nr_files; ++i)); do
-		rm -f "$create_file_base"$i
+		rm -f "$create_file_base$i"
 		rm_rc=$?
 		echo "rm -f $create_file_base$i: rc $rm_rc"
 		if [ $rm_rc -ne 0 ]
@@ -620,14 +620,14 @@ rcancel_cancel_during_delete_test()
 	i=0
 	touch "$delete_file_base"$i # 0 size file, create half of those as empty
 	for ((i=1; i<$delete_nr_files; ++i)); do
-		touch "$delete_file_base"$i
-		dd if="$source_file" of="$delete_file_base"$i bs=$bs count=$count &
+		touch "$delete_file_base$i"
+		dd if="$source_file" of="$delete_file_base$i" bs="$bs" count="$count" &
 	done
 	wait
 
 	# Files prepared for delete test
 	for ((i=0; i<$delete_nr_files; ++i)); do
-		ls -l "$delete_file_base"$i
+		ls -l "$delete_file_base$i"
 	done
 
 	echo "Test: Enable FP to drop delete reply items"
@@ -636,12 +636,12 @@ rcancel_cancel_during_delete_test()
 	echo "Test: Delete $delete_nr_files files from m0t1fs"
 	for ((i=0; i<$delete_nr_files; ++i)); do
 		echo "rm -f $delete_file_base$i &"
-		rm -f "$delete_file_base"$i &
+		rm -f "$delete_file_base$i" &
 	done
 
 	delete_count=$(jobs | grep "rm.*delete_file_base" | wc -l)
 	echo "delete processes running : $delete_count"
-	if [ $delete_count -ne $delete_nr_files ]
+	if [ "$delete_count" -ne "$delete_nr_files" ]
 	then
 		echo 'disable item_reply_received_fi drop_delete_item_reply' > /sys/kernel/debug/motr/finject/ctl
 		echo "Failed to issue long running $delete_nr_files delete requests"
@@ -660,7 +660,7 @@ rcancel_cancel_during_delete_test()
 	# Ensure that all the file ops have either failed or finished
 	delete_count=$(pgrep -fc rm.*"$delete_file_base")
 	echo "delete processes running : $delete_count"
-	if [ $delete_count -ne 0 ]
+	if [ "$delete_count" -ne 0 ]
 	then
 		echo "Failed to complete $delete_nr_files delete requests"
 		rcancel_test_cleanup "$delete_file_base" $delete_nr_files "rm"
@@ -672,16 +672,16 @@ rcancel_cancel_during_delete_test()
 	echo "Test: ls $delete_nr_files files after cancel"
 	for ((i=0; i<$delete_nr_files; ++i)); do
 		echo "ls -l $delete_file_base$i"
-		ls -l "$delete_file_base"$i
+		ls -l "$delete_file_base$i"
 	done
 
 	rcancel_session_restore_fop
 
 	# Verify that some delete operations were indeed canceled due to
 	# RPC session cancelation.
-	num=$(grep -n "rm: " $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$delete_file_base" | wc -l | cut -f1 -d' ')
+	num=$(grep -n "rm: " "$MOTR_TEST_LOGFILE" | grep "Operation canceled" | grep "$delete_file_base" | wc -l | cut -f1 -d' ')
 	echo "delete processes canceled : $num"
-	if [ $num -eq 0 ]; then
+	if [ "$num" -eq 0 ]; then
 		echo "Failed: No delete operation was canceled"
 		unmount_and_clean
 		return 1
@@ -689,7 +689,7 @@ rcancel_cancel_during_delete_test()
 
 	echo "Test: rm $delete_nr_files files after restore"
 	for ((i=0; i<$delete_nr_files; ++i)); do
-		rm -f "$delete_file_base"$i
+		rm -f "$delete_file_base$i"
 		rm_rc=$?
 		echo "rm -f $delete_file_base$i: rc $rm_rc"
 		if [ $rm_rc -ne 0 ]
@@ -713,7 +713,7 @@ rcancel_cancel_during_setfattr_ops_test()
 	echo "Test: Have $setfattr_nr_files files created on m0t1fs, to be used for setfattr op"
 	for ((i=0; i<$setfattr_nr_files; ++i)); do
 		echo "touch $setfattr_file_base$i"
-		touch "$setfattr_file_base"$i
+		touch "$setfattr_file_base$i"
 	done
 
 	echo "Test: Enable FP to drop setattr reply items"
@@ -722,12 +722,12 @@ rcancel_cancel_during_setfattr_ops_test()
 	echo "Test: setfattr for $setfattr_nr_files files on m0t1fs"
 	for ((i=0; i<$setfattr_nr_files; ++i)); do
 		echo "setfattr -n lid -v 4 $setfattr_file_base$i &"
-		setfattr -n lid -v 4 "$setfattr_file_base"$i &
+		setfattr -n lid -v 4 "$setfattr_file_base$i" &
 	done
 
 	setfattr_count=$(jobs | grep "setfattr.*setfattr_file_base" | wc -l)
 	echo "setfattr processes running : $setfattr_count"
-	if [ $setfattr_count -ne $setfattr_nr_files ]
+	if [ "$setfattr_count" -ne "$setfattr_nr_files" ]
 	then
 		echo 'disable item_received_fi drop_setattr_item_reply' > /sys/kernel/debug/motr/finject/ctl
 		echo "Failed to issue long running $setfattr_nr_files setfattr requests"
@@ -747,7 +747,7 @@ rcancel_cancel_during_setfattr_ops_test()
 	# Ensure that all the file ops have either failed or finished
 	setfattr_count=$(pgrep -fc setfattr)
 	echo "setfattr processes running : $(($setfattr_count))"
-	if [ $setfattr_count -ne 0 ]
+	if [ "$setfattr_count" -ne 0 ]
 	then
 		echo "Failed to complete $setfattr_nr_files setfattr requests"
 		rcancel_test_cleanup "$setfattr_file_base" $setfattr_nr_files "setfattr"
@@ -761,9 +761,9 @@ rcancel_cancel_during_setfattr_ops_test()
 
 	# Verify that some setfattr operations were indeed canceled due to
 	# RPC session cancelation.
-	num=$(grep -n "setfattr: " $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$setfattr_file_base" | wc -l | cut -f1 -d' ')
+	num=$(grep -n "setfattr: " "$MOTR_TEST_LOGFILE" | grep "Operation canceled" | grep "$setfattr_file_base" | wc -l | cut -f1 -d' ')
 	echo "setfattr processes canceled : $num"
-	if [ $num -eq 0 ]; then
+	if [ "$num" -eq 0 ]; then
 		echo "Failed: No setfattr operation was canceled"
 		unmount_and_clean
 		return 1
@@ -771,7 +771,7 @@ rcancel_cancel_during_setfattr_ops_test()
 
 	echo "Test: rm $setfattr_nr_files files after restore"
 	for ((i=0; i<$setfattr_nr_files; ++i)); do
-		rm -f "$setfattr_file_base"$i
+		rm -f "$setfattr_file_base$i"
 		rm_rc=$?
 		echo "rm -f $setfattr_file_base$i: rc $rm_rc"
 		if [ $rm_rc -ne 0 ]
@@ -795,7 +795,7 @@ rcancel_cancel_during_getfattr_ops_test()
 	echo "Test: Have $getfattr_nr_files files created on m0t1fs, to be used for getfattr op"
 	for ((i=0; i<$getfattr_nr_files; ++i)); do
 		echo "touch $getfattr_file_base$i"
-		touch "$getfattr_file_base"$i
+		touch "$getfattr_file_base$i"
 	done
 
 	echo "Test: Enable FP to drop getattr reply items"
@@ -804,12 +804,12 @@ rcancel_cancel_during_getfattr_ops_test()
 	echo "Test: getfattr for $getfattr_nr_files files on m0t1fs"
 	for ((i=0; i<$getfattr_nr_files; ++i)); do
 		echo "getfattr -n lid $getfattr_file_base$i &"
-		getfattr -n lid "$getfattr_file_base"$i &
+		getfattr -n lid "$getfattr_file_base$i" &
 	done
 
 	getfattr_count=$(jobs | grep "getfattr.*getfattr_file_base" | wc -l)
 	echo "getfattr processes running : $(($getfattr_count))"
-	if [ $getfattr_count -ne $getfattr_nr_files ]
+	if [ "$getfattr_count" -ne "$getfattr_nr_files" ]
 	then
 		echo 'disable item_received_fi drop_getattr_item_reply' > /sys/kernel/debug/motr/finject/ctl
 		echo "Failed to issue long running $getfattr_count getfattr requests"
@@ -828,7 +828,7 @@ rcancel_cancel_during_getfattr_ops_test()
 	# Ensure that all the file ops have either failed or finished
 	getfattr_count=$(pgrep -fc getfattr)
 	echo "getfattr processes running : $(($getfattr_count))"
-	if [ $getfattr_count -ne 0 ]
+	if [ "$getfattr_count" -ne 0 ]
 	then
 		echo "Failed to complete $getfattr_nr_files getfattr ops"
 		rcancel_test_cleanup "$getfattr_file_base" $getfattr_nr_files "getfattr"
@@ -841,9 +841,9 @@ rcancel_cancel_during_getfattr_ops_test()
 
 	# Verify that some getfattr operations were indeed canceled due to
 	# RPC session cancelation.
-	num=$(grep -n "getfattr: " $MOTR_TEST_LOGFILE | grep "Operation canceled" | grep "$getfattr_file_base" | wc -l | cut -f1 -d' ')
+	num=$(grep -n "getfattr: " "$MOTR_TEST_LOGFILE" | grep "Operation canceled" | grep "$getfattr_file_base" | wc -l | cut -f1 -d' ')
 	echo "getfattr processes canceled : $num"
-	if [ $num -eq 0 ]; then
+	if [ "$num" -eq 0 ]; then
 		if [ $rcancel_md_redundancy -eq $RCANCEL_MD_REDUNDANCY_1 ]; then
 			echo "Failed: No getfattr operation was canceled"
 			unmount_and_clean
@@ -855,7 +855,7 @@ rcancel_cancel_during_getfattr_ops_test()
 
 	echo "Test: rm $getfattr_nr_files files after restore"
 	for ((i=0; i<$getfattr_nr_files; ++i)); do
-		rm -f "$getfattr_file_base"$i
+		rm -f "$getfattr_file_base$i"
 		rm_rc=$?
 		echo "rm -f $getfattr_file_base$i: rc $rm_rc"
 		if [ $rm_rc -ne 0 ]
@@ -934,9 +934,9 @@ rcancel_test_cases()
 	echo "TC.8.End: Session cancel with concurrent getfattr ops"
 	echo "======================================================="
 
-	num=$(grep -n "Connection timed out" $MOTR_TEST_LOGFILE | wc -l | cut -f1 -d' ')
+	num=$(grep -n "Connection timed out" "$MOTR_TEST_LOGFILE" | wc -l | cut -f1 -d' ')
 	echo "Connection timed out : $num"
-	if [ $num -gt 0 ]; then
+	if [ "$num" -gt 0 ]; then
 		echo "Failed: Connection timed out error has occurred"
 		return 1
 	fi
@@ -994,7 +994,7 @@ main()
 	rcancel_test 2>&1 | tee -a "$MOTR_TEST_LOGFILE"
 	rc=${PIPESTATUS[0]}
 	echo "rcancel_test rc $rc"
-	if [ $rc -ne "0" ]; then
+	if [ "$rc" -ne "0" ]; then
 		echo "Failed m0t1fs RPC Session Cancel test."
 	fi
 
@@ -1002,7 +1002,7 @@ main()
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to stop Motr Service."
-		if [ $rc -eq "0" ]; then
+		if [ "$rc" -eq "0" ]; then
 			rc=1
 		fi
 	fi
