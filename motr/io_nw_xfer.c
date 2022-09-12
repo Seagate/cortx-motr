@@ -824,7 +824,8 @@ int m0_target_calculate_checksum(struct m0_op_io *ioo, uint8_t pi_type,
 	uint64_t                    u_idx;
 
 	u_idx = cs_idx->ci_unit_idx;
-	M0_ASSERT(cs_idx->ci_pg_idx < ioo->ioo_iomap_nr);
+	if (cs_idx->ci_pg_idx >= ioo->ioo_iomap_nr)
+		M0_RC(-EIO);
 
 	pi = (struct m0_generic_pi *)chksm_buf;
 	map = ioo->ioo_iomaps[cs_idx->ci_pg_idx];
@@ -843,10 +844,12 @@ int m0_target_calculate_checksum(struct m0_op_io *ioo, uint8_t pi_type,
 	/* Select data pointer */
 	if (filter == PA_PARITY) {
 		data = map->pi_paritybufs;
-		M0_ASSERT(u_idx < layout_k(play));
+		if (u_idx >= layout_k(play))
+			M0_RC(-EIO);
 	} else {
 		data = map->pi_databufs;
-		M0_ASSERT(u_idx < layout_n(play));
+		if (u_idx >= layout_n(play))
+			M0_RC(-EIO);
 	}
 
 	rc = m0_bufvec_empty_alloc(&bvec, rows_nr(play, obj));
@@ -910,7 +913,8 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 	/* Get checksum size and type */
 	cksum_size = m0__obj_di_cksum_size(ioo);
 	cksum_type = m0__obj_di_cksum_type(ioo);
-	M0_ASSERT(cksum_type < M0_PI_TYPE_MAX);
+	if (cksum_type >= M0_PI_TYPE_MAX)
+		return M0_RC(-EIO);
 
 	/* Number of units will not be zero as its already checked */
 	num_units = irfop->irf_cksum_data.cd_num_units;
@@ -929,8 +933,9 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 	for (idx = 0; idx < num_units; idx++) {
 		cs_idx_data = &cs_data->cd_idx[idx];
 		/* Valid data should be populated */
-		M0_ASSERT(cs_idx_data->ci_pg_idx != UINT32_MAX &&
-			  cs_idx_data->ci_unit_idx != UINT32_MAX);
+		if (cs_idx_data->ci_pg_idx == UINT32_MAX &&
+		    cs_idx_data->ci_unit_idx == UINT32_MAX)
+			return M0_RC(-EIO);
 		/* For Parity Unit only Motr can generates checksum */
 		if (m0__obj_is_di_cksum_gen_enabled(ioo) ||
 		    (irfop->irf_pattr == PA_PARITY)) {
@@ -950,12 +955,14 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 			struct m0_pdclust_layout *play = pdlayout_get(ioo);
 			unit_off = cs_idx_data->ci_pg_idx * layout_n(play) +
 				   cs_idx_data->ci_unit_idx;
-			M0_ASSERT(unit_off < ioo->ioo_attr.ov_vec.v_nr);
+			if (unit_off >= ioo->ioo_attr.ov_vec.v_nr)
+				return M0_RC(-EIO);
 			memcpy(b_addr + computed_cksm_nob,
 			       ioo->ioo_attr.ov_buf[unit_off], cksum_size);
 		}
 		computed_cksm_nob += cksum_size;
-		M0_ASSERT(computed_cksm_nob <= rw_fop->crw_di_data_cksum.b_nob);
+		if (computed_cksm_nob > rw_fop->crw_di_data_cksum.b_nob)
+			return M0_RC(-EIO);
 	}
 	return rc;
 }
@@ -1309,8 +1316,9 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					 * adjusted otherwise num_units will
 					 * be 0
 					 */
-					M0_ASSERT(delta > (num_units_iter *
-						  m0__obj_di_cksum_size(ioo)));
+					if (delta <= (num_units_iter *
+					    m0__obj_di_cksum_size(ioo)))
+						return M0_RC(-EIO);
 					delta -= (num_units_iter *
 						  m0__obj_di_cksum_size(ioo));
 
