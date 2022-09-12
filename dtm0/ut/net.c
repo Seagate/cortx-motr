@@ -427,7 +427,6 @@ void m0_dtm0_ut_net_thin_start_stop_thr(int i)
 	ut_motr_cluster_stop(i);
 	ut_motr_cluster_fini(i);
 
-	m0_semaphore_up(&startup_sem);
 
 }
 
@@ -496,11 +495,9 @@ void m0_dtm0_ut_net_thin_start_stop(void)
 	/* Start cluster FINI */
 	m0_chan_broadcast_lock(&ut_net_tests_chan);
 
-	/* Wait for all threads to complete the FINI */
+	/* Wait for all threads to complete */
 	for (i = 0; i < ARRAY_SIZE(cluster.items); ++i) {
-		ok = m0_semaphore_timeddown(&startup_sem,
-				            m0_time_from_now(43200, 0));
-		M0_UT_ASSERT(ok);
+		m0_thread_join(&cluster.items[i].mn_thr);
 	}
 
 	m0_dtm0_ut_fini();
@@ -648,6 +645,10 @@ void m0_dtm0_ut_net_thin_server(int i)
 {
 	ut_motr_cluster_init(i);
 	ut_motr_cluster_start(i);
+	
+	m0_semaphore_init(&startup_sem, 0);
+	m0_chan_wait(&cluster.items[i].mn_clink);
+
 	ut_motr_cluster_tranceive_simple(i);
 	ut_motr_cluster_stop(i);
 	ut_motr_cluster_fini(i);
@@ -660,7 +661,8 @@ void m0_dtm0_ut_net_thin_tranceive(void)
 	int  i;
 	bool ok;
 
-	m0_semaphore_init(&startup_sem, 0);
+	m0_dtm0_ut_init();
+
 	for (i = 0; i < ARRAY_SIZE(cluster.items); i++) {
 		rc = M0_THREAD_INIT(&cluster.items[i].mn_thr, int,
 				    NULL, &m0_dtm0_ut_net_thin_server,
@@ -675,6 +677,7 @@ void m0_dtm0_ut_net_thin_tranceive(void)
 		M0_UT_ASSERT(ok);
 	}
 
+	m0_dtm0_ut_fini();
 }
 #undef M0_TRACE_SUBSYSTEM
 
