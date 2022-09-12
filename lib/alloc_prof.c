@@ -50,7 +50,7 @@ enum {
       /**
        * The number of local counter allocated per-thread.
        *
-       * This should be larger tha the total number of callsites
+       * This should be larger than the total number of callsites
        * (m0_alloc_callsite) in the executable.
        */
       SLOTS = 2000

@@ -272,9 +272,9 @@ static void *alloc0(size_t size)
         /* 9% of logs in m0trace log file is due to M0_ENTRY  and M0_LEAVE */
 #ifdef ENABLE_DEV_MODE
 	M0_ENTRY("size = %zi", size);
+#endif
 	if (M0_FI_ENABLED_IN("m0_alloc", "fail_allocation"))
 		return NULL;
-#endif
 	area = m0_arch_alloc(size);
 	alloc_tail(area, size);
 	if (area != NULL) {
