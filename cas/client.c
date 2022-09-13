@@ -589,7 +589,7 @@ static void cas_fop_send(struct m0_cas_req *req)
 	creq_item_prepare(req, item, &cas_item_ops);
 	rc = m0_rpc_post(item);
 	cas_to_rpc_map(req, item);
-	M0_LOG(M0_NOTICE, "RPC post returned %d", rc);
+	M0_LOG(M0_INFO, "RPC post returned %d", rc);
 }
 
 static int creq_kv_buf_add(const struct m0_cas_req *req,
