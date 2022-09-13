@@ -10287,6 +10287,16 @@ static void btree_ut_kv_oper_thread_handler(struct btree_ut_thread_info *ti)
 		  (ti->ti_key_size % sizeof(uint64_t) == 0 &&
 		   ti->ti_key_size >= sizeof(key[0]) &&
 		   ti->ti_key_size <= sizeof(key)));
+	/**
+	 *  In ut_mtree_mthread_test, value size can be multiple of 4 instead of
+	 *  multiple of 8 so check for sizeof(uint32_t) instead of
+	 *  sizeof(uint64_t) is added.
+	 *  e.g.
+	 *  btree_type M0_BT_COB_OBJECT_INDEX,
+	 *  key_size   sizeof(struct m0_cob_oikey),
+	 *  value_size RANDOM_VALUE_SIZE
+	 *  Here  sizeof(struct m0_cob_oikey) is 20 bytes.
+	 */
 	M0_ASSERT(ti->ti_value_size == RANDOM_VALUE_SIZE ||
 		  (ti->ti_value_size % sizeof(uint32_t) == 0 &&
 		   ((crc == M0_BCT_USER_ENC_RAW_HASH &&
@@ -13243,22 +13253,13 @@ static void ut_mtree_mthread_test(void)
 		},
 		{
 			{
-				M0_BT_COB_FILEATTR_OMG,
-				sizeof(struct m0_cob_omgkey),
-				sizeof(struct m0_cob_omgrec)
+				M0_BT_CAS_CTG,
+				RANDOM_KEY_SIZE,
+				RANDOM_VALUE_SIZE
 			},
 			8192,
 			1
 		},
-		{
-			{
-				M0_BT_COB_BYTECOUNT,
-				sizeof(struct m0_cob_bckey),
-				sizeof(struct m0_cob_bcrec)
-			},
-			8192,
-			1
-		}
 	};
 	uint16_t                      tree_count = 0;
 	uint16_t                      arr_size   = ARRAY_SIZE(btrees_mthreads);
@@ -13379,12 +13380,12 @@ static void ut_mtree_mthread_test(void)
 		}
 	}
 	for (i = 0; i < tree_count; i++) {
-			rc = M0_THREAD_INIT(&ti[i].ti_q, 
-					    struct btree_ut_thread_info *,
-					    btree_ut_thread_init,
-					    &btree_ut_kv_oper_thread_handler,
-					    &ti[i],
-					    "Thread-%d", i);
+		rc = M0_THREAD_INIT(&ti[i].ti_q,
+				    struct btree_ut_thread_info *,
+				    btree_ut_thread_init,
+				    &btree_ut_kv_oper_thread_handler,
+				    &ti[i],
+				    "Thread-%d", i);
 		M0_ASSERT(rc == 0);
 	}
 
