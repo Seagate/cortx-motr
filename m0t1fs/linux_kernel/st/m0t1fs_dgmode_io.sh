@@ -21,12 +21,12 @@
 
 #set -x
 
-. `dirname $0`/common.sh
-. `dirname $0`/m0t1fs_common_inc.sh
-. `dirname $0`/m0t1fs_client_inc.sh
-. `dirname $0`/m0t1fs_server_inc.sh
-. `dirname $0`/m0t1fs_sns_common_inc.sh
-. `dirname $0`/m0t1fs_io_config_params.sh
+. $(dirname $0)/common.sh
+. $(dirname $0)/m0t1fs_common_inc.sh
+. $(dirname $0)/m0t1fs_client_inc.sh
+. $(dirname $0)/m0t1fs_server_inc.sh
+. $(dirname $0)/m0t1fs_sns_common_inc.sh
+. $(dirname $0)/m0t1fs_io_config_params.sh
 
 N=3
 K=3
@@ -887,7 +887,7 @@ main()
 	echo 'oostore test.'
 	echo '*********************************************************'
 
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 	fmio_sandbox="$MOTR_M0T1FS_TEST_DIR/sandbox"
 	rc=0
 

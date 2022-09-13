@@ -277,7 +277,7 @@ file_creation_test()
 	local BS=$((4 * $NR_DATA * 2))K
 
 	for i in {a..z} {A..Z}; do
-		for c in `seq 1 4095`;
+		for c in $(seq 1 4095);
 			do echo -n $i ;
 		done;
 		echo;
@@ -621,19 +621,19 @@ m0t1fs_large_dir()
 	echo "Test: larde_dir: mode=$1 fsname_prefix=$2..."
 	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR "$mode" || rc=1
 	mount | grep m0t1fs                                 || rc=1
-	for i in `seq 1 $count`; do
+	for i in $(seq 1 $count); do
 		touch $MOTR_M0T1FS_MOUNT_DIR/$fsname_prex$i || rc=1
 		stat  $MOTR_M0T1FS_MOUNT_DIR/$fsname_prex$i -c "%n: %a %s" || rc=1
 	done
 
-	local dirs=`/bin/ls $MOTR_M0T1FS_MOUNT_DIR -U`
-	local dirs_count=`echo $dirs | wc -w`
+	local dirs=$(/bin/ls $MOTR_M0T1FS_MOUNT_DIR -U)
+	local dirs_count=$(echo $dirs | wc -w)
 	echo "readdir count: result $dirs_count, expected $count"
 	if [ ! $dirs_count -eq $count ] ; then
 		rc=1
 	fi
-	for i in `seq 1 $count`; do
-		local match=`echo $dirs | grep -c "\<$fsname_prex$i\>"`
+	for i in $(seq 1 $count); do
+		local match=$(echo $dirs | grep -c "\<$fsname_prex$i\>")
 		if [ ! $match -eq 1 ] ; then
 			echo "match $fsname_prex$i failed: $match"
 			rc=1
@@ -683,7 +683,7 @@ m0t1fs_oostore_mode_basic()
 	echo "Test: oostore_mode_basic..."
 
 	for i in {a..z} {A..Z} ; do
-		for c in `seq 1 4095`;
+		for c in $(seq 1 4095);
 			do echo -n $i ;
 		done;
 		echo;
@@ -748,7 +748,7 @@ m0t1fs_parallel_io_test()
 		setfattr -n writesize -v $BS $MOTR_M0T1FS_MOUNT_DIR/$i || rc=1
 	done
 	echo "Spawn parallel dd's"
-	for i in `seq 1 4`
+	for i in $(seq 1 4)
 	do
 		fid="0:100"$i"000"
 		dd if=/dev/zero of=$MOTR_M0T1FS_MOUNT_DIR/$fid \
@@ -756,7 +756,7 @@ m0t1fs_parallel_io_test()
 		dd_pid[$i]=$!
 	done
 	echo "Wait for IO to complete"
-	for i in `seq 1 4`
+	for i in $(seq 1 4)
 	do
 		echo ${dd_pid[$i]}
 		wait ${dd_pid[$i]}
@@ -803,20 +803,20 @@ m0t1fs_test_MOTR_2099()
 	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR || rc=1
 
 	df $MOTR_M0T1FS_MOUNT_DIR
-	used_before=`df $MOTR_M0T1FS_MOUNT_DIR --output=used | tail -n 1`
+	used_before=$(df $MOTR_M0T1FS_MOUNT_DIR --output=used | tail -n 1)
 	for i in 0:00{0..9}{0..1}; do
 		# This is to create 20 files, 200MB each, 8GB in total.
 		m0t1fs_file=$MOTR_M0T1FS_MOUNT_DIR/${i}
 		touch_file $m0t1fs_file 8192 && run "dd if=/dev/zero of=$m0t1fs_file bs=200M count=1" || rc=1
 	done
 	df $MOTR_M0T1FS_MOUNT_DIR
-	used_after=`df $MOTR_M0T1FS_MOUNT_DIR --output=used | tail -n 1`
+	used_after=$(df $MOTR_M0T1FS_MOUNT_DIR --output=used | tail -n 1)
 	for i in 0:00{0..9}{0..1}; do
 		m0t1fs_file=$MOTR_M0T1FS_MOUNT_DIR/${i}
 		rm -f $m0t1fs_file
 	done
 	df $MOTR_M0T1FS_MOUNT_DIR
-	used_delete=`df $MOTR_M0T1FS_MOUNT_DIR --output=used | tail -n 1`
+	used_delete=$(df $MOTR_M0T1FS_MOUNT_DIR --output=used | tail -n 1)
 	echo "used_before used_after used_delete $used_before $used_after $used_delete"
 	if [ $used_before -ne $used_delete ] ; then
 		echo "balloc space leak? After deletion, used blocks are not the same as before."

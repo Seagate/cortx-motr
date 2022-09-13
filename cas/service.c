@@ -1449,7 +1449,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 				     fom->cf_ikv_nr);
 			m0_fom_phase_set(fom0, M0_FOPH_INIT);
 		} else
-			m0_fom_phase_move(fom0, M0_ERR(rc), M0_FOPH_FAILURE);
+			m0_fom_phase_move(fom0, M0_RC(rc), M0_FOPH_FAILURE);
 		break;
 	case CAS_START:
 		if (is_meta) {
@@ -2334,9 +2334,13 @@ static int cas_dtm0_prep(struct cas_fom *fom)
 
 	M0_ASSERT(fom->cf_redo == NULL);
 
-	/* Try to update "new" dtm0 log. */
-	if (m0_cas_fop_is_redoable(fom0->fo_fop) &&
+	/*
+	 * TODO: disable only for required operation
+	 * for ex: enable redo only for delete operation.
+	 */
+	if (ENABLE_DTM0 && m0_cas_fop_is_redoable(fom0->fo_fop) &&
 	    cas_type(fom0) == CT_BTREE) {
+		/* Try to update "new" dtm0 log. */
 		/* See cas_redo_free0. */
 		rc = cas_redo_alloc(fom0, &fom->cf_redo);
 		if (rc != 0)
