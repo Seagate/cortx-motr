@@ -120,9 +120,10 @@ write_and_update()
 {
 	local LID=$1
 	local update_count=$2
+	local di_flag=$4
 
 	echo "m0cp"
-	$motr_st_util_dir/m0cp -G $MOTR_PARAMS -o $object_id $src_file \
+	$motr_st_util_dir/m0cp $di_flag $MOTR_PARAMS -o $object_id $src_file \
                                 -s $block_size -c $block_count -L $LID || {
 		error_handling $? "Failed to copy object"
 		break
@@ -144,7 +145,7 @@ write_and_update()
 		break
 	}
 	echo "m0cat"
-	$motr_st_util_dir/m0cat -G $MOTR_PARAMS -o $object_id -s $block_size \
+	$motr_st_util_dir/m0cat $di_flag $MOTR_PARAMS -o $object_id -s $block_size \
                                   -c $block_count -L $LID \
                                   $dest_file'_'$LID || {
 		error_handling $? "Failed to read object"
@@ -222,6 +223,7 @@ test_rmw()
 			create_files $update_count
 
 			write_and_update $LID $update_count false
+			write_and_update $LID $update_count false -G
 
 			echo "diff"
 			diff $src_file'2' $dest_file'_'$LID || {
@@ -239,6 +241,7 @@ test_rmw()
 			create_files $update_count
 
 			write_and_update $LID $update_count true
+			write_and_update $LID $update_count true -G
 
 			echo "diff"
 			diff $src_file'2' $dest_file'_'$LID || {
