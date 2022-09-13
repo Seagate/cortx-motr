@@ -2628,10 +2628,6 @@ static bool ctg_op_is_versioned(const struct m0_ctg_op *ctg_op)
 
 	switch (CTG_OP_COMBINE(ctg_op->co_opcode, ctg_op->co_ct)) {
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
-		if ((ctg_op->co_flags & COF_OVERWRITE) == 0)
-			return M0_RC_INFO(false,
-					  "PUT request without OVERWRITE is "
-					  "not versioned.");
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
 		if (has_txd_ts)
 			return M0_RC(true);
@@ -2775,6 +2771,22 @@ static int versioned_put_sync(struct m0_ctg_op *ctg_op)
 		return M0_ERR(rc);
 
 	/*
+	 * Since we're actually doing a put of a tombstone, the
+	 * result of a delete gets weird. We therefore fake
+	 * it here, so that a delete with no existing value
+	 * returns an error.
+	 *
+	 * We may want to reuse the COF_OVERWRITE flag (or add
+	 * a new one) as part of the tombstone cleanup effort
+	 * so it's possible to insert a tombstone without an
+	 * existing value.
+	 */
+	if (ctg_op->co_opcode == CO_DEL &&
+	    (rc == -ENOENT || m0_crv_tbs(&old_version))) {
+		return M0_ERR(-ENOENT);
+	}
+
+	/*
 	 * Skip overwrite op if the existing record is "newer" (version-wise)
 	 * than the record to be inserted. Note, <= 0 means that we filter out
 	 * the operations with the exact same version and tombstone.
@@ -2791,10 +2803,30 @@ static int versioned_put_sync(struct m0_ctg_op *ctg_op)
 	ver_put_cb.c_act = versioned_put_update_cb;
 	ver_put_cb.c_datum = &update_datum;
 
-	rc = M0_BTREE_OP_SYNC_WITH_RC(&kv_op,
-				      m0_btree_update(btree, &rec, &ver_put_cb,
-						      BOF_INSERT_IF_NOT_FOUND,
-						      &kv_op, tx));
+	/*
+	 * Several cases allow overwriting existing values:
+	 * 1. COF_OVERWRITE (only allowed on CO_PUT).
+	 * 2. CO_DEL. From the check above we know there's
+	 *    a value to be deleted, so do an overwrite.
+	 * 3. The old version is a tombstone.
+	 *    Logically there's no value there, so COF_OVERWRITE
+	 *    shouldn't be required on put. We know we're putting
+	 *    a newer version, so just replace the old tombstone.
+	 */
+	if (ctg_op->co_flags & COF_OVERWRITE ||
+	    ctg_op->co_opcode == CO_DEL ||
+	    m0_crv_tbs(&old_version)) {
+		rc = M0_BTREE_OP_SYNC_WITH_RC(
+			&kv_op,
+			m0_btree_update(btree, &rec, &ver_put_cb,
+					BOF_INSERT_IF_NOT_FOUND,
+					&kv_op, tx));
+	} else {
+		rc = M0_BTREE_OP_SYNC_WITH_RC(
+			&kv_op,
+			m0_btree_put(btree, &rec, &ver_put_cb,
+				     &kv_op, tx));
+	}
 	return M0_RC(rc);
 }
 

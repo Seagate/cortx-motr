@@ -459,7 +459,7 @@ static void cas_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_op_idx        *oi = dix_req->idr_oi;
 	struct m0_cas_id         idx;
 	struct m0_cas_req       *creq = &dix_req->idr_creq;
-	uint32_t                 flags = COF_VERSIONED|COF_OVERWRITE;
+	uint32_t                 flags = COF_VERSIONED;
 	int                      rc;
 
 	M0_ENTRY();
@@ -468,6 +468,8 @@ static void cas_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	 * FIXME: why don't we call `flags = dix_set_cas_flags(oi);`
 	 * instead of the following code?
 	 */
+	if (oi->oi_flags & M0_OIF_OVERWRITE)
+		flags |= COF_OVERWRITE;
 	if (oi->oi_flags & M0_OIF_SYNC_WAIT)
 		flags |= COF_SYNC_WAIT;
 	if (oi->oi_flags & M0_OIF_NO_DTM)

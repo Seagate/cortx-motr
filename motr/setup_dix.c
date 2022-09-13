@@ -149,7 +149,7 @@ static int cs_dix_put_sync(struct m0_dix      *index,
 			m0_locality0_get()->lo_grp /* XXX */);
 
 	m0_cas_req_lock(&req);
-	rc = m0_cas_put(&req, &cid, keys, vals, NULL /* XXX */, COF_VERSIONED|COF_OVERWRITE);
+	rc = m0_cas_put(&req, &cid, keys, vals, NULL /* XXX */, COF_VERSIONED);
 	if (rc == 0) {
 		rc = m0_sm_timedwait(&req.ccr_sm, M0_BITS(CASREQ_FINAL,
 							  CASREQ_FAILURE),

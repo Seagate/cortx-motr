@@ -1441,13 +1441,21 @@ static void dix_item_rc_update(struct m0_dix_req  *req,
 		case DIX_GET:
 			m0_cas_get_rep(creq, key_idx, &get_rep);
 			rc = get_rep.cge_rc;
-			if (M0_IN(rc, (0, -ENOENT)) &&
-			    dix_item_version_cmp(ditem, &get_rep) < 0) {
-				m0_buf_free(&ditem->dxi_val);
-				ditem->dxi_val = get_rep.cge_val;
+			if (!M0_IN(rc, (0, -ENOENT))) break;
+			if (dix_item_version_cmp(ditem, &get_rep) < 0) {
 				ditem->dxi_ver = get_rep.cge_ver;
-				/* Value will be freed at m0_dix_req_fini(). */
-				m0_cas_rep_mlock(creq, key_idx);
+				m0_buf_free(&ditem->dxi_val);
+				if (rc == 0) {
+					ditem->dxi_val = get_rep.cge_val;
+					/* Value will be freed at m0_dix_req_fini(). */
+					m0_cas_rep_mlock(creq, key_idx);
+				}
+			} else {
+				/*
+				 * Got a reply older than what we've seen already.
+				 * Just restore rc and ignore it.
+				 */
+				rc = ditem->dxi_rc;
 			}
 			break;
 		case DIX_PUT:
@@ -1774,7 +1782,8 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 	struct m0_reqh_service_ctx *cas_svc;
 	struct m0_dix_layout       *layout = &req->dr_indices[0].dd_layout;
 	int                         rc;
-	uint32_t                    extra_flags;
+	uint32_t                    version_flags = req->dr_is_meta ?
+					0 : COF_VERSIONED;
 
 	M0_ENTRY("req=%p", req);
 
@@ -1811,30 +1820,27 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 						 &cas_rop->crp_keys);
 				break;
 			case DIX_PUT:
-				extra_flags = req->dr_is_meta ?
-					0 : COF_VERSIONED | COF_OVERWRITE;
 				rc = m0_cas_put(creq, &cctg_id,
 						&cas_rop->crp_keys,
 						&cas_rop->crp_vals,
 						req->dr_dtx,
 						cas_rop->crp_flags |
-							extra_flags);
+							version_flags);
 				break;
 			case DIX_DEL:
-				extra_flags = req->dr_is_meta ?
-					0 : COF_VERSIONED;
 				rc = m0_cas_del(creq, &cctg_id,
 						&cas_rop->crp_keys,
 						req->dr_dtx,
 						cas_rop->crp_flags |
-							extra_flags);
+							version_flags);
 				break;
 			case DIX_NEXT:
 				rc = m0_cas_next(creq, &cctg_id,
 						 &cas_rop->crp_keys,
 						 req->dr_recs_nr,
 						 cas_rop->crp_flags |
-						 COF_SLANT);
+						 COF_SLANT |
+							version_flags);
 				break;
 			default:
 				M0_IMPOSSIBLE("Unknown req type %u",

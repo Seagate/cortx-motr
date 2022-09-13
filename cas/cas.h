@@ -302,11 +302,8 @@ enum m0_cas_op_flags {
 	 * logic of the mentioned request types:
 	 *     - PUT does not overwrite "newest" (version-wise) records.
 	 *       Requirements:
-	 *         x COF_OVERWRITE is set.
 	 *         x Transaction descriptor (if provided) has a valid DTX ID.
-	 *     - DEL puts a tombstone instead of an actual removal. In this
-	 *       mode, DEL does not return -ENOENT in the same way as
-	 *       PUT-with-COF_OVERWRITE does not return -EEXIST.
+	 *     - DEL puts a tombstone instead of an actual removal.
 	 *       Requirements:
 	 *         x Transaction descriptor (if provided) has a valid DTX ID.
 	 *     - GET returns only "alive" entries (without tombstones).
