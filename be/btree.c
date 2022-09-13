@@ -575,6 +575,7 @@
 #include "ut/ut.h"          /** struct m0_ut_suite */
 #endif
 
+#include "balloc/balloc.h"
 #include "cob/cob.h"
 #include "cas/cas.h"
 #include "be/extmap_internal.h"
@@ -13209,8 +13210,9 @@ static void ut_mtree_mthread_test(void)
 		{
 			{
 				M0_BT_BALLOC_GROUP_DESC,
-				8,
-				96
+				M0_MEMBER_SIZE(struct m0_balloc_group_desc,
+					       bgd_groupno),
+				sizeof(struct m0_balloc_group_desc)
 			},
 			4096,
 			1
@@ -13257,9 +13259,18 @@ static void ut_mtree_mthread_test(void)
 				RANDOM_KEY_SIZE,
 				RANDOM_VALUE_SIZE
 			},
-			8192,
+			65536,
 			1
 		},
+		{
+			{
+				M0_BT_CAS_CTG,
+				24, /* sizeof(struct fid_key) */
+				24, /* sizeof(struct meta_value) */
+			},
+			65536,
+			1
+		}
 	};
 	uint16_t                      tree_count = 0;
 	uint16_t                      arr_size   = ARRAY_SIZE(btrees_mthreads);
