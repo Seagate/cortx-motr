@@ -521,10 +521,6 @@ def ListAllEmapPerDevice():
         stob_f_container_hex = emap_key_data[0]
         stob_f_key_hex = emap_key_data[1]
         _, _, device_id = ConvertAdstob2Cob(stob_f_container_hex, stob_f_key_hex)
-        # 16 bytes of BE_EMAP_KEY (footer) + 16 bytes of BE_EMAP_REC(header)
-        # gives offset of Corresponding BE_EMAP_REC
-        emap_rec_offset = offset + 32
-        # emap_rec_data, _ = ReadCompleteRecord(emap_rec_offset)
 
         # Skip key CRC
         rec_hdr_offset = offset + 16

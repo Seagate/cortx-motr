@@ -1042,7 +1042,6 @@ def align_val(val, size):
     return (int(val/size) * size)
 
 def update_bseg_size(self):
-    dev_count = 0
     lvm_min_size = None
 
     md_disks_list = get_md_disks_lists(self, self.machine_id)
@@ -1210,8 +1209,7 @@ def get_metadata_disks_count(self):
         check_type(metadata_devices, list, "metadata_devices")
         self.logger.debug(f"\nlvm metadata_devices: {metadata_devices}\n\n")
 
-        for device in metadata_devices:
-            dev_count += 1
+        dev_count += len(metadata_devices)
     return dev_count
 
 def lvm_exist(self):
