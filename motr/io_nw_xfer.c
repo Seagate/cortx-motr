@@ -972,7 +972,7 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
  * DATA	 Units  : Gob Offset - PGStart : PGStart + NxUS => PG Index - 0 : (N-1)
  * PARITY Units : Gob Offset - PGStart : PGStart + KxUS => PG Index - 0 : (K-1)
  */
-static void target_ioreq_calc_idx(struct m0_op_io *ioo,
+static int target_ioreq_calc_idx(struct m0_op_io *ioo,
 				  struct fop_cksum_idx_gbl_data *pgdata,
 				  struct ioreq_fop *irfop,
 				  struct m0_ivec_cursor *goff_cur,
