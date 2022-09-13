@@ -943,7 +943,7 @@ static void dix_cctg_records_put(struct m0_dix    *index,
 			m0_locality0_get()->lo_grp);
 	m0_cas_req_lock(&creq);
 	rc = m0_cas_put(&creq, &cctg_id, keys, vals, NULL,
-			versioned ? COF_VERSIONED|COF_OVERWRITE : 0);
+			versioned ? COF_VERSIONED : 0);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_sm_timedwait(&creq.ccr_sm,
 			M0_BITS(CASREQ_FINAL, CASREQ_FAILURE),
@@ -1806,7 +1806,7 @@ static void dix_put_overwrite(void)
 	m0_bufvec_alloc(&start_key, 1, sizeof(uint64_t));
 	*(uint64_t *)start_key.ov_buf[0] = 0;
 	rc = dix_ut_next(&index, &start_key, &recs_nr, 0, &rep);
-	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == -ENOENT);
 	dix_rep_free(&rep);
 	dix_kv_destroy(&keys, &vals);
 
@@ -2484,7 +2484,7 @@ static void dix_del(void)
 	rc = dix_ut_del(&index, &keys, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
-	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == -ENOENT));
 	dix_rep_free(&rep);
 	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
 	M0_UT_ASSERT(rc == 0);
@@ -2497,7 +2497,7 @@ static void dix_del(void)
 	rc = dix_ut_del(&index, &keys, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
-	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == -ENOENT));
 	dix_rep_free(&rep);
 	dix_kv_destroy(&keys, &vals);
 	dix_index_fini(&index);
