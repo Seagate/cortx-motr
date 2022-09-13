@@ -18,15 +18,15 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-motr_st_util_dir=$(dirname $(readlink -f $0))
+motr_st_util_dir=$(dirname "$(readlink -f $0)")
 m0t1fs_dir="$motr_st_util_dir/../../../m0t1fs/linux_kernel/st"
 
-. $m0t1fs_dir/common.sh
-. $m0t1fs_dir/m0t1fs_common_inc.sh
-. $m0t1fs_dir/m0t1fs_client_inc.sh
-. $m0t1fs_dir/m0t1fs_server_inc.sh
-. $motr_st_util_dir/motr_local_conf.sh
-. $motr_st_util_dir/motr_st_inc.sh
+. "$m0t1fs_dir"/common.sh
+. "$m0t1fs_dir"/m0t1fs_common_inc.sh
+. "$m0t1fs_dir"/m0t1fs_client_inc.sh
+. "$m0t1fs_dir"/m0t1fs_server_inc.sh
+. "$motr_st_util_dir"/motr_local_conf.sh
+. "$motr_st_util_dir"/motr_st_inc.sh
 
 
 SANDBOX_DIR=/var/motr
@@ -48,7 +48,7 @@ clean()
 		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
 	done
 
-        if [ ! -z "$multiple_pools" ] && [ $multiple_pools == 1 ]; then
+        if [ ! -z "$multiple_pools" ] && [ "$multiple_pools" == 1 ]; then
 		local ios_index=$(($i + 1))
 		rm -rf $MOTR_TEST_DIR/d$ios_index/stobs/o/*
         fi
@@ -58,12 +58,12 @@ error_handling()
 {
 	rc=$1
 	msg=$2
-	clean 0 &>>$MOTR_TEST_LOGFILE
+	clean 0 &>>"$MOTR_TEST_LOGFILE"
 	motr_service_stop
-	echo $msg
+	echo "$msg"
 	echo "Test log file available at $MOTR_TEST_LOGFILE"
 	echo "Motr trace files are available at: $MOTR_TRACE_DIR"
-	exit $1
+	exit "$1"
 }
 
 test_with_N_K()
@@ -92,12 +92,12 @@ test_with_N_K()
 	rm -f $src_file
 	local source_abcd=$MOTR_TEST_DIR/"abcd"
 	dd if=$source_abcd bs=$block_size count=$block_count of=$src_file \
-           2> $MOTR_TEST_LOGFILE || {
+           2> "$MOTR_TEST_LOGFILE" || {
 		error_handling $? "Failed to create a source file"
 	}
 	dd if=$source_abcd bs=$block_size \
 	   count=$(($block_count + $trunc_idx)) of=$src_file_extra \
-	   2> $MOTR_TEST_LOGFILE || {
+	   2> "$MOTR_TEST_LOGFILE" || {
 		error_handling $? "Failed to create a source file"
 	}
 	echo "count: $count"
@@ -108,7 +108,7 @@ test_with_N_K()
 	P=$4
 	stride=32
 
-	motr_service_start $N $K $S $P $stride
+	motr_service_start "$N" "$K" "$S" "$P" "$stride"
 	dix_init
 
 	# Test m0client utility
@@ -132,19 +132,19 @@ EOF
 	rm -f $dest_file
 
 	echo "m0touch and m0unlink"
-	$motr_st_util_dir/m0touch $MOTR_PARAMS -o $object_id1 -L 9|| {
+	"$motr_st_util_dir"/m0touch $MOTR_PARAMS -o "$object_id1" -L 9|| {
 		error_handling $? "Failed to create a object"
 	}
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+	"$motr_st_util_dir"/m0unlink $MOTR_PARAMS -o "$object_id1" || {
 		error_handling $? "Failed to delete object"
 	}
 	echo "m0touch and m0unlink successful"
 
-	$motr_st_util_dir/m0touch $MOTR_PARAMS -o $object_id1 -L 9 || {
+	"$motr_st_util_dir"/m0touch $MOTR_PARAMS -o "$object_id1" -L 9 || {
 		error_handling $? "Failed to create a object"
 	}
 
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+	"$motr_st_util_dir"/m0unlink $MOTR_PARAMS -o "$object_id1" || {
 		error_handling $? "Failed to delete object"
 	}
 	echo "m0touch and m0unlink successful"
@@ -159,7 +159,7 @@ EOF
 				  $dest_file || {
 		error_handling $? "Failed to read object"
 	}
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+	"$motr_st_util_dir"/m0unlink $MOTR_PARAMS -o "$object_id1" || {
 		error_handling $? "Failed to delete object"
 	}
 	diff $src_file $dest_file || {
@@ -170,22 +170,22 @@ EOF
 	rm -f $dest_file
 
 	echo "motr r/w test with update of m0cp and m0cat"
-	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
+	"$motr_st_util_dir"/m0cp $MOTR_PARAMS_V -o "$object_id1" "$src_file" \
 				-s $block_size -c $block_count -L 1 \
 				-b $blks_per_io || {
 		error_handling $? "Failed to copy object"
 	}
-	$motr_st_util_dir/m0cp $MOTR_PARAMS_V -o $object_id1 $src_file \
+	"$motr_st_util_dir"/m0cp $MOTR_PARAMS_V" -o "$object_id1" "$src_file" \
 				-s $block_size -c $block_count -L 1 \
 				-b $blks_per_io -u || {
 		error_handling $? "Failed to copy object"
 	}
-	$motr_st_util_dir/m0cat $MOTR_PARAMS_V -o $object_id1 \
+	"$motr_st_util_dir"/m0cat $MOTR_PARAMS_V -o "$object_id1" \
 				-s $block_size -c $block_count -L 1 \
 				-b $blks_per_io $dest_file || {
 		error_handling $? "Failed to read object"
 	}
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+	"$motr_st_util_dir"/m0unlink $MOTR_PARAMS -o "$object_id1" || {
 		error_handling $? "Failed to delete object"
 	}
 	diff $src_file $dest_file || {
@@ -217,7 +217,7 @@ EOF
 		}
 		rm -f $dest_file
 	done
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id4 \
+	"$motr_st_util_dir"/m0unlink $MOTR_PARAMS -o "$object_id4" \
 				     -n $obj_count || {
 		error_handling $? "Failed to delete object"
 	}
@@ -229,7 +229,7 @@ EOF
                                  -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
 	}
-	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 \
+	"$motr_st_util_dir"/m0trunc $MOTR_PARAMS -o "$object_id1" \
 				    -i $trunc_idx -t $trunc_len \
 				    -s $block_size -L 9 -b $blks_per_io || {
 		error_handling $? "Failed to truncate object"
@@ -239,7 +239,7 @@ EOF
 				  -b $blks_per_io -z $dest_file-full || {
 		error_handling $? "Failed to read object"
 	}
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+	"$motr_st_util_dir"/m0unlink $MOTR_PARAMS -o "$object_id1" || {
 		error_handling $? "Failed to delete object"
 	}
 	cp $src_file $src_file-punch
@@ -258,7 +258,7 @@ EOF
                                  -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
 	}
-	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 -i 0 \
+	"$motr_st_util_dir"/m0trunc $MOTR_PARAMS -o "$object_id1" -i 0 \
                                    -t $block_count -s $block_size -L 9 \
                                    -b $blks_per_io || {
 		error_handling $? "Failed to truncate object"
@@ -269,7 +269,7 @@ EOF
 				  $dest_file || {
 		error_handling $? "Failed to read from truncated object"
 	}
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+	"$motr_st_util_dir"/m0unlink $MOTR_PARAMS -o "$object_id1" || {
 		error_handling $? "Failed to delete object"
 	}
 	cp $src_file $src_file-trunc
@@ -287,7 +287,7 @@ EOF
                                  -b $blks_per_io || {
 		error_handling $? "Failed to copy object"
 	}
-	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 \
+	"$motr_st_util_dir"/m0trunc $MOTR_PARAMS -o "$object_id1" \
 				    -i $trunc_idx -t $block_count \
 				    -s $block_size -L 9 -b $blks_per_io || {
 		error_handling $? "Failed to truncate object"
@@ -299,7 +299,7 @@ EOF
 				  $dest_file || {
 		error_handling $? "Failed to read from truncated object"
 	}
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+	"$motr_st_util_dir"/m0unlink $MOTR_PARAMS -o "$object_id1" || {
 		error_handling $? "Failed to delete object"
 	}
 	fallocate -p -o $(($trunc_idx * $block_size)) \
@@ -312,21 +312,21 @@ EOF
 	rm -f $src_file_extra $dest_file
 
 	# Truncate a zero size object
-	$motr_st_util_dir/m0touch $MOTR_PARAMS -o $object_id1 -L 9|| {
+	"$motr_st_util_dir"/m0touch $MOTR_PARAMS -o "$object_id1" -L 9|| {
 		error_handling $? "Failed to create a object"
 	}
-	$motr_st_util_dir/m0trunc $MOTR_PARAMS -o $object_id1 -i 0 \
+	"$motr_st_util_dir"/m0trunc $MOTR_PARAMS -o "$object_id1" -i 0 \
 				    -t $block_count -s $block_size -L 9 \
                                     -b $blks_per_io || {
 		error_handling $? "Failed to truncate object"
 	}
-	$motr_st_util_dir/m0unlink $MOTR_PARAMS -o $object_id1 || {
+	"$motr_st_util_dir"/m0unlink $MOTR_PARAMS -o "$object_id1" || {
 		error_handling $? "Failed to delete object"
 	}
 	echo "m0trunc: Truncate zero size object successful"
 
 	rm -f $src_file
-	clean &>>$MOTR_TEST_LOGFILE
+	clean &>>"$MOTR_TEST_LOGFILE"
 	motr_service_stop
 	return 0
 }
