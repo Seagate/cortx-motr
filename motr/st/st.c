@@ -547,11 +547,11 @@ void st_add_suites()
 	st_add(&st_suite_layout);
 	st_add(&st_suite_osync);
 	st_add(&st_suite_idx);
-	st_add(&st_suite_cancel);
 #ifndef __KERNEL__
 	st_add(&st_suite_isync);
 	st_add(&st_suite_mt);
 #endif
+	st_add(&st_suite_cancel);
 }
 
 /*
