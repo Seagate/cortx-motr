@@ -46,7 +46,7 @@ OBJ_ID2="1048578"
 export MOTR_CLIENT_ONLY=1
 
 MOTR_TEST_DIR=$SANDBOX_DIR
-MOTR_TEST_LOGFILE=$SANDBOX_DIR/motr_`date +"%Y-%m-%d_%T"`.log
+MOTR_TEST_LOGFILE=$SANDBOX_DIR/motr_$(date +"%Y-%m-%d_%T").log
 MOTR_TRACE_DIR=$SANDBOX_DIR/motr
 
 main()
@@ -100,8 +100,8 @@ main()
 
 	if [[ -f $SANDBOX_DIR/m0cat.log ]] 
 	then 
-		pver_obj1=$(cat "$SANDBOX_DIR"/m0cat.log | grep 'Object pool version is' | cut -d '=' -f2)
-			
+		pver_obj1=$(grep 'Object pool version is' "$SANDBOX_DIR"/m0cat.log | cut -d '=' -f2)
+		
 		if [ -z "$pver_obj1" ]
 		then
 			echo "Pool version for pver_obj1 found empty."
@@ -140,7 +140,7 @@ main()
 	
 	if [[ -f $SANDBOX_DIR/m0cat.log ]]
 	then 
-		pver_obj2=$(cat "$SANDBOX_DIR"/m0cat.log | grep 'Object pool version is' | cut -d '=' -f2)
+		pver_obj2=$(grep 'Object pool version is' "$SANDBOX_DIR"/m0cat.log | cut -d '=' -f2)
 		
 		if [ -z "$pver_obj2" ]
         then
