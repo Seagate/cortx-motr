@@ -184,7 +184,7 @@ static int application_checksum_process(struct m0_op_io *ioo,
 	/* Allocate checksum buffer */
 	compute_cs_buf = m0_alloc(cksum_size);
 	if (compute_cs_buf == NULL ) {
-		rc = -EINVAL;
+		rc = -ENOMEM;
 		goto fail;
 	}
 
