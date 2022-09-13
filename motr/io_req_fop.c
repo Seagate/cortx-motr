@@ -153,12 +153,12 @@ static int application_checksum_process(struct m0_op_io *ioo,
 	/* Validate if FOP has unit count set */
 	num_units = cs_data->cd_num_units;
 	if (num_units == 0)
-		return M0_RC(-EIO);
+		return -EINVAL;
 
 	/* FOP reply data should have pi type correctly set */
 	cksum_type = ((struct m0_pi_hdr *)rw_rep_cs_data->b_addr)->pih_type;
 	if (cksum_type >= M0_PI_TYPE_MAX)
-		return M0_RC(-EIO);
+		return -EINVAL;
 	cksum_size = m0_cksum_get_size(cksum_type);
 	if (cksum_size == 0) {
 		M0_LOG(M0_WARN, "Skipping DI for PI Type: %d Size: %d",
@@ -173,7 +173,7 @@ static int application_checksum_process(struct m0_op_io *ioo,
 	 * in ioo attr structure.
 	 */
 	if (rw_rep_cs_data->b_nob != num_units * cksum_size)
-		return M0_RC(-EIO);
+		return -EINVAL;
 
 	/* Allocate checksum buffer */
 	compute_cs_buf = m0_alloc(cksum_size);
@@ -185,9 +185,9 @@ static int application_checksum_process(struct m0_op_io *ioo,
 
 	for (idx = 0; idx < num_units; idx++) {
 		struct fop_cksum_idx_data *cs_idx = &cs_data->cd_idx[idx];
-		if (cs_idx->ci_pg_idx == UINT32_MAX &&
+		if (cs_idx->ci_pg_idx == UINT32_MAX ||
 			  cs_idx->ci_unit_idx == UINT32_MAX)
-			return M0_RC(-EIO);
+			return -EINVAL;
 
 		/* Calculate checksum for each unit */
 		rc = m0_target_calculate_checksum(ioo, cksum_type,
@@ -238,11 +238,11 @@ static int application_checksum_process(struct m0_op_io *ioo,
 
 		cs_compared += cksum_size;
 		if (cs_compared > rw_rep_cs_data->b_nob)
-			return M0_RC(-EIO);
+			return -EINVAL;
 	}
 	/* All checksum expected from target should be received */
 	if (cs_compared != rw_rep_cs_data->b_nob)
-		return M0_RC(-EIO);
+		return -EINVAL;
 
 fail:
 	m0_free(compute_cs_buf);

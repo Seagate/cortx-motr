@@ -825,7 +825,7 @@ int m0_target_calculate_checksum(struct m0_op_io *ioo, uint8_t pi_type,
 
 	u_idx = cs_idx->ci_unit_idx;
 	if (cs_idx->ci_pg_idx >= ioo->ioo_iomap_nr)
-		M0_RC(-EIO);
+		return -EINVAL;
 
 	pi = (struct m0_generic_pi *)chksm_buf;
 	map = ioo->ioo_iomaps[cs_idx->ci_pg_idx];
@@ -845,11 +845,11 @@ int m0_target_calculate_checksum(struct m0_op_io *ioo, uint8_t pi_type,
 	if (filter == PA_PARITY) {
 		data = map->pi_paritybufs;
 		if (u_idx >= layout_k(play))
-			M0_RC(-EIO);
+			return -EINVAL;
 	} else {
 		data = map->pi_databufs;
 		if (u_idx >= layout_n(play))
-			M0_RC(-EIO);
+			return -EINVAL;
 	}
 
 	rc = m0_bufvec_empty_alloc(&bvec, rows_nr(play, obj));
@@ -914,7 +914,7 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 	cksum_size = m0__obj_di_cksum_size(ioo);
 	cksum_type = m0__obj_di_cksum_type(ioo);
 	if (cksum_type >= M0_PI_TYPE_MAX)
-		return M0_RC(-EIO);
+		return -ENOENT;
 
 	/* Number of units will not be zero as its already checked */
 	num_units = irfop->irf_cksum_data.cd_num_units;
@@ -933,9 +933,9 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 	for (idx = 0; idx < num_units; idx++) {
 		cs_idx_data = &cs_data->cd_idx[idx];
 		/* Valid data should be populated */
-		if (cs_idx_data->ci_pg_idx == UINT32_MAX &&
+		if (cs_idx_data->ci_pg_idx == UINT32_MAX ||
 		    cs_idx_data->ci_unit_idx == UINT32_MAX)
-			return M0_RC(-EIO);
+			return -EINVAL;
 		/* For Parity Unit only Motr can generates checksum */
 		if (m0__obj_is_di_cksum_gen_enabled(ioo) ||
 		    (irfop->irf_pattr == PA_PARITY)) {
@@ -956,13 +956,13 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 			unit_off = cs_idx_data->ci_pg_idx * layout_n(play) +
 				   cs_idx_data->ci_unit_idx;
 			if (unit_off >= ioo->ioo_attr.ov_vec.v_nr)
-				return M0_RC(-EIO);
+				return -EINVAL;
 			memcpy(b_addr + computed_cksm_nob,
 			       ioo->ioo_attr.ov_buf[unit_off], cksum_size);
 		}
 		computed_cksm_nob += cksum_size;
 		if (computed_cksm_nob > rw_fop->crw_di_data_cksum.b_nob)
-			return M0_RC(-EIO);
+			return -EINVAL;;
 	}
 	return rc;
 }
@@ -996,8 +996,9 @@ static void target_ioreq_calc_idx(struct m0_op_io *ioo,
 			goff = m0_ivec_cursor_index(goff_cur);
 			cs_idx =
 				&fop_cs_data->cd_idx[fop_cs_data->cd_num_units];
-			M0_ASSERT(cs_idx->ci_pg_idx == UINT32_MAX &&
-				  cs_idx->ci_unit_idx == UINT32_MAX);
+			if (cs_idx->ci_pg_idx != UINT32_MAX ||
+			    cs_idx->ci_unit_idx != UINT32_MAX)
+				return -EINVAL;
 			grp0_idx = pgdata->fg_pgrp0_index;
 			/**
 			 * There are scenarios where K > N in such case when the
@@ -1019,8 +1020,9 @@ static void target_ioreq_calc_idx(struct m0_op_io *ioo,
 				     pgdata->fg_pgrp_sz;
 			cs_idx->ci_unit_idx = rem_pg_sz/pgdata->fg_unit_sz;
 			fop_cs_data->cd_num_units++;
-			M0_ASSERT(fop_cs_data->cd_num_units <=
-				  fop_cs_data->cd_max_units);
+			if (fop_cs_data->cd_num_units >
+			    fop_cs_data->cd_max_units)
+				return -EINVAL;
 			M0_LOG(M0_DEBUG,"FOP Unit Added Num:%d GOF:%" PRIi64
 			       " [PG Idx:%" PRIu64 "][Unit Idx:%" PRIu64
 			       "] Seg:%d", fop_cs_data->cd_num_units, goff,
@@ -1029,6 +1031,7 @@ static void target_ioreq_calc_idx(struct m0_op_io *ioo,
 		}
 		m0_ivec_cursor_move(goff_cur, pgdata->fg_seg_sz);
 	}
+	return M0_RC(0);
 }
 
 /**
@@ -1318,7 +1321,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					 */
 					if (delta <= (num_units_iter *
 					    m0__obj_di_cksum_size(ioo)))
-						return M0_RC(-EIO);
+						return -EINVAL;
 					delta -= (num_units_iter *
 						  m0__obj_di_cksum_size(ioo));
 
@@ -1344,13 +1347,16 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				} else if (rc == 0) {
 					++bbsegs;
 					sz_added_to_fop += xfer_len;
-					if (di_enabled)
-						target_ioreq_calc_idx(ioo,
+					if (di_enabled) {
+						rc = target_ioreq_calc_idx(ioo,
 								      &pgdata,
 								      irfop,
 								      &goff_curr,
 								      seg_start,
 								      seg_end);
+						if (rc != 0)
+							goto fini_fop;
+					}
 				}
 			} else if (di_enabled)
 				m0_ivec_cursor_move(&goff_curr, seg_sz);
