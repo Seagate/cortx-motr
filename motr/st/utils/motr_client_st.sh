@@ -41,6 +41,8 @@ m0t1fs_st_dir=$motr_st_util_dir/../../../m0t1fs/linux_kernel/st
 # Set the mode of Motr [user|kernel]
 umod=1
 
+export MOTR_CLIENT_ONLY=1
+
 motr_st_run_tests()
 {
 	# Start the tests
@@ -73,15 +75,12 @@ motr_st_dgmode()
 		return 1
 	fi
 
-	#local mountopt="oostore,verify"
-	mount_m0t1fs $MOTR_M0T1FS_MOUNT_DIR $mountopt || return 1
 	# Inject failure to device 1
 	fail_device=1
 	motr_st_set_failed_dev $fail_device || {
 		return 1
 	}
 
-	unmount_and_clean &>> $MOTR_TEST_LOGFILE
 	# Run tests
 	motr_st_run_tests
 	rc=$?
@@ -142,6 +141,17 @@ main()
 	echo "Motr system tests start:"
 	echo "Test log will be stored in $MOTR_TEST_LOGFILE."
 
+	# Create log file
+	motr_test_dir="$(dirname "${MOTR_TEST_LOGFILE}")"
+	if [ ! -d "$motr_test_dir" ]
+	then
+  		mkdir -p "$motr_test_dir"
+	elif [ -f "$MOTR_TEST_LOGFILE" ]
+	then
+  		rm -f "$MOTR_TEST_LOGFILE"
+	fi
+	touch "$MOTR_TEST_LOGFILE"
+
 	set -o pipefail
 
 	umod=1
@@ -151,17 +161,6 @@ main()
 	echo "Done"
 
 	echo -n "Start Motr Degraded mode Tests [User Mode] ... "
-	motr_st_dgmode $umod 2>&1 | tee -a $MOTR_TEST_LOGFILE
-	rc=$?
-	echo "Done"
-
-	umod=0
-	echo -n "Start Motr Tests [Kernel Mode] ... "
-	motr_st $umod -2>&1 | tee -a $MOTR_TEST_LOGFILE
-	rc=$?
-	echo "Done"
-
-	echo -n "Start Motr Degraded mode Tests [Kernel Mode] ... "
 	motr_st_dgmode $umod 2>&1 | tee -a $MOTR_TEST_LOGFILE
 	rc=$?
 	echo "Done"

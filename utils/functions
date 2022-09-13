@@ -27,7 +27,6 @@
                  21fsync-single-node
                  22sns-repair-ios-fail
                  23sns-abort-quiesce
-                 26motr-user-kernel-tests
                  28sys-kvs
                  28sys-kvs-kernel
                  34sns-repair-1n-1f

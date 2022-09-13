@@ -19,11 +19,11 @@
 #
 
 
-. `dirname "$0"`/common.sh
-. `dirname "$0"`/m0t1fs_common_inc.sh
-. `dirname "$0"`/m0t1fs_client_inc.sh
-. `dirname "$0"`/m0t1fs_server_inc.sh
-. `dirname "$0"`/m0t1fs_sns_common_inc.sh
+. $(dirname "$0")/common.sh
+. $(dirname "$0")/m0t1fs_common_inc.sh
+. $(dirname "$0")/m0t1fs_client_inc.sh
+. $(dirname "$0")/m0t1fs_server_inc.sh
+. $(dirname "$0")/m0t1fs_sns_common_inc.sh
 
 ###################################################
 # SNS repair is only supported in COPYTOOL mode,
@@ -357,7 +357,7 @@ sns_repair_cc_delete_test()
 	fi
 
 	ps aux | grep "$MOTR_M0T1FS_MOUNT_DIR" | grep -v "grep"
-	rm_count=`ps aux | grep "$MOTR_M0T1FS_MOUNT_DIR" | grep -v "grep" -c`
+	rm_count=$(ps aux | grep "$MOTR_M0T1FS_MOUNT_DIR" | grep -v "grep" -c)
 	echo "rm_count : $rm_count"
 	if [ "$rm_count" -ne 0 ]; then
 		echo "Error: $rm_count rm jobs still running...."
@@ -430,7 +430,7 @@ sns_rebalance_cc_delete_test()
 	fi
 
 	ps aux | grep "$MOTR_M0T1FS_MOUNT_DIR"| grep -v "grep"
-	rm_count=`ps aux | grep "$MOTR_M0T1FS_MOUNT_DIR"| grep -v "grep" -c`
+	rm_count=$(ps aux | grep "$MOTR_M0T1FS_MOUNT_DIR"| grep -v "grep" -c)
 	echo "rm_count : $rm_count"
 	if [ "$rm_count" -ne 0 ]; then
 		"Error: $rm_count rm jobs still running...."
@@ -466,7 +466,7 @@ main()
 {
 	local rc=0
 
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 	local multiple_pools=0
 
 	sandbox_init
