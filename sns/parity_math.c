@@ -850,6 +850,15 @@ static void reed_solomon_fini(struct m0_parity_math *math)
 	M0_LEAVE();
 }
 
+#ifdef HAF_EC
+rs_context_t rs_ctx;
+static int reed_solomon_init(struct m0_parity_math *math)
+{
+	uint32_t block_size = 4096; /* TODO: Find how to get this */
+	ret = haf_rs_init(&rs_ctx,  math->pmi_data_count, math->pmi_parity_count, block_size, math->pmi_parity_algo);
+	return ret;
+}
+#else
 static int reed_solomon_init(struct m0_parity_math *math)
 {
 	struct m0_reed_solomon *rs;
@@ -919,7 +928,18 @@ static int reed_solomon_init(struct m0_parity_math *math)
 
 	return M0_RC(ret);
 }
+#endif /* HAF_EC */
 
+#ifdef HAF_EC
+static void reed_solomon_encode(struct m0_parity_math *math,
+                const struct m0_buf *data,
+                struct m0_buf *parity)
+{
+	/* TODO convert m0_buf for data and parity into data and parity */
+	ret = haf_rs_encode(&rs_ctx, data, parity);
+	return ret;
+}
+#else
 static void reed_solomon_encode(struct m0_parity_math *math,
 				const struct m0_buf *data,
 				struct m0_buf *parity)
@@ -955,6 +975,7 @@ static void reed_solomon_encode(struct m0_parity_math *math,
 
 	M0_LEAVE();
 }
+#endif /* HAF_EC */
 
 static int reed_solomon_diff(struct m0_parity_math *math,
 			     struct m0_buf         *old,
