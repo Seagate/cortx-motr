@@ -220,6 +220,7 @@ io_conduct()
 	source=$2
 	dest=$3
 	verify=$4
+	print_pver=$5
 
 	local cmd_exec
 	if [ $operation == "READ" ]
@@ -228,12 +229,15 @@ io_conduct()
                           -p '$MOTR_PROF_OPT' -P '$MOTR_PROC_FID' \
                           -o $source"
 		cmd_exec="${motr_st_util_dir}/m0cat "
-		cmd_args="$cmd_args -s $BLOCKSIZE -c $BLOCKCOUNT -L 3"
+		cmd_args="$cmd_args -s $BLOCKSIZE -c $BLOCKCOUNT -L 3  &> $SANDBOX_DIR/m0cat.log"
 
 		if [[ $verify == "true" ]]; then
 			cmd_args+=" -r"
 		else
 			cmd_args+=" -G"
+		fi
+		if [[ $print_pver == "true" ]]; then
+			cmd_args+=" -g"
 		fi
 
 		local cmd="$cmd_exec $cmd_args $dest &"

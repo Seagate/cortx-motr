@@ -169,7 +169,7 @@ int main(int argc, char **argv)
 				     block_size, block_count, offset,
 				     blocks_per_io,
 				     params.cup_take_locks,
-				     0, NULL, params.entity_flags);
+				     0, NULL, params.entity_flags, false);
 		} else if (strcmp(arg, "write") == 0) {
 			GET_COMMON_ARG(arg, fname, saveptr, id,
 				       block_size, block_count,
