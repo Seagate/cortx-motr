@@ -2095,13 +2095,16 @@ static int libfab_buf_dom_reg(struct m0_net_buffer *nb, struct m0_fab__tm *tm)
 	int                    i;
 	int                    ret = 0;
 
-	M0_PRE(nb != NULL && nb->nb_dom != NULL && tm != NULL);
+	M0_PRE(nb != NULL && nb->nb_dom != NULL &&
+	       nb->nb_xprt_private != NULL &&
+	       nb->nb_dom->nd_xprt_private != NULL &&
+	       tm != NULL && tm->ftm_fab != NULL &&
+	       tm->ftm_fab->fab_dom != NULL);
 	fbp = nb->nb_xprt_private;
 	seg_nr = nb->nb_buffer.ov_vec.v_nr;
 	ndom = nb->nb_dom->nd_xprt_private;
 	dp = tm->ftm_fab->fab_dom;
 
-	M0_ASSERT(fbp != NULL && dp != NULL && ndom != NULL);
 	M0_ASSERT(seg_nr <= ndom->fnd_seg_nr);
 
 	mr = &fbp->fb_mr;

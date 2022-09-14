@@ -484,7 +484,8 @@ int m0_read(struct m0_container *container,
 	    struct m0_uint128 id, char *dest,
 	    uint32_t block_size, uint32_t block_count,
 	    uint64_t offset, int blks_per_io, bool take_locks,
-	    uint32_t flags, struct m0_fid *read_pver, uint32_t entity_flags)
+	    uint32_t flags, struct m0_fid *read_pver,
+	    uint32_t entity_flags, bool print_pver)
 {
 	int                           i;
 	int                           j;
@@ -539,6 +540,10 @@ int m0_read(struct m0_container *container,
 	if (entity_sm_state(&obj) != M0_ES_OPEN || rc != 0)
 		goto cleanup;
 
+	if (print_pver) {
+		M0_LOG(M0_ALWAYS, "Object pool version is = "FID_F,
+		FID_P(&obj.ob_attr.oa_pver));
+	}
 	last_index = offset;
 
 	if (blks_per_io == 0)
@@ -1019,11 +1024,12 @@ int m0_utility_args_init(int argc, char **argv,
 				{"fill-zeros",    no_argument,       NULL, 'z'},
 				{"DI-generate",   no_argument,       NULL, 'G'},
 				{"DI-user-input", no_argument,       NULL, 'I'},
+				{"print-pver",    no_argument,       NULL, 'g'},
 				{"help",          no_argument,       NULL, 'h'},
 				{0,               0,                 0,     0 }};
 
         while ((c = getopt_long(argc, argv,
-				":l:H:p:P:o:s:c:i:t:L:v:n:S:q:b:O:uerzhGI",
+				":l:H:p:P:o:s:c:i:t:L:v:n:S:q:b:O:uerzhGIg",
 				l_opts, &option_index)) != -1)
 	{
 		switch (c) {
@@ -1162,6 +1168,8 @@ int m0_utility_args_init(int argc, char **argv,
 			case 'G': params->entity_flags |= M0_ENF_GEN_DI;
 				  continue;
 			case 'I': params->entity_flags |= M0_ENF_DI;
+				  continue;
+			case 'g': params->cup_print_pver = true;
 				  continue;
 			case 'h': utility_usage(stderr, basename(argv[0]));
 				  exit(EXIT_FAILURE);

@@ -18,7 +18,7 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-M0_SRC_DIR=`readlink -f ${BASH_SOURCE[0]}`
+M0_SRC_DIR=$(readlink -f ${BASH_SOURCE[0]})
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
 
 . $M0_SRC_DIR/utils/functions  # sandbox_init, report_and_exit
@@ -27,8 +27,8 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*/*/*}
 ## XXX TODO: Replace `MOTR_M0T1FS_TEST_DIR' with `SANDBOX_DIR' everywhere
 ## and delete the former.
 MOTR_M0T1FS_TEST_DIR=$SANDBOX_DIR
-MOTR_TEST_LOGFILE=$SANDBOX_DIR/motr_`date +"%Y-%m-%d_%T"`.log
-MOTR_M0T1FS_MOUNT_DIR=/tmp/test_m0t1fs_`date +"%d-%m-%Y_%T"`
+MOTR_TEST_LOGFILE=$SANDBOX_DIR/motr_$(date +"%Y-%m-%d_%T").log
+MOTR_M0T1FS_MOUNT_DIR=/tmp/test_m0t1fs_$(date +"%d-%m-%Y_%T")
 
 MOTR_MODULE=m0tr
 
@@ -240,7 +240,7 @@ unprepare()
 
 export PROF_OPT='0x7000000000000001:0'
 
-. `dirname ${BASH_SOURCE[0]}`/common_service_fids_inc.sh
+. $(dirname ${BASH_SOURCE[0]})/common_service_fids_inc.sh
 
 # On cent OS 7 loop device is created during losetup, so no need to call
 # create_loop_device().
@@ -712,7 +712,7 @@ service_eps_get()
 	local service_eps
 	if [ "$XPRT" = "lnet" ]
 	then
-		lnet_nid=`sudo lctl list_nids | head -1`
+		lnet_nid=$(sudo lctl list_nids | head -1)
 	else
 		lnet_nid=$(m0_local_nid_get)
 	fi
@@ -783,7 +783,7 @@ fid: !fid [0,0]
 process: ^r|0.0
 service: ^s|0.0
 data:'
-	ha_msg_nvec=`echo "$ha_msg_nvec" | sed 's/^/  /g'`
+	ha_msg_nvec=$(echo "$ha_msg_nvec" | sed 's/^/  /g')
 	ha_msg_yaml+="$ha_msg_nvec"
 
 	# Convert a yaml message to its xcode representation
@@ -799,7 +799,7 @@ data:'
 	for ep in "${remote_eps[@]}"; do
 		cmd="$cmd_xcode | $M0_SRC_DIR/utils/m0ham -v -s $local_ep $ep"
 		echo "$cmd"
-		local xcode=`eval "$cmd"`
+		local xcode=$(eval "$cmd")
 		if [ $? -ne 0 ]; then
 			echo "m0ham failed to send a message"
 			return 1
@@ -831,7 +831,7 @@ ignore_same_state: false
 notes:'
 	for fid in "${fids[@]}"; do
 		# Convert fid to m0hagen's format
-		fid=`echo "$fid" | tr : .`
+		fid=$(echo "$fid" | tr : .)
 		yaml="$yaml
   - {fid: $fid, state: $state}"
 	done
@@ -871,7 +871,7 @@ ignore_same_state: false
 fids:'
 	for fid in "${fids[@]}"; do
 		# Convert fid to m0hagen's format
-		fid=`echo "$fid" | tr : .`
+		fid=$(echo "$fid" | tr : .)
 		yaml="$yaml
   - $fid"
 	done

@@ -31,7 +31,7 @@ spiel_sns_repair_and_rebalance_test()
 	local fail_device2=9
 	local fail_device3=3
 
-	local_write $src_bs $src_count || return $?
+	local_write "$src_bs" "$src_count" || return $?
 
 	echo "Starting SNS repair testing ..."
 	for ((i=0; i < ${#files[*]}; i++)) ; do
@@ -146,7 +146,7 @@ test_repaired_device_failure()
 	echo "SNS Rebalance done."
 
 	verify || return $?
-	disk_state_get $fail_device1 || return $?
+	disk_state_get "$fail_device1" || return $?
 }
 
 test_new_device_failure()
@@ -182,7 +182,7 @@ test_new_device_failure()
 	echo "SNS Rebalance done."
 
 	verify || return $?
-	disk_state_get $fail_device1 $fail_device2 || return $?
+	disk_state_get "$fail_device1" "$fail_device2" || return $?
 }
 
 rebalance_abort()
@@ -206,8 +206,8 @@ rebalance_abort()
 	echo "SNS Repair done."
 	verify || return $?
 
-	disk_state_set "rebalance" $fail_device1 || return $?
-	disk_state_get $fail_device1 || return $?
+	disk_state_set "rebalance" "$fail_device1" || return $?
+	disk_state_get "$fail_device1" || return $?
         sleep 2
 	echo "Starting SNS Re-balance.."
 	spiel_sns_rebalance_start
@@ -218,7 +218,7 @@ rebalance_abort()
         spiel_wait_for_sns_rebalance || return $?
 
 	echo "Set $fail_device1 back to "repaired""
-	disk_state_set "repaired" $fail_device1 || return $?
+	disk_state_set "repaired" "$fail_device1" || return $?
 	if [ "$fail_device1" -eq "$fail_device2" ]
 	then
 		test_repaired_device_failure "$fail_device1"
