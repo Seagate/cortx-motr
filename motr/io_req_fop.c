@@ -183,8 +183,10 @@ static int application_checksum_process(struct m0_op_io *ioo,
 
 	/* Allocate checksum buffer */
 	compute_cs_buf = m0_alloc(cksum_size);
-	if (compute_cs_buf == NULL)
+	if (compute_cs_buf == NULL) {
 		rc = -ENOMEM;
+		goto fail;
+	}
 
 	M0_LOG(M0_DEBUG, "RECEIVED CS b_nob: %d PiTyp:%d",
 	       (int)rw_rep_cs_data->b_nob,cksum_type);
@@ -258,7 +260,7 @@ static int application_checksum_process(struct m0_op_io *ioo,
 	}
 
 fail:
-	m0_free0(compute_cs_buf);
+	m0_free(compute_cs_buf);
 	return rc;
 }
 
