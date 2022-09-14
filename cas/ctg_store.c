@@ -2629,13 +2629,7 @@ static bool ctg_op_is_versioned(const struct m0_ctg_op *ctg_op)
 	switch (CTG_OP_COMBINE(ctg_op->co_opcode, ctg_op->co_ct)) {
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
-		if (has_txd_ts)
-			return M0_RC(true);
-		else
-			return M0_RC_INFO(false,
-					  "%s request has an empty txd timestamp.",
-					  ctg_op->co_opcode == CO_PUT ?
-					  "PUT" : "DEL");
+		M0_ASSERT(has_txd_ts);
 	case CTG_OP_COMBINE(CO_GET, CT_BTREE):
 	case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
 		return M0_RC(true);
