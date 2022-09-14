@@ -1419,7 +1419,14 @@ static void dix_rop(struct m0_dix_req *req)
 /** Checks if the given cas get reply has a newer version of the value */
 static int dix_item_version_cmp(const struct m0_dix_item *ditem,
 				const struct m0_cas_get_reply *get_rep) {
-	if (m0_crv_is_none(&get_rep->cge_ver) || m0_crv_is_none(&ditem->dxi_ver)) {
+	if (m0_crv_is_none(&ditem->dxi_ver)) {
+		/*
+		 * Make sure we handle at least one reply. In the case of
+		 * all replies being true ENOENT (not tombstones), we need
+		 * to update rc to -ENOENT at least once. If we get a
+		 * non-zero version in any of the replies this case won't
+		 * apply, and we'll use the normal version comparison.
+		 */
 		return -1;
 	}
 	return m0_crv_cmp(&ditem->dxi_ver, &get_rep->cge_ver);
