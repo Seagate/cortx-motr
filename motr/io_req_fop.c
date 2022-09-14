@@ -145,7 +145,7 @@ static int application_checksum_process(struct m0_op_io *ioo,
 	uint32_t                                num_units;
 	uint32_t                                cksum_size;
 	uint32_t                                cs_compared = 0;
-	void                                   *compute_cs_buf;
+	void                                   *compute_cs_buf = NULL;
 	enum m0_pi_algo_type                    cksum_type;
 	struct fop_cksum_data                  *cs_data;
 
@@ -183,10 +183,8 @@ static int application_checksum_process(struct m0_op_io *ioo,
 
 	/* Allocate checksum buffer */
 	compute_cs_buf = m0_alloc(cksum_size);
-	if (compute_cs_buf == NULL) {
+	if (compute_cs_buf == NULL)
 		rc = -ENOMEM;
-		goto fail;
-	}
 
 	M0_LOG(M0_DEBUG, "RECEIVED CS b_nob: %d PiTyp:%d",
 	       (int)rw_rep_cs_data->b_nob,cksum_type);
@@ -232,6 +230,7 @@ static int application_checksum_process(struct m0_op_io *ioo,
 					cs_idx->ci_unit_idx);
 			print_pi(rw_rep_cs_data->b_addr, rw_rep_cs_data->b_nob);
 			print_pi(compute_cs_buf, cksum_size);
+			goto fail;
 		}
 		/* Copy checksum to application buffer */
 		if (!m0__obj_is_di_cksum_gen_enabled(ioo) &&
@@ -259,7 +258,7 @@ static int application_checksum_process(struct m0_op_io *ioo,
 	}
 
 fail:
-	m0_free(compute_cs_buf);
+	m0_free0(compute_cs_buf);
 	return rc;
 }
 
@@ -351,7 +350,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 			 "sns state = %d", ioo, req_item,
 			 req_item->ri_type->rit_opcode, rc, ioo->ioo_sns_state);
 	actual_bytes = rw_reply->rwr_count;
-	rc = gen_rep->gr_rc;
+	rc = rc ?: gen_rep->gr_rc;
 	rc = rc ?: rw_reply->rwr_rc;
 	irfop->irf_reply_rc = rc;
 
