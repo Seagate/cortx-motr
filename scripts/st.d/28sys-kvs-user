@@ -20,4 +20,4 @@
 
 set -eu
 
-exec $SUDO "$M0_SRC_DIR/motr/st/utils/motr_sys_test.sh" run local -i KVS
+exec $SUDO "$M0_SRC_DIR/motr/st/utils/motr_sys_test.sh" run local -i KVS -u

@@ -1700,12 +1700,12 @@ Tests:
     polltime : 30
     timeout  : 2400
 
-  - id       : 28sys-kvs
-    script   : 'm0 run-st 28sys-kvs'
+  - id       : 28sys-kvs-user
+    script   : 'm0 run-st 28sys-kvs-user'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
     #executor : Xperior::Executor::Skip
-    sandbox  : /var/motr/root/sandbox.st-28sys-kvs
+    sandbox  : /var/motr/root/sandbox.st-28sys-kvs-user
     groupname: 01motr-single-node
     polltime : 30
     timeout  : 900
