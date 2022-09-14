@@ -1,5 +1,5 @@
 # How-to Analyse IO Operation using ADDB [WORK IN PROGRESS]
-[ADDB](https://github.com/Seagate/cortx-motr/blob/main/doc/ADDB.md) records the activities of Motr system, therefore can furnish valuable information on what procedures serve as the bottleneck of the system. This guide provides an example on how to use ADDB to generate a request timeline graph to analyze an I/O process.
+[ADDB](https://github.com/Seagate/cortx-motr/blob/main/doc/ADDB.md) records the activities of Motr system, therefore can furnish valuable information on what procedures serve as the bottleneck of the system. This guide provides an example on how to use ADDB to generate a request timeline graph to analyze an I/O process, basing on [ADDB2-Primer](./addb2-primer).
 
 - Can try it on [this jupyter notebook](https://chameleoncloud.org/experiment/share/84c1d598-699b-4e8d-bee5-6fb7f5937504)
 - Or build [cortx-motr](https://github.com/Seagate/cortx-motr/blob/main/doc/Quick-Start-Guide.rst) and [cortx-hare](https://github.com/Seagate/cortx-motr/blob/main/doc/Quick-Start-Guide.rst) from the guides, and enable `M0_DEBUG` when building motr:
