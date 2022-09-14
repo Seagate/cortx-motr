@@ -443,7 +443,7 @@ static void sns_cm_bp_init(struct m0_sns_cm_buf_pool *sbp)
 	m0_chan_init(&sbp->sb_wait, &sbp->sb_bp.nbp_mutex);
 }
 
-static void sns_cm_bp_fini(struct m0_sns_cm_buf_pool *sbp)
+M0_INTERNAL void sns_cm_bp_fini(struct m0_sns_cm_buf_pool *sbp)
 {
 	m0_chan_fini_lock(&sbp->sb_wait);
 }
@@ -564,9 +564,6 @@ M0_INTERNAL size_t m0_sns_cm_buffer_pool_provision(struct m0_net_buffer_pool *bp
 M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm = cm2sns(cm);
-	struct m0_reqh   *reqh = m0_sns_cm2reqh(scm);
-	struct m0_motr   *motr = m0_cs_ctx_get(reqh);
-	int               bufs_nr;
 	int               rc;
 
 	M0_ENTRY("cm: %p", cm);
@@ -577,24 +574,9 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "SNS RM init failed");
 
-	if (scm->sc_ibp.sb_bp.nbp_buf_nr == 0 &&
-	    scm->sc_obp.sb_bp.nbp_buf_nr == 0) {
-		bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_ibp.sb_bp,
-							  motr->cc_sns_buf_nr);
-		M0_LOG(M0_DEBUG, "Got buffers in: [%d]", bufs_nr);
-		if (bufs_nr == 0)
-			return M0_ERR(-ENOMEM);
-		bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_obp.sb_bp,
-							  motr->cc_sns_buf_nr);
-		M0_LOG(M0_DEBUG, "Got buffers out: [%d]", bufs_nr);
-		/*
-		 * If bufs_nr is 0, then just return -ENOMEM, as cm_setup() was
-		 * successful, both the buffer pools (incoming and outgoing)
-		 * will be finalised in cm_fini().
-		 */
-		if (bufs_nr == 0)
-			return M0_ERR(-ENOMEM);
-	}
+	rc = cm->cm_ops->cmo_buf_pools_provision(cm);
+	if (rc == -ENOMEM)
+		return M0_ERR(rc);
 	scm->sc_ibp_reserved_nr = 0;
 
 	rc = m0_sns_cm_ag_iter_init(&scm->sc_ag_it);
@@ -684,20 +666,12 @@ M0_INTERNAL void m0_sns_cm_rm_fini(struct m0_sns_cm *scm)
 		m0_rm_type_deregister(&scm->sc_rm_ctx.rc_rt);
 }
 
-static void buffer_pool_prune(struct m0_net_buffer_pool *bp)
+M0_INTERNAL void buffer_pool_prune(struct m0_net_buffer_pool *bp)
 {
 	m0_net_buffer_pool_lock(bp);
 	while (m0_net_buffer_pool_prune(bp))
 	{;}
 	m0_net_buffer_pool_unlock(bp);
-}
-
-static void sns_cm_buffer_pools_prune(struct m0_sns_cm *scm)
-{
-	buffer_pool_prune(&scm->sc_obp.sb_bp);
-	buffer_pool_prune(&scm->sc_ibp.sb_bp);
-	M0_ASSERT(scm->sc_obp.sb_bp.nbp_buf_nr == 0 &&
-		  scm->sc_ibp.sb_bp.nbp_buf_nr == 0);
 }
 
 static bool sns_cm_status_get(struct m0_sns_cm *scm,
@@ -740,7 +714,7 @@ M0_INTERNAL void m0_sns_cm_stop(struct m0_cm *cm)
 	}
 	m0_sns_cm_rm_fini(scm);
 	m0_sns_cm_ag_iter_fini(&scm->sc_ag_it);
-	sns_cm_buffer_pools_prune(scm);
+	cm->cm_ops->cmo_buf_pools_prune(cm);
 
 	M0_LEAVE();
 }
@@ -784,16 +758,7 @@ M0_INTERNAL void m0_sns_cm_fini(struct m0_cm *cm)
 
 	scm = cm2sns(cm);
 	m0_sns_cm_iter_fini(&scm->sc_it);
-
-	/*
-	 * Finalise parents first to avoid usage of finalised mutexes.
-	 * m0_sns_cm_setup() makes initialisation in reverse order too.
-	 */
-	sns_cm_bp_fini(&scm->sc_obp);
-	sns_cm_bp_fini(&scm->sc_ibp);
-
-	m0_net_buffer_pool_fini(&scm->sc_ibp.sb_bp);
-	m0_net_buffer_pool_fini(&scm->sc_obp.sb_bp);
+	cm->cm_ops->cmo_buf_pools_fini(cm);
 
 	M0_LEAVE();
 }
@@ -951,6 +916,54 @@ M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,
 	M0_PRE(m0_cm_is_locked(cm));
 
 	return m0_sns_cm_ag__next(scm, id_curr, id_next);
+}
+
+M0_INTERNAL int sns_repreb_cm_buf_pools_provision(struct m0_cm *cm)
+{
+	int              bufs_nr;
+	struct m0_sns_cm *scm = cm2sns(cm);
+	struct m0_reqh   *reqh = m0_sns_cm2reqh(scm);
+	struct m0_motr   *motr = m0_cs_ctx_get(reqh);
+
+	if (scm->sc_ibp.sb_bp.nbp_buf_nr == 0 &&
+	    scm->sc_obp.sb_bp.nbp_buf_nr == 0) {
+		bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_ibp.sb_bp,
+							  motr->cc_sns_buf_nr);
+		M0_LOG(M0_DEBUG, "Got buffers in: [%d]", bufs_nr);
+		if (bufs_nr == 0)
+			return M0_ERR(-ENOMEM);
+		bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_obp.sb_bp,
+							  motr->cc_sns_buf_nr);
+		M0_LOG(M0_DEBUG, "Got buffers out: [%d]", bufs_nr);
+		if (bufs_nr == 0)
+			return M0_ERR(-ENOMEM);
+	}
+	return 0;
+}
+
+M0_INTERNAL void sns_repreb_cm_buf_pools_prune(struct m0_cm *cm)
+{
+	struct m0_sns_cm *scm = cm2sns(cm);
+
+	buffer_pool_prune(&scm->sc_obp.sb_bp);
+	buffer_pool_prune(&scm->sc_ibp.sb_bp);
+	M0_ASSERT(scm->sc_obp.sb_bp.nbp_buf_nr == 0 &&
+		  scm->sc_ibp.sb_bp.nbp_buf_nr == 0);
+
+}
+
+M0_INTERNAL void sns_repreb_cm_buf_pools_fini(struct m0_cm *cm)
+{
+	struct m0_sns_cm *scm = cm2sns(cm);
+
+	/*
+	 * Finalise parents first to avoid usage of finalised mutexes.
+	 * m0_sns_cm_setup() makes initialisation in reverse order too.
+	 */
+	sns_cm_bp_fini(&scm->sc_obp);
+	sns_cm_bp_fini(&scm->sc_ibp);
+	m0_net_buffer_pool_fini(&scm->sc_obp.sb_bp);
+	m0_net_buffer_pool_fini(&scm->sc_ibp.sb_bp);
 }
 
 #undef M0_TRACE_SUBSYSTEM

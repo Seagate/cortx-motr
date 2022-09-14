@@ -36,6 +36,7 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/file.h"
 #include "sns/cm/dtrebalance/ag.h"
+#include "motr/setup.h"
 
 /* Import */
 struct m0_cm_sw;
@@ -251,6 +252,64 @@ M0_INTERNAL int dtrebalance_cm_ag_next(struct m0_cm *cm,
 	/* return m0_sns_cm_ag__next(scm, id_curr, id_next); */
 }
 
+M0_INTERNAL int sns_dtrebalance_cm_buf_pools_provision(struct m0_cm *cm)
+{
+	struct m0_sns_cm *scm = cm2sns(cm);
+	struct m0_reqh   *reqh = m0_sns_cm2reqh(scm);
+	struct m0_motr   *motr = m0_cs_ctx_get(reqh);
+	int              bufs_nr = 0;
+
+	if (scm->sc_ibp.sb_bp.nbp_buf_nr == 0 &&
+	    scm->sc_acc_ibp.sb_bp.nbp_buf_nr == 0 &&
+	    scm->sc_obp.sb_bp.nbp_buf_nr == 0) {
+		bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_ibp.sb_bp,
+							  motr->cc_sns_buf_nr);
+		M0_LOG(M0_DEBUG, "Got buffers in: [%d]", bufs_nr);
+		if (bufs_nr == 0)
+			return M0_ERR(-ENOMEM);
+		bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_acc_ibp.sb_bp,
+							  motr->cc_sns_buf_nr);
+		M0_LOG(M0_DEBUG, "Got buffers acc in: [%d]", bufs_nr);
+		if (bufs_nr == 0)
+			return M0_ERR(-ENOMEM);
+		bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_obp.sb_bp,
+							  motr->cc_sns_buf_nr);
+		M0_LOG(M0_DEBUG, "Got buffers out: [%d]", bufs_nr);
+		if (bufs_nr == 0)
+			return M0_ERR(-ENOMEM);
+	}
+	return 0;
+}
+
+M0_INTERNAL void sns_dtrebalance_cm_buf_pools_prune(struct m0_cm *cm)
+{
+	struct m0_sns_cm *scm = cm2sns(cm);
+
+	buffer_pool_prune(&scm->sc_obp.sb_bp);
+	buffer_pool_prune(&scm->sc_acc_ibp.sb_bp);
+	buffer_pool_prune(&scm->sc_ibp.sb_bp);
+	M0_ASSERT(scm->sc_obp.sb_bp.nbp_buf_nr == 0 &&
+		  scm->sc_acc_ibp.sb_bp.nbp_buf_nr == 0 &&
+		  scm->sc_ibp.sb_bp.nbp_buf_nr == 0);
+
+}
+
+M0_INTERNAL void sns_dtrebalance_cm_buf_pools_fini(struct m0_cm *cm)
+{
+	struct m0_sns_cm *scm = cm2sns(cm);
+
+	/*
+	 * Finalise parents first to avoid usage of finalised mutexes.
+	 * m0_sns_cm_setup() makes initialisation in reverse order too.
+	 */
+	sns_cm_bp_fini(&scm->sc_obp);
+	sns_cm_bp_fini(&scm->sc_acc_ibp);
+	sns_cm_bp_fini(&scm->sc_ibp);
+	m0_net_buffer_pool_fini(&scm->sc_obp.sb_bp);
+	m0_net_buffer_pool_fini(&scm->sc_acc_ibp.sb_bp);
+	m0_net_buffer_pool_fini(&scm->sc_ibp.sb_bp);
+}
+
 /** Copy machine operations. */
 M0_INTERNAL const struct m0_cm_ops sns_dtrebalance_ops = {
 	.cmo_setup               = m0_sns_cm_setup,
@@ -265,7 +324,10 @@ M0_INTERNAL const struct m0_cm_ops sns_dtrebalance_ops = {
 	.cmo_is_peer             = m0_sns_is_peer,
 	.cmo_ha_msg		 = m0_sns_cm_ha_msg,
 	.cmo_stop                = dtrebalance_cm_stop,
-	.cmo_fini                = m0_sns_cm_fini
+	.cmo_fini                = m0_sns_cm_fini,
+	.cmo_buf_pools_provision = sns_dtrebalance_cm_buf_pools_provision,
+	.cmo_buf_pools_prune     = sns_dtrebalance_cm_buf_pools_prune,
+	.cmo_buf_pools_fini      = sns_dtrebalance_cm_buf_pools_fini
 };
 
 #undef M0_TRACE_SUBSYSTEM

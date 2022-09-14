@@ -242,6 +242,8 @@ struct m0_sns_cm {
 
 	/** Buffer pool for outgoing copy packets. */
 	struct m0_sns_cm_buf_pool       sc_obp;
+	/** Buffer pool for accumulators for incoming copy packets. */
+	struct m0_sns_cm_buf_pool       sc_acc_ibp;
 
 	/** Tracks the number for which repair operation has been executed. */
 	uint32_t                        sc_repair_done;
@@ -340,6 +342,16 @@ M0_INTERNAL int m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
 M0_INTERNAL void m0_sns_cm_reserve_space(struct m0_sns_cm *scm, size_t nr_bufs);
 
 M0_INTERNAL void m0_sns_cm_cancel_reservation(struct m0_sns_cm *scm, size_t nr_bufs);
+
+M0_INTERNAL int sns_repreb_cm_buf_pools_provision(struct m0_cm *cm);
+
+M0_INTERNAL void sns_repreb_cm_buf_pools_prune(struct m0_cm *cm);
+
+M0_INTERNAL void sns_repreb_cm_buf_pools_fini(struct m0_cm *cm);
+
+M0_INTERNAL void buffer_pool_prune(struct m0_net_buffer_pool *bp);
+
+M0_INTERNAL void sns_cm_bp_fini(struct m0_sns_cm_buf_pool *sbp);
 
 /**
  * Returns state of SNS repair process with respect to @gfid.
