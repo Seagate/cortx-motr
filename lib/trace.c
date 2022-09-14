@@ -95,7 +95,7 @@ M0_BASSERT(sizeof(m0_trace_immediate_mask) == 8);
 unsigned int m0_trace_print_context = M0_TRACE_PCTX_SHORT;
 M0_EXPORTED(m0_trace_print_context);
 
-unsigned int m0_trace_level         = M0_WARN | M0_ERROR | M0_FATAL;
+unsigned int m0_trace_level         = M0_WARN | M0_ERROR | M0_FATAL | M0_NOTICE;
 M0_EXPORTED(m0_trace_level);
 
 #undef M0_TRACE_SUBSYS
@@ -326,11 +326,11 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 
 #ifdef ENABLE_IMMEDIATE_TRACE
 	if (((td->td_subsys & m0_trace_immediate_mask ||
-	      td->td_level & (M0_WARN|M0_ERROR|M0_FATAL)) &&
+	      td->td_level & (M0_WARN|M0_ERROR|M0_FATAL|M0_NOTICE)) &&
 	    td->td_level & m0_trace_level) ||
 	    td->td_level & M0_ALWAYS)
 #else
-	if (td->td_level & (M0_WARN|M0_ERROR|M0_FATAL|M0_ALWAYS))
+	if (td->td_level & (M0_WARN|M0_ERROR|M0_FATAL|M0_ALWAYS|M0_NOTICE))
 #endif
 		m0_trace_record_print(header, body_in_buf);
 }

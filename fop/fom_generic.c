@@ -352,7 +352,7 @@ static int fom_failure(struct m0_fom *fom)
 	struct m0_dtx *tx = &fom->fo_tx;
 
 	if (rc != 0) {
-		M0_LOG(M0_NOTICE, "fom_rc=%d", rc);
+		M0_LOG(M0_INFO, "fom_rc=%d", rc);
 		/*
 		 * A local fom does not have request fop or reply fop.
 		 */

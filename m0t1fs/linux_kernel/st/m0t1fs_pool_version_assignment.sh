@@ -19,10 +19,10 @@
 #
 
 
-. `dirname $0`/common.sh
-. `dirname $0`/m0t1fs_common_inc.sh
-. `dirname $0`/m0t1fs_client_inc.sh
-. `dirname $0`/m0t1fs_server_inc.sh
+. $(dirname $0)/common.sh
+. $(dirname $0)/m0t1fs_common_inc.sh
+. $(dirname $0)/m0t1fs_client_inc.sh
+. $(dirname $0)/m0t1fs_server_inc.sh
 
 multiple_pools=1
 
@@ -35,7 +35,7 @@ start_stop_m0d()
 	then
 		# Stop m0d
 		echo -n "Stopping m0d on controller ep $IOS_PVER2_EP "
-		m0d_pid=`pgrep -fn m0d.+$IOS_PVER2_EP`
+		m0d_pid=$(pgrep -fn m0d.+$IOS_PVER2_EP)
 		kill -TERM $m0d_pid >/dev/null 2>&1
 		# Wait util $m0d_pid is terminated
 		while ps -p $m0d_pid -o s= >/dev/null; do
@@ -95,7 +95,7 @@ pool_version_assignment()
         local disk2_from_pver_actual_0="^k|1:2"
         local disk3_from_pver_actual_0="^k|1:3"
         local disk1_from_pver_actual_1="^k|10:1"
-        local lnet_nid=`sudo lctl list_nids | head -1`
+        local lnet_nid=$(sudo lctl list_nids | head -1)
         local console_ep="$lnet_nid:$POOL_MACHINE_CLI_EP"
 	local client_endpoint="$lnet_nid:12345:33:1"
         local eplist=()
@@ -464,7 +464,7 @@ pool_version_assignment()
 
 m0t1fs_pool_version_assignment()
 {
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 
 	local unit=16 # Kbytes
 	local N=2
