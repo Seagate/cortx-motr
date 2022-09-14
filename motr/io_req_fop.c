@@ -196,8 +196,7 @@ static int application_checksum_process(struct m0_op_io *ioo,
 		if (memcmp(rw_rep_cs_data->b_addr + cs_compared,
 		    compute_cs_buf, cksum_size) != 0) {
 			/* Add error code to the target status */
-			rc = M0_RC(-EIO);
-			ioo->ioo_rc = M0_RC(-EIO);
+			rc = -EIO;
 			ioo->ioo_di_err_count++;
 
 			/* Log all info to locate unit */
@@ -218,6 +217,7 @@ static int application_checksum_process(struct m0_op_io *ioo,
 					cs_idx->ci_unit_idx);
 			print_pi(rw_rep_cs_data->b_addr, rw_rep_cs_data->b_nob);
 			print_pi(compute_cs_buf, cksum_size);
+			goto fail;
 		}
 		/* Copy checksum to application buffer */
 		if (!m0__obj_is_di_cksum_gen_enabled(ioo) &&
@@ -331,7 +331,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 			 "sns state = %d", ioo, req_item,
 			 req_item->ri_type->rit_opcode, rc, ioo->ioo_sns_state);
 	actual_bytes = rw_reply->rwr_count;
-	rc = gen_rep->gr_rc;
+	rc = rc ?: gen_rep->gr_rc;
 	rc = rc ?: rw_reply->rwr_rc;
 	irfop->irf_reply_rc = rc;
 
@@ -739,6 +739,80 @@ static void ioreq_pgiomap_find(struct m0_op_io     *ioo,
 	M0_LEAVE();
 }
 
+static m0_bcount_t m0_io_get_index(const struct m0_io_indexvec *io_info,
+				   m0_bcount_t offset)
+{
+	int        i;
+	m0_bcount_t current_count = 0;
+	m0_bcount_t traverse_count = 0;
+	m0_bcount_t t_off = UINT64_MAX;
+
+	M0_PRE(io_info != NULL);
+	if (offset == 0) {
+		t_off = io_info->ci_iosegs[0].ci_index;
+		return t_off;
+	}
+	for (i = 0; i < io_info->ci_nr; ++i) {
+		current_count += io_info->ci_iosegs[i].ci_count;
+		if (offset < current_count) {
+			t_off = io_info->ci_iosegs[i].ci_index + (offset -
+								  traverse_count);
+			break;
+		}
+		if (offset == current_count) {
+			t_off = io_info->ci_iosegs[i+1].ci_index;
+			break;
+		}
+	traverse_count += io_info->ci_iosegs[i].ci_count;
+	}
+	return t_off;
+}
+
+static int ioreq_di_dgmode_process(struct ioreq_fop *irfop)
+{
+	int                         rc;
+	uint32_t                    cnt;
+	uint32_t                    seg;
+	uint32_t                    seg_nr;
+	uint64_t                    grpid;
+	uint64_t                    pgcur = 0;
+	m0_bindex_t                 index;
+	struct m0_op_io            *ioo;
+	struct pargrp_iomap        *map = NULL;
+	struct m0_fop_cob_rw       *rwfop;
+
+	ioo = bob_of(irfop->irf_tioreq->ti_nwxfer, struct m0_op_io,
+	               ioo_nwxfer, &ioo_bobtype);
+	rwfop = io_rw_get(&irfop->irf_iofop.if_fop);
+	seg_nr = m0_io_count(&rwfop->crw_ivec) >> M0_SEG_SHIFT;
+	for (seg = 0; seg < seg_nr; ) {
+		index = m0_io_get_index(&rwfop->crw_ivec, seg << M0_SEG_SHIFT);
+		grpid = pargrp_id_find(index, ioo, irfop);
+		for (cnt = 1, ++seg; seg < seg_nr; ++seg) {
+			// M0_ASSERT(ergo(seg > 0, index >
+			// 	       index[seg - 1]));
+			// M0_ASSERT(addr_is_network_aligned(index));
+			index = m0_io_get_index(&rwfop->crw_ivec, seg << M0_SEG_SHIFT);
+			if (grpid ==
+			    pargrp_id_find(index, ioo, irfop))
+				++cnt;
+			else
+				break;
+		}
+		ioreq_pgiomap_find(ioo, grpid, &pgcur, &map);
+		// M0_ASSERT(map != NULL);
+		index = rwfop->crw_ivec.ci_iosegs[0].ci_index + ((seg - cnt) << M0_SEG_SHIFT);
+		rc = map->pi_ops->pi_dgmode_process(map,
+				irfop->irf_tioreq, &index,
+				cnt);
+		if (rc != 0)
+		{
+			return rc;
+		}
+	}
+	return rc;
+}
+
 /**
  * This is heavily based on m0t1fs/linux_kernel/file.c::io_req_fop_dgmode_read.
  */
@@ -798,6 +872,10 @@ M0_INTERNAL int ioreq_fop_dgmode_read(struct ioreq_fop *irfop)
 		}
 	} m0_tl_endfor;
 	m0_mutex_unlock(&rbulk->rb_mutex);
+	if (rpcbulk_tlist_length(&rbulk->rb_buflist) == 0) {
+		rc = ioreq_di_dgmode_process(irfop);
+		return rc;
+	}
 	return M0_RC(0);
 }
 
@@ -989,15 +1067,15 @@ static void ioreq_fop_checksum_data_init(struct m0_op_io *ioo,
 	cs_data->cd_num_units = 0;
 	cs_data->cd_max_units = 0;
 	cs_data->cd_idx = NULL;
-	
+
 	/* In case of k = 0 the buffer will not be allocated */
 	units = layout_n(play) > layout_k(play) ?
 		layout_n(play) : layout_k(play);
-	
+
 	/* Allocate and intialize buffer for storing checksum data */
 	if (units && m0__obj_is_di_enabled(ioo)) {
 		/* DI enabled, allocate space for every unit (all PG) */
-		units *= ioo->ioo_iomap_nr; 
+		units *= ioo->ioo_iomap_nr;
 		M0_ALLOC_ARR(cs_data->cd_idx, units);
 		if (cs_data->cd_idx == NULL)
 			return;

@@ -2181,11 +2181,11 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			ri_error = irfop->irf_iofop.if_fop.f_item.ri_error;
 			M0_LOG(M0_DEBUG, "[%p] Submitted fop for device "
 			       FID_F"@%p, item %p, fop_nr=%llu, rc=%d, "
-			       "ri_error=%d", ioo, FID_P(&ti->ti_fid), irfop,
+			       "ri_error=%d, TYPE : %d", ioo, FID_P(&ti->ti_fid), irfop,
 			       &irfop->irf_iofop.if_fop.f_item,
 			       (unsigned long long)
 			       m0_atomic64_get(&xfer->nxr_iofop_nr),
-			       rc, ri_error);
+			       rc, ri_error, irfop->irf_pattr);
 
 			/* XXX: noisy */
 			m0_op_io_to_rpc_map(ioo,
