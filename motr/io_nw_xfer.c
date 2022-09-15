@@ -914,7 +914,7 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 	cksum_size = m0__obj_di_cksum_size(ioo);
 	cksum_type = m0__obj_di_cksum_type(ioo);
 	if (cksum_type >= M0_PI_TYPE_MAX)
-		return -ENOENT;
+		return -EINVAL;
 
 	/* Number of units will not be zero as its already checked */
 	num_units = irfop->irf_cksum_data.cd_num_units;
@@ -962,7 +962,7 @@ static int target_ioreq_prepare_checksum(struct m0_op_io *ioo,
 		}
 		computed_cksm_nob += cksum_size;
 		if (computed_cksm_nob > rw_fop->crw_di_data_cksum.b_nob)
-			return -EINVAL;;
+			return -EINVAL;
 	}
 	return rc;
 }
