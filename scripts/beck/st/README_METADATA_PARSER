@@ -1,0 +1,4 @@
+Metadata parser is a library, which helps to parse Cortx metadata. 
+It gives user a advantage to look into metadata values, structure and verify object checksum.
+The parser tool help in important feature like Data Integrity, Metadata Integrity many more.
+Any user can modify this as per their usage or parsing a particular node type.
