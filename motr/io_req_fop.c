@@ -210,8 +210,7 @@ static int application_checksum_process(struct m0_op_io *ioo,
 		if (memcmp(rw_rep_cs_data->b_addr + cs_compared,
 		    compute_cs_buf, cksum_size) != 0) {
 			/* Add error code to the target status */
-			rc = M0_RC(-EIO);
-			ioo->ioo_rc = M0_RC(-EIO);
+			rc = -EIO;
 			ioo->ioo_di_err_count++;
 
 			/* Log all info to locate unit */
@@ -258,9 +257,11 @@ static int application_checksum_process(struct m0_op_io *ioo,
 		rc = -EINVAL;
 		goto fail;
 	}
-
+	m0_free(compute_cs_buf);
+	return rc;
 fail:
 	m0_free(compute_cs_buf);
+	ioo->ioo_rc = rc;
 	return rc;
 }
 
