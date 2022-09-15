@@ -65,7 +65,7 @@ struct ha_global {
 	struct m0_mutex hg_guard;     /**< contexts list protection    */
 };
 
-M0_TL_DESCR_DEFINE(hg_client, "ha global clients list", static,
+M0_TL_DESCR_DEFINE(hg_client, "ha global clients list", static __thread,
 		   struct ha_client, hc_link, hc_magic,
 		   M0_HA_CLIENT_MAGIC, M0_HA_CLIENT_HEAD_MAGIC);
 M0_TL_DEFINE(hg_client, static, struct ha_client);

@@ -398,14 +398,13 @@ void m0_dtm0_ut_net_thin_init_fini(void)
 
 static struct m0_semaphore startup_sem;
 
-int m0_dtm0_ut_net_thin_start_stop_init(int i)
+int m0_dtm0_ut_net_thread_init(int i)
 {
 	/* Set the module instance to the varaible present in TLS. */
 	cluster.items[i].mn_motr = *m0_get();
 	m0_set(&cluster.items[i].mn_motr);
 	cluster.items[i].mn_thr.t_tls.tls_m0_instance = m0_get();
 	
-	//m0_thread_adopt(&cluster.items[i].mn_thr, &cluster.items[i].mn_motr);
 	return 0;
 }
 
@@ -469,7 +468,7 @@ void m0_dtm0_ut_net_thin_start_stop(void)
 	m0_dtm0_ut_init();
 	for (i = 0; i < ARRAY_SIZE(cluster.items); i++) {
 		rc = M0_THREAD_INIT(&cluster.items[i].mn_thr, int,
-				    m0_dtm0_ut_net_thin_start_stop_init,
+				    &m0_dtm0_ut_net_thread_init,
 				    &m0_dtm0_ut_net_thin_start_stop_thr,
 				    i, "net_server_%d", i);
 		M0_UT_ASSERT(rc == 0);
@@ -645,11 +644,15 @@ void m0_dtm0_ut_net_thin_server(int i)
 {
 	ut_motr_cluster_init(i);
 	ut_motr_cluster_start(i);
-	
-	m0_semaphore_init(&startup_sem, 0);
+
+	m0_semaphore_up(&startup_sem);
 	m0_chan_wait(&cluster.items[i].mn_clink);
 
 	ut_motr_cluster_tranceive_simple(i);
+
+	m0_semaphore_up(&startup_sem);
+	m0_chan_wait(&cluster.items[i].mn_clink);
+
 	ut_motr_cluster_stop(i);
 	ut_motr_cluster_fini(i);
 }
@@ -665,7 +668,8 @@ void m0_dtm0_ut_net_thin_tranceive(void)
 
 	for (i = 0; i < ARRAY_SIZE(cluster.items); i++) {
 		rc = M0_THREAD_INIT(&cluster.items[i].mn_thr, int,
-				    NULL, &m0_dtm0_ut_net_thin_server,
+				    &m0_dtm0_ut_net_thread_init,
+				    &m0_dtm0_ut_net_thin_server,
 				    i, "net_server_%d", i);
 		M0_UT_ASSERT(rc == 0);
 	}
@@ -676,6 +680,22 @@ void m0_dtm0_ut_net_thin_tranceive(void)
 				            m0_time_from_now(43200, 0));
 		M0_UT_ASSERT(ok);
 	}
+
+	/* Start the tranceive test. */
+	m0_chan_broadcast_lock(&ut_net_tests_chan);
+
+	/* Wait till the NET server test is done */
+	for (i = 0; i < ARRAY_SIZE(cluster.items); ++i) {
+		ok = m0_semaphore_timeddown(&startup_sem,
+				            m0_time_from_now(43200, 0));
+		M0_UT_ASSERT(ok);
+	}
+
+	/* Start the cluster down process. */
+	m0_chan_broadcast_lock(&ut_net_tests_chan);
+
+	for (i = 0; i < ARRAY_SIZE(cluster.items); ++i)
+		m0_thread_join(&cluster.items[i].mn_thr);
 
 	m0_dtm0_ut_fini();
 }
