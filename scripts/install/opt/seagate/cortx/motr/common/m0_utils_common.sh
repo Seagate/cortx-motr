@@ -613,7 +613,7 @@ spiel_prepare() {
 
         prof_fid_str=$(_create_fid_list "$PROFILE_FID")
         pool_fid_str=$(_create_fid_list "$POOL_FID")
-        SPIEL_FIDS_LIST="fids = {'profile' : $prof_fid_str, 'pool' : $pool_fid_str,}"
+        SPIEL_FIDS_LIST="fids = {'profile' : $prof_fid_str, 'pool' : $pool_fid_str}"
 
         export SPIEL_OPTS=$SPIEL_OPTS
         export SPIEL_FIDS_LIST=$SPIEL_FIDS_LIST
