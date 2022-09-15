@@ -145,18 +145,24 @@ static int application_checksum_process(struct m0_op_io *ioo,
 	uint32_t                                num_units;
 	uint32_t                                cksum_size;
 	uint32_t                                cs_compared = 0;
-	void                                   *compute_cs_buf;
+	void                                   *compute_cs_buf = NULL;
 	enum m0_pi_algo_type                    cksum_type;
 	struct fop_cksum_data                  *cs_data;
 
 	cs_data = &irfop->irf_cksum_data;
 	/* Validate if FOP has unit count set */
 	num_units = cs_data->cd_num_units;
-	M0_ASSERT(num_units != 0);
+	if (num_units == 0) {
+		rc = -EINVAL;
+		goto fail;
+	}
 
 	/* FOP reply data should have pi type correctly set */
 	cksum_type = ((struct m0_pi_hdr *)rw_rep_cs_data->b_addr)->pih_type;
-	M0_ASSERT(cksum_type < M0_PI_TYPE_MAX);
+	if (cksum_type >= M0_PI_TYPE_MAX) {
+		rc = -EINVAL;
+		goto fail;
+	}
 	cksum_size = m0_cksum_get_size(cksum_type);
 	if (cksum_size == 0) {
 		M0_LOG(M0_WARN, "Skipping DI for PI Type: %d Size: %d",
@@ -170,20 +176,28 @@ static int application_checksum_process(struct m0_op_io *ioo,
 	 * also confirm that user has correctly allocated buffer for checksum
 	 * in ioo attr structure.
 	 */
-	M0_ASSERT(rw_rep_cs_data->b_nob == num_units * cksum_size);
+	if (rw_rep_cs_data->b_nob != num_units * cksum_size) {
+		rc = -EINVAL;
+		goto fail;
+	}
 
 	/* Allocate checksum buffer */
 	compute_cs_buf = m0_alloc(cksum_size);
-	if (compute_cs_buf == NULL )
-		return -ENOMEM;
+	if (compute_cs_buf == NULL) {
+		rc = -ENOMEM;
+		goto fail;
+	}
 
 	M0_LOG(M0_DEBUG, "RECEIVED CS b_nob: %d PiTyp:%d",
 	       (int)rw_rep_cs_data->b_nob,cksum_type);
 
 	for (idx = 0; idx < num_units; idx++) {
 		struct fop_cksum_idx_data *cs_idx = &cs_data->cd_idx[idx];
-		M0_ASSERT(cs_idx->ci_pg_idx != UINT32_MAX &&
-			  cs_idx->ci_unit_idx != UINT32_MAX);
+		if (cs_idx->ci_pg_idx == UINT32_MAX ||
+		    cs_idx->ci_unit_idx == UINT32_MAX) {
+			rc = -EINVAL;
+			goto fail;
+		}
 
 		/* Calculate checksum for each unit */
 		rc = m0_target_calculate_checksum(ioo, cksum_type,
@@ -196,8 +210,7 @@ static int application_checksum_process(struct m0_op_io *ioo,
 		if (memcmp(rw_rep_cs_data->b_addr + cs_compared,
 		    compute_cs_buf, cksum_size) != 0) {
 			/* Add error code to the target status */
-			rc = M0_RC(-EIO);
-			ioo->ioo_rc = M0_RC(-EIO);
+			rc = -EIO;
 			ioo->ioo_di_err_count++;
 
 			/* Log all info to locate unit */
@@ -218,6 +231,7 @@ static int application_checksum_process(struct m0_op_io *ioo,
 					cs_idx->ci_unit_idx);
 			print_pi(rw_rep_cs_data->b_addr, rw_rep_cs_data->b_nob);
 			print_pi(compute_cs_buf, cksum_size);
+			goto fail;
 		}
 		/* Copy checksum to application buffer */
 		if (!m0__obj_is_di_cksum_gen_enabled(ioo) &&
@@ -233,13 +247,21 @@ static int application_checksum_process(struct m0_op_io *ioo,
 		}
 
 		cs_compared += cksum_size;
-		M0_ASSERT(cs_compared <= rw_rep_cs_data->b_nob);
+		if (cs_compared > rw_rep_cs_data->b_nob) {
+			rc = -EINVAL;
+			goto fail;
+		}
 	}
 	/* All checksum expected from target should be received */
-	M0_ASSERT(cs_compared == rw_rep_cs_data->b_nob);
-
+	if (cs_compared != rw_rep_cs_data->b_nob) {
+		rc = -EINVAL;
+		goto fail;
+	}
+	m0_free(compute_cs_buf);
+	return rc;
 fail:
 	m0_free(compute_cs_buf);
+	ioo->ioo_rc = rc;
 	return rc;
 }
 
@@ -331,7 +353,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 			 "sns state = %d", ioo, req_item,
 			 req_item->ri_type->rit_opcode, rc, ioo->ioo_sns_state);
 	actual_bytes = rw_reply->rwr_count;
-	rc = gen_rep->gr_rc;
+	rc = rc ?: gen_rep->gr_rc;
 	rc = rc ?: rw_reply->rwr_rc;
 	irfop->irf_reply_rc = rc;
 
