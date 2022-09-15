@@ -1510,7 +1510,10 @@ static bool is_svc_volatile(const struct m0_confc        *confc,
 
 	svc = M0_CONF_CAST(obj, m0_conf_service);
 
-	M0_ASSERT(svc->cs_params != NULL);
+	/* M0_ASSERT(svc->cs_params != NULL);*/
+	if (svc->cs_params == NULL) {
+		return true;
+	}
 
 	for (param = svc->cs_params; *param != NULL; ++param) {
 		if (m0_streq(*param, "origin:in-volatile"))

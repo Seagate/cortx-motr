@@ -374,11 +374,11 @@ AS_IF([test x$enable_m0_asserts = xno],
 # dtm0 {{{3
 AC_ARG_ENABLE([dtm0],
         AS_HELP_STRING([--enable-dtm0],[enable DTM0 mode]),
-        [BUILD_DEPEND_DTM="--enable-dtm0"], [enable_dtm0=no]
+        [BUILD_DEPEND_DTM="--enable-dtm0"], [enable_dtm0=yes]
 )
 AS_IF([test x$enable_dtm0 = xyes],
       AC_DEFINE([ENABLE_DTM0], [1]),
-      AC_DEFINE([ENABLE_DTM0], [0]))
+      AC_DEFINE([ENABLE_DTM0], [1]))
 
 # expensive-checks {{{3
 AC_ARG_ENABLE([expensive_checks],

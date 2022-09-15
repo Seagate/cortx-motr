@@ -1362,7 +1362,7 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	int			j;
 	struct m0_bufvec       *buf;
 	struct m0_reqh	       *reqh;
-	struct m0_fol_rec	dec_rec;
+	struct m0_fol_rec	dec_rec = {};
 	struct m0_dtx           dtx;
 	struct m0_sm_group     *grp = m0_locality0_get()->lo_grp;
 	int			result;

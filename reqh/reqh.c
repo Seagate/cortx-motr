@@ -52,6 +52,7 @@
 #include "conf/confc.h"        /* m0_confc_init */
 #include "conf/helpers.h"      /* m0_confc_args */
 #include "be/ut/helper.h"
+#include "dtm0/service.h"
 
 /**
    @addtogroup reqh
@@ -612,6 +613,8 @@ M0_INTERNAL void m0_reqh_idle_wait(struct m0_reqh *reqh)
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, service) {
 		M0_ASSERT(m0_reqh_service_invariant(service));
 		if (service->rs_level < M0_RS_LEVEL_BEFORE_NORMAL)
+			continue;
+		if (service->rs_type == &dtm0_service_type)
 			continue;
 		m0_reqh_idle_wait_for(reqh, service);
 	} m0_tl_endfor;
