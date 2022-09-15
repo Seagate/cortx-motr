@@ -693,6 +693,10 @@ enum {
 #define M0_BE_FREE_ALIGN_BUF_SYNC(buf, shift, seg, tx)                       \
 		m0_free_aligned((buf)->b_addr, (buf)->b_nob, shift)
 
+#undef M0_BE_FREE_ALIGN_BUF_NO_UNMAP_SYNC
+#define M0_BE_FREE_ALIGN_BUF_NO_UNMAP_SYNC(buf, shift, seg, tx)              \
+		m0_free_aligned((buf)->b_addr, (buf)->b_nob, shift)
+
 #undef M0_BE_ALLOC_CREDIT_BUF
 #define M0_BE_ALLOC_CREDIT_BUF(buf, seg, cred)                               \
 	do { *(buf) = *(buf); (seg) = (seg); *(cred) = *(cred); } while (0)
@@ -9295,7 +9299,7 @@ static void ut_basic_tree_oper_icp(void)
 	M0_ASSERT(rc == 0);
 	/** Create temp node space*/
 	buf = M0_BUF_INIT(rnode_sz, NULL);
-	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_ALLOC_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx); // chunk aligned
 	temp_node = buf.b_addr;
 	rc = M0_BTREE_OP_SYNC_WITH_RC(&b_op, m0_btree_create(temp_node,
 				      rnode_sz, &btree_type, M0_BCT_NO_CRC,
@@ -9323,7 +9327,7 @@ static void ut_basic_tree_oper_icp(void)
 	M0_ASSERT(rc == -EPERM);
 	M0_SET0(&btree);
 	buf = M0_BUF_INIT(rnode_sz, temp_node);
-	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_FREE_ALIGN_BUF_NO_UNMAP_SYNC(&buf, rnode_sz_shift, seg, tx);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
 
@@ -9389,7 +9393,7 @@ static void ut_basic_tree_oper_icp(void)
 	M0_ASSERT(rc == 0);
 	M0_SET0(&btree);
 	buf = M0_BUF_INIT(rnode_sz, temp_node);
-	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_FREE_ALIGN_BUF_NO_UNMAP_SYNC(&buf, rnode_sz_shift, seg, tx);
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
 
@@ -10052,7 +10056,7 @@ static void ut_multi_stream_kv_oper(void)
 
 	/** Delete temp node space which was used as root node for the tree. */
 	buf = M0_BUF_INIT(rnode_sz, rnode);
-	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_FREE_ALIGN_BUF_NO_UNMAP_SYNC(&buf, rnode_sz_shift, seg, tx);
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -11324,7 +11328,7 @@ static void btree_ut_kv_oper(int32_t thread_count, int32_t tree_count,
 		M0_ASSERT(rc == 0);
 		M0_SET0(&btree[i]);
 		buf = M0_BUF_INIT(rnode_sz, rnode);
-		M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+		M0_BE_FREE_ALIGN_BUF_NO_UNMAP_SYNC(&buf, rnode_sz_shift, seg, tx);
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
 	}
@@ -11611,7 +11615,7 @@ static void btree_ut_tree_oper_thread_handler(struct btree_ut_thread_info *ti)
 
 	/** Delete temp node space which was used as root node for the tree. */
 	buf = M0_BUF_INIT(rnode_sz, rnode);
-	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_FREE_ALIGN_BUF_NO_UNMAP_SYNC(&buf, rnode_sz_shift, seg, tx);
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -12269,7 +12273,7 @@ static void ut_btree_persistence(void)
 	M0_ASSERT(rc == 0);
 
 	buf = M0_BUF_INIT(rnode_sz, rnode);
-	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_FREE_ALIGN_BUF_NO_UNMAP_SYNC(&buf, rnode_sz_shift, seg, tx);
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -12414,7 +12418,7 @@ static void ut_btree_truncate(void)
 
 	/** Delete temp node space which was used as root node for the tree. */
 	buf = M0_BUF_INIT(rnode_sz, rnode);
-	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_FREE_ALIGN_BUF_NO_UNMAP_SYNC(&buf, rnode_sz_shift, seg, tx);
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -12613,7 +12617,7 @@ cleanup:
 
 	/* Delete temp node space which was used as root node for the tree. */
 	buf = M0_BUF_INIT(rnode_sz, rnode);
-	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_FREE_ALIGN_BUF_NO_UNMAP_SYNC(&buf, rnode_sz_shift, seg, tx);
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -12852,7 +12856,7 @@ static void ut_btree_crc_test(void)
 		M0_ASSERT(rc == 0);
 		M0_SET0(&btree[i]);
 		buf = M0_BUF_INIT(rnode_sz, rnode);
-		M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+		M0_BE_FREE_ALIGN_BUF_NO_UNMAP_SYNC(&buf, rnode_sz_shift, seg, tx);
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
 	}
@@ -13173,7 +13177,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	M0_ASSERT(rc == 0);
 
 	buf = M0_BUF_INIT(rnode_sz, rnode);
-	M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+	M0_BE_FREE_ALIGN_BUF_NO_UNMAP_SYNC(&buf, rnode_sz_shift, seg, tx);
 
 	m0_be_tx_close_sync(tx);
 	m0_be_tx_fini(tx);
@@ -13425,7 +13429,7 @@ static void ut_mtree_mthread_test(void)
 		M0_ASSERT(rc == 0);
 		M0_SET0(&btree[i]);
 		buf = M0_BUF_INIT(rnode_sz, rnode);
-		M0_BE_FREE_ALIGN_BUF_SYNC(&buf, rnode_sz_shift, seg, tx);
+		M0_BE_FREE_ALIGN_BUF_NO_UNMAP_SYNC(&buf, rnode_sz_shift, seg, tx);
 		m0_be_tx_close_sync(tx);
 		m0_be_tx_fini(tx);
 	}

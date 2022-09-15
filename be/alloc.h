@@ -285,13 +285,14 @@ M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
  *	      from m0_be_alloc() for allocator a. Double m0_be_free()
  *	      is not allowed for the same pointer from one call to
  *	      m0_be_alloc().
+ * @param unmap Perform unmap and remap of the memory.
  *
  * @see m0_be_alloc_aligned(), M0_BAO_FREE_ALIGNED, m0_be_allocator_destroy().
  */
 M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 				    struct m0_be_tx *tx,
 				    struct m0_be_op *op,
-				    void *ptr);
+				    void *ptr, bool unmap);
 
 /**
  * Free memory allocated with m0_be_alloc().
@@ -346,7 +347,8 @@ M0_INTERNAL size_t m0_be_chunk_header_size(void);
 				    (shift), M0_BITS(M0_BAP_NORMAL), false)
 
 #define M0_BE_FREE_ALIGN_ARR(arr, seg, tx, op)                                 \
-		m0_be_free_aligned(m0_be_seg_allocator(seg), (tx), (op), (arr))
+		m0_be_free_aligned(m0_be_seg_allocator(seg), (tx), (op), (arr),\
+				   false)
 
 #define M0_BE_ALLOC_ALIGN_ARR_SYNC(arr, nr, shift, seg, tx)                    \
 		M0_BE_OP_SYNC(__op, M0_BE_ALLOC_ALIGN_ARR((arr), (nr), (shift),\
@@ -407,7 +409,11 @@ M0_INTERNAL size_t m0_be_chunk_header_size(void);
 
 #define M0_BE_FREE_ALIGN_BUF(buf, shift, seg, tx, op)                          \
 		m0_be_free_aligned(m0_be_seg_allocator(seg), (tx),             \
-				   (op),  (buf)->b_addr)
+				   (op),  (buf)->b_addr, true)
+
+#define M0_BE_FREE_ALIGN_BUF_NO_UNMAP(buf, shift, seg, tx, op)                 \
+		m0_be_free_aligned(m0_be_seg_allocator(seg), (tx),             \
+				   (op),  (buf)->b_addr, false)
 
 #define M0_BE_ALLOC_ALIGN_BUF_SYNC(buf, shift, seg, tx)                        \
 		M0_BE_OP_SYNC(__op, M0_BE_ALLOC_ALIGN_BUF((buf), (shift),      \
@@ -422,6 +428,12 @@ M0_INTERNAL size_t m0_be_chunk_header_size(void);
 #define M0_BE_FREE_ALIGN_BUF_SYNC(buf, shift, seg, tx)                         \
 		M0_BE_OP_SYNC(__op, M0_BE_FREE_ALIGN_BUF((buf), (shift), (seg),\
 							 (tx), &__op))
+
+#define M0_BE_FREE_ALIGN_BUF_NO_UNMAP_SYNC(buf, shift, seg, tx)                \
+		M0_BE_OP_SYNC(__op, M0_BE_FREE_ALIGN_BUF_NO_UNMAP((buf),       \
+								  (shift),     \
+								  (seg),       \
+								  (tx), &__op))
 
 #define M0_BE_ALLOC_CREDIT_PTR(ptr, seg, accum)                                \
 		m0_be_allocator_credit(m0_be_seg_allocator(seg), M0_BAO_ALLOC, \

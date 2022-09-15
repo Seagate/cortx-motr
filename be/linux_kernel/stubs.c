@@ -80,7 +80,7 @@ M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
 M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 				    struct m0_be_tx *tx,
 				    struct m0_be_op *op,
-				    void *ptr)
+				    void *ptr, bool unmap)
 {
 	m0_be_free(a, tx, op, ptr);
 }

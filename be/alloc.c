@@ -23,6 +23,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
 
+#include <sys/mman.h>
 #include "be/alloc.h"
 #include "be/alloc_internal.h"
 #include "be/seg_internal.h"    /* m0_be_seg_hdr */
@@ -1138,7 +1139,7 @@ M0_INTERNAL size_t m0_be_chunk_header_size(void)
 M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 				    struct m0_be_tx *tx,
 				    struct m0_be_op *op,
-				    void *ptr)
+				    void *ptr, bool unmap)
 {
 	enum m0_be_alloc_zone_type  ztype;
 	struct be_alloc_chunk      *c;
@@ -1163,6 +1164,42 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 			"data=%p", a, c, c->bac_size, c->bac_zone, &c->bac_mem);
 	/* algorithm starts here */
 	be_alloc_chunk_mark_free(a, ztype, tx, c);
+	
+	/**
+	 * Need to check bac_chunk_align = false
+	 * assumption is coming here from bnode_alloc/bnode_free [].
+	 */
+
+	if (unmap) {
+		int rc;
+		m0_bcount_t chunk_size = c->bac_size + sizeof *c;
+		m0_bcount_t page_size = m0_pagesize_get();
+	
+		if (chunk_size > page_size) {
+			/**
+			 * Skip the first page which contains the chunk header.
+			 */
+			void *temp = (((void *)c)) + page_size;
+			chunk_size -= page_size;
+
+			M0_LOG(M0_DEBUG, "c=%p temp=%p bac_size=%"PRIu64
+					 "chunk_size=%"PRIu64,
+					   c, temp, c->bac_size, chunk_size);
+			munmap(temp, chunk_size);
+			
+			rc = madvise(temp, chunk_size, MADV_NORMAL);
+			M0_ASSERT(rc == -1 && errno == ENOMEM); /** Assert BE segment unmapped*/
+			
+			mmap(temp, chunk_size, PROT_READ | PROT_WRITE,
+			     MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE,
+			     m0_stob_fd(a->ba_seg->bs_stob),
+			     (m0_bcount_t)(temp - a->ba_seg->bs_addr));
+			
+			rc = madvise(temp, chunk_size, MADV_NORMAL);
+			M0_ASSERT(rc == 0);
+		}
+	}
+
 	/* update stats before c->bac_size gets modified due to merge */
 	be_allocator_stats_update(&a->ba_h[ztype]->bah_stats,
 			c->bac_size, false, false);
@@ -1190,7 +1227,7 @@ M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
 			    struct m0_be_op *op,
 			    void *ptr)
 {
-	m0_be_free_aligned(a, tx, op, ptr);
+	m0_be_free_aligned(a, tx, op, ptr, false);
 }
 
 M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,

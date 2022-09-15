@@ -121,7 +121,8 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator  *a,
 						 size, shift, &cred),
 			   m0_be_alloc_stats_credit(a, &cred)),
 			  (M0_BE_OP_SYNC(op,
-					m0_be_free_aligned(a, tx, &op, *p)),
+					m0_be_free_aligned(a, tx, &op, *p,
+							   false)),
 			   m0_be_alloc_stats_capture(a, tx)));
 		*p = NULL;
 	}
@@ -474,7 +475,7 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 			   m0_be_alloc_stats_credit(a, &cred)),
 			  (M0_BE_OP_SYNC(op,
 					 m0_be_free_aligned(a, tx, &op,
-							    ut_ptr[i])),
+							    ut_ptr[i], false)),
 			   m0_be_alloc_stats_capture(a, tx)));
 		ut_ptr[i] = NULL;
 	}
@@ -504,7 +505,8 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 				 m0_be_alloc_stats_credit(a, &cred)),
 				(M0_BE_OP_SYNC(op,
 					       m0_be_free_aligned(a, tx, &op,
-								  ut_ptr[i])),
+								  ut_ptr[i],
+								  false)),
 				 m0_be_alloc_stats_capture(a, tx)));
 			ut_ptr[i] = NULL;
 		}
@@ -579,7 +581,7 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 			   m0_be_alloc_stats_credit(a, &cred)),
 			  (M0_BE_OP_SYNC(op,
 					 m0_be_free_aligned(a, tx, &op,
-							    ut_ptr[i])),
+							    ut_ptr[i], false)),
 			   m0_be_alloc_stats_capture(a, tx)));
 		ut_ptr[i] = NULL;
 	}
@@ -619,7 +621,8 @@ M0_INTERNAL void m0_be_ut_alloc_align(void)
 				 m0_be_alloc_stats_credit(a, &cred)),
 				(M0_BE_OP_SYNC(op,
 					       m0_be_free_aligned(a, tx, &op,
-								  ut_ptr[i])),
+								  ut_ptr[i],
+								  false)),
 				 m0_be_alloc_stats_capture(a, tx)));
 			ut_ptr[i] = NULL;
 		}
