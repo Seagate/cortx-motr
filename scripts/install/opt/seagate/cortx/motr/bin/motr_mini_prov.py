@@ -94,7 +94,7 @@ def execute_command_console(self, command):
     try:
         process = subprocess.Popen(command, stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                   shell=True)
+                                   shell=False)
     except Exception as e:
         self.logger.error("ERROR {} when running {} with exception {}".format(sys.exc_info()[1],
                       command, e.message))
@@ -122,7 +122,7 @@ def execute_command(self, cmd, timeout_secs = TIMEOUT_SECS, verbose = False,
 
         ps = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              shell=True)
+                              shell=False)
         if stdin:
             ps.stdin.write(stdin.encode())
         stdout, stderr = ps.communicate(timeout=timeout_secs);
