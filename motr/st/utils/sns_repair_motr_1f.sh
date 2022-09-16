@@ -19,7 +19,7 @@
 #
 
 
-TOPDIR=`dirname "$0"`/../../../
+TOPDIR=$(dirname "$0")/../../../
 
 . "${TOPDIR}"/m0t1fs/linux_kernel/st/common.sh
 . "${TOPDIR}"/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
@@ -145,7 +145,7 @@ main()
 
 	sandbox_init
 
-	NODE_UUID=`uuidgen`
+	NODE_UUID=$(uuidgen)
 	local multiple_pools=0
 	motr_service start $multiple_pools "$stride" "$N" "$K" "$S" "$P" || {
 		echo "Failed to start Motr Service."
