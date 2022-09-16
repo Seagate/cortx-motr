@@ -125,8 +125,8 @@ case "$cmd" in
 		report_and_exit motr_sys_test $rc
 		;;
 	run)
-		( exec `dirname $0`/motr_services.sh start )
 		sandbox_init
+		( exec `dirname $0`/motr_services.sh start )
 
 		if [ $umod -eq 1 ]; then
 			motr_st_start_u $index $debugger
@@ -135,8 +135,8 @@ case "$cmd" in
 		fi
 
 		rc=$?
-		sandbox_fini $rc
 		( exec `dirname $0`/motr_services.sh stop )
+		sandbox_fini $rc
 		report_and_exit motr_sys_test $rc
 		;;
 	stop)
