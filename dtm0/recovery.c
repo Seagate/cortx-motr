@@ -1510,6 +1510,9 @@ static bool is_svc_volatile(const struct m0_confc        *confc,
 
 	svc = M0_CONF_CAST(obj, m0_conf_service);
 
+	M0_LOG(M0_DEBUG, "svc->cs_params = %s",
+			 svc->cs_params == NULL? "NULL": svc->cs_params[0]);
+
 	/* M0_ASSERT(svc->cs_params != NULL);*/
 	if (svc->cs_params == NULL) {
 		return true;

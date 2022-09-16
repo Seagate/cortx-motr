@@ -466,7 +466,7 @@ function build_conf()
 	    local RM_NAME="$RMS_FID_CON:$M0D"
 	    local DTM_NAME="$DTM_FID_CON:$M0D"
 	    local RM_OBJ="{0x73| (($RM_NAME), @M0_CST_RMS, [1: $iosep], [0], [0])}"
-	    local DTM_OBJ="{0x73| (($DTM_NAME), @M0_CST_DTM0, [1: $iosep], [1: "\"origin:in-volatile\""], [0])}"
+	    local DTM_OBJ="{0x73| (($DTM_NAME), @M0_CST_DTM0, [1: $iosep], [1: "\"origin:in-persistent\""], [0])}"
 	    local NAMES_NR=6
 	    if [ $ENABLE_CAS -eq 1 ] ; then
 	        local DIX_REP_NAME="$DIXR_FID_CON:$i"
@@ -500,7 +500,7 @@ function build_conf()
 	    local RM_NAME="$RMS_FID_CON:$M0D"
 	    local DTM_NAME="$DTM_FID_CON:$M0D"
 	    local RM_OBJ="{0x73| (($RM_NAME), @M0_CST_RMS, [1: $mdsep], [0], [0])}"
-	    local DTM_OBJ="{0x73| (($DTM_NAME), @M0_CST_DTM0, [1: $mdsep], [1: "\"origin:in-volatile\""], [0])}"
+	    local DTM_OBJ="{0x73| (($DTM_NAME), @M0_CST_DTM0, [1: $mdsep], [1: "\"origin:in-persistent\""], [0])}"
 
 	    PROC_NAME="$PROC_FID_CONT:$M0D"
 	    MDS_NAMES[$i]="$MDS_NAME, $ADDB_NAME, $RM_NAME, $DTM_NAME"
@@ -557,7 +557,7 @@ function build_conf()
 	RM_OBJ="{0x73| (($RM_NAME), @M0_CST_RMS, [1: $HA_ENDPOINT], [0], [0])}"
 	RM_OBJS="$RM_OBJS${RM_OBJS:+,} \n $RM_OBJ"
 	DTM_NAME="$DTM_FID_CON:$M0D"
-	DTM_OBJ="{0x73| (($DTM_NAME), @M0_CST_DTM0, [1: $HA_ENDPOINT], [1: "\"origin:in-volatile\""], [0])}"
+	DTM_OBJ="{0x73| (($DTM_NAME), @M0_CST_DTM0, [1: $HA_ENDPOINT], [1: "\"origin:in-persistent\""], [0])}"
 	DTM_OBJS="$DTM_OBJS${DTM_OBJS:+,} \n $DTM_OBJ"
 	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${HA_ENDPOINT}",
                           [4: $HA_SVC_ID, $FIS_SVC_ID, $DTM_NAME, $RM_NAME])}"
@@ -568,7 +568,7 @@ function build_conf()
 	RM_OBJ="{0x73| (($RM_NAME), @M0_CST_RMS, [1: $CONFD_ENDPOINT], [0], [0])}"
 	RM_OBJS="$RM_OBJS${RM_OBJS:+,} \n $RM_OBJ"
 	DTM_NAME="$DTM_FID_CON:$M0D"
-	DTM_OBJ="{0x73| (($DTM_NAME), @M0_CST_DTM0, [1: $CONFD_ENDPOINT], [1: "\"origin:in-volatile\""], [0])}"
+	DTM_OBJ="{0x73| (($DTM_NAME), @M0_CST_DTM0, [1: $CONFD_ENDPOINT], [1: "\"origin:in-persistent\""], [0])}"
         DTM_OBJS="$DTM_OBJS${DTM_OBJS:+,} \n $DTM_OBJ"
 	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${CONFD_ENDPOINT}",
                           [3: $CONFD, $DTM_NAME, $RM_NAME])}"
