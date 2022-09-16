@@ -22,7 +22,7 @@ prepare_datafiles_and_objects()
 {
 	local rc=0
 
-	dd if=/dev/urandom bs=$src_bs count=$src_count \
+	dd if=/dev/urandom bs="$src_bs" count="$src_count" \
 	   of="$MOTR_M0T1FS_TEST_DIR/srcfile" || return $?
 
 	for ((i=0; i < ${#file[*]}; i++)) ; do
@@ -34,13 +34,13 @@ prepare_datafiles_and_objects()
 			      -P $M0T1FS_PROC_ID -L ${lid} -s ${us} "
 
 		echo "creating object ${file[$i]} bs=${us} * c=${file_size[$i]}"
-		dd bs=${us} count=${file_size[$i]}            \
+		dd bs=${us} count="${file_size[$i]}"            \
 		   if="$MOTR_M0T1FS_TEST_DIR/srcfile"         \
 		   of="$MOTR_M0T1FS_TEST_DIR/src${file[$i]}"
 
-		$M0_SRC_DIR/motr/st/utils/m0cp ${MOTR_PARAM}     \
-						 -c ${file_size[$i]} \
-						 -o ${file[$i]}      \
+		"$M0_SRC_DIR/motr/st/utils/m0cp" "${MOTR_PARAM}"     \
+						 -c "${file_size[$i]}" \
+						 -o "${file[$i]}"      \
 					 "$MOTR_M0T1FS_TEST_DIR/srcfile" || {
 			rc=$?
 			echo "Writing object ${file[$i]} failed: $rc"
@@ -65,9 +65,9 @@ motr_read_verify()
 
 		echo "Reading object ${file[$i]} ... and diff ..."
 		rm -f "$MOTR_M0T1FS_TEST_DIR/${file[$i]}"
-		$M0_SRC_DIR/motr/st/utils/m0cat ${MOTR_PARAM}     \
-						  -c ${file_size[$i]} \
-						  -o ${file[$i]}      \
+		"$M0_SRC_DIR/motr/st/utils/m0cat" "${MOTR_PARAM}"     \
+						  -c "${file_size[$i]}" \
+						  -o "${file[$i]}"      \
 					"$MOTR_M0T1FS_TEST_DIR/${file[$i]}" || {
 			rc=$?
 			echo "reading ${file[$i]} failed"
@@ -101,13 +101,13 @@ motr_delete_objects()
 			      -H ${lnet_nid}:$HA_EP -p $PROF_OPT \
 			      -P $M0T1FS_PROC_ID -L ${lid} -s ${us} "
 
-		$M0_SRC_DIR/motr/st/utils/m0unlink ${MOTR_PARAM} \
-						     -o ${file[$i]} || return $?
+		"$M0_SRC_DIR/motr/st/utils/m0unlink" "${MOTR_PARAM}" \
+						     -o "${file[$i]}" || return $?
 
 ### Make sure the object is really deleted, and reading will get -ENOENT.
-		$M0_SRC_DIR/motr/st/utils/m0cat ${MOTR_PARAM}     \
-						  -c ${file_size[$i]} \
-						  -o ${file[$i]}      \
+		"$M0_SRC_DIR/motr/st/utils/m0cat" "${MOTR_PARAM}"     \
+						  -c "${file_size[$i]}" \
+						  -o "${file[$i]}"      \
 				  "$MOTR_M0T1FS_TEST_DIR/${file[$i]}" \
 						  2>/dev/null && return -1
 	done
