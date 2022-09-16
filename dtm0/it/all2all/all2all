@@ -292,6 +292,28 @@ function addb_dump()
     fi
 }
 
+function stop_m0ds()
+{
+    local rc=0
+
+    for fid in ${M0D_FIDS_HEX[@]} ; do
+        svc_name="m0d@0x720000000000000${fid}.service"
+        _info "systemctl stop $svc_name"
+        systemctl stop $svc_name > /dev/null
+    done
+}
+
+function start_m0ds()
+{
+    local rc=0
+
+    for fid in ${M0D_FIDS_HEX[@]} ; do
+        svc_name="m0d@0x720000000000000${fid}.service"
+        _info "systemctl start $svc_name"
+        systemctl start $svc_name > /dev/null
+    done
+}
+
 function processes_status_check()
 {
     local rc=0
@@ -395,6 +417,28 @@ function ctgdump()
     (set -o pipefail
      $cmd $cmd_args | sort > "$out_file"
     )
+
+}
+
+function ctg_dump()
+{
+    local ref=$VICTIM
+    local targets=(${WITNESSES[@]})
+    local out_dir=$CTGDUMP_DIR
+
+    rm -fR "$CTGDUMP_DIR"
+
+    for i in $(seq 0 $((${#M0D_FIDS_HEX[@]}-1))); do
+        if ! ctgdump $i; then
+            _err "ctgdump failed, terminating."
+            exit 1
+	else
+            fid_hex=$(echo "${M0D_FIDS_HEX[$i]}" | awk -F'x' '{ print $2; }')
+            out_file="${out_dir}/cas-${fid_hex}.dump"
+            cat "$out_file" | grep "key"
+        fi
+    done
+
 }
 
 function ctg_eq()
@@ -614,6 +658,7 @@ function print_help()
         $0 rec m0kv -s index get \"1:5\" mykey
         $0 rec m0kv -s index next \"1:5\" \"\\\0\" 1
         $0 rec m0kv -s index del \"1:5\" mykey
+        $0 rec ctgdump
         $0 rec stop
 
     Debugging and testing:
@@ -695,6 +740,12 @@ function main()
                     shift;
                     shift;
                     m0kv $@;;
+		"ctgdump")
+		    get_params_for_ha_msgs;
+		    get_m0d_pids;
+		    stop_m0ds;
+                    ctg_dump;
+		    start_m0ds;;
                 "stop")
                     killall -9 lt-m0ham || true;
                     killall -9 lt-m0d || true;
