@@ -119,7 +119,7 @@ static void di_debug_log_print(struct target_ioreq *tioreq,
 {
 	int cdi;
 	uint32_t v_nr = tioreq->ti_goff_ivec.iv_vec.v_nr;
-	M0_LOG(M0_WARN,"- FOP details Ext0: %" PRIi64
+	M0_LOG(M0_DEBUG,"- FOP details Ext0: %" PRIi64
 	       " ExtN: %"PRIi64 " Count0: %" PRIi64
 	       " Vnr: %"PRIi32" CountEnd: %" PRIi64 ,
 	       tioreq->ti_goff_ivec.iv_index[0],
@@ -127,7 +127,7 @@ static void di_debug_log_print(struct target_ioreq *tioreq,
 	       tioreq->ti_goff_ivec.iv_vec.v_count[0], v_nr,
 	       tioreq->ti_goff_ivec.iv_vec.v_count[v_nr-1]);
 	for (cdi = 0; cdi < irfop->irf_cksum_data.cd_num_units; cdi++)
-		M0_LOG(M0_WARN,"- %d. FOP DU details [%s] [PG Idx:%" PRIu64
+		M0_LOG(M0_DEBUG,"- %d. FOP DU details [%s] [PG Idx:%" PRIu64
 		       "][Unit Idx:%" PRIu64 "]", cdi + 1,
 		       irfop->irf_pattr == PA_DATA ? "D" : "P",
 		       (uint64_t)(irfop->irf_cksum_data.cd_idx[cdi].ci_pg_idx +
@@ -165,7 +165,7 @@ static int application_checksum_process(struct m0_op_io *ioo,
 	}
 	cksum_size = m0_cksum_get_size(cksum_type);
 	if (cksum_size == 0) {
-		M0_LOG(M0_WARN, "Skipping DI for PI Type: %d Size: %d",
+		M0_LOG(M0_DEBUG, "Skipping DI for PI Type: %d Size: %d",
 		       cksum_type,cksum_size);
 		di_debug_log_print(ti, irfop, ioo);
 		return rc;
@@ -344,7 +344,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		else if (m0__obj_is_di_enabled(ioo) &&
 		         irfop->irf_cksum_data.cd_num_units &&
 			 (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_OC_READ)) {
-			M0_LOG(M0_WARN,"No DI data received for :");
+			M0_LOG(M0_DEBUG,"No DI data received for :");
 			di_debug_log_print(tioreq, irfop, ioo);
 		}
 	}
