@@ -26,6 +26,7 @@
 #define __MOTR_LIB_TRACE_H__
 
 #include <stdarg.h>
+#include <unistd.h>      /* getpid */
 
 #include "lib/types.h"
 #include "lib/arith.h"
@@ -441,7 +442,7 @@ struct m0_trace_rec_header {
 	uint64_t                     trh_sp; /**< stack pointer */
 	uint64_t                     trh_no; /**< record # */
 	uint64_t                     trh_pos; /**< abs record pos in logbuf */
-	uint64_t                     trh_timestamp;
+	char                         trh_timestamp[20];
 	const struct m0_trace_descr *trh_descr;
 	uint32_t                     trh_string_data_size;
 	uint32_t                     trh_record_size; /**< total record size */
@@ -569,12 +570,17 @@ int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
  * @note The variadic arguments must match the number
  *       and types of fields in the format.
  */
+
+M0_INTERNAL void trace_get_time(char *tbuf);
+M0_INTERNAL const char *m0_trace_subsys_name(uint64_t subsys);
+
 #define M0_TRACE_POINT(LEVEL, NR, DECL, OFFSET, SIZEOF, ISSTR, HASSTR, FMT, ...)\
 ({									\
 	struct t_body DECL;						\
 	static const int  _offset[NR] = OFFSET;				\
 	static const int  _sizeof[NR] = SIZEOF;				\
 	static const bool _isstr[NR]  = ISSTR;				\
+	char              tbuf[20];                                     \
 	static const struct m0_trace_descr __trace_descr = {		\
 		.td_magic  = M0_TRACE_DESCR_MAGIC,			\
 		.td_level  = (LEVEL),					\
@@ -591,8 +597,16 @@ int  m0_trace_record_print_yaml(char *outbuf, size_t outbuf_size,
 		.td_hasstr = (HASSTR),					\
 	};								\
 	printf_check(FMT , ## __VA_ARGS__);				\
-	m0_trace_allot(&__trace_descr, &(const struct t_body){ __VA_ARGS__ });\
+	trace_get_time(tbuf);                                           \
+	m0_error_printf("LIBMOTR-V2 %s : %d %5s %s:%d:%s():" FMT "\n",  \
+			 tbuf,				                \
+                         getpid(), m0_trace_subsys_name(M0_TRACE_SUBSYSTEM), \
+			 __FILE__,__LINE__, __func__,			\
+			 ## __VA_ARGS__);				\
+	m0_trace_allot(&__trace_descr,                                  \
+		       &(const struct t_body){ __VA_ARGS__ });          \
 })
+
 
 #ifndef M0_TRACE_SUBSYSTEM
 #  define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_OTHER

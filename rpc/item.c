@@ -1128,11 +1128,13 @@ static int item_conn_test(struct m0_rpc_item *item)
 
 M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 {
-	uint32_t state = item->ri_sm.sm_state;
-	int      rc;
+	uint32_t               state = item->ri_sm.sm_state;
+	int                    rc;
+	struct m0_rpc_conn    *conn;
 
-	M0_ENTRY(ITEM_FMT" dest_ep=%s ri_session=%p ri_nr_sent_max=%"PRIu64
-		 " ri_deadline=%" PRIu64 " ri_nr_sent=%u", ITEM_ARG(item),
+	conn    = item2conn(item);
+        M0_ENTRY(ITEM_FMT" dest_ep=%s ri_session=%p ri_nr_sent_max=%"PRIu64
+		         " ri_deadline=%" PRIu64 " ri_nr_sent=%u" , ITEM_ARG(item),
 		 m0_rpc_item_remote_ep_addr(item),
 		 item->ri_session, item->ri_nr_sent_max, item->ri_deadline,
 		 item->ri_nr_sent);
@@ -1148,6 +1150,8 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 				  M0_RPC_ITEM_SENT,
 				  M0_RPC_ITEM_FAILED))));
 
+	M0_LOG(M0_DEBUG, "YJC: item request: OPCODE = %"PRIu32" sender_id = %"PRIu64" session-id = %"PRIu64" xid = %"PRIu64,
+		    item->ri_type->rit_opcode, conn->c_sender_id, item->ri_header.osr_session_id, item->ri_header.osr_xid);
 	if (m0_rpc_item_is_request(item)) {
 		rc = item_conn_test(item) ?: m0_rpc_item_timer_start(item) ?:
 			m0_rpc_conn_ha_timer_start(item2conn(item));
@@ -1249,6 +1253,8 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 	if (sess == NULL)
 		return M0_RC(-ENOENT);
 	item->ri_session = sess;
+	M0_LOG(M0_DEBUG, "YJC: item reply: OPCODE = %"PRIu32" sender_id = %"PRIu64" session-id = %"PRIu64" xid = %"PRIu64,
+		    item->ri_type->rit_opcode, conn->c_sender_id, item->ri_header.osr_session_id, item->ri_header.osr_xid);
 
 	/*
 	 * If item is a request, then it may be the first arrival of the

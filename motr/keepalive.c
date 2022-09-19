@@ -80,6 +80,7 @@ M0_INTERNAL int
 m0_ha_keepalive_handler_init(struct m0_ha_keepalive_handler *ka,
                              struct m0_ha_dispatcher        *hd)
 {
+	M0_ENTRY();
 	M0_PRE(M0_IS0(ka));
 
 	ka->kah_dispatcher = hd;
@@ -89,7 +90,7 @@ m0_ha_keepalive_handler_init(struct m0_ha_keepalive_handler *ka,
 	};
 	m0_atomic64_set(&ka->kah_counter, 0);
 	m0_ha_dispatcher_attach(ka->kah_dispatcher, &ka->kah_handler);
-	return 0;
+	return M0_RC(0);
 }
 
 M0_INTERNAL void

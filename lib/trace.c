@@ -222,9 +222,23 @@ M0_INTERNAL void m0_trace_level_allow(unsigned level)
 }
 M0_EXPORTED(m0_trace_level_allow);
 
+
+M0_INTERNAL void trace_get_time(char *tbuf)
+{
+	char buff[10];
+	struct timespec ts;
+	timespec_get(&ts, TIME_UTC);
+	strftime(buff, sizeof buff, "%T", gmtime(&ts.tv_sec));
+	sprintf(tbuf, "%s,%09ld", buff, ts.tv_nsec);
+	return;
+}
+M0_EXPORTED(trace_get_time);
+
+
 M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 				const void *body)
 {
+	return ;
 	uint64_t  record_num;
 	uint32_t  header_len;
 	uint32_t  record_len;
@@ -308,7 +322,8 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 	header->trh_no        = record_num;
 	header->trh_pos       = pos;
 	header->trh_sp        = sp;
-	header->trh_timestamp = m0_rdtsc();
+	//header->trh_timestamp = trace_get_time(header->trh_timestamp);
+	trace_get_time(header->trh_timestamp);
 	header->trh_descr     = td;
 	header->trh_string_data_size = str_data_size;
 	header->trh_record_size = record_len;

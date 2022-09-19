@@ -281,7 +281,7 @@ m0_server()
                        $be_seg0_path $be_seg_path $be_seg_size \
                        $log_device_path $log_device_size \
                        $stob_opts $cmd_opts $addb_opts $conf_opts \
-                       $MOTR_M0D_EXTRA_OPTS
+                       $MOTR_M0D_EXTRA_OPTS &> /tmp/motr-${service_fid}.log
 }
 
 

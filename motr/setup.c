@@ -3029,6 +3029,7 @@ int m0_cs_start(struct m0_motr *cctx)
 	rc = m0_module_init(&cctx->cc_module, CS_LEVEL_START);
 	if (rc != 0)
 		m0_module_fini(&cctx->cc_module, CS_LEVEL_SETUP_ENV);
+	M0_LOG(M0_DEBUG, "Started");
 	return rc == 0 ? M0_RC(0) : M0_ERR(rc);
 }
 
