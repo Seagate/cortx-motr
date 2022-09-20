@@ -854,9 +854,26 @@ static void reed_solomon_fini(struct m0_parity_math *math)
 rs_context_t rs_ctx;
 static int reed_solomon_init(struct m0_parity_math *math)
 {
+	struct m0_reed_solomon *rs;
+	uint32_t ret;
 	uint32_t block_size = 4096; /* TODO: Find how to get this */
-	ret = haf_rs_init(&rs_ctx,  math->pmi_data_count, math->pmi_parity_count, block_size, math->pmi_parity_algo);
-	return ret;
+
+	rs = &math->pmi_rs;
+	ret = haf_rs_init(&rs_ctx,  math->pmi_data_count,
+			  math->pmi_parity_count, block_size,
+			  math->pmi_parity_algo);
+
+	M0_ALLOC_ARR(rs->rs_bufs_in, math->pmi_data_count);
+	if (rs->rs_bufs_in == NULL)
+		return BUF_ALLOC_ERR_INFO(-ENOMEM, "input buffers array",
+					  math->pmi_data_count);
+
+	M0_ALLOC_ARR(rs->rs_bufs_out, math->pmi_parity_count);
+	if (rs->rs_bufs_out == NULL)
+		return BUF_ALLOC_ERR_INFO(-ENOMEM, "output buffers array",
+					  math->pmi_parity_count);
+
+	return M0_RC(ret);
 }
 #else
 static int reed_solomon_init(struct m0_parity_math *math)
@@ -935,9 +952,31 @@ static void reed_solomon_encode(struct m0_parity_math *math,
                 const struct m0_buf *data,
                 struct m0_buf *parity)
 {
+	uint32_t ret;
+	uint32_t block_size = data[0].b_nob; // in terms of bytes
+	struct m0_reed_solomon *rs;
+	uint32_t i;
+
+	M0_ENTRY("math=%p, data=%p, parity=%p", math, data, parity);
+	rs = &math->pmi_rs;
+        block_size = data[0].b_nob;
+
+        rs->rs_bufs_in[0] = (uint8_t *)data[0].b_addr;
+        for (i = 1; i < math->pmi_data_count; ++i) {
+                BLOCK_SIZE_ASSERT_INFO(block_size, i, data);
+                rs->rs_bufs_in[i] = (uint8_t *)data[i].b_addr;
+        }
+
+        for (i = 0; i < math->pmi_parity_count; ++i) {
+                BLOCK_SIZE_ASSERT_INFO(block_size, i, parity);
+                rs->rs_bufs_out[i] = (uint8_t *)parity[i].b_addr;
+        }
+
 	/* TODO convert m0_buf for data and parity into data and parity */
-	ret = haf_rs_encode(&rs_ctx, data, parity);
-	return ret;
+	ret = haf_rs_encode(&rs_ctx, rs->rs_bufs_in, rs->rs_bufs_out);
+	M0_ASSERT(ret == 0);
+
+	return;
 }
 #else
 static void reed_solomon_encode(struct m0_parity_math *math,

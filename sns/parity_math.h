@@ -30,6 +30,8 @@
 #include "matvec.h"
 #include "ls_solve.h"
 
+#include "csp_rs_format.h"
+
 /**
    @defgroup parity_math Parity Math Component
 

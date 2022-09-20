@@ -972,6 +972,30 @@ AC_SUBST([BUILD_DEPEND_DTM])
 AM_CONDITIONAL([ENABLE_LIBFAB],
                [test "x$enable_libfab" = xyes || ! test -z "$with_libfab"])
 
+AC_ARG_WITH([haf-ec],
+      [AS_HELP_STRING([--with-haf-ec=path],
+               [set path to user installed haf ec headers and library])],
+      [HAF_EC=$with_haf_ec],
+      [HAF_EC=""]
+)
+
+AM_CONDITIONAL([ENABLE_HAF_EC],
+               [test "x$with_haf-ec" = xyes || ! test -z "$with_haf-ec"])
+
+AS_IF([! test -z "$with_haf-ec"],
+      [
+        HAF_INCLUDES="-I/home/srg4/sk/c_code/c_code_master/dma_ip_drivers-master/XDMA/linux-kernel/tools"
+        HAF_LIBS="/home/srg4/sk/c_code/c_code_master/dma_ip_drivers-master/XDMA/linux-kernel/tools -lcsp_rs_format"
+        M0_CPPFLAGS="-DHAF_EC $M0_CPPFLAGS $HAF_INCLUDES"
+      ],
+)
+
+MOTR_SEARCH_LIBS([haf_rs_init], [c csp_rs_format], [HAF_LIBS],
+        [haf_rs_init cannot be found! Try to install csp_rs_format.]
+)
+AC_SUBST([HAF_LIBS])
+
+# check for aio library (io_submit(3) & co.)
 AC_MSG_CHECKING([for motr/config.h])
 MOTR_CONFIG="motr/config.h"
 AS_IF([! test -e "ABS_BUILDDIR/$MOTR_CONFIG"],
@@ -1224,6 +1248,7 @@ echo "RT_LIBS        :  \"$RT_LIBS\""
 echo "PROFILER_LIBS  :  \"$PROFILER_LIBS\""
 echo "YAML_LIBS      :  \"$YAML_LIBS\""
 echo "UUID_LIBS      :  \"$UUID_LIBS\""
+echo "HAF_LIBS       :  \"$HAF_LIBS\""
 echo "ISAL_LIBS      :  \"$ISAL_LIBS\""
 echo "OPENSSL_LIBS   :  \"$OPENSSL_LIBS\""
 echo ""

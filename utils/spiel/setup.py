@@ -21,7 +21,7 @@ from distutils.core import setup, Extension
 
 motr = Extension('motr',
                  define_macros=[('M0_INTERNAL', ''), ('M0_EXTERN', 'extern')],
-                 include_dirs=['../../'],
+                 include_dirs=['../../', '/home/srg4/sk/c_code/c_code_master/dma_ip_drivers-master/XDMA/linux-kernel/tools'],
                  sources=['motr.c'],
                  extra_compile_args=['-w', '-include', 'config.h'])
 
