@@ -24,6 +24,7 @@
 . `dirname $0`/motr_st_inc.sh
 # enable core dumps
 ulimit -c unlimited
+export MOTR_CLIENT_ONLY=1
 
 # Debugger to use
 debugger=
