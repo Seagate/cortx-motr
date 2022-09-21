@@ -38,6 +38,7 @@
 #include "sm/sm.h"      /* m0_sm_ast */
 #include "pool/pool.h"  /* m0_pool_nd_state */
 #include "cas/client.h" /* m0_cas_req */
+#include "cas/cas.h"    /* m0_crv */
 
 struct m0_dix_req;
 struct m0_pool_version;
@@ -46,6 +47,7 @@ struct m0_dix_next_resultset;
 struct m0_dix_item {
 	struct m0_buf dxi_key;
 	struct m0_buf dxi_val;
+	struct m0_crv dxi_ver;
 	/**
 	 * Current parity group unit number for GET request. GET request is sent
 	 * to target holding data unit at first. If this request fails, then

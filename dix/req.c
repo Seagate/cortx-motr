@@ -1419,15 +1419,17 @@ static void dix_rop(struct m0_dix_req *req)
 /** Checks if the given cas get reply has a newer version of the value */
 static int dix_item_version_cmp(const struct m0_dix_item *ditem,
 				const struct m0_cas_get_reply *get_rep) {
-	/*
-	 * TODO: once cas versions are propagated, check if the get reply
-	 * has a newer version than seen previously. Will need to add
-	 * version info to struct m0_dix_item. This function should return
-	 * true if no previous value is set, or if the previous value has
-	 * an older version. For now, always return true so the last
-	 * reply in the array wins.
-	 */
-	return -1;
+	if (m0_crv_is_none(&ditem->dxi_ver)) {
+		/*
+		 * Make sure we handle at least one reply. In the case of
+		 * all replies being true ENOENT (not tombstones), we need
+		 * to update rc to -ENOENT at least once. If we get a
+		 * non-zero version in any of the replies this case won't
+		 * apply, and we'll use the normal version comparison.
+		 */
+		return -1;
+	}
+	return m0_crv_cmp(&ditem->dxi_ver, &get_rep->cge_ver);
 }
 
 static void dix_item_rc_update(struct m0_dix_req  *req,
@@ -1446,11 +1448,21 @@ static void dix_item_rc_update(struct m0_dix_req  *req,
 		case DIX_GET:
 			m0_cas_get_rep(creq, key_idx, &get_rep);
 			rc = get_rep.cge_rc;
-			if (rc == 0 && dix_item_version_cmp(ditem, &get_rep) < 0) {
+			if (!M0_IN(rc, (0, -ENOENT))) break;
+			if (dix_item_version_cmp(ditem, &get_rep) < 0) {
+				ditem->dxi_ver = get_rep.cge_ver;
 				m0_buf_free(&ditem->dxi_val);
-				ditem->dxi_val = get_rep.cge_val;
-				/* Value will be freed at m0_dix_req_fini(). */
-				m0_cas_rep_mlock(creq, key_idx);
+				if (rc == 0) {
+					ditem->dxi_val = get_rep.cge_val;
+					/* Value will be freed at m0_dix_req_fini(). */
+					m0_cas_rep_mlock(creq, key_idx);
+				}
+			} else {
+				/*
+				 * Got a reply older than what we've seen already.
+				 * Just restore rc and ignore it.
+				 */
+				rc = ditem->dxi_rc;
 			}
 			break;
 		case DIX_PUT:
@@ -1638,7 +1650,7 @@ static void dix_cas_rop_rc_update(struct m0_dix_cas_rop *cas_rop, int rc)
 	for (i = 0; i < cas_rop->crp_keys_nr; i++) {
 		item_idx = cas_rop->crp_attrs[i].cra_item;
 		ditem = &req->dr_items[item_idx];
-		if (ditem->dxi_rc != 0)
+		if (!M0_IN(ditem->dxi_rc, (0, -ENOENT)))
 			continue;
 		if (rc == 0)
 			dix_item_rc_update(req, &cas_rop->crp_creq, i, ditem);
@@ -1777,6 +1789,9 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 	struct m0_reqh_service_ctx *cas_svc;
 	struct m0_dix_layout       *layout = &req->dr_indices[0].dd_layout;
 	int                         rc;
+	uint32_t                    version_flags = req->dr_is_meta ?
+					0 : COF_VERSIONED;
+
 	M0_ENTRY("req=%p", req);
 
 	M0_PRE(rop->dg_cas_reqs_nr == 0);
@@ -1806,28 +1821,33 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 
 			switch (req->dr_type) {
 			case DIX_GET:
-				rc = m0_cas_get(creq, &cctg_id,
-						&cas_rop->crp_keys);
+				rc = (req->dr_is_meta ?
+					m0_cas_get : m0_cas_versioned_get)
+						(creq, &cctg_id,
+						 &cas_rop->crp_keys);
 				break;
 			case DIX_PUT:
 				rc = m0_cas_put(creq, &cctg_id,
 						&cas_rop->crp_keys,
 						&cas_rop->crp_vals,
 						req->dr_dtx,
-						cas_rop->crp_flags);
+						cas_rop->crp_flags |
+							version_flags);
 				break;
 			case DIX_DEL:
 				rc = m0_cas_del(creq, &cctg_id,
 						&cas_rop->crp_keys,
 						req->dr_dtx,
-						cas_rop->crp_flags);
+						cas_rop->crp_flags |
+							version_flags);
 				break;
 			case DIX_NEXT:
 				rc = m0_cas_next(creq, &cctg_id,
 						 &cas_rop->crp_keys,
 						 req->dr_recs_nr,
 						 cas_rop->crp_flags |
-						 COF_SLANT);
+						 COF_SLANT |
+							version_flags);
 				break;
 			default:
 				M0_IMPOSSIBLE("Unknown req type %u",
