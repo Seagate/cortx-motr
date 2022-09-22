@@ -481,8 +481,7 @@ static int ut_rec_common_put(struct cl_ctx           *cctx,
 	uint64_t           i;
 
 	M0_PRE(ergo(dtx != NULL,
-		    (((flags & COF_VERSIONED) != 0) &&
-		     keys->ov_vec.v_nr == 1)));
+		    keys->ov_vec.v_nr == 1));
 
 	/* start operation */
 	M0_SET0(&req);
@@ -2380,11 +2379,14 @@ static void put_overwrite_ver(void)
 	M0_UT_ASSERT(has_versions(&index, &keys,
 				  version[V_FUTURE], COF_VERSIONED));
 
-	/* However, empty version disables the versioned behavior. */
+	/*
+	 * However, empty version with COF_VERSIONED uses current timestamp.
+	 * Check that version[V_NONE] got overwritten.
+	 */
 	put_get_verified(&index, &keys, &vals[V_PAST], &vals[V_PAST],
 			 version[V_NONE], COF_VERSIONED | COF_OVERWRITE,
 			 COF_VERSIONED);
-	M0_UT_ASSERT(has_versions(&index, &keys,
+	M0_UT_ASSERT(!has_versions(&index, &keys,
 				  version[V_NONE], COF_VERSIONED));
 
 	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
@@ -2395,12 +2397,12 @@ static void put_overwrite_ver(void)
 	index.ci_fid = ifid;
 
 	/*
-	 * Insertion of a pair without COF_OVERWRITE flag set disables
+	 * Insertion of a pair without COF_VERSIONED flag set disables
 	 * the versioned behavior even if the version was specified.
 	 * Let's insert some values first.
 	 */
 	put_get_verified(&index, &keys, &vals[V_FUTURE], &vals[V_FUTURE],
-			 version[V_FUTURE], COF_VERSIONED, COF_VERSIONED);
+			 version[V_FUTURE], 0, 0);
 	/*
 	 * And now let's check if they are overwritten. We expect that
 	 * the values will be overwritten because the previous operation
@@ -3124,6 +3126,13 @@ static void get_ver_exposed(void)
 	/* Cleanup */
 	del_get_verified(&index, &keys, version[V_NONE], 0, 0);
 
+	/* Insert @now */
+	put_get_verified(&index, &keys, &values, &values, version[V_NOW],
+			 COF_VERSIONED | COF_OVERWRITE,
+			 COF_VERSIONED);
+	M0_UT_ASSERT(has_versions(&index, &keys,
+				  version[V_NOW], COF_VERSIONED));
+
 	/* Delete @now */
 	del_get_verified(&index, &keys, version[V_NOW],
 			 COF_VERSIONED, COF_VERSIONED);
@@ -3721,7 +3730,9 @@ static void verify_version_properties(struct m0_cas_id       *index,
 	/* Save the existing tombstones (assuming all-or-nothing). */
 	tombstones = has_tombstones(index, keys);
 
-	ut_rec_common_del_verified(index, keys, version, COF_VERSIONED);
+	if (!tombstones) {
+		ut_rec_common_del_verified(index, keys, version, COF_VERSIONED);
+	}
 	M0_UT_ASSERT(has_tombstones(index, keys));
 
 	ut_rec_common_put_verified(index, keys, &values, version - 1,
@@ -3857,6 +3868,8 @@ static void put_del_ver(void)
 		{ BEFORE(PUT, FUTURE) AFTER(PUT, PAST)   },
 		{ BEFORE(PUT, FUTURE) AFTER(DEL, PAST)   },
 
+		/* May want to re-enable these with tombstone cleanup
+
 		{ BEFORE(DEL, FUTURE) AFTER(DEL, PAST)   },
 		{ BEFORE(DEL, FUTURE) AFTER(PUT, PAST)   },
 
@@ -3864,6 +3877,7 @@ static void put_del_ver(void)
 		{ BEFORE(DEL, PAST)   AFTER(PUT, FUTURE) },
 
 		{ BEFORE(NOP, PAST)   AFTER(DEL, FUTURE) },
+		*/
 		{ BEFORE(NOP, PAST)   AFTER(PUT, FUTURE) },
 	};
 #undef BEFORE

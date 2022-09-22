@@ -2168,14 +2168,14 @@ static int stob_io_create(struct m0_fom *fom)
 		 rwfop->crw_cksum_size) {
 		v_nr = fom_obj->fcrw_io.si_stob.iv_vec.v_nr;
 		c_nr = rwfop->crw_ivec.ci_nr;
-		M0_LOG(M0_WARN,"Write Disabling DI for Ext0: %"PRIi64
+		M0_LOG(M0_DEBUG,"Write Disabling DI for Ext0: %"PRIi64
 			       " ExtNr: %"PRIi64" Count0: %"PRIi64
 			       " Vnr: %"PRIi32" CountEnd: %"PRIi64,
 			       fom_obj->fcrw_io.si_stob.iv_index[0],
 			       fom_obj->fcrw_io.si_stob.iv_index[v_nr-1],
 			       fom_obj->fcrw_io.si_stob.iv_vec.v_count[0], v_nr,
 			       fom_obj->fcrw_io.si_stob.iv_vec.v_count[v_nr-1]);
-		M0_LOG(M0_WARN,"CRW IVEC for Ext0: %"PRIi64 " %"PRIi64
+		M0_LOG(M0_DEBUG,"CRW IVEC for Ext0: %"PRIi64 " %"PRIi64
 			       " ExtNr: %d Count0: %"PRIi64
 			       " CountEnd: %"PRIi64,
 			       rwfop->crw_ivec.ci_iosegs[0].ci_index,

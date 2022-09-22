@@ -21,7 +21,7 @@
 
 usage()
 {
-	echo "Usage: `basename $0` server_nid"
+	echo "Usage: $(basename $0) server_nid"
 	echo "Please provide the server nid you want to use."
 	echo "e.g. 192.168.172.130@tcp"
 }
@@ -40,9 +40,9 @@ fi
 
 server_nid=$1
 
-. `dirname $0`/common.sh
-. `dirname $0`/m0t1fs_common_inc.sh
-. `dirname $0`/m0t1fs_client_inc.sh
+. $(dirname "$0")/common.sh
+. $(dirname "$0")/m0t1fs_common_inc.sh
+. $(dirname "$0")/m0t1fs_client_inc.sh
 
 main()
 {
@@ -61,4 +61,4 @@ main()
 
 trap unprepare EXIT
 
-main $1
+main "$1"

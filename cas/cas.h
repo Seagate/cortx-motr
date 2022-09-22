@@ -295,18 +295,17 @@ enum m0_cas_op_flags {
 	 *
 	 * Overview
 	 * --------
-	 *   Versions are taken from m0_cas_op::cg_txd. When this flag is set,
-	 * the following change happens in the logic of the mentioned request
-	 * types:
+	 * Versions are taken from m0_cas_op::cg_txd. If no transaction
+	 * descriptor is provided, version ID will be implicitly set
+	 * to the current time (to allow for non-DTM0 operation).
+	 * When this flag is set, the following change happens in the
+	 * logic of the mentioned request types:
 	 *     - PUT does not overwrite "newest" (version-wise) records.
 	 *       Requirements:
-	 *         x COF_OVERWRITE is set.
-	 *         x Transaction descriptor has a valid DTX ID.
-	 *     - DEL puts a tombstone instead of an actual removal. In this
-	 *       mode, DEL does not return -ENOENT in the same way as
-	 *       PUT-with-COF_OVERWRITE does not return -EEXIST.
+	 *         x Transaction descriptor (if provided) has a valid DTX ID.
+	 *     - DEL puts a tombstone instead of an actual removal.
 	 *       Requirements:
-	 *         x Transaction descriptor has a valid DTX ID.
+	 *         x Transaction descriptor (if provided) has a valid DTX ID.
 	 *     - GET returns only "alive" entries (without tombstones).
 	 *     - NEXT also skips entries with tombstones.
 	 *

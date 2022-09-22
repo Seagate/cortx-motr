@@ -1691,11 +1691,11 @@ Tests:
     polltime : 30
     timeout  : 900
 
-  - id       : 26motr-user-kernel-tests
-    script   : 'm0 run-st 26motr-user-kernel-tests'
+  - id       : 26motr-user-tests
+    script   : 'm0 run-st 26motr-user-tests'
     dir      : src/scripts
     executor : Xperior::Executor::MotrTest
-    sandbox  : /var/motr/root/sandbox.st-26motr-user-kernel-tests
+    sandbox  : /var/motr/root/sandbox.st-26motr-user-tests
     groupname: 02motr-single-node
     polltime : 30
     timeout  : 2400
