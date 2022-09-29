@@ -385,8 +385,7 @@ M0_INTERNAL void *m0_vote_majority_get(struct m0_key_val *arr, uint32_t len,
 					           const struct m0_buf *),
 				       uint32_t *vote_nr)
 {
-	struct m0_key_val  null_kv = M0_KEY_VAL_NULL;
-	struct m0_key_val *mjr     = &null_kv;
+	struct m0_key_val *mjr = (struct m0_key_val*)&M0_KEY_VAL_NULL;
 	uint32_t           i;
 	uint32_t           count;
 
