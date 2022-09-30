@@ -1114,10 +1114,9 @@ M0_CPPFLAGS="-D_REENTRANT -D_GNU_SOURCE -DM0_INTERNAL='' -DM0_EXTERN=extern \
 # pkg-config database provided within Motr rpm distribution
 M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+|-inc\S+' | xargs echo)
 
-# -Wno-attributes is required to suppress warnings about unrecognized
-# __attribute__, such as __attribute__((gccxml(...))). It's important because we
-# use -Werror, which turns warnings into errors, but we still need to be able to
-# use gccxml attributes.
+# -Wno-attributes suppresses warnings about unrecognized attributes, such as
+#  __attribute__((gccxml(...))).
+# -Wno-deprecated-declarations should be dropped when we get rid of md5 usage.
 M0_CFLAGS="-pipe -Wall -Werror -Wno-deprecated-declarations \
 	                       -Wno-attributes -fno-strict-aliasing $M0_CFLAGS"
 
