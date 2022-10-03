@@ -1136,6 +1136,39 @@ M0_INTERNAL size_t m0_be_chunk_header_size(void)
 	return sizeof(struct be_alloc_chunk);
 }
 
+static bool unmap_memory(struct m0_be_allocator *a, struct be_alloc_chunk *c)
+{
+	int rc;
+	m0_bcount_t chunk_size = c->bac_size + sizeof *c;
+	m0_bcount_t page_size = m0_pagesize_get();
+
+	if (chunk_size > page_size) {
+		/**
+		 * Skip the first page which contains the chunk header.
+		 */
+		void *temp = (((void *)c)) + page_size;
+		chunk_size -= page_size;
+
+		M0_LOG(M0_DEBUG, "c=%p temp=%p bac_size=%"PRIu64
+				 " chunk_size=%"PRIu64, c, temp,
+				 c->bac_size, chunk_size);
+		munmap(temp, chunk_size);
+
+		rc = madvise(temp, chunk_size, MADV_NORMAL);
+		M0_ASSERT(rc == -1 && errno == ENOMEM); /** Assert BE segment unmapped*/
+
+		mmap(temp, chunk_size, PROT_READ | PROT_WRITE,
+		MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE,
+		m0_stob_fd(a->ba_seg->bs_stob),
+		(m0_bcount_t)(temp - a->ba_seg->bs_addr));
+
+		rc = madvise(temp, chunk_size, MADV_NORMAL);
+		M0_ASSERT(rc == 0);
+		return true;
+	}
+	return false;
+}
+
 M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 				    struct m0_be_tx *tx,
 				    struct m0_be_op *op,
@@ -1145,7 +1178,8 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 	struct be_alloc_chunk      *c;
 	struct be_alloc_chunk      *prev;
 	struct be_alloc_chunk      *next;
-	bool		            chunks_were_merged;
+	bool                        prev_chunk_were_merged;
+	bool                        next_chunk_were_merged;
 
 	M0_PRE(ptr != NULL);
 	M0_PRE(m0_reduce(z, M0_BAP_NR, 0,
@@ -1170,46 +1204,25 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 	 * assumption is coming here from bnode_alloc/bnode_free [].
 	 */
 
-	if (unmap) {
-		int rc;
-		m0_bcount_t chunk_size = c->bac_size + sizeof *c;
-		m0_bcount_t page_size = m0_pagesize_get();
-	
-		if (chunk_size > page_size) {
-			/**
-			 * Skip the first page which contains the chunk header.
-			 */
-			void *temp = (((void *)c)) + page_size;
-			chunk_size -= page_size;
-
-			M0_LOG(M0_DEBUG, "c=%p temp=%p bac_size=%"PRIu64
-					 "chunk_size=%"PRIu64,
-					   c, temp, c->bac_size, chunk_size);
-			munmap(temp, chunk_size);
-			
-			rc = madvise(temp, chunk_size, MADV_NORMAL);
-			M0_ASSERT(rc == -1 && errno == ENOMEM); /** Assert BE segment unmapped*/
-			
-			mmap(temp, chunk_size, PROT_READ | PROT_WRITE,
-			     MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE,
-			     m0_stob_fd(a->ba_seg->bs_stob),
-			     (m0_bcount_t)(temp - a->ba_seg->bs_addr));
-			
-			rc = madvise(temp, chunk_size, MADV_NORMAL);
-			M0_ASSERT(rc == 0);
-		}
-	}
-
 	/* update stats before c->bac_size gets modified due to merge */
 	be_allocator_stats_update(&a->ba_h[ztype]->bah_stats,
 			c->bac_size, false, false);
 	prev = be_alloc_chunk_prev(a, ztype, c);
 	next = be_alloc_chunk_next(a, ztype, c);
-	chunks_were_merged = be_alloc_chunk_trymerge(a, ztype, tx,
-			prev, c);
-	if (chunks_were_merged)
+	prev_chunk_were_merged = be_alloc_chunk_trymerge(a, ztype, tx, prev, c);
+	if (prev_chunk_were_merged)
 		c = prev;
-	be_alloc_chunk_trymerge(a, ztype, tx, c, next);
+	next_chunk_were_merged = be_alloc_chunk_trymerge(a, ztype, tx, c, next);
+
+	if (unmap) {
+		M0_LOG(M0_DEBUG, ">>>c+prev=%s and c+next=%s and only_c=%s",
+				prev_chunk_were_merged ? "YES": "NO",
+				next_chunk_were_merged ? "YES": "NO",
+				(!prev_chunk_were_merged && !next_chunk_were_merged) ? "YES": "/"
+				);
+		unmap_memory(a, c);
+	}
+
 	be_allocator_stats_capture(a, ztype, tx);
 	/* and ends here */
 	M0_POST(c->bac_free);

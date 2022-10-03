@@ -12882,7 +12882,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	struct m0_be_tx            *tx             = &tx_data;
 	struct m0_be_tx_credit      cred           = {};
 	struct m0_btree_op          b_op           = {};
-	uint64_t                    rec_count      = MAX_RECS_PER_STREAM;
+	uint64_t                    rec_count      = 2000;
 	struct m0_btree_op          kv_op          = {};
 	struct m0_btree            *tree;
 	struct m0_btree             btree;
@@ -12897,7 +12897,7 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	struct m0_buf               buf;
 	const struct node_type     *nt;
 	struct segaddr              rnode_segaddr;
-	uint32_t                    rnode_sz       = m0_pagesize_get();
+	uint32_t                    rnode_sz       = m0_pagesize_get() * 2;
 	struct m0_fid               fid            = M0_FID_TINIT('b', 0, 1);
 	uint32_t                    rnode_sz_shift;
 	struct m0_btree_rec         rec            = {
@@ -12947,7 +12947,8 @@ static void ut_btree_crc_persist_test_internal(struct m0_btree_type   *bt,
 	 */
 
 	M0_ASSERT(rnode_sz != 0 && m0_is_po2(rnode_sz));
-	rnode_sz_shift = __builtin_ffsl(rnode_sz) - 1;
+	rnode_sz_shift = __builtin_ffsl(m0_pagesize_get()) - 1;
+	// rnode_sz_shift = 12;
 	cred = M0_BE_TX_CB_CREDIT(0, 0, 0);
 	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED, rnode_sz,
 			       rnode_sz_shift, &cred);
