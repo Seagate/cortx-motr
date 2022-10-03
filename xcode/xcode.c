@@ -102,7 +102,7 @@ bool m0_xcode_type_invariant(const struct m0_xcode_type *xt)
 		_0C(xt->xct_nr >= min[xt->xct_aggr]) &&
 		_0C(xt->xct_nr <= max[xt->xct_aggr]) &&
 		m0_forall(i, xt->xct_nr, ({
-			const struct m0_xcode_field *f = &xt->xct_child[i];
+			const struct m0_xcode_field *f = xt->xct_child + i;
 
 			field_invariant(xt, f) &&
 			/* field doesn't overlap with the previous one */

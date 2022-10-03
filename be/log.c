@@ -1091,7 +1091,7 @@ static int be_log_record_iter_read(struct m0_be_log             *log,
 				   m0_bindex_t                   pos)
 {
 	struct m0_be_fmt_log_record_footer *footer;
-	struct m0_be_fmt_log_record_header *header;
+	struct m0_be_fmt_log_record_header *header = NULL;
 	struct m0_bufvec_cursor             cur;
 	struct m0_bufvec                    bvec;
 	m0_bcount_t                         size_fmt;
@@ -1116,7 +1116,7 @@ static int be_log_record_iter_read(struct m0_be_log             *log,
 	rc   = be_log_read_plain(log, pos, size, data);
 	rc   = rc ?: m0_be_fmt_log_record_header_decode(&header, &cur,
 						M0_BE_FMT_DECODE_CFG_DEFAULT);
-	if (rc == -EPROTO)
+	if (rc == -EPROTO || header == NULL)
 		rc = -ENOENT;
 
 	m0_free_aligned(data, size, bshift);
