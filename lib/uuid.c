@@ -140,7 +140,7 @@ int m0_node_uuid_init(void)
 		rc = m0_uuid_parse(buf, uuid);
 		if (rc == 0) {
 			m0_uuid_format(uuid, buf, ARRAY_SIZE(buf));
-			M0_LOG(M0_NOTICE, "Node uuid: %s", (char *)buf);
+			M0_LOG(M0_INFO, "Node uuid: %s", (char *)buf);
 		} else
 			M0_LOG(M0_ERROR, "Unable to parse node UUID string");
 	} else
