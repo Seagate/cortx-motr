@@ -233,7 +233,7 @@ void m0_addb2_sys_fini(struct m0_addb2_sys *sys)
 	sys_balance(sys);
 	sys_unlock(sys);
 	if (sys->sy_queued > 0)
-		M0_LOG(M0_NOTICE, "Records lost: %" PRIi64 "/%zi.",
+		M0_LOG(M0_INFO, "Records lost: %" PRIi64 "/%zi.",
 		       sys->sy_queued, tr_tlist_length(&sys->sy_queue));
 	m0_tl_teardown(tr, &sys->sy_queue, to) {
 		/*
