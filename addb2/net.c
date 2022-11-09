@@ -249,7 +249,7 @@ M0_INTERNAL void m0_addb2_net_stop(struct m0_addb2_net *net,
 	 * For now, just discard all the traces.
 	 */
 	if (!tr_tlist_is_empty(q)) {
-		M0_LOG(M0_NOTICE, "Traces discarded: %zi", tr_tlist_length(q));
+		M0_LOG(M0_INFO, "Traces discarded: %zi", tr_tlist_length(q));
 		m0_tl_teardown(tr, q, obj) {
 			m0_addb2_trace_done(&obj->o_tr);
 		}

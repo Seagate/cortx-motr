@@ -271,7 +271,9 @@ void m0_stob_ut_stob_perf_null(void)
 }
 
 extern void m0_stob_ut_ad_init(struct m0_be_ut_backend *ut_be,
-			       struct m0_be_ut_seg     *ut_seg);
+			       struct m0_be_ut_seg     *ut_seg,
+			       bool use_small_credits);
+
 extern void m0_stob_ut_ad_fini(struct m0_be_ut_backend *ut_be,
 			       struct m0_be_ut_seg     *ut_seg);
 
@@ -283,7 +285,7 @@ void m0_stob_ut_stob_ad(void)
 	char                    *dom_cfg;
 	char                    *dom_init_cfg;
 
-	m0_stob_ut_ad_init(&ut_be, &ut_seg);
+	m0_stob_ut_ad_init(&ut_be, &ut_seg, false);
 	stob = m0_ut_stob_linux_get();
 	M0_UT_ASSERT(stob != NULL);
 
