@@ -87,7 +87,6 @@ void test_tlist(void)
 	struct foo   *obj;
 	struct m0_tl *head;
 	uint64_t      sum;
-	uint64_t      sumB;
 	uint64_t      sum1;
 	bool          done;
 	struct bar   *b;
@@ -156,14 +155,13 @@ void test_tlist(void)
 	/* initialise bar-s */
 
 	bar_tlist_init(&bhead);
-	sumB = 0;
 	for (i = 0, b = B; i < ARRAY_SIZE(B); ++i, ++b) {
 		bar_tlink_init(b);
 		M0_UT_ASSERT(!bar_tlink_is_in(b));
 		bar_tlist_add(&bhead, b);
 		M0_UT_ASSERT(bar_tlink_is_in(b));
 		M0_UT_ASSERT(bar_tlist_contains(&bhead, b));
-		sumB += (b->b_payload = 3*i);
+		b->b_payload = 3*i;
 	}
 
 	M0_UT_ASSERT(bar_tlist_length(&bhead) == ARRAY_SIZE(B));
