@@ -358,7 +358,8 @@ M0_INTERNAL void m0_sm_conf_init(struct m0_sm_conf *conf)
 	for (i = 0; i < conf->scf_trans_nr; ++i) {
 		from = conf->scf_trans[i].td_src;
 		to = conf->scf_trans[i].td_tgt;
-		M0_ASSERT(conf->scf_state[from].sd_allowed & M0_BITS(to));
+		M0_ASSERT_INFO(conf->scf_state[from].sd_allowed & M0_BITS(to),
+			       "%i -> %i", from, to);
 		conf->scf_state[from].sd_trans[to] = i;
 	}
 
