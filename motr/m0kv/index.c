@@ -135,7 +135,7 @@ static int genv(char *filename, int cnt, int size)
 	int       len;
 	int       val_size;
 	uuid_t    uuid;
-	char      str_uuid[16];
+	char      str_uuid[37];
 	char      buf[20];
 
 	M0_PRE(filename != NULL);
