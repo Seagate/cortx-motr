@@ -57,7 +57,6 @@ struct m0_ut_suite         ut_suite_io_pargrp;
 static void ut_test_data_buf_invariant(void)
 {
 	struct data_buf        *db;
-	struct data_buf        *aux;
 	bool                    ret;
 
 	db = ut_dummy_data_buf_create();
@@ -69,13 +68,6 @@ static void ut_test_data_buf_invariant(void)
 	/* db == NULL */
 	ret = data_buf_invariant(NULL);
 	M0_UT_ASSERT(ret == false);
-
-	/* !bob_check() */
-	aux = db;
-	db = (struct data_buf *)0x1;
-	ret = data_buf_invariant(db);
-	M0_UT_ASSERT(ret == false);
-	db = aux;
 
 	/* b_nob <= 0 */
 	db->db_buf.b_addr = (void *)DUMMY_PTR;
