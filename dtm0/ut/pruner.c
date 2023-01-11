@@ -165,7 +165,7 @@ enum {
 static void dtm0_ut_log_redo_add(struct dtm0_ut_log_ctx *lctx, int timestamp)
 {
 	struct m0_dtm0_redo *redo;
-	int                  rc;
+	int                  rc = 0;
 	struct m0_fid       *p_sdev_fid;
 
 
