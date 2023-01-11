@@ -122,3 +122,6 @@ run N brew install asciidoc
 run N brew install libyaml
 run N brew install gawk
 #run N brew install valgrind
+
+echo 'Install libyaml:'
+echo 'git clone https://github.com/yaml/libyaml && cd libyaml && ./bootstrap && ./configure && make && sudo make install'
