@@ -342,8 +342,12 @@ struct m0_xcode_type {
 	size_t                          xct_sizeof;
 	/** Number of fields. */
 	size_t                          xct_nr;
+#if defined(__clang__)
 	/** Array of fields. */
 	struct m0_xcode_field           xct_child[0];
+#else
+	struct m0_xcode_field           xct_child[];
+#endif
 };
 
 /** "Typed" xcode object. */
