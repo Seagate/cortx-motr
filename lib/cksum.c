@@ -55,7 +55,7 @@ M0_INTERNAL int m0_calculate_md5(struct m0_md5_pi *pi,
 				 struct m0_bufvec *bvec,
 				 enum m0_pi_calc_flag flag)
 {
-#ifndef __KERNEL__
+#if HAS_MD5
 	MD5_CTX context;
 	int i;
 	int rc;
@@ -129,7 +129,7 @@ M0_INTERNAL int m0_calculate_md5(struct m0_md5_pi *pi,
 					   bvec->ov_vec.v_nr);
 		}
 	}
-#endif
+#endif /* HAS_MD5 */
 	return  0;
 }
 

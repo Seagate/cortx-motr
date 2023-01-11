@@ -86,38 +86,6 @@ struct m0_pi_hdr {
 	uint8_t pih_size : 8;
 };
 
-struct m0_md5_pi {
-
-        /* header for protection info */
-        struct m0_pi_hdr pimd5_hdr;
-#if HAS_MD5
-        /* protection value computed for the current data*/
-        unsigned char    pimd5_value[MD5_DIGEST_LENGTH];
-        /* structure should be 32 byte aligned */
-        char             pimd5_pad[M0_CALC_PAD((sizeof(struct m0_pi_hdr)+
-				   MD5_DIGEST_LENGTH), 32)];
-#endif
-};
-
-struct m0_md5_inc_context_pi {
-
-        /* header for protection info */
-        struct m0_pi_hdr pimd5c_hdr;
-#if HAS_MD5
-        /*context of previous data unit, required for checksum computation */
-        unsigned char    pimd5c_prev_context[sizeof(MD5_CTX)];
-        /* protection value computed for the current data unit.
-         * If seed is not provided then this checksum is
-         * calculated without seed.
-         */
-        unsigned char    pimd5c_value[MD5_DIGEST_LENGTH];
-        /* structure should be 32 byte aligned */
-        char             pi_md5c_pad[M0_CALC_PAD((sizeof(struct m0_pi_hdr)+
-				     sizeof(MD5_CTX)+MD5_DIGEST_LENGTH), 32)];
-#endif
->>>>>>> 1a621ce4 (darwin: disable on non-linux platforms.)
-};
-
 /*********************** Generic Protection Info Structure *****************/
 struct m0_generic_pi {
 	/* header for protection info */
