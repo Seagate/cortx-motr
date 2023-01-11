@@ -192,6 +192,11 @@ motr_libmotr_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
                             @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ \
                             @DL_LIBS@ @CASSANDRA_LIBS@ @UV_LIBS@ @ISAL_LIBS@ \
                             @OPENSSL_LIBS@ @LIBFAB_LIBS@
+if ON_LINUX
+motr_libmotr_la_LIBADD += @YAML_LIBS@
+else
+motr_libmotr_la_LIBADD += -lyaml
+endif
 
 # install directory for public libmotr headers
 motr_includedir             = $(includedir)/motr
@@ -732,6 +737,7 @@ include $(top_srcdir)/fdmi/plugins/Makefile.sub
 #
 # motr/crate ----------------------------------------- {{{2
 #
+if ON_LINUX
 sbin_PROGRAMS                    += motr/m0crate/m0crate
 
 motr_m0crate_m0crate_CPPFLAGS = -DM0_TARGET='m0crate' $(AM_CPPFLAGS)
@@ -739,6 +745,7 @@ motr_m0crate_m0crate_LDADD    = $(top_builddir)/motr/libmotr.la \
                                   @AIO_LIBS@ @RT_LIBS@ @YAML_LIBS@
 
 include $(top_srcdir)/motr/m0crate/Makefile.sub
+endif
 
 #
 # dix/m0dixinit --------------------------------------- {{{2
@@ -925,13 +932,12 @@ be_tool_m0betool_LDADD     = $(top_builddir)/motr/libmotr.la
 # be/tool/m0beck -------------------------------------- {{{2
 #
 
-#TBD: Uncomment following block after CORTX-32593 is fixed.
-#sbin_PROGRAMS               += be/tool/m0beck
-#be_tool_m0beck_CPPFLAGS      = -DM0_TARGET='m0beck' $(AM_CPPFLAGS)
-#be_tool_m0beck_LDADD         = $(top_builddir)/motr/libmotr.la \
-#                                @YAML_LIBS@
-
 if ON_LINUX
+sbin_PROGRAMS               += be/tool/m0beck
+be_tool_m0beck_CPPFLAGS      = -DM0_TARGET='m0beck' $(AM_CPPFLAGS)
+be_tool_m0beck_LDADD         = $(top_builddir)/motr/libmotr.la \
+                                @YAML_LIBS@
+
 #
 # scripts/systemtap/kem/m0kemc ----------------------------------- {{{2
 #
