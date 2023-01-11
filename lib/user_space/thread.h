@@ -57,7 +57,7 @@ struct m0_thread_arch_tls {
 	sigjmp_buf *tat_jmp;
 };
 
-#if defined(M0_LINUX)
+#if defined(M0_LINUX) || (defined(M0_DARWIN) && !defined(__clang__))
 /**
    Helper macro creating an anonymous function with a given body.
 
@@ -156,7 +156,7 @@ struct m0_thread_arch_tls {
 #define LAMBDA_T *
 #endif
 
-#if defined(M0_DARWIN)
+#if defined(M0_DARWIN) && defined(__clang__)
 #define LAMBDA(T, ...) (^ T __VA_ARGS__)
 #define CAPTURED __block
 #define LAMBDA_T ^
