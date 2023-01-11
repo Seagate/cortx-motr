@@ -343,7 +343,7 @@ struct m0_xcode_type {
 	/** Number of fields. */
 	size_t                          xct_nr;
 	/** Array of fields. */
-	struct m0_xcode_field           xct_child[];
+	struct m0_xcode_field           xct_child[0];
 };
 
 /** "Typed" xcode object. */
