@@ -114,7 +114,7 @@ static int opts_get(struct params *par, int *argc, char ***argv)
 	int    rc = 0;
 	char **arg = *(argv);
 	int    common_args = 9;
-	char  *pv = NULL; 
+	CAPTURED char *pv = NULL;
 
 	par->cp_local_addr = NULL;
 	par->cp_ha_addr    = NULL;
