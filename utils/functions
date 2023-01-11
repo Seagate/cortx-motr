@@ -107,18 +107,22 @@ check_and_restart_lnet() {
     local lustre_rpm
     local result="false"
 
-    lustre_rpm=$(rpm -qa | grep -w lustre)
-    if [[ ! -z "$lustre_rpm" && -f $M0_SRC_DIR/m0tr.ko ]]; then
-        if [[ $(is_lnet_available) == "false" ]]; then
-            modprobe lnet
-            lctl network up >/dev/null
-            systemctl restart lnet
-            if [[ $(is_lnet_available) == "true" ]]; then
-                result="true"
-            fi
-        else
-            result="true"
-        fi
+    if [ x$(uname -s) == "xLinux"  ] ;then
+       lustre_rpm=$(rpm -qa | grep -w lustre)
+       if [[ ! -z "$lustre_rpm" && -f $M0_SRC_DIR/m0tr.ko ]]; then
+           if [[ $(is_lnet_available) == "false" ]]; then
+               modprobe lnet
+               lctl network up >/dev/null
+               systemctl restart lnet
+               if [[ $(is_lnet_available) == "true" ]]; then
+                   result="true"
+               fi
+           else
+               result="true"
+           fi
+       fi
+    else
+        result="true"
     fi
     echo "$result"
 }
