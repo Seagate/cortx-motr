@@ -278,7 +278,7 @@ void m0_chan_exec_init(struct m0_chan_exec *ce, struct m0_sm_op *top)
 	m0_sm_op_exec_init(&ce->ce_ceo);
 	ce->ce_ceo.oe_vec = &chan_exec_ops;
 	m0_clink_init(&ce->ce_clink, top != NULL ? &chan_cb : NULL);
-	ce->ce_clink.cl_is_oneshot = top != NULL;
+	ce->ce_clink.cl_flags = top != NULL ? M0_CF_ONESHOT : 0;
 	ce->ce_top = top;
 }
 
@@ -374,7 +374,7 @@ void m0_ast_exec_init(struct m0_ast_exec *ae, struct m0_sm_op *top,
 {
 	m0_sm_op_exec_init(&ae->ae_ceo);
 	m0_clink_init(&ae->ae_clink, &ast_exec_chan_cb);
-	ae->ae_clink.cl_is_oneshot = true;
+	ae->ae_clink.cl_flags = M0_CF_ONESHOT;
 	ae->ae_ceo.oe_vec = &ast_exec_ops;
 	ae->ae_ast.sa_cb = &ast_exec_cb;
 	ae->ae_grp = grp;

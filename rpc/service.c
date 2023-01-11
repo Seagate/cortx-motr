@@ -246,7 +246,6 @@ m0_rpc_service_reverse_session_put(struct m0_rpc_session *sess, bool disc)
 		m0_clink_init(&revc->rcf_disc_wait,
 			      disc ? &rev_conn_disconnected_cb : NULL);
 		revc->rcf_disc_wait.cl_flags |= M0_CF_ONESHOT;
-		revc->rcf_disc_wait.cl_is_oneshot = true;
 		m0_rpc_link_disconnect_async(&revc->rcf_rlink,
 				m0_time_from_now(M0_REV_CONN_TIMEOUT, 0),
 				&revc->rcf_disc_wait);

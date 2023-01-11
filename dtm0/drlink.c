@@ -430,7 +430,7 @@ static void co_rlink_do(struct m0_co_context *context,
 
 	M0_SET0(&F(dc));
 	m0_clink_init(&F(dc).dc_clink, rlink_cd_cb);
-	F(dc).dc_clink.cl_is_oneshot = true;
+	F(dc).dc_clink.cl_flags |= M0_CF_ONESHOT;
 	m0_co_op_init(&F(dc).dc_op);
 	m0_co_op_active(&F(dc).dc_op);
 
