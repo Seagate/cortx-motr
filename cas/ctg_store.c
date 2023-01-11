@@ -285,7 +285,7 @@ static int ctg_vbuf_unpack(struct m0_buf *buf, struct m0_crv *crv)
 
 	if (buf->b_nob < sizeof(*value))
 		return M0_ERR_INFO(-EPROTO, "%" PRIu64 " < %" PRIu64,
-				   buf->b_nob, sizeof(*value));
+				   buf->b_nob, (uint64_t)sizeof(*value));
 	if (value->gv_length != buf->b_nob - sizeof(*value))
 		return M0_ERR(-EPROTO);
 
