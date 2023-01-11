@@ -404,6 +404,7 @@ void m0_net_test_client_server_bulk_ut(void)
 }
 void m0_net_test_xprt_dynamic_reg_dereg_ut(void)
 {
+#if defined(M0_LINUX)
 	M0_LOG(M0_DEBUG, "Before mem fini\n");
 	m0_net_print_xprt();
 	M0_ASSERT(m0_net_check_xprt(&m0_net_bulk_mem_xprt) != 0);
@@ -425,7 +426,7 @@ void m0_net_test_xprt_dynamic_reg_dereg_ut(void)
 	M0_ASSERT(m0_net_check_xprt(&m0_net_lnet_xprt) != 0);
 	M0_LOG(M0_DEBUG, "After Lnet init\n");
 	m0_net_print_xprt();
-
+#endif
 }
 
 #undef NET_TEST_MODULE_NAME
