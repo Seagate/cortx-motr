@@ -90,8 +90,6 @@ struct m0_be_0type m0_dtm0_log0 = {
 	.b0_fini = &dtm0_log0_fini,
 };
 
-static m0_bcount_t dtm0_log_transactions_ksize(const void *key);
-static m0_bcount_t dtm0_log_transactions_vsize(const void *key);
 static int dtm0_log_transactions_compare(const void *key0, const void *key1);
 
 M0_BE_LIST_DESCR_DEFINE(dtm0_log_all_p, "dtm0_log_data::dtld_all_p",
@@ -257,16 +255,6 @@ static int dtm0_log0_init(struct m0_be_domain *dom, const char *suffix,
 static void dtm0_log0_fini(struct m0_be_domain *dom, const char *suffix,
                            const struct m0_buf *data)
 {
-}
-
-static inline m0_bcount_t dtm0_log_transactions_ksize(const void *key)
-{
-	return sizeof ((struct dtm0_log_record *)NULL)->lr_descriptor.dtd_id;
-}
-
-static inline m0_bcount_t dtm0_log_transactions_vsize(const void *value)
-{
-	return sizeof(struct dtm0_log_record *);
 }
 
 static int dtm0_log_transactions_compare(const void *key0, const void *key1)
