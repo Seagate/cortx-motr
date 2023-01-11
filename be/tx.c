@@ -93,7 +93,7 @@ static void be_tx_state_move_ast(struct m0_be_tx *tx,
 
 static void be_tx_ast_cb(struct m0_sm_group *sm_group, struct m0_sm_ast *ast)
 {
-	enum m0_be_tx_state state = (enum m0_be_tx_state)ast->sa_datum;
+	enum m0_be_tx_state state = (long)ast->sa_datum;
 	struct m0_be_tx    *tx    = ((void *)ast) - be_tx_ast_offset[state];
 
 	M0_PRE(IS_IN_ARRAY(state, be_tx_ast_offset));
