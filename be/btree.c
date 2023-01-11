@@ -10060,6 +10060,53 @@ static void ut_multi_stream_kv_oper(void)
 	btree_ut_fini();
 }
 
+#if defined(M0_DARWIN)
+/* random_r emulation. */
+struct random_data {;};
+static int random_r(struct random_data *buf, int32_t *result)
+{
+	*result = random();
+	return 0;
+}
+
+static int srandom_r(unsigned int seed, struct random_data *buf)
+{
+	srandom(seed);
+	return 0;
+}
+
+static int initstate_r(unsigned int seed, char *statebuf,
+		       size_t statelen, struct random_data *buf)
+{
+	initstate(seed, statebuf, statelen);
+	return 0;
+}
+
+#include <sys/types.h>
+#include <sys/sysctl.h>
+
+/* Memory size*/
+static uint64_t memsize(void)
+{
+	int     mib[] = { CTL_HW, HW_MEMSIZE };
+	int64_t mem;
+	size_t  len   = sizeof mem;
+	int     rc;
+
+	rc = sysctl(mib, ARRAY_SIZE(mib), &mem, &len, NULL, 0);
+	M0_ASSERT(rc == 0);
+	return mem;
+}
+
+#else /* M0_DARWIN */
+
+static uint64_t memsize(void)
+{
+	return sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
+}
+
+#endif /* M0_DARWIN */
+
 struct btree_ut_thread_info {
 	struct m0_thread      ti_q;           /** Used for thread operations. */
 	struct m0_bitmap      ti_cpu_map;     /** CPU map to run this thread. */
@@ -12481,7 +12528,7 @@ static void ut_lru_test(void)
 	btree_ut_init();
 
 start_lru_test:
-	mem_init = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
+	mem_init = memsize();
 	M0_LOG(M0_INFO,"Mem Init (%"PRId64").\n",mem_init);
 
 	M0_ASSERT(rnode_sz != 0 && m0_is_po2(rnode_sz));
@@ -12543,7 +12590,7 @@ start_lru_test:
 		m0_be_tx_fini(tx);
 	}
 
-	mem_after_alloc = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
+	mem_after_alloc = memsize();
 	mem_increased   = mem_init - mem_after_alloc;
 	if (mem_increased < 0) {
 		restart_test = true;
@@ -12571,7 +12618,7 @@ start_lru_test:
 	M0_ASSERT(ndlist_tlist_length(&btree_lru_nds) > 0);
 
 	mem_freed      = m0_btree_lrulist_purge(mem_increased/2, 0);
-	mem_after_free = sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE);
+	mem_after_free = memsize();
 	M0_LOG(M0_INFO, "Mem After Free (%"PRId64") || Mem freed (%"PRId64").\n",
 			 mem_after_free, mem_freed);
 
@@ -13560,9 +13607,6 @@ static int ut_btree_suite_init(void)
 	m0_be_ut_backend_init(ut_be);
 	m0_be_ut_seg_init(ut_seg, ut_be, BE_UT_SEG_SIZE);
 	seg = ut_seg->bus_seg;
-
-	g_process_fid = g_process_fid;
-
 	M0_LEAVE();
 	return 0;
 }
