@@ -209,8 +209,8 @@ static void rev_conn_free(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ENTRY("revc=%p", revc);
 	m0_rpc_link_fini(&revc->rcf_rlink);
 	rev_conn_tlink_del_fini(revc);
-	m0_free(revc);
 	M0_LEAVE("revc=%p", revc);
+	m0_free(revc);
 }
 
 static bool rev_conn_disconnected_cb(struct m0_clink *link)
