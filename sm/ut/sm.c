@@ -924,7 +924,7 @@ struct opfom {
 	struct m0_fom_exec of_fe;
 };
 
-static int optick(struct m0_fom *fom, struct opfom *of, int *__unused)
+static int optick(struct m0_fom *fom, struct opfom *of, int *unused)
 {
 	struct pc_op       *pc = &of->of_pc;
 	struct m0_fom_exec *fe = &of->of_fe;
@@ -950,7 +950,7 @@ static int optick(struct m0_fom *fom, struct opfom *of, int *__unused)
 	}
 }
 
-static int loc_done(void *__unused)
+static int loc_done(void *unused)
 {
 	queue_lock_fini();
 	return 0;
