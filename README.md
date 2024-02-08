@@ -1,6 +1,8 @@
+
+# Disclaimer: This project is not maintained anymore
+
 # Motr
 
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/f7315809a4a04ccd9c53124ea1f4cce5)](https://www.codacy.com/gh/Seagate/cortx-motr/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Seagate/cortx-motr&amp;utm_campaign=Badge_Grade)
 [![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Seagate/cortx/blob/main/LICENSE)
 [![Slack](https://img.shields.io/badge/chat-on%20Slack-blue")](https://cortx.link/join-slack)
 [![YouTube](https://img.shields.io/badge/Video-YouTube-red)](https://cortx.link/videos)
